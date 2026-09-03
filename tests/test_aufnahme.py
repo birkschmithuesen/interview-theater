@@ -1,0 +1,322 @@
+"""Aufgabe 8: Aufnahme-Pipeline, Nachhol-Arbeiter, Whisper-Ausfall
+(SPEC-kontext-architektur.md § 10).
+
+Attrappen statt Netzzugriff: TelegramAttrappe ersetzt theatersoap.telegram.Telegram,
+LLMAttrappe ersetzt theatersoap.llm.LLM (wie in test_verdichter.py), stt_attrappe/
+stt_kaputt bauen einen httpx.Client mit MockTransport, der genau wie ein echter
+Whisper-Endpunkt antwortet (wie in test_stt.py) -- so laeuft der echte
+theatersoap.stt.transkribiere() in den Tests, nur ohne Netz.
+"""
+
+import json
+from datetime import datetime, timedelta, timezone
+
+import httpx
+import pytest
+
+from theatersoap import aufnahme, db, einstellungen, repo, verdichter
+
+TRANSKRIPT = (
+    "Wir haben letzte Woche ueber das Buehnenbild gesprochen. Ich erinnere mich, "
+    "wie wir als Kinder auf dem Hof Theater gespielt haben, mit Bettlaken als "
+    "Vorhang. Meine Grossmutter hat immer zugeschaut und geklatscht."
+)
+
+
+@pytest.fixture
+def einst(tmp_path):
+    return einstellungen.Einstellungen(
+        bot_token="T", bot_name="gruppe1", db_pfad=str(tmp_path / "t.db"),
+        audio_verz=str(tmp_path / "audio"),
+        llm_url="https://llm.test/v1/chat/completions", llm_key="K", llm_modell="kimi",
+        stt_basis="https://stt.test", stt_produkt="PRODUKT-ID",
+    )
+
+
+@pytest.fixture
+def conn(tmp_path):
+    c = db.verbinde(str(tmp_path / "t.db"))
+    db.initialisiere(c)
+    repo.sichere_gruppe(c, 1, "gruppe1", "Testgruppe")
+    return c
+
+
+class TelegramAttrappe:
+    """Ersetzt theatersoap.telegram.Telegram: kein Netzzugriff, zeichnet auf."""
+
+    def __init__(self):
+        self.gesendet = []       # Liste von (chat_id, text)
+        self.getippt = []        # Liste von chat_id
+        self.heruntergeladen = []  # Liste von (file_id, ziel)
+        self._letzte_message_id = 9000
+
+    def sende(self, chat_id, text):
+        self.gesendet.append((chat_id, text))
+        self._letzte_message_id += 1
+        return self._letzte_message_id
+
+    def tippt(self, chat_id):
+        self.getippt.append(chat_id)
+
+    def lade_datei(self, file_id, ziel):
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        ziel.write_bytes(b"OggS-fingierte-audiodaten")
+        self.heruntergeladen.append((file_id, ziel))
+
+
+@pytest.fixture
+def tg():
+    return TelegramAttrappe()
+
+
+class LLMAttrappe:
+    """Ersetzt theatersoap.llm.LLM: liefert immer dieselbe gueltige Antwort."""
+
+    def __init__(self, antwort=None):
+        self._antwort = antwort or {
+            "zusammenfassung": "Eine Erinnerung an Theaterspiele im Kindesalter.",
+            "kernthemen": [
+                {"thema": "Kindheit", "beleg_zitat": "wie wir als Kinder auf dem Hof Theater gespielt haben"},
+            ],
+        }
+        self.aufrufe = 0
+
+    def schema(self, chat_id, system, nutzer, schema, art):
+        self.aufrufe += 1
+        return self._antwort
+
+
+@pytest.fixture
+def klm():
+    return LLMAttrappe()
+
+
+def _stt_klient(handler) -> httpx.Client:
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def stt_attrappe(text: str) -> httpx.Client:
+    """Ein STT-Klient, der wie ein funktionierender Whisper-Endpunkt antwortet:
+    Upload liefert eine batch_id, die erste Ergebnisabfrage ist schon fertig."""
+
+    def handler(request):
+        if "audio/transcriptions" in request.url.path:
+            return httpx.Response(200, json={"batch_id": "B1"})
+        return httpx.Response(200, json={
+            "status": "success", "data": json.dumps({"text": text}),
+        })
+
+    return _stt_klient(handler)
+
+
+def stt_kaputt() -> httpx.Client:
+    """Ein STT-Klient, der jeden Upload sofort ablehnt (HTTP 400 -- kein
+    Serverfehler, also kein Wiederholungsversuch in stt.absenden). Zwei
+    Versuche (theatersoap.stt.transkribiere wiederholt genau einmal) scheitern
+    beide sofort, ganz ohne time.sleep -- die Tests bleiben schnell."""
+
+    def handler(request):
+        return httpx.Response(400, json={"error": "kaputt"})
+
+    return _stt_klient(handler)
+
+
+def sprachnachricht(dauer, message_id=10, chat_id=1, file_id="FILE1", absender="Ada",
+                     gesendet_am=None) -> dict:
+    """Baut ein normalisiertes Nachrichten-Dictionary wie telegram.lies_nachricht()
+    es fuer eine Sprachnachricht liefern wuerde."""
+    return {
+        "chat_id": chat_id,
+        "chat_titel": "Testgruppe",
+        "message_id": message_id,
+        "absender": absender,
+        "typ": "sprache",
+        "text": None,
+        "file_id": file_id,
+        "dauer": dauer,
+        "gesendet_am": gesendet_am or datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "antwortet_auf_bot": False,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Die neun wichtigsten Tests aus dem Auftrag
+# ---------------------------------------------------------------------------
+
+def test_klasse_nach_dauer():
+    assert aufnahme.klasse_fuer(7) == "kurz"
+    assert aufnahme.klasse_fuer(45) == "kurz"
+    assert aufnahme.klasse_fuer(46) == "lang"
+    assert aufnahme.klasse_fuer(None) == "lang"   # im Zweifel Material
+
+
+def test_datei_ist_gespeichert_bevor_whisper_gefragt_wird(conn, einst, tg):
+    """Die eigentliche Absicherung (SPEC 10.2)."""
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=120))
+    zeile = repo.hole_aufnahme(conn, aid)
+    assert zeile["status"] == "empfangen"
+    from pathlib import Path
+    assert Path(zeile["audio_pfad"]).exists()
+    # empfange() hat Whisper nie angefasst - es gibt keinen STT-Klienten im Aufruf
+
+
+def test_lang_bekommt_empfangsbestaetigung_kurz_nicht(conn, einst, tg):
+    aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300))
+    assert any("hoere durch" in t for _, t in tg.gesendet)
+    tg.gesendet.clear()
+    aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=11))
+    assert tg.gesendet == [], "ein Siebensekuender bekommt keine Bestaetigung"
+
+
+def test_kurz_landet_als_nachricht_im_verlauf(conn, einst, tg, klm):
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("Mach mal lauter"), aid)
+    zeile = conn.execute("SELECT * FROM nachricht WHERE typ='text' AND ist_bot=0 "
+                         "ORDER BY message_id DESC").fetchone()
+    assert zeile["text"] == "Mach mal lauter"
+    assert repo.hole_aufnahme(conn, aid)["status"] == "fertig"
+    assert repo.verdichtungen(conn, 1) == [], "kurz wird nicht verdichtet"
+
+
+def test_lang_wird_verdichtet(conn, einst, tg, klm):
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(TRANSKRIPT), aid)
+    assert len(repo.verdichtungen(conn, 1)) == 1
+
+
+def test_zeitbudget_ueberschritten_meldet_der_gruppe(conn, einst, tg, klm):
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
+    assert repo.hole_aufnahme(conn, aid)["status"] in ("empfangen", "fehlgeschlagen")
+    assert any("nochmal" in t for _, t in tg.gesendet)
+
+
+def test_whisper_ausfall_wird_genau_einmal_gemeldet(conn, einst, tg, klm):
+    for i in range(3):
+        aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=20 + i))
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
+    meldungen = [t for _, t in tg.gesendet if "nicht hoeren" in t]
+    assert len(meldungen) == 1, "nicht bei jeder Nachricht wiederholen"
+
+
+def test_rueckkehr_wird_gemeldet(conn, einst, tg, klm):
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
+    aid2 = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=30))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("da"), aid2)
+    assert any("wieder hoeren" in t for _, t in tg.gesendet)
+    assert repo.hole_gruppe(conn, 1)["whisper_stumm_seit"] is None
+
+
+def test_nachholen_greift_empfangene_auf_und_loest_keine_antwort_aus(conn, einst, tg, klm):
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
+    aufnahme.nachholen(conn, tg, klm, einst, stt_attrappe("nachgeholt"))
+    zeile = conn.execute("SELECT * FROM nachricht WHERE text='nachgeholt'").fetchone()
+    assert zeile["unterdrueckt"] == 1, "Nachgeholtes loest nie eine Antwort aus"
+
+
+def test_textimport_erzeugt_material_wie_eine_aufnahme(conn, einst, klm):
+    aid = aufnahme.importiere_text(conn, einst, 1, 40, TRANSKRIPT, name="Recherche")
+    zeile = repo.hole_aufnahme(conn, aid)
+    assert zeile["quelle"] == "text" and zeile["status"] == "transkribiert"
+    verdichter.verdichte(klm, conn, einst, aid)
+    assert len(repo.verdichtungen(conn, 1)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Zusaetzliche Tests fuer die sechs Punkte, die der Auftrag nicht vollstaendig
+# ausfuehrt.
+# ---------------------------------------------------------------------------
+
+def test_konstanten_haben_die_gemessenen_werte():
+    """Auftragshinweis 5: alle sieben Konstanten an genau einer Stelle, mit den
+    Werten aus der Messung vom 03.09.2026."""
+    assert aufnahme.KURZ_GRENZE_S == 45
+    assert aufnahme.TIPPANZEIGE_AB_S == 5
+    assert aufnahme.MELDUNG_AB_S == 12
+    assert aufnahme.BUDGET_KURZ_S == 45
+    assert aufnahme.BUDGET_LANG_S == 90
+    assert aufnahme.NACHHOL_INTERVALL_S == 60
+    assert aufnahme.MAX_VERSUCHE == 5
+
+
+def test_junge_kurze_aufnahme_loest_gespraechszug_aus_alte_nicht(conn, einst, tg, klm):
+    """Auftragshinweis 1: nur eine zum Zeitpunkt des fertigen Transkripts unter
+    15 Minuten alte Nachricht darf unterdrueckt=0 werden und den (hier per
+    Parameter hereingereichten) Gespraechszug ausloesen."""
+    aufgerufen = []
+
+    def zug(conn, tg, klm, e, chat_id):
+        aufgerufen.append(chat_id)
+
+    n_jung = sprachnachricht(dauer=7, message_id=50)
+    aid_jung = aufnahme.empfange(conn, tg, einst, n_jung)
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("frisch"), aid_jung, zug=zug)
+    zeile_jung = conn.execute("SELECT * FROM nachricht WHERE message_id=50").fetchone()
+    assert zeile_jung["unterdrueckt"] == 0
+    assert aufgerufen == [1]
+
+    alt = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat(timespec="seconds")
+    n_alt = sprachnachricht(dauer=7, message_id=51, gesendet_am=alt)
+    aid_alt = aufnahme.empfange(conn, tg, einst, n_alt)
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("spaet"), aid_alt, zug=zug)
+    zeile_alt = conn.execute("SELECT * FROM nachricht WHERE message_id=51").fetchone()
+    assert zeile_alt["unterdrueckt"] == 1
+    assert aufgerufen == [1], "die alte Nachricht darf keinen zweiten Zug ausloesen"
+
+
+def test_transkript_aktualisiert_bestehende_zeile_ohne_duplikat(conn, einst, tg, klm):
+    """Auftragshinweis 2: UPDATE der vorhandenen Zeile, keine zweite Zeile."""
+    n = sprachnachricht(dauer=7, message_id=60)
+    aid = aufnahme.empfange(conn, tg, einst, n)
+    vorher = conn.execute("SELECT count(*) FROM nachricht WHERE chat_id=1").fetchone()[0]
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("Text da"), aid)
+    nachher = conn.execute("SELECT count(*) FROM nachricht WHERE chat_id=1").fetchone()[0]
+    assert nachher == vorher, "Transkript aktualisiert die vorhandene Zeile statt eine neue anzulegen"
+
+
+def test_nachholen_beruecksichtigt_nur_aufnahmen_des_eigenen_bots(conn, einst):
+    """Auftragshinweis 3 (gewaehlte Loesung): offene_aufnahmen_fuer_bot()
+    filtert nach gruppe.bot_name, damit zwei Prozesse auf derselben SQLite-
+    Datei sich nicht gegenseitig die Aufnahmen der jeweils anderen Gruppe
+    stehlen und doppelt zu Whisper hochladen."""
+    repo.sichere_gruppe(conn, 2, "gruppe2", "Andere Gruppe")
+    a_eigen = repo.lege_aufnahme_an(conn, 1, 900, "kurz", "sprache", audio_pfad="a.ogg", dauer=7)
+    repo.lege_aufnahme_an(conn, 2, 901, "kurz", "sprache", audio_pfad="b.ogg", dauer=7)
+
+    ids = {z["id"] for z in repo.offene_aufnahmen_fuer_bot(conn, "gruppe1")}
+    assert ids == {a_eigen}
+
+
+def test_nach_max_versuchen_gilt_die_aufnahme_als_fehlgeschlagen(conn, einst, tg, klm):
+    """Auftragshinweis (SPEC § 10.3): nach MAX_VERSUCHE erfolglosen Anlaeufen
+    wird eine Aufnahme fehlgeschlagen, statt bis Sonntagabend im Kreis zu laufen."""
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=70))
+    for _ in range(aufnahme.MAX_VERSUCHE):
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
+    zeile = repo.hole_aufnahme(conn, aid)
+    assert zeile["status"] == "fehlgeschlagen"
+    assert zeile["versuche"] == aufnahme.MAX_VERSUCHE
+
+
+def test_verdichtung_scheitert_aufnahme_bleibt_transkribiert_fuer_nachhol_arbeiter(conn, einst, tg):
+    """Schlaegt die Verdichtung fehl, bleibt das schon vorhandene Transkript
+    erhalten (status='transkribiert') -- der Nachhol-Arbeiter darf es beim
+    naechsten Anlauf direkt weiterverdichten, ohne ein zweites Mal Whisper zu
+    fragen."""
+
+    class KaputtesLLM:
+        def schema(self, chat_id, system, nutzer, schema, art):
+            raise RuntimeError("Sprachmodell nicht erreichbar")
+
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=80))
+    aufnahme.verarbeite(conn, tg, KaputtesLLM(), einst, stt_attrappe(TRANSKRIPT), aid)
+    zeile = repo.hole_aufnahme(conn, aid)
+    assert zeile["status"] == "transkribiert"
+    assert zeile["transkript"] == TRANSKRIPT
+    assert repo.verdichtungen(conn, 1) == []
+
+    aufnahme.verarbeite(conn, tg, LLMAttrappe(), einst, stt_kaputt(), aid)
+    assert repo.hole_aufnahme(conn, aid)["status"] == "fertig"
+    assert len(repo.verdichtungen(conn, 1)) == 1

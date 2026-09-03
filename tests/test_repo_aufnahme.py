@@ -57,12 +57,18 @@ def test_setze_status_und_fehlertext(conn):
     assert zeile["fehlertext"] == "Whisper nicht erreichbar"
 
 
-def test_setze_status_ohne_fehlertext_loescht_ihn_nicht_versehentlich(conn):
+def test_setze_status_ohne_fehlertext_ueberschreibt_vorhandenen_fehlertext(conn):
+    """Der urspruengliche Testname behauptete einen Schutz vor versehentlichem
+    Loeschen, den setze_status gar nicht bietet: der Parameter fehlertext wird
+    IMMER geschrieben (Vorgabe None), es gibt keine Sonderbehandlung, die einen
+    vorhandenen Fehlertext beim naechsten Statuswechsel erhaelt. Dieser Test
+    belegt das tatsaechliche Verhalten statt eines nie geprueften Anspruchs."""
     aid = repo.lege_aufnahme_an(conn, 1, 301, "kurz", "sprache")
+    repo.setze_status(conn, aid, "fehlgeschlagen", fehlertext="Whisper nicht erreichbar")
     repo.setze_status(conn, aid, "transkribiert")
     zeile = repo.hole_aufnahme(conn, aid)
     assert zeile["status"] == "transkribiert"
-    assert zeile["fehlertext"] is None
+    assert zeile["fehlertext"] is None, "fehlertext wird ohne Angabe auf None ueberschrieben"
 
 
 def test_setze_transkript(conn):

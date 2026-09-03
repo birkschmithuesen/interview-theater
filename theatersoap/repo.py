@@ -309,6 +309,77 @@ def transkripte(
     return [z for z in zeilen if z["name"] and gesucht in z["name"].lower()]
 
 
+def hole_nachricht(conn: sqlite3.Connection, chat_id: int, message_id: int) -> sqlite3.Row | None:
+    """Liefert eine einzelne Nachrichtenzeile oder None (Aufgabe 8: die
+    Aufnahme-Pipeline braucht gesendet_am der urspruenglichen Sprachnachricht,
+    um zu entscheiden, ob ein fertiges Transkript noch jung genug ist, um
+    einen Gespraechszug auszuloesen)."""
+    return conn.execute(
+        "SELECT * FROM nachricht WHERE chat_id = ? AND message_id = ?",
+        (chat_id, message_id),
+    ).fetchone()
+
+
+def aktualisiere_transkribierte_nachricht(
+    conn: sqlite3.Connection, chat_id: int, message_id: int, text: str, unterdrueckt: int
+) -> None:
+    """Verwandelt die schon vorhandene Sprachnachricht-Zeile (typ='sprache',
+    text=NULL) in eine Textnachricht -- per UPDATE, nicht per INSERT, damit im
+    Verlauf keine zweite Zeile fuer dieselbe Aeusserung entsteht und die
+    Reihenfolge erhalten bleibt (Aufgabe 8, SPEC-kontext-architektur.md
+    § 10.2). ``unterdrueckt`` entscheidet der Aufrufer (Nachtstau-Regel bzw.
+    Nachgeholtes loest nie eine Antwort aus)."""
+    conn.execute(
+        "UPDATE nachricht SET text = ?, typ = 'text', unterdrueckt = ? "
+        "WHERE chat_id = ? AND message_id = ?",
+        (text, unterdrueckt, chat_id, message_id),
+    )
+    conn.commit()
+
+
+def zaehle_versuch_hoch(conn: sqlite3.Connection, aufnahme_id: int) -> int:
+    """Erhoeht aufnahme.versuche um eins und liefert den neuen Stand (Aufgabe 8,
+    Grundlage fuer MAX_VERSUCHE: nach wiederholten Fehlschlaegen soll eine
+    Aufnahme irgendwann 'fehlgeschlagen' werden, statt bis Sonntagabend im
+    Kreis zu laufen)."""
+    conn.execute(
+        "UPDATE aufnahme SET versuche = versuche + 1 WHERE id = ?", (aufnahme_id,)
+    )
+    conn.commit()
+    return conn.execute(
+        "SELECT versuche FROM aufnahme WHERE id = ?", (aufnahme_id,)
+    ).fetchone()["versuche"]
+
+
+def setze_whisper_stumm_seit(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
+    """Setzt oder leert gruppe.whisper_stumm_seit (Aufgabe 8, SPEC § 10.4):
+    gesetzt bedeutet, der einmalige Ausfall-Hinweis wurde schon geschickt und
+    weitere Fehlschlaege bleiben still, bis die Rueckkehr gemeldet wird."""
+    conn.execute(
+        "UPDATE gruppe SET whisper_stumm_seit = ? WHERE chat_id = ?", (wert, chat_id)
+    )
+    conn.commit()
+
+
+def offene_aufnahmen_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[sqlite3.Row]:
+    """Wie offene_aufnahmen(), aber auf die Gruppen eingeschraenkt, die dieser
+    Bot-Prozess bedient (gruppe.bot_name). Grundlage der Nebenlaeufigkeits-
+    Absicherung des Nachhol-Arbeiters (Aufgabe 8, Auftragshinweis 3): es laeuft
+    ein Prozess je Gruppe, alle auf derselben SQLite-Datei, und
+    offene_aufnahmen() filtert absichtlich nicht nach chat_id (Aufgabe 7).
+    Ohne diese Einschraenkung wuerden zwei Prozesse dieselbe Aufnahme
+    gleichzeitig zu Whisper hochladen."""
+    return conn.execute(
+        """
+        SELECT a.* FROM aufnahme a
+        JOIN gruppe g ON g.chat_id = a.chat_id
+        WHERE g.bot_name = ? AND a.status NOT IN ('fertig', 'fehlgeschlagen')
+        ORDER BY a.id ASC
+        """,
+        (bot_name,),
+    ).fetchall()
+
+
 def merke_aufruf(
     conn: sqlite3.Connection,
     chat_id: int | None,

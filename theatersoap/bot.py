@@ -1,22 +1,32 @@
 """Startroutine und Polling-Schleife (Aufgabe 4, SPEC-kontext-architektur.md § 9.1).
 
-Diese Erstfassung hoert zu und schreibt mit, antwortet aber noch nicht: die
-Aufnahme-Pipeline fuer Sprachnachrichten kommt in Aufgabe 8, der Gespraechszug
-in Aufgabe 10. Beide haengen sich an der Weiche in schleife() ein.
+Aufgabe 8 haengt die Aufnahme-Pipeline (Download, Transkription, Verdichtung)
+an der Weiche in schleife() ein: Sprachnachrichten laufen im
+ThreadPoolExecutor, ein Hintergrund-Thread ruft daneben periodisch den
+Nachhol-Arbeiter auf (§ 10.3). Der Gespraechszug (ablauf.py) kommt erst in
+Aufgabe 10 -- bis dahin bleibt an dieser Stelle die Log-Zeile stehen.
 """
 
 import logging
 import sqlite3
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from theatersoap import db, einstellungen, repo, telegram
+from theatersoap import aufnahme, db, einstellungen, repo, telegram
 from theatersoap.einstellungen import Einstellungen
+from theatersoap.llm import LLM
 from theatersoap.telegram import Telegram, TelegramFehler
 
 log = logging.getLogger(__name__)
+
+#: Anzahl gleichzeitiger Uploads/Transkriptionen. Gemessen (§ 11.3 Punkt 4):
+#: kein Rate-Limiting bei Whisper festgestellt, zehn gleichzeitige Uploads
+#: gingen alle durch -- der Thread-Pool darf grosszuegig parallel arbeiten.
+POOL_GROESSE = 8
 
 NACHTSTAU_MINUTEN = 15
 
@@ -75,7 +85,45 @@ def verarbeite_update(
     return nachricht
 
 
-def schleife(conn: sqlite3.Connection, e: Einstellungen, tg: Telegram) -> None:
+def _bearbeite_sprachnachricht(conn, tg, klm, e, stt_klient, nachricht: dict) -> None:
+    """Laeuft im ThreadPoolExecutor: Download und Transkription duerfen die
+    Polling-Schleife nie blockieren, sonst haengt die ganze Gruppe an einer
+    einzigen Sprachnachricht (SPEC § 10.2). Download (empfange) und
+    Transkription (verarbeite) laufen bewusst im selben Pool-Auftrag
+    nacheinander -- die eigentliche Absicherung ist, dass empfange() die Datei
+    sichert, bevor verarbeite() ueberhaupt Whisper fragt, nicht dass beide in
+    getrennten Auftraegen liefen."""
+    try:
+        aufnahme_id = aufnahme.empfange(conn, tg, e, nachricht)
+        aufnahme.verarbeite(conn, tg, klm, e, stt_klient, aufnahme_id)
+    except Exception:
+        log.exception(
+            "Aufnahme-Pipeline fehlgeschlagen: chat_id=%s message_id=%s",
+            nachricht["chat_id"], nachricht["message_id"],
+        )
+
+
+def _nachhol_schleife(stop: threading.Event, conn, e: Einstellungen, tg, klm, stt_klient) -> None:
+    """Ruft aufnahme.nachholen() beim Start und danach alle
+    aufnahme.NACHHOL_INTERVALL_S Sekunden auf (§ 10.3). Laeuft in einem
+    eigenen Daemon-Thread; eine Ausnahme darf ihn nie stoppen (global-
+    constraints.md 'Fehlerhaltung')."""
+    while not stop.is_set():
+        try:
+            aufnahme.nachholen(conn, tg, klm, e, stt_klient)
+        except Exception:
+            log.exception("Nachholen fehlgeschlagen")
+        stop.wait(aufnahme.NACHHOL_INTERVALL_S)
+
+
+def schleife(
+    conn: sqlite3.Connection,
+    e: Einstellungen,
+    tg: Telegram,
+    klm,
+    stt_klient,
+    pool: ThreadPoolExecutor,
+) -> None:
     """Long-Poll-Schleife. Laeuft, bis der Prozess beendet wird; eine einzelne
     kaputte Verarbeitung darf sie nie stoppen (global-constraints.md
     'Fehlerhaltung')."""
@@ -96,12 +144,10 @@ def schleife(conn: sqlite3.Connection, e: Einstellungen, tg: Telegram) -> None:
                 nachricht = verarbeite_update(conn, e, update, jetzt, beim_start)
                 if nachricht is not None:
                     if nachricht["typ"] == "sprache":
-                        # Weiche fuer Aufgabe 8: Aufnahme-Pipeline (Download,
-                        # Transkription) haengt sich hier ein.
-                        log.info(
-                            "Sprachnachricht empfangen (Aufnahme-Pipeline folgt in "
-                            "Aufgabe 8): chat_id=%s message_id=%s",
-                            nachricht["chat_id"], nachricht["message_id"],
+                        # Aufgabe 8: Download und Transkription duerfen die
+                        # Schleife nie blockieren, daher im Thread-Pool.
+                        pool.submit(
+                            _bearbeite_sprachnachricht, conn, tg, klm, e, stt_klient, nachricht,
                         )
                     else:
                         # Weiche fuer Aufgabe 10: Gespraechszug haengt sich hier ein.
@@ -124,7 +170,12 @@ def schleife(conn: sqlite3.Connection, e: Einstellungen, tg: Telegram) -> None:
 
 
 def main() -> None:
-    """Liest die Einstellungen, oeffnet die Datenbank und startet die Schleife."""
+    """Liest die Einstellungen, oeffnet die Datenbank und startet die Schleife.
+
+    Ein ThreadPoolExecutor bearbeitet Sprachnachrichten, ein Daemon-Thread
+    holt in festen Abstaenden nach, was liegen geblieben ist (Aufgabe 8,
+    § 10.3) -- inklusive eines Anlaufs sofort beim Start, der genau denselben
+    Weg nimmt wie die Nacht zwischen zwei Workshoptagen (§ 9.1 Schritt 3)."""
     logging.basicConfig(level=logging.INFO)
 
     e = einstellungen.laden()
@@ -133,8 +184,20 @@ def main() -> None:
 
     klient = httpx.Client(timeout=30.0)
     tg = Telegram(e.bot_token, klient)
+    klm = LLM(e, klient, conn)
 
-    schleife(conn, e, tg)
+    pool = ThreadPoolExecutor(max_workers=POOL_GROESSE)
+    stop = threading.Event()
+    nachhol_thread = threading.Thread(
+        target=_nachhol_schleife, args=(stop, conn, e, tg, klm, klient), daemon=True,
+    )
+    nachhol_thread.start()
+
+    try:
+        schleife(conn, e, tg, klm, klient, pool)
+    finally:
+        stop.set()
+        pool.shutdown(wait=False)
 
 
 if __name__ == "__main__":

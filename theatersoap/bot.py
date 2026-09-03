@@ -39,9 +39,11 @@ def verarbeite_update(
     wenn die Schleife noch etwas damit tun muss (Aufnahme-Pipeline oder
     Gespraechszug), sonst None.
 
-    None bedeutet: kein Nachrichtenupdate, Duplikat, oder Nachtstau. Eine
-    Sprachnachricht wird trotz unterdrueckt=1 zurueckgeliefert, weil sie noch
-    zur Aufnahme-Pipeline muss (Auftragshinweis 1)."""
+    None bedeutet: kein Nachrichtenupdate, Duplikat, oder Nachtstau bei einer
+    Nicht-Sprachnachricht. Eine Sprachnachricht wird auch bei Nachtstau trotz
+    unterdrueckt=1 zurueckgeliefert, weil sie noch zur Aufnahme-Pipeline muss
+    (Auftragshinweis 1) -- sonst verschwaende ein Interview, das ueber Nacht
+    eintrifft, spurlos."""
     nachricht = telegram.lies_nachricht(update)
     if nachricht is None:
         return None
@@ -63,9 +65,13 @@ def verarbeite_update(
     )
     if not neu:
         return None  # Duplikat (INSERT OR IGNORE hat nichts eingefuegt)
-    if nachtstau:
+    if nachtstau and nachricht["typ"] != "sprache":
         return None  # gespeichert, aber ueber Nacht aufgelaufen -- kein Zug
 
+    # Sprachnachrichten muessen die Pipeline auch bei Nachtstau erreichen: sonst
+    # wird die Audiodatei nie heruntergeladen, und der Nachhol-Arbeiter (§ 10.3)
+    # kann eine Zeile, die nie in 'aufnahme' entstand, nicht retten (SPEC § 9.1).
+    # unterdrueckt bleibt in diesem Fall trotzdem 1 -- es wird nur kein Zug daraus.
     return nachricht
 
 

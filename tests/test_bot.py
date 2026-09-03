@@ -61,15 +61,26 @@ def test_gruppe_wird_beim_ersten_update_angelegt(conn, einst):
     assert repo.hole_gruppe(conn, -100)["titel"] == "Gruppe 1"
 
 
-def test_sprachnachricht_wird_unterdrueckt_aber_zurueckgeliefert(conn, einst):
+def test_sprachnachricht_erreicht_pipeline_auch_bei_nachtstau(conn, einst):
     """Auftragshinweis 1: Sprache hat noch kein Transkript und darf deshalb keinen
-    Zug ausloesen -- ist aber kein Duplikat/Nachtstau, die Schleife muss sie an
-    die Aufnahme-Pipeline (Aufgabe 8) weiterreichen koennen."""
-    n = bot.verarbeite_update(conn, einst, bau_sprachupdate(4, 13, JETZT), JETZT, False)
-    zeile = conn.execute("SELECT * FROM nachricht WHERE message_id = 13").fetchone()
-    assert zeile["unterdrueckt"] == 1
-    assert n is not None
-    assert n["typ"] == "sprache"
+    Zug ausloesen -- das gilt unabhaengig vom Nachtstau. Die Audiodatei muss aber
+    in jedem Fall die Aufnahme-Pipeline (Aufgabe 8) erreichen, sonst verschwindet
+    ein Interview, das ueber Nacht eintrifft, spurlos (SPEC § 9.1: teuerster
+    Fehlerfall). Zum Gegenbeweis im selben Zug: eine ebenso alte Textnachricht
+    bleibt beim Nachtstau unterdrueckt UND liefert None -- nur Sprache ist die
+    Ausnahme von der Nachtstau-Rueckgabe."""
+    alt = JETZT - timedelta(hours=14)
+
+    n_sprache = bot.verarbeite_update(conn, einst, bau_sprachupdate(4, 13, alt), JETZT, True)
+    zeile_sprache = conn.execute("SELECT * FROM nachricht WHERE message_id = 13").fetchone()
+    assert zeile_sprache["unterdrueckt"] == 1
+    assert n_sprache is not None, "Sprachnachricht muss trotz Nachtstau die Pipeline erreichen"
+    assert n_sprache["typ"] == "sprache"
+
+    n_text = bot.verarbeite_update(conn, einst, bau_update(5, 14, "Idee", alt), JETZT, True)
+    zeile_text = conn.execute("SELECT * FROM nachricht WHERE message_id = 14").fetchone()
+    assert zeile_text["unterdrueckt"] == 1
+    assert n_text is None, "Textnachricht bleibt beim Nachtstau ohne Zug"
 
 
 def test_duplikat_liefert_none(conn, einst):

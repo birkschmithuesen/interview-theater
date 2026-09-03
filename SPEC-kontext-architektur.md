@@ -45,7 +45,7 @@ Sticker, Bot-Antworten, Bearbeitungen. Nicht unterstützte Typen werden als Zeil
 vermerkt und lösen nichts aus — sie dürfen unter keinen Umständen einen Absturz auslösen.
 
 **Datenschutz:** Die Teilnehmerinnen werden zu Beginn eingeführt, es gibt eine Löschzusage.
-Siehe § 8.3 zum Löschweg.
+Siehe § 9.3 zum Löschweg.
 
 ### 1.2 Antworten
 
@@ -90,7 +90,7 @@ Rückfragen gesetzt — nicht bei Fragen, die das Modell formuliert:
 | Rückfrage | Gesetzt bei |
 |---|---|
 | `interview_name` — „Wer wurde da interviewt?" | nach erfolgreicher Transkription |
-| `interviews_fertig` — „War das das letzte Interview?" | nach der n-ten Verdichtung (optional, § 9) |
+| `interviews_fertig` — „War das das letzte Interview?" | nach der n-ten Verdichtung (optional, § 10) |
 
 Regeln:
 
@@ -183,6 +183,7 @@ CREATE TABLE gruppe (
   letzte_extrahierte_message_id   INTEGER DEFAULT 0,
   -- Schalter
   wortlaut_modus                  TEXT,     -- NULL=aus, '*'=alle, sonst Interviewname
+  gruendlich_naechster_zug        INTEGER NOT NULL DEFAULT 0,  -- Modus B einmalig (§ 4.5)
   offene_rueckfrage               TEXT,     -- NULL | 'interview_name' | 'interviews_fertig'
   rueckfrage_kontext_id           INTEGER,  -- z.B. interview.id
   rueckfrage_gestellt_am          TEXT
@@ -230,7 +231,8 @@ CREATE TABLE verdichtung_thema (
   chat_id         INTEGER NOT NULL,
   verdichtung_id  INTEGER NOT NULL,
   thema           TEXT NOT NULL,
-  beleg_zitat     TEXT NOT NULL             -- wörtlich aus dem Transkript
+  beleg_zitat     TEXT,                     -- NULL, wenn Prüfung nach § 5 fehlschlug
+  zitat_geprueft  INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE arbeitsstand (
@@ -278,7 +280,8 @@ CREATE TABLE vorfall (
   id           INTEGER PRIMARY KEY,
   chat_id      INTEGER,                     -- NULL bei bot-weiten Vorfällen
   bot_name     TEXT,
-  art          TEXT NOT NULL,               -- kuerzung|fenster_verworfen|extraktor_fehler|…
+  art          TEXT NOT NULL,               -- kuerzung|fenster_verworfen|extraktor_fehler|
+                                            -- zitat_ungeprueft|http_5xx|abgeschnitten|…
   stufe        INTEGER,
   detail       TEXT,
   erstellt_am  TEXT NOT NULL
@@ -289,9 +292,11 @@ CREATE TABLE aufruf (
   id                     INTEGER PRIMARY KEY,
   chat_id                INTEGER,
   art                    TEXT NOT NULL,     -- gespraech|verdichter|extraktor
+  modus                  TEXT,              -- A|B
   geschaetzte_token      INTEGER,
   tatsaechliche_token    INTEGER,           -- usage.prompt_tokens
   antwort_token          INTEGER,
+  finish_reason          TEXT,
   dauer_ms               INTEGER,
   erfolg                 INTEGER,
   erstellt_am            TEXT NOT NULL
@@ -307,11 +312,46 @@ stehen außerhalb des Gesprächs. Nur einer ist qualitätskritisch.
 
 ### 4.1 Gesprächs-Prompt
 
-Der eine Zusammenbau. Freier Fließtext, **kein Schema**. Reasoning-Einstellung als
-Konfigurationsschalter (`GESPRAECH_REASONING`, Vorgabe `"low"`), abhängig vom Ausgang der
-laufenden Qualitätsmessung. Diese Architektur ist von deren Ergebnis unabhängig.
+**Entschieden nach Messung vom 03.09.2026: `GESPRAECH_REASONING = "none"`, erzwungenes Schema
+wo strukturierte Ergebnisse anfallen (Modus A).**
 
-Detaillierter Aufbau: § 5.
+Messaufbau: Kimi K2.6 über Infomaniak, erfundenes Interview-Transkript (~350 Wörter), Aufgabe
+„drei Hauptkonflikte mit Titel, Beschreibung und Belegzitat", je 3–4 Läufe.
+
+| | **Modus A** (Schema, `none`) | **Modus B** (Prosa, `medium`) |
+|---|---|---|
+| Valide Antworten | 3/3 | 4/4 |
+| Latenz | **4,5 s** | 33,8 s |
+| Belegzitate wörtlich | 7/9 (2/9 mit `[...]` gekürzt, **0/9 erfunden**) | 12/12 |
+| Gefundene Konfliktachsen | dieselben drei | dieselben drei |
+
+**Modus A ist nicht thematisch flacher.** Er findet dieselben Achsen und formuliert Titel und
+Beschreibungen, die den Konflikt als Konflikt fassen. Der Unterschied liegt nicht in der
+Substanz, sondern in drei Nebenpunkten:
+
+1. **Konsistenz über Läufe** — ein A-Lauf von dreien fiel in Zitatdisziplin und
+   Beschreibungstiefe ab.
+2. **Zitatgenauigkeit** — derselbe Lauf klebte mit `[...]` zwei weit auseinanderliegende
+   Interviewstellen zusammen.
+3. **Sprachliche Textur** — B formuliert relationaler, A analytischer.
+
+**Ausschlaggebend ist die Latenz.** 33,8 Sekunden wären im Gruppenchat keine Bedenkzeit,
+sondern eine Gesprächspause, in der drei Leute nachfragen, ob der Bot noch lebt — genau die
+Situation, gegen die § 1.3 gebaut ist. Gleiche Substanz bei 7,5-fachem Tempo entscheidet die
+Frage.
+
+**Der zweistufige Weg entfällt.** Erst freier Text, dann ein zweiter Aufruf zum
+In-Struktur-Gießen ist nicht nötig; A liefert beides in einem Aufruf.
+
+**Das einzige gemessene Risiko von A ist die Zitatdisziplin — und die wird serverseitig
+abgefangen (§ 5), nicht durch Modellvertrauen.** Punkt 1 und 3 der Abweichungsliste sind
+Nebenpunkte; Punkt 2 ist ein echtes Risiko, aber ein billig prüfbares.
+
+Freier Fließtext bleibt das Format der eigentlichen Chat-Antwort. Wo dabei dramaturgische
+Artefakte anfallen (Konflikte, Figuren, Kernthemen mit Zitat), werden sie im selben Aufruf
+über das Schema mitgeliefert und in den Arbeitsstand geschrieben.
+
+Detaillierter Kontext-Aufbau: § 6.
 
 ### 4.2 Verdichter
 
@@ -330,7 +370,8 @@ Erzwungenes Schema, `reasoning_effort: "none"`.
 **Belegzitate sind Pflicht, nicht Zierde.** Erstens sieht die Gruppe sofort, wenn das Modell
 etwas hineingelesen hat, was nicht da war. Zweitens braucht der Bot sie später ohnehin: ein
 Konfliktvorschlag mit Beleg ist Dramaturgie, einer ohne ist ein Automat. Der Prompt weist
-ausdrücklich an, nur wörtlich vorkommende Passagen zu zitieren.
+ausdrücklich an, nur wörtlich vorkommende Passagen zu zitieren; **jedes Zitat durchläuft
+zusätzlich die Prüfung nach § 5.**
 
 Das Ergebnis wird **nie aktualisiert.**
 
@@ -360,16 +401,18 @@ Erzwungenes Schema, `reasoning_effort: "none"`.
   trotzdem vorgerückt und das Fenster fallengelassen — plus **`vorfall`-Eintrag
   `fenster_verworfen`**, damit das Workshop-Team es im Dashboard sieht, ohne im Log zu graben.
 
-### 4.4 Defensives Parsen (beide Schema-Prompts)
+### 4.4 Defensives Parsen (alle Schema-Prompts)
 
-Gemessenes Verhalten von Kimi K2.6 (Vorprojekt `kollektivgedaechtnis`, `kg/llm.py`): valides
-JSON bei erzwungenem Schema nur mit `reasoning_effort: "none"` — ohne das Feld 0/5, mit
-`"low"` 0/8, mit `"none"` 8/8. Zwei Fehlerbilder trotz HTTP 200:
+Erste Messung (Vorprojekt `kollektivgedaechtnis`, `kg/llm.py`): valides JSON bei erzwungenem
+Schema nur mit `reasoning_effort: "none"` — ohne das Feld 0/5, mit `"low"` 0/8, mit `"none"`
+8/8. Zwei Fehlerbilder trotz HTTP 200:
 
 1. Inhalt beginnt mit `{{` statt `{`
 2. Text steht in `message.reasoning`, `content` ist `null`
 
-Der Parser fängt beides ab, in dieser Reihenfolge:
+**In der Messung vom 03.09.2026 trat `{{` in keinem einzigen der Aufrufe auf.** Die Reparatur
+bleibt trotzdem drin: sie kostet zwei Zeilen, und ein Fehlerbild, das man einmal gesehen hat,
+verschwindet nicht dadurch, dass es beim zweiten Messen ausblieb.
 
 ```
 inhalt = antwort.choices[0].message.content
@@ -382,11 +425,72 @@ if inhalt.startswith("{{"): inhalt = inhalt[1:]
 
 Schlägt es fehl: kein Eintrag, keine Meldung an die Gruppe, `vorfall`-Eintrag.
 
+### 4.5 Modus B als bewusste Eskalation
+
+Modus B (freier Prosatext, `reasoning_effort: "medium"`) bleibt verfügbar für die **wenigen
+Momente, in denen Tiefe vor Tempo geht** — Szenentext-Entwurf und finale Konfliktverdichtung.
+Dort ist B relationaler formuliert und in der Zitatdisziplin fehlerfrei (12/12), und eine
+halbe Minute Wartezeit ist vertretbar, wenn die Gruppe weiß, worauf sie wartet.
+
+- **Ausgelöst durch `/gruendlich`**, nicht durch Aufgabenerkennung — es gibt keinen
+  Klassifikator und keine Zustandsmaschine (§ 6.1). Der Bot darf den Befehl von sich aus
+  anbieten, wenn es um Szenentext geht.
+- **Einmalig, nicht klebrig.** Der Schalter gilt für den nächsten Zug und wird danach
+  zurückgesetzt. 34 Sekunden pro Zug wären als Dauerzustand quälend.
+- **Angekündigt.** Vor dem Aufruf eine kurze Zeile: „Ich nehme mir dafür mehr Zeit — das
+  dauert etwa eine halbe Minute." Ohne Ankündigung ist die Latenz ein Defekt, mit
+  Ankündigung eine Zusage.
+- **`max_tokens` ≥ 9.000 zwingend** (§ 11.3).
+- `aufruf.modus` hält fest, welcher Modus lief — damit im Dashboard sichtbar ist, ob
+  `/gruendlich` überhaupt genutzt wurde.
+
 ---
 
-## 5. Zusammenbau des Gesprächs-Prompts
+## 5. Belegzitat-Verifikation (Pflicht)
 
-### 5.1 Prinzip
+**Kein Belegzitat geht an die Gruppe, bevor es gegen das Transkript geprüft wurde.** Das gilt
+für den Verdichter (§ 4.2) und für jedes Zitat, das der Gesprächs-Prompt in einem Vorschlag
+mitliefert.
+
+Begründung: Die Messung zeigt, dass Modus A **nichts erfindet** (0/9 frei erfundene Zitate),
+aber **kürzt** (2/9 mit `[...]`) und in einem Lauf zwei weit auseinanderliegende Stellen
+zusammenklebte. Ein Zitat ist der Beleg, an dem die Gruppe die Behauptung prüft — ein
+ungenaues Zitat ist schlimmer als keins, weil es Prüfbarkeit vortäuscht. Die Prüfung ist ein
+Teilstring-Vergleich und kostet nichts.
+
+### 5.1 Verfahren
+
+1. **Normalisieren**, auf beiden Seiten gleich: Whitespace-Folgen zu einem Leerzeichen,
+   typografische Anführungszeichen (`„ " " ' ' »«`) auf gerade, Bindestrich-Varianten
+   vereinheitlichen, Groß-/Kleinschreibung beibehalten (sonst wird die Prüfung zu lasch).
+2. **Teilstring-Vergleich** gegen das normalisierte Transkript.
+3. **Bei `[...]`**: am Auslassungszeichen aufteilen und **jedes Segment einzeln** prüfen.
+   Segmente unter 15 Zeichen werden verworfen statt geprüft — kurze Fragmente treffen
+   zufällig.
+4. **Zusätzlich bei `[...]`**: die Segmente müssen im Transkript **in derselben Reihenfolge**
+   vorkommen und dürfen **höchstens 600 Zeichen** auseinanderliegen. Ohne diese Regel besteht
+   genau der gemessene Fehler die Prüfung — zwei je für sich wörtliche Segmente von weit
+   auseinanderliegenden Stellen, zu einer scheinbaren Aussage verschweißt.
+
+### 5.2 Verhalten bei Fehlschlag
+
+1. **Genau ein Retry** desselben Aufrufs, mit dem Hinweis im Prompt, dass wörtlich zitiert
+   werden muss und Auslassungen unzulässig sind.
+2. Schlägt auch der fehl: **Vorschlag ohne Zitat ausliefern, nicht den Vorschlag verwerfen.**
+   Die dramaturgische Substanz stimmt laut Messung auch dann; nur der Beleg fehlt. Ein
+   Vorschlag ohne Beleg ist schwächer als einer mit — aber gar kein Vorschlag hält die Gruppe
+   auf, und das ist die teurere Sorte Fehler.
+3. `verdichtung_thema.beleg_zitat = NULL`, `zitat_geprueft = 0`.
+4. **`vorfall`-Eintrag `zitat_ungeprueft`** mit dem verworfenen Zitat im Detailfeld. Das
+   Workshop-Team sieht im Dashboard, wo der Bot ohne Beleg unterwegs war.
+5. **Der Gruppe wird nichts gemeldet** (Leitsatz 5) — sie kann es nicht beheben und wartet
+   nicht darauf.
+
+---
+
+## 6. Zusammenbau des Gesprächs-Prompts
+
+### 6.1 Prinzip
 
 **Ein einziger Zusammenbau, datengetrieben statt aufgabengetrieben.** Jeder Block wird
 weggelassen, solange er leer ist. Am Samstagvormittag gibt es Begriffe und sonst nichts —
@@ -404,7 +508,7 @@ automatisch — es gibt keinen Zustand, der ihr widersprechen kann.
 byteweise identischen Präfix wiedererkennt. Hinten, weil das Modell dem Ende des Prompts das
 meiste Gewicht gibt. Beide Interessen zeigen in dieselbe Richtung.
 
-### 5.2 Blöcke und Budgets
+### 6.2 Blöcke und Budgets
 
 Zielgröße Normalfall **~10.000 Token**, Reißleine **20.000**. Weit unter Kimis Fenster — und
 genau darum funktioniert es.
@@ -425,7 +529,7 @@ Normalfall ohne `/wortlaut`: **~9.600 Token.** Mit: ~14.600.
 **Zu Block 3.** Volltranskripte lassen sich nicht datengetrieben schalten — sie existieren ab
 Samstagmittag dauerhaft, gebraucht werden sie nur beim Szenen-Feinschliff. Automatisch
 mitgenommen wären sie 5.000 Token Dauerlast, die bis Sonntag jede Antwort unschärfer macht.
-Deshalb der klebrige Schalter `/wortlaut` (§ 7). Die Systemanweisung sagt dem Bot, dass er
+Deshalb der klebrige Schalter `/wortlaut` (§ 8). Die Systemanweisung sagt dem Bot, dass er
 diesen Schalter kennt und von sich aus anbieten soll, wenn die Gruppe nach dem Originalton
 fragt.
 
@@ -449,22 +553,24 @@ mit Sprechername vorangestellt, Bot-Antworten eingeschlossen.
 ein String — der Bot begrüßt die Gruppe danach von selbst angemessen, ohne einprogrammiertes
 Begrüßungsverhalten. Fängt Mittagspause und Übernachtung gleichermaßen ab.
 
-### 5.3 Inhalt der Systemanweisung
+### 6.3 Inhalt der Systemanweisung
 
 Rolle (dramaturgischer Begleiter für Laienschauspielerinnen), Ton, die acht Workshop-Phasen
 **als Beschreibung, nicht als Zustand** (die Gruppe darf jederzeit abbiegen), sowie diese
 Regeln:
 
 - Nichts erfinden, was nicht im Material steht; Vorschläge nach Möglichkeit mit Belegzitat.
+- **Zitate strikt wörtlich, keine Auslassungen mit `[...]`** — sie werden serverseitig
+  geprüft (§ 5) und fliegen sonst raus.
 - Guidance ohne Bevormundung: anbieten, nicht vorschreiben.
-- Kennt `/wortlaut`, `/merken`, `/verworfen`, `/stand` und darf sie anbieten.
+- Kennt `/wortlaut`, `/merken`, `/verworfen`, `/stand`, `/gruendlich` und darf sie anbieten.
 - Weiß, dass Verdichtungen nicht nachträglich geändert werden.
 
 ---
 
-## 6. Token-Budget: Messung und Kürzung
+## 7. Token-Budget: Messung und Kürzung
 
-### 6.1 Messung
+### 7.1 Messung
 
 **Kein Tokenizer.** Zwei Tage vor dem Workshop keine Abhängigkeit, die sich für Kimi nicht
 sauber verifizieren lässt. Stattdessen **Zeichen ÷ 3**. Für deutsche Texte mit ihren langen
@@ -476,7 +582,7 @@ kürzen als zu spät.
 Samstagvormittag ist das echte Verhältnis bekannt und der Divisor anpassbar. Das Dashboard
 zeigt die Drift.
 
-### 6.2 Kürzungsleiter
+### 7.2 Kürzungsleiter
 
 Bei Überschreitung wird **hart gekürzt, still, nach fester Rangfolge** — von oben abgearbeitet,
 bis es passt:
@@ -500,9 +606,12 @@ hält den Workshop an und lässt das Werkzeug zerbrechlich wirken.
 Kürzen ab Stufe 3 verändert den Cache-Präfix und macht das Caching für diesen Aufruf wertlos.
 Das ist der richtige Preis: es passiert selten, und Schärfe schlägt Cache.
 
+**Nicht zu verwechseln mit `max_tokens`** (§ 11.3): Die Kürzungsleiter begrenzt die *Eingabe*,
+`max_tokens` bemisst die *Ausgabe*. Letzteres darf nie knapp gesetzt werden.
+
 ---
 
-## 7. Befehle
+## 8. Befehle
 
 | Befehl | Wirkung |
 |---|---|
@@ -511,6 +620,7 @@ Das ist der richtige Preis: es passiert selten, und Schärfe schlägt Cache.
 | `/wortlaut` | Volltranskripte **aller** Interviews an (klebrig) |
 | `/wortlaut <name>` | nur dieses Interview (klebrig) |
 | `/wortlaut aus` | aus |
+| `/gruendlich` | nächster Zug in Modus B (§ 4.5), einmalig, angekündigt |
 | `/stand` | Bot gibt den Arbeitsstand aus — **ohne LLM**, direkt aus der DB |
 | `/hilfe` | wie man den Bot anspricht, welche Befehle es gibt |
 
@@ -527,12 +637,12 @@ statt zu raten. Klebrig und in der DB, damit der Schalter den Neustart überlebt
 **Zu `/stand`:** Nach der Nacht besonders nützlich, und die Gruppe kann jederzeit prüfen, was
 der Bot für den aktuellen Stand hält. Kein LLM-Aufruf, kann nicht fehlschlagen.
 
-**Kein Löschbefehl im Chat.** Löschen ist ein Betreiberskript (§ 8.3), nicht etwas, das
+**Kein Löschbefehl im Chat.** Löschen ist ein Betreiberskript (§ 9.3), nicht etwas, das
 jemand versehentlich in die Gruppe tippt.
 
 ---
 
-## 8. Neustart und Betrieb
+## 9. Neustart und Betrieb
 
 Der Zustand des Bots wird **nirgends gehalten, sondern abgeleitet** — aus Verdichtungen,
 Arbeitsstand, Journal, Nachrichtenlog, Schaltern und Wasserzeichen. Ein frisch gestarteter
@@ -540,7 +650,7 @@ Prozess baut Sonntag 12:00 exakt denselben Prompt wie der alte um 18:00, weil de
 Funktion der DB ist und nicht des Prozesses. Das ist der Ertrag des datengetriebenen
 Zusammenbaus.
 
-### 8.1 Startroutine
+### 9.1 Startroutine
 
 1. **`bot_zustand.letzte_update_id` lesen**, Long Polling ab diesem Offset fortsetzen. Steht
    der Offset nur im RAM, wird nach dem Neustart entweder alles nochmal verarbeitet oder es
@@ -562,22 +672,22 @@ Zusammenbaus.
    her, eine kurze Zeile. Nach einem Absturz um 14:03 mit dreißig Sekunden Ausfall still
    weiterarbeiten — eine Meldung wäre nur Beunruhigung.
 
-### 8.2 Doppelverarbeitung
+### 9.2 Doppelverarbeitung
 
 `update_id` und `(chat_id, message_id)` als Primärschlüssel, `INSERT OR IGNORE`. Damit kann
 ein Absturz mitten in der Verarbeitung nichts doppelt einfügen, egal wie oft Telegram
 nachliefert. Eine Zeile Schema, die eine ganze Klasse von Rätseln verhindert.
 
-### 8.3 Löschweg
+### 9.3 Löschweg
 
 Betreiberskript, kein Chatbefehl. Je Tabelle mit `chat_id` ein `DELETE`, dazu das
 Audioverzeichnis der Gruppe. Vollständig, weil keine Tabelle ohne `chat_id` auskommt.
 
-### 8.4 Prozessaufsicht
+### 9.4 Prozessaufsicht
 
 - **Jedes Update in `try/except`.** Eine unbehandelte Ausnahme in einem Handler darf niemals
   den Bot töten. Fehler ins Log, weitermachen.
-- **Automatischer Neustart** (`systemd Restart=always` oder eine Schleife). Zusammen mit § 8.1
+- **Automatischer Neustart** (`systemd Restart=always` oder eine Schleife). Zusammen mit § 9.1
   Schritt 3 ist ein Absturz damit ein Ereignis von zwanzig Sekunden.
 - **Gruppenzuordnung sichtbar machen:** Beim Start protokolliert jeder Bot, welche `chat_id`s
   er kennt; das Dashboard zeigt die Zuordnung. Landet Bot 2 versehentlich in Gruppe 1,
@@ -585,14 +695,16 @@ Audioverzeichnis der Gruppe. Vollständig, weil keine Tabelle ohne `chat_id` aus
 
 ---
 
-## 9. Interview-Pipeline
+## 10. Interview-Pipeline
 
 ```
 Sprachnachricht empfangen
   → Datei herunterladen, status='empfangen', Empfangsbestätigung an die Gruppe
   → Whisper V3 → transkript, status='transkribiert'
   → Rückfrage "Wer wurde da interviewt?" (§ 1.4), Ersatzname 'Interview n'
-  → Verdichter (§ 4.2) → verdichtung + verdichtung_thema, status='verdichtet'
+  → Verdichter (§ 4.2) → verdichtung + verdichtung_thema
+  → Belegzitat-Verifikation (§ 5)
+  → status='verdichtet'
 ```
 
 - Die **Empfangsbestätigung kommt sofort** („Kommt an, ich höre durch — dauert einen Moment").
@@ -603,34 +715,72 @@ Sprachnachricht empfangen
 
 ---
 
-## 10. Fehlerverhalten
+## 11. Fehlerverhalten
 
-### 10.1 Die Gruppe muss es erfahren
+### 11.1 Die Gruppe muss es erfahren
 
 | Fall | Verhalten |
 |---|---|
 | **Transkription schlägt fehl** | 2 Versuche, dann: „Die Aufnahme von Maria konnte ich nicht verstehen — schickt sie bitte nochmal." Audio bleibt liegen, `status='fehlgeschlagen'`, `vorfall`. Nur die Gruppe kann das beheben, und ein still verlorenes Interview ist der teuerste Fehler im System. |
-| **Gesprächsaufruf schlägt endgültig fehl** | 2 Versuche mit Backoff, dann eine kurze ehrliche Zeile: „Bei mir hakt gerade etwas — fragt nochmal." Sie warten ja. |
+| **Gesprächsaufruf schlägt endgültig fehl** | Retry nach § 11.3, dann eine kurze ehrliche Zeile: „Bei mir hakt gerade etwas — fragt nochmal." Sie warten ja. |
 | **Infomaniak komplett weg** | Einmalig: „Mein Sprachmodell ist gerade nicht erreichbar. Ich schreibe alles mit und melde mich, sobald es geht." Danach still, Wiederholung im Hintergrund, bei Rückkehr eine Zeile. **Den Rückstau nicht abarbeiten** — die Gruppe hat inzwischen analog weitergemacht, drei nachgereichte Antworten wären Chaos. Nichts geht verloren, alles steht im Log. |
-| **Lange Sprachnachricht** | Sofortige Empfangsbestätigung (§ 9). |
+| **Lange Sprachnachricht** | Sofortige Empfangsbestätigung (§ 10). |
 | **`/wortlaut <name>` findet nichts** | Vorhandene Namen auflisten, nicht raten. |
+| **`/gruendlich` läuft** | Ankündigung vor dem Aufruf (§ 4.5) — sonst wirkt die Latenz wie ein Defekt. |
 
-### 10.2 Nur das Dashboard erfährt es
+### 11.2 Nur das Dashboard erfährt es
 
 Kürzungsleiter gezogen (mit Stufe) · Extraktor-Fenster über 4.000 Token fallengelassen ·
-Extraktor liefert ungültiges JSON · Schätzung und `usage.prompt_tokens` driften auseinander ·
-Sticker, Fotos, Videos (Zeile im Log, keine Reaktion, **kein Absturz**) · bearbeitete
-Nachrichten (als neue Zeile loggen, Original stehen lassen).
+Extraktor liefert ungültiges JSON · **Belegzitat-Prüfung fehlgeschlagen (§ 5.2)** ·
+**HTTP 5xx mit erfolgreicher Wiederholung** · **`finish_reason: length`** · Schätzung und
+`usage.prompt_tokens` driften auseinander · Sticker, Fotos, Videos (Zeile im Log, keine
+Reaktion, **kein Absturz**) · bearbeitete Nachrichten (als neue Zeile loggen, Original stehen
+lassen).
+
+### 11.3 Gemessene Betriebsfallen
+
+Beide in der Messung vom 03.09.2026 tatsächlich aufgetreten. Beide sind Betriebsfehler, keine
+Modellfehler — und beide sind billig zu schließen.
+
+**1. `max_tokens` zu knapp — der stille Durchfall.**
+Bei `max_tokens: 3000` fiel ein Aufruf mit Reasoning **still durch**: HTTP 200,
+`content: null`, `finish_reason: "length"`. Kein Fehler, keine Ausnahme, nur eine leere
+Antwort. Das Reasoning verbraucht das Ausgabebudget, bevor der eigentliche Inhalt beginnt.
+
+- **`max_tokens` ≥ 9.000 für jeden Aufruf**, zwingend für jeden Aufruf mit Reasoning
+  (Modus B, § 4.5).
+- **`finish_reason` bei jedem Aufruf prüfen** und in `aufruf.finish_reason` schreiben. Ist er
+  `length`, ist das ein `vorfall` `abgeschnitten` — nicht ein leeres Ergebnis, das kommentarlos
+  durchgereicht wird.
+- Das ist ausdrücklich **kein** Fall für die Kürzungsleiter (§ 7.2): die begrenzt die Eingabe,
+  hier ist die Ausgabe zu klein bemessen.
+
+**2. HTTP 502 — Wiederholung mit Backoff.**
+In 13 Aufrufen trat einmal HTTP 502 auf; die Wiederholung nach 0,7 Sekunden war sofort
+erfolgreich. Bei drei Bots über zwei Tage ist das kein Ausnahmefall, sondern eine
+Regelmäßigkeit.
+
+- **Retry bei 5xx und Timeout: 3 Versuche, exponentieller Backoff ab 0,7 s** (0,7 / 1,5 / 3 s),
+  mit etwas Jitter.
+- Erfolgreiche Wiederholungen werden **nicht** der Gruppe gemeldet, aber als `vorfall`
+  `http_5xx` gezählt — häufen sie sich, will das Team es sehen.
+- Erst wenn alle Versuche scheitern, greift § 11.1.
 
 ---
 
-## 11. Offene Punkte
+## 12. Offene Punkte
 
-- **`GESPRAECH_REASONING`** — Vorgabewert hängt am Ausgang der laufenden Qualitätsmessung, ob
-  Kimi ohne Reasoning dramaturgisch schwächelt. Die Architektur ist von diesem Ergebnis
-  unabhängig: Verdichter und Extraktor laufen ohnehin mit `"none"`, nur der Gesprächsaufruf
-  wird geschaltet.
 - **`SEQUENZ_BEI_FRAGEZEICHEN`** — standardmäßig aus, § 1.4. Frühestens nach dem ersten
   Workshoptag erproben.
 - **Divisor der Token-Schätzung** — startet bei 3, wird nach den ersten Aufrufen anhand von
   `aufruf.tatsaechliche_token` nachjustiert.
+- **Segmentabstand bei `[...]`** — die 600 Zeichen aus § 5.1 sind gesetzt, nicht gemessen.
+  Falls die Prüfung am Workshoptag zu viele brauchbare Zitate verwirft, ist das der erste
+  Wert, an dem zu drehen ist.
+
+### Erledigt
+
+- **`GESPRAECH_REASONING`** — entschieden durch die Messung vom 03.09.2026: Modus A
+  (erzwungenes Schema, `reasoning_effort: "none"`). Gleiche dramaturgische Substanz bei
+  4,5 s statt 33,8 s Latenz. Der zweistufige Weg entfällt. Details und Messwerte in § 4.1;
+  das verbleibende Zitatrisiko wird durch § 5 abgefangen.

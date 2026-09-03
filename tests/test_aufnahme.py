@@ -506,6 +506,8 @@ def test_melde_ausfall_ist_nebenlaeufigkeitsfest(conn, einst, tg):
         t.start()
     for t in threads:
         t.join(timeout=5)
+    for t in threads:
+        assert not t.is_alive(), "Thread nicht innerhalb des Timeouts fertig geworden"
 
     meldungen = [t for _, t in tg.gesendet if "nicht hoeren" in t]
     assert len(meldungen) == 1

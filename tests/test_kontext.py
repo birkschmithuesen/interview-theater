@@ -95,10 +95,21 @@ def test_keine_pausenmarkierung_bei_kurzem_abstand(conn, einst):
     assert "[Pause:" not in prompt
 
 
+def _setze_wortlaut(conn, chat_id, modus):
+    """Setzt gruppe.wortlaut_modus direkt per SQL -- der Slash-Befehl
+    /wortlaut, der das im Betrieb setzt, gehoert zu einer spaeteren Aufgabe
+    (befehle.py); das Feld selbst existiert aber schon seit Aufgabe 1."""
+    conn.execute("UPDATE gruppe SET wortlaut_modus = ? WHERE chat_id = ?", (modus, chat_id))
+    conn.commit()
+
+
 def _fuelle_grosse_gruppe(conn, chat_id, anzahl_aufnahmen, anzahl_nachrichten):
     """Simuliert Sonntagnachmittag: viele fertig verdichtete Interviews und
-    ein langer Gespraechsverlauf. Die Volltranskripte sind absichtlich lang,
-    damit sie beim Zusammenbau tatsaechlich etwas wegzunehmen geben."""
+    ein langer Gespraechsverlauf, /wortlaut auf 'alle' gestellt (die Gruppe
+    wollte den Originalton nachlesen). Die Volltranskripte sind absichtlich
+    lang, damit sie beim Zusammenbau tatsaechlich etwas wegzunehmen geben."""
+    _setze_wortlaut(conn, chat_id, "*")
+
     transkript = (
         "Ich erinnere mich noch genau an den Tag, an dem alles anders wurde. "
         "Wir sassen zusammen und niemand hat etwas gesagt, bis meine Schwester "
@@ -153,3 +164,69 @@ def test_notbremse_enthaelt_immer_die_ausloesende_nachricht(conn, einst):
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     assert ausloeser_text in prompt
+
+
+def test_kuerzung_bei_grossem_fenster_ohne_transkripte_erhaelt_ausloeser(conn, einst):
+    """Schritt 2 der Kuerzung (§ 7.2) muss auch dann greifen, wenn es gar
+    keine Transkripte gibt -- ein sehr langer Gespraechsverlauf reisst das
+    Ziel ganz allein. Anders als test_kuerzung_haelt_die_reissleine_ein (wo
+    schon Schritt 1 reicht) muss hier tatsaechlich das Fenster von vorn
+    beschnitten werden, und die ausloesende Nachricht darf das nicht
+    mitreissen."""
+    for i in range(600):
+        _sende(
+            conn, 1, i + 1, "Ada" if i % 2 == 0 else "Ben",
+            "Ein laengerer Gespraechsbeitrag mitten im Probenalltag, der "
+            "im kurzen Fenster ordentlich Platz braucht und nicht kurz ist.",
+            _iso(i),
+        )
+    ausloeser_text = "Und worauf einigen wir uns jetzt fuer die naechste Szene?"
+    ausloeser = [_sende(conn, 1, 999_999, "Ada", ausloeser_text, _iso(601))]
+
+    ungekuerzte_fensterzeilen = len(kontext._baue_fenster_eintraege(conn, 1, ausloeser))
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert kontext.schaetze(prompt) <= kontext.REISSLEINE
+    assert ausloeser_text in prompt
+    verbliebene_fensterzeilen = prompt.count("Ein laengerer Gespraechsbeitrag")
+    assert verbliebene_fensterzeilen < ungekuerzte_fensterzeilen, (
+        "das Fenster muss tatsaechlich beschnitten worden sein"
+    )
+    vorfaelle = conn.execute(
+        "SELECT count(*) FROM vorfall WHERE art = 'kuerzung'"
+    ).fetchone()[0]
+    assert vorfaelle >= 1
+
+
+def test_ohne_wortlaut_schalter_fehlen_die_transkripte(conn, einst):
+    """SPEC § 6.2 Block 3: ohne gesetzten Schalter bleiben Transkripte aussen
+    vor, auch wenn welche existieren -- sonst waeren sie ab Samstagmittag
+    Dauerlast, die jede Antwort unschaerfer macht."""
+    aid = repo.lege_aufnahme_an(conn, 1, 500, "lang", "sprache")
+    repo.setze_transkript(conn, aid, "Ein sehr langes woertliches Interview ueber die Kindheit.")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Was steht im Interview?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Volltranskripte" not in prompt
+    assert "Kindheit" not in prompt
+
+
+def test_wortlaut_stern_zeigt_nur_lange_nicht_kurze_aufnahmen(conn, einst):
+    """`/wortlaut *` holt alle Volltranskripte -- aber nur die von Aufnahmen
+    der Klasse 'lang' (echtes Interview-Material, SPEC § 10.1). Kurze
+    Gespraechsbeitraege haben zwar auch ein Transkript in der DB, stehen aber
+    schon im Fenster; sie dort zusaetzlich als Material zu zeigen wuerde den
+    Inhalt verdoppeln und einen Zuruf faelschlich zu Material erklaeren."""
+    _setze_wortlaut(conn, 1, "*")
+    lang = repo.lege_aufnahme_an(conn, 1, 500, "lang", "sprache")
+    repo.setze_transkript(conn, lang, "MARKIERUNG-LANGES-INTERVIEW ueber die Kindheit.")
+    kurz = repo.lege_aufnahme_an(conn, 1, 501, "kurz", "sprache")
+    repo.setze_transkript(conn, kurz, "MARKIERUNG-KURZER-ZURUF geht schon los!")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Was steht im Interview?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Volltranskripte" in prompt
+    assert "MARKIERUNG-LANGES-INTERVIEW" in prompt
+    assert "MARKIERUNG-KURZER-ZURUF" not in prompt

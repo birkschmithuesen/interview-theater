@@ -37,10 +37,15 @@ SYSTEM = (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="u
 #: lieber zu frueh kuerzen als zu spaet (§ 7.1).
 _ZEICHEN_JE_TOKEN = 3
 
-#: Budgets in Token je Block (SPEC § 6.2). Nur informativ/als Fuellgrenze fuer
-#: das Fenster verwendet -- die Kuerzung selbst kennt nur zwei Schritte
-#: (§ 7.2), keine fuenfstufige Leiter. Szene fehlt bewusst: sie bleibt im
-#: Durchstich aussen vor.
+#: Budgets in Token je Block (SPEC § 6.2) -- rein dokumentarisch, wie in
+#: keinem der Bloecke einzeln durchgesetzt. Die tatsaechliche Begrenzung des
+#: Gesamtprompts leistet ausschliesslich die zweistufige Kuerzung (§ 7.2):
+#: erst Transkripte raus, dann das Fenster von vorn beschnitten, bis das
+#: Ziel erreicht ist oder nichts mehr uebrig ist. Ein Block, der schon beim
+#: Bauen auf sein eigenes Budget zusammengestutzt wuerde, wuerde genau die
+#: Faelle verstecken, die die Kuerzung eigentlich zeigen soll (ein sehr
+#: langer Gespraechsverlauf allein kann das Ziel reissen, auch ganz ohne
+#: Transkripte). Szene fehlt bewusst: sie bleibt im Durchstich aussen vor.
 BUDGETS = {
     "system": 900,
     "verdichtungen": 3000,
@@ -122,16 +127,34 @@ def _baue_verdichtungen(conn, chat_id: int) -> str:
 
 
 def _baue_transkripte(conn, chat_id: int) -> str:
-    """Volltranskripte, sofern welche existieren.
+    """Volltranskripte -- nur wenn der Schalter ``gruppe.wortlaut_modus``
+    gesetzt ist (SPEC § 6.2 Block 3). Ohne ihn waeren Transkripte ab
+    Samstagmittag 5.000 Token Dauerlast, die jede Antwort unschaerfer macht;
+    die Kuerzung (§ 7.2) faengt das nicht zuverlaessig ab, weil sie erst ab
+    ZIEL greift und ein Nachmittag mit drei bis fuenf Interviews oft darunter
+    bleibt. NULL/leer heisst kein Block, ``'*'`` heisst alle, jeder andere
+    Wert ist ein Name und filtert grosszuegig wie ``repo.transkripte``.
 
-    Kein ``/wortlaut``-Schalter: der Befehl kommt erst in einer spaeteren
-    Aufgabe (Auftragshinweis). Solange es ihn nicht gibt, entscheidet allein
-    die Materiallage -- ein vorhandenes Transkript geht mit, ein fehlendes
-    nicht. Das gilt es zu ueberpruefen, sobald ``/wortlaut`` eingefuehrt wird.
+    Der Slash-Befehl ``/wortlaut`` selbst (der dieses Feld setzt) wird erst
+    in einer spaeteren Aufgabe gebaut (``befehle.py``); das Datenbankfeld
+    existiert aber bereits seit Aufgabe 1 und wird hier rein lesend
+    ausgewertet.
+
+    Nur Aufnahmen der Klasse ``'lang'`` zaehlen als Material im Sinne von
+    § 10.1 -- kurze Gespraechsbeitraege (Zurufe, Regieanweisungen) stehen
+    ohnehin schon im Fenster; sie hier zusaetzlich als Volltranskript
+    aufzufuehren wuerde denselben Inhalt verdoppeln und einen Zuruf
+    faelschlich zu Interview-Material erklaeren.
     """
+    gruppe = repo.hole_gruppe(conn, chat_id)
+    modus = gruppe["wortlaut_modus"] if gruppe else None
+    if not modus:
+        return ""
+    name = None if modus == "*" else modus
+
     zeilen = []
-    for a in repo.transkripte(conn, chat_id):
-        if a["transkript"]:
+    for a in repo.transkripte(conn, chat_id, name=name):
+        if a["klasse"] == "lang" and a["transkript"]:
             zeilen.append(f"--- {a['name']} (Volltranskript) ---\n{a['transkript']}")
     if not zeilen:
         return ""
@@ -170,39 +193,42 @@ def _baue_journal(conn, chat_id: int) -> str:
     return "Journal:\n" + "\n".join(zeilen)
 
 
-def _baue_fenster(conn, chat_id: int, ausloeser) -> str:
-    """Die letzten Nachrichten vor der ausloesenden, von hinten gefuellt bis
-    zum Budget aus BUDGETS["fenster"] (in Token, hier in Zeichen umgerechnet).
-    Mit Pausenmarkierung, sofern zwischen zwei aufeinanderfolgenden
-    Nachrichten mehr als PAUSE_AB_MINUTEN liegen (§ 6.2)."""
+#: Obergrenze fuer den Nachrichtenpool, aus dem das Fenster gebaut wird --
+#: eine reine Performance-Vorkehrung (niemand soll fuer jeden Zug den
+#: gesamten Zweitagesverlauf aus der DB laden), kein Budget im Sinne von
+#: BUDGETS["fenster"]. Die eigentliche Groessenbegrenzung des Fensters
+#: leistet allein die Kuerzung in baue().
+_FENSTER_POOL = 1000
+
+
+def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
+    """Liefert die Eintraege des kurzen Fensters (Nachrichtenzeilen und
+    Pausenmarkierungen), aeltester zuerst -- ungekuerzt, ohne eigenes
+    Budget. Ein sehr langer Gespraechsverlauf kann dadurch allein schon das
+    Gesamtziel ZIEL reissen; genau das soll die Kuerzung in baue() abfangen,
+    nicht ein zweites, verstecktes Limit hier.
+
+    Jeder Listeneintrag ist eine atomare Einheit (eine Pausenzeile oder eine
+    einzelne Nachricht, auch wenn deren Text selbst Zeilenumbrueche enthaelt
+    -- Telegram erlaubt mehrzeiligen Text). Das ist die Grundlage dafuer,
+    dass die Kuerzung ganze Nachrichten abschneiden kann statt nur ihrer
+    ersten physischen Zeile."""
     ausloeser_ids = {n["message_id"] for n in ausloeser}
     kandidaten = [
-        n for n in repo.letzte_nachrichten(conn, chat_id, anzahl=1000)
+        n for n in repo.letzte_nachrichten(conn, chat_id, anzahl=_FENSTER_POOL)
         if n["message_id"] not in ausloeser_ids
     ]
 
-    zeichen_budget = BUDGETS["fenster"] * _ZEICHEN_JE_TOKEN
-    gewaehlt = []
-    laenge = 0
-    for n in reversed(kandidaten):
-        zeile = sprecherzeile(n)
-        zusatz = len(zeile) + 1
-        if gewaehlt and laenge + zusatz > zeichen_budget:
-            break
-        gewaehlt.append(n)
-        laenge += zusatz
-    gewaehlt.reverse()
-
-    zeilen = []
+    eintraege = []
     vorherige_zeit = None
-    for n in gewaehlt:
+    for n in kandidaten:
         if vorherige_zeit is not None:
             pause = _pausenzeile(vorherige_zeit, n["gesendet_am"])
             if pause:
-                zeilen.append(pause)
-        zeilen.append(sprecherzeile(n))
+                eintraege.append(pause)
+        eintraege.append(sprecherzeile(n))
         vorherige_zeit = n["gesendet_am"]
-    return "\n".join(zeilen)
+    return eintraege
 
 
 def _baue_ausloeser(ausloeser) -> str:
@@ -219,14 +245,6 @@ def _zusammen(bloecke: dict) -> str:
     return "\n\n".join(bloecke[k] for k in _REIHENFOLGE if bloecke.get(k))
 
 
-def _fenster_beschneiden(fenster: str) -> str:
-    """Schneidet die aelteste Zeile des Fensters ab (§ 7.2: von vorn
-    beschneiden). Leeres Ergebnis, wenn nichts mehr uebrig ist -- das ist der
-    Abbruch fuer die while-Schleife in baue()."""
-    zeilen = fenster.split("\n")
-    return "\n".join(zeilen[1:])
-
-
 def baue(conn, chat_id: int, ausloeser, e) -> str:
     """Baut den Koerper des Gespraechs-Prompts (ohne SYSTEM, das getrennt
     verschickt wird).
@@ -237,17 +255,20 @@ def baue(conn, chat_id: int, ausloeser, e) -> str:
 
     Passt der Koerper nicht ins Zielbudget ZIEL, greift die zweistufige
     Kuerzung aus § 7.2: erst fliegen die Volltranskripte ganz raus, dann wird
-    das Fenster von vorn beschnitten, bis es passt oder leer ist. Die
-    Notbremse -- Systemanweisung, Arbeitsstand, Fenster, ausloesende
-    Nachricht -- wird dabei nie angetastet: Arbeitsstand und Ausloeser sind
-    von der Kuerzung grundsaetzlich ausgenommen, es gibt keinen Zustand, in
-    dem der Bot wegen des Budgets nicht antworten koennte."""
+    das Fenster von vorn beschnitten -- eine ganze Nachricht (oder Pausenzeile)
+    je Schritt, nie nur eine physische Zeile eines mehrzeiligen Beitrags --
+    bis es passt oder leer ist. Die Notbremse -- Systemanweisung,
+    Arbeitsstand, Fenster, ausloesende Nachricht -- wird dabei nie
+    angetastet: Arbeitsstand und Ausloeser sind von der Kuerzung
+    grundsaetzlich ausgenommen, es gibt keinen Zustand, in dem der Bot wegen
+    des Budgets nicht antworten koennte."""
+    fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser)
     bloecke = {
         "verdichtungen": _baue_verdichtungen(conn, chat_id),
         "transkripte": _baue_transkripte(conn, chat_id),
         "arbeitsstand": _baue_arbeitsstand(conn, chat_id),
         "journal": _baue_journal(conn, chat_id),
-        "fenster": _baue_fenster(conn, chat_id, ausloeser),
+        "fenster": "\n".join(fenster_eintraege),
         "ausloeser": _baue_ausloeser(ausloeser),
     }
 
@@ -256,7 +277,8 @@ def baue(conn, chat_id: int, ausloeser, e) -> str:
         repo.merke_vorfall(
             conn, chat_id, getattr(e, "bot_name", None), "kuerzung", "Transkripte entfernt"
         )
-        while schaetze(_zusammen(bloecke)) > ZIEL and bloecke["fenster"]:
-            bloecke["fenster"] = _fenster_beschneiden(bloecke["fenster"])
+        while schaetze(_zusammen(bloecke)) > ZIEL and fenster_eintraege:
+            fenster_eintraege = fenster_eintraege[1:]
+            bloecke["fenster"] = "\n".join(fenster_eintraege)
 
     return _zusammen(bloecke)

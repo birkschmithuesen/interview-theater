@@ -160,6 +160,155 @@ def merke_vorfall(
     conn.commit()
 
 
+def lege_aufnahme_an(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    message_id: int,
+    klasse: str,
+    quelle: str,
+    audio_pfad: str | None = None,
+    dauer: int | None = None,
+) -> int:
+    """Legt eine Aufnahme (Sprache oder Textimport) an und vergibt den
+    Ersatznamen 'Interview n', wobei n die Anzahl bereits vorhandener
+    Aufnahmen dieser Gruppe plus eins ist. Startstatus immer 'empfangen';
+    der Aufrufer entscheidet ueber weitere Statusuebergaenge."""
+    name = f"Interview {zaehle_aufnahmen(conn, chat_id) + 1}"
+    cur = conn.execute(
+        """
+        INSERT INTO aufnahme
+            (chat_id, message_id, name, klasse, quelle, audio_pfad,
+             dauer_sekunden, status, empfangen_am)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'empfangen', ?)
+        """,
+        (chat_id, message_id, name, klasse, quelle, audio_pfad, dauer, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def hole_aufnahme(conn: sqlite3.Connection, aufnahme_id: int) -> sqlite3.Row | None:
+    """Liefert die aufnahme-Zeile oder None, wenn unbekannt."""
+    return conn.execute(
+        "SELECT * FROM aufnahme WHERE id = ?", (aufnahme_id,)
+    ).fetchone()
+
+
+def setze_status(
+    conn: sqlite3.Connection, aufnahme_id: int, status: str, fehlertext: str | None = None
+) -> None:
+    """Setzt Status (und ggf. Fehlertext) einer Aufnahme."""
+    conn.execute(
+        "UPDATE aufnahme SET status = ?, fehlertext = ? WHERE id = ?",
+        (status, fehlertext, aufnahme_id),
+    )
+    conn.commit()
+
+
+def setze_transkript(conn: sqlite3.Connection, aufnahme_id: int, text: str) -> None:
+    """Traegt das Transkript einer Aufnahme ein."""
+    conn.execute(
+        "UPDATE aufnahme SET transkript = ? WHERE id = ?", (text, aufnahme_id)
+    )
+    conn.commit()
+
+
+def setze_aufnahme_name(conn: sqlite3.Connection, aufnahme_id: int, name: str) -> None:
+    """Ersetzt den (ggf. automatisch vergebenen) Namen einer Aufnahme."""
+    conn.execute(
+        "UPDATE aufnahme SET name = ? WHERE id = ?", (name, aufnahme_id)
+    )
+    conn.commit()
+
+
+def offene_aufnahmen(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Alle Aufnahmen, deren Status weder 'fertig' noch 'fehlgeschlagen' ist --
+    Grundlage dafuer, dass ein Neustart ueber Nacht angefangene Arbeit zu Ende
+    bringt (Nachhol-Arbeiter, Aufgabe 8). Ueber alle Gruppen hinweg, absichtlich
+    ohne chat_id-Filter."""
+    return conn.execute(
+        "SELECT * FROM aufnahme WHERE status NOT IN ('fertig', 'fehlgeschlagen') "
+        "ORDER BY id ASC"
+    ).fetchall()
+
+
+def zaehle_aufnahmen(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Anzahl der Aufnahmen einer Gruppe, unabhaengig vom Status."""
+    return conn.execute(
+        "SELECT count(*) FROM aufnahme WHERE chat_id = ?", (chat_id,)
+    ).fetchone()[0]
+
+
+def speichere_verdichtung(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    aufnahme_id: int,
+    zusammenfassung: str,
+    themen: list[dict],
+) -> int:
+    """Speichert eine Verdichtung mit ihren Kernthemen. Wird laut SPEC nie
+    aktualisiert -- es gibt bewusst kein aktualisiere_verdichtung(). Jedes
+    Element von ``themen`` braucht die Schluessel 'thema', 'beleg_zitat'
+    (kann None sein, wenn die Pruefung nach § 5 fehlschlug) und
+    'zitat_geprueft' (0 oder 1)."""
+    cur = conn.execute(
+        """
+        INSERT INTO verdichtung (chat_id, aufnahme_id, zusammenfassung, erstellt_am)
+        VALUES (?, ?, ?, ?)
+        """,
+        (chat_id, aufnahme_id, zusammenfassung, _jetzt()),
+    )
+    verdichtung_id = cur.lastrowid
+    for thema in themen:
+        conn.execute(
+            """
+            INSERT INTO verdichtung_thema
+                (chat_id, verdichtung_id, thema, beleg_zitat, zitat_geprueft)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                chat_id,
+                verdichtung_id,
+                thema["thema"],
+                thema["beleg_zitat"],
+                thema["zitat_geprueft"],
+            ),
+        )
+    conn.commit()
+    return verdichtung_id
+
+
+def verdichtungen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle Verdichtungen einer Gruppe, in Entstehungsreihenfolge."""
+    return conn.execute(
+        "SELECT * FROM verdichtung WHERE chat_id = ? ORDER BY id ASC", (chat_id,)
+    ).fetchall()
+
+
+def themen_zu(conn: sqlite3.Connection, verdichtung_id: int) -> list[sqlite3.Row]:
+    """Die Kernthemen einer Verdichtung, in der vom Sprachmodell gelieferten
+    Reihenfolge."""
+    return conn.execute(
+        "SELECT * FROM verdichtung_thema WHERE verdichtung_id = ? ORDER BY id ASC",
+        (verdichtung_id,),
+    ).fetchall()
+
+
+def transkripte(
+    conn: sqlite3.Connection, chat_id: int, name: str | None = None
+) -> list[sqlite3.Row]:
+    """Aufnahmen einer Gruppe. Bei gesetztem ``name`` wird grosszuegig gesucht
+    (Gross-/Kleinschreibung egal, Teiltreffer genuegt) statt exakt zu
+    vergleichen -- die Gruppe tippt Namen nicht immer gleich."""
+    zeilen = conn.execute(
+        "SELECT * FROM aufnahme WHERE chat_id = ? ORDER BY id ASC", (chat_id,)
+    ).fetchall()
+    if name is None:
+        return zeilen
+    gesucht = name.lower()
+    return [z for z in zeilen if z["name"] and gesucht in z["name"].lower()]
+
+
 def merke_aufruf(
     conn: sqlite3.Connection,
     chat_id: int | None,

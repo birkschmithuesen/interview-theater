@@ -9,6 +9,15 @@
 # Die RoboCloud ist nicht-versionierter Arbeitsspeicher neben dem Vault —
 # genau der richtige Ort fuer grosse, vertrauliche Betriebsdaten.
 #
+# 🔴 WICHTIG FUER DIE LOESCHZUSAGE AN DIE TEILNEHMERINNEN:
+# Was hier hochgeladen wurde, entfernt scripts/loeschen.py NICHT — das raeumt
+# nur die lokale Maschine auf. Wird eine Loeschung verlangt, muss ZUSAETZLICH
+# der passende Ordner in der RoboCloud entfernt werden:
+#     rclone purge hermes-vault:Hermes-Agent/RoboCloud/interview-theater/<STAND>
+# Deshalb sind die Sicherungen nach Zeitpunkt benannt und nicht vermischt.
+#
+# Zugangsdaten (betrieb/*.env) werden bewusst NICHT gesichert.
+#
 # Aufruf:
 #     bash scripts/backup-robocloud.sh              # Sicherung anlegen
 #     bash scripts/backup-robocloud.sh --auflisten  # vorhandene anzeigen
@@ -58,15 +67,11 @@ if [ -d "$REPO/audio" ] && [ -n "$(ls -A "$REPO/audio" 2>/dev/null)" ]; then
     GESICHERT=$((GESICHERT+1))
 fi
 
-# --- Zugangsdaten (Bot-Tokens, API-Schluessel)
-if [ -d "$REPO/betrieb" ]; then
-    ANZAHL=$(find "$REPO/betrieb" -name "*.env" -type f 2>/dev/null | wc -l)
-    if [ "$ANZAHL" -gt 0 ]; then
-        echo "  Zugangsdaten: $ANZAHL Dateien"
-        "$RCLONE" copy "$REPO/betrieb" "$ZIEL/betrieb" --include "*.env"
-        GESICHERT=$((GESICHERT+1))
-    fi
-fi
+# --- Zugangsdaten werden BEWUSST NICHT gesichert.
+# Bot-Tokens und API-Schluessel im Klartext ausserhalb der Maschine abzulegen
+# wuerde den Aufwand zunichte machen, mit dem der Token nicht einmal in einer
+# Logzeile auftaucht. Ein verlorener Token ist bei BotFather in zwei Minuten
+# neu erzeugt — ein abgeflossener ist nicht zurueckzuholen.
 
 if [ "$GESICHERT" -eq 0 ]; then
     echo "Nichts zu sichern — es gibt noch keine Betriebsdaten."

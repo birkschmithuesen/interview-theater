@@ -1,0 +1,6 @@
+.superpowers/
+__pycache__/
+.venv/
+*.db*
+audio/
+betrieb/*.env

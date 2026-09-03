@@ -409,6 +409,100 @@ def leere_whisper_stumm_seit_falls_gesetzt(conn: sqlite3.Connection, chat_id: in
     return cur.rowcount == 1
 
 
+#: Die einzigen Felder, die ein Korrekturbefehl (SPEC § 8: /kernthema,
+#: /konflikt, /begriffe) oder der Extraktor im Arbeitsstand setzen duerfen.
+_ARBEITSSTAND_FELDER = ("begriffe", "kernthema", "kernthema_begruendung", "hauptkonflikt")
+
+
+def hole_arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | None:
+    """Liefert die arbeitsstand-Zeile einer Gruppe oder None, solange noch
+    keine einzige Entscheidung getroffen wurde (Aufgabe 9, Schicht 2)."""
+    return conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+
+
+def setze_arbeitsstand(conn: sqlite3.Connection, chat_id: int, feld: str, wert: str) -> None:
+    """Setzt (oder ueberschreibt) genau ein Feld des Arbeitsstands.
+
+    Nur die vier Felder aus _ARBEITSSTAND_FELDER duerfen so gesetzt werden --
+    alles andere ist ein Programmierfehler, kein Bedienfehler, daher
+    ValueError statt eines stillen No-Ops. ``feld`` landet nur nach dieser
+    Pruefung im SQL-Text, ist also nie ein Injection-Risiko."""
+    if feld not in _ARBEITSSTAND_FELDER:
+        raise ValueError(f"unbekanntes Arbeitsstand-Feld: {feld!r}")
+    conn.execute(
+        f"""
+        INSERT INTO arbeitsstand (chat_id, {feld}, geaendert_am)
+        VALUES (?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            {feld} = excluded.{feld},
+            geaendert_am = excluded.geaendert_am
+        """,
+        (chat_id, wert, _jetzt()),
+    )
+    conn.commit()
+
+
+def figuren(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle Figuren einer Gruppe, in Entstehungsreihenfolge (Aufgabe 9)."""
+    return conn.execute(
+        "SELECT * FROM figur WHERE chat_id = ? ORDER BY id ASC", (chat_id,)
+    ).fetchall()
+
+
+def setze_figur(conn: sqlite3.Connection, chat_id: int, name: str, beschreibung: str) -> None:
+    """Legt eine Figur an oder ueberschreibt ihre Beschreibung, wenn der Name
+    schon existiert (SPEC § 8: /figur legt an oder ueberschreibt). Vergleich
+    exakt, nicht grosszuegig wie bei transkripte() -- ein Figurenname ist eine
+    bewusste Entscheidung der Gruppe, kein Tippfehler-Suchproblem."""
+    vorhanden = conn.execute(
+        "SELECT id FROM figur WHERE chat_id = ? AND name = ?", (chat_id, name)
+    ).fetchone()
+    jetzt = _jetzt()
+    if vorhanden:
+        conn.execute(
+            "UPDATE figur SET beschreibung = ?, geaendert_am = ? WHERE id = ?",
+            (beschreibung, jetzt, vorhanden["id"]),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO figur (chat_id, name, beschreibung, geaendert_am) VALUES (?, ?, ?, ?)",
+            (chat_id, name, beschreibung, jetzt),
+        )
+    conn.commit()
+
+
+def journal(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle Journaleintraege einer Gruppe, aeltester zuerst (SPEC § 6.2 zu
+    Block 6). Das Journal ist nur-anhaengend -- es gibt bewusst kein
+    aktualisiere_journal()."""
+    return conn.execute(
+        "SELECT * FROM journal WHERE chat_id = ? ORDER BY id ASC", (chat_id,)
+    ).fetchall()
+
+
+def schreibe_journal(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    art: str,
+    text: str,
+    quelle: str,
+    bis_message_id: int | None = None,
+) -> int:
+    """Haengt einen Journaleintrag an (art: vorgeschlagen|verworfen|
+    entschieden|offen; quelle: extraktor|befehl). Liefert die neue id."""
+    cur = conn.execute(
+        """
+        INSERT INTO journal (chat_id, art, text, quelle, bis_message_id, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (chat_id, art, text, quelle, bis_message_id, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
 def merke_aufruf(
     conn: sqlite3.Connection,
     chat_id: int | None,

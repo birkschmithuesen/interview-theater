@@ -54,8 +54,7 @@ Der Bot antwortet auf:
 - **Reply** auf eine seiner eigenen Nachrichten
 - **`@botname`-Erwähnung**
 - **`/`-Befehle**
-- **Sprachnachrichten** (immer — sie sind Material, nie Geplänkel)
-- **eine offene Rückfrage-Sequenz**, die er selbst eröffnet hat (§ 1.4)
+- **Sprachnachrichten** (immer — sie sind entweder Gesprächsbeitrag oder Material, nie Geplänkel)
 
 Auf alles andere antwortet er nicht. In seiner **allerersten Nachricht in der Gruppe**
 schreibt der Bot selbst hin, wie man ihn anspricht — damit das Workshop-Team es nicht
@@ -79,34 +78,16 @@ chaotisch wirkt.
 Nach 10 Sekunden zusätzlich eine kurze Zeile („einen Moment, ich denke nach"). Die meiste
 Ungeduld entsteht daraus, dass gar nichts passiert.
 
-### 1.4 Offene Rückfrage-Sequenz
+### 1.4 Gestrichen: die offene Rückfrage-Sequenz
 
-Laien nutzen die Reply-Funktion selten. Stellt der Bot eine Rückfrage, muss die nächste
-Nachricht als Antwort zählen dürfen.
+Eine frühere Fassung sah vor, dass eine code-initiierte Rückfrage des Bots („Wer wurde da
+interviewt?") die nächste Gruppennachricht zum Auslöser macht, mit Verfall nach zehn Minuten.
 
-**Deterministisch, ohne LLM.** Das Merkmal wird ausschließlich bei **code-initiierten**
-Rückfragen gesetzt — nicht bei Fragen, die das Modell formuliert:
-
-| Rückfrage | Gesetzt bei |
-|---|---|
-| `interview_name` — „Wer wurde da interviewt?" | nach erfolgreicher Transkription |
-| `interviews_fertig` — „War das das letzte Interview?" | nach der n-ten Verdichtung (optional, § 10) |
-
-Regeln:
-
-- Feld `gruppe.offene_rueckfrage` + `rueckfrage_gestellt_am`.
-- **Verfall nach 10 Minuten.**
-- **Verbrauch durch die nächste menschliche Nachricht** in der Gruppe — danach wird das Feld
-  in jedem Fall geleert.
-- Ist die Nachricht ein `/`-Befehl, gilt sie nicht als Antwort; die Sequenz bleibt bis zum
-  Verfall stehen.
-- **Die Rückfrage wird nie wiederholt.** Passt die Antwort nicht (z. B. kein plausibler Name),
-  bleibt der Ersatzname `Interview n` stehen und der Bot arbeitet stillschweigend weiter.
-  Ein Bot, der zweimal dasselbe fragt, nervt mehr, als ein unbenanntes Interview kostet.
-
-**Abschaltbarer Zusatzschalter, standardmäßig AUS:** `SEQUENZ_BEI_FRAGEZEICHEN`. Wenn an,
-öffnet jede Bot-Antwort, die mit `?` endet, ein 2-Minuten-Fenster. Erhöht die Geschmeidigkeit,
-riskiert aber, dass der Bot auf „ok cool" antwortet. Nicht am Workshoptag erstmals erproben.
+**Das ist ersatzlos gestrichen.** Sprachnachrichten lösen ohnehin immer eine Antwort aus, und
+das war der Hauptfall. Übrig bliebe ein Zustandsfeld, das ablaufen kann, falsch verbraucht
+werden kann und nur im Zusammenspiel mit der Uhr testbar ist — genau die Sorte bewegliches
+Teil, die ein Prototyp nicht braucht. Interviews heißen `Interview n` und werden bei Bedarf
+mit `/name` umbenannt (§ 8).
 
 ---
 
@@ -182,11 +163,9 @@ CREATE TABLE gruppe (
   letzte_beantwortete_message_id  INTEGER DEFAULT 0,
   letzte_extrahierte_message_id   INTEGER DEFAULT 0,
   -- Schalter
-  wortlaut_modus                  TEXT,     -- NULL=aus, '*'=alle, sonst Interviewname
+  wortlaut_modus                  TEXT,     -- NULL=aus, '*'=alle, sonst Aufnahmename
   gruendlich_naechster_zug        INTEGER NOT NULL DEFAULT 0,  -- Modus B einmalig (§ 4.5)
-  offene_rueckfrage               TEXT,     -- NULL | 'interview_name' | 'interviews_fertig'
-  rueckfrage_kontext_id           INTEGER,  -- z.B. interview.id
-  rueckfrage_gestellt_am          TEXT
+  whisper_stumm_seit              TEXT      -- gesetzt = Ausfall gemeldet (§ 10.4)
 );
 
 CREATE TABLE nachricht (
@@ -203,25 +182,28 @@ CREATE TABLE nachricht (
 );
 CREATE INDEX idx_nachricht_zeit ON nachricht(chat_id, message_id);
 
-CREATE TABLE interview (
+-- Sprachaufnahmen UND Textimporte. Eine Statusmaschine fuer beides (§ 10).
+CREATE TABLE aufnahme (
   id              INTEGER PRIMARY KEY,
   chat_id         INTEGER NOT NULL,
   message_id      INTEGER NOT NULL,
   name            TEXT,                     -- 'Maria'; Ersatz: 'Interview 3'
-  audio_pfad      TEXT,
+  klasse          TEXT NOT NULL,            -- kurz (Gespraechsbeitrag) | lang (Material)
+  quelle          TEXT NOT NULL,            -- sprache | text
+  audio_pfad      TEXT,                     -- NULL bei quelle='text'
   transkript      TEXT,
   dauer_sekunden  INTEGER,
-  status          TEXT NOT NULL,            -- empfangen|transkribiert|verdichtet|fehlgeschlagen
+  status          TEXT NOT NULL,            -- empfangen|transkribiert|fertig|fehlgeschlagen
   fehlertext      TEXT,
   versuche        INTEGER NOT NULL DEFAULT 0,
   empfangen_am    TEXT NOT NULL
 );
-CREATE INDEX idx_interview_offen ON interview(status);
+CREATE INDEX idx_aufnahme_offen ON aufnahme(status);
 
 CREATE TABLE verdichtung (
   id               INTEGER PRIMARY KEY,
   chat_id          INTEGER NOT NULL,
-  interview_id     INTEGER NOT NULL,
+  aufnahme_id      INTEGER NOT NULL,
   zusammenfassung  TEXT NOT NULL,
   erstellt_am      TEXT NOT NULL
 );
@@ -380,20 +362,51 @@ Das Ergebnis wird **nie aktualisiert.**
 Nachgelagert, nachdem die Bot-Antwort bereits in der Gruppe steht. **Niemand wartet darauf.**
 Erzwungenes Schema, `reasoning_effort: "none"`.
 
+Er schreibt **zwei** Dinge: Journaleinträge (Schicht 2b) und den **Arbeitsstand** (Schicht 2).
+
 ```json
 {
   "eintraege": [
     {"art": "vorgeschlagen|verworfen|entschieden|offen", "text": "eine knappe Zeile"}
-  ]
+  ],
+  "arbeitsstand": {
+    "begriffe": "oder null",
+    "kernthema": "oder null",
+    "kernthema_begruendung": "oder null",
+    "hauptkonflikt": "oder null",
+    "figuren": [{"name": "...", "beschreibung": "..."}]
+  }
 }
 ```
+
+**Warum der Extraktor den Arbeitsstand schreibt und nicht die Gruppe.** Eine frühere Fassung
+sah vor, dass nur Befehle den Arbeitsstand setzen. Das ist aufgehoben. Begriffe eintippen ist
+keine Option — die Gruppe steht im Raum, spielt, spricht, und niemand tippt `/kernthema`
+mitten in einer Probe. Ein Arbeitsstand, der nur durch Zeremonie gefüllt wird, bleibt leer,
+und ein leerer Arbeitsstand macht jeden folgenden Prompt schlechter.
+
+**Die neue Regel lautet: Der Extraktor schreibt, der Bot meldet jede Änderung, Befehle
+korrigieren.**
+
+- **Jede Änderung am Arbeitsstand wird gemeldet**, mit einer kurzen Zeile in die Gruppe:
+  „Notiert: Kernthema = Ankommen. Falls das nicht stimmt, sagt es mir."
+- **Es wird nicht auf Bestätigung gewartet.** Der Ablauf läuft weiter. Die Meldung *ist* die
+  Korrekturgelegenheit, kein Tor.
+- **Nur Arbeitsstand-Änderungen werden gemeldet, Journaleinträge nie.** Sonst wäre der Chat
+  zugespammt und die Meldungen würden überlesen — womit sie ihren Zweck verlören.
+- **Gleicher Wert, keine Meldung.** Setzt der Extraktor ein Feld auf den Wert, der schon
+  drinsteht, passiert nichts. Sonst meldete der Bot bei jedem Zug dasselbe Kernthema.
+- Korrigiert wird mit `/kernthema`, `/konflikt`, `/begriffe`, `/figur` (§ 8).
+
+Weitere Regeln:
 
 - **Auslöser:** nach jeder Bot-Antwort, über alles seit `letzte_extrahierte_message_id`.
   Zusätzlich als Netz ein Token-Schwellwert (1.500), falls die Gruppe lange untereinander
   redet, ohne den Bot anzusprechen.
-- **Die leere Liste ist der ausdrückliche Normalfall.** Der Prompt sagt das explizit. Ein
-  Extraktor, der immer etwas liefern *muss*, erfindet Bedeutung in „ich hol mir Kaffee"
-  hinein — das wäre Verwässerung durch die Hintertür.
+- **Die leere Liste ist der ausdrückliche Normalfall**, und `null` in jedem Arbeitsstandfeld
+  ebenso. Der Prompt sagt das explizit. Ein Extraktor, der immer etwas liefern *muss*,
+  erfindet Bedeutung in „ich hol mir Kaffee" hinein — beim Arbeitsstand wäre das schlimmer
+  als beim Journal, weil ein falsches Kernthema in jedem folgenden Prompt steht.
 - **Fehlschlag:** Wasserzeichen bleibt stehen, das Fenster wird beim nächsten Mal
   mitgelesen — ein kostenloser Wiederholungsversuch ohne eigene Retry-Logik. Nichts wird
   der Gruppe gemeldet, eine Zeile ins Log.
@@ -446,45 +459,30 @@ halbe Minute Wartezeit ist vertretbar, wenn die Gruppe weiß, worauf sie wartet.
 
 ---
 
-## 5. Belegzitat-Verifikation (Pflicht)
+## 5. Belegzitat-Verifikation
 
-**Kein Belegzitat geht an die Gruppe, bevor es gegen das Transkript geprüft wurde.** Das gilt
-für den Verdichter (§ 4.2) und für jedes Zitat, das der Gesprächs-Prompt in einem Vorschlag
-mitliefert.
+**Eine Regel:** Kommt das Zitat nach Normalisierung wörtlich im Transkript vor, ja oder nein.
 
-Begründung: Die Messung zeigt, dass Modus A **nichts erfindet** (0/9 frei erfundene Zitate),
-aber **kürzt** (2/9 mit `[...]`) und in einem Lauf zwei weit auseinanderliegende Stellen
-zusammenklebte. Ein Zitat ist der Beleg, an dem die Gruppe die Behauptung prüft — ein
-ungenaues Zitat ist schlimmer als keins, weil es Prüfbarkeit vortäuscht. Die Prüfung ist ein
-Teilstring-Vergleich und kostet nichts.
+- **Normalisieren**, auf beiden Seiten gleich: Whitespace-Folgen zu einem Leerzeichen,
+  typografische Anführungszeichen auf gerade. Sonst nichts.
+- **Teilstring-Vergleich.** Trifft er nicht: Vorschlag **ohne** Zitat ausliefern, `vorfall`
+  `zitat_ungeprueft`, fertig.
+- **Kein Retry. Kein Zerlegen an `[...]`. Keine Reihenfolge- oder Abstandsprüfung.**
 
-### 5.1 Verfahren
+**Warum das Regelwerk gestrichen wurde.** Eine frühere Fassung zerlegte Zitate an `[...]`,
+prüfte Segmentreihenfolge und einen Höchstabstand von 600 Zeichen und fasste einmal nach.
+Das schützte gegen **ein einziges Vorkommnis in neun Messläufen** — und konnte selbst falsch
+ablehnen. Ein fälschlich abgewiesenes Zitat ist am Workshoptag genauso schlecht wie ein
+zusammengeklebtes: In beiden Fällen steht ein Vorschlag ohne Beleg da. Dazu kommt, dass die
+Gruppe ihr eigenes Transkript im Chat sieht und Unstimmigkeiten selbst bemerkt — sie ist die
+bessere Prüfinstanz als eine Heuristik mit drei gesetzten Schwellwerten.
 
-1. **Normalisieren**, auf beiden Seiten gleich: Whitespace-Folgen zu einem Leerzeichen,
-   typografische Anführungszeichen (`„ " " ' ' »«`) auf gerade, Bindestrich-Varianten
-   vereinheitlichen, Groß-/Kleinschreibung beibehalten (sonst wird die Prüfung zu lasch).
-2. **Teilstring-Vergleich** gegen das normalisierte Transkript.
-3. **Bei `[...]`**: am Auslassungszeichen aufteilen und **jedes Segment einzeln** prüfen.
-   Segmente unter 15 Zeichen werden verworfen statt geprüft — kurze Fragmente treffen
-   zufällig.
-4. **Zusätzlich bei `[...]`**: die Segmente müssen im Transkript **in derselben Reihenfolge**
-   vorkommen und dürfen **höchstens 600 Zeichen** auseinanderliegen. Ohne diese Regel besteht
-   genau der gemessene Fehler die Prüfung — zwei je für sich wörtliche Segmente von weit
-   auseinanderliegenden Stellen, zu einer scheinbaren Aussage verschweißt.
+Was bleibt, fängt den wichtigen Fall ab: ein Zitat, das **gar nicht** im Transkript steht.
+Genau das kann die Gruppe nicht selbst sehen, weil ihr die Behauptung plausibel erscheint.
+Alles Feinere kostet mehr Risiko, als es abwehrt.
 
-### 5.2 Verhalten bei Fehlschlag
-
-1. **Genau ein Retry** desselben Aufrufs, mit dem Hinweis im Prompt, dass wörtlich zitiert
-   werden muss und Auslassungen unzulässig sind.
-2. Schlägt auch der fehl: **Vorschlag ohne Zitat ausliefern, nicht den Vorschlag verwerfen.**
-   Die dramaturgische Substanz stimmt laut Messung auch dann; nur der Beleg fehlt. Ein
-   Vorschlag ohne Beleg ist schwächer als einer mit — aber gar kein Vorschlag hält die Gruppe
-   auf, und das ist die teurere Sorte Fehler.
-3. `verdichtung_thema.beleg_zitat = NULL`, `zitat_geprueft = 0`.
-4. **`vorfall`-Eintrag `zitat_ungeprueft`** mit dem verworfenen Zitat im Detailfeld. Das
-   Workshop-Team sieht im Dashboard, wo der Bot ohne Beleg unterwegs war.
-5. **Der Gruppe wird nichts gemeldet** (Leitsatz 5) — sie kann es nicht beheben und wartet
-   nicht darauf.
+**Der Gruppe wird nichts gemeldet** (Leitsatz 5) — sie kann es nicht beheben und wartet nicht
+darauf.
 
 ---
 
@@ -590,22 +588,19 @@ kürzen als zu spät.
 Samstagvormittag ist das echte Verhältnis bekannt und der Divisor anpassbar. Das Dashboard
 zeigt die Drift.
 
-### 7.2 Kürzungsleiter
+### 7.2 Kürzung
 
-Bei Überschreitung wird **hart gekürzt, still, nach fester Rangfolge** — von oben abgearbeitet,
-bis es passt:
+Passt der Prompt nicht ins Budget, greift **eine Regel in zwei Schritten**:
 
-1. Volltranskripte auf das zuletzt angeforderte Interview reduzieren
-2. Kurzes Fenster auf 1.500 Token stutzen
-3. Belegzitate aus den Verdichtungen streichen, Zusammenfassungen behalten
-4. Journal nach Rang beschneiden
-5. **Notbremse:** nur Systemanweisung + Arbeitsstand + Fenster + auslösende Nachricht
+1. **Volltranskripte fliegen ganz raus.**
+2. Reicht das nicht, wird das **kurze Fenster von vorn beschnitten**, bis es passt.
 
-**Stufe 5 passt immer. Es gibt keinen Zustand, in dem der Bot wegen des Budgets nicht
-antwortet.**
+Was danach übrig bleibt, ist die **Notbremse**: Systemanweisung + Arbeitsstand + Fenster +
+auslösende Nachricht. Die passt immer — **es gibt keinen Zustand, in dem der Bot wegen des
+Budgets nicht antwortet.** Das ist der einzige Teil der alten fünfstufigen Leiter, der
+wirklich gebraucht wurde.
 
-Jede gezogene Stufe schreibt einen `vorfall` mit Stufennummer. Das Dashboard zeigt
-„Gruppe 2, 14:03, Stufe 2 gezogen", und das Team weiß, wo es hinschauen muss.
+Jede Kürzung schreibt einen `vorfall`. Das Dashboard zeigt „Gruppe 2, 14:03, gekürzt".
 
 **Nicht** verdichten bei Überschreitung — das wäre ein LLM-Aufruf im kritischen Pfad, ausgelöst
 genau dann, wenn ohnehin viel los ist. **Nicht** der Gruppe sagen „ich muss aufräumen" — das
@@ -614,7 +609,7 @@ hält den Workshop an und lässt das Werkzeug zerbrechlich wirken.
 Kürzen kostet nichts außer dem gekürzten Material — ein Caching-Nachteil, wie eine frühere
 Fassung behauptete, ist nicht belegt (§ 6.1).
 
-**Nicht zu verwechseln mit `max_tokens`** (§ 11.3): Die Kürzungsleiter begrenzt die *Eingabe*,
+**Nicht zu verwechseln mit `max_tokens`** (§ 11.3): Die Kürzung begrenzt die *Eingabe*,
 `max_tokens` bemisst die *Ausgabe*. Letzteres darf nie knapp gesetzt werden.
 
 ---
@@ -625,20 +620,24 @@ Fassung behauptete, ist nicht belegt (§ 6.1).
 |---|---|
 | `/merken <text>` | Journaleintrag, `art = entschieden`, `quelle = befehl` |
 | `/verworfen <text>` | Journaleintrag, `art = verworfen`, `quelle = befehl` |
-| `/wortlaut` | Volltranskripte **aller** Interviews an (klebrig) |
-| `/wortlaut <name>` | nur dieses Interview (klebrig) |
-| `/wortlaut aus` | aus |
+| `/kernthema <text>` | **korrigiert** das Kernthema |
+| `/konflikt <text>` | korrigiert den Hauptkonflikt |
+| `/begriffe <text>` | korrigiert die Begriffe |
+| `/figur <name>: <beschreibung>` | legt eine Figur an oder überschreibt sie |
+| `/name <alt> <neu>` | benennt eine Aufnahme um (`Interview 2` → `Maria`) |
+| `/material <text>` | speist Text als Material ein (§ 10.5) |
+| `/wortlaut [name\|aus]` | Volltranskripte mitlesen (klebrig) |
 | `/gruendlich` | nächster Zug in Modus B (§ 4.5), einmalig, angekündigt |
-| `/stand` | Bot gibt den Arbeitsstand aus — **ohne LLM**, direkt aus der DB |
+| `/stand` | Arbeitsstand ausgeben — **ohne LLM**, direkt aus der DB |
 | `/hilfe` | wie man den Bot anspricht, welche Befehle es gibt |
 
-**Zu `/merken` und `/verworfen`:** Nicht als Hauptmechanismus gedacht — Laienschauspielerinnen,
-die zum ersten Mal ein Interview führen, tippen keine Slash-Befehle. Als Handbremse für das,
-was der Extraktor übersehen hat, kosten sie zwanzig Zeilen Code, brauchen kein LLM und sind
-das Werkzeug, mit dem sich etwas festnageln lässt.
+**Die Arbeitsstand-Befehle sind Korrekturweg, nicht Hauptweg.** Gefüllt wird der Arbeitsstand
+vom Extraktor (§ 4.3); getippt wird nur, wenn er etwas falsch verstanden hat. Deshalb steht in
+jeder Änderungsmeldung des Bots die Einladung dazu — die Gruppe muss die Befehle nicht kennen,
+sie werden ihr im Moment des Bedarfs gezeigt.
 
 **Zu `/wortlaut <name>`:** Der Name, nicht die Nummer. Eine Gruppe, die gerade Marias Figur
-schreibt, denkt nicht in Interviewnummern. Namensabgleich großzügig: Kleinschreibung,
+schreibt, denkt nicht in Aufnahmenummern. Namensabgleich großzügig: Kleinschreibung,
 Teiltreffer. Bei Mehrdeutigkeit oder Nichttreffer zählt der Bot die vorhandenen Namen auf,
 statt zu raten. Klebrig und in der DB, damit der Schalter den Neustart überlebt.
 
@@ -671,8 +670,8 @@ Zusammenbaus.
    Trennung wie in § 1, nur auf der Zeitachse.* Vierzehn Stunden später auf eine Nachtnachricht
    zu reagieren, wäre verwirrend.
 3. **Angefangene Arbeit aufgreifen:**
-   `SELECT * FROM interview WHERE status NOT IN ('verdichtet','fehlgeschlagen')` → zu Ende
-   arbeiten. Der wahrscheinlichste Schadensfall ist banal: um 17:58 kommt ein Interview, um
+   `SELECT * FROM aufnahme WHERE status NOT IN ('fertig','fehlgeschlagen')` → zu Ende
+   arbeiten. Denselben Weg nimmt der Nachhol-Arbeiter im laufenden Betrieb (§ 10.3). Der wahrscheinlichste Schadensfall ist banal: um 17:58 kommt ein Interview, um
    18:00 klappt der Rechner zu. Ohne diesen Schritt fehlt das Interview am Sonntag **unsichtbar** —
    keine Fehlermeldung, es ist einfach weg. Eine Spalte und eine Abfrage beim Hochfahren; die
    billigste Versicherung im ganzen Entwurf.
@@ -703,23 +702,100 @@ Audioverzeichnis der Gruppe. Vollständig, weil keine Tabelle ohne `chat_id` aus
 
 ---
 
-## 10. Interview-Pipeline
+## 10. Sprachverarbeitung und Materialimport
+
+Sprache ist nicht mehr nur Interview-Material. Auch die normale Arbeitskommunikation und
+Regieanweisungen laufen per Sprachnachricht. **Das ändert die Latenzanforderung
+grundlegend** — und zwar nicht gleichmäßig, sondern gespalten.
+
+### 10.1 Zwei Klassen, unterschieden an der Dauer
+
+Telegram liefert `voice.duration` in den Metadaten mit, bevor irgendetwas heruntergeladen
+wird. Das genügt für die einzige Unterscheidung, die zählt:
+
+| Klasse | Dauer | Was es ist | Latenzanspruch |
+|---|---|---|---|
+| **kurz** | bis `KURZ_GRENZE_S = 45` | **Gesprächsbeitrag** — ein Zuruf, eine Regieanweisung | eine halbe Minute Wartezeit zerstört den Fluss |
+| **lang** | darüber | **Material** — ein Interview | darf dauern |
+
+`KURZ_GRENZE_S` ist **eine Konstante an einer Stelle**, kein über den Code verstreuter
+Vergleich. Sie wird sich beim ersten Einsatz als zu hoch oder zu niedrig erweisen, und dann
+soll genau eine Zeile zu ändern sein.
+
+**Beide Klassen durchlaufen dieselbe Statusmaschine** und dieselbe Tabelle `aufnahme`. Der
+Unterschied liegt nur im Ziel: eine **kurze** Aufnahme wird transkribiert und als
+Textnachricht in den Verlauf geschrieben, wo sie einen ganz normalen Gesprächszug auslöst.
+Eine **lange** wird zusätzlich verdichtet und damit zu Material (Schicht 1).
+
+### 10.2 Die Datei ist zuerst sicher, dann wird gefragt
+
+**Die Audiodatei wird immer heruntergeladen und mit `status = 'empfangen'` in die Datenbank
+geschrieben, bevor Whisper überhaupt gefragt wird.** Das ist die eigentliche Absicherung.
+Fällt Whisper aus, liegt das Material trotzdem da und wird nachgeholt (§ 10.4) — es ist keine
+Aufnahme verloren, nur noch nicht gelesen.
 
 ```
-Sprachnachricht empfangen
-  → Datei herunterladen, status='empfangen', Empfangsbestätigung an die Gruppe
-  → Whisper V3 → transkript, status='transkribiert'
-  → Rückfrage "Wer wurde da interviewt?" (§ 1.4), Ersatzname 'Interview n'
-  → Verdichter (§ 4.2) → verdichtung + verdichtung_thema
-  → Belegzitat-Verifikation (§ 5)
-  → status='verdichtet'
+Sprachnachricht
+  → Datei herunterladen, aufnahme(status='empfangen', klasse=kurz|lang)
+  → [lang] sofortige Empfangsbestätigung an die Gruppe
+  → Transkription im Hintergrund
+  → status='transkribiert'
+  → [kurz] Transkript als Nachricht in den Verlauf, loest Gespraechszug aus
+  → [lang] Verdichter (§ 4.2) + Belegzitat-Prüfung (§ 5)
+  → status='fertig'
 ```
 
-- Die **Empfangsbestätigung kommt sofort** („Kommt an, ich höre durch — dauert einen Moment").
-  Ohne sie hält die Gruppe den Bot für tot und schickt nochmal.
-- Die **Namensrückfrage kommt nach der Transkription**, nicht davor — sonst blockiert sie das
-  Einlesen.
-- Anzahl der Interviews offen; die Gruppe sagt, wann Schluss ist. Kein Zählwerk im Code.
+**Die Transkription läuft nebenläufig, nie blockierend im Nachrichten-Handler.** Ein
+Handler, der auf Whisper wartet, blockiert alles Übrige der Gruppe — und genau das passiert
+im Ernstfall, wenn Whisper dreißig Sekunden braucht.
+
+Weitere Regeln:
+
+- **Bei kurz keine Empfangsbestätigung**, nur die Tippanzeige. Eine Bestätigung auf einen
+  Siebensekünder wäre Lärm.
+- **Bei kurz: dauert die Transkription länger als `LANGSAM_AB_S = 8`**, schickt der Bot eine
+  kurze Zeile („Ich hör noch zu, einen Moment") und arbeitet weiter. Kein Warten, kein Tor.
+- **Hartes Zeitbudget je Transkription**: `BUDGET_KURZ_S = 60`, `BUDGET_LANG_S = 300`.
+  Danach `status = 'fehlgeschlagen'`, `vorfall`, **und eine Zeile an die Gruppe**, dass sie
+  die Aufnahme nochmal schicken soll — nur sie kann das beheben (Leitsatz 5).
+
+### 10.3 Nachhol-Arbeiter
+
+Ein Arbeiter greift **beim Start und danach alle `NACHHOL_INTERVALL_S = 60` Sekunden** alles
+auf, was nicht in einem Endzustand steht (`empfangen`, `transkribiert`). Damit **heilt ein
+Whisper-Ausfall sich selbst**, sobald der Dienst zurück ist — niemand muss etwas anstoßen.
+
+Es ist derselbe Mechanismus, der die Nacht zwischen den Workshoptagen überbrückt (§ 9.1
+Schritt 3). Ein Mechanismus für zwei Probleme, keine zweite Maschinerie.
+
+**Nachgeholtes löst nie eine Antwort aus.** Eine kurze Aufnahme, die erst zwanzig Minuten
+später transkribiert wird, landet als Text im Verlauf, aber der Bot antwortet nicht mehr
+darauf — dieselbe Regel wie beim Nachtstau. Die Gruppe ist inzwischen weiter; eine verspätete
+Antwort auf einen Zuruf von vorhin stiftet mehr Verwirrung, als sie nützt.
+
+Nach `MAX_VERSUCHE = 5` erfolglosen Anläufen wird eine Aufnahme `fehlgeschlagen`, damit ein
+kaputtes Audio nicht bis Sonntagabend im Kreis läuft.
+
+### 10.4 Whisper komplett weg
+
+Pro Gruppe ein Feld `whisper_stumm_seit`.
+
+- Schlägt eine Transkription fehl und das Feld ist leer: **einmalig** eine Zeile — „Ich kann
+  gerade nicht hören. Schreibt mir solange, ich sammle die Aufnahmen und hole sie nach." —
+  dann Feld setzen und **still bleiben**. Nicht bei jeder weiteren Nachricht wiederholen.
+- Gelingt eine Transkription und das Feld ist gesetzt: eine Zeile („Ich kann wieder hören"),
+  Feld leeren.
+- **Der Rückstau wird nicht beantwortet**, nur transkribiert und abgelegt, damit das Material
+  im Kontext steht (§ 10.3).
+
+### 10.5 Textimport als gleichwertiger Weg
+
+`/material <text>` und eine als Dokument geschickte `.txt`-Datei erzeugen eine `aufnahme` mit
+`quelle = 'text'` und `status = 'transkribiert'`, die **durch denselben Verdichter läuft** und
+dieselben Verdichtungen mit Belegzitaten erzeugt wie eine Sprachaufnahme.
+
+Das deckt zwei Fälle mit einem Weg ab: den **Rückfallweg**, wenn Audio streikt — und den Fall,
+dass die Gruppe vorhandenes Recherchematerial einspeisen will, das nie gesprochen wurde.
 
 ---
 
@@ -747,39 +823,63 @@ lassen).
 
 ### 11.3 Gemessene Betriebsfallen
 
-Beide in der Messung vom 03.09.2026 tatsächlich aufgetreten. Beide sind Betriebsfehler, keine
-Modellfehler — und beide sind billig zu schließen.
-
 **1. `max_tokens` zu knapp — der stille Durchfall.**
 Bei `max_tokens: 3000` fiel ein Aufruf mit Reasoning **still durch**: HTTP 200,
-`content: null`, `finish_reason: "length"`. Kein Fehler, keine Ausnahme, nur eine leere
-Antwort. Das Reasoning verbraucht das Ausgabebudget, bevor der eigentliche Inhalt beginnt.
+`content: null`, `finish_reason: "length"`. Das Reasoning verbraucht das Ausgabebudget, bevor
+der eigentliche Inhalt beginnt.
 
-- **`max_tokens` ≥ 9.000 für jeden Aufruf**, zwingend für jeden Aufruf mit Reasoning
-  (Modus B, § 4.5).
-- **`finish_reason` bei jedem Aufruf prüfen** und in `aufruf.finish_reason` schreiben. Ist er
-  `length`, ist das ein `vorfall` `abgeschnitten` — nicht ein leeres Ergebnis, das kommentarlos
-  durchgereicht wird.
-- Das ist ausdrücklich **kein** Fall für die Kürzungsleiter (§ 7.2): die begrenzt die Eingabe,
-  hier ist die Ausgabe zu klein bemessen.
+- **`max_tokens` ≥ 9.000 für jeden Aufruf.**
+- **`finish_reason` bei jedem Aufruf prüfen**; `length` ist ein `vorfall` `abgeschnitten`,
+  kein leeres Ergebnis zum Durchreichen.
+- Kein Fall für die Kürzung (§ 7.2): die begrenzt die Eingabe, hier ist die Ausgabe zu klein.
 
-**2. HTTP 502 — Wiederholung mit Backoff.**
+**2. `reasoning_effort` nur senden, wenn gesetzt.**
+Aus der Vorlage `kg/llm.py`: Modelle, die das Feld nicht kennen, lehnen den Request mit
+**HTTP 400** ab. Es gehört also nur dann in den Körper, wenn ein Wert konfiguriert ist.
+
+**3. HTTP 502 — Wiederholung mit Backoff.**
 In 13 Aufrufen trat einmal HTTP 502 auf; die Wiederholung nach 0,7 Sekunden war sofort
-erfolgreich. Bei drei Bots über zwei Tage ist das kein Ausnahmefall, sondern eine
-Regelmäßigkeit.
+erfolgreich. Bei drei Bots über zwei Tage ist das kein Ausnahmefall.
 
-- **Retry bei 5xx und Timeout: 3 Versuche, exponentieller Backoff ab 0,7 s** (0,7 / 1,5 / 3 s),
-  mit etwas Jitter.
+- **Retry bei 5xx und Timeout: Wartezeiten 0,7 / 1,5 / 3 s mit Jitter.**
 - Erfolgreiche Wiederholungen werden **nicht** der Gruppe gemeldet, aber als `vorfall`
-  `http_5xx` gezählt — häufen sie sich, will das Team es sehen.
-- Erst wenn alle Versuche scheitern, greift § 11.1.
+  `http_5xx` gezählt.
+
+**4. 🔴 Whisper ist im Realbetrieb unzuverlässiger als im Labor.**
+Beim Realbetrieb der Installation *Kollektivgedächtnis* (Festival NEW bauhaus, Ende August
+2026) ist der Infomaniak-Whisper-Server **manchmal komplett ausgefallen oder hat bis zu 30
+Sekunden gebraucht**. Das widerspricht der Labormessung vom 31.08.2026, die einen konstanten
+Overhead von ~3 Sekunden zeigte (2,9 s für 5,3 s Audio bis 4,7 s für 32,0 s Audio). Eine neue
+Messung läuft; die Zahlen werden nachgereicht.
+
+**Die Architektur in § 10 ist so gebaut, dass sie von diesen Zahlen nicht abhängt:** Datei
+zuerst sichern, nebenläufig transkribieren, hartes Zeitbudget, Nachhol-Arbeiter, einmalige
+Ausfallmeldung. Ob Whisper 3 oder 30 Sekunden braucht, ändert die Wartezeit — nicht, ob
+Material verloren geht.
+
+**5. Whisper ist zweistufig und asynchron** (Vorlage
+`stt_backends/infomaniak_whisper_backend.py`, gemessen 31.08.2026):
+
+- Absenden: `POST {base}/1/ai/{produkt}/openai/audio/transcriptions`, multipart mit `file`,
+  `model=whisper`, `language=de`, `response_format=verbose_json` → `{"batch_id": "..."}`.
+  **Nicht** unter `/2/.../openai/v1/` — dort antwortet der Server 404.
+- Ergebnis: `GET {base}/1/ai/{produkt}/results/{batch_id}` → `{"status": "success", "data":
+  "<JSON-String>"}`. **`data` ist ein String, kein Objekt** und muss ein zweites Mal geparst
+  werden.
+- Abbruchzustände: `error`, `failed`, `aborted`, `canceled`, `cancelled`. Alles andere heißt
+  weiterwarten, begrenzt vom Zeitbudget — die Zwischenzustände sind nicht abschließend
+  bekannt, und ein unbekannter Status darf nicht als Fehler durchgehen.
+- Grenze: 25 MB pro Datei.
 
 ---
 
 ## 12. Offene Punkte
 
-- **`SEQUENZ_BEI_FRAGEZEICHEN`** — standardmäßig aus, § 1.4. Frühestens nach dem ersten
-  Workshoptag erproben.
+- **`KURZ_GRENZE_S = 45`** (§ 10.1) — gesetzt, nicht gemessen. Der erste Wert, an dem zu
+  drehen ist, falls Regieanweisungen regelmäßig als Material einsortiert werden oder
+  umgekehrt.
+- **`LANGSAM_AB_S = 8` und die Zeitbudgets** (§ 10.2) — hängen an der laufenden
+  Whisper-Messung (§ 11.3 Punkt 4).
 - **Divisor der Token-Schätzung** — startet bei 3, wird nach den ersten Aufrufen anhand von
   `aufruf.tatsaechliche_token` nachjustiert.
 - **Segmentabstand bei `[...]`** — die 600 Zeichen aus § 5.1 sind gesetzt, nicht gemessen.

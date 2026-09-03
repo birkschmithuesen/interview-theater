@@ -73,6 +73,44 @@ def test_502_wird_wiederholt(einst, conn, monkeypatch):
     assert len(schlaf_aufrufe) == 1
 
 
+def test_connect_error_wird_wiederholt_und_als_llmfehler_verpackt(einst, conn, monkeypatch):
+    """Das Betriebsszenario 'Infomaniak ist komplett weg' (SPEC § 11.1) zeigt
+    sich in der Praxis meist als ConnectError, nicht als HTTP 500 oder
+    Timeout. Muss trotzdem wiederholt und am Ende als LLMFehler geworfen
+    werden -- der Aufrufer faengt LLMFehler, kein rohes httpx."""
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+    aufrufe = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        aufrufe["n"] += 1
+        raise httpx.ConnectError("Verbindung abgelehnt")
+
+    with pytest.raises(llm.LLMFehler) as ausnahme_info:
+        llm.LLM(einst, _klient(handler), conn).schema(1, "s", "n", {}, "extraktor")
+
+    assert not isinstance(ausnahme_info.value, httpx.ConnectError)
+    assert aufrufe["n"] == len(llm.WARTEZEITEN) + 1
+
+
+def test_erfolgreiche_wiederholung_nach_502_zaehlt_als_vorfall(einst, conn, monkeypatch):
+    """SPEC § 11.3 Punkt 3: erfolgreiche Wiederholungen erreichen die Gruppe
+    nicht, sollen aber als Vorfall http_5xx gezaehlt werden."""
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+    versuche = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        versuche["n"] += 1
+        if versuche["n"] < 2:
+            return httpx.Response(502, json={"error": "bad gateway"})
+        return _antwort(content='{"a": 6}')
+
+    ergebnis = llm.LLM(einst, _klient(handler), conn).schema(1, "s", "n", {}, "extraktor")
+
+    assert ergebnis == {"a": 6}
+    zeilen = conn.execute("SELECT art FROM vorfall WHERE chat_id = 1").fetchall()
+    assert [z["art"] for z in zeilen] == ["http_5xx"]
+
+
 def test_finish_reason_length_ist_fehler_und_vorfall(einst, conn):
     def handler(request: httpx.Request) -> httpx.Response:
         return _antwort(content="{}", finish_reason="length")

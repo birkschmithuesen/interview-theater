@@ -196,7 +196,7 @@ class LLM:
         erfolg = 0
         start = time.monotonic()
         try:
-            koerper = self._sende_mit_wiederholung(body)
+            koerper = self._sende_mit_wiederholung(body, chat_id=chat_id, art=art)
             try:
                 auswahl = koerper["choices"][0]
             except (KeyError, IndexError, TypeError) as fehler:
@@ -238,11 +238,19 @@ class LLM:
                 erfolg,
             )
 
-    def _sende_mit_wiederholung(self, body: dict) -> dict:
-        """Schickt den Request, wiederholt bei 5xx/Timeout mit den
+    def _sende_mit_wiederholung(self, body: dict, *, chat_id: int | None, art: str) -> dict:
+        """Schickt den Request, wiederholt bei 5xx/Transportfehler mit den
         Wartezeiten aus WARTEZEITEN plus etwas Jitter -- bis zu vier
         Versuche insgesamt. Erfolgreiche Wiederholungen werden der Gruppe
-        nicht gemeldet, das erledigt der Aufrufer."""
+        nicht gemeldet (SPEC § 11.3 Punkt 3), aber als Vorfall 'http_5xx'
+        gezaehlt, damit sich Haeufungen im Dashboard zeigen.
+
+        ``httpx.TransportError`` ist die gemeinsame Basisklasse von
+        ``ConnectError``, ``ReadError`` und ``TimeoutException`` -- das
+        Betriebsszenario "Infomaniak ist komplett weg" (SPEC § 11.1) aeussert
+        sich in der Praxis fast immer als ConnectError/DNS-Fehler, nicht als
+        HTTP 500 oder Timeout, und muss deshalb genauso wiederholt und in
+        einen LLMFehler verpackt werden."""
         letzter_fehler: Exception | None = None
         gesamtversuche = len(WARTEZEITEN) + 1
         for versuch in range(gesamtversuche):
@@ -258,10 +266,21 @@ class LLM:
                         f"Sprachmodell lehnte den Aufruf ab: HTTP {fehler.response.status_code}"
                     ) from fehler
                 letzter_fehler = fehler
-            except httpx.TimeoutException as fehler:
+            except httpx.TransportError as fehler:
                 letzter_fehler = fehler
 
             if versuch < len(WARTEZEITEN):
+                # Fehlertyp und Versuchsnummer, bewusst ohne str(fehler):
+                # weder Header noch Anfragekoerper duerfen in den Vorfall
+                # wandern (siehe LLMFehler-Docstring).
+                repo.merke_vorfall(
+                    self._conn,
+                    chat_id,
+                    getattr(self._e, "bot_name", None),
+                    "http_5xx",
+                    f"Sprachmodell-Aufruf fehlgeschlagen ({type(letzter_fehler).__name__}), "
+                    f"Versuch {versuch + 1}/{gesamtversuche}, Wiederholung folgt (art={art})",
+                )
                 time.sleep(WARTEZEITEN[versuch] + random.uniform(0, 0.3))
 
         raise LLMFehler(

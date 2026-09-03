@@ -24,7 +24,7 @@
 
 **Whisper (§ 11.3 Punkt 5)** — zweistufig: `POST {base}/1/ai/{produkt}/openai/audio/transcriptions` (multipart `file`, `model=whisper`, `language=de`, `response_format=verbose_json`) → `batch_id`; dann `GET {base}/1/ai/{produkt}/results/{batch_id}` alle 0,5 s, bis `status == "success"`. **`data` ist ein JSON-String und muss ein zweites Mal geparst werden.** Abbruch bei `error|failed|aborted|canceled|cancelled`; alles andere heißt weiterwarten. 25 MB Grenze.
 
-**Sprachverarbeitung (§ 10)** — `KURZ_GRENZE_S = 45`, `LANGSAM_AB_S = 8`, `BUDGET_KURZ_S = 60`, `BUDGET_LANG_S = 300`, `NACHHOL_INTERVALL_S = 60`, `MAX_VERSUCHE = 5`. Alle an genau einer Stelle.
+**Sprachverarbeitung (§ 10)** — `KURZ_GRENZE_S = 45`, `TIPPANZEIGE_AB_S = 5`, `MELDUNG_AB_S = 12`, `BUDGET_KURZ_S = 45`, `BUDGET_LANG_S = 90`, `NACHHOL_INTERVALL_S = 60`, `MAX_VERSUCHE = 5`. Alle an genau einer Stelle. Werte aus der Messung vom 03.09.2026 (76 Läufe, Median 2,9 s, einziger Ausreißer 8,88 s, kein Lauf über 10 s). **Genau ein sofortiger Wiederholungsversuch** mit neuem Upload; danach bleibt `status = 'empfangen'` für den Nachhol-Arbeiter. **Nicht schneiden** außer wegen der 25-MB-Grenze — Chunking bringt nichts.
 
 **Kontext (§ 6, § 7)** — Schätzung Zeichen ÷ 3. Budgets: System 900 · Verdichtungen 3000 · Transkripte 5000 · Arbeitsstand 1200 · Szene 1500 · Journal 1500 · Fenster 2500 · Auslöser 300. Ziel 10 000, Reißleine 20 000. Kürzung: erst Transkripte ganz raus, dann Fenster von vorn beschneiden. Pausenmarkierung ab 60 Minuten.
 
@@ -371,7 +371,7 @@ Jeder Aufruf schreibt in `aufruf`: geschätzte Token (`(len(system)+len(nutzer))
 
 **Files:** `theatersoap/stt.py`, `scripts/rauchtest.py`, `tests/test_stt.py`
 
-**Produces:** `stt.transkribiere(e, klient, pfad: Path, budget_s: float) -> str` · `stt.absenden(...) -> str` (batch_id) · `stt.abholen(...) -> str` · `STTFehler` · `POLL_INTERVALL_S = 0.5` · `MAX_UPLOAD_BYTES = 25*1024*1024`
+**Produces:** `stt.transkribiere(e, klient, pfad: Path, budget_s: float) -> str` (mit genau einem sofortigen Wiederholungsversuch) · `stt.absenden(...) -> str` (batch_id) · `stt.abholen(...) -> str` · `STTFehler` · `POLL_INTERVALL_S = 0.5` · `MAX_UPLOAD_BYTES = 25*1024*1024`
 
 - [ ] **Schritt 1: Test schreiben**
 
@@ -547,7 +547,7 @@ Die Aufgabe, in der § 10 lebt.
 **Files:** `theatersoap/aufnahme.py`, Ergänzungen in `bot.py`, `tests/test_aufnahme.py`
 
 **Produces:**
-- Konstanten `KURZ_GRENZE_S = 45`, `LANGSAM_AB_S = 8`, `BUDGET_KURZ_S = 60`, `BUDGET_LANG_S = 300`, `NACHHOL_INTERVALL_S = 60`, `MAX_VERSUCHE = 5`
+- Konstanten `KURZ_GRENZE_S = 45`, `TIPPANZEIGE_AB_S = 5`, `MELDUNG_AB_S = 12`, `BUDGET_KURZ_S = 45`, `BUDGET_LANG_S = 90`, `NACHHOL_INTERVALL_S = 60`, `MAX_VERSUCHE = 5`
 - `aufnahme.klasse_fuer(dauer: int | None) -> str`
 - `aufnahme.empfange(conn, tg, e, n: dict) -> int` — lädt herunter, legt `status='empfangen'` an, **ohne Whisper**
 - `aufnahme.verarbeite(conn, tg, klm, e, klient, aufnahme_id) -> None`

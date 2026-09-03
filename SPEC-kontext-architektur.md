@@ -731,7 +731,7 @@ Eine **lange** wird zusätzlich verdichtet und damit zu Material (Schicht 1).
 
 **Die Audiodatei wird immer heruntergeladen und mit `status = 'empfangen'` in die Datenbank
 geschrieben, bevor Whisper überhaupt gefragt wird.** Das ist die eigentliche Absicherung.
-Fällt Whisper aus, liegt das Material trotzdem da und wird nachgeholt (§ 10.4) — es ist keine
+Fällt Whisper aus, liegt das Material trotzdem da und wird nachgeholt (§ 10.3) — es ist keine
 Aufnahme verloren, nur noch nicht gelesen.
 
 ```
@@ -740,24 +740,41 @@ Sprachnachricht
   → [lang] sofortige Empfangsbestätigung an die Gruppe
   → Transkription im Hintergrund
   → status='transkribiert'
-  → [kurz] Transkript als Nachricht in den Verlauf, loest Gespraechszug aus
+  → [kurz] Transkript in dieselbe Nachrichtenzeile, loest Gespraechszug aus
   → [lang] Verdichter (§ 4.2) + Belegzitat-Prüfung (§ 5)
   → status='fertig'
 ```
 
 **Die Transkription läuft nebenläufig, nie blockierend im Nachrichten-Handler.** Ein
-Handler, der auf Whisper wartet, blockiert alles Übrige der Gruppe — und genau das passiert
-im Ernstfall, wenn Whisper dreißig Sekunden braucht.
+Handler, der auf Whisper wartet, blockiert alles Übrige der Gruppe.
+
+**Die Schwellwerte stammen aus der Messung vom 03.09.2026** (§ 11.3 Punkt 4): 76 Läufe,
+Median 2,9 s bei 7 s Audio, 2,8 s bei 30 s, 4,8 s bei 180 s, einziger Ausreißer 8,88 s.
+
+| Konstante | Wert | Begründung aus der Messung |
+|---|---:|---|
+| `TIPPANZEIGE_AB_S` | 5 | liegt über dem Median, feuert also nur, wenn es wirklich hakt |
+| `MELDUNG_AB_S` | 12 | über dem einzigen gemessenen Ausreißer von 8,88 s |
+| `BUDGET_KURZ_S` | 45 | kein Lauf über 10 s; 45 s sind großzügig und trotzdem im Gesprächstempo |
+| `BUDGET_LANG_S` | 90 | 4,8 s für 180 s Audio gemessen; 90 s decken auch einen schlechten Tag |
+
+Ein früherer Entwurf setzte die Textmeldung auf 8 Sekunden. **Das ist überholt** — sie hätte
+bei dem einen gemessenen Ausreißer grundlos gefeuert und die Gruppe beunruhigt, obwohl das
+Transkript eine Sekunde später da war.
 
 Weitere Regeln:
 
-- **Bei kurz keine Empfangsbestätigung**, nur die Tippanzeige. Eine Bestätigung auf einen
-  Siebensekünder wäre Lärm.
-- **Bei kurz: dauert die Transkription länger als `LANGSAM_AB_S = 8`**, schickt der Bot eine
-  kurze Zeile („Ich hör noch zu, einen Moment") und arbeitet weiter. Kein Warten, kein Tor.
-- **Hartes Zeitbudget je Transkription**: `BUDGET_KURZ_S = 60`, `BUDGET_LANG_S = 300`.
-  Danach `status = 'fehlgeschlagen'`, `vorfall`, **und eine Zeile an die Gruppe**, dass sie
-  die Aufnahme nochmal schicken soll — nur sie kann das beheben (Leitsatz 5).
+- **Bei kurz keine Empfangsbestätigung**, nur die Tippanzeige ab 5 s. Eine Bestätigung auf
+  einen Siebensekünder wäre Lärm.
+- **Ab `MELDUNG_AB_S` eine kurze Zeile** („Ich hör noch zu, einen Moment") — dann weiter
+  arbeiten. Kein Warten, kein Tor.
+- **Genau ein sofortiger Wiederholungsversuch** mit neuem Upload. Schlägt auch der fehl oder
+  reißt das Zeitbudget, bleibt `status = 'empfangen'` stehen und der Nachhol-Arbeiter
+  übernimmt (§ 10.3). Kein Schleifen im heißen Pfad.
+- **Nicht schneiden.** Chunking bringt nichts: 6×30 s parallel brauchten 4,22 s gegen 4,84 s
+  am Stück. Geschnitten wird ausschließlich, wenn die 25-MB-Grenze es erzwingt.
+- **Kein Rate-Limiting** festgestellt — zehn gleichzeitige Uploads gingen alle durch. Der
+  Thread-Pool darf also parallel hochladen.
 
 ### 10.3 Nachhol-Arbeiter
 
@@ -845,17 +862,18 @@ erfolgreich. Bei drei Bots über zwei Tage ist das kein Ausnahmefall.
 - Erfolgreiche Wiederholungen werden **nicht** der Gruppe gemeldet, aber als `vorfall`
   `http_5xx` gezählt.
 
-**4. 🔴 Whisper ist im Realbetrieb unzuverlässiger als im Labor.**
-Beim Realbetrieb der Installation *Kollektivgedächtnis* (Festival NEW bauhaus, Ende August
-2026) ist der Infomaniak-Whisper-Server **manchmal komplett ausgefallen oder hat bis zu 30
-Sekunden gebraucht**. Das widerspricht der Labormessung vom 31.08.2026, die einen konstanten
-Overhead von ~3 Sekunden zeigte (2,9 s für 5,3 s Audio bis 4,7 s für 32,0 s Audio). Eine neue
-Messung läuft; die Zahlen werden nachgereicht.
+**4. Whisper-Latenz — gemessen am 03.09.2026.**
+76 Läufe über 52 Minuten, **alle erfolgreich**. Median 2,9 s bei 7 s Audio, 2,8 s bei 30 s,
+4,8 s bei 180 s. Einziger Ausreißer der gesamten Messung 8,88 s, **kein Lauf über 10 s**.
+Kein Rate-Limiting (zehn gleichzeitige Uploads gingen alle durch). Chunking bringt nichts
+(6×30 s parallel 4,22 s gegen 4,84 s am Stück).
 
-**Die Architektur in § 10 ist so gebaut, dass sie von diesen Zahlen nicht abhängt:** Datei
-zuerst sichern, nebenläufig transkribieren, hartes Zeitbudget, Nachhol-Arbeiter, einmalige
-Ausfallmeldung. Ob Whisper 3 oder 30 Sekunden braucht, ändert die Wartezeit — nicht, ob
-Material verloren geht.
+Damit ist die frühere Sorge entschärft: Beim Realbetrieb der Installation
+*Kollektivgedächtnis* (Festival NEW bauhaus, Ende August 2026) war der Server gelegentlich
+komplett ausgefallen oder brauchte bis zu 30 Sekunden. Die Nachmessung bestätigt das nicht.
+**Die Architektur in § 10 bleibt trotzdem so gebaut, dass sie von diesen Zahlen nicht
+abhängt** — Datei zuerst sichern, nebenläufig transkribieren, Zeitbudget, Nachhol-Arbeiter,
+einmalige Ausfallmeldung. Die Messung bestimmt nur die Schwellwerte, nicht die Struktur.
 
 **5. Whisper ist zweistufig und asynchron** (Vorlage
 `stt_backends/infomaniak_whisper_backend.py`, gemessen 31.08.2026):

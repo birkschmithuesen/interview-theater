@@ -504,9 +504,17 @@ im kritischen Pfad (neuer Fehlerpunkt, der die Antwort blockiert). Teuerster Weg
 kleinsten Gewinn. Biegt die Gruppe ab, ändert sich die Materiallage und der Prompt folgt
 automatisch — es gibt keinen Zustand, der ihr widersprechen kann.
 
-**Reihenfolge: stabil nach vorn, flüchtig nach hinten.** Vorn, weil Prompt-Caching nur einen
-byteweise identischen Präfix wiedererkennt. Hinten, weil das Modell dem Ende des Prompts das
-meiste Gewicht gibt. Beide Interessen zeigen in dieselbe Richtung.
+**Reihenfolge: stabil nach vorn, flüchtig nach hinten.** Begründung ist die
+Aufmerksamkeitsverteilung des Modells: was am Ende des Prompts steht, wiegt am schwersten,
+und das soll das Aktuellste sein — die auslösende Nachricht, dann das kurze Fenster, dann
+das Journal. Alles, was sich selten ändert, wandert nach vorn.
+
+> **Kein Caching-Argument.** Eine frühere Fassung begründete diese Reihenfolge zusätzlich mit
+> Prompt-Caching. Das ist gestrichen: In den Messläufen gegen Infomaniak steht in **jeder**
+> Antwort `prompt_tokens_details: null`. Die API-Dokumentation listet zwar
+> `prompt_cache_key` und `cached_tokens`, aber das ist das von OpenAI übernommene Schema und
+> kein Beleg, dass der Anbieter die Felder füllt. **Es gibt keinen gemessenen Cache-Treffer.**
+> Die Reihenfolge bleibt richtig, aber allein aus dem Grund oben. Siehe § 12.
 
 ### 6.2 Blöcke und Budgets
 
@@ -603,8 +611,8 @@ Jede gezogene Stufe schreibt einen `vorfall` mit Stufennummer. Das Dashboard zei
 genau dann, wenn ohnehin viel los ist. **Nicht** der Gruppe sagen „ich muss aufräumen" — das
 hält den Workshop an und lässt das Werkzeug zerbrechlich wirken.
 
-Kürzen ab Stufe 3 verändert den Cache-Präfix und macht das Caching für diesen Aufruf wertlos.
-Das ist der richtige Preis: es passiert selten, und Schärfe schlägt Cache.
+Kürzen kostet nichts außer dem gekürzten Material — ein Caching-Nachteil, wie eine frühere
+Fassung behauptete, ist nicht belegt (§ 6.1).
 
 **Nicht zu verwechseln mit `max_tokens`** (§ 11.3): Die Kürzungsleiter begrenzt die *Eingabe*,
 `max_tokens` bemisst die *Ausgabe*. Letzteres darf nie knapp gesetzt werden.
@@ -777,6 +785,13 @@ Regelmäßigkeit.
 - **Segmentabstand bei `[...]`** — die 600 Zeichen aus § 5.1 sind gesetzt, nicht gemessen.
   Falls die Prüfung am Workshoptag zu viele brauchbare Zitate verwirft, ist das der erste
   Wert, an dem zu drehen ist.
+- **Prompt-Caching** — derzeit **unbelegt und deshalb nirgends als Argument verwendet**
+  (§ 6.1). Wenn `usage.prompt_tokens_details` bei Infomaniak irgendwann nicht mehr `null`
+  liefert, lohnt eine erneute Prüfung: dann könnte der stabile Prompt-Kopf auch Kosten und
+  Latenz senken, und die Kürzungsleiter bekäme einen zusätzlichen Abwägungsgrund. Bis dahin
+  ist das eine Vermutung, keine Grundlage. Billigster Weg, es zu merken:
+  `usage.prompt_tokens_details` bei jedem Aufruf mitloggen und im Dashboard anzeigen, sobald
+  es einmal nicht `null` ist.
 
 ### Erledigt
 

@@ -8,6 +8,7 @@ Der httpx.Client wird von aussen uebergeben (Dependency Injection), damit
 Tests einen httpx.MockTransport einsetzen koennen und nie ins Netz gehen.
 """
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,22 @@ from typing import Any
 import httpx
 
 BASIS = "https://api.telegram.org"
+
+
+class TelegramFehler(Exception):
+    """Fehler beim Zugriff auf die Telegram-Bot-API.
+
+    Die Meldung ist bereits um den Bot-Token bereinigt: spaetere Aufgaben
+    fangen Ausnahmen ab und schreiben str(fehler) als Vorfall in eine Tabelle,
+    die ein im Raum projiziertes Dashboard anzeigt. httpx.HTTPStatusError
+    enthaelt in __str__ die volle Request-URL, und der Token steht im
+    URL-Pfad (/bot<TOKEN>/...) -- ohne Bereinigung stuende er an der Wand.
+    """
+
+
+def _bereinige(text: str, token: str) -> str:
+    """Ersetzt jedes Vorkommen des Bot-Tokens in text durch '<token>'."""
+    return text.replace(token, "<token>")
 
 
 def _iso(unix_zeit: int) -> str:
@@ -32,43 +49,56 @@ class Telegram:
     def _url(self, methode: str) -> str:
         return f"{BASIS}/bot{self._token}/{methode}"
 
+    @contextmanager
+    def _fange_http_fehler(self):
+        """Faengt HTTP- und Transportfehler (Statuscode, Verbindungsabbruch, ...)
+        und wirft sie als TelegramFehler mit token-bereinigter Meldung neu."""
+        try:
+            yield
+        except httpx.HTTPError as fehler:
+            raise TelegramFehler(_bereinige(str(fehler), self._token)) from fehler
+
     def hole_updates(self, offset: int, timeout: int = 25) -> list[dict]:
         """Long-Poll auf neue Updates. Liefert das rohe `result`-Array."""
-        antwort = self._klient.get(
-            self._url("getUpdates"), params={"offset": offset, "timeout": timeout}
-        )
-        antwort.raise_for_status()
-        return antwort.json()["result"]
+        with self._fange_http_fehler():
+            antwort = self._klient.get(
+                self._url("getUpdates"), params={"offset": offset, "timeout": timeout}
+            )
+            antwort.raise_for_status()
+            return antwort.json()["result"]
 
     def sende(self, chat_id: int, text: str) -> int:
         """Schickt eine Textnachricht. Liefert die message_id der gesendeten Nachricht."""
-        antwort = self._klient.post(
-            self._url("sendMessage"), json={"chat_id": chat_id, "text": text}
-        )
-        antwort.raise_for_status()
-        return antwort.json()["result"]["message_id"]
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("sendMessage"), json={"chat_id": chat_id, "text": text}
+            )
+            antwort.raise_for_status()
+            return antwort.json()["result"]["message_id"]
 
     def tippt(self, chat_id: int) -> None:
         """Zeigt die Tippanzeige ("...schreibt") in der Gruppe."""
-        antwort = self._klient.post(
-            self._url("sendChatAction"), json={"chat_id": chat_id, "action": "typing"}
-        )
-        antwort.raise_for_status()
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("sendChatAction"), json={"chat_id": chat_id, "action": "typing"}
+            )
+            antwort.raise_for_status()
 
     def lade_datei(self, file_id: str, ziel: Path) -> None:
         """Laedt eine Datei herunter. Zwei Aufrufe: erst getFile fuer den
         file_path, dann ein GET auf die eigentliche Datei, als Strom geschrieben."""
-        antwort = self._klient.get(self._url("getFile"), params={"file_id": file_id})
-        antwort.raise_for_status()
-        file_path = antwort.json()["result"]["file_path"]
-
-        ziel.parent.mkdir(parents=True, exist_ok=True)
-        datei_url = f"{BASIS}/file/bot{self._token}/{file_path}"
-        with self._klient.stream("GET", datei_url) as antwort:
+        with self._fange_http_fehler():
+            antwort = self._klient.get(self._url("getFile"), params={"file_id": file_id})
             antwort.raise_for_status()
-            with open(ziel, "wb") as f:
-                for teil in antwort.iter_bytes():
-                    f.write(teil)
+            file_path = antwort.json()["result"]["file_path"]
+
+            ziel.parent.mkdir(parents=True, exist_ok=True)
+            datei_url = f"{BASIS}/file/bot{self._token}/{file_path}"
+            with self._klient.stream("GET", datei_url) as antwort:
+                antwort.raise_for_status()
+                with open(ziel, "wb") as f:
+                    for teil in antwort.iter_bytes():
+                        f.write(teil)
 
 
 def _bestimme_typ(nachricht: dict) -> str:
@@ -89,10 +119,15 @@ def _bestimme_typ(nachricht: dict) -> str:
     return "sonstiges"
 
 
+def _sprachquelle(nachricht: dict) -> dict:
+    """voice und audio werden beide als 'sprache' behandelt (Auftragshinweis 5);
+    folgerichtig gilt das auch fuer die Dauer, nicht nur fuer die file_id."""
+    return nachricht.get("voice") or nachricht.get("audio") or {}
+
+
 def _bestimme_file_id(nachricht: dict, typ: str) -> str | None:
     if typ == "sprache":
-        quelle = nachricht.get("voice") or nachricht.get("audio") or {}
-        return quelle.get("file_id")
+        return _sprachquelle(nachricht).get("file_id")
     if typ == "dokument":
         return nachricht.get("document", {}).get("file_id")
     if typ == "foto":
@@ -124,7 +159,7 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         "typ": typ,
         "text": nachricht.get("text", nachricht.get("caption")),
         "file_id": _bestimme_file_id(nachricht, typ),
-        "dauer": nachricht.get("voice", {}).get("duration"),
+        "dauer": _sprachquelle(nachricht).get("duration"),
         "gesendet_am": _iso(nachricht["date"]),
         "antwortet_auf_bot": antwortet_auf_bot,
     }

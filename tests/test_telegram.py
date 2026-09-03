@@ -71,6 +71,25 @@ def test_lade_datei_macht_zwei_aufrufe_und_schreibt_ziel(tmp_path):
     assert ziel.read_bytes() == b"binaerdaten"
 
 
+def test_http_fehler_wird_ohne_token_geworfen():
+    """Der Token steht im URL-Pfad; httpx.HTTPStatusError.__str__ enthaelt die
+    volle Request-URL. Ohne Bereinigung stuende der Token auf dem im Raum
+    projizierten Vorfall-Dashboard (str(fehler) wird dort direkt angezeigt)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"ok": False, "description": "kaputt"})
+
+    token = "GEHEIMER_TOKEN_123"
+    bot = telegram.Telegram(token, _klient(handler))
+
+    with pytest.raises(telegram.TelegramFehler) as ausnahme_info:
+        bot.hole_updates(offset=1)
+
+    meldung = str(ausnahme_info.value)
+    assert token not in meldung
+    assert "<token>" in meldung
+
+
 def test_lies_nachricht_erkennt_sprachnachricht_mit_dauer():
     update = {"update_id": 1, "message": {
         "message_id": 9, "date": 1788600000,
@@ -112,6 +131,33 @@ def test_lies_nachricht_erkennt_sticker():
     n = telegram.lies_nachricht(update)
     assert n["typ"] == "sticker"
     assert n["file_id"] == "StickAbc"
+
+
+def test_lies_nachricht_erkennt_audio_als_sprache_mit_dauer():
+    """audio wird wie voice als 'sprache' behandelt (Punkt 5); folgerichtig muss
+    auch die Dauer aus audio.duration kommen, nicht nur aus voice.duration."""
+    update = {"update_id": 30, "message": {
+        "message_id": 20, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Kim"},
+        "audio": {"file_id": "AudAbc", "duration": 90}}}
+    n = telegram.lies_nachricht(update)
+    assert n["typ"] == "sprache"
+    assert n["file_id"] == "AudAbc"
+    assert n["dauer"] == 90
+
+
+def test_lies_nachricht_erkennt_foto_und_waehlt_hoechste_aufloesung():
+    update = {"update_id": 31, "message": {
+        "message_id": 21, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Lia"},
+        "photo": [
+            {"file_id": "FotoKlein", "width": 90, "height": 90},
+            {"file_id": "FotoGross", "width": 1280, "height": 1280},
+        ]}}
+    n = telegram.lies_nachricht(update)
+    assert n["typ"] == "foto"
+    assert n["file_id"] == "FotoGross"
+    assert n["dauer"] is None
 
 
 def test_lies_nachricht_erkennt_unbekannten_typ_als_sonstiges():

@@ -1,0 +1,177 @@
+import json
+
+import httpx
+import pytest
+
+from theatersoap import telegram
+
+
+def _klient(handler):
+    """Baut einen httpx.Client mit MockTransport -- kein Netzzugriff (global-constraints.md)."""
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_hole_updates_liefert_result():
+    gesehene_anfrage = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehene_anfrage["url"] = str(request.url)
+        return httpx.Response(200, json={"ok": True, "result": [{"update_id": 1}]})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    ergebnis = bot.hole_updates(offset=5, timeout=25)
+
+    assert ergebnis == [{"update_id": 1}]
+    assert "getUpdates" in gesehene_anfrage["url"]
+    assert "offset=5" in gesehene_anfrage["url"]
+    assert "timeout=25" in gesehene_anfrage["url"]
+
+
+def test_sende_liefert_message_id():
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesendet = json.loads(request.content)
+        assert gesendet == {"chat_id": -100, "text": "hallo"}
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 42}})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    assert bot.sende(-100, "hallo") == 42
+
+
+def test_tippt_schickt_typing_aktion():
+    gesehene_anfrage = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehene_anfrage["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    bot.tippt(-100)
+
+    assert gesehene_anfrage["body"] == {"chat_id": -100, "action": "typing"}
+
+
+def test_lade_datei_macht_zwei_aufrufe_und_schreibt_ziel(tmp_path):
+    aufrufe = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        aufrufe.append(str(request.url))
+        if "getFile" in str(request.url):
+            return httpx.Response(
+                200, json={"ok": True, "result": {"file_path": "voice/xyz.oga"}}
+            )
+        return httpx.Response(200, content=b"binaerdaten")
+
+    bot = telegram.Telegram("T", _klient(handler))
+    ziel = tmp_path / "audio" / "1" / "datei.oga"
+    bot.lade_datei("AwACabc", ziel)
+
+    assert len(aufrufe) == 2
+    assert "getFile" in aufrufe[0]
+    assert "file/botT/voice/xyz.oga" in aufrufe[1]
+    assert ziel.read_bytes() == b"binaerdaten"
+
+
+def test_lies_nachricht_erkennt_sprachnachricht_mit_dauer():
+    update = {"update_id": 1, "message": {
+        "message_id": 9, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Ada"},
+        "voice": {"file_id": "AwACabc", "duration": 312}}}
+    n = telegram.lies_nachricht(update)
+    assert n["typ"] == "sprache" and n["file_id"] == "AwACabc" and n["dauer"] == 312
+    assert n["chat_id"] == -100 and n["absender"] == "Ada"
+
+
+def test_lies_nachricht_erkennt_text():
+    update = {"update_id": 2, "message": {
+        "message_id": 10, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Bo"},
+        "text": "hallo zusammen"}}
+    n = telegram.lies_nachricht(update)
+    assert n["typ"] == "text"
+    assert n["text"] == "hallo zusammen"
+    assert n["dauer"] is None
+    assert n["file_id"] is None
+
+
+def test_lies_nachricht_erkennt_dokument():
+    update = {"update_id": 3, "message": {
+        "message_id": 11, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Cem"},
+        "document": {"file_id": "DocAbc", "file_name": "szene.txt"}}}
+    n = telegram.lies_nachricht(update)
+    assert n["typ"] == "dokument"
+    assert n["file_id"] == "DocAbc"
+    assert n["dauer"] is None
+
+
+def test_lies_nachricht_erkennt_sticker():
+    update = {"update_id": 4, "message": {
+        "message_id": 12, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Dea"},
+        "sticker": {"file_id": "StickAbc"}}}
+    n = telegram.lies_nachricht(update)
+    assert n["typ"] == "sticker"
+    assert n["file_id"] == "StickAbc"
+
+
+def test_lies_nachricht_erkennt_unbekannten_typ_als_sonstiges():
+    update = {"update_id": 5, "message": {
+        "message_id": 13, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Emo"},
+        "location": {"latitude": 1.0, "longitude": 2.0}}}
+    n = telegram.lies_nachricht(update)
+    assert n["typ"] == "sonstiges"
+    assert n["file_id"] is None
+    assert n["dauer"] is None
+
+
+def test_lies_nachricht_liefert_none_ohne_nachricht():
+    update = {"update_id": 6, "my_chat_member": {}}
+    assert telegram.lies_nachricht(update) is None
+
+
+def test_lies_nachricht_verarbeitet_edited_message_wie_eine_normale_nachricht():
+    update = {"update_id": 7, "edited_message": {
+        "message_id": 14, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Fee"},
+        "text": "korrigiert"}}
+    n = telegram.lies_nachricht(update)
+    assert n is not None
+    assert n["typ"] == "text"
+    assert n["text"] == "korrigiert"
+
+
+def test_lies_nachricht_setzt_antwortet_auf_bot():
+    update = {"update_id": 8, "message": {
+        "message_id": 15, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Gil"},
+        "text": "ja gerne",
+        "reply_to_message": {"from": {"is_bot": True}}}}
+    n = telegram.lies_nachricht(update)
+    assert n["antwortet_auf_bot"] is True
+
+
+# Die folgenden zwei Tests stehen nicht im Brief, waeren spaeter aber teuer zu
+# finden: fehlendes reply_to_message darf nicht knallen, und eine Sprachnachricht
+# mit Bildunterschrift muss trotzdem als "sprache" erkannt werden (Punkt 5 der
+# Auftragshinweise -- vor "text" pruefen).
+
+def test_lies_nachricht_antwortet_auf_bot_ist_false_ohne_reply():
+    update = {"update_id": 9, "message": {
+        "message_id": 16, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Ina"},
+        "text": "einfach so"}}
+    n = telegram.lies_nachricht(update)
+    assert n["antwortet_auf_bot"] is False
+
+
+def test_lies_nachricht_erkennt_sprache_trotz_bildunterschrift():
+    update = {"update_id": 10, "message": {
+        "message_id": 17, "date": 1788600000,
+        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Jo"},
+        "voice": {"file_id": "AwACdef", "duration": 5},
+        "caption": "Regieanweisung"}}
+    n = telegram.lies_nachricht(update)
+    assert n["typ"] == "sprache"
+    assert n["text"] == "Regieanweisung"
+    assert n["dauer"] == 5

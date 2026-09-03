@@ -1,0 +1,130 @@
+"""Duenner HTTP-Wrapper um die Telegram-Bot-API (Aufgabe 3).
+
+Bewusst kein Framework: der Bot haelt die getUpdates-Position selbst in der
+Datenbank (siehe repo.hole_update_id/setze_update_id), ein Framework mit
+eigener Offset-Verwaltung muesste dazu erst ueberredet werden.
+
+Der httpx.Client wird von aussen uebergeben (Dependency Injection), damit
+Tests einen httpx.MockTransport einsetzen koennen und nie ins Netz gehen.
+"""
+
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+import httpx
+
+BASIS = "https://api.telegram.org"
+
+
+def _iso(unix_zeit: int) -> str:
+    """Wandelt einen Telegram-Unix-Zeitstempel in ISO 8601 (UTC) um."""
+    return datetime.fromtimestamp(unix_zeit, tz=timezone.utc).isoformat(timespec="seconds")
+
+
+class Telegram:
+    """Kapselt die wenigen Telegram-Bot-API-Aufrufe, die der Bot braucht."""
+
+    def __init__(self, token: str, klient: httpx.Client):
+        self._token = token
+        self._klient = klient
+
+    def _url(self, methode: str) -> str:
+        return f"{BASIS}/bot{self._token}/{methode}"
+
+    def hole_updates(self, offset: int, timeout: int = 25) -> list[dict]:
+        """Long-Poll auf neue Updates. Liefert das rohe `result`-Array."""
+        antwort = self._klient.get(
+            self._url("getUpdates"), params={"offset": offset, "timeout": timeout}
+        )
+        antwort.raise_for_status()
+        return antwort.json()["result"]
+
+    def sende(self, chat_id: int, text: str) -> int:
+        """Schickt eine Textnachricht. Liefert die message_id der gesendeten Nachricht."""
+        antwort = self._klient.post(
+            self._url("sendMessage"), json={"chat_id": chat_id, "text": text}
+        )
+        antwort.raise_for_status()
+        return antwort.json()["result"]["message_id"]
+
+    def tippt(self, chat_id: int) -> None:
+        """Zeigt die Tippanzeige ("...schreibt") in der Gruppe."""
+        antwort = self._klient.post(
+            self._url("sendChatAction"), json={"chat_id": chat_id, "action": "typing"}
+        )
+        antwort.raise_for_status()
+
+    def lade_datei(self, file_id: str, ziel: Path) -> None:
+        """Laedt eine Datei herunter. Zwei Aufrufe: erst getFile fuer den
+        file_path, dann ein GET auf die eigentliche Datei, als Strom geschrieben."""
+        antwort = self._klient.get(self._url("getFile"), params={"file_id": file_id})
+        antwort.raise_for_status()
+        file_path = antwort.json()["result"]["file_path"]
+
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        datei_url = f"{BASIS}/file/bot{self._token}/{file_path}"
+        with self._klient.stream("GET", datei_url) as antwort:
+            antwort.raise_for_status()
+            with open(ziel, "wb") as f:
+                for teil in antwort.iter_bytes():
+                    f.write(teil)
+
+
+def _bestimme_typ(nachricht: dict) -> str:
+    """Prueft in genau dieser Reihenfolge (vor 'text', sonst wird eine
+    Sprachnachricht mit Bildunterschrift falsch als 'text' einsortiert)."""
+    if "voice" in nachricht:
+        return "sprache"
+    if "audio" in nachricht:
+        return "sprache"
+    if "document" in nachricht:
+        return "dokument"
+    if "text" in nachricht:
+        return "text"
+    if "photo" in nachricht:
+        return "foto"
+    if "sticker" in nachricht:
+        return "sticker"
+    return "sonstiges"
+
+
+def _bestimme_file_id(nachricht: dict, typ: str) -> str | None:
+    if typ == "sprache":
+        quelle = nachricht.get("voice") or nachricht.get("audio") or {}
+        return quelle.get("file_id")
+    if typ == "dokument":
+        return nachricht.get("document", {}).get("file_id")
+    if typ == "foto":
+        fotos = nachricht.get("photo") or []
+        return fotos[-1]["file_id"] if fotos else None
+    if typ == "sticker":
+        return nachricht.get("sticker", {}).get("file_id")
+    return None
+
+
+def lies_nachricht(update: dict) -> dict[str, Any] | None:
+    """Normalisiert ein Telegram-Update auf die feste Schluesselmenge, mit der
+    der Rest des Bots arbeitet. Liefert None, wenn das Update keine (auch keine
+    editierte) Nachricht enthaelt."""
+    nachricht = update.get("message") or update.get("edited_message")
+    if nachricht is None:
+        return None
+
+    typ = _bestimme_typ(nachricht)
+
+    reply = nachricht.get("reply_to_message") or {}
+    antwortet_auf_bot = bool((reply.get("from") or {}).get("is_bot", False))
+
+    return {
+        "chat_id": nachricht["chat"]["id"],
+        "chat_titel": nachricht["chat"].get("title"),
+        "message_id": nachricht["message_id"],
+        "absender": (nachricht.get("from") or {}).get("first_name"),
+        "typ": typ,
+        "text": nachricht.get("text", nachricht.get("caption")),
+        "file_id": _bestimme_file_id(nachricht, typ),
+        "dauer": nachricht.get("voice", {}).get("duration"),
+        "gesendet_am": _iso(nachricht["date"]),
+        "antwortet_auf_bot": antwortet_auf_bot,
+    }

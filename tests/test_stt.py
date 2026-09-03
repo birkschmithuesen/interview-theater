@@ -1,4 +1,5 @@
 import json
+import time
 
 import httpx
 import pytest
@@ -49,7 +50,7 @@ def test_url_liegt_unter_eins_nicht_unter_zwei(einst, tmp_path, monkeypatch):
     datei = tmp_path / "a.ogg"
     datei.write_bytes(b"testdaten")
     stt.absenden(einst, _klient(handler), datei, 30.0)
-    assert gesehen["pfad"] == "/1/ai/110416/openai/audio/transcriptions"
+    assert gesehen["pfad"] == "/1/ai/PRODUKT-ID/openai/audio/transcriptions"
 
 
 def test_abbruchstatus_ist_ein_fehler(einst, tmp_path, monkeypatch):
@@ -100,6 +101,73 @@ def test_zeitbudget_bricht_ab(einst, tmp_path, monkeypatch):
     datei.write_bytes(b"testdaten")
     with pytest.raises(stt.STTFehler):
         stt.abholen(einst, _klient(handler), "B1", 0.05)
+
+
+def test_zeitbudget_wird_nicht_um_ein_vielfaches_gerissen(einst, tmp_path, monkeypatch):
+    """Ein Server, der nie antwortet: die Frist muss ueber ALLE Versuche und
+    Wartezeiten zusammen gelten, nicht pro Versuch neu anlaufen. Ohne das
+    reisst ein Anlauf bis zu vier volle Zeitbudgets plus Wartezeiten
+    (~4 * budget_s), statt sich an die Zusage an den Aufrufer zu halten.
+
+    time.sleep ist gepatcht (die Wartezeiten zwischen Versuchen sollen den
+    Testlauf nicht ausbremsen), time.monotonic laeuft echt -- der Handler
+    liest den tatsaechlich angefragten Timeout aus den Request-Extensions
+    und "haengt" fuer genau diese Zeit (echtes Warten, ohne time.sleep zu
+    benutzen), damit die Frist wirklich greifen muss."""
+    monkeypatch.setattr(stt.time, "sleep", lambda s: None)
+
+    def handler(request):
+        haenge_s = request.extensions["timeout"]["read"]
+        ende = time.monotonic() + haenge_s
+        while time.monotonic() < ende:
+            pass
+        raise httpx.ReadTimeout("simulierter haengender Server", request=request)
+
+    datei = tmp_path / "a.ogg"
+    datei.write_bytes(b"testdaten")
+
+    budget_s = 2.0
+    start = time.monotonic()
+    with pytest.raises(stt.STTFehler):
+        stt.transkribiere(einst, _klient(handler), datei, budget_s)
+    dauer = time.monotonic() - start
+
+    assert dauer < budget_s * 2, (
+        f"Budget um ein Vielfaches gerissen: {dauer:.2f}s bei budget_s={budget_s}s"
+    )
+
+
+def test_5xx_beim_pollen_wird_weiter_gewartet(einst, monkeypatch):
+    """Ein voruebergehender 500er vom results-Endpunkt ist kein Abbruch --
+    der Auftrag laeuft serverseitig weiter, also heisst es weiterwarten."""
+    monkeypatch.setattr(stt.time, "sleep", lambda s: None)
+    zustand = {"polls": 0}
+
+    def handler(request):
+        zustand["polls"] += 1
+        if zustand["polls"] < 3:
+            return httpx.Response(503, json={"error": "kurz ueberlastet"})
+        return httpx.Response(200, json={
+            "status": "success", "data": json.dumps({"text": "Text nach 5xx."})})
+
+    text = stt.abholen(einst, _klient(handler), "B1", 30.0)
+    assert text == "Text nach 5xx."
+    assert zustand["polls"] == 3
+
+
+def test_4xx_beim_pollen_ist_ein_sofortiger_fehler(einst, monkeypatch):
+    """Ein 4xx (z.B. eine unbekannte batch_id) fuehrt nie zu einem Ergebnis --
+    im Unterschied zu 5xx darf hier nicht weitergepollt werden."""
+    monkeypatch.setattr(stt.time, "sleep", lambda s: None)
+    zustand = {"polls": 0}
+
+    def handler(request):
+        zustand["polls"] += 1
+        return httpx.Response(404, json={"error": "unbekannte batch_id"})
+
+    with pytest.raises(stt.STTFehler):
+        stt.abholen(einst, _klient(handler), "B1", 30.0)
+    assert zustand["polls"] == 1
 
 
 def test_zu_grosse_datei_wird_abgelehnt(einst, tmp_path):
@@ -203,7 +271,7 @@ def test_api_schluessel_landet_nicht_in_ausnahme(tmp_path, monkeypatch):
         bot_token="T", bot_name="gruppe1", db_pfad=str(tmp_path / "t.db"),
         audio_verz=str(tmp_path / "audio"),
         llm_url="https://llm.test/v1/chat/completions", llm_key=geheim, llm_modell="kimi",
-        stt_basis="https://stt.test", stt_produkt="110416",
+        stt_basis="https://stt.test", stt_produkt="PRODUKT-ID",
     )
 
     def handler(request):

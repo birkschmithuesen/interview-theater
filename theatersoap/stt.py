@@ -63,16 +63,26 @@ class STTFehler(Exception):
 
 def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
     """Laedt die Datei hoch und liefert die batch_id. Wiederholt bei 5xx/
-    Transportfehler (WARTEZEITEN), analog theatersoap.llm."""
+    Transportfehler (WARTEZEITEN), analog theatersoap.llm.
+
+    ``budget_s`` ist eine harte Frist ueber ALLE Versuche zusammen, nicht ein
+    Zeitbudget pro Versuch: ohne diese Frist wuerde ein Server, der nie
+    antwortet, bis zu ``gesamtversuche * budget_s`` plus die Wartezeiten
+    dazwischen verbrauchen -- ein Vielfaches der Zusage an den Aufrufer.
+    """
     if pfad.stat().st_size > MAX_UPLOAD_BYTES:
         raise STTFehler(f"{pfad.name} ist groesser als 25 MB")
 
     url = f"{e.stt_basis.rstrip('/')}/1/ai/{e.stt_produkt}/openai/audio/transcriptions"
     headers = {"Authorization": f"Bearer {e.llm_key}"}
+    frist = time.monotonic() + budget_s
 
     letzter_fehler: Exception | None = None
     gesamtversuche = len(WARTEZEITEN) + 1
     for versuch in range(gesamtversuche):
+        rest = frist - time.monotonic()
+        if rest <= 0:
+            break  # Frist bereits erreicht -- kein weiterer Versuch mehr
         try:
             with open(pfad, "rb") as datei:
                 antwort = klient.post(
@@ -84,7 +94,7 @@ def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
                         "language": "de",
                         "response_format": "verbose_json",
                     },
-                    timeout=budget_s,
+                    timeout=max(1.0, rest),
                 )
             antwort.raise_for_status()
             koerper = antwort.json() or {}
@@ -101,26 +111,57 @@ def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
         except httpx.TransportError as fehler:
             letzter_fehler = fehler
 
-        if versuch < len(WARTEZEITEN):
-            time.sleep(WARTEZEITEN[versuch])
+        rest_vor_wartezeit = frist - time.monotonic()
+        if versuch < len(WARTEZEITEN) and rest_vor_wartezeit > 0:
+            time.sleep(min(WARTEZEITEN[versuch], rest_vor_wartezeit))
 
+    if letzter_fehler is None:
+        raise STTFehler(
+            f"Whisper-Upload: Zeitbudget von {budget_s}s aufgebraucht, "
+            "bevor ueberhaupt ein Versuch stattfinden konnte"
+        )
     raise STTFehler(
-        f"Whisper-Upload nach {gesamtversuche} Versuchen nicht erreichbar "
-        f"(zuletzt: {type(letzter_fehler).__name__})"
-    )
+        f"Whisper-Upload nicht erreichbar (zuletzt: {type(letzter_fehler).__name__}), "
+        f"Zeitbudget von {budget_s}s ausgeschoepft"
+    ) from letzter_fehler
 
 
 def abholen(e, klient: httpx.Client, batch_id: str, budget_s: float) -> str:
     """Pollt das Ergebnis, bis ``status == 'success'``, ein Abbruchstatus
     eintritt, oder das Zeitbudget aufgebraucht ist. ``data`` in der
-    Ergebnisantwort ist ein JSON-STRING und wird ein zweites Mal geparst."""
+    Ergebnisantwort ist ein JSON-STRING und wird ein zweites Mal geparst.
+
+    Ein 5xx beim Pollen ist kein Abbruch, sondern heisst weiterwarten,
+    solange die Frist reicht -- der Auftrag laeuft serverseitig weiter. Ein
+    4xx (z.B. eine unbekannte batch_id) ist dagegen ein sofortiger Fehler:
+    weiterpollen wuerde dort nie zu einem Ergebnis fuehren.
+    """
     url = f"{e.stt_basis.rstrip('/')}/1/ai/{e.stt_produkt}/results/{batch_id}"
     headers = {"Authorization": f"Bearer {e.llm_key}"}
     frist = time.monotonic() + budget_s
 
     while True:
-        antwort = klient.get(url, headers=headers, timeout=30.0)
-        antwort.raise_for_status()
+        rest = frist - time.monotonic()
+        if rest <= 0:
+            raise STTFehler(f"Auftrag {batch_id} war nach {budget_s}s noch nicht fertig")
+
+        antwort = klient.get(url, headers=headers, timeout=max(1.0, rest))
+        try:
+            antwort.raise_for_status()
+        except httpx.HTTPStatusError as fehler:
+            if antwort.status_code < 500:
+                raise STTFehler(
+                    f"Whisper lehnte die Ergebnisabfrage ab: HTTP {antwort.status_code}"
+                ) from fehler
+            # 5xx: der Auftrag laeuft serverseitig weiter, kein Abbruch.
+            if time.monotonic() >= frist:
+                raise STTFehler(
+                    f"Auftrag {batch_id} war nach {budget_s}s noch nicht abrufbar "
+                    f"(zuletzt HTTP {antwort.status_code} bei der Ergebnisabfrage)"
+                ) from fehler
+            time.sleep(POLL_INTERVALL_S)
+            continue
+
         koerper = antwort.json() or {}
         status = str(koerper.get("status", "")).lower()
 

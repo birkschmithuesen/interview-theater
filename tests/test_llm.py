@@ -165,7 +165,7 @@ def test_api_schluessel_landet_nicht_in_ausnahme(conn, monkeypatch, tmp_path):
         bot_token="T", bot_name="gruppe1", db_pfad=str(tmp_path / "t.db"),
         audio_verz=str(tmp_path / "audio"),
         llm_url="https://llm.test/v1/chat/completions", llm_key=geheim, llm_modell="kimi",
-        stt_basis="https://stt.test", stt_produkt="110416",
+        stt_basis="https://stt.test", stt_produkt="PRODUKT-ID",
     )
 
     def handler(request: httpx.Request) -> httpx.Response:

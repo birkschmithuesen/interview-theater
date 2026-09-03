@@ -4,3 +4,23 @@ __pycache__/
 *.db*
 audio/
 betrieb/*.env
+
+# --- Vertrauliches: NIE committen (Interviews von realen Personen) ---
+.env
+*.env
+!*.env.beispiel
+betrieb/
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+transkripte/
+verdichtungen/
+export/
+*.ogg
+*.oga
+*.wav
+*.mp3
+*.m4a
+tokens*.txt
+*token*.json

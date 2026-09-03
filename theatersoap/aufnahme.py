@@ -27,7 +27,9 @@ einmal Whisper, sondern verdichtet nur weiter.
 from __future__ import annotations
 
 import logging
+import re
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -74,7 +76,29 @@ def _kein_zug(conn, tg, klm, e, chat_id) -> None:
     return None
 
 
-def empfange(conn, tg, e, n: dict) -> int:
+def _lade_mit_wiederholung(tg, file_id: str, ziel: Path) -> Exception | None:
+    """Laedt die Datei herunter, wiederholt bei Fehlschlag mit denselben
+    Wartezeiten wie ``stt.absenden`` (``stt.WARTEZEITEN``). Liefert ``None``
+    bei Erfolg, sonst die zuletzt aufgetretene Ausnahme.
+
+    Kritischer Nachbesserungspunkt: ohne diese Wiederholung wuerde ein
+    einzelner Telegram-Aussetzer beim Download dieselbe Aufnahme unrettbar
+    verlieren, die die ganze Aufgabe eigentlich absichern soll -- nur eine
+    Etage frueher als Whisper."""
+    letzter_fehler: Exception | None = None
+    gesamtversuche = len(stt.WARTEZEITEN) + 1
+    for versuch in range(gesamtversuche):
+        try:
+            tg.lade_datei(file_id, ziel)
+            return None
+        except Exception as fehler:
+            letzter_fehler = fehler
+        if versuch < len(stt.WARTEZEITEN):
+            time.sleep(stt.WARTEZEITEN[versuch])
+    return letzter_fehler
+
+
+def empfange(conn, tg, e, n: dict) -> int | None:
     """Laedt die Sprachnachricht herunter und legt die Aufnahme mit
     ``status='empfangen'`` an -- ohne jeden Whisper-Kontakt (§ 10.2, die
     eigentliche Absicherung dieser Aufgabe).
@@ -84,22 +108,41 @@ def empfange(conn, tg, e, n: dict) -> int:
     ``nachricht`` existiert im Normalbetrieb schon (die Polling-Schleife legt
     sie mit ``typ='sprache'``, ``text=NULL``, ``unterdrueckt=1`` an); der
     ``INSERT OR IGNORE`` hier stellt sicher, dass sie auch existiert, wenn
-    ``empfange()`` direkt aufgerufen wird (Tests, spaeterer Nachhol-Anlauf)."""
+    ``empfange()`` direkt aufgerufen wird (Tests, spaeterer Nachhol-Anlauf).
+
+    Liefert die neue ``aufnahme_id``, oder ``None``, wenn der Download nach
+    Wiederholung endgueltig scheiterte. In diesem Fall entsteht bewusst
+    **keine** ``aufnahme``-Zeile (es gibt kein Audio, das der Nachhol-Arbeiter
+    je nachholen koennte) -- dafuer aber ein Vorfall und eine Bitte an die
+    Gruppe, es nochmal zu schicken, damit nichts spurlos verschwindet."""
     chat_id = n["chat_id"]
     message_id = n["message_id"]
     klasse = klasse_fuer(n.get("dauer"))
 
+    repo.merke_nachricht(
+        conn, chat_id, message_id, n.get("absender"), 0, "sprache", None,
+        n.get("gesendet_am") or repo._jetzt(), 1,
+    )
+
     ziel = Path(e.audio_verz) / str(chat_id) / f"{message_id}.ogg"
-    tg.lade_datei(n["file_id"], ziel)
+    fehler = _lade_mit_wiederholung(tg, n["file_id"], ziel)
+    if fehler is not None:
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "download_fehlgeschlagen",
+            f"Sprachnachricht message_id={message_id}: {type(fehler).__name__}",
+        )
+        try:
+            tg.sende(
+                chat_id,
+                "Die Aufnahme ist bei mir nicht angekommen - schickt sie bitte nochmal.",
+            )
+        except Exception:
+            log.exception("Download-Fehlermeldung fehlgeschlagen, chat_id=%s", chat_id)
+        return None
 
     aufnahme_id = repo.lege_aufnahme_an(
         conn, chat_id, message_id, klasse, "sprache",
         audio_pfad=str(ziel), dauer=n.get("dauer"),
-    )
-
-    repo.merke_nachricht(
-        conn, chat_id, message_id, n.get("absender"), 0, "sprache", None,
-        n.get("gesendet_am") or repo._jetzt(), 1,
     )
 
     if klasse == "lang":
@@ -168,13 +211,15 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
     if row["klasse"] == "kurz":
         _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt)
     else:
-        _lang_abschliessen(conn, klm, e, row)
+        _lang_abschliessen(conn, tg, klm, e, row)
 
 
 def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
-    """Ruft stt.transkribiere auf, waehrenddessen Tippanzeige (ab
-    TIPPANZEIGE_AB_S) und Zwischenmeldung (ab MELDUNG_AB_S) laufen. Liefert
-    das Transkript oder None nach einem gemeldeten Fehler."""
+    """Ruft stt.transkribiere auf, waehrenddessen die Tippanzeige laeuft (ab
+    TIPPANZEIGE_AB_S, fuer beide Klassen). Die Zwischenmeldung ("Ich hoer
+    noch zu...", ab MELDUNG_AB_S) gibt es dagegen nur fuer Klasse *kurz* --
+    eine lange Aufnahme hat schon die Empfangsbestaetigung aus ``empfange()``
+    bekommen, eine zweite Nachricht fuer dieselbe Sache waere Rauschen."""
     aufnahme_id = row["id"]
     chat_id = row["chat_id"]
     budget = BUDGET_KURZ_S if row["klasse"] == "kurz" else BUDGET_LANG_S
@@ -193,11 +238,15 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
             log.exception("Zwischenmeldung fehlgeschlagen, chat_id=%s", chat_id)
 
     timer_tipp = threading.Timer(TIPPANZEIGE_AB_S, _tippen)
-    timer_meldung = threading.Timer(MELDUNG_AB_S, _zwischenmeldung)
     timer_tipp.daemon = True
-    timer_meldung.daemon = True
     timer_tipp.start()
-    timer_meldung.start()
+
+    timer_meldung = None
+    if row["klasse"] == "kurz":
+        timer_meldung = threading.Timer(MELDUNG_AB_S, _zwischenmeldung)
+        timer_meldung.daemon = True
+        timer_meldung.start()
+
     try:
         return stt.transkribiere(e, klient, pfad, budget)
     except Exception as fehler:
@@ -205,13 +254,65 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
         return None
     finally:
         timer_tipp.cancel()
-        timer_meldung.cancel()
+        if timer_meldung is not None:
+            timer_meldung.cancel()
+
+
+def _ist_ersatzname(name: str | None) -> bool:
+    """Erkennt den automatisch vergebenen Namen 'Interview n' (repo.lege_
+    aufnahme_an), im Unterschied zu einem von der Gruppe echt vergebenen
+    Namen."""
+    return bool(name) and re.fullmatch(r"Interview \d+", name) is not None
+
+
+def _aufnahme_beschreibung(row, gross: bool) -> str:
+    """Beschreibt eine Aufnahme in einer Nutzernachricht. Ein automatisch
+    vergebener Ersatzname wie 'Interview 1' wirkt in einer Chatnachricht
+    unfreiwillig komisch ('Die Aufnahme von Interview 1...') -- ohne einen
+    von der Gruppe vergebenen echten Namen wird stattdessen die Klasse
+    genannt."""
+    artikel = "Die" if gross else "die"
+    name = row["name"]
+    if name and not _ist_ersatzname(name):
+        return f"{artikel} Aufnahme von {name}"
+    art = "lange Aufnahme" if row["klasse"] == "lang" else "kurze Aufnahme"
+    return f"{artikel} letzte {art}"
+
+
+def _sende_bitte_nochmal(tg, chat_id, row) -> None:
+    text = f"{_aufnahme_beschreibung(row, gross=True)} konnte ich nicht verstehen - schickt sie bitte nochmal."
+    try:
+        tg.sende(chat_id, text)
+    except Exception:
+        log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def _sende_verdichtung_gescheitert(tg, chat_id, row) -> None:
+    text = (
+        f"Ich konnte {_aufnahme_beschreibung(row, gross=False)} nicht auswerten. "
+        "Das Transkript bleibt gespeichert, nur die Zusammenfassung fehlt."
+    )
+    try:
+        tg.sende(chat_id, text)
+    except Exception:
+        log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
     """Bei jedem Fehlschlag: Versuch zaehlen, den einmaligen Whisper-Ausfall-
-    Hinweis pruefen (melde_ausfall), bei Material zusaetzlich um erneutes
-    Schicken bitten (§ 11.1), und ab MAX_VERSUCHE endgueltig aufgeben."""
+    Hinweis pruefen (melde_ausfall), und ab MAX_VERSUCHE endgueltig aufgeben.
+
+    Die "...schickt sie bitte nochmal"-Bitte (§ 11.1) geht bei Material
+    (Klasse *lang*) nur beim **ersten** Fehlschlag dieser Aufnahme raus --
+    nicht bei jedem der bis zu MAX_VERSUCHE Nachhol-Anlaeufe, sonst waeren das
+    bei einem laengeren Ausfall mit mehreren Interviews schnell Dutzende
+    Nachrichten, und sie widerspraeche der Ausfallmeldung, die gerade
+    zugesagt hat, alles nachzuholen. Ein Gespraechsbeitrag (Klasse *kurz*)
+    bekommt dagegen gar keine Meldung bei Zwischenversuchen -- ein einzelner
+    Zuruf ist niedrigschwellig genug, dass die pauschale Ausfallmeldung
+    reicht -- aber beim endgueltigen Aufgeben (Wichtig 3) muss die Gruppe
+    trotzdem erfahren, dass der Beitrag verloren ist, statt dass er
+    kommentarlos als 'typ=sprache, text=NULL' im Verlauf haengen bleibt."""
     aufnahme_id = row["id"]
     chat_id = row["chat_id"]
 
@@ -224,18 +325,11 @@ def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
 
     melde_ausfall(conn, tg, e, chat_id)
 
-    if row["klasse"] == "lang":
-        name = row["name"] or f"Aufnahme {aufnahme_id}"
-        try:
-            tg.sende(
-                chat_id,
-                f"Die Aufnahme von {name} konnte ich nicht verstehen - "
-                "schickt sie bitte nochmal.",
-            )
-        except Exception:
-            log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
+    endgueltig = versuche >= MAX_VERSUCHE
+    if (row["klasse"] == "lang" and versuche == 1) or (row["klasse"] == "kurz" and endgueltig):
+        _sende_bitte_nochmal(tg, chat_id, row)
 
-    if versuche >= MAX_VERSUCHE:
+    if endgueltig:
         repo.setze_status(conn, aufnahme_id, "fehlgeschlagen", fehlertext=str(fehler))
     else:
         # Status bleibt (wieder) 'empfangen': der Nachhol-Arbeiter greift die
@@ -276,50 +370,67 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
             log.exception("Gespraechszug nach kurzer Aufnahme fehlgeschlagen, chat_id=%s", chat_id)
 
 
-def _lang_abschliessen(conn, klm, e, row) -> None:
+def _lang_abschliessen(conn, tg, klm, e, row) -> None:
     """Verdichtet eine lange Aufnahme (Material). Schlaegt die Verdichtung
-    fehl, bleibt status='transkribiert' stehen: der Nachhol-Arbeiter fragt
-    beim naechsten Anlauf nicht erneut Whisper, sondern verdichtet nur weiter."""
+    fehl, bleibt status='transkribiert' stehen und der Versuchszaehler steigt
+    -- derselbe Zaehler und dieselbe MAX_VERSUCHE-Grenze wie bei einem
+    Transkriptionsfehlschlag (kritische Nachbesserung: eine misslingende
+    Verdichtung ist ein bezahlter Sprachmodell-Aufruf und darf nicht
+    unbegrenzt oft alle NACHHOL_INTERVALL_S Sekunden wiederholt werden). Ab
+    MAX_VERSUCHE wird endgueltig aufgegeben, das Transkript bleibt aber
+    erhalten -- nur die Zusammenfassung fehlt."""
     aufnahme_id = row["id"]
+    chat_id = row["chat_id"]
     try:
         verdichter.verdichte(klm, conn, e, aufnahme_id)
-    except Exception:
+    except Exception as fehler:
         log.exception("Verdichtung fehlgeschlagen, aufnahme_id=%s", aufnahme_id)
+        versuche = repo.zaehle_versuch_hoch(conn, aufnahme_id)
         repo.merke_vorfall(
-            conn, row["chat_id"], getattr(e, "bot_name", None),
-            "verdichtung_fehlgeschlagen", f"Aufnahme {aufnahme_id}",
+            conn, chat_id, getattr(e, "bot_name", None), "verdichtung_fehlgeschlagen",
+            f"Aufnahme {aufnahme_id} (Versuch {versuche}/{MAX_VERSUCHE}): "
+            f"{type(fehler).__name__}",
         )
+        if versuche >= MAX_VERSUCHE:
+            repo.setze_status(conn, aufnahme_id, "fehlgeschlagen", fehlertext=str(fehler))
+            _sende_verdichtung_gescheitert(tg, chat_id, row)
         return
     repo.setze_status(conn, aufnahme_id, "fertig")
 
 
 def melde_ausfall(conn, tg, e, chat_id) -> None:
-    """Meldet einen Whisper-Ausfall genau einmal pro Gruppe (§ 10.4):
-    ``gruppe.whisper_stumm_seit`` leer → eine Zeile schicken und Feld setzen,
-    sonst still bleiben."""
+    """Meldet einen Whisper-Ausfall genau einmal pro Gruppe (§ 10.4).
+
+    Nachbesserung 'Wichtig 1': **erst atomar setzen, dann senden.** Der
+    ThreadPoolExecutor bearbeitet mehrere Sprachnachrichten gleichzeitig --
+    genau im Auslösefall (Whisper weg) koennten sonst zwei Threads beide noch
+    ``whisper_stumm_seit IS NULL`` lesen und beide senden. Das atomare
+    ``UPDATE ... WHERE whisper_stumm_seit IS NULL`` (repo.
+    setze_whisper_stumm_seit_falls_leer) garantiert, dass nur der Thread, der
+    das Feld tatsaechlich gesetzt hat (``rowcount == 1``), ueberhaupt sendet."""
     gruppe = repo.hole_gruppe(conn, chat_id)
-    if gruppe is None or gruppe["whisper_stumm_seit"]:
+    if gruppe is None:
         return
+    if not repo.setze_whisper_stumm_seit_falls_leer(conn, chat_id, repo._jetzt()):
+        return  # ein anderer Thread war schneller, oder das Feld war schon gesetzt
     try:
         tg.sende(chat_id, _TEXT_AUSFALL)
     except Exception:
         log.exception("Ausfall-Hinweis fehlgeschlagen, chat_id=%s", chat_id)
-        return
-    repo.setze_whisper_stumm_seit(conn, chat_id, repo._jetzt())
 
 
 def melde_rueckkehr(conn, tg, e, chat_id) -> None:
-    """Meldet die Rueckkehr, wenn zuvor ein Ausfall gemeldet wurde (§ 10.4),
-    und leert das Feld wieder."""
+    """Meldet die Rueckkehr, wenn zuvor ein Ausfall gemeldet wurde (§ 10.4).
+    Spiegelbildlich zu melde_ausfall: erst atomar leeren, dann senden."""
     gruppe = repo.hole_gruppe(conn, chat_id)
-    if gruppe is None or not gruppe["whisper_stumm_seit"]:
+    if gruppe is None:
+        return
+    if not repo.leere_whisper_stumm_seit_falls_gesetzt(conn, chat_id):
         return
     try:
         tg.sende(chat_id, _TEXT_RUECKKEHR)
     except Exception:
         log.exception("Rueckkehr-Hinweis fehlgeschlagen, chat_id=%s", chat_id)
-        return
-    repo.setze_whisper_stumm_seit(conn, chat_id, None)
 
 
 def nachholen(conn, tg, klm, e, klient) -> None:
@@ -342,10 +453,20 @@ def nachholen(conn, tg, klm, e, klient) -> None:
 def importiere_text(conn, e, chat_id: int, message_id: int, text: str, name: str | None = None) -> int:
     """Legt Text als gleichwertiges Material an (§ 10.5): deckt sowohl den
     Rueckfallweg ab (Whisper streikt) als auch das Einspeisen vorhandenen
-    Recherchematerials, das nie gesprochen wurde. Laeuft durch denselben
-    Verdichter wie eine Sprachaufnahme -- hier nur bis 'transkribiert', den
-    Verdichtungsschritt macht der Aufrufer (wie eine per Whisper transkribierte
-    Aufnahme auch erst in verarbeite() verdichtet wird)."""
+    Recherchematerials, das nie gesprochen wurde. Legt die Aufnahme nur bis
+    'transkribiert' an -- die eigentliche Verdichtung geschieht ausschliesslich
+    in ``verarbeite()`` (Aufruf durch den Aufrufer selbst oder durch den
+    Nachhol-Arbeiter, falls der erste Anlauf nicht sofort verdichtet).
+
+    Wichtig (Nachbesserung 'Kritisch 2'): ``verdichter.verdichte()`` darf nach
+    ``importiere_text()`` NIE direkt aufgerufen werden, ohne anschliessend
+    auch den Status auf 'fertig' zu setzen -- sonst bleibt die Aufnahme bei
+    'transkribiert' stehen, und der periodische Nachhol-Arbeiter
+    (``nachholen()``) verdichtet sie beim naechsten Durchlauf ein zweites Mal
+    (zwei ``verdichtung``-Zeilen, zwei bezahlte Sprachmodell-Aufrufe). Der
+    einzig sichere Weg zur Verdichtung ist ``verarbeite(conn, tg, klm, e,
+    klient, aufnahme_id)`` -- die kuemmert sich sowohl um die Verdichtung als
+    auch um den Statuswechsel und die MAX_VERSUCHE-Grenze."""
     aufnahme_id = repo.lege_aufnahme_an(conn, chat_id, message_id, "lang", "text")
     repo.setze_transkript(conn, aufnahme_id, text)
     repo.setze_status(conn, aufnahme_id, "transkribiert")

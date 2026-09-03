@@ -95,6 +95,8 @@ def _bearbeite_sprachnachricht(conn, tg, klm, e, stt_klient, nachricht: dict) ->
     getrennten Auftraegen liefen."""
     try:
         aufnahme_id = aufnahme.empfange(conn, tg, e, nachricht)
+        if aufnahme_id is None:
+            return  # Download endgueltig gescheitert -- schon gemeldet, siehe aufnahme.empfange
         aufnahme.verarbeite(conn, tg, klm, e, stt_klient, aufnahme_id)
     except Exception:
         log.exception(

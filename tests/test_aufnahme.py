@@ -9,12 +9,14 @@ theatersoap.stt.transkribiere() in den Tests, nur ohne Netz.
 """
 
 import json
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
 import pytest
 
-from theatersoap import aufnahme, db, einstellungen, repo, verdichter
+from theatersoap import aufnahme, db, einstellungen, repo
 
 TRANSKRIPT = (
     "Wir haben letzte Woche ueber das Buehnenbild gesprochen. Ich erinnere mich, "
@@ -62,6 +64,15 @@ class TelegramAttrappe:
         ziel.parent.mkdir(parents=True, exist_ok=True)
         ziel.write_bytes(b"OggS-fingierte-audiodaten")
         self.heruntergeladen.append((file_id, ziel))
+
+
+class TelegramKaputterDownload(TelegramAttrappe):
+    """lade_datei schlaegt IMMER fehl -- fuer den Kritisch-1-Test: ein
+    Telegram-Download, der nie klappt, darf die Aufnahme nicht spurlos
+    verschlucken."""
+
+    def lade_datei(self, file_id, ziel):
+        raise RuntimeError("Telegram nicht erreichbar (simuliert)")
 
 
 @pytest.fixture
@@ -216,11 +227,37 @@ def test_nachholen_greift_empfangene_auf_und_loest_keine_antwort_aus(conn, einst
     assert zeile["unterdrueckt"] == 1, "Nachgeholtes loest nie eine Antwort aus"
 
 
-def test_textimport_erzeugt_material_wie_eine_aufnahme(conn, einst, klm):
+def test_textimport_erzeugt_material_wie_eine_aufnahme(conn, einst, tg, klm):
+    """Wie im urspruenglichen Auftragstest, aber ueber aufnahme.verarbeite()
+    statt eines direkten verdichter.verdichte()-Aufrufs (Nachbesserung
+    'Kritisch 2'): der Verdichtungsschritt laeuft ausschliesslich ueber
+    verarbeite(), das nach Erfolg auch den Status auf 'fertig' setzt --
+    direktes verdichter.verdichte() wuerde die Aufnahme bei 'transkribiert'
+    stehen lassen und den Nachhol-Arbeiter zu einer zweiten, bezahlten
+    Verdichtung derselben Aufnahme verleiten (siehe naechster Test)."""
     aid = aufnahme.importiere_text(conn, einst, 1, 40, TRANSKRIPT, name="Recherche")
     zeile = repo.hole_aufnahme(conn, aid)
     assert zeile["quelle"] == "text" and zeile["status"] == "transkribiert"
-    verdichter.verdichte(klm, conn, einst, aid)
+
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
+
+    assert repo.hole_aufnahme(conn, aid)["status"] == "fertig"
+    assert len(repo.verdichtungen(conn, 1)) == 1
+
+
+def test_textimport_dann_nachholen_verdichtet_nur_einmal(conn, einst, tg, klm):
+    """Kritisch 2, der eigentliche Regressionstest: importiere_text() laesst
+    die Aufnahme bei 'transkribiert'. Ein anschliessender Nachhol-Lauf darf
+    sie genau einmal verdichten und muss danach status='fertig' erreichen,
+    damit ein zweiter Nachhol-Lauf sie nicht noch einmal aufgreift."""
+    aid = aufnahme.importiere_text(conn, einst, 1, 41, TRANSKRIPT, name="Recherche 2")
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+    assert len(repo.verdichtungen(conn, 1)) == 1
+    assert repo.hole_aufnahme(conn, aid)["status"] == "fertig"
+
+    # ein zweiter Nachhol-Lauf darf keine weitere Verdichtung mehr erzeugen
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
     assert len(repo.verdichtungen(conn, 1)) == 1
 
 
@@ -291,13 +328,21 @@ def test_nachholen_beruecksichtigt_nur_aufnahmen_des_eigenen_bots(conn, einst):
 
 def test_nach_max_versuchen_gilt_die_aufnahme_als_fehlgeschlagen(conn, einst, tg, klm):
     """Auftragshinweis (SPEC § 10.3): nach MAX_VERSUCHE erfolglosen Anlaeufen
-    wird eine Aufnahme fehlgeschlagen, statt bis Sonntagabend im Kreis zu laufen."""
+    wird eine Aufnahme fehlgeschlagen, statt bis Sonntagabend im Kreis zu laufen.
+
+    Wichtig 3 (Nachbesserung): eine Aufnahme der Klasse *kurz*, die endgueltig
+    scheitert, darf nicht kommentarlos im Verlauf verschwinden -- beim
+    Uebergang auf 'fehlgeschlagen' muss die Gruppe eine Zeile bekommen, aber
+    (Wichtig 2) NICHT bei jedem der vorherigen Zwischenversuche."""
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=70))
     for _ in range(aufnahme.MAX_VERSUCHE):
         aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
     zeile = repo.hole_aufnahme(conn, aid)
     assert zeile["status"] == "fehlgeschlagen"
     assert zeile["versuche"] == aufnahme.MAX_VERSUCHE
+
+    endgueltig_gemeldet = [t for _, t in tg.gesendet if "verstehen" in t and "nochmal" in t]
+    assert len(endgueltig_gemeldet) == 1, "kurz bekommt genau eine Meldung, beim endgueltigen Aufgeben"
 
 
 def test_verdichtung_scheitert_aufnahme_bleibt_transkribiert_fuer_nachhol_arbeiter(conn, einst, tg):
@@ -320,3 +365,147 @@ def test_verdichtung_scheitert_aufnahme_bleibt_transkribiert_fuer_nachhol_arbeit
     aufnahme.verarbeite(conn, tg, LLMAttrappe(), einst, stt_kaputt(), aid)
     assert repo.hole_aufnahme(conn, aid)["status"] == "fertig"
     assert len(repo.verdichtungen(conn, 1)) == 1
+
+
+def test_verdichtung_ueber_max_versuchen_gilt_als_fehlgeschlagen(conn, einst, tg):
+    """Kritisch 2: eine dauerhaft scheiternde Verdichtung ist ein bezahlter
+    Sprachmodell-Aufruf und darf nicht unbegrenzt oft alle NACHHOL_INTERVALL_S
+    Sekunden wiederholt werden. Ab MAX_VERSUCHE wird endgueltig aufgegeben,
+    das Transkript bleibt aber erhalten und die Gruppe erfaehrt davon."""
+
+    class KaputtesLLM:
+        def schema(self, chat_id, system, nutzer, schema, art):
+            raise RuntimeError("Sprachmodell nicht erreichbar")
+
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=81))
+    # Der erste Anlauf muss die Transkription noch erfolgreich hinter sich
+    # bringen (sonst zaehlt der Versuch als Transkriptions-, nicht als
+    # Verdichtungsfehlschlag); alle weiteren finden schon status='transkribiert'
+    # vor und fragen Whisper gar nicht erst -- der STT-Klient ist dort egal.
+    aufnahme.verarbeite(conn, tg, KaputtesLLM(), einst, stt_attrappe(TRANSKRIPT), aid)
+    for _ in range(aufnahme.MAX_VERSUCHE - 1):
+        aufnahme.verarbeite(conn, tg, KaputtesLLM(), einst, stt_kaputt(), aid)
+
+    zeile = repo.hole_aufnahme(conn, aid)
+    assert zeile["status"] == "fehlgeschlagen"
+    assert zeile["versuche"] == aufnahme.MAX_VERSUCHE
+    assert zeile["transkript"] == TRANSKRIPT, "das Transkript bleibt trotz gescheiterter Verdichtung erhalten"
+    assert repo.verdichtungen(conn, 1) == []
+    assert any("auswerten" in t for _, t in tg.gesendet)
+
+
+def test_lange_aufnahme_bekommt_bitte_nochmal_nur_einmal(conn, einst, tg, klm):
+    """Wichtig 2: bei mehreren Nachhol-Anlaeufen derselben Aufnahme (Klasse
+    *lang*) geht die 'schickt sie bitte nochmal'-Bitte nur beim ersten
+    Fehlschlag raus, nicht bei jedem der bis zu MAX_VERSUCHE Versuche."""
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=82))
+    for _ in range(3):
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
+
+    bitten = [t for _, t in tg.gesendet if "nochmal" in t]
+    assert len(bitten) == 1, "die Bitte, es nochmal zu schicken, wiederholt sich nicht"
+
+
+def test_bitte_nochmal_nennt_keinen_ersatznamen(conn, einst, tg, klm):
+    """Kleinigkeit: 'Die Aufnahme von Interview 1 konnte ich nicht verstehen'
+    wirkt in einer Chatnachricht unfreiwillig komisch. Ohne einen von der
+    Gruppe vergebenen echten Namen wird stattdessen die Klasse genannt."""
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=83))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
+
+    nachrichten = [t for _, t in tg.gesendet if "nochmal" in t]
+    assert len(nachrichten) == 1
+    assert "Interview" not in nachrichten[0]
+    assert "letzte lange Aufnahme" in nachrichten[0]
+
+    # Mit einem echten Namen wird der auch genannt.
+    aid2 = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=84))
+    repo.setze_aufnahme_name(conn, aid2, "Maria")
+    tg.gesendet.clear()
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid2)
+    nachrichten2 = [t for _, t in tg.gesendet if "nochmal" in t]
+    assert len(nachrichten2) == 1
+    assert "Maria" in nachrichten2[0]
+
+
+def test_zwischenmeldung_nur_bei_kurz(conn, einst, tg, klm, monkeypatch):
+    """Kleinigkeit: die 12-Sekunden-Zwischenmeldung ('Ich hoer noch zu...')
+    darf bei Klasse *lang* nicht feuern -- die hat mit der Empfangsbestaetigung
+    aus empfange() schon eine Nachricht fuer dieselbe Sache bekommen. Fuer
+    Klasse *kurz* soll sie bei einer langsamen Transkription dagegen wirklich
+    feuern -- die Abschaltung ist strukturell (Klasse), nicht zufaellig."""
+    aid_lang = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=90))
+    tg.gesendet.clear()
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("ok"), aid_lang)
+    assert not any("hoer noch zu" in t for _, t in tg.gesendet), "lang bekommt keine Zwischenmeldung"
+
+    monkeypatch.setattr(aufnahme, "MELDUNG_AB_S", 0.01)
+    monkeypatch.setattr(aufnahme, "TIPPANZEIGE_AB_S", 100)  # soll hier nicht stoeren
+
+    def handler_langsam(request):
+        time.sleep(0.1)
+        if "audio/transcriptions" in request.url.path:
+            return httpx.Response(200, json={"batch_id": "B1"})
+        return httpx.Response(200, json={"status": "success", "data": json.dumps({"text": "ok"})})
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler_langsam))
+    aid_kurz = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=91))
+    tg.gesendet.clear()
+    aufnahme.verarbeite(conn, tg, klm, einst, klient, aid_kurz)
+    assert any("hoer noch zu" in t for _, t in tg.gesendet), "kurz bekommt die Zwischenmeldung bei langsamer Transkription"
+
+
+def test_download_scheitert_endgueltig_meldet_vorfall_und_gruppe(conn, einst, monkeypatch):
+    """Kritisch 1: die eigentliche Absicherung dieser Aufgabe faengt bei
+    Whisper an -- ein fehlschlagender TELEGRAM-Download darf die Aufnahme
+    ebenso wenig spurlos verlieren. lade_datei schlaegt hier IMMER fehl."""
+    monkeypatch.setattr(aufnahme.time, "sleep", lambda s: None)
+    tg = TelegramKaputterDownload()
+
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=95))
+
+    assert aid is None
+    assert all(z["message_id"] != 95 for z in repo.transkripte(conn, 1)), (
+        "kein Download, keine aufnahme-Zeile -- es gibt nichts, das der "
+        "Nachhol-Arbeiter aufgreifen koennte"
+    )
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art='download_fehlgeschlagen'"
+    ).fetchall()
+    assert len(vorfaelle) == 1
+
+    meldungen = [t for _, t in tg.gesendet if "nicht angekommen" in t]
+    assert len(meldungen) == 1, "genau eine Nachricht an die Gruppe, keine pro Wiederholungsversuch"
+
+
+def test_setze_whisper_stumm_seit_falls_leer_ist_atomar(conn):
+    """Grundlage von Wichtig 1: das erste UPDATE gewinnt, jedes weitere findet
+    das Feld schon gesetzt vor und liefert False."""
+    assert repo.setze_whisper_stumm_seit_falls_leer(conn, 1, "2026-09-04T10:00:00+00:00") is True
+    assert repo.setze_whisper_stumm_seit_falls_leer(conn, 1, "2026-09-04T10:00:01+00:00") is False
+    assert repo.hole_gruppe(conn, 1)["whisper_stumm_seit"] == "2026-09-04T10:00:00+00:00"
+
+    assert repo.leere_whisper_stumm_seit_falls_gesetzt(conn, 1) is True
+    assert repo.leere_whisper_stumm_seit_falls_gesetzt(conn, 1) is False
+    assert repo.hole_gruppe(conn, 1)["whisper_stumm_seit"] is None
+
+
+def test_melde_ausfall_ist_nebenlaeufigkeitsfest(conn, einst, tg):
+    """Wichtig 1: mehrere Threads (wie im 8er-Pool von bot.py), die gleichzeitig
+    auf denselben Whisper-Ausfall stossen, duerfen zusammen trotzdem nur genau
+    eine Ausfallmeldung erzeugen."""
+    anzahl_threads = 8
+    start = threading.Barrier(anzahl_threads)
+
+    def lauf():
+        start.wait()
+        aufnahme.melde_ausfall(conn, tg, einst, 1)
+
+    threads = [threading.Thread(target=lauf) for _ in range(anzahl_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+
+    meldungen = [t for _, t in tg.gesendet if "nicht hoeren" in t]
+    assert len(meldungen) == 1

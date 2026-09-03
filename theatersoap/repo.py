@@ -380,6 +380,35 @@ def offene_aufnahmen_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[s
     ).fetchall()
 
 
+def setze_whisper_stumm_seit_falls_leer(conn: sqlite3.Connection, chat_id: int, wert: str) -> bool:
+    """Setzt gruppe.whisper_stumm_seit atomar, aber nur wenn es noch leer war
+    (Aufgabe 8, Nachbesserung 'Wichtig 1'). Liefert True, wenn DIESER Aufruf
+    das Feld gesetzt hat -- die Grundlage fuer die 'genau einmal'-Zusage, wenn
+    mehrere Threads eines Pools gleichzeitig auf denselben Whisper-Ausfall
+    stossen: ohne das atomare ``WHERE whisper_stumm_seit IS NULL`` koennten
+    zwei Threads beide noch ``NULL`` lesen und beide senden."""
+    cur = conn.execute(
+        "UPDATE gruppe SET whisper_stumm_seit = ? "
+        "WHERE chat_id = ? AND whisper_stumm_seit IS NULL",
+        (wert, chat_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+def leere_whisper_stumm_seit_falls_gesetzt(conn: sqlite3.Connection, chat_id: int) -> bool:
+    """Spiegelbild zu setze_whisper_stumm_seit_falls_leer: leert das Feld
+    atomar, aber nur wenn es gesetzt war. Liefert True, wenn DIESER Aufruf es
+    geleert hat."""
+    cur = conn.execute(
+        "UPDATE gruppe SET whisper_stumm_seit = NULL "
+        "WHERE chat_id = ? AND whisper_stumm_seit IS NOT NULL",
+        (chat_id,),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
 def merke_aufruf(
     conn: sqlite3.Connection,
     chat_id: int | None,

@@ -85,10 +85,15 @@ def unbeantwortete(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
 
 
 def setze_beantwortet_bis(conn: sqlite3.Connection, chat_id: int, message_id: int) -> None:
-    """Setzt das Wasserzeichen letzte_beantwortete_message_id."""
+    """Setzt das Wasserzeichen letzte_beantwortete_message_id. Bewegt sich nie
+    rueckwaerts, sonst wuerden bereits beantwortete Nachrichten erneut einen
+    Zug ausloesen (siehe unbeantwortete())."""
     conn.execute(
-        "UPDATE gruppe SET letzte_beantwortete_message_id = ? WHERE chat_id = ?",
-        (message_id, chat_id),
+        """
+        UPDATE gruppe SET letzte_beantwortete_message_id = ?
+        WHERE chat_id = ? AND letzte_beantwortete_message_id < ?
+        """,
+        (message_id, chat_id, message_id),
     )
     conn.commit()
 

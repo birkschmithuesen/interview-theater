@@ -14,13 +14,15 @@ Gespraechsmodell scheitern) und wird direkt beantwortet. Ein unbekannter
 Befehl bekommt eine freundliche Zeile statt zu krachen -- ``behandle()``
 liefert in beiden Faellen ``True``.
 
-**Die Ausnahme, benannt:** ``/szene`` braucht ein Sprachmodell, deshalb nimmt
-``behandle()`` seit heute ein optionales ``klm`` entgegen. Die urspruengliche
-strukturelle Garantie ("behandle nimmt kein LLM-Objekt, also kann /stand
-nicht am Modell scheitern") ist damit eine Zusage geworden, die der Code
-weiterhin einhaelt: kein Befehl ruft synchron ein Modell: ``/szene`` gibt den
-Aufruf sofort an einen eigenen Thread ab (``szene.starte``) und kehrt zurueck.
-Wer hier einen weiteren Befehl anhaengt, halte sich daran.
+**Die Ausnahmen, benannt:** ``/szene`` und ``/fertig`` brauchen ein
+Sprachmodell, deshalb nimmt ``behandle()`` ein optionales ``klm`` entgegen.
+Die urspruengliche strukturelle Garantie ("behandle nimmt kein LLM-Objekt,
+also kann /stand nicht am Modell scheitern") ist damit eine Zusage geworden,
+die der Code weiterhin einhaelt: kein Befehl ruft synchron ein Modell.
+``/szene`` gibt den Aufruf sofort an einen eigenen Thread ab
+(``szene.starte``), ``/fertig`` ebenso (``aufnahme.starte_abschluss`` fuer die
+eine Verdichtung des beendeten Interviews, § 10.6). Wer hier einen weiteren
+Befehl anhaengt, halte sich daran.
 
 Telegram haengt in Gruppen mit mehreren Bots oft den Benutzernamen an einen
 Befehl an (``/stand@interview_theaterbot``) -- ``_zerlege`` trennt das
@@ -29,7 +31,7 @@ grosszuegig ab, unabhaengig davon, welcher Name genau dahintersteht."""
 import logging
 import re
 
-from interview_theater import erkenner, phasen, repo, szene
+from interview_theater import aufnahme, erkenner, phasen, repo, szene
 
 #: Woerter, die einen Befehl zu einer Entfernung machen (NACHTRAG N3).
 #: Grosszuegig, weil die Gruppe tippt, was ihr einfaellt -- aber eine feste
@@ -123,13 +125,24 @@ def _wortlaut_liste(conn, chat_id: int) -> str:
 
 
 def _befehl_interview(conn, tg, chat_id: int) -> None:
+    """Modus an -- und damit entsteht EIN Interview (§ 10.6), zu dem alle
+    folgenden Sprachnachrichten als Teile gehoeren."""
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
+    aufnahme.stelle_interview_sicher(conn, chat_id)
     tg.sende(chat_id, _TEXT_INTERVIEW_AN)
 
 
-def _befehl_fertig(conn, tg, chat_id: int) -> None:
-    repo.setze_interviewmodus(conn, chat_id, None)
+def _befehl_fertig(conn, tg, klm, e, chat_id: int) -> None:
+    """Modus aus, Interview zusammenfuegen und einmal verdichten (§ 10.6).
+
+    Die Verdichtung laeuft in einem eigenen Thread (``aufnahme.starte_abschluss``)
+    -- die Zusage 'kein Befehl ruft synchron ein Modell' gilt weiter. Ohne
+    ``klm`` (ein Aufrufer ohne Sprachmodell) bleibt das Interview auf
+    'transkribiert' stehen und der Nachhol-Arbeiter verdichtet es."""
+    kopf_id = aufnahme.beende_interview(conn, chat_id)
     tg.sende(chat_id, _TEXT_INTERVIEW_AUS)
+    if kopf_id is not None and klm is not None:
+        aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
 
 
 def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
@@ -335,7 +348,7 @@ def behandle(
     if befehl == "/interview":
         _befehl_interview(conn, tg, chat_id)
     elif befehl == "/fertig":
-        _befehl_fertig(conn, tg, chat_id)
+        _befehl_fertig(conn, tg, klm, e, chat_id)
     elif befehl == "/phase":
         _befehl_phase(conn, tg, chat_id, rest)
     elif befehl == "/kernthema":

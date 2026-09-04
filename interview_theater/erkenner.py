@@ -354,35 +354,55 @@ def _wende_wortlaut_aus_an(conn, chat_id: int) -> dict | None:
 
 def _wende_interview_starten_an(conn, chat_id: int) -> dict | None:
     """Schaltet den Interviewmodus an (teil-b.md Aufgabe 5, SPEC § 10.1) --
-    setzt gruppe.interviewmodus_seit auf jetzt. War der Modus schon an, ist
-    das keine Aenderung (dieselbe Regel wie ueberall sonst: derselbe Zustand
-    zaehlt nicht als Aenderung, sonst bestaetigte laufe() bei jedem
-    Erkennerlauf erneut)."""
+    setzt gruppe.interviewmodus_seit auf jetzt und legt das Interview an, zu
+    dem alle folgenden Sprachnachrichten als Teile gehoeren (§ 10.6).
+    War der Modus schon an, ist das keine Aenderung (dieselbe Regel wie
+    ueberall sonst: derselbe Zustand zaehlt nicht als Aenderung, sonst
+    bestaetigte laufe() bei jedem Erkennerlauf erneut)."""
+    from interview_theater import aufnahme  # spaeter Import, haelt den Modulkopf frei
+
     gruppe = repo.hole_gruppe(conn, chat_id)
     if gruppe is not None and gruppe["interviewmodus_seit"] is not None:
         return None
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
+    aufnahme.stelle_interview_sicher(conn, chat_id)
     return {"art": "interview_starten", "wert": ""}
 
 
 def _wende_interview_beenden_an(conn, chat_id: int) -> dict | None:
-    """Schaltet den Interviewmodus aus -- spiegelbildlich zu
-    _wende_interview_starten_an."""
+    """Schaltet den Interviewmodus aus und stempelt das laufende Interview als
+    beendet -- spiegelbildlich zu _wende_interview_starten_an.
+
+    Das Zusammenfuegen und die eine Verdichtung (§ 10.6) passieren hier
+    ausdruecklich NICHT: ``wende_an`` schreibt nur in die Datenbank und
+    schickt nie etwas, und die Verdichtung ist ein Sprachmodell-Aufruf mit
+    einer Nachricht am Ende. Die ``aufnahme_id`` im Rueckgabewert reicht sie
+    an ``laufe()`` weiter, wo es tg und klm gibt (wie bei ``szene_schreiben``,
+    nur ueber den Rueckgabewert statt ueber die erkannte Aenderung -- hier
+    braucht der Aufrufer eine id, die erst beim Anwenden feststeht)."""
+    from interview_theater import aufnahme  # spaeter Import, haelt den Modulkopf frei
+
     gruppe = repo.hole_gruppe(conn, chat_id)
     if gruppe is None or gruppe["interviewmodus_seit"] is None:
         return None
-    repo.setze_interviewmodus(conn, chat_id, None)
-    return {"art": "interview_beenden", "wert": ""}
+    kopf_id = aufnahme.beende_interview(conn, chat_id)
+    return {"art": "interview_beenden", "wert": "", "aufnahme_id": kopf_id}
 
 
 def _wende_interview_benennen_an(conn, chat_id: int, wert: str) -> dict | None:
-    """Benennt die letzte (juengste) Aufnahme dieser Gruppe um. Ohne
-    vorhandene Aufnahme gibt es nichts umzubenennen -- ein stilles No-Op,
-    kein Fehler."""
+    """Benennt das letzte (juengste) Interview dieser Gruppe um. Ohne
+    vorhandenes Interview gibt es nichts umzubenennen -- ein stilles No-Op,
+    kein Fehler.
+
+    Nur Interviews (``klasse='lang'``, § 10.6): "das war Marias Interview"
+    meint das Interview, auch wenn dazwischen jemand einen Zuruf
+    eingesprochen hat -- und erst recht nicht eine einzelne der fuenf
+    Sprachnachrichten, aus denen es besteht (die stehen in ``transkripte``
+    ohnehin nicht)."""
     wert = wert.strip()
     if not wert:
         return None
-    aufnahmen = repo.transkripte(conn, chat_id)
+    aufnahmen = [a for a in repo.transkripte(conn, chat_id) if a["klasse"] == "lang"]
     if not aufnahmen:
         return None
     letzte = aufnahmen[-1]
@@ -758,6 +778,37 @@ def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> No
     szene.starte(conn, tg, klm, e, chat_id, auftrag)
 
 
+def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> None:
+    """Stoesst nach einem erkannten "fertig" das Zusammenfuegen und die eine
+    Verdichtung des Interviews an (§ 10.6, ``aufnahme.starte_abschluss``).
+
+    Nicht in ``wende_an``, aus demselben Grund wie ``_starte_szene``: dort
+    wird nur in die Datenbank geschrieben, hier faellt ein
+    Sprachmodell-Aufruf an und eine Nachricht in die Gruppe. Der Aufruf geht
+    sofort an einen eigenen Thread -- der Erkenner-Nachlauf haengt nicht
+    daran, und die Bestaetigung "Aufnahme beendet." steht laengst im Chat.
+
+    Ein Fehlschlag hier darf die Meldung nicht mitreissen: der Modus ist schon
+    aus, und der Nachhol-Arbeiter greift ein liegengebliebenes Interview beim
+    naechsten Durchlauf ohnehin auf."""
+    from interview_theater import aufnahme  # spaeter Import, haelt den Modulkopf frei
+
+    kopf_id = next(
+        (
+            a.get("aufnahme_id")
+            for a in wirkliche
+            if a.get("art") == "interview_beenden" and a.get("aufnahme_id")
+        ),
+        None,
+    )
+    if kopf_id is None:
+        return
+    try:
+        aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
+    except Exception:
+        log.exception("Interviewabschluss konnte nicht gestartet werden, id=%s", kopf_id)
+
+
 def _springe_phase(conn, chat_id: int, wirkliche: list[dict]) -> int | None:
     """Schaltet die Phase selbst um, wenn dieser Lauf genau die Aenderung
     geschrieben hat, die die naechste Phase traegt (phasen.sprung_nach) --
@@ -789,8 +840,9 @@ def _springe_phase(conn, chat_id: int, wirkliche: list[dict]) -> int | None:
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
     melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5),
-    Szenen-Auftrag anstossen (szene.py), Phase umschalten, wenn dieser Lauf
-    sie belegt hat (_springe_phase, phasen.py).
+    beendetes Interview verdichten lassen (§ 10.6), Szenen-Auftrag anstossen
+    (szene.py), Phase umschalten, wenn dieser Lauf sie belegt hat
+    (_springe_phase, phasen.py).
     Laeuft nachgelagert, nachdem die Bot-Antwort in der Gruppe steht (SPEC
     § 4.3) -- niemand wartet darauf, und ein Fehlschlag bleibt fuer die
     Gruppe unsichtbar, genau wie ``ablauf.antworte`` es fuer den
@@ -802,6 +854,9 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             return
         wirkliche = wende_an(conn, e, chat_id, aenderungen)
         _melde_interviewmodus(tg, conn, e, chat_id, wirkliche)
+        # Nach der Bestaetigung "Aufnahme beendet.": das Interview
+        # zusammenfuegen und einmal verdichten (§ 10.6).
+        _schliesse_interview_ab(klm, tg, conn, e, wirkliche)
         # Aus den erkannten, nicht aus den wirksamen Aenderungen: ein
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.

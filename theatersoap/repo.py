@@ -564,11 +564,18 @@ def figuren(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
 @_gesperrt
 def setze_figur(conn: sqlite3.Connection, chat_id: int, name: str, beschreibung: str) -> None:
     """Legt eine Figur an oder ueberschreibt ihre Beschreibung, wenn der Name
-    schon existiert (SPEC § 8: /figur legt an oder ueberschreibt). Vergleich
-    exakt, nicht grosszuegig wie bei transkripte() -- ein Figurenname ist eine
-    bewusste Entscheidung der Gruppe, kein Tippfehler-Suchproblem."""
+    schon existiert (SPEC § 8: /figur legt an oder ueberschreibt; teil-b.md
+    Aufgabe 3: der Absichtserkenner ruft dies ebenso auf). Vergleich nach
+    Trimmen und Kleinschreibung, damit ' maria ' und 'Maria' dieselbe Figur
+    treffen -- weder die Gruppe noch das Modell tippen Namen immer gleich,
+    aber ein Figurenname ist trotzdem eine bewusste Entscheidung, kein
+    Tippfehler-Suchproblem wie bei transkripte() (dort genuegt ein
+    Teiltreffer, hier nicht)."""
+    name = name.strip()
+    beschreibung = (beschreibung or "").strip()
     vorhanden = conn.execute(
-        "SELECT id FROM figur WHERE chat_id = ? AND name = ?", (chat_id, name)
+        "SELECT id FROM figur WHERE chat_id = ? AND lower(trim(name)) = ?",
+        (chat_id, name.lower()),
     ).fetchone()
     jetzt = _jetzt()
     if vorhanden:
@@ -650,5 +657,17 @@ def merke_aufruf(
             erfolg,
             _jetzt(),
         ),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_wortlaut_modus(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
+    """Setzt oder leert gruppe.wortlaut_modus (SPEC § 8 /wortlaut, teil-b.md
+    Aufgabe 3): NULL=aus, '*'=alle, sonst ein Aufnahmename. Wird sowohl vom
+    /wortlaut-Befehl als auch vom Absichtserkenner (art wortlaut_an/
+    wortlaut_aus) aufgerufen."""
+    conn.execute(
+        "UPDATE gruppe SET wortlaut_modus = ? WHERE chat_id = ?", (wert, chat_id)
     )
     conn.commit()

@@ -175,3 +175,187 @@ def test_prompt_enthaelt_fuenf_beispiele_davon_zwei_leer():
     anzahl_leer = erkenner.PROMPT.count('"aenderungen": []')
     assert anzahl_beispiele == 5
     assert anzahl_leer == 2
+
+
+# ---------------------------------------------------------------------------
+# Aufgabe 3: Schreibpfad (erkenner.wende_an)
+# ---------------------------------------------------------------------------
+
+
+def test_kernthema_ueberschreiben_aendert_feld_und_gilt_als_aenderung(conn, einst):
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "kernthema_setzen", "wert": "Ankommen"}]
+    )
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
+    assert wirkliche == [{"art": "kernthema_setzen", "wert": "Ankommen"}]
+
+
+def test_kernthema_ueberschreiben_ersetzt_alten_wert(conn, einst):
+    erkenner.wende_an(conn, einst, 1, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    erkenner.wende_an(conn, einst, 1, [{"art": "kernthema_setzen", "wert": "Abschied"}])
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Abschied"
+
+
+def test_derselbe_wert_nochmal_gilt_nicht_als_aenderung(conn, einst):
+    erkenner.wende_an(conn, einst, 1, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "kernthema_setzen", "wert": "Ankommen"}]
+    )
+
+    assert wirkliche == []
+
+
+def test_hauptkonflikt_und_begriffe_werden_ueberschrieben(conn, einst):
+    wirkliche = erkenner.wende_an(
+        conn,
+        einst,
+        1,
+        [
+            {"art": "hauptkonflikt_setzen", "wert": "Bleiben oder Gehen"},
+            {"art": "begriffe_setzen", "wert": "Migration, Ankommen"},
+        ],
+    )
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["hauptkonflikt"] == "Bleiben oder Gehen"
+    assert stand["begriffe"] == "Migration, Ankommen"
+    assert len(wirkliche) == 2
+
+
+def test_figur_mit_bekanntem_namen_wird_ueberschrieben_nicht_verdoppelt(conn, einst):
+    erkenner.wende_an(conn, einst, 1, [{"art": "figur_setzen", "wert": "Maria: Naeherin"}])
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "figur_setzen", "wert": " maria : kam 1998"}]
+    )
+
+    figuren = repo.figuren(conn, 1)
+    assert len(figuren) == 1
+    assert figuren[0]["beschreibung"] == "kam 1998"
+    assert wirkliche == [{"art": "figur_setzen", "wert": "maria"}]
+
+
+def test_figur_ohne_doppelpunkt_bekommt_leere_beschreibung(conn, einst):
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "figur_setzen", "wert": "Peter"}])
+
+    figuren = repo.figuren(conn, 1)
+    assert len(figuren) == 1
+    assert figuren[0]["name"] == "Peter"
+    assert figuren[0]["beschreibung"] == ""
+    assert wirkliche == [{"art": "figur_setzen", "wert": "Peter"}]
+
+
+def test_figur_gleicher_name_und_gleiche_beschreibung_gilt_nicht_als_aenderung(conn, einst):
+    erkenner.wende_an(conn, einst, 1, [{"art": "figur_setzen", "wert": "Maria: Naeherin"}])
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "figur_setzen", "wert": "Maria: Naeherin"}]
+    )
+
+    assert wirkliche == []
+
+
+def test_verworfen_landet_im_journal_nicht_im_arbeitsstand(conn, einst):
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "verworfen", "wert": "Zeitreise-Idee — zu teuer"}]
+    )
+
+    eintraege = repo.journal(conn, 1)
+    assert len(eintraege) == 1
+    assert eintraege[0]["art"] == "verworfen"
+    assert eintraege[0]["text"] == "Zeitreise-Idee — zu teuer"
+    assert eintraege[0]["quelle"] == "erkenner"
+    assert repo.hole_arbeitsstand(conn, 1) is None
+    assert wirkliche == [{"art": "verworfen", "wert": "Zeitreise-Idee — zu teuer"}]
+
+
+def test_entschieden_landet_im_journal(conn, einst):
+    erkenner.wende_an(conn, einst, 1, [{"art": "entschieden", "wert": "6 Interviewfragen"}])
+
+    eintraege = repo.journal(conn, 1)
+    assert len(eintraege) == 1
+    assert eintraege[0]["art"] == "entschieden"
+    assert eintraege[0]["quelle"] == "erkenner"
+
+
+def test_leerer_wert_wird_uebersprungen(conn, einst):
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "kernthema_setzen", "wert": "   "}]
+    )
+
+    assert wirkliche == []
+    assert repo.hole_arbeitsstand(conn, 1) is None
+
+
+def test_wortlaut_an_setzt_modus_auf_namen(conn, einst):
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "wortlaut_an", "wert": "Maria"}]
+    )
+
+    assert repo.hole_gruppe(conn, 1)["wortlaut_modus"] == "Maria"
+    assert wirkliche == [{"art": "wortlaut_an", "wert": "Maria"}]
+
+
+def test_wortlaut_an_leerer_wert_setzt_stern(conn, einst):
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "wortlaut_an", "wert": ""}])
+
+    assert repo.hole_gruppe(conn, 1)["wortlaut_modus"] == "*"
+    assert wirkliche == [{"art": "wortlaut_an", "wert": "*"}]
+
+
+def test_wortlaut_aus_setzt_modus_auf_none(conn, einst):
+    erkenner.wende_an(conn, einst, 1, [{"art": "wortlaut_an", "wert": "Maria"}])
+
+    erkenner.wende_an(conn, einst, 1, [{"art": "wortlaut_aus", "wert": ""}])
+
+    assert repo.hole_gruppe(conn, 1)["wortlaut_modus"] is None
+
+
+def test_interview_benennen_benennt_letzte_aufnahme(conn, einst):
+    repo.lege_aufnahme_an(conn, 1, 1, "kurz", "sprache")
+    zweite_id = repo.lege_aufnahme_an(conn, 1, 2, "kurz", "sprache")
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "interview_benennen", "wert": "Maria"}]
+    )
+
+    umbenannt = repo.hole_aufnahme(conn, zweite_id)
+    assert umbenannt["name"] == "Maria"
+    assert wirkliche == [{"art": "interview_benennen", "wert": "Maria"}]
+
+
+def test_interview_starten_und_beenden_werden_uebersprungen(conn, einst):
+    wirkliche = erkenner.wende_an(
+        conn,
+        einst,
+        1,
+        [
+            {"art": "interview_starten", "wert": ""},
+            {"art": "interview_beenden", "wert": ""},
+        ],
+    )
+
+    assert wirkliche == []
+
+
+def test_eine_fehlerhafte_aenderung_reisst_die_anderen_nicht_mit(conn, einst):
+    wirkliche = erkenner.wende_an(
+        conn,
+        einst,
+        1,
+        [
+            {"art": "kernthema_setzen", "wert": "Ankommen"},
+            {"art": "figur_setzen", "wert": 12345},  # kein String -> .strip() kracht
+            {"art": "hauptkonflikt_setzen", "wert": "Bleiben oder Gehen"},
+        ],
+    )
+
+    assert {"art": "kernthema_setzen", "wert": "Ankommen"} in wirkliche
+    assert {"art": "hauptkonflikt_setzen", "wert": "Bleiben oder Gehen"} in wirkliche
+    assert len(wirkliche) == 2
+    zeile = conn.execute("SELECT art FROM vorfall WHERE chat_id = 1").fetchone()
+    assert zeile is not None

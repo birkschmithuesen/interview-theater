@@ -2,9 +2,10 @@
 
 Schliesst die Luecke, die Teil A offen liess: ``kontext.py`` liest
 ``arbeitsstand``, ``figur`` und ``journal`` in den Prompt, aber vor Teil B
-schrieb sie niemand. Diese Aufgabe baut NUR die Erkennung -- das Anwenden auf
-die Datenbank kommt in einer spaeteren Aufgabe (``wende_an``), die Meldung an
-die Gruppe danach.
+schrieb sie niemand. ``erkenne()`` erkennt Aenderungsabsichten im Gespraech,
+``wende_an()`` schreibt sie in Arbeitsstand, Figuren, Journal und Schalter
+(Aufgabe 3). Die Meldung an die Gruppe kommt in einer spaeteren Aufgabe
+(Aufgabe 4, ``baue_meldung``).
 
 Laeuft nachgelagert, nachdem die Bot-Antwort in der Gruppe steht. Niemand
 wartet darauf (SPEC § 4.3): Modell ``google/gemma-4-31B-it``, erzwungenes
@@ -225,3 +226,166 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
 
     repo.setze_extrahiert_bis(conn, chat_id, letzte_message_id)
     return aenderungen
+
+
+#: art -> Arbeitsstand-Feld fuer die drei Aenderungsarten, die ein einzelnes
+#: Feld ueberschreiben (SPEC § 4.3 'Ueberschreiben ist der Normalfall').
+_ARBEITSSTAND_ARTEN = {
+    "begriffe_setzen": "begriffe",
+    "kernthema_setzen": "kernthema",
+    "hauptkonflikt_setzen": "hauptkonflikt",
+}
+
+
+def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
+    """Ueberschreibt ein Arbeitsstand-Feld -- aber nur, wenn sich der Wert
+    tatsaechlich aendert (die wichtigste Regel aus Aufgabe 3: derselbe Wert
+    ist keine Aenderung, sonst meldete Aufgabe 4 bei jedem Zug dasselbe
+    Kernthema erneut)."""
+    wert = wert.strip()
+    if not wert:
+        return None
+    feld = _ARBEITSSTAND_ARTEN[art]
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    aktuell = stand[feld] if stand else None
+    if aktuell == wert:
+        return None
+    repo.setze_arbeitsstand(conn, chat_id, feld, wert)
+    return {"art": art, "wert": wert}
+
+
+def _wende_figur_an(conn, chat_id: int, wert: str) -> dict | None:
+    """Trennt ``wert`` am ersten Doppelpunkt in Name und Beschreibung (SPEC
+    § 4.3: 'ein String, den der Code am ersten Doppelpunkt trennt'). Ohne
+    Doppelpunkt liefert ``str.partition`` eine leere Beschreibung statt zu
+    krachen. Existiert der Name schon (getrimmt, Kleinschreibung -- siehe
+    repo.setze_figur), wird nur bei tatsaechlich geaenderter Beschreibung
+    geschrieben."""
+    wert = wert.strip()
+    if not wert:
+        return None
+    name, _, beschreibung = wert.partition(":")
+    name = name.strip()
+    beschreibung = beschreibung.strip()
+    if not name:
+        return None
+
+    vorhandene = repo.figuren(conn, chat_id)
+    treffer = next(
+        (f for f in vorhandene if f["name"].strip().lower() == name.lower()), None
+    )
+    if treffer is not None and (treffer["beschreibung"] or "").strip() == beschreibung:
+        return None
+
+    repo.setze_figur(conn, chat_id, name, beschreibung)
+    return {"art": "figur_setzen", "wert": name}
+
+
+def _wende_journal_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
+    """``verworfen``/``entschieden`` haengen eine Journalzeile an -- nie in
+    den Arbeitsstand (SPEC § 4.3: 'Journaleintraege fallen hier mit ab').
+    Das Journal ist nur-anhaengend, ein Dubletten-Check waere hier sachfremd:
+    zwei getrennte Aeusserungen mit demselben Wortlaut sind zwei Ereignisse."""
+    wert = wert.strip()
+    if not wert:
+        return None
+    repo.schreibe_journal(conn, chat_id, art, wert, quelle="erkenner")
+    return {"art": art, "wert": wert}
+
+
+def _wende_wortlaut_an(conn, chat_id: int, wert: str) -> dict | None:
+    """``wortlaut_an``: Name im ``wert``, leer bedeutet 'alle' (``'*'``)."""
+    name = wert.strip() or "*"
+    gruppe = repo.hole_gruppe(conn, chat_id)
+    if gruppe is not None and gruppe["wortlaut_modus"] == name:
+        return None
+    repo.setze_wortlaut_modus(conn, chat_id, name)
+    return {"art": "wortlaut_an", "wert": name}
+
+
+def _wende_wortlaut_aus_an(conn, chat_id: int) -> dict | None:
+    gruppe = repo.hole_gruppe(conn, chat_id)
+    if gruppe is not None and gruppe["wortlaut_modus"] is None:
+        return None
+    repo.setze_wortlaut_modus(conn, chat_id, None)
+    return {"art": "wortlaut_aus", "wert": ""}
+
+
+def _wende_interview_benennen_an(conn, chat_id: int, wert: str) -> dict | None:
+    """Benennt die letzte (juengste) Aufnahme dieser Gruppe um. Ohne
+    vorhandene Aufnahme gibt es nichts umzubenennen -- ein stilles No-Op,
+    kein Fehler."""
+    wert = wert.strip()
+    if not wert:
+        return None
+    aufnahmen = repo.transkripte(conn, chat_id)
+    if not aufnahmen:
+        return None
+    letzte = aufnahmen[-1]
+    if letzte["name"] == wert:
+        return None
+    repo.setze_aufnahme_name(conn, letzte["id"], wert)
+    return {"art": "interview_benennen", "wert": wert}
+
+
+def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
+    """Wendet genau eine Aenderung an und liefert das angewendete
+    ``{"art": ..., "wert": ...}`` zurueck, oder ``None`` wenn nichts
+    geschrieben wurde (leerer Wert oder Wert bereits so in der Datenbank)."""
+    if art in ("interview_starten", "interview_beenden"):
+        # Aufgabe 5 (teil-b.md): das Feld gruppe.interviewmodus_seit gibt es
+        # noch nicht -- diese beiden Arten werden hier bewusst kommentarlos
+        # uebersprungen, bis Aufgabe 5 sie mechanisch behandelt.
+        return None
+    if art in _ARBEITSSTAND_ARTEN:
+        return _wende_arbeitsstand_an(conn, chat_id, art, wert)
+    if art == "figur_setzen":
+        return _wende_figur_an(conn, chat_id, wert)
+    if art in ("verworfen", "entschieden"):
+        return _wende_journal_an(conn, chat_id, art, wert)
+    if art == "wortlaut_an":
+        return _wende_wortlaut_an(conn, chat_id, wert)
+    if art == "wortlaut_aus":
+        return _wende_wortlaut_aus_an(conn, chat_id)
+    if art == "interview_benennen":
+        return _wende_interview_benennen_an(conn, chat_id, wert)
+    # Unbekannte art sollte erkenne() bereits herausgefiltert haben; bei
+    # direktem Aufruf von wende_an() (z. B. in Tests) einfach ignorieren
+    # statt zu krachen.
+    return None
+
+
+def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
+    """Schreibt erkannte Aenderungen in Arbeitsstand, Figuren, Journal und
+    Schalter (SPEC § 4.3, teil-b.md Aufgabe 3).
+
+    Liefert nur die Aenderungen zurueck, die tatsaechlich etwas verschoben
+    haben -- Grundlage fuer die Meldung in Aufgabe 4 (``baue_meldung``).
+
+    Robustheit: jede Aenderung laeuft in ihrem eigenen try/except. Eine
+    fehlerhafte Aenderung (z. B. ein unerwarteter Werttyp) darf die anderen
+    im selben Lauf nicht mitreissen -- sie wird geloggt und als ``vorfall``
+    vermerkt, der Lauf macht mit der naechsten Aenderung weiter."""
+    wirkliche = []
+    for aenderung in aenderungen:
+        art = None
+        try:
+            art = aenderung.get("art")
+            wert = aenderung.get("wert") or ""
+            ergebnis = _wende_eine_an(conn, chat_id, art, wert)
+        except Exception:
+            log.exception(
+                "Anwenden einer Erkenner-Aenderung fehlgeschlagen, chat_id=%s, art=%s",
+                chat_id, art,
+            )
+            repo.merke_vorfall(
+                conn,
+                chat_id,
+                getattr(e, "bot_name", None),
+                "erkenner_anwenden_fehler",
+                f"Aenderung art={art!r} konnte nicht angewendet werden",
+            )
+            continue
+        if ergebnis is not None:
+            wirkliche.append(ergebnis)
+    return wirkliche

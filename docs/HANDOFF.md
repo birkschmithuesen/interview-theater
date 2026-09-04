@@ -3,7 +3,7 @@
 Für jemanden — Mensch oder Agent —, der diese Arbeit beurteilen soll, ohne bei ihrer
 Entstehung dabei gewesen zu sein.
 
-**Stand:** 04.09.2026 · 270 Tests grün · 16 Module, 4.461 Zeilen · 47 Commits
+**Stand:** 04.09.2026 · 336 Tests grün · 16 Module, 4.461 Zeilen · 47 Commits
 **Erster Einsatz:** Workshop Dortmund, 05.+06.09.2026, 13:00
 
 Verwandte Dokumente: `README.md` (für Theaterleute) · `AGENTS.md` (für Entwicklung) ·
@@ -237,7 +237,28 @@ also keine Dopplung mit dem Absichtserkenner.
 | **Szenen** | Sie entstehen erst in der letzten Workshop-Phase. Die Tabelle existiert, wird aber weder gelesen noch geschrieben — etwas zu schreiben, das niemand liest, ist Fläche ohne Nutzen. |
 | **Acht der vierzehn Befehle** | `SPEC` § 8.1 nennt je einen Grund. |
 | **Modus B** (`LLM.prosa`) | Vorhanden, aber von nirgendwo aufgerufen — **toter Code**, bewusst so benannt in `SPEC` § 4.5. Sein Anwendungsfall (Szenentext) existiert nicht, und 34 s Latenz sind unattraktiv, seit Sprache Gesprächsbeitrag ist. |
-| **Ein Regressionskorpus** für die Prompts | Die Recherche empfiehlt ihn (§ 9). Die Prompts sind an je 4–7 Fällen gegen das echte Modell geprüft, nicht an einem Korpus. |
+
+**Nachgetragen: der Regressionskorpus ist gebaut.** Er stand hier bis zum
+04.09.2026 als „nicht gebaut" — begründet damit, dass die Prompts an je 4–7
+Fällen gemessen sind. Seit die Prompts heiß nachgeladen werden
+(`theatersoap/anweisungen.py`), ändert sie jemand **während** des Workshops,
+und damit wurde die Begründung hinfällig: gemessen war der Stand von gestern.
+
+`korpus/` enthält jetzt 42 Absichtserkenner-Fälle (davon 18 Negativfälle, alle
+elf `art`-Werte mindestens zweimal), 22 Journal-Abschnitte (davon 11 leere) und
+6 erfundene Interviewtranskripte. Die gemessenen Fälle aus (d) sind 1:1 darin,
+einschließlich des Nemotron-Fehlers („Kindheitsfragen lassen wir weg" ist
+`verworfen`, nicht `kernthema_setzen`). `scripts/pruefe_prompts.py` lässt ihn
+gegen das echte Modell laufen, mit denselben Einstellungen wie der Bot;
+`tests/test_korpus.py` und `tests/test_pruefe_prompts.py` prüfen Korpus und
+Bewertung ohne Netz mit. **Die Regel steht in `AGENTS.md`: eine Änderung am
+Erkenner-Prompt gilt nur, wenn FP = 0 bleibt** — der Exit-Code des Skripts
+hängt genau daran.
+
+Was der Korpus **nicht** ist: gemessen. Die Sollwerte sind gesetzt, nicht am
+Modell erhoben — Ausnahme sind die Fälle, die aus (d) übernommen sind (sieben
+Endprüfungen beim Erkenner, vier Abschnitte beim Journal). Der erste
+vollständige Lauf gegen das echte Modell steht noch aus.
 
 ---
 

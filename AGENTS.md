@@ -41,7 +41,9 @@ Module unter `theatersoap/`:
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
-Betriebsannahmen gegen die echten Dienste, `scripts/backup-robocloud.sh`
+Betriebsannahmen gegen die echten Dienste, `scripts/pruefe_prompts.py` lässt
+den Regressionskorpus unter `korpus/` gegen das echte Modell laufen (siehe
+„Prompt geändert? → Korpus laufen lassen"), `scripts/backup-robocloud.sh`
 sichert Betriebsdaten außerhalb des Repositories.
 
 ## Bindende Entwurfsentscheidungen
@@ -193,7 +195,9 @@ python -m theatersoap.bot
 ```
 
 - `pytest` — die Testsuite unter `tests/`, läuft ohne Netzzugriff (Attrappen
-  statt echter Dienste).
+  statt echter Dienste). Enthält die Korpus-Validierung und die
+  Bewertungsfunktionen aus `scripts/pruefe_prompts.py`, nicht den Lauf gegen
+  das Modell.
 - `python -m scripts.rauchtest [pfad-zu-audio.ogg]` — **kein Test, läuft nie
   automatisch, kostet Geld.** Ein echter Aufruf gegen Sprachmodell und
   optional Whisper, zur Kalibrierung der Token-Schätzung und als
@@ -201,6 +205,48 @@ python -m theatersoap.bot
 - `python scripts/loeschen.py <chat_id>` — der Löschweg: entfernt alle
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
+
+### Prompt geändert? → Korpus laufen lassen
+
+Die vier Prompts werden heiß nachgeladen, also ändert sie jemand **während**
+des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
+den Blindflug: 42 Absichtserkenner-Fälle (davon 18 Negativfälle), 22
+Journal-Abschnitte (davon 11 leere) und 6 erfundene Interviewtranskripte, alle
+mit Sollwert.
+
+```
+set -a; . ./betrieb/gruppe1.env; set +a
+python -m scripts.pruefe_prompts erkenner             # nach einer Änderung an erkenner.md
+python -m scripts.pruefe_prompts alle --bericht       # vollständig, mit Markdown-Bericht
+python -m scripts.pruefe_prompts erkenner --nur e18-verworfen-kindheitsfragen
+python -m scripts.pruefe_prompts erkenner --modell <anderes>   # Modellvergleich
+```
+
+**Kein Test, läuft nie automatisch, kostet Rappen** — wie `rauchtest.py`. Rund
+70 Aufrufe für `alle`, sequenziell (Infomaniak liefert bei Parallelität
+429/5xx). Der Lauf schreibt seine `aufruf`- und `vorfall`-Zeilen in eine
+Wegwerf-Datenbank, nie in `TS_DB`.
+
+> **Die Regel: eine Änderung am Erkenner-Prompt gilt nur, wenn FP = 0 bleibt.**
+> Null Falsch-Positive bei 25 Negativfällen ist die Zahl, die den Erkenner
+> qualifiziert und die acht nicht gebauten Befehle begründet hat (SPEC § 4.3a,
+> § 8.1). Genau das ist deshalb der Exit-Code: das Skript endet mit 1, sobald
+> der Erkenner auch nur ein Falsch-Positiv liefert. Eine bessere Trefferquote
+> wiegt das nicht auf — ein Falsch-Positiv schreibt etwas Falsches in den
+> Arbeitsstand und meldet es der Gruppe auch noch, ein Falsch-Negativ verpasst
+> nur eine Notiz.
+
+Berichte landen in `korpus/berichte/` und sind **gitignored**: sie enthalten
+vollständige Modellantworten. Der Korpus selbst ist frei erfunden und gehört
+ins Repository.
+
+Beim Erweitern: `wert` im Erkenner-Korpus ist der **Kern** der Sache
+(`"Meryem"`, `"Mutter gegen Tochter"`), nicht der erwartete Wortlaut —
+verglichen wird als Teilstring in beide Richtungen, ein leerer `wert` prüft
+allein die `art`. `erwartet[].text` im Journal-Korpus ist ein
+**Muss-Stichwort-Set**, mit `|` getrennt (`"sechs|fragen"`), ebenfalls kein
+Wortlaut. `tests/test_korpus.py` prüft Form und Mindestbesetzung mit, ohne
+Netz.
 
 ## Was bewusst fehlt
 

@@ -65,7 +65,10 @@ ART = "szene"
 #: leerem Inhalt (gemessen 04.09.2026, reasoning-stufen-entscheidungshilfe.md
 #: § 3.2 Fussnote 1 und § 4.3). Deutlich groesser als llm.MAX_TOKENS = 9000,
 #: das fuer Aufrufe ohne Reasoning bemessen ist.
-MAX_TOKENS = 12_000
+#: Nachtrag 04.09. abends: mit dem erweiterten Prompt (13 Dramaturgie-Regeln,
+#: 30 Tells) liefen zwei Live-Versuche in 12.000 Token *nur Denken* leer
+#: (finish_reason=length, 86 s und 95 s, kein Inhalt). Budget verdoppelt.
+MAX_TOKENS = 24_000
 
 #: Zeitbudget des einzelnen Versuchs. Der httpx.Client aus ``bot.main`` hat
 #: 30 s -- das reicht fuer einen Reasoning-Lauf nicht: gemessen wurden 33,8 s
@@ -74,7 +77,7 @@ MAX_TOKENS = 12_000
 #: Reasoning-Aufrufe (§ 4.4), der Auftrag 90 s; hier grosszuegiger, weil ein
 #: Timeout hier nichts spart -- niemand wartet aktiv, und ein abgebrochener
 #: Lauf ist trotzdem bezahlt.
-TIMEOUT_S = 150.0
+TIMEOUT_S = 240.0
 
 #: Obergrenze des Nutzertextes in geschaetzten Token (kontext.schaetze,
 #: Zeichen // 3). Darueber fliegen die Volltranskripte raus und die

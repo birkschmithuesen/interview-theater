@@ -117,7 +117,7 @@ Symptom durch Informationsverlust; Mitschreiben heilt die Ursache.
 
 ## Die Korrekturen — wo frühe Annahmen falsch waren
 
-Diese sechs Punkte sind aufschlussreicher als die ursprünglichen Entwürfe, weil sie zeigen,
+Diese sieben Punkte sind aufschlussreicher als die ursprünglichen Entwürfe, weil sie zeigen,
 was sich erst im Kontakt mit der Wirklichkeit herausstellte.
 
 ### 1. Der Bot antwortet auf jede Nachricht
@@ -216,7 +216,7 @@ Halbsatz korrigiert ihn.
 
 Der automatische Sprung folgt deshalb genau dem Muster, das sich beim Arbeitsstand schon
 bewährt hatte (Korrektur 3): **schalten, melden, weiterlaufen** — „Notiert: Kernthema =
-Ankommen · wir sind damit bei 4 · Hauptkonflikt. Falls nicht, sagt es mir." Kein
+Ankommen · wir sind damit bei 5 · Figuren. Falls nicht, sagt es mir." Kein
 Wartezustand, keine Ja/Nein-Frage. Eine Rückfrage würde die Arbeit anhalten, bis jemand
 antwortet; die Meldung *ist* die Korrekturgelegenheit. Widerspricht die Gruppe, greift der
 Erkenner das als `phase_setzen` auf und schaltet zurück — derselbe Weg wie bei jeder
@@ -227,6 +227,41 @@ eine Prompt-Datei — worauf er achtet, was er dort nicht tut), **nicht** seinen
 Informationszugang. Die datengetriebenen Blöcke sind unverändert geblieben. Eine Phase,
 die dem Bot Material vorenthält, wäre wieder die Zustandsmaschine, die Leitsatz 3
 verworfen hat.
+
+### 7. Die acht Phasen selbst waren falsch geschnitten
+
+Korrektur 6 hat den **Mechanismus** geklärt, nicht den **Inhalt**. Die acht Stationen
+stammten aus der ursprünglichen Spezifikation und waren nie an einem echten
+Interview-Theater-Projekt geprüft. Am Abend des 04.09.2026 hat Birk sie korrigiert, in
+vier Punkten:
+
+**(a) Die Begriffssammlung passiert analog im Plenum, nicht mit dem Bot.** Das Erste, was
+in den Chat kommt, ist die fertige Begriffsliste — getippt, von einem Foto abgetippt oder
+gesprochen. Phase 1 ist damit eine **Übergabe**, keine Sammelrunde. Der alte Prompt sagte
+„sammle mit der Gruppe Begriffe" und hätte den Bot mitten in eine Runde hineinmoderieren
+lassen, die im Raum längst läuft.
+
+**(b) Fragen formulieren und Interviews führen sind zwei Phasen.** Vorher war beides in
+„2 · Interviews" zusammengezogen — mit dem Ergebnis, dass die eigentliche Arbeit an den
+Fragen kein eigenes Ergebnis hatte. Jetzt gibt es eines: `arbeitsstand.fragen`, gesetzt
+über die Erkenner-art `fragen_setzen`, und es ist die Voraussetzung für Phase 3.
+
+**(c) Die Verdichtungen müssen im Systemprompt landen und auf der Gruppenseite sichtbar
+sein.** Das war gebaut, aber nicht belegt — geprüft statt angenommen (`tests/test_kontext.py`,
+`tests/test_web.py`): ab der ersten fertigen Verdichtung stehen Zusammenfassung und
+Kernthemen mit Belegzitat im Gesprächs-Prompt und auf `/g/<token>`, dort nur mit
+`zitat_geprueft = 1`.
+
+**(d) Figuren und Hauptkonflikt: die Reihenfolge ist offen.** *„Figuren vor Konflikt ist
+eigentlich logischer, beides ist möglich."* Daraus folgt mehr als eine Umsortierung: beide
+Phasen haben dieselbe Voraussetzung (ein gesetztes Kernthema), und der Code schaltet
+zwischen ihnen **nie** von selbst um (`phasen.FREIE_STELLE`). Der Bot bietet beide an und
+empfiehlt die Figuren — die Entscheidung gehört der Gruppe. Deshalb muss er auch **immer
+alle acht Stationen kennen**, nicht nur die eine aus seinem Phasen-Prompt: er soll
+entscheiden können, welche gerade passt.
+
+Der gemeinsame Nenner mit den Korrekturen 1 bis 3: Jedes Mal war die Annahme aus der
+Werkzeugperspektive gedacht und nicht aus der des Raums, in dem die Gruppe steht.
 
 ---
 

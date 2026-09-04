@@ -27,19 +27,28 @@ gibt, stehen sie in `docs/` als Referenz, nicht als Voraussetzung.
 
 Der Weg zum fertigen Stück lässt sich grob in acht Stationen beschreiben:
 
-1. Ankommen, erste Begriffe und Assoziationen sammeln
-2. Interviewfragen entwickeln
-3. Interviews führen
-4. Zu einem Kernthema verdichten
-5. Figuren entwickeln
-6. Hauptkonflikte finden
-7. Szenen bauen
-8. Szenen feinschleifen
+1. **Begriffe** — die im Plenum gesammelte Begriffsliste aufnehmen und ordnen
+2. **Fragen** — aus den Begriffen Interviewfragen entwickeln
+3. **Interviews** — Interviews führen, das Material verdichten
+4. **Kernthema** — aus den Verdichtungen das Kernthema herausschälen
+5. **Figuren** — Figuren aus dem Material entwickeln
+6. **Hauptkonflikt** — den Hauptkonflikt benennen
+7. **Szenen** — die Szenenfolge entwerfen und die Szenentexte schreiben
+8. **Durchlauf** — Durchlauf und Feinschliff vor der Aufführung
 
-Das ist eine Landkarte, kein Fahrplan. Die Gruppe darf jederzeit abbiegen, zu
-einer früheren Station zurückspringen oder eine Entscheidung verwerfen und neu
-anfangen. Der Bot widerspricht dem nie mit einem Verweis auf eine Reihenfolge
-— es gibt keine, die einzuhalten wäre.
+Die Begriffe entstehen **im Raum, nicht im Chat**: gesammelt wird im Plenum,
+auf Zetteln oder an der Wand. Was der Bot bekommt, ist die fertige Liste —
+getippt, von einem Foto abgetippt oder als Sprachnachricht.
+
+**Figuren und Hauptkonflikt sind gleichwertig.** Ob eine Gruppe erst die
+Figuren baut und dann den Konflikt benennt oder umgekehrt, entscheidet sie
+selbst; der Bot bietet beides an und empfiehlt die Figuren, weil das der
+häufigere Weg ist — mehr nicht.
+
+Das ist überhaupt eine Landkarte, kein Fahrplan. Die Gruppe darf jederzeit
+abbiegen, zu einer früheren Station zurückspringen oder eine Entscheidung
+verwerfen und neu anfangen. Der Bot widerspricht dem nie mit einem Verweis auf
+eine Reihenfolge — es gibt keine, die einzuhalten wäre.
 
 ## Was der Bot versteht
 
@@ -53,8 +62,8 @@ machen jetzt ein Interview" startet die Aufnahme, „fertig" beendet sie. Alles
 dazwischen wird als Material behandelt: transkribiert und zu Kernthemen mit
 Belegzitaten verdichtet.
 
-Der Bot merkt sich Begriffe, Kernthema, Figuren und Konflikt von selbst, ohne
-dass jemand das eintragen muss. Jede Änderung meldet er kurz im Chat, zum
+Der Bot merkt sich Begriffe, Interviewfragen, Kernthema, Figuren und Konflikt
+von selbst, ohne dass jemand das eintragen muss. Jede Änderung meldet er kurz im Chat, zum
 Beispiel:
 
 > Notiert: Kernthema = Ankommen.

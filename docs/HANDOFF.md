@@ -3,7 +3,7 @@
 Für jemanden — Mensch oder Agent —, der diese Arbeit beurteilen soll, ohne bei ihrer
 Entstehung dabei gewesen zu sein.
 
-**Stand:** 04.09.2026 · 525 Tests grün · 20 Module, 7.171 Zeilen · 74 Commits
+**Stand:** 04.09.2026 · 575 Tests grün · 20 Module, 7.328 Zeilen · 86 Commits
 **Erster Einsatz:** Workshop Dortmund, 05.+06.09.2026, 13:00
 
 Verwandte Dokumente: `README.md` (für Theaterleute) · `AGENTS.md` (für Entwicklung) ·
@@ -234,7 +234,7 @@ also keine Dopplung mit dem Absichtserkenner.
 |---|---|
 | **Die zwei Weboberflächen** | Team-Dashboard und Leseansicht je Gruppe. Der Weg von außen steht (`https://lab.artesmobiles.art/theatersoap/`, nginx auf *herkules*, Tailnet, Port 8010, Zertifikat geprüft) — nur die Anwendung fehlt. Siehe `NACHTRAG-weboberflaeche-und-sprache.md`. |
 | ~~**Weiches Löschen**~~ (`entfernt_am`) | **Gebaut am 04.09.2026** (NACHTRAG N3): `entfernt_am` in `figur`, `szene`, `journal`, Arbeitsstandfelder auf NULL. Wege: Erkenner-art `entfernen`, `/figur … entfernen`, `/szene … entfernen`, `/kernthema aus`. Der ursprüngliche Grund („Überschreiben deckt den Alltagsfall ab") galt für Korrekturen, nicht fürs Zurücknehmen — eine Figur, die die Gruppe verwirft, lässt sich nicht überschreiben. **Material bleibt unentfernbar.** |
-| ~~**Phasen als Zustand**~~ | **Gebaut am 04.09.2026** (`interview_theater/phasen.py`, `arbeitsstand.phase`): gesetzt nur hörbar — von der Gruppe (`phase_setzen`, `/phase`) oder vom Bot mit Meldung, nie still erraten. Je Phase ein Prompt (`prompts/phasen/N.md`), der den Fokus steuert, nicht den Informationszugang. Siehe `docs/entwurfsgeschichte.md` Korrektur 6 und `SPEC` § 0 Leitsatz 3 Nachtrag. |
+| ~~**Phasen als Zustand**~~ | **Gebaut am 04.09.2026** (`interview_theater/phasen.py`, `arbeitsstand.phase`): gesetzt nur hörbar — von der Gruppe (`phase_setzen`, `/phase`) oder vom Bot mit Meldung, nie still erraten. Je Phase ein Prompt (`prompts/phasen/N.md`), der den Fokus steuert, nicht den Informationszugang. **Am selben Abend inhaltlich korrigiert** (SPEC § 0 Leitsatz 3, zweiter Nachtrag): 1 Begriffe · 2 Fragen · 3 Interviews · 4 Kernthema · 5 Figuren · 6 Hauptkonflikt · 7 Szenen · 8 Durchlauf — die Begriffe kommen aus dem Plenum, die Frageliste ist eine eigene Phase mit eigenem Feld, und zwischen 5 und 6 schaltet der Code nie von selbst um. Siehe auch `docs/entwurfsgeschichte.md` Korrektur 6. |
 | ~~**Szenen**~~ | **Gebaut am 04.09.2026** (`interview_theater/szene.py`): eigener Prompt, eigener Thread, Auslöser `szene_schreiben` und `/szene`, dazu die Blöcke 4/5 im Gesprächs-Kontext. Der ursprüngliche Grund („etwas zu schreiben, das niemand liest, ist Fläche ohne Nutzen") ist damit weggefallen — jetzt liest es der Gesprächs-Prompt. |
 | **Sechs der vierzehn Befehle** | `SPEC` § 8.1 nennt je einen Grund. Zwei sind seit dem 04.09.2026 doch da: `/szene` mit den Szenentexten und `/figur` — letzterer aber **nur** als `/figur <Name> entfernen`; angelegt wird eine Figur weiterhin im Gespräch, und genau das war der ursprüngliche Grund gegen ihn. Dazu `/phase`, den die SPEC-Liste gar nicht kannte. |
 | ~~**Modus B**~~ (`LLM.prosa`) | **Verdrahtet am 04.09.2026**, genau für den Anwendungsfall, dessen Fehlen ihn tot hielt: Szenentext. Das Latenzargument entfällt mit dem eigenen Thread — 34 s sind keine Gesprächspause, wenn niemand wartet. Einziger Aufruf mit Reasoning AN im ganzen System. |
@@ -245,9 +245,9 @@ Fällen gemessen sind. Seit die Prompts heiß nachgeladen werden
 (`interview_theater/anweisungen.py`), ändert sie jemand **während** des Workshops,
 und damit wurde die Begründung hinfällig: gemessen war der Stand von gestern.
 
-`korpus/` enthält jetzt 66 Absichtserkenner-Fälle (davon 28 Negativfälle, alle
-vierzehn `art`-Werte mindestens zweimal, die beiden jüngsten — `phase_setzen`
-und `entfernen` — je sechsmal), 22 Journal-Abschnitte (davon 11 leere) und
+`korpus/` enthält jetzt 74 Absichtserkenner-Fälle (davon 29 Negativfälle, alle
+fünfzehn `art`-Werte mindestens zweimal, `phase_setzen` und `entfernen` je
+sieben-, `fragen_setzen` viermal), 22 Journal-Abschnitte (davon 11 leere) und
 6 erfundene Interviewtranskripte. Die gemessenen Fälle aus (d) sind 1:1 darin,
 einschließlich des Nemotron-Fehlers („Kindheitsfragen lassen wir weg" ist
 `verworfen`, nicht `kernthema_setzen`). `scripts/pruefe_prompts.py` lässt ihn

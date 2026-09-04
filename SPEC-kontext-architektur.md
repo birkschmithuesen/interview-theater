@@ -29,6 +29,21 @@ Fünf Sätze, aus denen sich fast jede Detailentscheidung unten ableiten lässt:
    > ohne dass sie es merkt — ein ausgesprochener nicht, sie korrigiert ihn mit einem
    > Satz. **Die datengetriebenen Blöcke bleiben unverändert** (§ 6.1): die Phase steuert
    > den Fokus des Bots (`prompts/phasen/N.md`), nicht seinen Informationszugang.
+   >
+   > **Nachtrag 04.09.2026 abends — das Phasenmodell selbst war falsch.** Nicht der
+   > Mechanismus, die acht Stationen. Drei Korrekturen aus der Praxis, alle in
+   > `interview_theater/phasen.py`: (a) **Die Begriffe kommen aus dem Plenum.** Sie werden
+   > analog im Raum gesammelt, nicht mit dem Bot — Phase 1 ist die Übergabe der fertigen
+   > Liste, keine Sammelrunde im Chat. (b) **Fragen formulieren und Interviews führen sind
+   > zwei Phasen**, nicht eine; die Frageliste ist ein eigenes Feld
+   > (`arbeitsstand.fragen`, Erkenner-art `fragen_setzen`) und die Voraussetzung für
+   > Phase 3. (c) **Figuren (5) und Hauptkonflikt (6) stehen nebeneinander, nicht
+   > hintereinander:** dieselbe Voraussetzung (Kernthema), dieselbe Berechtigung, und der
+   > Code schaltet zwischen ihnen nie von selbst um (`phasen.FREIE_STELLE`). Figuren zuerst
+   > ist der häufigere Weg, nicht der richtige — der Bot bietet beides an und empfiehlt
+   > eines, entscheiden muss die Gruppe. Daraus folgt auch, dass der Bot **immer alle acht
+   > Stationen kennen muss** (`prompts/system.md`, nicht nur der Phasen-Prompt): er soll
+   > entscheiden können, welche gerade passt.
 4. **Kein Aufruf im kritischen Pfad, der nicht sein muss.** Nebenaufgaben laufen
    nachgelagert und ins Leere: Fehlschlag heißt fehlender Eintrag, nicht angehaltener Workshop.
 5. **Die Gruppe erfährt von einem Fehler nur, wenn sie ihn beheben kann oder wenn sie
@@ -111,7 +126,7 @@ Teil, die ein Prototyp nicht braucht. Interviews heißen `Interview n` und werde
 | Schicht | Inhalt | Wird aktualisiert? |
 |---|---|---|
 | **1 — Material** | Volltranskript + Verdichtung je Interview | Verdichtung **nie** |
-| **2 — Arbeitsstand** | Begriffe, Kernthema, Figuren, Konflikt, Szenen | ja, jederzeit revidierbar |
+| **2 — Arbeitsstand** | Begriffe, Fragen, Kernthema, Figuren, Konflikt, Szenen | ja, jederzeit revidierbar |
 | **2b — Journal** | Vorgeschlagen / Verworfen / Entschieden / Offen | **nur anhängen** |
 | **3 — Kurzes Fenster** | die letzten ~8.000 Token Chatverlauf | rollt von selbst |
 
@@ -239,6 +254,7 @@ CREATE TABLE verdichtung_thema (
 CREATE TABLE arbeitsstand (
   chat_id                INTEGER PRIMARY KEY,
   begriffe               TEXT,
+  fragen                 TEXT,   -- Interviewfragen, Phase 2 (Nachtrag 04.09.2026 abends)
   kernthema              TEXT,
   kernthema_begruendung  TEXT,
   hauptkonflikt          TEXT,
@@ -403,9 +419,16 @@ und lässt sich per Few-Shot zeigen. **Flach** außerdem, weil verschachtelte Sc
 kleineren Modellen brechen (Apertus generiert dort bis zum Budgetende).
 
 `art` ∈ `interview_starten` · `interview_beenden` · `interview_benennen` ·
-`begriffe_setzen` · `kernthema_setzen` · `hauptkonflikt_setzen` · `figur_setzen` ·
-`wortlaut_an` · `wortlaut_aus` · `verworfen` · `entschieden` · `szene_schreiben` ·
-`phase_setzen` · `entfernen`
+`begriffe_setzen` · `fragen_setzen` · `kernthema_setzen` · `hauptkonflikt_setzen` ·
+`figur_setzen` · `wortlaut_an` · `wortlaut_aus` · `verworfen` · `entschieden` ·
+`szene_schreiben` · `phase_setzen` · `entfernen`
+
+> **Nachtrag 04.09.2026 abends — die fünfzehnte Art.** `fragen_setzen` schreibt die
+> Interviewfragen aus Phase 2 (`arbeitsstand.fragen`, additiv ergänzt wie
+> `arbeitsstand.phase`). Stehen die Fragen in mehreren Nachrichten, gehört der ganze Satz
+> in **einen** `wert` — es ist eine Liste, nicht fünf Einträge. Entfernt wird sie über
+> `entfernen` mit dem Ziel `"Fragen"`; ein eigener Befehl war dafür nicht nötig
+> (§ 0 Leitsatz 3, zweiter Nachtrag).
 
 **Nachtrag 04.09.2026 — die drei jüngsten Arten.** `szene_schreiben` (§ 4.5 Nachtrag)
 stößt einen Szenentext an, `phase_setzen` trägt die Arbeitsphase (Nummer oder Kurzname,
@@ -452,10 +475,10 @@ zusammenfassende Zeile mit Namen:
 - **Journaleinträge bleiben still.** Sonst wäre der Chat zugespammt und die Meldungen
   würden überlesen — womit sie ihren Zweck verlören.
 - **Phase und Entfernung bekommen je eine Zeile in derselben Meldung** (Nachtrag
-  04.09.2026): „Wir sind jetzt bei 5 · Figuren entwickeln." bzw. „Entfernt: Figur Peter".
+  04.09.2026): „Wir sind jetzt bei 5 · Figuren." bzw. „Entfernt: Figur Peter".
   Schaltet der Bot die Phase selbst weiter, steht das in *derselben* Zeile wie die
   Änderung, die den Schritt getragen hat — „Notiert: Kernthema = Ankommen · wir sind
-  damit bei 4 · Hauptkonflikt." Das ist das Notiert-Muster ohne Wartezustand: schalten,
+  damit bei 5 · Figuren." Das ist das Notiert-Muster ohne Wartezustand: schalten,
   melden, weiterlaufen; ein Widerspruch kommt als `phase_setzen` zurück und schaltet
   zurück.
 
@@ -622,7 +645,7 @@ genau darum funktioniert es.
 | 1 | **Systemanweisung** | 900 | nie | – |
 | 2 | **Verdichtungen** (mit Belegzitaten) | 3.000 | je Interview 1× | keine Interviews |
 | 3 | **Volltranskripte** | 5.000 | nie | `/wortlaut` aus (Normalfall) |
-| 4 | **Arbeitsstand** (Begriffe, Kernthema + Begründung, Figuren, Konflikt, Szenenliste) | 1.200 | je Entscheidung | Feld leer |
+| 4 | **Arbeitsstand** (Begriffe, Fragen, Kernthema + Begründung, Figuren, Konflikt, Szenenliste) | 1.200 | je Entscheidung | Feld leer |
 | 5 | **Aktuelle Szene im Volltext** | 1.500 | oft | keine Szene |
 | 6 | **Journal** (ältestes zuerst) | 1.500 | alle paar Züge | leer |
 | 7 | **Kurzes Fenster** (von hinten gefüllt) | 8.000 | jede Nachricht | – |

@@ -96,7 +96,7 @@ def satz(nummer: int) -> str:
 
 
 def bezeichnung(nummer: int) -> str:
-    """Wie eine Phase ueberall genannt wird: ``"5 · Figuren entwickeln"``.
+    """Wie eine Phase ueberall genannt wird: ``"5 · Figuren"``.
 
     Eine einzige Schreibweise fuer Chatmeldung, ``/stand``, Begruessung,
     Prompt und Weboberflaeche -- damit niemand zwei Bezeichnungen fuer

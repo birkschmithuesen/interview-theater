@@ -222,7 +222,7 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
         beschreibung = f": {figur['beschreibung']}" if figur["beschreibung"] else ""
         zeilen.append(f"Figur {figur['name']}{beschreibung}")
     # Szenenliste: Teil des Arbeitsstands, nicht ein eigener Block -- SPEC
-    # § 6.2 fuehrt sie woertlich in Block 4 auf ("Begriffe, Kernthema +
+    # § 6.2 fuehrt sie woertlich in Block 4 auf ("Begriffe, Fragen, Kernthema +
     # Begruendung, Figuren, Konflikt, Szenenliste"). Nur Titel und die eine
     # Kurzbeschreibungszeile; die Volltexte waeren bei sechs Szenen rund 6.000
     # Token Dauerlast, deshalb geht davon nur die zuletzt geaenderte mit

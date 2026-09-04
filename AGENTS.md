@@ -28,7 +28,7 @@ Module unter `interview_theater/`:
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
-| `phasen.py` | Die acht Arbeitsphasen: Liste, tolerantes Mapping, `naechste_moegliche()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
+| `phasen.py` | Die acht Arbeitsphasen: Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
 | `szene.py` | Szenentexte: eigener Prompt, eigener Thread, als einziger Aufruf mit Reasoning AN |
@@ -76,6 +76,23 @@ lädt, würde damit Gesprächszüge ausbremsen.
   Informationszugang: an den datengetriebenen Blöcken ändert sie nichts. Der
   automatische Sprung folgt dem Notiert-Muster — schalten, melden,
   weiterlaufen; kein Wartezustand, ein Widerspruch schaltet zurück.
+- **Die acht Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews · 4 Kernthema ·
+  5 Figuren · 6 Hauptkonflikt · 7 Szenen · 8 Durchlauf** (korrigiert am
+  04.09.2026 abends). Drei Dinge daran sind Entscheidungen, keine Nummerierung:
+  Phase 1 **sammelt nicht** — die Begriffe entstehen analog im Plenum, der Bot
+  bekommt die fertige Liste; die Frageliste ist ein eigenes Feld
+  (`arbeitsstand.fragen`, art `fragen_setzen`) und die Voraussetzung für die
+  Interviews; und **zwischen 5 und 6 schaltet der Code nie von selbst um**
+  (`phasen.FREIE_STELLE`) — beide haben dieselbe Voraussetzung, welche zuerst
+  kommt, entscheidet die Gruppe. Wohin `figur_setzen` und
+  `hauptkonflikt_setzen` zeigen, hängt deshalb an der Materiallage
+  (`phasen.ermoeglichte_phase`) und nicht an einer festen Zahl. Die
+  vollständige Stationsliste steht in der **Basis**-Systemanweisung, nicht nur
+  im Phasen-Prompt: der Bot soll entscheiden können, welche Phase gerade passt.
+- **Verdichtungen stehen ab der ersten fertigen im Gesprächs-Prompt (Block 2)
+  und auf der Gruppenseite** — Zusammenfassung und Kernthemen mit Belegzitat,
+  im Web nur mit `zitat_geprueft = 1`. Datengetrieben, also unabhängig von der
+  Phase (`tests/test_kontext.py`, `tests/test_web.py`).
 - **Weiches Löschen statt Löschen** (NACHTRAG N3): `entfernt_am` in `figur`,
   `szene`, `journal`; Arbeitsstandfelder werden auf NULL gesetzt. Jeder Leser
   in `repo.py` und `web_daten.py` filtert `entfernt_am IS NULL`. **Material
@@ -297,7 +314,7 @@ Env-Datei soll die Interviews nicht ins offene Netz stellen.
 
 Die vier Prompts werden heiß nachgeladen, also ändert sie jemand **während**
 des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
-den Blindflug: 66 Absichtserkenner-Fälle (davon 28 Negativfälle), 22
+den Blindflug: 74 Absichtserkenner-Fälle (davon 29 Negativfälle), 22
 Journal-Abschnitte (davon 11 leere) und 6 erfundene Interviewtranskripte, alle
 mit Sollwert.
 

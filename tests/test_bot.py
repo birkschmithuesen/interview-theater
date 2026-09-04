@@ -157,17 +157,22 @@ def test_schleife_gibt_sprachnachricht_in_den_pool(conn, einst):
     assert repo.hole_update_id(conn, einst.bot_name) == 1
 
 
-def test_schleife_gibt_textnachricht_nicht_in_den_pool(conn, einst):
-    """Nur Sprachnachrichten laufen ueber die Aufnahme-Pipeline; der
-    Gespraechszug (Aufgabe 10) haengt noch nicht, darf aber auch den Pool
-    nicht benutzen."""
+def test_schleife_gibt_textnachricht_in_den_pool(conn, einst):
+    """Live-Test 1: die Gruppe ist ein reines Interface zum Bot, also loest
+    jede Textnachricht einen Gespraechszug aus (ablauf.ist_ausloeser, SPEC
+    § 1.2) -- nicht nur Reply, @Erwaehnung oder Befehl. Sie laeuft im
+    selben Pool wie Sprachnachrichten, nur ueber eine andere Funktion
+    (_zug_und_erkenner statt _bearbeite_sprachnachricht)."""
     tg = FakeTelegramFuerSchleife([bau_update(1, 21, "Text", JETZT)])
     pool = FakePool()
 
     with pytest.raises(_StoppeSchleife):
         bot.schleife(conn, einst, tg, object(), object(), pool)
 
-    assert pool.submits == []
+    assert len(pool.submits) == 1
+    fn, args, kwargs = pool.submits[0]
+    assert fn is bot._zug_und_erkenner
+    assert args[-1] == -100  # chat_id
 
 
 def test_bearbeite_sprachnachricht_ruft_empfange_und_dann_verarbeite_auf(monkeypatch):

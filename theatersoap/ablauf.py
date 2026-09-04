@@ -4,10 +4,11 @@
 Drei getrennte Fragen, sauber auseinandergehalten:
 
 1. **Ausloesen** (``ist_ausloeser``) -- soll DIESE eine Nachricht ueberhaupt
-   einen Zug anstossen? Reply auf eine Bot-Nachricht, ``@botname``-Erwaehnung,
-   ``/``-Befehl, Sprachnachricht -- sonst nichts. Beilaeufiges Geplauder wird
-   trotzdem gespeichert (das erledigt schon ``bot.verarbeite_update``), aber
-   nie beantwortet.
+   einen Zug anstossen? Die Gruppe ist ein reines Interface zum Bot (die
+   Teilnehmerinnen sprechen im Raum miteinander, nicht im Chat), also loest
+   heute JEDE Nachricht aus -- ausser sie ist als ``unterdrueckt``
+   gespeichert (Nachtstau, Sprachnachricht ohne Transkript) oder stammt vom
+   Bot selbst; das filtert ``repo.unbeantwortete``, nicht diese Funktion.
 2. **Sammeln** (``bearbeite``) -- eine Sperre je ``chat_id`` sorgt dafuer,
    dass waehrend ein Aufruf laeuft, keine zweite Anfrage losprescht. Kommt
    die Antwort zurueck, wird alles seit dem letzten Wasserzeichen als EIN
@@ -16,6 +17,8 @@ Drei getrennte Fragen, sauber auseinandergehalten:
    ihren eigenen Aufruf anstossen: drei parallele Anfragen, drei teils
    widersprechende Antworten in zufaelliger Reihenfolge -- der
    wahrscheinlichste Weg, wie der Bot am Samstagvormittag chaotisch wirkt.
+   Seit jede Nachricht ausloest, greift genau dieses Sammeln haeufiger als
+   zuvor -- es ist wichtiger geworden, nicht verzichtbar.
 3. **Antworten** (``antworte``) -- baut den Kontext, fragt das Sprachmodell,
    schickt und protokolliert die Antwort. Scheitert der Aufruf, bekommt die
    Gruppe eine kurze, ehrliche Zeile statt einer Fehlermeldung im
@@ -24,8 +27,8 @@ Drei getrennte Fragen, sauber auseinandergehalten:
    'Fehlerhaltung').
 
 Es gibt bewusst KEINE Rueckfrage-Sequenz mehr (SPEC § 1.4, ersatzlos
-gestrichen) -- Sprachnachrichten loesen ohnehin immer aus, das war der
-Hauptfall.
+gestrichen) -- inzwischen loest ohnehin jede Nachricht einen Zug aus, eine
+gesonderte Rueckfrage-Logik waere ueberfluessig.
 """
 
 import logging
@@ -79,24 +82,28 @@ def _sperre_fuer(chat_id: int) -> threading.Lock:
 
 def ist_ausloeser(n: dict, bot_name: str | None) -> bool:
     """Entscheidet, ob eine einzelne Nachricht einen Gespraechszug anstossen
-    soll (SPEC § 1.2): Reply auf eine Bot-Nachricht, ``@botname``-Erwaehnung,
-    ``/``-Befehl, oder eine Sprachnachricht -- sonst nichts.
+    soll (SPEC § 1.2).
 
-    Wichtig: dieses Gatter entscheidet nur, OB ein Zug beginnt. Laeuft er
-    einmal, nimmt ``bearbeite()``/``repo.unbeantwortete()`` ausnahmslos alles
-    seit dem Wasserzeichen mit, auch beilaeufige Nachrichten, die
-    zwischendurch aufgelaufen sind -- das Sammeln (§ 1.3) kennt keinen
-    Unterschied zwischen Ausloeser und Mitlaeufer."""
-    if n.get("typ") == "sprache":
-        return True
-    if n.get("antwortet_auf_bot"):
-        return True
-    text = n.get("text") or ""
-    if text.startswith("/"):
-        return True
-    if bot_name and f"@{bot_name}".lower() in text.lower():
-        return True
-    return False
+    Die Gruppe ist ein reines Interface zum Bot: die Teilnehmerinnen
+    diskutieren nicht im Chat miteinander, das passiert im Raum. Der Chat
+    existiert nur fuer die Arbeit mit dem Bot -- also ist JEDE Nachricht an
+    ihn gerichtet, und JEDE Nachricht loest einen Zug aus. Es gibt bewusst
+    kein "beilaeufiges Geplauder" mehr, das dieses Gatter aussortieren
+    muesste.
+
+    Diese Funktion bleibt trotzdem als eigene, dokumentierte Stelle stehen,
+    statt ersatzlos zu verschwinden: sie ist der EINE Ort, an dem diese
+    Entscheidung getroffen wird, und sie koennte sich -- fuer einen anderen
+    Workshop-Zuschnitt -- wieder aendern.
+
+    Wichtig: dieses Gatter entscheidet nur, OB ein Zug beginnt, nicht WAS in
+    ihn eingeht. Laeuft er einmal, nimmt ``bearbeite()``/
+    ``repo.unbeantwortete()`` ausnahmslos alles seit dem Wasserzeichen mit,
+    das die Filterung nach ``unterdrueckt`` (Nachtstau, Sprachnachricht ohne
+    Transkript) und ``ist_bot`` uebernimmt -- unabhaengig von dieser
+    Funktion, die diesen Filter nicht dupliziert und ihn deshalb auch nicht
+    umgehen kann."""
+    return True
 
 
 @contextmanager

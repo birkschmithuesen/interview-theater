@@ -62,7 +62,10 @@ def _nachricht(text=None, typ="text", antwortet_auf_bot=False):
 
 
 # ---------------------------------------------------------------------------
-# Die neun Tests aus dem Auftrag
+# Live-Test 1: die Gruppe ist ein reines Interface zum Bot -- er antwortet
+# auf jede Nachricht (SPEC § 1.2). Reply, @Erwaehnung und /Befehl loesen
+# weiterhin aus, aber nicht mehr AUSSCHLIESSLICH sie -- auch beilaeufig
+# wirkender Text tut es jetzt.
 # ---------------------------------------------------------------------------
 
 def test_reply_auf_bot_loest_aus():
@@ -85,9 +88,19 @@ def test_sprachnachricht_loest_immer_aus():
     assert ablauf.ist_ausloeser(n, "gruppe1") is True
 
 
-def test_beilaeufiges_geplauder_loest_nicht_aus():
+def test_beilaeufiger_text_loest_jetzt_auch_aus():
+    """Frueher der Gegenbeweis ('beilaeufiges Geplauder loest nicht aus'):
+    seit die Gruppe als reines Interface zum Bot gilt, gibt es kein
+    beilaeufiges Geplauder mehr, das er ignorieren duerfte."""
     n = _nachricht(text="ich hol mir Kaffee")
-    assert ablauf.ist_ausloeser(n, "gruppe1") is False
+    assert ablauf.ist_ausloeser(n, "gruppe1") is True
+
+
+def test_ausloeser_ist_unabhaengig_vom_bot_namen():
+    """bot_name bleibt Teil der Signatur, wird aber nicht mehr ausgewertet --
+    jede Nachricht loest aus, auch ohne bekannten Botnamen."""
+    n = _nachricht(text="irgendein Text")
+    assert ablauf.ist_ausloeser(n, None) is True
 
 
 def test_nachzuegler_werden_in_einen_zug_gesammelt(conn, einst, tg):
@@ -312,7 +325,8 @@ def test_tippanzeige_fehlschlag_stoert_den_zug_nicht(einst, conn, klm, monkeypat
 # ---------------------------------------------------------------------------
 # Einhaengung in bot.py: Live-Weg und Nachhol-Arbeiter reichen den echten
 # Gespraechszug durch (Auftragshinweis 2); die Text-Weiche in schleife()
-# ruft ihn nur bei einem echten Ausloeser auf.
+# ruft ihn ueber ablauf.ist_ausloeser auf, das heute bei jeder Textnachricht
+# True liefert (SPEC § 1.2, Live-Test 1).
 # ---------------------------------------------------------------------------
 
 def test_live_weg_reicht_echten_zug_durch(monkeypatch):
@@ -412,11 +426,16 @@ def test_schleife_gibt_ausloesende_textnachricht_in_den_pool(conn, einst):
     assert args[-1] == -100
 
 
-def test_schleife_gibt_beilaeufige_textnachricht_nicht_in_den_pool(conn, einst):
+def test_schleife_gibt_auch_beilaeufig_wirkenden_text_in_den_pool(conn, einst):
+    """Live-Test 1: die Gruppe ist ein reines Interface zum Bot -- auch ein
+    Satz wie 'ich hol mir Kaffee', frueher der Musterfall fuer 'loest nicht
+    aus', landet heute im Pool wie jede andere Textnachricht (SPEC § 1.2)."""
     tg_schleife = _FakeTGSchleife([_text_update(1, 31, "ich hol mir Kaffee")])
     pool = _FakePool()
 
     with pytest.raises(_StoppeSchleife):
         bot.schleife(conn, einst, tg_schleife, object(), object(), pool)
 
-    assert pool.submits == []
+    assert len(pool.submits) == 1
+    fn, _args, _kwargs = pool.submits[0]
+    assert fn is bot._zug_und_erkenner

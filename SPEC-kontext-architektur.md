@@ -49,16 +49,22 @@ Siehe § 9.3 zum Löschweg.
 
 ### 1.2 Antworten
 
-Der Bot antwortet auf:
+**Der Bot antwortet auf jede Nachricht.** Die Gruppe ist ein reines Interface zum Bot —
+die Teilnehmerinnen diskutieren nicht im Chat miteinander, das passiert im Raum, direkt
+nebeneinander. Der Chat existiert nur für die Arbeit mit dem Bot. Es gibt deshalb kein
+„beiläufiges Geplänkel", das er heraussortieren müsste: Text, Reply, `@botname`-Erwähnung,
+`/`-Befehl, Sprachnachricht — alles ist an ihn gerichtet.
 
-- **Reply** auf eine seiner eigenen Nachrichten
-- **`@botname`-Erwähnung**
-- **`/`-Befehle**
-- **Sprachnachrichten** (immer — sie sind entweder Gesprächsbeitrag oder Material, nie Geplänkel)
+Einzige Ausnahme: als `unterdrückt` gespeicherte Nachrichten (Nachtstau beim Neustart,
+Sprachnachricht ohne Transkript, siehe § 9.1) und Nachrichten des Bots selbst lösen nichts
+aus — das filtert die Datenbankabfrage, nicht eine Interpretation des Textinhalts.
 
-Auf alles andere antwortet er nicht. In seiner **allerersten Nachricht in der Gruppe**
-schreibt der Bot selbst hin, wie man ihn anspricht — damit das Workshop-Team es nicht
-erklären muss.
+Diese Entscheidung stand früher andersherum (nur Reply, Erwähnung, Befehl oder
+Sprachnachricht lösten aus); sie wurde nach dem ersten Live-Einsatz auf „alles" geändert,
+weil die alte Regel Teilnehmerinnen zwang, sich an eine Ansprache-Konvention zu erinnern,
+obwohl der Chat sowieso nur für den Bot da ist. In seiner **allerersten Nachricht in der
+Gruppe** erklärt der Bot kurz, dass er alles mitliest und beantwortet — damit das
+Workshop-Team es nicht erklären muss.
 
 ### 1.3 Sammeln statt parallel arbeiten
 
@@ -72,7 +78,8 @@ Umsetzung: eine Sperre pro `chat_id`. Der auslösende Block ist ohnehin definier
 Ohne diese Sperre startet jede Nachricht ihren eigenen Aufruf: drei parallele Anfragen, drei
 teils widersprüchliche Antworten in zufälliger Reihenfolge, und ein Extraktor-Wasserzeichen,
 das sich verheddert. Das ist der wahrscheinlichste Weg, wie der Bot am Samstagvormittag
-chaotisch wirkt.
+chaotisch wirkt — und seit § 1.2 jede Nachricht auslöst, ist dieses Sammeln keine Feinheit
+mehr, sondern trägt den Regelfall.
 
 **Vorbeugend:** Solange ein Aufruf läuft, alle 4 Sekunden `sendChatAction("typing")`.
 Nach 10 Sekunden zusätzlich eine kurze Zeile („einen Moment, ich denke nach"). Die meiste
@@ -119,9 +126,13 @@ Regel, dass Verdichtungen nicht nachträglich angefasst werden. Ein Journaleintr
 15–30 Token; 40 Einträge über zwei Tage sind ~1.000 Token und müssen nie aufgeräumt werden.
 
 **Konsequenz für das kurze Fenster: kein Relevanzfilter nötig.** Das Fenster umfasst nur
-wenige Minuten. „Ich hol mir Kaffee" ist darin harmlos, weil es Teil des laufenden Gesprächs
-ist und nicht stundenlang mitgeschleppt wird. Verwässerung wird durch Kürze des Fensters plus
-Selektivität des Journals verhindert, nicht durch einen Filter, der raten muss.
+wenige Minuten, und jede Nachricht landet darin, ob sie nun einen eigenen Zug ausgelöst hat
+oder als Mitläufer eingesammelt wurde (§ 1.2, § 1.3) — es gibt keine Vorsortierung nach
+„gehört das zum Gespräch mit dem Bot". „Ich hol mir Kaffee" ist darin harmlos, weil es Teil
+des laufenden Gesprächs ist und nicht stundenlang mitgeschleppt wird: eine kurze Zeile kostet
+wenig und rollt binnen Minuten wieder aus dem Fenster heraus. Verwässerung wird durch Kürze
+des Fensters plus Selektivität des Journals verhindert, nicht durch einen Filter, der raten
+muss.
 
 ---
 
@@ -663,7 +674,7 @@ Fassung behauptete, ist nicht belegt (§ 6.1).
 | `/wortlaut [name\|aus]` | Volltranskripte mitlesen (klebrig) |
 | `/gruendlich` | nächster Zug in Modus B (§ 4.5), einmalig, angekündigt |
 | `/stand` | Arbeitsstand ausgeben — **ohne LLM**, direkt aus der DB |
-| `/hilfe` | wie man den Bot anspricht, welche Befehle es gibt |
+| `/hilfe` | dass der Bot auf alles antwortet, wie Interviews laufen, welche Befehle es gibt |
 
 **Die Arbeitsstand-Befehle sind Korrekturweg, nicht Hauptweg.** Gefüllt wird der Arbeitsstand
 vom Extraktor (§ 4.3); getippt wird nur, wenn er etwas falsch verstanden hat. Deshalb steht in

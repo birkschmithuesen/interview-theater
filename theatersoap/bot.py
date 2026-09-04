@@ -4,9 +4,10 @@ Aufgabe 8 haengt die Aufnahme-Pipeline (Download, Transkription, Verdichtung)
 an der Weiche in schleife() ein: Sprachnachrichten laufen im
 ThreadPoolExecutor, ein Hintergrund-Thread ruft daneben periodisch den
 Nachhol-Arbeiter auf (§ 10.3). Aufgabe 10 haengt daneben den Gespraechszug
-(ablauf.py) ein: Text-Ausloeser (Reply, @Erwaehnung, /Befehl) laufen im
-selben Pool wie Sprachnachrichten, und beide Wege in die Aufnahme-Pipeline
-(Live und Nachhol-Arbeiter) reichen ``ablauf.bearbeite`` als ``zug`` durch.
+(ablauf.py) ein: Textnachrichten -- heute jede, siehe ablauf.ist_ausloeser --
+laufen im selben Pool wie Sprachnachrichten, und beide Wege in die
+Aufnahme-Pipeline (Live und Nachhol-Arbeiter) reichen ``ablauf.bearbeite``
+als ``zug`` durch.
 """
 
 import logging
@@ -275,17 +276,24 @@ def schleife(
                             _bearbeite_sprachnachricht, conn, tg, klm, e, stt_klient, nachricht,
                         )
                     elif ablauf.ist_ausloeser(nachricht, e.bot_name):
-                        # Aufgabe 10: Text-Ausloeser (Reply auf den Bot,
-                        # @Erwaehnung, /Befehl) laufen im selben Pool wie
-                        # Sprachnachrichten, damit ein laufender Gespraechszug
-                        # (der mehrere Sekunden dauern kann) die Polling-Schleife
-                        # nie blockiert. ablauf._sperre_fuer buendelt parallel
-                        # eintreffende Ausloeser zu einem einzigen Sammelzug.
-                        # Aufgabe 8: _zug_und_erkenner haengt danach noch den
+                        # Aufgabe 10: jede Textnachricht loest heute einen Zug
+                        # aus (ablauf.ist_ausloeser, SPEC § 1.2 -- die Gruppe
+                        # ist ein reines Interface zum Bot). Sie laeuft im
+                        # selben Pool wie Sprachnachrichten, damit ein
+                        # laufender Gespraechszug (der mehrere Sekunden dauern
+                        # kann) die Polling-Schleife nie blockiert.
+                        # ablauf._sperre_fuer buendelt parallel eintreffende
+                        # Nachrichten zu einem einzigen Sammelzug. Aufgabe 8:
+                        # _zug_und_erkenner haengt danach noch den
                         # Absichtserkenner an, im selben Pool-Auftrag.
                         pool.submit(_zug_und_erkenner, conn, tg, klm, e, nachricht["chat_id"])
-                    # sonst: beilaeufige Nachricht -- gespeichert (s.o.), aber
-                    # kein Zug (SPEC § 1.2).
+                    # sonst: kein Zug. Mit der heutigen ist_ausloeser()-Logik
+                    # (SPEC § 1.2: jede Nachricht loest aus) greift dieser
+                    # Zweig praktisch nie -- verarbeite_update() liefert fuer
+                    # unterdrueckte Textnachrichten (Nachtstau) ohnehin schon
+                    # None und kommt gar nicht bis hierher. Das if/elif bleibt
+                    # trotzdem bestehen: die eine dokumentierte Stelle, an der
+                    # sich das wieder aendern liesse.
             except Exception:
                 log.exception(
                     "Verarbeitung eines Updates fehlgeschlagen, update_id=%s",

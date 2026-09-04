@@ -90,6 +90,31 @@ def test_http_fehler_wird_ohne_token_geworfen():
     assert "<token>" in meldung
 
 
+def test_setze_befehle_schickt_die_richtige_nutzlast():
+    gesehene_anfrage = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehene_anfrage["body"] = json.loads(request.content)
+        gesehene_anfrage["url"] = str(request.url)
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    befehle = [{"command": "stand", "description": "Arbeitsstand anzeigen"}]
+    bot.setze_befehle(befehle)
+
+    assert "setMyCommands" in gesehene_anfrage["url"]
+    assert gesehene_anfrage["body"] == {"commands": befehle}
+
+
+def test_setze_befehle_wirft_bei_http_fehler():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"ok": False, "description": "kaputt"})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    with pytest.raises(telegram.TelegramFehler):
+        bot.setze_befehle([{"command": "stand", "description": "x"}])
+
+
 def test_lies_nachricht_erkennt_sprachnachricht_mit_dauer():
     update = {"update_id": 1, "message": {
         "message_id": 9, "date": 1788600000,

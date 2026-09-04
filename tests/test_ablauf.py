@@ -155,7 +155,7 @@ def test_bot_antwort_wird_mitgeschrieben(conn, einst, tg, klm):
 
 
 def test_llm_fehler_meldet_der_gruppe_und_haelt_nicht_an(conn, einst, tg):
-    repo.merke_nachricht(conn, 1, 7, "Ada", 0, "text", "/stand", repo._jetzt())
+    repo.merke_nachricht(conn, 1, 7, "Ada", 0, "text", "@gruppe1 was meinst du?", repo._jetzt())
     ablauf.bearbeite(conn, tg, KLMKaputt(), einst, 1)
 
     meldungen = [t for _, t in tg.gesendet if "hakt" in t]
@@ -244,6 +244,32 @@ def test_hinweis_haengt_nur_am_ersten_antwortversuch(conn, einst, tg, klm):
 
 
 # ---------------------------------------------------------------------------
+# teil-b.md Aufgabe 6: Befehle werden VOR dem Kontextaufbau abgefangen -- ein
+# Befehl loest keinen Sprachmodell-Aufruf aus.
+# ---------------------------------------------------------------------------
+
+def test_befehl_loest_keinen_llm_aufruf_aus(conn, einst, tg, klm):
+    repo.merke_nachricht(conn, 1, 50, "Ada", 0, "text", "/stand", repo._jetzt())
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert klm.gesehen == [], "ein Befehl darf das Sprachmodell nie aufrufen"
+    assert len(tg.gesendet) == 1
+    assert repo.hole_gruppe(conn, 1)["letzte_beantwortete_message_id"] == 50
+
+
+def test_befehl_mit_botname_wird_ueber_bearbeite_erkannt(conn, einst, tg, klm):
+    repo.merke_nachricht(
+        conn, 1, 51, "Ada", 0, "text", f"/fertig@{einst.bot_name}", repo._jetzt(),
+    )
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert klm.gesehen == []
+    assert tg.gesendet == [(1, "Aufnahme beendet.")]
+
+
+# ---------------------------------------------------------------------------
 # Zusaetzliche Tests fuer die Tippanzeige (Auftragshinweis 4) und die
 # Einhaengung in bot.py (Auftragshinweis 2).
 # ---------------------------------------------------------------------------
@@ -276,7 +302,7 @@ def test_tippanzeige_fehlschlag_stoert_den_zug_nicht(einst, conn, klm, monkeypat
 
     monkeypatch.setattr(ablauf, "TIPP_INTERVALL", 0.01)
     tg_kaputt = KaputteTippanzeige()
-    repo.merke_nachricht(conn, 1, 8, "Ada", 0, "text", "/stand", repo._jetzt())
+    repo.merke_nachricht(conn, 1, 8, "Ada", 0, "text", "@gruppe1 was meinst du?", repo._jetzt())
 
     ablauf.bearbeite(conn, tg_kaputt, klm, einst, 1)
 

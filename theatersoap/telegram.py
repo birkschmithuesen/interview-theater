@@ -76,6 +76,18 @@ class Telegram:
             antwort.raise_for_status()
             return antwort.json()["result"]["message_id"]
 
+    def setze_befehle(self, befehle: list[dict]) -> None:
+        """Ruft setMyCommands (teil-b.md Aufgabe 6): die Befehle erscheinen im
+        Telegram-Menue, wenn jemand '/' tippt. Wird einmal beim Start
+        aufgerufen (``bot.main``); ob ein Fehlschlag den Bot-Start aufhalten
+        darf, entscheidet der Aufrufer, nicht diese Methode -- hier wird nur
+        der HTTP-Aufruf gekapselt."""
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("setMyCommands"), json={"commands": befehle}
+            )
+            antwort.raise_for_status()
+
     def tippt(self, chat_id: int) -> None:
         """Zeigt die Tippanzeige ("...schreibt") in der Gruppe."""
         with self._fange_http_fehler():

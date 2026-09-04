@@ -329,8 +329,15 @@ def verlaufszeile(zahlen: dict, ergebnis, kopfdaten: dict) -> dict:
 
 
 def schreibe(ergebnis, zahlen: dict, schritte, kopfdaten: dict,
-             protokoll_text: str) -> dict[str, Path]:
-    """Schreibt Transkript, Bericht und Verlaufszeile. Liefert die Pfade."""
+             protokoll_text: str, bericht_datei: bool = True,
+             ziel: str | Path | None = None) -> dict[str, Path | None]:
+    """Schreibt Transkript, Verlaufszeile und -- auf Wunsch -- den Bericht.
+
+    Transkript und Verlaufszeile entstehen **immer**: das eine ist die Datei,
+    in die man schaut, wenn eine Zahl ueberrascht, das andere der
+    Vergleichsmassstab zum naechsten Lauf. Ein Lauf, der Geld gekostet hat,
+    soll beides hinterlassen, auch wenn niemand an ``--bericht`` gedacht
+    hat."""
     LAEUFE.mkdir(parents=True, exist_ok=True)
     BERICHTE.mkdir(parents=True, exist_ok=True)
 
@@ -339,8 +346,13 @@ def schreibe(ergebnis, zahlen: dict, schritte, kopfdaten: dict,
         f"# Lauf {kopfdaten['kennung']}\n\n{protokoll_text}", encoding="utf-8"
     )
 
-    bericht_pfad = BERICHTE / f"{kopfdaten['kennung']}.md"
-    bericht_pfad.write_text(baue(ergebnis, zahlen, schritte, kopfdaten), encoding="utf-8")
+    bericht_pfad = None
+    if bericht_datei:
+        bericht_pfad = Path(ziel) if ziel else BERICHTE / f"{kopfdaten['kennung']}.md"
+        bericht_pfad.parent.mkdir(parents=True, exist_ok=True)
+        bericht_pfad.write_text(
+            baue(ergebnis, zahlen, schritte, kopfdaten), encoding="utf-8"
+        )
 
     with VERLAUF.open("a", encoding="utf-8") as datei:
         datei.write(json.dumps(

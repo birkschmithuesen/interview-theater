@@ -183,7 +183,7 @@ def attrappe(monkeypatch, tmp_path):
 
 
 def test_mini_lauf_schreibt_bericht_und_json(attrappe, capsys):
-    code = sim.main(["--set", "1", "--seed", "3", "--ohne-szene"])
+    code = sim.main(["--set", "1", "--seed", "3", "--ohne-szene", "--bericht"])
     assert code == 0
 
     tmp = attrappe["tmp"]
@@ -205,6 +205,22 @@ def test_mini_lauf_schreibt_bericht_und_json(attrappe, capsys):
     assert daten["arbeitsstand_vollstaendig"]["begriffe"] == 1
     assert daten["arbeitsstand_vollstaendig"]["fragen"] == 1
     assert daten["schritte_gescheitert"] == []
+
+
+def test_ohne_bericht_bleiben_transkript_und_verlauf_trotzdem_stehen(attrappe):
+    """Ein Lauf, der Geld gekostet hat, soll beides hinterlassen -- auch wenn
+    niemand an ``--bericht`` gedacht hat."""
+    sim.main(["--set", "1", "--seed", "3", "--ohne-szene"])
+    tmp = attrappe["tmp"]
+    assert list((tmp / "laeufe").glob("*.md"))
+    assert (tmp / "berichte" / "verlauf.jsonl").exists()
+    assert list((tmp / "berichte").glob("2*.md")) == []
+
+
+def test_bericht_mit_pfad_landet_dort(attrappe, tmp_path):
+    ziel = tmp_path / "woanders" / "b.md"
+    sim.main(["--set", "1", "--seed", "3", "--ohne-szene", "--bericht", str(ziel)])
+    assert "## Kennzahlen" in ziel.read_text(encoding="utf-8")
 
 
 def test_mini_lauf_benutzt_beide_modelle(attrappe):

@@ -133,8 +133,9 @@ def baue_argumente(argv=None) -> argparse.Namespace:
     p.add_argument("--ohne-szene", action="store_true",
                    help="den Szenen-Schritt auslassen (spart den Reasoning-Lauf)")
     p.add_argument("--bericht", nargs="?", const="", default=None,
-                   help="Bericht zusaetzlich in eine Datei schreiben; ohne Pfad "
-                        "nach simulation/berichte/<datum>-<mischung>-<seed>.md")
+                   help="Markdown-Bericht schreiben; ohne Pfad nach "
+                        "simulation/berichte/<datum>-<mischung>-<seed>.md. "
+                        "Transkript und verlauf.jsonl entstehen immer.")
     p.add_argument("--alle", action="store_true",
                    help="drei Laeufe hintereinander, Sets 1-3")
     args = p.parse_args(argv)
@@ -196,22 +197,22 @@ def einen_lauf(args, e, klient, mischung: str) -> dict:
             "erkenner_modell": e.erkenner_modell,
             "preise_stand": PREISE_STAND,
         }
+        # Transkript und Verlaufszeile entstehen immer: das eine ist die
+        # Datei, in die man schaut, wenn eine Zahl ueberrascht, das andere
+        # der Vergleichsmassstab zum naechsten Lauf. Der Bericht selbst geht
+        # nur auf Wunsch in eine Datei -- gedruckt wird er ohnehin.
         pfade = bericht.schreibe(
             ergebnis, zahlen, schritte, kopfdaten,
             lauf.protokoll(ergebnis, schritte),
+            bericht_datei=args.bericht is not None,
+            ziel=args.bericht or None,
         )
-        text = bericht.baue(ergebnis, zahlen, schritte, kopfdaten)
         print()
-        print(text)
+        print(bericht.baue(ergebnis, zahlen, schritte, kopfdaten))
         print(f"Transkript: {pfade['lauf']}")
-        print(f"Bericht:    {pfade['bericht']}")
+        if pfade.get("bericht"):
+            print(f"Bericht:    {pfade['bericht']}")
         print(f"Verlauf:    {pfade['verlauf']}")
-
-        if args.bericht is not None and args.bericht:
-            eigener = Path(args.bericht)
-            eigener.parent.mkdir(parents=True, exist_ok=True)
-            eigener.write_text(text, encoding="utf-8")
-            print(f"Bericht zusaetzlich nach: {eigener}")
 
         conn.close()
         if altes_db is None:

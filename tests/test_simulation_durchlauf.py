@@ -185,7 +185,7 @@ def test_die_sollzitate_tauchen_als_beleg_auf(durchlauf):
 
 
 def test_der_szenentext_landet_in_der_datenbank_und_im_bericht(durchlauf):
-    sim.main(["--set", "1", "--seed", "1"])
+    sim.main(["--set", "1", "--seed", "1", "--bericht"])
     text = list((durchlauf["tmp"] / "berichte").glob("*.md"))[0].read_text(
         encoding="utf-8"
     )

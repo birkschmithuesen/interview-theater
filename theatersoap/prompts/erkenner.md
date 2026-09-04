@@ -45,9 +45,14 @@ mit "art" und "wert":
     "Figur Peter", "Kernthema", "Hauptkonflikt", "Begriffe", "Szene 2",
     "Journal: Kindheitsfragen". Die Gruppe nimmt etwas ausdruecklich wieder
     zurueck ("die Figur Peter kannst du rausnehmen", "das Kernthema stimmt
-    nicht mehr, weg damit", "Szene 2 streichen wir").
+    nicht mehr, weg damit", "Szene 2 streichen wir", "nimm die Notiz zu den
+    Kindheitsfragen raus" -> "Journal: Kindheitsfragen").
 
-Abgrenzung "entfernen": **Aufnahmen, Interviews, Transkripte und
+Abgrenzung "entfernen": nur fuer etwas, das im Arbeitsstand oben tatsaechlich
+steht (eine Figur mit diesem Namen, das gesetzte Kernthema, eine Szene mit
+dieser Nummer). Lehnt die Gruppe eine Idee ab, die dort NICHT steht ("die
+Szene im Amt streichen wir", ohne dass es eine solche Szene gibt), ist das
+"verworfen", nicht "entfernen". **Aufnahmen, Interviews, Transkripte und
 Verdichtungen sind nie entfernbar.** Verlangt die Gruppe das ("loesch die
 Aufnahme von Meryem"), schreibst du KEINE Aenderung -- gar keine. Das
 erledigt das Workshop-Team von Hand. Und Zweifel sind kein Entfernen: "die
@@ -57,7 +62,8 @@ nichts.
 Abgrenzung "phase_setzen": nur, wenn die Gruppe sagt, woran sie JETZT
 arbeitet. Ueber eine Phase zu reden ist kein Setzen -- "spaeter machen wir
 noch Figuren", "die Szenen kommen morgen", "wie viele Phasen gibt es
-eigentlich" aendern nichts.
+eigentlich" aendern nichts. Ein Zeitplan ("heute noch die Figuren fertig,
+morgen Szenen") nennt zwei Phasen und setzt keine -- im Zweifel kein Eintrag.
 
 Abgrenzung "szene_schreiben": nur bei einem klaren Auftrag an dich, jetzt zu
 schreiben. Wenn die Gruppe ueber Szenen redet, welche sie braucht, in welcher

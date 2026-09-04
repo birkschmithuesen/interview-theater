@@ -78,3 +78,44 @@ def test_letzte_nachrichten_liefert_die_letzten_in_chronologischer_reihenfolge(c
                               f"2026-09-05T10:0{message_id}:00")
     ergebnis = repo.letzte_nachrichten(conn, 1, anzahl=3)
     assert [r["message_id"] for r in ergebnis] == [3, 4, 5]
+
+
+def test_sichere_gruppe_erzeugt_ein_web_token(conn):
+    """Der Webserver liest read-only, also muss der Schreibpfad des Bots das
+    Token anlegen -- sonst haette eine Gruppe nie eine erreichbare Seite."""
+    token = repo.hole_gruppe(conn, 1)["web_token"]
+    assert token
+    assert len(token) >= 20, "muss lang genug sein, um nicht ratbar zu sein"
+
+
+def test_web_token_bleibt_ueber_weitere_nachrichten_stabil(conn):
+    """Die URL wird am Workshoptag herumgereicht: sie darf sich nicht bei
+    jeder eingehenden Nachricht aendern."""
+    erstes = repo.stelle_web_token_sicher(conn, 1)
+    repo.sichere_gruppe(conn, 1, "gruppe1", "Testgruppe umbenannt")
+    assert repo.stelle_web_token_sicher(conn, 1) == erstes
+
+
+def test_web_token_ist_je_gruppe_verschieden(conn):
+    """Der ganze Zweck des Tokens: Gruppe 2 soll Gruppe 1 nicht lesen."""
+    repo.sichere_gruppe(conn, 2, "gruppe2", "Zweite Gruppe")
+    assert repo.stelle_web_token_sicher(conn, 1) != repo.stelle_web_token_sicher(conn, 2)
+
+
+def test_web_token_fuer_unbekannte_gruppe_ist_none(conn):
+    assert repo.stelle_web_token_sicher(conn, 999) is None
+
+
+def test_web_token_wird_fuer_altbestand_nachgereicht(conn):
+    """Gruppen, die vor der Weboberflaeche entstanden sind, haben NULL stehen
+    -- der naechste Bot-Lauf muss das fuellen, ohne dass jemand eingreift."""
+    conn.execute("UPDATE gruppe SET web_token = NULL WHERE chat_id = 1")
+    conn.commit()
+    assert repo.stelle_web_token_sicher(conn, 1)
+
+
+def test_alle_gruppen_sieht_auch_fremde_bots(conn):
+    """scripts/web_links.py laeuft neben den Bot-Prozessen und braucht alle
+    Gruppen, nicht nur die eines Bots."""
+    repo.sichere_gruppe(conn, 2, "gruppe2", "Zweite Gruppe")
+    assert [z["chat_id"] for z in repo.alle_gruppen(conn)] == [1, 2]

@@ -359,6 +359,13 @@ def merke_vorfall(
 #: Koepfe holt ``beendete_offene_interviews`` gesondert.
 _NICHTS_ZU_TUN = ("fertig", "fehlgeschlagen", "laeuft")
 
+#: Weiches Loeschen, als SQL-Bedingung -- damit die Abfragen ueber Aufnahmen
+#: und Verdichtungen nie auseinanderlaufen. Seit N5 (05.09.2026) gilt es auch
+#: fuer **Material**: ein halluziniertes oder versehentliches Interview ist
+#: entfernbar, wenn die Gruppe es sagt. Die Audiodatei bleibt liegen -- die
+#: Loeschzusage erfuellt weiterhin allein ``scripts/loeschen.py``.
+_NICHT_ENTFERNT = "entfernt_am IS NULL"
+
 
 @_gesperrt
 def lege_aufnahme_an(
@@ -423,7 +430,7 @@ def laufendes_interview(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row |
     return conn.execute(
         "SELECT * FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
         "AND teil_von IS NULL AND status = 'laeuft' AND beendet_am IS NULL "
-        "ORDER BY id DESC LIMIT 1",
+        "AND entfernt_am IS NULL ORDER BY id DESC LIMIT 1",
         (chat_id,),
     ).fetchone()
 
@@ -588,7 +595,8 @@ def offene_aufnahmen(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     Ein laufendes Interview (``status='laeuft'``) gehoert nicht dazu: es
     sammelt gerade noch Teile ein (siehe _NICHTS_ZU_TUN)."""
     return conn.execute(
-        f"SELECT * FROM aufnahme WHERE status NOT IN {_NICHTS_ZU_TUN} ORDER BY id ASC"
+        f"SELECT * FROM aufnahme WHERE status NOT IN {_NICHTS_ZU_TUN} "
+        f"AND {_NICHT_ENTFERNT} ORDER BY id ASC"
     ).fetchall()
 
 
@@ -658,7 +666,9 @@ def speichere_verdichtung(
 def verdichtungen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle Verdichtungen einer Gruppe, in Entstehungsreihenfolge."""
     return conn.execute(
-        "SELECT * FROM verdichtung WHERE chat_id = ? ORDER BY id ASC", (chat_id,)
+        f"SELECT * FROM verdichtung WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY id ASC",
+        (chat_id,),
     ).fetchall()
 
 
@@ -683,7 +693,8 @@ def verdichtung_zu_aufnahme(
     zweiter bezahlter Aufruf und eine zweite Verdichtung derselben Aufnahme
     im Prompt."""
     return conn.execute(
-        "SELECT * FROM verdichtung WHERE aufnahme_id = ? ORDER BY id DESC LIMIT 1",
+        f"SELECT * FROM verdichtung WHERE aufnahme_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY id DESC LIMIT 1",
         (aufnahme_id,),
     ).fetchone()
 
@@ -711,13 +722,107 @@ def transkripte(
     egal, Teiltreffer genuegt) statt exakt zu vergleichen -- die Gruppe tippt
     Namen nicht immer gleich."""
     zeilen = conn.execute(
-        "SELECT * FROM aufnahme WHERE chat_id = ? AND teil_von IS NULL ORDER BY id ASC",
+        f"SELECT * FROM aufnahme WHERE chat_id = ? AND teil_von IS NULL "
+        f"AND {_NICHT_ENTFERNT} ORDER BY id ASC",
         (chat_id,),
     ).fetchall()
     if name is None:
         return zeilen
     gesucht = name.lower()
     return [z for z in zeilen if z["name"] and gesucht in z["name"].lower()]
+
+
+@_gesperrt
+def entferne_aufnahme(conn: sqlite3.Connection, chat_id: int, aufnahme_id: int) -> str | None:
+    """Entfernt ein Interview weich (N5, 05.09.2026) und liefert seinen Namen
+    zurueck, oder None, wenn es das (nicht mehr) gibt.
+
+    Betroffen sind drei Zeilenarten: der Kopf, seine Teile (sonst blieben sie
+    als heimatloses Material stehen und der Nachhol-Arbeiter griffe sie
+    wieder auf) und die Verdichtung. **Die Audiodatei bleibt liegen** -- der
+    vollstaendige Loeschweg ist weiterhin ``scripts/loeschen.py``, von Hand,
+    mit Rueckfrage.
+
+    Der Bruch mit der alten Regel ("Material ist nie entfernbar") ist Absicht
+    und eng gefasst: sie galt fuer Aufnahmen der Gruppe, die Inhalt tragen.
+    Ein Interview, das aus einer vier Sekunden langen Sprachnachricht
+    halluziniert wurde, traegt keinen -- und die Gruppe musste es im Probelauf
+    trotzdem stehen lassen, weil der Bot es nicht wegnehmen konnte.
+
+    ``zaehle_interviews`` zaehlt weiterhin auch entfernte mit: sonst bekaeme
+    das naechste Interview die Nummer des geloeschten, und zwei verschiedene
+    Aufnahmen hiessen im Journal gleich."""
+    zeile = conn.execute(
+        f"SELECT id, name FROM aufnahme WHERE id = ? AND chat_id = ? AND {_NICHT_ENTFERNT}",
+        (aufnahme_id, chat_id),
+    ).fetchone()
+    if zeile is None:
+        return None
+    jetzt = _jetzt()
+    conn.execute(
+        "UPDATE aufnahme SET entfernt_am = ? WHERE id = ? OR teil_von = ?",
+        (jetzt, aufnahme_id, aufnahme_id),
+    )
+    conn.execute(
+        "UPDATE verdichtung SET entfernt_am = ? WHERE aufnahme_id = ?",
+        (jetzt, aufnahme_id),
+    )
+    conn.commit()
+    return zeile["name"] or f"Aufnahme {aufnahme_id}"
+
+
+@_gesperrt
+def korrigiere_transkripte(
+    conn: sqlite3.Connection, chat_id: int, falsch: str, richtig: str
+) -> int:
+    """Ersetzt ``falsch`` durch ``richtig`` in allem, was aus einem Interview
+    stammt (N5, 05.09.2026). Liefert die Zahl der geaenderten Zeilen.
+
+    **Warum das eine Ausnahme von "Verdichtungen werden nie geaendert" ist**
+    (SPEC § 4.2): hier wird keine Erkenntnis korrigiert, sondern ein Hoerfehler
+    von Whisper. "gepoekt" statt "gepogt", "im Auto" statt "im autonomen
+    Zentrum" -- das ist nicht die Sicht der Gruppe auf ein Thema, das ist ein
+    falsches Wort. Und es steht an mehreren Stellen gleichzeitig: im
+    Teiltranskript, im zusammengefuegten, in der Zusammenfassung und im
+    Belegzitat. Deshalb wird ueberall dasselbe ersetzt -- **nicht** neu
+    verdichtet: ein zweiter Verdichteraufruf gaebe eine andere Verdichtung
+    zurueck, und die Gruppe haette ihre Ergebnisse verloren, weil ein Wort
+    falsch verstanden wurde.
+
+    Das Belegzitat bleibt dabei geprueft: dieselbe Ersetzung laeuft ueber das
+    Transkript, also steht das Zitat danach wieder woertlich darin.
+
+    Zwei Durchgaenge, gross und klein geschrieben: die Gruppe tippt
+    "gepoekt", im Transkript steht vielleicht "Gepoekt" am Satzanfang."""
+    falsch = (falsch or "").strip()
+    richtig = (richtig or "").strip()
+    if not falsch or falsch == richtig:
+        return 0
+
+    varianten = [(falsch, richtig)]
+    gross = (falsch[:1].upper() + falsch[1:], richtig[:1].upper() + richtig[1:])
+    if gross[0] != falsch:
+        varianten.append(gross)
+
+    geaendert = 0
+    for alt, neu in varianten:
+        for sql in (
+            "UPDATE aufnahme SET transkript = replace(transkript, ?, ?) "
+            "WHERE chat_id = ? AND transkript LIKE '%' || ? || '%'",
+            "UPDATE verdichtung SET zusammenfassung = replace(zusammenfassung, ?, ?) "
+            "WHERE chat_id = ? AND zusammenfassung LIKE '%' || ? || '%'",
+            "UPDATE verdichtung_thema SET beleg_zitat = replace(beleg_zitat, ?, ?) "
+            "WHERE chat_id = ? AND beleg_zitat LIKE '%' || ? || '%'",
+        ):
+            geaendert += conn.execute(sql, (alt, neu, chat_id, alt)).rowcount
+        geaendert += conn.execute(
+            "UPDATE verdichtung_thema SET thema = replace(thema, ?, ?), "
+            "kurz = replace(kurz, ?, ?) "
+            "WHERE chat_id = ? AND (thema LIKE '%' || ? || '%' OR kurz LIKE '%' || ? || '%')",
+            (alt, neu, alt, neu, chat_id, alt, alt),
+        ).rowcount
+    conn.commit()
+    return geaendert
 
 
 @_gesperrt
@@ -790,6 +895,7 @@ def offene_aufnahmen_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[s
         SELECT a.* FROM aufnahme a
         JOIN gruppe g ON g.chat_id = a.chat_id
         WHERE g.bot_name = ? AND a.status NOT IN {_NICHTS_ZU_TUN}
+          AND a.entfernt_am IS NULL
         ORDER BY a.id ASC
         """,
         (bot_name,),
@@ -813,6 +919,7 @@ def beendete_offene_interviews(conn: sqlite3.Connection, bot_name: str) -> list[
         JOIN gruppe g ON g.chat_id = a.chat_id
         WHERE g.bot_name = ? AND a.klasse = 'lang' AND a.teil_von IS NULL
           AND a.status = 'laeuft' AND a.beendet_am IS NOT NULL
+          AND a.entfernt_am IS NULL
         ORDER BY a.id ASC
         """,
         (bot_name,),

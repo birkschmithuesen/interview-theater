@@ -82,7 +82,13 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- Gesetzt = die Gruppe hat "fertig" gesagt. Ein Kopf mit beendet_am und
   -- status='laeuft' wartet nur noch darauf, dass seine Teile durch sind
   -- (aufnahme.schliesse_ab, aufgegriffen vom Nachhol-Arbeiter).
-  beendet_am      TEXT
+  beendet_am      TEXT,
+  -- Gesetzt = weich geloescht (N5, 05.09.2026). Die Material-Sperre gilt fuer
+  -- Aufnahmen der Gruppe, die Inhalt tragen; ein halluziniertes oder
+  -- versehentliches Interview ist entfernbar, wenn die Gruppe es sagt. Die
+  -- Audiodatei bleibt auf der Platte -- die Loeschzusage erfuellt weiterhin
+  -- allein scripts/loeschen.py.
+  entfernt_am     TEXT
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,
@@ -97,7 +103,11 @@ CREATE TABLE IF NOT EXISTS verdichtung (
   chat_id          INTEGER NOT NULL,
   aufnahme_id      INTEGER NOT NULL,
   zusammenfassung  TEXT NOT NULL,
-  erstellt_am      TEXT NOT NULL
+  erstellt_am      TEXT NOT NULL,
+  -- Gesetzt = weich geloescht (N5): faellt mit dem Interview, zu dem sie
+  -- gehoert. Geaendert wird eine Verdichtung weiterhin nie -- ausser durch
+  -- eine Transkriptkorrektur, die dieselbe Ersetzung ueberall vornimmt.
+  entfernt_am      TEXT
 );
 
 CREATE TABLE IF NOT EXISTS verdichtung_thema (

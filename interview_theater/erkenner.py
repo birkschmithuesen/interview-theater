@@ -66,6 +66,10 @@ ARTEN = (
     "interview_starten",
     "interview_beenden",
     "interview_benennen",
+    # Seit 05.09.2026 (N5): ein Hoerfehler von Whisper wird ueberall dort
+    # ersetzt, wo er steht -- Transkripte, Zusammenfassungen, Belegzitate.
+    # Keine Neuverdichtung: die Ergebnisse der Gruppe bleiben stehen.
+    "transkript_korrigieren",
     "begriffe_setzen",
     # Seit 04.09.2026 abends: die Frageliste aus Phase 2 ist ein eigenes Feld
     # (arbeitsstand.fragen). Fragen formulieren und Interviews fuehren sind
@@ -452,6 +456,50 @@ def _wende_figur_an(conn, chat_id: int, wert: str) -> dict | None:
     return {"art": "figur_setzen", "wert": name}
 
 
+#: Trennt in einer Korrektur das falsche vom richtigen Wort. Beide
+#: Schreibweisen, weil das Modell mal die eine und mal die andere liefert.
+_KORREKTUR_PFEILE = ("->", "→")
+
+#: Mehrere Korrekturen in einem Wert.
+_KORREKTUR_TRENNER = "|"
+
+
+def _wende_transkript_korrektur_an(conn, chat_id: int, wert: str) -> dict | None:
+    """Wendet eine (oder mehrere) Transkriptkorrekturen an (art
+    ``transkript_korrigieren``, wert ``"gepoekt -> gepogt"``, mehrere mit
+    ``|`` getrennt).
+
+    Der Live-Fall (Probelauf, Nachrichten 41-50): Whisper hoerte "im Auto"
+    statt "im autonomen Zentrum" und "gepoekt" statt "gepogt". Der Bot
+    antwortete dreimal "korrigiere ich" -- und in der Datenbank aenderte sich
+    nichts. Jetzt aendert sich etwas, und die Notiert-Zeile sagt was.
+
+    Liefert None, wenn nichts ersetzt wurde: eine Korrektur, die nichts
+    trifft, ist keine Aenderung und bekommt keine Meldung."""
+    paare = []
+    for stueck in (wert or "").split(_KORREKTUR_TRENNER):
+        for pfeil in _KORREKTUR_PFEILE:
+            falsch, trenner, richtig = stueck.partition(pfeil)
+            if trenner and falsch.strip() and richtig.strip():
+                paare.append((falsch.strip(), richtig.strip()))
+                break
+    if not paare:
+        return None
+
+    gewirkt = []
+    for falsch, richtig in paare:
+        if repo.korrigiere_transkripte(conn, chat_id, falsch, richtig):
+            gewirkt.append(f"{falsch} -> {richtig}")
+    if not gewirkt:
+        return None
+    text = ", ".join(gewirkt)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", f"Transkript korrigiert: {text}",
+        quelle="erkenner",
+    )
+    return {"art": "transkript_korrigieren", "wert": text}
+
+
 def _wende_figur_quelle_an(conn, chat_id: int, wert: str) -> dict | None:
     """Ordnet einer Figur das Interview zu, aus dem sie spricht (art
     ``figur_quelle_setzen``, wert ``"Pola: Interview 2"``).
@@ -674,14 +722,18 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
 
 
 #: Die Zielarten des weichen Loeschens, am ERSTEN Wort von ``wert`` erkannt
-#: (NACHTRAG-weboberflaeche-und-sprache.md N3). Material -- Aufnahmen,
-#: Transkripte, Verdichtungen -- steht bewusst NICHT hier: was eine Gruppe
-#: einmal erzaehlt hat, loescht der Bot nicht auf Zuruf. Solche Wuensche
-#: gehen ans Workshop-Team (prompts/system.md), das den Loeschweg von Hand
-#: geht (scripts/loeschen.py).
+#: (NACHTRAG-weboberflaeche-und-sprache.md N3).
+#:
+#: **``interview`` ist am 05.09.2026 dazugekommen (N5).** Die alte Regel
+#: ("Material ist nie entfernbar") galt fuer Aufnahmen der Gruppe, die Inhalt
+#: tragen -- ein Interview, das aus einer vier Sekunden langen
+#: Sprachnachricht halluziniert wurde, traegt keinen, und die Gruppe musste
+#: es im Probelauf trotzdem stehen lassen. Weich bleibt es trotzdem: die
+#: Audiodatei liegt weiter auf der Platte, den vollstaendigen Loeschweg geht
+#: nach wie vor allein ``scripts/loeschen.py``, von Hand, mit Rueckfrage.
 _ENTFERNEN_ZIELE = (
     "figur", "kernthema", "format", "rahmen", "hauptkonflikt", "begriffe",
-    "fragen", "szene", "journal",
+    "fragen", "szene", "journal", "interview", "aufnahme",
 )
 
 #: Journalzeile, die eine Entfernung festhaelt -- der Weg soll sichtbar
@@ -782,6 +834,15 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
     elif ziel == "figur":
         name = repo.entferne_figur(conn, chat_id, rest) if rest else None
         bezeichnung = f"Figur {name}" if name else None
+    elif ziel in ("interview", "aufnahme"):
+        # Ohne Angabe wird NICHT geraten: "loesch das Interview" ohne Nummer
+        # oder Namen koennte jedes von fuenfen meinen, und weggenommen wird
+        # hier Material (N5).
+        from interview_theater import aufnahme  # spaeter Import
+
+        kopf = aufnahme.finde_interview(conn, chat_id, rest) if rest else None
+        name = repo.entferne_aufnahme(conn, chat_id, kopf["id"]) if kopf else None
+        bezeichnung = name if name else None
     else:  # szene
         treffer = _SZENENNUMMER.search(rest or "")
         nummer = repo.entferne_szene(conn, chat_id, int(treffer.group(1))) if treffer else None
@@ -808,6 +869,8 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_arbeitsstand_an(conn, chat_id, art, wert)
     if art == "figur_setzen":
         return _wende_figur_an(conn, chat_id, wert)
+    if art == "transkript_korrigieren":
+        return _wende_transkript_korrektur_an(conn, chat_id, wert)
     if art == "figur_quelle_setzen":
         return _wende_figur_quelle_an(conn, chat_id, wert)
     if art == "szene_planen":
@@ -922,6 +985,7 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     fragen = None
     figuren_namen = []
     geplant = []
+    korrigiert = []
     phase_gesetzt = None
     entfernt = []
     for aenderung in wirkliche_aenderungen:
@@ -943,6 +1007,8 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
             figuren_namen.append(wert)
         elif art == "szene_planen":
             geplant.append(wert)
+        elif art == "transkript_korrigieren":
+            korrigiert.append(wert)
         elif art == "phase_setzen":
             phase_gesetzt = phasen.nummer_fuer(wert)
         elif art == "entfernen":
@@ -975,6 +1041,12 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     # gemeint ist, ohne die ganze Planung noch einmal zu lesen.
     for zeile in geplant:
         zeilen.append(zeile)
+    # Eine Transkriptkorrektur bekommt ihr eigenes Verb (N5): "Korrigiert:
+    # gepoekt -> gepogt". Sie ist der Beleg dafuer, dass wirklich etwas
+    # passiert ist -- im Probelauf sagte der Bot dreimal "korrigiere ich",
+    # und in der Datenbank aenderte sich nichts.
+    for zeile in korrigiert:
+        zeilen.append(f"Korrigiert: {zeile}")
     # Entfernungen stehen in derselben Meldung wie alles andere -- eine
     # Nachricht je Erkennerlauf bleibt die Regel (SPEC § 4.3). Sie tragen ihr
     # eigenes Verb, damit niemand "Notiert:" liest und denkt, es sei etwas

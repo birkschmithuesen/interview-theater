@@ -176,6 +176,9 @@ def test_arten_enthaelt_alle_zwanzig_werte():
         "hauptkonflikt_setzen", "figur_setzen", "wortlaut_an", "wortlaut_aus",
         "verworfen", "entschieden", "szene_schreiben", "phase_setzen",
         "entfernen", "an_den_bot",
+        # N5 (05.09.): Korrekturen am Transkript wirken -- statt behauptet
+        # zu werden.
+        "transkript_korrigieren",
     }
     assert set(erkenner.ARTEN) == erwartet
 

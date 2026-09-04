@@ -15,8 +15,8 @@ Zwei Ausnahmen, und nur diese beiden: **szene_schreiben** (loest einen
 minutenlangen Schreibauftrag aus) und **entfernen** (nimmt etwas weg). Dort
 gilt weiterhin: im Zweifel kein Eintrag.
 
-Du erkennst genau zwanzig Arten von Aenderungen. Jede Aenderung ist ein Objekt
-mit "art" und "wert":
+Du erkennst genau einundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
+Objekt mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
     ein Interview aufzuzeichnen ("wir machen jetzt ein Interview", "wir
@@ -26,7 +26,14 @@ mit "art" und "wert":
 3.  interview_benennen     -- wert: der neue Name. Die Gruppe gibt der
     zuletzt aufgenommenen Aufnahme einen Namen ("das war Marias Interview",
     "nennen wir das Aufnahme mit Elif").
-4.  begriffe_setzen        -- wert: die Begriffe, wie im Abschnitt genannt.
+4.  transkript_korrigieren -- wert: "falsch -> richtig", mehrere durch "|"
+    getrennt ("gepoekt -> gepogt | im Auto -> im autonomen Zentrum"). Die
+    Gruppe sagt ausdruecklich, dass ein Wort im Transkript falsch verstanden
+    wurde und wie es richtig heisst ("das heisst gepogt, nicht gepoekt", "sie
+    war im autonomen Zentrum, nicht im Auto", "da steht Meryem, es muss
+    Meryam heissen"). Schreib beide Woerter genau so, wie sie im Abschnitt
+    stehen.
+5.  begriffe_setzen        -- wert: die Begriffe, wie im Abschnitt genannt.
     Die Gruppe hat sie im Raum gesammelt und gibt die fertige Liste hier ein.
 5.  fragen_setzen          -- wert: die Interviewfragen, **eine je Zeile, im
     Format "Thema: Frage"**. Das Thema ist das Stichwort, um das die Frage

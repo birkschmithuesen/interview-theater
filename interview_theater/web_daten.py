@@ -165,8 +165,8 @@ def _aufnahmen_nach_status(conn: sqlite3.Connection, chat_id: int) -> dict[str, 
     return {
         z["status"]: z["anzahl"]
         for z in conn.execute(
-            "SELECT status, count(*) AS anzahl FROM aufnahme WHERE chat_id = ? "
-            "GROUP BY status ORDER BY status",
+            f"SELECT status, count(*) AS anzahl FROM aufnahme WHERE chat_id = ? "
+            f"AND {_NICHT_ENTFERNT} GROUP BY status ORDER BY status",
             (chat_id,),
         )
     }
@@ -321,12 +321,13 @@ def _interview_kurzformen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     Zentrum")."""
     ergebnis = []
     for z in conn.execute(
-        "SELECT id, name FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
-        "ORDER BY id ASC",
+        f"SELECT id, name FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+        f"AND {_NICHT_ENTFERNT} ORDER BY id ASC",
         (chat_id,),
     ):
         verdichtung = conn.execute(
-            "SELECT id FROM verdichtung WHERE aufnahme_id = ? ORDER BY id DESC LIMIT 1",
+            f"SELECT id FROM verdichtung WHERE aufnahme_id = ? AND {_NICHT_ENTFERNT} "
+            "ORDER BY id DESC LIMIT 1",
             (z["id"],),
         ).fetchone()
         if verdichtung is None:
@@ -360,7 +361,8 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
                 "figuren": _figuren(conn, chat_id),
                 "aufnahmen": _aufnahmen_nach_status(conn, chat_id),
                 "verdichtungen": conn.execute(
-                    "SELECT count(*) FROM verdichtung WHERE chat_id = ?", (chat_id,)
+                    f"SELECT count(*) FROM verdichtung WHERE chat_id = ? AND {_NICHT_ENTFERNT}",
+                    (chat_id,),
                 ).fetchone()[0],
                 "szenen": conn.execute(
                     f"SELECT count(*) FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT}",
@@ -474,8 +476,8 @@ def _teile_zahlen(conn: sqlite3.Connection, aufnahme_id: int) -> tuple[int, int 
     (§ 10.6). Ohne Teile ``(0, None)`` -- dann gilt die Dauer am Kopf selbst
     (Textimport oder eine Aufnahme aus der Zeit vor dem Nachtrag)."""
     zeile = conn.execute(
-        "SELECT count(*) AS anzahl, sum(dauer_sekunden) AS dauer FROM aufnahme "
-        "WHERE teil_von = ?",
+        f"SELECT count(*) AS anzahl, sum(dauer_sekunden) AS dauer FROM aufnahme "
+        f"WHERE teil_von = ? AND {_NICHT_ENTFERNT}",
         (aufnahme_id,),
     ).fetchone()
     return (zeile["anzahl"] or 0), zeile["dauer"]
@@ -501,14 +503,15 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     Datenbank aus dieser Zeit genau richtig ist."""
     try:
         zeilen = conn.execute(
-            "SELECT * FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
-            "AND teil_von IS NULL ORDER BY id ASC",
+            f"SELECT * FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            f"AND teil_von IS NULL AND {_NICHT_ENTFERNT} ORDER BY id ASC",
             (chat_id,),
         ).fetchall()
         mit_teilen = True
     except sqlite3.OperationalError:
         zeilen = conn.execute(
-            "SELECT * FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' ORDER BY id ASC",
+            f"SELECT * FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            f"AND {_NICHT_ENTFERNT} ORDER BY id ASC",
             (chat_id,),
         ).fetchall()
         mit_teilen = False
@@ -517,8 +520,8 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     for z in zeilen:
         teile, teile_dauer = _teile_zahlen(conn, z["id"]) if mit_teilen else (0, None)
         verdichtung = conn.execute(
-            "SELECT id, zusammenfassung, erstellt_am FROM verdichtung "
-            "WHERE aufnahme_id = ? ORDER BY id DESC LIMIT 1",
+            f"SELECT id, zusammenfassung, erstellt_am FROM verdichtung "
+            f"WHERE aufnahme_id = ? AND {_NICHT_ENTFERNT} ORDER BY id DESC LIMIT 1",
             (z["id"],),
         ).fetchone()
         ergebnis.append(

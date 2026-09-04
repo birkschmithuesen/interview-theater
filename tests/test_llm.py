@@ -50,8 +50,32 @@ def test_json_block_wird_aus_umgebendem_text_geschnitten(einst, conn):
 
 
 def test_geschweifte_klammer_im_string_beendet_den_block_nicht():
+    """Regressionstest: eine geschweifte Klammer innerhalb eines woertlichen
+    Zitats (haeufig in Interview-Ausschnitten) darf lies_json nicht aus der
+    Fassung bringen -- json.loads ist von sich aus stringbewusst."""
     text = '{"zitat": "sie sagte } und ging"}'
-    assert llm.erster_json_block(text) == text
+    assert llm.lies_json(text) == {"zitat": "sie sagte } und ging"}
+
+
+def test_praefix_ein_zeichen_wird_gelesen():
+    """Historischer Fehlerfall: die eine ueberzaehlige Klammer vor dem
+    eigentlichen JSON (das urspruengliche 'blindes text[1:]'-Fehlerbild)."""
+    text = '{{"a": 1}'
+    assert llm.lies_json(text) == {"a": 1}
+
+
+def test_praefix_zwei_zeichen_wird_gelesen():
+    """SPEC-kontext-architektur.md § 4.4: das gemessene Praefix-Artefakt war
+    ' {{' -- ein Leerzeichen plus eine ueberzaehlige Klammer, also zwei
+    Zeichen vor dem eigentlichen JSON, nicht eines. Ein blindes text[1:]
+    (die alte Reparatur) haette hier versagt."""
+    text = ' {{"a": 1}'
+    assert llm.lies_json(text) == {"a": 1}
+
+
+def test_lies_json_ohne_jedes_json_ist_fehler():
+    with pytest.raises(llm.LLMFehler):
+        llm.lies_json("nur Fliesstext, kein JSON weit und breit")
 
 
 def test_502_wird_wiederholt(einst, conn, monkeypatch):
@@ -115,12 +139,20 @@ def test_finish_reason_length_ist_fehler_und_vorfall(einst, conn):
     def handler(request: httpx.Request) -> httpx.Response:
         return _antwort(content="{}", finish_reason="length")
 
-    with pytest.raises(llm.LLMFehler):
+    with pytest.raises(llm.LLMFehler) as ausnahme_info:
         llm.LLM(einst, _klient(handler), conn).schema(1, "s", "n", {}, "extraktor")
 
-    zeile = conn.execute("SELECT art FROM vorfall WHERE chat_id = 1").fetchone()
+    # SPEC § 4.4: ein abgeschnittenes Ergebnis ist ein Budgetproblem
+    # (max_tokens zu klein), kein Formatproblem -- der Fehlertext muss das
+    # beim Lesen im Log klarstellen, statt zu einer Parserfehlersuche zu verleiten.
+    meldung = str(ausnahme_info.value)
+    assert "max_tokens" in meldung
+    assert "zu klein" in meldung
+
+    zeile = conn.execute("SELECT art, detail FROM vorfall WHERE chat_id = 1").fetchone()
     assert zeile is not None
     assert zeile["art"] == "abgeschnitten"
+    assert "max_tokens" in zeile["detail"]
 
 
 def test_aufruf_wird_protokolliert(einst, conn):
@@ -152,6 +184,73 @@ def test_max_tokens_und_reasoning_effort_im_koerper(einst, conn):
     assert gesehen["body"]["max_tokens"] == llm.MAX_TOKENS
     assert llm.MAX_TOKENS >= 9000
     assert gesehen["body"]["reasoning_effort"] == "none"
+
+
+def test_reasoning_effort_wird_immer_gesendet_ohne_dass_schema_es_uebergibt(einst, conn):
+    """SPEC § 4.4: reasoning_effort ist bei Infomaniak binaer -- das Feld
+    wegzulassen schaltet Reasoning AN, es gibt keine stille Voreinstellung
+    'aus'. schema() uebergibt reasoning_effort deshalb gar nicht mehr an
+    _anfrage, sondern verlaesst sich auf deren Vorgabewert 'none'. Dieser
+    Test waere mit dem alten 'if reasoning_effort:'-Rueckfall bei einem
+    leeren/fehlenden Wert rot (Reasoning still eingeschaltet)."""
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["body"] = json.loads(request.content)
+        return _antwort(content="{}")
+
+    llm.LLM(einst, _klient(handler), conn).schema(1, "s", "n", {}, "extraktor")
+
+    assert "reasoning_effort" in gesehen["body"]
+    assert gesehen["body"]["reasoning_effort"] == "none"
+
+
+def test_modell_parameter_landet_im_koerper(einst, conn):
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["body"] = json.loads(request.content)
+        return _antwort(content="{}")
+
+    llm.LLM(einst, _klient(handler), conn).schema(1, "s", "n", {}, "extraktor", modell="foo")
+
+    assert gesehen["body"]["model"] == "foo"
+
+
+def test_ohne_modell_parameter_gilt_e_llm_modell(einst, conn):
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["body"] = json.loads(request.content)
+        return _antwort(content="{}")
+
+    llm.LLM(einst, _klient(handler), conn).schema(1, "s", "n", {}, "extraktor")
+
+    assert gesehen["body"]["model"] == einst.llm_modell
+
+
+def test_temperature_parameter_landet_im_koerper(einst, conn):
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["body"] = json.loads(request.content)
+        return _antwort(content="{}")
+
+    llm.LLM(einst, _klient(handler), conn).schema(1, "s", "n", {}, "extraktor", temperature=0.2)
+
+    assert gesehen["body"]["temperature"] == 0.2
+
+
+def test_ohne_temperature_parameter_fehlt_das_feld(einst, conn):
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["body"] = json.loads(request.content)
+        return _antwort(content="{}")
+
+    llm.LLM(einst, _klient(handler), conn).schema(1, "s", "n", {}, "extraktor")
+
+    assert "temperature" not in gesehen["body"]
 
 
 def test_api_schluessel_landet_nicht_in_ausnahme(conn, monkeypatch, tmp_path):

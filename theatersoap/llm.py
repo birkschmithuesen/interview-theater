@@ -4,23 +4,31 @@ chat/completions-Endpunkt), Modus A (SPEC-kontext-architektur.md § 4, § 11.3).
 Vorlage: kg.llm (chat_completions-Zweig), siehe
 /home/birk/projekte/kollektivgedaechtnis/kg/llm.py und
 .superpowers/sdd/task-5-brief.md. Uebernommen: die Form von
-``response_format`` (json_schema, strict), die Reparatur der doppelten
-Klammer, dass ``reasoning_effort`` nur gesendet wird, wenn ein Wert gesetzt
-ist, und die Wiederholung bei 5xx.
+``response_format`` (json_schema, strict) und die Wiederholung bei 5xx.
+**Nicht** uebernommen: dass ``reasoning_effort`` nur bei gesetztem Wert
+gesendet wurde -- siehe Fehlerbild 4 unten, das ist genau umgekehrt worden.
 
-Drei gemessene Fehlerbilder desselben Vorprojekts, alle bei
-``moonshotai/Kimi-K2.6``, alle mit HTTP 200:
+Vier gemessene Fehlerbilder, alle bei ``moonshotai/Kimi-K2.6``, alle mit
+HTTP 200:
 
-1. ``content`` beginnt mit ``{{`` statt ``{`` -- ohne ``reasoning_effort``
-   nie ein valides JSON (0 von 5), mit ``"low"`` ebenfalls nicht (0 von 8),
-   mit ``"none"`` immer (8 von 8). Die eine ueberzaehlige Klammer wird
-   deshalb repariert statt eine bezahlte Antwort wegzuwerfen.
+1. ``content`` beginnt mit ueberzaehligen Klammern statt nur ``{`` -- ohne
+   ``reasoning_effort`` nie ein valides JSON (0 von 5), mit ``"low"``
+   ebenfalls nicht (0 von 8), mit ``"none"`` immer (8 von 8). Gemessen
+   wurden dabei unterschiedlich lange Praefixe (ein Zeichen ``{{``, aber
+   auch zwei Zeichen ``' {{'`` -- ein Leerzeichen plus eine ueberzaehlige
+   Klammer) -- deshalb sucht ``lies_json`` die passende Position, statt
+   blind eine feste Anzahl Zeichen abzuschneiden.
 2. Bei aktivem Reasoning ist ``content`` ``null`` und der Text steht in
    ``message.reasoning``.
 3. ``finish_reason == "length"``: das Reasoning verbraucht das
    Ausgabebudget, bevor der eigentliche Inhalt beginnt. Deshalb
    ``MAX_TOKENS = 9000`` und niemals ein leeres Ergebnis -- ein Fehler und
-   ein Vorfall ``abgeschnitten``.
+   ein Vorfall ``abgeschnitten``, im Text ausdruecklich als Budgetproblem
+   benannt (``max_tokens`` zu klein), nicht als Formatproblem.
+4. **`reasoning_effort` ist bei Infomaniak binaer** (SPEC § 4.4): ``"none"``
+   schaltet Reasoning aus, jeder andere Wert -- auch das Fehlen des Feldes!
+   -- schaltet es an. Es gibt keine stille Voreinstellung "aus". Das Feld
+   wird deshalb **immer** gesendet, mit Vorgabewert ``"none"``.
 """
 
 import json
@@ -55,42 +63,54 @@ class LLMFehler(Exception):
     """
 
 
-def erster_json_block(text: str) -> str:
-    """Schneidet den ersten vollstaendigen ``{...}``-Block aus text.
+#: Obergrenze fuer die Praefix-Suche in lies_json: die gemessenen
+#: Artefakte sind ein bis zwei Zeichen lang, nie Zeilen. Ein hoher Wert
+#: waere trotzdem ungefaehrlich langsam -- jeder Versuch scheitert an
+#: einem einzelnen ungueltigen Startzeichen, bevor er den Rest des Texts
+#: anfasst -- aber 200 Zeichen sind mehr als genug Sicherheitsabstand und
+#: verhindern, dass ein langer Muelltext (z.B. eine reine Prosa-Antwort
+#: ohne jedes JSON) das System durch viele erfolglose volle Parsversuche
+#: quadratisch verlangsamt.
+LIES_JSON_SUCHFENSTER = 200
 
-    Zaehlt Klammern stringbewusst: Anfuehrungszeichen und
-    Backslash-Maskierung werden erkannt, damit eine geschweifte Klammer
-    innerhalb eines woertlichen Zitats (die Antworten enthalten Zitate aus
-    Interviewtranskripten) den Block nicht vorzeitig beendet.
+
+def lies_json(text: str) -> dict:
+    """Liest ein JSON-Objekt robust aus einer Modellantwort.
+
+    Erst wird ``json.loads`` auf den ganzen, getrimmten Text versucht --
+    der Normalfall bei ``reasoning_effort: "none"``. Schlaegt das fehl
+    (Praefix-Artefakt, siehe Moduldocstring Fehlerbild 1), wird die erste
+    Position gesucht, ab der der Rest **vollstaendig als JSON-Wert
+    parst** -- nicht blind eine feste Zeichenzahl abgeschnitten, weil das
+    gemessene Praefix mal ein, mal zwei Zeichen lang war.
+
+    ``json.JSONDecoder.raw_decode`` statt ``json.loads`` fuer die Suche:
+    das erlaubt zusaetzlich Text *nach* dem JSON-Objekt (Kimi haengt
+    gelegentlich noch einen Satz an), waehrend json.loads das als
+    "Extra data" ablehnen wuerde. Anfuehrungszeichen und
+    Backslash-Maskierung sind dabei automatisch beruecksichtigt -- eine
+    geschweifte Klammer innerhalb eines woertlichen Zitats (die Antworten
+    enthalten Zitate aus Interviewtranskripten) beendet den Block deshalb
+    nicht vorzeitig.
     """
     try:
-        start = text.index("{")
-    except ValueError as fehler:
-        raise LLMFehler("keine oeffnende Klammer in der Antwort gefunden") from fehler
+        return json.loads(text.strip())
+    except json.JSONDecodeError:
+        pass
 
-    tiefe = 0
-    in_string = False
-    maskiert = False
-    for i in range(start, len(text)):
-        zeichen = text[i]
-        if in_string:
-            if maskiert:
-                maskiert = False
-            elif zeichen == "\\":
-                maskiert = True
-            elif zeichen == '"':
-                in_string = False
+    dekoder = json.JSONDecoder()
+    grenze = min(len(text), LIES_JSON_SUCHFENSTER)
+    for i in range(grenze):
+        try:
+            ergebnis, _ = dekoder.raw_decode(text, i)
+            return ergebnis
+        except json.JSONDecodeError:
             continue
-        if zeichen == '"':
-            in_string = True
-        elif zeichen == "{":
-            tiefe += 1
-        elif zeichen == "}":
-            tiefe -= 1
-            if tiefe == 0:
-                return text[start : i + 1]
 
-    raise LLMFehler("kein vollstaendiger JSON-Block in der Antwort gefunden")
+    raise LLMFehler(
+        "kein Text gefunden, dessen Rest vollstaendig als JSON parst "
+        f"(erste {grenze} Zeichen durchsucht)"
+    )
 
 
 def inhalt_aus(koerper: dict) -> str | None:
@@ -115,33 +135,45 @@ class LLM:
         self._klient = klient
         self._conn = conn
 
-    def schema(self, chat_id: int | None, system: str, nutzer: str, schema: dict, art: str) -> dict:
-        """Erzwingt ein JSON-Schema (``reasoning_effort: "none"``, Modus A)
-        und liefert das geparste Ergebnis."""
+    def schema(
+        self,
+        chat_id: int | None,
+        system: str,
+        nutzer: str,
+        schema: dict,
+        art: str,
+        modell: str | None = None,
+        temperature: float | None = None,
+    ) -> dict:
+        """Erzwingt ein JSON-Schema (Modus A) und liefert das geparste
+        Ergebnis.
+
+        ``reasoning_effort`` wird hier bewusst **nicht** an ``_anfrage``
+        uebergeben, sondern deren Vorgabewert ``"none"`` ueberlassen --
+        das ist der Beleg dafuer, dass ein Aufrufer, der das Feld nicht
+        anfasst, "aus" bekommt und nicht "an" (SPEC § 4.4).
+
+        ``modell`` und ``temperature`` sind optional: ohne Angabe gilt
+        ``e.llm_modell`` und der Anfragekoerper bekommt gar kein
+        ``temperature``-Feld. Grundlage dafuer, dass unterschiedliche
+        Aufrufe (Gespraech, Absichtserkenner) unterschiedliche Modelle und
+        Temperaturen waehlen koennen (SPEC § 4.3a).
+        """
         koerper = self._anfrage(
             chat_id=chat_id,
             system=system,
             nutzer=nutzer,
             art=art,
             modus="A",
-            reasoning_effort="none",
             response_format={
                 "type": "json_schema",
                 "json_schema": {"name": art, "strict": True, "schema": schema},
             },
+            modell=modell,
+            temperature=temperature,
         )
         text = self._text_aus(koerper)
-        text = text.strip()
-        if text.startswith("{{"):
-            # Gemessenes Fehlerbild 1 (Moduldocstring): die eine
-            # ueberzaehlige Klammer wegnehmen statt die Antwort zu verwerfen.
-            text = text[1:]
-            log.warning("llm-Antwort begann mit '{{'; doppelte Klammer repariert")
-        block = erster_json_block(text)
-        try:
-            return json.loads(block)
-        except json.JSONDecodeError as fehler:
-            raise LLMFehler(f"Antwort ist kein gueltiges JSON: {fehler}") from fehler
+        return lies_json(text)
 
     def prosa(self, chat_id: int | None, system: str, nutzer: str, art: str) -> str:
         """Freier Text (``reasoning_effort: "medium"``, Modus B)."""
@@ -170,14 +202,20 @@ class LLM:
         nutzer: str,
         art: str,
         modus: str,
-        reasoning_effort: str | None,
         response_format: dict | None,
+        reasoning_effort: str = "none",
+        modell: str | None = None,
+        temperature: float | None = None,
     ) -> dict:
         """Baut den Request, schickt ihn (mit Wiederholung bei 5xx/Timeout)
         und protokolliert den Aufruf -- im ``finally``, damit auch
-        Fehlschlaege in der Tabelle ``aufruf`` landen."""
+        Fehlschlaege in der Tabelle ``aufruf`` landen.
+
+        ``modell`` faellt ohne Angabe auf ``e.llm_modell`` zurueck;
+        ``temperature`` wird nur gesendet, wenn gesetzt (manche Modelle
+        kennen das Feld nicht und lehnen es sonst ab)."""
         body: dict = {
-            "model": self._e.llm_modell,
+            "model": modell or self._e.llm_modell,
             "max_tokens": MAX_TOKENS,
             "messages": [
                 {"role": "system", "content": system},
@@ -186,10 +224,18 @@ class LLM:
         }
         if response_format is not None:
             body["response_format"] = response_format
-        if reasoning_effort:
-            # Nur senden, wenn gesetzt: Modelle, die das Feld nicht kennen,
-            # lehnen den Request sonst mit HTTP 400 ab (Vorlage).
-            body["reasoning_effort"] = reasoning_effort
+        if temperature is not None:
+            body["temperature"] = temperature
+        # reasoning_effort ist bei Infomaniak BINAER: "none" schaltet
+        # Reasoning aus, jeder andere Wert -- und auch das Fehlen des
+        # Feldes! -- schaltet es an. Es gibt keine stille Voreinstellung
+        # "aus". Deshalb wird das Feld IMMER gesendet, mit Vorgabewert
+        # "none" oben in der Signatur (SPEC-kontext-architektur.md § 4.4).
+        # Eine fruehere Fassung hatte hier ein ``if reasoning_effort:`` --
+        # das liess das Feld bei einem leeren Wert weg und schaltete
+        # Reasoning damit ungewollt ein: still zwanzigfache Latenz plus,
+        # bei Klassifikationsaufgaben, eingebrochene Trefferquote.
+        body["reasoning_effort"] = reasoning_effort
 
         geschaetzte_token = (len(system) + len(nutzer)) // 3
         tatsaechliche_token = antwort_token = finish_reason = None
@@ -209,16 +255,20 @@ class LLM:
 
             if finish_reason == "length":
                 # Fehlerbild 3 (Moduldocstring): niemals ein leeres Ergebnis
-                # durchreichen, sondern Fehler plus Vorfall.
+                # durchreichen, sondern Fehler plus Vorfall. Ausdruecklich
+                # als Budgetproblem benannt (max_tokens zu klein), nicht als
+                # Formatproblem -- wer das im Log liest, soll nicht nach
+                # einem Parserfehler suchen.
                 repo.merke_vorfall(
                     self._conn,
                     chat_id,
                     getattr(self._e, "bot_name", None),
                     "abgeschnitten",
-                    f"Sprachmodell-Antwort bei max_tokens abgeschnitten (art={art})",
+                    f"Sprachmodell-Antwort abgeschnitten, max_tokens zu klein (art={art})",
                 )
                 raise LLMFehler(
-                    "Antwort wurde bei max_tokens abgeschnitten (finish_reason: length)"
+                    "Sprachmodell-Antwort abgeschnitten: max_tokens zu klein fuer diese "
+                    "Aufgabe (finish_reason: length) -- kein Formatfehler, ein Budgetproblem."
                 )
 
             erfolg = 1

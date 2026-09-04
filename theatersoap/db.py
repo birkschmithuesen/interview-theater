@@ -91,6 +91,14 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   kernthema              TEXT,
   kernthema_begruendung  TEXT,
   hauptkonflikt          TEXT,
+  -- Die Arbeitsphase 1-8 (theatersoap/phasen.py). NULL = noch nie gesetzt
+  -- und gilt dann wie 1. Gesetzt wird sie nur hoerbar -- von der Gruppe oder
+  -- vom Bot mit Meldung -- nie still erraten (SPEC § 0 Leitsatz 3, Nachtrag
+  -- vom 04.09.2026).
+  phase                  INTEGER,
+  -- Zuletzt angebotene Phase: verhindert, dass der Hinweisblock in
+  -- kontext.baue jeden Zug erneut denselben Wechsel anbietet.
+  phase_angeboten        INTEGER,
   geaendert_am           TEXT
 );
 
@@ -100,7 +108,8 @@ CREATE TABLE IF NOT EXISTS figur (
   name          TEXT NOT NULL,
   beschreibung  TEXT,
   beleg_zitat   TEXT,
-  geaendert_am  TEXT
+  geaendert_am  TEXT,
+  entfernt_am   TEXT                        -- gesetzt = weich geloescht (N3)
 );
 
 CREATE TABLE IF NOT EXISTS szene (
@@ -110,7 +119,8 @@ CREATE TABLE IF NOT EXISTS szene (
   titel             TEXT,
   kurzbeschreibung  TEXT,                   -- eine Zeile, geht immer mit
   volltext          TEXT,                   -- nur die zuletzt geänderte Szene geht mit
-  geaendert_am      TEXT NOT NULL
+  geaendert_am      TEXT NOT NULL,
+  entfernt_am       TEXT                    -- gesetzt = weich geloescht (N3)
 );
 CREATE INDEX IF NOT EXISTS idx_szene_aktuell ON szene(chat_id, geaendert_am DESC);
 
@@ -121,7 +131,12 @@ CREATE TABLE IF NOT EXISTS journal (
   text              TEXT NOT NULL,
   quelle            TEXT NOT NULL,          -- extraktor|befehl
   bis_message_id    INTEGER,
-  erstellt_am       TEXT NOT NULL
+  erstellt_am       TEXT NOT NULL,
+  -- Weiches Loeschen (NACHTRAG-weboberflaeche-und-sprache.md N3): das Journal
+  -- bleibt nur-anhaengend, ein zurueckgenommener Eintrag wird nicht geloescht,
+  -- sondern hier gestempelt -- und ein neuer Eintrag "Zurueckgenommen: ..."
+  -- haelt den Weg sichtbar.
+  entfernt_am       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_journal_chat ON journal(chat_id, id);
 

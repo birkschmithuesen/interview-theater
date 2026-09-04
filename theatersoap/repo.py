@@ -599,13 +599,20 @@ def hole_arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | N
 
 
 @_gesperrt
-def setze_arbeitsstand(conn: sqlite3.Connection, chat_id: int, feld: str, wert: str) -> None:
+def setze_arbeitsstand(
+    conn: sqlite3.Connection, chat_id: int, feld: str, wert: str | None
+) -> None:
     """Setzt (oder ueberschreibt) genau ein Feld des Arbeitsstands.
 
     Nur die vier Felder aus _ARBEITSSTAND_FELDER duerfen so gesetzt werden --
     alles andere ist ein Programmierfehler, kein Bedienfehler, daher
     ValueError statt eines stillen No-Ops. ``feld`` landet nur nach dieser
-    Pruefung im SQL-Text, ist also nie ein Injection-Risiko."""
+    Pruefung im SQL-Text, ist also nie ein Injection-Risiko.
+
+    ``wert=None`` leert das Feld -- so wird ein Arbeitsstandfeld "entfernt"
+    (NACHTRAG-weboberflaeche-und-sprache.md N3). Ein Zeitstempel wie bei
+    Figuren und Szenen braucht es hier nicht: das Feld hat nur einen Wert,
+    und der Weg dorthin steht im Journal."""
     if feld not in _ARBEITSSTAND_FELDER:
         raise ValueError(f"unbekanntes Arbeitsstand-Feld: {feld!r}")
     conn.execute(
@@ -622,11 +629,104 @@ def setze_arbeitsstand(conn: sqlite3.Connection, chat_id: int, feld: str, wert: 
 
 
 @_gesperrt
+def hole_phase(conn: sqlite3.Connection, chat_id: int) -> int | None:
+    """Die gespeicherte Arbeitsphase (1-8) oder None, wenn noch keine gesetzt
+    wurde (theatersoap/phasen.py, SPEC § 0 Leitsatz 3 Nachtrag).
+
+    Liefert absichtlich den rohen Wert samt None -- 'noch nie gesetzt' ist
+    etwas anderes als 'ausdruecklich auf 1 gesetzt', auch wenn der Bot beides
+    gleich behandelt (``phasen.aktuelle``)."""
+    zeile = conn.execute(
+        "SELECT phase FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    return zeile["phase"] if zeile else None
+
+
+@_gesperrt
+def setze_phase(conn: sqlite3.Connection, chat_id: int, nummer: int) -> None:
+    """Setzt die Arbeitsphase. Anlegen oder ueberschreiben, wie
+    setze_arbeitsstand -- nur mit einer eigenen Funktion, weil ``phase``
+    INTEGER ist und nicht zu den vier Textfeldern gehoert, die ein
+    Korrekturbefehl setzen darf."""
+    conn.execute(
+        """
+        INSERT INTO arbeitsstand (chat_id, phase, geaendert_am)
+        VALUES (?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            phase = excluded.phase,
+            geaendert_am = excluded.geaendert_am
+        """,
+        (chat_id, nummer, _jetzt()),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hole_phase_angeboten(conn: sqlite3.Connection, chat_id: int) -> int | None:
+    """Die zuletzt angebotene Phase (siehe setze_phase_angeboten)."""
+    zeile = conn.execute(
+        "SELECT phase_angeboten FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    return zeile["phase_angeboten"] if zeile else None
+
+
+@_gesperrt
+def setze_phase_angeboten(conn: sqlite3.Connection, chat_id: int, nummer: int) -> None:
+    """Merkt, welchen Phasenwechsel der Bot der Gruppe zuletzt angeboten hat.
+
+    Ohne dieses Feld stuende der Hinweisblock aus ``kontext.baue`` in jedem
+    Zug erneut im Prompt, und der Bot boete denselben Wechsel jedes Mal von
+    Neuem an -- ein Angebot, das sich alle zwei Minuten wiederholt, ist
+    Draengeln. Es ist kein Wartezustand: der Bot laeuft weiter, egal ob die
+    Gruppe antwortet."""
+    conn.execute(
+        """
+        INSERT INTO arbeitsstand (chat_id, phase_angeboten, geaendert_am)
+        VALUES (?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            phase_angeboten = excluded.phase_angeboten,
+            geaendert_am = excluded.geaendert_am
+        """,
+        (chat_id, nummer, _jetzt()),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def figuren(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
-    """Alle Figuren einer Gruppe, in Entstehungsreihenfolge (Aufgabe 9)."""
+    """Alle noch vorhandenen Figuren einer Gruppe, in Entstehungsreihenfolge
+    (Aufgabe 9). Weich geloeschte Figuren (``entfernt_am`` gesetzt, N3)
+    bleiben in der Tabelle stehen, aber aus jeder Ansicht und aus jedem
+    Prompt draussen."""
     return conn.execute(
-        "SELECT * FROM figur WHERE chat_id = ? ORDER BY id ASC", (chat_id,)
+        "SELECT * FROM figur WHERE chat_id = ? AND entfernt_am IS NULL ORDER BY id ASC",
+        (chat_id,),
     ).fetchall()
+
+
+@_gesperrt
+def entferne_figur(conn: sqlite3.Connection, chat_id: int, name: str) -> str | None:
+    """Entfernt eine Figur weich (NACHTRAG N3) und liefert ihren gespeicherten
+    Namen zurueck, oder None, wenn es sie nicht (mehr) gibt.
+
+    Namensvergleich wie in setze_figur: getrimmt und kleingeschrieben, aber
+    kein Teiltreffer -- 'Peter' soll nicht 'Peters Mutter' loeschen. Nicht
+    gefunden ist kein Fehler, sondern ein stilles No-Op: die Gruppe soll fuer
+    einen Namen, den sie nur beilaeufig genannt hat, keine Fehlermeldung
+    bekommen."""
+    name = name.strip()
+    zeile = conn.execute(
+        "SELECT id, name FROM figur "
+        "WHERE chat_id = ? AND lower(trim(name)) = ? AND entfernt_am IS NULL",
+        (chat_id, name.lower()),
+    ).fetchone()
+    if zeile is None:
+        return None
+    conn.execute(
+        "UPDATE figur SET entfernt_am = ? WHERE id = ?", (_jetzt(), zeile["id"])
+    )
+    conn.commit()
+    return zeile["name"]
 
 
 @_gesperrt
@@ -717,8 +817,33 @@ def hole_szenen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     nach vorn -- im Normalbetrieb vergibt ``theatersoap.szene`` immer eine, der
     Fall bleibt nur als Datenbankmoeglichkeit bestehen."""
     return conn.execute(
-        "SELECT * FROM szene WHERE chat_id = ? ORDER BY nummer ASC, id ASC", (chat_id,)
+        "SELECT * FROM szene WHERE chat_id = ? AND entfernt_am IS NULL "
+        "ORDER BY nummer ASC, id ASC",
+        (chat_id,),
     ).fetchall()
+
+
+@_gesperrt
+def entferne_szene(conn: sqlite3.Connection, chat_id: int, nummer: int) -> int | None:
+    """Entfernt die Szene mit dieser Nummer weich (NACHTRAG N3) und liefert
+    ihre Nummer zurueck, oder None, wenn es sie nicht (mehr) gibt.
+
+    Gibt es (durch eine Nummernvergabe von Hand) mehrere Szenen mit derselben
+    Nummer, trifft es die zuletzt geaenderte -- das ist die, die die Gruppe
+    gerade vor Augen hat (dieselbe Regel wie hole_letzte_szene)."""
+    zeile = conn.execute(
+        "SELECT id, nummer FROM szene "
+        "WHERE chat_id = ? AND nummer = ? AND entfernt_am IS NULL "
+        "ORDER BY geaendert_am DESC, id DESC LIMIT 1",
+        (chat_id, nummer),
+    ).fetchone()
+    if zeile is None:
+        return None
+    conn.execute(
+        "UPDATE szene SET entfernt_am = ? WHERE id = ?", (_jetzt(), zeile["id"])
+    )
+    conn.commit()
+    return zeile["nummer"]
 
 
 @_gesperrt
@@ -730,19 +855,60 @@ def hole_letzte_szene(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | N
     dort): sekundengenau waeren zwei Schreibvorgaenge derselben Sekunde nicht
     unterscheidbar. ``id DESC`` bleibt als letzter Notnagel dahinter."""
     return conn.execute(
-        "SELECT * FROM szene WHERE chat_id = ? ORDER BY geaendert_am DESC, id DESC LIMIT 1",
+        "SELECT * FROM szene WHERE chat_id = ? AND entfernt_am IS NULL "
+        "ORDER BY geaendert_am DESC, id DESC LIMIT 1",
         (chat_id,),
     ).fetchone()
 
 
 @_gesperrt
 def journal(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
-    """Alle Journaleintraege einer Gruppe, aeltester zuerst (SPEC § 6.2 zu
-    Block 6). Das Journal ist nur-anhaengend -- es gibt bewusst kein
-    aktualisiere_journal()."""
+    """Alle noch geltenden Journaleintraege einer Gruppe, aeltester zuerst
+    (SPEC § 6.2 zu Block 6). Das Journal ist nur-anhaengend -- es gibt
+    bewusst kein aktualisiere_journal(); auch das weiche Loeschen (N3) aendert
+    keinen Text, es stempelt ``entfernt_am`` und haengt eine neue Zeile
+    'Zurueckgenommen: ...' an (siehe entferne_journal)."""
     return conn.execute(
-        "SELECT * FROM journal WHERE chat_id = ? ORDER BY id ASC", (chat_id,)
+        "SELECT * FROM journal WHERE chat_id = ? AND entfernt_am IS NULL ORDER BY id ASC",
+        (chat_id,),
     ).fetchall()
+
+
+@_gesperrt
+def entferne_journal(conn: sqlite3.Connection, chat_id: int, suchtext: str) -> str | None:
+    """Entfernt einen Journaleintrag weich und liefert seinen Text zurueck,
+    oder None, wenn keiner passt.
+
+    Gesucht wird grosszuegig (Teiltreffer, Gross-/Kleinschreibung egal, wie
+    ``transkripte``): die Gruppe sagt 'nimm die Kindheitsfragen wieder raus',
+    nicht den vollen Eintragstext samt Begruendung. Passen mehrere, trifft es
+    den juengsten -- der ist der wahrscheinlich gemeinte."""
+    suchtext = suchtext.strip()
+    if not suchtext:
+        return None
+    # Der Teiltreffer wird in Python gebildet, nicht als LIKE-Muster: ein '%'
+    # oder '_' im Suchtext waere dort ein Platzhalter und truebe etwas ganz
+    # anderes (dieselbe Ueberlegung wie in transkripte()).
+    gesucht = suchtext.lower()
+    zeile = next(
+        (
+            z
+            for z in conn.execute(
+                "SELECT id, text FROM journal "
+                "WHERE chat_id = ? AND entfernt_am IS NULL ORDER BY id DESC",
+                (chat_id,),
+            )
+            if gesucht in (z["text"] or "").lower()
+        ),
+        None,
+    )
+    if zeile is None:
+        return None
+    conn.execute(
+        "UPDATE journal SET entfernt_am = ? WHERE id = ?", (_jetzt(), zeile["id"])
+    )
+    conn.commit()
+    return zeile["text"]
 
 
 @_gesperrt

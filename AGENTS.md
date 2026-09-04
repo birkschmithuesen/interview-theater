@@ -164,6 +164,14 @@ lädt, würde damit Gesprächszüge ausbremsen.
   Tabelle (`db.TABELLEN_MIT_CHAT_ID`, `db.loesche_gruppe`) — die einzige
   Ausnahme ist die getUpdates-Position pro Bot-Token, die keiner Gruppe
   zugeordnet ist.
+- **Eine Antwort, die nur die Frage zurückgibt, ist keine** (seit 05.09.2026,
+  `ablauf.ist_echo`/`_ohne_echo`). Gemessener Fall: der Bot schickte eine
+  Nachricht der Gruppe wortgleich zurück, mit „Birk:" davor — formal eine
+  Antwort, für die Gruppe ein kaputter Bot. Ein Echo löst **genau einen**
+  zweiten Aufruf aus, mit einer angehängten Zeile im Nutzertext; ist auch der
+  zweite eines, geht er trotzdem raus (`echo_wiederholt`). Keine Schleife: die
+  Gruppe wartet, und ein Modell, das zweimal zitiert, zitiert auch beim
+  dritten Mal.
 - **Die Gruppe erfährt von einem Fehler nur, wenn sie ihn beheben kann oder
   gerade darauf wartet.** Ein gescheiterter Absichtserkenner- oder
   Journal-Lauf ist für die Gruppe unsichtbar (Wasserzeichen bleibt stehen,

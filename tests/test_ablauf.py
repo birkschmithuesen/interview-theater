@@ -491,3 +491,138 @@ def test_erster_zug_bei_modellfehler_faellt_auf_feste_begruessung_zurueck(conn, 
     texte = [t for _, t in tg.gesendet]
     assert not any("hakt" in t for t in texte)
     assert any("/hilfe" in t for t in texte)
+
+
+# ---------------------------------------------------------------------------
+# Echo-Sperre (Brief 3 D, Live-Befund 04.09.2026 Nachricht 55/56): der Bot
+# schickte Birks Nachricht 1:1 zurueck, mit "Birk:" davor, und sonst nichts.
+# ---------------------------------------------------------------------------
+
+#: Lang genug fuer die Mindestlaenge -- so wie die Nachricht, die der Bot im
+#: Probelauf zurueckgespiegelt hat.
+_LANGE_NACHRICHT = "Okay, finde ich gut, machen wir so. Nehmen wir das als Frage."
+
+#: Eine Antwort, die etwas Eigenes sagt: der Gegenfall zu jedem Echo-Test.
+_EIGENE_ANTWORT = "Als Frage traegt das weiter. Haltet ihr sie so fest?"
+
+
+def _gruppennachricht(text, ist_bot=0):
+    return dict(ist_bot=ist_bot, text=text)
+
+
+def test_ist_echo_erkennt_die_woertliche_wiederholung():
+    assert ablauf.ist_echo(_LANGE_NACHRICHT, [_gruppennachricht(_LANGE_NACHRICHT)])
+
+
+def test_ist_echo_erkennt_die_wiederholung_mit_namensanrede():
+    """Genau die Form aus dem Live-Fall: derselbe Satz, ein 'Birk:' davor."""
+    assert ablauf.ist_echo(
+        f"Birk: {_LANGE_NACHRICHT}", [_gruppennachricht(_LANGE_NACHRICHT)]
+    )
+
+
+def test_ist_echo_ignoriert_gross_kleinschreibung_und_leerzeichen():
+    assert ablauf.ist_echo(
+        f"  {_LANGE_NACHRICHT.upper()}  ", [_gruppennachricht(_LANGE_NACHRICHT)]
+    )
+
+
+def test_eine_eigene_antwort_ist_kein_echo():
+    assert not ablauf.ist_echo(_EIGENE_ANTWORT, [_gruppennachricht(_LANGE_NACHRICHT)])
+
+
+def test_ein_kurzer_ausloeser_wird_nicht_geprueft():
+    """'machen wir so' steht mit einiger Wahrscheinlichkeit auch in einer
+    voellig eigenstaendigen Antwort -- und ihn zurueckzuspiegeln kostet die
+    Gruppe nichts (ECHO_MINDEST_WOERTER)."""
+    assert not ablauf.ist_echo("machen wir so", [_gruppennachricht("machen wir so")])
+
+
+def test_eine_eigene_frueher_gegebene_antwort_ist_kein_echo():
+    """Bot-Nachrichten im Sammelfenster zaehlen nicht: seine eigene vorige
+    Antwort aufzugreifen ist ein Gespraech, kein Echo."""
+    assert not ablauf.ist_echo(
+        _LANGE_NACHRICHT, [_gruppennachricht(_LANGE_NACHRICHT, ist_bot=1)]
+    )
+
+
+def test_geprueft_wird_gegen_jede_nachricht_im_sammelfenster():
+    """Gesammelt wird alles seit dem Wasserzeichen -- das Modell kann jede
+    davon zurueckspiegeln, nicht nur die juengste."""
+    assert ablauf.ist_echo(
+        _LANGE_NACHRICHT,
+        [_gruppennachricht(_LANGE_NACHRICHT), _gruppennachricht("und noch etwas dazu")],
+    )
+
+
+class KLMNacheinander:
+    """Liefert der Reihe nach die vorgegebenen Antworten; die letzte bleibt."""
+
+    def __init__(self, *antworten):
+        self._antworten = list(antworten)
+        self.gesehen = []
+
+    def schema(self, chat_id, system, nutzer, schema, art):
+        self.gesehen.append(nutzer)
+        index = min(len(self.gesehen) - 1, len(self._antworten) - 1)
+        return dict(antwort=self._antworten[index])
+
+
+def _vorfallarten(conn):
+    return [z[0] for z in conn.execute("SELECT art FROM vorfall ORDER BY id")]
+
+
+def test_echo_loest_genau_einen_zweiten_aufruf_mit_ermahnung_aus(conn, einst, tg):
+    repo.merke_nachricht(conn, 1, 1, "Birk", 0, "text", _LANGE_NACHRICHT, repo._jetzt())
+    klm = KLMNacheinander(f"Birk: {_LANGE_NACHRICHT}", _EIGENE_ANTWORT)
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(klm.gesehen) == 2, "genau ein zweiter Anlauf"
+    assert ablauf._TEXT_ECHO_ERMAHNUNG in klm.gesehen[1]
+    assert ablauf._TEXT_ECHO_ERMAHNUNG not in klm.gesehen[0]
+    assert tg.gesendet == [(1, _EIGENE_ANTWORT)]
+    assert _vorfallarten(conn) == ["echo_verworfen"]
+
+
+def test_ohne_echo_bleibt_es_bei_einem_aufruf(conn, einst, tg):
+    repo.merke_nachricht(conn, 1, 1, "Birk", 0, "text", _LANGE_NACHRICHT, repo._jetzt())
+    klm = KLMNacheinander(_EIGENE_ANTWORT)
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(klm.gesehen) == 1
+    assert _vorfallarten(conn) == []
+
+
+def test_auch_das_zweite_echo_wird_gesendet(conn, einst, tg):
+    """Kein Endlos: ein Modell, das zweimal zitiert, zitiert auch beim dritten
+    Mal -- und die Gruppe wartet. Der Vorfall haelt es fuers Dashboard fest."""
+    repo.merke_nachricht(conn, 1, 1, "Birk", 0, "text", _LANGE_NACHRICHT, repo._jetzt())
+    klm = KLMNacheinander(_LANGE_NACHRICHT)
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(klm.gesehen) == 2
+    assert tg.gesendet == [(1, _LANGE_NACHRICHT)]
+    assert _vorfallarten(conn) == ["echo_verworfen", "echo_wiederholt"]
+
+
+def test_scheitert_der_zweite_anlauf_gilt_der_erste(conn, einst, tg):
+    """Eine schwache Antwort ist besser als 'Bei mir hakt gerade etwas' -- die
+    Gruppe wartet, und der Fehler waere hier ein selbstgemachter."""
+    repo.merke_nachricht(conn, 1, 1, "Birk", 0, "text", _LANGE_NACHRICHT, repo._jetzt())
+
+    class KLMZweiterKaputt:
+        def __init__(self):
+            self.gesehen = []
+
+        def schema(self, chat_id, system, nutzer, schema, art):
+            self.gesehen.append(nutzer)
+            if len(self.gesehen) == 2:
+                raise RuntimeError("zweiter Anlauf gescheitert (simuliert)")
+            return dict(antwort=_LANGE_NACHRICHT)
+
+    ablauf.bearbeite(conn, tg, KLMZweiterKaputt(), einst, 1)
+
+    assert tg.gesendet == [(1, _LANGE_NACHRICHT)]

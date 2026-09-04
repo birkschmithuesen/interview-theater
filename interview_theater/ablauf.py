@@ -26,12 +26,21 @@ Drei getrennte Fragen, sauber auseinandergehalten:
    sonst wuerde ein kaputter Zug endlos wiederholt (global-constraints.md
    'Fehlerhaltung').
 
+Dazwischen liegt seit dem 05.09.2026 die **Echo-Sperre** (``ist_echo``,
+``_ohne_echo``): eine Antwort, die nichts als eine der Nachrichten ist, auf
+die sie antwortet, wird verworfen und **einmal** neu geholt. Gemessener Fall
+vom 04.09. (Nachricht 55/56): der Bot schickte Birks Nachricht wortgleich
+zurueck, mit "Birk:" davor. Formal eine Antwort, faktisch keine -- und fuer
+die Gruppe sieht der Bot damit kaputt aus.
+
+
 Es gibt bewusst KEINE Rueckfrage-Sequenz mehr (SPEC § 1.4, ersatzlos
 gestrichen) -- inzwischen loest ohnehin jede Nachricht einen Zug aus, eine
 gesonderte Rueckfrage-Logik waere ueberfluessig.
 """
 
 import logging
+import re
 import threading
 from contextlib import contextmanager
 
@@ -48,6 +57,79 @@ HINWEIS_NACH = 10.0
 
 _TEXT_HINWEIS = "Einen Moment, ich denke nach."
 _TEXT_FEHLER = "Bei mir hakt gerade etwas - fragt nochmal."
+
+#: Die Zeile, die dem zweiten Anlauf an den Nutzertext gehaengt wird, wenn der
+#: erste ein Echo war (Live-Befund 04.09.2026, Nachricht 55/56: der Bot
+#: schickte Birks Nachricht 1:1 zurueck, mit "Birk:" davor, und sonst nichts).
+#: Sie sagt nicht nur, was falsch war, sondern was stattdessen kommen soll --
+#: ein blosses "nicht zitieren" laesst offen, was der Bot dann tun soll.
+_TEXT_ECHO_ERMAHNUNG = (
+    "Deine letzte Antwort war ein Zitat der Gruppe. Zitiere nicht - antworte "
+    "mit einem eigenen Impuls: eine Einschaetzung, ein Vorschlag oder eine "
+    "Rueckfrage."
+)
+
+#: Ab welchem Anteil einer Ausloeser-Nachricht, den die Antwort woertlich
+#: enthaelt, sie als Echo gilt. 80 % lassen eine Antwort durch, die einen
+#: halben Satz aufgreift ("das mit der Kueche finde ich stark, weil ...") und
+#: fangen die, die nichts Eigenes hinzufuegt.
+ECHO_ANTEIL = 0.8
+
+#: Kuerzere Ausloeser werden gar nicht erst geprueft. Ein Satz aus drei
+#: Woertern ("machen wir so") steht mit einiger Wahrscheinlichkeit auch in
+#: einer voellig eigenstaendigen Antwort -- und ihn zurueckzuspiegeln kostet
+#: die Gruppe nichts, weil sie ihn ohnehin gerade gelesen hat.
+ECHO_MINDEST_WOERTER = 5
+
+#: Ein vorangestelltes "Birk:" -- genau die Form, in der der Live-Fall
+#: auftrat. Bis zu 30 Zeichen ohne Leerzeichen vor dem Doppelpunkt, damit die
+#: Regel einen Vornamen trifft und nicht einen Satz mit Doppelpunkt darin.
+_NAMENSANREDE = re.compile(r"^[^\s:]{1,30}:\s*")
+
+
+def _normalisiere_echo(text: str | None) -> str:
+    """Kleinschreibung, Whitespace-Folgen zu einem Leerzeichen, ein fuehrendes
+    "Name:" weg. Bewusst schlicht: hier wird kein Zitat geprueft (dafuer gibt
+    es ``interview_theater.zitat``), sondern erkannt, ob zwei Texte dasselbe
+    sagen."""
+    ohne_anrede = _NAMENSANREDE.sub("", (text or "").strip(), count=1)
+    return " ".join(ohne_anrede.lower().split())
+
+
+def ist_echo(antwort: str | None, ausloeser: list) -> bool:
+    """Ist diese Antwort nichts als eine der Nachrichten, auf die sie
+    antwortet?
+
+    Der Live-Fall (04.09.2026): der Bot schickte Birks Nachricht wortgleich
+    zurueck, mit "Birk:" davor. Formal eine Antwort, faktisch keine -- und
+    fuer die Gruppe sieht es aus, als sei der Bot kaputt.
+
+    Geprueft wird gegen alle Nachrichten der Gruppe im Sammelfenster, nicht
+    nur gegen die juengste: gesammelt wird alles seit dem Wasserzeichen
+    (``bearbeite``), und das Modell kann jede davon zurueckspiegeln.
+    Bot-Nachrichten zaehlen nicht -- seine eigene vorige Antwort aufzugreifen
+    ist kein Echo, sondern ein Gespraech.
+
+    'Enthaelt zu ueber ECHO_ANTEIL' heisst hier: die ersten 80 % der
+    Ausloeser-Nachricht stehen woertlich in der Antwort. Ein grobes Mass, mit
+    Absicht -- die Alternative waere ein Aehnlichkeitsmass, das in einem Pfad
+    laeuft, in dem die Gruppe wartet, und das niemand mehr begruenden koennte,
+    wenn es einmal danebengreift."""
+    gesagt = _normalisiere_echo(antwort)
+    if not gesagt:
+        return False
+    for nachricht in ausloeser:
+        if nachricht["ist_bot"]:
+            continue
+        original = _normalisiere_echo(nachricht["text"])
+        if len(original.split()) < ECHO_MINDEST_WOERTER:
+            continue
+        if gesagt == original:
+            return True
+        anfang = original[: int(len(original) * ECHO_ANTEIL)]
+        if anfang and anfang in gesagt:
+            return True
+    return False
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
 #: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab
@@ -145,6 +227,40 @@ def _tippanzeige(tg, chat_id: int):
         thread.join(timeout=TIPP_INTERVALL + 1.0)
 
 
+def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
+               offen: list, antwort: str) -> str:
+    """Liefert die Antwort -- oder, wenn sie ein Echo war, die eines zweiten
+    Anlaufs mit angehaengter Ermahnung (``_TEXT_ECHO_ERMAHNUNG``).
+
+    **Genau ein zweiter Aufruf**, nie mehr: ist auch der zweite ein Echo, geht
+    er trotzdem raus (Vorfall ``echo_wiederholt``). Eine Schleife waere hier
+    das Schlimmste von beidem -- die Gruppe wartet, und ein Modell, das
+    zweimal zitiert, zitiert auch beim dritten Mal.
+
+    Scheitert der zweite Aufruf, gilt der erste: eine schwache Antwort ist
+    besser als 'Bei mir hakt gerade etwas' -- die Gruppe wartet, und der
+    Fehler waere hier ein selbstgemachter."""
+    if not ist_echo(antwort, offen):
+        return antwort
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None), "echo_verworfen",
+        "Antwort war ein Zitat der Gruppe, zweiter Anlauf mit Ermahnung",
+    )
+    try:
+        zweite = klm.schema(
+            chat_id, system, f"{koerper}\n\n{_TEXT_ECHO_ERMAHNUNG}", SCHEMA, "gespraech"
+        )["antwort"]
+    except Exception:
+        log.exception("Zweiter Anlauf nach Echo fehlgeschlagen, chat_id=%s", chat_id)
+        return antwort
+    if ist_echo(zweite, offen):
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "echo_wiederholt",
+            "Auch der zweite Anlauf war ein Zitat -- trotzdem gesendet",
+        )
+    return zweite
+
+
 def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = None) -> None:
     """Baut den Kontext aus allem seit dem Wasserzeichen, fragt das
     Sprachmodell und schickt/protokolliert die Antwort.
@@ -205,10 +321,11 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             # der Rueckfallweg, wenn der Modellaufruf scheitert).
             erstkontakt = not repo.hat_bot_nachricht(conn, chat_id)
             koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt)
-            ergebnis = klm.schema(
-                chat_id, kontext.system(e.bot_name, phase), koerper, SCHEMA, "gespraech"
+            system = kontext.system(e.bot_name, phase)
+            ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
+            text = _ohne_echo(
+                conn, klm, e, chat_id, system, koerper, offen, ergebnis["antwort"]
             )
-            text = ergebnis["antwort"]
             if hinweis:
                 text = f"{text}\n\n{hinweis}"
 

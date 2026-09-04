@@ -117,7 +117,7 @@ Symptom durch Informationsverlust; Mitschreiben heilt die Ursache.
 
 ## Die Korrekturen — wo frühe Annahmen falsch waren
 
-Diese vier Punkte sind aufschlussreicher als die ursprünglichen Entwürfe, weil sie zeigen,
+Diese sechs Punkte sind aufschlussreicher als die ursprünglichen Entwürfe, weil sie zeigen,
 was sich erst im Kontakt mit der Wirklichkeit herausstellte.
 
 ### 1. Der Bot antwortet auf jede Nachricht
@@ -174,6 +174,13 @@ hinein-, aber nicht herauskommt, ist unbrauchbar.
 können wir löschen" ist im Gespräch zu leicht falsch verstanden, und der Schaden ist
 unumkehrbar. Dafür bleibt das Betreiberskript.
 
+**Gebaut am 04.09.2026** (Erkenner-art `entfernen`, `/figur … entfernen`,
+`/szene … entfernen`, `/kernthema aus`), und zwar als *weiches* Löschen: entfernte
+Figuren, Szenen und Journalzeilen bekommen einen Zeitstempel und verschwinden aus jeder
+Ansicht, aber nicht aus der Datenbank. Die Grenze zum Material steht doppelt — der Prompt
+weist Löschwünsche für Aufnahmen ab und verweist ans Team, und der Code kennt gar keinen
+Weg dorthin.
+
 ### 5. Verworfen: „Tag 1 und Tag 2"
 
 Ein Zwischenentwurf wollte den Journal-Extraktor auf nach dem ersten Workshoptag
@@ -185,6 +192,41 @@ und tag 2 gefaellt mir nicht. es sollte immer alles funktionieren."*
 
 Er hat recht: Eine Funktion, die erst am zweiten Tag greift, ist ein Konstruktionsfehler,
 keine Priorisierung. Der Extraktor wurde daraufhin doch gebaut.
+
+### 6. Phasen doch als Zustand — aber hörbar
+
+**Ursprünglich** (Leitsatz 3): „Phasenbewusstsein ist ein Nebenprodukt der Materiallage,
+kein Zustand." Es sollte keine Phasen-Zustandsmaschine geben; der Prompt wächst mit dem,
+was in der Datenbank steht, und kann der Gruppe deshalb nie widersprechen.
+
+**Entschieden von Birk am 04.09.2026:** Die Phase wird ein gespeichertes Feld — aber eines,
+das **sichtbar und korrigierbar** ist. Und der Bot soll den Wechsel **proaktiv** anbieten
+oder vollziehen, statt zu warten, bis jemand ihn nennt.
+
+Beides zusammen ergibt die Regel, an der jetzt alles hängt: **Die Phase wird nur hörbar
+gesetzt** — von der Gruppe (ein Satz im Chat, oder `/phase`) oder vom Bot mit Meldung.
+Nie still. Zurückspringen geht jederzeit, auch von 8 nach 5.
+
+Der eigentliche Punkt: Verworfen war nie *Wissen* über die Phase, verworfen war das
+**stille Raten**. Ein Zustand, den niemand ausgesprochen hat, kann der Gruppe
+widersprechen, ohne dass sie es merkt — der Bot arbeitet dann an Figuren, während die
+Gruppe längst wieder beim Kernthema ist, und keine der beiden Seiten weiß, warum es
+hakt. Ein ausgesprochener Zustand hat dieses Problem nicht: er steht im Chat, und ein
+Halbsatz korrigiert ihn.
+
+Der automatische Sprung folgt deshalb genau dem Muster, das sich beim Arbeitsstand schon
+bewährt hatte (Korrektur 3): **schalten, melden, weiterlaufen** — „Notiert: Kernthema =
+Ankommen · wir sind damit bei 4 · Hauptkonflikt. Falls nicht, sagt es mir." Kein
+Wartezustand, keine Ja/Nein-Frage. Eine Rückfrage würde die Arbeit anhalten, bis jemand
+antwortet; die Meldung *ist* die Korrekturgelegenheit. Widerspricht die Gruppe, greift der
+Erkenner das als `phase_setzen` auf und schaltet zurück — derselbe Weg wie bei jeder
+anderen Notiz.
+
+Was ausdrücklich **nicht** dazugehört: die Phase steuert den **Fokus** des Bots (je Phase
+eine Prompt-Datei — worauf er achtet, was er dort nicht tut), **nicht** seinen
+Informationszugang. Die datengetriebenen Blöcke sind unverändert geblieben. Eine Phase,
+die dem Bot Material vorenthält, wäre wieder die Zustandsmaschine, die Leitsatz 3
+verworfen hat.
 
 ---
 

@@ -24,10 +24,11 @@ Module unter `theatersoap/`:
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, kurz/lang-Klassifizierung |
-| `befehle.py` | Die sieben Slash-Befehle, laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
+| `befehle.py` | Die neun Slash-Befehle, laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
+| `phasen.py` | Die acht Arbeitsphasen: Liste, tolerantes Mapping, `naechste_moegliche()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
 | `szene.py` | Szenentexte: eigener Prompt, eigener Thread, als einziger Aufruf mit Reasoning AN |
@@ -39,6 +40,7 @@ Module unter `theatersoap/`:
 | `einstellungen.py` | Konfiguration ausschließlich über Umgebungsvariablen |
 | `anweisungen.py` | Prompt-Texte mit Hot-Reload (mtime) + optionaler Regie-Zettel `betrieb/zusatz*.md` |
 | `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`, `szene` + `theater-tells`) |
+| `prompts/phasen/` | Je Arbeitsphase eine Datei `1.md` … `8.md`: worauf der Bot dort den Fokus legt, was er *nicht* tut, woran die Phase fertig ist. Wird zwischen Basis-Systemanweisung und Regie-Zettel gehängt |
 | `web.py` | Weboberfläche: Routing, HTML und CSS für Dashboard und Gruppenseiten, `http.server`, nur Standardbibliothek |
 | `web_daten.py` | Die Lesezugriffe dazu — read-only geöffnete Verbindung, reine Funktionen, `conn` rein, Dicts raus |
 
@@ -64,17 +66,29 @@ lädt, würde damit Gesprächszüge ausbremsen.
   sie einen Zug auslöst oder je in den Prompt wandert — etwas nicht
   aufzunehmen ist unumkehrbar, es nicht in den Prompt zu legen kostet nur
   Kilobyte (SPEC § 1).
-- **Der Prompt ist datengetrieben, es gibt keine Phasen-Zustandsmaschine.**
-  `kontext.baue()` lässt jeden Block weg, solange die zugrundeliegenden Daten
-  leer sind. Biegt die Gruppe ab, ändert sich die Materiallage und der Prompt
-  folgt automatisch — es gibt keinen gespeicherten Zustand, der ihr
-  widersprechen könnte (SPEC § 6.1).
+- **Der Prompt ist datengetrieben.** `kontext.baue()` lässt jeden Block weg,
+  solange die zugrundeliegenden Daten leer sind. Biegt die Gruppe ab, ändert
+  sich die Materiallage und der Prompt folgt automatisch (SPEC § 6.1).
+- **Die Phase ist ein Zustand — aber ein hörbarer** (seit 04.09.2026,
+  `phasen.py`, SPEC § 0 Leitsatz 3 Nachtrag). Gesetzt wird sie nur von der
+  Gruppe (`phase_setzen`, `/phase`) oder vom Bot **mit Meldung**, nie still
+  erraten. Sie steuert den Fokus (`prompts/phasen/N.md`), **nicht** den
+  Informationszugang: an den datengetriebenen Blöcken ändert sie nichts. Der
+  automatische Sprung folgt dem Notiert-Muster — schalten, melden,
+  weiterlaufen; kein Wartezustand, ein Widerspruch schaltet zurück.
+- **Weiches Löschen statt Löschen** (NACHTRAG N3): `entfernt_am` in `figur`,
+  `szene`, `journal`; Arbeitsstandfelder werden auf NULL gesetzt. Jeder Leser
+  in `repo.py` und `web_daten.py` filtert `entfernt_am IS NULL`. **Material
+  (Aufnahmen, Transkripte, Verdichtungen) hat keinen Entfernungspfad** — dafür
+  gibt es allein `scripts/loeschen.py`.
 - **Verdichtungen werden nie nachträglich geändert.** Es gibt bewusst kein
   `aktualisiere_verdichtung()` in `repo.py`. Was einmal aus einem Interview
   verdichtet wurde, bleibt stehen; neue Erkenntnis gehört in den
   Arbeitsstand, nicht in eine Korrektur der Verdichtung.
-- **Das Journal wird nur angehängt.** Kein `aktualisiere_journal()`, keine
-  Löschfunktion. Verworfenes, Entwürfe in der Schwebe und das Warum hinter
+- **Das Journal wird nur angehängt.** Kein `aktualisiere_journal()`, kein
+  `DELETE`. Auch das weiche Löschen ändert keinen Text: der zurückgenommene
+  Eintrag bekommt `entfernt_am`, ein neuer („Zurückgenommen: …") hält den Weg
+  sichtbar. Verworfenes, Entwürfe in der Schwebe und das Warum hinter
   Entscheidungen stehen sonst nirgends außerhalb des kurzen Fensters (SPEC
   § 2).
 - **Jede Tabelle außer `bot_zustand` hat `chat_id`.** Kein Ableiten über
@@ -174,15 +188,18 @@ Workshoptag wurde das auf die sechs Befehle in `befehle.py` reduziert (siehe
 Commit „Sechs Befehle als Notausgang"): `/merken`, `/verworfen`,
 `/konflikt`, `/begriffe`, `/figur`, `/name`, `/material` und `/gruendlich`
 existieren in der SPEC, aber nicht mehr im Code. Seit dem 04.09.2026 sind es
-sieben — `/szene` ist dazugekommen, und mit ihm ist `LLM.prosa()` verdrahtet
-(`szene.py`, SPEC § 4.5 Nachtrag). Wer an diesen Stellen weiterbaut, sollte
-sich auf `befehle.py` verlassen, nicht auf die SPEC-Tabelle.
+neun: `/szene` ist dazugekommen, und mit ihm ist `LLM.prosa()` verdrahtet
+(`szene.py`, SPEC § 4.5 Nachtrag), dann `/phase` (Arbeitsphase zeigen oder
+umschalten) und `/figur <Name> entfernen` (weiches Löschen, NACHTRAG N3) —
+`/figur` legt bewusst **nichts** an, das macht weiterhin der Erkenner im
+Gespräch. Wer an diesen Stellen weiterbaut, sollte sich auf `befehle.py`
+verlassen, nicht auf die SPEC-Tabelle.
 
 `befehle.behandle()` nimmt seit `/szene` ein optionales `klm` entgegen. Die
 alte strukturelle Garantie („behandle bekommt kein LLM-Objekt, also kann ein
 Befehl nicht am Modell scheitern") ist damit eine Zusage geworden, die der
 Code weiterhin einhält: **kein Befehl ruft synchron ein Modell** — `/szene`
-gibt sofort an einen eigenen Thread ab. Wer einen achten Befehl anhängt,
+gibt sofort an einen eigenen Thread ab. Wer einen zehnten Befehl anhängt,
 halte sich daran.
 
 `einstellungen.py` liest zusätzlich `TS_MODELL_ERKENNER` (Vorgabewert
@@ -280,7 +297,7 @@ Env-Datei soll die Interviews nicht ins offene Netz stellen.
 
 Die vier Prompts werden heiß nachgeladen, also ändert sie jemand **während**
 des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
-den Blindflug: 46 Absichtserkenner-Fälle (davon 20 Negativfälle), 22
+den Blindflug: 66 Absichtserkenner-Fälle (davon 28 Negativfälle), 22
 Journal-Abschnitte (davon 11 leere) und 6 erfundene Interviewtranskripte, alle
 mit Sollwert.
 
@@ -320,9 +337,9 @@ Netz.
 
 ## Was bewusst fehlt
 
-- **Weiches Löschen von Arbeitsstand-Einträgen.** Kein `entfernt_am`-Feld;
-  Überschreiben ist der einzige Schreibpfad. Laut SPEC § 4.3 auf die Zeit
-  nach dem ersten Workshoptag verschoben.
+- **Hartes Löschen im Chat.** Entfernt wird nur weich, und Material
+  (Aufnahmen, Transkripte, Verdichtungen) gar nicht — der vollständige
+  Löschweg bleibt `scripts/loeschen.py`, von Hand, mit Rückfrage.
 - **Schreiben über die Weboberfläche.** Beide Seiten sind read-only, der
   einzige Schreibweg bleibt der Chat — sonst laufen zwei Schreibwege
   gegeneinander (`NACHTRAG-weboberflaeche-und-sprache.md` N1).

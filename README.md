@@ -60,17 +60,24 @@ und wenn etwas falsch notiert wurde, wird das im nächsten Satz richtiggestellt.
 ## Die Befehle
 
 Der Bot versteht Sprache, keine Kommandosprache. Für den Fall, dass er etwas
-falsch verstanden hat, gibt es sechs Befehle als Notausgang — man braucht sie
+falsch verstanden hat, gibt es neun Befehle als Notausgang — man braucht sie
 nicht, um mit ihm zu arbeiten:
 
 | Befehl | Wirkung |
 |---|---|
 | `/interview` | Aufnahme von Hand starten |
 | `/fertig` | Aufnahme von Hand beenden |
-| `/kernthema <Text>` | Kernthema setzen oder korrigieren |
+| `/phase [Nummer\|Name]` | zeigt, an welcher der acht Stationen ihr gerade arbeitet — oder schaltet um, auch zurück |
+| `/kernthema <Text>` | Kernthema setzen oder korrigieren, `/kernthema aus` nimmt es wieder weg |
+| `/figur <Name> entfernen` | eine Figur wieder herausnehmen |
+| `/szene <Auftrag>` | eine Szene ausschreiben lassen (dauert ein paar Minuten), `/szene <Nummer> entfernen` nimmt eine wieder weg |
 | `/stand` | zeigt, was der Bot sich bisher gemerkt hat |
 | `/wortlaut [Name\|aus]` | Originaltranskripte in seinem Gedächtnis mitlesen |
 | `/hilfe` | fasst zusammen, wie der Bot funktioniert |
+
+Auch das Wegnehmen geht im Gespräch: „die Figur Peter kannst du wieder
+rausnehmen" genügt. **Aufnahmen und Transkripte kann der Bot nicht löschen** —
+das macht das Workshop-Team von Hand, vollständig und mit Rückfrage.
 
 ## Was vorher zu klären ist
 

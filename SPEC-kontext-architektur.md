@@ -21,6 +21,14 @@ Fünf Sätze, aus denen sich fast jede Detailentscheidung unten ableiten lässt:
    Der Grund zu kürzen ist Schärfe, nicht Kapazität.
 3. **Phasenbewusstsein ist ein Nebenprodukt der Materiallage, kein Zustand.** Es gibt keine
    Phasen-Zustandsmaschine; der Prompt wächst mit dem, was in der DB steht.
+   > **Nachtrag 04.09.2026.** Die Phase ist seit heute ein gespeichertes Feld
+   > (`arbeitsstand.phase`, `theatersoap/phasen.py`) — gesetzt **nur hörbar**: von der
+   > Gruppe (Erkenner-art `phase_setzen`, Befehl `/phase`) oder vom Bot **mit Meldung**,
+   > nie still erraten. Das Verbot dieses Leitsatzes galt dem stillen Raten, nicht dem
+   > Wissen: ein Zustand, den niemand ausgesprochen hat, kann der Gruppe widersprechen,
+   > ohne dass sie es merkt — ein ausgesprochener nicht, sie korrigiert ihn mit einem
+   > Satz. **Die datengetriebenen Blöcke bleiben unverändert** (§ 6.1): die Phase steuert
+   > den Fokus des Bots (`prompts/phasen/N.md`), nicht seinen Informationszugang.
 4. **Kein Aufruf im kritischen Pfad, der nicht sein muss.** Nebenaufgaben laufen
    nachgelagert und ins Leere: Fehlschlag heißt fehlender Eintrag, nicht angehaltener Workshop.
 5. **Die Gruppe erfährt von einem Fehler nur, wenn sie ihn beheben kann oder wenn sie
@@ -396,16 +404,30 @@ kleineren Modellen brechen (Apertus generiert dort bis zum Budgetende).
 
 `art` ∈ `interview_starten` · `interview_beenden` · `interview_benennen` ·
 `begriffe_setzen` · `kernthema_setzen` · `hauptkonflikt_setzen` · `figur_setzen` ·
-`wortlaut_an` · `wortlaut_aus` · `verworfen` · `entschieden`
+`wortlaut_an` · `wortlaut_aus` · `verworfen` · `entschieden` · `szene_schreiben` ·
+`phase_setzen` · `entfernen`
+
+**Nachtrag 04.09.2026 — die drei jüngsten Arten.** `szene_schreiben` (§ 4.5 Nachtrag)
+stößt einen Szenentext an, `phase_setzen` trägt die Arbeitsphase (Nummer oder Kurzname,
+tolerant gemappt; ein Rücksprung von 8 nach 5 zählt genauso wie ein Schritt nach vorn),
+`entfernen` nimmt weich weg, was `wert` benennt — beginnend mit der Zielart (`"Figur
+Peter"`, `"Kernthema"`, `"Szene 2"`, `"Journal: Kindheitsfragen"`). **Material —
+Aufnahmen, Transkripte, Verdichtungen — ist nie entfernbar:** der Prompt weist es ab, und
+der Code kennt keinen Schreibpfad dorthin (§ 9.3 bleibt der einzige Löschweg).
 
 `wert` ist immer ein String. Figuren tragen Name und Beschreibung als **ein** String
 (`"Maria: Näherin, kam 1998"`), den der Code am ersten Doppelpunkt trennt — das hält das
 Schema flach.
 
-**Überschreiben ist der Normalfall, Entfernen kommt später.** Ein neues Kernthema ersetzt
-das alte; eine Figur mit bekanntem Namen wird neu beschrieben. Das ist derselbe
-Schreibpfad und kostet nichts extra. Weiches Löschen (`entfernt_am`) ist auf nach dem
-ersten Workshoptag verschoben.
+**Überschreiben ist der Normalfall.** Ein neues Kernthema ersetzt das alte; eine Figur mit
+bekanntem Namen wird neu beschrieben. Das ist derselbe Schreibpfad und kostet nichts extra.
+
+> **Nachtrag 04.09.2026 — weiches Löschen ist gebaut** (NACHTRAG N3): `entfernt_am` in
+> `figur`, `szene` und `journal`, Arbeitsstandfelder werden auf NULL gesetzt. Jede
+> Entfernung schreibt eine Journalzeile („Entfernt: Figur Peter"), ein zurückgenommener
+> Journaleintrag wird nicht gelöscht, sondern gestempelt — ein neuer Eintrag
+> „Zurückgenommen: <alter Text>" hält den Weg sichtbar. Nicht gefunden heißt: keine
+> Änderung, kein Fehler, kein Eintrag.
 
 **Journaleinträge fallen hier mit ab.** `verworfen` und `entschieden` schreiben eine
 Journalzeile — kein zusätzlicher Aufruf, keine neue Schemaform, und `kontext.py` liest
@@ -429,6 +451,13 @@ zusammenfassende Zeile mit Namen:
 - **Gleicher Wert, keine Meldung.** Sonst meldete der Bot bei jedem Zug dasselbe Kernthema.
 - **Journaleinträge bleiben still.** Sonst wäre der Chat zugespammt und die Meldungen
   würden überlesen — womit sie ihren Zweck verlören.
+- **Phase und Entfernung bekommen je eine Zeile in derselben Meldung** (Nachtrag
+  04.09.2026): „Wir sind jetzt bei 5 · Figuren entwickeln." bzw. „Entfernt: Figur Peter".
+  Schaltet der Bot die Phase selbst weiter, steht das in *derselben* Zeile wie die
+  Änderung, die den Schritt getragen hat — „Notiert: Kernthema = Ankommen · wir sind
+  damit bei 4 · Hauptkonflikt." Das ist das Notiert-Muster ohne Wartezustand: schalten,
+  melden, weiterlaufen; ein Widerspruch kommt als `phase_setzen` zurück und schaltet
+  zurück.
 
 **Fehlschlag:** Wasserzeichen bleibt stehen, das Fenster wird beim nächsten Mal
 mitgelesen — ein kostenloser Wiederholungsversuch ohne eigene Retry-Logik. Der Gruppe
@@ -711,6 +740,23 @@ Befehle sind deshalb nur der Weg für den Fall, dass der Erkenner danebenliegt.
 
 Registriert über `setMyCommands`, damit sie im Telegram-Menü erscheinen, wenn jemand `/`
 tippt. Ohne diesen Aufruf stünde die Liste nur in einer Dokumentation, die niemand liest.
+
+> **Nachtrag 04.09.2026 — es sind neun.** Drei sind dazugekommen, jeder als Notausgang
+> für einen Weg, den sonst nur der Erkenner geht:
+>
+> | Befehl | Wirkung |
+> |---|---|
+> | `/szene <auftrag>` | Szenentext schreiben lassen (§ 4.5 Nachtrag); gibt sofort an einen eigenen Thread ab |
+> | `/szene <nummer> entfernen` | Szene weich entfernen |
+> | `/phase [nummer\|name]` | Arbeitsphase zeigen oder umschalten, auch zurück (§ 0 Leitsatz 3 Nachtrag) |
+> | `/figur <name> entfernen` | Figur weich entfernen — **nur** entfernen, angelegt wird im Gespräch |
+> | `/kernthema aus` | Kernthema entfernen |
+>
+> Die Zusage aus § 4.5 gilt weiter: **kein Befehl ruft synchron ein Modell.** Die
+> Entfernungsbefehle rufen dieselbe Funktion wie der Erkenner (`erkenner.entferne`,
+> `quelle="befehl"`), damit es für beide Wege nur eine Wahrheit gibt — anders als der
+> Erkenner antworten sie aber auch, wenn nichts gefunden wurde: auf einen getippten
+> Befehl zu schweigen sieht aus wie ein kaputter Bot.
 
 ### 8.1 Nicht gebaute Befehle — und warum
 

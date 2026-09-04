@@ -24,3 +24,9 @@ export/
 *.m4a
 tokens*.txt
 *token*.json
+
+# Prueflaeufe des Regressionskorpus: die Berichte enthalten vollstaendige
+# Modellantworten und bleiben deshalb lokal. Der Korpus selbst (korpus/*.jsonl)
+# ist frei erfunden und gehoert ins Repository.
+korpus/berichte/*
+!korpus/berichte/.gitkeep

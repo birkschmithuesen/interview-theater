@@ -14,7 +14,7 @@ import threading
 
 import pytest
 
-from interview_theater import repo, szene
+from interview_theater import anweisungen, repo, szene
 
 ANTWORT = "TITEL: Am Bahnhof\nKURZ: Maria kommt an und trifft Elif.\n\nMARIA: Da.\nELIF: Ja."
 
@@ -88,99 +88,212 @@ def _warte(thread):
 # ---------------------------------------------------------------------------
 
 
-def test_leere_datenlage_laesst_nur_den_auftrag_stehen(conn, einst):
-    text = szene.baue_nutzertext(conn, einst, 1, "Szene 1: irgendwas")
+def _figur_mit_stimme(conn, name="Maria", beschreibung="Naeherin, kam 1998",
+                      profil="Kurze Saetze, bricht ab.", zitate=("Ich hatte nur einen Koffer.",)):
+    repo.setze_figur(conn, 1, name, beschreibung)
+    figur_id = repo.hole_figur(conn, 1, name)["id"]
+    repo.setze_sprachprofil(conn, figur_id, profil, list(zitate))
+    return figur_id
 
-    assert "Arbeitsstand" not in text
-    assert "Interviews im Wortlaut" not in text
-    assert "Bisherige Szenen" not in text
-    assert "verworfen" not in text
+
+def _geplante_szene(conn, nummer, **felder):
+    figuren = felder.pop("figuren", None)
+    szene_id = repo.stelle_szene_sicher(conn, 1, nummer)
+    for feld, wert in felder.items():
+        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+    if figuren:
+        repo.setze_szene_figuren(conn, 1, szene_id, figuren)
+    return repo.hole_szene(conn, szene_id)
+
+
+def test_leere_datenlage_laesst_nur_den_auftrag_stehen(conn, einst):
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: irgendwas")
+
+    assert "Kernthema" not in text
+    assert szene.FIGUREN_KOPF not in text
+    assert szene.CONTINUITY_KOPF not in text
     assert text.startswith("Euer Auftrag:")
 
 
-def test_arbeitsstand_und_transkripte_erscheinen_sobald_es_sie_gibt(conn, einst):
+def test_keine_transkripte_und_keine_verdichtungen_mehr(conn, einst):
+    """Die Umstellung vom 05.09.2026 in einem Test: Rohmaterial gehoert nicht
+    mehr in den Szenen-Prompt. Was das Modell braucht, steht destilliert da --
+    Sprachprofil je Figur und die Felder der Szene."""
+    aufnahme_id = _material(conn)
+    repo.speichere_verdichtung(
+        conn, 1, aufnahme_id, "Maria erzaehlt von der Ankunft",
+        [{"thema": "Ankommen", "beleg_zitat": "mit einem Koffer", "zitat_geprueft": 1}],
+    )
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
+
+    assert "mit einem Koffer" not in text
+    assert "Maria erzaehlt von der Ankunft" not in text
+
+
+def test_format_rahmen_und_kernthema_stehen_vorn(conn, einst):
+    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
-    repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "Bleiben oder gehen")
-    repo.setze_figur(conn, 1, "Maria", "Naeherin, kam 1998")
-    _material(conn)
+    repo.setze_arbeitsstand(conn, 1, "kernthema_begruendung", "dreimal genannt")
 
-    text = szene.baue_nutzertext(conn, einst, 1, "Szene 1: Ankunft")
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
 
-    assert "Kernthema: Ankommen" in text
-    assert "Hauptkonflikt: Bleiben oder gehen" in text
-    assert "Figur Maria: Naeherin, kam 1998" in text
-    assert "Interviews im Wortlaut" in text
-    assert "mit einem Koffer" in text
+    assert text.startswith("Format des Stuecks: Musical: Dialog, Lied, Rap")
+    assert "Rahmen: Eine Nacht im Treppenhaus" in text
+    assert "Kernthema: Ankommen (Begruendung: dreimal genannt)" in text
 
 
-def test_kurze_aufnahmen_sind_kein_material(conn, einst):
-    """Nur Klasse 'lang' zaehlt als Interview -- ein Zuruf gehoert nicht in
-    den Szenen-Prompt (SPEC § 10.1)."""
-    aufnahme_id = repo.lege_aufnahme_an(conn, 1, 101, "kurz", "sprache")
-    repo.setze_transkript(conn, aufnahme_id, "mach mal lauter")
+def test_hauptkonflikt_nur_wenn_es_einen_gibt(conn, einst):
+    """Birk 05.09.2026: es muss nicht immer einen Konflikt geben. Eine leere
+    Zeile "Hauptkonflikt: -" wuerde das Modell einen erfinden lassen."""
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
 
-    text = szene.baue_nutzertext(conn, einst, 1, "Szene 1")
+    assert "Hauptkonflikt" not in szene.baue_nutzertext(conn, 1, "Szene 1")
 
-    assert "mach mal lauter" not in text
+    repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "bleiben gegen gehen")
+
+    assert "Hauptkonflikt: bleiben gegen gehen" in szene.baue_nutzertext(conn, 1, "Szene 1")
+
+
+def test_je_figur_sprachprofil_und_zitate(conn, einst):
+    """Der wichtigste Block (Birk: "Zitate als Few-Shots fuer die Sprechweise
+    je Figur, das ist das Wichtigste")."""
+    _figur_mit_stimme(conn)
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
+
+    assert szene.FIGUREN_KOPF in text
+    assert "Maria -- Naeherin, kam 1998" in text
+    assert "Kurze Saetze, bricht ab." in text
+    assert '"Ich hatte nur einen Koffer."' in text
+
+
+def test_continuity_nennt_nur_szenen_mit_kleinerer_nummer(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    _geplante_szene(conn, 1, titel="Ankunft", ort="Bahnhof",
+                    was_passiert="Maria kommt an", was_anders="sie bleibt",
+                    figuren=[figur])
+    _geplante_szene(conn, 3, titel="Spaeter", ort="Kueche", was_passiert="sie kocht")
+    ziel = _geplante_szene(conn, 2, form="Dialog", ort="Treppenhaus",
+                           was_passiert="sie streiten", figuren=[figur])
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 2 schreiben", ziel)
+
+    assert szene.CONTINUITY_KOPF in text
+    assert "Szene 1: Ankunft" in text
+    assert "Ort: Bahnhof" in text
+    assert "Was anders ist: sie bleibt" in text
+    assert "Szene 3" not in text, "was danach kommt, ist keine Vorgeschichte"
+
+
+def test_diese_szene_traegt_alle_felder_und_ist_bindend(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    ziel = _geplante_szene(
+        conn, 2, form="Lied", ort="Polizeikessel", zeit="am naechsten Morgen",
+        anlass="seit zwei Stunden eingekesselt", was_passiert="Pal will raus",
+        was_anders="sie bleibt", kernsaetze="Trump macht daraus eine Riviera",
+        ton="hitzig", figuren=[figur],
+    )
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 2 schreiben", ziel)
+
+    assert szene.DIESE_SZENE_KOPF in text
+    for erwartet in (
+        "Form: Lied", "Ort: Polizeikessel", "Zeit: am naechsten Morgen",
+        "Anlass: seit zwei Stunden eingekesselt", "Wer: Maria",
+        "Was passiert: Pal will raus", "Was anders ist: sie bleibt",
+        "Kernsaetze: Trump macht daraus eine Riviera", "Ton: hitzig",
+    ):
+        assert erwartet in text
 
 
 def test_nur_verworfenes_geht_mit_nicht_das_ganze_journal(conn, einst):
     repo.schreibe_journal(conn, 1, "verworfen", "Kindheitsfragen als Einstieg", "erkenner")
     repo.schreibe_journal(conn, 1, "entschieden", "Kernthema ist Ankommen", "erkenner")
 
-    text = szene.baue_nutzertext(conn, einst, 1, "Szene 1")
+    text = szene.baue_nutzertext(conn, 1, "Szene 1")
 
     assert "Kindheitsfragen als Einstieg" in text
     assert "Kernthema ist Ankommen" not in text
 
 
-def test_ueberarbeitete_szene_steht_im_volltext_die_anderen_nur_als_zeile(conn, einst):
-    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: Da.")
-    repo.lege_szene_an(conn, 1, 2, "Der Koffer", "Elif packt", "ELIF: Der geht nicht zu.")
-    ziel = repo.hole_szenen(conn, 1)[1]
+def test_bei_einer_ueberarbeitung_geht_der_bisherige_text_mit(conn, einst):
+    ziel = _geplante_szene(conn, 2, form="Dialog", ort="Kueche")
+    repo.aktualisiere_szene(conn, ziel["id"], "Der Koffer", "Elif packt",
+                            "ELIF: Der geht nicht zu.")
+    ziel = repo.hole_szene(conn, ziel["id"])
 
-    text = szene.baue_nutzertext(conn, einst, 1, "Szene 2 nochmal, kuerzer", ziel)
+    text = szene.baue_nutzertext(conn, 1, "Szene 2 nochmal, kuerzer", ziel)
 
-    assert "Szene 1: Ankunft - Maria kommt an" in text
-    assert "MARIA: Da." not in text          # Szene 1 nur als Zeile
-    assert "ELIF: Der geht nicht zu." in text  # Szene 2 im Volltext
+    assert "ELIF: Der geht nicht zu." in text
     assert "ueberarbeitet werden" in text
 
 
-def test_ohne_ueberarbeitung_geht_kein_volltext_mit(conn, einst):
-    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: Da.")
+def test_ohne_ueberarbeitung_geht_kein_fremder_volltext_mit(conn, einst):
+    """Ein fremder Volltext waere vor allem eine Vorlage zum Abschreiben --
+    aus einer frueheren Szene geht die Lage mit, nicht der Wortlaut."""
+    _geplante_szene(conn, 1, titel="Ankunft", ort="Bahnhof")
+    repo.aktualisiere_szene(
+        conn, repo.hole_szenen(conn, 1)[0]["id"], "Ankunft", "Maria kommt an", "MARIA: Da."
+    )
 
-    text = szene.baue_nutzertext(conn, einst, 1, "Schreib eine neue Szene")
+    text = szene.baue_nutzertext(conn, 1, "Schreib Szene 2")
 
     assert "Szene 1: Ankunft" in text
     assert "MARIA: Da." not in text
 
 
 def test_auftrag_steht_am_ende(conn, einst):
-    """SPEC § 6.1: was am Ende des Prompts steht, wiegt am schwersten. Der
-    Auftrag darf nicht hinter dem Rohmaterial verschwinden."""
-    _material(conn)
+    """SPEC § 6.1: was am Ende des Prompts steht, wiegt am schwersten."""
+    _figur_mit_stimme(conn)
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
 
-    text = szene.baue_nutzertext(conn, einst, 1, "Szene 4: der Abschied")
+    text = szene.baue_nutzertext(conn, 1, "Szene 4: der Abschied")
 
     assert text.endswith("Euer Auftrag:\nSzene 4: der Abschied")
 
 
-def test_ueber_dem_deckel_ruecken_verdichtungen_an_die_stelle_der_transkripte(conn, einst):
-    aufnahme_id = _material(conn, text="w " * (3 * szene.DECKEL))
-    repo.speichere_verdichtung(
-        conn, 1, aufnahme_id, "Maria erzaehlt von der Ankunft",
-        [{"thema": "Ankommen", "beleg_zitat": "mit einem Koffer", "zitat_geprueft": 1}],
-    )
+# ---------------------------------------------------------------------------
+# Form-Verzweigung: je Form ein eigener Regelblock
+# ---------------------------------------------------------------------------
 
-    text = szene.baue_nutzertext(conn, einst, 1, "Szene 1: Ankunft")
 
-    assert "Interviews im Wortlaut" not in text
-    assert "Maria erzaehlt von der Ankunft" in text
-    assert '"mit einem Koffer"' in text
-    arten = [v["art"] for v in conn.execute("SELECT art FROM vorfall WHERE chat_id = 1")]
-    assert "kuerzung" in arten
+@pytest.mark.parametrize(
+    "form, datei",
+    [
+        ("Dialog", "dialog"),
+        ("Lied", "lied"),
+        ("gesungen, mit Refrain", "lied"),
+        ("Rap", "rap"),
+        ("Monolog", "monolog"),
+        ("Chor", "chor"),
+        ("stumme Szene", "stumm"),
+        ("", "dialog"),
+        (None, "dialog"),
+        ("Bewegungsszene", "dialog"),
+    ],
+)
+def test_formdatei_ordnet_die_form_ihrem_regelblock_zu(form, datei):
+    assert szene.formdatei(form) == datei
+
+
+def test_systemanweisung_haengt_den_formenblock_dazwischen():
+    dialog = szene.systemanweisung("Dialog")
+    lied = szene.systemanweisung("Lied")
+
+    assert "Kein Monolog laenger als sechs Zeilen" in dialog
+    assert "Kein Monolog laenger als sechs Zeilen" not in lied
+    assert "REFRAIN" in lied
+    # Grundform und Negativliste stehen in beiden.
+    for text in (dialog, lied):
+        assert "Figurennamen in GROSSBUCHSTABEN" in text
+        assert "Theater-Tells" in text
+
+
+def test_jede_form_hat_ihren_regelblock():
+    for form in szene.FORMEN:
+        assert len(anweisungen.hole(f"formen/{form}").splitlines()) >= 8, form
 
 
 # ---------------------------------------------------------------------------

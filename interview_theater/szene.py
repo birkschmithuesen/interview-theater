@@ -53,7 +53,7 @@ import logging
 import re
 import threading
 
-from interview_theater import anweisungen, kontext, repo
+from interview_theater import anweisungen, repo
 
 log = logging.getLogger(__name__)
 
@@ -84,13 +84,6 @@ MAX_TOKENS = 200_000
 #: Timeout hier nichts spart -- niemand wartet aktiv, und ein abgebrochener
 #: Lauf ist trotzdem bezahlt.
 TIMEOUT_S = 600.0
-
-#: Obergrenze des Nutzertextes in geschaetzten Token (kontext.schaetze,
-#: Zeichen // 3). Darueber fliegen die Volltranskripte raus und die
-#: Verdichtungen ruecken nach. Bewusst hoch -- doppelt so hoch wie
-#: kontext.ZIEL fuer den Gespraechszug: hier SOLL das Rohmaterial mit, der
-#: Text soll aus dem Material kommen und nicht aus Zusammenfassungen davon.
-DECKEL = 40_000
 
 #: So viele nichtleere Zeilen der Szene gehen als Vorschau in die Gruppe.
 VORSCHAU_ZEILEN = 6
@@ -134,17 +127,73 @@ def _sperre_fuer(chat_id: int) -> threading.Lock:
         return sperre
 
 
-def systemanweisung() -> str:
-    """Die Systemanweisung des Szenen-Aufrufs: ``prompts/szene.md`` plus die
-    Negativliste ``prompts/theater-tells.md``, beide heiss nachgeladen.
+#: Die Formen, fuer die es einen eigenen Regelblock gibt
+#: (``prompts/formen/<name>.md``). ``dialog`` ist der Rueckfall: eine Gruppe,
+#: die nichts anderes gesagt hat, bekommt Dialog.
+FORMEN = ("dialog", "lied", "rap", "monolog", "chor", "stumm")
+
+#: Woerter, unter denen eine Form gemeint sein kann -- wie
+#: ``phasen.STICHWOERTER``: das Feld ``szene.form`` ist frei (die Gruppe
+#: entscheidet, nicht der Code), und "gesungen" muss trotzdem beim Lied
+#: landen. Verglichen wird in beide Richtungen, deshalb genuegen Wortstaemme.
+FORM_STICHWOERTER = {
+    "lied": ("lied", "song", "gesang", "gesungen", "singen", "musik", "arie"),
+    "rap": ("rap", "sprechgesang", "beat", "reim"),
+    "monolog": ("monolog", "soloszene", "solo"),
+    "chor": ("chor", "chorisch", "wir-form", "sprechchor"),
+    "stumm": ("stumm", "pantomime", "ohne worte", "wortlos"),
+    "dialog": ("dialog", "gespraech", "gespräch", "gesprochen", "sprechtheater"),
+}
+
+
+def formdatei(form: str | None) -> str:
+    """Uebersetzt das freie Feld ``szene.form`` in den Namen eines
+    Regelblocks. Kennt der Code die Form nicht, gilt ``dialog``.
+
+    Der Rueckfall ist eine Entscheidung, kein Notbehelf: eine unbekannte Form
+    ("Bewegungsszene") ist im Zweifel gesprochenes Theater, und ein Prompt
+    ohne jeden Formenblock haette gar keine Dramaturgieregeln mehr -- die
+    stehen seit dem 05.09.2026 alle in ``prompts/formen/``.
+
+    **Dialog wird zuletzt geprueft**, nicht in Listenreihenfolge: das Wort
+    "Szene" steht in "stumme Szene" genauso wie in jeder anderen Angabe, und
+    Dialog ist ohnehin der Rueckfall -- er braucht keinen Vorrang, er braucht
+    den Rest."""
+    text = (form or "").strip().lower()
+    if not text:
+        return "dialog"
+    for name in FORMEN:
+        if name == "dialog":
+            continue
+        for stichwort in FORM_STICHWOERTER.get(name, ()):
+            if stichwort in text:
+                return name
+    return "dialog"
+
+
+def systemanweisung(form: str | None = None) -> str:
+    """Die Systemanweisung des Szenen-Aufrufs, dreiteilig und heiss
+    nachgeladen: ``prompts/szene.md`` (was fuer jede Form gilt), der
+    Regelblock zur Form (``prompts/formen/<form>.md``) und die Negativliste
+    ``prompts/theater-tells.md``.
+
+    **Die Form-Verzweigung** ist seit dem 05.09.2026 dabei: ein Lied hat
+    andere Regeln als ein Dialog, und die dreizehn Dialogregeln auf ein Lied
+    anzuwenden hiesse, ein Lied wie einen Dialog zu schreiben. Was fuer jede
+    Form gilt, steht in ``szene.md``; was nur fuer eine, in ihrer Datei.
 
     Die Tells stehen ausdruecklich in einer eigenen Datei und werden erst
     hier im Code angehaengt: sie sind der Teil, den die Gruppe im Workshop
     laufend erweitert ("das klingt schon wieder wie ChatGPT"), waehrend die
-    Anweisung selbst stehen bleibt. Zwei Dateien, zwei Aenderungsrhythmen --
+    Anweisung selbst stehen bleibt. Drei Dateien, drei Aenderungsrhythmen --
     und dank des Hot-Reloads in ``anweisungen.py`` wirkt eine Ergaenzung ohne
     Neustart, beim naechsten Szenen-Auftrag."""
-    return anweisungen.hole("szene") + "\n\n" + anweisungen.hole("theater-tells")
+    teile = [anweisungen.hole("szene")]
+    regeln = anweisungen.hole_optional(f"formen/{formdatei(form)}")
+    if regeln and regeln.strip():
+        teile.append(regeln.strip())
+    teile.append(anweisungen.hole("theater-tells"))
+    return "\n\n".join(teile)
 
 
 # ---------------------------------------------------------------------------
@@ -310,105 +359,164 @@ def _naechste_nummer(szenen) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _arbeitsstand_text(conn, chat_id: int) -> str:
-    """Kernthema, Hauptkonflikt, Begriffe und Figuren -- eine eigene, schlanke
-    Formatierung statt der privaten ``kontext._baue_arbeitsstand``, aus
-    demselben Grund wie in ``erkenner._arbeitsstand_text``: dort haengt seit
-    heute die Szenenliste mit dran, die hier einen eigenen Block bekommt."""
+def _format_rahmen_text(conn, chat_id: int) -> str:
+    """Block 1: Format und Rahmen (Phase 5).
+
+    Zuerst, weil er ueber allem steht: er entscheidet, ob ueberhaupt ein
+    Dialog entsteht oder ein Lied, und worin das Ganze spielt."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
-    figuren = repo.figuren(conn, chat_id)
-
-    zeilen = []
-    if stand:
-        if stand["kernthema"]:
-            zeilen.append(f"Kernthema: {stand['kernthema']}")
-        if stand["format"]:
-            zeilen.append(f"Format: {stand['format']}")
-        if stand["rahmen"]:
-            zeilen.append(f"Rahmen: {stand['rahmen']}")
-        if stand["hauptkonflikt"]:
-            zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
-        if stand["begriffe"]:
-            zeilen.append(f"Begriffe: {stand['begriffe']}")
-    for figur in figuren:
-        beschreibung = f": {figur['beschreibung']}" if figur["beschreibung"] else ""
-        zeilen.append(f"Figur {figur['name']}{beschreibung}")
-
-    if not zeilen:
+    if not stand:
         return ""
-    return "Arbeitsstand der Gruppe:\n" + "\n".join(zeilen)
-
-
-def _transkripte_text(conn, chat_id: int) -> str:
-    """ALLE Volltranskripte, ohne den Schalter ``/wortlaut`` zu fragen.
-
-    Im Gespraechs-Prompt sind sie 5.000 Token Dauerlast, die jede Antwort
-    unschaerfer macht (SPEC § 6.2 Block 3) -- hier sind sie der Punkt: der
-    Szenentext soll aus dem Material kommen und Repliken woertlich daraus
-    uebernehmen duerfen. Nur Klasse *lang* zaehlt als Material, kurze
-    Gespraechsbeitraege sind Zurufe -- und je Interview ein zusammengefuegtes
-    Transkript ueber alle seine Teile (§ 10.6)."""
     zeilen = []
-    for a in repo.transkripte(conn, chat_id):
-        if a["klasse"] != "lang":
-            continue
-        transkript = repo.zusammengefuegtes_transkript(conn, a["id"])
-        if transkript:
-            zeilen.append(f"--- {a['name']} ---\n{transkript}")
-    if not zeilen:
+    if stand["format"]:
+        zeilen.append(f"Format des Stuecks: {stand['format']}")
+    if stand["rahmen"]:
+        zeilen.append(f"Rahmen: {stand['rahmen']}")
+    return "\n".join(zeilen)
+
+
+def _thema_text(conn, chat_id: int) -> str:
+    """Block 2: Kernthema samt Begruendung, Hauptkonflikt nur, wenn es einen
+    gibt.
+
+    Der Hauptkonflikt ist seit dem 05.09.2026 optional (Birk: "Es muss nicht
+    immer einen Konflikt geben") -- eine leere Zeile "Hauptkonflikt: -" wuerde
+    das Modell einen erfinden lassen."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if not stand:
         return ""
-    return "Interviews im Wortlaut:\n" + "\n\n".join(zeilen)
+    zeilen = []
+    if stand["kernthema"]:
+        zeile = f"Kernthema: {stand['kernthema']}"
+        if stand["kernthema_begruendung"]:
+            zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
+        zeilen.append(zeile)
+    if stand["hauptkonflikt"]:
+        zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
+    return "\n".join(zeilen)
 
 
-def _verdichtungen_text(conn, chat_id: int) -> str:
-    """Der Ersatz fuer die Transkripte, wenn der Deckel reisst -- Verdichtungen
-    samt Belegzitaten sind knapp und behalten wenigstens den Originalton der
-    Zitate."""
+#: Ueberschrift von Block 3 -- die wichtigste Zeile des ganzen Prompts (Birk,
+#: 05.09.2026: "Zitate als Few-Shots fuer die Sprechweise je Figur, das ist
+#: das Wichtigste"). Sie sagt ausdruecklich, was mit den Zitaten zu tun ist:
+#: nicht sie einbauen, sondern die Sprechweise daraus kopieren.
+FIGUREN_KOPF = (
+    "So spricht jede Figur (aus ihrem Interview, woertlich -- kopiere diese "
+    "Sprechweise):"
+)
+
+
+def _figuren_text(conn, chat_id: int) -> str:
+    """Block 3: je Figur Beschreibung, Sprachprofil und woertliche Zitate.
+
+    **Das ist der Ersatz fuer die Volltranskripte.** Bis zum 05.09.2026 gingen
+    alle Interviews im Wortlaut mit, und das Modell sollte daraus selbst
+    heraushoeren, wer wie spricht -- der Probelauf lieferte drei Figuren, die
+    alle gleich klangen. Umgekehrt ist es richtig: destilliert je Figur, kurz
+    und direkt vor dem Auftrag.
+
+    Eine Figur ohne Sprachprofil steht trotzdem hier, mit ihrer Beschreibung:
+    die Sperre (``fehlendes``) laesst einen Lauf ohne Profil zwar gar nicht
+    erst los, aber wer ``schreibe()`` direkt ruft (Tests, ein kuenftiger
+    Stapellauf), soll keinen namenlosen Prompt bekommen."""
     bloecke = []
-    for v in repo.verdichtungen(conn, chat_id):
-        aufnahme = repo.hole_aufnahme(conn, v["aufnahme_id"])
-        name = aufnahme["name"] if aufnahme else f"Aufnahme {v['aufnahme_id']}"
-        eintrag = [f"{name}: {v['zusammenfassung']}"]
-        for thema in repo.themen_zu(conn, v["id"]):
-            if thema["beleg_zitat"]:
-                eintrag.append(f'  - {thema["thema"]}: "{thema["beleg_zitat"]}"')
-            else:
-                eintrag.append(f'  - {thema["thema"]}')
-        bloecke.append("\n".join(eintrag))
+    for figur in repo.figuren(conn, chat_id):
+        zeilen = [f"{figur['name']}"]
+        if figur["beschreibung"]:
+            zeilen[0] += f" -- {figur['beschreibung']}"
+        if figur["sprachprofil"]:
+            zeilen.append(figur["sprachprofil"].strip())
+        for satz in (figur["zitate"] or "").split(repo.ZITAT_TRENNER):
+            if satz.strip():
+                zeilen.append(f'  "{satz.strip()}"')
+        bloecke.append("\n".join(zeilen))
     if not bloecke:
         return ""
-    return (
-        "Verdichtungen der Interviews (die Volltranskripte waren zu lang):\n"
-        + "\n\n".join(bloecke)
-    )
+    return FIGUREN_KOPF + "\n\n" + "\n\n".join(bloecke)
 
 
-def _szenenliste_text(conn, chat_id: int, ziel) -> str:
-    """Die bisherigen Szenen als Titel plus Kurzbeschreibung. Die Szene, die
-    ueberarbeitet werden soll, bleibt hier weg -- sie kommt gleich darunter
-    im Volltext, und zweimal dasselbe Stichwort verwirrt nur."""
-    zeilen = [
-        kontext.szenenzeile(s)
-        for s in repo.hole_szenen(conn, chat_id)
-        if ziel is None or s["id"] != ziel["id"]
-    ]
+#: Ueberschrift von Block 4. Continuity kommt **mechanisch aus der Datenbank**
+#: (T5) -- kein Modellaufruf, keine Zusammenfassung: Nummer, Titel, Ort, Wer,
+#: Was passiert, Was anders, je frueherer Szene eine Zeile.
+CONTINUITY_KOPF = "Was bisher geschah:"
+
+
+def _szenenfelder_zeilen(conn, zeile, felder) -> list[str]:
+    """Die genannten Felder einer Szene als "Name: Wert"-Zeilen, leere weg.
+    Die eine Stelle, an der Szenenfelder formatiert werden -- Continuity und
+    "Diese Szene" sollen nie auseinanderlaufen."""
+    zeilen = []
+    for feld in felder:
+        if feld == "figuren":
+            namen = [f["name"] for f in repo.szene_figuren(conn, zeile["id"])]
+            if namen:
+                zeilen.append(f"{FELDNAMEN['figuren']}: {', '.join(namen)}")
+            continue
+        if zeile[feld]:
+            zeilen.append(f"{FELDNAMEN[feld]}: {zeile[feld]}")
+    return zeilen
+
+
+#: Was aus einer frueheren Szene mitgeht. Bewusst nicht der Volltext: sechs
+#: ausgeschriebene Szenen waeren einige tausend Token, und was die naechste
+#: Szene braucht, ist die Lage, nicht der Wortlaut.
+_CONTINUITY_FELDER = ("ort", "figuren", "was_passiert", "was_anders")
+
+#: Was in "Diese Szene" steht: alles, was die Gruppe entschieden hat.
+_DIESE_SZENE_FELDER = (
+    "form", "ort", "zeit", "anlass", "figuren", "was_passiert", "was_anders",
+    "kernsaetze", "ton", "titel",
+)
+
+
+def _continuity_text(conn, chat_id: int, nummer: int | None) -> str:
+    """Block 4: die frueheren Szenen, mechanisch aus der Datenbank.
+
+    **Nur Szenen mit kleinerer Nummer** -- was danach kommt, ist fuer diese
+    Szene keine Vorgeschichte, und eine Szene 5 als "bisher" zu lesen waere
+    schlicht falsch. Ohne genannte Nummer (ein Auftrag ohne Szenenzahl) zaehlt
+    alles Vorhandene als bisher."""
+    zeilen = []
+    for szene in repo.hole_szenen(conn, chat_id):
+        if szene["nummer"] is None:
+            continue
+        if nummer is not None and szene["nummer"] >= nummer:
+            continue
+        kopf = f"Szene {szene['nummer']}"
+        if szene["titel"]:
+            kopf += f": {szene['titel']}"
+        angaben = _szenenfelder_zeilen(conn, szene, _CONTINUITY_FELDER)
+        zeilen.append(kopf + ("\n  " + "\n  ".join(angaben) if angaben else ""))
     if not zeilen:
         return ""
-    return "Bisherige Szenen:\n" + "\n".join(zeilen)
+    return CONTINUITY_KOPF + "\n" + "\n".join(zeilen)
 
 
-def _ueberarbeitung_text(ziel) -> str:
-    """Die zu ueberarbeitende Szene im Volltext.
+#: Ueberschrift von Block 6. Der Satz dahinter ist der Kern der Umstellung:
+#: die Felder sind bindend, das Modell erfindet sie nicht neu.
+DIESE_SZENE_KOPF = (
+    "Diese Szene sollst du schreiben. Die Angaben sind bindend -- nichts "
+    "ersetzen, nichts hinzuerfinden, was ihnen widerspricht:"
+)
 
-    Sie geht nur bei einer Ueberarbeitung mit -- also dann, wenn der Auftrag
-    die Nummer einer schon vorhandenen Szene nennt. Bei einer neuen Szene
-    waere ein fremder Volltext vor allem eine Vorlage zum Abschreiben."""
-    if ziel is None or not ziel["volltext"]:
+
+def _diese_szene_text(conn, ziel) -> str:
+    """Block 6: alle Felder der zu schreibenden Szene, und bei einer
+    Ueberarbeitung ihr bisheriger Text.
+
+    Der Volltext geht nur bei einer Ueberarbeitung mit -- also dann, wenn es
+    schon einen gibt. Bei einer neuen Szene waere ein fremder Volltext vor
+    allem eine Vorlage zum Abschreiben."""
+    if ziel is None:
         return ""
-    return (
-        f"Diese Szene soll ueberarbeitet werden ({kontext.szenenzeile(ziel)}):\n"
-        f"{ziel['volltext']}"
-    )
+    kopf = f"Szene {ziel['nummer']}" if ziel["nummer"] is not None else "Szene"
+    zeilen = [DIESE_SZENE_KOPF, kopf]
+    zeilen += _szenenfelder_zeilen(conn, ziel, _DIESE_SZENE_FELDER)
+    if ziel["volltext"]:
+        zeilen.append("")
+        zeilen.append("Bisheriger Text dieser Szene, er soll ueberarbeitet werden:")
+        zeilen.append(ziel["volltext"])
+    return "\n".join(zeilen)
 
 
 def _verworfen_text(conn, chat_id: int) -> str:
@@ -427,11 +535,17 @@ def _verworfen_text(conn, chat_id: int) -> str:
 
 #: Reihenfolge des Nutzertextes. Wie in kontext.py: stabil nach vorn,
 #: entscheidend nach hinten -- was am Ende des Prompts steht, wiegt am
-#: schwersten (SPEC § 6.1). Der Auftrag steht deshalb zuletzt und nicht
-#: zuerst: er ist die eine Zeile, die diesen Lauf von jedem anderen
-#: unterscheidet, und darf nicht hinter 40.000 Token Rohmaterial verschwinden.
+#: schwersten (SPEC § 6.1). Der Auftrag steht deshalb zuletzt, die Angaben zu
+#: dieser einen Szene direkt davor.
+#:
+#: Umgestellt am 05.09.2026 (Birk, nach dem Probelauf): *"Genau andersrum ist
+#: richtig: moeglichst praezise destillierte Begriffe und klare Strukturen
+#: rein -- was in den Szenen vorkommt, wo, wer, was gesagt wird. Continuity
+#: mechanisch."* Vorher standen hier alle Volltranskripte; heraus kam eine
+#: Szene in einer Kueche mit erfundenen Figuren.
 _REIHENFOLGE = (
-    "arbeitsstand", "material", "szenenliste", "ueberarbeitung", "verworfen", "auftrag",
+    "format_rahmen", "thema", "figuren", "continuity", "verworfen",
+    "diese_szene", "auftrag",
 )
 
 
@@ -439,37 +553,36 @@ def _zusammen(bloecke: dict) -> str:
     return "\n\n".join(bloecke[k] for k in _REIHENFOLGE if bloecke.get(k))
 
 
-def baue_nutzertext(conn, e, chat_id: int, auftrag: str, ziel=None) -> str:
-    """Baut den Nutzertext des Szenen-Aufrufs -- ein eigener Zusammenbau, nicht
-    ``kontext.baue``.
+def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None) -> str:
+    """Baut den Nutzertext des Szenen-Aufrufs -- **Struktur statt Transkript**
+    (Birk, 05.09.2026).
 
-    Die Budgets dort sind fuer den Chat bemessen: Transkripte nur auf
-    ``/wortlaut``, Szenen nur die zuletzt geaenderte, Ziel 20.000 Token. Hier
-    ist die Materiallage eine andere -- alle Interviews im Wortlaut, alle
-    Szenentitel, das ganze Verworfene.
+    Sieben Bloecke, in dieser Reihenfolge: Format & Rahmen; Kernthema (und
+    Hauptkonflikt, falls es einen gibt); die Figuren mit Sprachprofil und
+    woertlichen Zitaten; Continuity aus der Datenbank; was die Gruppe
+    verworfen hat; die Felder DIESER Szene; der Auftrag.
 
-    Jeder Block faellt weg, solange seine Daten leer sind (dasselbe
-    datengetriebene Prinzip wie in ``kontext.baue``). Reisst der Deckel
-    DECKEL, fliegen die Volltranskripte raus und die Verdichtungen ruecken
-    nach -- eine einzige Kuerzungsstufe, keine zweite: das Fenster des
-    Gespraechs ist hier gar nicht dabei, und alles andere ist entweder kurz
-    (Arbeitsstand, Szenenliste) oder unverzichtbar (Auftrag)."""
+    **Was hier nicht mehr steht:** Volltranskripte und Verdichtungen. Sie
+    waren der falsche Reflex -- "der Text soll aus dem Material kommen" hiess
+    im Ergebnis, dass das Modell aus 40.000 Token selbst heraussuchen sollte,
+    wer wie spricht und was in der Szene vorkommt. Beides steht jetzt
+    destilliert da: die Sprechweise als Sprachprofil je Figur (T3), die
+    Szenenlage als Felder (T2).
+
+    Damit entfaellt auch der Deckel-Mechanismus: alle Bloecke sind kurz, es
+    gibt nichts mehr, was gekuerzt werden muesste. Jeder Block faellt weg,
+    solange seine Daten leer sind -- dasselbe datengetriebene Prinzip wie in
+    ``kontext.baue``."""
+    nummer = ziel["nummer"] if ziel is not None else nummer_aus_auftrag(auftrag)
     bloecke = {
-        "arbeitsstand": _arbeitsstand_text(conn, chat_id),
-        "material": _transkripte_text(conn, chat_id),
-        "szenenliste": _szenenliste_text(conn, chat_id, ziel),
-        "ueberarbeitung": _ueberarbeitung_text(ziel),
+        "format_rahmen": _format_rahmen_text(conn, chat_id),
+        "thema": _thema_text(conn, chat_id),
+        "figuren": _figuren_text(conn, chat_id),
+        "continuity": _continuity_text(conn, chat_id, nummer),
         "verworfen": _verworfen_text(conn, chat_id),
+        "diese_szene": _diese_szene_text(conn, ziel),
         "auftrag": f"Euer Auftrag:\n{auftrag.strip()}",
     }
-
-    if kontext.schaetze(_zusammen(bloecke)) > DECKEL:
-        bloecke["material"] = _verdichtungen_text(conn, chat_id)
-        repo.merke_vorfall(
-            conn, chat_id, getattr(e, "bot_name", None), "kuerzung",
-            "Szenen-Prompt ueber Deckel: Volltranskripte durch Verdichtungen ersetzt",
-        )
-
     return _zusammen(bloecke)
 
 
@@ -561,10 +674,10 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     nummer = nummer_aus_auftrag(auftrag)
     ziel = _szene_mit_nummer(repo.hole_szenen(conn, chat_id), nummer)
 
-    nutzer = baue_nutzertext(conn, e, chat_id, auftrag, ziel)
+    nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel)
     antwort = klm.prosa(
-        chat_id, systemanweisung(), nutzer, ART,
-        max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
+        chat_id, systemanweisung(ziel["form"] if ziel is not None else None),
+        nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
     )
 
     titel, kurz, volltext = zerlege(antwort)

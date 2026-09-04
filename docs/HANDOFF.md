@@ -234,9 +234,9 @@ also keine Dopplung mit dem Absichtserkenner.
 |---|---|
 | **Die zwei Weboberflächen** | Team-Dashboard und Leseansicht je Gruppe. Der Weg von außen steht (`https://lab.artesmobiles.art/theatersoap/`, nginx auf *herkules*, Tailnet, Port 8010, Zertifikat geprüft) — nur die Anwendung fehlt. Siehe `NACHTRAG-weboberflaeche-und-sprache.md`. |
 | **Weiches Löschen** (`entfernt_am`) | Überschreiben deckt den Alltagsfall ab; Entfernen ist seltener. Die Spalte fehlt noch. |
-| **Szenen** | Sie entstehen erst in der letzten Workshop-Phase. Die Tabelle existiert, wird aber weder gelesen noch geschrieben — etwas zu schreiben, das niemand liest, ist Fläche ohne Nutzen. |
+| ~~**Szenen**~~ | **Gebaut am 04.09.2026** (`theatersoap/szene.py`): eigener Prompt, eigener Thread, Auslöser `szene_schreiben` und `/szene`, dazu die Blöcke 4/5 im Gesprächs-Kontext. Der ursprüngliche Grund („etwas zu schreiben, das niemand liest, ist Fläche ohne Nutzen") ist damit weggefallen — jetzt liest es der Gesprächs-Prompt. |
 | **Acht der vierzehn Befehle** | `SPEC` § 8.1 nennt je einen Grund. |
-| **Modus B** (`LLM.prosa`) | Vorhanden, aber von nirgendwo aufgerufen — **toter Code**, bewusst so benannt in `SPEC` § 4.5. Sein Anwendungsfall (Szenentext) existiert nicht, und 34 s Latenz sind unattraktiv, seit Sprache Gesprächsbeitrag ist. |
+| ~~**Modus B**~~ (`LLM.prosa`) | **Verdrahtet am 04.09.2026**, genau für den Anwendungsfall, dessen Fehlen ihn tot hielt: Szenentext. Das Latenzargument entfällt mit dem eigenen Thread — 34 s sind keine Gesprächspause, wenn niemand wartet. Einziger Aufruf mit Reasoning AN im ganzen System. |
 | **Ein Regressionskorpus** für die Prompts | Die Recherche empfiehlt ihn (§ 9). Die Prompts sind an je 4–7 Fällen gegen das echte Modell geprüft, nicht an einem Korpus. |
 
 ---
@@ -253,16 +253,21 @@ also keine Dopplung mit dem Absichtserkenner.
    `letzte_journalisierte_message_id` ergänzt wurden **und die Nachrichten noch da sind**.
 3. **Gesetzte, nicht gemessene Werte:** `HINWEIS_AB_S = 60` (wann der Bot beiläufig auf den
    Interviewmodus hinweist) · `SCHWELLE_VERDRAENGUNG = 2000` · `LETZTE_JOURNALEINTRAEGE = 12`
-   · das kurze Fenster mit 8.000 Token. Alle sind begründet, keiner ist gemessen.
+   · das kurze Fenster mit 8.000 Token · `szene.DECKEL = 40.000` und
+   `szene.TIMEOUT_S = 150`. Alle sind begründet, keiner ist gemessen. Bei den beiden
+   Szenen-Werten ist die Fehlerrichtung bewusst gewählt: zu großzügig kostet Wartezeit,
+   die niemand absitzt, zu knapp kostet den bezahlten Lauf.
 4. **Zwei Aussetzer beim Anbieter beobachtet:** ein HTTP 502 (Wiederholung nach 0,7 s
    erfolgreich) und ein `ReadTimeout` (zweiter Versuch sofort erfolgreich). Die Wiederholung
    mit Backoff fängt beides ab — aber es zeigt, dass der Dienst nicht durchgehend stabil ist.
 5. **Ein Modellaufruf lag bei 8,3 s** statt der üblichen unter 1 s. Vermutlich Warteschlange.
    Wenn das häufiger auftritt, ist es einen Blick wert.
-6. **Toter Code:** `LLM.prosa`, `gruppe.gruendlich_naechster_zug`, die Tabelle `szene`,
-   `telegram`s Feld `antwortet_auf_bot` (korrekt berechnet, aber seit der Auslöser-Änderung
-   ungenutzt). Alles dokumentiert, nichts davon schadet — aber es sollte entweder verdrahtet
-   oder entfernt werden.
+6. **Toter Code — zum Teil erledigt (04.09.2026).** `LLM.prosa` und die Tabelle `szene` sind
+   verdrahtet (`theatersoap/szene.py`, `SPEC` § 4.5 Nachtrag). Übrig bleiben
+   `gruppe.gruendlich_naechster_zug` (gehörte zum gestrichenen `/gruendlich`, nicht zu den
+   Szenen) und `telegram`s Feld `antwortet_auf_bot` (korrekt berechnet, aber seit der
+   Auslöser-Änderung ungenutzt). Beides dokumentiert, keines schadet — aber es sollte
+   entweder verdrahtet oder entfernt werden.
 7. **Betriebsregeln, die nirgends erzwungen sind:** nie denselben Bot-Namen zweimal
    gleichzeitig starten (beide Nachhol-Arbeiter lüden dieselbe Datei hoch), nie zwei Bots in
    dieselbe Gruppe (`repo.sichere_gruppe` überschreibt `gruppe.bot_name` bei jeder

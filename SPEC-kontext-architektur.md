@@ -514,6 +514,18 @@ Szenen dazukommen. Er wurde am Vorabend des Workshops bewusst **nicht** entfernt
 Änderung an `llm.py` — dem Modul mit der größten Reichweite — zu diesem Zeitpunkt mehr
 Risiko als Nutzen gewesen wäre.
 
+> **Nachtrag 04.09.2026: Modus B ist verdrahtet — Szenen.** Der oben genannte Fall ist
+> eingetreten. `theatersoap/szene.py` ruft `LLM.prosa()` als **einzige** Stelle im System,
+> mit aktivem Reasoning; alle anderen Aufrufe bleiben bei `"none"`. Der Aufruf läuft
+> ausdrücklich **nicht** im Gesprächszug, sondern in einem eigenen Thread — damit entfällt
+> genau das Gegenargument von oben: die 33,8 s Latenz sind keine Gesprächspause mehr, weil
+> niemand darauf wartet. Ausgelöst wird er durch die Absichtserkenner-`art`
+> `szene_schreiben` oder den Befehl `/szene`. Dazu kamen die Blöcke 4 (Szenenliste) und 5
+> (aktuelle Szene im Volltext) aus § 6.2 sowie vier `repo`-Zugriffe auf die Tabelle `szene`.
+> `LLM.prosa` hat dafür zwei additive Parameter bekommen (`max_tokens`, `timeout`); die
+> Spalte `gruppe.gruendlich_naechster_zug` bleibt tot, sie gehörte zum gestrichenen Befehl
+> `/gruendlich`, nicht zu den Szenen.
+
 ---
 
 ## 5. Belegzitat-Verifikation

@@ -24,12 +24,13 @@ Module unter `theatersoap/`:
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, kurz/lang-Klassifizierung |
-| `befehle.py` | Die sechs Slash-Befehle, laufen vor jedem Kontextaufbau und vor jedem Sprachmodell-Aufruf |
+| `befehle.py` | Die sieben Slash-Befehle, laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
+| `szene.py` | Szenentexte: eigener Prompt, eigener Thread, als einziger Aufruf mit Reasoning AN |
 | `telegram.py` | Dünner HTTP-Wrapper um die Telegram-Bot-API |
 | `verdichter.py` | Verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten |
 | `zitat.py` | Belegzitat-Verifikation: Teilstring-Vergleich nach Normalisierung |
@@ -37,7 +38,7 @@ Module unter `theatersoap/`:
 | `db.py` | Schema, Verbindungsaufbau samt PRAGMAs, Migration fehlender Spalten, Löschweg (`loesche_gruppe`) |
 | `einstellungen.py` | Konfiguration ausschließlich über Umgebungsvariablen |
 | `anweisungen.py` | Prompt-Texte mit Hot-Reload (mtime) + optionaler Regie-Zettel `betrieb/zusatz*.md` |
-| `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`) |
+| `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`, `szene` + `theater-tells`) |
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
@@ -115,6 +116,16 @@ Nachmittag noch einmal.
    `finish_reason == "length"` wird explizit als Budget-, nicht als
    Formatfehler behandelt.
 
+   **Die eine Ausnahme: `szene.py`.** Dort ist Reasoning AN, und zwar nach
+   der Matrix in `reasoning-stufen-entscheidungshilfe.md` § 4.2, nicht weil
+   Szenentext „wichtiger" wäre: entscheidend ist, ob ein Mensch wartet — und
+   beim Szenenlauf wartet niemand, er hängt in einem eigenen Thread. Daran
+   hängen zwei Werte, die dort eigens gesetzt sind und nicht aus `llm.py`
+   kommen: `max_tokens = 12.000` (unter 12.000 endet der Lauf im Denken) und
+   ein Zeitbudget von 150 s (der `httpx.Client` aus `bot.main` hat 30 s, das
+   reicht für einen Reasoning-Lauf nicht). Wer einen weiteren Aufruf mit
+   Reasoning baut, braucht beides wieder.
+
 5. **Modellwahl je Aufruf.** Kimi fürs Gespräch und den Verdichter,
    `google/gemma-4-31B-it` für Absichtserkennung und Journal (gemessen: 0
    Falsch-Positive bei 25 Negativfällen, 30/30 Treffer; Kimi verpasste
@@ -150,10 +161,17 @@ und einen Modus B (`/gruendlich`, freier Prosatext mit
 Workshoptag wurde das auf die sechs Befehle in `befehle.py` reduziert (siehe
 Commit „Sechs Befehle als Notausgang"): `/merken`, `/verworfen`,
 `/konflikt`, `/begriffe`, `/figur`, `/name`, `/material` und `/gruendlich`
-existieren in der SPEC, aber nicht mehr im Code. `LLM.prosa()` selbst ist
-weiterhin vorhanden, wird aber aktuell nirgends aufgerufen. Wer an diesen
-Stellen weiterbaut, sollte sich auf `befehle.py` verlassen, nicht auf die
-SPEC-Tabelle.
+existieren in der SPEC, aber nicht mehr im Code. Seit dem 04.09.2026 sind es
+sieben — `/szene` ist dazugekommen, und mit ihm ist `LLM.prosa()` verdrahtet
+(`szene.py`, SPEC § 4.5 Nachtrag). Wer an diesen Stellen weiterbaut, sollte
+sich auf `befehle.py` verlassen, nicht auf die SPEC-Tabelle.
+
+`befehle.behandle()` nimmt seit `/szene` ein optionales `klm` entgegen. Die
+alte strukturelle Garantie („behandle bekommt kein LLM-Objekt, also kann ein
+Befehl nicht am Modell scheitern") ist damit eine Zusage geworden, die der
+Code weiterhin einhält: **kein Befehl ruft synchron ein Modell** — `/szene`
+gibt sofort an einen eigenen Thread ab. Wer einen achten Befehl anhängt,
+halte sich daran.
 
 `einstellungen.py` liest zusätzlich `TS_MODELL_ERKENNER` (Vorgabewert
 `google/gemma-4-31B-it`) — diese Variable fehlt noch in
@@ -174,9 +192,11 @@ systemctl --user restart theatersoap@gruppe1.service        # Neustart
 tail -f betrieb/gruppe1.log                                 # Log je Gruppe
 ```
 
-**Verhalten aendern ohne Neustart** (`theatersoap/anweisungen.py`): die vier
+**Verhalten aendern ohne Neustart** (`theatersoap/anweisungen.py`): alle
 Prompts unter `theatersoap/prompts/` werden bei jedem Aufruf per mtime
-geprueft und heiss nachgeladen. Fuer spontane Regieanweisungen gibt es
+geprueft und heiss nachgeladen -- auch `szene.md` und die Negativliste
+`theater-tells.md`, die im Workshop waechst und beim naechsten Szenenauftrag
+wirkt. Fuer spontane Regieanweisungen gibt es
 `betrieb/zusatz.md` (alle Bots) und `betrieb/zusatz.<TS_BOT_NAME>.md` (ein
 Bot); der Inhalt wird ans Ende der Gespraechs-Systemanweisung gehaengt,
 Loeschen der Datei nimmt ihn zurueck. Erkenner/Journal/Verdichter bekommen
@@ -207,10 +227,11 @@ python -m theatersoap.bot
 - **Weiches Löschen von Arbeitsstand-Einträgen.** Kein `entfernt_am`-Feld;
   Überschreiben ist der einzige Schreibpfad. Laut SPEC § 4.3 auf die Zeit
   nach dem ersten Workshoptag verschoben.
-- **Szenen.** Die Tabelle `szene` existiert im Schema, aber kein Modul
-  schreibt oder liest sie — `kontext.py` lässt den Block „aktuelle Szene im
-  Volltext" ausdrücklich weg, er gehört zu einer späteren Workshop-Phase.
 - **Weboberflächen** (Dashboard fürs Workshop-Team, Teilnehmeroberfläche).
   Bisher nur Konzept in `NACHTRAG-weboberflaeche-und-sprache.md`, noch nicht
   gebaut. Der Bot schreibt bereits `vorfall`-Zeilen, die ein Dashboard
-  anzeigen könnte, sobald es existiert.
+  anzeigen könnte, sobald es existiert — und `szene.py` verweist die Gruppe
+  für den vollständigen Szenentext bereits auf „eure Gruppenseite", ohne
+  Link. Das ist die eine Stelle, an der ein Versprechen der fehlenden
+  Oberfläche vorausläuft: bis sie steht, ist der Volltext nur in der
+  Datenbank (Tabelle `szene`).

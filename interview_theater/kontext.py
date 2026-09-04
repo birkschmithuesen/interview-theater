@@ -162,6 +162,13 @@ def _baue_transkripte(conn, chat_id: int) -> str:
     ohnehin schon im Fenster; sie hier zusaetzlich als Volltranskript
     aufzufuehren wuerde denselben Inhalt verdoppeln und einen Zuruf
     faelschlich zu Interview-Material erklaeren.
+
+    Je Interview EIN Transkript (§ 10.6, ``repo.zusammengefuegtes_transkript``):
+    die Teile werden zusammengefuegt, in Reihenfolge, durch eine Leerzeile
+    getrennt. Ein Interview aus fuenf Sprachnachrichten ist ein Gespraech, und
+    als fuenf Bloecke gelesen zerfiele es genau dort, wo es interessant wird.
+    Das gilt auch fuer ein noch laufendes Interview -- die Gruppe soll den
+    Wortlaut mitlesen koennen, waehrend er entsteht.
     """
     gruppe = repo.hole_gruppe(conn, chat_id)
     modus = gruppe["wortlaut_modus"] if gruppe else None
@@ -171,8 +178,11 @@ def _baue_transkripte(conn, chat_id: int) -> str:
 
     zeilen = []
     for a in repo.transkripte(conn, chat_id, name=name):
-        if a["klasse"] == "lang" and a["transkript"]:
-            zeilen.append(f"--- {a['name']} (Volltranskript) ---\n{a['transkript']}")
+        if a["klasse"] != "lang":
+            continue
+        transkript = repo.zusammengefuegtes_transkript(conn, a["id"])
+        if transkript:
+            zeilen.append(f"--- {a['name']} (Volltranskript) ---\n{transkript}")
     if not zeilen:
         return ""
     return "Volltranskripte:\n" + "\n\n".join(zeilen)

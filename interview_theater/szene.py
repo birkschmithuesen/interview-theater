@@ -208,11 +208,15 @@ def _transkripte_text(conn, chat_id: int) -> str:
     unschaerfer macht (SPEC § 6.2 Block 3) -- hier sind sie der Punkt: der
     Szenentext soll aus dem Material kommen und Repliken woertlich daraus
     uebernehmen duerfen. Nur Klasse *lang* zaehlt als Material, kurze
-    Gespraechsbeitraege sind Zurufe."""
+    Gespraechsbeitraege sind Zurufe -- und je Interview ein zusammengefuegtes
+    Transkript ueber alle seine Teile (§ 10.6)."""
     zeilen = []
     for a in repo.transkripte(conn, chat_id):
-        if a["klasse"] == "lang" and a["transkript"]:
-            zeilen.append(f"--- {a['name']} ---\n{a['transkript']}")
+        if a["klasse"] != "lang":
+            continue
+        transkript = repo.zusammengefuegtes_transkript(conn, a["id"])
+        if transkript:
+            zeilen.append(f"--- {a['name']} ---\n{transkript}")
     if not zeilen:
         return ""
     return "Interviews im Wortlaut:\n" + "\n\n".join(zeilen)

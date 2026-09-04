@@ -76,6 +76,23 @@ class Telegram:
             antwort.raise_for_status()
             return antwort.json()["result"]["message_id"]
 
+    def loesche_nachrichten(self, chat_id: int, message_ids: list[int]) -> int:
+        """Loescht bis zu 100 Nachrichten auf einmal (deleteMessages). Braucht
+        Admin-Rechte in der Gruppe. Liefert die Zahl der uebergebenen IDs;
+        Telegram meldet fuer laengst geloeschte oder unbekannte IDs keinen
+        Fehler, sondern ignoriert sie -- deshalb kein Zaehlen des Erfolgs
+        je ID. Nachrichten von VOR dem Eintritt des Bots kennt er nicht und
+        kann sie nicht loeschen (scripts/chat_leeren.py)."""
+        if not message_ids:
+            return 0
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("deleteMessages"),
+                json={"chat_id": chat_id, "message_ids": message_ids[:100]},
+            )
+            antwort.raise_for_status()
+        return len(message_ids[:100])
+
     def setze_befehle(self, befehle: list[dict]) -> None:
         """Ruft setMyCommands (teil-b.md Aufgabe 6): die Befehle erscheinen im
         Telegram-Menue, wenn jemand '/' tippt. Wird einmal beim Start

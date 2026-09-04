@@ -266,6 +266,12 @@ python -m interview_theater.bot
   automatisch, kostet Geld.** Ein echter Aufruf gegen Sprachmodell und
   optional Whisper, zur Kalibrierung der Token-Schätzung und als
   Erreichbarkeitsprüfung vor einem Einsatz.
+- `python scripts/chat_leeren.py <chat_id> [--ja]` — setzt eine Gruppe auf
+  null: löscht alle dem Bot bekannten Nachrichten aus dem Telegram-Chat
+  (`deleteMessages`, Bot muss Admin sein; Nachrichten von vor seinem
+  Eintritt und Telegram-Servicezeilen bleiben) und danach DB + Audio wie
+  `loeschen.py`. Für den Workshop-Start nach einem Probelauf. Env der
+  jeweiligen Gruppe laden — das Skript prüft, dass der Bot zur Gruppe passt.
 - `python scripts/loeschen.py <chat_id>` — der Löschweg: entfernt alle
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.

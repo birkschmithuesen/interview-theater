@@ -246,3 +246,37 @@ def test_lies_nachricht_erkennt_sprache_trotz_bildunterschrift():
     assert n["typ"] == "sprache"
     assert n["text"] == "Regieanweisung"
     assert n["dauer"] == 5
+
+
+def test_loesche_nachrichten_schickt_hoechstens_hundert_ids():
+    """deleteMessages nimmt maximal 100 IDs je Aufruf; der Aufrufer
+    (scripts/chat_leeren.py) stueckelt, der Wrapper kappt zur Sicherheit."""
+    gesehen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append(json.loads(request.content))
+        assert "deleteMessages" in str(request.url)
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    assert bot.loesche_nachrichten(-100, list(range(1, 151))) == 100
+    assert gesehen[0]["chat_id"] == -100
+    assert len(gesehen[0]["message_ids"]) == 100
+
+
+def test_loesche_nachrichten_ohne_ids_ruft_nichts():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("kein Aufruf erwartet")
+
+    bot = telegram.Telegram("T", _klient(handler))
+    assert bot.loesche_nachrichten(-100, []) == 0
+
+
+def test_loesche_nachrichten_bereinigt_token_im_fehler():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"ok": False, "description": "not enough rights"})
+
+    bot = telegram.Telegram("GEHEIM", _klient(handler))
+    with pytest.raises(telegram.TelegramFehler) as info:
+        bot.loesche_nachrichten(-100, [1])
+    assert "GEHEIM" not in str(info.value)

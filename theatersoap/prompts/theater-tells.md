@@ -125,3 +125,55 @@ geht.
 **24. Der Zeitsprung wird angesagt.**
 - Schlecht: MARIA: Drei Wochen spaeter sass ich dann im Amt und ...
 - Besser: (Pause. Sie hat jetzt einen anderen Mantel an.)
+
+Die folgenden sechs stammen aus der Auswertung eines manuell durchgefuehrten
+Interview-Theater-Projekts (Herkules.exe, 2026) -- Stellen, an denen die
+Dramaturgie eine erste Fassung durch eine bessere ersetzt hat.
+
+**25. Der verpflanzte O-Ton.**
+- Schlecht: MERYEM: Man denkt sich, okay, fuenf Minuten, und auf einmal ist
+  eine Stunde vergangen. (Der Interviewsatz, einer Figur in den Mund gelegt.)
+- Besser: ELIF: Seit gestern Abend. Das sind -- (rechnet) -- vierzehn
+  Stunden. / MERYEM: Doch. Das geht. Wenn dich nichts rauszieht.
+  Das Zitat ist die Quelle. Auf der Buehne muss dieselbe Einsicht von jemandem
+  erarbeitet werden, der sie noch nicht hat.
+
+**26. Die Wunde im eigenen Mund.**
+- Schlecht: MERYEM: Damals hat er zu mir gesagt, ich sei zu dumm fuer die
+  Sprache. Seitdem rede ich nicht mehr auf Deutsch, wenn Fremde dabei sind.
+- Besser: (Stimmen von aussen, maennlich, ruhig.) Zu dumm fuer die Sprache.
+  Zu dumm. / (MERYEM fuellt das Formular weiter aus. Schneller.)
+  Berichtet ist die Verletzung ein Bericht. Als Angriff im Praesens trifft
+  sie auch den Saal.
+
+**27. Das sofort benannte Schweigen.**
+- Schlecht: ELIF: Merkt ihr das? Die reden gar nicht mit mir. Ich bin denen
+  nicht mal wichtig genug.
+- Besser: (Die anderen reden weiter. Ueber Elif hinweg. Sie steht da.) ...
+  und erst zwei Seiten spaeter: ELIF: Das kenn ich. Seit dem ersten Tag.
+  Die Abwesenheit muss ausgehalten werden, bevor sie benannt wird. Sofort
+  benannt, ist sie nur eine Behauptung.
+
+**28. Die weichgespuelte Zahl.**
+- Schlecht: MARIA: Sie wartet seit Ewigkeiten auf den Bescheid.
+- Besser: MARIA: Seit drei Jahren und vier Monaten.
+  Die Zahl leistet, was die Metapher behauptet -- und sie stand im Interview.
+
+**29. Das erklaerte Merkmal.**
+- Schlecht: MARIA: Stoert es dich nie, dass alle dich wegen dem Kopftuch
+  anders behandeln? / ELIF: Doch. Aber ich trage es, weil es meine
+  Entscheidung ist.
+- Besser: ELIF: Maenner, die was wissen, sind schlau. Frauen, die was
+  wissen, sind Streberinnen. Und Frauen wie ich, die was wissen, sind -- /
+  MARIA: -- gut integriert. / ELIF: Genau.
+  Sobald ein Merkmal besprochen wird, wird es zum Thema der Figur. Und das
+  Etikett kommt nie aus ihrem eigenen Mund -- eine andere liefert es.
+
+**30. Die variierte Wiederholung.**
+- Schlecht: (Sie klingelt.) ... (Wieder das Klingeln, diesmal laenger.) ...
+  (Ein letztes, verzweifeltes Laeuten.)
+- Besser: (Klingel. Alle warten. Fuenf Sekunden. Zehn.) ... (Klingel. Alle
+  warten. Fuenf Sekunden. Zehn. Zwanzig.) -- buchstabengleich, nur die
+  Wartezeit waechst.
+  Variation verraet den Arrangeur. Die identische Wiederholung macht das
+  Warten selbst unertraeglich.

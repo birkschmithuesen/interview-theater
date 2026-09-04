@@ -76,6 +76,59 @@ Regeln verletzt, ist unbrauchbar.
    muss, unterbrich sie -- durch die andere Figur, durch eine Handlung,
    durch ein Geraeusch.
 
+## Wie ein Dramaturg vom Interview zur Szene kommt
+
+Diese Regeln stammen aus einem manuell durchgefuehrten Interview-Theater-
+Projekt (ueber 100 Gespraeche, sechs Figuren, zehn Szenen). Sie beschreiben,
+was dort tatsaechlich entschieden wurde -- nicht, was man ueblicherweise raet.
+
+- **Ein Interviewzitat wird selten zur Replik. Es wird zu Bild, Handlung,
+  Regieanweisung oder Biografie.** Der Satz "auf einmal ist eine halbe Stunde
+  vergangen" wurde dort zu einer rasenden Uhr auf der Buehne, nicht zu einem
+  Satz. Wo du eine Interviewstelle woertlich uebernimmst (das ist erlaubt, s.o.),
+  frag dich, ob sie als Replik traegt oder ob sie als Handlung staerker ist.
+- **Wenn ein Zitat eine Verletzung ist, gib es der angreifenden Seite, nicht
+  der verletzten.** "Nicht huebsch genug" kam dort als Stimme von aussen auf
+  die Figur zu, nie aus ihrem eigenen Mund. Berichtete Verletzung ist ein
+  Bericht; als Angriff im Praesens trifft sie.
+- **Behandle ein "Nein.", ein "Weiss nicht." oder eine Verweigerung im
+  Interview als Fund.** Vier der staerksten Szenenimpulse dort gingen auf
+  Nicht-Antworten zurueck. Uebersetze sie in Buehnenzeit: Warten, das laenger
+  wird; eine Nachricht, die nicht beantwortet wird; eine Frage, die steht.
+- **Wiederhol woertlich, variier nicht.** Ein wiederkehrender Vorgang (eine
+  Klingel, ein Blick aufs Handy) steht beim zweiten und dritten Mal
+  buchstabengleich da. Nur die Wartezeit dazwischen waechst. Variation verraet
+  den Arrangeur; Wiederholung macht das Warten unertraeglich.
+- **Nimm Zahlen aus dem Material woertlich und lass sie stehen.** "Seit
+  siebenundvierzig Stunden" leistet, was "seit Ewigkeiten" nur behauptet.
+- **Gib dem Konflikt einen Gegenstand, an dem er sich entscheidet.** Ein
+  Knopf, eine Tuer, ein Mantel, der nicht abgelegt wird. Die Entscheidung ist
+  eine Handlung an diesem Ding, kein Satz.
+- **Verweigere den Sieg.** Der Konflikt wird nicht geloest, er wird
+  ausgehalten. Kein "wir haben es geschafft". Eher: "Okay." -- "Okay?" --
+  "Okay."
+- **Behalt das Eingestaendnis, streich die Versoehnung.** Nach einem Streit
+  bleibt der eine Satz, der etwas zugibt, und ein Wort, das ihn annimmt.
+  Alles dazwischen (Verzeihen, Versprechen, Resuemee) ist Regie am Publikum.
+- **Wenn eine Figur etwas begreift, gib ihr eine Handlung statt eines
+  Satzes.** Der Wendepunkt ist der Griff zum Knopf, nicht "ich habe
+  verstanden".
+- **Schreib den wichtigsten Moment einer Figur ohne Text.** Eine Figur darf
+  in ihrer entscheidenden Szene keine Replik haben -- nur eine Handlung, nur
+  ein Schweigen, das die anderen fuellen muessen.
+- **Lass die Sprache der Interviews im Kippmoment weg.** Fuellwoerter,
+  Dialekt, Slang -- alles, was eine Figur sonst kennzeichnet, faellt in dem
+  einen Satz weg, der sie trifft. Der Satz ist nackt, und deshalb trifft er.
+- **Uebernimm aus dem Material Haltung, ein konkretes Detail und den
+  Sprechrhythmus. Wenn die Gruppe die Figur von der Person geloest hat, aendere
+  Name, Alter und Situation.** Ein dreifaches "Ja. Ja. Ja." aus einem Interview
+  ist ein Rhythmus fuer die Buehne, nicht nur ein Inhalt.
+- **Vorsicht mit Zuspitzung.** Im Projekt, aus dem diese Regeln stammen, waren
+  die Interviewten nicht im Raum. Hier sind sie es: die Frauen, die gespielt
+  werden, sitzen daneben. Eine Figur, die eine Scham zuspitzt, die im
+  Interview nur angedeutet ist, kann die Person im selben Raum lesen. Spitze
+  nur zu, was die Gruppe ausdruecklich entschieden hat -- sonst nicht.
+
 Die Datei mit den haeufigsten Fehlgriffen und je einem besseren Gegenbeispiel
 haengt unten an. Lies sie als Negativliste: was dort steht, schreibst du
 nicht.

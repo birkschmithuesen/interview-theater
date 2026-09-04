@@ -199,7 +199,12 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die
             # datengetriebenen Bloecke bleiben unveraendert (phasen.py).
             phase = phasen.aktuelle(conn, chat_id)
-            koerper = kontext.baue(conn, chat_id, offen, e)
+            # Allererster Zug der Gruppe: die Begruessung entsteht aus der
+            # ersten Nachricht heraus (kontext.ERSTKONTAKT), nicht als fester
+            # Text vorweg (bot.erstkontakt ist seit 04.09. abends nur noch
+            # der Rueckfallweg, wenn der Modellaufruf scheitert).
+            erstkontakt = not repo.hat_bot_nachricht(conn, chat_id)
+            koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt)
             ergebnis = klm.schema(
                 chat_id, kontext.system(e.bot_name, phase), koerper, SCHEMA, "gespraech"
             )
@@ -226,8 +231,14 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         )
         if not versand_erfolgreich:
             # Nur melden, wenn die Gruppe noch KEINE Antwort bekommen hat.
+            # Beim allerersten Zug lieber die feste Begruessung als eine
+            # Fehlerzeile -- die Gruppe soll nicht mit "hakt gerade" anfangen.
             try:
-                tg.sende(chat_id, _TEXT_FEHLER)
+                if not repo.hat_bot_nachricht(conn, chat_id):
+                    from interview_theater import bot as _bot
+                    _bot.erstkontakt(conn, tg, e, chat_id)
+                else:
+                    tg.sende(chat_id, _TEXT_FEHLER)
             except Exception:
                 log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
     finally:

@@ -168,6 +168,9 @@ def test_bot_antwort_wird_mitgeschrieben(conn, einst, tg, klm):
 
 
 def test_llm_fehler_meldet_der_gruppe_und_haelt_nicht_an(conn, einst, tg):
+    # Nicht der allererste Zug: da kaeme statt "hakt" die feste Begruessung.
+    repo.merke_nachricht(conn, 1, 6, einst.bot_name, 1, "text", "Hallo!", repo._jetzt())
+    repo.setze_beantwortet_bis(conn, 1, 6)
     repo.merke_nachricht(conn, 1, 7, "Ada", 0, "text", "@gruppe1 was meinst du?", repo._jetzt())
     ablauf.bearbeite(conn, tg, KLMKaputt(), einst, 1)
 
@@ -460,3 +463,31 @@ def test_schleife_gibt_auch_beilaeufig_wirkenden_text_in_den_pool(conn, einst):
     assert len(pool.submits) == 1
     fn, _args, _kwargs = pool.submits[0]
     assert fn is bot._zug_und_erkenner
+
+
+
+def test_erster_zug_bekommt_erstkontakt_anweisung_und_link(conn, einst, tg, klm):
+    """Birk 04.09. abends: die Begruessung soll auf das eingehen, was die
+    Person als Erstes sagt -- also Anweisung ans Modell, kein fester Text."""
+    import dataclasses
+    mit_web = dataclasses.replace(einst, web_url="https://lab.test/theatersoap")
+    repo.merke_nachricht(conn, 1, 1, "Ada", 0, "text", "hallo, wir sind zu dritt", repo._jetzt())
+    ablauf.bearbeite(conn, tg, klm, mit_web, 1)
+    koerper = klm.gesehen[-1]
+    assert "allererste Nachricht" in koerper
+    token = repo.stelle_web_token_sicher(conn, 1)
+    assert f"https://lab.test/theatersoap/g/{token}" in koerper
+
+    # zweiter Zug: keine Erstkontakt-Anweisung mehr
+    repo.merke_nachricht(conn, 1, 3, "Ada", 0, "text", "und weiter?", repo._jetzt())
+    ablauf.bearbeite(conn, tg, klm, mit_web, 1)
+    koerper = klm.gesehen[-1]
+    assert "allererste Nachricht" not in koerper
+
+
+def test_erster_zug_bei_modellfehler_faellt_auf_feste_begruessung_zurueck(conn, einst, tg):
+    repo.merke_nachricht(conn, 1, 1, "Ada", 0, "text", "hallo", repo._jetzt())
+    ablauf.bearbeite(conn, tg, KLMKaputt(), einst, 1)
+    texte = [t for _, t in tg.gesendet]
+    assert not any("hakt" in t for t in texte)
+    assert any("/hilfe" in t for t in texte)

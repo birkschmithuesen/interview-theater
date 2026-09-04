@@ -295,11 +295,10 @@ def schleife(
                 jetzt = datetime.now(timezone.utc)
                 nachricht = verarbeite_update(conn, e, update, jetzt, beim_start)
                 if nachricht is not None:
-                    # Aufgabe 7: die Begruessung kommt genau einmal je Gruppe --
-                    # erstkontakt() prueft das selbst (repo.hat_bot_nachricht)
-                    # und ist deshalb ein billiger No-Op bei jeder weiteren
-                    # Nachricht derselben Gruppe.
-                    erstkontakt(conn, tg, e, nachricht["chat_id"])
+                    # Die Begruessung entsteht seit 04.09. abends im ersten
+                    # Gespraechszug aus der ersten Nachricht heraus
+                    # (kontext.ERSTKONTAKT); erstkontakt() ist nur noch der
+                    # Rueckfallweg bei Modellfehler (ablauf.antworte).
                     if nachricht["typ"] == "sprache":
                         # Aufgabe 8: Download und Transkription duerfen die
                         # Schleife nie blockieren, daher im Thread-Pool.

@@ -82,7 +82,7 @@ PAUSE_AB_MINUTEN = 60
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "arbeitsstand", "phasenhinweis", "szene",
-    "journal", "fenster", "ausloeser",
+    "journal", "fenster", "ausloeser", "erstkontakt",
 )
 
 
@@ -366,7 +366,35 @@ def _zusammen(bloecke: dict) -> str:
     return "\n\n".join(bloecke[k] for k in _REIHENFOLGE if bloecke.get(k))
 
 
-def baue(conn, chat_id: int, ausloeser, e) -> str:
+#: Beim allerersten Zug einer Gruppe bekommt das Modell diese Anweisung an
+#: den Anfang des Koerpers -- statt eines fest verdrahteten Begruessungstexts
+#: (Birk 04.09. abends: "der Einstieg reagiert gar nicht auf das, was die
+#: Leute als Allererstes sagen"). Der Inhalt (Mitlesen, Interviews, /hilfe,
+#: Link) bleibt Pflicht, die Form entsteht aus der ersten Nachricht.
+ERSTKONTAKT = (
+    "Dies ist eure allererste Nachricht in dieser Gruppe -- deine Antwort ist "
+    "zugleich die Begruessung. Geh zuerst auf das ein, was gerade gesagt "
+    "wurde, und bring dann in wenigen Saetzen unter: dass du alles mitliest "
+    "und auf alles antwortest; dass ein Interview mit \"wir machen jetzt ein "
+    "Interview\" beginnt und mit \"fertig\" endet; dass /hilfe den Rest zeigt"
+    "{link}. Kein Formular, keine Aufzaehlung -- ein kurzer, warmer Einstieg, "
+    "der mit dem Gesagten anfaengt."
+)
+
+#: Der Satz zum Link, wenn eine Weboberflaeche konfiguriert ist.
+ERSTKONTAKT_LINK = (
+    "; und dass die Gruppe alles Festgehaltene unter {url} mitlesen kann "
+    "(nur fuer diese Gruppe, den Link genau so nennen)"
+)
+
+
+def _baue_erstkontakt(conn, chat_id: int, e) -> str:
+    url = repo.gruppenseite_url(conn, chat_id, getattr(e, "web_url", ""))
+    link = ERSTKONTAKT_LINK.format(url=url) if url else ""
+    return ERSTKONTAKT.format(link=link)
+
+
+def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False) -> str:
     """Baut den Koerper des Gespraechs-Prompts (ohne SYSTEM, das getrennt
     verschickt wird).
 
@@ -385,6 +413,7 @@ def baue(conn, chat_id: int, ausloeser, e) -> str:
     des Budgets nicht antworten koennte."""
     fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser)
     bloecke = {
+        "erstkontakt": _baue_erstkontakt(conn, chat_id, e) if erstkontakt else "",
         "verdichtungen": _baue_verdichtungen(conn, chat_id),
         "transkripte": _baue_transkripte(conn, chat_id),
         "arbeitsstand": _baue_arbeitsstand(conn, chat_id),

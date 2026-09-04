@@ -28,7 +28,12 @@ CREATE TABLE IF NOT EXISTS gruppe (
   wortlaut_modus                  TEXT,     -- NULL=aus, '*'=alle, sonst Aufnahmename
   gruendlich_naechster_zug        INTEGER NOT NULL DEFAULT 0,  -- Modus B einmalig (§ 4.5)
   whisper_stumm_seit              TEXT,     -- gesetzt = Ausfall gemeldet (§ 10.4)
-  interviewmodus_seit             TEXT      -- gesetzt = Interviewmodus an (teil-b.md Aufgabe 5, § 10.1)
+  interviewmodus_seit             TEXT,     -- gesetzt = Interviewmodus an (teil-b.md Aufgabe 5, § 10.1)
+  -- Zufallstoken fuer die Gruppenseite /g/<token> der Weboberflaeche
+  -- (NACHTRAG-weboberflaeche-und-sprache.md N1-B): kein Login, wer die URL
+  -- hat, sieht die Gruppe. Erzeugt der Bot (repo.stelle_web_token_sicher),
+  -- weil der Webserver die Datenbank read-only oeffnet.
+  web_token                       TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (

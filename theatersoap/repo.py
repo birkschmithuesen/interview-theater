@@ -27,6 +27,7 @@ Threads ``zaehle_aufnahmen`` aufruft -- mit einem einfachen ``Lock`` wuerde
 sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 """
 
+import secrets
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -82,7 +83,12 @@ def _jetzt_genau() -> str:
 
 @_gesperrt
 def sichere_gruppe(conn: sqlite3.Connection, chat_id: int, bot_name: str, titel: str) -> None:
-    """Legt die Gruppe an, falls noch unbekannt; aktualisiert sonst Titel/Bot-Name."""
+    """Legt die Gruppe an, falls noch unbekannt; aktualisiert sonst Titel/Bot-Name.
+
+    Nimmt seit der Weboberflaeche ausserdem das Web-Token mit (siehe
+    stelle_web_token_sicher): der Webserver liest read-only und kann keines
+    erzeugen, also muss der Bot es tun -- und das hier ist die eine Stelle,
+    die bei jeder eingehenden Nachricht jeder Gruppe laeuft."""
     conn.execute(
         """
         INSERT INTO gruppe (chat_id, bot_name, titel, erste_nachricht_am)
@@ -94,6 +100,49 @@ def sichere_gruppe(conn: sqlite3.Connection, chat_id: int, bot_name: str, titel:
         (chat_id, bot_name, titel, _jetzt()),
     )
     conn.commit()
+    stelle_web_token_sicher(conn, chat_id)
+
+
+#: Laenge des Zufallstokens fuer /g/<token>. 24 Bytes ergeben 32 Zeichen
+#: base64url -- nicht ratbar, aber noch abtippbar, falls jemand die URL vom
+#: Beamer abschreiben muss.
+WEB_TOKEN_BYTES = 24
+
+
+@_gesperrt
+def stelle_web_token_sicher(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Liefert das Web-Token der Gruppe und erzeugt es beim ersten Bedarf.
+
+    Der Webserver oeffnet die Datenbank read-only
+    (``theatersoap/web_daten.py``), deshalb entsteht das Token hier im
+    Schreibpfad des Bots. Das ``WHERE web_token IS NULL`` macht das Setzen
+    atomar: laufen zwei Bot-Prozesse gleichzeitig durch, gewinnt einer, und
+    beide lesen danach dasselbe Token. Liefert None, wenn es die Gruppe nicht
+    gibt (kein Grund, dafuer eine Zeile anzulegen)."""
+    zeile = conn.execute(
+        "SELECT web_token FROM gruppe WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    if zeile is None:
+        return None
+    if zeile["web_token"]:
+        return zeile["web_token"]
+    conn.execute(
+        "UPDATE gruppe SET web_token = ? WHERE chat_id = ? AND web_token IS NULL",
+        (secrets.token_urlsafe(WEB_TOKEN_BYTES), chat_id),
+    )
+    conn.commit()
+    return conn.execute(
+        "SELECT web_token FROM gruppe WHERE chat_id = ?", (chat_id,)
+    ).fetchone()["web_token"]
+
+
+@_gesperrt
+def alle_gruppen(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Alle Gruppen ueber alle Bots hinweg, aeltester Eintrag zuerst --
+    Grundlage von ``scripts/web_links.py`` (eine Zeile je Gruppe mit ihrer
+    Web-URL). Anders als gruppen_fuer_bot() bewusst ohne bot_name-Filter: das
+    Betreiberskript laeuft neben allen Bot-Prozessen, nicht in einem."""
+    return conn.execute("SELECT * FROM gruppe ORDER BY chat_id ASC").fetchall()
 
 
 @_gesperrt

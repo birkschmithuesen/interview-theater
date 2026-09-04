@@ -39,11 +39,21 @@ Module unter `theatersoap/`:
 | `einstellungen.py` | Konfiguration ausschließlich über Umgebungsvariablen |
 | `anweisungen.py` | Prompt-Texte mit Hot-Reload (mtime) + optionaler Regie-Zettel `betrieb/zusatz*.md` |
 | `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`, `szene` + `theater-tells`) |
+| `web.py` | Weboberfläche: Routing, HTML und CSS für Dashboard und Gruppenseiten, `http.server`, nur Standardbibliothek |
+| `web_daten.py` | Die Lesezugriffe dazu — read-only geöffnete Verbindung, reine Funktionen, `conn` rein, Dicts raus |
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
 Betriebsannahmen gegen die echten Dienste, `scripts/backup-robocloud.sh`
-sichert Betriebsdaten außerhalb des Repositories.
+sichert Betriebsdaten außerhalb des Repositories, `scripts/web_links.py` gibt
+je Gruppe die URL ihrer Gruppenseite aus.
+
+`web_daten.py` ist die einzige Ausnahme von „SQL nur in `repo.py` und
+`db.py`". Grund: die Weboberfläche liest mit einer eigenen, read-only
+geöffneten Verbindung (`file:…?mode=ro`). Sie durch `repo.py` zu führen hieße,
+den modulweiten Schreib-Lock des Bots für Anfragen zu nehmen, die den Bot
+nichts angehen — ein projiziertes Dashboard, das sich alle zehn Sekunden neu
+lädt, würde damit Gesprächszüge ausbremsen.
 
 ## Bindende Entwurfsentscheidungen
 
@@ -222,16 +232,55 @@ python -m theatersoap.bot
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
 
+## Weboberfläche
+
+Ein einziger Prozess für alle Gruppen, neben den Bots:
+
+```
+TS_DB=betrieb/soap.db python -m theatersoap.web
+```
+
+Unit-Vorlage `docs/theatersoap-web.service` (nach `~/.config/systemd/user/`,
+`daemon-reload`, dann `systemctl --user enable --now theatersoap-web`), Log
+nach `betrieb/web.log`.
+
+| Variable | Vorgabe | Bedeutung |
+|---|---|---|
+| `TS_DB` | — (Pflicht) | dieselbe SQLite wie die Bots, **read-only** geöffnet |
+| `TS_WEB_BIND` | `127.0.0.1:8010` | im Betrieb `100.75.24.33:8010` (Tailnet) |
+| `TS_WEB_PREFIX` | `/theatersoap` | Präfix, unter dem nginx den Server durchreicht |
+| `TS_WEB_URL` | `https://lab.artesmobiles.art/theatersoap` | nur für `scripts/web_links.py` |
+
+Routen: `/` (Team-Dashboard, projiziert, alle Gruppen), `/g/<token>`
+(Leseansicht einer Gruppe, Handy), `/gesund` (Health-Check, antwortet ohne
+Datenbankzugriff). Jede Route greift auch mit vorangestelltem
+`TS_WEB_PREFIX`, weil erst die nginx-Konfiguration entscheidet, ob das
+Präfix beim Server ankommt.
+
+`python scripts/web_links.py` gibt aus, welche Gruppe welchen Link bekommt.
+Das Token steht in `gruppe.web_token`, erzeugt wird es beim ersten Kontakt
+vom Bot (`repo.stelle_web_token_sicher`, aufgerufen aus `sichere_gruppe`) —
+der Webserver kann es nicht anlegen, er liest read-only.
+
+**Drei Grenzen, die nicht verhandelbar sind**, weil beide Seiten ohne Login
+erreichbar sind und das Dashboard projiziert wird:
+
+- kein Nachrichtentext und keine Transkripte auf dem Dashboard,
+- kein Volltranskript auf der Gruppenseite (dafür gibt es `/wortlaut` im Chat),
+- kein Belegzitat ohne `zitat_geprueft = 1`.
+
+`TS_WEB_BIND` lehnt `0.0.0.0` mit einem Fehler ab: ein Tippfehler in einer
+Env-Datei soll die Interviews nicht ins offene Netz stellen.
+
 ## Was bewusst fehlt
 
 - **Weiches Löschen von Arbeitsstand-Einträgen.** Kein `entfernt_am`-Feld;
   Überschreiben ist der einzige Schreibpfad. Laut SPEC § 4.3 auf die Zeit
   nach dem ersten Workshoptag verschoben.
-- **Weboberflächen** (Dashboard fürs Workshop-Team, Teilnehmeroberfläche).
-  Bisher nur Konzept in `NACHTRAG-weboberflaeche-und-sprache.md`, noch nicht
-  gebaut. Der Bot schreibt bereits `vorfall`-Zeilen, die ein Dashboard
-  anzeigen könnte, sobald es existiert — und `szene.py` verweist die Gruppe
-  für den vollständigen Szenentext bereits auf „eure Gruppenseite", ohne
-  Link. Das ist die eine Stelle, an der ein Versprechen der fehlenden
-  Oberfläche vorausläuft: bis sie steht, ist der Volltext nur in der
-  Datenbank (Tabelle `szene`).
+- **Schreiben über die Weboberfläche.** Beide Seiten sind read-only, der
+  einzige Schreibweg bleibt der Chat — sonst laufen zwei Schreibwege
+  gegeneinander (`NACHTRAG-weboberflaeche-und-sprache.md` N1).
+
+Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
+„Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit
+04.09.2026 abends): der Volltext liegt in `szene` und auf der Gruppenseite.

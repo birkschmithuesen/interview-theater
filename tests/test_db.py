@@ -38,6 +38,13 @@ def test_gruppe_hat_interviewmodus_seit_spalte(conn):
     assert "interviewmodus_seit" in spalten
 
 
+def test_gruppe_hat_web_token_spalte(conn):
+    """Weboberflaeche (NACHTRAG N1-B): Zugang zur Gruppenseite laeuft ueber
+    gruppe.web_token, es gibt kein Login."""
+    spalten = [r[1] for r in conn.execute("PRAGMA table_info(gruppe)")]
+    assert "web_token" in spalten
+
+
 #: Die 'gruppe'-Tabelle, wie sie vor Aufgabe 5 aussah -- ohne
 #: interviewmodus_seit. Fuer den Migrationstest unten bewusst hier hart
 #: hinterlegt statt aus db.SCHEMA abgeleitet: der Test soll pruefen, dass
@@ -91,6 +98,27 @@ def test_migration_ergaenzt_fehlende_spalte_ohne_datenverlust(tmp_path):
     assert c.execute(
         "SELECT interviewmodus_seit FROM gruppe WHERE chat_id = 1"
     ).fetchone()[0] == "2026-09-05T10:00:00+00:00"
+
+
+def test_migration_ergaenzt_web_token_ohne_datenverlust(tmp_path):
+    """Weboberflaeche: dieselbe Migration muss auch die neueste Spalte
+    nachruesten -- eine Datenbank vom ersten Workshoptag kennt web_token
+    nicht, ihre Nachrichten muessen den Nachruestlauf trotzdem ueberleben."""
+    pfad = str(tmp_path / "alt.db")
+    c = db.verbinde(pfad)
+    c.executescript(_ALTE_GRUPPE_TABELLE)
+    c.execute(
+        "INSERT INTO gruppe (chat_id, bot_name, titel) VALUES (7, 'gruppe1', 'Gruppe Sieben')"
+    )
+    c.commit()
+    assert "web_token" not in [r[1] for r in c.execute("PRAGMA table_info(gruppe)")], \
+        "Testannahme: die Spalte fehlt wirklich"
+
+    db.initialisiere(c)
+
+    zeile = c.execute("SELECT * FROM gruppe WHERE chat_id = 7").fetchone()
+    assert zeile["titel"] == "Gruppe Sieben", "Migration darf keine Daten verlieren"
+    assert zeile["web_token"] is None, "nachgeruestet, aber noch nicht gefuellt"
 
 
 def test_migration_ist_ein_no_op_wenn_alle_spalten_schon_da_sind(conn):

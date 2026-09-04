@@ -492,6 +492,33 @@ def baue_tabelle(prompt: str, zeilen: list[dict]) -> list[str]:
     return aus
 
 
+def baue_auffaellige(zeilen: list[dict]) -> list[str]:
+    """Zu jedem Fall mit FP, FN oder Fehler die ``notiz`` aus dem Korpus samt
+    voller Modellantwort.
+
+    Wer den Bericht liest, muss entscheiden koennen, ob ein Fehlschlag
+    schlimm ist. Die Tabelle sagt nur *dass* etwas danebenging; die Notiz sagt,
+    warum der Fall ueberhaupt im Korpus steht ("Nemotron las das als
+    kernthema_setzen") -- ohne sie muesste man jedes Mal die JSONL-Zeile
+    nachschlagen."""
+    auffaellig = [z for z in zeilen if z.get("fehler") or z["fp"] or z["fn"]]
+    if not auffaellig:
+        return ["", "Keine Auffaelligkeiten."]
+    aus = ["", "<details><summary>Auffaellige Faelle im Einzelnen</summary>", ""]
+    for z in auffaellig:
+        aus.append(f"**{z['id']}** — FP {z['fp']}, FN {z['fn']}"
+                   + (f", FEHLER: {z['fehler']}" if z.get("fehler") else ""))
+        if z["notiz"]:
+            aus.append(f"> {z['notiz']}")
+        aus.append("")
+        aus.append("```json")
+        aus.append(json.dumps(z["roh"], ensure_ascii=False, indent=2))
+        aus.append("```")
+        aus.append("")
+    aus.append("</details>")
+    return aus
+
+
 def kosten_chf(modell: str, eingabe_token: int, ausgabe_token: int) -> float | None:
     """Kostenschaetzung nach den hart eingetragenen Preisen. ``None`` fuer ein
     Modell, das nicht in der Liste steht -- lieber keine Zahl als eine
@@ -674,6 +701,7 @@ def main(argv=None) -> int:
                 abschnitte += [f"## {prompt}", ""]
                 abschnitte += baue_tabelle(prompt, zeilen)
                 abschnitte += baue_summe(prompt, modell, zeilen)
+                abschnitte += baue_auffaellige(zeilen)
                 abschnitte += [""]
 
         kopf = [

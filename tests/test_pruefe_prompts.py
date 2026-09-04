@@ -329,6 +329,7 @@ def test_durchlauf_ohne_falsch_positive_endet_mit_null(attrappe, tmp_path, capsy
     assert "e01-interview-starten-fatma" in text
     assert "Falsch-Positive: **0**" in text
     assert "Trefferquote: 1/1" in text
+    assert "Keine Auffaelligkeiten." in text
     # Ohne aufruf-Zeilen gibt es keine Token -- die Schaetzung muss trotzdem
     # eine Zahl sein, keine Ausnahme.
     assert "0.0000 CHF" in text
@@ -345,6 +346,15 @@ def test_durchlauf_mit_falsch_positiv_endet_mit_eins(attrappe, tmp_path, capsys)
     ausgabe = capsys.readouterr().out
     assert "Falsch-Positive: **1**" in ausgabe
     assert "FEHLGESCHLAGEN" in ausgabe
+    # Zum auffaelligen Fall gehoert die Notiz aus dem Korpus und die volle
+    # Antwort -- sonst weiss beim Lesen niemand, ob der Fehlschlag schlimm ist.
+    assert "Auffaellige Faelle" in ausgabe
+    assert "blieb korrekt stumm" in ausgabe
+
+
+def test_durchlauf_ohne_auffaelligkeiten_sagt_das_auch(attrappe):
+    attrappe["antwort"] = lambda art, nutzer: {"aenderungen": []}
+    assert pp.main(["erkenner", "--nur", "n01-beinahe-entscheidung"]) == 0
 
 
 def test_durchlauf_baut_den_nutzertext_wie_das_modul(attrappe):

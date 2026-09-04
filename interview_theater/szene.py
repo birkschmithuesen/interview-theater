@@ -70,9 +70,11 @@ ART = "szene"
 #: (finish_reason=length, 86 s und 95 s, kein Inhalt); der erste erfolgreiche
 #: Lauf brauchte 19.410. Das Budget ist eine OBERGRENZE gegen Durchdrehen,
 #: kein Zielwert: was das Modell nicht braucht, kostet nichts. Deshalb weit
-#: ueber der Messung, am Kontextfenster (Kimi bei Infomaniak: 256k) -- ein Deckel knapp
-#: ueber dem letzten Lauf programmiert den naechsten Abbruch vor (Birk).
-MAX_TOKENS = 250_000
+#: ueber der Messung -- ein Deckel knapp ueber dem letzten Lauf programmiert
+#: den naechsten Abbruch vor (Birk). Nicht das ganze Fenster: Infomaniak
+#: rechnet max_tokens + Eingabe gegen max_total_tokens=249.984 (HTTP 400 bei
+#: 250k, gemessen 04.09. 22:11); 200k liess Platz fuer ~50k Eingabe.
+MAX_TOKENS = 200_000
 
 #: Zeitbudget des einzelnen Versuchs. Der httpx.Client aus ``bot.main`` hat
 #: 30 s -- das reicht fuer einen Reasoning-Lauf nicht: gemessen wurden 33,8 s

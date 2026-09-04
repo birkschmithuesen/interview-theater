@@ -47,7 +47,7 @@ def oeffne_lesend(pfad: str) -> sqlite3.Connection:
     return conn
 
 
-def _zeit(wert: str | None) -> datetime | None:
+def lies_zeitstempel(wert: str | None) -> datetime | None:
     """Liest einen ISO-Zeitstempel aus der Datenbank, tolerant.
 
     Alles, was repo._jetzt() geschrieben hat, ist UTC mit Zeitzonenangabe.
@@ -134,7 +134,7 @@ def _vorfaelle(
     grenze = jetzt - VORFALL_FENSTER
     ergebnis = []
     for z in zeilen:
-        zeitpunkt = _zeit(z["erstellt_am"])
+        zeitpunkt = lies_zeitstempel(z["erstellt_am"])
         if zeitpunkt is None or zeitpunkt < grenze:
             continue
         ergebnis.append(

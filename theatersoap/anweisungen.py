@@ -65,14 +65,42 @@ def _lies(pfad: Path, schluessel: str) -> str | None:
     return text
 
 
+def _pfad(name: str) -> Path:
+    """Der Dateipfad zu einem Prompt-Namen, auch mit Unterpfad
+    (``"phasen/3"`` -> ``prompts/phasen/3.md``).
+
+    Der Name kommt aus dem Code, nie aus einer Nachricht -- die Pruefung auf
+    ``..`` und absolute Pfade steht trotzdem hier: sie kostet nichts und
+    haelt die Zusage, dass ``hole()`` nur Dateien aus ``prompts/`` liest,
+    auch dann, wenn jemand spaeter einen Namen von aussen durchreicht."""
+    pfad = (_VERZEICHNIS / f"{name}.md").resolve()
+    if not pfad.is_relative_to(_VERZEICHNIS.resolve()):
+        raise ValueError(f"Prompt-Name zeigt aus prompts/ heraus: {name!r}")
+    return pfad
+
+
 def hole(name: str) -> str:
     """Der Basis-Prompt ``name`` (system|erkenner|journal|verdichter|szene|
-    theater-tells), heiss nachgeladen. Fehlt die Datei, ist das ein
-    Programmierfehler."""
-    text = _lies(_VERZEICHNIS / f"{name}.md", name)
+    theater-tells|phasen/1..8), heiss nachgeladen. Fehlt die Datei, ist das
+    ein Programmierfehler."""
+    text = _lies(_pfad(name), name)
     if text is None:
         raise FileNotFoundError(f"Prompt-Datei fehlt: {name}.md")
     return text
+
+
+def hole_optional(name: str) -> str | None:
+    """Wie ``hole()``, liefert aber None statt zu krachen, wenn die Datei
+    fehlt -- fuer Prompt-Teile, ohne die der Bot weiterarbeiten kann.
+
+    Der Fall, um den es geht: eine Phasendatei (``prompts/phasen/N.md``)
+    fehlt oder wurde am Workshoptag versehentlich geloescht. Dann laeuft das
+    Gespraech mit der Basis-Anweisung weiter -- der Bot verliert seinen
+    Phasenfokus, aber die Gruppe bekommt eine Antwort."""
+    try:
+        return _lies(_pfad(name), name)
+    except ValueError:
+        return None
 
 
 def zusatz_verzeichnis() -> Path | None:
@@ -83,15 +111,29 @@ def zusatz_verzeichnis() -> Path | None:
     return Path(db).expanduser().resolve().parent
 
 
-def system(bot_name: str | None = None) -> str:
-    """Systemanweisung des Gespraechs plus optionalem Regie-Zettel.
+#: Trennt Basis und Phasenanweisung im Prompt.
+PHASEN_UEBERSCHRIFT = "\n\n"
 
-    Reihenfolge: Basis, dann ``zusatz.md`` (alle Bots), dann
-    ``zusatz.<bot_name>.md`` (nur dieser Bot). Der Zusatz steht am Ende,
-    weil das Ende des Prompts am schwersten wiegt (SPEC § 6.1) -- eine
-    spontane Regieanweisung soll die Basis ueberstimmen koennen.
+
+def system(bot_name: str | None = None, phase: int | None = None) -> str:
+    """Systemanweisung des Gespraechs plus Phasenanweisung plus optionalem
+    Regie-Zettel.
+
+    Reihenfolge: Basis, dann ``phasen/<phase>.md`` (worauf der Bot in dieser
+    Phase den Fokus legt), dann ``zusatz.md`` (alle Bots), dann
+    ``zusatz.<bot_name>.md`` (nur dieser Bot). Der Regie-Zettel steht am
+    Ende, weil das Ende des Prompts am schwersten wiegt (SPEC § 6.1) -- eine
+    spontane Regieanweisung soll Basis UND Phase ueberstimmen koennen.
+
+    Fehlt die Phasendatei, bleibt es bei der Basis: ein fehlender
+    Phasenfokus ist kein Grund, das Gespraech scheitern zu lassen
+    (``hole_optional``).
     """
     teile = [hole("system")]
+    if phase is not None:
+        phasentext = hole_optional(f"phasen/{int(phase)}")
+        if phasentext and phasentext.strip():
+            teile.append(PHASEN_UEBERSCHRIFT + phasentext.strip())
     verz = zusatz_verzeichnis()
     if verz is not None:
         namen = ["zusatz"]

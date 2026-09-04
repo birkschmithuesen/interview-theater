@@ -35,7 +35,7 @@ import logging
 import threading
 from contextlib import contextmanager
 
-from theatersoap import befehle, kontext, repo
+from theatersoap import befehle, kontext, phasen, repo
 
 log = logging.getLogger(__name__)
 
@@ -195,8 +195,14 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             return
 
         with _tippanzeige(tg, chat_id):
+            # Die Phase geht in die Systemanweisung (worauf der Bot gerade den
+            # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die
+            # datengetriebenen Bloecke bleiben unveraendert (phasen.py).
+            phase = phasen.aktuelle(conn, chat_id)
             koerper = kontext.baue(conn, chat_id, offen, e)
-            ergebnis = klm.schema(chat_id, kontext.system(e.bot_name), koerper, SCHEMA, "gespraech")
+            ergebnis = klm.schema(
+                chat_id, kontext.system(e.bot_name, phase), koerper, SCHEMA, "gespraech"
+            )
             text = ergebnis["antwort"]
             if hinweis:
                 text = f"{text}\n\n{hinweis}"

@@ -23,7 +23,7 @@ datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
 
 from datetime import datetime
 
-from theatersoap import repo
+from theatersoap import phasen, repo
 
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
 #: theatersoap/prompts/system.md). Wird der Sprachmodell-Anfrage getrennt vom
@@ -32,9 +32,14 @@ from theatersoap import repo
 from theatersoap import anweisungen
 
 
-def system(bot_name: str | None = None) -> str:
-    """Systemanweisung, heiss nachgeladen (siehe theatersoap.anweisungen)."""
-    return anweisungen.system(bot_name)
+def system(bot_name: str | None = None, phase: int | None = None) -> str:
+    """Systemanweisung, heiss nachgeladen (siehe theatersoap.anweisungen).
+
+    ``phase`` haengt die Anweisung fuer die aktuelle Arbeitsphase an
+    (``prompts/phasen/N.md``). Sie steuert den Fokus, nicht den
+    Informationszugang: die datengetriebenen Bloecke unten bleiben davon
+    unberuehrt."""
+    return anweisungen.system(bot_name, phase)
 
 #: Kein Tokenizer -- zwei Tage vor dem Workshop keine Abhaengigkeit, die sich
 #: fuer Kimi nicht sauber verifizieren laesst. Zeichen ÷ 3 ueberschaetzt bei
@@ -58,6 +63,7 @@ BUDGETS = {
     "verdichtungen": 3000,
     "transkripte": 5000,
     "arbeitsstand": 1200,
+    "phasenhinweis": 50,
     "szene": 1500,
     "journal": 1500,
     "fenster": 8000,
@@ -75,7 +81,8 @@ PAUSE_AB_MINUTEN = 60
 #: Feste Reihenfolge des Prompt-Koerpers (ohne SYSTEM, das separat verschickt
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
-    "verdichtungen", "transkripte", "arbeitsstand", "szene", "journal", "fenster", "ausloeser",
+    "verdichtungen", "transkripte", "arbeitsstand", "phasenhinweis", "szene",
+    "journal", "fenster", "ausloeser",
 )
 
 
@@ -190,6 +197,15 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
     szenen = repo.hole_szenen(conn, chat_id)
 
     zeilen = []
+    # Die Phase steht ganz vorn im Arbeitsstand -- aber nur, wenn sie
+    # tatsaechlich gesetzt wurde. Ein NULL-Feld ist kein Wissen: solange
+    # niemand eine Phase genannt hat, gibt es nichts zu berichten, und der
+    # Block bleibt weg wie jeder andere leere Block (SPEC § 6.1). Den Fokus
+    # bekommt der Bot in diesem Fall trotzdem, ueber prompts/phasen/1.md
+    # (anweisungen.system).
+    gespeicherte_phase = repo.hole_phase(conn, chat_id)
+    if gespeicherte_phase is not None:
+        zeilen.append(f"Aktuelle Phase: {phasen.bezeichnung(gespeicherte_phase)}")
     if stand:
         if stand["begriffe"]:
             zeilen.append(f"Begriffe: {stand['begriffe']}")
@@ -215,6 +231,35 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
     if not zeilen:
         return ""
     return "Arbeitsstand:\n" + "\n".join(zeilen)
+
+
+#: Der Hinweisblock, mit dem der Bot einen Phasenwechsel anbietet. Ein
+#: Angebot, kein Auftrag -- und keine Frage, auf deren Antwort etwas wartet:
+#: der Bot formuliert es selbst im Gespraech und laeuft danach weiter.
+_PHASENHINWEIS = (
+    "Materiallage erlaubt Phase {bezeichnung}. Biete der Gruppe an, dorthin "
+    "zu wechseln -- als Angebot, einmal, nicht draengend."
+)
+
+
+def _baue_phasenhinweis(conn, chat_id: int) -> str:
+    """Der Hinweis auf eine moegliche naechste Phase -- hoechstens einmal je
+    Stufe (theatersoap/phasen.py).
+
+    Die einzige Stelle im Kontextaufbau, die schreibt: ``phase_angeboten``
+    merkt sich, welcher Wechsel schon im Prompt stand. Ohne dieses Feld
+    stuende der Block in jedem Zug erneut da, und der Bot boete denselben
+    Wechsel alle zwei Minuten an -- aus einem Angebot wuerde Draengeln.
+    Nimmt die Gruppe es an, aendert sich die Phase, und beim naechsten
+    erreichbaren Schritt gibt es ein neues Angebot; nimmt sie es nicht an,
+    bleibt es still."""
+    moeglich = phasen.naechste_moegliche(conn, chat_id)
+    if moeglich is None:
+        return ""
+    if repo.hole_phase_angeboten(conn, chat_id) == moeglich:
+        return ""
+    repo.setze_phase_angeboten(conn, chat_id, moeglich)
+    return _PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(moeglich))
 
 
 def _baue_szene(conn, chat_id: int) -> str:
@@ -313,6 +358,7 @@ def baue(conn, chat_id: int, ausloeser, e) -> str:
         "verdichtungen": _baue_verdichtungen(conn, chat_id),
         "transkripte": _baue_transkripte(conn, chat_id),
         "arbeitsstand": _baue_arbeitsstand(conn, chat_id),
+        "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
         "journal": _baue_journal(conn, chat_id),
         "fenster": "\n".join(fenster_eintraege),

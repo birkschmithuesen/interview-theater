@@ -30,3 +30,14 @@ tokens*.txt
 # ist frei erfunden und gehoert ins Repository.
 korpus/berichte/*
 !korpus/berichte/.gitkeep
+
+# Simulationslaeufe: Transkript und Bericht enthalten vollstaendige
+# Modellantworten und bleiben lokal. Eine Ausnahme: verlauf.jsonl -- die
+# Kennzahlen je Lauf sind der Vergleichsmassstab zwischen zwei Prompt-Staenden
+# und gehoeren deshalb ins Repository. Die Interviews selbst
+# (simulation/interviews/) sind frei erfunden und ebenfalls versioniert.
+simulation/laeufe/*
+!simulation/laeufe/.gitkeep
+simulation/berichte/*
+!simulation/berichte/.gitkeep
+!simulation/berichte/verlauf.jsonl

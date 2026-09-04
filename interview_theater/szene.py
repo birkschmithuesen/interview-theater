@@ -67,8 +67,12 @@ ART = "szene"
 #: das fuer Aufrufe ohne Reasoning bemessen ist.
 #: Nachtrag 04.09. abends: mit dem erweiterten Prompt (13 Dramaturgie-Regeln,
 #: 30 Tells) liefen zwei Live-Versuche in 12.000 Token *nur Denken* leer
-#: (finish_reason=length, 86 s und 95 s, kein Inhalt). Budget verdoppelt.
-MAX_TOKENS = 24_000
+#: (finish_reason=length, 86 s und 95 s, kein Inhalt); der erste erfolgreiche
+#: Lauf brauchte 19.410. Das Budget ist eine OBERGRENZE gegen Durchdrehen,
+#: kein Zielwert: was das Modell nicht braucht, kostet nichts. Deshalb weit
+#: ueber der Messung (Kimi bei Infomaniak: 256k Kontext) -- ein Deckel knapp
+#: ueber dem letzten Lauf programmiert den naechsten Abbruch vor (Birk).
+MAX_TOKENS = 150_000
 
 #: Zeitbudget des einzelnen Versuchs. Der httpx.Client aus ``bot.main`` hat
 #: 30 s -- das reicht fuer einen Reasoning-Lauf nicht: gemessen wurden 33,8 s
@@ -77,7 +81,7 @@ MAX_TOKENS = 24_000
 #: Reasoning-Aufrufe (§ 4.4), der Auftrag 90 s; hier grosszuegiger, weil ein
 #: Timeout hier nichts spart -- niemand wartet aktiv, und ein abgebrochener
 #: Lauf ist trotzdem bezahlt.
-TIMEOUT_S = 240.0
+TIMEOUT_S = 600.0
 
 #: Obergrenze des Nutzertextes in geschaetzten Token (kontext.schaetze,
 #: Zeichen // 3). Darueber fliegen die Volltranskripte raus und die

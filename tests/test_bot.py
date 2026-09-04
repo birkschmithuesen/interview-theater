@@ -110,12 +110,20 @@ class FakeTelegramFuerSchleife:
     def __init__(self, updates):
         self._updates = updates
         self.aufrufe = 0
+        self._letzte_message_id = 9000
 
     def hole_updates(self, offset, timeout=25):
         self.aufrufe += 1
         if self.aufrufe == 1:
             return self._updates
         raise _StoppeSchleife()
+
+    def sende(self, chat_id, text):
+        # bot.erstkontakt() ruft dies bei der ersten Nachricht einer Gruppe
+        # auf (teil-b.md Aufgabe 7) -- fuer diese Tests ohne eigene Bedeutung,
+        # nur damit erstkontakt() nicht an einer fehlenden Methode scheitert.
+        self._letzte_message_id += 1
+        return self._letzte_message_id
 
 
 class FakePool:
@@ -210,3 +218,174 @@ def test_nachhol_schleife_ruft_nachholen_auf_und_endet_mit_dem_event(conn, einst
 
     assert not thread.is_alive(), "die Schleife muss nach dem gesetzten Event enden"
     assert aufrufe == [1]
+
+
+# ---------------------------------------------------------------------------
+# teil-b.md Aufgabe 7: Begruessungsnachricht (erstkontakt, begruessung_faellig,
+# sende_wiederkehr_begruessungen)
+# ---------------------------------------------------------------------------
+
+class TelegramAttrappe:
+    def __init__(self):
+        self.gesendet = []  # Liste von (chat_id, text)
+        self._letzte_message_id = 9000
+
+    def sende(self, chat_id, text):
+        self._letzte_message_id += 1
+        self.gesendet.append((chat_id, text))
+        return self._letzte_message_id
+
+
+def test_erstkontakt_kommt_genau_einmal_und_nennt_interviewmodus_und_hilfe(conn, einst):
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Gruppe 1")
+    tg = TelegramAttrappe()
+
+    bot.erstkontakt(conn, tg, einst, -100)
+    bot.erstkontakt(conn, tg, einst, -100)  # zweiter Aufruf darf nichts mehr senden
+
+    assert len(tg.gesendet) == 1
+    text = tg.gesendet[0][1]
+    assert "Interview" in text
+    assert "/hilfe" in text
+    # als Bot-Nachricht mitgeschrieben, sonst würde sie erneut ausgeloest
+    zeile = conn.execute(
+        "SELECT * FROM nachricht WHERE chat_id = -100 AND ist_bot = 1"
+    ).fetchone()
+    assert zeile is not None
+    assert zeile["text"] == text
+
+
+def test_erstkontakt_sendefehlschlag_wird_nur_geloggt(conn, einst):
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Gruppe 1")
+
+    class KaputtesTG:
+        def sende(self, chat_id, text):
+            raise RuntimeError("Telegram nicht erreichbar (simuliert)")
+
+    bot.erstkontakt(conn, KaputtesTG(), einst, -100)  # darf nicht krachen
+    assert not repo.hat_bot_nachricht(conn, -100)
+
+
+def test_begruessung_faellig_nach_ueber_zwei_stunden():
+    letzte = (JETZT - timedelta(hours=3)).isoformat()
+    assert bot.begruessung_faellig(letzte, JETZT) is True
+
+
+def test_begruessung_faellig_nach_dreissig_sekunden_nicht():
+    letzte = (JETZT - timedelta(seconds=30)).isoformat()
+    assert bot.begruessung_faellig(letzte, JETZT) is False
+
+
+def test_sende_wiederkehr_begruessungen_nur_fuer_alte_gruppen(conn, einst):
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Alte Gruppe")
+    repo.sichere_gruppe(conn, -200, einst.bot_name, "Frische Gruppe")
+    repo.merke_nachricht(
+        conn, -100, 1, "Ada", 0, "text", "gestern",
+        (JETZT - timedelta(hours=5)).isoformat(),
+    )
+    repo.merke_nachricht(
+        conn, -200, 1, "Ada", 0, "text", "gerade eben",
+        (JETZT - timedelta(seconds=10)).isoformat(),
+    )
+    tg = TelegramAttrappe()
+
+    bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)
+
+    chat_ids = [chat_id for chat_id, _ in tg.gesendet]
+    assert chat_ids == [-100]
+
+
+def test_sende_wiederkehr_begruessungen_ohne_nachrichten_sendet_nichts(conn, einst):
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Leere Gruppe")
+    tg = TelegramAttrappe()
+
+    bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)
+
+    assert tg.gesendet == []
+
+
+def test_sende_wiederkehr_begruessungen_ein_fehlschlag_reisst_andere_nicht_mit(conn, einst):
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Kaputte Gruppe")
+    repo.sichere_gruppe(conn, -200, einst.bot_name, "Gesunde Gruppe")
+    for chat_id in (-100, -200):
+        repo.merke_nachricht(
+            conn, chat_id, 1, "Ada", 0, "text", "vor langer zeit",
+            (JETZT - timedelta(hours=10)).isoformat(),
+        )
+
+    class HalbKaputtesTG(TelegramAttrappe):
+        def sende(self, chat_id, text):
+            if chat_id == -100:
+                raise RuntimeError("kaputt (simuliert)")
+            return super().sende(chat_id, text)
+
+    tg = HalbKaputtesTG()
+    bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)  # darf nicht krachen
+
+    assert tg.gesendet == [(-200, bot._TEXT_WIEDERKEHR)]
+
+
+# ---------------------------------------------------------------------------
+# teil-b.md Aufgabe 8: Warmlauf (warmlaufen) und Erkenner-Einhaengung
+# (_zug_und_erkenner)
+# ---------------------------------------------------------------------------
+
+def test_warmlaufen_ruft_erkenner_schema_mit_erkenner_modell_auf(conn, einst):
+    aufrufe = []
+
+    class LLMAttrappe:
+        def schema(self, chat_id, system, nutzer, schema, art, modell=None, temperature=None):
+            aufrufe.append((modell, temperature, art))
+            return {"aenderungen": []}
+
+    bot.warmlaufen(LLMAttrappe(), conn, einst)
+
+    assert aufrufe == [(einst.erkenner_modell, bot.erkenner.TEMPERATURE, "erkenner")]
+
+
+def test_warmlaufen_fehlschlag_wird_nur_geloggt(conn, einst):
+    class KaputtesLLM:
+        def schema(self, *a, **kw):
+            raise RuntimeError("Modell nicht erreichbar (simuliert)")
+
+    bot.warmlaufen(KaputtesLLM(), conn, einst)  # darf nicht krachen
+
+
+def test_warmlaufen_in_eigenem_thread_blockiert_den_aufrufer_nicht(conn, einst):
+    gestartet = threading.Event()
+    weiter = threading.Event()
+
+    class LangsamesLLM:
+        def schema(self, *a, **kw):
+            gestartet.set()
+            assert weiter.wait(5), "der Test haette den Aufruf freigeben muessen"
+            return {"aenderungen": []}
+
+    thread = threading.Thread(
+        target=bot.warmlaufen, args=(LangsamesLLM(), conn, einst), daemon=True,
+    )
+    thread.start()
+    assert gestartet.wait(5), "der Warmlauf-Aufruf haette starten muessen"
+    # Der Aufrufer (dieser Test) ist hier angekommen, waehrend der Warmlauf
+    # noch im simulierten Modellaufruf haengt -- er wurde also nicht blockiert.
+    weiter.set()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+
+
+def test_zug_und_erkenner_ruft_beides_genau_einmal_auf_nach_dem_zug(monkeypatch):
+    reihenfolge = []
+    monkeypatch.setattr(
+        bot.ablauf, "bearbeite",
+        lambda *a, **kw: reihenfolge.append("zug"),
+    )
+    monkeypatch.setattr(
+        bot.erkenner, "laufe",
+        lambda *a, **kw: reihenfolge.append("erkenner"),
+    )
+
+    bot._zug_und_erkenner("conn", "tg", "klm", "e", 1)
+
+    assert reihenfolge == ["zug", "erkenner"], (
+        "der Erkenner muss NACH dem Zug laufen, genau einmal"
+    )

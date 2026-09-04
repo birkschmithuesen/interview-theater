@@ -316,6 +316,10 @@ def test_tippanzeige_fehlschlag_stoert_den_zug_nicht(einst, conn, klm, monkeypat
 # ---------------------------------------------------------------------------
 
 def test_live_weg_reicht_echten_zug_durch(monkeypatch):
+    """teil-b.md Aufgabe 8: der 'zug', den die Aufnahme-Pipeline bekommt, ist
+    seit der Erkenner-Einhaengung bot._zug_und_erkenner, nicht mehr direkt
+    ablauf.bearbeite -- der Wrapper ruft ablauf.bearbeite unveraendert auf,
+    haengt aber noch erkenner.laufe danach an (siehe eigener Test unten)."""
     aufrufe = []
     monkeypatch.setattr(bot.aufnahme, "empfange", lambda *a: (aufrufe.append("empfange"), 42)[1])
     monkeypatch.setattr(
@@ -326,7 +330,7 @@ def test_live_weg_reicht_echten_zug_durch(monkeypatch):
     nachricht = {"chat_id": -100, "message_id": 1, "typ": "sprache"}
     bot._bearbeite_sprachnachricht(None, None, None, None, None, nachricht)
 
-    assert aufrufe == ["empfange", ("verarbeite", ablauf.bearbeite)]
+    assert aufrufe == ["empfange", ("verarbeite", bot._zug_und_erkenner)]
 
 
 def test_nachhol_arbeiter_reicht_echten_zug_durch(einst, monkeypatch):
@@ -347,7 +351,7 @@ def test_nachhol_arbeiter_reicht_echten_zug_durch(einst, monkeypatch):
     thread.join(timeout=5)
     assert not thread.is_alive(), "die Schleife muss nach dem gesetzten Event enden"
 
-    assert aufrufe == [ablauf.bearbeite]
+    assert aufrufe == [bot._zug_und_erkenner]
 
 
 class _StoppeSchleife(Exception):
@@ -358,12 +362,20 @@ class _FakeTGSchleife:
     def __init__(self, updates):
         self._updates = updates
         self.aufrufe = 0
+        self._letzte_message_id = 9000
 
     def hole_updates(self, offset, timeout=25):
         self.aufrufe += 1
         if self.aufrufe == 1:
             return self._updates
         raise _StoppeSchleife()
+
+    def sende(self, chat_id, text):
+        # bot.erstkontakt() ruft dies bei der ersten Nachricht einer Gruppe
+        # auf (teil-b.md Aufgabe 7) -- fuer diese Tests ohne eigene Bedeutung,
+        # nur damit erstkontakt() nicht an einer fehlenden Methode scheitert.
+        self._letzte_message_id += 1
+        return self._letzte_message_id
 
 
 class _FakePool:
@@ -396,7 +408,7 @@ def test_schleife_gibt_ausloesende_textnachricht_in_den_pool(conn, einst):
 
     assert len(pool.submits) == 1
     fn, args, kwargs = pool.submits[0]
-    assert fn is ablauf.bearbeite
+    assert fn is bot._zug_und_erkenner
     assert args[-1] == -100
 
 

@@ -685,6 +685,39 @@ def ist_interviewmodus_an(conn: sqlite3.Connection, chat_id: int) -> bool:
 
 
 @_gesperrt
+def hat_bot_nachricht(conn: sqlite3.Connection, chat_id: int) -> bool:
+    """Liefert True, wenn diese Gruppe schon mindestens eine Bot-Nachricht
+    hat (teil-b.md Aufgabe 7) -- Grundlage dafuer, dass ``bot.erstkontakt``
+    die Begruessung genau einmal je Gruppe schickt."""
+    zeile = conn.execute(
+        "SELECT 1 FROM nachricht WHERE chat_id = ? AND ist_bot = 1 LIMIT 1", (chat_id,)
+    ).fetchone()
+    return zeile is not None
+
+
+@_gesperrt
+def letzte_nachricht_zeit(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Liefert ``gesendet_am`` der zeitlich juengsten Nachricht einer Gruppe
+    (gleich welcher Art), oder None ohne jede Nachricht -- Grundlage fuer
+    ``bot.begruessung_faellig`` (teil-b.md Aufgabe 7)."""
+    zeile = conn.execute(
+        "SELECT gesendet_am FROM nachricht WHERE chat_id = ? "
+        "ORDER BY message_id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    return zeile["gesendet_am"] if zeile else None
+
+
+@_gesperrt
+def gruppen_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[sqlite3.Row]:
+    """Alle Gruppen dieses Bot-Prozesses (teil-b.md Aufgabe 7) -- Grundlage
+    fuer die Wiederkehr-Begruessung beim Neustart nach einer langen Pause."""
+    return conn.execute(
+        "SELECT * FROM gruppe WHERE bot_name = ?", (bot_name,)
+    ).fetchall()
+
+
+@_gesperrt
 def setze_wortlaut_modus(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
     """Setzt oder leert gruppe.wortlaut_modus (SPEC § 8 /wortlaut, teil-b.md
     Aufgabe 3): NULL=aus, '*'=alle, sonst ein Aufnahmename. Wird sowohl vom

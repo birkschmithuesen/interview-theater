@@ -160,15 +160,28 @@ def test_schema_kennt_kein_maxitems():
     assert "maxItems" not in str(erkenner.SCHEMA)
 
 
-def test_arten_enthaelt_alle_fuenfzehn_werte():
+def test_arten_enthaelt_alle_sechzehn_werte():
     erwartet = {
         "interview_starten", "interview_beenden", "interview_benennen",
         "begriffe_setzen", "fragen_setzen", "kernthema_setzen",
         "hauptkonflikt_setzen", "figur_setzen", "wortlaut_an", "wortlaut_aus",
         "verworfen", "entschieden", "szene_schreiben", "phase_setzen",
-        "entfernen",
+        "entfernen", "an_den_bot",
     }
     assert set(erkenner.ARTEN) == erwartet
+
+
+def test_an_den_bot_gilt_nur_aus_einer_aufnahme(conn, einst):
+    """N4: die einzige art, die ausserhalb einer Aufnahme keinen Sinn ergibt
+    -- sie sagt etwas ueber EINE Sprachnachricht, nicht ueber den
+    Gespraechsverlauf. Sie darf deshalb auch nichts schreiben; das Abzweigen
+    macht aufnahme.py, wo die Aufnahme bekannt ist."""
+    assert "an_den_bot" in erkenner.ARTEN_IN_AUFNAHME
+
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "an_den_bot", "wert": ""}])
+
+    assert wirkliche == []
+    assert erkenner.baue_meldung(wirkliche) is None
 
 
 def test_prompt_enthaelt_zwoelf_beispiele_davon_drei_leer():

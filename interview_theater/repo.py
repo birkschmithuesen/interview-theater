@@ -558,6 +558,27 @@ def setze_aufnahme_name(conn: sqlite3.Connection, aufnahme_id: int, name: str) -
 
 
 @_gesperrt
+def loese_aus_interview(conn: sqlite3.Connection, aufnahme_id: int) -> None:
+    """Macht aus einem Interview-Teil einen Gespraechsbeitrag (Nachtrag N4):
+    ``klasse='kurz'``, ``teil_von`` zurueck auf NULL.
+
+    Der Fall: die Gruppe spricht mitten im Interviewmodus eine Nachricht an
+    den BOT ein ("zeig mir die Verdichtungen"), nicht an die interviewte
+    Person. Ohne diesen Weg landete sie als Teil im Interviewtranskript und
+    spaeter in der Verdichtung -- und beantwortet wuerde sie nie.
+
+    Nur diese beiden Felder: die Audiodatei, das Transkript und die
+    Nachrichtenzeile bleiben, wo sie sind. Zurueckdrehen laesst sich das nicht
+    -- der Erkennerlauf, der hierher fuehrt, ist deshalb auf 'im Zweifel
+    Material' kalibriert (prompts/erkenner.md)."""
+    conn.execute(
+        "UPDATE aufnahme SET klasse = 'kurz', teil_von = NULL WHERE id = ?",
+        (aufnahme_id,),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def offene_aufnahmen(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """Alle Aufnahmen, an denen noch Arbeit offen ist -- Grundlage dafuer, dass
     ein Neustart ueber Nacht angefangene Arbeit zu Ende bringt

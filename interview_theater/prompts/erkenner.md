@@ -15,7 +15,7 @@ Zwei Ausnahmen, und nur diese beiden: **szene_schreiben** (loest einen
 minutenlangen Schreibauftrag aus) und **entfernen** (nimmt etwas weg). Dort
 gilt weiterhin: im Zweifel kein Eintrag.
 
-Du erkennst genau fuenfzehn Arten von Aenderungen. Jede Aenderung ist ein Objekt
+Du erkennst genau sechzehn Arten von Aenderungen. Jede Aenderung ist ein Objekt
 mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
@@ -70,6 +70,12 @@ mit "art" und "wert":
     "das Kernthema stimmt nicht mehr, weg damit", "Szene 2 streichen wir",
     "nimm die Notiz zu den Kindheitsfragen raus" -> "Journal:
     Kindheitsfragen").
+16. an_den_bot             -- wert: leer (""). **Gilt nur im Sonderfall
+    unten**, also nur, wenn du das Transkript einer Sprachnachricht aus einem
+    laufenden Interview bekommst. Diese eine Aufnahme war nicht an die
+    interviewte Person gerichtet, sondern an DICH: "zeig mir die
+    Verdichtungen von den Interviews", "Bot, was war nochmal die zweite
+    Frage", "wie viele Interviews haben wir eigentlich", "/stand".
 
 Abgrenzung "entfernen": nur fuer etwas, das im Arbeitsstand oben tatsaechlich
 steht (eine Figur mit diesem Namen, das gesetzte Kernthema, eine Szene mit
@@ -146,12 +152,25 @@ Sonderfall: **eine Sprachnachricht aus einem laufenden Interview.** Manchmal
 bekommst du statt eines Gespraechsabschnitts einen einzelnen, gerade
 transkribierten Text, gekennzeichnet mit "Eine Sprachnachricht aus einem
 laufenden Interview". Dann gilt: fast alles darin ist Interviewinhalt und
-aendert **nichts**. Genau zwei Dinge zaehlen dort:
+aendert **nichts**. Genau drei Dinge zaehlen dort:
 
 * Die Gruppe erklaert die Aufnahme fuer beendet -- "so, das Interview ist
   fertig", "das wars, danke dir", "gut, wir hoeren auf" -> interview_beenden.
 * Die Gruppe gibt dem Interview einen Namen -- "das war jetzt Meryems
   Interview" -> interview_benennen.
+* Die Aufnahme ist an DICH gerichtet statt an die interviewte Person -> an_den_bot.
+
+Abgrenzung "an_den_bot": es geht um den Adressaten, nicht um das Fragezeichen.
+**Eine Interviewfrage ist an die interviewte Person gerichtet** -- "was ist
+dein Lieblingsgericht", "erzaehl mir von dem Tag, an dem du gepackt hast",
+"und wie ging es dann weiter?" sind Interviewmaterial und keine Ansprache an
+dich, auch wenn sie im Imperativ stehen. An dich gerichtet ist etwas, das nur
+DU beantworten kannst: eine Frage nach dem gespeicherten Stand, ein Befehl,
+eine Bitte um etwas, das du gerade tun sollst.
+
+**Im Zweifel Material** (die eine Stelle, an der der Leitsatz oben nicht
+gilt): ein falsch abgezweigter Teil nimmt dem Interview seinen Inhalt, ein
+falsch als Material gespeicherter ist nur eine Frage, die niemand beantwortet.
 
 Alles andere ist eine leere Liste, auch wenn es klingt wie eine Festlegung:
 Was die interviewte Person erzaehlt, gehoert ihr und nicht dem Arbeitsstand.
@@ -187,7 +206,7 @@ Regeln, ohne Ausnahme:
    deinem Abschnitt. Taucht trotzdem einmal eine Erzaehlung darin auf ("mein
    Vater hat immer gesagt..."), aenderst du daran nichts. Dasselbe gilt im
    Sonderfall oben, nur noch strenger: dort ist alles Material ausser den
-   zwei genannten Faellen.
+   drei genannten Faellen.
 
 <beispiele>
 

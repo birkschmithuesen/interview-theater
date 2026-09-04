@@ -148,6 +148,33 @@ def test_erkenner_aufnahmefaelle_haben_negativfaelle(erkenner_faelle):
     assert len(leer) >= 2
 
 
+def test_erkenner_traegt_an_den_bot_dicht_genug(erkenner_faelle):
+    """N4: die Abgrenzung 'an mich gerichtet' gegen 'Interviewmaterial' laesst
+    sich in Regeln kaum fassen -- sie haengt am Adressaten, nicht an einer
+    Formulierung ("zeig mir mal" steht in beiden). Drei Positive und drei
+    Negative sind das Minimum, und die Negativen sind die wichtigeren: ein
+    falsch abgezweigter Teil nimmt dem Interview seinen Inhalt."""
+    aufnahmefaelle = [f for f in erkenner_faelle if ist_aufnahmefall(f)]
+    positiv = [
+        f for f in aufnahmefaelle
+        if any(a["art"] == "an_den_bot" for a in f["erwartet"])
+    ]
+    negativ = [f for f in aufnahmefaelle if not f["erwartet"]]
+    assert len(positiv) >= 3, f"an_den_bot: nur {len(positiv)} Positivfaelle"
+    assert len(negativ) >= 3, f"Aufnahmefaelle: nur {len(negativ)} Negativfaelle"
+
+
+def test_erkenner_hat_die_interviewfrage_als_negativfall(erkenner_faelle):
+    """Der teuerste Fehler von N4 in einem Fall: eine Frage AN die
+    interviewte Person, die aussieht wie eine an den Bot."""
+    treffer = [
+        f for f in erkenner_faelle
+        if ist_aufnahmefall(f) and not f["erwartet"]
+        and any("zeig mir" in t for t in texte_von(f))
+    ]
+    assert treffer, "der Fall 'Interviewfrage im Imperativ -> gar nichts' fehlt"
+
+
 def test_erkenner_arten_sind_bekannt(erkenner_faelle):
     """``art`` muss im Enum des Erkenners liegen -- sonst kann das Modell den
     Wert gar nicht liefern (das Schema erzwingt ihn) und der Fall waere ein

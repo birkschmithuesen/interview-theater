@@ -329,7 +329,7 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
     # status ist jetzt 'transkribiert' -- frisch oder schon vorher (Textimport,
     # oder ein frueherer Anlauf, bei dem nur die Verdichtung scheiterte).
     if row["klasse"] == "teil":
-        _teil_abschliessen(conn, tg, klm, e, row)
+        _teil_abschliessen(conn, tg, klm, e, row, zug, nachgeholt)
     elif row["klasse"] == "kurz":
         _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt)
     else:
@@ -504,8 +504,16 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     repo.setze_status(conn, aufnahme_id, "fertig")
 
     if jung:
+        # Der Materialhinweis fragt, ob die Gruppe die Aufnahme als Interview
+        # festhalten will -- bei laufendem Interviewmodus ist das Unsinn. Der
+        # Fall entsteht seit N4: eine Aufnahme, die an den Bot gerichtet war,
+        # kommt als Klasse 'kurz' hierher, waehrend der Modus noch an ist.
         dauer = row["dauer_sekunden"] or 0
-        hinweis = _TEXT_MATERIAL_HINWEIS if dauer > HINWEIS_AB_S else None
+        hinweis = (
+            _TEXT_MATERIAL_HINWEIS
+            if dauer > HINWEIS_AB_S and not repo.ist_interviewmodus_an(conn, chat_id)
+            else None
+        )
         try:
             zug(conn, tg, klm, e, chat_id, hinweis=hinweis)
         except Exception:
@@ -531,7 +539,29 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") ->
         log.exception("Nachricht an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
 
 
-def _teil_abschliessen(conn, tg, klm, e, row) -> None:
+def _an_den_bot_abzweigen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
+    """Nimmt eine Sprachnachricht aus dem Interview heraus und gibt sie in den
+    Gespraechszug (N4, 05.09.2026).
+
+    Der Fall: mitten im Interviewmodus spricht jemand den BOT an ("zeig mir
+    die Verdichtungen von den Interviews", "was war nochmal die zweite
+    Frage") -- nicht die Person, die gerade erzaehlt. Bis heute wurde daraus
+    ein Interview-Teil: er stand im Transkript, ging in die Verdichtung ein
+    und wurde nie beantwortet. Genau so ist im Probelauf aus "Zeigt mir die
+    Verdichtungen von den Interviews an." ein erfundenes Interview geworden.
+
+    Der Weg ist dann derselbe wie fuer jede Sprachnachricht ausserhalb des
+    Modus: Klasse ``kurz``, das Transkript wandert in die Nachrichtenzeile und
+    loest einen Gespraechszug aus (``_kurz_abschliessen``). Kein
+    Transkript-Echo -- das gehoert zur Kontrolle von Interviewmaterial, und
+    Material ist das hier gerade nicht."""
+    repo.loese_aus_interview(conn, row["id"])
+    _kurz_abschliessen(
+        conn, tg, klm, e, repo.hole_aufnahme(conn, row["id"]), zug, nachgeholt
+    )
+
+
+def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -> None:
     """Stellt das Transkript eines Interview-Teils sofort und woertlich in den
     Chat (§ 10.6, Birk 04.09. abends: "Transkript Stueck fuer Stueck").
 
@@ -542,13 +572,18 @@ def _teil_abschliessen(conn, tg, klm, e, row) -> None:
 
     **Ein Modellaufruf ist seit N1 doch dabei**, und zwar der billige: der
     Absichtserkenner (gemma, unter einer Sekunde nach dem Warmlauf) laeuft
-    ueber das Transkript und sucht darin genau zwei Dinge --
-    ``interview_beenden`` und ``interview_benennen`` (``erkenner.
-    ARTEN_IN_AUFNAHME``). Die Gruppe sagt "so, das Interview ist fertig"
-    naemlich meistens in die Aufnahme hinein, nicht in den Chat, und das
-    Transkript-Echo steht in keinem Erkenner-Fenster. Der Teil selbst bleibt
-    trotzdem Teil des Interviews: der Satz ist mit aufgenommen worden und
-    steht harmlos am Ende des Transkripts.
+    ueber das Transkript und sucht darin drei Dinge --
+    ``interview_beenden``, ``interview_benennen`` und seit N4 ``an_den_bot``
+    (``erkenner.ARTEN_IN_AUFNAHME``). Die Gruppe sagt "so, das Interview ist
+    fertig" naemlich meistens in die Aufnahme hinein, nicht in den Chat, und
+    das Transkript-Echo steht in keinem Erkenner-Fenster. Der Teil selbst
+    bleibt trotzdem Teil des Interviews: der Satz ist mit aufgenommen worden
+    und steht harmlos am Ende des Transkripts.
+
+    ``an_den_bot`` ist der eine Fall, in dem er das NICHT tut: dann war die
+    Sprachnachricht gar kein Material, sondern eine Frage an den Bot, und sie
+    geht denselben Weg wie jede Sprachnachricht ausserhalb des Modus
+    (``_an_den_bot_abzweigen``).
 
     Reihenfolge: erst erkennen (schreibt nichts), dann Echo und 'fertig',
     dann anwenden. Andersherum faende ``schliesse_ab`` genau diesen Teil noch
@@ -566,6 +601,15 @@ def _teil_abschliessen(conn, tg, klm, e, row) -> None:
         else []
     )
 
+    if any(a.get("art") == "an_den_bot" for a in aenderungen):
+        _an_den_bot_abzweigen(conn, tg, klm, e, row, zug, nachgeholt)
+        # Die uebrigen Arten gelten weiter: "fertig, und zeig mir die
+        # Verdichtungen" ist beides. Erst abzweigen (die Aufnahme steht danach
+        # auf 'fertig'), dann anwenden -- sonst faende schliesse_ab sie noch
+        # offen.
+        _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen)
+        return
+
     kopf = repo.hole_aufnahme(conn, row["teil_von"])
     text = _TEXT_TEIL_ECHO.format(
         name=(kopf["name"] if kopf else None) or "Interview",
@@ -574,6 +618,16 @@ def _teil_abschliessen(conn, tg, klm, e, row) -> None:
     )
     _sende_und_merke(conn, tg, e, chat_id, text, typ=repo.TYP_TRANSKRIPT)
     repo.setze_status(conn, row["id"], "fertig")
+    _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen)
+
+
+def _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen) -> None:
+    """Ruft ``erkenner.wende_aus_aufnahme_an`` und faengt jeden Fehler ab.
+
+    Ein Fehlschlag hier darf den Teil nicht mitreissen: sein Transkript steht
+    laengst in der Datenbank und im Chat, und der Nachhol-Arbeiter greift ein
+    liegengebliebenes Interview beim naechsten Durchlauf ohnehin auf."""
+    from interview_theater import erkenner  # spaeter Import, haelt den Modulkopf frei
 
     try:
         erkenner.wende_aus_aufnahme_an(klm, tg, conn, e, chat_id, aenderungen)

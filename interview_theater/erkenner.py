@@ -91,6 +91,12 @@ ARTEN = (
     # einzige art, die etwas WEGNIMMT. Material -- Aufnahmen, Transkripte,
     # Verdichtungen -- ist davon ausgenommen und bleibt unentfernbar.
     "entfernen",
+    # Seit 05.09.2026 (N4): die einzige art, die nur aus einer AUFNAHME
+    # kommt. Sie schreibt nichts in den Arbeitsstand, sondern sagt, dass diese
+    # Sprachnachricht an den Bot gerichtet war und nicht an die interviewte
+    # Person -- aufnahme._teil_abschliessen zweigt sie daraufhin aus dem
+    # Interview ab (repo.loese_aus_interview).
+    "an_den_bot",
 )
 
 #: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im
@@ -105,6 +111,13 @@ ARTEN = (
 ARTEN_IN_AUFNAHME = (
     "interview_beenden",
     "interview_benennen",
+    # N4, 05.09.2026: die dritte -- und die einzige, die es NUR hier gibt.
+    # Eine Sprachnachricht im Interviewmodus muss nicht Interviewmaterial
+    # sein: die Gruppe spricht auch den Bot an ("zeig mir die Verdichtungen",
+    # "was war nochmal die zweite Frage"). Ohne diesen Weg landete das im
+    # Interviewtranskript und in der Verdichtung -- und beantwortet wuerde es
+    # nie.
+    "an_den_bot",
 )
 
 #: Obergrenze fuer Aenderungen je Lauf -- im Prompttext UND hier im Code
@@ -668,6 +681,11 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_phase_an(conn, chat_id, wert)
     if art == "entfernen":
         return entferne(conn, chat_id, wert)
+    if art == "an_den_bot":
+        # Kein Schreibpfad, wie szene_schreiben: diese art aendert nichts,
+        # sie ordnet eine Aufnahme anders ein. Das tut aufnahme.py, wo die
+        # Aufnahme bekannt ist (N4).
+        return None
     if art == "szene_schreiben":
         # Kein Schreibpfad: eine Szene ist kein Arbeitsstandfeld, das sich
         # ueberschreiben liesse, sondern ein eigener, minutenlanger

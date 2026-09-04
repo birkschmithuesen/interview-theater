@@ -33,7 +33,6 @@ mit "art" und "wert":
     an und trifft Elif"). Die Gruppe fordert DICH auf, jetzt einen
     Szenentext zu schreiben ("schreib uns die Szene", "mach daraus einen
     Dialog", "schreib Szene 3 nochmal, aber kuerzer").
-
 13. phase_setzen           -- wert: die Nummer oder der Kurzname der
     Arbeitsphase, bei der die Gruppe jetzt ist. Die acht Phasen sind:
     1 Ankommen, 2 Interviews, 3 Kernthema, 4 Hauptkonflikt, 5 Figuren
@@ -42,7 +41,6 @@ mit "art" und "wert":
     "zurueck zu den Interviewfragen", "wir sind eigentlich noch beim
     Kernthema"). Ein Ruecksprung ist genauso gueltig wie ein Schritt nach
     vorn.
-
 14. entfernen              -- wert: was weg soll, beginnend mit dem Ziel:
     "Figur Peter", "Kernthema", "Hauptkonflikt", "Begriffe", "Szene 2",
     "Journal: Kindheitsfragen". Die Gruppe nimmt etwas ausdruecklich wieder

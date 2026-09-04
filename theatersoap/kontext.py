@@ -15,9 +15,10 @@ Kein Caching-Argument: in den Messlaeufen gegen Infomaniak steht in jeder
 Antwort ``prompt_tokens_details: null`` -- unbelegt und deshalb nirgends als
 Begruendung verwendet (§ 6.1).
 
-Szenen bleiben im Durchstich aussen vor: der Block "aktuelle Szene im
-Volltext" und der Befehl ``/szene`` gehoeren zu einer spaeteren
-Workshop-Phase und sind hier bewusst nicht eingebaut.
+Szenen sind seit dem 04.09.2026 eingebaut (siehe ``theatersoap/szene.py``,
+das sie schreibt): die Szenenliste als Teil des Arbeitsstands (Block 4) und
+die zuletzt geaenderte Szene im Volltext als eigener Block 5 -- beide
+datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
 """
 
 from datetime import datetime
@@ -49,12 +50,15 @@ _ZEICHEN_JE_TOKEN = 3
 #: Bauen auf sein eigenes Budget zusammengestutzt wuerde, wuerde genau die
 #: Faelle verstecken, die die Kuerzung eigentlich zeigen soll (ein sehr
 #: langer Gespraechsverlauf allein kann das Ziel reissen, auch ganz ohne
-#: Transkripte). Szene fehlt bewusst: sie bleibt im Durchstich aussen vor.
+#: Transkripte). ``arbeitsstand`` enthaelt laut § 6.2 Block 4 auch die
+#: Szenenliste (Titel plus je eine Zeile), ``szene`` ist Block 5: die eine
+#: zuletzt geaenderte Szene im Volltext.
 BUDGETS = {
     "system": 900,
     "verdichtungen": 3000,
     "transkripte": 5000,
     "arbeitsstand": 1200,
+    "szene": 1500,
     "journal": 1500,
     "fenster": 8000,
     "ausloeser": 300,
@@ -70,7 +74,9 @@ PAUSE_AB_MINUTEN = 60
 
 #: Feste Reihenfolge des Prompt-Koerpers (ohne SYSTEM, das separat verschickt
 #: wird): stabil nach vorn, fluechtig nach hinten.
-_REIHENFOLGE = ("verdichtungen", "transkripte", "arbeitsstand", "journal", "fenster", "ausloeser")
+_REIHENFOLGE = (
+    "verdichtungen", "transkripte", "arbeitsstand", "szene", "journal", "fenster", "ausloeser",
+)
 
 
 def schaetze(text: str) -> int:
@@ -165,9 +171,23 @@ def _baue_transkripte(conn, chat_id: int) -> str:
     return "Volltranskripte:\n" + "\n\n".join(zeilen)
 
 
+def szenenzeile(s) -> str:
+    """Eine Szene als eine Zeile: Nummer, Titel, Kurzbeschreibung (SPEC § 6.2
+    Block 4). Fehlt eines der Felder, faellt nur dieser Teil weg -- die Zeile
+    bleibt lesbar, auch wenn das Sprachmodell einmal keinen Titel geliefert
+    hat und ``theatersoap.szene`` auf 'Szene N' zurueckgefallen ist."""
+    kopf = f"Szene {s['nummer']}" if s["nummer"] is not None else "Szene"
+    if s["titel"]:
+        kopf += f": {s['titel']}"
+    if s["kurzbeschreibung"]:
+        return f"{kopf} - {s['kurzbeschreibung']}"
+    return kopf
+
+
 def _baue_arbeitsstand(conn, chat_id: int) -> str:
     stand = repo.hole_arbeitsstand(conn, chat_id)
     figuren = repo.figuren(conn, chat_id)
+    szenen = repo.hole_szenen(conn, chat_id)
 
     zeilen = []
     if stand:
@@ -183,10 +203,32 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
     for figur in figuren:
         beschreibung = f": {figur['beschreibung']}" if figur["beschreibung"] else ""
         zeilen.append(f"Figur {figur['name']}{beschreibung}")
+    # Szenenliste: Teil des Arbeitsstands, nicht ein eigener Block -- SPEC
+    # § 6.2 fuehrt sie woertlich in Block 4 auf ("Begriffe, Kernthema +
+    # Begruendung, Figuren, Konflikt, Szenenliste"). Nur Titel und die eine
+    # Kurzbeschreibungszeile; die Volltexte waeren bei sechs Szenen rund 6.000
+    # Token Dauerlast, deshalb geht davon nur die zuletzt geaenderte mit
+    # (Block 5, _baue_szene).
+    for szene in szenen:
+        zeilen.append(szenenzeile(szene))
 
     if not zeilen:
         return ""
     return "Arbeitsstand:\n" + "\n".join(zeilen)
+
+
+def _baue_szene(conn, chat_id: int) -> str:
+    """Block 5: die EINE zuletzt geaenderte Szene im Volltext (SPEC § 6.2).
+
+    Datengetrieben wie alle Bloecke, ohne gespeicherten Zustand: woran die
+    Gruppe zuletzt gearbeitet hat, ist die Szene, um die es gerade geht --
+    springt sie zu einer frueheren zurueck und ueberarbeitet sie, wandert
+    diese automatisch hierher (repo.aktualisiere_szene setzt geaendert_am
+    neu)."""
+    szene = repo.hole_letzte_szene(conn, chat_id)
+    if szene is None or not szene["volltext"]:
+        return ""
+    return f"Aktuelle Szene ({szenenzeile(szene)}):\n{szene['volltext']}"
 
 
 def _baue_journal(conn, chat_id: int) -> str:
@@ -271,6 +313,7 @@ def baue(conn, chat_id: int, ausloeser, e) -> str:
         "verdichtungen": _baue_verdichtungen(conn, chat_id),
         "transkripte": _baue_transkripte(conn, chat_id),
         "arbeitsstand": _baue_arbeitsstand(conn, chat_id),
+        "szene": _baue_szene(conn, chat_id),
         "journal": _baue_journal(conn, chat_id),
         "fenster": "\n".join(fenster_eintraege),
         "ausloeser": _baue_ausloeser(ausloeser),

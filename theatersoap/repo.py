@@ -592,6 +592,83 @@ def setze_figur(conn: sqlite3.Connection, chat_id: int, name: str, beschreibung:
 
 
 @_gesperrt
+def lege_szene_an(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    nummer: int | None,
+    titel: str | None,
+    kurzbeschreibung: str | None,
+    volltext: str | None,
+) -> int:
+    """Legt eine Szene an und liefert die neue id (SPEC § 3.1, § 6.2 Block 4/5).
+
+    Anders als eine Verdichtung darf eine Szene ausdruecklich geaendert werden
+    -- deshalb gibt es hier, im Unterschied zu ``speichere_verdichtung``, ein
+    Gegenstueck ``aktualisiere_szene``. Ein Szenentext ist ein Entwurf, der
+    ueberarbeitet wird; eine Verdichtung ist ein Befund, der stehen bleibt."""
+    cur = conn.execute(
+        """
+        INSERT INTO szene (chat_id, nummer, titel, kurzbeschreibung, volltext, geaendert_am)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (chat_id, nummer, titel, kurzbeschreibung, volltext, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def aktualisiere_szene(
+    conn: sqlite3.Connection,
+    szene_id: int,
+    titel: str | None,
+    kurzbeschreibung: str | None,
+    volltext: str | None,
+) -> None:
+    """Ueberschreibt eine Szene vollstaendig und setzt ``geaendert_am`` neu.
+
+    ``geaendert_am`` ist nicht bloss Buchhaltung: es entscheidet, welche Szene
+    als 'die aktuelle' in den Gespraechs-Prompt wandert (hole_letzte_szene,
+    SPEC § 6.2 Block 5). Wer eine Szene ueberarbeitet, macht sie damit
+    automatisch wieder zur aktuellen -- genau das datengetriebene Verhalten,
+    das § 6.1 beschreibt."""
+    conn.execute(
+        """
+        UPDATE szene SET titel = ?, kurzbeschreibung = ?, volltext = ?, geaendert_am = ?
+        WHERE id = ?
+        """,
+        (titel, kurzbeschreibung, volltext, _jetzt(), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hole_szenen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle Szenen einer Gruppe, nach Szenennummer sortiert (SPEC § 6.2 Block 4:
+    die Szenenliste im Arbeitsstand). Eine Szene ohne Nummer sortiert in SQLite
+    nach vorn -- im Normalbetrieb vergibt ``theatersoap.szene`` immer eine, der
+    Fall bleibt nur als Datenbankmoeglichkeit bestehen."""
+    return conn.execute(
+        "SELECT * FROM szene WHERE chat_id = ? ORDER BY nummer ASC, id ASC", (chat_id,)
+    ).fetchall()
+
+
+@_gesperrt
+def hole_letzte_szene(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | None:
+    """Die zuletzt geaenderte Szene einer Gruppe, oder None (SPEC § 6.2 Block 5,
+    dort woertlich als ``ORDER BY geaendert_am DESC LIMIT 1`` vorgegeben).
+
+    ``id DESC`` als zweites Sortierkriterium, weil ``geaendert_am``
+    sekundengenau ist (repo._jetzt): zwei Szenen derselben Sekunde -- moeglich,
+    wenn jemand zwei Auftraege schnell hintereinander gibt -- haetten sonst
+    keine bestimmte Reihenfolge."""
+    return conn.execute(
+        "SELECT * FROM szene WHERE chat_id = ? ORDER BY geaendert_am DESC, id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+
+
+@_gesperrt
 def journal(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle Journaleintraege einer Gruppe, aeltester zuerst (SPEC § 6.2 zu
     Block 6). Das Journal ist nur-anhaengend -- es gibt bewusst kein

@@ -170,6 +170,31 @@ def _sekunden(millisekunden: int | None) -> str:
     return f"{millisekunden / 1000:.1f}".replace(".", ",") + " s"
 
 
+def _dauer(sekunden: int | None) -> str:
+    """Eine Aufnahmedauer als 'M:SS' -- 'Interview 3 · 4 Teile · 12:07' sagt
+    der Gruppe mehr ueber ihr Material als eine Zahl in Sekunden."""
+    if not sekunden:
+        return ""
+    return f"{int(sekunden) // 60}:{int(sekunden) % 60:02d}"
+
+
+def _umfang(teile: int, sekunden: int | None) -> str:
+    """Die Kopfzeile eines Interviews auf der Gruppenseite: aus wie vielen
+    Sprachnachrichten es besteht und wie lang es insgesamt ist (§ 10.6).
+
+    Ohne Teile (Textimport, Aufnahme aus der Zeit vor dem Nachtrag) bleibt die
+    Teile-Zahl weg statt '0 Teile' zu behaupten."""
+    stuecke = []
+    if teile == 1:
+        stuecke.append("1 Teil")
+    elif teile > 1:
+        stuecke.append(f"{teile} Teile")
+    dauer = _dauer(sekunden)
+    if dauer:
+        stuecke.append(dauer)
+    return " · ".join(stuecke)
+
+
 def _seite(titel: str, css: str, koerper: str) -> str:
     """Rahmen beider Seiten: ein einziges eingebettetes CSS, keine externe
     Ressource (der Workshopraum haengt an einem Tailnet, nicht am offenen
@@ -236,10 +261,17 @@ def _arbeitsstand_html(arbeitsstand: dict, figuren: list[dict]) -> str:
     )
 
 
-def dashboard_html(daten: dict) -> str:
-    """Das projizierte Team-Dashboard aus web_daten.dashboard()."""
+def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
+    """Das projizierte Team-Dashboard aus web_daten.dashboard().
+
+    ``praefix`` baut den Link zur Gruppenseite (Birk 04.09.: je Gruppe ein
+    Link) -- relativ zum Server, damit er hinter nginx genauso geht wie
+    direkt auf Port 8010."""
     karten = []
     for g in daten["gruppen"]:
+        titel = _t(g["titel"], "Gruppe " + str(g["chat_id"]))
+        if g.get("web_token"):
+            titel = f'<a href="{praefix}/g/{_t(g["web_token"])}">{titel}</a>'
         marke = (
             '<span class="marke">Interviewmodus</span>'
             if g["interviewmodus_seit"]
@@ -278,7 +310,7 @@ def dashboard_html(daten: dict) -> str:
         )
         karten.append(
             "<section class=\"karte\">"
-            f'<div class="kopf"><h2>{_t(g["titel"], "Gruppe " + str(g["chat_id"]))}</h2>'
+            f'<div class="kopf"><h2>{titel}</h2>'
             f'<span class="bot">{_t(g["bot_name"])} {marke}</span></div>'
             f'{_arbeitsstand_html(g["arbeitsstand"], g["figuren"])}'
             f'<div class="zahlen"><span>Aufnahmen — {aufnahmen}</span>'
@@ -333,7 +365,7 @@ def gruppe_html(daten: dict) -> str:
     ) or '<p class="leer">Noch keine Szene. Die entstehen in der letzten Phase.</p>'
 
     verdichtungen = []
-    for v in daten["verdichtungen"]:
+    for v in daten["interviews"]:
         themen = "".join(
             '<div class="thema">{thema}{zitat}</div>'.format(
                 thema=_t(t["thema"]),
@@ -341,14 +373,20 @@ def gruppe_html(daten: dict) -> str:
             )
             for t in v["themen"]
         )
+        inhalt = (
+            f'<p>{_t(v["zusammenfassung"], "")}</p>{themen}'
+            if v["zusammenfassung"]
+            else '<p class="leer">Noch nicht verdichtet.</p>'
+        )
         verdichtungen.append(
             '<div class="verdichtung">'
-            f'<h3>{_t(v["aufnahme"], "Interview")}</h3>'
-            f'<p>{_t(v["zusammenfassung"], "")}</p>{themen}</div>'
+            f'<h3>{_t(v["name"], "Interview")}</h3>'
+            f'<p class="zeit">{_umfang(v["teile"], v["dauer_sekunden"])}</p>'
+            f"{inhalt}</div>"
         )
     verdichtungen_html = "".join(verdichtungen) or (
-        '<p class="leer">Noch keine Verdichtung — schickt ein Interview als '
-        "Sprachnachricht in den Chat.</p>"
+        '<p class="leer">Noch kein Interview — sagt „wir machen jetzt ein '
+        "Interview“ und sprecht drauflos.</p>"
     )
 
     journal = "".join(
@@ -429,7 +467,7 @@ def mache_handler(db_pfad: str, praefix: str = VORGABE_PRAEFIX):
                 return
             try:
                 if pfad == "/":
-                    self._antworte(200, dashboard_html(self._dashboard()))
+                    self._antworte(200, dashboard_html(self._dashboard(), praefix))
                 elif pfad.startswith("/g/"):
                     daten = self._gruppe(pfad[len("/g/"):].strip("/"))
                     if daten is None:

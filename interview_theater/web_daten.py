@@ -273,6 +273,7 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
                 "chat_id": chat_id,
                 "titel": z["titel"],
                 "bot_name": z["bot_name"],
+                "web_token": _feld(z, "web_token"),
                 "interviewmodus_seit": z["interviewmodus_seit"],
                 "arbeitsstand": _arbeitsstand(conn, chat_id),
                 "figuren": _figuren(conn, chat_id),
@@ -320,42 +321,88 @@ def _szenen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     ]
 
 
-def _verdichtungen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
-    """Verdichtungen je Interview mit ihren Kernthemen.
+def _themen(conn: sqlite3.Connection, verdichtung_id: int) -> list[dict]:
+    """Die Kernthemen einer Verdichtung.
 
     Ein Belegzitat wird nur gezeigt, wenn es die Pruefung bestanden hat
     (``zitat_geprueft = 1``, SPEC § 5). Ein ungeprueftes Zitat waere genau
     das, wogegen das Belegzitat-Prinzip antritt: ein Satz in
     Anfuehrungszeichen, den vielleicht niemand gesagt hat. Das Thema bleibt
     stehen, das Zitat faellt weg."""
+    return [
+        {
+            "thema": t["thema"],
+            "zitat": t["beleg_zitat"] if t["zitat_geprueft"] == 1 else None,
+        }
+        for t in conn.execute(
+            "SELECT thema, beleg_zitat, zitat_geprueft FROM verdichtung_thema "
+            "WHERE verdichtung_id = ? ORDER BY id ASC",
+            (verdichtung_id,),
+        )
+    ]
+
+
+def _teile_zahlen(conn: sqlite3.Connection, aufnahme_id: int) -> tuple[int, int | None]:
+    """Anzahl der Teile eines Interviews und ihre Gesamtdauer in Sekunden
+    (§ 10.6). Ohne Teile ``(0, None)`` -- dann gilt die Dauer am Kopf selbst
+    (Textimport oder eine Aufnahme aus der Zeit vor dem Nachtrag)."""
+    zeile = conn.execute(
+        "SELECT count(*) AS anzahl, sum(dauer_sekunden) AS dauer FROM aufnahme "
+        "WHERE teil_von = ?",
+        (aufnahme_id,),
+    ).fetchone()
+    return (zeile["anzahl"] or 0), zeile["dauer"]
+
+
+def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die Interviews der Gruppe -- je Interview eine Zeile mit Name, Dauer,
+    Teile-Zahl und, sobald es sie gibt, der Verdichtung samt Belegzitaten
+    (§ 10.6).
+
+    Ein Interview ist eine Einheit: die einzelnen Sprachnachrichten
+    (``teil_von`` gesetzt) tauchen hier nicht als eigene Eintraege auf, und
+    ein Gespraechsbeitrag (Klasse *kurz*) ist gar kein Interview.
+
+    Ein Interview ohne Verdichtung faellt trotzdem nicht unter den Tisch: die
+    Gruppe soll sehen, dass die Aufnahme da ist, auch wenn die Auswertung noch
+    laeuft oder misslungen ist.
+
+    Die ``OperationalError``-Notbremse: die Weboberflaeche oeffnet read-only
+    und migriert nichts (siehe ``_feld``). Zwischen einem Deploy und dem
+    Neustart des Bots kann ``teil_von`` also noch fehlen -- dann gilt jede
+    Aufnahme der Klasse *lang* als ein Interview ohne Teile, was fuer eine
+    Datenbank aus dieser Zeit genau richtig ist."""
+    try:
+        zeilen = conn.execute(
+            "SELECT * FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            "AND teil_von IS NULL ORDER BY id ASC",
+            (chat_id,),
+        ).fetchall()
+        mit_teilen = True
+    except sqlite3.OperationalError:
+        zeilen = conn.execute(
+            "SELECT * FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' ORDER BY id ASC",
+            (chat_id,),
+        ).fetchall()
+        mit_teilen = False
+
     ergebnis = []
-    for z in conn.execute(
-        """
-        SELECT v.id, v.zusammenfassung, v.erstellt_am, a.name AS aufnahme_name
-        FROM verdichtung v
-        LEFT JOIN aufnahme a ON a.id = v.aufnahme_id
-        WHERE v.chat_id = ?
-        ORDER BY v.id ASC
-        """,
-        (chat_id,),
-    ):
-        themen = [
-            {
-                "thema": t["thema"],
-                "zitat": t["beleg_zitat"] if t["zitat_geprueft"] == 1 else None,
-            }
-            for t in conn.execute(
-                "SELECT thema, beleg_zitat, zitat_geprueft FROM verdichtung_thema "
-                "WHERE verdichtung_id = ? ORDER BY id ASC",
-                (z["id"],),
-            )
-        ]
+    for z in zeilen:
+        teile, teile_dauer = _teile_zahlen(conn, z["id"]) if mit_teilen else (0, None)
+        verdichtung = conn.execute(
+            "SELECT id, zusammenfassung, erstellt_am FROM verdichtung "
+            "WHERE aufnahme_id = ? ORDER BY id DESC LIMIT 1",
+            (z["id"],),
+        ).fetchone()
         ergebnis.append(
             {
-                "aufnahme": z["aufnahme_name"],
-                "zusammenfassung": z["zusammenfassung"],
-                "erstellt_am": z["erstellt_am"],
-                "themen": themen,
+                "name": z["name"],
+                "status": z["status"],
+                "teile": teile,
+                "dauer_sekunden": teile_dauer if teile else z["dauer_sekunden"],
+                "zusammenfassung": verdichtung["zusammenfassung"] if verdichtung else None,
+                "erstellt_am": verdichtung["erstellt_am"] if verdichtung else None,
+                "themen": _themen(conn, verdichtung["id"]) if verdichtung else [],
             }
         )
     return ergebnis
@@ -405,6 +452,6 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "arbeitsstand": _arbeitsstand(conn, chat_id),
         "figuren": _figuren(conn, chat_id),
         "szenen": _szenen(conn, chat_id),
-        "verdichtungen": _verdichtungen(conn, chat_id),
+        "interviews": _interviews(conn, chat_id),
         "journal": _journal(conn, chat_id),
     }

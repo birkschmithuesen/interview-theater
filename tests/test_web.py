@@ -279,3 +279,17 @@ def test_fragen_ohne_thema_bleiben_ganz():
 def test_fragen_werden_escaped():
     from interview_theater import web
     assert "<script>" not in web._fragen_html("Thema: <script>x</script>")
+
+
+def test_dashboard_verlinkt_jede_gruppe_auf_ihre_gruppenseite(tmp_path):
+    """Echte Daten statt Attrappe: der Dashboard-Dict hat viele Pflichtfelder."""
+    from interview_theater import db, repo, web, web_daten
+    pfad = str(tmp_path / "t.db")
+    c = db.verbinde(pfad); db.initialisiere(c)
+    repo.sichere_gruppe(c, -1, "b", "Gruppe A")
+    token = repo.stelle_web_token_sicher(c, -1)
+    c.close()
+    lesend = web_daten.oeffne_lesend(pfad)
+    html_ = web.dashboard_html(web_daten.dashboard(lesend), praefix="/theatersoap")
+    assert f'<a href="/theatersoap/g/{token}">Gruppe A</a>' in html_
+

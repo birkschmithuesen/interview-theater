@@ -551,3 +551,80 @@ def test_laufe_versand_fehlschlag_bleibt_fuer_gruppe_unsichtbar(conn, einst):
 
     zeile = conn.execute("SELECT art FROM vorfall WHERE chat_id = 1").fetchone()
     assert zeile is not None
+
+
+# ---------------------------------------------------------------------------
+# szene_schreiben: die zwoelfte art (theatersoap/szene.py)
+# ---------------------------------------------------------------------------
+
+
+def test_szene_schreiben_ist_im_schema_enum():
+    enum = erkenner.SCHEMA["properties"]["aenderungen"]["items"]["properties"]["art"]["enum"]
+    assert "szene_schreiben" in enum
+
+
+def test_szene_schreiben_veraendert_den_arbeitsstand_nicht(conn, einst):
+    """Die einzige art ohne Schreibpfad: sie stoesst eine Handlung an, statt
+    ein Feld zu setzen. wende_an() darf sie deshalb still verwerfen -- ihre
+    Meldung kommt spaeter von szene.py selbst."""
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "szene_schreiben", "wert": "Szene 2: am Bahnhof"}]
+    )
+
+    assert wirkliche == []
+    assert repo.hole_arbeitsstand(conn, 1) is None
+    assert erkenner.baue_meldung([{"art": "szene_schreiben", "wert": "Szene 2"}]) is None
+
+
+def test_laufe_stoesst_den_szenen_aufruf_an(conn, einst, monkeypatch):
+    from theatersoap import szene
+
+    gesehen = []
+    monkeypatch.setattr(
+        szene, "starte",
+        lambda conn, tg, klm, e, chat_id, auftrag: gesehen.append((chat_id, auftrag)),
+    )
+    _nachricht(conn, 1, 1, "schreib uns die Szene am Bahnhof aus")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "szene_schreiben", "wert": "Szene 2: Maria kommt am Bahnhof an"},
+    ]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert gesehen == [(1, "Szene 2: Maria kommt am Bahnhof an")]
+    assert tg.gesendet == []  # die Ankuendigung kommt aus szene.starte
+
+
+def test_laufe_stoesst_hoechstens_eine_szene_je_lauf_an(conn, einst, monkeypatch):
+    """Eine zweite liefe ohnehin in die Sperre je chat_id und wuerde nur mit
+    'ich schreibe gerade noch' abgewiesen -- zwei Nachrichten fuer nichts."""
+    from theatersoap import szene
+
+    gesehen = []
+    monkeypatch.setattr(szene, "starte", lambda *a: gesehen.append(a[5]))
+    _nachricht(conn, 1, 1, "schreib beide Szenen")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "szene_schreiben", "wert": "Szene 2: am Bahnhof"},
+        {"art": "szene_schreiben", "wert": "Szene 3: im Amt"},
+    ]})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    assert gesehen == ["Szene 2: am Bahnhof"]
+
+
+def test_ohne_erkannten_auftrag_laeuft_keine_szene(conn, einst, monkeypatch):
+    """Der teure Fehlerfall: ein falsch ausgeloester Szenentext kostet die
+    Gruppe zwei Minuten Wartezeit und eine Nachricht, die sie nicht bestellt
+    hat. Die Abgrenzung "Auftrag, nicht Vorhaben" steht im Prompt; hier wird
+    geprueft, dass eine leere Erkennung auch wirklich nichts anstoesst."""
+    from theatersoap import szene
+
+    monkeypatch.setattr(szene, "starte", lambda *a: pytest.fail("kein Auftrag, kein Lauf"))
+    _nachricht(conn, 1, 1, "wir sollten bald mal Szenen machen")
+    klm = LLMAttrappe(antwort={"aenderungen": []})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    assert repo.hole_gruppe(conn, 1)["letzte_extrahierte_message_id"] == 1

@@ -61,6 +61,25 @@ def _jetzt() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _jetzt_genau() -> str:
+    """Wie _jetzt(), aber mikrosekundengenau -- ausschliesslich fuer
+    ``szene.geaendert_am``.
+
+    Dieses eine Feld ist nicht nur Buchhaltung, sondern eine Sortierung, an
+    der eine Entscheidung haengt: welche Szene als 'die aktuelle' in den
+    Gespraechs-Prompt wandert (hole_letzte_szene, SPEC § 6.2 Block 5).
+    Sekundengenau waeren zwei Schreibvorgaenge in derselben Sekunde nicht
+    unterscheidbar, und die zweitbeste Sortierung (``id DESC``) faellt genau
+    dann falsch aus, wenn eine AELTERE Szene ueberarbeitet wird -- dann hat
+    die gemeinte Szene die kleinere id.
+
+    ISO-8601 sortiert auch gemischt lexikographisch korrekt ('...:00+00:00'
+    vor '...:00.5+00:00', weil '+' < '.'), die Umstellung braucht also keine
+    Migration -- und in die Tabelle ``szene`` hat ohnehin noch nie jemand
+    geschrieben."""
+    return datetime.now(timezone.utc).isoformat()
+
+
 @_gesperrt
 def sichere_gruppe(conn: sqlite3.Connection, chat_id: int, bot_name: str, titel: str) -> None:
     """Legt die Gruppe an, falls noch unbekannt; aktualisiert sonst Titel/Bot-Name."""
@@ -611,7 +630,7 @@ def lege_szene_an(
         INSERT INTO szene (chat_id, nummer, titel, kurzbeschreibung, volltext, geaendert_am)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (chat_id, nummer, titel, kurzbeschreibung, volltext, _jetzt()),
+        (chat_id, nummer, titel, kurzbeschreibung, volltext, _jetzt_genau()),
     )
     conn.commit()
     return cur.lastrowid
@@ -637,7 +656,7 @@ def aktualisiere_szene(
         UPDATE szene SET titel = ?, kurzbeschreibung = ?, volltext = ?, geaendert_am = ?
         WHERE id = ?
         """,
-        (titel, kurzbeschreibung, volltext, _jetzt(), szene_id),
+        (titel, kurzbeschreibung, volltext, _jetzt_genau(), szene_id),
     )
     conn.commit()
 
@@ -658,10 +677,9 @@ def hole_letzte_szene(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | N
     """Die zuletzt geaenderte Szene einer Gruppe, oder None (SPEC § 6.2 Block 5,
     dort woertlich als ``ORDER BY geaendert_am DESC LIMIT 1`` vorgegeben).
 
-    ``id DESC`` als zweites Sortierkriterium, weil ``geaendert_am``
-    sekundengenau ist (repo._jetzt): zwei Szenen derselben Sekunde -- moeglich,
-    wenn jemand zwei Auftraege schnell hintereinander gibt -- haetten sonst
-    keine bestimmte Reihenfolge."""
+    ``geaendert_am`` ist hier mikrosekundengenau (``_jetzt_genau``, siehe
+    dort): sekundengenau waeren zwei Schreibvorgaenge derselben Sekunde nicht
+    unterscheidbar. ``id DESC`` bleibt als letzter Notnagel dahinter."""
     return conn.execute(
         "SELECT * FROM szene WHERE chat_id = ? ORDER BY geaendert_am DESC, id DESC LIMIT 1",
         (chat_id,),

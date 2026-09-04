@@ -282,6 +282,27 @@ def test_befehl_mit_botname_wird_ueber_bearbeite_erkannt(conn, einst, tg, klm):
     assert tg.gesendet == [(1, "Aufnahme beendet.")]
 
 
+def test_szene_befehl_bekommt_das_sprachmodell_durchgereicht(conn, einst, tg, klm, monkeypatch):
+    """/szene ist der einzige Befehl, der ein Modell braucht -- er bekommt es
+    ueber ``behandle(..., klm=klm)``. Der Gespraechszug selbst ruft trotzdem
+    nichts: szene.starte gibt sofort an einen eigenen Thread ab."""
+    from theatersoap import szene
+
+    gesehen = []
+    monkeypatch.setattr(
+        szene, "starte",
+        lambda conn, tg, k, e, chat_id, auftrag: gesehen.append((k, auftrag)),
+    )
+    repo.merke_nachricht(
+        conn, 1, 52, "Ada", 0, "text", "/szene Szene 2: am Bahnhof", repo._jetzt(),
+    )
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert gesehen == [(klm, "Szene 2: am Bahnhof")]
+    assert klm.gesehen == [], "der Gespraechszug selbst ruft kein Modell"
+
+
 # ---------------------------------------------------------------------------
 # Zusaetzliche Tests fuer die Tippanzeige (Auftragshinweis 4) und die
 # Einhaengung in bot.py (Auftragshinweis 2).

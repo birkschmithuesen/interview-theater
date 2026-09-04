@@ -170,3 +170,60 @@ def test_befehle_liste_enthaelt_alle_sieben_ohne_schraegstrich():
     assert kommandos == {
         "interview", "fertig", "kernthema", "szene", "stand", "wortlaut", "hilfe",
     }
+
+
+# ---------------------------------------------------------------------------
+# /szene -- der deterministische Weg zum Szenentext
+# ---------------------------------------------------------------------------
+
+
+def test_szene_stoesst_den_szenen_aufruf_mit_dem_auftrag_an(conn, einst, tg, monkeypatch):
+    from theatersoap import szene
+
+    gesehen = []
+    monkeypatch.setattr(
+        szene, "starte",
+        lambda conn, tg, klm, e, chat_id, auftrag: gesehen.append((chat_id, auftrag)),
+    )
+
+    behandelt = befehle.behandle(
+        conn, tg, einst, 1, "/szene Szene 2: Maria am Bahnhof", "Ada", klm=object(),
+    )
+
+    assert behandelt is True
+    assert gesehen == [(1, "Szene 2: Maria am Bahnhof")]
+    assert tg.gesendet == []  # die Ankuendigung kommt aus szene.starte
+
+
+def test_szene_mit_botname_wird_erkannt(conn, einst, tg, monkeypatch):
+    from theatersoap import szene
+
+    gesehen = []
+    monkeypatch.setattr(szene, "starte", lambda *a: gesehen.append(a[5]))
+
+    befehle.behandle(
+        conn, tg, einst, 1, f"/szene@{einst.bot_name} Szene 2: am Bahnhof", "Ada",
+        klm=object(),
+    )
+
+    assert gesehen == ["Szene 2: am Bahnhof"]
+
+
+def test_szene_ohne_auftrag_fragt_freundlich_nach(conn, einst, tg, monkeypatch):
+    from theatersoap import szene
+
+    monkeypatch.setattr(szene, "starte", lambda *a: pytest.fail("ohne Auftrag kein Lauf"))
+
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/szene", "Ada", klm=object())
+
+    assert behandelt is True
+    assert "Auftrag" in tg.gesendet[0][1]
+
+
+def test_szene_ohne_sprachmodell_krachte_nicht(conn, einst, tg):
+    """Ein Aufrufer ohne ``klm`` ist ein Programmierfehler -- aber einer, der
+    die Gruppe nicht ratlos zuruecklassen darf."""
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/szene Szene 2", "Ada")
+
+    assert behandelt is True
+    assert len(tg.gesendet) == 1

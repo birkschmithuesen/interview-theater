@@ -78,3 +78,37 @@ def test_letzte_nachrichten_liefert_die_letzten_in_chronologischer_reihenfolge(c
                               f"2026-09-05T10:0{message_id}:00")
     ergebnis = repo.letzte_nachrichten(conn, 1, anzahl=3)
     assert [r["message_id"] for r in ergebnis] == [3, 4, 5]
+
+
+def test_szenen_kommen_in_szenenreihenfolge_zurueck(conn):
+    repo.lege_szene_an(conn, 1, 2, "Der Koffer", "Elif packt aus", "ELIF: Zu.")
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: Da.")
+    assert [s["nummer"] for s in repo.hole_szenen(conn, 1)] == [1, 2]
+
+
+def test_letzte_szene_ist_die_zuletzt_geaenderte_nicht_die_hoechste_nummer(conn):
+    """SPEC § 6.2 Block 5. Der Fall, an dem eine sekundengenaue Zeitangabe
+    scheitern wuerde: eine AELTERE Szene wird ueberarbeitet und hat dabei die
+    kleinere id -- die Sortierung nach geaendert_am muss trotzdem sie
+    liefern (repo._jetzt_genau)."""
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: Alt.")
+    repo.lege_szene_an(conn, 1, 2, "Der Koffer", "Elif packt aus", "ELIF: Zu.")
+    erste = repo.hole_szenen(conn, 1)[0]
+
+    repo.aktualisiere_szene(conn, erste["id"], "Ankunft", "Maria kommt an", "MARIA: Neu.")
+
+    letzte = repo.hole_letzte_szene(conn, 1)
+    assert letzte["nummer"] == 1
+    assert letzte["volltext"] == "MARIA: Neu."
+
+
+def test_ohne_szene_gibt_es_keine_letzte(conn):
+    assert repo.hole_letzte_szene(conn, 1) is None
+    assert repo.hole_szenen(conn, 1) == []
+
+
+def test_szenen_einer_anderen_gruppe_bleiben_draussen(conn):
+    repo.sichere_gruppe(conn, 2, "gruppe1", "Zweite Gruppe")
+    repo.lege_szene_an(conn, 2, 1, "Fremd", "andere Gruppe", "X: Y.")
+    assert repo.hole_szenen(conn, 1) == []
+    assert repo.hole_letzte_szene(conn, 1) is None

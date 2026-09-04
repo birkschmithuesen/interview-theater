@@ -292,6 +292,56 @@ def test_ohne_temperature_parameter_fehlt_das_feld(einst, conn):
     assert "temperature" not in gesehen["body"]
 
 
+def test_prosa_schaltet_reasoning_an_und_bekommt_genug_ausgabebudget(einst, conn):
+    """Modus B ist der einzige Aufruf mit aktivem Reasoning (SPEC § 4.5,
+    theatersoap/szene.py). "an" heisst bei Infomaniak schlicht: irgendein
+    Wert ausser "none" -- die Stufen sind untereinander nicht
+    unterscheidbar. Dazu die gemessene Randbedingung: mit zu knappem
+    max_tokens endet der Lauf IM Denken und liefert HTTP 200 mit leerem
+    Inhalt."""
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["body"] = json.loads(request.content)
+        return _antwort(content="TITEL: Am Bahnhof")
+
+    text = llm.LLM(einst, _klient(handler), conn).prosa(
+        1, "s", "n", "szene", max_tokens=12_000, timeout=150.0,
+    )
+
+    assert text == "TITEL: Am Bahnhof"
+    assert gesehen["body"]["reasoning_effort"] != "none"
+    assert gesehen["body"]["max_tokens"] >= 12_000
+    assert "response_format" not in gesehen["body"]
+
+
+def test_prosa_ohne_eigene_grenzen_bleibt_beim_vorgabebudget(einst, conn):
+    """Die zwei neuen Parameter sind additiv: ohne sie verhaelt sich prosa
+    wie zuvor."""
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["body"] = json.loads(request.content)
+        return _antwort(content="Text")
+
+    llm.LLM(einst, _klient(handler), conn).prosa(1, "s", "n", "szene")
+
+    assert gesehen["body"]["max_tokens"] == llm.MAX_TOKENS
+
+
+def test_prosa_wird_als_modus_b_protokolliert(einst, conn):
+    """Die Tabelle aufruf trennt die Modi -- Grundlage dafuer, dass sich
+    Latenz und Tokenverbrauch des Reasoning-Aufrufs spaeter getrennt von den
+    Chat-Zuegen auswerten lassen."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _antwort(content="Text")
+
+    llm.LLM(einst, _klient(handler), conn).prosa(1, "s", "n", "szene")
+
+    zeile = conn.execute("SELECT art, modus, erfolg FROM aufruf").fetchone()
+    assert (zeile["art"], zeile["modus"], zeile["erfolg"]) == ("szene", "B", 1)
+
+
 def test_api_schluessel_landet_nicht_in_ausnahme(conn, monkeypatch, tmp_path):
     """Der Schluessel steht nur im Authorization-Header. Dieser Test provoziert
     einen HTTP-500-Fall (nach Ausschoepfen aller Wiederholungen) und prueft,

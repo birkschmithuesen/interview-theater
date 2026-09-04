@@ -230,3 +230,61 @@ def test_wortlaut_stern_zeigt_nur_lange_nicht_kurze_aufnahmen(conn, einst):
     assert "Volltranskripte" in prompt
     assert "MARKIERUNG-LANGES-INTERVIEW" in prompt
     assert "MARKIERUNG-KURZER-ZURUF" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# Szenen (SPEC § 6.2 Block 4 und Block 5)
+# ---------------------------------------------------------------------------
+
+
+def test_ohne_szenen_gibt_es_keine_szenenbloecke(conn, einst):
+    """Datengetrieben wie alles andere: solange die Gruppe keine Szene hat,
+    steht im Prompt kein Wort davon -- kein Zustand, der ihr sagt, sie
+    muesste jetzt Szenen machen."""
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Arbeitsstand" in prompt
+    assert "Szene" not in prompt
+
+
+def test_szenenliste_steht_im_arbeitsstand(conn, einst):
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt am Bahnhof an", "MARIA: Da.")
+    repo.lege_szene_an(conn, 1, 2, "Der Koffer", "Elif packt aus", "ELIF: Zu.")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Szene 1: Ankunft - Maria kommt am Bahnhof an" in prompt
+    assert "Szene 2: Der Koffer - Elif packt aus" in prompt
+
+
+def test_nur_die_zuletzt_geaenderte_szene_geht_im_volltext_mit(conn, einst):
+    """Block 5 (SPEC § 6.2): sechs Szenen à 800 Woerter waeren 6.000 Token
+    Dauerlast. Nur die eine, an der zuletzt gearbeitet wurde, geht mit."""
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: ERSTE-SZENE.")
+    repo.lege_szene_an(conn, 1, 2, "Der Koffer", "Elif packt aus", "ELIF: ZWEITE-SZENE.")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Aktuelle Szene" in prompt
+    assert "ZWEITE-SZENE" in prompt
+    assert "ERSTE-SZENE" not in prompt
+
+
+def test_ueberarbeiten_holt_eine_aeltere_szene_zurueck_in_den_prompt(conn, einst):
+    """Kein gespeicherter Zustand: springt die Gruppe zu Szene 1 zurueck und
+    ueberarbeitet sie, folgt der Prompt automatisch (geaendert_am)."""
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: ALT.")
+    repo.lege_szene_an(conn, 1, 2, "Der Koffer", "Elif packt aus", "ELIF: ZWEITE-SZENE.")
+    erste = repo.hole_szenen(conn, 1)[0]
+    repo.aktualisiere_szene(conn, erste["id"], "Ankunft", "Maria kommt an", "MARIA: NEU.")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "MARIA: NEU." in prompt
+    assert "ZWEITE-SZENE" not in prompt

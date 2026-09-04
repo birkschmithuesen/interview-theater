@@ -90,6 +90,28 @@ Der Bot lief gegen eine echte Gruppe. Zwei Beobachtungen führten zu Korrekturen
 
 Danach: Journal-Extraktor, Fenster von 2.500 auf 8.000 Token, Dokumentation.
 
+### Nach dem Probelauf am 04.09. abends: Aufnahmen
+
+Ein Interview bestand aus **fünf Sprachnachrichten**. Der Code behandelte jede einzeln als
+eigene lange Aufnahme: fünf Aufnahmen `Interview 6` bis `Interview 10`, fünf Verdichtungen,
+zwei davon leer („Material extrem kurz", „Transkript nicht beigefügt"). Nach jeder Nachricht
+kam „Ich höre durch", danach nichts — weder Transkript noch Inhalt. Die Entwurfsgeschichte
+hatte von Anfang an gesagt, ein Interview bestehe aus mehreren Sprachnachrichten; umgesetzt
+war es nie.
+
+Seitdem (SPEC § 10.6): **Modus an → ein Interview.** Jede Sprachnachricht ist ein *Teil*,
+ihr Transkript geht sofort und wörtlich in den Chat („Interview 3, Teil 2: …") — zur
+Kontrolle, solange die interviewte Person noch im Raum sitzt, ohne Modellaufruf. „fertig"
+fügt die Teile zusammen, verdichtet **einmal** und stellt die Verdichtung in den Chat:
+Zusammenfassung, Kernthemen, geprüfte Belegzitate, „Stimmt das so?". Das war der eigentliche
+Verlust im Probelauf — die Gruppe erfuhr nie, was in ihrem Material steckt.
+
+Drei Dinge daran sind Entscheidungen, keine Details: „Ich höre durch" ist **gestrichen** (das
+Transkript ist die Bestätigung); das Echo steht in **keinem Fenster**, sonst liest der
+Absichtserkenner die Erzählung der interviewten Person als Absicht der Gruppe; und ein noch
+offener Teil **hält den Abschluss auf**, statt ohne ihn zu verdichten — der Nachhol-Arbeiter
+holt ihn und schließt danach ab.
+
 ---
 
 ## (c) Entwurfsentscheidungen — mit den verworfenen Alternativen
@@ -191,7 +213,9 @@ nichts** (6×30 s parallel 4,22 s gegen 4,84 s am Stück) — also wird nicht ge
 wegen der 25-MB-Grenze.
 
 Daraus abgeleitet: Tippanzeige ab 5 s, Textmeldung ab 12 s (über dem Ausreißer),
-Zeitbudget 45 s für Gesprächsbeiträge und 90 s für Interviews.
+Zeitbudget 45 s für Gesprächsbeiträge und 90 s für Interviews. Die Textmeldung gilt seit
+§ 10.6 auch für einen Interview-Teil: die Empfangsbestätigung, die früher für Material
+sprach, gibt es nicht mehr, und bei diesen Messwerten feuert sie ohnehin so gut wie nie.
 
 Eine frühere Sorge aus dem Realbetrieb einer anderen Installation (Ausfälle, bis zu 30 s)
 hat die Nachmessung **nicht bestätigt**. Die Architektur hängt trotzdem nicht an diesen

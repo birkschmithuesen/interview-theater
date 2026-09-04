@@ -23,7 +23,7 @@ Module unter `interview_theater/`:
 |---|---|
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
-| `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, kurz/lang-Klassifizierung |
+| `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, Interviewfluss (kurz/teil/lang) |
 | `befehle.py` | Die neun Slash-Befehle, laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
@@ -89,6 +89,18 @@ lädt, würde damit Gesprächszüge ausbremsen.
   (`phasen.ermoeglichte_phase`) und nicht an einer festen Zahl. Die
   vollständige Stationsliste steht in der **Basis**-Systemanweisung, nicht nur
   im Phasen-Prompt: der Bot soll entscheiden können, welche Phase gerade passt.
+- **Ein Interview ist eine Einheit** (seit 05.09.2026, SPEC § 10.6). Das ist
+  die Korrektur aus dem Probelauf: ein Interview aus fünf Sprachnachrichten
+  wurde zu fünf Aufnahmen, fünf Verdichtungen (zwei leer) und fünfmal „Ich
+  höre durch", gefolgt von nichts. Der Fluss jetzt, in einem Satz: **Modus an
+  → ein Interview (Kopf), jede Sprachnachricht ein Teil mit sofortigem
+  Transkript-Echo im Chat, „fertig" → zusammenfügen, einmal verdichten, die
+  Verdichtung in den Chat.** Daran hängen vier Dinge, die nicht verhandelbar
+  sind: **kein Modellaufruf im Live-Pfad** außer Whisper und der einen
+  Verdichtung; **keine Empfangsbestätigung** mehr (das Transkript ist sie);
+  das **Echo steht in keinem Fenster** (`typ='transkript'`, sonst liest der
+  Erkenner Interviewinhalt als Gruppenabsicht); und **ein offener Teil hält
+  den Abschluss auf**, statt ohne ihn zu verdichten.
 - **Verdichtungen stehen ab der ersten fertigen im Gesprächs-Prompt (Block 2)
   und auf der Gruppenseite** — Zusammenfassung und Kernthemen mit Belegzitat,
   im Web nur mit `zitat_geprueft = 1`. Datengetrieben, also unabhängig von der

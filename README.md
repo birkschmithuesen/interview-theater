@@ -62,6 +62,44 @@ machen jetzt ein Interview" startet die Aufnahme, „fertig" beendet sie. Alles
 dazwischen wird als Material behandelt: transkribiert und zu Kernthemen mit
 Belegzitaten verdichtet.
 
+### So läuft ein Interview
+
+Ein Interview ist **ein** Interview — auch wenn es aus fünf Sprachnachrichten
+besteht. Das ist der Normalfall: einmal starten, so oft aufnehmen wie nötig,
+einmal beenden.
+
+1. **„wir machen jetzt ein Interview"** (oder `/interview`). Der Bot sagt „Ich
+   zeichne jetzt auf."
+2. **Sprecht.** Nach jeder Sprachnachricht schickt der Bot ihr Transkript
+   wörtlich in den Chat:
+
+   > Interview 1, Teil 3:
+   > Wir sind damals im November angekommen, mit zwei Koffern …
+
+   Damit könnt ihr sofort mitlesen, ob angekommen ist, was gesagt wurde —
+   solange die Person, die erzählt, noch neben euch sitzt. Kommentiert wird
+   nichts, zusammengefasst auch nicht. So viele Sprachnachrichten, wie ihr
+   wollt; Pausen dazwischen sind egal.
+3. **„fertig"** (oder `/fertig`). Jetzt fügt der Bot alle Teile zusammen und
+   sagt euch, was er darin hört:
+
+   > Interview 1 ist durch. Was ich darin höre:
+   > Eine Erzählung vom Ankommen im November …
+   >
+   > Kernthemen:
+   > - Warten: „wir haben drei Monate auf die Papiere gewartet"
+   > - Sprache
+   >
+   > Stimmt das so? Sonst sagt es mir.
+
+   Zitate stehen nur in Anführungszeichen, wenn sie wirklich so im Transkript
+   stehen. Stimmt etwas nicht, sagt es einfach — der Bot arbeitet weiter, es
+   wartet nichts auf eine Antwort.
+
+Geht eine Sprachnachricht unterwegs verloren, sagt der Bot, welchen Teil ihr
+noch einmal schicken sollt. Hakt es beim Zuhören, holt er es später nach und
+schickt das Transkript dann — nichts geht verloren.
+
 Der Bot merkt sich Begriffe, Interviewfragen, Kernthema, Figuren und Konflikt
 von selbst, ohne dass jemand das eintragen muss. Jede Änderung meldet er kurz im Chat, zum
 Beispiel:

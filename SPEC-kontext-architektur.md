@@ -875,6 +875,10 @@ Stattdessen **schaltet die Gruppe den Modus ausdrücklich**:
 | **lang** (Material) | Interviewmodus ist an | Transkript + Verdichtung (Schicht 1) |
 | **kurz** (Gespräch) | Interviewmodus ist aus | Transkript als Nachricht, löst einen Gesprächszug aus |
 
+> **Überholt seit § 10.6 (05.09.2026):** Bei aktivem Modus entsteht nicht mehr je
+> Sprachnachricht eine *lang*-Aufnahme, sondern **ein** Interview aus mehreren *teil*-Zeilen.
+> Die Unterscheidung am Interviewmodus bleibt, die Zuordnung „Modus an → eine Aufnahme" nicht.
+
 Der Modus wird gesetzt durch den Absichtserkenner (`interview_starten` /
 `interview_beenden`, also durch normale Sätze wie „wir machen jetzt ein Interview" …
 „fertig") **oder** durch `/interview` und `/fertig`. Er steht in
@@ -905,14 +909,20 @@ Aufnahme verloren, nur noch nicht gelesen.
 
 ```
 Sprachnachricht
-  → Datei herunterladen, aufnahme(status='empfangen', klasse=kurz|lang)
-  → [lang] sofortige Empfangsbestätigung an die Gruppe
+  → Datei herunterladen, aufnahme(status='empfangen', klasse=kurz|teil)
   → Transkription im Hintergrund
   → status='transkribiert'
   → [kurz] Transkript in dieselbe Nachrichtenzeile, loest Gespraechszug aus
-  → [lang] Verdichter (§ 4.2) + Belegzitat-Prüfung (§ 5)
+  → [teil] Transkript woertlich in den Chat (typ='transkript', § 10.6)
   → status='fertig'
+
+"fertig"
+  → Teile zusammenfuegen (Leerzeile dazwischen), status='transkribiert'
+  → Verdichter (§ 4.2) + Belegzitat-Pruefung (§ 5), EINMAL je Interview
+  → Verdichtung in den Chat, status='fertig'
 ```
+
+(Die frühere Zeile „[lang] sofortige Empfangsbestätigung" ist gestrichen, § 10.6.)
 
 **Die Transkription läuft nebenläufig, nie blockierend im Nachrichten-Handler.** Ein
 Handler, der auf Whisper wartet, blockiert alles Übrige der Gruppe.
@@ -962,6 +972,12 @@ Antwort auf einen Zuruf von vorhin stiftet mehr Verwirrung, als sie nützt.
 Nach `MAX_VERSUCHE = 5` erfolglosen Anläufen wird eine Aufnahme `fehlgeschlagen`, damit ein
 kaputtes Audio nicht bis Sonntagabend im Kreis läuft.
 
+**Zweiter Durchgang seit § 10.6:** Nach den offenen Aufnahmen greift derselbe Arbeiter die
+Interviews auf, die die Gruppe für beendet erklärt hat, deren Teile aber noch nicht alle durch
+waren (`beendet_am` gesetzt, `status='laeuft'`) — in dieser Reihenfolge, damit die Antwort auf
+„sind alle Teile durch?" die aktuelle ist. Ein Interview, das noch **läuft**, ist dagegen
+keine liegengebliebene Arbeit und wird nicht angefasst: es sammelt gerade Teile ein.
+
 ### 10.4 Whisper komplett weg
 
 Pro Gruppe ein Feld `whisper_stumm_seit`.
@@ -986,6 +1002,59 @@ dieselben Verdichtungen mit Belegzitaten erzeugt wie eine Sprachaufnahme.
 
 Das deckt zwei Fälle mit einem Weg ab: den **Rückfallweg**, wenn Audio streikt — und den Fall,
 dass die Gruppe vorhandenes Recherchematerial einspeisen will, das nie gesprochen wurde.
+
+### 10.6 NACHTRAG (05.09.2026): Ein Interview ist eine Einheit
+
+**Was § 10.1 offenließ und der Probelauf offenlegte.** Die Entwurfsgeschichte sagt seit dem
+ersten Tag, ein Interview könne aus fünf Sprachnachrichten bestehen — der Code hat das nie
+umgesetzt. Am Abend des 04.09. bestand ein Interview aus fünf Sprachnachrichten, und daraus
+wurden fünf Aufnahmen `Interview 6` bis `Interview 10`, fünf Verdichtungen (zwei davon leer:
+„Material extrem kurz", „Transkript nicht beigefügt") und fünfmal „Ich höre durch", gefolgt
+von nichts. Weder Transkript noch Inhalt.
+
+**Die Korrektur, Birks Entscheidung:** Transkript Stück für Stück, Verdichtung einmal am Ende.
+
+| Klasse | Wann | Was daraus wird |
+|---|---|---|
+| **lang** (Kopf) | Modus geht an | Ein Interview: Name „Interview N", zusammengefügtes Transkript, **eine** Verdichtung. Kein Audio, `status='laeuft'` |
+| **teil** | Sprachnachricht bei aktivem Modus | Transkript, **sofort wörtlich in den Chat** („Interview 3, Teil 2: …") |
+| **kurz** | Sprachnachricht bei ausgeschaltetem Modus | unverändert: Transkript als Nachricht, löst einen Gesprächszug aus |
+
+Fünf Festlegungen, jede aus dem Probelauf begründet:
+
+1. **Das Transkript ist die Empfangsbestätigung.** „Ich höre durch" ist ersatzlos gestrichen
+   (auch in § 10.2 oben). Eine Bestätigung, auf die nichts folgt, ist schlimmer als keine —
+   und das Transkript kommt ohnehin in Sekunden. Es geht ohne Kommentar in den Chat: **kein
+   Modellaufruf im Live-Pfad außer Whisper.** Die Kontrolle, solange die interviewte Person
+   noch im Raum sitzt, ist der ganze Zweck.
+2. **Das Echo steht in keinem Fenster** (`nachricht.typ = 'transkript'`). Gespeichert wird es
+   wie jede Nachricht — Empfangen und In-den-Prompt-legen sind zwei Entscheidungen (§ 1) —,
+   aber der Absichtserkenner würde sonst lesen, was die interviewte Person erzählt, als
+   Absicht der Gruppe (Korpusfälle n12/n26), und im Gesprächsfenster verdoppelte es Material,
+   das als Verdichtung ohnehin im Prompt steht.
+3. **Verdichtet wird einmal, bei „fertig"**, über das zusammengefügte Transkript aller Teile
+   (Leerzeile dazwischen) — und **die Verdichtung geht in den Chat**: Zusammenfassung,
+   Kernthemen, Zitate nur mit `zitat_geprueft = 1` (§ 5), am Ende „Stimmt das so?". Das ist
+   das inhaltliche Feedback, das bisher fehlte. Diese Nachricht steht, anders als das Echo,
+   ausdrücklich im Gesprächsfenster: sie ist eine Aussage des Bots, der die Gruppe
+   widersprechen können muss.
+4. **Ein offener Teil hält den Abschluss auf.** Hängt Whisper an Teil 3, wird nicht verdichtet
+   — sonst fehlte ausgerechnet er im Transkript. `beendet_am` merkt das „fertig", der
+   Nachhol-Arbeiter (§ 10.3) greift das Interview beim nächsten Durchlauf auf. Nachgeholte
+   Teile bekommen ihr Echo trotzdem: „Nachgeholtes löst nie eine Antwort aus" meint den
+   Gesprächszug, nicht das Transkript — das ist der einzige Weg, auf dem die Gruppe es je zu
+   sehen bekommt.
+5. **„fertig" ohne eine einzige Sprachnachricht** gibt eine Zeile und **keinen Modellaufruf**.
+   Genau daraus entstanden im Probelauf die zwei leeren Verdichtungen.
+
+**Schema, additiv** (§ 3.1): `aufnahme.teil_von` und `aufnahme.beendet_am`. Bestehende Zeilen
+haben `teil_von IS NULL` und bleiben damit je ein Interview mit einem Teil — ihr Transkript
+steht am Kopf, und `repo.zusammengefuegtes_transkript` fällt genau darauf zurück. Nichts wird
+umgeschrieben, keine Verdichtung geht verloren. Ein Textimport (§ 10.5) ist derselbe Fall.
+
+**„Interview N" ist die laufende Interviewnummer der Gruppe**, nicht der Aufnahmenzähler: ein
+Zuruf zwischendurch und die fünf Sprachnachrichten eines Interviews verschieben die Zählung
+nicht. Gesprächsbeiträge und Teile bekommen gar keinen Namen.
 
 ---
 

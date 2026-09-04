@@ -103,19 +103,34 @@ class LLMAttrappe:
 
     ``nutzertexte`` haelt fest, womit verdichtet wurde -- Grundlage der
     Zusage, dass ``verdichte`` genau einmal je Interview und mit dem
-    ZUSAMMENGEFUEGTEN Transkript laeuft (§ 10.6)."""
+    ZUSAMMENGEFUEGTEN Transkript laeuft (§ 10.6). ``aufrufe`` zaehlt deshalb
+    weiterhin nur die Verdichteraufrufe.
 
-    def __init__(self, antwort=None):
+    Seit N1 laeuft ausserdem der Absichtserkenner ueber jedes Teil-Transkript
+    (``art='erkenner'``). ``erkenner_antwort`` darf eine feste Antwort oder
+    eine Funktion des Nutzertexts sein -- so kann ein Test den fuenften Teil
+    "fertig" sagen lassen und die vier davor nicht."""
+
+    def __init__(self, antwort=None, erkenner_antwort=None):
         self._antwort = antwort or {
             "zusammenfassung": "Eine Erinnerung an Theaterspiele im Kindesalter.",
             "kernthemen": [
                 {"thema": "Kindheit", "beleg_zitat": "wie wir als Kinder auf dem Hof Theater gespielt haben"},
             ],
         }
+        self._erkenner_antwort = erkenner_antwort or {"aenderungen": []}
         self.aufrufe = 0
         self.nutzertexte = []
+        self.erkenner_aufrufe = 0
+        self.erkenner_texte = []
 
-    def schema(self, chat_id, system, nutzer, schema, art):
+    def schema(self, chat_id, system, nutzer, schema, art, modell=None, temperature=None):
+        if art == "erkenner":
+            self.erkenner_aufrufe += 1
+            self.erkenner_texte.append(nutzer)
+            if callable(self._erkenner_antwort):
+                return self._erkenner_antwort(nutzer)
+            return self._erkenner_antwort
         self.aufrufe += 1
         self.nutzertexte.append(nutzer)
         return self._antwort
@@ -542,6 +557,80 @@ def test_auswerten_verdichtet_ein_zu_kurzes_interview_doch(conn, einst, tg, klm)
     assert klm.aufrufe == 1
     assert len(repo.verdichtungen(conn, 1)) == 1
     assert any("ist durch" in t for _, t in tg.gesendet)
+
+
+def _warte_bis(bedingung, sekunden=5.0):
+    """Wartet, bis ``bedingung()`` wahr ist -- fuer die Wege, die ueber
+    ``aufnahme.starte_abschluss`` in einen eigenen Thread abbiegen (dieselbe
+    Zusage wie bei /fertig: kein Befehl und kein Teil-Abschluss haelt den
+    Aufrufer fest)."""
+    ende = time.monotonic() + sekunden
+    while time.monotonic() < ende:
+        if bedingung():
+            return True
+        time.sleep(0.02)
+    return bedingung()
+
+
+def _fertig_wenn_gesagt(nutzer):
+    """Erkenner-Attrappe fuer N1: erkennt "das Interview ist fertig" im
+    Transkript einer Sprachnachricht, sonst nichts."""
+    if "interview ist fertig" in nutzer.lower():
+        return {"aenderungen": [{"art": "interview_beenden", "wert": ""}]}
+    return {"aenderungen": []}
+
+
+def test_fertig_in_der_sprachnachricht_beendet_das_interview(conn, einst, tg):
+    """N1, der Auftragstest: fuenf Teile, der fuenfte endet mit "so, das
+    Interview ist fertig" -- gesagt in die Aufnahme hinein, nicht in den Chat.
+
+    Vorher lief der Bot einfach weiter: das Transkript-Echo steht in keinem
+    Erkenner-Fenster (repo.TYP_TRANSKRIPT), also sah er den Satz nie."""
+    klm = LLMAttrappe(erkenner_antwort=_fertig_wenn_gesagt)
+    kopf_id = interview_an(conn, tg, einst)
+    texte = [TEIL_A, TEIL_B, "Und dann kam der Sommer.", "Meine Schwester auch.",
+             "Ja, so war das. So, das Interview ist fertig."]
+    for i, text in enumerate(texte):
+        aid = aufnahme.empfange(
+            conn, tg, einst, sprachnachricht(dauer=30, message_id=500 + i)
+        )
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(text), aid)
+
+    assert klm.erkenner_aufrufe == 5, "je Teil ein Erkennerlauf"
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None, "Modus aus"
+    assert len(repo.hole_teile(conn, kopf_id)) == 5, (
+        "der fuenfte Teil bleibt Teil des Interviews"
+    )
+    assert texte[-1] in repo.zusammengefuegtes_transkript(conn, kopf_id)
+    assert _warte_bis(lambda: repo.verdichtungen(conn, 1)), "die Verdichtung kommt"
+    assert len(repo.verdichtungen(conn, 1)) == 1, "genau eine Verdichtung"
+    assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
+
+    gesendet = [t for _, t in tg.gesendet]
+    assert "Aufnahme beendet." in gesendet
+    assert any("Interview 1 ist durch" in t for t in gesendet)
+
+
+def test_erkenner_darf_aus_interviewinhalt_nichts_anderes_schreiben(conn, einst, tg):
+    """N1, die Grenze: der Lauf ueber ein Teil-Transkript kennt nur
+    ``interview_beenden`` und ``interview_benennen``. Was die interviewte
+    Person erzaehlt, ist Material -- die Korpusfaelle n12/n26, hier im Code
+    durchgesetzt und nicht nur im Prompt erbeten."""
+    klm = LLMAttrappe(erkenner_antwort={"aenderungen": [
+        {"art": "kernthema_setzen", "wert": "Ankommen"},
+        {"art": "figur_setzen", "wert": "Mutter: streng"},
+        {"art": "entfernen", "wert": "Kernthema"},
+    ]})
+    interview_an(conn, tg, einst)
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=30, message_id=520))
+    aufnahme.verarbeite(
+        conn, tg, klm, einst,
+        stt_attrappe("Mein Kernthema war immer das Ankommen, sagt meine Mutter."), aid,
+    )
+
+    assert repo.hole_arbeitsstand(conn, 1) is None
+    assert repo.figuren(conn, 1) == []
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
 
 
 def test_transkript_echo_steht_in_keinem_fenster(conn, einst, tg, klm):

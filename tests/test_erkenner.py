@@ -931,3 +931,55 @@ def test_entfernen_schreibt_eine_journalzeile(conn, einst):
     assert eintrag["art"] == "entschieden"
     assert eintrag["text"] == "Entfernt: Figur Peter"
     assert eintrag["quelle"] == "erkenner"
+
+
+# ---------------------------------------------------------------------------
+# N1: der Erkenner ueber das Transkript einer Sprachnachricht im Interviewmodus
+# ---------------------------------------------------------------------------
+
+
+def test_erkenne_in_aufnahme_liefert_nur_die_erlaubten_arten(conn, einst):
+    """Was die interviewte Person erzaehlt, ist Material. Der Filter steht im
+    Code, nicht nur im Prompt -- ein Modell, das aus einer Lebensgeschichte
+    ein Kernthema liest, darf den Arbeitsstand nicht anfassen (n12/n26)."""
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "kernthema_setzen", "wert": "Ankommen"},
+        {"art": "interview_beenden", "wert": ""},
+        {"art": "entfernen", "wert": "Kernthema"},
+    ]})
+
+    ergebnis = erkenner.erkenne_in_aufnahme(klm, conn, einst, 1, "so, das war es dann")
+
+    assert ergebnis == [{"art": "interview_beenden", "wert": ""}]
+    assert klm.gesehen["modell"] == einst.erkenner_modell
+    assert klm.gesehen["temperature"] == erkenner.TEMPERATURE
+    assert "so, das war es dann" in klm.gesehen["nutzer"]
+
+
+def test_erkenne_in_aufnahme_ruehrt_das_wasserzeichen_nicht_an(conn, einst):
+    """Dieser Lauf haengt an einer Aufnahme, nicht am Gespraechsverlauf: er
+    darf dem naechsten regulaeren Lauf keine Nachrichten wegnehmen."""
+    _nachricht(conn, 1, 7, "wir machen jetzt ein Interview")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "interview_beenden", "wert": ""}]})
+
+    erkenner.erkenne_in_aufnahme(klm, conn, einst, 1, "fertig")
+
+    assert repo.hole_gruppe(conn, 1)["letzte_extrahierte_message_id"] == 0
+
+
+def test_erkenne_in_aufnahme_ohne_transkript_ruft_kein_modell(conn, einst):
+    klm = LLMAttrappe(antwort={"aenderungen": []})
+
+    assert erkenner.erkenne_in_aufnahme(klm, conn, einst, 1, "   ") == []
+    assert klm.aufrufe == 0
+
+
+def test_erkenne_in_aufnahme_fehlschlag_bleibt_still(conn, einst):
+    """Ein gescheiterter Lauf laesst die Aufnahme Material bleiben -- der
+    harmlose Ausgang. Die Gruppe erfaehrt nichts, das Dashboard schon."""
+    klm = LLMAttrappe(fehler=RuntimeError("kaputt"))
+
+    assert erkenner.erkenne_in_aufnahme(klm, conn, einst, 1, "fertig") == []
+    assert conn.execute(
+        "SELECT count(*) FROM vorfall WHERE art='extraktor_fehler'"
+    ).fetchone()[0] == 1

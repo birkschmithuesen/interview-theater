@@ -321,7 +321,7 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
     # status ist jetzt 'transkribiert' -- frisch oder schon vorher (Textimport,
     # oder ein frueherer Anlauf, bei dem nur die Verdichtung scheiterte).
     if row["klasse"] == "teil":
-        _teil_abschliessen(conn, tg, e, row)
+        _teil_abschliessen(conn, tg, klm, e, row)
     elif row["klasse"] == "kurz":
         _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt)
     else:
@@ -523,26 +523,56 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") ->
         log.exception("Nachricht an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
 
 
-def _teil_abschliessen(conn, tg, e, row) -> None:
+def _teil_abschliessen(conn, tg, klm, e, row) -> None:
     """Stellt das Transkript eines Interview-Teils sofort und woertlich in den
     Chat (§ 10.6, Birk 04.09. abends: "Transkript Stueck fuer Stueck").
 
-    Kein Modellaufruf, kein Kommentar, keine Zusammenfassung -- die Gruppe
-    soll waehrend das Gegenueber noch im Raum sitzt kontrollieren koennen, ob
-    angekommen ist, was gesagt wurde. Verdichtet wird erst bei "fertig", ueber
-    das ganze Interview (``schliesse_ab``).
+    Kein Kommentar, keine Zusammenfassung -- die Gruppe soll waehrend das
+    Gegenueber noch im Raum sitzt kontrollieren koennen, ob angekommen ist,
+    was gesagt wurde. Verdichtet wird erst bei "fertig", ueber das ganze
+    Interview (``schliesse_ab``).
+
+    **Ein Modellaufruf ist seit N1 doch dabei**, und zwar der billige: der
+    Absichtserkenner (gemma, unter einer Sekunde nach dem Warmlauf) laeuft
+    ueber das Transkript und sucht darin genau zwei Dinge --
+    ``interview_beenden`` und ``interview_benennen`` (``erkenner.
+    ARTEN_IN_AUFNAHME``). Die Gruppe sagt "so, das Interview ist fertig"
+    naemlich meistens in die Aufnahme hinein, nicht in den Chat, und das
+    Transkript-Echo steht in keinem Erkenner-Fenster. Der Teil selbst bleibt
+    trotzdem Teil des Interviews: der Satz ist mit aufgenommen worden und
+    steht harmlos am Ende des Transkripts.
+
+    Reihenfolge: erst erkennen (schreibt nichts), dann Echo und 'fertig',
+    dann anwenden. Andersherum faende ``schliesse_ab`` genau diesen Teil noch
+    offen und verschoebe den Abschluss um ein Nachhol-Intervall.
 
     Der Status wird auch dann auf 'fertig' gesetzt, wenn das Senden
     misslingt: das Transkript ist gespeichert, und ein zweiter Anlauf wuerde
     Whisper erneut bezahlen, um dieselbe Zeile noch einmal zu schicken."""
+    from interview_theater import erkenner  # spaeter Import, haelt den Modulkopf frei
+
+    chat_id = row["chat_id"]
+    aenderungen = (
+        erkenner.erkenne_in_aufnahme(klm, conn, e, chat_id, row["transkript"])
+        if klm is not None
+        else []
+    )
+
     kopf = repo.hole_aufnahme(conn, row["teil_von"])
     text = _TEXT_TEIL_ECHO.format(
         name=(kopf["name"] if kopf else None) or "Interview",
         nummer=repo.teil_nummer(conn, row["id"]),
         transkript=row["transkript"],
     )
-    _sende_und_merke(conn, tg, e, row["chat_id"], text, typ=repo.TYP_TRANSKRIPT)
+    _sende_und_merke(conn, tg, e, chat_id, text, typ=repo.TYP_TRANSKRIPT)
     repo.setze_status(conn, row["id"], "fertig")
+
+    try:
+        erkenner.wende_aus_aufnahme_an(klm, tg, conn, e, chat_id, aenderungen)
+    except Exception:
+        log.exception(
+            "Anwenden einer Absicht aus einem Teil fehlgeschlagen, id=%s", row["id"]
+        )
 
 
 def _verdichtungstext(conn, name: str, verdichtung_id: int) -> str:

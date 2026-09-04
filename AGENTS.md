@@ -96,11 +96,22 @@ lädt, würde damit Gesprächszüge ausbremsen.
   → ein Interview (Kopf), jede Sprachnachricht ein Teil mit sofortigem
   Transkript-Echo im Chat, „fertig" → zusammenfügen, einmal verdichten, die
   Verdichtung in den Chat.** Daran hängen vier Dinge, die nicht verhandelbar
-  sind: **kein Modellaufruf im Live-Pfad** außer Whisper und der einen
-  Verdichtung; **keine Empfangsbestätigung** mehr (das Transkript ist sie);
-  das **Echo steht in keinem Fenster** (`typ='transkript'`, sonst liest der
-  Erkenner Interviewinhalt als Gruppenabsicht); und **ein offener Teil hält
-  den Abschluss auf**, statt ohne ihn zu verdichten.
+  sind: **im Live-Pfad nur Whisper, der Erkenner und die eine Verdichtung**
+  (der Erkenner-Lauf über jedes Teil-Transkript ist seit N1 dabei — gemma,
+  unter einer Sekunde, und er ist der einzige Weg, ein „fertig" zu hören, das
+  in die Aufnahme statt in den Chat gesagt wurde; kein Gesprächs- oder
+  Verdichteraufruf je Teil); **keine Empfangsbestätigung** mehr (das
+  Transkript ist sie); das **Echo steht in keinem Fenster**
+  (`typ='transkript'`, sonst liest der Erkenner Interviewinhalt als
+  Gruppenabsicht); und **ein offener Teil hält den Abschluss auf**, statt
+  ohne ihn zu verdichten.
+- **Aus einer Aufnahme darf der Erkenner fast nichts schreiben** (seit
+  05.09.2026, N1). Der Lauf über ein Teil-Transkript
+  (`erkenner.erkenne_in_aufnahme`) wird **im Code** auf
+  `erkenner.ARTEN_IN_AUFNAHME` eingeschränkt, nicht nur im Prompt gebeten:
+  was eine interviewte Person erzählt, ist Material und nie eine Absicht der
+  Gruppe (Korpusfälle n12/n26, a03/a04). Er rückt außerdem kein Wasserzeichen
+  vor — er hängt an einer Aufnahme, nicht am Gesprächsverlauf.
 - **Kein Thema ohne wörtliches Belegzitat, keine Verdichtung ohne Material**
   (seit 05.09.2026, N2). Ein Kernthema, dessen Zitat die Prüfung aus
   `zitat.py` nicht besteht, wird **nicht gespeichert** — nicht mehr mit
@@ -343,7 +354,8 @@ Env-Datei soll die Interviews nicht ins offene Netz stellen.
 
 Die vier Prompts werden heiß nachgeladen, also ändert sie jemand **während**
 des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
-den Blindflug: 74 Absichtserkenner-Fälle (davon 29 Negativfälle), 22
+den Blindflug: 82 Absichtserkenner-Fälle (davon 32 Negativfälle; vier davon
+kommen aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1), 22
 Journal-Abschnitte (davon 11 leere) und 7 erfundene Interviewtranskripte, alle
 mit Sollwert — darunter einer, dessen Sollwert **null** Kernthemen sind (der
 Live-Fall aus dem Probelauf, N2).

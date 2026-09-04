@@ -109,6 +109,24 @@ etwas gut, ohne dass die Gruppe es beschliesst ("das find ich stark", "gute
 Idee"), ist das noch KEINE Aenderung -- das ist der teuerste Fehlerfall,
 sieh dir Beispiel 2 dazu genau an.
 
+Sonderfall: **eine Sprachnachricht aus einem laufenden Interview.** Manchmal
+bekommst du statt eines Gespraechsabschnitts einen einzelnen, gerade
+transkribierten Text, gekennzeichnet mit "Eine Sprachnachricht aus einem
+laufenden Interview". Dann gilt: fast alles darin ist Interviewinhalt und
+aendert **nichts**. Genau zwei Dinge zaehlen dort:
+
+* Die Gruppe erklaert die Aufnahme fuer beendet -- "so, das Interview ist
+  fertig", "das wars, danke dir", "gut, wir hoeren auf" -> interview_beenden.
+* Die Gruppe gibt dem Interview einen Namen -- "das war jetzt Meryems
+  Interview" -> interview_benennen.
+
+Alles andere ist eine leere Liste, auch wenn es klingt wie eine Festlegung:
+Was die interviewte Person erzaehlt, gehoert ihr und nicht dem Arbeitsstand.
+"Mein Kernthema war immer das Ankommen" ist kein kernthema_setzen, "die
+Figur meiner Mutter" ist kein figur_setzen, und eine Frage, die die
+interviewende Person stellt ("Was war in deinem Koffer?"), ist kein
+fragen_setzen.
+
 Regeln, ohne Ausnahme:
 
 1. Nur was im Abschnitt steht. Nichts ergaenzen, nichts vermuten, nichts
@@ -134,7 +152,9 @@ Regeln, ohne Ausnahme:
    der Gruppe. Die Transkripte, die der Bot waehrend eines Interviews in den
    Chat stellt ("Interview 2, Teil 3: ..."), stehen deshalb gar nicht erst in
    deinem Abschnitt. Taucht trotzdem einmal eine Erzaehlung darin auf ("mein
-   Vater hat immer gesagt..."), aenderst du daran nichts.
+   Vater hat immer gesagt..."), aenderst du daran nichts. Dasselbe gilt im
+   Sonderfall oben, nur noch strenger: dort ist alles Material ausser den
+   zwei genannten Faellen.
 
 <beispiele>
 

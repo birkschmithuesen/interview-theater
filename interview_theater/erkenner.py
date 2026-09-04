@@ -93,6 +93,20 @@ ARTEN = (
     "entfernen",
 )
 
+#: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im
+#: Interviewmodus ueberhaupt gelten (Nachtrag N1, 05.09.2026). Alles andere
+#: wird verworfen, bevor es angewendet werden kann -- **im Code**, nicht nur
+#: im Prompt: was eine interviewte Person erzaehlt, ist Material und nie eine
+#: Absicht der Gruppe (Korpusfaelle n12/n26, "das ist mein Kernthema" sagt
+#: die Befragte). Der Live-Fall dahinter: eine Gruppe sagte "so, das
+#: Interview ist fertig" in die Aufnahme hinein statt in den Chat, und der
+#: Bot zeichnete weiter auf, weil das Transkript-Echo in keinem
+#: Erkenner-Fenster steht (repo.TYP_TRANSKRIPT).
+ARTEN_IN_AUFNAHME = (
+    "interview_beenden",
+    "interview_benennen",
+)
+
 #: Obergrenze fuer Aenderungen je Lauf -- im Prompttext UND hier im Code
 #: durchgesetzt (global-constraints.md 'Schema': kein maxItems im Schema
 #: selbst, weil strikte Modi das oft nicht unterstuetzen).
@@ -251,6 +265,86 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
 
     repo.setze_extrahiert_bis(conn, chat_id, letzte_message_id)
     return aenderungen
+
+
+#: Kopfzeile des Nutzertexts, wenn nicht ein Gespraechsabschnitt geprueft
+#: wird, sondern die Transkription EINER Sprachnachricht aus einem laufenden
+#: Interview (N1). Der Prompt hat dazu einen eigenen Abschnitt -- ohne die
+#: Kennzeichnung saehe das Modell nur einen Text ohne Sprecher und ohne
+#: Zusammenhang.
+_AUFNAHME_KOPF = (
+    "Eine Sprachnachricht aus einem laufenden Interview, gerade transkribiert:"
+)
+
+
+def baue_aufnahme_nutzertext(transkript: str) -> str:
+    """Der Nutzertext des Aufnahme-Laufs: die Kennzeichnung und das
+    Transkript, sonst nichts -- kein Arbeitsstand, kein Verlauf.
+
+    Oeffentlich, damit ``scripts/pruefe_prompts.py`` denselben Text baut wie
+    der Betrieb (dieselbe Ueberlegung wie bei
+    ``verdichter.baue_nutzertext``)."""
+    return f"{_AUFNAHME_KOPF}\n{(transkript or '').strip()}"
+
+
+def erkenne_in_aufnahme(klm, conn, e, chat_id: int, transkript: str) -> list[dict]:
+    """Laesst den Erkenner ueber das Transkript einer einzelnen
+    Sprachnachricht laufen, die waehrend eines Interviews eintraf (N1).
+
+    Warum ueberhaupt: die Gruppe sagt "so, das Interview ist fertig" oft in
+    die Aufnahme hinein, nicht in den Chat -- und das Transkript-Echo steht
+    in keinem Erkenner-Fenster (``repo.TYP_TRANSKRIPT``, aus gutem Grund).
+    Ohne diesen Lauf zeichnet der Bot danach weiter auf, und die Gruppe haelt
+    ihn fuer kaputt.
+
+    Beruehrt **kein** Wasserzeichen: dieser Lauf haengt an einer Aufnahme,
+    nicht am Gespraechsverlauf, und darf den naechsten regulaeren Lauf
+    (``erkenne``) nicht um seine Nachrichten bringen. Liefert nur Arten aus
+    ``ARTEN_IN_AUFNAHME``; ein Fehlschlag liefert eine leere Liste (die
+    Aufnahme bleibt dann eben Material, das ist der harmlose Ausgang)."""
+    text = (transkript or "").strip()
+    if not text:
+        return []
+    try:
+        ergebnis = klm.schema(
+            chat_id, prompt(), baue_aufnahme_nutzertext(text), SCHEMA, "erkenner",
+            modell=e.erkenner_modell, temperature=TEMPERATURE,
+        )
+    except Exception:
+        log.exception("Absichtserkennung in einer Aufnahme fehlgeschlagen, chat_id=%s", chat_id)
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "extraktor_fehler",
+            "Absichtserkenner-Aufruf ueber ein Teil-Transkript fehlgeschlagen",
+        )
+        return []
+
+    aenderungen = []
+    for eintrag in ergebnis.get("aenderungen", []):
+        if eintrag.get("art") not in ARTEN_IN_AUFNAHME:
+            continue
+        aenderungen.append({"art": eintrag["art"], "wert": eintrag.get("wert", "")})
+    return aenderungen[:MAX_AENDERUNGEN]
+
+
+def wende_aus_aufnahme_an(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> None:
+    """Wendet an, was ``erkenne_in_aufnahme`` gefunden hat -- derselbe Weg
+    wie am Ende von ``laufe()``: schreiben, den Moduswechsel bestaetigen, das
+    beendete Interview zusammenfuegen und verdichten lassen.
+
+    Aufgerufen wird das erst, NACHDEM der Teil selbst auf 'fertig' steht:
+    sonst faende ``aufnahme.schliesse_ab`` einen offenen Teil und verschoebe
+    den Abschluss um ein Nachhol-Intervall. Der Teil bleibt Teil des
+    Interviews -- der Satz "so, das Interview ist fertig" ist mit
+    aufgenommen worden und steht harmlos am Ende des Transkripts.
+
+    Die Aenderungsmeldung (``baue_meldung``) faellt hier weg: die beiden
+    erlaubten Arten sind darin ohnehin still, und die Bestaetigung "Aufnahme
+    beendet." samt Verdichtung ist die Rueckmeldung, die zaehlt."""
+    if not aenderungen:
+        return
+    wirkliche = wende_an(conn, e, chat_id, aenderungen)
+    _melde_interviewmodus(tg, conn, e, chat_id, wirkliche)
+    _schliesse_interview_ab(klm, tg, conn, e, wirkliche)
 
 
 #: art -> Arbeitsstand-Feld fuer die vier Aenderungsarten, die ein einzelnes

@@ -93,14 +93,59 @@ def test_jeder_fall_hat_id_und_notiz(name):
 
 # --- Erkenner -------------------------------------------------------------
 
+def ist_aufnahmefall(fall) -> bool:
+    """Ein Fall, der nicht einen Gespraechsabschnitt zeigt, sondern das
+    Transkript EINER Sprachnachricht aus einem laufenden Interview (N1).
+
+    Er hat ``aufnahme`` statt ``nachrichten`` -- so wie der Betrieb dort
+    einen anderen Nutzertext baut (``erkenner.baue_aufnahme_nutzertext``) und
+    das Ergebnis auf ``erkenner.ARTEN_IN_AUFNAHME`` einschraenkt."""
+    return bool(fall.get("aufnahme"))
+
+
+def texte_von(fall) -> list[str]:
+    """Alle Texte eines Erkennerfalls, kleingeschrieben -- egal ob er aus
+    Nachrichten besteht oder aus dem Transkript einer Aufnahme."""
+    if ist_aufnahmefall(fall):
+        return [fall["aufnahme"].lower()]
+    return [n["text"].lower() for n in fall["nachrichten"]]
+
+
 def test_erkenner_pflichtfelder(erkenner_faelle):
     for fall in erkenner_faelle:
         assert isinstance(fall.get("arbeitsstand"), dict), fall["id"]
-        assert isinstance(fall.get("nachrichten"), list) and fall["nachrichten"], fall["id"]
         assert isinstance(fall.get("erwartet"), list), fall["id"]
+        if ist_aufnahmefall(fall):
+            assert fall["aufnahme"].strip(), fall["id"]
+            assert "nachrichten" not in fall, (
+                f"{fall['id']}: entweder aufnahme oder nachrichten, nicht beides"
+            )
+            continue
+        assert isinstance(fall.get("nachrichten"), list) and fall["nachrichten"], fall["id"]
         for nachricht in fall["nachrichten"]:
             assert nachricht.get("absender"), fall["id"]
             assert nachricht.get("text"), fall["id"]
+
+
+def test_erkenner_aufnahmefaelle_erwarten_nur_erlaubte_arten(erkenner_faelle):
+    """Aus einer Aufnahme gelten genau die Arten aus ARTEN_IN_AUFNAHME -- alles
+    andere filtert der Code weg (n12/n26). Ein Korpusfall, der etwas anderes
+    erwartet, waere ein garantierter Fehlschlag."""
+    aufnahmefaelle = [f for f in erkenner_faelle if ist_aufnahmefall(f)]
+    assert aufnahmefaelle, "kein Erkenner-Fall aus einer Aufnahme (N1)"
+    for fall in aufnahmefaelle:
+        for aenderung in fall["erwartet"]:
+            assert aenderung["art"] in erkenner.ARTEN_IN_AUFNAHME, (
+                f"{fall['id']}: {aenderung['art']} gilt aus einer Aufnahme nicht"
+            )
+
+
+def test_erkenner_aufnahmefaelle_haben_negativfaelle(erkenner_faelle):
+    """Der teuerste Fehler dieses Laufs ist ein Treffer auf Interviewinhalt:
+    eine Lebensgeschichte im Arbeitsstand, der Gruppe als 'Notiert' gemeldet.
+    Also muessen auch hier Negativfaelle dabei sein."""
+    leer = [f for f in erkenner_faelle if ist_aufnahmefall(f) and not f["erwartet"]]
+    assert len(leer) >= 2
 
 
 def test_erkenner_arten_sind_bekannt(erkenner_faelle):
@@ -161,9 +206,7 @@ def test_erkenner_hat_den_negativfall_fragen_nur_ueberlegt(erkenner_faelle):
     Interview."""
     negativ = [f for f in erkenner_faelle if not f["erwartet"]]
     assert any(
-        "welche fragen" in n["text"].lower()
-        for f in negativ
-        for n in f["nachrichten"]
+        "welche fragen" in t for f in negativ for t in texte_von(f)
     ), "der Fall 'ueber Fragen reden -> gar nichts' fehlt"
 
 
@@ -175,7 +218,7 @@ def test_erkenner_hat_den_fall_der_freien_stelle(erkenner_faelle):
         f for f in erkenner_faelle
         if any(a["art"] == "phase_setzen" and "konflikt" in a["wert"].lower()
                for a in f["erwartet"])
-        and any("figuren" in n["text"].lower() for n in f["nachrichten"])
+        and any("figuren" in t for t in texte_von(f))
     ]
     assert treffer, "der Fall 'erst der Konflikt, Figuren danach' fehlt"
 
@@ -187,12 +230,8 @@ def test_erkenner_hat_den_material_fall(erkenner_faelle):
     faelle = [
         f for f in erkenner_faelle
         if not f["erwartet"]
-        and any(
-            wort in n["text"].lower()
-            for n in f["nachrichten"]
-            for wort in ("lösch", "loesch")
-        )
-        and any("interview" in n["text"].lower() for n in f["nachrichten"])
+        and any(wort in t for t in texte_von(f) for wort in ("lösch", "loesch"))
+        and any("interview" in t for t in texte_von(f))
     ]
     assert faelle, "der Fall 'Interview loeschen -> gar nichts' fehlt"
 
@@ -212,7 +251,7 @@ def test_erkenner_hat_die_gemessenen_faelle(erkenner_faelle):
     for art in ("interview_starten", "interview_beenden", "kernthema_setzen", "verworfen"):
         assert art in nach_art
 
-    texte = " ".join(n["text"] for f in erkenner_faelle for n in f["nachrichten"]).lower()
+    texte = " ".join(t for f in erkenner_faelle for t in texte_von(f))
     assert "kindheit" in texte, "der Nemotron-Fall (Kindheitsfragen) fehlt"
 
 

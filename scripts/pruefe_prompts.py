@@ -419,10 +419,19 @@ def _aufruf_nach(conn, vorher_id: int) -> dict:
 
 
 def _laufe_erkenner(klm, conn, chat_id, fall, modell):
-    _fuelle_arbeitsstand(conn, chat_id, fall.get("arbeitsstand"))
-    nutzer = erkenner._baue_nutzertext(
-        conn, chat_id, _nachrichtenzeilen(fall["nachrichten"])
-    )
+    # Zwei Sorten Faelle: ein Gespraechsabschnitt (``nachrichten``) oder das
+    # Transkript einer Sprachnachricht aus einem laufenden Interview
+    # (``aufnahme``, N1). Der zweite Weg baut denselben Nutzertext wie der
+    # Betrieb und wird hinterher genauso gefiltert -- was im Workshop nie
+    # ankaeme, darf hier weder als Treffer noch als Falsch-Positiv zaehlen.
+    aus_aufnahme = bool(fall.get("aufnahme"))
+    if aus_aufnahme:
+        nutzer = erkenner.baue_aufnahme_nutzertext(fall["aufnahme"])
+    else:
+        _fuelle_arbeitsstand(conn, chat_id, fall.get("arbeitsstand"))
+        nutzer = erkenner._baue_nutzertext(
+            conn, chat_id, _nachrichtenzeilen(fall["nachrichten"])
+        )
     ergebnis = klm.schema(
         chat_id, erkenner.prompt(), nutzer, erkenner.SCHEMA, "erkenner",
         modell=modell, temperature=erkenner.TEMPERATURE,
@@ -431,6 +440,10 @@ def _laufe_erkenner(klm, conn, chat_id, fall, modell):
     # hinaus liefert, kaeme im Betrieb nie an und darf hier weder als
     # Treffer noch als Falsch-Positiv zaehlen.
     geliefert = ergebnis.get("aenderungen", [])[: erkenner.MAX_AENDERUNGEN]
+    if aus_aufnahme:
+        geliefert = [
+            a for a in geliefert if a.get("art") in erkenner.ARTEN_IN_AUFNAHME
+        ]
     bewertung = vergleiche_erkenner(fall["erwartet"], geliefert)
     bewertung["fragen_ohne_thema"] = fragen_ohne_thema(geliefert)
     return geliefert, bewertung, (

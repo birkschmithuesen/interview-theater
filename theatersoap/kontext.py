@@ -52,13 +52,13 @@ BUDGETS = {
     "transkripte": 5000,
     "arbeitsstand": 1200,
     "journal": 1500,
-    "fenster": 2500,
+    "fenster": 8000,
     "ausloeser": 300,
 }
 
 #: Zielgroesse Normalfall und Reissleine, in Token (§ 6.2, § 7.2).
-ZIEL = 10_000
-REISSLEINE = 20_000
+ZIEL = 20_000
+REISSLEINE = 40_000
 
 #: Ab dieser Zeitspanne zwischen zwei Nachrichten im Fenster wird eine
 #: Pausenzeile eingeschoben (§ 6.2 "Pausenmarkierung").

@@ -108,10 +108,11 @@ def test_fehlschlag_laesst_wasserzeichen_stehen_und_schreibt_vorfall(conn, einst
     assert zeile["art"] == "extraktor_fehler"
 
 
-def test_deckel_ueber_4000_token_rueckt_wasserzeichen_vor_und_schreibt_vorfall(conn, einst):
-    # kontext.schaetze() ist Zeichen // 3 -- 15.000 Zeichen sind 5.000
-    # geschaetzte Token, klar ueber dem Deckel.
-    _nachricht(conn, 1, 7, "x" * 15_000)
+def test_deckel_rueckt_wasserzeichen_vor_und_schreibt_vorfall(conn, einst):
+    # kontext.schaetze() ist Zeichen // 3. Die Laenge wird aus FENSTER_DECKEL
+    # selbst abgeleitet, damit der Test beim Nachjustieren des Deckels nicht
+    # still seine Aussage verliert.
+    _nachricht(conn, 1, 7, "x" * (erkenner.FENSTER_DECKEL * 3 + 3_000))
     klm = LLMAttrappe(antwort={"aenderungen": []})
 
     ergebnis = erkenner.erkenne(klm, conn, einst, 1)

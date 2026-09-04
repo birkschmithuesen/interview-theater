@@ -105,7 +105,7 @@ mit `/name` umbenannt (§ 8).
 | **1 — Material** | Volltranskript + Verdichtung je Interview | Verdichtung **nie** |
 | **2 — Arbeitsstand** | Begriffe, Kernthema, Figuren, Konflikt, Szenen | ja, jederzeit revidierbar |
 | **2b — Journal** | Vorgeschlagen / Verworfen / Entschieden / Offen | **nur anhängen** |
-| **3 — Kurzes Fenster** | die letzten ~2.500 Token Chatverlauf | rollt von selbst |
+| **3 — Kurzes Fenster** | die letzten ~8.000 Token Chatverlauf | rollt von selbst |
 
 **Warum das Journal (2b) existiert.** Drei Dinge stehen im Chatverlauf, aber in keiner
 anderen Schicht — und alle drei sind zeitlich weit weg und inhaltlich zentral:
@@ -561,7 +561,7 @@ das Journal. Alles, was sich selten ändert, wandert nach vorn.
 
 ### 6.2 Blöcke und Budgets
 
-Zielgröße Normalfall **~10.000 Token**, Reißleine **20.000**. Weit unter Kimis Fenster — und
+Zielgröße Normalfall **~20.000 Token**, Reißleine **40.000**. Weit unter Kimis Fenster — und
 genau darum funktioniert es.
 
 | # | Block | Budget | Ändert sich | Entfällt wenn |
@@ -572,10 +572,19 @@ genau darum funktioniert es.
 | 4 | **Arbeitsstand** (Begriffe, Kernthema + Begründung, Figuren, Konflikt, Szenenliste) | 1.200 | je Entscheidung | Feld leer |
 | 5 | **Aktuelle Szene im Volltext** | 1.500 | oft | keine Szene |
 | 6 | **Journal** (ältestes zuerst) | 1.500 | alle paar Züge | leer |
-| 7 | **Kurzes Fenster** (von hinten gefüllt) | 2.500 | jede Nachricht | – |
+| 7 | **Kurzes Fenster** (von hinten gefüllt) | 8.000 | jede Nachricht | – |
 | 8 | **Auslösende Nachricht(en)** | 300 | immer | – |
 
 Normalfall ohne `/wortlaut`: **~9.600 Token.** Mit: ~14.600.
+
+> **Warum 8.000 und nicht 2.500.** Die frühere Zahl war gesetzt, nicht begründet.
+> 2.500 Token sind rund 1.200 Wörter, also gut vier Normseiten — in einem Gruppenchat
+> mit vier Personen über zwei Tage schnell durchgelaufen. Kimi hat bei Infomaniak ein
+> Kontextfenster von 256.000 Token; bei 8.000 nutzen wir etwa drei Prozent davon.
+> Kosten sprechen nicht dagegen (300 Aufrufe mit 20.000 Token Prompt kosten rund
+> 3,60 CHF für ein ganzes Wochenende). Das einzige echte Gegenargument ist die
+> Aufmerksamkeit des Modells — deshalb 8.000 (~3.900 Wörter, gut zehn Normseiten) und
+> nicht unbegrenzt.
 
 **Zu Block 3.** Volltranskripte lassen sich nicht datengetrieben schalten — sie existieren ab
 Samstagmittag dauerhaft, gebraucht werden sie nur beim Szenen-Feinschliff. Automatisch

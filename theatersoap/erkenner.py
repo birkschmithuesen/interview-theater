@@ -87,7 +87,7 @@ TEMPERATURE = 0.2
 #: 'fenster_verworfen' wird geschrieben. Verhindert, dass ein einmal
 #: aussergewoehnlich grosses Fenster (z. B. ein sehr langer Gespraechsstau)
 #: den Erkenner auf Dauer blockiert.
-FENSTER_DECKEL = 4000
+FENSTER_DECKEL = 12000
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
 #: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab

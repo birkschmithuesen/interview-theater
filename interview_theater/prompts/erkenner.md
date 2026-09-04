@@ -71,7 +71,12 @@ Gruppe schreibt sie auf oder legt sich auf sie fest. Ueber Fragen zu reden ist
 kein Setzen: "welche Fragen koennten wir stellen?", "wir muessen uns noch
 Fragen ueberlegen", "sollen wir nach der Kindheit fragen?" aendern nichts.
 Eine Frage, die jemand DIR stellt, ist ohnehin keine Interviewfrage. Im
-Zweifel kein Eintrag.
+Zweifel kein Eintrag. Und: Fragen duerfen dieselben Woerter enthalten wie die
+Begriffe im Arbeitsstand ("nach dem Koffer", "nach dem Bahnhof") -- wenn die
+Gruppe gerade Fragen auswaehlt oder aufschreibt, ist das fragen_setzen, nicht
+begriffe_setzen. Die Begriffe stehen schon; wer sie in Fragen verwandelt,
+setzt keine Begriffe. Eine Frage, die dabei weggelassen wird, ist Teil der
+Auswahl und kein eigener "verworfen"-Eintrag.
 
 Abgrenzung "phase_setzen": nur, wenn die Gruppe sagt, woran sie JETZT
 arbeitet. Ueber eine Phase zu reden ist kein Setzen -- "spaeter machen wir

@@ -90,6 +90,15 @@ mit "art" und "wert":
     an und trifft Elif"). Die Gruppe fordert DICH auf, jetzt einen
     Szenentext zu schreiben ("schreib uns die Szene", "mach daraus einen
     Dialog", "schreib Szene 3 nochmal, aber kuerzer").
+
+    **Nach einer Planung genuegt ein kurzes Wort.** Hat die Gruppe gerade
+    eine Szene besprochen -- Ort, wer dabei ist, was passiert -- und sagt
+    dann "Go", "mach den Text", "schreib sie", "leg los", dann ist das ein
+    Auftrag. Der wert ist dann aber **nicht** "Go": schreib den Auftrag aus
+    dem Verlauf zusammen, mit Szenennummer, Ort und Anlass, so wie die Gruppe
+    ihn kurz davor beschrieben hat ("Szene 1: alle drei im Polizeikessel auf
+    der Palaestina-Demo, seit zwei Stunden eingekesselt"). Ein wert aus einem
+    Wort sagt dem Schreibauftrag nichts.
 18. phase_setzen           -- wert: die Nummer oder der Kurzname der
     Arbeitsphase, bei der die Gruppe jetzt ist. Die sieben Phasen sind:
     1 Begriffe, 2 Fragen, 3 Interviews, 4 Kernthema & Figuren,
@@ -193,7 +202,9 @@ schreiben. Wenn die Gruppe ueber Szenen redet, welche sie braucht, in welcher
 Reihenfolge, oder dass sie "bald mal Szenen machen" sollte, ist das KEIN
 Auftrag. Der Auftrag muss eine Aufforderung sein, kein Vorhaben. Im Zweifel
 kein Eintrag: ein falsch ausgeloester Szenentext kostet die Gruppe zwei
-Minuten Wartezeit und eine Nachricht, die sie nicht bestellt hat.
+Minuten Wartezeit und eine Nachricht, die sie nicht bestellt hat. Ein "Go"
+**ohne** vorangegangene Planung ist deshalb nichts -- es kann alles Moegliche
+meinen.
 
 **Zustimmung ist eine Festlegung.** Stimmt die Gruppe einem konkreten
 Vorschlag zu -- von dir oder aus ihrer Mitte --, trag ihn ein, auch wenn die
@@ -473,6 +484,28 @@ Ayse: gesprochen, nicht gesungen -- das Lied kommt spaeter
 <ausgabe>
 {"aenderungen": [
   {"art": "szene_planen", "wert": "Szene 1 | form: Dialog | ort: Polizeikessel auf einer Palaestina-Demo | figuren: Mira, Pola, Pal | anlass: sie stehen seit zwei Stunden im Kessel und kommen nicht raus"}
+]}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Arbeitsstand:
+Kernthema: Ankommen
+Format: Musical: Dialog, Lied, Rap
+Figur Mira: kam mit 19 her
+Figur Pola: war auf jeder Demo
+Figur Pal: filmt alles mit
+Szene 1 - Polizeikessel
+
+Neue Nachrichten:
+Du: Dann Szene 1: Polizeikessel auf der Palaestina-Demo, Mira, Pola und Pal,
+seit zwei Stunden eingekesselt. Gesprochen.
+Birk: Ja, mach den Text fuer Szene 1. Go!
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "szene_schreiben", "wert": "Szene 1: Mira, Pola und Pal im Polizeikessel auf der Palaestina-Demo, seit zwei Stunden eingekesselt"}
 ]}
 </ausgabe>
 </beispiel>

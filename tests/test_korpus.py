@@ -236,6 +236,53 @@ def test_erkenner_traegt_die_neuen_arten_dicht_genug(erkenner_faelle, art):
     assert gezaehlt >= MIN_JE_NEUER_ART, f"{art}: nur {gezaehlt} Faelle"
 
 
+#: Die vier Arten vom 05.09.2026 (Phase 5, Szenenplanung, Sprachprofil).
+#: Je drei Positiv- und zwei Negativfaelle, wie im Auftrag festgelegt --
+#: dieselbe Ueberlegung wie bei ``MIN_JE_NEUER_ART``: keine von ihnen ist
+#: gegen das echte Modell gemessen, und jede schreibt etwas, das die Gruppe
+#: erarbeitet hat.
+NEUE_ARTEN_0509 = ("format_setzen", "rahmen_setzen", "szene_planen",
+                   "figur_quelle_setzen")
+MIN_POSITIV_0509 = 3
+MIN_NEGATIV_0509 = 2
+
+#: Die Kennung, an der die Negativfaelle einer neuen art haengen: sie stehen
+#: als Block direkt bei ihren Positivfaellen und teilen deren Praefix
+#: (``f01``…``f05`` fuer format_setzen). Das ist Konvention, keine Mechanik --
+#: der Test macht sie sichtbar, damit beim Aufraeumen nicht die Negativfaelle
+#: als erste verschwinden.
+PRAEFIX_0509 = {
+    "format_setzen": "f0", "rahmen_setzen": "r0", "szene_planen": "p0",
+    "figur_quelle_setzen": "q0",
+}
+
+
+@pytest.mark.parametrize("art", NEUE_ARTEN_0509)
+def test_erkenner_traegt_die_arten_vom_05_09(erkenner_faelle, art):
+    positiv = [
+        f for f in erkenner_faelle
+        if any(a["art"] == art for a in f["erwartet"])
+    ]
+    negativ = [
+        f for f in erkenner_faelle
+        if not f["erwartet"] and f["id"].startswith(PRAEFIX_0509[art])
+    ]
+    assert len(positiv) >= MIN_POSITIV_0509, f"{art}: nur {len(positiv)} Positivfaelle"
+    assert len(negativ) >= MIN_NEGATIV_0509, f"{art}: nur {len(negativ)} Negativfaelle"
+
+
+def test_erkenner_hat_die_live_stellen_aus_dem_probelauf(erkenner_faelle):
+    """Die vier Nachrichten aus dem Probelauf vom 05.09.2026, an denen der
+    Umbau haengt: 76 (Rahmen), 86 (Szenenplanung mit Ort und Figuren), 97
+    ("Go" nach einer Planung) und 115 (ein Kernsatz wird nachgetragen).
+
+    Sie sind die einzigen Faelle mit einem Sollwert aus einem echten Chat --
+    wer den Korpus aufraeumt, darf sie nicht mit den erfundenen verwechseln."""
+    texte = " ".join(t for f in erkenner_faelle for t in texte_von(f))
+    for stelle in ("demonstration", "polizeikessel", "riviera", "go!"):
+        assert stelle in texte, f"die Live-Stelle '{stelle}' fehlt"
+
+
 def test_erkenner_traegt_fragen_setzen(erkenner_faelle):
     gezaehlt = sum(
         1 for f in erkenner_faelle for a in f["erwartet"] if a["art"] == "fragen_setzen"

@@ -193,7 +193,7 @@ def test_an_den_bot_gilt_nur_aus_einer_aufnahme(conn, einst):
     assert erkenner.baue_meldung(wirkliche) is None
 
 
-def test_prompt_enthaelt_sechzehn_beispiele_davon_vier_leer():
+def test_prompt_enthaelt_siebzehn_beispiele_davon_vier_leer():
     """Grober Regressionsschutz gegen einen versehentlich verkuerzten Prompt.
 
     Die Rechercheempfehlung lautete auf 5 Few-Shot-Beispiele, davon 2 leer.
@@ -228,10 +228,14 @@ def test_prompt_enthaelt_sechzehn_beispiele_davon_vier_leer():
     Das sechzehnte zeigt ``figur_quelle_setzen``: der Bot schlaegt eine
     Interview-Zuordnung mit einem Zitat vor, die Gruppe nickt bei der einen
     Figur und widerspricht bei der anderen. Beide Richtungen in einem
-    Abschnitt, weil beide dieselbe art sind."""
+    Abschnitt, weil beide dieselbe art sind.
+
+    Das siebzehnte ist die Live-Stelle "Ja, mach den Text fuer Szene 1. Go!"
+    (Probelauf, Nachricht 97): nach einer Planung genuegt ein kurzes Wort --
+    aber der wert ist der Auftrag aus dem Verlauf, nicht "Go"."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 16
+    assert anzahl_beispiele == 17
     assert anzahl_leer == 4
 
 

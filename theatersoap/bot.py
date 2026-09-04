@@ -3,8 +3,10 @@
 Aufgabe 8 haengt die Aufnahme-Pipeline (Download, Transkription, Verdichtung)
 an der Weiche in schleife() ein: Sprachnachrichten laufen im
 ThreadPoolExecutor, ein Hintergrund-Thread ruft daneben periodisch den
-Nachhol-Arbeiter auf (§ 10.3). Der Gespraechszug (ablauf.py) kommt erst in
-Aufgabe 10 -- bis dahin bleibt an dieser Stelle die Log-Zeile stehen.
+Nachhol-Arbeiter auf (§ 10.3). Aufgabe 10 haengt daneben den Gespraechszug
+(ablauf.py) ein: Text-Ausloeser (Reply, @Erwaehnung, /Befehl) laufen im
+selben Pool wie Sprachnachrichten, und beide Wege in die Aufnahme-Pipeline
+(Live und Nachhol-Arbeiter) reichen ``ablauf.bearbeite`` als ``zug`` durch.
 """
 
 import logging
@@ -16,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from theatersoap import aufnahme, db, einstellungen, repo, telegram
+from theatersoap import ablauf, aufnahme, db, einstellungen, repo, telegram
 from theatersoap.einstellungen import Einstellungen
 from theatersoap.llm import LLM
 from theatersoap.telegram import Telegram, TelegramFehler
@@ -97,7 +99,10 @@ def _bearbeite_sprachnachricht(conn, tg, klm, e, stt_klient, nachricht: dict) ->
         aufnahme_id = aufnahme.empfange(conn, tg, e, nachricht)
         if aufnahme_id is None:
             return  # Download endgueltig gescheitert -- schon gemeldet, siehe aufnahme.empfange
-        aufnahme.verarbeite(conn, tg, klm, e, stt_klient, aufnahme_id)
+        # Aufgabe 10: der echte Gespraechszug fuer Klasse *kurz* -- die
+        # Alters-/Nachhol-Pruefung in aufnahme._kurz_abschliessen entscheidet,
+        # ob er ueberhaupt aufgerufen wird.
+        aufnahme.verarbeite(conn, tg, klm, e, stt_klient, aufnahme_id, zug=ablauf.bearbeite)
     except Exception:
         log.exception(
             "Aufnahme-Pipeline fehlgeschlagen: chat_id=%s message_id=%s",
@@ -112,7 +117,11 @@ def _nachhol_schleife(stop: threading.Event, conn, e: Einstellungen, tg, klm, st
     constraints.md 'Fehlerhaltung')."""
     while not stop.is_set():
         try:
-            aufnahme.nachholen(conn, tg, klm, e, stt_klient)
+            # Aufgabe 10: zug wird durchgereicht, aber aufnahme._kurz_abschliessen
+            # ruft ihn bei nachgeholt=True strukturell nie auf (SPEC: "Nachgeholtes
+            # loest nie eine Antwort aus") -- die Alterspruefung allein genuegt
+            # nicht, siehe Docstring von aufnahme.verarbeite.
+            aufnahme.nachholen(conn, tg, klm, e, stt_klient, zug=ablauf.bearbeite)
         except Exception:
             log.exception("Nachholen fehlgeschlagen")
         stop.wait(aufnahme.NACHHOL_INTERVALL_S)
@@ -151,13 +160,16 @@ def schleife(
                         pool.submit(
                             _bearbeite_sprachnachricht, conn, tg, klm, e, stt_klient, nachricht,
                         )
-                    else:
-                        # Weiche fuer Aufgabe 10: Gespraechszug haengt sich hier ein.
-                        log.info(
-                            "Nachricht wartet auf Gespraechszug (folgt in Aufgabe 10): "
-                            "chat_id=%s message_id=%s",
-                            nachricht["chat_id"], nachricht["message_id"],
-                        )
+                    elif ablauf.ist_ausloeser(nachricht, e.bot_name):
+                        # Aufgabe 10: Text-Ausloeser (Reply auf den Bot,
+                        # @Erwaehnung, /Befehl) laufen im selben Pool wie
+                        # Sprachnachrichten, damit ein laufender Gespraechszug
+                        # (der mehrere Sekunden dauern kann) die Polling-Schleife
+                        # nie blockiert. ablauf._sperre_fuer buendelt parallel
+                        # eintreffende Ausloeser zu einem einzigen Sammelzug.
+                        pool.submit(ablauf.bearbeite, conn, tg, klm, e, nachricht["chat_id"])
+                    # sonst: beilaeufige Nachricht -- gespeichert (s.o.), aber
+                    # kein Zug (SPEC § 1.2).
             except Exception:
                 log.exception(
                     "Verarbeitung eines Updates fehlgeschlagen, update_id=%s",

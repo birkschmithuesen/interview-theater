@@ -70,9 +70,17 @@ def klasse_fuer(dauer: int | None) -> str:
 
 
 def _kein_zug(conn, tg, klm, e, chat_id) -> None:
-    """Platzhalter fuer den Gespraechszug: ablauf.py existiert erst ab
-    Aufgabe 10. Absichtlich ohne Wirkung, damit aufnahme.py keinen Import auf
-    ein noch nicht existierendes Modul braucht."""
+    """Vorgabewert fuer den zug-Parameter: absichtlich ohne Wirkung.
+
+    Seit Aufgabe 10 existiert der echte Gespraechszug in ``theatersoap.ablauf``
+    -- aufnahme.py importiert dieses Modul bewusst nicht selbst, um jeden
+    Importzyklus von vornherein auszuschliessen. Die echte Funktion
+    (``ablauf.bearbeite``) reicht ausschliesslich ``bot.py`` explizit herein,
+    an beiden Stellen, an denen die Pipeline aufgerufen wird
+    (``_bearbeite_sprachnachricht`` fuer den Live-Weg, ``_nachhol_schleife``
+    fuer den Nachhol-Arbeiter). Direkte Aufrufe von ``verarbeite()``/
+    ``nachholen()`` ohne explizites ``zug`` (Tests, ein spaeterer Textimport)
+    bleiben mit diesem Vorgabewert unveraendert wirkungslos."""
     return None
 
 
@@ -171,8 +179,10 @@ def verarbeite(conn, tg, klm, e, klient, aufnahme_id, *, zug=_kein_zug, nachgeho
     ``klient`` wird unveraendert an ``stt.transkribiere`` durchgereicht (ein
     echter ``httpx.Client`` in Produktion, ein per MockTransport gebauter in
     Tests). ``zug`` ist der Gespraechszug fuer Klasse *kurz* -- als Parameter
-    hereingereicht, weil ``ablauf.py`` (Aufgabe 10) noch nicht existiert;
-    Voreinstellung: nichts tun.
+    hereingereicht statt hier importiert, damit aufnahme.py nie von
+    ``theatersoap.ablauf`` abhaengt (siehe ``_kein_zug``); Voreinstellung:
+    nichts tun. ``bot.py`` reicht die echte Funktion (``ablauf.bearbeite``)
+    explizit herein.
 
     ``nachgeholt=True`` (gesetzt von ``nachholen()``) unterdrueckt den
     Gespraechszug unabhaengig vom Alter der urspruenglichen Nachricht (§ 10.3:
@@ -433,7 +443,7 @@ def melde_rueckkehr(conn, tg, e, chat_id) -> None:
         log.exception("Rueckkehr-Hinweis fehlgeschlagen, chat_id=%s", chat_id)
 
 
-def nachholen(conn, tg, klm, e, klient) -> None:
+def nachholen(conn, tg, klm, e, klient, *, zug=_kein_zug) -> None:
     """Greift beim Start und danach alle NACHHOL_INTERVALL_S Sekunden alles
     auf, was nicht in einem Endzustand steht (§ 10.3) -- derselbe Weg, der
     auch die Nacht zwischen zwei Workshoptagen ueberbrueckt (§ 9.1 Schritt 3).
@@ -442,10 +452,16 @@ def nachholen(conn, tg, klm, e, klient) -> None:
     (``gruppe.bot_name == e.bot_name``, siehe
     ``repo.offene_aufnahmen_fuer_bot``): es laeuft ein Prozess je Gruppe auf
     derselben SQLite-Datei, und ohne diese Einschraenkung wuerden zwei
-    Prozesse dieselbe Aufnahme gleichzeitig zu Whisper hochladen."""
+    Prozesse dieselbe Aufnahme gleichzeitig zu Whisper hochladen.
+
+    ``zug`` (Aufgabe 10, ``ablauf.bearbeite``) wird unveraendert an
+    ``verarbeite()`` durchgereicht -- auch hier, mit ``nachgeholt=True``.
+    Das ist sicher: ``_kurz_abschliessen`` ruft ``zug`` bei ``nachgeholt=True``
+    strukturell nie auf, unabhaengig davon, welche Funktion hereingereicht
+    wurde (SPEC § 10.3: 'Nachgeholtes loest nie eine Antwort aus')."""
     for row in repo.offene_aufnahmen_fuer_bot(conn, e.bot_name):
         try:
-            verarbeite(conn, tg, klm, e, klient, row["id"], nachgeholt=True)
+            verarbeite(conn, tg, klm, e, klient, row["id"], zug=zug, nachgeholt=True)
         except Exception:
             log.exception("Nachholen einer Aufnahme fehlgeschlagen, id=%s", row["id"])
 

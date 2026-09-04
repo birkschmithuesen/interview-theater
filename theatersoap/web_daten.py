@@ -65,13 +65,34 @@ def lies_zeitstempel(wert: str | None) -> datetime | None:
     return gelesen
 
 
+def _feld(zeile: sqlite3.Row | None, name: str):
+    """Liest eine Spalte, die es vielleicht noch nicht gibt.
+
+    Die Weboberflaeche oeffnet read-only und migriert nichts -- die Spalten
+    legt der Bot an (``db.initialisiere``). Zwischen einem Deploy und dem
+    Neustart des Bots kann der Webserver also auf eine Datenbank ohne die
+    neue Spalte sehen; ``sqlite3.Row`` wirft dann IndexError. Eine fehlende
+    Spalte ist hier kein Fehler, sondern schlicht 'noch kein Wert'."""
+    if zeile is None:
+        return None
+    try:
+        return zeile[name]
+    except IndexError:
+        return None
+
+
 def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
-    """Die vier Arbeitsstandfelder, immer als Dict -- auch wenn die Gruppe
-    noch keine einzige Entscheidung getroffen hat und die Zeile fehlt."""
+    """Die Arbeitsstandfelder, immer als Dict -- auch wenn die Gruppe noch
+    keine einzige Entscheidung getroffen hat und die Zeile fehlt.
+
+    ``phase`` kommt roh heraus (``None``, solange keine gesetzt wurde) --
+    dass eine ungesetzte Phase wie 1 gilt, ist eine Anzeigeregel und steht
+    in ``web.py``, nicht hier."""
     zeile = conn.execute(
         "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
     ).fetchone()
     return {
+        "phase": _feld(zeile, "phase"),
         "begriffe": zeile["begriffe"] if zeile else None,
         "kernthema": zeile["kernthema"] if zeile else None,
         "kernthema_begruendung": zeile["kernthema_begruendung"] if zeile else None,

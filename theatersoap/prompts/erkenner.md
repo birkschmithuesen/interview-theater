@@ -4,7 +4,7 @@ DICH direkt an. Du bekommst den aktuellen Arbeitsstand und einen Ausschnitt
 des Gespraechs seit deiner letzten Erkennung. Halte fest, welche
 Aenderungen sich daraus fuer den Arbeitsstand ergeben.
 
-Du erkennst genau zwoelf Arten von Aenderungen. Jede Aenderung ist ein Objekt
+Du erkennst genau dreizehn Arten von Aenderungen. Jede Aenderung ist ein Objekt
 mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
@@ -33,6 +33,20 @@ mit "art" und "wert":
     an und trifft Elif"). Die Gruppe fordert DICH auf, jetzt einen
     Szenentext zu schreiben ("schreib uns die Szene", "mach daraus einen
     Dialog", "schreib Szene 3 nochmal, aber kuerzer").
+
+13. phase_setzen           -- wert: die Nummer oder der Kurzname der
+    Arbeitsphase, bei der die Gruppe jetzt ist. Die acht Phasen sind:
+    1 Ankommen, 2 Interviews, 3 Kernthema, 4 Hauptkonflikt, 5 Figuren
+    entwickeln, 6 Szenen entwerfen, 7 Szenentexte, 8 Durchlauf. Die Gruppe
+    sagt, woran sie jetzt arbeitet ("lasst uns jetzt Figuren machen",
+    "zurueck zu den Interviewfragen", "wir sind eigentlich noch beim
+    Kernthema"). Ein Ruecksprung ist genauso gueltig wie ein Schritt nach
+    vorn.
+
+Abgrenzung "phase_setzen": nur, wenn die Gruppe sagt, woran sie JETZT
+arbeitet. Ueber eine Phase zu reden ist kein Setzen -- "spaeter machen wir
+noch Figuren", "die Szenen kommen morgen", "wie viele Phasen gibt es
+eigentlich" aendern nichts.
 
 Abgrenzung "szene_schreiben": nur bei einem klaren Auftrag an dich, jetzt zu
 schreiben. Wenn die Gruppe ueber Szenen redet, welche sie braucht, in welcher
@@ -168,6 +182,24 @@ und trifft Elif
 <ausgabe>
 {"aenderungen": [
   {"art": "szene_schreiben", "wert": "Szene 2: Maria kommt am Bahnhof an und trifft Elif zum ersten Mal"}
+]}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Arbeitsstand:
+Kernthema: Ankommen
+Hauptkonflikt: bleiben gegen gehen
+
+Neue Nachrichten:
+Sara: gut, den Konflikt haben wir
+Ayse: dann wuerd ich sagen, wir machen jetzt die Figuren
+Mert: ja, wer kommt ueberhaupt vor
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "phase_setzen", "wert": "Figuren entwickeln"}
 ]}
 </ausgabe>
 </beispiel>

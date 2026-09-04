@@ -86,6 +86,35 @@ def bezeichnung(nummer: int) -> str:
     return f"{nummer} · {name}" if name else str(nummer)
 
 
+#: Die Meldung, mit der jede Phasenaenderung hoerbar wird -- gleiche Form wie
+#: die Kernthema-Zeile des Erkenners: sagen, was jetzt gilt, und wie man
+#: widerspricht.
+MELDUNG = "Wir sind jetzt bei {bezeichnung}. Falls nicht, sagt es mir."
+
+
+def meldung(nummer: int) -> str:
+    """Die Zeile, mit der ein Phasenwechsel gemeldet wird."""
+    return MELDUNG.format(bezeichnung=bezeichnung(nummer))
+
+
+def setze(conn, chat_id: int, nummer: int, quelle: str) -> bool:
+    """Setzt die Phase und schreibt die Entscheidung ins Journal. Liefert
+    True, wenn sich dadurch etwas geaendert hat.
+
+    Derselbe Wert ist keine Aenderung -- dann gibt es weder einen
+    Journaleintrag noch eine Meldung (dieselbe Regel wie ueberall im
+    Erkenner: sonst bestaetigte der Bot bei jedem Zug erneut dieselbe
+    Phase). ``quelle`` ist 'erkenner' oder 'befehl' und haelt im Journal
+    fest, auf welchem Weg die Gruppe hierhergekommen ist."""
+    if repo.hole_phase(conn, chat_id) == nummer:
+        return False
+    repo.setze_phase(conn, chat_id, nummer)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", f"Phase {bezeichnung(nummer)}", quelle=quelle
+    )
+    return True
+
+
 def liste() -> str:
     """Die acht Phasen als Text, eine Zeile je Phase (fuer ``/phase`` ohne
     Argument)."""
@@ -202,7 +231,13 @@ def sprung_nach(conn, chat_id: int, wirkliche_aenderungen: list[dict]) -> int | 
     Aenderungen traegt laut ART_ERMOEGLICHT genau die naechste Phase, (2) die
     Materiallage gibt sie tatsaechlich her (``naechste_moegliche``), (3) es
     geht um genau eine Phase vorwaerts. Nie rueckwaerts, nie ueber eine
-    Phase hinweg -- alles andere ist ein Angebot, kein Sprung."""
+    Phase hinweg -- alles andere ist ein Angebot, kein Sprung.
+
+    Hat die Gruppe im selben Lauf selbst eine Phase genannt, schaltet der
+    Code gar nicht: wer gerade gesagt hat, wo er steht, laesst sich nicht im
+    selben Atemzug weiterschieben."""
+    if any(a.get("art") == "phase_setzen" for a in wirkliche_aenderungen):
+        return None
     jetzige = aktuelle(conn, chat_id)
     ziel = jetzige + 1
     if ziel > LETZTE:

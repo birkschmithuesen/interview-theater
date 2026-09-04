@@ -37,7 +37,7 @@ import urllib.parse
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import web_daten
+from . import phasen, web_daten
 
 VORGABE_BIND = "127.0.0.1:8010"
 VORGABE_PRAEFIX = "/theatersoap"
@@ -186,8 +186,13 @@ def _arbeitsstand_html(arbeitsstand: dict, figuren: list[dict]) -> str:
         f"<li><b>{_t(f['name'])}</b> — {_t(f['beschreibung'], 'ohne Beschreibung')}</li>"
         for f in figuren
     )
+    # Die Phase steht oben: sie ordnet alles darunter ein. Eine ungesetzte
+    # Phase (NULL) gilt wie 1 -- diese Anzeigeregel steht hier, web_daten
+    # liefert den rohen Wert (theatersoap/phasen.py).
+    phase = arbeitsstand.get("phase") or phasen.ERSTE
     return (
         "<dl>"
+        f"<dt>Phase</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
         f"<dt>Begriffe</dt><dd>{_t(arbeitsstand['begriffe'])}</dd>"
         f"<dt>Kernthema</dt><dd>{_t(arbeitsstand['kernthema'])}"
         + (

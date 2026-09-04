@@ -1,10 +1,12 @@
-"""Sieben Slash-Befehle als Notausgang (teil-b.md Aufgabe 6, plus ``/szene``).
+"""Acht Slash-Befehle als Notausgang (teil-b.md Aufgabe 6, plus ``/szene``
+und ``/phase``).
 
 Der Absichtserkenner (``erkenner.py``) ist der Hauptweg: gemessen 0
 Falsch-Positive bei 25 Negativfaellen, 30/30 Treffer. Diese Befehle sind der
 Notausgang, wenn er trotzdem danebenliegt oder die Gruppe es lieber explizit
-macht -- **sieben, nicht fuenfzehn** (SPEC-Reduktion nach dem ersten
-Workshoptag; ``/szene`` kam mit den Szenentexten dazu).
+macht -- **acht, nicht fuenfzehn** (SPEC-Reduktion nach dem ersten
+Workshoptag; ``/szene`` kam mit den Szenentexten dazu, ``/phase`` mit den
+Arbeitsphasen).
 
 ``behandle()`` wird in ``ablauf.antworte`` VOR dem Kontextaufbau aufgerufen:
 ein erkannter Befehl loest KEINEN Gespraechszug aus (kann also nicht am
@@ -26,7 +28,7 @@ grosszuegig ab, unabhaengig davon, welcher Name genau dahintersteht."""
 
 import logging
 
-from theatersoap import repo, szene
+from theatersoap import phasen, repo, szene
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +37,8 @@ _TEXT_INTERVIEW_AUS = "Aufnahme beendet."
 _TEXT_KERNTHEMA_LEER = "Schreibt das Kernthema hinter den Befehl, zum Beispiel: /kernthema Ankommen"
 _TEXT_UNBEKANNT = "Diesen Befehl kenne ich nicht. /hilfe zeigt, was ich verstehe."
 _TEXT_WORTLAUT_AUS = "Wortlaut aus."
+_TEXT_PHASE_UMSCHALTEN = "Umschalten mit /phase 5 oder /phase Figuren - auch zurueck."
+_TEXT_PHASE_UNBEKANNT = "Diese Phase kenne ich nicht. Ich habe diese acht:"
 _TEXT_KEINE_AUFNAHMEN = "Es gibt noch keine Aufnahmen."
 _TEXT_SZENE_LEER = (
     "Schreibt den Auftrag hinter den Befehl, zum Beispiel: "
@@ -57,6 +61,7 @@ _TEXT_HILFE = (
     "Befehle, falls ich mal danebenliege:\n"
     "/interview - Aufnahme starten\n"
     "/fertig - Aufnahme beenden\n"
+    "/phase [nummer|name] - zeigt die Phase oder schaltet um\n"
     "/kernthema <text> - Kernthema setzen oder korrigieren\n"
     "/szene <auftrag> - eine Szene ausschreiben lassen\n"
     "/stand - zeigt, was ich mir bisher gemerkt habe\n"
@@ -65,11 +70,12 @@ _TEXT_HILFE = (
 )
 
 #: Telegram-Nutzlast fuer setMyCommands (teil-b.md Aufgabe 6) -- ohne
-#: fuehrenden Schraegstrich, Telegram haengt ihn selbst an. Dieselben sieben
+#: fuehrenden Schraegstrich, Telegram haengt ihn selbst an. Dieselben acht
 #: Befehle wie in behandle(), in derselben Reihenfolge wie in _TEXT_HILFE.
 BEFEHLE_LISTE = [
     {"command": "interview", "description": "Aufnahme starten"},
     {"command": "fertig", "description": "Aufnahme beenden"},
+    {"command": "phase", "description": "Arbeitsphase zeigen oder umschalten"},
     {"command": "kernthema", "description": "Kernthema setzen oder korrigieren"},
     {"command": "szene", "description": "Eine Szene ausschreiben lassen"},
     {"command": "stand", "description": "Arbeitsstand anzeigen"},
@@ -115,9 +121,39 @@ def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
     tg.sende(chat_id, f"Kernthema notiert: {rest}")
 
 
+def _befehl_phase(conn, tg, chat_id: int, rest: str) -> None:
+    """Der Notausgang fuer die Arbeitsphase (theatersoap/phasen.py) -- neben
+    dem Erkenner (art ``phase_setzen``) der zweite, deterministische Weg.
+
+    Ohne Argument zeigt er die aktuelle Phase und alle acht; mit Argument
+    (Nummer oder Name) schaltet er um, auch rueckwaerts. Ein Argument, das
+    sich keiner Phase zuordnen laesst, aendert nichts und bekommt die Liste
+    zu sehen -- raten waere hier der teuerste Ausgang.
+
+    Geantwortet wird immer, auch wenn die Phase schon stimmte: auf einen
+    getippten Befehl zu schweigen sieht aus wie ein kaputter Bot. Ins
+    Journal geht der Eintrag trotzdem nur bei einer echten Aenderung
+    (``phasen.setze``)."""
+    if not rest:
+        tg.sende(
+            chat_id,
+            f"Wir sind bei {phasen.bezeichnung(phasen.aktuelle(conn, chat_id))}.\n\n"
+            f"{phasen.liste()}\n\n{_TEXT_PHASE_UMSCHALTEN}",
+        )
+        return
+    nummer = phasen.nummer_fuer(rest)
+    if nummer is None:
+        tg.sende(chat_id, f"{_TEXT_PHASE_UNBEKANNT}\n\n{phasen.liste()}")
+        return
+    phasen.setze(conn, chat_id, nummer, "befehl")
+    tg.sende(chat_id, phasen.meldung(nummer))
+
+
 def _befehl_stand(conn, tg, chat_id: int) -> None:
     """Baut die Stand-Antwort ausschliesslich aus der Datenbank -- ohne
-    Sprachmodell, kann also nicht am LLM scheitern (teil-b.md Aufgabe 6)."""
+    Sprachmodell, kann also nicht am LLM scheitern (teil-b.md Aufgabe 6).
+
+    Die Phase steht zuerst: sie ordnet alles darunter ein."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
     figuren = repo.figuren(conn, chat_id)
     aufnahmen_namen = _namen_der_aufnahmen(conn, chat_id)
@@ -125,6 +161,7 @@ def _befehl_stand(conn, tg, chat_id: int) -> None:
     interviewmodus_an = gruppe is not None and gruppe["interviewmodus_seit"] is not None
 
     zeilen = ["Stand:"]
+    zeilen.append(f"Phase: {phasen.bezeichnung(phasen.aktuelle(conn, chat_id))}")
     zeilen.append(
         f"Begriffe: {stand['begriffe']}" if stand and stand["begriffe"] else "Begriffe: noch keine"
     )
@@ -186,10 +223,11 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     szene.starte(conn, tg, klm, e, chat_id, rest)
 
 
-#: Die sieben erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
+#: Die acht erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
 #: Slash-Text (z. B. "/irgendwas") freundlich beantwortet statt zu krachen.
 _BEKANNTE_BEFEHLE = {
-    "/interview", "/fertig", "/kernthema", "/szene", "/stand", "/wortlaut", "/hilfe",
+    "/interview", "/fertig", "/phase", "/kernthema", "/szene", "/stand",
+    "/wortlaut", "/hilfe",
 }
 
 
@@ -220,6 +258,8 @@ def behandle(
         _befehl_interview(conn, tg, chat_id)
     elif befehl == "/fertig":
         _befehl_fertig(conn, tg, chat_id)
+    elif befehl == "/phase":
+        _befehl_phase(conn, tg, chat_id, rest)
     elif befehl == "/kernthema":
         _befehl_kernthema(conn, tg, chat_id, rest)
     elif befehl == "/szene":

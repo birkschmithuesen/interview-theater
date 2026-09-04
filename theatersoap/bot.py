@@ -19,7 +19,9 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from theatersoap import ablauf, aufnahme, befehle, db, einstellungen, erkenner, journal, repo, telegram
+from theatersoap import (
+    ablauf, aufnahme, befehle, db, einstellungen, erkenner, journal, phasen, repo, telegram,
+)
 from theatersoap.einstellungen import Einstellungen
 from theatersoap.llm import LLM
 from theatersoap.telegram import Telegram, TelegramFehler
@@ -109,7 +111,15 @@ _TEXT_ERSTKONTAKT = (
     "/hilfe zeigt den Rest."
 )
 
-_TEXT_WIEDERKEHR = "Bin wieder da. Wenn ihr weitermachen wollt, sagt mir Bescheid."
+#: Die Wiederkehr-Zeile nennt die Arbeitsphase: nach einer Nacht Pause ist
+#: die erste Frage im Raum, wo man stehengeblieben ist -- und die Phase ist
+#: seit dem 04.09.2026 ein gespeicherter Zustand, der das beantworten kann
+#: (theatersoap/phasen.py). Stimmt sie nicht mehr, korrigiert die Gruppe sie
+#: mit einem Satz.
+_TEXT_WIEDERKEHR = (
+    "Bin wieder da. Wir sind bei {phase}. Wenn ihr weitermachen wollt, "
+    "sagt mir Bescheid."
+)
 
 
 def erstkontakt(conn, tg, e, chat_id: int) -> None:
@@ -154,10 +164,13 @@ def sende_wiederkehr_begruessungen(conn, tg, e, jetzt) -> None:
             letzte = repo.letzte_nachricht_zeit(conn, gruppe["chat_id"])
             if letzte is None or not begruessung_faellig(letzte, jetzt):
                 continue
-            message_id = tg.sende(gruppe["chat_id"], _TEXT_WIEDERKEHR)
+            text = _TEXT_WIEDERKEHR.format(
+                phase=phasen.bezeichnung(phasen.aktuelle(conn, gruppe["chat_id"]))
+            )
+            message_id = tg.sende(gruppe["chat_id"], text)
             repo.merke_nachricht(
                 conn, gruppe["chat_id"], message_id, e.bot_name, 1, "text",
-                _TEXT_WIEDERKEHR, repo._jetzt(),
+                text, repo._jetzt(),
             )
         except Exception:
             log.exception(

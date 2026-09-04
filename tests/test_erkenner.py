@@ -160,29 +160,30 @@ def test_schema_kennt_kein_maxitems():
     assert "maxItems" not in str(erkenner.SCHEMA)
 
 
-def test_arten_enthaelt_alle_zwoelf_werte():
+def test_arten_enthaelt_alle_dreizehn_werte():
     erwartet = {
         "interview_starten", "interview_beenden", "interview_benennen",
         "begriffe_setzen", "kernthema_setzen", "hauptkonflikt_setzen",
         "figur_setzen", "wortlaut_an", "wortlaut_aus", "verworfen", "entschieden",
-        "szene_schreiben",
+        "szene_schreiben", "phase_setzen",
     }
     assert set(erkenner.ARTEN) == erwartet
 
 
-def test_prompt_enthaelt_sechs_beispiele_davon_zwei_leer():
+def test_prompt_enthaelt_sieben_beispiele_davon_zwei_leer():
     """Grober Regressionsschutz gegen einen versehentlich verkuerzten Prompt.
 
     Die Rechercheempfehlung lautete auf 5 Few-Shot-Beispiele, davon 2 leer.
-    Mit ``szene_schreiben`` ist genau eines dazugekommen -- die zwoelfte art
-    ist die einzige, die eine teure Handlung ausloest statt ein Feld zu
-    setzen, und sie ohne Beispiel zu lassen waere die Stelle, an der der
-    Erkenner am ehesten danebengreift. Die zwei leeren Beispiele bleiben
+    Mit ``szene_schreiben`` ist eines dazugekommen -- die art, die als
+    einzige eine teure Handlung ausloest statt ein Feld zu setzen --, mit
+    ``phase_setzen`` ein weiteres: dort ist die Abgrenzung schwierig (ueber
+    eine Phase zu reden ist kein Setzen), und ein Beispiel zeigt sie
+    schneller als drei Saetze Regel. Die zwei leeren Beispiele bleiben
     unveraendert: sie tragen den teuersten Fehlerfall (Zustimmung ohne
     Beschluss)."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 6
+    assert anzahl_beispiele == 7
     assert anzahl_leer == 2
 
 

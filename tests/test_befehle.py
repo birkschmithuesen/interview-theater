@@ -165,10 +165,11 @@ def test_kernthema_mit_botname_und_text_wird_erkannt(conn, einst, tg):
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
 
 
-def test_befehle_liste_enthaelt_alle_sieben_ohne_schraegstrich():
+def test_befehle_liste_enthaelt_alle_acht_ohne_schraegstrich():
     kommandos = {b["command"] for b in befehle.BEFEHLE_LISTE}
     assert kommandos == {
-        "interview", "fertig", "kernthema", "szene", "stand", "wortlaut", "hilfe",
+        "interview", "fertig", "phase", "kernthema", "szene", "stand", "wortlaut",
+        "hilfe",
     }
 
 

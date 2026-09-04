@@ -44,7 +44,7 @@ grosses Fenster den Erkenner dauerhaft lahmlegen) und ein ``vorfall``
 
 import logging
 
-from theatersoap import kontext, repo
+from theatersoap import kontext, phasen, repo
 
 log = logging.getLogger(__name__)
 
@@ -78,6 +78,10 @@ ARTEN = (
     # Deshalb hat sie in _wende_eine_an bewusst keinen Schreibpfad und wird
     # erst in laufe() ausgewertet.
     "szene_schreiben",
+    # Seit 04.09.2026: die Arbeitsphase ist ein gespeichertes Feld, und die
+    # Gruppe setzt sie im Gespraech (theatersoap/phasen.py). Auch der
+    # Widerspruch gegen einen automatischen Sprung landet hier.
+    "phase_setzen",
 )
 
 #: Obergrenze fuer Aenderungen je Lauf -- im Prompttext UND hier im Code
@@ -376,6 +380,24 @@ def _wende_interview_benennen_an(conn, chat_id: int, wert: str) -> dict | None:
     return {"art": "interview_benennen", "wert": wert}
 
 
+def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
+    """Setzt die Arbeitsphase, die die Gruppe genannt hat (art
+    ``phase_setzen``, theatersoap/phasen.py).
+
+    ``wert`` ist eine Nummer oder ein Kurzname; ``phasen.nummer_fuer``
+    uebersetzt tolerant. Laesst er sich nicht zuordnen, wird nichts
+    geschrieben -- lieber keine Aenderung als die falsche Phase. Ein
+    Ruecksprung (von 8 nach 5) ist ausdruecklich erlaubt: die Gruppe darf
+    jederzeit zurueck, und genau so widerspricht sie auch einem
+    automatischen Sprung."""
+    nummer = phasen.nummer_fuer(wert)
+    if nummer is None:
+        return None
+    if not phasen.setze(conn, chat_id, nummer, "erkenner"):
+        return None
+    return {"art": "phase_setzen", "wert": str(nummer)}
+
+
 def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     """Wendet genau eine Aenderung an und liefert das angewendete
     ``{"art": ..., "wert": ...}`` zurueck, oder ``None`` wenn nichts
@@ -396,6 +418,8 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_wortlaut_aus_an(conn, chat_id)
     if art == "interview_benennen":
         return _wende_interview_benennen_an(conn, chat_id, wert)
+    if art == "phase_setzen":
+        return _wende_phase_an(conn, chat_id, wert)
     if art == "szene_schreiben":
         # Kein Schreibpfad: eine Szene ist kein Arbeitsstandfeld, das sich
         # ueberschreiben liesse, sondern ein eigener, minutenlanger
@@ -460,7 +484,9 @@ def _figuren_zeile(namen: list[str]) -> str:
     return f"{zahlwort} Figuren: {liste}"
 
 
-def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
+def baue_meldung(
+    wirkliche_aenderungen: list[dict], phase_gesprungen: int | None = None
+) -> str | None:
     """Baut die eine Meldung je Erkennerlauf (SPEC § 4.3, teil-b.md Aufgabe
     4) -- nicht eine je Aenderung.
 
@@ -469,11 +495,19 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     Journaleintraege (``verworfen``/``entschieden``) sowie Schalter,
     Interviewmodus und Umbenennungen bleiben still -- sonst waere der Chat
     zugespammt und die Meldungen wuerden ueberlesen. Gab es keine Aenderung
-    am Arbeitsstand, gibt es keine Meldung: ``None``."""
+    am Arbeitsstand, gibt es keine Meldung: ``None``.
+
+    Eine Phasenaenderung bekommt ihre eigene Zeile -- gesetzt von der Gruppe
+    (art ``phase_setzen``) oder vom Bot selbst (``phase_gesprungen``, siehe
+    ``laufe``). Der Sprung steht bewusst in DERSELBEN Meldung wie die
+    Aenderung, die ihn ausgeloest hat ("Kernthema ... - wir sind damit bei
+    4 ..."): eine Nachricht je Lauf bleibt die Regel, und der Zusammenhang
+    ist so sichtbar, statt in zwei Nachrichten zu zerfallen."""
     kernthema = None
     hauptkonflikt = None
     begriffe = None
     figuren_namen = []
+    phase_gesetzt = None
     for aenderung in wirkliche_aenderungen:
         art = aenderung.get("art")
         wert = aenderung.get("wert", "")
@@ -485,6 +519,8 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
             begriffe = wert
         elif art == "figur_setzen":
             figuren_namen.append(wert)
+        elif art == "phase_setzen":
+            phase_gesetzt = phasen.nummer_fuer(wert)
         # verworfen/entschieden/wortlaut_an/wortlaut_aus/interview_benennen:
         # bewusst ignoriert, bleiben still (Aufgabe 4). szene_schreiben
         # ebenfalls -- es meldet sich selbst, mit einer Ankuendigung und
@@ -499,6 +535,10 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
         zeilen.append(_figuren_zeile(figuren_namen))
     if begriffe:
         zeilen.append(f"Begriffe: {begriffe}")
+    if phase_gesetzt is not None:
+        zeilen.append(f"Wir sind jetzt bei {phasen.bezeichnung(phase_gesetzt)}.")
+    if phase_gesprungen is not None:
+        zeilen.append(f"Wir sind damit bei {phasen.bezeichnung(phase_gesprungen)}.")
 
     if not zeilen:
         return None
@@ -564,10 +604,39 @@ def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> No
     szene.starte(conn, tg, klm, e, chat_id, auftrag)
 
 
+def _springe_phase(conn, chat_id: int, wirkliche: list[dict]) -> int | None:
+    """Schaltet die Phase selbst um, wenn dieser Lauf genau die Aenderung
+    geschrieben hat, die die naechste Phase traegt (phasen.sprung_nach) --
+    und liefert die neue Nummer, damit ``baue_meldung`` sie in derselben
+    Meldung nennt.
+
+    Nach dem Notiert-Muster: schalten, melden, weiterlaufen. Kein
+    Wartezustand, keine Rueckfrage, kein "sag ja" -- widerspricht die Gruppe
+    ("nee, wir sind noch beim Kernthema"), greift der Erkenner das im
+    naechsten Lauf als ``phase_setzen`` auf und schaltet zurueck. Ein
+    Wartezustand waere das Gegenteil dessen, was diese Gruppe braucht: er
+    haelt die Arbeit an, bis jemand auf eine Botfrage antwortet.
+
+    Ein Fehlschlag hier darf die Meldung nicht mitreissen -- die
+    Arbeitsstandaenderungen sind schon geschrieben und gehoeren gemeldet,
+    auch wenn der Sprung misslingt."""
+    try:
+        ziel = phasen.sprung_nach(conn, chat_id, wirkliche)
+        if ziel is None:
+            return None
+        if not phasen.setze(conn, chat_id, ziel, "erkenner"):
+            return None
+        return ziel
+    except Exception:
+        log.exception("Automatischer Phasensprung fehlgeschlagen, chat_id=%s", chat_id)
+        return None
+
+
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
     melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5),
-    Szenen-Auftrag anstossen (szene.py).
+    Szenen-Auftrag anstossen (szene.py), Phase umschalten, wenn dieser Lauf
+    sie belegt hat (_springe_phase, phasen.py).
     Laeuft nachgelagert, nachdem die Bot-Antwort in der Gruppe steht (SPEC
     § 4.3) -- niemand wartet darauf, und ein Fehlschlag bleibt fuer die
     Gruppe unsichtbar, genau wie ``ablauf.antworte`` es fuer den
@@ -583,7 +652,8 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.
         _starte_szene(klm, tg, conn, e, chat_id, aenderungen)
-        text = baue_meldung(wirkliche)
+        gesprungen = _springe_phase(conn, chat_id, wirkliche)
+        text = baue_meldung(wirkliche, phase_gesprungen=gesprungen)
         if text is None:
             return
         message_id = tg.sende(chat_id, text)

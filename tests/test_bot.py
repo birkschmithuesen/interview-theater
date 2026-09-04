@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from theatersoap import bot, db, repo
+from theatersoap import bot, db, phasen, repo
 
 JETZT = datetime(2026, 9, 5, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -327,7 +327,25 @@ def test_sende_wiederkehr_begruessungen_ein_fehlschlag_reisst_andere_nicht_mit(c
     tg = HalbKaputtesTG()
     bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)  # darf nicht krachen
 
-    assert tg.gesendet == [(-200, bot._TEXT_WIEDERKEHR)]
+    assert tg.gesendet == [
+        (-200, bot._TEXT_WIEDERKEHR.format(phase=phasen.bezeichnung(phasen.ERSTE)))
+    ]
+
+
+def test_wiederkehr_begruessung_nennt_die_phase(conn, einst):
+    """Nach einer Nacht Pause ist die erste Frage im Raum, wo man
+    stehengeblieben ist -- die Zeile beantwortet sie (A5)."""
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Alte Gruppe")
+    repo.merke_nachricht(
+        conn, -100, 1, "Ada", 0, "text", "gestern",
+        (JETZT - timedelta(hours=5)).isoformat(),
+    )
+    repo.setze_phase(conn, -100, 5)
+    tg = TelegramAttrappe()
+
+    bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)
+
+    assert "5 · Figuren entwickeln" in tg.gesendet[0][1]
 
 
 # ---------------------------------------------------------------------------

@@ -19,13 +19,13 @@ Start::
     IT_DB=betrieb/soap.db python -m interview_theater.web
 
 Umgebung: ``IT_DB`` (Pflicht), ``IT_WEB_BIND`` (Vorgabe ``127.0.0.1:8010``),
-``IT_WEB_PREFIX`` (Vorgabe ``/interview_theater``).
+``IT_WEB_PREFIX`` (Vorgabe ``/theatersoap``).
 
 Von aussen haengt der Server hinter nginx unter
-``https://lab.artesmobiles.art/interview_theater/``. Ob nginx das Praefix
+``https://lab.artesmobiles.art/theatersoap/``. Ob nginx das Praefix
 weiterreicht oder abschneidet, entscheidet die dortige Konfiguration und
 nicht dieser Code -- deshalb nimmt das Routing beide Formen an
-(``/g/<token>`` und ``/interview_theater/g/<token>``), und alle erzeugten Links
+(``/g/<token>`` und ``/theatersoap/g/<token>``), und alle erzeugten Links
 sind relativ.
 """
 
@@ -40,7 +40,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import phasen, web_daten
 
 VORGABE_BIND = "127.0.0.1:8010"
-VORGABE_PRAEFIX = "/interview_theater"
+#: Externer URL-Pfad, unter dem nginx auf herkules den Server durchreicht.
+#: Historischer Name aus dem ersten Einsatz -- er steht in der nginx-Konfig,
+#: nicht im Code; aendern heisst dort aendern (und IT_WEB_PREFIX mitziehen).
+VORGABE_PRAEFIX = "/theatersoap"
 
 #: Sekunden bis zum Selbst-Neuladen beider Seiten. Per <meta refresh>, damit
 #: die Seite ohne JavaScript aktuell bleibt -- ein projizierter Rechner soll
@@ -333,7 +336,7 @@ def gruppe_html(daten: dict) -> str:
 
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
     return _seite(
-        f"{titel} — interview_theater",
+        f"{titel} — interview-theater",
         _CSS_GRUPPE,
         f"<h1>{_t(titel)}</h1>\n"
         "<h2>Arbeitsstand</h2>"
@@ -382,7 +385,7 @@ def mache_handler(db_pfad: str, praefix: str = VORGABE_PRAEFIX):
     auf eine andere Datenbank stellen kann."""
 
     class Handler(BaseHTTPRequestHandler):
-        server_version = "interview_theater"
+        server_version = "interview-theater"
         protocol_version = "HTTP/1.1"
         #: HTTP/1.1 haelt die Verbindung offen, und ThreadingHTTPServer bindet
         #: je Verbindung einen Thread. Ohne Zeitlimit blieben die Threads

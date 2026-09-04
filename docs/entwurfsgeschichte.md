@@ -235,7 +235,7 @@ verworfen hat.
 Für die beiden geplanten Weboberflächen (Team-Dashboard, projiziert; plus eine Leseansicht
 je Gruppe unter `/g/<token>`) steht der Zugang bereits:
 
-**`https://lab.artesmobiles.art/interview_theater/`** über nginx auf *herkules*, per Tailnet an
+**`https://lab.artesmobiles.art/theatersoap/`** über nginx auf *herkules*, per Tailnet an
 den vServer auf Port 8010. Zertifikat vorhanden, von einem Handy über Mobilfunk geprüft.
 
 Die Oberflächen selbst sind **noch nicht gebaut**.

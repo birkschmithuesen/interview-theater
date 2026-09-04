@@ -269,8 +269,8 @@ nach `betrieb/web.log`.
 |---|---|---|
 | `IT_DB` | — (Pflicht) | dieselbe SQLite wie die Bots, **read-only** geöffnet |
 | `IT_WEB_BIND` | `127.0.0.1:8010` | im Betrieb `100.75.24.33:8010` (Tailnet) |
-| `IT_WEB_PREFIX` | `/interview_theater` | Präfix, unter dem nginx den Server durchreicht |
-| `IT_WEB_URL` | `https://lab.artesmobiles.art/interview_theater` | nur für `scripts/web_links.py` |
+| `IT_WEB_PREFIX` | `/theatersoap` | Präfix, unter dem nginx den Server durchreicht |
+| `IT_WEB_URL` | `https://lab.artesmobiles.art/theatersoap` | nur für `scripts/web_links.py` |
 
 Routen: `/` (Team-Dashboard, projiziert, alle Gruppen), `/g/<token>`
 (Leseansicht einer Gruppe, Handy), `/gesund` (Health-Check, antwortet ohne

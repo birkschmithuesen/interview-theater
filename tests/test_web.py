@@ -89,11 +89,11 @@ def test_unbekannter_pfad_gibt_404(basis):
 
 
 def test_routen_gehen_auch_mit_nginx_praefix(basis, token):
-    """Ob nginx /interview_theater weiterreicht oder abschneidet, steht in der
+    """Ob nginx /theatersoap weiterreicht oder abschneidet, steht in der
     nginx-Konfiguration -- der Server nimmt deshalb beide Formen."""
-    assert hole(f"{basis}/interview_theater/")[0] == 200
-    assert hole(f"{basis}/interview_theater/gesund")[1].strip() == "ok"
-    assert "Ankommen" in hole(f"{basis}/interview_theater/g/{token}")[1]
+    assert hole(f"{basis}/theatersoap/")[0] == 200
+    assert hole(f"{basis}/theatersoap/gesund")[1].strip() == "ok"
+    assert "Ankommen" in hole(f"{basis}/theatersoap/g/{token}")[1]
 
 
 def test_alles_aus_der_datenbank_wird_maskiert(basis, db_pfad, token):
@@ -209,7 +209,7 @@ def test_main_nimmt_die_umgebung_und_startet(monkeypatch, db_pfad):
     web.main()
 
     assert gesehen == {"pfad": db_pfad, "bind": "100.75.24.33:8010",
-                       "praefix": "/interview_theater", "gestartet": True}
+                       "praefix": "/theatersoap", "gestartet": True}
 
 
 def test_main_ohne_ts_db_bricht_ab(monkeypatch):
@@ -220,7 +220,7 @@ def test_main_ohne_ts_db_bricht_ab(monkeypatch):
 
 
 def test_praefix_wird_nur_am_anfang_abgeschnitten():
-    assert web._pfad_ohne_praefix("/interview_theater/g/abc", "/interview_theater") == "/g/abc"
-    assert web._pfad_ohne_praefix("/interview_theater", "/interview_theater") == "/"
-    assert web._pfad_ohne_praefix("/g/abc", "/interview_theater") == "/g/abc"
-    assert web._pfad_ohne_praefix("/g/interview_theater", "/interview_theater") == "/g/interview_theater"
+    assert web._pfad_ohne_praefix("/theatersoap/g/abc", "/theatersoap") == "/g/abc"
+    assert web._pfad_ohne_praefix("/theatersoap", "/theatersoap") == "/"
+    assert web._pfad_ohne_praefix("/g/abc", "/theatersoap") == "/g/abc"
+    assert web._pfad_ohne_praefix("/g/theatersoap", "/theatersoap") == "/g/theatersoap"

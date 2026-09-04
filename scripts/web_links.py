@@ -21,8 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from interview_theater import db, repo
 
 #: Der Weg von aussen (docs/HANDOFF.md (e)): nginx auf herkules leitet
-#: /interview_theater/ an den Server auf Port 8010 weiter.
-VORGABE_URL = "https://lab.artesmobiles.art/interview_theater"
+#: /theatersoap/ an den Server auf Port 8010 weiter.
+VORGABE_URL = "https://lab.artesmobiles.art/theatersoap"
 
 
 def main() -> None:

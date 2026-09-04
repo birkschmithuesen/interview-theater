@@ -17,9 +17,13 @@ mit "art" und "wert":
     "nennen wir das Aufnahme mit Elif").
 4.  begriffe_setzen        -- wert: die Begriffe, wie im Abschnitt genannt.
     Die Gruppe hat sie im Raum gesammelt und gibt die fertige Liste hier ein.
-5.  fragen_setzen          -- wert: die Interviewfragen, wie im Abschnitt
-    genannt. Stehen sie in mehreren Nachrichten, nimm den ganzen Satz Fragen
-    zusammen in EINEN wert. Die Gruppe legt fest, mit welchen Fragen sie ins
+5.  fragen_setzen          -- wert: die Interviewfragen, **eine je Zeile, im
+    Format "Thema: Frage"**. Das Thema ist das Stichwort, um das die Frage
+    kreist -- meist einer der Begriffe aus dem Arbeitsstand ("Koffer: Was war
+    in deinem Koffer?"). Nennt die Gruppe kein Thema, waehle das Wort, um das
+    sich die Frage dreht. Stehen die Fragen in mehreren Nachrichten, nimm den
+    ganzen Satz Fragen zusammen in EINEN wert -- eine Zeile je Frage, nicht
+    mehrere Eintraege. Die Gruppe legt fest, mit welchen Fragen sie ins
     Interview geht ("das sind unsere Fragen: ...", "wir nehmen die drei").
 6.  kernthema_setzen       -- wert: das Kernthema.
 7.  hauptkonflikt_setzen   -- wert: der Hauptkonflikt.
@@ -70,7 +74,9 @@ Abgrenzung "fragen_setzen": nur, wenn Fragen als Ergebnis dastehen -- die
 Gruppe schreibt sie auf oder legt sich auf sie fest. **Das gilt auch, wenn
 die Fragen vom Bot vorgeschlagen wurden und die Gruppe nur zustimmt** ("ne,
 das passt so", "die nehmen wir", "ich bleibe bei den drei"): dann ist der
-wert die zuletzt vom Bot genannte Fassung der Fragen, woertlich uebernommen.
+wert die zuletzt vom Bot genannte Fassung der Fragen, woertlich uebernommen
+und in das Format "Thema: Frage" gebracht (die Themen stehen dort meist schon
+als Zwischenzeilen).
 Dasselbe gilt fuer Begriffe, Kernthema, Figuren und Konflikt: Zustimmung zu
 einem konkreten Bot-Vorschlag ist eine Festlegung; der Vorschlag steht im
 Verlauf, du schreibst ihn in den wert. Ueber Fragen zu reden ist
@@ -124,6 +130,11 @@ Regeln, ohne Ausnahme:
    Das ist der Normalfall, nicht ein Fehler.
 8. Antworte auf Deutsch, ausschliesslich mit dem JSON-Objekt. Keine
    Erklaerung, keine Ueberschrift, kein Vor- oder Nachsatz.
+9. Was eine interviewte Person erzaehlt, ist Material und nie eine Absicht
+   der Gruppe. Die Transkripte, die der Bot waehrend eines Interviews in den
+   Chat stellt ("Interview 2, Teil 3: ..."), stehen deshalb gar nicht erst in
+   deinem Abschnitt. Taucht trotzdem einmal eine Erzaehlung darin auf ("mein
+   Vater hat immer gesagt..."), aenderst du daran nichts.
 
 <beispiele>
 
@@ -184,7 +195,7 @@ Wer hat dich zum Bahnhof gebracht? An wen hast du den ersten Brief geschrieben?
 </abschnitt>
 <ausgabe>
 {"aenderungen": [
-  {"art": "fragen_setzen", "wert": "Erzaehl von dem Tag, an dem du gepackt hast. Was war in deinem Koffer? Wer hat dich zum Bahnhof gebracht? An wen hast du den ersten Brief geschrieben?"}
+  {"art": "fragen_setzen", "wert": "Koffer: Erzaehl von dem Tag, an dem du gepackt hast. Was war in deinem Koffer?\nBahnhof: Wer hat dich zum Bahnhof gebracht?\nBrief: An wen hast du den ersten Brief geschrieben?"}
 ]}
 </ausgabe>
 </beispiel>

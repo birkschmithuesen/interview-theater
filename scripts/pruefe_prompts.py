@@ -176,6 +176,31 @@ def vergleiche_erkenner(erwartet: list[dict], geliefert: list[dict]) -> dict:
     return {"treffer": treffer, "fehlend": fehlend, "ueberzaehlig": offen}
 
 
+def fragen_ohne_thema(aenderungen: list[dict]) -> list[str]:
+    """Prompt-Punkt 5, mechanisch geprueft: steht in jeder Zeile eines
+    ``fragen_setzen``-Werts ein Thema vor der Frage ("Koffer: Was war in
+    deinem Koffer?")?
+
+    Das Format ist keine Kosmetik: die Gruppenseite rendert daraus eine Liste
+    mit fett gesetztem Thema (``web._fragen_html``), und ohne Doppelpunkt
+    steht dort die nackte Frage. Sollwert ist deshalb schlicht **mindestens
+    ein ':' je Zeile**; welches Thema das Modell waehlt, ist seine Sache.
+
+    Bewusst grob und bewusst getrennt gezaehlt, wie ``beginnt_mit_pronomen``:
+    eine Frage ohne Thema ist inhaltlich richtig, nur schlecht dargestellt.
+    Das geht **nicht** in FP/FN und nicht in den Exit-Code ein -- der haengt
+    allein an den Falsch-Positiven (AGENTS.md)."""
+    verletzungen = []
+    for aenderung in aenderungen:
+        if aenderung.get("art") != "fragen_setzen":
+            continue
+        for zeile in (aenderung.get("wert") or "").splitlines():
+            zeile = zeile.strip(" -•\t")
+            if zeile and ":" not in zeile:
+                verletzungen.append(zeile)
+    return verletzungen
+
+
 def stichwoerter_aus(text: str) -> list[str]:
     """Zerlegt ein Muss-Stichwort-Set (``"sechs|fragen"``) in seine Teile."""
     return [t.strip() for t in text.split(STICHWORT_TRENNER) if t.strip()]
@@ -392,6 +417,7 @@ def _laufe_erkenner(klm, conn, chat_id, fall, modell):
     # Treffer noch als Falsch-Positiv zaehlen.
     geliefert = ergebnis.get("aenderungen", [])[: erkenner.MAX_AENDERUNGEN]
     bewertung = vergleiche_erkenner(fall["erwartet"], geliefert)
+    bewertung["fragen_ohne_thema"] = fragen_ohne_thema(geliefert)
     return geliefert, bewertung, (
         len(bewertung["treffer"]),
         len(bewertung["ueberzaehlig"]),
@@ -566,6 +592,13 @@ def baue_summe(prompt: str, modell: str, zeilen: list[dict]) -> list[str]:
     pronomen = sum(z.get("pronomen", 0) for z in zeilen)
     if prompt == "journal":
         zeilentext.append(f"- Eintraege mit Pronomen-Anfang: {pronomen}")
+    if prompt == "erkenner":
+        # Kein Fehler, ein Hinweis: die Zeile steht im Arbeitsstand richtig,
+        # nur die Gruppenseite kann daraus kein Thema fett setzen.
+        zeilentext.append(
+            "- Fragen ohne Thema vor dem Doppelpunkt: "
+            f"{sum(z.get('fragen_ohne_thema', 0) for z in zeilen)}"
+        )
     return zeilentext
 
 
@@ -625,6 +658,7 @@ def pruefe(prompt: str, klm, conn, faelle: list[dict], modell: str,
                 "fp": zahlen[1],
                 "fn": zahlen[2],
                 "pronomen": len((bewertung or {}).get("pronomen", [])),
+                "fragen_ohne_thema": len((bewertung or {}).get("fragen_ohne_thema", [])),
                 "dauer_ms": gemessen["dauer_ms"] or dauer_ms,
                 "eingabe_token": gemessen["eingabe_token"],
                 "ausgabe_token": gemessen["ausgabe_token"],

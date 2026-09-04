@@ -146,6 +146,44 @@ def setze_beantwortet_bis(conn: sqlite3.Connection, chat_id: int, message_id: in
 
 
 @_gesperrt
+def unextrahierte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Nachrichten seit dem Extraktions-Wasserzeichen letzte_extrahierte_message_id
+    (SPEC-kontext-architektur.md § 4.3): der Kontext des Absichtserkenners.
+
+    Anders als unbeantwortete() ungefiltert -- weder ist_bot noch
+    unterdrueckt schraenken ein. Der Erkenner soll den ganzen
+    Gespraechsausschnitt seit der letzten Erkennung sehen, auch
+    Bot-Bestaetigungen ('Ich zeichne jetzt auf') und Nachtstau-Zeilen,
+    nicht nur das, was einen Gespraechszug ausgeloest haette."""
+    return conn.execute(
+        """
+        SELECT n.* FROM nachricht n
+        JOIN gruppe g ON g.chat_id = n.chat_id
+        WHERE n.chat_id = ?
+          AND n.message_id > g.letzte_extrahierte_message_id
+        ORDER BY n.message_id ASC
+        """,
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def setze_extrahiert_bis(conn: sqlite3.Connection, chat_id: int, message_id: int) -> None:
+    """Setzt das Wasserzeichen letzte_extrahierte_message_id. Bewegt sich nie
+    rueckwaerts (analog setze_beantwortet_bis) -- ein Absichtserkenner-Lauf,
+    der auf einem veralteten Snapshot lief, darf ein inzwischen weiter
+    vorgerueckes Wasserzeichen nicht zuruecksetzen."""
+    conn.execute(
+        """
+        UPDATE gruppe SET letzte_extrahierte_message_id = ?
+        WHERE chat_id = ? AND letzte_extrahierte_message_id < ?
+        """,
+        (message_id, chat_id, message_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def letzte_nachrichten(conn: sqlite3.Connection, chat_id: int, anzahl: int = 200) -> list[sqlite3.Row]:
     """Die letzten `anzahl` Nachrichten der Gruppe in chronologischer Reihenfolge."""
     return conn.execute(

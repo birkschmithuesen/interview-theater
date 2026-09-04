@@ -10,6 +10,7 @@ def einst(tmp_path):
         audio_verz=str(tmp_path / "audio"),
         llm_url="https://llm.test/v1/chat/completions", llm_key="K", llm_modell="kimi",
         stt_basis="https://stt.test", stt_produkt="PRODUKT-ID",
+        erkenner_modell="gemma",
     )
 
 

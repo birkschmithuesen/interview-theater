@@ -201,8 +201,30 @@ class LLM:
         text = self._text_aus(koerper)
         return lies_json(text)
 
-    def prosa(self, chat_id: int | None, system: str, nutzer: str, art: str) -> str:
-        """Freier Text (``reasoning_effort: "medium"``, Modus B)."""
+    def prosa(
+        self,
+        chat_id: int | None,
+        system: str,
+        nutzer: str,
+        art: str,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
+    ) -> str:
+        """Freier Text mit aktivem Reasoning (Modus B).
+
+        ``reasoning_effort: "medium"`` heisst hier schlicht "an": bei
+        Infomaniak ist der Parameter binaer, low/medium/high sind
+        untereinander nicht unterscheidbar (gemessen 04.09.2026, siehe
+        Moduldocstring Fehlerbild 4). Der Wert steht fest verdrahtet, weil es
+        nichts zu waehlen gibt.
+
+        ``max_tokens`` und ``timeout`` sind additiv und optional: ohne
+        Angabe gilt MAX_TOKENS bzw. der Timeout des uebergebenen
+        httpx.Client, der Aufruf verhaelt sich also unveraendert. Der
+        Szenen-Aufruf (theatersoap/szene.py) setzt beide hoch, weil aktives
+        Reasoning das Ausgabebudget vor dem eigentlichen Inhalt verbraucht
+        (``max_tokens >= 12.000``) und die Latenz um Faktor 7-23 steigt (der
+        30-Sekunden-Client-Timeout aus bot.main reicht dafuer nicht)."""
         koerper = self._anfrage(
             chat_id=chat_id,
             system=system,
@@ -211,6 +233,8 @@ class LLM:
             modus="B",
             reasoning_effort="medium",
             response_format=None,
+            max_tokens=max_tokens,
+            timeout=timeout,
         )
         return self._text_aus(koerper).strip()
 
@@ -232,6 +256,8 @@ class LLM:
         reasoning_effort: str | None = "none",
         modell: str | None = None,
         temperature: float | None = None,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
     ) -> dict:
         """Baut den Request, schickt ihn (mit Wiederholung bei 5xx/Timeout)
         und protokolliert den Aufruf -- im ``finally``, damit auch
@@ -239,10 +265,13 @@ class LLM:
 
         ``modell`` faellt ohne Angabe auf ``e.llm_modell`` zurueck;
         ``temperature`` wird nur gesendet, wenn gesetzt (manche Modelle
-        kennen das Feld nicht und lehnen es sonst ab)."""
+        kennen das Feld nicht und lehnen es sonst ab). ``max_tokens`` faellt
+        ohne Angabe auf MAX_TOKENS zurueck, ``timeout`` auf den des
+        httpx.Client -- beide werden nur von Aufrufen mit aktivem Reasoning
+        heraufgesetzt (siehe ``prosa``)."""
         body: dict = {
             "model": modell or self._e.llm_modell,
-            "max_tokens": MAX_TOKENS,
+            "max_tokens": max_tokens or MAX_TOKENS,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": nutzer},
@@ -278,7 +307,9 @@ class LLM:
         erfolg = 0
         start = time.monotonic()
         try:
-            koerper = self._sende_mit_wiederholung(body, chat_id=chat_id, art=art)
+            koerper = self._sende_mit_wiederholung(
+                body, chat_id=chat_id, art=art, timeout=timeout
+            )
             try:
                 auswahl = koerper["choices"][0]
             except (KeyError, IndexError, TypeError) as fehler:
@@ -324,7 +355,9 @@ class LLM:
                 erfolg,
             )
 
-    def _sende_mit_wiederholung(self, body: dict, *, chat_id: int | None, art: str) -> dict:
+    def _sende_mit_wiederholung(
+        self, body: dict, *, chat_id: int | None, art: str, timeout: float | None = None
+    ) -> dict:
         """Schickt den Request, wiederholt bei 5xx/Transportfehler mit den
         Wartezeiten aus WARTEZEITEN plus etwas Jitter -- bis zu vier
         Versuche insgesamt. Erfolgreiche Wiederholungen werden der Gruppe
@@ -339,10 +372,14 @@ class LLM:
         einen LLMFehler verpackt werden."""
         letzter_fehler: Exception | None = None
         gesamtversuche = len(WARTEZEITEN) + 1
+        # Ohne eigenen Wert bleibt es beim Timeout des Klienten -- httpx
+        # unterscheidet "nicht gesetzt" nicht an None, deshalb wird das
+        # Argument nur im Ausnahmefall ueberhaupt mitgegeben.
+        zusatz = {} if timeout is None else {"timeout": timeout}
         for versuch in range(gesamtversuche):
             try:
                 antwort = self._klient.post(
-                    self._e.llm_url, headers=self._headers(), json=body
+                    self._e.llm_url, headers=self._headers(), json=body, **zusatz
                 )
                 antwort.raise_for_status()
                 return antwort.json()

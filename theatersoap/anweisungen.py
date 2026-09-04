@@ -1,6 +1,7 @@
 """Prompt-Texte mit Hot-Reload -- Verhalten aendern ohne Neustart.
 
-Die vier Prompts (``system``, ``erkenner``, ``journal``, ``verdichter``)
+Die Prompts (``system``, ``erkenner``, ``journal``, ``verdichter``, ``szene``
+und die Negativliste ``theater-tells``, die ``szene.py`` an ``szene`` haengt)
 liegen als Markdown unter ``theatersoap/prompts/``. Frueher wurden sie
 einmal beim Import gelesen; jede Aenderung brauchte einen Neustart und damit
 einen Eingriff am laufenden Prozess -- genau das, was am Workshoptag schief
@@ -23,7 +24,10 @@ Repository geraet (``betrieb/`` ist gitignored).
 Nur der Gespraechs-Prompt bekommt den Zusatz. Erkenner, Journal und
 Verdichter sind gemessene Extraktionsaufgaben mit Few-Shots; ein freier
 Zusatz wuerde dort die Trefferquote unkontrolliert veraendern. Wer die
-aendern will, aendert ihre Datei -- die wird ebenso heiss nachgeladen.
+aendern will, aendert ihre Datei -- die wird ebenso heiss nachgeladen. Der
+Szenen-Prompt bleibt aus demselben Grund ohne Zusatz und hat sein eigenes
+Ventil dafuer: ``theater-tells.md``, die Negativliste, die im Workshop
+waechst.
 """
 
 import logging
@@ -62,8 +66,9 @@ def _lies(pfad: Path, schluessel: str) -> str | None:
 
 
 def hole(name: str) -> str:
-    """Der Basis-Prompt ``name`` (system|erkenner|journal|verdichter),
-    heiss nachgeladen. Fehlt die Datei, ist das ein Programmierfehler."""
+    """Der Basis-Prompt ``name`` (system|erkenner|journal|verdichter|szene|
+    theater-tells), heiss nachgeladen. Fehlt die Datei, ist das ein
+    Programmierfehler."""
     text = _lies(_VERZEICHNIS / f"{name}.md", name)
     if text is None:
         raise FileNotFoundError(f"Prompt-Datei fehlt: {name}.md")

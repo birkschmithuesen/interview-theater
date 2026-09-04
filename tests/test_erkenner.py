@@ -9,7 +9,7 @@ aufzeichnet. Kein Netzzugriff.
 
 import pytest
 
-from theatersoap import erkenner, repo
+from theatersoap import erkenner, phasen, repo
 
 
 class LLMAttrappe:
@@ -631,3 +631,193 @@ def test_ohne_erkannten_auftrag_laeuft_keine_szene(conn, einst, monkeypatch):
     erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
 
     assert repo.hole_gruppe(conn, 1)["letzte_extrahierte_message_id"] == 1
+
+
+# ---------------------------------------------------------------------------
+# phase_setzen (Brief A2/A3): die Gruppe sagt, woran sie arbeitet
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("wert, erwartet", [("5", 5), ("Figuren", 5), ("interview", 2)])
+def test_phase_setzen_mappt_nummer_namen_und_teilstring(conn, einst, wert, erwartet):
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": wert}])
+
+    assert repo.hole_phase(conn, 1) == erwartet
+    assert wirkliche == [{"art": "phase_setzen", "wert": str(erwartet)}]
+
+
+def test_phase_setzen_mit_unbekanntem_wert_aendert_nichts(conn, einst):
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "phase_setzen", "wert": "Kaffeepause"}]
+    )
+
+    assert wirkliche == []
+    assert repo.hole_phase(conn, 1) is None
+
+
+def test_phase_setzen_auf_denselben_wert_meldet_nicht(conn, einst):
+    erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": "5"}])
+
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": "5"}])
+
+    assert wirkliche == []
+    assert erkenner.baue_meldung(wirkliche) is None
+
+
+def test_phase_setzen_meldet_die_neue_phase(conn, einst):
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": "5"}])
+
+    meldung = erkenner.baue_meldung(wirkliche)
+
+    assert "Wir sind jetzt bei 5 · Figuren entwickeln." in meldung
+    assert meldung.endswith("Falls das nicht stimmt, sagt es mir.")
+
+
+def test_ruecksprung_ueber_den_erkenner(conn, einst):
+    """Der Widerspruch gegen einen automatischen Sprung: 'nee, wir sind noch
+    beim Kernthema' -- der Erkenner greift ihn als phase_setzen auf."""
+    phasen.setze(conn, 1, 4, "erkenner")
+
+    erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": "Kernthema"}])
+
+    assert repo.hole_phase(conn, 1) == 3
+
+
+def test_automatischer_sprung_meldet_in_derselben_zeile(conn, einst):
+    """Der Kernfall aus Brief A3: der Lauf schreibt das Kernthema, das macht
+    Phase 4 moeglich, der Code schaltet um -- und beides steht in EINER
+    Meldung."""
+    phasen.setze(conn, 1, 3, "befehl")
+    _nachricht(conn, 1, 1, "also, unser Kernthema ist Ankommen")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "kernthema_setzen", "wert": "Ankommen"},
+    ]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert repo.hole_phase(conn, 1) == 4
+    text = tg.gesendet[0][1]
+    assert "Kernthema: Ankommen" in text
+    assert "Wir sind damit bei 4 · Hauptkonflikt." in text
+    assert len(tg.gesendet) == 1, "eine Meldung je Lauf"
+
+
+def test_kein_automatischer_sprung_ohne_belegende_aenderung(conn, einst):
+    phasen.setze(conn, 1, 3, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    _nachricht(conn, 1, 1, "wir treffen uns morgen um zehn")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "entschieden", "wert": "Treffen um zehn"},
+    ]})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    assert repo.hole_phase(conn, 1) == 3
+
+
+# ---------------------------------------------------------------------------
+# entfernen (NACHTRAG N3): weiches Loeschen
+# ---------------------------------------------------------------------------
+
+
+def test_entfernen_nimmt_eine_figur_weg_und_meldet_es(conn, einst):
+    repo.setze_figur(conn, 1, "Peter", "Nachbar")
+    repo.setze_figur(conn, 1, "Maria", "Naeherin")
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "entfernen", "wert": "Figur Peter"}]
+    )
+
+    assert [f["name"] for f in repo.figuren(conn, 1)] == ["Maria"]
+    assert wirkliche == [{"art": "entfernen", "wert": "Figur Peter"}]
+    assert "Entfernt: Figur Peter" in erkenner.baue_meldung(wirkliche)
+
+
+def test_entfernen_leert_kernthema_samt_begruendung(conn, einst):
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    repo.setze_arbeitsstand(conn, 1, "kernthema_begruendung", "dreimal genannt")
+
+    erkenner.wende_an(conn, einst, 1, [{"art": "entfernen", "wert": "Kernthema"}])
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["kernthema"] is None
+    assert stand["kernthema_begruendung"] is None
+
+
+@pytest.mark.parametrize(
+    "feld, wert", [("hauptkonflikt", "Hauptkonflikt"), ("begriffe", "Begriffe")]
+)
+def test_entfernen_leert_die_uebrigen_arbeitsstandfelder(conn, einst, feld, wert):
+    repo.setze_arbeitsstand(conn, 1, feld, "irgendwas")
+
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "entfernen", "wert": wert}])
+
+    assert repo.hole_arbeitsstand(conn, 1)[feld] is None
+    assert wirkliche == [{"art": "entfernen", "wert": wert}]
+
+
+def test_entfernen_nimmt_eine_szene_nach_nummer_weg(conn, einst):
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: Da.")
+    repo.lege_szene_an(conn, 1, 2, "Abschied", "Peter geht", "PETER: Weg.")
+
+    erkenner.wende_an(conn, einst, 1, [{"art": "entfernen", "wert": "Szene 2"}])
+
+    assert [s["nummer"] for s in repo.hole_szenen(conn, 1)] == [1]
+
+
+def test_entfernen_eines_journaleintrags_haelt_den_weg_sichtbar(conn, einst):
+    """Das Journal bleibt nur-anhaengend: der alte Eintrag wird gestempelt,
+    ein neuer sagt, dass er zurueckgenommen wurde."""
+    repo.schreibe_journal(
+        conn, 1, "verworfen", "Kindheitsfragen als Einstieg - zu privat", "erkenner"
+    )
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "entfernen", "wert": "Journal: Kindheitsfragen"}]
+    )
+
+    texte = [e["text"] for e in repo.journal(conn, 1)]
+    assert texte == ["Zurueckgenommen: Kindheitsfragen als Einstieg - zu privat"]
+    assert wirkliche[0]["wert"].startswith("Journal: Kindheitsfragen")
+
+
+@pytest.mark.parametrize(
+    "wert",
+    ["Aufnahme von Meryem", "Transkript 2", "Verdichtung von Maria", "Interview 3", ""],
+)
+def test_material_ist_nicht_entfernbar(conn, einst, wert):
+    """NACHTRAG N3: Aufnahmen, Transkripte und Verdichtungen haben keinen
+    Schreibpfad hierher -- auch dann nicht, wenn der Erkenner es entgegen
+    seiner Anweisung doch einmal liefert."""
+    repo.merke_nachricht(conn, 1, 10, "Ada", 0, "text", "hallo", repo._jetzt())
+    aufnahme_id = repo.lege_aufnahme_an(conn, 1, 10, "lang", "sprache", "/tmp/a.ogg", 60)
+    repo.speichere_verdichtung(conn, 1, aufnahme_id, "Maria erzaehlt", [])
+
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "entfernen", "wert": wert}])
+
+    assert wirkliche == []
+    assert len(repo.transkripte(conn, 1)) == 1
+    assert len(repo.verdichtungen(conn, 1)) == 1
+    assert repo.journal(conn, 1) == []
+
+
+def test_entfernen_ohne_treffer_ist_kein_fehler_und_keine_meldung(conn, einst):
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "entfernen", "wert": "Figur Gibtsnicht"}]
+    )
+
+    assert wirkliche == []
+    assert repo.journal(conn, 1) == []
+    assert erkenner.baue_meldung(wirkliche) is None
+
+
+def test_entfernen_schreibt_eine_journalzeile(conn, einst):
+    repo.setze_figur(conn, 1, "Peter", "Nachbar")
+
+    erkenner.wende_an(conn, einst, 1, [{"art": "entfernen", "wert": "Figur Peter"}])
+
+    eintrag = repo.journal(conn, 1)[-1]
+    assert eintrag["art"] == "entschieden"
+    assert eintrag["text"] == "Entfernt: Figur Peter"
+    assert eintrag["quelle"] == "erkenner"

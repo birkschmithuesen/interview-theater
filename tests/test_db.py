@@ -1,5 +1,5 @@
 import pytest
-from theatersoap import db
+from theatersoap import db, repo
 
 
 @pytest.fixture
@@ -119,6 +119,92 @@ def test_migration_ergaenzt_web_token_ohne_datenverlust(tmp_path):
     zeile = c.execute("SELECT * FROM gruppe WHERE chat_id = 7").fetchone()
     assert zeile["titel"] == "Gruppe Sieben", "Migration darf keine Daten verlieren"
     assert zeile["web_token"] is None, "nachgeruestet, aber noch nicht gefuellt"
+
+
+#: Arbeitsstand, Figur, Szene und Journal, wie sie vor dem 04.09.2026
+#: aussahen -- ohne phase/phase_angeboten und ohne entfernt_am. Wieder hart
+#: hinterlegt, aus demselben Grund wie _ALTE_GRUPPE_TABELLE oben.
+_ALTE_TABELLEN = """
+CREATE TABLE arbeitsstand (
+  chat_id                INTEGER PRIMARY KEY,
+  begriffe               TEXT,
+  kernthema              TEXT,
+  kernthema_begruendung  TEXT,
+  hauptkonflikt          TEXT,
+  geaendert_am           TEXT
+);
+CREATE TABLE figur (
+  id            INTEGER PRIMARY KEY,
+  chat_id       INTEGER NOT NULL,
+  name          TEXT NOT NULL,
+  beschreibung  TEXT,
+  beleg_zitat   TEXT,
+  geaendert_am  TEXT
+);
+CREATE TABLE szene (
+  id                INTEGER PRIMARY KEY,
+  chat_id           INTEGER NOT NULL,
+  nummer            INTEGER,
+  titel             TEXT,
+  kurzbeschreibung  TEXT,
+  volltext          TEXT,
+  geaendert_am      TEXT NOT NULL
+);
+CREATE TABLE journal (
+  id                INTEGER PRIMARY KEY,
+  chat_id           INTEGER NOT NULL,
+  art               TEXT NOT NULL,
+  text              TEXT NOT NULL,
+  quelle            TEXT NOT NULL,
+  bis_message_id    INTEGER,
+  erstellt_am       TEXT NOT NULL
+);
+"""
+
+
+def test_migration_ergaenzt_phase_und_entfernt_am_ohne_datenverlust(tmp_path):
+    """Phasen (Brief A1) und weiches Loeschen (N3): eine Datenbank vom ersten
+    Workshoptag kennt weder ``arbeitsstand.phase`` noch ``entfernt_am``. Ihre
+    Figuren, Szenen und Journalzeilen muessen den Nachruestlauf ueberstehen --
+    und danach als 'nicht entfernt' gelten, nicht als verschwunden."""
+    c = db.verbinde(str(tmp_path / "alt.db"))
+    c.executescript(_ALTE_TABELLEN)
+    c.execute(
+        "INSERT INTO arbeitsstand (chat_id, kernthema) VALUES (1, 'Ankommen')"
+    )
+    c.execute("INSERT INTO figur (chat_id, name, beschreibung) VALUES (1, 'Maria', 'Naeherin')")
+    c.execute(
+        "INSERT INTO szene (chat_id, nummer, titel, volltext, geaendert_am) "
+        "VALUES (1, 1, 'Am Bahnhof', 'MARIA: Hier.', '2026-09-04T10:00:00+00:00')"
+    )
+    c.execute(
+        "INSERT INTO journal (chat_id, art, text, quelle, erstellt_am) "
+        "VALUES (1, 'entschieden', 'Kernthema ist Ankommen', 'erkenner', "
+        "'2026-09-04T10:00:00+00:00')"
+    )
+    c.commit()
+    for tabelle, spalte in (
+        ("arbeitsstand", "phase"), ("figur", "entfernt_am"),
+        ("szene", "entfernt_am"), ("journal", "entfernt_am"),
+    ):
+        vorhanden = [r[1] for r in c.execute(f"PRAGMA table_info({tabelle})")]
+        assert spalte not in vorhanden, f"Testannahme: {tabelle}.{spalte} fehlt wirklich"
+
+    db.initialisiere(c)
+
+    stand = c.execute("SELECT * FROM arbeitsstand WHERE chat_id = 1").fetchone()
+    assert stand["kernthema"] == "Ankommen", "Migration darf keine Daten verlieren"
+    assert stand["phase"] is None and stand["phase_angeboten"] is None
+
+    for tabelle in ("figur", "szene", "journal"):
+        zeile = c.execute(f"SELECT * FROM {tabelle} WHERE chat_id = 1").fetchone()
+        assert zeile["entfernt_am"] is None, tabelle
+
+    # Und die alten Zeilen sind ueber repo weiterhin sichtbar -- das Filtern
+    # nach 'entfernt_am IS NULL' darf sie nicht verschlucken.
+    assert [f["name"] for f in repo.figuren(c, 1)] == ["Maria"]
+    assert len(repo.hole_szenen(c, 1)) == 1
+    assert len(repo.journal(c, 1)) == 1
 
 
 def test_migration_ist_ein_no_op_wenn_alle_spalten_schon_da_sind(conn):

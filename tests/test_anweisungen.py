@@ -101,3 +101,44 @@ def test_ohne_ts_db_kein_zusatz(monkeypatch):
 def test_module_nutzen_die_heisse_fassung(betrieb):
     assert kontext.system(None) == anweisungen.hole("system")
     assert erkenner.prompt() == anweisungen.hole("erkenner")
+
+
+# ---------------------------------------------------------------------------
+# Phasenanweisung (Brief A4): Basis -> Phase -> Zusatz
+# ---------------------------------------------------------------------------
+
+
+def test_phasenprompts_liegen_als_unterpfad(betrieb):
+    for nummer in range(1, 9):
+        text = anweisungen.hole(f"phasen/{nummer}")
+        assert len(text.splitlines()) >= 8, nummer
+
+
+def test_phase_wird_zwischen_basis_und_zusatz_gehaengt(betrieb):
+    (betrieb / "zusatz.md").write_text("Heute nur Figuren.", encoding="utf-8")
+
+    text = anweisungen.system("bot1", phase=3)
+
+    assert text.startswith(anweisungen.hole("system"))
+    assert anweisungen.hole("phasen/3").strip() in text
+    assert text.index(anweisungen.hole("phasen/3").strip()) < text.index("Heute nur Figuren.")
+
+
+def test_ohne_phase_bleibt_es_bei_der_basis(betrieb):
+    assert anweisungen.system("bot1") == anweisungen.hole("system")
+
+
+def test_fehlende_phasendatei_faellt_auf_die_basis_zurueck(betrieb, monkeypatch):
+    """Loescht jemand am Workshoptag eine Phasendatei, verliert der Bot
+    seinen Fokus -- aber die Gruppe bekommt trotzdem eine Antwort."""
+    monkeypatch.setattr(anweisungen, "_VERZEICHNIS", betrieb / "leer")
+    (betrieb / "leer").mkdir()
+    (betrieb / "leer" / "system.md").write_text("Basis.", encoding="utf-8")
+    anweisungen._CACHE.clear()
+
+    assert anweisungen.system("bot1", phase=4) == "Basis."
+
+
+def test_prompt_name_darf_nicht_aus_dem_verzeichnis_zeigen(betrieb):
+    with pytest.raises(ValueError):
+        anweisungen.hole("../../geheim")

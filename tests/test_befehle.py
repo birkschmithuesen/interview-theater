@@ -1,7 +1,8 @@
-"""Tests fuer die sieben Slash-Befehle (teil-b.md Aufgabe 6, plus /szene).
+"""Tests fuer die neun Slash-Befehle (teil-b.md Aufgabe 6, plus /szene,
+/phase und /figur).
 
 Kein Netzzugriff: Telegram wird durch eine Attrappe ersetzt, die nur
-aufzeichnet, was gesendet wurde. Sechs der sieben Befehle werden hier ohne
+aufzeichnet, was gesendet wurde. Acht der neun Befehle werden hier ohne
 jedes LLM-Objekt aufgerufen -- "/stand ruft kein Modell" bleibt damit an den
 Tests ablesbar, auch seit behandle() ein optionales ``klm`` fuer /szene
 entgegennimmt.
@@ -9,7 +10,7 @@ entgegennimmt.
 
 import pytest
 
-from theatersoap import befehle, repo
+from theatersoap import befehle, phasen, repo
 
 
 class TelegramAttrappe:
@@ -228,3 +229,142 @@ def test_szene_ohne_sprachmodell_krachte_nicht(conn, einst, tg):
 
     assert behandelt is True
     assert len(tg.gesendet) == 1
+
+
+# ---------------------------------------------------------------------------
+# /phase -- der Notausgang fuer die Arbeitsphase (Brief A2)
+# ---------------------------------------------------------------------------
+
+
+def test_phase_ohne_argument_zeigt_phase_und_liste(conn, einst, tg):
+    phasen.setze(conn, 1, 5, "befehl")
+
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/phase", "Ada")
+
+    assert behandelt is True
+    text = tg.gesendet[0][1]
+    assert "Wir sind bei 5 · Figuren entwickeln." in text
+    for nummer, name, _ in phasen.PHASEN:
+        assert f"{nummer} · {name}" in text
+
+
+def test_phase_ohne_gesetzte_phase_zeigt_die_erste(conn, einst, tg):
+    befehle.behandle(conn, tg, einst, 1, "/phase", "Ada")
+
+    assert "Wir sind bei 1 · Ankommen." in tg.gesendet[0][1]
+
+
+def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/phase 5", "Ada")
+
+    assert behandelt is True
+    assert repo.hole_phase(conn, 1) == 5
+    assert tg.gesendet == [
+        (1, "Wir sind jetzt bei 5 · Figuren entwickeln. Falls nicht, sagt es mir.")
+    ]
+
+
+def test_phase_mit_namen_schaltet_auch_zurueck(conn, einst, tg):
+    phasen.setze(conn, 1, 8, "befehl")
+
+    befehle.behandle(conn, tg, einst, 1, "/phase Figuren", "Ada")
+
+    assert repo.hole_phase(conn, 1) == 5
+
+
+def test_phase_journalisiert_nur_die_echte_aenderung(conn, einst, tg):
+    befehle.behandle(conn, tg, einst, 1, "/phase 5", "Ada")
+    befehle.behandle(conn, tg, einst, 1, "/phase 5", "Ada")
+
+    eintraege = repo.journal(conn, 1)
+    assert len(eintraege) == 1
+    assert eintraege[0]["quelle"] == "befehl"
+    assert len(tg.gesendet) == 2, "auf einen getippten Befehl wird immer geantwortet"
+
+
+def test_phase_mit_unsinn_aendert_nichts_und_zeigt_die_liste(conn, einst, tg):
+    befehle.behandle(conn, tg, einst, 1, "/phase Kaffeepause", "Ada")
+
+    assert repo.hole_phase(conn, 1) is None
+    assert befehle._TEXT_PHASE_UNBEKANNT in tg.gesendet[0][1]
+
+
+def test_stand_zeigt_die_phase_zuerst(conn, einst, tg):
+    phasen.setze(conn, 1, 5, "befehl")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    zeilen = tg.gesendet[0][1].splitlines()
+    assert zeilen[0] == "Stand:"
+    assert zeilen[1] == "Phase: 5 · Figuren entwickeln"
+
+
+# ---------------------------------------------------------------------------
+# Weiches Loeschen ueber Befehle (NACHTRAG N3, Brief B3)
+# ---------------------------------------------------------------------------
+
+
+def test_figur_entfernen_nimmt_die_figur_weg(conn, einst, tg):
+    repo.setze_figur(conn, 1, "Peter", "Nachbar")
+
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/figur Peter entfernen", "Ada")
+
+    assert behandelt is True
+    assert repo.figuren(conn, 1) == []
+    assert tg.gesendet[0][1].startswith("Entfernt: Figur Peter.")
+    assert repo.journal(conn, 1)[-1]["quelle"] == "befehl"
+
+
+def test_figur_entfernen_mit_unbekanntem_namen_sagt_es(conn, einst, tg):
+    befehle.behandle(conn, tg, einst, 1, "/figur Gibtsnicht entfernen", "Ada")
+
+    assert "kenne ich nicht" in tg.gesendet[0][1]
+    assert repo.journal(conn, 1) == []
+
+
+def test_figur_ohne_entfernen_erklaert_den_befehl(conn, einst, tg):
+    """``/figur`` legt bewusst nichts an -- das macht der Erkenner im
+    Gespraech."""
+    befehle.behandle(conn, tg, einst, 1, "/figur Peter: Nachbar", "Ada")
+
+    assert tg.gesendet == [(1, befehle._TEXT_FIGUR_HILFE)]
+    assert repo.figuren(conn, 1) == []
+
+
+def test_szene_entfernen_nimmt_die_szene_weg(conn, einst, tg):
+    repo.lege_szene_an(conn, 1, 2, "Abschied", "Peter geht", "PETER: Weg.")
+
+    befehle.behandle(conn, tg, einst, 1, "/szene 2 entfernen", "Ada")
+
+    assert repo.hole_szenen(conn, 1) == []
+    assert tg.gesendet[0][1].startswith("Entfernt: Szene 2.")
+
+
+def test_szene_schreibauftrag_bleibt_ein_schreibauftrag(conn, einst, tg, monkeypatch):
+    """Die Abgrenzung ist eng: nur 'Nummer + Entfernungswort' loescht, alles
+    andere geht an szene.starte."""
+    from theatersoap import szene
+
+    gesehen = []
+    monkeypatch.setattr(szene, "starte", lambda *a: gesehen.append(a[5]))
+    repo.lege_szene_an(conn, 1, 2, "Abschied", "Peter geht", "PETER: Weg.")
+
+    befehle.behandle(conn, tg, einst, 1, "/szene 2 nochmal kuerzer", "Ada", klm=object())
+
+    assert gesehen == ["2 nochmal kuerzer"]
+    assert len(repo.hole_szenen(conn, 1)) == 1
+
+
+def test_kernthema_aus_leert_das_kernthema(conn, einst, tg):
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+
+    befehle.behandle(conn, tg, einst, 1, "/kernthema aus", "Ada")
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] is None
+    assert tg.gesendet[0][1].startswith("Entfernt: Kernthema.")
+
+
+def test_kernthema_aus_ohne_kernthema_sagt_es(conn, einst, tg):
+    befehle.behandle(conn, tg, einst, 1, "/kernthema aus", "Ada")
+
+    assert tg.gesendet == [(1, "Ein Kernthema war nicht gesetzt.")]

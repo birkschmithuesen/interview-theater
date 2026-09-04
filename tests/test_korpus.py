@@ -23,9 +23,17 @@ KORPUS = Path(__file__).resolve().parent.parent / "korpus"
 
 #: Mindestbesetzung, wie im Auftrag festgelegt. Als Konstanten hier, damit ein
 #: Unterschreiten im Testnamen sichtbar wird und nicht in einer Zahl im Code.
-MIN_ERKENNER = 40
+MIN_ERKENNER = 60
 MIN_ERKENNER_JE_ART = 2
-MIN_ERKENNER_NEGATIV = 15
+MIN_ERKENNER_NEGATIV = 25
+
+#: Zwei Arten sind teurer als der Rest und deshalb eigens abgesichert:
+#: ``phase_setzen`` verschiebt den Fokus des ganzen Gespraechs (und muss
+#: Rueckspruenge genauso treffen wie Schritte nach vorn), ``entfernen`` nimmt
+#: Arbeitsergebnisse weg. Beide sind am 04.09.2026 dazugekommen und noch
+#: nirgends gegen das echte Modell gemessen -- umso wichtiger, dass der
+#: Korpus sie tragfaehig belegt (Brief A6, B4).
+MIN_JE_NEUER_ART = 6
 MIN_JOURNAL = 20
 MIN_JOURNAL_LEER = 8
 MIN_VERDICHTER = 6
@@ -118,6 +126,35 @@ def test_erkenner_jede_art_mindestens_zweimal(erkenner_faelle):
             gezaehlt[aenderung["art"]] += 1
     zu_duenn = {a: n for a, n in gezaehlt.items() if n < MIN_ERKENNER_JE_ART}
     assert not zu_duenn, f"zu selten belegte Arten: {zu_duenn}"
+
+
+@pytest.mark.parametrize("art", ["phase_setzen", "entfernen"])
+def test_erkenner_traegt_die_neuen_arten_dicht_genug(erkenner_faelle, art):
+    """Brief A6/B4: sechs Faelle je neuer art. Die Mindestbesetzung von zwei
+    (oben) reicht dafuer nicht -- beide Arten sind noch nirgends gegen das
+    echte Modell gemessen, und beide koennen etwas kaputtmachen, das die
+    Gruppe erarbeitet hat."""
+    gezaehlt = sum(
+        1 for f in erkenner_faelle for a in f["erwartet"] if a["art"] == art
+    )
+    assert gezaehlt >= MIN_JE_NEUER_ART, f"{art}: nur {gezaehlt} Faelle"
+
+
+def test_erkenner_hat_den_material_fall(erkenner_faelle):
+    """Material ist nie entfernbar (NACHTRAG N3). Der Fall, der das belegt,
+    ist ein Negativfall mitten unter den Entfernungen -- er darf nicht
+    verschwinden, wenn jemand den Korpus aufraeumt."""
+    faelle = [
+        f for f in erkenner_faelle
+        if not f["erwartet"]
+        and any(
+            wort in n["text"].lower()
+            for n in f["nachrichten"]
+            for wort in ("lösch", "loesch")
+        )
+        and any("interview" in n["text"].lower() for n in f["nachrichten"])
+    ]
+    assert faelle, "der Fall 'Interview loeschen -> gar nichts' fehlt"
 
 
 def test_erkenner_genug_negativfaelle(erkenner_faelle):

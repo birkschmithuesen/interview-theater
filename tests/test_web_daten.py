@@ -230,3 +230,55 @@ def test_gruppe_ohne_web_token_spalte_liefert_none(tmp_path):
     conn.execute("CREATE TABLE gruppe (chat_id INTEGER PRIMARY KEY, bot_name TEXT)")
     conn.execute("INSERT INTO gruppe VALUES (1, 'bot')")
     assert web_daten.gruppe_nach_token(conn, "irgendein-token") is None
+
+
+# ---------------------------------------------------------------------------
+# Phase und weiches Loeschen (Brief A5, NACHTRAG N3)
+# ---------------------------------------------------------------------------
+
+
+def test_phase_steht_im_arbeitsstand_beider_ansichten(gefuellt):
+    repo.setze_phase(gefuellt, 1, 5)
+
+    dashboard = web_daten.dashboard(gefuellt, JETZT)
+    gruppe = web_daten.gruppe_nach_token(
+        gefuellt, repo.hole_gruppe(gefuellt, 1)["web_token"]
+    )
+
+    erste = next(g for g in dashboard["gruppen"] if g["chat_id"] == 1)
+    assert erste["arbeitsstand"]["phase"] == 5
+    assert gruppe["arbeitsstand"]["phase"] == 5
+
+
+def test_ohne_gesetzte_phase_steht_none_im_dict(gefuellt):
+    """Roh wie in der Datenbank -- dass NULL wie 1 gilt, ist eine
+    Anzeigeregel und steht in web.py."""
+    dashboard = web_daten.dashboard(gefuellt, JETZT)
+
+    erste = next(g for g in dashboard["gruppen"] if g["chat_id"] == 1)
+    assert erste["arbeitsstand"]["phase"] is None
+
+
+def test_entfernte_figuren_szenen_und_journalzeilen_fehlen_in_der_ansicht(gefuellt):
+    repo.setze_figur(gefuellt, 1, "Peter", "Nachbar")
+    repo.schreibe_journal(gefuellt, 1, "verworfen", "Kindheitsfragen", "erkenner")
+    token = repo.hole_gruppe(gefuellt, 1)["web_token"]
+
+    repo.entferne_figur(gefuellt, 1, "Peter")
+    repo.entferne_szene(gefuellt, 1, 1)
+    repo.entferne_journal(gefuellt, 1, "Kindheitsfragen")
+
+    gruppe = web_daten.gruppe_nach_token(gefuellt, token)
+
+    assert [f["name"] for f in gruppe["figuren"]] == ["Maria"]
+    assert gruppe["szenen"] == []
+    assert [e["text"] for e in gruppe["journal"]] == ["Kernthema ist Ankommen"]
+
+
+def test_dashboard_zaehlt_entfernte_szenen_nicht_mit(gefuellt):
+    repo.entferne_szene(gefuellt, 1, 1)
+
+    dashboard = web_daten.dashboard(gefuellt, JETZT)
+
+    erste = next(g for g in dashboard["gruppen"] if g["chat_id"] == 1)
+    assert erste["szenen"] == 0

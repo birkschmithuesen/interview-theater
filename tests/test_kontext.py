@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from theatersoap import db, einstellungen, kontext, repo
+from theatersoap import db, einstellungen, kontext, phasen, repo
 
 
 @pytest.fixture
@@ -288,3 +288,82 @@ def test_ueberarbeiten_holt_eine_aeltere_szene_zurueck_in_den_prompt(conn, einst
 
     assert "MARIA: NEU." in prompt
     assert "ZWEITE-SZENE" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# Phase (Brief A4/A3): Phasenblock, Angebot, weiches Loeschen
+# ---------------------------------------------------------------------------
+
+
+def test_gesetzte_phase_steht_am_anfang_des_arbeitsstands(conn, einst):
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    phasen.setze(conn, 1, 5, "befehl")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    arbeitsstand = prompt.split("Arbeitsstand:\n", 1)[1]
+    assert arbeitsstand.startswith("Aktuelle Phase: 5 · Figuren entwickeln")
+
+
+def test_ohne_gesetzte_phase_kein_phasenblock(conn, einst):
+    """Datengetrieben wie jeder andere Block: ein NULL-Feld ist kein Wissen,
+    ueber das der Prompt berichten muesste."""
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    assert "Aktuelle Phase" not in kontext.baue(conn, 1, ausloeser, einst)
+
+
+def test_hinweisblock_bietet_die_moegliche_phase_an_genau_einmal(conn, einst):
+    """Der Bot soll den Wechsel EINMAL anbieten, nicht in jedem Zug erneut --
+    sonst wird aus einem Angebot Draengeln (arbeitsstand.phase_angeboten)."""
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    erster = kontext.baue(conn, 1, ausloeser, einst)
+    zweiter = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Materiallage erlaubt Phase 4 · Hauptkonflikt" in erster
+    assert "Materiallage erlaubt" not in zweiter
+    assert repo.hole_phase_angeboten(conn, 1) == 4
+
+
+def test_neue_stufe_wird_erneut_angeboten(conn, einst):
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+    kontext.baue(conn, 1, ausloeser, einst)  # bietet 4 an
+
+    repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "bleiben gegen gehen")
+
+    assert "Materiallage erlaubt Phase 5" in kontext.baue(conn, 1, ausloeser, einst)
+
+
+def test_ohne_naechste_phase_kein_hinweisblock(conn, einst):
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Womit fangen wir an?", _iso(0))]
+
+    assert "Materiallage erlaubt" not in kontext.baue(conn, 1, ausloeser, einst)
+
+
+def test_entfernte_figuren_szenen_und_journalzeilen_fehlen_im_prompt(conn, einst):
+    """Weiches Loeschen (N3) wirkt ueberall dort, wo repo liest -- der Prompt
+    ist der wichtigste dieser Orte: was die Gruppe zurueckgenommen hat, darf
+    der Bot nicht weiter im Mund fuehren."""
+    repo.setze_figur(conn, 1, "Peter", "Nachbar")
+    repo.setze_figur(conn, 1, "Maria", "Naeherin")
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: HIERBLEIBEN.")
+    repo.lege_szene_an(conn, 1, 2, "Abschied", "Peter geht", "PETER: WEGDAMIT.")
+    repo.schreibe_journal(conn, 1, "verworfen", "Kindheitsfragen als Einstieg", "erkenner")
+    repo.schreibe_journal(conn, 1, "entschieden", "Wir spielen im Hof", "erkenner")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    repo.entferne_figur(conn, 1, "Peter")
+    repo.entferne_szene(conn, 1, 2)
+    repo.entferne_journal(conn, 1, "Kindheitsfragen")
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Maria" in prompt and "Peter" not in prompt
+    assert "Ankunft" in prompt and "Abschied" not in prompt
+    assert "Wir spielen im Hof" in prompt and "Kindheitsfragen" not in prompt
+    assert "WEGDAMIT" not in prompt

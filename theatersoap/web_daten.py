@@ -101,11 +101,19 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
     }
 
 
+#: Weiches Loeschen (NACHTRAG N3): entfernte Zeilen bleiben in der Datenbank
+#: stehen, aber aus jeder Ansicht draussen -- die Weboberflaeche zeigt, was
+#: gilt, nicht die Historie. Als Konstante, damit die vier Abfragen unten
+#: nicht auseinanderlaufen.
+_NICHT_ENTFERNT = "entfernt_am IS NULL"
+
+
 def _figuren(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     return [
         {"name": z["name"], "beschreibung": z["beschreibung"]}
         for z in conn.execute(
-            "SELECT name, beschreibung FROM figur WHERE chat_id = ? ORDER BY id ASC",
+            "SELECT name, beschreibung FROM figur "
+            f"WHERE chat_id = ? AND {_NICHT_ENTFERNT} ORDER BY id ASC",
             (chat_id,),
         )
     ]
@@ -268,7 +276,8 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
                     "SELECT count(*) FROM verdichtung WHERE chat_id = ?", (chat_id,)
                 ).fetchone()[0],
                 "szenen": conn.execute(
-                    "SELECT count(*) FROM szene WHERE chat_id = ?", (chat_id,)
+                    f"SELECT count(*) FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT}",
+                    (chat_id,),
                 ).fetchone()[0],
                 "letzte_aktivitaet": _letzte_aktivitaet(conn, chat_id),
                 "vorfaelle": _vorfaelle(conn, chat_id, z["bot_name"], jetzt),
@@ -299,7 +308,7 @@ def _szenen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
             "geaendert_am": z["geaendert_am"],
         }
         for z in conn.execute(
-            "SELECT * FROM szene WHERE chat_id = ? "
+            f"SELECT * FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
             "ORDER BY nummer IS NULL, nummer ASC, id ASC",
             (chat_id,),
         )
@@ -353,7 +362,7 @@ def _journal(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
          "erstellt_am": z["erstellt_am"]}
         for z in conn.execute(
             "SELECT art, text, quelle, erstellt_am FROM journal "
-            "WHERE chat_id = ? ORDER BY id ASC",
+            f"WHERE chat_id = ? AND {_NICHT_ENTFERNT} ORDER BY id ASC",
             (chat_id,),
         )
     ]

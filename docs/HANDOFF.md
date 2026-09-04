@@ -3,7 +3,7 @@
 Für jemanden — Mensch oder Agent —, der diese Arbeit beurteilen soll, ohne bei ihrer
 Entstehung dabei gewesen zu sein.
 
-**Stand:** 04.09.2026 · 336 Tests grün · 16 Module, 4.461 Zeilen · 47 Commits
+**Stand:** 04.09.2026 · 337 Tests grün · 16 Module, 4.461 Zeilen · 47 Commits
 **Erster Einsatz:** Workshop Dortmund, 05.+06.09.2026, 13:00
 
 Verwandte Dokumente: `README.md` (für Theaterleute) · `AGENTS.md` (für Entwicklung) ·

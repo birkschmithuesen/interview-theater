@@ -357,86 +357,120 @@ zusätzlich die Prüfung nach § 5.**
 
 Das Ergebnis wird **nie aktualisiert.**
 
-### 4.3 Extraktor
+### 4.3 Absichtserkenner
 
-Nachgelagert, nachdem die Bot-Antwort bereits in der Gruppe steht. **Niemand wartet darauf.**
-Erzwungenes Schema, `reasoning_effort: "none"`.
+Nachgelagert, nachdem die Bot-Antwort in der Gruppe steht. **Niemand wartet darauf.**
+Modell **`google/gemma-4-31B-it`**, erzwungenes Schema, `reasoning_effort: "none"`,
+`temperature: 0.2`.
 
-Er schreibt **zwei** Dinge: Journaleinträge (Schicht 2b) und den **Arbeitsstand** (Schicht 2).
+**Er schließt die Lücke, die Teil A offen ließ:** `kontext.py` liest `arbeitsstand`,
+`figur` und `journal` in den Prompt, aber vor Teil B schrieb sie niemand. Das Gedächtnis
+bestand aus Verdichtungen plus Verlaufsfenster; alles andere war eine leere Hülle, die
+korrekt gelesen wurde.
+
+**Kontext:** aktueller Arbeitsstand + die neuen Nachrichten seit dem Wasserzeichen.
+Nicht das ganze Journal, nicht die Transkripte.
+
+**Schema — flach, eine Liste:**
 
 ```json
-{
-  "eintraege": [
-    {"art": "vorgeschlagen|verworfen|entschieden|offen", "text": "eine knappe Zeile"}
-  ],
-  "arbeitsstand": {
-    "begriffe": "oder null",
-    "kernthema": "oder null",
-    "kernthema_begruendung": "oder null",
-    "hauptkonflikt": "oder null",
-    "figuren": [{"name": "...", "beschreibung": "..."}]
-  }
-}
+{"aenderungen": [{"art": "<enum>", "wert": "..."}]}
 ```
 
-**Warum der Extraktor den Arbeitsstand schreibt und nicht die Gruppe.** Eine frühere Fassung
-sah vor, dass nur Befehle den Arbeitsstand setzen. Das ist aufgehoben. Begriffe eintippen ist
-keine Option — die Gruppe steht im Raum, spielt, spricht, und niemand tippt `/kernthema`
-mitten in einer Probe. Ein Arbeitsstand, der nur durch Zeremonie gefüllt wird, bleibt leer,
-und ein leerer Arbeitsstand macht jeden folgenden Prompt schlechter.
+Kein Objekt mit acht meist leeren Feldern: Strikte Modi kennen keine optionalen Felder,
+das Modell müsste jedes Mal alle ausfüllen — und ein Feld, das befüllt werden *will*, ist
+ein Halluzinationsanreiz. Die leere Liste ist die natürliche Form von „nichts gefunden"
+und lässt sich per Few-Shot zeigen. **Flach** außerdem, weil verschachtelte Schemata bei
+kleineren Modellen brechen (Apertus generiert dort bis zum Budgetende).
 
-**Die neue Regel lautet: Der Extraktor schreibt, der Bot meldet jede Änderung, Befehle
-korrigieren.**
+`art` ∈ `interview_starten` · `interview_beenden` · `interview_benennen` ·
+`begriffe_setzen` · `kernthema_setzen` · `hauptkonflikt_setzen` · `figur_setzen` ·
+`wortlaut_an` · `wortlaut_aus` · `verworfen` · `entschieden`
 
-- **Jede Änderung am Arbeitsstand wird gemeldet**, mit einer kurzen Zeile in die Gruppe:
-  „Notiert: Kernthema = Ankommen. Falls das nicht stimmt, sagt es mir."
-- **Es wird nicht auf Bestätigung gewartet.** Der Ablauf läuft weiter. Die Meldung *ist* die
+`wert` ist immer ein String. Figuren tragen Name und Beschreibung als **ein** String
+(`"Maria: Näherin, kam 1998"`), den der Code am ersten Doppelpunkt trennt — das hält das
+Schema flach.
+
+**Überschreiben ist der Normalfall, Entfernen kommt später.** Ein neues Kernthema ersetzt
+das alte; eine Figur mit bekanntem Namen wird neu beschrieben. Das ist derselbe
+Schreibpfad und kostet nichts extra. Weiches Löschen (`entfernt_am`) ist auf nach dem
+ersten Workshoptag verschoben.
+
+**Journaleinträge fallen hier mit ab.** `verworfen` und `entschieden` schreiben eine
+Journalzeile — kein zusätzlicher Aufruf, keine neue Schemaform, und `kontext.py` liest
+die Tabelle bereits. **`vorgeschlagen` bleibt draußen:** dafür müsste das Modell einen
+Grund erfinden, wovor die Recherche ausdrücklich warnt. Das ist die Aufgabe des
+verdrängungsgetriebenen Journal-Extraktors (§ 4.6).
+
+**Szenen bleiben in Teil B ganz weg.** `kontext.py` liest sie nicht, sie entstehen erst
+in der letzten Workshop-Phase, und etwas zu schreiben, das niemand liest, ist Fläche ohne
+Nutzen.
+
+**Meldung an die Gruppe — eine je Erkennerlauf.** Nicht eine je Änderung. Kernthema und
+Hauptkonflikt bekommen darin je eine eigene Zeile im Wortlaut, Figuren eine
+zusammenfassende Zeile mit Namen:
+
+> Notiert: Kernthema = Ankommen · drei Figuren: Maria, Elif, Peter.
+> Falls das nicht stimmt, sagt es mir.
+
+- **Nicht auf Bestätigung warten.** Der Ablauf läuft weiter; die Meldung *ist* die
   Korrekturgelegenheit, kein Tor.
-- **Nur Arbeitsstand-Änderungen werden gemeldet, Journaleinträge nie.** Sonst wäre der Chat
-  zugespammt und die Meldungen würden überlesen — womit sie ihren Zweck verlören.
-- **Gleicher Wert, keine Meldung.** Setzt der Extraktor ein Feld auf den Wert, der schon
-  drinsteht, passiert nichts. Sonst meldete der Bot bei jedem Zug dasselbe Kernthema.
-- Korrigiert wird mit `/kernthema`, `/konflikt`, `/begriffe`, `/figur` (§ 8).
+- **Gleicher Wert, keine Meldung.** Sonst meldete der Bot bei jedem Zug dasselbe Kernthema.
+- **Journaleinträge bleiben still.** Sonst wäre der Chat zugespammt und die Meldungen
+  würden überlesen — womit sie ihren Zweck verlören.
 
-Weitere Regeln:
+**Fehlschlag:** Wasserzeichen bleibt stehen, das Fenster wird beim nächsten Mal
+mitgelesen — ein kostenloser Wiederholungsversuch ohne eigene Retry-Logik. Der Gruppe
+wird nichts gemeldet, `vorfall` ans Dashboard. **Deckel:** über ~4.000 Token wird das
+Wasserzeichen trotzdem vorgerückt und ein `vorfall` `fenster_verworfen` geschrieben.
 
-- **Auslöser:** nach jeder Bot-Antwort, über alles seit `letzte_extrahierte_message_id`.
-  Zusätzlich als Netz ein Token-Schwellwert (1.500), falls die Gruppe lange untereinander
-  redet, ohne den Bot anzusprechen.
-- **Die leere Liste ist der ausdrückliche Normalfall**, und `null` in jedem Arbeitsstandfeld
-  ebenso. Der Prompt sagt das explizit. Ein Extraktor, der immer etwas liefern *muss*,
-  erfindet Bedeutung in „ich hol mir Kaffee" hinein — beim Arbeitsstand wäre das schlimmer
-  als beim Journal, weil ein falsches Kernthema in jedem folgenden Prompt steht.
-- **Fehlschlag:** Wasserzeichen bleibt stehen, das Fenster wird beim nächsten Mal
-  mitgelesen — ein kostenloser Wiederholungsversuch ohne eigene Retry-Logik. Nichts wird
-  der Gruppe gemeldet, eine Zeile ins Log.
-- **Deckel:** Überschreitet das unbearbeitete Fenster ~4.000 Token, wird das Wasserzeichen
-  trotzdem vorgerückt und das Fenster fallengelassen — plus **`vorfall`-Eintrag
-  `fenster_verworfen`**, damit das Workshop-Team es im Dashboard sieht, ohne im Log zu graben.
+### 4.3a Modellwahl je Aufruf (gemessen 04.09.2026)
 
-### 4.4 Defensives Parsen (alle Schema-Prompts)
+| Aufruf | Modell | Belege |
+|---|---|---|
+| **Gespräch** | `moonshotai/Kimi-K2.6` | 6/6 valide, 5,1 s, 8/8 Belegzitate wörtlich |
+| **Verdichter** | `moonshotai/Kimi-K2.6` | dieselbe Aufgabe: dramaturgisch, mit Zitaten |
+| **Absichtserkenner** | `google/gemma-4-31B-it` | 0 Falsch-Positive bei 25 Negativfällen, 30/30 Treffer, 0,75 s. Kimi verpasste `interview_beenden` 3/3 |
+| **Journal** (§ 4.6) | `google/gemma-4-31B-it` | einziges kleines Modell mit korrekten Kategorien |
 
-Erste Messung (Vorprojekt `kollektivgedaechtnis`, `kg/llm.py`): valides JSON bei erzwungenem
-Schema nur mit `reasoning_effort: "none"` — ohne das Feld 0/5, mit `"low"` 0/8, mit `"none"`
-8/8. Zwei Fehlerbilder trotz HTTP 200:
+**Nicht verwenden:** `Nemotron-Nano` — 6/27 Falsch-Positive, las „Kindheitsfragen lassen
+wir weg" als `kernthema_setzen`. `Apertus` scheitert an verschachtelten Schemata; bei
+flachen brauchbar, aber nicht für die Absichtserkennung.
 
-1. Inhalt beginnt mit `{{` statt `{`
-2. Text steht in `message.reasoning`, `content` ist `null`
+**Kosten sind kein Auswahlkriterium:** ein ganzes Wochenende kostet 1,20 statt 1,41 CHF.
+Ausgewählt wird nach Trefferquote.
 
-**In der Messung vom 03.09.2026 trat `{{` in keinem einzigen der Aufrufe auf.** Die Reparatur
-bleibt trotzdem drin: sie kostet zwei Zeilen, und ein Fehlerbild, das man einmal gesehen hat,
-verschwindet nicht dadurch, dass es beim zweiten Messen ausblieb.
+**🔴 `gemma` hat 28,5 s Kaltstart**, danach unter 1 s. **Beim Workshop-Start warmlaufen
+lassen** — sonst wartet die erste Gruppe eine halbe Minute auf die erste Absichtserkennung.
 
-```
-inhalt = antwort.choices[0].message.content
-if not inhalt: inhalt = antwort.choices[0].message.reasoning
-if not inhalt: -> Fehlschlag
-inhalt = inhalt.strip()
-if inhalt.startswith("{{"): inhalt = inhalt[1:]
-# ersten vollständigen {...}-Block extrahieren, dann json.loads
-```
+### 4.4 Reasoning-Semantik und robustes Auslesen
 
-Schlägt es fehl: kein Eintrag, keine Meldung an die Gruppe, `vorfall`-Eintrag.
+**🔴 Bei Infomaniak ist `reasoning_effort` binär.** `"none"` schaltet Reasoning aus, jeder
+andere Wert schaltet es an; `low`/`medium`/`high` sind nicht unterscheidbar. **Das Feld
+wegzulassen schaltet Reasoning AN** — es gibt keine stille Voreinstellung „aus".
+
+Daraus folgt zwingend: **Das Feld wird immer gesendet, und der Vorgabewert ist `"none"`.**
+Eine frühere Fassung von `llm.py` hatte `if reasoning_effort:` — ein leerer Wert ließ das
+Feld weg und schaltete Reasoning damit ein. Das ist die Sorte Falle, die nicht abstürzt,
+sondern nur still die Latenz verzwanzigfacht und die Trefferquote senkt.
+
+**Reasoning ist überall aus, außer bei `/gruendlich`.** Gemessen: Reasoning hilft bei
+Mathematik und Symbolik (0/6 richtig ohne, 5/6 mit), bringt bei extraktiven und
+sprachlichen Aufgaben **nichts außer Latenz** (0,6 s gegen 14–16 s bei identischem
+Ergebnis). Bei **Klassifikation mit Ausnahmen** — also genau dem Absichtserkenner — bricht
+die Trefferquote laut Princeton-Studie um bis zu 36 Prozentpunkte **ein**. Die früher
+geäußerte Absicht, den Verdichter auf Reasoning umzustellen, ist damit widerlegt.
+
+**Robustes Auslesen**, in dieser Reihenfolge:
+
+1. **`finish_reason == "length"` → Budgetfehler**, nicht Formatfehler. Ein abgeschnittenes
+   Ergebnis ist nie ein gültiges; die Ursache ist `max_tokens`, nicht das Modell.
+2. `content`, ersatzweise `message.reasoning`.
+3. `json.loads` auf den ganzen Text versuchen.
+4. Schlägt das fehl: **die erste Position suchen, ab der der Rest vollständig parst.**
+   Nicht blind `text[1:]`. Kimi erzeugt bei aktivem Reasoning ein Präfix-Artefakt (`' {{'`),
+   die Antwort dahinter ist aber vollständig und schemakonform — der Präfix ist nicht
+   immer genau ein Zeichen lang.
 
 ### 4.5 Modus B als bewusste Eskalation
 
@@ -708,24 +742,39 @@ Sprache ist nicht mehr nur Interview-Material. Auch die normale Arbeitskommunika
 Regieanweisungen laufen per Sprachnachricht. **Das ändert die Latenzanforderung
 grundlegend** — und zwar nicht gleichmäßig, sondern gespalten.
 
-### 10.1 Zwei Klassen, unterschieden an der Dauer
+### 10.1 Zwei Klassen, unterschieden am Interviewmodus
 
-Telegram liefert `voice.duration` in den Metadaten mit, bevor irgendetwas heruntergeladen
-wird. Das genügt für die einzige Unterscheidung, die zählt:
+**Die 45-Sekunden-Schwelle ist gestrichen.** Sie war von Anfang an eine Näherung, und sie
+trägt nicht: Ein Interview kann aus fünf Sprachnachrichten bestehen, eine Regieanweisung
+länger als eine Minute dauern. **Die Dauer sagt nichts über die Art aus.**
 
-| Klasse | Dauer | Was es ist | Latenzanspruch |
-|---|---|---|---|
-| **kurz** | bis `KURZ_GRENZE_S = 45` | **Gesprächsbeitrag** — ein Zuruf, eine Regieanweisung | eine halbe Minute Wartezeit zerstört den Fluss |
-| **lang** | darüber | **Material** — ein Interview | darf dauern |
+Stattdessen **schaltet die Gruppe den Modus ausdrücklich**:
 
-`KURZ_GRENZE_S` ist **eine Konstante an einer Stelle**, kein über den Code verstreuter
-Vergleich. Sie wird sich beim ersten Einsatz als zu hoch oder zu niedrig erweisen, und dann
-soll genau eine Zeile zu ändern sein.
+| Klasse | Wann | Was daraus wird |
+|---|---|---|
+| **lang** (Material) | Interviewmodus ist an | Transkript + Verdichtung (Schicht 1) |
+| **kurz** (Gespräch) | Interviewmodus ist aus | Transkript als Nachricht, löst einen Gesprächszug aus |
 
-**Beide Klassen durchlaufen dieselbe Statusmaschine** und dieselbe Tabelle `aufnahme`. Der
-Unterschied liegt nur im Ziel: eine **kurze** Aufnahme wird transkribiert und als
-Textnachricht in den Verlauf geschrieben, wo sie einen ganz normalen Gesprächszug auslöst.
-Eine **lange** wird zusätzlich verdichtet und damit zu Material (Schicht 1).
+Der Modus wird gesetzt durch den Absichtserkenner (`interview_starten` /
+`interview_beenden`, also durch normale Sätze wie „wir machen jetzt ein Interview" …
+„fertig") **oder** durch `/interview` und `/fertig`. Er steht in
+`gruppe.interviewmodus_seit` und überlebt damit den Neustart.
+
+**Keine Rückfrage, wenn der Modus vergessen wird.** Eine frühere Fassung sah vor, dass der
+Bot bei einer langen Erzählung außerhalb des Modus nachfragt. Das wurde verworfen: Eine
+Rückfrage braucht Zustand, der auf eine Antwort wartet — genau das Konstrukt, das § 1.4
+ersatzlos gestrichen hat. Stattdessen zwei zustandsfreie Wege:
+
+1. Erkennt der Absichtserkenner eine längere Erzählung außerhalb des Modus, **weist der
+   Bot beiläufig in seiner ohnehin fälligen Antwort darauf hin** („Das klingt nach
+   Material — wenn ihr es als Interview festhalten wollt, sagt mir Bescheid"). Keine
+   Rückfrage, kein Warten. Die Gruppe reagiert oder nicht.
+2. Wichtiger und billiger: **Die Begrüßungsnachricht erklärt, wie Interviews
+   funktionieren**, und `/hilfe` wiederholt es.
+
+**Der Rettungsanker ist, dass Rohmaterial immer gespeichert wird** (§ 10.2). Wird der
+Modus zu starten vergessen, ist die Sprachnachricht trotzdem da und kann nachträglich
+zugeordnet werden. Nichts geht verloren — es ist nur nicht sofort als Material markiert.
 
 ### 10.2 Die Datei ist zuerst sicher, dann wird gefragt
 

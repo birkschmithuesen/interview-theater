@@ -422,6 +422,47 @@ def test_der_hinweisblock_sagt_dass_der_bot_nicht_selbst_umschaltet(conn, einst)
     assert "Du schaltest nicht selbst um" in prompt
 
 
+def _interview(conn, name="Interview 1"):
+    aufnahme_id = repo.lege_aufnahme_an(conn, 1, 900, "lang", "text")
+    repo.setze_aufnahme_name(conn, aufnahme_id, name)
+    repo.setze_transkript(conn, aufnahme_id, "Pola: Halt so, ne?")
+    return aufnahme_id
+
+
+def test_figuren_ohne_quelle_bringen_die_frage_in_den_prompt(conn, einst):
+    """05.09.2026: der Bot fragt im Fluss, aus welchem Interview eine Figur
+    spricht -- die Antwort loest den Sprachprofil-Aufruf aus, und ohne ihn
+    klingen in einer Szene alle Figuren gleich."""
+    _interview(conn)
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "fehlt noch das Interview" in prompt
+    assert "Pola" in prompt
+
+
+def test_die_figurenfrage_verschwindet_mit_der_zuordnung(conn, einst):
+    """Kein Merkposten wie bei der Phasenfrage: hier sagen die Daten selbst,
+    ob die Frage noch offen ist."""
+    aufnahme_id = _interview(conn)
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    repo.setze_figur_quelle(conn, repo.hole_figur(conn, 1, "Pola")["id"], aufnahme_id)
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    assert "fehlt noch das Interview" not in kontext.baue(conn, 1, ausloeser, einst)
+
+
+def test_ohne_interview_wird_nicht_nach_der_quelle_gefragt(conn, einst):
+    """Eine unbeantwortbare Frage ist keine: ohne Material gibt es nichts
+    zuzuordnen."""
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    assert "fehlt noch das Interview" not in kontext.baue(conn, 1, ausloeser, einst)
+
+
 def test_kernthema_und_zwei_figuren_fuehren_zu_format_und_rahmen(conn, einst):
     """Es gibt keine freie Stelle mehr: mit Kernthema und zwei Figuren ist die
     naechste Station eindeutig Format & Rahmen (5) -- ueber die Form laesst

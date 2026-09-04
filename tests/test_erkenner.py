@@ -160,11 +160,14 @@ def test_schema_kennt_kein_maxitems():
     assert "maxItems" not in str(erkenner.SCHEMA)
 
 
-def test_arten_enthaelt_alle_neunzehn_werte():
+def test_arten_enthaelt_alle_zwanzig_werte():
     erwartet = {
         # Eine Szene wird seit dem 05.09.2026 zuerst geplant und erst danach
         # geschrieben -- zwei Arten fuer zwei verschiedene Dinge.
         "szene_planen",
+        # Aus welchem Interview eine Figur spricht: die Zuordnung, an der das
+        # Sprachprofil haengt (interview_theater/sprachprofil.py).
+        "figur_quelle_setzen",
         "interview_starten", "interview_beenden", "interview_benennen",
         "begriffe_setzen", "fragen_setzen", "kernthema_setzen",
         # Phase 5 heisst seit dem 05.09.2026 "Format & Rahmen": zwei neue
@@ -190,7 +193,7 @@ def test_an_den_bot_gilt_nur_aus_einer_aufnahme(conn, einst):
     assert erkenner.baue_meldung(wirkliche) is None
 
 
-def test_prompt_enthaelt_fuenfzehn_beispiele_davon_vier_leer():
+def test_prompt_enthaelt_sechzehn_beispiele_davon_vier_leer():
     """Grober Regressionsschutz gegen einen versehentlich verkuerzten Prompt.
 
     Die Rechercheempfehlung lautete auf 5 Few-Shot-Beispiele, davon 2 leer.
@@ -220,10 +223,15 @@ def test_prompt_enthaelt_fuenfzehn_beispiele_davon_vier_leer():
     Das fuenfzehnte zeigt ``szene_planen`` gegen ``szene_schreiben``: Ort,
     Besetzung und Anlass einer Szene sind eine Planung, kein Schreibauftrag.
     Ohne dieses Beispiel gingen genau die Angaben verloren, wegen denen der
-    Probelauf eine Kueche statt eines Polizeikessels lieferte."""
+    Probelauf eine Kueche statt eines Polizeikessels lieferte.
+
+    Das sechzehnte zeigt ``figur_quelle_setzen``: der Bot schlaegt eine
+    Interview-Zuordnung mit einem Zitat vor, die Gruppe nickt bei der einen
+    Figur und widerspricht bei der anderen. Beide Richtungen in einem
+    Abschnitt, weil beide dieselbe art sind."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 15
+    assert anzahl_beispiele == 16
     assert anzahl_leer == 4
 
 
@@ -889,6 +897,58 @@ def test_format_steht_im_erkenner_kontext(conn, einst):
 
     assert "Format: Musical: Dialog, Lied, Rap" in text
     assert "Rahmen: Eine Nacht im Treppenhaus" in text
+
+
+def _interview(conn, name="Interview 2", text="Pola: Halt so, ne?"):
+    aufnahme_id = repo.lege_aufnahme_an(conn, 1, 200, "lang", "text")
+    repo.setze_aufnahme_name(conn, aufnahme_id, name)
+    repo.setze_transkript(conn, aufnahme_id, text)
+    return aufnahme_id
+
+
+def test_figur_quelle_setzen_ordnet_die_figur_ihrem_interview_zu(conn, einst):
+    aufnahme_id = _interview(conn)
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "figur_quelle_setzen", "wert": "Pola: Interview 2"}]
+    )
+
+    assert repo.hole_figur(conn, 1, "Pola")["quelle_aufnahme_id"] == aufnahme_id
+    assert wirkliche[0]["figur_id"] == repo.hole_figur(conn, 1, "Pola")["id"]
+    # Still: die Zeile, die zaehlt, kommt aus sprachprofil.py, wenn das Profil
+    # wirklich steht.
+    assert erkenner.baue_meldung(wirkliche) is None
+
+
+def test_figur_quelle_setzen_braucht_eine_figur_und_ein_interview(conn, einst):
+    """Eine falsche Zuordnung praegte ueber das Sprachprofil die Stimme einer
+    Figur in jedem weiteren Szenenlauf -- also lieber gar keine."""
+    _interview(conn)
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+
+    assert erkenner.wende_an(
+        conn, einst, 1, [{"art": "figur_quelle_setzen", "wert": "Nina: Interview 2"}]
+    ) == []
+    assert erkenner.wende_an(
+        conn, einst, 1, [{"art": "figur_quelle_setzen", "wert": "Pola: Interview 9"}]
+    ) == []
+    assert repo.hole_figur(conn, 1, "Pola")["quelle_aufnahme_id"] is None
+
+
+def test_dieselbe_quelle_mit_fertigem_profil_ist_keine_aenderung(conn, einst):
+    """Sonst liefe bei jedem Erkennerlauf ein zweiter bezahlter
+    Sprachprofil-Aufruf fuer dasselbe Ergebnis."""
+    _interview(conn)
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    erkenner.wende_an(
+        conn, einst, 1, [{"art": "figur_quelle_setzen", "wert": "Pola: Interview 2"}]
+    )
+    repo.setze_sprachprofil(conn, repo.hole_figur(conn, 1, "Pola")["id"], "Kurz.", ["Halt so, ne?"])
+
+    assert erkenner.wende_an(
+        conn, einst, 1, [{"art": "figur_quelle_setzen", "wert": "Pola: Interview 2"}]
+    ) == []
 
 
 def test_szene_planen_legt_die_szene_an_und_setzt_die_felder(conn, einst):

@@ -149,14 +149,25 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   geaendert_am           TEXT
 );
 
+-- Das Sprachprofil (05.09.2026, Birk: "das ist das Wichtigste") ist der
+-- Grund, warum sich zwei Figuren im Szenentext hoerbar unterscheiden:
+-- ``sprachprofil`` ist die Analyse (Satzlaenge, Fuellwoerter, Abbrueche,
+-- Dialekt/Fremdsprache, Tempo -- 3-5 Zeilen), ``zitate`` sind 3-5 woertliche
+-- Saetze aus dem Interview, `|`-getrennt, die als Few-Shots fuer die
+-- Sprechweise in den Szenen-Prompt gehen. ``quelle_aufnahme_id`` haelt fest,
+-- aus welchem Interview beides stammt -- die Zuordnung schlaegt der Bot vor,
+-- die Gruppe nickt sie ab (Erkenner-art figur_quelle_setzen).
 CREATE TABLE IF NOT EXISTS figur (
-  id            INTEGER PRIMARY KEY,
-  chat_id       INTEGER NOT NULL,
-  name          TEXT NOT NULL,
-  beschreibung  TEXT,
-  beleg_zitat   TEXT,
-  geaendert_am  TEXT,
-  entfernt_am   TEXT                        -- gesetzt = weich geloescht (N3)
+  id                  INTEGER PRIMARY KEY,
+  chat_id             INTEGER NOT NULL,
+  name                TEXT NOT NULL,
+  beschreibung        TEXT,
+  beleg_zitat         TEXT,
+  sprachprofil        TEXT,
+  zitate              TEXT,
+  quelle_aufnahme_id  INTEGER,
+  geaendert_am        TEXT,
+  entfernt_am         TEXT                  -- gesetzt = weich geloescht (N3)
 );
 
 -- Eine Szene ist seit dem 05.09.2026 zuerst eine PLANUNG und erst danach ein

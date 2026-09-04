@@ -82,6 +82,10 @@ ARTEN = (
     # Rahmen-Entscheidung, keine Pflicht (Birk 05.09.2026).
     "hauptkonflikt_setzen",
     "figur_setzen",
+    # Seit 05.09.2026: aus welchem Interview eine Figur spricht. Der Bot
+    # schlaegt die Zuordnung im Gespraech vor, die Gruppe nickt sie ab --
+    # danach laeuft EIN Sprachprofil-Aufruf (interview_theater/sprachprofil.py).
+    "figur_quelle_setzen",
     "wortlaut_an",
     "wortlaut_aus",
     "verworfen",
@@ -448,6 +452,43 @@ def _wende_figur_an(conn, chat_id: int, wert: str) -> dict | None:
     return {"art": "figur_setzen", "wert": name}
 
 
+def _wende_figur_quelle_an(conn, chat_id: int, wert: str) -> dict | None:
+    """Ordnet einer Figur das Interview zu, aus dem sie spricht (art
+    ``figur_quelle_setzen``, wert ``"Pola: Interview 2"``).
+
+    Getrennt wird am ersten Doppelpunkt, wie bei ``figur_setzen``. Beide
+    Seiten muessen etwas treffen, das es gibt: eine Figur aus dem Arbeitsstand
+    und ein Interview dieser Gruppe (``aufnahme.finde_interview``, tolerant
+    gegen Nummer und Namensteil). Trifft eine Seite nicht, wird nichts
+    geschrieben -- eine falsche Zuordnung praegte sonst ueber das Sprachprofil
+    die Stimme einer Figur in jedem weiteren Szenenlauf.
+
+    Der Rueckgabewert traegt die ``figur_id`` mit: ``laufe()`` stoesst damit
+    den Sprachprofil-Aufruf an (wie bei ``interview_beenden`` die
+    ``aufnahme_id``) -- hier wird nur geschrieben, nie gerufen und nie
+    gesendet."""
+    from interview_theater import aufnahme  # spaeter Import, haelt den Modulkopf frei
+
+    name, _, bezeichnung = (wert or "").partition(":")
+    figur = repo.hole_figur(conn, chat_id, name)
+    if figur is None:
+        return None
+    kopf = aufnahme.finde_interview(conn, chat_id, bezeichnung.strip())
+    if kopf is None:
+        return None
+    if figur["quelle_aufnahme_id"] == kopf["id"] and figur["sprachprofil"]:
+        # Dieselbe Quelle, und das Profil steht schon: kein zweiter bezahlter
+        # Aufruf fuer dasselbe Ergebnis (dieselbe Regel wie ueberall -- ein
+        # unveraenderter Wert ist keine Aenderung).
+        return None
+    repo.setze_figur_quelle(conn, figur["id"], kopf["id"])
+    return {
+        "art": "figur_quelle_setzen",
+        "wert": f"{figur['name']}: {kopf['name'] or 'Interview'}",
+        "figur_id": figur["id"],
+    }
+
+
 def _figuren_aus_namen(conn, chat_id: int, namen: str) -> list[int]:
     """Uebersetzt "Mira, Pola, Pal" in Figur-ids -- **nur Figuren aus dem
     Arbeitsstand** (Birk 05.09.2026: "wenn Figuren fehlen, darf die Szene gar
@@ -767,6 +808,8 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_arbeitsstand_an(conn, chat_id, art, wert)
     if art == "figur_setzen":
         return _wende_figur_an(conn, chat_id, wert)
+    if art == "figur_quelle_setzen":
+        return _wende_figur_quelle_an(conn, chat_id, wert)
     if art == "szene_planen":
         return _wende_szene_planen_an(conn, chat_id, wert)
     if art in ("verworfen", "entschieden"):
@@ -907,7 +950,10 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
         # verworfen/entschieden/wortlaut_an/wortlaut_aus/interview_benennen:
         # bewusst ignoriert, bleiben still (Aufgabe 4). szene_schreiben
         # ebenfalls -- es meldet sich selbst, mit einer Ankuendigung und
-        # spaeter der fertigen Szene (interview_theater/szene.py).
+        # spaeter der fertigen Szene (interview_theater/szene.py). Und
+        # figur_quelle_setzen aus demselben Grund: die Zeile, die zaehlt, ist
+        # "Sprachprofil fuer Pola aus Interview 2: ..." und die kommt aus
+        # interview_theater/sprachprofil.py, wenn das Profil wirklich steht.
 
     zeilen = []
     if kernthema:
@@ -1002,6 +1048,33 @@ def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> No
     szene.starte(conn, tg, klm, e, chat_id, auftrag)
 
 
+def _starte_sprachprofil(klm, tg, conn, e, chat_id: int, wirkliche: list[dict]) -> None:
+    """Stoesst je bestaetigter Interview-Zuordnung einen Sprachprofil-Aufruf
+    an (art ``figur_quelle_setzen``, interview_theater/sprachprofil.py).
+
+    Nicht in ``wende_an``, aus demselben Grund wie ``_starte_szene``: dort
+    wird nur in die Datenbank geschrieben, hier faellt ein
+    Sprachmodell-Aufruf an und eine Nachricht in die Gruppe.
+    ``sprachprofil.starte`` gibt beides sofort an einen eigenen Thread ab.
+
+    Aus den **wirksamen** Aenderungen, nicht aus den erkannten: nur eine
+    Zuordnung, die auch wirklich eine Figur und ein Interview getroffen hat,
+    traegt eine ``figur_id`` -- und nur die soll einen bezahlten Aufruf
+    ausloesen."""
+    from interview_theater import sprachprofil  # spaeter Import, haelt den Modulkopf frei
+
+    figur_ids = [
+        a["figur_id"] for a in wirkliche
+        if a.get("art") == "figur_quelle_setzen" and a.get("figur_id")
+    ]
+    if not figur_ids:
+        return
+    try:
+        sprachprofil.starte(conn, tg, klm, e, chat_id, figur_ids)
+    except Exception:
+        log.exception("Sprachprofil konnte nicht gestartet werden, chat_id=%s", chat_id)
+
+
 def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> None:
     """Stoesst nach einem erkannten "fertig" das Zusammenfuegen und die eine
     Verdichtung des Interviews an (§ 10.6, ``aufnahme.starte_abschluss``).
@@ -1060,6 +1133,9 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Nach der Bestaetigung "Aufnahme beendet.": das Interview
         # zusammenfuegen und einmal verdichten (§ 10.6).
         _schliesse_interview_ab(klm, tg, conn, e, wirkliche)
+        # Eine bestaetigte Interview-Zuordnung loest den einen
+        # Sprachprofil-Aufruf aus (05.09.2026) -- in einem eigenen Thread.
+        _starte_sprachprofil(klm, tg, conn, e, chat_id, wirkliche)
         # Aus den erkannten, nicht aus den wirksamen Aenderungen: ein
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.

@@ -70,7 +70,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx
 
-from interview_theater import db, einstellungen, erkenner, journal, llm, repo, verdichter, zitat
+from interview_theater import (
+    db, einstellungen, erkenner, journal, llm, repo, sprachprofil, verdichter, zitat,
+)
 
 #: Wo die Korpusdateien liegen.
 KORPUS = Path(__file__).resolve().parent.parent / "korpus"
@@ -79,8 +81,12 @@ KORPUS = Path(__file__).resolve().parent.parent / "korpus"
 #: die Berichte enthalten vollstaendige Modellantworten).
 BERICHTE = KORPUS / "berichte"
 
-#: Die drei pruefbaren Prompts, in der Reihenfolge, in der "alle" sie laeuft.
-PROMPTS = ("erkenner", "journal", "verdichter")
+#: Die pruefbaren Prompts, in der Reihenfolge, in der "alle" sie laeuft.
+#: ``sprachprofil`` ist am 05.09.2026 dazugekommen (Birk: "Zitate als
+#: Few-Shots fuer die Sprechweise je Figur, das ist das Wichtigste") -- und
+#: gehoert genau deshalb hierher: an diesem Prompt haengt, ob sich zwei
+#: Figuren im Szenentext hoerbar unterscheiden.
+PROMPTS = ("erkenner", "journal", "verdichter", "sprachprofil")
 
 #: CHF je 1 Mio. Token (Eingabe, Ausgabe), Stand 04.09.2026 aus
 #: ~/hermes-shared/hermes-knowledge/infomaniak-modelle.md § 1.1. Bewusst hart
@@ -322,6 +328,62 @@ def kurzformen_zu_lang(themen: list[dict]) -> list[str]:
     ]
 
 
+def bewerte_sprachprofil(erwartet: dict, ergebnis: dict, transkript: str) -> dict:
+    """Bewertet ein Sprachprofil: Zitattreue und Muss-Stichwoerter im Profil.
+
+    Die Zitatpruefung laeuft wie beim Verdichter ueber
+    ``interview_theater.zitat.pruefe`` -- exakt die Funktion, die auch im
+    Betrieb entscheidet, ob ein Zitat gespeichert wird. Ein erfundenes Zitat
+    ist hier der teuerste Fehler: es ginge als Few-Shot in jeden weiteren
+    Szenenlauf ein und praegte die Stimme einer Figur, die eine anwesende
+    Person spielt.
+
+    ``stichwoerter`` sind **Alternativenmengen**, mit ``|`` getrennt
+    (``"kurz|knapp|abgehackt"``): mindestens eine Schreibweise muss im Profil
+    vorkommen. Anders als beim Verdichter, wo ein Motiv genannt sein muss,
+    geht es hier um eine Beobachtung, fuer die es ein Dutzend Woerter gibt --
+    ein Wortlautvergleich wuerde bei jeder harmlosen Synonymwahl Alarm
+    schlagen."""
+    profil = ergebnis.get("profil") or ""
+    zitate = [z for z in (ergebnis.get("zitate") or []) if (z or "").strip()]
+
+    zitate_ok = [z for z in zitate if zitat.pruefe(z, transkript)]
+    zitate_fehlerhaft = [z for z in zitate if not zitat.pruefe(z, transkript)]
+
+    heuhaufen = normalisiere(profil)
+    gesucht = erwartet.get("stichwoerter") or []
+    gefunden = [
+        s for s in gesucht
+        if any(normalisiere(a) in heuhaufen for a in stichwoerter_aus(s))
+    ]
+    vermisst = [s for s in gesucht if s not in gefunden]
+    return {
+        "anzahl": len(zitate),
+        "zitate_ok": zitate_ok,
+        "zitate_fehlerhaft": zitate_fehlerhaft,
+        "genug_zitate": len(zitate_ok) >= erwartet.get("zitate_min", 0),
+        "stichwoerter_gefunden": gefunden,
+        "stichwoerter_vermisst": vermisst,
+        "profil_zeilen": len([z for z in profil.splitlines() if z.strip()]),
+    }
+
+
+def zaehle_sprachprofil(bewertung: dict) -> tuple[int, int, int]:
+    """Bildet die Sprachprofil-Bewertung auf dieselben drei Zahlen ab wie die
+    uebrigen Prompts:
+
+    * **Treffer** = geprueftes Zitat + gefundenes Stichwort
+    * **FP** = ein Zitat, das so nicht im Transkript steht (die direkte
+      Halluzinationsmessung -- und das einzige, was hier wirklich schadet)
+    * **FN** = vermisstes Stichwort, plus eins, wenn zu wenige Zitate die
+      Pruefung bestanden haben
+    """
+    treffer = len(bewertung["zitate_ok"]) + len(bewertung["stichwoerter_gefunden"])
+    fp = len(bewertung["zitate_fehlerhaft"])
+    fn = len(bewertung["stichwoerter_vermisst"]) + (0 if bewertung["genug_zitate"] else 1)
+    return treffer, fp, fn
+
+
 def zaehle_verdichter(bewertung: dict) -> tuple[int, int, int]:
     """Bildet die Verdichter-Bewertung auf dieselben drei Zahlen ab wie die
     beiden anderen Prompts, damit die Tabelle eine Tabelle bleibt:
@@ -505,10 +567,21 @@ def _laufe_verdichter(klm, conn, chat_id, fall, modell):
 #: Wartezeit nach HTTP 429, bevor derselbe Fall wiederholt wird.
 PAUSE_429_S = float(os.environ.get("IT_PRUEFE_PAUSE_429_S", "45"))
 
+def _laufe_sprachprofil(klm, conn, chat_id, fall, modell):
+    transkript = fall["transkript"]
+    ergebnis = klm.schema(
+        chat_id, sprachprofil.prompt(), sprachprofil.baue_nutzertext(transkript),
+        sprachprofil.SCHEMA, "sprachprofil", modell=modell,
+    )
+    bewertung = bewerte_sprachprofil(fall["erwartet"], ergebnis, transkript)
+    return ergebnis, bewertung, zaehle_sprachprofil(bewertung)
+
+
 LAEUFE = {
     "erkenner": _laufe_erkenner,
     "journal": _laufe_journal,
     "verdichter": _laufe_verdichter,
+    "sprachprofil": _laufe_sprachprofil,
 }
 
 
@@ -539,6 +612,12 @@ def _erwartet_spalte(prompt: str, fall: dict) -> str:
             f"{e['themen_min']}-{e['themen_max']} Themen, "
             f"Stichwoerter: {', '.join(e.get('stichwoerter', []))}"
         )
+    if prompt == "sprachprofil":
+        e = fall["erwartet"]
+        return _kurz(
+            f"≥{e.get('zitate_min', 0)} belegte Zitate, "
+            f"Stichwoerter: {', '.join(e.get('stichwoerter', []))}"
+        )
     return _kurz(fall["erwartet"])
 
 
@@ -546,6 +625,11 @@ def _geliefert_spalte(prompt: str, ergebnis, bewertung) -> str:
     if prompt == "verdichter":
         return _kurz(
             f"{bewertung['anzahl']} Themen, Zitate "
+            f"{len(bewertung['zitate_ok'])}/{bewertung['anzahl']} geprueft"
+        )
+    if prompt == "sprachprofil":
+        return _kurz(
+            f"{bewertung['profil_zeilen']} Profilzeilen, Zitate "
             f"{len(bewertung['zitate_ok'])}/{bewertung['anzahl']} geprueft"
         )
     return _kurz(ergebnis)
@@ -763,9 +847,9 @@ def pruefe(prompt: str, klm, conn, faelle: list[dict], modell: str,
 
 
 def modell_fuer(prompt: str, e, ueberschreibung: str | None) -> str:
-    """Dieselbe Modellwahl wie im Betrieb (SPEC § 4.3a): Erkenner und Journal
-    laufen mit ``e.erkenner_modell``, der Verdichter mit dem
-    Gespraechsmodell."""
+    """Dieselbe Modellwahl wie im Betrieb (SPEC § 4.3a): Erkenner, Journal und
+    Sprachprofil laufen mit ``e.erkenner_modell`` (gemma, Extraktion), der
+    Verdichter mit dem Gespraechsmodell."""
     if ueberschreibung:
         return ueberschreibung
     return e.llm_modell if prompt == "verdichter" else e.erkenner_modell

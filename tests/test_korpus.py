@@ -45,6 +45,15 @@ MIN_JOURNAL = 20
 MIN_JOURNAL_LEER = 8
 MIN_VERDICHTER = 6
 
+#: Der Sprachprofil-Korpus (05.09.2026). Vier Faelle waren gefordert, fuenf
+#: sind es geworden -- einer je Sprechweise, die sich im Material
+#: unterscheidet: kurze Saetze mit Selbstkorrektur, Code-Switching,
+#: 'man'-Distanz, Reihungen, Rueckfragen. Die Transkripte sind dieselben wie
+#: im Verdichter-Korpus: sie sind erfunden, gepflegt und lang genug -- ein
+#: zweiter Satz erfundener Interviews waere doppelte Arbeit an derselben
+#: Sache.
+MIN_SPRACHPROFIL = 4
+
 
 def lade(name):
     zeilen = (KORPUS / f"{name}.jsonl").read_text(encoding="utf-8").splitlines()
@@ -73,16 +82,21 @@ def verdichter_faelle():
     return lade("verdichter")
 
 
+@pytest.fixture(scope="module")
+def sprachprofil_faelle():
+    return lade("sprachprofil")
+
+
 # --- gemeinsame Form ------------------------------------------------------
 
-@pytest.mark.parametrize("name", ["erkenner", "journal", "verdichter"])
+@pytest.mark.parametrize("name", ["erkenner", "journal", "verdichter", "sprachprofil"])
 def test_ids_sind_eindeutig(name):
     ids = [f["id"] for f in lade(name)]
     doppelte = {i for i in ids if ids.count(i) > 1}
     assert not doppelte, f"doppelte ids in {name}.jsonl: {sorted(doppelte)}"
 
 
-@pytest.mark.parametrize("name", ["erkenner", "journal", "verdichter"])
+@pytest.mark.parametrize("name", ["erkenner", "journal", "verdichter", "sprachprofil"])
 def test_jeder_fall_hat_id_und_notiz(name):
     """Die ``notiz`` ist keine Zierde: sie sagt, warum ein Fall im Korpus ist.
     Ohne sie weiss in zwei Wochen niemand mehr, ob ein Fehlschlag schlimm ist."""
@@ -444,3 +458,48 @@ def test_verdichter_transkripte_haben_sprechermarker(verdichter_faelle):
         zeilen = [z for z in fall["transkript"].splitlines() if z.strip()]
         mit_marker = [z for z in zeilen if ":" in z.split(" ")[0]]
         assert len(mit_marker) >= 4, fall["id"]
+
+
+# --- Sprachprofil ---------------------------------------------------------
+
+def test_sprachprofil_pflichtfelder(sprachprofil_faelle):
+    for fall in sprachprofil_faelle:
+        assert fall.get("transkript", "").strip(), fall["id"]
+        erwartet = fall.get("erwartet")
+        assert isinstance(erwartet, dict), fall["id"]
+        assert erwartet.get("stichwoerter"), fall["id"]
+        assert erwartet.get("zitate_min", 0) >= 1, fall["id"]
+
+
+def test_sprachprofil_mindestanzahl(sprachprofil_faelle):
+    assert len(sprachprofil_faelle) >= MIN_SPRACHPROFIL
+
+
+def test_sprachprofil_stichwoerter_sind_alternativen_kein_wortlaut(sprachprofil_faelle):
+    """``stichwoerter`` sind Alternativenmengen ("kurz|knapp|abgehackt"), von
+    denen eine im Profil vorkommen muss -- kein Wortlaut.
+
+    Fuer eine Beobachtung ueber Sprechweise gibt es ein Dutzend Woerter; ein
+    Wortlautvergleich wuerde bei jeder harmlosen Synonymwahl Alarm schlagen
+    und die Kennzahl entwerten, an der wirklich etwas haengt (erfundene
+    Zitate)."""
+    for fall in sprachprofil_faelle:
+        for eintrag in fall["erwartet"]["stichwoerter"]:
+            alternativen = [a.strip() for a in eintrag.split("|")]
+            assert all(alternativen), fall["id"]
+            for alternative in alternativen:
+                assert len(alternative.split()) == 1, (
+                    f"{fall['id']}: '{alternative}' sieht nach Wortlaut aus"
+                )
+
+
+def test_sprachprofil_nutzt_die_verdichter_transkripte(
+    sprachprofil_faelle, verdichter_faelle
+):
+    """Dieselben erfundenen Interviews wie im Verdichter-Korpus. Ein zweiter
+    Satz waere doppelte Arbeit an derselben Sache -- und die Transkripte
+    muessen dieselben bleiben, damit ein Unterschied zwischen den beiden
+    Laeufen wirklich am Prompt liegt und nicht am Material."""
+    bekannt = {f["transkript"] for f in verdichter_faelle}
+    for fall in sprachprofil_faelle:
+        assert fall["transkript"] in bekannt, fall["id"]

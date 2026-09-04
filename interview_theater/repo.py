@@ -1032,6 +1032,68 @@ def setze_figur(conn: sqlite3.Connection, chat_id: int, name: str, beschreibung:
     conn.commit()
 
 
+#: Trennzeichen zwischen den woertlichen Zitaten einer Figur
+#: (``figur.zitate``). Wie bei den Fragen ein Feld statt einer Tabelle: die
+#: Zitate werden immer als Ganzes geschrieben und als Ganzes gelesen, es gibt
+#: keinen Weg, ein einzelnes zu aendern.
+ZITAT_TRENNER = " | "
+
+
+@_gesperrt
+def hole_figur(conn: sqlite3.Connection, chat_id: int, name: str) -> sqlite3.Row | None:
+    """Die Figur mit diesem Namen, oder None. Vergleich wie in
+    ``setze_figur``: getrimmt und kleingeschrieben, kein Teiltreffer."""
+    return conn.execute(
+        "SELECT * FROM figur WHERE chat_id = ? AND lower(trim(name)) = ? "
+        "AND entfernt_am IS NULL",
+        (chat_id, (name or "").strip().lower()),
+    ).fetchone()
+
+
+@_gesperrt
+def hole_figur_nach_id(conn: sqlite3.Connection, figur_id: int) -> sqlite3.Row | None:
+    """Eine einzelne Figur ueber ihre id -- ohne Ruecksicht auf
+    ``entfernt_am``: der Aufrufer (der Sprachprofil-Thread) hat die id
+    bekommen, als es die Figur noch gab."""
+    return conn.execute("SELECT * FROM figur WHERE id = ?", (figur_id,)).fetchone()
+
+
+@_gesperrt
+def setze_figur_quelle(
+    conn: sqlite3.Connection, figur_id: int, aufnahme_id: int | None
+) -> None:
+    """Haelt fest, aus welchem Interview eine Figur spricht
+    (``figur.quelle_aufnahme_id``, 05.09.2026).
+
+    Die Zuordnung ist eine Entscheidung der Gruppe, kein Fund des Codes: der
+    Bot schlaegt sie im Gespraech vor ("Pola koennte wie Interview 2 sprechen
+    -- 'wir haben zusammen gepogt, getanzt' -- passt das?"), die Gruppe nickt
+    oder aendert. Erst danach laeuft der eine Sprachprofil-Aufruf."""
+    conn.execute(
+        "UPDATE figur SET quelle_aufnahme_id = ?, geaendert_am = ? WHERE id = ?",
+        (aufnahme_id, _jetzt(), figur_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_sprachprofil(
+    conn: sqlite3.Connection, figur_id: int, profil: str, zitate: list[str]
+) -> None:
+    """Speichert Sprachprofil und Belegzitate einer Figur.
+
+    Beides zusammen, weil beides aus demselben Aufruf stammt und getrennt
+    nichts taugt: das Profil sagt, WIE die Figur spricht, die Zitate zeigen es
+    -- und im Szenen-Prompt sind sie die Few-Shots, an denen sich die Stimme
+    entscheidet. Die Zitate sind vorher geprueft (``zitat.pruefe``, wie beim
+    Verdichter); was hier ankommt, steht woertlich im Transkript."""
+    conn.execute(
+        "UPDATE figur SET sprachprofil = ?, zitate = ?, geaendert_am = ? WHERE id = ?",
+        (profil, ZITAT_TRENNER.join(zitate), _jetzt(), figur_id),
+    )
+    conn.commit()
+
+
 @_gesperrt
 def lege_szene_an(
     conn: sqlite3.Connection,

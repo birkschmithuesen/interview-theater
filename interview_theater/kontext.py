@@ -64,6 +64,7 @@ BUDGETS = {
     "transkripte": 5000,
     "arbeitsstand": 1200,
     "phasenhinweis": 50,
+    "figurenhinweis": 100,
     "szene": 1500,
     "journal": 1500,
     "fenster": 8000,
@@ -81,8 +82,8 @@ PAUSE_AB_MINUTEN = 60
 #: Feste Reihenfolge des Prompt-Koerpers (ohne SYSTEM, das separat verschickt
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
-    "verdichtungen", "transkripte", "arbeitsstand", "phasenhinweis", "szene",
-    "journal", "fenster", "ausloeser", "erstkontakt",
+    "verdichtungen", "transkripte", "arbeitsstand", "phasenhinweis",
+    "figurenhinweis", "szene", "journal", "fenster", "ausloeser", "erstkontakt",
 )
 
 
@@ -284,6 +285,47 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
     return _PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(stufe))
 
 
+#: Der Hinweisblock, mit dem der Bot die Interview-Zuordnung einer Figur zur
+#: Sprache bringt (05.09.2026, Birk: "Zitate als Few-Shots fuer die
+#: Sprechweise je Figur, das ist das Wichtigste").
+#:
+#: Eine **Frage im Fluss**, kein Formular -- dieselbe Form wie der
+#: Phasenhinweis: der Bot schlaegt vor, die Gruppe entscheidet, und erst ihre
+#: Antwort loest den Sprachprofil-Aufruf aus (Erkenner-art
+#: ``figur_quelle_setzen``). Der Code raet die Zuordnung nie selbst: welche
+#: Figur aus wessen Erzaehlung spricht, kann kein Namensvergleich
+#: beantworten.
+_FIGURENHINWEIS = (
+    "Diesen Figuren fehlt noch das Interview, aus dem sie spricht: "
+    "{namen}. Bring das im Fluss zur Sprache -- ein Satz, mit einem Vorschlag "
+    "und einem woertlichen Zitat als Beleg (\"Pola koennte wie Interview 2 "
+    "sprechen -- 'wir haben zusammen gepogt, getanzt' -- passt das?\"). "
+    "Ohne diese Zuordnung klingen in einer Szene alle Figuren gleich; mit ihr "
+    "bekommt jede ihre eigene Sprechweise. Frag nach, entscheide nicht."
+)
+
+
+def _baue_figurenhinweis(conn, chat_id: int) -> str:
+    """Der Hinweis auf Figuren ohne Quelle-Interview -- datengetrieben wie
+    alles andere: weg, sobald jede Figur eine hat.
+
+    Anders als der Phasenhinweis **ohne Merkposten**: hier verschwindet die
+    Frage von selbst, sobald die Gruppe geantwortet hat, weil dann die Quelle
+    gesetzt ist. Ein zweites Feld waere ein Merkposten fuer etwas, das die
+    Daten schon sagen -- und wuerde die Frage fuer eine spaeter angelegte
+    Figur mitverschlucken.
+
+    Nur, wenn es ueberhaupt ein Interview gibt: ohne Material ist die Frage
+    unbeantwortbar, und der Bot soll nicht nach etwas fragen, das die Gruppe
+    noch gar nicht aufgenommen hat."""
+    ohne = [f["name"] for f in repo.figuren(conn, chat_id) if f["quelle_aufnahme_id"] is None]
+    if not ohne:
+        return ""
+    if not any(a["klasse"] == "lang" for a in repo.transkripte(conn, chat_id)):
+        return ""
+    return _FIGURENHINWEIS.format(namen=", ".join(ohne))
+
+
 def _baue_szene(conn, chat_id: int) -> str:
     """Block 5: die EINE zuletzt geaenderte Szene im Volltext (SPEC § 6.2).
 
@@ -410,6 +452,7 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False) -> str:
         "transkripte": _baue_transkripte(conn, chat_id),
         "arbeitsstand": _baue_arbeitsstand(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
+        "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
         "journal": _baue_journal(conn, chat_id),
         "fenster": "\n".join(fenster_eintraege),

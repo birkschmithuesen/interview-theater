@@ -94,7 +94,7 @@ interviewt?") die nächste Gruppennachricht zum Auslöser macht, mit Verfall nac
 das war der Hauptfall. Übrig bliebe ein Zustandsfeld, das ablaufen kann, falsch verbraucht
 werden kann und nur im Zusammenspiel mit der Uhr testbar ist — genau die Sorte bewegliches
 Teil, die ein Prototyp nicht braucht. Interviews heißen `Interview n` und werden bei Bedarf
-mit `/name` umbenannt (§ 8).
+über die Absicht `interview_benennen` umbenannt (§ 4.3); einen `/name`-Befehl gibt es nicht (§ 8.1).
 
 ---
 
@@ -175,7 +175,7 @@ CREATE TABLE gruppe (
   letzte_extrahierte_message_id   INTEGER DEFAULT 0,
   -- Schalter
   wortlaut_modus                  TEXT,     -- NULL=aus, '*'=alle, sonst Aufnahmename
-  gruendlich_naechster_zug        INTEGER NOT NULL DEFAULT 0,  -- Modus B einmalig (§ 4.5)
+  gruendlich_naechster_zug        INTEGER NOT NULL DEFAULT 0,  -- ungenutzt (§ 4.5)
   whisper_stumm_seit              TEXT      -- gesetzt = Ausfall gemeldet (§ 10.4)
 );
 
@@ -456,6 +456,15 @@ lassen** — sonst wartet die erste Gruppe eine halbe Minute auf die erste Absic
 
 ### 4.4 Reasoning-Semantik und robustes Auslesen
 
+> **Eine frühere Behauptung ist widerlegt.** Die erste Fassung dieser Spezifikation sagte,
+> strukturierte Ausgabe und Reasoning schlössen sich bei Kimi praktisch aus (0/5 valide
+> ohne das Feld, 0/8 mit `"low"`, 8/8 mit `"none"`). Das galt für **naives Parsen**. Mit
+> aktivem Reasoning erzeugt Kimi ein Präfix-Artefakt (` {{`), die Antwort dahinter ist aber
+> vollständig und schemakonform. Mit dem robusten Auslesen unten funktioniert beides
+> zusammen. Reasoning bleibt trotzdem aus — nicht weil es das Format bricht, sondern weil
+> es bei extraktiven Aufgaben nur Latenz kostet und bei Klassifikation mit Ausnahmen die
+> Trefferquote senkt.
+
 **🔴 Bei Infomaniak ist `reasoning_effort` binär.** `"none"` schaltet Reasoning aus, jeder
 andere Wert schaltet es an; `low`/`medium`/`high` sind nicht unterscheidbar. **Das Feld
 wegzulassen schaltet Reasoning AN** — es gibt keine stille Voreinstellung „aus".
@@ -465,7 +474,7 @@ Eine frühere Fassung von `llm.py` hatte `if reasoning_effort:` — ein leerer W
 Feld weg und schaltete Reasoning damit ein. Das ist die Sorte Falle, die nicht abstürzt,
 sondern nur still die Latenz verzwanzigfacht und die Trefferquote senkt.
 
-**Reasoning ist überall aus, außer bei `/gruendlich`.** Gemessen: Reasoning hilft bei
+**Reasoning ist überall aus.** (Die einzige vorgesehene Ausnahme war Modus B, der nicht verdrahtet ist — § 4.5.) Gemessen: Reasoning hilft bei
 Mathematik und Symbolik (0/6 richtig ohne, 5/6 mit), bringt bei extraktiven und
 sprachlichen Aufgaben **nichts außer Latenz** (0,6 s gegen 14–16 s bei identischem
 Ergebnis). Bei **Klassifikation mit Ausnahmen** — also genau dem Absichtserkenner — bricht
@@ -483,24 +492,27 @@ geäußerte Absicht, den Verdichter auf Reasoning umzustellen, ist damit widerle
    die Antwort dahinter ist aber vollständig und schemakonform — der Präfix ist nicht
    immer genau ein Zeichen lang.
 
-### 4.5 Modus B als bewusste Eskalation
+### 4.5 Modus B — vorhanden, aber nicht verdrahtet
 
-Modus B (freier Prosatext, `reasoning_effort: "medium"`) bleibt verfügbar für die **wenigen
-Momente, in denen Tiefe vor Tempo geht** — Szenentext-Entwurf und finale Konfliktverdichtung.
-Dort ist B relationaler formuliert und in der Zitatdisziplin fehlerfrei (12/12), und eine
-halbe Minute Wartezeit ist vertretbar, wenn die Gruppe weiß, worauf sie wartet.
+`LLM.prosa()` (freier Prosatext, `reasoning_effort: "medium"`) existiert im Code, **wird
+aber von nirgendwo aufgerufen** — auch nicht in Tests. Ebenso die Spalte
+`gruppe.gruendlich_naechster_zug`. Beides ist toter Code, und das ist hier ausdrücklich
+festgehalten, damit es nicht als Versehen gelesen wird.
 
-- **Ausgelöst durch `/gruendlich`**, nicht durch Aufgabenerkennung — es gibt keinen
-  Klassifikator und keine Zustandsmaschine (§ 6.1). Der Bot darf den Befehl von sich aus
-  anbieten, wenn es um Szenentext geht.
-- **Einmalig, nicht klebrig.** Der Schalter gilt für den nächsten Zug und wird danach
-  zurückgesetzt. 34 Sekunden pro Zug wären als Dauerzustand quälend.
-- **Angekündigt.** Vor dem Aufruf eine kurze Zeile: „Ich nehme mir dafür mehr Zeit — das
-  dauert etwa eine halbe Minute." Ohne Ankündigung ist die Latenz ein Defekt, mit
-  Ankündigung eine Zusage.
-- **`max_tokens` ≥ 9.000 zwingend** (§ 11.3).
-- `aufruf.modus` hält fest, welcher Modus lief — damit im Dashboard sichtbar ist, ob
-  `/gruendlich` überhaupt genutzt wurde.
+**Warum Modus B entfiel:** Er war als Eskalation für Szenentext und finale
+Konfliktverdichtung gedacht — 33,8 s Latenz gegen 4,5 s, dafür relationalere Sprache. Zwei
+Entscheidungen haben ihn überholt:
+
+1. **Sprache ist Gesprächsbeitrag geworden.** Seit die Gruppe auch ihre normale
+   Arbeitskommunikation einspricht, ist eine halbe Minute Wartezeit nicht mehr „Bedenkzeit",
+   sondern eine Gesprächspause.
+2. **Szenen sind nicht gebaut** (§ 6.2) — der Hauptanwendungsfall für Modus B existiert
+   also gar nicht.
+
+**Was mit dem toten Code geschehen soll:** entweder entfernen oder verdrahten, sobald
+Szenen dazukommen. Er wurde am Vorabend des Workshops bewusst **nicht** entfernt, weil eine
+Änderung an `llm.py` — dem Modul mit der größten Reichweite — zu diesem Zeitpunkt mehr
+Risiko als Nutzen gewesen wäre.
 
 ---
 
@@ -623,7 +635,7 @@ Regeln:
 - **Zitate strikt wörtlich, keine Auslassungen mit `[...]`** — sie werden serverseitig
   geprüft (§ 5) und fliegen sonst raus.
 - Guidance ohne Bevormundung: anbieten, nicht vorschreiben.
-- Kennt `/wortlaut`, `/merken`, `/verworfen`, `/stand`, `/gruendlich` und darf sie anbieten.
+- Kennt `/interview`, `/fertig`, `/kernthema`, `/wortlaut`, `/stand`, `/hilfe` und darf sie anbieten (§ 8).
 - Weiß, dass Verdichtungen nicht nachträglich geändert werden.
 
 ---
@@ -670,36 +682,43 @@ Fassung behauptete, ist nicht belegt (§ 6.1).
 
 ## 8. Befehle
 
+**Sechs Befehle sind gebaut. Das ist eine Entscheidung, kein Versäumnis** — sie folgt aus
+der Grundhaltung „Schreibweg plus Notausgang": Der **Absichtserkenner (§ 4.3) ist der
+Hauptweg**, gemessen mit 0 Falsch-Positiven bei 25 Negativfällen und 30/30 Treffern.
+Begriffe eintippen ist im Probenraum keine Option — die Gruppe steht, spielt und spricht.
+Befehle sind deshalb nur der Weg für den Fall, dass der Erkenner danebenliegt.
+
 | Befehl | Wirkung |
 |---|---|
-| `/merken <text>` | Journaleintrag, `art = entschieden`, `quelle = befehl` |
-| `/verworfen <text>` | Journaleintrag, `art = verworfen`, `quelle = befehl` |
-| `/kernthema <text>` | **korrigiert** das Kernthema |
-| `/konflikt <text>` | korrigiert den Hauptkonflikt |
-| `/begriffe <text>` | korrigiert die Begriffe |
-| `/figur <name>: <beschreibung>` | legt eine Figur an oder überschreibt sie |
-| `/name <alt> <neu>` | benennt eine Aufnahme um (`Interview 2` → `Maria`) |
-| `/material <text>` | speist Text als Material ein (§ 10.5) |
-| `/wortlaut [name\|aus]` | Volltranskripte mitlesen (klebrig) |
-| `/gruendlich` | nächster Zug in Modus B (§ 4.5), einmalig, angekündigt |
-| `/stand` | Arbeitsstand ausgeben — **ohne LLM**, direkt aus der DB |
-| `/hilfe` | dass der Bot auf alles antwortet, wie Interviews laufen, welche Befehle es gibt |
+| `/interview` | Interviewmodus an |
+| `/fertig` | Interviewmodus aus |
+| `/kernthema <text>` | Kernthema setzen oder korrigieren |
+| `/stand` | Arbeitsstand ausgeben — **ohne LLM**, kann nicht fehlschlagen |
+| `/wortlaut [name\|aus]` | Originaltranskripte mitlesen |
+| `/hilfe` | wie man den Bot anspricht, wie Interviews laufen, welche Befehle es gibt |
 
-**Die Arbeitsstand-Befehle sind Korrekturweg, nicht Hauptweg.** Gefüllt wird der Arbeitsstand
-vom Extraktor (§ 4.3); getippt wird nur, wenn er etwas falsch verstanden hat. Deshalb steht in
-jeder Änderungsmeldung des Bots die Einladung dazu — die Gruppe muss die Befehle nicht kennen,
-sie werden ihr im Moment des Bedarfs gezeigt.
+Registriert über `setMyCommands`, damit sie im Telegram-Menü erscheinen, wenn jemand `/`
+tippt. Ohne diesen Aufruf stünde die Liste nur in einer Dokumentation, die niemand liest.
 
-**Zu `/wortlaut <name>`:** Der Name, nicht die Nummer. Eine Gruppe, die gerade Marias Figur
-schreibt, denkt nicht in Aufnahmenummern. Namensabgleich großzügig: Kleinschreibung,
-Teiltreffer. Bei Mehrdeutigkeit oder Nichttreffer zählt der Bot die vorhandenen Namen auf,
-statt zu raten. Klebrig und in der DB, damit der Schalter den Neustart überlebt.
+### 8.1 Nicht gebaute Befehle — und warum
 
-**Zu `/stand`:** Nach der Nacht besonders nützlich, und die Gruppe kann jederzeit prüfen, was
-der Bot für den aktuellen Stand hält. Kein LLM-Aufruf, kann nicht fehlschlagen.
+Eine frühere Fassung dieser Spezifikation listete vierzehn Befehle, einen je Absicht des
+Erkenners. Acht davon sind **bewusst nicht gebaut**:
 
-**Kein Löschbefehl im Chat.** Löschen ist ein Betreiberskript (§ 9.3), nicht etwas, das
-jemand versehentlich in die Gruppe tippt.
+| Nicht gebaut | Begründung |
+|---|---|
+| `/merken`, `/verworfen` | Der Absichtserkenner schreibt `entschieden` und `verworfen` selbst, der Journal-Extraktor `vorgeschlagen`. Ein Befehl dafür wäre Doppelarbeit für einen Weg, den niemand geht. |
+| `/konflikt`, `/begriffe`, `/figur` | Dieselben Felder setzt der Erkenner. Korrigiert wird durch Widerspruch im Chat, den der Erkenner aufgreift. Nur `/kernthema` ist geblieben, weil das Kernthema die eine tragende Entscheidung ist, deren Korrektur nicht scheitern darf. |
+| `/name` | Umbenennen läuft über `interview_benennen` im Erkenner. Ohne Befehl heißt eine Aufnahme `Interview n` — ärgerlich, nicht tödlich. |
+| `/material` | Der Textimport-Pfad existiert im Code (`aufnahme.importiere_text`), ist aber nicht an einen Befehl gebunden. Er war als Rückfallweg für einen Whisper-Ausfall gedacht; die Messung vom 03.09.2026 (76 Läufe, alle erfolgreich) hat diesen Fall unwahrscheinlich gemacht. |
+| `/gruendlich` | Siehe § 4.5 — Modus B ist nicht verdrahtet. |
+
+**Die Entscheidung dahinter:** Fünfzehn Befehle zu bauen hieße, dem eigenen Messergebnis
+nicht zu trauen. Sechs decken den Notausgang ab; die restlichen wären Fläche, die getestet,
+dokumentiert und gepflegt werden müsste, ohne dass jemand sie benutzt.
+
+**Kein Löschbefehl im Chat.** Löschen von Material ist ein Betreiberskript (§ 9.3), nicht
+etwas, das jemand versehentlich in die Gruppe tippt.
 
 ---
 
@@ -876,7 +895,11 @@ Pro Gruppe ein Feld `whisper_stumm_seit`.
 
 ### 10.5 Textimport als gleichwertiger Weg
 
-`/material <text>` und eine als Dokument geschickte `.txt`-Datei erzeugen eine `aufnahme` mit
+> **Stand: der Pfad existiert, der Befehl nicht.** `aufnahme.importiere_text` ist gebaut
+> und getestet, aber an keinen Befehl gebunden (§ 8.1). Wer ihn braucht, ruft ihn aus einem
+> Skript auf oder ergänzt den Befehl — das ist eine Zeile in `befehle.py`.
+
+Gedacht war: `/material <text>` und eine als Dokument geschickte `.txt`-Datei erzeugen eine `aufnahme` mit
 `quelle = 'text'` und `status = 'transkribiert'`, die **durch denselben Verdichter läuft** und
 dieselben Verdichtungen mit Belegzitaten erzeugt wie eine Sprachaufnahme.
 
@@ -896,7 +919,7 @@ dass die Gruppe vorhandenes Recherchematerial einspeisen will, das nie gesproche
 | **Infomaniak komplett weg** | Einmalig: „Mein Sprachmodell ist gerade nicht erreichbar. Ich schreibe alles mit und melde mich, sobald es geht." Danach still, Wiederholung im Hintergrund, bei Rückkehr eine Zeile. **Den Rückstau nicht abarbeiten** — die Gruppe hat inzwischen analog weitergemacht, drei nachgereichte Antworten wären Chaos. Nichts geht verloren, alles steht im Log. |
 | **Lange Sprachnachricht** | Sofortige Empfangsbestätigung (§ 10). |
 | **`/wortlaut <name>` findet nichts** | Vorhandene Namen auflisten, nicht raten. |
-| **`/gruendlich` läuft** | Ankündigung vor dem Aufruf (§ 4.5) — sonst wirkt die Latenz wie ein Defekt. |
+| **Lange Wartezeit auf eine Antwort** | Tippanzeige ab 4 s, nach 10 s eine kurze Zeile — sonst wirkt die Latenz wie ein Defekt. |
 
 ### 11.2 Nur das Dashboard erfährt es
 
@@ -974,9 +997,10 @@ aus der Dateiendung abgeleitet (`stt.mime_typ`).
 
 ## 12. Offene Punkte
 
-- **`KURZ_GRENZE_S = 45`** (§ 10.1) — gesetzt, nicht gemessen. Der erste Wert, an dem zu
-  drehen ist, falls Regieanweisungen regelmäßig als Material einsortiert werden oder
-  umgekehrt.
+- **`HINWEIS_AB_S = 60`** (§ 10.1) — gesetzt, nicht gemessen. Löst **nur** den beiläufigen
+  Hinweis aus, dass gerade nicht aufgezeichnet wird; **keine** Klassifikation. Die frühere
+  Klassifikationsschwelle `KURZ_GRENZE_S = 45` ist ersatzlos gestrichen, weil die Dauer
+  nichts über die Art einer Aufnahme aussagt.
 - **`LANGSAM_AB_S = 8` und die Zeitbudgets** (§ 10.2) — hängen an der laufenden
   Whisper-Messung (§ 11.3 Punkt 4).
 - **Divisor der Token-Schätzung — bestätigt.** Rauchtest gegen die echte API am

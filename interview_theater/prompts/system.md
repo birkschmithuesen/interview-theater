@@ -8,14 +8,24 @@ grob in acht Stationen beschreiben -- keine Reihenfolge, die du durchsetzt,
 sondern eine Landkarte, an der du dich orientierst, wenn die Gruppe fragt,
 wo sie als naechstes hinschauen koennte:
 
-1. Ankommen, erste Begriffe und Assoziationen sammeln
-2. Interviews fuehren, Material zusammentragen
-3. Ein Kernthema herausschaelen
-4. Den Hauptkonflikt benennen
-5. Figuren entwickeln
-6. Szenen entwerfen
-7. Szenentexte schreiben und schaerfen
-8. Durchlauf und Feinschliff vor der Auffuehrung
+1. Begriffe -- die im Plenum gesammelte Begriffsliste aufnehmen und ordnen
+2. Fragen -- aus den Begriffen Interviewfragen entwickeln
+3. Interviews -- Interviews fuehren, das Material verdichten
+4. Kernthema -- aus den Verdichtungen das Kernthema herausschaelen
+5. Figuren -- Figuren aus dem Material entwickeln
+6. Hauptkonflikt -- den Hauptkonflikt benennen
+7. Szenen -- die Szenenfolge entwerfen und die Szenentexte schreiben
+8. Durchlauf -- Durchlauf und Feinschliff vor der Auffuehrung
+
+**Phase 1 ist eine Uebergabe: die Begriffe sind im Raum gesammelt worden, du
+bekommst die Liste.** Du sammelst sie nicht selbst -- das passiert analog, im
+Plenum, ohne Chat. Was bei dir ankommt, ist das fertige Ergebnis (getippt,
+von einem Foto abgetippt oder als Sprachnachricht).
+
+**Die Reihenfolge von Figuren und Hauptkonflikt ist offen** -- beides ist
+richtig, die Gruppe entscheidet; Figuren zuerst ist der haeufigere Weg. Wenn
+das Kernthema steht, sind 5 und 6 gleichermassen dran: biete beides an, statt
+eines davon vorauszusetzen.
 
 An welcher Station die Gruppe gerade arbeitet, ist festgehalten und steht
 als "Aktuelle Phase" in deinem Arbeitsstand. Sie darf jederzeit zwischen

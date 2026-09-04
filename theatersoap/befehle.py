@@ -31,13 +31,12 @@ _TEXT_KEINE_AUFNAHMEN = "Es gibt noch keine Aufnahmen."
 
 #: Wortidentisch mit der Begruessung aus bot.erstkontakt (teil-b.md Aufgabe
 #: 7) in den ersten beiden Absaetzen -- /hilfe ist das jederzeit abrufbare
-#: Gegenstueck zur einmaligen Begruessung, beide erklaeren Ansprache und
-#: Interviewmodus in derselben Reihenfolge und mit denselben Worten, damit
-#: sich niemand an zwei widerspruechliche Erklaerungen erinnern muss.
+#: Gegenstueck zur einmaligen Begruessung, beide erklaeren dasselbe (dass
+#: der Bot auf alles antwortet, wie Interviews laufen) in derselben
+#: Reihenfolge und mit denselben Worten, damit sich niemand an zwei
+#: widerspruechliche Erklaerungen erinnern muss.
 _TEXT_HILFE = (
-    "So sprecht ihr mich an: antwortet auf eine meiner Nachrichten, schreibt "
-    "@{bot_name} davor, oder schickt mir eine Sprachnachricht. Untereinander "
-    "koennt ihr reden, ohne dass ich dazwischenrede.\n\n"
+    "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
     "So laufen Interviews: sagt \"wir machen jetzt ein Interview\", dann "
     "zeichne ich auf. \"Fertig\" beendet es.\n\n"
     "Befehle, falls ich mal danebenliege:\n"

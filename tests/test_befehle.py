@@ -133,7 +133,9 @@ def test_hilfe_nennt_ansprache_interviewmodus_und_befehle(conn, einst, tg):
 
     assert behandelt is True
     text = tg.gesendet[0][1]
-    assert "@" + einst.bot_name in text
+    # Live-Test 1: /hilfe behauptet nichts mehr ueber Reply oder @Erwaehnung
+    # (die Gruppe ist ein reines Interface zum Bot, er antwortet auf alles).
+    assert "antworte" in text
     assert "Interview" in text
     assert "/stand" in text
 

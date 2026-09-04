@@ -95,16 +95,15 @@ def verarbeite_update(
 
 
 #: Wortidentisch mit den ersten beiden Absaetzen von befehle._TEXT_HILFE
-#: (teil-b.md Aufgabe 6/7): dieselbe Erklaerung zu Ansprache und
-#: Interviewmodus, damit die einmalige Begruessung und das jederzeit
-#: abrufbare /hilfe sich nie widersprechen. Erklaert in dieser Reihenfolge:
-#: (1) wie man den Bot anspricht, (2) wie Interviews laufen, (3) /hilfe zeigt
-#: den Rest (SPEC § 10.1, teil-b.md Aufgabe 7).
+#: (teil-b.md Aufgabe 6/7): dieselbe Erklaerung, damit die einmalige
+#: Begruessung und das jederzeit abrufbare /hilfe sich nie widersprechen.
+#: Erklaert in dieser Reihenfolge: (1) dass der Bot auf alles antwortet --
+#: die Gruppe ist ein reines Interface zu ihm, nicht ihr Diskussionsraum,
+#: das findet im Raum statt --, (2) wie Interviews laufen, (3) /hilfe zeigt
+#: den Rest (SPEC § 1.2, § 10.1, teil-b.md Aufgabe 7).
 _TEXT_ERSTKONTAKT = (
     "Hallo, ich bin der Theaterbot fuer diesen Workshop.\n\n"
-    "So sprecht ihr mich an: antwortet auf eine meiner Nachrichten, schreibt "
-    "@{bot_name} davor, oder schickt mir eine Sprachnachricht. Untereinander "
-    "koennt ihr reden, ohne dass ich dazwischenrede.\n\n"
+    "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
     "So laufen Interviews: sagt \"wir machen jetzt ein Interview\", dann "
     "zeichne ich auf. \"Fertig\" beendet es.\n\n"
     "/hilfe zeigt den Rest."
@@ -115,7 +114,8 @@ _TEXT_WIEDERKEHR = "Bin wieder da. Wenn ihr weitermachen wollt, sagt mir Beschei
 
 def erstkontakt(conn, tg, e, chat_id: int) -> None:
     """Schickt die Begruessung genau einmal je Gruppe (teil-b.md Aufgabe 7):
-    erklaert Ansprache, Interviewmodus und /hilfe, in dieser Reihenfolge.
+    erklaert, dass der Bot auf alles antwortet, den Interviewmodus und
+    /hilfe, in dieser Reihenfolge.
     'Es existiert noch keine Bot-Nachricht' ist die Bedingung dafuer, dass sie
     noch aussteht -- danach wird sie selbst als Bot-Nachricht mitgeschrieben,
     sonst wuerde sie beim naechsten Update erneut ausgeloest. Ein

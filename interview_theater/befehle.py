@@ -208,7 +208,7 @@ def _befehl_phase(conn, tg, chat_id: int, rest: str) -> None:
     tg.sende(chat_id, phasen.meldung(nummer))
 
 
-def _befehl_stand(conn, tg, chat_id: int) -> None:
+def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     """Baut die Stand-Antwort ausschliesslich aus der Datenbank -- ohne
     Sprachmodell, kann also nicht am LLM scheitern (teil-b.md Aufgabe 6).
 
@@ -241,6 +241,9 @@ def _befehl_stand(conn, tg, chat_id: int) -> None:
         "Interviews: " + ", ".join(aufnahmen_namen) if aufnahmen_namen else "Interviews: noch keine"
     )
     zeilen.append("Interviewmodus: an" if interviewmodus_an else "Interviewmodus: aus")
+    url = repo.gruppenseite_url(conn, chat_id, getattr(e, "web_url", ""))
+    if url:
+        zeilen.append(f"Zum Mitlesen: {url}")
 
     tg.sende(chat_id, "\n".join(zeilen))
 
@@ -342,7 +345,7 @@ def behandle(
     elif befehl == "/szene":
         _befehl_szene(conn, tg, klm, e, chat_id, rest)
     elif befehl == "/stand":
-        _befehl_stand(conn, tg, chat_id)
+        _befehl_stand(conn, tg, chat_id, e)
     elif befehl == "/wortlaut":
         _befehl_wortlaut(conn, tg, chat_id, rest)
     elif befehl == "/hilfe":

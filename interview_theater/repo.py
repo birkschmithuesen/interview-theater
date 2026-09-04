@@ -110,6 +110,16 @@ WEB_TOKEN_BYTES = 24
 
 
 @_gesperrt
+def gruppenseite_url(conn: sqlite3.Connection, chat_id: int, basis: str) -> str | None:
+    """Die URL der Leseansicht dieser Gruppe, oder None ohne Basis/Token.
+    Der Bot nennt sie in der Begruessung und in /stand -- die Gruppe soll
+    den Link nicht vom Workshop-Team abschreiben muessen."""
+    if not basis:
+        return None
+    token = stelle_web_token_sicher(conn, chat_id)
+    return f"{basis}/g/{token}" if token else None
+
+
 def stelle_web_token_sicher(conn: sqlite3.Connection, chat_id: int) -> str | None:
     """Liefert das Web-Token der Gruppe und erzeugt es beim ersten Bedarf.
 

@@ -416,3 +416,20 @@ def test_zug_und_erkenner_ruft_beides_genau_einmal_auf_nach_dem_zug(monkeypatch)
     assert reihenfolge == ["zug", "erkenner", "journal"], (
         "Erkenner und Journal-Extraktor muessen NACH dem Zug laufen, je genau einmal"
     )
+
+
+def test_erstkontakt_nennt_die_gruppenseite_wenn_konfiguriert(conn, einst):
+    """Birk 04.09.: den Link muss der Bot mitteilen, nicht das Workshop-Team
+    abschreiben. Ohne IT_WEB_URL kein Link, mit: /g/<token> dieser Gruppe."""
+    import dataclasses
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Gruppe 1")
+    tg = TelegramAttrappe()
+    bot.erstkontakt(conn, tg, einst, -100)
+    assert "/g/" not in tg.gesendet[0][1]
+
+    repo.sichere_gruppe(conn, -200, einst.bot_name, "Gruppe 2")
+    mit_web = dataclasses.replace(einst, web_url="https://lab.test/theatersoap")
+    tg = TelegramAttrappe()
+    bot.erstkontakt(conn, tg, mit_web, -200)
+    token = repo.stelle_web_token_sicher(conn, -200)
+    assert f"https://lab.test/theatersoap/g/{token}" in tg.gesendet[0][1]

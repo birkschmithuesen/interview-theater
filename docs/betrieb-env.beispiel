@@ -32,3 +32,8 @@ IT_MODELL_ERKENNER=google/gemma-4-31B-it
 # liegt unter /1/ai/<produkt>/..., NICHT unter /2/.../openai/v1/ (dort 404).
 IT_STT_BASIS=https://api.infomaniak.com
 IT_STT_PRODUKT=PRODUKT-ID
+
+# --- Weboberflaeche -------------------------------------------------------
+# Oeffentliche Basis-URL der Leseansicht. Der Bot nennt daraus den Link
+# /g/<token> in der Begruessung und in /stand. Leer lassen = kein Link.
+IT_WEB_URL=https://lab.artesmobiles.art/theatersoap

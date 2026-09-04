@@ -111,6 +111,14 @@ _TEXT_ERSTKONTAKT = (
     "/hilfe zeigt den Rest."
 )
 
+#: Angehaengt, wenn eine Weboberflaeche konfiguriert ist (IT_WEB_URL): die
+#: Leseansicht der Gruppe, zum Mitlesen neben dem Chat. Der Link ist das
+#: Geheimnis (kein Login) -- er geht nur in diese eine Gruppe.
+_TEXT_GRUPPENSEITE = (
+    "\n\nAlles, was wir festhalten, koennt ihr hier mitlesen (nur fuer eure "
+    "Gruppe): {url}"
+)
+
 #: Die Wiederkehr-Zeile nennt die Arbeitsphase: nach einer Nacht Pause ist
 #: die erste Frage im Raum, wo man stehengeblieben ist -- und die Phase ist
 #: seit dem 04.09.2026 ein gespeicherter Zustand, der das beantworten kann
@@ -135,6 +143,9 @@ def erstkontakt(conn, tg, e, chat_id: int) -> None:
     if repo.hat_bot_nachricht(conn, chat_id):
         return
     text = _TEXT_ERSTKONTAKT.format(bot_name=e.bot_name)
+    url = repo.gruppenseite_url(conn, chat_id, getattr(e, "web_url", ""))
+    if url:
+        text += _TEXT_GRUPPENSEITE.format(url=url)
     try:
         message_id = tg.sende(chat_id, text)
         repo.merke_nachricht(

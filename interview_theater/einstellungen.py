@@ -15,6 +15,8 @@ _VORGABEWERTE = {
     "IT_MODELL_ERKENNER": "google/gemma-4-31B-it",
     "IT_STT_BASIS": "https://api.infomaniak.com",
     "IT_STT_PRODUKT": None,
+    # Oeffentliche Basis-URL der Weboberflaeche; leer = kein Link im Chat.
+    "IT_WEB_URL": "https://lab.artesmobiles.art/theatersoap",
 }
 
 
@@ -29,6 +31,7 @@ class Einstellungen:
     llm_modell: str
     stt_basis: str
     stt_produkt: str
+    web_url: str = ""
     # Modellwahl je Aufruf (SPEC-kontext-architektur.md § 4.3a): der
     # Absichtserkenner laeuft nicht mit dem Gespraechsmodell (llm_modell,
     # Kimi K2.6), sondern mit gemma -- gemessen 0 Falsch-Positive bei 25
@@ -63,5 +66,6 @@ def laden() -> Einstellungen:
         llm_modell=werte["IT_LLM_MODELL"],
         stt_basis=werte["IT_STT_BASIS"],
         stt_produkt=werte["IT_STT_PRODUKT"],
+        web_url=(werte["IT_WEB_URL"] or "").rstrip("/"),
         erkenner_modell=werte["IT_MODELL_ERKENNER"],
     )

@@ -385,3 +385,11 @@ def test_kernthema_aus_ohne_kernthema_sagt_es(conn, einst, tg):
     befehle.behandle(conn, tg, einst, 1, "/kernthema aus", "Ada")
 
     assert tg.gesendet == [(1, "Ein Kernthema war nicht gesetzt.")]
+
+
+def test_stand_nennt_die_gruppenseite_wenn_konfiguriert(conn, einst, tg):
+    import dataclasses
+    mit_web = dataclasses.replace(einst, web_url="https://lab.test/theatersoap")
+    befehle.behandle(conn, tg, mit_web, 1, "/stand", "Elif")
+    token = repo.stelle_web_token_sicher(conn, 1)
+    assert f"Zum Mitlesen: https://lab.test/theatersoap/g/{token}" in tg.gesendet[-1][1]

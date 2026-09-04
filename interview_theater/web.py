@@ -38,7 +38,7 @@ import urllib.parse
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import phasen, web_daten
+from . import phasen, web_daten  # noqa: F401 -- web_daten.SZENENFELDER im HTML
 
 VORGABE_BIND = "127.0.0.1:8010"
 #: Externer URL-Pfad, unter dem nginx auf herkules den Server durchreicht.
@@ -110,6 +110,10 @@ th, td { text-align: left; padding: .25rem .6rem .25rem 0;
          border-bottom: 1px solid #2c313a; }
 th { opacity: .6; font-weight: 600; }
 .figuren li { margin-bottom: .15rem; }
+/* Je Interview eine Zeile mit den Ergebnissen als Kurzform (N6) -- ohne
+   Zitate und ohne Zusammenfassung, das Dashboard haengt am Beamer. */
+.ergebnisse { margin: .5rem 0 0; font-size: .85rem; }
+.ergebnisse li { margin-bottom: .15rem; }
 ul { margin: .2rem 0; padding-left: 1.1rem; }
 """
 
@@ -130,6 +134,11 @@ blockquote { margin: .2rem 0 .5rem; padding-left: .7rem;
        padding: .05rem .5rem; margin-right: .4rem; }
 details { margin-top: .5rem; }
 summary { cursor: pointer; font-weight: 600; }
+details.szene, details.verdichtung { border-bottom: 1px solid #e6e1d6;
+                                     padding-bottom: .5rem; }
+/* Das Sprachprofil einer Figur: mehrzeilig, so wie es gespeichert ist. */
+.profil { white-space: pre-wrap; font-size: .92rem; opacity: .8;
+          margin: .2rem 0 .3rem; }
 .eintrag { margin: .35rem 0; }
 .zeit { opacity: .5; font-size: .78rem; }
 """
@@ -233,11 +242,32 @@ def _fragen_html(fragen: str | None) -> str:
     return "<ul class=\"fragen\">" + "".join(zeilen) + "</ul>"
 
 
-def _arbeitsstand_html(arbeitsstand: dict, figuren: list[dict]) -> str:
-    figuren_html = "".join(
-        f"<li><b>{_t(f['name'])}</b> — {_t(f['beschreibung'], 'ohne Beschreibung')}</li>"
-        for f in figuren
-    )
+def _figur_html(f: dict, mit_stimme: bool) -> str:
+    """Eine Figur: Name, Beschreibung -- und auf der Gruppenseite zusaetzlich
+    das Interview, aus dem sie spricht, ihr Sprachprofil und ihre woertlichen
+    Zitate (05.09.2026).
+
+    ``mit_stimme=False`` auf dem **Dashboard**: das haengt am Beamer, und ein
+    woertlicher Satz aus einem Interview gehoert dort nicht hin -- dieselbe
+    Grenze wie bei Nachrichtentext und Transkripten. Die Zitate selbst sind
+    vor dem Speichern geprueft (``sprachprofil.erstelle``), stehen also unter
+    derselben Zusage wie die Belegzitate der Verdichtungen: kein Satz in
+    Anfuehrungszeichen, den niemand gesagt hat."""
+    teile = [f"<b>{_t(f['name'])}</b> — {_t(f.get('beschreibung'), 'ohne Beschreibung')}"]
+    if f.get("quelle"):
+        teile.append(f'<div class="zeit">spricht wie {_t(f["quelle"])}</div>')
+    if mit_stimme:
+        if f.get("sprachprofil"):
+            teile.append(f'<div class="profil">{_t(f["sprachprofil"])}</div>')
+        for satz in f.get("zitate") or []:
+            teile.append(f"<blockquote>„{_t(satz)}“</blockquote>")
+    return "<li>" + "".join(teile) + "</li>"
+
+
+def _arbeitsstand_html(
+    arbeitsstand: dict, figuren: list[dict], mit_stimmen: bool = False
+) -> str:
+    figuren_html = "".join(_figur_html(f, mit_stimmen) for f in figuren)
     # Die Phase steht oben: sie ordnet alles darunter ein. Eine ungesetzte
     # Phase (NULL) gilt wie 1 -- diese Anzeigeregel steht hier, web_daten
     # liefert den rohen Wert (interview_theater/phasen.py).
@@ -268,6 +298,36 @@ def _arbeitsstand_html(arbeitsstand: dict, figuren: list[dict]) -> str:
         + (f'<ul class="figuren">{figuren_html}</ul>' if figuren else '<span class="leer">noch keine</span>')
         + "</dd></dl>"
     )
+
+
+def _szenenzahl(anzahl: int, formen: list) -> str:
+    """"3 Szenen: 2 Dialog, 1 Lied" -- die Szenenzahl mit ihren Formen
+    (05.09.2026).
+
+    Eine blosse Zahl sagt am Beamer wenig; die Formen sagen, was fuer ein
+    Abend gerade entsteht. Ohne Szenen bleibt es bei der Zahl."""
+    kopf = f"Szenen: <b>{anzahl}</b>"
+    if not formen:
+        return kopf
+    return kopf + " — " + ", ".join(f"{n} {_t(form)}" for form, n in formen)
+
+
+def _ergebnisse_html(kurzformen: list[dict]) -> str:
+    """Je Interview eine Zeile mit den Ergebnissen als Kurzform (N6).
+
+    **Ohne Zitate, ohne Zusammenfassung, ohne Transkript** -- das Dashboard
+    haengt am Beamer. Was hier steht, sind Arbeitsergebnisse in hoechstens
+    acht Woertern je Thema."""
+    if not kurzformen:
+        return ""
+    zeilen = "".join(
+        '<li><b>{name}</b> {ergebnisse}</li>'.format(
+            name=_t(v["name"], "Interview"),
+            ergebnisse=_t(SUMMARY_TRENNER.join(v["kurzformen"])),
+        )
+        for v in kurzformen
+    )
+    return f'<ul class="ergebnisse">{zeilen}</ul>'
 
 
 def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
@@ -322,9 +382,10 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
             f'<div class="kopf"><h2>{titel}</h2>'
             f'<span class="bot">{_t(g["bot_name"])} {marke}</span></div>'
             f'{_arbeitsstand_html(g["arbeitsstand"], g["figuren"])}'
+            f'{_ergebnisse_html(g.get("interview_kurzformen") or [])}'
             f'<div class="zahlen"><span>Aufnahmen — {aufnahmen}</span>'
             f'<span>Verdichtungen: <b>{g["verdichtungen"]}</b></span>'
-            f'<span>Szenen: <b>{g["szenen"]}</b></span>'
+            f'<span>{_szenenzahl(g["szenen"], g.get("szenen_formen") or [])}</span>'
             f'<span>zuletzt: {_zeitpunkt(g["letzte_aktivitaet"])}</span></div>'
             f"{vorfaelle_html}"
             f"{aufrufe_html}"
@@ -357,43 +418,98 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
     )
 
 
-def gruppe_html(daten: dict) -> str:
-    """Die Leseansicht einer Gruppe aus web_daten.gruppe_nach_token()."""
-    szenen = "".join(
-        '<div class="szene"><h3>{nummer}{titel}</h3>{kurz}{volltext}</div>'.format(
-            nummer=f"{_t(s['nummer'], '')}. " if s["nummer"] is not None else "",
-            titel=_t(s["titel"], "ohne Titel"),
-            kurz=f'<p class="zeit">{_t(s["kurzbeschreibung"], "")}</p>'
-            if s["kurzbeschreibung"]
-            else "",
-            volltext=f'<div class="volltext">{_t(s["volltext"], "")}</div>'
-            if s["volltext"]
-            else "",
-        )
-        for s in daten["szenen"]
-    ) or '<p class="leer">Noch keine Szene. Die entstehen in der letzten Phase.</p>'
+#: Trennzeichen der Kurzformen in einer Summary-Zeile. Der Mittelpunkt, weil
+#: die Ergebnisse gleichrangig nebeneinanderstehen ("Pfannkuchen mit
+#: Schokolade und Banane · Punkerin im autonomen Zentrum").
+SUMMARY_TRENNER = " · "
 
-    verdichtungen = []
-    for v in daten["interviews"]:
-        themen = "".join(
-            '<div class="thema">{thema}{zitat}</div>'.format(
-                thema=_t(t["thema"]),
-                zitat=f"<blockquote>„{_t(t['zitat'], '')}“</blockquote>" if t["zitat"] else "",
-            )
-            for t in v["themen"]
+
+def _szene_summary(s: dict) -> str:
+    """Die zusammengeklappte Zeile einer Szene: Nummer, Titel, Form, Ort, Wer.
+
+    Genau so viel, dass die Gruppe die Szene wiedererkennt, ohne aufzuklappen
+    -- und genau die Felder, die sie entschieden hat."""
+    stuecke = []
+    if s["nummer"] is not None:
+        stuecke.append(f"Szene {_t(s['nummer'])}")
+    if s.get("titel"):
+        stuecke.append(_t(s["titel"]))
+    for feld in ("form", "ort"):
+        if s.get(feld):
+            stuecke.append(_t(s[feld]))
+    if s.get("figuren"):
+        stuecke.append(_t(", ".join(s["figuren"])))
+    return SUMMARY_TRENNER.join(stuecke) or "Szene"
+
+
+def _szene_html(s: dict) -> str:
+    """Eine Szene als aufklappbarer Block: Summary-Zeile, darin alle Felder
+    der Planung und danach der Volltext (05.09.2026).
+
+    Aufklappbar, weil eine Gruppenseite mit sechs ausgeschriebenen Szenen auf
+    dem Handy nicht mehr zu ueberblicken ist -- und weil die Planung das ist,
+    was die Gruppe im Gespraech braucht, nicht der ganze Text."""
+    felder = "".join(
+        f"<dt>{label}</dt><dd>{_t(s[feld])}</dd>"
+        for feld, label in web_daten.SZENENFELDER
+        if s.get(feld)
+    )
+    if s.get("figuren"):
+        felder = f"<dt>Wer</dt><dd>{_t(', '.join(s['figuren']))}</dd>" + felder
+    if s.get("kurzbeschreibung"):
+        felder += f"<dt>Kurz</dt><dd>{_t(s['kurzbeschreibung'])}</dd>"
+    inhalt = f"<dl>{felder}</dl>" if felder else ""
+    if s.get("volltext"):
+        inhalt += f'<div class="volltext">{_t(s["volltext"])}</div>'
+    else:
+        inhalt += '<p class="leer">Noch kein Text — die Szene ist geplant.</p>'
+    return (
+        f'<details class="szene"><summary>{_szene_summary(s)}</summary>{inhalt}</details>'
+    )
+
+
+def _interview_html(v: dict) -> str:
+    """Ein Interview als aufklappbarer Block (N6).
+
+    **Die Summary-Zeile sind die Ergebnisse, nicht der Fliesstext**: je Thema
+    die Kurzform, mit Mittelpunkten verbunden. Aufgeklappt steht je Thema das
+    Belegzitat (nur geprueft, SPEC § 5) und darunter die Zusammenfassung.
+
+    Bis dahin stand die ganze Verdichtung als Absatz da, und wer wissen
+    wollte, was in fuenf Interviews steckt, musste fuenf Absaetze lesen."""
+    kurzformen = [t["kurz"] for t in v["themen"] if t.get("kurz")]
+    summary = _t(v["name"], "Interview")
+    if kurzformen:
+        summary += SUMMARY_TRENNER + SUMMARY_TRENNER.join(_t(k) for k in kurzformen)
+    themen = "".join(
+        '<div class="thema">{thema}{zitat}</div>'.format(
+            thema=_t(t["thema"]),
+            zitat=f"<blockquote>„{_t(t['zitat'], '')}“</blockquote>" if t["zitat"] else "",
         )
-        inhalt = (
-            f'<p>{_t(v["zusammenfassung"], "")}</p>{themen}'
+        for t in v["themen"]
+    )
+    inhalt = (
+        f'<p class="zeit">{_umfang(v["teile"], v["dauer_sekunden"])}</p>'
+        + (
+            f'{themen}<p>{_t(v["zusammenfassung"], "")}</p>'
             if v["zusammenfassung"]
             else '<p class="leer">Noch nicht verdichtet.</p>'
         )
-        verdichtungen.append(
-            '<div class="verdichtung">'
-            f'<h3>{_t(v["name"], "Interview")}</h3>'
-            f'<p class="zeit">{_umfang(v["teile"], v["dauer_sekunden"])}</p>'
-            f"{inhalt}</div>"
-        )
-    verdichtungen_html = "".join(verdichtungen) or (
+    )
+    return (
+        f'<details class="verdichtung"><summary>{summary}</summary>{inhalt}</details>'
+    )
+
+
+def gruppe_html(daten: dict) -> str:
+    """Die Leseansicht einer Gruppe aus web_daten.gruppe_nach_token()."""
+    szenen = "".join(_szene_html(s) for s in daten["szenen"]) or (
+        '<p class="leer">Noch keine Szene. Die entstehen in der letzten Phase.</p>'
+    )
+
+    verdichtungen_html = "".join(
+        _interview_html(v) for v in daten["interviews"]
+    ) or (
         '<p class="leer">Noch kein Interview — sagt „wir machen jetzt ein '
         "Interview“ und sprecht drauflos.</p>"
     )
@@ -412,7 +528,7 @@ def gruppe_html(daten: dict) -> str:
         _CSS_GRUPPE,
         f"<h1>{_t(titel)}</h1>\n"
         "<h2>Arbeitsstand</h2>"
-        f'{_arbeitsstand_html(daten["arbeitsstand"], daten["figuren"])}\n'
+        f'{_arbeitsstand_html(daten["arbeitsstand"], daten["figuren"], mit_stimmen=True)}\n'
         f"<h2>Szenen</h2>{szenen}\n"
         f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
         "<h2>Der Weg dahin</h2>"

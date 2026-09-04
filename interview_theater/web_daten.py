@@ -116,15 +116,49 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
 _NICHT_ENTFERNT = "entfernt_am IS NULL"
 
 
+#: Trennzeichen zwischen den Zitaten einer Figur (``figur.zitate``) -- muss
+#: mit ``repo.ZITAT_TRENNER`` uebereinstimmen. Bewusst hier noch einmal und
+#: nicht importiert: ``web_daten`` haengt an keiner Schreibschicht, und ein
+#: Import von ``repo`` zoege dessen modulweiten Lock in den Webprozess.
+ZITAT_TRENNER = " | "
+
+
 def _figuren(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
-    return [
-        {"name": z["name"], "beschreibung": z["beschreibung"]}
-        for z in conn.execute(
-            "SELECT name, beschreibung FROM figur "
-            f"WHERE chat_id = ? AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+    """Die Figuren der Gruppe -- seit dem 05.09.2026 samt Sprachprofil,
+    woertlichen Zitaten und dem Interview, aus dem sie stammen.
+
+    Die Zitate sind geprueft, bevor sie gespeichert werden
+    (``sprachprofil.erstelle``), stehen hier also unter derselben Zusage wie
+    die Belegzitate der Verdichtungen: kein Satz in Anfuehrungszeichen, den
+    niemand gesagt hat.
+
+    Alle drei Spalten gehen ueber ``_feld``: sie sind nachtraeglich
+    dazugekommen, und der Webserver sieht die Datenbank read-only."""
+    figuren = []
+    try:
+        zeilen = conn.execute(
+            f"SELECT * FROM figur WHERE chat_id = ? AND {_NICHT_ENTFERNT} ORDER BY id ASC",
             (chat_id,),
-        )
-    ]
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    for z in zeilen:
+        quelle_id = _feld(z, "quelle_aufnahme_id")
+        quelle = None
+        if quelle_id is not None:
+            zeile = conn.execute(
+                "SELECT name FROM aufnahme WHERE id = ?", (quelle_id,)
+            ).fetchone()
+            quelle = zeile["name"] if zeile else None
+        zitate = _feld(z, "zitate") or ""
+        figuren.append({
+            "name": z["name"],
+            "beschreibung": z["beschreibung"],
+            "sprachprofil": _feld(z, "sprachprofil"),
+            "zitate": [s.strip() for s in zitate.split(ZITAT_TRENNER) if s.strip()],
+            "quelle": quelle,
+        })
+    return figuren
 
 
 def _aufnahmen_nach_status(conn: sqlite3.Connection, chat_id: int) -> dict[str, int]:
@@ -259,6 +293,50 @@ def bot_zuordnung(conn: sqlite3.Connection) -> list[dict]:
     return zeilen
 
 
+def _szenen_nach_form(conn: sqlite3.Connection, chat_id: int) -> list[tuple[str, int]]:
+    """Wie viele Szenen es je Form gibt -- Grundlage der Dashboard-Zeile
+    "3 Szenen: 2 Dialog, 1 Lied" (05.09.2026).
+
+    Eine blosse Zahl sagt am Beamer wenig; die Formen sagen, was fuer ein
+    Abend da gerade entsteht. Szenen ohne gesetzte Form zaehlen als "offen":
+    sie sind noch nicht geplant, und das ist der Zustand, den man auf dem
+    Dashboard sehen will."""
+    gezaehlt: dict[str, int] = {}
+    for z in conn.execute(
+        f"SELECT * FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT}", (chat_id,)
+    ):
+        form = (_feld(z, "form") or "").strip() or "offen"
+        gezaehlt[form] = gezaehlt.get(form, 0) + 1
+    return sorted(gezaehlt.items(), key=lambda paar: (-paar[1], paar[0]))
+
+
+def _interview_kurzformen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Je Interview eine Zeile fuers Dashboard: Name plus die Ergebnisse als
+    Kurzform (N6).
+
+    **Ohne Zitate und ohne Zusammenfassung** -- das Dashboard haengt am
+    Beamer, und in den Interviews stehen Lebensgeschichten. Was hier steht,
+    sind Arbeitsergebnisse in hoechstens acht Woertern je Thema
+    ("Pfannkuchen mit Schokolade und Banane · Punkerin im autonomen
+    Zentrum")."""
+    ergebnis = []
+    for z in conn.execute(
+        "SELECT id, name FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+        "ORDER BY id ASC",
+        (chat_id,),
+    ):
+        verdichtung = conn.execute(
+            "SELECT id FROM verdichtung WHERE aufnahme_id = ? ORDER BY id DESC LIMIT 1",
+            (z["id"],),
+        ).fetchone()
+        if verdichtung is None:
+            continue
+        kurzformen = [t["kurz"] for t in _themen(conn, verdichtung["id"]) if t["kurz"]]
+        if kurzformen:
+            ergebnis.append({"name": z["name"], "kurzformen": kurzformen})
+    return ergebnis
+
+
 def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
     """Alle Gruppen fuer das projizierte Team-Dashboard.
 
@@ -288,6 +366,8 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
                     f"SELECT count(*) FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT}",
                     (chat_id,),
                 ).fetchone()[0],
+                "szenen_formen": _szenen_nach_form(conn, chat_id),
+                "interview_kurzformen": _interview_kurzformen(conn, chat_id),
                 "letzte_aktivitaet": _letzte_aktivitaet(conn, chat_id),
                 "vorfaelle": _vorfaelle(conn, chat_id, z["bot_name"], jetzt),
                 "aufrufe": _aufrufe_heute(conn, chat_id, jetzt),
@@ -300,28 +380,68 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
     }
 
 
-def _szenen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
-    """Die Szenen der Gruppe, nach ``nummer``.
+#: Die Planungsfelder einer Szene (05.09.2026), in der Reihenfolge, in der
+#: sie auf der Gruppenseite stehen. Wie in ``szene.FELDNAMEN``, nur fuer die
+#: Anzeige -- ``web_daten`` importiert nichts aus dem Schreibpfad.
+SZENENFELDER = (
+    ("form", "Form"),
+    ("ort", "Ort"),
+    ("zeit", "Zeit"),
+    ("anlass", "Anlass"),
+    ("was_passiert", "Was passiert"),
+    ("was_anders", "Was anders ist"),
+    ("kernsaetze", "Kernsätze"),
+    ("ton", "Ton"),
+)
 
-    Die Tabelle ist heute leer -- Szenen entstehen in der letzten
-    Workshop-Phase, ein paralleler Zweig baut das Schreiben. Die Ansicht
-    steht trotzdem, damit die Gruppenseite an dem Tag nichts mehr braucht.
+
+def _szene_figuren(conn: sqlite3.Connection, szene_id: int) -> list[str]:
+    """Die Namen der Figuren einer Szene. Weich geloeschte Figuren fallen
+    heraus (wie in ``repo.szene_figuren``); fehlt die Tabelle noch, ist die
+    Besetzung schlicht leer."""
+    try:
+        return [
+            z["name"]
+            for z in conn.execute(
+                "SELECT f.name FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
+                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} ORDER BY f.id ASC",
+                (szene_id,),
+            )
+        ]
+    except sqlite3.OperationalError:
+        return []
+
+
+def _szenen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die Szenen der Gruppe, nach ``nummer`` -- seit dem 05.09.2026 samt
+    ihrer Planung: Form, Ort, Zeit, Anlass, Besetzung, Handlung, Bewegung,
+    Kernsaetze, Ton.
+
+    Die Planung steht auf der Gruppenseite gleichberechtigt neben dem Text:
+    eine Szene ist zuerst eine Entscheidung der Gruppe und erst danach ein
+    Szenentext, und was sie entschieden hat, soll sie nachlesen koennen --
+    auch bevor der Text existiert.
+
     Zeilen ohne Nummer landen hinten statt vorn (NULL sortiert in SQLite
     sonst zuerst)."""
-    return [
-        {
+    szenen = []
+    for z in conn.execute(
+        f"SELECT * FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY nummer IS NULL, nummer ASC, id ASC",
+        (chat_id,),
+    ):
+        eintrag = {
             "nummer": z["nummer"],
             "titel": z["titel"],
             "kurzbeschreibung": z["kurzbeschreibung"],
             "volltext": z["volltext"],
             "geaendert_am": z["geaendert_am"],
+            "figuren": _szene_figuren(conn, z["id"]),
         }
-        for z in conn.execute(
-            f"SELECT * FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
-            "ORDER BY nummer IS NULL, nummer ASC, id ASC",
-            (chat_id,),
-        )
-    ]
+        for feld, _ in SZENENFELDER:
+            eintrag[feld] = _feld(z, feld)
+        szenen.append(eintrag)
+    return szenen
 
 
 def _themen(conn: sqlite3.Connection, verdichtung_id: int) -> list[dict]:
@@ -335,10 +455,14 @@ def _themen(conn: sqlite3.Connection, verdichtung_id: int) -> list[dict]:
     return [
         {
             "thema": t["thema"],
+            # Die Kurzform (N3/N6) ist das, was in die Summary-Zeile je
+            # Interview geht -- hoechstens acht Woerter. Fehlt sie (eine
+            # Verdichtung aus der Zeit davor), zeigt die Ansicht das Thema.
+            "kurz": _feld(t, "kurz") or t["thema"],
             "zitat": t["beleg_zitat"] if t["zitat_geprueft"] == 1 else None,
         }
         for t in conn.execute(
-            "SELECT thema, beleg_zitat, zitat_geprueft FROM verdichtung_thema "
+            "SELECT * FROM verdichtung_thema "
             "WHERE verdichtung_id = ? ORDER BY id ASC",
             (verdichtung_id,),
         )

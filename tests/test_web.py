@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 
 import pytest
-from interview_theater import db, repo, web
+from interview_theater import db, repo, web, web_daten
 
 
 @pytest.fixture
@@ -123,6 +123,102 @@ def test_umfang_nennt_teile_und_dauer(basis, token):
 
 def test_gruppenseite_zeigt_die_frageliste(basis, token):
     assert "Was war in deinem Koffer?" in hole(f"{basis}/g/{token}")[1]
+
+
+def test_gruppenseite_klappt_jede_szene_auf_mit_planung_und_volltext():
+    """05.09.2026: Summary = Szene N · Titel · Form · Ort · Wer, aufgeklappt
+    alle Felder und dann der Volltext."""
+    daten = {
+        "chat_id": 1, "titel": "Die Ankommenden", "bot_name": "gruppe1",
+        "interviewmodus_seit": None, "figuren": [], "interviews": [], "journal": [],
+        "arbeitsstand": {"phase": 6, "begriffe": None, "fragen": None,
+                         "kernthema": None, "kernthema_begruendung": None,
+                         "format": None, "rahmen": None, "hauptkonflikt": None},
+        "szenen": [{
+            "nummer": 1, "titel": "Im Kessel", "kurzbeschreibung": "Sie warten",
+            "volltext": "MIRA: Da.", "geaendert_am": None,
+            "figuren": ["Mira", "Pola"], "form": "Dialog", "ort": "Polizeikessel",
+            "zeit": None, "anlass": "seit zwei Stunden", "was_passiert": "sie warten",
+            "was_anders": None, "kernsaetze": None, "ton": "hitzig",
+        }],
+    }
+
+    koerper = web.gruppe_html(daten)
+
+    assert "<summary>Szene 1 · Im Kessel · Dialog · Polizeikessel · Mira, Pola</summary>" in koerper
+    assert "seit zwei Stunden" in koerper and "hitzig" in koerper
+    assert "MIRA: Da." in koerper
+
+
+def test_eine_geplante_szene_ohne_text_sagt_das(basis, token, db_pfad):
+    conn = db.verbinde(db_pfad)
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szenenfeld(conn, szene_id, "form", "Lied")
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "Noch kein Text" in koerper
+
+
+def test_gruppenseite_zeigt_je_figur_stimme_und_quelle(basis, token, db_pfad):
+    conn = db.verbinde(db_pfad)
+    figur_id = repo.hole_figur(conn, 1, "Maria")["id"]
+    repo.setze_figur_quelle(conn, figur_id, repo.transkripte(conn, 1)[0]["id"])
+    repo.setze_sprachprofil(conn, figur_id, "Kurze Saetze.", ["Ich hatte nur einen Koffer"])
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "spricht wie Marias Interview" in koerper
+    assert "Kurze Saetze." in koerper
+    assert "Ich hatte nur einen Koffer" in koerper
+
+
+def test_interview_summary_zeigt_die_kurzformen_nicht_die_zusammenfassung(
+    basis, token, db_pfad
+):
+    """N6: die Summary-Zeile sind die Ergebnisse. Zusammenfassung und Zitat
+    stehen im aufgeklappten Teil."""
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    summary = koerper.split("<summary>Marias Interview", 1)[1].split("</summary>", 1)[0]
+    assert "Ankommen" in summary and "Arbeit" in summary
+    assert "ersten Winter" not in summary, "die Zusammenfassung gehoert nicht in die Summary"
+    assert "Ich hatte nur einen Koffer" not in summary, "kein Zitat in der Summary"
+    # Aufgeklappt steht beides.
+    assert "Maria erzaehlt vom ersten Winter" in koerper
+    assert "Ich hatte nur einen Koffer" in koerper
+
+
+def test_dashboard_nennt_format_und_die_formen_der_szenen(db_pfad):
+    conn = db.verbinde(db_pfad)
+    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+    repo.setze_szenenfeld(conn, repo.stelle_szene_sicher(conn, 1, 1), "form", "Dialog")
+    repo.setze_szenenfeld(conn, repo.stelle_szene_sicher(conn, 1, 2), "form", "Dialog")
+    repo.setze_szenenfeld(conn, repo.stelle_szene_sicher(conn, 1, 3), "form", "Lied")
+
+    lesend = web_daten.oeffne_lesend(db_pfad)
+    koerper = web.dashboard_html(web_daten.dashboard(lesend))
+    lesend.close()
+
+    assert "Musical: Dialog, Lied, Rap" in koerper
+    assert "Szenen: <b>3</b> — 2 Dialog, 1 Lied" in koerper
+
+
+def test_dashboard_zeigt_die_ergebnisse_je_interview_ohne_zitate(db_pfad):
+    """N6 auf dem projizierten Dashboard: die Kurzformen als eine Zeile je
+    Interview -- ohne Zitate, ohne Zusammenfassung, ohne Sprachprofil."""
+    conn = db.verbinde(db_pfad)
+    figur_id = repo.hole_figur(conn, 1, "Maria")["id"]
+    repo.setze_sprachprofil(conn, figur_id, "Kurze Saetze.", ["Ich hatte nur einen Koffer"])
+
+    lesend = web_daten.oeffne_lesend(db_pfad)
+    koerper = web.dashboard_html(web_daten.dashboard(lesend))
+    lesend.close()
+
+    assert "Ankommen · Arbeit" in koerper
+    assert "Ich hatte nur einen Koffer" not in koerper
+    assert "Maria erzaehlt vom ersten Winter" not in koerper
+    assert "Kurze Saetze." not in koerper
 
 
 def test_arbeitsstand_zeigt_format_und_rahmen_den_konflikt_nur_wenn_gesetzt():

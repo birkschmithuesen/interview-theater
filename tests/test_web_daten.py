@@ -71,7 +71,10 @@ def test_dashboard_zeigt_alle_gruppen_mit_arbeitsstand(gefuellt):
     assert erste["arbeitsstand"]["format"] == "Musical: Dialog, Lied, Rap"
     assert erste["arbeitsstand"]["rahmen"] == "Eine Nacht im Treppenhaus"
     assert erste["arbeitsstand"]["hauptkonflikt"] == "Bleiben gegen Zurueckgehen"
-    assert erste["figuren"] == [{"name": "Maria", "beschreibung": "kam 1998, arbeitet nachts"}]
+    assert erste["figuren"] == [{
+        "name": "Maria", "beschreibung": "kam 1998, arbeitet nachts",
+        "sprachprofil": None, "zitate": [], "quelle": None,
+    }]
     assert erste["aufnahmen"] == {"fertig": 1}
     assert erste["verdichtungen"] == 1
     assert erste["szenen"] == 1
@@ -217,8 +220,68 @@ def test_gruppenseite_zeigt_nur_gepruefte_belegzitate(gefuellt):
     Das Thema bleibt, das Zitat faellt weg."""
     token = repo.stelle_web_token_sicher(gefuellt, 1)
     themen = web_daten.gruppe_nach_token(gefuellt, token)["interviews"][0]["themen"]
-    assert themen[0] == {"thema": "Warten", "zitat": "wir haben lange gewartet"}
-    assert themen[1] == {"thema": "Sprache", "zitat": None}
+    assert themen[0] == {
+        "thema": "Warten", "kurz": "Warten", "zitat": "wir haben lange gewartet",
+    }
+    assert themen[1] == {"thema": "Sprache", "kurz": "Sprache", "zitat": None}
+
+
+def test_figuren_tragen_sprachprofil_zitate_und_quelle(gefuellt):
+    """05.09.2026: die Gruppenseite zeigt, wie eine Figur spricht und aus
+    welchem Interview das kommt."""
+    figur_id = repo.hole_figur(gefuellt, 1, "Maria")["id"]
+    aufnahme_id = repo.transkripte(gefuellt, 1)[0]["id"]
+    repo.setze_figur_quelle(gefuellt, figur_id, aufnahme_id)
+    repo.setze_sprachprofil(
+        gefuellt, figur_id, "Kurze Saetze.\nSagt 'halt'.",
+        ["wir haben lange gewartet", "halt so, ne?"],
+    )
+    token = repo.stelle_web_token_sicher(gefuellt, 1)
+
+    figur = web_daten.gruppe_nach_token(gefuellt, token)["figuren"][0]
+
+    assert figur["quelle"] == "Maria"
+    assert figur["sprachprofil"] == "Kurze Saetze.\nSagt 'halt'."
+    assert figur["zitate"] == ["wir haben lange gewartet", "halt so, ne?"]
+
+
+def test_szenen_tragen_ihre_planung(gefuellt):
+    szene_id = repo.hole_szenen(gefuellt, 1)[0]["id"]
+    repo.setze_szenenfeld(gefuellt, szene_id, "form", "Lied")
+    repo.setze_szenenfeld(gefuellt, szene_id, "ort", "Treppenhaus")
+    repo.setze_szene_figuren(
+        gefuellt, 1, szene_id, [repo.hole_figur(gefuellt, 1, "Maria")["id"]]
+    )
+    token = repo.stelle_web_token_sicher(gefuellt, 1)
+
+    szene = web_daten.gruppe_nach_token(gefuellt, token)["szenen"][0]
+
+    assert szene["form"] == "Lied"
+    assert szene["ort"] == "Treppenhaus"
+    assert szene["figuren"] == ["Maria"]
+
+
+def test_dashboard_zaehlt_szenen_nach_form(gefuellt):
+    """"3 Szenen: 2 Dialog, 1 Lied" -- eine blosse Zahl sagt am Beamer wenig."""
+    szene_id = repo.hole_szenen(gefuellt, 1)[0]["id"]
+    repo.setze_szenenfeld(gefuellt, szene_id, "form", "Dialog")
+    repo.setze_szenenfeld(gefuellt, repo.stelle_szene_sicher(gefuellt, 1, 2), "form", "Dialog")
+    repo.setze_szenenfeld(gefuellt, repo.stelle_szene_sicher(gefuellt, 1, 3), "form", "Lied")
+
+    erste = web_daten.dashboard(gefuellt, jetzt=JETZT)["gruppen"][0]
+
+    assert erste["szenen"] == 3
+    assert erste["szenen_formen"] == [("Dialog", 2), ("Lied", 1)]
+
+
+def test_dashboard_zeigt_je_interview_die_ergebnisse_als_kurzform(gefuellt):
+    """N6: die eine Zeile je Interview -- Kurzformen, keine Zitate, keine
+    Zusammenfassung."""
+    erste = web_daten.dashboard(gefuellt, jetzt=JETZT)["gruppen"][0]
+
+    assert erste["interview_kurzformen"] == [
+        {"name": "Maria", "kurzformen": ["Warten", "Sprache"]}
+    ]
 
 
 def test_gruppenseite_traegt_kein_volltranskript(gefuellt):

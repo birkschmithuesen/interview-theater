@@ -78,6 +78,24 @@ def test_lies_json_ohne_jedes_json_ist_fehler():
         llm.lies_json("nur Fliesstext, kein JSON weit und breit")
 
 
+def test_zwei_json_bloecke_sind_mehrdeutig():
+    """Review-Befund: raw_decode toleriert Text nach dem JSON-Objekt, das
+    darf aber kein zweiter JSON-Wert sein -- sonst wuerde der haeufige leere
+    Fall ({"aenderungen": []}) den inhaltstragenden zweiten Block still
+    verdecken. Genau der beim Absichtserkenner erwartete Normalfall."""
+    text = (
+        '{"aenderungen": []} '
+        '{"aenderungen": [{"art": "kernthema_setzen", "wert": "X"}]}'
+    )
+    with pytest.raises(llm.LLMFehler, match="mehrdeutig"):
+        llm.lies_json(text)
+
+
+def test_json_mit_nachgestelltem_fliesstext_ohne_weitere_klammer_bleibt_erlaubt():
+    text = '{"a": 3} Vielen Dank.'
+    assert llm.lies_json(text) == {"a": 3}
+
+
 def test_502_wird_wiederholt(einst, conn, monkeypatch):
     schlaf_aufrufe = []
     monkeypatch.setattr(llm.time, "sleep", lambda s: schlaf_aufrufe.append(s))
@@ -239,6 +257,27 @@ def test_temperature_parameter_landet_im_koerper(einst, conn):
     llm.LLM(einst, _klient(handler), conn).schema(1, "s", "n", {}, "extraktor", temperature=0.2)
 
     assert gesehen["body"]["temperature"] == 0.2
+
+
+def test_reasoning_effort_none_wird_zu_none_string_normalisiert(einst, conn):
+    """Review-Befund: reasoning_effort hat den Vorgabewert "none" (str), aber
+    Python erzwingt Typannotationen nicht zur Laufzeit. Ein interner
+    Aufrufer, der explizit None uebergibt, darf nicht "reasoning_effort":
+    null in den Koerper schreiben -- dieselbe binaere Falle eine Ebene
+    tiefer (SPEC § 4.4)."""
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["body"] = json.loads(request.content)
+        return _antwort(content="{}")
+
+    klm = llm.LLM(einst, _klient(handler), conn)
+    klm._anfrage(
+        chat_id=1, system="s", nutzer="n", art="extraktor", modus="A",
+        response_format=None, reasoning_effort=None,
+    )
+
+    assert gesehen["body"]["reasoning_effort"] == "none"
 
 
 def test_ohne_temperature_parameter_fehlt_das_feld(einst, conn):

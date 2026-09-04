@@ -64,13 +64,15 @@ class LLMFehler(Exception):
 
 
 #: Obergrenze fuer die Praefix-Suche in lies_json: die gemessenen
-#: Artefakte sind ein bis zwei Zeichen lang, nie Zeilen. Ein hoher Wert
-#: waere trotzdem ungefaehrlich langsam -- jeder Versuch scheitert an
-#: einem einzelnen ungueltigen Startzeichen, bevor er den Rest des Texts
-#: anfasst -- aber 200 Zeichen sind mehr als genug Sicherheitsabstand und
-#: verhindern, dass ein langer Muelltext (z.B. eine reine Prosa-Antwort
-#: ohne jedes JSON) das System durch viele erfolglose volle Parsversuche
-#: quadratisch verlangsamt.
+#: Artefakte sind ein bis zwei Zeichen lang, nie Zeilen. ``raw_decode(text,
+#: i)`` arbeitet ueber einen Index in den unveraenderten String, nicht ueber
+#: ``text[i:]`` -- es wird also bei jedem Versuch nicht neu geslict, das
+#: waere hier gar nicht die Kostenquelle. Der eigentliche Grund fuer den
+#: Deckel: ohne ihn wuerde reiner Fliesstext ohne jedes JSON an jeder
+#: einzelnen Position im ganzen Text einen (meist sofort scheiternden)
+#: Parse-Versuch ausloesen. 200 Zeichen geben dem gemessenen Praefix
+#: grosszuegigen Sicherheitsabstand und begrenzen die Anzahl dieser
+#: Versuche auf einen kleinen, konstanten Wert.
 LIES_JSON_SUCHFENSTER = 200
 
 
@@ -92,6 +94,17 @@ def lies_json(text: str) -> dict:
     geschweifte Klammer innerhalb eines woertlichen Zitats (die Antworten
     enthalten Zitate aus Interviewtranskripten) beendet den Block deshalb
     nicht vorzeitig.
+
+    **Mehrdeutigkeit nach dem gefundenen Block ist ein Fehler, kein
+    stillschweigend verworfener Rest.** ``raw_decode`` liest nur den ersten
+    JSON-Wert und ignoriert von sich aus alles danach -- das ist bei reiner
+    Prosa erwuenscht, aber gefaehrlich, wenn dort ein *zweiter* JSON-Wert
+    folgt: der haeufigste gueltige Absichtserkenner-Fall ist die leere
+    Liste ``{"aenderungen": []}``, und ein zweiter, inhaltstragender Block
+    dahinter wuerde sonst lautlos verschluckt (Review-Befund 2026-09-04).
+    Deshalb wird der Rest nach dem gefundenen Block auf ein weiteres
+    ``{``/``[`` geprueft und im Trefferfall ein Fehler geworfen; reiner
+    Fliesstext danach bleibt erlaubt.
     """
     try:
         return json.loads(text.strip())
@@ -102,10 +115,23 @@ def lies_json(text: str) -> dict:
     grenze = min(len(text), LIES_JSON_SUCHFENSTER)
     for i in range(grenze):
         try:
-            ergebnis, _ = dekoder.raw_decode(text, i)
-            return ergebnis
+            ergebnis, ende = dekoder.raw_decode(text, i)
         except json.JSONDecodeError:
             continue
+
+        rest = text[ende:].lstrip()
+        if rest and rest[0] in "{[":
+            log.warning(
+                "llm-Antwort enthaelt mehr als einen JSON-Wert; als "
+                "mehrdeutig verworfen statt den ersten (moeglicherweise "
+                "leeren) Block stillschweigend zu nehmen"
+            )
+            raise LLMFehler(
+                "Antwort ist mehrdeutig: mehr als ein JSON-Wert gefunden "
+                f"(erster Block endet bei Zeichen {ende}, danach folgt ein "
+                "weiterer JSON-Wert statt reinem Fliesstext)"
+            )
+        return ergebnis
 
     raise LLMFehler(
         "kein Text gefunden, dessen Rest vollstaendig als JSON parst "
@@ -203,7 +229,7 @@ class LLM:
         art: str,
         modus: str,
         response_format: dict | None,
-        reasoning_effort: str = "none",
+        reasoning_effort: str | None = "none",
         modell: str | None = None,
         temperature: float | None = None,
     ) -> dict:
@@ -235,6 +261,16 @@ class LLM:
         # das liess das Feld bei einem leeren Wert weg und schaltete
         # Reasoning damit ungewollt ein: still zwanzigfache Latenz plus,
         # bei Klassifikationsaufgaben, eingebrochene Trefferquote.
+        #
+        # Die Typannotation "str" auf dem Parameter erzwingt zur Laufzeit
+        # nichts -- ein interner Aufrufer, der explizit ``None`` uebergibt,
+        # wuerde sonst "reasoning_effort": null in den Koerper schreiben.
+        # Das ist dieselbe binaere Falle eine Ebene tiefer, deshalb hier
+        # nochmal auf den Vorgabewert normalisiert statt sich auf den
+        # Funktions-Default zu verlassen (der bei explizitem ``None`` nicht
+        # greift).
+        if reasoning_effort is None:
+            reasoning_effort = "none"
         body["reasoning_effort"] = reasoning_effort
 
         geschaetzte_token = (len(system) + len(nutzer)) // 3

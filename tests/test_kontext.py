@@ -375,7 +375,7 @@ def test_gesetzte_phase_steht_am_anfang_des_arbeitsstands(conn, einst):
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     arbeitsstand = prompt.split("Arbeitsstand:\n", 1)[1]
-    assert arbeitsstand.startswith("Aktuelle Phase: 5 · Figuren")
+    assert arbeitsstand.startswith("Aktuelle Phase: 5 · Hauptkonflikt")
 
 
 def test_die_frageliste_steht_im_arbeitsstand(conn, einst):
@@ -396,49 +396,51 @@ def test_ohne_gesetzte_phase_kein_phasenblock(conn, einst):
     assert "Aktuelle Phase" not in kontext.baue(conn, 1, ausloeser, einst)
 
 
-def test_hinweisblock_bietet_die_moegliche_phase_an_genau_einmal(conn, einst):
-    """Der Bot soll den Wechsel EINMAL anbieten, nicht in jedem Zug erneut --
-    sonst wird aus einem Angebot Draengeln (arbeitsstand.phase_angeboten)."""
+def test_hinweisblock_fragt_nach_der_moeglichen_phase_genau_einmal(conn, einst):
+    """Der Bot soll EINMAL fragen, nicht in jedem Zug erneut -- sonst wird aus
+    einer Frage Draengeln (arbeitsstand.phase_angeboten)."""
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Bahnhof")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
     erster = kontext.baue(conn, 1, ausloeser, einst)
     zweiter = kontext.baue(conn, 1, ausloeser, einst)
 
-    assert "Materiallage erlaubt Phase 2 · Fragen" in erster
-    assert "Materiallage erlaubt" not in zweiter
+    assert "Materiallage wuerde Phase 2 · Fragen hergeben" in erster
+    assert "Materiallage wuerde" not in zweiter
     assert repo.hole_phase_angeboten(conn, 1) == 2
 
 
-def test_hinweisblock_nennt_bei_der_freien_stelle_beide_phasen(conn, einst):
-    """Mit gesetztem Kernthema sind Figuren (5) und Hauptkonflikt (6)
-    gleichermassen dran. Der Bot darf sich hier nicht still fuer eine
-    entscheiden: er nennt beide, empfiehlt Figuren und sagt dazu, dass die
-    Gruppe waehlt."""
+def test_der_hinweisblock_sagt_dass_der_bot_nicht_selbst_umschaltet(conn, einst):
+    """Die Entscheidung vom 05.09.2026 im Prompt: der Datenstand ist eine
+    Frage, keine Erlaubnis. Der Bot fragt, die Gruppe antwortet, der Erkenner
+    setzt -- niemand schaltet still."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Bahnhof")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Du schaltest nicht selbst um" in prompt
+
+
+def test_kernthema_und_zwei_figuren_fuehren_zum_hauptkonflikt(conn, einst):
+    """Es gibt keine freie Stelle mehr: mit Kernthema und zwei Figuren ist die
+    naechste Station eindeutig der Hauptkonflikt (5) -- er braucht genau
+    diese beiden Wollen."""
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    repo.setze_figur(conn, 1, "Maria", "Naeherin")
+    repo.setze_figur(conn, 1, "Elif", "Nachbarin")
     phasen.setze(conn, 1, 4, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
-    assert "Materiallage erlaubt 5 · Figuren oder 6 · Hauptkonflikt" in prompt
-    assert "die Gruppe entscheidet" in prompt
+    assert "Materiallage wuerde Phase 5 · Hauptkonflikt hergeben" in prompt
+    assert repo.hole_phase_angeboten(conn, 1) == 5
 
 
-def test_das_angebot_der_freien_stelle_wiederholt_sich_nicht(conn, einst):
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
-    phasen.setze(conn, 1, 4, "befehl")
-    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
-
-    kontext.baue(conn, 1, ausloeser, einst)
-
-    assert "Materiallage erlaubt" not in kontext.baue(conn, 1, ausloeser, einst)
-    assert repo.hole_phase_angeboten(conn, 1) == 6
-
-
-def test_ueber_der_freien_stelle_gilt_wieder_die_hoechste_phase(conn, einst):
-    """Sind Figuren und Konflikt beide da, ist die naechste Arbeit eindeutig
-    -- dann gibt es kein Sowohl-als-auch mehr, sondern die Szenen."""
+def test_gefragt_wird_immer_nach_der_hoechsten_moeglichen_phase(conn, einst):
+    """Stehen mehrere Stufen offen, nennt der Block die hoechste: die Gruppe
+    kann in ihrer Antwort jede andere nennen, und der Erkenner nimmt sie."""
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "bleiben gegen gehen")
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
@@ -446,23 +448,25 @@ def test_ueber_der_freien_stelle_gilt_wieder_die_hoechste_phase(conn, einst):
     phasen.setze(conn, 1, 4, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
-    assert "Materiallage erlaubt Phase 7 · Szenen" in kontext.baue(conn, 1, ausloeser, einst)
+    assert "Materiallage wuerde Phase 6 · Szenen hergeben" in kontext.baue(
+        conn, 1, ausloeser, einst
+    )
 
 
-def test_neue_stufe_wird_erneut_angeboten(conn, einst):
+def test_neue_stufe_wird_erneut_erfragt(conn, einst):
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Bahnhof")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
-    kontext.baue(conn, 1, ausloeser, einst)  # bietet 2 an
+    kontext.baue(conn, 1, ausloeser, einst)  # fragt nach 2
 
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
 
-    assert "Materiallage erlaubt Phase 3" in kontext.baue(conn, 1, ausloeser, einst)
+    assert "Materiallage wuerde Phase 3" in kontext.baue(conn, 1, ausloeser, einst)
 
 
 def test_ohne_naechste_phase_kein_hinweisblock(conn, einst):
     ausloeser = [_sende(conn, 1, 1, "Ada", "Womit fangen wir an?", _iso(0))]
 
-    assert "Materiallage erlaubt" not in kontext.baue(conn, 1, ausloeser, einst)
+    assert "Materiallage wuerde" not in kontext.baue(conn, 1, ausloeser, einst)
 
 
 def test_entfernte_figuren_szenen_und_journalzeilen_fehlen_im_prompt(conn, einst):

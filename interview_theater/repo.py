@@ -879,7 +879,7 @@ def setze_arbeitsstand(
 
 @_gesperrt
 def hole_phase(conn: sqlite3.Connection, chat_id: int) -> int | None:
-    """Die gespeicherte Arbeitsphase (1-8) oder None, wenn noch keine gesetzt
+    """Die gespeicherte Arbeitsphase (1-7) oder None, wenn noch keine gesetzt
     wurde (interview_theater/phasen.py, SPEC § 0 Leitsatz 3 Nachtrag).
 
     Liefert absichtlich den rohen Wert samt None -- 'noch nie gesetzt' ist

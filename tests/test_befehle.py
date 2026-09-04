@@ -358,7 +358,7 @@ def test_phase_ohne_argument_zeigt_phase_und_liste(conn, einst, tg):
 
     assert behandelt is True
     text = tg.gesendet[0][1]
-    assert "Wir sind bei 5 · Figuren." in text
+    assert "Wir sind bei 5 · Hauptkonflikt." in text
     for nummer, name, _ in phasen.PHASEN:
         assert f"{nummer} · {name}" in text
 
@@ -375,16 +375,18 @@ def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
     assert behandelt is True
     assert repo.hole_phase(conn, 1) == 5
     assert tg.gesendet == [
-        (1, "Wir sind jetzt bei 5 · Figuren. Falls nicht, sagt es mir.")
+        (1, "Wir sind jetzt bei 5 · Hauptkonflikt. Falls nicht, sagt es mir.")
     ]
 
 
 def test_phase_mit_namen_schaltet_auch_zurueck(conn, einst, tg):
-    phasen.setze(conn, 1, 8, "befehl")
+    """'Figuren' trifft seit dem 05.09.2026 Phase 4 (Kernthema & Figuren) --
+    ueber ``phasen.STICHWOERTER``, nicht ueber den Kurznamen."""
+    phasen.setze(conn, 1, 7, "befehl")
 
     befehle.behandle(conn, tg, einst, 1, "/phase Figuren", "Ada")
 
-    assert repo.hole_phase(conn, 1) == 5
+    assert repo.hole_phase(conn, 1) == 4
 
 
 def test_phase_journalisiert_nur_die_echte_aenderung(conn, einst, tg):
@@ -411,7 +413,7 @@ def test_stand_zeigt_die_phase_zuerst(conn, einst, tg):
 
     zeilen = tg.gesendet[0][1].splitlines()
     assert zeilen[0] == "Stand:"
-    assert zeilen[1] == "Phase: 5 · Figuren"
+    assert zeilen[1] == "Phase: 5 · Hauptkonflikt"
 
 
 def test_stand_zeigt_die_frageliste(conn, einst, tg):

@@ -1,5 +1,5 @@
 import pytest
-from interview_theater import db, repo
+from interview_theater import db, phasen, repo
 
 
 @pytest.fixture
@@ -205,6 +205,97 @@ def test_migration_ergaenzt_phase_und_entfernt_am_ohne_datenverlust(tmp_path):
     assert [f["name"] for f in repo.figuren(c, 1)] == ["Maria"]
     assert len(repo.hole_szenen(c, 1)) == 1
     assert len(repo.journal(c, 1)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Acht Phasen wurden sieben (05.09.2026, db._migriere_phasennummern)
+# ---------------------------------------------------------------------------
+
+
+def _alte_phasen_db(tmp_path, name="acht.db"):
+    """Eine Datenbank mit der achtstufigen Nummerierung: fuenf Gruppen, je
+    eine Phase, ``user_version`` noch auf 0."""
+    c = db.verbinde(str(tmp_path / name))
+    db.initialisiere(c)
+    for chat_id, phase, angeboten in (
+        (1, 3, 4), (2, 5, 6), (3, 6, 7), (4, 7, 8), (5, 8, None),
+    ):
+        repo.sichere_gruppe(c, chat_id, "gruppe1", f"Gruppe {chat_id}")
+        c.execute(
+            "INSERT INTO arbeitsstand (chat_id, phase, phase_angeboten) VALUES (?, ?, ?)",
+            (chat_id, phase, angeboten),
+        )
+    c.execute("PRAGMA user_version = 0")
+    c.commit()
+    return c
+
+
+def test_phasennummern_werden_einmalig_umgerechnet(tmp_path):
+    """Kernthema und Figuren sind eine Phase geworden, also rutscht alles
+    darueber um eins herunter (db.PHASEN_UMNUMMERIERUNG). Ohne diesen Schritt
+    saehe eine Gruppe, die abends bei '8 · Durchlauf' aufgehoert hat, am
+    naechsten Morgen eine Nummer, die es nicht mehr gibt."""
+    c = _alte_phasen_db(tmp_path)
+
+    db.initialisiere(c)
+
+    gelesen = {
+        z["chat_id"]: (z["phase"], z["phase_angeboten"])
+        for z in c.execute("SELECT * FROM arbeitsstand ORDER BY chat_id")
+    }
+    assert gelesen == {
+        1: (3, 4),      # 1-3 bleiben, wo sie sind
+        2: (4, 5),      # alt 5 (Figuren) -> neu 4 (Kernthema & Figuren)
+        3: (5, 6),      # alt 6 (Hauptkonflikt) -> neu 5
+        4: (6, 7),      # alt 7 (Szenen) -> neu 6
+        5: (7, None),   # alt 8 (Durchlauf) -> neu 7, NULL bleibt NULL
+    }
+
+
+def test_jede_umgerechnete_nummer_ist_eine_gueltige_phase(tmp_path):
+    """Die Probe aufs Ganze: nach der Migration gibt es zu jedem gespeicherten
+    Wert auch einen Kurznamen -- sonst stuende auf der Gruppenseite eine nackte
+    Zahl und ``anweisungen.system`` fiele ueber eine fehlende ``phasen/8.md``."""
+    c = _alte_phasen_db(tmp_path)
+
+    db.initialisiere(c)
+
+    for z in c.execute("SELECT phase FROM arbeitsstand"):
+        assert phasen.kurzname(z["phase"]), z["phase"]
+
+
+def test_die_umrechnung_laeuft_nicht_zweimal(tmp_path):
+    """``PRAGMA user_version`` ist der Merkposten. Ohne ihn wuerde jeder
+    Prozessstart erneut umrechnen und eine Gruppe in Phase 7 Schritt fuer
+    Schritt bis auf 4 herunterschieben."""
+    c = _alte_phasen_db(tmp_path)
+
+    db.initialisiere(c)
+    db.initialisiere(c)
+    db.initialisiere(c)
+
+    assert c.execute("SELECT phase FROM arbeitsstand WHERE chat_id = 5").fetchone()[0] == 7
+    assert c.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+
+
+def test_eine_neue_datenbank_ist_sofort_auf_dem_aktuellen_stand(tmp_path):
+    c = db.verbinde(str(tmp_path / "neu.db"))
+
+    db.initialisiere(c)
+
+    assert c.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+
+
+def test_das_journal_wird_nicht_umgeschrieben(tmp_path):
+    """Im Journal steht, was die Gruppe damals entschieden hat -- und 'Phase
+    5 · Figuren' war am 04.09. wahr. Ein Journal wird nur angehaengt, nie
+    umgeschrieben (AGENTS.md)."""
+    c = _alte_phasen_db(tmp_path)
+    repo.schreibe_journal(c, 1, "entschieden", "Phase 5 · Figuren", "befehl")
+
+    db.initialisiere(c)
+
+    assert repo.journal(c, 1)[-1]["text"] == "Phase 5 · Figuren"
 
 
 #: Die 'aufnahme'-Tabelle, wie sie vor dem 05.09.2026 aussah -- ohne

@@ -43,14 +43,15 @@ mit "art" und "wert":
     Szenentext zu schreiben ("schreib uns die Szene", "mach daraus einen
     Dialog", "schreib Szene 3 nochmal, aber kuerzer").
 14. phase_setzen           -- wert: die Nummer oder der Kurzname der
-    Arbeitsphase, bei der die Gruppe jetzt ist. Die acht Phasen sind:
-    1 Begriffe, 2 Fragen, 3 Interviews, 4 Kernthema, 5 Figuren,
-    6 Hauptkonflikt, 7 Szenen, 8 Durchlauf. Die Gruppe sagt, woran sie jetzt
+    Arbeitsphase, bei der die Gruppe jetzt ist. Die sieben Phasen sind:
+    1 Begriffe, 2 Fragen, 3 Interviews, 4 Kernthema & Figuren,
+    5 Hauptkonflikt, 6 Szenen, 7 Durchlauf. Die Gruppe sagt, woran sie jetzt
     arbeitet ("lasst uns jetzt Figuren machen", "zurueck zu den
     Interviews", "wir sind eigentlich noch beim Kernthema"). Ein Ruecksprung
-    ist genauso gueltig wie ein Schritt nach vorn. Die Reihenfolge von
-    Figuren (5) und Hauptkonflikt (6) ist offen -- "erst der Konflikt,
-    Figuren danach" ist ein gueltiges Setzen von 6, kein Fehler.
+    ist genauso gueltig wie ein Schritt nach vorn. **Kernthema und Figuren
+    sind dieselbe Phase (4)** -- "jetzt die Figuren", "wir bleiben beim
+    Kernthema" und "machen wir Kernthema und Figuren zusammen" setzen alle
+    dieselbe 4. Der Hauptkonflikt ist die naechste (5).
 15. entfernen              -- wert: was weg soll, beginnend mit dem Ziel:
     "Figur Peter", "Kernthema", "Hauptkonflikt", "Begriffe", "Fragen",
     "Szene 2", "Journal: Kindheitsfragen". Die Gruppe nimmt etwas
@@ -79,7 +80,10 @@ und in das Format "Thema: Frage" gebracht (die Themen stehen dort meist schon
 als Zwischenzeilen).
 Dasselbe gilt fuer Begriffe, Kernthema, Figuren und Konflikt: Zustimmung zu
 einem konkreten Bot-Vorschlag ist eine Festlegung; der Vorschlag steht im
-Verlauf, du schreibst ihn in den wert. Ueber Fragen zu reden ist
+Verlauf, du schreibst ihn in den wert. **Ein Kernthema darf als Frage
+formuliert sein**; bestaetigt die Gruppe die Frage ("machen wir so, nehmen
+wir das als Frage"), ist sie das Kernthema -- kernthema_setzen, wert = die
+Frage. Ueber Fragen zu reden ist
 kein Setzen: "welche Fragen koennten wir stellen?", "wir muessen uns noch
 Fragen ueberlegen", "sollen wir nach der Kindheit fragen?" aendern nichts.
 Eine Frage, die jemand DIR stellt, ist ohnehin keine Interviewfrage. Im
@@ -300,13 +304,13 @@ Kernthema: Ankommen
 Hauptkonflikt: bleiben gegen gehen
 
 Neue Nachrichten:
-Sara: gut, den Konflikt haben wir
-Ayse: dann wuerd ich sagen, wir machen jetzt die Figuren
+Sara: gut, die Verdichtungen haben wir jetzt alle
+Ayse: dann wuerd ich sagen, wir machen Kernthema und Figuren in einem Schritt
 Mert: ja, wer kommt ueberhaupt vor
 </abschnitt>
 <ausgabe>
 {"aenderungen": [
-  {"art": "phase_setzen", "wert": "Figuren"}
+  {"art": "phase_setzen", "wert": "Kernthema & Figuren"}
 ]}
 </ausgabe>
 </beispiel>
@@ -315,10 +319,12 @@ Mert: ja, wer kommt ueberhaupt vor
 <abschnitt>
 Arbeitsstand:
 Kernthema: Ankommen
+Figur Maria: Naeherin, kam 1998
+Figur Elif: Nachbarin, im Haus geboren
 
 Neue Nachrichten:
-Mert: Figuren faellt mir gerade schwer
-Sara: lasst uns erst den Konflikt machen, Figuren danach
+Mert: die Figuren stehen soweit
+Sara: lasst uns erst den Konflikt machen
 Ayse: ja, das ist einfacher rum
 </abschnitt>
 <ausgabe>

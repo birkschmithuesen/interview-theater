@@ -81,7 +81,7 @@ def _pfad(name: str) -> Path:
 
 def hole(name: str) -> str:
     """Der Basis-Prompt ``name`` (system|erkenner|journal|verdichter|szene|
-    theater-tells|phasen/1..8), heiss nachgeladen. Fehlt die Datei, ist das
+    theater-tells|phasen/1..7), heiss nachgeladen. Fehlt die Datei, ist das
     ein Programmierfehler."""
     text = _lies(_pfad(name), name)
     if text is None:

@@ -28,7 +28,7 @@ Module unter `interview_theater/`:
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
-| `phasen.py` | Die acht Arbeitsphasen: Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
+| `phasen.py` | Die sieben Arbeitsphasen: Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
 | `szene.py` | Szenentexte: eigener Prompt, eigener Thread, als einziger Aufruf mit Reasoning AN |
@@ -69,26 +69,45 @@ lädt, würde damit Gesprächszüge ausbremsen.
 - **Der Prompt ist datengetrieben.** `kontext.baue()` lässt jeden Block weg,
   solange die zugrundeliegenden Daten leer sind. Biegt die Gruppe ab, ändert
   sich die Materiallage und der Prompt folgt automatisch (SPEC § 6.1).
-- **Die Phase ist ein Zustand — aber ein hörbarer** (seit 04.09.2026,
-  `phasen.py`, SPEC § 0 Leitsatz 3 Nachtrag). Gesetzt wird sie nur von der
-  Gruppe (`phase_setzen`, `/phase`) oder vom Bot **mit Meldung**, nie still
-  erraten. Sie steuert den Fokus (`prompts/phasen/N.md`), **nicht** den
-  Informationszugang: an den datengetriebenen Blöcken ändert sie nichts. Der
-  automatische Sprung folgt dem Notiert-Muster — schalten, melden,
-  weiterlaufen; kein Wartezustand, ein Widerspruch schaltet zurück.
-- **Die acht Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews · 4 Kernthema ·
-  5 Figuren · 6 Hauptkonflikt · 7 Szenen · 8 Durchlauf** (korrigiert am
-  04.09.2026 abends). Drei Dinge daran sind Entscheidungen, keine Nummerierung:
-  Phase 1 **sammelt nicht** — die Begriffe entstehen analog im Plenum, der Bot
-  bekommt die fertige Liste; die Frageliste ist ein eigenes Feld
-  (`arbeitsstand.fragen`, art `fragen_setzen`) und die Voraussetzung für die
-  Interviews; und **zwischen 5 und 6 schaltet der Code nie von selbst um**
-  (`phasen.FREIE_STELLE`) — beide haben dieselbe Voraussetzung, welche zuerst
-  kommt, entscheidet die Gruppe. Wohin `figur_setzen` und
-  `hauptkonflikt_setzen` zeigen, hängt deshalb an der Materiallage
-  (`phasen.ermoeglichte_phase`) und nicht an einer festen Zahl. Die
-  vollständige Stationsliste steht in der **Basis**-Systemanweisung, nicht nur
-  im Phasen-Prompt: der Bot soll entscheiden können, welche Phase gerade passt.
+- **Die Phase setzt allein die Gruppe** (seit 05.09.2026, `phasen.py`, SPEC
+  § 0 Leitsatz 3 Nachtrag): `phase_setzen` oder `/phase`, nie still erraten
+  und seit dieser Korrektur auch nicht mehr vom Bot selbst. Der automatische
+  Sprung (`ART_ERMOEGLICHT`, `sprung_nach`) ist **ersatzlos gestrichen**, aus
+  einem Satz heraus: **Datenstand ist nicht Absicht** — eine fertige
+  Verdichtung sagt nicht, ob noch drei Interviews kommen. Geblieben ist die
+  **Frage**: erlaubt die Materiallage eine höhere Stufe, bekommt der
+  Gesprächs-Prompt einen Hinweisblock (`kontext._baue_phasenhinweis`) mit der
+  Anweisung, im Fluss nachzufragen — einmal je Stufe
+  (`arbeitsstand.phase_angeboten`). Dieselbe Frage hängt an der
+  Verdichtungs-Nachricht am Ende eines Interviews (`aufnahme._phasenfrage`);
+  beide Stellen teilen sich den Merkposten über `phasen.offenes_angebot()` /
+  `merke_angebot()`, deshalb liest die eine Funktion nur und die andere
+  schreibt.
+- **Die sieben Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews ·
+  4 Kernthema & Figuren · 5 Hauptkonflikt · 6 Szenen · 7 Durchlauf**
+  (korrigiert am 05.09.2026). Drei Dinge daran sind Entscheidungen, keine
+  Nummerierung: Phase 1 **sammelt nicht** — die Begriffe entstehen analog im
+  Plenum, der Bot bekommt die fertige Liste; die Frageliste ist ein eigenes
+  Feld (`arbeitsstand.fragen`, art `fragen_setzen`) und die Voraussetzung für
+  die Interviews; und **Kernthema und Figuren sind EINE Phase** — welches von
+  beidem zuerst kommt, ergibt sich aus dem Material, und der Hauptkonflikt
+  braucht beides (ein Konflikt braucht zwei Wollen, deshalb ist die
+  Voraussetzung für 5 „Kernthema **und** ≥ 2 Figuren"). Damit ist auch die
+  alte Sonderlogik der freien Stelle 5/6 weg. Die vollständige Stationsliste
+  steht in der **Basis**-Systemanweisung, nicht nur im Phasen-Prompt: der Bot
+  soll entscheiden können, welche Phase gerade passt.
+- **Der Phasen-Prompt ist Fokus, kein Käfig** (05.09.2026). Jede
+  `prompts/phasen/N.md` hat den Abschnitt „Was du nicht von dir aus
+  anfängst" mit dem festen Schlusssatz „Bittet die Gruppe ausdrücklich darum,
+  tust du es trotzdem …"; `tests/test_anweisungen.py` prüft ihn in jeder
+  Datei. Der Live-Fall dahinter: eine Gruppe in Phase 2 bat um Kernthema und
+  Figuren, `2.md` sagte „kein Kernthema, keine Figuren", und getragen hat die
+  Antwort nur, weil der Basis-Prompt sie trug.
+- **Phasennummern werden migriert, nicht umgedeutet** (`db.SCHEMA_VERSION`,
+  `db.PHASEN_UMNUMMERIERUNG`). Der Merkposten ist SQLites eingebautes
+  `PRAGMA user_version` — keine eigene Tabelle, keine Zeile, kein Schema. Das
+  Journal bleibt dabei unangetastet: dort steht „Phase 5 · Figuren", weil das
+  am 04.09. wahr war, und ein Journal wird nur angehängt.
 - **Ein Interview ist eine Einheit** (seit 05.09.2026, SPEC § 10.6). Das ist
   die Korrektur aus dem Probelauf: ein Interview aus fünf Sprachnachrichten
   wurde zu fünf Aufnahmen, fünf Verdichtungen (zwei leer) und fünfmal „Ich

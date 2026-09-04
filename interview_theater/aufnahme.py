@@ -62,7 +62,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from interview_theater import repo, stt, verdichter
+from interview_theater import phasen, repo, stt, verdichter
 
 log = logging.getLogger(__name__)
 
@@ -117,6 +117,14 @@ _TEXT_TEIL_ECHO = "{name}, Teil {nummer}:\n{transkript}"
 _TEXT_VERDICHTUNG_KOPF = "{name} ist durch. Was ich darin hoere:"
 _TEXT_VERDICHTUNG_THEMEN = "Kernthemen:"
 _TEXT_VERDICHTUNG_FRAGE = "Stimmt das so? Sonst sagt es mir."
+
+#: Die Phasenfrage unter der ersten Verdichtung (05.09.2026, Birk nach dem
+#: Probelauf). Sie haengt genau hier, weil hier der Moment ist, in dem die
+#: Frage aufkommt -- und weil der Bot sie sonst erst im naechsten
+#: Gespraechszug stellen wuerde, also nach der naechsten Nachricht der Gruppe.
+#: Eine **Frage**, kein Wechsel: der Datenstand sagt nur, dass Phase 4
+#: moeglich WAERE, nicht dass die Gruppe fertig ist mit den Interviews.
+_TEXT_PHASENFRAGE = "Kommen noch Interviews, oder gehen wir ans Kernthema?"
 
 #: Steht statt der Kernthemen, wenn keines von ihnen ein woertliches Zitat
 #: hatte (N2): lieber die ehrliche Leerstelle als drei Themen, die sich auf
@@ -607,6 +615,27 @@ def _verdichtungstext(conn, name: str, verdichtung_id: int) -> str:
     return "\n".join(zeilen)
 
 
+def _phasenfrage(conn, chat_id: int) -> str:
+    """Die Zeile "Kommen noch Interviews, oder gehen wir ans Kernthema?" --
+    oder leer.
+
+    Nur aus Phase 3 heraus und nur, solange der Schritt nach 4 noch nicht
+    angeboten wurde (``phasen.offenes_angebot``). Beides ist noetig: aus
+    Phase 4 heraus ist die Frage schon beantwortet, und ohne den Merkposten
+    stuende sie unter jeder einzelnen Verdichtung -- bei fuenf Interviews
+    fuenfmal dieselbe Frage.
+
+    Gemerkt wird nur, wenn die Zeile auch wirklich mitgeht: sonst
+    verschluckte diese Stelle das Angebot, das der Gespraechs-Prompt
+    (``kontext._baue_phasenhinweis``) sonst gemacht haette."""
+    if phasen.aktuelle(conn, chat_id) != 3:
+        return ""
+    if phasen.offenes_angebot(conn, chat_id) != 4:
+        return ""
+    phasen.merke_angebot(conn, chat_id, 4)
+    return _TEXT_PHASENFRAGE
+
+
 def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
     """Prueft die Mindestlaenge (N2) und meldet, wenn sie unterschritten ist.
 
@@ -668,10 +697,12 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> N
     # das Transkript-Echo GEHOERT sie ins Gespraechsfenster -- sie ist eine
     # Aussage des Bots ueber die Arbeit, und ein Widerspruch der Gruppe
     # ("nee, darum ging es nicht") soll im naechsten Zug seinen Bezug haben.
-    _sende_und_merke(
-        conn, tg, e, chat_id,
-        _verdichtungstext(conn, row["name"] or "Das Interview", verdichtung_id),
-    )
+    # Ganz unten haengt, einmal je Workshop, die Phasenfrage (_phasenfrage).
+    text = _verdichtungstext(conn, row["name"] or "Das Interview", verdichtung_id)
+    frage = _phasenfrage(conn, chat_id)
+    if frage:
+        text = f"{text}\n{frage}"
+    _sende_und_merke(conn, tg, e, chat_id, text)
 
 
 def beende_interview(conn, chat_id: int) -> int | None:

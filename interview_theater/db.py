@@ -125,13 +125,15 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   kernthema              TEXT,
   kernthema_begruendung  TEXT,
   hauptkonflikt          TEXT,
-  -- Die Arbeitsphase 1-8 (interview_theater/phasen.py). NULL = noch nie gesetzt
-  -- und gilt dann wie 1. Gesetzt wird sie nur hoerbar -- von der Gruppe oder
-  -- vom Bot mit Meldung -- nie still erraten (SPEC § 0 Leitsatz 3, Nachtrag
-  -- vom 04.09.2026).
+  -- Die Arbeitsphase 1-7 (interview_theater/phasen.py). NULL = noch nie gesetzt
+  -- und gilt dann wie 1. Gesetzt wird sie ausschliesslich von der Gruppe
+  -- (phase_setzen, /phase) -- nie still erraten, und seit dem 05.09.2026 auch
+  -- nicht mehr vom Bot selbst (SPEC § 0 Leitsatz 3, Nachtrag).
+  -- Alt-Datenbanken tragen hier noch die achtstufige Nummerierung; sie wird
+  -- einmalig umgerechnet, siehe _migriere_phasennummern.
   phase                  INTEGER,
   -- Zuletzt angebotene Phase: verhindert, dass der Hinweisblock in
-  -- kontext.baue jeden Zug erneut denselben Wechsel anbietet.
+  -- kontext.baue jeden Zug erneut nach demselben Wechsel fragt.
   phase_angeboten        INTEGER,
   geaendert_am           TEXT
 );
@@ -272,13 +274,62 @@ def _migriere_fehlende_spalten(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+#: Schemastand dieser Codefassung, gespeichert in ``PRAGMA user_version``.
+#: ``0`` ist eine Datenbank aus der Zeit vor der Umnummerierung der
+#: Arbeitsphasen (05.09.2026). Bewusst SQLites eingebauter Zaehler und keine
+#: eigene Tabelle: er kostet keine Zeile, keine Migration und kein Schema.
+SCHEMA_VERSION = 1
+
+#: Acht Phasen wurden sieben (Birk, 05.09.2026): Kernthema und Figuren sind
+#: EINE Phase geworden, alles darueber rutscht um eins nach unten. 1-4 bleiben,
+#: wo sie sind -- aus alt 4 (Kernthema) wird das neue 4 (Kernthema & Figuren),
+#: aus alt 5 (Figuren) ebenfalls. Alt -> neu, siehe
+#: interview_theater/phasen.py.
+PHASEN_UMNUMMERIERUNG = {5: 4, 6: 5, 7: 6, 8: 7}
+
+
+def _migriere_phasennummern(conn: sqlite3.Connection) -> None:
+    """Rechnet gespeicherte Phasennummern einmalig auf das siebenstufige
+    Modell um (PHASEN_UMNUMMERIERUNG).
+
+    Betrifft ``arbeitsstand.phase`` und ``arbeitsstand.phase_angeboten``:
+    ohne diesen Schritt saehe eine Gruppe, die abends bei "8 · Durchlauf"
+    aufgehoert hat, am naechsten Morgen eine Phasennummer, die es nicht mehr
+    gibt -- und der Prompt-Zusatz dazu fehlte ersatzlos.
+
+    Ein einziges UPDATE je Spalte mit CASE, damit die Umrechnung nicht ueber
+    mehrere Schritte kaskadiert (5 -> 4, danach 6 -> 5 wuerde sonst die
+    gerade geschriebenen Zeilen wieder anfassen, sobald jemand die Tabelle
+    einmal umsortiert).
+
+    Das Journal bleibt unberuehrt: dort steht, was die Gruppe damals
+    entschieden hat ("Phase 5 · Figuren"), und das ist auch nach der
+    Umnummerierung wahr -- ein Journal wird nur angehaengt, nie umgeschrieben
+    (AGENTS.md)."""
+    if conn.execute("PRAGMA user_version").fetchone()[0] >= SCHEMA_VERSION:
+        return
+    faelle = " ".join(f"WHEN {alt} THEN {neu}" for alt, neu in PHASEN_UMNUMMERIERUNG.items())
+    betroffen = ", ".join(str(alt) for alt in PHASEN_UMNUMMERIERUNG)
+    for spalte in ("phase", "phase_angeboten"):
+        conn.execute(
+            f"UPDATE arbeitsstand SET {spalte} = CASE {spalte} {faelle} END "
+            f"WHERE {spalte} IN ({betroffen})"
+        )
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+    conn.commit()
+
+
 def initialisiere(conn: sqlite3.Connection) -> None:
-    """Legt das Schema an, falls noch nicht vorhanden, und ergaenzt in einer
-    schon vorhandenen Datenbank fehlende Spalten (siehe
-    _migriere_fehlende_spalten)."""
+    """Legt das Schema an, falls noch nicht vorhanden, ergaenzt in einer schon
+    vorhandenen Datenbank fehlende Spalten (siehe _migriere_fehlende_spalten)
+    und rechnet einmalig die Phasennummern um (_migriere_phasennummern).
+
+    Reihenfolge: erst die Spalten, dann ihr Inhalt -- ``phase_angeboten``
+    koennte in einer sehr alten Datenbank noch gar nicht existieren."""
     conn.executescript(SCHEMA)
     conn.commit()
     _migriere_fehlende_spalten(conn)
+    _migriere_phasennummern(conn)
 
 
 def loesche_gruppe(conn: sqlite3.Connection, chat_id: int) -> None:

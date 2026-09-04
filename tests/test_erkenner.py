@@ -722,7 +722,8 @@ def test_ohne_erkannten_auftrag_laeuft_keine_szene(conn, einst, monkeypatch):
 
 @pytest.mark.parametrize(
     "wert, erwartet",
-    [("5", 5), ("Figuren", 5), ("interview", 3), ("Hauptkonflikt", 6)],
+    [("5", 5), ("Figuren", 4), ("Kernthema", 4), ("interview", 3),
+     ("Hauptkonflikt", 5)],
 )
 def test_phase_setzen_mappt_nummer_namen_und_teilstring(conn, einst, wert, erwartet):
     wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": wert}])
@@ -754,13 +755,13 @@ def test_phase_setzen_meldet_die_neue_phase(conn, einst):
 
     meldung = erkenner.baue_meldung(wirkliche)
 
-    assert "Wir sind jetzt bei 5 · Figuren." in meldung
+    assert "Wir sind jetzt bei 5 · Hauptkonflikt." in meldung
     assert meldung.endswith("Falls das nicht stimmt, sagt es mir.")
 
 
 def test_ruecksprung_ueber_den_erkenner(conn, einst):
-    """Der Widerspruch gegen einen automatischen Sprung: 'nee, wir sind noch
-    beim Kernthema' -- der Erkenner greift ihn als phase_setzen auf."""
+    """'nee, wir sind noch beim Kernthema' -- der Erkenner greift den
+    Ruecksprung als phase_setzen auf, genau wie einen Schritt nach vorn."""
     phasen.setze(conn, 1, 5, "erkenner")
 
     erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": "Kernthema"}])
@@ -768,10 +769,12 @@ def test_ruecksprung_ueber_den_erkenner(conn, einst):
     assert repo.hole_phase(conn, 1) == 4
 
 
-def test_automatischer_sprung_meldet_in_derselben_zeile(conn, einst):
-    """Der Kernfall aus Brief A3: der Lauf schreibt das Kernthema, das macht
-    Phase 5 moeglich, der Code schaltet um -- und beides steht in EINER
-    Meldung."""
+def test_der_erkenner_schaltet_die_phase_nicht_selbst(conn, einst):
+    """**Die Entscheidung vom 05.09.2026.** Der Lauf schreibt das Kernthema;
+    frueher schaltete der Code daraufhin selbst eine Phase weiter und meldete
+    das mit. Das ist verworfen: Datenstand ist nicht Absicht -- ein gesetztes
+    Kernthema sagt nicht, dass die Gruppe damit fertig ist. Der Arbeitsstand
+    waechst und wird gemeldet, die Phase bleibt, wo sie war."""
     phasen.setze(conn, 1, 4, "befehl")
     _nachricht(conn, 1, 1, "also, unser Kernthema ist Ankommen")
     klm = LLMAttrappe(antwort={"aenderungen": [
@@ -781,19 +784,17 @@ def test_automatischer_sprung_meldet_in_derselben_zeile(conn, einst):
 
     erkenner.laufe(klm, tg, conn, einst, 1)
 
-    assert repo.hole_phase(conn, 1) == 5
+    assert repo.hole_phase(conn, 1) == 4
     text = tg.gesendet[0][1]
     assert "Kernthema: Ankommen" in text
-    assert "Wir sind damit bei 5 · Figuren." in text
+    assert "Wir sind damit bei" not in text
     assert len(tg.gesendet) == 1, "eine Meldung je Lauf"
 
 
-def test_kein_automatischer_sprung_zwischen_figuren_und_konflikt(conn, einst):
-    """Die freie Stelle im Betrieb: die Gruppe schreibt in Phase 5 die zweite
-    Figur fest. Der Arbeitsstand waechst, gemeldet wird das auch -- die Phase
-    bleibt trotzdem 5, weil ueber die Reihenfolge von Figuren und
-    Hauptkonflikt allein die Gruppe entscheidet."""
-    phasen.setze(conn, 1, 5, "befehl")
+def test_auch_eine_zweite_figur_schaltet_nichts(conn, einst):
+    """Dasselbe fuer die Aenderung, die frueher am haeufigsten gesprungen ist:
+    die zweite Figur. Der Arbeitsstand waechst, die Phase nicht."""
+    phasen.setze(conn, 1, 4, "befehl")
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
     _nachricht(conn, 1, 1, "und Elif ist die Nachbarin")
@@ -804,21 +805,8 @@ def test_kein_automatischer_sprung_zwischen_figuren_und_konflikt(conn, einst):
 
     erkenner.laufe(klm, tg, conn, einst, 1)
 
-    assert repo.hole_phase(conn, 1) == 5
-    assert "Wir sind damit bei" not in tg.gesendet[0][1]
-
-
-def test_kein_automatischer_sprung_ohne_belegende_aenderung(conn, einst):
-    phasen.setze(conn, 1, 4, "befehl")
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
-    _nachricht(conn, 1, 1, "wir treffen uns morgen um zehn")
-    klm = LLMAttrappe(antwort={"aenderungen": [
-        {"art": "entschieden", "wert": "Treffen um zehn"},
-    ]})
-
-    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
-
     assert repo.hole_phase(conn, 1) == 4
+    assert "Wir sind damit bei" not in tg.gesendet[0][1]
 
 
 # ---------------------------------------------------------------------------

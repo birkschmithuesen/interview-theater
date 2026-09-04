@@ -37,13 +37,46 @@ Fünf Sätze, aus denen sich fast jede Detailentscheidung unten ableiten lässt:
    > Liste, keine Sammelrunde im Chat. (b) **Fragen formulieren und Interviews führen sind
    > zwei Phasen**, nicht eine; die Frageliste ist ein eigenes Feld
    > (`arbeitsstand.fragen`, Erkenner-art `fragen_setzen`) und die Voraussetzung für
-   > Phase 3. (c) **Figuren (5) und Hauptkonflikt (6) stehen nebeneinander, nicht
-   > hintereinander:** dieselbe Voraussetzung (Kernthema), dieselbe Berechtigung, und der
-   > Code schaltet zwischen ihnen nie von selbst um (`phasen.FREIE_STELLE`). Figuren zuerst
-   > ist der häufigere Weg, nicht der richtige — der Bot bietet beides an und empfiehlt
-   > eines, entscheiden muss die Gruppe. Daraus folgt auch, dass der Bot **immer alle acht
+   > Phase 3. (c) Figuren und Hauptkonflikt standen nebeneinander statt hintereinander —
+   > *überholt vom Nachtrag unten.* Daraus folgt auch, dass der Bot **immer alle
    > Stationen kennen muss** (`prompts/system.md`, nicht nur der Phasen-Prompt): er soll
    > entscheiden können, welche gerade passt.
+   >
+   > **Nachtrag 05.09.2026 — sieben Phasen, und der Bot schaltet keine davon.** Zwei
+   > Entscheidungen von Birk nach dem Probelauf, beide in `interview_theater/phasen.py`:
+   >
+   > **(A) Kernthema und Figuren sind EINE Phase.** Aus acht Stationen werden sieben:
+   > 1 Begriffe · 2 Fragen · 3 Interviews · 4 Kernthema & Figuren · 5 Hauptkonflikt ·
+   > 6 Szenen · 7 Durchlauf. Der Anlass war eine Bitte mitten im Probelauf („Kernthema
+   > und Figuren in einem Schritt"), die Begründung ist allgemeiner: welches von beidem
+   > zuerst kommt, ergibt sich aus dem Material und nicht aus einer Nummer. Damit
+   > verschwindet die freie Stelle (c) samt `phasen.FREIE_STELLE` — an ihre Stelle tritt
+   > eine echte Reihenfolge, weil der Hauptkonflikt **zwei Wollen braucht**: die
+   > Voraussetzung für Phase 5 ist Kernthema *und* mindestens zwei Figuren. Gespeicherte
+   > Nummern werden einmalig umgerechnet (`db.PHASEN_UMNUMMERIERUNG`, Merkposten
+   > `PRAGMA user_version`).
+   >
+   > **(C) Der automatische Sprung ist verworfen.** `ART_ERMOEGLICHT` und `sprung_nach`
+   > sind ersatzlos gestrichen; der Bot schaltet die Phase nie mehr selbst. Begründung in
+   > einem Satz: **Datenstand ist nicht Absicht** — eine fertige Verdichtung sagt nicht,
+   > ob noch drei Interviews kommen, und ein gesetztes Kernthema sagt nicht, dass die
+   > Gruppe damit fertig ist. Was der Code aus den Daten liest, ist immer nur, was
+   > *möglich* wäre. **Geblieben ist das Angebot, und es wird zur Frage:** erlaubt die
+   > Materiallage eine höhere Stufe, bekommt der Gesprächs-Prompt den Hinweisblock
+   > (`kontext._baue_phasenhinweis`, einmal je Stufe über `arbeitsstand.phase_angeboten`)
+   > mit der Anweisung, im Fluss nachzufragen — „Kommen noch Interviews, oder gehen wir
+   > ans Kernthema?". Dieselbe Zeile hängt an der Verdichtungs-Nachricht am Ende eines
+   > Interviews (`aufnahme._phasenfrage`), weil dort der Moment ist, in dem die Frage
+   > aufkommt. Die Antwort der Gruppe ist ein Satz, den der Erkenner als `phase_setzen`
+   > liest — kein Wartezustand, kein Befehl nötig.
+   >
+   > **(B) Der Phasen-Prompt ist Fokus, kein Käfig.** Jede `prompts/phasen/N.md` hat den
+   > Abschnitt „Was du nicht von dir aus anfängst" (vorher: „Was du in dieser Phase nicht
+   > tust") mit dem festen Schlusssatz „Bittet die Gruppe ausdrücklich darum, tust du es
+   > trotzdem; die Phase ist dein Fokus, nicht ihre Grenze. Der Erkenner setzt die Phase
+   > dann nach." Beleg: eine Gruppe bat in Phase 2 um Kernthema und Figuren, `2.md` sagte
+   > „kein Kernthema, keine Figuren", und brauchbar war die Antwort nur, weil der
+   > Basis-Prompt sie trug.
 4. **Kein Aufruf im kritischen Pfad, der nicht sein muss.** Nebenaufgaben laufen
    nachgelagert und ins Leere: Fehlschlag heißt fehlender Eintrag, nicht angehaltener Workshop.
 5. **Die Gruppe erfährt von einem Fehler nur, wenn sie ihn beheben kann oder wenn sie

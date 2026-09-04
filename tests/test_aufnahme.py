@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from interview_theater import aufnahme, db, einstellungen, repo
+from interview_theater import aufnahme, db, einstellungen, phasen, repo
 
 #: Ueber MINDEST_WOERTER Woerter lang (N2), sonst wuerde jedes einteilige
 #: Interview in diesen Tests als "sehr kurz" abgelehnt statt verdichtet -- die
@@ -463,6 +463,60 @@ def test_fertig_verdichtet_einmal_ueber_das_ganze_interview(conn, einst, tg, klm
     assert "Kernthemen:" in text
     assert '- Kindheit: "wie wir als Kinder auf dem Hof Theater gespielt haben"' in text
     assert text.endswith("Stimmt das so? Sonst sagt es mir.")
+
+
+def test_die_erste_verdichtung_fragt_nach_der_naechsten_phase(conn, einst, tg, klm):
+    """Brief 3 (C): der Datenstand erlaubt jetzt Phase 4, aber er entscheidet
+    sie nicht -- eine fertige Verdichtung sagt nicht, ob noch drei Interviews
+    kommen. Also haengt an der Verdichtung eine Frage, keine Ankuendigung.
+
+    Sie steht genau hier und nicht erst im naechsten Gespraechszug: hier ist
+    der Moment, in dem sie aufkommt."""
+    phasen.setze(conn, 1, 3, "befehl")
+    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=340)
+    tg.gesendet.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    text = next(t for _, t in tg.gesendet if "ist durch" in t)
+    assert text.endswith("Kommen noch Interviews, oder gehen wir ans Kernthema?")
+    assert repo.hole_phase(conn, 1) == 3, "gefragt, nicht geschaltet"
+    assert repo.hole_phase_angeboten(conn, 1) == 4
+
+
+def test_die_phasenfrage_kommt_nur_einmal(conn, einst, tg, klm):
+    """Bei fuenf Interviews wuerde sie sonst fuenfmal dastehen. Der Merkposten
+    ist derselbe wie fuer den Gespraechs-Prompt (arbeitsstand.phase_angeboten)
+    -- eine Frage, egal auf welchem Weg sie herauskommt."""
+    phasen.setze(conn, 1, 3, "befehl")
+    erster = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=350)
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, erster)
+
+    zweiter = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=360)
+    tg.gesendet.clear()
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, zweiter)
+
+    text = next(t for _, t in tg.gesendet if "ist durch" in t)
+    assert "Kommen noch Interviews" not in text
+
+
+def test_ausserhalb_von_phase_drei_keine_phasenfrage(conn, einst, tg, klm):
+    """Ist die Gruppe schon beim Kernthema, ist die Frage beantwortet -- und
+    der Merkposten bleibt unangetastet, damit der Gespraechs-Prompt seine
+    eigene Frage noch stellen kann."""
+    phasen.setze(conn, 1, 4, "befehl")
+    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=370)
+    tg.gesendet.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    text = next(t for _, t in tg.gesendet if "ist durch" in t)
+    assert text.endswith("Stimmt das so? Sonst sagt es mir.")
+    assert repo.hole_phase_angeboten(conn, 1) is None
 
 
 def test_thema_ohne_belegtes_zitat_faellt_ganz_weg(conn, einst, tg):

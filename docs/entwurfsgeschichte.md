@@ -253,15 +253,52 @@ Kernthemen mit Belegzitat im Gesprächs-Prompt und auf `/g/<token>`, dort nur mi
 `zitat_geprueft = 1`.
 
 **(d) Figuren und Hauptkonflikt: die Reihenfolge ist offen.** *„Figuren vor Konflikt ist
-eigentlich logischer, beides ist möglich."* Daraus folgt mehr als eine Umsortierung: beide
-Phasen haben dieselbe Voraussetzung (ein gesetztes Kernthema), und der Code schaltet
-zwischen ihnen **nie** von selbst um (`phasen.FREIE_STELLE`). Der Bot bietet beide an und
-empfiehlt die Figuren — die Entscheidung gehört der Gruppe. Deshalb muss er auch **immer
-alle acht Stationen kennen**, nicht nur die eine aus seinem Phasen-Prompt: er soll
-entscheiden können, welche gerade passt.
+eigentlich logischer, beides ist möglich."* Daraus folgte damals mehr als eine
+Umsortierung: beide Phasen bekamen dieselbe Voraussetzung (ein gesetztes Kernthema), und
+der Code schaltete zwischen ihnen nie von selbst um (`phasen.FREIE_STELLE`).
+**Überholt von Korrektur 8** — der nächste Probelauf hat gezeigt, dass die Frage falsch
+gestellt war. Was bleibt: der Bot muss **immer alle Stationen kennen**, nicht nur die eine
+aus seinem Phasen-Prompt.
 
 Der gemeinsame Nenner mit den Korrekturen 1 bis 3: Jedes Mal war die Annahme aus der
 Werkzeugperspektive gedacht und nicht aus der des Raums, in dem die Gruppe steht.
+
+### 8. Sieben Phasen — und der Bot schaltet keine davon
+
+Am Abend des 04.09.2026, nach dem Probelauf, hat Birk zweimal nachgesteuert. Beide Male
+war nicht die Umsetzung falsch, sondern eine Annahme darüber, was ein Datenstand bedeutet.
+
+**(a) Kernthema und Figuren werden eine Phase.** Korrektur 7 (d) hatte die Reihenfolge von
+Figuren und Konflikt freigegeben; im Probelauf bat Birk dann um etwas anderes: *„Kernthema
+und Figuren in einem Schritt."* Statt zweier Phasen mit freier Reihenfolge gibt es eine —
+welches von beidem zuerst kommt, ergibt sich aus dem Material und nicht aus einer Nummer.
+Damit fällt die freie Stelle weg und an ihre Stelle tritt eine echte Reihenfolge: der
+Hauptkonflikt braucht **zwei Wollen**, also Kernthema *und* mindestens zwei Figuren.
+Sieben Stationen: 1 Begriffe · 2 Fragen · 3 Interviews · 4 Kernthema & Figuren ·
+5 Hauptkonflikt · 6 Szenen · 7 Durchlauf.
+
+**(b) Der automatische Sprung ist verworfen — Datenstand ist nicht Absicht.** Der Bot
+durfte bis dahin selbst eine Phase weiterschalten, wenn ein Erkennerlauf genau die
+Änderung geschrieben hatte, die die nächste Phase trägt (`ART_ERMOEGLICHT`,
+`sprung_nach`). Das Muster war sauber gebaut und trotzdem falsch: **eine fertige
+Verdichtung sagt nicht, ob noch drei Interviews kommen**, und ein gesetztes Kernthema
+sagt nicht, dass die Gruppe damit fertig ist. Aus den Daten lässt sich nur lesen, was
+*möglich* wäre — und das ist eine Frage, keine Entscheidung.
+
+Geblieben ist deshalb genau diese Frage. Erlaubt die Materiallage eine höhere Stufe,
+bekommt der Gesprächs-Prompt einen Hinweisblock mit der Anweisung, im Fluss nachzufragen
+(„Kommen noch Interviews, oder gehen wir ans Kernthema?"), und dieselbe Zeile hängt an der
+Verdichtungs-Nachricht am Ende eines Interviews — dort ist der Moment, in dem sie
+aufkommt. Einmal je Stufe, nicht bei jeder Nachricht: aus einer Frage würde sonst
+Drängeln. Die Antwort der Gruppe ist ein Satz, den der Erkenner als `phase_setzen` liest;
+niemand muss einen Befehl tippen, und niemand wartet auf ein „ja".
+
+**(c) Der Phasen-Prompt ist Fokus, kein Käfig.** Beleg aus demselben Chat: die Gruppe bat
+in Phase 2 um Kernthema und Figuren. Die Antwort war brauchbar — aber nur, weil der
+Basis-Prompt sie trug; `phasen/2.md` sagte wörtlich „kein Kernthema, keine Figuren". Der
+Abschnitt heißt seitdem in jeder Phasendatei „Was du **nicht von dir aus** anfängst" und
+endet mit demselben Satz: *„Bittet die Gruppe ausdrücklich darum, tust du es trotzdem; die
+Phase ist dein Fokus, nicht ihre Grenze."*
 
 ---
 

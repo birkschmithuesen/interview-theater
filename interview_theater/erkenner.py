@@ -732,9 +732,7 @@ def _figuren_zeile(namen: list[str]) -> str:
     return f"{zahlwort} Figuren: {liste}"
 
 
-def baue_meldung(
-    wirkliche_aenderungen: list[dict], phase_gesprungen: int | None = None
-) -> str | None:
+def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     """Baut die eine Meldung je Erkennerlauf (SPEC § 4.3, teil-b.md Aufgabe
     4) -- nicht eine je Aenderung.
 
@@ -751,12 +749,10 @@ def baue_meldung(
     wie der Rest, weil eine Nachricht je Lauf die Regel ist, muss aber als
     Wegnahme lesbar sein und nicht als Zuwachs.
 
-    Eine Phasenaenderung bekommt ihre eigene Zeile -- gesetzt von der Gruppe
-    (art ``phase_setzen``) oder vom Bot selbst (``phase_gesprungen``, siehe
-    ``laufe``). Der Sprung steht bewusst in DERSELBEN Meldung wie die
-    Aenderung, die ihn ausgeloest hat ("Kernthema ... - wir sind damit bei
-    4 ..."): eine Nachricht je Lauf bleibt die Regel, und der Zusammenhang
-    ist so sichtbar, statt in zwei Nachrichten zu zerfallen."""
+    Eine Phasenaenderung bekommt ihre eigene Zeile -- und sie kommt seit dem
+    05.09.2026 nur noch aus einer Quelle: der Gruppe (art ``phase_setzen``).
+    Den automatischen Sprung des Bots gab es einmal; er ist verworfen, weil
+    ein Datenstand keine Absicht ist (interview_theater/phasen.py)."""
     kernthema = None
     hauptkonflikt = None
     begriffe = None
@@ -805,8 +801,6 @@ def baue_meldung(
         zeilen.append(f"Entfernt: {was}")
     if phase_gesetzt is not None:
         zeilen.append(f"Wir sind jetzt bei {phasen.bezeichnung(phase_gesetzt)}.")
-    if phase_gesprungen is not None:
-        zeilen.append(f"Wir sind damit bei {phasen.bezeichnung(phase_gesprungen)}.")
 
     if not zeilen:
         return None
@@ -903,40 +897,19 @@ def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> None:
         log.exception("Interviewabschluss konnte nicht gestartet werden, id=%s", kopf_id)
 
 
-def _springe_phase(conn, chat_id: int, wirkliche: list[dict]) -> int | None:
-    """Schaltet die Phase selbst um, wenn dieser Lauf genau die Aenderung
-    geschrieben hat, die die naechste Phase traegt (phasen.sprung_nach) --
-    und liefert die neue Nummer, damit ``baue_meldung`` sie in derselben
-    Meldung nennt.
-
-    Nach dem Notiert-Muster: schalten, melden, weiterlaufen. Kein
-    Wartezustand, keine Rueckfrage, kein "sag ja" -- widerspricht die Gruppe
-    ("nee, wir sind noch beim Kernthema"), greift der Erkenner das im
-    naechsten Lauf als ``phase_setzen`` auf und schaltet zurueck. Ein
-    Wartezustand waere das Gegenteil dessen, was diese Gruppe braucht: er
-    haelt die Arbeit an, bis jemand auf eine Botfrage antwortet.
-
-    Ein Fehlschlag hier darf die Meldung nicht mitreissen -- die
-    Arbeitsstandaenderungen sind schon geschrieben und gehoeren gemeldet,
-    auch wenn der Sprung misslingt."""
-    try:
-        ziel = phasen.sprung_nach(conn, chat_id, wirkliche)
-        if ziel is None:
-            return None
-        if not phasen.setze(conn, chat_id, ziel, "erkenner"):
-            return None
-        return ziel
-    except Exception:
-        log.exception("Automatischer Phasensprung fehlgeschlagen, chat_id=%s", chat_id)
-        return None
-
-
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
     melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5),
     beendetes Interview verdichten lassen (§ 10.6), Szenen-Auftrag anstossen
-    (szene.py), Phase umschalten, wenn dieser Lauf sie belegt hat
-    (_springe_phase, phasen.py).
+    (szene.py).
+
+    Was hier seit dem 05.09.2026 NICHT mehr passiert: die Phase umschalten.
+    Der automatische Sprung ist verworfen (Birk, nach dem Probelauf) --
+    Datenstand ist nicht Absicht, und ein gesetztes Kernthema sagt nicht,
+    dass die Gruppe mit dem Kernthema fertig ist. Die Phase setzt jetzt nur
+    noch die Gruppe (``phase_setzen``, ``/phase``); erlaubt die Materiallage
+    mehr, fragt der Bot im Gespraech danach (``phasen.offenes_angebot``).
+
     Laeuft nachgelagert, nachdem die Bot-Antwort in der Gruppe steht (SPEC
     § 4.3) -- niemand wartet darauf, und ein Fehlschlag bleibt fuer die
     Gruppe unsichtbar, genau wie ``ablauf.antworte`` es fuer den
@@ -955,8 +928,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.
         _starte_szene(klm, tg, conn, e, chat_id, aenderungen)
-        gesprungen = _springe_phase(conn, chat_id, wirkliche)
-        text = baue_meldung(wirkliche, phase_gesprungen=gesprungen)
+        text = baue_meldung(wirkliche)
         if text is None:
             return
         message_id = tg.sende(chat_id, text)

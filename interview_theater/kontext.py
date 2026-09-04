@@ -245,36 +245,19 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
     return "Arbeitsstand:\n" + "\n".join(zeilen)
 
 
-#: Der Hinweisblock, mit dem der Bot einen Phasenwechsel anbietet. Ein
-#: Angebot, kein Auftrag -- und keine Frage, auf deren Antwort etwas wartet:
-#: der Bot formuliert es selbst im Gespraech und laeuft danach weiter.
+#: Der Hinweisblock, mit dem der Bot einen Phasenwechsel zur Sprache bringt.
+#:
+#: Seit dem 05.09.2026 ist das ausdruecklich eine **Frage**, kein Angebot und
+#: erst recht kein Wechsel (Birk, nach dem Probelauf): Datenstand ist nicht
+#: Absicht -- eine fertige Verdichtung sagt nicht, ob noch drei Interviews
+#: kommen. Der Bot fragt im Fluss, die Gruppe antwortet in einem Satz, und
+#: der Erkenner liest daraus ``phase_setzen``. Der Bot selbst schaltet nie um.
 _PHASENHINWEIS = (
-    "Materiallage erlaubt Phase {bezeichnung}. Biete der Gruppe an, dorthin "
-    "zu wechseln -- als Angebot, einmal, nicht draengend."
+    "Die Materiallage wuerde Phase {bezeichnung} hergeben. Frag im Fluss "
+    "nach, ob die Gruppe schon dorthin will -- ein Satz, keine Ankuendigung "
+    '("Kommen noch Interviews, oder gehen wir ans Kernthema?"). Du schaltest '
+    "nicht selbst um; das tut die Antwort der Gruppe."
 )
-
-#: Der Hinweis fuer die freie Stelle: Figuren und Hauptkonflikt haben
-#: dieselbe Voraussetzung, und der Bot darf sich hier nicht still fuer eine
-#: entscheiden. Er nennt beide und sagt ausdruecklich, dass die Gruppe waehlt
-#: -- die Empfehlung (Figuren zuerst) ist eine Erfahrung, keine Regel.
-_PHASENHINWEIS_FREI = (
-    "Materiallage erlaubt {erste} oder {zweite}. Biete beides an, empfiehl "
-    "Figuren zuerst, die Gruppe entscheidet."
-)
-
-
-def _hinweistext(moegliche: list[int]) -> str:
-    """Formuliert das Angebot aus den moeglichen naechsten Phasen.
-
-    Stehen Figuren (5) und Hauptkonflikt (6) beide offen und nichts
-    darueber, ist es die freie Stelle und beide werden genannt; sonst gilt
-    wie bisher die hoechste erreichbare Phase."""
-    erste, zweite = sorted(phasen.FREIE_STELLE)
-    if max(moegliche) == zweite and erste in moegliche:
-        return _PHASENHINWEIS_FREI.format(
-            erste=phasen.bezeichnung(erste), zweite=phasen.bezeichnung(zweite)
-        )
-    return _PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(max(moegliche)))
 
 
 def _baue_phasenhinweis(conn, chat_id: int) -> str:
@@ -283,23 +266,15 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
 
     Die einzige Stelle im Kontextaufbau, die schreibt: ``phase_angeboten``
     merkt sich, welcher Wechsel schon im Prompt stand. Ohne dieses Feld
-    stuende der Block in jedem Zug erneut da, und der Bot boete denselben
-    Wechsel alle zwei Minuten an -- aus einem Angebot wuerde Draengeln.
-    Nimmt die Gruppe es an, aendert sich die Phase, und beim naechsten
-    erreichbaren Schritt gibt es ein neues Angebot; nimmt sie es nicht an,
-    bleibt es still.
-
-    Gemerkt wird die hoechste angebotene Stufe, auch wenn der Text zwei
-    Phasen nennt: das Angebot 'Figuren oder Hauptkonflikt' ist ein Angebot,
-    keine zwei -- es soll sich genauso wenig wiederholen wie jedes andere."""
-    moegliche = phasen.moegliche_naechste(conn, chat_id)
-    if not moegliche:
+    stuende der Block in jedem Zug erneut da, und der Bot fragte alle zwei
+    Minuten dasselbe -- aus einer Frage wuerde Draengeln. Antwortet die
+    Gruppe, aendert sich die Phase, und beim naechsten erreichbaren Schritt
+    gibt es eine neue Frage; antwortet sie nicht, bleibt es still."""
+    stufe = phasen.offenes_angebot(conn, chat_id)
+    if stufe is None:
         return ""
-    merkposten = max(moegliche)
-    if repo.hole_phase_angeboten(conn, chat_id) == merkposten:
-        return ""
-    repo.setze_phase_angeboten(conn, chat_id, merkposten)
-    return _hinweistext(moegliche)
+    phasen.merke_angebot(conn, chat_id, stufe)
+    return _PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(stufe))
 
 
 def _baue_szene(conn, chat_id: int) -> str:

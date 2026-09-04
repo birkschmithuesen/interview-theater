@@ -25,30 +25,42 @@ gibt, stehen sie in `docs/` als Referenz, nicht als Voraussetzung.
 
 ## Wie ein Workshop damit abläuft
 
-Der Weg zum fertigen Stück lässt sich grob in acht Stationen beschreiben:
+Der Weg zum fertigen Stück lässt sich grob in sieben Stationen beschreiben:
 
 1. **Begriffe** — die im Plenum gesammelte Begriffsliste aufnehmen und ordnen
 2. **Fragen** — aus den Begriffen Interviewfragen entwickeln
 3. **Interviews** — Interviews führen, das Material verdichten
-4. **Kernthema** — aus den Verdichtungen das Kernthema herausschälen
-5. **Figuren** — Figuren aus dem Material entwickeln
-6. **Hauptkonflikt** — den Hauptkonflikt benennen
-7. **Szenen** — die Szenenfolge entwerfen und die Szenentexte schreiben
-8. **Durchlauf** — Durchlauf und Feinschliff vor der Aufführung
+4. **Kernthema & Figuren** — aus den Verdichtungen das Kernthema herausschälen
+   und die Figuren entwickeln
+5. **Hauptkonflikt** — den Hauptkonflikt benennen, der das Stück trägt
+6. **Szenen** — die Szenenfolge entwerfen und die Szenentexte schreiben
+7. **Durchlauf** — Durchlauf und Feinschliff vor der Aufführung
 
 Die Begriffe entstehen **im Raum, nicht im Chat**: gesammelt wird im Plenum,
 auf Zetteln oder an der Wand. Was der Bot bekommt, ist die fertige Liste —
 getippt, von einem Foto abgetippt oder als Sprachnachricht.
 
-**Figuren und Hauptkonflikt sind gleichwertig.** Ob eine Gruppe erst die
-Figuren baut und dann den Konflikt benennt oder umgekehrt, entscheidet sie
-selbst; der Bot bietet beides an und empfiehlt die Figuren, weil das der
-häufigere Weg ist — mehr nicht.
+**Kernthema und Figuren sind eine Station, nicht zwei.** Welches von beidem
+zuerst kommt, ergibt sich aus dem Material — manchmal steht das Thema und die
+Figuren fallen daraus ab, manchmal ist zuerst eine Figur da; oft geht beides
+zusammen. Der Hauptkonflikt kommt danach, weil er zwei Figuren braucht, die
+etwas wollen.
 
 Das ist überhaupt eine Landkarte, kein Fahrplan. Die Gruppe darf jederzeit
 abbiegen, zu einer früheren Station zurückspringen oder eine Entscheidung
 verwerfen und neu anfangen. Der Bot widerspricht dem nie mit einem Verweis auf
 eine Reihenfolge — es gibt keine, die einzuhalten wäre.
+
+**Umgeschaltet wird nur, wenn die Gruppe es sagt.** Der Bot springt nie von
+selbst weiter, auch wenn das Material die nächste Station hergäbe: dass eine
+Verdichtung fertig ist, heißt nicht, dass keine drei Interviews mehr kommen.
+Er fragt stattdessen im Gespräch nach („Kommen noch Interviews, oder gehen wir
+ans Kernthema?") — einmal, nicht bei jeder Nachricht. Die Antwort genügt, ein
+Befehl ist nicht nötig.
+
+**Die Station ist der Fokus des Bots, nicht die Grenze der Gruppe.** Wer in
+Phase 2 nach einem Kernthema fragt, bekommt eines; die Phase zieht danach
+einfach nach.
 
 ## Was der Bot versteht
 
@@ -134,7 +146,7 @@ nicht, um mit ihm zu arbeiten:
 | `/interview` | Aufnahme von Hand starten |
 | `/fertig` | Aufnahme von Hand beenden |
 | `/auswerten [Nummer]` | ein Interview doch noch verdichten, das der Bot als zu kurz übergangen hat |
-| `/phase [Nummer\|Name]` | zeigt, an welcher der acht Stationen ihr gerade arbeitet — oder schaltet um, auch zurück |
+| `/phase [Nummer\|Name]` | zeigt, an welcher der sieben Stationen ihr gerade arbeitet — oder schaltet um, auch zurück |
 | `/kernthema <Text>` | Kernthema setzen oder korrigieren, `/kernthema aus` nimmt es wieder weg |
 | `/figur <Name> entfernen` | eine Figur wieder herausnehmen |
 | `/szene <Auftrag>` | eine Szene ausschreiben lassen (dauert ein paar Minuten), `/szene <Nummer> entfernen` nimmt eine wieder weg |

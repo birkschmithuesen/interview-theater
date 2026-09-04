@@ -210,10 +210,10 @@ def test_erkenner_hat_den_negativfall_fragen_nur_ueberlegt(erkenner_faelle):
     ), "der Fall 'ueber Fragen reden -> gar nichts' fehlt"
 
 
-def test_erkenner_hat_den_fall_der_freien_stelle(erkenner_faelle):
-    """Die Gruppe darf den Hauptkonflikt vor den Figuren machen. Der Fall
-    belegt, dass ein Abschnitt, in dem BEIDE Phasen vorkommen, auf die
-    gemeinte gesetzt wird -- nicht auf die zuerst genannte."""
+def test_erkenner_trennt_konflikt_von_kernthema_und_figuren(erkenner_faelle):
+    """Der Fall belegt, dass ein Abschnitt, in dem BEIDE Phasen vorkommen --
+    Figuren (4) und Konflikt (5) --, auf die gemeinte gesetzt wird und nicht
+    auf die zuerst genannte."""
     treffer = [
         f for f in erkenner_faelle
         if any(a["art"] == "phase_setzen" and "konflikt" in a["wert"].lower()
@@ -221,6 +221,19 @@ def test_erkenner_hat_den_fall_der_freien_stelle(erkenner_faelle):
         and any("figuren" in t for t in texte_von(f))
     ]
     assert treffer, "der Fall 'erst der Konflikt, Figuren danach' fehlt"
+
+
+def test_erkenner_hat_den_fall_kernthema_und_figuren_zusammen(erkenner_faelle):
+    """Der Satz, aus dem das siebenstufige Modell entstanden ist ("Kernthema
+    und Figuren in einem Schritt", Birk 04.09.2026 abends). Er muss im Korpus
+    bleiben: er ist der einzige Fall, der belegt, dass beides EINE Phase
+    setzt und nicht zwei."""
+    treffer = [
+        f for f in erkenner_faelle
+        if any(a["art"] == "phase_setzen" for a in f["erwartet"])
+        and any("kernthema" in t and "figuren" in t for t in texte_von(f))
+    ]
+    assert treffer, "der Fall 'Kernthema und Figuren zusammen' fehlt"
 
 
 def test_erkenner_hat_den_material_fall(erkenner_faelle):

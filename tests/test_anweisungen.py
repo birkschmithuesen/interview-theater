@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from interview_theater import anweisungen, erkenner, kontext
+from interview_theater import anweisungen, erkenner, kontext, phasen
 
 
 @pytest.fixture
@@ -109,9 +109,27 @@ def test_module_nutzen_die_heisse_fassung(betrieb):
 
 
 def test_phasenprompts_liegen_als_unterpfad(betrieb):
-    for nummer in range(1, 9):
+    """Je Phase eine Datei -- die Nummern kommen aus ``phasen.PHASEN``, nicht
+    aus einer zweiten Liste hier: als acht Phasen sieben wurden, blieb sonst
+    ein Test stehen, der eine ``phasen/8.md`` verlangt, die es nicht mehr
+    gibt."""
+    for nummer, _, _ in phasen.PHASEN:
         text = anweisungen.hole(f"phasen/{nummer}")
         assert len(text.splitlines()) >= 8, nummer
+
+
+def test_jede_phasenanweisung_sagt_dass_die_phase_kein_kaefig_ist(betrieb):
+    """Der feste Schlusssatz aus Birks Korrektur vom 05.09.2026: die Gruppe
+    bittet, der Bot tut es -- auch wenn es laut Phase erst spaeter dran
+    waere. Der Live-Fall dahinter: Gruppe in Phase 2 bat um Kernthema und
+    Figuren, und ``2.md`` sagte 'kein Kernthema, keine Figuren'."""
+    for nummer, _, _ in phasen.PHASEN:
+        # Zeilenumbrueche weg: die Prompts sind auf 79 Zeichen umbrochen, der
+        # Satz steht in jeder Datei an einer anderen Stelle im Absatz.
+        text = " ".join(anweisungen.hole(f"phasen/{nummer}").split())
+        assert "Was du nicht von dir aus anfaengst:" in text, nummer
+        assert "die Phase ist dein Fokus, nicht ihre Grenze" in text, nummer
+        assert "Der Erkenner setzt die Phase dann nach." in text, nummer
 
 
 def test_phase_wird_zwischen_basis_und_zusatz_gehaengt(betrieb):

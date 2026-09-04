@@ -312,6 +312,29 @@ def _wende_wortlaut_aus_an(conn, chat_id: int) -> dict | None:
     return {"art": "wortlaut_aus", "wert": ""}
 
 
+def _wende_interview_starten_an(conn, chat_id: int) -> dict | None:
+    """Schaltet den Interviewmodus an (teil-b.md Aufgabe 5, SPEC § 10.1) --
+    setzt gruppe.interviewmodus_seit auf jetzt. War der Modus schon an, ist
+    das keine Aenderung (dieselbe Regel wie ueberall sonst: derselbe Zustand
+    zaehlt nicht als Aenderung, sonst bestaetigte laufe() bei jedem
+    Erkennerlauf erneut)."""
+    gruppe = repo.hole_gruppe(conn, chat_id)
+    if gruppe is not None and gruppe["interviewmodus_seit"] is not None:
+        return None
+    repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
+    return {"art": "interview_starten", "wert": ""}
+
+
+def _wende_interview_beenden_an(conn, chat_id: int) -> dict | None:
+    """Schaltet den Interviewmodus aus -- spiegelbildlich zu
+    _wende_interview_starten_an."""
+    gruppe = repo.hole_gruppe(conn, chat_id)
+    if gruppe is None or gruppe["interviewmodus_seit"] is None:
+        return None
+    repo.setze_interviewmodus(conn, chat_id, None)
+    return {"art": "interview_beenden", "wert": ""}
+
+
 def _wende_interview_benennen_an(conn, chat_id: int, wert: str) -> dict | None:
     """Benennt die letzte (juengste) Aufnahme dieser Gruppe um. Ohne
     vorhandene Aufnahme gibt es nichts umzubenennen -- ein stilles No-Op,
@@ -333,11 +356,10 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     """Wendet genau eine Aenderung an und liefert das angewendete
     ``{"art": ..., "wert": ...}`` zurueck, oder ``None`` wenn nichts
     geschrieben wurde (leerer Wert oder Wert bereits so in der Datenbank)."""
-    if art in ("interview_starten", "interview_beenden"):
-        # Aufgabe 5 (teil-b.md): das Feld gruppe.interviewmodus_seit gibt es
-        # noch nicht -- diese beiden Arten werden hier bewusst kommentarlos
-        # uebersprungen, bis Aufgabe 5 sie mechanisch behandelt.
-        return None
+    if art == "interview_starten":
+        return _wende_interview_starten_an(conn, chat_id)
+    if art == "interview_beenden":
+        return _wende_interview_beenden_an(conn, chat_id)
     if art in _ARBEITSSTAND_ARTEN:
         return _wende_arbeitsstand_an(conn, chat_id, art, wert)
     if art == "figur_setzen":
@@ -452,18 +474,54 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     return "Notiert:\n" + "\n".join(zeilen)
 
 
+#: Wortlaut der Interviewmodus-Bestaetigung (teil-b.md Aufgabe 5, § 10.1) --
+#: die EINE Ausnahme von "nur Arbeitsstandaenderungen werden gemeldet": der
+#: Modus muss sichtbar sein, sonst weiss die Gruppe nicht, ob sie gerade
+#: aufnimmt. Bewusst getrennt von baue_meldung()/der Aenderungsmeldung, nicht
+#: mit ihr vermischt -- zwei kurze Nachrichten sind hier klarer als eine.
+_TEXT_INTERVIEW_STARTEN = "Ich zeichne jetzt auf."
+_TEXT_INTERVIEW_BEENDEN = "Aufnahme beendet."
+_INTERVIEWMODUS_TEXTE = {
+    "interview_starten": _TEXT_INTERVIEW_STARTEN,
+    "interview_beenden": _TEXT_INTERVIEW_BEENDEN,
+}
+
+
+def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> None:
+    """Bestaetigt jeden tatsaechlich wirksamen Moduswechsel einzeln und
+    sofort (Aufgabe 5) -- unabhaengig von und vor baue_meldung(), das diese
+    beiden Arten weiterhin bewusst still haelt."""
+    for aenderung in wirkliche:
+        text = _INTERVIEWMODUS_TEXTE.get(aenderung.get("art"))
+        if text is None:
+            continue
+        try:
+            message_id = tg.sende(chat_id, text)
+            repo.merke_nachricht(
+                conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
+                text, repo._jetzt(),
+            )
+        except Exception:
+            log.exception(
+                "Interviewmodus-Bestaetigung fehlgeschlagen, chat_id=%s, art=%s",
+                chat_id, aenderung.get("art"),
+            )
+
+
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
-    melden (teil-b.md Aufgabe 4). Laeuft nachgelagert, nachdem die
-    Bot-Antwort in der Gruppe steht (SPEC § 4.3) -- niemand wartet darauf,
-    und ein Fehlschlag bleibt fuer die Gruppe unsichtbar, genau wie
-    ``ablauf.antworte`` es fuer den Gespraechszug haelt: geloggt und als
-    ``vorfall`` vermerkt, nie eine zusaetzliche Fehlermeldung im Chat."""
+    melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5).
+    Laeuft nachgelagert, nachdem die Bot-Antwort in der Gruppe steht (SPEC
+    § 4.3) -- niemand wartet darauf, und ein Fehlschlag bleibt fuer die
+    Gruppe unsichtbar, genau wie ``ablauf.antworte`` es fuer den
+    Gespraechszug haelt: geloggt und als ``vorfall`` vermerkt, nie eine
+    zusaetzliche Fehlermeldung im Chat."""
     try:
         aenderungen = erkenne(klm, conn, e, chat_id)
         if not aenderungen:
             return
         wirkliche = wende_an(conn, e, chat_id, aenderungen)
+        _melde_interviewmodus(tg, conn, e, chat_id, wirkliche)
         text = baue_meldung(wirkliche)
         if text is None:
             return

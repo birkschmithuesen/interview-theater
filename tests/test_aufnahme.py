@@ -154,11 +154,19 @@ def sprachnachricht(dauer, message_id=10, chat_id=1, file_id="FILE1", absender="
 # Die neun wichtigsten Tests aus dem Auftrag
 # ---------------------------------------------------------------------------
 
-def test_klasse_nach_dauer():
-    assert aufnahme.klasse_fuer(7) == "kurz"
-    assert aufnahme.klasse_fuer(45) == "kurz"
-    assert aufnahme.klasse_fuer(46) == "lang"
-    assert aufnahme.klasse_fuer(None) == "lang"   # im Zweifel Material
+def test_klasse_fuer_modus_an_ergibt_lang_unabhaengig_von_der_dauer(conn):
+    """Aufgabe 5 (teil-b.md, § 10.1): die Dauer spielt keine Rolle mehr --
+    nur der Modus. Selbst sieben Sekunden zaehlen bei aktivem Modus als
+    Material."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    assert aufnahme.klasse_fuer(conn, 1) == "lang"
+
+
+def test_klasse_fuer_modus_aus_ergibt_kurz_unabhaengig_von_der_dauer(conn):
+    """Spiegelbildlich: bei ausgeschaltetem Modus bleibt es *kurz*, selbst
+    wenn die (hier gar nicht mehr uebergebene) Dauer 300 Sekunden waere."""
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
+    assert aufnahme.klasse_fuer(conn, 1) == "kurz"
 
 
 def test_datei_ist_gespeichert_bevor_whisper_gefragt_wird(conn, einst, tg):
@@ -172,11 +180,16 @@ def test_datei_ist_gespeichert_bevor_whisper_gefragt_wird(conn, einst, tg):
 
 
 def test_lang_bekommt_empfangsbestaetigung_kurz_nicht(conn, einst, tg):
+    """Klasse *lang* entsteht seit Aufgabe 5 ausschliesslich ueber den
+    Interviewmodus, nicht mehr ueber die Dauer -- die 300 Sekunden hier sind
+    nur noch ein beliebiger Wert, keine Grenzwertpruefung mehr."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
     aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300))
     assert any("hoere durch" in t for _, t in tg.gesendet)
     tg.gesendet.clear()
+    repo.setze_interviewmodus(conn, 1, None)
     aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=11))
-    assert tg.gesendet == [], "ein Siebensekuender bekommt keine Bestaetigung"
+    assert tg.gesendet == [], "bei ausgeschaltetem Modus keine Bestaetigung"
 
 
 def test_kurz_landet_als_nachricht_im_verlauf(conn, einst, tg, klm):
@@ -190,12 +203,89 @@ def test_kurz_landet_als_nachricht_im_verlauf(conn, einst, tg, klm):
 
 
 def test_lang_wird_verdichtet(conn, einst, tg, klm):
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300))
     aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(TRANSKRIPT), aid)
     assert len(repo.verdichtungen(conn, 1)) == 1
 
 
+def test_fuenf_sprachnachrichten_im_modus_ergeben_fuenf_materialaufnahmen(conn, einst, tg):
+    """Aufgabe 5, Auftragstest: ein Interview kann aus mehreren kurzen
+    Sprachnachrichten bestehen -- jede einzelne zaehlt trotzdem als Material,
+    solange der Modus an ist."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    for i in range(5):
+        n = sprachnachricht(dauer=7, message_id=200 + i)
+        aid = aufnahme.empfange(conn, tg, einst, n)
+        assert repo.hole_aufnahme(conn, aid)["klasse"] == "lang"
+
+
+def test_modus_ueberlebt_eine_neue_verbindung(tmp_path):
+    """Aufgabe 5, Auftragstest: der Modus steht in der Datenbank
+    (gruppe.interviewmodus_seit), nicht in einem Prozessspeicher -- ein
+    Neustart darf ihn nicht vergessen."""
+    pfad = str(tmp_path / "modus.db")
+    erste_verbindung = db.verbinde(pfad)
+    db.initialisiere(erste_verbindung)
+    repo.sichere_gruppe(erste_verbindung, 1, "gruppe1", "Testgruppe")
+    repo.setze_interviewmodus(erste_verbindung, 1, repo._jetzt())
+
+    zweite_verbindung = db.verbinde(pfad)
+    assert aufnahme.klasse_fuer(zweite_verbindung, 1) == "lang"
+
+
+def test_aktiver_modus_loest_bei_sprachnachricht_keinen_gespraechszug_aus(conn, einst, tg, klm):
+    """Aufgabe 5, Auftragstest: waehrend des Interviewmodus ist eine
+    Sprachnachricht Material, kein Gespraechsbeitrag -- sie darf keinen Zug
+    ausloesen, sondern muss stattdessen (klassenabhaengig) verdichtet
+    werden."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    aufgerufen = []
+
+    def zug(conn, tg, klm, e, chat_id, hinweis=None):
+        aufgerufen.append(chat_id)
+
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=210))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(TRANSKRIPT), aid, zug=zug)
+
+    assert aufgerufen == [], "Material darf keinen Gespraechszug ausloesen"
+    assert len(repo.verdichtungen(conn, 1)) == 1, "es wurde trotzdem als Material verdichtet"
+
+
+def test_hinweis_bei_langer_aufnahme_ausserhalb_des_modus(conn, einst, tg, klm):
+    """Aufgabe 5, § 10.1: ueber HINWEIS_AB_S Sekunden UND Modus aus haengt der
+    Zug einen beilaeufigen Hinweis an -- keine eigene Nachricht, keine
+    Rueckfrage, nur ein zusaetzliches Argument fuer die ohnehin faellige
+    Antwort."""
+    gesehen = {}
+
+    def zug(conn, tg, klm, e, chat_id, hinweis=None):
+        gesehen["hinweis"] = hinweis
+
+    aid = aufnahme.empfange(
+        conn, tg, einst, sprachnachricht(dauer=aufnahme.HINWEIS_AB_S + 1, message_id=220)
+    )
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("eine lange Erzaehlung"), aid, zug=zug)
+
+    assert gesehen["hinweis"] is not None
+    assert "Material" in gesehen["hinweis"]
+
+
+def test_kein_hinweis_unter_der_schwelle_oder_bei_aktivem_modus(conn, einst, tg, klm):
+    gesehen = {}
+
+    def zug(conn, tg, klm, e, chat_id, hinweis=None):
+        gesehen["hinweis"] = hinweis
+
+    aid = aufnahme.empfange(
+        conn, tg, einst, sprachnachricht(dauer=aufnahme.HINWEIS_AB_S, message_id=230)
+    )
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("kurz genug"), aid, zug=zug)
+    assert gesehen["hinweis"] is None
+
+
 def test_zeitbudget_ueberschritten_meldet_der_gruppe(conn, einst, tg, klm):
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300))
     aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
     assert repo.hole_aufnahme(conn, aid)["status"] in ("empfangen", "fehlgeschlagen")
@@ -267,9 +357,11 @@ def test_textimport_dann_nachholen_verdichtet_nur_einmal(conn, einst, tg, klm):
 # ---------------------------------------------------------------------------
 
 def test_konstanten_haben_die_gemessenen_werte():
-    """Auftragshinweis 5: alle sieben Konstanten an genau einer Stelle, mit den
-    Werten aus der Messung vom 03.09.2026."""
-    assert aufnahme.KURZ_GRENZE_S == 45
+    """Auftragshinweis 5: alle Konstanten an genau einer Stelle, mit den
+    Werten aus der Messung vom 03.09.2026. KURZ_GRENZE_S gibt es seit
+    Aufgabe 5 nicht mehr (die Dauer klassifiziert nicht mehr)."""
+    assert not hasattr(aufnahme, "KURZ_GRENZE_S")
+    assert aufnahme.HINWEIS_AB_S == 60
     assert aufnahme.TIPPANZEIGE_AB_S == 5
     assert aufnahme.MELDUNG_AB_S == 12
     assert aufnahme.BUDGET_KURZ_S == 45
@@ -284,7 +376,7 @@ def test_junge_kurze_aufnahme_loest_gespraechszug_aus_alte_nicht(conn, einst, tg
     Parameter hereingereichten) Gespraechszug ausloesen."""
     aufgerufen = []
 
-    def zug(conn, tg, klm, e, chat_id):
+    def zug(conn, tg, klm, e, chat_id, hinweis=None):
         aufgerufen.append(chat_id)
 
     n_jung = sprachnachricht(dauer=7, message_id=50)
@@ -355,6 +447,7 @@ def test_verdichtung_scheitert_aufnahme_bleibt_transkribiert_fuer_nachhol_arbeit
         def schema(self, chat_id, system, nutzer, schema, art):
             raise RuntimeError("Sprachmodell nicht erreichbar")
 
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=80))
     aufnahme.verarbeite(conn, tg, KaputtesLLM(), einst, stt_attrappe(TRANSKRIPT), aid)
     zeile = repo.hole_aufnahme(conn, aid)
@@ -377,6 +470,7 @@ def test_verdichtung_ueber_max_versuchen_gilt_als_fehlgeschlagen(conn, einst, tg
         def schema(self, chat_id, system, nutzer, schema, art):
             raise RuntimeError("Sprachmodell nicht erreichbar")
 
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=81))
     # Der erste Anlauf muss die Transkription noch erfolgreich hinter sich
     # bringen (sonst zaehlt der Versuch als Transkriptions-, nicht als
@@ -398,6 +492,7 @@ def test_lange_aufnahme_bekommt_bitte_nochmal_nur_einmal(conn, einst, tg, klm):
     """Wichtig 2: bei mehreren Nachhol-Anlaeufen derselben Aufnahme (Klasse
     *lang*) geht die 'schickt sie bitte nochmal'-Bitte nur beim ersten
     Fehlschlag raus, nicht bei jedem der bis zu MAX_VERSUCHE Versuche."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=82))
     for _ in range(3):
         aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
@@ -410,6 +505,7 @@ def test_bitte_nochmal_nennt_keinen_ersatznamen(conn, einst, tg, klm):
     """Kleinigkeit: 'Die Aufnahme von Interview 1 konnte ich nicht verstehen'
     wirkt in einer Chatnachricht unfreiwillig komisch. Ohne einen von der
     Gruppe vergebenen echten Namen wird stattdessen die Klasse genannt."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=83))
     aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
 
@@ -434,6 +530,7 @@ def test_zwischenmeldung_nur_bei_kurz(conn, einst, tg, klm, monkeypatch):
     aus empfange() schon eine Nachricht fuer dieselbe Sache bekommen. Fuer
     Klasse *kurz* soll sie bei einer langsamen Transkription dagegen wirklich
     feuern -- die Abschaltung ist strukturell (Klasse), nicht zufaellig."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
     aid_lang = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=90))
     tg.gesendet.clear()
     aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("ok"), aid_lang)
@@ -449,6 +546,7 @@ def test_zwischenmeldung_nur_bei_kurz(conn, einst, tg, klm, monkeypatch):
         return httpx.Response(200, json={"status": "success", "data": json.dumps({"text": "ok"})})
 
     klient = httpx.Client(transport=httpx.MockTransport(handler_langsam))
+    repo.setze_interviewmodus(conn, 1, None)
     aid_kurz = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=91))
     tg.gesendet.clear()
     aufnahme.verarbeite(conn, tg, klm, einst, klient, aid_kurz)

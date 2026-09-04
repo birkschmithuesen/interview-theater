@@ -2,14 +2,25 @@
 fertigen Material (Aufgabe 8, SPEC-kontext-architektur.md § 10).
 
 Sprache ist hier nicht nur Interview-Material: die Gruppe spricht auch normale
-Arbeitskommunikation und Regieanweisungen ein. Telegram liefert `voice.duration`
-in den Metadaten, bevor irgendetwas heruntergeladen wird -- das genuegt fuer die
-einzige Unterscheidung, die zaehlt (§ 10.1):
+Arbeitskommunikation und Regieanweisungen ein. Die Dauer einer Sprachnachricht
+sagt darueber nichts aus (§ 10.1, teil-b.md Aufgabe 5) -- ein Interview kann
+aus fuenf kurzen Sprachnachrichten bestehen, eine Regieanweisung laenger als
+eine Minute dauern. Stattdessen entscheidet ``gruppe.interviewmodus_seit``,
+den die Gruppe ausdruecklich schaltet (durch Saetze wie "wir machen jetzt ein
+Interview" ueber den Absichtserkenner, oder durch /interview und /fertig):
 
-* **kurz** (bis KURZ_GRENZE_S): ein Gespraechsbeitrag. Latenz zerstoert den
-  Fluss, darum keine Empfangsbestaetigung und ein knappes Zeitbudget.
-* **lang**: Material (ein Interview). Darf dauern; bekommt eine sofortige
-  Empfangsbestaetigung und laeuft zusaetzlich durch den Verdichter (§ 4.2).
+* **kurz** (Modus aus): ein Gespraechsbeitrag. Latenz zerstoert den Fluss,
+  darum keine Empfangsbestaetigung und ein knappes Zeitbudget.
+* **lang** (Modus an): Material (ein Interview). Darf dauern; bekommt eine
+  sofortige Empfangsbestaetigung und laeuft zusaetzlich durch den Verdichter
+  (§ 4.2).
+
+Wird der Modus zu starten vergessen, ist die Sprachnachricht trotzdem als
+Klasse *kurz* gespeichert (§ 10.2) und kann nachtraeglich zugeordnet werden --
+nichts geht verloren. Eine besonders lange Sprachnachricht ausserhalb des
+Modus bekommt stattdessen einen beilaeufigen Hinweis an der ohnehin faelligen
+Antwort (HINWEIS_AB_S), keine Rueckfrage (SPEC § 1.4, § 10.1: eine Rueckfrage
+braucht wartenden Zustand, genau das Konstrukt, das ersatzlos gestrichen wurde).
 
 **Die eigentliche Absicherung (§ 10.2):** ``empfange()`` laedt die Datei herunter
 und legt ``status='empfangen'`` an, OHNE jemals Whisper zu fragen -- es gibt in
@@ -40,13 +51,19 @@ log = logging.getLogger(__name__)
 # Alle Schwellwerte an genau dieser Stelle (Auftragshinweis 5), Werte aus der
 # Messung vom 03.09.2026 (76 Laeufe, Median 2,9 s, einziger Ausreisser 8,88 s,
 # kein Lauf ueber 10 s). Nirgends im Code als Zahl wiederholt.
-KURZ_GRENZE_S = 45
 TIPPANZEIGE_AB_S = 5
 MELDUNG_AB_S = 12
 BUDGET_KURZ_S = 45
 BUDGET_LANG_S = 90
 NACHHOL_INTERVALL_S = 60
 MAX_VERSUCHE = 5
+
+#: Kein Klassifikations-Schwellwert (den gibt es seit Aufgabe 5 nicht mehr) --
+#: nur der Ausloeser fuer den beilaeufigen Materialhinweis (§ 10.1): eine
+#: Sprachnachricht ueber dieser Dauer, waehrend der Interviewmodus AUS ist,
+#: bekommt eine angehaengte Zeile an der ohnehin faelligen Antwort, keine
+#: eigene Nachricht und keine Rueckfrage.
+HINWEIS_AB_S = 60
 
 #: Wortlaut aus SPEC § 10.4/§ 11.1, ohne Umlaute wie der uebrige Quelltext.
 _TEXT_EMPFANGSBESTAETIGUNG = "Ich hoere durch - das kann einen Moment dauern."
@@ -56,20 +73,22 @@ _TEXT_AUSFALL = (
     "Aufnahmen und hole sie nach."
 )
 _TEXT_RUECKKEHR = "Ich kann wieder hoeren."
+_TEXT_MATERIAL_HINWEIS = (
+    "Das klingt nach Material - wenn ihr es als Interview festhalten wollt, "
+    "sagt mir Bescheid."
+)
 
 
-def klasse_fuer(dauer: int | None) -> str:
-    """Ordnet eine Dauer (Sekunden) einer der zwei Klassen zu (§ 10.1).
-
-    ``None`` liefert 'lang': im Zweifel Material, weil ein faelschlich als
-    Material behandelter Zuruf harmlos ist, ein faelschlich als Zuruf
-    behandeltes Interview aber nicht verdichtet wuerde."""
-    if dauer is None:
-        return "lang"
-    return "kurz" if dauer <= KURZ_GRENZE_S else "lang"
+def klasse_fuer(conn, chat_id: int) -> str:
+    """Ordnet eine Sprachnachricht einer der zwei Klassen zu (§ 10.1,
+    teil-b.md Aufgabe 5) -- ausschliesslich anhand von
+    ``gruppe.interviewmodus_seit``, NICHT anhand der Dauer: die sagt nichts
+    ueber die Art aus (ein Interview kann aus fuenf kurzen Sprachnachrichten
+    bestehen, eine Regieanweisung laenger als eine Minute dauern)."""
+    return "lang" if repo.ist_interviewmodus_an(conn, chat_id) else "kurz"
 
 
-def _kein_zug(conn, tg, klm, e, chat_id) -> None:
+def _kein_zug(conn, tg, klm, e, chat_id, hinweis=None) -> None:
     """Vorgabewert fuer den zug-Parameter: absichtlich ohne Wirkung.
 
     Seit Aufgabe 10 existiert der echte Gespraechszug in ``theatersoap.ablauf``
@@ -80,7 +99,11 @@ def _kein_zug(conn, tg, klm, e, chat_id) -> None:
     (``_bearbeite_sprachnachricht`` fuer den Live-Weg, ``_nachhol_schleife``
     fuer den Nachhol-Arbeiter). Direkte Aufrufe von ``verarbeite()``/
     ``nachholen()`` ohne explizites ``zug`` (Tests, ein spaeterer Textimport)
-    bleiben mit diesem Vorgabewert unveraendert wirkungslos."""
+    bleiben mit diesem Vorgabewert unveraendert wirkungslos.
+
+    ``hinweis`` (Aufgabe 5): eine optionale Zeile, die ``ablauf.bearbeite``
+    an die ohnehin faellige Antwort anhaengt (siehe _kurz_abschliessen) --
+    hier ohne jede Wirkung, wie der Rest dieser Attrappe."""
     return None
 
 
@@ -125,7 +148,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
     Gruppe, es nochmal zu schicken, damit nichts spurlos verschwindet."""
     chat_id = n["chat_id"]
     message_id = n["message_id"]
-    klasse = klasse_fuer(n.get("dauer"))
+    klasse = klasse_fuer(conn, chat_id)
 
     repo.merke_nachricht(
         conn, chat_id, message_id, n.get("absender"), 0, "sprache", None,
@@ -352,7 +375,13 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     Nachrichtenzeile (§ 10.2) und loest den Gespraechszug nur aus, wenn die
     urspruengliche Nachricht noch jung genug ist (Auftragshinweis 1) UND es
     kein Nachhol-Anlauf war -- damit weder Nachtstau noch Nachgeholtes je eine
-    Antwort ausloesen."""
+    Antwort ausloesen.
+
+    Diese Funktion laeuft ausschliesslich fuer Klasse *kurz* -- und damit,
+    seit Aufgabe 5, ausschliesslich fuer Sprachnachrichten, die bei
+    interviewmodus AUS eintrafen (klasse_fuer). War die Nachricht dabei
+    laenger als HINWEIS_AB_S, haengt sie dem Gespraechszug einen beilaeufigen
+    Hinweis an -- keine Rueckfrage, kein eigener Zustand (§ 10.1)."""
     from theatersoap import bot  # spaeter Import: vermeidet einen Ladezyklus mit bot.py
 
     aufnahme_id = row["id"]
@@ -374,8 +403,10 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     repo.setze_status(conn, aufnahme_id, "fertig")
 
     if jung:
+        dauer = row["dauer_sekunden"] or 0
+        hinweis = _TEXT_MATERIAL_HINWEIS if dauer > HINWEIS_AB_S else None
         try:
-            zug(conn, tg, klm, e, chat_id)
+            zug(conn, tg, klm, e, chat_id, hinweis=hinweis)
         except Exception:
             log.exception("Gespraechszug nach kurzer Aufnahme fehlgeschlagen, chat_id=%s", chat_id)
 

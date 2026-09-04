@@ -328,16 +328,34 @@ def test_interview_benennen_benennt_letzte_aufnahme(conn, einst):
     assert wirkliche == [{"art": "interview_benennen", "wert": "Maria"}]
 
 
-def test_interview_starten_und_beenden_werden_uebersprungen(conn, einst):
-    wirkliche = erkenner.wende_an(
-        conn,
-        einst,
-        1,
-        [
-            {"art": "interview_starten", "wert": ""},
-            {"art": "interview_beenden", "wert": ""},
-        ],
-    )
+def test_interview_starten_setzt_interviewmodus_seit(conn, einst):
+    """teil-b.md Aufgabe 5, SPEC § 10.1: der Absichtserkenner schaltet den
+    Modus ueber genau dasselbe Feld wie /interview es spaeter tun wird."""
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "interview_starten", "wert": ""}])
+
+    assert wirkliche == [{"art": "interview_starten", "wert": ""}]
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
+
+
+def test_interview_beenden_leert_interviewmodus_seit(conn, einst):
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "interview_beenden", "wert": ""}])
+
+    assert wirkliche == [{"art": "interview_beenden", "wert": ""}]
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
+
+
+def test_interview_starten_wenn_schon_an_gilt_nicht_als_aenderung(conn, einst):
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "interview_starten", "wert": ""}])
+
+    assert wirkliche == []
+
+
+def test_interview_beenden_wenn_schon_aus_gilt_nicht_als_aenderung(conn, einst):
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "interview_beenden", "wert": ""}])
 
     assert wirkliche == []
 
@@ -454,6 +472,38 @@ def test_laufe_sendet_meldung_und_schreibt_sie_als_bot_nachricht(conn, einst):
     ).fetchone()
     assert zeile is not None
     assert zeile["text"] == text
+
+
+def test_laufe_interview_starten_sendet_bestaetigung_getrennt_von_der_meldung(conn, einst):
+    """teil-b.md Aufgabe 5: die Interviewmodus-Bestaetigung ist eine eigene
+    Nachricht, nicht mit der Arbeitsstand-Meldung aus Aufgabe 4 vermischt --
+    zwei kurze Nachrichten statt einer vermengten."""
+    _nachricht(conn, 1, 1, "wir machen jetzt ein Interview, und das Kernthema ist Ankommen")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "interview_starten", "wert": ""},
+        {"art": "kernthema_setzen", "wert": "Ankommen"},
+    ]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    texte = [t for _, t in tg.gesendet]
+    assert len(texte) == 2, "Bestaetigung und Meldung sind getrennte Nachrichten"
+    assert "Ich zeichne jetzt auf." in texte
+    assert any("Kernthema: Ankommen" in t for t in texte)
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
+
+
+def test_laufe_interview_beenden_sendet_bestaetigung(conn, einst):
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    _nachricht(conn, 1, 1, "fertig, das war's fuer heute")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "interview_beenden", "wert": ""}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert tg.gesendet == [(1, "Aufnahme beendet.")]
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
 
 
 def test_laufe_nur_journaleintrag_sendet_keine_nachricht(conn, einst):

@@ -209,6 +209,41 @@ def test_teilfehler_nach_erfolgreichem_versand_erzeugt_keine_doppelte_meldung(
 
 
 # ---------------------------------------------------------------------------
+# teil-b.md Aufgabe 5: der beilaeufige Materialhinweis haengt sich an die
+# ohnehin faellige Antwort an -- keine eigene Nachricht, kein Zustand.
+# ---------------------------------------------------------------------------
+
+def test_hinweis_wird_an_die_ohnehin_faellige_antwort_angehaengt(conn, einst, tg, klm):
+    repo.merke_nachricht(conn, 1, 40, "Ada", 0, "sprache", "eine lange Erzaehlung", repo._jetzt())
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1, hinweis="Das klingt nach Material.")
+
+    assert len(tg.gesendet) == 1, "Bestaetigung und Antwort sind EINE Nachricht, keine zwei"
+    text = tg.gesendet[0][1]
+    assert text.startswith("Klar, machen wir.")
+    assert "Das klingt nach Material." in text
+
+
+def test_ohne_hinweis_bleibt_die_antwort_unveraendert(conn, einst, tg, klm):
+    repo.merke_nachricht(conn, 1, 41, "Ada", 0, "text", "hallo", repo._jetzt())
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert tg.gesendet == [(1, "Klar, machen wir.")]
+
+
+def test_hinweis_haengt_nur_am_ersten_antwortversuch(conn, einst, tg, klm):
+    """Ein Sammelzug mit Nachzueglern (siehe test_nachzuegler_werden_in_einen_
+    zug_gesammelt) darf den Hinweis nicht ein zweites Mal anhaengen, falls
+    bearbeite() innerhalb desselben Aufrufs mehrfach antwortet."""
+    repo.merke_nachricht(conn, 1, 42, "Ada", 0, "sprache", "lang", repo._jetzt())
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1, hinweis="Hinweis-Zeile")
+    anzahl_mit_hinweis = sum(1 for _, t in tg.gesendet if "Hinweis-Zeile" in t)
+    assert anzahl_mit_hinweis == 1
+
+
+# ---------------------------------------------------------------------------
 # Zusaetzliche Tests fuer die Tippanzeige (Auftragshinweis 4) und die
 # Einhaengung in bot.py (Auftragshinweis 2).
 # ---------------------------------------------------------------------------

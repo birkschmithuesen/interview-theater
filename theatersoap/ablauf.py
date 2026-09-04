@@ -138,7 +138,7 @@ def _tippanzeige(tg, chat_id: int):
         thread.join(timeout=TIPP_INTERVALL + 1.0)
 
 
-def antworte(conn, tg, klm, e, chat_id: int, offen: list) -> None:
+def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = None) -> None:
     """Baut den Kontext aus allem seit dem Wasserzeichen, fragt das
     Sprachmodell und schickt/protokolliert die Antwort.
 
@@ -151,7 +151,13 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list) -> None:
     ``offen`` ist die Liste der Nachrichten seit dem Wasserzeichen (aeltester
     zuerst, siehe ``repo.unbeantwortete``) -- sowohl der eigentliche Ausloeser
     als auch alles, was inzwischen an Mitlaeufern aufgelaufen ist (SPEC
-    § 1.3)."""
+    § 1.3).
+
+    ``hinweis`` (Aufgabe 5, § 10.1): eine optionale Zeile, die an die Antwort
+    angehaengt wird -- der beilaeufige Materialhinweis, wenn eine lange
+    Sprachnachricht ausserhalb des Interviewmodus eintraf. Keine eigene
+    Nachricht, keine Rueckfrage: sie haengt an der ohnehin faelligen Antwort,
+    kommt also nur an, wenn diese Antwort auch wirklich verschickt wird."""
     letzte_message_id = max(n["message_id"] for n in offen)
     # Haelt fest, ob die Antwort schon in der Gruppe steht -- ein Fehler
     # DANACH (z. B. merke_nachricht schlaegt fehl) darf keine zusaetzliche
@@ -164,6 +170,8 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list) -> None:
             koerper = kontext.baue(conn, chat_id, offen, e)
             ergebnis = klm.schema(chat_id, kontext.SYSTEM, koerper, SCHEMA, "gespraech")
             text = ergebnis["antwort"]
+            if hinweis:
+                text = f"{text}\n\n{hinweis}"
 
         message_id = tg.sende(chat_id, text)
         versand_erfolgreich = True
@@ -192,7 +200,7 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list) -> None:
         repo.setze_beantwortet_bis(conn, chat_id, letzte_message_id)
 
 
-def bearbeite(conn, tg, klm, e, chat_id: int) -> None:
+def bearbeite(conn, tg, klm, e, chat_id: int, hinweis: str | None = None) -> None:
     """Ein Gespraechszug (SPEC § 1.2, § 1.3): hoechstens ein laufender Aufruf
     je Gruppe, Nachzuegler werden gesammelt statt einen eigenen Aufruf
     anzustossen.
@@ -204,7 +212,12 @@ def bearbeite(conn, tg, klm, e, chat_id: int) -> None:
     traeffe auf eine gehaltene Sperre und liefe ins ``return``, ohne dass der
     gerade laufende Zug sie noch gesehen haette. Mit der Schleife greift
     GENAU dieser Zug nach dem Freigeben der Sperre erneut zu und findet die
-    nachgezuegelte Nachricht -- keine Rekursion, kein verlorener Beitrag."""
+    nachgezuegelte Nachricht -- keine Rekursion, kein verlorener Beitrag.
+
+    ``hinweis`` (Aufgabe 5) geht -- falls gesetzt -- ausschliesslich in den
+    ERSTEN Antwortversuch dieses Aufrufs; ein etwaiger zweiter Sammelzug
+    innerhalb derselben ``bearbeite()``-Ausfuehrung (Nachzuegler waehrend des
+    ersten Versands) bekommt ihn nicht noch einmal angehaengt."""
     while True:
         sperre = _sperre_fuer(chat_id)
         if not sperre.acquire(blocking=False):
@@ -213,6 +226,7 @@ def bearbeite(conn, tg, klm, e, chat_id: int) -> None:
             offen = repo.unbeantwortete(conn, chat_id)
             if not offen:
                 return
-            antworte(conn, tg, klm, e, chat_id, offen)
+            antworte(conn, tg, klm, e, chat_id, offen, hinweis=hinweis)
+            hinweis = None
         finally:
             sperre.release()

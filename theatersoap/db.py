@@ -1,5 +1,6 @@
 """Datenbankschema und Verbindungsaufbau (SPEC-kontext-architektur.md § 3.1)."""
 
+import re
 import sqlite3
 
 # Woertlich aus SPEC-kontext-architektur.md § 3.1 uebernommen, nur um
@@ -24,7 +25,8 @@ CREATE TABLE IF NOT EXISTS gruppe (
   -- Schalter
   wortlaut_modus                  TEXT,     -- NULL=aus, '*'=alle, sonst Aufnahmename
   gruendlich_naechster_zug        INTEGER NOT NULL DEFAULT 0,  -- Modus B einmalig (§ 4.5)
-  whisper_stumm_seit              TEXT      -- gesetzt = Ausfall gemeldet (§ 10.4)
+  whisper_stumm_seit              TEXT,     -- gesetzt = Ausfall gemeldet (§ 10.4)
+  interviewmodus_seit             TEXT      -- gesetzt = Interviewmodus an (teil-b.md Aufgabe 5, § 10.1)
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (
@@ -170,10 +172,57 @@ def verbinde(pfad: str) -> sqlite3.Connection:
     return conn
 
 
+#: Zeilenanfaenge, die keine Spalte sind, sondern eine Tabellen-Constraint
+#: (z. B. ``PRIMARY KEY (chat_id, message_id)`` in ``nachricht``) -- die
+#: Migration unten darf so eine Zeile nicht als fehlende Spalte missverstehen
+#: und per ALTER TABLE anzulegen versuchen.
+_KEINE_SPALTE_PRAEFIXE = ("PRIMARY KEY", "FOREIGN KEY", "UNIQUE", "CHECK", "CONSTRAINT")
+
+
+def _tabellenspalten_aus_schema() -> dict[str, list[tuple[str, str]]]:
+    """Liest Tabellen- und Sollspalten direkt aus SCHEMA statt aus einem
+    zweiten, von Hand gepflegten Katalog -- der koennte sonst aus dem Tritt
+    geraten, sobald jemand nur SCHEMA aendert. Liefert je Tabelle eine Liste
+    aus (Spaltenname, Rest-Definition-fuer-ALTER-TABLE)."""
+    ergebnis: dict[str, list[tuple[str, str]]] = {}
+    for tabelle, koerper in re.findall(
+        r"CREATE TABLE IF NOT EXISTS (\w+) \((.*?)\n\);", SCHEMA, re.DOTALL
+    ):
+        spalten = []
+        for zeile in koerper.splitlines():
+            zeile = zeile.split("--", 1)[0].strip().rstrip(",")
+            if not zeile or zeile.upper().startswith(_KEINE_SPALTE_PRAEFIXE):
+                continue
+            name, _, definition = zeile.partition(" ")
+            spalten.append((name, definition.strip()))
+        ergebnis[tabelle] = spalten
+    return ergebnis
+
+
+def _migriere_fehlende_spalten(conn: sqlite3.Connection) -> None:
+    """Ergaenzt in einer schon bestehenden Datenbank Spalten, die im SCHEMA
+    seither hinzugekommen sind (z. B. gruppe.interviewmodus_seit, teil-b.md
+    Aufgabe 5) -- per ``ALTER TABLE ... ADD COLUMN``, allgemein anhand eines
+    Vergleichs Soll- (SCHEMA) gegen Ist-Spalten (``PRAGMA table_info``), nicht
+    als Einzelfall fuer genau eine Spalte. Ohne das braeche jede Datenbank,
+    die vor einer Schemaerweiterung angelegt wurde -- schon vorhandene Spalten
+    werden stillschweigend uebersprungen."""
+    for tabelle, spalten in _tabellenspalten_aus_schema().items():
+        vorhandene = {zeile[1] for zeile in conn.execute(f"PRAGMA table_info({tabelle})")}
+        for name, definition in spalten:
+            if name in vorhandene:
+                continue
+            conn.execute(f"ALTER TABLE {tabelle} ADD COLUMN {name} {definition}")
+    conn.commit()
+
+
 def initialisiere(conn: sqlite3.Connection) -> None:
-    """Legt das Schema an, falls noch nicht vorhanden."""
+    """Legt das Schema an, falls noch nicht vorhanden, und ergaenzt in einer
+    schon vorhandenen Datenbank fehlende Spalten (siehe
+    _migriere_fehlende_spalten)."""
     conn.executescript(SCHEMA)
     conn.commit()
+    _migriere_fehlende_spalten(conn)
 
 
 def loesche_gruppe(conn: sqlite3.Connection, chat_id: int) -> None:

@@ -662,6 +662,29 @@ def merke_aufruf(
 
 
 @_gesperrt
+def setze_interviewmodus(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
+    """Setzt oder leert gruppe.interviewmodus_seit (teil-b.md Aufgabe 5, SPEC
+    § 10.1): ein Zeitstempel bedeutet 'Modus an', NULL bedeutet 'Modus aus'.
+    Ueberlebt einen Neustart, weil es in der Datenbank steht -- anders als
+    ein Prozessspeicher-Flag. Wird sowohl vom Absichtserkenner (art
+    interview_starten/interview_beenden) als auch spaeter von /interview und
+    /fertig aufgerufen."""
+    conn.execute(
+        "UPDATE gruppe SET interviewmodus_seit = ? WHERE chat_id = ?", (wert, chat_id)
+    )
+    conn.commit()
+
+
+@_gesperrt
+def ist_interviewmodus_an(conn: sqlite3.Connection, chat_id: int) -> bool:
+    """Liefert True, wenn der Interviewmodus dieser Gruppe an ist (teil-b.md
+    Aufgabe 5) -- Grundlage von aufnahme.klasse_fuer(). Eine unbekannte
+    Gruppe zaehlt als 'Modus aus', analog zu den anderen Schaltern."""
+    gruppe = hole_gruppe(conn, chat_id)
+    return gruppe is not None and gruppe["interviewmodus_seit"] is not None
+
+
+@_gesperrt
 def setze_wortlaut_modus(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
     """Setzt oder leert gruppe.wortlaut_modus (SPEC § 8 /wortlaut, teil-b.md
     Aufgabe 3): NULL=aus, '*'=alle, sonst ein Aufnahmename. Wird sowohl vom

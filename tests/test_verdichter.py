@@ -124,6 +124,66 @@ def test_verdichte_speichert_zusammenfassung_und_verknuepft_aufnahme(conn, einst
     assert zeile["zusammenfassung"] == "Kurze Zusammenfassung."
 
 
+def test_kurzform_wird_gespeichert(conn, einst, aid):
+    """N3/N6: die Kurzform je Thema (hoechstens acht Woerter) kommt aus dem
+    Schema und traegt spaeter die Summary-Zeile der Gruppenseite."""
+    klm = LLMAttrappe({
+        "zusammenfassung": "z",
+        "kernthemen": [{
+            "thema": "Sie ist 1998 in diese Stadt gezogen, mit zwanzig",
+            "kurz": "1998 zugezogen, mit zwanzig",
+            "beleg_zitat": "Ich bin 1998 in diese Stadt gezogen",
+        }],
+    })
+    vid = verdichter.verdichte(klm, conn, einst, aid)
+
+    assert repo.themen_zu(conn, vid)[0]["kurz"] == "1998 zugezogen, mit zwanzig"
+
+
+def test_fehlende_kurzform_faellt_auf_das_thema_zurueck(conn, einst, aid):
+    """Eine leere Kurzform waere in der Summary-Zeile ein verschwundenes
+    Ergebnis -- lieber die lange Fassung als gar keine."""
+    klm = LLMAttrappe({
+        "zusammenfassung": "z",
+        "kernthemen": [{
+            "thema": "Ankommen",
+            "kurz": "  ",
+            "beleg_zitat": "Ich bin 1998 in diese Stadt gezogen",
+        }],
+    })
+    vid = verdichter.verdichte(klm, conn, einst, aid)
+
+    assert repo.themen_zu(conn, vid)[0]["kurz"] == "Ankommen"
+
+
+def test_fragen_stehen_im_nutzertext_wenn_die_gruppe_welche_hat(conn, einst, aid):
+    """N3: der Verdichter geht die Fragen der Gruppe der Reihe nach durch --
+    dafuer muss er sie ueberhaupt sehen. Sie sind das einzige Stueck
+    Arbeitsstand, das er bekommt."""
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Koffer: Was war in deinem Koffer?")
+    gesehen = {}
+
+    class Aufzeichnende(LLMAttrappe):
+        def schema(self, chat_id, system, nutzer, schema, art):
+            gesehen["nutzer"] = nutzer
+            return super().schema(chat_id, system, nutzer, schema, art)
+
+    verdichter.verdichte(
+        Aufzeichnende({"zusammenfassung": "z", "kernthemen": []}), conn, einst, aid
+    )
+
+    assert "Koffer: Was war in deinem Koffer?" in gesehen["nutzer"]
+    assert TRANSKRIPT in gesehen["nutzer"]
+    assert gesehen["nutzer"].index("Koffer:") < gesehen["nutzer"].index(TRANSKRIPT)
+
+
+def test_ohne_fragen_ist_der_nutzertext_das_blanke_transkript(conn, einst, aid):
+    """Ohne Frageliste bleibt alles wie vor N3 -- kein Kopf, kein Rahmen, kein
+    Wort, das nicht aus dem Interview kommt."""
+    assert verdichter.baue_nutzertext(TRANSKRIPT, None) == TRANSKRIPT
+    assert verdichter.baue_nutzertext(TRANSKRIPT, "   ") == TRANSKRIPT
+
+
 def test_verdichte_ruft_schema_mit_transkript_als_nutzertext_auf(conn, einst, aid):
     gesehen = {}
 

@@ -603,7 +603,8 @@ def speichere_verdichtung(
     aktualisiert -- es gibt bewusst kein aktualisiere_verdichtung(). Jedes
     Element von ``themen`` braucht die Schluessel 'thema', 'beleg_zitat'
     (kann None sein, wenn die Pruefung nach § 5 fehlschlug) und
-    'zitat_geprueft' (0 oder 1)."""
+    'zitat_geprueft' (0 oder 1); 'kurz' (die Kurzform aus N3/N6) ist
+    optional und faellt sonst auf 'thema' zurueck."""
     cur = conn.execute(
         """
         INSERT INTO verdichtung (chat_id, aufnahme_id, zusammenfassung, erstellt_am)
@@ -616,13 +617,14 @@ def speichere_verdichtung(
         conn.execute(
             """
             INSERT INTO verdichtung_thema
-                (chat_id, verdichtung_id, thema, beleg_zitat, zitat_geprueft)
-            VALUES (?, ?, ?, ?, ?)
+                (chat_id, verdichtung_id, thema, kurz, beleg_zitat, zitat_geprueft)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 chat_id,
                 verdichtung_id,
                 thema["thema"],
+                thema.get("kurz") or thema["thema"],
                 thema["beleg_zitat"],
                 thema["zitat_geprueft"],
             ),

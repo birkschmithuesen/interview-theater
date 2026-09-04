@@ -265,6 +265,39 @@ def test_verdichter_zu_wenige_themen_und_fehlendes_stichwort():
     assert pp.zaehle_verdichter(bewertung) == (1, 0, 2)
 
 
+def test_verdichter_zaehlt_zu_lange_kurzformen_getrennt():
+    """N3/N6: die Kurzform traegt die eine Zeile je Interview auf dem
+    Dashboard. Zu lang ist ein Hinweis, kein Fehler -- sie geht weder in FP
+    noch in FN ein, sonst faerbte eine Formalie den Exit-Code."""
+    bewertung = pp.bewerte_verdichter(
+        {"themen_min": 1, "themen_max": 4, "stichwoerter": []},
+        {
+            "zusammenfassung": "",
+            "kernthemen": [
+                {"thema": "Ankommen", "kurz": "Koffer und ein Zettel",
+                 "beleg_zitat": "Ich hatte einen Koffer"},
+                {"thema": "Arbeit",
+                 "kurz": "sie hat in der Waescherei gearbeitet und die Haende "
+                         "waren immer rot",
+                 "beleg_zitat": "In der Waescherei"},
+            ],
+        },
+        TRANSKRIPT,
+    )
+    assert len(bewertung["kurz_zu_lang"]) == 1
+    assert pp.zaehle_verdichter(bewertung) == (2, 0, 0)
+
+
+def test_verdichter_nutzertext_mit_und_ohne_frageliste():
+    """N3: die Frageliste steht vor dem Transkript -- und ohne sie ist der
+    Nutzertext wortidentisch mit dem Transkript, wie vor N3."""
+    from interview_theater import verdichter
+
+    assert verdichter.baue_nutzertext(TRANSKRIPT) == TRANSKRIPT
+    mit = verdichter.baue_nutzertext(TRANSKRIPT, "Koffer: Was war im Koffer?")
+    assert mit.index("Koffer: Was war im Koffer?") < mit.index(TRANSKRIPT)
+
+
 # --- Kosten und Bericht ---------------------------------------------------
 
 def test_kostenschaetzung_nach_hinterlegten_preisen():

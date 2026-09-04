@@ -40,6 +40,15 @@ def prompt() -> str:
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
 #: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab
 #: (global-constraints.md § 4).
+#:
+#: ``kurz`` ist am 05.09.2026 dazugekommen (N3/N6): dasselbe Ergebnis in
+#: hoechstens acht Woertern. Es steht als eigenes Feld hier und nicht als
+#: Laengenregel an ``thema``, weil beide Anzeigen, die davon leben -- die
+#: Summary-Zeile je Interview auf der Gruppenseite und die eine Zeile je
+#: Interview auf dem projizierten Dashboard --, eine verlaessliche Obergrenze
+#: brauchen und nicht eine, die das Modell mal einhaelt und mal nicht.
+#: Umgekehrt darf ``thema`` dadurch der ganze Satz bleiben, den N3 verlangt
+#: ("was auf diese Frage geantwortet wurde, in einem Satz").
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -51,15 +60,43 @@ SCHEMA = {
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["thema", "beleg_zitat"],
+                "required": ["thema", "kurz", "beleg_zitat"],
                 "properties": {
                     "thema": {"type": "string"},
+                    "kurz": {"type": "string"},
                     "beleg_zitat": {"type": "string"},
                 },
             },
         },
     },
 }
+
+#: Ueberschrift der Frageliste im Nutzertext. Der Verdichter kennt sonst
+#: nichts vom Arbeitsstand -- die Fragen sind die eine Ausnahme (N3), weil
+#: ein Interview an ihnen entlang gefuehrt wurde und die Gruppe zuerst
+#: wissen will, was auf ihre Fragen geantwortet wurde.
+_FRAGEN_KOPF = "Die Interviewfragen der Gruppe:"
+_TRANSKRIPT_KOPF = "Das Transkript:"
+
+#: Obergrenze der Kurzform in Woertern -- im Prompttext ("hoechstens acht
+#: Woerter") UND hier, damit ``scripts/pruefe_prompts.py`` sie mechanisch
+#: nachzaehlen kann. Nicht durchgesetzt: eine zu lange Kurzform ist eine
+#: unschoene Zeile, kein Grund, ein belegtes Ergebnis wegzuwerfen.
+KURZ_MAX_WOERTER = 8
+
+
+def baue_nutzertext(transkript: str, fragen: str | None = None) -> str:
+    """Baut den Nutzertext des Verdichteraufrufs.
+
+    Ohne Frageliste ist er wortidentisch mit dem Transkript -- so wie vor
+    N3, und so wie ihn die sechs aelteren Korpusfaelle erwarten. Mit
+    Frageliste stehen die Fragen davor, mit einer Zeile, die sagt, was sie
+    sind: der Prompt geht sie der Reihe nach durch."""
+    if not (fragen or "").strip():
+        return transkript
+    return (
+        f"{_FRAGEN_KOPF}\n{fragen.strip()}\n\n{_TRANSKRIPT_KOPF}\n{transkript}"
+    )
 
 
 def verdichte(klm, conn, e, aufnahme_id: int) -> int:
@@ -72,15 +109,27 @@ def verdichte(klm, conn, e, aufnahme_id: int) -> int:
     aufnahme = repo.hole_aufnahme(conn, aufnahme_id)
     chat_id = aufnahme["chat_id"]
     transkript = aufnahme["transkript"]
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    fragen = stand["fragen"] if stand else None
 
-    ergebnis = klm.schema(chat_id, prompt(), transkript, SCHEMA, "verdichter")
+    ergebnis = klm.schema(
+        chat_id, prompt(), baue_nutzertext(transkript, fragen), SCHEMA, "verdichter"
+    )
 
     themen = []
     for vorschlag in ergebnis.get("kernthemen", []):
         thema = vorschlag["thema"]
         beleg_zitat = vorschlag["beleg_zitat"]
         if beleg_zitat and zitat.pruefe(beleg_zitat, transkript):
-            themen.append({"thema": thema, "beleg_zitat": beleg_zitat, "zitat_geprueft": 1})
+            themen.append({
+                "thema": thema,
+                # Ohne kurz faellt die Anzeige auf das Thema zurueck (N6):
+                # eine lange Summary-Zeile ist unschoen, eine leere waere ein
+                # verschwundenes Ergebnis.
+                "kurz": (vorschlag.get("kurz") or "").strip() or thema,
+                "beleg_zitat": beleg_zitat,
+                "zitat_geprueft": 1,
+            })
         else:
             # Kein Retry, keine Segmentzerlegung (§ 5) -- und seit N2 auch kein
             # Behalten: ohne Beleg wird das Thema gar nicht erst gespeichert.

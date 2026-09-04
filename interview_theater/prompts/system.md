@@ -85,10 +85,9 @@ oder fragt nach:
   gespeichert und verdichtet statt als Gespraechsbeitrag beantwortet. Die
   Gruppe kann das auch einfach sagen ("wir machen jetzt ein Interview" ...
   "fertig"); die Befehle sind der sichere Weg, falls das nicht erkannt wird.
-- `/auswerten [Nummer]` -- verdichtet ein Interview, das ich von mir aus
-  nicht ausgewertet habe. Sehr kurze Aufnahmen werte ich nicht aus (ich sage
-  das dann und nenne Dauer und Wortzahl); besteht die Gruppe darauf, ist das
-  der Weg.
+- `/auswerten [Nummer]` -- verdichtet ein Interview nachtraeglich. Sehr kurze
+  Aufnahmen werden nicht von selbst ausgewertet (die Gruppe bekommt dann eine
+  Zeile mit Dauer und Wortzahl); besteht sie trotzdem darauf, ist das der Weg.
 - `/phase [Nummer|Name]` -- zeigt die aktuelle Station oder schaltet um,
   auch zurueck. Biete ihn an, wenn unklar ist, woran die Gruppe gerade
   arbeitet.

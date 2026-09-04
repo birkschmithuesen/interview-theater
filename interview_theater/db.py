@@ -105,6 +105,11 @@ CREATE TABLE IF NOT EXISTS verdichtung_thema (
   chat_id         INTEGER NOT NULL,
   verdichtung_id  INTEGER NOT NULL,
   thema           TEXT NOT NULL,
+  -- Dasselbe Ergebnis in höchstens acht Wörtern (N3/N6): die Kurzform, aus
+  -- der die Summary-Zeile je Interview auf der Gruppenseite und die eine
+  -- Zeile je Interview auf dem Dashboard entstehen. Additiv; fehlt sie,
+  -- zeigen beide Ansichten `thema`.
+  kurz            TEXT,
   beleg_zitat     TEXT,                     -- NULL, wenn Prüfung nach § 5 fehlschlug
   zitat_geprueft  INTEGER NOT NULL DEFAULT 0
 );

@@ -294,7 +294,22 @@ def bewerte_verdichter(erwartet: dict, ergebnis: dict, transkript: str) -> dict:
         "zitate_fehlerhaft": zitate_fehlerhaft,
         "stichwoerter_gefunden": gefunden,
         "stichwoerter_vermisst": vermisst,
+        "kurz_zu_lang": kurzformen_zu_lang(themen),
     }
+
+
+def kurzformen_zu_lang(themen: list[dict]) -> list[str]:
+    """N3/N6 mechanisch geprueft: haelt jede Kurzform die acht Woerter ein?
+
+    Bewusst grob und bewusst getrennt gezaehlt, wie ``fragen_ohne_thema``:
+    eine zu lange Kurzform ist inhaltlich richtig, nur zu lang fuer die eine
+    Zeile je Interview auf dem Dashboard. Geht **nicht** in FP/FN und nicht
+    in den Exit-Code ein."""
+    return [
+        (t.get("kurz") or "")
+        for t in themen
+        if len((t.get("kurz") or "").split()) > verdichter.KURZ_MAX_WOERTER
+    ]
 
 
 def zaehle_verdichter(bewertung: dict) -> tuple[int, int, int]:
@@ -445,8 +460,13 @@ def _laufe_journal(klm, conn, chat_id, fall, modell):
 
 def _laufe_verdichter(klm, conn, chat_id, fall, modell):
     transkript = fall["transkript"]
+    # Denselben Nutzertext bauen wie der Betrieb (verdichter.baue_nutzertext,
+    # N3): mit Frageliste, wenn der Fall eine hat. Etwas Eigenes hier waere
+    # eine zweite Wahrheit ueber die Eingabe, die der Prompt sieht.
     ergebnis = klm.schema(
-        chat_id, verdichter.prompt(), transkript, verdichter.SCHEMA, "verdichter",
+        chat_id, verdichter.prompt(),
+        verdichter.baue_nutzertext(transkript, fall.get("fragen")),
+        verdichter.SCHEMA, "verdichter",
         modell=modell,
     )
     bewertung = bewerte_verdichter(fall["erwartet"], ergebnis, transkript)
@@ -599,6 +619,13 @@ def baue_summe(prompt: str, modell: str, zeilen: list[dict]) -> list[str]:
             "- Fragen ohne Thema vor dem Doppelpunkt: "
             f"{sum(z.get('fragen_ohne_thema', 0) for z in zeilen)}"
         )
+    if prompt == "verdichter":
+        # Ebenfalls nur ein Hinweis: das Ergebnis stimmt, die Kurzform passt
+        # nur nicht in eine Dashboard-Zeile (N6).
+        zeilentext.append(
+            f"- Kurzformen ueber {verdichter.KURZ_MAX_WOERTER} Woertern: "
+            f"{sum(z.get('kurz_zu_lang', 0) for z in zeilen)}"
+        )
     return zeilentext
 
 
@@ -659,6 +686,7 @@ def pruefe(prompt: str, klm, conn, faelle: list[dict], modell: str,
                 "fn": zahlen[2],
                 "pronomen": len((bewertung or {}).get("pronomen", [])),
                 "fragen_ohne_thema": len((bewertung or {}).get("fragen_ohne_thema", [])),
+                "kurz_zu_lang": len((bewertung or {}).get("kurz_zu_lang", [])),
                 "dauer_ms": gemessen["dauer_ms"] or dauer_ms,
                 "eingabe_token": gemessen["eingabe_token"],
                 "ausgabe_token": gemessen["ausgabe_token"],

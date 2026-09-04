@@ -297,6 +297,22 @@ def test_verdichter_hat_den_ablehnungsfall(verdichter_faelle):
     assert [f["id"] for f in verdichter_faelle if ist_ablehnungsfall(f)]
 
 
+def test_verdichter_hat_einen_fall_mit_frageliste(verdichter_faelle):
+    """N3: der Verdichter geht die Fragen der Gruppe der Reihe nach durch.
+    Mindestens ein Korpusfall muss deshalb eine Frageliste tragen -- sonst
+    misst der Lauf genau den Weg nicht, den ein Interview im Workshop nimmt.
+
+    Format wie in ``arbeitsstand.fragen``: eine Frage je Zeile, "Thema:
+    Frage"."""
+    mit_fragen = [f for f in verdichter_faelle if f.get("fragen")]
+    assert mit_fragen, "kein Verdichter-Fall mit Frageliste"
+    for fall in mit_fragen:
+        zeilen = [z for z in fall["fragen"].splitlines() if z.strip()]
+        assert len(zeilen) >= 2, fall["id"]
+        for zeile in zeilen:
+            assert ":" in zeile, f"{fall['id']}: '{zeile}' ohne Thema"
+
+
 def test_verdichter_transkripte_haben_die_richtige_laenge(verdichter_faelle):
     """200-600 Woerter: kuerzer traegt keine zwei belegbaren Kernthemen,
     laenger misst eher die Kuerzung als den Prompt. Ablehnungsfaelle sind

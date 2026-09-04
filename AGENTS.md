@@ -33,7 +33,7 @@ Module unter `interview_theater/`:
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
 | `szene.py` | Szenentexte: eigener Prompt, eigener Thread, als einziger Aufruf mit Reasoning AN |
 | `telegram.py` | Dünner HTTP-Wrapper um die Telegram-Bot-API |
-| `verdichter.py` | Verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten |
+| `verdichter.py` | Verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten — an der Frageliste der Gruppe entlang, wenn es eine gibt (N3) |
 | `zitat.py` | Belegzitat-Verifikation: Teilstring-Vergleich nach Normalisierung |
 | `repo.py` | Einzige SQL-Zugriffsschicht außer `db.py`, komplett `RLock`-serialisiert |
 | `db.py` | Schema, Verbindungsaufbau samt PRAGMAs, Migration fehlender Spalten, Löschweg (`loesche_gruppe`) |

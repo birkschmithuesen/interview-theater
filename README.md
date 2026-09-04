@@ -87,14 +87,26 @@ einmal beenden.
    > Eine Erzählung vom Ankommen im November …
    >
    > Kernthemen:
-   > - Warten: „wir haben drei Monate auf die Papiere gewartet"
-   > - Sprache
+   > - Drei Monate auf die Papiere gewartet: „wir haben drei Monate auf die Papiere gewartet"
+   > - Die Kinder haben beim Amt übersetzt: „meine Tochter hat für mich geredet"
    >
    > Stimmt das so? Sonst sagt es mir.
 
-   Zitate stehen nur in Anführungszeichen, wenn sie wirklich so im Transkript
-   stehen. Stimmt etwas nicht, sagt es einfach — der Bot arbeitet weiter, es
-   wartet nichts auf eine Antwort.
+   **Stehen eure Interviewfragen fest, geht der Bot sie der Reihe nach
+   durch:** je Frage, was darauf geantwortet wurde, danach höchstens zwei
+   Beobachtungen darüber hinaus. Er bleibt dabei nah an dem, was gesagt
+   wurde — „Pfannkuchen mit Schokolade und Banane", nicht „Erinnerung an
+   familiäre Esskultur".
+
+   **Jedes Thema braucht ein wörtliches Zitat.** Findet der Bot keines,
+   lässt er das Thema weg, statt eines zu behaupten — und findet er zu gar
+   keinem eines, sagt er das. Stimmt etwas nicht, sagt es einfach — der Bot
+   arbeitet weiter, es wartet nichts auf eine Antwort.
+
+Eine sehr kurze Aufnahme wertet der Bot **nicht** aus: aus drei Sätzen lässt
+sich kein Interview verdichten, ohne etwas zu erfinden. Er sagt dann, wie
+lang sie war und wie viele Wörter er gehört hat. Soll er es trotzdem tun,
+genügt `/auswerten`.
 
 Geht eine Sprachnachricht unterwegs verloren, sagt der Bot, welchen Teil ihr
 noch einmal schicken sollt. Hakt es beim Zuhören, holt er es später nach und
@@ -114,13 +126,14 @@ und wenn etwas falsch notiert wurde, wird das im nächsten Satz richtiggestellt.
 ## Die Befehle
 
 Der Bot versteht Sprache, keine Kommandosprache. Für den Fall, dass er etwas
-falsch verstanden hat, gibt es neun Befehle als Notausgang — man braucht sie
+falsch verstanden hat, gibt es zehn Befehle als Notausgang — man braucht sie
 nicht, um mit ihm zu arbeiten:
 
 | Befehl | Wirkung |
 |---|---|
 | `/interview` | Aufnahme von Hand starten |
 | `/fertig` | Aufnahme von Hand beenden |
+| `/auswerten [Nummer]` | ein Interview doch noch verdichten, das der Bot als zu kurz übergangen hat |
 | `/phase [Nummer\|Name]` | zeigt, an welcher der acht Stationen ihr gerade arbeitet — oder schaltet um, auch zurück |
 | `/kernthema <Text>` | Kernthema setzen oder korrigieren, `/kernthema aus` nimmt es wieder weg |
 | `/figur <Name> entfernen` | eine Figur wieder herausnehmen |

@@ -284,3 +284,51 @@ def test_api_schluessel_landet_nicht_in_ausnahme(tmp_path, monkeypatch):
 
     meldung = str(ausnahme_info.value)
     assert geheim not in meldung
+
+
+def test_mime_typ_aus_der_dateiendung():
+    """Gemessen 04.09.2026: ein fest verdrahtetes audio/ogg fuer eine
+    WAV-Datei wird mit einer batch_id quittiert, bleibt dann aber dauerhaft
+    auf pending und laeuft in die Zeitfrist (89,7 s statt 2,0 s)."""
+    from pathlib import Path as P
+    assert stt.mime_typ(P("a.ogg")) == "audio/ogg"
+    assert stt.mime_typ(P("a.oga")) == "audio/ogg"
+    assert stt.mime_typ(P("a.wav")) == "audio/wav"
+    assert stt.mime_typ(P("a.mp3")) == "audio/mpeg"
+    assert stt.mime_typ(P("a.m4a")) == "audio/mp4"
+    assert stt.mime_typ(P("a.unbekannt")) == "application/octet-stream"
+
+
+def test_upload_sendet_den_passenden_mime_typ(einst, tmp_path):
+    """Der Anbieter braucht den echten Typ; ogg fuer wav laesst den Auftrag
+    stumm haengen statt ihn abzulehnen."""
+    gesehen = {}
+
+    def handler(request):
+        gesehen["koerper"] = request.read()
+        return httpx.Response(200, json={"batch_id": "B1"})
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler))
+
+    wav = tmp_path / "f_kurz_7s.wav"
+    wav.write_bytes(b"RIFFtestdaten")
+    stt.absenden(einst, klient, wav, 10.0)
+    assert b"audio/wav" in gesehen["koerper"]
+    assert b"audio/ogg" not in gesehen["koerper"]
+
+    ogg = tmp_path / "sprachnachricht.ogg"
+    ogg.write_bytes(b"OggStestdaten")
+    stt.absenden(einst, klient, ogg, 10.0)
+    assert b"audio/ogg" in gesehen["koerper"]
+
+
+def test_dauerhaft_pending_laeuft_in_die_frist(einst, monkeypatch):
+    """Genau das Fehlerbild aus dem Rauchtest: batch_id kommt, Status bleibt
+    pending. Das muss ein STTFehler werden, damit die Aufnahme auf
+    status='empfangen' bleibt und der Nachhol-Arbeiter es erneut versucht."""
+    monkeypatch.setattr(stt.time, "sleep", lambda _: None)
+    klient = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"status": "pending"})
+    ))
+    with pytest.raises(stt.STTFehler):
+        stt.abholen(einst, klient, "B1", 0.2)

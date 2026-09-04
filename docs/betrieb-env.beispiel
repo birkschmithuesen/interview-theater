@@ -1,0 +1,28 @@
+# Beispielkonfiguration fuer einen Bot-Prozess. Kopieren nach betrieb/<name>.env,
+# ausfuellen, Rechte auf 600 setzen. Die echten .env-Dateien sind von .gitignore
+# erfasst und gehoeren NIE ins Repository.
+#
+# Laden:  set -a; . ./betrieb/gruppe1.env; set +a
+
+# --- Telegram -------------------------------------------------------------
+# Ein eigener Bot je Kleingruppe. Bei BotFather ZWINGEND den Privacy Mode
+# ausschalten, sonst erreichen Sprachnachrichten den Bot nie.
+TS_BOT_TOKEN=123456:AA...
+TS_BOT_NAME=gruppe1
+
+# --- Ablage ---------------------------------------------------------------
+TS_DB=./theatersoap.db
+TS_AUDIO=./audio
+
+# --- Sprachmodell (Infomaniak, OpenAI-kompatibel) -------------------------
+# ACHTUNG, Stolperfalle: Die VOLLE URL inklusive /chat/completions eintragen.
+# Der Code haengt nichts an. Mit .../openai/v1 allein kommt HTTP 404.
+TS_LLM_URL=https://api.infomaniak.com/2/ai/PRODUKT-ID/openai/v1/chat/completions
+TS_LLM_KEY=...
+TS_LLM_MODELL=moonshotai/Kimi-K2.6
+
+# --- Spracherkennung (Whisper) --------------------------------------------
+# Nur Basis und Produkt-ID; die Pfade baut der Code selbst zusammen. Whisper
+# liegt unter /1/ai/<produkt>/..., NICHT unter /2/.../openai/v1/ (dort 404).
+TS_STT_BASIS=https://api.infomaniak.com
+TS_STT_PRODUKT=PRODUKT-ID

@@ -29,6 +29,7 @@ Abweichungen von der Vorlage:
 from __future__ import annotations
 
 import json
+import mimetypes
 import time
 from pathlib import Path
 
@@ -51,6 +52,40 @@ WARTEZEITEN = (0.7, 1.5, 3.0)
 #: Zwischenzustaende sind nicht abschliessend bekannt, und ein unbekannter
 #: Status darf nicht als Fehler durchgehen.
 _ABBRUCHSTATUS = ("error", "failed", "aborted", "canceled", "cancelled")
+
+
+#: MIME-Typen, auf die wir uns nicht auf ``mimetypes`` verlassen wollen.
+#: ``.oga`` und ``.m4a`` kennt die Standardbibliothek je nach Plattform nicht,
+#: und ``.ogg`` liefert dort teils ``application/ogg``.
+_MIME_TYPEN = {
+    ".ogg": "audio/ogg",
+    ".oga": "audio/ogg",
+    ".opus": "audio/ogg",
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".mp4": "audio/mp4",
+    ".flac": "audio/flac",
+    ".webm": "audio/webm",
+}
+
+
+def mime_typ(pfad: Path) -> str:
+    """Leitet den MIME-Typ aus der Dateiendung ab.
+
+    Gemessen am 04.09.2026: Ein fest verdrahtetes ``audio/ogg`` fuer eine
+    WAV-Datei wird vom Anbieter zwar mit einer ``batch_id`` quittiert, der
+    Auftrag bleibt danach aber dauerhaft auf ``pending`` und laeuft in die
+    Zeitfrist (89,7 s statt 2,0 s). Das ist die schlimmste Sorte Fehler --
+    im Betrieb nur als "haengt" sichtbar. Telegram liefert Audio nicht nur
+    als ``voice`` (ogg/opus), sondern auch als ``audio`` (m4a, mp3) und als
+    Dokument, deshalb reicht ein fester Wert hier nicht.
+    """
+    endung = pfad.suffix.lower()
+    if endung in _MIME_TYPEN:
+        return _MIME_TYPEN[endung]
+    geraten, _ = mimetypes.guess_type(pfad.name)
+    return geraten or "application/octet-stream"
 
 
 class STTFehler(Exception):
@@ -88,7 +123,7 @@ def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
                 antwort = klient.post(
                     url,
                     headers=headers,
-                    files={"file": (pfad.name, datei, "audio/ogg")},
+                    files={"file": (pfad.name, datei, mime_typ(pfad))},
                     data={
                         "model": "whisper",
                         "language": "de",

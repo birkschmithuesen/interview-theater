@@ -875,6 +875,18 @@ komplett ausgefallen oder brauchte bis zu 30 Sekunden. Die Nachmessung bestätig
 abhängt** — Datei zuerst sichern, nebenläufig transkribieren, Zeitbudget, Nachhol-Arbeiter,
 einmalige Ausfallmeldung. Die Messung bestimmt nur die Schwellwerte, nicht die Struktur.
 
+**4b. `TS_LLM_URL` muss die volle URL sein.** Gemessen beim Rauchtest am 04.09.2026:
+Der Code hängt nichts an. Mit `.../openai/v1` allein antwortet der Server **HTTP 404**;
+richtig ist `.../openai/v1/chat/completions`. Steht in `docs/betrieb-env.beispiel`.
+
+**4c. 🔴 Der MIME-Typ beim Upload muss zur Datei passen.** Ein fest verdrahtetes
+`audio/ogg` für eine WAV-Datei wird vom Anbieter **mit einer `batch_id` quittiert**, der
+Auftrag bleibt danach aber dauerhaft auf `pending` und läuft in die Zeitfrist — 89,7 s
+statt 2,0 s. Das ist die schlimmste Sorte Fehler: kein HTTP-Fehler, keine Ablehnung, im
+Betrieb nur als „hängt" sichtbar. Telegram liefert Audio nicht nur als `voice`
+(ogg/opus), sondern auch als `audio` (m4a, mp3) und als Dokument. Der Typ wird deshalb
+aus der Dateiendung abgeleitet (`stt.mime_typ`).
+
 **5. Whisper ist zweistufig und asynchron** (Vorlage
 `stt_backends/infomaniak_whisper_backend.py`, gemessen 31.08.2026):
 
@@ -898,7 +910,10 @@ einmalige Ausfallmeldung. Die Messung bestimmt nur die Schwellwerte, nicht die S
   umgekehrt.
 - **`LANGSAM_AB_S = 8` und die Zeitbudgets** (§ 10.2) — hängen an der laufenden
   Whisper-Messung (§ 11.3 Punkt 4).
-- **Divisor der Token-Schätzung** — startet bei 3, wird nach den ersten Aufrufen anhand von
+- **Divisor der Token-Schätzung — bestätigt.** Rauchtest gegen die echte API am
+  04.09.2026: 983 Zeichen ergaben 337 tatsächliche Prompt-Token, also **2,92**. Der
+  angenommene Wert 3 überschätzt damit leicht — die richtige Fehlerrichtung. Kein
+  Handlungsbedarf. (Ursprünglicher Punkt:) Divisor der Token-Schätzung — startet bei 3, wird nach den ersten Aufrufen anhand von
   `aufruf.tatsaechliche_token` nachjustiert.
 - **Segmentabstand bei `[...]`** — die 600 Zeichen aus § 5.1 sind gesetzt, nicht gemessen.
   Falls die Prüfung am Workshoptag zu viele brauchbare Zitate verwirft, ist das der erste

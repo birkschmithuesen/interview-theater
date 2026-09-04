@@ -1,11 +1,11 @@
-"""Tests fuer die neun Slash-Befehle (teil-b.md Aufgabe 6, plus /szene,
-/phase und /figur).
+"""Tests fuer die zehn Slash-Befehle (teil-b.md Aufgabe 6, plus /szene,
+/phase, /figur und /auswerten).
 
 Kein Netzzugriff: Telegram wird durch eine Attrappe ersetzt, die nur
-aufzeichnet, was gesendet wurde. Acht der neun Befehle werden hier ohne
-jedes LLM-Objekt aufgerufen -- "/stand ruft kein Modell" bleibt damit an den
-Tests ablesbar, auch seit behandle() ein optionales ``klm`` fuer /szene
-entgegennimmt.
+aufzeichnet, was gesendet wurde. Die meisten Befehle werden hier ohne jedes
+LLM-Objekt aufgerufen -- "/stand ruft kein Modell" bleibt damit an den Tests
+ablesbar, auch seit behandle() ein optionales ``klm`` fuer /szene, /fertig
+und /auswerten entgegennimmt.
 """
 
 import pytest
@@ -205,12 +205,88 @@ def test_kernthema_mit_botname_und_text_wird_erkannt(conn, einst, tg):
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
 
 
-def test_befehle_liste_enthaelt_alle_neun_ohne_schraegstrich():
+def test_befehle_liste_enthaelt_alle_zehn_ohne_schraegstrich():
     kommandos = {b["command"] for b in befehle.BEFEHLE_LISTE}
     assert kommandos == {
-        "interview", "fertig", "phase", "kernthema", "figur", "szene", "stand",
-        "wortlaut", "hilfe",
+        "interview", "fertig", "auswerten", "phase", "kernthema", "figur",
+        "szene", "stand", "wortlaut", "hilfe",
     }
+
+
+# ---------------------------------------------------------------------------
+# /auswerten -- der Widerspruch gegen die Mindestlaenge (N2)
+# ---------------------------------------------------------------------------
+
+
+def _interview_mit_transkript(conn, text="ein sehr kurzer Satz", name=None):
+    """Ein beendetes, unverdichtetes Interview -- der Zustand, den ein zu
+    kurzes Interview nach ``aufnahme.schliesse_ab`` hat."""
+    from interview_theater import aufnahme
+
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
+    repo.setze_transkript(conn, kopf_id, text)
+    repo.setze_status(conn, kopf_id, "fertig")
+    repo.setze_interviewmodus(conn, 1, None)
+    if name:
+        repo.setze_aufnahme_name(conn, kopf_id, name)
+    return kopf_id
+
+
+def test_auswerten_gibt_die_verdichtung_an_einen_thread_ab(conn, einst, tg, monkeypatch):
+    from interview_theater import aufnahme
+
+    kopf_id = _interview_mit_transkript(conn)
+    gestartet = []
+    monkeypatch.setattr(
+        aufnahme, "starte_auswertung",
+        lambda conn, tg, klm, e, kid: gestartet.append(kid),
+    )
+
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/auswerten", "Ada", klm=object())
+
+    assert behandelt is True
+    assert gestartet == [kopf_id]
+    assert tg.gesendet == [(1, "Ich werte Interview 1 aus.")]
+
+
+def test_auswerten_mit_nummer_trifft_das_gemeinte_interview(conn, einst, tg, monkeypatch):
+    from interview_theater import aufnahme
+
+    erstes = _interview_mit_transkript(conn)
+    _interview_mit_transkript(conn)
+    gestartet = []
+    monkeypatch.setattr(
+        aufnahme, "starte_auswertung",
+        lambda conn, tg, klm, e, kid: gestartet.append(kid),
+    )
+
+    befehle.behandle(conn, tg, einst, 1, "/auswerten 1", "Ada", klm=object())
+
+    assert gestartet == [erstes]
+
+
+def test_auswerten_ohne_interview_sagt_es(conn, einst, tg):
+    befehle.behandle(conn, tg, einst, 1, "/auswerten", "Ada", klm=object())
+
+    assert tg.gesendet == [(1, "Es gibt noch keine Aufnahmen.")]
+
+
+def test_auswerten_verdichtet_nicht_zweimal(conn, einst, tg, monkeypatch):
+    from interview_theater import aufnahme
+
+    kopf_id = _interview_mit_transkript(conn)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "schon ausgewertet", [])
+    gestartet = []
+    monkeypatch.setattr(
+        aufnahme, "starte_auswertung",
+        lambda conn, tg, klm, e, kid: gestartet.append(kid),
+    )
+
+    befehle.behandle(conn, tg, einst, 1, "/auswerten", "Ada", klm=object())
+
+    assert gestartet == []
+    assert tg.gesendet == [(1, "Interview 1 ist schon ausgewertet.")]
 
 
 # ---------------------------------------------------------------------------

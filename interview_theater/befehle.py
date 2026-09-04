@@ -1,12 +1,13 @@
-"""Neun Slash-Befehle als Notausgang (teil-b.md Aufgabe 6, plus ``/szene``,
-``/phase`` und ``/figur``).
+"""Zehn Slash-Befehle als Notausgang (teil-b.md Aufgabe 6, plus ``/szene``,
+``/phase``, ``/figur`` und ``/auswerten``).
 
 Der Absichtserkenner (``erkenner.py``) ist der Hauptweg: gemessen 0
 Falsch-Positive bei 25 Negativfaellen, 30/30 Treffer. Diese Befehle sind der
 Notausgang, wenn er trotzdem danebenliegt oder die Gruppe es lieber explizit
-macht -- **neun, nicht fuenfzehn** (SPEC-Reduktion nach dem ersten
+macht -- **zehn, nicht fuenfzehn** (SPEC-Reduktion nach dem ersten
 Workshoptag; ``/szene`` kam mit den Szenentexten dazu, ``/phase`` und
-``/figur`` mit den Arbeitsphasen und dem weichen Loeschen).
+``/figur`` mit den Arbeitsphasen und dem weichen Loeschen, ``/auswerten`` mit
+der Mindestlaenge aus N2).
 
 ``behandle()`` wird in ``ablauf.antworte`` VOR dem Kontextaufbau aufgerufen:
 ein erkannter Befehl loest KEINEN Gespraechszug aus (kann also nicht am
@@ -14,15 +15,17 @@ Gespraechsmodell scheitern) und wird direkt beantwortet. Ein unbekannter
 Befehl bekommt eine freundliche Zeile statt zu krachen -- ``behandle()``
 liefert in beiden Faellen ``True``.
 
-**Die Ausnahmen, benannt:** ``/szene`` und ``/fertig`` brauchen ein
-Sprachmodell, deshalb nimmt ``behandle()`` ein optionales ``klm`` entgegen.
+**Die Ausnahmen, benannt:** ``/szene``, ``/fertig`` und ``/auswerten``
+brauchen ein Sprachmodell, deshalb nimmt ``behandle()`` ein optionales
+``klm`` entgegen.
 Die urspruengliche strukturelle Garantie ("behandle nimmt kein LLM-Objekt,
 also kann /stand nicht am Modell scheitern") ist damit eine Zusage geworden,
 die der Code weiterhin einhaelt: kein Befehl ruft synchron ein Modell.
 ``/szene`` gibt den Aufruf sofort an einen eigenen Thread ab
 (``szene.starte``), ``/fertig`` ebenso (``aufnahme.starte_abschluss`` fuer die
-eine Verdichtung des beendeten Interviews, § 10.6). Wer hier einen weiteren
-Befehl anhaengt, halte sich daran.
+eine Verdichtung des beendeten Interviews, § 10.6) und ``/auswerten``
+(``aufnahme.starte_auswertung``). Wer hier einen weiteren Befehl anhaengt,
+halte sich daran.
 
 Telegram haengt in Gruppen mit mehreren Bots oft den Benutzernamen an einen
 Befehl an (``/stand@interview_theaterbot``) -- ``_zerlege`` trennt das
@@ -65,6 +68,7 @@ _TEXT_SZENE_LEER = (
 #: Nur erreichbar, wenn ein Aufrufer ``behandle()`` ohne ``klm`` benutzt --
 #: ein Programmierfehler, aber einer, der die Gruppe nicht ratlos lassen soll.
 _TEXT_SZENE_UNMOEGLICH = "Ich kann gerade keine Szene schreiben."
+_TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
 
 #: Wortidentisch mit der Begruessung aus bot.erstkontakt (teil-b.md Aufgabe
 #: 7) in den ersten beiden Absaetzen -- /hilfe ist das jederzeit abrufbare
@@ -79,6 +83,7 @@ _TEXT_HILFE = (
     "Befehle, falls ich mal danebenliege:\n"
     "/interview - Aufnahme starten\n"
     "/fertig - Aufnahme beenden\n"
+    "/auswerten [nummer] - ein Interview doch noch verdichten\n"
     "/phase [nummer|name] - zeigt die Phase oder schaltet um\n"
     "/kernthema <text|aus> - Kernthema setzen, korrigieren oder wegnehmen\n"
     "/figur <name> entfernen - eine Figur wegnehmen\n"
@@ -90,11 +95,12 @@ _TEXT_HILFE = (
 )
 
 #: Telegram-Nutzlast fuer setMyCommands (teil-b.md Aufgabe 6) -- ohne
-#: fuehrenden Schraegstrich, Telegram haengt ihn selbst an. Dieselben neun
+#: fuehrenden Schraegstrich, Telegram haengt ihn selbst an. Dieselben zehn
 #: Befehle wie in behandle(), in derselben Reihenfolge wie in _TEXT_HILFE.
 BEFEHLE_LISTE = [
     {"command": "interview", "description": "Aufnahme starten"},
     {"command": "fertig", "description": "Aufnahme beenden"},
+    {"command": "auswerten", "description": "Ein Interview doch noch verdichten"},
     {"command": "phase", "description": "Arbeitsphase zeigen oder umschalten"},
     {"command": "kernthema", "description": "Kernthema setzen, korrigieren oder wegnehmen"},
     {"command": "figur", "description": "Eine Figur entfernen"},
@@ -143,6 +149,38 @@ def _befehl_fertig(conn, tg, klm, e, chat_id: int) -> None:
     tg.sende(chat_id, _TEXT_INTERVIEW_AUS)
     if kopf_id is not None and klm is not None:
         aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
+
+
+def _befehl_auswerten(conn, tg, klm, e, chat_id: int, rest: str) -> None:
+    """``/auswerten [N]`` -- verdichtet ein Interview, das der Bot von sich
+    aus nicht ausgewertet hat (Nachtrag N2: unter ``aufnahme.MINDEST_WOERTER``
+    Woertern fragt er das Sprachmodell gar nicht erst).
+
+    Der Widerspruchsweg zu genau dieser Ablehnung: die Gruppe kennt ihr
+    Material besser als eine Wortzahl. Ohne Argument trifft es das letzte
+    Interview, mit Nummer oder Namensteil ein bestimmtes.
+
+    Laeuft wie ``/fertig`` in einem eigenen Thread (``aufnahme.
+    starte_auswertung``) -- kein Befehl ruft synchron ein Modell."""
+    kopf = aufnahme.finde_interview(conn, chat_id, rest)
+    if kopf is None:
+        namen = [a["name"] for a in aufnahme.interviews(conn, chat_id) if a["name"]]
+        tg.sende(
+            chat_id,
+            _TEXT_KEINE_AUFNAHMEN if not namen
+            else "Dieses Interview kenne ich nicht. Vorhandene: " + ", ".join(namen),
+        )
+        return
+    name = kopf["name"] or "Das Interview"
+    if repo.verdichtung_zu_aufnahme(conn, kopf["id"]) is not None:
+        tg.sende(chat_id, f"{name} ist schon ausgewertet.")
+        return
+    if klm is None:
+        log.error("/auswerten ohne Sprachmodell aufgerufen, chat_id=%s", chat_id)
+        tg.sende(chat_id, _TEXT_AUSWERTEN_UNMOEGLICH)
+        return
+    tg.sende(chat_id, f"Ich werte {name} aus.")
+    aufnahme.starte_auswertung(conn, tg, klm, e, kopf["id"])
 
 
 def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
@@ -314,11 +352,11 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     szene.starte(conn, tg, klm, e, chat_id, rest)
 
 
-#: Die neun erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
+#: Die zehn erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
 #: Slash-Text (z. B. "/irgendwas") freundlich beantwortet statt zu krachen.
 _BEKANNTE_BEFEHLE = {
-    "/interview", "/fertig", "/phase", "/kernthema", "/figur", "/szene",
-    "/stand", "/wortlaut", "/hilfe",
+    "/interview", "/fertig", "/auswerten", "/phase", "/kernthema", "/figur",
+    "/szene", "/stand", "/wortlaut", "/hilfe",
 }
 
 
@@ -349,6 +387,8 @@ def behandle(
         _befehl_interview(conn, tg, chat_id)
     elif befehl == "/fertig":
         _befehl_fertig(conn, tg, klm, e, chat_id)
+    elif befehl == "/auswerten":
+        _befehl_auswerten(conn, tg, klm, e, chat_id, rest)
     elif befehl == "/phase":
         _befehl_phase(conn, tg, chat_id, rest)
     elif befehl == "/kernthema":

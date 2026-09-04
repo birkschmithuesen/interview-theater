@@ -62,7 +62,10 @@ def test_gueltiges_zitat_wird_gespeichert(conn, einst, aid):
     assert thema["beleg_zitat"] == "Ich bin 1998 in diese Stadt gezogen"
 
 
-def test_ungueltiges_zitat_wird_ohne_retry_verworfen(conn, einst, aid):
+def test_ungueltiges_zitat_verwirft_das_ganze_thema(conn, einst, aid):
+    """N2: kein Thema ohne woertliches Belegzitat. Frueher blieb der Vorschlag
+    mit ``zitat_geprueft=0`` stehen -- im Probelauf entstand daraus ein
+    komplett erfundenes Interview mit drei unbelegten Themen."""
     klm = LLMAttrappe({
         "zusammenfassung": "z",
         "kernthemen": [
@@ -72,12 +75,25 @@ def test_ungueltiges_zitat_wird_ohne_retry_verworfen(conn, einst, aid):
     vid = verdichter.verdichte(klm, conn, einst, aid)
 
     assert klm.aufrufe == 1, "kein Retry"
-    thema = repo.themen_zu(conn, vid)[0]
-    assert thema["thema"] == "Abschied", "Vorschlag bleibt erhalten"
-    assert thema["beleg_zitat"] is None and thema["zitat_geprueft"] == 0
+    assert repo.themen_zu(conn, vid) == []
+    assert repo.hole_verdichtung(conn, vid)["zusammenfassung"] == "z", (
+        "die Zusammenfassung bleibt, nur die Themen fallen weg"
+    )
     assert conn.execute(
         "SELECT count(*) FROM vorfall WHERE art='zitat_ungeprueft'"
     ).fetchone()[0] == 1
+
+
+def test_leeres_zitat_verwirft_das_thema_ebenso(conn, einst, aid):
+    """Ein leerer String besteht die Pruefung sonst als Teilstring von allem
+    -- der Fall muss ausdruecklich abgefangen sein."""
+    klm = LLMAttrappe({
+        "zusammenfassung": "z",
+        "kernthemen": [{"thema": "Leere", "beleg_zitat": ""}],
+    })
+    vid = verdichter.verdichte(klm, conn, einst, aid)
+
+    assert repo.themen_zu(conn, vid) == []
 
 
 def test_gemischt_gueltige_und_ungueltige_zitate(conn, einst, aid):
@@ -91,9 +107,8 @@ def test_gemischt_gueltige_und_ungueltige_zitate(conn, einst, aid):
     vid = verdichter.verdichte(klm, conn, einst, aid)
 
     themen = repo.themen_zu(conn, vid)
+    assert [t["thema"] for t in themen] == ["Ankommen"]
     assert themen[0]["zitat_geprueft"] == 1
-    assert themen[1]["zitat_geprueft"] == 0
-    assert themen[1]["beleg_zitat"] is None
     assert conn.execute(
         "SELECT count(*) FROM vorfall WHERE art='zitat_ungeprueft'"
     ).fetchone()[0] == 1

@@ -18,10 +18,28 @@ import pytest
 
 from interview_theater import aufnahme, db, einstellungen, repo
 
+#: Ueber MINDEST_WOERTER Woerter lang (N2), sonst wuerde jedes einteilige
+#: Interview in diesen Tests als "sehr kurz" abgelehnt statt verdichtet -- die
+#: Wortzahl ist seit N2 Teil der Vorbedingung, nicht mehr nur Beiwerk.
 TRANSKRIPT = (
     "Wir haben letzte Woche ueber das Buehnenbild gesprochen. Ich erinnere mich, "
     "wie wir als Kinder auf dem Hof Theater gespielt haben, mit Bettlaken als "
-    "Vorhang. Meine Grossmutter hat immer zugeschaut und geklatscht."
+    "Vorhang. Meine Grossmutter hat immer zugeschaut und geklatscht. Danach gab "
+    "es Kuchen im Garten, und mein Onkel hat auf der Trompete gespielt, bis die "
+    "Nachbarin sich beschwert hat."
+)
+
+#: Zwei Teile eines Interviews, zusammen deutlich ueber MINDEST_WOERTER --
+#: dieselbe Ueberlegung wie bei TRANSKRIPT. Das Zitat der LLMAttrappe steht
+#: woertlich in TEIL_B.
+TEIL_A = (
+    "Ich bin 1998 gekommen und hatte nur einen Koffer dabei, mehr nicht. Am "
+    "Bahnhof war es grau, und ich habe gedacht, ich bleibe zwei Jahre und "
+    "gehe dann wieder."
+)
+TEIL_B = (
+    "Ich erinnere mich, wie wir als Kinder auf dem Hof Theater gespielt haben, "
+    "mit Bettlaken als Vorhang, und meine Grossmutter hat immer zugeschaut."
 )
 
 
@@ -412,19 +430,14 @@ def test_fertig_verdichtet_einmal_ueber_das_ganze_interview(conn, einst, tg, klm
     """§ 10.6, der zweite Auftragstest: "fertig" loest genau EINEN
     verdichte-Aufruf aus, und zwar mit dem zusammengefuegten Text -- und die
     Gruppe bekommt endlich zu hoeren, was in ihrem Interview steckt."""
-    kopf_id = _interview_mit_teilen(
-        conn, einst, tg, klm,
-        ["Ich bin 1998 gekommen.", "wie wir als Kinder auf dem Hof Theater gespielt haben"],
-    )
+    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B])
     tg.gesendet.clear()
 
     aufnahme.beende_interview(conn, 1)
     aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
 
     assert klm.aufrufe == 1, "genau ein Modellaufruf je Interview"
-    assert klm.nutzertexte == [
-        "Ich bin 1998 gekommen.\n\nwie wir als Kinder auf dem Hof Theater gespielt haben"
-    ]
+    assert klm.nutzertexte == [f"{TEIL_A}\n\n{TEIL_B}"]
     assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
 
     meldungen = [t for _, t in tg.gesendet if "ist durch" in t]
@@ -437,10 +450,10 @@ def test_fertig_verdichtet_einmal_ueber_das_ganze_interview(conn, einst, tg, klm
     assert text.endswith("Stimmt das so? Sonst sagt es mir.")
 
 
-def test_ungepruefte_zitate_stehen_ohne_anfuehrungszeichen_in_der_meldung(conn, einst, tg):
-    """SPEC § 5: ein Zitat, das nicht im Transkript steht, faellt weg -- das
-    Thema bleibt. Ein Satz in Anfuehrungszeichen, den niemand gesagt hat,
-    waere genau das, wogegen das Belegzitat-Prinzip antritt."""
+def test_thema_ohne_belegtes_zitat_faellt_ganz_weg(conn, einst, tg):
+    """N2: ein Thema, dessen Zitat nicht im Transkript steht, wird gar nicht
+    erst gespeichert -- frueher blieb es mit ``zitat_geprueft=0`` stehen und
+    stand damit im Chat, im Prompt und auf der Gruppenseite."""
     klm = LLMAttrappe(antwort={
         "zusammenfassung": "Zwei Themen.",
         "kernthemen": [
@@ -448,18 +461,87 @@ def test_ungepruefte_zitate_stehen_ohne_anfuehrungszeichen_in_der_meldung(conn, 
             {"thema": "Arbeit", "beleg_zitat": "so hat das niemand gesagt"},
         ],
     })
-    kopf_id = _interview_mit_teilen(
-        conn, einst, tg, klm, ["Wir haben auf dem Hof Theater gespielt."], message_id=310
+    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=310)
+    tg.gesendet.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    themen = repo.themen_zu(conn, repo.verdichtungen(conn, 1)[0]["id"])
+    assert [t["thema"] for t in themen] == ["Kindheit"]
+
+    text = next(t for _, t in tg.gesendet if "ist durch" in t)
+    assert '- Kindheit: "auf dem Hof Theater gespielt"' in text
+    assert "Arbeit" not in text
+    assert "so hat das niemand gesagt" not in text
+
+
+def test_keine_belegte_these_meldet_die_leerstelle(conn, einst, tg):
+    """N2: bleibt kein einziges Thema uebrig, wird die Verdichtung mit leerer
+    Themenliste gespeichert und der Bot sagt es -- statt eine
+    Kernthemen-Ueberschrift ueber nichts zu setzen."""
+    klm = LLMAttrappe(antwort={
+        "zusammenfassung": "Ich habe eine Zusammenfassung, aber keinen Beleg.",
+        "kernthemen": [{"thema": "Heimweh", "beleg_zitat": "das hat niemand gesagt"}],
+    })
+    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=320)
+    tg.gesendet.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    verdichtung = repo.verdichtungen(conn, 1)[0]
+    assert repo.themen_zu(conn, verdichtung["id"]) == []
+
+    text = next(t for _, t in tg.gesendet if "ist durch" in t)
+    assert "Ich habe eine Zusammenfassung, aber keinen Beleg." in text
+    assert "Ich konnte kein Thema mit einem woertlichen Zitat belegen." in text
+    assert "Kernthemen:" not in text
+    assert "Heimweh" not in text
+
+
+def test_sehr_kurzes_interview_wird_nicht_verdichtet(conn, einst, tg, klm):
+    """N2, der Fall aus dem Probelauf: aus einer vier Sekunden langen
+    Sprachnachricht ("Zeigt mir die Verdichtungen von den Interviews an.")
+    erfand das Modell ein komplettes Interview. Unter MINDEST_WOERTER wird
+    deshalb gar nicht erst gefragt -- die Gruppe erfaehrt, warum."""
+    kopf_id = interview_an(conn, tg, einst)
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=4, message_id=330))
+    aufnahme.verarbeite(
+        conn, tg, klm, einst,
+        stt_attrappe("Zeigt mir die Verdichtungen von den Interviews an."), aid,
     )
     tg.gesendet.clear()
 
     aufnahme.beende_interview(conn, 1)
     aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
 
-    text = next(t for _, t in tg.gesendet if "ist durch" in t)
-    assert '- Kindheit: "auf dem Hof Theater gespielt"' in text
-    assert "- Arbeit\n" in text
-    assert "so hat das niemand gesagt" not in text
+    assert klm.aufrufe == 0, "kein Modellaufruf unter der Mindestlaenge"
+    assert repo.verdichtungen(conn, 1) == []
+    assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
+    assert [t for _, t in tg.gesendet] == [
+        "Interview 1 ist sehr kurz (4 s, 8 Woerter). Ich werte es nicht aus - "
+        "sagt Bescheid, wenn ich es trotzdem soll."
+    ]
+
+
+def test_auswerten_verdichtet_ein_zu_kurzes_interview_doch(conn, einst, tg, klm):
+    """N2: die Gruppe kennt ihr Material besser als eine Wortzahl.
+    ``aufnahme.starte_auswertung`` (hinter ``/auswerten``) uebergeht die
+    Mindestlaenge und verdichtet trotzdem."""
+    kopf_id = interview_an(conn, tg, einst)
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=4, message_id=340))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("nur ein kurzer Satz"), aid)
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+    assert klm.aufrufe == 0
+    tg.gesendet.clear()
+
+    aufnahme.starte_auswertung(conn, tg, klm, einst, kopf_id).join(timeout=5)
+
+    assert klm.aufrufe == 1
+    assert len(repo.verdichtungen(conn, 1)) == 1
+    assert any("ist durch" in t for _, t in tg.gesendet)
 
 
 def test_transkript_echo_steht_in_keinem_fenster(conn, einst, tg, klm):
@@ -535,7 +617,7 @@ def test_nachholen_transkribiert_teil_nach_und_verdichtet_das_beendete_interview
     nach (samt Echo), fuegt zusammen, verdichtet und meldet."""
     kopf_id = interview_an(conn, tg, einst)
     aid1 = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=60, message_id=350))
-    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("erster Teil"), aid1)
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(TEIL_A), aid1)
     aid2 = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=60, message_id=351))
     aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid2)
     assert repo.hole_aufnahme(conn, aid2)["status"] == "empfangen"
@@ -545,11 +627,11 @@ def test_nachholen_transkribiert_teil_nach_und_verdichtet_das_beendete_interview
     assert klm.aufrufe == 0, "kein Verdichten, solange ein Teil offen ist"
     tg.gesendet.clear()
 
-    aufnahme.nachholen(conn, tg, klm, einst, stt_attrappe("zweiter Teil"))
+    aufnahme.nachholen(conn, tg, klm, einst, stt_attrappe(TEIL_B))
 
     assert repo.hole_aufnahme(conn, aid2)["status"] == "fertig"
-    assert any("Interview 1, Teil 2:\nzweiter Teil" == t for _, t in tg.gesendet)
-    assert klm.nutzertexte == ["erster Teil\n\nzweiter Teil"]
+    assert any(f"Interview 1, Teil 2:\n{TEIL_B}" == t for _, t in tg.gesendet)
+    assert klm.nutzertexte == [f"{TEIL_A}\n\n{TEIL_B}"]
     assert len(repo.verdichtungen(conn, 1)) == 1
     assert any("ist durch" in t for _, t in tg.gesendet)
 
@@ -573,7 +655,7 @@ def test_laufendes_interview_wird_vom_nachhol_arbeiter_nicht_verdichtet(conn, ei
 def test_starte_abschluss_laeuft_im_eigenen_thread(conn, einst, tg, klm):
     """/fertig und der Erkenner geben die Verdichtung an einen Thread ab --
     kein Befehl ruft synchron ein Modell (AGENTS.md)."""
-    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, ["ein Satz"], message_id=370)
+    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TRANSKRIPT], message_id=370)
     aufnahme.beende_interview(conn, 1)
 
     thread = aufnahme.starte_abschluss(conn, tg, klm, einst, kopf_id)

@@ -9,9 +9,20 @@ Jedes Kernthema traegt ein woertliches Belegzitat, das die Gruppe
 ueberzeugen soll: ein Konfliktvorschlag mit Beleg ist Dramaturgie, einer ohne
 ist ein Automat. Das Zitat durchlaeuft zusaetzlich die Pruefung aus
 ``interview_theater.zitat`` (§ 5) -- ein einfacher, bewusst dummer
-Teilstring-Vergleich, **kein** Retry. Faellt die Pruefung durch, wird nicht
-der ganze Themenvorschlag verworfen, sondern nur das Zitat entfernt: das
-Thema selbst bleibt (SPEC § 5, global-constraints.md 'Belegzitate').
+Teilstring-Vergleich, **kein** Retry.
+
+**Faellt die Pruefung durch, faellt das ganze Thema weg** (Nachtrag N2,
+05.09.2026). Bis dahin blieb der Themenvorschlag stehen und nur das Zitat
+wurde entfernt (``zitat_geprueft = 0``); der Probelauf vom 04.09. abends hat
+gezeigt, wohin das fuehrt: aus einer vier Sekunden langen Sprachnachricht
+("Zeigt mir die Verdichtungen von den Interviews an.") entstand ein
+vollstaendig erfundenes Interview mit den Themen "Heimweh",
+"Mutter-Tochter-Beziehung" und "Abschied und Verlust" -- alle drei ohne
+Zitat, alle drei standen trotzdem im Chat und im Prompt. Ein Thema ohne
+Beleg ist kein halbes Ergebnis, sondern eine Behauptung ueber einen
+Menschen, den die Gruppe interviewt hat. Bleibt kein Thema uebrig, wird die
+Verdichtung mit leerer Themenliste gespeichert -- die Zusammenfassung bleibt,
+und ``aufnahme._verdichtungstext`` sagt der Gruppe, dass nichts belegbar war.
 """
 
 
@@ -68,19 +79,19 @@ def verdichte(klm, conn, e, aufnahme_id: int) -> int:
     for vorschlag in ergebnis.get("kernthemen", []):
         thema = vorschlag["thema"]
         beleg_zitat = vorschlag["beleg_zitat"]
-        if zitat.pruefe(beleg_zitat, transkript):
+        if beleg_zitat and zitat.pruefe(beleg_zitat, transkript):
             themen.append({"thema": thema, "beleg_zitat": beleg_zitat, "zitat_geprueft": 1})
         else:
-            # Kein Retry, keine Segmentzerlegung (§ 5): der Vorschlag bleibt
-            # erhalten, nur das Zitat faellt weg. Der Gruppe wird nichts
-            # gemeldet -- sie kann es nicht beheben und wartet nicht darauf.
-            themen.append({"thema": thema, "beleg_zitat": None, "zitat_geprueft": 0})
+            # Kein Retry, keine Segmentzerlegung (§ 5) -- und seit N2 auch kein
+            # Behalten: ohne Beleg wird das Thema gar nicht erst gespeichert.
+            # Der Gruppe wird nichts gemeldet, sie kann es nicht beheben und
+            # wartet nicht darauf; der Vorfall haelt es fuers Dashboard fest.
             repo.merke_vorfall(
                 conn,
                 chat_id,
                 getattr(e, "bot_name", None),
                 "zitat_ungeprueft",
-                f"Belegzitat nicht im Transkript gefunden (thema={thema!r})",
+                f"Thema ohne belegtes Zitat verworfen (thema={thema!r})",
             )
 
     return repo.speichere_verdichtung(

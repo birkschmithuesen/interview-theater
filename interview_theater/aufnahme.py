@@ -76,6 +76,17 @@ BUDGET_LANG_S = 90
 NACHHOL_INTERVALL_S = 60
 MAX_VERSUCHE = 5
 
+#: Unter dieser Wortzahl (ueber das ganze zusammengefuegte Interview) wird
+#: **nicht verdichtet** (Nachtrag N2, 05.09.2026). Aus dem Probelauf: eine
+#: Aufnahme von einer Sekunde ("Das Interview ist fertig.") und eine von vier
+#: Sekunden ("Zeigt mir die Verdichtungen von den Interviews an.") wurden
+#: beide als Interview verdichtet -- aus der zweiten erfand das Modell ein
+#: komplettes Interview mit drei Themen. Ein Sprachmodell, dem man zu wenig
+#: gibt, liefert trotzdem etwas; die einzige verlaessliche Abwehr ist, es
+#: gar nicht erst zu fragen. Die Gruppe kann es mit ``/auswerten``
+#: ueberstimmen -- ihr Urteil steht ueber der Zahl.
+MINDEST_WOERTER = 40
+
 #: Kein Klassifikations-Schwellwert (den gibt es seit Aufgabe 5 nicht mehr) --
 #: nur der Ausloeser fuer den beilaeufigen Materialhinweis (§ 10.1): eine
 #: Sprachnachricht ueber dieser Dauer, waehrend der Interviewmodus AUS ist,
@@ -106,6 +117,19 @@ _TEXT_TEIL_ECHO = "{name}, Teil {nummer}:\n{transkript}"
 _TEXT_VERDICHTUNG_KOPF = "{name} ist durch. Was ich darin hoere:"
 _TEXT_VERDICHTUNG_THEMEN = "Kernthemen:"
 _TEXT_VERDICHTUNG_FRAGE = "Stimmt das so? Sonst sagt es mir."
+
+#: Steht statt der Kernthemen, wenn keines von ihnen ein woertliches Zitat
+#: hatte (N2): lieber die ehrliche Leerstelle als drei Themen, die sich auf
+#: nichts stuetzen.
+_TEXT_OHNE_BELEG = "Ich konnte kein Thema mit einem woertlichen Zitat belegen."
+
+#: Ein Interview unter MINDEST_WOERTER Woertern wird nicht ausgewertet (N2) --
+#: mit Zahlen, damit die Gruppe erkennt, welche Aufnahme gemeint ist, und mit
+#: dem ausdruecklichen Angebot, es trotzdem zu tun.
+_TEXT_ZU_KURZ = (
+    "{name} ist sehr kurz ({dauer} s, {woerter} Woerter). Ich werte es nicht "
+    "aus - sagt Bescheid, wenn ich es trotzdem soll."
+)
 
 #: "fertig" ohne eine einzige Sprachnachricht: eine Zeile, kein Modellaufruf.
 _TEXT_OHNE_AUFNAHME = "{name} hatte keine Aufnahme - ich habe nichts verdichtet."
@@ -524,10 +548,11 @@ def _teil_abschliessen(conn, tg, e, row) -> None:
 def _verdichtungstext(conn, name: str, verdichtung_id: int) -> str:
     """Baut die Rueckmeldung zu einem verdichteten Interview (§ 10.6).
 
-    Nur geprueft belegte Zitate stehen in Anfuehrungszeichen (``zitat_geprueft
-    = 1``, SPEC § 5) -- ein ungeprueftes Zitat waere genau das, wogegen das
-    Belegzitat-Prinzip antritt: ein Satz in Anfuehrungszeichen, den vielleicht
-    niemand gesagt hat. Das Thema bleibt trotzdem stehen, nur ohne Zitat.
+    Seit N2 traegt jedes gespeicherte Thema ein geprueftes Zitat (siehe
+    ``verdichter.verdichte``) -- die Zeile ohne Anfuehrungszeichen bleibt
+    trotzdem stehen, fuer Verdichtungen aus der Zeit davor. Bleibt gar kein
+    Thema uebrig, sagt der Bot genau das, statt die Kernthemen-Ueberschrift
+    ueber eine leere Liste zu setzen.
 
     Am Ende eine echte Rueckfrage -- keine, auf die etwas wartet: der Bot
     laeuft weiter, ob die Gruppe antwortet oder nicht (SPEC § 1.4)."""
@@ -535,24 +560,52 @@ def _verdichtungstext(conn, name: str, verdichtung_id: int) -> str:
     zeilen = [
         _TEXT_VERDICHTUNG_KOPF.format(name=name),
         verdichtung["zusammenfassung"] if verdichtung else "",
+        "",
     ]
     themen = repo.themen_zu(conn, verdichtung_id)
     if themen:
-        zeilen.append("")
         zeilen.append(_TEXT_VERDICHTUNG_THEMEN)
         for thema in themen:
             if thema["zitat_geprueft"] == 1 and thema["beleg_zitat"]:
                 zeilen.append(f'- {thema["thema"]}: "{thema["beleg_zitat"]}"')
             else:
                 zeilen.append(f'- {thema["thema"]}')
+    else:
+        zeilen.append(_TEXT_OHNE_BELEG)
     zeilen.append("")
     zeilen.append(_TEXT_VERDICHTUNG_FRAGE)
     return "\n".join(zeilen)
 
 
-def _interview_abschliessen(conn, tg, klm, e, row) -> None:
+def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
+    """Prueft die Mindestlaenge (N2) und meldet, wenn sie unterschritten ist.
+
+    Liefert True, wenn dieses Interview NICHT verdichtet wird: dann ist es
+    fertig, die Gruppe hat eine Zeile mit Dauer und Wortzahl bekommen und kann
+    mit ``/auswerten`` widersprechen. Kein Sprachmodell-Aufruf -- genau das
+    ist der Punkt (siehe MINDEST_WOERTER)."""
+    woerter = len((row["transkript"] or "").split())
+    if woerter >= MINDEST_WOERTER:
+        return False
+    repo.setze_status(conn, row["id"], "fertig")
+    _sende_und_merke(
+        conn, tg, e, row["chat_id"],
+        _TEXT_ZU_KURZ.format(
+            name=row["name"] or "Das Interview",
+            dauer=repo.dauer_gesamt(conn, row["id"]) or 0,
+            woerter=woerter,
+        ),
+    )
+    return True
+
+
+def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> None:
     """Verdichtet ein Interview (oder einen Textimport) und meldet das
     Ergebnis in den Chat.
+
+    ``erzwungen=True`` (aus ``/auswerten``) uebergeht die Mindestlaenge aus
+    N2: die Gruppe hat ausdruecklich darum gebeten, und ihr Urteil ueber ihr
+    eigenes Material steht ueber einer Wortzahl.
 
     Schlaegt die Verdichtung fehl, bleibt status='transkribiert' stehen und
     der Versuchszaehler steigt -- derselbe Zaehler und dieselbe
@@ -564,6 +617,8 @@ def _interview_abschliessen(conn, tg, klm, e, row) -> None:
     Zusammenfassung fehlt."""
     aufnahme_id = row["id"]
     chat_id = row["chat_id"]
+    if not erzwungen and _zu_kurz_gemeldet(conn, tg, e, row):
+        return
     try:
         verdichtung_id = verdichter.verdichte(klm, conn, e, aufnahme_id)
     except Exception as fehler:
@@ -660,6 +715,72 @@ def starte_abschluss(conn, tg, klm, e, kopf_id: int) -> threading.Thread:
             schliesse_ab(conn, tg, klm, e, kopf_id)
         except Exception:
             log.exception("Interviewabschluss fehlgeschlagen, aufnahme_id=%s", kopf_id)
+
+    thread = threading.Thread(target=_lauf, daemon=True)
+    thread.start()
+    return thread
+
+
+def interviews(conn, chat_id: int) -> list:
+    """Die Interviews einer Gruppe (die Koepfe, in Entstehungsreihenfolge) --
+    ohne Gespraechsbeitraege und ohne die einzelnen Teile."""
+    return [a for a in repo.transkripte(conn, chat_id) if a["klasse"] == "lang"]
+
+
+def finde_interview(conn, chat_id: int, bezeichnung: str = ""):
+    """Sucht das Interview, das ``bezeichnung`` meint -- eine Nummer ("3",
+    "Interview 3"), ein Namensteil ("Meryem") oder nichts (dann das letzte).
+
+    Liefert die ``aufnahme``-Zeile oder None. Grundlage von ``/auswerten``
+    (N2); grosszuegig wie ``repo.transkripte``, weil die Gruppe Namen nicht
+    immer gleich tippt -- eine Nummer wird aber genau genommen, damit
+    "/auswerten 1" nicht Interview 11 trifft."""
+    vorhandene = interviews(conn, chat_id)
+    if not vorhandene:
+        return None
+    bezeichnung = (bezeichnung or "").strip()
+    if not bezeichnung:
+        return vorhandene[-1]
+    treffer = re.search(r"\d{1,4}", bezeichnung)
+    if treffer:
+        gesucht = f"Interview {int(treffer.group(0))}"
+        return next((a for a in vorhandene if (a["name"] or "") == gesucht), None)
+    gesucht = bezeichnung.lower()
+    return next((a for a in vorhandene if gesucht in (a["name"] or "").lower()), None)
+
+
+def _auswerten(conn, tg, klm, e, kopf_id: int) -> None:
+    """Verdichtet ein Interview auf ausdrueckliche Bitte der Gruppe
+    (``/auswerten``, N2) -- auch wenn es unter MINDEST_WOERTER liegt.
+
+    Holt das zusammengefuegte Transkript nach, falls am Kopf noch keines
+    steht: bei einem Interview, das nie ueber ``schliesse_ab`` gelaufen ist,
+    gibt es sonst nichts zu verdichten."""
+    row = repo.hole_aufnahme(conn, kopf_id)
+    if row is None:
+        return
+    if not (row["transkript"] or "").strip():
+        transkript = repo.zusammengefuegtes_transkript(conn, kopf_id)
+        if not transkript.strip():
+            _sende_und_merke(
+                conn, tg, e, row["chat_id"],
+                _TEXT_OHNE_AUFNAHME.format(name=row["name"] or "Das Interview"),
+            )
+            return
+        repo.setze_transkript(conn, kopf_id, transkript)
+        row = repo.hole_aufnahme(conn, kopf_id)
+    _interview_abschliessen(conn, tg, klm, e, row, erzwungen=True)
+
+
+def starte_auswertung(conn, tg, klm, e, kopf_id: int) -> threading.Thread:
+    """Stoesst ``_auswerten`` in einem eigenen Thread an -- dasselbe Muster
+    wie ``starte_abschluss``, aus demselben Grund: ``/auswerten`` ist ein
+    Befehl, und **kein Befehl ruft synchron ein Modell** (AGENTS.md)."""
+    def _lauf() -> None:
+        try:
+            _auswerten(conn, tg, klm, e, kopf_id)
+        except Exception:
+            log.exception("Auswertung fehlgeschlagen, aufnahme_id=%s", kopf_id)
 
     thread = threading.Thread(target=_lauf, daemon=True)
     thread.start()

@@ -499,6 +499,27 @@ def zusammengefuegtes_transkript(conn: sqlite3.Connection, aufnahme_id: int) -> 
 
 
 @_gesperrt
+def dauer_gesamt(conn: sqlite3.Connection, aufnahme_id: int) -> int | None:
+    """Die Gesamtdauer eines Interviews in Sekunden: die Summe seiner Teile,
+    ersatzweise die Dauer am Kopf selbst (Textimport oder eine Aufnahme aus
+    der Zeit vor § 10.6).
+
+    Gebraucht fuer die Zeile, mit der ein sehr kurzes Interview abgelehnt
+    wird ("Interview 3 ist sehr kurz (4 s, 10 Woerter)", Nachtrag N2): die
+    Gruppe soll an der Zahl erkennen, welche Aufnahme gemeint ist."""
+    zeile = conn.execute(
+        "SELECT sum(dauer_sekunden) AS dauer FROM aufnahme WHERE teil_von = ?",
+        (aufnahme_id,),
+    ).fetchone()
+    if zeile is not None and zeile["dauer"]:
+        return zeile["dauer"]
+    eigene = conn.execute(
+        "SELECT dauer_sekunden FROM aufnahme WHERE id = ?", (aufnahme_id,)
+    ).fetchone()
+    return eigene["dauer_sekunden"] if eigene else None
+
+
+@_gesperrt
 def hole_aufnahme(conn: sqlite3.Connection, aufnahme_id: int) -> sqlite3.Row | None:
     """Liefert die aufnahme-Zeile oder None, wenn unbekannt."""
     return conn.execute(
@@ -624,6 +645,23 @@ def hole_verdichtung(conn: sqlite3.Connection, verdichtung_id: int) -> sqlite3.R
     wenn ein Interview durch ist (aufnahme._verdichtungstext)."""
     return conn.execute(
         "SELECT * FROM verdichtung WHERE id = ?", (verdichtung_id,)
+    ).fetchone()
+
+
+@_gesperrt
+def verdichtung_zu_aufnahme(
+    conn: sqlite3.Connection, aufnahme_id: int
+) -> sqlite3.Row | None:
+    """Die (juengste) Verdichtung einer Aufnahme, oder None, solange keine
+    existiert.
+
+    Grundlage von ``/auswerten`` (Nachtrag N2): ein Interview, das schon
+    ausgewertet ist, wird nicht ein zweites Mal verdichtet -- das waere ein
+    zweiter bezahlter Aufruf und eine zweite Verdichtung derselben Aufnahme
+    im Prompt."""
+    return conn.execute(
+        "SELECT * FROM verdichtung WHERE aufnahme_id = ? ORDER BY id DESC LIMIT 1",
+        (aufnahme_id,),
     ).fetchone()
 
 

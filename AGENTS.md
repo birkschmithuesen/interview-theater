@@ -101,6 +101,15 @@ lädt, würde damit Gesprächszüge ausbremsen.
   das **Echo steht in keinem Fenster** (`typ='transkript'`, sonst liest der
   Erkenner Interviewinhalt als Gruppenabsicht); und **ein offener Teil hält
   den Abschluss auf**, statt ohne ihn zu verdichten.
+- **Kein Thema ohne wörtliches Belegzitat, keine Verdichtung ohne Material**
+  (seit 05.09.2026, N2). Ein Kernthema, dessen Zitat die Prüfung aus
+  `zitat.py` nicht besteht, wird **nicht gespeichert** — nicht mehr mit
+  `zitat_geprueft = 0` behalten. Und unter `aufnahme.MINDEST_WOERTER` (40)
+  Wörtern im ganzen Interview wird der Verdichter **gar nicht erst gerufen**;
+  die Gruppe bekommt eine Zeile mit Dauer und Wortzahl und kann mit
+  `/auswerten` widersprechen. Beides kommt aus einem gemessenen Fall: aus
+  einer vier Sekunden langen Sprachnachricht entstand ein vollständig
+  erfundenes Interview mit drei unbelegten Themen.
 - **Verdichtungen stehen ab der ersten fertigen im Gesprächs-Prompt (Block 2)
   und auf der Gruppenseite** — Zusammenfassung und Kernthemen mit Belegzitat,
   im Web nur mit `zitat_geprueft = 1`. Datengetrieben, also unabhängig von der
@@ -216,10 +225,12 @@ und einen Modus B (`/gruendlich`, freier Prosatext mit
 Workshoptag wurde das auf die sechs Befehle in `befehle.py` reduziert (siehe
 Commit „Sechs Befehle als Notausgang"): `/merken`, `/verworfen`,
 `/konflikt`, `/begriffe`, `/figur`, `/name`, `/material` und `/gruendlich`
-existieren in der SPEC, aber nicht mehr im Code. Seit dem 04.09.2026 sind es
-neun: `/szene` ist dazugekommen, und mit ihm ist `LLM.prosa()` verdrahtet
+existieren in der SPEC, aber nicht mehr im Code. Seit dem 05.09.2026 sind es
+zehn: `/szene` ist dazugekommen, und mit ihm ist `LLM.prosa()` verdrahtet
 (`szene.py`, SPEC § 4.5 Nachtrag), dann `/phase` (Arbeitsphase zeigen oder
-umschalten) und `/figur <Name> entfernen` (weiches Löschen, NACHTRAG N3) —
+umschalten), `/figur <Name> entfernen` (weiches Löschen, NACHTRAG N3) und
+`/auswerten [N]` (ein Interview unter `aufnahme.MINDEST_WOERTER` doch noch
+verdichten, N2) —
 `/figur` legt bewusst **nichts** an, das macht weiterhin der Erkenner im
 Gespräch. Wer an diesen Stellen weiterbaut, sollte sich auf `befehle.py`
 verlassen, nicht auf die SPEC-Tabelle.
@@ -227,9 +238,9 @@ verlassen, nicht auf die SPEC-Tabelle.
 `befehle.behandle()` nimmt seit `/szene` ein optionales `klm` entgegen. Die
 alte strukturelle Garantie („behandle bekommt kein LLM-Objekt, also kann ein
 Befehl nicht am Modell scheitern") ist damit eine Zusage geworden, die der
-Code weiterhin einhält: **kein Befehl ruft synchron ein Modell** — `/szene`
-gibt sofort an einen eigenen Thread ab. Wer einen zehnten Befehl anhängt,
-halte sich daran.
+Code weiterhin einhält: **kein Befehl ruft synchron ein Modell** — `/szene`,
+`/fertig` und `/auswerten` geben sofort an einen eigenen Thread ab. Wer einen
+elften Befehl anhängt, halte sich daran.
 
 `einstellungen.py` liest zusätzlich `IT_MODELL_ERKENNER` (Vorgabewert
 `google/gemma-4-31B-it`) — diese Variable fehlt noch in
@@ -333,8 +344,9 @@ Env-Datei soll die Interviews nicht ins offene Netz stellen.
 Die vier Prompts werden heiß nachgeladen, also ändert sie jemand **während**
 des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
 den Blindflug: 74 Absichtserkenner-Fälle (davon 29 Negativfälle), 22
-Journal-Abschnitte (davon 11 leere) und 6 erfundene Interviewtranskripte, alle
-mit Sollwert.
+Journal-Abschnitte (davon 11 leere) und 7 erfundene Interviewtranskripte, alle
+mit Sollwert — darunter einer, dessen Sollwert **null** Kernthemen sind (der
+Live-Fall aus dem Probelauf, N2).
 
 ```
 set -a; . ./betrieb/gruppe1.env; set +a

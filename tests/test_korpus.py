@@ -259,12 +259,29 @@ def test_journal_erwartungen_sind_stichwoerter_kein_wortlaut(journal_faelle):
 
 # --- Verdichter -----------------------------------------------------------
 
+def ist_ablehnungsfall(fall) -> bool:
+    """Ein Fall, dessen Sollwert NULL Themen ist (``themen_max == 0``, N2).
+
+    Er misst das Gegenteil der uebrigen Faelle: nicht, ob der Verdichter zwei
+    bis vier belegte Themen findet, sondern ob er bei zu duennem Material
+    **nichts** erfindet. Die Formvorgaben der anderen Faelle (200-600 Woerter,
+    vier Sprechermarker) gelten fuer ihn deshalb ausdruecklich nicht -- ein
+    Ablehnungsfall mit 200 Woertern waere gar keiner."""
+    return fall["erwartet"].get("themen_max") == 0
+
+
 def test_verdichter_pflichtfelder(verdichter_faelle):
     for fall in verdichter_faelle:
         assert fall.get("transkript", "").strip(), fall["id"]
         erwartet = fall.get("erwartet")
         assert isinstance(erwartet, dict), fall["id"]
         assert isinstance(erwartet.get("stichwoerter"), list), fall["id"]
+        if ist_ablehnungsfall(fall):
+            assert erwartet["themen_min"] == 0, fall["id"]
+            assert erwartet["stichwoerter"] == [], (
+                f"{fall['id']}: ein Ablehnungsfall erwartet keine Stichwoerter"
+            )
+            continue
         assert erwartet["stichwoerter"], fall["id"]
         assert 1 <= erwartet["themen_min"] <= erwartet["themen_max"], fall["id"]
 
@@ -273,10 +290,20 @@ def test_verdichter_mindestanzahl(verdichter_faelle):
     assert len(verdichter_faelle) >= MIN_VERDICHTER
 
 
+def test_verdichter_hat_den_ablehnungsfall(verdichter_faelle):
+    """N2: der Fall aus dem Probelauf ("Zeigt mir mal die Verdichtungen ...")
+    muss im Korpus bleiben. Er ist der einzige, der die teuerste Eigenschaft
+    des Verdichters misst -- dass er aus einem Satz kein Interview erfindet."""
+    assert [f["id"] for f in verdichter_faelle if ist_ablehnungsfall(f)]
+
+
 def test_verdichter_transkripte_haben_die_richtige_laenge(verdichter_faelle):
     """200-600 Woerter: kuerzer traegt keine zwei belegbaren Kernthemen,
-    laenger misst eher die Kuerzung als den Prompt."""
+    laenger misst eher die Kuerzung als den Prompt. Ablehnungsfaelle sind
+    ausgenommen -- sie sind absichtlich zu kurz."""
     for fall in verdichter_faelle:
+        if ist_ablehnungsfall(fall):
+            continue
         woerter = len(fall["transkript"].split())
         assert 200 <= woerter <= 600, f"{fall['id']}: {woerter} Woerter"
 
@@ -285,6 +312,8 @@ def test_verdichter_transkripte_haben_sprechermarker(verdichter_faelle):
     """Ohne Sprechermarker ist es kein Interviewtranskript, sondern ein
     Aufsatz -- und der Verdichter saehe im Betrieb etwas anderes."""
     for fall in verdichter_faelle:
+        if ist_ablehnungsfall(fall):
+            continue
         zeilen = [z for z in fall["transkript"].splitlines() if z.strip()]
         mit_marker = [z for z in zeilen if ":" in z.split(" ")[0]]
         assert len(mit_marker) >= 4, fall["id"]

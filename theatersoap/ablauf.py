@@ -153,6 +153,12 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list) -> None:
     als auch alles, was inzwischen an Mitlaeufern aufgelaufen ist (SPEC
     § 1.3)."""
     letzte_message_id = max(n["message_id"] for n in offen)
+    # Haelt fest, ob die Antwort schon in der Gruppe steht -- ein Fehler
+    # DANACH (z. B. merke_nachricht schlaegt fehl) darf keine zusaetzliche
+    # "Bei mir hakt gerade etwas"-Zeile mehr ausloesen: die Gruppe haette dann
+    # die richtige Antwort UND direkt darunter eine verwirrende Fehlermeldung
+    # zu genau derselben Antwort gesehen.
+    versand_erfolgreich = False
     try:
         with _tippanzeige(tg, chat_id):
             koerper = kontext.baue(conn, chat_id, offen, e)
@@ -160,6 +166,7 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list) -> None:
             text = ergebnis["antwort"]
 
         message_id = tg.sende(chat_id, text)
+        versand_erfolgreich = True
         # Die Antwort des Modells wird als Bot-Nachricht mitgeschrieben, damit
         # sie im Verlaufsfenster des naechsten Zuges steht (kontext.baue liest
         # sie ueber repo.letzte_nachrichten mit) -- sonst wuerde das Modell
@@ -171,12 +178,16 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list) -> None:
         log.exception("Gespraechszug fehlgeschlagen, chat_id=%s", chat_id)
         repo.merke_vorfall(
             conn, chat_id, getattr(e, "bot_name", None), "gespraechszug_fehlgeschlagen",
-            "Sprachmodell-Aufruf im Gespraechszug fehlgeschlagen",
+            "Sprachmodell-Aufruf im Gespraechszug fehlgeschlagen" if not versand_erfolgreich
+            else "Bot-Antwort in 'nachricht' mitzuschreiben ist fehlgeschlagen, obwohl "
+                 "die Antwort schon in der Gruppe steht",
         )
-        try:
-            tg.sende(chat_id, _TEXT_FEHLER)
-        except Exception:
-            log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
+        if not versand_erfolgreich:
+            # Nur melden, wenn die Gruppe noch KEINE Antwort bekommen hat.
+            try:
+                tg.sende(chat_id, _TEXT_FEHLER)
+            except Exception:
+                log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
     finally:
         repo.setze_beantwortet_bis(conn, chat_id, letzte_message_id)
 

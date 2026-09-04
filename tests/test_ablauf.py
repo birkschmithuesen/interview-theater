@@ -175,6 +175,39 @@ def test_llm_fehler_meldet_der_gruppe_und_haelt_nicht_an(conn, einst, tg):
     assert len([t for _, t in tg.gesendet if "hakt" in t]) == 1
 
 
+def test_teilfehler_nach_erfolgreichem_versand_erzeugt_keine_doppelte_meldung(
+    conn, einst, tg, klm, monkeypatch,
+):
+    """Nachbesserung 'Wichtig': schlaegt repo.merke_nachricht NACH einem
+    bereits erfolgreichen tg.sende fehl, darf die Gruppe nicht zusaetzlich
+    'Bei mir hakt gerade etwas' unter der schon angekommenen Antwort lesen --
+    der bestehende Fehlerfall-Test oben deckt das nicht ab, weil dort schon
+    der Modellaufruf scheitert, bevor ueberhaupt etwas gesendet wurde."""
+    repo.merke_nachricht(conn, 1, 9, "Ada", 0, "text", "@gruppe1 hallo", repo._jetzt())
+
+    def kaputtes_merke_nachricht(*args, **kwargs):
+        raise RuntimeError("Datenbank kurz weg (simuliert)")
+
+    monkeypatch.setattr(ablauf.repo, "merke_nachricht", kaputtes_merke_nachricht)
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(tg.gesendet) == 1, "es wurde nur die eigentliche Antwort gesendet"
+    assert tg.gesendet[0][1] == "Klar, machen wir."
+    assert not any("hakt" in t for _, t in tg.gesendet), (
+        "keine zusaetzliche Fehlerzeile unter einer bereits erfolgreichen Antwort"
+    )
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'gespraechszug_fehlgeschlagen'"
+    ).fetchall()
+    assert len(vorfaelle) == 1, "der Fehler wird trotzdem als Vorfall vermerkt"
+
+    # Das Wasserzeichen rueckt trotzdem vor (finally) -- sonst waere der Zug
+    # ab jetzt endlos wiederholbar.
+    assert repo.hole_gruppe(conn, 1)["letzte_beantwortete_message_id"] == 9
+
+
 # ---------------------------------------------------------------------------
 # Zusaetzliche Tests fuer die Tippanzeige (Auftragshinweis 4) und die
 # Einhaengung in bot.py (Auftragshinweis 2).

@@ -4,21 +4,64 @@ Alle spaeteren Module greifen ausschliesslich ueber dieses Modul auf die
 Datenbank zu. Nach jedem Schreibvorgang wird committet, weil mehrere Threads
 dieselbe SQLite-Datei benutzen (global-constraints.md § 3): lange offene
 Transaktionen sind hier das Problem, nicht die Commit-Kosten.
+
+**Nachbesserung nach Aufgabe 10:** ``db.verbinde()`` oeffnet mit
+``check_same_thread=False`` und reicht EINE ``sqlite3.Connection`` an alle
+Threads des Prozesses durch (Poll-Schleife, 8er-Pool, Nachhol-Thread --
+inzwischen auch jeder Gespraechszug aus ``ablauf.bearbeite``, der ueber den
+Pool laeuft). ``check_same_thread=False`` hebt nur die
+Thread-Zugehoerigkeitspruefung auf, macht das ``sqlite3``-Modul aber NICHT
+sicher gegen gleichzeitige ``execute``/``commit``-Aufrufe auf demselben
+Verbindungsobjekt -- die interne Transaktionsbuchhaltung ist nicht
+synchronisiert. WAL und ``busy_timeout`` (global-constraints.md § 3) loesen
+nur die Dateisperre ZWISCHEN Prozessen, nicht diese Racebedingung INNERHALB
+eines Prozesses; beobachtet als sporadisches ``sqlite3.OperationalError:
+cannot commit - no transaction is active`` bzw. ``SystemError`` unter
+mehreren gleichzeitigen Schreibern.
+
+Der Fix bleibt bewusst klein und laesst ``db.py`` unangetastet: ein
+modulweiter ``_LOCK`` (siehe ``_gesperrt`` unten) serialisiert jede
+Repo-Funktion, lesend wie schreibend, gegen jede andere. ``threading.RLock``
+statt ``threading.Lock``, weil ``lege_aufnahme_an`` innerhalb desselben
+Threads ``zaehle_aufnahmen`` aufruft -- mit einem einfachen ``Lock`` wuerde
+sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 """
 
 import sqlite3
+import threading
 from datetime import datetime, timezone
+
+#: Serialisiert saemtliche Repo-Funktionen gegeneinander (siehe Moduldocstring
+#: oben). RLock, nicht Lock: repo-interne Aufrufe (aktuell nur
+#: lege_aufnahme_an -> zaehle_aufnahmen) laufen sonst in einen
+#: Selbst-Deadlock.
+_LOCK = threading.RLock()
+
+
+def _gesperrt(fn):
+    """Dekoriert eine Repo-Funktion so, dass ihr gesamter Rumpf unter
+    ``_LOCK`` laeuft -- funktional dasselbe wie ``with _LOCK:`` als erste
+    Zeile jeder Funktion, nur ohne 34 Funktionsruempfe von Hand neu
+    einzuruecken (und damit ohne das Risiko, dabei eine Einrueckung falsch zu
+    setzen)."""
+    def wrapper(*args, **kwargs):
+        with _LOCK:
+            return fn(*args, **kwargs)
+    wrapper.__name__ = fn.__name__
+    wrapper.__doc__ = fn.__doc__
+    return wrapper
 
 
 def _jetzt() -> str:
     """ISO-8601-Zeitstempel in UTC, Sekundengenauigkeit.
 
     Trotz Unterstrich Teil der oeffentlichen Schnittstelle: andere Module
-    rufen repo._jetzt() direkt auf.
-    """
+    rufen repo._jetzt() direkt auf. Beruehrt die Datenbank nicht und braucht
+    deshalb kein _gesperrt."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+@_gesperrt
 def sichere_gruppe(conn: sqlite3.Connection, chat_id: int, bot_name: str, titel: str) -> None:
     """Legt die Gruppe an, falls noch unbekannt; aktualisiert sonst Titel/Bot-Name."""
     conn.execute(
@@ -34,6 +77,7 @@ def sichere_gruppe(conn: sqlite3.Connection, chat_id: int, bot_name: str, titel:
     conn.commit()
 
 
+@_gesperrt
 def hole_gruppe(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | None:
     """Liefert die gruppe-Zeile oder None, wenn unbekannt."""
     return conn.execute(
@@ -41,6 +85,7 @@ def hole_gruppe(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | None:
     ).fetchone()
 
 
+@_gesperrt
 def merke_nachricht(
     conn: sqlite3.Connection,
     chat_id: int,
@@ -66,6 +111,7 @@ def merke_nachricht(
     return cur.rowcount == 1
 
 
+@_gesperrt
 def unbeantwortete(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Nachrichten, die einen Zug ausloesen sollen: kein Bot, nicht unterdrueckt
     (weder Nachtstau noch Sprachnachricht ohne Transkript) und neuer als das
@@ -84,6 +130,7 @@ def unbeantwortete(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+@_gesperrt
 def setze_beantwortet_bis(conn: sqlite3.Connection, chat_id: int, message_id: int) -> None:
     """Setzt das Wasserzeichen letzte_beantwortete_message_id. Bewegt sich nie
     rueckwaerts, sonst wuerden bereits beantwortete Nachrichten erneut einen
@@ -98,6 +145,7 @@ def setze_beantwortet_bis(conn: sqlite3.Connection, chat_id: int, message_id: in
     conn.commit()
 
 
+@_gesperrt
 def letzte_nachrichten(conn: sqlite3.Connection, chat_id: int, anzahl: int = 200) -> list[sqlite3.Row]:
     """Die letzten `anzahl` Nachrichten der Gruppe in chronologischer Reihenfolge."""
     return conn.execute(
@@ -114,6 +162,7 @@ def letzte_nachrichten(conn: sqlite3.Connection, chat_id: int, anzahl: int = 200
     ).fetchall()
 
 
+@_gesperrt
 def hole_update_id(conn: sqlite3.Connection, bot_name: str) -> int:
     """Liefert die zuletzt verarbeitete getUpdates-Position, 0 wenn unbekannt."""
     row = conn.execute(
@@ -124,6 +173,7 @@ def hole_update_id(conn: sqlite3.Connection, bot_name: str) -> int:
     return row["letzte_update_id"]
 
 
+@_gesperrt
 def setze_update_id(conn: sqlite3.Connection, bot_name: str, update_id: int) -> None:
     """Merkt die getUpdates-Position pro Bot-Token (nicht pro Gruppe)."""
     jetzt = _jetzt()
@@ -140,6 +190,7 @@ def setze_update_id(conn: sqlite3.Connection, bot_name: str, update_id: int) -> 
     conn.commit()
 
 
+@_gesperrt
 def merke_vorfall(
     conn: sqlite3.Connection,
     chat_id: int | None,
@@ -160,6 +211,7 @@ def merke_vorfall(
     conn.commit()
 
 
+@_gesperrt
 def lege_aufnahme_an(
     conn: sqlite3.Connection,
     chat_id: int,
@@ -187,6 +239,7 @@ def lege_aufnahme_an(
     return cur.lastrowid
 
 
+@_gesperrt
 def hole_aufnahme(conn: sqlite3.Connection, aufnahme_id: int) -> sqlite3.Row | None:
     """Liefert die aufnahme-Zeile oder None, wenn unbekannt."""
     return conn.execute(
@@ -194,6 +247,7 @@ def hole_aufnahme(conn: sqlite3.Connection, aufnahme_id: int) -> sqlite3.Row | N
     ).fetchone()
 
 
+@_gesperrt
 def setze_status(
     conn: sqlite3.Connection, aufnahme_id: int, status: str, fehlertext: str | None = None
 ) -> None:
@@ -205,6 +259,7 @@ def setze_status(
     conn.commit()
 
 
+@_gesperrt
 def setze_transkript(conn: sqlite3.Connection, aufnahme_id: int, text: str) -> None:
     """Traegt das Transkript einer Aufnahme ein."""
     conn.execute(
@@ -213,6 +268,7 @@ def setze_transkript(conn: sqlite3.Connection, aufnahme_id: int, text: str) -> N
     conn.commit()
 
 
+@_gesperrt
 def setze_aufnahme_name(conn: sqlite3.Connection, aufnahme_id: int, name: str) -> None:
     """Ersetzt den (ggf. automatisch vergebenen) Namen einer Aufnahme."""
     conn.execute(
@@ -221,6 +277,7 @@ def setze_aufnahme_name(conn: sqlite3.Connection, aufnahme_id: int, name: str) -
     conn.commit()
 
 
+@_gesperrt
 def offene_aufnahmen(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """Alle Aufnahmen, deren Status weder 'fertig' noch 'fehlgeschlagen' ist --
     Grundlage dafuer, dass ein Neustart ueber Nacht angefangene Arbeit zu Ende
@@ -232,6 +289,7 @@ def offene_aufnahmen(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+@_gesperrt
 def zaehle_aufnahmen(conn: sqlite3.Connection, chat_id: int) -> int:
     """Anzahl der Aufnahmen einer Gruppe, unabhaengig vom Status."""
     return conn.execute(
@@ -239,6 +297,7 @@ def zaehle_aufnahmen(conn: sqlite3.Connection, chat_id: int) -> int:
     ).fetchone()[0]
 
 
+@_gesperrt
 def speichere_verdichtung(
     conn: sqlite3.Connection,
     chat_id: int,
@@ -278,6 +337,7 @@ def speichere_verdichtung(
     return verdichtung_id
 
 
+@_gesperrt
 def verdichtungen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle Verdichtungen einer Gruppe, in Entstehungsreihenfolge."""
     return conn.execute(
@@ -285,6 +345,7 @@ def verdichtungen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+@_gesperrt
 def themen_zu(conn: sqlite3.Connection, verdichtung_id: int) -> list[sqlite3.Row]:
     """Die Kernthemen einer Verdichtung, in der vom Sprachmodell gelieferten
     Reihenfolge."""
@@ -294,6 +355,7 @@ def themen_zu(conn: sqlite3.Connection, verdichtung_id: int) -> list[sqlite3.Row
     ).fetchall()
 
 
+@_gesperrt
 def transkripte(
     conn: sqlite3.Connection, chat_id: int, name: str | None = None
 ) -> list[sqlite3.Row]:
@@ -309,6 +371,7 @@ def transkripte(
     return [z for z in zeilen if z["name"] and gesucht in z["name"].lower()]
 
 
+@_gesperrt
 def hole_nachricht(conn: sqlite3.Connection, chat_id: int, message_id: int) -> sqlite3.Row | None:
     """Liefert eine einzelne Nachrichtenzeile oder None (Aufgabe 8: die
     Aufnahme-Pipeline braucht gesendet_am der urspruenglichen Sprachnachricht,
@@ -320,6 +383,7 @@ def hole_nachricht(conn: sqlite3.Connection, chat_id: int, message_id: int) -> s
     ).fetchone()
 
 
+@_gesperrt
 def aktualisiere_transkribierte_nachricht(
     conn: sqlite3.Connection, chat_id: int, message_id: int, text: str, unterdrueckt: int
 ) -> None:
@@ -337,6 +401,7 @@ def aktualisiere_transkribierte_nachricht(
     conn.commit()
 
 
+@_gesperrt
 def zaehle_versuch_hoch(conn: sqlite3.Connection, aufnahme_id: int) -> int:
     """Erhoeht aufnahme.versuche um eins und liefert den neuen Stand (Aufgabe 8,
     Grundlage fuer MAX_VERSUCHE: nach wiederholten Fehlschlaegen soll eine
@@ -351,6 +416,7 @@ def zaehle_versuch_hoch(conn: sqlite3.Connection, aufnahme_id: int) -> int:
     ).fetchone()["versuche"]
 
 
+@_gesperrt
 def setze_whisper_stumm_seit(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
     """Setzt oder leert gruppe.whisper_stumm_seit (Aufgabe 8, SPEC § 10.4):
     gesetzt bedeutet, der einmalige Ausfall-Hinweis wurde schon geschickt und
@@ -361,6 +427,7 @@ def setze_whisper_stumm_seit(conn: sqlite3.Connection, chat_id: int, wert: str |
     conn.commit()
 
 
+@_gesperrt
 def offene_aufnahmen_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[sqlite3.Row]:
     """Wie offene_aufnahmen(), aber auf die Gruppen eingeschraenkt, die dieser
     Bot-Prozess bedient (gruppe.bot_name). Grundlage der Nebenlaeufigkeits-
@@ -380,6 +447,7 @@ def offene_aufnahmen_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[s
     ).fetchall()
 
 
+@_gesperrt
 def setze_whisper_stumm_seit_falls_leer(conn: sqlite3.Connection, chat_id: int, wert: str) -> bool:
     """Setzt gruppe.whisper_stumm_seit atomar, aber nur wenn es noch leer war
     (Aufgabe 8, Nachbesserung 'Wichtig 1'). Liefert True, wenn DIESER Aufruf
@@ -396,6 +464,7 @@ def setze_whisper_stumm_seit_falls_leer(conn: sqlite3.Connection, chat_id: int, 
     return cur.rowcount == 1
 
 
+@_gesperrt
 def leere_whisper_stumm_seit_falls_gesetzt(conn: sqlite3.Connection, chat_id: int) -> bool:
     """Spiegelbild zu setze_whisper_stumm_seit_falls_leer: leert das Feld
     atomar, aber nur wenn es gesetzt war. Liefert True, wenn DIESER Aufruf es
@@ -414,6 +483,7 @@ def leere_whisper_stumm_seit_falls_gesetzt(conn: sqlite3.Connection, chat_id: in
 _ARBEITSSTAND_FELDER = ("begriffe", "kernthema", "kernthema_begruendung", "hauptkonflikt")
 
 
+@_gesperrt
 def hole_arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | None:
     """Liefert die arbeitsstand-Zeile einer Gruppe oder None, solange noch
     keine einzige Entscheidung getroffen wurde (Aufgabe 9, Schicht 2)."""
@@ -422,6 +492,7 @@ def hole_arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | N
     ).fetchone()
 
 
+@_gesperrt
 def setze_arbeitsstand(conn: sqlite3.Connection, chat_id: int, feld: str, wert: str) -> None:
     """Setzt (oder ueberschreibt) genau ein Feld des Arbeitsstands.
 
@@ -444,6 +515,7 @@ def setze_arbeitsstand(conn: sqlite3.Connection, chat_id: int, feld: str, wert: 
     conn.commit()
 
 
+@_gesperrt
 def figuren(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle Figuren einer Gruppe, in Entstehungsreihenfolge (Aufgabe 9)."""
     return conn.execute(
@@ -451,6 +523,7 @@ def figuren(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+@_gesperrt
 def setze_figur(conn: sqlite3.Connection, chat_id: int, name: str, beschreibung: str) -> None:
     """Legt eine Figur an oder ueberschreibt ihre Beschreibung, wenn der Name
     schon existiert (SPEC § 8: /figur legt an oder ueberschreibt). Vergleich
@@ -473,6 +546,7 @@ def setze_figur(conn: sqlite3.Connection, chat_id: int, name: str, beschreibung:
     conn.commit()
 
 
+@_gesperrt
 def journal(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle Journaleintraege einer Gruppe, aeltester zuerst (SPEC § 6.2 zu
     Block 6). Das Journal ist nur-anhaengend -- es gibt bewusst kein
@@ -482,6 +556,7 @@ def journal(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+@_gesperrt
 def schreibe_journal(
     conn: sqlite3.Connection,
     chat_id: int,
@@ -503,6 +578,7 @@ def schreibe_journal(
     return cur.lastrowid
 
 
+@_gesperrt
 def merke_aufruf(
     conn: sqlite3.Connection,
     chat_id: int | None,

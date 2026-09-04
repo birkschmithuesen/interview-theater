@@ -388,9 +388,13 @@ def test_zug_und_erkenner_ruft_beides_genau_einmal_auf_nach_dem_zug(monkeypatch)
         bot.erkenner, "laufe",
         lambda *a, **kw: reihenfolge.append("erkenner"),
     )
+    monkeypatch.setattr(
+        bot.journal, "laufe",
+        lambda *a, **kw: reihenfolge.append("journal"),
+    )
 
     bot._zug_und_erkenner("conn", "tg", "klm", "e", 1)
 
-    assert reihenfolge == ["zug", "erkenner"], (
-        "der Erkenner muss NACH dem Zug laufen, genau einmal"
+    assert reihenfolge == ["zug", "erkenner", "journal"], (
+        "Erkenner und Journal-Extraktor muessen NACH dem Zug laufen, je genau einmal"
     )

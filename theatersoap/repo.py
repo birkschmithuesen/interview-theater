@@ -727,3 +727,41 @@ def setze_wortlaut_modus(conn: sqlite3.Connection, chat_id: int, wert: str | Non
         "UPDATE gruppe SET wortlaut_modus = ? WHERE chat_id = ?", (wert, chat_id)
     )
     conn.commit()
+
+
+@_gesperrt
+def unjournalisierte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Nachrichten seit dem Journal-Wasserzeichen letzte_journalisierte_message_id
+    (theatersoap/journal.py) -- der Kandidatenpool, aus dem der
+    Journal-Extraktor den tatsaechlich verdraengten Abschnitt herausrechnet.
+
+    Wie unextrahierte() ungefiltert -- weder ist_bot noch unterdrueckt
+    schraenken ein, damit journal.berechne_verdraengten_abschnitt() dieselbe
+    Nachrichtenfolge sieht wie kontext.baue() beim Fensteraufbau."""
+    return conn.execute(
+        """
+        SELECT n.* FROM nachricht n
+        JOIN gruppe g ON g.chat_id = n.chat_id
+        WHERE n.chat_id = ?
+          AND n.message_id > g.letzte_journalisierte_message_id
+        ORDER BY n.message_id ASC
+        """,
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def setze_journalisiert_bis(conn: sqlite3.Connection, chat_id: int, message_id: int) -> None:
+    """Setzt das Wasserzeichen letzte_journalisierte_message_id. Bewegt sich
+    nie rueckwaerts (analog setze_extrahiert_bis) -- rueckt nur bis zum Ende
+    des tatsaechlich verarbeiteten verdraengten Abschnitts vor, nicht bis zum
+    Ende aller unjournalisierten Nachrichten (der Rest steht noch im Fenster
+    und ist noch nicht verdraengt)."""
+    conn.execute(
+        """
+        UPDATE gruppe SET letzte_journalisierte_message_id = ?
+        WHERE chat_id = ? AND letzte_journalisierte_message_id < ?
+        """,
+        (message_id, chat_id, message_id),
+    )
+    conn.commit()

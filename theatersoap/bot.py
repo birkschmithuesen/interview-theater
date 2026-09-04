@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from theatersoap import ablauf, aufnahme, befehle, db, einstellungen, erkenner, repo, telegram
+from theatersoap import ablauf, aufnahme, befehle, db, einstellungen, erkenner, journal, repo, telegram
 from theatersoap.einstellungen import Einstellungen
 from theatersoap.llm import LLM
 from theatersoap.telegram import Telegram, TelegramFehler
@@ -183,16 +183,23 @@ def warmlaufen(klm, conn, e) -> None:
 
 
 def _zug_und_erkenner(conn, tg, klm, e, chat_id: int, hinweis: str | None = None) -> None:
-    """Fuehrt den Gespraechszug aus und stoesst DANACH den Absichtserkenner
-    im selben Hintergrund-Pool-Auftrag an (teil-b.md Aufgabe 8) -- nach dem
-    Zug, nicht davor, damit die Bot-Antwort schon in der Gruppe steht, wenn
-    der Erkenner seinen eigenen Kontext baut. ``ablauf.bearbeite`` kuemmert
-    sich um Sperre und Sammeln wie bisher; ``erkenner.laufe`` faengt jeden
-    eigenen Fehlschlag intern ab (geloggt, als vorfall vermerkt), bleibt also
-    fuer die Gruppe unsichtbar, genau wie ein misslungener Gespraechszug
-    selbst."""
+    """Fuehrt den Gespraechszug aus und stoesst DANACH Absichtserkenner UND
+    Journal-Extraktor im selben Hintergrund-Pool-Auftrag an (teil-b.md
+    Aufgabe 8, journal.py) -- nach dem Zug, nicht davor, damit die
+    Bot-Antwort schon in der Gruppe steht, wenn beide ihren eigenen Kontext
+    bauen. ``ablauf.bearbeite`` kuemmert sich um Sperre und Sammeln wie
+    bisher; ``erkenner.laufe`` und ``journal.laufe`` fangen jeden eigenen
+    Fehlschlag intern ab (geloggt, als vorfall vermerkt), bleiben also fuer
+    die Gruppe unsichtbar, genau wie ein misslungener Gespraechszug selbst.
+
+    Reihenfolge Erkenner vor Journal-Extraktor: rein konventionell, es gibt
+    keine Abhaengigkeit zwischen beiden -- der Journal-Extraktor laeuft
+    ohnehin nur bei Verdraengung (meistens also gar nicht) und schreibt eine
+    andere Journal-Kategorie als der Erkenner (Arbeitsteilung, siehe
+    journal.py Moduldocstring)."""
     ablauf.bearbeite(conn, tg, klm, e, chat_id, hinweis=hinweis)
     erkenner.laufe(klm, tg, conn, e, chat_id)
+    journal.laufe(klm, conn, e, chat_id)
 
 
 def _bearbeite_sprachnachricht(conn, tg, klm, e, stt_klient, nachricht: dict) -> None:

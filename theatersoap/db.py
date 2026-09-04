@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS gruppe (
   -- Antwort- und Extraktionsstand
   letzte_beantwortete_message_id  INTEGER DEFAULT 0,
   letzte_extrahierte_message_id   INTEGER DEFAULT 0,
+  -- Journal-Extraktor-Wasserzeichen (Verdraengung statt jedem Zug, siehe journal.py)
+  letzte_journalisierte_message_id INTEGER DEFAULT 0,
   -- Schalter
   wortlaut_modus                  TEXT,     -- NULL=aus, '*'=alle, sonst Aufnahmename
   gruendlich_naechster_zug        INTEGER NOT NULL DEFAULT 0,  -- Modus B einmalig (§ 4.5)

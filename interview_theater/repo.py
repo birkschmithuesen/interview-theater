@@ -1083,6 +1083,113 @@ def aktualisiere_szene(
     conn.commit()
 
 
+#: Die Szenenfelder, die einzeln gesetzt werden duerfen (Erkenner-art
+#: ``szene_planen``, Befehl ``/szene <n> <feld> <wert>``). ``figuren`` steht
+#: hier NICHT: die Besetzung ist eine Verknuepfung, keine Spalte
+#: (``setze_szene_figuren``). Wie bei ``_ARBEITSSTAND_FELDER`` ist eine
+#: unbekannte Angabe ein Programmierfehler, kein Bedienfehler -- der Wert
+#: landet nur nach dieser Pruefung im SQL-Text.
+SZENENFELDER = (
+    "titel", "kurzbeschreibung", "form", "ort", "zeit", "anlass",
+    "was_passiert", "was_anders", "kernsaetze", "ton",
+)
+
+
+@_gesperrt
+def stelle_szene_sicher(conn: sqlite3.Connection, chat_id: int, nummer: int) -> int:
+    """Liefert die id der Szene mit dieser Nummer und legt sie beim ersten
+    Bedarf an -- die Grundlage dafuer, dass eine Szene **geplant** wird, bevor
+    es einen Text gibt (05.09.2026).
+
+    Bis dahin entstand eine Szene ausschliesslich als Ergebnis eines
+    Sprachmodell-Aufrufs. Jetzt ist die Reihenfolge umgekehrt: die Gruppe legt
+    Form, Ort, Figuren und Handlung fest, und der Text kommt zuletzt. Eine
+    Szene ohne Volltext ist deshalb ein normaler Zustand und kein halbes
+    Ergebnis."""
+    zeile = conn.execute(
+        "SELECT id FROM szene WHERE chat_id = ? AND nummer = ? AND entfernt_am IS NULL "
+        "ORDER BY geaendert_am DESC, id DESC LIMIT 1",
+        (chat_id, nummer),
+    ).fetchone()
+    if zeile is not None:
+        return zeile["id"]
+    cur = conn.execute(
+        "INSERT INTO szene (chat_id, nummer, geaendert_am) VALUES (?, ?, ?)",
+        (chat_id, nummer, _jetzt_genau()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def setze_szenenfeld(
+    conn: sqlite3.Connection, szene_id: int, feld: str, wert: str | None
+) -> None:
+    """Setzt genau ein Szenenfeld -- und ruehrt kein anderes an.
+
+    Das ist die Regel, an der die Planung haengt (Birk): ein spaeterer Lauf
+    soll einzelne Felder **nachtragen** koennen, ohne die frueheren zu
+    ueberschreiben. Deshalb gibt es hier kein Gegenstueck zu
+    ``aktualisiere_szene``, das alles auf einmal schreibt.
+
+    ``geaendert_am`` rueckt mit: die zuletzt bearbeitete Szene ist die, um die
+    es gerade geht (``hole_letzte_szene``) -- und daran haengt, welche Szene in
+    den Gespraechs-Prompt wandert."""
+    if feld not in SZENENFELDER:
+        raise ValueError(f"unbekanntes Szenenfeld: {feld!r}")
+    conn.execute(
+        f"UPDATE szene SET {feld} = ?, geaendert_am = ? WHERE id = ?",
+        (wert, _jetzt_genau(), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hole_szene(conn: sqlite3.Connection, szene_id: int) -> sqlite3.Row | None:
+    """Eine einzelne Szene, ohne Ruecksicht auf ``entfernt_am`` -- der Aufrufer
+    hat die id gerade selbst ermittelt."""
+    return conn.execute("SELECT * FROM szene WHERE id = ?", (szene_id,)).fetchone()
+
+
+@_gesperrt
+def setze_szene_figuren(
+    conn: sqlite3.Connection, chat_id: int, szene_id: int, figur_ids: list[int]
+) -> None:
+    """Setzt die Besetzung einer Szene -- ersetzend, nicht ergaenzend.
+
+    Ersetzend, weil die Gruppe eine Besetzung nennt und nicht eine Ergaenzung
+    ("in der Szene sind Mira, Pola und Pal"). Wer jemanden hinzufuegen will,
+    nennt die ganze Liste noch einmal; wer sie herausnehmen will, ebenso --
+    andernfalls gaebe es keinen Weg zurueck ausser einem eigenen
+    Entfernen-Ziel."""
+    conn.execute("DELETE FROM szene_figur WHERE szene_id = ?", (szene_id,))
+    for figur_id in dict.fromkeys(figur_ids):
+        conn.execute(
+            "INSERT OR IGNORE INTO szene_figur (chat_id, szene_id, figur_id) "
+            "VALUES (?, ?, ?)",
+            (chat_id, szene_id, figur_id),
+        )
+    conn.execute(
+        "UPDATE szene SET geaendert_am = ? WHERE id = ?", (_jetzt_genau(), szene_id)
+    )
+    conn.commit()
+
+
+@_gesperrt
+def szene_figuren(conn: sqlite3.Connection, szene_id: int) -> list[sqlite3.Row]:
+    """Die Figuren einer Szene, in der Reihenfolge, in der sie im Arbeitsstand
+    stehen.
+
+    Weich geloeschte Figuren fallen hier heraus (``figur.entfernt_am IS
+    NULL``, N3) -- eine Figur, die die Gruppe zurueckgenommen hat, steht damit
+    in keiner Szene mehr, ohne dass irgendwo aufgeraeumt werden muesste."""
+    return conn.execute(
+        "SELECT f.* FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
+        "WHERE sf.szene_id = ? AND f.entfernt_am IS NULL ORDER BY f.id ASC",
+        (szene_id,),
+    ).fetchall()
+
+
 @_gesperrt
 def hole_szenen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle Szenen einer Gruppe, nach Szenennummer sortiert (SPEC § 6.2 Block 4:

@@ -47,6 +47,15 @@ _SZENE_ENTFERNEN = re.compile(
     re.IGNORECASE,
 )
 
+#: "/szene 2 ort Polizeikessel" -- Nummer, ein bekannter Feldname, der Wert.
+#: Der Korrekturweg zu den Szenenfeldern (05.09.2026), neben der Erkenner-art
+#: ``szene_planen``. Eng gefasst wie ``_SZENE_ENTFERNEN``: der zweite Token
+#: muss ein Feldname sein, sonst ist es ein Schreibauftrag ("/szene 2 nochmal,
+#: aber kuerzer").
+_SZENE_FELD = re.compile(
+    r"^(?:szene\s*)?(\d{1,3})\s+(\w+)\s+(.+)$", re.IGNORECASE | re.DOTALL
+)
+
 log = logging.getLogger(__name__)
 
 _TEXT_INTERVIEW_AN = "Ich zeichne jetzt auf."
@@ -64,6 +73,14 @@ _TEXT_KEINE_AUFNAHMEN = "Es gibt noch keine Aufnahmen."
 _TEXT_SZENE_LEER = (
     "Schreibt den Auftrag hinter den Befehl, zum Beispiel: "
     "/szene Szene 2: Maria kommt am Bahnhof an und trifft Elif"
+)
+#: ``/szene 2 figuren ...`` mit lauter unbekannten Namen. Anders als beim
+#: Erkenner (der still bleibt) bekommt ein getippter Befehl immer eine
+#: Antwort -- und der Grund ist hier eine Entscheidung, keine Panne: eine
+#: Szene wird nur mit Figuren aus dem Arbeitsstand besetzt.
+_TEXT_SZENE_FIGUR_UNBEKANNT = (
+    "Diese Figuren kenne ich nicht: {namen}. In einer Szene stehen nur "
+    "Figuren aus dem Arbeitsstand - legt sie zuerst im Gespraech an."
 )
 #: Nur erreichbar, wenn ein Aufrufer ``behandle()`` ohne ``klm`` benutzt --
 #: ein Programmierfehler, aber einer, der die Gruppe nicht ratlos lassen soll.
@@ -88,6 +105,9 @@ _TEXT_HILFE = (
     "/kernthema <text|aus> - Kernthema setzen, korrigieren oder wegnehmen\n"
     "/figur <name> entfernen - eine Figur wegnehmen\n"
     "/szene <auftrag> - eine Szene ausschreiben lassen\n"
+    "/szene <nummer> <feld> <wert> - ein Szenenfeld setzen "
+    "(form, ort, zeit, anlass, figuren, was_passiert, was_anders, "
+    "kernsaetze, ton, titel)\n"
     "/szene <nummer> entfernen - eine Szene wegnehmen\n"
     "/stand - zeigt, was ich mir bisher gemerkt habe\n"
     "/wortlaut [name|aus] - Originaltranskripte mitlesen\n"
@@ -104,7 +124,7 @@ BEFEHLE_LISTE = [
     {"command": "phase", "description": "Arbeitsphase zeigen oder umschalten"},
     {"command": "kernthema", "description": "Kernthema setzen, korrigieren oder wegnehmen"},
     {"command": "figur", "description": "Eine Figur entfernen"},
-    {"command": "szene", "description": "Eine Szene ausschreiben lassen oder entfernen"},
+    {"command": "szene", "description": "Szene planen, ausschreiben lassen oder entfernen"},
     {"command": "stand", "description": "Arbeitsstand anzeigen"},
     {"command": "wortlaut", "description": "Originaltranskripte mitlesen"},
     {"command": "hilfe", "description": "Wie der Bot funktioniert"},
@@ -331,6 +351,37 @@ def _befehl_hilfe(tg, e, chat_id: int) -> None:
     tg.sende(chat_id, _TEXT_HILFE.format(bot_name=e.bot_name))
 
 
+def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:
+    """``/szene <n> <feld> <wert>`` -- der deterministische Korrekturweg zu
+    den Szenenfeldern (05.09.2026), neben der Erkenner-art ``szene_planen``.
+
+    Liefert True, wenn der Text als Feldkorrektur gelesen wurde -- dann ist
+    der Befehl erledigt. Sonst False, und ``_befehl_szene`` macht mit dem
+    Entfernungs- und dem Schreibweg weiter.
+
+    Die Abgrenzung ist eng: der zweite Token muss ein bekannter Feldname sein
+    (``szene.FELD_ALIASE``). Alles andere ist ein Schreibauftrag -- "/szene 2
+    nochmal, aber kuerzer" darf nicht als Feld 'nochmal' enden."""
+    treffer = _SZENE_FELD.match(rest)
+    if treffer is None:
+        return False
+    feld = szene.feldname(treffer.group(2))
+    if feld is None:
+        return False
+    nummer, wert = int(treffer.group(1)), treffer.group(3).strip()
+    szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
+    if feld == "figuren":
+        ids = erkenner._figuren_aus_namen(conn, chat_id, wert)
+        if not ids:
+            tg.sende(chat_id, _TEXT_SZENE_FIGUR_UNBEKANNT.format(namen=wert))
+            return True
+        repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+    else:
+        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+    tg.sende(chat_id, szene.planungszeile(conn, repo.hole_szene(conn, szene_id)))
+    return True
+
+
 def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     """Der deterministische Weg zum Szenentext -- dasselbe Ziel wie die art
     ``szene_schreiben`` des Absichtserkenners, nur ohne Erkennungsrisiko.
@@ -344,6 +395,8 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     Abfuhr, wenn schon eine Szene fuer diese Gruppe laeuft."""
     if not rest:
         tg.sende(chat_id, _TEXT_SZENE_LEER)
+        return
+    if _setze_szenenfeld(conn, tg, chat_id, rest):
         return
     entfernung = _SZENE_ENTFERNEN.match(rest)
     if entfernung:

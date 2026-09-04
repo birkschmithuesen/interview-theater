@@ -159,17 +159,49 @@ CREATE TABLE IF NOT EXISTS figur (
   entfernt_am   TEXT                        -- gesetzt = weich geloescht (N3)
 );
 
+-- Eine Szene ist seit dem 05.09.2026 zuerst eine PLANUNG und erst danach ein
+-- Text (Birk, Ping-Pong 04.09. abends). Die Felder unten sind das, was die
+-- Gruppe entscheidet, bevor geschrieben wird; der Bot schlaegt sie alle vor
+-- (auch die Form), durchgesetzt wird nichts.
+--
+-- Pflicht fuer den Szenen-Aufruf sind form, ort, figuren und was_passiert
+-- (szene.PFLICHTFELDER, Sperre in T5); der Rest ist optional. Es gibt
+-- bewusst KEIN Feld "Funke" und keinen Konflikt je Szene -- eine Szene darf
+-- ein Lied sein.
 CREATE TABLE IF NOT EXISTS szene (
   id                INTEGER PRIMARY KEY,
   chat_id           INTEGER NOT NULL,
   nummer            INTEGER,
   titel             TEXT,
   kurzbeschreibung  TEXT,                   -- eine Zeile, geht immer mit
+  -- Dialog | Lied | Rap | Monolog | Chor | stumm (frei, aber diese Namen
+  -- bevorzugt). Entscheidet, welcher Formen-Block in den Szenen-Prompt geht
+  -- (prompts/formen/<form>.md).
+  form              TEXT,
+  ort               TEXT,
+  zeit              TEXT,                   -- Tageszeit, "danach", "am nächsten Morgen"
+  anlass            TEXT,                   -- warum sind sie hier
+  was_passiert      TEXT,                   -- 1-3 Sätze Handlung
+  was_anders        TEXT,                   -- was am Ende anders ist als am Anfang
+  kernsaetze        TEXT,                   -- Sätze, die wörtlich vorkommen sollen
+  ton               TEXT,                   -- Register: leise, komisch, harmonisch, hitzig
   volltext          TEXT,                   -- nur die zuletzt geänderte Szene geht mit
   geaendert_am      TEXT NOT NULL,
   entfernt_am       TEXT                    -- gesetzt = weich geloescht (N3)
 );
 CREATE INDEX IF NOT EXISTS idx_szene_aktuell ON szene(chat_id, geaendert_am DESC);
+
+-- Wer in einer Szene vorkommt: nur Figuren aus dem Arbeitsstand, deshalb eine
+-- Verknuepfung und keine Namensliste in einem Textfeld. Eine weich geloeschte
+-- Figur verschwindet damit von selbst aus jeder Szene (repo.szene_figuren
+-- filtert ueber figur.entfernt_am), ohne dass irgendwo aufgeraeumt werden
+-- muesste.
+CREATE TABLE IF NOT EXISTS szene_figur (
+  chat_id    INTEGER NOT NULL,
+  szene_id   INTEGER NOT NULL,
+  figur_id   INTEGER NOT NULL,
+  PRIMARY KEY (szene_id, figur_id)
+);
 
 CREATE TABLE IF NOT EXISTS journal (
   id                INTEGER PRIMARY KEY,
@@ -225,6 +257,7 @@ TABELLEN_MIT_CHAT_ID = (
     "arbeitsstand",
     "figur",
     "szene",
+    "szene_figur",
     "journal",
     "vorfall",
     "aufruf",

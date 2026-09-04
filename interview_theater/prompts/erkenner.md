@@ -15,7 +15,7 @@ Zwei Ausnahmen, und nur diese beiden: **szene_schreiben** (loest einen
 minutenlangen Schreibauftrag aus) und **entfernen** (nimmt etwas weg). Dort
 gilt weiterhin: im Zweifel kein Eintrag.
 
-Du erkennst genau achtzehn Arten von Aenderungen. Jede Aenderung ist ein Objekt
+Du erkennst genau neunzehn Arten von Aenderungen. Jede Aenderung ist ein Objekt
 mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
@@ -58,12 +58,31 @@ mit "art" und "wert":
     abgelehnt, gestrichen oder ausgeschlossen.
 14. entschieden            -- wert: wie bei verworfen. Die Gruppe hat etwas
     ausdruecklich festgelegt; es gilt ab jetzt.
-15. szene_schreiben        -- wert: der Auftrag in einem Satz, mit
+15. szene_planen           -- wert: die Angaben zu EINER Szene als ein
+    kompakter Text, die Teile durch "|" getrennt, die Szenennummer zuerst:
+
+        Szene 1 | form: Dialog | ort: Polizeikessel | figuren: Mira, Pola, Pal
+        | anlass: sie sind seit zwei Stunden eingekesselt | was_passiert: Pal
+        will raus, Mira haelt sie fest, Pola filmt
+
+    Erlaubte Schluessel, genau so geschrieben: **form** (Dialog, Lied, Rap,
+    Monolog, Chor, stumm), **ort**, **zeit** (Tageszeit, "danach", "am
+    naechsten Morgen"), **anlass** (warum sind sie hier), **figuren** (Namen
+    aus dem Arbeitsstand, mit Komma getrennt), **was_passiert** (1-3 Saetze
+    Handlung), **was_anders** (was am Ende anders ist als am Anfang),
+    **kernsaetze** (Saetze, die woertlich vorkommen sollen), **ton** (leise,
+    komisch, harmonisch, hitzig), **titel**.
+
+    **Nur was dasteht.** Nennt der Abschnitt bloss den Ort, schreibst du bloss
+    den Ort -- die uebrigen Felder bleiben, wie sie sind. Eine Szene entsteht
+    ueber mehrere Nachrichten hinweg, und jede darf die vorige ergaenzen statt
+    sie zu ersetzen. Nennt die Gruppe keine Nummer, laesst du sie weg.
+16. szene_schreiben        -- wert: der Auftrag in einem Satz, mit
     Szenennummer, wenn eine genannt wird ("Szene 2: Maria kommt am Bahnhof
     an und trifft Elif"). Die Gruppe fordert DICH auf, jetzt einen
     Szenentext zu schreiben ("schreib uns die Szene", "mach daraus einen
     Dialog", "schreib Szene 3 nochmal, aber kuerzer").
-16. phase_setzen           -- wert: die Nummer oder der Kurzname der
+17. phase_setzen           -- wert: die Nummer oder der Kurzname der
     Arbeitsphase, bei der die Gruppe jetzt ist. Die sieben Phasen sind:
     1 Begriffe, 2 Fragen, 3 Interviews, 4 Kernthema & Figuren,
     5 Format & Rahmen, 6 Szenen, 7 Durchlauf. Die Gruppe sagt, woran sie jetzt
@@ -74,14 +93,14 @@ mit "art" und "wert":
     Kernthema" und "machen wir Kernthema und Figuren zusammen" setzen alle
     dieselbe 4. Format & Rahmen ist die naechste (5); "wir sind beim
     Konflikt" meint ebenfalls diese 5.
-17. entfernen              -- wert: was weg soll, beginnend mit dem Ziel:
+18. entfernen              -- wert: was weg soll, beginnend mit dem Ziel:
     "Figur Peter", "Kernthema", "Format", "Rahmen", "Hauptkonflikt",
     "Begriffe", "Fragen", "Szene 2", "Journal: Kindheitsfragen". Die Gruppe
     nimmt etwas ausdruecklich wieder zurueck ("die Figur Peter kannst du
     rausnehmen", "das Kernthema stimmt nicht mehr, weg damit", "Szene 2
     streichen wir", "nimm die Notiz zu den Kindheitsfragen raus" -> "Journal:
     Kindheitsfragen").
-18. an_den_bot             -- wert: leer (""). **Gilt nur im Sonderfall
+19. an_den_bot             -- wert: leer (""). **Gilt nur im Sonderfall
     unten**, also nur, wenn du das Transkript einer Sprachnachricht aus einem
     laufenden Interview bekommst. Diese eine Aufnahme war nicht an die
     interviewte Person gerichtet, sondern an DICH: "zeig mir die
@@ -143,6 +162,16 @@ machen wir noch Figuren", "die Szenen kommen morgen", "wie viele Phasen gibt
 es eigentlich" aendern nichts. Ein Zeitplan ("heute noch die Figuren fertig,
 morgen Szenen") nennt zwei Phasen und setzt keine: er sagt nicht, woran JETZT
 gearbeitet wird.
+
+Abgrenzung "szene_planen" gegen "szene_schreiben": **planen ist sagen, was in
+der Szene ist -- schreiben ist der Auftrag, den Text zu machen.** "Alle drei
+sind auf der Demo, im Polizeikessel" ist eine Planung. "Mach jetzt den Text
+dazu" ist ein Auftrag. Beides in einer Nachricht ergibt beide Arten. Anders
+als szene_schreiben ist szene_planen **billig**: es traegt Felder ein, die
+die Gruppe mit einem Satz aendern kann. Deshalb gilt hier der Leitsatz oben --
+im Zweifel eintragen. Ueber eine Szene zu reden, die es noch nicht gibt
+("irgendwann brauchen wir eine Szene auf der Demo"), ist trotzdem keine
+Planung: es muss eine Angabe zu einer bestimmten Szene sein.
 
 Abgrenzung "szene_schreiben": nur bei einem klaren Auftrag an dich, jetzt zu
 schreiben. Wenn die Gruppe ueber Szenen redet, welche sie braucht, in welcher
@@ -385,6 +414,28 @@ und trifft Elif
 <ausgabe>
 {"aenderungen": [
   {"art": "szene_schreiben", "wert": "Szene 2: Maria kommt am Bahnhof an und trifft Elif zum ersten Mal"}
+]}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Arbeitsstand:
+Kernthema: Ankommen
+Format: Musical: Dialog, Lied, Rap
+Figur Mira: kam mit 19 her
+Figur Pola: war auf jeder Demo
+Figur Pal: filmt alles mit
+
+Neue Nachrichten:
+Sara: also Szene 1: alle drei sind auf der Demo, Palaestina-Demo,
+Polizeikessel
+Mert: die stehen da seit zwei Stunden und kommen nicht raus
+Ayse: gesprochen, nicht gesungen -- das Lied kommt spaeter
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "szene_planen", "wert": "Szene 1 | form: Dialog | ort: Polizeikessel auf einer Palaestina-Demo | figuren: Mira, Pola, Pal | anlass: sie stehen seit zwei Stunden im Kessel und kommen nicht raus"}
 ]}
 </ausgabe>
 </beispiel>

@@ -184,6 +184,74 @@ def test_ueber_dem_deckel_ruecken_verdichtungen_an_die_stelle_der_transkripte(co
 
 
 # ---------------------------------------------------------------------------
+# Szenenplanung (T2): die Felder, die vor dem Text feststehen
+# ---------------------------------------------------------------------------
+
+
+def test_zerlege_planung_liest_nummer_und_felder():
+    nummer, felder = szene.zerlege_planung(
+        "Szene 1 | form: Dialog | ort: Polizeikessel | figuren: Mira, Pola, Pal "
+        "| was_passiert: Pal will raus, Mira haelt sie fest"
+    )
+
+    assert nummer == 1
+    assert felder == {
+        "form": "Dialog",
+        "ort": "Polizeikessel",
+        "figuren": "Mira, Pola, Pal",
+        "was_passiert": "Pal will raus, Mira haelt sie fest",
+    }
+
+
+def test_zerlege_planung_nennt_nur_was_dasteht():
+    """Die Regel, an der die Planung haengt: ein spaeterer Lauf traegt einzelne
+    Felder nach, ohne die frueheren zu ueberschreiben."""
+    nummer, felder = szene.zerlege_planung("Szene 2 | ton: leise")
+
+    assert nummer == 2
+    assert felder == {"ton": "leise"}
+
+
+def test_zerlege_planung_ohne_nummer_und_mit_aliasen():
+    nummer, felder = szene.zerlege_planung("wer: Mira, Pola | handlung: sie warten")
+
+    assert nummer is None
+    assert felder == {"figuren": "Mira, Pola", "was_passiert": "sie warten"}
+
+
+def test_zerlege_planung_uebergeht_leere_werte():
+    """Ein leerer Wert heisst 'nicht genannt', nicht 'loeschen' -- weggenommen
+    wird ausschliesslich ueber ``entfernen``."""
+    assert szene.zerlege_planung("Szene 1 | ort:  | form: Lied") == (1, {"form": "Lied"})
+
+
+def test_zerlege_planung_vertraegt_muell():
+    assert szene.zerlege_planung("") == (None, {})
+    assert szene.zerlege_planung("irgendwas ohne Struktur") == (None, {})
+
+
+def test_planungszeile_nennt_nummer_form_ort_und_besetzung(conn):
+    repo.setze_figur(conn, 1, "Mira", "kam mit 19 her")
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
+    repo.setze_szenenfeld(conn, szene_id, "ort", "Polizeikessel")
+    repo.setze_szene_figuren(
+        conn, 1, szene_id, [f["id"] for f in repo.figuren(conn, 1)]
+    )
+
+    zeile = szene.planungszeile(conn, repo.hole_szene(conn, szene_id))
+
+    assert zeile == "Szene 1 · Dialog · Polizeikessel · Mira, Pola"
+
+
+def test_planungszeile_laesst_weg_was_fehlt(conn):
+    szene_id = repo.stelle_szene_sicher(conn, 1, 4)
+
+    assert szene.planungszeile(conn, repo.hole_szene(conn, szene_id)) == "Szene 4"
+
+
+# ---------------------------------------------------------------------------
 # Antwort lesen
 # ---------------------------------------------------------------------------
 

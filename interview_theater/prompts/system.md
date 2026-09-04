@@ -114,6 +114,10 @@ oder fragt nach:
 - `/kernthema <Text>` -- setzt oder korrigiert das Kernthema direkt.
 - `/szene <Auftrag>` -- laesst dich eine Szene ausschreiben; das laeuft im
   Hintergrund und dauert ein paar Minuten.
+- `/szene <Nummer> <Feld> <Wert>` -- korrigiert ein einzelnes Szenenfeld
+  (form, ort, zeit, anlass, figuren, was_passiert, was_anders, kernsaetze,
+  ton, titel). Was die Gruppe im Gespraech ueber eine Szene sagt, wird
+  ohnehin notiert; der Befehl ist der Weg fuer eine Korrektur.
 - `/stand` -- zeigt der Gruppe den aktuellen Arbeitsstand, ohne dass du
   gefragt werden musst.
 - `/hilfe` -- erklaert die Bedienung.

@@ -169,6 +169,131 @@ def nummer_aus_auftrag(auftrag: str) -> int | None:
     return int(treffer.group(1)) if treffer else None
 
 
+# ---------------------------------------------------------------------------
+# Szenenplanung: die Felder, die vor dem Text feststehen
+# ---------------------------------------------------------------------------
+
+#: Ohne diese vier wird **nicht geschrieben** (Sperre, T5): ohne Form weiss
+#: das Modell nicht, ob Dialog oder Lied; ohne Ort, Besetzung und Handlung
+#: erfindet es welche -- genau das ist im Probelauf passiert (Kueche statt
+#: Demo, NINA und MORITZ statt Mira, Pola und Pal). ``figuren`` steht dabei
+#: fuer die Verknuepfung, nicht fuer eine Spalte.
+PFLICHTFELDER = ("form", "ort", "figuren", "was_passiert")
+
+#: Wie ein Feld in einer Nachricht an die Gruppe heisst.
+FELDNAMEN = {
+    "form": "Form",
+    "ort": "Ort",
+    "zeit": "Zeit",
+    "anlass": "Anlass",
+    "figuren": "Wer",
+    "was_passiert": "Was passiert",
+    "was_anders": "Was anders ist",
+    "kernsaetze": "Kernsaetze",
+    "ton": "Ton",
+    "titel": "Titel",
+    "kurzbeschreibung": "Kurz",
+}
+
+#: Schluessel, unter denen ein Feld in einer ``szene_planen``-Angabe stehen
+#: darf. Der Prompt schreibt die Spaltennamen vor; die Aliase daneben kosten
+#: nichts und fangen die naheliegenden Varianten ab, bevor ein ganzes Feld
+#: stillschweigend verloren geht.
+FELD_ALIASE = {
+    "form": "form",
+    "ort": "ort",
+    "orte": "ort",
+    "zeit": "zeit",
+    "anlass": "anlass",
+    "figuren": "figuren",
+    "figur": "figuren",
+    "wer": "figuren",
+    "was_passiert": "was_passiert",
+    "was passiert": "was_passiert",
+    "passiert": "was_passiert",
+    "handlung": "was_passiert",
+    "was_anders": "was_anders",
+    "was anders": "was_anders",
+    "anders": "was_anders",
+    "kernsaetze": "kernsaetze",
+    "kernsätze": "kernsaetze",
+    "kernsatz": "kernsaetze",
+    "ton": "ton",
+    "titel": "titel",
+    "kurz": "kurzbeschreibung",
+    "kurzbeschreibung": "kurzbeschreibung",
+}
+
+#: Trennt die Angaben einer Planung. Bewusst die Pipe und nicht das Komma:
+#: in "figuren: Mira, Pola, Pal" und in einem Handlungssatz stehen Kommas.
+PLANUNG_TRENNER = "|"
+
+#: "Szene 1", "szene nr. 2", "2" -- der Kopf einer Planungsangabe.
+_PLANUNG_NUMMER = re.compile(r"^\s*(?:szene\s*(?:nr\.?|nummer)?\s*)?(\d{1,3})\s*$",
+                             re.IGNORECASE)
+
+
+def feldname(wort: str) -> str | None:
+    """Uebersetzt ein Wort in einen Szenenfeldnamen, oder None.
+
+    Die eine Stelle, an der ``FELD_ALIASE`` ausgewertet wird -- der Befehl
+    ``/szene <n> <feld> <wert>`` und die Erkennerangabe ``szene_planen``
+    sollen dieselben Woerter verstehen."""
+    return FELD_ALIASE.get((wort or "").strip().lower())
+
+
+def zerlege_planung(wert: str) -> tuple[int | None, dict[str, str]]:
+    """Liest eine ``szene_planen``-Angabe: ``"Szene 1 | form: Dialog | ort:
+    Polizeikessel | figuren: Mira, Pola | was_passiert: ..."``.
+
+    Liefert ``(nummer, felder)``. ``nummer`` ist None, wenn keine genannt
+    wurde -- der Aufrufer entscheidet dann, welche Szene gemeint ist. In
+    ``felder`` steht nur, was **dasteht**: ein fehlender Schluessel bleibt
+    unberuehrt, damit ein spaeterer Lauf einzelne Felder nachtragen kann, ohne
+    die frueheren zu loeschen. Ein leerer Wert zaehlt dabei als "nicht
+    genannt" und nicht als "loeschen" -- weggenommen wird ausschliesslich ueber
+    ``entfernen``.
+
+    ``figuren`` bleibt hier ein roher String; wer daraus Figuren macht, muss
+    den Arbeitsstand kennen (``erkenner._wende_szene_planen_an``)."""
+    felder: dict[str, str] = {}
+    nummer = None
+    for teil in (wert or "").split(PLANUNG_TRENNER):
+        teil = teil.strip()
+        if not teil:
+            continue
+        kopf, trenner, rest = teil.partition(":")
+        schluessel = feldname(kopf)
+        if trenner and schluessel:
+            if rest.strip():
+                felder[schluessel] = rest.strip()
+            continue
+        # Kein bekanntes Feld: dann ist es der Kopf mit der Szenennummer.
+        treffer = _PLANUNG_NUMMER.match(teil.split(":", 1)[0])
+        if treffer and nummer is None:
+            nummer = int(treffer.group(1))
+    return nummer, felder
+
+
+def planungszeile(conn, zeile) -> str:
+    """Eine Szenenplanung in einer Zeile, fuer eine Nachricht an die Gruppe:
+    ``"Szene 1 · Dialog · Polizeikessel · Mira, Pola, Pal"``.
+
+    Nur die Felder, die es gibt -- datengetrieben wie alles andere. Sie ist
+    absichtlich kuerzer als der Prompt-Block aus ``_diese_szene_text``: im
+    Chat soll die Gruppe auf einen Blick erkennen, welche Szene gemeint ist,
+    nicht die ganze Planung noch einmal lesen."""
+    nummer = zeile["nummer"]
+    stuecke = [f"Szene {nummer}" if nummer is not None else "Szene"]
+    for feld in ("form", "ort"):
+        if zeile[feld]:
+            stuecke.append(zeile[feld])
+    namen = [f["name"] for f in repo.szene_figuren(conn, zeile["id"])]
+    if namen:
+        stuecke.append(", ".join(namen))
+    return " · ".join(stuecke)
+
+
 def _szene_mit_nummer(szenen, nummer: int | None):
     if nummer is None:
         return None

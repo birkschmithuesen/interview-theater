@@ -160,8 +160,11 @@ def test_schema_kennt_kein_maxitems():
     assert "maxItems" not in str(erkenner.SCHEMA)
 
 
-def test_arten_enthaelt_alle_achtzehn_werte():
+def test_arten_enthaelt_alle_neunzehn_werte():
     erwartet = {
+        # Eine Szene wird seit dem 05.09.2026 zuerst geplant und erst danach
+        # geschrieben -- zwei Arten fuer zwei verschiedene Dinge.
+        "szene_planen",
         "interview_starten", "interview_beenden", "interview_benennen",
         "begriffe_setzen", "fragen_setzen", "kernthema_setzen",
         # Phase 5 heisst seit dem 05.09.2026 "Format & Rahmen": zwei neue
@@ -187,7 +190,7 @@ def test_an_den_bot_gilt_nur_aus_einer_aufnahme(conn, einst):
     assert erkenner.baue_meldung(wirkliche) is None
 
 
-def test_prompt_enthaelt_vierzehn_beispiele_davon_vier_leer():
+def test_prompt_enthaelt_fuenfzehn_beispiele_davon_vier_leer():
     """Grober Regressionsschutz gegen einen versehentlich verkuerzten Prompt.
 
     Die Rechercheempfehlung lautete auf 5 Few-Shot-Beispiele, davon 2 leer.
@@ -212,10 +215,15 @@ def test_prompt_enthaelt_vierzehn_beispiele_davon_vier_leer():
     05.09.2026): eines, das ``format_setzen`` und ``rahmen_setzen`` in einem
     Abschnitt zeigt (die Gruppe entscheidet beides oft in einem Zug), und sein
     Negativfall -- "vielleicht wird das ja ein Musical" setzt kein Format.
-    Damit sind es vier leere Beispiele."""
+    Damit sind es vier leere Beispiele.
+
+    Das fuenfzehnte zeigt ``szene_planen`` gegen ``szene_schreiben``: Ort,
+    Besetzung und Anlass einer Szene sind eine Planung, kein Schreibauftrag.
+    Ohne dieses Beispiel gingen genau die Angaben verloren, wegen denen der
+    Probelauf eine Kueche statt eines Polizeikessels lieferte."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 14
+    assert anzahl_beispiele == 15
     assert anzahl_leer == 4
 
 
@@ -881,6 +889,107 @@ def test_format_steht_im_erkenner_kontext(conn, einst):
 
     assert "Format: Musical: Dialog, Lied, Rap" in text
     assert "Rahmen: Eine Nacht im Treppenhaus" in text
+
+
+def test_szene_planen_legt_die_szene_an_und_setzt_die_felder(conn, einst):
+    repo.setze_figur(conn, 1, "Mira", "kam mit 19 her")
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{
+        "art": "szene_planen",
+        "wert": "Szene 1 | form: Dialog | ort: Polizeikessel | figuren: Mira, Pola "
+                "| was_passiert: sie kommen nicht raus",
+    }])
+
+    zeile = repo.hole_szenen(conn, 1)[0]
+    assert (zeile["nummer"], zeile["form"], zeile["ort"]) == (1, "Dialog", "Polizeikessel")
+    assert zeile["was_passiert"] == "sie kommen nicht raus"
+    assert [f["name"] for f in repo.szene_figuren(conn, zeile["id"])] == ["Mira", "Pola"]
+    assert wirkliche[0]["wert"] == "Szene 1 · Dialog · Polizeikessel · Mira, Pola"
+    assert "Szene 1 · Dialog" in erkenner.baue_meldung(wirkliche)
+
+
+def test_szene_planen_traegt_nach_ohne_zu_ueberschreiben(conn, einst):
+    """Die Regel aus Birks Ping-Pong: eine Szene entsteht ueber mehrere
+    Nachrichten hinweg, und jede ergaenzt die vorige."""
+    repo.setze_figur(conn, 1, "Mira", "kam mit 19 her")
+    erkenner.wende_an(conn, einst, 1, [{
+        "art": "szene_planen",
+        "wert": "Szene 1 | form: Dialog | ort: Polizeikessel | figuren: Mira",
+    }])
+
+    erkenner.wende_an(conn, einst, 1, [{
+        "art": "szene_planen",
+        "wert": 'Szene 1 | kernsaetze: "Trump macht daraus eine Riviera"',
+    }])
+
+    zeile = repo.hole_szenen(conn, 1)[0]
+    assert zeile["ort"] == "Polizeikessel"
+    assert zeile["form"] == "Dialog"
+    assert zeile["kernsaetze"] == '"Trump macht daraus eine Riviera"'
+    assert [f["name"] for f in repo.szene_figuren(conn, zeile["id"])] == ["Mira"]
+
+
+def test_szene_planen_nimmt_nur_figuren_aus_dem_arbeitsstand(conn, einst):
+    """Birk 05.09.2026: eine Szene wird nur mit Figuren besetzt, die es gibt.
+    Im Probelauf standen sonst NINA und MORITZ im Text, die nie jemand
+    entwickelt hatte."""
+    repo.setze_figur(conn, 1, "Mira", "kam mit 19 her")
+
+    erkenner.wende_an(conn, einst, 1, [{
+        "art": "szene_planen", "wert": "Szene 1 | figuren: Mira, Nina, Moritz",
+    }])
+
+    szene_id = repo.hole_szenen(conn, 1)[0]["id"]
+    assert [f["name"] for f in repo.szene_figuren(conn, szene_id)] == ["Mira"]
+    assert [f["name"] for f in repo.figuren(conn, 1)] == ["Mira"]
+
+
+def test_szene_planen_laesst_die_besetzung_stehen_wenn_niemand_passt(conn, einst):
+    """Eine Besetzung zu leeren waere die schlechtere Fehlerrichtung -- eine
+    leere Besetzung meldet ohnehin die Sperre vor dem Szenen-Aufruf."""
+    repo.setze_figur(conn, 1, "Mira", "kam mit 19 her")
+    erkenner.wende_an(conn, einst, 1, [
+        {"art": "szene_planen", "wert": "Szene 1 | figuren: Mira"},
+    ])
+
+    erkenner.wende_an(conn, einst, 1, [
+        {"art": "szene_planen", "wert": "Szene 1 | figuren: Nina"},
+    ])
+
+    szene_id = repo.hole_szenen(conn, 1)[0]["id"]
+    assert [f["name"] for f in repo.szene_figuren(conn, szene_id)] == ["Mira"]
+
+
+def test_szene_planen_ohne_nummer_trifft_die_zuletzt_bearbeitete(conn, einst):
+    erkenner.wende_an(conn, einst, 1, [
+        {"art": "szene_planen", "wert": "Szene 3 | ort: Kueche"},
+    ])
+
+    erkenner.wende_an(conn, einst, 1, [
+        {"art": "szene_planen", "wert": "ton: leise"},
+    ])
+
+    szenen = repo.hole_szenen(conn, 1)
+    assert len(szenen) == 1
+    assert (szenen[0]["nummer"], szenen[0]["ton"]) == (3, "leise")
+
+
+def test_szene_planen_ohne_inhalt_aendert_nichts(conn, einst):
+    assert erkenner.wende_an(conn, einst, 1, [{"art": "szene_planen", "wert": ""}]) == []
+    assert repo.hole_szenen(conn, 1) == []
+
+
+def test_szene_planen_mit_demselben_wert_ist_keine_aenderung(conn, einst):
+    erkenner.wende_an(conn, einst, 1, [
+        {"art": "szene_planen", "wert": "Szene 1 | ort: Kueche"},
+    ])
+
+    wirkliche = erkenner.wende_an(conn, einst, 1, [
+        {"art": "szene_planen", "wert": "Szene 1 | ort: Kueche"},
+    ])
+
+    assert wirkliche == []
 
 
 def test_entfernen_leert_kernthema_samt_begruendung(conn, einst):

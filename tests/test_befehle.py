@@ -509,6 +509,32 @@ def test_szene_schreibauftrag_bleibt_ein_schreibauftrag(conn, einst, tg, monkeyp
     assert len(repo.hole_szenen(conn, 1)) == 1
 
 
+def test_szene_feld_setzt_ein_einzelnes_szenenfeld(conn, einst, tg):
+    """``/szene <n> <feld> <wert>`` -- der Korrekturweg zu den Szenenfeldern
+    (05.09.2026), neben der Erkenner-art ``szene_planen``."""
+    befehle.behandle(conn, tg, einst, 1, "/szene 1 ort Polizeikessel", "Ada")
+
+    zeile = repo.hole_szenen(conn, 1)[0]
+    assert (zeile["nummer"], zeile["ort"]) == (1, "Polizeikessel")
+    assert tg.gesendet[0][1] == "Szene 1 · Polizeikessel"
+
+
+def test_szene_feld_besetzt_nur_mit_bekannten_figuren(conn, einst, tg):
+    repo.setze_figur(conn, 1, "Mira", "kam mit 19 her")
+
+    befehle.behandle(conn, tg, einst, 1, "/szene 1 figuren Mira, Nina", "Ada")
+
+    szene_id = repo.hole_szenen(conn, 1)[0]["id"]
+    assert [f["name"] for f in repo.szene_figuren(conn, szene_id)] == ["Mira"]
+
+
+def test_szene_feld_mit_lauter_unbekannten_figuren_sagt_das(conn, einst, tg):
+    befehle.behandle(conn, tg, einst, 1, "/szene 1 figuren Nina, Moritz", "Ada")
+
+    assert "kenne ich nicht" in tg.gesendet[0][1]
+    assert repo.szene_figuren(conn, repo.hole_szenen(conn, 1)[0]["id"]) == []
+
+
 def test_kernthema_aus_leert_das_kernthema(conn, einst, tg):
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
 

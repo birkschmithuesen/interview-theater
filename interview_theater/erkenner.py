@@ -86,6 +86,11 @@ ARTEN = (
     "wortlaut_aus",
     "verworfen",
     "entschieden",
+    # Seit 05.09.2026: eine Szene wird zuerst GEPLANT und erst danach
+    # geschrieben. Diese art traegt die Felder nach (form, ort, zeit, anlass,
+    # figuren, was_passiert, was_anders, kernsaetze, ton) -- einzeln, so dass
+    # ein spaeterer Lauf ergaenzen kann, ohne Frueheres zu ueberschreiben.
+    "szene_planen",
     # Faellt aus der Reihe: die einzige art, die keinen Arbeitsstand
     # veraendert, sondern eine Handlung anstoesst (interview_theater/szene.py).
     # Deshalb hat sie in _wende_eine_an bewusst keinen Schreibpfad und wird
@@ -443,6 +448,82 @@ def _wende_figur_an(conn, chat_id: int, wert: str) -> dict | None:
     return {"art": "figur_setzen", "wert": name}
 
 
+def _figuren_aus_namen(conn, chat_id: int, namen: str) -> list[int]:
+    """Uebersetzt "Mira, Pola, Pal" in Figur-ids -- **nur Figuren aus dem
+    Arbeitsstand** (Birk 05.09.2026: "wenn Figuren fehlen, darf die Szene gar
+    nicht erstellt werden").
+
+    Ein unbekannter Name wird stillschweigend uebergangen und nicht angelegt:
+    eine Figur entsteht im Gespraech (``figur_setzen``), mit Beschreibung und
+    Sprachprofil. Eine, die nur in einer Szenenzeile vorkaeme, haette weder
+    das eine noch das andere -- und genau daraus sind im Probelauf NINA und
+    MORITZ geworden.
+
+    Namensvergleich wie in ``repo.setze_figur``: getrimmt, kleingeschrieben,
+    kein Teiltreffer."""
+    vorhandene = {f["name"].strip().lower(): f["id"] for f in repo.figuren(conn, chat_id)}
+    ids = []
+    for name in (namen or "").split(","):
+        figur_id = vorhandene.get(name.strip(" .;").lower())
+        if figur_id is not None:
+            ids.append(figur_id)
+    return ids
+
+
+def _wende_szene_planen_an(conn, chat_id: int, wert: str) -> dict | None:
+    """Traegt die genannten Szenenfelder ein (art ``szene_planen``,
+    05.09.2026).
+
+    **Feld fuer Feld, nie als Ganzes**: was der Abschnitt nicht nennt, bleibt
+    stehen. Die Gruppe entscheidet eine Szene selten in einem Satz -- erst der
+    Ort, dann wer dabei ist, zwei Nachrichten spaeter ein Kernsatz --, und
+    jeder dieser Schritte soll den vorigen ergaenzen statt ihn zu loeschen.
+
+    Ohne genannte Nummer trifft es die zuletzt bearbeitete Szene
+    (``hole_letzte_szene``, dieselbe Regel wie im Gespraechs-Prompt: das ist
+    die, um die es gerade geht); gibt es noch keine, entsteht Szene 1.
+
+    Liefert None, wenn nichts Verwertbares dastand -- dann wurde nichts
+    geschrieben und nichts gemeldet."""
+    from interview_theater import szene  # spaeter Import, haelt den Modulkopf frei
+
+    nummer, felder = szene.zerlege_planung(wert)
+    if not felder and nummer is None:
+        return None
+
+    if nummer is None:
+        letzte = repo.hole_letzte_szene(conn, chat_id)
+        nummer = letzte["nummer"] if letzte is not None and letzte["nummer"] else 1
+    szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
+
+    geaendert = []
+    for feld, neuer_wert in felder.items():
+        if feld == "figuren":
+            ids = _figuren_aus_namen(conn, chat_id, neuer_wert)
+            # Keine bekannte Figur getroffen: die Besetzung bleibt, wie sie
+            # war. Sie zu leeren waere die schlechtere Fehlerrichtung -- die
+            # Sperre (szene.fehlendes) meldet eine leere Besetzung ohnehin.
+            if not ids:
+                continue
+            vorher = [f["id"] for f in repo.szene_figuren(conn, szene_id)]
+            if vorher == ids:
+                continue
+            repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+            geaendert.append("figuren")
+            continue
+        if (repo.hole_szene(conn, szene_id)[feld] or "") == neuer_wert:
+            continue
+        repo.setze_szenenfeld(conn, szene_id, feld, neuer_wert)
+        geaendert.append(feld)
+
+    if not geaendert:
+        return None
+    return {
+        "art": "szene_planen",
+        "wert": szene.planungszeile(conn, repo.hole_szene(conn, szene_id)),
+    }
+
+
 def _wende_journal_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     """``verworfen``/``entschieden`` haengen eine Journalzeile an -- nie in
     den Arbeitsstand (SPEC § 4.3: 'Journaleintraege fallen hier mit ab').
@@ -686,6 +767,8 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_arbeitsstand_an(conn, chat_id, art, wert)
     if art == "figur_setzen":
         return _wende_figur_an(conn, chat_id, wert)
+    if art == "szene_planen":
+        return _wende_szene_planen_an(conn, chat_id, wert)
     if art in ("verworfen", "entschieden"):
         return _wende_journal_an(conn, chat_id, art, wert)
     if art == "wortlaut_an":
@@ -795,6 +878,7 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     begriffe = None
     fragen = None
     figuren_namen = []
+    geplant = []
     phase_gesetzt = None
     entfernt = []
     for aenderung in wirkliche_aenderungen:
@@ -814,6 +898,8 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
             fragen = wert
         elif art == "figur_setzen":
             figuren_namen.append(wert)
+        elif art == "szene_planen":
+            geplant.append(wert)
         elif art == "phase_setzen":
             phase_gesetzt = phasen.nummer_fuer(wert)
         elif art == "entfernen":
@@ -838,6 +924,11 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
         zeilen.append(f"Begriffe: {begriffe}")
     if fragen:
         zeilen.append(f"Fragen: {fragen}")
+    # Eine geplante Szene bekommt ihre Kurzzeile ("Szene 1 · Dialog ·
+    # Polizeikessel · Mira, Pola"): die Gruppe soll sehen, welche Szene
+    # gemeint ist, ohne die ganze Planung noch einmal zu lesen.
+    for zeile in geplant:
+        zeilen.append(zeile)
     # Entfernungen stehen in derselben Meldung wie alles andere -- eine
     # Nachricht je Erkennerlauf bleibt die Regel (SPEC § 4.3). Sie tragen ihr
     # eigenes Verb, damit niemand "Notiert:" liest und denkt, es sei etwas

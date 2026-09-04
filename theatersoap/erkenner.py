@@ -4,8 +4,9 @@ Schliesst die Luecke, die Teil A offen liess: ``kontext.py`` liest
 ``arbeitsstand``, ``figur`` und ``journal`` in den Prompt, aber vor Teil B
 schrieb sie niemand. ``erkenne()`` erkennt Aenderungsabsichten im Gespraech,
 ``wende_an()`` schreibt sie in Arbeitsstand, Figuren, Journal und Schalter
-(Aufgabe 3). Die Meldung an die Gruppe kommt in einer spaeteren Aufgabe
-(Aufgabe 4, ``baue_meldung``).
+(Aufgabe 3), ``baue_meldung()`` fasst die tatsaechlich wirksamen Aenderungen
+zu hoechstens einer Nachricht je Lauf zusammen (Aufgabe 4), und ``laufe()``
+kapselt alle drei Schritte fuer den Aufrufer aus dem Hintergrund-Pool.
 
 Laeuft nachgelagert, nachdem die Bot-Antwort in der Gruppe steht. Niemand
 wartet darauf (SPEC § 4.3): Modell ``google/gemma-4-31B-it``, erzwungenes
@@ -389,3 +390,96 @@ def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
         if ergebnis is not None:
             wirkliche.append(ergebnis)
     return wirkliche
+
+
+#: Zahlwoerter fuer die zusammenfassende Figuren-Zeile der Meldung (Aufgabe
+#: 4) -- reicht bis MAX_AENDERUNGEN, weil in einem einzelnen Erkennerlauf nie
+#: mehr als fuenf Aenderungen (und damit hoechstens fuenf figur_setzen)
+#: vorkommen koennen.
+_FIGUREN_ZAHLWORT = {2: "zwei", 3: "drei", 4: "vier", 5: "fuenf"}
+
+
+def _figuren_zeile(namen: list[str]) -> str:
+    liste = ", ".join(namen)
+    if len(namen) == 1:
+        return f"eine Figur: {liste}"
+    zahlwort = _FIGUREN_ZAHLWORT.get(len(namen), str(len(namen)))
+    return f"{zahlwort} Figuren: {liste}"
+
+
+def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
+    """Baut die eine Meldung je Erkennerlauf (SPEC § 4.3, teil-b.md Aufgabe
+    4) -- nicht eine je Aenderung.
+
+    Kernthema und Hauptkonflikt bekommen je eine eigene Zeile im Wortlaut,
+    Figuren eine zusammenfassende Zeile mit Namen, Begriffe eine Zeile.
+    Journaleintraege (``verworfen``/``entschieden``) sowie Schalter,
+    Interviewmodus und Umbenennungen bleiben still -- sonst waere der Chat
+    zugespammt und die Meldungen wuerden ueberlesen. Gab es keine Aenderung
+    am Arbeitsstand, gibt es keine Meldung: ``None``."""
+    kernthema = None
+    hauptkonflikt = None
+    begriffe = None
+    figuren_namen = []
+    for aenderung in wirkliche_aenderungen:
+        art = aenderung.get("art")
+        wert = aenderung.get("wert", "")
+        if art == "kernthema_setzen":
+            kernthema = wert
+        elif art == "hauptkonflikt_setzen":
+            hauptkonflikt = wert
+        elif art == "begriffe_setzen":
+            begriffe = wert
+        elif art == "figur_setzen":
+            figuren_namen.append(wert)
+        # verworfen/entschieden/wortlaut_an/wortlaut_aus/interview_benennen:
+        # bewusst ignoriert, bleiben still (Aufgabe 4).
+
+    zeilen = []
+    if kernthema:
+        zeilen.append(f"Kernthema: {kernthema}")
+    if hauptkonflikt:
+        zeilen.append(f"Hauptkonflikt: {hauptkonflikt}")
+    if figuren_namen:
+        zeilen.append(_figuren_zeile(figuren_namen))
+    if begriffe:
+        zeilen.append(f"Begriffe: {begriffe}")
+
+    if not zeilen:
+        return None
+
+    zeilen.append("Falls das nicht stimmt, sagt es mir.")
+    return "Notiert:\n" + "\n".join(zeilen)
+
+
+def laufe(klm, tg, conn, e, chat_id: int) -> None:
+    """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
+    melden (teil-b.md Aufgabe 4). Laeuft nachgelagert, nachdem die
+    Bot-Antwort in der Gruppe steht (SPEC § 4.3) -- niemand wartet darauf,
+    und ein Fehlschlag bleibt fuer die Gruppe unsichtbar, genau wie
+    ``ablauf.antworte`` es fuer den Gespraechszug haelt: geloggt und als
+    ``vorfall`` vermerkt, nie eine zusaetzliche Fehlermeldung im Chat."""
+    try:
+        aenderungen = erkenne(klm, conn, e, chat_id)
+        if not aenderungen:
+            return
+        wirkliche = wende_an(conn, e, chat_id, aenderungen)
+        text = baue_meldung(wirkliche)
+        if text is None:
+            return
+        message_id = tg.sende(chat_id, text)
+        # Wie ablauf.antworte: die gesendete Meldung wird als Bot-Nachricht
+        # mitgeschrieben, damit sie im naechsten Verlaufsfenster steht.
+        repo.merke_nachricht(
+            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
+            text, repo._jetzt(),
+        )
+    except Exception:
+        log.exception("Erkenner-Nachlauf fehlgeschlagen, chat_id=%s", chat_id)
+        repo.merke_vorfall(
+            conn,
+            chat_id,
+            getattr(e, "bot_name", None),
+            "erkenner_nachlauf_fehler",
+            "Erkenner-Nachlauf (anwenden/melden) fehlgeschlagen",
+        )

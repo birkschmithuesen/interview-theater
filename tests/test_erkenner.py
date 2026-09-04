@@ -359,3 +359,122 @@ def test_eine_fehlerhafte_aenderung_reisst_die_anderen_nicht_mit(conn, einst):
     assert len(wirkliche) == 2
     zeile = conn.execute("SELECT art FROM vorfall WHERE chat_id = 1").fetchone()
     assert zeile is not None
+
+
+# ---------------------------------------------------------------------------
+# Aufgabe 4: Meldelogik (erkenner.baue_meldung, erkenner.laufe)
+# ---------------------------------------------------------------------------
+
+
+def test_baue_meldung_ohne_aenderungen_ist_none():
+    assert erkenner.baue_meldung([]) is None
+
+
+def test_baue_meldung_nur_journaleintraege_ist_none():
+    text = erkenner.baue_meldung(
+        [{"art": "verworfen", "wert": "Zeitreise-Idee — zu teuer"}]
+    )
+
+    assert text is None
+
+
+def test_baue_meldung_kernthema_plus_drei_figuren_eine_nachricht_mit_beiden_zeilen():
+    text = erkenner.baue_meldung(
+        [
+            {"art": "kernthema_setzen", "wert": "Ankommen"},
+            {"art": "figur_setzen", "wert": "Maria"},
+            {"art": "figur_setzen", "wert": "Elif"},
+            {"art": "figur_setzen", "wert": "Peter"},
+        ]
+    )
+
+    assert text is not None
+    assert "Kernthema: Ankommen" in text
+    assert "drei Figuren: Maria, Elif, Peter" in text
+    assert "Falls das nicht stimmt, sagt es mir." in text
+
+
+def test_baue_meldung_eine_figur_steht_im_singular():
+    text = erkenner.baue_meldung([{"art": "figur_setzen", "wert": "Maria"}])
+
+    assert "eine Figur: Maria" in text
+
+
+def test_baue_meldung_journaleintrag_neben_arbeitsstandaenderung_bleibt_still():
+    text = erkenner.baue_meldung(
+        [
+            {"art": "kernthema_setzen", "wert": "Ankommen"},
+            {"art": "verworfen", "wert": "Zeitreise-Idee — zu teuer"},
+        ]
+    )
+
+    assert "Zeitreise-Idee" not in text
+    assert "Kernthema: Ankommen" in text
+
+
+class TelegramAttrappe:
+    """Ersetzt theatersoap.telegram.Telegram: kein Netzzugriff, zeichnet auf."""
+
+    def __init__(self, fehler=None):
+        self.gesendet = []
+        self._letzte_message_id = 9000
+        self._fehler = fehler
+
+    def sende(self, chat_id, text):
+        if self._fehler is not None:
+            raise self._fehler
+        self._letzte_message_id += 1
+        self.gesendet.append((chat_id, text))
+        return self._letzte_message_id
+
+
+def test_laufe_ohne_neue_nachrichten_sendet_nichts(conn, einst):
+    klm = LLMAttrappe(antwort={"aenderungen": []})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert tg.gesendet == []
+
+
+def test_laufe_sendet_meldung_und_schreibt_sie_als_bot_nachricht(conn, einst):
+    _nachricht(conn, 1, 1, "das Kernthema ist jetzt Ankommen")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "kernthema_setzen", "wert": "Ankommen"}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert len(tg.gesendet) == 1
+    chat_id, text = tg.gesendet[0]
+    assert chat_id == 1
+    assert "Kernthema: Ankommen" in text
+
+    zeile = conn.execute(
+        "SELECT * FROM nachricht WHERE chat_id = 1 AND ist_bot = 1"
+    ).fetchone()
+    assert zeile is not None
+    assert zeile["text"] == text
+
+
+def test_laufe_nur_journaleintrag_sendet_keine_nachricht(conn, einst):
+    _nachricht(conn, 1, 1, "die Zeitreise-Idee verwerfen wir, zu teuer")
+    klm = LLMAttrappe(
+        antwort={"aenderungen": [{"art": "verworfen", "wert": "Zeitreise-Idee — zu teuer"}]}
+    )
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert tg.gesendet == []
+    assert len(repo.journal(conn, 1)) == 1
+
+
+def test_laufe_versand_fehlschlag_bleibt_fuer_gruppe_unsichtbar(conn, einst):
+    _nachricht(conn, 1, 1, "das Kernthema ist jetzt Ankommen")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "kernthema_setzen", "wert": "Ankommen"}]})
+    tg = TelegramAttrappe(fehler=RuntimeError("Telegram nicht erreichbar"))
+
+    erkenner.laufe(klm, tg, conn, einst, 1)  # darf nicht krachen
+
+    zeile = conn.execute("SELECT art FROM vorfall WHERE chat_id = 1").fetchone()
+    assert zeile is not None

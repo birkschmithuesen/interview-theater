@@ -249,6 +249,35 @@ def test_erkenner_hat_den_material_fall(erkenner_faelle):
     assert faelle, "der Fall 'Interview loeschen -> gar nichts' fehlt"
 
 
+def test_erkenner_traegt_die_zustimmungsfaelle(erkenner_faelle):
+    """N7: der Fall, den diese Umkalibrierung abstellen soll -- die Gruppe
+    stimmt einem konkreten Vorschlag zu, und nichts wird eingetragen. Er ist
+    im Probelauf dreimal aufgetreten (Fragen, Kernthema, drei Figuren), also
+    muessen mindestens so viele Faelle ihn belegen.
+
+    ``zustimmung: true`` ist kein Sollwert, sondern eine Markierung: aus ihr
+    baut ``pruefe_prompts.zustimmungszeilen`` die Kennzahl 'Falsch-Negative in
+    Zustimmungsfaellen'."""
+    markiert = [f for f in erkenner_faelle if f.get("zustimmung")]
+    assert len(markiert) >= 5
+    for fall in markiert:
+        assert fall["erwartet"], (
+            f"{fall['id']}: ein Zustimmungsfall ohne Sollwert misst nichts"
+        )
+
+
+def test_erkenner_hat_den_gegenfall_zur_zustimmung(erkenner_faelle):
+    """Die Umkalibrierung braucht ihre Grenze, sonst wird aus 'im Zweifel
+    eintragen' ein Freibrief: ein Bot-Vorschlag, dem die Gruppe NICHT
+    zustimmt, bleibt leer."""
+    treffer = [
+        f for f in erkenner_faelle
+        if not f["erwartet"]
+        and any(n.get("ist_bot") for n in f.get("nachrichten", []))
+    ]
+    assert treffer, "der Fall 'Bot-Vorschlag ohne Zustimmung -> gar nichts' fehlt"
+
+
 def test_erkenner_genug_negativfaelle(erkenner_faelle):
     """Falsch-Positive sind der teure Fehler (SPEC § 4.3a) -- entsprechend
     viele Faelle muessen eine leere Erwartung haben."""

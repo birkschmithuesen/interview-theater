@@ -539,6 +539,28 @@ Ausgewählt wird nach Trefferquote.
 **🔴 `gemma` hat 28,5 s Kaltstart**, danach unter 1 s. **Beim Workshop-Start warmlaufen
 lassen** — sonst wartet die erste Gruppe eine halbe Minute auf die erste Absichtserkennung.
 
+> **Nachtrag 05.09.2026 (N7) — die Kalibrierung ist gedreht, die Kennzahl bleibt.**
+> *„Alles, was zugestimmt wird, soll zuerst mal immer so genommen und gespeichert werden
+> und von dort aus weiter. Oftmals ändern ist besser als niemals fixieren."* (Birk, nach
+> dem Probelauf.) Befund: dreimal stimmte die Gruppe zu — Fragen, Kernthema, drei Figuren
+> —, dreimal blieb der Arbeitsstand leer. Der Erkenner war auf „im Zweifel kein Eintrag"
+> kalibriert, und das war einmal richtig: ein falscher Eintrag war unumkehrbar. Seit es
+> weiches Löschen (N3) und `transkript_korrigieren` (N5) gibt, stimmt das nicht mehr —
+> **ein falscher Eintrag kostet einen Satz, ein fehlender kostet den Arbeitsstand.**
+>
+> Der Prompt sagt deshalb jetzt „im Zweifel EINTRAGEN", und **Zustimmung zu einem
+> konkreten Vorschlag ist eine Festlegung**, auch beiläufig („passt", „nehmen wir", „das
+> können wir so fix machen"). Ausgenommen bleiben zwei Arten: `szene_schreiben` (kostet
+> zwei Minuten Wartezeit) und `entfernen` (nimmt etwas weg). Ebenfalls kein Eintrag: Lob
+> ohne Vorschlag davor — es gibt nichts, was gespeichert werden könnte.
+>
+> **FP = 0 bleibt das Exit-Kriterium, aber FP ist neu definiert:** ein Eintrag, dem im
+> Abschnitt *kein konkreter Vorschlag und keine Zustimmung* vorausgeht. Ein Eintrag nach
+> einer Zustimmung ist kein FP mehr. `scripts/pruefe_prompts.py` rechnet dafür nicht
+> anders — es sind die Sollwerte im Korpus, die sich gedreht haben. Dazu eine zweite
+> Kennzahl im Bericht, außerhalb des Exit-Codes: **Falsch-Negative in Zustimmungsfällen**
+> (Korpusfeld `zustimmung`), soll 0.
+
 ### 4.4 Reasoning-Semantik und robustes Auslesen
 
 > **Eine frühere Behauptung ist widerlegt.** Die erste Fassung dieser Spezifikation sagte,

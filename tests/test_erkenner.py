@@ -171,7 +171,7 @@ def test_arten_enthaelt_alle_fuenfzehn_werte():
     assert set(erkenner.ARTEN) == erwartet
 
 
-def test_prompt_enthaelt_elf_beispiele_davon_drei_leer():
+def test_prompt_enthaelt_zwoelf_beispiele_davon_drei_leer():
     """Grober Regressionsschutz gegen einen versehentlich verkuerzten Prompt.
 
     Die Rechercheempfehlung lautete auf 5 Few-Shot-Beispiele, davon 2 leer.
@@ -183,13 +183,18 @@ def test_prompt_enthaelt_elf_beispiele_davon_drei_leer():
     Loeschwunsch fuer ein INTERVIEW im selben Abschnitt aber nicht, weil
     Material nie entfernbar ist (NACHTRAG N3). Am 04.09.2026 abends kamen
     ``fragen_setzen`` samt seinem Negativfall ("welche Fragen koennten wir
-    stellen?") und ein zweites phase_setzen-Beispiel fuer die freie
-    Reihenfolge von Figuren und Hauptkonflikt dazu. Die zwei urspruenglichen
-    leeren Beispiele bleiben unveraendert: sie tragen den teuersten
-    Fehlerfall (Zustimmung ohne Beschluss)."""
+    stellen?") und ein zweites phase_setzen-Beispiel fuer die Abgrenzung
+    zwischen Figuren und Hauptkonflikt dazu.
+
+    Das zwoelfte kam am 05.09.2026 mit N7: **Zustimmung zu einem konkreten
+    Vorschlag ist eine Festlegung** -- drei vorgeschlagene Figuren, ein "find
+    ich stark, nehmen wir", drei Eintraege. Es steht an der Stelle, an der
+    frueher der Gegenfall stand, und der bleibt gleich daneben: Lob ohne
+    Vorschlag davor traegt weiterhin nichts ein. Deshalb sind es drei leere
+    Beispiele wie zuvor."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 11
+    assert anzahl_beispiele == 12
     assert anzahl_leer == 3
 
 

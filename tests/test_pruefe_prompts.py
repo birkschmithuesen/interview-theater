@@ -20,7 +20,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts import pruefe_prompts as pp
-from interview_theater import einstellungen, llm
+from interview_theater import einstellungen, kontext, llm
 
 
 # --- Normalisierung -------------------------------------------------------
@@ -182,6 +182,40 @@ def test_fragen_format_geht_nur_fragen_setzen_an_und_nicht_in_fp_fn_ein():
     )
     assert len(ergebnis["treffer"]) == 1
     assert not ergebnis["fehlend"] and not ergebnis["ueberzaehlig"]
+
+
+def test_zustimmungszeilen_zaehlen_nur_markierte_faelle():
+    """N7: die zweite Kennzahl neben dem Exit-Code. Sie misst die Richtung,
+    die die alte Kalibrierung uebersehen hat -- Zustimmung, die nirgends
+    ankommt."""
+    zeilen = pp.zustimmungszeilen([
+        {"id": "f05", "fn": 1, "zustimmung": True},
+        {"id": "e30", "fn": 0, "zustimmung": True},
+        {"id": "n01", "fn": 3, "zustimmung": False},
+    ])
+
+    assert "2 Faelle, soll 0): **1**" in zeilen[0]
+    assert "verpasst in: f05" in zeilen[1]
+
+
+def test_ohne_zustimmungsfaelle_keine_zeile():
+    """``--nur n01`` soll keine Kennzahl ueber null Faelle ausgeben."""
+    assert pp.zustimmungszeilen([{"id": "n01", "fn": 0, "zustimmung": False}]) == []
+
+
+def test_bot_zeilen_im_korpus_werden_zu_du(tmp_path):
+    """Im Betrieb rendert kontext.sprecherzeile eine Bot-Nachricht als
+    'Du: ...' -- der Korpus muss denselben Text zeigen, sonst misst er einen
+    anderen Prompt als den, der im Workshop laeuft. Fuer die
+    Zustimmungsfaelle ist das kein Detail: der Vorschlag, dem die Gruppe
+    zustimmt, steht in einer Bot-Nachricht."""
+    zeilen = pp._nachrichtenzeilen([
+        {"absender": "Bot", "text": "Drei Figuren waeren denkbar.", "ist_bot": 1},
+        {"absender": "Elif", "text": "find ich stark, nehmen wir"},
+    ])
+
+    assert kontext.sprecherzeile(zeilen[0]).startswith("Du: ")
+    assert kontext.sprecherzeile(zeilen[1]).startswith("Elif: ")
 
 
 def test_pronomen_check():
@@ -413,8 +447,14 @@ def test_durchlauf_mit_falsch_positiv_endet_mit_eins(attrappe, tmp_path, capsys)
     assert "FEHLGESCHLAGEN" in ausgabe
     # Zum auffaelligen Fall gehoert die Notiz aus dem Korpus und die volle
     # Antwort -- sonst weiss beim Lesen niemand, ob der Fehlschlag schlimm ist.
+    # Die Notiz kommt aus der Datei, nicht aus einem Zitat hier: sie wird beim
+    # Nachkalibrieren umgeschrieben (N7 hat genau diese angefasst).
+    notiz = next(
+        f["notiz"] for f in pp.lade_korpus("erkenner")
+        if f["id"] == "n01-beinahe-entscheidung"
+    )
     assert "Auffaellige Faelle" in ausgabe
-    assert "blieb korrekt stumm" in ausgabe
+    assert notiz.split(".")[0] in ausgabe
 
 
 def test_durchlauf_ohne_auffaelligkeiten_sagt_das_auch(attrappe):

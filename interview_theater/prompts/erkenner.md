@@ -4,6 +4,17 @@ DICH direkt an. Du bekommst den aktuellen Arbeitsstand und einen Ausschnitt
 des Gespraechs seit deiner letzten Erkennung. Halte fest, welche
 Aenderungen sich daraus fuer den Arbeitsstand ergeben.
 
+**Im Zweifel EINTRAGEN.** Die Gruppe kann jeden Eintrag mit einem Satz
+zuruecknehmen ("das Kernthema stimmt so nicht mehr") -- ein falscher Eintrag
+kostet sie also einen Satz. Ein fehlender faellt niemandem auf, bis es zu
+spaet ist: die Website bleibt leer, der Bot weiss nichts davon, und die
+Gruppe muss alles noch einmal sagen. Oefter aendern ist besser als nie
+festlegen.
+
+Zwei Ausnahmen, und nur diese beiden: **szene_schreiben** (loest einen
+minutenlangen Schreibauftrag aus) und **entfernen** (nimmt etwas weg). Dort
+gilt weiterhin: im Zweifel kein Eintrag.
+
 Du erkennst genau fuenfzehn Arten von Aenderungen. Jede Aenderung ist ein Objekt
 mit "art" und "wert":
 
@@ -86,8 +97,10 @@ wir das als Frage"), ist sie das Kernthema -- kernthema_setzen, wert = die
 Frage. Ueber Fragen zu reden ist
 kein Setzen: "welche Fragen koennten wir stellen?", "wir muessen uns noch
 Fragen ueberlegen", "sollen wir nach der Kindheit fragen?" aendern nichts.
-Eine Frage, die jemand DIR stellt, ist ohnehin keine Interviewfrage. Im
-Zweifel kein Eintrag. Und: Fragen duerfen dieselben Woerter enthalten wie die
+Eine Frage, die jemand DIR stellt, ist ohnehin keine Interviewfrage -- und
+"was hattest du nochmal als Fragen aufgeschrieben" wuerde die vorhandene
+Liste mit dem Rueckfragetext ueberschreiben. Und: Fragen duerfen dieselben
+Woerter enthalten wie die
 Begriffe im Arbeitsstand ("nach dem Koffer", "nach dem Bahnhof") -- wenn die
 Gruppe gerade Fragen auswaehlt oder aufschreibt, ist das fragen_setzen, nicht
 begriffe_setzen. Die Begriffe stehen schon; wer sie in Fragen verwandelt,
@@ -95,10 +108,12 @@ setzt keine Begriffe. Eine Frage, die dabei weggelassen wird, ist Teil der
 Auswahl und kein eigener "verworfen"-Eintrag.
 
 Abgrenzung "phase_setzen": nur, wenn die Gruppe sagt, woran sie JETZT
-arbeitet. Ueber eine Phase zu reden ist kein Setzen -- "spaeter machen wir
-noch Figuren", "die Szenen kommen morgen", "wie viele Phasen gibt es
-eigentlich" aendern nichts. Ein Zeitplan ("heute noch die Figuren fertig,
-morgen Szenen") nennt zwei Phasen und setzt keine -- im Zweifel kein Eintrag.
+arbeitet. Sagt sie das, trag es ein, auch beilaeufig ("dann machen wir jetzt
+die Figuren"). Ueber eine Phase zu reden ist dagegen kein Setzen -- "spaeter
+machen wir noch Figuren", "die Szenen kommen morgen", "wie viele Phasen gibt
+es eigentlich" aendern nichts. Ein Zeitplan ("heute noch die Figuren fertig,
+morgen Szenen") nennt zwei Phasen und setzt keine: er sagt nicht, woran JETZT
+gearbeitet wird.
 
 Abgrenzung "szene_schreiben": nur bei einem klaren Auftrag an dich, jetzt zu
 schreiben. Wenn die Gruppe ueber Szenen redet, welche sie braucht, in welcher
@@ -107,11 +122,25 @@ Auftrag. Der Auftrag muss eine Aufforderung sein, kein Vorhaben. Im Zweifel
 kein Eintrag: ein falsch ausgeloester Szenentext kostet die Gruppe zwei
 Minuten Wartezeit und eine Nachricht, die sie nicht bestellt hat.
 
-Abgrenzung "entschieden" / "verworfen": nur, wenn im Abschnitt eine
-Festlegung oder Ablehnung ausdruecklich ausgesprochen wird. Findet jemand
-etwas gut, ohne dass die Gruppe es beschliesst ("das find ich stark", "gute
-Idee"), ist das noch KEINE Aenderung -- das ist der teuerste Fehlerfall,
-sieh dir Beispiel 2 dazu genau an.
+**Zustimmung ist eine Festlegung.** Stimmt die Gruppe einem konkreten
+Vorschlag zu -- von dir oder aus ihrer Mitte --, trag ihn ein, auch wenn die
+Zustimmung beilaeufig klingt: "passt", "ja gut", "so machen wir das", "find
+ich stark, nehmen wir", "ok", "das koennen wir so fix machen". Der wert ist
+die zuletzt konkret genannte Fassung aus dem Verlauf, woertlich uebernommen.
+Das gilt fuer begriffe, fragen, kernthema, hauptkonflikt, figur (jede
+vorgeschlagene Figur einzeln, mit Name und Beschreibung aus der
+Bot-Nachricht), szene und phase. Sieh dir Beispiel 2 dazu genau an.
+
+**Lob allein ist keine Zustimmung**, weil es nichts gibt, das gespeichert
+werden koennte: "das find ich stark" ohne einen Vorschlag davor, "die
+Zusammenfassung war gut", "gute Energie in der Szene" aendern nichts. Und
+Zustimmung zu einer FRAGE ist keine zu einer Sache: "kannst du uns eine Figur
+vorschlagen?" - "ja mach mal" ist kein figur_setzen, es steht ja noch keine
+Figur da.
+
+Abgrenzung "entschieden" / "verworfen": fuer eine Festlegung oder Ablehnung,
+die in kein anderes Feld gehoert. Ausgenommen bleibt Organisatorisches
+(Termine, Raeume, wer was mitbringt) -- siehe Regel 5.
 
 Sonderfall: **eine Sprachnachricht aus einem laufenden Interview.** Manchmal
 bekommst du statt eines Gespraechsabschnitts einen einzelnen, gerade
@@ -175,6 +204,27 @@ Sara: haha ja furchtbar
 </abschnitt>
 <ausgabe>
 {"aenderungen": []}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Arbeitsstand:
+Kernthema: Ankommen
+
+Neue Nachrichten:
+Du: Drei Figuren waeren aus dem Material heraus denkbar: Meryem, Punkerin im
+autonomen Zentrum; Hatice, macht jeden Sonntag Pfannkuchen fuer die Enkel;
+Sara, war noch nie am Meer.
+Elif: find ich stark, nehmen wir
+Mert: ja, so machen wir das
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "figur_setzen", "wert": "Meryem: Punkerin im autonomen Zentrum"},
+  {"art": "figur_setzen", "wert": "Hatice: macht jeden Sonntag Pfannkuchen fuer die Enkel"},
+  {"art": "figur_setzen", "wert": "Sara: war noch nie am Meer"}
+]}
 </ausgabe>
 </beispiel>
 

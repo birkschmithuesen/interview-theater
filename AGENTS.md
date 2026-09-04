@@ -381,8 +381,9 @@ Env-Datei soll die Interviews nicht ins offene Netz stellen.
 
 Die vier Prompts werden heiß nachgeladen, also ändert sie jemand **während**
 des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
-den Blindflug: 82 Absichtserkenner-Fälle (davon 32 Negativfälle; vier davon
-kommen aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1), 22
+den Blindflug: 85 Absichtserkenner-Fälle (davon 31 Negativfälle; vier davon
+kommen aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1, und
+acht sind mit `zustimmung: true` markiert, N7), 22
 Journal-Abschnitte (davon 11 leere) und 7 erfundene Interviewtranskripte, alle
 mit Sollwert — darunter einer, dessen Sollwert **null** Kernthemen sind (der
 Live-Fall aus dem Probelauf, N2).
@@ -404,10 +405,25 @@ Wegwerf-Datenbank, nie in `IT_DB`.
 > Null Falsch-Positive bei 25 Negativfällen ist die Zahl, die den Erkenner
 > qualifiziert und die acht nicht gebauten Befehle begründet hat (SPEC § 4.3a,
 > § 8.1). Genau das ist deshalb der Exit-Code: das Skript endet mit 1, sobald
-> der Erkenner auch nur ein Falsch-Positiv liefert. Eine bessere Trefferquote
-> wiegt das nicht auf — ein Falsch-Positiv schreibt etwas Falsches in den
-> Arbeitsstand und meldet es der Gruppe auch noch, ein Falsch-Negativ verpasst
-> nur eine Notiz.
+> der Erkenner auch nur ein Falsch-Positiv liefert.
+>
+> **Was FP heißt, hat sich am 05.09.2026 gedreht (N7) — die Zahl nicht.** Ein
+> Falsch-Positiv ist jetzt: ein Eintrag, dem im Abschnitt **kein konkreter
+> Vorschlag und keine Zustimmung** vorausgeht. Ein Eintrag *nach* einer
+> Zustimmung ist keiner mehr, auch wenn sie beiläufig war („passt", „nehmen
+> wir", „das können wir so fix machen"). Grund: seit es weiches Löschen und
+> `transkript_korrigieren` gibt, ist ein falscher Eintrag billig — ein Satz der
+> Gruppe nimmt ihn zurück —, ein fehlender teuer: die Website bleibt leer, der
+> Bot weiß nichts davon, und die Gruppe muss alles noch einmal sagen. Im
+> Probelauf stimmte sie dreimal zu (Fragen, Kernthema, drei Figuren), und
+> dreimal blieb der Arbeitsstand leer. **Das Prüfskript rechnet dafür nicht
+> anders — es sind die Sollwerte im Korpus, die sich gedreht haben.** Daneben
+> steht seither eine zweite Kennzahl (nicht im Exit-Code): **Falsch-Negative in
+> Zustimmungsfällen**, Korpusfeld `zustimmung`, soll ebenfalls 0.
+>
+> Zwei Arten bleiben auf „im Zweifel kein Eintrag" kalibriert:
+> `szene_schreiben` (kostet zwei Minuten Wartezeit und eine unbestellte
+> Nachricht) und `entfernen` (nimmt etwas weg).
 
 Berichte landen in `korpus/berichte/` und sind **gitignored**: sie enthalten
 vollständige Modellantworten. Der Korpus selbst ist frei erfunden und gehört

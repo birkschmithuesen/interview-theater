@@ -32,6 +32,16 @@ Das ist die Kennzahl, die den Erkenner qualifiziert hat (0 FP bei 25
 Negativfaellen, SPEC § 4.3a) -- eine Prompt-Aenderung, die sie kaputt macht,
 gehoert zurueckgenommen, egal wie gut die Trefferquote sonst aussieht.
 
+**Was FP heisst, hat sich am 05.09.2026 geaendert (N7), die Zahl nicht.** Ein
+Falsch-Positiv ist jetzt ein Eintrag, dem im Abschnitt KEIN konkreter
+Vorschlag und KEINE Zustimmung vorausgeht. Ein Eintrag nach einer Zustimmung
+ist keiner mehr, auch wenn die Zustimmung beilaeufig war ("passt", "nehmen
+wir") -- der Erkenner war auf "im Zweifel kein Eintrag" kalibriert, und der
+Probelauf hat gezeigt, was das kostet. Das Skript rechnet dafuer nicht anders,
+es sind die Sollwerte im Korpus, die sich gedreht haben. Dazu kommt eine
+Kennzahl neben dem Exit-Code: **Falsch-Negative in Zustimmungsfaellen**
+(Korpusfeld ``zustimmung``), soll ebenfalls 0.
+
 **Sequenziell, nie parallel.** Infomaniak liefert bei parallelen Aufrufen
 429/5xx. Ein voller Lauf ueber alle drei Korpora sind rund 70 Aufrufe.
 
@@ -363,10 +373,16 @@ def _nachrichtenzeilen(nachrichten: list[dict]) -> list[dict]:
     """Ergaenzt die Korpusnachrichten (``absender``, ``text``) um die Felder,
     die ``kontext.sprecherzeile`` liest. ``sqlite3.Row`` und ``dict`` werden
     beide per Schluessel gelesen -- die Zeilen muessen also nicht durch die
-    Datenbank, nur die Stammdaten muessen es."""
+    Datenbank, nur die Stammdaten muessen es.
+
+    ``ist_bot`` kommt aus dem Fall, wenn er es setzt: ``sprecherzeile`` macht
+    daraus "Du: ..." statt "Bot: ...", und genau das sieht das Modell im
+    Betrieb (``repo.unextrahierte`` liefert Bot-Nachrichten mit). Fuer die
+    Zustimmungsfaelle aus N7 ist das kein Detail -- der Vorschlag, dem die
+    Gruppe zustimmt, steht in einer Bot-Nachricht."""
     return [
-        {"absender": n["absender"], "text": n["text"], "ist_bot": 0, "typ": "text",
-         "message_id": i + 1}
+        {"absender": n["absender"], "text": n["text"],
+         "ist_bot": n.get("ist_bot", 0), "typ": "text", "message_id": i + 1}
         for i, n in enumerate(nachrichten)
     ]
 
@@ -593,6 +609,34 @@ def kosten_chf(modell: str, eingabe_token: int, ausgabe_token: int) -> float | N
     return (eingabe_token * eingabe + ausgabe_token * ausgabe) / 1_000_000
 
 
+def zustimmungszeilen(gelaufen: list[dict]) -> list[str]:
+    """Die Kennzahl aus N7: **Falsch-Negative in Zustimmungsfaellen, soll 0.**
+
+    Bis zum 05.09.2026 war der Erkenner auf "im Zweifel kein Eintrag"
+    kalibriert, und die Kennzahl dazu war FP = 0. Der Probelauf hat gezeigt,
+    was das kostet: dreimal stimmte die Gruppe zu (Fragen, Kernthema, drei
+    Figuren), dreimal blieb der Arbeitsstand leer. Seit es weiches Loeschen
+    gibt, ist ein falscher Eintrag billig (ein Satz nimmt ihn zurueck) und ein
+    fehlender teuer (die Website bleibt leer, und niemand merkt es).
+
+    FP = 0 bleibt das Exit-Kriterium -- aber FP ist neu definiert (AGENTS.md,
+    SPEC § 4.3a): ein Eintrag, dem im Abschnitt KEIN konkreter Vorschlag und
+    KEINE Zustimmung vorausgeht. Diese Zahl hier steht daneben und geht
+    bewusst nicht in den Exit-Code ein: sie misst die andere Richtung, und
+    ueber sie entscheidet ein Mensch."""
+    faelle = [z for z in gelaufen if z.get("zustimmung")]
+    if not faelle:
+        return []
+    fn = sum(z["fn"] for z in faelle)
+    verpasst = sorted(z["id"] for z in faelle if z["fn"])
+    zeilen = [
+        f"- Falsch-Negative in Zustimmungsfaellen ({len(faelle)} Faelle, soll 0): **{fn}**"
+    ]
+    if verpasst:
+        zeilen.append(f"  - verpasst in: {', '.join(verpasst)}")
+    return zeilen
+
+
 def baue_summe(prompt: str, modell: str, zeilen: list[dict]) -> list[str]:
     """Summenzeile je Prompt: Trefferquote, FP, FN, Median-Dauer, Kosten."""
     gelaufen = [z for z in zeilen if not z.get("fehler")]
@@ -632,6 +676,7 @@ def baue_summe(prompt: str, modell: str, zeilen: list[dict]) -> list[str]:
             "- Fragen ohne Thema vor dem Doppelpunkt: "
             f"{sum(z.get('fragen_ohne_thema', 0) for z in zeilen)}"
         )
+        zeilentext.extend(zustimmungszeilen(gelaufen))
     if prompt == "verdichter":
         # Ebenfalls nur ein Hinweis: das Ergebnis stimmt, die Kurzform passt
         # nur nicht in eine Dashboard-Zeile (N6).
@@ -697,6 +742,10 @@ def pruefe(prompt: str, klm, conn, faelle: list[dict], modell: str,
                 "treffer": zahlen[0],
                 "fp": zahlen[1],
                 "fn": zahlen[2],
+                # N7: die Faelle, in denen die Gruppe einem konkreten Vorschlag
+                # zustimmt. Ihre Falsch-Negativen werden getrennt gezaehlt --
+                # sie sind der Fehler, den diese Umkalibrierung abstellen soll.
+                "zustimmung": bool(fall.get("zustimmung")),
                 "pronomen": len((bewertung or {}).get("pronomen", [])),
                 "fragen_ohne_thema": len((bewertung or {}).get("fragen_ohne_thema", [])),
                 "kurz_zu_lang": len((bewertung or {}).get("kurz_zu_lang", [])),

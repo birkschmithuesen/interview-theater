@@ -160,33 +160,37 @@ def test_schema_kennt_kein_maxitems():
     assert "maxItems" not in str(erkenner.SCHEMA)
 
 
-def test_arten_enthaelt_alle_vierzehn_werte():
+def test_arten_enthaelt_alle_fuenfzehn_werte():
     erwartet = {
         "interview_starten", "interview_beenden", "interview_benennen",
-        "begriffe_setzen", "kernthema_setzen", "hauptkonflikt_setzen",
-        "figur_setzen", "wortlaut_an", "wortlaut_aus", "verworfen", "entschieden",
-        "szene_schreiben", "phase_setzen", "entfernen",
+        "begriffe_setzen", "fragen_setzen", "kernthema_setzen",
+        "hauptkonflikt_setzen", "figur_setzen", "wortlaut_an", "wortlaut_aus",
+        "verworfen", "entschieden", "szene_schreiben", "phase_setzen",
+        "entfernen",
     }
     assert set(erkenner.ARTEN) == erwartet
 
 
-def test_prompt_enthaelt_acht_beispiele_davon_zwei_leer():
+def test_prompt_enthaelt_elf_beispiele_davon_drei_leer():
     """Grober Regressionsschutz gegen einen versehentlich verkuerzten Prompt.
 
     Die Rechercheempfehlung lautete auf 5 Few-Shot-Beispiele, davon 2 leer.
-    Drei sind dazugekommen, jedes fuer eine art, deren Abgrenzung sich in
+    Sechs sind dazugekommen, jedes fuer eine art, deren Abgrenzung sich in
     Regeln schlecht fassen laesst: ``szene_schreiben`` (die einzige art, die
     eine teure Handlung ausloest statt ein Feld zu setzen), ``phase_setzen``
     (ueber eine Phase zu reden ist kein Setzen) und ``entfernen`` -- dessen
     Beispiel zwei Dinge auf einmal zeigt: die Figur fliegt raus, der
     Loeschwunsch fuer ein INTERVIEW im selben Abschnitt aber nicht, weil
-    Material nie entfernbar ist (NACHTRAG N3). Die zwei leeren Beispiele
-    bleiben unveraendert: sie tragen den teuersten Fehlerfall (Zustimmung
-    ohne Beschluss)."""
+    Material nie entfernbar ist (NACHTRAG N3). Am 04.09.2026 abends kamen
+    ``fragen_setzen`` samt seinem Negativfall ("welche Fragen koennten wir
+    stellen?") und ein zweites phase_setzen-Beispiel fuer die freie
+    Reihenfolge von Figuren und Hauptkonflikt dazu. Die zwei urspruenglichen
+    leeren Beispiele bleiben unveraendert: sie tragen den teuersten
+    Fehlerfall (Zustimmung ohne Beschluss)."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 8
-    assert anzahl_leer == 2
+    assert anzahl_beispiele == 11
+    assert anzahl_leer == 3
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +240,43 @@ def test_hauptkonflikt_und_begriffe_werden_ueberschrieben(conn, einst):
     assert stand["hauptkonflikt"] == "Bleiben oder Gehen"
     assert stand["begriffe"] == "Migration, Ankommen"
     assert len(wirkliche) == 2
+
+
+def test_fragen_werden_gesetzt_und_gemeldet(conn, einst):
+    """Die Frageliste aus Phase 2 (04.09.2026 abends): eigenes Feld, eigener
+    Erkennungsweg, dieselbe Meldung wie bei den Begriffen."""
+    fragen = "Was war in deinem Koffer? Wer hat dich zum Bahnhof gebracht?"
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "fragen_setzen", "wert": fragen}]
+    )
+
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == fragen
+    assert wirkliche == [{"art": "fragen_setzen", "wert": fragen}]
+    assert f"Fragen: {fragen}" in erkenner.baue_meldung(wirkliche)
+
+
+def test_dieselben_fragen_noch_einmal_sind_keine_aenderung(conn, einst):
+    """Wie ueberall sonst: derselbe Wert meldet nicht erneut -- sonst
+    bestaetigte der Bot die Frageliste bei jedem Zug aufs Neue."""
+    erkenner.wende_an(conn, einst, 1, [{"art": "fragen_setzen", "wert": "Was war im Koffer?"}])
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "fragen_setzen", "wert": "Was war im Koffer?"}]
+    )
+
+    assert wirkliche == []
+
+
+def test_fragen_stehen_im_erkenner_kontext(conn, einst):
+    """Der Erkenner sieht die schon gesetzten Fragen -- ohne sie koennte er
+    eine Rueckfrage danach nicht von einer neuen Liste unterscheiden."""
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    _nachricht(conn, 1, 1, "was hatten wir nochmal als Fragen")
+
+    nutzer = erkenner._baue_nutzertext(conn, 1, repo.unextrahierte(conn, 1))
+
+    assert "Fragen: Was war in deinem Koffer?" in nutzer
 
 
 def test_figur_mit_bekanntem_namen_wird_ueberschrieben_nicht_verdoppelt(conn, einst):
@@ -638,7 +679,10 @@ def test_ohne_erkannten_auftrag_laeuft_keine_szene(conn, einst, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("wert, erwartet", [("5", 5), ("Figuren", 5), ("interview", 2)])
+@pytest.mark.parametrize(
+    "wert, erwartet",
+    [("5", 5), ("Figuren", 5), ("interview", 3), ("Hauptkonflikt", 6)],
+)
 def test_phase_setzen_mappt_nummer_namen_und_teilstring(conn, einst, wert, erwartet):
     wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": wert}])
 
@@ -669,25 +713,25 @@ def test_phase_setzen_meldet_die_neue_phase(conn, einst):
 
     meldung = erkenner.baue_meldung(wirkliche)
 
-    assert "Wir sind jetzt bei 5 · Figuren entwickeln." in meldung
+    assert "Wir sind jetzt bei 5 · Figuren." in meldung
     assert meldung.endswith("Falls das nicht stimmt, sagt es mir.")
 
 
 def test_ruecksprung_ueber_den_erkenner(conn, einst):
     """Der Widerspruch gegen einen automatischen Sprung: 'nee, wir sind noch
     beim Kernthema' -- der Erkenner greift ihn als phase_setzen auf."""
-    phasen.setze(conn, 1, 4, "erkenner")
+    phasen.setze(conn, 1, 5, "erkenner")
 
     erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": "Kernthema"}])
 
-    assert repo.hole_phase(conn, 1) == 3
+    assert repo.hole_phase(conn, 1) == 4
 
 
 def test_automatischer_sprung_meldet_in_derselben_zeile(conn, einst):
     """Der Kernfall aus Brief A3: der Lauf schreibt das Kernthema, das macht
-    Phase 4 moeglich, der Code schaltet um -- und beides steht in EINER
+    Phase 5 moeglich, der Code schaltet um -- und beides steht in EINER
     Meldung."""
-    phasen.setze(conn, 1, 3, "befehl")
+    phasen.setze(conn, 1, 4, "befehl")
     _nachricht(conn, 1, 1, "also, unser Kernthema ist Ankommen")
     klm = LLMAttrappe(antwort={"aenderungen": [
         {"art": "kernthema_setzen", "wert": "Ankommen"},
@@ -696,15 +740,35 @@ def test_automatischer_sprung_meldet_in_derselben_zeile(conn, einst):
 
     erkenner.laufe(klm, tg, conn, einst, 1)
 
-    assert repo.hole_phase(conn, 1) == 4
+    assert repo.hole_phase(conn, 1) == 5
     text = tg.gesendet[0][1]
     assert "Kernthema: Ankommen" in text
-    assert "Wir sind damit bei 4 · Hauptkonflikt." in text
+    assert "Wir sind damit bei 5 · Figuren." in text
     assert len(tg.gesendet) == 1, "eine Meldung je Lauf"
 
 
+def test_kein_automatischer_sprung_zwischen_figuren_und_konflikt(conn, einst):
+    """Die freie Stelle im Betrieb: die Gruppe schreibt in Phase 5 die zweite
+    Figur fest. Der Arbeitsstand waechst, gemeldet wird das auch -- die Phase
+    bleibt trotzdem 5, weil ueber die Reihenfolge von Figuren und
+    Hauptkonflikt allein die Gruppe entscheidet."""
+    phasen.setze(conn, 1, 5, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    repo.setze_figur(conn, 1, "Maria", "Naeherin")
+    _nachricht(conn, 1, 1, "und Elif ist die Nachbarin")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "figur_setzen", "wert": "Elif: Nachbarin"},
+    ]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert repo.hole_phase(conn, 1) == 5
+    assert "Wir sind damit bei" not in tg.gesendet[0][1]
+
+
 def test_kein_automatischer_sprung_ohne_belegende_aenderung(conn, einst):
-    phasen.setze(conn, 1, 3, "befehl")
+    phasen.setze(conn, 1, 4, "befehl")
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     _nachricht(conn, 1, 1, "wir treffen uns morgen um zehn")
     klm = LLMAttrappe(antwort={"aenderungen": [
@@ -713,7 +777,7 @@ def test_kein_automatischer_sprung_ohne_belegende_aenderung(conn, einst):
 
     erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
 
-    assert repo.hole_phase(conn, 1) == 3
+    assert repo.hole_phase(conn, 1) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -746,7 +810,12 @@ def test_entfernen_leert_kernthema_samt_begruendung(conn, einst):
 
 
 @pytest.mark.parametrize(
-    "feld, wert", [("hauptkonflikt", "Hauptkonflikt"), ("begriffe", "Begriffe")]
+    "feld, wert",
+    [
+        ("hauptkonflikt", "Hauptkonflikt"),
+        ("begriffe", "Begriffe"),
+        ("fragen", "Fragen"),
+    ],
 )
 def test_entfernen_leert_die_uebrigen_arbeitsstandfelder(conn, einst, feld, wert):
     repo.setze_arbeitsstand(conn, 1, feld, "irgendwas")

@@ -34,6 +34,7 @@ def gefuellt(conn):
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     repo.setze_arbeitsstand(conn, 1, "kernthema_begruendung", "Dreimal genannt")
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Sprache, Warten")
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
     repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "Bleiben gegen Zurueckgehen")
     repo.setze_figur(conn, 1, "Maria", "kam 1998, arbeitet nachts")
     repo.merke_nachricht(conn, 1, 10, "Ada", 0, "text", "hallo", _iso(30))
@@ -169,9 +170,11 @@ def test_gruppenseite_ueber_token(gefuellt):
     daten = web_daten.gruppe_nach_token(gefuellt, token)
     assert daten["titel"] == "Die Ankommenden"
     assert daten["arbeitsstand"]["kernthema"] == "Ankommen"
+    assert daten["arbeitsstand"]["fragen"] == "Was war in deinem Koffer?"
     assert daten["figuren"][0]["name"] == "Maria"
     assert daten["szenen"][0]["volltext"] == "MARIA: Wo bleibt er denn."
     assert daten["verdichtungen"][0]["aufnahme"] == "Maria"
+    assert daten["verdichtungen"][0]["zusammenfassung"] == "Maria erzaehlt vom Ankommen"
     assert daten["journal"][0]["text"] == "Kernthema ist Ankommen"
 
 

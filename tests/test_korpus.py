@@ -23,9 +23,9 @@ KORPUS = Path(__file__).resolve().parent.parent / "korpus"
 
 #: Mindestbesetzung, wie im Auftrag festgelegt. Als Konstanten hier, damit ein
 #: Unterschreiten im Testnamen sichtbar wird und nicht in einer Zahl im Code.
-MIN_ERKENNER = 60
+MIN_ERKENNER = 70
 MIN_ERKENNER_JE_ART = 2
-MIN_ERKENNER_NEGATIV = 25
+MIN_ERKENNER_NEGATIV = 28
 
 #: Zwei Arten sind teurer als der Rest und deshalb eigens abgesichert:
 #: ``phase_setzen`` verschiebt den Fokus des ganzen Gespraechs (und muss
@@ -34,6 +34,13 @@ MIN_ERKENNER_NEGATIV = 25
 #: nirgends gegen das echte Modell gemessen -- umso wichtiger, dass der
 #: Korpus sie tragfaehig belegt (Brief A6, B4).
 MIN_JE_NEUER_ART = 6
+
+#: ``fragen_setzen`` ist am selben Abend dazugekommen und schreibt ein Feld,
+#: das die Gruppe im Interview vor sich hat. Vier Faelle plus zwei
+#: Negativfaelle -- weniger als bei den beiden oben, weil die Abgrenzung
+#: einfacher ist (Fragen stehen da oder werden erst ueberlegt), aber mehr als
+#: die zwei aus der allgemeinen Mindestbesetzung.
+MIN_FRAGEN_SETZEN = 4
 MIN_JOURNAL = 20
 MIN_JOURNAL_LEER = 8
 MIN_VERDICHTER = 6
@@ -107,7 +114,7 @@ def test_erkenner_arten_sind_bekannt(erkenner_faelle):
 
 
 def test_erkenner_arbeitsstand_kennt_nur_bekannte_felder(erkenner_faelle):
-    erlaubt = {"begriffe", "kernthema", "hauptkonflikt", "figuren"}
+    erlaubt = {"begriffe", "fragen", "kernthema", "hauptkonflikt", "figuren"}
     for fall in erkenner_faelle:
         unbekannt = set(fall["arbeitsstand"]) - erlaubt
         assert not unbekannt, f"{fall['id']}: {unbekannt}"
@@ -138,6 +145,39 @@ def test_erkenner_traegt_die_neuen_arten_dicht_genug(erkenner_faelle, art):
         1 for f in erkenner_faelle for a in f["erwartet"] if a["art"] == art
     )
     assert gezaehlt >= MIN_JE_NEUER_ART, f"{art}: nur {gezaehlt} Faelle"
+
+
+def test_erkenner_traegt_fragen_setzen(erkenner_faelle):
+    gezaehlt = sum(
+        1 for f in erkenner_faelle for a in f["erwartet"] if a["art"] == "fragen_setzen"
+    )
+    assert gezaehlt >= MIN_FRAGEN_SETZEN, f"fragen_setzen: nur {gezaehlt} Faelle"
+
+
+def test_erkenner_hat_den_negativfall_fragen_nur_ueberlegt(erkenner_faelle):
+    """'Welche Fragen koennten wir stellen?' ist KEIN Setzen. Der Fall muss
+    im Korpus bleiben: ein Falsch-Positiv wuerde hier die Frageliste mit
+    einer Ueberlegung ueberschreiben, und die Gruppe geht damit ins
+    Interview."""
+    negativ = [f for f in erkenner_faelle if not f["erwartet"]]
+    assert any(
+        "welche fragen" in n["text"].lower()
+        for f in negativ
+        for n in f["nachrichten"]
+    ), "der Fall 'ueber Fragen reden -> gar nichts' fehlt"
+
+
+def test_erkenner_hat_den_fall_der_freien_stelle(erkenner_faelle):
+    """Die Gruppe darf den Hauptkonflikt vor den Figuren machen. Der Fall
+    belegt, dass ein Abschnitt, in dem BEIDE Phasen vorkommen, auf die
+    gemeinte gesetzt wird -- nicht auf die zuerst genannte."""
+    treffer = [
+        f for f in erkenner_faelle
+        if any(a["art"] == "phase_setzen" and "konflikt" in a["wert"].lower()
+               for a in f["erwartet"])
+        and any("figuren" in n["text"].lower() for n in f["nachrichten"])
+    ]
+    assert treffer, "der Fall 'erst der Konflikt, Figuren danach' fehlt"
 
 
 def test_erkenner_hat_den_material_fall(erkenner_faelle):

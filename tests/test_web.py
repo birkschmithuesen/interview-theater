@@ -21,8 +21,24 @@ def db_pfad(tmp_path):
     db.initialisiere(conn)
     repo.sichere_gruppe(conn, 1, "gruppe1", "Die Ankommenden")
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
     repo.setze_figur(conn, 1, "Maria", "kam 1998")
     repo.schreibe_journal(conn, 1, "entschieden", "Kernthema ist Ankommen", "extraktor")
+    # Ein fertig verdichtetes Interview: die Gruppenseite ist neben dem
+    # Gespraechs-Prompt der zweite Ort, an dem die Verdichtungen sichtbar
+    # werden muessen (Brief-Punkt 3).
+    repo.merke_nachricht(conn, 1, 9, "Ada", 0, "sprache", None, "2026-09-05T09:00:00+00:00")
+    aufnahme_id = repo.lege_aufnahme_an(conn, 1, 9, "lang", "sprache", "/tmp/a.ogg", 200)
+    repo.setze_aufnahme_name(conn, aufnahme_id, "Marias Interview")
+    repo.speichere_verdichtung(
+        conn, 1, aufnahme_id, "Maria erzaehlt vom ersten Winter",
+        [
+            {"thema": "Ankommen", "beleg_zitat": "Ich hatte nur einen Koffer",
+             "zitat_geprueft": 1},
+            {"thema": "Arbeit", "beleg_zitat": "so hat das niemand gesagt",
+             "zitat_geprueft": 0},
+        ],
+    )
     # Die Verbindung bleibt absichtlich offen: sie haelt die WAL-Dateien am
     # Leben, so wie im Betrieb der Bot-Prozess.
     conn.commit()
@@ -72,6 +88,24 @@ def test_gruppenseite_zeigt_das_kernthema(basis, token):
     assert "Ankommen" in koerper
     assert "Maria" in koerper
     assert "Kernthema ist Ankommen" in koerper
+
+
+def test_gruppenseite_zeigt_die_verdichtungen_mit_belegzitat(basis, token):
+    """Brief-Punkt (3) fuer die Gruppenseite: Zusammenfassung und Kernthemen
+    stehen da, das Zitat aber nur, wenn es die Pruefung bestanden hat -- ein
+    ungepruefter Satz in Anfuehrungszeichen waere genau das, wogegen das
+    Belegzitat-Prinzip antritt."""
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "Marias Interview" in koerper
+    assert "Maria erzaehlt vom ersten Winter" in koerper
+    assert "Ankommen" in koerper and "Arbeit" in koerper
+    assert "Ich hatte nur einen Koffer" in koerper
+    assert "so hat das niemand gesagt" not in koerper
+
+
+def test_gruppenseite_zeigt_die_frageliste(basis, token):
+    assert "Was war in deinem Koffer?" in hole(f"{basis}/g/{token}")[1]
 
 
 def test_unbekanntes_token_gibt_404_ohne_hinweis(basis):

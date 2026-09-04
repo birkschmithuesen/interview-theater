@@ -243,7 +243,7 @@ def test_phase_ohne_argument_zeigt_phase_und_liste(conn, einst, tg):
 
     assert behandelt is True
     text = tg.gesendet[0][1]
-    assert "Wir sind bei 5 · Figuren entwickeln." in text
+    assert "Wir sind bei 5 · Figuren." in text
     for nummer, name, _ in phasen.PHASEN:
         assert f"{nummer} · {name}" in text
 
@@ -251,7 +251,7 @@ def test_phase_ohne_argument_zeigt_phase_und_liste(conn, einst, tg):
 def test_phase_ohne_gesetzte_phase_zeigt_die_erste(conn, einst, tg):
     befehle.behandle(conn, tg, einst, 1, "/phase", "Ada")
 
-    assert "Wir sind bei 1 · Ankommen." in tg.gesendet[0][1]
+    assert "Wir sind bei 1 · Begriffe." in tg.gesendet[0][1]
 
 
 def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
@@ -260,7 +260,7 @@ def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
     assert behandelt is True
     assert repo.hole_phase(conn, 1) == 5
     assert tg.gesendet == [
-        (1, "Wir sind jetzt bei 5 · Figuren entwickeln. Falls nicht, sagt es mir.")
+        (1, "Wir sind jetzt bei 5 · Figuren. Falls nicht, sagt es mir.")
     ]
 
 
@@ -296,7 +296,24 @@ def test_stand_zeigt_die_phase_zuerst(conn, einst, tg):
 
     zeilen = tg.gesendet[0][1].splitlines()
     assert zeilen[0] == "Stand:"
-    assert zeilen[1] == "Phase: 5 · Figuren entwickeln"
+    assert zeilen[1] == "Phase: 5 · Figuren"
+
+
+def test_stand_zeigt_die_frageliste(conn, einst, tg):
+    """Die Fragen stehen zwischen Begriffen und Kernthema -- in derselben
+    Reihenfolge, in der die Arbeit laeuft."""
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    zeilen = tg.gesendet[0][1].splitlines()
+    assert zeilen[3] == "Fragen: Was war in deinem Koffer?"
+
+
+def test_stand_ohne_fragen_sagt_das_auch(conn, einst, tg):
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    assert "Fragen: noch keine" in tg.gesendet[0][1]
 
 
 # ---------------------------------------------------------------------------

@@ -350,9 +350,15 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     ohne Login ist nicht der Ort fuer die Rohaufnahme eines Interviews."""
     if not token:
         return None
-    zeile = conn.execute(
-        "SELECT * FROM gruppe WHERE web_token = ?", (token,)
-    ).fetchone()
+    try:
+        zeile = conn.execute(
+            "SELECT * FROM gruppe WHERE web_token = ?", (token,)
+        ).fetchone()
+    except sqlite3.OperationalError:
+        # Spalte fehlt noch: die Migration laeuft im Bot, nicht hier
+        # (read-only). Bis der Bot mit neuem Code laeuft, gibt es keine
+        # Gruppenseite -- 404, nicht 500.
+        return None
     if zeile is None:
         return None
     chat_id = zeile["chat_id"]

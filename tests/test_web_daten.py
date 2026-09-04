@@ -214,3 +214,19 @@ def test_lesende_verbindung_darf_nicht_schreiben(tmp_path):
     import sqlite3
     with pytest.raises(sqlite3.OperationalError):
         lesend.execute("UPDATE gruppe SET titel = 'geklaut' WHERE chat_id = 1")
+
+
+def test_gruppe_ohne_web_token_spalte_liefert_none(tmp_path):
+    """Live-Fall 04.09.2026: der Webserver lief gegen eine DB, deren Bot noch
+    den alten Code ohne ``web_token`` hatte -- HTTP 500 statt 404. Die
+    Spalte kommt per Migration im Bot; bis dahin ist jede Gruppenseite
+    schlicht unbekannt."""
+    import sqlite3
+
+    from theatersoap import web_daten
+
+    conn = sqlite3.connect(tmp_path / "alt.db")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE gruppe (chat_id INTEGER PRIMARY KEY, bot_name TEXT)")
+    conn.execute("INSERT INTO gruppe VALUES (1, 'bot')")
+    assert web_daten.gruppe_nach_token(conn, "irgendein-token") is None

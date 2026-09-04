@@ -254,8 +254,17 @@ def _arbeitsstand_html(arbeitsstand: dict, figuren: list[dict]) -> str:
             else ""
         )
         + "</dd>"
-        f"<dt>Hauptkonflikt</dt><dd>{_t(arbeitsstand['hauptkonflikt'])}</dd>"
-        "<dt>Figuren</dt><dd>"
+        f"<dt>Format</dt><dd>{_t(arbeitsstand.get('format'))}</dd>"
+        f"<dt>Rahmen</dt><dd>{_t(arbeitsstand.get('rahmen'))}</dd>"
+        # Der Hauptkonflikt steht nur da, wenn es einen gibt (05.09.2026): er
+        # ist eine moegliche Rahmen-Entscheidung, keine Pflicht -- ein leeres
+        # Feld daneben sieht aus wie eine unerledigte Aufgabe.
+        + (
+            f"<dt>Hauptkonflikt</dt><dd>{_t(arbeitsstand['hauptkonflikt'])}</dd>"
+            if arbeitsstand.get("hauptkonflikt")
+            else ""
+        )
+        + "<dt>Figuren</dt><dd>"
         + (f'<ul class="figuren">{figuren_html}</ul>' if figuren else '<span class="leer">noch keine</span>')
         + "</dd></dl>"
     )

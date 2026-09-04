@@ -89,9 +89,10 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
     dass eine ungesetzte Phase wie 1 gilt, ist eine Anzeigeregel und steht
     in ``web.py``, nicht hier.
 
-    ``phase`` und ``fragen`` gehen ueber ``_feld``: beide sind nachtraeglich
-    dazugekommen, und der Webserver sieht die Datenbank read-only -- zwischen
-    einem Deploy und dem Neustart des Bots kann die Spalte noch fehlen."""
+    ``phase``, ``fragen``, ``format`` und ``rahmen`` gehen ueber ``_feld``:
+    alle sind nachtraeglich dazugekommen, und der Webserver sieht die
+    Datenbank read-only -- zwischen einem Deploy und dem Neustart des Bots
+    kann die Spalte noch fehlen."""
     zeile = conn.execute(
         "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
     ).fetchone()
@@ -101,6 +102,8 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         "fragen": _feld(zeile, "fragen"),
         "kernthema": zeile["kernthema"] if zeile else None,
         "kernthema_begruendung": zeile["kernthema_begruendung"] if zeile else None,
+        "format": _feld(zeile, "format"),
+        "rahmen": _feld(zeile, "rahmen"),
         "hauptkonflikt": zeile["hauptkonflikt"] if zeile else None,
         "geaendert_am": zeile["geaendert_am"] if zeile else None,
     }

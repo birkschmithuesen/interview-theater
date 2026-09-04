@@ -124,6 +124,17 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   fragen                 TEXT,
   kernthema              TEXT,
   kernthema_begruendung  TEXT,
+  -- Phase 5 heisst seit dem 05.09.2026 "Format & Rahmen" (Birk: "Es muss
+  -- nicht immer einen Konflikt geben -- es kann ein Lied sein oder eine
+  -- harmonische Liebesszene. Das Ganze wird vermutlich ein Musical.").
+  -- ``format``: was entsteht und welche Formen vorkommen duerfen, als ein
+  -- Text ("Musical: Dialog, Lied, Rap"). ``rahmen``: worin es spielt --
+  -- Ort(e), Zeit, Anlass, roter Faden.
+  format                 TEXT,
+  rahmen                 TEXT,
+  -- Bleibt als OPTIONALES Feld: ein durchgehender Konflikt ist eine
+  -- Rahmen-Entscheidung, keine Pflicht. Gesetzt wird er weiter ueber
+  -- hauptkonflikt_setzen; /stand und Web zeigen ihn nur, wenn er dasteht.
   hauptkonflikt          TEXT,
   -- Die Arbeitsphase 1-7 (interview_theater/phasen.py). NULL = noch nie gesetzt
   -- und gilt dann wie 1. Gesetzt wird sie ausschliesslich von der Gruppe

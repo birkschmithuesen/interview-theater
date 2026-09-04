@@ -160,10 +160,13 @@ def test_schema_kennt_kein_maxitems():
     assert "maxItems" not in str(erkenner.SCHEMA)
 
 
-def test_arten_enthaelt_alle_sechzehn_werte():
+def test_arten_enthaelt_alle_achtzehn_werte():
     erwartet = {
         "interview_starten", "interview_beenden", "interview_benennen",
         "begriffe_setzen", "fragen_setzen", "kernthema_setzen",
+        # Phase 5 heisst seit dem 05.09.2026 "Format & Rahmen": zwei neue
+        # Arten, und der Hauptkonflikt bleibt als optionales Feld daneben.
+        "format_setzen", "rahmen_setzen",
         "hauptkonflikt_setzen", "figur_setzen", "wortlaut_an", "wortlaut_aus",
         "verworfen", "entschieden", "szene_schreiben", "phase_setzen",
         "entfernen", "an_den_bot",
@@ -184,7 +187,7 @@ def test_an_den_bot_gilt_nur_aus_einer_aufnahme(conn, einst):
     assert erkenner.baue_meldung(wirkliche) is None
 
 
-def test_prompt_enthaelt_zwoelf_beispiele_davon_drei_leer():
+def test_prompt_enthaelt_vierzehn_beispiele_davon_vier_leer():
     """Grober Regressionsschutz gegen einen versehentlich verkuerzten Prompt.
 
     Die Rechercheempfehlung lautete auf 5 Few-Shot-Beispiele, davon 2 leer.
@@ -203,12 +206,17 @@ def test_prompt_enthaelt_zwoelf_beispiele_davon_drei_leer():
     Vorschlag ist eine Festlegung** -- drei vorgeschlagene Figuren, ein "find
     ich stark, nehmen wir", drei Eintraege. Es steht an der Stelle, an der
     frueher der Gegenfall stand, und der bleibt gleich daneben: Lob ohne
-    Vorschlag davor traegt weiterhin nichts ein. Deshalb sind es drei leere
-    Beispiele wie zuvor."""
+    Vorschlag davor traegt weiterhin nichts ein.
+
+    Nummer dreizehn und vierzehn kamen mit Phase 5 ("Format & Rahmen",
+    05.09.2026): eines, das ``format_setzen`` und ``rahmen_setzen`` in einem
+    Abschnitt zeigt (die Gruppe entscheidet beides oft in einem Zug), und sein
+    Negativfall -- "vielleicht wird das ja ein Musical" setzt kein Format.
+    Damit sind es vier leere Beispiele."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 12
-    assert anzahl_leer == 3
+    assert anzahl_beispiele == 14
+    assert anzahl_leer == 4
 
 
 # ---------------------------------------------------------------------------
@@ -773,7 +781,7 @@ def test_phase_setzen_meldet_die_neue_phase(conn, einst):
 
     meldung = erkenner.baue_meldung(wirkliche)
 
-    assert "Wir sind jetzt bei 5 · Hauptkonflikt." in meldung
+    assert "Wir sind jetzt bei 5 · Format & Rahmen." in meldung
     assert meldung.endswith("Falls das nicht stimmt, sagt es mir.")
 
 
@@ -845,6 +853,36 @@ def test_entfernen_nimmt_eine_figur_weg_und_meldet_es(conn, einst):
     assert "Entfernt: Figur Peter" in erkenner.baue_meldung(wirkliche)
 
 
+def test_format_und_rahmen_landen_im_arbeitsstand_und_in_der_meldung(conn, einst):
+    """Phase 5 heisst seit dem 05.09.2026 "Format & Rahmen" -- zwei Felder,
+    zwei Arten, und beide bekommen in der Notiert-Zeile eine eigene Zeile im
+    Wortlaut (wie Kernthema und Hauptkonflikt)."""
+    wirkliche = erkenner.wende_an(conn, einst, 1, [
+        {"art": "format_setzen", "wert": "Musical: Dialog, Lied, Rap"},
+        {"art": "rahmen_setzen", "wert": "Demo, danach eine Kueche"},
+    ])
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["format"] == "Musical: Dialog, Lied, Rap"
+    assert stand["rahmen"] == "Demo, danach eine Kueche"
+    meldung = erkenner.baue_meldung(wirkliche)
+    assert "Format: Musical: Dialog, Lied, Rap" in meldung
+    assert "Rahmen: Demo, danach eine Kueche" in meldung
+
+
+def test_format_steht_im_erkenner_kontext(conn, einst):
+    """Der Erkenner sieht den Arbeitsstand -- sonst koennte er eine Zustimmung
+    ("ja, so machen wir das") nicht auf das Format beziehen, das im Verlauf
+    vorgeschlagen wurde."""
+    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
+
+    text = erkenner._arbeitsstand_text(conn, 1)
+
+    assert "Format: Musical: Dialog, Lied, Rap" in text
+    assert "Rahmen: Eine Nacht im Treppenhaus" in text
+
+
 def test_entfernen_leert_kernthema_samt_begruendung(conn, einst):
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     repo.setze_arbeitsstand(conn, 1, "kernthema_begruendung", "dreimal genannt")
@@ -859,6 +897,8 @@ def test_entfernen_leert_kernthema_samt_begruendung(conn, einst):
 @pytest.mark.parametrize(
     "feld, wert",
     [
+        ("format", "Format"),
+        ("rahmen", "Rahmen"),
         ("hauptkonflikt", "Hauptkonflikt"),
         ("begriffe", "Begriffe"),
         ("fragen", "Fragen"),

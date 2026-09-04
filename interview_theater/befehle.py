@@ -282,9 +282,17 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
         f"Kernthema: {stand['kernthema']}" if stand and stand["kernthema"] else "Kernthema: noch offen"
     )
     zeilen.append(
-        f"Hauptkonflikt: {stand['hauptkonflikt']}" if stand and stand["hauptkonflikt"]
-        else "Hauptkonflikt: noch offen"
+        f"Format: {stand['format']}" if stand and stand["format"] else "Format: noch offen"
     )
+    zeilen.append(
+        f"Rahmen: {stand['rahmen']}" if stand and stand["rahmen"] else "Rahmen: noch offen"
+    )
+    # Der Hauptkonflikt steht nur da, wenn es einen gibt (05.09.2026): er ist
+    # eine moegliche Rahmen-Entscheidung, keine Pflicht -- und eine Zeile
+    # "Hauptkonflikt: noch offen" liest sich wie eine Luecke, die zu fuellen
+    # waere.
+    if stand and stand["hauptkonflikt"]:
+        zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
     zeilen.append(
         "Figuren: " + ", ".join(f["name"] for f in figuren) if figuren else "Figuren: noch keine"
     )

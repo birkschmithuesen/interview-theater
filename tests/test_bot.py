@@ -345,7 +345,7 @@ def test_wiederkehr_begruessung_nennt_die_phase(conn, einst):
 
     bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)
 
-    assert "5 · Hauptkonflikt" in tg.gesendet[0][1]
+    assert "5 · Format & Rahmen" in tg.gesendet[0][1]
 
 
 # ---------------------------------------------------------------------------

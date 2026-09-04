@@ -388,7 +388,7 @@ def _nachrichtenzeilen(nachrichten: list[dict]) -> list[dict]:
 
 
 def _fuelle_arbeitsstand(conn, chat_id: int, stand: dict) -> None:
-    for feld in ("begriffe", "fragen", "kernthema", "hauptkonflikt"):
+    for feld in ("begriffe", "fragen", "kernthema", "format", "rahmen", "hauptkonflikt"):
         wert = (stand or {}).get(feld)
         if wert:
             repo.setze_arbeitsstand(conn, chat_id, feld, wert)

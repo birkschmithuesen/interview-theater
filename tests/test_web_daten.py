@@ -35,6 +35,8 @@ def gefuellt(conn):
     repo.setze_arbeitsstand(conn, 1, "kernthema_begruendung", "Dreimal genannt")
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Sprache, Warten")
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "Bleiben gegen Zurueckgehen")
     repo.setze_figur(conn, 1, "Maria", "kam 1998, arbeitet nachts")
     repo.merke_nachricht(conn, 1, 10, "Ada", 0, "text", "hallo", _iso(30))
@@ -66,6 +68,8 @@ def test_dashboard_zeigt_alle_gruppen_mit_arbeitsstand(gefuellt):
     erste = daten["gruppen"][0]
     assert erste["arbeitsstand"]["kernthema"] == "Ankommen"
     assert erste["arbeitsstand"]["kernthema_begruendung"] == "Dreimal genannt"
+    assert erste["arbeitsstand"]["format"] == "Musical: Dialog, Lied, Rap"
+    assert erste["arbeitsstand"]["rahmen"] == "Eine Nacht im Treppenhaus"
     assert erste["arbeitsstand"]["hauptkonflikt"] == "Bleiben gegen Zurueckgehen"
     assert erste["figuren"] == [{"name": "Maria", "beschreibung": "kam 1998, arbeitet nachts"}]
     assert erste["aufnahmen"] == {"fertig": 1}

@@ -358,7 +358,7 @@ def test_phase_ohne_argument_zeigt_phase_und_liste(conn, einst, tg):
 
     assert behandelt is True
     text = tg.gesendet[0][1]
-    assert "Wir sind bei 5 · Hauptkonflikt." in text
+    assert "Wir sind bei 5 · Format & Rahmen." in text
     for nummer, name, _ in phasen.PHASEN:
         assert f"{nummer} · {name}" in text
 
@@ -375,7 +375,7 @@ def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
     assert behandelt is True
     assert repo.hole_phase(conn, 1) == 5
     assert tg.gesendet == [
-        (1, "Wir sind jetzt bei 5 · Hauptkonflikt. Falls nicht, sagt es mir.")
+        (1, "Wir sind jetzt bei 5 · Format & Rahmen. Falls nicht, sagt es mir.")
     ]
 
 
@@ -413,7 +413,27 @@ def test_stand_zeigt_die_phase_zuerst(conn, einst, tg):
 
     zeilen = tg.gesendet[0][1].splitlines()
     assert zeilen[0] == "Stand:"
-    assert zeilen[1] == "Phase: 5 · Hauptkonflikt"
+    assert zeilen[1] == "Phase: 5 · Format & Rahmen"
+
+
+def test_stand_zeigt_format_und_rahmen_den_konflikt_nur_wenn_gesetzt(conn, einst, tg):
+    """Phase 5 (05.09.2026): Format und Rahmen stehen immer da, der
+    Hauptkonflikt nur, wenn die Gruppe einen wollte -- "Hauptkonflikt: noch
+    offen" liest sich wie eine Luecke, die zu fuellen waere, und genau das ist
+    er nicht."""
+    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    text = tg.gesendet[0][1]
+    assert "Format: Musical: Dialog, Lied, Rap" in text
+    assert "Rahmen: noch offen" in text
+    assert "Hauptkonflikt" not in text
+
+    repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "bleiben gegen gehen")
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    assert "Hauptkonflikt: bleiben gegen gehen" in tg.gesendet[1][1]
 
 
 def test_stand_zeigt_die_frageliste(conn, einst, tg):

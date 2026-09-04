@@ -125,6 +125,26 @@ def test_gruppenseite_zeigt_die_frageliste(basis, token):
     assert "Was war in deinem Koffer?" in hole(f"{basis}/g/{token}")[1]
 
 
+def test_arbeitsstand_zeigt_format_und_rahmen_den_konflikt_nur_wenn_gesetzt():
+    """Phase 5 (05.09.2026): Format und Rahmen sind eigene Zeilen. Der
+    Hauptkonflikt taucht nur auf, wenn es einen gibt -- eine leere Zeile
+    daneben sieht aus wie eine unerledigte Aufgabe, und genau das ist er
+    nicht."""
+    stand = {
+        "phase": 5, "begriffe": None, "fragen": None, "kernthema": "Ankommen",
+        "kernthema_begruendung": None, "format": "Musical: Dialog, Lied, Rap",
+        "rahmen": "Eine Nacht im Treppenhaus", "hauptkonflikt": None,
+    }
+
+    ohne = web._arbeitsstand_html(stand, [])
+    assert "Musical: Dialog, Lied, Rap" in ohne
+    assert "Eine Nacht im Treppenhaus" in ohne
+    assert "Hauptkonflikt" not in ohne
+
+    mit = web._arbeitsstand_html({**stand, "hauptkonflikt": "bleiben gegen gehen"}, [])
+    assert "Hauptkonflikt" in mit and "bleiben gegen gehen" in mit
+
+
 def test_unbekanntes_token_gibt_404_ohne_hinweis(basis):
     with pytest.raises(urllib.error.HTTPError) as fehler:
         hole(f"{basis}/g/falsch")

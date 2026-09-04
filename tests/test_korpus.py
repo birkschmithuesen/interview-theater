@@ -186,7 +186,10 @@ def test_erkenner_arten_sind_bekannt(erkenner_faelle):
 
 
 def test_erkenner_arbeitsstand_kennt_nur_bekannte_felder(erkenner_faelle):
-    erlaubt = {"begriffe", "fragen", "kernthema", "hauptkonflikt", "figuren"}
+    erlaubt = {
+        "begriffe", "fragen", "kernthema", "format", "rahmen", "hauptkonflikt",
+        "figuren",
+    }
     for fall in erkenner_faelle:
         unbekannt = set(fall["arbeitsstand"]) - erlaubt
         assert not unbekannt, f"{fall['id']}: {unbekannt}"

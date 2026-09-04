@@ -72,6 +72,14 @@ ARTEN = (
     # zwei Arbeiten, also braucht die erste auch ein eigenes Ergebnis.
     "fragen_setzen",
     "kernthema_setzen",
+    # Seit 05.09.2026: Phase 5 heisst "Format & Rahmen" (interview_theater/
+    # phasen.py). ``format_setzen`` haelt fest, WAS entsteht und welche Formen
+    # vorkommen duerfen ("Musical: Dialog, Lied, Rap"), ``rahmen_setzen``,
+    # WORIN es spielt (Ort, Zeit, Anlass, roter Faden).
+    "format_setzen",
+    "rahmen_setzen",
+    # Bleibt -- aber als OPTIONALES Feld: ein durchgehender Konflikt ist eine
+    # Rahmen-Entscheidung, keine Pflicht (Birk 05.09.2026).
     "hauptkonflikt_setzen",
     "figur_setzen",
     "wortlaut_an",
@@ -182,6 +190,10 @@ def _arbeitsstand_text(conn, chat_id: int) -> str:
             zeilen.append(f"Fragen: {stand['fragen']}")
         if stand["kernthema"]:
             zeilen.append(f"Kernthema: {stand['kernthema']}")
+        if stand["format"]:
+            zeilen.append(f"Format: {stand['format']}")
+        if stand["rahmen"]:
+            zeilen.append(f"Rahmen: {stand['rahmen']}")
         if stand["hauptkonflikt"]:
             zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
     for figur in figuren:
@@ -360,12 +372,14 @@ def wende_aus_aufnahme_an(klm, tg, conn, e, chat_id: int, aenderungen: list[dict
     _schliesse_interview_ab(klm, tg, conn, e, wirkliche)
 
 
-#: art -> Arbeitsstand-Feld fuer die vier Aenderungsarten, die ein einzelnes
+#: art -> Arbeitsstand-Feld fuer die Aenderungsarten, die ein einzelnes
 #: Feld ueberschreiben (SPEC § 4.3 'Ueberschreiben ist der Normalfall').
 _ARBEITSSTAND_ARTEN = {
     "begriffe_setzen": "begriffe",
     "fragen_setzen": "fragen",
     "kernthema_setzen": "kernthema",
+    "format_setzen": "format",
+    "rahmen_setzen": "rahmen",
     "hauptkonflikt_setzen": "hauptkonflikt",
 }
 
@@ -544,7 +558,8 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
 #: gehen ans Workshop-Team (prompts/system.md), das den Loeschweg von Hand
 #: geht (scripts/loeschen.py).
 _ENTFERNEN_ZIELE = (
-    "figur", "kernthema", "hauptkonflikt", "begriffe", "fragen", "szene", "journal",
+    "figur", "kernthema", "format", "rahmen", "hauptkonflikt", "begriffe",
+    "fragen", "szene", "journal",
 )
 
 #: Journalzeile, die eine Entfernung festhaelt -- der Weg soll sichtbar
@@ -582,6 +597,8 @@ def _zerlege_entfernen(wert: str) -> tuple[str, str] | None:
 #: laeuft ueber dieselbe Zerlegung wie alles andere ("Fragen" als erstes Wort).
 _ENTFERNEN_ARBEITSSTAND = {
     "kernthema": ("kernthema", "Kernthema"),
+    "format": ("format", "Format"),
+    "rahmen": ("rahmen", "Rahmen"),
     "hauptkonflikt": ("hauptkonflikt", "Hauptkonflikt"),
     "begriffe": ("begriffe", "Begriffe"),
     "fragen": ("fragen", "Fragen"),
@@ -754,9 +771,9 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     """Baut die eine Meldung je Erkennerlauf (SPEC § 4.3, teil-b.md Aufgabe
     4) -- nicht eine je Aenderung.
 
-    Kernthema und Hauptkonflikt bekommen je eine eigene Zeile im Wortlaut,
-    Figuren eine zusammenfassende Zeile mit Namen, Begriffe und Fragen je
-    eine Zeile.
+    Kernthema, Format, Rahmen und Hauptkonflikt bekommen je eine eigene Zeile
+    im Wortlaut, Figuren eine zusammenfassende Zeile mit Namen, Begriffe und
+    Fragen je eine Zeile.
     Journaleintraege (``verworfen``/``entschieden``) sowie Schalter,
     Interviewmodus und Umbenennungen bleiben still -- sonst waere der Chat
     zugespammt und die Meldungen wuerden ueberlesen. Gab es keine Aenderung
@@ -772,6 +789,8 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     Den automatischen Sprung des Bots gab es einmal; er ist verworfen, weil
     ein Datenstand keine Absicht ist (interview_theater/phasen.py)."""
     kernthema = None
+    formatwert = None
+    rahmen = None
     hauptkonflikt = None
     begriffe = None
     fragen = None
@@ -783,6 +802,10 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
         wert = aenderung.get("wert", "")
         if art == "kernthema_setzen":
             kernthema = wert
+        elif art == "format_setzen":
+            formatwert = wert
+        elif art == "rahmen_setzen":
+            rahmen = wert
         elif art == "hauptkonflikt_setzen":
             hauptkonflikt = wert
         elif art == "begriffe_setzen":
@@ -803,6 +826,10 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     zeilen = []
     if kernthema:
         zeilen.append(f"Kernthema: {kernthema}")
+    if formatwert:
+        zeilen.append(f"Format: {formatwert}")
+    if rahmen:
+        zeilen.append(f"Rahmen: {rahmen}")
     if hauptkonflikt:
         zeilen.append(f"Hauptkonflikt: {hauptkonflikt}")
     if figuren_namen:

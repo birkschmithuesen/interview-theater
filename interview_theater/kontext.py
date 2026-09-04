@@ -226,6 +226,13 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
             if stand["kernthema_begruendung"]:
                 zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
             zeilen.append(zeile)
+        # Format & Rahmen (Phase 5, seit 05.09.2026). Datengetrieben wie alles
+        # andere: der Hauptkonflikt steht nur da, wenn die Gruppe einen wollte
+        # -- er ist eine Rahmen-Entscheidung, keine Pflicht.
+        if stand["format"]:
+            zeilen.append(f"Format: {stand['format']}")
+        if stand["rahmen"]:
+            zeilen.append(f"Rahmen: {stand['rahmen']}")
         if stand["hauptkonflikt"]:
             zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
     for figur in figuren:

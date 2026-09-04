@@ -375,7 +375,7 @@ def test_gesetzte_phase_steht_am_anfang_des_arbeitsstands(conn, einst):
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     arbeitsstand = prompt.split("Arbeitsstand:\n", 1)[1]
-    assert arbeitsstand.startswith("Aktuelle Phase: 5 · Hauptkonflikt")
+    assert arbeitsstand.startswith("Aktuelle Phase: 5 · Format & Rahmen")
 
 
 def test_die_frageliste_steht_im_arbeitsstand(conn, einst):
@@ -422,10 +422,10 @@ def test_der_hinweisblock_sagt_dass_der_bot_nicht_selbst_umschaltet(conn, einst)
     assert "Du schaltest nicht selbst um" in prompt
 
 
-def test_kernthema_und_zwei_figuren_fuehren_zum_hauptkonflikt(conn, einst):
+def test_kernthema_und_zwei_figuren_fuehren_zu_format_und_rahmen(conn, einst):
     """Es gibt keine freie Stelle mehr: mit Kernthema und zwei Figuren ist die
-    naechste Station eindeutig der Hauptkonflikt (5) -- er braucht genau
-    diese beiden Wollen."""
+    naechste Station eindeutig Format & Rahmen (5) -- ueber die Form laesst
+    sich erst reden, wenn es ein Thema und Leute gibt, die es tragen."""
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
     repo.setze_figur(conn, 1, "Elif", "Nachbarin")
@@ -434,7 +434,7 @@ def test_kernthema_und_zwei_figuren_fuehren_zum_hauptkonflikt(conn, einst):
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
-    assert "Materiallage wuerde Phase 5 · Hauptkonflikt hergeben" in prompt
+    assert "Materiallage wuerde Phase 5 · Format & Rahmen hergeben" in prompt
     assert repo.hole_phase_angeboten(conn, 1) == 5
 
 
@@ -442,7 +442,7 @@ def test_gefragt_wird_immer_nach_der_hoechsten_moeglichen_phase(conn, einst):
     """Stehen mehrere Stufen offen, nennt der Block die hoechste: die Gruppe
     kann in ihrer Antwort jede andere nennen, und der Erkenner nimmt sie."""
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
-    repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "bleiben gegen gehen")
+    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
     repo.setze_figur(conn, 1, "Elif", "Nachbarin")
     phasen.setze(conn, 1, 4, "befehl")

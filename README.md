@@ -32,7 +32,10 @@ Der Weg zum fertigen Stück lässt sich grob in sieben Stationen beschreiben:
 3. **Interviews** — Interviews führen, das Material verdichten
 4. **Kernthema & Figuren** — aus den Verdichtungen das Kernthema herausschälen
    und die Figuren entwickeln
-5. **Hauptkonflikt** — den Hauptkonflikt benennen, der das Stück trägt
+5. **Format & Rahmen** — festlegen, *was* entsteht (Sprechtheater, Musical,
+   Revue, Hörstück) und welche Formen vorkommen dürfen (Dialog, Lied, Rap,
+   Monolog, Chor, stumme Szene), und *worin* es spielt (Ort, Zeit, Anlass,
+   roter Faden)
 6. **Szenen** — die Szenenfolge entwerfen und die Szenentexte schreiben
 7. **Durchlauf** — Durchlauf und Feinschliff vor der Aufführung
 
@@ -43,8 +46,14 @@ getippt, von einem Foto abgetippt oder als Sprachnachricht.
 **Kernthema und Figuren sind eine Station, nicht zwei.** Welches von beidem
 zuerst kommt, ergibt sich aus dem Material — manchmal steht das Thema und die
 Figuren fallen daraus ab, manchmal ist zuerst eine Figur da; oft geht beides
-zusammen. Der Hauptkonflikt kommt danach, weil er zwei Figuren braucht, die
-etwas wollen.
+zusammen. Format und Rahmen kommen danach, weil sich über die Form erst reden
+lässt, wenn es ein Thema und Leute gibt, die es tragen.
+
+**Es muss nicht immer einen Konflikt geben.** Nicht jede Szene braucht einen —
+es kann ein Lied sein, ein Chor oder eine harmonische Szene. Ein durchgehender
+Hauptkonflikt ist *eine* mögliche Rahmen-Entscheidung an Station 5, keine
+Voraussetzung für irgendetwas; der Bot fragt danach und nimmt ein Nein als
+Antwort.
 
 Das ist überhaupt eine Landkarte, kein Fahrplan. Die Gruppe darf jederzeit
 abbiegen, zu einer früheren Station zurückspringen oder eine Entscheidung

@@ -1,0 +1,201 @@
+"""Der Richter: gemma bewertet den Lauf abschnittsweise nach fester Metrik.
+
+Ein Aufruf je Skript-Schritt, plus einer fuer den Szenentext. Modell und
+Einstellungen wie beim Absichtserkenner (``e.erkenner_modell``, erzwungenes
+Schema, Reasoning aus): eine Bewertung nach einer geschriebenen Metrik ist
+Klassifikation, keine Abwaegung -- und gemma ist darin gemessen gut und
+billig (AGENTS.md 'Die Fallen', Punkt 5).
+
+**Warum ueberhaupt ein Modell.** Die harten Fehler zaehlt
+``kennzahlen.py`` ohne Modell -- Echo, behauptete Schreibvorgaenge,
+Namensanrede, Laenge. Was sich so nicht zaehlen laesst, ist die Frage, ob der
+Bot auf das eingeht, was gerade gesagt wurde, oder ob er einen Text liefert,
+der auf jede Nachricht gepasst haette. Genau dafuer, und nur dafuer, ist der
+Richter da.
+
+**Ein Fehlschlag ist kein Abbruch.** Faellt ein Abschnitt aus (Modellfehler,
+kaputtes JSON), bekommt er die Note ``None`` und einen Satz darueber; die
+mechanischen Kennzahlen und der Rest des Berichts bleiben vollstaendig. Ein
+Lauf, der Geld gekostet hat, soll nicht an der Bewertung sterben.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from interview_theater import anweisungen
+
+log = logging.getLogger(__name__)
+
+#: Art dieses Aufrufs in der Tabelle ``aufruf`` -- damit ``kennzahlen.kosten``
+#: den Richter der Simulation zurechnet und nicht dem Bot.
+ART = "richter"
+
+#: Die vier Noten, die jeder Abschnitt bekommt.
+KRITERIEN = (
+    "geht_auf_gesagtes_ein",
+    "bietet_an_statt_vorzuschreiben",
+    "phase_transparent",
+    "korrektur_angenommen",
+)
+
+#: Die zwei Noten, die nur ein Szenentext bekommt.
+SZENEN_KRITERIEN = ("szene_stimmt_zur_planung", "stimmen_unterscheidbar")
+
+BESTNOTE = 2
+
+
+def _note() -> dict:
+    """Ein Notenfeld. Kein ``enum`` und kein ``minimum``: strikte Modi
+    unterstuetzen beides nicht zuverlaessig (AGENTS.md 'Die Fallen'), und
+    ausserhalb von 0-2 wird ohnehin geklemmt (``_klemme``)."""
+    return {"type": "integer"}
+
+
+SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [*KRITERIEN, "satz", "zustimmungen", "schlechteste_antwort",
+                 "begruendung"],
+    "properties": {
+        **{k: _note() for k in KRITERIEN},
+        "satz": {"type": "string"},
+        "zustimmungen": {"type": "array", "items": {"type": "string"}},
+        "schlechteste_antwort": {"type": "string"},
+        "begruendung": {"type": "string"},
+    },
+}
+
+SZENEN_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [*SZENEN_KRITERIEN, "satz"],
+    "properties": {
+        **{k: _note() for k in SZENEN_KRITERIEN},
+        "satz": {"type": "string"},
+    },
+}
+
+
+def prompt() -> str:
+    """Die Metrik, heiss nachgeladen (``interview_theater/prompts/richter.md``).
+
+    Sie liegt bei den uebrigen Prompts und nicht neben diesem Modul, aus
+    demselben Grund wie ``erkenner.md``: der Betreiber zieht sie nach, wenn
+    der Bericht Noten liefert, die er nicht teilt -- und dann soll sie dort
+    liegen, wo er alle anderen Prompts auch sucht."""
+    return anweisungen.hole("richter")
+
+
+def _klemme(wert) -> int:
+    """Eine Note auf 0-2 begrenzen. Ein Modell, das 5 liefert, meint 'gut';
+    ein Modell, das -1 liefert, meint 'schlecht'. Beides ist eine Note, kein
+    Fehler, und einen ganzen Abschnitt daran scheitern zu lassen waere teurer
+    als die Ungenauigkeit."""
+    try:
+        return max(0, min(BESTNOTE, int(wert)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def baue_nutzertext(titel: str, ziel: str, abschnitt: str) -> str:
+    """Der Nutzertext eines Abschnitts: worum es dem Schritt ging, dann der
+    Wortlaut. Das Ziel steht **vor** dem Abschnitt, weil der Richter sonst
+    nicht beurteilen kann, ob der Bot am Thema vorbeigeantwortet hat."""
+    return "\n".join([
+        f"Abschnitt: {titel}",
+        f"Was die Gruppe in diesem Abschnitt wollte: {ziel.strip()}",
+        "",
+        "Der Wortlaut:",
+        abschnitt.strip() or "(keine Nachrichten in diesem Abschnitt)",
+    ])
+
+
+def baue_szenen_nutzertext(planung: str, szene: str) -> str:
+    return "\n".join([
+        "Die Gruppe hat diese Szene geplant:",
+        planung.strip() or "(keine Planung im Wortlaut)",
+        "",
+        "Das ist der Szenentext, den der Bot daraus geschrieben hat:",
+        szene.strip(),
+    ])
+
+
+def _leeres_urteil(fehler: str) -> dict:
+    return {
+        **{k: None for k in KRITERIEN},
+        "satz": f"Nicht bewertet: {fehler}",
+        "zustimmungen": [],
+        "schlechteste_antwort": "",
+        "begruendung": "",
+        "fehler": fehler,
+    }
+
+
+def bewerte_abschnitt(klm, e, titel: str, ziel: str, abschnitt: str) -> dict:
+    """Bewertet einen Abschnitt. Liefert immer ein Dict -- bei einem
+    Fehlschlag eines mit Noten ``None`` und dem Fehler im Satz."""
+    try:
+        ergebnis = klm.schema(
+            None, prompt(), baue_nutzertext(titel, ziel, abschnitt), SCHEMA, ART,
+            modell=e.erkenner_modell,
+        )
+    except Exception as fehler:  # noqa: BLE001 -- ein Abschnitt reisst den Lauf nie mit
+        log.exception("Richter-Aufruf fehlgeschlagen: %s", titel)
+        return _leeres_urteil(f"{type(fehler).__name__}: {fehler}")
+
+    urteil = {k: _klemme(ergebnis.get(k)) for k in KRITERIEN}
+    urteil["satz"] = (ergebnis.get("satz") or "").strip()
+    urteil["zustimmungen"] = [
+        str(k).strip() for k in (ergebnis.get("zustimmungen") or []) if str(k).strip()
+    ]
+    urteil["schlechteste_antwort"] = (ergebnis.get("schlechteste_antwort") or "").strip()
+    urteil["begruendung"] = (ergebnis.get("begruendung") or "").strip()
+    urteil["fehler"] = None
+    return urteil
+
+
+def bewerte_szene(klm, e, planung: str, szene: str) -> dict:
+    """Die beiden Noten, die nur ein Szenentext bekommt. ``None``, wenn keine
+    Szene geschrieben wurde -- ``--ohne-szene`` ist ein zulaessiger Lauf, kein
+    Mangel."""
+    if not (szene or "").strip():
+        return {}
+    try:
+        ergebnis = klm.schema(
+            None, prompt(), baue_szenen_nutzertext(planung, szene), SZENEN_SCHEMA,
+            ART, modell=e.erkenner_modell,
+        )
+    except Exception as fehler:  # noqa: BLE001
+        log.exception("Richter-Aufruf zur Szene fehlgeschlagen")
+        return {
+            **{k: None for k in SZENEN_KRITERIEN},
+            "satz": f"Nicht bewertet: {type(fehler).__name__}: {fehler}",
+            "fehler": str(fehler),
+        }
+    return {
+        **{k: _klemme(ergebnis.get(k)) for k in SZENEN_KRITERIEN},
+        "satz": (ergebnis.get("satz") or "").strip(),
+        "fehler": None,
+    }
+
+
+def summe(urteil: dict, kriterien=KRITERIEN) -> int | None:
+    """Die Notensumme eines Abschnitts, oder None, wenn er nicht bewertet
+    wurde. Grundlage der Rangfolge im Bericht: die schlechtesten Abschnitte
+    stehen dort mit ihrer schlechtesten Antwort."""
+    noten = [urteil.get(k) for k in kriterien]
+    if any(n is None for n in noten):
+        return None
+    return sum(noten)
+
+
+def markierte_zustimmungen(urteile: dict) -> set[str]:
+    """Alle Kennungen, die der Richter ueber alle Abschnitte hinweg als
+    Zustimmung markiert hat -- die Eingabe fuer
+    ``kennzahlen.zustimmungen``."""
+    return {
+        kennung
+        for urteil in urteile.values()
+        for kennung in urteil.get("zustimmungen", [])
+    }

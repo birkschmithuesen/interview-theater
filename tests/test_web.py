@@ -187,6 +187,38 @@ def test_bind_wird_zerlegt():
     assert web.lies_bind("127.0.0.1:0") == ("127.0.0.1", 0)
 
 
+def test_main_nimmt_die_umgebung_und_startet(monkeypatch, db_pfad):
+    """Die Verdrahtung von `python -m theatersoap.web`: main() liest genau
+    drei Variablen und reicht sie durch. Ohne diesen Test waere der erste
+    echte Start der erste Test."""
+    gesehen = {}
+
+    class FalscherServer:
+        def serve_forever(self):
+            gesehen["gestartet"] = True
+
+    def falsches_baue_server(pfad, bind, praefix):
+        gesehen.update(pfad=pfad, bind=bind, praefix=praefix)
+        return FalscherServer()
+
+    monkeypatch.setattr(web, "baue_server", falsches_baue_server)
+    monkeypatch.setenv("TS_DB", db_pfad)
+    monkeypatch.setenv("TS_WEB_BIND", "100.75.24.33:8010")
+    monkeypatch.delenv("TS_WEB_PREFIX", raising=False)
+
+    web.main()
+
+    assert gesehen == {"pfad": db_pfad, "bind": "100.75.24.33:8010",
+                       "praefix": "/theatersoap", "gestartet": True}
+
+
+def test_main_ohne_ts_db_bricht_ab(monkeypatch):
+    monkeypatch.delenv("TS_DB", raising=False)
+    with pytest.raises(SystemExit) as fehler:
+        web.main()
+    assert fehler.value.code == 1
+
+
 def test_praefix_wird_nur_am_anfang_abgeschnitten():
     assert web._pfad_ohne_praefix("/theatersoap/g/abc", "/theatersoap") == "/g/abc"
     assert web._pfad_ohne_praefix("/theatersoap", "/theatersoap") == "/"

@@ -379,6 +379,11 @@ def mache_handler(db_pfad: str, praefix: str = VORGABE_PRAEFIX):
     class Handler(BaseHTTPRequestHandler):
         server_version = "theatersoap"
         protocol_version = "HTTP/1.1"
+        #: HTTP/1.1 haelt die Verbindung offen, und ThreadingHTTPServer bindet
+        #: je Verbindung einen Thread. Ohne Zeitlimit blieben die Threads
+        #: stiller Browser-Tabs (Beamer, drei Gruppen mit Handy) fuer immer
+        #: liegen; nach 30 s ohne neue Anfrage wird die Verbindung geschlossen.
+        timeout = 30
 
         def do_GET(self) -> None:  # noqa: N802 (von BaseHTTPRequestHandler vorgegeben)
             pfad = _pfad_ohne_praefix(

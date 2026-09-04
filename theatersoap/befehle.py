@@ -1,12 +1,12 @@
-"""Acht Slash-Befehle als Notausgang (teil-b.md Aufgabe 6, plus ``/szene``
-und ``/phase``).
+"""Neun Slash-Befehle als Notausgang (teil-b.md Aufgabe 6, plus ``/szene``,
+``/phase`` und ``/figur``).
 
 Der Absichtserkenner (``erkenner.py``) ist der Hauptweg: gemessen 0
 Falsch-Positive bei 25 Negativfaellen, 30/30 Treffer. Diese Befehle sind der
 Notausgang, wenn er trotzdem danebenliegt oder die Gruppe es lieber explizit
-macht -- **acht, nicht fuenfzehn** (SPEC-Reduktion nach dem ersten
-Workshoptag; ``/szene`` kam mit den Szenentexten dazu, ``/phase`` mit den
-Arbeitsphasen).
+macht -- **neun, nicht fuenfzehn** (SPEC-Reduktion nach dem ersten
+Workshoptag; ``/szene`` kam mit den Szenentexten dazu, ``/phase`` und
+``/figur`` mit den Arbeitsphasen und dem weichen Loeschen).
 
 ``behandle()`` wird in ``ablauf.antworte`` VOR dem Kontextaufbau aufgerufen:
 ein erkannter Befehl loest KEINEN Gespraechszug aus (kann also nicht am
@@ -27,8 +27,20 @@ Befehl an (``/stand@theatersoapbot``) -- ``_zerlege`` trennt das
 grosszuegig ab, unabhaengig davon, welcher Name genau dahintersteht."""
 
 import logging
+import re
 
-from theatersoap import phasen, repo, szene
+from theatersoap import erkenner, phasen, repo, szene
+
+#: Woerter, die einen Befehl zu einer Entfernung machen (NACHTRAG N3).
+#: Grosszuegig, weil die Gruppe tippt, was ihr einfaellt -- aber eine feste
+#: Liste, kein Freitext: "/szene 2 kuerzer" ist ein Schreibauftrag.
+_ENTFERNEN_WOERTER = {"entfernen", "entferne", "loeschen", "löschen", "weg", "raus"}
+
+#: "/szene 2 entfernen" -- Nummer, dann ein Entfernungswort, sonst nichts.
+_SZENE_ENTFERNEN = re.compile(
+    r"^(?:szene\s*)?(\d{1,3})\s+(?:" + "|".join(_ENTFERNEN_WOERTER) + r")\.?$",
+    re.IGNORECASE,
+)
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +50,10 @@ _TEXT_KERNTHEMA_LEER = "Schreibt das Kernthema hinter den Befehl, zum Beispiel: 
 _TEXT_UNBEKANNT = "Diesen Befehl kenne ich nicht. /hilfe zeigt, was ich verstehe."
 _TEXT_WORTLAUT_AUS = "Wortlaut aus."
 _TEXT_PHASE_UMSCHALTEN = "Umschalten mit /phase 5 oder /phase Figuren - auch zurueck."
+_TEXT_FIGUR_HILFE = (
+    "So nehme ich eine Figur weg: /figur Peter entfernen. "
+    "Anlegen koennt ihr Figuren einfach im Gespraech."
+)
 _TEXT_PHASE_UNBEKANNT = "Diese Phase kenne ich nicht. Ich habe diese acht:"
 _TEXT_KEINE_AUFNAHMEN = "Es gibt noch keine Aufnahmen."
 _TEXT_SZENE_LEER = (
@@ -62,22 +78,25 @@ _TEXT_HILFE = (
     "/interview - Aufnahme starten\n"
     "/fertig - Aufnahme beenden\n"
     "/phase [nummer|name] - zeigt die Phase oder schaltet um\n"
-    "/kernthema <text> - Kernthema setzen oder korrigieren\n"
+    "/kernthema <text|aus> - Kernthema setzen, korrigieren oder wegnehmen\n"
+    "/figur <name> entfernen - eine Figur wegnehmen\n"
     "/szene <auftrag> - eine Szene ausschreiben lassen\n"
+    "/szene <nummer> entfernen - eine Szene wegnehmen\n"
     "/stand - zeigt, was ich mir bisher gemerkt habe\n"
     "/wortlaut [name|aus] - Originaltranskripte mitlesen\n"
     "/hilfe - diese Uebersicht"
 )
 
 #: Telegram-Nutzlast fuer setMyCommands (teil-b.md Aufgabe 6) -- ohne
-#: fuehrenden Schraegstrich, Telegram haengt ihn selbst an. Dieselben acht
+#: fuehrenden Schraegstrich, Telegram haengt ihn selbst an. Dieselben neun
 #: Befehle wie in behandle(), in derselben Reihenfolge wie in _TEXT_HILFE.
 BEFEHLE_LISTE = [
     {"command": "interview", "description": "Aufnahme starten"},
     {"command": "fertig", "description": "Aufnahme beenden"},
     {"command": "phase", "description": "Arbeitsphase zeigen oder umschalten"},
-    {"command": "kernthema", "description": "Kernthema setzen oder korrigieren"},
-    {"command": "szene", "description": "Eine Szene ausschreiben lassen"},
+    {"command": "kernthema", "description": "Kernthema setzen, korrigieren oder wegnehmen"},
+    {"command": "figur", "description": "Eine Figur entfernen"},
+    {"command": "szene", "description": "Eine Szene ausschreiben lassen oder entfernen"},
     {"command": "stand", "description": "Arbeitsstand anzeigen"},
     {"command": "wortlaut", "description": "Originaltranskripte mitlesen"},
     {"command": "hilfe", "description": "Wie der Bot funktioniert"},
@@ -114,11 +133,51 @@ def _befehl_fertig(conn, tg, chat_id: int) -> None:
 
 
 def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
+    """Setzt das Kernthema -- oder nimmt es mit ``/kernthema aus`` wieder
+    weg (NACHTRAG N3, der deterministische Weg neben der Erkenner-art
+    ``entfernen``)."""
     if not rest:
         tg.sende(chat_id, _TEXT_KERNTHEMA_LEER)
         return
+    if rest.lower() == "aus":
+        entfernt = erkenner.entferne(conn, chat_id, "kernthema", quelle="befehl")
+        tg.sende(chat_id, _melde_entfernt(entfernt, "Ein Kernthema war nicht gesetzt."))
+        return
     repo.setze_arbeitsstand(conn, chat_id, "kernthema", rest)
     tg.sende(chat_id, f"Kernthema notiert: {rest}")
+
+
+def _melde_entfernt(entfernt: dict | None, wenn_nichts: str) -> str:
+    """Die Antwort auf einen Entfernen-Befehl: was weg ist, oder warum
+    nichts passiert ist.
+
+    Anders als beim Erkenner (der still bleibt, wenn er nichts findet) sagt
+    ein Befehl immer etwas: wer ``/figur Peter entfernen`` tippt, wartet auf
+    eine Antwort, und Schweigen sieht aus wie ein kaputter Bot."""
+    if entfernt is None:
+        return wenn_nichts
+    return f"Entfernt: {entfernt['wert']}. Falls das nicht stimmt, sagt es mir."
+
+
+def _befehl_figur(conn, tg, chat_id: int, rest: str) -> None:
+    """``/figur <Name> entfernen`` -- der deterministische Weg, eine Figur
+    wegzunehmen (NACHTRAG N3 letzter Absatz).
+
+    Bewusst nur der Entfernungsweg: Figuren ANlegen erledigt der Erkenner im
+    Gespraech (art ``figur_setzen``), und ein zweiter Schreibweg fuer
+    dasselbe waere genau die Doppelung, die die Befehlsliste am ersten
+    Workshoptag von fuenfzehn auf sechs gebracht hat."""
+    name, _, schlusswort = rest.rpartition(" ")
+    if schlusswort.lower().strip(".") not in _ENTFERNEN_WOERTER or not name.strip():
+        tg.sende(chat_id, _TEXT_FIGUR_HILFE)
+        return
+    entfernt = erkenner.entferne(
+        conn, chat_id, f"figur {name.strip()}", quelle="befehl"
+    )
+    tg.sende(
+        chat_id,
+        _melde_entfernt(entfernt, f"Eine Figur {name.strip()} kenne ich nicht."),
+    )
 
 
 def _befehl_phase(conn, tg, chat_id: int, rest: str) -> None:
@@ -211,10 +270,23 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     """Der deterministische Weg zum Szenentext -- dasselbe Ziel wie die art
     ``szene_schreiben`` des Absichtserkenners, nur ohne Erkennungsrisiko.
 
+    ``/szene <n> entfernen`` nimmt stattdessen eine Szene weg (NACHTRAG N3).
+    Die Abgrenzung ist eng gefasst -- Nummer, dann ein Entfernungswort, sonst
+    nichts: alles andere ist ein Schreibauftrag, und einen Auftrag als
+    Loeschung misszuverstehen waere der teurere Fehler.
+
     Schickt selbst keine Ankuendigung: das macht ``szene.starte``, samt der
     Abfuhr, wenn schon eine Szene fuer diese Gruppe laeuft."""
     if not rest:
         tg.sende(chat_id, _TEXT_SZENE_LEER)
+        return
+    entfernung = _SZENE_ENTFERNEN.match(rest)
+    if entfernung:
+        nummer = entfernung.group(1)
+        entfernt = erkenner.entferne(conn, chat_id, f"szene {nummer}", quelle="befehl")
+        tg.sende(
+            chat_id, _melde_entfernt(entfernt, f"Eine Szene {nummer} kenne ich nicht.")
+        )
         return
     if klm is None:
         log.error("/szene ohne Sprachmodell aufgerufen, chat_id=%s", chat_id)
@@ -223,11 +295,11 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     szene.starte(conn, tg, klm, e, chat_id, rest)
 
 
-#: Die acht erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
+#: Die neun erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
 #: Slash-Text (z. B. "/irgendwas") freundlich beantwortet statt zu krachen.
 _BEKANNTE_BEFEHLE = {
-    "/interview", "/fertig", "/phase", "/kernthema", "/szene", "/stand",
-    "/wortlaut", "/hilfe",
+    "/interview", "/fertig", "/phase", "/kernthema", "/figur", "/szene",
+    "/stand", "/wortlaut", "/hilfe",
 }
 
 
@@ -262,6 +334,8 @@ def behandle(
         _befehl_phase(conn, tg, chat_id, rest)
     elif befehl == "/kernthema":
         _befehl_kernthema(conn, tg, chat_id, rest)
+    elif befehl == "/figur":
+        _befehl_figur(conn, tg, chat_id, rest)
     elif befehl == "/szene":
         _befehl_szene(conn, tg, klm, e, chat_id, rest)
     elif befehl == "/stand":

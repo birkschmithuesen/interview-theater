@@ -160,30 +160,32 @@ def test_schema_kennt_kein_maxitems():
     assert "maxItems" not in str(erkenner.SCHEMA)
 
 
-def test_arten_enthaelt_alle_dreizehn_werte():
+def test_arten_enthaelt_alle_vierzehn_werte():
     erwartet = {
         "interview_starten", "interview_beenden", "interview_benennen",
         "begriffe_setzen", "kernthema_setzen", "hauptkonflikt_setzen",
         "figur_setzen", "wortlaut_an", "wortlaut_aus", "verworfen", "entschieden",
-        "szene_schreiben", "phase_setzen",
+        "szene_schreiben", "phase_setzen", "entfernen",
     }
     assert set(erkenner.ARTEN) == erwartet
 
 
-def test_prompt_enthaelt_sieben_beispiele_davon_zwei_leer():
+def test_prompt_enthaelt_acht_beispiele_davon_zwei_leer():
     """Grober Regressionsschutz gegen einen versehentlich verkuerzten Prompt.
 
     Die Rechercheempfehlung lautete auf 5 Few-Shot-Beispiele, davon 2 leer.
-    Mit ``szene_schreiben`` ist eines dazugekommen -- die art, die als
-    einzige eine teure Handlung ausloest statt ein Feld zu setzen --, mit
-    ``phase_setzen`` ein weiteres: dort ist die Abgrenzung schwierig (ueber
-    eine Phase zu reden ist kein Setzen), und ein Beispiel zeigt sie
-    schneller als drei Saetze Regel. Die zwei leeren Beispiele bleiben
-    unveraendert: sie tragen den teuersten Fehlerfall (Zustimmung ohne
-    Beschluss)."""
+    Drei sind dazugekommen, jedes fuer eine art, deren Abgrenzung sich in
+    Regeln schlecht fassen laesst: ``szene_schreiben`` (die einzige art, die
+    eine teure Handlung ausloest statt ein Feld zu setzen), ``phase_setzen``
+    (ueber eine Phase zu reden ist kein Setzen) und ``entfernen`` -- dessen
+    Beispiel zwei Dinge auf einmal zeigt: die Figur fliegt raus, der
+    Loeschwunsch fuer ein INTERVIEW im selben Abschnitt aber nicht, weil
+    Material nie entfernbar ist (NACHTRAG N3). Die zwei leeren Beispiele
+    bleiben unveraendert: sie tragen den teuersten Fehlerfall (Zustimmung
+    ohne Beschluss)."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 7
+    assert anzahl_beispiele == 8
     assert anzahl_leer == 2
 
 

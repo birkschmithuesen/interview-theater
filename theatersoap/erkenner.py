@@ -43,6 +43,7 @@ grosses Fenster den Erkenner dauerhaft lahmlegen) und ein ``vorfall``
 """
 
 import logging
+import re
 
 from theatersoap import kontext, phasen, repo
 
@@ -82,6 +83,10 @@ ARTEN = (
     # Gruppe setzt sie im Gespraech (theatersoap/phasen.py). Auch der
     # Widerspruch gegen einen automatischen Sprung landet hier.
     "phase_setzen",
+    # Weiches Loeschen (NACHTRAG-weboberflaeche-und-sprache.md N3): die
+    # einzige art, die etwas WEGNIMMT. Material -- Aufnahmen, Transkripte,
+    # Verdichtungen -- ist davon ausgenommen und bleibt unentfernbar.
+    "entfernen",
 )
 
 #: Obergrenze fuer Aenderungen je Lauf -- im Prompttext UND hier im Code
@@ -398,6 +403,121 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
     return {"art": "phase_setzen", "wert": str(nummer)}
 
 
+#: Die Zielarten des weichen Loeschens, am ERSTEN Wort von ``wert`` erkannt
+#: (NACHTRAG-weboberflaeche-und-sprache.md N3). Material -- Aufnahmen,
+#: Transkripte, Verdichtungen -- steht bewusst NICHT hier: was eine Gruppe
+#: einmal erzaehlt hat, loescht der Bot nicht auf Zuruf. Solche Wuensche
+#: gehen ans Workshop-Team (prompts/system.md), das den Loeschweg von Hand
+#: geht (scripts/loeschen.py).
+_ENTFERNEN_ZIELE = ("figur", "kernthema", "hauptkonflikt", "begriffe", "szene", "journal")
+
+#: Journalzeile, die eine Entfernung festhaelt -- der Weg soll sichtbar
+#: bleiben, auch wenn das Entfernte es nicht mehr ist.
+_JOURNAL_ENTFERNT = "Entfernt: {was}"
+_JOURNAL_ZURUECK = "Zurueckgenommen: {text}"
+
+#: Szenennummer aus "Szene 2", "szene nr. 2", "2".
+_SZENENNUMMER = re.compile(r"(\d{1,3})")
+
+
+def _zerlege_entfernen(wert: str) -> tuple[str, str] | None:
+    """Trennt ``wert`` am ersten Wort in Zielart und Rest ("Figur Peter" ->
+    ``("figur", "Peter")``, "Journal: Kindheitsfragen" -> ``("journal",
+    "Kindheitsfragen")``, "Kernthema" -> ``("kernthema", "")``).
+
+    Tolerant gegen Doppelpunkt und Gross-/Kleinschreibung. Ist das erste Wort
+    keine bekannte Zielart, liefert die Funktion None -- und der Aufrufer
+    aendert nichts. Genau das faengt auch den Materialfall ab ("die Aufnahme
+    von Meryem"), falls der Erkenner ihn entgegen seiner Anweisung doch
+    einmal liefert: es gibt keinen Schreibpfad dorthin."""
+    text = (wert or "").strip()
+    if not text:
+        return None
+    erstes, _, rest = text.partition(" ")
+    ziel = erstes.strip(" :,.").lower()
+    if ziel not in _ENTFERNEN_ZIELE:
+        return None
+    return ziel, rest.strip(" :,")
+
+
+#: art -> Arbeitsstandfeld fuer die drei Ziele, die schlicht auf NULL gesetzt
+#: werden. Ein Zeitstempel waere hier sinnlos: das Feld hat genau einen Wert.
+_ENTFERNEN_ARBEITSSTAND = {
+    "kernthema": ("kernthema", "Kernthema"),
+    "hauptkonflikt": ("hauptkonflikt", "Hauptkonflikt"),
+    "begriffe": ("begriffe", "Begriffe"),
+}
+
+
+def _entferne_arbeitsstandfeld(conn, chat_id: int, ziel: str) -> str | None:
+    """Leert ein Arbeitsstandfeld und liefert seine Anzeigebezeichnung, oder
+    None, wenn es ohnehin leer war (dann ist nichts passiert und nichts zu
+    melden).
+
+    Mit dem Kernthema faellt seine Begruendung: sie erklaert ein Thema, das
+    es nicht mehr gibt, und wuerde sonst als Waise im Arbeitsstand stehen."""
+    feld, bezeichnung = _ENTFERNEN_ARBEITSSTAND[ziel]
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if not (stand and stand[feld]):
+        return None
+    repo.setze_arbeitsstand(conn, chat_id, feld, None)
+    if feld == "kernthema":
+        repo.setze_arbeitsstand(conn, chat_id, "kernthema_begruendung", None)
+    return bezeichnung
+
+
+def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | None:
+    """Entfernt weich, was ``wert`` benennt (art ``entfernen``, NACHTRAG N3).
+
+    Liefert ``{"art": "entfernen", "wert": "Figur Peter"}``, wenn wirklich
+    etwas entfernt wurde, sonst None. **Nicht gefunden ist kein Fehler**:
+    keine Aenderung, kein Journaleintrag, keine Meldung -- die Gruppe soll
+    fuer einen beilaeufig genannten Namen keine Fehlermeldung bekommen, und
+    ein "das gibt es nicht" waere ohnehin nur dann richtig, wenn der Erkenner
+    den Namen exakt getroffen hat.
+
+    Jede wirksame Entfernung bekommt eine Journalzeile: der Weg soll
+    sichtbar bleiben. Bei einem Journaleintrag selbst wird nichts geloescht
+    -- der alte Eintrag bekommt ``entfernt_am``, ein neuer haelt fest, dass
+    er zurueckgenommen wurde.
+
+    ``quelle`` unterscheidet im Journal den Erkenner vom Befehl
+    (``befehle.py`` ruft dieselbe Funktion auf, damit es fuer beide Wege nur
+    eine Wahrheit gibt)."""
+    zerlegt = _zerlege_entfernen(wert)
+    if zerlegt is None:
+        return None
+    ziel, rest = zerlegt
+
+    if ziel == "journal":
+        alter_text = repo.entferne_journal(conn, chat_id, rest)
+        if alter_text is None:
+            return None
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            _JOURNAL_ZURUECK.format(text=alter_text), quelle=quelle,
+        )
+        return {"art": "entfernen", "wert": f"Journal: {alter_text}"}
+
+    if ziel in _ENTFERNEN_ARBEITSSTAND:
+        bezeichnung = _entferne_arbeitsstandfeld(conn, chat_id, ziel)
+    elif ziel == "figur":
+        name = repo.entferne_figur(conn, chat_id, rest) if rest else None
+        bezeichnung = f"Figur {name}" if name else None
+    else:  # szene
+        treffer = _SZENENNUMMER.search(rest or "")
+        nummer = repo.entferne_szene(conn, chat_id, int(treffer.group(1))) if treffer else None
+        bezeichnung = f"Szene {nummer}" if nummer is not None else None
+
+    if bezeichnung is None:
+        return None
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden",
+        _JOURNAL_ENTFERNT.format(was=bezeichnung), quelle=quelle,
+    )
+    return {"art": "entfernen", "wert": bezeichnung}
+
+
 def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     """Wendet genau eine Aenderung an und liefert das angewendete
     ``{"art": ..., "wert": ...}`` zurueck, oder ``None`` wenn nichts
@@ -420,6 +540,8 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_interview_benennen_an(conn, chat_id, wert)
     if art == "phase_setzen":
         return _wende_phase_an(conn, chat_id, wert)
+    if art == "entfernen":
+        return entferne(conn, chat_id, wert)
     if art == "szene_schreiben":
         # Kein Schreibpfad: eine Szene ist kein Arbeitsstandfeld, das sich
         # ueberschreiben liesse, sondern ein eigener, minutenlanger
@@ -497,6 +619,11 @@ def baue_meldung(
     zugespammt und die Meldungen wuerden ueberlesen. Gab es keine Aenderung
     am Arbeitsstand, gibt es keine Meldung: ``None``.
 
+    Eine Entfernung (art ``entfernen``, NACHTRAG N3) bekommt eine Zeile mit
+    eigenem Verb ("Entfernt: Figur Peter"): sie steht in derselben Meldung
+    wie der Rest, weil eine Nachricht je Lauf die Regel ist, muss aber als
+    Wegnahme lesbar sein und nicht als Zuwachs.
+
     Eine Phasenaenderung bekommt ihre eigene Zeile -- gesetzt von der Gruppe
     (art ``phase_setzen``) oder vom Bot selbst (``phase_gesprungen``, siehe
     ``laufe``). Der Sprung steht bewusst in DERSELBEN Meldung wie die
@@ -508,6 +635,7 @@ def baue_meldung(
     begriffe = None
     figuren_namen = []
     phase_gesetzt = None
+    entfernt = []
     for aenderung in wirkliche_aenderungen:
         art = aenderung.get("art")
         wert = aenderung.get("wert", "")
@@ -521,6 +649,8 @@ def baue_meldung(
             figuren_namen.append(wert)
         elif art == "phase_setzen":
             phase_gesetzt = phasen.nummer_fuer(wert)
+        elif art == "entfernen":
+            entfernt.append(wert)
         # verworfen/entschieden/wortlaut_an/wortlaut_aus/interview_benennen:
         # bewusst ignoriert, bleiben still (Aufgabe 4). szene_schreiben
         # ebenfalls -- es meldet sich selbst, mit einer Ankuendigung und
@@ -535,6 +665,12 @@ def baue_meldung(
         zeilen.append(_figuren_zeile(figuren_namen))
     if begriffe:
         zeilen.append(f"Begriffe: {begriffe}")
+    # Entfernungen stehen in derselben Meldung wie alles andere -- eine
+    # Nachricht je Erkennerlauf bleibt die Regel (SPEC § 4.3). Sie tragen ihr
+    # eigenes Verb, damit niemand "Notiert:" liest und denkt, es sei etwas
+    # dazugekommen.
+    for was in entfernt:
+        zeilen.append(f"Entfernt: {was}")
     if phase_gesetzt is not None:
         zeilen.append(f"Wir sind jetzt bei {phasen.bezeichnung(phase_gesetzt)}.")
     if phase_gesprungen is not None:

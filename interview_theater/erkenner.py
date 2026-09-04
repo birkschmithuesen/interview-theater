@@ -45,18 +45,18 @@ grosses Fenster den Erkenner dauerhaft lahmlegen) und ein ``vorfall``
 import logging
 import re
 
-from theatersoap import kontext, phasen, repo
+from interview_theater import kontext, phasen, repo
 
 log = logging.getLogger(__name__)
 
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
-#: theatersoap/prompts/erkenner.md fuer die vollstaendige Anweisung samt
+#: interview_theater/prompts/erkenner.md fuer die vollstaendige Anweisung samt
 #: der fuenf Few-Shot-Beispiele).
-from theatersoap import anweisungen
+from interview_theater import anweisungen
 
 
 def prompt() -> str:
-    """Heiss nachgeladen (theatersoap.anweisungen)."""
+    """Heiss nachgeladen (interview_theater.anweisungen)."""
     return anweisungen.hole("erkenner")
 
 #: Alle erkennbaren Aenderungsarten, in derselben Reihenfolge wie im Prompt
@@ -75,12 +75,12 @@ ARTEN = (
     "verworfen",
     "entschieden",
     # Faellt aus der Reihe: die einzige art, die keinen Arbeitsstand
-    # veraendert, sondern eine Handlung anstoesst (theatersoap/szene.py).
+    # veraendert, sondern eine Handlung anstoesst (interview_theater/szene.py).
     # Deshalb hat sie in _wende_eine_an bewusst keinen Schreibpfad und wird
     # erst in laufe() ausgewertet.
     "szene_schreiben",
     # Seit 04.09.2026: die Arbeitsphase ist ein gespeichertes Feld, und die
-    # Gruppe setzt sie im Gespraech (theatersoap/phasen.py). Auch der
+    # Gruppe setzt sie im Gespraech (interview_theater/phasen.py). Auch der
     # Widerspruch gegen einen automatischen Sprung landet hier.
     "phase_setzen",
     # Weiches Loeschen (NACHTRAG-weboberflaeche-und-sprache.md N3): die
@@ -178,7 +178,7 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
 
     ``klm`` ist ein Objekt mit einer ``.schema(chat_id, system, nutzer,
     schema, art, modell=None, temperature=None) -> dict``-Methode (in
-    Produktion ``theatersoap.llm.LLM``, in Tests eine Attrappe).
+    Produktion ``interview_theater.llm.LLM``, in Tests eine Attrappe).
 
     Liefert eine Liste von ``{"art": ..., "wert": ...}``-Dicts, hoechstens
     ``MAX_AENDERUNGEN`` lang, nur mit bekannten ``art``-Werten. Wendet
@@ -387,7 +387,7 @@ def _wende_interview_benennen_an(conn, chat_id: int, wert: str) -> dict | None:
 
 def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
     """Setzt die Arbeitsphase, die die Gruppe genannt hat (art
-    ``phase_setzen``, theatersoap/phasen.py).
+    ``phase_setzen``, interview_theater/phasen.py).
 
     ``wert`` ist eine Nummer oder ein Kurzname; ``phasen.nummer_fuer``
     uebersetzt tolerant. Laesst er sich nicht zuordnen, wird nichts
@@ -654,7 +654,7 @@ def baue_meldung(
         # verworfen/entschieden/wortlaut_an/wortlaut_aus/interview_benennen:
         # bewusst ignoriert, bleiben still (Aufgabe 4). szene_schreiben
         # ebenfalls -- es meldet sich selbst, mit einer Ankuendigung und
-        # spaeter der fertigen Szene (theatersoap/szene.py).
+        # spaeter der fertigen Szene (interview_theater/szene.py).
 
     zeilen = []
     if kernthema:
@@ -719,7 +719,7 @@ def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> N
 
 def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> None:
     """Stoesst den Szenen-Aufruf an, wenn der Erkenner einen Schreibauftrag
-    gefunden hat (art ``szene_schreiben``, theatersoap/szene.py).
+    gefunden hat (art ``szene_schreiben``, interview_theater/szene.py).
 
     Nicht in ``wende_an``, weil dort nur in die Datenbank geschrieben wird:
     hier faellt eine Nachricht in die Gruppe an und ein Sprachmodell-Aufruf,
@@ -730,7 +730,7 @@ def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> No
     gefunden haben sollte: der zweite liefe ohnehin in die Sperre je chat_id
     und wuerde nur mit 'ich schreibe gerade noch' abgewiesen -- zwei
     Nachrichten fuer nichts."""
-    from theatersoap import szene  # spaeter Import, haelt den Modulkopf frei
+    from interview_theater import szene  # spaeter Import, haelt den Modulkopf frei
 
     auftrag = next(
         (a.get("wert") for a in aenderungen if a.get("art") == "szene_schreiben"), None

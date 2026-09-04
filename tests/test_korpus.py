@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from theatersoap import erkenner, journal
+from interview_theater import erkenner, journal
 
 KORPUS = Path(__file__).resolve().parent.parent / "korpus"
 

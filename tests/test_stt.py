@@ -4,7 +4,7 @@ import time
 import httpx
 import pytest
 
-from theatersoap import einstellungen, stt
+from interview_theater import einstellungen, stt
 
 
 def _klient(handler):

@@ -38,7 +38,7 @@ import time
 
 import httpx
 
-from theatersoap import repo
+from interview_theater import repo
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class LLMFehler(Exception):
     """Fehler beim Zugriff auf das Sprachmodell.
 
     Der API-Schluessel steht ausschliesslich im Authorization-Header, nie in
-    der URL -- anders als der Telegram-Token in theatersoap.telegram, der im
+    der URL -- anders als der Telegram-Token in interview_theater.telegram, der im
     URL-Pfad liegt und dort eigens bereinigt werden muss. Trotzdem gilt
     dieselbe Regel: Header und Anfragekoerper duerfen nie in eine
     Fehlermeldung wandern, die als Vorfall auf dem im Raum projizierten
@@ -221,7 +221,7 @@ class LLM:
         ``max_tokens`` und ``timeout`` sind additiv und optional: ohne
         Angabe gilt MAX_TOKENS bzw. der Timeout des uebergebenen
         httpx.Client, der Aufruf verhaelt sich also unveraendert. Der
-        Szenen-Aufruf (theatersoap/szene.py) setzt beide hoch, weil aktives
+        Szenen-Aufruf (interview_theater/szene.py) setzt beide hoch, weil aktives
         Reasoning das Ausgabebudget vor dem eigentlichen Inhalt verbraucht
         (``max_tokens >= 12.000``) und die Latenz um Faktor 7-23 steigt (der
         30-Sekunden-Client-Timeout aus bot.main reicht dafuer nicht)."""

@@ -17,7 +17,7 @@ eigene `chat_id`), alle Prozesse teilen sich eine SQLite-Datei (WAL-Modus,
 `busy_timeout`). Der Zustand liegt vollständig in der Datenbank — ein
 Neustart verliert nichts, siehe § 9 der SPEC.
 
-Module unter `theatersoap/`:
+Module unter `interview_theater/`:
 
 | Modul | Zuständigkeit |
 |---|---|
@@ -108,7 +108,7 @@ lädt, würde damit Gesprächszüge ausbremsen.
 Jede hier gemessen, keine geraten. Wer das nicht liest, verliert denselben
 Nachmittag noch einmal.
 
-1. **`TS_LLM_URL` braucht die volle URL inklusive `/chat/completions`.**
+1. **`IT_LLM_URL` braucht die volle URL inklusive `/chat/completions`.**
    Der Code hängt nichts an. Mit `.../openai/v1` allein antwortet der Server
    **HTTP 404**.
 
@@ -118,7 +118,7 @@ Nachmittag noch einmal.
    (`POST .../openai/audio/transcriptions`), das Ergebnis wird gepollt
    (`GET .../results/{batch_id}`). Das Feld `data` in der Ergebnisantwort ist
    ein **JSON-String**, kein Objekt, und muss ein zweites Mal geparst werden
-   (siehe `theatersoap/stt.py`).
+   (siehe `interview_theater/stt.py`).
 
 3. **Der MIME-Typ beim Upload muss zur Datei passen.** Ein fest verdrahtetes
    `audio/ogg` für eine WAV-Datei wird vom Anbieter mit einer `batch_id`
@@ -132,7 +132,7 @@ Nachmittag noch einmal.
 4. **`reasoning_effort` ist binär, und das Feld wegzulassen schaltet
    Reasoning AN.** `"none"` schaltet aus, jeder andere Wert — auch das Fehlen
    des Feldes — schaltet an. Es gibt keine stille Voreinstellung „aus"
-   (`theatersoap/llm.py`, `LLM._anfrage`: das Feld wird deshalb **immer**
+   (`interview_theater/llm.py`, `LLM._anfrage`: das Feld wird deshalb **immer**
    gesendet). Reasoning ist überall aus; bei Klassifikation mit Ausnahmen
    (dem Absichtserkenner) senkt es die Trefferquote messbar. Eng verwandte
    Falle: Reasoning verbraucht das Ausgabebudget, bevor der eigentliche
@@ -202,7 +202,7 @@ Code weiterhin einhält: **kein Befehl ruft synchron ein Modell** — `/szene`
 gibt sofort an einen eigenen Thread ab. Wer einen zehnten Befehl anhängt,
 halte sich daran.
 
-`einstellungen.py` liest zusätzlich `TS_MODELL_ERKENNER` (Vorgabewert
+`einstellungen.py` liest zusätzlich `IT_MODELL_ERKENNER` (Vorgabewert
 `google/gemma-4-31B-it`) — diese Variable fehlt noch in
 `docs/betrieb-env.beispiel`.
 
@@ -210,23 +210,23 @@ halte sich daran.
 
 **Regelweg: systemd-User-Units, nie Handstart.** Zwei Handstarts desselben
 Bots = beide bekommen `409 Conflict` bei `getUpdates`, keiner empfaengt —
-passiert am 04.09.2026 zweimal. Unit-Vorlage `docs/theatersoap@.service`
+passiert am 04.09.2026 zweimal. Unit-Vorlage `docs/interview-theater@.service`
 (nach `~/.config/systemd/user/`, `daemon-reload`), Start ueber
 `scripts/betrieb-start.sh <gruppe>` (waehlt Python 3.11 aus `.venv`/uv —
 das System-Python 3.9 kann `X | None` nicht importieren).
 
 ```
-systemctl --user enable --now theatersoap@gruppe1.service   # je Gruppe
-systemctl --user restart theatersoap@gruppe1.service        # Neustart
+systemctl --user enable --now interview-theater@gruppe1.service   # je Gruppe
+systemctl --user restart interview-theater@gruppe1.service        # Neustart
 tail -f betrieb/gruppe1.log                                 # Log je Gruppe
 ```
 
-**Verhalten aendern ohne Neustart** (`theatersoap/anweisungen.py`): alle
-Prompts unter `theatersoap/prompts/` werden bei jedem Aufruf per mtime
+**Verhalten aendern ohne Neustart** (`interview_theater/anweisungen.py`): alle
+Prompts unter `interview_theater/prompts/` werden bei jedem Aufruf per mtime
 geprueft und heiss nachgeladen -- auch `szene.md` und die Negativliste
 `theater-tells.md`, die im Workshop waechst und beim naechsten Szenenauftrag
 wirkt. Fuer spontane Regieanweisungen gibt es
-`betrieb/zusatz.md` (alle Bots) und `betrieb/zusatz.<TS_BOT_NAME>.md` (ein
+`betrieb/zusatz.md` (alle Bots) und `betrieb/zusatz.<IT_BOT_NAME>.md` (ein
 Bot); der Inhalt wird ans Ende der Gespraechs-Systemanweisung gehaengt,
 Loeschen der Datei nimmt ihn zurueck. Erkenner/Journal/Verdichter bekommen
 bewusst keinen Zusatz (gemessene Few-Shot-Prompts). Bedienung aus Hermes:
@@ -238,7 +238,7 @@ gestoppt ist:
 
 ```
 set -a; . ./betrieb/gruppe1.env; set +a
-python -m theatersoap.bot
+python -m interview_theater.bot
 ```
 
 - `pytest` — die Testsuite unter `tests/`, läuft ohne Netzzugriff (Attrappen
@@ -258,24 +258,24 @@ python -m theatersoap.bot
 Ein einziger Prozess für alle Gruppen, neben den Bots:
 
 ```
-TS_DB=betrieb/soap.db python -m theatersoap.web
+IT_DB=betrieb/soap.db python -m interview_theater.web
 ```
 
-Unit-Vorlage `docs/theatersoap-web.service` (nach `~/.config/systemd/user/`,
-`daemon-reload`, dann `systemctl --user enable --now theatersoap-web`), Log
+Unit-Vorlage `docs/interview-theater-web.service` (nach `~/.config/systemd/user/`,
+`daemon-reload`, dann `systemctl --user enable --now interview-theater-web`), Log
 nach `betrieb/web.log`.
 
 | Variable | Vorgabe | Bedeutung |
 |---|---|---|
-| `TS_DB` | — (Pflicht) | dieselbe SQLite wie die Bots, **read-only** geöffnet |
-| `TS_WEB_BIND` | `127.0.0.1:8010` | im Betrieb `100.75.24.33:8010` (Tailnet) |
-| `TS_WEB_PREFIX` | `/theatersoap` | Präfix, unter dem nginx den Server durchreicht |
-| `TS_WEB_URL` | `https://lab.artesmobiles.art/theatersoap` | nur für `scripts/web_links.py` |
+| `IT_DB` | — (Pflicht) | dieselbe SQLite wie die Bots, **read-only** geöffnet |
+| `IT_WEB_BIND` | `127.0.0.1:8010` | im Betrieb `100.75.24.33:8010` (Tailnet) |
+| `IT_WEB_PREFIX` | `/interview_theater` | Präfix, unter dem nginx den Server durchreicht |
+| `IT_WEB_URL` | `https://lab.artesmobiles.art/interview_theater` | nur für `scripts/web_links.py` |
 
 Routen: `/` (Team-Dashboard, projiziert, alle Gruppen), `/g/<token>`
 (Leseansicht einer Gruppe, Handy), `/gesund` (Health-Check, antwortet ohne
 Datenbankzugriff). Jede Route greift auch mit vorangestelltem
-`TS_WEB_PREFIX`, weil erst die nginx-Konfiguration entscheidet, ob das
+`IT_WEB_PREFIX`, weil erst die nginx-Konfiguration entscheidet, ob das
 Präfix beim Server ankommt.
 
 `python scripts/web_links.py` gibt aus, welche Gruppe welchen Link bekommt.
@@ -290,7 +290,7 @@ erreichbar sind und das Dashboard projiziert wird:
 - kein Volltranskript auf der Gruppenseite (dafür gibt es `/wortlaut` im Chat),
 - kein Belegzitat ohne `zitat_geprueft = 1`.
 
-`TS_WEB_BIND` lehnt `0.0.0.0` mit einem Fehler ab: ein Tippfehler in einer
+`IT_WEB_BIND` lehnt `0.0.0.0` mit einem Fehler ab: ein Tippfehler in einer
 Env-Datei soll die Interviews nicht ins offene Netz stellen.
 
 ### Prompt geändert? → Korpus laufen lassen
@@ -312,7 +312,7 @@ python -m scripts.pruefe_prompts erkenner --modell <anderes>   # Modellvergleich
 **Kein Test, läuft nie automatisch, kostet Rappen** — wie `rauchtest.py`. Rund
 70 Aufrufe für `alle`, sequenziell (Infomaniak liefert bei Parallelität
 429/5xx). Der Lauf schreibt seine `aufruf`- und `vorfall`-Zeilen in eine
-Wegwerf-Datenbank, nie in `TS_DB`.
+Wegwerf-Datenbank, nie in `IT_DB`.
 
 > **Die Regel: eine Änderung am Erkenner-Prompt gilt nur, wenn FP = 0 bleibt.**
 > Null Falsch-Positive bei 25 Negativfällen ist die Zahl, die den Erkenner

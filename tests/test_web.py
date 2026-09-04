@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 
 import pytest
-from theatersoap import db, repo, web
+from interview_theater import db, repo, web
 
 
 @pytest.fixture
@@ -89,11 +89,11 @@ def test_unbekannter_pfad_gibt_404(basis):
 
 
 def test_routen_gehen_auch_mit_nginx_praefix(basis, token):
-    """Ob nginx /theatersoap weiterreicht oder abschneidet, steht in der
+    """Ob nginx /interview_theater weiterreicht oder abschneidet, steht in der
     nginx-Konfiguration -- der Server nimmt deshalb beide Formen."""
-    assert hole(f"{basis}/theatersoap/")[0] == 200
-    assert hole(f"{basis}/theatersoap/gesund")[1].strip() == "ok"
-    assert "Ankommen" in hole(f"{basis}/theatersoap/g/{token}")[1]
+    assert hole(f"{basis}/interview_theater/")[0] == 200
+    assert hole(f"{basis}/interview_theater/gesund")[1].strip() == "ok"
+    assert "Ankommen" in hole(f"{basis}/interview_theater/g/{token}")[1]
 
 
 def test_alles_aus_der_datenbank_wird_maskiert(basis, db_pfad, token):
@@ -188,7 +188,7 @@ def test_bind_wird_zerlegt():
 
 
 def test_main_nimmt_die_umgebung_und_startet(monkeypatch, db_pfad):
-    """Die Verdrahtung von `python -m theatersoap.web`: main() liest genau
+    """Die Verdrahtung von `python -m interview_theater.web`: main() liest genau
     drei Variablen und reicht sie durch. Ohne diesen Test waere der erste
     echte Start der erste Test."""
     gesehen = {}
@@ -202,25 +202,25 @@ def test_main_nimmt_die_umgebung_und_startet(monkeypatch, db_pfad):
         return FalscherServer()
 
     monkeypatch.setattr(web, "baue_server", falsches_baue_server)
-    monkeypatch.setenv("TS_DB", db_pfad)
-    monkeypatch.setenv("TS_WEB_BIND", "100.75.24.33:8010")
-    monkeypatch.delenv("TS_WEB_PREFIX", raising=False)
+    monkeypatch.setenv("IT_DB", db_pfad)
+    monkeypatch.setenv("IT_WEB_BIND", "100.75.24.33:8010")
+    monkeypatch.delenv("IT_WEB_PREFIX", raising=False)
 
     web.main()
 
     assert gesehen == {"pfad": db_pfad, "bind": "100.75.24.33:8010",
-                       "praefix": "/theatersoap", "gestartet": True}
+                       "praefix": "/interview_theater", "gestartet": True}
 
 
 def test_main_ohne_ts_db_bricht_ab(monkeypatch):
-    monkeypatch.delenv("TS_DB", raising=False)
+    monkeypatch.delenv("IT_DB", raising=False)
     with pytest.raises(SystemExit) as fehler:
         web.main()
     assert fehler.value.code == 1
 
 
 def test_praefix_wird_nur_am_anfang_abgeschnitten():
-    assert web._pfad_ohne_praefix("/theatersoap/g/abc", "/theatersoap") == "/g/abc"
-    assert web._pfad_ohne_praefix("/theatersoap", "/theatersoap") == "/"
-    assert web._pfad_ohne_praefix("/g/abc", "/theatersoap") == "/g/abc"
-    assert web._pfad_ohne_praefix("/g/theatersoap", "/theatersoap") == "/g/theatersoap"
+    assert web._pfad_ohne_praefix("/interview_theater/g/abc", "/interview_theater") == "/g/abc"
+    assert web._pfad_ohne_praefix("/interview_theater", "/interview_theater") == "/"
+    assert web._pfad_ohne_praefix("/g/abc", "/interview_theater") == "/g/abc"
+    assert web._pfad_ohne_praefix("/g/interview_theater", "/interview_theater") == "/g/interview_theater"

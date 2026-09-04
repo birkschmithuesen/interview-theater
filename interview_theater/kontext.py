@@ -15,7 +15,7 @@ Kein Caching-Argument: in den Messlaeufen gegen Infomaniak steht in jeder
 Antwort ``prompt_tokens_details: null`` -- unbelegt und deshalb nirgends als
 Begruendung verwendet (§ 6.1).
 
-Szenen sind seit dem 04.09.2026 eingebaut (siehe ``theatersoap/szene.py``,
+Szenen sind seit dem 04.09.2026 eingebaut (siehe ``interview_theater/szene.py``,
 das sie schreibt): die Szenenliste als Teil des Arbeitsstands (Block 4) und
 die zuletzt geaenderte Szene im Volltext als eigener Block 5 -- beide
 datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
@@ -23,17 +23,17 @@ datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
 
 from datetime import datetime
 
-from theatersoap import phasen, repo
+from interview_theater import phasen, repo
 
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
-#: theatersoap/prompts/system.md). Wird der Sprachmodell-Anfrage getrennt vom
+#: interview_theater/prompts/system.md). Wird der Sprachmodell-Anfrage getrennt vom
 #: Rueckgabewert von baue() als ``system``-Feld mitgegeben (vgl.
-#: theatersoap.llm.LLM.schema/.prosa).
-from theatersoap import anweisungen
+#: interview_theater.llm.LLM.schema/.prosa).
+from interview_theater import anweisungen
 
 
 def system(bot_name: str | None = None, phase: int | None = None) -> str:
-    """Systemanweisung, heiss nachgeladen (siehe theatersoap.anweisungen).
+    """Systemanweisung, heiss nachgeladen (siehe interview_theater.anweisungen).
 
     ``phase`` haengt die Anweisung fuer die aktuelle Arbeitsphase an
     (``prompts/phasen/N.md``). Sie steuert den Fokus, nicht den
@@ -182,7 +182,7 @@ def szenenzeile(s) -> str:
     """Eine Szene als eine Zeile: Nummer, Titel, Kurzbeschreibung (SPEC § 6.2
     Block 4). Fehlt eines der Felder, faellt nur dieser Teil weg -- die Zeile
     bleibt lesbar, auch wenn das Sprachmodell einmal keinen Titel geliefert
-    hat und ``theatersoap.szene`` auf 'Szene N' zurueckgefallen ist."""
+    hat und ``interview_theater.szene`` auf 'Szene N' zurueckgefallen ist."""
     kopf = f"Szene {s['nummer']}" if s["nummer"] is not None else "Szene"
     if s["titel"]:
         kopf += f": {s['titel']}"
@@ -244,7 +244,7 @@ _PHASENHINWEIS = (
 
 def _baue_phasenhinweis(conn, chat_id: int) -> str:
     """Der Hinweis auf eine moegliche naechste Phase -- hoechstens einmal je
-    Stufe (theatersoap/phasen.py).
+    Stufe (interview_theater/phasen.py).
 
     Die einzige Stelle im Kontextaufbau, die schreibt: ``phase_angeboten``
     merkt sich, welcher Wechsel schon im Prompt stand. Ohne dieses Feld

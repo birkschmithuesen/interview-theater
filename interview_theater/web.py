@@ -16,16 +16,16 @@ ausschliesslich ueber den Chat, sonst laufen zwei Schreibwege gegeneinander.
 
 Start::
 
-    TS_DB=betrieb/soap.db python -m theatersoap.web
+    IT_DB=betrieb/soap.db python -m interview_theater.web
 
-Umgebung: ``TS_DB`` (Pflicht), ``TS_WEB_BIND`` (Vorgabe ``127.0.0.1:8010``),
-``TS_WEB_PREFIX`` (Vorgabe ``/theatersoap``).
+Umgebung: ``IT_DB`` (Pflicht), ``IT_WEB_BIND`` (Vorgabe ``127.0.0.1:8010``),
+``IT_WEB_PREFIX`` (Vorgabe ``/interview_theater``).
 
 Von aussen haengt der Server hinter nginx unter
-``https://lab.artesmobiles.art/theatersoap/``. Ob nginx das Praefix
+``https://lab.artesmobiles.art/interview_theater/``. Ob nginx das Praefix
 weiterreicht oder abschneidet, entscheidet die dortige Konfiguration und
 nicht dieser Code -- deshalb nimmt das Routing beide Formen an
-(``/g/<token>`` und ``/theatersoap/g/<token>``), und alle erzeugten Links
+(``/g/<token>`` und ``/interview_theater/g/<token>``), und alle erzeugten Links
 sind relativ.
 """
 
@@ -40,7 +40,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import phasen, web_daten
 
 VORGABE_BIND = "127.0.0.1:8010"
-VORGABE_PRAEFIX = "/theatersoap"
+VORGABE_PRAEFIX = "/interview_theater"
 
 #: Sekunden bis zum Selbst-Neuladen beider Seiten. Per <meta refresh>, damit
 #: die Seite ohne JavaScript aktuell bleibt -- ein projizierter Rechner soll
@@ -188,7 +188,7 @@ def _arbeitsstand_html(arbeitsstand: dict, figuren: list[dict]) -> str:
     )
     # Die Phase steht oben: sie ordnet alles darunter ein. Eine ungesetzte
     # Phase (NULL) gilt wie 1 -- diese Anzeigeregel steht hier, web_daten
-    # liefert den rohen Wert (theatersoap/phasen.py).
+    # liefert den rohen Wert (interview_theater/phasen.py).
     phase = arbeitsstand.get("phase") or phasen.ERSTE
     return (
         "<dl>"
@@ -277,7 +277,7 @@ def dashboard_html(daten: dict) -> str:
         for z in daten["bot_zuordnung"]
     )
     return _seite(
-        "theatersoap — Dashboard",
+        "interview_theater — Dashboard",
         _CSS_DASHBOARD,
         f'<h1>Arbeitsstand aller Gruppen <span class="stand">Stand '
         f'{_zeitpunkt(daten["stand"])}</span></h1>\n'
@@ -333,7 +333,7 @@ def gruppe_html(daten: dict) -> str:
 
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
     return _seite(
-        f"{titel} — theatersoap",
+        f"{titel} — interview_theater",
         _CSS_GRUPPE,
         f"<h1>{_t(titel)}</h1>\n"
         "<h2>Arbeitsstand</h2>"
@@ -382,7 +382,7 @@ def mache_handler(db_pfad: str, praefix: str = VORGABE_PRAEFIX):
     auf eine andere Datenbank stellen kann."""
 
     class Handler(BaseHTTPRequestHandler):
-        server_version = "theatersoap"
+        server_version = "interview_theater"
         protocol_version = "HTTP/1.1"
         #: HTTP/1.1 haelt die Verbindung offen, und ThreadingHTTPServer bindet
         #: je Verbindung einen Thread. Ohne Zeitlimit blieben die Threads
@@ -411,7 +411,7 @@ def mache_handler(db_pfad: str, praefix: str = VORGABE_PRAEFIX):
                 else:
                     self._antworte(404, nicht_gefunden_html())
             except sqlite3.Error as fehler:
-                # Typisch: TS_DB zeigt ins Leere, oder die Datei ist noch
+                # Typisch: IT_DB zeigt ins Leere, oder die Datei ist noch
                 # nicht angelegt. Kurz und ohne Pfade nach aussen, ausfuehrlich
                 # ins Log.
                 self.log_error("Datenbankfehler: %s", fehler)
@@ -460,7 +460,7 @@ def mache_handler(db_pfad: str, praefix: str = VORGABE_PRAEFIX):
 
 
 def lies_bind(wert: str) -> tuple[str, int]:
-    """Zerlegt ``TS_WEB_BIND`` in Adresse und Port.
+    """Zerlegt ``IT_WEB_BIND`` in Adresse und Port.
 
     ``0.0.0.0`` wird abgelehnt: die Gruppenseiten haben kein Login, und der
     Server gehoert ins Tailnet (im Betrieb ``100.75.24.33:8010``), nicht auf
@@ -468,11 +468,11 @@ def lies_bind(wert: str) -> tuple[str, int]:
     nicht ins offene Netz stellen."""
     adresse, trenner, port = wert.rpartition(":")
     if not trenner or not port.isdigit():
-        raise RuntimeError(f"TS_WEB_BIND muss 'adresse:port' sein, ist: {wert!r}")
+        raise RuntimeError(f"IT_WEB_BIND muss 'adresse:port' sein, ist: {wert!r}")
     adresse = adresse.strip("[]")
     if adresse in ("0.0.0.0", "::", ""):
         raise RuntimeError(
-            "TS_WEB_BIND darf nicht auf allen Adressen lauschen "
+            "IT_WEB_BIND darf nicht auf allen Adressen lauschen "
             f"(erhalten: {wert!r}) -- die Gruppenseiten haben kein Login. "
             "Tailnet-Adresse oder 127.0.0.1 eintragen."
         )
@@ -486,15 +486,15 @@ def baue_server(db_pfad: str, bind: str = VORGABE_BIND, praefix: str = VORGABE_P
 
 
 def main() -> None:
-    db_pfad = os.environ.get("TS_DB")
+    db_pfad = os.environ.get("IT_DB")
     if not db_pfad:
-        print("Fehlende Umgebungsvariable: TS_DB", file=sys.stderr)
+        print("Fehlende Umgebungsvariable: IT_DB", file=sys.stderr)
         sys.exit(1)
-    bind = os.environ.get("TS_WEB_BIND", VORGABE_BIND)
-    praefix = os.environ.get("TS_WEB_PREFIX", VORGABE_PRAEFIX)
+    bind = os.environ.get("IT_WEB_BIND", VORGABE_BIND)
+    praefix = os.environ.get("IT_WEB_PREFIX", VORGABE_PRAEFIX)
     server = baue_server(db_pfad, bind, praefix)
     print(
-        f"theatersoap-web hoert auf http://{bind}{praefix or '/'} "
+        f"interview-theater-web hoert auf http://{bind}{praefix or '/'} "
         f"(Datenbank {db_pfad}, read-only)",
         flush=True,
     )

@@ -5,7 +5,7 @@ vorhandene Testdatei ist (Aufgabe-7-Auftrag: nicht anfassen).
 """
 
 import pytest
-from theatersoap import db, repo
+from interview_theater import db, repo
 
 
 @pytest.fixture

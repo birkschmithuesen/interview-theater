@@ -4,25 +4,25 @@ After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/projekte/theatersoap
-# Ein Prozess fuer alle Gruppen -- anders als theatersoap@.service, das je
+WorkingDirectory=%h/projekte/interview-theater
+# Ein Prozess fuer alle Gruppen -- anders als interview-theater@.service, das je
 # Gruppe eine Instanz startet. Der Server liest die Datenbank read-only und
 # braucht deshalb keine betrieb/<gruppe>.env, nur den Pfad.
-Environment=TS_DB=betrieb/soap.db
+Environment=IT_DB=betrieb/soap.db
 # Tailnet-Adresse, nie 0.0.0.0: die Gruppenseiten haben kein Login. nginx auf
-# herkules gibt https://lab.artesmobiles.art/theatersoap/ hierher weiter.
-Environment=TS_WEB_BIND=100.75.24.33:8010
-Environment=TS_WEB_PREFIX=/theatersoap
+# herkules gibt https://lab.artesmobiles.art/interview_theater/ hierher weiter.
+Environment=IT_WEB_BIND=100.75.24.33:8010
+Environment=IT_WEB_PREFIX=/interview_theater
 # Python 3.11 aus uv, wie scripts/betrieb-start.sh: das System-Python 3.9
 # kann "X | None" nicht importieren. Der Shim in ~/.local/bin zeigt auf die
 # uv-Installation und ueberlebt ein Patch-Update (3.11.15 -> 3.11.16), das
 # einen fest eingetragenen Pfad brechen wuerde. Der Server braucht keine
 # Bibliothek ausser der Standardbibliothek, also auch keine .venv.
-ExecStart=%h/.local/bin/python3.11 -u -m theatersoap.web
+ExecStart=%h/.local/bin/python3.11 -u -m interview_theater.web
 Restart=always
 RestartSec=5
-StandardOutput=append:%h/projekte/theatersoap/betrieb/web.log
-StandardError=append:%h/projekte/theatersoap/betrieb/web.log
+StandardOutput=append:%h/projekte/interview-theater/betrieb/web.log
+StandardError=append:%h/projekte/interview-theater/betrieb/web.log
 
 [Install]
 WantedBy=default.target

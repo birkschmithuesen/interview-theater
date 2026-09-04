@@ -1,7 +1,7 @@
 [project]
-name = "theatersoap"
+name = "interview-theater"
 version = "0.1.0"
-description = "Telegram-Bot fuer einen Theater-Workshop"
+description = "Telegram-Bot, mit dem Gruppen aus eigenen Interviews ein Theaterstueck entwickeln"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
@@ -17,4 +17,4 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["theatersoap*"]
+include = ["interview_theater*"]

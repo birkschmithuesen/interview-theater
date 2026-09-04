@@ -8,7 +8,7 @@ Spalte), sind Datenbankfragen und keine Attrappenfragen.
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from theatersoap import db, repo, web_daten
+from interview_theater import db, repo, web_daten
 
 JETZT = datetime(2026, 9, 5, 14, 0, 0, tzinfo=timezone.utc)
 
@@ -223,7 +223,7 @@ def test_gruppe_ohne_web_token_spalte_liefert_none(tmp_path):
     schlicht unbekannt."""
     import sqlite3
 
-    from theatersoap import web_daten
+    from interview_theater import web_daten
 
     conn = sqlite3.connect(tmp_path / "alt.db")
     conn.row_factory = sqlite3.Row

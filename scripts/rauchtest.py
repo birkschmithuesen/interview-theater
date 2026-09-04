@@ -1,8 +1,8 @@
 """Rauchtest: EIN Aufruf gegen die echten Dienste (Sprachmodell, optional Whisper).
 
 **Kein Test, laeuft nie automatisch, kostet Geld.** Braucht echte
-Zugangsdaten (TS_LLM_URL, TS_LLM_KEY, TS_LLM_MODELL, TS_STT_BASIS,
-TS_STT_PRODUKT, siehe theatersoap.einstellungen) und Netzzugriff.
+Zugangsdaten (IT_LLM_URL, IT_LLM_KEY, IT_LLM_MODELL, IT_STT_BASIS,
+IT_STT_PRODUKT, siehe interview_theater.einstellungen) und Netzzugriff.
 
 Zweck: die Schaetzung "Zeichen ÷ 3" aus global-constraints.md § 6 an einem
 echten Aufruf pruefen. Das Skript schickt ein eingebautes Beispieltranskript
@@ -23,11 +23,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx
 
-from theatersoap import db, einstellungen, llm, stt
+from interview_theater import db, einstellungen, llm, stt
 
-#: Schema in der Form, die Aufgabe 7 (theatersoap.verdichter) verwenden wird
+#: Schema in der Form, die Aufgabe 7 (interview_theater.verdichter) verwenden wird
 #: (SPEC-kontext-architektur.md § 5/§ 7): Zusammenfassung plus Kernthemen mit
-#: je einem Belegzitat. Hier lokal nachgebaut, weil theatersoap.verdichter in
+#: je einem Belegzitat. Hier lokal nachgebaut, weil interview_theater.verdichter in
 #: dieser Aufgabe noch nicht existiert -- nur zum Kalibrieren der
 #: Token-Schaetzung, nicht zur produktiven Verwendung.
 SCHEMA = {

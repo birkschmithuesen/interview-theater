@@ -1,5 +1,5 @@
 import pytest
-from theatersoap import db, repo
+from interview_theater import db, repo
 
 
 @pytest.fixture

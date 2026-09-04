@@ -1,4 +1,4 @@
-"""Die Arbeitsphasen als gespeicherter Zustand (theatersoap/phasen.py).
+"""Die Arbeitsphasen als gespeicherter Zustand (interview_theater/phasen.py).
 
 Zwei Dinge werden hier geprueft, und beide sind Entscheidungen, keine
 Implementierungsdetails: dass ``nummer_fuer`` tolerant genug ist, um zu
@@ -9,7 +9,7 @@ Zustandsmaschine, und niemals rueckwaerts.
 
 import pytest
 
-from theatersoap import db, phasen, repo
+from interview_theater import db, phasen, repo
 
 
 @pytest.fixture

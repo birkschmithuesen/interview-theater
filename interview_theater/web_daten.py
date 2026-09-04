@@ -1,6 +1,6 @@
 """Lesezugriffe der Weboberflaeche: Verbindung rein, Dicts raus.
 
-Reine Funktionen ohne HTTP -- ``theatersoap/web.py`` macht daraus HTML, die
+Reine Funktionen ohne HTTP -- ``interview_theater/web.py`` macht daraus HTML, die
 Tests koennen dieselben Daten ohne Server pruefen.
 
 **Warum hier SQL steht, obwohl repo.py sonst die einzige SQL-Schicht ist.**
@@ -37,7 +37,7 @@ def oeffne_lesend(pfad: str) -> sqlite3.Connection:
     sich darauf zu verlassen, dass dieses Modul keinen enthaelt.
 
     Betriebsfalle: eine WAL-Datenbank read-only zu oeffnen funktioniert nur,
-    solange die Datei ueberhaupt existiert -- ein Tippfehler in TS_DB gibt
+    solange die Datei ueberhaupt existiert -- ein Tippfehler in IT_DB gibt
     hier ``unable to open database file`` und nicht etwa eine leere Seite.
     web.py faengt das ab und antwortet mit 500.
     """

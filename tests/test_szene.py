@@ -1,4 +1,4 @@
-"""Tests fuer den Szenen-Aufruf (theatersoap/szene.py).
+"""Tests fuer den Szenen-Aufruf (interview_theater/szene.py).
 
 Kein Netzzugriff: das Sprachmodell ist eine Attrappe mit einer
 ``.prosa()``-Methode, die eine vorbereitete Antwort liefert (oder einen
@@ -14,7 +14,7 @@ import threading
 
 import pytest
 
-from theatersoap import repo, szene
+from interview_theater import repo, szene
 
 ANTWORT = "TITEL: Am Bahnhof\nKURZ: Maria kommt an und trifft Elif.\n\nMARIA: Da.\nELIF: Ja."
 

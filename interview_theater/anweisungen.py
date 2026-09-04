@@ -2,7 +2,7 @@
 
 Die Prompts (``system``, ``erkenner``, ``journal``, ``verdichter``, ``szene``
 und die Negativliste ``theater-tells``, die ``szene.py`` an ``szene`` haengt)
-liegen als Markdown unter ``theatersoap/prompts/``. Frueher wurden sie
+liegen als Markdown unter ``interview_theater/prompts/``. Frueher wurden sie
 einmal beim Import gelesen; jede Aenderung brauchte einen Neustart und damit
 einen Eingriff am laufenden Prozess -- genau das, was am Workshoptag schief
 geht (Doppelstart, 409 Conflict, Bot taub).
@@ -13,7 +13,7 @@ Modell-Latenz nichts. Eine Aenderung an ``system.md`` wirkt damit beim
 naechsten Gespraechszug.
 
 **Zusatz-Datei fuer den Regie-Zettel.** Liegt neben der Datenbank ein
-``zusatz.md`` (Pfad: ``<TS_DB-Verzeichnis>/zusatz.md``) oder ein
+``zusatz.md`` (Pfad: ``<IT_DB-Verzeichnis>/zusatz.md``) oder ein
 ``zusatz.<bot_name>.md``, wird deren Inhalt an die Systemanweisung des
 Gespraechs angehaengt -- fuer alle Bots bzw. nur fuer einen. So laesst sich
 "heute nur Figuren, keine Szenen" oder "weniger vorschlagen, mehr fragen"
@@ -104,8 +104,8 @@ def hole_optional(name: str) -> str | None:
 
 
 def zusatz_verzeichnis() -> Path | None:
-    """Wo ``zusatz.md`` gesucht wird: neben der Datenbank (``TS_DB``)."""
-    db = os.environ.get("TS_DB")
+    """Wo ``zusatz.md`` gesucht wird: neben der Datenbank (``IT_DB``)."""
+    db = os.environ.get("IT_DB")
     if not db:
         return None
     return Path(db).expanduser().resolve().parent

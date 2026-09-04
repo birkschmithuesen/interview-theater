@@ -114,7 +114,7 @@ def stelle_web_token_sicher(conn: sqlite3.Connection, chat_id: int) -> str | Non
     """Liefert das Web-Token der Gruppe und erzeugt es beim ersten Bedarf.
 
     Der Webserver oeffnet die Datenbank read-only
-    (``theatersoap/web_daten.py``), deshalb entsteht das Token hier im
+    (``interview_theater/web_daten.py``), deshalb entsteht das Token hier im
     Schreibpfad des Bots. Das ``WHERE web_token IS NULL`` macht das Setzen
     atomar: laufen zwei Bot-Prozesse gleichzeitig durch, gewinnt einer, und
     beide lesen danach dasselbe Token. Liefert None, wenn es die Gruppe nicht
@@ -631,7 +631,7 @@ def setze_arbeitsstand(
 @_gesperrt
 def hole_phase(conn: sqlite3.Connection, chat_id: int) -> int | None:
     """Die gespeicherte Arbeitsphase (1-8) oder None, wenn noch keine gesetzt
-    wurde (theatersoap/phasen.py, SPEC § 0 Leitsatz 3 Nachtrag).
+    wurde (interview_theater/phasen.py, SPEC § 0 Leitsatz 3 Nachtrag).
 
     Liefert absichtlich den rohen Wert samt None -- 'noch nie gesetzt' ist
     etwas anderes als 'ausdruecklich auf 1 gesetzt', auch wenn der Bot beides
@@ -814,7 +814,7 @@ def aktualisiere_szene(
 def hole_szenen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle Szenen einer Gruppe, nach Szenennummer sortiert (SPEC § 6.2 Block 4:
     die Szenenliste im Arbeitsstand). Eine Szene ohne Nummer sortiert in SQLite
-    nach vorn -- im Normalbetrieb vergibt ``theatersoap.szene`` immer eine, der
+    nach vorn -- im Normalbetrieb vergibt ``interview_theater.szene`` immer eine, der
     Fall bleibt nur als Datenbankmoeglichkeit bestehen."""
     return conn.execute(
         "SELECT * FROM szene WHERE chat_id = ? AND entfernt_am IS NULL "
@@ -1042,7 +1042,7 @@ def setze_wortlaut_modus(conn: sqlite3.Connection, chat_id: int, wert: str | Non
 @_gesperrt
 def unjournalisierte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Nachrichten seit dem Journal-Wasserzeichen letzte_journalisierte_message_id
-    (theatersoap/journal.py) -- der Kandidatenpool, aus dem der
+    (interview_theater/journal.py) -- der Kandidatenpool, aus dem der
     Journal-Extraktor den tatsaechlich verdraengten Abschnitt herausrechnet.
 
     Wie unextrahierte() ungefiltert -- weder ist_bot noch unterdrueckt

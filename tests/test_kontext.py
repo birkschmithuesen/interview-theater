@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from theatersoap import db, einstellungen, kontext, phasen, repo
+from interview_theater import db, einstellungen, kontext, phasen, repo
 
 
 @pytest.fixture

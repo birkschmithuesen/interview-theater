@@ -1,4 +1,4 @@
-"""Tests fuer theatersoap.anweisungen: Hot-Reload und Regie-Zettel."""
+"""Tests fuer interview_theater.anweisungen: Hot-Reload und Regie-Zettel."""
 
 import os
 import time
@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from theatersoap import anweisungen, erkenner, kontext
+from interview_theater import anweisungen, erkenner, kontext
 
 
 @pytest.fixture
 def betrieb(tmp_path, monkeypatch):
     """Ein Betriebsverzeichnis mit Datenbankpfad, wie im echten Einsatz."""
-    monkeypatch.setenv("TS_DB", str(tmp_path / "soap.db"))
+    monkeypatch.setenv("IT_DB", str(tmp_path / "soap.db"))
     anweisungen._CACHE.clear()
     return tmp_path
 
@@ -92,7 +92,7 @@ def test_unveraenderte_datei_wird_nicht_neu_gelesen(betrieb, monkeypatch):
 
 
 def test_ohne_ts_db_kein_zusatz(monkeypatch):
-    monkeypatch.delenv("TS_DB", raising=False)
+    monkeypatch.delenv("IT_DB", raising=False)
     anweisungen._CACHE.clear()
     assert anweisungen.zusatz_verzeichnis() is None
     assert anweisungen.system("bot1") == anweisungen.hole("system")

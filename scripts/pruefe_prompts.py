@@ -5,7 +5,7 @@
 Netz. Dieses Skript ist das Gegenstueck: es schickt jeden Korpusfall an das
 echte Modell, mit denselben Einstellungen wie der Bot.
 
-**Wozu.** Seit ``theatersoap/anweisungen.py`` die Prompts heiss nachlaedt,
+**Wozu.** Seit ``interview_theater/anweisungen.py`` die Prompts heiss nachlaedt,
 wird jemand sie waehrend des Workshops aendern. Ohne Korpus ist jede solche
 Aenderung ein Blindflug: die Prompts waren an je 4-7 Faellen gemessen, aber
 es lag nichts herum, was man danach nochmal laufen lassen koennte
@@ -21,8 +21,8 @@ Aufruf::
     $PY -m scripts.pruefe_prompts erkenner --modell nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8
 
 Die ``betrieb/<gruppe>.env`` muss vorher geladen sein -- ``einstellungen.laden()``
-liest ausschliesslich Umgebungsvariablen und braucht TS_LLM_URL, TS_LLM_KEY,
-TS_LLM_MODELL (und die uebrigen Pflichtvariablen). **``TS_DB`` wird bewusst
+liest ausschliesslich Umgebungsvariablen und braucht IT_LLM_URL, IT_LLM_KEY,
+IT_LLM_MODELL (und die uebrigen Pflichtvariablen). **``IT_DB`` wird bewusst
 ueberschrieben:** der Lauf schreibt seine ``aufruf``- und ``vorfall``-Zeilen in
 eine Wegwerf-Datenbank in einem Temporaerverzeichnis, nie in die
 Betriebsdatenbank.
@@ -60,7 +60,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx
 
-from theatersoap import db, einstellungen, erkenner, journal, llm, repo, verdichter, zitat
+from interview_theater import db, einstellungen, erkenner, journal, llm, repo, verdichter, zitat
 
 #: Wo die Korpusdateien liegen.
 KORPUS = Path(__file__).resolve().parent.parent / "korpus"
@@ -120,7 +120,7 @@ def normalisiere(text: str) -> str:
     """Kleinschreibung, Umlaute in Umschrift, Satzzeichen weg,
     Whitespace-Folgen zu einem Leerzeichen.
 
-    Bewusst nicht ``theatersoap.zitat.normalisiere``: die dortige Funktion
+    Bewusst nicht ``interview_theater.zitat.normalisiere``: die dortige Funktion
     darf **nichts** wegwerfen ausser Whitespace und typografischen
     Anfuehrungszeichen, weil sie eine Zitattreue-Aussage traegt (SPEC § 5).
     Hier ist das Gegenteil richtig -- verglichen werden Formulierungen, nicht
@@ -237,7 +237,7 @@ def vergleiche_journal(erwartet: list[dict], geliefert: list[dict]) -> dict:
 def bewerte_verdichter(erwartet: dict, ergebnis: dict, transkript: str) -> dict:
     """Bewertet eine Verdichtung: Belegzitate, Themenanzahl, Stichwoerter.
 
-    Die Zitatpruefung laeuft ueber ``theatersoap.zitat.pruefe`` -- exakt die
+    Die Zitatpruefung laeuft ueber ``interview_theater.zitat.pruefe`` -- exakt die
     Funktion, die auch im Betrieb entscheidet, ob ein Zitat stehen bleibt oder
     aus dem Thema entfernt wird. Etwas Eigenes hier waere eine zweite Wahrheit
     ueber dieselbe Frage.
@@ -428,7 +428,7 @@ def _laufe_verdichter(klm, conn, chat_id, fall, modell):
 
 
 #: Wartezeit nach HTTP 429, bevor derselbe Fall wiederholt wird.
-PAUSE_429_S = float(os.environ.get("TS_PRUEFE_PAUSE_429_S", "45"))
+PAUSE_429_S = float(os.environ.get("IT_PRUEFE_PAUSE_429_S", "45"))
 
 LAEUFE = {
     "erkenner": _laufe_erkenner,
@@ -681,8 +681,8 @@ def main(argv=None) -> int:
         raise SystemExit("--wiederholungen muss mindestens 1 sein")
 
     e = einstellungen.laden()
-    with tempfile.TemporaryDirectory(prefix="theatersoap-korpus-") as verzeichnis:
-        # TS_DB wird ausdruecklich verworfen: aufruf- und vorfall-Zeilen
+    with tempfile.TemporaryDirectory(prefix="interview_theater-korpus-") as verzeichnis:
+        # IT_DB wird ausdruecklich verworfen: aufruf- und vorfall-Zeilen
         # dieses Laufs gehoeren nicht in die Betriebsdatenbank.
         db_pfad = str(Path(verzeichnis) / "korpus.db")
         e = replace(e, db_pfad=db_pfad)

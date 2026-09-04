@@ -20,7 +20,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts import pruefe_prompts as pp
-from theatersoap import einstellungen, llm
+from interview_theater import einstellungen, llm
 
 
 # --- Normalisierung -------------------------------------------------------
@@ -202,7 +202,7 @@ def test_verdichter_alles_richtig():
 
 def test_verdichter_erfundenes_zitat_ist_fp():
     """Die direkte Halluzinationsmessung: das Zitat steht nicht im
-    Transkript. Geprueft wird mit theatersoap.zitat.pruefe, also mit genau der
+    Transkript. Geprueft wird mit interview_theater.zitat.pruefe, also mit genau der
     Funktion, die auch im Betrieb entscheidet."""
     bewertung = pp.bewerte_verdichter(
         {"themen_min": 2, "themen_max": 4, "stichwoerter": []},
@@ -435,7 +435,7 @@ def test_unbekannte_id_bricht_ab(attrappe):
 
 
 def test_der_lauf_fasst_die_betriebsdatenbank_nicht_an(attrappe, tmp_path):
-    """TS_DB wird ausdruecklich verworfen: die aufruf- und vorfall-Zeilen
+    """IT_DB wird ausdruecklich verworfen: die aufruf- und vorfall-Zeilen
     eines Korpuslaufs gehoeren nicht in die Datenbank des Workshops."""
     attrappe["antwort"] = lambda art, nutzer: {"aenderungen": []}
     pp.main(["erkenner", "--nur", "n01-beinahe-entscheidung"])

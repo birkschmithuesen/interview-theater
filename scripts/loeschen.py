@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from theatersoap import db, einstellungen
+from interview_theater import db, einstellungen
 
 
 def main() -> None:

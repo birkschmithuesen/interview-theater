@@ -44,7 +44,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from theatersoap import repo, stt, verdichter
+from interview_theater import repo, stt, verdichter
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ def klasse_fuer(conn, chat_id: int) -> str:
 def _kein_zug(conn, tg, klm, e, chat_id, hinweis=None) -> None:
     """Vorgabewert fuer den zug-Parameter: absichtlich ohne Wirkung.
 
-    Seit Aufgabe 10 existiert der echte Gespraechszug in ``theatersoap.ablauf``
+    Seit Aufgabe 10 existiert der echte Gespraechszug in ``interview_theater.ablauf``
     -- aufnahme.py importiert dieses Modul bewusst nicht selbst, um jeden
     Importzyklus von vornherein auszuschliessen. Die echte Funktion
     (``ablauf.bearbeite``) reicht ausschliesslich ``bot.py`` explizit herein,
@@ -135,7 +135,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
     eigentliche Absicherung dieser Aufgabe).
 
     ``n`` ist das normalisierte Nachrichten-Dictionary aus
-    ``theatersoap.telegram.lies_nachricht()``. Die zugehoerige Zeile in
+    ``interview_theater.telegram.lies_nachricht()``. Die zugehoerige Zeile in
     ``nachricht`` existiert im Normalbetrieb schon (die Polling-Schleife legt
     sie mit ``typ='sprache'``, ``text=NULL``, ``unterdrueckt=1`` an); der
     ``INSERT OR IGNORE`` hier stellt sicher, dass sie auch existiert, wenn
@@ -203,7 +203,7 @@ def verarbeite(conn, tg, klm, e, klient, aufnahme_id, *, zug=_kein_zug, nachgeho
     echter ``httpx.Client`` in Produktion, ein per MockTransport gebauter in
     Tests). ``zug`` ist der Gespraechszug fuer Klasse *kurz* -- als Parameter
     hereingereicht statt hier importiert, damit aufnahme.py nie von
-    ``theatersoap.ablauf`` abhaengt (siehe ``_kein_zug``); Voreinstellung:
+    ``interview_theater.ablauf`` abhaengt (siehe ``_kein_zug``); Voreinstellung:
     nichts tun. ``bot.py`` reicht die echte Funktion (``ablauf.bearbeite``)
     explizit herein.
 
@@ -382,7 +382,7 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     interviewmodus AUS eintrafen (klasse_fuer). War die Nachricht dabei
     laenger als HINWEIS_AB_S, haengt sie dem Gespraechszug einen beilaeufigen
     Hinweis an -- keine Rueckfrage, kein eigener Zustand (§ 10.1)."""
-    from theatersoap import bot  # spaeter Import: vermeidet einen Ladezyklus mit bot.py
+    from interview_theater import bot  # spaeter Import: vermeidet einen Ladezyklus mit bot.py
 
     aufnahme_id = row["id"]
     chat_id = row["chat_id"]

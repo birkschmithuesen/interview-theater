@@ -2,7 +2,7 @@
 serialisiert seit dieser Nachbesserung alle Zugriffe auf die geteilte
 sqlite3.Connection ueber einen modulweiten ``threading.RLock``
 (``repo._LOCK``/``repo._gesperrt``, siehe Moduldocstring in
-``theatersoap/repo.py``).
+``interview_theater/repo.py``).
 
 Hintergrund: ``db.verbinde()`` oeffnet mit ``check_same_thread=False`` und
 reicht EINE Connection an alle Threads eines Prozesses durch (Poll-Schleife,
@@ -21,7 +21,7 @@ import threading
 
 import pytest
 
-from theatersoap import db, repo
+from interview_theater import db, repo
 
 
 @pytest.fixture

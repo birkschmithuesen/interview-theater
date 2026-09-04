@@ -10,7 +10,7 @@ entgegennimmt.
 
 import pytest
 
-from theatersoap import befehle, phasen, repo
+from interview_theater import befehle, phasen, repo
 
 
 class TelegramAttrappe:
@@ -180,7 +180,7 @@ def test_befehle_liste_enthaelt_alle_neun_ohne_schraegstrich():
 
 
 def test_szene_stoesst_den_szenen_aufruf_mit_dem_auftrag_an(conn, einst, tg, monkeypatch):
-    from theatersoap import szene
+    from interview_theater import szene
 
     gesehen = []
     monkeypatch.setattr(
@@ -198,7 +198,7 @@ def test_szene_stoesst_den_szenen_aufruf_mit_dem_auftrag_an(conn, einst, tg, mon
 
 
 def test_szene_mit_botname_wird_erkannt(conn, einst, tg, monkeypatch):
-    from theatersoap import szene
+    from interview_theater import szene
 
     gesehen = []
     monkeypatch.setattr(szene, "starte", lambda *a: gesehen.append(a[5]))
@@ -212,7 +212,7 @@ def test_szene_mit_botname_wird_erkannt(conn, einst, tg, monkeypatch):
 
 
 def test_szene_ohne_auftrag_fragt_freundlich_nach(conn, einst, tg, monkeypatch):
-    from theatersoap import szene
+    from interview_theater import szene
 
     monkeypatch.setattr(szene, "starte", lambda *a: pytest.fail("ohne Auftrag kein Lauf"))
 
@@ -343,7 +343,7 @@ def test_szene_entfernen_nimmt_die_szene_weg(conn, einst, tg):
 def test_szene_schreibauftrag_bleibt_ein_schreibauftrag(conn, einst, tg, monkeypatch):
     """Die Abgrenzung ist eng: nur 'Nummer + Entfernungswort' loescht, alles
     andere geht an szene.starte."""
-    from theatersoap import szene
+    from interview_theater import szene
 
     gesehen = []
     monkeypatch.setattr(szene, "starte", lambda *a: gesehen.append(a[5]))

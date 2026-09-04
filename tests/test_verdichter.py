@@ -1,10 +1,10 @@
 import pytest
-from theatersoap import db, repo, verdichter
+from interview_theater import db, repo, verdichter
 
 
 @pytest.fixture
 def einst(tmp_path):
-    from theatersoap import einstellungen
+    from interview_theater import einstellungen
     return einstellungen.Einstellungen(
         bot_token="T", bot_name="gruppe1", db_pfad=str(tmp_path / "t.db"),
         audio_verz=str(tmp_path / "audio"),
@@ -29,7 +29,7 @@ TRANSKRIPT = (
 
 
 class LLMAttrappe:
-    """Ersetzt theatersoap.llm.LLM in Tests: liefert eine vorbereitete Antwort
+    """Ersetzt interview_theater.llm.LLM in Tests: liefert eine vorbereitete Antwort
     und zaehlt die Aufrufe, ohne irgendwelchen Netzzugriff."""
 
     def __init__(self, antwort):

@@ -1,6 +1,6 @@
 # Spezifikation: Kontext- und Gedächtnis-Architektur
 
-**Theater-Soap-Bot** · Stand 03.09.2026 · Ersteinsatz Workshop Dortmund 05.+06.09.2026
+**Interview-Theater-Bot** · Stand 03.09.2026 · Ersteinsatz Workshop Dortmund 05.+06.09.2026
 
 Diese Spezifikation deckt die Kontext- und Gedächtnis-Architektur ab: was bei jedem
 LLM-Aufruf in den Kontext wandert, wie das Budget überwacht wird, wie der Zustand
@@ -22,7 +22,7 @@ Fünf Sätze, aus denen sich fast jede Detailentscheidung unten ableiten lässt:
 3. **Phasenbewusstsein ist ein Nebenprodukt der Materiallage, kein Zustand.** Es gibt keine
    Phasen-Zustandsmaschine; der Prompt wächst mit dem, was in der DB steht.
    > **Nachtrag 04.09.2026.** Die Phase ist seit heute ein gespeichertes Feld
-   > (`arbeitsstand.phase`, `theatersoap/phasen.py`) — gesetzt **nur hörbar**: von der
+   > (`arbeitsstand.phase`, `interview_theater/phasen.py`) — gesetzt **nur hörbar**: von der
    > Gruppe (Erkenner-art `phase_setzen`, Befehl `/phase`) oder vom Bot **mit Meldung**,
    > nie still erraten. Das Verbot dieses Leitsatzes galt dem stillen Raten, nicht dem
    > Wissen: ein Zustand, den niemand ausgesprochen hat, kann der Gruppe widersprechen,
@@ -544,7 +544,7 @@ Szenen dazukommen. Er wurde am Vorabend des Workshops bewusst **nicht** entfernt
 Risiko als Nutzen gewesen wäre.
 
 > **Nachtrag 04.09.2026: Modus B ist verdrahtet — Szenen.** Der oben genannte Fall ist
-> eingetreten. `theatersoap/szene.py` ruft `LLM.prosa()` als **einzige** Stelle im System,
+> eingetreten. `interview_theater/szene.py` ruft `LLM.prosa()` als **einzige** Stelle im System,
 > mit aktivem Reasoning; alle anderen Aufrufe bleiben bei `"none"`. Der Aufruf läuft
 > ausdrücklich **nicht** im Gesprächszug, sondern in einem eigenen Thread — damit entfällt
 > genau das Gegenargument von oben: die 33,8 s Latenz sind keine Gesprächspause mehr, weil
@@ -1025,7 +1025,7 @@ komplett ausgefallen oder brauchte bis zu 30 Sekunden. Die Nachmessung bestätig
 abhängt** — Datei zuerst sichern, nebenläufig transkribieren, Zeitbudget, Nachhol-Arbeiter,
 einmalige Ausfallmeldung. Die Messung bestimmt nur die Schwellwerte, nicht die Struktur.
 
-**4b. `TS_LLM_URL` muss die volle URL sein.** Gemessen beim Rauchtest am 04.09.2026:
+**4b. `IT_LLM_URL` muss die volle URL sein.** Gemessen beim Rauchtest am 04.09.2026:
 Der Code hängt nichts an. Mit `.../openai/v1` allein antwortet der Server **HTTP 404**;
 richtig ist `.../openai/v1/chat/completions`. Steht in `docs/betrieb-env.beispiel`.
 

@@ -1,6 +1,6 @@
 import httpx
 import pytest
-from theatersoap import db, einstellungen, repo
+from interview_theater import db, einstellungen, repo
 
 
 @pytest.fixture

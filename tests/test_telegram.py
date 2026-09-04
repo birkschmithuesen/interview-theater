@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from theatersoap import telegram
+from interview_theater import telegram
 
 
 def _klient(handler):

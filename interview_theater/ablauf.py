@@ -35,7 +35,7 @@ import logging
 import threading
 from contextlib import contextmanager
 
-from theatersoap import befehle, kontext, phasen, repo
+from interview_theater import befehle, kontext, phasen, repo
 
 log = logging.getLogger(__name__)
 

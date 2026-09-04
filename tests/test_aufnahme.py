@@ -1,11 +1,11 @@
 """Aufgabe 8: Aufnahme-Pipeline, Nachhol-Arbeiter, Whisper-Ausfall
 (SPEC-kontext-architektur.md § 10).
 
-Attrappen statt Netzzugriff: TelegramAttrappe ersetzt theatersoap.telegram.Telegram,
-LLMAttrappe ersetzt theatersoap.llm.LLM (wie in test_verdichter.py), stt_attrappe/
+Attrappen statt Netzzugriff: TelegramAttrappe ersetzt interview_theater.telegram.Telegram,
+LLMAttrappe ersetzt interview_theater.llm.LLM (wie in test_verdichter.py), stt_attrappe/
 stt_kaputt bauen einen httpx.Client mit MockTransport, der genau wie ein echter
 Whisper-Endpunkt antwortet (wie in test_stt.py) -- so laeuft der echte
-theatersoap.stt.transkribiere() in den Tests, nur ohne Netz.
+interview_theater.stt.transkribiere() in den Tests, nur ohne Netz.
 """
 
 import json
@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from theatersoap import aufnahme, db, einstellungen, repo
+from interview_theater import aufnahme, db, einstellungen, repo
 
 TRANSKRIPT = (
     "Wir haben letzte Woche ueber das Buehnenbild gesprochen. Ich erinnere mich, "
@@ -44,7 +44,7 @@ def conn(tmp_path):
 
 
 class TelegramAttrappe:
-    """Ersetzt theatersoap.telegram.Telegram: kein Netzzugriff, zeichnet auf."""
+    """Ersetzt interview_theater.telegram.Telegram: kein Netzzugriff, zeichnet auf."""
 
     def __init__(self):
         self.gesendet = []       # Liste von (chat_id, text)
@@ -81,7 +81,7 @@ def tg():
 
 
 class LLMAttrappe:
-    """Ersetzt theatersoap.llm.LLM: liefert immer dieselbe gueltige Antwort."""
+    """Ersetzt interview_theater.llm.LLM: liefert immer dieselbe gueltige Antwort."""
 
     def __init__(self, antwort=None):
         self._antwort = antwort or {
@@ -123,7 +123,7 @@ def stt_attrappe(text: str) -> httpx.Client:
 def stt_kaputt() -> httpx.Client:
     """Ein STT-Klient, der jeden Upload sofort ablehnt (HTTP 400 -- kein
     Serverfehler, also kein Wiederholungsversuch in stt.absenden). Zwei
-    Versuche (theatersoap.stt.transkribiere wiederholt genau einmal) scheitern
+    Versuche (interview_theater.stt.transkribiere wiederholt genau einmal) scheitern
     beide sofort, ganz ohne time.sleep -- die Tests bleiben schnell."""
 
     def handler(request):

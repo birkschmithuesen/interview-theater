@@ -1,4 +1,4 @@
-from theatersoap import zitat
+from interview_theater import zitat
 
 
 def test_woertliches_zitat_besteht():

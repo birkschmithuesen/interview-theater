@@ -9,11 +9,11 @@ aufzeichnet. Kein Netzzugriff.
 
 import pytest
 
-from theatersoap import erkenner, phasen, repo
+from interview_theater import erkenner, phasen, repo
 
 
 class LLMAttrappe:
-    """Ersetzt theatersoap.llm.LLM in Tests: liefert eine vorbereitete Antwort
+    """Ersetzt interview_theater.llm.LLM in Tests: liefert eine vorbereitete Antwort
     (oder wirft einen vorbereiteten Fehler), zaehlt die Aufrufe und
     zeichnet die zuletzt gesehenen Parameter auf -- insbesondere modell und
     temperature, damit sich pruefen laesst, dass der Erkenner NICHT das
@@ -457,7 +457,7 @@ def test_baue_meldung_journaleintrag_neben_arbeitsstandaenderung_bleibt_still():
 
 
 class TelegramAttrappe:
-    """Ersetzt theatersoap.telegram.Telegram: kein Netzzugriff, zeichnet auf."""
+    """Ersetzt interview_theater.telegram.Telegram: kein Netzzugriff, zeichnet auf."""
 
     def __init__(self, fehler=None):
         self.gesendet = []
@@ -557,7 +557,7 @@ def test_laufe_versand_fehlschlag_bleibt_fuer_gruppe_unsichtbar(conn, einst):
 
 
 # ---------------------------------------------------------------------------
-# szene_schreiben: die zwoelfte art (theatersoap/szene.py)
+# szene_schreiben: die zwoelfte art (interview_theater/szene.py)
 # ---------------------------------------------------------------------------
 
 
@@ -580,7 +580,7 @@ def test_szene_schreiben_veraendert_den_arbeitsstand_nicht(conn, einst):
 
 
 def test_laufe_stoesst_den_szenen_aufruf_an(conn, einst, monkeypatch):
-    from theatersoap import szene
+    from interview_theater import szene
 
     gesehen = []
     monkeypatch.setattr(
@@ -602,7 +602,7 @@ def test_laufe_stoesst_den_szenen_aufruf_an(conn, einst, monkeypatch):
 def test_laufe_stoesst_hoechstens_eine_szene_je_lauf_an(conn, einst, monkeypatch):
     """Eine zweite liefe ohnehin in die Sperre je chat_id und wuerde nur mit
     'ich schreibe gerade noch' abgewiesen -- zwei Nachrichten fuer nichts."""
-    from theatersoap import szene
+    from interview_theater import szene
 
     gesehen = []
     monkeypatch.setattr(szene, "starte", lambda *a: gesehen.append(a[5]))
@@ -622,7 +622,7 @@ def test_ohne_erkannten_auftrag_laeuft_keine_szene(conn, einst, monkeypatch):
     Gruppe zwei Minuten Wartezeit und eine Nachricht, die sie nicht bestellt
     hat. Die Abgrenzung "Auftrag, nicht Vorhaben" steht im Prompt; hier wird
     geprueft, dass eine leere Erkennung auch wirklich nichts anstoesst."""
-    from theatersoap import szene
+    from interview_theater import szene
 
     monkeypatch.setattr(szene, "starte", lambda *a: pytest.fail("kein Auftrag, kein Lauf"))
     _nachricht(conn, 1, 1, "wir sollten bald mal Szenen machen")

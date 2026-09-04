@@ -232,17 +232,17 @@ also keine Dopplung mit dem Absichtserkenner.
 
 | Nicht gebaut | Warum |
 |---|---|
-| **Die zwei Weboberflächen** | Team-Dashboard und Leseansicht je Gruppe. Der Weg von außen steht (`https://lab.artesmobiles.art/theatersoap/`, nginx auf *herkules*, Tailnet, Port 8010, Zertifikat geprüft) — nur die Anwendung fehlt. Siehe `NACHTRAG-weboberflaeche-und-sprache.md`. |
+| **Die zwei Weboberflächen** | Team-Dashboard und Leseansicht je Gruppe. Der Weg von außen steht (`https://lab.artesmobiles.art/interview_theater/`, nginx auf *herkules*, Tailnet, Port 8010, Zertifikat geprüft) — nur die Anwendung fehlt. Siehe `NACHTRAG-weboberflaeche-und-sprache.md`. |
 | ~~**Weiches Löschen**~~ (`entfernt_am`) | **Gebaut am 04.09.2026** (NACHTRAG N3): `entfernt_am` in `figur`, `szene`, `journal`, Arbeitsstandfelder auf NULL. Wege: Erkenner-art `entfernen`, `/figur … entfernen`, `/szene … entfernen`, `/kernthema aus`. Der ursprüngliche Grund („Überschreiben deckt den Alltagsfall ab") galt für Korrekturen, nicht fürs Zurücknehmen — eine Figur, die die Gruppe verwirft, lässt sich nicht überschreiben. **Material bleibt unentfernbar.** |
-| ~~**Phasen als Zustand**~~ | **Gebaut am 04.09.2026** (`theatersoap/phasen.py`, `arbeitsstand.phase`): gesetzt nur hörbar — von der Gruppe (`phase_setzen`, `/phase`) oder vom Bot mit Meldung, nie still erraten. Je Phase ein Prompt (`prompts/phasen/N.md`), der den Fokus steuert, nicht den Informationszugang. Siehe `docs/entwurfsgeschichte.md` Korrektur 6 und `SPEC` § 0 Leitsatz 3 Nachtrag. |
-| ~~**Szenen**~~ | **Gebaut am 04.09.2026** (`theatersoap/szene.py`): eigener Prompt, eigener Thread, Auslöser `szene_schreiben` und `/szene`, dazu die Blöcke 4/5 im Gesprächs-Kontext. Der ursprüngliche Grund („etwas zu schreiben, das niemand liest, ist Fläche ohne Nutzen") ist damit weggefallen — jetzt liest es der Gesprächs-Prompt. |
+| ~~**Phasen als Zustand**~~ | **Gebaut am 04.09.2026** (`interview_theater/phasen.py`, `arbeitsstand.phase`): gesetzt nur hörbar — von der Gruppe (`phase_setzen`, `/phase`) oder vom Bot mit Meldung, nie still erraten. Je Phase ein Prompt (`prompts/phasen/N.md`), der den Fokus steuert, nicht den Informationszugang. Siehe `docs/entwurfsgeschichte.md` Korrektur 6 und `SPEC` § 0 Leitsatz 3 Nachtrag. |
+| ~~**Szenen**~~ | **Gebaut am 04.09.2026** (`interview_theater/szene.py`): eigener Prompt, eigener Thread, Auslöser `szene_schreiben` und `/szene`, dazu die Blöcke 4/5 im Gesprächs-Kontext. Der ursprüngliche Grund („etwas zu schreiben, das niemand liest, ist Fläche ohne Nutzen") ist damit weggefallen — jetzt liest es der Gesprächs-Prompt. |
 | **Sechs der vierzehn Befehle** | `SPEC` § 8.1 nennt je einen Grund. Zwei sind seit dem 04.09.2026 doch da: `/szene` mit den Szenentexten und `/figur` — letzterer aber **nur** als `/figur <Name> entfernen`; angelegt wird eine Figur weiterhin im Gespräch, und genau das war der ursprüngliche Grund gegen ihn. Dazu `/phase`, den die SPEC-Liste gar nicht kannte. |
 | ~~**Modus B**~~ (`LLM.prosa`) | **Verdrahtet am 04.09.2026**, genau für den Anwendungsfall, dessen Fehlen ihn tot hielt: Szenentext. Das Latenzargument entfällt mit dem eigenen Thread — 34 s sind keine Gesprächspause, wenn niemand wartet. Einziger Aufruf mit Reasoning AN im ganzen System. |
 
 **Nachgetragen: der Regressionskorpus ist gebaut.** Er stand hier bis zum
 04.09.2026 als „nicht gebaut" — begründet damit, dass die Prompts an je 4–7
 Fällen gemessen sind. Seit die Prompts heiß nachgeladen werden
-(`theatersoap/anweisungen.py`), ändert sie jemand **während** des Workshops,
+(`interview_theater/anweisungen.py`), ändert sie jemand **während** des Workshops,
 und damit wurde die Begründung hinfällig: gemessen war der Stand von gestern.
 
 `korpus/` enthält jetzt 66 Absichtserkenner-Fälle (davon 28 Negativfälle, alle
@@ -272,7 +272,7 @@ vollständige Lauf gegen das echte Modell steht noch aus.
    ist der erste Test der Verdrahtung.
 2. **Die Schema-Migration ist nie an einer echten Altdatenbank gelaufen.** Sie ist gegen
    eine künstlich alte geprüft, aber es lag keine gewachsene vor. Beim ersten Start mit
-   einer bestehenden `theatersoap.db` nachsehen, dass `interviewmodus_seit` und
+   einer bestehenden `interview_theater.db` nachsehen, dass `interviewmodus_seit` und
    `letzte_journalisierte_message_id` ergänzt wurden **und die Nachrichten noch da sind**.
 3. **Gesetzte, nicht gemessene Werte:** `HINWEIS_AB_S = 60` (wann der Bot beiläufig auf den
    Interviewmodus hinweist) · `SCHWELLE_VERDRAENGUNG = 2000` · `LETZTE_JOURNALEINTRAEGE = 12`
@@ -286,7 +286,7 @@ vollständige Lauf gegen das echte Modell steht noch aus.
 5. **Ein Modellaufruf lag bei 8,3 s** statt der üblichen unter 1 s. Vermutlich Warteschlange.
    Wenn das häufiger auftritt, ist es einen Blick wert.
 6. **Toter Code — zum Teil erledigt (04.09.2026).** `LLM.prosa` und die Tabelle `szene` sind
-   verdrahtet (`theatersoap/szene.py`, `SPEC` § 4.5 Nachtrag). Übrig bleiben
+   verdrahtet (`interview_theater/szene.py`, `SPEC` § 4.5 Nachtrag). Übrig bleiben
    `gruppe.gruendlich_naechster_zug` (gehörte zum gestrichenen `/gruendlich`, nicht zu den
    Szenen) und `telegram`s Feld `antwortet_auf_bot` (korrekt berechnet, aber seit der
    Auslöser-Änderung ungenutzt). Beides dokumentiert, keines schadet — aber es sollte

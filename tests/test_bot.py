@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from theatersoap import bot, db, phasen, repo
+from interview_theater import bot, db, phasen, repo
 
 JETZT = datetime(2026, 9, 5, 12, 0, 0, tzinfo=timezone.utc)
 

@@ -5,16 +5,16 @@ from dataclasses import dataclass
 
 # Name der Umgebungsvariable -> Vorgabewert (None = Pflichtvariable)
 _VORGABEWERTE = {
-    "TS_BOT_TOKEN": None,
-    "TS_BOT_NAME": None,
-    "TS_DB": None,
-    "TS_AUDIO": "audio",
-    "TS_LLM_URL": None,
-    "TS_LLM_KEY": None,
-    "TS_LLM_MODELL": None,
-    "TS_MODELL_ERKENNER": "google/gemma-4-31B-it",
-    "TS_STT_BASIS": "https://api.infomaniak.com",
-    "TS_STT_PRODUKT": None,
+    "IT_BOT_TOKEN": None,
+    "IT_BOT_NAME": None,
+    "IT_DB": None,
+    "IT_AUDIO": "audio",
+    "IT_LLM_URL": None,
+    "IT_LLM_KEY": None,
+    "IT_LLM_MODELL": None,
+    "IT_MODELL_ERKENNER": "google/gemma-4-31B-it",
+    "IT_STT_BASIS": "https://api.infomaniak.com",
+    "IT_STT_PRODUKT": None,
 }
 
 
@@ -54,14 +54,14 @@ def laden() -> Einstellungen:
             f"Fehlende Umgebungsvariable(n): {', '.join(fehlend)}")
 
     return Einstellungen(
-        bot_token=werte["TS_BOT_TOKEN"],
-        bot_name=werte["TS_BOT_NAME"],
-        db_pfad=werte["TS_DB"],
-        audio_verz=werte["TS_AUDIO"],
-        llm_url=werte["TS_LLM_URL"],
-        llm_key=werte["TS_LLM_KEY"],
-        llm_modell=werte["TS_LLM_MODELL"],
-        stt_basis=werte["TS_STT_BASIS"],
-        stt_produkt=werte["TS_STT_PRODUKT"],
-        erkenner_modell=werte["TS_MODELL_ERKENNER"],
+        bot_token=werte["IT_BOT_TOKEN"],
+        bot_name=werte["IT_BOT_NAME"],
+        db_pfad=werte["IT_DB"],
+        audio_verz=werte["IT_AUDIO"],
+        llm_url=werte["IT_LLM_URL"],
+        llm_key=werte["IT_LLM_KEY"],
+        llm_modell=werte["IT_LLM_MODELL"],
+        stt_basis=werte["IT_STT_BASIS"],
+        stt_produkt=werte["IT_STT_PRODUKT"],
+        erkenner_modell=werte["IT_MODELL_ERKENNER"],
     )

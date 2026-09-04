@@ -35,7 +35,7 @@ Phase entscheidet nur, welchen Prompt-Zusatz der Bot bekommt
 Phase nicht tut.
 """
 
-from theatersoap import repo
+from interview_theater import repo
 
 #: Nummer, Kurzname, ein Satz. Die acht Stationen sind wortgleich die aus
 #: ``prompts/system.md`` -- dort als Landkarte fuer das Gespraech, hier als

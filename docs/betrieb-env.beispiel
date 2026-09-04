@@ -7,28 +7,28 @@
 # --- Telegram -------------------------------------------------------------
 # Ein eigener Bot je Kleingruppe. Bei BotFather ZWINGEND den Privacy Mode
 # ausschalten, sonst erreichen Sprachnachrichten den Bot nie.
-TS_BOT_TOKEN=123456:AA...
-TS_BOT_NAME=gruppe1
+IT_BOT_TOKEN=123456:AA...
+IT_BOT_NAME=gruppe1
 
 # --- Ablage ---------------------------------------------------------------
-TS_DB=./theatersoap.db
-TS_AUDIO=./audio
+IT_DB=./interview_theater.db
+IT_AUDIO=./audio
 
 # --- Sprachmodell (Infomaniak, OpenAI-kompatibel) -------------------------
 # ACHTUNG, Stolperfalle: Die VOLLE URL inklusive /chat/completions eintragen.
 # Der Code haengt nichts an. Mit .../openai/v1 allein kommt HTTP 404.
-TS_LLM_URL=https://api.infomaniak.com/2/ai/PRODUKT-ID/openai/v1/chat/completions
-TS_LLM_KEY=...
-TS_LLM_MODELL=moonshotai/Kimi-K2.6
+IT_LLM_URL=https://api.infomaniak.com/2/ai/PRODUKT-ID/openai/v1/chat/completions
+IT_LLM_KEY=...
+IT_LLM_MODELL=moonshotai/Kimi-K2.6
 
 # Modell fuer Absichtserkennung und Journal. Optional -- ohne Angabe gilt der
 # Vorgabewert unten. Gemessen: gemma trifft hier deutlich besser als Kimi
 # (0 Falsch-Positive bei 25 Negativfaellen), hat aber rund 28 s Kaltstart.
 # Der Bot laeuft beim Start selbst warm, das muss niemand von Hand tun.
-TS_MODELL_ERKENNER=google/gemma-4-31B-it
+IT_MODELL_ERKENNER=google/gemma-4-31B-it
 
 # --- Spracherkennung (Whisper) --------------------------------------------
 # Nur Basis und Produkt-ID; die Pfade baut der Code selbst zusammen. Whisper
 # liegt unter /1/ai/<produkt>/..., NICHT unter /2/.../openai/v1/ (dort 404).
-TS_STT_BASIS=https://api.infomaniak.com
-TS_STT_PRODUKT=PRODUKT-ID
+IT_STT_BASIS=https://api.infomaniak.com
+IT_STT_PRODUKT=PRODUKT-ID

@@ -1,7 +1,7 @@
 """Journal-Extraktor (gedaechtnis-extraktion-agenten.md § 6, § 8;
 SPEC-kontext-architektur.md § 4.3).
 
-Ergaenzt den Absichtserkenner (``theatersoap/erkenner.py``) um die eine
+Ergaenzt den Absichtserkenner (``interview_theater/erkenner.py``) um die eine
 Kategorie, die ihm bewusst fehlt: ``vorgeschlagen``. Der Erkenner laeuft
 zeitnah nach jedem Gespraechszug ueber die letzten paar Nachrichten -- gut
 genug, um eine ausdrueckliche Ablehnung oder Festlegung zu erkennen, aber zu
@@ -49,18 +49,18 @@ dieser Code ueberhaupt etwas senden koennte.
 
 import logging
 
-from theatersoap import kontext, repo
+from interview_theater import kontext, repo
 
 log = logging.getLogger(__name__)
 
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
-#: theatersoap/prompts/journal.md fuer die vollstaendige Anweisung samt der
+#: interview_theater/prompts/journal.md fuer die vollstaendige Anweisung samt der
 #: fuenf Few-Shot-Beispiele, davon zwei leer).
-from theatersoap import anweisungen
+from interview_theater import anweisungen
 
 
 def prompt() -> str:
-    """Heiss nachgeladen (theatersoap.anweisungen)."""
+    """Heiss nachgeladen (interview_theater.anweisungen)."""
     return anweisungen.hole("journal")
 
 #: Die einzige Kategorie, die dieser Extraktor je schreibt (Arbeitsteilung,
@@ -197,7 +197,7 @@ def extrahiere(klm, conn, e, chat_id: int) -> list[dict]:
 
     ``klm`` ist ein Objekt mit einer ``.schema(chat_id, system, nutzer,
     schema, art, modell=None, temperature=None) -> dict``-Methode (in
-    Produktion ``theatersoap.llm.LLM``, in Tests eine Attrappe).
+    Produktion ``interview_theater.llm.LLM``, in Tests eine Attrappe).
 
     Liefert die geschriebenen Eintraege als ``{"kategorie": "vorgeschlagen",
     "text": ...}``-Dicts, hoechstens ``MAX_EINTRAEGE`` lang. Leere Liste ist

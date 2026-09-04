@@ -209,7 +209,7 @@ herkules aus erfolgreich abgerufen, **16 ms** über den Tailnet.
 ```
 Handy → HTTPS → herkules:443 (nginx, LE-Cert)
                   └─ proxy_pass → http://100.75.24.33:8010 (Tailnet)
-                       └─ theatersoap-Web auf dem vServer, liest SQLite lokal (mode=ro)
+                       └─ interview_theater-Web auf dem vServer, liest SQLite lokal (mode=ro)
 ```
 
 Die Datenbank bleibt beim Bot, nur HTTP wandert. `kg-mirror` ist exakt dieses
@@ -217,7 +217,7 @@ Muster und läuft bereits — kopierbare Vorlage vorhanden.
 **Server an `100.75.24.33` binden, nicht an `0.0.0.0`.**
 
 **🔴 Der einzige Blocker, den nur Birk lösen kann (root auf herkules):**
-- **Plan B, empfohlen:** ein `location /theatersoap/ { proxy_pass ...; }` in den
+- **Plan B, empfohlen:** ein `location /interview_theater/ { proxy_pass ...; }` in den
   **bestehenden** `kollektivgedaechtnis.flashclash.de`-Vhost. Kein DNS, kein
   neues Zertifikat, nur ein Block + `systemctl reload nginx`. ~5 Minuten.
 - Plan A (eigene Subdomain + certbot) ist Kosmetik und kostet DNS-Propagation.

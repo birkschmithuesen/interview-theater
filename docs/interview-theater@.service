@@ -1,0 +1,16 @@
+[Unit]
+Description=Interview-Theater Bot (%i)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projekte/interview-theater
+ExecStart=%h/projekte/interview-theater/scripts/betrieb-start.sh %i
+Restart=always
+RestartSec=5
+# Prozess-Log getrennt je Gruppe, ohne journald-Sturm
+StandardOutput=append:%h/projekte/interview-theater/betrieb/%i.log
+StandardError=append:%h/projekte/interview-theater/betrieb/%i.log
+
+[Install]
+WantedBy=default.target

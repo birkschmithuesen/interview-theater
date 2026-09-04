@@ -19,7 +19,7 @@ Abweichungen von der Vorlage:
   batch_id), bevor die Aufnahme auf ``status='empfangen'`` liegen bleibt und
   der Nachhol-Arbeiter (Aufgabe 8) uebernimmt.
 * Fuer 5xx beim Absenden gilt dieselbe Wiederholungslogik wie in
-  ``theatersoap.llm`` (WARTEZEITEN, Basisklasse ``httpx.TransportError``),
+  ``interview_theater.llm`` (WARTEZEITEN, Basisklasse ``httpx.TransportError``),
   unabhaengig vom einen Gesamt-Wiederholungsversuch oben.
 * Kein separater STT-Schluessel: Infomaniak nimmt fuer Whisper denselben
   Produktschluessel wie fuer das Sprachmodell (``e.llm_key``) -- die
@@ -44,7 +44,7 @@ POLL_INTERVALL_S = 0.5
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 #: Wartezeiten zwischen Wiederholungen bei 5xx/Transportfehler beim Absenden,
-#: wie in theatersoap.llm.WARTEZEITEN.
+#: wie in interview_theater.llm.WARTEZEITEN.
 WARTEZEITEN = (0.7, 1.5, 3.0)
 
 #: "success" beendet das Warten erfolgreich, diese hier beenden es als Fehler.
@@ -92,13 +92,13 @@ class STTFehler(Exception):
     """Fehler bei der Spracherkennung.
 
     Der API-Schluessel steht ausschliesslich im Authorization-Header und darf
-    in keiner Ausnahme und keinem Log auftauchen (wie theatersoap.llm.LLMFehler).
+    in keiner Ausnahme und keinem Log auftauchen (wie interview_theater.llm.LLMFehler).
     """
 
 
 def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
     """Laedt die Datei hoch und liefert die batch_id. Wiederholt bei 5xx/
-    Transportfehler (WARTEZEITEN), analog theatersoap.llm.
+    Transportfehler (WARTEZEITEN), analog interview_theater.llm.
 
     ``budget_s`` ist eine harte Frist ueber ALLE Versuche zusammen, nicht ein
     Zeitbudget pro Versuch: ohne diese Frist wuerde ein Server, der nie

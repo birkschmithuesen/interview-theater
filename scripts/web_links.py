@@ -9,7 +9,7 @@ sinnvoll fuer Gruppen aus der Zeit vor der Weboberflaeche, die sonst erst bei
 der naechsten eingehenden Nachricht eine Adresse bekaemen.
 
 Aufruf: python scripts/web_links.py
-Umgebung: TS_DB (Pflicht), TS_WEB_URL (Vorgabe siehe unten)
+Umgebung: IT_DB (Pflicht), IT_WEB_URL (Vorgabe siehe unten)
 """
 
 import os
@@ -18,19 +18,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from theatersoap import db, repo
+from interview_theater import db, repo
 
 #: Der Weg von aussen (docs/HANDOFF.md (e)): nginx auf herkules leitet
-#: /theatersoap/ an den Server auf Port 8010 weiter.
-VORGABE_URL = "https://lab.artesmobiles.art/theatersoap"
+#: /interview_theater/ an den Server auf Port 8010 weiter.
+VORGABE_URL = "https://lab.artesmobiles.art/interview_theater"
 
 
 def main() -> None:
-    db_pfad = os.environ.get("TS_DB")
+    db_pfad = os.environ.get("IT_DB")
     if not db_pfad:
-        print("Fehlende Umgebungsvariable: TS_DB", file=sys.stderr)
+        print("Fehlende Umgebungsvariable: IT_DB", file=sys.stderr)
         sys.exit(1)
-    basis = os.environ.get("TS_WEB_URL", VORGABE_URL).rstrip("/")
+    basis = os.environ.get("IT_WEB_URL", VORGABE_URL).rstrip("/")
 
     conn = db.verbinde(db_pfad)
     db.initialisiere(conn)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Startet EINEN Bot-Prozess fuer die Gruppe $1 (= betrieb/<gruppe>.env).
-# Wird von der systemd-Unit theatersoap@<gruppe>.service aufgerufen; kann
+# Wird von der systemd-Unit interview-theater@<gruppe>.service aufgerufen; kann
 # auch von Hand laufen. Nimmt immer den Python-3.11-Interpreter aus der
 # .venv bzw. uv -- das System-Python 3.9 kann den Code nicht importieren.
 set -euo pipefail
@@ -15,4 +15,4 @@ if [ -x .venv/bin/python ]; then
 else
   python="$(ls -d "$HOME"/.local/share/uv/python/cpython-3.11*/bin/python3 | head -1)"
 fi
-exec "$python" -u -c "from theatersoap.bot import main; main()"
+exec "$python" -u -c "from interview_theater.bot import main; main()"

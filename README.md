@@ -16,6 +16,13 @@ Der Bot begleitet diesen Weg. Er schlägt vor, ordnet ein, hält fest, was
 entschieden wurde — er entscheidet aber nichts selbst. Jeder Vorschlag ist ein
 Angebot zum Reagieren, keine Vorgabe.
 
+Das Werkzeug ist nicht an einen bestimmten Workshop gebunden. Es entstand
+für einen zweitägigen Workshop mit einem Migrantinnenverein in Dortmund
+(September 2026, drei Kleingruppen) und ist so gebaut, dass es für jede
+Gruppe, jedes Thema und jede Dauer funktioniert — der nächste Einsatz ist ein
+dreiwöchiger Workshop in Padua. Wo es im Betrieb Erfahrungen aus Dortmund
+gibt, stehen sie in `docs/` als Referenz, nicht als Voraussetzung.
+
 ## Wie ein Workshop damit abläuft
 
 Der Weg zum fertigen Stück lässt sich grob in acht Stationen beschreiben:

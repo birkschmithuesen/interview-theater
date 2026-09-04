@@ -1,4 +1,4 @@
-# Theater-Soap-Bot — Umsetzungsplan
+# Interview-Theater-Bot — Umsetzungsplan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -34,14 +34,14 @@
 
 **Fehlerhaltung** — Die Gruppe erfährt einen Fehler nur, wenn sie ihn beheben kann oder wartet. Alles andere als `vorfall` ans Dashboard. Jedes Update in `try/except`; eine Ausnahme darf den Prozess nie beenden.
 
-**Konfiguration** — nur Umgebungsvariablen: `TS_BOT_TOKEN`, `TS_BOT_NAME`, `TS_DB`, `TS_AUDIO`, `TS_LLM_URL`, `TS_LLM_KEY`, `TS_LLM_MODELL`, `TS_STT_BASIS`, `TS_STT_PRODUKT`.
+**Konfiguration** — nur Umgebungsvariablen: `IT_BOT_TOKEN`, `IT_BOT_NAME`, `IT_DB`, `IT_AUDIO`, `IT_LLM_URL`, `IT_LLM_KEY`, `IT_LLM_MODELL`, `IT_STT_BASIS`, `IT_STT_PRODUKT`.
 
 ---
 
 ## Dateistruktur
 
 ```
-theatersoap/
+interview_theater/
   einstellungen.py   Umgebungsvariablen, ein Dataclass, keine Logik
   db.py              Verbindung, PRAGMAs, Schema, Löschweg
   repo.py            alle SQL-Abfragen
@@ -87,7 +87,7 @@ Ziel: Nachricht rein · Sprachnachricht transkribiert (kurz → Gespräch, lang 
 
 ## Aufgabe 1: Gerüst, Einstellungen, Datenbank
 
-**Files:** `pyproject.toml`, `.gitignore`, `theatersoap/__init__.py`, `theatersoap/einstellungen.py`, `theatersoap/db.py`, `scripts/loeschen.py`, `tests/test_db.py`
+**Files:** `pyproject.toml`, `.gitignore`, `interview_theater/__init__.py`, `interview_theater/einstellungen.py`, `interview_theater/db.py`, `scripts/loeschen.py`, `tests/test_db.py`
 
 **Produces:**
 - `einstellungen.laden() -> Einstellungen` mit `bot_token, bot_name, db_pfad, audio_verz, llm_url, llm_key, llm_modell, stt_basis, stt_produkt`
@@ -96,13 +96,13 @@ Ziel: Nachricht rein · Sprachnachricht transkribiert (kurz → Gespräch, lang 
 
 - [ ] **Schritt 1:** `pyproject.toml` (`requires-python = ">=3.11"`, `dependencies = ["httpx>=0.27"]`, dev `pytest`), `.gitignore` (`__pycache__/`, `.venv/`, `*.db*`, `audio/`, `betrieb/*.env`).
 
-- [ ] **Schritt 2:** `einstellungen.py` — `@dataclass(frozen=True) Einstellungen`, `laden()` liest die neun Variablen, wirft `RuntimeError` bei fehlender Pflichtvariable. `TS_AUDIO` hat den Vorgabewert `"audio"`, `TS_STT_BASIS` den Vorgabewert `"https://api.infomaniak.com"`.
+- [ ] **Schritt 2:** `einstellungen.py` — `@dataclass(frozen=True) Einstellungen`, `laden()` liest die neun Variablen, wirft `RuntimeError` bei fehlender Pflichtvariable. `IT_AUDIO` hat den Vorgabewert `"audio"`, `IT_STT_BASIS` den Vorgabewert `"https://api.infomaniak.com"`.
 
 - [ ] **Schritt 3: Test schreiben** — `tests/test_db.py`:
 
 ```python
 import pytest
-from theatersoap import db
+from interview_theater import db
 
 
 @pytest.fixture
@@ -161,7 +161,7 @@ def verbinde(pfad: str) -> sqlite3.Connection:
 
 - [ ] **Schritt 6:** Test laufen lassen → PASS (4 Tests).
 
-- [ ] **Schritt 7:** `scripts/loeschen.py` — nimmt `chat_id`, fragt `[ja/NEIN]`, ruft `db.loesche_gruppe` und entfernt `TS_AUDIO/<chat_id>/`.
+- [ ] **Schritt 7:** `scripts/loeschen.py` — nimmt `chat_id`, fragt `[ja/NEIN]`, ruft `db.loesche_gruppe` und entfernt `IT_AUDIO/<chat_id>/`.
 
 **Fertigstellungsbedingung:** `python -m pytest tests/test_db.py -v` → 4 bestanden, darunter der Test, der jede Tabelle auf `chat_id` prüft.
 
@@ -171,7 +171,7 @@ def verbinde(pfad: str) -> sqlite3.Connection:
 
 ## Aufgabe 2: Repository-Schicht
 
-**Files:** `theatersoap/repo.py`, `tests/test_repo.py`
+**Files:** `interview_theater/repo.py`, `tests/test_repo.py`
 
 **Produces:** `merke_nachricht(conn, chat_id, message_id, absender, ist_bot, typ, text, gesendet_am, unterdrueckt=0) -> bool` · `sichere_gruppe` · `hole_gruppe` · `unbeantwortete` · `setze_beantwortet_bis` · `letzte_nachrichten(conn, chat_id, anzahl=200)` · `hole_update_id` · `setze_update_id` · `merke_vorfall(conn, chat_id, bot_name, art, detail, stufe=None)` · `merke_aufruf(...)` · `_jetzt() -> str`
 
@@ -179,7 +179,7 @@ def verbinde(pfad: str) -> sqlite3.Connection:
 
 ```python
 import pytest
-from theatersoap import db, repo
+from interview_theater import db, repo
 
 
 @pytest.fixture
@@ -232,7 +232,7 @@ def test_update_id_ist_null_wenn_unbekannt(conn):
 
 ## Aufgabe 3: Telegram-Wrapper
 
-**Files:** `theatersoap/telegram.py`, `tests/test_telegram.py`, `tests/conftest.py`
+**Files:** `interview_theater/telegram.py`, `tests/test_telegram.py`, `tests/conftest.py`
 
 **Produces:** `Telegram(token, klient)` mit `.hole_updates(offset, timeout=25)`, `.sende(chat_id, text) -> int`, `.tippt(chat_id)`, `.lade_datei(file_id, ziel: Path)` · `lies_nachricht(update) -> dict | None` mit den Schlüsseln `chat_id, chat_titel, message_id, absender, typ, text, file_id, dauer, gesendet_am, antwortet_auf_bot`.
 
@@ -243,7 +243,7 @@ def test_update_id_ist_null_wenn_unbekannt(conn):
 ```python
 import httpx
 import pytest
-from theatersoap import einstellungen
+from interview_theater import einstellungen
 
 
 @pytest.fixture
@@ -281,7 +281,7 @@ def test_lies_nachricht_erkennt_sprachnachricht_mit_dauer():
 
 ## Aufgabe 4: Polling-Schleife, Update-Position, Nachtstau
 
-**Files:** `theatersoap/bot.py`, `tests/test_bot.py`
+**Files:** `interview_theater/bot.py`, `tests/test_bot.py`
 
 **Produces:** `bot.ist_nachtstau(gesendet_am, jetzt) -> bool` · `bot.verarbeite_update(conn, e, update, jetzt, beim_start) -> dict | None` · `bot.schleife(...)` · `bot.main()`
 
@@ -321,7 +321,7 @@ Die Schleife: Offset aus `bot_zustand` lesen, `+1`; je Update `try/except` um di
 
 **Vorlage lesen:** `/home/birk/projekte/kollektivgedaechtnis/kg/llm.py`. Abschreiben, nicht neu erfinden.
 
-**Files:** `theatersoap/llm.py`, `tests/test_llm.py`
+**Files:** `interview_theater/llm.py`, `tests/test_llm.py`
 
 **Produces:** `LLM(e, klient, conn)` mit `.schema(chat_id, system, nutzer, schema, art) -> dict` und `.prosa(chat_id, system, nutzer, art) -> str` · `erster_json_block(text) -> str` · `inhalt_aus(koerper) -> str | None` · `LLMFehler` · `MAX_TOKENS = 9000` · `WARTEZEITEN = (0.7, 1.5, 3.0)`
 
@@ -369,7 +369,7 @@ Jeder Aufruf schreibt in `aufruf`: geschätzte Token (`(len(system)+len(nutzer))
 
 **Vorlage lesen:** `/home/birk/projekte/kollektivgedaechtnis/stt_backends/infomaniak_whisper_backend.py`. **Zweistufig, asynchron** — das ist der Kern dieser Aufgabe.
 
-**Files:** `theatersoap/stt.py`, `scripts/rauchtest.py`, `tests/test_stt.py`
+**Files:** `interview_theater/stt.py`, `scripts/rauchtest.py`, `tests/test_stt.py`
 
 **Produces:** `stt.transkribiere(e, klient, pfad: Path, budget_s: float) -> str` (mit genau einem sofortigen Wiederholungsversuch) · `stt.absenden(...) -> str` (batch_id) · `stt.abholen(...) -> str` · `STTFehler` · `POLL_INTERVALL_S = 0.5` · `MAX_UPLOAD_BYTES = 25*1024*1024`
 
@@ -472,7 +472,7 @@ Run: `python -m scripts.rauchtest ./beispiel.ogg`
 
 ## Aufgabe 7: Belegzitat-Prüfung und Verdichter
 
-**Files:** `theatersoap/zitat.py`, `theatersoap/verdichter.py`, `theatersoap/prompts/verdichter.md`, Ergänzungen in `repo.py`, `tests/test_zitat.py`, `tests/test_verdichter.py`
+**Files:** `interview_theater/zitat.py`, `interview_theater/verdichter.py`, `interview_theater/prompts/verdichter.md`, Ergänzungen in `repo.py`, `tests/test_zitat.py`, `tests/test_verdichter.py`
 
 **Produces:**
 - `zitat.normalisiere(text) -> str`, `zitat.pruefe(zitat, transkript) -> bool`
@@ -544,7 +544,7 @@ Im Schema **jedes** Objekt mit `additionalProperties: false` und vollständigem 
 
 Die Aufgabe, in der § 10 lebt.
 
-**Files:** `theatersoap/aufnahme.py`, Ergänzungen in `bot.py`, `tests/test_aufnahme.py`
+**Files:** `interview_theater/aufnahme.py`, Ergänzungen in `bot.py`, `tests/test_aufnahme.py`
 
 **Produces:**
 - Konstanten `KURZ_GRENZE_S = 45`, `TIPPANZEIGE_AB_S = 5`, `MELDUNG_AB_S = 12`, `BUDGET_KURZ_S = 45`, `BUDGET_LANG_S = 90`, `NACHHOL_INTERVALL_S = 60`, `MAX_VERSUCHE = 5`
@@ -656,7 +656,7 @@ Die transkribierte Kurznachricht bekommt eine synthetische `message_id` (z. B. `
 
 ## Aufgabe 9: Kontext-Zusammenbau
 
-**Files:** `theatersoap/kontext.py`, `theatersoap/prompts/system.md`, Ergänzungen in `repo.py`, `tests/test_kontext.py`
+**Files:** `interview_theater/kontext.py`, `interview_theater/prompts/system.md`, Ergänzungen in `repo.py`, `tests/test_kontext.py`
 
 **Produces:** `kontext.schaetze(text) -> int` · `kontext.SYSTEM` · `kontext.sprecherzeile(n) -> str` · `kontext.baue(conn, chat_id, ausloeser, e) -> str` · `BUDGETS`, `ZIEL = 10_000`, `REISSLEINE = 20_000`, `PAUSE_AB_MINUTEN = 60`
 Repo-Ergänzungen: `hole_arbeitsstand` · `setze_arbeitsstand(conn, chat_id, feld, wert)` (nur `begriffe`, `kernthema`, `kernthema_begruendung`, `hauptkonflikt`) · `figuren` · `setze_figur(conn, chat_id, name, beschreibung)` · `journal` · `schreibe_journal`
@@ -697,7 +697,7 @@ if schaetze(zusammen(bloecke)) > ZIEL:
 
 ## Aufgabe 10: Gesprächszug — Durchstich
 
-**Files:** `theatersoap/ablauf.py`, Ergänzungen in `bot.py`, `tests/test_ablauf.py`
+**Files:** `interview_theater/ablauf.py`, Ergänzungen in `bot.py`, `tests/test_ablauf.py`
 
 **Produces:** `ablauf.ist_ausloeser(n, bot_name) -> bool` · `ablauf.bearbeite(conn, tg, klm, e, chat_id)` · `ablauf.antworte(...)` · `TIPP_INTERVALL = 4.0`, `HINWEIS_NACH = 10.0`
 
@@ -759,7 +759,7 @@ def bearbeite(conn, tg, klm, e, chat_id: int) -> None:
 
 ## Aufgabe 11: Extraktor (Journal + Arbeitsstand + Änderungsmeldung)
 
-**Files:** `theatersoap/extraktor.py`, `theatersoap/prompts/extraktor.md`, Ergänzungen in `repo.py`/`bot.py`, `tests/test_extraktor.py`
+**Files:** `interview_theater/extraktor.py`, `interview_theater/prompts/extraktor.md`, Ergänzungen in `repo.py`/`bot.py`, `tests/test_extraktor.py`
 
 Schema und Verhalten nach § 4.3. Die entscheidenden Tests:
 
@@ -787,7 +787,7 @@ Nach § 8. `/merken`, `/verworfen`, `/kernthema`, `/konflikt`, `/begriffe`, `/fi
 
 ## Aufgabe 13: Erstkontakt, Begrüßung, Betrieb
 
-`bot.erstkontakt` (die allererste Nachricht erklärt, wie man den Bot anspricht), `bot.begruessung_faellig` (> 2 h), `betrieb/theatersoap@.service` mit `Restart=always`, `README.md` mit dem Hinweis **Privacy Mode bei BotFather ausschalten**.
+`bot.erstkontakt` (die allererste Nachricht erklärt, wie man den Bot anspricht), `bot.begruessung_faellig` (> 2 h), `betrieb/interview-theater@.service` mit `Restart=always`, `README.md` mit dem Hinweis **Privacy Mode bei BotFather ausschalten**.
 
 - [ ] Commit `Erstkontakt, Begruessung und Betriebsdateien`
 

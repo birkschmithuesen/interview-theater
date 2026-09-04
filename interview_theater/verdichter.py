@@ -3,27 +3,27 @@
 
 Laeuft genau einmal je Interview, auf dem frischen Transkript, ohne den
 Chatverlauf zu kennen. Erzwungenes JSON-Schema, ``reasoning_effort: "none"``
-(Modus A, siehe ``theatersoap.llm.LLM.schema``).
+(Modus A, siehe ``interview_theater.llm.LLM.schema``).
 
 Jedes Kernthema traegt ein woertliches Belegzitat, das die Gruppe
 ueberzeugen soll: ein Konfliktvorschlag mit Beleg ist Dramaturgie, einer ohne
 ist ein Automat. Das Zitat durchlaeuft zusaetzlich die Pruefung aus
-``theatersoap.zitat`` (§ 5) -- ein einfacher, bewusst dummer
+``interview_theater.zitat`` (§ 5) -- ein einfacher, bewusst dummer
 Teilstring-Vergleich, **kein** Retry. Faellt die Pruefung durch, wird nicht
 der ganze Themenvorschlag verworfen, sondern nur das Zitat entfernt: das
 Thema selbst bleibt (SPEC § 5, global-constraints.md 'Belegzitate').
 """
 
 
-from theatersoap import repo, zitat
+from interview_theater import repo, zitat
 
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
-#: theatersoap/prompts/verdichter.md fuer die vollstaendige Anweisung).
-from theatersoap import anweisungen
+#: interview_theater/prompts/verdichter.md fuer die vollstaendige Anweisung).
+from interview_theater import anweisungen
 
 
 def prompt() -> str:
-    """Heiss nachgeladen (theatersoap.anweisungen)."""
+    """Heiss nachgeladen (interview_theater.anweisungen)."""
     return anweisungen.hole("verdichter")
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
@@ -55,7 +55,7 @@ def verdichte(klm, conn, e, aufnahme_id: int) -> int:
     """Verdichtet die Aufnahme ``aufnahme_id`` und speichert das Ergebnis.
 
     ``klm`` ist ein Objekt mit einer ``.schema(chat_id, system, nutzer,
-    schema, art) -> dict``-Methode (in Produktion ``theatersoap.llm.LLM``, in
+    schema, art) -> dict``-Methode (in Produktion ``interview_theater.llm.LLM``, in
     Tests eine Attrappe). Liefert die id der neu angelegten Verdichtung.
     """
     aufnahme = repo.hole_aufnahme(conn, aufnahme_id)

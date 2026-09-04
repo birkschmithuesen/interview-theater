@@ -23,13 +23,13 @@ Aufruf sofort an einen eigenen Thread ab (``szene.starte``) und kehrt zurueck.
 Wer hier einen weiteren Befehl anhaengt, halte sich daran.
 
 Telegram haengt in Gruppen mit mehreren Bots oft den Benutzernamen an einen
-Befehl an (``/stand@theatersoapbot``) -- ``_zerlege`` trennt das
+Befehl an (``/stand@interview_theaterbot``) -- ``_zerlege`` trennt das
 grosszuegig ab, unabhaengig davon, welcher Name genau dahintersteht."""
 
 import logging
 import re
 
-from theatersoap import erkenner, phasen, repo, szene
+from interview_theater import erkenner, phasen, repo, szene
 
 #: Woerter, die einen Befehl zu einer Entfernung machen (NACHTRAG N3).
 #: Grosszuegig, weil die Gruppe tippt, was ihr einfaellt -- aber eine feste
@@ -181,7 +181,7 @@ def _befehl_figur(conn, tg, chat_id: int, rest: str) -> None:
 
 
 def _befehl_phase(conn, tg, chat_id: int, rest: str) -> None:
-    """Der Notausgang fuer die Arbeitsphase (theatersoap/phasen.py) -- neben
+    """Der Notausgang fuer die Arbeitsphase (interview_theater/phasen.py) -- neben
     dem Erkenner (art ``phase_setzen``) der zweite, deterministische Weg.
 
     Ohne Argument zeigt er die aktuelle Phase und alle acht; mit Argument

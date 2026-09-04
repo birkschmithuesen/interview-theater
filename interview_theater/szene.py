@@ -53,7 +53,7 @@ import logging
 import re
 import threading
 
-from theatersoap import anweisungen, kontext, repo
+from interview_theater import anweisungen, kontext, repo
 
 log = logging.getLogger(__name__)
 

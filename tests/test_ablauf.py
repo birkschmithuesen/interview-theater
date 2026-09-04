@@ -8,11 +8,11 @@ from datetime import datetime, timezone
 
 import pytest
 
-from theatersoap import ablauf, bot, repo
+from interview_theater import ablauf, bot, repo
 
 
 class TelegramAttrappe:
-    """Ersetzt theatersoap.telegram.Telegram: kein Netzzugriff, zeichnet auf."""
+    """Ersetzt interview_theater.telegram.Telegram: kein Netzzugriff, zeichnet auf."""
 
     def __init__(self):
         self.gesendet = []   # Liste von (chat_id, text)
@@ -34,7 +34,7 @@ def tg():
 
 
 class KLMAttrappe:
-    """Ersetzt theatersoap.llm.LLM: liefert immer dieselbe gueltige Antwort."""
+    """Ersetzt interview_theater.llm.LLM: liefert immer dieselbe gueltige Antwort."""
 
     def __init__(self, antwort="Klar, machen wir."):
         self._antwort = antwort
@@ -46,7 +46,7 @@ class KLMAttrappe:
 
 
 class KLMKaputt:
-    """Ersetzt theatersoap.llm.LLM: schlaegt immer fehl."""
+    """Ersetzt interview_theater.llm.LLM: schlaegt immer fehl."""
 
     def schema(self, chat_id, system, nutzer, schema, art):
         raise RuntimeError("Sprachmodell nicht erreichbar (simuliert)")
@@ -286,7 +286,7 @@ def test_szene_befehl_bekommt_das_sprachmodell_durchgereicht(conn, einst, tg, kl
     """/szene ist der einzige Befehl, der ein Modell braucht -- er bekommt es
     ueber ``behandle(..., klm=klm)``. Der Gespraechszug selbst ruft trotzdem
     nichts: szene.starte gibt sofort an einen eigenen Thread ab."""
-    from theatersoap import szene
+    from interview_theater import szene
 
     gesehen = []
     monkeypatch.setattr(

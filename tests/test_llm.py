@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from theatersoap import einstellungen, llm
+from interview_theater import einstellungen, llm
 
 
 def _klient(handler):
@@ -294,7 +294,7 @@ def test_ohne_temperature_parameter_fehlt_das_feld(einst, conn):
 
 def test_prosa_schaltet_reasoning_an_und_bekommt_genug_ausgabebudget(einst, conn):
     """Modus B ist der einzige Aufruf mit aktivem Reasoning (SPEC § 4.5,
-    theatersoap/szene.py). "an" heisst bei Infomaniak schlicht: irgendein
+    interview_theater/szene.py). "an" heisst bei Infomaniak schlicht: irgendein
     Wert ausser "none" -- die Stufen sind untereinander nicht
     unterscheidbar. Dazu die gemessene Randbedingung: mit zu knappem
     max_tokens endet der Lauf IM Denken und liefert HTTP 200 mit leerem

@@ -16,11 +16,11 @@ Wie in test_erkenner.py: das Sprachmodell wird durch eine Attrappe mit einer
 
 import pytest
 
-from theatersoap import journal, kontext, repo
+from interview_theater import journal, kontext, repo
 
 
 class LLMAttrappe:
-    """Ersetzt theatersoap.llm.LLM in Tests: liefert eine vorbereitete Antwort
+    """Ersetzt interview_theater.llm.LLM in Tests: liefert eine vorbereitete Antwort
     (oder wirft einen vorbereiteten Fehler), zaehlt die Aufrufe und
     zeichnet die zuletzt gesehenen Parameter auf."""
 

@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   kernthema              TEXT,
   kernthema_begruendung  TEXT,
   hauptkonflikt          TEXT,
-  -- Die Arbeitsphase 1-8 (theatersoap/phasen.py). NULL = noch nie gesetzt
+  -- Die Arbeitsphase 1-8 (interview_theater/phasen.py). NULL = noch nie gesetzt
   -- und gilt dann wie 1. Gesetzt wird sie nur hoerbar -- von der Gruppe oder
   -- vom Bot mit Meldung -- nie still erraten (SPEC § 0 Leitsatz 3, Nachtrag
   -- vom 04.09.2026).

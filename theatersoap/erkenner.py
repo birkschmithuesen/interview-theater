@@ -261,7 +261,17 @@ def _wende_figur_an(conn, chat_id: int, wert: str) -> dict | None:
     Doppelpunkt liefert ``str.partition`` eine leere Beschreibung statt zu
     krachen. Existiert der Name schon (getrimmt, Kleinschreibung -- siehe
     repo.setze_figur), wird nur bei tatsaechlich geaenderter Beschreibung
-    geschrieben."""
+    geschrieben.
+
+    Korrektur (2026-09-04): nennt das Modell beilaeufig einen schon
+    bekannten Namen ohne Doppelpunkt (z. B. nur "Peter"), ist ``beschreibung``
+    leer -- das darf die vorhandene Beschreibung NICHT loeschen. Ohne diese
+    Pruefung ueberschrieb ein blosser Namenstreffer die vorhandene
+    Beschreibung mit einem leeren String und die Meldung bestaetigte das
+    sogar noch als 'Notiert', ohne dass jemand merkt, dass die Beschreibung
+    weg ist -- echter, stiller Datenverlust. Bei einem NEUEN Namen bleibt das
+    Verhalten unveraendert: eine leere Beschreibung ist dort kein Fehler,
+    sondern der Normalfall (der Name allein ist schon eine Aenderung)."""
     wert = wert.strip()
     if not wert:
         return None
@@ -275,6 +285,11 @@ def _wende_figur_an(conn, chat_id: int, wert: str) -> dict | None:
     treffer = next(
         (f for f in vorhandene if f["name"].strip().lower() == name.lower()), None
     )
+    if treffer is not None and not beschreibung:
+        # Name bekannt, aber kein neuer Beschreibungsteil mitgeliefert --
+        # die vorhandene Beschreibung bleibt unangetastet und gilt nicht als
+        # Aenderung.
+        return None
     if treffer is not None and (treffer["beschreibung"] or "").strip() == beschreibung:
         return None
 

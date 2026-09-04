@@ -249,6 +249,20 @@ def test_figur_ohne_doppelpunkt_bekommt_leere_beschreibung(conn, einst):
     assert wirkliche == [{"art": "figur_setzen", "wert": "Peter"}]
 
 
+def test_figur_bekannter_name_ohne_doppelpunkt_behaelt_alte_beschreibung(conn, einst):
+    """Korrektur (2026-09-04): nennt das Modell einen bekannten Namen
+    beilaeufig ohne Doppelpunkt, darf die vorhandene Beschreibung nicht
+    verschwinden -- und das darf auch nicht als Aenderung gemeldet werden."""
+    erkenner.wende_an(conn, einst, 1, [{"art": "figur_setzen", "wert": "Peter: Nachbar, 45"}])
+
+    wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "figur_setzen", "wert": "Peter"}])
+
+    figuren = repo.figuren(conn, 1)
+    assert len(figuren) == 1
+    assert figuren[0]["beschreibung"] == "Nachbar, 45"
+    assert wirkliche == []
+
+
 def test_figur_gleicher_name_und_gleiche_beschreibung_gilt_nicht_als_aenderung(conn, einst):
     erkenner.wende_an(conn, einst, 1, [{"art": "figur_setzen", "wert": "Maria: Naeherin"}])
 

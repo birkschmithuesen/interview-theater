@@ -209,6 +209,8 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
     if stand:
         if stand["begriffe"]:
             zeilen.append(f"Begriffe: {stand['begriffe']}")
+        if stand["fragen"]:
+            zeilen.append(f"Fragen: {stand['fragen']}")
         if stand["kernthema"]:
             zeile = f"Kernthema: {stand['kernthema']}"
             if stand["kernthema_begruendung"]:
@@ -241,6 +243,29 @@ _PHASENHINWEIS = (
     "zu wechseln -- als Angebot, einmal, nicht draengend."
 )
 
+#: Der Hinweis fuer die freie Stelle: Figuren und Hauptkonflikt haben
+#: dieselbe Voraussetzung, und der Bot darf sich hier nicht still fuer eine
+#: entscheiden. Er nennt beide und sagt ausdruecklich, dass die Gruppe waehlt
+#: -- die Empfehlung (Figuren zuerst) ist eine Erfahrung, keine Regel.
+_PHASENHINWEIS_FREI = (
+    "Materiallage erlaubt {erste} oder {zweite}. Biete beides an, empfiehl "
+    "Figuren zuerst, die Gruppe entscheidet."
+)
+
+
+def _hinweistext(moegliche: list[int]) -> str:
+    """Formuliert das Angebot aus den moeglichen naechsten Phasen.
+
+    Stehen Figuren (5) und Hauptkonflikt (6) beide offen und nichts
+    darueber, ist es die freie Stelle und beide werden genannt; sonst gilt
+    wie bisher die hoechste erreichbare Phase."""
+    erste, zweite = sorted(phasen.FREIE_STELLE)
+    if max(moegliche) == zweite and erste in moegliche:
+        return _PHASENHINWEIS_FREI.format(
+            erste=phasen.bezeichnung(erste), zweite=phasen.bezeichnung(zweite)
+        )
+    return _PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(max(moegliche)))
+
 
 def _baue_phasenhinweis(conn, chat_id: int) -> str:
     """Der Hinweis auf eine moegliche naechste Phase -- hoechstens einmal je
@@ -252,14 +277,19 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
     Wechsel alle zwei Minuten an -- aus einem Angebot wuerde Draengeln.
     Nimmt die Gruppe es an, aendert sich die Phase, und beim naechsten
     erreichbaren Schritt gibt es ein neues Angebot; nimmt sie es nicht an,
-    bleibt es still."""
-    moeglich = phasen.naechste_moegliche(conn, chat_id)
-    if moeglich is None:
+    bleibt es still.
+
+    Gemerkt wird die hoechste angebotene Stufe, auch wenn der Text zwei
+    Phasen nennt: das Angebot 'Figuren oder Hauptkonflikt' ist ein Angebot,
+    keine zwei -- es soll sich genauso wenig wiederholen wie jedes andere."""
+    moegliche = phasen.moegliche_naechste(conn, chat_id)
+    if not moegliche:
         return ""
-    if repo.hole_phase_angeboten(conn, chat_id) == moeglich:
+    merkposten = max(moegliche)
+    if repo.hole_phase_angeboten(conn, chat_id) == merkposten:
         return ""
-    repo.setze_phase_angeboten(conn, chat_id, moeglich)
-    return _PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(moeglich))
+    repo.setze_phase_angeboten(conn, chat_id, merkposten)
+    return _hinweistext(moegliche)
 
 
 def _baue_szene(conn, chat_id: int) -> str:

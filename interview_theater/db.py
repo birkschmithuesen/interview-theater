@@ -88,6 +88,11 @@ CREATE TABLE IF NOT EXISTS verdichtung_thema (
 CREATE TABLE IF NOT EXISTS arbeitsstand (
   chat_id                INTEGER PRIMARY KEY,
   begriffe               TEXT,
+  -- Die Interviewfragen als eine Liste in einem Feld (Phase 2, Korrektur vom
+  -- 04.09.2026 abends): Fragen formulieren und Interviews fuehren sind zwei
+  -- Arbeiten. Additiv wie phase -- eine bestehende Datenbank bekommt die
+  -- Spalte ueber _migriere_fehlende_spalten.
+  fragen                 TEXT,
   kernthema              TEXT,
   kernthema_begruendung  TEXT,
   hauptkonflikt          TEXT,

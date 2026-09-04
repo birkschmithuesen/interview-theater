@@ -197,6 +197,7 @@ def _arbeitsstand_html(arbeitsstand: dict, figuren: list[dict]) -> str:
         "<dl>"
         f"<dt>Phase</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
         f"<dt>Begriffe</dt><dd>{_t(arbeitsstand['begriffe'])}</dd>"
+        f"<dt>Fragen</dt><dd>{_t(arbeitsstand.get('fragen'))}</dd>"
         f"<dt>Kernthema</dt><dd>{_t(arbeitsstand['kernthema'])}"
         + (
             f"<div class=\"zeit\">{_t(arbeitsstand['kernthema_begruendung'], '')}</div>"

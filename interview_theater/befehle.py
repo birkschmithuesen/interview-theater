@@ -225,6 +225,9 @@ def _befehl_stand(conn, tg, chat_id: int) -> None:
         f"Begriffe: {stand['begriffe']}" if stand and stand["begriffe"] else "Begriffe: noch keine"
     )
     zeilen.append(
+        f"Fragen: {stand['fragen']}" if stand and stand["fragen"] else "Fragen: noch keine"
+    )
+    zeilen.append(
         f"Kernthema: {stand['kernthema']}" if stand and stand["kernthema"] else "Kernthema: noch offen"
     )
     zeilen.append(

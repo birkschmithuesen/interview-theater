@@ -87,13 +87,18 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
 
     ``phase`` kommt roh heraus (``None``, solange keine gesetzt wurde) --
     dass eine ungesetzte Phase wie 1 gilt, ist eine Anzeigeregel und steht
-    in ``web.py``, nicht hier."""
+    in ``web.py``, nicht hier.
+
+    ``phase`` und ``fragen`` gehen ueber ``_feld``: beide sind nachtraeglich
+    dazugekommen, und der Webserver sieht die Datenbank read-only -- zwischen
+    einem Deploy und dem Neustart des Bots kann die Spalte noch fehlen."""
     zeile = conn.execute(
         "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
     ).fetchone()
     return {
         "phase": _feld(zeile, "phase"),
         "begriffe": zeile["begriffe"] if zeile else None,
+        "fragen": _feld(zeile, "fragen"),
         "kernthema": zeile["kernthema"] if zeile else None,
         "kernthema_begruendung": zeile["kernthema_begruendung"] if zeile else None,
         "hauptkonflikt": zeile["hauptkonflikt"] if zeile else None,

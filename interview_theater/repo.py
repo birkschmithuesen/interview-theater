@@ -586,7 +586,11 @@ def leere_whisper_stumm_seit_falls_gesetzt(conn: sqlite3.Connection, chat_id: in
 
 #: Die einzigen Felder, die ein Korrekturbefehl (SPEC § 8: /kernthema,
 #: /konflikt, /begriffe) oder der Extraktor im Arbeitsstand setzen duerfen.
-_ARBEITSSTAND_FELDER = ("begriffe", "kernthema", "kernthema_begruendung", "hauptkonflikt")
+#: ``fragen`` ist seit dem 04.09.2026 abends dabei (die Frageliste aus Phase 2,
+#: Erkenner-art ``fragen_setzen``).
+_ARBEITSSTAND_FELDER = (
+    "begriffe", "fragen", "kernthema", "kernthema_begruendung", "hauptkonflikt",
+)
 
 
 @_gesperrt

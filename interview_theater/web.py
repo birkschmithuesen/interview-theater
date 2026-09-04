@@ -30,6 +30,7 @@ sind relativ.
 """
 
 import html
+import re
 import os
 import sqlite3
 import sys
@@ -66,6 +67,8 @@ _SCROLL_JS = """
 """
 
 _CSS_GEMEINSAM = """
+ul.fragen { list-style: none; padding: 0; margin: 0; }
+ul.fragen li { margin: .25em 0; }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 1rem 1.2rem 3rem;
        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -184,6 +187,27 @@ def _seite(titel: str, css: str, koerper: str) -> str:
     )
 
 
+def _fragen_html(fragen: str | None) -> str:
+    """Eine Zeile je Frage, das Thema fett (Birk 04.09.: 'jede Frage eine
+    eigene Zeile mit dem Thema der Frage fett gedruckt').
+
+    Der Erkenner liefert die Fragen als einen String; getrennt wird an
+    Zeilenumbruch oder ' | ', das Thema ist das, was vor dem ersten
+    Doppelpunkt steht -- wenn es kurz genug ist, um ein Thema zu sein.
+    Fehlt es, steht die Frage allein. Alles HTML-escaped."""
+    if not fragen:
+        return _t(None)
+    teile = [t.strip(" -•") for t in re.split(r"\n+| \| ", fragen) if t.strip(" -•")]
+    zeilen = []
+    for teil in teile:
+        thema, sep, frage = teil.partition(":")
+        if sep and 0 < len(thema.strip()) <= 40 and frage.strip():
+            zeilen.append(f"<li><b>{_t(thema.strip())}</b> {_t(frage.strip())}</li>")
+        else:
+            zeilen.append(f"<li>{_t(teil)}</li>")
+    return "<ul class=\"fragen\">" + "".join(zeilen) + "</ul>"
+
+
 def _arbeitsstand_html(arbeitsstand: dict, figuren: list[dict]) -> str:
     figuren_html = "".join(
         f"<li><b>{_t(f['name'])}</b> — {_t(f['beschreibung'], 'ohne Beschreibung')}</li>"
@@ -197,7 +221,7 @@ def _arbeitsstand_html(arbeitsstand: dict, figuren: list[dict]) -> str:
         "<dl>"
         f"<dt>Phase</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
         f"<dt>Begriffe</dt><dd>{_t(arbeitsstand['begriffe'])}</dd>"
-        f"<dt>Fragen</dt><dd>{_t(arbeitsstand.get('fragen'))}</dd>"
+        f"<dt>Fragen</dt><dd>{_fragen_html(arbeitsstand.get('fragen'))}</dd>"
         f"<dt>Kernthema</dt><dd>{_t(arbeitsstand['kernthema'])}"
         + (
             f"<div class=\"zeit\">{_t(arbeitsstand['kernthema_begruendung'], '')}</div>"

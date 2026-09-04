@@ -258,3 +258,24 @@ def test_praefix_wird_nur_am_anfang_abgeschnitten():
     assert web._pfad_ohne_praefix("/theatersoap", "/theatersoap") == "/"
     assert web._pfad_ohne_praefix("/g/abc", "/theatersoap") == "/g/abc"
     assert web._pfad_ohne_praefix("/g/theatersoap", "/theatersoap") == "/g/theatersoap"
+
+
+def test_fragen_eine_zeile_je_frage_thema_fett():
+    from interview_theater import web
+    html_ = web._fragen_html(
+        "Küche: Erzähl mir von einem Gericht. | Erste Liebe: Erzähl von einem Moment.\nHawaii: Was fällt dir ein?"
+    )
+    assert html_.count("<li>") == 3
+    assert "<b>Küche</b> Erzähl mir von einem Gericht." in html_
+    assert "<b>Hawaii</b> Was fällt dir ein?" in html_
+
+
+def test_fragen_ohne_thema_bleiben_ganz():
+    from interview_theater import web
+    html_ = web._fragen_html("Wann warst du zuletzt glücklich?")
+    assert "<b>" not in html_ and "Wann warst du zuletzt" in html_
+
+
+def test_fragen_werden_escaped():
+    from interview_theater import web
+    assert "<script>" not in web._fragen_html("Thema: <script>x</script>")

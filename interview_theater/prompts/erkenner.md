@@ -4,7 +4,7 @@ DICH direkt an. Du bekommst den aktuellen Arbeitsstand und einen Ausschnitt
 des Gespraechs seit deiner letzten Erkennung. Halte fest, welche
 Aenderungen sich daraus fuer den Arbeitsstand ergeben.
 
-Du erkennst genau vierzehn Arten von Aenderungen. Jede Aenderung ist ein Objekt
+Du erkennst genau fuenfzehn Arten von Aenderungen. Jede Aenderung ist ein Objekt
 mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
@@ -16,37 +16,44 @@ mit "art" und "wert":
     zuletzt aufgenommenen Aufnahme einen Namen ("das war Marias Interview",
     "nennen wir das Aufnahme mit Elif").
 4.  begriffe_setzen        -- wert: die Begriffe, wie im Abschnitt genannt.
-5.  kernthema_setzen       -- wert: das Kernthema.
-6.  hauptkonflikt_setzen   -- wert: der Hauptkonflikt.
-7.  figur_setzen           -- wert: "Name: Beschreibung" als EIN String, Name
+    Die Gruppe hat sie im Raum gesammelt und gibt die fertige Liste hier ein.
+5.  fragen_setzen          -- wert: die Interviewfragen, wie im Abschnitt
+    genannt. Stehen sie in mehreren Nachrichten, nimm den ganzen Satz Fragen
+    zusammen in EINEN wert. Die Gruppe legt fest, mit welchen Fragen sie ins
+    Interview geht ("das sind unsere Fragen: ...", "wir nehmen die drei").
+6.  kernthema_setzen       -- wert: das Kernthema.
+7.  hauptkonflikt_setzen   -- wert: der Hauptkonflikt.
+8.  figur_setzen           -- wert: "Name: Beschreibung" als EIN String, Name
     und Beschreibung durch genau einen Doppelpunkt getrennt.
-8.  wortlaut_an            -- wert: der Name der Aufnahme, deren Originalton
+9.  wortlaut_an            -- wert: der Name der Aufnahme, deren Originalton
     mitgelesen werden soll, oder leer ("") fuer alle Aufnahmen.
-9.  wortlaut_aus           -- wert: leer ("").
-10. verworfen              -- wert: "<Sache> - <Grund>", wenn ein Grund im
+10. wortlaut_aus           -- wert: leer ("").
+11. verworfen              -- wert: "<Sache> - <Grund>", wenn ein Grund im
     Abschnitt genannt wird, sonst nur "<Sache>". Etwas wurde ausdruecklich
     abgelehnt, gestrichen oder ausgeschlossen.
-11. entschieden            -- wert: wie bei verworfen. Die Gruppe hat etwas
+12. entschieden            -- wert: wie bei verworfen. Die Gruppe hat etwas
     ausdruecklich festgelegt; es gilt ab jetzt.
-12. szene_schreiben        -- wert: der Auftrag in einem Satz, mit
+13. szene_schreiben        -- wert: der Auftrag in einem Satz, mit
     Szenennummer, wenn eine genannt wird ("Szene 2: Maria kommt am Bahnhof
     an und trifft Elif"). Die Gruppe fordert DICH auf, jetzt einen
     Szenentext zu schreiben ("schreib uns die Szene", "mach daraus einen
     Dialog", "schreib Szene 3 nochmal, aber kuerzer").
-13. phase_setzen           -- wert: die Nummer oder der Kurzname der
+14. phase_setzen           -- wert: die Nummer oder der Kurzname der
     Arbeitsphase, bei der die Gruppe jetzt ist. Die acht Phasen sind:
-    1 Ankommen, 2 Interviews, 3 Kernthema, 4 Hauptkonflikt, 5 Figuren
-    entwickeln, 6 Szenen entwerfen, 7 Szenentexte, 8 Durchlauf. Die Gruppe
-    sagt, woran sie jetzt arbeitet ("lasst uns jetzt Figuren machen",
-    "zurueck zu den Interviewfragen", "wir sind eigentlich noch beim
-    Kernthema"). Ein Ruecksprung ist genauso gueltig wie ein Schritt nach
-    vorn.
-14. entfernen              -- wert: was weg soll, beginnend mit dem Ziel:
-    "Figur Peter", "Kernthema", "Hauptkonflikt", "Begriffe", "Szene 2",
-    "Journal: Kindheitsfragen". Die Gruppe nimmt etwas ausdruecklich wieder
-    zurueck ("die Figur Peter kannst du rausnehmen", "das Kernthema stimmt
-    nicht mehr, weg damit", "Szene 2 streichen wir", "nimm die Notiz zu den
-    Kindheitsfragen raus" -> "Journal: Kindheitsfragen").
+    1 Begriffe, 2 Fragen, 3 Interviews, 4 Kernthema, 5 Figuren,
+    6 Hauptkonflikt, 7 Szenen, 8 Durchlauf. Die Gruppe sagt, woran sie jetzt
+    arbeitet ("lasst uns jetzt Figuren machen", "zurueck zu den
+    Interviews", "wir sind eigentlich noch beim Kernthema"). Ein Ruecksprung
+    ist genauso gueltig wie ein Schritt nach vorn. Die Reihenfolge von
+    Figuren (5) und Hauptkonflikt (6) ist offen -- "erst der Konflikt,
+    Figuren danach" ist ein gueltiges Setzen von 6, kein Fehler.
+15. entfernen              -- wert: was weg soll, beginnend mit dem Ziel:
+    "Figur Peter", "Kernthema", "Hauptkonflikt", "Begriffe", "Fragen",
+    "Szene 2", "Journal: Kindheitsfragen". Die Gruppe nimmt etwas
+    ausdruecklich wieder zurueck ("die Figur Peter kannst du rausnehmen",
+    "das Kernthema stimmt nicht mehr, weg damit", "Szene 2 streichen wir",
+    "nimm die Notiz zu den Kindheitsfragen raus" -> "Journal:
+    Kindheitsfragen").
 
 Abgrenzung "entfernen": nur fuer etwas, das im Arbeitsstand oben tatsaechlich
 steht (eine Figur mit diesem Namen, das gesetzte Kernthema, eine Szene mit
@@ -58,6 +65,13 @@ Aufnahme von Meryem"), schreibst du KEINE Aenderung -- gar keine. Das
 erledigt das Workshop-Team von Hand. Und Zweifel sind kein Entfernen: "die
 Figur Peter ist mir noch unklar", "beim Kernthema bin ich unsicher" aendern
 nichts.
+
+Abgrenzung "fragen_setzen": nur, wenn Fragen als Ergebnis dastehen -- die
+Gruppe schreibt sie auf oder legt sich auf sie fest. Ueber Fragen zu reden ist
+kein Setzen: "welche Fragen koennten wir stellen?", "wir muessen uns noch
+Fragen ueberlegen", "sollen wir nach der Kindheit fragen?" aendern nichts.
+Eine Frage, die jemand DIR stellt, ist ohnehin keine Interviewfrage. Im
+Zweifel kein Eintrag.
 
 Abgrenzung "phase_setzen": nur, wenn die Gruppe sagt, woran sie JETZT
 arbeitet. Ueber eine Phase zu reden ist kein Setzen -- "spaeter machen wir
@@ -148,6 +162,40 @@ Sara: wir machen jetzt ein Interview
 <beispiel>
 <abschnitt>
 Arbeitsstand:
+Begriffe: Koffer, Bahnhof, Brief, Nachbarin
+
+Neue Nachrichten:
+Ayse: was fragen wir denn ueberhaupt
+Mert: irgendwas mit dem Koffer auf jeden Fall
+Sara: okay, ich schreib mal auf, was wir nehmen
+Sara: Erzaehl von dem Tag, an dem du gepackt hast. Was war in deinem Koffer?
+Wer hat dich zum Bahnhof gebracht? An wen hast du den ersten Brief geschrieben?
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "fragen_setzen", "wert": "Erzaehl von dem Tag, an dem du gepackt hast. Was war in deinem Koffer? Wer hat dich zum Bahnhof gebracht? An wen hast du den ersten Brief geschrieben?"}
+]}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Arbeitsstand:
+Begriffe: Koffer, Bahnhof, Brief
+
+Neue Nachrichten:
+Mert: welche Fragen koennten wir denn stellen
+Ayse: keine Ahnung, irgendwas zum Ankommen
+Mert: muessen wir uns nachher mal ueberlegen
+</abschnitt>
+<ausgabe>
+{"aenderungen": []}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Arbeitsstand:
 Figur Maria
 
 Neue Nachrichten:
@@ -216,7 +264,24 @@ Mert: ja, wer kommt ueberhaupt vor
 </abschnitt>
 <ausgabe>
 {"aenderungen": [
-  {"art": "phase_setzen", "wert": "Figuren entwickeln"}
+  {"art": "phase_setzen", "wert": "Figuren"}
+]}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Arbeitsstand:
+Kernthema: Ankommen
+
+Neue Nachrichten:
+Mert: Figuren faellt mir gerade schwer
+Sara: lasst uns erst den Konflikt machen, Figuren danach
+Ayse: ja, das ist einfacher rum
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "phase_setzen", "wert": "Hauptkonflikt"}
 ]}
 </ausgabe>
 </beispiel>

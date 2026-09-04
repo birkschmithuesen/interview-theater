@@ -67,6 +67,10 @@ ARTEN = (
     "interview_beenden",
     "interview_benennen",
     "begriffe_setzen",
+    # Seit 04.09.2026 abends: die Frageliste aus Phase 2 ist ein eigenes Feld
+    # (arbeitsstand.fragen). Fragen formulieren und Interviews fuehren sind
+    # zwei Arbeiten, also braucht die erste auch ein eigenes Ergebnis.
+    "fragen_setzen",
     "kernthema_setzen",
     "hauptkonflikt_setzen",
     "figur_setzen",
@@ -147,6 +151,8 @@ def _arbeitsstand_text(conn, chat_id: int) -> str:
     if stand:
         if stand["begriffe"]:
             zeilen.append(f"Begriffe: {stand['begriffe']}")
+        if stand["fragen"]:
+            zeilen.append(f"Fragen: {stand['fragen']}")
         if stand["kernthema"]:
             zeilen.append(f"Kernthema: {stand['kernthema']}")
         if stand["hauptkonflikt"]:
@@ -247,10 +253,11 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
     return aenderungen
 
 
-#: art -> Arbeitsstand-Feld fuer die drei Aenderungsarten, die ein einzelnes
+#: art -> Arbeitsstand-Feld fuer die vier Aenderungsarten, die ein einzelnes
 #: Feld ueberschreiben (SPEC § 4.3 'Ueberschreiben ist der Normalfall').
 _ARBEITSSTAND_ARTEN = {
     "begriffe_setzen": "begriffe",
+    "fragen_setzen": "fragen",
     "kernthema_setzen": "kernthema",
     "hauptkonflikt_setzen": "hauptkonflikt",
 }
@@ -409,7 +416,9 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
 #: einmal erzaehlt hat, loescht der Bot nicht auf Zuruf. Solche Wuensche
 #: gehen ans Workshop-Team (prompts/system.md), das den Loeschweg von Hand
 #: geht (scripts/loeschen.py).
-_ENTFERNEN_ZIELE = ("figur", "kernthema", "hauptkonflikt", "begriffe", "szene", "journal")
+_ENTFERNEN_ZIELE = (
+    "figur", "kernthema", "hauptkonflikt", "begriffe", "fragen", "szene", "journal",
+)
 
 #: Journalzeile, die eine Entfernung festhaelt -- der Weg soll sichtbar
 #: bleiben, auch wenn das Entfernte es nicht mehr ist.
@@ -440,12 +449,15 @@ def _zerlege_entfernen(wert: str) -> tuple[str, str] | None:
     return ziel, rest.strip(" :,")
 
 
-#: art -> Arbeitsstandfeld fuer die drei Ziele, die schlicht auf NULL gesetzt
+#: art -> Arbeitsstandfeld fuer die vier Ziele, die schlicht auf NULL gesetzt
 #: werden. Ein Zeitstempel waere hier sinnlos: das Feld hat genau einen Wert.
+#: ``fragen`` ist ohne eigenen Befehl dazugekommen -- das weiche Loeschen
+#: laeuft ueber dieselbe Zerlegung wie alles andere ("Fragen" als erstes Wort).
 _ENTFERNEN_ARBEITSSTAND = {
     "kernthema": ("kernthema", "Kernthema"),
     "hauptkonflikt": ("hauptkonflikt", "Hauptkonflikt"),
     "begriffe": ("begriffe", "Begriffe"),
+    "fragen": ("fragen", "Fragen"),
 }
 
 
@@ -613,7 +625,8 @@ def baue_meldung(
     4) -- nicht eine je Aenderung.
 
     Kernthema und Hauptkonflikt bekommen je eine eigene Zeile im Wortlaut,
-    Figuren eine zusammenfassende Zeile mit Namen, Begriffe eine Zeile.
+    Figuren eine zusammenfassende Zeile mit Namen, Begriffe und Fragen je
+    eine Zeile.
     Journaleintraege (``verworfen``/``entschieden``) sowie Schalter,
     Interviewmodus und Umbenennungen bleiben still -- sonst waere der Chat
     zugespammt und die Meldungen wuerden ueberlesen. Gab es keine Aenderung
@@ -633,6 +646,7 @@ def baue_meldung(
     kernthema = None
     hauptkonflikt = None
     begriffe = None
+    fragen = None
     figuren_namen = []
     phase_gesetzt = None
     entfernt = []
@@ -645,6 +659,8 @@ def baue_meldung(
             hauptkonflikt = wert
         elif art == "begriffe_setzen":
             begriffe = wert
+        elif art == "fragen_setzen":
+            fragen = wert
         elif art == "figur_setzen":
             figuren_namen.append(wert)
         elif art == "phase_setzen":
@@ -665,6 +681,8 @@ def baue_meldung(
         zeilen.append(_figuren_zeile(figuren_namen))
     if begriffe:
         zeilen.append(f"Begriffe: {begriffe}")
+    if fragen:
+        zeilen.append(f"Fragen: {fragen}")
     # Entfernungen stehen in derselben Meldung wie alles andere -- eine
     # Nachricht je Erkennerlauf bleibt die Regel (SPEC § 4.3). Sie tragen ihr
     # eigenes Verb, damit niemand "Notiert:" liest und denkt, es sei etwas

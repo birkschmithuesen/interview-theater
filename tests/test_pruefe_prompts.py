@@ -404,11 +404,12 @@ def test_durchlauf_verdichter_prueft_das_belegzitat(attrappe, tmp_path):
     assert attrappe["gesehen"][0]["modell"] == "moonshotai/Kimi-K2.6"
 
 
-def test_durchlauf_faengt_einen_modellfehler_ab(attrappe, capsys):
+def test_durchlauf_faengt_einen_modellfehler_ab(attrappe, capsys, monkeypatch):
     """Ein Fall, der scheitert, darf den Rest des Laufs nicht mitreissen --
-    sonst kostet ein einzelner 5xx den ganzen bezahlten Durchlauf."""
+    sonst kostet ein einzelner 5xx den ganzen bezahlten Durchlauf.
+    (502 statt 429: bei 429 wartet das Skript und wiederholt -- siehe unten.)"""
     def kaputt(art, nutzer):
-        raise llm.LLMFehler("Sprachmodell lehnte den Aufruf ab: HTTP 429")
+        raise llm.LLMFehler("Sprachmodell lehnte den Aufruf ab: HTTP 502")
 
     attrappe["antwort"] = kaputt
     code = pp.main(["erkenner", "--nur", "e01-interview-starten-fatma,n01-beinahe-entscheidung"])
@@ -499,3 +500,25 @@ def test_json_zeilen_des_korpus_sind_stabil_ueber_das_skript_lesbar():
         roh = (pp.KORPUS / f"{name}.jsonl").read_text(encoding="utf-8").splitlines()
         assert len(faelle) == len([z for z in roh if z.strip()])
         assert all(json.loads(z)["id"] for z in roh if z.strip())
+
+
+def test_429_wird_nach_pause_wiederholt(attrappe, monkeypatch):
+    """Gemessen 04.09.2026: nach ~50 Aufrufen in Folge drosselt Infomaniak mit
+    429 fuer alle weiteren. Das Skript wartet und wiederholt denselben Fall,
+    statt zehn Faelle als 'Fehler' zu verbuchen."""
+    monkeypatch.setattr(pp, "PAUSE_429_S", 0)
+    schlaefer = []
+    monkeypatch.setattr(pp.time, "sleep", lambda s: schlaefer.append(s))
+    zaehler = {"n": 0}
+
+    def erst_429(art, nutzer):
+        zaehler["n"] += 1
+        if zaehler["n"] == 1:
+            raise llm.LLMFehler("Sprachmodell lehnte den Aufruf ab: HTTP 429")
+        return {"aenderungen": [{"art": "interview_starten", "wert": ""}]}
+
+    attrappe["antwort"] = erst_429
+    code = pp.main(["erkenner", "--nur", "e01-interview-starten-fatma"])
+    assert code == 0
+    assert zaehler["n"] == 2
+    assert schlaefer == [0]

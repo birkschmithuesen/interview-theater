@@ -48,6 +48,7 @@ import argparse
 import json
 import re
 import statistics
+import os
 import sys
 import tempfile
 import time
@@ -426,6 +427,9 @@ def _laufe_verdichter(klm, conn, chat_id, fall, modell):
     return ergebnis, bewertung, zaehle_verdichter(bewertung)
 
 
+#: Wartezeit nach HTTP 429, bevor derselbe Fall wiederholt wird.
+PAUSE_429_S = float(os.environ.get("TS_PRUEFE_PAUSE_429_S", "45"))
+
 LAEUFE = {
     "erkenner": _laufe_erkenner,
     "journal": _laufe_journal,
@@ -593,10 +597,22 @@ def pruefe(prompt: str, klm, conn, faelle: list[dict], modell: str,
             fehler = None
             ergebnis = bewertung = None
             zahlen = (0, 0, 0)
-            try:
-                ergebnis, bewertung, zahlen = laufe(klm, conn, chat_id, fall, modell)
-            except Exception as ausnahme:  # noqa: BLE001 -- ein Fall soll den Lauf nie abbrechen
-                fehler = f"{type(ausnahme).__name__}: {ausnahme}"
+            # Gemessen 04.09.2026: nach rund 50 Aufrufen in Folge antwortet
+            # Infomaniak mit HTTP 429 (Drosselung), und zwar fuer alle
+            # weiteren -- bis eine Pause die Quote freigibt. Deshalb bei 429
+            # warten und denselben Fall noch einmal, bis zu dreimal.
+            for versuch in range(3):
+                try:
+                    ergebnis, bewertung, zahlen = laufe(klm, conn, chat_id, fall, modell)
+                    fehler = None
+                    break
+                except Exception as ausnahme:  # noqa: BLE001 -- ein Fall soll den Lauf nie abbrechen
+                    fehler = f"{type(ausnahme).__name__}: {ausnahme}"
+                    if "429" in fehler and versuch < 2:
+                        print(f"  429 -- warte {PAUSE_429_S} s", file=sys.stderr)
+                        time.sleep(PAUSE_429_S)
+                        continue
+                    break
             dauer_ms = int((time.monotonic() - start) * 1000)
             gemessen = _aufruf_nach(conn, vorher_id)
 

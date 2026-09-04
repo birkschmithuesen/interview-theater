@@ -232,6 +232,24 @@ def test_wortlaut_stern_zeigt_nur_lange_nicht_kurze_aufnahmen(conn, einst):
     assert "MARKIERUNG-KURZER-ZURUF" not in prompt
 
 
+def test_wortlaut_fuegt_die_teile_eines_interviews_zusammen(conn, einst):
+    """§ 10.6: je Interview EIN Transkript, die Teile in Reihenfolge durch
+    eine Leerzeile getrennt -- kein Block je Sprachnachricht. Ein Interview
+    aus fuenf Sprachnachrichten ist ein Gespraech; als fuenf Bloecke gelesen
+    zerfiele es genau dort, wo es interessant wird."""
+    _setze_wortlaut(conn, 1, "*")
+    kopf = repo.lege_interview_an(conn, 1)
+    for i, text in enumerate(["Ich bin 1998 gekommen.", "Der Koffer stand im Flur."]):
+        teil = repo.lege_aufnahme_an(conn, 1, 510 + i, "teil", "sprache", teil_von=kopf)
+        repo.setze_transkript(conn, teil, text)
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Was steht im Interview?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert prompt.count("(Volltranskript)") == 1
+    assert "Ich bin 1998 gekommen.\n\nDer Koffer stand im Flur." in prompt
+
+
 # ---------------------------------------------------------------------------
 # Szenen (SPEC § 6.2 Block 4 und Block 5)
 # ---------------------------------------------------------------------------

@@ -81,7 +81,11 @@ def tg():
 
 
 class LLMAttrappe:
-    """Ersetzt interview_theater.llm.LLM: liefert immer dieselbe gueltige Antwort."""
+    """Ersetzt interview_theater.llm.LLM: liefert immer dieselbe gueltige Antwort.
+
+    ``nutzertexte`` haelt fest, womit verdichtet wurde -- Grundlage der
+    Zusage, dass ``verdichte`` genau einmal je Interview und mit dem
+    ZUSAMMENGEFUEGTEN Transkript laeuft (§ 10.6)."""
 
     def __init__(self, antwort=None):
         self._antwort = antwort or {
@@ -91,9 +95,11 @@ class LLMAttrappe:
             ],
         }
         self.aufrufe = 0
+        self.nutzertexte = []
 
     def schema(self, chat_id, system, nutzer, schema, art):
         self.aufrufe += 1
+        self.nutzertexte.append(nutzer)
         return self._antwort
 
 
@@ -150,16 +156,25 @@ def sprachnachricht(dauer, message_id=10, chat_id=1, file_id="FILE1", absender="
     }
 
 
+def interview_an(conn, tg=None, einst=None, chat_id=1) -> int:
+    """Schaltet den Interviewmodus an und legt das Interview an -- derselbe
+    Weg wie /interview und die Erkenner-art interview_starten (§ 10.6).
+    Liefert die aufnahme_id des Kopfes."""
+    repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
+    return aufnahme.stelle_interview_sicher(conn, chat_id)
+
+
 # ---------------------------------------------------------------------------
 # Die neun wichtigsten Tests aus dem Auftrag
 # ---------------------------------------------------------------------------
 
-def test_klasse_fuer_modus_an_ergibt_lang_unabhaengig_von_der_dauer(conn):
+def test_klasse_fuer_modus_an_ergibt_teil_unabhaengig_von_der_dauer(conn):
     """Aufgabe 5 (teil-b.md, § 10.1): die Dauer spielt keine Rolle mehr --
     nur der Modus. Selbst sieben Sekunden zaehlen bei aktivem Modus als
-    Material."""
+    Material -- seit § 10.6 als *Teil* eines Interviews, nicht als eigene
+    lange Aufnahme."""
     repo.setze_interviewmodus(conn, 1, repo._jetzt())
-    assert aufnahme.klasse_fuer(conn, 1) == "lang"
+    assert aufnahme.klasse_fuer(conn, 1) == "teil"
 
 
 def test_klasse_fuer_modus_aus_ergibt_kurz_unabhaengig_von_der_dauer(conn):
@@ -179,17 +194,17 @@ def test_datei_ist_gespeichert_bevor_whisper_gefragt_wird(conn, einst, tg):
     # empfange() hat Whisper nie angefasst - es gibt keinen STT-Klienten im Aufruf
 
 
-def test_lang_bekommt_empfangsbestaetigung_kurz_nicht(conn, einst, tg):
-    """Klasse *lang* entsteht seit Aufgabe 5 ausschliesslich ueber den
-    Interviewmodus, nicht mehr ueber die Dauer -- die 300 Sekunden hier sind
-    nur noch ein beliebiger Wert, keine Grenzwertpruefung mehr."""
+def test_empfang_bestaetigt_nichts_mehr(conn, einst, tg):
+    """§ 10.6: 'Ich hoere durch' ist ersatzlos weg -- in keiner Klasse. Im
+    Probelauf kam die Zeile fuenfmal und danach nichts; seitdem ist das
+    Transkript selbst die Bestaetigung (_teil_abschliessen)."""
     repo.setze_interviewmodus(conn, 1, repo._jetzt())
     aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300))
-    assert any("hoere durch" in t for _, t in tg.gesendet)
-    tg.gesendet.clear()
+    assert tg.gesendet == [], "der Empfang bestaetigt sich nicht mehr selbst"
+
     repo.setze_interviewmodus(conn, 1, None)
     aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=11))
-    assert tg.gesendet == [], "bei ausgeschaltetem Modus keine Bestaetigung"
+    assert tg.gesendet == [], "bei ausgeschaltetem Modus erst recht nicht"
 
 
 def test_kurz_landet_als_nachricht_im_verlauf(conn, einst, tg, klm):
@@ -202,22 +217,46 @@ def test_kurz_landet_als_nachricht_im_verlauf(conn, einst, tg, klm):
     assert repo.verdichtungen(conn, 1) == [], "kurz wird nicht verdichtet"
 
 
-def test_lang_wird_verdichtet(conn, einst, tg, klm):
-    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+def test_ein_interview_wird_am_ende_einmal_verdichtet(conn, einst, tg, klm):
+    """§ 10.6: verdichtet wird bei "fertig", ueber das ganze Interview."""
+    interview_an(conn, tg, einst)
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300))
     aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(TRANSKRIPT), aid)
+    assert repo.verdichtungen(conn, 1) == [], "vor 'fertig' wird nichts verdichtet"
+
+    kopf_id = aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
     assert len(repo.verdichtungen(conn, 1)) == 1
 
 
-def test_fuenf_sprachnachrichten_im_modus_ergeben_fuenf_materialaufnahmen(conn, einst, tg):
-    """Aufgabe 5, Auftragstest: ein Interview kann aus mehreren kurzen
-    Sprachnachrichten bestehen -- jede einzelne zaehlt trotzdem als Material,
-    solange der Modus an ist."""
-    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+def test_fuenf_sprachnachrichten_im_modus_ergeben_ein_interview_mit_fuenf_teilen(
+    conn, einst, tg, klm
+):
+    """Der Auftragstest zum Nachtrag (§ 10.6, Probelauf 04.09. abends): ein
+    Interview aus fuenf Sprachnachrichten ist EIN Interview mit fuenf Teilen
+    -- nicht fuenf Aufnahmen 'Interview 6' bis 'Interview 10' mit fuenf
+    Verdichtungen, zwei davon leer.
+
+    Jeder Teil bekommt sein Transkript sofort und woertlich in den Chat, in
+    der Reihenfolge, in der er eintraf; verdichtet wird bis "fertig" nichts."""
+    kopf_id = interview_an(conn, tg, einst)
     for i in range(5):
         n = sprachnachricht(dauer=7, message_id=200 + i)
         aid = aufnahme.empfange(conn, tg, einst, n)
-        assert repo.hole_aufnahme(conn, aid)["klasse"] == "lang"
+        zeile = repo.hole_aufnahme(conn, aid)
+        assert zeile["klasse"] == "teil"
+        assert zeile["teil_von"] == kopf_id
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(f"Stueck {i + 1}"), aid)
+
+    assert len(repo.transkripte(conn, 1)) == 1, "nach aussen ist das ein Interview"
+    assert len(repo.hole_teile(conn, kopf_id)) == 5
+    assert repo.verdichtungen(conn, 1) == [], "keine Verdichtung bis 'fertig'"
+    assert klm.aufrufe == 0, "kein Modellaufruf im Live-Pfad"
+
+    echos = [t for _, t in tg.gesendet if t.startswith("Interview 1, Teil")]
+    assert echos == [
+        f"Interview 1, Teil {i + 1}:\nStueck {i + 1}" for i in range(5)
+    ]
 
 
 def test_modus_ueberlebt_eine_neue_verbindung(tmp_path):
@@ -231,15 +270,15 @@ def test_modus_ueberlebt_eine_neue_verbindung(tmp_path):
     repo.setze_interviewmodus(erste_verbindung, 1, repo._jetzt())
 
     zweite_verbindung = db.verbinde(pfad)
-    assert aufnahme.klasse_fuer(zweite_verbindung, 1) == "lang"
+    assert aufnahme.klasse_fuer(zweite_verbindung, 1) == "teil"
 
 
 def test_aktiver_modus_loest_bei_sprachnachricht_keinen_gespraechszug_aus(conn, einst, tg, klm):
     """Aufgabe 5, Auftragstest: waehrend des Interviewmodus ist eine
     Sprachnachricht Material, kein Gespraechsbeitrag -- sie darf keinen Zug
-    ausloesen, sondern muss stattdessen (klassenabhaengig) verdichtet
-    werden."""
-    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    ausloesen. Seit § 10.6 bekommt die Gruppe stattdessen das Transkript, und
+    zwar ohne jeden Modellaufruf."""
+    interview_an(conn, tg, einst)
     aufgerufen = []
 
     def zug(conn, tg, klm, e, chat_id, hinweis=None):
@@ -249,7 +288,8 @@ def test_aktiver_modus_loest_bei_sprachnachricht_keinen_gespraechszug_aus(conn, 
     aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(TRANSKRIPT), aid, zug=zug)
 
     assert aufgerufen == [], "Material darf keinen Gespraechszug ausloesen"
-    assert len(repo.verdichtungen(conn, 1)) == 1, "es wurde trotzdem als Material verdichtet"
+    assert klm.aufrufe == 0, "und keinen Modellaufruf"
+    assert any(TRANSKRIPT in t for _, t in tg.gesendet), "das Transkript geht in den Chat"
 
 
 def test_hinweis_bei_langer_aufnahme_ausserhalb_des_modus(conn, einst, tg, klm):
@@ -285,7 +325,7 @@ def test_kein_hinweis_unter_der_schwelle_oder_bei_aktivem_modus(conn, einst, tg,
 
 
 def test_zeitbudget_ueberschritten_meldet_der_gruppe(conn, einst, tg, klm):
-    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    interview_an(conn, tg, einst)
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300))
     aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
     assert repo.hole_aufnahme(conn, aid)["status"] in ("empfangen", "fehlgeschlagen")
@@ -348,6 +388,198 @@ def test_textimport_dann_nachholen_verdichtet_nur_einmal(conn, einst, tg, klm):
 
     # ein zweiter Nachhol-Lauf darf keine weitere Verdichtung mehr erzeugen
     aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+    assert len(repo.verdichtungen(conn, 1)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Ein Interview ist eine Einheit (§ 10.6, Nachtrag 05.09.2026)
+# ---------------------------------------------------------------------------
+
+def _interview_mit_teilen(conn, einst, tg, klm, texte, message_id=300):
+    """Ein vollstaendig eingesprochenes Interview: Modus an, je
+    Sprachnachricht ein Teil samt Transkript. Liefert die aufnahme_id des
+    Kopfes."""
+    kopf_id = interview_an(conn, tg, einst)
+    for i, text in enumerate(texte):
+        aid = aufnahme.empfange(
+            conn, tg, einst, sprachnachricht(dauer=60, message_id=message_id + i)
+        )
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(text), aid)
+    return kopf_id
+
+
+def test_fertig_verdichtet_einmal_ueber_das_ganze_interview(conn, einst, tg, klm):
+    """§ 10.6, der zweite Auftragstest: "fertig" loest genau EINEN
+    verdichte-Aufruf aus, und zwar mit dem zusammengefuegten Text -- und die
+    Gruppe bekommt endlich zu hoeren, was in ihrem Interview steckt."""
+    kopf_id = _interview_mit_teilen(
+        conn, einst, tg, klm,
+        ["Ich bin 1998 gekommen.", "wie wir als Kinder auf dem Hof Theater gespielt haben"],
+    )
+    tg.gesendet.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    assert klm.aufrufe == 1, "genau ein Modellaufruf je Interview"
+    assert klm.nutzertexte == [
+        "Ich bin 1998 gekommen.\n\nwie wir als Kinder auf dem Hof Theater gespielt haben"
+    ]
+    assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
+
+    meldungen = [t for _, t in tg.gesendet if "ist durch" in t]
+    assert len(meldungen) == 1
+    text = meldungen[0]
+    assert text.startswith("Interview 1 ist durch. Was ich darin hoere:")
+    assert "Eine Erinnerung an Theaterspiele im Kindesalter." in text
+    assert "Kernthemen:" in text
+    assert '- Kindheit: "wie wir als Kinder auf dem Hof Theater gespielt haben"' in text
+    assert text.endswith("Stimmt das so? Sonst sagt es mir.")
+
+
+def test_ungepruefte_zitate_stehen_ohne_anfuehrungszeichen_in_der_meldung(conn, einst, tg):
+    """SPEC § 5: ein Zitat, das nicht im Transkript steht, faellt weg -- das
+    Thema bleibt. Ein Satz in Anfuehrungszeichen, den niemand gesagt hat,
+    waere genau das, wogegen das Belegzitat-Prinzip antritt."""
+    klm = LLMAttrappe(antwort={
+        "zusammenfassung": "Zwei Themen.",
+        "kernthemen": [
+            {"thema": "Kindheit", "beleg_zitat": "auf dem Hof Theater gespielt"},
+            {"thema": "Arbeit", "beleg_zitat": "so hat das niemand gesagt"},
+        ],
+    })
+    kopf_id = _interview_mit_teilen(
+        conn, einst, tg, klm, ["Wir haben auf dem Hof Theater gespielt."], message_id=310
+    )
+    tg.gesendet.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    text = next(t for _, t in tg.gesendet if "ist durch" in t)
+    assert '- Kindheit: "auf dem Hof Theater gespielt"' in text
+    assert "- Arbeit\n" in text
+    assert "so hat das niemand gesagt" not in text
+
+
+def test_transkript_echo_steht_in_keinem_fenster(conn, einst, tg, klm):
+    """§ 10.6, der dritte Auftragstest: das Echo wird gespeichert (Empfangen
+    und In-den-Prompt-legen sind zwei Entscheidungen, SPEC § 1), taucht aber
+    weder im Erkenner-Fenster (``unextrahierte``) noch im Gespraechsfenster
+    (``letzte_nachrichten``) auf.
+
+    Sonst laese der Absichtserkenner, was die interviewte Person erzaehlt, als
+    Absicht der Gruppe -- die Korpusfaelle n12/n26."""
+    repo.merke_nachricht(conn, 1, 400, "Ada", 0, "text", "wir machen jetzt ein Interview",
+                         repo._jetzt())
+    _interview_mit_teilen(conn, einst, tg, klm, ["Mein Kernthema ist die Kindheit."],
+                          message_id=401)
+
+    echo = conn.execute(
+        "SELECT * FROM nachricht WHERE typ = 'transkript'"
+    ).fetchall()
+    assert len(echo) == 1, "das Echo steht in der Datenbank"
+    assert "Mein Kernthema ist die Kindheit." in echo[0]["text"]
+
+    assert all(z["typ"] != "transkript" for z in repo.unextrahierte(conn, 1))
+    assert all(z["typ"] != "transkript" for z in repo.letzte_nachrichten(conn, 1))
+    assert all(z["typ"] != "transkript" for z in repo.unjournalisierte(conn, 1))
+    assert all(z["typ"] != "transkript" for z in repo.unbeantwortete(conn, 1))
+
+
+def test_fertig_ohne_aufnahme_meldet_und_ruft_kein_modell(conn, einst, tg, klm):
+    """§ 10.6, der vierte Auftragstest: Modus an, nichts eingesprochen,
+    "fertig". Im Probelauf entstanden aus solchem Nichts Verdichtungen mit
+    "Material extrem kurz" -- jetzt gibt es eine Zeile und keinen Aufruf."""
+    kopf_id = interview_an(conn, tg, einst)
+    tg.gesendet.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    assert klm.aufrufe == 0
+    assert repo.verdichtungen(conn, 1) == []
+    assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
+    assert [t for _, t in tg.gesendet] == [
+        "Interview 1 hatte keine Aufnahme - ich habe nichts verdichtet."
+    ]
+
+
+def test_zweites_interview_zaehlt_weiter_und_zuruf_dazwischen_nicht(conn, einst, tg, klm):
+    """"Interview N" ist die laufende INTERVIEWnummer (§ 10.6), nicht die
+    Zahl aller Aufnahmen: ein Zuruf zwischendurch und die fuenf
+    Sprachnachrichten eines Interviews verschieben die Zaehlung nicht."""
+    erstes = _interview_mit_teilen(conn, einst, tg, klm, ["eins", "zwei"], message_id=320)
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, erstes)
+
+    aid_kurz = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=330))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("mach mal lauter"), aid_kurz)
+    assert repo.hole_aufnahme(conn, aid_kurz)["name"] is None, "ein Zuruf ist kein Interview"
+
+    zweites = _interview_mit_teilen(conn, einst, tg, klm, ["drei"], message_id=340)
+    assert repo.hole_aufnahme(conn, zweites)["name"] == "Interview 2"
+    assert [a["name"] for a in repo.transkripte(conn, 1) if a["klasse"] == "lang"] == [
+        "Interview 1", "Interview 2",
+    ]
+
+
+def test_nachholen_transkribiert_teil_nach_und_verdichtet_das_beendete_interview(
+    conn, einst, tg, klm
+):
+    """§ 10.6, der fuenfte Auftragstest: beide Haelften des Nachhol-Arbeiters.
+
+    Teil 2 scheitert live an Whisper, die Gruppe sagt trotzdem "fertig". Es
+    wird NICHT verdichtet, solange der Teil offen ist -- sonst fehlte im
+    Transkript ausgerechnet er. Der naechste Nachhol-Lauf holt das Transkript
+    nach (samt Echo), fuegt zusammen, verdichtet und meldet."""
+    kopf_id = interview_an(conn, tg, einst)
+    aid1 = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=60, message_id=350))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("erster Teil"), aid1)
+    aid2 = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=60, message_id=351))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid2)
+    assert repo.hole_aufnahme(conn, aid2)["status"] == "empfangen"
+
+    aufnahme.beende_interview(conn, 1)
+    assert aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id) is False
+    assert klm.aufrufe == 0, "kein Verdichten, solange ein Teil offen ist"
+    tg.gesendet.clear()
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_attrappe("zweiter Teil"))
+
+    assert repo.hole_aufnahme(conn, aid2)["status"] == "fertig"
+    assert any("Interview 1, Teil 2:\nzweiter Teil" == t for _, t in tg.gesendet)
+    assert klm.nutzertexte == ["erster Teil\n\nzweiter Teil"]
+    assert len(repo.verdichtungen(conn, 1)) == 1
+    assert any("ist durch" in t for _, t in tg.gesendet)
+
+    # Ein zweiter Nachhol-Lauf greift nichts mehr auf.
+    aufnahme.nachholen(conn, tg, klm, einst, stt_attrappe("egal"))
+    assert klm.aufrufe == 1
+
+
+def test_laufendes_interview_wird_vom_nachhol_arbeiter_nicht_verdichtet(conn, einst, tg, klm):
+    """Ein Interview, das noch laeuft, ist keine liegengebliebene Arbeit: der
+    Nachhol-Arbeiter darf es nicht mitten im Satz verdichten (repo.
+    _NICHTS_ZU_TUN)."""
+    _interview_mit_teilen(conn, einst, tg, klm, ["laeuft noch"], message_id=360)
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    assert klm.aufrufe == 0
+    assert repo.verdichtungen(conn, 1) == []
+
+
+def test_starte_abschluss_laeuft_im_eigenen_thread(conn, einst, tg, klm):
+    """/fertig und der Erkenner geben die Verdichtung an einen Thread ab --
+    kein Befehl ruft synchron ein Modell (AGENTS.md)."""
+    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, ["ein Satz"], message_id=370)
+    aufnahme.beende_interview(conn, 1)
+
+    thread = aufnahme.starte_abschluss(conn, tg, klm, einst, kopf_id)
+    thread.join(timeout=5)
+
+    assert not thread.is_alive()
     assert len(repo.verdichtungen(conn, 1)) == 1
 
 
@@ -437,26 +669,29 @@ def test_nach_max_versuchen_gilt_die_aufnahme_als_fehlgeschlagen(conn, einst, tg
     assert len(endgueltig_gemeldet) == 1, "kurz bekommt genau eine Meldung, beim endgueltigen Aufgeben"
 
 
-def test_verdichtung_scheitert_aufnahme_bleibt_transkribiert_fuer_nachhol_arbeiter(conn, einst, tg):
-    """Schlaegt die Verdichtung fehl, bleibt das schon vorhandene Transkript
-    erhalten (status='transkribiert') -- der Nachhol-Arbeiter darf es beim
-    naechsten Anlauf direkt weiterverdichten, ohne ein zweites Mal Whisper zu
-    fragen."""
+def test_verdichtung_scheitert_interview_bleibt_transkribiert_fuer_nachhol_arbeiter(conn, einst, tg):
+    """Schlaegt die Verdichtung fehl, bleibt das schon zusammengefuegte
+    Transkript erhalten (status='transkribiert') -- der Nachhol-Arbeiter darf
+    es beim naechsten Anlauf direkt weiterverdichten, ohne ein zweites Mal
+    Whisper zu fragen."""
 
     class KaputtesLLM:
         def schema(self, chat_id, system, nutzer, schema, art):
             raise RuntimeError("Sprachmodell nicht erreichbar")
 
-    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    kopf_id = interview_an(conn, tg, einst)
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=80))
     aufnahme.verarbeite(conn, tg, KaputtesLLM(), einst, stt_attrappe(TRANSKRIPT), aid)
-    zeile = repo.hole_aufnahme(conn, aid)
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, KaputtesLLM(), einst, kopf_id)
+
+    zeile = repo.hole_aufnahme(conn, kopf_id)
     assert zeile["status"] == "transkribiert"
     assert zeile["transkript"] == TRANSKRIPT
     assert repo.verdichtungen(conn, 1) == []
 
-    aufnahme.verarbeite(conn, tg, LLMAttrappe(), einst, stt_kaputt(), aid)
-    assert repo.hole_aufnahme(conn, aid)["status"] == "fertig"
+    aufnahme.verarbeite(conn, tg, LLMAttrappe(), einst, stt_kaputt(), kopf_id)
+    assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
     assert len(repo.verdichtungen(conn, 1)) == 1
 
 
@@ -470,17 +705,18 @@ def test_verdichtung_ueber_max_versuchen_gilt_als_fehlgeschlagen(conn, einst, tg
         def schema(self, chat_id, system, nutzer, schema, art):
             raise RuntimeError("Sprachmodell nicht erreichbar")
 
-    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    kopf_id = interview_an(conn, tg, einst)
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=81))
-    # Der erste Anlauf muss die Transkription noch erfolgreich hinter sich
-    # bringen (sonst zaehlt der Versuch als Transkriptions-, nicht als
-    # Verdichtungsfehlschlag); alle weiteren finden schon status='transkribiert'
-    # vor und fragen Whisper gar nicht erst -- der STT-Klient ist dort egal.
     aufnahme.verarbeite(conn, tg, KaputtesLLM(), einst, stt_attrappe(TRANSKRIPT), aid)
+    aufnahme.beende_interview(conn, 1)
+    # Der erste Anlauf fuegt zusammen und scheitert an der Verdichtung; alle
+    # weiteren finden schon status='transkribiert' vor und fragen Whisper gar
+    # nicht erst -- der STT-Klient ist dort egal.
+    aufnahme.schliesse_ab(conn, tg, KaputtesLLM(), einst, kopf_id)
     for _ in range(aufnahme.MAX_VERSUCHE - 1):
-        aufnahme.verarbeite(conn, tg, KaputtesLLM(), einst, stt_kaputt(), aid)
+        aufnahme.verarbeite(conn, tg, KaputtesLLM(), einst, stt_kaputt(), kopf_id)
 
-    zeile = repo.hole_aufnahme(conn, aid)
+    zeile = repo.hole_aufnahme(conn, kopf_id)
     assert zeile["status"] == "fehlgeschlagen"
     assert zeile["versuche"] == aufnahme.MAX_VERSUCHE
     assert zeile["transkript"] == TRANSKRIPT, "das Transkript bleibt trotz gescheiterter Verdichtung erhalten"
@@ -488,11 +724,12 @@ def test_verdichtung_ueber_max_versuchen_gilt_als_fehlgeschlagen(conn, einst, tg
     assert any("auswerten" in t for _, t in tg.gesendet)
 
 
-def test_lange_aufnahme_bekommt_bitte_nochmal_nur_einmal(conn, einst, tg, klm):
-    """Wichtig 2: bei mehreren Nachhol-Anlaeufen derselben Aufnahme (Klasse
-    *lang*) geht die 'schickt sie bitte nochmal'-Bitte nur beim ersten
-    Fehlschlag raus, nicht bei jedem der bis zu MAX_VERSUCHE Versuche."""
-    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+def test_interviewteil_bekommt_bitte_nochmal_nur_einmal(conn, einst, tg, klm):
+    """Wichtig 2: bei mehreren Nachhol-Anlaeufen derselben Aufnahme (Material,
+    also alles ausser Klasse *kurz*) geht die 'schickt sie bitte nochmal'-Bitte
+    nur beim ersten Fehlschlag raus, nicht bei jedem der bis zu MAX_VERSUCHE
+    Versuche."""
+    interview_an(conn, tg, einst)
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=82))
     for _ in range(3):
         aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
@@ -501,40 +738,47 @@ def test_lange_aufnahme_bekommt_bitte_nochmal_nur_einmal(conn, einst, tg, klm):
     assert len(bitten) == 1, "die Bitte, es nochmal zu schicken, wiederholt sich nicht"
 
 
-def test_bitte_nochmal_nennt_keinen_ersatznamen(conn, einst, tg, klm):
-    """Kleinigkeit: 'Die Aufnahme von Interview 1 konnte ich nicht verstehen'
-    wirkt in einer Chatnachricht unfreiwillig komisch. Ohne einen von der
-    Gruppe vergebenen echten Namen wird stattdessen die Klasse genannt."""
-    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+def test_bitte_nochmal_benennt_den_teil_und_keinen_ersatznamen(conn, einst, tg, klm):
+    """Zwei Faelle, eine Regel: die Gruppe muss wissen, WAS sie nochmal
+    schicken soll.
+
+    Bei einem Interview-Teil ist das 'Interview 1, Teil 1' -- bei fuenf
+    Sprachnachrichten die einzige brauchbare Angabe (§ 10.6). Bei einem
+    Gespraechsbeitrag gibt es nichts zu benennen, und der Ersatzname waere
+    unfreiwillig komisch ('Die Aufnahme von Interview 1...') -- dort wird die
+    Klasse genannt."""
+    interview_an(conn, tg, einst)
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=83))
     aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid)
 
     nachrichten = [t for _, t in tg.gesendet if "nochmal" in t]
     assert len(nachrichten) == 1
-    assert "Interview" not in nachrichten[0]
-    assert "letzte lange Aufnahme" in nachrichten[0]
+    assert "Interview 1, Teil 1" in nachrichten[0]
 
-    # Mit einem echten Namen wird der auch genannt.
-    aid2 = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=84))
-    repo.setze_aufnahme_name(conn, aid2, "Maria")
+    repo.setze_interviewmodus(conn, 1, None)
     tg.gesendet.clear()
-    aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid2)
-    nachrichten2 = [t for _, t in tg.gesendet if "nochmal" in t]
-    assert len(nachrichten2) == 1
-    assert "Maria" in nachrichten2[0]
+    aid_kurz = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=84))
+    for _ in range(aufnahme.MAX_VERSUCHE):
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_kaputt(), aid_kurz)
+    nachrichten_kurz = [t for _, t in tg.gesendet if "nochmal" in t]
+    assert len(nachrichten_kurz) == 1
+    assert "Interview" not in nachrichten_kurz[0]
+    assert "letzte kurze Aufnahme" in nachrichten_kurz[0]
 
 
-def test_zwischenmeldung_nur_bei_kurz(conn, einst, tg, klm, monkeypatch):
-    """Kleinigkeit: die 12-Sekunden-Zwischenmeldung ('Ich hoer noch zu...')
-    darf bei Klasse *lang* nicht feuern -- die hat mit der Empfangsbestaetigung
-    aus empfange() schon eine Nachricht fuer dieselbe Sache bekommen. Fuer
-    Klasse *kurz* soll sie bei einer langsamen Transkription dagegen wirklich
-    feuern -- die Abschaltung ist strukturell (Klasse), nicht zufaellig."""
-    repo.setze_interviewmodus(conn, 1, repo._jetzt())
-    aid_lang = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=90))
+def test_zwischenmeldung_auch_bei_einem_interviewteil(conn, einst, tg, klm, monkeypatch):
+    """Die 12-Sekunden-Zwischenmeldung ('Ich hoer noch zu...') gilt seit
+    § 10.6 fuer jede Sprachnachricht: die Empfangsbestaetigung, die frueher
+    fuer Material sprach, gibt es nicht mehr, und wer gerade eingesprochen
+    hat, wartet auf das Transkript.
+
+    Sie feuert nur bei einer wirklich langsamen Transkription -- im Normalfall
+    (unter drei Sekunden, gemessen 03.09.2026) nie."""
+    interview_an(conn, tg, einst)
+    aid_schnell = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=300, message_id=90))
     tg.gesendet.clear()
-    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("ok"), aid_lang)
-    assert not any("hoer noch zu" in t for _, t in tg.gesendet), "lang bekommt keine Zwischenmeldung"
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("ok"), aid_schnell)
+    assert not any("hoer noch zu" in t for _, t in tg.gesendet), "schnell genug, also still"
 
     monkeypatch.setattr(aufnahme, "MELDUNG_AB_S", 0.01)
     monkeypatch.setattr(aufnahme, "TIPPANZEIGE_AB_S", 100)  # soll hier nicht stoeren
@@ -545,12 +789,15 @@ def test_zwischenmeldung_nur_bei_kurz(conn, einst, tg, klm, monkeypatch):
             return httpx.Response(200, json={"batch_id": "B1"})
         return httpx.Response(200, json={"status": "success", "data": json.dumps({"text": "ok"})})
 
-    klient = httpx.Client(transport=httpx.MockTransport(handler_langsam))
-    repo.setze_interviewmodus(conn, 1, None)
-    aid_kurz = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=91))
-    tg.gesendet.clear()
-    aufnahme.verarbeite(conn, tg, klm, einst, klient, aid_kurz)
-    assert any("hoer noch zu" in t for _, t in tg.gesendet), "kurz bekommt die Zwischenmeldung bei langsamer Transkription"
+    for message_id, modus in ((91, True), (92, False)):
+        klient = httpx.Client(transport=httpx.MockTransport(handler_langsam))
+        repo.setze_interviewmodus(conn, 1, repo._jetzt() if modus else None)
+        aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=message_id))
+        tg.gesendet.clear()
+        aufnahme.verarbeite(conn, tg, klm, einst, klient, aid)
+        assert any("hoer noch zu" in t for _, t in tg.gesendet), (
+            f"Zwischenmeldung fehlt bei langsamer Transkription (Interviewmodus {modus})"
+        )
 
 
 def test_download_scheitert_endgueltig_meldet_vorfall_und_gruppe(conn, einst, monkeypatch):

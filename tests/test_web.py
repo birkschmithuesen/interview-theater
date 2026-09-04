@@ -104,6 +104,23 @@ def test_gruppenseite_zeigt_die_verdichtungen_mit_belegzitat(basis, token):
     assert "so hat das niemand gesagt" not in koerper
 
 
+def test_gruppenseite_zeigt_umfang_je_interview(basis, token):
+    """§ 10.6: je Interview eine Einheit -- Name, Teile-Zahl, Gesamtdauer.
+    Die Aufnahme in der Testdatenbank hat keine Teile (Zustand vor dem
+    Nachtrag), also steht dort nur die Dauer: 200 s = 3:20."""
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "3:20" in koerper
+
+
+def test_umfang_nennt_teile_und_dauer(basis, token):
+    from interview_theater import web
+
+    assert web._umfang(4, 727) == "4 Teile · 12:07"
+    assert web._umfang(1, 65) == "1 Teil · 1:05"
+    assert web._umfang(0, None) == "", "ohne Teile und ohne Dauer bleibt die Zeile leer"
+
+
 def test_gruppenseite_zeigt_die_frageliste(basis, token):
     assert "Was war in deinem Koffer?" in hole(f"{basis}/g/{token}")[1]
 

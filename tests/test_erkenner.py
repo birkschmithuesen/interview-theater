@@ -382,9 +382,14 @@ def test_wortlaut_aus_setzt_modus_auf_none(conn, einst):
     assert repo.hole_gruppe(conn, 1)["wortlaut_modus"] is None
 
 
-def test_interview_benennen_benennt_letzte_aufnahme(conn, einst):
-    repo.lege_aufnahme_an(conn, 1, 1, "kurz", "sprache")
-    zweite_id = repo.lege_aufnahme_an(conn, 1, 2, "kurz", "sprache")
+def test_interview_benennen_benennt_letztes_interview(conn, einst):
+    """"das war Marias Interview" meint das juengste INTERVIEW (§ 10.6) --
+    weder einen Zuruf, der zufaellig danach kam, noch eine einzelne der
+    Sprachnachrichten, aus denen es besteht."""
+    repo.lege_aufnahme_an(conn, 1, 1, "lang", "sprache")
+    zweite_id = repo.lege_aufnahme_an(conn, 1, 2, "lang", "sprache")
+    repo.lege_aufnahme_an(conn, 1, 3, "teil", "sprache", teil_von=zweite_id)
+    repo.lege_aufnahme_an(conn, 1, 4, "kurz", "sprache")
 
     wirkliche = erkenner.wende_an(
         conn, einst, 1, [{"art": "interview_benennen", "wert": "Maria"}]
@@ -409,7 +414,9 @@ def test_interview_beenden_leert_interviewmodus_seit(conn, einst):
 
     wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "interview_beenden", "wert": ""}])
 
-    assert wirkliche == [{"art": "interview_beenden", "wert": ""}]
+    # aufnahme_id reicht das beendete Interview an laufe() weiter (§ 10.6) --
+    # hier None, weil in diesem Test gar keines lief.
+    assert wirkliche == [{"art": "interview_beenden", "wert": "", "aufnahme_id": None}]
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
 
 
@@ -571,6 +578,40 @@ def test_laufe_interview_beenden_sendet_bestaetigung(conn, einst):
 
     assert tg.gesendet == [(1, "Aufnahme beendet.")]
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
+
+
+def test_laufe_interview_starten_legt_ein_interview_an(conn, einst):
+    """§ 10.6: der Erkenner nimmt denselben Weg wie /interview -- mit dem
+    Modus entsteht das Interview, zu dem die Sprachnachrichten gehoeren."""
+    _nachricht(conn, 1, 1, "so, Fatima ist da, wir machen jetzt ein Interview")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "interview_starten", "wert": ""}]})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    kopf = repo.laufendes_interview(conn, 1)
+    assert kopf is not None and kopf["name"] == "Interview 1"
+
+
+def test_laufe_interview_beenden_stoesst_den_abschluss_an(conn, einst, monkeypatch):
+    """§ 10.6: nach der Bestaetigung geht das beendete Interview an
+    ``aufnahme.starte_abschluss`` -- Zusammenfuegen und die eine Verdichtung
+    laufen in einem eigenen Thread, der Erkenner-Nachlauf haengt nicht daran."""
+    from interview_theater import aufnahme
+
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
+    _nachricht(conn, 1, 1, "fertig")
+    gestartet = []
+    monkeypatch.setattr(
+        aufnahme, "starte_abschluss",
+        lambda conn, tg, klm, e, kid: gestartet.append(kid),
+    )
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "interview_beenden", "wert": ""}]})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    assert gestartet == [kopf_id]
+    assert repo.hole_aufnahme(conn, kopf_id)["beendet_am"] is not None
 
 
 def test_laufe_nur_journaleintrag_sendet_keine_nachricht(conn, einst):

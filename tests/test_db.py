@@ -207,6 +207,71 @@ def test_migration_ergaenzt_phase_und_entfernt_am_ohne_datenverlust(tmp_path):
     assert len(repo.journal(c, 1)) == 1
 
 
+#: Die 'aufnahme'-Tabelle, wie sie vor dem 05.09.2026 aussah -- ohne
+#: teil_von und beendet_am. Hart hinterlegt, aus demselben Grund wie
+#: _ALTE_GRUPPE_TABELLE.
+_ALTE_AUFNAHME_TABELLE = """
+CREATE TABLE aufnahme (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  message_id      INTEGER NOT NULL,
+  name            TEXT,
+  klasse          TEXT NOT NULL,
+  quelle          TEXT NOT NULL,
+  audio_pfad      TEXT,
+  transkript      TEXT,
+  dauer_sekunden  INTEGER,
+  status          TEXT NOT NULL,
+  fehlertext      TEXT,
+  versuche        INTEGER NOT NULL DEFAULT 0,
+  empfangen_am    TEXT NOT NULL
+);
+CREATE TABLE verdichtung (
+  id               INTEGER PRIMARY KEY,
+  chat_id          INTEGER NOT NULL,
+  aufnahme_id      INTEGER NOT NULL,
+  zusammenfassung  TEXT NOT NULL,
+  erstellt_am      TEXT NOT NULL
+);
+"""
+
+
+def test_migration_macht_aus_jeder_alten_lang_aufnahme_ein_interview(tmp_path):
+    """§ 10.6, Migration: eine Datenbank aus der Zeit vor dem Nachtrag kennt
+    weder ``teil_von`` noch ``beendet_am``. Ihre Aufnahmen der Klasse *lang*
+    werden dadurch je zu einem Interview mit genau einem Teil -- ihrem
+    eigenen Transkript, das ``zusammengefuegtes_transkript`` weiterhin
+    liefert. Nichts geht verloren, die Verdichtungen bleiben."""
+    c = db.verbinde(str(tmp_path / "alt.db"))
+    c.executescript(_ALTE_AUFNAHME_TABELLE)
+    c.execute(
+        "INSERT INTO aufnahme (chat_id, message_id, name, klasse, quelle, transkript, "
+        "dauer_sekunden, status, empfangen_am) VALUES "
+        "(1, 14, 'Interview 6', 'lang', 'sprache', 'Ich bin 1998 gekommen.', 120, "
+        "'fertig', '2026-09-04T20:00:00+00:00')"
+    )
+    c.execute(
+        "INSERT INTO verdichtung (chat_id, aufnahme_id, zusammenfassung, erstellt_am) "
+        "VALUES (1, 1, 'Erzaehlung vom Ankommen', '2026-09-04T20:01:00+00:00')"
+    )
+    c.commit()
+    vorhanden = [r[1] for r in c.execute("PRAGMA table_info(aufnahme)")]
+    assert "teil_von" not in vorhanden, "Testannahme: die Spalte fehlt wirklich"
+
+    db.initialisiere(c)
+    repo.sichere_gruppe(c, 1, "gruppe1", "Testgruppe")
+
+    zeile = repo.hole_aufnahme(c, 1)
+    assert zeile["name"] == "Interview 6"
+    assert zeile["teil_von"] is None and zeile["beendet_am"] is None
+    assert repo.zusammengefuegtes_transkript(c, 1) == "Ich bin 1998 gekommen."
+    assert [a["id"] for a in repo.transkripte(c, 1)] == [1]
+    assert len(repo.verdichtungen(c, 1)) == 1
+
+    # Und die Zaehlung geht dort weiter, wo die alte Datenbank aufgehoert hat.
+    assert repo.hole_aufnahme(c, repo.lege_interview_an(c, 1))["name"] == "Interview 2"
+
+
 def test_migration_ist_ein_no_op_wenn_alle_spalten_schon_da_sind(conn):
     """Ein zweiter initialisiere()-Lauf auf einer schon aktuellen Datenbank
     darf nicht krachen (kein ALTER TABLE auf eine schon vorhandene Spalte)."""

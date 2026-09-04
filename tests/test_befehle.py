@@ -33,11 +33,20 @@ def test_normale_nachricht_wird_nicht_behandelt(conn, einst, tg):
     assert tg.gesendet == []
 
 
-def test_interview_schaltet_modus_an_und_bestaetigt(conn, einst, tg):
+def test_interview_schaltet_modus_an_und_legt_ein_interview_an(conn, einst, tg):
+    """§ 10.6: mit dem Modus entsteht EIN Interview, zu dem alle folgenden
+    Sprachnachrichten als Teile gehoeren."""
     behandelt = befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
     assert behandelt is True
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
     assert tg.gesendet == [(1, "Ich zeichne jetzt auf.")]
+
+    kopf = repo.laufendes_interview(conn, 1)
+    assert kopf is not None and kopf["name"] == "Interview 1"
+
+    # Ein zweites /interview waehrend derselben Aufnahme legt kein zweites an.
+    befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
+    assert repo.zaehle_interviews(conn, 1) == 1
 
 
 def test_fertig_schaltet_modus_aus_und_bestaetigt(conn, einst, tg):
@@ -48,6 +57,36 @@ def test_fertig_schaltet_modus_aus_und_bestaetigt(conn, einst, tg):
     assert behandelt is True
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
     assert tg.gesendet == [(1, "Aufnahme beendet.")]
+
+
+def test_fertig_gibt_die_verdichtung_an_einen_thread_ab(conn, einst, tg, monkeypatch):
+    """Die Zusage aus AGENTS.md gilt weiter: kein Befehl ruft synchron ein
+    Modell. /fertig stempelt das Interview als beendet und uebergibt den Rest
+    an ``aufnahme.starte_abschluss`` (§ 10.6)."""
+    from interview_theater import aufnahme
+
+    befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
+    kopf_id = repo.laufendes_interview(conn, 1)["id"]
+    gestartet = []
+    monkeypatch.setattr(
+        aufnahme, "starte_abschluss",
+        lambda conn, tg, klm, e, kid: gestartet.append(kid),
+    )
+
+    befehle.behandle(conn, tg, einst, 1, "/fertig", "Ada", klm=object())
+
+    assert gestartet == [kopf_id]
+    assert repo.hole_aufnahme(conn, kopf_id)["beendet_am"] is not None
+
+
+def test_fertig_ohne_sprachmodell_ueberlaesst_es_dem_nachhol_arbeiter(conn, einst, tg):
+    """Ohne ``klm`` bleibt das Interview beendet, aber unverdichtet stehen --
+    genau der Zustand, den ``repo.beendete_offene_interviews`` aufgreift."""
+    befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
+    befehle.behandle(conn, tg, einst, 1, "/fertig", "Ada")
+
+    offen = repo.beendete_offene_interviews(conn, "gruppe1")
+    assert [z["name"] for z in offen] == ["Interview 1"]
 
 
 def test_kernthema_setzt_arbeitsstand(conn, einst, tg):

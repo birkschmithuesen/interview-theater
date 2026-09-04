@@ -173,16 +173,46 @@ def test_gruppenseite_ueber_token(gefuellt):
     assert daten["arbeitsstand"]["fragen"] == "Was war in deinem Koffer?"
     assert daten["figuren"][0]["name"] == "Maria"
     assert daten["szenen"][0]["volltext"] == "MARIA: Wo bleibt er denn."
-    assert daten["verdichtungen"][0]["aufnahme"] == "Maria"
-    assert daten["verdichtungen"][0]["zusammenfassung"] == "Maria erzaehlt vom Ankommen"
+    assert daten["interviews"][0]["name"] == "Maria"
+    assert daten["interviews"][0]["zusammenfassung"] == "Maria erzaehlt vom Ankommen"
     assert daten["journal"][0]["text"] == "Kernthema ist Ankommen"
+
+
+def test_gruppenseite_zeigt_interviews_mit_teilen_und_dauer(gefuellt):
+    """§ 10.6: die Gruppenseite zeigt je Interview eine Einheit -- Name,
+    Teile-Zahl, Gesamtdauer, Verdichtung. Die einzelnen Sprachnachrichten
+    tauchen nicht als eigene Eintraege auf."""
+    kopf = repo.transkripte(gefuellt, 1)[0]["id"]
+    repo.lege_aufnahme_an(gefuellt, 1, 20, "teil", "sprache", "/tmp/t1.ogg", 90, teil_von=kopf)
+    repo.lege_aufnahme_an(gefuellt, 1, 21, "teil", "sprache", "/tmp/t2.ogg", 45, teil_von=kopf)
+
+    interviews = web_daten.gruppe_nach_token(
+        gefuellt, repo.stelle_web_token_sicher(gefuellt, 1)
+    )["interviews"]
+
+    assert len(interviews) == 1
+    assert interviews[0]["teile"] == 2
+    assert interviews[0]["dauer_sekunden"] == 135
+
+
+def test_gruppenseite_zeigt_auch_ein_unverdichtetes_interview(gefuellt):
+    """Ein Interview ohne Verdichtung faellt nicht unter den Tisch: die
+    Gruppe soll sehen, dass die Aufnahme da ist."""
+    repo.lege_aufnahme_an(gefuellt, 1, 30, "lang", "sprache", status="laeuft")
+
+    interviews = web_daten.gruppe_nach_token(
+        gefuellt, repo.stelle_web_token_sicher(gefuellt, 1)
+    )["interviews"]
+
+    assert [i["zusammenfassung"] for i in interviews] == ["Maria erzaehlt vom Ankommen", None]
+    assert interviews[1]["status"] == "laeuft"
 
 
 def test_gruppenseite_zeigt_nur_gepruefte_belegzitate(gefuellt):
     """zitat_geprueft = 0 heisst: das Modell hat den Satz vermutlich erfunden.
     Das Thema bleibt, das Zitat faellt weg."""
     token = repo.stelle_web_token_sicher(gefuellt, 1)
-    themen = web_daten.gruppe_nach_token(gefuellt, token)["verdichtungen"][0]["themen"]
+    themen = web_daten.gruppe_nach_token(gefuellt, token)["interviews"][0]["themen"]
     assert themen[0] == {"thema": "Warten", "zitat": "wir haben lange gewartet"}
     assert themen[1] == {"thema": "Sprache", "zitat": None}
 

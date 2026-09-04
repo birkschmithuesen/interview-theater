@@ -16,11 +16,20 @@ def conn(tmp_path):
     return c
 
 
-def test_lege_aufnahme_an_vergibt_hochzaehlende_ersatznamen(conn):
-    a1 = repo.lege_aufnahme_an(conn, 1, 100, "kurz", "sprache", audio_pfad="a.ogg")
-    a2 = repo.lege_aufnahme_an(conn, 1, 101, "lang", "sprache", audio_pfad="b.ogg")
-    assert repo.hole_aufnahme(conn, a1)["name"] == "Interview 1"
-    assert repo.hole_aufnahme(conn, a2)["name"] == "Interview 2"
+def test_lege_aufnahme_an_vergibt_ersatznamen_nur_an_interviews(conn):
+    """'Interview n' ist die laufende INTERVIEWnummer der Gruppe (§ 10.6),
+    kein Nachrichtenzaehler: ein Gespraechsbeitrag (kurz) und ein Teil
+    bekommen gar keinen Namen und verschieben die Zaehlung nicht."""
+    kurz = repo.lege_aufnahme_an(conn, 1, 100, "kurz", "sprache", audio_pfad="a.ogg")
+    erstes = repo.lege_aufnahme_an(conn, 1, 101, "lang", "sprache")
+    teil = repo.lege_aufnahme_an(conn, 1, 102, "teil", "sprache", audio_pfad="b.ogg",
+                                 teil_von=erstes)
+    zweites = repo.lege_aufnahme_an(conn, 1, 103, "lang", "sprache")
+
+    assert repo.hole_aufnahme(conn, kurz)["name"] is None
+    assert repo.hole_aufnahme(conn, teil)["name"] is None
+    assert repo.hole_aufnahme(conn, erstes)["name"] == "Interview 1"
+    assert repo.hole_aufnahme(conn, zweites)["name"] == "Interview 2"
 
 
 def test_lege_aufnahme_an_speichert_alle_felder(conn):
@@ -149,3 +158,71 @@ def test_transkripte_mit_namen_gross_klein_und_teiltreffer(conn):
     assert [t["id"] for t in treffer_teil] == [aid]
 
     assert repo.transkripte(conn, 1, name="niemand") == []
+
+
+# ---------------------------------------------------------------------------
+# Ein Interview ist eine Einheit (§ 10.6, Nachtrag 05.09.2026)
+# ---------------------------------------------------------------------------
+
+def test_laufendes_interview_findet_nur_den_offenen_kopf(conn):
+    assert repo.laufendes_interview(conn, 1) is None
+
+    kopf = repo.lege_interview_an(conn, 1)
+    assert repo.laufendes_interview(conn, 1)["id"] == kopf
+
+    repo.setze_interview_beendet(conn, kopf)
+    assert repo.laufendes_interview(conn, 1) is None, "beendet heisst nicht mehr laufend"
+
+
+def test_teile_zusammenfuegen_in_reihenfolge_mit_leerzeile(conn):
+    kopf = repo.lege_interview_an(conn, 1)
+    for i, text in enumerate(["erster Teil", "zweiter Teil", "dritter Teil"]):
+        teil = repo.lege_aufnahme_an(conn, 1, 500 + i, "teil", "sprache", teil_von=kopf)
+        repo.setze_transkript(conn, teil, text)
+
+    assert repo.zusammengefuegtes_transkript(conn, kopf) == (
+        "erster Teil\n\nzweiter Teil\n\ndritter Teil"
+    )
+    assert [repo.teil_nummer(conn, t["id"]) for t in repo.hole_teile(conn, kopf)] == [1, 2, 3]
+
+
+def test_zusammengefuegtes_transkript_faellt_auf_den_kopf_zurueck(conn):
+    """Textimporte und alle Aufnahmen aus der Zeit vor dem Nachtrag tragen ihr
+    Transkript am Kopf selbst -- ohne Teile gilt genau das."""
+    kopf = repo.lege_aufnahme_an(conn, 1, 600, "lang", "text")
+    repo.setze_transkript(conn, kopf, "Recherchematerial im Wortlaut")
+
+    assert repo.zusammengefuegtes_transkript(conn, kopf) == "Recherchematerial im Wortlaut"
+
+
+def test_hat_offene_teile_bis_jeder_teil_in_einem_endzustand_ist(conn):
+    kopf = repo.lege_interview_an(conn, 1)
+    teil = repo.lege_aufnahme_an(conn, 1, 700, "teil", "sprache", teil_von=kopf)
+    assert repo.hat_offene_teile(conn, kopf) is True
+
+    repo.setze_status(conn, teil, "fehlgeschlagen")
+    assert repo.hat_offene_teile(conn, kopf) is False, "endgueltig gescheitert ist auch durch"
+
+
+def test_offene_aufnahmen_lassen_ein_laufendes_interview_liegen(conn):
+    """Ein laufendes Interview ist keine liegengebliebene Arbeit: der
+    Nachhol-Arbeiter darf es nicht mitten im Satz verdichten. Beendet und
+    unverdichtet gehoert es dagegen aufgegriffen -- ueber die zweite
+    Abfrage."""
+    kopf = repo.lege_interview_an(conn, 1)
+    offene = [z["id"] for z in repo.offene_aufnahmen_fuer_bot(conn, "gruppe1")]
+
+    assert kopf not in offene
+    assert repo.beendete_offene_interviews(conn, "gruppe1") == []
+
+    repo.setze_interview_beendet(conn, kopf)
+    assert [z["id"] for z in repo.beendete_offene_interviews(conn, "gruppe1")] == [kopf]
+
+
+def test_transkripte_liefert_keine_teile(conn):
+    kopf = repo.lege_interview_an(conn, 1)
+    repo.lege_aufnahme_an(conn, 1, 800, "teil", "sprache", teil_von=kopf)
+
+    assert [z["id"] for z in repo.transkripte(conn, 1)] == [kopf]
+    assert repo.zaehle_interviews(conn, 1) == 1
+    assert repo.zaehle_aufnahmen(conn, 1) == 2, "gezaehlt werden sie trotzdem"

@@ -152,6 +152,38 @@ def test_journal_umschrift_und_umlaut_zaehlen_gleich():
     assert len(ergebnis["treffer"]) == 1
 
 
+def test_fragen_format_verlangt_ein_thema_je_zeile():
+    """§ 10.6 / Erkenner-Prompt Punkt 5: der ``wert`` von ``fragen_setzen``
+    traegt eine Frage je Zeile im Format "Thema: Frage". Sollwert ist
+    mechanisch pruefbar -- mindestens ein ':' je Zeile; die Gruppenseite
+    rendert daraus die Liste mit fett gesetztem Thema (web._fragen_html)."""
+    gut = [{"art": "fragen_setzen", "wert":
+            "Koffer: Was war in deinem Koffer?\nBahnhof: Wer hat dich gebracht?"}]
+    assert pp.fragen_ohne_thema(gut) == []
+
+    schlecht = [{"art": "fragen_setzen", "wert":
+                 "Koffer: Was war in deinem Koffer?\nWer hat dich gebracht?"}]
+    assert pp.fragen_ohne_thema(schlecht) == ["Wer hat dich gebracht?"]
+
+
+def test_fragen_format_geht_nur_fragen_setzen_an_und_nicht_in_fp_fn_ein():
+    """Eine Frage ohne Thema ist inhaltlich richtig, nur schlecht
+    dargestellt: ein gezaehlter Hinweis wie der Pronomen-Anfang, kein Fehler
+    -- die Trefferquote und der Exit-Code bleiben unberuehrt."""
+    aenderungen = [
+        {"art": "kernthema_setzen", "wert": "Ankommen"},
+        {"art": "fragen_setzen", "wert": "Was war in deinem Koffer?"},
+    ]
+    assert pp.fragen_ohne_thema(aenderungen) == ["Was war in deinem Koffer?"]
+
+    ergebnis = pp.vergleiche_erkenner(
+        [{"art": "fragen_setzen", "wert": "Koffer"}],
+        [{"art": "fragen_setzen", "wert": "Was war in deinem Koffer?"}],
+    )
+    assert len(ergebnis["treffer"]) == 1
+    assert not ergebnis["fehlend"] and not ergebnis["ueberzaehlig"]
+
+
 def test_pronomen_check():
     assert pp.beginnt_mit_pronomen("Das koennte man machen.")
     assert pp.beginnt_mit_pronomen("Sie schlagen es vor.")

@@ -42,7 +42,12 @@ CREATE TABLE IF NOT EXISTS nachricht (
   telegram_user  INTEGER,
   absender       TEXT,                      -- Vorname oder 'Bot'
   ist_bot        INTEGER NOT NULL DEFAULT 0,
-  typ            TEXT NOT NULL,             -- text|sprache|foto|sticker|sonstiges
+  -- text|sprache|foto|sticker|sonstiges|transkript
+  -- 'transkript' ist das Echo eines Interview-Teils, das der Bot zur
+  -- Kontrolle in den Chat schreibt (§ 10.6). Es wird gespeichert wie jede
+  -- andere Nachricht, geht aber weder ins Erkenner- noch ins
+  -- Gespraechsfenster: Interviewinhalt ist nicht Gruppenabsicht.
+  typ            TEXT NOT NULL,
   text           TEXT,
   gesendet_am    TEXT NOT NULL,             -- ISO 8601
   unterdrueckt   INTEGER NOT NULL DEFAULT 0,-- 1 = nie Antwort auslösen (Nachtstau)
@@ -51,21 +56,40 @@ CREATE TABLE IF NOT EXISTS nachricht (
 CREATE INDEX IF NOT EXISTS idx_nachricht_zeit ON nachricht(chat_id, message_id);
 
 -- Sprachaufnahmen UND Textimporte. Eine Statusmaschine fuer beides (§ 10).
+--
+-- Ein Interview ist eine Einheit (Nachtrag 05.09.2026, § 10.6): der KOPF
+-- (klasse='lang', teil_von NULL) traegt Name, zusammengefuegtes Transkript
+-- und Verdichtung, jede einzelne Sprachnachricht dazu ist ein TEIL
+-- (klasse='teil', teil_von = id des Kopfes) mit eigener Audiodatei und
+-- eigenem Transkript. Additiv: bestehende Zeilen haben teil_von NULL und
+-- bleiben damit je ein eigenstaendiges Interview mit Transkript am Kopf.
 CREATE TABLE IF NOT EXISTS aufnahme (
   id              INTEGER PRIMARY KEY,
   chat_id         INTEGER NOT NULL,
   message_id      INTEGER NOT NULL,
   name            TEXT,                     -- 'Maria'; Ersatz: 'Interview 3'
-  klasse          TEXT NOT NULL,            -- kurz (Gespraechsbeitrag) | lang (Material)
+  klasse          TEXT NOT NULL,            -- kurz (Gespraechsbeitrag) | lang (Interview-Kopf) | teil (eine Sprachnachricht darin)
   quelle          TEXT NOT NULL,            -- sprache | text
-  audio_pfad      TEXT,                     -- NULL bei quelle='text'
+  audio_pfad      TEXT,                     -- NULL bei quelle='text' und beim Kopf
   transkript      TEXT,
   dauer_sekunden  INTEGER,
-  status          TEXT NOT NULL,            -- empfangen|transkribiert|fertig|fehlgeschlagen
+  status          TEXT NOT NULL,            -- laeuft|empfangen|transkribiert|fertig|fehlgeschlagen
   fehlertext      TEXT,
   versuche        INTEGER NOT NULL DEFAULT 0,
-  empfangen_am    TEXT NOT NULL
+  empfangen_am    TEXT NOT NULL,
+  -- Gesetzt = diese Zeile ist ein Teil des Interviews mit dieser id.
+  teil_von        INTEGER,
+  -- Gesetzt = die Gruppe hat "fertig" gesagt. Ein Kopf mit beendet_am und
+  -- status='laeuft' wartet nur noch darauf, dass seine Teile durch sind
+  -- (aufnahme.schliesse_ab, aufgegriffen vom Nachhol-Arbeiter).
+  beendet_am      TEXT
 );
+-- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
+-- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,
+-- die es in einer Alt-Datenbank noch nicht gibt, liesse den Start mit
+-- "no such column: teil_von" scheitern, bevor die Migration ueberhaupt
+-- laeuft. Ein Workshop-Wochenende bringt Dutzende Aufnahmen, keine
+-- Millionen.
 CREATE INDEX IF NOT EXISTS idx_aufnahme_offen ON aufnahme(status);
 
 CREATE TABLE IF NOT EXISTS verdichtung (

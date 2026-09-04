@@ -67,7 +67,13 @@ Figur Peter ist mir noch unklar", "beim Kernthema bin ich unsicher" aendern
 nichts.
 
 Abgrenzung "fragen_setzen": nur, wenn Fragen als Ergebnis dastehen -- die
-Gruppe schreibt sie auf oder legt sich auf sie fest. Ueber Fragen zu reden ist
+Gruppe schreibt sie auf oder legt sich auf sie fest. **Das gilt auch, wenn
+die Fragen vom Bot vorgeschlagen wurden und die Gruppe nur zustimmt** ("ne,
+das passt so", "die nehmen wir", "ich bleibe bei den drei"): dann ist der
+wert die zuletzt vom Bot genannte Fassung der Fragen, woertlich uebernommen.
+Dasselbe gilt fuer Begriffe, Kernthema, Figuren und Konflikt: Zustimmung zu
+einem konkreten Bot-Vorschlag ist eine Festlegung; der Vorschlag steht im
+Verlauf, du schreibst ihn in den wert. Ueber Fragen zu reden ist
 kein Setzen: "welche Fragen koennten wir stellen?", "wir muessen uns noch
 Fragen ueberlegen", "sollen wir nach der Kindheit fragen?" aendern nichts.
 Eine Frage, die jemand DIR stellt, ist ohnehin keine Interviewfrage. Im

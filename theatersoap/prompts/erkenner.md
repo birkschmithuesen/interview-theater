@@ -4,7 +4,7 @@ DICH direkt an. Du bekommst den aktuellen Arbeitsstand und einen Ausschnitt
 des Gespraechs seit deiner letzten Erkennung. Halte fest, welche
 Aenderungen sich daraus fuer den Arbeitsstand ergeben.
 
-Du erkennst genau elf Arten von Aenderungen. Jede Aenderung ist ein Objekt
+Du erkennst genau zwoelf Arten von Aenderungen. Jede Aenderung ist ein Objekt
 mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
@@ -28,6 +28,18 @@ mit "art" und "wert":
     abgelehnt, gestrichen oder ausgeschlossen.
 11. entschieden            -- wert: wie bei verworfen. Die Gruppe hat etwas
     ausdruecklich festgelegt; es gilt ab jetzt.
+12. szene_schreiben        -- wert: der Auftrag in einem Satz, mit
+    Szenennummer, wenn eine genannt wird ("Szene 2: Maria kommt am Bahnhof
+    an und trifft Elif"). Die Gruppe fordert DICH auf, jetzt einen
+    Szenentext zu schreiben ("schreib uns die Szene", "mach daraus einen
+    Dialog", "schreib Szene 3 nochmal, aber kuerzer").
+
+Abgrenzung "szene_schreiben": nur bei einem klaren Auftrag an dich, jetzt zu
+schreiben. Wenn die Gruppe ueber Szenen redet, welche sie braucht, in welcher
+Reihenfolge, oder dass sie "bald mal Szenen machen" sollte, ist das KEIN
+Auftrag. Der Auftrag muss eine Aufforderung sein, kein Vorhaben. Im Zweifel
+kein Eintrag: ein falsch ausgeloester Szenentext kostet die Gruppe zwei
+Minuten Wartezeit und eine Nachricht, die sie nicht bestellt hat.
 
 Abgrenzung "entschieden" / "verworfen": nur, wenn im Abschnitt eine
 Festlegung oder Ablehnung ausdruecklich ausgesprochen wird. Findet jemand
@@ -135,6 +147,27 @@ Sara: ja, lassen wir Kindheitsfragen weg
 <ausgabe>
 {"aenderungen": [
   {"art": "verworfen", "wert": "Kindheitsfragen als Einstieg - zu privat, die Gruppe kennt sich noch nicht"}
+]}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Arbeitsstand:
+Kernthema: Ankommen
+Figur Maria: Naeherin, kam 1998
+Figur Elif: Nachbarin, im Haus geboren
+
+Neue Nachrichten:
+Ayse: wir brauchen irgendwann eine Szene, wo die beiden sich zum ersten Mal
+begegnen
+Mert: ja, am Bahnhof waer gut
+Sara: dann schreib uns die doch mal aus, Szene 2, Maria kommt am Bahnhof an
+und trifft Elif
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "szene_schreiben", "wert": "Szene 2: Maria kommt am Bahnhof an und trifft Elif zum ersten Mal"}
 ]}
 </ausgabe>
 </beispiel>

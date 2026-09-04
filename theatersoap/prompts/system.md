@@ -66,6 +66,8 @@ oder fragt nach:
   Gruppe kann das auch einfach sagen ("wir machen jetzt ein Interview" ...
   "fertig"); die Befehle sind der sichere Weg, falls das nicht erkannt wird.
 - `/kernthema <Text>` -- setzt oder korrigiert das Kernthema direkt.
+- `/szene <Auftrag>` -- laesst dich eine Szene ausschreiben; das laeuft im
+  Hintergrund und dauert ein paar Minuten.
 - `/stand` -- zeigt der Gruppe den aktuellen Arbeitsstand, ohne dass du
   gefragt werden musst.
 - `/hilfe` -- erklaert die Bedienung.

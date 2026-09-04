@@ -73,6 +73,11 @@ ARTEN = (
     "wortlaut_aus",
     "verworfen",
     "entschieden",
+    # Faellt aus der Reihe: die einzige art, die keinen Arbeitsstand
+    # veraendert, sondern eine Handlung anstoesst (theatersoap/szene.py).
+    # Deshalb hat sie in _wende_eine_an bewusst keinen Schreibpfad und wird
+    # erst in laufe() ausgewertet.
+    "szene_schreiben",
 )
 
 #: Obergrenze fuer Aenderungen je Lauf -- im Prompttext UND hier im Code
@@ -391,6 +396,13 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_wortlaut_aus_an(conn, chat_id)
     if art == "interview_benennen":
         return _wende_interview_benennen_an(conn, chat_id, wert)
+    if art == "szene_schreiben":
+        # Kein Schreibpfad: eine Szene ist kein Arbeitsstandfeld, das sich
+        # ueberschreiben liesse, sondern ein eigener, minutenlanger
+        # Sprachmodell-Aufruf. Den stoesst laufe() an -- dort gibt es tg und
+        # klm, die wende_an() bewusst nicht bekommt (es schreibt nur in die
+        # Datenbank und schickt nie etwas).
+        return None
     # Unbekannte art sollte erkenne() bereits herausgefiltert haben; bei
     # direktem Aufruf von wende_an() (z. B. in Tests) einfach ignorieren
     # statt zu krachen.
@@ -474,7 +486,9 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
         elif art == "figur_setzen":
             figuren_namen.append(wert)
         # verworfen/entschieden/wortlaut_an/wortlaut_aus/interview_benennen:
-        # bewusst ignoriert, bleiben still (Aufgabe 4).
+        # bewusst ignoriert, bleiben still (Aufgabe 4). szene_schreiben
+        # ebenfalls -- es meldet sich selbst, mit einer Ankuendigung und
+        # spaeter der fertigen Szene (theatersoap/szene.py).
 
     zeilen = []
     if kernthema:
@@ -527,9 +541,33 @@ def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> N
             )
 
 
+def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> None:
+    """Stoesst den Szenen-Aufruf an, wenn der Erkenner einen Schreibauftrag
+    gefunden hat (art ``szene_schreiben``, theatersoap/szene.py).
+
+    Nicht in ``wende_an``, weil dort nur in die Datenbank geschrieben wird:
+    hier faellt eine Nachricht in die Gruppe an und ein Sprachmodell-Aufruf,
+    der Minuten dauert. ``szene.starte`` gibt ihn sofort an einen eigenen
+    Thread ab -- der Erkenner-Nachlauf haengt nicht daran.
+
+    Hoechstens EINE Szene je Lauf, auch wenn das Modell zwei Auftraege
+    gefunden haben sollte: der zweite liefe ohnehin in die Sperre je chat_id
+    und wuerde nur mit 'ich schreibe gerade noch' abgewiesen -- zwei
+    Nachrichten fuer nichts."""
+    from theatersoap import szene  # spaeter Import, haelt den Modulkopf frei
+
+    auftrag = next(
+        (a.get("wert") for a in aenderungen if a.get("art") == "szene_schreiben"), None
+    )
+    if not auftrag:
+        return
+    szene.starte(conn, tg, klm, e, chat_id, auftrag)
+
+
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
-    melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5).
+    melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5),
+    Szenen-Auftrag anstossen (szene.py).
     Laeuft nachgelagert, nachdem die Bot-Antwort in der Gruppe steht (SPEC
     § 4.3) -- niemand wartet darauf, und ein Fehlschlag bleibt fuer die
     Gruppe unsichtbar, genau wie ``ablauf.antworte`` es fuer den
@@ -541,6 +579,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             return
         wirkliche = wende_an(conn, e, chat_id, aenderungen)
         _melde_interviewmodus(tg, conn, e, chat_id, wirkliche)
+        # Aus den erkannten, nicht aus den wirksamen Aenderungen: ein
+        # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
+        # ``wirkliche`` deshalb nie auf.
+        _starte_szene(klm, tg, conn, e, chat_id, aenderungen)
         text = baue_meldung(wirkliche)
         if text is None:
             return

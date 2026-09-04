@@ -1,9 +1,10 @@
-"""Tests fuer die sechs Slash-Befehle (teil-b.md Aufgabe 6).
+"""Tests fuer die sieben Slash-Befehle (teil-b.md Aufgabe 6, plus /szene).
 
 Kein Netzzugriff: Telegram wird durch eine Attrappe ersetzt, die nur
-aufzeichnet, was gesendet wurde. behandle() nimmt kein LLM-Objekt entgegen --
-"/stand ruft kein Modell" ist dadurch strukturell garantiert, nicht nur per
-Testbehauptung.
+aufzeichnet, was gesendet wurde. Sechs der sieben Befehle werden hier ohne
+jedes LLM-Objekt aufgerufen -- "/stand ruft kein Modell" bleibt damit an den
+Tests ablesbar, auch seit behandle() ein optionales ``klm`` fuer /szene
+entgegennimmt.
 """
 
 import pytest
@@ -164,6 +165,8 @@ def test_kernthema_mit_botname_und_text_wird_erkannt(conn, einst, tg):
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
 
 
-def test_befehle_liste_enthaelt_alle_sechs_ohne_schraegstrich():
+def test_befehle_liste_enthaelt_alle_sieben_ohne_schraegstrich():
     kommandos = {b["command"] for b in befehle.BEFEHLE_LISTE}
-    assert kommandos == {"interview", "fertig", "kernthema", "stand", "wortlaut", "hilfe"}
+    assert kommandos == {
+        "interview", "fertig", "kernthema", "szene", "stand", "wortlaut", "hilfe",
+    }

@@ -169,8 +169,11 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
     Aufgabe 6 (Notausgang): bevor irgendein Kontext gebaut wird, prueft
     ``befehle.behandle``, ob die JUENGSTE Nachricht in ``offen`` ein
     Slash-Befehl ist. Wenn ja, beantwortet ``behandle`` sie direkt und liefert
-    ``True`` -- kein Kontextaufbau, kein Sprachmodell-Aufruf, ein Befehl kann
-    also nie am LLM scheitern. Die juengste Nachricht ist massgeblich, nicht
+    ``True`` -- kein Kontextaufbau, kein Gespraechsaufruf, ein Befehl kann
+    also nie am Gespraechsmodell scheitern. ``klm`` wird trotzdem
+    durchgereicht: ``/szene`` braucht es, gibt den Aufruf aber sofort an einen
+    eigenen Thread ab (``szene.starte``) und blockiert diesen Zug nicht.
+    Die juengste Nachricht ist massgeblich, nicht
     irgendeine im Sammelfenster: ein Befehl loest laut ``ist_ausloeser`` immer
     einen eigenen Zug aus, mitgesammelte Nachrichten davor sind beilaeufig."""
     letzte_message_id = max(n["message_id"] for n in offen)
@@ -183,7 +186,8 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
     versand_erfolgreich = False
     try:
         if befehle.behandle(
-            conn, tg, e, chat_id, letzte_nachricht["text"] or "", letzte_nachricht["absender"],
+            conn, tg, e, chat_id, letzte_nachricht["text"] or "",
+            letzte_nachricht["absender"], klm=klm,
         ):
             # Befehl abgefangen und beantwortet -- kein Kontextaufbau, kein
             # Sprachmodell-Aufruf. Das Wasserzeichen rueckt trotzdem im

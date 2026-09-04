@@ -43,7 +43,6 @@ grosses Fenster den Erkenner dauerhaft lahmlegen) und ein ``vorfall``
 """
 
 import logging
-from pathlib import Path
 
 from theatersoap import kontext, repo
 
@@ -52,7 +51,12 @@ log = logging.getLogger(__name__)
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
 #: theatersoap/prompts/erkenner.md fuer die vollstaendige Anweisung samt
 #: der fuenf Few-Shot-Beispiele).
-PROMPT = (Path(__file__).parent / "prompts" / "erkenner.md").read_text(encoding="utf-8")
+from theatersoap import anweisungen
+
+
+def prompt() -> str:
+    """Heiss nachgeladen (theatersoap.anweisungen)."""
+    return anweisungen.hole("erkenner")
 
 #: Alle erkennbaren Aenderungsarten, in derselben Reihenfolge wie im Prompt
 #: aufgelistet (SPEC § 4.3, teil-b.md Aufgabe 2). Auch die Schema-Enum unten
@@ -193,7 +197,7 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
 
     try:
         ergebnis = klm.schema(
-            chat_id, PROMPT, nutzer, SCHEMA, "erkenner",
+            chat_id, prompt(), nutzer, SCHEMA, "erkenner",
             modell=e.erkenner_modell, temperature=TEMPERATURE,
         )
     except Exception:

@@ -172,8 +172,8 @@ def test_arten_enthaelt_alle_elf_werte():
 def test_prompt_enthaelt_fuenf_beispiele_davon_zwei_leer():
     """Grober Regressionsschutz gegen einen versehentlich verkuerzten Prompt
     (SPEC/Rechercheempfehlung: 5 Few-Shot-Beispiele, davon 2 leer)."""
-    anzahl_beispiele = erkenner.PROMPT.count("<beispiel>")
-    anzahl_leer = erkenner.PROMPT.count('"aenderungen": []')
+    anzahl_beispiele = erkenner.prompt().count("<beispiel>")
+    anzahl_leer = erkenner.prompt().count('"aenderungen": []')
     assert anzahl_beispiele == 5
     assert anzahl_leer == 2
 

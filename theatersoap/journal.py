@@ -48,7 +48,6 @@ dieser Code ueberhaupt etwas senden koennte.
 """
 
 import logging
-from pathlib import Path
 
 from theatersoap import kontext, repo
 
@@ -57,7 +56,12 @@ log = logging.getLogger(__name__)
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
 #: theatersoap/prompts/journal.md fuer die vollstaendige Anweisung samt der
 #: fuenf Few-Shot-Beispiele, davon zwei leer).
-PROMPT = (Path(__file__).parent / "prompts" / "journal.md").read_text(encoding="utf-8")
+from theatersoap import anweisungen
+
+
+def prompt() -> str:
+    """Heiss nachgeladen (theatersoap.anweisungen)."""
+    return anweisungen.hole("journal")
 
 #: Die einzige Kategorie, die dieser Extraktor je schreibt (Arbeitsteilung,
 #: siehe Moduldocstring). Als Tupel, nicht als nackter String, damit Schema
@@ -215,7 +219,7 @@ def extrahiere(klm, conn, e, chat_id: int) -> list[dict]:
 
     try:
         ergebnis = klm.schema(
-            chat_id, PROMPT, nutzer, SCHEMA, "journal",
+            chat_id, prompt(), nutzer, SCHEMA, "journal",
             modell=e.erkenner_modell, temperature=TEMPERATURE,
         )
     except Exception:

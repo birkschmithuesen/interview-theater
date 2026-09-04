@@ -14,13 +14,17 @@ der ganze Themenvorschlag verworfen, sondern nur das Zitat entfernt: das
 Thema selbst bleibt (SPEC § 5, global-constraints.md 'Belegzitate').
 """
 
-from pathlib import Path
 
 from theatersoap import repo, zitat
 
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
 #: theatersoap/prompts/verdichter.md fuer die vollstaendige Anweisung).
-PROMPT = (Path(__file__).parent / "prompts" / "verdichter.md").read_text(encoding="utf-8")
+from theatersoap import anweisungen
+
+
+def prompt() -> str:
+    """Heiss nachgeladen (theatersoap.anweisungen)."""
+    return anweisungen.hole("verdichter")
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
 #: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab
@@ -58,7 +62,7 @@ def verdichte(klm, conn, e, aufnahme_id: int) -> int:
     chat_id = aufnahme["chat_id"]
     transkript = aufnahme["transkript"]
 
-    ergebnis = klm.schema(chat_id, PROMPT, transkript, SCHEMA, "verdichter")
+    ergebnis = klm.schema(chat_id, prompt(), transkript, SCHEMA, "verdichter")
 
     themen = []
     for vorschlag in ergebnis.get("kernthemen", []):

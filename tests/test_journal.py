@@ -317,8 +317,8 @@ def test_schema_kennt_kein_maxitems():
 
 
 def test_prompt_enthaelt_fuenf_beispiele_davon_zwei_leer():
-    anzahl_beispiele = journal.PROMPT.count("<beispiel>")
-    anzahl_leer = journal.PROMPT.count('"eintraege": []')
+    anzahl_beispiele = journal.prompt().count("<beispiel>")
+    anzahl_leer = journal.prompt().count('"eintraege": []')
     assert anzahl_beispiele == 5
     assert anzahl_leer == 2
 
@@ -328,8 +328,8 @@ def test_prompt_erzeugt_nur_die_kategorie_vorgeschlagen():
     zeigen -- sonst lernt das Modell etwas, das das Schema gleich wieder
     verwirft (Arbeitsteilung: verworfen/entschieden bleiben beim
     Absichtserkenner)."""
-    assert '"kategorie": "verworfen"' not in journal.PROMPT
-    assert '"kategorie": "entschieden"' not in journal.PROMPT
+    assert '"kategorie": "verworfen"' not in journal.prompt()
+    assert '"kategorie": "entschieden"' not in journal.prompt()
 
 
 # ---------------------------------------------------------------------------

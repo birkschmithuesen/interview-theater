@@ -36,6 +36,7 @@ Module unter `theatersoap/`:
 | `repo.py` | Einzige SQL-Zugriffsschicht außer `db.py`, komplett `RLock`-serialisiert |
 | `db.py` | Schema, Verbindungsaufbau samt PRAGMAs, Migration fehlender Spalten, Löschweg (`loesche_gruppe`) |
 | `einstellungen.py` | Konfiguration ausschließlich über Umgebungsvariablen |
+| `anweisungen.py` | Prompt-Texte mit Hot-Reload (mtime) + optionaler Regie-Zettel `betrieb/zusatz*.md` |
 | `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`) |
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
@@ -160,8 +161,31 @@ SPEC-Tabelle.
 
 ## Starten und testen
 
+**Regelweg: systemd-User-Units, nie Handstart.** Zwei Handstarts desselben
+Bots = beide bekommen `409 Conflict` bei `getUpdates`, keiner empfaengt —
+passiert am 04.09.2026 zweimal. Unit-Vorlage `docs/theatersoap@.service`
+(nach `~/.config/systemd/user/`, `daemon-reload`), Start ueber
+`scripts/betrieb-start.sh <gruppe>` (waehlt Python 3.11 aus `.venv`/uv —
+das System-Python 3.9 kann `X | None` nicht importieren).
+
+```
+systemctl --user enable --now theatersoap@gruppe1.service   # je Gruppe
+systemctl --user restart theatersoap@gruppe1.service        # Neustart
+tail -f betrieb/gruppe1.log                                 # Log je Gruppe
+```
+
+**Verhalten aendern ohne Neustart** (`theatersoap/anweisungen.py`): die vier
+Prompts unter `theatersoap/prompts/` werden bei jedem Aufruf per mtime
+geprueft und heiss nachgeladen. Fuer spontane Regieanweisungen gibt es
+`betrieb/zusatz.md` (alle Bots) und `betrieb/zusatz.<TS_BOT_NAME>.md` (ein
+Bot); der Inhalt wird ans Ende der Gespraechs-Systemanweisung gehaengt,
+Loeschen der Datei nimmt ihn zurueck. Erkenner/Journal/Verdichter bekommen
+bewusst keinen Zusatz (gemessene Few-Shot-Prompts). Bedienung aus Hermes:
+Skill `interview-theater-live-ops`.
+
 Umgebungsvariablen: siehe `docs/betrieb-env.beispiel` zum Kopieren nach
-`betrieb/<name>.env`. Laden und starten:
+`betrieb/<name>.env`. Handstart nur zum Debuggen, und nur wenn die Unit
+gestoppt ist:
 
 ```
 set -a; . ./betrieb/gruppe1.env; set +a

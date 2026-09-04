@@ -192,7 +192,7 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
 
         with _tippanzeige(tg, chat_id):
             koerper = kontext.baue(conn, chat_id, offen, e)
-            ergebnis = klm.schema(chat_id, kontext.SYSTEM, koerper, SCHEMA, "gespraech")
+            ergebnis = klm.schema(chat_id, kontext.system(e.bot_name), koerper, SCHEMA, "gespraech")
             text = ergebnis["antwort"]
             if hinweis:
                 text = f"{text}\n\n{hinweis}"

@@ -21,7 +21,6 @@ Workshop-Phase und sind hier bewusst nicht eingebaut.
 """
 
 from datetime import datetime
-from pathlib import Path
 
 from theatersoap import repo
 
@@ -29,7 +28,12 @@ from theatersoap import repo
 #: theatersoap/prompts/system.md). Wird der Sprachmodell-Anfrage getrennt vom
 #: Rueckgabewert von baue() als ``system``-Feld mitgegeben (vgl.
 #: theatersoap.llm.LLM.schema/.prosa).
-SYSTEM = (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
+from theatersoap import anweisungen
+
+
+def system(bot_name: str | None = None) -> str:
+    """Systemanweisung, heiss nachgeladen (siehe theatersoap.anweisungen)."""
+    return anweisungen.system(bot_name)
 
 #: Kein Tokenizer -- zwei Tage vor dem Workshop keine Abhaengigkeit, die sich
 #: fuer Kimi nicht sauber verifizieren laesst. Zeichen ÷ 3 ueberschaetzt bei

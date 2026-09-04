@@ -83,6 +83,29 @@ def _warte(thread):
     assert not thread.is_alive()
 
 
+def _bereit_machen(conn, chat_id=1, nummer=1):
+    """Eine Szene, die die Sperre passieren laesst: alle vier Pflichtfelder
+    gesetzt und eine Figur mit Sprachprofil. Seit dem 05.09.2026 ist das die
+    Voraussetzung fuer jeden Szenen-Aufruf -- ohne sie gibt es keinen."""
+    repo.setze_figur(conn, chat_id, "Maria", "Naeherin, kam 1998")
+    figur_id = repo.hole_figur(conn, chat_id, "Maria")["id"]
+    repo.setze_sprachprofil(
+        conn, figur_id, "Kurze Saetze, bricht ab.", ["Ich hatte nur einen Koffer."]
+    )
+    szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
+    repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
+    repo.setze_szenenfeld(conn, szene_id, "ort", "Bahnhof")
+    repo.setze_szenenfeld(conn, szene_id, "was_passiert", "Maria kommt an")
+    repo.setze_szene_figuren(conn, chat_id, szene_id, [figur_id])
+    return szene_id
+
+
+@pytest.fixture
+def bereit(conn):
+    """Gruppe 1 mit einer vollstaendig geplanten Szene 1."""
+    return _bereit_machen(conn)
+
+
 # ---------------------------------------------------------------------------
 # Prompt-Zusammenbau
 # ---------------------------------------------------------------------------
@@ -404,21 +427,34 @@ def test_nummer_wird_aus_dem_auftrag_gelesen():
 # ---------------------------------------------------------------------------
 
 
-def test_schreibe_legt_szene_an_und_vergibt_die_naechste_nummer(conn, einst, tg):
-    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: Da.")
+def test_schreibe_ohne_nummer_trifft_die_zuletzt_bearbeitete_szene(conn, einst, tg, bereit):
+    """Umgedreht am 05.09.2026: frueher entstand ohne Nummer eine neue Szene
+    mit der naechsten freien Nummer. Seit eine Szene erst geplant und dann
+    geschrieben wird, ist das falsch -- "Go, mach den Text" meint die Szene,
+    ueber die die Gruppe gerade geredet hat."""
+    nummer = szene.schreibe(conn, tg, LLMAttrappe(), einst, 1, "Mach den Text, Go!")
 
-    nummer = szene.schreibe(conn, tg, LLMAttrappe(), einst, 1, "Schreib die naechste Szene")
-
-    assert nummer == 2
+    assert nummer == 1
     szenen = repo.hole_szenen(conn, 1)
-    assert len(szenen) == 2
-    assert szenen[1]["titel"] == "Am Bahnhof"
-    assert szenen[1]["kurzbeschreibung"] == "Maria kommt an und trifft Elif."
-    assert szenen[1]["volltext"] == "MARIA: Da.\nELIF: Ja."
+    assert len(szenen) == 1
+    assert szenen[0]["titel"] == "Am Bahnhof"
+    assert szenen[0]["kurzbeschreibung"] == "Maria kommt an und trifft Elif."
+    assert szenen[0]["volltext"] == "MARIA: Da.\nELIF: Ja."
 
 
-def test_schreibe_ueberschreibt_die_szene_mit_der_genannten_nummer(conn, einst, tg):
-    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "MARIA: Alt.")
+def test_schreibe_laesst_die_planungsfelder_stehen(conn, einst, tg, bereit):
+    """``aktualisiere_szene`` fasst nur Titel, Kurzform und Volltext an -- was
+    die Gruppe geplant hat, bleibt und steht beim naechsten Lauf wieder im
+    Prompt."""
+    szene.schreibe(conn, tg, LLMAttrappe(), einst, 1, "Szene 1 schreiben")
+
+    zeile = repo.hole_szenen(conn, 1)[0]
+    assert (zeile["form"], zeile["ort"]) == ("Dialog", "Bahnhof")
+    assert [f["name"] for f in repo.szene_figuren(conn, zeile["id"])] == ["Maria"]
+
+
+def test_schreibe_ueberschreibt_die_szene_mit_der_genannten_nummer(conn, einst, tg, bereit):
+    repo.aktualisiere_szene(conn, bereit, "Ankunft", "Maria kommt an", "MARIA: Alt.")
 
     nummer = szene.schreibe(conn, tg, LLMAttrappe(), einst, 1, "Szene 1 nochmal, kuerzer")
 
@@ -429,25 +465,36 @@ def test_schreibe_ueberschreibt_die_szene_mit_der_genannten_nummer(conn, einst, 
     assert szenen[0]["volltext"] == "MARIA: Da.\nELIF: Ja."
 
 
-def test_erste_szene_bekommt_nummer_eins(conn, einst, tg):
-    assert szene.schreibe(conn, tg, LLMAttrappe(), einst, 1, "Schreib uns eine Szene") == 1
+def test_eine_genannte_nummer_ohne_szene_legt_sie_an(conn, einst, tg):
+    """Der Platz, an dem die Gruppe die fehlenden Angaben nachtraegt -- und der
+    Grund, warum die Sperre eine Szenennummer nennen kann."""
+    ziel = szene.ziel_fuer(conn, 1, "Schreib Szene 4")
+
+    assert ziel["nummer"] == 4
+    assert [s["nummer"] for s in repo.hole_szenen(conn, 1)] == [4]
 
 
-def test_schreibe_haelt_die_szene_im_journal_fest(conn, einst, tg):
-    szene.schreibe(conn, tg, LLMAttrappe(), einst, 1, "Schreib uns eine Szene")
+def test_erste_szene_bekommt_nummer_eins(conn, einst, tg, bereit):
+    assert szene.schreibe(conn, tg, LLMAttrappe(), einst, 1, "Schreib uns die Szene") == 1
+
+
+def test_schreibe_haelt_die_szene_im_journal_fest(conn, einst, tg, bereit):
+    szene.schreibe(conn, tg, LLMAttrappe(), einst, 1, "Schreib uns die Szene")
 
     eintraege = repo.journal(conn, 1)
-    assert [(e["art"], e["text"]) for e in eintraege] == [
-        ("entschieden", "Szene 1 geschrieben: Am Bahnhof")
+    assert ("entschieden", "Szene 1 geschrieben: Am Bahnhof") in [
+        (e["art"], e["text"]) for e in eintraege
     ]
 
 
-def test_schreibe_schickt_titel_anfang_und_verweis_nicht_die_ganze_szene(conn, einst, tg):
+def test_schreibe_schickt_titel_anfang_und_verweis_nicht_die_ganze_szene(
+    conn, einst, tg, bereit
+):
     lang = "TITEL: Am Bahnhof\nKURZ: Eine Zeile\n\n" + "\n".join(
         f"MARIA: Zeile {i}" for i in range(20)
     )
 
-    szene.schreibe(conn, tg, LLMAttrappe(antwort=lang), einst, 1, "Schreib uns eine Szene")
+    szene.schreibe(conn, tg, LLMAttrappe(antwort=lang), einst, 1, "Schreib uns die Szene")
 
     text = tg.texte[-1]
     assert text.startswith("Szene 1: Am Bahnhof")
@@ -456,36 +503,133 @@ def test_schreibe_schickt_titel_anfang_und_verweis_nicht_die_ganze_szene(conn, e
     assert "Gruppenseite" in text
 
 
-def test_schreibe_sendet_reasoning_taugliche_grenzen(conn, einst, tg):
+def test_schreibe_sendet_reasoning_taugliche_grenzen(conn, einst, tg, bereit):
     """Die zwei gemessenen Randbedingungen fuer aktives Reasoning
     (reasoning-stufen-entscheidungshilfe.md § 3.2, § 4.3): genug
     Ausgabebudget, damit der Lauf nicht im Denken endet, und ein Zeitbudget,
     das der 30-Sekunden-Klient aus bot.main nicht hergibt."""
     klm = LLMAttrappe()
 
-    szene.schreibe(conn, tg, klm, einst, 1, "Schreib uns eine Szene")
+    szene.schreibe(conn, tg, klm, einst, 1, "Schreib uns die Szene")
 
     assert klm.gesehen["max_tokens"] >= 12_000
     assert klm.gesehen["timeout"] >= 90
     assert klm.gesehen["art"] == "szene"
 
 
-def test_antwort_ohne_szenentext_ist_ein_fehler(conn, einst, tg):
+def test_die_form_der_szene_waehlt_den_regelblock(conn, einst, tg, bereit):
+    repo.setze_szenenfeld(conn, bereit, "form", "Lied")
+    klm = LLMAttrappe()
+
+    szene.schreibe(conn, tg, klm, einst, 1, "Schreib uns die Szene")
+
+    assert "REFRAIN" in klm.gesehen["system"]
+    assert "Kein Monolog laenger als sechs Zeilen" not in klm.gesehen["system"]
+
+
+def test_antwort_ohne_szenentext_ist_ein_fehler(conn, einst, tg, bereit):
     klm = LLMAttrappe(antwort="TITEL: Am Bahnhof\nKURZ: Eine Zeile\n")
 
     with pytest.raises(szene.SzeneFehler):
-        szene.schreibe(conn, tg, klm, einst, 1, "Schreib uns eine Szene")
+        szene.schreibe(conn, tg, klm, einst, 1, "Schreib uns die Szene")
 
-    assert repo.hole_szenen(conn, 1) == []
+    assert repo.hole_szenen(conn, 1)[0]["volltext"] is None
 
 
-def test_ohne_titel_faellt_der_code_auf_szene_n_zurueck(conn, einst, tg):
+def test_ohne_titel_faellt_der_code_auf_szene_n_zurueck(conn, einst, tg, bereit):
     klm = LLMAttrappe(antwort="MARIA: Ohne Kopf.")
 
-    szene.schreibe(conn, tg, klm, einst, 1, "Schreib uns eine Szene")
+    szene.schreibe(conn, tg, klm, einst, 1, "Schreib uns die Szene")
 
-    assert repo.journal(conn, 1)[0]["text"] == "Szene 1 geschrieben: Szene 1"
+    assert repo.journal(conn, 1)[-1]["text"] == "Szene 1 geschrieben: Szene 1"
     assert tg.texte[-1].startswith("Szene 1: Szene 1")
+
+
+# ---------------------------------------------------------------------------
+# Die Sperre (T5): was fehlt, wird gefragt statt geraten
+# ---------------------------------------------------------------------------
+
+
+def test_ohne_pflichtfelder_wird_gar_nicht_erst_gerufen(conn, einst, tg):
+    """Birk 05.09.2026: "wenn Figuren fehlen, darf die Szene gar nicht
+    erstellt werden". Ein Modell, dem Ort und Besetzung fehlen, scheitert
+    nicht -- es erfindet welche."""
+    klm = LLMAttrappe()
+
+    thread = szene.starte(conn, tg, klm, einst, 1, "Schreib Szene 1")
+
+    assert thread is None
+    assert klm.aufrufe == 0
+    assert tg.texte == ["Fuer Szene 1 fehlt noch: Form, Ort, Wer, Was passiert."]
+
+
+def test_die_sperre_nennt_genau_das_fehlende(conn, einst, tg):
+    figur = _figur_mit_stimme(conn)
+    _geplante_szene(conn, 1, form="Dialog", was_passiert="sie treffen sich",
+                    figuren=[figur])
+
+    szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Schreib Szene 1")
+
+    assert tg.texte == ["Fuer Szene 1 fehlt noch: Ort."]
+
+
+def test_eine_figur_ohne_sprachprofil_haelt_die_szene_auf(conn, einst, tg):
+    """Ohne Sprachprofil klingen in der Szene alle Figuren gleich -- genau der
+    Fehler, den der Probelauf gezeigt hat."""
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    figur = repo.hole_figur(conn, 1, "Pola")["id"]
+    _geplante_szene(conn, 1, form="Dialog", ort="Kessel",
+                    was_passiert="sie warten", figuren=[figur])
+
+    szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Schreib Szene 1")
+
+    assert tg.texte == [
+        "Und Pola hat noch kein Sprachprofil - aus welchem Interview spricht sie?"
+    ]
+
+
+def test_fehlende_felder_und_fehlendes_profil_in_EINER_nachricht(conn, einst, tg):
+    """Keine Rueckfragenkette: im Probelauf fragte der Bot viermal
+    hintereinander nach einer weiteren Klarstellung (Nachrichten 84, 98, 108,
+    114) und schrieb am Ende trotzdem die falsche Szene."""
+    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    figur = repo.hole_figur(conn, 1, "Pola")["id"]
+    _geplante_szene(conn, 1, form="Dialog", figuren=[figur])
+
+    szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Schreib Szene 1")
+
+    assert len(tg.texte) == 1
+    assert "Fuer Szene 1 fehlt noch: Ort, Was passiert." in tg.texte[0]
+    assert "Pola hat noch kein Sprachprofil" in tg.texte[0]
+
+
+def test_die_sperre_kuendigt_nichts_an(conn, einst, tg):
+    """Die Pruefung steht vor der Ankuendigung: eine Gruppe, der etwas fehlt,
+    soll keine Zeile bekommen, in der steht, dass jetzt etwas laeuft."""
+    szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Schreib Szene 1")
+
+    assert not any("das dauert eine Minute" in t for t in tg.texte)
+    assert not any("nicht gelungen" in t for t in tg.texte)
+
+
+def test_eine_neu_auftauchende_figur_ist_ein_hinweis_keine_sperre(conn, einst, tg, bereit):
+    """Die Gruppe darf eine Figur einfuehren, wo sie will -- sie soll es nur
+    merken, bevor jemand im Durchlauf fragt, wo diese Person war."""
+    pal = _figur_mit_stimme(conn, name="Pal", beschreibung="filmt alles mit",
+                            zitate=("Ich film das.",))
+    ziel = _geplante_szene(conn, 2, form="Dialog", ort="Kueche",
+                           was_passiert="sie kommen an", figuren=[pal])
+
+    _warte(szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Schreib Szene 2"))
+
+    assert "Pal taucht in Szene 2 zum ersten Mal auf - wo war sie vorher?" in tg.texte
+    assert repo.hole_szene(conn, ziel["id"])["volltext"] == "MARIA: Da.\nELIF: Ja."
+
+
+def test_in_der_ersten_szene_taucht_niemand_zum_ersten_mal_auf(conn, einst, tg, bereit):
+    _warte(szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Schreib Szene 1"))
+
+    assert not any("zum ersten Mal" in t for t in tg.texte)
 
 
 # ---------------------------------------------------------------------------
@@ -493,7 +637,7 @@ def test_ohne_titel_faellt_der_code_auf_szene_n_zurueck(conn, einst, tg):
 # ---------------------------------------------------------------------------
 
 
-def test_starte_kuendigt_sofort_an_und_schreibt_die_szene_im_thread(conn, einst, tg):
+def test_starte_kuendigt_sofort_an_und_schreibt_die_szene_im_thread(conn, einst, tg, bereit):
     thread = szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Szene 1: Ankunft")
     _warte(thread)
 
@@ -502,7 +646,7 @@ def test_starte_kuendigt_sofort_an_und_schreibt_die_szene_im_thread(conn, einst,
     assert len(repo.hole_szenen(conn, 1)) == 1
 
 
-def test_ankuendigung_steht_als_bot_nachricht_im_verlauf(conn, einst, tg):
+def test_ankuendigung_steht_als_bot_nachricht_im_verlauf(conn, einst, tg, bereit):
     """Wie jede andere Bot-Zeile: sonst fehlte sie im Fenster des naechsten
     Gespraechszugs und der Bot wuesste nicht mehr, was er zugesagt hat."""
     _warte(szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Szene 1: Ankunft"))
@@ -512,21 +656,22 @@ def test_ankuendigung_steht_als_bot_nachricht_im_verlauf(conn, einst, tg):
     assert any(t.startswith("Szene 1: Am Bahnhof") for t in texte)
 
 
-def test_zweiter_auftrag_waehrend_eines_laufs_wird_abgewiesen(conn, einst, tg):
+def test_zweiter_auftrag_waehrend_eines_laufs_wird_abgewiesen(conn, einst, tg, bereit):
     sperre = szene._sperre_fuer(1)
     sperre.acquire()
     try:
-        thread = szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Szene 2: noch eine")
+        thread = szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Szene 1: noch eine")
     finally:
         sperre.release()
 
     assert thread is None
     assert tg.texte == ["Ich schreibe gerade noch an einer Szene, gleich."]
-    assert repo.hole_szenen(conn, 1) == []
+    assert repo.hole_szenen(conn, 1)[0]["volltext"] is None
 
 
 def test_die_sperre_gilt_je_gruppe_nicht_global(conn, einst, tg):
     repo.sichere_gruppe(conn, 2, "gruppe1", "Zweite Gruppe")
+    _bereit_machen(conn, 2)
     sperre = szene._sperre_fuer(1)
     sperre.acquire()
     try:
@@ -535,7 +680,7 @@ def test_die_sperre_gilt_je_gruppe_nicht_global(conn, einst, tg):
     finally:
         sperre.release()
 
-    assert len(repo.hole_szenen(conn, 2)) == 1
+    assert repo.hole_szenen(conn, 2)[0]["volltext"] == "MARIA: Da.\nELIF: Ja."
 
 
 def test_leerer_auftrag_stoesst_nichts_an(conn, einst, tg):
@@ -543,7 +688,9 @@ def test_leerer_auftrag_stoesst_nichts_an(conn, einst, tg):
     assert tg.gesendet == []
 
 
-def test_fehlgeschlagener_lauf_meldet_sich_und_schreibt_einen_vorfall(conn, einst, tg):
+def test_fehlgeschlagener_lauf_meldet_sich_und_schreibt_einen_vorfall(
+    conn, einst, tg, bereit
+):
     klm = LLMAttrappe(fehler=RuntimeError("Sprachmodell weg"))
 
     _warte(szene.starte(conn, tg, klm, einst, 1, "Szene 1: Ankunft"))
@@ -551,21 +698,25 @@ def test_fehlgeschlagener_lauf_meldet_sich_und_schreibt_einen_vorfall(conn, eins
     assert "nicht gelungen" in tg.texte[-1]
     arten = [v["art"] for v in conn.execute("SELECT art FROM vorfall WHERE chat_id = 1")]
     assert arten == ["szene_fehlgeschlagen"]
-    assert repo.hole_szenen(conn, 1) == []
+    assert repo.hole_szenen(conn, 1)[0]["volltext"] is None
 
 
-def test_nach_einem_fehlschlag_ist_die_sperre_wieder_frei(conn, einst, tg):
+def test_nach_einem_fehlschlag_ist_die_sperre_wieder_frei(conn, einst, tg, bereit):
     _warte(szene.starte(
         conn, tg, LLMAttrappe(fehler=RuntimeError("weg")), einst, 1, "Szene 1: Ankunft",
     ))
 
     _warte(szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Szene 1: Ankunft"))
-    assert len(repo.hole_szenen(conn, 1)) == 1
+    assert repo.hole_szenen(conn, 1)[0]["volltext"] == "MARIA: Da.\nELIF: Ja."
 
 
-def test_zwei_laeufe_nacheinander_ueberholen_sich_nicht(conn, einst, tg):
+def test_zwei_laeufe_nacheinander_ueberholen_sich_nicht(conn, einst, tg, bereit):
     """Der Grund fuer die Sperre: zwei parallele Laeufe wuerden einander in
     geaendert_am ueberholen. Nacheinander muss es sauber durchlaufen."""
+    figur = repo.hole_figur(conn, 1, "Maria")["id"]
+    _geplante_szene(conn, 2, form="Dialog", ort="Kueche",
+                    was_passiert="sie packt", figuren=[figur])
+
     _warte(szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Szene 1: Ankunft"))
     _warte(szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Szene 2: Der Koffer"))
 
@@ -580,7 +731,7 @@ def test_systemanweisung_enthaelt_prompt_und_negativliste():
     assert "Theater-Tells" in text
 
 
-def test_der_szenenlauf_ist_nicht_der_gespraechsthread(conn, einst, tg):
+def test_der_szenenlauf_ist_nicht_der_gespraechsthread(conn, einst, tg, bereit):
     """Strukturell, nicht per Behauptung: starte() gibt einen Thread zurueck,
     der zum Zeitpunkt der Rueckkehr noch laufen darf."""
     thread = szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Szene 1: Ankunft")

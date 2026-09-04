@@ -25,12 +25,24 @@ der Lauf im Denken und liefert HTTP 200 mit leerem Inhalt; und ein
 Zeitbudget, das nicht der 30-Sekunden-Klient aus ``bot.main`` vorgibt.
 
 **Ablauf.** Der Absichtserkenner (art ``szene_schreiben``) oder der Befehl
-``/szene`` rufen ``starte()``. Das schickt sofort eine Zeile in die Gruppe --
-sie soll wissen, dass etwas laeuft, und derweil weiterarbeiten koennen -- und
-gibt den eigentlichen Aufruf an einen Thread ab (Muster: der Nachhol-Arbeiter
-in ``aufnahme.py``). Der baut den Prompt, ruft ``LLM.prosa``, trennt
-TITEL/KURZ vom Text, speichert die Szene, schreibt einen
-``entschieden``-Journaleintrag und schickt Titel samt Anfang in die Gruppe.
+``/szene`` rufen ``starte()``. Das **prueft zuerst** (siehe unten), schickt
+dann eine Zeile in die Gruppe -- sie soll wissen, dass etwas laeuft, und
+derweil weiterarbeiten koennen -- und gibt den eigentlichen Aufruf an einen
+Thread ab (Muster: der Nachhol-Arbeiter in ``aufnahme.py``). Der baut den
+Prompt, ruft ``LLM.prosa``, trennt TITEL/KURZ vom Text, speichert die Szene,
+schreibt einen ``entschieden``-Journaleintrag und schickt Titel samt Anfang in
+die Gruppe.
+
+**Eine Szene wird geplant, bevor sie geschrieben wird** (05.09.2026). Fehlt
+ein Pflichtfeld (``PFLICHTFELDER``: form, ort, figuren, was_passiert) oder hat
+eine Figur dieser Szene kein Sprachprofil, gibt es **keinen Aufruf** --
+stattdessen eine Nachricht, die in einem Satz sagt, was fehlt
+(``sperrtext``). Der Grund ist gemessen: ein Modell, dem Ort und Besetzung
+fehlen, scheitert nicht, es erfindet welche. Im Probelauf entstand so eine
+Szene in einer Kueche statt im Polizeikessel, mit NINA und MORITZ statt Mira,
+Pola und Pal. Daneben steht ein **Hinweis, der keine Sperre ist**: eine Figur,
+die in dieser Szene zum ersten Mal auftaucht, bekommt eine Zeile im Chat --
+geschrieben wird trotzdem (``neue_figuren_hinweis``).
 
 **Eine Szene je Gruppe gleichzeitig** (Sperre je ``chat_id``, wie in
 ``ablauf.py``). Anders als dort wird aber nichts gesammelt: ein zweiter
@@ -324,6 +336,116 @@ def zerlege_planung(wert: str) -> tuple[int | None, dict[str, str]]:
     return nummer, felder
 
 
+# ---------------------------------------------------------------------------
+# Die Sperre: was fehlt, wird gefragt statt geraten
+# ---------------------------------------------------------------------------
+
+_TEXT_FEHLENDE_FELDER = "Fuer {kopf} fehlt noch: {felder}."
+_TEXT_OHNE_PROFIL_EINE = (
+    "Und {namen} hat noch kein Sprachprofil - aus welchem Interview spricht sie?"
+)
+_TEXT_OHNE_PROFIL_MEHRERE = (
+    "Und {namen} haben noch kein Sprachprofil - aus welchen Interviews sprechen "
+    "sie?"
+)
+
+#: Der Hinweis, der KEINE Sperre ist: eine Figur taucht zum ersten Mal auf.
+#: Die Szene wird trotzdem geschrieben -- die Gruppe darf eine Figur
+#: einfuehren, wo sie will, sie soll es nur merken.
+_TEXT_NEUE_FIGUR_EINE = (
+    "{namen} taucht in Szene {nummer} zum ersten Mal auf - wo war sie vorher?"
+)
+_TEXT_NEUE_FIGUR_MEHRERE = (
+    "{namen} tauchen in Szene {nummer} zum ersten Mal auf - wo waren sie vorher?"
+)
+
+
+def _und(namen: list[str]) -> str:
+    """"Mira, Pola und Pal" -- eine Aufzaehlung, wie man sie spricht."""
+    if len(namen) <= 1:
+        return "".join(namen)
+    return ", ".join(namen[:-1]) + " und " + namen[-1]
+
+
+def _kopf(zeile) -> str:
+    return f"Szene {zeile['nummer']}" if zeile["nummer"] is not None else "die Szene"
+
+
+def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
+    """Was diese Szene noch braucht: ``(fehlende Pflichtfelder, Figuren ohne
+    Sprachprofil)``.
+
+    Rein aus der Datenbank, kein Modellaufruf. Beides zusammen, weil beides
+    dieselbe Antwort verhindert: ein Szenentext, den das Modell aus dem
+    Nichts erfindet. Im Probelauf fehlten Ort und Besetzung, und heraus kam
+    eine Kueche mit NINA und MORITZ; ohne Sprachprofil klingen alle Figuren
+    gleich."""
+    figuren = repo.szene_figuren(conn, ziel["id"])
+    felder = []
+    for feld in PFLICHTFELDER:
+        if feld == "figuren":
+            if not figuren:
+                felder.append(feld)
+        elif not ziel[feld]:
+            felder.append(feld)
+    ohne_profil = [f["name"] for f in figuren if not f["sprachprofil"]]
+    return felder, ohne_profil
+
+
+def sperrtext(conn, ziel) -> str | None:
+    """Die eine Nachricht, mit der der Bot sagt, was fehlt -- oder None, wenn
+    nichts fehlt und geschrieben werden darf.
+
+    **Eine Nachricht, keine Rueckfragenkette.** Im Probelauf fragte der Bot
+    vier Mal hintereinander nach einer weiteren Klarstellung (Nachrichten 84,
+    98, 108, 114) und schrieb am Ende trotzdem die falsche Szene. Was fehlt,
+    steht hier vollstaendig in einem Satz, und die Gruppe antwortet in
+    einem."""
+    felder, ohne_profil = fehlendes(conn, ziel)
+    if not felder and not ohne_profil:
+        return None
+    teile = []
+    if felder:
+        teile.append(_TEXT_FEHLENDE_FELDER.format(
+            kopf=_kopf(ziel), felder=", ".join(FELDNAMEN[f] for f in felder),
+        ))
+    if ohne_profil:
+        vorlage = (
+            _TEXT_OHNE_PROFIL_EINE if len(ohne_profil) == 1
+            else _TEXT_OHNE_PROFIL_MEHRERE
+        )
+        teile.append(vorlage.format(namen=_und(ohne_profil)))
+    return " ".join(teile)
+
+
+def neue_figuren_hinweis(conn, chat_id: int, ziel) -> str | None:
+    """Der Hinweis, der **keine** Sperre ist: eine Figur kommt in dieser Szene
+    vor, war aber in keiner frueheren.
+
+    Die Szene wird trotzdem geschrieben -- eine Figur darf auftreten, wo die
+    Gruppe will. Sie soll es nur merken, bevor jemand im Durchlauf fragt, wo
+    diese Person die letzten zwei Szenen war.
+
+    Nur, wenn es ueberhaupt eine fruehere Szene gibt: in der ersten Szene
+    taucht jede Figur zum ersten Mal auf, und das ist keine Beobachtung."""
+    if ziel["nummer"] is None:
+        return None
+    frueher = set()
+    gab_es = False
+    for szene in repo.hole_szenen(conn, chat_id):
+        if szene["nummer"] is None or szene["nummer"] >= ziel["nummer"]:
+            continue
+        gab_es = True
+        frueher.update(f["id"] for f in repo.szene_figuren(conn, szene["id"]))
+    if not gab_es:
+        return None
+    neue = [f["name"] for f in repo.szene_figuren(conn, ziel["id"]) if f["id"] not in frueher]
+    if not neue:
+        return None
+    vorlage = _TEXT_NEUE_FIGUR_EINE if len(neue) == 1 else _TEXT_NEUE_FIGUR_MEHRERE
+    return vorlage.format(namen=_und(neue), nummer=ziel["nummer"])
+
+
 def planungszeile(conn, zeile) -> str:
     """Eine Szenenplanung in einer Zeile, fuer eine Nachricht an die Gruppe:
     ``"Szene 1 · Dialog · Polizeikessel · Mira, Pola, Pal"``.
@@ -349,9 +471,34 @@ def _szene_mit_nummer(szenen, nummer: int | None):
     return next((s for s in szenen if s["nummer"] == nummer), None)
 
 
-def _naechste_nummer(szenen) -> int:
-    vorhandene = [s["nummer"] for s in szenen if s["nummer"] is not None]
-    return max(vorhandene) + 1 if vorhandene else 1
+def ziel_fuer(conn, chat_id: int, auftrag: str):
+    """Die Szene, die dieser Auftrag meint -- und wenn es sie noch nicht gibt,
+    eine neue, leere mit dieser Nummer.
+
+    Drei Faelle, in dieser Reihenfolge:
+
+    * der Auftrag nennt eine Nummer, zu der es eine Szene gibt -> die;
+    * er nennt eine Nummer ohne Szene -> eine neue, leere mit dieser Nummer
+      (die Sperre unten sagt dann, was ihr fehlt -- und die Gruppe hat einen
+      Platz, an dem sie es nachtraegt);
+    * er nennt keine -> die zuletzt bearbeitete Szene, sonst Szene 1.
+
+    Der dritte Fall ist am 05.09.2026 umgedreht worden: frueher entstand ohne
+    Nummer eine neue Szene mit der naechsten freien Nummer. Seit eine Szene
+    erst geplant und dann geschrieben wird, ist das falsch -- "Go, mach den
+    Text" meint die Szene, ueber die die Gruppe gerade geredet hat, und eine
+    neue, leere haette gar keine Angaben und wuerde von der Sperre sofort
+    aufgehalten. Dieselbe Regel wie in ``erkenner._wende_szene_planen_an``."""
+    nummer = nummer_aus_auftrag(auftrag)
+    ziel = _szene_mit_nummer(repo.hole_szenen(conn, chat_id), nummer)
+    if ziel is not None:
+        return ziel
+    if nummer is None:
+        letzte = repo.hole_letzte_szene(conn, chat_id)
+        if letzte is not None:
+            return letzte
+        nummer = 1
+    return repo.hole_szene(conn, repo.stelle_szene_sicher(conn, chat_id, nummer))
 
 
 # ---------------------------------------------------------------------------
@@ -671,12 +818,12 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     Laeuft im Thread aus ``starte()``; wer sie direkt aufruft (Tests, ein
     kuenftiger Stapellauf), bekommt sie synchron und muss sich selbst um die
     Sperre kuemmern. Fehler fliegen heraus -- ``_lauf()`` faengt sie."""
-    nummer = nummer_aus_auftrag(auftrag)
-    ziel = _szene_mit_nummer(repo.hole_szenen(conn, chat_id), nummer)
+    ziel = ziel_fuer(conn, chat_id, auftrag)
+    nummer = ziel["nummer"]
 
     nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel)
     antwort = klm.prosa(
-        chat_id, systemanweisung(ziel["form"] if ziel is not None else None),
+        chat_id, systemanweisung(ziel["form"]),
         nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
     )
 
@@ -684,13 +831,11 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     if not volltext:
         raise SzeneFehler("Antwort des Sprachmodells enthielt keinen Szenentext")
 
-    if ziel is not None:
-        nummer = ziel["nummer"]
-        repo.aktualisiere_szene(conn, ziel["id"], titel or ziel["titel"], kurz, volltext)
-    else:
-        if nummer is None:
-            nummer = _naechste_nummer(repo.hole_szenen(conn, chat_id))
-        repo.lege_szene_an(conn, chat_id, nummer, titel, kurz, volltext)
+    # Immer ein UPDATE: die Szene existiert an dieser Stelle bereits, weil
+    # ``ziel_fuer`` sie notfalls angelegt hat. Die Planungsfelder bleiben
+    # dabei stehen -- ``aktualisiere_szene`` fasst nur Titel, Kurzform und
+    # Volltext an.
+    repo.aktualisiere_szene(conn, ziel["id"], titel or ziel["titel"], kurz, volltext)
 
     titel = titel or f"Szene {nummer}"
     # Das Journal haelt fest, was gilt (SPEC § 2) -- eine geschriebene Szene
@@ -727,14 +872,32 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str, sperre: threading.Lock) 
 
 
 def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | None:
-    """Kuendigt die Szene an und gibt den Aufruf an einen eigenen Thread ab.
+    """Prueft, kuendigt an und gibt den Aufruf an einen eigenen Thread ab.
 
     Liefert den gestarteten Thread, oder None, wenn nichts angestossen wurde
-    (leerer Auftrag, oder es laeuft schon eine Szene fuer diese Gruppe). Der
-    Rueckgabewert ist fuer Tests da, die auf das Ende warten wollen -- im
-    Betrieb interessiert sich niemand dafuer, das ist der Sinn der Sache."""
+    (leerer Auftrag, es laeuft schon eine Szene fuer diese Gruppe, oder die
+    Sperre unten hat gegriffen). Der Rueckgabewert ist fuer Tests da, die auf
+    das Ende warten wollen -- im Betrieb interessiert sich niemand dafuer, das
+    ist der Sinn der Sache.
+
+    **Die Sperre (05.09.2026).** Fehlt ein Pflichtfeld oder hat eine Figur
+    dieser Szene kein Sprachprofil, gibt es **keinen Aufruf** -- stattdessen
+    eine Nachricht, die sagt, was fehlt. Damit wird ``szene_schreiben`` zu
+    Pruefung plus gegebenenfalls einer Rueckfrage und nie mehr zu "Die Szene
+    ist mir nicht gelungen": ein Modell, dem Ort und Besetzung fehlen,
+    scheitert nicht, es erfindet welche. Genau das war der Probelauf.
+
+    Die Pruefung steht **vor** der Ankuendigung und vor der Sperre je
+    chat_id: eine Gruppe, der etwas fehlt, soll keine Zeile bekommen, in der
+    steht, dass jetzt eine Minute lang etwas laeuft."""
     auftrag = (auftrag or "").strip()
     if not auftrag:
+        return None
+
+    ziel = ziel_fuer(conn, chat_id, auftrag)
+    fehlt = sperrtext(conn, ziel)
+    if fehlt:
+        _sende_und_merke(conn, tg, e, chat_id, fehlt)
         return None
 
     sperre = _sperre_fuer(chat_id)
@@ -743,6 +906,10 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
         return None
 
     _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEKUENDIGT)
+    # Hinweis, keine Sperre: die Szene wird trotzdem geschrieben.
+    hinweis = neue_figuren_hinweis(conn, chat_id, ziel)
+    if hinweis:
+        _sende_und_merke(conn, tg, e, chat_id, hinweis)
     thread = threading.Thread(
         target=_lauf, args=(conn, tg, klm, e, chat_id, auftrag, sperre), daemon=True,
     )

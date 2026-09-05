@@ -220,3 +220,40 @@ def test_ein_fehlschlag_bleibt_still_und_reisst_die_andere_figur_nicht_mit(
     assert tg.gesendet == []
     arten = [v["art"] for v in conn.execute("SELECT art FROM vorfall WHERE chat_id = 1")]
     assert "sprachprofil_fehlgeschlagen" in arten
+
+
+def test_nachbereitung_laeuft_erst_nach_allen_profilen(conn, einst, monkeypatch):
+    """Der Aufrufer (die Figurenvorstellung) haengt sich hinten an den Thread
+    -- und zwar NACH dem Profil, nicht daneben: sonst zeigt er eine Figur
+    ohne die Belegzitate, an denen die Gruppe sie abnimmt."""
+    reihenfolge = []
+
+    def _fake_erstelle(klm, conn_, e_, figur_id):
+        reihenfolge.append(("profil", figur_id))
+        return None
+
+    monkeypatch.setattr(sprachprofil, "erstelle", _fake_erstelle)
+
+    sprachprofil._lauf(
+        conn, None, object(), einst, 1, [7, 8],
+        nachbereitung=lambda: reihenfolge.append(("nachher", None)),
+    )
+
+    assert reihenfolge == [("profil", 7), ("profil", 8), ("nachher", None)]
+
+
+def test_nachbereitung_laeuft_auch_nach_einem_fehlschlag(conn, einst, monkeypatch):
+    """Sonst haengt die Gruppe ohne Knopfleiste fest."""
+    gelaufen = []
+
+    def _fake_erstelle(klm, conn_, e_, figur_id):
+        raise RuntimeError("Modell weg")
+
+    monkeypatch.setattr(sprachprofil, "erstelle", _fake_erstelle)
+
+    sprachprofil._lauf(
+        conn, None, object(), einst, 1, [7],
+        nachbereitung=lambda: gelaufen.append(True),
+    )
+
+    assert gelaufen == [True]

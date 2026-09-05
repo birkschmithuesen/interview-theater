@@ -1826,15 +1826,24 @@ _TEXT_DUKTUS_FEHLT = "Sprachduktus: entsteht gerade."
 _TEXT_DUKTUS_OHNE_QUELLE = (
     "Sprachduktus: noch keiner - dafuer fehlt das Interview."
 )
+#: Die Zeile ueber den Belegzitaten. Die Zitate sind der Beleg fuer den
+#: Duktus -- ohne sie ist die Beschreibung eine Behauptung.
+_TEXT_ZITATE_VORSPANN = "So spricht sie zum Beispiel:"
+#: Was die Gruppe liest, waehrend der Sprachprofil-Lauf im Thread haengt.
+#: Ohne diese Zeile stand die Gruppe vor der Vorstellung mit "entsteht
+#: gerade." und bekam nie die fertige Fassung (gemessen 05.09.2026).
+_TEXT_DUKTUS_LAEUFT = (
+    "Ich hoere mir gerade {quelle} an, um {name}s Sprache zu erfassen …"
+)
 
 
-def _figurenvorstellung(conn, chat_id: int, figur) -> str:
+def _figurenvorstellung(conn, chat_id: int, figur, ohne_beleg: bool = False) -> str:
     """Der Text, mit dem eine Figur in Ebene 2 vorgestellt wird: Name, Satz,
-    Interview, Sprachduktus.
+    Interview, Sprachduktus und die belegten Zitate.
 
-    Rein aus der Datenbank, kein Modellaufruf (Zusage 2) -- das Sprachprofil
-    ist entweder schon da oder entsteht gerade im Thread
-    (``sprachprofil.starte``), und dann sagt die Zeile genau das."""
+    Rein aus der Datenbank, kein Modellaufruf (Zusage 2). Die Zitate stehen
+    dabei, weil genau sie zeigen, was der Duktus behauptet -- die Gruppe
+    nimmt eine Figur an ihrer Sprache ab, nicht an einer Beschreibung."""
     from interview_theater import kontext
 
     zeilen = [figur["name"]]
@@ -1845,7 +1854,25 @@ def _figurenvorstellung(conn, chat_id: int, figur) -> str:
             kontext.interviewbezeichnung(conn, chat_id, figur["quelle_aufnahme_id"])
         )
         profil = (figur["sprachprofil"] or "").strip()
-        zeilen.append(f"Sprachduktus: {profil}" if profil else _TEXT_DUKTUS_FEHLT)
+        if profil:
+            zeilen.append(f"Sprachduktus: {profil}")
+        elif ohne_beleg:
+            from interview_theater import sprachprofil
+
+            zeilen.append(
+                sprachprofil._TEXT_KEIN_ZITAT.format(name=figur["name"])
+            )
+        else:
+            zeilen.append(_TEXT_DUKTUS_FEHLT)
+        zitate = [
+            z.strip()
+            for z in (figur["zitate"] or "").split(repo.ZITAT_TRENNER)
+            if z.strip()
+        ]
+        if zitate:
+            zeilen.append("")
+            zeilen.append(_TEXT_ZITATE_VORSPANN)
+            zeilen.extend(f"– {z}" for z in zitate)
     else:
         zeilen.append(_TEXT_DUKTUS_OHNE_QUELLE)
     return "\n".join(zeilen)
@@ -1870,21 +1897,63 @@ def stelle_figur_vor(conn, tg, klm, e, chat_id: int, figur=None) -> bool:
     noch eine Figur vorgestellt wurde.
 
     Fehlt das Sprachprofil, wird es **im Thread** erzeugt
-    (``sprachprofil.starte``) und die Meldung kommt nach: ein Knopf-Handler
-    ruft kein Modell (Zusage 2)."""
+    (``sprachprofil.starte``) -- ein Knopf-Handler ruft kein Modell
+    (Zusage 2). Die Vorstellung geht dann NICHT sofort raus, sondern erst
+    nach dem Lauf, aus dessen Nachbereitung heraus: vorher fehlen genau die
+    Belegzitate, an denen die Gruppe die Figur abnimmt. Bis dahin liest sie
+    eine Zeile, die sagt, was gerade passiert (gemessen 05.09.2026: die
+    sofort gesendete Fassung mit "Sprachduktus: entsteht gerade." blieb fuer
+    immer stehen)."""
     figur = figur if figur is not None else naechste_offene_figur(conn, chat_id)
     if figur is None:
         return _schliesse_figuren_ab(conn, tg, chat_id)
 
     repo.setze_arbeitsstand(conn, chat_id, "figur_aktuell", figur["name"])
-    if figur["quelle_aufnahme_id"] is not None and not (figur["sprachprofil"] or "").strip():
-        from interview_theater import sprachprofil
+    if (klm is not None and figur["quelle_aufnahme_id"] is not None
+            and not (figur["sprachprofil"] or "").strip()):
+        from interview_theater import kontext, sprachprofil
+
+        figur_id = figur["id"]
+
+        def _nachher() -> None:
+            """Laeuft im Sprachprofil-Thread, nachdem das Profil steht (oder
+            endgueltig gescheitert ist). Die Figur wird frisch geladen --
+            das Profil ist gerade erst geschrieben worden."""
+            frisch = repo.hole_figur_nach_id(conn, figur_id)
+            if frisch is not None:
+                _sende_figurenvorstellung(
+                    conn, tg, chat_id, frisch, ohne_beleg=True,
+                )
 
         try:
-            sprachprofil.starte(conn, tg, klm, e, chat_id, [figur["id"]])
+            thread = sprachprofil.starte(
+                conn, tg, klm, e, chat_id, [figur_id], nachbereitung=_nachher,
+            )
         except Exception:
-            log.exception("Sprachprofil-Start fehlgeschlagen, figur_id=%s", figur["id"])
+            log.exception("Sprachprofil-Start fehlgeschlagen, figur_id=%s", figur_id)
+            thread = None
+        if thread is not None:
+            quelle = kontext.interviewbezeichnung(
+                conn, chat_id, figur["quelle_aufnahme_id"]
+            ) or "das Interview"
+            tg.sende(
+                chat_id,
+                _TEXT_DUKTUS_LAEUFT.format(quelle=quelle, name=figur["name"]),
+            )
+            return True
 
+    _sende_figurenvorstellung(conn, tg, chat_id, figur)
+    return True
+
+
+def _sende_figurenvorstellung(conn, tg, chat_id: int, figur,
+                              ohne_beleg: bool = False) -> None:
+    """Vorstellungstext plus die fuenf Knoepfe. Eigene Funktion, weil sie
+    aus zwei Richtungen kommt: direkt (Profil steht schon) und aus der
+    Nachbereitung des Sprachprofil-Threads. ``ohne_beleg`` heisst: der Lauf
+    ist durch und hat trotzdem kein Profil geliefert -- dann steht statt
+    "entsteht gerade" der Hinweis aus ``sprachprofil._TEXT_KEIN_ZITAT``,
+    denn die Gruppe kann das beheben (ein anderes Interview nennen)."""
     name = figur["name"]
     for art in (ART_FIGUR_PASST, ART_FIGUR_INTERVIEW_MENU,
                 ART_FIGUR_DUKTUS_MENU, ART_FIGUR_ENTFERNEN):
@@ -1902,10 +1971,9 @@ def stelle_figur_vor(conn, tg, klm, e, chat_id: int, figur=None) -> bool:
          _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, "figur"))),
     ]
     message_id = tg.sende_mit_knoepfen(
-        chat_id, _figurenvorstellung(conn, chat_id, figur), leiste
+        chat_id, _figurenvorstellung(conn, chat_id, figur, ohne_beleg), leiste
     )
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
-    return True
 
 
 def _schliesse_figuren_ab(conn, tg, chat_id: int) -> bool:

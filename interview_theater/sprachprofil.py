@@ -179,7 +179,8 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str) -> None:
         log.exception("Sprachprofil-Nachricht fehlgeschlagen, chat_id=%s", chat_id)
 
 
-def _lauf(conn, tg, klm, e, chat_id: int, figur_ids: list[int]) -> None:
+def _lauf(conn, tg, klm, e, chat_id: int, figur_ids: list[int],
+          nachbereitung=None) -> None:
     """Der Thread-Rumpf: ein Aufruf je Figur, jeder in seinem eigenen
     try/except. Ein Fehlschlag bei der einen Figur darf die andere nicht
     mitreissen -- die Gruppe hat im selben Zug oft drei Zuordnungen genickt.
@@ -204,9 +205,20 @@ def _lauf(conn, tg, klm, e, chat_id: int, figur_ids: list[int]) -> None:
             continue
         if meldung:
             _sende_und_merke(conn, tg, e, chat_id, meldung)
+    if nachbereitung is not None:
+        # Erst wenn alle Profile stehen. Der Aufrufer haengt hier seine
+        # eigene Nachricht an -- die Figurenvorstellung wartet auf die
+        # Belegzitate, weil ohne sie genau der Teil fehlt, den die Gruppe
+        # abnehmen soll (05.09.2026: "Sprachduktus: entsteht gerade." blieb
+        # fuer immer stehen, die fertige Fassung kam nie nach).
+        try:
+            nachbereitung()
+        except Exception:
+            log.exception("Nachbereitung des Sprachprofils gescheitert, chat_id=%s", chat_id)
 
 
-def starte(conn, tg, klm, e, chat_id: int, figur_ids: list[int]) -> threading.Thread | None:
+def starte(conn, tg, klm, e, chat_id: int, figur_ids: list[int],
+           nachbereitung=None) -> threading.Thread | None:
     """Gibt die Sprachprofil-Aufrufe an einen eigenen Thread ab und kehrt
     sofort zurueck -- dasselbe Muster wie ``szene.starte`` und
     ``aufnahme.starte_abschluss``.
@@ -222,7 +234,8 @@ def starte(conn, tg, klm, e, chat_id: int, figur_ids: list[int]) -> threading.Th
     if not figur_ids:
         return None
     thread = threading.Thread(
-        target=_lauf, args=(conn, tg, klm, e, chat_id, figur_ids), daemon=True,
+        target=_lauf, args=(conn, tg, klm, e, chat_id, figur_ids, nachbereitung),
+        daemon=True,
     )
     thread.start()
     return thread

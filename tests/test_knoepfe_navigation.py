@@ -438,3 +438,93 @@ def test_der_schritt_nach_phase_fuenf_setzt_das_feste_format(conn, tg, einst):
     knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Format & Rahmen")))
 
     assert repo.hole_arbeitsstand(conn, 1)["format"] == "Urban Dance Tanztheater"
+
+
+# --- Figurenvorstellung: Belegzitate und Reihenfolge ----------------------
+
+
+def test_vorstellung_zeigt_die_belegzitate(conn, tg, einst):
+    """Der Duktus ist eine Behauptung, die Zitate sind der Beleg -- und genau
+    die fehlten am 05.09.2026 in der Vorstellung."""
+    kopf_id = _interview(conn)
+    repo.setze_figur(conn, 1, "Amina", "will gefragt werden")
+    figur = repo.hole_figur(conn, 1, "Amina")
+    repo.setze_figur_quelle(conn, figur["id"], kopf_id)
+    repo.setze_sprachprofil(
+        conn, figur["id"], "Kurze Saetze, bricht ab",
+        ["Wir haben zusammen gearbeitet.", "Jeden Tag, halt."],
+    )
+
+    text = knoepfe._figurenvorstellung(
+        conn, 1, repo.hole_figur(conn, 1, "Amina")
+    )
+
+    assert "Sprachduktus: Kurze Saetze, bricht ab" in text
+    assert knoepfe._TEXT_ZITATE_VORSPANN in text
+    assert "– Wir haben zusammen gearbeitet." in text
+    assert "– Jeden Tag, halt." in text
+
+
+def test_vorstellung_kommt_erst_nach_dem_sprachprofil(conn, tg, einst, monkeypatch):
+    """Vorher ging die Vorstellung SOFORT raus, mit \"Sprachduktus: entsteht
+    gerade.\" -- und die fertige Fassung kam nie nach. Jetzt: erst eine Zeile,
+    was gerade passiert, die Knopfleiste erst nach dem Lauf."""
+    from interview_theater import sprachprofil
+
+    kopf_id = _interview(conn)
+    repo.setze_figur(conn, 1, "Amina", "will gefragt werden")
+    figur = repo.hole_figur(conn, 1, "Amina")
+    repo.setze_figur_quelle(conn, figur["id"], kopf_id)
+    figur_id = figur["id"]
+
+    def _fake_starte(conn_, tg_, klm_, e_, chat_id_, ids, nachbereitung=None):
+        _fake_starte.nachbereitung = nachbereitung
+        return object()
+
+    monkeypatch.setattr(sprachprofil, "starte", _fake_starte)
+
+    knoepfe.stelle_figur_vor(conn, tg, object(), einst, 1)
+
+    # Vor dem Thread-Ende: nur die Ankuendigung, keine Knopfleiste.
+    assert "Amina" in tg.gesendet[-1][1]
+    assert "Interview 1" in tg.gesendet[-1][1]
+    assert tg.knoepfe == []
+
+    # Der Lauf ist durch, das Profil steht -- jetzt kommt die Vorstellung.
+    repo.setze_sprachprofil(
+        conn, figur_id, "Kurze Saetze", ["Wir haben zusammen gearbeitet."]
+    )
+    _fake_starte.nachbereitung()
+
+    assert [b for b, _ in tg.knoepfe[-1][2]] == [
+        "Passt", "Anderes Interview", "Anderer Duktus", "Entfernen", "Eigene Idee",
+    ]
+    assert "– Wir haben zusammen gearbeitet." in tg.knoepfe[-1][1]
+
+
+def test_ohne_belegtes_zitat_kommt_die_vorstellung_trotzdem(
+    conn, tg, einst, monkeypatch
+):
+    """Scheitert das Profil (kein Zitat im Transkript belegbar), darf die
+    Gruppe nicht ohne Knopfleiste dastehen -- sie bekommt den Hinweis aus
+    ``sprachprofil._TEXT_KEIN_ZITAT`` und kann ein anderes Interview nennen."""
+    from interview_theater import sprachprofil
+
+    kopf_id = _interview(conn)
+    repo.setze_figur(conn, 1, "Amina", "will gefragt werden")
+    figur = repo.hole_figur(conn, 1, "Amina")
+    repo.setze_figur_quelle(conn, figur["id"], kopf_id)
+
+    def _fake_starte(conn_, tg_, klm_, e_, chat_id_, ids, nachbereitung=None):
+        _fake_starte.nachbereitung = nachbereitung
+        return object()
+
+    monkeypatch.setattr(sprachprofil, "starte", _fake_starte)
+
+    knoepfe.stelle_figur_vor(conn, tg, object(), einst, 1)
+    _fake_starte.nachbereitung()
+
+    text = tg.knoepfe[-1][1]
+    assert sprachprofil._TEXT_KEIN_ZITAT.format(name="Amina") in text
+    assert knoepfe._TEXT_DUKTUS_FEHLT not in text
+    assert [b for b, _ in tg.knoepfe[-1][2]][0] == "Passt"

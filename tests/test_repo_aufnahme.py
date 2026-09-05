@@ -226,3 +226,62 @@ def test_transkripte_liefert_keine_teile(conn):
     assert [z["id"] for z in repo.transkripte(conn, 1)] == [kopf]
     assert repo.zaehle_interviews(conn, 1) == 1
     assert repo.zaehle_aufnahmen(conn, 1) == 2, "gezaehlt werden sie trotzdem"
+
+
+# ---------------------------------------------------------------------------
+# Nachzuegler: Sprachnachrichten VOR dem Interviewstart einsammeln
+# (05.09.2026, Testlauf Gruppe 1 vor dem Workshop)
+# ---------------------------------------------------------------------------
+
+
+def test_ziehe_in_interview_sammelt_kurze_aufnahmen_ab_der_grenze(conn):
+    """Der gemessene Fall: die Gruppe spricht erst, sagt danach 'wir machen
+    jetzt ein Interview ... fertig'. Das Material liegt als 'kurz' daneben und
+    haengt an keinem Kopf -- ohne diesen Weg wird es nie verdichtet."""
+    frueh = repo.lege_aufnahme_an(conn, 1, 900, "kurz", "sprache")
+    spaet = repo.lege_aufnahme_an(conn, 1, 901, "kurz", "sprache")
+    repo.setze_transkript(conn, frueh, "erster Teil")
+    repo.setze_transkript(conn, spaet, "zweiter Teil")
+
+    kopf = repo.lege_interview_an(conn, 1)
+    geholt = repo.ziehe_in_interview(conn, 1, kopf, "2000-01-01T00:00:00+00:00")
+
+    assert geholt == [frueh, spaet]
+    assert [z["id"] for z in repo.hole_teile(conn, kopf)] == [frueh, spaet]
+    assert repo.zusammengefuegtes_transkript(conn, kopf) == "erster Teil\n\nzweiter Teil"
+    assert [z["id"] for z in repo.transkripte(conn, 1)] == [kopf], "Teile sind keine Interviews mehr"
+
+
+def test_ziehe_in_interview_laesst_alte_und_fremde_aufnahmen_liegen(conn):
+    """Die Grenze ist das ganze Sicherheitsnetz: was davor liegt, gehoerte zu
+    einer anderen Arbeitsphase und darf nicht ins Transkript rutschen."""
+    alt = repo.lege_aufnahme_an(conn, 1, 902, "kurz", "sprache")
+    fremd = repo.lege_aufnahme_an(conn, 2, 903, "kurz", "sprache")
+    conn.execute(
+        "UPDATE aufnahme SET empfangen_am = '2000-01-01T00:00:00+00:00' WHERE id = ?",
+        (alt,),
+    )
+    conn.commit()
+
+    kopf = repo.lege_interview_an(conn, 1)
+    geholt = repo.ziehe_in_interview(conn, 1, kopf, "2020-01-01T00:00:00+00:00")
+
+    assert geholt == [], "zu alt und andere Gruppe: nichts eingesammelt"
+    assert repo.hole_aufnahme(conn, alt)["teil_von"] is None
+    assert repo.hole_aufnahme(conn, fremd)["teil_von"] is None
+
+
+def test_ziehe_in_interview_nimmt_keine_koepfe_und_keine_fremden_teile(conn):
+    """Ein anderer Interview-Kopf ('lang') und ein bereits zugeordneter Teil
+    duerfen nicht abgeraeumt werden -- sonst frisst ein neues Interview das
+    vorige auf."""
+    alter_kopf = repo.lege_interview_an(conn, 1)
+    alter_teil = repo.lege_aufnahme_an(conn, 1, 904, "teil", "sprache", teil_von=alter_kopf)
+    repo.setze_interview_beendet(conn, alter_kopf)
+
+    neuer_kopf = repo.lege_interview_an(conn, 1)
+    geholt = repo.ziehe_in_interview(conn, 1, neuer_kopf, "2000-01-01T00:00:00+00:00")
+
+    assert geholt == []
+    assert repo.hole_aufnahme(conn, alter_teil)["teil_von"] == alter_kopf
+    assert repo.hole_aufnahme(conn, alter_kopf)["teil_von"] is None

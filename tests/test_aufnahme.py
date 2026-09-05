@@ -441,10 +441,15 @@ def _interview_mit_teilen(conn, einst, tg, klm, texte, message_id=300):
     return kopf_id
 
 
-def test_fertig_verdichtet_einmal_ueber_das_ganze_interview(conn, einst, tg, klm):
+def test_fertig_verdichtet_einmal_und_haelt_sich_im_chat_zurueck(conn, einst, tg, klm):
     """§ 10.6, der zweite Auftragstest: "fertig" loest genau EINEN
-    verdichte-Aufruf aus, und zwar mit dem zusammengefuegten Text -- und die
-    Gruppe bekommt endlich zu hoeren, was in ihrem Interview steckt."""
+    verdichte-Aufruf aus, und zwar mit dem zusammengefuegten Text.
+
+    Seit 05.09.2026 (Birk, Testlauf vor dem Workshop) geht die Verdichtung
+    dabei NICHT in den Chat: nach einem Interview kommt keine Rueckmeldung und
+    keine Rueckfrage, weil das eine eigene Phase ist -- erst alle Interviews,
+    danach die Verdichtungen. Verdichtet wird trotzdem sofort, das Material
+    ist gesichert und steht auf der Gruppenseite."""
     kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B])
     tg.gesendet.clear()
 
@@ -455,68 +460,35 @@ def test_fertig_verdichtet_einmal_ueber_das_ganze_interview(conn, einst, tg, klm
     assert klm.nutzertexte == [f"{TEIL_A}\n\n{TEIL_B}"]
     assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
 
-    meldungen = [t for _, t in tg.gesendet if "ist durch" in t]
-    assert len(meldungen) == 1
-    text = meldungen[0]
-    assert text.startswith("Interview 1 ist durch. Was ich darin hoere:")
-    assert "Eine Erinnerung an Theaterspiele im Kindesalter." in text
-    assert "Kernthemen:" in text
-    assert '- Kindheit: "wie wir als Kinder auf dem Hof Theater gespielt haben"' in text
-    assert text.endswith("Stimmt das so? Sonst sagt es mir.")
+    themen = repo.themen_zu(conn, repo.verdichtungen(conn, 1)[0]["id"])
+    assert [t["thema"] for t in themen] == ["Kindheit"], "verdichtet ist sie trotzdem"
+
+    assert not [t for _, t in tg.gesendet if "ist durch" in t], "kein Ausspielen"
+    text = next(t for _, t in tg.gesendet if "aufgenommen und ausgewertet" in t)
+    assert "Naechstes Interview?" in text
+    assert "Stimmt das so" not in text, "keine Rueckfrage nach dem Interview"
 
 
-def test_die_erste_verdichtung_fragt_nach_der_naechsten_phase(conn, einst, tg, klm):
-    """Brief 3 (C): der Datenstand erlaubt jetzt Phase 4, aber er entscheidet
-    sie nicht -- eine fertige Verdichtung sagt nicht, ob noch drei Interviews
-    kommen. Also haengt an der Verdichtung eine Frage, keine Ankuendigung.
-
-    Sie steht genau hier und nicht erst im naechsten Gespraechszug: hier ist
-    der Moment, in dem sie aufkommt."""
+def test_auswerten_spielt_die_verdichtung_aus(conn, einst, tg, klm):
+    """Der Gegenweg: verlangt die Gruppe die Auswertung ausdruecklich
+    (``/auswerten`` -> ``erzwungen=True``), bekommt sie den vollen Text --
+    ohne Rueckfrage und ohne Phasenfrage am Ende."""
     phasen.setze(conn, 1, 3, "befehl")
     kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=340)
-    tg.gesendet.clear()
-
     aufnahme.beende_interview(conn, 1)
     aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
-
-    text = next(t for _, t in tg.gesendet if "ist durch" in t)
-    assert text.endswith("Kommen noch Interviews, oder gehen wir ans Kernthema?")
-    assert repo.hole_phase(conn, 1) == 3, "gefragt, nicht geschaltet"
-    assert repo.hole_phase_angeboten(conn, 1) == 4
-
-
-def test_die_phasenfrage_kommt_nur_einmal(conn, einst, tg, klm):
-    """Bei fuenf Interviews wuerde sie sonst fuenfmal dastehen. Der Merkposten
-    ist derselbe wie fuer den Gespraechs-Prompt (arbeitsstand.phase_angeboten)
-    -- eine Frage, egal auf welchem Weg sie herauskommt."""
-    phasen.setze(conn, 1, 3, "befehl")
-    erster = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=350)
-    aufnahme.beende_interview(conn, 1)
-    aufnahme.schliesse_ab(conn, tg, klm, einst, erster)
-
-    zweiter = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=360)
-    tg.gesendet.clear()
-    aufnahme.beende_interview(conn, 1)
-    aufnahme.schliesse_ab(conn, tg, klm, einst, zweiter)
-
-    text = next(t for _, t in tg.gesendet if "ist durch" in t)
-    assert "Kommen noch Interviews" not in text
-
-
-def test_ausserhalb_von_phase_drei_keine_phasenfrage(conn, einst, tg, klm):
-    """Ist die Gruppe schon beim Kernthema, ist die Frage beantwortet -- und
-    der Merkposten bleibt unangetastet, damit der Gespraechs-Prompt seine
-    eigene Frage noch stellen kann."""
-    phasen.setze(conn, 1, 4, "befehl")
-    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=370)
     tg.gesendet.clear()
 
-    aufnahme.beende_interview(conn, 1)
-    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+    aufnahme._interview_abschliessen(
+        conn, tg, klm, einst, repo.hole_aufnahme(conn, kopf_id), erzwungen=True
+    )
 
     text = next(t for _, t in tg.gesendet if "ist durch" in t)
-    assert text.endswith("Stimmt das so? Sonst sagt es mir.")
-    assert repo.hole_phase_angeboten(conn, 1) is None
+    assert text.startswith("Interview 1 ist durch. Was ich darin hoere:")
+    assert "Kernthemen:" in text
+    assert '- Kindheit: "wie wir als Kinder auf dem Hof Theater gespielt haben"' in text
+    assert "Stimmt das so" not in text, "keine Rueckfrage mehr"
+    assert "Kommen noch Interviews" not in text, "keine Phasenfrage mehr"
 
 
 def test_thema_ohne_belegtes_zitat_faellt_ganz_weg(conn, einst, tg):
@@ -539,6 +511,9 @@ def test_thema_ohne_belegtes_zitat_faellt_ganz_weg(conn, einst, tg):
     themen = repo.themen_zu(conn, repo.verdichtungen(conn, 1)[0]["id"])
     assert [t["thema"] for t in themen] == ["Kindheit"]
 
+    aufnahme._interview_abschliessen(
+        conn, tg, klm, einst, repo.hole_aufnahme(conn, kopf_id), erzwungen=True
+    )
     text = next(t for _, t in tg.gesendet if "ist durch" in t)
     assert '- Kindheit: "auf dem Hof Theater gespielt"' in text
     assert "Arbeit" not in text
@@ -562,6 +537,9 @@ def test_keine_belegte_these_meldet_die_leerstelle(conn, einst, tg):
     verdichtung = repo.verdichtungen(conn, 1)[0]
     assert repo.themen_zu(conn, verdichtung["id"]) == []
 
+    aufnahme._interview_abschliessen(
+        conn, tg, klm, einst, repo.hole_aufnahme(conn, kopf_id), erzwungen=True
+    )
     text = next(t for _, t in tg.gesendet if "ist durch" in t)
     assert "Ich habe eine Zusammenfassung, aber keinen Beleg." in text
     assert "Ich konnte kein Thema mit einem woertlichen Zitat belegen." in text
@@ -612,6 +590,8 @@ def test_auswerten_verdichtet_ein_zu_kurzes_interview_doch(conn, einst, tg, klm)
     # seit 05.09. der eine zweite Anlauf des Verdichters.
     assert klm.aufrufe in (1, 2)
     assert len(repo.verdichtungen(conn, 1)) == 1
+    # /auswerten ist der erzwungene Weg: hier WILL die Gruppe den Text sehen
+    # und bekommt ihn ausgespielt (im Normalfall bleibt der Chat still).
     assert any("ist durch" in t for _, t in tg.gesendet)
 
 
@@ -664,7 +644,7 @@ def test_fertig_in_der_sprachnachricht_beendet_das_interview(conn, einst, tg):
 
     gesendet = [t for _, t in tg.gesendet]
     assert "Aufnahme beendet." in gesendet
-    assert any("Interview 1 ist durch" in t for t in gesendet)
+    assert any("Interview 1 ist aufgenommen und ausgewertet" in t for t in gesendet)
 
 
 def test_erkenner_darf_aus_interviewinhalt_nichts_anderes_schreiben(conn, einst, tg):
@@ -778,7 +758,7 @@ def test_nachholen_transkribiert_teil_nach_und_verdichtet_das_beendete_interview
     assert any(f"Interview 1, Teil 2:\n{TEIL_B}" == t for _, t in tg.gesendet)
     assert klm.nutzertexte == [f"{TEIL_A}\n\n{TEIL_B}"]
     assert len(repo.verdichtungen(conn, 1)) == 1
-    assert any("ist durch" in t for _, t in tg.gesendet)
+    assert any("aufgenommen und ausgewertet" in t for _, t in tg.gesendet)
 
     # Ein zweiter Nachhol-Lauf greift nichts mehr auf.
     aufnahme.nachholen(conn, tg, klm, einst, stt_attrappe("egal"))
@@ -1083,3 +1063,30 @@ def test_melde_ausfall_ist_nebenlaeufigkeitsfest(conn, einst, tg):
 
     meldungen = [t for _, t in tg.gesendet if "nicht hoeren" in t]
     assert len(meldungen) == 1
+
+
+def test_stelle_interview_sicher_sammelt_nachzuegler_ein(conn):
+    """05.09.2026, Live-Fall Gruppe 1: die Gruppe sprach das Interview ein und
+    sagte ERST DANACH 'wir machen jetzt ein Interview ... fertig'. Start und
+    Ende fielen in denselben Erkennerlauf, der Kopf wurde in derselben Sekunde
+    angelegt und beendet -- leer, waehrend das 153-Sekunden-Material als 'kurz'
+    danebenlag. Ergebnis: verdichtung blieb leer."""
+    gesprochen = repo.lege_aufnahme_an(conn, 1, 950, "kurz", "sprache")
+    repo.setze_transkript(conn, gesprochen, "das eigentliche Interview")
+
+    kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
+
+    assert repo.hole_aufnahme(conn, gesprochen)["teil_von"] == kopf_id
+    assert repo.hole_aufnahme(conn, gesprochen)["klasse"] == "teil"
+    assert repo.zusammengefuegtes_transkript(conn, kopf_id) == "das eigentliche Interview"
+
+
+def test_stelle_interview_sicher_sammelt_nur_beim_anlegen(conn):
+    """Laeuft schon ein Interview, ist eine kurze Aufnahme ein Zuruf an den Bot
+    (N4) und bleibt einer -- sonst zoege jeder weitere Aufruf Gespraechsbeitraege
+    ins Transkript."""
+    kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
+    zuruf = repo.lege_aufnahme_an(conn, 1, 951, "kurz", "sprache")
+
+    assert aufnahme.stelle_interview_sicher(conn, 1) == kopf_id
+    assert repo.hole_aufnahme(conn, zuruf)["teil_von"] is None

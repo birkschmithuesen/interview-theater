@@ -59,7 +59,7 @@ import logging
 import re
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from interview_theater import phasen, repo, stt, verdichter
@@ -114,6 +114,17 @@ _TEXT_TEIL_ECHO = "{name}, Teil {nummer}:\n{transkript}"
 #: Die inhaltliche Rueckmeldung, wenn ein Interview durch ist. Sie ist der
 #: eigentliche Ertrag dieses Nachtrags -- bisher endete ein Interview ohne ein
 #: Wort darueber, was darin steckt.
+#: Kurze Bestaetigung statt der ausgespielten Verdichtung (Birk 05.09.2026):
+#: nach einem Interview wird NICHT zurueckgemeldet und NICHT nachgefragt --
+#: "zuerst nur Interviews machen, eins nach dem anderen, und wenn alle fertig
+#: sind, dann die Verdichtungen ausspielen". Verdichtet wird trotzdem sofort
+#: (das Material ist gesichert und steht auf der Gruppenseite), nur der Chat
+#: bleibt ruhig. Ausgespielt wird auf Wunsch mit ``/auswerten``.
+_TEXT_INTERVIEW_ABGELEGT = (
+    "{name} ist aufgenommen und ausgewertet - ich halte mich damit zurueck, "
+    "bis ihr alle Interviews zusammen habt. Naechstes Interview?"
+)
+
 _TEXT_VERDICHTUNG_KOPF = "{name} ist durch. Was ich darin hoere:"
 _TEXT_VERDICHTUNG_THEMEN = "Kernthemen:"
 _TEXT_VERDICHTUNG_FRAGE = "Stimmt das so? Sonst sagt es mir."
@@ -156,6 +167,17 @@ def klasse_fuer(conn, chat_id: int) -> str:
     return "teil" if repo.ist_interviewmodus_an(conn, chat_id) else "kurz"
 
 
+#: Wie weit zurueck eine Sprachnachricht beim Einschalten des Interviewmodus
+#: noch als Interviewmaterial eingesammelt wird (``NACHZUEGLER``, 05.09.2026).
+#: Gesetzt, nicht gemessen: 10 Minuten decken den Fall ab, dass eine Gruppe
+#: erst spricht und danach "wir machen jetzt ein Interview ... fertig" sagt,
+#: ohne Zurufe aus einer ganz anderen Arbeitsphase mitzunehmen. Fehlerrichtung
+#: bewusst: lieber ein Zuruf zu viel im Transkript (die Gruppe sieht ihn im
+#: zurueckgespielten Text und kann widersprechen) als das ganze Interview
+#: verloren.
+NACHZUEGLER_FENSTER_S = 600
+
+
 def stelle_interview_sicher(conn, chat_id: int) -> int:
     """Liefert den laufenden Interview-Kopf dieser Gruppe und legt ihn beim
     ersten Bedarf an (§ 10.6). Liefert dessen ``aufnahme_id``.
@@ -165,11 +187,33 @@ def stelle_interview_sicher(conn, chat_id: int) -> int:
     trotz aktivem Modus keiner existiert: der Modus steht in der Datenbank und
     kann aus einer aelteren Fassung, einem Fehlschlag beim Anlegen oder einem
     Handeingriff stammen. Eine Sprachnachricht ohne Kopf waere sonst
-    heimatloses Material."""
+    heimatloses Material.
+
+    Beim ANLEGEN eines Kopfes werden ausserdem die Sprachnachrichten der
+    letzten ``NACHZUEGLER_FENSTER_S`` Sekunden eingesammelt, die noch an
+    keinem Interview haengen (``repo.ziehe_in_interview``, 05.09.2026): sagt
+    eine Gruppe erst nach dem Sprechen "wir machen jetzt ein Interview", waere
+    ihr Material sonst verloren."""
     kopf = repo.laufendes_interview(conn, chat_id)
     if kopf is not None:
         return kopf["id"]
-    return repo.lege_interview_an(conn, chat_id)
+    kopf_id = repo.lege_interview_an(conn, chat_id)
+    try:
+        grenze = datetime.now(timezone.utc) - timedelta(seconds=NACHZUEGLER_FENSTER_S)
+        eingesammelt = repo.ziehe_in_interview(
+            conn, chat_id, kopf_id, grenze.isoformat()
+        )
+        if eingesammelt:
+            log.info(
+                "Interview %s: %s Nachzuegler-Aufnahme(n) eingesammelt, chat_id=%s",
+                kopf_id, len(eingesammelt), chat_id,
+            )
+    except Exception:
+        # Ein Fehlschlag hier darf den Interviewstart nicht mitreissen: der
+        # Kopf steht, ab jetzt laufen neue Sprachnachrichten ohnehin korrekt
+        # als Teile hinein.
+        log.exception("Nachzuegler konnten nicht eingesammelt werden, chat_id=%s", chat_id)
+    return kopf_id
 
 
 def _kein_zug(conn, tg, klm, e, chat_id, hinweis=None) -> None:
@@ -665,7 +709,6 @@ def _verdichtungstext(conn, name: str, verdichtung_id: int) -> str:
     else:
         zeilen.append(_TEXT_OHNE_BELEG)
     zeilen.append("")
-    zeilen.append(_TEXT_VERDICHTUNG_FRAGE)
     return "\n".join(zeilen)
 
 
@@ -747,15 +790,29 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> N
             _sende_verdichtung_gescheitert(conn, tg, chat_id, row)
         return
     repo.setze_status(conn, aufnahme_id, "fertig")
+    # Seit 05.09.2026 (Birk, Testlauf vor dem Workshop) geht die Verdichtung
+    # NICHT mehr von selbst in den Chat: nach einem Interview kommt keine
+    # Rueckmeldung und keine Rueckfrage, weil das eine eigene Phase ist --
+    # erst werden alle Interviews gemacht, eins nach dem anderen, danach
+    # werden die Verdichtungen ausgespielt. Verdichtet wird trotzdem sofort:
+    # das Material ist gesichert, steht auf der Gruppenseite und ist ueber
+    # ``/auswerten`` jederzeit abrufbar. ``erzwungen`` kommt genau von dort --
+    # dann WILL die Gruppe den Text sehen und bekommt ihn.
+    name = row["name"] or "Das Interview"
+    if not erzwungen:
+        _sende_und_merke(
+            conn, tg, e, chat_id, _TEXT_INTERVIEW_ABGELEGT.format(name=name)
+        )
+        return
     # Die Verdichtung geht als normale Bot-Nachricht in den Chat: anders als
     # das Transkript-Echo GEHOERT sie ins Gespraechsfenster -- sie ist eine
     # Aussage des Bots ueber die Arbeit, und ein Widerspruch der Gruppe
     # ("nee, darum ging es nicht") soll im naechsten Zug seinen Bezug haben.
-    # Ganz unten haengt, einmal je Workshop, die Phasenfrage (_phasenfrage).
-    text = _verdichtungstext(conn, row["name"] or "Das Interview", verdichtung_id)
-    frage = _phasenfrage(conn, chat_id)
-    if frage:
-        text = f"{text}\n{frage}"
+    # Ganz unten hing bis 05.09.2026 die Phasenfrage ("Kommen noch Interviews,
+    # oder gehen wir ans Kernthema?"). Sie ist raus: nach einem Interview
+    # stellt der Bot keine Rueckfragen, die Gruppe macht ein Interview nach
+    # dem anderen und entscheidet selbst, wann sie weitergeht (Birk 05.09.).
+    text = _verdichtungstext(conn, name, verdichtung_id)
     _sende_und_merke(conn, tg, e, chat_id, text)
 
 

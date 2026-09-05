@@ -238,10 +238,18 @@ def test_prompt_enthaelt_siebzehn_beispiele_davon_vier_leer():
 
     Das siebzehnte ist die Live-Stelle "Ja, mach den Text fuer Szene 1. Go!"
     (Probelauf, Nachricht 97): nach einer Planung genuegt ein kurzes Wort --
-    aber der wert ist der Auftrag aus dem Verlauf, nicht "Go"."""
+    aber der wert ist der Auftrag aus dem Verlauf, nicht "Go".
+
+    Das achtzehnte kam am 05.09.2026 aus dem Testlauf vor dem Workshop
+    (Birk: "die Fragen erscheinen nicht auf der Website"). Der Fall: die
+    Gruppe gibt nur den AUFTRAG ("mach die Fragen konkreter"), der BOT
+    formuliert die Liste aus, und danach nickt niemand mehr. Der Erkenner
+    wartete auf eine Zustimmung, die im Ablauf nie vorgesehen ist, und
+    ``arbeitsstand.fragen`` blieb leer (3/3 leer reproduziert). Es traegt die
+    Grundregel: ein unfertiger Stand ist besser als kein Stand."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 17
+    assert anzahl_beispiele == 18
     assert anzahl_leer == 4
 
 

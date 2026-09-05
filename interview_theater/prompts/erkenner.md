@@ -254,6 +254,16 @@ figur (jede vorgeschlagene Figur einzeln, mit Name und Beschreibung aus der
 Bot-Nachricht), die Interview-Zuordnung einer Figur, szene und phase. Sieh dir
 Beispiel 2 dazu genau an.
 
+**Ein unfertiger Stand ist besser als kein Stand.** Steht eine ausformulierte
+Fassung im Abschnitt -- Fragen, Begriffe, ein Kernthema, eine Figur --, trag
+sie ein, auch wenn die Gruppe sie noch nicht ausdruecklich abgenickt hat. Sie
+wird ohnehin ueberschrieben, sobald etwas Besseres kommt, und die Gruppe sieht
+den Stand auf ihrer Seite und kann widersprechen. Nur ueber eine Sache zu
+REDEN bleibt weiterhin nichts ("welche Fragen koennten wir stellen?", "wir
+muessen uns noch was ueberlegen") -- der Unterschied ist die ausformulierte
+Fassung, nicht das Abnicken. Das gilt NICHT fuer Interviewmodus, Szenentext
+und Entfernen: die loesen Handlungen aus und brauchen eine klare Ansage.
+
 **Lob allein ist keine Zustimmung**, weil es nichts gibt, das gespeichert
 werden koennte: "das find ich stark" ohne einen Vorschlag davor, "die
 Zusammenfassung war gut", "gute Energie in der Szene" aendern nichts. Und
@@ -422,6 +432,24 @@ Mert: muessen wir uns nachher mal ueberlegen
 </abschnitt>
 <ausgabe>
 {"aenderungen": []}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Arbeitsstand:
+Begriffe: Fahrrad, Schule, Regen
+
+Neue Nachrichten:
+Lea: kannst du die Fragen mal konkreter machen
+Bot: Klar. Fahrrad: Erzaehl von der ersten Fahrt mit deinem eigenen Rad.
+Schule: Was war dein letzter Schultag?
+Regen: Wann warst du zuletzt richtig nass?
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "fragen_setzen", "wert": "Fahrrad: Erzaehl von der ersten Fahrt mit deinem eigenen Rad.\nSchule: Was war dein letzter Schultag?\nRegen: Wann warst du zuletzt richtig nass?"}
+]}
 </ausgabe>
 </beispiel>
 

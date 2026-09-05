@@ -603,6 +603,45 @@ def loese_aus_interview(conn: sqlite3.Connection, aufnahme_id: int) -> None:
 
 
 @_gesperrt
+def ziehe_in_interview(
+    conn: sqlite3.Connection, chat_id: int, kopf_id: int, seit: str
+) -> list[int]:
+    """Ordnet nachtraeglich die Sprachnachrichten einem Interview zu, die kurz
+    VOR dem Einschalten des Modus eintrafen (Gegenstueck zu
+    ``loese_aus_interview``).
+
+    Der Fall, gemessen am 05.09.2026 im Testlauf vor dem Workshop: die Gruppe
+    spricht das Interview ein und sagt ERST DANACH "wir machen jetzt ein
+    Interview ... fertig". Start und Ende fallen dann in denselben
+    Erkennerlauf, der Kopf entsteht und wird in derselben Sekunde beendet --
+    leer. Das echte Material liegt als ``klasse='kurz'`` daneben, haengt an
+    keinem Interview und wird nie verdichtet (Interview 1 und 2 der Gruppe 1
+    waren exakt so entstanden, ``verdichtung`` blieb leer).
+
+    Genommen werden nur Sprachaufnahmen dieser Gruppe, die noch an keinem
+    Interview haengen, nicht selbst ein Kopf sind, nicht entfernt wurden und
+    ab ``seit`` eintrafen. ``klasse`` wird auf 'teil' gehoben, damit sie im
+    zusammengefuegten Transkript landen.
+
+    Liefert die ids der eingesammelten Aufnahmen (fuer Meldung und Tests)."""
+    zeilen = conn.execute(
+        "SELECT id FROM aufnahme WHERE chat_id = ? AND klasse = 'kurz' "
+        "AND teil_von IS NULL AND entfernt_am IS NULL AND quelle = 'sprache' "
+        "AND empfangen_am >= ? ORDER BY id ASC",
+        (chat_id, seit),
+    ).fetchall()
+    ids = [z["id"] for z in zeilen]
+    if not ids:
+        return []
+    conn.executemany(
+        "UPDATE aufnahme SET klasse = 'teil', teil_von = ? WHERE id = ?",
+        [(kopf_id, i) for i in ids],
+    )
+    conn.commit()
+    return ids
+
+
+@_gesperrt
 def offene_aufnahmen(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """Alle Aufnahmen, an denen noch Arbeit offen ist -- Grundlage dafuer, dass
     ein Neustart ueber Nacht angefangene Arbeit zu Ende bringt

@@ -45,16 +45,16 @@ def test_schritt_fuer_findet_und_meckert():
 # --- Arbeitsstandfelder einer Phase ---------------------------------------
 
 
-def test_felder_fuer_phase_findet_format_und_rahmen(conn):
-    """Der heutige Stand: Phase 5 heisst 'Format & Rahmen', und genau so
-    heissen die beiden Spalten."""
-    assert skript.felder_fuer_phase(conn, 5) == ["format", "rahmen"]
+def test_felder_fuer_phase_findet_den_rahmen(conn):
+    """Der heutige Stand: Phase 5 heisst 'Rahmen', und genau so heisst die
+    Spalte. Die Formatfrage ist raus (Birk, 05.09.2026 abends)."""
+    assert skript.felder_fuer_phase(conn, 5) == ["rahmen"]
 
 
 def test_pflichtfeld_ist_das_erste_feld_der_phase(conn):
-    """``format`` ist Pflicht, ``rahmen`` darf leer bleiben -- dieselbe
-    Gewichtung wie in ``phasen.voraussetzungen`` fuer den Schritt nach 6."""
-    assert skript.pflichtfeld_fuer_phase(conn, 5) == "format"
+    """``rahmen`` ist das Pflichtfeld der Phase 5 -- dieselbe Gewichtung wie
+    in ``phasen.voraussetzungen`` fuer den Schritt nach 6."""
+    assert skript.pflichtfeld_fuer_phase(conn, 5) == "rahmen"
 
 
 def test_felder_fuer_phase_ignoriert_schluessel_und_buchhaltung(conn):
@@ -124,12 +124,12 @@ def test_interviews_zaehlen_verdichtungen(conn):
 
 
 def test_phase_mitte_prueft_das_pflichtfeld_der_phase(conn):
-    """Gesetztes ``format`` genuegt -- ``rahmen`` darf leer bleiben."""
+    """Gesetzter ``rahmen`` genuegt -- ``format`` zaehlt nicht mehr."""
     schritt = skript.schritt_fuer("phase_mitte")
     assert not schritt.fertig(conn, 1, {})
-    repo.setze_arbeitsstand(conn, 1, "rahmen", "eine Nacht im Wartesaal")
-    assert not schritt.fertig(conn, 1, {}), "der Rahmen allein ist kein Format"
     repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+    assert not schritt.fertig(conn, 1, {}), "das Format zaehlt nicht mehr"
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "eine Nacht im Wartesaal")
     assert schritt.fertig(conn, 1, {})
 
 

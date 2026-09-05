@@ -510,51 +510,48 @@ def test_aufnahme_befehl_haengt_den_umschalter_an(conn, einst, tg):
     assert tg.knoepfe[0][2][0][0] == "Interview starten"
 
 
-# --- Format steht fest, Rahmen wird gewaehlt (Phase 5, 05.09.2026 abends) --
+# --- Phase 5 ist nur noch der Rahmen (05.09.2026 abends) ------------------
 
 
-def test_format_wird_beim_eintritt_in_phase_5_fest_gesetzt(conn, einst, tg):
-    """Birk, 05.09.2026 abends: das Format wird nicht mehr gewaehlt, es steht
-    fest. Der Phasenknopf nach 5 setzt es -- ohne Auswahl, ohne Rueckfrage."""
+def test_der_eintritt_in_phase_5_setzt_kein_format(conn, einst, tg):
+    """Birk, 05.09.2026 abends: die Formatfrage ist komplett raus -- kein
+    Auto-Setzen, keine Formatknoepfe, kein Satz dazu."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 5)
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
-    assert repo.hole_arbeitsstand(conn, 1)["format"] == knoepfe.FORMAT_FEST
-    assert any("Urban Dance Tanztheater" in t for _, t in tg.gesendet)
+    assert not (repo.hole_arbeitsstand(conn, 1)["format"] or "")
+    assert not any("Urban Dance" in t for _, t in tg.gesendet)
+    assert not any("Format" in j["text"] for j in repo.journal(conn, 1))
 
 
-def test_festes_format_steht_im_journal(conn, einst, tg):
-    knoepfe.setze_format_fest(conn, 1)
-
-    assert any(
-        j["art"] == "entschieden" and "festgelegt" in j["text"]
-        and knoepfe.FORMAT_FEST in j["text"]
-        for j in repo.journal(conn, 1)
-    )
+def test_es_gibt_keine_formatknoepfe_mehr():
+    """Weder ``FORMAT_FEST`` noch ``biete_format`` noch ``ART_FORMAT``."""
+    for name in ("FORMAT_FEST", "_TEXT_FORMAT_FEST", "setze_format_fest",
+                 "biete_format", "ART_FORMAT", "STANDARD_FORMATE"):
+        assert not hasattr(knoepfe, name), name
 
 
-def test_ein_selbst_gesetztes_format_wird_nicht_ueberschrieben(conn, einst, tg):
-    """`/stueck format <text>` bleibt funktionsfaehig: eine Gruppe, die
-    ausdruecklich etwas anderes will, behaelt es."""
-    repo.setze_arbeitsstand(conn, 1, "format", "Sprechtheater")
-
-    assert knoepfe.setze_format_fest(conn, 1) is False
-    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Sprechtheater"
-
-
-def test_setze_format_fest_ist_idempotent(conn, tg):
-    assert knoepfe.setze_format_fest(conn, 1) is True
-    assert knoepfe.setze_format_fest(conn, 1) is False
-
-
-def test_stueck_format_ohne_wert_nennt_das_feste_format(conn, einst, tg):
-    """Es gibt keine Formatknoepfe mehr -- der Befehl sagt, was gilt."""
+def test_stueck_format_bleibt_stilles_synonym(conn, einst, tg):
+    """Der Befehl wird nicht mehr beworben, funktioniert aber weiter -- ein
+    Bot-Neustart soll einen alten Befehl nicht mit einem Fehler beantworten."""
     from interview_theater import befehle
 
-    befehle.behandle(conn, tg, einst, 1, "/stueck format", "Ada")
+    befehle.behandle(conn, tg, einst, 1, "/stueck format Revue", "Ada")
 
+    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Revue"
     assert tg.knoepfe == []
-    assert any("Urban Dance Tanztheater" in t for _, t in tg.gesendet)
+
+
+def test_stueck_ohne_feld_zeigt_nur_den_rahmen(conn, einst, tg):
+    from interview_theater import befehle
+
+    repo.setze_arbeitsstand(conn, 1, "format", "Revue")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Ein Wartesaal")
+    befehle.behandle(conn, tg, einst, 1, "/stueck", "Ada")
+
+    assert "Rahmen: Ein Wartesaal" in tg.gesendet[-1][1]
+    assert "Revue" not in tg.gesendet[-1][1]
+    assert "Format" not in tg.gesendet[-1][1]
 
 
 def test_rahmen_vorschlaege_werden_zu_knoepfen(conn, einst, tg):
@@ -647,10 +644,11 @@ def test_szenenform_knopf_schreibt_das_feld_der_richtigen_szene(conn, einst, tg)
 
     knoepfe.biete_szenenform(conn, tg, 1, 3)
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
+    assert beschriftungen == ["Dialog", "Monolog", "Chor", "Lied", "Rap"]
     assert beschriftungen == [f.capitalize() for f in szene_modul.FORMEN]
 
-    # "Lied" ist der zweite Eintrag von szene.FORMEN.
-    daten_lied = tg.knoepfe[0][2][1][1]
+    # "Lied" ist der vierte Eintrag von szene.FORMEN.
+    daten_lied = tg.knoepfe[0][2][3][1]
     knoepfe.behandle(conn, tg, None, einst, _druck(daten_lied))
 
     szene_id = repo.stelle_szene_sicher(conn, 1, 3)
@@ -665,7 +663,7 @@ def test_szenenform_knopf_trifft_nicht_die_falsche_szene(conn, einst, tg):
     daten_zwei = tg.knoepfe[0][2][0][1]
     tg.knoepfe.clear()
     knoepfe.biete_szenenform(conn, tg, 1, 5)
-    daten_fuenf = tg.knoepfe[0][2][1][1]
+    daten_fuenf = tg.knoepfe[0][2][3][1]
 
     knoepfe.behandle(conn, tg, None, einst, _druck(daten_fuenf))
     knoepfe.behandle(conn, tg, None, einst, _druck(daten_zwei, message_id=778, query_id="q2"))
@@ -833,7 +831,7 @@ def test_slash_und_knopf_setzen_dieselbe_szenenform(conn, einst, tg):
     assert repo.hole_szene(conn, szene_id)["form"] == "lied"
 
     knoepfe.biete_szenenform(conn, tg, 1, 1)
-    knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[-1][2][1][1]))
+    knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[-1][2][3][1]))
 
     assert repo.hole_szene(conn, szene_id)["form"] == "lied"
 

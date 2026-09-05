@@ -170,7 +170,7 @@ def test_arten_enthaelt_alle_zwanzig_werte():
         "figur_quelle_setzen",
         "interview_starten", "interview_beenden", "interview_benennen",
         "begriffe_setzen", "fragen_setzen", "kernthema_setzen",
-        # Phase 5 heisst seit dem 05.09.2026 "Format & Rahmen": zwei neue
+        # Phase 5 heisst seit dem 05.09.2026 "Rahmen": zwei neue
         # Arten, und der Hauptkonflikt bleibt als optionales Feld daneben.
         "format_setzen", "rahmen_setzen",
         "hauptkonflikt_setzen", "figur_setzen", "wortlaut_an", "wortlaut_aus",
@@ -220,7 +220,7 @@ def test_prompt_enthaelt_siebzehn_beispiele_davon_vier_leer():
     frueher der Gegenfall stand, und der bleibt gleich daneben: Lob ohne
     Vorschlag davor traegt weiterhin nichts ein.
 
-    Nummer dreizehn und vierzehn kamen mit Phase 5 ("Format & Rahmen",
+    Nummer dreizehn und vierzehn kamen mit Phase 5 ("Rahmen",
     05.09.2026): eines, das ``format_setzen`` und ``rahmen_setzen`` in einem
     Abschnitt zeigt (die Gruppe entscheidet beides oft in einem Zug), und sein
     Negativfall -- "vielleicht wird das ja ein Musical" setzt kein Format.
@@ -904,7 +904,7 @@ def test_phase_setzen_meldet_die_neue_phase(conn, einst):
 
     meldung = erkenner.baue_meldung(wirkliche)
 
-    assert "Wir sind jetzt bei 5 · Format & Rahmen." in meldung
+    assert "Wir sind jetzt bei 5 · Rahmen." in meldung
     assert meldung.endswith("Falls das nicht stimmt, sagt es mir.")
 
 
@@ -977,7 +977,7 @@ def test_entfernen_nimmt_eine_figur_weg_und_meldet_es(conn, einst):
 
 
 def test_format_und_rahmen_landen_im_arbeitsstand_und_in_der_meldung(conn, einst):
-    """Phase 5 heisst seit dem 05.09.2026 "Format & Rahmen" -- zwei Felder,
+    """Phase 5 heisst seit dem 05.09.2026 "Rahmen" -- zwei Felder,
     zwei Arten, und beide bekommen in der Notiert-Zeile eine eigene Zeile im
     Wortlaut (wie Kernthema und Hauptkonflikt)."""
     wirkliche = erkenner.wende_an(conn, einst, 1, [
@@ -993,16 +993,17 @@ def test_format_und_rahmen_landen_im_arbeitsstand_und_in_der_meldung(conn, einst
     assert "Rahmen: Demo, danach eine Kueche" in meldung
 
 
-def test_format_steht_im_erkenner_kontext(conn, einst):
+def test_der_rahmen_steht_im_erkenner_kontext(conn, einst):
     """Der Erkenner sieht den Arbeitsstand -- sonst koennte er eine Zustimmung
-    ("ja, so machen wir das") nicht auf das Format beziehen, das im Verlauf
-    vorgeschlagen wurde."""
+    ("ja, so machen wir das") nicht auf den Rahmen beziehen, der im Verlauf
+    vorgeschlagen wurde. Das Format steht seit dem 05.09.2026 abends nicht
+    mehr dabei: es wird nicht mehr gefragt."""
     repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
     repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
 
     text = erkenner._arbeitsstand_text(conn, 1)
 
-    assert "Format: Musical: Dialog, Lied, Rap" in text
+    assert "Musical: Dialog, Lied, Rap" not in text
     assert "Rahmen: Eine Nacht im Treppenhaus" in text
 
 

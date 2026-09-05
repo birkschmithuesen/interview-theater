@@ -241,14 +241,16 @@ def test_rahmen_des_stuecks_steht_in_den_prompts(betrieb, name):
 # Repliklaenge, dasselbe Layout. Das Textbuch ist Ausgangsmaterial -- die
 # Choreografin entwickelt die Bewegung in der Probe und darf den Text
 # verwerfen. Dateiname bleibt ``tanztheater.md`` (szene.formdatei,
-# knoepfe.FORMAT_FEST greifen darauf zu).
+# szene.formdatei greift darauf zu). Seit dem Abend des 05.09.2026 heisst
+# die Datei ``dialog.md``: die Formatfrage ist raus, Dialog ist der Rueckfall
+# und traegt den Herkules-Regelblock (stumm.md ist gestrichen).
 # ---------------------------------------------------------------------------
 
 
 def test_der_formblock_ist_ein_sprechtheater_textbuch(betrieb):
-    text = anweisungen.hole("formen/tanztheater")
+    text = anweisungen.hole("formen/dialog")
 
-    assert "Urban Dance Theater" in text
+    assert "Sprechszene" in text
     assert "Sprechtheater-Textbuch" in text
     assert "Ausgangsmaterial" in text
     assert "Choreografin" in text, "der Hintergrund-Absatz gehoert dazu"
@@ -257,7 +259,7 @@ def test_der_formblock_ist_ein_sprechtheater_textbuch(betrieb):
 def test_der_formblock_nimmt_der_choreografin_nichts_vorweg(betrieb):
     """Negativliste: was hier steht, darf der Bot nicht schreiben. Die Begriffe
     kommen deshalb im Text vor -- aber nur als Verbot, nie als Anweisung."""
-    text = anweisungen.hole("formen/tanztheater")
+    text = anweisungen.hole("formen/dialog")
 
     unterabschnitt = text.split("## Was du nicht schreibst", 1)
     assert len(unterabschnitt) == 2, "die Negativliste fehlt"
@@ -270,18 +272,52 @@ def test_der_formblock_nimmt_der_choreografin_nichts_vorweg(betrieb):
 def test_der_formblock_gibt_die_gemessenen_zielwerte_als_zahlen(betrieb):
     """Die Regeln sind am Herkules-Textbuch gemessen; ohne Zahlen im Prompt
     ist die Messung nicht im Modell angekommen."""
-    text = anweisungen.hole("formen/tanztheater")
+    text = anweisungen.hole("formen/dialog")
 
-    for zahl in ("700 bis 1500 Woerter", "65 %", "35 %", "acht Woerter",
-                 "Fuenf bis sieben Figuren"):
+    for zahl in ("700 bis 1500 Woerter", "65 %", "35 %", "acht Woerter"):
         assert zahl in text, zahl
+
+
+def test_der_formblock_gibt_keine_figurenanzahl_vor(betrieb):
+    """Birk, 05.09.2026 abends: die Figurenanzahl ist nicht Sache des Stils.
+    Sie kommt aus der Figurenliste der Gruppe und aus der Szenenplanung
+    (Feld ``figuren``) -- der Herkules-Messwert 5-7 war eine Messung, keine
+    Vorgabe, und stand als Regel im Prompt."""
+    text = anweisungen.hole("formen/dialog")
+
+    for vorgabe in ("5-7", "5–7", "Fuenf bis sieben Figuren",
+                    "Figuren je Szene:"):
+        assert vorgabe not in text, vorgabe
+    assert "gibt die Planung vor" in text
+    assert "Eine Szene mit einer Figur" in text
 
 
 def test_der_formblock_zaehlt_nicht_mehr_in_achten(betrieb):
     """Die Reste der verworfenen Recherche duerfen nicht stehenbleiben."""
-    text = anweisungen.hole("formen/tanztheater")
+    text = anweisungen.hole("formen/dialog")
 
     for weg in ("Zaehl in Achten", "Hoechstens zwoelf Zeilen gesprochener",
                 "Der Tanz traegt", "Schreib zuerst die Bewegungsebene"):
         assert weg not in text, weg
+
+
+def test_es_gibt_genau_fuenf_formenbloecke(betrieb):
+    """Fuenf Formen, fuenf Dateien (Birk, 05.09.2026 abends): stumm ist
+    gestrichen, tanztheater ist in dialog aufgegangen."""
+    from interview_theater import szene
+
+    assert szene.FORMEN == ("dialog", "monolog", "chor", "lied", "rap")
+    for form in szene.FORMEN:
+        assert anweisungen.hole(f"formen/{form}").strip()
+    for weg in ("formen/stumm", "formen/tanztheater", "formen/text"):
+        assert anweisungen.hole_optional(weg) is None, weg
+
+
+def test_lied_und_rap_nennen_die_layout_konvention(betrieb):
+    """Auch ein Lied oder Rap steht im Textbuch wie eine Sprechszene --
+    sonst schreibt das Modell einen Songtext ohne Szenenkopf."""
+    for form in ("lied", "rap", "monolog", "chor"):
+        text = anweisungen.hole(f"formen/{form}")
+        assert "dialog.md" in text, form
+        assert "Szenenkopf" in text, form
 

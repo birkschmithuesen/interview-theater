@@ -379,7 +379,7 @@ def test_wiederkehr_begruessung_nennt_die_phase(conn, einst):
 
     bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)
 
-    assert "5 · Format & Rahmen" in tg.gesendet[0][1]
+    assert "5 · Rahmen" in tg.gesendet[0][1]
 
 
 # ---------------------------------------------------------------------------
@@ -609,7 +609,7 @@ def test_neue_knopfarten_laufen_durch_die_update_schleife(conn, einst):
     knoepfe.biete_szene_usa(conn, tg_att, chat_id)
 
     daten_rahmen = tg_att.knoepfe[0][0][1]
-    daten_form = tg_att.knoepfe[1][1][1]      # "Lied"
+    daten_form = tg_att.knoepfe[1][3][1]      # "Lied" (4. von fuenf Formen)
     daten_usa_nein = tg_att.knoepfe[2][1][1]  # "Nein, Schweiz"
 
     for nr, daten in enumerate((daten_rahmen, daten_form, daten_usa_nein), start=20):

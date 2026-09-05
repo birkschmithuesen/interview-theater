@@ -95,7 +95,12 @@ MINDEST_WOERTER = 40
 HINWEIS_AB_S = 60
 
 #: Wortlaut aus SPEC § 10.4/§ 11.1, ohne Umlaute wie der uebrige Quelltext.
-_TEXT_ZWISCHENMELDUNG = "Ich hoer noch zu, einen Moment."
+#: 05.09.2026 praezisiert (Birk: "worauf bezieht sich das? macht kein sinn in
+#: dem kontext gerade"): "Ich hoer noch zu" klang wie eine Antwort auf das
+#: Gespraech und passte nur, solange eine Aufnahme lief -- gemeint ist aber
+#: immer dasselbe technische Warten, naemlich dass Whisper die Sprachnachricht
+#: noch abtippt. Das steht jetzt da.
+_TEXT_ZWISCHENMELDUNG = "Ich tippe die Sprachnachricht noch ab, einen Moment."
 _TEXT_AUSFALL = (
     "Ich kann gerade nicht hoeren. Schreibt mir solange, ich sammle die "
     "Aufnahmen und hole sie nach."

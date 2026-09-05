@@ -1002,7 +1002,7 @@ def test_zwischenmeldung_auch_bei_einem_interviewteil(conn, einst, tg, klm, monk
         aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=message_id))
         tg.gesendet.clear()
         aufnahme.verarbeite(conn, tg, klm, einst, klient, aid)
-        assert any("hoer noch zu" in t for _, t in tg.gesendet), (
+        assert any("tippe die Sprachnachricht noch ab" in t for _, t in tg.gesendet), (
             f"Zwischenmeldung fehlt bei langsamer Transkription (Interviewmodus {modus})"
         )
 

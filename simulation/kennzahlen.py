@@ -175,6 +175,18 @@ def behauptete_schreibvorgaenge(zuege: list[Zug]) -> list[str]:
     return treffer
 
 
+def bot_rueckfragen(zuege: list[Zug]) -> list[str]:
+    """Bot-Antworten, die auf ein Fragezeichen **enden** -- also nicht
+    liefern, sondern zurueckfragen.
+
+    Nicht "Fragezeichen irgendwo im Text": der Bot darf mitten in einer
+    Antwort eine Frage stellen, das ist ein Gespraech. Endet die Nachricht
+    damit, hat er den Ball zurueckgespielt. Dieselbe Definition benutzt
+    ``birk.referenz`` fuer den echten Chat, sonst waeren die beiden Spalten
+    des Referenzvergleichs mit verschiedenen Ellen gemessen."""
+    return [t for t in bot_antworten(zuege) if t.strip().endswith("?")]
+
+
 def rueckfragen_vor_szene(zuege: list[Zug]) -> list[str]:
     """Bot-Nachrichten mit '?' zwischen dem Beginn der Szenenplanung und dem
     Szenen-Auftrag (Soll <= 1).
@@ -189,6 +201,26 @@ def rueckfragen_vor_szene(zuege: list[Zug]) -> list[str]:
         if zug.marke == "szene_aufruf":
             break
         treffer.extend(t for t in zug.bot if "?" in t)
+    return treffer
+
+
+def mechanische_treffer(zuege: list[Zug], namen: list[str]) -> dict[str, str]:
+    """Bot-Antworten, an denen ohne Modell etwas nachweisbar falsch ist --
+    Text -> Grund.
+
+    Sie sind die Grundlage dafuer, dass der Abschnitt "Die schlechtesten
+    Bot-Antworten" im Bericht **nie leer** ist. Im ersten echten Lauf war er
+    es: der Richter hatte in sechs von acht Abschnitten nichts zu bemaengeln
+    und liess das Feld leer, waehrend ``behauptete_schreibvorgaenge`` bei 1
+    stand. Der Prompt-Pfleger sah also eine 1 in der Tabelle und nirgends den
+    Satz dazu."""
+    treffer: dict[str, str] = {}
+    for text in behauptete_schreibvorgaenge(zuege):
+        treffer.setdefault(text, "behauptet einen Schreibvorgang ohne Notiert-Zeile")
+    for text in echos(zuege):
+        treffer.setdefault(text, "spiegelt die Gruppe zurueck (Echo)")
+    for text in namensanreden(zuege, namen):
+        treffer.setdefault(text, "redet eine Teilnehmerin mit Namen an")
     return treffer
 
 
@@ -213,6 +245,17 @@ def zustimmungen(zuege: list[Zug], markiert: set[str]) -> tuple[int, int]:
 # ---------------------------------------------------------------------------
 # Zahlen aus der Datenbank
 # ---------------------------------------------------------------------------
+
+
+def _stand_wert(conn, chat_id: int, feld: str) -> str:
+    """Ein Arbeitsstandfeld im Wortlaut, oder ein leerer String."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is None:
+        return ""
+    try:
+        return str(stand[feld] or "")
+    except (IndexError, KeyError):
+        return ""
 
 
 def arbeitsstand_vollstaendig(conn, chat_id: int) -> dict[str, int]:
@@ -337,6 +380,7 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
         "zustimmungen": zustimmung_gesamt,
         "zustimmungen_gespeichert": gespeichert,
         "echo": len(echos(zuege)),
+        "bot_rueckfragen": len(bot_rueckfragen(zuege)),
         "rueckfragen_vor_szene": len(rueckfragen_vor_szene(zuege)),
         "behauptete_schreibvorgaenge": len(behauptete_schreibvorgaenge(zuege)),
         "namensanrede": len(namensanreden(zuege, namen)),
@@ -345,6 +389,11 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
         "stimm_nachrichten": sum(len(z.beitraege) for z in zuege),
         "schritte_gescheitert": [s for s, ok in schritte.items() if not ok],
         "dauer_s": round(dauer_s, 1),
+        # Der Wortlaut, nicht nur die 0/1 aus ``arbeitsstand_vollstaendig``:
+        # der Referenzvergleich von ``--set birk`` stellt das Kernthema von
+        # heute neben das von damals, und dafuer braucht er den Satz.
+        "kernthema": _stand_wert(conn, chat_id, "kernthema"),
+        "figuren": [f["name"] for f in repo.figuren(conn, chat_id)],
     }
     zahlen.update(zitatlage(conn, chat_id, gezogene))
     zahlen.update(kosten(conn, e, preise))

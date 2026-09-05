@@ -12,7 +12,8 @@ PY=$(ls -d ~/.local/share/uv/python/cpython-3.11*/bin/python3 | head -1)
 $PY -m scripts.simulation --set 1 --seed 7 --bericht
 $PY -m scripts.simulation --mix 1,2,3 --seed 3
 $PY -m scripts.simulation --set 1 --seed 1 --ohne-szene    # ohne Reasoning-Lauf
-$PY -m scripts.simulation --alle                           # drei Laeufe, Sets 1-3
+$PY -m scripts.simulation --set birk --bericht             # echtes Material, ~10 min
+$PY -m scripts.simulation --alle                           # Sets 1-3 und birk
 ```
 
 **Kostet Geld, laeuft nie automatisch** -- wie `scripts/pruefe_prompts.py`.
@@ -63,7 +64,8 @@ langsamer machen.
 | `lauf.py` | der Durchlauf: Updates bauen, Zug fahren, Interviews importieren |
 | `skript.py` | die neun Schritte: Ziel und Zielzustand je Schritt |
 | `claude.py` | der Klient der Simulationsseite (Opus am lokalen Proxy) |
-| `stimmen.py` + `stimmen/*.md` | drei Sprachprofile (knapp, ausschweifend, skeptisch) |
+| `stimmen.py` + `stimmen/*.md` | drei Personen (Guelten, Dilan, Halyna) und Birk |
+| `birk.py` | `--set birk`: echtes Material, echte Stimme, Referenzzahlen |
 | `material.py` + `interviews/set{1,2,3}/*.md` | 15 erfundene Transkripte, Mischung per Seed |
 | `erzeuge_interviews.py` | hat die 15 Transkripte einmal geschrieben (Opus) |
 | `attrappe.py` | Telegram ohne Netz |
@@ -81,6 +83,54 @@ langsamer machen.
 Transkript und Bericht sind gitignored (sie enthalten vollstaendige
 Modellantworten), `verlauf.jsonl` nicht: sie ist der Vergleichsmassstab
 zwischen zwei Prompt-Staenden.
+
+## Wer da schreibt: drei Personen, keine Sprachstile
+
+Bis zum 05.09.2026 standen hier drei Schreibweisen -- knapp, ausschweifend,
+skeptisch. Das war die falsche Abstraktion: eine Schreibweise hat keinen
+Grund, und ohne Grund wird jede Stimme in jedem Schritt gleich kooperativ.
+Jetzt sind es drei Menschen mit Alter, Bildungsweg, Technikvertrautheit und
+einem eigenen Ziel im Workshop:
+
+| Person | wer sie ist | Ziel | Gewicht |
+|---|---|---|---|
+| **Guelten, 58** | mit 19 aus Anatolien, Hausmeisterin, tippt mit einem Finger | ihre Geschichte soll vorkommen, ihr Name nicht | 3 |
+| **Dilan, 24** | hier geboren, Soziale Arbeit, kennt ChatGPT und testet den Bot | das Stueck soll politisch sein | 5 |
+| **Halyna, 41** | seit 2022 aus Charkiw, Ingenieurin, sehr genau | es soll handwerklich stimmen | 4 |
+
+Das **Gewicht** ist die relative Haeufigkeit, mit der jemand zu Wort kommt:
+wer dem Computer am wenigsten traut, schreibt am seltensten. Eine Gruppe, in
+der alle drei gleich viel schreiben, gibt es nicht -- und ein Bot, der nur an
+einer solchen gemessen wird, sieht nie den Fall, dass eine Teilnehmerin seit
+zwanzig Nachrichten nichts gesagt hat. Der `--seed` variiert nur noch, wer
+wann spricht; die Besetzung selbst ist fest.
+
+## `--set birk`: das einzige Set auf echten Daten
+
+Die drei erfundenen Sets messen den Bot an Material, das eigens dafuer
+geschrieben wurde. `--set birk` misst ihn an dem, was am 04.09.2026 wirklich
+passiert ist: dem duennen Testinterview (drei kurze Antworten, drei
+Textimporte), **einer** Stimme, kalibriert auf Birks echte Nachrichten, und
+einem Chatverlauf als Messlatte daneben.
+
+**Gemessen wird die Navigation, nicht der Text.** Aus drei kurzen Antworten
+laesst sich kein Szenentext ableiten, der etwas ueber Sprachqualitaet sagt.
+Die Frage ist: Wie natuerlich fuehrt der Bot durch die Phasen, wenn eine
+echte Person so knapp schreibt? Der Bericht stellt deshalb neben jede Zahl
+die aus dem echten Chat -- Nachrichten je Abschnitt, Rueckfragen, Echo,
+unbelegte „notiert"-Behauptungen. Soll: nicht mehr als damals.
+
+Der Lauf schreibt **drei Szenen in drei Formen** -- Dialog, Lied, Rap. Ob der
+Bot eine Formvorgabe durchhaelt, die nicht Dialog heisst, ist das eigentliche
+Experiment; deshalb ist `--ohne-szene` hier verboten und der Lauf dauert rund
+zehn Minuten. Alle drei Texte stehen **vollstaendig** im Bericht, mit je einer
+Note fuer „stimmt zur Planung / Stimmen unterscheidbar / Form eingehalten".
+
+Das Material liegt **ausserhalb des Repositories** (echte Daten einer echten
+Person): `IT_SIM_BIRK` zeigt darauf, Vorgabe ist
+`…/interview-theater-material/birk-test/`. Fehlt es, bricht `--set birk` mit
+einer Meldung ab; die Tests bauen sich ein eigenes Verzeichnis in `tmp_path`
+und laufen auch ohne.
 
 ## Drei Dinge, die man wissen sollte
 

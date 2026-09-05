@@ -464,8 +464,21 @@ set -a; . ./betrieb/gruppe1.env; set +a
 python -m scripts.simulation --set 1 --seed 7 --bericht
 python -m scripts.simulation --mix 1,2,3 --seed 3
 python -m scripts.simulation --set 1 --seed 1 --ohne-szene   # ohne Reasoning-Lauf
-python -m scripts.simulation --alle                          # drei Läufe, Sets 1-3
+python -m scripts.simulation --set birk --bericht            # echtes Material, ~10 min
+python -m scripts.simulation --alle                          # Sets 1-3 und birk
 ```
+
+**Die Stimmen sind Personen, keine Sprachstile** (Gülten 58, Dilan 24,
+Halyna 41 — Steckbriefe in `simulation/stimmen/*.md`, je mit einem eigenen
+Ziel im Workshop). Wer dem Computer am wenigsten traut, schreibt am
+seltensten; der `--seed` variiert nur, wer wann spricht.
+
+**`--set birk` ist die Messlatte:** das einzige Set auf echten Daten (Birks
+Testinterview vom 04.09., eine Stimme, kalibriert auf seinen echten
+Chatverlauf). Gemessen wird die **Navigation**, nicht der Text — der Bericht
+stellt neben jede Zahl die aus dem echten Chat. Der Lauf schreibt drei Szenen
+in drei Formen (Dialog, Lied, Rap) und verbietet deshalb `--ohne-szene`. Das
+Material liegt außerhalb des Repositories (`IT_SIM_BIRK`).
 
 **Was sie misst.** Mechanisch, ohne Modell: erreichte Phase, Vollständigkeit
 des Arbeitsstands, Anteil der Zustimmungen, nach denen wirklich eine

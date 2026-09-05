@@ -297,8 +297,13 @@ def test_unbekanntes_set_im_mix_bricht_ab(attrappe):
         sim.main(["--mix", "1,9"])
 
 
-def test_alle_faehrt_drei_laeufe(attrappe):
-    sim.main(["--alle", "--seed", "2", "--ohne-szene"])
+def test_alle_faehrt_die_drei_sets_und_birk(attrappe, monkeypatch):
+    """birk laeuft in ``--alle`` immer mit: es ist das einzige Set auf echten
+    Daten und damit das einzige, dessen Zahlen sich mit einem echten
+    Chatverlauf vergleichen lassen."""
+    monkeypatch.setattr(sim.birk, "vorhanden", lambda: False)
+    with pytest.raises(SystemExit, match="birk"):
+        sim.main(["--alle", "--seed", "2", "--ohne-szene"])
     zeilen = (attrappe["tmp"] / "berichte" / "verlauf.jsonl").read_text(
         encoding="utf-8"
     ).splitlines()

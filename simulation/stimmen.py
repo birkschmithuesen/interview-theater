@@ -1,9 +1,18 @@
-"""Die simulierten Teilnehmerinnen: drei Sprachprofile, gespielt von Claude.
+"""Die simulierten Teilnehmerinnen: drei **Personen**, gespielt von Claude.
 
-Drei Profile als System-Prompts (``simulation/stimmen/*.md``) --
-**knapp**, **ausschweifend**, **skeptisch**. Ein Lauf hat drei Personen, eine
-je Profil; je Schritt spricht eine, gelegentlich zwei hintereinander
-(``waehle_sprecher``, aus dem Seed).
+**Personen, nicht Sprachstile.** Bis zum 05.09.2026 standen hier drei
+Schreibweisen -- knapp, ausschweifend, skeptisch. Das war die falsche
+Abstraktion: eine Schreibweise hat keinen Grund, und ohne Grund wird jede
+Stimme in jedem Schritt gleich kooperativ. Jetzt stehen hier drei Menschen
+mit Alter, Bildungsweg, Technikvertrautheit und einem eigenen Ziel im
+Workshop (``simulation/stimmen/*.md``). Die Sprache folgt daraus: Guelten
+tippt kurz, weil sie mit einem Finger tippt; Halyna schreibt ganze Saetze,
+weil sie Ingenieurin ist und Genauigkeit ihr Beruf war.
+
+Daraus folgt auch, **wie oft** jemand schreibt: wer dem Computer am wenigsten
+traut, schreibt am seltensten (``gewicht``, ``waehle_sprecher``). Eine
+Gruppe, in der alle drei gleich viel schreiben, gibt es nicht -- und der Bot
+soll gemessen werden an einer, die es wirklich gibt.
 
 Jede Stimme bekommt drei Dinge: den **Chatverlauf** (die letzten
 ``VERLAUF_NACHRICHTEN`` Nachrichten), das **Ziel des aktuellen Schritts**
@@ -25,27 +34,61 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Wo die drei Profildateien liegen. Gleichnamiges Verzeichnis neben diesem
+#: Wo die Steckbriefe liegen. Gleichnamiges Verzeichnis neben diesem
 #: Modul: Python findet erst dieses Modul und dann erst das Verzeichnis, ein
 #: Namenskonflikt entsteht nicht (``simulation/stimmen/`` hat kein
 #: ``__init__.py`` und ist deshalb keine Paketkonkurrenz).
 VERZEICHNIS = Path(__file__).resolve().parent / "stimmen"
 
-#: Die drei Profile in fester Reihenfolge -- sie ist die Reihenfolge, in der
-#: die Personen eines Laufs angelegt werden, und damit reproduzierbar.
-PROFILE = ("knapp", "ausschweifend", "skeptisch")
-
 #: So viele Nachrichten des Chatverlaufs bekommt eine Stimme zu sehen.
 VERLAUF_NACHRICHTEN = 30
 
-#: Namenspool je Profil. Drei Namen je Profil, damit zwei Laeufe mit
-#: verschiedenen Seeds verschieden klingen, ohne dass die Zuordnung
-#: Person -> Profil je Lauf raten muesste.
-NAMEN = {
-    "knapp": ("Jo", "Sanja", "Merle"),
-    "ausschweifend": ("Marlen", "Doro", "Bettina"),
-    "skeptisch": ("Ines", "Hatice", "Ruth"),
-}
+
+@dataclass(frozen=True)
+class Steckbrief:
+    """Eine Person: Dateiname des Steckbriefs, Name im Chat, wie oft sie
+    schreibt, und ihr Ziel im Workshop.
+
+    ``gewicht`` ist die relative Haeufigkeit, mit der sie gezogen wird -- die
+    Umsetzung des Satzes "die Person mit dem geringsten Technikvertrauen
+    schreibt am seltensten". Es ist ein Verhaeltnis, keine
+    Wahrscheinlichkeit: 3 zu 5 zu 4 heisst, dass Guelten auf fuenf Nachrichten
+    von Dilan drei schreibt."""
+
+    schluessel: str
+    name: str
+    gewicht: int
+    ziel: str
+
+
+#: Die feste Besetzung der Sets 1-3. Reihenfolge = Anlegereihenfolge, damit
+#: derselbe Seed dieselbe Besetzung ergibt.
+BESETZUNG: tuple[Steckbrief, ...] = (
+    Steckbrief(
+        "guelten", "Guelten", 3,
+        "Ihre eigene Geschichte soll im Stueck vorkommen -- aber nicht ihr Name.",
+    ),
+    Steckbrief(
+        "dilan", "Dilan", 5,
+        "Das Stueck soll politisch sein, keine ruehrende Migrantinnengeschichte.",
+    ),
+    Steckbrief(
+        "halyna", "Halyna", 4,
+        "Es soll handwerklich stimmen -- Figuren, Konflikt, Aufbau muessen tragen.",
+    ),
+)
+
+#: Der Steckbrief fuer ``--set birk``: EINE Person, kalibriert auf den echten
+#: Probelauf vom 04.09.2026 (``simulation/birk.py``). Steht ausserhalb von
+#: ``BESETZUNG``, weil dieser Lauf keine Gruppe simuliert, sondern genau die
+#: eine Person, deren Chatverlauf als Messlatte danebenliegt.
+BIRK = Steckbrief(
+    "birk", "Birk", 1,
+    "Durch die Phasen kommen, bis Szenentexte dastehen. Wenig Zeit.",
+)
+
+#: Alle Steckbriefe, die es gibt -- fuer ``lade_profil`` und die Tests.
+ALLE = BESETZUNG + (BIRK,)
 
 #: Wahrscheinlichkeit, dass nach der ersten Stimme sofort eine zweite
 #: nachlegt -- der haeufigste Fall in einer echten Gruppe, und derjenige, der
@@ -79,48 +122,92 @@ _ANWEISUNG = (
 _ZIEL_KOPF = "Worauf du gerade hinauswillst (nicht woertlich abschreiben):"
 
 
+_ZIEL_PERSON = "Dein eigenes Ziel im Workshop:"
+
+
 @dataclass(frozen=True)
 class Person:
-    """Eine simulierte Teilnehmerin: Name und Sprachprofil."""
+    """Eine simulierte Teilnehmerin an einem Lauf.
+
+    ``zusatz`` haengt hinten an den Steckbrief -- die Stelle, an der
+    ``--set birk`` seiner Stimme den echten Chatverlauf als Stil-Referenz
+    mitgibt (``birk.stil_referenz``)."""
 
     name: str
-    profil: str
+    profil: str            # Dateiname des Steckbriefs, zugleich Schluessel
+    gewicht: int = 1
+    ziel: str = ""
+    zusatz: str = ""
 
     @property
     def system(self) -> str:
-        return lade_profil(self.profil)
+        teile = [lade_profil(self.profil)]
+        if self.zusatz:
+            teile.append(self.zusatz.strip())
+        return "\n\n".join(teile)
+
+
+def aus_steckbrief(brief: Steckbrief, zusatz: str = "") -> Person:
+    return Person(brief.name, brief.schluessel, brief.gewicht, brief.ziel, zusatz)
 
 
 def lade_profil(name: str) -> str:
-    """Der System-Prompt eines Sprachprofils. Fehlt die Datei, ist das ein
+    """Der Steckbrief einer Person. Fehlt die Datei, ist das ein
     Programmierfehler -- anders als bei den Bot-Prompts gibt es hier keinen
-    sinnvollen Rueckfallweg: eine Stimme ohne Profil waere ein viertes,
-    unbeschriebenes Verhalten."""
-    if name not in PROFILE:
-        raise ValueError(f"unbekanntes Sprachprofil: {name!r}")
+    sinnvollen Rueckfallweg: eine Stimme ohne Steckbrief waere eine weitere,
+    unbeschriebene Person."""
+    if name not in {b.schluessel for b in ALLE}:
+        raise ValueError(f"unbekannter Steckbrief: {name!r}")
     return (VERZEICHNIS / f"{name}.md").read_text(encoding="utf-8").strip()
 
 
 def personen(zufall: random.Random) -> list[Person]:
-    """Die drei Personen eines Laufs, eine je Profil, mit Namen aus dem Pool.
+    """Die drei Personen eines Laufs -- feste Besetzung.
 
-    Reihenfolge und Namenswahl haengen allein am uebergebenen ``Random`` --
-    derselbe Seed ergibt dieselbe Besetzung."""
-    return [Person(zufall.choice(NAMEN[profil]), profil) for profil in PROFILE]
+    ``zufall`` wird nicht mehr gebraucht, um Namen zu ziehen: die drei sind
+    dieselben in jedem Lauf, weil sie Personen sind und nicht Wuerfe aus
+    einem Pool. Der Seed variiert nur noch, **wer wann spricht**
+    (``waehle_sprecher``). Der Parameter bleibt in der Signatur, damit
+    Aufrufer sich nicht merken muessen, welche der beiden Funktionen ihn
+    braucht."""
+    return [aus_steckbrief(b) for b in BESETZUNG]
 
 
 def waehle_sprecher(zufall: random.Random, alle: list[Person]) -> list[Person]:
     """Wer in diesem Zug schreibt: eine Person, mit
     ``P_ZWEITE_STIMME`` eine zweite (andere) direkt hinterher.
 
+    Gezogen wird **gewichtet** (``Person.gewicht``): wer dem Computer am
+    wenigsten traut, schreibt am seltensten. Eine Gruppe, in der alle drei
+    gleich viel schreiben, gibt es nicht -- und ein Bot, der nur an einer
+    solchen gemessen wird, sieht nie den Fall, dass eine Teilnehmerin seit
+    zwanzig Nachrichten nichts gesagt hat.
+
     Zwei Nachrichten hintereinander sind kein Zierrat: sie sind der Fall, in
     dem ``ablauf.bearbeite`` sammelt statt zweimal zu antworten (SPEC § 1.3),
     und ohne sie bliebe genau dieser Pfad im Simulator unbetreten."""
-    erste = zufall.choice(alle)
+    if not alle:
+        return []
+    erste = _ziehe(zufall, alle)
     if zufall.random() >= P_ZWEITE_STIMME:
         return [erste]
     uebrige = [p for p in alle if p.name != erste.name]
-    return [erste, zufall.choice(uebrige)] if uebrige else [erste]
+    return [erste, _ziehe(zufall, uebrige)] if uebrige else [erste]
+
+
+def _ziehe(zufall: random.Random, kandidaten: list[Person]) -> Person:
+    """Eine Person, gewichtet nach ``gewicht``. ``random.choices`` waere
+    kuerzer, zieht aber aus einem anderen Teil des Zufallsstroms als
+    ``random()`` und ``choice()`` -- eine handgeschriebene Ziehung haelt den
+    Strom an einer Stelle und damit den Seed vergleichbar."""
+    summe = sum(max(1, p.gewicht) for p in kandidaten)
+    wurf = zufall.randrange(summe)
+    laufend = 0
+    for person in kandidaten:
+        laufend += max(1, person.gewicht)
+        if wurf < laufend:
+            return person
+    return kandidaten[-1]  # pragma: no cover -- nur bei Rundungsfehlern
 
 
 def _verlaufszeile(eintrag: dict) -> str:
@@ -143,6 +230,11 @@ def baue_nutzertext(person: Person, verlauf: list[dict], ziel: str) -> str:
         zeilen.extend(_verlaufszeile(e) for e in letzte)
     else:
         zeilen.append("Der Chat ist noch leer, ihr fangt gerade an.")
+    if person.ziel:
+        # Das eigene Ziel steht VOR dem Schrittziel: die Gruppe will das eine,
+        # sie will daneben noch etwas anderes -- und genau an der Reibung
+        # zwischen beidem zeigt sich, ob der Bot zuhoert oder abarbeitet.
+        zeilen += ["", _ZIEL_PERSON, person.ziel]
     zeilen += ["", _ZIEL_KOPF, ziel.strip(), "", _ANWEISUNG.format(name=person.name)]
     return "\n".join(zeilen)
 

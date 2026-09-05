@@ -146,45 +146,193 @@ def noten_tabelle(ergebnis, schritte) -> list[str]:
 
 
 def szenen_noten(ergebnis) -> list[str]:
-    if not ergebnis.szenen_urteil:
+    """Je Szene die drei Noten und den Satz des Richters -- und darunter den
+    **vollstaendigen** Text.
+
+    Ungekuerzt, mit Absicht: bei ``--set birk`` sind drei Szenen in drei
+    Formen (Dialog, Lied, Rap) das eigentliche Ergebnis des Laufs, und eine
+    Vorschau von sechs Zeilen sagt ueber ein Lied nichts. Die Berichte sind
+    ohnehin gitignored."""
+    if not ergebnis.szenen:
         return ["", "Kein Szenentext in diesem Lauf (`--ohne-szene` oder gescheitert)."]
-    urteil = ergebnis.szenen_urteil
-    zeilen = ["", "**Szene**", ""]
-    for name in richter.SZENEN_KRITERIEN:
-        wert = urteil.get(name)
-        zeilen.append(f"- {name}: {'–' if wert is None else wert}")
-    if urteil.get("satz"):
-        zeilen.append(f"- {urteil['satz']}")
+
+    zeilen = []
+    for szene in ergebnis.szenen:
+        urteil = szene.get("urteil") or {}
+        kopf = f"### Szene {szene['nummer']}: {szene['titel']}"
+        if szene.get("form"):
+            kopf += f" — Form: {szene['form']}"
+        zeilen += ["", kopf, ""]
+        for name in richter.SZENEN_KRITERIEN:
+            wert = urteil.get(name)
+            zeilen.append(f"- {name}: {'–' if wert is None else wert}")
+        if urteil.get("satz"):
+            zeilen.append(f"- {urteil['satz']}")
+        zeilen += ["", "```", szene["volltext"].strip(), "```"]
     return zeilen
 
 
-def schlechteste_antworten(ergebnis, schritte) -> list[str]:
-    """Die fuenf schlechtesten Bot-Antworten im Wortlaut.
+def _abschnittsnoten(ergebnis, schritte) -> dict[str, int]:
+    """Schluessel -> Notensumme des Abschnitts. Ein nicht bewerteter
+    Abschnitt bekommt -1 und steht damit ganz oben: dass der Richter dort
+    ausgefallen ist, ist selbst ein Befund."""
+    noten = {}
+    for schritt in schritte:
+        summe = richter.summe(ergebnis.urteile.get(schritt.schluessel, {}))
+        noten[schritt.schluessel] = summe if summe is not None else -1
+    return noten
 
-    Ausgewaehlt ueber die Notensumme des Abschnitts, aus dem sie stammen: der
-    Richter nennt je Abschnitt seine schlechteste Antwort, und die
-    schlechtesten Abschnitte stehen oben. Wortlaut, nicht Zusammenfassung --
-    wer einen Prompt nachzieht, braucht den Satz, der danebenging."""
-    kandidaten = []
+
+def schlechteste_antworten(ergebnis, schritte, treffer: dict | None = None) -> list[str]:
+    """Die fuenf schlechtesten Bot-Antworten im Wortlaut -- **immer**.
+
+    Im ersten echten Lauf war dieser Abschnitt leer, obwohl in der Tabelle
+    ``behauptete_schreibvorgaenge = 1`` stand und ein Abschnitt eine 7 bekam:
+    der Richter hatte das Feld "schlechteste Antwort" freigelassen, weil er
+    den Lauf insgesamt in Ordnung fand. Damit war die Zahl in der Tabelle
+    unbelegt, und der Prompt-Pfleger konnte nichts daraus ableiten.
+
+    Deshalb kommen die Kandidaten jetzt aus drei Quellen, in dieser Rangfolge:
+
+    1. Antworten mit einem **mechanischen Treffer** (``treffer``): behauptete
+       Schreibvorgaenge, Echo, Namensanrede, erfundene Zitate. Sie sind
+       nachweisbar falsch, unabhaengig von jeder Note.
+    2. Die vom Richter je Abschnitt benannte schlechteste Antwort, sortiert
+       nach der Notensumme des Abschnitts.
+    3. Wenn das nicht fuenf ergibt: die laengsten Antworten aus den
+       schlechtesten Abschnitten -- die laengste Antwort eines schwachen
+       Abschnitts ist die, in der am meisten schiefgehen konnte."""
+    treffer = treffer or {}
+    noten = _abschnittsnoten(ergebnis, schritte)
+    titel_fuer = {s.schluessel: s.titel for s in schritte}
+    kandidaten: list[tuple[int, int, str, str, str]] = []
+    gesehen: set[str] = set()
+
+    def dazu(rang: int, note: int, schluessel: str, text: str, grund: str) -> None:
+        nackt = (text or "").strip()
+        if not nackt or nackt in gesehen:
+            return
+        gesehen.add(nackt)
+        kandidaten.append((rang, note, titel_fuer.get(schluessel, schluessel),
+                           nackt, grund))
+
+    # 1. mechanische Treffer
+    for zug in ergebnis.zuege:
+        for text in zug.bot:
+            grund = treffer.get(text)
+            if grund:
+                dazu(0, noten.get(zug.schritt, 0), zug.schritt, text,
+                     f"mechanisch: {grund}")
+
+    # 2. was der Richter benannt hat
     for schritt in schritte:
         urteil = ergebnis.urteile.get(schritt.schluessel, {})
-        antwort = (urteil.get("schlechteste_antwort") or "").strip()
-        if not antwort:
-            continue
-        summe = richter.summe(urteil)
-        kandidaten.append((
-            summe if summe is not None else -1, schritt.titel, antwort,
-            urteil.get("begruendung", ""),
-        ))
-    kandidaten.sort(key=lambda k: k[0])
-    if not kandidaten:
-        return ["", "Der Richter hat keine Antwort als schlechteste benannt."]
+        dazu(1, noten.get(schritt.schluessel, 0), schritt.schluessel,
+             urteil.get("schlechteste_antwort", ""),
+             urteil.get("begruendung", "") or "vom Richter als schwaechste benannt")
 
+    # 3. auffuellen aus den schlechtesten Abschnitten
+    fuellung = sorted(
+        (
+            (noten.get(z.schritt, 0), -len(t), z.schritt, t)
+            for z in ergebnis.zuege for t in z.bot if t.strip()
+        ),
+        key=lambda k: (k[0], k[1]),
+    )
+    for note, _, schluessel, text in fuellung:
+        if len(kandidaten) >= SCHLECHTESTE:
+            break
+        dazu(2, note, schluessel, text,
+             f"laengste Antwort im schwaechsten Abschnitt (Note {note})")
+
+    if not kandidaten:
+        return ["", "Der Bot hat in diesem Lauf keine einzige Antwort geschickt."]
+
+    kandidaten.sort(key=lambda k: (k[0], k[1]))
     zeilen = []
-    for _, titel, antwort, begruendung in kandidaten[:SCHLECHTESTE]:
-        zeilen += ["", f"**{titel}**", "", "> " + antwort.replace("\n", "\n> "), ""]
+    for _, note, titel, antwort, begruendung in kandidaten[:SCHLECHTESTE]:
+        zeilen += ["", f"**{titel}** (Abschnittsnote {note})", "",
+                   "> " + antwort.replace("\n", "\n> "), ""]
         if begruendung:
             zeilen.append(f"Warum: {begruendung}")
+    return zeilen
+
+
+# ---------------------------------------------------------------------------
+# Referenzvergleich: echter Chat gegen Simulation (--set birk)
+# ---------------------------------------------------------------------------
+
+
+def referenzvergleich(ergebnis, zahlen: dict, schritte, referenz: dict) -> list[str]:
+    """Was der Bot gebraucht hat, neben dem, was er am 04.09. wirklich
+    gebraucht hat.
+
+    Nur bei ``--set birk``: es ist der einzige Lauf, zu dem es einen echten
+    Chatverlauf gibt. Die beiden Spalten sind bewusst **nicht** deckungsgleich
+    beschriftet -- die Abschnitte des echten Chats sind die Strecken zwischen
+    zwei Notiert-Zeilen, die Schritte der Simulation sind die Schritte des
+    Skripts. Was sich vergleichen laesst, ist die Groessenordnung: braucht
+    der Bot heute mehr Nachrichten als damals, ist etwas schlechter
+    geworden."""
+    if not referenz:
+        return []
+
+    je_schritt: dict[str, int] = {}
+    for zug in ergebnis.zuege:
+        je_schritt[zug.schritt] = je_schritt.get(zug.schritt, 0) + len(zug.beitraege)
+
+    abschnitte = referenz.get("nachrichten_je_abschnitt") or []
+    hand = referenz.get("handzaehlung") or {}
+
+    zeilen = [
+        "", "## Referenzvergleich: echter Probelauf 04.09. gegen Simulation", "",
+        "**Nachrichten bis zum Zielzustand.** Soll: nicht mehr als Birk "
+        "gebraucht hat.", "",
+        "| Schritt | Stimm-Nachrichten (Simulation) |",
+        "|---|---|",
+    ]
+    for schritt in schritte:
+        zeilen.append(f"| {schritt.titel} | {je_schritt.get(schritt.schluessel, 0)} |")
+    zeilen.append(f"| **Summe** | **{sum(je_schritt.values())}** |")
+    zeilen += [
+        "",
+        f"Echter Chat: {referenz.get('nachrichten_gesamt', 0)} Nachrichten von "
+        f"Birk in {referenz.get('abschnitte', 0)} Abschnitten zwischen den "
+        f"Notiert-Zeilen ({', '.join(str(a) for a in abschnitte)}).",
+        "",
+        "**Verhalten des Bots.**", "",
+        "| Kennzahl | echt (mechanisch) | echt (Handzaehlung Birk) | Simulation |",
+        "|---|---|---|---|",
+        f"| Rueckfragen | {referenz.get('rueckfragen', 0)} | "
+        f"{hand.get('rueckfragen', '–')} | {zahlen.get('bot_rueckfragen', 0)} |",
+        f"| Echo | {referenz.get('echo', 0)} | {hand.get('echo', '–')} | "
+        f"{zahlen.get('echo', 0)} |",
+        f"| behauptete Schreibvorgaenge | "
+        f"{referenz.get('behauptete_schreibvorgaenge', 0)} | "
+        f"{hand.get('behauptete_schreibvorgaenge', '–')} | "
+        f"{zahlen.get('behauptete_schreibvorgaenge', 0)} |",
+        "",
+        "Die beiden echten Spalten zaehlen verschieden: mechanisch ist eine "
+        "Rueckfrage eine Bot-Nachricht, die auf ein Fragezeichen endet; Birks "
+        "Handzaehlung vom 05.09. meint die Stellen, an denen der Bot haette "
+        "machen sollen statt zu fragen. Die Simulationsspalte ist mechanisch "
+        "gezaehlt und deshalb mit der ersten vergleichbar, nicht mit der "
+        "zweiten.",
+    ]
+
+    if referenz.get("kernthema"):
+        zeilen += [
+            "", "**Kernthema.** Sollwert zum Vergleich, keine Vorgabe -- das "
+            "damalige Kernthema ist nirgends in den Prompt gegangen.", "",
+            f"- damals: {referenz['kernthema']}",
+            f"- diesmal: {zahlen.get('kernthema') or '(nicht im Arbeitsstand)'}",
+        ]
+    if referenz.get("figuren"):
+        zeilen += [
+            "", "**Figuren.**", "",
+            f"- damals: {', '.join(referenz['figuren'])}",
+            f"- diesmal: {', '.join(zahlen.get('figuren') or []) or '(keine)'}",
+        ]
     return zeilen
 
 
@@ -296,11 +444,18 @@ def baue(ergebnis, zahlen: dict, schritte, kopfdaten: dict) -> str:
         "",
     ]
     zeilen += kennzahlen_tabelle(zahlen)
+    zeilen += referenzvergleich(ergebnis, zahlen, schritte, kopfdaten.get("referenz") or {})
     zeilen += ["", "## Noten des Richters", ""]
     zeilen += noten_tabelle(ergebnis, schritte)
+    zeilen += ["", "## Die Szenen", ""]
     zeilen += szenen_noten(ergebnis)
     zeilen += ["", "## Die schlechtesten Bot-Antworten", ""]
-    zeilen += schlechteste_antworten(ergebnis, schritte)
+    zeilen += schlechteste_antworten(
+        ergebnis, schritte,
+        kennzahlen.mechanische_treffer(
+            ergebnis.zuege, [p.name for p in ergebnis.personen]
+        ),
+    )
     zeilen += ["", "## Was der Prompt-Pfleger daraus ableiten koennte", ""]
     zeilen += [f"{i}. {satz}" for i, satz in enumerate(ableitung(zahlen), 1)]
     if zahlen["zitate_soll_vermisst"]:
@@ -327,7 +482,17 @@ def verlaufszeile(zahlen: dict, ergebnis, kopfdaten: dict) -> dict:
         "sim_modell": kopfdaten["sim_modell"],
         "noten_median": statistics.median(noten) if noten else None,
         "noten_summe": sum(noten) if noten else None,
+        # ``szene`` ist die zuletzt geschriebene -- die Form, in der
+        # verlauf.jsonl seit dem ersten Lauf eine Szene fuehrt, damit alte
+        # Zeilen mit neuen vergleichbar bleiben. ``szenen`` daneben fuehrt
+        # alle, seit --set birk drei schreiben laesst.
         "szene": {k: ergebnis.szenen_urteil.get(k) for k in richter.SZENEN_KRITERIEN},
+        "szenen": [
+            {"nummer": s["nummer"], "form": s.get("form", ""),
+             "zeichen": len(s["volltext"]),
+             **{k: (s.get("urteil") or {}).get(k) for k in richter.SZENEN_KRITERIEN}}
+            for s in ergebnis.szenen
+        ],
         **{k: v for k, v in zahlen.items() if k != "zitate_soll_vermisst"},
     }
 

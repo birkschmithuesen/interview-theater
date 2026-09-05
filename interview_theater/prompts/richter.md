@@ -50,9 +50,17 @@ Saetze des Interviewers oder Regieanweisungen im Dialog gelandet, die dort
 nichts zu suchen haben? Weicht die Szene ohne Anlass vom Geplanten ab, ist es
 0.
 
-**stimmen_unterscheidbar** (nur bei einem Szentext) -- Klingen die Figuren
+**stimmen_unterscheidbar** (nur bei einem Szenentext) -- Klingen die Figuren
 verschieden: eigene Satzlaenge, eigene Woerter, eigene Art zu stocken? Reden
 alle gleich glatt, ist es 0.
+
+**form_eingehalten** (nur bei einem Szenentext) -- Ueber dem Szenentext steht,
+welche Form verlangt war: Dialog, Lied oder Rap. Ist der Text wirklich in
+dieser Form geschrieben? Ein "Lied" ohne Strophen, Refrain oder singbaren
+Rhythmus ist 0; ein Lied mit Strophen, in dem zwischendurch drei Seiten Prosa
+stehen, ist 1. Ein "Rap" ohne Reim und ohne Takt ist 0. War **keine** Form
+verlangt, ist es 2 -- ein Bot wird nicht dafuer bestraft, dass niemand etwas
+gefordert hat.
 
 ## Zustimmungen markieren
 
@@ -73,8 +81,14 @@ Findest du keine, ist die Liste leer.
 In `schlechteste_antwort` steht die **woertliche** Bot-Antwort aus diesem
 Abschnitt, die am wenigsten taugt -- kopiere sie, ohne sie zu veraendern,
 hoechstens gekuerzt auf die ersten paar Saetze. In `begruendung` steht in
-einem Satz, warum. War der Abschnitt durchweg in Ordnung, bleiben beide
-Felder leer.
+einem Satz, warum.
+
+**Dieses Feld bleibt nie leer.** Auch ein guter Abschnitt hat eine
+schwaechste Antwort; nenne sie und schreib in die Begruendung, was daran das
+Schwaechste war -- und sei es nur "die einzige Stelle, an der er allgemein
+statt konkret bleibt". Wer eine Prompt-Aenderung ableiten will, braucht den
+Satz, der am ehesten danebenging, gerade dann, wenn der Lauf gut lief. Nur
+wenn der Abschnitt gar keine Bot-Antwort enthaelt, bleiben beide Felder leer.
 
 ## Der Satz
 

@@ -55,7 +55,9 @@ import httpx
 
 from interview_theater import db, einstellungen, llm
 from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN, PREISE_STAND
-from simulation import bericht, claude, kennzahlen, lauf, material, richter, skript
+from simulation import (
+    bericht, birk, claude, kennzahlen, lauf, material, richter, skript,
+)
 from simulation.attrappe import TelegramAttrappe
 
 #: Wartezeit nach HTTP 429, bevor derselbe Aufruf wiederholt wird -- derselbe
@@ -107,8 +109,20 @@ class LLMMitPause:
         return self._mit_pause(self._klm.prosa, *args, **kwargs)
 
 
+#: Die Werte, die ``--set`` annehmen darf: die drei erfundenen Sets und das
+#: eine echte. ``birk`` ist kein viertes Set, sondern ein anderer Lauf -- eine
+#: Person statt drei, echtes Material, ein eigenes Skript.
+SET_WAHL = ("1", "2", "3", birk.NAME)
+
+
+def ist_birk(args) -> bool:
+    return args.set == birk.NAME
+
+
 def mischungsname(args) -> str:
     """Wie der Lauf in Dateinamen und Verlauf heisst."""
+    if ist_birk(args):
+        return birk.NAME
     if args.set:
         return f"set{args.set}"
     if args.mix:
@@ -132,8 +146,9 @@ def baue_argumente(argv=None) -> argparse.Namespace:
         description="Einen kompletten Workshop simulieren und bewerten. "
                     "Kostet Geld, laeuft nie automatisch.",
     )
-    p.add_argument("--set", type=int, choices=sorted(material.SETS),
-                   help="alle Interviews eines Sets")
+    p.add_argument("--set", choices=SET_WAHL,
+                   help="alle Interviews eines Sets, oder 'birk' fuer den "
+                        "Probelauf auf echten Daten")
     p.add_argument("--mix", help="Kommaliste von Sets, je Set 1-2 Interviews")
     p.add_argument("--seed", type=int, default=1,
                    help="macht Auswahl, Besetzung und Reihenfolge reproduzierbar")
@@ -144,22 +159,65 @@ def baue_argumente(argv=None) -> argparse.Namespace:
                         "simulation/berichte/<datum>-<mischung>-<seed>.md. "
                         "Transkript und verlauf.jsonl entstehen immer.")
     p.add_argument("--alle", action="store_true",
-                   help="drei Laeufe hintereinander, Sets 1-3")
+                   help="vier Laeufe hintereinander: Sets 1-3 und birk")
     args = p.parse_args(argv)
     args.mix = _mix(args.mix)
     if args.set and args.mix:
         raise SystemExit("--set und --mix schliessen sich aus")
+    if ist_birk(args) and args.ohne_szene:
+        # Die drei Szenen SIND dieser Lauf: an ihnen wird gemessen, ob der Bot
+        # eine Formvorgabe (Dialog, Lied, Rap) durchhaelt. Ein --set birk ohne
+        # sie waere ein Lauf, der zehn Minuten spart und nichts misst.
+        raise SystemExit(
+            "--set birk und --ohne-szene schliessen sich aus: die drei Szenen "
+            "sind der Zweck dieses Laufs."
+        )
     return args
 
 
-def _schritte(ohne_szene: bool):
-    return skript.ohne_szene() if ohne_szene else skript.SCHRITTE
+def _schritte(args):
+    grund = skript.SCHRITTE_BIRK if ist_birk(args) else skript.SCHRITTE
+    return skript.ohne_szene(grund) if args.ohne_szene else grund
+
+
+def aufstellung(args) -> dict:
+    """Wer spricht, welches Material, welches Skript -- die drei Dinge, in
+    denen sich ``--set birk`` von allen anderen Laeufen unterscheidet.
+
+    An einer Stelle statt an dreien: der Lauf selbst soll nichts von diesem
+    Sonderfall wissen muessen, er bekommt nur Interviews, Personen und ein
+    Skript."""
+    if not ist_birk(args):
+        return {
+            "gezogene": material.waehle(
+                ein_set=int(args.set) if args.set else None,
+                mix=args.mix, seed=args.seed,
+            ),
+            "personen": None,
+            "begriffsliste": None,
+            "fragenliste": None,
+            "referenz": {},
+        }
+
+    if not birk.vorhanden():
+        raise SystemExit(
+            f"--set birk braucht das Material unter {birk.verzeichnis()} "
+            "(oder IT_SIM_BIRK auf ein anderes Verzeichnis setzen)."
+        )
+    return {
+        "gezogene": [birk.lade()],
+        "personen": [birk.person()],
+        "begriffsliste": birk.begriffe(),
+        "fragenliste": birk.fragen(),
+        "referenz": birk.referenz(),
+    }
 
 
 def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
     """Ein Lauf von Anfang bis Bericht. Liefert die Kennzahlen."""
-    gezogene = material.waehle(ein_set=args.set, mix=args.mix, seed=args.seed)
-    schritte = _schritte(args.ohne_szene)
+    aufbau = aufstellung(args)
+    gezogene = aufbau["gezogene"]
+    schritte = _schritte(args)
     altes_db = os.environ.get("IT_DB")
 
     with tempfile.TemporaryDirectory(prefix="interview_theater-simulation-") as verzeichnis:
@@ -183,8 +241,12 @@ def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
               f"{len(gezogene)} Interviews, {len(schritte)} Schritte ===", flush=True)
         print("Interviews: " + ", ".join(i.kennung for i in gezogene), flush=True)
 
-        durchlauf = lauf.Lauf(conn, tg, klm, e, sim, gezogene=gezogene,
-                              seed=args.seed, schritte=schritte)
+        durchlauf = lauf.Lauf(
+            conn, tg, klm, e, sim, gezogene=gezogene, seed=args.seed,
+            schritte=schritte, personen=aufbau["personen"],
+            begriffsliste=aufbau["begriffsliste"],
+            fragenliste=aufbau["fragenliste"],
+        )
         ergebnis = durchlauf.fahre()
 
         print("  -> Richter", flush=True)
@@ -208,6 +270,7 @@ def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
             "erkenner_modell": e.erkenner_modell,
             "sim_modell": sim.modell,
             "preise_stand": PREISE_STAND,
+            "referenz": aufbau["referenz"],
         }
         # Transkript und Verlaufszeile entstehen immer: das eine ist die
         # Datei, in die man schaut, wenn eine Zahl ueberrascht, das andere
@@ -240,8 +303,11 @@ def main(argv=None) -> int:
 
     laeufe = []
     if args.alle:
-        for nummer in sorted(material.SETS):
-            laeufe.append(replace_args(args, ein_set=nummer))
+        # birk laeuft immer mit: es ist das einzige Set auf echten Daten und
+        # damit das einzige, dessen Zahlen sich mit einem echten Chatverlauf
+        # vergleichen lassen.
+        for wahl in (*sorted(material.SETS), birk.NAME):
+            laeufe.append(replace_args(args, ein_set=str(wahl)))
     else:
         laeufe.append(args)
 
@@ -258,15 +324,21 @@ def main(argv=None) -> int:
     return 0
 
 
-def replace_args(args, ein_set: int):
+def replace_args(args, ein_set: str):
     """Eine Kopie der Argumente mit anderem Set -- fuer ``--alle``.
 
     ``argparse.Namespace`` ist bewusst veraenderlich; eine Kopie statt einer
-    Mutation, damit der zweite Lauf nicht die Argumente des ersten sieht."""
+    Mutation, damit der zweite Lauf nicht die Argumente des ersten sieht.
+    ``--ohne-szene`` faellt fuer birk weg statt den Lauf abzubrechen: in
+    ``--alle`` soll ein gemeinsamer Schalter die drei erfundenen Sets billig
+    halten duerfen, ohne den einen Lauf zu entwerten, der ohne Szenen nichts
+    misst."""
     kopie = argparse.Namespace(**vars(args))
     kopie.set = ein_set
     kopie.mix = None
     kopie.alle = False
+    if ein_set == birk.NAME:
+        kopie.ohne_szene = False
     return kopie
 
 

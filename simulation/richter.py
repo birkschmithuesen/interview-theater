@@ -48,8 +48,14 @@ KRITERIEN = (
     "korrektur_angenommen",
 )
 
-#: Die zwei Noten, die nur ein Szenentext bekommt.
-SZENEN_KRITERIEN = ("szene_stimmt_zur_planung", "stimmen_unterscheidbar")
+#: Die drei Noten, die nur ein Szenentext bekommt. ``form_eingehalten`` kam
+#: mit ``--set birk`` dazu: dort werden drei Szenen in drei Formen verlangt
+#: (Dialog, Lied, Rap), und ob der Bot eine Formvorgabe durchhaelt, die nicht
+#: Dialog heisst, ist genau das Experiment. Ohne Formvorgabe vergibt der
+#: Richter laut Metrik eine 2 -- ein Bot wird nicht dafuer bestraft, dass eine
+#: Situation nicht vorkam.
+SZENEN_KRITERIEN = ("szene_stimmt_zur_planung", "stimmen_unterscheidbar",
+                    "form_eingehalten")
 
 BESTNOTE = 2
 
@@ -149,10 +155,13 @@ def baue_nutzertext(titel: str, ziel: str, abschnitt: str) -> str:
     ])
 
 
-def baue_szenen_nutzertext(planung: str, szene: str) -> str:
+def baue_szenen_nutzertext(planung: str, szene: str, form: str = "") -> str:
     return "\n".join([
         "Die Gruppe hat diese Szene geplant:",
         planung.strip() or "(keine Planung im Wortlaut)",
+        "",
+        (f"Verlangte Form: {form.strip()}." if form.strip()
+         else "Es war keine besondere Form verlangt."),
         "",
         "Das ist der Szenentext, den der Bot daraus geschrieben hat:",
         szene.strip(),
@@ -195,15 +204,15 @@ def bewerte_abschnitt(sim, titel: str, ziel: str, abschnitt: str) -> dict:
     return urteil
 
 
-def bewerte_szene(sim, planung: str, szene: str) -> dict:
-    """Die beiden Noten, die nur ein Szenentext bekommt. ``None``, wenn keine
+def bewerte_szene(sim, planung: str, szene: str, form: str = "") -> dict:
+    """Die drei Noten, die nur ein Szenentext bekommt. Leeres Dict, wenn keine
     Szene geschrieben wurde -- ``--ohne-szene`` ist ein zulaessiger Lauf, kein
     Mangel."""
     if not (szene or "").strip():
         return {}
     try:
         ergebnis = sim.json_objekt(
-            prompt(), baue_szenen_nutzertext(planung, szene), ART,
+            prompt(), baue_szenen_nutzertext(planung, szene, form), ART,
             max_tokens=MAX_TOKENS,
         )
     except Exception as fehler:  # noqa: BLE001

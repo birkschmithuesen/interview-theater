@@ -64,14 +64,28 @@ class Ergebnis:
     schritte: dict = field(default_factory=dict)       # schluessel -> erreicht?
     ziele: dict = field(default_factory=dict)          # schluessel -> gefuelltes Ziel
     urteile: dict = field(default_factory=dict)        # schluessel -> Richter-Urteil
-    szenen_urteil: dict = field(default_factory=dict)
+    #: Je geschriebener Szene ein Dict: schluessel, nummer, titel, form,
+    #: volltext, urteil. Eine Liste und kein einzelner Text, seit ``--set
+    #: birk`` drei Szenen in drei Formen schreiben laesst -- und weil der
+    #: Bericht sie **vollstaendig** zeigen soll, nicht die letzte davon.
+    szenen: list = field(default_factory=list)
     zahlen: dict = field(default_factory=dict)
     gezogene: list = field(default_factory=list)
     personen: list = field(default_factory=list)
     notausgaenge: int = 0
-    szene_text: str = ""
     dauer_s: float = 0.0
     titel: dict = field(default_factory=dict)          # schluessel -> Schritt-Titel
+
+    @property
+    def szenen_urteil(self) -> dict:
+        """Das Urteil ueber die zuletzt geschriebene Szene -- die Form, in der
+        ``verlauf.jsonl`` seit dem ersten Lauf eine Szene fuehrt. Bleibt, damit
+        alte Verlaufszeilen mit neuen vergleichbar bleiben."""
+        return self.szenen[-1]["urteil"] if self.szenen else {}
+
+    @property
+    def szene_text(self) -> str:
+        return self.szenen[-1]["volltext"] if self.szenen else ""
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +175,8 @@ class Lauf:
     """Fuehrt ein Skript einmal durch. Ein Objekt je Lauf."""
 
     def __init__(self, conn, tg, klm, e, sim, *, gezogene, seed: int,
-                 schritte=skript.SCHRITTE):
+                 schritte=skript.SCHRITTE, personen=None, begriffsliste=None,
+                 fragenliste=None):
         self.conn = conn
         self.tg = tg
         self.klm = klm          # der Bot-Klient (Infomaniak) -- der Prueflung
@@ -170,11 +185,19 @@ class Lauf:
         self.gezogene = list(gezogene)
         self.schrittliste = list(schritte)
         self.zufall = random.Random(seed)
-        self.personen = stimmen.personen(self.zufall)
+        # ``personen`` wird uebergeben, wenn der Lauf keine Gruppe simuliert:
+        # ``--set birk`` hat genau eine Stimme, kalibriert auf den echten
+        # Chatverlauf (``simulation/birk.py``).
+        self.personen = list(personen) if personen else stimmen.personen(self.zufall)
         # Einmal gezogen, nicht je Schritt neu: die Begriffsliste ist die
         # Liste, die die Gruppe an der Wand hat -- sie darf sich zwischen
-        # Schritt 1 und Schritt 2 nicht aendern.
-        self.begriffsliste = material.begriffe(self.gezogene, self.zufall)
+        # Schritt 1 und Schritt 2 nicht aendern. Bei ``--set birk`` kommt sie
+        # aus dem Frontmatter des echten Interviews statt aus den Themen.
+        self.begriffsliste = (
+            list(begriffsliste) if begriffsliste
+            else material.begriffe(self.gezogene, self.zufall)
+        )
+        self.fragenliste = list(fragenliste) if fragenliste else []
         self.ergebnis = Ergebnis(gezogene=self.gezogene, personen=self.personen)
         self._update_id = 0
         self._beitrag_nummer = 0
@@ -275,21 +298,28 @@ class Lauf:
         return bool(zug.bot)
 
     def _fahre_interviews(self, schritt, merker: dict) -> bool:
-        """Fuenf Interviews: ansagen, Transkript hereingeben, 'fertig' sagen.
+        """Die Interviews: ansagen, Transkript hereingeben, 'fertig' sagen.
 
         Eines kommt in **zwei** Textimporten, ein anderes bekommt eine Frage
         an den Bot mittendrin -- beides sind die Faelle, an denen der
-        Interviewfluss im Probelauf zerbrochen ist (§ 10.6, N4)."""
+        Interviewfluss im Probelauf zerbrochen ist (§ 10.6, N4).
+
+        ``schritt.teile`` setzt das ausser Kraft: bei ``--set birk`` kommt das
+        eine Interview in genau drei Importen herein, weil es im Original drei
+        Antworten auf drei Fragen waren."""
         anzahl = len(self.gezogene)
-        zwei_teile = self.zufall.randrange(anzahl)
-        frage_dazwischen = (zwei_teile + 1) % anzahl
+        if schritt.teile:
+            zwei_teile, frage_dazwischen = -1, -1
+        else:
+            zwei_teile = self.zufall.randrange(anzahl)
+            frage_dazwischen = (zwei_teile + 1) % anzahl
 
         for index, interview in enumerate(self.gezogene):
             merker = {**merker, "interview_name": interview.name}
             self._ein_interview(
                 schritt, merker, index, interview,
-                teile=2 if index == zwei_teile else 1,
-                mit_frage=(index == frage_dazwischen),
+                teile=schritt.teile or (2 if index == zwei_teile else 1),
+                mit_frage=schritt.mit_frage and index == frage_dazwischen,
             )
         return schritt.fertig(self.conn, CHAT_ID, merker)
 
@@ -394,21 +424,55 @@ class Lauf:
         planung = []
         for _ in range(schritt.max_nachrichten):
             if schritt.fertig(self.conn, CHAT_ID, merker):
-                return True
+                return self._merke_szene(schritt, planung)
             zug = self._stimmen_zug(ziel)
             planung.extend(b.text for b in zug.beitraege)
 
         if schritt.fertig(self.conn, CHAT_ID, merker):
-            return True
+            return self._merke_szene(schritt, planung)
 
-        auftrag = "Szene 1: " + " ".join(planung)
+        auftrag = f"Szene {schritt.szene_nummer}: " + " ".join(planung)
+        if schritt.form:
+            # Die Form steht am Ende des Auftrags, also an der Stelle mit dem
+            # meisten Gewicht (SPEC § 6.1) -- und ausdruecklich, nicht nur im
+            # Gespraechsverlauf: dass der Bot sie ueberhaupt umsetzt, ist die
+            # Frage, die dieser Schritt stellt.
+            auftrag += f"\n\nForm: {schritt.form}."
         vorher = len(self.tg.gesendet)
         zug = self._zug(
             marke="szene_aufruf", notiz=f"Szenen-Auftrag an den Bot: {auftrag[:200]}"
         )
         _sofort_szene(self.conn, self.tg, self.klm, self.e, CHAT_ID, auftrag)
         zug.bot = self.tg.texte(vorher)
-        return bool(schritt.fertig(self.conn, CHAT_ID, merker))
+        return self._merke_szene(schritt, planung)
+
+    def _merke_szene(self, schritt, planung: list[str]) -> bool:
+        """Haelt die geschriebene Szene im Ergebnis fest -- Volltext, Form und
+        die Planung, die zu ihr gefuehrt hat.
+
+        Der Volltext wird hier gesichert und nicht am Ende aus der Datenbank
+        geholt: bei drei Szenen hintereinander liefert ``hole_szenen`` sonst
+        drei Texte ohne Zuordnung zu dem Schritt, der sie beauftragt hat --
+        und der Richter braucht die Planung neben dem Text, um ueberhaupt
+        urteilen zu koennen."""
+        szenen = [
+            s for s in repo.hole_szenen(self.conn, CHAT_ID)
+            if s["nummer"] == schritt.szene_nummer and s["volltext"]
+        ]
+        if not szenen:
+            return False
+        szene_zeile = szenen[-1]
+        self.ergebnis.szenen.append({
+            "schluessel": schritt.schluessel,
+            "titel_schritt": schritt.titel,
+            "nummer": szene_zeile["nummer"],
+            "titel": szene_zeile["titel"] or f"Szene {szene_zeile['nummer']}",
+            "form": schritt.form,
+            "planung": " ".join(planung),
+            "volltext": szene_zeile["volltext"],
+            "urteil": {},
+        })
+        return True
 
     # -- der Durchlauf ------------------------------------------------------
 
@@ -421,7 +485,10 @@ class Lauf:
         figuren = [f["name"] for f in repo.figuren(self.conn, CHAT_ID)]
         return {
             "begriffe": ", ".join(self.begriffsliste),
-            "fragen": material.fragenvorschlag(self.begriffsliste),
+            "fragen": (
+                "\n".join(self.fragenliste) if self.fragenliste
+                else material.fragenvorschlag(self.begriffsliste)
+            ),
             "interviews_soll": len(self.gezogene),
             "interview_name": self.gezogene[0].name if self.gezogene else "",
             "phase_mitte": phasen.bezeichnung(skript.PHASE_MITTE),
@@ -451,7 +518,6 @@ class Lauf:
                 self.ergebnis.schritte[schritt.schluessel] = bool(erreicht)
                 print(f"     {'erreicht' if erreicht else 'GESCHEITERT'}", flush=True)
         self.ergebnis.dauer_s = time.monotonic() - start
-        self.ergebnis.szene_text = self._szenentext()
         return self.ergebnis
 
     def _fahre_einen(self, schritt, merker: dict) -> bool:
@@ -462,10 +528,6 @@ class Lauf:
         if schritt.art == "befehl":
             return self._fahre_befehl(schritt, merker)
         return self._fahre_stimmen(schritt, merker)
-
-    def _szenentext(self) -> str:
-        szenen = [s for s in repo.hole_szenen(self.conn, CHAT_ID) if s["volltext"]]
-        return szenen[-1]["volltext"] if szenen else ""
 
 
 # ---------------------------------------------------------------------------
@@ -502,16 +564,19 @@ def protokoll(ergebnis: Ergebnis, schritte) -> str:
 
 
 def bewerte(sim, ergebnis: Ergebnis, schritte) -> None:
-    """Laesst den Richter jeden Abschnitt und -- wenn es eine gibt -- die
-    Szene bewerten. Schreibt die Urteile in ``ergebnis``."""
+    """Laesst den Richter jeden Abschnitt und jede geschriebene Szene
+    bewerten. Schreibt die Urteile in ``ergebnis``."""
     for schritt in schritte:
         text = abschnitt(ergebnis.zuege, schritt.schluessel)
         ziel = ergebnis.ziele.get(schritt.schluessel) or schritt.ziel
         ergebnis.urteile[schritt.schluessel] = richter.bewerte_abschnitt(
             sim, schritt.titel, ziel, text
         )
-    if ergebnis.szene_text:
-        planung = abschnitt(ergebnis.zuege, "szene")
-        ergebnis.szenen_urteil = richter.bewerte_szene(
-            sim, planung, ergebnis.szene_text
+    for szene in ergebnis.szenen:
+        # Die Planung kommt aus dem Abschnitt dieses Schritts, nicht aus
+        # ``szene["planung"]`` allein: der Richter soll sehen, was der Bot
+        # zurueckgefragt hat, nicht nur, was die Gruppe gesagt hat.
+        planung = abschnitt(ergebnis.zuege, szene["schluessel"]) or szene["planung"]
+        szene["urteil"] = richter.bewerte_szene(
+            sim, planung, szene["volltext"], form=szene.get("form", "")
         )

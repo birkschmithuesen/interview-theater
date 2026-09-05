@@ -26,6 +26,7 @@ Begruendung einer neuen Abhaengigkeit.
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -72,18 +73,29 @@ class Interview:
 
     def teile(self, anzahl: int = 1) -> list[str]:
         """Zerlegt das Transkript in ``anzahl`` Stuecke -- fuer die
-        Interviews, die als **zwei** Textimporte hereinkommen (Skript-Schritt
-        3). Geschnitten wird an einer Leerzeile oder, wenn es keine gibt, an
-        einem Zeilenumbruch; nie mitten in einer Replik."""
+        Interviews, die in **mehreren** Textimporten hereinkommen
+        (Skript-Schritt 3, und bei ``--set birk`` in dreien).
+
+        Geschnitten wird an Leerzeilen, also zwischen den Repliken, nie
+        mitten in einer. Gibt es zu wenige Absaetze, wird zeilenweise
+        geschnitten -- lieber ein unschoener Schnitt als ein Stueck weniger,
+        als der Aufrufer verlangt hat: die Zahl der Teile ist die Kennzahl
+        (ein Interview in drei Teilen muss trotzdem EINE Verdichtung
+        ergeben, § 10.6)."""
         if anzahl <= 1:
             return [self.transkript]
-        zeilen = self.transkript.splitlines()
-        schnitt = max(1, len(zeilen) // anzahl)
+        einheiten = [a.strip() for a in re.split(r"\n\s*\n", self.transkript) if a.strip()]
+        if len(einheiten) < anzahl:
+            einheiten = [z for z in self.transkript.splitlines() if z.strip()]
+        if len(einheiten) < anzahl:
+            return [self.transkript]
+
         stuecke = []
+        gesamt = len(einheiten)
         for i in range(anzahl):
-            ab = i * schnitt
-            bis = len(zeilen) if i == anzahl - 1 else (i + 1) * schnitt
-            stueck = "\n".join(zeilen[ab:bis]).strip()
+            ab = round(i * gesamt / anzahl)
+            bis = round((i + 1) * gesamt / anzahl)
+            stueck = "\n\n".join(einheiten[ab:bis]).strip()
             if stueck:
                 stuecke.append(stueck)
         return stuecke or [self.transkript]

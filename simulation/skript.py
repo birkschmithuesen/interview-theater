@@ -138,6 +138,18 @@ class Schritt:
     max_nachrichten: int = MAX_NACHRICHTEN
     #: Nur fuer ``art='befehl'``: der Befehl, den die Gruppe tippt.
     befehl: str = ""
+    #: Nur fuer ``art='szene'``: welche Szene dieser Schritt schreiben laesst,
+    #: und in welcher Form. Die Form geht in den Auftrag an den Bot und in die
+    #: Frage an den Richter ("Form eingehalten?").
+    szene_nummer: int = 1
+    form: str = ""
+    #: Nur fuer ``art='interviews'``: in wie viele Textimporte jedes Interview
+    #: zerlegt wird. 0 heisst "wie bisher": eines zufaellig gewaehlte in zwei,
+    #: der Rest in einem.
+    teile: int = 0
+    #: Nur fuer ``art='interviews'``: ob mittendrin eine Frage an den Bot
+    #: gestellt wird ("was war nochmal die zweite Frage").
+    mit_frage: bool = True
 
     def ziel_text(self, merker: dict) -> str:
         return self.ziel.format(**merker)
@@ -174,6 +186,21 @@ def _fertig_phase_mitte(conn, chat_id, merker):
 
 def _fertig_szene(conn, chat_id, merker):
     return any(s["volltext"] for s in repo.hole_szenen(conn, chat_id))
+
+
+def _fertig_szene_nummer(nummer: int):
+    """Zielzustand fuer einen Szenen-Schritt, der eine **bestimmte** Szene
+    schreiben laesst.
+
+    Bei drei Szenen hintereinander (``--set birk``) genuegt "irgendeine Szene
+    hat einen Volltext" nicht: nach Szene 1 waere jeder weitere Schritt sofort
+    fertig, und die Szenen 2 und 3 entstuenden nie."""
+    def fertig(conn, chat_id, merker):
+        return any(
+            s["nummer"] == nummer and s["volltext"]
+            for s in repo.hole_szenen(conn, chat_id)
+        )
+    return fertig
 
 
 def _fertig_korrektur(conn, chat_id, merker):
@@ -276,19 +303,151 @@ SCHRITTE: tuple[Schritt, ...] = (
 )
 
 
-def schritt_fuer(schluessel: str) -> Schritt:
+def schritt_fuer(schluessel: str, schritte=SCHRITTE) -> Schritt:
     """Ein Schritt anhand seines Schluessels. Fehlt er, ist das ein
     Programmierfehler."""
-    for schritt in SCHRITTE:
+    for schritt in schritte:
         if schritt.schluessel == schluessel:
             return schritt
     raise KeyError(schluessel)
 
 
-def ohne_szene() -> tuple[Schritt, ...]:
-    """Das Skript ohne den Szenen-Schritt (``--ohne-szene``).
+def ohne_szene(schritte=SCHRITTE) -> tuple[Schritt, ...]:
+    """Das Skript ohne die Szenen-Schritte (``--ohne-szene``).
 
-    Der Szenen-Schritt ist der einzige, der einen Reasoning-Lauf ausloest --
+    Ein Szenen-Schritt ist der einzige, der einen Reasoning-Lauf ausloest --
     zwei bis vier Minuten und ein Vielfaches der Kosten aller anderen
     Schritte zusammen. Wer nur den Gespraechsteil misst, laesst ihn weg."""
-    return tuple(s for s in SCHRITTE if s.art != "szene")
+    return tuple(s for s in schritte if s.art != "szene")
+
+
+# ---------------------------------------------------------------------------
+# Das Skript von ``--set birk``
+# ---------------------------------------------------------------------------
+
+#: Die drei Formen, in denen die Szenen von ``--set birk`` geschrieben werden
+#: sollen. Sie sind erfunden (Birk: "erfinde die fehlenden Angaben wie Form"),
+#: aber sie sind das eigentliche Experiment dieses Sets: haelt der Bot eine
+#: Formvorgabe durch, wenn sie nicht Dialog heisst?
+FORMEN_BIRK = ("Dialog", "Lied", "Rap")
+
+#: Das Format, auf das sich die Gruppe in Phase 5 festlegt.
+FORMAT_BIRK = "Musical mit Dialog, Lied und Rap"
+
+
+def _fertig_ein_interview(conn, chat_id, merker):
+    """Ein Interview, EINE Verdichtung -- auch wenn es in drei Textimporten
+    hereinkam (§ 10.6). Genau das ist hier die Kennzahl."""
+    return len(repo.verdichtungen(conn, chat_id)) >= 1
+
+
+#: Das Skript von ``--set birk``: dasselbe Geruest, aber auf echten Daten und
+#: mit einer einzigen Stimme. Gemessen wird die **Navigation**, nicht der
+#: Text -- das Interview ist duenn (drei kurze Antworten), und ein Szenentext
+#: daraus ist keine Aussage ueber Sprachqualitaet. Die Frage ist, wie
+#: natuerlich der Bot durch die Phasen fuehrt, wenn eine echte Person so
+#: knapp schreibt wie Birk am 04.09.
+SCHRITTE_BIRK: tuple[Schritt, ...] = (
+    Schritt(
+        "begriffe",
+        "Begriffe einwerfen",
+        "Du gibst dem Bot die drei Begriffe durch, die im Plenum an der Wand "
+        "stehen: {begriffe}. Du willst, dass er sie als Begriffsliste "
+        "festhaelt.",
+        _fertig_begriffe,
+    ),
+    Schritt(
+        "fragen",
+        "Fragen entwickeln",
+        "Aus den Begriffen sollen Interviewfragen werden. Lass den Bot "
+        "welche vorschlagen und korrigier eine davon, wenn sie nicht passt "
+        "-- dann stimm zu, damit er die Liste festhaelt. Ungefaehr diese drei "
+        "willst du am Ende haben:\n{fragen}",
+        _fertig_fragen,
+    ),
+    Schritt(
+        "interviews",
+        "Ein Interview in drei Teilen",
+        "Du fuehrst jetzt das Interview: sag dem Bot, dass eins anfaengt, gib "
+        "ihm danach die Antworten und sag am Ende, dass du fertig bist. Es "
+        "ist EIN Interview mit drei Antworten, kein drittes und viertes.",
+        _fertig_ein_interview,
+        art="interviews",
+        teile=3,
+        mit_frage=False,
+    ),
+    Schritt(
+        "kernthema",
+        "Kernthema",
+        "Aus dem Interview soll ein Kernthema werden. Lass den Bot eines "
+        "vorschlagen und nimm es an -- praezisier es einmal, wenn es dir zu "
+        "eng ist. Am Ende soll genau ein Kernthema festgehalten sein.",
+        _fertig_kernthema,
+    ),
+    Schritt(
+        "figuren",
+        "Drei Figuren mit Namen",
+        "Du willst drei Figuren, jede mit einem Namen und einem Satz dazu, "
+        "wer sie ist. Lass den Bot Namen vorschlagen und nimm sie an. Wenn "
+        "er selbst keine anbietet, nenn ihm Mira, Pola und Pal.",
+        _fertig_figuren,
+    ),
+    Schritt(
+        "phase_mitte",
+        "Phase 5: Format",
+        "Ihr seid jetzt bei '{phase_mitte}'. Du hast dich fuer ein Format "
+        f"entschieden: {FORMAT_BIRK}. Sag es dem Bot und stimm zu, damit er "
+        "es festhaelt.",
+        _fertig_phase_mitte,
+    ),
+    Schritt(
+        "szene1",
+        "Szene 1: der Kessel (Dialog)",
+        "Du planst Szene 1: Polizeikessel auf einer Palaestina-Demo, alle "
+        "drei Figuren sind darin. Eine wirft Trumps 'Riviera fuer Gaza' ein, "
+        "'nur halt ohne Vertreibung'; eine andere zerreisst das, daraus wird "
+        "ein Streit. Form: Dialog. Wenn das steht, lass den Bot die Szene "
+        "ausschreiben.",
+        _fertig_szene_nummer(1),
+        art="szene",
+        szene_nummer=1,
+        form="Dialog",
+        max_nachrichten=4,
+    ),
+    Schritt(
+        "szene2",
+        "Szene 2: die Kueche (Lied)",
+        "Du planst Szene 2: die Kueche der dritten Figur, direkt nach der "
+        "Demo. Es gibt Pfannkuchen mit Schokolade und Banane. Die erste Figur "
+        "legt sich mit den Pfannkuchen an, die zweite beobachtet nur. Form: "
+        "Lied -- die Figur singt beim Backen, die anderen fallen ein. Wenn "
+        "das steht, lass den Bot die Szene ausschreiben.",
+        _fertig_szene_nummer(2),
+        art="szene",
+        szene_nummer=2,
+        form="Lied",
+        max_nachrichten=4,
+    ),
+    Schritt(
+        "szene3",
+        "Szene 3: das Zentrum (Rap)",
+        "Du planst Szene 3: nachts, das autonome Zentrum. Eine Figur allein "
+        "oder zu zweit, es wird gepogt und getanzt. Hawaii kommt vor -- als "
+        "Bild, das nicht ihres ist. Form: Rap. Wenn das steht, lass den Bot "
+        "die Szene ausschreiben.",
+        _fertig_szene_nummer(3),
+        art="szene",
+        szene_nummer=3,
+        form="Rap",
+        max_nachrichten=4,
+    ),
+    Schritt(
+        "stand",
+        "/stand",
+        "Du willst sehen, was der Bot sich gemerkt hat.",
+        _fertig_stand,
+        art="befehl",
+        befehl="/stand",
+        max_nachrichten=1,
+    ),
+)

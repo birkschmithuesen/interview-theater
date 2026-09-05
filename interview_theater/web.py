@@ -361,6 +361,9 @@ details.szene, details.verdichtung { border-bottom: 1px solid #e6e1d6;
 .feld button[disabled] { opacity: .5; cursor: default; }
 .feld .hinweis { font-size: .78rem; opacity: .7; min-width: 5rem; }
 .feld .hinweis.schlecht { color: #a12b2b; opacity: 1; }
+/* Die Schaerfung: read-only, deshalb ohne Kasten und ohne Knopf. */
+.schaerfung { font-size: .85rem; margin: .3rem 0 .5rem; opacity: .85; }
+.schaerfung ul { margin: .1rem 0 0; }
 .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
 .figur .marke { font-size: .78rem; opacity: .6; }
 .hinzu { margin-top: .8rem; }
@@ -625,6 +628,25 @@ def _mehrfachauswahl(feld: str, paare, gewaehlt, ziel=None) -> str:
     )
 
 
+def _schaerfungen_html(kurzformen, was: str = "Schärfung") -> str:
+    """Die bei der Schärfung zugeordneten Interviewstellen -- **read-only**,
+    als Zähler mit Liste (Phase 6, Umbau 05.09.2026 nachts).
+
+    Nur die Kurzformen (höchstens acht Wörter Arbeitsergebnis, wie am
+    Beamer), nie das Belegzitat und nie die Begründung des Laufs. Und nichts
+    zum Anklicken: die Zuordnung entsteht im Chat und wird dort abgenommen
+    („Gefällt uns, weiter" / „Noch eine Runde"). Ohne Zuordnungen fehlt die
+    Zeile ganz, statt als leere Aufgabe dazustehen."""
+    kurzformen = [k for k in (kurzformen or []) if k]
+    if not kurzformen:
+        return ""
+    zeilen = "".join(f"<li>{_t(k)}</li>" for k in kurzformen)
+    return (
+        f'<div class="schaerfung"><b>{_t(was)} ({len(kurzformen)})</b>'
+        f"<ul>{zeilen}</ul></div>"
+    )
+
+
 def _figur_formular(f: dict, interviews: list[dict]) -> str:
     """Eine Figur zum Bearbeiten: Name, Beschreibung, Interview, Entfernen.
 
@@ -657,6 +679,7 @@ def _figur_formular(f: dict, interviews: list[dict]) -> str:
         stuecke.append(f'<div class="profil">{_t(f["sprachprofil"])}</div>')
     for satz in f.get("zitate") or []:
         stuecke.append(f"<blockquote>„{_t(satz)}“</blockquote>")
+    stuecke.append(_schaerfungen_html(f.get("schaerfungen")))
     stuecke.append(
         _rahmen("", "figur_entfernen", f["id"], knopf="Entfernen")
     )
@@ -664,12 +687,34 @@ def _figur_formular(f: dict, interviews: list[dict]) -> str:
     return "".join(stuecke)
 
 
+def _altbestand_html(stand: dict) -> str:
+    """Die Felder der alten Dramaturgie -- **nur wenn gesetzt, nur zum Lesen**
+    (Phasen-Umbau 05.09.2026 nachts).
+
+    Kernthema, Kernthema-Richtung, Kernfrage und Hauptkonflikt sind keine
+    Station mehr; ``arbeitsstand.geschichte`` hat ihre Rolle übernommen. Ein
+    Formular dafür wäre eine Einladung, an einer Stelle weiterzuarbeiten, die
+    der Bot nicht mehr anbietet. Wegzulassen wäre aber auch falsch: eine
+    Gruppe, die gestern ein Kernthema gesetzt hat, soll es nicht stumm
+    verlieren. Also: steht etwas da, steht es da — sonst fehlt die Zeile ganz
+    (dieselbe Regel wie beim Hauptkonflikt)."""
+    zeilen = [
+        f"<dt>{label}</dt><dd>{_t(stand.get(feld))}</dd>"
+        for feld, label in web_schreiben.NUR_ANZEIGE.items()
+        if (stand.get(feld) or "").strip()
+    ]
+    return "".join(zeilen)
+
+
 def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
     """Der Arbeitsstand der Gruppenseite -- zum Lesen **und** zum Ändern.
 
-    Genau die Parameter aus ``web_schreiben.FELDER`` und keinen mehr. Was
-    fehlt, fehlt mit Absicht: das Format steht fest, Material wird nicht
-    angefasst, und der Szenen-Volltext gehoert in den Chat."""
+    Genau die Parameter aus ``web_schreiben.FELDER`` und keinen mehr, in der
+    Reihenfolge der acht Phasen: Begriffe (1), Fragen samt Leitfaden (2),
+    Setting und Figuren (4), Geschichte (5). Was fehlt, fehlt mit Absicht:
+    Material wird nicht angefasst, der Szenen-Volltext gehört in den Chat,
+    der Leitfaden wird gebaut und nicht getippt, und die Felder der alten
+    Kernthema-Station stehen nur noch read-only da (``_altbestand_html``)."""
     stand = daten["arbeitsstand"]
     auswahl = daten.get("bearbeitbares") or {}
     phase = stand.get("phase") or phasen.ERSTE
@@ -682,6 +727,8 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
         "<dl>"
         "<dt>Phase</dt><dd>"
         + _dropdown(
+            # Acht Phasen, Namen aus phasen.PHASEN -- die Liste steht dort und
+            # wird hier nicht zweitgepflegt.
             "phase",
             [(nummer, phasen.bezeichnung(nummer)) for nummer, _, _ in phasen.PHASEN],
             phase,
@@ -697,53 +744,57 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
             "fragen", stand.get("fragen"), zeilen=5, platzhalter="eine Frage je Zeile"
         )
         + "</dd>"
-        "<dt>Kernthema-Richtung</dt><dd>"
-        + _dropdown(
-            "kernthema_richtung",
-            [(w, w) for w in auswahl.get("kernthema_richtung") or []],
-            stand.get("kernthema_richtung"),
-            mit_eigener=True,
-            platzhalter="eigene Richtung",
-            leer="— noch offen —",
-        )
-        + "</dd>"
-        "<dt>Kernthema</dt><dd>"
-        + _dropdown(
-            "kernthema",
-            [(w, w) for w in auswahl.get("kernthema") or []],
-            stand["kernthema"],
-            mit_eigener=True,
-            leer="— noch offen —",
-        )
-        + "</dd>"
-        "<dt>Kernfrage</dt><dd>"
+        # Die drei Leitfaden-Felder stehen unter den Fragen, weil sie zu ihnen
+        # gehören: die Einleitungen hängen an einzelnen Fragen (nummeriert),
+        # Eröffnung und Abschluss rahmen sie ein.
+        "<dt>Einleitungen zu den Fragen</dt><dd>"
         + _textfeld(
-            "kernfrage",
-            stand.get("kernfrage"),
-            # Drei Zeilen Inhalt (Frage / Gegensatz / Einsatz), vier Zeilen
-            # Kasten: auf dem Telefon bricht jede der drei Zeilen um.
-            zeilen=4,
-            platzhalter="noch offen — Frage / Gegensatz / Einsatz",
+            "frage_einleitungen",
+            stand.get("frage_einleitungen"),
+            zeilen=3,
+            platzhalter="1 — vorher sagen: …",
         )
         + "</dd>"
-        # Kein Format mehr (05.09.2026 abends, wie in _arbeitsstand_html):
-        # das Format des Stuecks ist keine Frage mehr, die gestellt wird --
-        # was zaehlt, ist die Form JE SZENE.
-        "<dt>Rahmen</dt><dd>"
+        "<dt>Interview-Eröffnung</dt><dd>"
+        + _textfeld(
+            "interview_eroeffnung",
+            stand.get("interview_eroeffnung"),
+            zeilen=3,
+            platzhalter="womit ihr anfangt",
+        )
+        + "</dd>"
+        "<dt>Interview-Abschluss</dt><dd>"
+        + _textfeld(
+            "interview_abschluss",
+            stand.get("interview_abschluss"),
+            zeilen=3,
+            platzhalter="womit ihr aufhört",
+        )
+        + "</dd>"
+        # Der Leitfaden selbst wird gebaut, nicht getippt: er ist die Summe der
+        # Felder darüber (``leitfaden.aus_feldern``, dieselbe Funktion wie im
+        # Chat). Read-only -- ihn hier editierbar zu machen hiesse, ein
+        # abgeleitetes Ergebnis neben seinen Quellen zu pflegen.
+        + _leitfaden_html(stand)
+        + "<dt>Setting</dt><dd>"
         + _dropdown(
             "rahmen",
             [(w, w) for w in auswahl.get("rahmen") or []],
             stand.get("rahmen"),
             mit_eigener=True,
-            platzhalter="eigener Rahmen",
+            platzhalter="Ort, Zeit, Anlass",
             leer="— noch offen —",
         )
         + "</dd>"
-        + (
-            f"<dt>Hauptkonflikt</dt><dd>{_t(stand['hauptkonflikt'])}</dd>"
-            if stand.get("hauptkonflikt")
-            else ""
+        "<dt>Geschichte</dt><dd>"
+        + _textfeld(
+            "geschichte",
+            stand.get("geschichte"),
+            zeilen=5,
+            platzhalter="was passiert, wie es endet",
         )
+        + "</dd>"
+        + _altbestand_html(stand)
         + f"<dt>Figuren</dt><dd>{figuren}"
         + '<div class="hinzu">'
         + _textfeld(
@@ -991,6 +1042,15 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
                 s["id"],
                 leer="— offen —",
             )
+            # Der Vorschlag des Bots steht daneben und bleibt Anzeige
+            # (06.09.2026): bestaetigt ist allein ``form``, und wer hier
+            # waehlt, bestaetigt gerade selbst. Ihn editierbar zu machen
+            # hiesse, den Vorschlag zur zweiten Entscheidung zu machen.
+            + (
+                f'<div class="zeit">Vorschlag: {_t(s["form_vorschlag"])}</div>'
+                if s.get("form_vorschlag")
+                else ""
+            )
             + "</dd>"
             + "".join(
                 f"<dt>{label}</dt><dd>"
@@ -1003,6 +1063,7 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
     if s.get("kurzbeschreibung"):
         felder += f"<dt>Kurz</dt><dd>{_t(s['kurzbeschreibung'])}</dd>"
     inhalt = f"<dl>{felder}</dl>" if felder else ""
+    inhalt += _schaerfungen_html(s.get("schaerfungen"))
     if s.get("volltext"):
         inhalt += f'<div class="volltext">{_t(s["volltext"])}</div>'
     else:

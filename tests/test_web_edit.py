@@ -18,7 +18,7 @@ import urllib.error
 import urllib.request
 
 import pytest
-from interview_theater import db, repo, web, web_daten, web_schreiben
+from interview_theater import db, leitfaden, phasen, repo, web, web_daten, web_schreiben
 
 #: Kommt im Transkript des ersten Interviews vor und darf in keiner Seite
 #: stehen. Ein Fantasiewort, damit ein Treffer nur ein echter Treffer sein
@@ -34,9 +34,13 @@ MARKER_ZITAT = "Schnarrhupfer"
 
 @pytest.fixture
 def db_pfad(tmp_path):
-    """Eine Gruppe in Phase 4, mit angebotenen Kernthemen und Richtungen,
-    zwei Figuren, zwei Interviews und einer Szene -- der Zustand, in dem eine
-    Gruppe am Nachmittag wirklich steht."""
+    """Eine Gruppe in Phase 4 (Setting & Figuren): Begriffe, drei Fragen mit
+    Leitfaden, angebotene Settings, zwei Figuren, zwei Interviews und eine
+    Szene -- der Zustand, in dem eine Gruppe am Nachmittag wirklich steht.
+
+    Das Kernthema steht mit drin, obwohl es keine Station mehr ist: genau so
+    sieht eine Gruppe aus, die gestern damit gearbeitet hat, und die Seite
+    muss den Wert weiter zeigen, ohne ihn zum Formular zu machen."""
     pfad = str(tmp_path / "t.db")
     conn = db.verbinde(pfad)
     db.initialisiere(conn)
@@ -45,6 +49,12 @@ def db_pfad(tmp_path):
     repo.setze_phase(conn, 1, 4)
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Ankommen, Arbeit, Nacht")
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(
+        conn, 1, "interview_eroeffnung", "Wir machen ein Theaterstueck."
+    )
+    repo.setze_arbeitsstand(conn, 1, "interview_abschluss", "Danke fuer die Zeit.")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
+    # Altbestand einer Gruppe von gestern -- keine Station mehr.
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen und Bleiben")
     repo.setze_arbeitsstand(conn, 1, "kernthema_richtung", "Heimat")
 
@@ -54,7 +64,8 @@ def db_pfad(tmp_path):
         repo.lege_knopf_an(conn, 1, "richtung", wert)
     for wert in ("Ankommen und Bleiben", "Zwei Staedte, ein Koffer"):
         repo.lege_knopf_an(conn, 1, "kernthema", wert)
-    repo.lege_knopf_an(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
+    for wert in ("Eine Nacht im Treppenhaus", "Ein Bahnhof im Winter"):
+        repo.lege_knopf_an(conn, 1, "rahmen", wert)
 
     repo.setze_figur(conn, 1, "Mira", "24, arbeitet nachts")
     repo.setze_figur(conn, 1, "Pola", "58, will zurueck")
@@ -179,29 +190,43 @@ def letzte_webzeile(conn) -> str:
 
 
 def test_gruppenseite_traegt_die_formulare(basis, token):
-    """Was die Gruppenseite an Bedienelementen haben muss: ein Dropdown fuer
-    das Kernthema, eines fuer die Phase, Textfelder und den Nonce."""
+    """Was die Gruppenseite an Bedienelementen haben muss -- nach dem
+    Phasen-Umbau: Phase, Begriffe, Fragen samt Leitfaden-Feldern, Setting,
+    Geschichte, Figuren und die Szenenplanung."""
     status, koerper = hole(f"{basis}/g/{token}")
 
     assert status == 200
     assert "<select" in koerper
-    for feld in ("kernthema", "kernthema_richtung", "phase", "kernfrage",
-                 "rahmen", "figur_name", "figur_quelle", "figur_entfernen",
+    for feld in ("phase", "begriffe", "fragen", "frage_einleitungen",
+                 "interview_eroeffnung", "interview_abschluss", "rahmen",
+                 "geschichte", "figur_name", "figur_quelle", "figur_entfernen",
                  "figur_neu", "szene_form", "szene_figuren"):
         assert f'data-feld="{feld}"' in koerper, feld
     assert 'id="nonce"' in koerper
 
 
-def test_kernthema_dropdown_hat_die_vorschlaege_und_den_gesetzten(basis, token):
-    """Birks Beispiel: es gab mehrere Vorschlaege, einer wurde gewaehlt --
-    im Dropdown stehen alle, der gewaehlte ist vorausgewaehlt."""
+def test_kernthema_ist_nicht_mehr_editierbar_aber_sichtbar(basis, token, conn):
+    """Das Kernthema ist keine Station mehr (Umbau 05.09.2026 nachts) --
+    ``geschichte`` hat seine Rolle übernommen. Ein gesetzter Wert soll
+    trotzdem nicht stumm verschwinden."""
     koerper = hole(f"{basis}/g/{token}")[1]
 
-    assert "Zwei Staedte, ein Koffer" in koerper
-    assert '<option value="Ankommen und Bleiben" selected>' in koerper
-    # Und die drei Richtungen, die je angeboten wurden.
-    for richtung in ("Heimat", "Arbeit", "Nachtschicht"):
-        assert richtung in koerper
+    for feld in ("kernthema", "kernthema_richtung", "kernfrage"):
+        assert f'data-feld="{feld}"' not in koerper, feld
+        assert feld not in web_schreiben.FELDER
+    # Gesetzt ist es (fixture) -- also steht es read-only da.
+    assert "Ankommen und Bleiben" in koerper
+    assert "<dt>Kernthema</dt>" in koerper
+
+
+def test_ungesetztes_altfeld_steht_gar_nicht_da(basis, token, conn):
+    """Was nicht gesetzt ist, fehlt ganz -- ein leeres 'Kernfrage'-Feld sähe
+    aus wie eine unerledigte Aufgabe an einer Station, die es nicht mehr
+    gibt."""
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "<dt>Kernfrage</dt>" not in koerper
+    assert "<dt>Hauptkonflikt</dt>" not in koerper
 
 
 def test_gesetzte_werte_stehen_wirklich_in_den_formularen(basis, token, conn):
@@ -210,15 +235,15 @@ def test_gesetzte_werte_stehen_wirklich_in_den_formularen(basis, token, conn):
     Speichern eine Entscheidung. Gemessen am 05.09. abends -- ``kernfrage``
     und ``kernthema_richtung`` fehlten in ``web_daten._arbeitsstand``, die
     Felder standen leer ueber gesetzten Werten."""
-    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: bleiben oder gehen?")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Sie bleibt, er geht.")
 
     koerper = hole(f"{basis}/g/{token}")[1]
 
-    assert "Frage: bleiben oder gehen?" in koerper
-    assert '<option value="Heimat" selected>' in koerper
+    assert "Sie bleibt, er geht." in koerper
     assert "Ankommen, Arbeit, Nacht" in koerper
     assert "Was war in deinem Koffer?" in koerper
     assert '<option value="4" selected>' in koerper
+    assert '<option value="Eine Nacht im Treppenhaus" selected>' in koerper
     # Wert kleingeschrieben wie im Chat, Beschriftung gross wie auf dem Knopf.
     assert '<option value="dialog" selected>Dialog</option>' in koerper
 
@@ -274,29 +299,29 @@ def test_interview_dropdown_nennt_nur_nummern(basis, token):
 
 
 def test_unbekanntes_token_bekommt_404(basis, token):
-    status, _ = sende(basis, "gibtesnicht", "kernthema", "Egal")
+    status, _ = sende(basis, "gibtesnicht", "geschichte", "Egal")
     assert status == 404
 
 
 def test_fehlender_nonce_bekommt_403(basis, token, conn):
-    status, text = sende(basis, token, "kernthema", "Heimlich", nonce="")
+    status, text = sende(basis, token, "begriffe", "Heimlich", nonce="")
 
     assert status == 403
     assert "neu laden" in text
-    assert stand(conn, "kernthema") == "Ankommen und Bleiben"
+    assert stand(conn, "begriffe") == "Ankommen, Arbeit, Nacht"
 
 
 def test_falscher_nonce_bekommt_403(basis, token, conn):
-    status, _ = sende(basis, token, "kernthema", "Heimlich", nonce="0.abc")
+    status, _ = sende(basis, token, "begriffe", "Heimlich", nonce="0.abc")
     assert status == 403
-    assert stand(conn, "kernthema") == "Ankommen und Bleiben"
+    assert stand(conn, "begriffe") == "Ankommen, Arbeit, Nacht"
 
 
 def test_nonce_einer_fremden_gruppe_gilt_nicht(basis, token):
     """Der Nonce haengt am Token: einer fuer eine andere Adresse oeffnet
     diese hier nicht."""
     fremd = web.nonce(SCHLUESSEL, "ein-anderes-token")
-    status, _ = sende(basis, token, "kernthema", "Heimlich", nonce=fremd)
+    status, _ = sende(basis, token, "begriffe", "Heimlich", nonce=fremd)
     assert status == 403
 
 
@@ -336,17 +361,38 @@ def test_phase_setzen(basis, token, conn):
     assert status == 200
     assert json.loads(antwort) == {"ok": True, "feld": "phase", "wert": "6", "id": None}
     assert repo.hole_phase(conn, 1) == 6
-    assert ("entschieden", "web", "Phase 6 · Szenen (über die Gruppenseite)") \
+    # Phase 6 heisst seit dem Umbau "Schaerfung" -- der Name kommt aus
+    # phasen.PHASEN, hier steht er nur als Erwartung.
+    assert ("entschieden", "web", "Phase 6 · Schaerfung (über die Gruppenseite)") \
         in journalzeilen(conn)
 
 
-@pytest.mark.parametrize("wert", ["0", "8", "vier", ""])
-def test_phase_ausserhalb_1_bis_7_bekommt_400(basis, token, conn, wert):
+@pytest.mark.parametrize("wert", ["0", "9", "vier", ""])
+def test_phase_ausserhalb_1_bis_8_bekommt_400(basis, token, conn, wert):
+    """Acht Phasen seit dem Umbau (05.09.2026 nachts). Die Grenze steht nicht
+    hier, sondern in ``phasen.LETZTE`` -- dieser Test hält nur fest, dass sie
+    überhaupt gezogen wird."""
     status, text = sende(basis, token, "phase", wert)
 
     assert status == 400
-    assert "1 bis 7" in text
+    assert f"1 bis {phasen.LETZTE}" in text
     assert repo.hole_phase(conn, 1) == 4
+
+
+def test_phasen_dropdown_zeigt_alle_acht_mit_namen(basis, token):
+    """Acht Optionen, beschriftet aus ``phasen.PHASEN`` -- die Liste steht
+    dort und wird im Web nicht zweitgepflegt. Verglichen wird gegen den
+    maskierten Namen: "Setting & Figuren" steht als "Setting &amp; Figuren"
+    im HTML."""
+    import html as html_modul
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert len(phasen.PHASEN) == 8
+    for nummer, name, _ in phasen.PHASEN:
+        assert f'<option value="{nummer}"' in koerper
+        assert html_modul.escape(phasen.bezeichnung(nummer)) in koerper, name
+    assert '<option value="4" selected>' in koerper
 
 
 @pytest.mark.parametrize(
@@ -354,10 +400,15 @@ def test_phase_ausserhalb_1_bis_7_bekommt_400(basis, token, conn, wert):
     [
         ("begriffe", "Ankommen, Nacht, Koffer", "Begriffe"),
         ("fragen", "Was war im Koffer?\nWer hat gewartet?", "Fragen"),
-        ("kernthema", "Zwei Staedte, ein Koffer", "Kernthema"),
-        ("kernthema_richtung", "Nachtschicht", "Kernthema-Richtung"),
-        ("kernfrage", "Frage: Was passiert, wenn man bleibt?", "Kernfrage"),
-        ("rahmen", "Eine Nacht im Treppenhaus", "Rahmen"),
+        ("frage_einleitungen", "2 — vorher sagen: nur wenn du magst",
+         "Einleitungen zu den Fragen"),
+        ("interview_eroeffnung", "Wir schreiben ein Stueck.",
+         "Interview-Eröffnung"),
+        ("interview_abschluss", "Danke, dass du Zeit hattest.",
+         "Interview-Abschluss"),
+        ("rahmen", "Ein Bahnhof im Winter", "Setting"),
+        ("geschichte", "Sie bleibt, er geht — und am Ende singen beide.",
+         "Geschichte"),
     ],
 )
 def test_arbeitsstandfeld_setzen(basis, token, conn, feld, wert, label):
@@ -376,23 +427,23 @@ def test_arbeitsstandfeld_setzen(basis, token, conn, feld, wert, label):
 def test_leeres_feld_wird_null_und_nicht_leerstring(basis, token, conn):
     """Ein geleertes Formularfeld leert das Datenbankfeld -- nur so gilt es
     anschliessend wieder als ungesetzt (phasen.voraussetzungen)."""
-    sende(basis, token, "kernfrage", "Frage: bleiben?")
-    sende(basis, token, "kernfrage", "   ")
+    sende(basis, token, "geschichte", "Sie bleibt.")
+    sende(basis, token, "geschichte", "   ")
 
-    assert stand(conn, "kernfrage") is None
+    assert stand(conn, "geschichte") is None
     assert web_schreiben.LEER in letzte_webzeile(conn)
 
 
 def test_langer_wert_wird_im_journal_gekuerzt(basis, token, conn):
     lang = "Ankommen " * 60
-    sende(basis, token, "kernthema", lang)
+    sende(basis, token, "geschichte", lang)
 
     zeile = letzte_webzeile(conn)
     assert "…" in zeile
     # Zwei Seiten a 120 Zeichen plus die feste Formulierung -- nie die vollen
     # 540 Zeichen des Werts.
     assert len(zeile) < 300
-    assert stand(conn, "kernthema") == lang.strip()
+    assert stand(conn, "geschichte") == lang.strip()
 
 
 # --- Figuren ---------------------------------------------------------------
@@ -605,6 +656,121 @@ def test_szene_einer_fremden_gruppe_bleibt_unberuehrt(basis, token, conn):
 # --- Kein Material, kein zweiter Schreibweg -------------------------------
 
 
+def test_leitfaden_steht_read_only_unter_seinen_feldern(basis, token, conn):
+    """Der Leitfaden wird gebaut, nicht getippt: editierbar sind seine
+    Quellen (Fragen, Einleitungen, Eröffnung, Abschluss), er selbst ist
+    Anzeige. Und er steht auf der Seite wortgleich zu dem, was im Chat
+    kommt -- beide über ``leitfaden.aus_feldern``."""
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "<dt>Leitfaden</dt>" in koerper
+    assert 'data-feld="leitfaden"' not in koerper
+    assert "leitfaden" not in web_schreiben.FELDER
+    assert leitfaden.UEBERSCHRIFT_EROEFFNUNG in koerper
+    assert "Wir machen ein Theaterstueck." in koerper
+    assert "Danke fuer die Zeit." in koerper
+
+
+def test_leitfaden_folgt_einer_aenderung_ueber_die_seite(basis, token, conn):
+    """Die Probe aufs Exempel: ein Feld ändern, und der gebaute Leitfaden
+    darunter zieht mit."""
+    sende(basis, token, "interview_eroeffnung", "Wir sind vom Theaterprojekt.")
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "Wir sind vom Theaterprojekt." in koerper
+    assert leitfaden.baue(conn, 1) == leitfaden.aus_feldern(
+        {
+            "fragen": stand(conn, "fragen"),
+            "frage_einleitungen": stand(conn, "frage_einleitungen"),
+            "interview_eroeffnung": stand(conn, "interview_eroeffnung"),
+            "interview_abschluss": stand(conn, "interview_abschluss"),
+        }
+    )
+
+
+def test_ohne_fragen_kein_leitfaden(basis, token, conn):
+    """Ohne Fragen gibt es keinen Leitfaden -- dann fehlt die Zeile ganz,
+    statt als leere Aufgabe dazustehen."""
+    sende(basis, token, "fragen", "")
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "<dt>Leitfaden</dt>" not in koerper
+
+
+def test_form_vorschlag_steht_da_und_ist_nicht_editierbar(basis, token, conn):
+    """Die Form ist ein Vorschlag, bis die Gruppe sie bestätigt (06.09.2026).
+    Auf der Seite steht beides: das Dropdown für die bestätigte ``form`` und
+    daneben, read-only, was der Bot vorgeschlagen hat."""
+    szene_id = repo.hole_szenen(conn, 1)[0]["id"]
+    repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", "monolog")
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "Vorschlag: monolog" in koerper
+    assert 'data-feld="szene_form_vorschlag"' not in koerper
+    assert "form_vorschlag" not in web_schreiben.SZENENFELDER
+
+    status, _ = sende(basis, token, "szene_form_vorschlag", "rap", ziel=szene_id)
+    assert status == 400
+
+
+def test_schaerfungen_stehen_read_only_je_szene_und_figur(basis, token, conn):
+    """Phase 6 ordnet Interviewstellen einer Szene und einer Figur zu. Auf der
+    Seite stehen sie als Zähler mit Kurzformen -- **ohne Belegzitat**: die
+    Gruppenseite hat kein Login."""
+    szene_id = repo.hole_szenen(conn, 1)[0]["id"]
+    figur_id = repo.hole_figur(conn, 1, "Mira")["id"]
+    thema_id = conn.execute(
+        "SELECT id FROM verdichtung_thema ORDER BY id ASC LIMIT 1"
+    ).fetchone()["id"]
+    conn.execute(
+        "UPDATE verdichtung_thema SET kurz = ? WHERE id = ?",
+        ("Koffer und erster Winter", thema_id),
+    )
+    for ziel_szene, ziel_figur in ((szene_id, None), (None, figur_id)):
+        conn.execute(
+            "INSERT INTO schaerfung (chat_id, verdichtung_thema_id, szene_id, "
+            "figur_id, begruendung, runde, erstellt_am) "
+            "VALUES (1, ?, ?, ?, 'passt', 1, '2026-09-06T00:00:00+00:00')",
+            (thema_id, ziel_szene, ziel_figur),
+        )
+    conn.commit()
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    # Zwei Schaerfungsbloecke: einer an der Szene, einer an der Figur. (Die
+    # Kurzform selbst steht daneben noch im Interview-Block -- deshalb wird
+    # hier der Block gezaehlt und nicht das Wort.)
+    assert koerper.count('class="schaerfung"') == 2
+    assert "Schärfung (1)" in koerper
+    assert "Koffer und erster Winter" in koerper
+    assert 'data-feld="schaerfung' not in koerper
+    # Das Belegzitat der Stelle bleibt draussen.
+    assert MARKER_ZITAT not in koerper
+
+
+def test_schaerfung_ohne_kurzform_bringt_kein_thema_auf_die_seite(basis, token, conn):
+    """Fehlt die Kurzform, bleibt die Zeile weg -- lieber ein Zähler weniger
+    als ein ganzer Themensatz auf einer Seite ohne Login."""
+    szene_id = repo.hole_szenen(conn, 1)[0]["id"]
+    thema_id = conn.execute(
+        "SELECT id FROM verdichtung_thema ORDER BY id ASC LIMIT 1"
+    ).fetchone()["id"]
+    conn.execute("UPDATE verdichtung_thema SET kurz = NULL WHERE id = ?", (thema_id,))
+    conn.execute(
+        "INSERT INTO schaerfung (chat_id, verdichtung_thema_id, szene_id, "
+        "runde, erstellt_am) VALUES (1, ?, ?, 1, '2026-09-06T00:00:00+00:00')",
+        (thema_id, szene_id),
+    )
+    conn.commit()
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "Schärfung (" not in koerper
+
+
 def test_formen_sind_die_aus_szene():
     """``web_schreiben.FORMEN`` ist ein Literal, weil ``szene`` httpx
     nachzieht und der Webserver mit der Standardbibliothek auskommt -- die
@@ -663,7 +829,7 @@ def test_bot_sieht_die_aenderung_im_journalblock(basis, token, conn):
     Aenderung, weil er das Journal bei jedem Zug frisch liest."""
     from interview_theater import kontext
 
-    sende(basis, token, "kernthema", "Zwei Staedte, ein Koffer")
+    sende(basis, token, "geschichte", "Sie bleibt, er geht.")
 
     block = kontext._baue_journal(conn, 1)
-    assert "Kernthema geändert über die Gruppenseite" in block
+    assert "Geschichte geändert über die Gruppenseite" in block

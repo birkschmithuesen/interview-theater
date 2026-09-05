@@ -20,7 +20,14 @@ Drei Regeln, die dieses Modul traegt:
 2. **Nur die aufgezaehlten Parameter.** ``FELDER`` ist die vollstaendige
    Liste; alles andere ist ein ``Fehler``. Material (Aufnahmen, Transkripte,
    Verdichtungen, Belegzitate), der Szenen-Volltext, das Journal, die
-   USA-Einwilligung und der Sprachprofil-Text stehen bewusst NICHT darin.
+   USA-Einwilligung, der Sprachprofil-Text und die Schaerfungs-Zuordnungen
+   stehen bewusst NICHT darin. Ebenso wenig der **Leitfaden**: er wird aus
+   seinen Feldern gebaut (``leitfaden.aus_feldern``), nicht getippt --
+   editierbar sind die Quellen, nicht das Ergebnis.
+   Seit dem Phasen-Umbau (05.09.2026 nachts) fehlen auch **Kernthema,
+   Kernthema-Richtung und Kernfrage**: sie sind keine Station mehr,
+   ``geschichte`` hat ihre Rolle uebernommen. Gesetzte Werte bleiben
+   sichtbar (``NUR_ANZEIGE``), aenderbar sind sie nicht.
 3. **Jede Aenderung ins Journal**, ``art='entschieden'``, ``quelle='web'``,
    mit altem und neuem Wert. Der Gespraechs-Bot liest das Journal bei jedem
    Zug frisch (``kontext._baue_journal``) -- er erfaehrt von einer Aenderung
@@ -72,10 +79,38 @@ FORMEN = ("dialog", "monolog", "chor", "lied", "rap")
 ARBEITSSTANDFELDER = {
     "begriffe": "Begriffe",
     "fragen": "Fragen",
+    # Die Verfeinerungsebene der Fragen (Phase 2, 06.09.2026). Sie stehen hier
+    # als Textfelder und nicht als Auswahl: Einleitung, Eroeffnung und
+    # Abschluss sind Formulierungen, keine Optionen -- im Chat entstehen sie
+    # ueber Ping-Pong mit der Grundleiste, hier tippt man sie um. Aus ihnen
+    # baut ``leitfaden.aus_feldern`` den Leitfaden, der darunter read-only
+    # steht.
+    "frage_einleitungen": "Einleitungen zu den Fragen",
+    "interview_eroeffnung": "Interview-Eröffnung",
+    "interview_abschluss": "Interview-Abschluss",
+    # ``rahmen`` heisst seit dem Phasen-Umbau nach aussen **Setting** (Ort,
+    # Zeit, Anlass) -- der Spaltenname bleibt, die Beschriftung folgt dem, was
+    # die Gruppe im Chat hoert (AGENTS.md, "Phase 4 heisst Setting & Figuren").
+    "rahmen": "Setting",
+    # Die Geschichte im Groben (Phase 5): Bogen und Ende. Sie hat die Rolle
+    # uebernommen, die frueher das Kernthema hatte -- deshalb ist sie
+    # editierbar und Kernthema/Kernfrage/Kernthema-Richtung sind es nicht
+    # mehr (siehe ``NUR_ANZEIGE``).
+    "geschichte": "Geschichte",
+}
+
+#: Was die Gruppenseite **anzeigt, aber nicht mehr ändert** -- die Felder der
+#: alten Dramaturgie (Umbau 05.09.2026 nachts). Kernthema, Kernfrage und
+#: Kernthema-Richtung bleiben im Code funktional und rückwärtskompatibel, sind
+#: aber keine Station mehr: ``geschichte`` hat ihre Rolle übernommen. Ein
+#: Formular dafür wäre eine Einladung, an einer Stelle weiterzuarbeiten, die
+#: der Bot nicht mehr anbietet -- gesetzte Werte einer bestehenden Gruppe
+#: sollen trotzdem sichtbar bleiben, statt stumm zu verschwinden.
+NUR_ANZEIGE = {
     "kernthema": "Kernthema",
     "kernthema_richtung": "Kernthema-Richtung",
     "kernfrage": "Kernfrage",
-    "rahmen": "Rahmen",
+    "hauptkonflikt": "Hauptkonflikt",
 }
 
 #: Die Szenenfelder, die die Gruppenseite setzen darf, mit Beschriftung.

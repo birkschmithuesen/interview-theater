@@ -458,7 +458,49 @@ def _szene_figur_ids(conn: sqlite3.Connection, szene_id: int) -> list[int]:
         return []
 
 
-def _szenen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+def schaerfungen(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Welche Interviewstellen bei der Schärfung welcher Szene und welcher
+    Figur zugeordnet wurden (Phase 6, Umbau 05.09.2026 nachts).
+
+    Liefert ``{"szene": {id: [kurz, …]}, "figur": {id: [kurz, …]}}`` --
+    **nur die Kurzform** eines ``verdichtung_thema``, nie sein Belegzitat und
+    nie die Begründung des Schärfungslaufs. Die Kurzform ist das, was schon
+    heute am Beamer steht (``_interview_kurzformen``): höchstens acht Wörter
+    Arbeitsergebnis. Ein Belegzitat wäre ein Satz aus einem Interview auf
+    einer Seite ohne Login -- genau die Grenze, die nicht verhandelbar ist.
+
+    Fehlt die Tabelle noch (Datenbank aus der Zeit vor dem Umbau), ist das
+    Ergebnis leer statt ein Fehler: der Webserver migriert nichts."""
+    ergebnis: dict[str, dict[int, list[str]]] = {"szene": {}, "figur": {}}
+    try:
+        zeilen = conn.execute(
+            "SELECT s.szene_id, s.figur_id, t.kurz, t.thema "
+            "FROM schaerfung s JOIN verdichtung_thema t "
+            "  ON t.id = s.verdichtung_thema_id "
+            f"WHERE s.chat_id = ? AND s.{_NICHT_ENTFERNT} ORDER BY s.id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return ergebnis
+    for z in zeilen:
+        # Fehlt die Kurzform (Verdichtung aus der Zeit davor), bleibt die
+        # Zeile weg -- lieber ein Zähler weniger als ein ganzer Themensatz.
+        kurz = (_feld(z, "kurz") or "").strip()
+        if not kurz:
+            continue
+        for schluessel, spalte in (("szene", "szene_id"), ("figur", "figur_id")):
+            ziel = _feld(z, spalte)
+            if ziel is None:
+                continue
+            eintraege = ergebnis[schluessel].setdefault(ziel, [])
+            if kurz not in eintraege:
+                eintraege.append(kurz)
+    return ergebnis
+
+
+def _szenen(
+    conn: sqlite3.Connection, chat_id: int, geschaerft: dict | None = None
+) -> list[dict]:
     """Die Szenen der Gruppe, nach ``nummer`` -- seit dem 05.09.2026 samt
     ihrer Planung: Form, Ort, Zeit, Anlass, Besetzung, Handlung, Bewegung,
     Kernsaetze, Ton.
@@ -470,6 +512,7 @@ def _szenen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
 
     Zeilen ohne Nummer landen hinten statt vorn (NULL sortiert in SQLite
     sonst zuerst)."""
+    je_szene = (geschaerft or schaerfungen(conn, chat_id))["szene"]
     szenen = []
     for z in conn.execute(
         f"SELECT * FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
@@ -477,6 +520,9 @@ def _szenen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         (chat_id,),
     ):
         eintrag = {
+            # Die zugeordneten Interviewstellen als Kurzformen (Phase 6) --
+            # read-only, ohne Zitat.
+            "schaerfungen": je_szene.get(z["id"], []),
             # id und figur_ids seit der Bearbeitung auf der Gruppenseite
             # (05.09.2026 abends): das Formular adressiert eine Szene ueber
             # ihre id, und die Mehrfachauswahl braucht die ausgewaehlten
@@ -679,10 +725,14 @@ def interviewliste(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
 def bearbeitbares(conn: sqlite3.Connection, chat_id: int) -> dict:
     """Alles, was die Formulare der Gruppenseite an Auswahlmoeglichkeiten
     brauchen -- in einem Rutsch, damit ``web.py`` nicht sechsmal einzeln
-    nachfragt."""
+    nachfragt.
+
+    Ohne Kernthema und Kernthema-Richtung seit dem Phasen-Umbau: die beiden
+    sind keine Station mehr und stehen auf der Seite nur noch read-only, wenn
+    sie gesetzt sind. ``angebotene_werte`` kennt sie weiter (``KNOPFARTEN``)
+    -- eine Gruppe aus der Zeit davor soll ihre Vorschläge nicht verlieren,
+    falls die Station je zurückkommt."""
     return {
-        "kernthema": angebotene_werte(conn, chat_id, "kernthema"),
-        "kernthema_richtung": angebotene_werte(conn, chat_id, "kernthema_richtung"),
         "rahmen": angebotene_werte(conn, chat_id, "rahmen"),
         "interviews": interviewliste(conn, chat_id),
     }
@@ -712,15 +762,23 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     if zeile is None:
         return None
     chat_id = zeile["chat_id"]
+    # Einmal lesen, zweimal verwendet: die Szenen bekommen ihre Zuordnungen
+    # gleich mit, die Figuren hier daneben. Auf dem Dashboard steht davon
+    # nichts -- ``_figuren`` bleibt deshalb unveraendert.
+    geschaerft = schaerfungen(conn, chat_id)
+    figuren = _figuren(conn, chat_id)
+    for f in figuren:
+        f["schaerfungen"] = geschaerft["figur"].get(f["id"], [])
     return {
         "chat_id": chat_id,
         "titel": zeile["titel"],
         "bot_name": zeile["bot_name"],
         "interviewmodus_seit": zeile["interviewmodus_seit"],
         "arbeitsstand": _arbeitsstand(conn, chat_id),
-        "figuren": _figuren(conn, chat_id),
-        "szenen": _szenen(conn, chat_id),
+        "figuren": figuren,
+        "szenen": _szenen(conn, chat_id, geschaerft),
         "interviews": _interviews(conn, chat_id),
         "journal": _journal(conn, chat_id),
         "bearbeitbares": bearbeitbares(conn, chat_id),
+        "schaerfungen": geschaerft,
     }

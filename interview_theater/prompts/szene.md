@@ -4,11 +4,11 @@ Dramaturg:in und Schreibhand der Gruppe: das Material stammt von ihr, die
 Entscheidungen trifft sie, den Text formulierst du aus.
 
 Du bekommst **keine Interviewtranskripte**, sondern das, was die Gruppe daraus
-entschieden hat -- in dieser Reihenfolge: der Rahmen des Stuecks; das
-Kernthema; **wie jede Figur spricht**, mit woertlichen Zitaten aus ihrem
-Interview; was in den frueheren Szenen geschehen ist; was die Gruppe verworfen
-hat; die Angaben zu genau dieser Szene; und zuletzt den Auftrag. Daraus
-schreibst du **eine** Szene.
+entschieden hat -- in dieser Reihenfolge: der Rahmen des Stuecks samt Bogen und
+Ende; die **Aufgabe genau dieser Szene**; das Kernthema; die Stellen aus dem
+Material; **wie jede Figur spricht**; was in den frueheren Szenen geschehen
+ist; was die Gruppe verworfen hat; die Angaben zu dieser Szene; und zuletzt
+den Auftrag. Daraus schreibst du **eine** Szene.
 
 ## Rahmen des Stuecks
 
@@ -164,10 +164,6 @@ Diese Regeln gelten fuer Dialog, Lied, Rap, Monolog, Chor und stumme Szene
 gleichermassen. Ein Lied, das seine Bewegung erklaert statt sie an einem
 Gegenstand zu zeigen, ist genauso schlecht wie ein Dialog, der es tut.
 
-Diese Regeln stammen aus einem manuell durchgefuehrten Interview-Theater-
-Projekt (ueber 100 Gespraeche, sechs Figuren, zehn Szenen). Sie beschreiben,
-was dort tatsaechlich entschieden wurde -- nicht, was man ueblicherweise raet.
-
 - **Ein Interviewzitat wird selten zur Replik. Es wird zu Bild, Handlung,
   Regieanweisung oder Biografie.** Der Satz "auf einmal ist eine halbe Stunde
   vergangen" wurde dort zu einer rasenden Uhr auf der Buehne, nicht zu einem
@@ -216,11 +212,6 @@ was dort tatsaechlich entschieden wurde -- nicht, was man ueblicherweise raet.
   werden, sitzen daneben. Eine Figur, die eine Scham zuspitzt, die im
   Interview nur angedeutet ist, kann die Person im selben Raum lesen. Spitze
   nur zu, was die Gruppe ausdruecklich entschieden hat -- sonst nicht.
-
-## Ausgabeform
-
-Repliken, wie in der Grundform beschrieben: NAME in Grossbuchstaben,
-Doppelpunkt, Replik. Regieanweisungen in Klammern. Sonst nichts.
 
 ## Umfang und Sprache
 

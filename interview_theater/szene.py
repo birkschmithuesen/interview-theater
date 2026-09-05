@@ -726,11 +726,10 @@ def _thema_text(conn, chat_id: int) -> str:
     if not stand:
         return ""
     zeilen = []
-    # Die Geschichte steht vorn: sie hat die Rolle des Kernthemas
-    # uebernommen (Umbau 05.09.2026 nachts) -- der Bogen und das Ende, an
-    # denen die Szene haengt.
-    if "geschichte" in stand.keys() and stand["geschichte"]:
-        zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
+    # Die Geschichte steht NICHT hier: sie steht schon einen Block darueber
+    # in ``_format_rahmen_text`` als "Bogen und Ende" (Audit-Befund S1,
+    # 06.09.2026 -- wortgleich zweimal im selben Prompt, 260 Zeichen). Ein
+    # Fakt, eine Stelle.
     if stand["kernthema"]:
         zeile = f"Kernthema: {stand['kernthema']}"
         if stand["kernthema_begruendung"]:
@@ -792,11 +791,17 @@ def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
                 )
         if zeilen:
             return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
+    # Die Zusammenfassung gehoert der Verdichtung, nicht dem Thema: elf
+    # markierte Themen eines Interviews schrieben sie elfmal (Audit-Befund
+    # S2, 06.09.2026 -- 7.700 Zeichen Dublette). Einmal je Interview.
+    gesehen: set[str] = set()
     for thema in repo.kernthemen_themen(conn, chat_id):
         name = kontext.interviewbezeichnung(conn, chat_id, thema["aufnahme_id"])
         zeile = f"- {name}: {thema['thema']}"
-        if thema["zusammenfassung"]:
-            zeile += f"\n    {thema['zusammenfassung']}"
+        zusammenfassung = (thema["zusammenfassung"] or "").strip()
+        if zusammenfassung and zusammenfassung not in gesehen:
+            gesehen.add(zusammenfassung)
+            zeile += f"\n    {zusammenfassung}"
         zeilen.append(zeile)
     for eintrag in repo.kernzitate(conn, chat_id):
         name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
@@ -841,22 +846,27 @@ def _figuren_text(conn, chat_id: int) -> str:
     erst los, aber wer ``schreibe()`` direkt ruft (Tests, ein kuenftiger
     Stapellauf), soll keinen namenlosen Prompt bekommen."""
     bloecke = []
-    mit_stimme = False
+    # **Nur echte Zitate rechtfertigen den woertlich-Kopf** (Audit-Befund S4,
+    # 06.09.2026). Vorher genuegte ein Sprachprofil, um FIGUREN_KOPF zu
+    # setzen -- der sagt aber "aus ihrem Interview, woertlich", und darunter
+    # standen dann Name, Beschreibung und eine Duktus-Zeile, kein einziges
+    # Zitat. Ein Prompt, der etwas ankuendigt und nicht liefert, laesst das
+    # Modell das Fehlende ergaenzen: es erfindet Zitate.
+    mit_zitat = False
     for figur in repo.figuren(conn, chat_id):
         zeilen = [f"{figur['name']}"]
         if figur["beschreibung"]:
             zeilen[0] += f" -- {figur['beschreibung']}"
         if figur["sprachprofil"]:
             zeilen.append(figur["sprachprofil"].strip())
-            mit_stimme = True
         for satz in (figur["zitate"] or "").split(repo.ZITAT_TRENNER):
             if satz.strip():
                 zeilen.append(f'  "{satz.strip()}"')
-                mit_stimme = True
+                mit_zitat = True
         bloecke.append("\n".join(zeilen))
     if not bloecke:
         return ""
-    kopf = FIGUREN_KOPF if mit_stimme else FIGUREN_KOPF_OHNE_STIMME
+    kopf = FIGUREN_KOPF if mit_zitat else FIGUREN_KOPF_OHNE_STIMME
     return kopf + "\n\n" + "\n\n".join(bloecke)
 
 
@@ -1100,9 +1110,17 @@ def _verworfen_text(conn, chat_id: int) -> str:
 #: rein -- was in den Szenen vorkommt, wo, wer, was gesagt wird. Continuity
 #: mechanisch."* Vorher standen hier alle Volltranskripte; heraus kam eine
 #: Szene in einer Kueche mit erfundenen Figuren.
+#: Blockreihenfolge, praezisiert im Prompt-Audit 06.09.2026 (Befund S3): die
+#: **Aufgabe dieser Szene** stand hinter Figuren, Continuity und Verworfenem,
+#: also nach rund 8.000 Zeichen Material -- und damit hinter dem, was sie
+#: eigentlich rahmen soll. Jetzt: erst der Bogen des Stuecks (worin spielt es,
+#: wie endet es), dann die Aufgabe genau dieser Szene, dann das Material
+#: (Thema, Kernpaket, Figuren), dann die Continuity, dann die Angaben dieser
+#: Szene und zuletzt der Auftrag. Das Ende des Prompts wiegt am schwersten
+#: (SPEC § 6.1) -- dort stehen die Angaben, die bindend sind, und der Auftrag.
 _REIHENFOLGE = (
-    "format_rahmen", "thema", "kernpaket", "figuren", "continuity", "verworfen",
-    "aufgabe", "diese_szene", "auftrag",
+    "format_rahmen", "aufgabe", "thema", "kernpaket", "figuren", "continuity",
+    "verworfen", "diese_szene", "auftrag",
 )
 
 

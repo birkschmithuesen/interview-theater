@@ -604,3 +604,40 @@ def test_aufnahme_ansage_erklaert_die_bedienung(conn, einst, tg):
     assert "Sprachnachricht" in text or "Sprachnachrichten" in text
     assert "Mitlesen" in text, "das zurueckgespielte Transkript wird angesagt"
     assert "Beenden" in text
+
+
+# ---------------------------------------------------------------------------
+# /format und /rahmen -- der sichere Weg zu den Ergebnissen von Phase 5
+# ---------------------------------------------------------------------------
+
+
+def test_format_und_rahmen_schreiben_in_den_arbeitsstand(conn, einst, tg):
+    """Birk 05.09.: eine Szene lief mit form=Monolog, das niemand gewaehlt
+    hatte -- der Bot hatte es beilaeufig vorgeschlagen und ein 'ok' bekommen.
+    Seit demselben Tag sperrt szene.py ohne format/rahmen; also braucht es
+    einen Weg, sie sicher zu setzen."""
+    befehle.behandle(conn, tg, einst, 1, "/format Sprechtheater: Dialog", "Ada")
+    befehle.behandle(conn, tg, einst, 1, "/rahmen Ein Wartezimmer, nachmittags", "Ada")
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["format"] == "Sprechtheater: Dialog"
+    assert stand["rahmen"] == "Ein Wartezimmer, nachmittags"
+    assert "Format notiert" in tg.gesendet[0][1]
+    assert "Rahmen notiert" in tg.gesendet[1][1]
+
+
+def test_format_ohne_text_erklaert_sich(conn, einst, tg):
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/format", "Ada")
+
+    assert behandelt is True
+    assert "/format" in tg.gesendet[0][1], "die Hilfezeile zeigt ein Beispiel"
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand is None or not (stand["format"] or "")
+
+
+def test_format_aus_nimmt_es_wieder_weg(conn, einst, tg):
+    repo.setze_arbeitsstand(conn, 1, "format", "Musical")
+
+    befehle.behandle(conn, tg, einst, 1, "/format aus", "Ada")
+
+    assert not (repo.hole_arbeitsstand(conn, 1)["format"] or "")

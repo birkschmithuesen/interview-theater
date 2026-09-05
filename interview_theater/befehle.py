@@ -241,6 +241,44 @@ def _befehl_auswerten(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     aufnahme.starte_auswertung(conn, tg, klm, e, kopf["id"])
 
 
+def _befehl_arbeitsstandfeld(conn, tg, chat_id: int, feld: str, rest: str) -> None:
+    """``/format <text>`` und ``/rahmen <text>`` -- der deterministische Weg
+    zu den beiden Ergebnissen von Phase 5, wie ``/kernthema`` fuer Phase 4.
+
+    Grund (Birk 05.09.2026): eine Szene wurde geschrieben, ohne dass Form und
+    Rahmen je ausdruecklich gewaehlt worden waren -- der Bot hatte "Monolog"
+    beilaeufig vorgeschlagen, ein knappes "ok" bekommen, und der Erkenner
+    schrieb es als Szenenfeld mit. Seit demselben Tag sperrt szene.py ohne
+    ``format`` und ``rahmen`` im Arbeitsstand; damit braucht es auch einen
+    Weg, sie sicher zu setzen, statt darauf zu hoffen, dass ein "ok" richtig
+    gedeutet wird.
+
+    ``aus`` nimmt das Feld wieder weg -- dieselbe Sprache wie bei
+    ``/kernthema aus``."""
+    bezeichnung = {"format": "Format", "rahmen": "Rahmen"}[feld]
+    if not rest:
+        tg.sende(
+            chat_id,
+            f"Schreibt den {bezeichnung} hinter den Befehl, zum Beispiel: "
+            f"/{feld} {_BEISPIEL_ARBEITSSTAND[feld]}",
+        )
+        return
+    if rest.lower() == "aus":
+        entfernt = erkenner.entferne(conn, chat_id, feld, quelle="befehl")
+        tg.sende(chat_id, _melde_entfernt(entfernt, f"Ein {bezeichnung} war nicht gesetzt."))
+        return
+    repo.setze_arbeitsstand(conn, chat_id, feld, rest)
+    tg.sende(chat_id, f"{bezeichnung} notiert: {rest}")
+
+
+#: Beispiele fuer die Hilfezeile von /format und /rahmen -- konkret, damit
+#: sichtbar ist, wie lang die Angabe sein soll (eine Zeile, kein Aufsatz).
+_BEISPIEL_ARBEITSSTAND = {
+    "format": "Sprechtheater: Dialog und Chor",
+    "rahmen": "Ein Wartezimmer, an einem Nachmittag",
+}
+
+
 def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
     """Setzt das Kernthema -- oder nimmt es mit ``/kernthema aus`` wieder
     weg (NACHTRAG N3, der deterministische Weg neben der Erkenner-art
@@ -458,7 +496,7 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
 #: aber nicht mehr im Menue.
 _BEKANNTE_BEFEHLE = {
     "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase", "/kernthema",
-    "/figur", "/szene", "/stand", "/wortlaut", "/hilfe",
+    "/format", "/rahmen", "/figur", "/szene", "/stand", "/wortlaut", "/hilfe",
 }
 
 
@@ -497,6 +535,8 @@ def behandle(
         _befehl_phase(conn, tg, chat_id, rest)
     elif befehl == "/kernthema":
         _befehl_kernthema(conn, tg, chat_id, rest)
+    elif befehl in ("/format", "/rahmen"):
+        _befehl_arbeitsstandfeld(conn, tg, chat_id, befehl.lstrip("/"), rest)
     elif befehl == "/figur":
         _befehl_figur(conn, tg, chat_id, rest)
     elif befehl == "/szene":

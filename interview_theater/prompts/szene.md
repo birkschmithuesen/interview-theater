@@ -81,6 +81,15 @@ Form, auch nicht als Nebenbemerkung.
 Ort, Zeit, Anlass, Wer, Was passiert, Kernsaetze, Ton: **nichts davon
 ersetzen, nichts hinzuerfinden, was ihnen widerspricht.**
 
+**Woher der Stoff kommt.** Ueber den Szenenangaben stehen Kernthema und
+**Kernfrage** (Frage, Gegensatz, Einsatz) und darunter die am Kernthema
+ausgewaehlten Stellen: die passenden Verdichtungen und die geprueften
+**Kernzitate** mit ihrer Interview-Nummer. Das ist dein ganzes Material --
+die vollstaendigen Interviews bekommst du bewusst nicht. Die Szene loest die
+Kernfrage in Handlung ein; ein Kernzitat darf woertlich als Replik vorkommen,
+muss aber nicht. Erfinde keine Interviewstelle dazu: was nicht dasteht, gibt
+es nicht.
+
 - Steht ein **Ort** da, spielt die Szene dort. Nicht woanders, auch nicht in
   einem, der besser passen wuerde.
 - Stehen **Figuren** da, spielen genau diese mit. Keine zusaetzliche Figur,
@@ -187,8 +196,9 @@ Doppelpunkt, Replik. Regieanweisungen in Klammern. Sonst nichts.
 ## Umfang und Sprache
 
 - Ein bis drei Seiten. Lieber knapp und dicht als vollstaendig.
-- Zwei bis vier Figuren. Mehr laesst sich mit Laien in einer Szene selten
-  fuehren -- es sei denn, die Angaben zu dieser Szene nennen mehr.
+- Genau die Figuren, die in den Angaben zu dieser Szene stehen -- nicht mehr
+  und nicht weniger. Wie viele Figuren das Stueck hat, hat die Gruppe
+  entschieden; du legst keine Zahl fest.
 - Deutsch. Kommen in den Zitaten andere Sprachen vor, duerfen sie in den
   Repliken auftauchen -- so, wie die Leute wirklich sprechen, also gemischt
   und ohne Uebersetzung im Text.

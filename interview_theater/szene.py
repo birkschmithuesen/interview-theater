@@ -642,7 +642,11 @@ def _thema_text(conn, chat_id: int) -> str:
 
     Der Hauptkonflikt ist seit dem 05.09.2026 optional (Birk: "Es muss nicht
     immer einen Konflikt geben") -- eine leere Zeile "Hauptkonflikt: -" wuerde
-    das Modell einen erfinden lassen."""
+    das Modell einen erfinden lassen.
+
+    Seit dem Abend des 05.09.2026 steht hier auch die **Kernfrage** (die
+    dramatische Frage samt Gegensatz und Einsatz): sie ist der Faden, an dem
+    die Szene haengt, und sie steht vor allem anderen."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
     if not stand:
         return ""
@@ -652,9 +656,54 @@ def _thema_text(conn, chat_id: int) -> str:
         if stand["kernthema_begruendung"]:
             zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
         zeilen.append(zeile)
+    if stand["kernfrage"]:
+        zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
     if stand["hauptkonflikt"]:
         zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
     return "\n".join(zeilen)
+
+
+#: Ueberschrift des Kernpaket-Blocks im Szenen-Prompt (05.09.2026 abends).
+#: Er ersetzt das, was hier frueher gar nicht stand und im Gespraechs-Prompt
+#: alle Verdichtungen waren: die **am Kernthema gefilterte** Auswahl -- die
+#: passenden Verdichtungsthemen und die geprueften Kernzitate.
+KERNPAKET_KOPF = (
+    "Die Stellen, die zum Kernthema gehoeren (am Kernthema gefiltert, mit "
+    "Interview-Nummer). Sie sind die Grundlage - alles andere Material siehst "
+    "du hier bewusst nicht:"
+)
+
+
+def _kernpaket_text(conn, chat_id: int) -> str:
+    """Block 2b: die gefilterten Verdichtungen und die Kernzitate.
+
+    Das ersetzt die Zitatquelle des Szenen-Prompts: bis hierher kamen
+    woertliche Saetze allein aus den Sprachprofilen der Figuren, die
+    thematische Grundlage fehlte ganz. Jetzt steht die Auswahl da, die am
+    Kernthema getroffen wurde -- nicht alle Verdichtungen, nicht ein
+    Transkript. Die Sprachprofile bleiben unveraendert daneben stehen
+    (``_figuren_text``): das eine sagt, WORUM es geht, das andere, WIE
+    jemand spricht."""
+    zeilen = []
+    for thema in repo.kernthemen_themen(conn, chat_id):
+        from interview_theater import kontext
+
+        name = kontext.interviewbezeichnung(conn, chat_id, thema["aufnahme_id"])
+        zeile = f"- {name}: {thema['thema']}"
+        if thema["zusammenfassung"]:
+            zeile += f"\n    {thema['zusammenfassung']}"
+        zeilen.append(zeile)
+    for eintrag in repo.kernzitate(conn, chat_id):
+        from interview_theater import kontext
+
+        name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
+        zeile = f'- {name}: "{eintrag["zitat"]}"'
+        if eintrag["begruendung"]:
+            zeile += f" ({eintrag['begruendung']})"
+        zeilen.append(zeile)
+    if not zeilen:
+        return ""
+    return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
 
 
 #: Ueberschrift von Block 3 -- die wichtigste Zeile des ganzen Prompts (Birk,
@@ -805,7 +854,7 @@ def _verworfen_text(conn, chat_id: int) -> str:
 #: mechanisch."* Vorher standen hier alle Volltranskripte; heraus kam eine
 #: Szene in einer Kueche mit erfundenen Figuren.
 _REIHENFOLGE = (
-    "format_rahmen", "thema", "figuren", "continuity", "verworfen",
+    "format_rahmen", "thema", "kernpaket", "figuren", "continuity", "verworfen",
     "diese_szene", "auftrag",
 )
 
@@ -838,6 +887,7 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None) -> str:
     bloecke = {
         "format_rahmen": _format_rahmen_text(conn, chat_id),
         "thema": _thema_text(conn, chat_id),
+        "kernpaket": _kernpaket_text(conn, chat_id),
         "figuren": _figuren_text(conn, chat_id),
         "continuity": _continuity_text(conn, chat_id, nummer),
         "verworfen": _verworfen_text(conn, chat_id),

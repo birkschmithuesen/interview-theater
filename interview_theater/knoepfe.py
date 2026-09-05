@@ -342,7 +342,7 @@ _TEXT_FOLGE_LEER = (
 )
 
 #: Szene fuer Szene.
-TEXT_SZENE_SCHREIBEN_KNOPF = "Passt, schreiben"
+TEXT_SZENE_SCHREIBEN_KNOPF = "Ja, schreiben"
 TEXT_SZENE_PLANEN_KNOPF = "Anders planen"
 TEXT_SZENE_FORM_KNOPF = "Form aendern"
 TEXT_SZENE_UEBERSPRINGEN_KNOPF = "Ueberspringen"

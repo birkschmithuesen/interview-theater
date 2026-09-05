@@ -239,6 +239,17 @@ def vorstellung(conn, zeile) -> str:
             "Es fehlt ausserdem: "
             + ", ".join(szene_modul.FELDNAMEN[f] for f in ausserdem)
         )
+    # Die Frage steht ausdrücklich da (Birk, 05.09. abends): die Gruppe soll
+    # nicht raten, was der Knopf "Passt, schreiben" tut, und nie einen
+    # Slash-Befehl brauchen. Fehlt noch etwas, sagt der Knopf trotzdem zu --
+    # er schlaegt die Luecken dann zuerst vor (szenenfolge, Feldvorschlag).
+    if fehlende:
+        zeilen.append(
+            f"\nSoll ich Szene {nummer} jetzt schreiben? Was noch offen ist, "
+            "schlage ich vorher vor."
+        )
+    else:
+        zeilen.append(f"\nSoll ich Szene {nummer} jetzt schreiben?")
     return "\n".join(zeilen)
 
 

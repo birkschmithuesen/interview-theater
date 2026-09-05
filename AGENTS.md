@@ -412,6 +412,13 @@ python -m interview_theater.bot
   Eintritt und Telegram-Servicezeilen bleiben) und danach DB + Audio wie
   `loeschen.py`. Für den Workshop-Start nach einem Probelauf. Env der
   jeweiligen Gruppe laden — das Skript prüft, dass der Bot zur Gruppe passt.
+- `python -m scripts.chat_leeren_blind <chat_id> [--zurueck 300]` — wenn die
+  DB die Nachrichten nicht mehr kennt (nach `loeschen.py` oder nach einem
+  Simulationslauf mit `--echte-db`): Marker senden, dann die letzten 300
+  IDs rückwärts löschen. Telegram-Grenze: nur 48 h, nur als Admin.
+- `python -m scripts.szenen_vergleich --nur opus,kimi,mistral,apertus` —
+  eine Szene, gleicher Prompt, vier Modelle; Ausgabe als Markdown mit dem
+  Prompt als Anhang. Grundlage der Entscheidung für Opus (05.09.).
 - `python scripts/loeschen.py <chat_id>` — der Löschweg: entfernt alle
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.

@@ -357,7 +357,29 @@ vollständige Lauf gegen das echte Modell steht noch aus.
 
 ## (f) Offene Punkte und Risiken
 
-**Ehrlich benannt, nach Schwere:**
+**Stand 05.09. mittags (nach der Nachtschicht + Vormittag), was für den
+Workshop zählt:**
+
+- **Szenentext = Claude Opus, mit Einwilligung der Gruppe.** Der Bot fragt vor
+  der ersten Szene (einmal), was in die USA geht (Kernthema, Figuren mit
+  Zitaten, Szenenangaben) und was nicht (Aufnahmen, Transkripte, Namen).
+  `ja` → Opus, `nein` → Kimi, nie wieder gefragt. Vor jeder Szene die kurze
+  Warnung. `IT_SZENE_ANBIETER=claude` in allen drei Envs; Proxy ist
+  `hermes-anthropic-proxy.service`. Fällt der Proxy aus: Szene scheitert mit
+  „nicht gelungen" — dann `infomaniak` setzen und Neustart.
+- **Kein Klarname mehr sichtbar** („Interview 2" statt Aufnahmename) — im
+  Modell, im Chat, auf Web und Dashboard.
+- **Ein Interview darf mehrere Figuren speisen**; der Bot schlägt es vor,
+  wenn Interviews knapper sind als Figuren.
+- **Web lädt sanft nach** (fetch, kein meta refresh) — Klappzustand bleibt.
+- **Verdichter macht bei durchgefallenen Zitaten einen zweiten Anlauf.**
+- **Szenenübergang:** ab Szene 2 fragt der Bot beim Planen einmal, wie die
+  Figuren hierher kommen (→ Anlass/Zeit).
+- **Nicht gemessen im Betrieb:** Opus-Latenz unter drei parallelen Gruppen;
+  ob Kimi den Opus-Angebotstext trotz Verbot doch nacherzählt (in der
+  Simulation nach dem Fix 0/1 Läufe).
+
+**Ehrlich benannt, nach Schwere (Stand 04.09.):**
 
 1. **`bot.main()` ist als Ganzes nie getestet**, nur seine Bausteine. Der erste echte Start
    ist der erste Test der Verdrahtung.

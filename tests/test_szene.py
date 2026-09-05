@@ -259,9 +259,11 @@ def test_bei_einer_ueberarbeitung_geht_der_bisherige_text_mit(conn, einst):
     assert "ueberarbeitet werden" in text
 
 
-def test_ohne_ueberarbeitung_geht_kein_fremder_volltext_mit(conn, einst):
-    """Ein fremder Volltext waere vor allem eine Vorlage zum Abschreiben --
-    aus einer frueheren Szene geht die Lage mit, nicht der Wortlaut."""
+def test_der_volltext_der_frueheren_szene_geht_mit(conn, einst):
+    """Umgekehrt seit dem 05.09.2026 abends (Birk, nach der Testgruppe):
+    frueher ging aus einer frueheren Szene nur die Lage mit, und Szene 2
+    kannte Szene 1 nicht wirklich. Jetzt steht ihr Text da -- klar
+    gekennzeichnet und mit dem Anschluss-Satz darueber."""
     _geplante_szene(conn, 1, titel="Ankunft", ort="Bahnhof")
     repo.aktualisiere_szene(
         conn, repo.hole_szenen(conn, 1)[0]["id"], "Ankunft", "Maria kommt an", "MARIA: Da."
@@ -270,7 +272,8 @@ def test_ohne_ueberarbeitung_geht_kein_fremder_volltext_mit(conn, einst):
     text = szene.baue_nutzertext(conn, 1, "Schreib Szene 2")
 
     assert "Szene 1: Ankunft" in text
-    assert "MARIA: Da." not in text
+    assert szene.CONTINUITY_VOLLTEXT_KOPF.format(nummer=1) in text
+    assert "MARIA: Da." in text
 
 
 def test_auftrag_steht_am_ende(conn, einst):
@@ -642,7 +645,11 @@ def test_die_sperre_kuendigt_nichts_an(conn, einst, tg):
 
 def test_eine_neu_auftauchende_figur_ist_ein_hinweis_keine_sperre(conn, einst, tg, bereit):
     """Die Gruppe darf eine Figur einfuehren, wo sie will -- sie soll es nur
-    merken, bevor jemand im Durchlauf fragt, wo diese Person war."""
+    merken, bevor jemand im Durchlauf fragt, wo diese Person war.
+
+    Szene 1 bekommt hier einen Text, sonst zieht die Chronologie-Sperre sie
+    vor und Szene 2 kaeme gar nicht dran."""
+    repo.aktualisiere_szene(conn, bereit, "Ankunft", "kurz", "MARIA: Da.")
     pal = _figur_mit_stimme(conn, name="Pal", beschreibung="filmt alles mit",
                             zitate=("Ich film das.",))
     ziel = _geplante_szene(conn, 2, form="Dialog", ort="Kueche",
@@ -975,3 +982,139 @@ def test_nackte_zahl_im_auftrag_ist_die_szenennummer():
     assert szene.nummer_aus_auftrag("Szene 3 nochmal") == 3
     assert szene.nummer_aus_auftrag("mach den Text") is None
     assert szene.nummer_aus_auftrag("3 Freunde am Kiosk") is None
+
+
+# ---------------------------------------------------------------------------
+# Chronologie-Sperre (05.09.2026): nur die kleinste offene Szene wird
+# geschrieben. Live-Befund der Testgruppe 22:05 -- Szene 3 wurde vor Szene 1
+# und 2 geschrieben, und der Text schloss an nichts an.
+# ---------------------------------------------------------------------------
+
+
+def test_ziel_fuer_zieht_die_kleinste_offene_szene_vor(conn, einst):
+    _bereit_machen(conn, nummer=1)
+    _bereit_machen(conn, nummer=2)
+    _bereit_machen(conn, nummer=3)
+
+    ziel = szene.ziel_fuer(conn, 1, "Schreib Szene 3.")
+
+    assert ziel["nummer"] == 1
+
+
+def test_ohne_chronologie_bleibt_die_gemeinte_szene_stehen(conn, einst):
+    """Der Weg fuer Aufrufer, die nur wissen wollen, wovon die Rede war."""
+    _bereit_machen(conn, nummer=1)
+    _bereit_machen(conn, nummer=3)
+
+    ziel = szene.ziel_fuer(conn, 1, "Schreib Szene 3.", chronologisch=False)
+
+    assert ziel["nummer"] == 3
+
+
+def test_auftrag_auf_szene_3_schreibt_szene_1_und_sagt_es(conn, einst, tg):
+    _bereit_machen(conn, nummer=1)
+    _bereit_machen(conn, nummer=2)
+    _bereit_machen(conn, nummer=3)
+    klm = LLMAttrappe()
+
+    _warte(szene.starte(conn, tg, klm, einst, 1, "Schreib Szene 3."))
+
+    assert any(
+        "Szene 3 kommt nach Szene 1" in t for t in tg.texte
+    ), tg.texte
+    szenen = {s["nummer"]: s for s in repo.hole_szenen(conn, 1)}
+    assert (szenen[1]["volltext"] or "").strip()
+    assert not (szenen[3]["volltext"] or "").strip()
+
+
+def test_eine_geschriebene_szene_darf_jederzeit_neu_geschrieben_werden(conn, einst, tg):
+    """\"Neu schreiben\" auf Szene 3 bleibt erlaubt, auch wenn Szene 2 leer
+    ist: eine Ueberarbeitung ist keine Vorwegnahme."""
+    _bereit_machen(conn, nummer=2)
+    szene_id = _bereit_machen(conn, nummer=3)
+    repo.aktualisiere_szene(conn, szene_id, "Alt", "kurz", "ALTER TEXT")
+    klm = LLMAttrappe()
+
+    _warte(szene.starte(conn, tg, klm, einst, 1, "Schreib Szene 3 neu."))
+
+    assert not any("kommt nach Szene" in t for t in tg.texte), tg.texte
+    assert repo.hole_szene(conn, szene_id)["volltext"] != "ALTER TEXT"
+
+
+def test_ist_die_fruehere_szene_geschrieben_laeuft_die_naechste(conn, einst, tg):
+    eins = _bereit_machen(conn, nummer=1)
+    repo.aktualisiere_szene(conn, eins, "Ankunft", "kurz", "MARIA: Da.")
+    zwei = _bereit_machen(conn, nummer=2)
+    klm = LLMAttrappe()
+
+    _warte(szene.starte(conn, tg, klm, einst, 1, "Schreib Szene 2."))
+
+    assert not any("kommt nach Szene" in t for t in tg.texte), tg.texte
+    assert (repo.hole_szene(conn, zwei)["volltext"] or "").strip()
+
+
+# ---------------------------------------------------------------------------
+# Volltext der frueheren Szenen im Prompt (05.09.2026)
+# ---------------------------------------------------------------------------
+
+
+def test_continuity_traegt_den_volltext_der_frueheren_szene(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    eins = _geplante_szene(conn, 1, titel="Ankunft", ort="Bahnhof",
+                           was_passiert="Maria kommt an", figuren=[figur])
+    repo.aktualisiere_szene(
+        conn, eins["id"], "Ankunft", "kurz", "MARIA: Der Koffer ist offen."
+    )
+    ziel = _geplante_szene(conn, 2, form="Dialog", ort="Treppenhaus",
+                           was_passiert="sie streiten", figuren=[figur])
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 2 schreiben", ziel)
+
+    assert szene.CONTINUITY_ANSCHLUSS in text
+    assert szene.CONTINUITY_VOLLTEXT_KOPF.format(nummer=1) in text
+    assert "MARIA: Der Koffer ist offen." in text
+    # Die Stichzeilen bleiben daneben stehen.
+    assert "Ort: Bahnhof" in text
+
+
+def test_ohne_volltext_bleibt_es_bei_den_stichzeilen(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    _geplante_szene(conn, 1, titel="Ankunft", ort="Bahnhof",
+                    was_passiert="Maria kommt an", figuren=[figur])
+    ziel = _geplante_szene(conn, 2, form="Dialog", ort="Treppenhaus",
+                           was_passiert="sie streiten", figuren=[figur])
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 2 schreiben", ziel)
+
+    assert "Ort: Bahnhof" in text
+    assert szene.CONTINUITY_VOLLTEXT_KOPF.format(nummer=1) not in text
+
+
+def test_zu_lange_volltexte_werden_bei_den_aeltesten_gekuerzt(conn, einst):
+    """Ueber CONTINUITY_ZEICHEN_MAX faellt die AELTESTE Szene auf ihren
+    Schluss zurueck -- die juengste bleibt vollstaendig, an sie wird
+    unmittelbar angeschlossen."""
+    figur = _figur_mit_stimme(conn)
+    lang = "\n".join(f"ZEILE {i}: " + "x" * 100 for i in range(400))
+    for nummer in (1, 2):
+        zeile = _geplante_szene(conn, nummer, ort=f"Ort {nummer}",
+                                was_passiert="etwas", figuren=[figur])
+        repo.aktualisiere_szene(
+            conn, zeile["id"], f"Szene {nummer}", "kurz",
+            f"ANFANG {nummer}\n{lang}\nSCHLUSS {nummer}",
+        )
+    ziel = _geplante_szene(conn, 3, form="Dialog", ort="Treppenhaus",
+                           was_passiert="sie streiten", figuren=[figur])
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 3 schreiben", ziel)
+
+    assert szene._TEXT_CONTINUITY_GEKUERZT in text
+    assert "ANFANG 1" not in text, "die aelteste Szene wird gekuerzt"
+    assert "SCHLUSS 1" in text, "ihr Schluss bleibt stehen"
+    assert "ANFANG 2" in text, "die juengste Szene bleibt vollstaendig"
+
+
+def test_kuerzung_laesst_kurze_szenen_in_ruhe(conn, einst):
+    kurz = "MARIA: Da.\nELIF: Ja."
+
+    assert szene._gekuerzter_volltext(kurz) == kurz

@@ -115,6 +115,19 @@ es nicht.
   Ein Widerspruch zur vorigen Szene (jemand weiss etwas nicht mehr, was er
   dort erfahren hat) ist ein Fehler.
 
+**Die frueheren Szenen stehen im vollen Wortlaut da.** Unter "Was bisher
+geschah" findest du zu jeder frueheren Szene nicht nur ihre Angaben, sondern
+ihren vollstaendigen Text ("Szene 1 - vollstaendiger Text:"). Das ist bereits
+geschrieben und gilt: es ist nicht dein Entwurf, den du verbessern sollst,
+sondern der Boden, auf dem du stehst. Lies ihn und schliesse an -- Figuren
+sprechen weiter, wie sie dort sprechen; Motive, Gegenstaende,
+Bewegungsmuster und Kernsaetze kehren wieder, weil sie es dort schon gab;
+der Ton fuehrt weiter. **Wiederhole nichts woertlich, ausser als bewusstes
+Echo:** ein Satz, den dort jemand anders gesagt hat, in einem neuen Mund ist
+ein Echo und traegt; derselbe Dialog noch einmal ist ein Ausfall. Ist eine
+sehr alte Szene gekuerzt ("Anfang gekuerzt, hier der Schluss der Szene"),
+gilt ihr Schluss -- er ist die Stelle, an die angeschlossen wird.
+
 ## Grundform der Ausgabe
 
 - Figurennamen in GROSSBUCHSTABEN, danach ein Doppelpunkt, dann die Replik.

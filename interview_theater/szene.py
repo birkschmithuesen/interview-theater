@@ -108,6 +108,12 @@ _TEXT_ANGEKUENDIGT = (
     "weiterarbeiten."
 )
 _TEXT_BESETZT = "Ich schreibe gerade noch an einer Szene, gleich."
+#: Die Chronologie-Sperre in einer Zeile (05.09.2026, Testgruppe 22:05: Szene
+#: 3 wurde vor Szene 1 und 2 geschrieben). Kein Sperrtext, keine Rueckfrage --
+#: der Bot sagt, was er stattdessen tut, und tut es.
+_TEXT_ERST_FRUEHERE = (
+    "Szene {nummer} kommt nach Szene {vorher} - die schreibe ich zuerst."
+)
 _TEXT_FEHLER = (
     "Die Szene ist mir nicht gelungen. Sagt es nochmal, dann versuche ich es neu."
 )
@@ -585,9 +591,55 @@ def _szene_mit_nummer(szenen, nummer: int | None):
     return next((s for s in szenen if s["nummer"] == nummer), None)
 
 
-def ziel_fuer(conn, chat_id: int, auftrag: str):
+def kleinste_offene(conn, chat_id: int, vor: int | None = None) -> int | None:
+    """Die kleinste (nicht entfernte) Szene ohne Volltext, oder None.
+
+    ``vor`` grenzt auf Szenen mit kleinerer Nummer ein -- genau das, was die
+    Chronologie-Sperre braucht: gibt es vor der angefragten Szene noch eine
+    ungeschriebene, ist die dran.
+
+    "Offen" heisst hier **ohne Volltext**, nicht "nicht abgenommen": eine
+    geschriebene, aber noch nicht abgenommene Szene ist geschrieben, und ihre
+    Ueberarbeitung darf die naechste nicht aufhalten."""
+    for szene in repo.hole_szenen(conn, chat_id):
+        if szene["nummer"] is None:
+            continue
+        if vor is not None and szene["nummer"] >= vor:
+            continue
+        if not (szene["volltext"] or "").strip():
+            return szene["nummer"]
+    return None
+
+
+def vorzuziehen(conn, chat_id: int, ziel) -> int | None:
+    """Die Nummer der Szene, die VOR ``ziel`` geschrieben werden muss -- oder
+    None, wenn ``ziel`` selbst dran ist (Chronologie-Sperre, 05.09.2026).
+
+    Der Anlass (Testgruppe 05.09. 22:05): Szene 3 wurde geschrieben, waehrend
+    Szene 1 und 2 leer waren. Ein Szenentext, der an nichts anschliesst, ist
+    keine dritte Szene, sondern eine erste an falscher Stelle -- und der
+    Volltext-Block (``_continuity_text``) haette nichts zu zeigen.
+
+    **Eine bereits geschriebene Szene bleibt jederzeit ueberarbeitbar**: hat
+    ``ziel`` einen Volltext, ist der Auftrag eine Neufassung und keine
+    Vorwegnahme. Nur eine noch leere Szene wird zurueckgestellt."""
+    if ziel is None or ziel["nummer"] is None:
+        return None
+    if (ziel["volltext"] or "").strip():
+        return None
+    return kleinste_offene(conn, chat_id, vor=ziel["nummer"])
+
+
+def ziel_fuer(conn, chat_id: int, auftrag: str, chronologisch: bool = True):
     """Die Szene, die dieser Auftrag meint -- und wenn es sie noch nicht gibt,
     eine neue, leere mit dieser Nummer.
+
+    ``chronologisch`` (Vorgabe an): fehlt vor der gemeinten Szene noch der
+    Volltext einer frueheren, liefert diese Funktion **die frueheste offene**
+    statt der gemeinten (``vorzuziehen``). Damit gilt die Sperre auf jedem
+    Weg -- Befehl, Knopf, Erkenner -- und ``schreibe()`` und ``starte()``
+    kommen nie zu verschiedenen Zielen. ``chronologisch=False`` gibt es fuer
+    Aufrufer, die nur wissen wollen, WOVON die Gruppe gesprochen hat.
 
     Drei Faelle, in dieser Reihenfolge:
 
@@ -605,14 +657,20 @@ def ziel_fuer(conn, chat_id: int, auftrag: str):
     aufgehalten. Dieselbe Regel wie in ``erkenner._wende_szene_planen_an``."""
     nummer = nummer_aus_auftrag(auftrag)
     ziel = _szene_mit_nummer(repo.hole_szenen(conn, chat_id), nummer)
-    if ziel is not None:
+    if ziel is None:
+        if nummer is None:
+            letzte = repo.hole_letzte_szene(conn, chat_id)
+            ziel = letzte
+        if ziel is None:
+            ziel = repo.hole_szene(
+                conn, repo.stelle_szene_sicher(conn, chat_id, nummer or 1)
+            )
+    if not chronologisch:
         return ziel
-    if nummer is None:
-        letzte = repo.hole_letzte_szene(conn, chat_id)
-        if letzte is not None:
-            return letzte
-        nummer = 1
-    return repo.hole_szene(conn, repo.stelle_szene_sicher(conn, chat_id, nummer))
+    vorher = vorzuziehen(conn, chat_id, ziel)
+    if vorher is None:
+        return ziel
+    return repo.hole_szene(conn, repo.stelle_szene_sicher(conn, chat_id, vorher))
 
 
 # ---------------------------------------------------------------------------
@@ -767,9 +825,9 @@ def _szenenfelder_zeilen(conn, zeile, felder) -> list[str]:
     return zeilen
 
 
-#: Was aus einer frueheren Szene mitgeht. Bewusst nicht der Volltext: sechs
-#: ausgeschriebene Szenen waeren einige tausend Token, und was die naechste
-#: Szene braucht, ist die Lage, nicht der Wortlaut.
+#: Was aus einer frueheren Szene als Stichzeile mitgeht. Der Volltext kommt
+#: seit dem 05.09.2026 zusaetzlich dazu (``_continuity_text``): die Stichzeilen
+#: sagen die Lage, der Volltext die Sprache.
 _CONTINUITY_FELDER = ("ort", "figuren", "was_passiert", "was_anders")
 
 #: Was in "Diese Szene" steht: alles, was die Gruppe entschieden hat.
@@ -778,28 +836,98 @@ _DIESE_SZENE_FELDER = (
     "kernsaetze", "ton", "titel",
 )
 
+#: Der Satz ueber den frueheren Szenen. Er sagt, was mit ihnen zu tun ist --
+#: anschliessen, nicht wiederholen (Birk, 05.09.2026: "Szene 2 kennt Szene 1
+#: nicht wirklich").
+CONTINUITY_ANSCHLUSS = (
+    "Das ist bereits geschrieben und gilt. Schliesse daran an: Figuren, "
+    "Motive, Bewegungsmuster, Kernsaetze und Ton fuehren weiter; wiederhole "
+    "nichts woertlich, ausser als bewusstes Echo."
+)
+
+#: Wie ein Volltext im Continuity-Block ueberschrieben wird.
+CONTINUITY_VOLLTEXT_KOPF = "Szene {nummer} - vollstaendiger Text:"
+
+#: Ab wie vielen Zeichen an Volltexten gekuerzt wird. MAX_TOKENS = 200.000
+#: reicht fuer sechs Szenen bequem; der Deckel faengt den Ausreisser ab (sechs
+#: sehr lange Szenen), damit Infomaniaks max_total_tokens nicht gerissen wird.
+#: Gekuerzt werden die AELTESTEN Szenen -- die juengste ist die, an die
+#: unmittelbar angeschlossen wird.
+CONTINUITY_ZEICHEN_MAX = 60_000
+
+#: Wie viele Zeilen einer gekuerzten Szene stehen bleiben: ihr Schluss. Genau
+#: er ist der Anschluss -- wie eine Szene ausgeht, entscheidet, wie die
+#: naechste anfaengt.
+CONTINUITY_KUERZUNG_ZEILEN = 15
+
+_TEXT_CONTINUITY_GEKUERZT = "(Anfang gekuerzt, hier der Schluss der Szene:)"
+
+
+def _gekuerzter_volltext(volltext: str) -> str:
+    """Die letzten ``CONTINUITY_KUERZUNG_ZEILEN`` Zeilen, mit einer Zeile
+    davor, die sagt, dass gekuerzt wurde. Ein stillschweigend abgeschnittener
+    Text saehe fuer das Modell aus wie eine Szene, die mittendrin anfaengt."""
+    zeilen = [z for z in volltext.strip().splitlines()]
+    if len(zeilen) <= CONTINUITY_KUERZUNG_ZEILEN:
+        return volltext.strip()
+    schluss = "\n".join(zeilen[-CONTINUITY_KUERZUNG_ZEILEN:])
+    return f"{_TEXT_CONTINUITY_GEKUERZT}\n{schluss}"
+
 
 def _continuity_text(conn, chat_id: int, nummer: int | None) -> str:
-    """Block 4: die frueheren Szenen, mechanisch aus der Datenbank.
+    """Block 4: die frueheren Szenen, mechanisch aus der Datenbank -- mit
+    Stichzeilen UND vollstaendigem Text.
 
     **Nur Szenen mit kleinerer Nummer** -- was danach kommt, ist fuer diese
     Szene keine Vorgeschichte, und eine Szene 5 als "bisher" zu lesen waere
     schlicht falsch. Ohne genannte Nummer (ein Auftrag ohne Szenenzahl) zaehlt
-    alles Vorhandene als bisher."""
-    zeilen = []
-    for szene in repo.hole_szenen(conn, chat_id):
-        if szene["nummer"] is None:
+    alles Vorhandene als bisher.
+
+    **Der Volltext geht mit** (05.09.2026, Birk nach der Testgruppe): bis
+    dahin standen hier nur Ort, Wer, Was passiert und Was anders -- Szene 2
+    kannte Szene 1 damit nicht wirklich, weder ihre Saetze noch ihren Ton.
+    Der Platz ist da: ``MAX_TOKENS`` = 200.000.
+
+    Wird es doch zu viel (``CONTINUITY_ZEICHEN_MAX``), werden die AELTESTEN
+    Szenen auf Stichzeilen plus ihren Schluss gekuerzt -- die juengste bleibt
+    vollstaendig, denn an sie wird unmittelbar angeschlossen."""
+    frueher = [
+        s for s in repo.hole_szenen(conn, chat_id)
+        if s["nummer"] is not None
+        and (nummer is None or s["nummer"] < nummer)
+    ]
+    if not frueher:
+        return ""
+
+    # Von hinten nach vorn ausgeben, wer noch vollstaendig mitgeht: die
+    # juengste Szene zuerst ins Budget, die aelteste zuletzt.
+    voll = set()
+    summe = 0
+    for szene in reversed(frueher):
+        text = (szene["volltext"] or "").strip()
+        if not text:
             continue
-        if nummer is not None and szene["nummer"] >= nummer:
+        if summe + len(text) > CONTINUITY_ZEICHEN_MAX:
             continue
+        summe += len(text)
+        voll.add(szene["id"])
+
+    bloecke = []
+    for szene in frueher:
         kopf = f"Szene {szene['nummer']}"
         if szene["titel"]:
             kopf += f": {szene['titel']}"
         angaben = _szenenfelder_zeilen(conn, szene, _CONTINUITY_FELDER)
-        zeilen.append(kopf + ("\n  " + "\n  ".join(angaben) if angaben else ""))
-    if not zeilen:
-        return ""
-    return CONTINUITY_KOPF + "\n" + "\n".join(zeilen)
+        teile = [kopf + ("\n  " + "\n  ".join(angaben) if angaben else "")]
+        text = (szene["volltext"] or "").strip()
+        if text:
+            teile.append(
+                CONTINUITY_VOLLTEXT_KOPF.format(nummer=szene["nummer"])
+                + "\n"
+                + (text if szene["id"] in voll else _gekuerzter_volltext(text))
+            )
+        bloecke.append("\n\n".join(teile))
+    return CONTINUITY_KOPF + "\n" + CONTINUITY_ANSCHLUSS + "\n\n" + "\n\n".join(bloecke)
 
 
 #: Ueberschrift von Block 6. Der Satz dahinter ist der Kern der Umstellung:
@@ -1112,7 +1240,28 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
     if not auftrag:
         return None
 
+    # Chronologie-Sperre (05.09.2026): geschrieben wird immer nur die
+    # kleinste Szene ohne Volltext. Nennt der Auftrag eine spaetere, sagt der
+    # Bot EINEN Satz und schreibt die frueheste offene -- keine Rueckfrage,
+    # keine Abfuhr. Der Auftragstext wird dabei auf die tatsaechlich
+    # geschriebene Szene umgeschrieben, sonst stuende im Prompt "Schreib
+    # Szene 3" ueber einer Szene 1.
+    gemeint = ziel_fuer(conn, chat_id, auftrag, chronologisch=False)
     ziel = ziel_fuer(conn, chat_id, auftrag)
+    if (
+        gemeint is not None
+        and ziel is not None
+        and gemeint["nummer"] is not None
+        and ziel["nummer"] != gemeint["nummer"]
+    ):
+        _sende_und_merke(
+            conn, tg, e, chat_id,
+            _TEXT_ERST_FRUEHERE.format(
+                nummer=gemeint["nummer"], vorher=ziel["nummer"],
+            ),
+        )
+        auftrag = f"Schreib Szene {ziel['nummer']}."
+
     fehlt = sperrtext(conn, ziel)
     if fehlt:
         _sende_und_merke(conn, tg, e, chat_id, fehlt)

@@ -55,6 +55,17 @@ SEKUNDEN_JE_NACHRICHT = 5
 #: Alternativname fuer die Transkriptkorrektur in Schritt 8 ("X heisst Y").
 ERSATZNAME = "Rukiye"
 
+#: Nach welchem Schritt ``--pause`` die Nacht einlegt. Der vierte -- da steht
+#: ein Kernthema, und die Gruppe hat etwas zu verlieren, wenn der Bot am
+#: naechsten Morgen nicht mehr weiss, wo sie war.
+PAUSE_NACH_SCHRITT = 4
+
+#: Um wie viele Stunden ``--pause`` den Chat zurueckdatiert. Vierzehn: eine
+#: Nacht zwischen zwei Workshoptagen, und deutlich mehr als
+#: ``bot.PAUSE_GRENZE_STUNDEN`` (2), ab denen die Wiederkehr-Zeile faellig
+#: wird.
+PAUSE_STUNDEN = 14
+
 
 @dataclass
 class Ergebnis:
@@ -74,6 +85,8 @@ class Ergebnis:
     schlechteste: list = field(default_factory=list)
     #: Was der Richter ueber das Journal sagt (N4a).
     journal_urteil: dict = field(default_factory=dict)
+    #: Was der Bot nach der simulierten Nacht geschickt hat (``--pause``).
+    wiederkehr: list = field(default_factory=list)
     zahlen: dict = field(default_factory=dict)
     gezogene: list = field(default_factory=list)
     personen: list = field(default_factory=list)
@@ -204,7 +217,7 @@ class Lauf:
 
     def __init__(self, conn, tg, klm, e, sim, *, gezogene, seed: int,
                  schritte=skript.SCHRITTE, personen=None, begriffsliste=None,
-                 fragenliste=None):
+                 fragenliste=None, stoerung=None, pause: bool = False):
         self.conn = conn
         self.tg = tg
         self.klm = klm          # der Bot-Klient (Infomaniak) -- der Prueflung
@@ -230,6 +243,8 @@ class Lauf:
         #: Prompts gebaut wurden (``kontext_protokoll``). Die Zuege schneiden
         #: sich ihren Ausschnitt daraus.
         self.kontexte: list[dict] = []
+        self.stoerung = stoerung
+        self.pause = pause
         self.ergebnis = Ergebnis(gezogene=self.gezogene, personen=self.personen)
         self._update_id = 0
         self._beitrag_nummer = 0
@@ -258,6 +273,8 @@ class Lauf:
 
     def _zug(self, marke: str = "", notiz: str = "", art: str = "gespraech") -> Zug:
         zug = Zug(schritt=self._schritt, marke=marke, notiz=notiz, art=art)
+        if self.stoerung is not None:
+            self.stoerung.neuer_zug()
         self.ergebnis.zuege.append(zug)
         return zug
 
@@ -553,6 +570,53 @@ class Lauf:
 
     # -- der Durchlauf ------------------------------------------------------
 
+    # -- Wiederkehr nach einer Nacht (--pause) ------------------------------
+
+    def _lege_pause_ein(self) -> None:
+        """Datiert den ganzen Chat um ``PAUSE_STUNDEN`` zurueck, laesst den Bot
+        seine Wiederkehr-Zeile schicken und danach eine Stimme schreiben.
+
+        Der Fall zwischen zwei Workshoptagen: die Gruppe kommt am naechsten
+        Morgen zurueck, der Bot ist neu gestartet. Gemessen wird zweierlei --
+        nennt die Wiederkehr-Zeile die richtige Phase, und faengt der Bot
+        wieder von vorn an, die Befehle zu erklaeren?
+
+        Zurueckdatiert wird hier und nicht in ``repo``: eine Funktion, die
+        Zeitstempel verschiebt, hat im Betrieb nichts zu suchen -- sie waere
+        ein Werkzeug, mit dem sich der Verlauf faelschen liesse. Und
+        gerechnet wird in Python statt mit SQLites ``datetime()``: das
+        liefert einen String ohne Zeitzone zurueck, und ``bot.begruessung_
+        faellig`` vergleicht ihn mit einem zeitzonenbewussten ``jetzt`` --
+        das schlaegt mit einem TypeError fehl, mitten im Lauf."""
+        zeilen = self.conn.execute(
+            "SELECT id, gesendet_am FROM nachricht WHERE chat_id = ?", (CHAT_ID,)
+        ).fetchall()
+        verschoben = timedelta(hours=PAUSE_STUNDEN)
+        for zeile in zeilen:
+            frueher = datetime.fromisoformat(zeile["gesendet_am"]) - verschoben
+            self.conn.execute(
+                "UPDATE nachricht SET gesendet_am = ? WHERE id = ?",
+                (frueher.isoformat(), zeile["id"]),
+            )
+        self.conn.commit()
+
+        vorher = len(self.tg.gesendet)
+        zug = self._zug(
+            marke="pause",
+            notiz=f"[Simulation] Der Chat wird um {PAUSE_STUNDEN} Stunden "
+                  "zurueckdatiert -- die Gruppe kommt am naechsten Morgen wieder.",
+        )
+        bot.sende_wiederkehr_begruessungen(
+            self.conn, self.tg, self.e, datetime.now(timezone.utc)
+        )
+        self._schliesse_zug(zug, vorher, len(self.kontexte), self.tg.jetzt())
+        self.ergebnis.wiederkehr = list(zug.bot)
+
+        self._stimmen_zug(
+            "Ihr seid am naechsten Morgen wieder da und wollt weitermachen. "
+            "Schreibt eine kurze Nachricht, die anknuepft."
+        )
+
     def _merker(self) -> dict:
         """Die Platzhalter der Schrittziele, frisch aus der Datenbank.
 
@@ -581,7 +645,7 @@ class Lauf:
         start = time.monotonic()
         repo.sichere_gruppe(self.conn, CHAT_ID, self.e.bot_name, CHAT_TITEL)
         with einfaedig(), kontext_protokoll(self.kontexte):
-            for schritt in self.schrittliste:
+            for nummer, schritt in enumerate(self.schrittliste, 1):
                 self._schritt = schritt.schluessel
                 self.ergebnis.titel[schritt.schluessel] = schritt.titel
                 merker = self._merker()
@@ -594,6 +658,9 @@ class Lauf:
                     erreicht = False
                 self.ergebnis.schritte[schritt.schluessel] = bool(erreicht)
                 print(f"     {'erreicht' if erreicht else 'GESCHEITERT'}", flush=True)
+                if self.pause and nummer == PAUSE_NACH_SCHRITT:
+                    print("  -> Pause: eine Nacht", flush=True)
+                    self._lege_pause_ein()
         self.ergebnis.dauer_s = time.monotonic() - start
         return self.ergebnis
 

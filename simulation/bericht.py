@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import statistics
 import subprocess
+import threading
 from datetime import date
 from pathlib import Path
 
@@ -37,6 +38,12 @@ VERLAUF = BERICHTE / "verlauf.jsonl"
 
 #: So viele Bot-Antworten stehen im Bericht im Wortlaut.
 SCHLECHTESTE = 5
+
+#: Sperre um das Anhaengen an ``verlauf.jsonl``. Bei ``--parallel`` schreiben
+#: zwei Threads in dieselbe Datei; ohne die Sperre koennten sich zwei Zeilen
+#: ineinanderschieben, und die Datei waere als Ganzes unlesbar -- ausgerechnet
+#: die eine Datei, die den Vergleich zwischen zwei Prompt-Staenden traegt.
+_VERLAUF_SPERRE = threading.Lock()
 
 
 def git_head() -> str:
@@ -117,8 +124,15 @@ def kennzahlen_tabelle(zahlen: dict) -> list[str]:
           zahlen["behauptete_schreibvorgaenge"] == 0)
     zeile("namensanrede", zahlen["namensanrede"], 0, zahlen["namensanrede"] == 0)
     zeile("laenge_bot (Median Zeichen)", zahlen["laenge_bot"],
-          f"< {kennzahlen.SOLL_LAENGE_BOT}",
-          zahlen["laenge_bot"] < kennzahlen.SOLL_LAENGE_BOT)
+          f"< {kennzahlen.SOLL_LAENGE_BOT_KNAPP}",
+          zahlen["laenge_bot"] < kennzahlen.SOLL_LAENGE_BOT_KNAPP)
+    zeile("optionenlisten (>= 3 Punkte am Ende)",
+          zahlen.get("optionenlisten", 0), "selten",
+          zahlen.get("optionenlisten", 0) * 5 <= max(1, zahlen["bot_antworten"]))
+    latenz = (zahlen.get("latenzen") or {}).get("gespraech", {})
+    zeile("Latenz Gespraech p90 (s)", latenz.get("p90", 0),
+          f"< {kennzahlen.SOLL_P90_GESPRAECH_S:.0f}",
+          latenz.get("p90", 0) < kennzahlen.SOLL_P90_GESPRAECH_S)
     zeile("notausgaenge", zahlen["notausgaenge"], 0, zahlen["notausgaenge"] == 0)
     zeile("Schritte gescheitert", len(zahlen["schritte_gescheitert"]) or "keine", 0,
           not zahlen["schritte_gescheitert"])
@@ -295,6 +309,135 @@ def schlechteste_antworten(ergebnis) -> list[str]:
                        "```", richter.umriss_text(kandidat["umriss"]), "```",
                        "", "</details>"]
     return zeilen
+
+
+# ---------------------------------------------------------------------------
+# Latenz, Kosten, Ausfall, Wiederkehr, Parallellauf (N5)
+# ---------------------------------------------------------------------------
+
+
+def latenz_abschnitt(zahlen: dict) -> list[str]:
+    """Wartezeit aus Nutzersicht, getrennt nach Art -- Median und p90.
+
+    Getrennt, weil die Erwartung eine andere ist: auf eine Gespraechsantwort
+    wartet die Gruppe im Chat, auf eine Szene wartet sie nicht (der Bot sagt
+    an, dass es dauert). Ein gemeinsamer Median waere eine Zahl ohne
+    Erwartung daneben."""
+    lage = zahlen.get("latenzen") or {}
+    if not any(w.get("n") for w in lage.values()):
+        return []
+    zeilen = [
+        "", "## Latenz aus Nutzersicht", "",
+        "Von der eintreffenden Nachricht bis zur **ersten** Bot-Nachricht -- "
+        "der Moment, in dem in der Gruppe etwas aufploppt.", "",
+        "| Art | Zuege | Median (s) | p90 (s) | Soll p90 |",
+        "|---|---|---|---|---|",
+    ]
+    soll = {"gespraech": f"< {kennzahlen.SOLL_P90_GESPRAECH_S:.0f}"}
+    for art, werte in lage.items():
+        zeilen.append(
+            f"| {art} | {werte['n']} | {werte['median']} | {werte['p90']} | "
+            f"{soll.get(art, '–')} |"
+        )
+    return zeilen
+
+
+def kosten_abschnitt(zahlen: dict, preise_stand: str) -> list[str]:
+    """Was ein Lauf gekostet hat und was der Workshop kosten wuerde.
+
+    Ein Lauf entspricht **einem Workshoptag einer Gruppe**: er faehrt alle
+    Phasen durch, aber mit fuenf Interviews und rund vierzig Nachrichten --
+    die Groessenordnung eines Tages, nicht die eines ganzen Workshops. Die
+    Annahme steht hier, weil eine Hochrechnung ohne sie eine Zahl ohne
+    Bedeutung ist."""
+    zeilen = [
+        "", "## Kosten und Hochrechnung", "",
+        f"Dieser Lauf: **{zahlen['chf_bot']:.4f} CHF** fuer den Bot "
+        f"({zahlen['aufrufe']} Aufrufe, Preise Stand {preise_stand}). Die "
+        f"Simulationsseite ({zahlen.get('sim_aufrufe', 0)} Aufrufe an Claude) "
+        "laeuft ueber ein Abonnement und kostet je Aufruf nichts.", "",
+    ]
+    je_art = zahlen.get("chf_je_art") or {}
+    if je_art:
+        zeilen += ["Je Aufrufart: "
+                   + ", ".join(f"{k} {v:.4f}" for k, v in je_art.items()), ""]
+    zeilen += [
+        "Hochgerechnet, unter der Annahme **ein Lauf = ein Workshoptag einer "
+        "Gruppe**:", "",
+        "| | CHF |", "|---|---|",
+    ]
+    for name, betrag in (zahlen.get("hochrechnung") or []):
+        zeilen.append(f"| {name} | {betrag:.2f} |")
+    return zeilen
+
+
+def stoerung_abschnitt(ergebnis, zahlen: dict) -> list[str]:
+    """Was die Gruppe liest, wenn das Sprachmodell dreimal in Folge
+    wegbleibt -- und ob es danach weitergeht."""
+    if not zahlen.get("stoerung"):
+        return []
+    betroffen = set(zahlen.get("stoerung_zuege") or [])
+    zeilen = [
+        "", f"## Ausfall-Simulation ({zahlen['stoerung']})", "",
+        f"{zahlen.get('stoerung_geworfen', 0)} Fehler geworfen, ab Zug "
+        f"{zahlen.get('stoerung_ab_zug', '?')} (Zuege "
+        + ", ".join(str(z) for z in sorted(betroffen)) + ").", "",
+        "**Was die Gruppe daraufhin gelesen hat:**", "",
+    ]
+    gelesen = []
+    for nummer, zug in enumerate(ergebnis.zuege, 1):
+        if nummer in betroffen:
+            gelesen.extend(zug.bot)
+    if gelesen:
+        for text in gelesen:
+            zeilen += ["> " + text.replace("\n", "\n> "), ""]
+    else:
+        zeilen += ["Nichts. Der Bot hat in diesen Zuegen **keine Nachricht** "
+                   "geschickt -- die Gruppe sass vor einer Stille.", ""]
+    danach = [s for s, ok in ergebnis.schritte.items() if ok]
+    zeilen.append(
+        f"Danach weitergelaufen: {len(danach)} von {len(ergebnis.schritte)} "
+        "Schritten haben ihren Zielzustand trotzdem erreicht."
+    )
+    return zeilen
+
+
+def wiederkehr_abschnitt(zahlen: dict) -> list[str]:
+    """Die Wiederkehr-Zeile nach der simulierten Nacht (``--pause``)."""
+    if "wiederkehr_zeilen" not in zahlen:
+        return []
+    zeilen = ["", "## Wiederkehr nach der Nacht", ""]
+    if not zahlen["wiederkehr_zeilen"]:
+        return zeilen + [
+            "Der Bot hat **nichts** geschickt. Die Gruppe kommt am naechsten "
+            "Morgen in einen stummen Chat."
+        ]
+    for text in zahlen["wiederkehr_zeilen"]:
+        zeilen += ["> " + text.replace("\n", "\n> "), ""]
+    zeilen += [
+        "| Kennzahl | Wert | Soll | |",
+        "|---|---|---|---|",
+        f"| nennt die richtige Phase | {zahlen['wiederkehr_phase_richtig']} | "
+        f"True | {'ok' if zahlen['wiederkehr_phase_richtig'] else '**daneben**'} |",
+        f"| erklaert die Befehle nochmal | "
+        f"{zahlen['wiederkehr_erklaert_befehle']} | False | "
+        f"{'**daneben**' if zahlen['wiederkehr_erklaert_befehle'] else 'ok'} |",
+    ]
+    return zeilen
+
+
+def vorfall_abschnitt(zahlen: dict) -> list[str]:
+    """Die Vorfaelle dieses Laufs. Bei ``--parallel`` die eigentliche
+    Messung: zwei Gruppen gegen denselben Anbieter, und die Frage ist, wie
+    oft er dabei drosselt."""
+    vorfaelle = zahlen.get("vorfaelle") or {}
+    if not vorfaelle:
+        return []
+    return [
+        "", "## Vorfaelle", "",
+        "| Art | Anzahl |", "|---|---|",
+        *[f"| {art} | {n} |" for art, n in sorted(vorfaelle.items())],
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -542,11 +685,28 @@ def ableitung(zahlen: dict) -> list[str]:
             f"{zahlen['echo']} Antworten spiegeln die Gruppe zurueck, statt etwas "
             "Eigenes zu sagen -- die Echo-Sperre greift, der Prompt aber noch nicht."
         )
-    if zahlen["laenge_bot"] >= kennzahlen.SOLL_LAENGE_BOT:
+    if zahlen["laenge_bot"] >= kennzahlen.SOLL_LAENGE_BOT_KNAPP:
         saetze.append(
             f"Der Median einer Bot-Antwort liegt bei {zahlen['laenge_bot']} Zeichen "
             "-- auf einem Handy sind das mehrere Bildschirme, und die Gruppe liest "
             "davon den ersten."
+        )
+    if zahlen.get("optionenlisten", 0) * 5 > max(1, zahlen["bot_antworten"]):
+        saetze.append(
+            f"{zahlen['optionenlisten']} Antworten enden in einer Liste mit drei "
+            "oder mehr Punkten -- der Bot schiebt die Entscheidung zurueck, statt "
+            "EINE Sache vorzuschlagen."
+        )
+    p90 = (zahlen.get("latenzen") or {}).get("gespraech", {}).get("p90", 0)
+    if p90 >= kennzahlen.SOLL_P90_GESPRAECH_S:
+        saetze.append(
+            f"Jede zehnte Gespraechsantwort brauchte {p90:.0f} Sekunden oder laenger "
+            "-- so lange schaut niemand auf ein Handy, ohne es wegzulegen."
+        )
+    if zahlen.get("wiederkehr_erklaert_befehle"):
+        saetze.append(
+            "Nach der Nacht erklaert der Bot die Bedienung noch einmal von vorn "
+            "-- die Wiederkehr-Zeile soll sagen, wo man steht, und sonst nichts."
         )
     if zahlen["namensanrede"]:
         saetze.append(
@@ -600,6 +760,11 @@ def baue(ergebnis, zahlen: dict, schritte, kopfdaten: dict) -> str:
     zeilen += schlechteste_antworten(ergebnis)
     zeilen += journal_abschnitt(zahlen)
     zeilen += kontext_abschnitt(zahlen)
+    zeilen += latenz_abschnitt(zahlen)
+    zeilen += stoerung_abschnitt(ergebnis, zahlen)
+    zeilen += wiederkehr_abschnitt(zahlen)
+    zeilen += vorfall_abschnitt(zahlen)
+    zeilen += kosten_abschnitt(zahlen, kopfdaten["preise_stand"])
     zeilen += ["", "## Was der Prompt-Pfleger daraus ableiten koennte", ""]
     zeilen += [f"{i}. {satz}" for i, satz in enumerate(ableitung(zahlen), 1)]
     if zahlen["zitate_soll_vermisst"]:
@@ -667,7 +832,7 @@ def schreibe(ergebnis, zahlen: dict, schritte, kopfdaten: dict,
             baue(ergebnis, zahlen, schritte, kopfdaten), encoding="utf-8"
         )
 
-    with VERLAUF.open("a", encoding="utf-8") as datei:
+    with _VERLAUF_SPERRE, VERLAUF.open("a", encoding="utf-8") as datei:
         datei.write(json.dumps(
             verlaufszeile(zahlen, ergebnis, kopfdaten), ensure_ascii=False
         ) + "\n")

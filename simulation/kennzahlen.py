@@ -590,6 +590,61 @@ def zitatlage(conn, chat_id: int, gezogene) -> dict:
     }
 
 
+#: Woran erkannt wird, dass der Bot nach der Nacht wieder von vorn anfaengt,
+#: die Bedienung zu erklaeren. Die Wiederkehr-Zeile soll sagen, wo man steht,
+#: und sonst nichts -- wer den Interviewmodus zum zweiten Mal erklaert
+#: bekommt, liest ihn nicht.
+_BEFEHLSERKLAERUNG = ("/hilfe", "wir machen jetzt ein interview", "fertig beendet",
+                      "ich lese alles mit")
+
+
+def wiederkehr(zeilen: list[str], phase_bezeichnung: str) -> dict:
+    """Was der Bot nach der simulierten Nacht geschickt hat (``--pause``).
+
+    Zwei Fragen: nennt er die richtige Phase, und faengt er wieder an, die
+    Befehle zu erklaeren? Beides mechanisch -- die Wiederkehr-Zeile ist ein
+    fester Text (``bot._TEXT_WIEDERKEHR``), da gibt es nichts zu deuten."""
+    text = "\n".join(zeilen)
+    gefaltet = _falte(text)
+    return {
+        "wiederkehr_zeilen": list(zeilen),
+        "wiederkehr_phase_richtig": _falte(phase_bezeichnung) in gefaltet,
+        "wiederkehr_erklaert_befehle": any(
+            _falte(w) in gefaltet for w in _BEFEHLSERKLAERUNG
+        ),
+    }
+
+
+def vorfaelle(conn, chat_id: int) -> dict[str, int]:
+    """Die Vorfaelle dieses Laufs, je Art gezaehlt.
+
+    ``http_5xx`` ist die Zahl, die ``--parallel`` interessant macht: zwei
+    Gruppen gegen denselben Anbieter, und die Frage ist, wie oft er dabei
+    drosselt."""
+    zeilen = conn.execute(
+        "SELECT art, count(*) AS n FROM vorfall WHERE chat_id = ? GROUP BY art",
+        (chat_id,),
+    ).fetchall()
+    return {z["art"]: z["n"] for z in zeilen}
+
+
+#: Wie viele Laeufe ein Workshop mit drei Gruppen an zwei Tagen ausmacht --
+#: und wie viele in Padua (drei Gruppen, fuenfzehn Tage). Ein Lauf entspricht
+#: dabei EINEM Workshoptag EINER Gruppe: er faehrt alle Phasen durch, aber
+#: mit fuenf Interviews und rund vierzig Nachrichten, und das ist die
+#: Groessenordnung eines Tages, nicht die eines ganzen Workshops.
+HOCHRECHNUNG = (
+    ("eine Gruppe, ein Tag", 1),
+    ("3 Gruppen x 2 Tage", 6),
+    ("3 Gruppen x 15 Tage (Padua)", 45),
+)
+
+
+def hochrechnung(chf_lauf: float) -> list[tuple[str, float]]:
+    """Die Kosten eines Laufs auf die geplanten Workshops hochgerechnet."""
+    return [(name, round(chf_lauf * faktor, 2)) for name, faktor in HOCHRECHNUNG]
+
+
 def kosten(conn, e, preise: dict) -> dict:
     """Kosten in CHF -- **nur der Bot**.
 
@@ -643,7 +698,7 @@ def kosten(conn, e, preise: dict) -> dict:
 def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
            schritte, e, preise, dauer_s: float, notausgaenge: int = 0,
            sim_statistik: dict | None = None, journal_urteil: dict | None = None,
-           stoerung: str = "") -> dict:
+           stoerung: dict | None = None, wiederkehr_zeilen: list | None = None) -> dict:
     """Alle mechanischen Kennzahlen eines Laufs in einem Dict -- die Form, in
     der sie in den Bericht und nach ``verlauf.jsonl`` gehen."""
     gespeichert, zustimmung_gesamt = zustimmungen(zuege, markiert)
@@ -673,7 +728,7 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
         "kernthema": _stand_wert(conn, chat_id, "kernthema"),
         "figuren": [f["name"] for f in repo.figuren(conn, chat_id)],
         "latenzen": latenzen(zuege),
-        "stoerung": stoerung,
+        "vorfaelle": vorfaelle(conn, chat_id),
         "zitat_erfunden": len(
             erfundene_zitate(zuege, [i.transkript for i in gezogene])
         ),
@@ -684,8 +739,15 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
     zahlen.update(journallage(conn, chat_id))
     zahlen.update(kontextlage(zuege))
     zahlen.update(journal_urteil or {})
+    zahlen.update(stoerung or {"stoerung": "", "stoerung_geworfen": 0,
+                               "stoerung_zuege": []})
+    zahlen.update(wiederkehr(
+        wiederkehr_zeilen or [],
+        phasen.bezeichnung(phasen.aktuelle(conn, chat_id)),
+    ) if wiederkehr_zeilen is not None else {})
     zahlen.update(zitatlage(conn, chat_id, gezogene))
     zahlen.update(kosten(conn, e, preise))
+    zahlen["hochrechnung"] = hochrechnung(zahlen["chf_bot"])
     zahlen.update(sim_statistik or {
         "sim_aufrufe": 0, "sim_aufrufe_je_art": {},
         "sim_token_ein": 0, "sim_token_aus": 0, "sim_fehler": 0,

@@ -43,9 +43,11 @@ Sekunden und wiederholt denselben Aufruf, wie ``pruefe_prompts``.
 
 import argparse
 import contextlib
+import logging
 import os
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -57,9 +59,11 @@ import httpx
 from interview_theater import db, einstellungen, kontext, llm
 from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN, PREISE_STAND
 from simulation import (
-    bericht, birk, claude, kennzahlen, lauf, material, richter, skript,
+    bericht, birk, claude, kennzahlen, lauf, material, richter, skript, stoerung,
 )
 from simulation.attrappe import TelegramAttrappe
+
+log = logging.getLogger(__name__)
 
 #: Wartezeit nach HTTP 429, bevor derselbe Aufruf wiederholt wird -- derselbe
 #: Wert und derselbe Schalter wie in ``scripts/pruefe_prompts.py``.
@@ -168,6 +172,20 @@ def baue_argumente(argv=None) -> argparse.Namespace:
                    help="Markdown-Bericht schreiben; ohne Pfad nach "
                         "simulation/berichte/<datum>-<mischung>-<seed>.md. "
                         "Transkript und verlauf.jsonl entstehen immer.")
+    p.add_argument("--stoerung", choices=stoerung.ARTEN,
+                   help="dreimal in Folge diesen Fehler werfen -- der Bericht "
+                        "zeigt, was die Gruppe daraufhin liest und ob es "
+                        "danach weitergeht")
+    p.add_argument("--stoerung-ab", type=int, default=stoerung.AB_ZUG_VORGABE,
+                   metavar="N", help="ab welchem Zug die Stoerung greift "
+                                     f"(Vorgabe {stoerung.AB_ZUG_VORGABE})")
+    p.add_argument("--pause", action="store_true",
+                   help=f"nach Schritt {lauf.PAUSE_NACH_SCHRITT} eine Nacht "
+                        "einlegen (Chat zurueckdatieren) und die "
+                        "Wiederkehr-Zeile messen")
+    p.add_argument("--parallel", type=int, default=1, metavar="N",
+                   help="N Laeufe gleichzeitig in Threads gegen denselben "
+                        "Anbieter -- misst, wie oft er dabei drosselt")
     p.add_argument("--fenster-klein", action="store_true",
                    help="kontext.BUDGETS['fenster'] auf "
                         f"{FENSTER_KLEIN} setzen, damit Verdraengung eintritt "
@@ -227,26 +245,57 @@ def aufstellung(args) -> dict:
     }
 
 
-def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
+@contextlib.contextmanager
+def wegwerf_umgebung():
+    """Ein Wegwerf-Verzeichnis, das fuer die Dauer aller Laeufe als ``IT_DB``
+    gilt.
+
+    ``IT_DB`` wird ueberschrieben -- sowohl im ``Einstellungen``-Objekt als
+    auch in der Umgebung. Das zweite ist nicht Vorsicht, sondern Absicht:
+    ``anweisungen.zusatz_verzeichnis()`` sucht den Regie-Zettel ``zusatz.md``
+    **neben der Datenbank**. Ein Lauf soll die Prompts des Repositories
+    messen, nicht die Notiz, die heute Vormittag jemand fuer den laufenden
+    Workshop danebengelegt hat.
+
+    Ein Verzeichnis fuer alle Laeufe, nicht eines je Lauf: bei ``--parallel``
+    laufen zwei Gruppen in Threads, und zwei Threads, die sich abwechselnd
+    ``IT_DB`` umsetzen, wuerden einander den Pfad unter den Fuessen
+    wegziehen. Die Datenbanken selbst bleiben getrennt (eine Datei je Lauf),
+    nur der Regie-Zettel-Ort ist gemeinsam -- und der ist in beiden Faellen
+    leer."""
+    altes = os.environ.get("IT_DB")
+    with tempfile.TemporaryDirectory(prefix="interview_theater-simulation-") as ordner:
+        os.environ["IT_DB"] = str(Path(ordner) / "simulation.db")
+        try:
+            yield Path(ordner)
+        finally:
+            if altes is None:
+                os.environ.pop("IT_DB", None)
+            else:
+                os.environ["IT_DB"] = altes
+
+
+def einen_lauf(args, e, klient, mischung: str, sim=None, ordner=None) -> dict:
     """Ein Lauf von Anfang bis Bericht. Liefert die Kennzahlen."""
     aufbau = aufstellung(args)
     gezogene = aufbau["gezogene"]
     schritte = _schritte(args)
-    altes_db = os.environ.get("IT_DB")
 
-    with tempfile.TemporaryDirectory(prefix="interview_theater-simulation-") as verzeichnis:
-        db_pfad = str(Path(verzeichnis) / "simulation.db")
-        # Beides: das Einstellungsobjekt UND die Umgebung -- der Regie-Zettel
-        # wird neben der Datenbank gesucht (siehe Moduldocstring). Am Ende
-        # wieder zurueckgesetzt, damit ``--alle`` und ein Testlauf die
-        # Umgebung nicht dauerhaft veraendern.
-        os.environ["IT_DB"] = db_pfad
-        e = replace(e, db_pfad=db_pfad, audio_verz=str(Path(verzeichnis) / "audio"))
+    with contextlib.ExitStack() as stapel:
+        if ordner is None:
+            ordner = stapel.enter_context(wegwerf_umgebung())
+        db_pfad = str(Path(ordner) / f"{mischung}-{args.seed}.db")
+        e = replace(e, db_pfad=db_pfad, audio_verz=str(Path(ordner) / "audio"))
         conn = db.verbinde(db_pfad)
         db.initialisiere(conn)
 
         tg = TelegramAttrappe()
-        klm = LLMMitPause(llm.LLM(e, klient, conn))
+        klm = llm.LLM(e, klient, conn)
+        stoer = None
+        if args.stoerung:
+            stoer = stoerung.StoerungsLLM(klm, args.stoerung, args.stoerung_ab)
+            klm = stoer
+        klm = LLMMitPause(klm)
         # Der Simulationsklient wird je Lauf frisch angelegt, wenn keiner
         # hereingereicht wurde: seine Statistik gehoert zu genau diesem Lauf.
         sim = sim or claude.Claude()
@@ -260,6 +309,7 @@ def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
             schritte=schritte, personen=aufbau["personen"],
             begriffsliste=aufbau["begriffsliste"],
             fragenliste=aufbau["fragenliste"],
+            stoerung=stoer, pause=args.pause,
         )
         ergebnis = durchlauf.fahre()
 
@@ -274,6 +324,8 @@ def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
             notausgaenge=ergebnis.notausgaenge,
             sim_statistik=sim.statistik.als_dict(),
             journal_urteil=ergebnis.journal_urteil,
+            stoerung=stoer.bericht() if stoer else None,
+            wiederkehr_zeilen=ergebnis.wiederkehr if args.pause else None,
         )
 
         kopfdaten = {
@@ -305,10 +357,6 @@ def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
         print(f"Verlauf:    {pfade['verlauf']}")
 
         conn.close()
-        if altes_db is None:
-            os.environ.pop("IT_DB", None)
-        else:
-            os.environ["IT_DB"] = altes_db
         return zahlen
 
 
@@ -343,24 +391,74 @@ def main(argv=None) -> int:
         # vergleichen lassen.
         for wahl in (*sorted(material.SETS), birk.NAME):
             laeufe.append(replace_args(args, ein_set=str(wahl)))
+    elif args.parallel > 1:
+        # Dieselbe Mischung, verschiedene Seeds: zwei Gruppen am selben
+        # Nachmittag arbeiten am selben Material, nicht an demselben Skript
+        # mit derselben Besetzung. Der Seed ist das Einzige, was sie
+        # unterscheidet -- und die Frage ist ohnehin nicht, was sie sagen,
+        # sondern wie oft der Anbieter drosselt.
+        laeufe = [replace_args(args, seed=args.seed + n)
+                  for n in range(args.parallel)]
     else:
         laeufe.append(args)
 
-    with httpx.Client(timeout=TIMEOUT_S) as klient, fenster_klein(args.fenster_klein):
-        for einzeln in laeufe:
-            # Je Lauf ein eigener Simulationsklient: seine Statistik gehoert
-            # in die Verlaufszeile genau dieses Laufs, nicht in die Summe von
-            # dreien.
-            sim = claude.Claude()
-            try:
-                einen_lauf(einzeln, e, klient, mischungsname(einzeln), sim=sim)
-            finally:
-                sim.schliesse()
+    with httpx.Client(timeout=TIMEOUT_S) as klient, \
+            fenster_klein(args.fenster_klein), wegwerf_umgebung() as ordner:
+        if args.parallel > 1 and not args.alle:
+            _parallel(laeufe, e, klient, ordner)
+        else:
+            for einzeln in laeufe:
+                # Je Lauf ein eigener Simulationsklient: seine Statistik
+                # gehoert in die Verlaufszeile genau dieses Laufs, nicht in
+                # die Summe von dreien.
+                sim = claude.Claude()
+                try:
+                    einen_lauf(einzeln, e, klient, mischungsname(einzeln),
+                               sim=sim, ordner=ordner)
+                finally:
+                    sim.schliesse()
     return 0
 
 
-def replace_args(args, ein_set: str):
-    """Eine Kopie der Argumente mit anderem Set -- fuer ``--alle``.
+def _parallel(laeufe, e, klient, ordner) -> None:
+    """Mehrere Laeufe gleichzeitig, je einer in einem Thread.
+
+    **Nur beim Netzlauf sinnvoll.** Gemessen wird nicht der Bot, sondern der
+    Anbieter: Infomaniak antwortet auf parallele Aufrufe mit 429/5xx
+    (AGENTS.md 'Die Fallen'), und wenn am Montag drei Gruppen gleichzeitig
+    arbeiten, ist genau das die Frage. Der Bericht jedes Laufs zaehlt seine
+    eigenen Vorfaelle.
+
+    Jeder Thread bekommt seinen eigenen Simulationsklienten und seine eigene
+    Datenbankdatei; geteilt wird nur der ``httpx.Client`` (der ist
+    thread-sicher) und das Verzeichnis, in dem der Regie-Zettel gesucht
+    wird."""
+    fehler: list[BaseException] = []
+
+    def einer(einzeln):
+        sim = claude.Claude()
+        try:
+            einen_lauf(einzeln, e, klient, mischungsname(einzeln), sim=sim,
+                       ordner=ordner)
+        except BaseException as f:  # noqa: BLE001 -- im Thread, sonst lautlos
+            log.exception("Paralleler Lauf fehlgeschlagen")
+            fehler.append(f)
+        finally:
+            sim.schliesse()
+
+    threads = [threading.Thread(target=einer, args=(einzeln,))
+               for einzeln in laeufe]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    if fehler:
+        raise fehler[0]
+
+
+def replace_args(args, ein_set: str | None = None, seed: int | None = None):
+    """Eine Kopie der Argumente mit anderem Set oder Seed -- fuer ``--alle``
+    und ``--parallel``.
 
     ``argparse.Namespace`` ist bewusst veraenderlich; eine Kopie statt einer
     Mutation, damit der zweite Lauf nicht die Argumente des ersten sieht.
@@ -369,11 +467,15 @@ def replace_args(args, ein_set: str):
     halten duerfen, ohne den einen Lauf zu entwerten, der ohne Szenen nichts
     misst."""
     kopie = argparse.Namespace(**vars(args))
-    kopie.set = ein_set
-    kopie.mix = None
     kopie.alle = False
-    if ein_set == birk.NAME:
-        kopie.ohne_szene = False
+    kopie.parallel = 1
+    if seed is not None:
+        kopie.seed = seed
+    if ein_set is not None:
+        kopie.set = ein_set
+        kopie.mix = None
+        if ein_set == birk.NAME:
+            kopie.ohne_szene = False
     return kopie
 
 

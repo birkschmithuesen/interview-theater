@@ -1247,6 +1247,15 @@ _ARBEITSSTAND_FELDER = (
     # Die Geschichte im Groben (Phase 5, Umbau 05.09.2026 nachts): Bogen und
     # Ende. Sie ist das, was die Gruppe erfindet, bevor das Material dazukommt.
     "geschichte",
+    # Die Verfeinerungsebene der Fragen (Phase 2, 06.09.2026): Einleitungen
+    # je heikler Frage, Eroeffnung und Abschluss des Interviews. Derselbe
+    # eine Schreibweg wie alles andere im Arbeitsstand -- der Leitfaden
+    # (``leitfaden.baue``) liest sie nur.
+    "frage_einleitungen", "interview_eroeffnung", "interview_abschluss",
+    # Die Mehrfachauswahl der Phase 2 (06.09.2026): die zehn vorgeschlagenen
+    # Fragen und die angetippten Nummern. Zustand in der Datenbank, nicht in
+    # der Tastatur -- siehe ``db.SCHEMA``.
+    "fragen_auswahl", "fragen_gewaehlt",
 )
 
 
@@ -1560,6 +1569,9 @@ def aktualisiere_szene(
 SZENENFELDER = (
     "titel", "kurzbeschreibung", "form", "ort", "zeit", "anlass",
     "was_passiert", "was_anders", "kernsaetze", "ton",
+    # Der Formvorschlag des Bots samt Begruendung (06.09.2026). Er ist NICHT
+    # ``form``: gesetzt wird die Form allein durch einen Knopfdruck.
+    "form_vorschlag", "form_vorschlag_grund",
 )
 
 

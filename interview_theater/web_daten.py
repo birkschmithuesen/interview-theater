@@ -100,10 +100,20 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         "phase": _feld(zeile, "phase"),
         "begriffe": zeile["begriffe"] if zeile else None,
         "fragen": _feld(zeile, "fragen"),
+        # Die Verfeinerungsebene der Fragen (06.09.2026): Einleitungen zu
+        # heiklen Fragen, Eroeffnung und Abschluss. Alle drei ueber ``_feld``,
+        # weil sie nachtraeglich dazugekommen sind und der Webserver die
+        # Datenbank read-only sieht -- zwischen Deploy und Bot-Neustart kann
+        # die Spalte noch fehlen.
+        "frage_einleitungen": _feld(zeile, "frage_einleitungen"),
+        "interview_eroeffnung": _feld(zeile, "interview_eroeffnung"),
+        "interview_abschluss": _feld(zeile, "interview_abschluss"),
         "kernthema": zeile["kernthema"] if zeile else None,
         "kernthema_begruendung": zeile["kernthema_begruendung"] if zeile else None,
         "format": _feld(zeile, "format"),
         "rahmen": _feld(zeile, "rahmen"),
+        # Die Geschichte im Groben (Phase 5, Umbau 05.09.2026 nachts).
+        "geschichte": _feld(zeile, "geschichte"),
         "hauptkonflikt": zeile["hauptkonflikt"] if zeile else None,
         "geaendert_am": zeile["geaendert_am"] if zeile else None,
     }
@@ -387,6 +397,10 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
 #: Anzeige -- ``web_daten`` importiert nichts aus dem Schreibpfad.
 SZENENFELDER = (
     ("form", "Form"),
+    # Der Formvorschlag des Bots (06.09.2026) -- er steht neben der Form, weil
+    # die Gruppe an der Seite sehen soll, was vorgeschlagen und was
+    # bestaetigt wurde. Bestaetigt ist allein ``form``.
+    ("form_vorschlag", "Form (Vorschlag)"),
     ("ort", "Ort"),
     ("zeit", "Zeit"),
     ("anlass", "Anlass"),

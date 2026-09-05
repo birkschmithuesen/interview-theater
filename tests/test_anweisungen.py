@@ -326,3 +326,77 @@ def test_lied_und_rap_nennen_die_layout_konvention(betrieb):
         assert "dialog.md" in text, form
         assert "Szenenkopf" in text, form
 
+
+
+# ---------------------------------------------------------------------------
+# Erst erfinden, dann schaerfen (Birk, 05.09.2026 23:30)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["phasen/4", "phasen/5"])
+def test_die_erfindungsphasen_verbieten_das_material_ausdruecklich(betrieb, name):
+    """Der Kontext-Filter steht im Code (``kontext.material_erlaubt``) -- der
+    Prompt sagt es zusaetzlich, damit das Modell nicht nach Material FRAGT,
+    das es nicht sieht."""
+    text = " ".join(anweisungen.hole(name).split())
+
+    assert "Interviews, Verdichtungen und Zitate stehen" in text
+    assert "nicht zur Verfuegung" in text
+    assert "Frag" in text and "nicht danach" in text
+
+
+@pytest.mark.parametrize("name", ["phasen/4", "phasen/5"])
+def test_die_erfindungsphasen_faengt_mit_einer_offenen_frage_an(betrieb, name):
+    """Kein Vorschlag als Eroeffnung: erst die Frage, dann -- auf Bitte --
+    der Vorschlag."""
+    text = " ".join(anweisungen.hole(name).split())
+
+    assert "Schlag du vor" in text
+    assert "Eigene Idee" in text
+
+
+@pytest.mark.parametrize("name", ["phasen/4", "phasen/5"])
+def test_in_den_erfindungsphasen_wird_nichts_als_interview_angeboten(betrieb, name):
+    """Live-Befund 05.09.2026: der Bot bot an, eine Stueck-Idee der Gruppe
+    als Interview aufzunehmen -- damit wird aus ihrer Erfindung Rohstoff und
+    aus ihr eine Zulieferin."""
+    text = " ".join(anweisungen.hole(name).split())
+
+    # 4.md ist mit Umlauten geschrieben, 5.md ohne -- geprueft wird die
+    # Aussage, nicht die Schreibweise.
+    entumlautet = (
+        text.replace("ü", "ue").replace("ä", "ae").replace("ö", "oe")
+        .replace("ß", "ss")
+    )
+    assert "ist Erfindung fuers Stueck, nie Material" in entumlautet
+    assert "aufzunehmen" in entumlautet
+
+
+def test_die_schaerfung_schreibt_die_geschichte_nicht_um(betrieb):
+    """Das Material ist ein Angebot, kein Einwand: die Gruppe hat die
+    Geschichte gemacht, und sie bleibt ihre."""
+    text = " ".join(anweisungen.hole("phasen/6").split())
+
+    assert "Keine neue Geschichte" in text
+    assert "woertlich" in text
+
+
+def test_die_geschichte_verlangt_bedacht_bei_der_form(betrieb):
+    """Birk, 06.09.2026 00:30: die Form muss mit mehr Bedacht gewaehlt und
+    vom Nutzer bestaetigt werden -- der Prompt schlaegt sie deshalb nur vor,
+    mit Begruendung, und Dialog ist der Normalfall."""
+    text = " ".join(anweisungen.hole("phasen/5").split())
+
+    assert "schlaegst du VOR" in text
+    assert "Dialog ist der Normalfall" in text
+    assert "hoechstens eine Nicht-Dialog-Szene je drei Szenen" in text
+    assert "nie Monolog oder Lied" in text
+
+
+def test_die_szenentexte_arbeiten_aus_den_schaerfungen(betrieb):
+    """Der Szenen-Prompt bekommt die Stellen DIESER Szene, nicht die aller --
+    und keine Transkripte."""
+    text = " ".join(anweisungen.hole("phasen/7").split())
+
+    assert "Schaerfungen" in text
+    assert "Volltranskripte" in text

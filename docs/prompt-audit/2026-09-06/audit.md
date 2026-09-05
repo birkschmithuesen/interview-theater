@@ -217,18 +217,29 @@ mit einem `grep` auf charakteristische Sätze; die Dumps sind sauber.
 
 ## Zahlen vorher / nachher
 
-| Pfad | Nutzer vorher | Nutzer nachher | Δ |
-|------|--------------:|---------------:|---|
-| Gespräch | 49.872 | 24.000 | **−52 %** |
-| Auftragszüge (je) | ~49.700 | ~24.100 | **−52 %** |
-| Feldvorschlag | 49.709 | 24.108 | **−52 %** |
-| Szene (alle Formen) | 10.618 | 3.805 | **−64 %** |
-| Kernzitate | 8.941 | 1.558 | **−83 %** |
-| Schärfung | 9.743 | 2.360 | **−76 %** |
-| Szenenfolge | 2.480 | 2.337 | −6 % |
+Zwei Spalten „nachher", weil zwei Arbeiten zusammenwirken: dieser Audit
+(Dedupe + harte Grenze) und der Fensterumbau des Interaktions-Agenten
+(chronologisches, begrenztes Fenster), der nach dem Merge dazukam.
 
-System-Prompts: Gespräch 23.291 → 23.289, Szene/Dialog 31.530 → 31.183,
-Szene/übrige 24.682–25.842 → 24.335–25.495. Kein Regelsatz entfernt.
+| Pfad | Nutzer vorher | nur Audit | nach Merge | Δ gesamt |
+|------|--------------:|----------:|-----------:|---|
+| Gespräch | 49.872 | 24.000 | **7.688** | **−85 %** |
+| Auftragszüge (je) | ~49.700 | ~24.100 | **~4.630** | **−91 %** |
+| Feldvorschlag | 49.709 | 24.108 | **4.655** | **−91 %** |
+| Szene (alle Formen) | 10.618 | 3.805 | **3.175** | **−70 %** |
+| Kernzitate | 8.941 | 1.558 | **928** | **−90 %** |
+| Schärfung | 9.743 | 2.360 | **1.730** | **−82 %** |
+| Szenenfolge | 2.480 | 2.337 | 2.337 | −6 % |
+
+Der Gesprächs-Prompt liegt damit bei **7.688 Zeichen ≈ 2.500 Token** — die
+Größenordnung, die § 7.2 immer gemeint hat. Die harte Grenze von 24.000
+Zeichen greift im Normalfall gar nicht mehr; sie ist die zweite Bremse
+hinter dem begrenzten Fenster und muss trotzdem funktionieren, sonst fällt
+sie beim nächsten Wachstum unbemerkt aus — genau der Weg, auf dem § 7.2
+wirkungslos wurde. Ein Test erzwingt sie deshalb mit einer engen Grenze.
+
+System-Prompts: Szene/Dialog 31.530 → 31.183, Szene/übrige 24.682–25.842 →
+24.335–25.495. Kein Regelsatz entfernt.
 
 ## Offene gravierende Befunde
 

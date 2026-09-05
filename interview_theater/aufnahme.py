@@ -106,10 +106,7 @@ _TEXT_AUSFALL = (
     "Aufnahmen und hole sie nach."
 )
 _TEXT_RUECKKEHR = "Ich kann wieder hoeren."
-_TEXT_MATERIAL_HINWEIS = (
-    "Das klingt nach Material - wenn ihr es als Interview festhalten wollt, "
-    "sagt mir Bescheid."
-)
+_TEXT_MATERIAL_HINWEIS = "Das klingt nach Material fuer ein Interview."
 
 #: Das Transkript-Echo eines Teils (§ 10.6): woertlich, ohne Kommentar, ohne
 #: Zusammenfassung. Der Kopf sagt, wozu es gehoert -- das ist der ganze

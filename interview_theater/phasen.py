@@ -315,9 +315,25 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
     setting = bool(stand and (stand["rahmen"] or "").strip())
     geschichte = bool(stand and (stand["geschichte"] or "").strip())
     szenen = bool(repo.hole_szenen(conn, chat_id))
+
+    def feld(name: str) -> bool:
+        """Ein Arbeitsstandfeld, das eine alte Datenbank noch nicht hat --
+        die Migration ist additiv und laeuft beim Start, aber ein Leser darf
+        daran nicht scheitern."""
+        try:
+            return bool(stand and (stand[name] or "").strip())
+        except (IndexError, KeyError):
+            return False
+
     return {
         2: bool(stand and stand["begriffe"]),
-        3: bool(stand and stand["fragen"]),
+        # **Phase 3 haengt seit dem 06.09.2026 an ZWEI Dingen** (Birk): den
+        # Fragen UND dem Eroeffnungstext. Der Grund steht in ``leitfaden.py``:
+        # die Gruppe geht damit auf fremde Menschen zu, und eine Frageliste
+        # ohne Eroeffnung ist kein Interview, sondern eine Ansprache. Die
+        # Einleitungen zu heiklen Fragen duerfen dabei leer sein -- "keine
+        # noetig" ist ein Ergebnis der Pruefung, kein fehlender Wert.
+        3: bool(stand and stand["fragen"]) and feld("interview_eroeffnung"),
         4: bool(repo.verdichtungen(conn, chat_id))
         and not aufnahme.unausgewertete_interviews(conn, chat_id),
         5: setting and fixiert and bool(repo.figuren(conn, chat_id)),

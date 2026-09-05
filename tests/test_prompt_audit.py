@@ -197,8 +197,16 @@ def test_gespraech_haelt_die_harte_zeichengrenze(spaetstand, einst):
     )
 
 
-def test_kuerzung_meldet_vorfall_mit_zahlen(spaetstand, einst):
-    """Wer kuerzt, sagt es -- mit Zahlen, damit es hinterher nachweisbar ist."""
+def test_kuerzung_meldet_vorfall_mit_zahlen(spaetstand, einst, monkeypatch):
+    """Wer kuerzt, sagt es -- mit Zahlen, damit es hinterher nachweisbar ist.
+
+    Mit einer engen Grenze erzwungen: seit dem Fensterumbau begrenzt schon
+    der Fensterbau, und im Normalfall bleibt der Prompt darunter. Die
+    Gesamtkuerzung ist die zweite Bremse dahinter -- sie muss trotzdem
+    beweisbar funktionieren, sonst faellt sie beim naechsten Wachstum
+    unbemerkt aus (genau der Weg, auf dem § 7.2 wirkungslos wurde).
+    """
+    monkeypatch.setenv("IT_PROMPT_ZEICHEN", "4000")
     ausloeser = [repo.hole_nachricht(spaetstand, 1, 499)]
     kontext.baue(spaetstand, 1, ausloeser, einst)
     zeilen = spaetstand.execute(

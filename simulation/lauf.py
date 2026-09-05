@@ -63,7 +63,7 @@ PAUSE_NACH_SCHRITT = 4
 
 #: Um wie viele Stunden ``--pause`` den Chat zurueckdatiert. Vierzehn: eine
 #: Nacht zwischen zwei Workshoptagen, und deutlich mehr als
-#: ``bot.PAUSE_GRENZE_STUNDEN`` (2), ab denen die Wiederkehr-Zeile faellig
+#: ``bot.PAUSE_GRENZE_MINUTEN`` (30), ab denen die Wiederkehr-Zeile faellig
 #: wird.
 PAUSE_STUNDEN = 14
 

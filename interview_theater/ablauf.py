@@ -207,6 +207,101 @@ def ist_echo(antwort: str | None, ausloeser: list) -> bool:
             return True
     return False
 
+#: Ab welchem Anteil der Wortmenge einer Antwort, der schon in der VORIGEN
+#: Bot-Nachricht stand, sie als Wiederholung verworfen wird (06.09.2026, Birk
+#: nach der Testgruppe: "Insgesamt viel zu viel Wiederholung").
+#:
+#: 0,6 ist an der Testgruppe gemessen: der Filter haette dort 4 von 59
+#: Bot-Nachrichten gefangen -- die beiden wortgleich verdoppelten
+#: Notiert-Bloecke (21:50/21:52), die doppelte "Bin wieder da"-Zeile und eine
+#: verdoppelte Interview-Meldung. Keine echte Antwort waere dabei
+#: verlorengegangen. Tiefer waere gefaehrlich: eine Antwort, die einen
+#: Vorschlag praezisiert, teilt zwangslaeufig die halbe Wortmenge mit ihm.
+WIEDERHOLUNG_ANTEIL = 0.6
+
+#: Kuerzere Antworten werden nicht geprueft. "Gut, ich hoere zu." teilt seine
+#: paar Woerter leicht mit irgendetwas -- und eine kurze Zeile kostet die
+#: Gruppe nichts, auch wenn sie sich aehnelt.
+WIEDERHOLUNG_MINDEST_WOERTER = 12
+
+
+def _wortmenge(text: str | None) -> set[str]:
+    """Die inhaltstragenden Woerter eines Textes -- kleingeschrieben, ab vier
+    Zeichen. Dasselbe grobe Mass wie in der Analyse
+    (``docs/analyse-interaktion-testgruppe-2026-09-05.md``), damit die
+    Schwelle hier und die gemessene Zahl dort dieselbe Groesse meinen."""
+    return {w for w in re.findall(r"\w+", (text or "").lower()) if len(w) > 3}
+
+
+def ist_wiederholung(antwort: str | None, vorige: str | None,
+                     anteil: float = WIEDERHOLUNG_ANTEIL) -> bool:
+    """Steckt diese Antwort zu ``anteil`` schon in der vorigen Bot-Nachricht?
+
+    Der Live-Fall (05.09.2026, Testgruppe 21:50 und 21:52): der Bot schickte
+    denselben Notiert-Block der Szenenfolge zweimal wortgleich, und um 16:39
+    und 20:52 dieselbe Wiederkehr-Zeile. Fuer die Gruppe sieht das aus wie
+    ein Bot, der nicht weiss, was er gerade gesagt hat.
+
+    Gemessen wird die Wortmenge, nicht die Reihenfolge: eine umformulierte
+    Wiederholung ist auch eine. Bewusst grob und ohne Modellaufruf -- der
+    Filter laeuft im kritischen Pfad, in dem die Gruppe wartet."""
+    gesagt = _wortmenge(antwort)
+    if len(gesagt) < WIEDERHOLUNG_MINDEST_WOERTER:
+        return False
+    davor = _wortmenge(vorige)
+    if not davor:
+        return False
+    return len(gesagt & davor) / len(gesagt) > anteil
+
+
+#: Nachrichten, die einen Auftrag ausloesen und deshalb KEINE
+#: Gespraechsantwort bekommen (06.09.2026, Birk, Testgruppe 00:30):
+#:
+#:   00:30:28  Birk:  "neu schreiben"
+#:   00:30:31  Bot:   "Birk, klar -- Szene 1 neu. Eine Frage dazu: Soll der
+#:                     Typ wirklich kommen ...?"
+#:   00:30:32  Bot:   [USA-Hinweis]  "Ich schreibe die Szene aus"
+#:
+#: Der erste Teil muss weg. Loest eine Nachricht einen Auftrag aus, spricht
+#: der Auftrag selbst -- der Gespraechs-Bot sagt dazu nichts, keine
+#: Bestaetigung, keine Rueckfrage, kein "klar". In der Testgruppe stand eine
+#: solche Doppelung **14 Mal** im Chat.
+#:
+#: Warum deterministisch und nicht ueber den Erkenner: der Erkenner laeuft
+#: NACH dem Gespraechszug (``bot._zug_und_erkenner``, aus gutem Grund -- er
+#: soll die Bot-Antwort mitlesen). Zum Zeitpunkt des Zuges ist seine Antwort
+#: also noch nicht da. Diese Liste faengt die Formen, die im Testabend
+#: wirklich vorkamen; alles andere faengt weiterhin ``szene.laeuft`` eine
+#: Sekunde spaeter. Die Liste ist absichtlich eng: eine falsch
+#: unterdrueckte Antwort ist teurer als eine ueberfluessige.
+_AUFTRAGSFORMEN = (
+    r"neu\s*schreiben",
+    r"(schreib|mach)\s*(mir\s*)?(die\s*)?szene\b",
+    r"^\s*(nochmal|noch mal)\s*(neu)?\s*$",
+    r"^\s*weiter\s*schreiben\s*$",
+    r"^\s*ausschreiben\s*$",
+    r"interview\s*starten",
+    r"^\s*aufnahme\s*(starten|beenden)\s*$",
+)
+
+_AUFTRAG = re.compile("|".join(_AUFTRAGSFORMEN), re.IGNORECASE)
+
+#: Laengere Nachrichten sind keine reinen Auftraege mehr, sondern tragen
+#: Inhalt -- "Schreib Szene 1. Stell immer nur eine Frage auf einmal." ist
+#: beides, und die Regieanweisung darin darf nicht verlorengehen. 60 Zeichen
+#: ist die Grenze, unter der eine Nachricht nichts als der Auftrag ist.
+AUFTRAG_HOECHSTLAENGE = 60
+
+
+def ist_auftrag(text: str | None) -> bool:
+    """Ist diese Nachricht nichts als ein Auftrag, den ein anderer Weg
+    ausfuehrt? Dann schweigt der Gespraechs-Bot (06.09.2026)."""
+    roh = (text or "").strip()
+    if not roh or len(roh) > AUFTRAG_HOECHSTLAENGE:
+        return False
+    return _AUFTRAG.search(roh) is not None
+
+
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
 #: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab
 #: (global-constraints.md § 4).
@@ -405,6 +500,23 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             log.info("Gespraechszug unterdrueckt, Szenenlauf laeuft, chat_id=%s", chat_id)
             return
 
+        # Und derselbe Gedanke eine Sekunde frueher (06.09.2026, Testgruppe
+        # 00:30): ist die ausloesende Nachricht nichts als ein Auftrag ("neu
+        # schreiben"), faellt der Gespraechszug aus, BEVOR der Szenenlauf
+        # ueberhaupt angelaufen ist. Der Erkenner-Nachlauf startet den
+        # Auftrag; dessen eigene Systemzeilen sind die vollstaendige Antwort.
+        #
+        # Ohne das antwortete der Bot am Testabend um 00:30:31 mit "Birk,
+        # klar -- Szene 1 neu. Eine Frage dazu: ...?" und eine Sekunde
+        # spaeter lief die Szene trotzdem los: die Frage war nie eine, sie
+        # stand nur im Weg.
+        if ist_auftrag(letzte_nachricht["text"]):
+            log.info(
+                "Gespraechszug unterdrueckt, Nachricht ist ein Auftrag, chat_id=%s",
+                chat_id,
+            )
+            return
+
         # Die Regie-Notiz nach "Passt, aber anders" unter einem Szenentext
         # (05.09.2026, Phase 6): der Bot hat gerade gefragt, was anders werden
         # soll -- diese eine Nachricht ist die Antwort darauf und geht als
@@ -468,6 +580,29 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             if hinweis:
                 text = f"{text}\n\n{hinweis}"
 
+        # Wiederholungsfilter (06.09.2026, Birk: "Insgesamt viel zu viel
+        # Wiederholung"): steckt die Antwort zu ueber WIEDERHOLUNG_ANTEIL
+        # schon in der vorigen Bot-Nachricht, wird sie NICHT verschickt --
+        # ersatzlos, nicht durch eine Entschuldigung ersetzt. Ein Bot, der
+        # nichts Neues zu sagen hat, schweigt; die Gruppe arbeitet weiter,
+        # und die Speicherleiste haengt ohnehin unter der Nachricht, die den
+        # Wert wirklich traegt.
+        #
+        # Kein zweiter Modellaufruf wie beim Echo: das Echo ist ein Fehler
+        # des Modells, den ein Anlauf mit Ermahnung heilt -- eine
+        # Wiederholung ist eine Antwort, die es einfach nicht braucht.
+        vorige = repo.letzte_bot_nachricht_vor(conn, chat_id, letzte_message_id + 1)
+        if vorige is not None and ist_wiederholung(text, vorige["text"]):
+            log.info("Antwort als Wiederholung verworfen, chat_id=%s", chat_id)
+            repo.merke_vorfall(
+                conn, chat_id, getattr(e, "bot_name", None), "wiederholung_verworfen",
+                "Modellantwort stand zu ueber "
+                f"{int(WIEDERHOLUNG_ANTEIL * 100)} % schon in der vorigen Bot-Nachricht",
+            )
+            versand_erfolgreich = True
+            knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
+            return
+
         # Die Speicher-Leiste (05.09.2026): enthaelt die Antwort einen
         # Vorschlagsblock (``vorschlag.py``) fuer das, was gerade fehlt --
         # Begriffe in Phase 1, Fragen in 2, Kernthema/Figuren in 4 --, haengen
@@ -492,6 +627,22 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         repo.merke_nachricht(
             conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),
         )
+        # Proaktiv zur naechsten Phase (06.09.2026, Birk nach der
+        # Testgruppe): steht alles Noetige, sagt der Bot es SOFORT und in
+        # einer eigenen, kurzen Nachricht -- nicht als vierter Knopf unter
+        # einem langen Text. Gemessen am Testabend: neun angebotene
+        # Phasenknoepfe, null Druecke.
+        #
+        # Der Merkposten ist derselbe wie fuer den Prompt-Hinweis
+        # (``phasen.offenes_angebot``), es gibt also EIN Angebot je Stufe --
+        # hat ``kontext.baue`` den Hinweis in diesem Zug schon gesetzt, ist
+        # hier nichts mehr offen und es bleibt bei der einen Frage im Fluss.
+        # Ein Fehlschlag darf die Antwort nicht nachtraeglich zum Fehlerfall
+        # machen: sie steht schon in der Gruppe.
+        try:
+            knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
+        except Exception:
+            log.exception("Phasenangebot fehlgeschlagen, chat_id=%s", chat_id)
     except Exception:
         log.exception("Gespraechszug fehlgeschlagen, chat_id=%s", chat_id)
         repo.merke_vorfall(

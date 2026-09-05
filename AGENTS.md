@@ -150,34 +150,87 @@ lädt, würde damit Gesprächszüge ausbremsen.
   beide Stellen teilen sich den Merkposten über `phasen.offenes_angebot()` /
   `merke_angebot()`, deshalb liest die eine Funktion nur und die andere
   schreibt.
-- **Die sieben Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews ·
-  4 Kernthema & Figuren · 5 Format & Rahmen · 6 Szenen · 7 Durchlauf**
-  (korrigiert am 05.09.2026). Drei Dinge daran sind Entscheidungen, keine
-  Nummerierung: Phase 1 **sammelt nicht** — die Begriffe entstehen analog im
-  Plenum, der Bot bekommt die fertige Liste; die Frageliste ist ein eigenes
-  Feld (`arbeitsstand.fragen`, art `fragen_setzen`) und die Voraussetzung für
-  die Interviews; und **Kernthema und Figuren sind EINE Phase** — welches von
-  beidem zuerst kommt, ergibt sich aus dem Material, und die Voraussetzung für
-  5 ist „Kernthema **und** ≥ 2 Figuren" (ein Konflikt braucht zwei Wollen,
-  auch wenn Phase 5 seit derselben Korrektur keinen mehr verlangt, siehe
-  unten). Damit ist auch die alte Sonderlogik der freien Stelle 5/6 weg. Die
-  vollständige Stationsliste steht in der **Basis**-Systemanweisung, nicht nur
-  im Phasen-Prompt: der Bot soll entscheiden können, welche Phase gerade
-  passt.
-- **Phase 5 heißt „Format & Rahmen", nicht mehr „Hauptkonflikt"** (05.09.2026,
-  `phasen.py`; Birk: „Es muss nicht immer einen Konflikt geben — es kann ein
-  Lied sein oder eine harmonische Liebesszene. Das Ganze wird vermutlich ein
-  Musical.") An dieser Station entscheidet die Gruppe zweierlei:
-  **WAS** entsteht (`arbeitsstand.format`, z. B. „Musical: Dialog, Lied, Rap")
-  und **WORIN** es spielt (`arbeitsstand.rahmen` — Ort, Zeit, Anlass, roter
-  Faden). `hauptkonflikt` bleibt als optionales Feld stehen, wird aber nur
-  noch angezeigt, wenn es gesetzt ist — die Voraussetzung für Phase 6 hängt
-  seitdem an `format`, nicht mehr am Hauptkonflikt: ohne Format weiß niemand,
-  ob die nächste Szene ein Dialog oder ein Rap wird, ohne Konflikt schon.
-  Erkenner-Arten `format_setzen` und `rahmen_setzen`, `entfernen` kennt beide.
-  Keine Migration: die Nummer 5 bleibt 5, nur Name und Voraussetzung ändern
-  sich, und „konflikt" bleibt als Stichwort auf 5 stehen — eine Gruppe, die
-  „wir sind beim Konflikt" sagt, meint weiter dieselbe Station.
+- **Die acht Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews ·
+  4 Setting & Figuren · 5 Geschichte · 6 Schärfung · 7 Szenentexte ·
+  8 Durchlauf** (Umbau 05.09.2026 nachts; davor: 7 Phasen mit „4 Kernthema &
+  Figuren · 5 Rahmen · 6 Szenen · 7 Durchlauf"). Der Grund ist **nicht**
+  Feingliederung, sondern eine umgedrehte Arbeitsrichtung.
+- **Erst erfinden, dann schärfen** (Birk, 05.09.2026 23:30 — die tragende
+  Entscheidung des Ablaufs). Bis dahin entstanden Figuren und Szenen **aus**
+  den Interviews; das Ergebnis war handwerklich richtig und dramaturgisch
+  tot, weil die Gruppe ihren eigenen kreativen Anteil nicht wiedererkannte —
+  sie sah eine Nacherzählung ihres Materials. Jetzt:
+  - In **4 (Setting & Figuren)** und **5 (Geschichte)** erfindet die Gruppe
+    frei. Der Bot fragt **offen** („Welche Personen soll es geben? In welchem
+    Setting spielt es?" / „Was soll passieren? Wie soll es enden?") mit nur
+    zwei Knöpfen — „Eigene Idee" und „Schlag du vor" —, und seine Vorschläge
+    speisen sich **ausschließlich aus `arbeitsstand.begriffe`, `fragen` und
+    dem schon Festgelegten**. Kein Material: `kontext.baue` liefert dort
+    weder Verdichtungen noch Transkripte noch das Kernpaket
+    (`kontext.material_erlaubt`), und `szenenfolge.baue_nutzertext_geschichte`
+    baut den Nutzertext ohne Material. Das ist im Code durchgesetzt, nicht im
+    Prompt gebeten — ein Prompt, der Material sieht, referiert es.
+  - In **6 (Schärfung)** kommt das Material dazu und legt sich **neben** das
+    Erfundene, statt es zu ersetzen. Beim Eintritt läuft automatisch ein
+    Schema-Aufruf (`schaerfung.mappe`, gemma, Thread — kein Modellaufruf im
+    Knopf-Handler): er bekommt Setting, Figuren, Geschichte, die Szenen mit
+    Nummer und **alle geprüften `verdichtung_thema`-Einträge nummeriert** und
+    ordnet jeden passenden Eintrag einer Szene und/oder einer Figur zu. Zeigen
+    kann er nur auf Nummern, Zitate werden mit `zitat.pruefe` gegen das
+    Original verifiziert, was nicht passt bleibt weg. Ergebnis: Tabelle
+    `schaerfung` (additiv, mit `runde`), daraus je Szene und je Figur eine
+    Vorschlagsnachricht mit Grundleiste; „Gefällt uns, weiter" schreibt die
+    Felder (`schaerfung.uebernimm_szene` / `uebernimm_figur`), „Noch eine
+    Runde" startet einen neuen Lauf mit dem geschärften Stand.
+  - **Die Figuren-Ebene 2 ist dorthin gewandert.** „Aus welchem Interview
+    spricht sie?" und der Sprachduktus laufen erst ab Phase 6
+    (`knoepfe.ebene2_erlaubt`); in Phase 4 ist die Liste nach Ebene 1 fixiert.
+    In 4 danach zu fragen wäre genau die Rücklenkung aufs Material, die der
+    Umbau vermeidet.
+  - **Das Kernthema ist keine eigene Station mehr.** `arbeitsstand.geschichte`
+    (Bogen + Ende) übernimmt seine Rolle im Kernpaket. Kernthema, Kernfrage
+    und Kernzitate bleiben im Code funktional und getestet
+    (rückwärtskompatibel für bestehende Gruppen), werden aber nicht mehr
+    angeboten; `kernzitate.py` bleibt als Basis, `schaerfung.py` nutzt
+    dieselbe Prüf- und Speicherlogik.
+  - Voraussetzungen (`phasen.voraussetzungen`): **5** braucht `rahmen` **und**
+    `figuren_fixiert_am`; **6 und 7** brauchen `geschichte` **und** ≥ 1 Szene
+    — die Schärfung ist ein Angebot, keine Pflicht, deshalb sperrt sie 7
+    nicht; **8** braucht einen geschriebenen Szenentext.
+- **Der Szenen-Prompt bekommt die Schärfungen JE SZENE, nicht global**
+  (`szene._kernpaket_text(conn, chat_id, ziel)`). Eine Szene sieht die
+  Interviewstellen, die zu ihr und zu ihren Figuren gehören — und keine
+  fremden. Ohne Schärfungen fällt der Code auf die alte, globale
+  Kernzitat-Auswahl zurück: eine Gruppe, die den Umbau nicht mitgemacht hat,
+  verliert nichts.
+- **Die Form je Szene ist ein Vorschlag, keine Vorentscheidung** (Birk,
+  06.09.2026 00:30: „Die Form Monolog habe ich niemals eingegeben und aktiv
+  bestätigt. Die Form muss mit mehr Bedacht gewählt werden und vom User
+  bestätigt werden."). Die vierte Spalte der Szenenzeile landet in
+  `szene.form_vorschlag`, die fünfte (Begründung, Pflicht) in
+  `form_vorschlag_grund`; **`szene.form` bleibt leer**, bis die Gruppe sie
+  Szene für Szene per Knopf bestätigt. In der Szenenvorstellung kommt deshalb
+  **zuerst** „Welche Form soll Szene N haben?" mit fünf Knöpfen — der
+  Vorschlag zuerst und mit „(Vorschlag)" markiert, darüber seine Begründung —
+  und **erst nach dem Druck** die Schreibfrage. `form` ist Pflichtfeld
+  (`szene.PFLICHTFELDER`), ohne bestätigte Form läuft kein Szenenlauf.
+  Vorschlagsregeln im Prompt: **Dialog ist der Normalfall**, höchstens eine
+  Nicht-Dialog-Szene je drei, Szene 1 nie Monolog oder Lied.
+- **Phase 4 heißt „Setting & Figuren"** — das frühere Feld `rahmen` ist das
+  Setting (Ort, Zeit, Anlass) und behält seinen Spaltennamen; nach außen
+  (Knopftexte, Notiert-Zeile, Weboberfläche) heißt es „Setting". `format` und
+  `hauptkonflikt` bleiben als Spalten stehen und tragen keine Entscheidung
+  mehr. Stichwörter: „Rahmen", „Setting", „Format", „Konflikt" und
+  „Kernthema" zeigen alle auf 4, „Geschichte" auf 5 — `prompts/erkenner.md`
+  wurde dafür **nicht** angefasst, die Zuordnung Wort→Nummer liegt in
+  `phasen.STICHWOERTER`.
+- **`geschichte_setzen` ist im Code, aber nicht im Erkenner-Prompt.** Der
+  Regelweg zur Geschichte ist der Vorschlagsblock mit seinen Knöpfen
+  (`knoepfe._speichere_geschichte`); die Erkenner-Art ist der zweite, freie
+  Weg. `prompts/erkenner.md` blieb unverändert, weil in derselben Nacht kein
+  Korpuslauf gegen das echte Modell möglich war — `tests/test_korpus.py`
+  hält das als `OHNE_KORPUSFAELLE` fest. **Wer den Prompt erweitert, nimmt
+  die Art dort heraus und legt zwei Korpusfälle an.**
 - **Der Phasen-Prompt ist Fokus, kein Käfig** (05.09.2026). Jede
   `prompts/phasen/N.md` hat den Abschnitt „Was du nicht von dir aus
   anfängst" mit dem festen Schlusssatz „Bittet die Gruppe ausdrücklich darum,
@@ -186,7 +239,11 @@ lädt, würde damit Gesprächszüge ausbremsen.
   Figuren, `2.md` sagte „kein Kernthema, keine Figuren", und getragen hat die
   Antwort nur, weil der Basis-Prompt sie trug.
 - **Phasennummern werden migriert, nicht umgedeutet** (`db.SCHEMA_VERSION`,
-  `db.PHASEN_UMNUMMERIERUNG`). Der Merkposten ist SQLites eingebautes
+  `db.PHASEN_UMNUMMERIERUNG`, `db.PHASEN_UMNUMMERIERUNG_2`). Zwei Schritte
+  hintereinander, eine alte Datenbank läuft durch beide: acht → sieben
+  (04.09.: Kernthema und Figuren wurden eine Phase) und sieben → acht
+  (05.09. nachts: 4 und 5 bleiben, 6 → 7, 7 → 8; die neue 6 bekommt niemand
+  zugewiesen, sie ist ein Angebot und keine übersprungene Station). Der Merkposten ist SQLites eingebautes
   `PRAGMA user_version` — keine eigene Tabelle, keine Zeile, kein Schema. Das
   Journal bleibt dabei unangetastet: dort steht „Phase 5 · Figuren", weil das
   am 04.09. wahr war, und ein Journal wird nur angehängt.
@@ -300,6 +357,55 @@ lädt, würde damit Gesprächszüge ausbremsen.
   `vorfall` fürs Dashboard); ein gescheiterter Gesprächszug oder eine
   gescheiterte Transkription bekommt eine kurze, ehrliche Zeile, weil die
   Gruppe gerade darauf wartet oder selbst reagieren muss (SPEC § 11.1/§ 11.2).
+
+- **Haltung: speichern beim ersten Mal, proaktiv zur nächsten Phase, keine
+  Wiederholung** (06.09.2026, nach dem gemessenen Testabend: Median 20
+  Nachrichten je Festlegung, 64 % Fragen, 23 Auswahlknöpfe null Mal gedrückt).
+  Nennt die Gruppe einen Wert, wird er sofort abgelegt und in einer Zeile
+  bestätigt — keine Rückfrage davor, keine Zusammenfassung danach. Steht etwas
+  im Arbeitsstand, fragt der Bot nie erneut danach. Sobald die Voraussetzungen
+  einer höheren Phase gespeichert sind, schickt er **einmal** eine eigene kurze
+  Nachricht „<Was steht>. Weiter zu <Phase>?" (`knoepfe.biete_phase_proaktiv`,
+  Merkposten `arbeitsstand.phase_angeboten`), nicht als vierten Knopf unter
+  einem langen Text. Antworten mit über 60 % Deckung zur vorigen Bot-Nachricht
+  werden ersatzlos verworfen (`ablauf.ist_wiederholung`, Vorfall
+  `wiederholung_verworfen`); löst eine Nachricht einen Auftrag aus, schweigt
+  der Gesprächs-Bot ganz (`ablauf.ist_auftrag`). Die Grundleiste speichert nie
+  über ein gesetztes Feld hinweg, solange keine Änderung offen ist
+  (`knoepfe._ist_bestaetigung`, `_feld_ist_frei`). Das Kontextfenster ist kurz
+  und chronologisch: höchstens `kontext.FENSTER_NACHRICHTEN` (20) oder
+  `FENSTER_MINUTEN` (30), sortiert nach `gesendet_am` — **nicht** nach
+  `message_id`, denn übernommene Historien tragen negative, absteigend
+  vergebene ids. Belege: `docs/analyse-interaktion-testgruppe-2026-09-05.md`.
+
+- **Die Fragen sind eine Auswahl, und danach kommt der Leitfaden** (06.09.2026,
+  Birk). Phase 2 schlägt zehn Fragen als `VORSCHLAG FRAGENAUSWAHL:` vor, aus
+  denen die Gruppe per Mehrfachauswahl genau drei antippt — ein Knopf je Frage,
+  Toggle über `telegram.aktualisiere_knoepfe`, Zustand in
+  `arbeitsstand.fragen_gewaehlt` und nie in der Tastatur, „Diese 3 nehmen" wirkt
+  nur bei genau drei. Auf das Speichern folgt automatisch eine
+  Sensibilitätsprüfung (Einleitungen je heikler Frage, `VORSCHLAG
+  EINLEITUNGEN:`) und danach Eröffnung und Abschluss (`VORSCHLAG EROEFFNUNG:`),
+  beide als Ping-Pong über die Grundleiste und beide als Auftragszug im eigenen
+  Thread, nicht im Knopf-Handler. Daraus baut `leitfaden.baue()` deterministisch
+  den Gesprächsleitfaden — Eröffnung, Fragen mit ihren Einleitungen, Abschluss —,
+  den der Bot beim Schritt in die Interviews und beim Interviewstart genau
+  einmal schickt und danach nur noch auf Knopf, `/leitfaden` (versteckt) oder
+  auf der Gruppenseite zeigt. Deshalb hängt `phasen.voraussetzungen[3]` seitdem
+  an Fragen **und** `interview_eroeffnung`: ohne Eröffnungstext geht keine
+  Sechzehnjährige auf eine fremde Person zu, während leere Einleitungen ein
+  Ergebnis der Prüfung sind und kein fehlender Wert.
+
+- **„Neu schreiben" heißt neu, und der Bot zeigt, dass er arbeitet**
+  (06.09.2026). Der Knopf „Neu schreiben" gibt die alte Fassung NICHT als
+  Vorlage mit (`szene.NEU_MARKER` im Auftrag → `NEU_HINWEIS` statt Volltext);
+  „Passt, aber anders" überarbeitet den bestehenden Text mit der Regie-Notiz.
+  Der Szenen-Prompt trägt vor den Angaben die **Aufgabe der Szene** an ihrer
+  Position (`szene._aufgabe_text`: erste = Exposition wer/zueinander/warum
+  hier/worum; Mitte = verschärfen/wenden; letzte = einlösen) und ganz oben
+  Rahmen/Geschichte als bindende Vorgabe. Solange Opus schreibt, laufen
+  Tippanzeige und eine wechselnde Emoji-Zeile (`szene._arbeitet_sichtbar`),
+  die am Ende wieder gelöscht wird.
 
 ## Die Fallen
 
@@ -482,6 +588,26 @@ python -m interview_theater.bot
 - `python -m scripts.szenen_vergleich --nur opus,kimi,mistral,apertus` —
   eine Szene, gleicher Prompt, vier Modelle; Ausgabe als Markdown mit dem
   Prompt als Anhang. Grundlage der Entscheidung für Opus (05.09.).
+- `python -m scripts.interviews_uebernehmen <ziel> <quelle> [<quelle> …] [--ja]`
+  — hebt die Gruppengrenze für **Material** auf (06.09.2026, Ende Tag 2: nur
+  noch eine Gruppe arbeitet weiter und soll alle Interviews sehen). Kopiert je
+  Quellinterview Kopf, Teile, Transkripte, Verdichtung und
+  `verdichtung_thema` (inkl. `zitat_geprueft`) sowie die Audiodateien in die
+  Zielgruppe; **kein Modellaufruf**, die Quellen bleiben unverändert.
+  Arbeitsstand, Figuren, Szenen, Knöpfe, Nachrichten, Journal und Kernzitate
+  wandern bewusst **nicht** — das ist die Arbeit der Quellgruppe an ihrem
+  Material, nicht das Material. `zum_kernthema_am` wird auf NULL gesetzt: was
+  zur Kernfrage passt, entscheidet die Zielgruppe selbst. Die Nummerierung
+  läuft weiter, weil `kontext.interviewbezeichnung` nach `id` zählt und neue
+  Zeilen höhere ids bekommen; `name` wird beim Import auf „Interview N"
+  gesetzt und nie aus der Quelle übernommen (dort kann ein Klarname stehen).
+  Idempotent über `aufnahme.uebernommen_von` („`<quell_chat_id>:<alte_id>`",
+  additiv migriert), alles in einer Transaktion, ohne `--ja` reiner
+  Trockenlauf mit Zählung. Verweigert den Dienst, solange in Ziel oder Quelle
+  eine Aufnahme läuft oder der Interviewmodus an ist. Mit `--ja` legt es
+  selbst ein DB-Backup an, schreibt einen Journaleintrag in die Zielgruppe und
+  eine Zeile in den Zielchat. Env der **Ziel**gruppe laden — die Quellen
+  dürfen anderen Bots gehören, sie liegen in derselben Datenbank.
 - `python scripts/loeschen.py <chat_id>` — der Löschweg: entfernt alle
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.

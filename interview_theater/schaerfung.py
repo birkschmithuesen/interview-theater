@@ -136,11 +136,22 @@ def baue_nutzertext(conn, chat_id: int, eintraege: list[dict]) -> str:
 
     zeilen.append("")
     zeilen.append("Material (nur hieraus waehlen, nach Nummer):")
+    # Die Zusammenfassung gehoert dem Interview, nicht der Zeile: elf geprueft
+    # Themen desselben Interviews schrieben sie elfmal (Audit-Befund M1,
+    # 06.09.2026 -- 7.700 Zeichen Dublette in einem 9.000-Zeichen-Prompt).
+    # Jetzt einmal je Interview, als eigene Zeile darueber.
+    letztes_interview = None
     for eintrag in eintraege:
+        if eintrag["interview"] != letztes_interview:
+            letztes_interview = eintrag["interview"]
+            if eintrag["zusammenfassung"]:
+                zeilen.append(
+                    f"\n{eintrag['interview']} -- worum es darin geht: "
+                    f"{eintrag['zusammenfassung']}"
+                )
         zeilen.append(
             f"[{eintrag['nummer']}] {eintrag['interview']} | "
             f"Thema: {eintrag['thema']} | "
-            f"Zusammenfassung: {eintrag['zusammenfassung']} | "
             f'Zitat: "{eintrag["zitat"]}"'
         )
     return "\n".join(zeilen)

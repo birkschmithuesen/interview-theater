@@ -211,7 +211,8 @@ def test_befehle_liste_ist_auf_fuenf_gekuerzt():
     Inhaltliche schreibt der Erkenner ohnehin aus dem Gespraech mit."""
     kommandos = {b["command"] for b in befehle.BEFEHLE_LISTE}
     assert kommandos == {
-        "aufnahme", "stand", "auswerten", "kernthema", "phase", "hilfe",
+        "aufnahme", "stand", "auswerten", "kernthema", "stueck", "phase",
+        "hilfe",
     }
     assert "interview" not in kommandos and "fertig" not in kommandos
 
@@ -611,13 +612,13 @@ def test_aufnahme_ansage_erklaert_die_bedienung(conn, einst, tg):
 # ---------------------------------------------------------------------------
 
 
-def test_format_und_rahmen_schreiben_in_den_arbeitsstand(conn, einst, tg):
+def test_stueck_schreibt_format_und_rahmen_in_den_arbeitsstand(conn, einst, tg):
     """Birk 05.09.: eine Szene lief mit form=Monolog, das niemand gewaehlt
     hatte -- der Bot hatte es beilaeufig vorgeschlagen und ein 'ok' bekommen.
     Seit demselben Tag sperrt szene.py ohne format/rahmen; also braucht es
     einen Weg, sie sicher zu setzen."""
-    befehle.behandle(conn, tg, einst, 1, "/format Sprechtheater: Dialog", "Ada")
-    befehle.behandle(conn, tg, einst, 1, "/rahmen Ein Wartezimmer, nachmittags", "Ada")
+    befehle.behandle(conn, tg, einst, 1, "/stueck format Sprechtheater: Dialog", "Ada")
+    befehle.behandle(conn, tg, einst, 1, "/stueck rahmen Ein Wartezimmer, nachmittags", "Ada")
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand["format"] == "Sprechtheater: Dialog"
@@ -626,19 +627,22 @@ def test_format_und_rahmen_schreiben_in_den_arbeitsstand(conn, einst, tg):
     assert "Rahmen notiert" in tg.gesendet[1][1]
 
 
-def test_format_ohne_text_erklaert_sich(conn, einst, tg):
-    behandelt = befehle.behandle(conn, tg, einst, 1, "/format", "Ada")
+def test_stueck_ohne_feld_zeigt_beide_werte(conn, einst, tg):
+    """Ohne Feld ist /stueck die kurze Antwort auf "was haben wir da nochmal
+    festgelegt" -- ohne den ganzen /stand."""
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/stueck", "Ada")
 
     assert behandelt is True
-    assert "/format" in tg.gesendet[0][1], "die Hilfezeile zeigt ein Beispiel"
+    assert "Format" in tg.gesendet[0][1] and "Rahmen" in tg.gesendet[0][1]
+    assert "noch offen" in tg.gesendet[0][1]
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand is None or not (stand["format"] or "")
 
 
-def test_format_aus_nimmt_es_wieder_weg(conn, einst, tg):
+def test_stueck_format_aus_nimmt_es_wieder_weg(conn, einst, tg):
     repo.setze_arbeitsstand(conn, 1, "format", "Musical")
 
-    befehle.behandle(conn, tg, einst, 1, "/format aus", "Ada")
+    befehle.behandle(conn, tg, einst, 1, "/stueck format aus", "Ada")
 
     assert not (repo.hole_arbeitsstand(conn, 1)["format"] or "")
 

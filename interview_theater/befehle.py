@@ -123,10 +123,13 @@ _TEXT_HILFE = (
     "Weitere Befehle:\n"
     "/stand - zeigt, was ich mir bisher gemerkt habe\n"
     "/auswerten [nummer] - was in den Interviews steckt\n"
+    "/kernthema <text> - das Kernthema festlegen\n"
+    "/stueck format <text> - Sprechtheater, Musical, Mischform ...\n"
+    "/stueck rahmen <text> - Ort, Zeit, Anlass des Abends\n"
     "/phase [nummer|name] - zeigt die Phase oder schaltet um\n"
     "/hilfe - diese Uebersicht\n\n"
-    "Alles andere sagt ihr mir einfach: Kernthema, Figuren, Szenen - ich "
-    "halte es fest, ohne dass ihr einen Befehl braucht."
+    "Alles andere sagt ihr mir einfach: Figuren, Szenen, Entscheidungen - "
+    "ich halte es fest, ohne dass ihr einen Befehl braucht."
 )
 
 #: Telegram-Nutzlast fuer setMyCommands (teil-b.md Aufgabe 6) -- ohne
@@ -146,6 +149,7 @@ BEFEHLE_LISTE = [
     {"command": "stand", "description": "Arbeitsstand anzeigen"},
     {"command": "auswerten", "description": "Interviews auswerten und anzeigen"},
     {"command": "kernthema", "description": "Kernthema festlegen oder korrigieren"},
+    {"command": "stueck", "description": "Format und Rahmen des Stuecks (Phase 5)"},
     {"command": "phase", "description": "Arbeitsphase zeigen oder umschalten"},
     {"command": "hilfe", "description": "Wie der Bot funktioniert"},
 ]
@@ -248,37 +252,61 @@ def _befehl_auswerten(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     aufnahme.starte_auswertung(conn, tg, klm, e, kopf["id"])
 
 
-def _befehl_arbeitsstandfeld(conn, tg, chat_id: int, feld: str, rest: str) -> None:
-    """``/format <text>`` und ``/rahmen <text>`` -- der deterministische Weg
-    zu den beiden Ergebnissen von Phase 5, wie ``/kernthema`` fuer Phase 4.
+def _befehl_stueck(conn, tg, chat_id: int, rest: str) -> None:
+    """``/stueck format <text>`` und ``/stueck rahmen <text>`` -- die beiden
+    Ergebnisse von Phase 5 unter EINEM Befehl.
 
-    Grund (Birk 05.09.2026): eine Szene wurde geschrieben, ohne dass Form und
-    Rahmen je ausdruecklich gewaehlt worden waren -- der Bot hatte "Monolog"
-    beilaeufig vorgeschlagen, ein knappes "ok" bekommen, und der Erkenner
-    schrieb es als Szenenfeld mit. Seit demselben Tag sperrt szene.py ohne
-    ``format`` und ``rahmen`` im Arbeitsstand; damit braucht es auch einen
-    Weg, sie sicher zu setzen, statt darauf zu hoffen, dass ein "ok" richtig
-    gedeutet wird.
+    Vorher waren es zwei (``/format``, ``/rahmen``). Zusammengelegt am
+    05.09.2026 (Birk: "fass zusammen, was Sinn macht"), weil beide dieselbe
+    Frage beantworten -- was fuer ein Stueck entsteht -- und die Station im
+    Bot auch "Format & Rahmen" heisst. Ein Befehl weniger im Menue, und das
+    Muster ist dasselbe wie bei ``/szene 2 ort Kessel``: Befehl, Feld, Wert.
 
-    ``aus`` nimmt das Feld wieder weg -- dieselbe Sprache wie bei
-    ``/kernthema aus``."""
-    bezeichnung = {"format": "Format", "rahmen": "Rahmen"}[feld]
-    if not rest:
+    Ohne Feld zeigt er beide Werte -- so ist ``/stueck`` zugleich die Antwort
+    auf "was haben wir da nochmal festgelegt", ohne den ganzen ``/stand``.
+
+    ``aus`` als Wert nimmt das Feld wieder weg, wie bei ``/kernthema aus``."""
+    felder = {"format": "Format", "rahmen": "Rahmen"}
+    feld, _, wert = rest.partition(" ")
+    feld = feld.strip().lower()
+    wert = wert.strip()
+
+    if not feld:
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        zeilen = []
+        for schluessel, name in felder.items():
+            gesetzt = (stand[schluessel] if stand else None) or ""
+            zeilen.append(f"{name}: {gesetzt}" if gesetzt else f"{name}: noch offen")
+        zeilen.append("Setzen: /stueck format Sprechtheater: Dialog und Chor")
+        tg.sende(chat_id, "\n".join(zeilen))
+        return
+
+    if feld not in felder:
         tg.sende(
             chat_id,
-            f"Schreibt den {bezeichnung} hinter den Befehl, zum Beispiel: "
-            f"/{feld} {_BEISPIEL_ARBEITSSTAND[feld]}",
+            "Das kenne ich nicht. Es gibt /stueck format <text> und "
+            "/stueck rahmen <text>.",
         )
         return
-    if rest.lower() == "aus":
+
+    bezeichnung = felder[feld]
+    if not wert:
+        beispiel = _BEISPIEL_ARBEITSSTAND[feld]
+        tg.sende(
+            chat_id,
+            f"Schreibt den {bezeichnung} dahinter, zum Beispiel: "
+            f"/stueck {feld} {beispiel}",
+        )
+        return
+    if wert.lower() == "aus":
         entfernt = erkenner.entferne(conn, chat_id, feld, quelle="befehl")
         tg.sende(chat_id, _melde_entfernt(entfernt, f"Ein {bezeichnung} war nicht gesetzt."))
         return
-    repo.setze_arbeitsstand(conn, chat_id, feld, rest)
-    tg.sende(chat_id, f"{bezeichnung} notiert: {rest}")
+    repo.setze_arbeitsstand(conn, chat_id, feld, wert)
+    tg.sende(chat_id, f"{bezeichnung} notiert: {wert}")
 
 
-#: Beispiele fuer die Hilfezeile von /format und /rahmen -- konkret, damit
+#: Beispiele fuer die Hilfezeilen von /stueck -- konkret, damit
 #: sichtbar ist, wie lang die Angabe sein soll (eine Zeile, kein Aufsatz).
 _BEISPIEL_ARBEITSSTAND = {
     "format": "Sprechtheater: Dialog und Chor",
@@ -518,7 +546,7 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
 #: aber nicht mehr im Menue.
 _BEKANNTE_BEFEHLE = {
     "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase", "/kernthema",
-    "/format", "/rahmen", "/figur", "/szene", "/stand", "/wortlaut", "/hilfe",
+    "/stueck", "/figur", "/szene", "/stand", "/wortlaut", "/hilfe",
 }
 
 
@@ -557,8 +585,8 @@ def behandle(
         _befehl_phase(conn, tg, chat_id, rest)
     elif befehl == "/kernthema":
         _befehl_kernthema(conn, tg, chat_id, rest)
-    elif befehl in ("/format", "/rahmen"):
-        _befehl_arbeitsstandfeld(conn, tg, chat_id, befehl.lstrip("/"), rest)
+    elif befehl == "/stueck":
+        _befehl_stueck(conn, tg, chat_id, rest)
     elif befehl == "/figur":
         _befehl_figur(conn, tg, chat_id, rest)
     elif befehl == "/szene":

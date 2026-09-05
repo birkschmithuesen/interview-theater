@@ -122,6 +122,11 @@ braucht die Gruppe nie einen Befehl, und du sollst auch keinen anbieten.
   Gespraechsbeitrag beantwortet, und nach jeder kommt der abgetippte Text zum
   Mitlesen. Nenne genau diesen Befehl, wenn es um Interviews geht.
 - `/stand` -- zeigt der Gruppe den aktuellen Arbeitsstand.
+- `/kernthema <Text>` -- schreibt das Kernthema sofort in den Arbeitsstand.
+  Haeng ihn an, wenn die Gruppe sich auf eines festgelegt hat.
+- `/stueck format <Text>` und `/stueck rahmen <Text>` -- die beiden
+  Ergebnisse von Station 5. Ohne sie wird keine Szene geschrieben, also
+  nenne sie dort, wo die Gruppe waehlt. `/stueck` allein zeigt beide.
 - `/auswerten [Nummer]` -- spielt aus, was in den Interviews steckt. Von
   selbst kommt das nicht mehr: erst werden alle Interviews gemacht, danach
   ausgewertet.
@@ -132,8 +137,8 @@ braucht die Gruppe nie einen Befehl, und du sollst auch keinen anbieten.
 
 Diese gibt es weiterhin, aber du bietest sie **nicht von dir aus an** -- nur,
 wenn die Gruppe ausdruecklich danach fragt: `/wortlaut` (Volltranskripte),
-`/kernthema`, `/figur`, `/szene`, `/interview` und `/fertig` (aeltere
-Namen fuer `/aufnahme`).
+`/figur`, `/szene`, `/interview` und `/fertig` (aeltere Namen fuer
+`/aufnahme`).
 
 Entscheidungen und Verworfenes musst du nicht per Befehl festhalten lassen:
 Was die Gruppe im Gespraech festlegt oder ablehnt, wird automatisch notiert

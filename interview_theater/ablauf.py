@@ -254,6 +254,54 @@ def ist_wiederholung(antwort: str | None, vorige: str | None,
     return len(gesagt & davor) / len(gesagt) > anteil
 
 
+#: Nachrichten, die einen Auftrag ausloesen und deshalb KEINE
+#: Gespraechsantwort bekommen (06.09.2026, Birk, Testgruppe 00:30):
+#:
+#:   00:30:28  Birk:  "neu schreiben"
+#:   00:30:31  Bot:   "Birk, klar -- Szene 1 neu. Eine Frage dazu: Soll der
+#:                     Typ wirklich kommen ...?"
+#:   00:30:32  Bot:   [USA-Hinweis]  "Ich schreibe die Szene aus"
+#:
+#: Der erste Teil muss weg. Loest eine Nachricht einen Auftrag aus, spricht
+#: der Auftrag selbst -- der Gespraechs-Bot sagt dazu nichts, keine
+#: Bestaetigung, keine Rueckfrage, kein "klar". In der Testgruppe stand eine
+#: solche Doppelung **14 Mal** im Chat.
+#:
+#: Warum deterministisch und nicht ueber den Erkenner: der Erkenner laeuft
+#: NACH dem Gespraechszug (``bot._zug_und_erkenner``, aus gutem Grund -- er
+#: soll die Bot-Antwort mitlesen). Zum Zeitpunkt des Zuges ist seine Antwort
+#: also noch nicht da. Diese Liste faengt die Formen, die im Testabend
+#: wirklich vorkamen; alles andere faengt weiterhin ``szene.laeuft`` eine
+#: Sekunde spaeter. Die Liste ist absichtlich eng: eine falsch
+#: unterdrueckte Antwort ist teurer als eine ueberfluessige.
+_AUFTRAGSFORMEN = (
+    r"neu\s*schreiben",
+    r"(schreib|mach)\s*(mir\s*)?(die\s*)?szene\b",
+    r"^\s*(nochmal|noch mal)\s*(neu)?\s*$",
+    r"^\s*weiter\s*schreiben\s*$",
+    r"^\s*ausschreiben\s*$",
+    r"interview\s*starten",
+    r"^\s*aufnahme\s*(starten|beenden)\s*$",
+)
+
+_AUFTRAG = re.compile("|".join(_AUFTRAGSFORMEN), re.IGNORECASE)
+
+#: Laengere Nachrichten sind keine reinen Auftraege mehr, sondern tragen
+#: Inhalt -- "Schreib Szene 1. Stell immer nur eine Frage auf einmal." ist
+#: beides, und die Regieanweisung darin darf nicht verlorengehen. 60 Zeichen
+#: ist die Grenze, unter der eine Nachricht nichts als der Auftrag ist.
+AUFTRAG_HOECHSTLAENGE = 60
+
+
+def ist_auftrag(text: str | None) -> bool:
+    """Ist diese Nachricht nichts als ein Auftrag, den ein anderer Weg
+    ausfuehrt? Dann schweigt der Gespraechs-Bot (06.09.2026)."""
+    roh = (text or "").strip()
+    if not roh or len(roh) > AUFTRAG_HOECHSTLAENGE:
+        return False
+    return _AUFTRAG.search(roh) is not None
+
+
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
 #: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab
 #: (global-constraints.md § 4).
@@ -450,6 +498,23 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         # (bot._zug_und_erkenner) laeuft unabhaengig weiter.
         if szene.laeuft(chat_id):
             log.info("Gespraechszug unterdrueckt, Szenenlauf laeuft, chat_id=%s", chat_id)
+            return
+
+        # Und derselbe Gedanke eine Sekunde frueher (06.09.2026, Testgruppe
+        # 00:30): ist die ausloesende Nachricht nichts als ein Auftrag ("neu
+        # schreiben"), faellt der Gespraechszug aus, BEVOR der Szenenlauf
+        # ueberhaupt angelaufen ist. Der Erkenner-Nachlauf startet den
+        # Auftrag; dessen eigene Systemzeilen sind die vollstaendige Antwort.
+        #
+        # Ohne das antwortete der Bot am Testabend um 00:30:31 mit "Birk,
+        # klar -- Szene 1 neu. Eine Frage dazu: ...?" und eine Sekunde
+        # spaeter lief die Szene trotzdem los: die Frage war nie eine, sie
+        # stand nur im Weg.
+        if ist_auftrag(letzte_nachricht["text"]):
+            log.info(
+                "Gespraechszug unterdrueckt, Nachricht ist ein Auftrag, chat_id=%s",
+                chat_id,
+            )
             return
 
         # Die Regie-Notiz nach "Passt, aber anders" unter einem Szenentext

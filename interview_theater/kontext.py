@@ -21,7 +21,7 @@ die zuletzt geaenderte Szene im Volltext als eigener Block 5 -- beide
 datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from interview_theater import phasen, repo
 
@@ -525,28 +525,99 @@ def _baue_journal(conn, chat_id: int) -> str:
 #: Obergrenze fuer den Nachrichtenpool, aus dem das Fenster gebaut wird --
 #: eine reine Performance-Vorkehrung (niemand soll fuer jeden Zug den
 #: gesamten Zweitagesverlauf aus der DB laden), kein Budget im Sinne von
-#: BUDGETS["fenster"]. Die eigentliche Groessenbegrenzung des Fensters
-#: leistet allein die Kuerzung in baue().
+#: BUDGETS["fenster"].
 _FENSTER_POOL = 1000
+
+#: Wie viele Nachrichten hoechstens ins Fenster kommen (06.09.2026, Birk,
+#: gemessen an der Testgruppe um 00:33: der Nutzertext hatte **52 000
+#: Zeichen**, und darin standen 700 Zeilen bis in den Vormittag zurueck).
+#:
+#: Zwanzig ist die Zahl, die eine laufende Arbeitsphase abdeckt, ohne den
+#: Vormittag mitzuschleppen. Alles Aeltere, das wirklich zaehlt, steht
+#: ohnehin strukturiert im Prompt: Arbeitsstand, Journal, Figuren,
+#: Verdichtungen. Das Fenster ist fuer den Ton und den letzten Faden da,
+#: nicht als Archiv.
+FENSTER_NACHRICHTEN = 20
+
+#: Und zeitlich: was laenger als das her ist, gehoert nicht mehr zur
+#: laufenden Unterhaltung. Es gilt die KLEINERE der beiden Grenzen.
+#:
+#: Der Anlass ist gemessen (05.09.2026, 21:50): weil der Vormittag mit im
+#: Fenster stand -- und wegen der falschen Sortierung sogar OBEN --, hielt
+#: das Modell ihn fuer die Gegenwart und antwortete in Phase 6 mit "Das ist
+#: Tag 1 und wir stehen erst am Anfang. Also: Rassismus, Liebe, Spaß,
+#: Streit."
+FENSTER_MINUTEN = 30
+
+#: Systemzeilen, die nicht ins Fenster gehoeren (06.09.2026). Sie sind
+#: Ereignisse, keine Gespraechsbeitraege: was sie festhalten, steht im
+#: Journal und im Arbeitsstand, und im Fenster stiften sie nur Verwirrung --
+#: am Testabend stand "Bin wieder da" zweimal darin, und das Modell erzaehlte
+#: die Notiert-Zeilen nach, statt weiterzuarbeiten.
+_SYSTEMANFAENGE = (
+    "Bin wieder da.",
+    "Notiert:",
+    "Aufnahme laeuft.",
+    "Aufnahme beendet.",
+    "Bereit -",
+    "Hinweis: Den Szenentext",
+    "Ich schreibe die Szene aus",
+    "Ich schreibe gerade noch",
+    "Ich werte die offenen Interviews aus",
+    "Entfernt:",
+)
+
+
+def _ist_systemzeile(n) -> bool:
+    """Ist diese Bot-Nachricht eine Systemmeldung und kein Gespraechsbeitrag?
+
+    Nur Bot-Nachrichten: eine Gruppe, die zufaellig "Notiert:" tippt, sagt
+    damit etwas -- und was die Gruppe sagt, faellt hier nie weg."""
+    if not n["ist_bot"]:
+        return False
+    text = (n["text"] or "").lstrip()
+    return any(text.startswith(anfang) for anfang in _SYSTEMANFAENGE)
 
 
 def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
     """Liefert die Eintraege des kurzen Fensters (Nachrichtenzeilen und
-    Pausenmarkierungen), aeltester zuerst -- ungekuerzt, ohne eigenes
-    Budget. Ein sehr langer Gespraechsverlauf kann dadurch allein schon das
-    Gesamtziel ZIEL reissen; genau das soll die Kuerzung in baue() abfangen,
-    nicht ein zweites, verstecktes Limit hier.
+    Pausenmarkierungen), **aeltester zuerst** -- die letzten
+    ``FENSTER_NACHRICHTEN`` Nachrichten oder die letzten ``FENSTER_MINUTEN``,
+    was weniger ist, ohne Systemzeilen.
 
-    Jeder Listeneintrag ist eine atomare Einheit (eine Pausenzeile oder eine
-    einzelne Nachricht, auch wenn deren Text selbst Zeilenumbrueche enthaelt
-    -- Telegram erlaubt mehrzeiligen Text). Das ist die Grundlage dafuer,
-    dass die Kuerzung ganze Nachrichten abschneiden kann statt nur ihrer
-    ersten physischen Zeile."""
+    **Warum das am 06.09.2026 umgebaut wurde.** Gemessen an der Testgruppe:
+    der Nutzertext eines Zuges war 52 000 Zeichen lang, das Fenster reichte
+    700 Zeilen bis in den Vormittag zurueck -- und es stand **rueckwaerts**
+    darin. Der Grund fuer die Reihenfolge war eine falsche
+    Sortierannahme: ``repo.letzte_nachrichten`` ordnet nach ``message_id``,
+    und eine uebernommene Gruppenhistorie traegt **negative, absteigend
+    vergebene** ids. Aufsteigend sortiert stehen die aeltesten dieser
+    Nachrichten damit zuletzt und die juengsten zuerst. Sortiert wird deshalb
+    hier nach ``gesendet_am``: die Uhrzeit luegt nicht.
+
+    Die Folge des alten Verhaltens ist belegt (05.09.2026, 21:50): das Modell
+    hielt den Vormittag fuer die Gegenwart und bot in Phase 6 an, aus den
+    Begriffen Interviewfragen zu entwickeln.
+
+    Jeder Listeneintrag bleibt eine atomare Einheit (eine Pausenzeile oder
+    eine einzelne Nachricht) -- Grundlage dafuer, dass die Kuerzung in
+    ``baue()`` ganze Nachrichten abschneiden kann."""
     ausloeser_ids = {n["message_id"] for n in ausloeser}
-    kandidaten = [
+    roh = [
         n for n in repo.letzte_nachrichten(conn, chat_id, anzahl=_FENSTER_POOL)
-        if n["message_id"] not in ausloeser_ids
+        if n["message_id"] not in ausloeser_ids and not _ist_systemzeile(n)
     ]
+    # Nach der Uhrzeit, nicht nach der id (siehe Docstring).
+    roh.sort(key=lambda n: n["gesendet_am"])
+
+    kandidaten = roh[-FENSTER_NACHRICHTEN:]
+    juengste = _juengste_zeit(ausloeser, kandidaten)
+    if juengste is not None:
+        grenze = juengste - timedelta(minutes=FENSTER_MINUTEN)
+        kandidaten = [
+            n for n in kandidaten
+            if datetime.fromisoformat(n["gesendet_am"]) >= grenze
+        ]
 
     eintraege = []
     vorherige_zeit = None
@@ -558,6 +629,18 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
         eintraege.append(sprecherzeile(n))
         vorherige_zeit = n["gesendet_am"]
     return eintraege
+
+
+def _juengste_zeit(ausloeser, kandidaten):
+    """Der Bezugspunkt der 30-Minuten-Grenze: die ausloesende Nachricht, oder
+    -- wenn es keine gibt -- die juengste im Fenster. Nicht ``jetzt``: ein
+    Test und ein Nachlauf sollen dieselbe Antwort bekommen wie der Livezug."""
+    zeiten = [n["gesendet_am"] for n in ausloeser] or [
+        n["gesendet_am"] for n in kandidaten
+    ]
+    if not zeiten:
+        return None
+    return datetime.fromisoformat(max(zeiten))
 
 
 def _baue_ausloeser(ausloeser) -> str:

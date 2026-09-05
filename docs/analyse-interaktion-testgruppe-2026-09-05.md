@@ -163,3 +163,85 @@ print(sum(1 for i,r in enumerate(bot) if i and cont(r['text'], bot[i-1]['text'])
 
 Nachrichten je Speicherung, Knopfnutzung und die Feld-Überschreibung kommen aus
 `journal` bzw. `knopf` derselben Datenbank (Abfragen im Fließtext oben).
+
+---
+
+# Nachtrag 06.09.2026, 00:35 (Birks Zusätze)
+
+Der Analysezeitraum reicht bis **00:35 CEST** (die DB speichert UTC; 22:32 UTC
+= 00:32 CEST). Es kamen 28 weitere Nachrichten dazu, Phase 6, vier
+Szenendurchläufe.
+
+## 7. Birks Feedback im Chat als Anforderungsliste
+
+Birk hat fünfmal direkt an den Bot geschrieben, was anders sein soll. Jeder
+Satz ist eine Anforderung:
+
+| Zeit | Feedback (wörtlich) | Umsetzung |
+| --- | --- | --- |
+| 21:50 | „wo ist du? es müsste jetzt szenen geschrieben werden. wir habengerade die reihenfolge festgelegt" | **Fix (3)** Kontextfenster: der Bot las den Vormittag als Gegenwart. Chronologie + 20-Nachrichten-/30-Minuten-Grenze. Zusätzlich system.md „Steht etwas im Arbeitsstand, frag nie erneut danach." |
+| 21:51 | „schreib nicht immer so viel zusammenfassung, sondern nur die wichtigen fragen." | **Fix (a)** system.md: „Wiederhole nichts, was in deinen letzten drei Nachrichten oder im Journal steht. Keine Zusammenfassung des Standes, außer auf `/stand`." + **Fix (d)** Wiederholungsfilter im Code. |
+| 21:52 | „Stell immer nur eine Frage auf einmal. Hier müsste kein großes Menu / Buttons sein, osndernnur sprahcantwort" | **Teilweise.** Umgesetzt: system.md „Eine Frage je Nachricht, höchstens. Sind es zwei, streichst du die schwächere." — Zahlenbeleg: 161 Fragezeichen in 59 Bot-Nachrichten. **Nicht umgesetzt:** „keine Buttons bei Szenenaufträgen". Begründung: die Grundleiste ist der einzige Weg, der am Testabend nachweislich funktioniert hat (86 % Nutzung gegen 0 % bei den Auswahllisten); sie ersatzlos zu streichen würde das Speichern wieder unsicher machen. Was stattdessen wegfällt, sind die **Auswahllisten** über der Leiste — 0 von 23 gedrückt. Das ist eine eigene Entscheidung für Birk, kein Fix, den ein Agent allein trifft. |
+| 21:53 | „Du wiederholfst dich. das enzige was hier wichtig ist, ist das US-Modell zu wählen udn das du dann szene 1 schreist und ausgibst" | **Fix (2)** `ablauf.ist_auftrag`: löst eine Nachricht einen Auftrag aus, schweigt der Gesprächs-Bot. |
+| 22:27 | „Du hast nicht auf meine Frage geantwortet und das was du hier schreibst doppelt sich überall. Die ganzen Zeilen sind doppelt." | **Fix (3)** — das Doppeln der Zeilen ist eine direkte Folge des rückwärts sortierten Fensters, in dem jede Notiert-Zeile und jedes „Bin wieder da" mehrfach stand. Systemzeilen sind jetzt aus dem Fenster gefiltert. |
+
+## 8. Muster „Gesprächs-Bot redet parallel zu einem Auftrag"
+
+Gezählt: **14 Fälle**, in denen eine Gesprächsantwort unmittelbar (≤ 1 min,
+derselbe Auslöser) vor einer Systemzeile stand. Sie zerfallen in zwei Gruppen:
+
+- **2 echte Doppelungen** (21:53 mid 160 vor dem USA-Hinweis; **00:30 mid 189**
+  „Birk, klar -- Szene 1 neu. Eine Frage dazu: … Soll der Typ wirklich
+  kommen?" eine Sekunde vor „Ich schreibe die Szene aus"). Hier hat der Bot
+  einen Auftrag kommentiert statt ihn auszuführen — **Fix (2)**.
+- **12 Notiert-Zeilen** nach einer Gesprächsantwort. Die sind bauartbedingt:
+  der Erkenner läuft absichtlich *nach* dem Zug, damit er die Bot-Antwort
+  mitliest. Sie sind kein Fehler, solange die Gesprächsantwort den Wert nicht
+  auch noch nacherzählt — genau das verbietet jetzt die system.md-Regel
+  „Nennt die Gruppe einen Wert, ist er gesetzt … du wiederholst ihn nicht im
+  Text: die Notiert-Zeile zeigt ihn ohnehin."
+
+`ablauf.ist_auftrag` fängt am Testkorpus **1** Nachricht („neu schreiben").
+Die Liste ist bewusst eng gehalten: eine fälschlich unterdrückte Antwort ist
+teurer als eine überflüssige. „Schreib Szene 1. Stell immer nur eine Frage auf
+einmal." (21:52) fällt bewusst **nicht** darunter — die Regieanweisung darin
+darf nicht verlorengehen.
+
+## 9. Kontextfenster (der schwerste Befund)
+
+Gemessen: der Nutzertext eines Zuges hatte **52 000 Zeichen**, das Fenster
+reichte ~700 Zeilen bis in den Vormittag zurück — und stand **rückwärts**
+darin.
+
+**Ursache, verifiziert:** `repo.letzte_nachrichten` sortiert
+`ORDER BY message_id ASC`. Die aus Gruppe 1 übernommene Historie trägt aber
+**negative, absteigend vergebene** message_ids (45 Stück, von −256 abwärts):
+
+```
+message_id ASC liefert:   -319 (20:52) → -318 (16:39) → -308 (14:33) → …
+gesendet_am liefert:      -256 (13:15) → -258 (13:41) → -259 (13:55) → …
+```
+
+Die älteste Nachricht steht damit *zuletzt*, die jüngste *zuerst*. Deshalb
+antwortete Kimi um 21:50 in Phase 6: „Das ist Tag 1 und wir stehen erst am
+Anfang. Also: Rassismus, Liebe, Spaß, Streit." — der Vormittag stand oben im
+Fenster und sah nach Gegenwart aus.
+
+**Fix (3):** `kontext._baue_fenster_eintraege` sortiert nach `gesendet_am`,
+begrenzt auf `FENSTER_NACHRICHTEN = 20` **oder** `FENSTER_MINUTEN = 30` (was
+kleiner ist) und filtert Systemzeilen (`_SYSTEMANFAENGE`: „Bin wieder da",
+„Notiert:", „Aufnahme läuft", USA-Hinweis, „Ich schreibe die Szene aus" …).
+Bezugspunkt der Zeitgrenze ist die auslösende Nachricht, nicht `jetzt` — damit
+ein Nachlauf dasselbe Fenster sieht wie der Livezug.
+
+## 10. Nicht gefixt: `arbeitsstand.phase = 7`
+
+Die Testgruppe steht auf `phase = 7`, `phase_angeboten = 8`, während das
+Journal als letzten Phaseneintrag „Phase 6 · Szenen" (21:48, Quelle `befehl`)
+führt und die Gruppe an Szene 1 arbeitete. Das passt zur Umnummerierung des
+Phasen-Umbaus (`db.PHASEN_SCHEMA`: 6 → 7, 7 → 8) — die Gruppe war in der alten
+Zählung in 6 und ist mitgewandert, während die Journal-Zeile den alten Text
+behielt. **Nicht in diesem Branch angefasst**: liegt im Zuständigkeitsbereich
+des Phasen-Umbaus. Der Phasen-Agent sollte prüfen, ob die Migration auch die
+Journal-Texte bzw. den Wert für Gruppen mitziehen muss, die zum
+Migrationszeitpunkt mitten in Phase 6 standen.

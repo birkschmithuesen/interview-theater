@@ -225,6 +225,37 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Zuletzt angebotene Phase: verhindert, dass der Hinweisblock in
   -- kontext.baue jeden Zug erneut nach demselben Wechsel fragt.
   phase_angeboten        INTEGER,
+  -- Die zehn zur Wahl gestellten Interviewfragen (Phase 2, 06.09.2026,
+  -- Birk: die Fragen-Erarbeitung ist eine Mehrfachauswahl, kein Diktat).
+  -- Eine Frage je Zeile, in der Reihenfolge des Vorschlagsblocks -- die
+  -- Nummer einer Zeile ist zugleich der Wert ihres Knopfes.
+  fragen_auswahl         TEXT,
+  -- Welche davon angetippt sind: die Nummern, mit Komma getrennt. Der
+  -- Zustand der Mehrfachauswahl steht damit in der Datenbank und nicht in
+  -- der Telegram-Tastatur -- ein Neustart mitten in der Auswahl verliert
+  -- nichts, und ein zweiter Druck auf denselben Knopf nimmt die Wahl
+  -- zurueck, statt sie zu verdoppeln.
+  fragen_gewaehlt        TEXT,
+  -- Die Verfeinerungsebene der Fragen (Phase 2, 06.09.2026, Birk). Stehen
+  -- die Fragen, prueft der Bot sie einmal auf sensible Themen und schlaegt
+  -- je heikler Frage eine Einleitung vor -- ein bis zwei Saetze, die die
+  -- Interviewerin vor der Frage sagt (warum sie fragt, dass man nicht
+  -- antworten muss). Die Interviews fuehren 15-18-Jaehrige mit FREMDEN
+  -- Personen; die Einleitung ist der Unterschied zwischen einer Frage und
+  -- einem Uebergriff. Eine Zeile je Frage, Form ``<Nummer> — <Einleitung>``.
+  -- Darf leer bleiben ("Keine der Fragen braucht eine besondere
+  -- Einleitung.") -- das ist ein Ergebnis, kein fehlender Wert.
+  frage_einleitungen     TEXT,
+  -- Was die Interviewerin zu Beginn sagt: wer wir sind, was wir machen,
+  -- wofuer die Antworten verwendet werden (anonym, Material fuer ein
+  -- Stueck), dass man jederzeit aufhoeren kann, die Bitte um Erlaubnis zur
+  -- Aufnahme. Voraussetzung fuer Phase 3 (``phasen.voraussetzungen``):
+  -- ohne Eroeffnung geht niemand auf eine fremde Person zu.
+  interview_eroeffnung   TEXT,
+  -- Der Abschluss: Dank und was mit den Antworten weiter passiert. Eigenes
+  -- Feld und nicht Teil der Eroeffnung, weil er im Leitfaden GANZ UNTEN
+  -- steht (``leitfaden.baue``) -- ein Text, zwei Orte.
+  interview_abschluss    TEXT,
   geaendert_am           TEXT
 );
 

@@ -470,6 +470,7 @@ def test_kernthema_und_zwei_figuren_fuehren_zu_format_und_rahmen(conn, einst):
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
     repo.setze_figur(conn, 1, "Elif", "Nachbarin")
+    repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
     phasen.setze(conn, 1, 4, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 

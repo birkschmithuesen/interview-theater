@@ -139,37 +139,28 @@ VORSCHLAG = (
 def test_phasenknopf_6_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
     """Birk 05.09.2026: eine Gruppe, die schon Szenenideen hat, soll sie
     nicht gegen eine fertige Liste verteidigen muessen. Der Eintritt in
-    Phase 6 ist deshalb eine Frage, kein Vorschlag."""
+    Phase 6 ist deshalb dieselbe proaktive Frage wie in jeder anderen Phase
+    (``knoepfe.biete_proaktiv``) -- kein eigener Weg fuer dieselbe Sache."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 6)
 
-    _druecke(conn, tg, einst, "Weiter zu 6 · Szenen")
+    _druecke(conn, tg, einst, "Weiter zu Szenen")
 
-    assert knoepfe.TEXT_SZENEN_FRAGE in tg.texte
+    assert knoepfe._TEXT_PROAKTIV in tg.texte
     assert tg.beschriftungen == [
-        knoepfe.TEXT_SZENEN_SELBST_KNOPF, knoepfe.TEXT_SZENEN_VORSCHLAG_KNOPF,
+        knoepfe._TEXT_WIR_ZUERST_KNOPF, knoepfe._TEXT_SCHLAG_VOR_KNOPF,
     ]
 
 
-def test_wir_zuerst_ruft_kein_modell(conn, einst, tg):
-    """Die Zusage des ganzen Moduls: ein Knopf-Handler fragt kein
-    Sprachmodell. "Ja, wir zuerst" ist ein Satz und sonst nichts."""
-    klm = LLMAttrappe()
-    knoepfe.biete_szenen_start(conn, tg, 1)
-
-    _druecke(conn, tg, einst, knoepfe.TEXT_SZENEN_SELBST_KNOPF, klm=klm)
-
-    assert klm.aufrufe == 0
-    assert any("erzaehlt" in t.lower() for t in tg.texte)
-
-
-def test_schlag_du_vor_gibt_den_aufruf_an_einen_thread_ab(conn, einst, tg):
+def test_schlag_du_vor_in_phase_6_geht_ueber_szenenfolge(conn, einst, tg):
     """"Schlag du vor" braucht ein Modell -- und ruft es NICHT im Handler:
     ``szenenfolge.starte`` kuendigt an und startet einen Thread (Muster:
-    ``szene.starte``)."""
+    ``szene.starte``). In Phase 6 ist es dieser Weg und nicht der allgemeine
+    Auftragszug: der Vorschlag hat eine feste Zeilenform und traegt danach
+    seine eigenen Knoepfe."""
     klm = LLMAttrappe(VORSCHLAG)
-    knoepfe.biete_szenen_start(conn, tg, 1)
+    knoepfe.biete_proaktiv(conn, tg, 1, 6)
 
-    _druecke(conn, tg, einst, knoepfe.TEXT_SZENEN_VORSCHLAG_KNOPF, klm=klm)
+    _druecke(conn, tg, einst, knoepfe._TEXT_SCHLAG_VOR_KNOPF, klm=klm)
     # Der Thread laeuft nebenher; auf ihn wird ueber die Sperre gewartet.
     szenenfolge._sperre_fuer(1).acquire(timeout=10)
     szenenfolge._sperre_fuer(1).release()
@@ -450,18 +441,15 @@ def test_passt_stempelt_die_szene_fertig(conn, einst, tg):
 
 
 def test_passt_bei_der_letzten_szene_bietet_weiter_zu_durchlauf(conn, einst, tg):
-    """Keine Nummer im Phasenknopf-Text? Doch -- die Bezeichnung ist ueberall
-    dieselbe (``phasen.bezeichnung``). Was hier zaehlt: nach der letzten
-    fertigen Szene steht der Weg in den Durchlauf da, nicht nichts."""
+    """Nach der letzten abgenommenen Szene steht der Weg in den Durchlauf da,
+    nicht nichts -- und ohne Nummer im Knopftext (``phasen.bezeichnung``)."""
     szene_id = _eine_szene(conn)
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Da.")
     knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1")
 
     _druecke(conn, tg, einst, knoepfe.TEXT_PASST_KNOPF)
 
-    assert any(
-        b.startswith("Weiter zu 7") for b in tg.beschriftungen
-    ), tg.beschriftungen
+    assert "Weiter zu Durchlauf" in tg.beschriftungen, tg.beschriftungen
 
 
 def test_naechste_szene_springt_zur_naechsten_offenen(conn, einst, tg):
@@ -615,7 +603,7 @@ def test_phasenknopf_7_zeigt_gleich_den_durchlauf(conn, einst, tg):
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Da.")
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 7)
 
-    _druecke(conn, tg, einst, "Weiter zu 7 · Durchlauf")
+    _druecke(conn, tg, einst, "Weiter zu Durchlauf")
 
     assert phasen.aktuelle(conn, 1) == 7
     assert knoepfe.TEXT_TEXTBUCH_KNOPF in tg.beschriftungen

@@ -599,15 +599,20 @@ def test_neue_knopfarten_laufen_durch_die_update_schleife(conn, einst):
             pass
 
     tg_att = Attrappe()
-    knoepfe.biete_format(conn, tg_att, chat_id, ["Revue"])
+    # Das Format wird seit dem 05.09.2026 abends nicht mehr gewaehlt (es
+    # steht fest); an seine Stelle ist der Rahmen-Knopf getreten -- dieselbe
+    # Art von Auswahl, eine Zeile, ein Knopf.
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg_att, chat_id, "VORSCHLAG RAHMEN:\nBahnhofshalle, nachts"
+    )
     knoepfe.biete_szenenform(conn, tg_att, chat_id, 2)
     knoepfe.biete_szene_usa(conn, tg_att, chat_id)
 
-    daten_format = tg_att.knoepfe[0][0][1]
+    daten_rahmen = tg_att.knoepfe[0][0][1]
     daten_form = tg_att.knoepfe[1][1][1]      # "Lied"
     daten_usa_nein = tg_att.knoepfe[2][1][1]  # "Nein, Schweiz"
 
-    for nr, daten in enumerate((daten_format, daten_form, daten_usa_nein), start=20):
+    for nr, daten in enumerate((daten_rahmen, daten_form, daten_usa_nein), start=20):
         tg = FakeTelegramFuerSchleife([bau_knopfupdate(nr, daten)])
         pool = FakePool()
         with pytest.raises(_StoppeSchleife):
@@ -619,7 +624,7 @@ def test_neue_knopfarten_laufen_durch_die_update_schleife(conn, einst):
         # Betrieb im Thread liefe.
         fn(args[0], tg_att, args[2], args[3], args[4])
 
-    assert repo_modul.hole_arbeitsstand(conn, chat_id)["format"] == "Revue"
+    assert repo_modul.hole_arbeitsstand(conn, chat_id)["rahmen"] == "Bahnhofshalle, nachts"
     szene_id = repo_modul.stelle_szene_sicher(conn, chat_id, 2)
     assert repo_modul.hole_szene(conn, szene_id)["form"] == "lied"
     # Der bool-Fall: "nein" ist False, nicht ein wahrer String.

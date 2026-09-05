@@ -726,7 +726,7 @@ def test_antwort_mit_vorschlagsblock_traegt_die_speicherleiste(conn, einst):
 
     ablauf.bearbeite(conn, tg, klm, einst, 1)
 
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["So speichern", "Nochmal anders"]
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter"]
     assert "VORSCHLAG" not in tg.gesendet[-1][1]
     assert "Heimat, Arbeit, Angst" in tg.gesendet[-1][1]
 

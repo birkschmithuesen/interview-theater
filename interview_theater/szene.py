@@ -192,13 +192,21 @@ def _sperre_fuer(chat_id: int) -> threading.Lock:
 #: Die Formen, fuer die es einen eigenen Regelblock gibt
 #: (``prompts/formen/<name>.md``). ``dialog`` ist der Rueckfall: eine Gruppe,
 #: die nichts anderes gesagt hat, bekommt Dialog.
-FORMEN = ("dialog", "lied", "rap", "monolog", "chor", "stumm")
+#: ``tanztheater`` steht am ENDE und nicht am Anfang: die Reihenfolge ist die
+#: der Knopfleiste (``knoepfe.biete_szenenform``), und dort sind die Formen
+#: die SONDERFAELLE innerhalb des Tanztheaters (ein Lied, ein Rap). Die
+#: Vorgabe braucht keinen Knopf -- sie ist der Rueckfall in ``formdatei``.
+FORMEN = ("dialog", "lied", "rap", "monolog", "chor", "stumm", "tanztheater")
 
 #: Woerter, unter denen eine Form gemeint sein kann -- wie
 #: ``phasen.STICHWOERTER``: das Feld ``szene.form`` ist frei (die Gruppe
 #: entscheidet, nicht der Code), und "gesungen" muss trotzdem beim Lied
 #: landen. Verglichen wird in beide Richtungen, deshalb genuegen Wortstaemme.
 FORM_STICHWOERTER = {
+    # "bewegung" steht hier bewusst NICHT: eine "Bewegungsszene" ist eine
+    # unbekannte Form und faellt damit auf das FORMAT des Stuecks zurueck --
+    # ist das Tanztheater, landet sie ohnehin hier.
+    "tanztheater": ("tanztheater", "urban dance", "choreografie", "getanzt"),
     "lied": ("lied", "song", "gesang", "gesungen", "singen", "musik", "arie"),
     "rap": ("rap", "sprechgesang", "beat", "reim"),
     "monolog": ("monolog", "soloszene", "solo"),
@@ -208,32 +216,49 @@ FORM_STICHWOERTER = {
 }
 
 
-def formdatei(form: str | None) -> str:
+def formdatei(form: str | None, format_: str | None = None) -> str:
     """Uebersetzt das freie Feld ``szene.form`` in den Namen eines
-    Regelblocks. Kennt der Code die Form nicht, gilt ``dialog``.
+    Regelblocks. Kennt der Code die Form nicht, entscheidet das **Format des
+    Stuecks** (``arbeitsstand.format``): steht dort "Tanztheater", gilt
+    ``tanztheater``, sonst ``dialog``.
 
     Der Rueckfall ist eine Entscheidung, kein Notbehelf: eine unbekannte Form
     ("Bewegungsszene") ist im Zweifel gesprochenes Theater, und ein Prompt
     ohne jeden Formenblock haette gar keine Dramaturgieregeln mehr -- die
     stehen seit dem 05.09.2026 alle in ``prompts/formen/``.
 
+    Seit dem 05.09.2026 abends steht das Format fest ("Urban Dance
+    Tanztheater", ``knoepfe.FORMAT_FEST``) -- und dann ist eine Szene ohne
+    ausdrueckliche Form eben keine Sprechszene, sondern eine getanzte. Die
+    Sonderformen (Lied, Rap) bleiben waehlbar; sie kommen INNERHALB des
+    Tanztheaters vor.
+
     **Dialog wird zuletzt geprueft**, nicht in Listenreihenfolge: das Wort
     "Szene" steht in "stumme Szene" genauso wie in jeder anderen Angabe, und
     Dialog ist ohnehin der Rueckfall -- er braucht keinen Vorrang, er braucht
     den Rest."""
     text = (form or "").strip().lower()
+    rueckfall = "tanztheater" if "tanztheater" in (format_ or "").lower() else "dialog"
     if not text:
-        return "dialog"
+        return rueckfall
     for name in FORMEN:
         if name == "dialog":
             continue
         for stichwort in FORM_STICHWOERTER.get(name, ()):
             if stichwort in text:
                 return name
-    return "dialog"
+    return rueckfall
 
 
-def systemanweisung(form: str | None = None) -> str:
+def _format_des_stuecks(conn, chat_id: int) -> str:
+    """Das Format aus dem Arbeitsstand ("Urban Dance Tanztheater") -- es
+    entscheidet, welcher Regelblock gilt, wenn eine Szene keine eigene Form
+    hat (``formdatei``)."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    return (stand["format"] if stand else "") or ""
+
+
+def systemanweisung(form: str | None = None, format_: str | None = None) -> str:
     """Die Systemanweisung des Szenen-Aufrufs, dreiteilig und heiss
     nachgeladen: ``prompts/szene.md`` (was fuer jede Form gilt), der
     Regelblock zur Form (``prompts/formen/<form>.md``) und die Negativliste
@@ -251,7 +276,7 @@ def systemanweisung(form: str | None = None) -> str:
     und dank des Hot-Reloads in ``anweisungen.py`` wirkt eine Ergaenzung ohne
     Neustart, beim naechsten Szenen-Auftrag."""
     teile = [anweisungen.hole("szene")]
-    regeln = anweisungen.hole_optional(f"formen/{formdatei(form)}")
+    regeln = anweisungen.hole_optional(f"formen/{formdatei(form, format_)}")
     if regeln and regeln.strip():
         teile.append(regeln.strip())
     teile.append(anweisungen.hole("theater-tells"))
@@ -925,12 +950,12 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     if szene_claude.ist_aktiv(e, conn, chat_id):
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
-            chat_id, systemanweisung(ziel["form"]),
+            chat_id, systemanweisung(ziel["form"], _format_des_stuecks(conn, chat_id)),
             nutzer, ART, timeout=TIMEOUT_S,
         )
     else:
         antwort = klm.prosa(
-            chat_id, systemanweisung(ziel["form"]),
+            chat_id, systemanweisung(ziel["form"], _format_des_stuecks(conn, chat_id)),
             nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
         )
 

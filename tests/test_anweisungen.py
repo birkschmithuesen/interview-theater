@@ -160,3 +160,43 @@ def test_fehlende_phasendatei_faellt_auf_die_basis_zurueck(betrieb, monkeypatch)
 def test_prompt_name_darf_nicht_aus_dem_verzeichnis_zeigen(betrieb):
     with pytest.raises(ValueError):
         anweisungen.hole("../../geheim")
+
+
+# ---------------------------------------------------------------------------
+# Slash-Befehle werden nicht mehr beworben (05.09.2026, Birk: "ersetze am
+# besten alle slash befehl vorschlaege mit knoepfen")
+# ---------------------------------------------------------------------------
+
+
+def test_systemanweisung_verbietet_slash_befehle_im_antworttext(betrieb):
+    """Der Weg steht als Knopf unter den Bot-Nachrichten; ein empfohlener
+    Slash-Befehl ist eine Bedienungsanleitung. Live gemessen am 05.09.2026:
+    nach "Interview 1 ist sehr kurz ... /auswerten" fragte die Gruppe zweimal
+    nach, und der Bot antwortete zweimal mit rund 300 Zeichen Text."""
+    text = " ".join(anweisungen.hole("system").split())
+
+    assert "Du nennst keine Schraegstrich-Befehle in deinen Antworten." in text
+    assert "in zwei Saetzen" in text, "die Kurzfassung-Regel steht dabei"
+
+
+def test_keine_phasenanweisung_bewirbt_einen_slash_befehl(betrieb):
+    """Die Befehle bleiben gueltig (``/hilfe`` listet sie), aber keine
+    Phasenanweisung fordert den Bot mehr auf, einen anzuhaengen -- genau das
+    tat sie bis heute an vier Stellen (`/aufnahme`, `/kernthema`, `/stueck`,
+    `/szene`)."""
+    for nummer, _, _ in phasen.PHASEN:
+        text = anweisungen.hole(f"phasen/{nummer}")
+        assert "`/" not in text, nummer
+
+
+def test_die_befehlsliste_der_basis_bewirbt_nur_existierende_befehle(betrieb):
+    """Die Regel "keine nicht existierenden Befehle bewerben" gilt weiter:
+    was in der Basisanweisung mit Schraegstrich steht, muss es in
+    ``befehle._BEKANNTE_BEFEHLE`` geben."""
+    import re
+
+    from interview_theater import befehle
+
+    genannt = set(re.findall(r"`(/[a-z]+)", anweisungen.hole("system")))
+    assert genannt, "die Liste steht weiterhin in der Basisanweisung"
+    assert genannt <= befehle._BEKANNTE_BEFEHLE

@@ -125,6 +125,11 @@ class FakeTelegramFuerSchleife:
         self._letzte_message_id += 1
         return self._letzte_message_id
 
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+        # Dasselbe fuer die Einstiegsknoepfe unter der Begruessung
+        # (knoepfe.biete_einstieg, 05.09.2026).
+        return self.sende(chat_id, text)
+
 
 class FakePool:
     """Ersetzt den ThreadPoolExecutor: submit() fuehrt nichts aus, sondern
@@ -162,8 +167,15 @@ def test_schleife_gibt_textnachricht_in_den_pool(conn, einst):
     jede Textnachricht einen Gespraechszug aus (ablauf.ist_ausloeser, SPEC
     § 1.2) -- nicht nur Reply, @Erwaehnung oder Befehl. Sie laeuft im
     selben Pool wie Sprachnachrichten, nur ueber eine andere Funktion
-    (_zug_und_erkenner statt _bearbeite_sprachnachricht)."""
-    tg = FakeTelegramFuerSchleife([bau_update(1, 21, "Text", JETZT)])
+    (_zug_und_erkenner statt _bearbeite_sprachnachricht).
+
+    Die Nachricht traegt die ECHTE Uhrzeit, nicht das feste ``JETZT``:
+    ``schleife`` liest die Zeit selbst (``datetime.now``) und wuerde eine auf
+    12:00 datierte Nachricht ab 12:16 als Nachtstau unterdruecken -- der Test
+    schlug sonst je nach Tageszeit fehl."""
+    tg = FakeTelegramFuerSchleife(
+        [bau_update(1, 21, "Text", datetime.now(timezone.utc))]
+    )
     pool = FakePool()
 
     with pytest.raises(_StoppeSchleife):
@@ -233,6 +245,10 @@ def test_nachhol_schleife_ruft_nachholen_auf_und_endet_mit_dem_event(conn, einst
 class TelegramAttrappe:
     def __init__(self):
         self.gesendet = []  # Liste von (chat_id, text)
+        #: (chat_id, text, [(beschriftung, callback_data), ...]) je Angebot
+        #: mit Inline-Tastatur -- Begruessungen tragen seit 05.09.2026 die
+        #: Einstiegsknoepfe (knoepfe.biete_einstieg).
+        self.mit_knoepfen = []
         self._letzte_message_id = 9000
 
     def sende(self, chat_id, text):
@@ -240,8 +256,13 @@ class TelegramAttrappe:
         self.gesendet.append((chat_id, text))
         return self._letzte_message_id
 
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+        message_id = self.sende(chat_id, text)
+        self.mit_knoepfen.append((chat_id, text, list(knoepfe_)))
+        return message_id
 
-def test_erstkontakt_kommt_genau_einmal_und_nennt_interviewmodus_und_hilfe(conn, einst):
+
+def test_erstkontakt_kommt_genau_einmal_und_bietet_die_knoepfe_an(conn, einst):
     repo.sichere_gruppe(conn, -100, einst.bot_name, "Gruppe 1")
     tg = TelegramAttrappe()
 
@@ -251,7 +272,14 @@ def test_erstkontakt_kommt_genau_einmal_und_nennt_interviewmodus_und_hilfe(conn,
     assert len(tg.gesendet) == 1
     text = tg.gesendet[0][1]
     assert "Interview" in text
-    assert "/hilfe" in text
+    # Seit 05.09.2026: kein Slash-Befehl mehr in der Begruessung, dafuer die
+    # Einstiegsknoepfe darunter (Birk: "ersetze am besten alle slash befehl
+    # vorschlaege mit knoepfen").
+    assert "/" not in text
+    beschriftungen = [b for b, _ in tg.mit_knoepfen[0][2]]
+    assert "Aufnahme starten" in beschriftungen
+    assert "Stand zeigen" in beschriftungen
+    assert "Hilfe" in beschriftungen
     # als Bot-Nachricht mitgeschrieben, sonst würde sie erneut ausgeloest
     zeile = conn.execute(
         "SELECT * FROM nachricht WHERE chat_id = -100 AND ist_bot = 1"
@@ -432,6 +460,26 @@ def test_erstkontakt_nennt_die_gruppenseite_wenn_konfiguriert(conn, einst):
     tg = TelegramAttrappe()
     bot.erstkontakt(conn, tg, mit_web, -200)
     token = repo.stelle_web_token_sicher(conn, -200)
+    assert f"https://lab.test/theatersoap/g/{token}" in tg.gesendet[0][1]
+
+
+def test_erstkontakt_nennt_den_link_auch_ohne_vorhandene_gruppenzeile(conn, einst):
+    """Birk 05.09.: "stelle sicher, dass zu Beginn bei der Begruessung die
+    Website als Link angeboten wird."
+
+    Der Fall, den das absichert: ``repo.gruppenseite_url`` braucht
+    ``gruppe.web_token``, und das entsteht erst in ``repo.sichere_gruppe``.
+    Wird ``erstkontakt`` aufgerufen, bevor die Zeile existiert (Rueckfallweg
+    aus ``ablauf.antworte``), fehlte der Link bisher stillschweigend --
+    ``bot.stelle_link_sicher`` legt sie jetzt notfalls selbst an."""
+    import dataclasses
+    mit_web = dataclasses.replace(einst, web_url="https://lab.test/theatersoap")
+    tg = TelegramAttrappe()
+
+    bot.erstkontakt(conn, tg, mit_web, -300)  # -300 gibt es in 'gruppe' nicht
+
+    token = repo.stelle_web_token_sicher(conn, -300)
+    assert token is not None
     assert f"https://lab.test/theatersoap/g/{token}" in tg.gesendet[0][1]
 
 

@@ -145,8 +145,7 @@ _TEXT_USA_JA = "Gut, Szenen kommen ab jetzt vom US-Modell. Ich sage es vor jeder
 _TEXT_USA_NEIN = "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder."
 _TEXT_USA_ERINNERUNG = (
     "Die Szene kommt, sobald ihr die Frage von oben beantwortet habt: "
-    "US-Modell ja oder nein? Schreibt einfach /szene usa ja oder "
-    "/szene usa nein."
+    "US-Modell ja oder nein? Tippt einen der beiden Knoepfe an."
 )
 #: Nach so vielen vergeblichen Erinnerungen wird nicht weiter erinnert,
 #: sondern in der Schweiz geschrieben (05.09.2026, in der Simulation
@@ -159,8 +158,7 @@ _TEXT_USA_ERINNERUNG = (
 USA_ERINNERUNGEN_MAX = 2
 _TEXT_USA_KEINE_ANTWORT = (
     "Ihr habt die Frage nach dem US-Modell nicht beantwortet - ich schreibe "
-    "die Szene deshalb in der Schweiz. Wollt ihr es doch anders, sagt "
-    "/szene usa ja."
+    "die Szene deshalb in der Schweiz. Wollt ihr es doch anders, sagt es mir."
 )
 
 

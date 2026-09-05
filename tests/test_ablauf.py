@@ -24,6 +24,12 @@ class TelegramAttrappe:
         self.gesendet.append((chat_id, text))
         return self._letzte_message_id
 
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+        """Begruessungen und Abschlussnachrichten tragen seit 05.09.2026
+        eine Inline-Tastatur (knoepfe.biete_einstieg). Fuer diese Tests
+        zaehlt der Text wie bei ``sende``."""
+        return self.sende(chat_id, text)
+
     def tippt(self, chat_id):
         self.getippt.append(chat_id)
 
@@ -416,6 +422,9 @@ class _FakeTGSchleife:
         self._letzte_message_id += 1
         return self._letzte_message_id
 
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+        return self.sende(chat_id, text)
+
 
 class _FakePool:
     def __init__(self):
@@ -491,7 +500,9 @@ def test_erster_zug_bei_modellfehler_faellt_auf_feste_begruessung_zurueck(conn, 
     ablauf.bearbeite(conn, tg, KLMKaputt(), einst, 1)
     texte = [t for _, t in tg.gesendet]
     assert not any("hakt" in t for t in texte)
-    assert any("/hilfe" in t for t in texte)
+    # Die feste Begruessung nennt seit 05.09.2026 keinen Slash-Befehl mehr --
+    # der Weg sind die Einstiegsknoepfe darunter (knoepfe.biete_einstieg).
+    assert any("Theaterbot" in t for t in texte)
 
 
 # ---------------------------------------------------------------------------

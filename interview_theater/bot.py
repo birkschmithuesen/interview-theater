@@ -107,9 +107,9 @@ def verarbeite_update(
 _TEXT_ERSTKONTAKT = (
     "Hallo, ich bin der Theaterbot fuer diesen Workshop.\n\n"
     "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
-    "So laufen Interviews: sagt \"wir machen jetzt ein Interview\", dann "
-    "zeichne ich auf. \"Fertig\" beendet es.\n\n"
-    "/hilfe zeigt den Rest."
+    "So laufen Interviews: tippt \"Aufnahme starten\" an, dann zeichne ich "
+    "auf. Ein zweiter Druck beendet das Interview.\n\n"
+    "Die Knoepfe unten zeigen euch den Weg."
 )
 
 #: Angehaengt, wenn eine Weboberflaeche konfiguriert ist (IT_WEB_URL): die
@@ -124,31 +124,67 @@ _TEXT_GRUPPENSEITE = (
 #: die erste Frage im Raum, wo man stehengeblieben ist -- und die Phase ist
 #: seit dem 04.09.2026 ein gespeicherter Zustand, der das beantworten kann
 #: (interview_theater/phasen.py). Stimmt sie nicht mehr, korrigiert die Gruppe sie
-#: mit einem Satz.
+#: mit einem Satz. Der Weg weiter steht seit 05.09.2026 als Knoepfe darunter
+#: (``knoepfe.biete_einstieg``), nicht als Slash-Befehl im Text.
 _TEXT_WIEDERKEHR = (
     "Bin wieder da. Wir sind bei {phase}. Wenn ihr weitermachen wollt, "
-    "sagt mir Bescheid."
+    "sagt mir Bescheid - oder tippt einen Knopf an."
 )
+
+
+def stelle_link_sicher(conn, e, chat_id: int) -> str | None:
+    """Die URL der Gruppenseite -- und sie entsteht hier, falls es die
+    Gruppenzeile noch nicht gibt (05.09.2026, Birk: "stelle sicher, dass zu
+    Beginn bei der Begruessung die Website als Link angeboten wird").
+
+    Der Grund: ``repo.gruppenseite_url`` braucht ``gruppe.web_token``, und
+    das entsteht in ``repo.stelle_web_token_sicher`` -- aber nur, wenn es die
+    Zeile ``gruppe`` ueberhaupt schon gibt. Im Regelweg legt
+    ``verarbeite_update`` sie ueber ``repo.sichere_gruppe`` an, BEVOR
+    irgendein Zug laeuft; ruft aber jemand ``erstkontakt`` von woanders auf
+    (Rueckfallweg aus ``ablauf.antworte``, ein Test, ein spaeterer Aufrufer),
+    faellt der Link sonst stillschweigend weg -- und die Gruppe erfaehrt nie,
+    wo sie mitlesen kann.
+
+    Deshalb wird die Zeile hier notfalls angelegt. Ohne ``IT_WEB_URL`` gibt
+    es weiterhin keinen Link, das ist kein Fehlerfall."""
+    basis = getattr(e, "web_url", "")
+    if not basis:
+        return None
+    url = repo.gruppenseite_url(conn, chat_id, basis)
+    if url:
+        return url
+    repo.sichere_gruppe(conn, chat_id, getattr(e, "bot_name", ""), "")
+    return repo.gruppenseite_url(conn, chat_id, basis)
 
 
 def erstkontakt(conn, tg, e, chat_id: int) -> None:
     """Schickt die Begruessung genau einmal je Gruppe (teil-b.md Aufgabe 7):
-    erklaert, dass der Bot auf alles antwortet, den Interviewmodus und
-    /hilfe, in dieser Reihenfolge.
+    erklaert, dass der Bot auf alles antwortet, den Interviewmodus und den
+    Link zur Gruppenseite, in dieser Reihenfolge.
     'Es existiert noch keine Bot-Nachricht' ist die Bedingung dafuer, dass sie
     noch aussteht -- danach wird sie selbst als Bot-Nachricht mitgeschrieben,
     sonst wuerde sie beim naechsten Update erneut ausgeloest. Ein
     Sendefehlschlag wird nur geloggt: die Gruppe bekommt beim naechsten
     Update einen weiteren Versuch, aber der Bot bleibt insgesamt
-    funktionsfaehig (global-constraints.md 'Fehlerhaltung')."""
+    funktionsfaehig (global-constraints.md 'Fehlerhaltung').
+
+    Der Link steht seit dem 05.09.2026 GARANTIERT drin, sobald ``IT_WEB_URL``
+    gesetzt ist: ``stelle_link_sicher`` legt die Gruppenzeile notfalls selbst
+    an, statt sich darauf zu verlassen, dass ``verarbeite_update`` vorher
+    gelaufen ist. Darunter haengen die Einstiegsknoepfe
+    (``knoepfe.biete_einstieg``) -- die Begruessung nennt deshalb keinen
+    Slash-Befehl mehr."""
+    from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+
     if repo.hat_bot_nachricht(conn, chat_id):
         return
     text = _TEXT_ERSTKONTAKT.format(bot_name=e.bot_name)
-    url = repo.gruppenseite_url(conn, chat_id, getattr(e, "web_url", ""))
+    url = stelle_link_sicher(conn, e, chat_id)
     if url:
         text += _TEXT_GRUPPENSEITE.format(url=url)
     try:
-        message_id = tg.sende(chat_id, text)
+        message_id = knoepfe.biete_einstieg(conn, tg, chat_id, text)
         repo.merke_nachricht(
             conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),
         )
@@ -170,7 +206,14 @@ def sende_wiederkehr_begruessungen(conn, tg, e, jetzt) -> None:
     wenn seit ihrer letzten Nachricht mehr als PAUSE_GRENZE_STUNDEN vergangen
     sind (teil-b.md Aufgabe 7) -- gedacht fuer einen Neustart nach einer
     laengeren Pause (z. B. ueber Nacht). Ein Fehlschlag je Gruppe wird nur
-    geloggt und reisst weder die anderen Gruppen noch den Bot-Start mit."""
+    geloggt und reisst weder die anderen Gruppen noch den Bot-Start mit.
+
+    Mit Knoepfen seit 05.09.2026 (``knoepfe.biete_einstieg``): "Aufnahme
+    starten", ggf. "Weiter zu Phase N", "Stand zeigen", "Hilfe" -- der Weg
+    zurueck in die Arbeit ist ein Druck, nicht ein Befehl, den sich jemand
+    ueber Nacht merken musste."""
+    from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+
     for gruppe in repo.gruppen_fuer_bot(conn, e.bot_name):
         try:
             letzte = repo.letzte_nachricht_zeit(conn, gruppe["chat_id"])
@@ -179,7 +222,7 @@ def sende_wiederkehr_begruessungen(conn, tg, e, jetzt) -> None:
             text = _TEXT_WIEDERKEHR.format(
                 phase=phasen.bezeichnung(phasen.aktuelle(conn, gruppe["chat_id"]))
             )
-            message_id = tg.sende(gruppe["chat_id"], text)
+            message_id = knoepfe.biete_einstieg(conn, tg, gruppe["chat_id"], text)
             repo.merke_nachricht(
                 conn, gruppe["chat_id"], message_id, e.bot_name, 1, "text",
                 text, repo._jetzt(),

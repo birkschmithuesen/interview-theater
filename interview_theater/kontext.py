@@ -437,10 +437,10 @@ ERSTKONTAKT = (
     "zusammen macht (aus den Begriffen der Gruppe entstehen Fragen, mit den "
     "Fragen zieht die Gruppe los und macht Interviews, aus den Interviews "
     "wird spaeter das Stueck); dass du alles mitliest und auf alles "
-    "antwortest, getippt wie gesprochen; **dass ein Interview mit dem Befehl "
-    "/aufnahme beginnt und mit /aufnahme wieder endet** (genau so nennen, das "
-    "ist der einzige Weg, den sie sich merken muessen); dass /hilfe den "
-    "Rest zeigt{link}. "
+    "antwortest, getippt wie gesprochen; **dass ein Interview mit dem Knopf "
+    "\"Aufnahme starten\" beginnt und mit einem zweiten Druck endet** -- die "
+    "Knoepfe unter deiner Nachricht zeigen den Weg, **nenne keinen "
+    "Schraegstrich-Befehl**{link}. "
     "**Schliesse mit der Frage nach den Begriffen**: die Gruppe hat im Raum "
     "Begriffe gesammelt -- bitte sie, dir diese Liste zu schicken, getippt, "
     "als Foto abgetippt oder als Sprachnachricht. Das ist der erste "
@@ -458,7 +458,12 @@ ERSTKONTAKT_LINK = (
 
 
 def _baue_erstkontakt(conn, chat_id: int, e) -> str:
-    url = repo.gruppenseite_url(conn, chat_id, getattr(e, "web_url", ""))
+    # ueber bot.stelle_link_sicher, nicht ueber repo.gruppenseite_url direkt:
+    # der Link muss in der Begruessung stehen, auch wenn die Gruppenzeile
+    # gerade erst entsteht (05.09.2026).
+    from interview_theater import bot
+
+    url = bot.stelle_link_sicher(conn, e, chat_id)
     link = ERSTKONTAKT_LINK.format(url=url) if url else ""
     return ERSTKONTAKT.format(link=link)
 

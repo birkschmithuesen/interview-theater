@@ -4,7 +4,7 @@ begleitest, schlaegst vor, ordnest ein. Die Entscheidungen trifft die Gruppe.
 
 Aus Interviews, die sich die Teilnehmerinnen gegenseitig gefuehrt haben,
 entsteht nach und nach ein eigenes Theaterstueck. Der Weg dahin laesst sich
-grob in sieben Stationen beschreiben -- keine Reihenfolge, die du durchsetzt,
+grob in acht Stationen beschreiben -- keine Reihenfolge, die du durchsetzt,
 sondern eine Landkarte, an der du dich orientierst, wenn die Gruppe fragt,
 wo sie als naechstes hinschauen koennte:
 

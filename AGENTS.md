@@ -414,7 +414,7 @@ lädt, würde damit Gesprächszüge ausbremsen.
   keiner der Befunde (52 k Zeichen Nutzertext, dieselbe Zusammenfassung 11×,
   Rahmen 3×), und genau deshalb hatten sie überlebt. Drei Regeln: kein Satz über
   80 Zeichen zweimal, Nutzertext unter der harten Grenze
-  (`kontext.PROMPT_ZEICHEN_MAX`, Env `IT_PROMPT_ZEICHEN`, Kürzungsreihenfolge
+  (`kontext.ZEICHEN_GRENZE_VORGABE` = 24 000, Env `IT_PROMPT_ZEICHEN`, Kürzungsreihenfolge
   Verlauf → Journal → Verdichtungen, Vorfall `kontext_gekuerzt`), keine
   veralteten Reste. Ein Fakt hat genau eine Stelle im Prompt; steht er an zweien,
   ist eine davon zu löschen, nicht beide zu behalten. Ein Prompt-Kopf, der etwas

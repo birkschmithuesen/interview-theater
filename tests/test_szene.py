@@ -170,7 +170,7 @@ def test_rahmen_und_kernthema_stehen_vorn(conn, einst):
 
     text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
 
-    assert text.startswith("Rahmen: Eine Nacht im Treppenhaus")
+    assert text.startswith("Die Geschichte / der Rahmen des Stuecks") and "Eine Nacht im Treppenhaus" in text.split("Kernthema")[0]
     assert "Format des Stuecks" not in text
     assert "Musical" not in text
     assert "Kernthema: Ankommen (Begruendung: dreimal genannt)" in text
@@ -1130,3 +1130,24 @@ def test_kuerzung_laesst_kurze_szenen_in_ruhe(conn, einst):
     kurz = "MARIA: Da.\nELIF: Ja."
 
     assert szene._gekuerzter_volltext(kurz) == kurz
+
+
+def test_die_aufgabe_der_szene_steht_im_prompt(conn):
+    """06.09.2026: Szene 1 hing nicht mit der Geschichte zusammen -- der Prompt
+    sagte nirgends, was die erste Szene LEISTEN muss. Jetzt steht die Aufgabe
+    (Exposition: wer, zueinander, warum hier, worum) vor den Angaben."""
+    from interview_theater import szene
+
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Vier Freundinnen, eine verliebt")
+    a = repo.stelle_szene_sicher(conn, 1, 1)
+    b = repo.stelle_szene_sicher(conn, 1, 2)
+    c = repo.stelle_szene_sicher(conn, 1, 3)
+    erste = szene.baue_nutzertext(conn, 1, "Szene 1", repo.hole_szene(conn, a))
+    mitte = szene.baue_nutzertext(conn, 1, "Szene 2", repo.hole_szene(conn, b))
+    letzte = szene.baue_nutzertext(conn, 1, "Szene 3", repo.hole_szene(conn, c))
+    assert "ERSTE -- Exposition" in erste and "wer die Figuren sind" in erste
+    assert "Szene 2 von 3" in mitte
+    assert "die LETZTE" in letzte
+    assert erste.index("Aufgabe dieser Szene") < erste.index("Diese Szene sollst du schreiben")
+    assert "Vorgabe der Gruppe" in erste

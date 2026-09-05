@@ -203,6 +203,24 @@ def test_kernthema_dropdown_hat_die_vorschlaege_und_den_gesetzten(basis, token):
         assert richtung in koerper
 
 
+def test_gesetzte_werte_stehen_wirklich_in_den_formularen(basis, token, conn):
+    """Ein Formular, das einen gesetzten Wert nicht anzeigt, ist schlimmer als
+    keines: es sieht aus wie 'noch offen' und ueberschreibt beim naechsten
+    Speichern eine Entscheidung. Gemessen am 05.09. abends -- ``kernfrage``
+    und ``kernthema_richtung`` fehlten in ``web_daten._arbeitsstand``, die
+    Felder standen leer ueber gesetzten Werten."""
+    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: bleiben oder gehen?")
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "Frage: bleiben oder gehen?" in koerper
+    assert '<option value="Heimat" selected>' in koerper
+    assert "Ankommen, Arbeit, Nacht" in koerper
+    assert "Was war in deinem Koffer?" in koerper
+    assert '<option value="4" selected>' in koerper
+    assert '<option value="Dialog" selected>' in koerper
+
+
 def test_dashboard_bleibt_ohne_formulare(basis):
     """Das Dashboard haengt am Beamer und bleibt read-only -- dort soll
     niemand im Vorbeigehen etwas umstellen."""

@@ -550,6 +550,7 @@ def _dropdown(
     mit_eigener: bool = False,
     platzhalter: str = "eigene Formulierung",
     leer: str | None = None,
+    beschriftung: str = "",
 ) -> str:
     """Ein Dropdown, optional mit „eigene …" und Freitextfeld daneben.
 
@@ -568,7 +569,10 @@ def _dropdown(
     if mit_eigener:
         liste.append((EIGENE, "eigene …"))
     gewaehlt = EIGENE if frei else aktuell
-    stuecke = [f'<select class="auswahl">{_optionen(liste, gewaehlt)}</select>']
+    stuecke = []
+    if beschriftung:
+        stuecke.append(f'<label class="marke">{_t(beschriftung)}</label>')
+    stuecke.append(f'<select class="auswahl">{_optionen(liste, gewaehlt)}</select>')
     if mit_eigener:
         stuecke.append(
             '<input type="text" class="eigene" value="{wert}" '
@@ -621,6 +625,7 @@ def _figur_formular(f: dict, interviews: list[dict]) -> str:
             f.get("quelle_aufnahme_id"),
             f["id"],
             leer="— kein Interview —",
+            beschriftung="Spricht aus",
         ),
     ]
     if f.get("quelle"):
@@ -695,7 +700,9 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
         + _textfeld(
             "kernfrage",
             stand.get("kernfrage"),
-            zeilen=3,
+            # Drei Zeilen Inhalt (Frage / Gegensatz / Einsatz), vier Zeilen
+            # Kasten: auf dem Telefon bricht jede der drei Zeilen um.
+            zeilen=4,
             platzhalter="noch offen — Frage / Gegensatz / Einsatz",
         )
         + "</dd>"

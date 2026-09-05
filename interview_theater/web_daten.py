@@ -104,6 +104,13 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         "kernthema_begruendung": zeile["kernthema_begruendung"] if zeile else None,
         "format": _feld(zeile, "format"),
         "rahmen": _feld(zeile, "rahmen"),
+        # Die zweistufige Kernthema-Arbeit (05.09.2026): die Richtung ist
+        # Stufe 1, die Kernfrage Stufe 3. Beide fehlten hier, solange die
+        # Weboberflaeche nur die fertige Formulierung anzeigte -- seit die
+        # Gruppenseite sie aendern laesst, muessen sie herauskommen, sonst
+        # steht im Formular ein leeres Feld ueber einem gesetzten Wert.
+        "kernthema_richtung": _feld(zeile, "kernthema_richtung"),
+        "kernfrage": _feld(zeile, "kernfrage"),
         "hauptkonflikt": zeile["hauptkonflikt"] if zeile else None,
         "geaendert_am": zeile["geaendert_am"] if zeile else None,
     }

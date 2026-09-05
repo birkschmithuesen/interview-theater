@@ -14,7 +14,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from interview_theater import aufnahme, bot, einstellungen, llm, repo, szene, telegram
+from interview_theater import (
+    aufnahme, bot, einstellungen, kontext, llm, repo, szene, telegram,
+)
 from simulation import bericht, claude, lauf, skript
 from simulation.attrappe import TelegramAttrappe
 
@@ -118,6 +120,33 @@ def test_einfaedig_stellt_auch_nach_einem_fehler_zurueck():
         with lauf.einfaedig():
             raise RuntimeError("mittendrin")
     assert szene.starte is vorher
+
+
+def test_zwei_gleichzeitige_laeufe_stellen_den_betrieb_wieder_her():
+    """Der Fall ``--parallel``: der zweite Lauf betritt den Umbau, waehrend
+    der erste noch drin ist. Ohne Zaehler wuerde er ``_sofort_szene`` als
+    Original sichern und beim Verlassen wieder einsetzen -- der Bot bliebe
+    fuer den Rest des Prozesses einfaedig, und die naechste echte Szene liefe
+    nicht mehr in einem eigenen Thread."""
+    vorher = szene.starte
+    erster, zweiter = lauf.einfaedig(), lauf.einfaedig()
+    with erster:
+        with zweiter:
+            assert szene.starte is lauf._sofort_szene
+        assert szene.starte is lauf._sofort_szene, "der erste ist noch drin"
+    assert szene.starte is vorher
+
+
+def test_zwei_gleichzeitige_laeufe_schreiben_in_ihr_eigenes_protokoll():
+    """Auch der Kontext-Mitschrieb wird nur einmal eingebaut -- und muss
+    trotzdem beim Verlassen des letzten Laufs verschwinden."""
+    vorher = kontext.baue
+    eins, zwei = [], []
+    with lauf.kontext_protokoll(eins):
+        with lauf.kontext_protokoll(zwei):
+            assert kontext.baue is not vorher
+        assert kontext.baue is not vorher
+    assert kontext.baue is vorher
 
 
 # --- Abschnitt und Protokoll ---------------------------------------------
@@ -364,7 +393,7 @@ def _zahlen(**abweichungen):
     grund = {
         "phase_erreicht": 6, "phase_erreicht_name": "6 · Szenen", "phase_soll": 6,
         "arbeitsstand_vollstaendig": {"begriffe": 1, "fragen": 1, "kernthema": 1,
-                                      "figuren_3": 1, "hauptkonflikt": 1},
+                                      "figuren_3": 1, "format": 1},
         "zustimmungen": 4, "zustimmungen_gespeichert": 4,
         "echo": 0, "rueckfragen_vor_szene": 1, "behauptete_schreibvorgaenge": 0,
         "namensanrede": 0, "laenge_bot": 420, "bot_antworten": 30,
@@ -387,7 +416,7 @@ def test_ableitung_liefert_immer_genau_drei_saetze():
         behauptete_schreibvorgaenge=3, zustimmungen_gespeichert=1, echo=2,
         laenge_bot=1200, namensanrede=4, verdichtungen=2,
         arbeitsstand_vollstaendig={"begriffe": 1, "fragen": 0, "kernthema": 0,
-                                   "figuren_3": 0, "hauptkonflikt": 0},
+                                   "figuren_3": 0, "format": 0},
     )
     saetze = bericht.ableitung(schlecht)
     assert len(saetze) == 3

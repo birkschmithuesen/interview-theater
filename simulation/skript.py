@@ -10,11 +10,17 @@ Workshop bleibt auch nicht stehen, weil der Bot etwas nicht mitbekommen hat.
 **Datengetrieben, nicht hart codiert.** Die Phasen kommen aus
 ``phasen.PHASEN``, die Arbeitsstandfelder aus ``PRAGMA
 table_info(arbeitsstand)``. Welches Feld zu Phase 5 gehoert, wird aus ihrem
-Kurznamen abgeleitet (``felder_fuer_phase``): heisst sie 'Hauptkonflikt',
-ist es die Spalte ``hauptkonflikt``; heisst sie nach einem Umbau 'Format &
-Rahmen', sind es ``format`` und ``rahmen``, sofern es die Spalten gibt.
-Findet sich gar keine Spalte, faellt die Pruefung auf 'die Gruppe steht in
-dieser Phase' zurueck -- lieber eine schwaechere Aussage als eine falsche.
+Kurznamen abgeleitet (``felder_fuer_phase``): heisst sie seit dem 05.09.2026
+'Format & Rahmen', sind es ``format`` und ``rahmen``; hiesse sie wieder
+'Hauptkonflikt', waere es die Spalte ``hauptkonflikt``. Findet sich gar keine
+Spalte, faellt die Pruefung auf 'die Gruppe steht in dieser Phase' zurueck --
+lieber eine schwaechere Aussage als eine falsche.
+
+**Pflicht ist das erste Feld** (``pflichtfeld_fuer_phase``). Ein Kurzname
+nennt zuerst die Entscheidung, die die naechste Phase traegt: ohne
+``format`` weiss niemand, ob die naechste Szene ein Dialog oder ein Rap wird,
+``rahmen`` darf leer bleiben -- genau so haelt es ``phasen.voraussetzungen``
+fuer den Schritt von 5 nach 6.
 """
 
 from __future__ import annotations
@@ -73,8 +79,7 @@ _KEINE_FELDER = {"chat_id", "geaendert_am", "phase", "phase_angeboten"}
 
 def _falte(text: str) -> str:
     """Kleinschreibung ohne Umlaute und ohne Sonderzeichen -- damit
-    'Hauptkonflikt', 'hauptkonflikt' und 'Haupt-Konflikt' dieselbe Spalte
-    finden."""
+    'Format', 'format' und 'Rahmen/Format' dieselben Spalten finden."""
     ohne = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode()
     return "".join(z for z in ohne.lower() if z.isalnum())
 
@@ -89,10 +94,13 @@ def arbeitsstand_spalten(conn) -> list[str]:
 def felder_fuer_phase(conn, nummer: int) -> list[str]:
     """Die Arbeitsstandspalten, die zum Kurznamen einer Phase passen.
 
-    'Hauptkonflikt' -> ``["hauptkonflikt"]``, 'Kernthema & Figuren' ->
-    ``["kernthema"]`` (Figuren sind eine eigene Tabelle), 'Format & Rahmen'
-    -> ``["format", "rahmen"]``, falls es diese Spalten gibt. Leere Liste,
-    wenn keine passt -- der Aufrufer weicht dann auf die Phase selbst aus."""
+    'Format & Rahmen' -> ``["format", "rahmen"]``, 'Kernthema & Figuren' ->
+    ``["kernthema"]`` (Figuren sind eine eigene Tabelle), 'Hauptkonflikt' ->
+    ``["hauptkonflikt"]``, falls es diese Spalten gibt. Leere Liste, wenn
+    keine passt -- der Aufrufer weicht dann auf die Phase selbst aus.
+
+    Die Reihenfolge ist die des Kurznamens, nicht die der Tabelle: davon
+    haengt ab, welches Feld ``pflichtfeld_fuer_phase`` nimmt."""
     spalten = {_falte(s): s for s in arbeitsstand_spalten(conn) if s not in _KEINE_FELDER}
     worte = [w for w in phasen.kurzname(nummer).replace("&", " ").split() if w]
     treffer = []
@@ -101,6 +109,21 @@ def felder_fuer_phase(conn, nummer: int) -> list[str]:
         if spalte and spalte not in treffer:
             treffer.append(spalte)
     return treffer
+
+
+def pflichtfeld_fuer_phase(conn, nummer: int) -> str:
+    """Das eine Feld, ohne das die Phase nicht durch ist -- das erste aus
+    ``felder_fuer_phase``, oder ein leerer String.
+
+    Ein Kurzname nennt zuerst die Entscheidung, die die naechste Phase traegt:
+    bei 'Format & Rahmen' ist das ``format`` (ohne Format weiss niemand, ob die
+    naechste Szene ein Dialog oder ein Rap wird), waehrend ``rahmen`` leer
+    bleiben darf -- dieselbe Gewichtung wie in ``phasen.voraussetzungen`` fuer
+    den Schritt von 5 nach 6. Bei einem einwortigen Kurznamen
+    ('Hauptkonflikt') ist es das einzige Feld, und die Unterscheidung faellt
+    nicht auf."""
+    felder = felder_fuer_phase(conn, nummer)
+    return felder[0] if felder else ""
 
 
 def _stand_gesetzt(conn, chat_id: int, feld: str) -> bool:
@@ -176,12 +199,16 @@ def _fertig_figuren(conn, chat_id, merker):
 
 
 def _fertig_phase_mitte(conn, chat_id, merker):
-    """Die Felder der Phase 5 -- oder, wenn das Schema keine hergibt, dass
-    die Gruppe ueberhaupt dort angekommen ist."""
-    felder = felder_fuer_phase(conn, PHASE_MITTE)
-    if not felder:
+    """Das Pflichtfeld der Phase 5 -- heute ``format`` -- oder, wenn das
+    Schema keines hergibt, dass die Gruppe ueberhaupt dort angekommen ist.
+
+    Nicht **alle** Felder der Phase: ``rahmen`` darf leer bleiben, und ein
+    Schritt, der daran scheitert, wuerde einen Bot als taub melden, der genau
+    das getan hat, was die Phase verlangt."""
+    feld = pflichtfeld_fuer_phase(conn, PHASE_MITTE)
+    if not feld:
         return phasen.aktuelle(conn, chat_id) >= PHASE_MITTE
-    return all(_stand_gesetzt(conn, chat_id, f) for f in felder)
+    return _stand_gesetzt(conn, chat_id, feld)
 
 
 def _fertig_szene(conn, chat_id, merker):
@@ -290,8 +317,10 @@ SCHRITTE: tuple[Schritt, ...] = (
     Schritt(
         "phase_mitte",
         "Phase 5",
-        "Ihr seid jetzt bei '{phase_mitte}'. Lasst euch vom Bot einen "
-        "Vorschlag dazu machen und stimmt ihm zu, damit er ihn festhaelt.",
+        "Ihr seid jetzt bei '{phase_mitte}' und wollt festlegen, WAS aus dem "
+        "Material entsteht. Lasst euch vom Bot Formen vorschlagen "
+        "(Sprechtheater, Musical, Revue, Hoerstueck) und stimmt einer davon "
+        "zu, damit er das Format festhaelt.",
         _fertig_phase_mitte,
     ),
     Schritt(

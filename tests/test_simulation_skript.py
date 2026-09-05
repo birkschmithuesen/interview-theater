@@ -45,10 +45,16 @@ def test_schritt_fuer_findet_und_meckert():
 # --- Arbeitsstandfelder einer Phase ---------------------------------------
 
 
-def test_felder_fuer_phase_findet_den_hauptkonflikt(conn):
-    """Der heutige Stand: Phase 5 heisst 'Hauptkonflikt', und genau so heisst
-    die Spalte."""
-    assert skript.felder_fuer_phase(conn, 5) == ["hauptkonflikt"]
+def test_felder_fuer_phase_findet_format_und_rahmen(conn):
+    """Der heutige Stand: Phase 5 heisst 'Format & Rahmen', und genau so
+    heissen die beiden Spalten."""
+    assert skript.felder_fuer_phase(conn, 5) == ["format", "rahmen"]
+
+
+def test_pflichtfeld_ist_das_erste_feld_der_phase(conn):
+    """``format`` ist Pflicht, ``rahmen`` darf leer bleiben -- dieselbe
+    Gewichtung wie in ``phasen.voraussetzungen`` fuer den Schritt nach 6."""
+    assert skript.pflichtfeld_fuer_phase(conn, 5) == "format"
 
 
 def test_felder_fuer_phase_ignoriert_schluessel_und_buchhaltung(conn):
@@ -58,16 +64,16 @@ def test_felder_fuer_phase_ignoriert_schluessel_und_buchhaltung(conn):
 
 
 def test_felder_fuer_phase_folgt_einer_umbenannten_phase(conn, monkeypatch):
-    """Nach dem Szenen-Umbau koennte Phase 5 'Format & Rahmen' heissen. Gibt
-    es dann eine Spalte ``format``, findet der Simulator sie -- ohne dass
+    """Bis zum 05.09.2026 hiess Phase 5 'Hauptkonflikt'. Hiesse sie morgen
+    wieder so, faende der Simulator die Spalte ``hauptkonflikt`` -- ohne dass
     jemand diese Datei anfasst."""
-    conn.execute("ALTER TABLE arbeitsstand ADD COLUMN format TEXT")
     umbenannt = tuple(
-        (n, "Format & Rahmen" if n == 5 else name, satz)
+        (n, "Hauptkonflikt" if n == 5 else name, satz)
         for n, name, satz in phasen.PHASEN
     )
     monkeypatch.setattr(phasen, "PHASEN", umbenannt)
-    assert skript.felder_fuer_phase(conn, 5) == ["format"]
+    assert skript.felder_fuer_phase(conn, 5) == ["hauptkonflikt"]
+    assert skript.pflichtfeld_fuer_phase(conn, 5) == "hauptkonflikt"
 
 
 def test_felder_fuer_phase_ist_leer_wenn_keine_spalte_passt(conn, monkeypatch):
@@ -117,10 +123,13 @@ def test_interviews_zaehlen_verdichtungen(conn):
     assert schritt.fertig(conn, 1, merker)
 
 
-def test_phase_mitte_prueft_die_felder_der_phase(conn):
+def test_phase_mitte_prueft_das_pflichtfeld_der_phase(conn):
+    """Gesetztes ``format`` genuegt -- ``rahmen`` darf leer bleiben."""
     schritt = skript.schritt_fuer("phase_mitte")
     assert not schritt.fertig(conn, 1, {})
-    repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "Mutter gegen Tochter")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "eine Nacht im Wartesaal")
+    assert not schritt.fertig(conn, 1, {}), "der Rahmen allein ist kein Format"
+    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
     assert schritt.fertig(conn, 1, {})
 
 

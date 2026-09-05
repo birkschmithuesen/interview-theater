@@ -2,7 +2,8 @@
 
 Ein kompletter Workshop, gefahren gegen den echten Bot-Code und die echten
 Modelle. Drei simulierte Teilnehmerinnen arbeiten sich durch neun Schritte --
-Begriffe, Fragen, fuenf Interviews, Kernthema, Figuren, Phase 5, eine Szene,
+Begriffe, Fragen, fuenf Interviews, Kernthema, Figuren, Phase 5 (Format &
+Rahmen), eine Szene,
 eine Korrektur, `/stand` --, danach bewertet ein Richter den Verlauf nach
 einer festen Metrik.
 

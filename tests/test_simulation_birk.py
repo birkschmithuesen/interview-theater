@@ -228,7 +228,7 @@ _STIMME = (
     ("Interviewfragen", "ne, die frageliste passt so"),
     ("Kernthema", "das kernthema ist woher die bilder in uns kommen"),
     ("Figuren", "figur Mira: die sammlerin"),
-    ("Format", "der hauptkonflikt ist eigenes bild gegen fremdes bild"),
+    ("Format", "ja, ein musical mit dialog, lied und rap"),
     ("Szene 1", "polizeikessel auf der demo, alle drei"),
     ("Szene 2", "pals kueche, pfannkuchen"),
     ("Szene 3", "nachts im autonomen zentrum, hawaii"),
@@ -242,7 +242,7 @@ _ERKENNER = (
     ("frageliste", "fragen_setzen", "Kueche: Was kochst du?"),
     ("kernthema ist", "kernthema_setzen", "Woher die Bilder kommen"),
     ("figur ", "figur_setzen", ""),
-    ("hauptkonflikt ist", "hauptkonflikt_setzen", "eigenes gegen fremdes Bild"),
+    ("musical", "format_setzen", "Musical mit Dialog, Lied und Rap"),
 )
 
 

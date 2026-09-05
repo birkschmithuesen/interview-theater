@@ -29,6 +29,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import random
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -144,6 +145,31 @@ def _sofort_auswertung(conn, tg, klm, e, kopf_id):
     return None
 
 
+#: Die beiden Umbauten unten ersetzen Funktionen in Modulen des Betriebs.
+#: Bei ``--parallel`` tun das zwei Laeufe in zwei Threads gleichzeitig -- und
+#: ohne Buchhaltung sichert der zweite die **schon ersetzte** Funktion als
+#: "Original" und stellt sie am Ende wieder her: der Betriebscode bliebe fuer
+#: den Rest des Prozesses einfaedig. Deshalb je Umbau ein Zaehler unter dieser
+#: Sperre: eingebaut wird beim ersten Lauf, zurueckgestellt beim letzten.
+_SPERRE = threading.Lock()
+_TIEFE: dict[str, int] = {}
+_ORIGINAL: dict[str, object] = {}
+
+
+def _erster(name: str) -> bool:
+    """Zaehlt einen Nutzer des Umbaus ``name`` hinzu und sagt, ob er der
+    erste ist -- nur der baut um. Unter ``_SPERRE`` aufzurufen."""
+    _TIEFE[name] = _TIEFE.get(name, 0) + 1
+    return _TIEFE[name] == 1
+
+
+def _letzter(name: str) -> bool:
+    """Zaehlt einen Nutzer ab und sagt, ob er der letzte war -- nur der
+    stellt zurueck. Unter ``_SPERRE`` aufzurufen."""
+    _TIEFE[name] -= 1
+    return _TIEFE[name] == 0
+
+
 @contextlib.contextmanager
 def einfaedig():
     """Ersetzt die drei Stellen, die im Betrieb einen Thread starten, durch
@@ -153,14 +179,28 @@ def einfaedig():
     waehrend die Wirkung noch in einem Thread unterwegs ist: der Schritt
     gaelte als gescheitert, obwohl der Bot alles richtig gemacht hat, nur
     eine Zehntelsekunde spaeter."""
-    original = (szene.starte, aufnahme.starte_abschluss, aufnahme.starte_auswertung)
-    szene.starte = _sofort_szene
-    aufnahme.starte_abschluss = _sofort_abschluss
-    aufnahme.starte_auswertung = _sofort_auswertung
+    with _SPERRE:
+        if _erster("einfaedig"):
+            _ORIGINAL["einfaedig"] = (
+                szene.starte, aufnahme.starte_abschluss, aufnahme.starte_auswertung
+            )
+            szene.starte = _sofort_szene
+            aufnahme.starte_abschluss = _sofort_abschluss
+            aufnahme.starte_auswertung = _sofort_auswertung
     try:
         yield
     finally:
-        szene.starte, aufnahme.starte_abschluss, aufnahme.starte_auswertung = original
+        with _SPERRE:
+            if _letzter("einfaedig"):
+                (szene.starte, aufnahme.starte_abschluss,
+                 aufnahme.starte_auswertung) = _ORIGINAL.pop("einfaedig")
+
+
+#: Wohin ``kontext.baue`` gerade mitschreibt -- je Thread eines. Bei
+#: ``--parallel`` benutzen zwei Laeufe denselben umgebauten Kontextaufbau, und
+#: die Prompt-Umrisse des einen haben in der Verlaufszeile des anderen nichts
+#: zu suchen.
+_mitschrift = threading.local()
 
 
 @contextlib.contextmanager
@@ -173,17 +213,27 @@ def kontext_protokoll(protokoll: list):
     ``ablauf`` durchreichen muesste, waere im Betrieb ein totes Argument in
     einem Pfad, in dem die Gruppe wartet. Das Argument ``protokoll`` von
     ``kontext.baue`` selbst ist rein additiv und im Betrieb nie gesetzt."""
-    original = kontext.baue
+    vorher = getattr(_mitschrift, "ziel", None)
+    _mitschrift.ziel = protokoll
+    with _SPERRE:
+        if _erster("kontext"):
+            original = kontext.baue
+            _ORIGINAL["kontext"] = original
 
-    def mitschreiben(*args, **kwargs):
-        kwargs.setdefault("protokoll", protokoll)
-        return original(*args, **kwargs)
+            def mitschreiben(*args, **kwargs):
+                ziel = getattr(_mitschrift, "ziel", None)
+                if ziel is not None:
+                    kwargs.setdefault("protokoll", ziel)
+                return original(*args, **kwargs)
 
-    kontext.baue = mitschreiben
+            kontext.baue = mitschreiben
     try:
         yield protokoll
     finally:
-        kontext.baue = original
+        _mitschrift.ziel = vorher
+        with _SPERRE:
+            if _letzter("kontext"):
+                kontext.baue = _ORIGINAL.pop("kontext")
 
 
 # ---------------------------------------------------------------------------
@@ -587,16 +637,21 @@ class Lauf:
         gerechnet wird in Python statt mit SQLites ``datetime()``: das
         liefert einen String ohne Zeitzone zurueck, und ``bot.begruessung_
         faellig`` vergleicht ihn mit einem zeitzonenbewussten ``jetzt`` --
-        das schlaegt mit einem TypeError fehl, mitten im Lauf."""
+        das schlaegt mit einem TypeError fehl, mitten im Lauf.
+
+        Angefasst wird ueber ``(chat_id, message_id)``, den Primaerschluessel
+        von ``nachricht`` -- die Tabelle hat keine ``id``-Spalte."""
         zeilen = self.conn.execute(
-            "SELECT id, gesendet_am FROM nachricht WHERE chat_id = ?", (CHAT_ID,)
+            "SELECT message_id, gesendet_am FROM nachricht WHERE chat_id = ?",
+            (CHAT_ID,),
         ).fetchall()
         verschoben = timedelta(hours=PAUSE_STUNDEN)
         for zeile in zeilen:
             frueher = datetime.fromisoformat(zeile["gesendet_am"]) - verschoben
             self.conn.execute(
-                "UPDATE nachricht SET gesendet_am = ? WHERE id = ?",
-                (frueher.isoformat(), zeile["id"]),
+                "UPDATE nachricht SET gesendet_am = ? "
+                "WHERE chat_id = ? AND message_id = ?",
+                (frueher.isoformat(), CHAT_ID, zeile["message_id"]),
             )
         self.conn.commit()
 

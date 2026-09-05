@@ -212,13 +212,24 @@ def _zeilen(tmp_path) -> list[dict]:
     return [json.loads(z) for z in text.splitlines()]
 
 
-def test_stoerung_landet_im_bericht_und_der_lauf_geht_weiter(mini):
+def test_stoerung_landet_im_bericht_und_der_lauf_geht_weiter(mini, monkeypatch):
+    """Erst ein Schritt, den die Attrappe nie erreicht -- der laeuft seine
+    sechs Zuege durch, und nur so gibt es ueberhaupt dreimal einen
+    Gespraechsaufruf, der wegbleiben kann. Danach ein Schritt, der gelingt:
+    die Erholung ist der eigentliche Befund."""
+    monkeypatch.setattr(
+        sim, "_schritte",
+        lambda args: (skript.schritt_fuer("kernthema"),
+                      skript.schritt_fuer("begriffe")),
+    )
     assert sim.main(["--set", "1", "--seed", "1", "--ohne-szene",
                      "--stoerung", "5xx", "--stoerung-ab", "1",
                      "--bericht"]) == 0
     daten = _zeilen(mini)[0]
     assert daten["stoerung"] == "5xx"
     assert daten["stoerung_geworfen"] == 3
+    assert daten["stoerung_zuege"] == [1, 2, 3]
+    assert daten["schritte_gescheitert"] == ["kernthema"]
     text = list((mini / "berichte").glob("*.md"))[0].read_text(encoding="utf-8")
     assert "## Ausfall-Simulation (5xx)" in text
     assert "Danach weitergelaufen" in text

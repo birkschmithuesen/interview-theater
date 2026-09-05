@@ -535,12 +535,14 @@ def kontextlage(zuege: list[Zug]) -> dict:
 
 
 def arbeitsstand_vollstaendig(conn, chat_id: int) -> dict[str, int]:
-    """Je Feld 0/1: Begriffe, Fragen, Kernthema, drei Figuren, die Felder der
-    Phase 5.
+    """Je Feld 0/1: Begriffe, Fragen, Kernthema, drei Figuren, das
+    Pflichtfeld der Phase 5 (heute ``format``).
 
-    Die letzten kommen aus ``skript.felder_fuer_phase`` und damit aus dem
-    Schema -- nach einem Umbau der Phase 5 misst diese Funktion die neuen
-    Felder, ohne dass jemand sie nachzieht."""
+    Das letzte kommt aus ``skript.pflichtfeld_fuer_phase`` und damit aus dem
+    Schema -- nach einem Umbau der Phase 5 misst diese Funktion das neue Feld,
+    ohne dass jemand sie nachzieht. Nur das Pflichtfeld: ``rahmen`` darf leer
+    bleiben, und eine Kennzahl, die es mitzaehlt, meldete einen Lauf als
+    unvollstaendig, dem nichts fehlt."""
     ergebnis = {
         "begriffe": int(skript._stand_gesetzt(conn, chat_id, "begriffe")),
         "fragen": int(skript._stand_gesetzt(conn, chat_id, "fragen")),
@@ -549,10 +551,9 @@ def arbeitsstand_vollstaendig(conn, chat_id: int) -> dict[str, int]:
             len(repo.figuren(conn, chat_id)) >= skript.FIGUREN_SOLL
         ),
     }
-    felder = skript.felder_fuer_phase(conn, skript.PHASE_MITTE)
-    if felder:
-        for feld in felder:
-            ergebnis[feld] = int(skript._stand_gesetzt(conn, chat_id, feld))
+    feld = skript.pflichtfeld_fuer_phase(conn, skript.PHASE_MITTE)
+    if feld:
+        ergebnis[feld] = int(skript._stand_gesetzt(conn, chat_id, feld))
     else:
         ergebnis[f"phase_{skript.PHASE_MITTE}_erreicht"] = int(
             phasen.aktuelle(conn, chat_id) >= skript.PHASE_MITTE

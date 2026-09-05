@@ -358,6 +358,55 @@ lädt, würde damit Gesprächszüge ausbremsen.
   gescheiterte Transkription bekommt eine kurze, ehrliche Zeile, weil die
   Gruppe gerade darauf wartet oder selbst reagieren muss (SPEC § 11.1/§ 11.2).
 
+- **Haltung: speichern beim ersten Mal, proaktiv zur nächsten Phase, keine
+  Wiederholung** (06.09.2026, nach dem gemessenen Testabend: Median 20
+  Nachrichten je Festlegung, 64 % Fragen, 23 Auswahlknöpfe null Mal gedrückt).
+  Nennt die Gruppe einen Wert, wird er sofort abgelegt und in einer Zeile
+  bestätigt — keine Rückfrage davor, keine Zusammenfassung danach. Steht etwas
+  im Arbeitsstand, fragt der Bot nie erneut danach. Sobald die Voraussetzungen
+  einer höheren Phase gespeichert sind, schickt er **einmal** eine eigene kurze
+  Nachricht „<Was steht>. Weiter zu <Phase>?" (`knoepfe.biete_phase_proaktiv`,
+  Merkposten `arbeitsstand.phase_angeboten`), nicht als vierten Knopf unter
+  einem langen Text. Antworten mit über 60 % Deckung zur vorigen Bot-Nachricht
+  werden ersatzlos verworfen (`ablauf.ist_wiederholung`, Vorfall
+  `wiederholung_verworfen`); löst eine Nachricht einen Auftrag aus, schweigt
+  der Gesprächs-Bot ganz (`ablauf.ist_auftrag`). Die Grundleiste speichert nie
+  über ein gesetztes Feld hinweg, solange keine Änderung offen ist
+  (`knoepfe._ist_bestaetigung`, `_feld_ist_frei`). Das Kontextfenster ist kurz
+  und chronologisch: höchstens `kontext.FENSTER_NACHRICHTEN` (20) oder
+  `FENSTER_MINUTEN` (30), sortiert nach `gesendet_am` — **nicht** nach
+  `message_id`, denn übernommene Historien tragen negative, absteigend
+  vergebene ids. Belege: `docs/analyse-interaktion-testgruppe-2026-09-05.md`.
+
+- **Die Fragen sind eine Auswahl, und danach kommt der Leitfaden** (06.09.2026,
+  Birk). Phase 2 schlägt zehn Fragen als `VORSCHLAG FRAGENAUSWAHL:` vor, aus
+  denen die Gruppe per Mehrfachauswahl genau drei antippt — ein Knopf je Frage,
+  Toggle über `telegram.aktualisiere_knoepfe`, Zustand in
+  `arbeitsstand.fragen_gewaehlt` und nie in der Tastatur, „Diese 3 nehmen" wirkt
+  nur bei genau drei. Auf das Speichern folgt automatisch eine
+  Sensibilitätsprüfung (Einleitungen je heikler Frage, `VORSCHLAG
+  EINLEITUNGEN:`) und danach Eröffnung und Abschluss (`VORSCHLAG EROEFFNUNG:`),
+  beide als Ping-Pong über die Grundleiste und beide als Auftragszug im eigenen
+  Thread, nicht im Knopf-Handler. Daraus baut `leitfaden.baue()` deterministisch
+  den Gesprächsleitfaden — Eröffnung, Fragen mit ihren Einleitungen, Abschluss —,
+  den der Bot beim Schritt in die Interviews und beim Interviewstart genau
+  einmal schickt und danach nur noch auf Knopf, `/leitfaden` (versteckt) oder
+  auf der Gruppenseite zeigt. Deshalb hängt `phasen.voraussetzungen[3]` seitdem
+  an Fragen **und** `interview_eroeffnung`: ohne Eröffnungstext geht keine
+  Sechzehnjährige auf eine fremde Person zu, während leere Einleitungen ein
+  Ergebnis der Prüfung sind und kein fehlender Wert.
+
+- **„Neu schreiben" heißt neu, und der Bot zeigt, dass er arbeitet**
+  (06.09.2026). Der Knopf „Neu schreiben" gibt die alte Fassung NICHT als
+  Vorlage mit (`szene.NEU_MARKER` im Auftrag → `NEU_HINWEIS` statt Volltext);
+  „Passt, aber anders" überarbeitet den bestehenden Text mit der Regie-Notiz.
+  Der Szenen-Prompt trägt vor den Angaben die **Aufgabe der Szene** an ihrer
+  Position (`szene._aufgabe_text`: erste = Exposition wer/zueinander/warum
+  hier/worum; Mitte = verschärfen/wenden; letzte = einlösen) und ganz oben
+  Rahmen/Geschichte als bindende Vorgabe. Solange Opus schreibt, laufen
+  Tippanzeige und eine wechselnde Emoji-Zeile (`szene._arbeitet_sichtbar`),
+  die am Ende wieder gelöscht wird.
+
 ## Die Fallen
 
 Jede hier gemessen, keine geraten. Wer das nicht liest, verliert denselben

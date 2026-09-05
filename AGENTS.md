@@ -101,6 +101,12 @@ lädt, würde damit Gesprächszüge ausbremsen.
   wird beantwortet, wirkt aber nicht. Die Weiche sitzt in `bot.schleife` vor
   `verarbeite_update`: ein Knopfdruck ist keine Nachricht und geht nie in
   `nachricht`, sonst läse ihn der Erkenner wie einen Gruppenbeitrag.
+  Der Aufnahme-Umschalter kommt seit dem 05.09.2026 **auch am Erkenner-Pfad**:
+  bestätigt `erkenner._melde_interviewmodus` einen erkannten Moduswechsel, geht
+  das über `knoepfe.biete_aufnahme` mit demselben Wortlaut wie `/aufnahme`
+  (`befehle._TEXT_INTERVIEW_AN`/`_AUS`) — sagt die Gruppe „ich will noch eine
+  Aufnahme machen", steht der Knopf da, ohne dass jemand den Slash-Befehl
+  kennen muss.
   **Fallstrick:** `repo.setze_szene_usa` nimmt einen **bool**, nicht `"ja"`/
   `"nein"` — ein nicht-leerer String ist wahr, ein „nein" würde als Zustimmung
   zur Datenübermittlung enden. Test: `test_usa_knopf_nein_setzt_false_und_nicht_wahr`.

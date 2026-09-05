@@ -280,3 +280,24 @@ def test_loesche_nachrichten_bereinigt_token_im_fehler():
     with pytest.raises(telegram.TelegramFehler) as info:
         bot.loesche_nachrichten(-100, [1])
     assert "GEHEIM" not in str(info.value)
+
+
+def test_bereinige_steigt_nicht_aus_wenn_der_token_kein_string_ist():
+    """05.09.2026: ein Aufrufer reichte versehentlich das ganze
+    Einstellungen-Objekt statt des Tokens durch. ``str.replace`` warf einen
+    TypeError -- der riss die Bereinigung mit, und der unbereinigte Text
+    (inklusive Token in der URL) waere nach oben durchgereicht worden.
+
+    Ein Schutz, der beim Fehler aussteigt, ist keiner: deshalb wird hier
+    stumpf zu str gemacht statt auf den Typ zu vertrauen."""
+    from interview_theater import telegram
+
+    class Fremd:
+        def __str__(self):
+            return "GEHEIM123"
+
+    text = "Fehler bei https://api.telegram.org/botGEHEIM123/sendMessage"
+    assert telegram._bereinige(text, Fremd()) == (
+        "Fehler bei https://api.telegram.org/bot<token>/sendMessage"
+    )
+    assert "GEHEIM123" not in telegram._bereinige(text, Fremd())

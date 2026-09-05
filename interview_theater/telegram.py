@@ -34,9 +34,17 @@ class TelegramFehler(Exception):
     """
 
 
-def _bereinige(text: str, token: str) -> str:
-    """Ersetzt jedes Vorkommen des Bot-Tokens in text durch '<token>'."""
-    return text.replace(token, "<token>")
+def _bereinige(text: str, token) -> str:
+    """Ersetzt jedes Vorkommen des Bot-Tokens in text durch '<token>'.
+
+    ``token`` wird bewusst nicht typgepruefet, sondern zu str gemacht: ist
+    hier versehentlich etwas anderes als ein String durchgereicht worden
+    (gemessen 05.09.2026 -- ein Aufrufer gab das ganze Einstellungen-Objekt
+    weiter), warf ``str.replace`` einen TypeError. Der riss die
+    Bereinigung mit und haette den unbereinigten Text samt Token nach oben
+    durchgereicht: genau das, was diese Funktion verhindern soll. Ein
+    Schutz, der beim Fehler aussteigt, ist keiner."""
+    return str(text).replace(str(token), "<token>")
 
 
 def _iso(unix_zeit: int) -> str:

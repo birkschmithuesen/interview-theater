@@ -22,6 +22,33 @@ BASIS = "https://api.telegram.org"
 #: auf eine Zeile in der Tabelle ``knopf`` (siehe interview_theater/knoepfe.py).
 CALLBACK_DATA_GRENZE = 64
 
+#: Telegram Bot-API: sendMessage nimmt hoechstens 4096 Zeichen. Etwas Luft,
+#: weil Telegram in UTF-16-Einheiten zaehlt und Emojis doppelt wiegen.
+NACHRICHT_GRENZE = 4000
+
+
+def teile_text(text: str, grenze: int = NACHRICHT_GRENZE) -> list[str]:
+    """Teilt einen Text in Stuecke, die Telegram annimmt -- bevorzugt an
+    Absatz-, dann an Zeilen-, dann an Wortgrenzen; ein leerer Text bleibt ein
+    einzelnes leeres Stueck, damit der Aufrufer immer ein letztes Stueck fuer
+    die Tastatur hat."""
+    if len(text) <= grenze:
+        return [text]
+    stuecke: list[str] = []
+    rest = text
+    while len(rest) > grenze:
+        schnitt = -1
+        for trenner in ("\n\n", "\n", " "):
+            schnitt = rest.rfind(trenner, 0, grenze)
+            if schnitt > grenze // 2:
+                break
+        if schnitt <= grenze // 2:
+            schnitt = grenze
+        stuecke.append(rest[:schnitt].rstrip())
+        rest = rest[schnitt:].lstrip()
+    stuecke.append(rest)
+    return [s for s in stuecke if s] or [""]
+
 
 class TelegramFehler(Exception):
     """Fehler beim Zugriff auf die Telegram-Bot-API.
@@ -81,13 +108,23 @@ class Telegram:
             return antwort.json()["result"]
 
     def sende(self, chat_id: int, text: str) -> int:
-        """Schickt eine Textnachricht. Liefert die message_id der gesendeten Nachricht."""
-        with self._fange_http_fehler():
-            antwort = self._klient.post(
-                self._url("sendMessage"), json={"chat_id": chat_id, "text": text}
-            )
-            antwort.raise_for_status()
-            return antwort.json()["result"]["message_id"]
+        """Schickt eine Textnachricht. Liefert die message_id der gesendeten Nachricht.
+
+        Telegram nimmt hoechstens 4096 Zeichen je Nachricht (Bot-API,
+        sendMessage). Laengere Texte werden in Stuecke geteilt (05.09.2026,
+        Live-Fall Gruppe 2: ein Teil-Transkript mit 7 957 Zeichen -> HTTP 400
+        auf beiden Sendewegen, das Echo kam nie an). Zurueck kommt die
+        message_id des LETZTEN Stuecks -- an dem haengen Tastatur und
+        Verweise."""
+        letzte = 0
+        for stueck in teile_text(text):
+            with self._fange_http_fehler():
+                antwort = self._klient.post(
+                    self._url("sendMessage"), json={"chat_id": chat_id, "text": stueck}
+                )
+                antwort.raise_for_status()
+                letzte = antwort.json()["result"]["message_id"]
+        return letzte
 
     def sende_mit_knoepfen(
         self, chat_id: int, text: str, knoepfe: list[tuple[str, str]]
@@ -108,12 +145,17 @@ class Telegram:
             if len(daten.encode("utf-8")) > CALLBACK_DATA_GRENZE:
                 raise ValueError(f"callback_data zu lang: {len(daten)} Zeichen")
         tastatur = [[{"text": t, "callback_data": d}] for t, d in knoepfe]
+        stuecke = teile_text(text)
+        # Alle Stuecke bis auf das letzte ohne Tastatur -- die Knoepfe gehoeren
+        # unter das Ende des Textes, nicht in seine Mitte.
+        for stueck in stuecke[:-1]:
+            self.sende(chat_id, stueck)
         with self._fange_http_fehler():
             antwort = self._klient.post(
                 self._url("sendMessage"),
                 json={
                     "chat_id": chat_id,
-                    "text": text,
+                    "text": stuecke[-1],
                     "reply_markup": {"inline_keyboard": tastatur},
                 },
             )

@@ -202,7 +202,13 @@ als szene_schreiben ist szene_planen **billig**: es traegt Felder ein, die
 die Gruppe mit einem Satz aendern kann. Deshalb gilt hier der Leitsatz oben --
 im Zweifel eintragen. Ueber eine Szene zu reden, die es noch nicht gibt
 ("irgendwann brauchen wir eine Szene auf der Demo"), ist trotzdem keine
-Planung: es muss eine Angabe zu einer bestimmten Szene sein.
+Planung: es muss eine Angabe zu einer bestimmten Szene sein. Konkret: **eine
+Szenennummer oder ein eindeutiger Bezug ("die erste Szene", "die
+Kuechenszene")** muss im Abschnitt stehen. "Ich haette Lust auf eine Szene
+im Bus" ist ein Vorschlag (den haelt das Journal fest), keine Planung.
+"Und der Streit ist dann in der Kueche" ohne Szenenbezug ist rahmen_setzen
+oder gar nichts -- nicht szene_planen. Ein einzelnes Ortswort in einem
+Satz ueber das Stueck plant keine Szene.
 
 Abgrenzung "szene_schreiben": nur bei einem klaren Auftrag an dich, jetzt zu
 schreiben. Wenn die Gruppe ueber Szenen redet, welche sie braucht, in welcher

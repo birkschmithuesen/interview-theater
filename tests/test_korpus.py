@@ -252,7 +252,7 @@ MIN_NEGATIV_0509 = 2
 #: der Test macht sie sichtbar, damit beim Aufraeumen nicht die Negativfaelle
 #: als erste verschwinden.
 PRAEFIX_0509 = {
-    "format_setzen": "f0", "rahmen_setzen": "r0", "szene_planen": "p0",
+    "format_setzen": "f0", "rahmen_setzen": "r0", "szene_planen": "sp0",
     "figur_quelle_setzen": "q0",
 }
 
@@ -307,8 +307,8 @@ def test_erkenner_trennt_konflikt_von_kernthema_und_figuren(erkenner_faelle):
     auf die zuerst genannte."""
     treffer = [
         f for f in erkenner_faelle
-        if any(a["art"] == "phase_setzen" and "konflikt" in a["wert"].lower()
-               for a in f["erwartet"])
+        if any(a["art"] == "phase_setzen" for a in f["erwartet"])
+        and any("konflikt" in t for t in texte_von(f))
         and any("figuren" in t for t in texte_von(f))
     ]
     assert treffer, "der Fall 'erst der Konflikt, Figuren danach' fehlt"

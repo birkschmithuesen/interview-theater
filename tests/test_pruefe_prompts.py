@@ -466,7 +466,7 @@ def test_durchlauf_baut_den_nutzertext_wie_das_modul(attrappe):
     """Der Arbeitsstand aus dem Korpus muss im Nutzertext landen -- sonst
     prueft der Lauf einen anderen Prompt als den, der im Betrieb laeuft."""
     attrappe["antwort"] = lambda art, nutzer: {"aenderungen": []}
-    pp.main(["erkenner", "--nur", "n10-rueckfrage-bereits-gesetzt"])
+    pp.main(["erkenner", "--nur", "n10-rueckfrage-bereits-gesetzt-kein-neuer-eintrag"])
     nutzer = attrappe["gesehen"][0]["nutzer"]
     assert "Arbeitsstand:" in nutzer
     assert "Kernthema: Ankommen" in nutzer

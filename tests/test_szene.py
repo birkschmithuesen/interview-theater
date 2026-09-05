@@ -893,11 +893,22 @@ def test_eine_ausdrueckliche_form_schlaegt_das_format():
 
 
 def test_der_tanztheater_regelblock_steht_in_der_systemanweisung():
+    """Seit Birks Entscheidung vom 05.09.2026 abends ist \"Urban Dance
+    Theater\" ein normales Sprechtheater-Textbuch (gemessen am Herkules.exe-
+    Textbuch): das Textbuch ist Ausgangsmaterial, die Choreografin entwickelt
+    die Bewegung in der Probe. Der Regelblock darf deshalb genau das NICHT
+    mehr enthalten, was die verworfene Tanztheater-Recherche vorgab."""
     text = szene.systemanweisung(None, "Urban Dance Tanztheater")
 
-    assert "[BEWEGUNG" in text
-    assert "Achten" in text
-    assert "zwoelf Zeilen" in text
+    assert "Sprechtheater-Textbuch" in text
+    assert "Choreografin" in text
+    # Die alten Vorgaben sind nicht nur weg, sie stehen jetzt auf der
+    # Negativliste -- deshalb wird hier nicht auf Abwesenheit der Woerter
+    # geprueft, sondern darauf, dass sie ausdruecklich verboten sind.
+    for verbannt in ("[BEWEGUNG]", "Counts und Musiktakte", "Choreografie"):
+        assert verbannt in text, verbannt
+    for weg in ("Zaehl in Achten", "Hoechstens zwoelf Zeilen gesprochener"):
+        assert weg not in text, weg
 
 
 # ---------------------------------------------------------------------------

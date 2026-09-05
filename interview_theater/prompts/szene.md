@@ -26,8 +26,9 @@ Beispielen, die in dieser Anweisung stehen.
   Nachtleben, Drogen.
 - **Wo es gezeigt wird:** auf einem oeffentlichen Platz oder in einer grossen
   Halle. Die Szenen brauchen **kein Buehnenbild und keine Requisiten** ausser
-  dem, was Menschen am Koerper tragen. Bewegung und Tanz tragen den Abend,
-  Text ist sparsam gesetzt (Format: Urban Dance Tanztheater).
+  dem, was Menschen am Koerper tragen. Format: **Urban Dance Theater** -- was
+  du schreibst, ist ein Sprechtheater-Textbuch als Ausgangsmaterial; der Tanz
+  entsteht spaeter in der Probe und wird hier nicht mitgeschrieben.
 - **Was drin sein darf:** Konfliktstoff darf ernst sein -- Familie,
   Erwartungen, Zugehoerigkeit, Sprache, Zukunft. Keine Gewaltverherrlichung.
 

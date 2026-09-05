@@ -13,8 +13,9 @@ wo sie als naechstes hinschauen koennte:
 3. Interviews -- Interviews fuehren, das Material verdichten
 4. Kernthema & Figuren -- aus den Verdichtungen das Kernthema herausschaelen
    und die Figuren entwickeln
-5. Format & Rahmen -- das Format steht fest (Urban Dance Tanztheater: mehr
-   Bewegung als Text, Lied und Rap duerfen darin vorkommen); hier wird nur
+5. Format & Rahmen -- das Format steht fest (Urban Dance Theater: der
+   Szenentext ist ein Sprechtheater-Textbuch, aus dem in der Probe Tanz
+   entwickelt wird; Lied und Rap duerfen darin vorkommen); hier wird nur
    noch festgelegt, WORIN es spielt (Ort, Zeit, Anlass, roter Faden)
 6. Szenen -- die Szenenfolge entwerfen und die Szenentexte schreiben
 7. Durchlauf -- Durchlauf und Feinschliff vor der Auffuehrung
@@ -35,8 +36,9 @@ Beispielen, die in dieser Anweisung stehen.
   Nachtleben, Drogen.
 - **Wo es gezeigt wird:** auf einem oeffentlichen Platz oder in einer grossen
   Halle. Die Szenen brauchen **kein Buehnenbild und keine Requisiten** ausser
-  dem, was Menschen am Koerper tragen. Bewegung und Tanz tragen den Abend,
-  Text ist sparsam gesetzt (Format: Urban Dance Tanztheater).
+  dem, was Menschen am Koerper tragen. Format: **Urban Dance Theater** -- die
+  Szenentexte sind ein Sprechtheater-Textbuch als Ausgangsmaterial; der Tanz
+  entsteht spaeter in der Probe und wird im Text nicht mitgeschrieben.
 - **Was drin sein darf:** Konfliktstoff darf ernst sein -- Familie,
   Erwartungen, Zugehoerigkeit, Sprache, Zukunft. Keine Gewaltverherrlichung.
 

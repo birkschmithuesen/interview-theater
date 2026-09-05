@@ -230,3 +230,58 @@ def test_rahmen_des_stuecks_steht_in_den_prompts(betrieb, name):
     assert "Rahmen des Stuecks" in text
     for stichwort in ("15 und 18", "Bushaltestelle", "Halle", "Buehnenbild"):
         assert stichwort in text, (name, stichwort)
+
+
+# ---------------------------------------------------------------------------
+# Urban Dance Theater = Sprechtheater-Textbuch (Birk, 05.09.2026 abends)
+#
+# Die Tanztheater-Recherche ("Bewegung 50-70 %, Text sparsam, [BEWEGUNG]-
+# Bloecke, in Achten zaehlen") ist verworfen. Der Regelblock ist jetzt aus dem
+# Herkules.exe-Textbuch gemessen: dieselben Anteile Regie/Sprechtext, dieselbe
+# Repliklaenge, dasselbe Layout. Das Textbuch ist Ausgangsmaterial -- die
+# Choreografin entwickelt die Bewegung in der Probe und darf den Text
+# verwerfen. Dateiname bleibt ``tanztheater.md`` (szene.formdatei,
+# knoepfe.FORMAT_FEST greifen darauf zu).
+# ---------------------------------------------------------------------------
+
+
+def test_der_formblock_ist_ein_sprechtheater_textbuch(betrieb):
+    text = anweisungen.hole("formen/tanztheater")
+
+    assert "Urban Dance Theater" in text
+    assert "Sprechtheater-Textbuch" in text
+    assert "Ausgangsmaterial" in text
+    assert "Choreografin" in text, "der Hintergrund-Absatz gehoert dazu"
+
+
+def test_der_formblock_nimmt_der_choreografin_nichts_vorweg(betrieb):
+    """Negativliste: was hier steht, darf der Bot nicht schreiben. Die Begriffe
+    kommen deshalb im Text vor -- aber nur als Verbot, nie als Anweisung."""
+    text = anweisungen.hole("formen/tanztheater")
+
+    unterabschnitt = text.split("## Was du nicht schreibst", 1)
+    assert len(unterabschnitt) == 2, "die Negativliste fehlt"
+    negativ = unterabschnitt[1]
+    for begriff in ("Choreografie", "Counts", "[BEWEGUNG]", "Krump", "Cypher",
+                    "Buehnenbild", "Musik-, Licht- und Videoanweisungen"):
+        assert begriff in negativ, begriff
+
+
+def test_der_formblock_gibt_die_gemessenen_zielwerte_als_zahlen(betrieb):
+    """Die Regeln sind am Herkules-Textbuch gemessen; ohne Zahlen im Prompt
+    ist die Messung nicht im Modell angekommen."""
+    text = anweisungen.hole("formen/tanztheater")
+
+    for zahl in ("700 bis 1500 Woerter", "65 %", "35 %", "acht Woerter",
+                 "Fuenf bis sieben Figuren"):
+        assert zahl in text, zahl
+
+
+def test_der_formblock_zaehlt_nicht_mehr_in_achten(betrieb):
+    """Die Reste der verworfenen Recherche duerfen nicht stehenbleiben."""
+    text = anweisungen.hole("formen/tanztheater")
+
+    for weg in ("Zaehl in Achten", "Hoechstens zwoelf Zeilen gesprochener",
+                "Der Tanz traegt", "Schreib zuerst die Bewegungsebene"):
+        assert weg not in text, weg
+

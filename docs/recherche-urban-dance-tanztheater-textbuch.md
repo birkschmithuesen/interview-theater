@@ -1,5 +1,12 @@
 # Recherche: Textbuch für ein Urban-Dance-Tanztheater aus Interviewmaterial
 
+> **Überholt 05.09. abends — Birk: Format ist Sprechtheater-Textbuch nach
+> Herkules-Vorbild, siehe `formen/tanztheater.md`.** Die Vorgaben dieser
+> Recherche (Bewegung 50–70 %, Text sparsam, `[BEWEGUNG]`-Blöcke, Zählen in
+> Achten) gelten NICHT mehr. Das Textbuch ist Ausgangsmaterial für die
+> Probenarbeit; die Choreografin entwickelt die Bewegung selbst. Diese Datei
+> bleibt als Recherche-Archiv stehen.
+
 Stand: 05.09.2026. Erarbeitet für das Projekt `interview-theater` (Laiengruppe,
 Migrantinnenverein Dortmund, Workshop-Kontext). Zweck: Grundlage für einen
 Regelblock `interview_theater/prompts/formen/tanz.md` im Stil der bestehenden

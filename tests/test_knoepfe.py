@@ -785,3 +785,168 @@ def test_slash_und_knopf_setzen_dieselbe_szenenform(conn, einst, tg):
     knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[-1][2][1][1]))
 
     assert repo.hole_szene(conn, szene_id)["form"] == "lied"
+
+
+# --- Knopfleiste nach einem beendeten Interview ---------------------------
+#
+# Der Live-Befund vom 05.09.2026 (Gruppe 2, 13:59): ein Interview von drei
+# Sekunden endete mit "Interview 1 ist sehr kurz ... sagt Bescheid, wenn ich
+# es trotzdem soll." Die Gruppe fragte zweimal nach, der Gespraechs-Bot
+# antwortete zweimal mit rund 300 Zeichen Text ("Gerade spielt /auswerten
+# ..."), und ausgewertet wurde nie. Birk: "ersetze am besten alle slash
+# befehl vorschlaege mit knoepfen. und gib auch immer sinnvolle
+# alternativvorschlaege."
+
+
+def _interview_kopf(conn, transkript="ein kurzer Satz"):
+    """Ein beendetes Interview mit Transkript, ohne Verdichtung."""
+    from interview_theater import aufnahme
+
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
+    repo.setze_transkript(conn, kopf_id, transkript)
+    repo.setze_status(conn, kopf_id, "fertig")
+    repo.setze_interviewmodus(conn, 1, None)
+    return kopf_id
+
+
+def test_nach_aufnahme_bietet_auswerten_und_naechste_aufnahme(conn, einst, tg):
+    """Die beiden Wege, die es nach jedem Interview gibt -- als Knopf, nicht
+    als Slash-Empfehlung im Text."""
+    kopf_id = _interview_kopf(conn)
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist sehr kurz.", kopf_id)
+
+    beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
+    assert beschriftungen == ["Auswerten", "Naechste Aufnahme"]
+    assert "/" not in tg.knoepfe[0][1], "kein Slash-Befehl mehr im Text"
+
+
+def test_nach_aufnahme_haengt_die_phase_an_wenn_die_lage_sie_hergibt(conn, einst, tg):
+    """Die Alternative, die im Live-Fall gefehlt hat: statt direkt das
+    naechste Interview zu starten, haette die Gruppe auch in die Auswertung
+    gehen koennen (phasen.naechste_moegliche, reine Leseabfrage)."""
+    kopf_id = _interview_kopf(conn)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "eine Zusammenfassung", [])
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
+    assert beschriftungen == [
+        "Auswerten", "Naechste Aufnahme", "Weiter zu 4 · Kernthema & Figuren",
+    ]
+
+
+def test_nach_aufnahme_ohne_interview_bietet_nur_die_aufnahme_an(conn, einst, tg):
+    """"fertig" ohne eine einzige Sprachnachricht: es gibt nichts
+    auszuwerten, also steht der Knopf auch nicht da."""
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Das Interview hatte keine Aufnahme.", None)
+
+    assert [b for b, _ in tg.knoepfe[0][2]] == ["Naechste Aufnahme"]
+
+
+def test_auswerten_knopf_spielt_eine_vorhandene_verdichtung_aus(conn, einst, tg):
+    """Der Kern des Live-Befunds: verdichtet wird sofort, ausgespielt erst
+    auf Wunsch -- und der Wunsch ist dieser Knopf. Kein Modellaufruf, der
+    Text kommt aus der Datenbank (aufnahme.zeige_verdichtung)."""
+    kopf_id = _interview_kopf(conn)
+    repo.speichere_verdichtung(
+        conn, 1, kopf_id, "Es ging ums Ankommen.",
+        [{"thema": "Ankommen", "kurz": "Ankommen", "beleg_zitat": None,
+          "zitat_geprueft": 0}],
+    )
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
+
+    text = tg.gesendet[-1][1]
+    assert "Interview 1 ist durch" in text
+    assert "Es ging ums Ankommen." in text
+    assert len(repo.verdichtungen(conn, 1)) == 1, "keine zweite Verdichtung"
+
+
+def test_auswerten_knopf_verdichtet_ein_zu_kurzes_interview_im_thread(conn, einst, tg, monkeypatch):
+    """Unter aufnahme.MINDEST_WOERTER gibt es noch keine Verdichtung -- dann
+    tut der Knopf wortgleich das, was /auswerten tut: der Aufruf geht sofort
+    an einen eigenen Thread (kein Modellaufruf im Knopf-Handler, AGENTS.md)."""
+    from interview_theater import aufnahme
+
+    kopf_id = _interview_kopf(conn)
+    gestartet = []
+    monkeypatch.setattr(
+        aufnahme, "starte_auswertung",
+        lambda conn, tg, klm, e, kid: gestartet.append(kid),
+    )
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist sehr kurz.", kopf_id)
+
+    knoepfe.behandle(
+        conn, tg, object(), einst, _druck(_daten_des_ersten_knopfes(tg))
+    )
+
+    assert gestartet == [kopf_id]
+    assert tg.gesendet[-1][1] == "Ich werte Interview 1 aus."
+
+
+def test_zweiter_auswerten_druck_wertet_nicht_zweimal_aus(conn, einst, tg, monkeypatch):
+    """Idempotenz ueber repo.beanspruche_knopf: der zweite Druck wird
+    beantwortet, loest aber keinen zweiten (bezahlten) Lauf aus."""
+    from interview_theater import aufnahme
+
+    kopf_id = _interview_kopf(conn)
+    gestartet = []
+    monkeypatch.setattr(
+        aufnahme, "starte_auswertung",
+        lambda conn, tg, klm, e, kid: gestartet.append(kid),
+    )
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist sehr kurz.", kopf_id)
+    daten = _daten_des_ersten_knopfes(tg)
+
+    knoepfe.behandle(conn, tg, object(), einst, _druck(daten))
+    knoepfe.behandle(conn, tg, object(), einst, _druck(daten, query_id="q2"))
+
+    assert gestartet == [kopf_id]
+    assert tg.beantwortet[-1][1] == "Das habe ich schon uebernommen."
+
+
+# --- Einstiegsknoepfe (Begruessung, unbekannter Befehl) -------------------
+
+
+def test_einstieg_bietet_aufnahme_stand_und_hilfe(conn, einst, tg):
+    knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
+
+    assert [b for b, _ in tg.knoepfe[0][2]] == [
+        "Aufnahme starten", "Stand zeigen", "Hilfe",
+    ]
+
+
+def test_einstieg_haengt_die_phase_dazwischen(conn, einst, tg):
+    """Nach einer Nacht Pause ist "weiter zur naechsten Station" die
+    wahrscheinlichste Absicht -- deshalb steht sie direkt hinter der
+    Aufnahme, nicht am Ende."""
+    kopf_id = _interview_kopf(conn)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "eine Zusammenfassung", [])
+
+    knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
+
+    assert [b for b, _ in tg.knoepfe[0][2]] == [
+        "Aufnahme starten", "Weiter zu 4 · Kernthema & Figuren",
+        "Stand zeigen", "Hilfe",
+    ]
+
+
+def test_stand_knopf_zeigt_denselben_stand_wie_der_befehl(conn, einst, tg):
+    knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
+    daten = tg.knoepfe[0][2][1][1]  # "Stand zeigen"
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+
+    assert tg.gesendet[-1][1].startswith("Stand:")
+
+
+def test_hilfe_knopf_zeigt_die_bedienung(conn, einst, tg):
+    knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
+    daten = tg.knoepfe[0][2][2][1]  # "Hilfe"
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+
+    assert "SO MACHT IHR EIN INTERVIEW" in tg.gesendet[-1][1]

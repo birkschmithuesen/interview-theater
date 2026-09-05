@@ -82,14 +82,15 @@ log = logging.getLogger(__name__)
 _TEXT_INTERVIEW_AN = (
     "Aufnahme laeuft. Sprecht eure Sprachnachrichten ein - so viele, wie ihr "
     "wollt, sie gehoeren alle zu diesem einen Interview. Nach jeder schicke "
-    "ich euch den abgetippten Text zum Mitlesen. Zum Beenden nochmal "
-    "/aufnahme."
+    "ich euch den abgetippten Text zum Mitlesen. Zum Beenden tippt den Knopf "
+    "unten an."
 )
-_TEXT_INTERVIEW_AUS = (
-    "Aufnahme beendet. Fuer das naechste Interview wieder /aufnahme."
-)
+_TEXT_INTERVIEW_AUS = "Aufnahme beendet."
 _TEXT_KERNTHEMA_LEER = "Schreibt das Kernthema hinter den Befehl, zum Beispiel: /kernthema Ankommen"
-_TEXT_UNBEKANNT = "Diesen Befehl kenne ich nicht. /hilfe zeigt, was ich verstehe."
+#: Ein unbekannter Slash-Text. Statt auf ``/hilfe`` zu verweisen, haengen die
+#: Einstiegsknoepfe darunter (05.09.2026) -- wer sich schon in einem Befehl
+#: vertippt hat, soll nicht einen zweiten richtig treffen muessen.
+_TEXT_UNBEKANNT = "Diesen Befehl kenne ich nicht."
 _TEXT_WORTLAUT_AUS = "Wortlaut aus."
 _TEXT_PHASE_UMSCHALTEN = "Umschalten mit /phase 5 oder /phase Figuren - auch zurueck."
 _TEXT_FIGUR_HILFE = (
@@ -124,14 +125,17 @@ _TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
 _TEXT_HILFE = (
     "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
     "SO MACHT IHR EIN INTERVIEW:\n"
-    "1. /aufnahme - die Aufnahme laeuft\n"
+    "1. \"Aufnahme starten\" antippen - die Aufnahme laeuft\n"
     "2. Sprachnachrichten einsprechen, so viele ihr wollt - sie gehoeren "
     "alle zu diesem einen Interview\n"
     "3. Nach jeder schicke ich euch den abgetippten Text zum Mitlesen. "
     "Steht da ein Wort falsch, sagt es mir einfach.\n"
-    "4. /aufnahme - beendet das Interview\n"
-    "Fuer das naechste Interview wieder mit /aufnahme anfangen.\n\n"
-    "Weitere Befehle:\n"
+    "4. \"Aufnahme beenden\" antippen - danach stehen die naechsten Schritte "
+    "als Knoepfe da: Auswerten, Naechste Aufnahme, Weiter zur naechsten "
+    "Station.\n\n"
+    "Die Knoepfe sind der Weg. Wer lieber tippt, kann auch diese Befehle "
+    "benutzen:\n"
+    "/aufnahme - Interview starten und beenden\n"
     "/stand - zeigt, was ich mir bisher gemerkt habe\n"
     "/auswerten [nummer] - was in den Interviews steckt\n"
     "/kernthema <text> - das Kernthema festlegen\n"
@@ -256,8 +260,11 @@ def _befehl_auswerten(conn, tg, klm, e, chat_id: int, rest: str) -> None:
         )
         return
     name = kopf["name"] or "Das Interview"
-    if repo.verdichtung_zu_aufnahme(conn, kopf["id"]) is not None:
-        tg.sende(chat_id, f"{name} ist schon ausgewertet.")
+    if aufnahme.zeige_verdichtung(conn, tg, e, kopf["id"]):
+        # Schon verdichtet: die vorhandene Auswertung wird ausgespielt, nicht
+        # ein zweites Mal erzeugt (05.09.2026). Vorher stand hier nur "ist
+        # schon ausgewertet." -- und die Gruppe bekam den Inhalt nie zu sehen,
+        # obwohl er in der Datenbank lag.
         return
     if klm is None:
         log.error("/auswerten ohne Sprachmodell aufgerufen, chat_id=%s", chat_id)
@@ -627,7 +634,14 @@ def behandle(
 
     befehl, rest = _zerlege(text)
     if befehl not in _BEKANNTE_BEFEHLE:
-        tg.sende(chat_id, _TEXT_UNBEKANNT)
+        # Knoepfe statt einer Zeile, die einen weiteren Befehl empfiehlt
+        # (05.09.2026): der naechste Schritt ist ein Druck, kein zweiter
+        # Tippversuch.
+        try:
+            knoepfe.biete_einstieg(conn, tg, chat_id, _TEXT_UNBEKANNT)
+        except Exception:
+            log.exception("Einstiegsknoepfe fehlgeschlagen, chat_id=%s", chat_id)
+            tg.sende(chat_id, _TEXT_UNBEKANNT)
         return True
 
     if befehl == "/aufnahme":

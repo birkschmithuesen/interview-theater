@@ -477,8 +477,11 @@ def test_fertig_verdichtet_einmal_und_haelt_sich_im_chat_zurueck(conn, einst, tg
 
     assert not [t for _, t in tg.gesendet if "ist durch" in t], "kein Ausspielen"
     text = next(t for _, t in tg.gesendet if "aufgenommen und ausgewertet" in t)
-    assert "Naechstes Interview?" in text
     assert "Stimmt das so" not in text, "keine Rueckfrage nach dem Interview"
+    # Der Weg danach steht als Knoepfe darunter (05.09.2026), nicht als Text.
+    beschriftungen = [b for _, _, ks in tg.mit_knoepfen for b, _ in ks]
+    assert "Auswerten" in beschriftungen
+    assert "Naechste Aufnahme" in beschriftungen or "Aufnahme starten" in beschriftungen
 
 
 def test_auswerten_spielt_die_verdichtung_aus(conn, einst, tg, klm):
@@ -579,9 +582,14 @@ def test_sehr_kurzes_interview_wird_nicht_verdichtet(conn, einst, tg, klm):
     assert repo.verdichtungen(conn, 1) == []
     assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
     assert [t for _, t in tg.gesendet] == [
-        "Interview 1 ist sehr kurz (4 s, 8 Woerter). Ich werte es nicht aus - "
-        "sagt Bescheid, wenn ich es trotzdem soll."
+        "Interview 1 ist sehr kurz (4 s, 8 Woerter). Ich werte es nicht "
+        "von selbst aus."
     ]
+    # Der Widerspruch ist seit 05.09.2026 ein Knopf, kein Slash-Hinweis:
+    # im Live-Lauf (Gruppe 2, 13:59) fragte die Gruppe nach genau diesem Text
+    # zweimal nach, und ausgewertet wurde nie.
+    beschriftungen = [b for _, _, ks in tg.mit_knoepfen for b, _ in ks]
+    assert "Auswerten" in beschriftungen
 
 
 def test_auswerten_verdichtet_ein_zu_kurzes_interview_doch(conn, einst, tg, klm):

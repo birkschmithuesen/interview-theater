@@ -293,7 +293,12 @@ def test_auswerten_ohne_interview_sagt_es(conn, einst, tg):
     assert tg.gesendet == [(1, "Es gibt noch keine Aufnahmen.")]
 
 
-def test_auswerten_verdichtet_nicht_zweimal(conn, einst, tg, monkeypatch):
+def test_auswerten_verdichtet_nicht_zweimal_sondern_zeigt_die_vorhandene(conn, einst, tg, monkeypatch):
+    """Eine Verdichtung wird nie ein zweites Mal erzeugt (AGENTS.md) -- seit
+    05.09.2026 wird die vorhandene aber AUSGESPIELT statt nur zu melden, dass
+    es sie gibt. Genau das hat im Live-Lauf gefehlt: verdichtet wird sofort,
+    ausgespielt erst auf Wunsch, und der Wunsch bekam bis dahin nur eine
+    Zeile."""
     from interview_theater import aufnahme
 
     kopf_id = _interview_mit_transkript(conn)
@@ -306,8 +311,10 @@ def test_auswerten_verdichtet_nicht_zweimal(conn, einst, tg, monkeypatch):
 
     befehle.behandle(conn, tg, einst, 1, "/auswerten", "Ada", klm=object())
 
-    assert gestartet == []
-    assert tg.gesendet == [(1, "Interview 1 ist schon ausgewertet.")]
+    assert gestartet == [], "kein zweiter Modellaufruf"
+    text = tg.gesendet[-1][1]
+    assert "Interview 1 ist durch" in text
+    assert "schon ausgewertet" in text, "der Inhalt der Verdichtung steht im Chat"
 
 
 # ---------------------------------------------------------------------------
@@ -595,7 +602,8 @@ def test_aufnahme_startet_und_beendet_mit_demselben_befehl(conn, einst, tg):
     kopf = repo.laufendes_interview(conn, 1)
     assert kopf is not None
     assert "Aufnahme laeuft" in tg.gesendet[-1][1]
-    assert "/aufnahme" in tg.gesendet[-1][1], "die Bedienung steht in der Ansage"
+    assert "Knopf" in tg.gesendet[-1][1], "die Bedienung steht in der Ansage"
+    assert "/aufnahme" not in tg.gesendet[-1][1], "kein Slash-Befehl mehr im Text"
 
     befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
 

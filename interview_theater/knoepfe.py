@@ -52,6 +52,15 @@ ART_FORMAT = "format"
 ART_SZENENFORM = "szenenform"
 #: Einwilligung ins US-Modell -- dasselbe Ziel wie ``/szene usa ja|nein``.
 ART_SZENE_USA = "szene_usa"
+#: Ein Interview jetzt auswerten -- dasselbe Ziel wie ``/auswerten <N>``. Der
+#: ``wert`` traegt die ``aufnahme_id`` des Interview-Kopfes, damit der Druck
+#: auch dann noch das gemeinte Interview trifft, wenn inzwischen ein weiteres
+#: aufgenommen wurde (05.09.2026).
+ART_AUSWERTEN = "auswerten"
+#: Arbeitsstand zeigen -- dasselbe Ziel wie ``/stand``.
+ART_STAND = "stand"
+#: Bedienung zeigen -- dasselbe Ziel wie ``/hilfe``.
+ART_HILFE = "hilfe"
 
 #: Hoechstens drei Vorschlaege je Kernthema-Angebot. Mehr ist keine Auswahl
 #: mehr, sondern eine Liste, die gelesen werden will -- und die Gruppe steht
@@ -67,6 +76,17 @@ _TEXT_SCHON_BENUTZT = "Das habe ich schon uebernommen."
 _TEXT_UNBEKANNT = "Diesen Knopf kenne ich nicht mehr."
 _TEXT_AUFNAHME_STARTEN = "Aufnahme starten"
 _TEXT_AUFNAHME_BEENDEN = "Aufnahme beenden"
+#: Die drei Knoepfe der Leiste nach einem beendeten Interview (05.09.2026).
+_TEXT_AUSWERTEN_KNOPF = "Auswerten"
+_TEXT_NAECHSTE_AUFNAHME_KNOPF = "Naechste Aufnahme"
+_TEXT_STAND_KNOPF = "Stand zeigen"
+_TEXT_HILFE_KNOPF = "Hilfe"
+#: Der Knopf zeigt auf ein Interview, das es nicht mehr gibt -- nur moeglich,
+#: wenn zwischen Angebot und Druck geloescht wurde (scripts/loeschen.py).
+_TEXT_AUSWERTEN_UNBEKANNT = "Dieses Interview kenne ich nicht mehr."
+#: Nur erreichbar, wenn ein Aufrufer ``behandle()`` ohne ``klm`` benutzt --
+#: ein Programmierfehler, aber einer, der die Gruppe nicht ratlos laesst.
+_TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
 
 #: Hoechstens vier Formatvorschlaege (Phase 5). Mehr Knoepfe als
 #: Kernthema-Vorschlaege sind hier vertretbar, weil die Beschriftungen kurz
@@ -205,6 +225,105 @@ def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
     tg.sende_mit_knoepfen(chat_id, text, [(beschriftung, _daten(knopf_id))])
 
 
+def _phasenknopf(conn, chat_id: int) -> tuple[str, str] | None:
+    """Der Knopf "Weiter zu Phase N", wenn die Materiallage eine hoehere
+    Stufe hergibt -- sonst None (``phasen.naechste_moegliche``, reine
+    Leseabfrage)."""
+    nummer = phasen.naechste_moegliche(conn, chat_id)
+    if nummer is None:
+        return None
+    knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
+    return (f"Weiter zu {phasen.bezeichnung(nummer)}", _daten(knopf_id))
+
+
+def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) -> int:
+    """Die Knopfleiste nach einem beendeten Interview (05.09.2026, Birk:
+    "ersetze am besten alle slash befehl vorschlaege mit knoepfen. und gib
+    auch immer sinnvolle alternativvorschlaege").
+
+    Der gemessene Fall (Gruppe 2, 13:59): ein Interview unter
+    ``aufnahme.MINDEST_WOERTER`` endete mit einem Text, der ``/auswerten``
+    empfahl; die Gruppe fragte zweimal nach, und ausgewertet wurde nie. Der
+    Grund ist derselbe wie ueberall hier: ein empfohlener Slash-Befehl ist
+    eine Bedienungsanleitung, ein Knopf ist der Weg.
+
+    Drei Knoepfe, in dieser Reihenfolge -- der wahrscheinlichste zuletzt ist
+    hier falsch, weil die Gruppe im Raum steht und den ersten trifft:
+
+    * **Auswerten** -- die Verdichtung dieses Interviews in den Chat. Liegt
+      sie schon vor (der Normalfall: verdichtet wird sofort, ausgespielt
+      erst auf Wunsch), wird sie aus der Datenbank ausgespielt; liegt keine
+      vor (Interview unter der Mindestlaenge), laeuft wortgleich das, was
+      ``/auswerten`` tut. Faellt nur weg, wenn es gar kein Interview gibt
+      (``kopf_id`` ist None).
+    * **Naechste Aufnahme** -- derselbe Umschalter wie ``/aufnahme``.
+    * **Weiter zu Phase N** -- nur, wenn ``phasen.naechste_moegliche`` es
+      hergibt. Das ist die Alternative, die im Live-Fall gefehlt hat: statt
+      direkt das naechste Interview zu starten, haette die Gruppe auch in die
+      Auswertung gehen koennen.
+
+    Kein Modellaufruf, alles aus der Datenbank -- wie jedes Angebot hier.
+    Liefert die ``message_id`` der Angebotsnachricht."""
+    knoepfe: list[tuple[str, str]] = []
+    if kopf_id is not None:
+        # Auch wenn schon verdichtet wurde: seit 05.09.2026 geht die
+        # Verdichtung NICHT mehr von selbst in den Chat -- der Knopf ist der
+        # Weg, sie zu sehen (``aufnahme.zeige_verdichtung``), nicht nur der
+        # Weg, sie nachtraeglich zu erzwingen.
+        knoepfe.append(
+            (
+                _TEXT_AUSWERTEN_KNOPF,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_AUSWERTEN, str(kopf_id))),
+            )
+        )
+    # "Naechste Aufnahme" statt "Aufnahme starten": nach einem beendeten
+    # Interview ist genau das gemeint, und der Wortlaut sagt es. Laeuft wider
+    # Erwarten schon wieder eine Aufnahme (ein Knopf aus einer alten
+    # Nachricht), heisst er wie ueberall "Aufnahme beenden" -- die Wirkung ist
+    # in beiden Faellen der Umschalter aus ``/aufnahme``.
+    knoepfe.append(
+        (
+            _TEXT_NAECHSTE_AUFNAHME_KNOPF
+            if not repo.ist_interviewmodus_an(conn, chat_id)
+            else _TEXT_AUFNAHME_BEENDEN,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
+        )
+    )
+    phasenknopf = _phasenknopf(conn, chat_id)
+    if phasenknopf is not None:
+        knoepfe.append(phasenknopf)
+    return tg.sende_mit_knoepfen(chat_id, text, knoepfe)
+
+
+def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
+    """Die Knopfleiste unter einer Begruessung (Erstkontakt, Wiederkehr):
+    "Aufnahme starten", "Stand zeigen", "Hilfe" -- und, wenn die Materiallage
+    es hergibt, "Weiter zu Phase N".
+
+    Damit steht in der Begruessung selbst kein Slash-Befehl mehr: der Weg ist
+    der Knopf, ``/hilfe`` listet die Befehle weiterhin auf, wenn jemand sie
+    sucht."""
+    knoepfe = [
+        (
+            _TEXT_AUFNAHME_STARTEN if not repo.ist_interviewmodus_an(conn, chat_id)
+            else _TEXT_AUFNAHME_BEENDEN,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
+        ),
+        (
+            _TEXT_STAND_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_STAND, None)),
+        ),
+        (
+            _TEXT_HILFE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_HILFE, None)),
+        ),
+    ]
+    phasenknopf = _phasenknopf(conn, chat_id)
+    if phasenknopf is not None:
+        knoepfe.insert(1, phasenknopf)
+    return tg.sende_mit_knoepfen(chat_id, text, knoepfe)
+
+
 def biete_format(conn, tg, chat_id: int, vorschlaege: list[str] | None = None) -> bool:
     """Bietet die Formatvorschlaege aus Phase 5 als Knoepfe an (05.09.2026).
 
@@ -328,6 +447,47 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         if phasen.setze(conn, chat_id, nummer, "knopf"):
             tg.sende(chat_id, phasen.meldung(nummer))
         return f"Phase {nummer}"
+    if art == ART_AUSWERTEN:
+        # Zwei Faelle, beide deterministisch und ohne Modellaufruf in DIESEM
+        # Handler (Zusage 2 im Moduldocstring):
+        #
+        # 1. Es gibt schon eine Verdichtung (der Normalfall seit 05.09.2026:
+        #    verdichtet wird sofort, ausgespielt erst auf Wunsch) -- dann
+        #    wird sie hier direkt aus der Datenbank in den Chat gestellt.
+        #    Genau das hat im Live-Lauf gefehlt: die Gruppe fragte zweimal
+        #    nach der Auswertung und bekam Text statt Inhalt.
+        # 2. Es gibt keine (Interview unter ``aufnahme.MINDEST_WOERTER``) --
+        #    dann laeuft wortgleich das, was ``/auswerten`` tut:
+        #    ``aufnahme.starte_auswertung`` in einem eigenen Thread, und die
+        #    fertige Verdichtung geht von dort in den Chat
+        #    (``_interview_abschliessen`` mit ``erzwungen=True``).
+        from interview_theater import aufnahme
+
+        kopf_id = int(knopf["wert"])
+        kopf = repo.hole_aufnahme(conn, kopf_id)
+        if kopf is None:
+            tg.sende(chat_id, _TEXT_AUSWERTEN_UNBEKANNT)
+            return _TEXT_AUSWERTEN_UNBEKANNT
+        name = kopf["name"] or "Das Interview"
+        if aufnahme.zeige_verdichtung(conn, tg, e, kopf_id):
+            return "Auswertung"
+        if klm is None:
+            log.error("Auswerten-Knopf ohne Sprachmodell, chat_id=%s", chat_id)
+            tg.sende(chat_id, _TEXT_AUSWERTEN_UNMOEGLICH)
+            return _TEXT_AUSWERTEN_UNMOEGLICH
+        tg.sende(chat_id, f"Ich werte {name} aus.")
+        aufnahme.starte_auswertung(conn, tg, klm, e, kopf_id)
+        return "Auswertung laeuft"
+    if art == ART_STAND:
+        from interview_theater import befehle
+
+        befehle._befehl_stand(conn, tg, chat_id, e)
+        return "Stand"
+    if art == ART_HILFE:
+        from interview_theater import befehle
+
+        befehle._befehl_hilfe(tg, e, chat_id)
+        return "Hilfe"
     if art == ART_FORMAT:
         # Wortgleich das, was /stueck format tut (befehle._befehl_stueck):
         # dasselbe Feld, derselbe Schreibweg. Kein zweiter Mechanismus --

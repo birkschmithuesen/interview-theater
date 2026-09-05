@@ -124,10 +124,12 @@ _TEXT_TEIL_ECHO = "{name}, Teil {nummer}:\n{transkript}"
 #: "zuerst nur Interviews machen, eins nach dem anderen, und wenn alle fertig
 #: sind, dann die Verdichtungen ausspielen". Verdichtet wird trotzdem sofort
 #: (das Material ist gesichert und steht auf der Gruppenseite), nur der Chat
-#: bleibt ruhig. Ausgespielt wird auf Wunsch mit ``/auswerten``.
+#: bleibt ruhig. Ausgespielt wird auf Druck des Knopfes "Auswerten"
+#: (``knoepfe.biete_nach_aufnahme``) -- der Slash-Befehl ``/auswerten``
+#: existiert weiter, wird aber nicht mehr im Text beworben.
 _TEXT_INTERVIEW_ABGELEGT = (
     "{name} ist aufgenommen und ausgewertet - ich halte mich damit zurueck, "
-    "bis ihr alle Interviews zusammen habt. Naechstes Interview?"
+    "bis ihr alle Interviews zusammen habt."
 )
 
 _TEXT_VERDICHTUNG_KOPF = "{name} ist durch. Was ich darin hoere:"
@@ -148,11 +150,14 @@ _TEXT_PHASENFRAGE = "Kommen noch Interviews, oder gehen wir ans Kernthema?"
 _TEXT_OHNE_BELEG = "Ich konnte kein Thema mit einem woertlichen Zitat belegen."
 
 #: Ein Interview unter MINDEST_WOERTER Woertern wird nicht ausgewertet (N2) --
-#: mit Zahlen, damit die Gruppe erkennt, welche Aufnahme gemeint ist, und mit
-#: dem ausdruecklichen Angebot, es trotzdem zu tun.
+#: mit Zahlen, damit die Gruppe erkennt, welche Aufnahme gemeint ist. Der
+#: Widerspruch dagegen ist seit 05.09.2026 der Knopf "Auswerten" darunter
+#: (``knoepfe.biete_nach_aufnahme``) und nicht mehr ein Hinweis auf einen
+#: Slash-Befehl: im Live-Lauf (Gruppe 2, 13:59) fragte die Gruppe nach diesem
+#: Text zweimal nach, und ausgewertet wurde nie.
 _TEXT_ZU_KURZ = (
     "{name} ist sehr kurz ({dauer} s, {woerter} Woerter). Ich werte es nicht "
-    "aus - sagt Bescheid, wenn ich es trotzdem soll."
+    "von selbst aus."
 )
 
 #: "fertig" ohne eine einzige Sprachnachricht: eine Zeile, kein Modellaufruf.
@@ -588,6 +593,37 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") ->
         log.exception("Nachricht an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | None) -> None:
+    """Schickt die Abschlussnachricht eines Interviews MIT der Knopfleiste
+    darunter (05.09.2026) und schreibt sie wie jede Bot-Nachricht mit.
+
+    Die eine Stelle, an der der Weg nach einem Interview angeboten wird --
+    ``/aufnahme`` und der Erkenner-Pfad enden beide hier, ueber
+    ``schliesse_ab``. Der Text ist die Zeile darueber (Dauer/Wortzahl,
+    "ist abgelegt", "hatte keine Aufnahme"), die Knoepfe sind der Weg:
+    Auswerten, Naechste Aufnahme, und -- wenn die Materiallage es hergibt --
+    Weiter zu Phase N.
+
+    Faellt die Tastatur aus (Telegram-Fehler), geht der Text trotzdem raus:
+    ``_sende_und_merke`` als Rueckfall. Die Gruppe soll wegen einer
+    misslungenen Tastatur nicht ohne Rueckmeldung dastehen."""
+    from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+
+    try:
+        message_id = knoepfe.biete_nach_aufnahme(conn, tg, chat_id, text, kopf_id)
+    except Exception:
+        log.exception("Knopfleiste nach Interview fehlgeschlagen, chat_id=%s", chat_id)
+        _sende_und_merke(conn, tg, e, chat_id, text)
+        return
+    try:
+        repo.merke_nachricht(
+            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
+            text, repo._jetzt(), 0,
+        )
+    except Exception:
+        log.exception("Abschlussnachricht mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def _an_den_bot_abzweigen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     """Nimmt eine Sprachnachricht aus dem Interview heraus und gibt sie in den
     Gespraechszug (N4, 05.09.2026).
@@ -749,13 +785,41 @@ def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
     if woerter >= MINDEST_WOERTER:
         return False
     repo.setze_status(conn, row["id"], "fertig")
-    _sende_und_merke(
+    _sende_nach_interview(
         conn, tg, e, row["chat_id"],
         _TEXT_ZU_KURZ.format(
             name=row["name"] or "Das Interview",
             dauer=repo.dauer_gesamt(conn, row["id"]) or 0,
             woerter=woerter,
         ),
+        row["id"],
+    )
+    return True
+
+
+def zeige_verdichtung(conn, tg, e, kopf_id: int) -> bool:
+    """Stellt eine schon vorhandene Verdichtung in den Chat. Liefert False,
+    wenn es zu diesem Interview noch keine gibt.
+
+    Der Grund, warum es diese Funktion gibt (05.09.2026): seit dem
+    Nachmittag wird zwar sofort verdichtet, aber NICHT mehr von selbst
+    ausgespielt (siehe ``_TEXT_INTERVIEW_ABGELEGT``). Wer die Auswertung
+    sehen will -- ueber den Knopf "Auswerten" oder ``/auswerten`` --, muss
+    sie also aus der Datenbank bekommen und nicht ein zweites Mal verdichten
+    lassen: eine Verdichtung wird nie nachtraeglich geaendert (AGENTS.md),
+    und ein zweiter Lauf waere ein zweiter bezahlter Modellaufruf mit einem
+    anderen Ergebnis.
+
+    Kein Modellaufruf, reine Leseabfrage -- deshalb darf ein Knopf-Handler
+    sie direkt aufrufen."""
+    verdichtung = repo.verdichtung_zu_aufnahme(conn, kopf_id)
+    if verdichtung is None:
+        return False
+    kopf = repo.hole_aufnahme(conn, kopf_id)
+    name = (kopf["name"] if kopf else None) or "Das Interview"
+    _sende_und_merke(
+        conn, tg, e, verdichtung["chat_id"],
+        _verdichtungstext(conn, name, verdichtung["id"]),
     )
     return True
 
@@ -805,8 +869,9 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> N
     # dann WILL die Gruppe den Text sehen und bekommt ihn.
     name = row["name"] or "Das Interview"
     if not erzwungen:
-        _sende_und_merke(
-            conn, tg, e, chat_id, _TEXT_INTERVIEW_ABGELEGT.format(name=name)
+        _sende_nach_interview(
+            conn, tg, e, chat_id, _TEXT_INTERVIEW_ABGELEGT.format(name=name),
+            aufnahme_id,
         )
         return
     # Die Verdichtung geht als normale Bot-Nachricht in den Chat: anders als
@@ -862,8 +927,9 @@ def schliesse_ab(conn, tg, klm, e, kopf_id: int) -> bool:
     transkript = repo.zusammengefuegtes_transkript(conn, kopf_id)
     if not transkript.strip():
         repo.setze_status(conn, kopf_id, "fertig")
-        _sende_und_merke(
-            conn, tg, e, kopf["chat_id"], _TEXT_OHNE_AUFNAHME.format(name=name)
+        _sende_nach_interview(
+            conn, tg, e, kopf["chat_id"], _TEXT_OHNE_AUFNAHME.format(name=name),
+            None,
         )
         return True
 

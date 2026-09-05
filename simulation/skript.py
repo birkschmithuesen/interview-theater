@@ -11,7 +11,7 @@ Workshop bleibt auch nicht stehen, weil der Bot etwas nicht mitbekommen hat.
 ``phasen.PHASEN``, die Arbeitsstandfelder aus ``PRAGMA
 table_info(arbeitsstand)``. Welches Feld zu Phase 5 gehoert, wird aus ihrem
 Kurznamen abgeleitet (``felder_fuer_phase``): heisst sie seit dem 05.09.2026
-'Format & Rahmen', sind es ``format`` und ``rahmen``; hiesse sie wieder
+'Rahmen', ist es ``rahmen``; hiesse sie wieder
 'Hauptkonflikt', waere es die Spalte ``hauptkonflikt``. Findet sich gar keine
 Spalte, faellt die Pruefung auf 'die Gruppe steht in dieser Phase' zurueck --
 lieber eine schwaechere Aussage als eine falsche.
@@ -94,7 +94,7 @@ def arbeitsstand_spalten(conn) -> list[str]:
 def felder_fuer_phase(conn, nummer: int) -> list[str]:
     """Die Arbeitsstandspalten, die zum Kurznamen einer Phase passen.
 
-    'Format & Rahmen' -> ``["format", "rahmen"]``, 'Kernthema & Figuren' ->
+    'Rahmen' -> ``["rahmen"]``, 'Kernthema & Figuren' ->
     ``["kernthema"]`` (Figuren sind eine eigene Tabelle), 'Hauptkonflikt' ->
     ``["hauptkonflikt"]``, falls es diese Spalten gibt. Leere Liste, wenn
     keine passt -- der Aufrufer weicht dann auf die Phase selbst aus.
@@ -116,7 +116,7 @@ def pflichtfeld_fuer_phase(conn, nummer: int) -> str:
     ``felder_fuer_phase``, oder ein leerer String.
 
     Ein Kurzname nennt zuerst die Entscheidung, die die naechste Phase traegt:
-    bei 'Format & Rahmen' ist das ``format`` (ohne Format weiss niemand, ob die
+    bei 'Rahmen' ist das ``rahmen`` (ohne Rahmen weiss niemand, worin die
     naechste Szene ein Dialog oder ein Rap wird), waehrend ``rahmen`` leer
     bleiben darf -- dieselbe Gewichtung wie in ``phasen.voraussetzungen`` fuer
     den Schritt von 5 nach 6. Bei einem einwortigen Kurznamen
@@ -317,10 +317,9 @@ SCHRITTE: tuple[Schritt, ...] = (
     Schritt(
         "phase_mitte",
         "Phase 5",
-        "Ihr seid jetzt bei '{phase_mitte}' und wollt festlegen, WAS aus dem "
-        "Material entsteht. Lasst euch vom Bot Formen vorschlagen "
-        "(Sprechtheater, Musical, Revue, Hoerstueck) und stimmt einer davon "
-        "zu, damit er das Format festhaelt.",
+        "Ihr seid jetzt bei '{phase_mitte}' und wollt festlegen, WORIN das "
+        "Stueck spielt. Lasst euch vom Bot Rahmen vorschlagen (Ort, Zeit, "
+        "Anlass) und stimmt einem davon zu, damit er ihn festhaelt.",
         _fertig_phase_mitte,
     ),
     Schritt(
@@ -391,7 +390,7 @@ def ohne_szene(schritte=SCHRITTE) -> tuple[Schritt, ...]:
 FORMEN_BIRK = ("Dialog", "Lied", "Rap")
 
 #: Das Format, auf das sich die Gruppe in Phase 5 festlegt.
-FORMAT_BIRK = "Musical mit Dialog, Lied und Rap"
+RAHMEN_BIRK = "Ein Polizeikessel auf einer Demo, ein Abend"
 
 
 def _fertig_ein_interview(conn, chat_id, merker):
@@ -453,10 +452,10 @@ SCHRITTE_BIRK: tuple[Schritt, ...] = (
     ),
     Schritt(
         "phase_mitte",
-        "Phase 5: Format",
-        "Ihr seid jetzt bei '{phase_mitte}'. Du hast dich fuer ein Format "
-        f"entschieden: {FORMAT_BIRK}. Sag es dem Bot und stimm zu, damit er "
-        "es festhaelt.",
+        "Phase 5: Rahmen",
+        "Ihr seid jetzt bei '{phase_mitte}'. Du hast dich fuer einen Rahmen "
+        f"entschieden: {RAHMEN_BIRK}. Sag es dem Bot und stimm zu, damit er "
+        "ihn festhaelt.",
         _fertig_phase_mitte,
     ),
     Schritt(

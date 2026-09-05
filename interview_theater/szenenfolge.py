@@ -63,9 +63,12 @@ ANZAHL_VORGABE = 5
 #: Wochenende ausschreiben kann.
 ANZAHL_MOEGLICH = (3, 4, 5, 6)
 
-#: Die Form, mit der jede neu angelegte Szene startet. Vorgabe, keine
-#: Festlegung: \"Form aendern\" haengt unter jeder Szenenvorstellung.
-FORM_VORGABE = "tanztheater"
+#: Die Form, mit der eine Szene startet, wenn die Vorschlagszeile keine
+#: nennt. Vorgabe, keine Festlegung: \"Form aendern\" haengt unter jeder
+#: Szenenvorstellung. Seit dem 05.09.2026 abends nennt der Prompt die Form
+#: je Zeile ausdruecklich (``ANWEISUNG_FOLGE``) -- der Rueckfall greift nur,
+#: wenn das Modell die vierte Spalte weglaesst.
+FORM_VORGABE = "dialog"
 
 #: Trennt zwei Fassungen im Feld ``szene.fruehere_fassungen``.
 FASSUNGSTRENNER = "\n\n----- fruehere Fassung -----\n\n"
@@ -80,13 +83,20 @@ Schlage genau {anzahl} Szenen vor. Antworte in GENAU dieser Form, ohne
 Einleitung und ohne Nachwort:
 
 VORSCHLAG SZENENFOLGE:
-Titel — ein Satz, was passiert — Figur, Figur
-Titel — ein Satz, was passiert — Figur, Figur
+Titel — ein Satz, was passiert — Figur, Figur — Form
+Titel — ein Satz, was passiert — Figur, Figur — Form
 
 Eine Zeile je Szene, {anzahl} Zeilen. Nimm nur Figuren, die unten im
 Arbeitsstand stehen. Denk in Situationen: Ort, Beteiligte, was sich aendert.
 Eine Szene ohne Veraenderung ist ein Gespraech, kein Theater -- eine Szene
 ohne Konflikt dagegen schon.
+
+**Die Form ist Pflicht** und steht als vierte Spalte jeder Zeile. Es gibt
+genau fuenf: Dialog, Monolog, Chor, Lied, Rap. Waehl sie nach dem Material,
+nicht nach Gewohnheit -- **nicht jede Szene ist ein Dialog**. Wo ein Zitat
+singt, steht ein Lied; wo eine Reihung klopft, ein Rap; wo eine allein
+bleibt, ein Monolog; wo viele dasselbe sagen, ein Chor. Eine Folge aus lauter
+Dialogen ist ein Fehler.
 
 Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
 
@@ -141,8 +151,9 @@ def _sperre_fuer(chat_id: int) -> threading.Lock:
 _TRENNER = re.compile(r"\s+[—–]\s+|\s+-\s+")
 
 
-def zerlege(wert: str) -> list[tuple[str, str, list[str]]]:
-    """Zerlegt den Szenenfolge-Block in ``(Titel, was_passiert, Figuren)``.
+def zerlege(wert: str) -> list[tuple[str, str, list[str], str]]:
+    """Zerlegt den Szenenfolge-Block in ``(Titel, was_passiert, Figuren,
+    Form)``.
 
     Eine Zeile je Szene. Fuehrende Aufzaehlungszeichen (\"- \", \"1. \",
     \"Szene 1: \") fallen weg -- ein Modell nummeriert gern mit, und die
@@ -150,8 +161,17 @@ def zerlege(wert: str) -> list[tuple[str, str, list[str]]]:
 
     Fehlt die dritte Spalte, bleibt die Figurenliste leer: eine Szene ohne
     Besetzung ist ein normaler Planungszustand (``szene.sperrtext`` sagt es
-    spaeter), kein Grund, die ganze Zeile wegzuwerfen."""
-    ergebnis: list[tuple[str, str, list[str]]] = []
+    spaeter), kein Grund, die ganze Zeile wegzuwerfen.
+
+    Die **vierte Spalte ist die Form** (05.09.2026 abends, Birk): sie ist je
+    Szene Pflicht und wird deshalb schon hier vorgeschlagen. Fehlt sie, gilt
+    ``FORM_VORGABE`` -- geraten wird nichts, aber eine Zeile ohne vierte
+    Spalte ist kein Grund, die Szene wegzuwerfen. Uebersetzt wird ueber
+    ``szene.formdatei``: was das Modell schreibt ("gesungen"), landet bei
+    der Form, die es meint."""
+    from interview_theater import szene as szene_modul
+
+    ergebnis: list[tuple[str, str, list[str], str]] = []
     for zeile in (wert or "").splitlines():
         roh = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", zeile).strip()
         roh = re.sub(r"^\s*szene\s*\d{0,3}\s*[:.]\s*", "", roh, flags=re.IGNORECASE)
@@ -165,11 +185,15 @@ def zerlege(wert: str) -> list[tuple[str, str, list[str]]]:
         figuren = []
         if len(teile) > 2:
             figuren = [f.strip(" .;:") for f in teile[2].split(",") if f.strip()]
-        ergebnis.append((titel, was, figuren))
+        roh_form = teile[3].strip(" .;:") if len(teile) > 3 else ""
+        form = szene_modul.formdatei(roh_form) if roh_form else FORM_VORGABE
+        ergebnis.append((titel, was, figuren, form))
     return ergebnis
 
 
-def lege_an(conn, chat_id: int, zeilen: list[tuple[str, str, list[str]]]) -> list[int]:
+def lege_an(
+    conn, chat_id: int, zeilen: list[tuple[str, str, list[str], str]]
+) -> list[int]:
     """Legt aus einem Szenenfolge-Vorschlag die Szenen an und liefert ihre
     Nummern.
 
@@ -187,12 +211,16 @@ def lege_an(conn, chat_id: int, zeilen: list[tuple[str, str, list[str]]]) -> lis
             repo.entferne_szene(conn, chat_id, alt["nummer"])
     nach_name = {f["name"].strip().lower(): f["id"] for f in repo.figuren(conn, chat_id)}
     nummern: list[int] = []
-    for nummer, (titel, was, figuren) in enumerate(zeilen, start=1):
+    for nummer, zeile in enumerate(zeilen, start=1):
+        titel, was, figuren = zeile[0], zeile[1], zeile[2]
+        # Die Form kommt aus der Vorschlagszeile (vierte Spalte); aeltere
+        # Aufrufer mit Dreiertupeln bekommen die Vorgabe.
+        form = zeile[3] if len(zeile) > 3 and zeile[3] else FORM_VORGABE
         szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
         repo.setze_szenenfeld(conn, szene_id, "titel", titel)
         if was:
             repo.setze_szenenfeld(conn, szene_id, "was_passiert", was)
-        repo.setze_szenenfeld(conn, szene_id, "form", FORM_VORGABE)
+        repo.setze_szenenfeld(conn, szene_id, "form", form)
         ids = [nach_name[n.lower()] for n in figuren if n.lower() in nach_name]
         if ids:
             repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
@@ -221,12 +249,20 @@ def vorstellung(conn, zeile, chat_id: int | None = None) -> str:
         kopf += f": {zeile['titel']}"
     fehlende, _ = szene_modul.fehlendes(conn, zeile)
     zeilen = [kopf]
-    # Der Pruef-Vermerk steht GANZ OBEN und nicht bei den Feldern: er ist der
-    # Grund, aus dem diese Szene ueberhaupt wieder vorgestellt wird
-    # (05.09.2026, Aenderung an einer frueheren Szene).
+    # Die FORM steht in Zeile 2, direkt unter dem Titel (05.09.2026 abends,
+    # Birk): sie ist seit dem Wegfall der Formatfrage die eine Entscheidung,
+    # die je Szene faellt -- ob Dialog, Monolog, Chor, Lied oder Rap. Unter
+    # den uebrigen Feldern waere sie eine Angabe unter acht.
+    form = (zeile["form"] or "").strip()
+    zeilen.append(
+        f"{szene_modul.FELDNAMEN['form']}: {form or 'noch offen'}"
+    )
+    # Der Pruef-Vermerk steht direkt darunter: er ist der Grund, aus dem diese
+    # Szene ueberhaupt wieder vorgestellt wird (05.09.2026, Aenderung an einer
+    # frueheren Szene).
     if chat_id is not None and zu_pruefen(conn, chat_id, nummer):
         zeilen.append(TEXT_ZU_PRUEFEN)
-    for feld in ("form", "ort", "zeit", "anlass", "figuren", "was_passiert",
+    for feld in ("ort", "zeit", "anlass", "figuren", "was_passiert",
                  "was_anders", "ton"):
         name = szene_modul.FELDNAMEN[feld]
         if feld == "figuren":
@@ -365,8 +401,6 @@ def textbuch(conn, chat_id: int) -> str:
     teile = ["# Textbuch"]
     if stand and (stand["kernthema"] or "").strip():
         teile.append(f"Kernthema: {stand['kernthema'].strip()}")
-    if stand and (stand["format"] or "").strip():
-        teile.append(f"Format: {stand['format'].strip()}")
     for s in repo.hole_szenen(conn, chat_id):
         kopf = f"## Szene {s['nummer']}" if s["nummer"] is not None else "## Szene"
         if s["titel"]:
@@ -414,8 +448,8 @@ def nimm_regienotiz(chat_id: int) -> int | None:
 
 
 def _material(conn, chat_id: int) -> str:
-    """Was das Modell fuer einen Szenenfolge-Vorschlag braucht: Format und
-    Rahmen, Kernthema, die Figuren, die bestehende Folge und das Verworfene.
+    """Was das Modell fuer einen Szenenfolge-Vorschlag braucht: den Rahmen,
+    das Kernthema, die Figuren, die bestehende Folge und das Verworfene.
 
     Aus ``szene.py`` geholt statt hier zweitgepflegt -- laeuft der Szenen-
     Prompt auseinander, laeuft auch dieser mit."""

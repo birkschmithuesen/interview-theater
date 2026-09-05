@@ -351,11 +351,11 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
             zeilen.append(zeile)
         if stand["kernfrage"]:
             zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
-        # Format & Rahmen (Phase 5, seit 05.09.2026). Datengetrieben wie alles
+        # Der Rahmen (Phase 5, seit 05.09.2026). Datengetrieben wie alles
         # andere: der Hauptkonflikt steht nur da, wenn die Gruppe einen wollte
-        # -- er ist eine Rahmen-Entscheidung, keine Pflicht.
-        if stand["format"]:
-            zeilen.append(f"Format: {stand['format']}")
+        # -- er ist eine Rahmen-Entscheidung, keine Pflicht. Ein "Format" des
+        # Stuecks steht hier seit dem Abend des 05.09.2026 nicht mehr: es
+        # wird nicht mehr gefragt, also wird es auch nicht mehr vorgehalten.
         if stand["rahmen"]:
             zeilen.append(f"Rahmen: {stand['rahmen']}")
         if stand["hauptkonflikt"]:

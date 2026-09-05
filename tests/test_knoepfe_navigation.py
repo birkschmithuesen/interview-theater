@@ -191,12 +191,10 @@ _LISTE = (
 
 
 def _ebene1(conn, tg):
+    """Der Stand vor der Figurenliste (Umbau 05.09.2026 nachts): in Phase 4
+    steht zuerst das SETTING (``rahmen``) offen, danach die Figuren."""
     phasen.setze(conn, 1, 4, "befehl")
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
-    # Seit dem 05.09.2026 abends steht vor den Figuren die Kernfrage
-    # (Stufe 3) -- ohne sie waere ``offene_art`` noch bei ihr und nicht bei
-    # den Figuren.
-    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: Was passiert, wenn ...")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, _LISTE)
 
 
@@ -267,15 +265,26 @@ def test_ein_namensvorschlag_ersetzt_nur_den_namen_in_der_zeile(
 
 
 # --- Figuren, Ebene 2 -----------------------------------------------------
+#
+# Ebene 2 (Figur fuer Figur: Interview, Sprachduktus, Entfernen) laeuft seit
+# dem Umbau vom 05.09.2026 nachts erst in der **Schaerfung** (Phase 6): in 4
+# wird erfunden, und die Frage nach dem Interview waere dort die Ruecklenkung
+# aufs Material, die der Umbau vermeidet.
+
+
+def _ebene2(conn, tg, einst):
+    """Ebene 1 abnehmen, in die Schaerfung wechseln, Ebene 2 starten."""
+    _ebene1(conn, tg)
+    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    phasen.setze(conn, 1, 6, "befehl")
+    knoepfe.stelle_figur_vor(conn, tg, None, einst, 1)
 
 
 def test_gefaellt_uns_weiter_legt_alle_figuren_an_und_startet_ebene_zwei(
     conn, tg, einst
 ):
     kopf_id = _interview(conn)
-    _ebene1(conn, tg)
-
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _ebene2(conn, tg, einst)
 
     namen = [f["name"] for f in repo.figuren(conn, 1)]
     assert namen == ["Mira", "Pal"]
@@ -290,8 +299,7 @@ def test_gefaellt_uns_weiter_legt_alle_figuren_an_und_startet_ebene_zwei(
 
 def test_passt_geht_zur_naechsten_figur_und_dann_zur_fixierung(conn, tg, einst):
     _interview(conn)
-    _ebene1(conn, tg)
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _ebene2(conn, tg, einst)
 
     _druecke(conn, tg, einst, "Passt")
     assert "Pal" in tg.knoepfe[-1][1]
@@ -309,13 +317,11 @@ def test_erst_die_fixierung_gibt_phase_fuenf_frei(conn, tg, einst):
     _interview(conn)
     _ebene1(conn, tg)
     _druecke(conn, tg, einst, "Gefaellt uns, weiter")
-    assert phasen.voraussetzungen(conn, 1)[5] is False
 
-    _druecke(conn, tg, einst, "Passt")
-    _druecke(conn, tg, einst, "Passt")
-
+    # Ebene 2 (Figur fuer Figur mit Interview) laeuft seit dem Umbau erst in
+    # der Schaerfung -- in Phase 4 ist die Liste mit Ebene 1 fixiert.
     assert phasen.voraussetzungen(conn, 1)[5] is True
-    assert "Weiter zu Rahmen" in [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Weiter zu Geschichte" in [b for b, _ in tg.knoepfe[-1][2]]
 
 
 def test_eine_einzige_figur_genuegt(conn, tg, einst):
@@ -323,14 +329,11 @@ def test_eine_einzige_figur_genuegt(conn, tg, einst):
     genau diese Gruppe aus."""
     _interview(conn)
     phasen.setze(conn, 1, 4, "befehl")
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
-    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: Was passiert, wenn ...")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG FIGUREN:\nMira — Naeherin — Interview 1"
     )
     _druecke(conn, tg, einst, "Gefaellt uns, weiter")
-
-    _druecke(conn, tg, einst, "Passt")
 
     assert phasen.voraussetzungen(conn, 1)[5] is True
 
@@ -340,8 +343,7 @@ def test_anderes_interview_bietet_je_interview_einen_knopf_und_setzt_die_quelle(
 ):
     erstes = _interview(conn)
     zweites = _interview(conn)
-    _ebene1(conn, tg)
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _ebene2(conn, tg, einst)
     assert repo.hole_figur(conn, 1, "Mira")["quelle_aufnahme_id"] == erstes
 
     _druecke(conn, tg, einst, "Anderes Interview")
@@ -360,8 +362,7 @@ def test_anderer_duktus_holt_vorschlaege_im_thread_und_speichert_die_wahl(
     conn, tg, einst, auftraege
 ):
     _interview(conn)
-    _ebene1(conn, tg)
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _ebene2(conn, tg, einst)
 
     _druecke(conn, tg, einst, "Anderer Duktus", klm=object())
     assert "VORSCHLAG DUKTUS:" in auftraege[-1]
@@ -377,8 +378,7 @@ def test_anderer_duktus_holt_vorschlaege_im_thread_und_speichert_die_wahl(
 
 def test_entfernen_loescht_weich_und_geht_zur_naechsten(conn, tg, einst):
     _interview(conn)
-    _ebene1(conn, tg)
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _ebene2(conn, tg, einst)
 
     _druecke(conn, tg, einst, "Entfernen")
 
@@ -394,10 +394,11 @@ def test_entfernen_loescht_weich_und_geht_zur_naechsten(conn, tg, einst):
     [
         (2, "Weiter zu Fragen"),
         (3, "Weiter zu Interviews"),
-        (4, "Weiter zu Kernthema & Figuren"),
-        (5, "Weiter zu Rahmen"),
-        (6, "Weiter zu Szenen"),
-        (7, "Weiter zu Durchlauf"),
+        (4, "Weiter zu Setting & Figuren"),
+        (5, "Weiter zu Geschichte"),
+        (6, "Weiter zu Schaerfung"),
+        (7, "Weiter zu Szenentexte"),
+        (8, "Weiter zu Durchlauf"),
     ],
 )
 def test_phasenknoepfe_heissen_nach_inhalt_nie_nach_nummer(conn, tg, nummer, text):
@@ -415,7 +416,7 @@ def test_der_phasenknopf_fragt_zuerst_die_gruppe(conn, tg, einst):
     Bot, ob die Gruppe selbst schon Ideen hat."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 4)
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Kernthema & Figuren")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Setting & Figuren")))
 
     assert tg.gesendet[-1][1] == knoepfe._TEXT_PROAKTIV
     assert [b for b, _ in tg.knoepfe[-1][2]] == ["Ja, wir zuerst", "Schlag du vor"]
@@ -436,15 +437,18 @@ def test_schlag_du_vor_gibt_einen_auftrag_je_phase_ab(conn, tg, einst, auftraege
     _druecke(conn, tg, einst, "Schlag du vor", klm=object())
 
     assert len(auftraege) == 1
-    assert "VORSCHLAG RICHTUNGEN:" in auftraege[0]
+    # Phase 4 schlaegt seit dem Umbau das SETTING vor, nicht mehr
+    # Kernthema-Richtungen -- und ausdruecklich nicht aus dem Material.
+    assert "VORSCHLAG RAHMEN:" in auftraege[0]
+    assert "NICHT aus Interviews" in auftraege[0]
 
 
 def test_der_schritt_nach_phase_fuenf_setzt_kein_format(conn, tg, einst):
     """Die Formatfrage ist komplett raus (Birk, 05.09.2026 abends): der
-    Phasenknopf setzt nichts mehr, er fuehrt nur zum Rahmen."""
+    Phasenknopf setzt nichts mehr, er fuehrt nur weiter."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 5)
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Rahmen")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Geschichte")))
 
     assert not (repo.hole_arbeitsstand(conn, 1)["format"] or "")
     assert not any("Urban Dance" in t for _, t in tg.gesendet)
@@ -492,6 +496,7 @@ def test_vorstellung_kommt_erst_nach_dem_sprachprofil(conn, tg, einst, monkeypat
         return object()
 
     monkeypatch.setattr(sprachprofil, "starte", _fake_starte)
+    phasen.setze(conn, 1, 6, "befehl")
 
     knoepfe.stelle_figur_vor(conn, tg, object(), einst, 1)
 
@@ -530,6 +535,7 @@ def test_ohne_belegtes_zitat_kommt_die_vorstellung_trotzdem(
         return object()
 
     monkeypatch.setattr(sprachprofil, "starte", _fake_starte)
+    phasen.setze(conn, 1, 6, "befehl")
 
     knoepfe.stelle_figur_vor(conn, tg, object(), einst, 1)
     _fake_starte.nachbereitung()
@@ -560,34 +566,31 @@ def test_nach_dem_kernthema_kommt_die_kernfrage_im_thread(conn, tg, einst, auftr
     assert "Arbeit, die niemand sieht" in auftraege[0]
 
 
-def test_die_kernfrage_traegt_die_grundleiste_und_wird_gespeichert(conn, tg, einst):
+def test_das_setting_traegt_die_grundleiste_und_wird_gespeichert(conn, tg, einst):
+    """Der Ping-Pong der Phase 4: der Setting-Vorschlag traegt die drei
+    Knoepfe, \"Gefaellt uns, weiter\" schreibt ``rahmen``."""
     phasen.setze(conn, 1, 4, "befehl")
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Arbeit, die niemand sieht")
 
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1,
-        "VORSCHLAG KERNFRAGE:\nFrage: Was passiert, wenn niemand fragt?\n"
-        "Gegensatz: sehen wollen - gesehen werden\nEinsatz: ob die Arbeit zaehlt",
+        "Wo spielt es?\n\nVORSCHLAG RAHMEN:\nEine Nacht im Treppenhaus\n"
+        "Ein Kiosk am Morgen",
     )
-    assert [b for b, _ in tg.knoepfe[-1][2]] == [
+    assert [b for b, _ in tg.knoepfe[-1][2]][-3:] == [
         "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
     ]
 
     _druecke(conn, tg, einst, "Gefaellt uns, weiter")
 
-    kernfrage = repo.hole_arbeitsstand(conn, 1)["kernfrage"]
-    assert "Frage: Was passiert, wenn niemand fragt?" in kernfrage
-    assert "Gegensatz:" in kernfrage
-    assert "Einsatz:" in kernfrage
+    assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Eine Nacht im Treppenhaus"
 
 
-def test_nach_der_kernfrage_kommt_die_frage_nach_der_figurenanzahl(conn, tg, einst):
-    """Ohne Sprachmodell laeuft der Filter nicht -- der Weg bleibt trotzdem
-    offen: die Frage nach der Anzahl kommt sofort."""
+def test_nach_dem_setting_kommt_die_frage_nach_der_figurenanzahl(conn, tg, einst):
+    """Die Kette der Phase 4: steht das Setting, kommt sofort die Frage nach
+    der Figurenanzahl -- deterministisch, ohne Modellaufruf."""
     phasen.setze(conn, 1, 4, "befehl")
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Arbeit")
     knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, "VORSCHLAG KERNFRAGE:\nFrage: Was passiert, wenn niemand fragt?"
+        conn, tg, 1, "VORSCHLAG RAHMEN:\nEine Nacht im Treppenhaus"
     )
 
     _druecke(conn, tg, einst, "Gefaellt uns, weiter")
@@ -646,16 +649,16 @@ def test_zahlen_ausserhalb_der_grenzen_gelten_nicht(conn):
     assert knoepfe._zahl_aus("keine Ahnung") is None
 
 
-def test_der_figurenvorschlag_kommt_aus_der_kernfrage_nicht_aus_den_interviews(
+def test_der_figurenvorschlag_ist_frei_erfunden_und_nicht_aus_den_interviews(
     conn, tg, einst, auftraege
 ):
-    """Der Kern der Umstellung, als Text im Auftrag: die Figuren werden aus
-    der Kernfrage entwickelt, eine Interviewstelle ist erlaubt, aber nicht
-    Pflicht."""
+    """Der Kern des Umbaus, als Text im Auftrag: die Figuren werden frei
+    erfunden -- aus Begriffen, Fragen und Setting, ausdruecklich NICHT aus
+    den Interviews."""
     phasen.setze(conn, 1, 4, "befehl")
     knoepfe.uebernimm_figurenanzahl(conn, tg, object(), einst, 1, 3)
 
     anweisung = auftraege[0]
-    assert "Kernfrage" in anweisung
-    assert "nicht aus den Interviews" in anweisung
-    assert "muss nicht" in anweisung or "erlaubt" in anweisung
+    assert "frei erfunden" in anweisung
+    assert "NICHT aus den Interviews" in anweisung
+    assert "Setting" in anweisung

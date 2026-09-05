@@ -57,15 +57,50 @@ NEULADEN_SEKUNDEN = 10
 #: bleibt alles andere benutzbar.
 _SCROLL_JS = """
 (function () {
-  var schluessel = 'ts-scroll:' + location.pathname;
-  var gemerkt = sessionStorage.getItem(schluessel);
-  if (gemerkt) { window.scrollTo(0, parseInt(gemerkt, 10)); }
-  window.addEventListener('scroll', function () {
-    sessionStorage.setItem(schluessel, String(window.scrollY));
-  });
+  // Sanftes Nachladen (Birk 05.09.: "wenn ich etwas ausklappe, geht es
+  // immer wieder zu, sobald die Seite neu laedt"). Kein meta refresh mehr:
+  // alle NEULADEN Sekunden wird die Seite per fetch geholt; hat sich der
+  // Inhalt nicht geaendert, passiert nichts. Hat er sich geaendert, wird
+  // nur der <body> getauscht -- und vorher gemerkt, welche <details> offen
+  // waren (am summary-Text), danach wieder geoeffnet. Scrollposition
+  // bleibt, weil das Dokument nicht neu geladen wird.
+  var INTERVALL_MS = __NEULADEN_MS__;
+  var offene = function () {
+    var s = {};
+    document.querySelectorAll('details[open] > summary').forEach(function (el) {
+      s[el.textContent.trim()] = true;
+    });
+    return s;
+  };
+  var stelleHer = function (zustand) {
+    document.querySelectorAll('details > summary').forEach(function (el) {
+      if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
+    });
+  };
+  var letzter = document.body.innerHTML;
+  var laeuft = false;
+  setInterval(function () {
+    if (laeuft || document.hidden) { return; }
+    laeuft = true;
+    fetch(location.href, { cache: 'no-store', headers: { 'X-Nachladen': '1' } })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (!html) { return; }
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        if (!neu || neu === letzter) { return; }
+        var zustand = offene();
+        var y = window.scrollY;
+        document.body.innerHTML = neu;
+        stelleHer(zustand);
+        window.scrollTo(0, y);
+        letzter = neu;
+      })
+      .catch(function () {})
+      .finally(function () { laeuft = false; });
+  }, INTERVALL_MS);
 })();
 """
-
 _CSS_GEMEINSAM = """
 ul.fragen { list-style: none; padding: 0; margin: 0; }
 ul.fragen li { margin: .25em 0; }
@@ -207,16 +242,16 @@ def _umfang(teile: int, sekunden: int | None) -> str:
 def _seite(titel: str, css: str, koerper: str) -> str:
     """Rahmen beider Seiten: ein einziges eingebettetes CSS, keine externe
     Ressource (der Workshopraum haengt an einem Tailnet, nicht am offenen
-    Netz), Selbst-Neuladen per meta refresh."""
+    Netz), sanftes Nachladen per fetch (siehe _SCROLL_JS) -- kein meta
+    refresh mehr, der jedes aufgeklappte <details> wieder zuklappte."""
     return (
         "<!doctype html>\n"
         '<html lang="de"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f'<meta http-equiv="refresh" content="{NEULADEN_SEKUNDEN}">\n'
         f"<title>{html.escape(titel)}</title>\n"
         f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body>\n"
         f"{koerper}\n"
-        f"<script>{_SCROLL_JS}</script>\n"
+        f"<script>{_SCROLL_JS.replace('__NEULADEN_MS__', str(NEULADEN_SEKUNDEN * 1000))}</script>\n"
         "</body></html>\n"
     )
 

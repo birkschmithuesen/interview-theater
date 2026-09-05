@@ -79,7 +79,10 @@ def test_dashboard_zeigt_die_gruppentitel(basis):
     assert status == 200
     assert "Die Ankommenden" in koerper
     assert "Bot-Zuordnung" in koerper
-    assert 'http-equiv="refresh"' in koerper
+    # Seit 05.09. kein meta refresh mehr (klappte alles zu), sondern sanftes
+    # Nachladen per fetch -- der Intervallwert steht im Skript.
+    assert 'http-equiv="refresh"' not in koerper
+    assert 'INTERVALL_MS = 10000' in koerper
 
 
 def test_gruppenseite_zeigt_das_kernthema(basis, token):

@@ -539,6 +539,26 @@ python -m interview_theater.bot
 - `python -m scripts.szenen_vergleich --nur opus,kimi,mistral,apertus` —
   eine Szene, gleicher Prompt, vier Modelle; Ausgabe als Markdown mit dem
   Prompt als Anhang. Grundlage der Entscheidung für Opus (05.09.).
+- `python -m scripts.interviews_uebernehmen <ziel> <quelle> [<quelle> …] [--ja]`
+  — hebt die Gruppengrenze für **Material** auf (06.09.2026, Ende Tag 2: nur
+  noch eine Gruppe arbeitet weiter und soll alle Interviews sehen). Kopiert je
+  Quellinterview Kopf, Teile, Transkripte, Verdichtung und
+  `verdichtung_thema` (inkl. `zitat_geprueft`) sowie die Audiodateien in die
+  Zielgruppe; **kein Modellaufruf**, die Quellen bleiben unverändert.
+  Arbeitsstand, Figuren, Szenen, Knöpfe, Nachrichten, Journal und Kernzitate
+  wandern bewusst **nicht** — das ist die Arbeit der Quellgruppe an ihrem
+  Material, nicht das Material. `zum_kernthema_am` wird auf NULL gesetzt: was
+  zur Kernfrage passt, entscheidet die Zielgruppe selbst. Die Nummerierung
+  läuft weiter, weil `kontext.interviewbezeichnung` nach `id` zählt und neue
+  Zeilen höhere ids bekommen; `name` wird beim Import auf „Interview N"
+  gesetzt und nie aus der Quelle übernommen (dort kann ein Klarname stehen).
+  Idempotent über `aufnahme.uebernommen_von` („`<quell_chat_id>:<alte_id>`",
+  additiv migriert), alles in einer Transaktion, ohne `--ja` reiner
+  Trockenlauf mit Zählung. Verweigert den Dienst, solange in Ziel oder Quelle
+  eine Aufnahme läuft oder der Interviewmodus an ist. Mit `--ja` legt es
+  selbst ein DB-Backup an, schreibt einen Journaleintrag in die Zielgruppe und
+  eine Zeile in den Zielchat. Env der **Ziel**gruppe laden — die Quellen
+  dürfen anderen Bots gehören, sie liegen in derselben Datenbank.
 - `python scripts/loeschen.py <chat_id>` — der Löschweg: entfernt alle
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.

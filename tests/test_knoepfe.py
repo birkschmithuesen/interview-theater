@@ -187,17 +187,25 @@ def test_hoechstens_drei_vorschlaege(conn, einst, tg):
 
 def test_aufnahme_knopf_schaltet_an_und_wieder_aus(conn, einst, tg):
     """Ein Umschalter, genau wie /aufnahme (befehle._befehl_aufnahme) --
-    zwei Druecke, zwei Zustaende, kein dritter Weg."""
+    zwei Druecke, zwei Zustaende, kein dritter Weg.
+
+    Seit 05.09.2026 (E) haengt unter der Startbestaetigung KEIN Knopf mehr:
+    "Interview beenden" direkt darunter war die Fehldruck-Falle aus dem
+    Live-Lauf (14:21:32 gestartet, 14:21:39 beendet, leeres Interview).
+    Beendet wird ueber die Leiste unter dem ersten Teil-Transkript oder
+    ueber /aufnahme."""
     knoepfe.biete_aufnahme(conn, tg, 1, "Sollen wir?")
-    assert tg.knoepfe[0][2][0][0] == "Aufnahme starten"
+    assert tg.knoepfe[0][2][0][0] == "Interview starten"
 
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
     assert repo.ist_interviewmodus_an(conn, 1) is True
-    # Die Bestaetigung traegt selbst wieder einen Knopf -- jetzt den zum
-    # Beenden, weil sich der Zustand geaendert hat.
-    assert tg.knoepfe[1][2][0][0] == "Aufnahme beenden"
+    assert len(tg.knoepfe) == 1, "unter der Startbestaetigung steht keine Tastatur"
+    assert "Bereit" in tg.gesendet[-1][1]
 
-    # Zweiter Knopf, zweiter Druck: wieder aus.
+    # Der Umschalter wirkt trotzdem in beide Richtungen -- ueber einen
+    # frischen Knopf (Leiste unter dem Teil-Echo, Nach-Interview-Leiste).
+    knoepfe.biete_aufnahme(conn, tg, 1, "Und jetzt?")
+    assert tg.knoepfe[1][2][0][0] == "Interview beenden"
     knoepfe.behandle(
         conn, tg, None, einst,
         _druck(tg.knoepfe[1][2][0][1], message_id=778, query_id="q2"),
@@ -483,14 +491,20 @@ def test_phase_befehl_ohne_moegliche_naechste_bleibt_ohne_knopf(conn, einst, tg)
 
 
 def test_aufnahme_befehl_haengt_den_umschalter_an(conn, einst, tg):
-    """Der Knopf traegt den Zustand, in den er fuehrt -- nach dem Start
-    heisst er 'Aufnahme beenden'."""
+    """Nach dem Start haengt KEIN Knopf mehr unter der Bestaetigung
+    (05.09.2026, E) -- das war die Fehldruck-Falle. Beim Beenden dagegen
+    steht der Umschalter weiter da, jetzt als 'Interview starten'."""
     from interview_theater import befehle
 
     befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
 
-    assert tg.knoepfe[0][2][0][0] == "Aufnahme beenden"
     assert repo.ist_interviewmodus_an(conn, 1) is True
+    assert tg.knoepfe == [], "keine Tastatur unter der Startbestaetigung"
+
+    befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+
+    assert repo.ist_interviewmodus_an(conn, 1) is False
+    assert tg.knoepfe[0][2][0][0] == "Interview starten"
 
 
 # --- Format des Stuecks (Phase 5, 05.09.2026) -----------------------------
@@ -823,7 +837,7 @@ def test_nach_aufnahme_bietet_auswerten_und_naechste_aufnahme(conn, einst, tg):
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist sehr kurz.", kopf_id)
 
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
-    assert beschriftungen == ["Auswerten", "Naechste Aufnahme"]
+    assert beschriftungen == ["Auswerten", "Naechstes Interview"]
     assert "/" not in tg.knoepfe[0][1], "kein Slash-Befehl mehr im Text"
 
 
@@ -838,7 +852,7 @@ def test_nach_aufnahme_haengt_die_phase_an_wenn_die_lage_sie_hergibt(conn, einst
 
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
     assert beschriftungen == [
-        "Auswerten", "Naechste Aufnahme", "Weiter zu 4 · Kernthema & Figuren",
+        "Auswerten", "Naechstes Interview", "Weiter zu 4 · Kernthema & Figuren",
     ]
 
 
@@ -849,13 +863,13 @@ def test_nach_aufnahme_ohne_interview_bietet_nur_die_aufnahme_an(conn, einst, tg
 
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Das Interview hatte keine Aufnahme.", None)
 
-    assert [b for b, _ in tg.knoepfe[0][2]] == ["Naechste Aufnahme"]
+    assert [b for b, _ in tg.knoepfe[0][2]] == ["Naechstes Interview"]
 
 
 def test_nach_aufnahme_bietet_in_phase_4_keine_naechste_aufnahme_an(conn, einst, tg):
     """Der Live-Befund vom 05.09.2026 (Birk: "hast du die reihenfolge der
     phasen beachtet?"), gespiegelt auf die Leiste nach dem Interview: ist die
-    Gruppe inzwischen bei Kernthema & Figuren, ist "Naechste Aufnahme" kein
+    Gruppe inzwischen bei Kernthema & Figuren, ist "Naechstes Interview" kein
     Angebot mehr, sondern ein Rueckschritt. "Auswerten" bleibt -- das
     Material aus Phase 3 will ja gerade jetzt gelesen werden."""
     kopf_id = _interview_kopf(conn)
@@ -946,14 +960,14 @@ def test_einstieg_bietet_in_phase_1_keine_aufnahme_an(conn, einst, tg):
 
 
 def test_einstieg_bietet_ab_phase_3_die_aufnahme_an(conn, einst, tg):
-    """Ab den Interviews ist "Aufnahme starten" genau der Weg -- und steht
+    """Ab den Interviews ist "Interview starten" genau der Weg -- und steht
     wieder vorn, wo die Gruppe im Raum hintippt."""
     phasen.setze(conn, 1, 3, "befehl")
 
     knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Aufnahme starten", "Stand zeigen", "Hilfe",
+        "Interview starten", "Stand zeigen", "Hilfe",
     ]
 
 
@@ -967,7 +981,7 @@ def test_einstieg_bietet_das_beenden_auch_in_phase_1_an(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Aufnahme beenden", "Stand zeigen", "Hilfe",
+        "Interview beenden", "Stand zeigen", "Hilfe",
     ]
 
 
@@ -981,7 +995,7 @@ def test_einstieg_haengt_die_phase_dazwischen(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Aufnahme starten", "Weiter zu 4 · Kernthema & Figuren",
+        "Interview starten", "Weiter zu 4 · Kernthema & Figuren",
         "Stand zeigen", "Hilfe",
     ]
 
@@ -1034,7 +1048,7 @@ def test_nach_aufnahme_bietet_alle_auswerten_statt_phase_4(conn, einst, tg):
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
     assert "Weiter zu 4 · Kernthema & Figuren" not in beschriftungen
-    assert beschriftungen == ["Auswerten", "Naechste Aufnahme"]
+    assert beschriftungen == ["Auswerten", "Naechstes Interview"]
 
     # Sobald auch das zweite ausgewertet ist, steht der Schritt wieder da.
     repo.speichere_verdichtung(conn, 1, zweites, "Pal erzaehlt", [])
@@ -1061,3 +1075,68 @@ def test_einstieg_bietet_alle_auswerten_statt_eines_phasenknopfes(conn, einst, t
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
     assert "Alle auswerten" in beschriftungen
     assert not any(b.startswith("Weiter zu 4") for b in beschriftungen)
+
+
+# --- Leiste unter dem Teil-Transkript (05.09.2026) -------------------------
+
+
+def test_teil_leiste_bietet_weiter_und_fertig(conn, einst, tg):
+    """(B) Unter jedem Teil-Echo stehen genau zwei Knoepfe -- die Gruppe soll
+    nicht raten muessen, ob der Bot noch zuhoert."""
+    knoepfe.biete_nach_teil(conn, tg, 1, "Interview 1, Teil 1:\nHallo.")
+
+    assert [b for b, _ in tg.knoepfe[0][2]] == [
+        "Interview geht weiter", "Interview ist fertig",
+    ]
+    assert all(d.startswith(knoepfe.PRAEFIX) for _, d in tg.knoepfe[0][2])
+
+
+def test_teil_leiste_geht_weiter_sagt_nur_eine_zeile(conn, einst, tg):
+    """"Geht weiter" ist Tastatur weg und ein Satz -- kein Modellaufruf und
+    keine Schreibwirkung (Zusage 2 im Moduldocstring)."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    knoepfe.biete_nach_teil(conn, tg, 1, "Interview 1, Teil 1:\nHallo.")
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[0][2][0][1]))
+
+    assert repo.ist_interviewmodus_an(conn, 1) is True
+    assert tg.gesendet[-1][1] == "Gut, ich hoere weiter zu."
+
+
+def test_teil_leiste_fertig_beendet_wie_der_umschalter(conn, einst, tg):
+    """"Ist fertig" ist wortgleich dasselbe wie "Interview beenden": derselbe
+    Weg (befehle._befehl_aufnahme), kein zweiter Mechanismus."""
+    from interview_theater import befehle
+
+    befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+    knoepfe.biete_nach_teil(conn, tg, 1, "Interview 1, Teil 1:\nHallo.")
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[-1][2][1][1]))
+
+    assert repo.ist_interviewmodus_an(conn, 1) is False
+
+
+def test_neue_teil_leiste_laesst_die_alte_verfallen(conn, einst, tg):
+    """Der Wert steckt im Knopf, nicht im Text: eine ueberholte Leiste darf
+    ein Interview nicht mehr beenden (``_nimm_alte_leiste_ab``)."""
+    knoepfe.biete_nach_teil(conn, tg, 1, "Teil 1")
+    alt = tg.knoepfe[0][2][1][1]
+    knoepfe.biete_nach_teil(conn, tg, 1, "Teil 2")
+
+    assert repo.offene_knoepfe(conn, 1, knoepfe.ART_TEIL_FERTIG) != []
+    assert len(repo.offene_knoepfe(conn, 1, knoepfe.ART_TEIL_FERTIG)) == 1
+    # Die alte Knopfzeile ist gestempelt -- ein Druck wirkt nicht mehr.
+    knoepfe.behandle(conn, tg, None, einst, _druck(alt, query_id="q9"))
+    assert repo.ist_interviewmodus_an(conn, 1) is False
+
+
+def test_einstieg_bietet_in_phase_3_keinen_weiter_zu_3_knopf(conn, einst, tg):
+    """(D) "Weiter zu Phase 3" und "Interview starten" duerfen nie
+    nebeneinander stehen -- in Phase 3 ist die 3 kein Ziel mehr
+    (``phasen.moegliche_naechste`` liefert nur Hoeheres)."""
+    phasen.setze(conn, 1, 3, "befehl")
+    knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
+
+    beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
+    assert "Interview starten" in beschriftungen
+    assert not any(b.startswith("Weiter zu 3") for b in beschriftungen)

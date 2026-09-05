@@ -482,7 +482,7 @@ def test_fertig_verdichtet_einmal_und_haelt_sich_im_chat_zurueck(conn, einst, tg
     # Der Weg danach steht als Knoepfe darunter (05.09.2026), nicht als Text.
     beschriftungen = [b for _, _, ks in tg.mit_knoepfen for b, _ in ks]
     assert "Auswerten" in beschriftungen
-    assert "Naechste Aufnahme" in beschriftungen or "Aufnahme starten" in beschriftungen
+    assert "Naechstes Interview" in beschriftungen or "Interview starten" in beschriftungen
 
 
 def test_auswerten_spielt_die_verdichtung_aus(conn, einst, tg, klm):
@@ -718,7 +718,12 @@ def test_transkript_echo_steht_in_keinem_fenster(conn, einst, tg, klm):
 def test_fertig_ohne_aufnahme_meldet_und_ruft_kein_modell(conn, einst, tg, klm):
     """§ 10.6, der vierte Auftragstest: Modus an, nichts eingesprochen,
     "fertig". Im Probelauf entstanden aus solchem Nichts Verdichtungen mit
-    "Material extrem kurz" -- jetzt gibt es eine Zeile und keinen Aufruf."""
+    "Material extrem kurz" -- jetzt gibt es eine Zeile und keinen Aufruf.
+
+    Seit 05.09.2026 (Live-Fall Gruppe 1, 14:21) wird das leere Interview
+    dabei **weich entfernt**: es hatte keinen einzigen Teil, es war ein
+    Fehlgriff auf dem Knopf, und als unausgewertete Huelle haette es die
+    Phase-4-Sperre ausgeloest."""
     kopf_id = interview_an(conn, tg, einst)
     tg.gesendet.clear()
 
@@ -728,9 +733,51 @@ def test_fertig_ohne_aufnahme_meldet_und_ruft_kein_modell(conn, einst, tg, klm):
     assert klm.aufrufe == 0
     assert repo.verdichtungen(conn, 1) == []
     assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
-    assert [t for _, t in tg.gesendet] == [
-        "Interview 1 hatte keine Aufnahme - ich habe nichts verdichtet."
-    ]
+    assert [t for _, t in tg.gesendet] == ["Keine Aufnahme dabei - nichts gespeichert."]
+    assert repo.hole_aufnahme(conn, kopf_id)["entfernt_am"] is not None
+    assert aufnahme.interviews(conn, 1) == [], "die leere Huelle steht nicht mehr da"
+    assert aufnahme.unausgewertete_interviews(conn, 1) == [], "keine Phase-4-Sperre"
+
+
+def test_leeres_interview_verschiebt_die_naechste_nummer_nicht(conn, einst, tg, klm):
+    """``repo.zaehle_interviews`` zaehlt entfernte Koepfe mit -- sonst hiesse
+    das naechste Interview wieder "Interview 1", und zwei verschiedene
+    Aufnahmen waeren im Journal nicht auseinanderzuhalten."""
+    leer = interview_an(conn, tg, einst)
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, leer)
+
+    zweites = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A], message_id=360)
+    assert repo.hole_aufnahme(conn, zweites)["name"] == "Interview 2"
+
+
+def test_leeres_interview_bietet_den_start_wieder_an(conn, einst, tg, klm):
+    """Ein Fehlgriff soll nichts hinterlassen ausser der Moeglichkeit, es
+    nochmal zu versuchen: unter der Zeile steht "Interview starten"."""
+    phasen.setze(conn, 1, 3, "befehl")
+    kopf_id = interview_an(conn, tg, einst)
+    tg.mit_knoepfen.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    assert [b for _, _, ks in tg.mit_knoepfen for b, _ in ks] == ["Interview starten"]
+
+
+def test_interview_mit_teil_wird_nicht_verworfen(conn, einst, tg, klm):
+    """Die Abgrenzung: sobald EIN Teil da ist, bleibt das Interview stehen --
+    auch wenn sein Transkript leer sein sollte. Verworfen wird nur, was nie
+    entstanden ist."""
+    kopf_id = interview_an(conn, tg, einst)
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=30, message_id=380))
+    repo.setze_transkript(conn, aid, "")
+    repo.setze_status(conn, aid, "fertig")
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    assert repo.hole_aufnahme(conn, kopf_id)["entfernt_am"] is None
+    assert any("hatte keine Aufnahme" in t for _, t in tg.gesendet)
 
 
 def test_zweites_interview_zaehlt_weiter_und_zuruf_dazwischen_nicht(conn, einst, tg, klm):
@@ -1111,3 +1158,86 @@ def test_stelle_interview_sicher_sammelt_nur_beim_anlegen(conn):
 
     assert aufnahme.stelle_interview_sicher(conn, 1) == kopf_id
     assert repo.hole_aufnahme(conn, zuruf)["teil_von"] is None
+
+
+# ---------------------------------------------------------------------------
+# Interviewfluss gehaertet (05.09.2026, nach dem Live-Lauf im Workshop)
+# ---------------------------------------------------------------------------
+
+
+def test_teil_echo_traegt_die_weiter_oder_fertig_leiste(conn, einst, tg, klm):
+    """(B) Birk nach dem Live-Lauf Gruppe 1: "das sollte aktiv als naechste
+    Antwort angeboten werden nach dem Transkript, nicht mit Transkript
+    einfach so stehen lassen." Unter jedem Teil-Echo stehen deshalb zwei
+    Knoepfe."""
+    _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A], message_id=500)
+
+    chat_id, text, tasten = tg.mit_knoepfen[-1]
+    assert chat_id == 1
+    assert "Teil 1:" in text and TEIL_A in text
+    assert [b for b, _ in tasten] == ["Interview geht weiter", "Interview ist fertig"]
+
+
+def test_teil_echo_bleibt_ausserhalb_jedes_erkenner_fensters(conn, einst, tg, klm):
+    """Die Leiste aendert nichts an § 10.6: das Echo bleibt
+    ``typ='transkript'`` und damit in keinem Fenster -- Interviewinhalt ist
+    nie Gruppenabsicht."""
+    _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A], message_id=510)
+
+    echo = conn.execute("SELECT * FROM nachricht WHERE typ = 'transkript'").fetchall()
+    assert len(echo) == 1 and TEIL_A in echo[0]["text"]
+    assert all(z["typ"] != "transkript" for z in repo.unextrahierte(conn, 1))
+    assert all(z["typ"] != "transkript" for z in repo.letzte_nachrichten(conn, 1))
+
+
+def test_neues_teil_echo_nimmt_der_alten_leiste_die_tastatur_ab(conn, einst, tg, klm):
+    """Sonst staenden nach fuenf Sprachnachrichten fuenf Leisten im Chat, und
+    ein Druck auf die von vor drei Nachrichten beendete das Interview
+    (Muster ``knoepfe._nimm_alte_leiste_ab``)."""
+    from interview_theater import knoepfe as k
+
+    _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=520)
+
+    offen = repo.offene_knoepfe(conn, 1, k.ART_TEIL_FERTIG)
+    assert len(offen) == 1, "nur die juengste Leiste wirkt noch"
+
+
+def test_aufnahmestart_setzt_phase_3_mit_journalnotiz(conn, einst, tg):
+    """(D) Live-Fall: Begriffe und Fragen standen, die Phase war noch 1, und
+    der Einstieg bot "Weiter zu Phase 3" NEBEN "Interview starten" an. Wer
+    ausdruecklich aufnimmt, fuehrt Interviews -- das ist gesagt, nicht
+    geraten."""
+    from interview_theater import befehle
+
+    assert phasen.aktuelle(conn, 1) == 1
+    befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+
+    assert phasen.aktuelle(conn, 1) == 3
+    assert any("Wir sind jetzt bei 3" in t for _, t in tg.gesendet)
+    eintraege = [z["text"] for z in repo.journal(conn, 1)]
+    assert any("durch Aufnahmestart" in t for t in eintraege)
+
+
+def test_aufnahmestart_schaltet_aus_phase_4_nicht_zurueck(conn, einst, tg):
+    """Eine Gruppe, die im Kernthema noch ein Interview nachschiebt, ist
+    deshalb nicht wieder in Phase 3."""
+    from interview_theater import befehle
+
+    phasen.setze(conn, 1, 4, "befehl")
+    befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+
+    assert phasen.aktuelle(conn, 1) == 4
+
+
+def test_startbestaetigung_traegt_keinen_beenden_knopf(conn, einst, tg):
+    """(E) Die Fehldruck-Falle: 14:21:32 gestartet, 14:21:39 beendet -- der
+    Beenden-Knopf hing direkt unter der Startbestaetigung. Er kommt jetzt
+    erst mit dem ersten Teil-Echo, und der Text sagt das."""
+    from interview_theater import befehle
+
+    befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+
+    assert tg.mit_knoepfen == [], "keine Tastatur unter der Startbestaetigung"
+    text = tg.gesendet[-1][1]
+    assert "Bereit" in text
+    assert "Knopf" in text, "der Text sagt, wo gefragt wird"

@@ -74,6 +74,14 @@ ART_ANDERS = "anders"
 #: Alle beendeten, aber noch nicht ausgewerteten Interviews nacheinander
 #: verdichten -- der Weg aus der Phase-4-Sperre (``phasen.voraussetzungen``).
 ART_AUSWERTEN_ALLE = "auswerten_alle"
+#: Die Leiste unter JEDEM Teil-Transkript (05.09.2026, Birk nach dem
+#: Live-Lauf Gruppe 1): "Interview geht weiter" -- Tastatur weg, eine Zeile,
+#: KEIN Modellaufruf. Vorher stand das Transkript einfach da und die Gruppe
+#: wusste nicht, ob der Bot noch zuhoert.
+ART_TEIL_WEITER = "teil_weiter"
+#: Das Gegenstueck: "Interview ist fertig" -- wortgleich dieselbe Wirkung wie
+#: "Aufnahme beenden" (``befehle._befehl_aufnahme``), kein zweiter Weg.
+ART_TEIL_FERTIG = "teil_fertig"
 
 #: Trennzeichen im ``wert`` der Speicher-Leiste.
 TRENNER = "|"
@@ -109,11 +117,39 @@ _TEXT_KERNTHEMA_KEINE = (
 )
 _TEXT_SCHON_BENUTZT = "Das habe ich schon uebernommen."
 _TEXT_UNBEKANNT = "Diesen Knopf kenne ich nicht mehr."
-_TEXT_AUFNAHME_STARTEN = "Aufnahme starten"
-_TEXT_AUFNAHME_BEENDEN = "Aufnahme beenden"
+#: Die Knopfbeschriftungen heissen seit 05.09.2026 "Interview", nicht
+#: "Aufnahme" (Birk, Live-Lauf Gruppe 3): "Aufnahme klingt, als liefe ein
+#: Mikrofon -- es sind Sprachnachrichten." Der Modus, die Klassen und die
+#: Tabellen heissen intern weiter aufnahme; geaendert hat sich, was die
+#: Gruppe liest.
+_TEXT_AUFNAHME_STARTEN = "Interview starten"
+_TEXT_AUFNAHME_BEENDEN = "Interview beenden"
+#: Die zwei Knoepfe unter einem Teil-Transkript (05.09.2026).
+_TEXT_TEIL_WEITER_KNOPF = "Interview geht weiter"
+_TEXT_TEIL_FERTIG_KNOPF = "Interview ist fertig"
+#: Was "Interview geht weiter" tut: eine Zeile, sonst nichts.
+_TEXT_TEIL_WEITER = "Gut, ich hoere weiter zu."
+#: Der seltene Fall, dass die Aufnahme schon aus ist, wenn der Knopf kommt.
+_TEXT_TEIL_SCHON_AUS = "Die Aufnahme laeuft nicht mehr."
+
+#: Die Ablauf-Erklaerung vor dem Start (05.09.2026, Birk nach Gruppe 3,
+#: 16:36). Der Anlass: die Gruppe sagte "wir wollen ein Interview machen",
+#: der Gespraechs-Bot schrieb eine eigene Bedienungsanleitung, der Erkenner
+#: startete gleichzeitig die Aufnahme -- Text und Knopf widersprachen sich.
+#: Seitdem gilt: der Erkenner startet NICHT mehr selbst, er legt diese drei
+#: Saetze und den Knopf "Interview starten" hin, und die Gruppe entscheidet.
+#: Deterministischer Systemtext, kein Modellaufruf -- und der Gespraechs-Bot
+#: erklaert die Bedienung nicht mehr selbst (``prompts/system.md``).
+TEXT_ABLAUF = (
+    "So geht ein Interview: Tippt \"Interview starten\" an. Schickt dann die "
+    "Sprachnachricht oder die Sprachnachrichten eurer Interviewpartnerin - "
+    "nach jeder bekommt ihr den abgetippten Text und sagt mir per Knopf, ob "
+    "das Interview weitergeht oder fertig ist. Fuer die naechste Person "
+    "tippt ihr wieder \"Interview starten\"."
+)
 #: Die drei Knoepfe der Leiste nach einem beendeten Interview (05.09.2026).
 _TEXT_AUSWERTEN_KNOPF = "Auswerten"
-_TEXT_NAECHSTE_AUFNAHME_KNOPF = "Naechste Aufnahme"
+_TEXT_NAECHSTE_AUFNAHME_KNOPF = "Naechstes Interview"
 _TEXT_STAND_KNOPF = "Stand zeigen"
 _TEXT_HILFE_KNOPF = "Hilfe"
 #: Der Knopf zeigt auf ein Interview, das es nicht mehr gibt -- nur moeglich,
@@ -240,7 +276,7 @@ def biete_kernthema(conn, tg, chat_id: int, vorschlaege: list[str] | None = None
     return True
 
 
-def biete_aufnahme(conn, tg, chat_id: int, text: str) -> int:
+def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True) -> int:
     """Haengt den Aufnahme-Umschalter unter ``text``; liefert die
     ``message_id`` der Angebotsnachricht.
 
@@ -254,11 +290,60 @@ def biete_aufnahme(conn, tg, chat_id: int, text: str) -> int:
     Die Wirkung ist beide Male dieselbe wie ``/aufnahme`` -- ein Umschalter,
     kein Ein- und ein Ausschalter (befehle._befehl_aufnahme): sonst gaebe es
     zwei Zustaende und drei Bedienelemente, und genau daran ist die
-    gesprochene Variante am 05.09.2026 gescheitert."""
+    gesprochene Variante am 05.09.2026 gescheitert.
+
+    ``knopf=False`` schickt denselben Text OHNE Tastatur (05.09.2026,
+    Live-Fall Gruppe 1, 14:21): unter der Startbestaetigung ("Aufnahme
+    laeuft ...") hing bis dahin sofort "Aufnahme beenden" -- sieben Sekunden
+    spaeter war er gedrueckt, und es entstand ein leeres Interview. Die
+    Beenden-Moeglichkeit kommt seitdem erst mit dem ersten Teil-Transkript
+    (``biete_nach_teil``), also dann, wenn es ueberhaupt etwas zu beenden
+    gibt."""
+    if not knopf:
+        return tg.sende(chat_id, text)
     laeuft = repo.ist_interviewmodus_an(conn, chat_id)
     beschriftung = _TEXT_AUFNAHME_BEENDEN if laeuft else _TEXT_AUFNAHME_STARTEN
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)
     return tg.sende_mit_knoepfen(chat_id, text, [(beschriftung, _daten(knopf_id))])
+
+
+def biete_nach_teil(conn, tg, chat_id: int, text: str) -> int:
+    """Die Leiste unter einem Teil-Transkript: "Interview geht weiter" ·
+    "Interview ist fertig" (05.09.2026, Birk nach dem Live-Lauf Gruppe 1).
+
+    Der gemessene Fall: nach dem Echo "Interview 4, Teil 1: ..." stand das
+    Transkript einfach da. Die Gruppe im Raum konnte nicht sehen, ob der Bot
+    weiter aufnimmt oder ob das Interview zu Ende ist -- Birk: "das sollte
+    aktiv als naechste Antwort angeboten werden nach dem Transkript, nicht
+    mit Transkript einfach so stehen lassen."
+
+    Zwei Knoepfe, beide ohne Modellaufruf: "geht weiter" nimmt nur die
+    Tastatur ab und sagt einen Satz, "ist fertig" ist wortgleich derselbe
+    Weg wie "Aufnahme beenden" (``befehle._befehl_aufnahme``).
+
+    Ein neues Echo nimmt der vorherigen Leiste die Tastatur ab
+    (``_nimm_alte_leiste_ab``): sonst staenden nach fuenf Sprachnachrichten
+    fuenf Leisten im Chat, und ein Druck auf die von vor drei Nachrichten
+    beendete das Interview, ohne dass jemand das gemeint haette.
+
+    Liefert die ``message_id`` der Echo-Nachricht."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_TEIL_WEITER)
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_TEIL_FERTIG)
+    leiste = [
+        (
+            _TEXT_TEIL_WEITER_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_TEIL_WEITER, None)),
+        ),
+        (
+            _TEXT_TEIL_FERTIG_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_TEIL_FERTIG, None)),
+        ),
+    ]
+    message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
+    )
+    return message_id
 
 
 def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
@@ -793,6 +878,26 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         return "Neuer Vorschlag"
     if art == ART_AUSWERTEN_ALLE:
         return _werte_alle_aus(conn, tg, klm, e, chat_id)
+    if art == ART_TEIL_WEITER:
+        # Kein Modellaufruf (Zusage 2), keine Schreibwirkung: die Aufnahme
+        # laeuft ohnehin weiter. Der Knopf ist die Antwort auf eine Frage,
+        # die sonst offen im Chat stuende -- und die Tastatur ist danach weg
+        # (``behandle`` nimmt sie ab), was fuer sich schon die Rueckmeldung
+        # ist.
+        tg.sende(chat_id, _TEXT_TEIL_WEITER)
+        return "Ich hoere weiter zu"
+    if art == ART_TEIL_FERTIG:
+        # Wortgleich dasselbe wie "Interview beenden": derselbe Umschalter,
+        # dieselbe Verdichtung, dieselbe Nach-Interview-Leiste. Kein zweiter
+        # Weg fuer dieselbe Sache -- deshalb der Umweg ueber /aufnahme statt
+        # einer eigenen Abfolge hier.
+        from interview_theater import befehle
+
+        if not repo.ist_interviewmodus_an(conn, chat_id):
+            tg.sende(chat_id, _TEXT_TEIL_SCHON_AUS)
+            return _TEXT_TEIL_SCHON_AUS
+        befehle._befehl_aufnahme(conn, tg, klm, e, chat_id)
+        return "Interview beendet"
     if art == ART_KERNTHEMA:
         # Der eigentliche Punkt der Uebung: deterministisch schreiben, was
         # der Erkenner live nicht zuverlaessig traf.

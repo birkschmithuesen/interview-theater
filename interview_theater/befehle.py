@@ -79,11 +79,16 @@ log = logging.getLogger(__name__)
 #: Start und Stopp sagen seit 05.09.2026 (Birk) die Bedienung dazu: die
 #: Gruppe steht im Raum mit einer interviewten Person vor sich und soll nicht
 #: raten muessen, wie sie die Aufnahme wieder anhaelt.
+#: Der Wortlaut ist Birks, mit einer Aenderung aus (E): unter dieser
+#: Bestaetigung haengt seit 05.09.2026 KEIN Knopf mehr (Live-Fall Gruppe 1,
+#: 14:21 -- Start, sieben Sekunden spaeter versehentlich Beenden).
+#: Deshalb sagt der Text jetzt ausdruecklich, WO der Beenden-Knopf erscheint:
+#: unter dem abgetippten Text der ersten Sprachnachricht
+#: (``knoepfe.biete_nach_teil``).
 _TEXT_INTERVIEW_AN = (
-    "Aufnahme laeuft. Sprecht eure Sprachnachrichten ein - so viele, wie ihr "
-    "wollt, sie gehoeren alle zu diesem einen Interview. Nach jeder schicke "
-    "ich euch den abgetippten Text zum Mitlesen. Zum Beenden tippt den Knopf "
-    "unten an."
+    "Bereit - ihr koennt jetzt eine oder mehrere Sprachnachrichten schicken. "
+    "Nach jeder kommt der abgetippte Text zum Mitlesen; darunter fragt ein "
+    "Knopf, ob das Interview weitergeht oder fertig ist."
 )
 _TEXT_INTERVIEW_AUS = "Aufnahme beendet."
 _TEXT_KERNTHEMA_LEER = "Schreibt das Kernthema hinter den Befehl, zum Beispiel: /kernthema Ankommen"
@@ -125,13 +130,14 @@ _TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
 _TEXT_HILFE = (
     "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
     "SO MACHT IHR EIN INTERVIEW:\n"
-    "1. \"Aufnahme starten\" antippen - die Aufnahme laeuft\n"
-    "2. Sprachnachrichten einsprechen, so viele ihr wollt - sie gehoeren "
-    "alle zu diesem einen Interview\n"
-    "3. Nach jeder schicke ich euch den abgetippten Text zum Mitlesen. "
+    "1. \"Interview starten\" antippen\n"
+    "2. Die Sprachnachrichten eurer Interviewpartnerin schicken, so viele "
+    "ihr wollt - sie gehoeren alle zu diesem einen Interview\n"
+    "3. Nach jeder schicke ich euch den abgetippten Text zum Mitlesen, und "
+    "darunter fragt ein Knopf, ob das Interview weitergeht oder fertig ist. "
     "Steht da ein Wort falsch, sagt es mir einfach.\n"
-    "4. \"Aufnahme beenden\" antippen - danach stehen die naechsten Schritte "
-    "als Knoepfe da: Auswerten, Naechste Aufnahme, Weiter zur naechsten "
+    "4. Nach \"Interview ist fertig\" stehen die naechsten Schritte als "
+    "Knoepfe da: Auswerten, Naechstes Interview, Weiter zur naechsten "
     "Station.\n\n"
     "Die Knoepfe sind der Weg. Wer lieber tippt, kann auch diese Befehle "
     "benutzen:\n"
@@ -206,7 +212,18 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
 
     Ein Umschalter kann das nicht: laeuft nichts, startet er; laeuft etwas,
     beendet er. Die Gruppe muss sich nur EIN Wort merken, und der Zustand
-    steht sichtbar in der Antwort."""
+    steht sichtbar in der Antwort.
+
+    Zwei Aenderungen vom 05.09.2026 (Live-Lauf Gruppe 1):
+
+    * Der Start setzt die Phase auf 3, wenn die Gruppe noch in 1 oder 2 steht
+      (``aufnahme.stelle_phase_interviews_sicher``) -- sonst stuende im
+      Einstieg "Weiter zu Phase 3" neben "Aufnahme starten".
+    * Unter der Startbestaetigung haengt **kein** Knopf mehr
+      (``knopf=False``): "Aufnahme beenden" direkt unter "Aufnahme laeuft"
+      war eine Fehldruck-Falle (14:21:32 gestartet, 14:21:39 beendet). Die
+      Beenden-Moeglichkeit kommt mit dem ersten Teil-Transkript
+      (``knoepfe.biete_nach_teil``), der Text sagt das."""
     if repo.ist_interviewmodus_an(conn, chat_id):
         kopf_id = aufnahme.beende_interview(conn, chat_id)
         knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_INTERVIEW_AUS)
@@ -215,7 +232,8 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
         return
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
-    knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_INTERVIEW_AN)
+    aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")
+    knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_INTERVIEW_AN, knopf=False)
 
 
 def _befehl_interview(conn, tg, chat_id: int) -> None:
@@ -223,6 +241,7 @@ def _befehl_interview(conn, tg, chat_id: int) -> None:
     folgenden Sprachnachrichten als Teile gehoeren."""
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
+    aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")
     tg.sende(chat_id, _TEXT_INTERVIEW_AN)
 
 

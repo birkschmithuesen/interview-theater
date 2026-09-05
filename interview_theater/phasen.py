@@ -164,7 +164,7 @@ def meldung(nummer: int) -> str:
     return MELDUNG.format(bezeichnung=bezeichnung(nummer))
 
 
-def setze(conn, chat_id: int, nummer: int, quelle: str) -> bool:
+def setze(conn, chat_id: int, nummer: int, quelle: str, notiz: str | None = None) -> bool:
     """Setzt die Phase und schreibt die Entscheidung ins Journal. Liefert
     True, wenn sich dadurch etwas geaendert hat.
 
@@ -172,13 +172,21 @@ def setze(conn, chat_id: int, nummer: int, quelle: str) -> bool:
     Journaleintrag noch eine Meldung (dieselbe Regel wie ueberall im
     Erkenner: sonst bestaetigte der Bot bei jedem Zug erneut dieselbe
     Phase). ``quelle`` ist 'erkenner' oder 'befehl' und haelt im Journal
-    fest, auf welchem Weg die Gruppe hierhergekommen ist."""
+    fest, auf welchem Weg die Gruppe hierhergekommen ist.
+
+    ``notiz`` haengt einen Klammerzusatz an den Journaltext (05.09.2026):
+    startet die Gruppe ausdruecklich eine Aufnahme, waehrend sie noch in
+    Phase 1 oder 2 steht, wandert sie mit nach Phase 3 -- und im Journal
+    soll stehen, WARUM ("durch Aufnahmestart"). Das ist kein Raten aus dem
+    Datenstand (AGENTS.md, "Die Phase setzt allein die Gruppe"), sondern
+    eine Handlung der Gruppe selbst: sie hat die Aufnahme gestartet."""
     if repo.hole_phase(conn, chat_id) == nummer:
         return False
     repo.setze_phase(conn, chat_id, nummer)
-    repo.schreibe_journal(
-        conn, chat_id, "entschieden", f"Phase {bezeichnung(nummer)}", quelle=quelle
-    )
+    text = f"Phase {bezeichnung(nummer)}"
+    if notiz:
+        text = f"{text} ({notiz})"
+    repo.schreibe_journal(conn, chat_id, "entschieden", text, quelle=quelle)
     return True
 
 

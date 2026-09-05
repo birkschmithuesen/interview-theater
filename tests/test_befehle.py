@@ -56,7 +56,7 @@ def test_interview_schaltet_modus_an_und_legt_ein_interview_an(conn, einst, tg):
     behandelt = befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
     assert behandelt is True
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
-    assert "Aufnahme laeuft" in tg.gesendet[0][1]
+    assert any("Bereit" in t for _, t in tg.gesendet)
 
     kopf = repo.laufendes_interview(conn, 1)
     assert kopf is not None and kopf["name"] == "Interview 1"
@@ -211,7 +211,9 @@ def test_befehl_mit_botname_wird_erkannt(conn, einst, tg, befehl):
     text = f"{befehl}@{einst.bot_name}"
     behandelt = befehle.behandle(conn, tg, einst, 1, text, "Ada")
     assert behandelt is True
-    assert len(tg.gesendet) == 1
+    # /interview schickt seit 05.09.2026 zusaetzlich die Phasenmeldung, wenn
+    # es die Gruppe dabei aus Phase 1 in die Interviews zieht (D).
+    assert tg.gesendet, "der Befehl wird beantwortet"
 
 
 def test_kernthema_mit_botname_und_text_wird_erkannt(conn, einst, tg):
@@ -601,7 +603,7 @@ def test_aufnahme_startet_und_beendet_mit_demselben_befehl(conn, einst, tg):
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
     kopf = repo.laufendes_interview(conn, 1)
     assert kopf is not None
-    assert "Aufnahme laeuft" in tg.gesendet[-1][1]
+    assert "Bereit" in tg.gesendet[-1][1]
     assert "Knopf" in tg.gesendet[-1][1], "die Bedienung steht in der Ansage"
     assert "/aufnahme" not in tg.gesendet[-1][1], "kein Slash-Befehl mehr im Text"
 
@@ -629,7 +631,10 @@ def test_aufnahme_ansage_erklaert_die_bedienung(conn, einst, tg):
 
     assert "Sprachnachricht" in text or "Sprachnachrichten" in text
     assert "Mitlesen" in text, "das zurueckgespielte Transkript wird angesagt"
-    assert "Beenden" in text
+    # Seit 05.09.2026 (E) haengt kein Beenden-Knopf unter der Ansage -- der
+    # Text sagt deshalb, WO gefragt wird, ob es weitergeht: unter dem
+    # abgetippten Text (knoepfe.biete_nach_teil).
+    assert "Knopf" in text and "fertig" in text
 
 
 # ---------------------------------------------------------------------------

@@ -163,6 +163,16 @@ _TEXT_ZU_KURZ = (
 #: "fertig" ohne eine einzige Sprachnachricht: eine Zeile, kein Modellaufruf.
 _TEXT_OHNE_AUFNAHME = "{name} hatte keine Aufnahme - ich habe nichts verdichtet."
 
+#: Ein Interview, in dem NIE eine Sprachnachricht ankam, wird beim Beenden
+#: weich entfernt (05.09.2026, Live-Fall Gruppe 1, 14:21): "Aufnahme starten",
+#: sieben Sekunden spaeter versehentlich "Aufnahme beenden", zweimal
+#: hintereinander -- es blieben zwei leere Interviews stehen, die als
+#: unausgewertet die Phase-4-Sperre ausloesten. Statt "Interview N beendet"
+#: steht seitdem diese Zeile da, mit dem Knopf "Aufnahme starten" darunter:
+#: ein Fehlgriff soll nichts hinterlassen ausser der Moeglichkeit, es
+#: nochmal zu versuchen.
+_TEXT_LEER_VERWORFEN = "Keine Aufnahme dabei - nichts gespeichert."
+
 
 def klasse_fuer(conn, chat_id: int) -> str:
     """Ordnet eine eingehende Sprachnachricht ihrer Klasse zu (§ 10.1, § 10.6)
@@ -224,6 +234,47 @@ def stelle_interview_sicher(conn, chat_id: int) -> int:
         # als Teile hinein.
         log.exception("Nachzuegler konnten nicht eingesammelt werden, chat_id=%s", chat_id)
     return kopf_id
+
+
+#: Die Phase, in der Interviews gefuehrt werden (``phasen.PHASEN``, dieselbe
+#: Zahl wie ``knoepfe.PHASE_INTERVIEWS``).
+PHASE_INTERVIEWS = 3
+
+#: Der Klammerzusatz im Journal, wenn der Aufnahmestart die Phase mitzieht.
+_JOURNAL_PHASE_DURCH_AUFNAHME = "durch Aufnahmestart"
+
+
+def stelle_phase_interviews_sicher(conn, tg, chat_id: int, quelle: str = "knopf") -> bool:
+    """Setzt die Phase auf 3, wenn die Gruppe ausdruecklich eine Aufnahme
+    startet und noch in Phase 1 oder 2 steht (05.09.2026, Live-Fall
+    Gruppe 1). Liefert True, wenn dabei etwas geaendert wurde.
+
+    Das ist **kein Raten** und damit kein Bruch mit "Die Phase setzt allein
+    die Gruppe" (AGENTS.md): der Aufnahmestart ist eine Handlung der Gruppe
+    -- Knopf, ``/aufnahme`` oder ein erkanntes ``interview_starten``. Wer
+    aufnimmt, fuehrt Interviews; die Phase hinterherhinken zu lassen hatte
+    genau eine sichtbare Folge, und die war falsch: die Einstiegsleiste bot
+    "Weiter zu Phase 3" NEBEN "Aufnahme starten" an, zwei Knoepfe fuer
+    dieselbe Sache.
+
+    Aus Phase 4 und hoeher wird **nicht** zurueckgeschaltet: eine Gruppe,
+    die im Kernthema noch ein Interview nachschiebt, ist deshalb nicht
+    wieder in Phase 3 (``_aufnahme_anbieten`` erlaubt das ausdruecklich).
+
+    Der Wechsel wird gemeldet wie jeder andere (``phasen.meldung``) -- er
+    ist hoerbar, nicht still."""
+    if phasen.aktuelle(conn, chat_id) >= PHASE_INTERVIEWS:
+        return False
+    if not phasen.setze(
+        conn, chat_id, PHASE_INTERVIEWS, quelle,
+        notiz=_JOURNAL_PHASE_DURCH_AUFNAHME,
+    ):
+        return False
+    try:
+        tg.sende(chat_id, phasen.meldung(PHASE_INTERVIEWS))
+    except Exception:
+        log.exception("Phasenmeldung nach Aufnahmestart fehlgeschlagen, chat_id=%s", chat_id)
+    return True
 
 
 def _kein_zug(conn, tg, klm, e, chat_id, hinweis=None) -> None:
@@ -701,9 +752,40 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
         nummer=repo.teil_nummer(conn, row["id"]),
         transkript=row["transkript"],
     )
-    _sende_und_merke(conn, tg, e, chat_id, text, typ=repo.TYP_TRANSKRIPT)
+    _sende_teil_echo(conn, tg, e, chat_id, text)
     repo.setze_status(conn, row["id"], "fertig")
     _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen)
+
+
+def _sende_teil_echo(conn, tg, e, chat_id: int, text: str) -> None:
+    """Schickt das Teil-Transkript MIT der Leiste "Interview geht weiter" ·
+    "Interview ist fertig" darunter (05.09.2026, ``knoepfe.biete_nach_teil``).
+
+    Der Anlass (Live-Lauf Gruppe 1): das Echo stand da, und die Gruppe wusste
+    nicht, ob das Interview weitergeht oder fertig ist. Die naechste Antwort
+    wird jetzt aktiv angeboten statt vorausgesetzt.
+
+    Die Nachricht bleibt ``typ='transkript'`` und damit in KEINEM
+    Erkenner-Fenster (§ 10.6): eine Tastatur darunter aendert nichts daran,
+    dass Interviewinhalt keine Gruppenabsicht ist.
+
+    Faellt die Tastatur aus (Telegram-Fehler), geht das Echo trotzdem raus --
+    das Transkript ist wichtiger als die Knoepfe."""
+    from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+
+    try:
+        message_id = knoepfe.biete_nach_teil(conn, tg, chat_id, text)
+    except Exception:
+        log.exception("Leiste unter dem Teil-Echo fehlgeschlagen, chat_id=%s", chat_id)
+        _sende_und_merke(conn, tg, e, chat_id, text, typ=repo.TYP_TRANSKRIPT)
+        return
+    try:
+        repo.merke_nachricht(
+            conn, chat_id, message_id, getattr(e, "bot_name", None), 1,
+            repo.TYP_TRANSKRIPT, text, repo._jetzt(), 1,
+        )
+    except Exception:
+        log.exception("Teil-Echo mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen) -> None:
@@ -926,6 +1008,13 @@ def schliesse_ab(conn, tg, klm, e, kopf_id: int) -> bool:
     name = kopf["name"] or "Das Interview"
     transkript = repo.zusammengefuegtes_transkript(conn, kopf_id)
     if not transkript.strip():
+        if not repo.hole_teile(conn, kopf_id):
+            # Kein einziger Teil: das Interview ist nie entstanden, es war
+            # ein Fehlgriff auf dem Knopf (Live-Fall Gruppe 1, 14:21). Weich
+            # entfernen statt als leere Huelle stehen lassen -- sonst zaehlt
+            # es als unausgewertetes Interview und sperrt Phase 4.
+            _verwirf_leeres_interview(conn, tg, e, kopf["chat_id"], kopf_id)
+            return True
         repo.setze_status(conn, kopf_id, "fertig")
         _sende_nach_interview(
             conn, tg, e, kopf["chat_id"], _TEXT_OHNE_AUFNAHME.format(name=name),
@@ -941,6 +1030,40 @@ def schliesse_ab(conn, tg, klm, e, kopf_id: int) -> bool:
         return True
     verarbeite(conn, tg, klm, e, None, kopf_id)
     return True
+
+
+def _verwirf_leeres_interview(conn, tg, e, chat_id: int, kopf_id: int) -> None:
+    """Entfernt ein Interview ohne einen einzigen Teil weich und meldet es
+    in einer Zeile mit dem Knopf "Aufnahme starten" darunter (05.09.2026).
+
+    Weich (``repo.entferne_aufnahme``) und nicht hart: die Audiodateien
+    bleiben liegen, der vollstaendige Loeschweg ist weiterhin
+    ``scripts/loeschen.py``. Hier gibt es ohnehin nichts zu loeschen -- es
+    ist nie eine Sprachnachricht angekommen.
+
+    Die **Interviewnummern verschieben sich dadurch nicht**:
+    ``repo.zaehle_interviews`` zaehlt entfernte Koepfe ausdruecklich mit
+    (siehe dort), das naechste Interview heisst also "Interview 3", auch
+    wenn 1 und 2 verworfen wurden. Zwei Aufnahmen mit demselben Namen waeren
+    im Journal nicht mehr auseinanderzuhalten."""
+    from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+
+    # Erst den Status, dann das Entfernen: ein Kopf, der auf 'laeuft' stehen
+    # bliebe, waere fuer den Nachhol-Arbeiter und ``schliesse_ab`` weiter ein
+    # offenes Interview -- auch als entfernte Zeile.
+    repo.setze_status(conn, kopf_id, "fertig")
+    try:
+        repo.entferne_aufnahme(conn, chat_id, kopf_id)
+    except Exception:
+        log.exception("Leeres Interview entfernen fehlgeschlagen, id=%s", kopf_id)
+    try:
+        message_id = knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_LEER_VERWORFEN)
+        repo.merke_nachricht(
+            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
+            _TEXT_LEER_VERWORFEN, repo._jetzt(), 0,
+        )
+    except Exception:
+        log.exception("Meldung zum leeren Interview fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def starte_abschluss(conn, tg, klm, e, kopf_id: int) -> threading.Thread:

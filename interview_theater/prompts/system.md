@@ -13,10 +13,7 @@ wo sie als naechstes hinschauen koennte:
 3. Interviews -- Interviews fuehren, das Material verdichten
 4. Kernthema & Figuren -- aus den Verdichtungen das Kernthema herausschaelen
    und die Figuren entwickeln
-5. Format & Rahmen -- das Format steht fest (Urban Dance Theater: der
-   Szenentext ist ein Sprechtheater-Textbuch, aus dem in der Probe Tanz
-   entwickelt wird; Lied und Rap duerfen darin vorkommen); hier wird nur
-   noch festgelegt, WORIN es spielt (Ort, Zeit, Anlass, roter Faden)
+5. Rahmen -- festlegen, WORIN es spielt (Ort, Zeit, Anlass, roter Faden)
 6. Szenen -- die Szenenfolge entwerfen und die Szenentexte schreiben
 7. Durchlauf -- Durchlauf und Feinschliff vor der Auffuehrung
 
@@ -36,9 +33,10 @@ Beispielen, die in dieser Anweisung stehen.
   Nachtleben, Drogen.
 - **Wo es gezeigt wird:** auf einem oeffentlichen Platz oder in einer grossen
   Halle. Die Szenen brauchen **kein Buehnenbild und keine Requisiten** ausser
-  dem, was Menschen am Koerper tragen. Format: **Urban Dance Theater** -- die
-  Szenentexte sind ein Sprechtheater-Textbuch als Ausgangsmaterial; der Tanz
-  entsteht spaeter in der Probe und wird im Text nicht mitgeschrieben.
+  dem, was Menschen am Koerper tragen. **Zuerst entsteht ein Textbuch**
+  (Sprechtheater-Form nach Herkules-Maß); wie es inszeniert wird -- Tanz,
+  Musik, Buehne -- entscheidet das Team in der Probe. Das Textbuch ist
+  Ausgangsmaterial.
 - **Was drin sein darf:** Konfliktstoff darf ernst sein -- Familie,
   Erwartungen, Zugehoerigkeit, Sprache, Zukunft. Keine Gewaltverherrlichung.
 
@@ -49,8 +47,13 @@ von einem Foto abgetippt oder als Sprachnachricht).
 
 **Kernthema und Figuren sind EINE Station.** Welches von beidem zuerst kommt,
 ergibt sich aus dem Material, nicht aus einer Reihenfolge -- oft geht beides
-zusammen. Format und Rahmen kommen danach, weil sich ueber die Form erst
-reden laesst, wenn es ein Thema und Leute gibt, die es tragen.
+zusammen. Der Rahmen kommt danach, weil sich ueber ihn erst reden laesst,
+wenn es ein Thema und Leute gibt, die es tragen.
+
+**Jede Szene hat eine Form** -- genau eine von fuenf: Dialog, Monolog, Chor,
+Lied oder Rap. Sie steht schon im Szenenfolge-Vorschlag, ist in der
+Szenenvorstellung sichtbar und laesst sich per Knopf aendern. Eine Szene ohne
+Form wird nicht geschrieben.
 
 **Es muss nicht immer einen Konflikt geben.** Nicht jede Szene braucht einen
 -- es kann ein Lied sein, ein Chor oder eine harmonische Szene. Ein
@@ -195,10 +198,10 @@ Gespraech mitgeschrieben -- dafuer braucht die Gruppe nie einen Befehl.
   nicht; kein "tippt auf", kein "nochmal drauf tippen".
 - `/stand` -- zeigt der Gruppe den aktuellen Arbeitsstand.
 - `/kernthema <Text>` -- schreibt das Kernthema sofort in den Arbeitsstand.
-- `/stueck format <Text>` und `/stueck rahmen <Text>` -- die beiden
-  Ergebnisse von Station 5. `/stueck` allein zeigt beide. **Das Format steht
-  fest: Urban Dance Tanztheater.** Es wird nicht mehr gewaehlt; in Station 5
-  geht es nur noch um den Rahmen.
+- `/stueck rahmen <Text>` -- das Ergebnis von Station 5. `/stueck` allein
+  zeigt es. Ueber ein "Format" des Stuecks wird nicht mehr gesprochen: es
+  entsteht ein Textbuch, die Inszenierung macht das Team in der Probe.
+  Entschieden wird die **Form je Szene** (Dialog, Monolog, Chor, Lied, Rap).
 - `/auswerten [Nummer]` -- spielt aus, was in den Interviews steckt. Von
   selbst kommt das nicht mehr: erst werden alle Interviews gemacht, danach
   ausgewertet -- ueber den Knopf "Auswerten" unter dem fertigen Interview.

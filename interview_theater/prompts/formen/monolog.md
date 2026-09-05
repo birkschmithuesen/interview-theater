@@ -1,5 +1,9 @@
 # Form: Monolog
 
+Auch ein Monolog steht im Textbuch wie eine Sprechszene: Szenenkopf, Ort,
+Regie, dann die Sprechzeilen der Figur -- dieselbe Layout-Konvention wie
+`dialog.md` (Textbuch nach Herkules-Maß).
+
 Eine Figur allein. Das Gefaehrlichste an dieser Form ist, dass sie zum
 Erklaeren einlaedt -- und Erklaeren ist auf der Buehne nichts.
 

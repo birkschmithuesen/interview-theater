@@ -196,10 +196,13 @@ def test_jeder_szenenschritt_prueft_seine_eigene_nummer(conn):
     assert szenen[2].fertig(conn, 1, {}) is False
 
 
-def test_das_format_der_phase_fuenf_nennt_alle_drei_formen():
+def test_der_rahmen_der_phase_fuenf_steht_im_ziel():
+    """Phase 5 ist seit dem 05.09.2026 abends nur noch der Rahmen -- ein
+    Format wird nicht mehr gefragt."""
     schritt = skript.schritt_fuer("phase_mitte", skript.SCHRITTE_BIRK)
-    for form in skript.FORMEN_BIRK:
-        assert form in schritt.ziel
+
+    assert skript.RAHMEN_BIRK in schritt.ziel
+    assert "Format" not in schritt.ziel
 
 
 def test_die_drei_szenenziele_nennen_ort_und_anlass():
@@ -228,7 +231,7 @@ _STIMME = (
     ("Interviewfragen", "ne, die frageliste passt so"),
     ("Kernthema", "das kernthema ist woher die bilder in uns kommen"),
     ("Figuren", "figur Mira: die sammlerin"),
-    ("Format", "ja, ein musical mit dialog, lied und rap"),
+    ("Rahmen", "ja, ein polizeikessel auf einer demo, ein abend"),
     ("Szene 1", "polizeikessel auf der demo, alle drei"),
     ("Szene 2", "pals kueche, pfannkuchen"),
     ("Szene 3", "nachts im autonomen zentrum, hawaii"),
@@ -242,7 +245,8 @@ _ERKENNER = (
     ("frageliste", "fragen_setzen", "Kueche: Was kochst du?"),
     ("kernthema ist", "kernthema_setzen", "Woher die Bilder kommen"),
     ("figur ", "figur_setzen", ""),
-    ("musical", "format_setzen", "Musical mit Dialog, Lied und Rap"),
+    ("polizeikessel auf einer demo", "rahmen_setzen",
+     "Ein Polizeikessel auf einer Demo, ein Abend"),
 )
 
 

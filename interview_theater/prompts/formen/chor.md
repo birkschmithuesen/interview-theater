@@ -1,5 +1,9 @@
 # Form: Chor
 
+Auch ein Chor steht im Textbuch wie eine Sprechszene: Szenenkopf, Ort,
+Regie, dann die Sprechzeilen -- dieselbe Layout-Konvention wie `dialog.md`
+(Textbuch nach Herkules-Maß).
+
 Mehrere sprechen gemeinsam. Der Chor kann, was keine einzelne Figur kann:
 etwas sagen, das niemandem allein gehoert.
 

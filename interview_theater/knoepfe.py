@@ -46,8 +46,6 @@ PRAEFIX = "k:"
 ART_KERNTHEMA = "kernthema"
 ART_AUFNAHME = "aufnahme"
 ART_PHASE = "phase"
-#: Format des Stuecks (Phase 5) -- dasselbe Ziel wie ``/stueck format <text>``.
-ART_FORMAT = "format"
 #: Form je Szene (Phase 6) -- dasselbe Ziel wie ``/szene <n> form <wert>``.
 #: Der Wert der Knopfzeile traegt beides, durch ':' getrennt: "3:dialog".
 ART_SZENENFORM = "szenenform"
@@ -276,9 +274,9 @@ _TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
 #: Arbeitsschritte zu weit.
 PHASE_INTERVIEWS = 3
 
-#: Die Phase, in der das Format feststeht und nur noch der Rahmen erarbeitet
-#: wird (``phasen.PHASEN``: "5 · Format & Rahmen").
-PHASE_FORMAT = 5
+#: Die Phase, in der der Rahmen erarbeitet wird (``phasen.PHASEN``:
+#: "5 · Rahmen").
+PHASE_RAHMEN = 5
 
 #: Die Phase, in der die Szenenfolge entsteht ("6 · Szenen"), und die des
 #: Durchlaufs ("7 · Durchlauf"). Als Konstanten und nicht als 6 und 7 im
@@ -286,24 +284,6 @@ PHASE_FORMAT = 5
 PHASE_SZENEN = 6
 PHASE_DURCHLAUF = 7
 
-#: Hoechstens vier Formatvorschlaege (Phase 5). Mehr Knoepfe als
-#: Kernthema-Vorschlaege sind hier vertretbar, weil die Beschriftungen kurz
-#: sind ("Sprechtheater") und nicht wie ein Kernthema ganze Saetze werden.
-MAX_FORMATE = 4
-
-#: Der Rueckfall, wenn niemand eigene Vorschlaege mitgibt -- die vier Formen,
-#: die ``prompts/phasen/5.md`` selbst aufzaehlt. Fest verdrahtet und NICHT
-#: vom Modell erfragt: ein Knopf-Handler ruft kein Sprachmodell (AGENTS.md),
-#: und diese vier sind ohnehin die Auswahl, die die Phase anbietet. Eine
-#: Mischform steht bewusst nicht dabei -- die sagt die Gruppe frei, dafuer
-#: gibt es ``/stueck format <text>``.
-STANDARD_FORMATE = ("Sprechtheater", "Musical", "Revue", "Hoerstueck")
-
-_TEXT_FORMAT_FRAGE = "Welches Format nehmen wir? Tippt eins an - oder sagt mir ein anderes."
-_TEXT_FORMAT_KEINE = (
-    "Ich habe gerade keine Vorschlaege. Ihr koennt es mir auch einfach "
-    "sagen: /stueck format Sprechtheater mit Chor."
-)
 _TEXT_SZENENFORM_FRAGE = "Welche Form soll Szene {nummer} haben?"
 _TEXT_USA_FRAGE_KNOEPFE = "Tippt an, was gelten soll:"
 _TEXT_USA_JA_KNOPF = "Ja, US-Modell"
@@ -774,9 +754,9 @@ def offene_art(conn, chat_id: int) -> str | None:
       ``figuren``, solange die Liste nicht fixiert ist
       (``figuren_fixiert_am``, Ebene 2 -- dieselbe Bedingung wie
       ``phasen.voraussetzungen[5]``).
-    * Phase 5 -- ``rahmen``, solange das Feld leer ist. Das **Format** steht
-      dort fest ("Urban Dance Tanztheater", ``setze_format_fest``) und wird
-      nicht mehr gewaehlt.
+    * Phase 5 -- ``rahmen``, solange das Feld leer ist. Ein **Format** des
+      Stuecks gibt es nicht mehr (Birk, 05.09.2026 abends): es entsteht
+      immer zuerst ein Textbuch.
 
     Steht der Wert, gibt es keine Leiste mehr -- **das** ist der Mechanismus
     hinter "die Leiste kommt nach jeder Aenderung wieder": speichert weder
@@ -962,41 +942,6 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
         if alle is not None:
             knoepfe.insert(1 if _aufnahme_anbieten(conn, chat_id) else 0, alle)
     return tg.sende_mit_knoepfen(chat_id, text, knoepfe)
-
-
-def biete_format(conn, tg, chat_id: int, vorschlaege: list[str] | None = None) -> bool:
-    """**Deaktiviert seit dem 05.09.2026 abends** (Birk): das Format steht
-    fest -- Urban Dance Tanztheater (``FORMAT_FEST``). Es gibt in Phase 5
-    nichts mehr zu waehlen, nur noch den Rahmen zu erarbeiten.
-
-    Die Funktion bleibt als eine Zeile stehen, statt sie zu loeschen: sie hat
-    einen Aufrufer (``/stueck format`` ohne Wert), und ein fehlender Name
-    waere dort ein AttributeError im Betrieb. Sie setzt jetzt das feste
-    Format und sagt es -- die Gruppe, die ausdruecklich etwas anderes will,
-    schreibt es mit ``/stueck format <text>``.
-
-    Liefert True, wenn dabei etwas geschrieben wurde.
-
-    Die alte Fassung darunter, zur Nachvollziehbarkeit:
-
-    Warum hier ein Knopf: seit ed51db1 stellt phasen/5.md das Format als
-    NUMMERIERTE Auswahl ("1. Sprechtheater, 2. Musical, ..."). Die Gruppe
-    antwortet darauf typischerweise mit "das erste" oder "ok" -- der
-    Absichtserkenner sieht live nur ein Fenster von ein bis drei Nachrichten
-    und kann daraus nicht ableiten, welcher Listenpunkt gemeint war. Ein
-    Knopf traegt die Auswahl selbst; die Wirkung ist wortgleich die von
-    ``/stueck format <text>`` (befehle._befehl_stueck).
-
-    Liefert False, wenn es nichts anzubieten gab -- dann steht statt der
-    Tastatur die Zeile, die das erklaert. Ohne ``vorschlaege`` gelten die
-    ``STANDARD_FORMATE``.
-
-    Der Volltext steht in der Beschriftung UND in der Tabelle ``knopf``, nie
-    in ``callback_data`` (Zusage 1 im Moduldocstring): ein Format wie
-    "Sprechtheater mit Chorpassagen und Liedern" sprengt die 64 Bytes."""
-    geschrieben = setze_format_fest(conn, chat_id)
-    tg.sende(chat_id, _TEXT_FORMAT_FEST)
-    return geschrieben
 
 
 def biete_szenenform(conn, tg, chat_id: int, nummer: int, text: str | None = None) -> None:
@@ -1739,40 +1684,6 @@ def _figurenzeile(namen: list[str]) -> str:
     from interview_theater import erkenner
 
     return erkenner._figuren_zeile(namen)
-
-
-# --- Format fest (Phase 5) ------------------------------------------------
-
-#: Das Format steht seit dem 05.09.2026 abends FEST (Birk): es wird ein
-#: Urban Dance Tanztheater, und darueber wird nicht mehr abgestimmt. Der
-#: Wert wird beim Eintritt in Phase 5 automatisch gesetzt; die Formatknoepfe
-#: (``biete_format``) sind damit weg, ``/stueck format <text>`` bleibt als
-#: Befehl funktionsfaehig -- eine Gruppe, die doch etwas anderes will, sagt
-#: es, und der Befehl schreibt es.
-FORMAT_FEST = "Urban Dance Tanztheater"
-_TEXT_FORMAT_FEST = (
-    "Das Format steht fest: Urban Dance Tanztheater. Getanzt wird mehr als "
-    "geredet, der Text traegt die Bruchstellen."
-)
-
-
-def setze_format_fest(conn, chat_id: int) -> bool:
-    """Setzt ``arbeitsstand.format`` auf ``FORMAT_FEST``, wenn es noch leer
-    ist. Liefert True, wenn dabei etwas geschrieben wurde.
-
-    Idempotent und ohne Modellaufruf -- gerufen wird sie beim Eintritt in
-    Phase 5 (Phasenknopf, ``/phase 5``) und aus dem Rahmen-Angebot heraus.
-    Ein schon gesetztes Format wird NICHT ueberschrieben: hat die Gruppe
-    ueber ``/stueck format`` etwas anderes hingeschrieben, gilt das."""
-    stand = repo.hole_arbeitsstand(conn, chat_id)
-    if stand and (stand["format"] or "").strip():
-        return False
-    repo.setze_arbeitsstand(conn, chat_id, "format", FORMAT_FEST)
-    repo.schreibe_journal(
-        conn, chat_id, "entschieden", f"Format: {FORMAT_FEST} (festgelegt)",
-        quelle="knopf",
-    )
-    return True
 
 
 # --- Figuren, Ebene 1: die Liste ------------------------------------------
@@ -2640,11 +2551,6 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         nummer = int(knopf["wert"])
         if phasen.setze(conn, chat_id, nummer, "knopf"):
             tg.sende(chat_id, phasen.meldung(nummer))
-        if nummer == PHASE_FORMAT and setze_format_fest(conn, chat_id):
-            # Das Format wird in Phase 5 nicht mehr gewaehlt, es steht fest
-            # (Birk, 05.09.2026 abends). Die Gruppe erfaehrt es in einem
-            # Satz -- und arbeitet dann am Rahmen.
-            tg.sende(chat_id, _TEXT_FORMAT_FEST)
         if nummer == PHASE_DURCHLAUF:
             # Der Durchlauf fragt nicht nach Ideen, er zeigt, was dasteht:
             # die Szenenfolge mit Status, ein Knopf je Szene und das
@@ -2698,16 +2604,6 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
 
         befehle._befehl_hilfe(tg, e, chat_id)
         return "Hilfe"
-    if art == ART_FORMAT:
-        # Wortgleich das, was /stueck format tut (befehle._befehl_stueck):
-        # dasselbe Feld, derselbe Schreibweg. Kein zweiter Mechanismus --
-        # sonst gaebe es zwei Stellen, an denen 'format' entsteht.
-        repo.setze_arbeitsstand(conn, chat_id, "format", knopf["wert"])
-        repo.schreibe_journal(
-            conn, chat_id, "entschieden", f"Format: {knopf['wert']}", quelle="knopf",
-        )
-        tg.sende(chat_id, f"Format notiert: {knopf['wert']}")
-        return "Format uebernommen"
     if art == ART_SZENENFORM:
         # Der wert traegt Nummer UND Form ("3:dialog") -- siehe
         # biete_szenenform. Getrennt wird am ERSTEN ':', damit ein spaeter

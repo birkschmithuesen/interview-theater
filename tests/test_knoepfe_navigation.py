@@ -315,7 +315,7 @@ def test_erst_die_fixierung_gibt_phase_fuenf_frei(conn, tg, einst):
     _druecke(conn, tg, einst, "Passt")
 
     assert phasen.voraussetzungen(conn, 1)[5] is True
-    assert "Weiter zu Format & Rahmen" in [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Weiter zu Rahmen" in [b for b, _ in tg.knoepfe[-1][2]]
 
 
 def test_eine_einzige_figur_genuegt(conn, tg, einst):
@@ -395,7 +395,7 @@ def test_entfernen_loescht_weich_und_geht_zur_naechsten(conn, tg, einst):
         (2, "Weiter zu Fragen"),
         (3, "Weiter zu Interviews"),
         (4, "Weiter zu Kernthema & Figuren"),
-        (5, "Weiter zu Format & Rahmen"),
+        (5, "Weiter zu Rahmen"),
         (6, "Weiter zu Szenen"),
         (7, "Weiter zu Durchlauf"),
     ],
@@ -439,12 +439,15 @@ def test_schlag_du_vor_gibt_einen_auftrag_je_phase_ab(conn, tg, einst, auftraege
     assert "VORSCHLAG RICHTUNGEN:" in auftraege[0]
 
 
-def test_der_schritt_nach_phase_fuenf_setzt_das_feste_format(conn, tg, einst):
+def test_der_schritt_nach_phase_fuenf_setzt_kein_format(conn, tg, einst):
+    """Die Formatfrage ist komplett raus (Birk, 05.09.2026 abends): der
+    Phasenknopf setzt nichts mehr, er fuehrt nur zum Rahmen."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 5)
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Format & Rahmen")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Rahmen")))
 
-    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Urban Dance Tanztheater"
+    assert not (repo.hole_arbeitsstand(conn, 1)["format"] or "")
+    assert not any("Urban Dance" in t for _, t in tg.gesendet)
 
 
 # --- Figurenvorstellung: Belegzitate und Reihenfolge ----------------------

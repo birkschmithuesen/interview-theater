@@ -192,9 +192,12 @@ def test_interview_summary_zeigt_die_kurzformen_nicht_die_zusammenfassung(
     assert "Ich hatte nur einen Koffer" in koerper
 
 
-def test_dashboard_nennt_format_und_die_formen_der_szenen(db_pfad):
+def test_dashboard_nennt_den_rahmen_und_die_formen_der_szenen(db_pfad):
+    """Das Format des Stuecks steht seit dem 05.09.2026 abends nicht mehr auf
+    der Seite -- es wird nicht mehr gefragt. Die Form je Szene schon."""
     conn = db.verbinde(db_pfad)
     repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     repo.setze_szenenfeld(conn, repo.stelle_szene_sicher(conn, 1, 1), "form", "Dialog")
     repo.setze_szenenfeld(conn, repo.stelle_szene_sicher(conn, 1, 2), "form", "Dialog")
     repo.setze_szenenfeld(conn, repo.stelle_szene_sicher(conn, 1, 3), "form", "Lied")
@@ -203,7 +206,8 @@ def test_dashboard_nennt_format_und_die_formen_der_szenen(db_pfad):
     koerper = web.dashboard_html(web_daten.dashboard(lesend))
     lesend.close()
 
-    assert "Musical: Dialog, Lied, Rap" in koerper
+    assert "Eine Nacht im Treppenhaus" in koerper
+    assert "Musical: Dialog, Lied, Rap" not in koerper
     assert "Szenen: <b>3</b> — 2 Dialog, 1 Lied" in koerper
 
 
@@ -224,11 +228,11 @@ def test_dashboard_zeigt_die_ergebnisse_je_interview_ohne_zitate(db_pfad):
     assert "Kurze Saetze." not in koerper
 
 
-def test_arbeitsstand_zeigt_format_und_rahmen_den_konflikt_nur_wenn_gesetzt():
-    """Phase 5 (05.09.2026): Format und Rahmen sind eigene Zeilen. Der
-    Hauptkonflikt taucht nur auf, wenn es einen gibt -- eine leere Zeile
-    daneben sieht aus wie eine unerledigte Aufgabe, und genau das ist er
-    nicht."""
+def test_arbeitsstand_zeigt_den_rahmen_den_konflikt_nur_wenn_gesetzt():
+    """Phase 5 (05.09.2026 abends): der Rahmen ist eine eigene Zeile, das
+    Format steht nicht mehr da. Der Hauptkonflikt taucht nur auf, wenn es
+    einen gibt -- eine leere Zeile daneben sieht aus wie eine unerledigte
+    Aufgabe, und genau das ist er nicht."""
     stand = {
         "phase": 5, "begriffe": None, "fragen": None, "kernthema": "Ankommen",
         "kernthema_begruendung": None, "format": "Musical: Dialog, Lied, Rap",
@@ -236,7 +240,7 @@ def test_arbeitsstand_zeigt_format_und_rahmen_den_konflikt_nur_wenn_gesetzt():
     }
 
     ohne = web._arbeitsstand_html(stand, [])
-    assert "Musical: Dialog, Lied, Rap" in ohne
+    assert "Musical: Dialog, Lied, Rap" not in ohne
     assert "Eine Nacht im Treppenhaus" in ohne
     assert "Hauptkonflikt" not in ohne
 

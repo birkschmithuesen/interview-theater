@@ -125,9 +125,9 @@ def _figuren(conn, *namen, chat_id=1):
 VORSCHLAG = (
     "Ich habe mir das so gedacht.\n\n"
     "VORSCHLAG SZENENFOLGE:\n"
-    "Am Bahnhof — Mira kommt an — Mira, Pal\n"
-    "In der Kueche — Pal kocht, es wird laut — Pal, Pola\n"
-    "Der Kessel — alle drei stehen fest — Mira, Pola, Pal\n"
+    "Am Bahnhof — Mira kommt an — Mira, Pal — Dialog\n"
+    "In der Kueche — Pal kocht, es wird laut — Pal, Pola — Lied\n"
+    "Der Kessel — alle drei stehen fest — Mira, Pola, Pal — Chor\n"
     "\n"
     "Passt euch die Reihenfolge?"
 )
@@ -208,8 +208,9 @@ def test_gefaellt_uns_weiter_legt_die_szenen_an(conn, einst, tg):
     assert [s["nummer"] for s in szenen] == [1, 2, 3]
     assert [s["titel"] for s in szenen] == ["Am Bahnhof", "In der Kueche", "Der Kessel"]
     assert szenen[0]["was_passiert"] == "Mira kommt an"
-    # Form-Vorgabe: Tanztheater, aenderbar ueber "Form aendern".
-    assert szenen[0]["form"] == szenenfolge.FORM_VORGABE
+    # Die Form kommt aus der vierten Spalte der Vorschlagszeile und ist je
+    # Szene Pflicht (05.09.2026 abends) -- aenderbar ueber "Form aendern".
+    assert [s["form"] for s in szenen] == ["dialog", "lied", "chor"]
     # Die Besetzung nur, soweit die Figuren im Arbeitsstand stehen.
     assert [f["name"] for f in repo.szene_figuren(conn, szenen[0]["id"])] == ["Mira", "Pal"]
 
@@ -655,24 +656,47 @@ def test_callback_data_bleibt_unter_der_telegram_grenze(conn, tg):
 
 def test_zerlege_kommt_mit_nummerierung_und_beiden_strichen_klar(conn):
     zeilen = szenenfolge.zerlege(
-        "1. Am Bahnhof — Mira kommt an — Mira, Pal\n"
-        "Szene 2: In der Kueche - Pal kocht - Pal\n"
+        "1. Am Bahnhof — Mira kommt an — Mira, Pal — Dialog\n"
+        "Szene 2: In der Kueche - Pal kocht - Pal - gesungen\n"
         "\n"
         "Ohne Trenner"
     )
 
     assert zeilen == [
-        ("Am Bahnhof", "Mira kommt an", ["Mira", "Pal"]),
-        ("In der Kueche", "Pal kocht", ["Pal"]),
-        ("Ohne Trenner", "", []),
+        ("Am Bahnhof", "Mira kommt an", ["Mira", "Pal"], "dialog"),
+        ("In der Kueche", "Pal kocht", ["Pal"], "lied"),
+        ("Ohne Trenner", "", [], szenenfolge.FORM_VORGABE),
     ]
+
+
+def test_zerlege_faellt_ohne_vierte_spalte_auf_die_vorgabe_zurueck(conn):
+    """Die Form ist Pflicht -- laesst das Modell die Spalte weg, wird nichts
+    geraten, sondern die Vorgabe gesetzt (und die Gruppe sieht sie in der
+    Vorstellung, Zeile 2)."""
+    assert szenenfolge.zerlege("Am Bahnhof — Mira kommt an — Mira") == [
+        ("Am Bahnhof", "Mira kommt an", ["Mira"], "dialog"),
+    ]
+
+
+def test_die_anweisung_verlangt_die_form_je_zeile():
+    """Der Marker traegt vier Spalten (05.09.2026 abends): ohne Form in der
+    Zeile bekaeme jede Szene die Vorgabe, und die Mischung aus Dialog, Lied
+    und Rap entstuende nie."""
+    anweisung = szenenfolge.systemanweisung(5)
+
+    assert "— Form" in anweisung
+    for form in ("Dialog", "Monolog", "Chor", "Lied", "Rap"):
+        assert form in anweisung
+    assert "**nicht jede Szene ist ein Dialog**" in anweisung
 
 
 def test_lege_an_legt_keine_figuren_an(conn):
     """Figuren entstehen in Phase 4 mit Beschreibung und Interview -- sie aus
     einer Szenenzeile zu raten waere genau der Fehler, den ``vorschlag.py``
     vermeidet."""
-    szenenfolge.lege_an(conn, 1, [("Am Bahnhof", "Mira kommt an", ["Mira"])])
+    szenenfolge.lege_an(
+        conn, 1, [("Am Bahnhof", "Mira kommt an", ["Mira"], "dialog")]
+    )
 
     assert repo.figuren(conn, 1) == []
 
@@ -774,3 +798,38 @@ def test_so_lassen_nimmt_den_vermerk_zurueck_ohne_modellaufruf(conn, einst, tg):
     assert klm.aufrufe == 0
     assert not szenenfolge.zu_pruefen(conn, 1, 2)
     assert repo.hole_szene(conn, zwei)["volltext"] == "TEXT VON ZWEI"
+
+
+# --- Die Form je Szene ist Pflicht (05.09.2026 abends) --------------------
+
+
+def test_die_vorstellung_zeigt_die_form_in_zeile_zwei(conn):
+    """Seit dem Wegfall der Formatfrage ist die Form die eine Entscheidung,
+    die je Szene faellt -- sie steht direkt unter dem Titel, nicht als Angabe
+    unter acht."""
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szenenfeld(conn, szene_id, "titel", "Am Bahnhof")
+    repo.setze_szenenfeld(conn, szene_id, "form", "Lied")
+    repo.setze_szenenfeld(conn, szene_id, "ort", "Bahnhof")
+
+    zeilen = szenenfolge.vorstellung(
+        conn, repo.hole_szene(conn, szene_id)
+    ).splitlines()
+
+    assert zeilen[0] == "Szene 1: Am Bahnhof"
+    assert zeilen[1] == "Form: Lied"
+
+
+def test_eine_leere_form_steht_als_offen_in_zeile_zwei(conn):
+    """Pflichtfeld: fehlt sie, sagt die Vorstellung es -- und `sperrtext`
+    nennt sie als erstes, damit \"Ja, schreiben\" sie zuerst vorschlaegt."""
+    from interview_theater import szene as szene_modul
+
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szenenfeld(conn, szene_id, "titel", "Am Bahnhof")
+    zeile = repo.hole_szene(conn, szene_id)
+
+    assert szenenfolge.vorstellung(conn, zeile).splitlines()[1] == "Form: noch offen"
+    fehlende, _ = szene_modul.fehlendes(conn, zeile)
+    assert fehlende[0] == "form", "die Form wird zuerst vorgeschlagen"
+    assert "Form" in szene_modul.sperrtext(conn, zeile)

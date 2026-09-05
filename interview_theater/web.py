@@ -752,7 +752,6 @@ def _arbeitsstand_html(
             else ""
         )
         + "</dd>"
-        f"<dt>Format</dt><dd>{_t(arbeitsstand.get('format'))}</dd>"
         f"<dt>Rahmen</dt><dd>{_t(arbeitsstand.get('rahmen'))}</dd>"
         # Der Hauptkonflikt steht nur da, wenn es einen gibt (05.09.2026): er
         # ist eine moegliche Rahmen-Entscheidung, keine Pflicht -- ein leeres

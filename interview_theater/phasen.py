@@ -39,18 +39,19 @@ nicht von sich aus anfaengt. Ein Kaefig ist sie nicht: bittet die Gruppe
 ausdruecklich um etwas aus einer anderen Phase, tut er es, und der Erkenner
 setzt die Phase nach.
 
-**Phase 5 heisst seit dem 05.09.2026 "Format & Rahmen"** und nicht mehr
-"Hauptkonflikt" (Birk): *"Es muss nicht immer einen Konflikt geben. Nicht jede
-Szene muss einen Konflikt haben -- es kann ein Lied sein oder eine harmonische
-Liebesszene. Das Ganze wird vermutlich ein Musical."* An dieser Station
-entscheidet die Gruppe zweierlei: **WAS** entsteht (Sprechtheater, Musical,
-Revue, Hoerstueck -- und welche Formen darin vorkommen duerfen: Dialog, Lied,
-Rap, Monolog, Chor, stumme Szene) und **WORIN** es spielt (Ort, Zeit, Anlass,
-roter Faden). Ein durchgehender Konflikt ist EINE moegliche
-Rahmen-Entscheidung; ``arbeitsstand.hauptkonflikt`` bleibt als optionales Feld
-bestehen und wird nur noch angezeigt, wenn es gesetzt ist. Keine Migration:
-die Nummer 5 bleibt 5, nur ihr Name und ihre Voraussetzung fuer 6 haben sich
-geaendert.
+**Phase 5 heisst seit dem 05.09.2026 abends nur noch "Rahmen"** (Birk). Sie
+hiess erst "Hauptkonflikt", dann "Format & Rahmen" -- die Formatfrage ist
+ersatzlos gestrichen: *"wir wollen immer zuerst ein Textbuch; wie wir
+inszenieren, ist unser Ding."* An dieser Station entscheidet die Gruppe nur
+noch, **WORIN** es spielt (Ort, Zeit, Anlass, roter Faden). Was eine einzelne
+Szene zum Dialog, Monolog, Chor, Lied oder Rap macht, ist ihre **Form** --
+Pflichtfeld je Szene in Phase 6, nicht Sache dieser Station.
+
+Ein durchgehender Konflikt ist EINE moegliche Rahmen-Entscheidung;
+``arbeitsstand.hauptkonflikt`` bleibt als optionales Feld bestehen und wird
+nur noch angezeigt, wenn es gesetzt ist. Keine Migration: die Nummer 5 bleibt
+5, ``arbeitsstand.format`` bleibt als Spalte stehen (nichts wird geloescht),
+wird aber fuer keine Entscheidung mehr gelesen.
 """
 
 from interview_theater import repo
@@ -85,9 +86,8 @@ PHASEN = (
     ),
     (
         5,
-        "Format & Rahmen",
-        "Festlegen, WAS entsteht (Sprechtheater, Musical, Revue, Hoerstueck) "
-        "und WORIN es spielt.",
+        "Rahmen",
+        "Festlegen, WORIN es spielt: Ort, Zeit, Anlass, roter Faden.",
     ),
     (6, "Szenen", "Die Szenenfolge entwerfen und die Szenentexte schreiben."),
     (7, "Durchlauf", "Durchlauf und Feinschliff vor der Auffuehrung."),
@@ -110,11 +110,11 @@ STICHWOERTER = {
     2: ("fragen", "frage", "frageliste"),
     3: ("interviews", "interview", "aufnahmen"),
     4: ("kernthema", "kernthemas", "thema", "figuren", "figur"),
-    # "konflikt" bleibt als Altlast stehen: bis zum 05.09.2026 hiess diese
-    # Phase "Hauptkonflikt", und eine Gruppe (oder ein Journaleintrag von
-    # gestern) sagt weiter "wir sind beim Konflikt". Der Konflikt ist jetzt
-    # EINE moegliche Rahmen-Entscheidung -- dieselbe Station also, nur nicht
-    # mehr ihr Name.
+    # "konflikt" und "format" bleiben als Altlast stehen: bis zum 05.09.2026
+    # hiess diese Phase "Hauptkonflikt", danach kurz "Format & Rahmen", und
+    # eine Gruppe (oder ein Journaleintrag von gestern) sagt weiter "wir sind
+    # beim Konflikt" oder "beim Format". Beides meint dieselbe Station -- nur
+    # ist keines von beidem mehr ihr Name.
     5: ("format", "rahmen", "rahmung", "konflikt", "hauptkonflikt"),
     6: ("szenen", "szene", "szenenfolge", "szenentexte"),
     7: ("durchlauf", "feinschliff"),
@@ -268,16 +268,17 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
 
     Rein aus den Daten, ohne gespeicherten Zustand und ohne Modellaufruf:
     Begriffe da -> 2 ist moeglich; Fragen da -> 3; eine fertige Verdichtung
-    -> 4; Kernthema **und** zwei Figuren -> 5 (ueber Form und Rahmen laesst
+    -> 4; Kernthema **und** zwei Figuren -> 5 (ueber den Rahmen laesst
     sich erst reden, wenn es ein Thema und Leute gibt, die es tragen);
-    **Format** gesetzt -> 6; eine Szene mit Volltext -> 7.
+    **Rahmen** gesetzt -> 6; eine Szene mit Volltext -> 7.
     Phase 1 braucht keine Voraussetzung, dorthin kommt man immer zurueck.
 
-    Fuer 6 zaehlt seit dem 05.09.2026 ``format``, nicht mehr
-    ``hauptkonflikt``: ein durchgehender Konflikt ist eine Moeglichkeit und
-    keine Pflicht (Birk -- "es kann ein Lied sein oder eine harmonische
-    Liebesszene"), waehrend ohne Format niemand weiss, ob die naechste Szene
-    ein Dialog oder ein Rap wird. ``rahmen`` darf leer bleiben.
+    Fuer 6 zaehlt seit dem 05.09.2026 abends ``rahmen``, nicht mehr
+    ``format`` und schon gar nicht ``hauptkonflikt``: das Format ist keine
+    Frage mehr (es entsteht immer zuerst ein Textbuch), ein durchgehender
+    Konflikt ist eine Moeglichkeit und keine Pflicht -- der Rahmen dagegen
+    sagt, WORIN gespielt wird, und ohne ihn erfindet das Modell ihn je Szene
+    neu. Die Form ist ab Phase 6 Pflicht, aber je Szene.
 
     Die Bedingungen sind nicht kumulativ: eine Gruppe, die ohne Interviews
     direkt ein Kernthema und zwei Figuren setzt, darf trotzdem nach 5 -- die
@@ -310,7 +311,7 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         4: bool(repo.verdichtungen(conn, chat_id))
         and not aufnahme.unausgewertete_interviews(conn, chat_id),
         5: kernthema and fixiert and bool(repo.figuren(conn, chat_id)),
-        6: bool(stand and stand["format"]),
+        6: bool(stand and (stand["rahmen"] or "").strip()),
         7: any(s["volltext"] for s in repo.hole_szenen(conn, chat_id)),
     }
 

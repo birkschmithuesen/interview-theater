@@ -160,7 +160,9 @@ def test_keine_transkripte_und_keine_verdichtungen_mehr(conn, einst):
     assert "Maria erzaehlt von der Ankunft" not in text
 
 
-def test_format_rahmen_und_kernthema_stehen_vorn(conn, einst):
+def test_rahmen_und_kernthema_stehen_vorn(conn, einst):
+    """Das Format des Stuecks steht seit dem 05.09.2026 abends NICHT mehr im
+    Prompt: es wird nicht mehr gefragt, also auch nicht vorgehalten."""
     repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
     repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
@@ -168,8 +170,9 @@ def test_format_rahmen_und_kernthema_stehen_vorn(conn, einst):
 
     text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
 
-    assert text.startswith("Format des Stuecks: Musical: Dialog, Lied, Rap")
-    assert "Rahmen: Eine Nacht im Treppenhaus" in text
+    assert text.startswith("Rahmen: Eine Nacht im Treppenhaus")
+    assert "Format des Stuecks" not in text
+    assert "Musical" not in text
     assert "Kernthema: Ankommen (Begruendung: dreimal genannt)" in text
 
 
@@ -295,19 +298,31 @@ def test_auftrag_steht_am_ende(conn, einst):
     "form, datei",
     [
         ("Dialog", "dialog"),
+        ("Text", "dialog"),
+        ("Sprechszene", "dialog"),
         ("Lied", "lied"),
         ("gesungen, mit Refrain", "lied"),
         ("Rap", "rap"),
+        ("HipHop", "rap"),
         ("Monolog", "monolog"),
         ("Chor", "chor"),
-        ("stumme Szene", "stumm"),
         ("", "dialog"),
         (None, "dialog"),
         ("Bewegungsszene", "dialog"),
+        ("stumme Szene", "dialog"),
     ],
 )
 def test_formdatei_ordnet_die_form_ihrem_regelblock_zu(form, datei):
     assert szene.formdatei(form) == datei
+
+
+def test_formdatei_kennt_kein_format_mehr():
+    """Die Formatfrage ist raus (Birk, 05.09.2026 abends): ``formdatei``
+    nimmt genau ein Argument, und der Rueckfall ist immer ``dialog``."""
+    import inspect
+
+    assert list(inspect.signature(szene.formdatei).parameters) == ["form"]
+    assert szene.FORMEN == ("dialog", "monolog", "chor", "lied", "rap")
 
 
 def test_systemanweisung_haengt_den_formenblock_dazwischen():
@@ -316,6 +331,9 @@ def test_systemanweisung_haengt_den_formenblock_dazwischen():
 
     assert "Kein Monolog laenger als sechs Zeilen" in dialog
     assert "Kein Monolog laenger als sechs Zeilen" not in lied
+    # Der Rueckfall ist derselbe Block: eine Szene ohne Form ist eine
+    # Sprechszene, keine getanzte (05.09.2026 abends).
+    assert "Kein Monolog laenger als sechs Zeilen" in szene.systemanweisung(None)
     assert "REFRAIN" in lied
     # Grundform und Negativliste stehen in beiden.
     for text in (dialog, lied):
@@ -840,16 +858,13 @@ def test_usa_frage_blockiert_die_szene_nicht_endlos(conn, einst, tg):
     szene._usa_erinnerungen.pop(1, None)
 
 
-def test_ohne_format_und_rahmen_wird_keine_szene_geschrieben(conn, einst, tg):
+def test_ohne_rahmen_wird_keine_szene_geschrieben(conn, einst, tg):
     """Birk 05.09.2026 live: "es wurde gerade szene geschrieben, ohne dass
-    nach setting, format, stil gefragt wurde. das haette nicht passieren
-    duerfen, denn diese variablen muessen alle vorher vom user gesetzt sein".
+    nach setting gefragt wurde. das haette nicht passieren duerfen, denn
+    diese variablen muessen alle vorher vom user gesetzt sein".
 
-    Gemessen an Szene 1 der Gruppe 1: alle vier Szenen-Pflichtfelder waren
-    gesetzt (Form Monolog, Ort Kueche, zwei Figuren mit Sprachprofil, was
-    passiert), aber arbeitsstand.format und arbeitsstand.rahmen waren leer --
-    die Ergebnisse von Phase 5, die PFLICHTFELDER nicht kennt, weil dort nur
-    Felder der Szene selbst stehen. Die Szene lief trotzdem."""
+    Seit dem Abend des 05.09.2026 zaehlt nur noch ``rahmen``: das Format ist
+    keine Frage mehr."""
     figur = _figur_mit_stimme(conn)
     _geplante_szene(conn, 1, form="Monolog", ort="Kueche",
                     was_passiert="sie erinnert sich", figuren=[figur])
@@ -857,9 +872,10 @@ def test_ohne_format_und_rahmen_wird_keine_szene_geschrieben(conn, einst, tg):
 
     thread = szene.starte(conn, tg, klm, einst, 1, "Schreib Szene 1")
 
-    assert thread is None, "kein Lauf ohne Format und Rahmen"
+    assert thread is None, "kein Lauf ohne Rahmen"
     assert klm.aufrufe == 0, "und vor allem kein bezahlter Modellaufruf"
-    assert "Format" in tg.texte[0] and "Rahmen" in tg.texte[0]
+    assert "Rahmen" in tg.texte[0]
+    assert "Format" not in tg.texte[0]
 
 
 def test_mit_format_und_rahmen_laeuft_die_szene(conn, einst, tg):
@@ -874,31 +890,16 @@ def test_mit_format_und_rahmen_laeuft_die_szene(conn, einst, tg):
     assert szene.sperrtext(conn, repo.hole_szene(conn, 1)) is None
 
 
-# --- Tanztheater als Vorgabe (05.09.2026 abends) --------------------------
+# --- Dialog als Rueckfall (05.09.2026 abends) -----------------------------
 
 
-def test_ohne_form_entscheidet_das_format_ueber_den_regelblock():
-    """Das Format steht fest (knoepfe.FORMAT_FEST) -- eine Szene ohne eigene
-    Form ist dann keine Sprechszene, sondern eine getanzte."""
-    assert szene.formdatei(None, "Urban Dance Tanztheater") == "tanztheater"
-    assert szene.formdatei("", "Urban Dance Tanztheater") == "tanztheater"
-    assert szene.formdatei(None, "") == "dialog", "ohne Format bleibt Dialog"
-
-
-def test_eine_ausdrueckliche_form_schlaegt_das_format():
-    """Lied und Rap bleiben waehlbar -- sie kommen INNERHALB des
-    Tanztheaters vor."""
-    assert szene.formdatei("Lied", "Urban Dance Tanztheater") == "lied"
-    assert szene.formdatei("Rap", "Urban Dance Tanztheater") == "rap"
-
-
-def test_der_tanztheater_regelblock_steht_in_der_systemanweisung():
-    """Seit Birks Entscheidung vom 05.09.2026 abends ist \"Urban Dance
-    Theater\" ein normales Sprechtheater-Textbuch (gemessen am Herkules.exe-
-    Textbuch): das Textbuch ist Ausgangsmaterial, die Choreografin entwickelt
-    die Bewegung in der Probe. Der Regelblock darf deshalb genau das NICHT
-    mehr enthalten, was die verworfene Tanztheater-Recherche vorgab."""
-    text = szene.systemanweisung(None, "Urban Dance Tanztheater")
+def test_der_dialog_regelblock_steht_in_der_systemanweisung():
+    """Seit Birks Entscheidung vom 05.09.2026 abends entsteht immer zuerst
+    ein Sprechtheater-Textbuch (gemessen am Herkules.exe-Textbuch): das
+    Textbuch ist Ausgangsmaterial, die Inszenierung macht das Team in der
+    Probe. Der Regelblock darf deshalb genau das NICHT mehr enthalten, was
+    die verworfene Tanztheater-Recherche vorgab."""
+    text = szene.systemanweisung(None)
 
     assert "Sprechtheater-Textbuch" in text
     assert "Choreografin" in text

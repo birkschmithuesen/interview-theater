@@ -212,76 +212,64 @@ def laeuft(chat_id: int) -> bool:
     return bool(sperre is not None and sperre.locked())
 
 
-#: Die Formen, fuer die es einen eigenen Regelblock gibt
-#: (``prompts/formen/<name>.md``). ``dialog`` ist der Rueckfall: eine Gruppe,
-#: die nichts anderes gesagt hat, bekommt Dialog.
-#: ``tanztheater`` steht am ENDE und nicht am Anfang: die Reihenfolge ist die
-#: der Knopfleiste (``knoepfe.biete_szenenform``), und dort sind die Formen
-#: die SONDERFAELLE innerhalb des Tanztheaters (ein Lied, ein Rap). Die
-#: Vorgabe braucht keinen Knopf -- sie ist der Rueckfall in ``formdatei``.
-FORMEN = ("dialog", "lied", "rap", "monolog", "chor", "stumm", "tanztheater")
+#: Die fuenf Formen, die eine Szene haben kann -- je eine mit eigenem
+#: Regelblock (``prompts/formen/<name>.md``). Die Reihenfolge ist die der
+#: Knopfleiste (``knoepfe.biete_szenenform``): erst die Sprechformen, dann
+#: die musikalischen.
+#:
+#: Ein "Format des Stuecks" gibt es seit dem 05.09.2026 abends nicht mehr
+#: (Birk: "wir wollen immer zuerst ein Textbuch; wie wir inszenieren, ist
+#: unser Ding") -- die Form haengt deshalb ausschliesslich an der EINZELNEN
+#: Szene und ist dort Pflichtfeld. "stumm" ist gestrichen: ein stummes Bild
+#: ist Inszenierung, nicht Textbuch.
+FORMEN = ("dialog", "monolog", "chor", "lied", "rap")
 
 #: Woerter, unter denen eine Form gemeint sein kann -- wie
 #: ``phasen.STICHWOERTER``: das Feld ``szene.form`` ist frei (die Gruppe
 #: entscheidet, nicht der Code), und "gesungen" muss trotzdem beim Lied
 #: landen. Verglichen wird in beide Richtungen, deshalb genuegen Wortstaemme.
 FORM_STICHWOERTER = {
-    # "bewegung" steht hier bewusst NICHT: eine "Bewegungsszene" ist eine
-    # unbekannte Form und faellt damit auf das FORMAT des Stuecks zurueck --
-    # ist das Tanztheater, landet sie ohnehin hier.
-    "tanztheater": ("tanztheater", "urban dance", "choreografie", "getanzt"),
     "lied": ("lied", "song", "gesang", "gesungen", "singen", "musik", "arie"),
-    "rap": ("rap", "sprechgesang", "beat", "reim"),
+    "rap": ("rap", "sprechgesang", "beat", "reim", "hip-hop", "hiphop"),
     "monolog": ("monolog", "soloszene", "solo"),
     "chor": ("chor", "chorisch", "wir-form", "sprechchor"),
-    "stumm": ("stumm", "pantomime", "ohne worte", "wortlos"),
-    "dialog": ("dialog", "gespraech", "gespräch", "gesprochen", "sprechtheater"),
+    "dialog": ("dialog", "gespraech", "gespräch", "gesprochen", "sprechtheater",
+               "text", "sprechszene", "szene"),
 }
 
 
-def formdatei(form: str | None, format_: str | None = None) -> str:
+def formdatei(form: str | None) -> str:
     """Uebersetzt das freie Feld ``szene.form`` in den Namen eines
-    Regelblocks. Kennt der Code die Form nicht, entscheidet das **Format des
-    Stuecks** (``arbeitsstand.format``): steht dort "Tanztheater", gilt
-    ``tanztheater``, sonst ``dialog``.
+    Regelblocks (``prompts/formen/<name>.md``). Rueckfall bei leerer oder
+    unbekannter Form: ``dialog``.
 
     Der Rueckfall ist eine Entscheidung, kein Notbehelf: eine unbekannte Form
     ("Bewegungsszene") ist im Zweifel gesprochenes Theater, und ein Prompt
     ohne jeden Formenblock haette gar keine Dramaturgieregeln mehr -- die
-    stehen seit dem 05.09.2026 alle in ``prompts/formen/``.
+    stehen seit dem 05.09.2026 alle in ``prompts/formen/``. ``dialog.md``
+    traegt seit dem Abend des 05.09.2026 den am Herkules-Textbuch gemessenen
+    Regelblock.
 
-    Seit dem 05.09.2026 abends steht das Format fest ("Urban Dance
-    Tanztheater", ``knoepfe.FORMAT_FEST``) -- und dann ist eine Szene ohne
-    ausdrueckliche Form eben keine Sprechszene, sondern eine getanzte. Die
-    Sonderformen (Lied, Rap) bleiben waehlbar; sie kommen INNERHALB des
-    Tanztheaters vor.
+    **Es gibt keinen Format-Parameter mehr** (Birk, 05.09.2026 abends): das
+    Format des Stuecks ist keine Frage mehr, die der Bot stellt. Was zaehlt,
+    ist die Form JE SZENE.
 
     **Dialog wird zuletzt geprueft**, nicht in Listenreihenfolge: das Wort
-    "Szene" steht in "stumme Szene" genauso wie in jeder anderen Angabe, und
-    Dialog ist ohnehin der Rueckfall -- er braucht keinen Vorrang, er braucht
-    den Rest."""
+    "Szene" steht in fast jeder Formangabe, und Dialog ist ohnehin der
+    Rueckfall -- er braucht keinen Vorrang, er braucht den Rest."""
     text = (form or "").strip().lower()
-    rueckfall = "tanztheater" if "tanztheater" in (format_ or "").lower() else "dialog"
     if not text:
-        return rueckfall
+        return "dialog"
     for name in FORMEN:
         if name == "dialog":
             continue
         for stichwort in FORM_STICHWOERTER.get(name, ()):
             if stichwort in text:
                 return name
-    return rueckfall
+    return "dialog"
 
 
-def _format_des_stuecks(conn, chat_id: int) -> str:
-    """Das Format aus dem Arbeitsstand ("Urban Dance Tanztheater") -- es
-    entscheidet, welcher Regelblock gilt, wenn eine Szene keine eigene Form
-    hat (``formdatei``)."""
-    stand = repo.hole_arbeitsstand(conn, chat_id)
-    return (stand["format"] if stand else "") or ""
-
-
-def systemanweisung(form: str | None = None, format_: str | None = None) -> str:
+def systemanweisung(form: str | None = None) -> str:
     """Die Systemanweisung des Szenen-Aufrufs, dreiteilig und heiss
     nachgeladen: ``prompts/szene.md`` (was fuer jede Form gilt), der
     Regelblock zur Form (``prompts/formen/<form>.md``) und die Negativliste
@@ -299,7 +287,7 @@ def systemanweisung(form: str | None = None, format_: str | None = None) -> str:
     und dank des Hot-Reloads in ``anweisungen.py`` wirkt eine Ergaenzung ohne
     Neustart, beim naechsten Szenen-Auftrag."""
     teile = [anweisungen.hole("szene")]
-    regeln = anweisungen.hole_optional(f"formen/{formdatei(form, format_)}")
+    regeln = anweisungen.hole_optional(f"formen/{formdatei(form)}")
     if regeln and regeln.strip():
         teile.append(regeln.strip())
     teile.append(anweisungen.hole("theater-tells"))
@@ -347,11 +335,15 @@ def nummer_aus_auftrag(auftrag: str) -> int | None:
 PFLICHTFELDER = ("form", "ort", "figuren", "was_passiert")
 
 #: Pflichtfelder, die nicht an der Szene haengen, sondern am Arbeitsstand der
-#: Gruppe: die Ergebnisse von Phase 5 (Format & Rahmen). Ohne sie ist nicht
-#: entschieden, WAS entsteht und WORIN es spielt -- das Modell erfindet dann
-#: beides, und zwar je Szene neu. Birk 05.09.2026, nachdem eine Szene ohne
-#: gesetztes Format und ohne Rahmen geschrieben wurde.
-ARBEITSSTAND_PFLICHTFELDER = ("format", "rahmen")
+#: Gruppe: das Ergebnis von Phase 5 (Rahmen). Ohne ihn ist nicht entschieden,
+#: WORIN das Stueck spielt -- das Modell erfindet es dann je Szene neu. Birk
+#: 05.09.2026, nachdem eine Szene ohne Rahmen geschrieben wurde.
+#:
+#: ``format`` stand hier bis zum Abend des 05.09.2026 daneben und ist raus:
+#: das Format ist keine Frage mehr (die Spalte bleibt in der Datenbank, wird
+#: aber fuer keine Entscheidung mehr gelesen). Was jede Szene braucht, ist
+#: ihre eigene ``form`` -- die steht in ``PFLICHTFELDER``.
+ARBEITSSTAND_PFLICHTFELDER = ("rahmen",)
 
 #: Wie ein Feld in einer Nachricht an die Gruppe heisst.
 FELDNAMEN = {
@@ -368,7 +360,6 @@ FELDNAMEN = {
     "kurzbeschreibung": "Kurz",
     # Aus dem Arbeitsstand (ARBEITSSTAND_PFLICHTFELDER), nicht aus der Szene:
     # so benannt, dass die Gruppe erkennt, wonach sie noch nicht gefragt wurde.
-    "format": "das Format des Stuecks (Phase 5)",
     "rahmen": "der Rahmen: Ort, Zeit, Anlass des Abends (Phase 5)",
 }
 
@@ -696,19 +687,20 @@ def ziel_fuer(conn, chat_id: int, auftrag: str, chronologisch: bool = True):
 
 
 def _format_rahmen_text(conn, chat_id: int) -> str:
-    """Block 1: Format und Rahmen (Phase 5).
+    """Block 1: der Rahmen (Phase 5).
 
-    Zuerst, weil er ueber allem steht: er entscheidet, ob ueberhaupt ein
-    Dialog entsteht oder ein Lied, und worin das Ganze spielt."""
+    Zuerst, weil er ueber allem steht: er sagt, worin das Ganze spielt.
+
+    Das Format des Stuecks stand hier bis zum Abend des 05.09.2026 darueber
+    und ist raus (Birk): es entsteht immer zuerst ein Textbuch, die
+    Inszenierung macht das Team in der Probe. Was eine einzelne Szene zum
+    Dialog oder zum Lied macht, ist ihr Feld ``form``."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
     if not stand:
         return ""
-    zeilen = []
-    if stand["format"]:
-        zeilen.append(f"Format des Stuecks: {stand['format']}")
-    if stand["rahmen"]:
-        zeilen.append(f"Rahmen: {stand['rahmen']}")
-    return "\n".join(zeilen)
+    if not stand["rahmen"]:
+        return ""
+    return f"Rahmen: {stand['rahmen']}"
 
 
 def _thema_text(conn, chat_id: int) -> str:
@@ -1152,12 +1144,12 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     if szene_claude.ist_aktiv(e, conn, chat_id):
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
-            chat_id, systemanweisung(ziel["form"], _format_des_stuecks(conn, chat_id)),
+            chat_id, systemanweisung(ziel["form"]),
             nutzer, ART, timeout=TIMEOUT_S,
         )
     else:
         antwort = klm.prosa(
-            chat_id, systemanweisung(ziel["form"], _format_des_stuecks(conn, chat_id)),
+            chat_id, systemanweisung(ziel["form"]),
             nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
         )
 

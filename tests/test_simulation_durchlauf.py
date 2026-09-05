@@ -32,7 +32,7 @@ STIMME = (
     ("Kernthema", "das kernthema ist das Warten zwischen zwei Laendern"),
     ("drei Figuren", "figur Meryem: die Aeltere"),
     ("stimmt ein Name", "die figur Meryem fliegt raus"),
-    ("WAS aus dem Material entsteht", "ja, machen wir ein musical daraus"),
+    ("WORIN das Stueck spielt", "ja, ein wartesaal an einem abend"),
     ("wo sie spielt", "am bahnhof, Meryem und Ferzan, sie warten"),
 )
 
@@ -45,7 +45,7 @@ ERKENNER = (
     ("kernthema ist", "kernthema_setzen", "Warten zwischen zwei Laendern"),
     ("fliegt raus", "entfernen", "Figur Meryem"),
     ("figur ", "figur_setzen", "Meryem: die Aeltere"),
-    ("musical", "format_setzen", "Musical: Dialog, Lied, Rap"),
+    ("wartesaal", "rahmen_setzen", "Ein Wartesaal, an einem Abend"),
 )
 
 

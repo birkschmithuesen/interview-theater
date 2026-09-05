@@ -110,16 +110,16 @@ def test_zustimmungen_ohne_markierung_sind_null(protokoll):
 def test_arbeitsstand_vollstaendig_zaehlt_je_feld(conn):
     stand = kennzahlen.arbeitsstand_vollstaendig(conn, 1)
     assert set(stand) == {"begriffe", "fragen", "kernthema", "figuren_3",
-                          "format"}
+                          "rahmen"}
     assert sum(stand.values()) == 0
 
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer")
-    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Wartesaal")
     for name in ("Meryem", "Ferzan", "Aynur"):
         repo.setze_figur(conn, 1, name, "eine Frau")
     stand = kennzahlen.arbeitsstand_vollstaendig(conn, 1)
     assert stand["begriffe"] == 1
-    assert stand["format"] == 1
+    assert stand["rahmen"] == 1
     assert stand["figuren_3"] == 1
     assert stand["fragen"] == 0
 

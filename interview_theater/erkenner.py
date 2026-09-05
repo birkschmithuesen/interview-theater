@@ -208,8 +208,6 @@ def _arbeitsstand_text(conn, chat_id: int) -> str:
             zeilen.append(f"Fragen: {stand['fragen']}")
         if stand["kernthema"]:
             zeilen.append(f"Kernthema: {stand['kernthema']}")
-        if stand["format"]:
-            zeilen.append(f"Format: {stand['format']}")
         if stand["rahmen"]:
             zeilen.append(f"Rahmen: {stand['rahmen']}")
         if stand["hauptkonflikt"]:

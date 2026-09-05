@@ -145,9 +145,8 @@ _TEXT_HILFE = (
     "/stand - zeigt, was ich mir bisher gemerkt habe\n"
     "/auswerten [nummer] - was in den Interviews steckt\n"
     "/kernthema <text> - das Kernthema festlegen\n"
-    "/stueck format <text> - Sprechtheater, Musical, Mischform ...\n"
     "/stueck rahmen <text> - Ort, Zeit, Anlass des Abends\n"
-    "/szene <nummer> form <dialog|monolog|lied|rap|chor|stumm>\n"
+    "/szene <nummer> form <dialog|monolog|chor|lied|rap>\n"
     "/szene <nummer> ort <text> - dasselbe fuer ort, zeit, anlass, figuren\n"
     "/szene <auftrag> - eine Szene schreiben lassen\n"
     "/phase [nummer|name] - zeigt die Phase oder schaltet um\n"
@@ -294,52 +293,38 @@ def _befehl_auswerten(conn, tg, klm, e, chat_id: int, rest: str) -> None:
 
 
 def _befehl_stueck(conn, tg, chat_id: int, rest: str) -> None:
-    """``/stueck format <text>`` und ``/stueck rahmen <text>`` -- die beiden
-    Ergebnisse von Phase 5 unter EINEM Befehl.
+    """``/stueck rahmen <text>`` -- das Ergebnis von Phase 5.
 
-    Vorher waren es zwei (``/format``, ``/rahmen``). Zusammengelegt am
-    05.09.2026 (Birk: "fass zusammen, was Sinn macht"), weil beide dieselbe
-    Frage beantworten -- was fuer ein Stueck entsteht -- und die Station im
-    Bot auch "Format & Rahmen" heisst. Ein Befehl weniger im Menue, und das
-    Muster ist dasselbe wie bei ``/szene 2 ort Kessel``: Befehl, Feld, Wert.
-
-    Ohne Feld zeigt er beide Werte -- so ist ``/stueck`` zugleich die Antwort
+    Ohne Feld zeigt er den Rahmen -- so ist ``/stueck`` zugleich die Antwort
     auf "was haben wir da nochmal festgelegt", ohne den ganzen ``/stand``.
 
+    ``format`` bleibt seit dem 05.09.2026 abends als **stilles Synonym**
+    erhalten: die Spalte ``arbeitsstand.format`` gibt es weiter, und ein
+    Bot-Neustart soll einen alten Befehl nicht mit einem Fehler beantworten.
+    Beworben wird sie nicht mehr -- das Format des Stuecks ist keine Frage
+    mehr, die der Bot stellt (Birk: "wir wollen immer zuerst ein Textbuch;
+    wie wir inszenieren, ist unser Ding").
+
     ``aus`` als Wert nimmt das Feld wieder weg, wie bei ``/kernthema aus``."""
-    felder = {"format": "Format", "rahmen": "Rahmen"}
+    felder = {"rahmen": "Rahmen", "format": "Format"}
     feld, _, wert = rest.partition(" ")
     feld = feld.strip().lower()
     wert = wert.strip()
 
     if not feld:
         stand = repo.hole_arbeitsstand(conn, chat_id)
-        zeilen = []
-        for schluessel, name in felder.items():
-            gesetzt = (stand[schluessel] if stand else None) or ""
-            zeilen.append(f"{name}: {gesetzt}" if gesetzt else f"{name}: noch offen")
-        zeilen.append("Setzen: /stueck format Sprechtheater: Dialog und Chor")
+        gesetzt = (stand["rahmen"] if stand else None) or ""
+        zeilen = [f"Rahmen: {gesetzt}" if gesetzt else "Rahmen: noch offen"]
+        zeilen.append("Setzen: /stueck rahmen Ein Wartezimmer, an einem Nachmittag")
         tg.sende(chat_id, "\n".join(zeilen))
         return
 
     if feld not in felder:
-        tg.sende(
-            chat_id,
-            "Das kenne ich nicht. Es gibt /stueck format <text> und "
-            "/stueck rahmen <text>.",
-        )
+        tg.sende(chat_id, "Das kenne ich nicht. Es gibt /stueck rahmen <text>.")
         return
 
     bezeichnung = felder[feld]
     if not wert:
-        # Beim Format kommen seit dem 05.09.2026 Knoepfe statt einer
-        # Syntaxzeile: Phase 5 stellt das Format als nummerierte Auswahl, und
-        # auf "das erste" kann der Erkenner nicht zuverlaessig schliessen
-        # (knoepfe.biete_format). Der Rahmen bleibt Freitext -- dort gibt es
-        # keine Liste, aus der sich waehlen liesse.
-        if feld == "format":
-            knoepfe.biete_format(conn, tg, chat_id)
-            return
         beispiel = _BEISPIEL_ARBEITSSTAND[feld]
         tg.sende(
             chat_id,
@@ -480,9 +465,6 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     )
     zeilen.append(
         f"Kernthema: {stand['kernthema']}" if stand and stand["kernthema"] else "Kernthema: noch offen"
-    )
-    zeilen.append(
-        f"Format: {stand['format']}" if stand and stand["format"] else "Format: noch offen"
     )
     zeilen.append(
         f"Rahmen: {stand['rahmen']}" if stand and stand["rahmen"] else "Rahmen: noch offen"

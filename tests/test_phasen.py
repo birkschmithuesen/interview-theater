@@ -60,7 +60,7 @@ def test_die_korrigierte_reihenfolge_der_kurznamen():
     Phase."""
     assert [name for _, name, _ in phasen.PHASEN] == [
         "Begriffe", "Fragen", "Interviews", "Kernthema & Figuren",
-        "Format & Rahmen", "Szenen", "Durchlauf",
+        "Rahmen", "Szenen", "Durchlauf",
     ]
 
 
@@ -94,7 +94,7 @@ def test_jede_phase_hat_stichwoerter():
         ("kernthema", 4),
         ("figuren", 4),                    # dieselbe Phase, anderes Wort
         ("figur", 4),
-        ("Format & Rahmen", 5),            # der Kurzname genau
+        ("Rahmen", 5),            # der Kurzname genau
         ("Format", 5),
         ("Rahmen", 5),
         ("Hauptkonflikt", 5),              # Altlast: so hiess die Phase bis 05.09.
@@ -148,7 +148,7 @@ def test_setze_schreibt_phase_und_journalzeile(conn):
     assert repo.hole_phase(conn, 1) == 5
     eintrag = repo.journal(conn, 1)[-1]
     assert eintrag["art"] == "entschieden"
-    assert eintrag["text"] == "Phase 5 · Format & Rahmen"
+    assert eintrag["text"] == "Phase 5 · Rahmen"
     assert eintrag["quelle"] == "erkenner"
 
 
@@ -276,21 +276,22 @@ def test_figuren_ohne_kernthema_erlauben_fuenf_nicht(conn):
     assert phasen.voraussetzungen(conn, 1)[5] is False
 
 
-def test_format_erlaubt_sechs(conn):
-    """Seit dem 05.09.2026 haengt Phase 6 am **Format**, nicht mehr am
-    Hauptkonflikt: ein Konflikt ist eine Moeglichkeit, keine Pflicht -- ohne
-    Format weiss dagegen niemand, ob die naechste Szene ein Dialog oder ein
-    Rap wird."""
+def test_rahmen_erlaubt_sechs(conn):
+    """Seit dem 05.09.2026 abends haengt Phase 6 am **Rahmen**, nicht mehr am
+    Format und schon gar nicht am Hauptkonflikt: das Format ist keine Frage
+    mehr, ein Konflikt eine Moeglichkeit -- der Rahmen dagegen sagt, WORIN
+    gespielt wird."""
     repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "bleiben gegen gehen")
     assert phasen.voraussetzungen(conn, 1)[6] is False
 
-    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     assert phasen.voraussetzungen(conn, 1)[6] is True
 
 
-def test_rahmen_allein_erlaubt_sechs_nicht(conn):
-    """``rahmen`` darf leer bleiben und traegt deshalb keine Voraussetzung."""
-    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
+def test_format_allein_erlaubt_sechs_nicht(conn):
+    """``arbeitsstand.format`` bleibt als Spalte stehen, wird aber fuer keine
+    Entscheidung mehr gelesen (Birk, 05.09.2026 abends)."""
+    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
     assert phasen.voraussetzungen(conn, 1)[6] is False
 
 
@@ -339,7 +340,7 @@ def test_naechste_moegliche_ist_die_hoechste(conn):
     """Der Merkposten fuer ``phase_angeboten`` braucht eine Zahl, keine
     Liste -- das ist der einzige Grund, warum es beide Funktionen gibt."""
     _kernthema_und_figuren(conn)
-    repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     assert phasen.moegliche_naechste(conn, 1) == [5, 6]
     assert phasen.naechste_moegliche(conn, 1) == 6
 

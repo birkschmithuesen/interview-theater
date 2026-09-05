@@ -970,6 +970,40 @@ def interviews(conn, chat_id: int) -> list:
     return [a for a in repo.transkripte(conn, chat_id) if a["klasse"] == "lang"]
 
 
+def unausgewertete_interviews(conn, chat_id: int) -> list:
+    """Beendete Interviews mit Material, aber ohne Verdichtung (05.09.2026).
+
+    Die Grundlage der **Phase-4-Sperre**: erst wenn diese Liste leer ist,
+    gibt es \"Weiter zu Phase 4\" -- ins Kernthema geht es mit dem ganzen
+    Material, nicht mit dem halben (Live-Fall 05.09.: die Gruppe schaltete
+    weiter, waehrend zwei Interviews unausgewertet danebenlagen, und der
+    Bot schlug Kernthemen aus einem Drittel des Materials vor).
+
+    Drei Bedingungen, jede einzeln noetig:
+
+    * **beendet** (``beendet_am`` gesetzt oder Status ``fertig``/
+      ``transkribiert``) -- ein laufendes Interview ist keine offene
+      Auswertung, sondern eine laufende Aufnahme.
+    * **hat ein Transkript** -- ein Interview ohne eine einzige
+      Sprachnachricht (\"hatte keine Aufnahme\") kann nie verdichtet werden
+      und wuerde die Gruppe sonst dauerhaft aussperren.
+    * **keine Verdichtung** (``repo.verdichtung_zu_aufnahme``).
+
+    Reine Leseabfrage, kein Modellaufruf -- sie laeuft in jedem
+    Gespraechszug (``phasen.voraussetzungen``)."""
+    offen = []
+    for kopf in interviews(conn, chat_id):
+        beendet = kopf["beendet_am"] or kopf["status"] in ("fertig", "transkribiert")
+        if not beendet:
+            continue
+        if not (kopf["transkript"] or "").strip():
+            if not repo.zusammengefuegtes_transkript(conn, kopf["id"]).strip():
+                continue
+        if repo.verdichtung_zu_aufnahme(conn, kopf["id"]) is None:
+            offen.append(kopf)
+    return offen
+
+
 def finde_interview(conn, chat_id: int, bezeichnung: str = ""):
     """Sucht das Interview, das ``bezeichnung`` meint -- eine Nummer ("3",
     "Interview 3"), ein Namensteil ("Meryem") oder nichts (dann das letzte).

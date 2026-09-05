@@ -261,13 +261,24 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
     Reihenfolge ist eine Landkarte, kein Zwang (SPEC § 6.1).
 
     Und sie sind eine Frage, keine Entscheidung: was hier True ergibt, wird
-    der Gruppe angeboten (``offenes_angebot``), nie geschaltet."""
+    der Gruppe angeboten (``offenes_angebot``), nie geschaltet.
+
+    **Phase 4 hat seit dem 05.09.2026 eine zweite Bedingung**: es darf kein
+    beendetes Interview ohne Verdichtung mehr geben
+    (``aufnahme.unausgewertete_interviews``). Der Grund ist derselbe wie bei
+    allem anderen hier -- die Materiallage: aus dem Material das Kernthema
+    herauszuschaelen heisst aus dem GANZEN Material, nicht aus dem, was
+    zufaellig schon ausgewertet war. Solange etwas offen ist, bietet die
+    Knopfleiste \"Auswerten\" an statt \"Weiter zu Phase 4\"."""
+    from interview_theater import aufnahme
+
     stand = repo.hole_arbeitsstand(conn, chat_id)
     kernthema = bool(stand and stand["kernthema"])
     return {
         2: bool(stand and stand["begriffe"]),
         3: bool(stand and stand["fragen"]),
-        4: bool(repo.verdichtungen(conn, chat_id)),
+        4: bool(repo.verdichtungen(conn, chat_id))
+        and not aufnahme.unausgewertete_interviews(conn, chat_id),
         5: kernthema and len(repo.figuren(conn, chat_id)) >= 2,
         6: bool(stand and stand["format"]),
         7: any(s["volltext"] for s in repo.hole_szenen(conn, chat_id)),

@@ -189,6 +189,64 @@ def test_eine_verdichtung_erlaubt_vier(conn):
     assert phasen.moegliche_naechste(conn, 1) == [4]
 
 
+def _beendetes_interview(conn, transkript="ein Satz mit genug Material"):
+    """Ein beendetes Interview mit Transkript und ohne Verdichtung."""
+    from interview_theater import aufnahme
+
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
+    repo.setze_transkript(conn, kopf_id, transkript)
+    repo.setze_status(conn, kopf_id, "fertig")
+    repo.setze_interviewmodus(conn, 1, None)
+    return kopf_id
+
+
+def test_vier_bleibt_gesperrt_solange_ein_interview_unausgewertet_ist(conn):
+    """Die Phase-4-Sperre (05.09.2026): ins Kernthema geht es mit dem GANZEN
+    Material -- eine Verdichtung reicht nicht, wenn daneben ein beendetes
+    Interview ohne Auswertung liegt."""
+    from interview_theater import aufnahme
+
+    erstes = _beendetes_interview(conn)
+    repo.speichere_verdichtung(conn, 1, erstes, "Maria erzaehlt", [])
+    assert phasen.voraussetzungen(conn, 1)[4] is True
+
+    zweites = _beendetes_interview(conn)
+    assert aufnahme.unausgewertete_interviews(conn, 1)
+    assert phasen.voraussetzungen(conn, 1)[4] is False
+
+    repo.speichere_verdichtung(conn, 1, zweites, "Pal erzaehlt", [])
+    assert aufnahme.unausgewertete_interviews(conn, 1) == []
+    assert phasen.voraussetzungen(conn, 1)[4] is True
+
+
+def test_ein_interview_ohne_transkript_sperrt_nicht(conn):
+    """Sonst saesse eine Gruppe fest: ein Interview ohne eine einzige
+    Sprachnachricht kann nie verdichtet werden."""
+    from interview_theater import aufnahme
+
+    kopf = _beendetes_interview(conn)
+    repo.speichere_verdichtung(conn, 1, kopf, "Maria erzaehlt", [])
+    _beendetes_interview(conn, transkript="")
+
+    assert aufnahme.unausgewertete_interviews(conn, 1) == []
+    assert phasen.voraussetzungen(conn, 1)[4] is True
+
+
+def test_ein_laufendes_interview_sperrt_nicht(conn):
+    """Ein laufendes Interview ist eine laufende Aufnahme, keine offene
+    Auswertung."""
+    from interview_theater import aufnahme
+
+    kopf = _beendetes_interview(conn)
+    repo.speichere_verdichtung(conn, 1, kopf, "Maria erzaehlt", [])
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    aufnahme.stelle_interview_sicher(conn, 1)
+
+    assert aufnahme.unausgewertete_interviews(conn, 1) == []
+    assert phasen.voraussetzungen(conn, 1)[4] is True
+
+
 def test_fuenf_braucht_kernthema_und_zwei_figuren(conn):
     """Ein Konflikt braucht zwei Wollen: ohne zwei Figuren gibt es nichts,
     wogegen etwas stehen koennte."""

@@ -64,7 +64,7 @@ TIMEOUT_S = 120.0
 WARTEZEITEN = (3.0, 10.0, 30.0)
 
 #: Vorgabe fuer das Ausgabebudget eines Aufrufs.
-MAX_TOKENS = 2000
+MAX_TOKENS = 16_000  # 05.09.: 2.000 lief im Denken leer (nur thinking-Block); Deckel, kein Ziel
 
 
 class ClaudeFehler(Exception):
@@ -255,6 +255,13 @@ def _inhalt_aus(koerper: dict) -> str:
         b.get("text") or "" for b in (koerper.get("content") or [])
         if isinstance(b, dict) and b.get("type") == "text"
     ]
-    if not teile:
-        raise ClaudeFehler("keine Textbloecke in der Antwort des Simulationsmodells")
+    if not teile or not "".join(teile).strip():
+        # 05.09. 04:25, --set birk Schritt Kernthema: Opus lieferte nur einen
+        # thinking-Block und stop_reason max_tokens -- das Budget war im
+        # Denken aufgebraucht, bevor ein Textblock kam.
+        raise ClaudeFehler(
+            "keine Textbloecke in der Antwort des Simulationsmodells "
+            f"(stop_reason={koerper.get('stop_reason')}, "
+            f"bloecke={[b.get('type') for b in koerper.get('content') or []]})"
+        )
     return "\n".join(teile)

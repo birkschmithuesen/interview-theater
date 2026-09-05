@@ -44,7 +44,12 @@ log = logging.getLogger(__name__)
 
 #: Grosszuegig bemessen, weil das Reasoning-Budget vor dem eigentlichen
 #: Inhalt aufgebraucht sein kann (Fehlerbild 3 oben).
-MAX_TOKENS = 9000
+MAX_TOKENS = 32_000
+#: 05.09. 04:20: war 9.000. Simulation --set birk: Kimi lief im Gespraech
+#: (reasoning none!) in finish_reason=length, weil es sein Selbstgespraech ins
+#: Antwortfeld schrieb (~4.000 Zeichen) und dann das JSON nicht mehr schloss.
+#: Deckel = Obergrenze gegen ein durchdrehendes Modell, nie Zielwert knapp
+#: ueber der Messung (Birk 04.09.). Bezahlt werden nur erzeugte Token.
 
 #: Wartezeiten zwischen Wiederholungen bei 5xx/Timeout; plus Jitter in
 #: _sende_mit_wiederholung. Macht bis zu vier Versuche insgesamt.

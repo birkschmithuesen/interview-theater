@@ -65,7 +65,7 @@ import logging
 import re
 import threading
 
-from interview_theater import anweisungen, repo
+from interview_theater import anweisungen, repo, szene_claude
 
 log = logging.getLogger(__name__)
 
@@ -113,6 +113,17 @@ _TEXT_FEHLER = (
     "Die Szene ist mir nicht gelungen. Sagt es nochmal, dann versuche ich es neu."
 )
 _TEXT_VOLLSTAENDIG = "Vollstaendig auf eurer Gruppenseite."
+#: Birk 05.09.: "schaltet Opus als Modell ein ab /szene mit einer Warnung,
+#: dass ab nun die Daten nach Amerika abfliessen." Steht VOR der
+#: Ankuendigung, jedes Mal -- nicht nur beim ersten Mal, weil die Gruppe
+#: wechselt und weil es um Daten geht.
+_TEXT_WARNUNG_USA = (
+    "Hinweis: Den Szenentext schreibt ein Modell von Anthropic (USA). Dafuer "
+    "gehen jetzt euer Arbeitsstand, die Figuren mit ihren Zitaten und die "
+    "Szenenangaben an einen Server in den USA -- keine Audioaufnahmen, keine "
+    "vollstaendigen Interviews, keine Namen aus diesem Chat. Alles andere "
+    "bleibt in der Schweiz. Wenn ihr das nicht wollt, sagt es jetzt."
+)
 
 
 class SzeneFehler(Exception):
@@ -822,10 +833,16 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     nummer = ziel["nummer"]
 
     nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel)
-    antwort = klm.prosa(
-        chat_id, systemanweisung(ziel["form"]),
-        nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
-    )
+    if szene_claude.ist_aktiv(e):
+        antwort = szene_claude.prosa(
+            conn, e, klm._klient, chat_id, systemanweisung(ziel["form"]),
+            nutzer, ART, timeout=TIMEOUT_S,
+        )
+    else:
+        antwort = klm.prosa(
+            chat_id, systemanweisung(ziel["form"]),
+            nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
+        )
 
     titel, kurz, volltext = zerlege(antwort)
     if not volltext:
@@ -905,6 +922,8 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
         _sende_und_merke(conn, tg, e, chat_id, _TEXT_BESETZT)
         return None
 
+    if szene_claude.ist_aktiv(e):
+        _sende_und_merke(conn, tg, e, chat_id, _TEXT_WARNUNG_USA)
     _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEKUENDIGT)
     # Hinweis, keine Sperre: die Szene wird trotzdem geschrieben.
     hinweis = neue_figuren_hinweis(conn, chat_id, ziel)

@@ -37,3 +37,13 @@ IT_STT_PRODUKT=PRODUKT-ID
 # Oeffentliche Basis-URL der Leseansicht. Der Bot nennt daraus den Link
 # /g/<token> in der Begruessung und in /stand. Leer lassen = kein Link.
 IT_WEB_URL=https://lab.artesmobiles.art/theatersoap
+
+# --- Szenen-Aufruf -----------------------------------------------------
+# infomaniak (Vorgabe): Kimi K2.6 mit Reasoning, Daten bleiben in der Schweiz.
+# claude: Opus ueber den lokalen Proxy hermes-anthropic-proxy.service
+#         (127.0.0.1:28764, Anthropic-Messages-Format, Abo, kein Key noetig).
+#         Nur dieser eine Aufruf geht in die USA; die Gruppe bekommt vor jeder
+#         Szene die Warnung. Gemessen 05.09.2026: Opus mit Abstand besser.
+IT_SZENE_ANBIETER=claude
+# IT_SZENE_URL=http://127.0.0.1:28764/v1/messages
+# IT_SZENE_MODELL=claude-opus-5

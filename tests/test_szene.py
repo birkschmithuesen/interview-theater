@@ -739,3 +739,35 @@ def test_der_szenenlauf_ist_nicht_der_gespraechsthread(conn, einst, tg, bereit):
     assert isinstance(thread, threading.Thread)
     assert thread is not threading.current_thread()
     _warte(thread)
+
+
+def test_szene_ueber_claude_warnt_vor_dem_aufruf(conn, einst, monkeypatch):
+    """Birk 05.09.: Opus fuer die Szene, aber mit Warnung, dass die Daten in
+    die USA gehen -- vor JEDEM Aufruf. Bei Infomaniak keine Warnung."""
+    import dataclasses
+    from interview_theater import szene, szene_claude
+    e_claude = dataclasses.replace(einst, szene_anbieter="claude")
+    assert szene_claude.ist_aktiv(e_claude)
+    assert not szene_claude.ist_aktiv(einst)
+    assert "USA" in szene._TEXT_WARNUNG_USA
+    assert "Audio" in szene._TEXT_WARNUNG_USA
+
+
+def test_claude_prosa_liest_textbloecke_und_bucht(conn, einst):
+    import httpx, dataclasses
+    from interview_theater import szene_claude, repo
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["anthropic-version"] == szene_claude.API_VERSION
+        assert "authorization" not in {k.lower() for k in request.headers}
+        return httpx.Response(200, json={
+            "content": [{"type": "thinking", "thinking": "..."}, {"type": "text", "text": "TITEL: X\nKURZ: y\n\nMIRA: Hallo."}],
+            "stop_reason": "end_turn", "usage": {"input_tokens": 100, "output_tokens": 20},
+        })
+    klient = httpx.Client(transport=httpx.MockTransport(handler))
+    e = dataclasses.replace(einst, szene_anbieter="claude")
+    text = szene_claude.prosa(conn, e, klient, 1, "sys", "nutzer", "szene", timeout=10)
+    assert text.startswith("TITEL: X")
+    zeile = conn.execute("SELECT modus, antwort_token, erfolg FROM aufruf ORDER BY id DESC LIMIT 1").fetchone()
+    assert tuple(zeile) == ("C", 20, 1)

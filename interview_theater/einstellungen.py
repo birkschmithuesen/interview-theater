@@ -17,6 +17,12 @@ _VORGABEWERTE = {
     "IT_STT_PRODUKT": None,
     # Oeffentliche Basis-URL der Weboberflaeche; leer = kein Link im Chat.
     "IT_WEB_URL": "https://lab.artesmobiles.art/theatersoap",
+    # Szenen-Aufruf (05.09.2026, Birk): "infomaniak" (Vorgabe, Kimi mit
+    # Reasoning) oder "claude" (Opus ueber den lokalen Proxy -- dann geht
+    # dieser eine Aufruf in die USA, und die Gruppe wird vorher gewarnt).
+    "IT_SZENE_ANBIETER": "infomaniak",
+    "IT_SZENE_URL": "http://127.0.0.1:28764/v1/messages",
+    "IT_SZENE_MODELL": "claude-opus-5",
 }
 
 
@@ -41,6 +47,9 @@ class Einstellungen:
     # von Einstellungen(...) in anderen Testdateien ohne dieses Feld weiter
     # funktionieren.
     erkenner_modell: str = "google/gemma-4-31B-it"
+    szene_anbieter: str = "infomaniak"
+    szene_url: str | None = None
+    szene_modell: str | None = None
 
 
 def laden() -> Einstellungen:
@@ -68,4 +77,7 @@ def laden() -> Einstellungen:
         stt_produkt=werte["IT_STT_PRODUKT"],
         web_url=(werte["IT_WEB_URL"] or "").rstrip("/"),
         erkenner_modell=werte["IT_MODELL_ERKENNER"],
+        szene_anbieter=(werte["IT_SZENE_ANBIETER"] or "infomaniak").lower(),
+        szene_url=werte["IT_SZENE_URL"],
+        szene_modell=werte["IT_SZENE_MODELL"],
     )

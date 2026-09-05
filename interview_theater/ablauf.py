@@ -391,6 +391,20 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         # ein Zyklus.
         from interview_theater import szene, szenenfolge
 
+        # Ein laufender Szenenauftrag ist eine vollstaendige Antwort
+        # (05.09.2026, Testgruppe 22:05): waehrend der Szenenlauf seine
+        # Systemzeilen schickt ("Start frei", "Ich schreibe die Szene aus",
+        # der USA-Hinweis), kommentierte der Gespraechs-Bot sie parallel und
+        # stellte Rueckfragen zu laengst Festgelegtem ("wollt ihr die
+        # Reihenfolge behalten?"). Der Zug faellt deshalb aus; das
+        # Wasserzeichen rueckt im finally trotzdem vor, die Nachrichten
+        # stehen also nicht als unbeantwortet herum. Was die Gruppe WIRKLICH
+        # gefragt hat, geht damit nicht verloren: der Erkenner-Nachlauf
+        # (bot._zug_und_erkenner) laeuft unabhaengig weiter.
+        if szene.laeuft(chat_id):
+            log.info("Gespraechszug unterdrueckt, Szenenlauf laeuft, chat_id=%s", chat_id)
+            return
+
         # Die Regie-Notiz nach "Passt, aber anders" unter einem Szenentext
         # (05.09.2026, Phase 6): der Bot hat gerade gefragt, was anders werden
         # soll -- diese eine Nachricht ist die Antwort darauf und geht als

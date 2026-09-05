@@ -742,3 +742,55 @@ def test_antwort_ohne_vorschlagsblock_bleibt_ohne_leiste(conn, einst):
 
     assert tg.knoepfe == []
     assert tg.gesendet[-1][1] == "Was faellt euch zu Heimat noch ein?"
+
+
+# ---------------------------------------------------------------------------
+# Ein laufender Szenenauftrag ist eine vollstaendige Antwort (05.09.2026,
+# Testgruppe 22:05): der Gespraechs-Bot kommentiert ihn nicht und stellt keine
+# Rueckfragen zu laengst Festgelegtem.
+# ---------------------------------------------------------------------------
+
+
+def test_waehrend_eines_szenenlaufs_gibt_es_keinen_gespraechszug(conn, einst, tg, klm):
+    from interview_theater import szene
+
+    repo.merke_nachricht(conn, 1, 20, "Ada", 0, "text", "ok", repo._jetzt())
+    sperre = szene._sperre_fuer(1)
+    assert sperre.acquire(blocking=False)
+    try:
+        ablauf.bearbeite(conn, tg, klm, einst, 1)
+    finally:
+        sperre.release()
+        szene._sperren.clear()
+
+    assert klm.gesehen == [], "kein Modellaufruf, solange die Szene laeuft"
+    assert tg.gesendet == [], "und keine Nachricht in die Gruppe"
+    # Das Wasserzeichen rueckt trotzdem vor: die Nachricht liegt danach nicht
+    # als unbeantwortet herum und loest keinen spaeteren Nachzuegler-Zug aus.
+    assert repo.hole_gruppe(conn, 1)["letzte_beantwortete_message_id"] == 20
+
+
+def test_nach_dem_szenenlauf_laeuft_der_gespraechszug_wieder(conn, einst, tg, klm):
+    from interview_theater import szene
+
+    szene._sperren.clear()
+    repo.merke_nachricht(conn, 1, 21, "Ada", 0, "text", "und jetzt?", repo._jetzt())
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(klm.gesehen) == 1
+    assert tg.gesendet
+
+
+def test_szene_laeuft_liest_nur_die_sperre(conn):
+    from interview_theater import szene
+
+    szene._sperren.clear()
+    assert szene.laeuft(1) is False
+    sperre = szene._sperre_fuer(1)
+    sperre.acquire()
+    try:
+        assert szene.laeuft(1) is True
+    finally:
+        sperre.release()
+        szene._sperren.clear()

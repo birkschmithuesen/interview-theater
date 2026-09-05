@@ -195,6 +195,23 @@ def _sperre_fuer(chat_id: int) -> threading.Lock:
         return sperre
 
 
+def laeuft(chat_id: int) -> bool:
+    """Laeuft fuer diese Gruppe gerade ein Szenenlauf?
+
+    Die Sperre ist ohnehin da (sie verhindert zwei gleichzeitige Laeufe); hier
+    wird sie nur gelesen. Der Gespraechszug fragt danach: waehrend ein Auftrag
+    laeuft, kommentiert der Gespraechs-Bot ihn nicht (05.09.2026, Testgruppe
+    22:05 -- der Bot fragte parallel zu den Systemzeilen des Szenen-Threads
+    'wollt ihr die Reihenfolge behalten?' und 'Szene 1 und 2 fehlen -- wollt
+    ihr die vorher?').
+
+    Ohne Sperre fuer diese chat_id laeuft nichts -- sie wird erst beim ersten
+    Auftrag angelegt, und ``_sperre_fuer`` wuerde hier eine anlegen, die nie
+    jemand braucht."""
+    sperre = _sperren.get(chat_id)
+    return bool(sperre is not None and sperre.locked())
+
+
 #: Die Formen, fuer die es einen eigenen Regelblock gibt
 #: (``prompts/formen/<name>.md``). ``dialog`` ist der Rueckfall: eine Gruppe,
 #: die nichts anderes gesagt hat, bekommt Dialog.

@@ -127,11 +127,25 @@ def _pausenzeile(vorher_iso: str, nachher_iso: str) -> str | None:
     return f"[Pause: {stunden} {einheit}]"
 
 
+def interviewbezeichnung(conn, chat_id: int, aufnahme_id: int | None) -> str:
+    """'Interview 2' -- die Nummer in der Reihenfolge der langen Aufnahmen
+    der Gruppe. NIE der Aufnahmename (Birk 05.09.): der ist oft ein
+    Klarname oder nur der Telegram-Name dessen, der das Handy hielt, und er
+    gehoert weder ins Modell (das ihn als 'spricht wie Birk' nachplappert)
+    noch aufs Dashboard. Ohne Treffer: 'Interview' plus id."""
+    if aufnahme_id is None:
+        return ""
+    lange = [a for a in repo.transkripte(conn, chat_id) if a["klasse"] == "lang"]
+    for n, a in enumerate(lange, start=1):
+        if a["id"] == aufnahme_id:
+            return f"Interview {n}"
+    return f"Interview {aufnahme_id}"
+
+
 def _baue_verdichtungen(conn, chat_id: int) -> str:
     bloecke = []
     for v in repo.verdichtungen(conn, chat_id):
-        aufnahme = repo.hole_aufnahme(conn, v["aufnahme_id"])
-        name = aufnahme["name"] if aufnahme else f"Aufnahme {v['aufnahme_id']}"
+        name = interviewbezeichnung(conn, chat_id, v["aufnahme_id"]) or f"Aufnahme {v['aufnahme_id']}"
         zeilen = [f"{name}: {v['zusammenfassung']}"]
         for thema in repo.themen_zu(conn, v["id"]):
             if thema["beleg_zitat"]:

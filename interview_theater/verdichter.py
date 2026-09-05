@@ -99,6 +99,18 @@ def baue_nutzertext(transkript: str, fragen: str | None = None) -> str:
     )
 
 
+#: Wird beim zweiten Versuch an den Prompt gehaengt, wenn Zitate des ersten
+#: durchgefallen sind.
+_NACHTRAG_WOERTLICH = (
+    "\n\nWICHTIG, zweiter Anlauf: Im ersten Anlauf stimmten Belegzitate nicht "
+    "Wort fuer Wort mit dem Transkript ueberein. Kopiere jedes Zitat ZEICHEN "
+    "FUER ZEICHEN aus dem Transkript -- keine Glaettung, kein Komma versetzt, "
+    "keine Fuellwoerter entfernt, keine Rechtschreibung korrigiert. Lieber "
+    "ein kuerzeres Zitat, das exakt stimmt, als ein laengeres, das du "
+    "nachgebessert hast."
+)
+
+
 def verdichte(klm, conn, e, aufnahme_id: int) -> int:
     """Verdichtet die Aufnahme ``aufnahme_id`` und speichert das Ergebnis.
 
@@ -115,6 +127,22 @@ def verdichte(klm, conn, e, aufnahme_id: int) -> int:
     ergebnis = klm.schema(
         chat_id, prompt(), baue_nutzertext(transkript, fragen), SCHEMA, "verdichter"
     )
+    # Ein zweiter Versuch, wenn Zitate durchfallen (05.09., Simulation
+    # birk-6: 2 von 3 Ergebnissen 'ohne belegtes Zitat verworfen', im
+    # Direkttest 6/6 bestanden -- das Modell glaettet gelegentlich). Nicht
+    # mehr als einer: Kosten und Zeit, und ein Modell, das zweimal daneben
+    # liegt, liegt auch beim dritten Mal daneben.
+    if any(not (v.get("beleg_zitat") and zitat.pruefe(v["beleg_zitat"], transkript))
+           for v in ergebnis.get("kernthemen", [])):
+        zweiter = klm.schema(
+            chat_id, prompt() + _NACHTRAG_WOERTLICH,
+            baue_nutzertext(transkript, fragen), SCHEMA, "verdichter",
+        )
+        def _bestanden(r):
+            return sum(1 for v in r.get("kernthemen", [])
+                       if v.get("beleg_zitat") and zitat.pruefe(v["beleg_zitat"], transkript))
+        if _bestanden(zweiter) > _bestanden(ergebnis):
+            ergebnis = zweiter
 
     themen = []
     for vorschlag in ergebnis.get("kernthemen", []):

@@ -74,7 +74,11 @@ def test_ungueltiges_zitat_verwirft_das_ganze_thema(conn, einst, aid):
     })
     vid = verdichter.verdichte(klm, conn, einst, aid)
 
-    assert klm.aufrufe == 1, "kein Retry"
+    # Seit 05.09.: GENAU EIN zweiter Anlauf mit dem Woertlich-Nachtrag, wenn
+    # ein Zitat durchfaellt (Simulation birk-6: 2 von 3 verworfen, im
+    # Direkttest 6/6 bestanden). Nicht mehr -- und ohne Erfolg bleibt es
+    # beim Verwerfen.
+    assert klm.aufrufe == 2, "genau ein zweiter Anlauf"
     assert repo.themen_zu(conn, vid) == []
     assert repo.hole_verdichtung(conn, vid)["zusammenfassung"] == "z", (
         "die Zusammenfassung bleibt, nur die Themen fallen weg"

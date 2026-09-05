@@ -124,7 +124,8 @@ def erstelle(klm, conn, e, figur_id: int) -> str | None:
     if figur is None or figur["quelle_aufnahme_id"] is None:
         return None
     aufnahme = repo.hole_aufnahme(conn, figur["quelle_aufnahme_id"])
-    quelle = (aufnahme["name"] if aufnahme else None) or "dem Interview"
+    from interview_theater import kontext
+    quelle = kontext.interviewbezeichnung(conn, figur["chat_id"], figur["quelle_aufnahme_id"]) or "dem Interview"
     transkript = repo.zusammengefuegtes_transkript(conn, figur["quelle_aufnahme_id"])
     if not transkript.strip():
         return _TEXT_KEIN_TRANSKRIPT.format(quelle=quelle, name=figur["name"])

@@ -608,7 +608,9 @@ def test_auswerten_verdichtet_ein_zu_kurzes_interview_doch(conn, einst, tg, klm)
 
     aufnahme.starte_auswertung(conn, tg, klm, einst, kopf_id).join(timeout=5)
 
-    assert klm.aufrufe == 1
+    # 1 oder 2: die Attrappe liefert kein woertliches Zitat, deshalb greift
+    # seit 05.09. der eine zweite Anlauf des Verdichters.
+    assert klm.aufrufe in (1, 2)
     assert len(repo.verdichtungen(conn, 1)) == 1
     assert any("ist durch" in t for _, t in tg.gesendet)
 

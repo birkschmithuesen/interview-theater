@@ -255,7 +255,7 @@ def _figur_html(f: dict, mit_stimme: bool) -> str:
     Anfuehrungszeichen, den niemand gesagt hat."""
     teile = [f"<b>{_t(f['name'])}</b> — {_t(f.get('beschreibung'), 'ohne Beschreibung')}"]
     if f.get("quelle"):
-        teile.append(f'<div class="zeit">spricht wie {_t(f["quelle"])}</div>')
+        teile.append(f'<div class="zeit">Sprechweise aus {_t(f["quelle"])}</div>')
     if mit_stimme:
         if f.get("sprachprofil"):
             teile.append(f'<div class="profil">{_t(f["sprachprofil"])}</div>')
@@ -478,11 +478,19 @@ def _interview_html(v: dict) -> str:
     Bis dahin stand die ganze Verdichtung als Absatz da, und wer wissen
     wollte, was in fuenf Interviews steckt, musste fuenf Absaetze lesen."""
     kurzformen = [t["kurz"] for t in v["themen"] if t.get("kurz")]
-    summary = _t(v["name"], "Interview")
+    # Interview-Nummer statt Aufnahmename (Birk 05.09.: der Name ist ein
+    # Klarname oder der Telegram-Name dessen, der das Handy hielt).
+    summary = _t(v.get("bezeichnung") or v["name"], "Interview")
     if kurzformen:
         summary += SUMMARY_TRENNER + SUMMARY_TRENNER.join(_t(k) for k in kurzformen)
+    # Je Aspekt eine Unterueberschrift (die Kurzform), darunter die
+    # Erklaerung (das Ergebnis in einem Satz) und das Belegzitat -- so, wie
+    # Birk es am 05.09. am Dashboard vermisst hat: "pro Interview alle
+    # destillierten Aspekte als Unterueberschrift mit Verdichtung,
+    # Erklaerung, Zitat".
     themen = "".join(
-        '<div class="thema">{thema}{zitat}</div>'.format(
+        '<div class="thema"><h4>{kurz}</h4><p>{thema}</p>{zitat}</div>'.format(
+            kurz=_t(t.get("kurz") or t["thema"]),
             thema=_t(t["thema"]),
             zitat=f"<blockquote>„{_t(t['zitat'], '')}“</blockquote>" if t["zitat"] else "",
         )
@@ -491,7 +499,7 @@ def _interview_html(v: dict) -> str:
     inhalt = (
         f'<p class="zeit">{_umfang(v["teile"], v["dauer_sekunden"])}</p>'
         + (
-            f'{themen}<p>{_t(v["zusammenfassung"], "")}</p>'
+            f'<p class="zusammenfassung">{_t(v["zusammenfassung"], "")}</p>{themen}'
             if v["zusammenfassung"]
             else '<p class="leer">Noch nicht verdichtet.</p>'
         )

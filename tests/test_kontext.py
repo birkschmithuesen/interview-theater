@@ -344,7 +344,7 @@ def test_verdichtungen_stehen_ab_der_ersten_fertigen_im_prompt(conn, einst):
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     assert "Verdichtungen:" in prompt
-    assert "Maria: Maria erzaehlt von der Ankunft 1998" in prompt
+    assert "Interview 1: Maria erzaehlt von der Ankunft 1998" in prompt
     assert '- Ankommen: "Ich hatte nur einen Koffer"' in prompt
     assert "- Arbeit" in prompt
 

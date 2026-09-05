@@ -240,7 +240,7 @@ def test_figuren_tragen_sprachprofil_zitate_und_quelle(gefuellt):
 
     figur = web_daten.gruppe_nach_token(gefuellt, token)["figuren"][0]
 
-    assert figur["quelle"] == "Maria"
+    assert figur["quelle"] == "Interview 1"
     assert figur["sprachprofil"] == "Kurze Saetze.\nSagt 'halt'."
     assert figur["zitate"] == ["wir haben lange gewartet", "halt so, ne?"]
 
@@ -280,7 +280,7 @@ def test_dashboard_zeigt_je_interview_die_ergebnisse_als_kurzform(gefuellt):
     erste = web_daten.dashboard(gefuellt, jetzt=JETZT)["gruppen"][0]
 
     assert erste["interview_kurzformen"] == [
-        {"name": "Maria", "kurzformen": ["Warten", "Sprache"]}
+        {"name": "Interview 1", "kurzformen": ["Warten", "Sprache"]}
     ]
 
 

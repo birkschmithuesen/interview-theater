@@ -92,7 +92,7 @@ def test_profil_und_geprueftes_zitat_landen_an_der_figur(conn, einst, figur):
     zeile = repo.hole_figur(conn, 1, "Pola")
     assert "Fuellwoerter" in zeile["sprachprofil"]
     assert zeile["zitate"].split(repo.ZITAT_TRENNER) == ANTWORT["zitate"]
-    assert meldung.startswith("Sprachprofil fuer Pola aus Interview 2:")
+    assert meldung.startswith("Sprachprofil fuer Pola aus Interview 1:")
     assert "Kurze Saetze" in meldung
 
 
@@ -186,7 +186,7 @@ def test_das_journal_haelt_die_zuordnung_fest(conn, einst, figur):
     sprachprofil.erstelle(LLMAttrappe(), conn, einst, figur)
 
     eintraege = [(e["art"], e["text"]) for e in repo.journal(conn, 1)]
-    assert ("entschieden", "Sprachprofil fuer Pola aus Interview 2") in eintraege
+    assert ("entschieden", "Sprachprofil fuer Pola aus Interview 1") in eintraege
 
 
 def test_starte_laeuft_im_thread_und_meldet_sich(conn, einst, tg, figur):
@@ -195,7 +195,7 @@ def test_starte_laeuft_im_thread_und_meldet_sich(conn, einst, tg, figur):
     thread.join(timeout=10)
 
     assert not thread.is_alive()
-    assert tg.texte[0].startswith("Sprachprofil fuer Pola aus Interview 2:")
+    assert tg.texte[0].startswith("Sprachprofil fuer Pola aus Interview 1:")
     # Wie jede Bot-Zeile: sie steht im Verlaufsfenster des naechsten Zugs.
     texte = [n["text"] for n in repo.letzte_nachrichten(conn, 1) if n["ist_bot"]]
     assert any(t.startswith("Sprachprofil fuer Pola") for t in texte)

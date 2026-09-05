@@ -146,10 +146,9 @@ def _figuren(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         quelle_id = _feld(z, "quelle_aufnahme_id")
         quelle = None
         if quelle_id is not None:
-            zeile = conn.execute(
-                "SELECT name FROM aufnahme WHERE id = ?", (quelle_id,)
-            ).fetchone()
-            quelle = zeile["name"] if zeile else None
+            # "Interview 2", nie der Aufnahmename (Klarname / Telegram-Name).
+            from interview_theater import kontext
+            quelle = kontext.interviewbezeichnung(conn, chat_id, quelle_id) or None
         zitate = _feld(z, "zitate") or ""
         figuren.append({
             "name": z["name"],
@@ -320,11 +319,11 @@ def _interview_kurzformen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     ("Pfannkuchen mit Schokolade und Banane · Punkerin im autonomen
     Zentrum")."""
     ergebnis = []
-    for z in conn.execute(
+    for nummer, z in enumerate(conn.execute(
         f"SELECT id, name FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
         f"AND {_NICHT_ENTFERNT} ORDER BY id ASC",
         (chat_id,),
-    ):
+    ).fetchall(), start=1):
         verdichtung = conn.execute(
             f"SELECT id FROM verdichtung WHERE aufnahme_id = ? AND {_NICHT_ENTFERNT} "
             "ORDER BY id DESC LIMIT 1",
@@ -334,7 +333,8 @@ def _interview_kurzformen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
             continue
         kurzformen = [t["kurz"] for t in _themen(conn, verdichtung["id"]) if t["kurz"]]
         if kurzformen:
-            ergebnis.append({"name": z["name"], "kurzformen": kurzformen})
+            # Beamer: "Interview 2", nie der Aufnahmename (Birk 05.09.).
+            ergebnis.append({"name": f"Interview {nummer}", "kurzformen": kurzformen})
     return ergebnis
 
 
@@ -517,7 +517,7 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         mit_teilen = False
 
     ergebnis = []
-    for z in zeilen:
+    for nummer, z in enumerate(zeilen, start=1):
         teile, teile_dauer = _teile_zahlen(conn, z["id"]) if mit_teilen else (0, None)
         verdichtung = conn.execute(
             f"SELECT id, zusammenfassung, erstellt_am FROM verdichtung "
@@ -527,6 +527,8 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         ergebnis.append(
             {
                 "name": z["name"],
+                # Anzeige ohne Klarnamen (Birk 05.09.): "Interview 2".
+                "bezeichnung": f"Interview {nummer}",
                 "status": z["status"],
                 "teile": teile,
                 "dauer_sekunden": teile_dauer if teile else z["dauer_sekunden"],

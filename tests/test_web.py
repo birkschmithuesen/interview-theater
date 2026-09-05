@@ -97,7 +97,7 @@ def test_gruppenseite_zeigt_die_verdichtungen_mit_belegzitat(basis, token):
     Belegzitat-Prinzip antritt."""
     koerper = hole(f"{basis}/g/{token}")[1]
 
-    assert "Marias Interview" in koerper
+    assert "Interview 1" in koerper  # nie der Aufnahmename (Birk 05.09.)
     assert "Maria erzaehlt vom ersten Winter" in koerper
     assert "Ankommen" in koerper and "Arbeit" in koerper
     assert "Ich hatte nur einen Koffer" in koerper
@@ -168,7 +168,7 @@ def test_gruppenseite_zeigt_je_figur_stimme_und_quelle(basis, token, db_pfad):
 
     koerper = hole(f"{basis}/g/{token}")[1]
 
-    assert "spricht wie Marias Interview" in koerper
+    assert "Sprechweise aus Interview 1" in koerper
     assert "Kurze Saetze." in koerper
     assert "Ich hatte nur einen Koffer" in koerper
 
@@ -180,7 +180,7 @@ def test_interview_summary_zeigt_die_kurzformen_nicht_die_zusammenfassung(
     stehen im aufgeklappten Teil."""
     koerper = hole(f"{basis}/g/{token}")[1]
 
-    summary = koerper.split("<summary>Marias Interview", 1)[1].split("</summary>", 1)[0]
+    summary = koerper.split("<summary>Interview 1", 1)[1].split("</summary>", 1)[0]
     assert "Ankommen" in summary and "Arbeit" in summary
     assert "ersten Winter" not in summary, "die Zusammenfassung gehoert nicht in die Summary"
     assert "Ich hatte nur einen Koffer" not in summary, "kein Zitat in der Summary"

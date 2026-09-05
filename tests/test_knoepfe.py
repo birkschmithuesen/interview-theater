@@ -1177,3 +1177,20 @@ def test_einstieg_bietet_in_phase_3_keinen_weiter_zu_3_knopf(conn, einst, tg):
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
     assert "Interview starten" in beschriftungen
     assert not any(b.startswith("Weiter zu Interviews") for b in beschriftungen)
+
+
+def test_usa_knopf_startet_den_wartenden_szenenauftrag(conn, einst, tg, monkeypatch):
+    """Live-Fall Testgruppe 05.09. 22:09: "Ja, US-Modell" gedrueckt, der
+    gemerkte Szenenauftrag blieb liegen, nichts passierte. Der Knopf muss den
+    Auftrag genauso ausloesen wie das gesprochene "ja" im Erkenner-Pfad."""
+    from interview_theater import szene
+
+    gestartet = []
+    monkeypatch.setattr(szene, "starte", lambda *a, **k: gestartet.append(a[-1]))
+    repo.merke_szene_usa_angeboten(conn, 1, "Szene 1 schreiben")
+    knoepfe.biete_szene_usa(conn, tg, 1)
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[0][2][0][1]))
+
+    assert gestartet == ["Szene 1 schreiben"]
+    assert repo.hole_und_loesche_offenen_szenenauftrag(conn, 1) is None

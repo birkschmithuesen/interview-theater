@@ -85,6 +85,9 @@ ART_RICHTUNG = "richtung"
 #: Figuren, Ebene 1: "Anzahl aendern" / "Namen aendern" und ihre Auswahl.
 ART_FIGUREN_ANZAHL_MENU = "figuren_anzahl_menu"
 ART_FIGUREN_ANZAHL = "figuren_anzahl"
+#: "Andere Zahl" in der Figurenanzahl-Frage: kein Wert, sondern ein
+#: Merkposten -- die naechste Nachricht der Gruppe wird als Zahl gelesen.
+ART_FIGUREN_ANZAHL_FREI = "figuren_anzahl_frei"
 ART_FIGUREN_NAMEN_MENU = "figuren_namen_menu"
 #: Eine bestimmte Entwurfszeile umbenennen (``wert`` ist ihr Index).
 ART_FIGUR_NAME_MENU = "figur_name_menu"
@@ -199,6 +202,7 @@ _NOTIERT = {
     "begriffe": "Begriffe",
     "fragen": "Fragen",
     "kernthema": "Kernthema",
+    "kernfrage": "Kernfrage",
     "rahmen": "Rahmen",
 }
 
@@ -755,9 +759,11 @@ def offene_art(conn, chat_id: int) -> str | None:
 
     * Phase 1 -- ``begriffe``, solange das Feld leer ist.
     * Phase 2 -- ``fragen``, solange das Feld leer ist.
-    * Phase 4 -- ``kernthema``, solange es keins gibt; danach ``figuren``,
-      solange die Liste nicht fixiert ist (``figuren_fixiert_am``, Ebene 2 --
-      dieselbe Bedingung wie ``phasen.voraussetzungen[5]``).
+    * Phase 4 -- ``kernthema``, solange es keins gibt; dann ``kernfrage``
+      (Stufe 3: die dramatische Frage, 05.09.2026 abends); danach
+      ``figuren``, solange die Liste nicht fixiert ist
+      (``figuren_fixiert_am``, Ebene 2 -- dieselbe Bedingung wie
+      ``phasen.voraussetzungen[5]``).
     * Phase 5 -- ``rahmen``, solange das Feld leer ist. Das **Format** steht
       dort fest ("Urban Dance Tanztheater", ``setze_format_fest``) und wird
       nicht mehr gewaehlt.
@@ -787,6 +793,8 @@ def offene_art(conn, chat_id: int) -> str | None:
     if phase == 4:
         if leer("kernthema"):
             return "kernthema"
+        if leer("kernfrage"):
+            return "kernfrage"
         if leer("figuren_fixiert_am"):
             return "figuren"
     if phase == 5 and leer("rahmen"):
@@ -1701,10 +1709,162 @@ _TEXT_FIGUREN_ANZAHL_KNOPF = "Anzahl aendern"
 _TEXT_FIGUREN_NAMEN_KNOPF = "Namen aendern"
 _TEXT_FIGUREN_ANZAHL_FRAGE = "Wie viele Figuren sollen es sein?"
 _TEXT_FIGUREN_NAMEN_FRAGE = "Welchen Namen wollt ihr aendern?"
-#: Wie viele Figuren zur Auswahl stehen. Zwei ist die kleinste Gruppe, in
-#: der zwei Wollen aufeinandertreffen; fuenf ist die groesste, die eine
-#: Laiengruppe an einem Wochenende traegt.
-FIGURENZAHLEN = ("2", "3", "4", "5")
+#: Die eigene Frage VOR der Figurenliste (05.09.2026 abends, Birk): wie viele
+#: Figuren das Stueck haben soll, entscheidet die Gruppe -- nicht der Prompt.
+#: Vorher stand "zwei bis vier" in ``prompts/phasen/4.md`` und die Zahl war
+#: eine Nebenwirkung eines Vorschlags.
+_TEXT_FIGUREN_ANZAHL_ERSTFRAGE = "Wie viele Figuren soll das Stueck haben?"
+#: Wie viele Figuren zur Auswahl stehen. Eins, weil ein Monolog ein Stueck
+#: ist; sechs, weil darueber eine Laiengruppe an einem Wochenende die Proben
+#: nicht mehr besetzt bekommt. Alles andere geht ueber "Andere Zahl" --
+#: begrenzt wird nichts, nur die Knopfleiste.
+FIGURENZAHLEN = ("1", "2", "3", "4", "5", "6")
+_TEXT_FIGUREN_ANZAHL_FREI_KNOPF = "Andere Zahl"
+_TEXT_FIGUREN_ANZAHL_FREI_FRAGE = (
+    "Sagt mir die Zahl - ich schlage euch dann genau so viele Figuren vor."
+)
+#: Die Grenzen der frei gesagten Zahl. Nicht null (ein Stueck ohne Figuren
+#: gibt es nicht) und nicht zwoelf plus: darueber ist es keine Besetzung mehr,
+#: sondern eine Liste, und der naechste Schritt (Figur fuer Figur) wuerde zum
+#: Nachmittag.
+FIGURENZAHL_MIN = 1
+FIGURENZAHL_MAX = 12
+_TEXT_FIGURENZAHL_UNKLAR = (
+    "Das habe ich nicht als Zahl gelesen. Sagt mir eine Zahl zwischen "
+    f"{FIGURENZAHL_MIN} und {FIGURENZAHL_MAX}."
+)
+
+#: Merkposten je Gruppe: die naechste freie Nachricht ist die Figurenanzahl
+#: (nach "Andere Zahl"). Wie ``szenenfolge._regienotiz_erwartet`` bewusst im
+#: Prozess und nicht in der Datenbank: er gilt fuer genau die naechste
+#: Nachricht, ein Neustart dazwischen macht daraus wieder einen normalen
+#: Gespraechsbeitrag -- und das ist die richtige Fehlerrichtung.
+_anzahl_erwartet: set[int] = set()
+
+
+def erwarte_figurenanzahl(chat_id: int) -> None:
+    """Merkt: die naechste Nachricht dieser Gruppe ist die Figurenanzahl."""
+    _anzahl_erwartet.add(chat_id)
+
+
+def nimm_figurenanzahl_erwartung(chat_id: int) -> bool:
+    """Liefert True, wenn eine Zahl erwartet wird -- und vergisst es dabei.
+
+    Einmalig wie ``szenenfolge.nimm_regienotiz``: sonst wuerde jede weitere
+    Nachricht der Gruppe als Figurenanzahl gelesen."""
+    if chat_id not in _anzahl_erwartet:
+        return False
+    _anzahl_erwartet.discard(chat_id)
+    return True
+
+
+def _zahl_aus(text: str) -> int | None:
+    """Die erste Zahl in einer Nachricht, wenn sie im erlaubten Bereich liegt.
+
+    Toleriert \"wir haetten gern 4\" und \"4 Figuren bitte\" -- die Gruppe
+    tippt keine blanken Ziffern. Ausgeschrieben zaehlt auch: \"vier\" ist eine
+    Zahl, und wer eine Zahl sagt, meint eine."""
+    treffer = re.search(r"\d{1,2}", text or "")
+    if treffer is not None:
+        zahl = int(treffer.group(0))
+    else:
+        worte = {
+            "eine": 1, "einer": 1, "eins": 1, "zwei": 2, "drei": 3, "vier": 4,
+            "fuenf": 5, "fünf": 5, "sechs": 6, "sieben": 7, "acht": 8,
+            "neun": 9, "zehn": 10, "elf": 11, "zwoelf": 12, "zwölf": 12,
+        }
+        gefunden = [
+            wert for wort, wert in worte.items()
+            if re.search(rf"\b{wort}\b", (text or "").lower())
+        ]
+        if not gefunden:
+            return None
+        zahl = gefunden[0]
+    if FIGURENZAHL_MIN <= zahl <= FIGURENZAHL_MAX:
+        return zahl
+    return None
+
+
+def biete_figurenanzahl(conn, tg, chat_id: int, text: str | None = None) -> int:
+    """Die eigene Frage vor der Figurenliste: 1-6 und \"Andere Zahl\".
+
+    Deterministisch, kein Modellaufruf (Zusage 2). Sie steht bewusst VOR dem
+    Listenvorschlag: solange die Zahl aus einem Prompt kam, war sie eine
+    Vorgabe des Bots -- jetzt ist sie eine Entscheidung der Gruppe, und der
+    Vorschlag richtet sich danach (``ANWEISUNG_FIGURENZAHL``)."""
+    for art in (ART_FIGUREN_ANZAHL, ART_FIGUREN_ANZAHL_FREI):
+        _nimm_alte_leiste_ab(conn, tg, chat_id, art)
+    leiste = [
+        (zahl, _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_ANZAHL, zahl)))
+        for zahl in FIGURENZAHLEN
+    ]
+    leiste.append(
+        (
+            _TEXT_FIGUREN_ANZAHL_FREI_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_ANZAHL_FREI, None)),
+        )
+    )
+    message_id = tg.sende_mit_knoepfen(
+        chat_id, text or _TEXT_FIGUREN_ANZAHL_ERSTFRAGE, leiste
+    )
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
+    return message_id
+
+
+def uebernimm_figurenanzahl(conn, tg, klm, e, chat_id: int, anzahl: int) -> None:
+    """Speichert die Anzahl und laesst im Thread eine Liste mit genau so
+    vielen Figuren vorschlagen -- der eine Weg, auf dem eine Zahl wirkt,
+    egal ob sie aus einem Knopf oder aus einer Nachricht kam."""
+    repo.setze_arbeitsstand(conn, chat_id, "figuren_anzahl", str(anzahl))
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", f"Figurenanzahl: {anzahl}", quelle="knopf",
+    )
+    _starte_auftrag(
+        conn, tg, klm, e, chat_id, ANWEISUNG_FIGURENZAHL.format(anzahl=anzahl),
+    )
+
+
+# --- Die Kette durch Phase 4 ----------------------------------------------
+#
+# Kernthema (Stufe 2) -> Kernfrage (Stufe 3) -> Filter am Kernthema
+# (``kernzitate.py``, still im Thread) -> Figurenanzahl -> Figurenliste.
+#
+# Der Grund fuer die Kette (Birk, 05.09.2026 abends, nach dem Regie-Test): die
+# Gruppe konnte den Weg vom Kernthema zu den Figuren nicht nachvollziehen,
+# weil es ihn nicht gab -- die Figuren kamen aus den Interviews. Jetzt fuehrt
+# jeder Schritt zum naechsten, ohne dass jemand raten muss, was jetzt dran
+# ist. Kein Schritt ruft dabei selbst ein Modell (Zusage 2): was eines
+# braucht, geht an einen eigenen Thread.
+
+#: Die Arten, nach deren Speichern der naechste Schritt von selbst kommt.
+_KETTE = ("kernthema", "kernfrage")
+
+
+def _kette_weiter(conn, tg, klm, e, chat_id: int, art: str) -> None:
+    """Was nach dem Speichern von Kernthema bzw. Kernfrage passiert."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if art == "kernthema":
+        _starte_auftrag(
+            conn, tg, klm, e, chat_id,
+            ANWEISUNG_KERNFRAGE.format(
+                kernthema=(stand["kernthema"] if stand else "") or ""
+            ),
+        )
+        return
+    # Die Kernfrage steht: jetzt wird am Kernthema gefiltert -- still, im
+    # Thread, ohne Liste im Chat. Danach kommt die Frage nach der
+    # Figurenanzahl aus der Nachbereitung heraus, damit sie NACH der einen
+    # Auswahl-Zeile steht und nicht davor.
+    from interview_theater import kernzitate
+
+    def _danach() -> None:
+        biete_figurenanzahl(conn, tg, chat_id)
+
+    thread = kernzitate.starte(conn, tg, klm, e, chat_id, nachbereitung=_danach)
+    if thread is None:
+        # Ohne Sprachmodell (Tests, ein Programmierfehler) bleibt der Weg
+        # trotzdem offen: die Frage nach der Anzahl kommt sofort.
+        biete_figurenanzahl(conn, tg, chat_id)
 
 
 def _entwurfszeilen(conn, chat_id: int) -> list[str]:
@@ -2079,10 +2239,27 @@ ANWEISUNG_KERNTHEMA = (
     "Material. Haeng sie als Block 'VORSCHLAG KERNTHEMA:' an, eine "
     "Formulierung je Zeile."
 )
+#: Stufe 3 (05.09.2026 abends): das gewaehlte Kernthema wird zur dramatischen
+#: Frage geschaerft. Genau drei Zeilen, feste Beschriftungen -- daraus wird
+#: ein Text im Arbeitsstand (``kernfrage``) und der Filter, an dem gleich
+#: danach Zitate und Verdichtungen ausgewaehlt werden.
+ANWEISUNG_KERNFRAGE = (
+    "Das Kernthema der Gruppe ist '{kernthema}'. Schaerfe es zu EINER "
+    "dramatischen Frage. Haeng sie als Block 'VORSCHLAG KERNFRAGE:' an, mit "
+    "genau diesen drei Zeilen: 'Frage: Was passiert, wenn ...', 'Gegensatz: "
+    "<zwei Wollen, die aufeinandertreffen>', 'Einsatz: <was auf dem Spiel "
+    "steht>'. Keine Auswahl, kein zweiter Vorschlag - eine Frage."
+)
 ANWEISUNG_FIGURENZAHL = (
-    "Schlag eine Figurenliste mit genau {anzahl} Figuren vor. Haeng sie als "
-    "Block 'VORSCHLAG FIGUREN:' an, eine Figur je Zeile in der Form "
-    "'Name - ein Satz - Interview N'."
+    "Schlag eine Figurenliste mit genau {anzahl} Figuren vor - aus der "
+    "Kernfrage heraus, nicht aus den Interviews. Welche {anzahl} Figuren "
+    "braucht diese Kernfrage, damit sie auf einem oeffentlichen Platz "
+    "verhandelt werden kann? Jede will etwas, das der Frage eine Seite gibt. "
+    "Eine Figur kann sich auf eine der passenden Verdichtungen stuetzen - "
+    "dann nenn das Interview in der Zeile; Figuren ohne Grundlage sind "
+    "erlaubt, wenn die Kernfrage sie braucht. Haeng die Liste als Block "
+    "'VORSCHLAG FIGUREN:' an, eine Figur je Zeile in der Form "
+    "'Name - ein Satz - Interview N' (das Interview darf fehlen)."
 )
 ANWEISUNG_NAMEN = (
     "Schlag drei Namen fuer diese Figur vor: {zeile}. Haeng sie als Block "
@@ -2153,8 +2330,19 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         return meldung
     if art == ART_SPEICHERN:
         roh = str(knopf["wert"] or "")
+        gespeicherte_art = roh.partition(TRENNER)[0].strip()
+        if gespeicherte_art in _KETTE:
+            # Kernthema und Kernfrage tragen den Weg selbst weiter (Stufe 2 ->
+            # Stufe 3 -> Filter -> Figurenanzahl). Die allgemeine Weiterfrage
+            # ("Wollt ihr noch etwas hinzufuegen?") wuerde sich dazwischen
+            # stellen, deshalb ``weiterfrage=False``.
+            meldung = _speichere(conn, tg, chat_id, roh, weiterfrage=False)
+            if meldung != _TEXT_UNBEKANNT:
+                repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+                _kette_weiter(conn, tg, klm, e, chat_id, gespeicherte_art)
+            return meldung
         meldung = _speichere(conn, tg, chat_id, roh)
-        if roh.partition(TRENNER)[0].strip() == "figuren" and meldung != _TEXT_UNBEKANNT:
+        if gespeicherte_art == "figuren" and meldung != _TEXT_UNBEKANNT:
             # Ebene 1 ist abgenommen -- ab hier geht es Figur fuer Figur
             # weiter (Ebene 2), ohne dass jemand etwas antippen muss.
             stelle_figur_vor(conn, tg, klm, e, chat_id)
@@ -2195,21 +2383,25 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         )
         return "Richtung uebernommen"
     if art == ART_FIGUREN_ANZAHL_MENU:
-        leiste = [
-            (zahl, _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_ANZAHL, zahl)))
-            for zahl in FIGURENZAHLEN
-        ]
-        message_id = tg.sende_mit_knoepfen(chat_id, _TEXT_FIGUREN_ANZAHL_FRAGE, leiste)
-        repo.merke_knopf_nachricht(
-            conn, [_id_aus_daten(d) for _, d in leiste], message_id
-        )
+        # "Anzahl aendern" im Listen-Menue und die Erstfrage sind derselbe
+        # Weg und schreiben dasselbe Feld -- nur der Fragetext ist ein
+        # anderer, weil hier schon eine Liste dasteht.
+        biete_figurenanzahl(conn, tg, chat_id, _TEXT_FIGUREN_ANZAHL_FRAGE)
         return "Wie viele?"
     if art == ART_FIGUREN_ANZAHL:
-        _starte_auftrag(
-            conn, tg, klm, e, chat_id,
-            ANWEISUNG_FIGURENZAHL.format(anzahl=str(knopf["wert"] or "").strip()),
-        )
+        roh_anzahl = str(knopf["wert"] or "").strip()
+        anzahl = _zahl_aus(roh_anzahl)
+        if anzahl is None:
+            tg.sende(chat_id, _TEXT_UNBEKANNT)
+            return _TEXT_UNBEKANNT
+        uebernimm_figurenanzahl(conn, tg, klm, e, chat_id, anzahl)
         return f"{knopf['wert']} Figuren"
+    if art == ART_FIGUREN_ANZAHL_FREI:
+        # Kein Modellaufruf, kein Wert: nur der Merkposten, dass die naechste
+        # Nachricht der Gruppe die Zahl ist (``ablauf.antworte`` liest ihn).
+        erwarte_figurenanzahl(chat_id)
+        tg.sende(chat_id, _TEXT_FIGUREN_ANZAHL_FREI_FRAGE)
+        return "Sagt mir die Zahl"
     if art == ART_FIGUREN_NAMEN_MENU:
         zeilen = _entwurfszeilen(conn, chat_id)
         if not zeilen:
@@ -2474,6 +2666,17 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             quelle="knopf",
         )
         tg.sende(chat_id, _TEXT_USA_JA if ja else _TEXT_USA_NEIN)
+        # Der Auftrag, der auf diese Antwort gewartet hat, laeuft jetzt --
+        # ueber den Weg, den die Antwort festgelegt hat. Bisher tat das nur
+        # der Erkenner-Pfad (gesprochenes "ja"); der Knopf setzte den Stand
+        # und liess den Auftrag liegen (Live-Fall Testgruppe 05.09. 22:09:
+        # "USA" gedrueckt, nichts passierte, ein spaeteres "ja" im Chat war
+        # wirkungslos, weil der Stand nicht mehr "offen" war).
+        auftrag = repo.hole_und_loesche_offenen_szenenauftrag(conn, chat_id)
+        if auftrag:
+            from interview_theater import szene
+
+            szene.starte(conn, tg, klm, e, chat_id, auftrag)
         return "US-Modell: ja" if ja else "Bleibt in der Schweiz"
     # Unbekannte art: nur moeglich, wenn eine spaetere Fassung eine Art
     # einfuehrt und eine aeltere die Zeile liest. Nichts tun ist hier richtig.

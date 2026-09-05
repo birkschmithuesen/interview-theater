@@ -125,7 +125,14 @@ lädt, würde damit Gesprächszüge ausbremsen.
   wenn `gruppe.web_token` existiert (entsteht in `repo.sichere_gruppe`). Weil
   `bot.erstkontakt` auch als Rückfallweg aus `ablauf.antworte` gerufen wird,
   geht der Link über `bot.stelle_link_sicher`, das die Gruppenzeile notfalls
-  selbst anlegt.
+  selbst anlegt. **Aufnahme-Angebote sind phasenabhängig** (05.09.2026,
+  `knoepfe._aufnahme_anbieten`, `PHASE_INTERVIEWS = 3`): „Aufnahme starten" im
+  Einstieg und „Nächste Aufnahme" nach einem Interview erscheinen nur in
+  Phase 3 — in Begriffe (1) und Fragen (2) gibt es nichts aufzunehmen, die
+  Begrüßung sagt dort, dass die Begriffe aus dem Plenum kommen
+  (`bot._TEXT_ERSTKONTAKT_BEGRIFFE`). Läuft eine Aufnahme, steht „Aufnahme
+  beenden" immer da. Ausdrückliches Aufnehmen (`/aufnahme`, erkannte Absicht)
+  bleibt in jeder Phase möglich — eingeschränkt ist nur das Angebot.
   **Fallstrick:** `repo.setze_szene_usa` nimmt einen **bool**, nicht `"ja"`/
   `"nein"` — ein nicht-leerer String ist wahr, ein „nein" würde als Zustimmung
   zur Datenübermittlung enden. Test: `test_usa_knopf_nein_setzt_false_und_nicht_wahr`.

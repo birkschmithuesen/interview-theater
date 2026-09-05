@@ -58,6 +58,81 @@ HINWEIS_NACH = 10.0
 _TEXT_HINWEIS = "Einen Moment, ich denke nach."
 _TEXT_FEHLER = "Bei mir hakt gerade etwas - fragt nochmal."
 
+#: Zeichen, an denen eine Antwort als Denkspur statt als Antwort erkannt wird
+#: (gemessen 05.09. 04:10, Simulation --set birk, Zug S11: Kimi lieferte im
+#: Feld "antwort" 90 Zeilen Selbstgespraech -- "Die Gruppe will von der Phase
+#: 2 ... Ich soll: ... Perfekt. Das ist ein Angebot" -- und die Gruppe las das
+#: im Chat). reasoning_effort war "none"; das Modell hat trotzdem laut gedacht,
+#: nur eben IM JSON. Die Marker sind Formulierungen, die nur in einer Denkspur
+#: vorkommen, nie in einer Nachricht an eine Gruppe.
+_DENKSPUR_MARKER = (
+    "ich soll:", "ich soll ", "die gruppe will", "was ist im material",
+    "moegliche kernthemen:", "mögliche kernthemen:", "ich schlage ein ",
+    "perfekt. das ist", "die regel sagt", "der erkenner setzt",
+    "keine markdown", "unter 500 zeichen", "als angebot formulieren",
+)
+#: Diese Marker sind allein schon Beweis -- so redet niemand mit einer Gruppe.
+_DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
+                       "keine markdown", "unter 500 zeichen")
+
+
+def ist_denkspur(text: str) -> bool:
+    """True, wenn ein Antworttext nach Selbstgespraech aussieht: zwei oder
+    mehr Marker, oder ein eindeutiger Marker irgendwo. Ein einzelner
+    weicher Marker reicht nicht -- "die Gruppe will" kann in einer echten
+    Antwort vorkommen."""
+    t = text.lower()
+    if any(m in t for m in _DENKSPUR_EINDEUTIG):
+        return True
+    return len([m for m in _DENKSPUR_MARKER if m in t]) >= 2
+
+
+def _denkspur_kern(text: str) -> str | None:
+    """Versucht, aus einer Denkspur den eigentlichen Antwortabsatz zu
+    retten: der letzte Absatz ohne Marker, der wie eine Nachricht an die
+    Gruppe beginnt und 40-700 Zeichen lang ist. Sonst None."""
+    absaetze = [a.strip() for a in text.split("\n\n") if a.strip()]
+    for a in reversed(absaetze):
+        al = a.lower()
+        if any(m in al for m in _DENKSPUR_MARKER):
+            continue
+        erstes = a.split()[0].rstrip(",.:") if a.split() else ""
+        if erstes in ("Ihr", "Euer", "Eure", "Ein", "Eine", "Das", "Die", "Der", "Was", "Wie") or a.startswith('"'):
+            if 40 <= len(a) <= 700:
+                return a
+    return None
+
+
+def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str) -> str:
+    """Faengt eine Antwort ab, die das Selbstgespraech des Modells ist statt
+    die Nachricht an die Gruppe. Erst Kernabsatz retten, sonst ein zweiter
+    Aufruf mit Ermahnung; beides als Vorfall vermerkt. Ist auch der zweite
+    Anlauf Denkspur, geht er trotzdem raus (kein Endlos), als
+    ``denkspur_wiederholt`` vermerkt."""
+    if not ist_denkspur(text):
+        return text
+    kern = _denkspur_kern(text)
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None), "denkspur_verworfen",
+        f"Antwort war Selbstgespraech ({len(text)} Zeichen); "
+        + ("Kernabsatz gerettet" if kern else "kein Kern, zweiter Anlauf"),
+    )
+    if kern:
+        return kern
+    zweite = klm.schema(
+        chat_id, system,
+        f"{koerper}\n\nDeine letzte Antwort war dein Selbstgespraech, nicht die "
+        "Nachricht an die Gruppe. Schreib NUR die Nachricht: was du der Gruppe "
+        "sagst, in ihren Worten, unter 500 Zeichen.",
+        SCHEMA, "gespraech",
+    )["antwort"]
+    if ist_denkspur(zweite):
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "denkspur_wiederholt",
+            "auch der zweite Anlauf war Selbstgespraech, gesendet",
+        )
+    return zweite
+
 #: Die Zeile, die dem zweiten Anlauf an den Nutzertext gehaengt wird, wenn der
 #: erste ein Echo war (Live-Befund 04.09.2026, Nachricht 55/56: der Bot
 #: schickte Birks Nachricht 1:1 zurueck, mit "Birk:" davor, und sonst nichts).
@@ -323,9 +398,8 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt)
             system = kontext.system(e.bot_name, phase)
             ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
-            text = _ohne_echo(
-                conn, klm, e, chat_id, system, koerper, offen, ergebnis["antwort"]
-            )
+            text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, ergebnis["antwort"])
+            text = _ohne_echo(conn, klm, e, chat_id, system, koerper, offen, text)
             if hinweis:
                 text = f"{text}\n\n{hinweis}"
 

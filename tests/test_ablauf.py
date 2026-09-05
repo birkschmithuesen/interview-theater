@@ -626,3 +626,32 @@ def test_scheitert_der_zweite_anlauf_gilt_der_erste(conn, einst, tg):
     ablauf.bearbeite(conn, tg, KLMZweiterKaputt(), einst, 1)
 
     assert tg.gesendet == [(1, _LANGE_NACHRICHT)]
+
+
+DENKSPUR = (
+    "Die Gruppe will von der Phase 2 (Fragen) zur Phase 4 wechseln. Ich soll das tun.\n\n"
+    "Ich soll:\n- Ein Kernthema vorschlagen\n- Keine Markdown\n- Unter 500 Zeichen\n\n"
+    "Was ist im Material?\n- Pfannkuchen\n\n"
+    "Ihr koenntet euch auf Erinnerungen konzentrieren, die wir nicht zuordnen koennen. "
+    "Vielleicht geht euer Stueck um lebendige Momente gegenueber fremden Bildern.\n\n"
+    "Perfekt. Das ist ein Angebot, kurz, keine Markdown-Hervorhebungen."
+)
+
+
+def test_denkspur_wird_erkannt_und_der_kern_gerettet():
+    """Simulation --set birk 05.09. 04:10, Zug S11: Kimi lieferte im Feld
+    'antwort' sein Selbstgespraech. Der Kernabsatz ('Ihr koenntet ...') ist
+    die eigentliche Nachricht und wird herausgeloest."""
+    assert ablauf.ist_denkspur(DENKSPUR)
+    kern = ablauf._denkspur_kern(DENKSPUR)
+    assert kern.startswith("Ihr koenntet euch")
+    assert "Ich soll" not in kern
+
+
+def test_echte_antwort_ist_keine_denkspur():
+    for text in (
+        "Die Gruppe will also zur Kueche -- gut, dann nehmen wir die.",
+        "Ihr koenntet mit Pfannkuchen anfangen. Was meint ihr?",
+        "Notiert. Wollt ihr die drei so festhalten?",
+    ):
+        assert not ablauf.ist_denkspur(text), text

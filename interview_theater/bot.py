@@ -20,7 +20,8 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from interview_theater import (
-    ablauf, aufnahme, befehle, db, einstellungen, erkenner, journal, phasen, repo, telegram,
+    ablauf, aufnahme, befehle, db, einstellungen, erkenner, journal, knoepfe, phasen,
+    repo, telegram,
 )
 from interview_theater.einstellungen import Einstellungen
 from interview_theater.llm import LLM
@@ -250,6 +251,21 @@ def _bearbeite_sprachnachricht(conn, tg, klm, e, stt_klient, nachricht: dict) ->
         )
 
 
+def _bearbeite_knopfdruck(conn, tg, klm, e, druck: dict) -> None:
+    """Laeuft im ThreadPoolExecutor: ein Knopfdruck kostet zwei bis drei
+    HTTP-Aufrufe (answerCallbackQuery, sendMessage, editMessageReplyMarkup),
+    und die Polling-Schleife darf daran nicht haengen -- genauso wenig wie an
+    einer Sprachnachricht (SPEC § 10.2).
+
+    Ein Fehlschlag wird nur geloggt: er darf weder die Schleife stoppen noch
+    das Weiterruecken der update_id verhindern (global-constraints.md
+    'Fehlerhaltung')."""
+    try:
+        knoepfe.behandle(conn, tg, klm, e, druck)
+    except Exception:
+        log.exception("Knopfdruck fehlgeschlagen, chat_id=%s", druck.get("chat_id"))
+
+
 def _nachhol_schleife(stop: threading.Event, conn, e: Einstellungen, tg, klm, stt_klient) -> None:
     """Ruft aufnahme.nachholen() beim Start und danach alle
     aufnahme.NACHHOL_INTERVALL_S Sekunden auf (§ 10.3). Laeuft in einem
@@ -293,6 +309,16 @@ def schleife(
         for update in updates:
             try:
                 jetzt = datetime.now(timezone.utc)
+                # Knopfdruck ZUERST und unabhaengig von verarbeite_update:
+                # ein callback_query ist keine Nachricht, hat keine
+                # message_id in 'nachricht' und darf weder Nachtstau noch
+                # Duplikatpruefung durchlaufen (05.09.2026,
+                # interview_theater/knoepfe.py). Er greift damit genauso
+                # frueh und deterministisch wie ein Slash-Befehl.
+                druck = telegram.lies_knopfdruck(update)
+                if druck is not None:
+                    pool.submit(_bearbeite_knopfdruck, conn, tg, klm, e, druck)
+                    continue
                 nachricht = verarbeite_update(conn, e, update, jetzt, beim_start)
                 if nachricht is not None:
                     # Die Begruessung entsteht seit 04.09. abends im ersten

@@ -243,6 +243,28 @@ CREATE TABLE IF NOT EXISTS journal (
 );
 CREATE INDEX IF NOT EXISTS idx_journal_chat ON journal(chat_id, id);
 
+-- Inline-Knoepfe (05.09.2026, interview_theater/knoepfe.py).
+--
+-- Warum eine eigene Tabelle: Telegram begrenzt `callback_data` auf 64 Bytes.
+-- Ein Kernthema-Vorschlag ist regelmaessig laenger als das -- also traegt der
+-- Knopf nur seine eigene id (`k:<id>`, hoechstens 21 Bytes), und der
+-- eigentliche Wert steht hier. Damit steht ausserdem KEIN Inhalt der Gruppe
+-- in einem Feld, das ueber Telegram-Buttons hin- und herwandert.
+--
+-- `benutzt_am` ist die Idempotenz-Sperre: der Druck wird per
+-- `UPDATE ... WHERE benutzt_am IS NULL` beansprucht, und nur wer diesen einen
+-- UPDATE gewinnt, fuehrt die Wirkung aus. Zweimal tippen (oder zwei Leute
+-- gleichzeitig) legt damit nichts doppelt an.
+CREATE TABLE IF NOT EXISTS knopf (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  art          TEXT NOT NULL,            -- kernthema|aufnahme|phase
+  wert         TEXT,                     -- Kernthema-Volltext bzw. Phasennummer
+  erstellt_am  TEXT NOT NULL,
+  benutzt_am   TEXT                      -- gesetzt = schon gedrueckt
+);
+CREATE INDEX IF NOT EXISTS idx_knopf_chat ON knopf(chat_id, id);
+
 -- Was das Dashboard rot färbt
 CREATE TABLE IF NOT EXISTS vorfall (
   id           INTEGER PRIMARY KEY,
@@ -283,6 +305,7 @@ TABELLEN_MIT_CHAT_ID = (
     "szene",
     "szene_figur",
     "journal",
+    "knopf",
     "vorfall",
     "aufruf",
 )

@@ -30,6 +30,12 @@ class TelegramAttrappe:
         #: seit dem Anlegen der Attrappe).
         self.gesendet: list[dict] = []
         self.getippt: list[int] = []
+        #: Inline-Knoepfe (interview_theater/knoepfe.py) -- je Angebot ein
+        #: Dict, damit ein Lauf nachtraeglich pruefen kann, ob der Bot an
+        #: einem Auswahl-Moment ueberhaupt Knoepfe angeboten hat.
+        self.knoepfe: list[dict] = []
+        self.beantwortet: list[tuple[str, str]] = []
+        self.knoepfe_entfernt: list[tuple[int, int]] = []
         self.befehle: list = []
         self.geloescht: list = []
         self._message_id = self.ERSTE_MESSAGE_ID
@@ -72,6 +78,28 @@ class TelegramAttrappe:
             "zeit": time.monotonic() - self._start,
         })
         return message_id
+
+    def sende_mit_knoepfen(self, chat_id: int, text: str, knoepfe) -> int:
+        """Inline-Knoepfe (interview_theater/knoepfe.py) im simulierten Lauf.
+
+        Der Text geht denselben Weg wie bei ``sende``: fuer die Bewertung
+        eines Laufs zaehlt, was in der Gruppe steht, nicht ob eine Tastatur
+        darunter hing. Die simulierten Stimmen druecken keine Knoepfe -- sie
+        sprechen, und genau daran misst die Simulation den Bot."""
+        message_id = self.sende(chat_id, text)
+        self.knoepfe.append({
+            "chat_id": chat_id,
+            "text": text,
+            "knoepfe": list(knoepfe),
+            "message_id": message_id,
+        })
+        return message_id
+
+    def beantworte_knopf(self, callback_query_id: str, text: str = "") -> None:
+        self.beantwortet.append((callback_query_id, text))
+
+    def entferne_knoepfe(self, chat_id: int, message_id: int) -> None:
+        self.knoepfe_entfernt.append((chat_id, message_id))
 
     def tippt(self, chat_id: int) -> None:
         self.getippt.append(chat_id)

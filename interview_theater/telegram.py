@@ -17,6 +17,11 @@ import httpx
 
 BASIS = "https://api.telegram.org"
 
+#: Telegram-Grenze fuer ``callback_data`` (Bot-API: 1-64 Bytes). Deshalb
+#: traegt ein Knopf hier nie einen Volltext, sondern nur eine kurze Referenz
+#: auf eine Zeile in der Tabelle ``knopf`` (siehe interview_theater/knoepfe.py).
+CALLBACK_DATA_GRENZE = 64
+
 
 class TelegramFehler(Exception):
     """Fehler beim Zugriff auf die Telegram-Bot-API.
@@ -75,6 +80,72 @@ class Telegram:
             )
             antwort.raise_for_status()
             return antwort.json()["result"]["message_id"]
+
+    def sende_mit_knoepfen(
+        self, chat_id: int, text: str, knoepfe: list[tuple[str, str]]
+    ) -> int:
+        """Wie ``sende``, nur mit einer Inline-Tastatur darunter: je Eintrag
+        ``(beschriftung, callback_data)`` eine Zeile, untereinander.
+
+        Untereinander und nicht nebeneinander, weil die Beschriftungen hier
+        ganze Saetze sein koennen (Kernthema-Vorschlaege) -- nebeneinander
+        wuerde Telegram sie auf dem Telefon abschneiden.
+
+        Prueft die 64-Byte-Grenze von ``callback_data`` an genau dieser
+        Stelle: schickt der Bot sie zu lang, antwortet Telegram mit
+        BUTTON_DATA_INVALID, und der Fehler faende sich erst im Betrieb.
+        Ein zu langer Wert ist ein Programmierfehler (der Aufrufer haette eine
+        Knopf-id nehmen muessen), deshalb ValueError statt stiller Kuerzung."""
+        for _, daten in knoepfe:
+            if len(daten.encode("utf-8")) > CALLBACK_DATA_GRENZE:
+                raise ValueError(f"callback_data zu lang: {len(daten)} Zeichen")
+        tastatur = [[{"text": t, "callback_data": d}] for t, d in knoepfe]
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("sendMessage"),
+                json={
+                    "chat_id": chat_id,
+                    "text": text,
+                    "reply_markup": {"inline_keyboard": tastatur},
+                },
+            )
+            antwort.raise_for_status()
+            return antwort.json()["result"]["message_id"]
+
+    def beantworte_knopf(self, callback_query_id: str, text: str = "") -> None:
+        """answerCallbackQuery -- Telegram erwartet das auf JEDEN Knopfdruck.
+
+        Ohne diese Antwort dreht sich in der App eine Ladeanzeige weiter,
+        bis sie nach Sekunden von selbst aufgibt: fuer die Gruppe sieht
+        genau das nach einem haengenden Bot aus. Deshalb wird sie auch dann
+        geschickt, wenn der Druck gar nichts bewirkt hat (Knopf schon
+        benutzt) -- die Rueckmeldung ist wichtiger als die Wirkung."""
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("answerCallbackQuery"),
+                json={"callback_query_id": callback_query_id, "text": text},
+            )
+            antwort.raise_for_status()
+
+    def entferne_knoepfe(self, chat_id: int, message_id: int) -> None:
+        """Nimmt die Tastatur unter einer schon verschickten Nachricht weg
+        (editMessageReplyMarkup mit leerer Tastatur).
+
+        Damit verschwindet der Knopf, sobald er gewirkt hat: ein benutzter
+        Knopf, der weiter klickbar dasteht, laedt zum zweiten Druck ein --
+        idempotent ist das zwar (siehe repo.beanspruche_knopf), aber
+        verwirrend. Ein Fehlschlag ist unkritisch und wird vom Aufrufer
+        geschluckt: die Wirkung ist da, nur die Optik nicht aufgeraeumt."""
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("editMessageReplyMarkup"),
+                json={
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "reply_markup": {"inline_keyboard": []},
+                },
+            )
+            antwort.raise_for_status()
 
     def loesche_nachrichten(self, chat_id: int, message_ids: list[int]) -> int:
         """Loescht bis zu 100 Nachrichten auf einmal (deleteMessages). Braucht
@@ -191,4 +262,36 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         "dauer": _sprachquelle(nachricht).get("duration"),
         "gesendet_am": _iso(nachricht["date"]),
         "antwortet_auf_bot": antwortet_auf_bot,
+    }
+
+
+def lies_knopfdruck(update: dict) -> dict[str, Any] | None:
+    """Normalisiert ein ``callback_query``-Update auf die Schluessel, mit
+    denen ``knoepfe.behandle`` arbeitet -- das Gegenstueck zu
+    ``lies_nachricht`` fuer den zweiten Update-Typ, den dieser Bot kennt.
+
+    Liefert None, wenn das Update kein Knopfdruck ist. Ohne ``data`` (moeglich
+    laut Bot-API bei Spiel-Knoepfen) ebenfalls None: darauf laesst sich nichts
+    zuordnen, und raten waere hier der teuerste Ausgang.
+
+    ``message`` fehlt bei sehr alten Nachrichten (Telegram haelt sie nicht
+    ewig vor); ``chat_id`` und ``message_id`` sind deshalb optional. Der
+    Aufrufer kann dann nicht mehr antworten, aber ``callback_query_id`` reicht
+    weiterhin fuer answerCallbackQuery.
+
+    Der Absender kommt NICHT mit: wer gedrueckt hat, ist fuer die Wirkung
+    ohne Belang (die Gruppe entscheidet gemeinsam), und ein Name in einem
+    Datensatz, der nirgends gebraucht wird, ist nur eine weitere Stelle, an
+    der er auftauchen kann."""
+    knopf = update.get("callback_query")
+    if not knopf or not knopf.get("data"):
+        return None
+    nachricht = knopf.get("message") or {}
+    chat = nachricht.get("chat") or {}
+    return {
+        "callback_query_id": knopf["id"],
+        "data": knopf["data"],
+        "chat_id": chat.get("id"),
+        "chat_titel": chat.get("title"),
+        "message_id": nachricht.get("message_id"),
     }

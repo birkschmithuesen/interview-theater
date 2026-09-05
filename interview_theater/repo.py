@@ -1736,3 +1736,51 @@ def setze_journalisiert_bis(conn: sqlite3.Connection, chat_id: int, message_id: 
         (message_id, chat_id, message_id),
     )
     conn.commit()
+
+
+# --- Inline-Knoepfe (05.09.2026, interview_theater/knoepfe.py) -------------
+
+
+@_gesperrt
+def lege_knopf_an(
+    conn: sqlite3.Connection, chat_id: int, art: str, wert: str | None
+) -> int:
+    """Legt einen Knopf an und liefert seine id -- das einzige, was in
+    ``callback_data`` wandert.
+
+    Warum ueberhaupt eine Zeile je Knopf: Telegram begrenzt ``callback_data``
+    auf 64 Bytes, ein Kernthema-Vorschlag ist regelmaessig laenger. Der Wert
+    bleibt deshalb hier, der Knopf traegt nur die Referenz -- und damit steht
+    auch kein Inhalt der Gruppe in einem Feld, das durch fremde Systeme
+    laeuft."""
+    cur = conn.execute(
+        "INSERT INTO knopf (chat_id, art, wert, erstellt_am) VALUES (?, ?, ?, ?)",
+        (chat_id, art, wert, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def hole_knopf(conn: sqlite3.Connection, knopf_id: int) -> sqlite3.Row | None:
+    """Der Knopf zu einer id, egal ob schon benutzt -- der Aufrufer muss den
+    Unterschied kennen, um einen zweiten Druck freundlich zu beantworten,
+    statt ihn wie einen unbekannten Knopf zu behandeln."""
+    return conn.execute("SELECT * FROM knopf WHERE id = ?", (knopf_id,)).fetchone()
+
+
+@_gesperrt
+def beanspruche_knopf(conn: sqlite3.Connection, knopf_id: int) -> bool:
+    """Beansprucht einen Knopf: True genau beim ERSTEN Mal.
+
+    Die Idempotenz-Zusage aus AGENTS.md haengt an diesem einen bedingten
+    UPDATE (``WHERE benutzt_am IS NULL``): SQLite entscheidet, wer gewinnt,
+    nicht ein Lesen-dann-Schreiben im Python-Code, das zwischen zwei
+    gleichzeitigen Druecken auseinanderfallen koennte. Nur wer True bekommt,
+    fuehrt die Wirkung aus."""
+    cur = conn.execute(
+        "UPDATE knopf SET benutzt_am = ? WHERE id = ? AND benutzt_am IS NULL",
+        (_jetzt(), knopf_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1

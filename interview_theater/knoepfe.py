@@ -726,13 +726,22 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
 
     art = offene_art(conn, chat_id)
     wert = bloecke.get(art) if art else None
-    if marker in _ERSTER_ALS_WERT:
+    if marker in _ERSTER_ALS_WERT and _ERSTER_ALS_WERT[marker] == art:
         # Eine Auswahlliste: die Grundleiste traegt den ERSTEN Vorschlag,
         # nie die ganze Liste -- "Passt, aber anders" soll einen Rahmen
         # speichern, nicht drei untereinander.
+        #
+        # **Nur, wenn die Liste zur offenen Art gehoert** (06.09.2026, Birk,
+        # Testgruppe 21:50): der Bot hatte in Phase 6 drei Szenenbilder als
+        # ``VORSCHLAG RAHMEN:`` angeboten, die Gruppe druckte "Gefaellt uns,
+        # weiter" -- und die Leiste ueberschrieb den Rahmen von 21:37 ("Vier
+        # Freundinnen im Nordkiez ...") still mit "Leyla checkt ihr Handy auf
+        # dem Schulhof". Ohne diese Bedingung speichert jede Liste, die
+        # zufaellig einen bekannten Marker traegt, in ein Feld, um das es
+        # gerade gar nicht geht.
         erste = vorschlag.zeilen(bloecke[marker])
         if erste:
-            art, wert = _ERSTER_ALS_WERT[marker], erste[0]
+            wert = erste[0]
 
     if marker is None and (not art or not wert):
         return tg.sende(chat_id, sauber), False
@@ -1849,7 +1858,40 @@ def _biete_weiter_nach_szene(conn, tg, chat_id: int, nummer: int) -> None:
 # --- Verarbeitung ---------------------------------------------------------
 
 
-def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True) -> str:
+#: Bestaetigung statt Ueberschreiben (06.09.2026, Birk, Testgruppe 21:50):
+#: steht das Feld schon und hat niemand um eine Aenderung gebeten, ist
+#: "Gefaellt uns, weiter" ein Ja zum Bestehenden, kein neuer Wert.
+_TEXT_SCHON_GESETZT = "Steht schon so."
+
+
+def _ist_bestaetigung(conn, chat_id: int, art: str, wert: str) -> bool:
+    """Ist dieser Speicherdruck nur ein Ja zu dem, was schon dasteht?
+
+    Die Bedingung (06.09.2026, Birk): das Feld ist gesetzt, der Druck traegt
+    einen ANDEREN Wert, und es ist keine Aenderung offen
+    (``arbeitsstand.aenderung_offen``). Dann hat niemand um eine Aenderung
+    gebeten -- und ein stilles Ueberschreiben ist genau der Fall vom
+    Testabend: "Gefaellt uns, weiter" unter einem Szenenbild-Vorschlag
+    ersetzte den Rahmen von 21:37 durch "Leyla checkt ihr Handy auf dem
+    Schulhof", ohne dass irgendwo stand, dass etwas verloren geht.
+
+    Ueberschrieben wird weiterhin nach "Passt, aber anders" (setzt
+    ``aenderung_offen``) und durch den Erkenner, wenn die Gruppe den neuen
+    Wert wirklich sagt -- beides sind ausgesprochene Absichten, kein
+    Nebeneffekt eines Knopfdrucks."""
+    if art not in _NOTIERT:
+        return False
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is None:
+        return False
+    alt = (stand[art] or "").strip() if art in stand.keys() else ""
+    if not alt or alt == wert.strip():
+        return False
+    return not (stand["aenderung_offen"] or "").strip()
+
+
+def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
+               nur_bestaetigen: bool = False) -> str:
     """Schreibt den Wert einer Speicher-Leiste in den Arbeitsstand -- ueber
     **dieselben** ``repo``-Funktionen wie ``erkenner.wende_an``.
 
@@ -1874,6 +1916,21 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True) -> st
     if art not in _NOTIERT:
         log.error("Speicher-Knopf mit unbekannter art %r, chat_id=%s", art, chat_id)
         return _TEXT_UNBEKANNT
+
+    if nur_bestaetigen and _ist_bestaetigung(conn, chat_id, art, wert):
+        # Das Feld steht, niemand hat um eine Aenderung gebeten: der Druck
+        # ist ein Ja zum Bestehenden. Keine Schreiboperation, keine
+        # Notiert-Zeile, kein Journal-Eintrag -- und vor allem kein stiller
+        # Verlust (06.09.2026, Testgruppe 21:50).
+        log.info(
+            "Speicher-Knopf bestaetigt nur, art=%s, chat_id=%s", art, chat_id,
+        )
+        repo.merke_vorfall(
+            conn, chat_id, None, "ueberschreiben_verhindert",
+            f"'{art}' steht bereits und wurde durch einen Speicher-Knopf nicht ersetzt",
+        )
+        tg.sende(chat_id, _TEXT_SCHON_GESETZT)
+        return _TEXT_SCHON_GESETZT
 
     repo.setze_arbeitsstand(conn, chat_id, art, wert)
     if weiterfrage:
@@ -2603,13 +2660,20 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             # Stufe 3 -> Filter -> Figurenanzahl). Die allgemeine Weiterfrage
             # ("Wollt ihr noch etwas hinzufuegen?") wuerde sich dazwischen
             # stellen, deshalb ``weiterfrage=False``.
-            meldung = _speichere(conn, tg, chat_id, roh, weiterfrage=False)
-            if meldung != _TEXT_UNBEKANNT:
+            meldung = _speichere(
+                conn, tg, chat_id, roh, weiterfrage=False, nur_bestaetigen=True,
+            )
+            if meldung not in (_TEXT_UNBEKANNT, _TEXT_SCHON_GESETZT):
                 repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
                 _kette_weiter(conn, tg, klm, e, chat_id, gespeicherte_art)
             return meldung
-        meldung = _speichere(conn, tg, chat_id, roh)
-        if gespeicherte_art == "figuren" and meldung != _TEXT_UNBEKANNT:
+        # "Gefaellt uns, weiter" ueberschreibt nie still, was schon steht
+        # (06.09.2026): ist das Feld gesetzt und keine Aenderung offen, ist
+        # der Druck eine Bestaetigung (``_ist_bestaetigung``).
+        meldung = _speichere(conn, tg, chat_id, roh, nur_bestaetigen=True)
+        if gespeicherte_art == "figuren" and meldung not in (
+            _TEXT_UNBEKANNT, _TEXT_SCHON_GESETZT,
+        ):
             # Ebene 1 ist abgenommen -- ab hier geht es Figur fuer Figur
             # weiter (Ebene 2), ohne dass jemand etwas antippen muss.
             stelle_figur_vor(conn, tg, klm, e, chat_id)

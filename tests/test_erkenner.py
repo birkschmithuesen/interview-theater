@@ -9,7 +9,7 @@ aufzeichnet. Kein Netzzugriff.
 
 import pytest
 
-from interview_theater import erkenner, phasen, repo
+from interview_theater import erkenner, knoepfe, phasen, repo
 
 
 class LLMAttrappe:
@@ -246,11 +246,21 @@ def test_prompt_enthaelt_siebzehn_beispiele_davon_vier_leer():
     formuliert die Liste aus, und danach nickt niemand mehr. Der Erkenner
     wartete auf eine Zustimmung, die im Ablauf nie vorgesehen ist, und
     ``arbeitsstand.fragen`` blieb leer (3/3 leer reproduziert). Es traegt die
-    Grundregel: ein unfertiger Stand ist besser als kein Stand."""
+    Grundregel: ein unfertiger Stand ist besser als kein Stand.
+
+    Neunzehn bis einundzwanzig kamen am 05.09.2026 aus dem Live-Lauf um
+    13:42: "ich will noch eine Aufnahme machen" loeste **kein**
+    ``interview_starten`` aus, und damit kam auch der Aufnahme-Knopf nicht
+    (Birk: "der Knopf soll direkt kommen, ohne Slash-Befehl"). Zwei
+    Positivbeispiele (der Live-Satz selbst, und "koennen wir nochmal jemanden
+    aufnehmen" als Frage in die Runde) und -- weil eine breitere Beschreibung
+    genau hier Falschtreffer einlaedt -- ein Negativbeispiel dazu: ueber
+    gestrige Aufnahmen reden faengt keine an. Damit sind es fuenf leere
+    Beispiele."""
     anzahl_beispiele = erkenner.prompt().count("<beispiel>")
     anzahl_leer = erkenner.prompt().count('"aenderungen": []')
-    assert anzahl_beispiele == 18
-    assert anzahl_leer == 4
+    assert anzahl_beispiele == 21
+    assert anzahl_leer == 5
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +579,10 @@ class TelegramAttrappe:
 
     def __init__(self, fehler=None):
         self.gesendet = []
+        #: (chat_id, text, [(beschriftung, callback_data), ...]) je Angebot mit
+        #: Inline-Tastatur -- seit dem 05.09.2026 nimmt auch der Erkenner-Pfad
+        #: diesen Weg (``_melde_interviewmodus``).
+        self.mit_knoepfen = []
         self._letzte_message_id = 9000
         self._fehler = fehler
 
@@ -578,6 +592,11 @@ class TelegramAttrappe:
         self._letzte_message_id += 1
         self.gesendet.append((chat_id, text))
         return self._letzte_message_id
+
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+        message_id = self.sende(chat_id, text)
+        self.mit_knoepfen.append((chat_id, text, list(knoepfe_)))
+        return message_id
 
 
 def test_laufe_ohne_neue_nachrichten_sendet_nichts(conn, einst):
@@ -623,9 +642,64 @@ def test_laufe_interview_starten_sendet_bestaetigung_getrennt_von_der_meldung(co
 
     texte = [t for _, t in tg.gesendet]
     assert len(texte) == 2, "Bestaetigung und Meldung sind getrennte Nachrichten"
-    assert "Ich zeichne jetzt auf." in texte
+    assert any("Aufnahme laeuft." in t for t in texte)
     assert any("Kernthema: Ankommen" in t for t in texte)
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
+
+
+def test_laufe_interview_starten_haengt_den_aufnahme_knopf_darunter(conn, einst):
+    """Birk, 05.09.2026 nach dem Live-Lauf: "der Knopf soll direkt kommen,
+    ohne Slash-Befehl". Sagt die Gruppe die Absicht in Sprache, muss derselbe
+    Umschalter erscheinen wie nach ``/aufnahme`` -- vorher hing dort nur Text
+    und die Gruppe musste den Befehl kennen."""
+    _nachricht(conn, 1, 1, "ich will noch eine Aufnahme machen")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "interview_starten", "wert": ""}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert len(tg.mit_knoepfen) == 1
+    chat_id, text, tasten = tg.mit_knoepfen[0]
+    assert chat_id == 1
+    assert "Aufnahme laeuft." in text, "derselbe Wortlaut wie /aufnahme"
+    # Der Modus laeuft jetzt -- der naechste Druck beendet ihn.
+    assert [b for b, _ in tasten] == ["Aufnahme beenden"]
+    assert all(d.startswith(knoepfe.PRAEFIX) for _, d in tasten)
+
+
+def test_laufe_interview_beenden_haengt_den_aufnahme_knopf_darunter(conn, einst):
+    """Spiegelbildlich: nach dem Ende steht "Aufnahme starten" darunter --
+    genau der Knopf, den eine Gruppe braucht, die "noch eine Aufnahme"
+    machen will."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    _nachricht(conn, 1, 1, "so, fertig")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "interview_beenden", "wert": ""}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert len(tg.mit_knoepfen) == 1
+    _, text, tasten = tg.mit_knoepfen[0]
+    assert "Aufnahme beendet." in text
+    assert [b for b, _ in tasten] == ["Aufnahme starten"]
+
+
+def test_knopf_am_erkennerpfad_wirkt_nur_einmal(conn, einst):
+    """Dieselbe Zusage wie bei jedem anderen Knopf (AGENTS.md, Zusage 3):
+    der zweite Druck wird beantwortet, wirkt aber nicht. Hier ausdruecklich
+    fuer den Knopf, der am Erkenner-Pfad entstanden ist -- er kommt aus einer
+    anderen Funktion als der von ``/aufnahme`` und darf deshalb nicht
+    stillschweigend an der Idempotenz vorbeilaufen."""
+    _nachricht(conn, 1, 1, "ich will noch eine Aufnahme machen")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "interview_starten", "wert": ""}]})
+    tg = TelegramAttrappe()
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    _, daten = tg.mit_knoepfen[0][2][0]
+    knopf_id = int(daten[len(knoepfe.PRAEFIX):])
+
+    assert repo.beanspruche_knopf(conn, knopf_id) is True
+    assert repo.beanspruche_knopf(conn, knopf_id) is False
 
 
 def test_laufe_interview_beenden_sendet_bestaetigung(conn, einst):
@@ -636,7 +710,10 @@ def test_laufe_interview_beenden_sendet_bestaetigung(conn, einst):
 
     erkenner.laufe(klm, tg, conn, einst, 1)
 
-    assert tg.gesendet == [(1, "Aufnahme beendet.")]
+    assert len(tg.gesendet) == 1
+    chat_id, text = tg.gesendet[0]
+    assert chat_id == 1
+    assert "Aufnahme beendet." in text
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
 
 

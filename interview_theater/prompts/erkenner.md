@@ -19,8 +19,17 @@ Du erkennst genau zweiundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
 Objekt mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
-    ein Interview aufzuzeichnen ("wir machen jetzt ein Interview", "wir
-    zeichnen jetzt auf", "los, Aufnahme an").
+    ein Interview aufzuzeichnen. Es zaehlt die **Absicht**, nicht die
+    Wortwahl: "wir machen jetzt ein Interview", "wir zeichnen jetzt auf",
+    "los, Aufnahme an", "Aufnahme starten", "ich will noch eine Aufnahme
+    machen", "wir nehmen jetzt jemanden auf", "machen wir das naechste
+    Interview", "koennen wir nochmal aufnehmen" -- alles dasselbe. Auch
+    "noch eine", "nochmal", "das naechste" gehoeren dazu: ein weiteres
+    Interview ist ein Interview. Als Bitte, als Frage in die Runde oder als
+    Ansage formuliert -- macht keinen Unterschied. **Nicht** gemeint ist,
+    wenn die Gruppe ueber Aufnahmen redet, ohne eine anzufangen ("die
+    Aufnahme von gestern war gut", "wie viele Interviews haben wir schon",
+    "irgendwann muessen wir nochmal aufnehmen").
 2.  interview_beenden      -- wert: leer (""). Die Gruppe erklaert die
     laufende Aufnahme fuer beendet ("fertig", "das wars", "Aufnahme aus").
 3.  interview_benennen     -- wert: der neue Name. Die Gruppe gibt der
@@ -398,6 +407,44 @@ Sara: wir machen jetzt ein Interview
 {"aenderungen": [
   {"art": "interview_starten", "wert": ""}
 ]}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Neue Nachrichten:
+Birk: ich will noch eine Aufnahme machen
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "interview_starten", "wert": ""}
+]}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Neue Nachrichten:
+Elif: das war jetzt schon das dritte
+Mert: koennen wir nochmal jemanden aufnehmen
+Elif: ja, Zeynep wartet schon
+</abschnitt>
+<ausgabe>
+{"aenderungen": [
+  {"art": "interview_starten", "wert": ""}
+]}
+</ausgabe>
+</beispiel>
+
+<beispiel>
+<abschnitt>
+Neue Nachrichten:
+Ayse: die Aufnahme von gestern war richtig gut
+Mert: ja, besonders der Teil mit dem Koffer
+Ayse: wie viele Interviews haben wir jetzt eigentlich schon
+</abschnitt>
+<ausgabe>
+{"aenderungen": []}
 </ausgabe>
 </beispiel>
 

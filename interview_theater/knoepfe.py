@@ -172,8 +172,14 @@ def biete_kernthema(conn, tg, chat_id: int, vorschlaege: list[str] | None = None
     return True
 
 
-def biete_aufnahme(conn, tg, chat_id: int, text: str) -> None:
-    """Haengt den Aufnahme-Umschalter unter ``text``.
+def biete_aufnahme(conn, tg, chat_id: int, text: str) -> int:
+    """Haengt den Aufnahme-Umschalter unter ``text``; liefert die
+    ``message_id`` der Angebotsnachricht.
+
+    Die message_id wird zurueckgegeben, weil der Erkenner-Pfad
+    (``erkenner._melde_interviewmodus``) seine Bestaetigung wie jede andere
+    Bot-Nachricht mitschreibt (``repo.merke_nachricht``) und dafuer die id
+    braucht -- vorher stand dort ein ``tg.sende``, das sie ohnehin lieferte.
 
     Die Beschriftung richtet sich nach dem Zustand JETZT: laeuft eine
     Aufnahme, heisst der Knopf "Aufnahme beenden", sonst "Aufnahme starten".
@@ -184,7 +190,7 @@ def biete_aufnahme(conn, tg, chat_id: int, text: str) -> None:
     laeuft = repo.ist_interviewmodus_an(conn, chat_id)
     beschriftung = _TEXT_AUFNAHME_BEENDEN if laeuft else _TEXT_AUFNAHME_STARTEN
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)
-    tg.sende_mit_knoepfen(chat_id, text, [(beschriftung, _daten(knopf_id))])
+    return tg.sende_mit_knoepfen(chat_id, text, [(beschriftung, _daten(knopf_id))])
 
 
 def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:

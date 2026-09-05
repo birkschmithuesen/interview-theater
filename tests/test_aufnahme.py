@@ -68,12 +68,24 @@ class TelegramAttrappe:
         self.gesendet = []       # Liste von (chat_id, text)
         self.getippt = []        # Liste von chat_id
         self.heruntergeladen = []  # Liste von (file_id, ziel)
+        #: (chat_id, text, [(beschriftung, callback_data), ...]) je Angebot mit
+        #: Inline-Tastatur.
+        self.mit_knoepfen = []
         self._letzte_message_id = 9000
 
     def sende(self, chat_id, text):
         self.gesendet.append((chat_id, text))
         self._letzte_message_id += 1
         return self._letzte_message_id
+
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+        """Seit dem 05.09.2026 kommt auch die Interviewmodus-Bestaetigung des
+        Erkenners mit dem Aufnahme-Umschalter darunter
+        (``erkenner._melde_interviewmodus``). Fuer diese Tests zaehlt der
+        Text wie bei ``sende`` -- die Tastatur steht daneben zur Ansicht."""
+        message_id = self.sende(chat_id, text)
+        self.mit_knoepfen.append((chat_id, text, list(knoepfe_)))
+        return message_id
 
     def tippt(self, chat_id):
         self.getippt.append(chat_id)
@@ -643,7 +655,7 @@ def test_fertig_in_der_sprachnachricht_beendet_das_interview(conn, einst, tg):
     assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
 
     gesendet = [t for _, t in tg.gesendet]
-    assert "Aufnahme beendet." in gesendet
+    assert any(t.startswith("Aufnahme beendet.") for t in gesendet)
     assert any("Interview 1 ist aufgenommen und ausgewertet" in t for t in gesendet)
 
 

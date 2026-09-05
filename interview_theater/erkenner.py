@@ -1106,29 +1106,55 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     return "Notiert:\n" + "\n".join(zeilen)
 
 
-#: Wortlaut der Interviewmodus-Bestaetigung (teil-b.md Aufgabe 5, § 10.1) --
-#: die EINE Ausnahme von "nur Arbeitsstandaenderungen werden gemeldet": der
-#: Modus muss sichtbar sein, sonst weiss die Gruppe nicht, ob sie gerade
-#: aufnimmt. Bewusst getrennt von baue_meldung()/der Aenderungsmeldung, nicht
-#: mit ihr vermischt -- zwei kurze Nachrichten sind hier klarer als eine.
-_TEXT_INTERVIEW_STARTEN = "Ich zeichne jetzt auf."
-_TEXT_INTERVIEW_BEENDEN = "Aufnahme beendet."
-_INTERVIEWMODUS_TEXTE = {
-    "interview_starten": _TEXT_INTERVIEW_STARTEN,
-    "interview_beenden": _TEXT_INTERVIEW_BEENDEN,
-}
+def _interviewmodus_texte() -> dict[str, str]:
+    """art -> Wortlaut der Interviewmodus-Bestaetigung (teil-b.md Aufgabe 5,
+    § 10.1) -- die EINE Ausnahme von "nur Arbeitsstandaenderungen werden
+    gemeldet": der Modus muss sichtbar sein, sonst weiss die Gruppe nicht, ob
+    sie gerade aufnimmt. Bewusst getrennt von baue_meldung()/der
+    Aenderungsmeldung, nicht mit ihr vermischt -- zwei kurze Nachrichten sind
+    hier klarer als eine.
+
+    Der Wortlaut ist seit dem 05.09.2026 **derselbe wie bei ``/aufnahme``**
+    (``befehle._TEXT_INTERVIEW_AN``/``_AUS``) und wird von dort geholt statt
+    hier zweitgepflegt: gesprochene Absicht und getippter Befehl schalten
+    denselben Modus -- sie duerfen nicht verschieden aussehen, sonst wirkt es
+    fuer die Gruppe wie zwei verschiedene Zustaende.
+
+    Spaeter Import (in der Funktion, nicht im Modulkopf): ``befehle``
+    importiert ``erkenner``, ein Modulimport hier waere ein Zyklus."""
+    from interview_theater import befehle
+
+    return {
+        "interview_starten": befehle._TEXT_INTERVIEW_AN,
+        "interview_beenden": befehle._TEXT_INTERVIEW_AUS,
+    }
 
 
 def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> None:
     """Bestaetigt jeden tatsaechlich wirksamen Moduswechsel einzeln und
     sofort (Aufgabe 5) -- unabhaengig von und vor baue_meldung(), das diese
-    beiden Arten weiterhin bewusst still haelt."""
+    beiden Arten weiterhin bewusst still haelt.
+
+    **Mit Knopf, seit 05.09.2026** (Birk, nach dem Live-Lauf 13:42): "der
+    Knopf soll direkt kommen, ohne Slash-Befehl". Sagt die Gruppe "ich will
+    noch eine Aufnahme machen", hing bis dahin nur Text im Chat -- den
+    Umschalter gab es erst nach ``/aufnahme``. Die Bestaetigung geht deshalb
+    ueber ``knoepfe.biete_aufnahme`` und nicht mehr ueber ``tg.sende``:
+    derselbe Text, derselbe Umschalter, egal ob getippt oder gesprochen.
+
+    Die Beschriftung richtet sich nach dem Zustand JETZT -- ``wende_an`` hat
+    schon geschrieben, wenn wir hier ankommen, also steht nach einem
+    ``interview_starten`` "Aufnahme beenden" auf dem Knopf. Genau richtig:
+    der naechste Druck ist der, den die Gruppe als naechstes braucht."""
+    from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+
+    texte = _interviewmodus_texte()
     for aenderung in wirkliche:
-        text = _INTERVIEWMODUS_TEXTE.get(aenderung.get("art"))
+        text = texte.get(aenderung.get("art"))
         if text is None:
             continue
         try:
-            message_id = tg.sende(chat_id, text)
+            message_id = knoepfe.biete_aufnahme(conn, tg, chat_id, text)
             repo.merke_nachricht(
                 conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
                 text, repo._jetzt(),

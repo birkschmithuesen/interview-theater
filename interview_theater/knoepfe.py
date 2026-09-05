@@ -120,6 +120,32 @@ ART_TEIL_WEITER = "teil_weiter"
 #: "Aufnahme beenden" (``befehle._befehl_aufnahme``), kein zweiter Weg.
 ART_TEIL_FERTIG = "teil_fertig"
 
+# --- Phase 2 · Fragen als Mehrfachauswahl und der Leitfaden (06.09.2026) ---
+#
+# Birk, 06.09.2026: die Fragen-Erarbeitung wird Multiple-Choice. Der Bot
+# schlaegt ZEHN Fragen vor, die Gruppe tippt genau DREI an. Der Grund ist
+# derselbe wie ueberall hier: eine Liste im Fliesstext, zu der die Gruppe
+# "die erste und die dritte" sagt, ist fuer den Erkenner nicht aufloesbar --
+# ein Knopf traegt die Auswahl selbst.
+#
+# Danach die Verfeinerungsebene: Sensibilitaetspruefung mit Einleitungen,
+# Eroeffnung und Abschluss, daraus der Leitfaden (``leitfaden.py``).
+
+#: Eine der zehn zur Wahl stehenden Fragen -- ``wert`` ist ihre NUMMER
+#: (1-10), nicht der Text: der steht in ``arbeitsstand.fragen_auswahl``, und
+#: ein Druck togglet nur, er speichert nichts.
+ART_FRAGE_WAHL = "frage_wahl"
+#: "Diese 3 nehmen" -- die angetippten Fragen werden zur Frageliste.
+ART_FRAGEN_UEBERNEHMEN = "fragen_uebernehmen"
+#: "Andere zehn" -- ein neuer Gespraechszug mit der Anweisung, zehn ANDERE
+#: Fragen vorzuschlagen (die bisherigen stehen namentlich im Auftrag).
+ART_FRAGEN_ANDERE = "fragen_andere"
+#: "Eigene Idee" in der Fragenauswahl -- die naechste Nachricht der Gruppe
+#: sind eigene Fragen; sie werden ergaenzt und die Auswahl kommt neu.
+ART_FRAGEN_EIGENE = "fragen_eigene"
+#: "Leitfaden zeigen" -- deterministisch aus der Datenbank, kein Modell.
+ART_LEITFADEN = "leitfaden"
+
 # --- Phase 6 · Szenen (05.09.2026) ----------------------------------------
 #
 # Die Knopf-Navigation durch Phase 6 und 7 (``szenenfolge.py``). Sie folgt
@@ -215,7 +241,17 @@ _NOTIERT = {
     "kernfrage": "Kernfrage",
     "rahmen": "Setting",
     "geschichte": "Geschichte",
+    # Die Verfeinerungsebene der Fragen (06.09.2026): dieselbe Grundleiste,
+    # dieselbe Notiert-Zeile, derselbe Schreibweg -- nur ein anderes Feld.
+    "einleitungen": "Einleitungen",
 }
+
+#: Wo eine Art landet, wenn das Arbeitsstand-Feld anders heisst als der
+#: Vorschlagsmarker. Eine Tabelle statt eines ``if`` in ``_speichere``: der
+#: Marker heisst nach dem, was die Gruppe sieht (Einleitungen), die Spalte
+#: nach dem, was drinsteht (``frage_einleitungen`` -- Einleitungen zu FRAGEN,
+#: nicht zu Szenen).
+_FELD_FUER = {"einleitungen": "frage_einleitungen"}
 
 #: Hoechstens drei Vorschlaege je Kernthema-Angebot. Mehr ist keine Auswahl
 #: mehr, sondern eine Liste, die gelesen werden will -- und die Gruppe steht
@@ -396,6 +432,56 @@ _TEXT_SCHAERFUNG_DURCH = (
     "Das war alles, was ich zuordnen konnte. Wollt ihr noch eine Runde, oder "
     "gehen wir an die Szenentexte?"
 )
+
+
+# --- Phase 2 · Fragen als Mehrfachauswahl, Leitfaden (06.09.2026) ---------
+
+#: Wie viele Fragen zur Wahl stehen und wie viele es am Ende sind. Zehn ist
+#: eine Auswahl, aus der man waehlen kann, ohne zu lesen wie in einem
+#: Fragebogen; drei ist, womit eine 15-Jaehrige eine fremde Person auf der
+#: Strasse anspricht, ohne dass es ein Verhoer wird (Birk, 06.09.2026).
+#: "Andere Zahl" gibt es hier bewusst NICHT -- die Zahl ist eine Vorgabe des
+#: Stuecks, keine Entscheidung der Gruppe.
+FRAGEN_ZUR_WAHL = 10
+FRAGEN_ANZAHL = 3
+
+#: Wie lang eine Frage auf einem Knopf sein darf. Telegram schneidet laengere
+#: Beschriftungen auf dem Telefon selbst ab, und zwar ohne Hinweis -- besser
+#: eine sichtbare Kuerzung als eine unsichtbare. Der volle Text steht im
+#: Chat ueber den Knoepfen und in ``arbeitsstand.fragen_auswahl``.
+KNOPF_LAENGE = 40
+#: Der Haken vor einer gewaehlten Frage. Ein Zeichen, kein zweiter Knopf:
+#: der Zustand muss auf dem Telefon in einem Blick lesbar sein.
+_HAKEN = "✓ "
+
+_TEXT_FRAGEN_UEBERNEHMEN_KNOPF = f"Diese {FRAGEN_ANZAHL} nehmen"
+_TEXT_FRAGEN_ANDERE_KNOPF = f"Andere {FRAGEN_ZUR_WAHL}"
+_TEXT_FRAGEN_EIGENE_KNOPF = "Eigene Idee"
+#: Die Aufforderung ueber der Auswahl. Sie sagt die Zahl, weil die Sperre
+#: unten sie erzwingt -- eine Regel, die erst beim Verstoss sichtbar wird,
+#: ist eine Falle.
+_TEXT_FRAGEN_WAHL = (
+    f"Tippt genau {FRAGEN_ANZAHL} Fragen an - nochmal antippen nimmt die "
+    "Wahl zurueck."
+)
+#: Die Antwort auf "Diese 3 nehmen" bei falscher Anzahl. Sie geht als
+#: answerCallbackQuery raus (das kleine graue Band oben in der App) und
+#: nicht als Nachricht: eine Fehlbedienung soll den Chat nicht zumuellen.
+_TEXT_FRAGEN_NICHT_DREI = f"Waehlt genau {FRAGEN_ANZAHL}."
+_TEXT_FRAGEN_EIGENE = (
+    "Schreibt eure Frage oder Fragen - ich nehme sie mit in die Auswahl."
+)
+_TEXT_FRAGEN_KEINE_AUSWAHL = "Diese Auswahl kenne ich nicht mehr."
+#: Nach dem Uebernehmen: die drei Fragen stehen, und die Pruefung laeuft an.
+_TEXT_FRAGEN_UEBERNOMMEN = "Notiert, eure {anzahl} Fragen:"
+#: Was der Bot sagt, waehrend die Sensibilitaetspruefung im Thread laeuft.
+#: Sie ist kein Selbstzweck und wird deshalb begruendet: die Gruppe soll
+#: wissen, warum der Bot nach dem Speichern noch etwas tut.
+TEXT_PRUEFUNG_LAEUFT = (
+    "Ich sehe die Fragen noch einmal durch: bei welchen braucht ihr einen "
+    "Satz zur Einleitung, bevor ihr sie einer fremden Person stellt?"
+)
+_TEXT_LEITFADEN_KNOPF = "Leitfaden zeigen"
 
 
 
@@ -718,6 +804,19 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
     sauber = vorschlag.ohne_marker(text) or text
     bloecke = vorschlag.alle(text)
 
+    # Die Fragenauswahl der Phase 2 (06.09.2026) ist keine Leiste, sondern
+    # eine eigene Mehrfachauswahl: zehn Knoepfe zum Antippen und drei
+    # Handlungsknoepfe darunter. Sie kommt VOR allem anderen, weil sie den
+    # Text mitbringt und nichts speichert.
+    if "fragenauswahl" in bloecke:
+        # ``ohne_block`` statt ``ohne_marker``: die zehn Fragen stehen gleich
+        # auf den Knoepfen, und zweimal dieselbe Liste ist auf dem Telefon
+        # eine halbe Bildschirmseite Doppelung.
+        return biete_fragenauswahl(
+            conn, tg, chat_id, bloecke["fragenauswahl"],
+            vorschlag.ohne_block(text, "fragenauswahl") or _TEXT_FRAGEN_WAHL,
+        ), True
+
     # Oben: die Auswahlknoepfe. Kommen mehrere Auswahl-Bloecke in einer
     # Nachricht (das Modell soll das nicht, tut es aber gelegentlich),
     # gewinnt der erste aus _AUSWAHLMARKER -- eine feste Ordnung statt einer
@@ -820,7 +919,18 @@ def offene_art(conn, chat_id: int) -> str | None:
     if phase == 1:
         return "begriffe" if leer("begriffe") else None
     if phase == 2:
-        return "fragen" if leer("fragen") else None
+        # Die Verfeinerungsebene (06.09.2026): erst die Fragen, dann die
+        # Einleitungen zu den heiklen darunter, dann Eroeffnung und
+        # Abschluss. Jede Stufe wird erst offen, wenn die davor steht --
+        # sonst haenge die Leiste einer spaeteren Stufe unter dem Vorschlag
+        # einer frueheren und speicherte den falschen Text.
+        if leer("fragen"):
+            return "fragen"
+        if leer("frage_einleitungen"):
+            return "einleitungen"
+        if leer("interview_eroeffnung"):
+            return "eroeffnung"
+        return None
     if phase == 4:
         if leer("rahmen"):
             return "rahmen"
@@ -853,6 +963,278 @@ def sende_notiert_mit_leiste(conn, tg, chat_id: int, text: str, art: str,
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
     )
     return message_id, True
+
+
+# --- Phase 2: die Fragen als Mehrfachauswahl ------------------------------
+
+
+def _gewaehlte(conn, chat_id: int) -> list[int]:
+    """Die angetippten Fragennummern, aufsteigend."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_gewaehlt"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return []
+    return sorted(int(t) for t in roh.split(",") if t.strip().isdigit())
+
+
+def _auswahlfragen(conn, chat_id: int) -> list[str]:
+    """Die zur Wahl stehenden Fragen, eine je Zeile."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_auswahl"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return []
+    from interview_theater import vorschlag
+
+    return vorschlag.zeilen(roh)
+
+
+def _knopftext(nummer: int, frage: str, gewaehlt: bool) -> str:
+    """Die Beschriftung einer Fragenzeile: Haken, Nummer, gekuerzte Frage.
+
+    Gekuerzt wird sichtbar (mit '…'), nicht still: eine Beschriftung, die
+    Telegram selbst abschneidet, sieht auf dem Telefon aus wie ein Fehler
+    des Bots."""
+    kurz = frage if len(frage) <= KNOPF_LAENGE else frage[: KNOPF_LAENGE - 1].rstrip() + "…"
+    return f"{_HAKEN if gewaehlt else ''}{nummer}. {kurz}"
+
+
+def _fragenleiste(conn, chat_id: int) -> list[tuple[str, str]]:
+    """Die vollstaendige Tastatur der Fragenauswahl: ein Knopf je Frage,
+    darunter die drei Handlungsknoepfe.
+
+    Wird bei JEDEM Toggle neu gebaut und per ``aktualisiere_knoepfe``
+    getauscht -- die Knopfzeilen entstehen dabei neu, weil eine gedrueckte
+    Knopfzeile verbraucht ist (``repo.beanspruche_knopf``). Der Zustand
+    haengt deshalb nicht an den Knoepfen, sondern an
+    ``arbeitsstand.fragen_gewaehlt``: ein Toggle darf beliebig oft
+    stattfinden, ein Knopf nur einmal wirken."""
+    fragen = _auswahlfragen(conn, chat_id)
+    gewaehlt = set(_gewaehlte(conn, chat_id))
+    leiste = [
+        (
+            _knopftext(nummer, frage, nummer in gewaehlt),
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_WAHL, str(nummer))),
+        )
+        for nummer, frage in enumerate(fragen, start=1)
+    ]
+    leiste += [
+        (
+            _TEXT_FRAGEN_UEBERNEHMEN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UEBERNEHMEN, None)),
+        ),
+        (
+            _TEXT_FRAGEN_ANDERE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_ANDERE, None)),
+        ),
+        (
+            _TEXT_FRAGEN_EIGENE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_EIGENE, None)),
+        ),
+    ]
+    return leiste
+
+
+def biete_fragenauswahl(conn, tg, chat_id: int, wert: str, text: str | None = None) -> int:
+    """Stellt die zehn vorgeschlagenen Fragen als Mehrfachauswahl hin
+    (06.09.2026, Birk).
+
+    ``wert`` ist der Inhalt des Blocks ``VORSCHLAG FRAGENAUSWAHL:`` -- eine
+    Frage je Zeile. Er wird als ``arbeitsstand.fragen_auswahl`` abgelegt,
+    **bevor** die Knoepfe entstehen: die Knoepfe tragen nur Nummern, und eine
+    Nummer ohne Liste waere nichts wert.
+
+    Die vorherige Auswahl wird geleert. Ein neuer Zehnervorschlag ist eine
+    neue Frage an die Gruppe, kein Nachtrag zur alten -- sonst zeigte der
+    Haken auf eine Frage, die es nicht mehr gibt.
+
+    Liefert die ``message_id``; die Knopfzeilen merken sie sich, damit der
+    Toggle die Tastatur derselben Nachricht tauschen kann.
+    """
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGE_WAHL)
+    for art in (ART_FRAGEN_UEBERNEHMEN, ART_FRAGEN_ANDERE, ART_FRAGEN_EIGENE):
+        _nimm_alte_leiste_ab(conn, tg, chat_id, art)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", wert)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_gewaehlt", None)
+    leiste = _fragenleiste(conn, chat_id)
+    message_id = tg.sende_mit_knoepfen(chat_id, text or _TEXT_FRAGEN_WAHL, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id
+    )
+    return message_id
+
+
+def _toggle_frage(conn, tg, chat_id: int, knopf, nummer: int) -> str:
+    """Dreht die Wahl EINER Frage um und tauscht die Tastatur aus.
+
+    Kein Modellaufruf, kein Speichern in ``fragen``: erst \"Diese 3 nehmen\"
+    macht aus der Auswahl eine Frageliste. Bis dahin ist jeder Druck
+    zuruecknehmbar -- das ist der ganze Punkt einer Mehrfachauswahl.
+    """
+    fragen = _auswahlfragen(conn, chat_id)
+    if not fragen or nummer > len(fragen):
+        tg.sende(chat_id, _TEXT_FRAGEN_KEINE_AUSWAHL)
+        return _TEXT_FRAGEN_KEINE_AUSWAHL
+    gewaehlt = _gewaehlte(conn, chat_id)
+    if nummer in gewaehlt:
+        gewaehlt.remove(nummer)
+        meldung = f"{nummer} wieder ab"
+    else:
+        gewaehlt.append(nummer)
+        meldung = f"{nummer} dazu"
+    repo.setze_arbeitsstand(
+        conn, chat_id, "fragen_gewaehlt", ",".join(str(n) for n in sorted(gewaehlt))
+    )
+    # Die alte Tastatur derselben Nachricht wird ersetzt, nicht ergaenzt: die
+    # Gruppe sieht denselben Text mit neuen Haken.
+    message_id = knopf["message_id"]
+    leiste = _fragenleiste(conn, chat_id)
+    if message_id is not None:
+        try:
+            tg.aktualisiere_knoepfe(chat_id, message_id, leiste)
+            repo.merke_knopf_nachricht(
+                conn, [_id_aus_daten(d) for _, d in leiste], message_id
+            )
+        except Exception:
+            log.warning("Fragenauswahl nicht aktualisiert, chat_id=%s", chat_id)
+    return f"{meldung} ({len(gewaehlt)}/{FRAGEN_ANZAHL})"
+
+
+def _uebernimm_fragen(conn, tg, klm, e, chat_id: int) -> str:
+    """\"Diese 3 nehmen\": die angetippten Fragen werden zur Frageliste, und
+    danach laeuft die Sensibilitaetspruefung an.
+
+    **Die Sperre ist der Punkt.** Bei einer anderen Anzahl als
+    ``FRAGEN_ANZAHL`` passiert NICHTS -- keine Nachricht, kein Speichern, nur
+    eine Zeile im grauen Band der App (``answerCallbackQuery``). Die Gruppe
+    steht im Raum und tippt weiter; eine Fehlermeldung im Chat waere hier
+    lauter als der Fehler.
+    """
+    gewaehlt = _gewaehlte(conn, chat_id)
+    if len(gewaehlt) != FRAGEN_ANZAHL:
+        return _TEXT_FRAGEN_NICHT_DREI
+    fragen = _auswahlfragen(conn, chat_id)
+    ausgewaehlt = [fragen[n - 1] for n in gewaehlt if n <= len(fragen)]
+    if len(ausgewaehlt) != FRAGEN_ANZAHL:
+        tg.sende(chat_id, _TEXT_FRAGEN_KEINE_AUSWAHL)
+        return _TEXT_FRAGEN_KEINE_AUSWAHL
+    wert = "\n".join(ausgewaehlt)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen", wert)
+    repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", f"Fragen: {wert}", quelle="knopf",
+    )
+    tg.sende(
+        chat_id,
+        _TEXT_FRAGEN_UEBERNOMMEN.format(anzahl=len(ausgewaehlt))
+        + "\n"
+        + "\n".join(f"{n}. {f}" for n, f in enumerate(ausgewaehlt, start=1)),
+    )
+    starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id)
+    return "Fragen uebernommen"
+
+
+def starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id: int) -> bool:
+    """Die Pruefung nach dem Festlegen der Fragen (06.09.2026, Birk).
+
+    **Warum sie automatisch laeuft.** Die Interviews fuehren 15- bis
+    18-Jaehrige mit FREMDEN Personen auf der Strasse und im Verein. Eine
+    Frage nach Familie, Herkunft, Religion, Gewalt, Liebe, Geld, Krankheit,
+    Flucht oder Diskriminierung ist dabei kein Problem -- sie ohne einen Satz
+    davor zu stellen, schon. Wer erst danach merkt, dass ein Satz gefehlt
+    haette, kann ihn nicht mehr nachreichen.
+
+    Ein Gespraechszug mit Anweisung in einem eigenen Thread
+    (``ablauf.starte_auftrag``) -- **kein Modellaufruf in diesem Handler**
+    (AGENTS.md, Zusage 2). Die Antwort traegt den Block
+    ``VORSCHLAG EINLEITUNGEN:`` und darunter die Grundleiste; das Ping-Pong
+    laeuft wie bei jedem anderen Vorschlag, bis die Gruppe
+    \"Gefaellt uns, weiter\" drueckt.
+    """
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    fragen = (stand["fragen"] if stand else "") or ""
+    if not fragen.strip():
+        return False
+    tg.sende(chat_id, TEXT_PRUEFUNG_LAEUFT)
+    return _starte_auftrag(
+        conn, tg, klm, e, chat_id, ANWEISUNG_EINLEITUNGEN.format(fragen=fragen)
+    )
+
+
+def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
+    """Der zweite Schritt der Verfeinerung: Eroeffnungs- und Abschlusstext.
+
+    Laeuft automatisch, sobald die Einleitungen abgenommen sind -- die
+    Gruppe soll nicht wissen muessen, dass es diesen Schritt gibt. Wieder
+    ein Auftragszug im eigenen Thread, wieder die Grundleiste darunter."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    fragen = (stand["fragen"] if stand else "") or ""
+    return _starte_auftrag(
+        conn, tg, klm, e, chat_id, ANWEISUNG_EROEFFNUNG.format(fragen=fragen)
+    )
+
+
+def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
+    """Zerlegt den Block ``VORSCHLAG EROEFFNUNG:`` in Eroeffnung und
+    Abschluss und legt beides ab.
+
+    Der Block traegt beides, weil es EINE Entscheidung ist (\"womit fangen
+    wir an, womit hoeren wir auf\") -- gespeichert wird es getrennt, weil der
+    Leitfaden die beiden Texte an verschiedene Stellen setzt. Die Trennung
+    laeuft ueber eine Zeile, die mit \"Abschluss\" beginnt; fehlt sie, ist
+    alles Eroeffnung und der Abschluss bleibt leer (der Leitfaden laesst ihn
+    dann weg, statt etwas zu erfinden).
+    """
+    eroeffnung: list[str] = []
+    abschluss: list[str] = []
+    ziel = eroeffnung
+    for zeile in (wert or "").splitlines():
+        roh = zeile.strip()
+        if not roh:
+            continue
+        ohne = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", roh)
+        kopf, sep, rest = ohne.partition(":")
+        if sep and kopf.strip().lower().startswith("abschluss"):
+            ziel = abschluss
+            if rest.strip():
+                ziel.append(rest.strip())
+            continue
+        if sep and kopf.strip().lower().startswith("eroeffnung"):
+            ziel = eroeffnung
+            if rest.strip():
+                ziel.append(rest.strip())
+            continue
+        ziel.append(ohne)
+    repo.setze_arbeitsstand(
+        conn, chat_id, "interview_eroeffnung", "\n".join(eroeffnung).strip() or None
+    )
+    repo.setze_arbeitsstand(
+        conn, chat_id, "interview_abschluss", "\n".join(abschluss).strip() or None
+    )
+    repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", "Eroeffnung und Abschluss festgelegt",
+        quelle="knopf",
+    )
+    # Und jetzt steht der Leitfaden -- die Gruppe soll ihn sehen, ohne
+    # danach fragen zu muessen.
+    from interview_theater import leitfaden
+
+    leitfaden.sende(conn, tg, chat_id)
+    return "Eroeffnung uebernommen"
+
+
+def _leitfaden_knopf(conn, chat_id: int) -> tuple[str, str] | None:
+    """\"Leitfaden zeigen\", sobald es einen gibt -- sonst None."""
+    from interview_theater import leitfaden
+
+    if not leitfaden.steht(conn, chat_id):
+        return None
+    return (
+        _TEXT_LEITFADEN_KNOPF,
+        _daten(repo.lege_knopf_an(conn, chat_id, ART_LEITFADEN, None)),
+    )
 
 
 def _aufnahme_anbieten(conn, chat_id: int, nur_phase_3: bool = False) -> bool:
@@ -952,6 +1334,13 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
     alle = _auswerten_alle_knopf(conn, chat_id, ausser=kopf_id)
     if alle is not None:
         knoepfe.append(alle)
+    # Der Leitfaden, solange die Gruppe noch Interviews fuehrt: zwischen zwei
+    # Gespraechen ist genau der Moment, in dem jemand nachsehen will, wie der
+    # Einstieg nochmal ging (06.09.2026).
+    if _aufnahme_anbieten(conn, chat_id, nur_phase_3=True):
+        leitfadenknopf = _leitfaden_knopf(conn, chat_id)
+        if leitfadenknopf is not None:
+            knoepfe.append(leitfadenknopf)
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
         knoepfe.append(phasenknopf)
@@ -983,6 +1372,13 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
                 _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
             )
         )
+    # Der Leitfaden steht im Einstieg der Phase 3 direkt neben dem Start:
+    # wer den Bot in der Pause aufmacht, sucht genau diese zwei Dinge
+    # (06.09.2026). In anderen Phasen waere er ein Angebot ins Leere.
+    if phasen.aktuelle(conn, chat_id) == PHASE_INTERVIEWS:
+        leitfadenknopf = _leitfaden_knopf(conn, chat_id)
+        if leitfadenknopf is not None:
+            knoepfe.append(leitfadenknopf)
     knoepfe += [
         (
             _TEXT_STAND_KNOPF,
@@ -1879,7 +2275,7 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True) -> st
         log.error("Speicher-Knopf mit unbekannter art %r, chat_id=%s", art, chat_id)
         return _TEXT_UNBEKANNT
 
-    repo.setze_arbeitsstand(conn, chat_id, art, wert)
+    repo.setze_arbeitsstand(conn, chat_id, _FELD_FUER.get(art, art), wert)
     if weiterfrage:
         # Abgenommen: die offene Aenderungsbitte ist erledigt, die Leiste
         # verschwindet wieder (``offene_art``).
@@ -2485,8 +2881,13 @@ def biete_proaktiv(conn, tg, chat_id: int, phase: int) -> None:
 ANWEISUNGEN = {
     1: "Schlag der Gruppe eine Begriffsliste vor und haeng sie als Block "
        "'VORSCHLAG BEGRIFFE:' an.",
-    2: "Schlag der Gruppe Interviewfragen vor und haeng sie als Block "
-       "'VORSCHLAG FRAGEN:' an, eine Frage je Zeile.",
+    2: "Schlag der Gruppe genau zehn Interviewfragen zur Auswahl vor. Haeng "
+       "sie als Block 'VORSCHLAG FRAGENAUSWAHL:' an, eine Frage je Zeile, "
+       "genau zehn Zeilen, ohne Nummerierung. Thematisch gestreut ueber die "
+       "Begriffe der Gruppe, altersgerecht, und so, dass eine 15- bis "
+       "18-Jaehrige sie einer FREMDEN Person auf der Strasse stellen kann. "
+       "Wiederhol die Fragen nicht im Fliesstext - die Gruppe sieht sie auf "
+       "den Knoepfen.",
     # Phase 4: das SETTING zuerst -- und ausschliesslich aus den Begriffen
     # und Fragen der Gruppe. Kein Material: die Interviews stehen in diesem
     # Prompt gar nicht (``kontext.material_erlaubt``), und der Auftrag sagt
@@ -2540,6 +2941,56 @@ ANWEISUNG_DUKTUS = (
     "Schlag zwei bis drei alternative Beschreibungen des Sprachduktus von "
     "{name} vor - je eine Zeile, konkret (Satzlaenge, Fuellwoerter, Tempo). "
     "Haeng sie als Block 'VORSCHLAG DUKTUS:' an, eine Beschreibung je Zeile."
+)
+
+# --- Phase 2 · Verfeinerung (06.09.2026) ----------------------------------
+
+#: "Andere zehn": die bisherigen Fragen stehen namentlich im Auftrag, damit
+#: das Modell sie nicht umformuliert wieder vorlegt. Ohne diese Aufzaehlung
+#: kaeme im zweiten Durchgang dieselbe Liste mit anderen Worten -- gemessen
+#: an der Kernthema-Stufe, an der genau das passierte.
+ANWEISUNG_FRAGEN_ANDERE = (
+    "Schlag genau zehn ANDERE Interviewfragen vor. Diese hier hatten wir "
+    "schon, nimm keine davon wieder und formuliere keine davon um:\n{alte}\n"
+    "Haeng die neuen als Block 'VORSCHLAG FRAGENAUSWAHL:' an, eine Frage je "
+    "Zeile, genau zehn Zeilen. Wiederhol sie nicht im Fliesstext."
+)
+#: Die Gruppe hat eigene Fragen diktiert -- sie kommen in die Auswahl, und
+#: der Bot fuellt auf zehn auf, statt sie zu ersetzen.
+ANWEISUNG_FRAGEN_EIGENE = (
+    "Die Gruppe hat eigene Fragen genannt. Nimm sie unveraendert als erste "
+    "Zeilen und ergaenze sie mit deinen Vorschlaegen auf genau zehn. Haeng "
+    "alles als Block 'VORSCHLAG FRAGENAUSWAHL:' an, eine Frage je Zeile."
+)
+#: Die Sensibilitaetspruefung. Der Rahmen steht im Auftrag und nicht nur im
+#: Phasen-Prompt: dieser Zug entscheidet, ob eine 15-Jaehrige vor einer
+#: fremden Person einen Satz zur Hand hat oder nicht.
+ANWEISUNG_EINLEITUNGEN = (
+    "Sieh dir diese Interviewfragen der Gruppe an:\n{fragen}\n\n"
+    "Die Interviews fuehren 15- bis 18-jaehrige Frauen mit FREMDEN Personen "
+    "auf der Strasse oder im Verein. Pruefe jede Frage: beruehrt sie ein "
+    "sensibles Thema (Familie, Herkunft, Religion, Gewalt, Liebe und Koerper, "
+    "Geld, Krankheit, Flucht, Diskriminierung)? Fuer JEDE sensible Frage "
+    "schlag eine kurze Einleitung vor - ein bis zwei Saetze, die die "
+    "Interviewerin VOR der Frage sagt: warum sie fragt, und dass man nicht "
+    "antworten muss. Haeng das als Block 'VORSCHLAG EINLEITUNGEN:' an, je "
+    "Zeile '<Fragennummer> — <Einleitung>'. Ist keine Frage sensibel, "
+    "schreib in den Block genau die eine Zeile 'Keine der Fragen braucht "
+    "eine besondere Einleitung.' Sag im Text davor in einem Satz, was du "
+    "gefunden hast, und stell eine Frage an die Gruppe."
+)
+#: Eroeffnung und Abschluss in einem Block -- es ist eine Entscheidung.
+ANWEISUNG_EROEFFNUNG = (
+    "Jetzt fehlt noch, womit das Interview anfaengt und aufhoert. Schlag "
+    "einen Eroeffnungstext vor, den die Interviewerin einer fremden Person "
+    "sagt, bevor sie die erste Frage stellt - drei bis fuenf Saetze: wer wir "
+    "sind, dass wir ein Theaterprojekt im Verein machen, wofuer die Antworten "
+    "verwendet werden (anonym, als Material fuer ein Stueck), dass man "
+    "jederzeit aufhoeren kann, und die Bitte um Erlaubnis, das Gespraech "
+    "aufzunehmen. Dazu einen kurzen Abschluss: Dank und was jetzt weiter "
+    "passiert. Haeng beides als Block 'VORSCHLAG EROEFFNUNG:' an - zuerst "
+    "die Eroeffnung, danach eine Zeile, die mit 'Abschluss:' beginnt. "
+    "Sprache wie von einer 16-Jaehrigen, keine Behoerdensaetze."
 )
 
 
@@ -2602,6 +3053,22 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
     if art == ART_SPEICHERN:
         roh = str(knopf["wert"] or "")
         gespeicherte_art = roh.partition(TRENNER)[0].strip()
+        if gespeicherte_art == "eroeffnung":
+            # Eroeffnung und Abschluss stecken in EINEM Block und gehen in
+            # ZWEI Felder -- deshalb ein eigener Speicherweg statt des
+            # Arbeitsstand-Setters (wie bei der Geschichte in Phase 5).
+            return _speichere_eroeffnung(
+                conn, tg, chat_id, roh.partition(TRENNER)[2]
+            )
+        if gespeicherte_art == "einleitungen":
+            # Die Einleitungen sind abgenommen -- ohne Zwischenfrage weiter
+            # zum Eroeffnungstext: die Gruppe soll die Verfeinerung als
+            # einen Weg erleben, nicht als drei Aufgaben.
+            meldung = _speichere(conn, tg, chat_id, roh, weiterfrage=False)
+            if meldung != _TEXT_UNBEKANNT:
+                repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+                starte_eroeffnung(conn, tg, klm, e, chat_id)
+            return meldung
         if gespeicherte_art in _KETTE:
             # Kernthema und Kernfrage tragen den Weg selbst weiter (Stufe 2 ->
             # Stufe 3 -> Filter -> Figurenanzahl). Die allgemeine Weiterfrage
@@ -2617,6 +3084,13 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             # Ebene 1 ist abgenommen -- ab hier geht es Figur fuer Figur
             # weiter (Ebene 2), ohne dass jemand etwas antippen muss.
             stelle_figur_vor(conn, tg, klm, e, chat_id)
+        if gespeicherte_art == "fragen" and meldung != _TEXT_UNBEKANNT:
+            # Der Rueckfallweg (06.09.2026): die Gruppe hat die Fragen selbst
+            # diktiert und ueber die Grundleiste abgenommen, statt sie aus
+            # den zehn zu waehlen. Die Sensibilitaetspruefung laeuft
+            # trotzdem -- sie haengt an den FRAGEN, nicht daran, wie sie
+            # entstanden sind.
+            starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id)
         return meldung
     if art == ART_ANDERS:
         # "Passt, aber anders" SPEICHERT ebenfalls (05.09.2026 abends, Birk):
@@ -2638,6 +3112,36 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", str(knopf["wert"] or ""))
         tg.sende(chat_id, _TEXT_EIGENE)
         return "Erzaehlt"
+    if art == ART_FRAGE_WAHL:
+        # Toggle, kein Speichern und kein Modellaufruf: der Zustand steht in
+        # ``arbeitsstand.fragen_gewaehlt``, die Tastatur zeigt ihn nur.
+        roh = str(knopf["wert"] or "").strip()
+        if not roh.isdigit():
+            return _TEXT_FRAGEN_KEINE_AUSWAHL
+        return _toggle_frage(conn, tg, chat_id, knopf, int(roh))
+    if art == ART_FRAGEN_UEBERNEHMEN:
+        return _uebernimm_fragen(conn, tg, klm, e, chat_id)
+    if art == ART_FRAGEN_ANDERE:
+        alte = _auswahlfragen(conn, chat_id)
+        _starte_auftrag(
+            conn, tg, klm, e, chat_id,
+            ANWEISUNG_FRAGEN_ANDERE.format(
+                alte="\n".join(f"- {f}" for f in alte)
+            ),
+        )
+        return "Ich schlage andere vor"
+    if art == ART_FRAGEN_EIGENE:
+        # Speichert nichts: die naechste Nachricht der Gruppe sind ihre
+        # eigenen Fragen, und der naechste Zug baut daraus die Auswahl neu
+        # (``offene_art`` liest den Merkposten).
+        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "fragen")
+        tg.sende(chat_id, _TEXT_FRAGEN_EIGENE)
+        return "Erzaehlt"
+    if art == ART_LEITFADEN:
+        from interview_theater import leitfaden
+
+        leitfaden.sende(conn, tg, chat_id)
+        return "Leitfaden"
     if art == ART_RICHTUNG:
         # Stufe 1 der zweistufigen Kernthema-Wahl: die Richtung wird
         # festgehalten, ``kernthema`` bleibt LEER -- eine Richtung ist kein
@@ -2847,8 +3351,16 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         nummer = int(knopf["wert"])
         if phasen.setze(conn, chat_id, nummer, "knopf"):
             tg.sende(chat_id, phasen.meldung(nummer))
-        if nummer == PHASE_DURCHLAUF:
-            # Der Durchlauf fragt nicht nach Ideen, er zeigt, was dasteht:
+        if nummer == PHASE_INTERVIEWS:
+            # Der Schritt in die Interviews ist der Moment, in dem die Gruppe
+            # den Leitfaden braucht -- gleich geht sie damit auf fremde
+            # Menschen zu. Einmal ungefragt (``sende_einmal``), danach nur
+            # noch ueber den Knopf: deterministisch, kein Modellaufruf.
+            from interview_theater import leitfaden
+
+            leitfaden.sende_einmal(conn, tg, chat_id)
+            biete_proaktiv(conn, tg, chat_id, nummer)
+        elif nummer == PHASE_DURCHLAUF:
             # die Szenenfolge mit Status, ein Knopf je Szene und das
             # Textbuch (05.09.2026). Alles aus der Datenbank -- kein
             # Modellaufruf in diesem Handler (Zusage 2).

@@ -34,7 +34,9 @@ grosszuegig ab, unabhaengig davon, welcher Name genau dahintersteht."""
 import logging
 import re
 
-from interview_theater import aufnahme, erkenner, knoepfe, phasen, repo, szene
+from interview_theater import (
+    aufnahme, erkenner, knoepfe, leitfaden, phasen, repo, szene,
+)
 
 #: Woerter, die einen Befehl zu einer Entfernung machen (NACHTRAG N3).
 #: Grosszuegig, weil die Gruppe tippt, was ihr einfaellt -- aber eine feste
@@ -233,6 +235,26 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
     aufnahme.stelle_interview_sicher(conn, chat_id)
     aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")
     knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_INTERVIEW_AN, knopf=False)
+    # Beim ersten Interviewstart geht der Leitfaden EINMAL mit raus
+    # (06.09.2026): die Gruppe steht in dem Moment vor einer fremden Person
+    # und braucht Eroeffnung, Einleitungen und Fragen an einer Stelle. Danach
+    # nur noch auf Nachfrage (``leitfaden.sende_einmal``) -- sonst schoebe er
+    # vor jedem Interview das Transkript aus dem Bild.
+    leitfaden.sende_einmal(conn, tg, chat_id)
+
+
+def _befehl_leitfaden(conn, tg, chat_id: int) -> None:
+    """``/leitfaden`` -- der Gespraechsleitfaden auf Zuruf.
+
+    Nicht beworben (er steht in keiner ``BEFEHLE_LISTE``, in keinem
+    ``_TEXT_*`` und in keinem Prompt): der Weg ist der Knopf
+    (``knoepfe._leitfaden_knopf``). Der Befehl ist der Notausgang fuer den
+    Fall, dass der Knopf gerade nicht dasteht -- dieselbe Rolle wie bei den
+    anderen zehn.
+
+    Kein Modellaufruf: ``leitfaden.baue`` setzt nur zusammen, was schon in
+    der Datenbank steht."""
+    leitfaden.sende(conn, tg, chat_id)
 
 
 def _befehl_interview(conn, tg, chat_id: int) -> None:
@@ -612,6 +634,9 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
 _BEKANNTE_BEFEHLE = {
     "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase", "/kernthema",
     "/stueck", "/figur", "/szene", "/stand", "/wortlaut", "/hilfe",
+    # Versteckt: nirgends beworben, aber gueltig (06.09.2026). Der Weg zum
+    # Leitfaden ist der Knopf; dieser Befehl ist der Notausgang.
+    "/leitfaden",
 }
 
 
@@ -669,4 +694,6 @@ def behandle(
         _befehl_wortlaut(conn, tg, chat_id, rest)
     elif befehl == "/hilfe":
         _befehl_hilfe(tg, e, chat_id)
+    elif befehl == "/leitfaden":
+        _befehl_leitfaden(conn, tg, chat_id)
     return True

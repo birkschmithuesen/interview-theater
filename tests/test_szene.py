@@ -575,8 +575,10 @@ def test_die_sperre_nennt_genau_das_fehlende(conn, einst, tg):
 
 def test_eine_figur_ohne_sprachprofil_haelt_die_szene_auf(conn, einst, tg):
     """Ohne Sprachprofil klingen in der Szene alle Figuren gleich -- genau der
-    Fehler, den der Probelauf gezeigt hat."""
-    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    Fehler, den der Probelauf gezeigt hat. Seit 05.09. spaeter: nur, wenn die
+    Figur AUCH keine Beschreibung hat -- eine beschriebene, erfundene Figur
+    ("fuellst du frei") darf ohne Interview auftreten."""
+    repo.setze_figur(conn, 1, "Pola", "")
     figur = repo.hole_figur(conn, 1, "Pola")["id"]
     _geplante_szene(conn, 1, form="Dialog", ort="Kessel",
                     was_passiert="sie warten", figuren=[figur])
@@ -588,11 +590,25 @@ def test_eine_figur_ohne_sprachprofil_haelt_die_szene_auf(conn, einst, tg):
     ]
 
 
+def test_eine_beschriebene_figur_ohne_interview_sperrt_nicht(conn, einst, tg):
+    """Simulation 05.09. (Birk): 'kati und hannah fuellst du frei, das ist
+    entschieden' -- der Bot sperrte trotzdem dreimal. Eine Figur mit
+    Beschreibung ist spielbar; das Modell verteilt die Sprechweise (szene.md)."""
+    repo.setze_figur(conn, 1, "Kati", "die Sammlerin, Hawaii im Kopf")
+    figur = repo.hole_figur(conn, 1, "Kati")["id"]
+    _geplante_szene(conn, 1, form="Dialog", ort="Kessel",
+                    was_passiert="sie warten", figuren=[figur])
+
+    szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Schreib Szene 1")
+
+    assert not any("Sprachprofil" in t for t in tg.texte)
+
+
 def test_fehlende_felder_und_fehlendes_profil_in_EINER_nachricht(conn, einst, tg):
     """Keine Rueckfragenkette: im Probelauf fragte der Bot viermal
     hintereinander nach einer weiteren Klarstellung (Nachrichten 84, 98, 108,
     114) und schrieb am Ende trotzdem die falsche Szene."""
-    repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    repo.setze_figur(conn, 1, "Pola", "")
     figur = repo.hole_figur(conn, 1, "Pola")["id"]
     _geplante_szene(conn, 1, form="Dialog", figuren=[figur])
 

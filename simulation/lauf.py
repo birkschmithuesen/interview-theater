@@ -134,6 +134,10 @@ def _sofort_szene(conn, tg, klm, e, chat_id, auftrag):
         repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
         tg.sende(chat_id, szene._TEXT_ANGEBOT_USA)
         return "angebot"
+    if szene_claude.wartet_auf_antwort(e, conn, chat_id):
+        repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
+        tg.sende(chat_id, szene._TEXT_USA_ERINNERUNG)
+        return "wartet"
     # Die Sperre (Pflichtfelder, Sprachprofil) laeuft hier NICHT: der
     # Simulator misst den Szenentext, nicht die Sperre, und seine
     # Netz-Attrappen legen keine Sprachprofile an.

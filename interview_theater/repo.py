@@ -1615,6 +1615,9 @@ def setze_szene_usa(conn: sqlite3.Connection, chat_id: int, bestaetigt: bool | N
 
 @_gesperrt
 def merke_szene_usa_angeboten(conn: sqlite3.Connection, chat_id: int, auftrag: str | None = None) -> None:
+    """Merkt, dass gefragt wurde (Zeitstempel bleibt der erste), und den
+    NEUESTEN Auftrag, der auf die Antwort wartet (der letzte gewinnt: die
+    Gruppe hat ihn zuletzt so gesagt)."""
     conn.execute(
         "UPDATE gruppe SET szene_usa_angeboten_am = COALESCE(szene_usa_angeboten_am, ?), "
         "szene_usa_offener_auftrag = COALESCE(?, szene_usa_offener_auftrag) WHERE chat_id = ?",

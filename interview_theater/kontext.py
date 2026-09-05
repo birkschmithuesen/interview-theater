@@ -298,10 +298,15 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
 _FIGURENHINWEIS = (
     "Diesen Figuren fehlt noch das Interview, aus dem sie spricht: "
     "{namen}. Bring das im Fluss zur Sprache -- ein Satz, mit einem Vorschlag "
-    "und einem woertlichen Zitat als Beleg (\"Pola koennte wie Interview 2 "
-    "sprechen -- 'wir haben zusammen gepogt, getanzt' -- passt das?\"). "
-    "Ohne diese Zuordnung klingen in einer Szene alle Figuren gleich; mit ihr "
-    "bekommt jede ihre eigene Sprechweise. Frag nach, entscheide nicht."
+    "und einem woertlichen Zitat als Beleg, in der Form: '<Figurenname> "
+    "koennte wie <Interviewname> sprechen -- <Zitat aus dem Interview> -- "
+    "passt das?' Nimm dabei GENAU die Figurennamen aus der Liste oben und "
+    "die Interviewnamen aus den Verdichtungen; nenne keine anderen Namen "
+    "(gemessen 05.09.: der Bot sagte dreimal 'Pola', die Gruppe hatte keine "
+    "Pola). Ohne diese Zuordnung klingen in einer Szene alle Figuren gleich; "
+    "mit ihr bekommt jede ihre eigene Sprechweise. Frag nach, entscheide "
+    "nicht. Sagt die Gruppe, eine Figur sei frei erfunden und habe kein "
+    "Interview, ist das eine Antwort: dann frag fuer diese Figur nicht mehr."
 )
 
 

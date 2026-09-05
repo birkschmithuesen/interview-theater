@@ -64,9 +64,26 @@ def ist_aktiv(e, conn=None, chat_id: int | None = None) -> bool:
 
 def angebot_faellig(e, conn, chat_id: int) -> bool:
     """True, wenn der Bot der Gruppe den Wechsel VORSCHLAGEN soll: Betreiber
-    erlaubt es, die Gruppe wurde noch nicht gefragt."""
+    erlaubt es, die Gruppe wurde noch nicht gefragt -- und das Angebot steht
+    noch nicht im Chat (gemessen 05.09.: es kam zweimal, weil nur der Stand
+    'offen' geprueft wurde, nicht ob schon gefragt war)."""
     erlaubt = (getattr(e, "szene_anbieter", None) or "infomaniak").lower() == "claude"
-    return erlaubt and repo.szene_usa_stand(conn, chat_id) == "offen"
+    if not erlaubt or repo.szene_usa_stand(conn, chat_id) != "offen":
+        return False
+    g = repo.hole_gruppe(conn, chat_id)
+    schon_gefragt = bool(g and "szene_usa_angeboten_am" in g.keys() and g["szene_usa_angeboten_am"])
+    return not schon_gefragt
+
+
+def wartet_auf_antwort(e, conn, chat_id: int) -> bool:
+    """True, wenn gefragt wurde und die Gruppe noch nicht geantwortet hat.
+    Dann wird keine Szene geschrieben und nicht nochmal gefragt -- nur kurz
+    erinnert."""
+    erlaubt = (getattr(e, "szene_anbieter", None) or "infomaniak").lower() == "claude"
+    if not erlaubt or repo.szene_usa_stand(conn, chat_id) != "offen":
+        return False
+    g = repo.hole_gruppe(conn, chat_id)
+    return bool(g and "szene_usa_angeboten_am" in g.keys() and g["szene_usa_angeboten_am"])
 
 
 def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,

@@ -65,6 +65,8 @@ import logging
 import re
 import threading
 
+import httpx
+
 from interview_theater import anweisungen, repo, szene_claude
 
 log = logging.getLogger(__name__)
@@ -141,6 +143,10 @@ _TEXT_ANGEBOT_USA = (
 )
 _TEXT_USA_JA = "Gut, Szenen kommen ab jetzt vom US-Modell. Ich sage es vor jeder Szene nochmal."
 _TEXT_USA_NEIN = "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder."
+_TEXT_USA_ERINNERUNG = (
+    "Die Szene kommt, sobald ihr die Frage von oben beantwortet habt: "
+    "US-Modell ja oder nein?"
+)
 
 
 class SzeneFehler(Exception):
@@ -417,6 +423,15 @@ def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
         elif not ziel[feld]:
             felder.append(feld)
     ohne_profil = [f["name"] for f in figuren if not f["sprachprofil"]]
+    # 05.09. spaeter: eine Figur OHNE Interview darf existieren ("Kati und
+    # Hannah sind erfunden, fuellst du frei" -- Birk in der Simulation, und der
+    # Bot sperrte trotzdem dreimal). Sperre nur, wenn die Figur weder
+    # Sprachprofil NOCH Beschreibung hat; mit Beschreibung schreibt das Modell
+    # die Stimme aus ihr (szene.md: "verteile die Sprechweise bewusst").
+    ohne_profil = [
+        f["name"] for f in figuren
+        if not f["sprachprofil"] and not (f["beschreibung"] or "").strip()
+    ]
     return felder, ohne_profil
 
 
@@ -852,7 +867,8 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel)
     if szene_claude.ist_aktiv(e, conn, chat_id):
         antwort = szene_claude.prosa(
-            conn, e, klm._klient, chat_id, systemanweisung(ziel["form"]),
+            conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
+            chat_id, systemanweisung(ziel["form"]),
             nutzer, ART, timeout=TIMEOUT_S,
         )
     else:
@@ -942,6 +958,10 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
     if szene_claude.angebot_faellig(e, conn, chat_id):
         repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
         _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEBOT_USA)
+        return None
+    if szene_claude.wartet_auf_antwort(e, conn, chat_id):
+        repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)  # neuesten Auftrag merken
+        _sende_und_merke(conn, tg, e, chat_id, _TEXT_USA_ERINNERUNG)
         return None
 
     sperre = _sperre_fuer(chat_id)

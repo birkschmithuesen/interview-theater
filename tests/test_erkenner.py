@@ -179,6 +179,9 @@ def test_arten_enthaelt_alle_zwanzig_werte():
         # N5 (05.09.): Korrekturen am Transkript wirken -- statt behauptet
         # zu werden.
         "transkript_korrigieren",
+        # 05.09. frueh: Antwort auf das Angebot, Szenentexte in den USA
+        # schreiben zu lassen.
+        "szene_usa",
     }
     assert set(erkenner.ARTEN) == erwartet
 

@@ -122,8 +122,25 @@ _TEXT_WARNUNG_USA = (
     "gehen jetzt euer Arbeitsstand, die Figuren mit ihren Zitaten und die "
     "Szenenangaben an einen Server in den USA -- keine Audioaufnahmen, keine "
     "vollstaendigen Interviews, keine Namen aus diesem Chat. Alles andere "
-    "bleibt in der Schweiz. Wenn ihr das nicht wollt, sagt es jetzt."
+    "bleibt in der Schweiz."
 )
+#: Das Angebot, einmal je Gruppe, vor der ersten Szene. Die Gruppe antwortet
+#: im Chat; der Erkenner liest es (art szene_usa, wert ja/nein).
+_TEXT_ANGEBOT_USA = (
+    "Bevor ich die erste Szene schreibe, eine Entscheidung fuer euch.\n\n"
+    "Bis jetzt lief alles in der Schweiz: eure Aufnahmen, die Interviews, "
+    "alles mit Namen. Das bleibt so.\n\n"
+    "Fuer den Szenentext gibt es ein besseres Modell -- von Anthropic, in den "
+    "USA. Wir haben es heute frueh verglichen: es schreibt deutlich bessere "
+    "Buehnentexte. Wenn ihr es nehmt, gehen dafuer euer Kernthema, die "
+    "Figuren mit ihren Zitaten und die Szenenangaben an einen Server in den "
+    "USA -- also das, was spaeter ohnehin auf der Buehne steht. Keine "
+    "Aufnahmen, keine ganzen Interviews, keine Namen aus diesem Chat.\n\n"
+    "Wollt ihr das? Sagt ja oder nein. Bei nein schreibe ich die Szene in "
+    "der Schweiz -- das geht auch, der Text wird einfacher."
+)
+_TEXT_USA_JA = "Gut, Szenen kommen ab jetzt vom US-Modell. Ich sage es vor jeder Szene nochmal."
+_TEXT_USA_NEIN = "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder."
 
 
 class SzeneFehler(Exception):
@@ -833,7 +850,7 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     nummer = ziel["nummer"]
 
     nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel)
-    if szene_claude.ist_aktiv(e):
+    if szene_claude.ist_aktiv(e, conn, chat_id):
         antwort = szene_claude.prosa(
             conn, e, klm._klient, chat_id, systemanweisung(ziel["form"]),
             nutzer, ART, timeout=TIMEOUT_S,
@@ -917,12 +934,22 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
         _sende_und_merke(conn, tg, e, chat_id, fehlt)
         return None
 
+    # Birk 05.09.: der Wechsel aufs US-Modell wird VORGESCHLAGEN, mit Warnung
+    # und Bestaetigung -- nicht vom Betreiber gesetzt. Solange die Gruppe
+    # nicht geantwortet hat, wird keine Szene geschrieben: die Frage steht,
+    # und "sagt ja oder nein" ist die einzige Rueckfrage, die hier erlaubt
+    # ist. Ein Nein heisst Infomaniak, und der Bot fragt nicht wieder.
+    if szene_claude.angebot_faellig(e, conn, chat_id):
+        repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
+        _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEBOT_USA)
+        return None
+
     sperre = _sperre_fuer(chat_id)
     if not sperre.acquire(blocking=False):
         _sende_und_merke(conn, tg, e, chat_id, _TEXT_BESETZT)
         return None
 
-    if szene_claude.ist_aktiv(e):
+    if szene_claude.ist_aktiv(e, conn, chat_id):
         _sende_und_merke(conn, tg, e, chat_id, _TEXT_WARNUNG_USA)
     _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEKUENDIGT)
     # Hinweis, keine Sperre: die Szene wird trotzdem geschrieben.

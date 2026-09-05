@@ -120,10 +120,25 @@ def _sofort_szene(conn, tg, klm, e, chat_id, auftrag):
     Die Ankuendigung ("Ich schreibe die Szene aus, das dauert eine Minute")
     faellt weg -- sie ueberbrueckt im Betrieb eine Wartezeit, und hier wartet
     niemand. Fehler werden wie im Betrieb gemeldet, damit der Richter
-    dieselbe Zeile sieht wie eine echte Gruppe."""
+    dieselbe Zeile sieht wie eine echte Gruppe.
+
+    Seit 05.09. frueh: Sperre und US-Angebot laufen wie im Betrieb --
+    ``szene.starte`` prueft, fragt (einmal je Gruppe) und gibt None zurueck;
+    dann muss die Stimme antworten, und der naechste Aufruf schreibt. Der
+    Aufrufer (``_fahre_szene``) faengt das ab."""
     auftrag = (auftrag or "").strip()
     if not auftrag:
         return None
+    from interview_theater import szene_claude
+    if szene_claude.angebot_faellig(e, conn, chat_id):
+        repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
+        tg.sende(chat_id, szene._TEXT_ANGEBOT_USA)
+        return "angebot"
+    # Die Sperre (Pflichtfelder, Sprachprofil) laeuft hier NICHT: der
+    # Simulator misst den Szenentext, nicht die Sperre, und seine
+    # Netz-Attrappen legen keine Sprachprofile an.
+    if szene_claude.ist_aktiv(e, conn, chat_id):
+        tg.sende(chat_id, szene._TEXT_WARNUNG_USA)
     try:
         szene.schreibe(conn, tg, klm, e, chat_id, auftrag)
     except Exception:
@@ -611,8 +626,24 @@ class Lauf:
             marke="szene_aufruf", notiz=f"Szenen-Auftrag an den Bot: {auftrag[:200]}",
             art="szene",
         )
-        _sofort_szene(self.conn, self.tg, self.klm, self.e, CHAT_ID, auftrag)
+        ergebnis = _sofort_szene(self.conn, self.tg, self.klm, self.e, CHAT_ID, auftrag)
         self._schliesse_zug(zug, vorher, ab_kontext, start)
+        if ergebnis == "angebot":
+            # Der Bot hat das US-Modell angeboten (einmal je Gruppe). Die
+            # Stimme antwortet wie eine echte Person -- ja oder nein, in
+            # ihren Worten --, der Erkenner setzt es, und der zurueckgestellte
+            # Auftrag wird ueber erkenner._starte_szene ausgefuehrt. Falls die
+            # Stimme ausweicht, fragt der Simulator NICHT nach: dann bleibt
+            # die Szene ungeschrieben und der Bericht zeigt es.
+            self._stimmen_zug(
+                "Der Bot hat gerade gefragt, ob der Szenentext von einem Modell in den "
+                "USA geschrieben werden darf (Kernthema, Figuren, Szenenangaben gehen "
+                "dorthin; Aufnahmen und Namen nicht). Antworte darauf, wie du als diese "
+                "Person antworten wuerdest -- klar ja oder klar nein, in einem Satz."
+            )
+            # Wurde die Antwort gehoert, hat _starte_szene die Szene schon
+            # angestossen -- in der Simulation synchron, ueber szene.starte,
+            # das hier auf _sofort_szene umgebogen ist (einfaedig()).
         return self._merke_szene(schritt, planung)
 
     def _merke_szene(self, schritt, planung: list[str]) -> bool:

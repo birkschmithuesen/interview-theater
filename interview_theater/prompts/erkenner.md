@@ -15,7 +15,7 @@ Zwei Ausnahmen, und nur diese beiden: **szene_schreiben** (loest einen
 minutenlangen Schreibauftrag aus) und **entfernen** (nimmt etwas weg). Dort
 gilt weiterhin: im Zweifel kein Eintrag.
 
-Du erkennst genau einundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
+Du erkennst genau zweiundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
 Objekt mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
@@ -130,6 +130,14 @@ Objekt mit "art" und "wert":
     interviewte Person gerichtet, sondern an DICH: "zeig mir die
     Verdichtungen von den Interviews", "Bot, was war nochmal die zweite
     Frage", "wie viele Interviews haben wir eigentlich", "/stand".
+21. szene_usa               -- wert: "ja" oder "nein". **Nur, wenn im Vorlauf
+    der Bot gefragt hat, ob Szenentexte von einem Modell in den USA
+    geschrieben werden duerfen** ("Fuer den Szenentext gibt es ein besseres
+    Modell -- von Anthropic, in den USA ... Wollt ihr das? Sagt ja oder
+    nein."). Dann ist "ja", "ok", "machen wir", "nehmen wir" -> "ja"; "nein",
+    "lieber nicht", "bleibt in der Schweiz" -> "nein". Steht diese Frage
+    nicht im Vorlauf, gibt es diese art NICHT -- ein "ja" ohne die Frage
+    davor ist eine Zustimmung zu etwas anderem.
 
 Abgrenzung "entfernen": nur fuer etwas, das im Arbeitsstand oben tatsaechlich
 steht (eine Figur mit diesem Namen, das gesetzte Kernthema, eine Szene mit

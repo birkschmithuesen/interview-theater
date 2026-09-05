@@ -49,8 +49,24 @@ class ClaudeFehler(Exception):
     pass
 
 
-def ist_aktiv(e) -> bool:
-    return (getattr(e, "szene_anbieter", None) or "infomaniak").lower() == "claude"
+def ist_aktiv(e, conn=None, chat_id: int | None = None) -> bool:
+    """True, wenn diese Szene ueber Claude laufen soll: der Betreiber hat es
+    erlaubt (IT_SZENE_ANBIETER=claude) UND die Gruppe hat zugestimmt
+    (gruppe.szene_usa_bestaetigt_am = 'ja:...'). Ohne conn/chat_id nur die
+    Betreiber-Seite -- fuer Tests und Skripte."""
+    erlaubt = (getattr(e, "szene_anbieter", None) or "infomaniak").lower() == "claude"
+    if not erlaubt:
+        return False
+    if conn is None or chat_id is None:
+        return True
+    return repo.szene_usa_stand(conn, chat_id) == "ja"
+
+
+def angebot_faellig(e, conn, chat_id: int) -> bool:
+    """True, wenn der Bot der Gruppe den Wechsel VORSCHLAGEN soll: Betreiber
+    erlaubt es, die Gruppe wurde noch nicht gefragt."""
+    erlaubt = (getattr(e, "szene_anbieter", None) or "infomaniak").lower() == "claude"
+    return erlaubt and repo.szene_usa_stand(conn, chat_id) == "offen"
 
 
 def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,

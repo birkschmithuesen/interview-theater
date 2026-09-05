@@ -1594,6 +1594,57 @@ def gruppen_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[sqlite3.Ro
 
 
 @_gesperrt
+def setze_szene_usa(conn: sqlite3.Connection, chat_id: int, bestaetigt: bool | None) -> None:
+    """Die Entscheidung der Gruppe zum US-Modell fuer Szenentexte (05.09.2026):
+    True = zugestimmt (ab jetzt Opus, mit Warnung vor jeder Szene), False =
+    abgelehnt (Infomaniak, und der Bot fragt nicht wieder), None = zurueck
+    auf 'noch nicht gefragt'."""
+    jetzt = datetime.now(timezone.utc).isoformat()
+    if bestaetigt is None:
+        conn.execute(
+            "UPDATE gruppe SET szene_usa_bestaetigt_am = NULL, szene_usa_angeboten_am = NULL WHERE chat_id = ?",
+            (chat_id,),
+        )
+    else:
+        conn.execute(
+            "UPDATE gruppe SET szene_usa_bestaetigt_am = ?, szene_usa_angeboten_am = COALESCE(szene_usa_angeboten_am, ?) WHERE chat_id = ?",
+            ("ja:" + jetzt if bestaetigt else "nein:" + jetzt, jetzt, chat_id),
+        )
+    conn.commit()
+
+
+@_gesperrt
+def merke_szene_usa_angeboten(conn: sqlite3.Connection, chat_id: int, auftrag: str | None = None) -> None:
+    conn.execute(
+        "UPDATE gruppe SET szene_usa_angeboten_am = COALESCE(szene_usa_angeboten_am, ?), "
+        "szene_usa_offener_auftrag = COALESCE(?, szene_usa_offener_auftrag) WHERE chat_id = ?",
+        (datetime.now(timezone.utc).isoformat(), auftrag, chat_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hole_und_loesche_offenen_szenenauftrag(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    g = hole_gruppe(conn, chat_id)
+    auftrag = g["szene_usa_offener_auftrag"] if g and "szene_usa_offener_auftrag" in g.keys() else None
+    if auftrag:
+        conn.execute("UPDATE gruppe SET szene_usa_offener_auftrag = NULL WHERE chat_id = ?", (chat_id,))
+        conn.commit()
+    return auftrag
+
+
+def szene_usa_stand(conn: sqlite3.Connection, chat_id: int) -> str:
+    """'ja', 'nein' oder 'offen'."""
+    g = hole_gruppe(conn, chat_id)
+    wert = (g["szene_usa_bestaetigt_am"] if g and "szene_usa_bestaetigt_am" in g.keys() else None) or ""
+    if wert.startswith("ja:"):
+        return "ja"
+    if wert.startswith("nein:"):
+        return "nein"
+    return "offen"
+
+
+@_gesperrt
 def setze_wortlaut_modus(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
     """Setzt oder leert gruppe.wortlaut_modus (SPEC § 8 /wortlaut, teil-b.md
     Aufgabe 3): NULL=aus, '*'=alle, sonst ein Aufnahmename. Wird sowohl vom

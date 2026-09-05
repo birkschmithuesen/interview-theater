@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS gruppe (
   letzte_journalisierte_message_id INTEGER DEFAULT 0,
   -- Schalter
   wortlaut_modus                  TEXT,     -- NULL=aus, '*'=alle, sonst Aufnahmename
+  szene_usa_bestaetigt_am         TEXT,     -- gesetzt = Gruppe hat dem US-Modell fuer Szenen zugestimmt (05.09.)
+  szene_usa_angeboten_am          TEXT,     -- gesetzt = der Bot hat den Wechsel schon vorgeschlagen
+  szene_usa_offener_auftrag       TEXT,     -- der Szenenauftrag, der auf die Antwort wartet
   gruendlich_naechster_zug        INTEGER NOT NULL DEFAULT 0,  -- Modus B einmalig (§ 4.5)
   whisper_stumm_seit              TEXT,     -- gesetzt = Ausfall gemeldet (§ 10.4)
   interviewmodus_seit             TEXT,     -- gesetzt = Interviewmodus an (teil-b.md Aufgabe 5, § 10.1)

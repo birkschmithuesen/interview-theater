@@ -104,6 +104,11 @@ ARTEN = (
     # Deshalb hat sie in _wende_eine_an bewusst keinen Schreibpfad und wird
     # erst in laufe() ausgewertet.
     "szene_schreiben",
+    # Seit 05.09.2026 frueh (Birk): die Antwort der Gruppe auf das Angebot,
+    # Szenentexte von einem US-Modell schreiben zu lassen. wert "ja" oder
+    # "nein". Gilt nur, wenn der Bot das Angebot gestellt hat (die Frage
+    # steht dann im Vorlauf); sonst nie.
+    "szene_usa",
     # Seit 04.09.2026: die Arbeitsphase ist ein gespeichertes Feld, und die
     # Gruppe setzt sie im Gespraech (interview_theater/phasen.py). Auch der
     # Widerspruch gegen einen automatischen Sprung landet hier.
@@ -903,6 +908,19 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_interview_benennen_an(conn, chat_id, wert)
     if art == "phase_setzen":
         return _wende_phase_an(conn, chat_id, wert)
+    if art == "szene_usa":
+        # Nur, wenn das Angebot gestellt wurde -- sonst ist ein "ja" im Chat
+        # kein Ja zum US-Modell, sondern zu irgendwas anderem.
+        if repo.szene_usa_stand(conn, chat_id) != "offen":
+            return None
+        g = repo.hole_gruppe(conn, chat_id)
+        if not g or not g["szene_usa_angeboten_am"]:
+            return None
+        w = (wert or "").strip().lower()
+        if w not in ("ja", "nein"):
+            return None
+        repo.setze_szene_usa(conn, chat_id, w == "ja")
+        return {"art": art, "wert": w}
     if art == "entfernen":
         return entferne(conn, chat_id, wert)
     if art == "an_den_bot":
@@ -1006,10 +1024,13 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     korrigiert = []
     phase_gesetzt = None
     entfernt = []
+    usa = None
     for aenderung in wirkliche_aenderungen:
         art = aenderung.get("art")
         wert = aenderung.get("wert", "")
-        if art == "kernthema_setzen":
+        if art == "szene_usa":
+            usa = wert
+        elif art == "kernthema_setzen":
             kernthema = wert
         elif art == "format_setzen":
             formatwert = wert
@@ -1073,6 +1094,10 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
         zeilen.append(f"Entfernt: {was}")
     if phase_gesetzt is not None:
         zeilen.append(f"Wir sind jetzt bei {phasen.bezeichnung(phase_gesetzt)}.")
+    if usa == "ja":
+        zeilen.append("Szenentexte kommen ab jetzt vom US-Modell (Anthropic). Ich sage es vor jeder Szene nochmal.")
+    elif usa == "nein":
+        zeilen.append("Szenentexte bleiben in der Schweiz. Ich frage nicht wieder.")
 
     if not zeilen:
         return None
@@ -1115,7 +1140,7 @@ def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> N
             )
 
 
-def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> None:
+def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict], wirkliche: list[dict] | None = None) -> None:
     """Stoesst den Szenen-Aufruf an, wenn der Erkenner einen Schreibauftrag
     gefunden hat (art ``szene_schreiben``, interview_theater/szene.py).
 
@@ -1133,6 +1158,14 @@ def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> No
     auftrag = next(
         (a.get("wert") for a in aenderungen if a.get("art") == "szene_schreiben"), None
     )
+    if not auftrag:
+        # Die Gruppe hat auf das US-Angebot geantwortet (ja oder nein): der
+        # Auftrag, der auf die Antwort gewartet hat, wird jetzt ausgefuehrt --
+        # ueber den Weg, den die Antwort festgelegt hat. Nur, wenn die Antwort
+        # WIRKSAM war (wirkliche), sonst zieht ein beliebiges "ja" im Chat
+        # einen fremden Auftrag.
+        if any(a.get("art") == "szene_usa" for a in (wirkliche or [])):
+            auftrag = repo.hole_und_loesche_offenen_szenenauftrag(conn, chat_id)
     if not auftrag:
         return
     szene.starte(conn, tg, klm, e, chat_id, auftrag)
@@ -1229,7 +1262,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Aus den erkannten, nicht aus den wirksamen Aenderungen: ein
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.
-        _starte_szene(klm, tg, conn, e, chat_id, aenderungen)
+        _starte_szene(klm, tg, conn, e, chat_id, aenderungen, wirkliche)
         text = baue_meldung(wirkliche)
         if text is None:
             return

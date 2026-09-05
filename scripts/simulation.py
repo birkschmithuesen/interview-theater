@@ -192,6 +192,10 @@ def baue_argumente(argv=None) -> argparse.Namespace:
                         "und der Journal-Extraktor ueberhaupt laeuft")
     p.add_argument("--alle", action="store_true",
                    help="vier Laeufe hintereinander: Sets 1-3 und birk")
+    p.add_argument("--echte-db", metavar="PFAD",
+                   help="in DIESE Datenbank schreiben statt in eine Wegwerf-DB "
+                        "(z. B. betrieb/soap.db) -- die Gruppe erscheint dann auf "
+                        "Dashboard und Gruppenseite. Vorher leeren.")
     args = p.parse_args(argv)
     args.mix = _mix(args.mix)
     if args.set and args.mix:
@@ -284,8 +288,17 @@ def einen_lauf(args, e, klient, mischung: str, sim=None, ordner=None) -> dict:
     with contextlib.ExitStack() as stapel:
         if ordner is None:
             ordner = stapel.enter_context(wegwerf_umgebung())
-        db_pfad = str(Path(ordner) / f"{mischung}-{args.seed}.db")
-        e = replace(e, db_pfad=db_pfad, audio_verz=str(Path(ordner) / "audio"))
+        if getattr(args, "echte_db", None):
+            # Birk 05.09.: "Lasse die echte Datenbank befuellt und auch das
+            # Dashboard und die Webseiten inline, die will ich checken."
+            # Der Lauf schreibt in die Betriebs-DB -- die Gruppe erscheint
+            # dort wie eine echte, mit Token und Gruppenseite. Vorher leeren
+            # ist Sache des Betreibers (scripts/loeschen.py).
+            db_pfad = args.echte_db
+            e = replace(e, db_pfad=db_pfad)
+        else:
+            db_pfad = str(Path(ordner) / f"{mischung}-{args.seed}.db")
+            e = replace(e, db_pfad=db_pfad, audio_verz=str(Path(ordner) / "audio"))
         conn = db.verbinde(db_pfad)
         db.initialisiere(conn)
 

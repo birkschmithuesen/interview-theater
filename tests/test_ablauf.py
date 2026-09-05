@@ -655,3 +655,28 @@ def test_echte_antwort_ist_keine_denkspur():
         "Notiert. Wollt ihr die drei so festhalten?",
     ):
         assert not ablauf.ist_denkspur(text), text
+
+
+def test_gespraechszug_ueberlebt_eine_string_antwort(conn, einst, tg):
+    """05.09.2026, live in Gruppe 1: das Modell lieferte statt
+    {"antwort": "..."} einen blanken String. ``ergebnis["antwort"]`` warf
+    TypeError('string indices must be integers'), der ganze Gespraechszug
+    riss ab und die Gruppe bekam gar keine Antwort. Ein Zug darf an der
+    Verpackung nicht scheitern, wenn der Inhalt da ist."""
+    class StringLLM:
+        aufrufe = 0
+
+        def schema(self, *a, **k):
+            StringLLM.aufrufe += 1
+            return "Das ist die Antwort ohne Umschlag."
+
+        def prosa(self, *a, **k):
+            return "Das ist die Antwort ohne Umschlag."
+
+    repo.sichere_gruppe(conn, 1, einst.bot_name, "Testgruppe")
+    repo.merke_nachricht(conn, 1, 10, "Lea", 0, "text", "hallo", repo._jetzt())
+
+    ablauf.bearbeite(conn, tg, StringLLM(), einst, 1)
+
+    assert any("ohne Umschlag" in t for _, t in tg.gesendet), \
+        "die Antwort geht raus statt verloren"

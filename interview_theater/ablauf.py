@@ -45,6 +45,7 @@ import threading
 from contextlib import contextmanager
 
 from interview_theater import befehle, kontext, phasen, repo
+from interview_theater.llm import LLMFehler
 
 log = logging.getLogger(__name__)
 
@@ -398,7 +399,23 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt)
             system = kontext.system(e.bot_name, phase)
             ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
-            text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, ergebnis["antwort"])
+            # Das Modell liefert normalerweise {"antwort": "..."}, gelegentlich
+            # aber einen blanken String (gemessen 05.09.2026 im Testlauf:
+            # TypeError 'string indices must be integers' riss den ganzen
+            # Gespraechszug mit, die Gruppe bekam gar nichts). Ein Zug darf an
+            # der Verpackung nicht scheitern -- der Inhalt ist da.
+            if isinstance(ergebnis, str):
+                antwort = ergebnis
+            elif isinstance(ergebnis, dict):
+                antwort = ergebnis.get("antwort") or ""
+            else:
+                antwort = ""
+            if not str(antwort).strip():
+                raise LLMFehler(
+                    "Sprachmodell lieferte keine verwertbare Antwort "
+                    f"(Typ {type(ergebnis).__name__})"
+                )
+            text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort)
             text = _ohne_echo(conn, klm, e, chat_id, system, koerper, offen, text)
             if hinweis:
                 text = f"{text}\n\n{hinweis}"

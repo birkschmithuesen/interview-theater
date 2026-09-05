@@ -209,21 +209,40 @@ def test_gefaellt_uns_weiter_legt_die_szenen_an(conn, einst, tg):
     assert [s["nummer"] for s in szenen] == [1, 2, 3]
     assert [s["titel"] for s in szenen] == ["Am Bahnhof", "In der Kueche", "Der Kessel"]
     assert szenen[0]["was_passiert"] == "Mira kommt an"
-    # Die Form kommt aus der vierten Spalte der Vorschlagszeile und ist je
-    # Szene Pflicht (05.09.2026 abends) -- aenderbar ueber "Form aendern".
-    assert [s["form"] for s in szenen] == ["dialog", "lied", "chor"]
+    # Die vierte Spalte ist seit dem 06.09.2026 ein VORSCHLAG: ``form``
+    # bleibt leer, bis die Gruppe sie Szene fuer Szene per Knopf bestaetigt
+    # (Birk: "Die Form Monolog habe ich niemals eingegeben und aktiv
+    # bestaetigt.").
+    assert [s["form"] for s in szenen] == [None, None, None]
+    assert [s["form_vorschlag"] for s in szenen] == ["dialog", "lied", "chor"]
     # Die Besetzung nur, soweit die Figuren im Arbeitsstand stehen.
     assert [f["name"] for f in repo.szene_figuren(conn, szenen[0]["id"])] == ["Mira", "Pal"]
 
 
-def test_gefaellt_uns_weiter_stellt_gleich_szene_1_vor(conn, einst, tg):
-    """Nach dem Speichern geht es weiter, ohne dass jemand etwas tippen muss:
-    Szene 1 wird vorgestellt, mit ihrem Menue darunter."""
+def test_gefaellt_uns_weiter_fragt_zuerst_nach_der_form_von_szene_1(conn, einst, tg):
+    """Nach dem Speichern geht es weiter, ohne dass jemand etwas tippen muss
+    -- aber die erste Frage ist die nach der FORM (Birk, 06.09.2026 00:30).
+    Der Vorschlag des Bots steht zuerst und ist als solcher markiert."""
     _figuren(conn, "Mira", "Pal")
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
 
     _druecke(conn, tg, einst, knoepfe.TEXT_WEITER_KNOPF)
 
+    assert "Welche Form soll Szene 1 haben?" in tg.knoepfe[-1][1]
+    assert tg.beschriftungen[0] == "Dialog" + knoepfe.TEXT_FORM_VORSCHLAG_ZUSATZ
+    assert sorted(b.split(" (")[0] for b in tg.beschriftungen) == [
+        "Chor", "Dialog", "Lied", "Monolog", "Rap",
+    ]
+
+
+def test_erst_nach_der_form_kommt_die_schreibfrage(conn, einst, tg):
+    _figuren(conn, "Mira", "Pal")
+    knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
+    _druecke(conn, tg, einst, knoepfe.TEXT_WEITER_KNOPF)
+
+    _druecke(conn, tg, einst, "Dialog" + knoepfe.TEXT_FORM_VORSCHLAG_ZUSATZ)
+
+    assert repo.hole_szenen(conn, 1)[0]["form"] == "dialog"
     assert tg.beschriftungen == [
         knoepfe.TEXT_SZENE_SCHREIBEN_KNOPF,
         knoepfe.TEXT_SZENE_PLANEN_KNOPF,
@@ -232,6 +251,18 @@ def test_gefaellt_uns_weiter_stellt_gleich_szene_1_vor(conn, einst, tg):
         knoepfe.TEXT_EIGENE_IDEE_KNOPF,
     ]
     assert "Szene 1: Am Bahnhof" in tg.knoepfe[-1][1]
+
+
+def test_die_gruppe_darf_gegen_den_vorschlag_entscheiden(conn, einst, tg):
+    """Der Vorschlag steht zuerst -- er gilt aber nicht. Gesetzt wird, was
+    gedrueckt wurde."""
+    _figuren(conn, "Mira", "Pal")
+    knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
+    _druecke(conn, tg, einst, knoepfe.TEXT_WEITER_KNOPF)
+
+    _druecke(conn, tg, einst, "Rap")
+
+    assert repo.hole_szenen(conn, 1)[0]["form"] == "rap"
 
 
 def test_passt_aber_anders_speichert_auch_und_fragt_danach(conn, einst, tg):
@@ -391,6 +422,8 @@ def test_passt_schreiben_bei_fehlenden_feldern_schlaegt_sie_vor_statt_zu_sperren
 
 def test_feldvorschlag_speichern_schreibt_die_felder_und_stellt_neu_vor(conn, einst, tg):
     szene_id = _eine_szene(conn, vollstaendig=False)
+    # Die Form ist bestaetigt -- sonst kaeme zuerst die Formfrage (06.09.2026).
+    repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
     knoepfe.sende_szenenfelder(
         conn, tg, 1, 1,
         "VORSCHLAG SZENE:\nort: Bahnhofshalle\nwas_passiert: Maria wartet",
@@ -667,9 +700,20 @@ def test_zerlege_kommt_mit_nummerierung_und_beiden_strichen_klar(conn):
     )
 
     assert zeilen == [
-        ("Am Bahnhof", "Mira kommt an", ["Mira", "Pal"], "dialog"),
-        ("In der Kueche", "Pal kocht", ["Pal"], "lied"),
-        ("Ohne Trenner", "", [], szenenfolge.FORM_VORGABE),
+        ("Am Bahnhof", "Mira kommt an", ["Mira", "Pal"], "dialog", ""),
+        ("In der Kueche", "Pal kocht", ["Pal"], "lied", ""),
+        ("Ohne Trenner", "", [], szenenfolge.FORM_VORGABE, ""),
+    ]
+
+
+def test_zerlege_liest_die_begruendung_als_fuenfte_spalte():
+    """Der Formvorschlag muss begruendet sein (Birk, 06.09.2026): die Gruppe
+    soll sehen, WARUM der Bot Chor vorschlaegt, bevor sie drueckt."""
+    assert szenenfolge.zerlege(
+        "Der Kessel — alle reden zugleich — Mira, Pal — Chor — viele sagen dasselbe"
+    ) == [
+        ("Der Kessel", "alle reden zugleich", ["Mira", "Pal"], "chor",
+         "viele sagen dasselbe"),
     ]
 
 
@@ -678,7 +722,7 @@ def test_zerlege_faellt_ohne_vierte_spalte_auf_die_vorgabe_zurueck(conn):
     geraten, sondern die Vorgabe gesetzt (und die Gruppe sieht sie in der
     Vorstellung, Zeile 2)."""
     assert szenenfolge.zerlege("Am Bahnhof — Mira kommt an — Mira") == [
-        ("Am Bahnhof", "Mira kommt an", ["Mira"], "dialog"),
+        ("Am Bahnhof", "Mira kommt an", ["Mira"], "dialog", ""),
     ]
 
 

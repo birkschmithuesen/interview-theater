@@ -1560,6 +1560,9 @@ def aktualisiere_szene(
 SZENENFELDER = (
     "titel", "kurzbeschreibung", "form", "ort", "zeit", "anlass",
     "was_passiert", "was_anders", "kernsaetze", "ton",
+    # Der Formvorschlag des Bots samt Begruendung (06.09.2026). Er ist NICHT
+    # ``form``: gesetzt wird die Form allein durch einen Knopfdruck.
+    "form_vorschlag", "form_vorschlag_grund",
 )
 
 

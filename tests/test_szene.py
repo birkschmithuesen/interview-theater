@@ -1168,3 +1168,30 @@ def test_neu_schreiben_nimmt_die_alte_fassung_nicht_als_vorlage(conn):
     assert "Der alte Text" not in neu
     assert "ANDERE Szene" in neu
     assert szene.NEU_MARKER not in neu
+
+
+def test_waehrend_des_szenenlaufs_zeigt_der_bot_dass_er_arbeitet():
+    """06.09.2026 (Birk): waehrend Opus 1-3 Minuten schreibt, soll die Gruppe
+    sehen, dass gearbeitet wird -- Tippanzeige und eine Emoji-Zeile, die am
+    Ende wieder verschwindet."""
+    import threading, time
+    from interview_theater import szene
+
+    class Tg:
+        def __init__(self):
+            self.tipps = 0; self.gesendet = []; self.geloescht = []
+        def tippt(self, chat_id): self.tipps += 1
+        def sende(self, chat_id, text): self.gesendet.append(text); return len(self.gesendet)
+        def loesche_nachrichten(self, chat_id, ids): self.geloescht += ids; return len(ids)
+
+    tg = Tg(); stopp = threading.Event()
+    alt_takt = szene._ARBEITS_TAKT_S
+    szene._ARBEITS_TAKT_S = 4.0  # eine Zeile pro Tipp-Runde
+    try:
+        t = threading.Thread(target=szene._arbeitet_sichtbar, args=(tg, 1, stopp)); t.start()
+        time.sleep(9.0); stopp.set(); t.join(timeout=6)
+    finally:
+        szene._ARBEITS_TAKT_S = alt_takt
+    assert tg.tipps >= 2
+    assert len(tg.gesendet) >= 1 and any("..." in z for z in tg.gesendet)
+    assert tg.geloescht  # die letzte Zeile ist wieder weg

@@ -431,11 +431,22 @@ def _zusammen(bloecke: dict) -> str:
 ERSTKONTAKT = (
     "Dies ist eure allererste Nachricht in dieser Gruppe -- deine Antwort ist "
     "zugleich die Begruessung. Geh zuerst auf das ein, was gerade gesagt "
-    "wurde, und bring dann in wenigen Saetzen unter: dass du alles mitliest "
-    "und auf alles antwortest; dass ein Interview mit \"wir machen jetzt ein "
-    "Interview\" beginnt und mit \"fertig\" endet; dass /hilfe den Rest zeigt"
-    "{link}. Kein Formular, keine Aufzaehlung -- ein kurzer, warmer Einstieg, "
-    "der mit dem Gesagten anfaengt."
+    "wurde, und nimm dir dann Raum: das ist der Moment, in dem die Gruppe "
+    "versteht, wie hier gearbeitet wird. Bring unter, in dieser Reihenfolge "
+    "und in ganzen Saetzen, nicht als Liste: wer du bist und was ihr "
+    "zusammen macht (aus den Begriffen der Gruppe entstehen Fragen, mit den "
+    "Fragen zieht die Gruppe los und macht Interviews, aus den Interviews "
+    "wird spaeter das Stueck); dass du alles mitliest und auf alles "
+    "antwortest, getippt wie gesprochen; dass ein Interview mit \"wir machen "
+    "jetzt ein Interview\" beginnt und mit \"fertig\" endet; dass /hilfe den "
+    "Rest zeigt{link}. "
+    "**Schliesse mit der Frage nach den Begriffen**: die Gruppe hat im Raum "
+    "Begriffe gesammelt -- bitte sie, dir diese Liste zu schicken, getippt, "
+    "als Foto abgetippt oder als Sprachnachricht. Das ist der erste "
+    "Arbeitsschritt, und die Begruessung endet damit. "
+    "Kein Formular, keine Aufzaehlung mit Spiegelstrichen -- ein warmer, "
+    "ausfuehrlicher Einstieg, der mit dem Gesagten anfaengt und mit der "
+    "Bitte um die Begriffe aufhoert."
 )
 
 #: Der Satz zum Link, wenn eine Weboberflaeche konfiguriert ist.

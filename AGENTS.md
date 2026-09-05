@@ -42,7 +42,7 @@ Module unter `interview_theater/`:
 | `einstellungen.py` | Konfiguration ausschließlich über Umgebungsvariablen |
 | `anweisungen.py` | Prompt-Texte mit Hot-Reload (mtime) + optionaler Regie-Zettel `betrieb/zusatz*.md` |
 | `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`, `szene`, `sprachprofil` + `theater-tells`) |
-| `prompts/formen/` | Ein Regelblock je Szenenform (`dialog`, `lied`, `rap`, `monolog`, `chor`, `stumm`); `szene.formdatei` ordnet das freie Feld `szene.form` zu, Dialog ist der Rückfall. `dialog.md` trägt die dreizehn Dramaturgieregeln, `lied.md`/`rap.md` das Songwriting- bzw. Rap-Handwerk aus einer eigenen Recherche |
+| `prompts/formen/` | Ein Regelblock je Szenenform — genau fünf: `dialog`, `monolog`, `chor`, `lied`, `rap` (05.09.2026 abends). `szene.formdatei(form)` ordnet das freie Feld `szene.form` zu, Dialog ist der Rückfall. `dialog.md` trägt den am Herkules.exe-Textbuch gemessenen Regelblock (Sprechszene, Ausgangsmaterial, keine Choreografie); `lied.md`/`rap.md` das Songwriting- bzw. Rap-Handwerk. Eine Figurenanzahl gibt kein Regelblock vor — die kommt aus der Planung (Feld `figuren`) |
 | `prompts/phasen/` | Je Arbeitsphase eine Datei `1.md` … `8.md`: worauf der Bot dort den Fokus legt, was er *nicht* tut, woran die Phase fertig ist. Wird zwischen Basis-Systemanweisung und Regie-Zettel gehängt |
 | `web.py` | Weboberfläche: Routing, HTML und CSS für Dashboard und Gruppenseiten, `http.server`, nur Standardbibliothek |
 | `web_daten.py` | Die Lesezugriffe dazu — read-only geöffnete Verbindung, reine Funktionen, `conn` rein, Dicts raus |
@@ -82,8 +82,8 @@ lädt, würde damit Gesprächszüge ausbremsen.
   Festlegung landete nicht in der DB und nicht auf der Weboberfläche. Ein Knopf
   trägt die Auswahl selbst — nichts zu raten. Knöpfe gibt es deshalb **nur**
   dort, wo aus wenigen benannten Möglichkeiten gewählt wird: Kernthema-Vorschlag,
-  Aufnahme-Umschalter, „Weiter zu Phase N", **Format des Stücks** (Phase 5),
-  **Form je Szene** (Phase 6) und die **USA-Einwilligung**. Freitext (Begriffe,
+  Aufnahme-Umschalter, „Weiter zu Phase N", **Form je Szene** (Phase 6:
+  Dialog · Monolog · Chor · Lied · Rap) und die **USA-Einwilligung**. Freitext (Begriffe,
   Fragen, Figurenbeschreibungen) bleibt bewusst Sprache — dort gibt es keine
   Liste. Die letzten drei kamen am selben Tag dazu, nachdem die nummerierten
   Auswahllisten in `phasen/5.md` und `6.md` dieselbe Schwäche zeigten („das

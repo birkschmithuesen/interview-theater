@@ -360,7 +360,13 @@ def optionenlisten(zuege: list[Zug], ab: int = OPTIONEN_AB) -> list[str]:
 #: Was als Zitat gilt: ein laengerer Text zwischen Anfuehrungszeichen. Kurze
 #: Anfuehrungen ("fertig", "Kueche") sind keine Behauptung ueber das
 #: Transkript, sondern Erwaehnungen -- sie zaehlen nicht.
-_IN_ANFUEHRUNG = re.compile(r'[„"»“]([^„"»«“”]{20,400})[”“"«]')
+#: Eine Anfuehrung zaehlt nur, wenn sie an einer Stelle beginnt, an der ein
+#: Zitat steht: Zeilenanfang, nach Doppelpunkt, nach Gedankenstrich oder
+#: Klammer. Sonst faengt der Ausdruck bei ``Bei "Spiegel" denkt Sevil ...``
+#: das Wort "Spiegel" als Anfang und liest bis zum naechsten Zeichen -- die
+#: Thema-Zeile der Verdichtung wird zum "erfundenen Zitat" (gemessen 05.09.,
+#: set3: 6 Treffer, alle falsch).
+_IN_ANFUEHRUNG = re.compile(r'(?:^|[:\-–(\s])\s*[„"»“]([^„"»«“”]{20,400})[”“"«]', re.MULTILINE)
 
 #: So viele Woerter muss eine Anfuehrung haben, damit sie als Zitat aus einem
 #: Interview gemeint sein kann.

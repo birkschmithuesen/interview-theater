@@ -194,6 +194,15 @@ figur_quelle_setzen. Und eine Ueberlegung ist keine Zuordnung: "aus welchem
 Interview koennte Pola kommen?" aendert nichts. Steht die Figur nicht im
 Arbeitsstand oder ist gar kein Interview gemeint, schreibst du hier nichts.
 
+Abgrenzung "figur_setzen" gegen "entschieden": **Figuren sind nie ein
+Sammeleintrag.** Stimmt die Gruppe drei vorgeschlagenen Figuren zu ("ja halt
+so fest", "die drei nehmen wir"), lieferst du DREI figur_setzen -- je Figur
+Name und Beschreibung aus dem Vorschlag -- und KEIN "entschieden: drei
+Figuren: A, B, C". Ein entschieden-Eintrag traegt keine Figur in den
+Arbeitsstand; die Gruppe sieht dann drei Namen im Chat und keine auf ihrer
+Seite (gemessen 05.09., Simulation set3). Dasselbe gilt fuer Fragen
+(fragen_setzen, nicht entschieden) und Begriffe.
+
 Abgrenzung "szene_planen" gegen "szene_schreiben": **planen ist sagen, was in
 der Szene ist -- schreiben ist der Auftrag, den Text zu machen.** "Alle drei
 sind auf der Demo, im Polizeikessel" ist eine Planung. "Mach jetzt den Text

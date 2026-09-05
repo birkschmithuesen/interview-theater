@@ -218,16 +218,24 @@ def _arbeitsstand_text(conn, chat_id: int) -> str:
     return "Arbeitsstand:\n" + "\n".join(zeilen)
 
 
-def _nachrichten_text(nachrichten) -> str:
+def _nachrichten_text(nachrichten, vorlauf=None) -> str:
     zeilen = [kontext.sprecherzeile(n) for n in nachrichten]
-    return "Neue Nachrichten:\n" + "\n".join(zeilen)
+    text = "Neue Nachrichten:\n" + "\n".join(zeilen)
+    if vorlauf is not None:
+        text = (
+            "Vorlauf (die letzte Bot-Nachricht davor -- schon verarbeitet, nur "
+            "damit du siehst, worauf sich eine Zustimmung bezieht):\n"
+            + kontext.sprecherzeile(vorlauf) + "\n\n" + text
+        )
+    return text
 
 
-def _baue_nutzertext(conn, chat_id: int, nachrichten) -> str:
+def _baue_nutzertext(conn, chat_id: int, nachrichten, vorlauf=None) -> str:
     """Baut den Nutzertext des Erkenneraufrufs: aktueller Arbeitsstand plus
     die neuen Nachrichten seit dem Wasserzeichen -- nicht das Journal, nicht
-    die Transkripte (SPEC § 4.3)."""
-    bloecke = [b for b in (_arbeitsstand_text(conn, chat_id), _nachrichten_text(nachrichten)) if b]
+    die Transkripte (SPEC § 4.3). Seit 05.09. mit Vorlauf (letzte
+    Bot-Nachricht vor dem Fenster), siehe ``erkenne``."""
+    bloecke = [b for b in (_arbeitsstand_text(conn, chat_id), _nachrichten_text(nachrichten, vorlauf)) if b]
     return "\n\n".join(bloecke)
 
 
@@ -250,7 +258,17 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
         return []
 
     letzte_message_id = max(n["message_id"] for n in neue)
-    nutzer = _baue_nutzertext(conn, chat_id, neue)
+    # Vorlauf (05.09. 04:40, dreimal belegt: Live Nachricht 69/90, Simulation
+    # set1 und --set birk S11): der Bot schlaegt Figuren vor, der Erkenner
+    # laeuft nach diesem Zug und rueckt das Wasserzeichen UEBER den Vorschlag.
+    # Die Zustimmung im naechsten Zug ("namen nehme ich so") kommt dann ohne
+    # den Vorschlag an -- der Erkenner sieht "nehme ich so" und weiss nicht,
+    # was. Der Korpus hat das nie gezeigt, weil dort Vorschlag und Zustimmung
+    # immer im selben Abschnitt liegen. Deshalb: die letzte Bot-Nachricht vor
+    # dem Fenster wird als Vorlauf mitgegeben, mit Markierung -- sie ist
+    # Kontext, keine neue Aenderung, und das Wasserzeichen kennt sie schon.
+    vorlauf = repo.letzte_bot_nachricht_vor(conn, chat_id, neue[0]["message_id"])
+    nutzer = _baue_nutzertext(conn, chat_id, neue, vorlauf)
 
     if kontext.schaetze(nutzer) > FENSTER_DECKEL:
         # Deckel (SPEC § 4.3): das Wasserzeichen rueckt TROTZDEM vor, sonst

@@ -263,6 +263,23 @@ def unextrahierte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def letzte_bot_nachricht_vor(conn: sqlite3.Connection, chat_id: int, message_id: int):
+    """Die juengste Bot-Textnachricht VOR ``message_id`` -- der Vorlauf fuer
+    den Absichtserkenner (erkenner.erkenne), damit eine Zustimmung ihren
+    Vorschlag sieht. Keine Notiert-Zeilen (die tragen keinen Vorschlag),
+    keine Transkript-Echos. None, wenn es keine gibt."""
+    return conn.execute(
+        f"""
+        SELECT n.* FROM nachricht n
+        WHERE n.chat_id = ? AND n.message_id < ? AND n.ist_bot = 1
+          AND n.text IS NOT NULL AND n.text NOT LIKE 'Notiert:%'
+          AND {_OHNE_TRANSKRIPT_ECHO}
+        ORDER BY n.message_id DESC LIMIT 1
+        """,
+        (chat_id, message_id),
+    ).fetchone()
+
+
 @_gesperrt
 def setze_extrahiert_bis(conn: sqlite3.Connection, chat_id: int, message_id: int) -> None:
     """Setzt das Wasserzeichen letzte_extrahierte_message_id. Bewegt sich nie

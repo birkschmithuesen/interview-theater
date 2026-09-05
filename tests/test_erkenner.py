@@ -1205,3 +1205,28 @@ def test_erkenne_in_aufnahme_fehlschlag_bleibt_still(conn, einst):
     assert conn.execute(
         "SELECT count(*) FROM vorfall WHERE art='extraktor_fehler'"
     ).fetchone()[0] == 1
+
+
+def test_erkenner_bekommt_die_letzte_bot_nachricht_als_vorlauf(conn, einst):
+    """05.09. 04:40, dreimal belegt (Live 69/90, Simulation set1, --set birk
+    S11): der Vorschlag des Bots liegt im vorigen Zug, das Wasserzeichen ist
+    schon darueber, die Zustimmung kommt allein an. Der Vorlauf bringt den
+    Vorschlag zurueck ins Fenster -- markiert, nicht als neue Nachricht."""
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", "Drei Figuren: Mira, Pola, Pal. Passt das?", "2026-09-05T04:00:00+00:00")
+    repo.setze_extrahiert_bis(conn, 1, 10)
+    repo.merke_nachricht(conn, 1, 11, "Birk", 0, "text", "namen nehme ich so", "2026-09-05T04:00:10+00:00")
+    neue = repo.unextrahierte(conn, 1)
+    assert [n["message_id"] for n in neue] == [11]
+    vorlauf = repo.letzte_bot_nachricht_vor(conn, 1, 11)
+    assert vorlauf["message_id"] == 10
+    text = erkenner._baue_nutzertext(conn, 1, neue, vorlauf)
+    assert "Vorlauf" in text and "Mira, Pola, Pal" in text
+    assert text.index("Vorlauf") < text.index("Neue Nachrichten")
+
+
+def test_vorlauf_ueberspringt_notiert_zeilen(conn, einst):
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", "Vorschlag: Mira.", "2026-09-05T04:00:00+00:00")
+    repo.merke_nachricht(conn, 1, 11, "Bot", 1, "text", "Notiert:\nPhase 4", "2026-09-05T04:00:01+00:00")
+    assert repo.letzte_bot_nachricht_vor(conn, 1, 12)["message_id"] == 10

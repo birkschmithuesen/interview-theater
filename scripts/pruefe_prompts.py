@@ -444,7 +444,8 @@ def _nachrichtenzeilen(nachrichten: list[dict]) -> list[dict]:
     Gruppe zustimmt, steht in einer Bot-Nachricht."""
     return [
         {"absender": n["absender"], "text": n["text"],
-         "ist_bot": n.get("ist_bot", 0), "typ": "text", "message_id": i + 1}
+         "ist_bot": n.get("ist_bot", 1 if n["absender"] == "Bot" else 0),
+         "typ": "text", "message_id": i + 1}
         for i, n in enumerate(nachrichten)
     ]
 
@@ -507,9 +508,18 @@ def _laufe_erkenner(klm, conn, chat_id, fall, modell):
         nutzer = erkenner.baue_aufnahme_nutzertext(fall["aufnahme"])
     else:
         _fuelle_arbeitsstand(conn, chat_id, fall.get("arbeitsstand"))
-        nutzer = erkenner._baue_nutzertext(
-            conn, chat_id, _nachrichtenzeilen(fall["nachrichten"])
-        )
+        zeilen = _nachrichtenzeilen(fall["nachrichten"])
+        # Seit 05.09. bekommt der Betrieb einen Vorlauf (letzte Bot-Nachricht
+        # vor dem Fenster). Ein Korpusfall kann ihn als ``vorlauf`` (Text)
+        # angeben; sonst -- wenn die erste Zeile vom Bot stammt -- wird sie
+        # als Vorlauf gefuehrt, genau wie im Betrieb, wo der Vorschlag im
+        # vorigen Zug lag und das Wasserzeichen schon darueber ist.
+        vorlauf = None
+        if fall.get("vorlauf"):
+            vorlauf = _nachrichtenzeilen([{"absender": "Bot", "text": fall["vorlauf"]}])[0]
+        elif len(zeilen) > 1 and zeilen[0]["ist_bot"]:
+            vorlauf, zeilen = zeilen[0], zeilen[1:]
+        nutzer = erkenner._baue_nutzertext(conn, chat_id, zeilen, vorlauf)
     ergebnis = klm.schema(
         chat_id, erkenner.prompt(), nutzer, erkenner.SCHEMA, "erkenner",
         modell=modell, temperature=erkenner.TEMPERATURE,

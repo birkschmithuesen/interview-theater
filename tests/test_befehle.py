@@ -641,3 +641,28 @@ def test_format_aus_nimmt_es_wieder_weg(conn, einst, tg):
     befehle.behandle(conn, tg, einst, 1, "/format aus", "Ada")
 
     assert not (repo.hole_arbeitsstand(conn, 1)["format"] or "")
+
+
+def test_szene_usa_ja_und_nein_sind_deterministisch(conn, einst, tg):
+    """Der Weg an der Spracherkennung vorbei: in der Simulation las der
+    Erkenner "ja stimmt alles" als Zustimmung zu den Figuren, nicht zur
+    USA-Frage."""
+    befehle.behandle(conn, tg, einst, 1, "/szene usa ja", "Ada")
+    assert repo.szene_usa_stand(conn, 1) == "ja"
+
+    befehle.behandle(conn, tg, einst, 1, "/szene usa nein", "Ada")
+    assert repo.szene_usa_stand(conn, 1) == "nein"
+
+
+def test_szene_auftrag_mit_dem_wort_usa_ist_keine_einwilligung(conn, einst, tg, monkeypatch):
+    """Eng gefasst: nur "usa ja"/"usa nein" zaehlt. Ein Szenenauftrag, in dem
+    das Wort vorkommt, bleibt ein Auftrag."""
+    from interview_theater import szene
+
+    gerufen = []
+    monkeypatch.setattr(szene, "starte", lambda *a, **k: gerufen.append(a[-1]))
+
+    befehle.behandle(conn, tg, einst, 1, "/szene 1 spielt in einer usa bar", "Ada", klm=object())
+
+    assert repo.szene_usa_stand(conn, 1) == "offen"
+    assert gerufen, "der Auftrag ging an szene.starte"

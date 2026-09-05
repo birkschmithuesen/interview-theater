@@ -787,3 +787,35 @@ def test_claude_prosa_liest_textbloecke_und_bucht(conn, einst):
     assert text.startswith("TITEL: X")
     zeile = conn.execute("SELECT modus, antwort_token, erfolg FROM aufruf ORDER BY id DESC LIMIT 1").fetchone()
     assert tuple(zeile) == ("C", 20, 1)
+
+
+def test_usa_frage_blockiert_die_szene_nicht_endlos(conn, einst, tg):
+    """Simulation 05.09. (Set birk, Seed 509): Birk sagte "ja stimmt alles"
+    und dreimal "jetzt endlich die szene schreiben" -- der Erkenner las das
+    als Zustimmung zu den FIGUREN, nicht als Antwort auf die USA-Frage. Der
+    Bot wiederholte siebenmal dieselbe Erinnerung, drei Schritte scheiterten,
+    kein einziger Szenentext entstand.
+
+    Nach USA_ERINNERUNGEN_MAX Anlaeufen entscheidet der Bot selbst -- und
+    zwar fuer die Schweiz: das ist die Seite, auf der keine Daten das Land
+    verlassen, ohne dass jemand zugestimmt hat."""
+    import dataclasses
+
+    e = dataclasses.replace(einst, szene_anbieter="claude")
+    szene._usa_erinnerungen.pop(1, None)
+    _bereit_machen(conn)
+
+    # 1. Auftrag: das Angebot kommt.
+    szene.starte(conn, tg, LLMAttrappe(), e, 1, "Schreib Szene 1")
+    assert repo.szene_usa_stand(conn, 1) == "offen"
+
+    # Erinnerungen, dann die Selbstentscheidung.
+    for _ in range(szene.USA_ERINNERUNGEN_MAX):
+        szene.starte(conn, tg, LLMAttrappe(), e, 1, "Schreib Szene 1")
+        assert repo.szene_usa_stand(conn, 1) == "offen", "noch wird gefragt"
+
+    szene.starte(conn, tg, LLMAttrappe(), e, 1, "Schreib Szene 1")
+
+    assert repo.szene_usa_stand(conn, 1) == "nein", "Schweiz, nicht USA"
+    assert any("nicht beantwortet" in t for t in tg.texte)
+    szene._usa_erinnerungen.pop(1, None)

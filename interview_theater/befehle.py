@@ -47,6 +47,13 @@ _SZENE_ENTFERNEN = re.compile(
     re.IGNORECASE,
 )
 
+#: "/szene usa ja" bzw. "/szene usa nein" -- die Antwort auf das
+#: Einwilligungs-Angebot fuer das US-Modell, deterministisch statt ueber den
+#: Erkenner. Eng gefasst: nur genau dieses eine Wortpaar, damit ein
+#: Szenenauftrag, in dem zufaellig "usa" vorkommt, nicht als Einwilligung
+#: gelesen wird.
+_SZENE_USA = re.compile(r"^usa\s+(ja|j|yes|nein|n|no)\.?$", re.IGNORECASE)
+
 #: "/szene 2 ort Polizeikessel" -- Nummer, ein bekannter Feldname, der Wert.
 #: Der Korrekturweg zu den Szenenfeldern (05.09.2026), neben der Erkenner-art
 #: ``szene_planen``. Eng gefasst wie ``_SZENE_ENTFERNEN``: der zweite Token
@@ -471,6 +478,21 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     Abfuhr, wenn schon eine Szene fuer diese Gruppe laeuft."""
     if not rest:
         tg.sende(chat_id, _TEXT_SZENE_LEER)
+        return
+    # /szene usa ja|nein -- die Antwort auf das Einwilligungs-Angebot, ohne
+    # dass sie der Erkenner treffen muss. In der Simulation am 05.09. las er
+    # "ja stimmt alles" als Zustimmung zu den Figuren, nicht zur USA-Frage;
+    # der Bot wiederholte daraufhin siebenmal dieselbe Erinnerung.
+    usa = _SZENE_USA.match(rest)
+    if usa:
+        ja = usa.group(1).lower() in ("ja", "j", "yes")
+        repo.setze_szene_usa(conn, chat_id, ja)
+        tg.sende(
+            chat_id,
+            "Gut, Szenen kommen ab jetzt vom US-Modell. Ich sage es vor jeder "
+            "Szene nochmal." if ja else
+            "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder.",
+        )
         return
     if _setze_szenenfeld(conn, tg, chat_id, rest):
         return

@@ -145,7 +145,22 @@ _TEXT_USA_JA = "Gut, Szenen kommen ab jetzt vom US-Modell. Ich sage es vor jeder
 _TEXT_USA_NEIN = "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder."
 _TEXT_USA_ERINNERUNG = (
     "Die Szene kommt, sobald ihr die Frage von oben beantwortet habt: "
-    "US-Modell ja oder nein?"
+    "US-Modell ja oder nein? Schreibt einfach /szene usa ja oder "
+    "/szene usa nein."
+)
+#: Nach so vielen vergeblichen Erinnerungen wird nicht weiter erinnert,
+#: sondern in der Schweiz geschrieben (05.09.2026, in der Simulation
+#: gemessen): Birk sagte dreimal "jetzt endlich die szene schreiben" und
+#: "ja stimmt alles" -- der Erkenner las das als Zustimmung zu den FIGUREN,
+#: nicht als Antwort auf die USA-Frage, und der Bot wiederholte siebenmal
+#: dieselbe Zeile. Eine unbeantwortete Einwilligung darf die Arbeit nicht
+#: dauerhaft blockieren; das Vorsichtige ist hier das Schweizer Modell,
+#: nicht das Warten.
+USA_ERINNERUNGEN_MAX = 2
+_TEXT_USA_KEINE_ANTWORT = (
+    "Ihr habt die Frage nach dem US-Modell nicht beantwortet - ich schreibe "
+    "die Szene deshalb in der Schweiz. Wollt ihr es doch anders, sagt "
+    "/szene usa ja."
 )
 
 
@@ -161,6 +176,12 @@ class SzeneFehler(Exception):
 # nicht freigeben.
 _sperren: dict[int, threading.Lock] = {}
 _sperren_schutz = threading.Lock()
+
+#: Wie oft je Gruppe schon vergeblich an die USA-Frage erinnert wurde.
+#: Bewusst im Prozess und nicht in der Datenbank: es ist ein Zaehler fuer die
+#: laufende Sitzung, kein Zustand des Workshops -- nach einem Neustart darf
+#: der Bot wieder zweimal fragen, bevor er selbst entscheidet.
+_usa_erinnerungen: dict[int, int] = {}
 
 
 def _sperre_fuer(chat_id: int) -> threading.Lock:
@@ -960,9 +981,21 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
         _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEBOT_USA)
         return None
     if szene_claude.wartet_auf_antwort(e, conn, chat_id):
-        repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)  # neuesten Auftrag merken
-        _sende_und_merke(conn, tg, e, chat_id, _TEXT_USA_ERINNERUNG)
-        return None
+        # Nach USA_ERINNERUNGEN_MAX vergeblichen Anlaeufen wird nicht weiter
+        # erinnert, sondern in der Schweiz geschrieben: eine Einwilligung, die
+        # nicht als solche erkannt wird, darf die Arbeit nicht dauerhaft
+        # blockieren (siehe USA_ERINNERUNGEN_MAX). Das Schweizer Modell ist
+        # dabei die vorsichtige Seite -- es gehen keine Daten in die USA, und
+        # die Gruppe hat der Uebermittlung nie zugestimmt.
+        erinnerungen = _usa_erinnerungen.get(chat_id, 0) + 1
+        _usa_erinnerungen[chat_id] = erinnerungen
+        if erinnerungen <= USA_ERINNERUNGEN_MAX:
+            repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
+            _sende_und_merke(conn, tg, e, chat_id, _TEXT_USA_ERINNERUNG)
+            return None
+        repo.setze_szene_usa(conn, chat_id, False)
+        _usa_erinnerungen.pop(chat_id, None)
+        _sende_und_merke(conn, tg, e, chat_id, _TEXT_USA_KEINE_ANTWORT)
 
     sperre = _sperre_fuer(chat_id)
     if not sperre.acquire(blocking=False):

@@ -91,7 +91,16 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- versehentliches Interview ist entfernbar, wenn die Gruppe es sagt. Die
   -- Audiodatei bleibt auf der Platte -- die Loeschzusage erfuellt weiterhin
   -- allein scripts/loeschen.py.
-  entfernt_am     TEXT
+  entfernt_am     TEXT,
+  -- Gesetzt = diese Zeile ist eine KOPIE aus einer anderen Gruppe
+  -- (scripts/interviews_uebernehmen.py, 06.09.2026). Form:
+  -- "<quell_chat_id>:<alte_aufnahme_id>". Zwei Aufgaben: Herkunft belegen
+  -- (das Material gehoert weiter der Gruppe, die es aufgenommen hat) und
+  -- Idempotenz -- ein zweiter Lauf ueberspringt, was diesen Marker schon
+  -- traegt. Additiv; bestehende Zeilen tragen NULL und sind damit eigenes
+  -- Material.
+  uebernommen_von TEXT,
+  uebernommen_am  TEXT
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,

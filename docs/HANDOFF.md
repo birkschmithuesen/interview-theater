@@ -483,3 +483,9 @@ gescheitert.
 **Vor der Auswertung an die Löschzusage denken:** Wenn ausgewertet und dann gelöscht werden
 soll, gehört die Reihenfolge vorher besprochen. `scripts/loeschen.py` entfernt eine Gruppe
 vollständig — Datenbank und Audiodateien.
+
+## Interviews in eine Gruppe zusammenführen (Ende Tag 2)
+
+Arbeitet nur noch eine Gruppe weiter, holt `python -m scripts.interviews_uebernehmen <ziel> <quelle> […] [--ja]`
+alle Interviews (Aufnahmen, Teile, Transkripte, Verdichtungen mit geprüften Zitaten, Audio) dorthin — Env der **Ziel**gruppe laden, ohne `--ja` nur Trockenlauf mit Zählung.
+Die Quellen bleiben unverändert, die Nummerierung der Zielgruppe läuft weiter („Interview 4–8"), ein zweiter Lauf tut nichts (`aufnahme.uebernommen_von`), und solange irgendwo eine Aufnahme läuft, verweigert das Skript den Dienst.

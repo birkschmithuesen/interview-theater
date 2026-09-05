@@ -75,6 +75,14 @@ ersetzen, nichts hinzuerfinden, was ihnen widerspricht.**
   am Ende ist etwas anders als am Anfang. **Ohne Konflikt trotzdem Bewegung.**
 - Fehlt ein Feld, erfindest du dafuer nichts Grosses. Ein Nebendetail ja, eine
   zweite Handlung nein.
+- **Der Anschluss an die vorige Szene steht unter "Was bisher geschah".**
+  Was dort als "Was anders ist" der letzten Szene steht, ist der Zustand, in
+  dem die Figuren HIER ankommen -- und "Zeit" und "Anlass" dieser Szene
+  sagen, wie sie hergekommen sind. Beides muss man dem Text anmerken, ohne
+  dass jemand es erklaert: Wer aus dem Kessel kommt, hat den Kessel noch in
+  den Kleidern; wer Tage spaeter in einer Kueche steht, hat ihn abgelegt.
+  Ein Widerspruch zur vorigen Szene (jemand weiss etwas nicht mehr, was er
+  dort erfahren hat) ist ein Fehler.
 
 ## Grundform der Ausgabe
 

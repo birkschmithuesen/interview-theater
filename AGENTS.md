@@ -35,6 +35,7 @@ Module unter `interview_theater/`:
 | `sprachprofil.py` | Sprachprofil je Figur: ein gemma-Aufruf (Reasoning aus, eigener Thread) aus dem zugeordneten Interview, Zitate geprüft wie beim Verdichter |
 | `telegram.py` | Dünner HTTP-Wrapper um die Telegram-Bot-API, inkl. Inline-Tastatur und `answerCallbackQuery` |
 | `knoepfe.py` | Inline-Knöpfe an den drei Auswahl-Momenten (Kernthema, Aufnahme-Umschalter, Phasenwechsel): Angebot, Idempotenz-Sperre, Wirkung |
+| `phasentexte.py` | Der Phasenrahmen im Chat (06.09.2026): die acht Einleitungen als Daten, `PARAMETER` je Phase, daraus Eintrittsnachricht („▶️ Phase N von 8 · Name" + Checkliste ✅/⬜), Abschlussnachricht („✅ … abgeschlossen" + alle gesetzten Parameter) und die Zeilen für `/stand`. Bot-Text an die Gruppe, kein Prompt — kein Modellaufruf, nur repo-Lesezugriffe |
 | `verdichter.py` | Verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten — an der Frageliste der Gruppe entlang, wenn es eine gibt (N3) |
 | `zitat.py` | Belegzitat-Verifikation: Teilstring-Vergleich nach Normalisierung |
 | `repo.py` | Einzige SQL-Zugriffsschicht außer `db.py`, komplett `RLock`-serialisiert |
@@ -419,6 +420,17 @@ lädt, würde damit Gesprächszüge ausbremsen.
   veralteten Reste. Ein Fakt hat genau eine Stelle im Prompt; steht er an zweien,
   ist eine davon zu löschen, nicht beide zu behalten. Ein Prompt-Kopf, der etwas
   ankündigt, muss es auch liefern — sonst ergänzt das Modell das Fehlende selbst.
+
+- **Jede Phase hat im Chat denselben Rahmen** (06.09.2026, Birk): Eintritt
+  über EINEN Weg (`knoepfe.eintritt_in_phase` — Knopf, `/phase`, Erkenner,
+  proaktive Meldung) mit deterministischer Nachricht aus `phasentexte`
+  (Einleitung 2–4 Sätze, Checkliste der Parameter, Einstiegsknöpfe darunter);
+  Abschluss über `biete_phase_proaktiv` mit allen gesetzten Parametern und
+  „Weiter zu <Phase>" · „Noch etwas aendern", einmal (Merkposten
+  `phase_angeboten`). `/stand` nutzt dieselben `standzeilen`. Jinja wie im
+  Fundusbot wurde geprüft (`docs/prompt-audit/2026-09-06/jinja-inspiration.md`):
+  nicht installiert, nicht jetzt — `kontext.baue` braucht Blöcke als Objekte
+  (Kürzung, Protokoll); Kandidaten für später sind die unkritischen Pfade.
 
 ## Die Fallen
 

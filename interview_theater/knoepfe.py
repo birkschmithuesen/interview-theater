@@ -194,10 +194,7 @@ _TEXT_SPEICHERN_KNOPF = "Gefaellt uns, weiter"
 #: kein Modellaufruf (Zusage 2). Der erste Halbsatz ist die Quittung, der
 #: zweite die Frage: eine offene Aufforderung ("sagt mir, was anders sein
 #: soll") bekam im Probelauf ein Schulterzucken, die drei Beispiele nicht.
-_TEXT_ANDERS = (
-    "Gespeichert. Was genau soll anders sein - Wortwahl, Reihenfolge, "
-    "etwas raus?"
-)
+_TEXT_ANDERS = "Gespeichert. Was soll anders sein?"
 #: "Eigene Idee": nichts gespeichert, der naechste Gruppenbeitrag ist der
 #: Vorschlag.
 _TEXT_EIGENE = "Erzaehlt - ich baue es ein."
@@ -1948,7 +1945,7 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
     )
     tg.sende(
         chat_id,
-        f"Notiert:\n{_NOTIERT[art]}: {wert}\nFalls das nicht stimmt, sagt es mir.",
+        f"Notiert:\n{_NOTIERT[art]}: {wert}",
     )
     # Danach die eine Frage, die den Zwischenraum offenhaelt -- und darunter,
     # wenn die Materiallage es hergibt, der Weg weiter
@@ -2250,8 +2247,7 @@ def _uebernimm_figurenliste(conn, tg, chat_id: int, wert: str) -> str:
         conn, chat_id, "entschieden", f"Figuren: {', '.join(angelegt)}",
         quelle="knopf",
     )
-    tg.sende(chat_id, "Notiert:\n" + _figurenzeile(angelegt)
-             + "\nFalls das nicht stimmt, sagt es mir.")
+    tg.sende(chat_id, "Notiert:\n" + _figurenzeile(angelegt))
     return "Figuren uebernommen"
 
 

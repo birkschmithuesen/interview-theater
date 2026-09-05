@@ -1240,4 +1240,6 @@ def test_startbestaetigung_traegt_keinen_beenden_knopf(conn, einst, tg):
     assert tg.mit_knoepfen == [], "keine Tastatur unter der Startbestaetigung"
     text = tg.gesendet[-1][1]
     assert "Bereit" in text
-    assert "Knopf" in text, "der Text sagt, wo gefragt wird"
+    # Kein "Knopf"-Satz mehr (06.09.2026, Fix e): die Ansage nennt, was
+    # zu tun ist, nicht wie die Oberflaeche aussieht.
+    assert len(text) < 120, "die Startbestaetigung bleibt kurz"

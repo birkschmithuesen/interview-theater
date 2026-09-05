@@ -103,10 +103,7 @@ TIMEOUT_S = 600.0
 #: gesucht -- weiter unten waere ein "TITEL:" Teil der Szene, nicht ihr Kopf.
 _KOPFZEILEN = 6
 
-_TEXT_ANGEKUENDIGT = (
-    "Ich schreibe die Szene aus, das dauert eine Minute - ihr koennt derweil "
-    "weiterarbeiten."
-)
+_TEXT_ANGEKUENDIGT = "Ich schreibe die Szene aus, das dauert eine Minute."
 _TEXT_BESETZT = "Ich schreibe gerade noch an einer Szene, gleich."
 #: Die Chronologie-Sperre in einer Zeile (05.09.2026, Testgruppe 22:05: Szene
 #: 3 wurde vor Szene 1 und 2 geschrieben). Kein Sperrtext, keine Rueckfrage --

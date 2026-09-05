@@ -1148,7 +1148,6 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     if not zeilen:
         return None
 
-    zeilen.append("Falls das nicht stimmt, sagt es mir.")
     return "Notiert:\n" + "\n".join(zeilen)
 
 

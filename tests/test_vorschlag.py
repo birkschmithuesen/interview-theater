@@ -202,7 +202,7 @@ def test_passt_aber_anders_speichert_trotzdem_und_fragt_gezielt(conn, tg, einst)
 
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat"
     assert tg.gesendet[-1][1] == (
-        "Gespeichert. Was genau soll anders sein - Wortwahl, Reihenfolge, etwas raus?"
+        "Gespeichert. Was soll anders sein?"
     )
 
 

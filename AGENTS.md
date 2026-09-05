@@ -107,6 +107,25 @@ lädt, würde damit Gesprächszüge ausbremsen.
   (`befehle._TEXT_INTERVIEW_AN`/`_AUS`) — sagt die Gruppe „ich will noch eine
   Aufnahme machen", steht der Knopf da, ohne dass jemand den Slash-Befehl
   kennen muss.
+  **Nach jedem beendeten Interview steht eine Knopfleiste** (05.09.2026,
+  `knoepfe.biete_nach_aufnahme`, aufgerufen an genau einer Stelle:
+  `aufnahme._sende_nach_interview` — beide Wege, `/aufnahme` und der
+  Erkenner-Pfad, laufen über `schliesse_ab` dorthin): „Auswerten", „Nächste
+  Aufnahme" und, wenn `phasen.naechste_moegliche` es hergibt, „Weiter zu
+  Phase N". „Auswerten" spielt eine schon vorhandene Verdichtung direkt aus der
+  Datenbank aus (`aufnahme.zeige_verdichtung`, kein zweiter Modellaufruf) und
+  verdichtet nur dann im Thread nach, wenn es noch keine gibt (Interview unter
+  `MINDEST_WOERTER`). Anlass: Live-Fall Gruppe 2, 13:59 — „Interview 1 ist
+  sehr kurz … /auswerten" als Text, zwei Rückfragen der Gruppe, keine
+  Auswertung. **Slash-Befehle werden nicht mehr beworben**, nirgends: nicht in
+  `_TEXT_*`-Konstanten, nicht in `prompts/system.md`, nicht in
+  `prompts/phasen/*.md` (Test: `test_keine_phasenanweisung_bewirbt_einen_slash_befehl`).
+  Sie bleiben funktionsfähig, `/hilfe` listet sie weiter — beworben wird der
+  Knopf. **Reihenfolge beim Link:** die Begrüßung nennt die Gruppenseite nur,
+  wenn `gruppe.web_token` existiert (entsteht in `repo.sichere_gruppe`). Weil
+  `bot.erstkontakt` auch als Rückfallweg aus `ablauf.antworte` gerufen wird,
+  geht der Link über `bot.stelle_link_sicher`, das die Gruppenzeile notfalls
+  selbst anlegt.
   **Fallstrick:** `repo.setze_szene_usa` nimmt einen **bool**, nicht `"ja"`/
   `"nein"` — ein nicht-leerer String ist wahr, ein „nein" würde als Zustimmung
   zur Datenübermittlung enden. Test: `test_usa_knopf_nein_setzt_false_und_nicht_wahr`.

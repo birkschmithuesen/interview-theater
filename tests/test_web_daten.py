@@ -71,9 +71,12 @@ def test_dashboard_zeigt_alle_gruppen_mit_arbeitsstand(gefuellt):
     assert erste["arbeitsstand"]["format"] == "Musical: Dialog, Lied, Rap"
     assert erste["arbeitsstand"]["rahmen"] == "Eine Nacht im Treppenhaus"
     assert erste["arbeitsstand"]["hauptkonflikt"] == "Bleiben gegen Zurueckgehen"
+    # ``id`` und ``quelle_aufnahme_id`` sind seit der Bearbeitung auf der
+    # Gruppenseite dabei: das Formular adressiert eine Figur ueber ihre id.
     assert erste["figuren"] == [{
-        "name": "Maria", "beschreibung": "kam 1998, arbeitet nachts",
+        "id": 1, "name": "Maria", "beschreibung": "kam 1998, arbeitet nachts",
         "sprachprofil": None, "zitate": [], "quelle": None,
+        "quelle_aufnahme_id": None,
     }]
     assert erste["aufnahmen"] == {"fertig": 1}
     assert erste["verdichtungen"] == 1

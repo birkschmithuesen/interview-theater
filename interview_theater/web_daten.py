@@ -151,11 +151,17 @@ def _figuren(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
             quelle = kontext.interviewbezeichnung(conn, chat_id, quelle_id) or None
         zitate = _feld(z, "zitate") or ""
         figuren.append({
+            # Die id geht seit der Bearbeitung auf der Gruppenseite mit
+            # (05.09.2026 abends): das Formular adressiert eine Figur ueber
+            # ihre id, nie ueber ihren Namen -- sonst waere ein Umbenennen
+            # kein Umbenennen, sondern eine zweite Figur.
+            "id": z["id"],
             "name": z["name"],
             "beschreibung": z["beschreibung"],
             "sprachprofil": _feld(z, "sprachprofil"),
             "zitate": [s.strip() for s in zitate.split(ZITAT_TRENNER) if s.strip()],
             "quelle": quelle,
+            "quelle_aufnahme_id": quelle_id,
         })
     return figuren
 
@@ -414,6 +420,23 @@ def _szene_figuren(conn: sqlite3.Connection, szene_id: int) -> list[str]:
         return []
 
 
+def _szene_figur_ids(conn: sqlite3.Connection, szene_id: int) -> list[int]:
+    """Wie ``_szene_figuren``, nur die ids -- die Mehrfachauswahl auf der
+    Gruppenseite markiert damit die besetzten Figuren, ohne ueber Namen
+    vergleichen zu muessen (zwei Figuren duerfen gleich heissen)."""
+    try:
+        return [
+            z["figur_id"]
+            for z in conn.execute(
+                "SELECT sf.figur_id FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
+                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} ORDER BY f.id ASC",
+                (szene_id,),
+            )
+        ]
+    except sqlite3.OperationalError:
+        return []
+
+
 def _szenen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     """Die Szenen der Gruppe, nach ``nummer`` -- seit dem 05.09.2026 samt
     ihrer Planung: Form, Ort, Zeit, Anlass, Besetzung, Handlung, Bewegung,
@@ -433,12 +456,18 @@ def _szenen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         (chat_id,),
     ):
         eintrag = {
+            # id und figur_ids seit der Bearbeitung auf der Gruppenseite
+            # (05.09.2026 abends): das Formular adressiert eine Szene ueber
+            # ihre id, und die Mehrfachauswahl braucht die ausgewaehlten
+            # Figuren als ids, nicht als Namen.
+            "id": z["id"],
             "nummer": z["nummer"],
             "titel": z["titel"],
             "kurzbeschreibung": z["kurzbeschreibung"],
             "volltext": z["volltext"],
             "geaendert_am": z["geaendert_am"],
             "figuren": _szene_figuren(conn, z["id"]),
+            "figur_ids": _szene_figur_ids(conn, z["id"]),
         }
         for feld, _ in SZENENFELDER:
             eintrag[feld] = _feld(z, feld)
@@ -552,6 +581,92 @@ def _journal(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     ]
 
 
+#: Woher die Dropdowns auf der Gruppenseite ihre Vorschlaege nehmen: aus der
+#: Tabelle ``knopf``, also aus genau dem, was der Bot der Gruppe im Chat schon
+#: einmal zur Auswahl gestellt hat (``knoepfe._AUSWAHLMARKER``). Das ist die
+#: Zusage hinter der Bearbeitung: im Dropdown steht nichts, was die Gruppe
+#: nicht ohnehin gelesen hat -- kein Transkript, kein Nachrichtentext, kein
+#: ungepruefter Satz aus einem Interview.
+#:
+#: ``kernthema_richtung`` steht neben ``richtung``, weil die Knopf-Art einmal
+#: so hiess; eine alte Datenbank soll ihre Richtungen nicht verlieren.
+KNOPFARTEN = {
+    "kernthema": ("kernthema",),
+    "kernthema_richtung": ("richtung", "kernthema_richtung"),
+    "rahmen": ("rahmen",),
+}
+
+#: Wie viele frueher angebotene Werte ein Dropdown hoechstens zeigt. Birk:
+#: "Die Auswahl soll klein und sinnvoll bleiben." Zwoelf ist die Grenze, ab
+#: der eine Liste auf dem Telefon zum Scrollen wird.
+MAX_VORSCHLAEGE = 12
+
+
+def angebotene_werte(
+    conn: sqlite3.Connection, chat_id: int, feld: str
+) -> list[str]:
+    """Alle Werte, die der Gruppe zu diesem Feld je als Knopf angeboten
+    wurden -- neueste zuerst, ohne Dubletten, hoechstens ``MAX_VORSCHLAEGE``.
+
+    Rein lesend, wie alles hier. Ein unbekanntes Feld liefert eine leere
+    Liste statt eines Fehlers: das Formular soll dann ein Textfeld ohne
+    Dropdown zeigen und nicht die Seite mitreissen. Fehlt die Tabelle noch
+    (Datenbank aus der Zeit vor den Knoepfen), ebenso."""
+    arten = KNOPFARTEN.get(feld)
+    if not arten:
+        return []
+    platzhalter = ", ".join("?" * len(arten))
+    try:
+        zeilen = conn.execute(
+            f"SELECT wert FROM knopf WHERE chat_id = ? AND art IN ({platzhalter}) "
+            "ORDER BY id DESC",
+            (chat_id, *arten),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    gesehen: dict[str, None] = {}
+    for z in zeilen:
+        wert = (z["wert"] or "").strip()
+        if wert and wert not in gesehen:
+            gesehen[wert] = None
+        if len(gesehen) >= MAX_VORSCHLAEGE:
+            break
+    return list(gesehen)
+
+
+def interviewliste(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die nicht entfernten Interviews als ``[{"id", "bezeichnung"}]``.
+
+    Fuer die Interview-Zuordnung einer Figur. **Nur Nummer und id** -- nie
+    der Aufnahmename (der ist oft ein Klarname, Birk 05.09.) und schon gar
+    nicht ein Stueck Transkript: das Dropdown steht auf einer Seite ohne
+    Login."""
+    try:
+        zeilen = conn.execute(
+            f"SELECT id FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            f"AND teil_von IS NULL AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [
+        {"id": z["id"], "bezeichnung": f"Interview {nummer}"}
+        for nummer, z in enumerate(zeilen, start=1)
+    ]
+
+
+def bearbeitbares(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Alles, was die Formulare der Gruppenseite an Auswahlmoeglichkeiten
+    brauchen -- in einem Rutsch, damit ``web.py`` nicht sechsmal einzeln
+    nachfragt."""
+    return {
+        "kernthema": angebotene_werte(conn, chat_id, "kernthema"),
+        "kernthema_richtung": angebotene_werte(conn, chat_id, "kernthema_richtung"),
+        "rahmen": angebotene_werte(conn, chat_id, "rahmen"),
+        "interviews": interviewliste(conn, chat_id),
+    }
+
+
 def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | None:
     """Die Leseansicht einer Gruppe, adressiert ueber ihr Web-Token.
 
@@ -586,4 +701,5 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "szenen": _szenen(conn, chat_id),
         "interviews": _interviews(conn, chat_id),
         "journal": _journal(conn, chat_id),
+        "bearbeitbares": bearbeitbares(conn, chat_id),
     }

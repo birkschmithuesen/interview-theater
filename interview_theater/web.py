@@ -11,8 +11,18 @@ Zwei Routen derselben Anwendung
 * ``/gesund`` -- Health-Check, antwortet ohne Datenbankzugriff.
 
 **Nur Standardbibliothek**, kein Framework, kein Build-Schritt: das Ding muss
-am Workshoptag starten, nicht gepflegt werden. **Read-only**: geschrieben wird
-ausschliesslich ueber den Chat, sonst laufen zwei Schreibwege gegeneinander.
+am Workshoptag starten, nicht gepflegt werden.
+
+**Lesen read-only, Schreiben nur ueber ``repo``** (05.09.2026 abends). Jedes
+GET laeuft ueber die read-only geoeffnete Verbindung aus ``web_daten``. Die
+Gruppenseite kann seitdem zusaetzlich eine kleine, feste Liste von Parametern
+aendern (``web_schreiben.FELDER``): dafuer, und nur dafuer, oeffnet der
+POST-Handler eine schreibende Verbindung (``db.verbinde`` -- WAL und
+``busy_timeout``) und ruft dieselben ``repo``-Funktionen wie die Knoepfe im
+Chat. Kein SQL im Webserver, kein Modellaufruf, kein Material: Transkripte,
+Verdichtungen, Belegzitate, der Szenen-Volltext und das Journal bleiben
+unveraenderlich. Das **Dashboard bleibt vollstaendig read-only** -- es haengt
+am Beamer, dort soll niemand im Vorbeigehen etwas umstellen.
 
 Start::
 
@@ -29,16 +39,21 @@ nicht dieser Code -- deshalb nimmt das Routing beide Formen an
 sind relativ.
 """
 
+import hashlib
+import hmac
 import html
+import json
 import re
 import os
+import secrets
 import sqlite3
 import sys
+import time
 import urllib.parse
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import phasen, web_daten  # noqa: F401 -- web_daten.SZENENFELDER im HTML
+from . import db, phasen, web_daten, web_schreiben  # noqa: F401 -- SZENENFELDER im HTML
 
 VORGABE_BIND = "127.0.0.1:8010"
 #: Externer URL-Pfad, unter dem nginx auf herkules den Server durchreicht.
@@ -50,6 +65,65 @@ VORGABE_PRAEFIX = "/theatersoap"
 #: die Seite ohne JavaScript aktuell bleibt -- ein projizierter Rechner soll
 #: nach einem Browserneustart einfach weiterlaufen.
 NEULADEN_SEKUNDEN = 10
+
+#: Wie lange ein Formular-Nonce gilt (Sekunden). Zwei Fenster werden
+#: akzeptiert, ein Nonce lebt also zwischen einer und zwei Stunden.
+NONCE_FENSTER = 3600
+
+#: Der Wert, den ein Dropdown traegt, wenn daneben das Freitextfeld gilt.
+#: Steht wortgleich in ``_BEARBEITEN_JS``.
+EIGENE = "__EIGENE__"
+
+
+def _nonce_roh(schluessel: bytes, token: str, fenster: int) -> str:
+    unterschrift = hmac.new(
+        schluessel, f"{token}:{fenster}".encode("utf-8"), hashlib.sha256
+    ).hexdigest()[:32]
+    return f"{fenster}.{unterschrift}"
+
+
+def nonce(schluessel: bytes, token: str, jetzt: float | None = None) -> str:
+    """Der Formular-Nonce einer Gruppenseite.
+
+    **Wozu**, wo das Token in der URL doch schon das Geheimnis ist: gegen
+    einen fremden Link. Wer jemanden dazu bringt, eine fremde Seite zu
+    oeffnen, kann von dort aus ein POST an unsere Adresse schicken -- das
+    Token steckt dann nicht darin, aber ein geratener oder mitgelesener Link
+    wuerde reichen. Der Nonce steht nur IM HTML der Seite, und eine fremde
+    Seite kann unser HTML nicht lesen (keine CORS-Freigabe). Ohne ihn: 403.
+
+    **Abgeleitet statt gespeichert**, und das ist kein Geiz mit Speicher,
+    sondern noetig: die Seite laedt sich alle zehn Sekunden per fetch nach und
+    vergleicht den neuen ``<body>`` mit dem alten. Ein bei jedem Aufruf neu
+    gewuerfelter Nonce stuende in diesem body -- der Vergleich schluege immer
+    an, die Seite tauschte sich alle zehn Sekunden aus und riss dabei jedes
+    offene Eingabefeld mit. Ein aus Token und Stundenfenster abgeleiteter
+    Nonce ist innerhalb einer Stunde derselbe; der body bleibt gleich, solange
+    sich an den Daten nichts aendert."""
+    jetzt = time.time() if jetzt is None else jetzt
+    return _nonce_roh(schluessel, token, int(jetzt) // NONCE_FENSTER)
+
+
+def nonce_gueltig(
+    schluessel: bytes, token: str, wert, jetzt: float | None = None
+) -> bool:
+    """Prueft einen Nonce gegen das laufende und das vorige Fenster.
+
+    Zwei Fenster, damit eine Seite, die kurz vor dem Stundenwechsel geoeffnet
+    wurde, nicht eine Minute spaeter ins Leere schreibt. Vergleich ueber
+    ``compare_digest``, nicht ``==``."""
+    if not isinstance(wert, str) or "." not in wert:
+        return False
+    kopf, _, _rest = wert.partition(".")
+    if not kopf.isdigit():
+        return False
+    jetzt = time.time() if jetzt is None else jetzt
+    aktuell = int(jetzt) // NONCE_FENSTER
+    return any(
+        hmac.compare_digest(_nonce_roh(schluessel, token, fenster), wert)
+        for fenster in (aktuell, aktuell - 1)
+    )
+
 
 #: Haelt die Scrollposition ueber das Neuladen hinweg. Das Minimum an
 #: JavaScript, das die Seite ertraeglich macht: ohne das springt eine lange
@@ -77,10 +151,20 @@ _SCROLL_JS = """
       if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
     });
   };
+  // Wer gerade tippt, verliert nichts (Brief 05.09. abends): steht der
+  // Fokus in einem Bearbeitungsfeld oder ist eines geaendert und noch nicht
+  // gespeichert, wird gar nicht erst nachgeladen. Sonst tauschte der
+  // Austausch des <body> den halb getippten Satz gegen den alten Stand aus
+  // -- dieselbe Sorte Aerger wie das Zuklappen der <details> vorher.
+  var wirdBearbeitet = function () {
+    var aktiv = document.activeElement;
+    if (aktiv && aktiv.closest && aktiv.closest('.feld')) { return true; }
+    return !!document.querySelector('.feld[data-schmutzig="1"]');
+  };
   var letzter = document.body.innerHTML;
   var laeuft = false;
   setInterval(function () {
-    if (laeuft || document.hidden) { return; }
+    if (laeuft || document.hidden || wirdBearbeitet()) { return; }
     laeuft = true;
     fetch(location.href, { cache: 'no-store', headers: { 'X-Nachladen': '1' } })
       .then(function (r) { return r.ok ? r.text() : null; })
@@ -101,6 +185,90 @@ _SCROLL_JS = """
   }, INTERVALL_MS);
 })();
 """
+#: Das Speichern auf der Gruppenseite. Wieder das Minimum an JavaScript:
+#: Ereignisdelegation an ``document``, damit nach einem Austausch des
+#: ``<body>`` durch das sanfte Nachladen nichts neu verdrahtet werden muss.
+#: Ohne JS bleibt die Seite lesbar -- nur nicht beschreibbar.
+_BEARBEITEN_JS = """
+(function () {
+  var wertVon = function (feld) {
+    var auswahl = feld.querySelector('select.auswahl');
+    if (auswahl) {
+      if (auswahl.value === '__EIGENE__') {
+        var frei = feld.querySelector('.eigene');
+        return frei ? frei.value : '';
+      }
+      return auswahl.value;
+    }
+    var mehrfach = feld.querySelector('select[multiple]');
+    if (mehrfach) {
+      return Array.prototype.slice.call(mehrfach.selectedOptions)
+        .map(function (o) { return o.value; }).join(',');
+    }
+    var eingabe = feld.querySelector('textarea, input');
+    return eingabe ? eingabe.value : '';
+  };
+  var melde = function (feld, text, schlecht) {
+    var hinweis = feld.querySelector('.hinweis');
+    if (!hinweis) { return; }
+    hinweis.textContent = text;
+    hinweis.className = schlecht ? 'hinweis schlecht' : 'hinweis gut';
+  };
+  document.addEventListener('input', function (ev) {
+    var feld = ev.target.closest ? ev.target.closest('.feld') : null;
+    if (feld) { feld.dataset.schmutzig = '1'; melde(feld, '', false); }
+  });
+  document.addEventListener('change', function (ev) {
+    var feld = ev.target.closest ? ev.target.closest('.feld') : null;
+    if (!feld) { return; }
+    feld.dataset.schmutzig = '1';
+    melde(feld, '', false);
+    var auswahl = feld.querySelector('select.auswahl');
+    var frei = feld.querySelector('.eigene');
+    if (auswahl && frei) { frei.hidden = auswahl.value !== '__EIGENE__'; }
+  });
+  document.addEventListener('click', function (ev) {
+    var knopf = ev.target.closest ? ev.target.closest('button.speichern') : null;
+    if (!knopf) { return; }
+    var feld = knopf.closest('.feld');
+    if (!feld) { return; }
+    // Entfernen fragt einmal nach -- ohne Dialogfenster, damit ein
+    // Fehlgriff auf dem Telefon nicht gleich eine Figur kostet.
+    if (feld.dataset.feld === 'figur_entfernen' && knopf.dataset.sicher !== '1') {
+      knopf.dataset.sicher = '1';
+      knopf.textContent = 'Wirklich entfernen?';
+      return;
+    }
+    knopf.disabled = true;
+    melde(feld, 'speichert …', false);
+    fetch(location.pathname, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        // Der Nonce steht IM body, nicht an ihm: das sanfte Nachladen
+        // tauscht nur innerHTML aus, und so kommt beim Fensterwechsel der
+        // frische Nonce von selbst mit.
+        nonce: (document.getElementById('nonce') || {}).value || '',
+        feld: feld.dataset.feld,
+        ziel: feld.dataset.ziel || null,
+        wert: wertVon(feld)
+      })
+    }).then(function (r) {
+      return r.text().then(function (t) { return { ok: r.ok, text: t }; });
+    }).then(function (a) {
+      knopf.disabled = false;
+      if (!a.ok) { melde(feld, a.text || 'ging nicht', true); return; }
+      feld.dataset.schmutzig = '0';
+      melde(feld, 'gespeichert', false);
+    }).catch(function () {
+      knopf.disabled = false;
+      melde(feld, 'ging nicht', true);
+    });
+  });
+})();
+"""
+
 _CSS_GEMEINSAM = """
 ul.fragen { list-style: none; padding: 0; margin: 0; }
 ul.fragen li { margin: .25em 0; }
@@ -177,6 +345,28 @@ details.szene, details.verdichtung { border-bottom: 1px solid #e6e1d6;
           margin: .2rem 0 .3rem; }
 .eintrag { margin: .35rem 0; }
 .zeit { opacity: .5; font-size: .78rem; }
+/* Die Bearbeitung (05.09.2026 abends). Grosse Bedienelemente: die Seite wird
+   auf dem Telefon benutzt, im Stehen, im Probenraum. */
+.feld { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+        margin: .15rem 0 .6rem; }
+.feld select, .feld input[type=text], .feld textarea {
+        flex: 1 1 14rem; font: inherit; font-size: .98rem;
+        padding: .35rem .45rem; border: 1px solid #cfc8b6; border-radius: .3rem;
+        background: #fff; color: inherit; }
+.feld textarea { min-height: 2.2rem; resize: vertical; }
+.feld select[multiple] { min-height: 5rem; }
+.feld button { font: inherit; font-size: .85rem; padding: .35rem .7rem;
+               border: 1px solid #c9b98d; border-radius: .3rem;
+               background: #ece7db; color: #1b1b1b; cursor: pointer; }
+.feld button[disabled] { opacity: .5; cursor: default; }
+.feld .hinweis { font-size: .78rem; opacity: .7; min-width: 5rem; }
+.feld .hinweis.schlecht { color: #a12b2b; opacity: 1; }
+/* Die Schaerfung: read-only, deshalb ohne Kasten und ohne Knopf. */
+.schaerfung { font-size: .85rem; margin: .3rem 0 .5rem; opacity: .85; }
+.schaerfung ul { margin: .1rem 0 0; }
+.figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
+.figur .marke { font-size: .78rem; opacity: .6; }
+.hinzu { margin-top: .8rem; }
 """
 
 
@@ -240,11 +430,17 @@ def _umfang(teile: int, sekunden: int | None) -> str:
     return " · ".join(stuecke)
 
 
-def _seite(titel: str, css: str, koerper: str) -> str:
+def _seite(titel: str, css: str, koerper: str, bearbeitbar: bool = False) -> str:
     """Rahmen beider Seiten: ein einziges eingebettetes CSS, keine externe
     Ressource (der Workshopraum haengt an einem Tailnet, nicht am offenen
     Netz), sanftes Nachladen per fetch (siehe _SCROLL_JS) -- kein meta
-    refresh mehr, der jedes aufgeklappte <details> wieder zuklappte."""
+    refresh mehr, der jedes aufgeklappte <details> wieder zuklappte.
+
+    ``bearbeitbar`` haengt zusaetzlich ``_BEARBEITEN_JS`` an: nur die
+    Gruppenseite bekommt es, das Dashboard nie."""
+    skripte = _SCROLL_JS.replace("__NEULADEN_MS__", str(NEULADEN_SEKUNDEN * 1000))
+    if bearbeitbar:
+        skripte += _BEARBEITEN_JS
     return (
         "<!doctype html>\n"
         '<html lang="de"><head><meta charset="utf-8">\n'
@@ -252,7 +448,7 @@ def _seite(titel: str, css: str, koerper: str) -> str:
         f"<title>{html.escape(titel)}</title>\n"
         f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body>\n"
         f"{koerper}\n"
-        f"<script>{_SCROLL_JS.replace('__NEULADEN_MS__', str(NEULADEN_SEKUNDEN * 1000))}</script>\n"
+        f"<script>{skripte}</script>\n"
         "</body></html>\n"
     )
 
@@ -317,6 +513,296 @@ def _figur_html(f: dict, mit_stimme: bool) -> str:
         for satz in f.get("zitate") or []:
             teile.append(f"<blockquote>„{_t(satz)}“</blockquote>")
     return "<li>" + "".join(teile) + "</li>"
+
+
+# --- Bearbeiten: die Bausteine der Formulare ------------------------------
+#
+# Alle drei Bausteine liefern denselben Rahmen: ein ``<div class="feld">`` mit
+# ``data-feld`` (der Parametername aus ``web_schreiben.FELDER``), optional
+# ``data-ziel`` (die id einer Figur oder Szene) und einem Speicherknopf.
+# ``_BEARBEITEN_JS`` braucht nichts weiter zu wissen -- deshalb kommt kein
+# einziger Feldname im JavaScript vor.
+
+
+def _rahmen(inhalt: str, feld: str, ziel=None, knopf: str = "Speichern") -> str:
+    ziel_attr = f' data-ziel="{_t(ziel, "")}"' if ziel is not None else ""
+    return (
+        f'<div class="feld" data-feld="{_t(feld)}"{ziel_attr}>{inhalt}'
+        f'<button type="button" class="speichern">{_t(knopf)}</button>'
+        '<span class="hinweis" aria-live="polite"></span></div>'
+    )
+
+
+def _textfeld(
+    feld: str, wert, ziel=None, zeilen: int = 1, platzhalter: str = "",
+    beschriftung: str = "", knopf: str = "Speichern",
+) -> str:
+    """Ein Textfeld mit Speicherknopf. Immer ``<textarea>``, auch einzeilig:
+    eine Begriffsliste ist laenger als der Bildschirm, und ein ``<input>``
+    zeigt davon eine Zeile ohne Umbruch."""
+    marke = (
+        f'<label class="marke">{_t(beschriftung)}</label>' if beschriftung else ""
+    )
+    return _rahmen(
+        marke
+        + f'<textarea rows="{int(zeilen)}" placeholder="{_t(platzhalter, "")}">'
+        + _t(wert, "")
+        + "</textarea>",
+        feld,
+        ziel,
+        knopf,
+    )
+
+
+def _optionen(paare, aktuell: str) -> str:
+    return "".join(
+        '<option value="{w}"{sel}>{b}</option>'.format(
+            w=_t(wert, ""),
+            b=_t(beschriftung, ""),
+            sel=" selected" if str(wert) == aktuell else "",
+        )
+        for wert, beschriftung in paare
+    )
+
+
+def _dropdown(
+    feld: str,
+    paare,
+    aktuell,
+    ziel=None,
+    mit_eigener: bool = False,
+    platzhalter: str = "eigene Formulierung",
+    leer: str | None = None,
+    beschriftung: str = "",
+) -> str:
+    """Ein Dropdown, optional mit „eigene …" und Freitextfeld daneben.
+
+    Der aktuelle Wert ist **immer** waehlbar, auch wenn er nicht mehr unter
+    den angebotenen steht (Birk: der gewaehlte Vorschlag ist vorausgewaehlt).
+    Steht er nicht in der Liste, waehlt das Dropdown „eigene …" und der
+    Freitext traegt ihn -- so kann ein im Chat frei formuliertes Kernthema
+    hier gelesen und weiterbearbeitet werden, statt stumm zu verschwinden."""
+    aktuell = "" if aktuell is None else str(aktuell)
+    liste = [(w, b) for w, b in paare]
+    bekannt = {str(w) for w, _ in liste}
+    if leer is not None:
+        liste.insert(0, ("", leer))
+        bekannt.add("")
+    frei = mit_eigener and aktuell not in bekannt
+    if mit_eigener:
+        liste.append((EIGENE, "eigene …"))
+    gewaehlt = EIGENE if frei else aktuell
+    stuecke = []
+    if beschriftung:
+        stuecke.append(f'<label class="marke">{_t(beschriftung)}</label>')
+    stuecke.append(f'<select class="auswahl">{_optionen(liste, gewaehlt)}</select>')
+    if mit_eigener:
+        stuecke.append(
+            '<input type="text" class="eigene" value="{wert}" '
+            'placeholder="{platz}"{versteckt}>'.format(
+                wert=_t(aktuell if frei else "", ""),
+                platz=_t(platzhalter, ""),
+                versteckt="" if frei else " hidden",
+            )
+        )
+    return _rahmen("".join(stuecke), feld, ziel)
+
+
+def _mehrfachauswahl(feld: str, paare, gewaehlt, ziel=None) -> str:
+    """Die Besetzung einer Szene: ein ``<select multiple>``. Kein Framework,
+    keine Chips -- eine Mehrfachauswahl ist auf dem Telefon eine Liste, die
+    man antippt, und genau das leistet das Element von sich aus."""
+    ausgewaehlt = {str(w) for w in gewaehlt}
+    optionen = "".join(
+        '<option value="{w}"{sel}>{b}</option>'.format(
+            w=_t(wert, ""),
+            b=_t(beschriftung, ""),
+            sel=" selected" if str(wert) in ausgewaehlt else "",
+        )
+        for wert, beschriftung in paare
+    )
+    if not optionen:
+        return '<p class="leer">Noch keine Figuren.</p>'
+    return _rahmen(
+        f'<select multiple size="4">{optionen}</select>', feld, ziel
+    )
+
+
+def _schaerfungen_html(kurzformen, was: str = "Schärfung") -> str:
+    """Die bei der Schärfung zugeordneten Interviewstellen -- **read-only**,
+    als Zähler mit Liste (Phase 6, Umbau 05.09.2026 nachts).
+
+    Nur die Kurzformen (höchstens acht Wörter Arbeitsergebnis, wie am
+    Beamer), nie das Belegzitat und nie die Begründung des Laufs. Und nichts
+    zum Anklicken: die Zuordnung entsteht im Chat und wird dort abgenommen
+    („Gefällt uns, weiter" / „Noch eine Runde"). Ohne Zuordnungen fehlt die
+    Zeile ganz, statt als leere Aufgabe dazustehen."""
+    kurzformen = [k for k in (kurzformen or []) if k]
+    if not kurzformen:
+        return ""
+    zeilen = "".join(f"<li>{_t(k)}</li>" for k in kurzformen)
+    return (
+        f'<div class="schaerfung"><b>{_t(was)} ({len(kurzformen)})</b>'
+        f"<ul>{zeilen}</ul></div>"
+    )
+
+
+def _figur_formular(f: dict, interviews: list[dict]) -> str:
+    """Eine Figur zum Bearbeiten: Name, Beschreibung, Interview, Entfernen.
+
+    Sprachprofil und Zitate stehen daneben, aber **nur zum Lesen** -- sie
+    stammen aus einem geprueften Modellauf ueber ein Transkript und sind kein
+    Parameter, den man von Hand nachbessert. Wer die Stimme aendern will,
+    wechselt das Interview; das Profil entsteht dann neu."""
+    stuecke = [
+        f'<div class="figur" data-figur="{_t(f["id"])}">',
+        _textfeld("figur_name", f["name"], f["id"], beschriftung="Name"),
+        _textfeld(
+            "figur_beschreibung", f.get("beschreibung"), f["id"],
+            zeilen=2, platzhalter="ohne Beschreibung", beschriftung="Beschreibung",
+        ),
+        _dropdown(
+            "figur_quelle",
+            [(i["id"], i["bezeichnung"]) for i in interviews],
+            f.get("quelle_aufnahme_id"),
+            f["id"],
+            leer="— kein Interview —",
+            beschriftung="Spricht aus",
+        ),
+    ]
+    if f.get("quelle"):
+        # Bleibt neben dem Dropdown stehen: die Zeile sagt in Worten, was
+        # das Auswahlfeld nur als markierte Option zeigt -- und sie ist die
+        # Zeile, an der die Gruppe die Stimme der Figur wiedererkennt.
+        stuecke.append(f'<div class="zeit">Sprechweise aus {_t(f["quelle"])}</div>')
+    if f.get("sprachprofil"):
+        stuecke.append(f'<div class="profil">{_t(f["sprachprofil"])}</div>')
+    for satz in f.get("zitate") or []:
+        stuecke.append(f"<blockquote>„{_t(satz)}“</blockquote>")
+    stuecke.append(_schaerfungen_html(f.get("schaerfungen")))
+    stuecke.append(
+        _rahmen("", "figur_entfernen", f["id"], knopf="Entfernen")
+    )
+    stuecke.append("</div>")
+    return "".join(stuecke)
+
+
+def _altbestand_html(stand: dict) -> str:
+    """Die Felder der alten Dramaturgie -- **nur wenn gesetzt, nur zum Lesen**
+    (Phasen-Umbau 05.09.2026 nachts).
+
+    Kernthema, Kernthema-Richtung, Kernfrage und Hauptkonflikt sind keine
+    Station mehr; ``arbeitsstand.geschichte`` hat ihre Rolle übernommen. Ein
+    Formular dafür wäre eine Einladung, an einer Stelle weiterzuarbeiten, die
+    der Bot nicht mehr anbietet. Wegzulassen wäre aber auch falsch: eine
+    Gruppe, die gestern ein Kernthema gesetzt hat, soll es nicht stumm
+    verlieren. Also: steht etwas da, steht es da — sonst fehlt die Zeile ganz
+    (dieselbe Regel wie beim Hauptkonflikt)."""
+    zeilen = [
+        f"<dt>{label}</dt><dd>{_t(stand.get(feld))}</dd>"
+        for feld, label in web_schreiben.NUR_ANZEIGE.items()
+        if (stand.get(feld) or "").strip()
+    ]
+    return "".join(zeilen)
+
+
+def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
+    """Der Arbeitsstand der Gruppenseite -- zum Lesen **und** zum Ändern.
+
+    Genau die Parameter aus ``web_schreiben.FELDER`` und keinen mehr, in der
+    Reihenfolge der acht Phasen: Begriffe (1), Fragen samt Leitfaden (2),
+    Setting und Figuren (4), Geschichte (5). Was fehlt, fehlt mit Absicht:
+    Material wird nicht angefasst, der Szenen-Volltext gehört in den Chat,
+    der Leitfaden wird gebaut und nicht getippt, und die Felder der alten
+    Kernthema-Station stehen nur noch read-only da (``_altbestand_html``)."""
+    stand = daten["arbeitsstand"]
+    auswahl = daten.get("bearbeitbares") or {}
+    phase = stand.get("phase") or phasen.ERSTE
+    figuren = "".join(
+        _figur_formular(f, auswahl.get("interviews") or [])
+        for f in daten["figuren"]
+    ) or '<p class="leer">Noch keine Figur.</p>'
+    return (
+        f'<input type="hidden" id="nonce" value="{_t(nonce_wert)}">'
+        "<dl>"
+        "<dt>Phase</dt><dd>"
+        + _dropdown(
+            # Acht Phasen, Namen aus phasen.PHASEN -- die Liste steht dort und
+            # wird hier nicht zweitgepflegt.
+            "phase",
+            [(nummer, phasen.bezeichnung(nummer)) for nummer, _, _ in phasen.PHASEN],
+            phase,
+        )
+        + "</dd>"
+        "<dt>Begriffe</dt><dd>"
+        + _textfeld(
+            "begriffe", stand["begriffe"], platzhalter="mit Komma getrennt"
+        )
+        + "</dd>"
+        "<dt>Fragen</dt><dd>"
+        + _textfeld(
+            "fragen", stand.get("fragen"), zeilen=5, platzhalter="eine Frage je Zeile"
+        )
+        + "</dd>"
+        # Die drei Leitfaden-Felder stehen unter den Fragen, weil sie zu ihnen
+        # gehören: die Einleitungen hängen an einzelnen Fragen (nummeriert),
+        # Eröffnung und Abschluss rahmen sie ein.
+        "<dt>Einleitungen zu den Fragen</dt><dd>"
+        + _textfeld(
+            "frage_einleitungen",
+            stand.get("frage_einleitungen"),
+            zeilen=3,
+            platzhalter="1 — vorher sagen: …",
+        )
+        + "</dd>"
+        "<dt>Interview-Eröffnung</dt><dd>"
+        + _textfeld(
+            "interview_eroeffnung",
+            stand.get("interview_eroeffnung"),
+            zeilen=3,
+            platzhalter="womit ihr anfangt",
+        )
+        + "</dd>"
+        "<dt>Interview-Abschluss</dt><dd>"
+        + _textfeld(
+            "interview_abschluss",
+            stand.get("interview_abschluss"),
+            zeilen=3,
+            platzhalter="womit ihr aufhört",
+        )
+        + "</dd>"
+        # Der Leitfaden selbst wird gebaut, nicht getippt: er ist die Summe der
+        # Felder darüber (``leitfaden.aus_feldern``, dieselbe Funktion wie im
+        # Chat). Read-only -- ihn hier editierbar zu machen hiesse, ein
+        # abgeleitetes Ergebnis neben seinen Quellen zu pflegen.
+        + _leitfaden_html(stand)
+        + "<dt>Setting</dt><dd>"
+        + _dropdown(
+            "rahmen",
+            [(w, w) for w in auswahl.get("rahmen") or []],
+            stand.get("rahmen"),
+            mit_eigener=True,
+            platzhalter="Ort, Zeit, Anlass",
+            leer="— noch offen —",
+        )
+        + "</dd>"
+        "<dt>Geschichte</dt><dd>"
+        + _textfeld(
+            "geschichte",
+            stand.get("geschichte"),
+            zeilen=5,
+            platzhalter="was passiert, wie es endet",
+        )
+        + "</dd>"
+        + _altbestand_html(stand)
+        + f"<dt>Figuren</dt><dd>{figuren}"
+        + '<div class="hinzu">'
+        + _textfeld(
+            "figur_neu", "", platzhalter="Name der neuen Figur",
+            knopf="Figur hinzufügen",
+        )
+        + "</div></dd></dl>"
+    )
 
 
 def _arbeitsstand_html(
@@ -508,23 +994,76 @@ def _szene_summary(s: dict) -> str:
     return SUMMARY_TRENNER.join(stuecke) or "Szene"
 
 
-def _szene_html(s: dict) -> str:
+def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
     """Eine Szene als aufklappbarer Block: Summary-Zeile, darin alle Felder
     der Planung und danach der Volltext (05.09.2026).
 
     Aufklappbar, weil eine Gruppenseite mit sechs ausgeschriebenen Szenen auf
     dem Handy nicht mehr zu ueberblicken ist -- und weil die Planung das ist,
-    was die Gruppe im Gespraech braucht, nicht der ganze Text."""
-    felder = "".join(
-        f"<dt>{label}</dt><dd>{_t(s[feld])}</dd>"
-        for feld, label in web_daten.SZENENFELDER
-        if s.get(feld)
-    )
-    if s.get("figuren"):
-        felder = f"<dt>Wer</dt><dd>{_t(', '.join(s['figuren']))}</dd>" + felder
+    was die Gruppe im Gespraech braucht, nicht der ganze Text.
+
+    Mit ``figuren`` (der Figurenliste der Gruppe) wird die Planung
+    **bearbeitbar**: Titel, Form, Ort, Zeit, Anlass, was passiert, was anders
+    ist, Ton und die Besetzung. Der **Volltext bleibt Anzeige** -- er entsteht
+    aus einem Modellauf und wird im Chat abgenommen ("Passt" / "Passt, aber
+    anders"); eine Textbox daneben waere ein zweiter, stiller Schreibweg an
+    genau der Stelle, an der die Regie-Notiz haengt."""
+    if figuren is None:
+        felder = "".join(
+            f"<dt>{label}</dt><dd>{_t(s[feld])}</dd>"
+            for feld, label in web_daten.SZENENFELDER
+            if s.get(feld)
+        )
+        if s.get("figuren"):
+            felder = f"<dt>Wer</dt><dd>{_t(', '.join(s['figuren']))}</dd>" + felder
+    else:
+        formen = list(web_schreiben.FORMEN)
+        jetzige = (s.get("form") or "").strip()
+        if jetzige and jetzige not in formen:
+            # Eine Szene aus der Zeit der sechs Formen ("stumm") oder eine
+            # frei formulierte behaelt ihre Angabe -- sie steht als erste
+            # Option da, statt stumm auf "offen" zurueckzufallen.
+            formen.insert(0, jetzige)
+        felder = (
+            "<dt>Titel</dt><dd>"
+            + _textfeld("szene_titel", s.get("titel"), s["id"])
+            + "</dd><dt>Wer</dt><dd>"
+            + _mehrfachauswahl(
+                "szene_figuren",
+                [(f["id"], f["name"]) for f in figuren],
+                s.get("figur_ids") or [],
+                s["id"],
+            )
+            + "</dd><dt>Form</dt><dd>"
+            + _dropdown(
+                "szene_form",
+                [(f, f.capitalize()) for f in formen],
+                jetzige,
+                s["id"],
+                leer="— offen —",
+            )
+            # Der Vorschlag des Bots steht daneben und bleibt Anzeige
+            # (06.09.2026): bestaetigt ist allein ``form``, und wer hier
+            # waehlt, bestaetigt gerade selbst. Ihn editierbar zu machen
+            # hiesse, den Vorschlag zur zweiten Entscheidung zu machen.
+            + (
+                f'<div class="zeit">Vorschlag: {_t(s["form_vorschlag"])}</div>'
+                if s.get("form_vorschlag")
+                else ""
+            )
+            + "</dd>"
+            + "".join(
+                f"<dt>{label}</dt><dd>"
+                + _textfeld(f"szene_{feld}", s.get(feld), s["id"], zeilen=2)
+                + "</dd>"
+                for feld, label in web_schreiben.SZENENFELDER.items()
+                if feld not in ("titel", "form")
+            )
+        )
     if s.get("kurzbeschreibung"):
         felder += f"<dt>Kurz</dt><dd>{_t(s['kurzbeschreibung'])}</dd>"
     inhalt = f"<dl>{felder}</dl>" if felder else ""
+    inhalt += _schaerfungen_html(s.get("schaerfungen"))
     if s.get("volltext"):
         inhalt += f'<div class="volltext">{_t(s["volltext"])}</div>'
     else:
@@ -575,9 +1114,17 @@ def _interview_html(v: dict) -> str:
     )
 
 
-def gruppe_html(daten: dict) -> str:
-    """Die Leseansicht einer Gruppe aus web_daten.gruppe_nach_token()."""
-    szenen = "".join(_szene_html(s) for s in daten["szenen"]) or (
+def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
+    """Die Gruppenseite aus web_daten.gruppe_nach_token().
+
+    Ohne ``nonce_wert`` bleibt sie, was sie war: eine Leseansicht. Mit
+    ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
+    Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
+    Feld in der Seite (siehe ``nonce``)."""
+    szenen = "".join(
+        _szene_html(s, daten["figuren"] if nonce_wert else None)
+        for s in daten["szenen"]
+    ) or (
         '<p class="leer">Noch keine Szene. Die entstehen in der letzten Phase.</p>'
     )
 
@@ -597,16 +1144,22 @@ def gruppe_html(daten: dict) -> str:
     ) or '<p class="leer">Noch nichts notiert.</p>'
 
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
+    stand = (
+        _bearbeiten_html(daten, nonce_wert)
+        if nonce_wert
+        else _arbeitsstand_html(daten["arbeitsstand"], daten["figuren"], mit_stimmen=True)
+    )
     return _seite(
         f"{titel} — interview-theater",
         _CSS_GRUPPE,
         f"<h1>{_t(titel)}</h1>\n"
         "<h2>Arbeitsstand</h2>"
-        f'{_arbeitsstand_html(daten["arbeitsstand"], daten["figuren"], mit_stimmen=True)}\n'
+        f"{stand}\n"
         f"<h2>Szenen</h2>{szenen}\n"
         f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
         "<h2>Der Weg dahin</h2>"
         f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",
+        bearbeitbar=bool(nonce_wert),
     )
 
 
@@ -640,11 +1193,27 @@ def _pfad_ohne_praefix(pfad: str, praefix: str) -> str:
     return pfad or "/"
 
 
-def mache_handler(db_pfad: str, praefix: str = VORGABE_PRAEFIX):
+#: Wie viel Text ein POST hoechstens tragen darf. Ein Szenenfeld ist ein paar
+#: Saetze, eine Frageliste ein paar Zeilen -- 64 KiB sind das Vielfache davon
+#: und trotzdem klein genug, dass niemand den Prozess mit einem Upload
+#: beschaeftigt.
+MAX_POST_BYTES = 64 * 1024
+
+
+def mache_handler(
+    db_pfad: str, praefix: str = VORGABE_PRAEFIX, schluessel: bytes | None = None
+):
     """Baut die Handler-Klasse mit ihrer Konfiguration.
 
     Als Fabrik statt globaler Variablen, damit ein Test einen zweiten Server
-    auf eine andere Datenbank stellen kann."""
+    auf eine andere Datenbank stellen kann.
+
+    ``schluessel`` unterschreibt die Formular-Nonces (siehe ``nonce``). Er
+    entsteht beim Start und steht nirgends auf der Platte: ein Neustart macht
+    die Nonces offener Seiten ungueltig, die naechste Runde des sanften
+    Nachladens holt zehn Sekunden spaeter frische. Ein Test kann ihn
+    vorgeben."""
+    schluessel = schluessel or secrets.token_bytes(32)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "interview-theater"
@@ -668,11 +1237,14 @@ def mache_handler(db_pfad: str, praefix: str = VORGABE_PRAEFIX):
                 if pfad == "/":
                     self._antworte(200, dashboard_html(self._dashboard(), praefix))
                 elif pfad.startswith("/g/"):
-                    daten = self._gruppe(pfad[len("/g/"):].strip("/"))
+                    token = pfad[len("/g/"):].strip("/")
+                    daten = self._gruppe(token)
                     if daten is None:
                         self._antworte(404, nicht_gefunden_html())
                     else:
-                        self._antworte(200, gruppe_html(daten))
+                        self._antworte(
+                            200, gruppe_html(daten, nonce(schluessel, token))
+                        )
                 else:
                     self._antworte(404, nicht_gefunden_html())
             except sqlite3.Error as fehler:
@@ -685,6 +1257,106 @@ def mache_handler(db_pfad: str, praefix: str = VORGABE_PRAEFIX):
                     "<!doctype html><html lang=\"de\"><meta charset=\"utf-8\">"
                     "<p>Die Datenbank ist gerade nicht lesbar.</p></html>",
                 )
+
+        def do_POST(self) -> None:  # noqa: N802 (von BaseHTTPRequestHandler vorgegeben)
+            """Ein geaenderter Parameter der Gruppenseite.
+
+            Die Reihenfolge der Pruefungen ist Absicht: **Pfad, Token, Nonce,
+            Wert** -- erst 404, dann 403, dann 400. Ein unbekanntes Token
+            bekommt dieselbe 404 wie beim GET (die Seite verraet ohnehin
+            schon, ob es sie gibt); der Nonce wird erst danach geprueft, weil
+            er an das Token gebunden ist und fuer ein Token, das es nicht
+            gibt, gar nicht gueltig sein kann.
+
+            **Das Dashboard ist nicht dabei.** ``/`` nimmt kein POST an: es
+            haengt am Beamer und ist projiziert, dort soll niemand im
+            Vorbeigehen etwas umstellen."""
+            pfad = _pfad_ohne_praefix(
+                urllib.parse.unquote(urllib.parse.urlsplit(self.path).path), praefix
+            )
+            if not pfad.startswith("/g/"):
+                self._antworte(404, nicht_gefunden_html())
+                return
+            token = pfad[len("/g/"):].strip("/")
+            try:
+                daten = self._koerper()
+            except ValueError as fehler:
+                self._fehler(400, str(fehler))
+                return
+            try:
+                lesend = web_daten.oeffne_lesend(db_pfad)
+                try:
+                    gruppe = web_daten.gruppe_nach_token(lesend, token)
+                finally:
+                    lesend.close()
+                if gruppe is None:
+                    self._antworte(404, nicht_gefunden_html())
+                    return
+                if not nonce_gueltig(schluessel, token, daten.get("nonce")):
+                    self._fehler(
+                        403, "Die Seite ist veraltet — bitte einmal neu laden."
+                    )
+                    return
+                antwort = self._schreibe(gruppe["chat_id"], daten)
+            except web_schreiben.Fehler as fehler:
+                self._fehler(400, str(fehler))
+                return
+            except sqlite3.Error as fehler:
+                self.log_error("Datenbankfehler beim Schreiben: %s", fehler)
+                self._fehler(500, "Die Datenbank ist gerade nicht beschreibbar.")
+                return
+            self._antworte(
+                200,
+                json.dumps(antwort, ensure_ascii=False),
+                "application/json; charset=utf-8",
+            )
+
+        def _koerper(self) -> dict:
+            """Der JSON-Rumpf der Anfrage. Alles, was hier schiefgeht, ist ein
+            Bedienfehler von aussen und wird zu 400, nie zu einem Stacktrace."""
+            try:
+                laenge = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                raise ValueError("Ungültige Anfrage.") from None
+            if laenge <= 0:
+                raise ValueError("Leere Anfrage.")
+            if laenge > MAX_POST_BYTES:
+                raise ValueError("Der Text ist zu lang.")
+            try:
+                gelesen = json.loads(self.rfile.read(laenge).decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                raise ValueError("Ungültige Anfrage.") from None
+            if not isinstance(gelesen, dict):
+                raise ValueError("Ungültige Anfrage.")
+            return gelesen
+
+        def _schreibe(self, chat_id: int, daten: dict) -> dict:
+            """Der eine Schreibvorgang, auf einer eigenen Verbindung.
+
+            ``db.verbinde`` und nicht ``web_daten.oeffne_lesend``: die
+            Leseverbindung ist ``mode=ro`` und wuerde jeden Schreibversuch
+            abweisen. Die Verbindung wird je Anfrage geoeffnet und wieder
+            geschlossen -- WAL und ``busy_timeout`` (5 s) tragen das
+            Nebeneinander mit den Bot-Prozessen, wie bei
+            ``scripts/begruessen.py``."""
+            conn = db.verbinde(db_pfad)
+            try:
+                return web_schreiben.wende_an(
+                    conn,
+                    chat_id,
+                    str(daten.get("feld") or ""),
+                    daten.get("wert"),
+                    daten.get("ziel"),
+                )
+            finally:
+                conn.close()
+
+        def _fehler(self, status: int, text: str) -> None:
+            """Fehler als Klartext, nicht als JSON: ``_BEARBEITEN_JS`` zeigt
+            den Rumpf einer 4xx-Antwort unveraendert neben dem Feld an, und
+            die Gruppe soll dort einen Satz lesen, keine geschweifte
+            Klammer."""
+            self._antworte(status, text, "text/plain; charset=utf-8")
 
         def _dashboard(self) -> dict:
             conn = web_daten.oeffne_lesend(db_pfad)
@@ -744,10 +1416,17 @@ def lies_bind(wert: str) -> tuple[str, int]:
     return adresse, int(port)
 
 
-def baue_server(db_pfad: str, bind: str = VORGABE_BIND, praefix: str = VORGABE_PRAEFIX):
+def baue_server(
+    db_pfad: str,
+    bind: str = VORGABE_BIND,
+    praefix: str = VORGABE_PRAEFIX,
+    schluessel: bytes | None = None,
+):
     """Baut den Server, ohne ihn zu starten (Tests binden auf Port 0)."""
     adresse, port = lies_bind(bind)
-    return ThreadingHTTPServer((adresse, port), mache_handler(db_pfad, praefix))
+    return ThreadingHTTPServer(
+        (adresse, port), mache_handler(db_pfad, praefix, schluessel)
+    )
 
 
 def main() -> None:

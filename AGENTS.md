@@ -677,6 +677,53 @@ erreichbar sind und das Dashboard projiziert wird:
 `IT_WEB_BIND` lehnt `0.0.0.0` mit einem Fehler ab: ein Tippfehler in einer
 Env-Datei soll die Interviews nicht ins offene Netz stellen.
 
+### Die Gruppenseite ändert Parameter (05.09.2026 abends)
+
+Bis zu diesem Abend war beides read-only, mit der Begründung „sonst laufen
+zwei Schreibwege gegeneinander" (N1). Die Begründung gilt weiter — deshalb
+gibt es **keinen zweiten Schreibweg, sondern einen zweiten Auslöser für den
+vorhandenen**: `web_schreiben.py` ruft ausschließlich `repo`-Funktionen,
+dieselben wie `knoepfe._speichere` und `erkenner.wende_an`. In `web_daten.py`
+kommt kein einziger Schreibpfad dazu; es bleibt read-only (`mode=ro`), und nur
+der POST-Handler öffnet eine schreibende Verbindung (`db.verbinde` — WAL und
+`busy_timeout`, wie `scripts/begruessen.py` aus einem fremden Prozess). Zwei
+Tests halten das fest: kein `SELECT`/`INSERT`/`UPDATE` in `web_schreiben.py`,
+kein Schreibpfad in `web_daten.py`. Änderbar ist **genau** `web_schreiben.FELDER`
+und nichts sonst: Phase (1–8, Namen aus `phasen.PHASEN`), Begriffe, Fragen und
+die drei Leitfaden-Felder (`frage_einleitungen`, `interview_eroeffnung`,
+`interview_abschluss`), Setting (`rahmen`), Geschichte, je Figur
+Name/Beschreibung/Interview/Entfernen/Hinzufügen und je Szene Titel, Form,
+Ort, Zeit, Anlass, was passiert, was anders, Ton und die Besetzung — **nie
+Material** (Aufnahmen, Transkripte, Verdichtungen, Belegzitate), nie der
+Szenen-Volltext, nie das Journal, nie die USA-Einwilligung, nie der
+Sprachprofil-Text, nie die Schärfungs-Zuordnungen. Auch **nicht der
+Leitfaden**: er wird aus seinen Feldern gebaut (`leitfaden.aus_feldern`,
+dieselbe Funktion wie im Chat) und steht read-only darunter — editierbar sind
+die Quellen, nicht das Ergebnis. Seit dem Phasen-Umbau fehlen **Kernthema,
+Kernthema-Richtung und Kernfrage**: sie sind keine Station mehr, `geschichte`
+hat ihre Rolle übernommen; gesetzte Werte bleiben sichtbar
+(`web_schreiben.NUR_ANZEIGE`, nur wenn gesetzt), änderbar sind sie nicht.
+Ebenfalls nur Anzeige: der Formvorschlag je Szene (`szene.form_vorschlag` —
+bestätigt ist allein `form`, und wer hier wählt, bestätigt gerade selbst) und
+die Schärfungen aus Phase 6, als Zähler mit Kurzformen und **ohne Belegzitat**.
+Die Dropdowns holen ihre Vorschläge aus der Tabelle `knopf`, zeigen also nur,
+was im Chat ohnehin schon zur Auswahl stand. Jede Änderung hängt einen Journaleintrag an, `art
+'entschieden'`, **`quelle 'web'`**, mit altem und neuem Wert (120 Zeichen je
+Seite) — das ist der einzige Weg, auf dem der Gesprächs-Bot davon erfährt, denn
+der Webserver spricht nicht mit Telegram: er liest das Journal bei jedem Zug
+frisch (`kontext._baue_journal`). Wie in einem Knopf-Handler fällt hier **kein
+Modellaufruf** an; wechselt eine Figur ihr Interview, wird deshalb das alte
+Sprachprofil geleert und `geprueft_am` zurückgenommen, `knoepfe.stelle_figur_vor`
+holt es im nächsten Zug im eigenen Thread nach. Das **Dashboard bleibt
+vollständig read-only** und nimmt gar kein POST an — es hängt am Beamer. CSRF:
+das Token in der URL ist das Geheimnis, dazu ein Formular-Nonce aus Token und
+Stundenfenster (abgeleitet, nicht gewürfelt — ein zufälliger Nonce ließe das
+sanfte Nachladen die Seite alle zehn Sekunden austauschen und risse jedes
+offene Eingabefeld mit); aus demselben Grund lädt die Seite gar nicht erst
+nach, solange der Fokus in einem Feld steht oder eines ungespeichert geändert
+ist. Ein Neustart der Unit `interview-theater-web.service` ist nötig, die Bots
+nicht.
+
 ### Prompt geändert? → Korpus laufen lassen
 
 Die fünf Prompts werden heiß nachgeladen, also ändert sie jemand **während**
@@ -845,9 +892,10 @@ Netz.
 - **Hartes Löschen im Chat.** Entfernt wird nur weich, und Material
   (Aufnahmen, Transkripte, Verdichtungen) gar nicht — der vollständige
   Löschweg bleibt `scripts/loeschen.py`, von Hand, mit Rückfrage.
-- **Schreiben über die Weboberfläche.** Beide Seiten sind read-only, der
-  einzige Schreibweg bleibt der Chat — sonst laufen zwei Schreibwege
-  gegeneinander (`NACHTRAG-weboberflaeche-und-sprache.md` N1).
+- **Freies Schreiben über die Weboberfläche.** Die Gruppenseite ändert seit
+  dem 05.09.2026 abends eine kleine, feste Liste von Parametern (siehe
+  „Weboberfläche"); alles darüber hinaus — Material, Szenen-Volltext,
+  Journal — bleibt Sache des Chats.
 - **Der automatische Phasensprung.** Er hat einmal existiert
   (`ART_ERMOEGLICHT`, `sprung_nach`) und ist am 05.09.2026 **bewusst und
   ersatzlos** gestrichen worden, nicht aus Zeitmangel: **Datenstand ist nicht

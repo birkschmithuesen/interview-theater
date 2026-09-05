@@ -18,3 +18,12 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["interview_theater*"]
+
+[tool.pytest.ini_options]
+markers = [
+    # Der Browserlauf gegen einen echten Server (tests/e2e/). Er braucht
+    # playwright und ein Chromium und laeuft deshalb NICHT im normalen
+    # `pytest`-Lauf mit -- dort ueberspringt ihn ein importorskip. Aufruf
+    # siehe tests/e2e/README.md.
+    "e2e: Browserlauf mit Playwright gegen einen echten Webserver",
+]

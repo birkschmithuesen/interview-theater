@@ -20,3 +20,8 @@ liest die letzte Zeile.
 - Neustart einzeln gruppe4 → 1 → 2 → 3 (nichts lief). Alle aktiv, 4 Prozesse, nur 200 OK, keine neuen Tracebacks. soap.db migriert auf user_version 2 (Phasen unverändert 3/3/3); test.db Phase 7 (= Szenentexte, korrekt aus alt 6).
 - Web-Dashboard von außen erreichbar (browser_exec, Stand 01:18), noch alter Web-Code (Web-Unit startet nach Web-Merge).
 - Offen: Web-Branch (Claude Code passt an 8 Phasen an), dann Simulation.
+
+## 01:35 — Web-Interface live
+- `feat/web-edit` gemergt (main = `d209121`), Suite **1524 grün**. Web-Unit neu gestartet, /gesund ok; Gruppenseite Gruppe#1 von außen geprüft (browser_exec): Phase-Dropdown 1–8, 7 Textareas (Begriffe, Fragen, Einleitungen, Eröffnung, Abschluss, Setting, Geschichte), Figuren/Szenen-Formulare, Leitfaden read-only, KEIN Transkript im HTML. Jede Web-Änderung → Journal quelle='web'. Claude-Code-Kosten Web gesamt ~$44.
+- Läuft: Phasenrahmen (Eintritts-/Abschlussnachricht je Phase, Jinja-Bewertung) auf feat/phasenrahmen.
+- Nächster Schritt: Simulation mit echtem Material (Stimmen aus Tag 1 + Testgruppe), dann Flow-Fix.

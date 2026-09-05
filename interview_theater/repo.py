@@ -1429,6 +1429,33 @@ def setze_figur(conn: sqlite3.Connection, chat_id: int, name: str, beschreibung:
     conn.commit()
 
 
+#: Die Figurenfelder, die einzeln ueber die id gesetzt werden duerfen
+#: (Weboberflaeche, 05.09.2026 abends). Wie bei ``SZENENFELDER`` ist eine
+#: unbekannte Angabe ein Programmierfehler, kein Bedienfehler -- der Name
+#: landet nur nach dieser Pruefung im SQL-Text.
+FIGURENFELDER = ("name", "beschreibung")
+
+
+@_gesperrt
+def setze_figur_feld(
+    conn: sqlite3.Connection, figur_id: int, feld: str, wert: str | None
+) -> None:
+    """Setzt genau ein Figurenfeld ueber die **id** -- und ruehrt kein anderes an.
+
+    ``setze_figur`` daneben bleibt, wie es ist: es sucht ueber den NAMEN und
+    ist damit der richtige Weg fuer den Erkenner, der nur einen Namen aus dem
+    Gespraech hat. Umbenennen kann es aber gerade deshalb nicht -- der Name
+    ist dort der Schluessel. Die Gruppenseite hat die id und braucht beides:
+    ``Meryem`` in ``Meyrem`` korrigieren, ohne eine zweite Figur anzulegen."""
+    if feld not in FIGURENFELDER:
+        raise ValueError(f"unbekanntes Figurenfeld: {feld!r}")
+    conn.execute(
+        f"UPDATE figur SET {feld} = ?, geaendert_am = ? WHERE id = ?",
+        (wert, _jetzt(), figur_id),
+    )
+    conn.commit()
+
+
 #: Trennzeichen zwischen den woertlichen Zitaten einer Figur
 #: (``figur.zitate``). Wie bei den Fragen ein Feld statt einer Tabelle: die
 #: Zitate werden immer als Ganzes geschrieben und als Ganzes gelesen, es gibt

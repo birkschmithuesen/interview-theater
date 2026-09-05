@@ -22,6 +22,13 @@ Aufruf::
     $PY -m scripts.simulation --set 1 --seed 1 --ohne-szene --bericht
     $PY -m scripts.simulation --alle          # drei Laeufe, Sets 1-3
 
+**Zwei Modelle.** Der Bot laeuft ueber Infomaniak (``interview_theater/llm.py``,
+Env aus ``betrieb/gruppe1.env``) -- er ist der Prueflung. Die Stimmen und der
+Richter laufen ueber Claude Opus am lokalen Proxy
+(``simulation/claude.py``, ``IT_SIM_URL``/``IT_SIM_MODELL``): ein Prueflung,
+der seine eigenen Teilnehmerinnen spielt und sich anschliessend selbst
+benotet, misst vor allem sich selbst.
+
 **Wegwerf-Datenbank.** ``IT_DB`` wird ueberschrieben -- sowohl im
 ``Einstellungen``-Objekt als auch in der Umgebung. Das zweite ist nicht
 Vorsicht, sondern Absicht: ``anweisungen.zusatz_verzeichnis()`` sucht den
@@ -48,7 +55,7 @@ import httpx
 
 from interview_theater import db, einstellungen, llm
 from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN, PREISE_STAND
-from simulation import bericht, kennzahlen, lauf, material, richter, skript
+from simulation import bericht, claude, kennzahlen, lauf, material, richter, skript
 from simulation.attrappe import TelegramAttrappe
 
 #: Wartezeit nach HTTP 429, bevor derselbe Aufruf wiederholt wird -- derselbe
@@ -149,7 +156,7 @@ def _schritte(ohne_szene: bool):
     return skript.ohne_szene() if ohne_szene else skript.SCHRITTE
 
 
-def einen_lauf(args, e, klient, mischung: str) -> dict:
+def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
     """Ein Lauf von Anfang bis Bericht. Liefert die Kennzahlen."""
     gezogene = material.waehle(ein_set=args.set, mix=args.mix, seed=args.seed)
     schritte = _schritte(args.ohne_szene)
@@ -168,17 +175,20 @@ def einen_lauf(args, e, klient, mischung: str) -> dict:
 
         tg = TelegramAttrappe()
         klm = LLMMitPause(llm.LLM(e, klient, conn))
+        # Der Simulationsklient wird je Lauf frisch angelegt, wenn keiner
+        # hereingereicht wurde: seine Statistik gehoert zu genau diesem Lauf.
+        sim = sim or claude.Claude()
 
         print(f"\n=== {mischung}, Seed {args.seed}, "
               f"{len(gezogene)} Interviews, {len(schritte)} Schritte ===", flush=True)
         print("Interviews: " + ", ".join(i.kennung for i in gezogene), flush=True)
 
-        durchlauf = lauf.Lauf(conn, tg, klm, e, gezogene=gezogene, seed=args.seed,
-                              schritte=schritte)
+        durchlauf = lauf.Lauf(conn, tg, klm, e, sim, gezogene=gezogene,
+                              seed=args.seed, schritte=schritte)
         ergebnis = durchlauf.fahre()
 
         print("  -> Richter", flush=True)
-        lauf.bewerte(klm, e, ergebnis, schritte)
+        lauf.bewerte(sim, ergebnis, schritte)
 
         zahlen = kennzahlen.sammle(
             conn, lauf.CHAT_ID, ergebnis.zuege, gezogene,
@@ -186,6 +196,7 @@ def einen_lauf(args, e, klient, mischung: str) -> dict:
             richter.markierte_zustimmungen(ergebnis.urteile),
             ergebnis.schritte, e, PREISE_CHF_JE_MIO_TOKEN, ergebnis.dauer_s,
             notausgaenge=ergebnis.notausgaenge,
+            sim_statistik=sim.statistik.als_dict(),
         )
 
         kopfdaten = {
@@ -195,6 +206,7 @@ def einen_lauf(args, e, klient, mischung: str) -> dict:
             "git": bericht.git_head(),
             "llm_modell": e.llm_modell,
             "erkenner_modell": e.erkenner_modell,
+            "sim_modell": sim.modell,
             "preise_stand": PREISE_STAND,
         }
         # Transkript und Verlaufszeile entstehen immer: das eine ist die
@@ -235,7 +247,14 @@ def main(argv=None) -> int:
 
     with httpx.Client(timeout=TIMEOUT_S) as klient:
         for einzeln in laeufe:
-            einen_lauf(einzeln, e, klient, mischungsname(einzeln))
+            # Je Lauf ein eigener Simulationsklient: seine Statistik gehoert
+            # in die Verlaufszeile genau dieses Laufs, nicht in die Summe von
+            # dreien.
+            sim = claude.Claude()
+            try:
+                einen_lauf(einzeln, e, klient, mischungsname(einzeln), sim=sim)
+            finally:
+                sim.schliesse()
     return 0
 
 

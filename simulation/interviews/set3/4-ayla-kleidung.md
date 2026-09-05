@@ -1,47 +1,29 @@
 ---
 name: Ayla
 set: 3
-themen: [Kleidung, Blicke, Entscheidung]
-sprachmerkmale: [klare Saetze, Trotz, kurze Pausen]
+themen: [Jacke, Schwarz, Naehmaschine, Schaufenster]
+sprachmerkmale: [kurze Saetze, Abbrueche mitten im Satz, tuerkische Einsprengsel]
 zitate_soll:
-  - Ich habe das Tuch abgelegt und niemand hat mich gefragt warum
-  - Meine Mutter hat drei Wochen nicht mit mir telefoniert
-  - Man wird angeguckt mit Tuch und man wird angeguckt ohne
+  - Meine Mutter hat mir eine Jacke gekauft, die war zwei Nummern zu gross.
+  - Ich habe zehn Jahre lang nur Schwarz getragen, das war einfacher.
+  - Der Stoff riecht heute noch nach dem Keller von meiner Tante.
 ---
-Yasmin: Du hast irgendwann das Kopftuch abgelegt.
+Leyla: Ayla, woran denkst du zuerst, wenn du an die erste Zeit hier denkst?
 
-Ayla: Mit neunundzwanzig. Ich habe das Tuch abgelegt und niemand hat mich
-gefragt warum. Das war das Seltsame. Alle hatten eine Meinung dazu und keiner
-hat gefragt.
+Ayla: An Kleidung. Sofort. Ist komisch, ne? Nicht an die Wohnung, nicht an die Schule. An diese Jacke. Meine Mutter hat mir eine Jacke gekauft, die war zwei Nummern zu gross. Weil, sie hat gedacht, ich wachse noch, und die Jacke war teuer, yani, die musste halten. Drei Winter. Ich bin in der Jacke rumgelaufen wie in einem Zelt. Und die Kinder in der Schule, die haben nichts gesagt, aber sie haben geguckt. Gucken ist manchmal schlimmer.
 
-Yasmin: Was war der Grund?
+Leyla: Was hast du damals gerne getragen?
 
-Ayla: Es gibt keinen einen Grund, das ist ja das Problem. Wenn du einen Grund
-sagst, machst du es fuer die anderen einfach. Ich sage jetzt, es hat nicht
-mehr gepasst, und dann fragen sie, was hat nicht gepasst, und dann muss ich
-eine Geschichte erzaehlen, die ich nicht habe.
+Ayla: Gerne? Ich weiss gar nicht, ob ich das Wort hatte. Ich wollte nur, dass keiner guckt. Also, unsichtbar, aber richtig unsichtbar. Ich habe zehn Jahre lang nur Schwarz getragen, das war einfacher. Schwarze Hose, schwarzer Pulli, fertig. Meine Schwester, die war anders, die hatte so rote Sachen, gelbe, die hat sich das getraut. Ich nicht. Ich habe immer gedacht, wenn ich Farbe trage, dann sehen sie mich, und wenn sie mich sehen, dann fragen sie was.
 
-Yasmin: Wie hat deine Familie reagiert?
+Leyla: Fragen sie was?
 
-Ayla: Meine Mutter hat drei Wochen nicht mit mir telefoniert. Drei Wochen,
-das war nie vorher passiert, wir telefonieren jeden Tag. Und dann hat sie
-angerufen und hat ueber das Wetter geredet, eine halbe Stunde, und das Tuch
-kam nicht vor. Nie mehr. Bis heute nicht. So macht man das bei uns.
+Ayla: Ja, halt. Woher kommst du eigentlich, so. Immer mit diesem eigentlich. Und dann stehst du da, mit deinem gelben Pulli, und musst erklaeren. Ich hatte keine Lust auf erklaeren.
 
-Yasmin: Und die Leute hier?
+Leyla: Und heute?
 
-Ayla: Da wird es lustig. Man wird angeguckt mit Tuch und man wird angeguckt
-ohne. Mit Tuch war ich die Unterdrueckte. Ohne bin ich die Befreite, und dann
-kommen die Leute und wollen, dass ich das sage, dass ich befreit bin. Eine
-Kollegin hat gesagt, schoen, dass du dich getraut hast. Und ich habe gedacht,
-du kennst mich seit vier Jahren und du weisst nichts von mir.
+Ayla: Heute nehme ich mir Stoff. Ich nehe selber, seit vier Jahren. Meine Tante hatte so eine alte Naehmaschine im Keller, so eine schwere, und die habe ich geholt, und, aeh, wie sagt man, ich habe angefangen mit Kissenbezuegen. Kissenbezuege kann jeder. Der Stoff riecht heute noch nach dem Keller von meiner Tante. Ich mag das sogar.
 
-Yasmin: Hast du das gesagt?
+Und jetzt mache ich Kleider. Nicht perfekt, die Naehte sind, naja. Aber es ist meine Groesse. Verstehst du? Nicht zwei Nummern zu gross, nicht fuer spaeter. Jetzt.
 
-Ayla: Nein. Ich habe gelaechelt. Man laechelt viel.
-
-Yasmin: Was traegst du gern?
-
-Ayla: Rot. Ich habe frueher nie Rot getragen, weil man nicht auffaellt in
-Rot, sondern - naja, doch, man faellt auf. Jetzt habe ich einen roten Mantel.
-Meine Tochter sagt, Mama, der ist sehr rot. Ja. Ist er.
+Ich bleibe manchmal vor Schaufenstern stehen und gucke nur die Schnitte an. Mein Mann sagt, Ayla, du kaufst ja nie was. Stimmt auch. Ich gucke und dann gehe ich heim und mache es selber, in Gruen, in Rot, was ich will.

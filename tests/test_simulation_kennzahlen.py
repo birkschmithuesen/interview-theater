@@ -165,23 +165,26 @@ class _E:
     erkenner_modell = "google/gemma-4-31B-it"
 
 
-def test_kosten_trennen_bot_und_simulation(conn):
+def test_kosten_sind_bot_kosten_je_art(conn):
+    """Was hier steht, ist genau das, was ein echter Workshoptag an
+    Infomaniak zahlen wuerde -- die Simulationsseite laeuft ueber ein
+    Abonnement und steht gar nicht mehr in dieser Tabelle."""
     from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN
 
-    for art in ("gespraech", "stimme"):
+    for art in ("gespraech", "erkenner"):
         repo.merke_aufruf(conn, 1, art, "A", 0, 1_000_000, 1_000_000, "stop", 10, 1)
     zahlen = kennzahlen.kosten(conn, _E(), PREISE_CHF_JE_MIO_TOKEN)
-    # Kimi: 0,60 ein + 3,00 aus je Mio -> 3,60 CHF je Aufruf
-    assert zahlen["chf_bot"] == pytest.approx(3.6)
-    assert zahlen["chf_simulation"] == pytest.approx(3.6)
-    assert zahlen["chf_gesamt"] == pytest.approx(7.2)
+    # Kimi: 0,60 ein + 3,00 aus je Mio -> 3,60; gemma: 0,20 + 0,40 -> 0,60
+    assert zahlen["chf_je_art"]["gespraech"] == pytest.approx(3.6)
+    assert zahlen["chf_je_art"]["erkenner"] == pytest.approx(0.6)
+    assert zahlen["chf_bot"] == pytest.approx(4.2)
     assert zahlen["aufrufe"] == 2
 
 
 def test_kosten_ohne_hinterlegten_preis_bleiben_null(conn):
     repo.merke_aufruf(conn, 1, "gespraech", "A", 0, 1_000, 1_000, "stop", 10, 1)
     zahlen = kennzahlen.kosten(conn, _E(), {})
-    assert zahlen["chf_gesamt"] == 0
+    assert zahlen["chf_bot"] == 0
     assert zahlen["token_ein"] == 1_000
 
 
@@ -193,7 +196,7 @@ def test_sammle_liefert_alle_schluessel_des_berichts(conn):
         PREISE_CHF_JE_MIO_TOKEN, 12.3, notausgaenge=1,
     )
     for schluessel in ("phase_erreicht", "arbeitsstand_vollstaendig", "echo",
-                       "verdichtungen", "laenge_bot", "chf_gesamt",
+                       "verdichtungen", "laenge_bot", "chf_bot", "sim_aufrufe",
                        "interviews_soll", "notausgaenge", "dauer_s"):
         assert schluessel in zahlen
     assert zahlen["notausgaenge"] == 1

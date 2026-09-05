@@ -1,48 +1,27 @@
 ---
 name: Amina
 set: 2
-themen: [Kinder, Uebersetzen, Schule]
-sprachmerkmale: [schnelle Saetze, Selbstkorrekturen, Ironie]
+themen: [Brotdosen, Nachtschicht, Briefe, Zeugnisse]
+sprachmerkmale: [kurze Saetze, Wiederholungen, arabische Einsprengsel]
 zitate_soll:
-  - Mein Sohn war acht und hat beim Arzt fuer mich gesprochen
-  - Die Lehrerin hat mit ihm geredet und ueber mich geredet
-  - Ich wollte nicht, dass sie meine Dolmetscher sind
+  - Ich habe die Brotdosen abends gemacht, damit morgens keiner weint.
+  - Der Bus um fuenf war immer kalt, immer die gleichen Gesichter.
+  - Mein Sohn hat mir die Briefe vorgelesen, mit acht Jahren.
 ---
-Rana: Du hast drei Kinder.
+Leyla: Amina, wie war das, als du hier angefangen hast zu arbeiten?
 
-Amina: Drei, ja. Und alle drei haben fuer mich uebersetzt, alle drei, das ist
-das, was ich - also, das ist das, was mir leid tut.
+Amina: Ja, also. Das Erste war Putzen. Buerohaus, abends, sechs bis halb zwoelf. Ich konnte nichts sagen damals, nur guten Tag, nur Entschuldigung. Die anderen Frauen, eine aus Polen, eine aus, warte, ich glaube Bulgarien, die haben mir gezeigt, welche Flasche fuer was. Mit Haenden. Ohne Sprache. Das geht, weisst du.
 
-Rana: Wie meinst du das?
+Leyla: Und die Kinder?
 
-Amina: Mein Sohn war acht und hat beim Arzt fuer mich gesprochen. Acht. Und
-der Arzt sagt so Sachen wie, es besteht der Verdacht auf, und dann guckt der
-Junge mich an und weiss nicht, wie er das sagen soll, und ich sehe, wie er
-Angst kriegt, und dann sagt er, Mama, alles gut. Und ich weiss, dass es nicht
-alles gut ist.
+Amina: Drei. Damals waren sie sechs, acht und noch klein, ganz klein. Mein Mann hat gearbeitet frueh, ich spaet, so haben wir das gemacht. Wir haben uns halt an der Tuer gesehen. Er kommt, ich gehe. Wie, yani, wie zwei Busse. Ich habe die Brotdosen abends gemacht, damit morgens keiner weint. Kaese, Gurke, immer dasselbe, aber es war fertig, es stand da.
 
-Rana: Und in der Schule?
+Leyla: Und spaeter?
 
-Amina: Beim Elternabend das gleiche. Die Lehrerin hat mit ihm geredet und
-ueber mich geredet. Nicht mit mir. Ueber mich, waehrend ich danebensass. Sie
-hat gesagt, sag deiner Mutter, dass sie mehr mit dir lesen soll. Und er hat
-es uebersetzt, brav. Und ich sitze da und denke, ich habe Abitur, ich habe in
-Damaskus Chemie studiert, und du sagst zu meinem Kind, sag deiner Mutter.
+Amina: Spaeter Altenheim. Da war ich, ich glaube, sieben Jahre. Nachtschicht, weil Nacht mehr Geld. Der Bus um fuenf war immer kalt, immer die gleichen Gesichter. Man nickt, man sagt nichts. Ich habe im Bus manchmal geschlafen, richtig geschlafen, und einmal bin ich bis zur Endstation... egal. Die alten Leute, die haben mich gemocht. Eine Frau, Frau Bergmann, die hat mich Kind genannt. Ich war neununddreissig. Kind.
 
-Rana: Hast du etwas gesagt?
+Amina: Und zuhause, die Post. Die Briefe von Schule, von Amt, das war das Schlimmste. Nicht die Arbeit. Die Briefe. Mein Sohn hat mir die Briefe vorgelesen, mit acht Jahren. Er hat gestockt bei den langen Woertern, und ich habe genickt, als ob ich verstehe. Heute denke ich, das war zu viel fuer ihn. Damals habe ich gedacht, gut, wir schaffen das.
 
-Amina: Nein. Doch, einmal. Da habe ich meinen Satz geuebt, zu Hause, zwanzig
-Mal, und dann habe ich gesagt, bitte sprechen Sie mit mir. Und sie hat sich
-entschuldigt und war ganz rot. Und danach war es besser. Aber es hat mich
-drei Wochen gekostet, diesen einen Satz.
+Leyla: Hast du mal ueberlegt aufzuhoeren?
 
-Rana: Was haetten die Kinder gebraucht?
-
-Amina: Kind sein. Ich wollte nicht, dass sie meine Dolmetscher sind. Meine
-Tochter macht das heute beruflich, sie ist Uebersetzerin, und alle sagen, wie
-schoen, sie hat das von der Mutter. Und ich denke, nein. Sie hat das statt
-einer Mutter, die es selber konnte.
-
-Rana: Sagst du ihr das?
-
-Amina: Nein. Was soll das bringen. Sie ist gluecklich. Lass es gut sein.
+Amina: Aufhoeren? Nein. Also doch, einmal, im Winter, da war ich krank und keiner hat abgeloest. Aber. Die Zeugnisse, weisst du. Ich habe die Zeugnisse auf den Kuehlschrank getan, alle drei, jedes Jahr. Deswegen. Nur deswegen bin ich um vier aufgestanden. Nicht fuer mich. Ich sage das nicht schoen, es war nicht schoen. Es war einfach so.

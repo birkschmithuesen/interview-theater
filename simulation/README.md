@@ -19,6 +19,31 @@ $PY -m scripts.simulation --alle                           # drei Laeufe, Sets 1
 Die Testsuite deckt alles ab, was ohne Netz pruefbar ist
 (`tests/test_simulation*.py`).
 
+## Zwei Modelle, eine Trennlinie
+
+**Der Bot ist der Prueflung und laeuft ueber Infomaniak** -- Gespraech,
+Erkenner, Verdichter, Journal, Sprachprofil, Szene, alles wie im Betrieb
+(`interview_theater/llm.py`, Env aus `betrieb/gruppe1.env`).
+
+**Die Simulation laeuft ueber Claude Opus** an einem lokalen Proxy
+(`simulation/claude.py`): die Stimmen, der Richter und die einmalige
+Erzeugung der fuenfzehn Interviewdatensaetze. Anthropic-Messages-Format,
+kein Authorization-Header (den setzt der Proxy), kein erzwungener
+Schema-Modus -- der Richter wird um reines JSON gebeten und mit genau einem
+Reparaturversuch gelesen.
+
+| Env | Vorgabe |
+|---|---|
+| `IT_SIM_URL` | `http://127.0.0.1:28764/v1/messages` |
+| `IT_SIM_MODELL` | `claude-opus-5` |
+
+Die Trennlinie ist der Grund, aus dem die Zahlen etwas bedeuten: ein
+Prueflung, der zugleich seine eigenen Teilnehmerinnen spielt und sich
+anschliessend selbst benotet, misst vor allem sich selbst. Nebenwirkung, aber
+keine unwichtige: die Simulationsseite laeuft ueber ein Abonnement und kostet
+je Aufruf nichts -- die Kostenzeile im Bericht ist damit genau das, was ein
+echter Workshoptag zahlen wuerde.
+
 ## Warum nicht ueber Telegram
 
 Telegram liefert Bot-Nachrichten nie an andere Bots (Bot-FAQ). Ein Testbot,
@@ -37,11 +62,13 @@ langsamer machen.
 | `scripts/simulation.py` | Aufruf, Wegwerf-DB, 429-Pause, Bericht |
 | `lauf.py` | der Durchlauf: Updates bauen, Zug fahren, Interviews importieren |
 | `skript.py` | die neun Schritte: Ziel und Zielzustand je Schritt |
+| `claude.py` | der Klient der Simulationsseite (Opus am lokalen Proxy) |
 | `stimmen.py` + `stimmen/*.md` | drei Sprachprofile (knapp, ausschweifend, skeptisch) |
 | `material.py` + `interviews/set{1,2,3}/*.md` | 15 erfundene Transkripte, Mischung per Seed |
+| `erzeuge_interviews.py` | hat die 15 Transkripte einmal geschrieben (Opus) |
 | `attrappe.py` | Telegram ohne Netz |
 | `kennzahlen.py` | die mechanischen Zahlen -- kein Modell |
-| `richter.py` + `interview_theater/prompts/richter.md` | die Noten (gemma, Schema) |
+| `richter.py` + `interview_theater/prompts/richter.md` | die Noten (Opus) |
 | `bericht.py` | Markdown-Bericht, Transkript, `verlauf.jsonl` |
 
 ## Was ein Lauf hinterlaesst
@@ -99,5 +126,15 @@ Umschrift statt Umlauten. Die drei `zitate_soll` muessen **woertlich** im
 Text stehen (`tests/test_simulation_material.py` prueft das mit derselben
 Funktion, die im Betrieb ueber Belegzitate entscheidet) -- sie sind der
 Sollwert der Kennzahl `zitate_soll`.
+
+Geschrieben hat sie einmal `simulation/erzeuge_interviews.py` mit Opus; das
+**Ergebnis** ist das Artefakt, nicht das Skript. Namen und Motive stehen dort
+fest (`BESETZUNG`) -- sonst zoege `--set 1 --seed 1` nach einer Neuerzeugung
+andere Dateien, und zwei Laeufe waeren nicht mehr vergleichbar. Eine einzelne
+Datei ersetzen:
+
+```
+$PY -m simulation.erzeuge_interviews --nur 2-sevil-erste-liebe
+```
 
 Alles darin ist frei erfunden. Kein Satz stammt aus einem echten Interview.

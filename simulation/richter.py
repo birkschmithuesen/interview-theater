@@ -1,10 +1,16 @@
-"""Der Richter: gemma bewertet den Lauf abschnittsweise nach fester Metrik.
+"""Der Richter: Claude Opus bewertet den Lauf abschnittsweise nach fester
+Metrik.
 
-Ein Aufruf je Skript-Schritt, plus einer fuer den Szenentext. Modell und
-Einstellungen wie beim Absichtserkenner (``e.erkenner_modell``, erzwungenes
-Schema, Reasoning aus): eine Bewertung nach einer geschriebenen Metrik ist
-Klassifikation, keine Abwaegung -- und gemma ist darin gemessen gut und
-billig (AGENTS.md 'Die Fallen', Punkt 5).
+Ein Aufruf je Skript-Schritt, plus einer fuer den Szenentext. Modell:
+``simulation/claude.py`` -- Opus am lokalen Proxy, nicht das Erkennermodell
+des Bots. Der Richter gehoert zur Simulationsseite, nicht zum Prueflung; er
+soll lesen koennen, ob eine Antwort auf das eingeht, was zwei Nachrichten
+frueher gesagt wurde, und das ist keine Klassifikationsaufgabe.
+
+**Kein erzwungenes Schema.** Der Proxy kennt keinen Schema-Modus. Der Richter
+bekommt die Felderliste stattdessen im Nutzertext und die Anweisung, reines
+JSON zu liefern (``anforderung``); gelesen wird mit ``claude.lies_json``, das
+genau einen Reparaturversuch macht (```json-Zaun entfernen).
 
 **Warum ueberhaupt ein Modell.** Die harten Fehler zaehlt
 ``kennzahlen.py`` ohne Modell -- Echo, behauptete Schreibvorgaenge,
@@ -27,9 +33,12 @@ from interview_theater import anweisungen
 
 log = logging.getLogger(__name__)
 
-#: Art dieses Aufrufs in der Tabelle ``aufruf`` -- damit ``kennzahlen.kosten``
-#: den Richter der Simulation zurechnet und nicht dem Bot.
+#: Art dieses Aufrufs in der Statistik des Simulationsklienten.
 ART = "richter"
+
+#: Ausgabebudget eines Richterurteils. Grosszuegig: das Urteil enthaelt die
+#: schlechteste Bot-Antwort im Wortlaut, und die kann lang sein.
+MAX_TOKENS = 4000
 
 #: Die vier Noten, die jeder Abschnitt bekommt.
 KRITERIEN = (
@@ -77,6 +86,33 @@ SZENEN_SCHEMA = {
 }
 
 
+#: Wie ein Feldtyp im Anforderungstext heisst -- deutsch, weil der ganze
+#: Prompt deutsch ist und "integer" darin wie ein Stolperstein laege.
+_TYPNAMEN = {
+    "integer": "eine ganze Zahl 0, 1 oder 2",
+    "string": "ein Text",
+    "array": "eine Liste von Texten",
+}
+
+
+def anforderung(schema: dict) -> str:
+    """Die Anweisung, reines JSON in genau dieser Form zu liefern -- aus dem
+    Schema erzeugt, nicht danebengeschrieben.
+
+    Der Proxy kennt keinen erzwungenen Schema-Modus (``claude.py``), also
+    muss die Form in den Nutzertext. Sie hier aus ``SCHEMA`` abzuleiten statt
+    sie ein zweites Mal hinzuschreiben ist kein Schoenheitsdienst: eine
+    Metrik, die im Schema ein Kriterium mehr hat als im Prompttext, liefert
+    lautlos ``None`` fuer dieses Kriterium, und im Bericht steht dann ein
+    Strich, den niemand erklaeren kann."""
+    zeilen = ["Antworte mit einem einzigen JSON-Objekt, ohne Text davor oder "
+              "danach, ohne Code-Zaun. Genau diese Felder:"]
+    for name in schema["required"]:
+        typ = schema["properties"][name].get("type", "string")
+        zeilen.append(f'- "{name}": {_TYPNAMEN.get(typ, typ)}')
+    return "\n".join(zeilen)
+
+
 def prompt() -> str:
     """Die Metrik, heiss nachgeladen (``interview_theater/prompts/richter.md``).
 
@@ -108,6 +144,8 @@ def baue_nutzertext(titel: str, ziel: str, abschnitt: str) -> str:
         "",
         "Der Wortlaut:",
         abschnitt.strip() or "(keine Nachrichten in diesem Abschnitt)",
+        "",
+        anforderung(SCHEMA),
     ])
 
 
@@ -118,6 +156,8 @@ def baue_szenen_nutzertext(planung: str, szene: str) -> str:
         "",
         "Das ist der Szenentext, den der Bot daraus geschrieben hat:",
         szene.strip(),
+        "",
+        anforderung(SZENEN_SCHEMA),
     ])
 
 
@@ -132,13 +172,13 @@ def _leeres_urteil(fehler: str) -> dict:
     }
 
 
-def bewerte_abschnitt(klm, e, titel: str, ziel: str, abschnitt: str) -> dict:
+def bewerte_abschnitt(sim, titel: str, ziel: str, abschnitt: str) -> dict:
     """Bewertet einen Abschnitt. Liefert immer ein Dict -- bei einem
     Fehlschlag eines mit Noten ``None`` und dem Fehler im Satz."""
     try:
-        ergebnis = klm.schema(
-            None, prompt(), baue_nutzertext(titel, ziel, abschnitt), SCHEMA, ART,
-            modell=e.erkenner_modell,
+        ergebnis = sim.json_objekt(
+            prompt(), baue_nutzertext(titel, ziel, abschnitt), ART,
+            max_tokens=MAX_TOKENS,
         )
     except Exception as fehler:  # noqa: BLE001 -- ein Abschnitt reisst den Lauf nie mit
         log.exception("Richter-Aufruf fehlgeschlagen: %s", titel)
@@ -155,16 +195,16 @@ def bewerte_abschnitt(klm, e, titel: str, ziel: str, abschnitt: str) -> dict:
     return urteil
 
 
-def bewerte_szene(klm, e, planung: str, szene: str) -> dict:
+def bewerte_szene(sim, planung: str, szene: str) -> dict:
     """Die beiden Noten, die nur ein Szenentext bekommt. ``None``, wenn keine
     Szene geschrieben wurde -- ``--ohne-szene`` ist ein zulaessiger Lauf, kein
     Mangel."""
     if not (szene or "").strip():
         return {}
     try:
-        ergebnis = klm.schema(
-            None, prompt(), baue_szenen_nutzertext(planung, szene), SZENEN_SCHEMA,
-            ART, modell=e.erkenner_modell,
+        ergebnis = sim.json_objekt(
+            prompt(), baue_szenen_nutzertext(planung, szene), ART,
+            max_tokens=MAX_TOKENS,
         )
     except Exception as fehler:  # noqa: BLE001
         log.exception("Richter-Aufruf zur Szene fehlgeschlagen")

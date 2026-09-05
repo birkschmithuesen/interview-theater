@@ -1,51 +1,25 @@
 ---
 name: Danijela
 set: 2
-themen: [Sprache, Scham, Telefon]
-sprachmerkmale: [Abbrueche, Selbstkorrekturen, Lachen]
+themen: [Zettel, Matschhose, Abendkurs, Waescherei]
+sprachmerkmale: [fehlende Artikel, Abbrueche, Wiederholungen]
 zitate_soll:
-  - Ich habe alles verstanden und nichts sagen koennen
-  - Am Telefon war es am schlimmsten, weil man das Gesicht nicht sieht
-  - Ich habe drei Jahre lang keinen Witz gemacht
+  - Guten Morgen und Feierabend, das waren meine zwei Woerter.
+  - Ich bin die Mutter und er korrigiert mich am Tisch.
+  - Ich bin manchmal eingeschlafen im Kurs, ehrlich.
 ---
-Vesna: Wie war das mit der Sprache?
+Leyla: Wie hast du angefangen mit Deutsch?
 
-Danijela: Furchtbar. Also nicht das Lernen, das ging, ich hatte einen Kurs,
-sechs Monate abends. Aber das Reden. Ich habe alles verstanden und nichts
-sagen koennen. Das ist - stell dir vor, du sitzt hinter Glas.
+Danijela: Angefangen, ja. Also ich war, warte, dreiundzwanzig, glaub ich, ja dreiundzwanzig. Und ich hab in der Waescherei gearbeitet, in Schicht, und da hat keiner geredet, weil die Maschinen so laut waren. Weisst du, das ist so, man denkt, man ist in Land, man lernt automatisch. Nein. Ich hab acht Monate lang fast nichts gesagt ausser guten Morgen. Guten Morgen und Feierabend, das waren meine zwei Woerter.
 
-Vesna: Wovor hattest du Angst?
+Leyla: Und dann?
 
-Danijela: Vor dem Fehler. Nicht vor dem Fehler an sich, sondern vor dem
-Gesicht danach. Du sagst was falsch und der andere macht so ein Gesicht, so
-freundlich, so geduldig, und das ist schlimmer als wenn er lacht. Wenn einer
-lacht, kannst du mitlachen.
+Danijela: Dann hab ich angefangen, Zettel zu schreiben. Ueberall Zettel. An Kuehlschrank, am Spiegel, sogar an der Waschmaschine klebte ein Zettel. Mein Mann hat gelacht, er sagt, du machst aus Wohnung eine Schule. Aber ich hab gedacht, ich muss die Woerter sehen, sonst gehen sie weg. Und mit Kind, das ging dann schneller, aber auch anders, halt. Der Kleine kam aus Kindergarten und hat Sachen gesagt, die ich nicht kannte. Schaukel. Matschhose. Ich hab Matschhose gelernt von meinem Sohn, mit vier Jahren hat er mir das erklaert.
 
-Vesna: Wo war es am schwersten?
+Leyla: War das schwer, dass er schneller war?
 
-Danijela: Am Telefon war es am schlimmsten, weil man das Gesicht nicht sieht.
-Ich habe zwei Jahre nicht telefoniert. Zwei Jahre. Wenn es geklingelt hat, bin
-ich nicht rangegangen, und mein Mann hat gesagt, geh doch ran, und ich habe
-gesagt, geh du. Und wenn ich anrufen musste, beim Amt, dann habe ich mir das
-aufgeschrieben. Wort fuer Wort. Und dann haben die was gefragt, was nicht auf
-dem Zettel stand, und ich war weg.
+Danijela: Schwer, ja. Also nicht schwer wie schwer, aber... es dreht sich um, verstehst du. Ich bin die Mutter und er korrigiert mich am Tisch. Der Artikel, Mama, es heisst die Suppe. Und ich sage, ja gut, die Suppe, iss. Aber innen drin, da war so ein... ich weiss nicht. Ich wollte nicht, dass er sich schaemt fuer mich beim Elternabend. Deswegen bin ich zum Abendkurs, nach der Schicht, zwei Mal die Woche, halb acht bis neun. Ich bin manchmal eingeschlafen im Kurs, ehrlich.
 
-Vesna: Wann wurde es besser?
+Leyla: Und heute?
 
-Danijela: Bei der Arbeit, im Buero. Da musste ich. Und irgendwann ist mir was
-rausgerutscht, ein Wortspiel, ohne dass ich nachgedacht habe, und die
-Kollegin hat gelacht. Richtig gelacht, nicht hoeflich. Da habe ich gemerkt,
-oh. Ich bin wieder da.
-
-Vesna: Was war vorher weg?
-
-Danijela: Ich war lustig, zu Hause. Ich war die Lustige in der Familie.
-Und dann kommst du her und du bist die Langsame, die Stille, die mit dem
-Akzent. Ich habe drei Jahre lang keinen Witz gemacht. Und wenn du drei Jahre
-keinen Witz machst, dann glauben die Leute, du bist ernst. Und irgendwann
-glaubst du es selber.
-
-Vesna: Und heute?
-
-Danijela: Heute rede ich zu viel, sagt meine Tochter. Ich sage, Kind, ich hole
-was nach.
+Danijela: Heute rede ich zu viel, sagt meine Tochter. Nein, heute arbeite ich im Altenheim, und da ist Sprache alles, du musst mit den Leuten reden, sonst... sonst bist du nur Haende. Manche verstehen mich nicht wegen Akzent, das bleibt, der Akzent geht nie weg, das weiss ich. Frau Kessler hat gesagt, Sie sprechen so ein huebsches Deutsch mit Kanten. Kanten! Ich hab das aufgeschrieben, auf einen Zettel. Alte Gewohnheit.

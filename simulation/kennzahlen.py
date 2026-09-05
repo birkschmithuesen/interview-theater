@@ -272,28 +272,31 @@ def zitatlage(conn, chat_id: int, gezogene) -> dict:
 
 
 def kosten(conn, e, preise: dict) -> dict:
-    """Kosten in CHF, getrennt nach Bot und Simulation.
+    """Kosten in CHF -- **nur der Bot**.
 
     Die Tabelle ``aufruf`` haelt kein Modell fest, nur die ``art`` -- die
     Zuordnung art -> Modell ist deshalb dieselbe wie im Betrieb
     (``scripts.pruefe_prompts.modell_fuer``): Gespraech, Verdichter und Szene
-    laufen mit dem Gespraechsmodell, Erkenner und Journal mit gemma. Die
-    Stimmen zaehlen zur Simulation, nicht zum Bot: sie kosten Geld, sagen
-    aber nichts ueber den Bot aus."""
+    laufen mit dem Gespraechsmodell, Erkenner und Journal mit gemma.
+
+    Die Simulationsseite (Stimmen, Richter) steht seit dem Modellwechsel gar
+    nicht mehr in dieser Tabelle: sie laeuft ueber Claude am lokalen Proxy und
+    kostet je Aufruf nichts (``simulation/claude.py``). Ihre Aufrufzahlen
+    kommen aus ``claude.Statistik`` und werden im Bericht getrennt
+    ausgewiesen -- was hier steht, ist damit genau das, was ein echter
+    Workshoptag an Infomaniak zahlen wuerde."""
     modelle = {
         "gespraech": e.llm_modell,
         "verdichter": e.llm_modell,
         "szene": e.llm_modell,
         "erkenner": e.erkenner_modell,
         "journal": e.erkenner_modell,
-        "stimme": e.llm_modell,
-        "richter": e.erkenner_modell,
     }
-    simulation_arten = {"stimme", "richter"}
 
-    summe = {"bot": 0.0, "simulation": 0.0}
+    summe = 0.0
     token = {"ein": 0, "aus": 0}
     aufrufe = 0
+    je_art: dict[str, float] = {}
     for zeile in conn.execute(
         "SELECT art, sum(tatsaechliche_token) AS ein, sum(antwort_token) AS aus, "
         "count(*) AS n FROM aufruf GROUP BY art"
@@ -307,11 +310,11 @@ def kosten(conn, e, preise: dict) -> dict:
         if preis is None:
             continue
         chf = (ein * preis[0] + aus * preis[1]) / 1_000_000
-        summe["simulation" if art in simulation_arten else "bot"] += chf
+        summe += chf
+        je_art[art] = round(je_art.get(art, 0.0) + chf, 4)
     return {
-        "chf_bot": round(summe["bot"], 4),
-        "chf_simulation": round(summe["simulation"], 4),
-        "chf_gesamt": round(summe["bot"] + summe["simulation"], 4),
+        "chf_bot": round(summe, 4),
+        "chf_je_art": dict(sorted(je_art.items())),
         "token_ein": token["ein"],
         "token_aus": token["aus"],
         "aufrufe": aufrufe,
@@ -319,7 +322,8 @@ def kosten(conn, e, preise: dict) -> dict:
 
 
 def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
-           schritte, e, preise, dauer_s: float, notausgaenge: int = 0) -> dict:
+           schritte, e, preise, dauer_s: float, notausgaenge: int = 0,
+           sim_statistik: dict | None = None) -> dict:
     """Alle mechanischen Kennzahlen eines Laufs in einem Dict -- die Form, in
     der sie in den Bericht und nach ``verlauf.jsonl`` gehen."""
     gespeichert, zustimmung_gesamt = zustimmungen(zuege, markiert)
@@ -344,4 +348,8 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
     }
     zahlen.update(zitatlage(conn, chat_id, gezogene))
     zahlen.update(kosten(conn, e, preise))
+    zahlen.update(sim_statistik or {
+        "sim_aufrufe": 0, "sim_aufrufe_je_art": {},
+        "sim_token_ein": 0, "sim_token_aus": 0, "sim_fehler": 0,
+    })
     return zahlen

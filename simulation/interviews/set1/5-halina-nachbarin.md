@@ -1,47 +1,29 @@
 ---
 name: Halina
 set: 1
-themen: [Nachbarin, Sprache, Ankommen]
-sprachmerkmale: [warme Erzaehlweise, Abbrueche, polnische Einsprengsel]
+themen: [Treppenhaus, Mehl, gelber Sack, Klingel]
+sprachmerkmale: [kurze Saetze, polnische Einsprengsel, Neuansaetze mitten im Satz]
 zitate_soll:
-  - Sie hat an die Wand geklopft, dreimal, das hiess Kaffee
-  - Ich konnte nichts sagen und sie hat trotzdem geredet
-  - Wir haben uns vier Jahre lang nicht richtig verstanden
+  - Sie hatte Mehl in der Hand, ein Glas voll, kein Wort Polnisch.
+  - Ich habe drei Wochen niemanden gegruesst, weil ich Angst hatte vor der Antwort.
+  - Der gelbe Sack, das hat sie mir dreimal erklaert.
 ---
-Ewa: Wer war der erste Mensch hier, den du gekannt hast?
+Leyla: Halina, wenn du an die erste Zeit denkst, was kommt da zuerst?
 
-Halina: Frau Ritter. Von nebenan. Also, gekannt ist zu viel gesagt am Anfang.
-Sie hat an die Wand geklopft, dreimal, das hiess Kaffee. Und dann bin
-ich rueber. Das war jeden Dienstag und jeden Freitag, jahrelang.
+Halina: Das Treppenhaus. Wirklich, das Treppenhaus. Dieser Geruch, so, wie soll ich sagen, Bohnerwachs und irgendwas Saures dazu. Wir sind in den dritten gezogen, mein Mann, ich, die Kleine. Zwei Koffer und ein Karton mit Buechern, die keiner gelesen hat spaeter. Und ich stand da unten und habe die Namensschilder gelesen. Alle. Wie ein Fahrplan.
 
-Ewa: Wie habt ihr geredet?
+Leyla: Warum die Namensschilder?
 
-Halina: Gar nicht, am Anfang. Ich konnte nichts sagen und sie hat trotzdem
-geredet. Ohne Pause. Ueber ihren Sohn, ueber den Garten, ueber die Preise.
-Und ich habe genickt. Und irgendwann habe ich gemerkt, ich verstehe was. Nicht
-alles, aber - Garten. Sohn. Teuer. So faengt es an.
+Halina: Weil ich wissen wollte, wer ueber mir atmet. Nein, das klingt jetzt zu, zu poetisch. Ich wollte einfach wissen, ob da einer ist mit einem Namen, den ich aussprechen kann. War keiner. Ich habe drei Wochen niemanden gegruesst, weil ich Angst hatte vor der Antwort. Nicht vor dem Gruss. Vor der Antwort. Wenn die dann weiterreden und ich stehe da wie, no, wie ein Schrank.
 
-Ewa: Hat sie dir Deutsch beigebracht?
+Leyla: Und dann?
 
-Halina: Nicht mit Absicht. Sie hat nie langsam geredet, nie. Meine Kollegin
-hat immer langsam geredet, so, wie, mit, einem, Kind, und das ist schrecklich,
-davon lernst du nichts, davon lernst du nur, dass du dumm bist. Frau Ritter
-hat einfach geredet wie mit jedem. Das war das Geschenk, glaube ich.
+Halina: Dann hat es geklingelt. Nachmittags, halb vier vielleicht, die Kleine hat geschlafen. Frau Ritter von gegenueber. Sie hatte Mehl in der Hand, ein Glas voll, kein Wort Polnisch. Und ich dachte erst, sie will was von mir, sie beschwert sich, wir waren ja laut beim Einraeumen. Aber nein. Sie hat mir das Glas hingehalten und gesagt, ich haette bestimmt noch nichts im Schrank. Stimmte auch.
 
-Ewa: Habt ihr euch verstanden?
+Leyla: Habt ihr euch verstanden?
 
-Halina: Wir haben uns vier Jahre lang nicht richtig verstanden. Und trotzdem.
-Als mein Mann im Krankenhaus war, hat sie die Kinder genommen, einfach so, sie
-hat gesagt, geh du, und ich bin gegangen. Da braucht man keine Grammatik.
+Halina: Ueberhaupt nicht. Sie hat geredet und geredet, und ich habe genickt und nichts, gar nichts. Aber sie hat weitergeredet. Das war das Gute, verstehst du. Sie hat nicht langsamer gesprochen und nicht lauter. Einfach normal. Und dann hat sie mich runtergefuehrt zu den Tonnen. Der gelbe Sack, das hat sie mir dreimal erklaert. Dreimal. Ich habe es beim zweiten Mal kapiert, aber ich habe nichts gesagt, weil, ja, dann waere sie ja gegangen.
 
-Ewa: Lebt sie noch?
+Leyla: Und spaeter, seid ihr befreundet gewesen?
 
-Halina: Nein, sie ist neunundneunzig gestorben. Ich war bei der Beerdigung, und
-der Sohn hat mich nicht erkannt, und ich habe gesagt, ich bin die Nachbarin,
-und er hat gesagt, ach ja, die Polin. Naja. So war das.
-
-Ewa: Was ist von ihr geblieben?
-
-Halina: Das Klopfen. Ich klopfe manchmal noch, wenn ich in der Kueche stehe.
-An die Wand, dreimal. Da wohnt jetzt eine junge Familie, die hoeren das
-wahrscheinlich und denken, die Alte spinnt. Aber es tut gut.
+Halina: Befreundet ist ein grosses Wort. Wir haben Kaffee getrunken, ihrer war duenn wie Tee, furchtbar. Sie hat mir Woerter gegeben, so nebenbei, Rolladen, Hausmeister, Kehrwoche. Als sie ins Heim kam, hat mich niemand angerufen. Ich habe es am Schild gesehen. Das Schild war weg, und da war so ein heller Fleck. Ja. Das war so.

@@ -1,51 +1,27 @@
 ---
 name: Aynur
 set: 1
-themen: [Winter, Kaelte, Wohnung]
-sprachmerkmale: [kurze Saetze, Aufzaehlungen, trockener Humor]
+themen: [Stoffschuhe, Dunkelheit, Balkonwaesche, Heizung]
+sprachmerkmale: [Abbrueche, tuerkische Einsprengsel, kurze Nachschuebe]
 zitate_soll:
-  - Ich habe gedacht, das ist Asche, die vom Himmel faellt
-  - In der Wohnung war es kalt und draussen war es kalt
-  - Wir haben zu viert in einem Zimmer geschlafen
+  - Ich hab gedacht, die Sonne ist kaputt hier.
+  - Meine Schuhe waren aus Stoff, weisst du, so duenne Stoffschuhe.
+  - Die Waesche ist steif geworden auf dem Balkon, wie Bretter.
 ---
-Sibel: Woran erinnerst du dich beim ersten Winter?
+Leyla: Wann bist du angekommen?
 
-Aynur: An Schnee. Ich hatte vorher nie Schnee gesehen, nicht richtig.
-Ich habe gedacht, das ist Asche, die vom Himmel faellt. Ehrlich. Ich habe
-gedacht, irgendwo brennt was.
+Aynur: Ende Oktober. Da war es noch nicht richtig kalt, also fuer mich schon, aber die Leute sind mit offener Jacke rumgelaufen, und ich hab gedacht, ok, das geht schon. Und dann kam November.
 
-Sibel: Und dann?
+Leyla: Und dann?
 
-Aynur: Dann bin ich rausgegangen ohne Jacke. Weil ich es sehen wollte. Und
-nach zwei Minuten war ich wieder drin. Und dann habe ich verstanden, ah, das
-ist also Kaelte. Bei uns ist auch Winter, aber das ist ein anderer Winter.
-Bei uns geht die Kaelte weg, wenn die Sonne kommt. Hier kommt die Sonne nicht.
+Aynur: Dann war es halt vorbei. Ich hab das nicht gekannt so, diese Art von Kalt. Bei uns wird es auch kalt, ich komm aus der Naehe von Erzurum, da liegt Schnee bis April, aber das ist ein anderer Schnee, der ist trocken, der knirscht unter dem Fuss. Hier war alles nass. Das ist in die Schuhe gegangen, sofort, in einer Minute. Meine Schuhe waren aus Stoff, weisst du, so duenne Stoffschuhe. Mein Mann hat gesagt, kauf dir Stiefel, und ich hab gesagt, wofuer, im Fruehling fahren wir doch zurueck. Ja. Sind wir nicht.
 
-Sibel: Wie habt ihr gewohnt?
+Leyla: Und die Wohnung damals?
 
-Aynur: Schlecht. Also, es war eine Wohnung, es war ein Dach, ich sage nichts
-Schlechtes.
-In der Wohnung war es kalt und draussen war es kalt. Es gab
-einen Ofen im Wohnzimmer, Kohle, und der Rest war eben nicht geheizt. Im
-Schlafzimmer war Eis am Fenster. Von innen. Wir haben zu viert in einem
-Zimmer geschlafen, das war praktisch, so warm wird man von Menschen.
+Aynur: Zwei Zimmer, Hinterhaus, die Heizung war so ein Ofen, man musste die, wie heisst das, Kohle, ja, Kohle aus dem Keller holen. Ich hatte Angst vor dem Keller, ehrlich. Dunkel, und dieser Geruch. Ich hab manchmal gewartet, bis mein Mann kommt, und bis dahin bin ich mit der Jacke in der Wohnung gesessen. Mit Jacke, drinnen. Das erzaehl ich meinen Kindern und sie lachen.
 
-Sibel: Habt ihr euch beschwert?
+Aynur: Und das Licht, das war das Schlimmste. Um vier war es dunkel. Um vier. Ich hab gedacht, die Sonne ist kaputt hier. Ich bin morgens ans Fenster und es war grau und mittags war es grau und dann war es schwarz. Ich hab nicht gewusst, wann ich kochen soll, weisst du, weil ich immer nach dem Licht gekocht hab, zuhause.
 
-Aynur: Bei wem? Der Vermieter war froh, dass er uns hatte, und wir waren
-froh, dass wir ihn hatten, und darueber redet man nicht. Mein Mann hat
-gesagt, das ist nur fuer den Anfang. Und ich habe gesagt, ja. Und dann waren
-wir sieben Jahre dort.
+Leyla: Hat dir jemand geholfen?
 
-Sibel: Was hast du vermisst?
-
-Aynur: Das Licht. Nicht das Essen, Essen kann man kochen, meine Nachbarin hat
-mir gezeigt, wo es Sachen gibt. Aber das Licht kannst du nicht kaufen. Im
-November wird es um vier dunkel und du denkst, jetzt ist der Tag vorbei, und
-dabei hat er noch gar nicht angefangen.
-
-Sibel: Und heute?
-
-Aynur: Heute habe ich Fussbodenheizung. Meine Enkelin lacht, weil ich immer
-Socken anhabe. Immer. Auch im Sommer. Sie sagt, Oma, es hat achtundzwanzig
-Grad. Und ich sage, ja, ich weiss. Aber die Fuesse wissen das nicht.
+Aynur: Die Frau von unten, Frau, ich sag jetzt Frau Bertram, ich weiss den Namen nicht mehr genau. Die hat mir gezeigt, wie man die Waesche macht im Winter. Weil ich hab sie raus auf den Balkon gehaengt, wie immer. Die Waesche ist steif geworden auf dem Balkon, wie Bretter. Ich hab ein Hemd genommen und es stand von allein. Ich hab geweint und gelacht, beides. Sie hat nur gesagt, Nein, nein, drinnen, ueber den Ofen. Aber sie hat nicht gelacht ueber mich. Das weiss ich noch.

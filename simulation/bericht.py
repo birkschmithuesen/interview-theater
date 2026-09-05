@@ -282,12 +282,15 @@ def baue(ergebnis, zahlen: dict, schritte, kopfdaten: dict) -> str:
         f"- Mischung: {kopfdaten['mischung']}, Seed {kopfdaten['seed']}",
         "- Interviews: " + ", ".join(i.kennung for i in ergebnis.gezogene),
         "- Stimmen: " + ", ".join(f"{p.name} ({p.profil})" for p in ergebnis.personen),
-        f"- Modelle: {kopfdaten['llm_modell']} (Gespraech, Verdichter, Szene, "
-        f"Stimmen), {kopfdaten['erkenner_modell']} (Erkenner, Journal, Richter)",
+        f"- Modelle Bot: {kopfdaten['llm_modell']} (Gespraech, Verdichter, "
+        f"Szene), {kopfdaten['erkenner_modell']} (Erkenner, Journal)",
+        f"- Modell Simulation: {kopfdaten['sim_modell']} (Stimmen, Richter, "
+        "Abonnement -- kostet je Aufruf nichts)",
         f"- git-HEAD: {kopfdaten['git']}",
-        f"- Dauer: {zahlen['dauer_s']:.0f} s, Kosten Bot {zahlen['chf_bot']:.4f} CHF, "
-        f"Simulation {zahlen['chf_simulation']:.4f} CHF "
-        f"({zahlen['aufrufe']} Aufrufe, Preise Stand {kopfdaten['preise_stand']})",
+        f"- Dauer: {zahlen['dauer_s']:.0f} s, Kosten Bot {zahlen['chf_bot']:.4f} CHF "
+        f"({zahlen['aufrufe']} Aufrufe, Preise Stand {kopfdaten['preise_stand']}); "
+        f"Simulation {zahlen['sim_aufrufe']} Aufrufe, "
+        f"{zahlen['sim_token_ein']}/{zahlen['sim_token_aus']} Token ein/aus",
         "",
         "## Kennzahlen",
         "",
@@ -321,6 +324,7 @@ def verlaufszeile(zahlen: dict, ergebnis, kopfdaten: dict) -> dict:
         "git": kopfdaten["git"],
         "llm_modell": kopfdaten["llm_modell"],
         "erkenner_modell": kopfdaten["erkenner_modell"],
+        "sim_modell": kopfdaten["sim_modell"],
         "noten_median": statistics.median(noten) if noten else None,
         "noten_summe": sum(noten) if noten else None,
         "szene": {k: ergebnis.szenen_urteil.get(k) for k in richter.SZENEN_KRITERIEN},

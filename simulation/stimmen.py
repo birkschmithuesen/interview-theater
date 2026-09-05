@@ -1,4 +1,4 @@
-"""Die simulierten Teilnehmerinnen: drei Sprachprofile, gespielt von Kimi.
+"""Die simulierten Teilnehmerinnen: drei Sprachprofile, gespielt von Claude.
 
 Drei Profile als System-Prompts (``simulation/stimmen/*.md``) --
 **knapp**, **ausschweifend**, **skeptisch**. Ein Lauf hat drei Personen, eine
@@ -12,10 +12,11 @@ ausdruecklich **nicht** den Arbeitsstand aus der Datenbank: eine
 Teilnehmerin sieht nur, was im Chat steht -- und ob der Bot ihr sagt, was er
 sich gemerkt hat, ist genau die Frage, die der Lauf misst.
 
-Reasoning aus (Vorgabe von ``LLM.schema``): die Stimme soll schnell und
-unbedacht antworten, wie ein Mensch am Handy. Ein nachdenkendes Modell
-schreibt die glatteren, kooperativeren Saetze -- und genau die Kooperation
-waere hier der Messfehler.
+**Nicht das Modell des Bots.** Die Stimmen laufen ueber ``simulation/claude.py``
+(Opus am lokalen Proxy), nicht ueber Infomaniak: der Bot ist der Prueflung,
+und ein Prueflung, der zugleich seine eigenen Teilnehmerinnen spielt, misst
+vor allem sich selbst. Nebeneffekt, aber kein unwichtiger: die Stimmen kosten
+damit nichts, und ein Lauf darf so viele Nachrichten haben, wie er braucht.
 """
 
 from __future__ import annotations
@@ -51,19 +52,15 @@ NAMEN = {
 #: das Sammeln in ``ablauf.bearbeite`` ueberhaupt erst auf die Probe stellt.
 P_ZWEITE_STIMME = 0.3
 
-#: Jedes Objekt braucht ``additionalProperties: false`` und ein ``required``
-#: mit allen Eigenschaften, sonst lehnt Infomaniak den erzwungenen Modus ab
-#: (AGENTS.md 'Die Fallen'). Ein einziges Feld: die Nachricht.
-SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["nachricht"],
-    "properties": {"nachricht": {"type": "string"}},
-}
-
-#: Art dieses Aufrufs in der Tabelle ``aufruf`` -- damit die Kostenrechnung
-#: die Stimmen vom Bot trennen kann (``kennzahlen.kosten``).
+#: Art dieses Aufrufs in der Statistik des Simulationsklienten
+#: (``claude.Statistik``) -- damit der Bericht Stimmen und Richter getrennt
+#: ausweisen kann.
 ART = "stimme"
+
+#: Ausgabebudget einer Stimme. Eine Telegram-Nachricht, auch eine
+#: ausschweifende, bleibt deutlich darunter; der Deckel faengt nur den Fall
+#: ab, dass das Modell ins Erzaehlen kommt.
+MAX_TOKENS = 600
 
 _RAHMEN = (
     "Ihr entwickelt in einem Workshop ein Theaterstueck aus Interviews mit "
@@ -150,16 +147,33 @@ def baue_nutzertext(person: Person, verlauf: list[dict], ziel: str) -> str:
     return "\n".join(zeilen)
 
 
-def sprich(klm, e, person: Person, verlauf: list[dict], ziel: str) -> str:
+def saeubere(text: str, name: str) -> str:
+    """Raeumt weg, was das Modell trotz Anweisung gern voranstellt: den
+    eigenen Namen als Sprecherpraefix und Anfuehrungszeichen um die ganze
+    Nachricht.
+
+    Ohne das ginge beides in den Chat -- und die Kennzahl ``namensanrede``
+    zaehlte anschliessend den Bot dafuer ab, dass er zurueckspiegelt, was die
+    Simulation selbst hineingeschrieben hat."""
+    nackt = (text or "").strip()
+    praefix = f"{name}:"
+    if nackt.lower().startswith(praefix.lower()):
+        nackt = nackt[len(praefix):].lstrip()
+    if len(nackt) >= 2 and nackt[0] in "\"'„»" and nackt[-1] in "\"'“«":
+        nackt = nackt[1:-1].strip()
+    return nackt
+
+
+def sprich(sim, person: Person, verlauf: list[dict], ziel: str) -> str:
     """Laesst eine Stimme eine Nachricht schreiben und liefert deren Text.
 
-    Modell: das Gespraechsmodell des Betriebs (``e.llm_modell``, Kimi) --
-    nicht gemma: die Stimmen sollen schreiben wie Menschen, nicht
-    klassifizieren. Ein leeres Ergebnis liefert einen leeren String; der
+    ``sim`` ist der Simulationsklient (``simulation/claude.py``), nicht der
+    Bot-Klient: eine Teilnehmerin wird nicht von dem Modell gespielt, das
+    gerade geprueft wird. Ein leeres Ergebnis liefert einen leeren String; der
     Aufrufer entscheidet, ob er den Schritt damit als gescheitert vermerkt
     (``lauf.py``)."""
-    ergebnis = klm.schema(
-        None, person.system, baue_nutzertext(person, verlauf, ziel), SCHEMA, ART,
-        modell=e.llm_modell,
+    text = sim.text(
+        person.system, baue_nutzertext(person, verlauf, ziel), ART,
+        max_tokens=MAX_TOKENS,
     )
-    return (ergebnis.get("nachricht") or "").strip()
+    return saeubere(text, person.name)

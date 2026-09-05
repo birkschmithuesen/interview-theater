@@ -1,54 +1,29 @@
 ---
 name: Sevil
 set: 3
-themen: [Erste Liebe, Heimlichkeit, Brief]
-sprachmerkmale: [zoegernde Saetze, Lachen, Abbrueche]
+themen: [Spiegel, Bushaltestelle, Aermel, Turnhalle]
+sprachmerkmale: [tuerkische Einsprengsel, Abbrueche, Wiederholungen]
 zitate_soll:
-  - Wir haben uns am Brunnen getroffen und nicht mal die Hand gehalten
-  - Ich habe den Brief in meinem Schuh versteckt
-  - Er heisst heute noch so, in meinem Kopf, nur mit dem Vornamen
+  - Zu Hause war der Spiegel im Flur, ganz klein und fleckig.
+  - Er hat gesagt, meine Haende sind kalt wie Fensterglas.
+  - Ich habe mich im Schaufenster gesehen und bin erschrocken.
 ---
-Aysel: Darf ich dich was Privates fragen?
+Leyla: Woran denkst du, wenn ich sage: erste Liebe?
 
-Sevil: Frag.
+Sevil: Ay, sofort an den Flur. Nicht an ihn, an den Flur, das ist komisch, oder. Zu Hause war der Spiegel im Flur, ganz klein und fleckig. Und ich stand davor, ich war fuenfzehn, und ich habe versucht, mich zu sehen wie er mich sieht. Yani, das geht ja nicht. Aber ich habe es probiert, jeden Tag, mit dem Kopf so schief.
 
-Aysel: Deine erste Liebe.
+Leyla: Und wie hat er dich gesehen?
 
-Sevil: Oh. Ja. Also - er hiess Kemal und er war zwei Jahre aelter und er hat
-im Sommer bei seinem Onkel gearbeitet. Wir haben uns am Brunnen getroffen und
-nicht mal die Hand gehalten. Nie. Das ganze Jahr nicht. Heute lachen die
-Jungen darueber.
+Sevil: Weiss ich nicht. Er hat mal was gesagt ueber meine Haende. Er hat gesagt, meine Haende sind kalt wie Fensterglas. Und danach habe ich zwei Jahre lang meine Haende ... also ich habe sie in den Aermeln versteckt, weisst du, so mit den Fingern in den Bund. Mache ich bis heute, wenn ich nervoes bin. Ein Satz war das. Ein Satz nur, und der sitzt in den Aermeln.
 
-Aysel: Wusste jemand davon?
+Leyla: Wo habt ihr euch getroffen?
 
-Sevil: Meine Cousine. Die hat aufgepasst. Sie stand ein Stueck weiter und hat
-gehustet, wenn jemand kam. Das war unser Zeichen. Sie hustet heute noch, wenn
-sie mich aergern will, mit sechzig.
+Sevil: Bushaltestelle, wo sonst. Die Linie zum Schwimmbad, egal welche. Wir sind nie eingestiegen, wir sind einfach da gestanden, eine Stunde, zwei. Und im Winter hat meine Mutter gesagt, zieh die dicke Jacke an, du gehst raus wie ein Sack, und ich - nein. Ich bin gefroren fuer nichts. Fuer ein Bild von mir.
 
-Aysel: Was ist daraus geworden?
+Leyla: Ein Bild?
 
-Sevil: Nichts. Er sollte eine andere heiraten, das war lange abgemacht, und
-ich bin nach Deutschland. Er hat mir einen Brief gegeben, am letzten Tag, und
-ich habe ihn nicht gelesen bis Muenchen. Ich habe den Brief in meinem Schuh
-versteckt, wegen meinem Bruder. Zwei Tage im Schuh, der war ganz kaputt
-danach.
+Sevil: Ja, so ein ... in der Turnhalle hingen diese Plakate, Maedchen beim Volleyball, alle so lang. Und ich war nicht lang, ich war rund, und rund war damals falsch. In der Umkleide habe ich mich mit dem Ruecken zur Wand ausgezogen. Ich habe mich im Schaufenster gesehen und bin erschrocken. Jedes Mal. Nicht weil da was Schlimmes war, sondern weil ich mich nicht erkannt habe, verstehst du, das war so ein fremdes Maedchen mit meiner Tasche.
 
-Aysel: Was stand drin?
+Leyla: Und heute?
 
-Sevil: Das sage ich nicht. Nein. Also - es war nichts Grosses. Es war ein
-Gedicht, das er nicht selber geschrieben hat, das habe ich spaeter gemerkt.
-Aber egal.
-
-Aysel: Hast du ihn wiedergesehen?
-
-Sevil: Einmal, auf einer Hochzeit, neunzehnhundertzweiundneunzig. Er war dick
-geworden und hatte vier Kinder und wir haben ueber das Wetter geredet. Und
-dann bin ich aufs Klo und habe geweint, nicht wegen ihm, ehrlich nicht wegen
-ihm. Wegen dem Maedchen am Brunnen.
-
-Aysel: Weiss dein Mann davon?
-
-Sevil: Nein. Wozu. Mein Mann ist ein guter Mann, wir haben achtunddreissig
-Jahre. Aber trotzdem.
-Er heisst heute noch so, in meinem Kopf, nur mit dem Vornamen. So
-ein Ding hat jede Frau. Frag mal rum.
+Sevil: Heute, ich weiss nicht. Meine Tochter ist sechzehn, die steht jetzt im Flur. Ich sage nichts. Was soll ich sagen, ich habe ja auch nicht gehoert damals. Manchmal denke ich, der Junge war eigentlich nett. Er hat das nicht boese gemeint mit den Haenden, glaube ich. Aber ich habe es genommen und daraus ein ganzes ... ja. Ein ganzes Haus gebaut, und dann bin ich da eingezogen.

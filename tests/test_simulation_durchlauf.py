@@ -16,7 +16,7 @@ import json
 import pytest
 
 from interview_theater import einstellungen, llm
-from simulation import bericht, material, skript, stimmen
+from simulation import bericht, claude, material, skript, stimmen
 
 from scripts import simulation as sim
 
@@ -49,7 +49,7 @@ ERKENNER = (
 )
 
 
-def _stimme(nutzer: str) -> dict:
+def _stimme(nutzer: str) -> str:
     """Antwortet auf das **Ziel** des Schritts, nicht auf den Chatverlauf.
 
     Der Verlauf steht im selben Nutzertext und enthaelt die Saetze aller
@@ -58,8 +58,8 @@ def _stimme(nutzer: str) -> dict:
     _, _, ziel = nutzer.partition(stimmen._ZIEL_KOPF)
     for stichwort, antwort in STIMME:
         if stichwort in ziel:
-            return {"nachricht": antwort}
-    return {"nachricht": "ok"}
+            return antwort
+    return "ok"
 
 
 def _neue_nachrichten(nutzer: str) -> str:
@@ -96,8 +96,8 @@ def _verdichter(nutzer: str) -> dict:
     }
 
 
-def _richter(schema: dict) -> dict:
-    if "stimmen_unterscheidbar" in schema["properties"]:
+def _richter(nutzer: str) -> dict:
+    if "stimmen_unterscheidbar" in nutzer:
         return {"szene_stimmt_zur_planung": 2, "stimmen_unterscheidbar": 2,
                 "satz": "Ort und Figuren stimmen."}
     return {
@@ -126,16 +126,12 @@ def durchlauf(monkeypatch, tmp_path):
 
     def falsches_schema(self, chat_id, system, nutzer, schema, art,
                         modell=None, temperature=None):
-        if art == "stimme":
-            return _stimme(nutzer)
         if art == "erkenner":
             return _erkenner(nutzer, figuren)
         if art == "journal":
             return {"eintraege": []}
         if art == "verdichter":
             return _verdichter(nutzer)
-        if art == "richter":
-            return _richter(schema)
         return {"antwort": "Erzaehlt mir mehr davon."}
 
     def falsche_prosa(self, chat_id, system, nutzer, art, max_tokens=None,
@@ -143,9 +139,29 @@ def durchlauf(monkeypatch, tmp_path):
         return ("TITEL: Am Bahnhof\nKURZ: Zwei Frauen warten\n\n"
                 "MERYEM: Es ist kalt.\nFERZAN: Ja. Sehr.")
 
+    class SimAttrappe:
+        """Stimmen und Richter -- der lokale Proxy, ohne Netz."""
+
+        modell = "claude-opus-5"
+
+        def __init__(self):
+            self.statistik = claude.Statistik()
+
+        def text(self, system, nutzer, art="sim", max_tokens=None):
+            self.statistik.buche(art, 10, 5, True)
+            return _stimme(nutzer)
+
+        def json_objekt(self, system, nutzer, art="sim", max_tokens=None):
+            self.statistik.buche(art, 10, 5, True)
+            return _richter(nutzer)
+
+        def schliesse(self):
+            pass
+
     monkeypatch.setattr(sim.einstellungen, "laden", falsche_einstellungen)
     monkeypatch.setattr(llm.LLM, "schema", falsches_schema)
     monkeypatch.setattr(llm.LLM, "prosa", falsche_prosa)
+    monkeypatch.setattr(sim.claude, "Claude", lambda *a, **k: SimAttrappe())
     monkeypatch.setattr(sim.material, "waehle", lambda **k: gezogene)
     monkeypatch.setattr(bericht, "LAEUFE", tmp_path / "laeufe")
     monkeypatch.setattr(bericht, "BERICHTE", tmp_path / "berichte")

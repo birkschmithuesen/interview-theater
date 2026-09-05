@@ -160,12 +160,13 @@ def bau_update(update_id: int, message_id: int, absender: str, text: str,
 class Lauf:
     """Fuehrt ein Skript einmal durch. Ein Objekt je Lauf."""
 
-    def __init__(self, conn, tg, klm, e, *, gezogene, seed: int,
+    def __init__(self, conn, tg, klm, e, sim, *, gezogene, seed: int,
                  schritte=skript.SCHRITTE):
         self.conn = conn
         self.tg = tg
-        self.klm = klm
+        self.klm = klm          # der Bot-Klient (Infomaniak) -- der Prueflung
         self.e = e
+        self.sim = sim          # der Simulationsklient (Claude) -- die Stimmen
         self.gezogene = list(gezogene)
         self.schrittliste = list(schritte)
         self.zufall = random.Random(seed)
@@ -242,7 +243,7 @@ class Lauf:
         zug = self._zug()
         texte = []
         for person in stimmen.waehle_sprecher(self.zufall, self.personen):
-            text = stimmen.sprich(self.klm, self.e, person, self._verlauf(), ziel)
+            text = stimmen.sprich(self.sim, person, self._verlauf(), ziel)
             if text:
                 texte.append((person.name, person.profil, text))
         self._schicke(zug, texte)
@@ -500,17 +501,17 @@ def protokoll(ergebnis: Ergebnis, schritte) -> str:
     return "\n".join(teile)
 
 
-def bewerte(klm, e, ergebnis: Ergebnis, schritte) -> None:
+def bewerte(sim, ergebnis: Ergebnis, schritte) -> None:
     """Laesst den Richter jeden Abschnitt und -- wenn es eine gibt -- die
     Szene bewerten. Schreibt die Urteile in ``ergebnis``."""
     for schritt in schritte:
         text = abschnitt(ergebnis.zuege, schritt.schluessel)
         ziel = ergebnis.ziele.get(schritt.schluessel) or schritt.ziel
         ergebnis.urteile[schritt.schluessel] = richter.bewerte_abschnitt(
-            klm, e, schritt.titel, ziel, text
+            sim, schritt.titel, ziel, text
         )
     if ergebnis.szene_text:
         planung = abschnitt(ergebnis.zuege, "szene")
         ergebnis.szenen_urteil = richter.bewerte_szene(
-            klm, e, planung, ergebnis.szene_text
+            sim, planung, ergebnis.szene_text
         )

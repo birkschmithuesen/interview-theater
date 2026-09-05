@@ -1,54 +1,29 @@
 ---
 name: Fatma
 set: 2
-themen: [Erster Job, Schicht, Haende]
-sprachmerkmale: [kurze Saetze, Zahlen, Abbrueche]
+themen: [Lohntuete, Kragen, Naehmaschine, Fabrikhalle]
+sprachmerkmale: [Abbrueche, tuerkische Einsprengsel, Wiederholungen]
 zitate_soll:
-  - Am ersten Tag habe ich neun Stunden gestanden und nichts gesagt
-  - Die Vorarbeiterin hiess Frau Baum und sie hat mich Fatima genannt
-  - Meine Haende waren nach einem Monat nicht mehr meine Haende
+  - Das erste Geld habe ich meinem Vater auf den Tisch gelegt.
+  - Die Halle war so heiss, dass meine Brille immer beschlagen ist.
+  - Ich habe drei Wochen lang nur Kragen genaeht, nichts anderes.
 ---
-Nuray: Was war dein erster Job hier?
+Leyla: Erzaehl mal, wie das war mit deiner ersten Arbeit.
 
-Fatma: Konservenfabrik. Bohnen. Also, nicht nur Bohnen, aber im ersten Jahr
-Bohnen. Man steht am Band und man nimmt die schlechten raus. Das ist alles.
-Acht Stunden, mit Pause neun.
+Fatma: Ja also, ich war sechzehn, nein, warte, fast siebzehn. Meine Mutter hat gesagt, du gehst nicht, du bleibst, aber mein Vater, der hat halt gerechnet. Der hat immer gerechnet, abends, mit so einem kleinen Block. Und dann hat er gesagt, gut, sie geht. Das war eine Naeherei, drei Strassen weiter, so ein flaches Gebaeude, gelb.
 
-Nuray: Wie war der erste Tag?
+Leyla: Und was hast du da gemacht?
 
-Fatma: Am ersten Tag habe ich neun Stunden gestanden und nichts gesagt. Ich
-konnte ja nichts sagen. Ich habe geguckt, was die anderen machen, und das
-gleiche gemacht. Wenn die Pause war, sind alle gegangen, und ich bin
-mitgegangen, weil ich nicht wusste, wohin sonst.
+Fatma: Kragen. Nur Kragen. Ich habe drei Wochen lang nur Kragen genaeht, nichts anderes. Ich dachte, das ist ein Witz, weisst du, ich dachte, morgen zeigen sie mir was anderes. Aber nein. Kragen, Kragen, Kragen. Die Frau neben mir, Zeynep hiess sie, die hat gelacht und gesagt, sei froh, ich mache seit vier Jahren Aermel. Vier Jahre! Die Halle war so heiss, dass meine Brille immer beschlagen ist. Ich habe sie dann irgendwann abgenommen und, ja, halt nach Gefuehl genaeht. Geht auch. Geht erstaunlich gut sogar.
 
-Nuray: Wie waren die Leute?
+Leyla: Hattest du Angst am Anfang?
 
-Fatma: Unterschiedlich. Die Vorarbeiterin hiess Frau Baum und sie hat mich
-Fatima genannt. Immer Fatima. Ich habe zweimal gesagt, Fatma, und dann habe
-ich es gelassen. Drei Jahre Fatima. Das ist kein grosses Unrecht, ich weiss,
-aber es ist halt jeden Tag.
+Fatma: Angst, nein, eher... ich weiss nicht. Ich habe wenig verstanden. Der Meister hat immer geschrien, aber er hat alle angeschrien, nicht nur mich, das habe ich dann gemerkt und dann war es okay. Am schlimmsten war die Pause, ehrlich. Weil alle geredet haben und ich sass da mit meinem Brot. Cok garip, so komisch, du bist mitten unter Leuten und trotzdem allein. Aber Zeynep hat mich dann mitgenommen an ihren Tisch, und ab da war das anders.
 
-Nuray: Und die anderen Frauen?
+Leyla: Und der erste Lohn?
 
-Fatma: Die waren gut. Eine, die Rosa, die hat mir gezeigt, wie man schneller
-sortiert, mit zwei Haenden gleichzeitig, weil sonst schaffst du die Norm
-nicht. Die Norm war das Wichtigste. Wenn du die Norm nicht schaffst, kriegst
-du eine andere Schicht, und die andere Schicht war nachts.
+Fatma: Freitag. In so einer braunen Tuete, mit einem Zettel drin. Ich bin nach Hause gelaufen, nicht gegangen, gelaufen. Das erste Geld habe ich meinem Vater auf den Tisch gelegt. Er hat nichts gesagt. Er hat nur genickt und die Tuete aufgemacht und nachgezaehlt. Meine Mutter hat geweint, warum weiss ich bis heute nicht. Und dann, spaeter am Abend, hat mein Vater mir zwanzig Mark zurueckgegeben und gesagt, das ist deins, kauf dir was. Ich habe mir Schuhe gekauft. Rote. Voellig unpraktisch, aber egal, die habe ich jahrelang gehabt.
 
-Nuray: Was hat die Arbeit mit dir gemacht?
+Leyla: Und danach?
 
-Fatma: Meine Haende waren nach einem Monat nicht mehr meine Haende. Von der
-Lauge und von dem kalten Wasser. Alles rissig, hier, und der Ehering ging
-nicht mehr ab. Meine Mutter hat mich Jahre spaeter gesehen und hat gesagt,
-was hast du mit den Haenden gemacht. Und ich habe gesagt, gearbeitet, Mama.
-
-Nuray: Warst du stolz?
-
-Fatma: Ja. Doch. Das erste Geld, das habe ich gehalten und gedacht, das ist
-meins. Ich habe im Leben vorher nie eigenes Geld gehabt. Ich habe meinem
-Bruder was geschickt und mir Schuhe gekauft, richtige Schuhe, keine billigen.
-Die habe ich neun Jahre getragen.
-
-Nuray: Wuerdest du es wieder machen?
-
-Fatma: Was heisst wieder. Man macht es ja nicht, weil man will.
+Fatma: Danach war ich halt jemand, der arbeitet. Das aendert was im Haus, weisst du. Nicht viel, aber was.

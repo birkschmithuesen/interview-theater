@@ -1,49 +1,29 @@
 ---
 name: Marisol
 set: 3
-themen: [Fotos, Erinnerung, Beweise]
-sprachmerkmale: [erzaehlender Ton, Abbrueche, spanische Einsprengsel]
+themen: [Keksdose, Zahnluecke, Passfoto, Wohnzimmerwand]
+sprachmerkmale: [spanische Einsprengsel, Abbrueche mitten im Satz, haeufiges 'ne']
 zitate_soll:
-  - Wir haben uns fuer die Fotos schoener gemacht, als wir waren
-  - Auf jedem Foto von damals lache ich, und ich weiss noch, wie es war
-  - Ich habe zwei Schuhkartons und darin ist mein halbes Leben
+  - Auf dem Foto habe ich eine Zahnluecke und ein gelbes Kleid an.
+  - Meine Mutter hat die Bilder in eine Keksdose getan, nicht ins Album.
+  - Ich sehe da ein Maedchen, das nicht weiss, dass es bald weg muss.
 ---
-Pilar: Du hast viele Fotos mitgebracht.
+Leyla: Du hast gesagt, du wolltest was mitbringen.
 
-Marisol: Ich habe zwei Schuhkartons und darin ist mein halbes Leben. Nicht
-sortiert, nichts. Ich fange jedes Jahr an zu sortieren und dann sitze ich vier
-Stunden da und habe nichts sortiert, weil man jedes Foto anguckt.
+Marisol: Ja, hier, warte, das ist... ich hab die alle noch. Meine Mutter hat die Bilder in eine Keksdose getan, nicht ins Album. Weil, Album war zu schwer, sagt sie immer, aber ich glaub, sie hat einfach keine Zeit gehabt, ne, sie hat ja gepackt und gepackt. Und die Dose war so blau mit Blumen drauf, aus Zinn, die riecht heute noch nach... keine Ahnung nach was. Nach Zuhause halt, das klingt bloed.
 
-Pilar: Was sieht man auf den Fotos?
+Leyla: Wie alt bist du da?
 
-Marisol: Feste. Immer Feste. Das ist das Komische - wir haben zwoelf Jahre in
-zwei Zimmern gewohnt, und davon gibt es kein einziges Bild. Von der Kueche
-nicht, von dem Bad auf dem Flur nicht. Nur Hochzeiten, Taufen, Ausfluege. Wir
-haben uns fuer die Fotos schoener gemacht, als wir waren.
+Marisol: Sieben. Sechs oder sieben. Auf dem Foto habe ich eine Zahnluecke und ein gelbes Kleid an. Das Kleid war von meiner Cousine vorher, und danach war es von der Kleinen von der Nachbarin, so ging das. Und ich steh da vor der Tuer und halt so einen Hund fest, der gar nicht uns gehoert hat. Der kam einfach immer.
 
-Pilar: Fuer wen war das?
+Leyla: Und wenn du das heute anschaust?
 
-Marisol: Fuer meine Mutter. Die Fotos sind ja gefahren, nicht wir. Wir haben
-sie hingeschickt, alle drei Monate, mit dem Brief. Und du schickst kein Bild
-von dem Schimmel an der Wand, du schickst ein Bild, wo alle lachen und der
-Tisch voll ist. Und dann denkt sie, es geht uns gut, und dann geht es ihr
-auch gut.
+Marisol: Mmh. Also erst finde ich es lustig, wegen den Haaren, meine Mutter hat mir immer diese... diese ganz strengen Zoepfe, mit Wasser angeklatscht, damit nichts absteht. Und dann, wenn ich laenger draufschaue, dann wird es anders. Ich sehe da ein Maedchen, das nicht weiss, dass es bald weg muss. Das ist so ein komisches Wissen, das ich habe und sie nicht, ne.
 
-Pilar: Habt ihr gelogen?
+Leyla: Gibt es auch Fotos von der Zeit danach?
 
-Marisol: Ja. Nein. Wir haben - also, wir haben ihr das Gute geschickt, das ist
-ja nicht gelogen, das Gute war ja auch da. Aber trotzdem.
-Auf jedem Foto von damals lache ich, und ich weiss noch, wie es war.
-Auf dem einen, das ist der Sommer
-achtundsiebzig, da haben wir uns gerade gestritten, ganz schlimm, mein Mann
-und ich, und dann kommt der Fotograf und wir stehen so.
+Marisol: Fast nicht. Also, das erste Jahr hier, da gibt es ein Passfoto und sonst nichts. Passfoto aus so einem Automaten am Bahnhof, vier Stueck, und auf allen vieren gucke ich, als ob mich jemand ausschimpft. Ich hatte einen Rollkragen an, viel zu gross. Wir haben ja keine Kamera gehabt, und man macht auch keine Fotos, wenn... wenn das Zimmer so aussieht, ne. Meine Mutter wollte das nicht.
 
-Pilar: Zeigst du die Fotos deinen Enkeln?
+Leyla: Und heute, haengt was bei dir?
 
-Marisol: Ja, aber sie fragen nach den falschen. Sie zeigen auf das Kleid und
-fragen, Oma, war das Mode. Und ich will erzaehlen, wo wir da hingefahren sind,
-und sie sind schon zwei Fotos weiter.
-
-Pilar: Was wuerdest du heute fotografieren?
-
-Marisol: Die Kueche. Endlich mal die Kueche.
+Marisol: Ja, jetzt schon. Ich hab eine ganze Wohnzimmerwand voll, mein Mann sagt, das ist wie so ein Museum. Aber ich brauch das. Meine Tochter geht da vorbei und fragt nichts, sie kennt die Gesichter einfach. Das ist mir wichtig, dass sie fragt nichts. Verstehst du? Bei mir war alles Fragen, immer, wer ist das, wer ist das.

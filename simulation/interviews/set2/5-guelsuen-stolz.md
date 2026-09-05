@@ -1,47 +1,27 @@
 ---
 name: Guelsuen
 set: 2
-themen: [Stolz, Laden, Kinder]
-sprachmerkmale: [feste Saetze, Aufzaehlungen, Trotz]
+themen: [Brotdose, Fuehrerschein, Schichtplan, Naehmaschine]
+sprachmerkmale: [tuerkische Einsprengsel, Wiederholungen, Abbrueche]
 zitate_soll:
-  - Ich habe achtzehn Jahre gespart und dann habe ich den Laden gekauft
-  - Mein Vater hat gesagt, ein Maedchen braucht keinen eigenen Namen an der Tuer
-  - Da stand mein Name, und darunter stand nichts von meinem Mann
+  - Ich habe elf Jahre lang Brote geschmiert um halb fuenf morgens.
+  - Den Fuehrerschein habe ich mit sechsundvierzig gemacht, heimlich, mit meinem eigenen Geld.
+  - Meine Tochter ist Ingenieurin und sie kocht schlechter als ich.
 ---
-Sevim: Erzaehl von dem Laden.
+Leyla: Guelsuen, worauf bist du stolz?
 
-Guelsuen: Der Laden. Ja. Ich habe achtzehn Jahre gespart und dann habe ich den
-Laden gekauft. Achtzehn Jahre. Jeden Monat was zur Seite, in einen Umschlag,
-und der Umschlag war unter der Waesche, weil ich keiner Bank getraut habe.
+Guelsuen: Oh. Stolz. Das ist so ein Wort, das sagt man ja nicht, weisst du, bei uns sagt man das nicht so laut. Meine Mutter hat gesagt, nazar degmesin, sonst kommt der boese Blick. Aber gut. Ich sag es trotzdem. Ich habe elf Jahre lang Brote geschmiert um halb fuenf morgens. Fuer drei Kinder, jeden Tag, und dann bin ich selber los, Schicht, Werk zwei, Band. Und ich habe kein einziges Mal, also kein einziges Mal, jemandem gesagt, ich kann nicht mehr.
 
-Sevim: Was fuer ein Laden?
+Leyla: Und die Arbeit im Werk?
 
-Guelsuen: Aenderungsschneiderei. Vier mal fuenf Meter, eine Maschine, ein
-Buegelbrett, ein Vorhang. Klein. Aber die Tuer war meine Tuer.
+Guelsuen: Das war... Anfang war schwer, klar. Ich konnte die Sprache nicht richtig, ich habe genickt, immer genickt, ja ja ja, und dann bin ich aufs Klo und habe geheult. Aber die Hand, die lernt schnell. Die Hand ist nicht dumm. Nach zwei Jahren war ich die, die die Neuen angelernt hat. Ich. Mit meinem Deutsch. Und der Meister, Herr Kroeger hiess der, der hat gesagt, Frau Yildiz, Sie sehen den Fehler bevor der Fehler da ist. Sowas vergisst man nicht.
 
-Sevim: Was hat deine Familie gesagt?
+Leyla: Hast du dir mal was fuer dich genommen?
 
-Guelsuen: Mein Vater hat gesagt, ein Maedchen braucht keinen eigenen Namen an
-der Tuer. Das hat er gesagt, als ich sechzehn war, wegen etwas ganz anderem,
-aber das ist mir geblieben, so ein Satz bleibt. Und als ich den Laden hatte,
-habe ich ihm ein Foto geschickt. Nur das Foto, ohne Brief. Von dem Schild.
+Guelsuen: Ja. Den Fuehrerschein habe ich mit sechsundvierzig gemacht, heimlich, mit meinem eigenen Geld. Mein Mann, Gott hab ihn selig, der war nicht dagegen, aber er haette gesagt, wozu, ich fahr dich doch. Und ich wollte nicht gefahren werden. Ich wollte selber. Erste Fahrt allein, ich bin bis zum Baumarkt und wieder zurueck, hab nichts gekauft, gar nichts, bin nur gefahren. Das war... ja.
 
-Sevim: Was stand auf dem Schild?
+Guelsuen: Und die Naehmaschine, die steht immer noch bei mir im Flur. Damit habe ich die Gardinen fuer die ganze Strasse genaeht, halbe Strasse, ueberall. Da kam Geld rein, das keiner gezaehlt hat ausser mir.
 
-Guelsuen: Mein Name. Da stand mein Name, und darunter stand nichts von meinem
-Mann. Das war das Wichtigste an dem ganzen Schild. Mein Mann hat sich gefreut,
-er ist ein guter Mann, er hat gesagt, jetzt bist du die Chefin. Aber er hat
-nicht verstanden, warum ich geweint habe.
+Leyla: Und die Kinder?
 
-Sevim: Wie lief es?
-
-Guelsuen: Gut. Zwoelf Jahre. Und dann kam der grosse Laden in die Strasse und
-dann kam Corona und dann war ich sechzig. Ich habe aufgehoert, bevor es
-schlecht wurde. Das war meine Entscheidung, das ist auch was wert.
-
-Sevim: Worauf bist du am meisten stolz?
-
-Guelsuen: Nicht auf den Laden. Auf meine Tochter, die sagt, Mama, ich mache
-das nicht so wie du, ich mache es anders. Das sagt sie mir ins Gesicht, ohne
-Angst. Ich haette das bei meinem Vater nie gekonnt. Also habe ich was richtig
-gemacht.
+Guelsuen: Meine Tochter ist Ingenieurin und sie kocht schlechter als ich. Das sag ich ihr auch, jedes Mal. Sie lacht dann. Der Grosse, der macht was mit Computer, ich hab es mir erklaeren lassen, dreimal, ich versteh es immer noch nicht. Aber sie rufen an. Sonntags, alle drei. Das ist... also wenn du fragst, worauf ich stolz bin, dann ist es nicht das Werk und nicht der Fuehrerschein. Es ist, dass sie anrufen und nichts wollen. Nur reden.

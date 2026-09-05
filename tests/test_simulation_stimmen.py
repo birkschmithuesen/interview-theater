@@ -69,31 +69,41 @@ def test_leerer_verlauf_wird_benannt_statt_weggelassen():
     assert "Der Chat ist noch leer" in text
 
 
-def test_sprich_nimmt_das_gespraechsmodell_und_liefert_die_nachricht():
-    gesehen = {}
+class SimAttrappe:
+    """Der Simulationsklient als Attrappe -- kein Netz, merkt sich den
+    Aufruf."""
 
-    class KLM:
-        def schema(self, chat_id, system, nutzer, schema, art, modell=None,
-                   temperature=None):
-            gesehen.update(art=art, modell=modell, system=system)
-            return {"nachricht": "  ja passt  "}
+    def __init__(self, antwort=""):
+        self.antwort = antwort
+        self.gesehen = {}
 
-    class E:
-        llm_modell = "kimi"
+    def text(self, system, nutzer, art="sim", max_tokens=None):
+        self.gesehen.update(art=art, system=system, nutzer=nutzer,
+                            max_tokens=max_tokens)
+        return self.antwort
 
+
+def test_sprich_nimmt_das_simulationsmodell_und_liefert_die_nachricht():
+    """Die Stimmen laufen NICHT ueber den Bot-Klienten: der Bot ist der
+    Prueflung, und ein Prueflung, der seine eigenen Teilnehmerinnen spielt,
+    misst vor allem sich selbst."""
+    sim = SimAttrappe("  ja passt  ")
     person = stimmen.Person("Jo", "knapp")
-    assert stimmen.sprich(KLM(), E(), person, [], "Ziel") == "ja passt"
-    assert gesehen["art"] == stimmen.ART
-    assert gesehen["modell"] == "kimi"
-    assert gesehen["system"] == stimmen.lade_profil("knapp")
+    assert stimmen.sprich(sim, person, [], "Ziel") == "ja passt"
+    assert sim.gesehen["art"] == stimmen.ART
+    assert sim.gesehen["system"] == stimmen.lade_profil("knapp")
 
 
 def test_leere_antwort_wird_zum_leeren_string():
-    class KLM:
-        def schema(self, *a, **k):
-            return {}
+    assert stimmen.sprich(SimAttrappe(""), stimmen.Person("Jo", "knapp"), [], "Z") == ""
 
-    class E:
-        llm_modell = "kimi"
 
-    assert stimmen.sprich(KLM(), E(), stimmen.Person("Jo", "knapp"), [], "Z") == ""
+def test_sprecherpraefix_und_anfuehrungszeichen_werden_abgeraeumt():
+    """Ohne Schema-Modus stellt das Modell gern den eigenen Namen voran --
+    und die Kennzahl ``namensanrede`` zaehlte den Bot anschliessend dafuer ab,
+    dass er zurueckspiegelt, was die Simulation hineingeschrieben hat."""
+    assert stimmen.saeubere("Jo: ja passt", "Jo") == "ja passt"
+    assert stimmen.saeubere('"ne, das war anders"', "Ines") == "ne, das war anders"
+    assert stimmen.saeubere("Ines: „warum eigentlich“", "Ines") == "warum eigentlich"
+    # Ein Doppelpunkt mitten im Satz ist kein Praefix.
+    assert stimmen.saeubere("also: das passt", "Jo") == "also: das passt"

@@ -15,10 +15,39 @@ from datetime import datetime, timezone
 import pytest
 
 from interview_theater import aufnahme, bot, einstellungen, llm, repo, szene, telegram
-from simulation import bericht, lauf, skript
+from simulation import bericht, claude, lauf, skript
 from simulation.attrappe import TelegramAttrappe
 
 from scripts import simulation as sim
+
+
+class ClaudeAttrappe:
+    """Der Simulationsklient ohne Netz.
+
+    Zwei Wege, wie im Ernstfall: ``text`` fuer die Stimmen, ``json_objekt``
+    fuer den Richter. Die Statistik wird mitgefuehrt, weil der Bericht sie
+    ausweist -- ein Lauf mit null Simulationsaufrufen waere ein Lauf, in dem
+    keine Stimme gesprochen hat."""
+
+    def __init__(self, text_antwort, urteil_fuer):
+        self.modell = "claude-opus-5"
+        self._text = text_antwort
+        self._urteil_fuer = urteil_fuer
+        self.statistik = claude.Statistik()
+        self.gesehen = []
+
+    def text(self, system, nutzer, art="sim", max_tokens=None):
+        self.gesehen.append(art)
+        self.statistik.buche(art, 100, 20, True)
+        return self._text
+
+    def json_objekt(self, system, nutzer, art="sim", max_tokens=None):
+        self.gesehen.append(art)
+        self.statistik.buche(art, 200, 50, True)
+        return self._urteil_fuer(nutzer)
+
+    def schliesse(self):
+        pass
 
 
 # --- Update-Dict ----------------------------------------------------------
@@ -113,7 +142,6 @@ def test_abschnitt_zeigt_kennungen_stimmen_und_bot():
 
 
 ANTWORTEN = {
-    "stimme": {"nachricht": "ja passt, nimm die so"},
     "gespraech": {"antwort": "Ich habe eure Begriffe. Soll ich sie festhalten?"},
     "journal": {"eintraege": []},
 }
@@ -131,8 +159,8 @@ def _erkenner_antwort(nutzer: str) -> dict:
     ]}
 
 
-def _richter_antwort(schema: dict) -> dict:
-    if "stimmen_unterscheidbar" in schema["properties"]:
+def _richter_antwort(nutzer: str) -> dict:
+    if "stimmen_unterscheidbar" in nutzer:
         return {"szene_stimmt_zur_planung": 2, "stimmen_unterscheidbar": 1,
                 "satz": "geht so"}
     return {
@@ -166,12 +194,13 @@ def attrappe(monkeypatch, tmp_path):
         gesehen.append({"art": art, "modell": modell})
         if art == "erkenner":
             return _erkenner_antwort(nutzer)
-        if art == "richter":
-            return _richter_antwort(schema)
         return ANTWORTEN[art]
+
+    sim_klient = ClaudeAttrappe("ja passt, nimm die so", _richter_antwort)
 
     monkeypatch.setattr(sim.einstellungen, "laden", falsche_einstellungen)
     monkeypatch.setattr(llm.LLM, "schema", falsches_schema)
+    monkeypatch.setattr(sim.claude, "Claude", lambda *a, **k: sim_klient)
     monkeypatch.setattr(bericht, "LAEUFE", tmp_path / "laeufe")
     monkeypatch.setattr(bericht, "BERICHTE", tmp_path / "berichte")
     monkeypatch.setattr(bericht, "VERLAUF", tmp_path / "berichte" / "verlauf.jsonl")
@@ -179,7 +208,7 @@ def attrappe(monkeypatch, tmp_path):
         sim, "_schritte",
         lambda ohne: (skript.schritt_fuer("begriffe"), skript.schritt_fuer("fragen")),
     )
-    return {"gesehen": gesehen, "tmp": tmp_path}
+    return {"gesehen": gesehen, "tmp": tmp_path, "sim": sim_klient}
 
 
 def test_mini_lauf_schreibt_bericht_und_json(attrappe, capsys):
@@ -223,12 +252,32 @@ def test_bericht_mit_pfad_landet_dort(attrappe, tmp_path):
     assert "## Kennzahlen" in ziel.read_text(encoding="utf-8")
 
 
-def test_mini_lauf_benutzt_beide_modelle(attrappe):
+def test_der_bot_laeuft_ueber_infomaniak_die_simulation_ueber_claude(attrappe):
+    """Die Trennlinie des Auftrags: alles, was der Bot tut, geht an
+    Infomaniak; Stimmen und Richter an den lokalen Proxy. Faellt sie, misst
+    der Simulator sein eigenes Modell mit."""
     sim.main(["--set", "2", "--seed", "1", "--ohne-szene"])
-    arten = {(g["art"], g["modell"]) for g in attrappe["gesehen"]}
-    assert ("stimme", "moonshotai/Kimi-K2.6") in arten
-    assert ("erkenner", "google/gemma-4-31B-it") in arten
-    assert ("richter", "google/gemma-4-31B-it") in arten
+    bot_arten = {(g["art"], g["modell"]) for g in attrappe["gesehen"]}
+    assert ("gespraech", None) in bot_arten
+    assert ("erkenner", "google/gemma-4-31B-it") in bot_arten
+    assert not any(art in {"stimme", "richter"} for art, _ in bot_arten)
+    assert {"stimme", "richter"} <= set(attrappe["sim"].gesehen)
+
+
+def test_die_verlaufszeile_weist_beide_seiten_getrennt_aus(attrappe):
+    """Kosten sind Bot-Kosten: der Simulationsklient laeuft ueber ein
+    Abonnement und kostet je Aufruf nichts -- seine Aufrufe stehen als Zahl
+    daneben, nicht als Betrag darin."""
+    sim.main(["--set", "1", "--seed", "3", "--ohne-szene"])
+    zeile = json.loads(
+        (attrappe["tmp"] / "berichte" / "verlauf.jsonl").read_text(
+            encoding="utf-8").splitlines()[0]
+    )
+    assert zeile["sim_modell"] == "claude-opus-5"
+    assert zeile["sim_aufrufe"] > 0
+    assert "stimme" in zeile["sim_aufrufe_je_art"]
+    assert "richter" in zeile["sim_aufrufe_je_art"]
+    assert "chf_simulation" not in zeile
 
 
 def test_der_lauf_fasst_die_betriebsdatenbank_nicht_an(attrappe):
@@ -318,8 +367,10 @@ def _zahlen(**abweichungen):
         "verdichtungen": 5, "themen": 15, "zitate_geprueft": 15,
         "zitate_soll": 15, "zitate_soll_gefunden": 12, "zitate_soll_vermisst": [],
         "interviews_soll": 5, "notausgaenge": 0,
-        "chf_bot": 0.4, "chf_simulation": 0.2, "chf_gesamt": 0.6,
+        "chf_bot": 0.4, "chf_je_art": {"gespraech": 0.3, "erkenner": 0.1},
         "token_ein": 10, "token_aus": 10, "aufrufe": 40,
+        "sim_aufrufe": 30, "sim_aufrufe_je_art": {"stimme": 22, "richter": 8},
+        "sim_token_ein": 100, "sim_token_aus": 20, "sim_fehler": 0,
     }
     grund.update(abweichungen)
     return grund

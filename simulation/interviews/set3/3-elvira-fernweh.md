@@ -1,49 +1,25 @@
 ---
 name: Elvira
 set: 3
-themen: [Fernweh, Dazwischen, Meer]
-sprachmerkmale: [lange Saetze, Bilder, Selbstwidersprueche]
+themen: [Plakat, Meer, Ruecken, Fotos]
+sprachmerkmale: [kurze Saetze, rumaenische Einsprengsel, direkte Anreden]
 zitate_soll:
-  - Ich habe Heimweh nach einem Ort, den es so nicht mehr gibt
-  - Wenn ich hinfahre, bin ich die Deutsche, und hier bin ich die andere
-  - Am besten geht es mir auf der Faehre
+  - Ich hab mir das ueber die Haut vorgestellt, nicht mit den Augen.
+  - Auf dem Plakat war es ja still, verstehst du, ein Plakat ist still.
+  - Ich seh nur eine Frau, die nasse Hosenbeine hat.
 ---
-Kata: Faehrst du oft zurueck?
+Leyla: Erzaehl doch mal, wie das angefangen hat mit diesem Ort.
 
-Elvira: Jedes Jahr, und jedes Jahr denke ich, dieses Mal bleibe ich laenger,
-und dann bin ich nach zehn Tagen unruhig. Das ist so eine Sache, die man
-keinem erklaeren kann.
-Ich habe Heimweh nach einem Ort, den es so nicht mehr gibt. Das Haus steht, das Dorf steht, aber die Leute von damals sind weg
-oder alt oder tot, und die Kinder reden anders.
+Elvira: Bei meiner Tante im Flur hing ein Plakat. Ein Meer, ganz blau, mit so Felsen dran. Ich war sieben, acht, so rum. Ich hab mich davorgestellt und, ja, geguckt einfach. Meine Tante hat gesagt, geh weg da, du machst mir Fingerabdruecke drauf. Aber ich bin immer wieder hin. Wir hatten ja kein Meer, weisst du, also nicht in der Naehe, mare war weit, das waren zwei Tage Zug und Geld hatten wir sowieso nicht.
 
-Kata: Wie ist es dort fuer dich?
+Leyla: Und was hast du dir vorgestellt?
 
-Elvira: Wenn ich hinfahre, bin ich die Deutsche, und hier bin ich die andere.
-Das ist so ein Witz, aber es ist keiner. Dort sagen sie, du sprichst schon
-komisch, du sagst deutsche Woerter mitten im Satz. Und hier fragt mich im
-Supermarkt jemand, wo ich herkomme, und ich sage, aus der Ringstrasse, und
-dann gucken sie so.
+Elvira: Wie das an den Beinen ist. Kalt oder warm. Ich hab mir das ueber die Haut vorgestellt, nicht mit den Augen. Komisch, oder. Andere Kinder wollten Eis oder Fahrrad, und ich wollte wissen, wie sich Salz auf dem Ruecken anfuehlt, wenn es trocknet. Und dann bin ich hier gelandet, in Germania, und hier war auch kein Meer. Hier war Fabrik.
 
-Kata: Was fehlt dir am meisten?
+Leyla: Was fuer eine Fabrik?
 
-Elvira: Das Meer, aber nicht zum Baden. Der Geruch. Und die Art, wie die
-Leute laut sind, ohne dass es Streit ist. Hier ist laut immer Streit. Dort
-ist laut einfach laut.
+Elvira: Naeherei. Elf Jahre. Du sitzt und deine Schultern gehen so nach vorne, immer weiter, du merkst es nicht. Nach elf Jahren hab ich in den Spiegel geguckt, im Bad, und da stand eine Frau mit rundem Ruecken. Meine Mutter hatte genau den Ruecken. Das hat mich mehr erschreckt als, ich weiss nicht, als alles andere damals. Ich hab dann aufgehoert mich fotografieren zu lassen. Wenn jemand die Kamera geholt hat, bin ich hinter jemanden. Immer hinter.
 
-Kata: Und was ist hier besser?
+Leyla: Und bist du irgendwann hingefahren, ans Meer?
 
-Elvira: Vieles. Ich sage das ungern, aber vieles. Der Arzt. Die Rente. Dass
-mich niemand fragt, warum ich keinen zweiten Sohn habe. Meine Schwester
-fragt mich das jedes Jahr.
-
-Kata: Wo bist du am liebsten?
-
-Elvira: Am besten geht es mir auf der Faehre. Wirklich. Drei Stunden, kein
-Telefon, das Land ist weg und das andere ist noch nicht da, und ich sitze
-draussen und trinke Kaffee. Da bin ich nicht die Deutsche und nicht die
-andere. Da bin ich Elvira.
-
-Kata: Das ist ein schoenes Bild.
-
-Elvira: Ja, naja. Es ist auch ein bisschen traurig, wenn man drueber
-nachdenkt. Aber ich denke nicht drueber nach, ich fahre einfach.
+Elvira: 2004. Mit meiner Tochter, Portugal, billig gebucht, so ein Restplatz. Und ich sag dir ehrlich, ich hab geheult wie ein Kind, es war mir peinlich. Nicht wegen schoen. Es war laut. Auf dem Plakat war es ja still, verstehst du, ein Plakat ist still. Und das echte hat gebruellt. Ich stand da mit den Fuessen drin und hab gedacht, aha, so bist du also. Meine Tochter hat ein Foto gemacht, ohne fragen. Ich hab geschimpft, richtig. Aber das Foto haengt jetzt bei mir im Flur. Runder Ruecken und alles. Sie sagt, Mama, du siehst da aus wie jemand, der ankommt. Ich weiss nicht. Ich seh nur eine Frau, die nasse Hosenbeine hat.

@@ -439,14 +439,25 @@ einem Szenentext kommt, ob Zustimmungen ankommen, ob der Bot behauptet, etwas
 notiert zu haben, das nirgends steht. Genau dafür gibt es
 `scripts/simulation.py` (Details in [simulation/README.md](simulation/README.md)).
 
-Drei simulierte Teilnehmerinnen — drei Sprachprofile, gespielt von Kimi —
-arbeiten sich durch neun Schritte: Begriffe, Fragen, fünf Interviews,
-Kernthema, Figuren, Phase 5, eine Szene, eine Korrektur, `/stand`. Gefahren
-wird **derselbe Codepfad wie im Betrieb** (`bot.verarbeite_update`,
-`bot._zug_und_erkenner`), nur mit einer Telegram-Attrappe statt Netz und einer
-Wegwerf-Datenbank statt `IT_DB`. Der Umweg über Telegram ist gar nicht möglich:
-Telegram liefert Bot-Nachrichten nie an andere Bots (Bot-FAQ). Interviews
-kommen als Text (`aufnahme.importiere_text`, § 10.5), kein Whisper.
+Drei simulierte Teilnehmerinnen arbeiten sich durch neun Schritte: Begriffe,
+Fragen, fünf Interviews, Kernthema, Figuren, Phase 5, eine Szene, eine
+Korrektur, `/stand`. Gefahren wird **derselbe Codepfad wie im Betrieb**
+(`bot.verarbeite_update`, `bot._zug_und_erkenner`), nur mit einer
+Telegram-Attrappe statt Netz und einer Wegwerf-Datenbank statt `IT_DB`. Der
+Umweg über Telegram ist gar nicht möglich: Telegram liefert Bot-Nachrichten
+nie an andere Bots (Bot-FAQ). Interviews kommen als Text
+(`aufnahme.importiere_text`, § 10.5), kein Whisper.
+
+**Zwei Modelle, eine Trennlinie.** Alles, was der Bot tut, läuft über
+Infomaniak — er ist der Prüfling. Alles, was Simulation ist (die Stimmen, der
+Richter, die einmalige Erzeugung der fünfzehn Interviewdatensätze), läuft über
+**Claude Opus** an einem lokalen Proxy (`simulation/claude.py`,
+`IT_SIM_URL`/`IT_SIM_MODELL`, Anthropic-Messages-Format, kein
+Authorization-Header). Ohne diese Trennung würde der Prüfling seine eigenen
+Teilnehmerinnen spielen und sich anschließend selbst benoten. Die
+Simulationsseite läuft über ein Abonnement und kostet je Aufruf nichts — die
+Kostenzeile im Bericht ist deshalb genau das, was ein Workshoptag zahlen
+würde.
 
 ```
 set -a; . ./betrieb/gruppe1.env; set +a
@@ -462,16 +473,17 @@ Notiert-Zeile kam (die Kennzahl aus N7), Verdichtungen und geprüfte
 Belegzitate, Echo (`ablauf.ist_echo`), Rückfragen vor dem Szenenauftrag,
 **behauptete Schreibvorgänge** (Bot sagt „notiert", ohne dass der Erkenner
 etwas geschrieben hat — Soll 0), Namensanrede, Medianlänge der Bot-Antworten
-(Soll < 700 Zeichen), Kosten und Dauer. Dazu bewertet ein Richter (gemma,
-Schema) jeden Abschnitt mit 0/1/2 auf vier Kriterien und den Szenentext auf
-zwei weitere.
+(Soll < 700 Zeichen), Kosten und Dauer. Dazu bewertet ein Richter (Opus)
+jeden Abschnitt mit 0/1/2 auf vier Kriterien und den Szenentext auf zwei
+weitere.
 
 **Kein Test, läuft nie automatisch, kostet Geld** — wie `pruefe_prompts.py`
 und `rauchtest.py`, nur eine Größenordnung mehr: ein voller Lauf sind einige
-hundert Aufrufe, grob 0,20–0,60 CHF für den Bot plus noch einmal so viel für
-die Stimmen und den Richter, dazu ein Szenenlauf mit Reasoning (2–4 Minuten,
-der teuerste Einzelposten — `--ohne-szene` spart ihn). Sequenziell; bei 429
-wartet das Skript und wiederholt, wie `pruefe_prompts`.
+hundert Aufrufe, grob 0,20–0,60 CHF für den Bot (die Stimmen und der Richter
+laufen über das Abonnement und kosten nichts), dazu ein Szenenlauf mit
+Reasoning (2–4 Minuten, der teuerste Einzelposten — `--ohne-szene` spart
+ihn). Sequenziell; bei 429 wartet das Skript und wiederholt, wie
+`pruefe_prompts`.
 
 > **Die Regel: nach jeder Prompt-Änderung ein Lauf mit `--set` und einer mit
 > `--mix`.** Der erste hält den Themenkreis fest und macht zwei Läufe
@@ -484,7 +496,9 @@ Transkript (`simulation/laeufe/`) und Bericht (`simulation/berichte/`) sind
 Ausnahme ist `simulation/berichte/verlauf.jsonl`: eine Zeile je Lauf mit allen
 Kennzahlen und dem git-HEAD, der Vergleichsmaßstab zwischen zwei
 Prompt-Ständen. Die fünfzehn Interviewtranskripte unter
-`simulation/interviews/` sind frei erfunden und gehören ins Repository.
+`simulation/interviews/` sind frei erfunden und gehören ins Repository —
+geschrieben hat sie einmal `simulation/erzeuge_interviews.py` mit Opus, das
+**Ergebnis** ist das Artefakt, nicht das Skript.
 
 Der Simulator ist **datengetrieben** gebaut: Phasen aus `phasen.PHASEN`,
 Arbeitsstandfelder aus `PRAGMA table_info(arbeitsstand)`, das Wort „Notiert:"

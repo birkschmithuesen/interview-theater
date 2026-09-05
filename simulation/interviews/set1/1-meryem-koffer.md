@@ -1,50 +1,31 @@
 ---
 name: Meryem
 set: 1
-themen: [Koffer, Ankommen, Warten]
-sprachmerkmale: [kurze Saetze, Abbrueche, tuerkische Einsprengsel]
+themen: [Koffer, Bahnhof, Tomatensamen, Untermiete]
+sprachmerkmale: [kurze Saetze, tuerkische Einsprengsel, viele Neuansaetze]
 zitate_soll:
-  - Ein Koffer und eine Tuete mit Brot
-  - Meine Mutter hat gesagt, nimm das Kopfkissen mit
-  - Ich habe den Koffer nie ausgepackt, richtig ausgepackt
+  - Der Koffer war braun, so ein Braun wie Milchkaffee.
+  - Meine Mutter hat Tomatensamen in ein Taschentuch gewickelt.
+  - Drei Jahre stand der Koffer unter dem Bett, gepackt.
 ---
-Leyla: Erzaehl mal, was hattest du dabei, als du gekommen bist?
+Leyla: Meryem, magst du erzaehlen, womit du gekommen bist?
 
-Meryem: Ein Koffer und eine Tuete mit Brot. Mehr nicht. Also, doch, ein
-Kopfkissen. Meine Mutter hat gesagt, nimm das Kopfkissen mit, dann schlaefst
-du. Ich habe gelacht, ich war neunzehn, ich habe gedacht, Mama, die haben
-dort auch Kissen. Aber sie hatte recht, so ist es halt.
+Meryem: Mit einem Koffer. Nur einem. Also, mein Mann hatte auch einen, aber der war so ein Pappding, der ist schon in Muenchen aufgegangen, weisst du, am Griff. Meiner war fest. Der Koffer war braun, so ein Braun wie Milchkaffee. Mein Vater hat den gekauft, extra, auf dem Markt, und er hat gesagt, der haelt ein Leben. Hat er auch. Steht heute noch bei mir im Keller.
 
-Leyla: Und in dem Koffer?
+Leyla: Was war drin?
 
-Meryem: Zwei Kleider. Ein Foto von meinem Vater, das war schon alt. Und
-Rezepte, meine Tante hat sie mir aufgeschrieben, auf so kleine Zettel, weil
-sie gesagt hat, sonst vergisst du alles. Die Zettel habe ich noch. Die
-Kleider nicht.
+Meryem: Was war drin. Ja. Zwei Kleider, das gute und das andere. Ein Kopftuch, seidenes, von meiner Schwiegermutter. Der Koran von meinem Vater, in Stoff gewickelt. Und -- warte -- Meine Mutter hat Tomatensamen in ein Taschentuch gewickelt. Ich habe gelacht, ich habe gesagt anne, die haben doch Tomaten in Deutschland. Sie hat gesagt, nicht diese. Und sie hatte recht, sie hatte recht, ich habe das erst gemerkt, als ich hier eine gegessen habe. Wie Wasser mit Farbe.
 
-Leyla: Wie lange hast du gedacht, dass du bleibst?
+Leyla: Und dann?
 
-Meryem: Zwei Jahre. Alle sagen zwei Jahre. Zwei Jahre arbeiten, Geld
-schicken, dann zurueck. Und dann bist du dreissig Jahre da und dein Sohn
-spricht Deutsch mit seinen Kindern und du denkst, wie ist das passiert. Aber
-das merkst du nicht am Anfang, das merkst du erst hinterher.
+Meryem: Dann Bahnhof. Ich weiss noch, es war so hell da, so kalt hell, ueberall diese Lampen, und keiner hat geguckt. Also nicht boese, gar nicht, einfach keiner. In meinem Dorf guckt jeder. Wir sind da gestanden, mein Mann und ich, und der Koffer zwischen uns, und ich habe die Hand nicht vom Griff genommen. Nicht eine Minute. Dann kam der Kollege von meinem Mann, Erhan hiess er glaube ich, und hat uns geholt.
 
-Leyla: Und der Koffer?
+Leyla: Wie lange hast du gebraucht, bis du ausgepackt hast?
 
-Meryem: Ich habe den Koffer nie ausgepackt, richtig ausgepackt. Der stand
-unter dem Bett. Immer unter dem Bett. Manchmal habe ich Sachen rausgenommen,
-aber wieder reingelegt, weisst du. Mein Mann hat gesagt, mach doch endlich
-den Schrank voll. Ich habe gesagt, ja gleich. Zwoelf Jahre gleich.
+Meryem: Ha. Ja. Das ist es ja. Drei Jahre stand der Koffer unter dem Bett, gepackt. Nicht ganz, das gute Kleid habe ich rausgenommen. Aber sonst. Weil wir sind ja zurueck, das war klar, zwei Jahre, drei, Geld sparen, dann zurueck. Wir hatten Untermiete bei einer Frau Kessler, ein Zimmer, und die Kueche geteilt. Und ich habe immer gedacht, ich raeume nicht ein, ich raeume nicht ein, das lohnt nicht.
 
-Leyla: Was war das Schwerste?
+Meryem: Und dann kam mein Sohn und dann. Ja. Dann habe ich eingeraeumt. So einfach war das nicht, aber so war es.
 
-Meryem: Das Warten. Nicht die Arbeit, Arbeit war Arbeit, das kann man. Aber
-warten auf Briefe. Warten auf das Telefon, wir hatten Sonntag zehn Minuten,
-und in zehn Minuten sagst du nichts, du fragst nur, geht es euch gut, geht es
-euch gut, und dann ist Schluss. Und dann sitzt du da.
+Leyla: Und die Samen?
 
-Leyla: Und heute?
-
-Meryem: Heute ist der Koffer weg. Meine Tochter hat ihn weggeworfen, bei dem
-Umzug. Sie hat gesagt, Mama, der ist kaputt. Ich habe nichts gesagt. Aber
-ich habe zwei Naechte nicht geschlafen. So bloed ist das.
+Meryem: Balkon. Erster Sommer, hat nichts gegeben, zu kalt. Zweiter Sommer sechs Stueck. Ich habe geheult wie ein Kind, wegen sechs Tomaten.

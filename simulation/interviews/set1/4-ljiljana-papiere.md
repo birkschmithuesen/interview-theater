@@ -1,52 +1,25 @@
 ---
 name: Ljiljana
 set: 1
-themen: [Papiere, Warten, Amt]
-sprachmerkmale: [praezise Saetze, Zahlen, Bitterkeit]
+themen: [Mappe, Wartenummer, Stempel, Fensterbrief]
+sprachmerkmale: [kurze Saetze, Wiederholungen, serbische Einsprengsel]
 zitate_soll:
-  - Ich hatte einen Ordner und der Ordner war mein ganzes Leben
-  - Sie haben gesagt, kommen Sie in vierzehn Tagen wieder
-  - Meine Diplome waren hier ein Stueck Papier
+  - Ich habe die Nummer in der Hand gehalten, bis sie feucht war.
+  - Der Flur war gruen, die Stuehle waren gruen, alles gruen.
+  - Meine Mappe war blau, und sie ist immer noch blau.
 ---
-Marija: Wie war das mit den Papieren?
+Leyla: Ljiljana, wenn du an die erste Zeit hier denkst -- was kommt zuerst?
 
-Ljiljana: Das war die eigentliche Arbeit. Nicht putzen, nicht die Schicht.
-Die Papiere. Ich hatte einen Ordner und der Ordner war mein ganzes Leben.
-Geburtsurkunde, Heiratsurkunde, Diplome, die Uebersetzungen, die Kopien von
-den Uebersetzungen, weil sie die Kopien wollten und dann das Original und
-dann wieder die Kopie.
+Ljiljana: Papier. Sofort Papier, ja? Wir kommen an, mein Mann, ich, die zwei Kinder, und am dritten Tag sagt jemand, du musst zum Amt. Ich frage, welches Amt. Er sagt, na, das Amt. Als ob es nur eins gibt. Es waren dann sechs, sieben verschiedene, weiss ich. Auslaenderbehoerde, Sozialamt, wieder Auslaenderbehoerde. Ich habe alles in eine Mappe getan. Blau. Meine Mappe war blau, und sie ist immer noch blau. Da drin Geburtsurkunde, uebersetzt, beglaubigt, Kopie, Kopie von der Kopie.
 
-Marija: Wie oft warst du auf dem Amt?
+Leyla: Und das Warten?
 
-Ljiljana: Ich habe es aufgeschrieben. In dem ersten Jahr einundzwanzig Mal.
-Und jedes Mal um sieben da sein, jedes Mal eine Nummer ziehen, jedes Mal
-warten. Und dann kommst du rein und der Mann sagt, da fehlt was. Und du
-sagst, was fehlt, und er sagt, das Formular vom anderen Amt. Und dann gehst
-du zum anderen Amt. Und dort sagen sie, das koennen wir erst machen, wenn Sie
-den Bescheid haben.
+Ljiljana: Das Warten. Puh. Also, du ziehst eine Nummer, so ein kleiner Zettel aus dem Automat, und dann sitzt du. Ich habe die Nummer in der Hand gehalten, bis sie feucht war. Der Flur war gruen, die Stuehle waren gruen, alles gruen. Und diese Anzeige, ping, ping, und nie meine Nummer. Meine Schwiegermutter hat immer gesagt, nimm Brot mit. Sie hat recht gehabt.
 
-Marija: Von dem Amt, wo du gerade warst.
+Leyla: Worauf habt ihr denn gewartet, genau?
 
-Ljiljana: Genau. Genau das. Sie haben gesagt, kommen Sie in vierzehn Tagen
-wieder. Immer vierzehn Tage. Ich habe irgendwann gedacht, vierzehn Tage ist
-kein Zeitraum, das ist eine Art, dich loszuwerden.
+Ljiljana: Auf alles. Zuerst Duldung, dann Verlaengerung von Duldung, dann wieder. Immer drei Monate, sechs Monate. Du kannst nicht -- wie soll ich sagen -- du kannst nicht denken an naechstes Jahr, wenn dein Papier nur bis Maerz geht. Mein Mann wollte arbeiten, er ist Elektriker, guter Elektriker, und sie sagen, ja, Arbeitserlaubnis, aber erst muss dieses und jenes. Und dann war die Frau in Zimmer 214 krank. Zwei Wochen. Zwei Wochen wegen einer Frau, molim te.
 
-Marija: Du hast in Zagreb studiert.
+Leyla: Hat sich das irgendwann geaendert?
 
-Ljiljana: Ja. Vier Jahre. Ich war Bauingenieurin. Meine Diplome waren hier ein
-Stueck Papier. Das hat mir eine Frau woertlich so gesagt, freundlich sogar,
-sie hat es nicht boese gemeint. Sie hat gesagt, das ist bei uns leider nichts
-wert. Und ich habe genickt und bin rausgegangen und habe im Treppenhaus
-geweint, und dann bin ich zur Reinigungsfirma und habe angefangen.
-
-Marija: Wie lange?
-
-Ljiljana: Neunzehn Jahre. Ich habe es nicht mehr versucht, mit den Diplomen.
-Man versucht es einmal, man versucht es zweimal. Dann hoert man auf. Nicht
-weil man aufgibt. Weil man muede wird.
-
-Marija: Bereust du es?
-
-Ljiljana: Nein. Doch. Ich bereue, dass ich den Ordner weggeworfen habe. Vor
-zwei Jahren. Ich habe gedacht, wozu noch. Und jetzt haette ich ihn gern, um
-ihn meiner Enkelin zu zeigen. Damit sie weiss, was das war.
+Ljiljana: Ja und nein. Irgendwann kam der Stempel. Ich habe geweint im Bus, nicht im Amt, im Bus. Aber weisst du, was komisch ist, ich habe die Mappe behalten. Immer noch. Sie liegt oben im Schrank, und wenn ein Brief kommt mit so einem Fenster, dieses durchsichtige Fenster, mein Bauch macht sofort -- ja. Das bleibt. Meine Tochter lacht mich aus, sie sagt, Mama, das sind nur die Stadtwerke. Ich sage, egal. Aufmachen tue ich trotzdem im Stehen.

@@ -40,11 +40,21 @@ ART_FELDER = "szenenfelder"
 
 #: Ausgabebudget. Ein Vorschlag sind sechs Zeilen -- das Budget ist eine
 #: Obergrenze gegen Durchdrehen, kein Zielwert (wie ``szene.MAX_TOKENS``).
-MAX_TOKENS = 4000
+#: ACHTUNG, AGENTS.md Falle 4: dieser Aufruf laeuft ueber ``klm.prosa`` und
+#: damit mit AKTIVEM Reasoning. Reasoning verbraucht das Ausgabebudget VOR
+#: dem eigentlichen Inhalt -- bei zu knappem Budget kommt HTTP 200 mit
+#: leerem Inhalt und ``finish_reason: "length"`` zurueck, ein stiller
+#: Durchfall. Live gemessen am 05.09.2026 abends (Test-Gruppe): mit 4000
+#: Token endete jeder Lauf im Denken, die Gruppe sah nur "Die Szenenfolge
+#: ist mir nicht gelungen". Deshalb wie in ``szene.py`` weit ueber der
+#: Messung; was das Modell nicht braucht, kostet nichts.
+MAX_TOKENS = 60_000
 
-#: Zeitbudget des Aufrufs. Kuerzer als beim Szenentext (600 s): hier laeuft
-#: kein Reasoning, und die Gruppe wartet sichtbar auf die Liste.
-TIMEOUT_S = 120.0
+#: Zeitbudget des Aufrufs. Ebenfalls angehoben (vorher 120 s): ein
+#: Reasoning-Lauf braucht laut ``reasoning-stufen-entscheidungshilfe.md``
+#: § 4.4 mindestens 60 s, und ein Timeout spart hier nichts -- der Lauf
+#: haengt in einem eigenen Thread, ein Abbruch ist trotzdem bezahlt.
+TIMEOUT_S = 300.0
 
 #: Wie viele Szenen vorgeschlagen werden, wenn niemand etwas anderes sagt.
 ANZAHL_VORGABE = 5

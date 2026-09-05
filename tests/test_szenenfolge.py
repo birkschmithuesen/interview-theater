@@ -675,3 +675,12 @@ def test_lege_an_legt_keine_figuren_an(conn):
     szenenfolge.lege_an(conn, 1, [("Am Bahnhof", "Mira kommt an", ["Mira"])])
 
     assert repo.figuren(conn, 1) == []
+
+
+def test_budget_reicht_fuer_reasoning():
+    """Der Szenenfolge-Lauf geht ueber ``klm.prosa`` -- Reasoning ist AN und
+    verbraucht das Ausgabebudget VOR dem Inhalt (AGENTS.md Falle 4). Mit
+    4000 Token endete am 05.09.2026 abends jeder Live-Lauf in
+    ``finish_reason: length``; die Gruppe sah nur die Fehlerzeile."""
+    assert szenenfolge.MAX_TOKENS >= 50_000
+    assert szenenfolge.TIMEOUT_S >= 300.0

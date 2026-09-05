@@ -45,6 +45,13 @@ PRAEFIX = "k:"
 ART_KERNTHEMA = "kernthema"
 ART_AUFNAHME = "aufnahme"
 ART_PHASE = "phase"
+#: Format des Stuecks (Phase 5) -- dasselbe Ziel wie ``/stueck format <text>``.
+ART_FORMAT = "format"
+#: Form je Szene (Phase 6) -- dasselbe Ziel wie ``/szene <n> form <wert>``.
+#: Der Wert der Knopfzeile traegt beides, durch ':' getrennt: "3:dialog".
+ART_SZENENFORM = "szenenform"
+#: Einwilligung ins US-Modell -- dasselbe Ziel wie ``/szene usa ja|nein``.
+ART_SZENE_USA = "szene_usa"
 
 #: Hoechstens drei Vorschlaege je Kernthema-Angebot. Mehr ist keine Auswahl
 #: mehr, sondern eine Liste, die gelesen werden will -- und die Gruppe steht
@@ -60,6 +67,34 @@ _TEXT_SCHON_BENUTZT = "Das habe ich schon uebernommen."
 _TEXT_UNBEKANNT = "Diesen Knopf kenne ich nicht mehr."
 _TEXT_AUFNAHME_STARTEN = "Aufnahme starten"
 _TEXT_AUFNAHME_BEENDEN = "Aufnahme beenden"
+
+#: Hoechstens vier Formatvorschlaege (Phase 5). Mehr Knoepfe als
+#: Kernthema-Vorschlaege sind hier vertretbar, weil die Beschriftungen kurz
+#: sind ("Sprechtheater") und nicht wie ein Kernthema ganze Saetze werden.
+MAX_FORMATE = 4
+
+#: Der Rueckfall, wenn niemand eigene Vorschlaege mitgibt -- die vier Formen,
+#: die ``prompts/phasen/5.md`` selbst aufzaehlt. Fest verdrahtet und NICHT
+#: vom Modell erfragt: ein Knopf-Handler ruft kein Sprachmodell (AGENTS.md),
+#: und diese vier sind ohnehin die Auswahl, die die Phase anbietet. Eine
+#: Mischform steht bewusst nicht dabei -- die sagt die Gruppe frei, dafuer
+#: gibt es ``/stueck format <text>``.
+STANDARD_FORMATE = ("Sprechtheater", "Musical", "Revue", "Hoerstueck")
+
+_TEXT_FORMAT_FRAGE = "Welches Format nehmen wir? Tippt eins an - oder sagt mir ein anderes."
+_TEXT_FORMAT_KEINE = (
+    "Ich habe gerade keine Vorschlaege. Ihr koennt es mir auch einfach "
+    "sagen: /stueck format Sprechtheater mit Chor."
+)
+_TEXT_SZENENFORM_FRAGE = "Welche Form soll Szene {nummer} haben?"
+_TEXT_USA_FRAGE_KNOEPFE = "Tippt an, was gelten soll:"
+_TEXT_USA_JA_KNOPF = "Ja, US-Modell"
+_TEXT_USA_NEIN_KNOPF = "Nein, Schweiz"
+_TEXT_USA_JA = (
+    "Gut, Szenen kommen ab jetzt vom US-Modell. Ich sage es vor jeder "
+    "Szene nochmal."
+)
+_TEXT_USA_NEIN = "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder."
 
 
 def _daten(knopf_id: int) -> str:
@@ -164,6 +199,92 @@ def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
     tg.sende_mit_knoepfen(chat_id, text, [(beschriftung, _daten(knopf_id))])
 
 
+def biete_format(conn, tg, chat_id: int, vorschlaege: list[str] | None = None) -> bool:
+    """Bietet die Formatvorschlaege aus Phase 5 als Knoepfe an (05.09.2026).
+
+    Warum hier ein Knopf: seit ed51db1 stellt phasen/5.md das Format als
+    NUMMERIERTE Auswahl ("1. Sprechtheater, 2. Musical, ..."). Die Gruppe
+    antwortet darauf typischerweise mit "das erste" oder "ok" -- der
+    Absichtserkenner sieht live nur ein Fenster von ein bis drei Nachrichten
+    und kann daraus nicht ableiten, welcher Listenpunkt gemeint war. Ein
+    Knopf traegt die Auswahl selbst; die Wirkung ist wortgleich die von
+    ``/stueck format <text>`` (befehle._befehl_stueck).
+
+    Liefert False, wenn es nichts anzubieten gab -- dann steht statt der
+    Tastatur die Zeile, die das erklaert. Ohne ``vorschlaege`` gelten die
+    ``STANDARD_FORMATE``.
+
+    Der Volltext steht in der Beschriftung UND in der Tabelle ``knopf``, nie
+    in ``callback_data`` (Zusage 1 im Moduldocstring): ein Format wie
+    "Sprechtheater mit Chorpassagen und Liedern" sprengt die 64 Bytes."""
+    if vorschlaege is None:
+        vorschlaege = list(STANDARD_FORMATE)
+    vorschlaege = [v.strip() for v in vorschlaege if v and v.strip()][:MAX_FORMATE]
+    if not vorschlaege:
+        tg.sende(chat_id, _TEXT_FORMAT_KEINE)
+        return False
+    knoepfe = [
+        (wert, _daten(repo.lege_knopf_an(conn, chat_id, ART_FORMAT, wert)))
+        for wert in vorschlaege
+    ]
+    tg.sende_mit_knoepfen(chat_id, _TEXT_FORMAT_FRAGE, knoepfe)
+    return True
+
+
+def biete_szenenform(conn, tg, chat_id: int, nummer: int, text: str | None = None) -> None:
+    """Bietet die sechs Formen fuer EINE Szene als Knoepfe an (05.09.2026).
+
+    Warum hier ein Knopf: 553e3aa stellt die Form je Szene in phasen/6.md als
+    nummerierte Auswahl. Dieselbe Schwaeche wie beim Format -- "nimm das
+    dritte" ist fuer den Erkenner nicht aufloesbar, und eine falsch geratene
+    Form fuehrt zu einem Szenentext nach den falschen Dramaturgieregeln
+    (``prompts/formen/<name>.md``).
+
+    Die Szenennummer MUSS mitwandern, sonst wuesste der Knopfdruck nicht,
+    welche Szene gemeint ist. Sie steht dafuer im ``wert`` der Knopfzeile
+    ("3:dialog"), nicht in ``callback_data`` -- dort steht wie ueberall nur
+    die Knopf-id. Damit bleibt die 64-Byte-Grenze unabhaengig von Nummer und
+    Formnamen eingehalten.
+
+    Die Liste kommt aus ``szene.FORMEN`` und wird hier NICHT zweitgepflegt:
+    kommt dort eine Form dazu, gibt es den Knopf automatisch."""
+    from interview_theater import szene
+
+    knoepfe = [
+        (
+            form.capitalize(),
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFORM, f"{nummer}:{form}")),
+        )
+        for form in szene.FORMEN
+    ]
+    tg.sende_mit_knoepfen(
+        chat_id, text or _TEXT_SZENENFORM_FRAGE.format(nummer=nummer), knoepfe
+    )
+
+
+def biete_szene_usa(conn, tg, chat_id: int, text: str | None = None) -> None:
+    """Haengt die beiden Einwilligungsknoepfe unter das USA-Angebot
+    (``szene._TEXT_ANGEBOT_USA``).
+
+    Der Anlass ist der teuerste gemessene Fehler des 05.09.2026: der Bot
+    fragte nach dem US-Modell, die Gruppe antwortete siebenmal sinngemaess
+    "ja" -- der Erkenner las es jedes Mal als Zustimmung zu den FIGUREN, und
+    der Bot wiederholte dieselbe Erinnerung, bis der Notausgang
+    (``szene.USA_ERINNERUNGEN_MAX``) griff und in der Schweiz schrieb. Eine
+    Einwilligung ist genau der Fall, der nicht erraten werden darf: hier
+    entscheidet die Gruppe ueber eine Datenuebermittlung.
+
+    Zwei Knoepfe und nicht einer: anders als beim Aufnahme-Umschalter sind
+    Ja und Nein zwei verschiedene Entscheidungen mit verschiedenen Folgen,
+    und ein Nein muss genauso ein Druck sein wie ein Ja -- sonst waere
+    Schweigen die einzige Form der Ablehnung."""
+    knoepfe = [
+        (_TEXT_USA_JA_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_USA, "ja"))),
+        (_TEXT_USA_NEIN_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_USA, "nein"))),
+    ]
+    tg.sende_mit_knoepfen(chat_id, text or _TEXT_USA_FRAGE_KNOEPFE, knoepfe)
+
+
 # --- Verarbeitung ---------------------------------------------------------
 
 
@@ -201,6 +322,47 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         if phasen.setze(conn, chat_id, nummer, "knopf"):
             tg.sende(chat_id, phasen.meldung(nummer))
         return f"Phase {nummer}"
+    if art == ART_FORMAT:
+        # Wortgleich das, was /stueck format tut (befehle._befehl_stueck):
+        # dasselbe Feld, derselbe Schreibweg. Kein zweiter Mechanismus --
+        # sonst gaebe es zwei Stellen, an denen 'format' entsteht.
+        repo.setze_arbeitsstand(conn, chat_id, "format", knopf["wert"])
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden", f"Format: {knopf['wert']}", quelle="knopf",
+        )
+        tg.sende(chat_id, f"Format notiert: {knopf['wert']}")
+        return "Format uebernommen"
+    if art == ART_SZENENFORM:
+        # Der wert traegt Nummer UND Form ("3:dialog") -- siehe
+        # biete_szenenform. Getrennt wird am ERSTEN ':', damit ein spaeter
+        # erweiterter Formname mit ':' nicht die Nummer zerlegt.
+        roh_nummer, _, form = str(knopf["wert"]).partition(":")
+        nummer = int(roh_nummer)
+        szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
+        repo.setze_szenenfeld(conn, szene_id, "form", form)
+        from interview_theater import szene as szene_modul
+
+        tg.sende(
+            chat_id,
+            szene_modul.planungszeile(conn, repo.hole_szene(conn, szene_id)),
+        )
+        return f"Szene {nummer}: {form}"
+    if art == ART_SZENE_USA:
+        # ACHTUNG, hier ist am 05.09.2026 schon ein Fehler passiert:
+        # repo.setze_szene_usa erwartet einen BOOL, nicht den String
+        # "ja"/"nein". Ein String ist in Python immer wahr -- ein "nein"
+        # haette als Zustimmung zur Datenuebermittlung in die USA geendet,
+        # also genau falsch herum bei der einen Entscheidung, bei der das
+        # niemand verzeiht. Deshalb der ausdrueckliche Vergleich.
+        ja = str(knopf["wert"]).strip().lower() == "ja"
+        repo.setze_szene_usa(conn, chat_id, ja)
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            "US-Modell fuer Szenentexte: ja" if ja else "US-Modell fuer Szenentexte: nein",
+            quelle="knopf",
+        )
+        tg.sende(chat_id, _TEXT_USA_JA if ja else _TEXT_USA_NEIN)
+        return "US-Modell: ja" if ja else "Bleibt in der Schweiz"
     # Unbekannte art: nur moeglich, wenn eine spaetere Fassung eine Art
     # einfuehrt und eine aeltere die Zeile liest. Nichts tun ist hier richtig.
     log.error("Unbekannte Knopf-art %r, chat_id=%s", art, chat_id)

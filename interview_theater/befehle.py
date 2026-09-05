@@ -54,6 +54,17 @@ _SZENE_ENTFERNEN = re.compile(
 #: gelesen wird.
 _SZENE_USA = re.compile(r"^usa\s+(ja|j|yes|nein|n|no)\.?$", re.IGNORECASE)
 
+#: "/szene usa" ohne Antwort -- dann kommen die beiden Knoepfe, statt einer
+#: Zeile, die die Syntax erklaert (05.09.2026). Dieselbe Ueberlegung wie bei
+#: "/kernthema" ohne Argument: an einem Auswahl-Moment ist ein Knopf die
+#: bessere Antwort als eine Bedienungsanleitung.
+_SZENE_USA_LEER = re.compile(r"^usa\.?$", re.IGNORECASE)
+
+#: "/szene 2 form" ohne Wert -- dann kommen die Formknoepfe. Ohne diese
+#: Sonderform faengt ``_SZENE_FELD`` den Text nicht (es verlangt einen Wert),
+#: und der Rest liefe als Szenen-SCHREIBauftrag ins Sprachmodell.
+_SZENE_FORM_LEER = re.compile(r"^(?:szene\s*)?(\d{1,3})\s+form\.?$", re.IGNORECASE)
+
 #: "/szene 2 ort Polizeikessel" -- Nummer, ein bekannter Feldname, der Wert.
 #: Der Korrekturweg zu den Szenenfeldern (05.09.2026), neben der Erkenner-art
 #: ``szene_planen``. Eng gefasst wie ``_SZENE_ENTFERNEN``: der zweite Token
@@ -295,6 +306,14 @@ def _befehl_stueck(conn, tg, chat_id: int, rest: str) -> None:
 
     bezeichnung = felder[feld]
     if not wert:
+        # Beim Format kommen seit dem 05.09.2026 Knoepfe statt einer
+        # Syntaxzeile: Phase 5 stellt das Format als nummerierte Auswahl, und
+        # auf "das erste" kann der Erkenner nicht zuverlaessig schliessen
+        # (knoepfe.biete_format). Der Rahmen bleibt Freitext -- dort gibt es
+        # keine Liste, aus der sich waehlen liesse.
+        if feld == "format":
+            knoepfe.biete_format(conn, tg, chat_id)
+            return
         beispiel = _BEISPIEL_ARBEITSSTAND[feld]
         tg.sende(
             chat_id,
@@ -545,6 +564,20 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
             "Szene nochmal." if ja else
             "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder.",
         )
+        return
+    # "/szene usa" ohne Antwort: die beiden Knoepfe statt einer Syntaxzeile.
+    # Genau hier ist die Sprachnavigation am 05.09.2026 gescheitert -- die
+    # Gruppe bejahte siebenmal, der Erkenner las es als Zustimmung zu den
+    # Figuren (siehe knoepfe.biete_szene_usa).
+    if _SZENE_USA_LEER.match(rest):
+        knoepfe.biete_szene_usa(conn, tg, chat_id)
+        return
+    # "/szene 2 form" ohne Wert: die sechs Formknoepfe. Muss VOR
+    # _setze_szenenfeld stehen, sonst faellt der Text durch bis zum
+    # Schreibauftrag.
+    form_leer = _SZENE_FORM_LEER.match(rest)
+    if form_leer:
+        knoepfe.biete_szenenform(conn, tg, chat_id, int(form_leer.group(1)))
         return
     if _setze_szenenfeld(conn, tg, chat_id, rest):
         return

@@ -491,3 +491,297 @@ def test_aufnahme_befehl_haengt_den_umschalter_an(conn, einst, tg):
 
     assert tg.knoepfe[0][2][0][0] == "Aufnahme beenden"
     assert repo.ist_interviewmodus_an(conn, 1) is True
+
+
+# --- Format des Stuecks (Phase 5, 05.09.2026) -----------------------------
+
+
+def test_format_knopf_schreibt_in_den_arbeitsstand(conn, einst, tg):
+    """Derselbe Zweck wie beim Kernthema, eine Station spaeter: phasen/5.md
+    stellt das Format als nummerierte Auswahl, und auf "das erste" kann der
+    Erkenner nicht schliessen. Der Knopf traegt die Auswahl selbst."""
+    knoepfe.biete_format(conn, tg, 1, ["Sprechtheater: Dialog und Chor", "Musical"])
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
+
+    # Wirklich nachgelesen, nicht nur gesendet:
+    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Sprechtheater: Dialog und Chor"
+    assert any("Format notiert" in t for _, t in tg.gesendet)
+    assert len(tg.beantwortet) == 1
+    assert tg.entfernt == [(1, 777)]
+
+
+def test_format_knopf_schreibt_ins_journal(conn, einst, tg):
+    knoepfe.biete_format(conn, tg, 1, ["Revue"])
+    knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
+
+    assert any(
+        j["art"] == "entschieden" and "Revue" in j["text"] and j["quelle"] == "knopf"
+        for j in repo.journal(conn, 1)
+    )
+
+
+def test_format_knopf_ist_idempotent(conn, einst, tg):
+    """Zweimal tippen darf nichts doppelt tun (AGENTS.md): der zweite Druck
+    wird beantwortet, aber ueberschreibt nichts -- auch dann nicht, wenn die
+    Gruppe zwischendurch etwas anderes gesetzt hat."""
+    knoepfe.biete_format(conn, tg, 1, ["Musical"])
+    daten = _daten_des_ersten_knopfes(tg)
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+    repo.setze_arbeitsstand(conn, 1, "format", "Sprechtheater")
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten, message_id=778, query_id="q2"))
+
+    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Sprechtheater"
+    assert tg.beantwortet[-1][1] == knoepfe._TEXT_SCHON_BENUTZT
+
+
+def test_format_callback_data_bleibt_unter_64_bytes_auch_bei_langem_wert(conn, tg):
+    """Der Grund fuer die Knopf-Tabelle: ein ausformuliertes Format ist
+    laenger als die ganze Telegram-Grenze. In callback_data steht deshalb nur
+    die id -- geprueft wird an der echten Grenzpruefung
+    (telegram.sende_mit_knoepfen), nicht an einer nachgebauten."""
+    lang = ("Musical mit Sprechtheater, Chorpassagen, Liedern und Rap " * 4).strip()
+    assert len(lang.encode("utf-8")) > telegram.CALLBACK_DATA_GRENZE
+
+    knoepfe.biete_format(conn, tg, 1, [lang])
+
+    daten = _daten_des_ersten_knopfes(tg)
+    assert len(daten.encode("utf-8")) < telegram.CALLBACK_DATA_GRENZE
+    # Der Volltext ist trotzdem vollstaendig da -- er steht in der Tabelle.
+    assert repo.hole_knopf(conn, int(daten[len(knoepfe.PRAEFIX):]))["wert"] == lang
+
+
+def test_format_ohne_vorschlaege_faellt_auf_die_standardformate(conn, einst, tg):
+    """Ohne Argument gelten die vier Formen aus phasen/5.md -- kein
+    Modellaufruf, wie AGENTS.md es fuer Knopf-Wege verlangt."""
+    assert knoepfe.biete_format(conn, tg, 1) is True
+    beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
+    assert beschriftungen == list(knoepfe.STANDARD_FORMATE)
+
+
+def test_format_hoechstens_vier_knoepfe(conn, einst, tg):
+    knoepfe.biete_format(conn, tg, 1, ["A", "B", "C", "D", "E", "F"])
+    assert len(tg.knoepfe[0][2]) == knoepfe.MAX_FORMATE == 4
+
+
+def test_stueck_format_ohne_wert_bietet_knoepfe_an(conn, einst, tg):
+    """Einhaengung: /stueck format ohne Wert erklaert nicht mehr die Syntax,
+    sondern legt die Auswahl hin."""
+    from interview_theater import befehle
+
+    befehle.behandle(conn, tg, einst, 1, "/stueck format", "Ada")
+
+    assert tg.knoepfe and tg.knoepfe[0][2][0][0] == knoepfe.STANDARD_FORMATE[0]
+
+
+def test_stueck_rahmen_ohne_wert_bleibt_bei_der_erklaerung(conn, einst, tg):
+    """Der Rahmen ist Freitext -- dort gibt es keine Liste, aus der sich
+    waehlen liesse, also auch keinen Knopf."""
+    from interview_theater import befehle
+
+    befehle.behandle(conn, tg, einst, 1, "/stueck rahmen", "Ada")
+
+    assert tg.knoepfe == []
+    assert any("/stueck rahmen" in t for _, t in tg.gesendet)
+
+
+# --- Form je Szene (Phase 6, 05.09.2026) ----------------------------------
+
+
+def test_szenenform_knopf_schreibt_das_feld_der_richtigen_szene(conn, einst, tg):
+    """Am 05.09. stand in einer fertigen Szene "Monolog", ohne dass es
+    jemand gewaehlt hatte. Der Knopf schreibt genau die Form, die draufsteht,
+    in genau die Szene, deren Nummer er traegt."""
+    from interview_theater import szene as szene_modul
+
+    knoepfe.biete_szenenform(conn, tg, 1, 3)
+    beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
+    assert beschriftungen == [f.capitalize() for f in szene_modul.FORMEN]
+
+    # "Lied" ist der zweite Eintrag von szene.FORMEN.
+    daten_lied = tg.knoepfe[0][2][1][1]
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten_lied))
+
+    szene_id = repo.stelle_szene_sicher(conn, 1, 3)
+    assert repo.hole_szene(conn, szene_id)["form"] == "lied"
+
+
+def test_szenenform_knopf_trifft_nicht_die_falsche_szene(conn, einst, tg):
+    """Die Nummer wandert im wert der Knopfzeile mit -- ohne sie wuesste der
+    Druck nicht, welche Szene gemeint ist, und wuerde die zuletzt
+    angesprochene erwischen."""
+    knoepfe.biete_szenenform(conn, tg, 1, 2)
+    daten_zwei = tg.knoepfe[0][2][0][1]
+    tg.knoepfe.clear()
+    knoepfe.biete_szenenform(conn, tg, 1, 5)
+    daten_fuenf = tg.knoepfe[0][2][1][1]
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten_fuenf))
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten_zwei, message_id=778, query_id="q2"))
+
+    assert repo.hole_szene(conn, repo.stelle_szene_sicher(conn, 1, 5))["form"] == "lied"
+    assert repo.hole_szene(conn, repo.stelle_szene_sicher(conn, 1, 2))["form"] == "dialog"
+
+
+def test_szenenform_knopf_ist_idempotent(conn, einst, tg):
+    knoepfe.biete_szenenform(conn, tg, 1, 1)
+    daten = tg.knoepfe[0][2][0][1]
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szenenfeld(conn, szene_id, "form", "chor")
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten, message_id=778, query_id="q2"))
+
+    assert repo.hole_szene(conn, szene_id)["form"] == "chor"
+    assert tg.beantwortet[-1][1] == knoepfe._TEXT_SCHON_BENUTZT
+
+
+def test_szenenform_callback_data_bleibt_kurz_auch_bei_hoher_nummer(conn, tg):
+    """Nummer UND Form stehen im wert der Knopfzeile, nicht in
+    callback_data -- deshalb ist die Grenze unabhaengig von beiden."""
+    knoepfe.biete_szenenform(conn, tg, 1, 999)
+
+    for _, daten in tg.knoepfe[0][2]:
+        assert len(daten.encode("utf-8")) < telegram.CALLBACK_DATA_GRENZE
+    assert repo.hole_knopf(
+        conn, int(tg.knoepfe[0][2][0][1][len(knoepfe.PRAEFIX):])
+    )["wert"] == "999:dialog"
+
+
+def test_szene_form_ohne_wert_bietet_knoepfe_an(conn, einst, tg):
+    """Einhaengung: "/szene 2 form" ohne Wert legt die Auswahl hin, statt
+    als Szenen-SCHREIBauftrag ins Sprachmodell zu laufen."""
+    from interview_theater import befehle
+
+    befehle.behandle(conn, tg, einst, 1, "/szene 2 form", "Ada", klm=None)
+
+    assert tg.knoepfe and tg.knoepfe[0][2][0][0] == "Dialog"
+    assert "Szene 2" in tg.knoepfe[0][1]
+
+
+# --- USA-Einwilligung (05.09.2026) ----------------------------------------
+
+
+def test_usa_knopf_ja_setzt_einen_bool_und_der_stand_ist_ja(conn, einst, tg):
+    """Der Fall, der am 05.09.2026 eine Sackgasse erzeugt hat: der Bot
+    fragte, die Gruppe bejahte siebenmal, der Erkenner las es als Zustimmung
+    zu den Figuren.
+
+    Geprueft wird ausdruecklich der BOOL: repo.setze_szene_usa nimmt keinen
+    String -- "nein" waere als nicht-leerer String wahr und damit die
+    Zustimmung zu einer Datenuebermittlung, die niemand gegeben hat."""
+    knoepfe.biete_szene_usa(conn, tg, 1)
+    assert [b for b, _ in tg.knoepfe[0][2]] == ["Ja, US-Modell", "Nein, Schweiz"]
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[0][2][0][1]))
+
+    assert repo.szene_usa_stand(conn, 1) == "ja"
+
+
+def test_usa_knopf_nein_setzt_false_und_nicht_wahr(conn, einst, tg):
+    """Die Gegenprobe -- und der eigentliche Regressionstest: mit dem String
+    "nein" statt False stuende hier 'ja'."""
+    knoepfe.biete_szene_usa(conn, tg, 1)
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[0][2][1][1]))
+
+    assert repo.szene_usa_stand(conn, 1) == "nein"
+    assert repo.szene_usa_stand(conn, 1) != "offen"
+    assert any("Schweiz" in t for _, t in tg.gesendet)
+
+
+def test_usa_stand_ist_vor_dem_druck_offen(conn, einst, tg):
+    """Damit die beiden Tests oben etwas beweisen: 'offen' ist der
+    Ausgangszustand, nicht das Ergebnis."""
+    assert repo.szene_usa_stand(conn, 1) == "offen"
+
+
+def test_usa_knopf_ist_idempotent(conn, einst, tg):
+    """Ein zweiter Druck auf 'Ja' darf die Entscheidung nicht erneut
+    schreiben -- und schon gar nicht ein zwischenzeitliches Nein kippen."""
+    knoepfe.biete_szene_usa(conn, tg, 1)
+    daten_ja = tg.knoepfe[0][2][0][1]
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten_ja))
+    repo.setze_szene_usa(conn, 1, False)
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten_ja, message_id=778, query_id="q2"))
+
+    assert repo.szene_usa_stand(conn, 1) == "nein"
+    assert tg.beantwortet[-1][1] == knoepfe._TEXT_SCHON_BENUTZT
+
+
+def test_usa_knoepfe_bleiben_unter_64_bytes(conn, tg):
+    knoepfe.biete_szene_usa(conn, tg, 1)
+    for _, daten in tg.knoepfe[0][2]:
+        assert len(daten.encode("utf-8")) < telegram.CALLBACK_DATA_GRENZE
+
+
+def test_usa_knopf_schreibt_ins_journal(conn, einst, tg):
+    """Eine Einwilligung muss nachlesbar sein -- sie betrifft eine
+    Datenuebermittlung, nicht nur eine Formatfrage."""
+    knoepfe.biete_szene_usa(conn, tg, 1)
+    knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[0][2][0][1]))
+
+    assert any(
+        j["art"] == "entschieden" and "US-Modell" in j["text"] and j["quelle"] == "knopf"
+        for j in repo.journal(conn, 1)
+    )
+
+
+def test_szene_usa_ohne_antwort_bietet_knoepfe_an(conn, einst, tg):
+    """Einhaengung: "/szene usa" ohne ja/nein legt die beiden Knoepfe hin."""
+    from interview_theater import befehle
+
+    befehle.behandle(conn, tg, einst, 1, "/szene usa", "Ada", klm=None)
+
+    assert [b for b, _ in tg.knoepfe[0][2]] == ["Ja, US-Modell", "Nein, Schweiz"]
+
+
+def test_szene_usa_ja_per_text_wirkt_weiter_wie_bisher(conn, einst, tg):
+    """Der Slash-Weg bleibt unangetastet -- die Knoepfe treten daneben, nicht
+    an seine Stelle."""
+    from interview_theater import befehle
+
+    befehle.behandle(conn, tg, einst, 1, "/szene usa nein", "Ada", klm=None)
+
+    assert repo.szene_usa_stand(conn, 1) == "nein"
+    assert tg.knoepfe == []
+
+
+# --- Slash-Befehle und Knoepfe nebeneinander (Rauchtest) ------------------
+
+
+def test_slash_und_knopf_setzen_dasselbe_feld_ohne_sich_zu_stoeren(conn, einst, tg):
+    """Der Rauchtest: erst /stueck format per Text, dann derselbe Wert per
+    Knopf. Beides landet im Arbeitsstand, und es gibt nur EINEN Schreibweg
+    (repo.setze_arbeitsstand) -- kein zweiter Mechanismus daneben."""
+    from interview_theater import befehle
+
+    befehle.behandle(conn, tg, einst, 1, "/stueck format Musical", "Ada")
+    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Musical"
+
+    knoepfe.biete_format(conn, tg, 1, ["Musical"])
+    knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
+
+    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Musical"
+
+    # Und andersherum: der Text gewinnt danach wieder, ohne dass der schon
+    # verbrauchte Knopf etwas zurueckdreht.
+    befehle.behandle(conn, tg, einst, 1, "/stueck format Revue", "Ada")
+    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Revue"
+
+
+def test_slash_und_knopf_setzen_dieselbe_szenenform(conn, einst, tg):
+    """Dasselbe fuer die Form je Szene: /szene 1 form lied per Text, dann
+    derselbe Wert per Knopf -- ein Feld, ein Schreibweg."""
+    from interview_theater import befehle
+
+    befehle.behandle(conn, tg, einst, 1, "/szene 1 form lied", "Ada", klm=None)
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    assert repo.hole_szene(conn, szene_id)["form"] == "lied"
+
+    knoepfe.biete_szenenform(conn, tg, 1, 1)
+    knoepfe.behandle(conn, tg, None, einst, _druck(tg.knoepfe[-1][2][1][1]))
+
+    assert repo.hole_szene(conn, szene_id)["form"] == "lied"

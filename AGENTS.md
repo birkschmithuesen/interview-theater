@@ -74,7 +74,7 @@ lädt, würde damit Gesprächszüge ausbremsen.
 - **Der Prompt ist datengetrieben.** `kontext.baue()` lässt jeden Block weg,
   solange die zugrundeliegenden Daten leer sind. Biegt die Gruppe ab, ändert
   sich die Materiallage und der Prompt folgt automatisch (SPEC § 6.1).
-- **Inline-Knöpfe an genau drei Auswahl-Momenten** (05.09.2026, `knoepfe.py`).
+- **Inline-Knöpfe an den Auswahl-Momenten** (05.09.2026, `knoepfe.py`).
   Gemessen an diesem Tag: der Erkenner trifft eine Kernthema-Festlegung
   zuverlässig, wenn er das ganze Gespräch sieht (3/3) — live sieht er aber nur
   ein Fenster von 1–3 Nachrichten, und im Fenster mit der Zustimmung schrieb er
@@ -82,17 +82,28 @@ lädt, würde damit Gesprächszüge ausbremsen.
   Festlegung landete nicht in der DB und nicht auf der Weboberfläche. Ein Knopf
   trägt die Auswahl selbst — nichts zu raten. Knöpfe gibt es deshalb **nur**
   dort, wo aus wenigen benannten Möglichkeiten gewählt wird: Kernthema-Vorschlag,
-  Aufnahme-Umschalter, „Weiter zu Phase N". Freitext (Begriffe, Fragen,
-  Figurenbeschreibungen) bleibt bewusst Sprache — dort gibt es keine Liste.
+  Aufnahme-Umschalter, „Weiter zu Phase N", **Format des Stücks** (Phase 5),
+  **Form je Szene** (Phase 6) und die **USA-Einwilligung**. Freitext (Begriffe,
+  Fragen, Figurenbeschreibungen) bleibt bewusst Sprache — dort gibt es keine
+  Liste. Die letzten drei kamen am selben Tag dazu, nachdem die nummerierten
+  Auswahllisten in `phasen/5.md` und `6.md` dieselbe Schwäche zeigten („das
+  erste" ist für den Erkenner nicht auflösbar) und die USA-Frage in der
+  Simulation eine Sackgasse erzeugte: die Gruppe bejahte siebenmal, der
+  Erkenner las es als Zustimmung zu den Figuren.
   Drei bindende Zusagen: (1) `callback_data` bleibt unter **64 Bytes** — ein
   Knopf trägt nur `k:<id>`, der Wert steht in der Tabelle `knopf`, nie der
-  Volltext im Knopf; (2) **kein Modellaufruf** in einem Knopf-Handler, wie bei
+  Volltext im Knopf (auch die Szenennummer nicht: sie steht als `"<nr>:<form>"`
+  im `wert` der Knopfzeile); (2) **kein Modellaufruf** in einem Knopf-Handler,
+  wie bei
   den Slash-Befehlen — was ein Modell braucht, geht an einen eigenen Thread;
   (3) **idempotent** über `repo.beanspruche_knopf` (bedingtes
   `UPDATE … WHERE benutzt_am IS NULL`, SQLite entscheidet) — der zweite Druck
   wird beantwortet, wirkt aber nicht. Die Weiche sitzt in `bot.schleife` vor
   `verarbeite_update`: ein Knopfdruck ist keine Nachricht und geht nie in
   `nachricht`, sonst läse ihn der Erkenner wie einen Gruppenbeitrag.
+  **Fallstrick:** `repo.setze_szene_usa` nimmt einen **bool**, nicht `"ja"`/
+  `"nein"` — ein nicht-leerer String ist wahr, ein „nein" würde als Zustimmung
+  zur Datenübermittlung enden. Test: `test_usa_knopf_nein_setzt_false_und_nicht_wahr`.
 - **Die Phase setzt allein die Gruppe** (seit 05.09.2026, `phasen.py`, SPEC
   § 0 Leitsatz 3 Nachtrag): `phase_setzen` oder `/phase`, nie still erraten
   und seit dieser Korrektur auch nicht mehr vom Bot selbst. Der automatische

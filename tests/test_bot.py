@@ -508,3 +508,65 @@ def test_kaputter_knopfdruck_stoppt_die_schleife_nicht(conn, einst):
         conn, KaputtesTelegram(), None, einst,
         {"callback_query_id": "x", "data": "k:1", "chat_id": 1, "message_id": 2},
     )
+
+
+def test_neue_knopfarten_laufen_durch_die_update_schleife(conn, einst):
+    """Trockenlauf ohne Netz fuer die drei Knopfarten, die am 05.09.2026
+    dazugekommen sind (Format, Form je Szene, USA-Einwilligung): ein echter
+    callback_query-Update geht durch die Schleife bis in
+    _bearbeite_knopfdruck, und die Wirkung steht danach in der Datenbank.
+
+    Geprueft wird hier bewusst der GANZE Weg und nicht nur knoepfe.behandle:
+    zwischen Update und Wirkung liegen lies_knopfdruck, die Weiche in
+    bot.schleife und der Thread-Pool -- die Knopfarten des Branches waren
+    dort schon eingehaengt, die neuen muessen es genauso sein."""
+    from interview_theater import knoepfe, repo as repo_modul
+
+    chat_id = -100
+    repo_modul.sichere_gruppe(conn, chat_id, einst.bot_name, "Testgruppe")
+
+    class Attrappe:
+        def __init__(self):
+            self.gesendet = []
+            self.knoepfe = []
+
+        def sende(self, chat_id, text):
+            self.gesendet.append((chat_id, text))
+            return 1
+
+        def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+            self.knoepfe.append(list(knoepfe_))
+            return 1
+
+        def beantworte_knopf(self, *a, **k):
+            pass
+
+        def entferne_knoepfe(self, *a, **k):
+            pass
+
+    tg_att = Attrappe()
+    knoepfe.biete_format(conn, tg_att, chat_id, ["Revue"])
+    knoepfe.biete_szenenform(conn, tg_att, chat_id, 2)
+    knoepfe.biete_szene_usa(conn, tg_att, chat_id)
+
+    daten_format = tg_att.knoepfe[0][0][1]
+    daten_form = tg_att.knoepfe[1][1][1]      # "Lied"
+    daten_usa_nein = tg_att.knoepfe[2][1][1]  # "Nein, Schweiz"
+
+    for nr, daten in enumerate((daten_format, daten_form, daten_usa_nein), start=20):
+        tg = FakeTelegramFuerSchleife([bau_knopfupdate(nr, daten)])
+        pool = FakePool()
+        with pytest.raises(_StoppeSchleife):
+            bot.schleife(conn, einst, tg, object(), object(), pool)
+        assert len(pool.submits) == 1
+        fn, args, _ = pool.submits[0]
+        assert fn is bot._bearbeite_knopfdruck
+        # Der Pool ist eine Attrappe: die Arbeit hier ausfuehren, wie sie im
+        # Betrieb im Thread liefe.
+        fn(args[0], tg_att, args[2], args[3], args[4])
+
+    assert repo_modul.hole_arbeitsstand(conn, chat_id)["format"] == "Revue"
+    szene_id = repo_modul.stelle_szene_sicher(conn, chat_id, 2)
+    assert repo_modul.hole_szene(conn, szene_id)["form"] == "lied"
+    # Der bool-Fall: "nein" ist False, nicht ein wahrer String.
+    assert repo_modul.szene_usa_stand(conn, chat_id) == "nein"

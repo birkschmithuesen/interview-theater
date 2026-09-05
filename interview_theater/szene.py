@@ -897,6 +897,33 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str) -> None:
         log.exception("Szenen-Nachricht fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def _sende_usa_angebot(conn, tg, e, chat_id: int) -> None:
+    """Schickt das USA-Angebot MIT den beiden Einwilligungsknoepfen
+    (05.09.2026).
+
+    Der Text geht wie bisher durch ``_sende_und_merke`` -- er soll im
+    Verlaufsfenster stehen. Die Knoepfe haengen an einer zweiten, kurzen
+    Nachricht darunter, statt an der ersten: ``_sende_und_merke`` merkt sich
+    die Nachricht ueber ``tg.sende``, und daraus eine Sendung mit Tastatur zu
+    machen haette den Merkweg fuer alle Szenen-Nachrichten umgebaut. Zwei
+    Nachrichten sind hier der kleinere Eingriff -- und die Gruppe sieht die
+    Knoepfe direkt unter der Frage.
+
+    Ein Fehlschlag beim Anhaengen der Knoepfe darf den Szenenlauf nicht
+    mitreissen: der Angebotstext steht dann trotzdem, und ``/szene usa ja``
+    bleibt der Weg (dieselbe Fehlerhaltung wie in ``_sende_und_merke``)."""
+    # Import erst hier: ``knoepfe`` greift seinerseits auf ``szene`` zu
+    # (FORMEN, planungszeile) -- ein Modulimport oben waere ein Zyklus.
+    # Derselbe Grund wie beim befehle-Import in knoepfe._wirke.
+    from interview_theater import knoepfe
+
+    _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEBOT_USA)
+    try:
+        knoepfe.biete_szene_usa(conn, tg, chat_id)
+    except Exception:
+        log.exception("USA-Knoepfe fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     """Der eigentliche Szenen-Aufruf: Prompt bauen, Modell fragen, Szene
     speichern, Journal schreiben, Vorschau in die Gruppe schicken. Liefert
@@ -1001,7 +1028,7 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
     # ist. Ein Nein heisst Infomaniak, und der Bot fragt nicht wieder.
     if szene_claude.angebot_faellig(e, conn, chat_id):
         repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
-        _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEBOT_USA)
+        _sende_usa_angebot(conn, tg, e, chat_id)
         return None
     if szene_claude.wartet_auf_antwort(e, conn, chat_id):
         # Nach USA_ERINNERUNGEN_MAX vergeblichen Anlaeufen wird nicht weiter

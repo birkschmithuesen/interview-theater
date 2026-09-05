@@ -258,8 +258,10 @@ CREATE INDEX IF NOT EXISTS idx_journal_chat ON journal(chat_id, id);
 CREATE TABLE IF NOT EXISTS knopf (
   id           INTEGER PRIMARY KEY,
   chat_id      INTEGER NOT NULL,
-  art          TEXT NOT NULL,            -- kernthema|aufnahme|phase
-  wert         TEXT,                     -- Kernthema-Volltext bzw. Phasennummer
+  art          TEXT NOT NULL,            -- kernthema|aufnahme|phase|format|
+                                          -- szenenform|szene_usa
+  wert         TEXT,                     -- Kernthema-Volltext, Phasennummer,
+                                          -- Format, "<nr>:<form>" bzw. ja|nein
   erstellt_am  TEXT NOT NULL,
   benutzt_am   TEXT                      -- gesetzt = schon gedrueckt
 );

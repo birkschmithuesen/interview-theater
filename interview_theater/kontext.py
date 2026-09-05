@@ -21,9 +21,13 @@ die zuletzt geaenderte Szene im Volltext als eigener Block 5 -- beide
 datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
 """
 
+import logging
+import os
 from datetime import datetime, timedelta
 
 from interview_theater import phasen, repo
+
+log = logging.getLogger(__name__)
 
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
 #: interview_theater/prompts/system.md). Wird der Sprachmodell-Anfrage getrennt vom
@@ -75,6 +79,43 @@ BUDGETS = {
 #: Zielgroesse Normalfall und Reissleine, in Token (§ 6.2, § 7.2).
 ZIEL = 20_000
 REISSLEINE = 40_000
+
+#: **Harte Obergrenze des Nutzertextes in ZEICHEN** (Audit 06.09.2026,
+#: Befund G4). Bis hierher war ZIEL = 20.000 Token die einzige Bremse -- und
+#: sie hat am 06.09. nicht gegriffen: gemessen gingen 52.361 Zeichen raus,
+#: nach ``schaetze`` (Zeichen ÷ 3) rund 17.400 Token, also *unter* ZIEL. Der
+#: Prompt war damit formal in Ordnung und praktisch unbrauchbar: ein Fenster
+#: von 700 Zeilen bis in den Vormittag zurueck, in dem das Modell die
+#: Gegenwart nicht mehr fand. § 7.2 der SPEC nennt fuer das Fenster 8.000
+#: Token; 24.000 Zeichen (~7.000 Token nach unserer Schaetzung, ~8.000 real
+#: bei deutschen Komposita) ist diese Zahl, in der Einheit gemessen, in der
+#: wir sie ohne Tokenizer sicher pruefen koennen.
+#:
+#: Ueber ``IT_PROMPT_ZEICHEN`` konfigurierbar: am Workshoptag muss sich das
+#: ohne Codeaenderung nachziehen lassen.
+ZEICHEN_GRENZE_VORGABE = 24_000
+
+
+def zeichengrenze() -> int:
+    """Die geltende harte Obergrenze in Zeichen (``IT_PROMPT_ZEICHEN``).
+
+    Bei jedem Aufruf gelesen, nicht beim Import: dieselbe Ueberlegung wie beim
+    Hot-Reload der Prompts (``anweisungen.py``) -- eine Aenderung soll ohne
+    Neustart wirken. Ein unlesbarer oder unsinniger Wert faellt still auf die
+    Vorgabe zurueck; am Workshoptag darf ein Tippfehler in einer Umgebung den
+    Bot nicht stumm schalten."""
+    roh = os.environ.get("IT_PROMPT_ZEICHEN")
+    if not roh:
+        return ZEICHEN_GRENZE_VORGABE
+    try:
+        wert = int(roh)
+    except ValueError:
+        log.warning("IT_PROMPT_ZEICHEN unlesbar (%r), nehme %d", roh, ZEICHEN_GRENZE_VORGABE)
+        return ZEICHEN_GRENZE_VORGABE
+    if wert < 2_000:
+        log.warning("IT_PROMPT_ZEICHEN zu klein (%d), nehme %d", wert, ZEICHEN_GRENZE_VORGABE)
+        return ZEICHEN_GRENZE_VORGABE
+    return wert
 
 #: Ab dieser Zeitspanne zwischen zwei Nachrichten im Fenster wird eine
 #: Pausenzeile eingeschoben (§ 6.2 "Pausenmarkierung").
@@ -255,11 +296,20 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
     themen = repo.kernthemen_themen(conn, chat_id)
     if themen:
         block = ["Passende Stellen aus den Interviews (die Ausarbeitungsgrundlage):"]
+        # Die Zusammenfassung gehoert der VERDICHTUNG, nicht dem Thema:
+        # ``kernthemen_themen`` liefert sie je Zeile mit, und ein Interview mit
+        # elf markierten Themen schrieb sie deshalb elfmal in den Prompt --
+        # gemessen am 06.09.2026: derselbe 700-Zeichen-Absatz 11x, allein
+        # 7.700 Zeichen Dublette (Audit-Befund G1). Jetzt einmal je Interview,
+        # danach nur noch die Themenzeilen.
+        gesehen: set[str] = set()
         for thema in themen:
             name = interviewbezeichnung(conn, chat_id, thema["aufnahme_id"])
             block.append(f"- {name}: {thema['thema']}")
-            if thema["zusammenfassung"]:
-                block.append(f"    {thema['zusammenfassung']}")
+            zusammenfassung = (thema["zusammenfassung"] or "").strip()
+            if zusammenfassung and zusammenfassung not in gesehen:
+                gesehen.add(zusammenfassung)
+                block.append(f"    {zusammenfassung}")
         zeilen.append("\n".join(block))
 
     zitate = repo.kernzitate(conn, chat_id)
@@ -364,7 +414,20 @@ def szenenzeile(s) -> str:
     return kopf
 
 
-def _baue_arbeitsstand(conn, chat_id: int) -> str:
+def _baue_arbeitsstand(conn, chat_id: int, ohne_kernpaket_felder: bool = False) -> str:
+    """Der Arbeitsstand -- was die Gruppe festgelegt hat.
+
+    ``ohne_kernpaket_felder`` laesst die Felder weg, die im selben Prompt
+    schon im Kernpaket stehen (Audit-Befund G2, 06.09.2026): Geschichte,
+    Kernthema, Kernfrage, Rahmen und die Figurenzeilen standen an beiden
+    Stellen wortgleich -- Kernthema und Rahmen sogar dreimal, weil das
+    Kernpaket den Rahmen als "Setting (Rahmen)" fuehrt. Ein Fakt, der zweimal
+    dasteht, ist kein Fakt mehr, sondern eine Betonung, und das Modell hat sie
+    am 05.09. um 21:50 als solche gelesen. **Eine Quelle je Fakt**: steht das
+    Kernpaket im Prompt, gehoeren diese Felder ihm; sonst dem Arbeitsstand.
+
+    Begriffe, Fragen, Hauptkonflikt und die Szenenliste bleiben immer hier --
+    sie stehen im Kernpaket nicht."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
     figuren = repo.figuren(conn, chat_id)
     szenen = repo.hole_szenen(conn, chat_id)
@@ -384,28 +447,30 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
             zeilen.append(f"Begriffe: {stand['begriffe']}")
         if stand["fragen"]:
             zeilen.append(f"Fragen: {stand['fragen']}")
-        if stand["kernthema"]:
+        if stand["kernthema"] and not ohne_kernpaket_felder:
             zeile = f"Kernthema: {stand['kernthema']}"
             if stand["kernthema_begruendung"]:
                 zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
             zeilen.append(zeile)
-        if stand["kernfrage"]:
+        if stand["kernfrage"] and not ohne_kernpaket_felder:
             zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
         # Die Geschichte im Groben (Phase 5): Bogen und Ende.
-        if "geschichte" in stand.keys() and stand["geschichte"]:
+        if ("geschichte" in stand.keys() and stand["geschichte"]
+                and not ohne_kernpaket_felder):
             zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
         # Der Rahmen (Phase 5, seit 05.09.2026). Datengetrieben wie alles
         # andere: der Hauptkonflikt steht nur da, wenn die Gruppe einen wollte
         # -- er ist eine Rahmen-Entscheidung, keine Pflicht. Ein "Format" des
         # Stuecks steht hier seit dem Abend des 05.09.2026 nicht mehr: es
         # wird nicht mehr gefragt, also wird es auch nicht mehr vorgehalten.
-        if stand["rahmen"]:
+        if stand["rahmen"] and not ohne_kernpaket_felder:
             zeilen.append(f"Rahmen: {stand['rahmen']}")
         if stand["hauptkonflikt"]:
             zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
-    for figur in figuren:
-        beschreibung = f": {figur['beschreibung']}" if figur["beschreibung"] else ""
-        zeilen.append(f"Figur {figur['name']}{beschreibung}")
+    if not ohne_kernpaket_felder:
+        for figur in figuren:
+            beschreibung = f": {figur['beschreibung']}" if figur["beschreibung"] else ""
+            zeilen.append(f"Figur {figur['name']}{beschreibung}")
     # Szenenliste: Teil des Arbeitsstands, nicht ein eigener Block -- SPEC
     # § 6.2 fuehrt sie woertlich in Block 4 auf ("Begriffe, Fragen, Kernthema +
     # Begruendung, Figuren, Konflikt, Szenenliste"). Nur Titel und die eine
@@ -514,11 +579,41 @@ def _baue_szene(conn, chat_id: int) -> str:
     return f"Aktuelle Szene ({szenenzeile(szene)}):\n{szene['volltext']}"
 
 
+#: Wie viele Journaleintraege in den Prompt gehen -- die letzten N nach
+#: Dedupe (Audit-Befund G3, 06.09.2026). Das Journal ist nur-anhaengend und
+#: waechst ueber zwei Workshoptage auf Dutzende Zeilen; gemessen standen am
+#: 06.09. 15 Zeilen im Prompt, davon "Szene 1 geschrieben: ..." VIERMAL und
+#: vier Figurenzeilen mit demselben "basierend auf Interview 1"-Anhang. Ein
+#: Modell liest vierfache Wiederholung als Betonung -- es hielt die eine
+#: geschriebene Szene fuer vier.
+JOURNAL_EINTRAEGE = 8
+
+
 def _baue_journal(conn, chat_id: int) -> str:
+    """Die letzten JOURNAL_EINTRAEGE Journalzeilen, ohne Dubletten.
+
+    **Dedupe vor Kuerzung**: erst fliegen textgleiche Eintraege raus (der
+    juengste bleibt, weil er den aktuellen Stand traegt), dann werden die
+    letzten N genommen. Andersherum wuerden acht Dubletten acht Plaetze
+    besetzen und alles Aeltere verdraengen.
+
+    Das Journal in der Datenbank bleibt unangetastet -- dort steht die volle
+    Geschichte, und ein Journal wird nur angehaengt, nie umgeschrieben
+    (AGENTS.md). Gekuerzt wird nur die Sicht des Modells."""
     eintraege = repo.journal(conn, chat_id)
     if not eintraege:
         return ""
-    zeilen = [f"- [{e['art']}] {e['text']}" for e in eintraege]
+    # Von hinten durchgehen: der juengste Eintrag eines Textes gewinnt.
+    gesehen: set[tuple[str, str]] = set()
+    behalten = []
+    for e in reversed(eintraege):
+        schluessel = (e["art"], (e["text"] or "").strip())
+        if schluessel in gesehen:
+            continue
+        gesehen.add(schluessel)
+        behalten.append(e)
+    behalten = list(reversed(behalten))[-JOURNAL_EINTRAEGE:]
+    zeilen = [f"- [{e['art']}] {e['text']}" for e in behalten]
     return "Journal:\n" + "\n".join(zeilen)
 
 
@@ -752,17 +847,21 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     # alles andere -- es gibt keinen gespeicherten Zustand, nur zwei Felder,
     # die die Lage beschreiben.
     material = material_erlaubt(conn, chat_id)
+    kernpaket = (
+        _baue_kernpaket(conn, chat_id) if kernpaket_erlaubt(conn, chat_id) else ""
+    )
     bloecke = {
         "erstkontakt": _baue_erstkontakt(conn, chat_id, e) if erstkontakt else "",
         "verdichtungen": _baue_verdichtungen(conn, chat_id) if material else "",
         "transkripte": _baue_transkripte(conn, chat_id) if material else "",
         # In 4 und 5 gibt es WEDER Material NOCH Kernpaket: dort wird
         # erfunden (``PHASEN_ERFINDEN``).
-        "kernpaket": (
-            _baue_kernpaket(conn, chat_id)
-            if kernpaket_erlaubt(conn, chat_id) else ""
+        "kernpaket": kernpaket,
+        # Kernpaket ODER Arbeitsstand, nie beides fuer denselben Fakt
+        # (Audit-Befund G2).
+        "arbeitsstand": _baue_arbeitsstand(
+            conn, chat_id, ohne_kernpaket_felder=bool(kernpaket)
         ),
-        "arbeitsstand": _baue_arbeitsstand(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
@@ -772,15 +871,52 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     }
 
     gekuerzt = False
-    if schaetze(_zusammen(bloecke)) > ZIEL:
+    grenze = zeichengrenze()
+
+    def _zu_lang() -> bool:
+        """Ueber Zeichengrenze ODER ueber Token-Ziel -- beides bremst.
+
+        Zwei Masse, weil sie verschiedene Fehler fangen: ZIEL faengt den
+        Prompt, der insgesamt zu gross wird, die Zeichengrenze den, der es in
+        Token knapp nicht wird und trotzdem unlesbar ist (der Fall vom
+        06.09.2026)."""
+        text = _zusammen(bloecke)
+        return len(text) > grenze or schaetze(text) > ZIEL
+
+    if _zu_lang():
         gekuerzt = True
+        vorher = len(_zusammen(bloecke))
+        # Kuerzungsreihenfolge (§ 7.2, praezisiert im Audit 06.09.2026):
+        # 1. Volltranskripte -- der groesste einzelne Brocken, und ihr Inhalt
+        #    steht verdichtet ohnehin da.
+        # 2. Der Verlauf von vorn -- das Aelteste zuerst, eine ganze Nachricht
+        #    je Schritt.
+        # 3. Das Journal von vorn -- die aeltesten Notizen.
+        # 4. Die Verdichtungen -- zuletzt, weil sie das Material selbst sind.
+        # Nie angetastet: Kernpaket, Arbeitsstand, Hinweise, aktuelle Szene und
+        # die ausloesende Nachricht. Es gibt keinen Zustand, in dem der Bot
+        # wegen des Budgets nicht antworten koennte.
         bloecke["transkripte"] = ""
-        repo.merke_vorfall(
-            conn, chat_id, getattr(e, "bot_name", None), "kuerzung", "Transkripte entfernt"
-        )
-        while schaetze(_zusammen(bloecke)) > ZIEL and fenster_eintraege:
+        while _zu_lang() and fenster_eintraege:
             fenster_eintraege = fenster_eintraege[1:]
             bloecke["fenster"] = "\n".join(fenster_eintraege)
+        if _zu_lang() and bloecke["journal"]:
+            journalzeilen = bloecke["journal"].split("\n")
+            # Zeile 0 ist die Ueberschrift "Journal:" -- sie bleibt, solange
+            # noch eine Notiz darunter steht.
+            while _zu_lang() and len(journalzeilen) > 2:
+                journalzeilen = [journalzeilen[0]] + journalzeilen[2:]
+                bloecke["journal"] = "\n".join(journalzeilen)
+            if _zu_lang():
+                bloecke["journal"] = ""
+        if _zu_lang():
+            bloecke["verdichtungen"] = ""
+        nachher = len(_zusammen(bloecke))
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "kontext_gekuerzt",
+            f"Nutzertext von {vorher} auf {nachher} Zeichen gekuerzt "
+            f"(Grenze {grenze}, Ziel {ZIEL} Token)",
+        )
 
     if protokoll is not None:
         protokoll.append(umriss(bloecke, gekuerzt))

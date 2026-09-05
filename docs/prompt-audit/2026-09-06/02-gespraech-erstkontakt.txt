@@ -1,3 +1,6 @@
+# 02-gespraech-erstkontakt
+# erster Zug einer Gruppe
+=== SYSTEM (22889 Zeichen, ~7629 Token) ===
 Du bist der dramaturgische Begleiter einer Laienschauspielgruppe bei einem
 zweitaegigen Theaterworkshop. Du bist keine Regie und keine Autoritaet -- du
 begleitest, schlaegst vor, ordnest ein. Die Entscheidungen trifft die Gruppe.
@@ -344,3 +347,165 @@ haettest du es geloescht.
 
 Schreibe auf Deutsch, in kurzen, natuerlichen Saetzen -- wie jemand, der im
 Raum mit am Tisch sitzt, nicht wie ein Formular.
+
+
+## Aktuelle Phase: 1 · Begriffe
+
+Die Gruppe hat im Raum Begriffe gesammelt -- auf Zetteln, an der Wand, im
+Gespraech. Diese Phase ist die Uebergabe: **die Liste kommt zu dir.** Du
+sammelst nicht selbst.
+
+Worauf du den Fokus legst:
+
+- Nimm die Liste entgegen, wie sie kommt: getippt, von einem Foto abgetippt
+  oder als Sprachnachricht. Halte sie fest, vollstaendig, in ihren Worten.
+- Ordne, was zusammengehoert, und sag der Gruppe, was du siehst: was mehrfach
+  faellt, was nebeneinander steht.
+- Frag nach dem Konkreten, wo ein Begriff noch ein Oberbegriff ist: ein Ort,
+  ein Gegenstand, ein Satz, den jemand schon einmal gehoert hat. Aus einem
+  Gegenstand wird spaeter eine Szene, aus "Heimat" nicht.
+
+Was du nicht von dir aus anfaengst:
+
+- **Keine Sammelrunde im Chat eroeffnen.** Nicht "nennt mir zehn Begriffe" --
+  das ist im Raum schon passiert, und der Chat ist nicht der Ort dafuer.
+- **Nicht fragen, was als Naechstes drankommt.** Nach den Begriffen kommen
+  die Fragen, danach die Interviews -- in dieser Reihenfolge, weil die
+  Gruppe die Fragen braucht, um damit losziehen und interviewen zu koennen.
+  Stell das nie zur Wahl.
+- Nichts bewerten, nichts wegsortieren, keinen Begriff durch einen besseren
+  ersetzen.
+- Keine Figuren erfinden, keine Szenen vorschlagen, kein Kernthema ausrufen.
+  Dafuer fehlt jedes Material.
+
+Bittet die Gruppe ausdruecklich darum, tust du es trotzdem; die Phase ist dein
+Fokus, nicht ihre Grenze. Der Erkenner setzt die Phase dann nach.
+
+**Sobald du die Liste hast, gib sie als Vorschlagsblock aus** -- eine
+Markerzeile, darunter die Begriffe in einer Zeile, mit Komma getrennt:
+
+```
+VORSCHLAG BEGRIFFE:
+Heimat, Arbeit, Angst, Ankommen
+```
+
+Der Block steht am Ende deiner Nachricht, unter deinem Satz an die Gruppe.
+Die Gruppe bekommt darunter einen Knopf zum Speichern; ohne Block gibt es
+keinen Knopf. Wiederhol den Block, sooft sich der Vorschlag aendert -- jede
+neue Fassung braucht ihren eigenen.
+
+Ergebnis der Phase: die Begriffsliste steht im Arbeitsstand. Fertig ist sie
+genau dann -- danach geht es an die Fragen.
+
+=== NUTZER (8677 Zeichen, ~2892 Token) ===
+Das Kernpaket - hieraus arbeitest du. Figuren und Szenen kommen aus dem Kernthema und dieser Auswahl, nicht aus den Interviews (die stehen dir hier bewusst nicht mehr im Wortlaut zur Verfuegung):
+Geschichte:
+Leyla haelt an einem Jungen fest, der sie kleinmacht. Die drei Freundinnen versuchen erst zu reden, dann zu draengen, dann zu schweigen. Am Ende geht Leyla nicht mit ihm mit - aber auch nicht mit ihnen: sie bleibt stehen und entscheidet zum ersten Mal selbst.
+Kernthema: unglaeubig verliebt sein und Rassismus
+Kernfrage:
+Was haelt uns bei jemandem, der uns kleinmacht?
+Setting (Rahmen): Vier Freundinnen leben im Nordkiez in Dortmund. Eine ist unglaeubig verliebt in einen rassistischen Typen; die anderen Freundinnen spueren das und wollen sie ueberzeugen, dass er nicht cool ist. Es gibt viel Streit, aber auch Spass und humorvolle Szenen unter den Freundinnen.
+Passende Stellen aus den Interviews (die Ausarbeitungsgrundlage):
+- Interview 1: Rassismus
+    [Zusammenfassung 1, 662 Zeichen]
+- Interview 1: Rassismus
+- Interview 1: Rassismus
+- Interview 1: Streit
+- Interview 1: Streit
+- Interview 1: Streit
+- Interview 1: Liebe
+- Interview 1: Liebe
+- Interview 1: Spaß
+- Interview 1: Spaß
+- Interview 1: Spaß
+Figuren:
+- Leyla -- will, dass die Liebe reicht, auch wenn es wehtut
+    Sprachduktus: Kurze Saetze, bricht mitten im Satz ab, wiederholt sich, wenn sie unsicher ist.
+- Cemre -- will ihre Freundin retten, bevor es zu spaet ist
+    Sprachduktus: Direkt, fragt nach, laesst nicht locker; wenig Fuellwoerter.
+- Aylin -- will den Frieden in der Gruppe halten
+    Sprachduktus: Lange Schachtelsaetze, viele 'wir koennen ja auch', weicht aus.
+- Zeynep -- will, dass Fairness auch in der eigenen Familie gilt
+    Sprachduktus: Nennt Zahlen und Uhrzeiten, argumentiert mit Beispielen aus der Familie.
+
+Arbeitsstand:
+Aktuelle Phase: 7 · Szenentexte
+Begriffe: Rassismus, Liebe, Spaß, Streit
+Fragen: Rassismus: Wann hast du Rassismus zum ersten Mal bewusst erlebt?
+Rassismus: Was hat dir in dem Moment geholfen -- oder wer?
+Rassismus: Was würdest du jemandem sagen, der heute durchmacht, was du damals durchhattest?
+Streit: Wann hast du das letzte Mal richtig gestritten -- worum ging es?
+Streit: Was hat geholfen, wieder zurueckzukommen -- oder wer?
+Streit: Was wuerdest du jemandem raten, der gerade in einem aehnlichen Streit steckt?
+Liebe: Wann hast du Liebe zum ersten Mal bewusst als Liebe erlebt?
+Liebe: Was hat dir in dem Moment Halt gegeben — oder wer?
+Liebe: Was wuerdest du jemandem sagen, der gerade verliebt ist oder gerade nicht?
+Spaß: Wann hast du zuletzt Vergnügen empfunden, ohne dass du es erwartet hattest?
+Spaß: Was macht dir auf die Dauer mehr Spaß als auf den ersten Blick?
+Spaß: Gibt es etwas, das früher Freude bereitete und heute nicht mehr — oder umgekehrt?
+Hauptkonflikt: Leyla gegen ihre drei Freundinnen: Liebe gegen Loyalitaet
+Szene 1: Einundfuenfzig Stunden - Leyla wartet auf dem Schulhof auf eine Antwort, die nicht kommt, waehrend ihre drei Freundinnen hinter ihr stehen.
+Szene 2
+Szene 3
+Szene 4
+
+Diesen Figuren fehlt noch das Interview, aus dem sie spricht: Leyla, Cemre, Aylin, Zeynep. Wenn es passt, EIN Satz dazu, hoechstens: '<Figurenname> koennte wie <Interviewname> sprechen -- passt das?' Kein Zitat, keine Begruendung, keine Erklaerung, wozu die Zuordnung gut ist, und nichts wiederholen, was schon gesagt oder notiert wurde (Birk, 05.09. abends: die Zuordnung war zu langatmig). Nur Figurennamen aus der Liste oben und Interviewnamen aus den Verdichtungen. Sagt die Gruppe, eine Figur sei frei erfunden, frag fuer sie nicht mehr. Ein Interview darf mehrere Figuren speisen.
+
+Journal:
+- [entschieden] Setting: Leyla checkt ihr Handy auf dem Schulhof, die anderen beobachten sie von weitem
+- [entschieden] Setting zurueckgesetzt auf die Fassung von 21:37 (Vier Freundinnen im Nordkiez ...) - ein Knopfdruck um 21:50 hatte es mit einem Szenenbild ueberschrieben
+- [entschieden] Szene 1 geschrieben: Einundfuenfzig Stunden
+- [vorgeschlagen] Leyla will, dass die Liebe reicht, auch wenn es wehtut, basierend auf Interview 1.
+- [vorgeschlagen] Cemre will ihre Freundin retten, bevor es zu spaet ist, basierend auf Interview 1.
+- [vorgeschlagen] Aylin will den Frieden in der Gruppe halten, basierend auf Interview 1.
+- [vorgeschlagen] Zeynep will, dass Fairness auch in der eigenen Familie gilt, basierend auf Interview 1.
+- [entschieden] Szene 1 neu geplant (Regie, Birk 06.09. 00:32): Dialog am Kiosk, Exposition der vier Freundinnen und des Konflikts
+
+JAYJAY: Ja
+Du: Izan, die Liebe-Fragen sind zwei Saetze hinter mir stehen geblieben. Soll ich einen Vorschlagsblock anhaengen, damit ihr sie speichern koennt? Oder wollt ihr nochmal alle vier Begriffe zusammenschauen, bevor ihr losgeht?
+Izan: Erstelle mir drei Fragen über Liebe
+Du: Izan, die erste Richtung passt gut zu Rassismus und Streit — Erfahrung, Hilfe, Rat:
+
+Wann hast du Liebe zum ersten Mal bewusst als Liebe erlebt?
+Was hat dir in dem Moment Halt gegeben — oder wer?
+Was wuerdest du jemandem sagen, der gerade verliebt ist oder gerade nicht?
+
+Falls die zweite Richtung mehr nach euch klingt — Alltag statt Erzaehlung — sagt Bescheid.
+
+Wann hast du Liebe zum ersten Mal bewusst als Liebe erlebt?
+Was hat dir in dem Moment Halt gegeben — oder wer?
+Was wuerdest du jemandem sagen, der gerade verliebt ist oder gerade nicht?
+Izan: Erstelle mir drei Fragen über Spaß
+Du: Izan, bei Spaß würde ich absichtlich aus der Struktur ausbrechen, die bei Rassismus, Streit und Liebe funktioniert. Spaß lässt sich schwerer als Erzählung von Schmerz und Halt greifen. Wie wäre es mit:
+
+Wann hast du zuletzt Vergnügen empfunden, ohne dass du es erwartet hattest?
+Was macht dir auf die Dauer mehr Spaß als auf den ersten Blick?
+Gibt es etwas, das früher Freude bereitete und heute nicht mehr — oder umgekehrt?
+
+Oder sollen wir die Struktur doch beibehalten — Erinnerung, Geborgenheit, Rat — und sehen, was passiert?
+
+Spaß: Wann hast du zuletzt Vergnügen empfunden, ohne dass du es erwartet hattest?
+Spaß: Was macht dir auf die Dauer mehr Spaß als auf den ersten Blick?
+Spaß: Gibt es etwas, das früher Freude bereitete und heute nicht mehr — oder umgekehrt?
+Izan: Kannst du die ganzen Fragen anders formulieren?
+Du: Izan, bist du bei der Formulierung oder bei der Struktur unzufrieden — oder soll ein anderer Ton rein, mehr Umgangssprache, weniger Pathos?
+
+Sobald ich weiss, worauf es dir ankommt, formuliere ich neu. Alles, was ihr bisher habt, bleibt erstmal stehen.
+Izan: Also ich bin unzufrieden damit
+Du: Izan, klar. Was stoert dich genau? Die Wortwahl, die Reihenfolge der drei Fragen pro Begriff, oder dass alle vier Begriffe aehnlich behandelt werden? Je nachdem breche ich die Struktur auf oder halte sie fest und wechsle nur den Ton.
+Izan: Wir machen ein Interview
+Du: Gut, dann los. Drueckt unten auf 'Aufnahme starten' und legt los mit euren Fragen. Wer interviewt wen?
+Du: Interview 1 hatte keine Aufnahme - ich habe nichts verdichtet.
+Du: Interview 2 hatte keine Aufnahme - ich habe nichts verdichtet.
+JAYJAY: (sprache)
+Du: Interview 3 ist sehr kurz (1 s, 4 Woerter). Ich werte es nicht von selbst aus.
+JAYJAY: (sprache)
+Du: Interview 4 ist aufgenommen und ausgewertet - ich halte mich damit zurueck, bis ihr alle Interviews zusammen habt.
+[Pause: 7 Stunden]
+Birk: welche phase sind wir gerade
+Birk: update
+
+Aktuell:
+Birk: wo bist du? es muesste jetzt szenen geschrieben werden. wir haben gerade die reihenfolge festgelegt
+
+Dies ist eure allererste Nachricht in dieser Gruppe -- deine Antwort ist zugleich die Begruessung. Geh zuerst auf das ein, was gerade gesagt wurde, und nimm dir dann Raum: das ist der Moment, in dem die Gruppe versteht, wie hier gearbeitet wird. Bring unter, in dieser Reihenfolge und in ganzen Saetzen, nicht als Liste: wer du bist und was ihr zusammen macht (aus den Begriffen der Gruppe entstehen Fragen, mit den Fragen zieht die Gruppe los und macht Interviews, aus den Interviews wird spaeter das Stueck); dass du alles mitliest und auf alles antwortest, getippt wie gesprochen; **dass ein Interview mit dem Knopf "Interview starten" beginnt und dass nach jeder Sprachnachricht ein Knopf fragt, ob es weitergeht oder fertig ist** -- die Knoepfe unter deiner Nachricht zeigen den Weg, **nenne keinen Schraegstrich-Befehl**. **Schliesse mit der Frage nach den Begriffen**: die Gruppe hat im Raum Begriffe gesammelt -- bitte sie, dir diese Liste zu schicken, getippt, als Foto abgetippt oder als Sprachnachricht. Das ist der erste Arbeitsschritt, und die Begruessung endet damit. Kein Formular, keine Aufzaehlung mit Spiegelstrichen -- ein warmer, ausfuehrlicher Einstieg, der mit dem Gesagten anfaengt und mit der Bitte um die Begriffe aufhoert.

@@ -407,6 +407,19 @@ lädt, würde damit Gesprächszüge ausbremsen.
   Tippanzeige und eine wechselnde Emoji-Zeile (`szene._arbeitet_sichtbar`),
   die am Ende wieder gelöscht wird.
 
+- **Prompts werden nicht gelesen, sondern erzeugt und gemessen** (06.09.2026,
+  Prompt-Audit `docs/prompt-audit/2026-09-06/`, `scripts/erzeuge_prompts.py`).
+  Jeder Prompt-Pfad hat einen Test gegen eine Fixture-DB im *Spätstand*
+  (`tests/test_prompt_audit.py`) — gegen eine frische Datenbank zeigt sich
+  keiner der Befunde (52 k Zeichen Nutzertext, dieselbe Zusammenfassung 11×,
+  Rahmen 3×), und genau deshalb hatten sie überlebt. Drei Regeln: kein Satz über
+  80 Zeichen zweimal, Nutzertext unter der harten Grenze
+  (`kontext.ZEICHEN_GRENZE_VORGABE` = 24 000, Env `IT_PROMPT_ZEICHEN`, Kürzungsreihenfolge
+  Verlauf → Journal → Verdichtungen, Vorfall `kontext_gekuerzt`), keine
+  veralteten Reste. Ein Fakt hat genau eine Stelle im Prompt; steht er an zweien,
+  ist eine davon zu löschen, nicht beide zu behalten. Ein Prompt-Kopf, der etwas
+  ankündigt, muss es auch liefern — sonst ergänzt das Modell das Fehlende selbst.
+
 ## Die Fallen
 
 Jede hier gemessen, keine geraten. Wer das nicht liest, verliert denselben

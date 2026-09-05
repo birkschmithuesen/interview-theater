@@ -151,7 +151,7 @@ def test_kuerzung_haelt_die_reissleine_ein(conn, einst):
 
     assert kontext.schaetze(prompt) <= kontext.REISSLEINE
     vorfaelle = conn.execute(
-        "SELECT count(*) FROM vorfall WHERE art = 'kuerzung'"
+        "SELECT count(*) FROM vorfall WHERE art = 'kontext_gekuerzt'"
     ).fetchone()[0]
     assert vorfaelle >= 1, "die Kuerzung muss einen Vorfall hinterlassen"
 
@@ -194,6 +194,10 @@ def test_kuerzung_bei_grossem_fenster_ohne_transkripte_erhaelt_ausloeser(conn, e
     # hoechstens FENSTER_MINUTEN zurueck. Von 600 Beitraegen bleibt damit ein
     # Bruchteil -- und der Ausloeser bleibt in jedem Fall stehen.
     verbliebene_fensterzeilen = prompt.count("Ein laengerer Gespraechsbeitrag")
+    # Seit dem Fensterumbau begrenzt schon der Fensterbau; die
+    # Gesamtkuerzung ist die zweite Bremse dahinter und muss hier nicht mehr
+    # zwingend ansprechen. Ihr eigener Nachweis steht in
+    # tests/test_prompt_audit.py (test_kuerzung_meldet_vorfall_mit_zahlen).
     assert verbliebene_fensterzeilen <= kontext.FENSTER_NACHRICHTEN
     assert verbliebene_fensterzeilen < 600
 

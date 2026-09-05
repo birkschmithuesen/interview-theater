@@ -861,3 +861,29 @@ def test_mit_format_und_rahmen_laeuft_die_szene(conn, einst, tg):
     repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Kueche, ein Abend")
 
     assert szene.sperrtext(conn, repo.hole_szene(conn, 1)) is None
+
+
+# --- Tanztheater als Vorgabe (05.09.2026 abends) --------------------------
+
+
+def test_ohne_form_entscheidet_das_format_ueber_den_regelblock():
+    """Das Format steht fest (knoepfe.FORMAT_FEST) -- eine Szene ohne eigene
+    Form ist dann keine Sprechszene, sondern eine getanzte."""
+    assert szene.formdatei(None, "Urban Dance Tanztheater") == "tanztheater"
+    assert szene.formdatei("", "Urban Dance Tanztheater") == "tanztheater"
+    assert szene.formdatei(None, "") == "dialog", "ohne Format bleibt Dialog"
+
+
+def test_eine_ausdrueckliche_form_schlaegt_das_format():
+    """Lied und Rap bleiben waehlbar -- sie kommen INNERHALB des
+    Tanztheaters vor."""
+    assert szene.formdatei("Lied", "Urban Dance Tanztheater") == "lied"
+    assert szene.formdatei("Rap", "Urban Dance Tanztheater") == "rap"
+
+
+def test_der_tanztheater_regelblock_steht_in_der_systemanweisung():
+    text = szene.systemanweisung(None, "Urban Dance Tanztheater")
+
+    assert "[BEWEGUNG" in text
+    assert "Achten" in text
+    assert "zwoelf Zeilen" in text

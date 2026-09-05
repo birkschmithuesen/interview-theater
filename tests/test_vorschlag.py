@@ -255,3 +255,38 @@ def test_schreibt_der_erkenner_zuerst_verschwindet_die_leiste(conn, tg):
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
 
     assert tg.knoepfe == []
+
+
+# --- Die vier Auswahl-Marker (05.09.2026 abends) --------------------------
+
+
+@pytest.mark.parametrize(
+    "marker,art",
+    [
+        ("RICHTUNGEN", "richtungen"),
+        ("NAMEN", "namen"),
+        ("DUKTUS", "duktus"),
+        ("RAHMEN", "rahmen"),
+    ],
+)
+def test_die_neuen_marker_werden_gelesen(marker, art):
+    text = f"Ein Satz.\n\nVORSCHLAG {marker}:\nErste Zeile\nZweite Zeile"
+
+    assert vorschlag.lies(text, art) == "Erste Zeile\nZweite Zeile"
+    assert "VORSCHLAG" not in vorschlag.ohne_marker(text)
+
+
+def test_zeilen_wirft_aufzaehlungszeichen_weg():
+    """Aus jeder Zeile wird ein Knopf -- eine Ziffer gehoert nicht in die
+    Beschriftung, und Modelle schreiben mal '1) ', mal '- '."""
+    wert = "1) Arbeit, die niemand sieht\n- Zwei Sprachen\n\n  Was bleibt  "
+
+    assert vorschlag.zeilen(wert) == [
+        "Arbeit, die niemand sieht", "Zwei Sprachen", "Was bleibt",
+    ]
+
+
+def test_alle_liefert_jeden_block_einer_nachricht():
+    text = "VORSCHLAG RICHTUNGEN:\nA\n\nVORSCHLAG RAHMEN:\nB"
+
+    assert vorschlag.alle(text) == {"richtungen": "A", "rahmen": "B"}

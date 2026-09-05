@@ -1001,9 +1001,11 @@ def _ersetze_namen(conn, tg, chat_id: int, neuer_name: str) -> str:
     rest = alt_zeile.split("—", 1)
     if len(rest) == 1:
         rest = alt_zeile.split(" - ", 1)
-        zeilen[index] = f"{neuer_name} - {rest[1]}" if len(rest) > 1 else neuer_name
+        zeilen[index] = (
+            f"{neuer_name} - {rest[1].lstrip()}" if len(rest) > 1 else neuer_name
+        )
     else:
-        zeilen[index] = f"{neuer_name} — {rest[1]}"
+        zeilen[index] = f"{neuer_name} — {rest[1].lstrip()}"
     repo.setze_arbeitsstand(conn, chat_id, "figur_aktuell", None)
     biete_figurenliste(conn, tg, chat_id, "\n".join(zeilen))
     return "Name geaendert"

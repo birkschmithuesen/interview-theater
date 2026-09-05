@@ -1151,3 +1151,20 @@ def test_die_aufgabe_der_szene_steht_im_prompt(conn):
     assert "die LETZTE" in letzte
     assert erste.index("Aufgabe dieser Szene") < erste.index("Diese Szene sollst du schreiben")
     assert "Vorgabe der Gruppe" in erste
+
+
+def test_neu_schreiben_nimmt_die_alte_fassung_nicht_als_vorlage(conn):
+    """06.09.2026: 'Neu schreiben' lieferte zweimal denselben Text, weil der
+    alte Volltext als 'soll ueberarbeitet werden' im Prompt stand."""
+    from interview_theater import szene
+
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+    sid = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.aktualisiere_szene(conn, sid, "Alt", "kurz", "LEYLA: Der alte Text.")
+    ziel = repo.hole_szene(conn, sid)
+    ueberarbeiten = szene.baue_nutzertext(conn, 1, "Schreib Szene 1.", ziel)
+    neu = szene.baue_nutzertext(conn, 1, f"Schreib Szene 1. {szene.NEU_MARKER}", ziel)
+    assert "Der alte Text" in ueberarbeiten
+    assert "Der alte Text" not in neu
+    assert "ANDERE Szene" in neu
+    assert szene.NEU_MARKER not in neu

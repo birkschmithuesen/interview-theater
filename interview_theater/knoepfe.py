@@ -1571,7 +1571,7 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
     Ausgelagert, weil ``_wirke`` sonst auf ueber vierhundert Zeilen anwuechse
     und die eine Regel, um die es geht ("kein Modellaufruf im Handler"), im
     Rauschen unterginge."""
-    from interview_theater import szenenfolge
+    from interview_theater import szenenfolge, szene as szene_modul
 
     art = knopf["art"]
     wert = str(knopf["wert"] or "")
@@ -1744,7 +1744,11 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
         # ist damit erledigt, und die spaeteren bekommen einen.
         szenenfolge.nimm_pruefvermerk(conn, chat_id, nummer)
         _melde_spaetere(conn, tg, chat_id, nummer)
-        return _schreibe_szene(conn, tg, klm, e, chat_id, nummer)
+        # "Neu schreiben" heisst NEU: die alte Fassung geht nicht als Vorlage
+        # mit (06.09.2026: zweimal derselbe Text, weil der Volltext unter
+        # "soll ueberarbeitet werden" im Prompt stand). Der Marker wird in
+        # szene._diese_szene_text erkannt.
+        return _schreibe_szene(conn, tg, klm, e, chat_id, nummer, notiz=szene_modul.NEU_MARKER)
 
     if art == ART_SZENE_SO_LASSEN:
         # "So lassen": der Vermerk faellt weg, der Text bleibt. Kein Lauf,

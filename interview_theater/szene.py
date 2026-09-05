@@ -1042,7 +1042,19 @@ def _aufgabe_text(conn, chat_id: int, ziel) -> str:
     return _AUFGABE_MITTE.format(nummer=nummer, gesamt=gesamt)
 
 
-def _diese_szene_text(conn, ziel) -> str:
+#: Steht dieser Marker im Auftrag, ist es ein Neuschreiben: die alte Fassung
+#: geht NICHT als Vorlage mit (06.09.2026, "Neu schreiben" lieferte zweimal
+#: denselben Text). Der Marker selbst wird aus dem Auftrag entfernt.
+NEU_MARKER = "[NEU]"
+NEU_HINWEIS = (
+    "Es gab schon eine Fassung dieser Szene; die Gruppe hat sie verworfen. "
+    "Schreib eine ANDERE Szene zu denselben Angaben: anderer Einstieg, andere "
+    "Struktur, andere Bilder, anderer Titel. Nichts aus der alten Fassung "
+    "wiederverwenden -- du kennst sie nicht."
+)
+
+
+def _diese_szene_text(conn, ziel, neu: bool = False) -> str:
     """Block 6: alle Felder der zu schreibenden Szene, und bei einer
     Ueberarbeitung ihr bisheriger Text.
 
@@ -1054,10 +1066,13 @@ def _diese_szene_text(conn, ziel) -> str:
     kopf = f"Szene {ziel['nummer']}" if ziel["nummer"] is not None else "Szene"
     zeilen = [DIESE_SZENE_KOPF, kopf]
     zeilen += _szenenfelder_zeilen(conn, ziel, _DIESE_SZENE_FELDER)
-    if ziel["volltext"]:
+    if ziel["volltext"] and not neu:
         zeilen.append("")
         zeilen.append("Bisheriger Text dieser Szene, er soll ueberarbeitet werden:")
         zeilen.append(ziel["volltext"])
+    elif ziel["volltext"] and neu:
+        zeilen.append("")
+        zeilen.append(NEU_HINWEIS)
     return "\n".join(zeilen)
 
 
@@ -1126,8 +1141,8 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None) -> str:
         "continuity": _continuity_text(conn, chat_id, nummer),
         "verworfen": _verworfen_text(conn, chat_id),
         "aufgabe": _aufgabe_text(conn, chat_id, ziel),
-        "diese_szene": _diese_szene_text(conn, ziel),
-        "auftrag": f"Euer Auftrag:\n{auftrag.strip()}",
+        "diese_szene": _diese_szene_text(conn, ziel, neu=NEU_MARKER in (auftrag or "")),
+        "auftrag": f"Euer Auftrag:\n{auftrag.replace(NEU_MARKER, '').strip()}",
     }
     return _zusammen(bloecke)
 

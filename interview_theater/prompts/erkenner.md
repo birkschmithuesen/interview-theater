@@ -202,6 +202,11 @@ Figuren: A, B, C". Ein entschieden-Eintrag traegt keine Figur in den
 Arbeitsstand; die Gruppe sieht dann drei Namen im Chat und keine auf ihrer
 Seite (gemessen 05.09., Simulation set3). Dasselbe gilt fuer Fragen
 (fragen_setzen, nicht entschieden) und Begriffe.
+Zaehlt die Gruppe Figuren AUF ("drei figuren: mira, malin, pal", "die
+drei: A, B und C"), ist jede genannte ein figur_setzen -- auch die, die
+schon im Arbeitsstand stehen (das schadet nicht; ein Eintrag zu wenig
+schadet). Wird dabei eine umbenannt ("malin soll frau reinhardt heissen"),
+setzt du sie unter dem NEUEN Namen, mit der Beschreibung der alten.
 
 Abgrenzung "szene_planen" gegen "szene_schreiben": **planen ist sagen, was in
 der Szene ist -- schreiben ist der Auftrag, den Text zu machen.** "Alle drei

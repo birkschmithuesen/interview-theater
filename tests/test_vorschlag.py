@@ -115,6 +115,10 @@ def test_in_phase_4_erst_kernthema_dann_figuren(conn, tg):
     assert knoepfe.offene_art(conn, 1) == "kernthema"
 
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    # Stufe 3 (05.09.2026 abends): erst die Kernfrage, dann die Figuren.
+    assert knoepfe.offene_art(conn, 1) == "kernfrage"
+
+    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: Was passiert, wenn ...")
     assert knoepfe.offene_art(conn, 1) == "figuren"
 
     # Die Figuren-Leiste bleibt, bis die Liste in Ebene 2 FIXIERT ist
@@ -169,6 +173,7 @@ def test_kernthema_ueber_die_leiste_landet_im_arbeitsstand(conn, tg, einst):
 def test_figuren_ueber_die_leiste_werden_alle_angelegt(conn, tg, einst):
     phasen.setze(conn, 1, 4, "befehl")
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: Was passiert, wenn ...")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1,
         "VORSCHLAG FIGUREN:\n"

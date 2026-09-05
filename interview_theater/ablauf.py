@@ -405,6 +405,21 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             )
             return
 
+        # Dieselbe Bauart fuer die frei gesagte Figurenanzahl (05.09.2026
+        # abends, "Andere Zahl"): der Bot hat gerade nach einer Zahl gefragt,
+        # diese eine Nachricht ist die Antwort darauf. Steht keine Zahl darin,
+        # geht die Nachricht ganz normal ins Gespraech -- die Gruppe hat dann
+        # etwas anderes gemeint, und ein Bot, der auf einer Zahl beharrt,
+        # waere genau der Kaefig, den es hier nicht gibt.
+        if knoepfe.nimm_figurenanzahl_erwartung(chat_id):
+            anzahl = knoepfe._zahl_aus(letzte_nachricht["text"] or "")
+            if anzahl is not None:
+                knoepfe.uebernimm_figurenanzahl(conn, tg, klm, e, chat_id, anzahl)
+                return
+            tg.sende(chat_id, knoepfe._TEXT_FIGURENZAHL_UNKLAR)
+            knoepfe.erwarte_figurenanzahl(chat_id)
+            return
+
         with _tippanzeige(tg, chat_id):
             # Die Phase geht in die Systemanweisung (worauf der Bot gerade den
             # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die

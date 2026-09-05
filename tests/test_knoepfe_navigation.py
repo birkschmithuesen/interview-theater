@@ -193,6 +193,10 @@ _LISTE = (
 def _ebene1(conn, tg):
     phasen.setze(conn, 1, 4, "befehl")
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    # Seit dem 05.09.2026 abends steht vor den Figuren die Kernfrage
+    # (Stufe 3) -- ohne sie waere ``offene_art`` noch bei ihr und nicht bei
+    # den Figuren.
+    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: Was passiert, wenn ...")
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, _LISTE)
 
 
@@ -214,12 +218,14 @@ def test_die_liste_ist_ein_entwurf_und_legt_noch_keine_figuren_an(conn, tg):
     assert "Mira" in repo.hole_arbeitsstand(conn, 1)["figuren_entwurf"]
 
 
-def test_anzahl_aendern_bietet_zwei_bis_fuenf(conn, tg, einst):
+def test_anzahl_aendern_bietet_eins_bis_sechs_und_andere_zahl(conn, tg, einst):
     _ebene1(conn, tg)
 
     _druecke(conn, tg, einst, "Anzahl aendern")
 
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["2", "3", "4", "5"]
+    assert [b for b, _ in tg.knoepfe[-1][2]] == [
+        "1", "2", "3", "4", "5", "6", "Andere Zahl",
+    ]
 
 
 def test_eine_anzahl_fordert_eine_neue_liste_im_thread_an(conn, tg, einst, auftraege):
@@ -318,6 +324,7 @@ def test_eine_einzige_figur_genuegt(conn, tg, einst):
     _interview(conn)
     phasen.setze(conn, 1, 4, "befehl")
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: Was passiert, wenn ...")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG FIGUREN:\nMira — Naeherin — Interview 1"
     )
@@ -528,3 +535,124 @@ def test_ohne_belegtes_zitat_kommt_die_vorstellung_trotzdem(
     assert sprachprofil._TEXT_KEIN_ZITAT.format(name="Amina") in text
     assert knoepfe._TEXT_DUKTUS_FEHLT not in text
     assert [b for b, _ in tg.knoepfe[-1][2]][0] == "Passt"
+
+
+# --- Stufe 3: die Kernfrage (05.09.2026 abends) ---------------------------
+
+
+def test_nach_dem_kernthema_kommt_die_kernfrage_im_thread(conn, tg, einst, auftraege):
+    """Der Wendepunkt der Phase: das gewaehlte Kernthema wird zur dramatischen
+    Frage geschaerft -- als Gespraechszug im Thread, kein Modellaufruf im
+    Handler (Zusage 2)."""
+    phasen.setze(conn, 1, 4, "befehl")
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG KERNTHEMA:\nArbeit, die niemand sieht"
+    )
+
+    _druecke(conn, tg, einst, "Gefaellt uns, weiter", klm=object())
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Arbeit, die niemand sieht"
+    assert len(auftraege) == 1
+    assert "VORSCHLAG KERNFRAGE:" in auftraege[0]
+    assert "Arbeit, die niemand sieht" in auftraege[0]
+
+
+def test_die_kernfrage_traegt_die_grundleiste_und_wird_gespeichert(conn, tg, einst):
+    phasen.setze(conn, 1, 4, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Arbeit, die niemand sieht")
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        "VORSCHLAG KERNFRAGE:\nFrage: Was passiert, wenn niemand fragt?\n"
+        "Gegensatz: sehen wollen - gesehen werden\nEinsatz: ob die Arbeit zaehlt",
+    )
+    assert [b for b, _ in tg.knoepfe[-1][2]] == [
+        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
+    ]
+
+    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+
+    kernfrage = repo.hole_arbeitsstand(conn, 1)["kernfrage"]
+    assert "Frage: Was passiert, wenn niemand fragt?" in kernfrage
+    assert "Gegensatz:" in kernfrage
+    assert "Einsatz:" in kernfrage
+
+
+def test_nach_der_kernfrage_kommt_die_frage_nach_der_figurenanzahl(conn, tg, einst):
+    """Ohne Sprachmodell laeuft der Filter nicht -- der Weg bleibt trotzdem
+    offen: die Frage nach der Anzahl kommt sofort."""
+    phasen.setze(conn, 1, 4, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Arbeit")
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG KERNFRAGE:\nFrage: Was passiert, wenn niemand fragt?"
+    )
+
+    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+
+    assert [b for b, _ in tg.knoepfe[-1][2]] == [
+        "1", "2", "3", "4", "5", "6", "Andere Zahl",
+    ]
+    assert "Wie viele Figuren" in tg.knoepfe[-1][1]
+
+
+# --- Die freie Figurenanzahl ----------------------------------------------
+
+
+def test_eine_gewaehlte_zahl_speichert_und_fordert_genau_so_viele_an(
+    conn, tg, einst, auftraege
+):
+    phasen.setze(conn, 1, 4, "befehl")
+    knoepfe.biete_figurenanzahl(conn, tg, 1)
+
+    _druecke(conn, tg, einst, "5", klm=object())
+
+    assert repo.hole_arbeitsstand(conn, 1)["figuren_anzahl"] == "5"
+    assert "genau 5 Figuren" in auftraege[0]
+
+
+def test_andere_zahl_liest_die_naechste_nachricht(conn, tg, einst, auftraege):
+    """\"Andere Zahl\" schreibt nichts und ruft nichts -- sie merkt sich nur,
+    dass die naechste Nachricht die Zahl ist (``ablauf.antworte``)."""
+    phasen.setze(conn, 1, 4, "befehl")
+    knoepfe.biete_figurenanzahl(conn, tg, 1)
+
+    _druecke(conn, tg, einst, "Andere Zahl", klm=object())
+    assert auftraege == []
+    assert knoepfe.nimm_figurenanzahl_erwartung(1) is True
+
+    # Was ``ablauf.antworte`` daraus macht:
+    knoepfe.uebernimm_figurenanzahl(
+        conn, tg, object(), einst, 1, knoepfe._zahl_aus("wir haetten gern 9")
+    )
+
+    assert repo.hole_arbeitsstand(conn, 1)["figuren_anzahl"] == "9"
+    assert "genau 9 Figuren" in auftraege[0]
+
+
+def test_die_erwartung_gilt_nur_fuer_eine_nachricht(conn):
+    knoepfe.erwarte_figurenanzahl(1)
+    assert knoepfe.nimm_figurenanzahl_erwartung(1) is True
+    assert knoepfe.nimm_figurenanzahl_erwartung(1) is False
+
+
+def test_zahlen_ausserhalb_der_grenzen_gelten_nicht(conn):
+    assert knoepfe._zahl_aus("4 Figuren bitte") == 4
+    assert knoepfe._zahl_aus("vier") == 4
+    assert knoepfe._zahl_aus("0") is None
+    assert knoepfe._zahl_aus("40") is None
+    assert knoepfe._zahl_aus("keine Ahnung") is None
+
+
+def test_der_figurenvorschlag_kommt_aus_der_kernfrage_nicht_aus_den_interviews(
+    conn, tg, einst, auftraege
+):
+    """Der Kern der Umstellung, als Text im Auftrag: die Figuren werden aus
+    der Kernfrage entwickelt, eine Interviewstelle ist erlaubt, aber nicht
+    Pflicht."""
+    phasen.setze(conn, 1, 4, "befehl")
+    knoepfe.uebernimm_figurenanzahl(conn, tg, object(), einst, 1, 3)
+
+    anweisung = auftraege[0]
+    assert "Kernfrage" in anweisung
+    assert "nicht aus den Interviews" in anweisung
+    assert "muss nicht" in anweisung or "erlaubt" in anweisung

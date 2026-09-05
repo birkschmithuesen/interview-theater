@@ -50,7 +50,7 @@ import re
 #: Marker-Mechanismus: es gibt einen Weg, einen Vorschlag deterministisch zu
 #: verarbeiten, nicht zwei.
 ARTEN = (
-    "begriffe", "fragen", "kernthema", "figuren",
+    "begriffe", "fragen", "kernthema", "kernfrage", "figuren",
     "richtungen", "namen", "duktus", "rahmen",
     "szenenfolge", "szene",
 )
@@ -62,7 +62,7 @@ MARKER = "VORSCHLAG {art}:"
 
 _ZEILE = re.compile(
     r"^\s*VORSCHLAG\s+"
-    r"(BEGRIFFE|FRAGEN|KERNTHEMA|FIGUREN|RICHTUNGEN|NAMEN|DUKTUS|RAHMEN"
+    r"(BEGRIFFE|FRAGEN|KERNTHEMA|KERNFRAGE|FIGUREN|RICHTUNGEN|NAMEN|DUKTUS|RAHMEN"
     r"|SZENENFOLGE|SZENE)"
     r"\s*:\s*(.*)$",
     re.IGNORECASE,

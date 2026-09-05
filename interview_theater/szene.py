@@ -718,6 +718,11 @@ def _thema_text(conn, chat_id: int) -> str:
     if not stand:
         return ""
     zeilen = []
+    # Die Geschichte steht vorn: sie hat die Rolle des Kernthemas
+    # uebernommen (Umbau 05.09.2026 nachts) -- der Bogen und das Ende, an
+    # denen die Szene haengt.
+    if "geschichte" in stand.keys() and stand["geschichte"]:
+        zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
     if stand["kernthema"]:
         zeile = f"Kernthema: {stand['kernthema']}"
         if stand["kernthema_begruendung"]:
@@ -741,7 +746,7 @@ KERNPAKET_KOPF = (
 )
 
 
-def _kernpaket_text(conn, chat_id: int) -> str:
+def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
     """Block 2b: die gefilterten Verdichtungen und die Kernzitate.
 
     Das ersetzt die Zitatquelle des Szenen-Prompts: bis hierher kamen
@@ -750,19 +755,42 @@ def _kernpaket_text(conn, chat_id: int) -> str:
     Kernthema getroffen wurde -- nicht alle Verdichtungen, nicht ein
     Transkript. Die Sprachprofile bleiben unveraendert daneben stehen
     (``_figuren_text``): das eine sagt, WORUM es geht, das andere, WIE
-    jemand spricht."""
-    zeilen = []
-    for thema in repo.kernthemen_themen(conn, chat_id):
-        from interview_theater import kontext
+    jemand spricht.
 
+    **Seit dem Umbau vom 05.09.2026 nachts sind es die Schaerfungen dieser
+    EINEN Szene** (``repo.schaerfungen``, Phase 6) und ihrer Figuren -- nicht
+    mehr die globale Kernzitat-Auswahl. Der Unterschied ist der Punkt: eine
+    Szene bekommt die Stellen, die zu ihr gehoeren, und keine fremden. Ohne
+    Schaerfungen faellt der Code auf die alte Auswahl zurueck (eine Gruppe,
+    die den Umbau nicht mitgemacht hat, verliert nichts)."""
+    zeilen = []
+    from interview_theater import kontext
+
+    if ziel is not None:
+        for eintrag in repo.schaerfungen(conn, chat_id, szene_id=ziel["id"]):
+            name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
+            zeile = f'- {name}: {eintrag["thema"]} -- "{eintrag["zitat"]}"'
+            if eintrag["begruendung"]:
+                zeile += f" ({eintrag['begruendung']})"
+            zeilen.append(zeile)
+        for figur in repo.szene_figuren(conn, ziel["id"]):
+            for eintrag in repo.schaerfungen(conn, chat_id, figur_id=figur["id"]):
+                name = kontext.interviewbezeichnung(
+                    conn, chat_id, eintrag["aufnahme_id"]
+                )
+                zeilen.append(
+                    f'- {figur["name"]} ({name}): {eintrag["thema"]} -- '
+                    f'"{eintrag["zitat"]}"'
+                )
+        if zeilen:
+            return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
+    for thema in repo.kernthemen_themen(conn, chat_id):
         name = kontext.interviewbezeichnung(conn, chat_id, thema["aufnahme_id"])
         zeile = f"- {name}: {thema['thema']}"
         if thema["zusammenfassung"]:
             zeile += f"\n    {thema['zusammenfassung']}"
         zeilen.append(zeile)
     for eintrag in repo.kernzitate(conn, chat_id):
-        from interview_theater import kontext
-
         name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
         zeile = f'- {name}: "{eintrag["zitat"]}"'
         if eintrag["begruendung"]:
@@ -1024,7 +1052,9 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None) -> str:
     bloecke = {
         "format_rahmen": _format_rahmen_text(conn, chat_id),
         "thema": _thema_text(conn, chat_id),
-        "kernpaket": _kernpaket_text(conn, chat_id),
+        # Je Szene, nicht global (Umbau 05.09.2026 nachts): die Schaerfungen
+        # DIESER Szene und ihrer Figuren.
+        "kernpaket": _kernpaket_text(conn, chat_id, ziel),
         "figuren": _figuren_text(conn, chat_id),
         "continuity": _continuity_text(conn, chat_id, nummer),
         "verworfen": _verworfen_text(conn, chat_id),

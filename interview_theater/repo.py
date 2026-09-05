@@ -879,6 +879,109 @@ def kernzitate(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+# --- Die Schaerfung am Material (Phase 6) ---------------------------------
+#
+# Additiv, nie ersetzend: eine zweite Runde legt neue Zeilen an und laesst die
+# alten stehen. Das ist der Unterschied zu ``ersetze_kernzitate`` und Absicht
+# (Birk, 05.09.2026 nachts): eine Schaerfung, die die Gruppe schon uebernommen
+# hat, ist eine Entscheidung -- ein zweiter Lauf darf sie nicht wegraeumen.
+
+
+@_gesperrt
+def lege_schaerfung_an(
+    conn: sqlite3.Connection, chat_id: int, zuordnungen: list[dict], runde: int = 1
+) -> int:
+    """Schreibt die Zuordnungen EINER Runde und liefert ihre Anzahl.
+
+    Jedes Element braucht ``verdichtung_thema_id``; ``szene_id``, ``figur_id``
+    und ``begruendung`` sind optional -- eine Zuordnung darf an einer Szene,
+    an einer Figur oder an beiden haengen. Eine ohne beides waere eine
+    Markierung ohne Ort und wird uebersprungen."""
+    angelegt = 0
+    for eintrag in zuordnungen:
+        if eintrag.get("szene_id") is None and eintrag.get("figur_id") is None:
+            continue
+        conn.execute(
+            """
+            INSERT INTO schaerfung
+                (chat_id, verdichtung_thema_id, szene_id, figur_id, begruendung,
+                 runde, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                chat_id,
+                eintrag["verdichtung_thema_id"],
+                eintrag.get("szene_id"),
+                eintrag.get("figur_id"),
+                eintrag.get("begruendung"),
+                runde,
+                _jetzt(),
+            ),
+        )
+        angelegt += 1
+    conn.commit()
+    return angelegt
+
+
+#: Was eine Schaerfungszeile im Prompt und im Chat braucht: die Zuordnung
+#: selbst plus Thema, Zusammenfassung, geprueftes Zitat und Interview-Nummer.
+_SCHAERFUNG_SELECT = f"""
+SELECT s.*, t.thema AS thema, v.zusammenfassung AS zusammenfassung,
+       t.beleg_zitat AS zitat, v.aufnahme_id AS aufnahme_id
+FROM schaerfung s
+JOIN verdichtung_thema t ON t.id = s.verdichtung_thema_id
+JOIN verdichtung v ON v.id = t.verdichtung_id
+WHERE s.chat_id = ? AND s.entfernt_am IS NULL AND v.entfernt_am IS NULL
+"""
+
+
+@_gesperrt
+def schaerfungen(
+    conn: sqlite3.Connection, chat_id: int, szene_id: int | None = None,
+    figur_id: int | None = None,
+) -> list[sqlite3.Row]:
+    """Die geltenden Schaerfungen einer Gruppe -- wahlweise nur die zu EINER
+    Szene oder zu EINER Figur.
+
+    Der Filter ist der ganze Punkt: der Szenen-Prompt bekommt die Stellen
+    dieser Szene und die ihrer Figuren, nicht die aller (AGENTS.md, das
+    Kernpaket war bis dahin global)."""
+    sql = _SCHAERFUNG_SELECT
+    werte: list = [chat_id]
+    if szene_id is not None:
+        sql += " AND s.szene_id = ?"
+        werte.append(szene_id)
+    if figur_id is not None:
+        sql += " AND s.figur_id = ?"
+        werte.append(figur_id)
+    sql += " ORDER BY s.runde ASC, s.id ASC"
+    return conn.execute(sql, tuple(werte)).fetchall()
+
+
+@_gesperrt
+def letzte_schaerfungsrunde(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die hoechste bisher gelaufene Runde, oder 0 -- der Zaehler fuer
+    \"Noch eine Runde\". Aus den Daten und nicht aus einem Feld: ein
+    Merkposten waere ein zweiter Ort fuer dasselbe."""
+    zeile = conn.execute(
+        "SELECT MAX(runde) AS r FROM schaerfung WHERE chat_id = ? "
+        "AND entfernt_am IS NULL",
+        (chat_id,),
+    ).fetchone()
+    return int(zeile["r"] or 0) if zeile else 0
+
+
+@_gesperrt
+def merke_schaerfung_uebernommen(conn: sqlite3.Connection, schaerfung_id: int) -> None:
+    """Haelt fest, dass die Gruppe diese Schaerfung uebernommen hat -- damit
+    eine zweite Runde sie nicht noch einmal vorschlaegt."""
+    conn.execute(
+        "UPDATE schaerfung SET uebernommen_am = ? WHERE id = ?",
+        (_jetzt(), schaerfung_id),
+    )
+    conn.commit()
+
+
 @_gesperrt
 def transkripte(
     conn: sqlite3.Connection, chat_id: int, name: str | None = None
@@ -1141,6 +1244,9 @@ _ARBEITSSTAND_FELDER = (
     # abends): beide werden ueber denselben einen Schreibweg gesetzt wie
     # alles andere im Arbeitsstand.
     "kernfrage", "figuren_anzahl",
+    # Die Geschichte im Groben (Phase 5, Umbau 05.09.2026 nachts): Bogen und
+    # Ende. Sie ist das, was die Gruppe erfindet, bevor das Material dazukommt.
+    "geschichte",
 )
 
 

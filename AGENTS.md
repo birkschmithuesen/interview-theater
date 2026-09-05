@@ -50,7 +50,9 @@ Module unter `interview_theater/`:
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
 Betriebsannahmen gegen die echten Dienste, `scripts/pruefe_prompts.py` lässt
 den Regressionskorpus unter `korpus/` gegen das echte Modell laufen (siehe
-„Prompt geändert? → Korpus laufen lassen"), `scripts/backup-robocloud.sh`
+„Prompt geändert? → Korpus laufen lassen"), `scripts/simulation.py` fährt einen
+kompletten simulierten Workshop durch alle Phasen und bewertet ihn (siehe
+„Simulation", Bausteine unter `simulation/`), `scripts/backup-robocloud.sh`
 sichert Betriebsdaten außerhalb des Repositories, `scripts/web_links.py` gibt
 je Gruppe die URL ihrer Gruppenseite aus.
 
@@ -520,6 +522,106 @@ Wegwerf-Datenbank, nie in `IT_DB`.
 Berichte landen in `korpus/berichte/` und sind **gitignored**: sie enthalten
 vollständige Modellantworten. Der Korpus selbst ist frei erfunden und gehört
 ins Repository.
+
+### Simulation: ein ganzer Workshop gegen die echten Modelle
+
+Der Korpus misst einzelne Prompts an einzelnen Fällen. Was er **nicht** misst,
+ist der Zusammenhang: ob eine Gruppe mit diesem Bot von einer Begriffsliste zu
+einem Szenentext kommt, ob Zustimmungen ankommen, ob der Bot behauptet, etwas
+notiert zu haben, das nirgends steht. Genau dafür gibt es
+`scripts/simulation.py` (Details in [simulation/README.md](simulation/README.md)).
+
+Drei simulierte Teilnehmerinnen arbeiten sich durch neun Schritte: Begriffe,
+Fragen, fünf Interviews, Kernthema, Figuren, Phase 5, eine Szene, eine
+Korrektur, `/stand`. Gefahren wird **derselbe Codepfad wie im Betrieb**
+(`bot.verarbeite_update`, `bot._zug_und_erkenner`), nur mit einer
+Telegram-Attrappe statt Netz und einer Wegwerf-Datenbank statt `IT_DB`. Der
+Umweg über Telegram ist gar nicht möglich: Telegram liefert Bot-Nachrichten
+nie an andere Bots (Bot-FAQ). Interviews kommen als Text
+(`aufnahme.importiere_text`, § 10.5), kein Whisper.
+
+**Zwei Modelle, eine Trennlinie.** Alles, was der Bot tut, läuft über
+Infomaniak — er ist der Prüfling. Alles, was Simulation ist (die Stimmen, der
+Richter, die einmalige Erzeugung der fünfzehn Interviewdatensätze), läuft über
+**Claude Opus** an einem lokalen Proxy (`simulation/claude.py`,
+`IT_SIM_URL`/`IT_SIM_MODELL`, Anthropic-Messages-Format, kein
+Authorization-Header). Ohne diese Trennung würde der Prüfling seine eigenen
+Teilnehmerinnen spielen und sich anschließend selbst benoten. Die
+Simulationsseite läuft über ein Abonnement und kostet je Aufruf nichts — die
+Kostenzeile im Bericht ist deshalb genau das, was ein Workshoptag zahlen
+würde.
+
+```
+set -a; . ./betrieb/gruppe1.env; set +a
+python -m scripts.simulation --set 1 --seed 7 --bericht
+python -m scripts.simulation --mix 1,2,3 --seed 3
+python -m scripts.simulation --set 1 --seed 1 --ohne-szene   # ohne Reasoning-Lauf
+python -m scripts.simulation --set birk --bericht            # echtes Material, ~10 min
+python -m scripts.simulation --alle                          # Sets 1-3 und birk
+```
+
+**Die Stimmen sind Personen, keine Sprachstile** (Gülten 58, Dilan 24,
+Halyna 41 — Steckbriefe in `simulation/stimmen/*.md`, je mit einem eigenen
+Ziel im Workshop). Wer dem Computer am wenigsten traut, schreibt am
+seltensten; der `--seed` variiert nur, wer wann spricht.
+
+**`--set birk` ist die Messlatte:** das einzige Set auf echten Daten (Birks
+Testinterview vom 04.09., eine Stimme, kalibriert auf seinen echten
+Chatverlauf). Gemessen wird die **Navigation**, nicht der Text — der Bericht
+stellt neben jede Zahl die aus dem echten Chat. Der Lauf schreibt drei Szenen
+in drei Formen (Dialog, Lied, Rap) und verbietet deshalb `--ohne-szene`. Das
+Material liegt außerhalb des Repositories (`IT_SIM_BIRK`).
+
+**Was sie misst.** Mechanisch, ohne Modell: erreichte Phase, Vollständigkeit
+des Arbeitsstands, Anteil der Zustimmungen, nach denen wirklich eine
+Notiert-Zeile kam (die Kennzahl aus N7), Verdichtungen und geprüfte
+Belegzitate, Echo (`ablauf.ist_echo`), Rückfragen vor dem Szenenauftrag,
+**behauptete Schreibvorgänge** (Bot sagt „notiert", ohne dass der Erkenner
+etwas geschrieben hat — Soll 0), Namensanrede, Medianlänge der Bot-Antworten
+(Soll < 700 Zeichen), Kosten und Dauer. Dazu bewertet ein Richter (Opus)
+jeden Abschnitt mit 0/1/2 auf vier Kriterien und jeden Szenentext auf drei
+weitere.
+
+**Und die zwei Hintergrundwege, die entscheiden, was der Bot weiß.** Das
+**Journal**: Einträge je Art, wie viele davon der Richter im Chat
+wiederfindet, welche Vorschläge fehlen, Doppeleinträge — und ob der Extraktor
+überhaupt lief (er läuft nur bei Verdrängung; sonst steht „Journal nicht
+ausgelöst" statt einer Null, `--fenster-klein` provoziert sie). Der
+**Kontextaufbau**: `kontext.baue(..., protokoll=list)` schreibt je Prompt mit,
+welcher Block mit wie vielen Token drin stand; der Bericht zeigt die
+Verteilung, die Prompts über `ZIEL`, die mit Kürzung — und bei den fünf
+schwächsten Antworten urteilt der Richter am Block-Umriss, ob dem Bot
+Information gefehlt hat, die in der DB stand. Dazu ein Skript-Schritt
+**Zitatabfragen** mit der mechanischen Kennzahl `zitat_erfunden` (Soll 0).
+
+**Kein Test, läuft nie automatisch, kostet Geld** — wie `pruefe_prompts.py`
+und `rauchtest.py`, nur eine Größenordnung mehr: ein voller Lauf sind einige
+hundert Aufrufe, grob 0,20–0,60 CHF für den Bot (die Stimmen und der Richter
+laufen über das Abonnement und kosten nichts), dazu ein Szenenlauf mit
+Reasoning (2–4 Minuten, der teuerste Einzelposten — `--ohne-szene` spart
+ihn). Sequenziell; bei 429 wartet das Skript und wiederholt, wie
+`pruefe_prompts`.
+
+> **Die Regel: nach jeder Prompt-Änderung ein Lauf mit `--set` und einer mit
+> `--mix`.** Der erste hält den Themenkreis fest und macht zwei Läufe
+> vergleichbar; der zweite mischt drei Themenkreise und zeigt, was nur an
+> einem Set hing. Beide mit demselben Seed wie beim letzten Mal, sonst
+> vergleicht man Besetzungen statt Prompts.
+
+Transkript (`simulation/laeufe/`) und Bericht (`simulation/berichte/`) sind
+**gitignored** — sie enthalten vollständige Modellantworten. Die eine
+Ausnahme ist `simulation/berichte/verlauf.jsonl`: eine Zeile je Lauf mit allen
+Kennzahlen und dem git-HEAD, der Vergleichsmaßstab zwischen zwei
+Prompt-Ständen. Die fünfzehn Interviewtranskripte unter
+`simulation/interviews/` sind frei erfunden und gehören ins Repository —
+geschrieben hat sie einmal `simulation/erzeuge_interviews.py` mit Opus, das
+**Ergebnis** ist das Artefakt, nicht das Skript.
+
+Der Simulator ist **datengetrieben** gebaut: Phasen aus `phasen.PHASEN`,
+Arbeitsstandfelder aus `PRAGMA table_info(arbeitsstand)`, das Wort „Notiert:"
+aus `erkenner.baue_meldung`. Ein Umbau an Phasen oder Feldern soll ihn nicht
+mitreißen — wer trotzdem etwas anpassen muss, findet die Stellen in
+`simulation/skript.py`.
 
 Beim Erweitern: `wert` im Erkenner-Korpus ist der **Kern** der Sache
 (`"Meryem"`, `"Mutter gegen Tochter"`), nicht der erwartete Wortlaut —

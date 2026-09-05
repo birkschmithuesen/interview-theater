@@ -30,7 +30,7 @@ def test_angebot_kommt_sobald_die_voraussetzung_steht(conn, tg):
     _, text, leiste = tg.knoepfe[-1]
     assert "Weiter zu" in text and text.endswith("?")
     assert [b for b, _ in leiste] == [
-        f"Weiter zu {phasen.knopfbezeichnung(2)}", "Noch nicht",
+        f"Weiter zu {phasen.knopfbezeichnung(2)}", "Noch etwas aendern",
     ]
 
 

@@ -404,9 +404,12 @@ def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
 
     assert behandelt is True
     assert repo.hole_phase(conn, 1) == 5
-    assert tg.gesendet == [
-        (1, "Wir sind jetzt bei 5 · Geschichte. Falls nicht, sagt es mir.")
-    ]
+    assert tg.gesendet[0] == (
+        1, "Wir sind jetzt bei 5 · Geschichte. Falls nicht, sagt es mir."
+    )
+    # Danach derselbe Phasenrahmen wie ueber den Knopf (06.09.2026):
+    # Kopfzeile, Einleitung, Checkliste.
+    assert tg.gesendet[1][1].startswith("▶️ Phase 5 von 8 · Geschichte")
 
 
 def test_phase_mit_namen_schaltet_auch_zurueck(conn, einst, tg):
@@ -426,7 +429,11 @@ def test_phase_journalisiert_nur_die_echte_aenderung(conn, einst, tg):
     eintraege = repo.journal(conn, 1)
     assert len(eintraege) == 1
     assert eintraege[0]["quelle"] == "befehl"
-    assert len(tg.gesendet) == 2, "auf einen getippten Befehl wird immer geantwortet"
+    # Je Aufruf zwei Nachrichten: die Meldung (auf einen getippten Befehl
+    # wird immer geantwortet, auch ohne Aenderung) und der Phasenrahmen.
+    assert [t.startswith("▶️ Phase 5") for _, t in tg.gesendet] == [
+        False, True, False, True,
+    ]
 
 
 def test_phase_mit_unsinn_aendert_nichts_und_zeigt_die_liste(conn, einst, tg):
@@ -446,18 +453,18 @@ def test_stand_zeigt_die_phase_zuerst(conn, einst, tg):
     assert zeilen[1] == "Phase: 5 · Geschichte"
 
 
-def test_stand_zeigt_den_rahmen_den_konflikt_nur_wenn_gesetzt(conn, einst, tg):
-    """Phase 5 (05.09.2026 abends): der Rahmen steht immer da, das Format
-    nicht mehr. Der Hauptkonflikt nur, wenn die Gruppe einen wollte --
-    "Hauptkonflikt: noch offen" liest sich wie eine Luecke, die zu fuellen
-    waere, und genau das ist er nicht."""
+def test_stand_zeigt_den_konflikt_nur_wenn_gesetzt(conn, einst, tg):
+    """Das Format steht nicht mehr im Stand (05.09.2026 abends). Der
+    Hauptkonflikt nur, wenn die Gruppe einen wollte -- "Hauptkonflikt: noch
+    offen" liest sich wie eine Luecke, die zu fuellen waere, und genau das
+    ist er nicht. Das Setting steht seit dem 06.09.2026 im Block seiner
+    Phase (4 · Setting & Figuren) statt in einer festen Zeile."""
     repo.setze_arbeitsstand(conn, 1, "format", "Musical: Dialog, Lied, Rap")
 
     befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
 
     text = tg.gesendet[0][1]
     assert "Musical: Dialog, Lied, Rap" not in text
-    assert "Rahmen: noch offen" in text
     assert "Hauptkonflikt" not in text
 
     repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "bleiben gegen gehen")
@@ -466,15 +473,28 @@ def test_stand_zeigt_den_rahmen_den_konflikt_nur_wenn_gesetzt(conn, einst, tg):
     assert "Hauptkonflikt: bleiben gegen gehen" in tg.gesendet[1][1]
 
 
+def test_stand_zeigt_das_setting_im_block_seiner_phase(conn, einst, tg):
+    """Ein Wert aus einer hoeheren Phase geht nicht verloren: er steht im
+    Block dieser Phase, auch wenn die Gruppe noch weiter unten arbeitet."""
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Ein Wartezimmer, nachmittags")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    text = tg.gesendet[0][1]
+    assert "4 · Setting & Figuren" in text
+    assert "Setting: Ein Wartezimmer, nachmittags" in text
+
+
 def test_stand_zeigt_die_frageliste(conn, einst, tg):
-    """Die Fragen stehen zwischen Begriffen und Kernthema -- in derselben
-    Reihenfolge, in der die Arbeit laeuft."""
+    """Die Fragen stehen im Block ihrer Phase -- in derselben Reihenfolge,
+    in der die Arbeit laeuft, unter "2 · Fragen"."""
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
 
     befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
 
     zeilen = tg.gesendet[0][1].splitlines()
-    assert zeilen[3] == "Fragen: Was war in deinem Koffer?"
+    assert "2 · Fragen" in zeilen
+    assert zeilen[zeilen.index("2 · Fragen") + 1] == "Fragen: Was war in deinem Koffer?"
 
 
 def test_stand_ohne_fragen_sagt_das_auch(conn, einst, tg):

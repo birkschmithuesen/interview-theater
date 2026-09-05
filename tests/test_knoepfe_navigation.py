@@ -418,7 +418,10 @@ def test_der_phasenknopf_fragt_zuerst_die_gruppe(conn, tg, einst):
 
     knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Setting & Figuren")))
 
-    assert tg.gesendet[-1][1] == knoepfe._TEXT_PROAKTIV
+    # Seit dem 06.09.2026 steht der Phasenrahmen in derselben Nachricht
+    # darueber: Kopfzeile, Einleitung, Checkliste, dann die Frage.
+    assert tg.gesendet[-1][1].startswith("\u25b6\ufe0f Phase 4 von 8 \u00b7 Setting & Figuren")
+    assert tg.gesendet[-1][1].endswith(knoepfe._TEXT_PROAKTIV)
     assert [b for b, _ in tg.knoepfe[-1][2]] == ["Ja, wir zuerst", "Schlag du vor"]
 
 

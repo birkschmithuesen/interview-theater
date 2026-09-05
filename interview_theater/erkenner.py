@@ -1376,6 +1376,27 @@ def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict]) -> 
     return tg.sende(chat_id, text)
 
 
+def _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id: int, wirkliche: list[dict]) -> None:
+    """Hat der Erkenner die Phase gesetzt, bekommt die Gruppe denselben
+    Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile, Einleitung,
+    Checkliste und die Einstiegsknoepfe dieser Phase.
+
+    Weich wie ``_biete_phase_an``: ein Fehlschlag hier darf die Notiert-Zeile
+    nicht mitreissen."""
+    nummern = [
+        int(a["wert"]) for a in wirkliche
+        if a.get("art") == "phase_setzen" and str(a.get("wert") or "").isdigit()
+    ]
+    if not nummern:
+        return
+    try:
+        from interview_theater import knoepfe
+
+        knoepfe.eintritt_in_phase(conn, tg, klm, e, chat_id, nummern[-1])
+    except Exception:
+        log.exception("Phaseneintritt nach dem Erkennerlauf fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
     melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5),
@@ -1412,6 +1433,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         _starte_szene(klm, tg, conn, e, chat_id, aenderungen, wirkliche)
         text = baue_meldung(wirkliche)
         if text is None:
+            _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)
             _biete_phase_an(conn, tg, chat_id)
             return
         # Dieselbe Notiert-Zeile nicht zweimal (06.09.2026, Testgruppe
@@ -1421,6 +1443,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # zweimal sagt, sieht kaputt aus.
         if _steht_schon_da(conn, chat_id, text):
             log.info("Notiert-Meldung als Wiederholung uebersprungen, chat_id=%s", chat_id)
+            _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)
             _biete_phase_an(conn, tg, chat_id)
             return
         message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche)
@@ -1430,6 +1453,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
             text, repo._jetzt(),
         )
+        # Hat die Gruppe im selben Zug die Phase gewechselt, kommt direkt
+        # hinter der Meldung der Phasenrahmen (06.09.2026): derselbe Eintritt
+        # wie ueber den Knopf und ueber ``/phase``.
+        _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)
         # Direkt hinter der Notiert-Zeile: hat GENAU dieses Speichern die
         # naechste Phase moeglich gemacht, sagt der Bot es sofort
         # (06.09.2026). Hier ist die Stelle, an der die Voraussetzung

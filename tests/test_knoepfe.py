@@ -244,9 +244,11 @@ def test_phasen_knopf_meldet_nichts_wenn_die_phase_schon_stimmt(conn, einst, tg)
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
     # Keine zweite "Wir sind jetzt bei"-Zeile -- die eine Nachricht, die
-    # dazukommt, ist die proaktive Frage (05.09.2026 abends).
+    # dazukommt, ist die Eintrittsnachricht der Phase mit der proaktiven
+    # Frage darunter (06.09.2026: beides in EINER Nachricht).
     assert not any("Wir sind jetzt bei" in t for _, t in tg.gesendet[vorher:])
-    assert tg.gesendet[-1][1] == knoepfe._TEXT_PROAKTIV
+    assert tg.gesendet[-1][1].startswith("▶️ Phase 4 von 8 · Setting & Figuren")
+    assert tg.gesendet[-1][1].endswith(knoepfe._TEXT_PROAKTIV)
     assert len(tg.beantwortet) == 1  # aber beantwortet wird trotzdem
 
 

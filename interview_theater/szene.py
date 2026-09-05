@@ -698,9 +698,17 @@ def _format_rahmen_text(conn, chat_id: int) -> str:
     stand = repo.hole_arbeitsstand(conn, chat_id)
     if not stand:
         return ""
-    if not stand["rahmen"]:
-        return ""
-    return f"Rahmen: {stand['rahmen']}"
+    zeilen = []
+    if stand["rahmen"]:
+        zeilen.append(
+            "Die Geschichte / der Rahmen des Stuecks -- das ist die Vorgabe der "
+            "Gruppe, jede Szene ist ein Teil davon und muss dazu passen:\n"
+            f"{stand['rahmen']}"
+        )
+    geschichte = stand["geschichte"] if "geschichte" in stand.keys() else None
+    if geschichte:
+        zeilen.append(f"Bogen und Ende:\n{geschichte}")
+    return "\n\n".join(zeilen)
 
 
 def _thema_text(conn, chat_id: int) -> str:
@@ -718,6 +726,11 @@ def _thema_text(conn, chat_id: int) -> str:
     if not stand:
         return ""
     zeilen = []
+    # Die Geschichte steht vorn: sie hat die Rolle des Kernthemas
+    # uebernommen (Umbau 05.09.2026 nachts) -- der Bogen und das Ende, an
+    # denen die Szene haengt.
+    if "geschichte" in stand.keys() and stand["geschichte"]:
+        zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
     if stand["kernthema"]:
         zeile = f"Kernthema: {stand['kernthema']}"
         if stand["kernthema_begruendung"]:
@@ -741,7 +754,7 @@ KERNPAKET_KOPF = (
 )
 
 
-def _kernpaket_text(conn, chat_id: int) -> str:
+def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
     """Block 2b: die gefilterten Verdichtungen und die Kernzitate.
 
     Das ersetzt die Zitatquelle des Szenen-Prompts: bis hierher kamen
@@ -750,19 +763,42 @@ def _kernpaket_text(conn, chat_id: int) -> str:
     Kernthema getroffen wurde -- nicht alle Verdichtungen, nicht ein
     Transkript. Die Sprachprofile bleiben unveraendert daneben stehen
     (``_figuren_text``): das eine sagt, WORUM es geht, das andere, WIE
-    jemand spricht."""
-    zeilen = []
-    for thema in repo.kernthemen_themen(conn, chat_id):
-        from interview_theater import kontext
+    jemand spricht.
 
+    **Seit dem Umbau vom 05.09.2026 nachts sind es die Schaerfungen dieser
+    EINEN Szene** (``repo.schaerfungen``, Phase 6) und ihrer Figuren -- nicht
+    mehr die globale Kernzitat-Auswahl. Der Unterschied ist der Punkt: eine
+    Szene bekommt die Stellen, die zu ihr gehoeren, und keine fremden. Ohne
+    Schaerfungen faellt der Code auf die alte Auswahl zurueck (eine Gruppe,
+    die den Umbau nicht mitgemacht hat, verliert nichts)."""
+    zeilen = []
+    from interview_theater import kontext
+
+    if ziel is not None:
+        for eintrag in repo.schaerfungen(conn, chat_id, szene_id=ziel["id"]):
+            name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
+            zeile = f'- {name}: {eintrag["thema"]} -- "{eintrag["zitat"]}"'
+            if eintrag["begruendung"]:
+                zeile += f" ({eintrag['begruendung']})"
+            zeilen.append(zeile)
+        for figur in repo.szene_figuren(conn, ziel["id"]):
+            for eintrag in repo.schaerfungen(conn, chat_id, figur_id=figur["id"]):
+                name = kontext.interviewbezeichnung(
+                    conn, chat_id, eintrag["aufnahme_id"]
+                )
+                zeilen.append(
+                    f'- {figur["name"]} ({name}): {eintrag["thema"]} -- '
+                    f'"{eintrag["zitat"]}"'
+                )
+        if zeilen:
+            return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
+    for thema in repo.kernthemen_themen(conn, chat_id):
         name = kontext.interviewbezeichnung(conn, chat_id, thema["aufnahme_id"])
         zeile = f"- {name}: {thema['thema']}"
         if thema["zusammenfassung"]:
             zeile += f"\n    {thema['zusammenfassung']}"
         zeilen.append(zeile)
     for eintrag in repo.kernzitate(conn, chat_id):
-        from interview_theater import kontext
-
         name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
         zeile = f'- {name}: "{eintrag["zitat"]}"'
         if eintrag["begruendung"]:
@@ -781,6 +817,14 @@ FIGUREN_KOPF = (
     "So spricht jede Figur (aus ihrem Interview, woertlich -- kopiere diese "
     "Sprechweise):"
 )
+#: Kopf, wenn KEINE Figur ein Sprachprofil/Zitate hat -- dann verspricht der
+#: Block nichts, was er nicht haelt (06.09.2026: der Prompt sagte "woertlich",
+#: darunter standen nur Name und ein Satz).
+FIGUREN_KOPF_OHNE_STIMME = (
+    "Die Figuren (wer sie sind, was sie wollen). Sprechweise ist noch nicht "
+    "aus Interviews belegt -- gib jeder Figur eine eigene, unterscheidbare "
+    "Art zu reden (Satzlaenge, Tempo, Lieblingswoerter), und halte sie durch:"
+)
 
 
 def _figuren_text(conn, chat_id: int) -> str:
@@ -797,19 +841,23 @@ def _figuren_text(conn, chat_id: int) -> str:
     erst los, aber wer ``schreibe()`` direkt ruft (Tests, ein kuenftiger
     Stapellauf), soll keinen namenlosen Prompt bekommen."""
     bloecke = []
+    mit_stimme = False
     for figur in repo.figuren(conn, chat_id):
         zeilen = [f"{figur['name']}"]
         if figur["beschreibung"]:
             zeilen[0] += f" -- {figur['beschreibung']}"
         if figur["sprachprofil"]:
             zeilen.append(figur["sprachprofil"].strip())
+            mit_stimme = True
         for satz in (figur["zitate"] or "").split(repo.ZITAT_TRENNER):
             if satz.strip():
                 zeilen.append(f'  "{satz.strip()}"')
+                mit_stimme = True
         bloecke.append("\n".join(zeilen))
     if not bloecke:
         return ""
-    return FIGUREN_KOPF + "\n\n" + "\n\n".join(bloecke)
+    kopf = FIGUREN_KOPF if mit_stimme else FIGUREN_KOPF_OHNE_STIMME
+    return kopf + "\n\n" + "\n\n".join(bloecke)
 
 
 #: Ueberschrift von Block 4. Continuity kommt **mechanisch aus der Datenbank**
@@ -946,6 +994,53 @@ DIESE_SZENE_KOPF = (
     "ersetzen, nichts hinzuerfinden, was ihnen widerspricht:"
 )
 
+#: Was eine Szene an ihrer Stelle im Stueck LEISTEN muss (Birk, 06.09.2026
+#: 00:00, nach einer Szene 1, die \"gar nicht mit dem zusammenhing, was wir
+#: reingegeben haben\"). Die Angaben sagen, was passiert -- diese Zeilen
+#: sagen, welche Fragen der Text fuer das Publikum beantwortet haben muss.
+#: Deterministisch aus der Position: erste, mittlere, letzte Szene.
+_AUFGABE_ERSTE = (
+    "Aufgabe dieser Szene (sie ist die ERSTE -- Exposition): Wenn sie vorbei "
+    "ist, weiss das Publikum ohne Erklaerung (1) wer die Figuren sind, "
+    "(2) wie sie zueinander stehen, (3) warum sie hier an diesem Ort sind, "
+    "(4) worum es geht -- der Konflikt ist eroeffnet, nicht geloest. Alle vier "
+    "muessen im Text vorkommen, gezeigt durch Handlung und Rede, nicht durch "
+    "Erklaersaetze. Eine Szene 1, die nur eine Stimmung zeigt, ist keine "
+    "Szene 1."
+)
+_AUFGABE_MITTE = (
+    "Aufgabe dieser Szene (Szene {nummer} von {gesamt}): Sie fuehrt weiter, "
+    "was in den frueheren Szenen eroeffnet wurde -- der Konflikt verschaerft "
+    "sich oder wendet sich; am Ende ist die Lage eine andere als am Anfang "
+    "(\"Was anders ist\"). Sie darf nichts noch einmal erklaeren, was das "
+    "Publikum schon weiss, und muss dem Publikum einen Grund geben, auf die "
+    "naechste Szene zu warten."
+)
+_AUFGABE_LETZTE = (
+    "Aufgabe dieser Szene (sie ist die LETZTE): Sie loest ein, was die "
+    "Geschichte versprochen hat -- das Ende, wie die Gruppe es festgelegt hat "
+    "(offen, traurig, versoehnt: steht im Rahmen/in der Geschichte). Jede "
+    "Figur, die im Stueck etwas wollte, hat hier ein letztes Bild. Nichts "
+    "Neues wird eroeffnet."
+)
+
+
+def _aufgabe_text(conn, chat_id: int, ziel) -> str:
+    """Block: die dramaturgische Aufgabe der Szene an ihrer Position."""
+    if ziel is None or ziel["nummer"] is None:
+        return ""
+    szenen = [
+        s for s in repo.hole_szenen(conn, chat_id)
+        if s["nummer"] is not None and not s["entfernt_am"]
+    ]
+    gesamt = max([s["nummer"] for s in szenen] + [ziel["nummer"]])
+    nummer = ziel["nummer"]
+    if nummer <= 1:
+        return _AUFGABE_ERSTE
+    if nummer >= gesamt and gesamt > 1:
+        return _AUFGABE_LETZTE
+    return _AUFGABE_MITTE.format(nummer=nummer, gesamt=gesamt)
+
 
 def _diese_szene_text(conn, ziel) -> str:
     """Block 6: alle Felder der zu schreibenden Szene, und bei einer
@@ -992,7 +1087,7 @@ def _verworfen_text(conn, chat_id: int) -> str:
 #: Szene in einer Kueche mit erfundenen Figuren.
 _REIHENFOLGE = (
     "format_rahmen", "thema", "kernpaket", "figuren", "continuity", "verworfen",
-    "diese_szene", "auftrag",
+    "aufgabe", "diese_szene", "auftrag",
 )
 
 
@@ -1024,10 +1119,13 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None) -> str:
     bloecke = {
         "format_rahmen": _format_rahmen_text(conn, chat_id),
         "thema": _thema_text(conn, chat_id),
-        "kernpaket": _kernpaket_text(conn, chat_id),
+        # Je Szene, nicht global (Umbau 05.09.2026 nachts): die Schaerfungen
+        # DIESER Szene und ihrer Figuren.
+        "kernpaket": _kernpaket_text(conn, chat_id, ziel),
         "figuren": _figuren_text(conn, chat_id),
         "continuity": _continuity_text(conn, chat_id, nummer),
         "verworfen": _verworfen_text(conn, chat_id),
+        "aufgabe": _aufgabe_text(conn, chat_id, ziel),
         "diese_szene": _diese_szene_text(conn, ziel),
         "auftrag": f"Euer Auftrag:\n{auftrag.strip()}",
     }

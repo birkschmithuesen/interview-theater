@@ -53,6 +53,11 @@ ARTEN = (
     "begriffe", "fragen", "kernthema", "kernfrage", "figuren",
     "richtungen", "namen", "duktus", "rahmen",
     "szenenfolge", "szene",
+    # Phase 5 seit dem Umbau vom 05.09.2026 nachts: der Bogen in Zeile 1,
+    # das Ende in Zeile 2, danach je Szene eine Zeile. Ein Marker fuer
+    # beides, weil es EINE Entscheidung ist -- die Geschichte und ihre
+    # Szenenfolge trennt die Gruppe nicht.
+    "geschichte",
 )
 
 #: Die Markerzeile. Grossbuchstaben, weil sie im Fliesstext nicht vorkommt
@@ -63,7 +68,7 @@ MARKER = "VORSCHLAG {art}:"
 _ZEILE = re.compile(
     r"^\s*VORSCHLAG\s+"
     r"(BEGRIFFE|FRAGEN|KERNTHEMA|KERNFRAGE|FIGUREN|RICHTUNGEN|NAMEN|DUKTUS|RAHMEN"
-    r"|SZENENFOLGE|SZENE)"
+    r"|SZENENFOLGE|GESCHICHTE|SZENE)"
     r"\s*:\s*(.*)$",
     re.IGNORECASE,
 )

@@ -83,6 +83,20 @@ Form, auch nicht als Nebenbemerkung.
 Ort, Zeit, Anlass, Wer, Was passiert, Kernsaetze, Ton: **nichts davon
 ersetzen, nichts hinzuerfinden, was ihnen widerspricht.**
 
+**Zuerst die Geschichte, dann die Szene.** Ganz oben steht der Rahmen bzw.
+die Geschichte der Gruppe -- wer die Figuren sind, was zwischen ihnen
+steht, wie es ausgeht. Das ist die Vorgabe, jede Szene ist ein Teil davon.
+Ein Text, der ohne diese Vorgabe genauso haette entstehen koennen, ist
+falsch, auch wenn er gut klingt (06.09.2026: eine Szene 1, die mit der
+Geschichte der Gruppe nichts zu tun hatte).
+
+**Die Aufgabe der Szene steht ueber ihren Angaben** ("Aufgabe dieser
+Szene"): die erste Szene eroeffnet -- wer, zueinander, warum hier, worum es
+geht --, eine mittlere verschaerft oder wendet, die letzte loest ein. Diese
+Fragen muss der fertige Text beantworten, gezeigt in Handlung und Rede, nie
+als Erklaerung. Pruef das vor der Abgabe Punkt fuer Punkt (siehe unten,
+Pruefung 0).
+
 **Woher der Stoff kommt.** Ueber den Szenenangaben stehen Kernthema und
 **Kernfrage** (Frage, Gegensatz, Einsatz) und darunter die am Kernthema
 ausgewaehlten Stellen: die passenden Verdichtungen und die geprueften
@@ -233,10 +247,16 @@ KURZ: <eine einzige Zeile, was in der Szene passiert>
 Die ersten beiden Zeilen sind Pflicht und stehen genau so da -- sie werden
 maschinell ausgelesen. Danach eine Leerzeile, dann die Szene.
 
-## Bevor du abgibst -- vier Pruefungen, in dieser Reihenfolge
+## Bevor du abgibst -- fuenf Pruefungen, in dieser Reihenfolge
 
 Geh deinen fertigen Text durch und beantworte dir jede Frage. Eine
 verneinte Frage heisst: umschreiben, nicht abgeben.
+
+0. **Erfuellt der Text die Aufgabe dieser Szene, Punkt fuer Punkt?** Bei der
+   ersten Szene: Weiss das Publikum jetzt, wer die Figuren sind, wie sie
+   zueinander stehen, warum sie hier sind und worum es geht -- und passt
+   das alles zur Geschichte der Gruppe ganz oben? Ein Punkt fehlt: umbauen,
+   bis er drin ist, gezeigt statt erklaert.
 
 1. **Welches Zitat ist Handlung geworden?** Mindestens eines der Zitate aus
    den Sprachprofilen muss als Handlung, Bild oder Regieanweisung in der

@@ -1276,6 +1276,48 @@ def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> None:
         log.exception("Interviewabschluss konnte nicht gestartet werden, id=%s", kopf_id)
 
 
+#: Erkenner-Art -> Ping-Pong-Art der Knopfleiste. Nur die Arten, die in einer
+#: Phase \"offen\" sein koennen (``knoepfe.offene_art``): dort und nur dort
+#: gehoert die Grundleiste unter die Notiert-Meldung.
+_LEISTENARTEN = {
+    "begriffe_setzen": "begriffe",
+    "fragen_setzen": "fragen",
+    "rahmen_setzen": "rahmen",
+    "geschichte_setzen": "geschichte",
+}
+
+
+def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict]) -> int:
+    """Schickt die Notiert-Meldung -- mit Grundleiste, wenn der Erkenner
+    gerade die Art gespeichert hat, die in dieser Phase offen ist.
+
+    Der Anlass (Birk, Live-Befund 05.09.2026, 23:37): der Nachlauf laeuft
+    NACH der Gespraechsantwort, die Leiste hing also unter der Antwort und
+    nicht unter dem Wert. Sie gehoert dorthin, wo steht, worueber entschieden
+    wird.
+
+    Faellt die Tastatur aus (Telegram-Fehler), geht die Meldung trotzdem
+    raus: der Wert ist wichtiger als seine Knoepfe."""
+    from interview_theater import knoepfe
+
+    try:
+        offen = knoepfe.offene_art(conn, chat_id)
+        if offen:
+            for aenderung in wirkliche:
+                if _LEISTENARTEN.get(aenderung.get("art")) != offen:
+                    continue
+                wert = str(aenderung.get("wert") or "").strip()
+                if not wert:
+                    continue
+                message_id, _ = knoepfe.sende_notiert_mit_leiste(
+                    conn, tg, chat_id, text, offen, wert
+                )
+                return message_id
+    except Exception:
+        log.exception("Leiste unter der Notiert-Meldung fehlgeschlagen, chat_id=%s", chat_id)
+    return tg.sende(chat_id, text)
+
+
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
     melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5),
@@ -1313,7 +1355,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         text = baue_meldung(wirkliche)
         if text is None:
             return
-        message_id = tg.sende(chat_id, text)
+        message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche)
         # Wie ablauf.antworte: die gesendete Meldung wird als Bot-Nachricht
         # mitgeschrieben, damit sie im naechsten Verlaufsfenster steht.
         repo.merke_nachricht(

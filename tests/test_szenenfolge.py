@@ -684,3 +684,93 @@ def test_budget_reicht_fuer_reasoning():
     ``finish_reason: length``; die Gruppe sah nur die Fehlerzeile."""
     assert szenenfolge.MAX_TOKENS >= 50_000
     assert szenenfolge.TIMEOUT_S >= 300.0
+
+
+# --- Aenderung an Szene N markiert die spaeteren (05.09.2026) --------------
+
+
+def _geschriebene(conn, nummer, text="MARIA: Da.", chat_id=1):
+    szene_id = _eine_szene(conn, chat_id=chat_id, nummer=nummer)
+    repo.aktualisiere_szene(conn, szene_id, f"Szene {nummer}", "kurz", text)
+    repo.setze_szene_fertig(conn, szene_id, True)
+    return szene_id
+
+
+def test_markiere_spaetere_nimmt_den_fertig_stempel_und_schreibt_einen_vermerk(conn):
+    _geschriebene(conn, 1)
+    drei = _geschriebene(conn, 3)
+
+    betroffen = szenenfolge.markiere_spaetere(conn, 1, 1)
+
+    assert betroffen == [3]
+    assert repo.hole_szene(conn, drei)["fertig_am"] is None
+    texte = [e["text"] for e in repo.journal(conn, 1)]
+    assert "Szene 3 muss nach Aenderung an Szene 1 geprueft werden" in texte
+    assert szenenfolge.zu_pruefen(conn, 1, 3)
+
+
+def test_markiere_spaetere_laesst_ungeschriebene_szenen_in_ruhe(conn):
+    _geschriebene(conn, 1)
+    _eine_szene(conn, nummer=2)  # geplant, kein Volltext
+
+    assert szenenfolge.markiere_spaetere(conn, 1, 1) == []
+    assert not szenenfolge.zu_pruefen(conn, 1, 2)
+
+
+def test_markiere_spaetere_schreibt_keine_szene_neu(conn):
+    """Kein automatisches Neuschreiben (Birk): der Text bleibt, wie er war."""
+    _geschriebene(conn, 1)
+    drei = _geschriebene(conn, 3, text="ALTER TEXT VON DREI")
+
+    szenenfolge.markiere_spaetere(conn, 1, 1)
+
+    assert repo.hole_szene(conn, drei)["volltext"] == "ALTER TEXT VON DREI"
+
+
+def test_passt_aber_anders_markiert_die_spaeteren_szenen(conn, einst, tg):
+    _geschriebene(conn, 1)
+    _geschriebene(conn, 2)
+    knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1\n\nMARIA: Da.")
+
+    _druecke(conn, tg, einst, knoepfe.TEXT_ANDERS_KNOPF)
+
+    assert szenenfolge.zu_pruefen(conn, 1, 2)
+    assert any("Szene 2" in t and "geaendert" in t for t in tg.texte), tg.texte
+
+
+def test_neu_schreiben_markiert_die_spaeteren_szenen(conn, einst, tg):
+    klm = LLMAttrappe("TITEL: Neu\n\nMARIA: Wieder da.")
+    _geschriebene(conn, 1)
+    _geschriebene(conn, 2)
+    knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1\n\nMARIA: Da.")
+
+    _druecke(conn, tg, einst, knoepfe.TEXT_NEU_KNOPF, klm=klm)
+    szene._sperre_fuer(1).acquire(timeout=10)
+    szene._sperre_fuer(1).release()
+
+    assert szenenfolge.zu_pruefen(conn, 1, 2)
+
+
+def test_die_vorstellung_einer_markierten_szene_bietet_neu_oder_so_lassen(conn, einst, tg):
+    zwei = _geschriebene(conn, 2)
+    szenenfolge.markiere_spaetere(conn, 1, 1)
+
+    knoepfe.biete_szene(conn, tg, 1, repo.hole_szene(conn, zwei))
+
+    assert szenenfolge.TEXT_ZU_PRUEFEN in tg.texte[-1]
+    assert tg.beschriftungen == [
+        knoepfe.TEXT_NEU_KNOPF, knoepfe.TEXT_SZENE_SO_LASSEN_KNOPF,
+    ]
+
+
+def test_so_lassen_nimmt_den_vermerk_zurueck_ohne_modellaufruf(conn, einst, tg):
+    klm = LLMAttrappe()
+    zwei = _geschriebene(conn, 2, text="TEXT VON ZWEI")
+    szenenfolge.markiere_spaetere(conn, 1, 1)
+    knoepfe.biete_szene(conn, tg, 1, repo.hole_szene(conn, zwei))
+
+    _druecke(conn, tg, einst, knoepfe.TEXT_SZENE_SO_LASSEN_KNOPF, klm=klm)
+
+    assert klm.aufrufe == 0
+    assert not szenenfolge.zu_pruefen(conn, 1, 2)
+    assert repo.hole_szene(conn, zwei)["volltext"] == "TEXT VON ZWEI"

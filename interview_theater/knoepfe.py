@@ -158,6 +158,9 @@ ART_SZENE_PASST = "szene_passt"
 ART_SZENE_ANDERS = "szene_anders"
 ART_SZENE_NEU = "szene_neu"
 ART_SZENE_NAECHSTE = "szene_naechste"
+#: "So lassen" -- die Antwort auf einen Pruef-Vermerk (eine fruehere Szene
+#: wurde geaendert). Nimmt den Vermerk zurueck und laesst den Text stehen.
+ART_SZENE_SO_LASSEN = "szene_so_lassen"
 #: Phase 7 · Durchlauf: eine Szene im Volltext zeigen, das Textbuch als Datei.
 ART_DURCHLAUF_SZENE = "durchlauf_szene"
 ART_TEXTBUCH = "textbuch"
@@ -360,6 +363,13 @@ _TEXT_SZENE_ANDERS_FRAGE = (
 )
 _TEXT_KEINE_NAECHSTE = (
     "Das war die letzte Szene. Wollt ihr sie durchgehen?"
+)
+#: Der Pruef-Vermerk (Aenderung an einer frueheren Szene, 05.09.2026).
+TEXT_SZENE_SO_LASSEN_KNOPF = "So lassen"
+_TEXT_SZENE_SO_GELASSEN = "Gut, Szene {nummer} bleibt, wie sie ist."
+_TEXT_SPAETERE_GEPRUEFT = (
+    "Weil sich Szene {nummer} geaendert hat, sehe ich mir {spaetere} noch "
+    "einmal mit euch an - geschrieben habe ich nichts neu."
 )
 
 #: Phase 7 · Durchlauf.
@@ -1146,11 +1156,32 @@ def biete_szene(conn, tg, chat_id: int, zeile) -> int:
 
     Deterministisch aus der Datenbank (``szenenfolge.vorstellung``) -- kein
     Modellaufruf. Das Menue kommt nach jeder Aenderung neu: jeder der Knoepfe,
-    der etwas an der Szene aendert, ruft am Ende wieder hierher zurueck."""
+    der etwas an der Szene aendert, ruft am Ende wieder hierher zurueck.
+
+    Steht ein Pruef-Vermerk an dieser Szene (an einer frueheren Szene wurde
+    etwas geaendert, ``szenenfolge.zu_pruefen``), sind es zwei andere
+    Knoepfe: "Neu schreiben" und "So lassen". Das ist die Frage, die dann
+    ansteht -- "Ueberspringen" und "Form aendern" waeren daneben Rauschen."""
     from interview_theater import szenenfolge
 
     nummer = zeile["nummer"]
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_SCHREIBEN)
+    if szenenfolge.zu_pruefen(conn, chat_id, nummer):
+        leiste = [
+            (
+                TEXT_NEU_KNOPF,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_NEU, str(nummer))),
+            ),
+            (
+                TEXT_SZENE_SO_LASSEN_KNOPF,
+                _daten(
+                    repo.lege_knopf_an(conn, chat_id, ART_SZENE_SO_LASSEN, str(nummer))
+                ),
+            ),
+        ]
+        return _mit_leiste(
+            conn, tg, chat_id, szenenfolge.vorstellung(conn, zeile, chat_id), leiste
+        )
     leiste = [
         (
             TEXT_SZENE_SCHREIBEN_KNOPF,
@@ -1493,8 +1524,10 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
         # Der Regie-Vermerk kommt als naechste Nachricht; ``ablauf.antworte``
         # greift ihn auf (``szenenfolge.nimm_regienotiz``) und schreibt die
         # Szene damit neu. Kein Modellaufruf hier.
-        szenenfolge.erwarte_regienotiz(chat_id, int(wert))
+        nummer = int(wert)
+        szenenfolge.erwarte_regienotiz(chat_id, nummer)
         tg.sende(chat_id, _TEXT_SZENE_ANDERS_FRAGE)
+        _melde_spaetere(conn, tg, chat_id, nummer)
         return "Was soll anders werden?"
 
     if art == ART_SZENE_NEU:
@@ -1508,7 +1541,21 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
         # ein Entwurf.
         repo.hebe_fassung_auf(conn, ziel["id"])
         repo.setze_szene_fertig(conn, ziel["id"], False)
+        # Diese Szene wird gerade neu geschrieben -- ihr eigener Pruef-Vermerk
+        # ist damit erledigt, und die spaeteren bekommen einen.
+        szenenfolge.nimm_pruefvermerk(conn, chat_id, nummer)
+        _melde_spaetere(conn, tg, chat_id, nummer)
         return _schreibe_szene(conn, tg, klm, e, chat_id, nummer)
+
+    if art == ART_SZENE_SO_LASSEN:
+        # "So lassen": der Vermerk faellt weg, der Text bleibt. Kein Lauf,
+        # kein Modellaufruf -- die Gruppe hat entschieden, dass die Aenderung
+        # an der frueheren Szene diese hier nicht beruehrt.
+        nummer = int(wert)
+        szenenfolge.nimm_pruefvermerk(conn, chat_id, nummer)
+        tg.sende(chat_id, _TEXT_SZENE_SO_GELASSEN.format(nummer=nummer))
+        _biete_weiter_nach_szene(conn, tg, chat_id, nummer)
+        return f"Szene {nummer} bleibt"
 
     if art == ART_SZENE_NAECHSTE:
         naechste = _naechste_offene(conn, chat_id, int(wert))
@@ -1553,6 +1600,31 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
         return "Textbuch"
 
     return None
+
+
+def _melde_spaetere(conn, tg, chat_id: int, nummer: int) -> list[int]:
+    """Markiert nach einer Aenderung an Szene ``nummer`` alle spaeteren
+    geschriebenen Szenen zur Pruefung und sagt der Gruppe in EINER Zeile,
+    welche das sind (``szenenfolge.markiere_spaetere``).
+
+    Kein automatisches Neuschreiben und keine Rueckfrage: die Szenen tragen
+    danach ihren Vermerk, und wenn sie das naechste Mal vorgestellt werden,
+    stehen "Neu schreiben" und "So lassen" darunter. Ein Fehlschlag beim
+    Senden darf den laufenden Knopf nicht mitreissen."""
+    from interview_theater import szenenfolge
+
+    betroffen = szenenfolge.markiere_spaetere(conn, chat_id, nummer)
+    if not betroffen:
+        return []
+    namen = ", ".join(f"Szene {n}" for n in betroffen)
+    try:
+        tg.sende(
+            chat_id,
+            _TEXT_SPAETERE_GEPRUEFT.format(nummer=nummer, spaetere=namen),
+        )
+    except Exception:
+        log.exception("Hinweis auf spaetere Szenen fehlgeschlagen, chat_id=%s", chat_id)
+    return betroffen
 
 
 def _biete_weiter_nach_szene(conn, tg, chat_id: int, nummer: int) -> None:

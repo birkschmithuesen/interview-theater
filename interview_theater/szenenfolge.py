@@ -205,7 +205,7 @@ def lege_an(conn, chat_id: int, zeilen: list[tuple[str, str, list[str]]]) -> lis
 # ---------------------------------------------------------------------------
 
 
-def vorstellung(conn, zeile) -> str:
+def vorstellung(conn, zeile, chat_id: int | None = None) -> str:
     """Eine Szene, wie sie der Gruppe vorgestellt wird: alle Felder
     untereinander, fehlende Pflichtfelder als \"noch offen\" markiert.
 
@@ -221,6 +221,11 @@ def vorstellung(conn, zeile) -> str:
         kopf += f": {zeile['titel']}"
     fehlende, _ = szene_modul.fehlendes(conn, zeile)
     zeilen = [kopf]
+    # Der Pruef-Vermerk steht GANZ OBEN und nicht bei den Feldern: er ist der
+    # Grund, aus dem diese Szene ueberhaupt wieder vorgestellt wird
+    # (05.09.2026, Aenderung an einer frueheren Szene).
+    if chat_id is not None and zu_pruefen(conn, chat_id, nummer):
+        zeilen.append(TEXT_ZU_PRUEFEN)
     for feld in ("form", "ort", "zeit", "anlass", "figuren", "was_passiert",
                  "was_anders", "ton"):
         name = szene_modul.FELDNAMEN[feld]
@@ -254,12 +259,77 @@ def vorstellung(conn, zeile) -> str:
 
 
 def ist_fertig(zeile) -> bool:
-    """Hat die Gruppe diese Szene mit \"Passt\" abgenommen?
+    """Hat die Gruppe diese Szene mit "Passt" abgenommen?
 
-    Ueber eine eigene Spalte und nicht ueber \"hat Volltext\": ein
+    Ueber eine eigene Spalte und nicht ueber "hat Volltext": ein
     geschriebener Text ist ein Entwurf, kein Ergebnis -- genau darum gibt es
     unter ihm die vier Knoepfe."""
     return bool("fertig_am" in zeile.keys() and zeile["fertig_am"])
+
+
+#: Wie ein Pruef-Vermerk im Journal anfaengt. Der Vermerk ist die einzige
+#: Stelle, an der \"Szene 3 muss nach der Aenderung an Szene 1 nochmal
+#: angesehen werden\" ueberhaupt festgehalten ist -- eine eigene Spalte waere
+#: eine Schemaaenderung fuer einen Zustand, den das Journal ohnehin traegt
+#: (SPEC § 2). Der Code findet ihn ueber dieses Praefix wieder.
+PRUEFVERMERK = "Szene {nummer} muss nach Aenderung an Szene {geaendert} geprueft werden"
+_PRUEFVERMERK_ANFANG = "Szene {nummer} muss nach Aenderung an Szene "
+
+#: Was ueber der Vorstellung einer so markierten Szene steht.
+TEXT_ZU_PRUEFEN = "Vorherige Szene wurde geaendert - neu schreiben?"
+
+
+def markiere_spaetere(conn, chat_id: int, nummer: int) -> list[int]:
+    """Nach einer Aenderung an Szene ``nummer``: alle spaeteren Szenen MIT
+    Volltext verlieren ihren Fertig-Stempel und bekommen einen Vermerk im
+    Journal. Liefert die betroffenen Nummern.
+
+    **Kein automatisches Neuschreiben** (Birk, 05.09.2026): eine Szene 3, die
+    sich von selbst aendert, weil jemand an Szene 1 gearbeitet hat, waere ein
+    Bot, der der Gruppe die Arbeit aus der Hand nimmt -- und drei bezahlte
+    Laeufe fuer eine Notiz. Der Vermerk sagt, dass hinzusehen ist; entschieden
+    wird an der Vorstellung der Szene ("Neu schreiben" · "So lassen").
+
+    Nur Szenen MIT Volltext: eine noch leere spaetere Szene ist ohnehin
+    ungeschrieben, ein Vermerk an ihr waere Laerm."""
+    betroffen = []
+    for szene in repo.hole_szenen(conn, chat_id):
+        if szene["nummer"] is None or szene["nummer"] <= nummer:
+            continue
+        if not (szene["volltext"] or "").strip():
+            continue
+        repo.setze_szene_fertig(conn, szene["id"], False)
+        repo.schreibe_journal(
+            conn, chat_id, "offen",
+            PRUEFVERMERK.format(nummer=szene["nummer"], geaendert=nummer),
+            quelle="knopf",
+        )
+        betroffen.append(szene["nummer"])
+    return betroffen
+
+
+def zu_pruefen(conn, chat_id: int, nummer: int | None) -> bool:
+    """Steht fuer diese Szene ein offener Pruef-Vermerk im Journal?
+
+    Aus dem Journal und nicht aus einer Spalte: dort steht ohnehin, was gilt,
+    und ein zurueckgenommener Eintrag (``repo.entferne_journal``, N3) faellt
+    damit automatisch heraus -- \"So lassen\" muss nichts weiter tun, als den
+    Vermerk zurueckzunehmen."""
+    if nummer is None:
+        return False
+    anfang = _PRUEFVERMERK_ANFANG.format(nummer=nummer)
+    return any(
+        (e["text"] or "").startswith(anfang) for e in repo.journal(conn, chat_id)
+    )
+
+
+def nimm_pruefvermerk(conn, chat_id: int, nummer: int) -> None:
+    """Nimmt die Pruef-Vermerke zu dieser Szene zurueck ("So lassen" oder eine
+    neue Fassung). Weich wie alles hier (N3): der Eintrag bleibt in der
+    Datenbank, er zaehlt nur nicht mehr."""
+    anfang = _PRUEFVERMERK_ANFANG.format(nummer=nummer)
+    while repo.entferne_journal(conn, chat_id, anfang) is not None:
+        pass
 
 
 def uebersicht(conn, chat_id: int) -> str:

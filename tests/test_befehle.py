@@ -210,7 +210,9 @@ def test_befehle_liste_ist_auf_fuenf_gekuerzt():
     steht nur noch, was eine Gruppe wirklich selbst braucht; alles
     Inhaltliche schreibt der Erkenner ohnehin aus dem Gespraech mit."""
     kommandos = {b["command"] for b in befehle.BEFEHLE_LISTE}
-    assert kommandos == {"aufnahme", "stand", "auswerten", "phase", "hilfe"}
+    assert kommandos == {
+        "aufnahme", "stand", "auswerten", "kernthema", "phase", "hilfe",
+    }
     assert "interview" not in kommandos and "fertig" not in kommandos
 
 

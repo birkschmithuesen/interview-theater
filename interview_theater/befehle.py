@@ -138,6 +138,7 @@ BEFEHLE_LISTE = [
     {"command": "aufnahme", "description": "Interview starten - und nochmal, um zu beenden"},
     {"command": "stand", "description": "Arbeitsstand anzeigen"},
     {"command": "auswerten", "description": "Interviews auswerten und anzeigen"},
+    {"command": "kernthema", "description": "Kernthema festlegen oder korrigieren"},
     {"command": "phase", "description": "Arbeitsphase zeigen oder umschalten"},
     {"command": "hilfe", "description": "Wie der Bot funktioniert"},
 ]

@@ -46,6 +46,12 @@ PRAEFIX = "k:"
 ART_KERNTHEMA = "kernthema"
 ART_AUFNAHME = "aufnahme"
 ART_PHASE = "phase"
+#: "Noch nicht" unter der proaktiven Phasenmeldung (06.09.2026): das Angebot
+#: ist abgelehnt, der Merkposten ``arbeitsstand.phase_angeboten`` steht schon
+#: -- es passiert also genau nichts ausser einer kurzen Bestaetigung. Ein
+#: eigener Knopf und nicht "einfach nicht druecken", damit die Gruppe das
+#: Angebot vom Tisch nehmen kann, statt es stehen zu lassen.
+ART_NOCH_NICHT = "noch_nicht"
 #: Form je Szene (Phase 6) -- dasselbe Ziel wie ``/szene <n> form <wert>``.
 #: Der Wert der Knopfzeile traegt beides, durch ':' getrennt: "3:dialog".
 ART_SZENENFORM = "szenenform"
@@ -188,10 +194,7 @@ _TEXT_SPEICHERN_KNOPF = "Gefaellt uns, weiter"
 #: kein Modellaufruf (Zusage 2). Der erste Halbsatz ist die Quittung, der
 #: zweite die Frage: eine offene Aufforderung ("sagt mir, was anders sein
 #: soll") bekam im Probelauf ein Schulterzucken, die drei Beispiele nicht.
-_TEXT_ANDERS = (
-    "Gespeichert. Was genau soll anders sein - Wortwahl, Reihenfolge, "
-    "etwas raus?"
-)
+_TEXT_ANDERS = "Gespeichert. Was soll anders sein?"
 #: "Eigene Idee": nichts gespeichert, der naechste Gruppenbeitrag ist der
 #: Vorschlag.
 _TEXT_EIGENE = "Erzaehlt - ich baue es ein."
@@ -676,6 +679,23 @@ _ERSTER_ALS_WERT = {
 }
 
 
+def _feld_ist_frei(conn, chat_id: int, feld: str) -> bool:
+    """Darf die Grundleiste einen Auswahl-Vorschlag fuer dieses Feld tragen?
+
+    Ja, solange das Feld leer ist -- oder die Gruppe ausdruecklich um eine
+    Aenderung gebeten hat (``arbeitsstand.aenderung_offen``). Steht der Wert
+    und ist nichts offen, traegt die Leiste ihn nicht: das war der Live-Fall
+    vom 05.09.2026, 21:50 (siehe ``sende_mit_speicherleiste``)."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is None:
+        return True
+    if (stand["aenderung_offen"] or "").strip() == feld:
+        return True
+    if feld not in stand.keys():
+        return True
+    return not (stand[feld] or "").strip()
+
+
 def _auswahlleiste(conn, chat_id: int, marker: str, wert: str) -> list[tuple[str, str]]:
     """Ein Knopf je Zeile eines Auswahl-Blocks (``VORSCHLAG RICHTUNGEN:`` und
     Verwandte) -- die Zeile ist zugleich Beschriftung und gespeicherter Wert.
@@ -729,10 +749,20 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
 
     art = offene_art(conn, chat_id)
     wert = bloecke.get(art) if art else None
-    if marker in _ERSTER_ALS_WERT:
+    if marker in _ERSTER_ALS_WERT and _feld_ist_frei(
+        conn, chat_id, _ERSTER_ALS_WERT[marker]
+    ):
         # Eine Auswahlliste: die Grundleiste traegt den ERSTEN Vorschlag,
         # nie die ganze Liste -- "Passt, aber anders" soll einen Rahmen
         # speichern, nicht drei untereinander.
+        #
+        # **Nur, solange das Zielfeld frei ist** (06.09.2026, Birk,
+        # Testgruppe 21:50): der Bot bot in Phase 6 drei Szenenbilder als
+        # ``VORSCHLAG RAHMEN:`` an, die Gruppe druckte "Gefaellt uns,
+        # weiter" -- und die Leiste ueberschrieb den Rahmen von 21:37 ("Vier
+        # Freundinnen im Nordkiez ...") still mit "Leyla checkt ihr Handy auf
+        # dem Schulhof". Steht das Feld schon und hat niemand um eine
+        # Aenderung gebeten, traegt die Leiste diesen Wert gar nicht erst.
         erste = vorschlag.zeilen(bloecke[marker])
         if erste:
             art, wert = _ERSTER_ALS_WERT[marker], erste[0]
@@ -1885,7 +1915,40 @@ def _biete_weiter_nach_szene(conn, tg, chat_id: int, nummer: int) -> None:
 # --- Verarbeitung ---------------------------------------------------------
 
 
-def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True) -> str:
+#: Bestaetigung statt Ueberschreiben (06.09.2026, Birk, Testgruppe 21:50):
+#: steht das Feld schon und hat niemand um eine Aenderung gebeten, ist
+#: "Gefaellt uns, weiter" ein Ja zum Bestehenden, kein neuer Wert.
+_TEXT_SCHON_GESETZT = "Steht schon so."
+
+
+def _ist_bestaetigung(conn, chat_id: int, art: str, wert: str) -> bool:
+    """Ist dieser Speicherdruck nur ein Ja zu dem, was schon dasteht?
+
+    Die Bedingung (06.09.2026, Birk): das Feld ist gesetzt, der Druck traegt
+    einen ANDEREN Wert, und es ist keine Aenderung offen
+    (``arbeitsstand.aenderung_offen``). Dann hat niemand um eine Aenderung
+    gebeten -- und ein stilles Ueberschreiben ist genau der Fall vom
+    Testabend: "Gefaellt uns, weiter" unter einem Szenenbild-Vorschlag
+    ersetzte den Rahmen von 21:37 durch "Leyla checkt ihr Handy auf dem
+    Schulhof", ohne dass irgendwo stand, dass etwas verloren geht.
+
+    Ueberschrieben wird weiterhin nach "Passt, aber anders" (setzt
+    ``aenderung_offen``) und durch den Erkenner, wenn die Gruppe den neuen
+    Wert wirklich sagt -- beides sind ausgesprochene Absichten, kein
+    Nebeneffekt eines Knopfdrucks."""
+    if art not in _NOTIERT:
+        return False
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is None:
+        return False
+    alt = (stand[art] or "").strip() if art in stand.keys() else ""
+    if not alt or alt == wert.strip():
+        return False
+    return not (stand["aenderung_offen"] or "").strip()
+
+
+def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
+               nur_bestaetigen: bool = False) -> str:
     """Schreibt den Wert einer Speicher-Leiste in den Arbeitsstand -- ueber
     **dieselben** ``repo``-Funktionen wie ``erkenner.wende_an``.
 
@@ -1911,6 +1974,21 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True) -> st
         log.error("Speicher-Knopf mit unbekannter art %r, chat_id=%s", art, chat_id)
         return _TEXT_UNBEKANNT
 
+    if nur_bestaetigen and _ist_bestaetigung(conn, chat_id, art, wert):
+        # Das Feld steht, niemand hat um eine Aenderung gebeten: der Druck
+        # ist ein Ja zum Bestehenden. Keine Schreiboperation, keine
+        # Notiert-Zeile, kein Journal-Eintrag -- und vor allem kein stiller
+        # Verlust (06.09.2026, Testgruppe 21:50).
+        log.info(
+            "Speicher-Knopf bestaetigt nur, art=%s, chat_id=%s", art, chat_id,
+        )
+        repo.merke_vorfall(
+            conn, chat_id, None, "ueberschreiben_verhindert",
+            f"'{art}' steht bereits und wurde durch einen Speicher-Knopf nicht ersetzt",
+        )
+        tg.sende(chat_id, _TEXT_SCHON_GESETZT)
+        return _TEXT_SCHON_GESETZT
+
     repo.setze_arbeitsstand(conn, chat_id, art, wert)
     if weiterfrage:
         # Abgenommen: die offene Aenderungsbitte ist erledigt, die Leiste
@@ -1921,7 +1999,7 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True) -> st
     )
     tg.sende(
         chat_id,
-        f"Notiert:\n{_NOTIERT[art]}: {wert}\nFalls das nicht stimmt, sagt es mir.",
+        f"Notiert:\n{_NOTIERT[art]}: {wert}",
     )
     # Danach die eine Frage, die den Zwischenraum offenhaelt -- und darunter,
     # wenn die Materiallage es hergibt, der Weg weiter
@@ -2223,8 +2301,7 @@ def _uebernimm_figurenliste(conn, tg, chat_id: int, wert: str) -> str:
         conn, chat_id, "entschieden", f"Figuren: {', '.join(angelegt)}",
         quelle="knopf",
     )
-    tg.sende(chat_id, "Notiert:\n" + _figurenzeile(angelegt)
-             + "\nFalls das nicht stimmt, sagt es mir.")
+    tg.sende(chat_id, "Notiert:\n" + _figurenzeile(angelegt))
     return "Figuren uebernommen"
 
 
@@ -2491,6 +2568,69 @@ _TEXT_SCHLAG_VOR_KNOPF = "Schlag du vor"
 _TEXT_WIR_ZUERST = "Gut - ich hoere zu."
 
 
+#: Die proaktive Phasenmeldung (06.09.2026, Birk nach der Testgruppe): sobald
+#: alles Noetige gespeichert ist, sagt der Bot es von selbst -- in EINER
+#: kurzen, EIGENEN Nachricht, nicht als vierter Knopf unter 1 100 Zeichen
+#: Fliesstext. Gemessen am Testabend: neun angebotene Phasenknoepfe, null
+#: Druecke; sie hingen alle unter langen Texten.
+_TEXT_PHASE_ANGEBOT = "{erledigt} steht. Weiter zu {phase}?"
+_TEXT_PHASE_NOCH_NICHT_KNOPF = "Noch nicht"
+_TEXT_NOCH_NICHT = "Gut, wir bleiben hier."
+
+#: Was je Zielphase erledigt ist -- der halbe Satz vor "Weiter zu ...".
+#: Kurz und konkret, damit die Gruppe sieht, WORAUF sich das Angebot stuetzt,
+#: ohne dass der Bot den Arbeitsstand nacherzaehlt.
+_ERLEDIGT_FUER = {
+    2: "Eure Begriffe",
+    3: "Eure Fragen",
+    4: "Die Interviews sind ausgewertet und",
+    5: "Setting und Figuren",
+    6: "Geschichte und Szenenfolge",
+    7: "Eure Szenen",
+    8: "Der Szenentext",
+}
+
+
+def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
+    """Die eigene, kurze Nachricht "<Was steht>. Weiter zu <Phase>?" -- genau
+    einmal je Stufe, sofort wenn die Voraussetzungen gespeichert sind.
+
+    Liefert ``True``, wenn eine Nachricht rausging.
+
+    **Warum eine eigene Nachricht.** Bis zum 06.09.2026 stand das Angebot nur
+    als Prompt-Hinweis (``kontext._baue_phasenhinweis``) und als Knopf am Ende
+    einer Gespraechsantwort. Am Testabend wurde keiner der neun angebotenen
+    Phasenknoepfe gedrueckt: das Angebot ging im Text unter, und der Bot
+    redete danach weiter ueber die alte Phase. Jetzt steht es allein da, mit
+    zwei Knoepfen und ohne Fliesstext drumherum.
+
+    **Genau einmal.** Der Merkposten ist derselbe wie fuer den Prompt-Hinweis
+    (``phasen.offenes_angebot`` / ``merke_angebot``,
+    ``arbeitsstand.phase_angeboten``) -- deshalb verschluckt diese Nachricht
+    den Prompt-Hinweis und umgekehrt: es gibt EIN Angebot je Stufe, nicht
+    zwei aus zwei Kanaelen. Sagt die Gruppe "Noch nicht", bleibt es still,
+    bis die naechste Stufe erreichbar wird.
+
+    Deterministisch, kein Modellaufruf (Zusage 2)."""
+    stufe = phasen.offenes_angebot(conn, chat_id)
+    if stufe is None:
+        return False
+    phasen.merke_angebot(conn, chat_id, stufe)
+    weiter_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(stufe))
+    noch_nicht_id = repo.lege_knopf_an(conn, chat_id, ART_NOCH_NICHT, str(stufe))
+    leiste = [
+        (f"Weiter zu {phasen.knopfbezeichnung(stufe)}", _daten(weiter_id)),
+        (_TEXT_PHASE_NOCH_NICHT_KNOPF, _daten(noch_nicht_id)),
+    ]
+    text = _TEXT_PHASE_ANGEBOT.format(
+        erledigt=_ERLEDIGT_FUER.get(stufe, "Alles Noetige"),
+        phase=phasen.knopfbezeichnung(stufe),
+    )
+    message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
+    return True
+
+
 def biete_proaktiv(conn, tg, chat_id: int, phase: int) -> None:
     """Die Frage beim Eintritt in eine Phase (05.09.2026 abends, Birk):
     "Bevor ich vorschlage: habt ihr selbst schon Ideen?" mit zwei Knoepfen.
@@ -2639,13 +2779,20 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             # Stufe 3 -> Filter -> Figurenanzahl). Die allgemeine Weiterfrage
             # ("Wollt ihr noch etwas hinzufuegen?") wuerde sich dazwischen
             # stellen, deshalb ``weiterfrage=False``.
-            meldung = _speichere(conn, tg, chat_id, roh, weiterfrage=False)
-            if meldung != _TEXT_UNBEKANNT:
+            meldung = _speichere(
+                conn, tg, chat_id, roh, weiterfrage=False, nur_bestaetigen=True,
+            )
+            if meldung not in (_TEXT_UNBEKANNT, _TEXT_SCHON_GESETZT):
                 repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
                 _kette_weiter(conn, tg, klm, e, chat_id, gespeicherte_art)
             return meldung
-        meldung = _speichere(conn, tg, chat_id, roh)
-        if gespeicherte_art == "figuren" and meldung != _TEXT_UNBEKANNT:
+        # "Gefaellt uns, weiter" ueberschreibt nie still, was schon steht
+        # (06.09.2026): ist das Feld gesetzt und keine Aenderung offen, ist
+        # der Druck eine Bestaetigung (``_ist_bestaetigung``).
+        meldung = _speichere(conn, tg, chat_id, roh, nur_bestaetigen=True)
+        if gespeicherte_art == "figuren" and meldung not in (
+            _TEXT_UNBEKANNT, _TEXT_SCHON_GESETZT,
+        ):
             # Ebene 1 ist abgenommen -- ab hier geht es Figur fuer Figur
             # weiter (Ebene 2), ohne dass jemand etwas antippen muss.
             stelle_figur_vor(conn, tg, klm, e, chat_id)
@@ -2875,6 +3022,12 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
 
         befehle._befehl_aufnahme(conn, tg, klm, e, chat_id)
         return "Aufnahme umgeschaltet"
+    if art == ART_NOCH_NICHT:
+        # Das Phasenangebot ist abgelehnt. Der Merkposten steht bereits
+        # (``biete_phase_proaktiv``), es wird also nichts geschrieben -- eine
+        # Zeile, damit der Druck sichtbar gewirkt hat, und Ruhe.
+        tg.sende(chat_id, _TEXT_NOCH_NICHT)
+        return _TEXT_NOCH_NICHT
     if art == ART_PHASE:
         nummer = int(knopf["wert"])
         if phasen.setze(conn, chat_id, nummer, "knopf"):

@@ -1013,6 +1013,44 @@ def _figuren_zeile(namen: list[str]) -> str:
     return f"{zahlwort} Figuren: {liste}"
 
 
+#: Wie weit zurueck geschaut wird, ob eine Notiert-Meldung schon dasteht.
+#: Drei Bot-Nachrichten sind das Fenster, das die Gruppe auf dem Telefon noch
+#: im Blick hat -- dieselbe Zahl wie in der system.md-Regel "wiederhole
+#: nichts, was in deinen letzten drei Nachrichten steht".
+MELDUNG_RUECKSCHAU = 3
+
+
+def _steht_schon_da(conn, chat_id: int, text: str) -> bool:
+    """Stand diese Notiert-Meldung wortgleich schon in einer der letzten
+    ``MELDUNG_RUECKSCHAU`` Bot-Nachrichten? (06.09.2026)
+
+    Wortgleich und nicht aehnlich: eine Notiert-Zeile ist deterministisch
+    aufgebaut (``baue_meldung``), zwei Laeufe ueber denselben Stand liefern
+    denselben String. Ein unscharfes Mass wuerde hier eine echte zweite
+    Aenderung verschlucken -- "Rahmen: A" und "Rahmen: B" teilen fast alle
+    Woerter."""
+    letzte = [
+        (zeile["text"] or "").strip()
+        for zeile in repo.letzte_nachrichten(conn, chat_id, 30)
+        if zeile["ist_bot"]
+    ]
+    return text.strip() in letzte[-MELDUNG_RUECKSCHAU:]
+
+
+def _biete_phase_an(conn, tg, chat_id: int) -> None:
+    """Die proaktive Phasenmeldung nach einem Speichern -- weich, damit ein
+    Fehlschlag hier die Notiert-Zeile nicht mitreisst (06.09.2026).
+
+    Spaeter Import wie ueberall: ``knoepfe`` greift seinerseits auf den
+    Erkenner zu."""
+    try:
+        from interview_theater import knoepfe
+
+        knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
+    except Exception:
+        log.exception("Phasenangebot nach dem Erkennerlauf fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     """Baut die eine Meldung je Erkennerlauf (SPEC § 4.3, teil-b.md Aufgabe
     4) -- nicht eine je Aenderung.
@@ -1128,7 +1166,6 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     if not zeilen:
         return None
 
-    zeilen.append("Falls das nicht stimmt, sagt es mir.")
     return "Notiert:\n" + "\n".join(zeilen)
 
 
@@ -1375,6 +1412,16 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         _starte_szene(klm, tg, conn, e, chat_id, aenderungen, wirkliche)
         text = baue_meldung(wirkliche)
         if text is None:
+            _biete_phase_an(conn, tg, chat_id)
+            return
+        # Dieselbe Notiert-Zeile nicht zweimal (06.09.2026, Testgruppe
+        # 21:50/21:52: derselbe Szenenfolge-Block stand wortgleich zweimal im
+        # Chat). Gespeichert wurde in so einem Fall trotzdem korrekt -- nur
+        # die Meldung darueber ist ueberfluessig, und ein Bot, der dasselbe
+        # zweimal sagt, sieht kaputt aus.
+        if _steht_schon_da(conn, chat_id, text):
+            log.info("Notiert-Meldung als Wiederholung uebersprungen, chat_id=%s", chat_id)
+            _biete_phase_an(conn, tg, chat_id)
             return
         message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche)
         # Wie ablauf.antworte: die gesendete Meldung wird als Bot-Nachricht
@@ -1383,6 +1430,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
             text, repo._jetzt(),
         )
+        # Direkt hinter der Notiert-Zeile: hat GENAU dieses Speichern die
+        # naechste Phase moeglich gemacht, sagt der Bot es sofort
+        # (06.09.2026). Hier ist die Stelle, an der die Voraussetzung
+        # entsteht -- ein Zug spaeter waere es schon eine Erinnerung.
+        _biete_phase_an(conn, tg, chat_id)
     except Exception:
         log.exception("Erkenner-Nachlauf fehlgeschlagen, chat_id=%s", chat_id)
         repo.merke_vorfall(

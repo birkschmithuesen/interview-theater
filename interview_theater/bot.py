@@ -40,7 +40,13 @@ NACHTSTAU_MINUTEN = 15
 #: beim Neustart eine kurze Wiederkehr-Zeile (teil-b.md Aufgabe 7) -- billiger
 #: Hinweis, dass er wieder da ist, ohne die volle Erstkontakt-Begruessung zu
 #: wiederholen.
-PAUSE_GRENZE_STUNDEN = 2
+#:
+#: 30 Minuten seit dem 06.09.2026 (Birk, nach der Testgruppe): mit zwei
+#: Stunden schickte der Bot die Zeile am Testabend zweimal in eine Gruppe,
+#: die laengst weiterarbeitete -- und beide Male wortgleich. Eine halbe
+#: Stunde ist die Pause, nach der eine Gruppe tatsaechlich nicht mehr weiss,
+#: ob der Bot noch zuhoert; alles darunter ist eine Unterbrechung.
+PAUSE_GRENZE_MINUTEN = 30
 
 
 def ist_nachtstau(gesendet_am: str, jetzt: datetime) -> bool:
@@ -148,10 +154,7 @@ _TEXT_GRUPPENSEITE = (
 #: (interview_theater/phasen.py). Stimmt sie nicht mehr, korrigiert die Gruppe sie
 #: mit einem Satz. Der Weg weiter steht seit 05.09.2026 als Knoepfe darunter
 #: (``knoepfe.biete_einstieg``), nicht als Slash-Befehl im Text.
-_TEXT_WIEDERKEHR = (
-    "Bin wieder da. Wir sind bei {phase}. Wenn ihr weitermachen wollt, "
-    "sagt mir Bescheid - oder tippt einen Knopf an."
-)
+_TEXT_WIEDERKEHR = "Bin wieder da. Wir sind bei {phase}."
 
 
 def stelle_link_sicher(conn, e, chat_id: int) -> str | None:
@@ -224,16 +227,16 @@ def erstkontakt(conn, tg, e, chat_id: int) -> None:
 
 def begruessung_faellig(letzte_nachricht_am: str, jetzt) -> bool:
     """Liefert True, wenn seit der letzten Nachricht einer Gruppe mehr als
-    PAUSE_GRENZE_STUNDEN vergangen sind (teil-b.md Aufgabe 7) -- analog zu
+    PAUSE_GRENZE_MINUTEN vergangen sind (teil-b.md Aufgabe 7) -- analog zu
     ist_nachtstau(), Grundlage fuer die kurze Wiederkehr-Zeile beim
     Neustart."""
     letzte = datetime.fromisoformat(letzte_nachricht_am)
-    return jetzt - letzte > timedelta(hours=PAUSE_GRENZE_STUNDEN)
+    return jetzt - letzte > timedelta(minutes=PAUSE_GRENZE_MINUTEN)
 
 
 def sende_wiederkehr_begruessungen(conn, tg, e, jetzt) -> None:
     """Schickt jeder Gruppe dieses Bot-Prozesses eine kurze Wiederkehr-Zeile,
-    wenn seit ihrer letzten Nachricht mehr als PAUSE_GRENZE_STUNDEN vergangen
+    wenn seit ihrer letzten Nachricht mehr als PAUSE_GRENZE_MINUTEN vergangen
     sind (teil-b.md Aufgabe 7) -- gedacht fuer einen Neustart nach einer
     laengeren Pause (z. B. ueber Nacht). Ein Fehlschlag je Gruppe wird nur
     geloggt und reisst weder die anderen Gruppen noch den Bot-Start mit.
@@ -468,7 +471,7 @@ def main() -> None:
     threading.Thread(target=warmlaufen, args=(klm, conn, e), daemon=True).start()
 
     # Aufgabe 7: kurze Wiederkehr-Zeile fuer Gruppen, deren letzte Nachricht
-    # mehr als PAUSE_GRENZE_STUNDEN zurueckliegt (z. B. Neustart am naechsten
+    # mehr als PAUSE_GRENZE_MINUTEN zurueckliegt (z. B. Neustart am naechsten
     # Morgen). Fehlschlaege je Gruppe werden schon in der Funktion geloggt.
     try:
         sende_wiederkehr_begruessungen(conn, tg, e, datetime.now(timezone.utc))

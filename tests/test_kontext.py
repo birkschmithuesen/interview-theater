@@ -74,14 +74,16 @@ def test_arbeitsstand_erscheint_sobald_er_existiert(conn, einst):
 
 
 def test_pausenmarkierung_ab_einer_stunde(conn, einst):
-    """18 Stunden zwischen zwei Nachrichten im Fenster -- Uebernachtung."""
-    _sende(conn, 1, 1, "Ada", "Bis morgen dann.", _iso(0))
-    _sende(conn, 1, 2, "Ben", "Guten Morgen!", _iso(18 * 60))
-    ausloeser = [_sende(conn, 1, 3, "Ada", "Wo waren wir stehen geblieben?", _iso(18 * 60 + 1))]
+    """Eine Pause im Fenster wird markiert.
 
-    prompt = kontext.baue(conn, 1, ausloeser, einst)
-
-    assert "[Pause: 18 Stunden]" in prompt
+    Seit dem 06.09.2026 reicht das Fenster hoechstens ``FENSTER_MINUTEN``
+    zurueck (30) -- eine Uebernachtung liegt also nie mehr DARIN, sondern
+    davor. Die Pausenzeile bleibt trotzdem noetig: das Fenster kann eine
+    Kaffeepause enthalten, und die Uhrzeit soll sichtbar sein. Geprueft wird
+    deshalb die Funktion selbst, nicht mehr ein 18-Stunden-Fenster.
+    """
+    assert kontext._pausenzeile(_iso(0), _iso(18 * 60)) == "[Pause: 18 Stunden]"
+    assert kontext._pausenzeile(_iso(0), _iso(65)) == "[Pause: 1 Stunde]"
 
 
 def test_keine_pausenmarkierung_bei_kurzem_abstand(conn, einst):
@@ -183,19 +185,17 @@ def test_kuerzung_bei_grossem_fenster_ohne_transkripte_erhaelt_ausloeser(conn, e
     ausloeser_text = "Und worauf einigen wir uns jetzt fuer die naechste Szene?"
     ausloeser = [_sende(conn, 1, 999_999, "Ada", ausloeser_text, _iso(601))]
 
-    ungekuerzte_fensterzeilen = len(kontext._baue_fenster_eintraege(conn, 1, ausloeser))
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     assert kontext.schaetze(prompt) <= kontext.REISSLEINE
     assert ausloeser_text in prompt
+    # Seit dem 06.09.2026 beschneidet nicht mehr erst die Kuerzung, sondern
+    # schon der Fensterbau: hoechstens FENSTER_NACHRICHTEN Nachrichten und
+    # hoechstens FENSTER_MINUTEN zurueck. Von 600 Beitraegen bleibt damit ein
+    # Bruchteil -- und der Ausloeser bleibt in jedem Fall stehen.
     verbliebene_fensterzeilen = prompt.count("Ein laengerer Gespraechsbeitrag")
-    assert verbliebene_fensterzeilen < ungekuerzte_fensterzeilen, (
-        "das Fenster muss tatsaechlich beschnitten worden sein"
-    )
-    vorfaelle = conn.execute(
-        "SELECT count(*) FROM vorfall WHERE art = 'kuerzung'"
-    ).fetchone()[0]
-    assert vorfaelle >= 1
+    assert verbliebene_fensterzeilen <= kontext.FENSTER_NACHRICHTEN
+    assert verbliebene_fensterzeilen < 600
 
 
 def test_ohne_wortlaut_schalter_fehlen_die_transkripte(conn, einst):

@@ -86,9 +86,8 @@ log = logging.getLogger(__name__)
 #: unter dem abgetippten Text der ersten Sprachnachricht
 #: (``knoepfe.biete_nach_teil``).
 _TEXT_INTERVIEW_AN = (
-    "Bereit - ihr koennt jetzt eine oder mehrere Sprachnachrichten schicken. "
-    "Nach jeder kommt der abgetippte Text zum Mitlesen; darunter fragt ein "
-    "Knopf, ob das Interview weitergeht oder fertig ist."
+    "Bereit - schickt eure Sprachnachrichten. Nach jeder kommt der abgetippte "
+    "Text."
 )
 _TEXT_INTERVIEW_AUS = "Aufnahme beendet."
 _TEXT_KERNTHEMA_LEER = "Schreibt das Kernthema hinter den Befehl, zum Beispiel: /kernthema Ankommen"
@@ -381,7 +380,7 @@ def _melde_entfernt(entfernt: dict | None, wenn_nichts: str) -> str:
     eine Antwort, und Schweigen sieht aus wie ein kaputter Bot."""
     if entfernt is None:
         return wenn_nichts
-    return f"Entfernt: {entfernt['wert']}. Falls das nicht stimmt, sagt es mir."
+    return f"Entfernt: {entfernt['wert']}."
 
 
 def _befehl_figur(conn, tg, chat_id: int, rest: str) -> None:

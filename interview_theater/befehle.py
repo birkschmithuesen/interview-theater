@@ -58,8 +58,18 @@ _SZENE_FELD = re.compile(
 
 log = logging.getLogger(__name__)
 
-_TEXT_INTERVIEW_AN = "Ich zeichne jetzt auf."
-_TEXT_INTERVIEW_AUS = "Aufnahme beendet."
+#: Start und Stopp sagen seit 05.09.2026 (Birk) die Bedienung dazu: die
+#: Gruppe steht im Raum mit einer interviewten Person vor sich und soll nicht
+#: raten muessen, wie sie die Aufnahme wieder anhaelt.
+_TEXT_INTERVIEW_AN = (
+    "Aufnahme laeuft. Sprecht eure Sprachnachrichten ein - so viele, wie ihr "
+    "wollt, sie gehoeren alle zu diesem einen Interview. Nach jeder schicke "
+    "ich euch den abgetippten Text zum Mitlesen. Zum Beenden nochmal "
+    "/aufnahme."
+)
+_TEXT_INTERVIEW_AUS = (
+    "Aufnahme beendet. Fuer das naechste Interview wieder /aufnahme."
+)
 _TEXT_KERNTHEMA_LEER = "Schreibt das Kernthema hinter den Befehl, zum Beispiel: /kernthema Ankommen"
 _TEXT_UNBEKANNT = "Diesen Befehl kenne ich nicht. /hilfe zeigt, was ich verstehe."
 _TEXT_WORTLAUT_AUS = "Wortlaut aus."
@@ -95,38 +105,40 @@ _TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
 #: widerspruechliche Erklaerungen erinnern muss.
 _TEXT_HILFE = (
     "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
-    "So laufen Interviews: sagt \"wir machen jetzt ein Interview\", dann "
-    "zeichne ich auf. \"Fertig\" beendet es.\n\n"
-    "Befehle, falls ich mal danebenliege:\n"
-    "/interview - Aufnahme starten\n"
-    "/fertig - Aufnahme beenden\n"
-    "/auswerten [nummer] - ein Interview doch noch verdichten\n"
-    "/phase [nummer|name] - zeigt die Phase oder schaltet um\n"
-    "/kernthema <text|aus> - Kernthema setzen, korrigieren oder wegnehmen\n"
-    "/figur <name> entfernen - eine Figur wegnehmen\n"
-    "/szene <auftrag> - eine Szene ausschreiben lassen\n"
-    "/szene <nummer> <feld> <wert> - ein Szenenfeld setzen "
-    "(form, ort, zeit, anlass, figuren, was_passiert, was_anders, "
-    "kernsaetze, ton, titel)\n"
-    "/szene <nummer> entfernen - eine Szene wegnehmen\n"
+    "SO MACHT IHR EIN INTERVIEW:\n"
+    "1. /aufnahme - die Aufnahme laeuft\n"
+    "2. Sprachnachrichten einsprechen, so viele ihr wollt - sie gehoeren "
+    "alle zu diesem einen Interview\n"
+    "3. Nach jeder schicke ich euch den abgetippten Text zum Mitlesen. "
+    "Steht da ein Wort falsch, sagt es mir einfach.\n"
+    "4. /aufnahme - beendet das Interview\n"
+    "Fuer das naechste Interview wieder mit /aufnahme anfangen.\n\n"
+    "Weitere Befehle:\n"
     "/stand - zeigt, was ich mir bisher gemerkt habe\n"
-    "/wortlaut [name|aus] - Originaltranskripte mitlesen\n"
-    "/hilfe - diese Uebersicht"
+    "/auswerten [nummer] - was in den Interviews steckt\n"
+    "/phase [nummer|name] - zeigt die Phase oder schaltet um\n"
+    "/hilfe - diese Uebersicht\n\n"
+    "Alles andere sagt ihr mir einfach: Kernthema, Figuren, Szenen - ich "
+    "halte es fest, ohne dass ihr einen Befehl braucht."
 )
 
 #: Telegram-Nutzlast fuer setMyCommands (teil-b.md Aufgabe 6) -- ohne
-#: fuehrenden Schraegstrich, Telegram haengt ihn selbst an. Dieselben zehn
-#: Befehle wie in behandle(), in derselben Reihenfolge wie in _TEXT_HILFE.
+#: fuehrenden Schraegstrich, Telegram haengt ihn selbst an.
+#: Was im Telegram-Menue steht, wenn jemand '/' tippt. Seit 05.09.2026 stark
+#: gekuerzt (Birk: "es gibt zu viele / commands im chat, da muessen wir uns
+#: reduzieren"): fuenf statt zehn. Massstab ist, was eine Gruppe im Workshop
+#: WIRKLICH selbst braucht -- alles andere kann sie dem Bot einfach sagen, er
+#: versteht es im Gespraech (der Erkenner schreibt Kernthema, Figuren, Phase
+#: und Szenen ohnehin mit).
+#:
+#: Draussen, aber weiter gueltig (nur nicht mehr beworben): /interview und
+#: /fertig (Synonyme von /aufnahme, fuer das Muskelgedaechtnis), /kernthema,
+#: /figur, /szene, /auswerten, /wortlaut, /phase.
 BEFEHLE_LISTE = [
-    {"command": "interview", "description": "Aufnahme starten"},
-    {"command": "fertig", "description": "Aufnahme beenden"},
-    {"command": "auswerten", "description": "Ein Interview doch noch verdichten"},
-    {"command": "phase", "description": "Arbeitsphase zeigen oder umschalten"},
-    {"command": "kernthema", "description": "Kernthema setzen, korrigieren oder wegnehmen"},
-    {"command": "figur", "description": "Eine Figur entfernen"},
-    {"command": "szene", "description": "Szene planen, ausschreiben lassen oder entfernen"},
+    {"command": "aufnahme", "description": "Interview starten - und nochmal, um zu beenden"},
     {"command": "stand", "description": "Arbeitsstand anzeigen"},
-    {"command": "wortlaut", "description": "Originaltranskripte mitlesen"},
+    {"command": "auswerten", "description": "Interviews auswerten und anzeigen"},
+    {"command": "phase", "description": "Arbeitsphase zeigen oder umschalten"},
     {"command": "hilfe", "description": "Wie der Bot funktioniert"},
 ]
 
@@ -148,6 +160,31 @@ def _wortlaut_liste(conn, chat_id: int) -> str:
     if not namen:
         return _TEXT_KEINE_AUFNAHMEN
     return "Ich kenne diesen Namen nicht. Vorhandene Aufnahmen: " + ", ".join(namen)
+
+
+def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
+    """``/aufnahme`` -- EIN mechanischer Umschalter fuer Start und Stopp
+    (Birk 05.09.2026: "das Interview starten und stoppen ist sehr
+    problematisch, ich denke die sicherste Loesung ist das mechanisch mit
+    /aufnahme zu machen").
+
+    Vorher brauchte es zwei Wege: gesprochenes "wir machen jetzt ein
+    Interview" (der Erkenner musste es treffen) oder ``/interview`` und
+    ``/fertig`` als zwei getrennte Befehle. Beides ging im Testlauf schief --
+    Start und Ende fielen in denselben Erkennerlauf und der Kopf blieb leer.
+
+    Ein Umschalter kann das nicht: laeuft nichts, startet er; laeuft etwas,
+    beendet er. Die Gruppe muss sich nur EIN Wort merken, und der Zustand
+    steht sichtbar in der Antwort."""
+    if repo.ist_interviewmodus_an(conn, chat_id):
+        kopf_id = aufnahme.beende_interview(conn, chat_id)
+        tg.sende(chat_id, _TEXT_INTERVIEW_AUS)
+        if kopf_id is not None and klm is not None:
+            aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
+        return
+    repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
+    aufnahme.stelle_interview_sicher(conn, chat_id)
+    tg.sende(chat_id, _TEXT_INTERVIEW_AN)
 
 
 def _befehl_interview(conn, tg, chat_id: int) -> None:
@@ -413,11 +450,14 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     szene.starte(conn, tg, klm, e, chat_id, rest)
 
 
-#: Die zehn erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
+#: Die erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
 #: Slash-Text (z. B. "/irgendwas") freundlich beantwortet statt zu krachen.
+#: ``/aufnahme`` ist seit 05.09.2026 der beworbene Weg; ``/interview`` und
+#: ``/fertig`` bleiben als stille Synonyme gueltig (Muskelgedaechtnis), stehen
+#: aber nicht mehr im Menue.
 _BEKANNTE_BEFEHLE = {
-    "/interview", "/fertig", "/auswerten", "/phase", "/kernthema", "/figur",
-    "/szene", "/stand", "/wortlaut", "/hilfe",
+    "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase", "/kernthema",
+    "/figur", "/szene", "/stand", "/wortlaut", "/hilfe",
 }
 
 
@@ -444,7 +484,9 @@ def behandle(
         tg.sende(chat_id, _TEXT_UNBEKANNT)
         return True
 
-    if befehl == "/interview":
+    if befehl == "/aufnahme":
+        _befehl_aufnahme(conn, tg, klm, e, chat_id)
+    elif befehl == "/interview":
         _befehl_interview(conn, tg, chat_id)
     elif befehl == "/fertig":
         _befehl_fertig(conn, tg, klm, e, chat_id)

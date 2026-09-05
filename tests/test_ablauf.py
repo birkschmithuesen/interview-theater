@@ -282,7 +282,8 @@ def test_befehl_mit_botname_wird_ueber_bearbeite_erkannt(conn, einst, tg, klm):
     ablauf.bearbeite(conn, tg, klm, einst, 1)
 
     assert klm.gesehen == []
-    assert tg.gesendet == [(1, "Aufnahme beendet.")]
+    assert len(tg.gesendet) == 1
+    assert "Aufnahme beendet" in tg.gesendet[0][1]
 
 
 def test_szene_befehl_bekommt_das_sprachmodell_durchgereicht(conn, einst, tg, klm, monkeypatch):

@@ -39,7 +39,7 @@ def test_interview_schaltet_modus_an_und_legt_ein_interview_an(conn, einst, tg):
     behandelt = befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
     assert behandelt is True
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
-    assert tg.gesendet == [(1, "Ich zeichne jetzt auf.")]
+    assert "Aufnahme laeuft" in tg.gesendet[0][1]
 
     kopf = repo.laufendes_interview(conn, 1)
     assert kopf is not None and kopf["name"] == "Interview 1"
@@ -56,7 +56,7 @@ def test_fertig_schaltet_modus_aus_und_bestaetigt(conn, einst, tg):
 
     assert behandelt is True
     assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
-    assert tg.gesendet == [(1, "Aufnahme beendet.")]
+    assert "Aufnahme beendet" in tg.gesendet[0][1]
 
 
 def test_fertig_gibt_die_verdichtung_an_einen_thread_ab(conn, einst, tg, monkeypatch):
@@ -205,12 +205,13 @@ def test_kernthema_mit_botname_und_text_wird_erkannt(conn, einst, tg):
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
 
 
-def test_befehle_liste_enthaelt_alle_zehn_ohne_schraegstrich():
+def test_befehle_liste_ist_auf_fuenf_gekuerzt():
+    """05.09.2026 (Birk: "es gibt zu viele / commands im chat"). Im Menue
+    steht nur noch, was eine Gruppe wirklich selbst braucht; alles
+    Inhaltliche schreibt der Erkenner ohnehin aus dem Gespraech mit."""
     kommandos = {b["command"] for b in befehle.BEFEHLE_LISTE}
-    assert kommandos == {
-        "interview", "fertig", "auswerten", "phase", "kernthema", "figur",
-        "szene", "stand", "wortlaut", "hilfe",
-    }
+    assert kommandos == {"aufnahme", "stand", "auswerten", "phase", "hilfe"}
+    assert "interview" not in kommandos and "fertig" not in kommandos
 
 
 # ---------------------------------------------------------------------------
@@ -556,3 +557,48 @@ def test_stand_nennt_die_gruppenseite_wenn_konfiguriert(conn, einst, tg):
     befehle.behandle(conn, tg, mit_web, 1, "/stand", "Elif")
     token = repo.stelle_web_token_sicher(conn, 1)
     assert f"Zum Mitlesen: https://lab.test/theatersoap/g/{token}" in tg.gesendet[-1][1]
+
+
+# ---------------------------------------------------------------------------
+# /aufnahme -- EIN mechanischer Umschalter (Birk 05.09.2026)
+# ---------------------------------------------------------------------------
+
+
+def test_aufnahme_startet_und_beendet_mit_demselben_befehl(conn, einst, tg):
+    """Birk 05.09.: "das Interview starten und stoppen ist sehr problematisch,
+    die sicherste Loesung ist das mechanisch mit /aufnahme zu machen". Ein
+    Umschalter kann Start und Ende nicht verwechseln -- anders als der
+    Erkenner, bei dem beides in denselben Lauf fiel und der Kopf leer blieb."""
+    befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
+    kopf = repo.laufendes_interview(conn, 1)
+    assert kopf is not None
+    assert "Aufnahme laeuft" in tg.gesendet[-1][1]
+    assert "/aufnahme" in tg.gesendet[-1][1], "die Bedienung steht in der Ansage"
+
+    befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
+    assert repo.hole_aufnahme(conn, kopf["id"])["beendet_am"] is not None
+    assert "Aufnahme beendet" in tg.gesendet[-1][1]
+
+
+def test_aufnahme_legt_je_umschaltung_genau_ein_interview_an(conn, einst, tg):
+    """Zweimal an/aus ergibt zwei Interviews, nicht eines und nicht drei."""
+    for _ in range(2):
+        befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+        befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+
+    assert repo.zaehle_interviews(conn, 1) == 2
+
+
+def test_aufnahme_ansage_erklaert_die_bedienung(conn, einst, tg):
+    """Die Gruppe steht im Raum vor einer interviewten Person und darf nicht
+    raten muessen, wie sie die Aufnahme wieder anhaelt."""
+    befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
+    text = tg.gesendet[-1][1]
+
+    assert "Sprachnachricht" in text or "Sprachnachrichten" in text
+    assert "Mitlesen" in text, "das zurueckgespielte Transkript wird angesagt"
+    assert "Beenden" in text

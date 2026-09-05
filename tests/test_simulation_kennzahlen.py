@@ -108,18 +108,21 @@ def test_zustimmungen_ohne_markierung_sind_null(protokoll):
 
 
 def test_arbeitsstand_vollstaendig_zaehlt_je_feld(conn):
+    # Das letzte Feld kommt aus dem Schema (``skript.pflichtfeld_fuer_phase``)
+    # -- seit dem Umbau vom 05.09.2026 nachts ist das ``geschichte``, und die
+    # Kennzahl zieht ohne Zutun mit.
     stand = kennzahlen.arbeitsstand_vollstaendig(conn, 1)
     assert set(stand) == {"begriffe", "fragen", "kernthema", "figuren_3",
-                          "rahmen"}
+                          "geschichte"}
     assert sum(stand.values()) == 0
 
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer")
-    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Wartesaal")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.")
     for name in ("Meryem", "Ferzan", "Aynur"):
         repo.setze_figur(conn, 1, name, "eine Frau")
     stand = kennzahlen.arbeitsstand_vollstaendig(conn, 1)
     assert stand["begriffe"] == 1
-    assert stand["rahmen"] == 1
+    assert stand["geschichte"] == 1
     assert stand["figuren_3"] == 1
     assert stand["fragen"] == 0
 

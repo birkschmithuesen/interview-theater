@@ -126,15 +126,21 @@ Antworte in GENAU dieser Form, ohne Einleitung und ohne Nachwort:
 VORSCHLAG GESCHICHTE:
 Bogen in einem Satz
 Ende: wie es ausgeht
-Titel — ein Satz, was passiert — Figur, Figur — Form
-Titel — ein Satz, was passiert — Figur, Figur — Form
+Titel — ein Satz, was passiert — Figur, Figur — Form — warum diese Form
+Titel — ein Satz, was passiert — Figur, Figur — Form — warum diese Form
 
 Zeile 1 ist der Bogen, Zeile 2 beginnt mit \"Ende:\", danach eine Zeile je
 Szene. Nimm nur Figuren, die unten stehen.
 
-**Die Form ist Pflicht** und steht als vierte Spalte jeder Szenenzeile. Es
-gibt genau fuenf: Dialog, Monolog, Chor, Lied, Rap. Waehl sie nach der Szene,
-nicht nach Gewohnheit -- eine Folge aus lauter Dialogen ist ein Fehler.
+**Die Form schlaegst du VOR, du entscheidest sie nicht.** Sie steht als
+vierte Spalte, ihre Begruendung als fuenfte, und beide sind Pflicht -- die
+Gruppe bestaetigt die Form spaeter Szene fuer Szene per Knopf.
+
+Es gibt genau fuenf: Dialog, Monolog, Chor, Lied, Rap. **Dialog ist der
+Normalfall.** Monolog, Lied und Rap nur, wenn die Szene es verlangt: eine
+Figur allein mit sich, ein Gefuehl, das gesungen groesser wird, Wut, die
+Rhythmus braucht. Hoechstens EINE Nicht-Dialog-Szene je drei Szenen, und
+Szene 1 ist nie Monolog oder Lied -- die Exposition braucht Begegnung.
 
 Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
 
@@ -189,9 +195,9 @@ def _sperre_fuer(chat_id: int) -> threading.Lock:
 _TRENNER = re.compile(r"\s+[—–]\s+|\s+-\s+")
 
 
-def zerlege(wert: str) -> list[tuple[str, str, list[str], str]]:
+def zerlege(wert: str) -> list[tuple[str, str, list[str], str, str]]:
     """Zerlegt den Szenenfolge-Block in ``(Titel, was_passiert, Figuren,
-    Form)``.
+    Formvorschlag, Begruendung)``.
 
     Eine Zeile je Szene. Fuehrende Aufzaehlungszeichen (\"- \", \"1. \",
     \"Szene 1: \") fallen weg -- ein Modell nummeriert gern mit, und die
@@ -201,15 +207,19 @@ def zerlege(wert: str) -> list[tuple[str, str, list[str], str]]:
     Besetzung ist ein normaler Planungszustand (``szene.sperrtext`` sagt es
     spaeter), kein Grund, die ganze Zeile wegzuwerfen.
 
-    Die **vierte Spalte ist die Form** (05.09.2026 abends, Birk): sie ist je
-    Szene Pflicht und wird deshalb schon hier vorgeschlagen. Fehlt sie, gilt
-    ``FORM_VORGABE`` -- geraten wird nichts, aber eine Zeile ohne vierte
-    Spalte ist kein Grund, die Szene wegzuwerfen. Uebersetzt wird ueber
-    ``szene.formdatei``: was das Modell schreibt ("gesungen"), landet bei
-    der Form, die es meint."""
+    Die **vierte Spalte ist der Formvorschlag** (05.09.2026 abends, Birk),
+    die **fuenfte seine Begruendung** (06.09.2026, Birk: "Die Form Monolog
+    habe ich niemals eingegeben und aktiv bestaetigt. Die Form muss mit mehr
+    Bedacht gewaehlt werden und vom User bestaetigt werden."). Beides ist ein
+    **Vorschlag**: gesetzt wird ``szene.form`` allein durch einen Knopfdruck
+    der Gruppe, Szene fuer Szene (``knoepfe.biete_szenenform``). Fehlt die
+    vierte Spalte, gilt ``FORM_VORGABE`` als Vorschlag -- Dialog ist der
+    Normalfall. Uebersetzt wird ueber ``szene.formdatei``: was das Modell
+    schreibt ("gesungen"), landet bei der Form, die es meint."""
+
     from interview_theater import szene as szene_modul
 
-    ergebnis: list[tuple[str, str, list[str], str]] = []
+    ergebnis: list[tuple[str, str, list[str], str, str]] = []
     for zeile in (wert or "").splitlines():
         roh = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", zeile).strip()
         roh = re.sub(r"^\s*szene\s*\d{0,3}\s*[:.]\s*", "", roh, flags=re.IGNORECASE)
@@ -225,12 +235,13 @@ def zerlege(wert: str) -> list[tuple[str, str, list[str], str]]:
             figuren = [f.strip(" .;:") for f in teile[2].split(",") if f.strip()]
         roh_form = teile[3].strip(" .;:") if len(teile) > 3 else ""
         form = szene_modul.formdatei(roh_form) if roh_form else FORM_VORGABE
-        ergebnis.append((titel, was, figuren, form))
+        grund = teile[4].strip() if len(teile) > 4 else ""
+        ergebnis.append((titel, was, figuren, form, grund))
     return ergebnis
 
 
 def lege_an(
-    conn, chat_id: int, zeilen: list[tuple[str, str, list[str], str]]
+    conn, chat_id: int, zeilen: list[tuple[str, str, list[str], str, str]]
 ) -> list[int]:
     """Legt aus einem Szenenfolge-Vorschlag die Szenen an und liefert ihre
     Nummern.
@@ -243,7 +254,12 @@ def lege_an(
     Die Besetzung wird nur gesetzt, soweit die Namen im Arbeitsstand stehen --
     eine Figur wird hier NIE angelegt. Figuren entstehen in Phase 4 mit
     Beschreibung und Interview; sie aus einer Szenenzeile zu raten waere genau
-    der Fehler, den ``vorschlag.py`` vermeidet."""
+    der Fehler, den ``vorschlag.py`` vermeidet.
+
+    **Die Form wird NICHT gesetzt** (Birk, 06.09.2026 00:30): sie landet als
+    ``form_vorschlag`` samt Begruendung in der Szene, ``form`` bleibt leer,
+    bis die Gruppe sie Szene fuer Szene per Knopf bestaetigt. Anlass: in einer
+    fertigen Szene stand "Monolog", ohne dass es je jemand gewaehlt hatte."""
     for alt in repo.hole_szenen(conn, chat_id):
         if alt["nummer"] is not None:
             repo.entferne_szene(conn, chat_id, alt["nummer"])
@@ -251,14 +267,18 @@ def lege_an(
     nummern: list[int] = []
     for nummer, zeile in enumerate(zeilen, start=1):
         titel, was, figuren = zeile[0], zeile[1], zeile[2]
-        # Die Form kommt aus der Vorschlagszeile (vierte Spalte); aeltere
-        # Aufrufer mit Dreiertupeln bekommen die Vorgabe.
+        # Der Formvorschlag kommt aus der vierten Spalte, seine Begruendung
+        # aus der fuenften; aeltere Aufrufer mit kuerzeren Tupeln bekommen die
+        # Vorgabe (Dialog).
         form = zeile[3] if len(zeile) > 3 and zeile[3] else FORM_VORGABE
+        grund = zeile[4] if len(zeile) > 4 else ""
         szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
         repo.setze_szenenfeld(conn, szene_id, "titel", titel)
         if was:
             repo.setze_szenenfeld(conn, szene_id, "was_passiert", was)
-        repo.setze_szenenfeld(conn, szene_id, "form", form)
+        repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", form)
+        if grund:
+            repo.setze_szenenfeld(conn, szene_id, "form_vorschlag_grund", grund)
         ids = [nach_name[n.lower()] for n in figuren if n.lower() in nach_name]
         if ids:
             repo.setze_szene_figuren(conn, chat_id, szene_id, ids)

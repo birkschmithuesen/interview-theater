@@ -304,6 +304,9 @@ PHASE_SZENEN = 7
 PHASE_DURCHLAUF = 8
 
 _TEXT_SZENENFORM_FRAGE = "Welche Form soll Szene {nummer} haben?"
+#: Markiert den Vorschlag des Bots in der Formleiste -- er steht zuerst, ist
+#: aber sichtbar ein Vorschlag (Birk, 06.09.2026 00:30).
+TEXT_FORM_VORSCHLAG_ZUSATZ = " (Vorschlag)"
 _TEXT_USA_FRAGE_KNOEPFE = "Tippt an, was gelten soll:"
 _TEXT_USA_JA_KNOPF = "Ja, US-Modell"
 _TEXT_USA_NEIN_KNOPF = "Nein, Schweiz"
@@ -1019,7 +1022,8 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
     return tg.sende_mit_knoepfen(chat_id, text, knoepfe)
 
 
-def biete_szenenform(conn, tg, chat_id: int, nummer: int, text: str | None = None) -> None:
+def biete_szenenform(conn, tg, chat_id: int, nummer: int, text: str | None = None,
+                     zeile=None) -> int:
     """Bietet die sechs Formen fuer EINE Szene als Knoepfe an (05.09.2026).
 
     Warum hier ein Knopf: 553e3aa stellt die Form je Szene in phasen/6.md als
@@ -1035,19 +1039,37 @@ def biete_szenenform(conn, tg, chat_id: int, nummer: int, text: str | None = Non
     Formnamen eingehalten.
 
     Die Liste kommt aus ``szene.FORMEN`` und wird hier NICHT zweitgepflegt:
-    kommt dort eine Form dazu, gibt es den Knopf automatisch."""
+    kommt dort eine Form dazu, gibt es den Knopf automatisch.
+
+    Gibt es einen Formvorschlag aus der Szenenfolge (``form_vorschlag``,
+    06.09.2026), steht er ZUERST und traegt "(Vorschlag)" -- darueber eine
+    Zeile Begruendung (``form_vorschlag_grund``). Er ist damit sichtbar ein
+    Vorschlag und keine Vorentscheidung: gesetzt wird die Form durch den
+    Druck, und nur durch ihn."""
     from interview_theater import szene
+
+    reihenfolge = list(szene.FORMEN)
+    vorschlag_form = ""
+    zusatz = ""
+    if zeile is not None:
+        vorschlag_form = (zeile["form_vorschlag"] or "").strip().lower()
+        if vorschlag_form in reihenfolge:
+            reihenfolge.remove(vorschlag_form)
+            reihenfolge.insert(0, vorschlag_form)
+        grund = (zeile["form_vorschlag_grund"] or "").strip()
+        if grund:
+            zusatz = "\n\n" + grund
 
     knoepfe = [
         (
-            form.capitalize(),
+            form.capitalize() + (TEXT_FORM_VORSCHLAG_ZUSATZ if form == vorschlag_form
+                                 else ""),
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFORM, f"{nummer}:{form}")),
         )
-        for form in szene.FORMEN
+        for form in reihenfolge
     ]
-    tg.sende_mit_knoepfen(
-        chat_id, text or _TEXT_SZENENFORM_FRAGE.format(nummer=nummer), knoepfe
-    )
+    frage = text or _TEXT_SZENENFORM_FRAGE.format(nummer=nummer)
+    return _mit_leiste(conn, tg, chat_id, frage + zusatz, knoepfe)
 
 
 def biete_szene_usa(conn, tg, chat_id: int, text: str | None = None) -> None:
@@ -1275,10 +1297,20 @@ def biete_szene(conn, tg, chat_id: int, zeile) -> int:
     Steht ein Pruef-Vermerk an dieser Szene (an einer frueheren Szene wurde
     etwas geaendert, ``szenenfolge.zu_pruefen``), sind es zwei andere
     Knoepfe: "Neu schreiben" und "So lassen". Das ist die Frage, die dann
-    ansteht -- "Ueberspringen" und "Form aendern" waeren daneben Rauschen."""
+    ansteht -- "Ueberspringen" und "Form aendern" waeren daneben Rauschen.
+
+    **Ist die Form noch nicht bestaetigt, kommt zuerst die Formfrage**
+    (Birk, 06.09.2026 00:30: "Die Form Monolog habe ich niemals eingegeben
+    und aktiv bestaetigt. Die Form muss mit mehr Bedacht gewaehlt werden und
+    vom User bestaetigt werden."). Der Vorschlag des Bots steht dabei als
+    erster Knopf mit "(Vorschlag)"; die Schreibfrage kommt erst nach dem
+    Druck. Ohne bestaetigte Form wird nicht geschrieben
+    (``szene.PFLICHTFELDER``)."""
     from interview_theater import szenenfolge
 
     nummer = zeile["nummer"]
+    if not (zeile["form"] or "").strip():
+        return biete_szenenform(conn, tg, chat_id, nummer, zeile=zeile)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_SCHREIBEN)
     if szenenfolge.zu_pruefen(conn, chat_id, nummer):
         leiste = [
@@ -1583,7 +1615,7 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
     Ausgelagert, weil ``_wirke`` sonst auf ueber vierhundert Zeilen anwuechse
     und die eine Regel, um die es geht ("kein Modellaufruf im Handler"), im
     Rauschen unterginge."""
-    from interview_theater import szenenfolge
+    from interview_theater import szenenfolge, szene as szene_modul
 
     art = knopf["art"]
     wert = str(knopf["wert"] or "")
@@ -1756,7 +1788,11 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
         # ist damit erledigt, und die spaeteren bekommen einen.
         szenenfolge.nimm_pruefvermerk(conn, chat_id, nummer)
         _melde_spaetere(conn, tg, chat_id, nummer)
-        return _schreibe_szene(conn, tg, klm, e, chat_id, nummer)
+        # "Neu schreiben" heisst NEU: die alte Fassung geht nicht als Vorlage
+        # mit (06.09.2026: zweimal derselbe Text, weil der Volltext unter
+        # "soll ueberarbeitet werden" im Prompt stand). Der Marker wird in
+        # szene._diese_szene_text erkannt.
+        return _schreibe_szene(conn, tg, klm, e, chat_id, nummer, notiz=szene_modul.NEU_MARKER)
 
     if art == ART_SZENE_SO_LASSEN:
         # "So lassen": der Vermerk faellt weg, der Text bleibt. Kein Lauf,
@@ -3050,6 +3086,11 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             chat_id,
             szene_modul.planungszeile(conn, repo.hole_szene(conn, szene_id)),
         )
+        # Jetzt, wo die Form bestaetigt ist, kommt die Schreibfrage: die
+        # Formfrage steht seit dem 06.09.2026 VOR ihr, nicht neben ihr.
+        ziel = _szene_mit_nummer(conn, chat_id, nummer)
+        if ziel is not None:
+            biete_szene(conn, tg, chat_id, ziel)
         return f"Szene {nummer}: {form}"
     if art == ART_SZENE_USA:
         # ACHTUNG, hier ist am 05.09.2026 schon ein Fehler passiert:

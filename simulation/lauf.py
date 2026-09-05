@@ -36,7 +36,7 @@ from datetime import datetime, timedelta, timezone
 
 from interview_theater import aufnahme, bot, kontext, phasen, repo, szene
 
-from simulation import bericht, kennzahlen, material, richter, skript, stimmen
+from simulation import bericht, claude, kennzahlen, material, richter, skript, stimmen
 from simulation.kennzahlen import Beitrag, Zug
 
 log = logging.getLogger(__name__)
@@ -92,6 +92,7 @@ class Ergebnis:
     gezogene: list = field(default_factory=list)
     personen: list = field(default_factory=list)
     notausgaenge: int = 0
+    verweigerungen: int = 0  # Stimmen, die das Simulationsmodell verweigert hat (refusal)
     dauer_s: float = 0.0
     titel: dict = field(default_factory=dict)          # schluessel -> Schritt-Titel
 
@@ -381,13 +382,37 @@ class Lauf:
         self._schliesse_zug(zug, vorher, ab_kontext, start)
 
     def _stimmen_zug(self, ziel: str) -> Zug:
-        """Ein Zug mit einer -- gelegentlich zwei -- Stimmen."""
+        """Ein Zug mit einer -- gelegentlich zwei -- Stimmen. Verweigert das
+        Simulationsmodell eine Stimme (stop_reason=refusal, gemessen 05.09.
+        beim ersten Zug von set1 -- Ankommen, Papiere, Amt), schweigt diese
+        Person in diesem Zug und die naechste spricht; der Lauf scheitert
+        daran nicht. Steht als Notiz im Protokoll."""
         zug = self._zug()
         texte = []
         for person in stimmen.waehle_sprecher(self.zufall, self.personen):
-            text = stimmen.sprich(self.sim, person, self._verlauf(), ziel)
+            try:
+                text = stimmen.sprich(self.sim, person, self._verlauf(), ziel)
+            except claude.ClaudeFehler as fehler:
+                if "refusal" not in str(fehler):
+                    raise
+                zug.notiz = (zug.notiz + " | " if zug.notiz else "") + (
+                    f"{person.name} verweigert vom Simulationsmodell (refusal)"
+                )
+                self.ergebnis.verweigerungen += 1
+                continue
             if text:
                 texte.append((person.name, person.profil, text))
+        if not texte:
+            # Alle gewaehlten Stimmen verweigert: eine andere Person, mit dem
+            # Ziel als knappem Satz, damit der Schritt weitergeht.
+            for person in self.personen:
+                try:
+                    text = stimmen.sprich(self.sim, person, self._verlauf(), ziel)
+                except claude.ClaudeFehler:
+                    continue
+                if text:
+                    texte.append((person.name, person.profil, text))
+                    break
         self._schicke(zug, texte)
         return zug
 

@@ -540,6 +540,12 @@ def kontextlage(zuege: list[Zug]) -> dict:
     }
 
 
+def _figuren_inkl_entfernt(conn, chat_id: int) -> int:
+    return conn.execute(
+        "SELECT COUNT(*) FROM figur WHERE chat_id = ?", (chat_id,)
+    ).fetchone()[0]
+
+
 def arbeitsstand_vollstaendig(conn, chat_id: int) -> dict[str, int]:
     """Je Feld 0/1: Begriffe, Fragen, Kernthema, drei Figuren, das
     Pflichtfeld der Phase 5 (heute ``format``).
@@ -553,8 +559,12 @@ def arbeitsstand_vollstaendig(conn, chat_id: int) -> dict[str, int]:
         "begriffe": int(skript._stand_gesetzt(conn, chat_id, "begriffe")),
         "fragen": int(skript._stand_gesetzt(conn, chat_id, "fragen")),
         "kernthema": int(skript._stand_gesetzt(conn, chat_id, "kernthema")),
+        # Figuren INKLUSIVE der weich geloeschten: Skript-Schritt 8 entfernt
+        # absichtlich eine, und die Kennzahl soll messen, ob der Bot drei
+        # ANGELEGT hat -- nicht, ob am Ende noch drei stehen (gemessen 05.09.,
+        # set1 seed1 nachher: drei angelegt, eine entfernt, Kennzahl 0).
         f"figuren_{skript.FIGUREN_SOLL}": int(
-            len(repo.figuren(conn, chat_id)) >= skript.FIGUREN_SOLL
+            _figuren_inkl_entfernt(conn, chat_id) >= skript.FIGUREN_SOLL
         ),
     }
     feld = skript.pflichtfeld_fuer_phase(conn, skript.PHASE_MITTE)

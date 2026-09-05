@@ -302,7 +302,14 @@ def nummer_aus_auftrag(auftrag: str) -> int | None:
     diese ueberschrieben (der Normalfall "Szene 2 nochmal, aber kuerzer");
     sonst entsteht eine neue."""
     treffer = _NUMMER.search(auftrag or "")
-    return int(treffer.group(1)) if treffer else None
+    if treffer:
+        return int(treffer.group(1))
+    # Eine nackte Zahl ("/szene 1" kommt hier als "1" an) meint die Szene mit
+    # dieser Nummer. Live-Fall Testgruppe 05.09. 22:20: "/szene 1" schrieb
+    # Szene 3, weil "1" als "keine Nummer" gelesen wurde und dann die zuletzt
+    # bearbeitete Szene dran war.
+    nackt = re.fullmatch(r"\s*(\d{1,3})\s*", auftrag or "")
+    return int(nackt.group(1)) if nackt else None
 
 
 # ---------------------------------------------------------------------------

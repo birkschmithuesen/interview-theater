@@ -891,3 +891,87 @@ def test_der_tanztheater_regelblock_steht_in_der_systemanweisung():
     assert "[BEWEGUNG" in text
     assert "Achten" in text
     assert "zwoelf Zeilen" in text
+
+
+# ---------------------------------------------------------------------------
+# Das Kernpaket im Szenen-Prompt (05.09.2026 abends)
+# ---------------------------------------------------------------------------
+
+
+def _kernpaket(conn):
+    """Kernthema, Kernfrage, ein gefiltertes Thema mit Zitat -- und ein
+    zweites Interview, das nicht zum Kernthema gehoert."""
+    repo.merke_nachricht(conn, 1, 90, "Ada", 0, "sprache", None, "2026-09-06T10:00:00+00:00")
+    passend_id = repo.lege_aufnahme_an(conn, 1, 90, "lang", "sprache", "/tmp/a.ogg", 300)
+    repo.speichere_verdichtung(
+        conn, 1, passend_id, "Maria erzaehlt von der Naeharbeit.",
+        [{"thema": "Arbeit ohne Anerkennung",
+          "beleg_zitat": "Keiner hat gefragt", "zitat_geprueft": 1}],
+    )
+    repo.merke_nachricht(conn, 1, 91, "Ada", 0, "sprache", None, "2026-09-06T10:05:00+00:00")
+    fremd_id = repo.lege_aufnahme_an(conn, 1, 91, "lang", "sprache", "/tmp/b.ogg", 300)
+    repo.speichere_verdichtung(
+        conn, 1, fremd_id, "Pal erzaehlt von seinen Wochenendfahrten.",
+        [{"thema": "Fahrten am Wochenende",
+          "beleg_zitat": "Am Samstag faehrt keiner", "zitat_geprueft": 1}],
+    )
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Arbeit, die niemand sieht")
+    repo.setze_arbeitsstand(
+        conn, 1, "kernfrage",
+        "Frage: Was passiert, wenn niemand fragt?\nGegensatz: sehen wollen - "
+        "gesehen werden\nEinsatz: ob die Arbeit zaehlt",
+    )
+    passend = next(
+        t for t in repo.gepruefte_themen(conn, 1)
+        if t["thema"] == "Arbeit ohne Anerkennung"
+    )
+    repo.markiere_themen_zum_kernthema(conn, 1, [passend["id"]])
+    repo.ersetze_kernzitate(
+        conn, 1,
+        [{"verdichtung_thema_id": passend["id"], "aufnahme_id": passend_id,
+          "zitat": "Keiner hat gefragt", "begruendung": "genau der Einsatz"}],
+    )
+
+
+def test_der_szenen_prompt_traegt_kernfrage_und_kernzitate(conn):
+    _kernpaket(conn)
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: der Platz")
+
+    assert "Kernfrage:" in text
+    assert "Was passiert, wenn niemand fragt?" in text
+    assert '"Keiner hat gefragt"' in text
+    assert "genau der Einsatz" in text
+
+
+def test_der_szenen_prompt_traegt_keine_fremden_verdichtungen(conn):
+    """Die Zitatquelle sind die Kernzitate, nicht alles Material: was nicht
+    zum Kernthema markiert ist, steht nicht im Prompt."""
+    _kernpaket(conn)
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: der Platz")
+
+    assert "Fahrten am Wochenende" not in text
+    assert "Am Samstag faehrt keiner" not in text
+    assert "Pal erzaehlt von seinen Wochenendfahrten" not in text
+
+
+def test_ohne_auswahl_bleibt_der_kernpaket_block_weg(conn):
+    """Datengetrieben wie alle Bloecke."""
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1")
+
+    assert szene.KERNPAKET_KOPF not in text
+
+
+def test_nackte_zahl_im_auftrag_ist_die_szenennummer():
+    """Live-Fall 05.09. 22:20: "/szene 1" (Rest "1") schrieb Szene 3, weil
+    die nackte Zahl nicht als Nummer gelesen wurde."""
+    from interview_theater import szene
+
+    assert szene.nummer_aus_auftrag("1") == 1
+    assert szene.nummer_aus_auftrag(" 2 ") == 2
+    assert szene.nummer_aus_auftrag("Szene 3 nochmal") == 3
+    assert szene.nummer_aus_auftrag("mach den Text") is None
+    assert szene.nummer_aus_auftrag("3 Freunde am Kiosk") is None

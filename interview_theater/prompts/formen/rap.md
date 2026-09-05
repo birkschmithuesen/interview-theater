@@ -41,9 +41,9 @@ zur Form (gemessen 05.09.: "(Reimschema: Paarreim, vier Betonungen)" stand
 im Szenentext, und die Gruppe haette es vorgelesen):
 
 ```
-(Polizeikessel, seit zwei Stunden.)
+(Bahnhof, seit zwei Stunden.)
 
-PAL
+<FIGUR A>
 Zwei Stunden hier, kein Meter Platz
 Ich hab kein Netz, ich hab kein Satz
 ...

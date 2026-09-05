@@ -1,6 +1,7 @@
 """Tests fuer interview_theater.anweisungen: Hot-Reload und Regie-Zettel."""
 
 import os
+import re
 import time
 from pathlib import Path
 
@@ -200,3 +201,32 @@ def test_die_befehlsliste_der_basis_bewirbt_nur_existierende_befehle(betrieb):
     genannt = set(re.findall(r"`(/[a-z]+)", anweisungen.hole("system")))
     assert genannt, "die Liste steht weiterhin in der Basisanweisung"
     assert genannt <= befehle._BEKANNTE_BEFEHLE
+
+
+def test_keine_beispiel_eigennamen_in_den_prompts():
+    """Beispiel-Namen aus Prompts werden nachgeplappert: am 05.09.2026 schlug
+    der Bot einer Gruppe \"Polizeikessel\" und die Figur \"Mira\" vor -- beides
+    stand nur in Prompt-Beispielen, nicht im Material. Ausgenommen ist
+    ``erkenner.md``: dort sind die Beispiele gemessene Few-Shots."""
+    verboten = re.compile(r"\b(Kessel|Mira|Pola|Pal|Demo)\b", re.IGNORECASE)
+    wurzel = Path(anweisungen.__file__).parent / "prompts"
+    treffer = {}
+    for pfad in sorted(wurzel.rglob("*.md")):
+        if pfad.name == "erkenner.md":
+            continue
+        gefunden = verboten.findall(pfad.read_text(encoding="utf-8"))
+        if gefunden:
+            treffer[pfad.name] = sorted(set(gefunden))
+    assert treffer == {}, treffer
+
+
+@pytest.mark.parametrize(
+    "name", ["system", "szene", "phasen/4", "phasen/5", "phasen/6"],
+)
+def test_rahmen_des_stuecks_steht_in_den_prompts(betrieb, name):
+    """Die Gruppe sind junge Frauen zwischen 15 und 18 -- Orte, Auffuehrungsort
+    und Format stehen fest und gehen jedem Modellvorschlag vor."""
+    text = anweisungen.hole(name)
+    assert "Rahmen des Stuecks" in text
+    for stichwort in ("15 und 18", "Bushaltestelle", "Halle", "Buehnenbild"):
+        assert stichwort in text, (name, stichwort)

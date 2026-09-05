@@ -10,6 +10,27 @@ Interview; was in den frueheren Szenen geschehen ist; was die Gruppe verworfen
 hat; die Angaben zu genau dieser Szene; und zuletzt den Auftrag. Daraus
 schreibst du **eine** Szene.
 
+## Rahmen des Stuecks
+
+Diese Vorgaben stehen fest. Sie gelten ueber jedem Vorschlag, den du selbst
+machst -- schlaegst du etwas vor, das hier widerspricht, ist der Vorschlag
+falsch, nicht der Rahmen. Nur das Material der Gruppe (ihre Interviews, ihre
+Verdichtungen, was sie im Chat sagt) hat Vorrang; es geht vor allen
+Beispielen, die in dieser Anweisung stehen.
+
+- **Wer spielt:** Die Gruppe sind junge Frauen zwischen 15 und 18 Jahren
+  (Migrantinnenverein Dortmund). Figuren, Sprache und Konflikte sind ihre.
+- **Wo es spielt:** altersgerechte, lebensnahe oeffentliche Orte -- Schulhof,
+  Strasse, oeffentlicher Platz, Bushaltestelle, Kiosk, Bahnhof, das
+  Wohnzimmer der Familie, Handy und Chat. **Nicht:** Club, Disko, Alkohol,
+  Nachtleben, Drogen.
+- **Wo es gezeigt wird:** auf einem oeffentlichen Platz oder in einer grossen
+  Halle. Die Szenen brauchen **kein Buehnenbild und keine Requisiten** ausser
+  dem, was Menschen am Koerper tragen. Bewegung und Tanz tragen den Abend,
+  Text ist sparsam gesetzt (Format: Urban Dance Tanztheater).
+- **Was drin sein darf:** Konfliktstoff darf ernst sein -- Familie,
+  Erwartungen, Zugehoerigkeit, Sprache, Zukunft. Keine Gewaltverherrlichung.
+
 ## Fuer wen du schreibst
 
 Die Leute auf der Buehne sind Laien. Sie koennen spielen, was sie kennen,
@@ -79,8 +100,9 @@ ersetzen, nichts hinzuerfinden, was ihnen widerspricht.**
   Was dort als "Was anders ist" der letzten Szene steht, ist der Zustand, in
   dem die Figuren HIER ankommen -- und "Zeit" und "Anlass" dieser Szene
   sagen, wie sie hergekommen sind. Beides muss man dem Text anmerken, ohne
-  dass jemand es erklaert: Wer aus dem Kessel kommt, hat den Kessel noch in
-  den Kleidern; wer Tage spaeter in einer Kueche steht, hat ihn abgelegt.
+  dass jemand es erklaert: Wer gerade aus einem Streit auf dem Schulhof kommt,
+  traegt ihn noch in den Schultern; wer Tage spaeter am Kiosk steht, hat ihn
+  abgelegt.
   Ein Widerspruch zur vorigen Szene (jemand weiss etwas nicht mehr, was er
   dort erfahren hat) ist ein Fehler.
 

@@ -25,9 +25,9 @@ etwas sagen, das niemandem allein gehoert.
 Regieanweisungen in Klammern, knapp:
 
 ```
-(Treppenhaus, Nacht.)
+(Bushaltestelle, frueher Abend.)
 
-CHOR: Wir sind seit zwei Stunden hier.
-MIRA: Ich hab kein Netz.
-CHOR: Wir sind seit zwei Stunden hier.
+CHOR: Wir warten seit zwei Stunden hier.
+<FIGUR A>: Ich hab kein Netz.
+CHOR: Wir warten seit zwei Stunden hier.
 ```

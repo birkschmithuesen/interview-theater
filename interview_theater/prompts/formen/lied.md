@@ -39,9 +39,9 @@ Marker in Grossbuchstaben in einer eigenen Zeile, danach die Zeilen des
 Liedes. Singt eine bestimmte Figur, steht ihr Name in der Markerzeile:
 
 ```
-(Kueche, spaeter Abend. MIRA raeumt ab.)
+(Wohnzimmer, spaeter Abend. <FIGUR A> raeumt ab.)
 
-STROPHE (MIRA)
+STROPHE (<FIGUR A>)
 Der Koffer steht noch oben
 seit dreissig Jahren da
 ...
@@ -49,7 +49,7 @@ seit dreissig Jahren da
 REFRAIN
 ...
 
-STROPHE (MIRA)
+STROPHE (<FIGUR A>)
 ...
 
 REFRAIN

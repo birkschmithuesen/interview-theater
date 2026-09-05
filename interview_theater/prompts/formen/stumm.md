@@ -26,8 +26,8 @@ muss jede einzelne spielbar sein.
 Nur Klammerzeilen, eine Handlung je Zeile. Wer handelt, steht in der Klammer:
 
 ```
-(Kueche, frueher Morgen. MIRA steht an der Spuele, den Mantel noch an.)
-(POLA kommt herein, bleibt an der Tuer stehen.)
-(MIRA dreht das Wasser auf.)
+(Schulhof, frueher Morgen. <FIGUR A> steht am Zaun, die Jacke noch zu.)
+(<FIGUR B> kommt dazu, bleibt zwei Schritte entfernt stehen.)
+(<FIGUR A> dreht sich weg.)
 (Wartet. Laenger.)
 ```

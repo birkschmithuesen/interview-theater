@@ -372,6 +372,16 @@ Workshop zählt:**
 - **Ein Interview darf mehrere Figuren speisen**; der Bot schlägt es vor,
   wenn Interviews knapper sind als Figuren.
 - **Web lädt sanft nach** (fetch, kein meta refresh) — Klappzustand bleibt.
+- **Die Gruppenseite ändert jetzt Parameter** (05.09. abends): Phase, Begriffe,
+  Fragen, Kernthema-Richtung/-Thema/-Frage, Rahmen, Figuren (Name,
+  Beschreibung, Interview, entfernen, anlegen) und die Szenenplanung. Nur über
+  `repo` — derselbe Weg wie die Knöpfe —, nur diese Felder, jede Änderung mit
+  Journaleintrag `quelle='web'`; Material, Szenen-Volltext und Journal bleiben
+  unveränderlich, das Dashboard bleibt read-only. **Braucht einen Neustart von
+  `interview-theater-web.service`, die Bots nicht.** Risiko im Betrieb: Chat
+  und Web schreiben aus zwei Prozessen — WAL und `busy_timeout` tragen das,
+  ein „letzter gewinnt" bei gleichzeitiger Änderung desselben Feldes ist
+  möglich und steht dann beides im Journal.
 - **Verdichter macht bei durchgefallenen Zitaten einen zweiten Anlauf.**
 - **Szenenübergang:** ab Szene 2 fragt der Bot beim Planen einmal, wie die
   Figuren hierher kommen (→ Anlass/Zeit).

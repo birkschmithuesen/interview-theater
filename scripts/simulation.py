@@ -60,6 +60,7 @@ from interview_theater import db, einstellungen, kontext, llm
 from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN, PREISE_STAND
 from simulation import (
     bericht, birk, claude, kennzahlen, lauf, material, richter, skript, stoerung,
+    tag1,
 )
 from simulation.attrappe import TelegramAttrappe
 
@@ -126,17 +127,29 @@ class LLMMitPause:
 #: Die Werte, die ``--set`` annehmen darf: die drei erfundenen Sets und das
 #: eine echte. ``birk`` ist kein viertes Set, sondern ein anderer Lauf -- eine
 #: Person statt drei, echtes Material, ein eigenes Skript.
-SET_WAHL = ("1", "2", "3", birk.NAME)
+SET_WAHL = ("1", "2", "3", birk.NAME) + tag1.SETS
 
 
 def ist_birk(args) -> bool:
     return args.set == birk.NAME
 
 
+def ist_tag1(args) -> bool:
+    """Ob dieser Lauf eines der Sets aus dem echten Tag 1 faehrt.
+
+    Sie unterscheiden sich in vier Dingen von allen anderen: eine Stimme
+    statt drei, das Skript der acht Phasen (``skript.SCHRITTE_TAG2``), eine
+    Begriffs- und Fragenrichtung aus dem echten Tag -- und ein
+    Referenzblock, der aus Aggregaten besteht statt aus einem Chatverlauf."""
+    return args.set in tag1.SETS
+
+
 def mischungsname(args) -> str:
     """Wie der Lauf in Dateinamen und Verlauf heisst."""
     if ist_birk(args):
         return birk.NAME
+    if ist_tag1(args):
+        return args.set
     if args.set:
         return f"set{args.set}"
     if args.mix:
@@ -212,7 +225,12 @@ def baue_argumente(argv=None) -> argparse.Namespace:
 
 
 def _schritte(args):
-    grund = skript.SCHRITTE_BIRK if ist_birk(args) else skript.SCHRITTE
+    if ist_tag1(args):
+        grund = skript.SCHRITTE_TAG2
+    elif ist_birk(args):
+        grund = skript.SCHRITTE_BIRK
+    else:
+        grund = skript.SCHRITTE
     return skript.ohne_szene(grund) if args.ohne_szene else grund
 
 
@@ -224,6 +242,19 @@ def aufstellung(args) -> dict:
     Sonderfall wissen muessen, er bekommt nur Interviews, Personen und ein
     Skript."""
     if not ist_birk(args):
+        if ist_tag1(args):
+            # Ein tag1-Lauf zieht seine Transkripte aus dem thematisch
+            # naechsten ERFUNDENEN Set. Aus Tag 1 kommen Stimme, Begriffe und
+            # Fragenrichtung -- nie das Material.
+            return {
+                "gezogene": material.waehle(
+                    ein_set=tag1.interviewset(args.set), mix=None, seed=args.seed,
+                )[:tag1.INTERVIEWS_JE_LAUF],
+                "personen": [tag1.person(args.set)],
+                "begriffsliste": tag1.begriffe(args.set),
+                "fragenliste": tag1.fragen(args.set),
+                "referenz": tag1.referenz(args.set),
+            }
         return {
             "gezogene": material.waehle(
                 ein_set=int(args.set) if args.set else None,
@@ -339,6 +370,10 @@ def einen_lauf(args, e, klient, mischung: str, sim=None, ordner=None) -> dict:
             journal_urteil=ergebnis.journal_urteil,
             stoerung=stoer.bericht() if stoer else None,
             wiederkehr_zeilen=ergebnis.wiederkehr if args.pause else None,
+            tg=tg,
+            knopfdruecke=ergebnis.knopfdruecke,
+            phasen_proaktiv=ergebnis.phasen_proaktiv,
+            phasen_selbst=ergebnis.phasen_selbst,
         )
 
         kopfdaten = {

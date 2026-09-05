@@ -34,6 +34,11 @@ class TelegramAttrappe:
         #: Dict, damit ein Lauf nachtraeglich pruefen kann, ob der Bot an
         #: einem Auswahl-Moment ueberhaupt Knoepfe angeboten hat.
         self.knoepfe: list[dict] = []
+        #: Die aktuell haengende Leiste je ``message_id`` -- was eine Gruppe
+        #: auf dem Handy gerade antippen KANN. ``entferne_knoepfe`` nimmt sie
+        #: heraus, ``aktualisiere_knoepfe`` tauscht sie aus.
+        self.leisten: dict[int, list] = {}
+        self.knoepfe_aktualisiert: list[tuple[int, int, list]] = []
         self.beantwortet: list[tuple[str, str]] = []
         self.knoepfe_entfernt: list[tuple[int, int]] = []
         self.befehle: list = []
@@ -84,8 +89,13 @@ class TelegramAttrappe:
 
         Der Text geht denselben Weg wie bei ``sende``: fuer die Bewertung
         eines Laufs zaehlt, was in der Gruppe steht, nicht ob eine Tastatur
-        darunter hing. Die simulierten Stimmen druecken keine Knoepfe -- sie
-        sprechen, und genau daran misst die Simulation den Bot."""
+        darunter hing.
+
+        Seit dem 06.09.2026 **merkt sich** die Attrappe die Leiste je
+        ``message_id``: die Knoepfe sind der Hauptweg durch den Bot geworden
+        (Grundleiste, Fragenauswahl, Figurenanzahl, Form je Szene,
+        Phasenknoepfe), und eine Simulation, deren Stimmen nur sprechen,
+        misst den Bot an einem Weg, den eine echte Gruppe nicht mehr geht."""
         message_id = self.sende(chat_id, text)
         self.knoepfe.append({
             "chat_id": chat_id,
@@ -93,13 +103,25 @@ class TelegramAttrappe:
             "knoepfe": list(knoepfe),
             "message_id": message_id,
         })
+        self.leisten[message_id] = list(knoepfe)
         return message_id
+
+    def aktualisiere_knoepfe(self, chat_id: int, message_id: int, knoepfe) -> None:
+        """Tauscht die Tastatur einer schon gesendeten Nachricht aus.
+
+        Der Toggle der Fragenauswahl (``knoepfe._toggle_frage``) braucht das:
+        ohne diese Methode faellt er in seinen ``except``-Zweig, die Haken
+        werden nie sichtbar, und \"Diese 3 nehmen\" waehlt gegen eine
+        Tastatur, die es so nie gab."""
+        self.leisten[message_id] = list(knoepfe)
+        self.knoepfe_aktualisiert.append((chat_id, message_id, list(knoepfe)))
 
     def beantworte_knopf(self, callback_query_id: str, text: str = "") -> None:
         self.beantwortet.append((callback_query_id, text))
 
     def entferne_knoepfe(self, chat_id: int, message_id: int) -> None:
         self.knoepfe_entfernt.append((chat_id, message_id))
+        self.leisten.pop(message_id, None)
 
     def tippt(self, chat_id: int) -> None:
         self.getippt.append(chat_id)
@@ -123,3 +145,27 @@ class TelegramAttrappe:
         """Die Texte der Bot-Nachrichten ab Index ``ab`` -- der Schnitt, mit
         dem der Lauf einen Zug von seinem Nachfolger trennt."""
         return [n["text"] for n in self.gesendet[ab:]]
+
+    def offene_knoepfe(self) -> list[dict]:
+        """Alle Knoepfe, die gerade wirklich antippbar sind -- je Eintrag
+        ``{"message_id", "text", "beschriftung", "daten"}``.
+
+        Aus ``leisten``, nicht aus ``knoepfe``: die zweite Liste ist ein
+        Protokoll aller je angebotenen Leisten, die erste der Stand jetzt.
+        Eine Stimme, die einen laengst abgenommenen Knopf drueckt, misst
+        nichts -- ``knoepfe.behandle`` antwortet darauf mit \"schon benutzt\".
+
+        Juengste Nachricht zuerst: was zuletzt im Chat stand, ist das, was
+        eine Gruppe auf dem Handy sieht.
+        """
+        nach_id = {n["message_id"]: n["text"] for n in self.gesendet}
+        offen = []
+        for message_id in sorted(self.leisten, reverse=True):
+            for beschriftung, daten in self.leisten[message_id]:
+                offen.append({
+                    "message_id": message_id,
+                    "text": nach_id.get(message_id, ""),
+                    "beschriftung": beschriftung,
+                    "daten": daten,
+                })
+        return offen

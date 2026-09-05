@@ -143,7 +143,7 @@ def _stand_gesetzt(conn, chat_id: int, feld: str) -> bool:
 #: Die Arten, wie ein Schritt gefahren wird. ``stimmen`` ist der Normalfall
 #: (Stimme -> Zug -> Erkenner, bis der Zielzustand steht); die anderen haben
 #: einen eigenen Ablauf in ``lauf.py``, weil sie mehr tun als reden.
-ARTEN = ("stimmen", "interviews", "szene", "befehl", "zitate")
+ARTEN = ("stimmen", "interviews", "szene", "befehl", "zitate", "phase")
 
 
 @dataclass(frozen=True)
@@ -166,6 +166,12 @@ class Schritt:
     #: Frage an den Richter ("Form eingehalten?").
     szene_nummer: int = 1
     form: str = ""
+    #: Nur fuer ``art='phase'``: in welche Phase gewechselt werden soll. Der
+    #: Lauf drueckt dafuer zuerst den proaktiv angebotenen Knopf \"Weiter zu
+    #: ...\" und faellt nur zurueck auf ``/phase N``, wenn keiner dasteht --
+    #: die Kennzahl ``phasenwechsel_proaktiv`` haengt genau an diesem
+    #: Unterschied.
+    phase_nummer: int = 0
     #: Nur fuer ``art='interviews'``: in wie viele Textimporte jedes Interview
     #: zerlegt wird. 0 heisst "wie bisher": eines zufaellig gewaehlte in zwei,
     #: der Rest in einem.
@@ -512,6 +518,196 @@ SCHRITTE_BIRK: tuple[Schritt, ...] = (
         "stand",
         "/stand",
         "Du willst sehen, was der Bot sich gemerkt hat.",
+        _fertig_stand,
+        art="befehl",
+        befehl="/stand",
+        max_nachrichten=1,
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
+# Das Skript der acht Phasen (06.09.2026) -- ``--set tag1-*`` und ``--set regie``
+# ---------------------------------------------------------------------------
+#
+# Warum ein zweites Skript und nicht ein umgebautes erstes: ``SCHRITTE`` und
+# ``SCHRITTE_BIRK`` sind die Messlatte der vier Laeufe vom 05.09. Ein Umbau an
+# ihnen macht die alten Verlaufszeilen unvergleichbar -- und der Vergleich
+# ueber die Laeufe hinweg ist der einzige Grund, aus dem ``verlauf.jsonl``
+# ueberhaupt im Repository liegt. Das neue Skript steht daneben.
+#
+# Der Ablauf folgt den acht Phasen aus ``phasen.PHASEN``. Die Phasennummern
+# stehen als Konstanten, nicht als Zahlen im Text: eine neunte Phase soll
+# dieses Skript nicht mitreissen.
+
+PHASE_BEGRIFFE = 1
+PHASE_FRAGEN = 2
+PHASE_INTERVIEWS = 3
+PHASE_SETTING = 4
+PHASE_GESCHICHTE = 5
+PHASE_SCHAERFUNG = 6
+PHASE_SZENENTEXTE = 7
+PHASE_DURCHLAUF = 8
+
+
+def _fertig_eroeffnung(conn, chat_id, merker):
+    """Phase 2 ist erst durch, wenn NEBEN den Fragen auch der
+    Eroeffnungstext steht.
+
+    Dieselbe Bedingung wie ``phasen.voraussetzungen[3]`` (06.09.2026): ohne
+    Eroeffnung geht keine Sechzehnjaehrige auf eine fremde Person zu, und ein
+    Schritt, der schon bei gesetzten ``fragen`` fertig waere, uebersaehe
+    genau den Teil, der neu ist."""
+    return (
+        _stand_gesetzt(conn, chat_id, "fragen")
+        and _stand_gesetzt(conn, chat_id, "interview_eroeffnung")
+    )
+
+
+def _fertig_setting(conn, chat_id, merker):
+    """Phase 4: Setting (``rahmen``) UND eine fixierte Figurenliste --
+    dieselben zwei Dinge, die ``phasen.voraussetzungen[5]`` verlangt."""
+    return (
+        _stand_gesetzt(conn, chat_id, "rahmen")
+        and _stand_gesetzt(conn, chat_id, "figuren_fixiert_am")
+        and bool(repo.figuren(conn, chat_id))
+    )
+
+
+def _fertig_geschichte(conn, chat_id, merker):
+    """Phase 5: die Geschichte steht und mindestens eine Szene ist geplant."""
+    return (
+        _stand_gesetzt(conn, chat_id, "geschichte")
+        and bool(repo.hole_szenen(conn, chat_id))
+    )
+
+
+def _fertig_schaerfung(conn, chat_id, merker):
+    """Phase 6 ist ein **Angebot**, keine Pflicht (``phasen.voraussetzungen``
+    sperrt 7 nicht daran). Fertig ist der Schritt deshalb, sobald die Gruppe
+    in Phase 6 war -- ob sie eine Runde uebernommen hat, misst die Kennzahl
+    ``schaerfungen``, nicht der Zielzustand."""
+    return phasen.aktuelle(conn, chat_id) >= PHASE_SCHAERFUNG
+
+
+def _in_phase(nummer: int):
+    """Zielzustand eines ``art='phase'``-Schritts: die Gruppe steht dort."""
+    def fertig(conn, chat_id, merker):
+        return phasen.aktuelle(conn, chat_id) >= nummer
+    return fertig
+
+
+def _phasenschritt(nummer: int) -> Schritt:
+    """Ein Schritt, der nur die Phase wechselt.
+
+    Eigene Schritte und nicht ein Satz im Ziel des naechsten: der Wechsel ist
+    seit dem 06.09.2026 der Moment, an dem der Bot **von sich aus** fragt
+    (``knoepfe.biete_phase_proaktiv``), und ob er das tut, ist eine der
+    Kennzahlen dieses Umbaus. Ein Schritt, der im Vorbeigehen mitwechselt,
+    haette sie verschluckt."""
+    return Schritt(
+        f"phase{nummer}",
+        f"Weiter zu Phase {nummer}: {phasen.kurzname(nummer)}",
+        f"Ihr seid mit dem Vorigen durch und wollt weiter zu "
+        f"'{phasen.kurzname(nummer)}'.",
+        _in_phase(nummer),
+        art="phase",
+        phase_nummer=nummer,
+        max_nachrichten=2,
+    )
+
+
+#: Das Skript der acht Phasen. Die Interviews kommen aus den erfundenen Sets
+#: (``simulation/interviews/``), nie aus echtem Material -- die Stimmen sind
+#: aus Tag 1 abgeleitet, die Transkripte bleiben erfunden.
+SCHRITTE_TAG2: tuple[Schritt, ...] = (
+    Schritt(
+        "begriffe",
+        "Phase 1: Begriffe uebergeben",
+        "Ihr habt im Plenum an der Wand Begriffe gesammelt und gebt sie dem "
+        "Bot jetzt durch: {begriffe}. Ihr wollt, dass er sie als eure "
+        "Begriffsliste festhaelt -- beim ERSTEN Mal, ohne Rueckfrage.",
+        _fertig_begriffe,
+    ),
+    _phasenschritt(PHASE_FRAGEN),
+    Schritt(
+        "fragen",
+        "Phase 2: aus zehn Fragen drei waehlen",
+        "Ihr wollt Interviewfragen. Lasst euch zehn vorschlagen, tippt genau "
+        "drei davon an und uebernehmt sie. Danach kommen Einleitungen zu "
+        "heiklen Fragen und eine Eroeffnung fuer das Gespraech -- nehmt beides "
+        "an oder aendert eine Kleinigkeit. Ihr wollt am Ende einen Leitfaden "
+        "haben. Ungefaehr in diese Richtung: {fragen}",
+        _fertig_eroeffnung,
+        max_nachrichten=10,
+    ),
+    _phasenschritt(PHASE_INTERVIEWS),
+    Schritt(
+        "interviews",
+        "Phase 3: Interviews fuehren und auswerten",
+        "Ihr fuehrt jetzt die Interviews. Startet das Interview, gebt dem Bot "
+        "danach die Aufnahme und beendet es, wenn ihr durch seid. "
+        "Interview: {interview_name}.",
+        _fertig_interviews,
+        art="interviews",
+    ),
+    _phasenschritt(PHASE_SETTING),
+    Schritt(
+        "setting",
+        "Phase 4: Setting und Figuren frei erfinden",
+        "Jetzt wird ERFUNDEN, nicht aus den Interviews abgeleitet. Legt fest, "
+        "worin das Stueck spielt (Ort, Zeit, Anlass) und welche Figuren es "
+        "gibt -- sagt zuerst, wie viele, dann die Namen. Nehmt Vorschlaege an "
+        "oder macht eigene, und bestaetigt die Liste am Ende.",
+        _fertig_setting,
+        max_nachrichten=10,
+    ),
+    _phasenschritt(PHASE_GESCHICHTE),
+    Schritt(
+        "geschichte",
+        "Phase 5: die Geschichte im Groben",
+        "Was passiert, wie endet es, in welchen Szenen? Lasst euch einen "
+        "Vorschlag machen, aendert eine Sache daran und nehmt ihn dann an. "
+        "Ihr wollt am Ende eine Geschichte und eine Szenenfolge haben.",
+        _fertig_geschichte,
+        max_nachrichten=8,
+    ),
+    _phasenschritt(PHASE_SCHAERFUNG),
+    Schritt(
+        "schaerfung",
+        "Phase 6: am Material schaerfen",
+        "Jetzt kommt das Interviewmaterial dazu und legt sich NEBEN das "
+        "Erfundene. Schaut euch an, was der Bot je Szene und je Figur "
+        "vorschlaegt, und uebernehmt, was passt.",
+        _fertig_schaerfung,
+        max_nachrichten=6,
+    ),
+    _phasenschritt(PHASE_SZENENTEXTE),
+    Schritt(
+        "szene1",
+        "Phase 7: Szene 1 -- Form bestaetigen, dann schreiben",
+        "Ihr wollt Szene 1 geschrieben haben. Der Bot fragt euch zuerst nach "
+        "der FORM -- bestaetigt sie (oder waehlt eine andere) -- und danach, "
+        "ob er schreiben soll. Sagt ja. Wenn der Text da ist, sagt, ob er "
+        "passt oder neu geschrieben werden soll.",
+        _fertig_szene_nummer(1),
+        art="szene",
+        szene_nummer=1,
+        max_nachrichten=6,
+    ),
+    Schritt(
+        "zitate",
+        "Zitatabfragen",
+        "Ihr wollt wissen, was der Bot aus den Interviews woertlich hat.",
+        _fertig_zitate,
+        art="zitate",
+        max_nachrichten=len(ZITAT_ZIELE),
+    ),
+    _phasenschritt(PHASE_DURCHLAUF),
+    Schritt(
+        "stand",
+        "/stand",
+        "Ihr wollt sehen, was der Bot sich gemerkt hat.",
         _fertig_stand,
         art="befehl",
         befehl="/stand",

@@ -87,8 +87,36 @@ BIRK = Steckbrief(
     "Durch die Phasen kommen, bis Szenentexte dastehen. Wenig Zeit.",
 )
 
+#: Die Steckbriefe aus dem echten Tag 1 (06.09.2026, ``simulation/tag1.py``).
+#: Je Set EINE Stimme: die drei Gruppen haben tatsaechlich ueber ein Geraet
+#: geschrieben, und eine simulierte Gruppe mit drei Handys waere eine
+#: Erfindung, die den Bot leichter macht als er es hatte.
+#:
+#: Die Steckbriefe selbst sind PII-frei aus Aggregaten abgeleitet -- Begriffe,
+#: Antwortlaengen, Knopfverhalten. Kein Wortlaut, keine Namen. Die einzige
+#: Ausnahme ist ``regie``: dort sind Beispielsaetze Birks eigene, und er ist
+#: ihr Autor.
+TAG1: tuple[Steckbrief, ...] = (
+    Steckbrief(
+        "tag1-gruppe1", "Gruppe A", 1,
+        "Schnell durchkommen -- reden ist die Arbeit, tippen kostet Zeit.",
+    ),
+    Steckbrief(
+        "tag1-gruppe2", "Gruppe B", 1,
+        "Nichts uebernehmen, was nicht von uns kommt.",
+    ),
+    Steckbrief(
+        "tag1-gruppe3", "Gruppe C", 1,
+        "Es soll fertig werden -- gestritten wird im Raum, nicht im Chat.",
+    ),
+    Steckbrief(
+        "regie", "Regie", 1,
+        "Den Bot pruefen: speichert er, wiederholt er sich, baut er Menues?",
+    ),
+)
+
 #: Alle Steckbriefe, die es gibt -- fuer ``lade_profil`` und die Tests.
-ALLE = BESETZUNG + (BIRK,)
+ALLE = BESETZUNG + (BIRK,) + TAG1
 
 #: Wahrscheinlichkeit, dass nach der ersten Stimme sofort eine zweite
 #: nachlegt -- der haeufigste Fall in einer echten Gruppe, und derjenige, der
@@ -123,6 +151,47 @@ _ZIEL_KOPF = "Worauf du gerade hinauswillst (nicht woertlich abschreiben):"
 
 
 _ZIEL_PERSON = "Dein eigenes Ziel im Workshop:"
+
+
+#: Praefix, mit dem eine Stimme sagt, dass sie einen Knopf drueckt statt zu
+#: schreiben. Ein Praefix und kein eigener Aufruf: eine Person entscheidet
+#: das in einem Moment, nicht in zwei.
+KNOPF_PRAEFIX = "KNOPF:"
+
+#: So viele Knopftexte bekommt eine Stimme hoechstens zu sehen. Die
+#: Fragenauswahl haengt dreizehn Knoepfe unter eine Nachricht; alle
+#: aufzuzaehlen ist richtig, aber ein Deckel gegen den Fall, dass eine
+#: Nachricht versehentlich hundert traegt.
+MAX_KNOEPFE = 20
+
+_KNOPF_KOPF = (
+    "Unter der letzten Bot-Nachricht haengen Knoepfe zum Antippen. Das ist "
+    "der normale Weg -- eine echte Gruppe tippt, statt zu tippen:"
+)
+
+_KNOPF_ANWEISUNG = (
+    "Entscheide selbst: Wenn einer der Knoepfe das trifft, was du gerade "
+    "willst, antworte mit genau einer Zeile\n"
+    "{praefix} <Knopftext genau so wie oben>\n"
+    "und sonst nichts. Trifft keiner, schreib stattdessen deine Nachricht "
+    "als Text. Erfinde keinen Knopftext, der oben nicht steht."
+)
+
+
+def knopfliste(knoepfe: list[dict]) -> list[str]:
+    """Die sichtbaren Knopftexte, ohne Dubletten, hoechstens ``MAX_KNOEPFE``.
+
+    Ohne Dubletten, weil dieselbe Grundleiste unter mehreren Vorschlaegen
+    haengen kann: die Stimme soll \"Gefaellt uns, weiter\" einmal lesen und
+    nicht dreimal, sonst liest sie es als drei verschiedene Angebote."""
+    gesehen: list[str] = []
+    for knopf in knoepfe:
+        text = (knopf.get("beschriftung") or "").strip()
+        if text and text not in gesehen:
+            gesehen.append(text)
+        if len(gesehen) >= MAX_KNOEPFE:
+            break
+    return gesehen
 
 
 @dataclass(frozen=True)
@@ -216,13 +285,21 @@ def _verlaufszeile(eintrag: dict) -> str:
     return f"{eintrag['absender']}: {eintrag['text']}"
 
 
-def baue_nutzertext(person: Person, verlauf: list[dict], ziel: str) -> str:
+def baue_nutzertext(person: Person, verlauf: list[dict], ziel: str,
+                    knoepfe: list[dict] | None = None) -> str:
     """Der Nutzertext einer Stimme: Rahmen, Chatverlauf, Schrittziel,
     Anweisung -- in dieser Reihenfolge.
 
     Das Ziel steht **nach** dem Verlauf und vor der Anweisung: was am Ende
     des Prompts steht, wiegt am schwersten (SPEC § 6.1), und das Ziel ist
-    das einzige, was diesen Aufruf von jedem anderen unterscheidet."""
+    das einzige, was diesen Aufruf von jedem anderen unterscheidet.
+
+    ``knoepfe`` sind die gerade antippbaren Knopftexte
+    (``attrappe.offene_knoepfe``). Sie stehen **zwischen** Verlauf und Ziel:
+    sie sind Teil dessen, was die Person auf dem Handy sieht, nicht Teil
+    ihrer Absicht. Ohne sie misst die Simulation seit dem 06.09.2026 einen
+    Weg, den eine echte Gruppe nicht mehr geht -- der Bot fuehrt ueber
+    Inline-Knoepfe."""
     zeilen = [_RAHMEN, ""]
     letzte = verlauf[-VERLAUF_NACHRICHTEN:]
     if letzte:
@@ -230,12 +307,18 @@ def baue_nutzertext(person: Person, verlauf: list[dict], ziel: str) -> str:
         zeilen.extend(_verlaufszeile(e) for e in letzte)
     else:
         zeilen.append("Der Chat ist noch leer, ihr fangt gerade an.")
+    sichtbar = knopfliste(knoepfe or [])
+    if sichtbar:
+        zeilen += ["", _KNOPF_KOPF]
+        zeilen += [f"- {t}" for t in sichtbar]
     if person.ziel:
         # Das eigene Ziel steht VOR dem Schrittziel: die Gruppe will das eine,
         # sie will daneben noch etwas anderes -- und genau an der Reibung
         # zwischen beidem zeigt sich, ob der Bot zuhoert oder abarbeitet.
         zeilen += ["", _ZIEL_PERSON, person.ziel]
     zeilen += ["", _ZIEL_KOPF, ziel.strip(), "", _ANWEISUNG.format(name=person.name)]
+    if sichtbar:
+        zeilen += ["", _KNOPF_ANWEISUNG.format(praefix=KNOPF_PRAEFIX)]
     return "\n".join(zeilen)
 
 
@@ -256,16 +339,47 @@ def saeubere(text: str, name: str) -> str:
     return nackt
 
 
-def sprich(sim, person: Person, verlauf: list[dict], ziel: str) -> str:
+def lies_knopfwahl(text: str, knoepfe: list[dict]) -> dict | None:
+    """Der Knopf, den die Stimme mit ``KNOPF: <Text>`` gemeint hat -- oder
+    ``None``, wenn sie geschrieben statt gedrueckt hat.
+
+    Verglichen wird der **Beschriftungstext**, klein geschrieben und
+    getrimmt, erst exakt und dann als Teilstring: das Modell setzt gern einen
+    Haken oder ein Anfuehrungszeichen dazu. Kein Treffer bedeutet
+    ausdruecklich \"kein Knopf\" -- der Aufrufer schickt den Text dann als
+    Nachricht, statt zu raten, welcher gemeint war."""
+    zeile = (text or "").strip()
+    if not zeile.upper().startswith(KNOPF_PRAEFIX):
+        return None
+    gesucht = zeile[len(KNOPF_PRAEFIX):].strip().strip('"\'„“»«').lower()
+    if not gesucht:
+        return None
+    for knopf in knoepfe:
+        if (knopf.get("beschriftung") or "").strip().lower() == gesucht:
+            return knopf
+    for knopf in knoepfe:
+        beschriftung = (knopf.get("beschriftung") or "").strip().lower()
+        if beschriftung and (beschriftung in gesucht or gesucht in beschriftung):
+            return knopf
+    return None
+
+
+def sprich(sim, person: Person, verlauf: list[dict], ziel: str,
+           knoepfe: list[dict] | None = None) -> str:
     """Laesst eine Stimme eine Nachricht schreiben und liefert deren Text.
 
     ``sim`` ist der Simulationsklient (``simulation/claude.py``), nicht der
     Bot-Klient: eine Teilnehmerin wird nicht von dem Modell gespielt, das
     gerade geprueft wird. Ein leeres Ergebnis liefert einen leeren String; der
     Aufrufer entscheidet, ob er den Schritt damit als gescheitert vermerkt
-    (``lauf.py``)."""
+    (``lauf.py``).
+
+    Beginnt das Ergebnis mit ``KNOPF:``, hat die Stimme einen Knopf gemeint --
+    der Aufrufer loest ihn mit ``lies_knopfwahl`` auf. Diese Funktion gibt die
+    Zeile unveraendert zurueck, damit die Entscheidung an genau einer Stelle
+    faellt (``lauf._stimmen_zug``)."""
     text = sim.text(
-        person.system, baue_nutzertext(person, verlauf, ziel), ART,
+        person.system, baue_nutzertext(person, verlauf, ziel, knoepfe), ART,
         max_tokens=MAX_TOKENS,
     )
     return saeubere(text, person.name)

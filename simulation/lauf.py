@@ -92,6 +92,18 @@ class Ergebnis:
     gezogene: list = field(default_factory=list)
     personen: list = field(default_factory=list)
     notausgaenge: int = 0
+    #: Je gedruecktem Knopf ein Dict: schritt, person, beschriftung. Die
+    #: Gegenzahl zu \"angeboten\" (``tg.knoepfe``) in der Kennzahl
+    #: ``knoepfe_gedrueckt`` -- am Testabend wurden 23 Knoepfe angeboten und
+    #: keiner gedrueckt, und genau das soll ein Lauf zeigen koennen.
+    knopfdruecke: list = field(default_factory=list)
+    #: Phasen, in die die Gruppe ueber den proaktiv angebotenen Knopf kam --
+    #: der Regelweg seit dem 06.09.2026.
+    phasen_proaktiv: list = field(default_factory=list)
+    #: Phasen, in die sie nur ueber den versteckten ``/phase``-Befehl kam.
+    #: Jede Zahl hier ist ein Befund: der Bot hat den Wechsel nicht
+    #: angeboten, obwohl die Voraussetzungen standen.
+    phasen_selbst: list = field(default_factory=list)
     verweigerungen: int = 0  # Stimmen, die das Simulationsmodell verweigert hat (refusal)
     dauer_s: float = 0.0
     titel: dict = field(default_factory=dict)          # schluessel -> Schritt-Titel
@@ -405,12 +417,23 @@ class Lauf:
         Simulationsmodell eine Stimme (stop_reason=refusal, gemessen 05.09.
         beim ersten Zug von set1 -- Ankommen, Papiere, Amt), schweigt diese
         Person in diesem Zug und die naechste spricht; der Lauf scheitert
-        daran nicht. Steht als Notiz im Protokoll."""
+        daran nicht. Steht als Notiz im Protokoll.
+
+        Seit dem 06.09.2026 sieht jede Stimme zusaetzlich die **antippbaren
+        Knoepfe** und entscheidet je Zug, ob sie einen davon drueckt
+        (``KNOPF: <Text>``) oder frei schreibt. Ein Druck ist keine
+        Nachricht: er geht ueber ``knoepfe.behandle`` und beendet den Zug --
+        genauso wie im Betrieb, wo ``bot.schleife`` den Knopfdruck vor
+        ``verarbeite_update`` abzweigt, damit ihn der Erkenner nicht als
+        Gruppenbeitrag liest."""
         zug = self._zug()
         texte = []
         for person in stimmen.waehle_sprecher(self.zufall, self.personen):
             try:
-                text = stimmen.sprich(self.sim, person, self._verlauf(), ziel)
+                text = stimmen.sprich(
+                    self.sim, person, self._verlauf(), ziel,
+                    self.tg.offene_knoepfe(),
+                )
             except claude.ClaudeFehler as fehler:
                 if "refusal" not in str(fehler):
                     raise
@@ -419,6 +442,10 @@ class Lauf:
                 )
                 self.ergebnis.verweigerungen += 1
                 continue
+            gewaehlt = stimmen.lies_knopfwahl(text, self.tg.offene_knoepfe())
+            if gewaehlt is not None:
+                self._druecke(zug, gewaehlt, person)
+                return zug
             if text:
                 texte.append((person.name, person.profil, text))
         if not texte:
@@ -434,6 +461,44 @@ class Lauf:
                     break
         self._schicke(zug, texte)
         return zug
+
+    def _druecke(self, zug: Zug, knopf: dict, person) -> None:
+        """Drueckt einen Knopf im laufenden Zug -- ueber ``knoepfe.behandle``
+        mit dem gemerkten ``callback_data``.
+
+        Der Druck geht bewusst **nicht** durch ``bot.verarbeite_update``: er
+        ist keine Nachricht, landet nie in ``nachricht``, und der Erkenner
+        sieht ihn nie (AGENTS.md, Zusage zur Weiche in ``bot.schleife``).
+        Deshalb steht er hier als Ereignis im Protokoll und nicht als
+        Beitrag."""
+        from interview_theater import knoepfe as knoepfe_modul
+
+        vorher = len(self.tg.gesendet)
+        ab_kontext = len(self.kontexte)
+        start = self.tg.jetzt()
+        zug.marke = "knopf"
+        zug.notiz = (zug.notiz + " | " if zug.notiz else "") + (
+            f"{person.name} drueckt \"{knopf['beschriftung']}\""
+        )
+        self.ergebnis.knopfdruecke.append({
+            "schritt": self._schritt,
+            "person": person.name,
+            "beschriftung": knopf["beschriftung"],
+        })
+        try:
+            knoepfe_modul.behandle(
+                self.conn, self.tg, self.klm, self.e,
+                {
+                    "callback_query_id": "sim",
+                    "data": knopf["daten"],
+                    "chat_id": CHAT_ID,
+                    "message_id": knopf["message_id"],
+                },
+            )
+        except Exception:
+            log.exception("Knopfdruck in der Simulation fehlgeschlagen")
+            zug.notiz += " (fehlgeschlagen)"
+        self._schliesse_zug(zug, vorher, ab_kontext, start)
 
     def _ereignis(self, notiz: str, marke: str = "") -> Zug:
         """Ein Zug ohne Stimme: was der Simulator selbst getan hat (Import
@@ -475,6 +540,64 @@ class Lauf:
         self._schicke(zug, [(self.personen[-1].name, self.personen[-1].profil,
                              schritt.befehl)])
         return bool(zug.bot)
+
+    def _fahre_phase(self, schritt, merker: dict) -> bool:
+        """Ein Phasenwechsel -- und die Messung, ob der Bot ihn von sich aus
+        angeboten hat (06.09.2026).
+
+        Der Regelweg ist der proaktive Knopf \"Weiter zu <Phase>\"
+        (``knoepfe.biete_phase_proaktiv``): steht er da, drueckt die Gruppe
+        ihn, und ``phasenwechsel_proaktiv`` zaehlt hoch. Steht er nicht da,
+        redet zuerst eine Stimme (vielleicht bietet der Bot daraufhin an) und
+        erst danach greift der Notweg ``/phase N``. Der Notweg ist ein
+        Befund, kein Erfolg -- er steht als ``phasenwechsel_selbst`` im
+        Bericht."""
+        nummer = schritt.phase_nummer
+        if schritt.fertig(self.conn, CHAT_ID, merker):
+            return True
+        for versuch in range(schritt.max_nachrichten):
+            knopf = self._phasenknopf(nummer)
+            if knopf is not None:
+                zug = self._zug(marke="phase_proaktiv")
+                self.ergebnis.phasen_proaktiv.append(nummer)
+                self._druecke(zug, knopf, self.personen[0])
+                if schritt.fertig(self.conn, CHAT_ID, merker):
+                    return True
+            if versuch == 0:
+                self._stimmen_zug(schritt.ziel_text(merker))
+                if schritt.fertig(self.conn, CHAT_ID, merker):
+                    return True
+        # Notweg: die Gruppe schaltet selbst um. Im Betrieb ist das der
+        # versteckte ``/phase``-Befehl -- eine echte Gruppe kennt ihn nicht,
+        # und dass er hier gebraucht wird, ist die eigentliche Aussage.
+        self.ergebnis.phasen_selbst.append(nummer)
+        zug = self._zug(marke="phase_notweg",
+                        notiz=f"Notweg: /phase {nummer} statt Knopf")
+        self._schicke(zug, [(self.personen[-1].name, self.personen[-1].profil,
+                             f"/phase {nummer}")])
+        return bool(schritt.fertig(self.conn, CHAT_ID, merker))
+
+    def _phasenknopf(self, nummer: int) -> dict | None:
+        """Der offene Knopf, der in Phase ``nummer`` fuehrt -- oder None.
+
+        Gesucht wird ueber die Knopfzeile in der Datenbank
+        (``art='phase'``, ``wert=str(nummer)``) und nicht ueber den
+        Beschriftungstext: der Text heisst \"Weiter zu Szenentexte\" und
+        haengt an ``phasen.knopfbezeichnung`` -- eine Umbenennung dort wuerde
+        diese Messung lautlos auf null setzen."""
+        from interview_theater import knoepfe as knoepfe_modul
+
+        for knopf in self.tg.offene_knoepfe():
+            knopf_id = knoepfe_modul._id_aus_daten(knopf["daten"])
+            if knopf_id is None:
+                continue
+            zeile = repo.hole_knopf(self.conn, knopf_id)
+            if zeile is None or zeile["benutzt_am"]:
+                continue
+            if zeile["art"] == knoepfe_modul.ART_PHASE \
+                    and str(zeile["wert"] or "") == str(nummer):
+                return knopf
+        return None
 
     def _fahre_interviews(self, schritt, merker: dict) -> bool:
         """Die Interviews: ansagen, Transkript hereingeben, 'fertig' sagen.
@@ -822,6 +945,8 @@ class Lauf:
             return self._fahre_befehl(schritt, merker)
         if schritt.art == "zitate":
             return self._fahre_zitate(schritt, merker)
+        if schritt.art == "phase":
+            return self._fahre_phase(schritt, merker)
         return self._fahre_stimmen(schritt, merker)
 
 
@@ -876,7 +1001,8 @@ def bewerte(sim, conn, ergebnis: Ergebnis, schritte) -> None:
         # zurueckgefragt hat, nicht nur, was die Gruppe gesagt hat.
         planung = abschnitt(ergebnis.zuege, szene["schluessel"]) or szene["planung"]
         szene["urteil"] = richter.bewerte_szene(
-            sim, planung, szene["volltext"], form=szene.get("form", "")
+            sim, planung, szene["volltext"], form=szene.get("form", ""),
+            nummer=szene.get("nummer"),
         )
 
     ergebnis.journal_urteil = richter.bewerte_journal(

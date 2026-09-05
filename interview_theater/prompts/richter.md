@@ -62,6 +62,15 @@ stehen, ist 1. Ein "Rap" ohne Reim und ohne Takt ist 0. War **keine** Form
 verlangt, ist es 2 -- ein Bot wird nicht dafuer bestraft, dass niemand etwas
 gefordert hat.
 
+**exposition_erfuellt** (nur bei einem Szentext) -- Ueber dem Text steht,
+die wievielte Szene es ist. Nur bei **Szene 1** ist das eine echte Frage:
+eine erste Szene muss vier Dinge im Text selbst klaeren, ohne dass jemand sie
+erklaert -- **wer** die Figuren sind, **wie sie zueinander stehen**, **warum
+sie hier sind** und **worum es geht**. Alle vier erkennbar: 2. Zwei oder drei:
+1. Der Text setzt voraus, dass man die Planung gelesen hat: 0. Bei jeder
+anderen Szene und wenn die Position unbekannt ist, gibst du **2** -- die
+Exposition ist die Aufgabe der ersten, nicht die jeder.
+
 ## Zustimmungen markieren
 
 Jede Nachricht der Gruppe traegt eine Kennung in eckigen Klammern, zum

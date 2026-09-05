@@ -136,6 +136,56 @@ def kennzahlen_tabelle(zahlen: dict) -> list[str]:
     zeile("notausgaenge", zahlen["notausgaenge"], 0, zahlen["notausgaenge"] == 0)
     zeile("Schritte gescheitert", len(zahlen["schritte_gescheitert"]) or "keine", 0,
           not zahlen["schritte_gescheitert"])
+    zeilen.extend(_knopfzeilen(zahlen))
+    return zeilen
+
+
+def _knopfzeilen(zahlen: dict) -> list[str]:
+    """Die Kennzahlen des Knopf-Umbaus (06.09.2026) als eigene Tabellenzeilen.
+
+    In derselben Tabelle und nicht in einer zweiten: sie messen dieselbe
+    Sache -- wie teuer ein Schritt fuer die Gruppe ist. Getrennt aufgebaut,
+    weil eine alte Verlaufszeile sie nicht hat und ``.get`` sonst achtmal in
+    der Hauptfunktion staende."""
+    if "knoepfe_angeboten" not in zahlen:
+        return []
+    zeilen = []
+
+    def zeile(name, wert, soll, gut):
+        zeilen.append(f"| {name} | {wert} | {soll} | {_urteil(wert, soll, gut)} |")
+
+    median = zahlen.get("nachrichten_je_festlegung_median", 0)
+    zeile("Nachrichten bis zum Speichern (Median)", median,
+          f"<= {kennzahlen.SOLL_NACHRICHTEN_JE_FESTLEGUNG}",
+          bool(median) and median <= kennzahlen.SOLL_NACHRICHTEN_JE_FESTLEGUNG)
+    fragen = zahlen.get("fragen_je_botnachricht", 0)
+    zeile("Fragen je Bot-Nachricht", fragen,
+          f"<= {kennzahlen.SOLL_FRAGEN_JE_NACHRICHT:.0f}",
+          fragen <= kennzahlen.SOLL_FRAGEN_JE_NACHRICHT)
+    quote = zahlen.get("wiederholungsquote", 0)
+    zeile("Wiederholungsquote", quote, "0.0", quote == 0)
+    parallel = zahlen.get("parallel_zum_auftrag", 0)
+    zeile("Bot redet parallel zum Auftrag", parallel, 0, parallel == 0)
+    zeile("Knoepfe angeboten -> gedrueckt",
+          f"{zahlen['knoepfe_angeboten']} -> {zahlen['knoepfe_gedrueckt']} "
+          f"({zahlen.get('knoepfe_quote', 0)})",
+          "> 0 gedrueckt", zahlen["knoepfe_gedrueckt"] > 0)
+    proaktiv = zahlen.get("phasenwechsel_proaktiv") or []
+    selbst = zahlen.get("phasenwechsel_selbst") or []
+    zeile("Phasenwechsel proaktiv angeboten",
+          f"{len(proaktiv)} von {len(proaktiv) + len(selbst)}",
+          "alle", not selbst)
+    zeile("Form je Szene bestaetigt",
+          f"{zahlen.get('form_bestaetigt', 0)}/{zahlen.get('szenen_gesamt', 0)}"
+          + (f", {zahlen['form_gesetzt_ohne_vorschlag']} gesetzt ohne Vorschlag"
+             if zahlen.get("form_gesetzt_ohne_vorschlag") else ""),
+          "bestaetigt, nie gesetzt",
+          not zahlen.get("form_gesetzt_ohne_vorschlag"))
+    ueberschrieben = zahlen.get("rahmen_ueberschrieben", 0)
+    zeile("Rahmen/Geschichte mehrfach geschrieben", ueberschrieben, 0,
+          ueberschrieben == 0)
+    gekuerzt = zahlen.get("kontext_gekuerzt", 0)
+    zeile("Prompts gekuerzt (kontext_gekuerzt)", gekuerzt, 0, gekuerzt == 0)
     return zeilen
 
 

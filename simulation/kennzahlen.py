@@ -715,9 +715,16 @@ def kosten(conn, e, preise: dict) -> dict:
 def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
            schritte, e, preise, dauer_s: float, notausgaenge: int = 0,
            sim_statistik: dict | None = None, journal_urteil: dict | None = None,
-           stoerung: dict | None = None, wiederkehr_zeilen: list | None = None) -> dict:
+           stoerung: dict | None = None, wiederkehr_zeilen: list | None = None,
+           tg=None, knopfdruecke=None, phasen_proaktiv=None,
+           phasen_selbst=None) -> dict:
     """Alle mechanischen Kennzahlen eines Laufs in einem Dict -- die Form, in
-    der sie in den Bericht und nach ``verlauf.jsonl`` gehen."""
+    der sie in den Bericht und nach ``verlauf.jsonl`` gehen.
+
+    ``tg``, ``knopfdruecke``, ``phasen_proaktiv`` und ``phasen_selbst`` kamen
+    am 06.09.2026 dazu (Knopf-Umbau) und sind optional: eine alte
+    Verlaufszeile ohne diese Felder bleibt lesbar, und ein Aufrufer, der sie
+    nicht hat, bekommt Nullen statt eines TypeError."""
     gespeichert, zustimmung_gesamt = zustimmungen(zuege, markiert)
     zahlen = {
         "interviews_soll": len(gezogene),
@@ -763,10 +770,246 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
         phasen.bezeichnung(phasen.aktuelle(conn, chat_id)),
     ) if wiederkehr_zeilen is not None else {})
     zahlen.update(zitatlage(conn, chat_id, gezogene))
+    zahlen.update(sammle_knopfzahlen(
+        conn, chat_id, zuege, tg, knopfdruecke or [],
+        phasen_proaktiv or [], phasen_selbst or [],
+    ))
     zahlen.update(kosten(conn, e, preise))
     zahlen["hochrechnung"] = hochrechnung(zahlen["chf_bot"])
     zahlen.update(sim_statistik or {
         "sim_aufrufe": 0, "sim_aufrufe_je_art": {},
         "sim_token_ein": 0, "sim_token_aus": 0, "sim_fehler": 0,
     })
+    return zahlen
+
+
+# ---------------------------------------------------------------------------
+# Die Kennzahlen des Knopf-Umbaus (06.09.2026)
+# ---------------------------------------------------------------------------
+#
+# Alle mechanisch, keine mit Modell. Sie messen genau das, was am Testabend
+# schiefging: zwanzig Nachrichten je Festlegung, 64 % Fragen, 23 angebotene
+# Knoepfe und null Druecke.
+
+#: Sollwert: so viele Nachrichten der Gruppe darf eine Festlegung hoechstens
+#: kosten. Zwei, weil eine Festlegung im Regelfall aus einem Vorschlag und
+#: einem Druck besteht.
+SOLL_NACHRICHTEN_JE_FESTLEGUNG = 2
+
+#: Sollwert: so viele Fragezeichen darf eine Bot-Nachricht im Schnitt tragen.
+SOLL_FRAGEN_JE_NACHRICHT = 1.0
+
+#: Ab welcher Deckung zwei Bot-Nachrichten als Wiederholung zaehlen -- dieselbe
+#: Schwelle, mit der ``ablauf.ist_wiederholung`` im Betrieb verwirft.
+WIEDERHOLUNG_AB = 0.6
+
+
+def nachrichten_je_festlegung(zuege: list[Zug]) -> dict:
+    """Wie viele Stimm-Nachrichten zwischen zwei Notiert-Zeilen lagen.
+
+    Dieselbe Definition wie ``birk.referenz``: die Notiert-Zeilen sind die
+    Trennmarken zwischen den Arbeitsschritten, was dazwischen liegt, hat die
+    Gruppe gebraucht, um eine Festlegung durchzubekommen. Median statt
+    Mittelwert -- ein einzelner Abschnitt, in dem der Erkenner taub war,
+    verschoebe den Mittelwert um mehr, als die uebrigen aussagen.
+
+    Knopfdruecke zaehlen **mit**: sie sind Aufwand fuer die Gruppe, auch wenn
+    sie keine Nachricht sind. Ein Ablauf, der eine Festlegung auf fuenf
+    Knopfdruecke verteilt, ist nicht besser als einer mit fuenf Nachrichten."""
+    abschnitte: list[int] = []
+    laufend = 0
+    for zug in zuege:
+        laufend += len(zug.beitraege)
+        if zug.marke == "knopf":
+            laufend += 1
+        if zug.hat_notiert:
+            abschnitte.append(laufend)
+            laufend = 0
+    return {
+        "festlegungen": len(abschnitte),
+        "nachrichten_je_festlegung": abschnitte,
+        "nachrichten_je_festlegung_median": (
+            round(statistics.median(abschnitte), 1) if abschnitte else 0
+        ),
+    }
+
+
+def fragen_je_botnachricht(zuege: list[Zug]) -> float:
+    """Fragezeichen je Bot-Nachricht (Soll <= 1).
+
+    Gezaehlt werden Fragezeichen, nicht Nachrichten mit Fragezeichen: der
+    gemessene Fall vom Testabend war eine Nachricht mit vier Fragen darin, und
+    die zaehlt hier vierfach. Genau darum geht es -- "Stell immer nur eine
+    Frage auf einmal" (Birk, 06.09.)."""
+    antworten = bot_antworten(zuege)
+    if not antworten:
+        return 0.0
+    return round(sum(t.count("?") for t in antworten) / len(antworten), 2)
+
+
+def _deckung(a: str, b: str) -> float:
+    """Wortdeckung zweier Texte -- der Rueckfall, wenn
+    ``ablauf.ist_wiederholung`` eine andere Signatur hat als erwartet."""
+    worte_a = set(_falte(a).split())
+    worte_b = set(_falte(b).split())
+    if not worte_a or not worte_b:
+        return 0.0
+    gemeinsam = len(worte_a.intersection(worte_b))
+    return gemeinsam / max(len(worte_a), len(worte_b))
+
+
+def wiederholungsquote(zuege: list[Zug], ab: float = WIEDERHOLUNG_AB) -> dict:
+    """Anteil der Bot-Nachrichten, die die vorherige Bot-Nachricht
+    wiederholen.
+
+    Geprueft wird mit ``ablauf.ist_wiederholung``, derselben Funktion, mit der
+    der Betrieb seit dem 06.09. verwirft -- eine zweite Wahrheit ueber
+    dieselbe Frage waere im Bericht nicht mit dem Vorfall
+    ``wiederholung_verworfen`` vergleichbar. Verworfene Antworten stehen
+    naturgemaess nicht in dieser Liste; was hier auftaucht, ist durch die
+    Sperre GEKOMMEN."""
+    antworten = bot_antworten(zuege)
+    pruefe = getattr(ablauf, "ist_wiederholung", None)
+    treffer = []
+    for vorher, nachher in zip(antworten, antworten[1:]):
+        ist_wdh = False
+        if pruefe is not None:
+            try:
+                ist_wdh = bool(pruefe(nachher, vorher))
+            except Exception:  # noqa: BLE001 -- andere Signatur im Betrieb
+                ist_wdh = _deckung(nachher, vorher) >= ab
+        else:
+            ist_wdh = _deckung(nachher, vorher) >= ab
+        if ist_wdh:
+            treffer.append(nachher)
+    nenner = max(1, len(antworten) - 1)
+    return {
+        "wiederholungen": len(treffer),
+        "wiederholungsquote": round(len(treffer) / nenner, 2) if antworten else 0.0,
+        "wiederholungen_liste": treffer[:5],
+    }
+
+
+#: Woran erkannt wird, dass der Bot parallel zu einem laufenden Auftrag
+#: weiterredet: der Gespraechs-Bot soll schweigen, solange ein Auftrag laeuft
+#: (``ablauf.ist_auftrag``). Gemessen wird an der Marke des Zuges.
+AUFTRAGSMARKEN = ("szene_aufruf",)
+
+
+def parallel_zum_auftrag(zuege: list[Zug]) -> list[str]:
+    """Bot-Nachrichten, die im selben Zug wie ein Auftrag stehen und nicht
+    zum Auftrag gehoeren (Soll 0).
+
+    Der gemessene Fall: die Gruppe sagt "schreib Szene 1", der Szenen-Thread
+    laeuft an -- und der Gespraechs-Bot antwortet daneben noch einmal auf
+    dieselbe Nachricht. Die Gruppe liest zwei Antworten auf eine Frage und
+    weiss nicht, welche gilt."""
+    treffer = []
+    for zug in zuege:
+        if zug.marke not in AUFTRAGSMARKEN:
+            continue
+        # Die erste Nachricht ist die Ansage bzw. der Szenentext selbst; was
+        # danach in DEMSELBEN Zug kommt, ist Parallelrede.
+        treffer.extend(zug.bot[1:])
+    return treffer
+
+
+def knopflage(tg, knopfdruecke: list) -> dict:
+    """Angeboten gegen gedrueckt -- die Zahl aus dem Testabend (23 zu 0).
+
+    ``angeboten`` zaehlt Knoepfe, nicht Leisten: eine Leiste mit drei
+    Knoepfen ist drei Angebote, und die Frage ist, wie viele davon je
+    benutzt werden."""
+    angeboten = sum(len(a.get("knoepfe") or []) for a in getattr(tg, "knoepfe", []))
+    gedrueckt = len(knopfdruecke)
+    je_beschriftung: dict[str, int] = {}
+    for druck in knopfdruecke:
+        name = druck.get("beschriftung") or "?"
+        je_beschriftung[name] = je_beschriftung.get(name, 0) + 1
+    return {
+        "knoepfe_angeboten": angeboten,
+        "knoepfe_gedrueckt": gedrueckt,
+        "knoepfe_quote": round(gedrueckt / angeboten, 2) if angeboten else 0.0,
+        "knoepfe_je_beschriftung": dict(sorted(je_beschriftung.items())),
+    }
+
+
+def phasenlage(proaktiv: list, selbst: list) -> dict:
+    """Wie die Gruppe durch die Phasen kam: ueber das proaktive Angebot des
+    Bots oder ueber den versteckten ``/phase``-Befehl.
+
+    Der zweite Weg ist der Befund. Eine echte Gruppe kennt ``/phase`` nicht
+    (Slash-Befehle werden nicht mehr beworben, AGENTS.md) -- wo der Simulator
+    ihn braucht, waere eine echte Gruppe steckengeblieben."""
+    gesamt = len(proaktiv) + len(selbst)
+    return {
+        "phasenwechsel_proaktiv": list(proaktiv),
+        "phasenwechsel_selbst": list(selbst),
+        "phasenwechsel_proaktiv_anteil": (
+            round(len(proaktiv) / gesamt, 2) if gesamt else 0.0
+        ),
+    }
+
+
+def formlage(conn, chat_id: int) -> dict:
+    """Je Szene: gab es einen Formvorschlag, und wurde er BESTAETIGT?
+
+    ``szene.form`` bleibt seit dem 06.09.2026 leer, bis die Gruppe die Form
+    per Knopf bestaetigt (``form_vorschlag`` traegt den Vorschlag). Eine Szene
+    mit gesetzter ``form`` und ohne ``form_vorschlag`` ist deshalb ein
+    Befund: dort hat jemand die Form gesetzt statt bestaetigen zu lassen."""
+    szenen = repo.hole_szenen(conn, chat_id)
+    vorgeschlagen = bestaetigt = gesetzt_ohne_vorschlag = 0
+    for zeile in szenen:
+        try:
+            vorschlag = (zeile["form_vorschlag"] or "").strip()
+        except (IndexError, KeyError):
+            vorschlag = ""
+        form = (zeile["form"] or "").strip()
+        if vorschlag:
+            vorgeschlagen += 1
+        if form and vorschlag:
+            bestaetigt += 1
+        if form and not vorschlag:
+            gesetzt_ohne_vorschlag += 1
+    return {
+        "szenen_gesamt": len(szenen),
+        "form_vorgeschlagen": vorgeschlagen,
+        "form_bestaetigt": bestaetigt,
+        "form_gesetzt_ohne_vorschlag": gesetzt_ohne_vorschlag,
+    }
+
+
+def rahmen_ueberschrieben(conn, chat_id: int) -> int:
+    """Wie oft ein gesetzter Rahmen bzw. eine gesetzte Geschichte ersetzt
+    wurde -- aus dem Journal gezaehlt.
+
+    "Still ueberschrieben" laesst sich hier nicht sauber von "die Gruppe hat
+    es geaendert" trennen; gezaehlt wird deshalb die schwaechere, aber
+    nachpruefbare Groesse -- **mehr als ein** Eintrag je Feld. Im Bericht
+    steht sie mit dieser Einschraenkung daneben."""
+    zeilen = repo.journal(conn, chat_id)
+    je_feld: dict[str, int] = {}
+    for eintrag in zeilen:
+        text = _falte(eintrag["text"] or "")
+        for feld in ("rahmen", "setting", "geschichte"):
+            if text.startswith(feld):
+                je_feld[feld] = je_feld.get(feld, 0) + 1
+    return sum(max(0, n - 1) for n in je_feld.values())
+
+
+def sammle_knopfzahlen(conn, chat_id: int, zuege: list[Zug], tg,
+                       knopfdruecke: list, proaktiv: list, selbst: list) -> dict:
+    """Alle Kennzahlen des Knopf-Umbaus in einem Dict -- die Form, in der sie
+    ``sammle`` beigemischt werden."""
+    zahlen = {
+        "fragen_je_botnachricht": fragen_je_botnachricht(zuege),
+        "parallel_zum_auftrag": len(parallel_zum_auftrag(zuege)),
+        "rahmen_ueberschrieben": rahmen_ueberschrieben(conn, chat_id),
+    }
+    zahlen.update(nachrichten_je_festlegung(zuege))
+    zahlen.update(wiederholungsquote(zuege))
+    zahlen.update(knopflage(tg, knopfdruecke))
+    zahlen.update(phasenlage(proaktiv, selbst))
+    zahlen.update(formlage(conn, chat_id))
     return zahlen

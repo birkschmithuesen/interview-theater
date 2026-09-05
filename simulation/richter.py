@@ -55,7 +55,7 @@ KRITERIEN = (
 #: Richter laut Metrik eine 2 -- ein Bot wird nicht dafuer bestraft, dass eine
 #: Situation nicht vorkam.
 SZENEN_KRITERIEN = ("szene_stimmt_zur_planung", "stimmen_unterscheidbar",
-                    "form_eingehalten")
+                    "form_eingehalten", "exposition_erfuellt")
 
 BESTNOTE = 2
 
@@ -155,11 +155,20 @@ def baue_nutzertext(titel: str, ziel: str, abschnitt: str) -> str:
     ])
 
 
-def baue_szenen_nutzertext(planung: str, szene: str, form: str = "") -> str:
+def baue_szenen_nutzertext(planung: str, szene: str, form: str = "",
+                           nummer: int | None = None) -> str:
+    """Der Nutzertext eines Szenenurteils.
+
+    ``nummer`` kam am 06.09.2026 dazu: die **Aufgabe** einer Szene haengt an
+    ihrer Position (``szene._aufgabe_text``), und ``exposition_erfuellt`` ist
+    nur bei der ERSTEN eine echte Frage. Ohne die Nummer wuesste der Richter
+    nicht, ob er sie stellen darf."""
     return "\n".join([
         "Die Gruppe hat diese Szene geplant:",
         planung.strip() or "(keine Planung im Wortlaut)",
         "",
+        (f"Es ist Szene {nummer}." if nummer else "Die Position der Szene ist "
+         "nicht bekannt."),
         (f"Verlangte Form: {form.strip()}." if form.strip()
          else "Es war keine besondere Form verlangt."),
         "",
@@ -204,7 +213,8 @@ def bewerte_abschnitt(sim, titel: str, ziel: str, abschnitt: str) -> dict:
     return urteil
 
 
-def bewerte_szene(sim, planung: str, szene: str, form: str = "") -> dict:
+def bewerte_szene(sim, planung: str, szene: str, form: str = "",
+                  nummer: int | None = None) -> dict:
     """Die drei Noten, die nur ein Szenentext bekommt. Leeres Dict, wenn keine
     Szene geschrieben wurde -- ``--ohne-szene`` ist ein zulaessiger Lauf, kein
     Mangel."""
@@ -212,7 +222,7 @@ def bewerte_szene(sim, planung: str, szene: str, form: str = "") -> dict:
         return {}
     try:
         ergebnis = sim.json_objekt(
-            prompt(), baue_szenen_nutzertext(planung, szene, form), ART,
+            prompt(), baue_szenen_nutzertext(planung, szene, form, nummer), ART,
             max_tokens=MAX_TOKENS,
         )
     except Exception as fehler:  # noqa: BLE001

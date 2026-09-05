@@ -25,3 +25,9 @@ liest die letzte Zeile.
 - `feat/web-edit` gemergt (main = `d209121`), Suite **1524 grün**. Web-Unit neu gestartet, /gesund ok; Gruppenseite Gruppe#1 von außen geprüft (browser_exec): Phase-Dropdown 1–8, 7 Textareas (Begriffe, Fragen, Einleitungen, Eröffnung, Abschluss, Setting, Geschichte), Figuren/Szenen-Formulare, Leitfaden read-only, KEIN Transkript im HTML. Jede Web-Änderung → Journal quelle='web'. Claude-Code-Kosten Web gesamt ~$44.
 - Läuft: Phasenrahmen (Eintritts-/Abschlussnachricht je Phase, Jinja-Bewertung) auf feat/phasenrahmen.
 - Nächster Schritt: Simulation mit echtem Material (Stimmen aus Tag 1 + Testgruppe), dann Flow-Fix.
+
+## 02:00 — Phasenrahmen live; alle Units auf main `d36db79`
+- `feat/phasenrahmen` gemergt: Eintrittsnachricht je Phase („▶️ Phase N von 8 · Name", Einleitung, Checkliste ✅/⬜, Einstiegsknöpfe), Abschlussnachricht („✅ … abgeschlossen" + Parameter + „Weiter zu …" · „Noch etwas aendern"), /stand aus denselben Zeilen. Suite **1571 grün**. Jinja (Fundusbot) geprüft: nicht installiert, Empfehlung „später, unkritische Pfade" in `docs/prompt-audit/2026-09-06/jinja-inspiration.md`.
+- Einzel-Neustarts gruppe4/1/2/3 + Web: alle aktiv, 4 Prozesse, 200 OK, /gesund ok, keine Tracebacks.
+- Läuft: Simulation (Simulator auf 8 Phasen + Knöpfe, PII-freie Stimmen aus Tag-1-Material, 3–4 Läufe, Flow-Fixes) auf feat/simulation-tag2.
+- Danach: Skill `interview-theater-live-ops` + HANDOFF (f) aktualisieren, Bericht finalisieren.

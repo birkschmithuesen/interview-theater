@@ -676,14 +676,25 @@ der POST-Handler öffnet eine schreibende Verbindung (`db.verbinde` — WAL und
 `busy_timeout`, wie `scripts/begruessen.py` aus einem fremden Prozess). Zwei
 Tests halten das fest: kein `SELECT`/`INSERT`/`UPDATE` in `web_schreiben.py`,
 kein Schreibpfad in `web_daten.py`. Änderbar ist **genau** `web_schreiben.FELDER`
-und nichts sonst: Phase, Begriffe, Fragen, Kernthema-Richtung, Kernthema,
-Kernfrage, Rahmen, je Figur Name/Beschreibung/Interview/Entfernen/Hinzufügen
-und je Szene Titel, Form, Ort, Zeit, Anlass, was passiert, was anders, Ton und
-die Besetzung — **nie Material** (Aufnahmen, Transkripte, Verdichtungen,
-Belegzitate), nie der Szenen-Volltext, nie das Journal, nie die
-USA-Einwilligung, nie der Sprachprofil-Text; die Dropdowns holen ihre
-Vorschläge aus der Tabelle `knopf`, zeigen also nur, was im Chat ohnehin schon
-zur Auswahl stand. Jede Änderung hängt einen Journaleintrag an, `art
+und nichts sonst: Phase (1–8, Namen aus `phasen.PHASEN`), Begriffe, Fragen und
+die drei Leitfaden-Felder (`frage_einleitungen`, `interview_eroeffnung`,
+`interview_abschluss`), Setting (`rahmen`), Geschichte, je Figur
+Name/Beschreibung/Interview/Entfernen/Hinzufügen und je Szene Titel, Form,
+Ort, Zeit, Anlass, was passiert, was anders, Ton und die Besetzung — **nie
+Material** (Aufnahmen, Transkripte, Verdichtungen, Belegzitate), nie der
+Szenen-Volltext, nie das Journal, nie die USA-Einwilligung, nie der
+Sprachprofil-Text, nie die Schärfungs-Zuordnungen. Auch **nicht der
+Leitfaden**: er wird aus seinen Feldern gebaut (`leitfaden.aus_feldern`,
+dieselbe Funktion wie im Chat) und steht read-only darunter — editierbar sind
+die Quellen, nicht das Ergebnis. Seit dem Phasen-Umbau fehlen **Kernthema,
+Kernthema-Richtung und Kernfrage**: sie sind keine Station mehr, `geschichte`
+hat ihre Rolle übernommen; gesetzte Werte bleiben sichtbar
+(`web_schreiben.NUR_ANZEIGE`, nur wenn gesetzt), änderbar sind sie nicht.
+Ebenfalls nur Anzeige: der Formvorschlag je Szene (`szene.form_vorschlag` —
+bestätigt ist allein `form`, und wer hier wählt, bestätigt gerade selbst) und
+die Schärfungen aus Phase 6, als Zähler mit Kurzformen und **ohne Belegzitat**.
+Die Dropdowns holen ihre Vorschläge aus der Tabelle `knopf`, zeigen also nur,
+was im Chat ohnehin schon zur Auswahl stand. Jede Änderung hängt einen Journaleintrag an, `art
 'entschieden'`, **`quelle 'web'`**, mit altem und neuem Wert (120 Zeichen je
 Seite) — das ist der einzige Weg, auf dem der Gesprächs-Bot davon erfährt, denn
 der Webserver spricht nicht mit Telegram: er liest das Journal bei jedem Zug

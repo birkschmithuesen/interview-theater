@@ -88,6 +88,19 @@ _TEXT_AUSWERTEN_UNBEKANNT = "Dieses Interview kenne ich nicht mehr."
 #: ein Programmierfehler, aber einer, der die Gruppe nicht ratlos laesst.
 _TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
 
+#: Die Phase, in der es ueberhaupt etwas aufzunehmen gibt (``phasen.PHASEN``:
+#: "3 · Interviews"). Davor wird gearbeitet, nicht aufgenommen: in Phase 1
+#: kommt die im Plenum gesammelte Begriffsliste zum Bot, in Phase 2 werden im
+#: Gespraech die Fragen entwickelt -- fuer beides gibt es kein Mikrofon.
+#:
+#: Anlass (05.09.2026, Birk im laufenden Workshop): "aber direkt schon mit
+#: aufnahme starten? nach der begruessung kommt erst die eingabe der begriffe
+#: und damit die fragen zu erstellen. hast du die reihenfolge der phasen
+#: beachtet?" -- die Einstiegsleiste bot "Aufnahme starten" phasenblind an,
+#: als erste und damit naheliegendste Handlung, und schickte die Gruppe zwei
+#: Arbeitsschritte zu weit.
+PHASE_INTERVIEWS = 3
+
 #: Hoechstens vier Formatvorschlaege (Phase 5). Mehr Knoepfe als
 #: Kernthema-Vorschlaege sind hier vertretbar, weil die Beschriftungen kurz
 #: sind ("Sprechtheater") und nicht wie ein Kernthema ganze Saetze werden.
@@ -236,6 +249,35 @@ def _phasenknopf(conn, chat_id: int) -> tuple[str, str] | None:
     return (f"Weiter zu {phasen.bezeichnung(nummer)}", _daten(knopf_id))
 
 
+def _aufnahme_anbieten(conn, chat_id: int, nur_phase_3: bool = False) -> bool:
+    """Darf eine Knopfleiste von sich aus eine Aufnahme ANBIETEN?
+
+    Ja ab ``PHASE_INTERVIEWS`` -- und ja, solange eine Aufnahme laeuft, egal
+    in welcher Phase: dann heisst der Knopf "Aufnahme beenden", und ein
+    laufendes Interview ohne Ausschalter waere die schlechtere Falle als ein
+    Angebot zur falschen Zeit.
+
+    Nein in Phase 1 (Begriffe) und 2 (Fragen). Mit ``nur_phase_3`` auch nein
+    ab Phase 4: das ist die Leiste NACH einem Interview
+    (``biete_nach_aufnahme``) -- hat die Gruppe inzwischen zum Kernthema
+    weitergeschaltet, ist "Naechste Aufnahme" dort kein Angebot mehr, sondern
+    ein Rueckschritt. In der Einstiegsleiste bleibt der Knopf dagegen auch
+    spaeter stehen: nachtraeglich ein Interview zu ergaenzen ist ein normaler
+    Vorgang, nur eben keiner, den der Bot vorschlaegt.
+
+    Das ist ausdruecklich nur eine Regel fuer die ANGEBOTE: ``/aufnahme`` und
+    der Erkenner-Pfad (``biete_aufnahme``) bleiben phasenunabhaengig, die
+    Gruppe darf jederzeit ausdruecklich aufnehmen (AGENTS.md, "Fokus, kein
+    Kaefig"). Nur das unaufgeforderte Angebot richtet sich nach der
+    Reihenfolge der Phasen."""
+    if repo.ist_interviewmodus_an(conn, chat_id):
+        return True
+    jetzige = phasen.aktuelle(conn, chat_id)
+    if nur_phase_3:
+        return jetzige == PHASE_INTERVIEWS
+    return jetzige >= PHASE_INTERVIEWS
+
+
 def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) -> int:
     """Die Knopfleiste nach einem beendeten Interview (05.09.2026, Birk:
     "ersetze am besten alle slash befehl vorschlaege mit knoepfen. und gib
@@ -256,7 +298,9 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
       vor (Interview unter der Mindestlaenge), laeuft wortgleich das, was
       ``/auswerten`` tut. Faellt nur weg, wenn es gar kein Interview gibt
       (``kopf_id`` ist None).
-    * **Naechste Aufnahme** -- derselbe Umschalter wie ``/aufnahme``.
+    * **Naechste Aufnahme** -- derselbe Umschalter wie ``/aufnahme``, aber
+      nur in Phase 3 (``_aufnahme_anbieten(nur_phase_3=True)``): ist die
+      Gruppe schon weiter, waere es ein Rueckschritt statt eines Angebots.
     * **Weiter zu Phase N** -- nur, wenn ``phasen.naechste_moegliche`` es
       hergibt. Das ist die Alternative, die im Live-Fall gefehlt hat: statt
       direkt das naechste Interview zu starten, haette die Gruppe auch in die
@@ -281,14 +325,21 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
     # Erwarten schon wieder eine Aufnahme (ein Knopf aus einer alten
     # Nachricht), heisst er wie ueberall "Aufnahme beenden" -- die Wirkung ist
     # in beiden Faellen der Umschalter aus ``/aufnahme``.
-    knoepfe.append(
-        (
-            _TEXT_NAECHSTE_AUFNAHME_KNOPF
-            if not repo.ist_interviewmodus_an(conn, chat_id)
-            else _TEXT_AUFNAHME_BEENDEN,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
+    #
+    # Seit 05.09.2026 nur noch, wenn die Phase es hergibt
+    # (``_aufnahme_anbieten``): ist die Gruppe waehrend des Interviews schon
+    # auf 4 (Kernthema & Figuren) weitergegangen, ist "Naechste Aufnahme"
+    # kein Angebot mehr, sondern ein Rueckschritt. "Auswerten" und "Weiter zu
+    # Phase N" bleiben davon unberuehrt.
+    if _aufnahme_anbieten(conn, chat_id, nur_phase_3=True):
+        knoepfe.append(
+            (
+                _TEXT_NAECHSTE_AUFNAHME_KNOPF
+                if not repo.ist_interviewmodus_an(conn, chat_id)
+                else _TEXT_AUFNAHME_BEENDEN,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
+            )
         )
-    )
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
         knoepfe.append(phasenknopf)
@@ -297,18 +348,30 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
 
 def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
     """Die Knopfleiste unter einer Begruessung (Erstkontakt, Wiederkehr):
-    "Aufnahme starten", "Stand zeigen", "Hilfe" -- und, wenn die Materiallage
-    es hergibt, "Weiter zu Phase N".
+    "Stand zeigen", "Hilfe" -- und, wenn die Materiallage es hergibt,
+    "Weiter zu Phase N".
+
+    "Aufnahme starten" steht seit 05.09.2026 nur noch davor, wenn die Phase
+    es hergibt (``_aufnahme_anbieten``): ab Phase 3 (Interviews) oder solange
+    eine Aufnahme laeuft. In Phase 1 (Begriffe) und 2 (Fragen) gibt es nichts
+    aufzunehmen -- die Begriffe kommen aus dem Plenum als Text oder
+    Sprachnachricht, die Fragen entstehen im Gespraech mit dem Bot. Der erste
+    Knopf ist der, den die Gruppe im Raum trifft; er darf nicht zwei
+    Arbeitsschritte zu weit zeigen.
 
     Damit steht in der Begruessung selbst kein Slash-Befehl mehr: der Weg ist
     der Knopf, ``/hilfe`` listet die Befehle weiterhin auf, wenn jemand sie
     sucht."""
-    knoepfe = [
-        (
-            _TEXT_AUFNAHME_STARTEN if not repo.ist_interviewmodus_an(conn, chat_id)
-            else _TEXT_AUFNAHME_BEENDEN,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
-        ),
+    knoepfe: list[tuple[str, str]] = []
+    if _aufnahme_anbieten(conn, chat_id):
+        knoepfe.append(
+            (
+                _TEXT_AUFNAHME_STARTEN if not repo.ist_interviewmodus_an(conn, chat_id)
+                else _TEXT_AUFNAHME_BEENDEN,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
+            )
+        )
+    knoepfe += [
         (
             _TEXT_STAND_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_STAND, None)),
@@ -320,7 +383,9 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
     ]
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
-        knoepfe.insert(1, phasenknopf)
+        # Direkt hinter der Aufnahme, wenn es sie gibt -- sonst ganz vorn: der
+        # Schritt in die naechste Phase ist dann die wahrscheinlichste Absicht.
+        knoepfe.insert(1 if _aufnahme_anbieten(conn, chat_id) else 0, phasenknopf)
     return tg.sende_mit_knoepfen(chat_id, text, knoepfe)
 
 

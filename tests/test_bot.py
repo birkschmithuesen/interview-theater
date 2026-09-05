@@ -271,13 +271,19 @@ def test_erstkontakt_kommt_genau_einmal_und_bietet_die_knoepfe_an(conn, einst):
 
     assert len(tg.gesendet) == 1
     text = tg.gesendet[0][1]
-    assert "Interview" in text
+    # Phase 1 ist der Regelfall beim Erstkontakt: die Begruessung sagt, dass
+    # jetzt die Begriffe aus dem Plenum kommen -- nicht, wie man eine
+    # Aufnahme startet (05.09.2026, Birk: "nach der begruessung kommt erst
+    # die eingabe der begriffe").
+    assert "Begriffe" in text
+    assert "Sprachnachricht" in text
+    assert "Aufnahme starten" not in text
     # Seit 05.09.2026: kein Slash-Befehl mehr in der Begruessung, dafuer die
     # Einstiegsknoepfe darunter (Birk: "ersetze am besten alle slash befehl
     # vorschlaege mit knoepfen").
     assert "/" not in text
     beschriftungen = [b for b, _ in tg.mit_knoepfen[0][2]]
-    assert "Aufnahme starten" in beschriftungen
+    assert "Aufnahme starten" not in beschriftungen, "in Phase 1 gibt es nichts aufzunehmen"
     assert "Stand zeigen" in beschriftungen
     assert "Hilfe" in beschriftungen
     # als Bot-Nachricht mitgeschrieben, sonst würde sie erneut ausgeloest

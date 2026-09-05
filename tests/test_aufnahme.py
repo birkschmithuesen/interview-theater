@@ -463,6 +463,7 @@ def test_fertig_verdichtet_einmal_und_haelt_sich_im_chat_zurueck(conn, einst, tg
     danach die Verdichtungen. Verdichtet wird trotzdem sofort, das Material
     ist gesichert und steht auf der Gruppenseite."""
     kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B])
+    phasen.setze(conn, 1, 3, "befehl")
     tg.gesendet.clear()
 
     aufnahme.beende_interview(conn, 1)

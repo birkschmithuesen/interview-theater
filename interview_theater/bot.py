@@ -112,6 +112,27 @@ _TEXT_ERSTKONTAKT = (
     "Die Knoepfe unten zeigen euch den Weg."
 )
 
+#: Dieselbe Begruessung, aber fuer den Regelfall: eine Gruppe, die gerade
+#: erst anfaengt, steht in Phase 1 (Begriffe) -- und dort gibt es nichts
+#: aufzunehmen. Der zweite Absatz sagt deshalb, was JETZT dran ist, statt
+#: wie man ein Interview startet.
+#:
+#: Anlass (05.09.2026, Birk im laufenden Workshop): "aber direkt schon mit
+#: aufnahme starten? nach der begruessung kommt erst die eingabe der begriffe
+#: und damit die fragen zu erstellen. hast du die reihenfolge der phasen
+#: beachtet?" -- passend dazu steht unter dieser Begruessung auch kein
+#: Aufnahme-Knopf mehr (``knoepfe._aufnahme_anbieten``).
+_TEXT_ERSTKONTAKT_BEGRIFFE = (
+    "Hallo, ich bin der Theaterbot fuer diesen Workshop.\n\n"
+    "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
+    "Als Erstes schickt ihr mir eure Begriffe aus dem Plenum: getippt oder "
+    "als Sprachnachricht, so wie sie bei euch an der Wand stehen. Ich halte "
+    "sie fest und ordne sie mit euch.\n\n"
+    "Daraus entwickeln wir dann eure Interviewfragen - und erst danach geht "
+    "es ans Aufnehmen.\n\n"
+    "Die Knoepfe unten zeigen euch den Weg."
+)
+
 #: Angehaengt, wenn eine Weboberflaeche konfiguriert ist (IT_WEB_URL): die
 #: Leseansicht der Gruppe, zum Mitlesen neben dem Chat. Der Link ist das
 #: Geheimnis (kein Login) -- er geht nur in diese eine Gruppe.
@@ -179,7 +200,15 @@ def erstkontakt(conn, tg, e, chat_id: int) -> None:
 
     if repo.hat_bot_nachricht(conn, chat_id):
         return
-    text = _TEXT_ERSTKONTAKT.format(bot_name=e.bot_name)
+    # Phase 1 (Begriffe) ist der Regelfall beim Erstkontakt: dann sagt die
+    # Begruessung, dass jetzt die Begriffsliste aus dem Plenum kommt, und
+    # nicht, wie man eine Aufnahme startet (05.09.2026).
+    vorlage = (
+        _TEXT_ERSTKONTAKT_BEGRIFFE
+        if phasen.aktuelle(conn, chat_id) < knoepfe.PHASE_INTERVIEWS
+        else _TEXT_ERSTKONTAKT
+    )
+    text = vorlage.format(bot_name=e.bot_name)
     url = stelle_link_sicher(conn, e, chat_id)
     if url:
         text += _TEXT_GRUPPENSEITE.format(url=url)

@@ -799,9 +799,14 @@ def test_slash_und_knopf_setzen_dieselbe_szenenform(conn, einst, tg):
 
 
 def _interview_kopf(conn, transkript="ein kurzer Satz"):
-    """Ein beendetes Interview mit Transkript, ohne Verdichtung."""
+    """Ein beendetes Interview mit Transkript, ohne Verdichtung.
+
+    Setzt die Phase auf 3 (Interviews): dort und nur dort wird aufgenommen,
+    und seit 05.09.2026 haengt die Leiste danach davon ab
+    (``knoepfe._aufnahme_anbieten``)."""
     from interview_theater import aufnahme
 
+    phasen.setze(conn, 1, 3, "befehl")
     repo.setze_interviewmodus(conn, 1, repo._jetzt())
     kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
     repo.setze_transkript(conn, kopf_id, transkript)
@@ -840,9 +845,25 @@ def test_nach_aufnahme_haengt_die_phase_an_wenn_die_lage_sie_hergibt(conn, einst
 def test_nach_aufnahme_ohne_interview_bietet_nur_die_aufnahme_an(conn, einst, tg):
     """"fertig" ohne eine einzige Sprachnachricht: es gibt nichts
     auszuwerten, also steht der Knopf auch nicht da."""
+    phasen.setze(conn, 1, 3, "befehl")
+
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Das Interview hatte keine Aufnahme.", None)
 
     assert [b for b, _ in tg.knoepfe[0][2]] == ["Naechste Aufnahme"]
+
+
+def test_nach_aufnahme_bietet_in_phase_4_keine_naechste_aufnahme_an(conn, einst, tg):
+    """Der Live-Befund vom 05.09.2026 (Birk: "hast du die reihenfolge der
+    phasen beachtet?"), gespiegelt auf die Leiste nach dem Interview: ist die
+    Gruppe inzwischen bei Kernthema & Figuren, ist "Naechste Aufnahme" kein
+    Angebot mehr, sondern ein Rueckschritt. "Auswerten" bleibt -- das
+    Material aus Phase 3 will ja gerade jetzt gelesen werden."""
+    kopf_id = _interview_kopf(conn)
+    phasen.setze(conn, 1, 4, "befehl")
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    assert [b for b, _ in tg.knoepfe[0][2]] == ["Auswerten"]
 
 
 def test_auswerten_knopf_spielt_eine_vorhandene_verdichtung_aus(conn, einst, tg):
@@ -911,11 +932,42 @@ def test_zweiter_auswerten_druck_wertet_nicht_zweimal_aus(conn, einst, tg, monke
 # --- Einstiegsknoepfe (Begruessung, unbekannter Befehl) -------------------
 
 
-def test_einstieg_bietet_aufnahme_stand_und_hilfe(conn, einst, tg):
+def test_einstieg_bietet_in_phase_1_keine_aufnahme_an(conn, einst, tg):
+    """Der Live-Befund vom 05.09.2026 (Birk: "aber direkt schon mit aufnahme
+    starten? nach der begruessung kommt erst die eingabe der begriffe"): in
+    Phase 1 gibt es nichts aufzunehmen -- die Begriffe kommen als Text oder
+    Sprachnachricht aus dem Plenum. Der Knopf zeigte zwei Arbeitsschritte zu
+    weit und stand dabei an erster Stelle."""
+    assert phasen.aktuelle(conn, 1) == 1
+
     knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
+
+    assert [b for b, _ in tg.knoepfe[0][2]] == ["Stand zeigen", "Hilfe"]
+
+
+def test_einstieg_bietet_ab_phase_3_die_aufnahme_an(conn, einst, tg):
+    """Ab den Interviews ist "Aufnahme starten" genau der Weg -- und steht
+    wieder vorn, wo die Gruppe im Raum hintippt."""
+    phasen.setze(conn, 1, 3, "befehl")
+
+    knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
         "Aufnahme starten", "Stand zeigen", "Hilfe",
+    ]
+
+
+def test_einstieg_bietet_das_beenden_auch_in_phase_1_an(conn, einst, tg):
+    """Die Ausnahme zur Phasenregel: laeuft eine Aufnahme, MUSS der
+    Ausschalter da sein. Ein laufendes Interview ohne Knopf waere die
+    schlechtere Falle als ein Angebot zur falschen Zeit -- und ausdruecklich
+    aufnehmen darf die Gruppe jederzeit (AGENTS.md, "Fokus, kein Kaefig")."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+
+    knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
+
+    assert [b for b, _ in tg.knoepfe[0][2]] == [
+        "Aufnahme beenden", "Stand zeigen", "Hilfe",
     ]
 
 
@@ -934,9 +986,22 @@ def test_einstieg_haengt_die_phase_dazwischen(conn, einst, tg):
     ]
 
 
+def test_einstieg_stellt_die_phase_ohne_aufnahme_nach_vorn(conn, einst, tg):
+    """Ohne Aufnahme-Knopf (Phase 1/2) rutscht "Weiter zu Phase N" an die
+    erste Stelle: dann ist der Schritt weiter die wahrscheinlichste
+    Absicht."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Heimat, Bahnhof, Koffer")
+
+    knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
+
+    assert [b for b, _ in tg.knoepfe[0][2]] == [
+        "Weiter zu 2 · Fragen", "Stand zeigen", "Hilfe",
+    ]
+
+
 def test_stand_knopf_zeigt_denselben_stand_wie_der_befehl(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
-    daten = tg.knoepfe[0][2][1][1]  # "Stand zeigen"
+    daten = tg.knoepfe[0][2][0][1]  # "Stand zeigen"
 
     knoepfe.behandle(conn, tg, None, einst, _druck(daten))
 
@@ -945,7 +1010,7 @@ def test_stand_knopf_zeigt_denselben_stand_wie_der_befehl(conn, einst, tg):
 
 def test_hilfe_knopf_zeigt_die_bedienung(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
-    daten = tg.knoepfe[0][2][2][1]  # "Hilfe"
+    daten = tg.knoepfe[0][2][1][1]  # "Hilfe"
 
     knoepfe.behandle(conn, tg, None, einst, _druck(daten))
 

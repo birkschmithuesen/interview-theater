@@ -149,7 +149,7 @@ def test_kuerzung_haelt_die_reissleine_ein(conn, einst):
 
     assert kontext.schaetze(prompt) <= kontext.REISSLEINE
     vorfaelle = conn.execute(
-        "SELECT count(*) FROM vorfall WHERE art = 'kuerzung'"
+        "SELECT count(*) FROM vorfall WHERE art = 'kontext_gekuerzt'"
     ).fetchone()[0]
     assert vorfaelle >= 1, "die Kuerzung muss einen Vorfall hinterlassen"
 
@@ -193,7 +193,7 @@ def test_kuerzung_bei_grossem_fenster_ohne_transkripte_erhaelt_ausloeser(conn, e
         "das Fenster muss tatsaechlich beschnitten worden sein"
     )
     vorfaelle = conn.execute(
-        "SELECT count(*) FROM vorfall WHERE art = 'kuerzung'"
+        "SELECT count(*) FROM vorfall WHERE art = 'kontext_gekuerzt'"
     ).fetchone()[0]
     assert vorfaelle >= 1
 

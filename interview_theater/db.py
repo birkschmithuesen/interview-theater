@@ -383,7 +383,7 @@ CREATE TABLE IF NOT EXISTS vorfall (
   id           INTEGER PRIMARY KEY,
   chat_id      INTEGER,                     -- NULL bei bot-weiten Vorfällen
   bot_name     TEXT,
-  art          TEXT NOT NULL,               -- kuerzung|fenster_verworfen|extraktor_fehler|
+  art          TEXT NOT NULL,               -- kontext_gekuerzt|fenster_verworfen|extraktor_fehler|
                                             -- zitat_ungeprueft|http_5xx|abgeschnitten|…
   stufe        INTEGER,
   detail       TEXT,

@@ -304,6 +304,14 @@ CREATE TABLE IF NOT EXISTS szene (
   -- bevorzugt). Entscheidet, welcher Formen-Block in den Szenen-Prompt geht
   -- (prompts/formen/<form>.md).
   form              TEXT,
+  -- Was der Bot in der Szenenfolge als Form VORGESCHLAGEN hat -- und warum
+  -- (Birk, 06.09.2026 00:30: \"Die Form Monolog habe ich niemals eingegeben
+  -- und aktiv bestaetigt.\"). Der Vorschlag steht hier und NICHT in ``form``:
+  -- gesetzt wird die Form allein durch einen Knopfdruck der Gruppe, Szene
+  -- fuer Szene. Ohne bestaetigte ``form`` wird nicht geschrieben
+  -- (szene.PFLICHTFELDER).
+  form_vorschlag       TEXT,
+  form_vorschlag_grund TEXT,
   ort               TEXT,
   zeit              TEXT,                   -- Tageszeit, "danach", "am nächsten Morgen"
   anlass            TEXT,                   -- warum sind sie hier

@@ -493,9 +493,14 @@ def test_schreibe_haelt_die_szene_im_journal_fest(conn, einst, tg, bereit):
     ]
 
 
-def test_schreibe_schickt_titel_anfang_und_verweis_nicht_die_ganze_szene(
-    conn, einst, tg, bereit
-):
+def test_schreibe_schickt_den_ganzen_szenentext(conn, einst, tg, bereit):
+    """Seit 05.09.2026 geht der Szenentext VOLLSTAENDIG in die Gruppe (Birk,
+    Phase-6-Knopfnavigation): lange Texte teilt der Telegram-Wrapper selbst
+    (``telegram.teile_text``), und eine Sechs-Zeilen-Vorschau mit Verweis auf
+    die Gruppenseite war fuer eine Gruppe, die im Raum steht und ihren Text
+    lesen will, keine Hilfe. Unter dem Text haengen die vier Knoepfe
+    (``knoepfe.biete_nach_szenentext``) -- hier faellt die Attrappe darauf
+    zurueck, nur zu senden, und der Text muss trotzdem ankommen."""
     lang = "TITEL: Am Bahnhof\nKURZ: Eine Zeile\n\n" + "\n".join(
         f"MARIA: Zeile {i}" for i in range(20)
     )
@@ -505,8 +510,7 @@ def test_schreibe_schickt_titel_anfang_und_verweis_nicht_die_ganze_szene(
     text = tg.texte[-1]
     assert text.startswith("Szene 1: Am Bahnhof")
     assert "MARIA: Zeile 5" in text
-    assert "MARIA: Zeile 6" not in text  # nur VORSCHAU_ZEILEN Zeilen
-    assert "Gruppenseite" in text
+    assert "MARIA: Zeile 19" in text
 
 
 def test_schreibe_sendet_reasoning_taugliche_grenzen(conn, einst, tg, bereit):

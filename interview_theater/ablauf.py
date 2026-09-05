@@ -386,6 +386,25 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             # finally vor, wie bei jedem anderen erfolgreichen Zug.
             return
 
+        # Spaete Importe, wie ueberall hier: ``szene`` und ``szenenfolge``
+        # greifen ihrerseits auf ``knoepfe`` zu -- ein Modulimport oben waere
+        # ein Zyklus.
+        from interview_theater import szene, szenenfolge
+
+        # Die Regie-Notiz nach "Passt, aber anders" unter einem Szenentext
+        # (05.09.2026, Phase 6): der Bot hat gerade gefragt, was anders werden
+        # soll -- diese eine Nachricht ist die Antwort darauf und geht als
+        # Auftrag in den Szenenlauf, nicht in den Gespraechszug. Ohne das
+        # bekaeme die Gruppe eine freundliche Gespraechsantwort statt einer
+        # neuen Fassung, und die Notiz waere verloren.
+        nummer = szenenfolge.nimm_regienotiz(chat_id)
+        if nummer is not None and (letzte_nachricht["text"] or "").strip():
+            szene.starte(
+                conn, tg, klm, e, chat_id,
+                f"Schreib Szene {nummer} neu. {letzte_nachricht['text'].strip()}",
+            )
+            return
+
         with _tippanzeige(tg, chat_id):
             # Die Phase geht in die Systemanweisung (worauf der Bot gerade den
             # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die

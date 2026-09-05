@@ -27,10 +27,16 @@ ist Technik, kein Inhalt.
 
 import re
 
-#: Die vier Arten, die ueber einen Vorschlagsblock deterministisch gespeichert
+#: Die Arten, die ueber einen Vorschlagsblock deterministisch gespeichert
 #: werden koennen. Der Name ist zugleich das Arbeitsstand-Feld (begriffe,
 #: fragen, kernthema) bzw. der Name der Figurenliste.
-ARTEN = ("begriffe", "fragen", "kernthema", "figuren")
+#:
+#: ``szenenfolge`` und ``szene`` sind am 05.09.2026 fuer Phase 6 dazugekommen
+#: (``szenenfolge.py``): die Szenenfolge als eine Zeile je Szene, und die
+#: fehlenden Felder EINER Szene als ``feld: Wert`` je Zeile. Sie stehen
+#: bewusst in derselben Liste und nutzen denselben Marker-Mechanismus -- es
+#: gibt einen Weg, einen Vorschlag deterministisch zu speichern, nicht zwei.
+ARTEN = ("begriffe", "fragen", "kernthema", "figuren", "szenenfolge", "szene")
 
 #: Die Markerzeile. Grossbuchstaben, weil sie im Fliesstext nicht vorkommt
 #: und ein Modell sie zuverlaessig wiederholt; der Doppelpunkt macht sie
@@ -38,7 +44,7 @@ ARTEN = ("begriffe", "fragen", "kernthema", "figuren")
 MARKER = "VORSCHLAG {art}:"
 
 _ZEILE = re.compile(
-    r"^\s*VORSCHLAG\s+(BEGRIFFE|FRAGEN|KERNTHEMA|FIGUREN)\s*:\s*(.*)$",
+    r"^\s*VORSCHLAG\s+(BEGRIFFE|FRAGEN|KERNTHEMA|FIGUREN|SZENENFOLGE|SZENE)\s*:\s*(.*)$",
     re.IGNORECASE,
 )
 

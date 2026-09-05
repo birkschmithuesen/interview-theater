@@ -210,6 +210,17 @@ CREATE TABLE IF NOT EXISTS szene (
   kernsaetze        TEXT,                   -- Sätze, die wörtlich vorkommen sollen
   ton               TEXT,                   -- Register: leise, komisch, harmonisch, hitzig
   volltext          TEXT,                   -- nur die zuletzt geänderte Szene geht mit
+  -- Gesetzt = die Gruppe hat den Text mit "Passt" abgenommen (Phase 6,
+  -- knoepfe.ART_SZENE_PASST). Ein Volltext allein heisst nur "geschrieben":
+  -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer
+  -- davon macht daraus ein Ergebnis.
+  fertig_am         TEXT,
+  -- Alle frueheren Fassungen dieser Szene, durch
+  -- szenenfolge.FASSUNGSTRENNER getrennt. "Passt, aber anders" schreibt die
+  -- Szene neu -- die alte Fassung wird dabei nicht weggeworfen: eine Gruppe,
+  -- die um 16 Uhr merkt, dass die erste Fassung besser war, hat sie sonst
+  -- nirgends mehr.
+  fruehere_fassungen TEXT,
   geaendert_am      TEXT NOT NULL,
   entfernt_am       TEXT                    -- gesetzt = weich geloescht (N3)
 );

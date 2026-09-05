@@ -99,9 +99,6 @@ MAX_TOKENS = 200_000
 #: Lauf ist trotzdem bezahlt.
 TIMEOUT_S = 600.0
 
-#: So viele nichtleere Zeilen der Szene gehen als Vorschau in die Gruppe.
-VORSCHAU_ZEILEN = 6
-
 #: Nur in den ersten paar Zeilen der Modellantwort wird nach TITEL/KURZ
 #: gesucht -- weiter unten waere ein "TITEL:" Teil der Szene, nicht ihr Kopf.
 _KOPFZEILEN = 6
@@ -114,7 +111,7 @@ _TEXT_BESETZT = "Ich schreibe gerade noch an einer Szene, gleich."
 _TEXT_FEHLER = (
     "Die Szene ist mir nicht gelungen. Sagt es nochmal, dann versuche ich es neu."
 )
-_TEXT_VOLLSTAENDIG = "Vollstaendig auf eurer Gruppenseite."
+
 #: Birk 05.09.: "schaltet Opus als Modell ein ab /szene mit einer Warnung,
 #: dass ab nun die Daten nach Amerika abfliessen." Steht VOR der
 #: Ankuendigung, jedes Mal -- nicht nur beim ersten Mal, weil die Gruppe
@@ -866,15 +863,6 @@ def zerlege(text: str) -> tuple[str | None, str | None, str]:
     return (titel or None), (kurz or None), volltext
 
 
-def _vorschau(nummer: int, titel: str, volltext: str) -> str:
-    """Titel, die ersten VORSCHAU_ZEILEN nichtleeren Zeilen, der Verweis auf
-    die Gruppenseite. Nicht der ganze Text: ein bis drei Seiten Dialog in
-    einer Telegram-Nachricht waeren auf dem Handy unlesbar, und die Szene
-    stuende danach mitten im Verlaufsfenster jedes weiteren Aufrufs."""
-    zeilen = [z for z in volltext.splitlines() if z.strip()][:VORSCHAU_ZEILEN]
-    return "\n".join([f"Szene {nummer}: {titel}", "", *zeilen, "", _TEXT_VOLLSTAENDIG])
-
-
 # ---------------------------------------------------------------------------
 # Der Lauf
 # ---------------------------------------------------------------------------
@@ -964,8 +952,37 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
         conn, chat_id, "entschieden", f"Szene {nummer} geschrieben: {titel}",
         quelle="szene",
     )
-    _sende_und_merke(conn, tg, e, chat_id, _vorschau(nummer, titel, volltext))
+    # Der Text geht VOLLSTAENDIG in den Chat (05.09.2026, Birk): lange Texte
+    # teilt der Telegram-Wrapper selbst (``telegram.teile_text``), und eine
+    # Vorschau von sechs Zeilen war fuer eine Gruppe, die im Raum steht und
+    # den Text lesen will, keine Hilfe. Darunter haengen die vier Knoepfe,
+    # mit denen die Szene angenommen, geaendert, neu geschrieben oder
+    # verlassen wird (``knoepfe.biete_nach_szenentext``) -- vorher stand der
+    # Text einfach da und niemand wusste, was jetzt dran ist.
+    _sende_szenentext(conn, tg, e, chat_id, nummer, titel, volltext)
     return nummer
+
+
+def _sende_szenentext(conn, tg, e, chat_id: int, nummer: int, titel: str,
+                      volltext: str) -> None:
+    """Der Szenentext samt der Vier-Knopf-Leiste darunter.
+
+    Faellt die Tastatur aus (alte Telegram-Attrappe, Telegram-Fehler), geht
+    der Text trotzdem raus -- dieselbe Fehlerhaltung wie bei der
+    Speicher-Leiste in ``ablauf.antworte``: die Szene ist wichtiger als ihre
+    Knoepfe."""
+    from interview_theater import knoepfe
+
+    text = f"Szene {nummer}: {titel}\n\n{volltext}"
+    try:
+        message_id = knoepfe.biete_nach_szenentext(conn, tg, chat_id, nummer, text)
+        repo.merke_nachricht(
+            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
+            text, repo._jetzt(),
+        )
+    except Exception:
+        log.exception("Szenentext-Leiste fehlgeschlagen, chat_id=%s", chat_id)
+        _sende_und_merke(conn, tg, e, chat_id, text)
 
 
 def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str, sperre: threading.Lock) -> None:

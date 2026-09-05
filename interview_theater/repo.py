@@ -1452,6 +1452,46 @@ def entferne_szene(conn: sqlite3.Connection, chat_id: int, nummer: int) -> int |
 
 
 @_gesperrt
+def setze_szene_fertig(conn: sqlite3.Connection, szene_id: int, fertig: bool) -> None:
+    """Stempelt eine Szene als von der Gruppe abgenommen -- oder nimmt den
+    Stempel wieder weg (Phase 6, "Passt").
+
+    Warum eine eigene Spalte und nicht "hat Volltext": ein geschriebener Text
+    ist ein Entwurf. Erst der Knopf "Passt" macht daraus ein Ergebnis, und
+    nur danach zaehlt die Szene im Durchlauf (Phase 7) als fertig. "Neu
+    schreiben" setzt den Stempel deshalb wieder zurueck."""
+    conn.execute(
+        "UPDATE szene SET fertig_am = ?, geaendert_am = ? WHERE id = ?",
+        (_jetzt() if fertig else None, _jetzt_genau(), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hebe_fassung_auf(conn: sqlite3.Connection, szene_id: int) -> None:
+    """Schiebt den aktuellen Volltext in ``fruehere_fassungen``, bevor eine
+    Neufassung ihn ueberschreibt (Phase 6, "Passt, aber anders").
+
+    Additiv und nie loeschend: eine Gruppe, die nachmittags merkt, dass die
+    erste Fassung besser war, hat sie sonst nirgends mehr -- der Chatverlauf
+    zeigt nur die Vorschau. Ohne Volltext passiert nichts (die erste Fassung
+    hat keine Vorgaengerin)."""
+    zeile = conn.execute(
+        "SELECT volltext, fruehere_fassungen FROM szene WHERE id = ?", (szene_id,)
+    ).fetchone()
+    if zeile is None or not (zeile["volltext"] or "").strip():
+        return
+    from interview_theater import szenenfolge
+
+    alt = (zeile["fruehere_fassungen"] or "").strip()
+    neu = (alt + szenenfolge.FASSUNGSTRENNER if alt else "") + zeile["volltext"].strip()
+    conn.execute(
+        "UPDATE szene SET fruehere_fassungen = ? WHERE id = ?", (neu, szene_id)
+    )
+    conn.commit()
+
+
+@_gesperrt
 def hole_letzte_szene(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | None:
     """Die zuletzt geaenderte Szene einer Gruppe, oder None (SPEC § 6.2 Block 5,
     dort woertlich als ``ORDER BY geaendert_am DESC LIMIT 1`` vorgegeben).

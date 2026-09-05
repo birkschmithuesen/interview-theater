@@ -83,6 +83,55 @@ ART_TEIL_WEITER = "teil_weiter"
 #: "Aufnahme beenden" (``befehle._befehl_aufnahme``), kein zweiter Weg.
 ART_TEIL_FERTIG = "teil_fertig"
 
+# --- Phase 6 · Szenen (05.09.2026) ----------------------------------------
+#
+# Die Knopf-Navigation durch Phase 6 und 7 (``szenenfolge.py``). Sie folgt
+# derselben Grundregel wie alles hier: ein Vorschlag steht als Text im Chat,
+# darunter haengen Knoepfe, und der Knopf traegt die Entscheidung selbst.
+# Freie Nachrichten wirken daneben unveraendert weiter -- die Knoepfe sind
+# ein Weg, kein Kaefig (AGENTS.md).
+
+#: Eintritt in Phase 6: "Ja, wir zuerst" · "Schlag du vor". Die Frage steht
+#: VOR dem ersten Vorschlag, weil eine Gruppe, die schon Ideen hat, sie sonst
+#: gegen eine fertige Liste verteidigen muss (Birk).
+ART_SZENEN_START = "szenen_start"
+#: Die Szenenfolge speichern -- ``wert`` ist "<weiter|anders>|<Vorschlagstext>".
+ART_SZENENFOLGE_SPEICHERN = "szenenfolge_speichern"
+#: "Anzahl aendern" oeffnet die vier Zahlknoepfe (kein Modellaufruf).
+ART_SZENENFOLGE_ANZAHL = "szenenfolge_anzahl"
+#: Eine gewaehlte Anzahl -- stoesst einen neuen Vorschlag an (im Thread).
+ART_SZENENFOLGE_ANZAHL_WERT = "szenenfolge_anzahl_wert"
+#: "Reihenfolge aendern" -- der Bot fragt, die naechste Nachricht wird
+#: eingebaut (``nimm_wunsch_auf``).
+ART_SZENENFOLGE_REIHENFOLGE = "szenenfolge_reihenfolge"
+#: Eine Szene vorstellen (deterministisch aus der Datenbank) samt Menue.
+ART_SZENE_ZEIGEN = "szene_zeigen"
+#: "Passt, schreiben" -- die Szene schreiben lassen, oder erst die fehlenden
+#: Felder vorschlagen, oder erst die USA-Frage stellen.
+ART_SZENE_SCHREIBEN = "szene_schreiben"
+#: "Anders planen" -- der Bot fragt, was; die naechste Nachricht wirkt.
+ART_SZENE_PLANEN = "szene_planen"
+#: "Form aendern" -- oeffnet ``biete_szenenform`` fuer diese Szene.
+ART_SZENE_FORM = "szene_form"
+#: "Ueberspringen" -- weiches Entfernen der Szene (N3).
+ART_SZENE_UEBERSPRINGEN = "szene_ueberspringen"
+#: Die vorgeschlagenen Felder EINER Szene speichern -- ``wert`` ist
+#: "<nummer>|<Vorschlagstext>".
+ART_SZENENFELDER_SPEICHERN = "szenenfelder_speichern"
+#: Die vier Knoepfe unter einem fertigen Szenentext.
+ART_SZENE_PASST = "szene_passt"
+ART_SZENE_ANDERS = "szene_anders"
+ART_SZENE_NEU = "szene_neu"
+ART_SZENE_NAECHSTE = "szene_naechste"
+#: Phase 7 · Durchlauf: eine Szene im Volltext zeigen, das Textbuch als Datei.
+ART_DURCHLAUF_SZENE = "durchlauf_szene"
+ART_TEXTBUCH = "textbuch"
+#: Die Grundleiste: "Eigene Idee" -- Tastatur weg, ein Satz, KEIN
+#: Modellaufruf. Der ``wert`` traegt die Art, damit die Leiste als Ganzes
+#: verfaellt.
+ART_EIGENE_IDEE = "eigene_idee"
+
+
 #: Trennzeichen im ``wert`` der Speicher-Leiste.
 TRENNER = "|"
 
@@ -172,6 +221,12 @@ _TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
 #: Arbeitsschritte zu weit.
 PHASE_INTERVIEWS = 3
 
+#: Die Phase, in der die Szenenfolge entsteht ("6 · Szenen"), und die des
+#: Durchlaufs ("7 · Durchlauf"). Als Konstanten und nicht als 6 und 7 im
+#: Code: eine achte Phase soll nichts brauchen ausser ``phasen.PHASEN``.
+PHASE_SZENEN = 6
+PHASE_DURCHLAUF = 7
+
 #: Hoechstens vier Formatvorschlaege (Phase 5). Mehr Knoepfe als
 #: Kernthema-Vorschlaege sind hier vertretbar, weil die Beschriftungen kurz
 #: sind ("Sprechtheater") und nicht wie ein Kernthema ganze Saetze werden.
@@ -199,6 +254,79 @@ _TEXT_USA_JA = (
     "Szene nochmal."
 )
 _TEXT_USA_NEIN = "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder."
+
+# --- Wortlaut der Phase-6/7-Knoepfe ---------------------------------------
+#
+# Alle Beschriftungen an einer Stelle: die Gruppe soll fuer dieselbe Sache nie
+# zwei Formulierungen lesen, und ein Test soll den Wortlaut pruefen koennen,
+# ohne ihn abzuschreiben. Keine Nummern in Phasenknoepfen -- "Weiter zu
+# Durchlauf", nicht "Weiter zu Phase 7" (Birk 05.09.2026): die Nummer ist
+# Buchhaltung, der Name ist die Sache.
+
+#: Die Grundleiste unter jedem Vorschlag (Phase 6). "Gefaellt uns, weiter"
+#: speichert, "Passt, aber anders" speichert AUCH -- und sagt, dass noch
+#: etwas kommt: eine Gruppe, die etwas aendern will, soll den Vorschlag nicht
+#: erst wegwerfen muessen. "Eigene Idee" nimmt die Tastatur ab und wartet.
+TEXT_WEITER_KNOPF = "Gefaellt uns, weiter"
+TEXT_ANDERS_KNOPF = "Passt, aber anders"
+TEXT_EIGENE_IDEE_KNOPF = "Eigene Idee"
+_TEXT_EIGENE_IDEE = "Sagt mir eure Idee, ich baue sie ein."
+
+#: Eintritt in Phase 6.
+TEXT_SZENEN_FRAGE = (
+    "Bevor ich vorschlage: habt ihr selbst schon Ideen, welche Szenen es "
+    "geben soll?"
+)
+TEXT_SZENEN_SELBST_KNOPF = "Ja, wir zuerst"
+TEXT_SZENEN_VORSCHLAG_KNOPF = "Schlag du vor"
+_TEXT_SZENEN_SELBST = (
+    "Gut, erzaehlt. Schreibt mir eure Szenen - Titel, was passiert, wer dabei "
+    "ist. Ich notiere mit."
+)
+
+#: Szenenfolge.
+TEXT_ANZAHL_KNOPF = "Anzahl aendern"
+TEXT_REIHENFOLGE_KNOPF = "Reihenfolge aendern"
+_TEXT_ANZAHL_FRAGE = "Wie viele Szenen sollen es sein?"
+_TEXT_REIHENFOLGE_FRAGE = (
+    "Sagt mir, wie die Reihenfolge sein soll - ich baue sie ein."
+)
+_TEXT_FOLGE_GESPEICHERT = "Notiert, {anzahl} Szenen:"
+_TEXT_FOLGE_LEER = (
+    "Aus dem Vorschlag konnte ich keine Szenen lesen. Sagt sie mir einfach."
+)
+
+#: Szene fuer Szene.
+TEXT_SZENE_SCHREIBEN_KNOPF = "Passt, schreiben"
+TEXT_SZENE_PLANEN_KNOPF = "Anders planen"
+TEXT_SZENE_FORM_KNOPF = "Form aendern"
+TEXT_SZENE_UEBERSPRINGEN_KNOPF = "Ueberspringen"
+_TEXT_SZENE_PLANEN_FRAGE = "Was soll an dieser Szene anders sein?"
+_TEXT_SZENE_UEBERSPRUNGEN = "Szene {nummer} ist raus."
+_TEXT_SZENE_UNBEKANNT = "Diese Szene kenne ich nicht mehr."
+
+#: Unter dem fertigen Szenentext.
+TEXT_PASST_KNOPF = "Passt"
+TEXT_NEU_KNOPF = "Neu schreiben"
+TEXT_NAECHSTE_KNOPF = "Naechste Szene"
+_TEXT_PASST = "Szene {nummer} steht."
+_TEXT_SZENE_ANDERS_FRAGE = (
+    "Was soll anders werden? Sagt es mir, dann schreibe ich sie neu."
+)
+_TEXT_KEINE_NAECHSTE = (
+    "Das war die letzte Szene. Wollt ihr sie durchgehen?"
+)
+
+#: Phase 7 · Durchlauf.
+TEXT_DURCHLAUF_SZENE_KNOPF = "Szene {nummer} ansehen"
+TEXT_TEXTBUCH_KNOPF = "Textbuch als Datei"
+_TEXT_TEXTBUCH_BESCHREIBUNG = "Euer Textbuch - alle Szenen in einer Datei."
+_TEXT_TEXTBUCH_FEHLER = (
+    "Die Datei ist nicht durchgekommen. Ich kann euch die Szenen auch einzeln "
+    "schicken."
+)
+_TEXT_SZENE_OHNE_TEXT = "Szene {nummer} ist noch nicht geschrieben."
+
 
 
 def _daten(knopf_id: int) -> str:
@@ -751,7 +879,574 @@ def biete_szene_usa(conn, tg, chat_id: int, text: str | None = None) -> None:
     tg.sende_mit_knoepfen(chat_id, text or _TEXT_USA_FRAGE_KNOEPFE, knoepfe)
 
 
+# --- Phase 6 · Szenen: Angebote -------------------------------------------
+
+
+def grundleiste(conn, chat_id: int, art: str, wert: str) -> list[tuple[str, str]]:
+    """Die drei Knoepfe, die unter JEDEM Vorschlag in Phase 6 stehen:
+    "Eigene Idee" · "Passt, aber anders" · "Gefaellt uns, weiter".
+
+    ``art`` ist die Knopf-Art, unter der gespeichert wird
+    (``ART_SZENENFOLGE_SPEICHERN``, ``ART_SZENENFELDER_SPEICHERN``), ``wert``
+    der Text, der beim Druck wirkt -- exakt der, der im Chat steht. Nichts
+    wird hier umformuliert (dieselbe Zusage wie in ``speicherleiste``).
+
+    "Gefaellt uns, weiter" und "Passt, aber anders" speichern BEIDE. Der
+    Unterschied steht im Praefix des Wertes und wirkt danach: "anders" nimmt
+    den Vorschlag an und fragt zugleich, was noch geaendert werden soll -- die
+    Gruppe soll einen brauchbaren Vorschlag nicht wegwerfen muessen, nur weil
+    ein Detail nicht stimmt (Birk, 05.09.2026)."""
+    return [
+        (
+            TEXT_EIGENE_IDEE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE_IDEE, art)),
+        ),
+        (
+            TEXT_ANDERS_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, art, f"anders{TRENNER}{wert}")),
+        ),
+        (
+            TEXT_WEITER_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, art, f"weiter{TRENNER}{wert}")),
+        ),
+    ]
+
+
+def _mit_leiste(conn, tg, chat_id: int, text: str, leiste: list[tuple[str, str]]) -> int:
+    """Schickt ``text`` mit ``leiste`` und merkt sich die Nachricht je Knopf --
+    damit eine spaetere Leiste die alte abnehmen kann
+    (``_nimm_alte_leiste_ab``)."""
+    message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
+    )
+    return message_id
+
+
+def biete_szenen_start(conn, tg, chat_id: int) -> int:
+    """Der Eintritt in Phase 6: erst fragen, dann vorschlagen.
+
+    Der Anlass (Birk, 05.09.2026): eine Gruppe, die schon Szenenideen im Kopf
+    hat, bekam als erstes eine fertige Sechserliste vom Bot und musste ihre
+    eigenen Ideen dagegen verteidigen. Die Reihenfolge entscheidet, wessen
+    Stueck es wird."""
+    leiste = [
+        (
+            TEXT_SZENEN_SELBST_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENEN_START, "selbst")),
+        ),
+        (
+            TEXT_SZENEN_VORSCHLAG_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENEN_START, "bot")),
+        ),
+    ]
+    return _mit_leiste(conn, tg, chat_id, TEXT_SZENEN_FRAGE, leiste)
+
+
+def sende_szenenfolge(conn, tg, chat_id: int, antwort: str) -> int:
+    """Der Szenenfolge-Vorschlag im Chat: der Text ohne Markerzeilen, darunter
+    "Anzahl aendern" · "Reihenfolge aendern" und die Grundleiste.
+
+    Ohne Marker (``vorschlag.lies``) gibt es KEINE Leiste -- kein Raten:
+    lieber ein Vorschlag ohne Knoepfe als Knoepfe, die den falschen Text
+    speichern (dieselbe Regel wie in ``sende_mit_speicherleiste``). Die Gruppe
+    kann dann immer noch frei antworten; das wirkt ohnehin immer."""
+    from interview_theater import vorschlag
+
+    sauber = vorschlag.ohne_marker(antwort) or antwort
+    wert = vorschlag.lies(antwort, "szenenfolge")
+    if not wert:
+        log.error("Szenenfolge-Vorschlag ohne Marker, chat_id=%s", chat_id)
+        return tg.sende(chat_id, sauber)
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENENFOLGE_SPEICHERN)
+    leiste = [
+        (
+            TEXT_ANZAHL_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFOLGE_ANZAHL, None)),
+        ),
+        (
+            TEXT_REIHENFOLGE_KNOPF,
+            _daten(
+                repo.lege_knopf_an(conn, chat_id, ART_SZENENFOLGE_REIHENFOLGE, None)
+            ),
+        ),
+    ] + grundleiste(conn, chat_id, ART_SZENENFOLGE_SPEICHERN, wert)
+    return _mit_leiste(conn, tg, chat_id, sauber, leiste)
+
+
+def sende_szenenfelder(conn, tg, chat_id: int, nummer: int, antwort: str) -> int:
+    """Der Feldvorschlag fuer EINE Szene, mit der Grundleiste darunter.
+
+    Der ``wert`` traegt die Szenennummer mit (\"3|form: Lied\\nort: ...\"):
+    zwischen Vorschlag und Druck kann die Gruppe laengst ueber eine andere
+    Szene reden, und ein Feldvorschlag, der in der falschen Szene landet, ist
+    schlimmer als keiner."""
+    from interview_theater import vorschlag
+
+    sauber = vorschlag.ohne_marker(antwort) or antwort
+    wert = vorschlag.lies(antwort, "szene")
+    if not wert:
+        log.error("Feldvorschlag ohne Marker, chat_id=%s", chat_id)
+        return tg.sende(chat_id, sauber)
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENENFELDER_SPEICHERN)
+    leiste = grundleiste(
+        conn, chat_id, ART_SZENENFELDER_SPEICHERN, f"{nummer}{TRENNER}{wert}"
+    )
+    return _mit_leiste(conn, tg, chat_id, sauber, leiste)
+
+
+def biete_szene(conn, tg, chat_id: int, zeile) -> int:
+    """Stellt EINE Szene vor und haengt ihr Menue darunter: "Passt,
+    schreiben" · "Anders planen" · "Form aendern" · "Ueberspringen" ·
+    "Eigene Idee".
+
+    Deterministisch aus der Datenbank (``szenenfolge.vorstellung``) -- kein
+    Modellaufruf. Das Menue kommt nach jeder Aenderung neu: jeder der Knoepfe,
+    der etwas an der Szene aendert, ruft am Ende wieder hierher zurueck."""
+    from interview_theater import szenenfolge
+
+    nummer = zeile["nummer"]
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_SCHREIBEN)
+    leiste = [
+        (
+            TEXT_SZENE_SCHREIBEN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_SCHREIBEN, str(nummer))),
+        ),
+        (
+            TEXT_SZENE_PLANEN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_PLANEN, str(nummer))),
+        ),
+        (
+            TEXT_SZENE_FORM_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_FORM, str(nummer))),
+        ),
+        (
+            TEXT_SZENE_UEBERSPRINGEN_KNOPF,
+            _daten(
+                repo.lege_knopf_an(conn, chat_id, ART_SZENE_UEBERSPRINGEN, str(nummer))
+            ),
+        ),
+        (
+            TEXT_EIGENE_IDEE_KNOPF,
+            _daten(
+                repo.lege_knopf_an(conn, chat_id, ART_EIGENE_IDEE, ART_SZENE_SCHREIBEN)
+            ),
+        ),
+    ]
+    return _mit_leiste(conn, tg, chat_id, szenenfolge.vorstellung(conn, zeile), leiste)
+
+
+def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int:
+    """Die vier Knoepfe unter einem frisch geschriebenen Szenentext: "Passt" ·
+    "Passt, aber anders" · "Neu schreiben" · "Naechste Szene".
+
+    Der Anlass (Birk, 05.09.2026): der Szenentext stand im Chat, und danach
+    passierte nichts -- die Gruppe wusste nicht, ob sie zustimmen, aendern
+    oder weitergehen soll, und der Bot wusste nicht, ob die Szene gilt.
+    Deshalb traegt "Passt" seit heute einen eigenen Stempel in der Datenbank
+    (``repo.setze_szene_fertig``) und nicht bloss das Vorhandensein eines
+    Textes.
+
+    Ist es die letzte Szene und sind alle fertig, steht statt "Naechste
+    Szene" der Weg weiter: "Weiter zu Durchlauf" -- ohne Nummer, wie jeder
+    Phasenknopf hier."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
+    leiste = [
+        (
+            TEXT_PASST_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_PASST, str(nummer))),
+        ),
+        (
+            TEXT_ANDERS_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_ANDERS, str(nummer))),
+        ),
+        (
+            TEXT_NEU_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_NEU, str(nummer))),
+        ),
+        (
+            TEXT_NAECHSTE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_NAECHSTE, str(nummer))),
+        ),
+    ]
+    return _mit_leiste(conn, tg, chat_id, text, leiste)
+
+
+def biete_durchlauf(conn, tg, chat_id: int) -> int:
+    """Der Eintritt in Phase 7: die Szenenfolge mit Status als Text, darunter
+    ein Knopf je Szene, "Textbuch als Datei" und "Eigene Idee".
+
+    Alles deterministisch aus der Datenbank. Der Durchlauf ist eine Ansicht
+    auf das, was die Gruppe gebaut hat -- kein Anlass, ein Modell zu fragen."""
+    from interview_theater import szenenfolge
+
+    leiste = []
+    for s in repo.hole_szenen(conn, chat_id):
+        if s["nummer"] is None:
+            continue
+        leiste.append(
+            (
+                TEXT_DURCHLAUF_SZENE_KNOPF.format(nummer=s["nummer"]),
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_DURCHLAUF_SZENE, str(s["nummer"])
+                    )
+                ),
+            )
+        )
+    leiste.append(
+        (
+            TEXT_TEXTBUCH_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_TEXTBUCH, None)),
+        )
+    )
+    leiste.append(
+        (
+            TEXT_EIGENE_IDEE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE_IDEE, ART_TEXTBUCH)),
+        )
+    )
+    return _mit_leiste(conn, tg, chat_id, szenenfolge.uebersicht(conn, chat_id), leiste)
+
+
+# --- Phase 6 · Szenen: Wirkungen ------------------------------------------
+
+
+def _szene_mit_nummer(conn, chat_id: int, nummer: int):
+    """Die (nicht entfernte) Szene mit dieser Nummer, oder None."""
+    return next(
+        (s for s in repo.hole_szenen(conn, chat_id) if s["nummer"] == nummer), None
+    )
+
+
+def _naechste_offene(conn, chat_id: int, nach: int):
+    """Die naechste Szene nach ``nach``, die noch nicht abgenommen ist -- oder
+    None, wenn keine mehr kommt.
+
+    Nicht einfach "die naechste": eine Gruppe, die Szene 2 ueberspringt und
+    spaeter zurueckkommt, soll nicht an ihr vorbeigeschickt werden."""
+    from interview_theater import szenenfolge
+
+    for s in repo.hole_szenen(conn, chat_id):
+        if s["nummer"] is not None and s["nummer"] > nach and not szenenfolge.ist_fertig(s):
+            return s
+    return None
+
+
+def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
+    """Legt aus dem Vorschlag die Szenen an und stellt die erste vor.
+
+    ``roh`` ist ``"<weiter|anders>|<Vorschlagstext>"``. Beide Wege speichern;
+    "anders" haengt danach die Frage an, was noch geaendert werden soll -- die
+    naechste freie Nachricht wirkt dann ganz normal ueber den Erkenner."""
+    from interview_theater import szenenfolge
+
+    modus, _, wert = roh.partition(TRENNER)
+    zeilen = szenenfolge.zerlege(wert)
+    if not zeilen:
+        log.error("Szenenfolge-Knopf ohne verwertbare Zeile, chat_id=%s", chat_id)
+        tg.sende(chat_id, _TEXT_FOLGE_LEER)
+        return _TEXT_FOLGE_LEER
+    nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden",
+        "Szenenfolge: " + "; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen)),
+        quelle="knopf",
+    )
+    tg.sende(chat_id, _TEXT_FOLGE_GESPEICHERT.format(anzahl=len(nummern)))
+    if modus.strip() == "anders":
+        tg.sende(chat_id, _TEXT_EIGENE_IDEE)
+    erste = _szene_mit_nummer(conn, chat_id, nummern[0])
+    if erste is not None:
+        biete_szene(conn, tg, chat_id, erste)
+    return f"{len(nummern)} Szenen uebernommen"
+
+
+def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
+    """Schreibt die vorgeschlagenen Felder in die Szene und stellt sie neu vor.
+
+    ``roh`` ist ``"<nummer>|<Vorschlagstext>"``; der Vorschlagstext ist
+    ``feld: Wert`` je Zeile. Gelesen wird ueber ``szene.feldname`` --
+    dieselben Aliase wie beim Befehl und beim Erkenner, kein zweites
+    Vokabular. Was der Code nicht kennt, wird uebergangen und geloggt: ein
+    unbekanntes Feld ist kein Grund, die uebrigen wegzuwerfen."""
+    from interview_theater import szene as szene_modul
+
+    roh_nummer, _, wert = roh.partition(TRENNER)
+    try:
+        nummer = int(roh_nummer)
+    except ValueError:
+        log.error("Feldvorschlag ohne Nummer, chat_id=%s, roh=%r", chat_id, roh)
+        return _TEXT_UNBEKANNT
+    szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
+    gesetzt = []
+    for zeile in wert.splitlines():
+        kopf, trenner, rest = zeile.partition(":")
+        feld = szene_modul.feldname(kopf)
+        if not trenner or not feld or not rest.strip():
+            continue
+        if feld == "figuren":
+            nach_name = {
+                f["name"].strip().lower(): f["id"] for f in repo.figuren(conn, chat_id)
+            }
+            ids = [
+                nach_name[n.strip().lower()]
+                for n in rest.split(",")
+                if n.strip().lower() in nach_name
+            ]
+            if ids:
+                repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+                gesetzt.append(feld)
+            continue
+        repo.setze_szenenfeld(conn, szene_id, feld, rest.strip())
+        gesetzt.append(feld)
+    if not gesetzt:
+        log.error("Feldvorschlag ohne verwertbares Feld, chat_id=%s", chat_id)
+        return _TEXT_UNBEKANNT
+    biete_szene(conn, tg, chat_id, repo.hole_szene(conn, szene_id))
+    return f"Szene {nummer}: {', '.join(gesetzt)}"
+
+
+def _schreibe_szene(conn, tg, klm, e, chat_id: int, nummer: int,
+                    notiz: str | None = None) -> str:
+    """"Passt, schreiben" -- mit den drei Ausgaengen, die es hier gibt:
+
+    1. Es fehlen Pflichtfelder der Szene -> **kein** Sperrtext, sondern ein
+       Vorschlag der fehlenden Felder aus dem Material
+       (``szenenfolge.starte_feldvorschlag``), mit Grundleiste darunter. Der
+       Sperrtext bleibt der richtige Weg beim direkten Schreibauftrag
+       (``/szene``), aber wer eine Szene vor Augen hat und "schreiben" tippt,
+       soll nicht eine Liste von Luecken bekommen.
+    2. Die USA-Einwilligung steht noch aus -> ``szene.starte`` stellt die
+       Frage samt Knoepfen und merkt sich den Auftrag; nach der Antwort
+       laeuft er automatisch weiter (``erkenner._starte_szene``). Genau das
+       Verhalten von heute, nur eingebettet.
+    3. Sonst laeuft der Szenenlauf im eigenen Thread -- kein Modellaufruf in
+       diesem Handler (Zusage 2)."""
+    from interview_theater import szene as szene_modul, szenenfolge
+
+    ziel = _szene_mit_nummer(conn, chat_id, nummer)
+    if ziel is None:
+        tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
+        return _TEXT_SZENE_UNBEKANNT
+    fehlende, _ = szene_modul.fehlendes(conn, ziel)
+    eigene = [
+        f for f in fehlende if f not in szene_modul.ARBEITSSTAND_PFLICHTFELDER
+    ]
+    if eigene:
+        if szenenfolge.starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel) is not None:
+            return "Ich schlage die fehlenden Angaben vor"
+    auftrag = f"Schreib Szene {nummer}."
+    if notiz and notiz.strip():
+        auftrag += f" {notiz.strip()}"
+    szene_modul.starte(conn, tg, klm, e, chat_id, auftrag)
+    return f"Szene {nummer} laeuft"
+
+
+def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
+    """Die Wirkungen der Phase-6- und Phase-7-Knoepfe. Liefert None, wenn die
+    Art nicht hierher gehoert -- ``_wirke`` macht dann weiter.
+
+    Ausgelagert, weil ``_wirke`` sonst auf ueber vierhundert Zeilen anwuechse
+    und die eine Regel, um die es geht ("kein Modellaufruf im Handler"), im
+    Rauschen unterginge."""
+    from interview_theater import szenenfolge
+
+    art = knopf["art"]
+    wert = str(knopf["wert"] or "")
+
+    if art == ART_EIGENE_IDEE:
+        # Kein Modellaufruf, keine Schreibwirkung -- ein Satz. Die naechste
+        # freie Nachricht wirkt ohnehin (Erkenner, Gespraechszug); der Knopf
+        # nimmt nur die Tastatur ab und sagt, dass zugehoert wird.
+        tg.sende(chat_id, _TEXT_EIGENE_IDEE)
+        return "Erzaehlt"
+
+    if art == ART_SZENEN_START:
+        if wert == "selbst":
+            tg.sende(chat_id, _TEXT_SZENEN_SELBST)
+            return "Ihr zuerst"
+        szenenfolge.starte(conn, tg, klm, e, chat_id)
+        return "Ich schlage vor"
+
+    if art == ART_SZENENFOLGE_SPEICHERN:
+        return _speichere_szenenfolge(conn, tg, klm, e, chat_id, wert)
+
+    if art == ART_SZENENFOLGE_ANZAHL:
+        # Nur die Zahlenknoepfe oeffnen -- der Vorschlag entsteht erst beim
+        # Druck auf eine Zahl, und der laeuft im Thread.
+        leiste = [
+            (
+                str(zahl),
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_SZENENFOLGE_ANZAHL_WERT, str(zahl)
+                    )
+                ),
+            )
+            for zahl in szenenfolge.ANZAHL_MOEGLICH
+        ]
+        _mit_leiste(conn, tg, chat_id, _TEXT_ANZAHL_FRAGE, leiste)
+        return "Wie viele?"
+
+    if art == ART_SZENENFOLGE_ANZAHL_WERT:
+        szenenfolge.starte(conn, tg, klm, e, chat_id, anzahl=int(wert))
+        return f"{wert} Szenen"
+
+    if art == ART_SZENENFOLGE_REIHENFOLGE:
+        # Der Bot fragt; die naechste Nachricht wirkt ueber den normalen
+        # Gespraechszug, der den Vorschlag neu baut. Kein Modellaufruf hier.
+        tg.sende(chat_id, _TEXT_REIHENFOLGE_FRAGE)
+        return "Sagt mir die Reihenfolge"
+
+    if art == ART_SZENE_ZEIGEN:
+        ziel = _szene_mit_nummer(conn, chat_id, int(wert))
+        if ziel is None:
+            tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
+            return _TEXT_SZENE_UNBEKANNT
+        biete_szene(conn, tg, chat_id, ziel)
+        return f"Szene {wert}"
+
+    if art == ART_SZENE_SCHREIBEN:
+        return _schreibe_szene(conn, tg, klm, e, chat_id, int(wert))
+
+    if art == ART_SZENE_PLANEN:
+        # Wie "Nochmal anders": ein Satz, kein Modellaufruf. Was die Gruppe
+        # danach sagt, laeuft ueber den Erkenner (art szene_planen) oder den
+        # Gespraechszug -- beide Wege setzen die Felder und stellen die Szene
+        # neu vor.
+        tg.sende(chat_id, _TEXT_SZENE_PLANEN_FRAGE)
+        return "Was soll anders sein?"
+
+    if art == ART_SZENE_FORM:
+        biete_szenenform(conn, tg, chat_id, int(wert))
+        return "Welche Form?"
+
+    if art == ART_SZENE_UEBERSPRINGEN:
+        nummer = int(wert)
+        # Weich (N3): die Szene ist raus, aber nichts ist weg -- eine Gruppe,
+        # die es sich anders ueberlegt, hat sie noch.
+        entfernt = repo.entferne_szene(conn, chat_id, nummer)
+        if entfernt is None:
+            tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
+            return _TEXT_SZENE_UNBEKANNT
+        tg.sende(chat_id, _TEXT_SZENE_UEBERSPRUNGEN.format(nummer=nummer))
+        naechste = _naechste_offene(conn, chat_id, nummer)
+        if naechste is not None:
+            biete_szene(conn, tg, chat_id, naechste)
+        return f"Szene {nummer} raus"
+
+    if art == ART_SZENENFELDER_SPEICHERN:
+        modus, _, rest = wert.partition(TRENNER)
+        meldung = _speichere_szenenfelder(conn, tg, chat_id, rest)
+        if modus.strip() == "anders":
+            tg.sende(chat_id, _TEXT_EIGENE_IDEE)
+        return meldung
+
+    if art == ART_SZENE_PASST:
+        nummer = int(wert)
+        ziel = _szene_mit_nummer(conn, chat_id, nummer)
+        if ziel is None:
+            tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
+            return _TEXT_SZENE_UNBEKANNT
+        repo.setze_szene_fertig(conn, ziel["id"], True)
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            f"Szene {nummer} abgenommen: {ziel['titel'] or ''}".strip(),
+            quelle="knopf",
+        )
+        tg.sende(chat_id, _TEXT_PASST.format(nummer=nummer))
+        _biete_weiter_nach_szene(conn, tg, chat_id, nummer)
+        return f"Szene {nummer} steht"
+
+    if art == ART_SZENE_ANDERS:
+        # Der Regie-Vermerk kommt als naechste Nachricht; ``ablauf.antworte``
+        # greift ihn auf (``szenenfolge.nimm_regienotiz``) und schreibt die
+        # Szene damit neu. Kein Modellaufruf hier.
+        szenenfolge.erwarte_regienotiz(chat_id, int(wert))
+        tg.sende(chat_id, _TEXT_SZENE_ANDERS_FRAGE)
+        return "Was soll anders werden?"
+
+    if art == ART_SZENE_NEU:
+        nummer = int(wert)
+        ziel = _szene_mit_nummer(conn, chat_id, nummer)
+        if ziel is None:
+            tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
+            return _TEXT_SZENE_UNBEKANNT
+        # Die alte Fassung bleibt in der Datenbank (N3-Haltung: nichts wird
+        # weggeworfen), der Fertig-Stempel faellt: ein neuer Text ist wieder
+        # ein Entwurf.
+        repo.hebe_fassung_auf(conn, ziel["id"])
+        repo.setze_szene_fertig(conn, ziel["id"], False)
+        return _schreibe_szene(conn, tg, klm, e, chat_id, nummer)
+
+    if art == ART_SZENE_NAECHSTE:
+        naechste = _naechste_offene(conn, chat_id, int(wert))
+        if naechste is None:
+            _biete_weiter_nach_szene(conn, tg, chat_id, int(wert))
+            return "Das war die letzte"
+        biete_szene(conn, tg, chat_id, naechste)
+        return f"Szene {naechste['nummer']}"
+
+    if art == ART_DURCHLAUF_SZENE:
+        nummer = int(wert)
+        ziel = _szene_mit_nummer(conn, chat_id, nummer)
+        if ziel is None:
+            tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
+            return _TEXT_SZENE_UNBEKANNT
+        volltext = (ziel["volltext"] or "").strip()
+        if not volltext:
+            tg.sende(chat_id, _TEXT_SZENE_OHNE_TEXT.format(nummer=nummer))
+            return _TEXT_SZENE_OHNE_TEXT.format(nummer=nummer)
+        # Der Volltext geht ungekuerzt raus -- lange Texte teilt der
+        # Telegram-Wrapper selbst (``telegram.teile_text``).
+        kopf = f"Szene {nummer}"
+        if ziel["titel"]:
+            kopf += f": {ziel['titel']}"
+        tg.sende(chat_id, f"{kopf}\n\n{volltext}")
+        return f"Szene {nummer}"
+
+    if art == ART_TEXTBUCH:
+        text = szenenfolge.textbuch(conn, chat_id)
+        try:
+            tg.sende_datei(
+                chat_id, szenenfolge.dateiname(chat_id), text,
+                _TEXT_TEXTBUCH_BESCHREIBUNG,
+            )
+        except Exception:
+            # Scheitert sendDocument (alte Telegram-Attrappe, Rechte in der
+            # Gruppe), soll die Gruppe nicht ratlos dastehen: eine Zeile, und
+            # die Szenen sind ueber "Szene N ansehen" weiter erreichbar.
+            log.exception("Textbuch-Datei fehlgeschlagen, chat_id=%s", chat_id)
+            tg.sende(chat_id, _TEXT_TEXTBUCH_FEHLER)
+            return _TEXT_TEXTBUCH_FEHLER
+        return "Textbuch"
+
+    return None
+
+
+def _biete_weiter_nach_szene(conn, tg, chat_id: int, nummer: int) -> None:
+    """Nach einer abgenommenen Szene: entweder die naechste offene, oder --
+    wenn keine mehr kommt -- "Weiter zu Durchlauf".
+
+    Der Phasenknopf entsteht ueber ``_phasenknopf``, also nur, wenn die
+    Materiallage Phase 7 ueberhaupt hergibt (``phasen.voraussetzungen``:
+    mindestens eine geschriebene Szene). Er heisst "Weiter zu 7 · Durchlauf"
+    wie jeder Phasenknopf -- eine zweite Schreibweise waere eine zweite Sache
+    zu lernen."""
+    naechste = _naechste_offene(conn, chat_id, nummer)
+    if naechste is not None:
+        biete_szene(conn, tg, chat_id, naechste)
+        return
+    phasenknopf = _phasenknopf(conn, chat_id)
+    if phasenknopf is not None:
+        _mit_leiste(conn, tg, chat_id, _TEXT_KEINE_NAECHSTE, [phasenknopf])
+    else:
+        tg.sende(chat_id, _TEXT_KEINE_NAECHSTE)
+
+
 # --- Verarbeitung ---------------------------------------------------------
+
 
 
 def _speichere(conn, tg, chat_id: int, roh: str) -> str:
@@ -867,6 +1562,9 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
     die Idempotenz haengt an dieser einen Bedingung und nicht daran, dass
     jede Wirkung fuer sich wiederholbar waere."""
     art = knopf["art"]
+    meldung = _wirke_phase6(conn, tg, klm, e, knopf, chat_id)
+    if meldung is not None:
+        return meldung
     if art == ART_SPEICHERN:
         return _speichere(conn, tg, chat_id, str(knopf["wert"] or ""))
     if art == ART_ANDERS:
@@ -923,6 +1621,18 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         nummer = int(knopf["wert"])
         if phasen.setze(conn, chat_id, nummer, "knopf"):
             tg.sende(chat_id, phasen.meldung(nummer))
+            # Die Phase 6 und 7 fangen mit einem Angebot an, nicht mit einer
+            # leeren Buehne (05.09.2026): 6 fragt zuerst, ob die Gruppe schon
+            # eigene Szenenideen hat; 7 zeigt die Szenenfolge mit Status samt
+            # Knopf je Szene. Beides deterministisch -- kein Modellaufruf in
+            # diesem Handler (Zusage 2).
+            try:
+                if nummer == PHASE_SZENEN:
+                    biete_szenen_start(conn, tg, chat_id)
+                elif nummer == PHASE_DURCHLAUF:
+                    biete_durchlauf(conn, tg, chat_id)
+            except Exception:
+                log.exception("Phaseneinstieg fehlgeschlagen, chat_id=%s", chat_id)
         return f"Phase {nummer}"
     if art == ART_AUSWERTEN:
         # Zwei Faelle, beide deterministisch und ohne Modellaufruf in DIESEM

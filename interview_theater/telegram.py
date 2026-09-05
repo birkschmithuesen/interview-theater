@@ -162,6 +162,37 @@ class Telegram:
             antwort.raise_for_status()
             return antwort.json()["result"]["message_id"]
 
+    def sende_datei(
+        self, chat_id: int, dateiname: str, inhalt: bytes | str,
+        beschreibung: str = "",
+    ) -> int:
+        """Schickt eine Datei (sendDocument) -- gebraucht fuer den
+        Textbuch-Export in Phase 7 (``szenenfolge.textbuch``).
+
+        Warum eine Datei und nicht Nachrichten: ein Textbuch aus sechs Szenen
+        sind leicht 30.000 Zeichen. Als Nachricht waeren das acht Stuecke
+        (``teile_text``), die im Chat nicht mehr auffindbar sind und beim
+        naechsten Scrollen verschwinden. Eine Datei laesst sich weiterreichen,
+        ausdrucken und auf die Probe mitnehmen.
+
+        ``inhalt`` als Text oder Bytes -- der Aufrufer soll sich nicht um die
+        Kodierung kuemmern muessen (UTF-8, wie alles hier). Liefert die
+        message_id der Dateinachricht."""
+        daten = inhalt.encode("utf-8") if isinstance(inhalt, str) else inhalt
+        felder = {"chat_id": str(chat_id)}
+        if beschreibung:
+            # Telegram begrenzt die Bildunterschrift auf 1024 Zeichen; laenger
+            # antwortet die API mit HTTP 400, und die Datei kaeme nie an.
+            felder["caption"] = beschreibung[:1024]
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("sendDocument"),
+                data=felder,
+                files={"document": (dateiname, daten, "text/markdown")},
+            )
+            antwort.raise_for_status()
+            return antwort.json()["result"]["message_id"]
+
     def beantworte_knopf(self, callback_query_id: str, text: str = "") -> None:
         """answerCallbackQuery -- Telegram erwartet das auf JEDEN Knopfdruck.
 

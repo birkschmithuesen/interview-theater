@@ -53,6 +53,23 @@ ARTEN = (
     "begriffe", "fragen", "kernthema", "kernfrage", "figuren",
     "richtungen", "namen", "duktus", "rahmen",
     "szenenfolge", "szene",
+    # Phase 5 seit dem Umbau vom 05.09.2026 nachts: der Bogen in Zeile 1,
+    # das Ende in Zeile 2, danach je Szene eine Zeile. Ein Marker fuer
+    # beides, weil es EINE Entscheidung ist -- die Geschichte und ihre
+    # Szenenfolge trennt die Gruppe nicht.
+    "geschichte",
+    # Die Verfeinerungsebene der Fragen (Phase 2, 06.09.2026, Birk): NACH dem
+    # Festlegen der Frageliste prueft der Bot sie auf sensible Themen und
+    # schlaegt je heikler Frage eine Einleitung vor (``einleitungen``),
+    # danach den Eroeffnungs- und Abschlusstext (``eroeffnung``). Beide
+    # laufen ueber die Grundleiste wie jeder andere Vorschlag -- es gibt
+    # einen Weg, einen Vorschlag abzunehmen, nicht drei.
+    "einleitungen", "eroeffnung",
+    # Die Mehrfachauswahl der Phase 2 (06.09.2026, Birk): zehn Fragen zur
+    # Wahl, aus denen die Gruppe genau drei antippt. Eigener Marker und
+    # nicht ``fragen``, weil ein FRAGENAUSWAHL-Block nichts speichert --
+    # er wird zu zehn Knoepfen (``knoepfe.biete_fragenauswahl``).
+    "fragenauswahl",
 )
 
 #: Die Markerzeile. Grossbuchstaben, weil sie im Fliesstext nicht vorkommt
@@ -62,8 +79,9 @@ MARKER = "VORSCHLAG {art}:"
 
 _ZEILE = re.compile(
     r"^\s*VORSCHLAG\s+"
-    r"(BEGRIFFE|FRAGEN|KERNTHEMA|KERNFRAGE|FIGUREN|RICHTUNGEN|NAMEN|DUKTUS|RAHMEN"
-    r"|SZENENFOLGE|SZENE)"
+    r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN|KERNTHEMA|KERNFRAGE|FIGUREN|RICHTUNGEN"
+    r"|NAMEN|DUKTUS|RAHMEN"
+    r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG)"
     r"\s*:\s*(.*)$",
     re.IGNORECASE,
 )
@@ -147,6 +165,36 @@ def ohne_marker(text: str) -> str:
     dabei entstehen koennen, werden eingedampft."""
     zeilen = [z for z in (text or "").splitlines() if _ZEILE.match(z) is None]
     zusammen = "\n".join(zeilen)
+    return re.sub(r"\n{3,}", "\n\n", zusammen).strip()
+
+
+def ohne_block(text: str, art: str) -> str:
+    """Der Antworttext ohne den Block dieser Art -- Markerzeile UND Inhalt.
+
+    Der Gegensatz zu ``ohne_marker``, und er hat genau einen Anlass
+    (06.09.2026): ``VORSCHLAG FRAGENAUSWAHL:`` wird zu zehn Knoepfen, und die
+    Fragen stehen dann auf den Knoepfen. Blieben sie zusaetzlich im Text,
+    laese die Gruppe dieselben zehn Zeilen zweimal untereinander -- auf einem
+    Telefon ist das eine halbe Bildschirmseite Doppelung.
+
+    Ueberall sonst gilt weiter ``ohne_marker``: der Vorschlag ist das,
+    worueber die Gruppe entscheidet, und er muss lesbar dastehen.
+    """
+    zeilen = (text or "").splitlines()
+    ergebnis: list[str] = []
+    i = 0
+    while i < len(zeilen):
+        treffer = _ZEILE.match(zeilen[i])
+        if treffer is not None and treffer.group(1).lower() == art.lower():
+            i += 1
+            while i < len(zeilen):
+                if not zeilen[i].strip() or _ZEILE.match(zeilen[i]):
+                    break
+                i += 1
+            continue
+        ergebnis.append(zeilen[i])
+        i += 1
+    zusammen = "\n".join(z for z in ergebnis if _ZEILE.match(z) is None)
     return re.sub(r"\n{3,}", "\n\n", zusammen).strip()
 
 

@@ -21,7 +21,7 @@ die zuletzt geaenderte Szene im Volltext als eigener Block 5 -- beide
 datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from interview_theater import phasen, repo
 
@@ -236,6 +236,12 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
     if not stand:
         return ""
     zeilen: list[str] = []
+    # Die Geschichte steht vorn: sie hat die Rolle uebernommen, die bis zum
+    # Umbau vom 05.09.2026 nachts das Kernthema hatte -- der Bogen, an dem
+    # alles haengt. Das Kernthema bleibt darunter stehen, solange eine alte
+    # Gruppe eines gesetzt hat (rueckwaertskompatibel).
+    if "geschichte" in stand.keys() and stand["geschichte"]:
+        zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
     if stand["kernthema"]:
         zeile = f"Kernthema: {stand['kernthema']}"
         if stand["kernthema_begruendung"]:
@@ -244,7 +250,7 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
     if stand["kernfrage"]:
         zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
     if stand["rahmen"]:
-        zeilen.append(f"Rahmen: {stand['rahmen']}")
+        zeilen.append(f"Setting (Rahmen): {stand['rahmen']}")
 
     themen = repo.kernthemen_themen(conn, chat_id)
     if themen:
@@ -277,38 +283,72 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
             block.append(f"- {kopf}")
             if figur["sprachprofil"]:
                 block.append(f"    Sprachduktus: {figur['sprachprofil'].strip()}")
+            for eintrag in repo.schaerfungen(conn, chat_id, figur_id=figur["id"]):
+                name = interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
+                block.append(
+                    f'    Aus {name}: {eintrag["thema"]} -- "{eintrag["zitat"]}"'
+                )
         zeilen.append("\n".join(block))
+
+    # Die Schaerfungen je Szene (Phase 6): jede Szene mit den Stellen, die
+    # ihr zugeordnet wurden. Datengetrieben wie alles -- ohne Zuordnung kein
+    # Block.
+    szenenbloecke: list[str] = []
+    for szene in repo.hole_szenen(conn, chat_id):
+        eintraege = repo.schaerfungen(conn, chat_id, szene_id=szene["id"])
+        if not eintraege:
+            continue
+        block = [szenenzeile(szene)]
+        for eintrag in eintraege:
+            name = interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
+            zeile = f'  - {name}: {eintrag["thema"]} -- "{eintrag["zitat"]}"'
+            if eintrag["begruendung"]:
+                zeile += f" ({eintrag['begruendung']})"
+            block.append(zeile)
+        szenenbloecke.append("\n".join(block))
+    if szenenbloecke:
+        zeilen.append(
+            "Geschaerft am Material, je Szene:\n" + "\n".join(szenenbloecke)
+        )
 
     if not zeilen:
         return ""
     return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
 
 
-#: Ab dieser Phase arbeitet der Bot aus dem Kernpaket statt aus dem Material.
-#: Innerhalb von Phase 4 entscheidet zusaetzlich die Kernfrage: solange sie
-#: fehlt, wird noch AM Material gearbeitet (das Kernthema entsteht ja
-#: daraus), sobald sie steht, ist gefiltert.
-PHASE_KERNPAKET = 4
+#: Die beiden Erfindungsphasen (Umbau 05.09.2026 nachts): 4 Setting & Figuren
+#: und 5 Geschichte. Dort sieht der Bot **kein** Material -- keine
+#: Verdichtungen, keine Transkripte, kein Kernpaket. Vorschlaege kommen
+#: ausschliesslich aus Begriffen, Fragen und dem, was die Gruppe schon
+#: festgelegt hat.
+PHASEN_ERFINDEN = (4, 5)
+
+#: Ab dieser Phase arbeitet der Bot aus dem Kernpaket (mit den Schaerfungen).
+PHASE_KERNPAKET = 6
 
 
 def material_erlaubt(conn, chat_id: int) -> bool:
     """Duerfen Verdichtungen und Transkripte in den Prompt?
 
-    Ja bis einschliesslich Phase 3 und in Phase 4, solange die Kernfrage noch
-    fehlt -- dort entsteht das Kernthema aus dem Material, und ohne Material
-    entstuende es aus nichts. Nein ab der gesetzten Kernfrage und in allen
-    spaeteren Phasen: dann traegt das Kernpaket.
+    Ja bis einschliesslich Phase 3: dort wird aufgenommen und ausgewertet,
+    und die Verdichtung gehoert in den Chat. **Nein in 4 und 5** -- das ist
+    der Kern des Umbaus vom 05.09.2026 nachts: Setting, Figuren und
+    Geschichte erfindet die Gruppe frei, und ein Bot, der dabei alle
+    Interviews vor sich hat, schlaegt nichts anderes vor als die Interviews.
+    Nein auch ab 6, aber aus dem alten Grund: dort traegt das Kernpaket.
 
-    Eine reine Leseabfrage aus zwei Feldern, kein gespeicherter Zustand --
-    nimmt die Gruppe die Kernfrage zurueck, ist das Material wieder da."""
-    phase = phasen.aktuelle(conn, chat_id)
-    if phase < PHASE_KERNPAKET:
-        return True
-    stand = repo.hole_arbeitsstand(conn, chat_id)
-    kernfrage = (stand["kernfrage"] if stand else "") or ""
-    if phase == PHASE_KERNPAKET and not kernfrage.strip():
-        return True
-    return False
+    Eine reine Leseabfrage aus einem Feld, kein gespeicherter Zustand --
+    geht die Gruppe zurueck nach 3, ist das Material wieder da."""
+    return phasen.aktuelle(conn, chat_id) < min(PHASEN_ERFINDEN)
+
+
+def kernpaket_erlaubt(conn, chat_id: int) -> bool:
+    """Darf das Kernpaket in den Prompt? Erst ab der Schaerfung (Phase 6).
+
+    In 4 und 5 waere es dasselbe Leck wie die Verdichtungen: das Kernpaket
+    traegt Zitate und gefilterte Verdichtungen, und genau die sollen dort
+    nicht auf dem Tisch liegen."""
+    return phasen.aktuelle(conn, chat_id) >= PHASE_KERNPAKET
 
 
 def szenenzeile(s) -> str:
@@ -351,6 +391,9 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
             zeilen.append(zeile)
         if stand["kernfrage"]:
             zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
+        # Die Geschichte im Groben (Phase 5): Bogen und Ende.
+        if "geschichte" in stand.keys() and stand["geschichte"]:
+            zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
         # Der Rahmen (Phase 5, seit 05.09.2026). Datengetrieben wie alles
         # andere: der Hauptkonflikt steht nur da, wenn die Gruppe einen wollte
         # -- er ist eine Rahmen-Entscheidung, keine Pflicht. Ein "Format" des
@@ -420,21 +463,14 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
 #: Figur aus wessen Erzaehlung spricht, kann kein Namensvergleich
 #: beantworten.
 _FIGURENHINWEIS = (
-    "Diesen Figuren fehlt noch das Interview, aus dem sie spricht: "
-    "{namen}. Bring das im Fluss zur Sprache -- ein Satz, mit einem Vorschlag "
-    "und einem woertlichen Zitat als Beleg, in der Form: '<Figurenname> "
-    "koennte wie <Interviewname> sprechen -- <Zitat aus dem Interview> -- "
-    "passt das?' Nimm dabei GENAU die Figurennamen aus der Liste oben und "
-    "die Interviewnamen aus den Verdichtungen; nenne keine anderen Namen "
-    "(gemessen 05.09.: der Bot sagte dreimal 'Pola', die Gruppe hatte keine "
-    "Pola). Ohne diese Zuordnung klingen in einer Szene alle Figuren gleich; "
-    "mit ihr bekommt jede ihre eigene Sprechweise. Frag nach, entscheide "
-    "nicht. Sagt die Gruppe, eine Figur sei frei erfunden und habe kein "
-    "Interview, ist das eine Antwort: dann frag fuer diese Figur nicht mehr. "
-    "Gibt es weniger Interviews als Figuren, darf ein Interview mehrere "
-    "Figuren speisen -- schlag das vor ('Pal und Pola koennten beide aus "
-    "Interview 1 sprechen, jede nimmt sich einen anderen Teil'), die Gruppe "
-    "entscheidet."
+    "Diesen Figuren fehlt noch das Interview, aus dem sie spricht: {namen}. "
+    "Wenn es passt, EIN Satz dazu, hoechstens: '<Figurenname> koennte wie "
+    "<Interviewname> sprechen -- passt das?' Kein Zitat, keine Begruendung, "
+    "keine Erklaerung, wozu die Zuordnung gut ist, und nichts wiederholen, "
+    "was schon gesagt oder notiert wurde (Birk, 05.09. abends: die Zuordnung "
+    "war zu langatmig). Nur Figurennamen aus der Liste oben und Interviewnamen "
+    "aus den Verdichtungen. Sagt die Gruppe, eine Figur sei frei erfunden, "
+    "frag fuer sie nicht mehr. Ein Interview darf mehrere Figuren speisen."
 )
 
 
@@ -451,6 +487,11 @@ def _baue_figurenhinweis(conn, chat_id: int) -> str:
     Nur, wenn es ueberhaupt ein Interview gibt: ohne Material ist die Frage
     unbeantwortbar, und der Bot soll nicht nach etwas fragen, das die Gruppe
     noch gar nicht aufgenommen hat."""
+    # Und erst ab der Schaerfung (Phase 6): in 4 und 5 wird erfunden, die
+    # Frage nach dem Interview einer Figur waere dort genau die Ruecklenkung
+    # aufs Material, die der Umbau vermeiden soll.
+    if not kernpaket_erlaubt(conn, chat_id):
+        return ""
     ohne = [f["name"] for f in repo.figuren(conn, chat_id) if f["quelle_aufnahme_id"] is None]
     if not ohne:
         return ""
@@ -484,28 +525,99 @@ def _baue_journal(conn, chat_id: int) -> str:
 #: Obergrenze fuer den Nachrichtenpool, aus dem das Fenster gebaut wird --
 #: eine reine Performance-Vorkehrung (niemand soll fuer jeden Zug den
 #: gesamten Zweitagesverlauf aus der DB laden), kein Budget im Sinne von
-#: BUDGETS["fenster"]. Die eigentliche Groessenbegrenzung des Fensters
-#: leistet allein die Kuerzung in baue().
+#: BUDGETS["fenster"].
 _FENSTER_POOL = 1000
+
+#: Wie viele Nachrichten hoechstens ins Fenster kommen (06.09.2026, Birk,
+#: gemessen an der Testgruppe um 00:33: der Nutzertext hatte **52 000
+#: Zeichen**, und darin standen 700 Zeilen bis in den Vormittag zurueck).
+#:
+#: Zwanzig ist die Zahl, die eine laufende Arbeitsphase abdeckt, ohne den
+#: Vormittag mitzuschleppen. Alles Aeltere, das wirklich zaehlt, steht
+#: ohnehin strukturiert im Prompt: Arbeitsstand, Journal, Figuren,
+#: Verdichtungen. Das Fenster ist fuer den Ton und den letzten Faden da,
+#: nicht als Archiv.
+FENSTER_NACHRICHTEN = 20
+
+#: Und zeitlich: was laenger als das her ist, gehoert nicht mehr zur
+#: laufenden Unterhaltung. Es gilt die KLEINERE der beiden Grenzen.
+#:
+#: Der Anlass ist gemessen (05.09.2026, 21:50): weil der Vormittag mit im
+#: Fenster stand -- und wegen der falschen Sortierung sogar OBEN --, hielt
+#: das Modell ihn fuer die Gegenwart und antwortete in Phase 6 mit "Das ist
+#: Tag 1 und wir stehen erst am Anfang. Also: Rassismus, Liebe, Spaß,
+#: Streit."
+FENSTER_MINUTEN = 30
+
+#: Systemzeilen, die nicht ins Fenster gehoeren (06.09.2026). Sie sind
+#: Ereignisse, keine Gespraechsbeitraege: was sie festhalten, steht im
+#: Journal und im Arbeitsstand, und im Fenster stiften sie nur Verwirrung --
+#: am Testabend stand "Bin wieder da" zweimal darin, und das Modell erzaehlte
+#: die Notiert-Zeilen nach, statt weiterzuarbeiten.
+_SYSTEMANFAENGE = (
+    "Bin wieder da.",
+    "Notiert:",
+    "Aufnahme laeuft.",
+    "Aufnahme beendet.",
+    "Bereit -",
+    "Hinweis: Den Szenentext",
+    "Ich schreibe die Szene aus",
+    "Ich schreibe gerade noch",
+    "Ich werte die offenen Interviews aus",
+    "Entfernt:",
+)
+
+
+def _ist_systemzeile(n) -> bool:
+    """Ist diese Bot-Nachricht eine Systemmeldung und kein Gespraechsbeitrag?
+
+    Nur Bot-Nachrichten: eine Gruppe, die zufaellig "Notiert:" tippt, sagt
+    damit etwas -- und was die Gruppe sagt, faellt hier nie weg."""
+    if not n["ist_bot"]:
+        return False
+    text = (n["text"] or "").lstrip()
+    return any(text.startswith(anfang) for anfang in _SYSTEMANFAENGE)
 
 
 def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
     """Liefert die Eintraege des kurzen Fensters (Nachrichtenzeilen und
-    Pausenmarkierungen), aeltester zuerst -- ungekuerzt, ohne eigenes
-    Budget. Ein sehr langer Gespraechsverlauf kann dadurch allein schon das
-    Gesamtziel ZIEL reissen; genau das soll die Kuerzung in baue() abfangen,
-    nicht ein zweites, verstecktes Limit hier.
+    Pausenmarkierungen), **aeltester zuerst** -- die letzten
+    ``FENSTER_NACHRICHTEN`` Nachrichten oder die letzten ``FENSTER_MINUTEN``,
+    was weniger ist, ohne Systemzeilen.
 
-    Jeder Listeneintrag ist eine atomare Einheit (eine Pausenzeile oder eine
-    einzelne Nachricht, auch wenn deren Text selbst Zeilenumbrueche enthaelt
-    -- Telegram erlaubt mehrzeiligen Text). Das ist die Grundlage dafuer,
-    dass die Kuerzung ganze Nachrichten abschneiden kann statt nur ihrer
-    ersten physischen Zeile."""
+    **Warum das am 06.09.2026 umgebaut wurde.** Gemessen an der Testgruppe:
+    der Nutzertext eines Zuges war 52 000 Zeichen lang, das Fenster reichte
+    700 Zeilen bis in den Vormittag zurueck -- und es stand **rueckwaerts**
+    darin. Der Grund fuer die Reihenfolge war eine falsche
+    Sortierannahme: ``repo.letzte_nachrichten`` ordnet nach ``message_id``,
+    und eine uebernommene Gruppenhistorie traegt **negative, absteigend
+    vergebene** ids. Aufsteigend sortiert stehen die aeltesten dieser
+    Nachrichten damit zuletzt und die juengsten zuerst. Sortiert wird deshalb
+    hier nach ``gesendet_am``: die Uhrzeit luegt nicht.
+
+    Die Folge des alten Verhaltens ist belegt (05.09.2026, 21:50): das Modell
+    hielt den Vormittag fuer die Gegenwart und bot in Phase 6 an, aus den
+    Begriffen Interviewfragen zu entwickeln.
+
+    Jeder Listeneintrag bleibt eine atomare Einheit (eine Pausenzeile oder
+    eine einzelne Nachricht) -- Grundlage dafuer, dass die Kuerzung in
+    ``baue()`` ganze Nachrichten abschneiden kann."""
     ausloeser_ids = {n["message_id"] for n in ausloeser}
-    kandidaten = [
+    roh = [
         n for n in repo.letzte_nachrichten(conn, chat_id, anzahl=_FENSTER_POOL)
-        if n["message_id"] not in ausloeser_ids
+        if n["message_id"] not in ausloeser_ids and not _ist_systemzeile(n)
     ]
+    # Nach der Uhrzeit, nicht nach der id (siehe Docstring).
+    roh.sort(key=lambda n: n["gesendet_am"])
+
+    kandidaten = roh[-FENSTER_NACHRICHTEN:]
+    juengste = _juengste_zeit(ausloeser, kandidaten)
+    if juengste is not None:
+        grenze = juengste - timedelta(minutes=FENSTER_MINUTEN)
+        kandidaten = [
+            n for n in kandidaten
+            if datetime.fromisoformat(n["gesendet_am"]) >= grenze
+        ]
 
     eintraege = []
     vorherige_zeit = None
@@ -517,6 +629,18 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
         eintraege.append(sprecherzeile(n))
         vorherige_zeit = n["gesendet_am"]
     return eintraege
+
+
+def _juengste_zeit(ausloeser, kandidaten):
+    """Der Bezugspunkt der 30-Minuten-Grenze: die ausloesende Nachricht, oder
+    -- wenn es keine gibt -- die juengste im Fenster. Nicht ``jetzt``: ein
+    Test und ein Nachlauf sollen dieselbe Antwort bekommen wie der Livezug."""
+    zeiten = [n["gesendet_am"] for n in ausloeser] or [
+        n["gesendet_am"] for n in kandidaten
+    ]
+    if not zeiten:
+        return None
+    return datetime.fromisoformat(max(zeiten))
 
 
 def _baue_ausloeser(ausloeser) -> str:
@@ -632,7 +756,12 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
         "erstkontakt": _baue_erstkontakt(conn, chat_id, e) if erstkontakt else "",
         "verdichtungen": _baue_verdichtungen(conn, chat_id) if material else "",
         "transkripte": _baue_transkripte(conn, chat_id) if material else "",
-        "kernpaket": "" if material else _baue_kernpaket(conn, chat_id),
+        # In 4 und 5 gibt es WEDER Material NOCH Kernpaket: dort wird
+        # erfunden (``PHASEN_ERFINDEN``).
+        "kernpaket": (
+            _baue_kernpaket(conn, chat_id)
+            if kernpaket_erlaubt(conn, chat_id) else ""
+        ),
         "arbeitsstand": _baue_arbeitsstand(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),

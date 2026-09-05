@@ -82,6 +82,12 @@ ARTEN = (
     # WORIN es spielt (Ort, Zeit, Anlass, roter Faden).
     "format_setzen",
     "rahmen_setzen",
+    # Seit dem Umbau vom 05.09.2026 nachts: die Geschichte im Groben (Bogen
+    # und Ende, Phase 5). Der Regelweg dorthin ist der Vorschlagsblock mit
+    # seinen Knoepfen (``knoepfe._speichere_geschichte``) -- diese Art ist
+    # der zweite, freie Weg: sagt die Gruppe die Geschichte einfach, wird sie
+    # notiert wie jedes andere Arbeitsstandfeld.
+    "geschichte_setzen",
     # Bleibt -- aber als OPTIONALES Feld: ein durchgehender Konflikt ist eine
     # Rahmen-Entscheidung, keine Pflicht (Birk 05.09.2026).
     "hauptkonflikt_setzen",
@@ -414,6 +420,7 @@ _ARBEITSSTAND_ARTEN = {
     "kernthema_setzen": "kernthema",
     "format_setzen": "format",
     "rahmen_setzen": "rahmen",
+    "geschichte_setzen": "geschichte",
     "hauptkonflikt_setzen": "hauptkonflikt",
 }
 
@@ -762,8 +769,12 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
 #: es im Probelauf trotzdem stehen lassen. Weich bleibt es trotzdem: die
 #: Audiodatei liegt weiter auf der Platte, den vollstaendigen Loeschweg geht
 #: nach wie vor allein ``scripts/loeschen.py``, von Hand, mit Rueckfrage.
+#: \"setting\" steht neben \"rahmen\": seit dem Umbau vom 05.09.2026 nachts
+#: heisst dasselbe Feld in der Gruppe Setting, und wer \"Setting entfernen\"
+#: sagt, meint genau das (``_ENTFERNEN_ARBEITSSTAND``).
 _ENTFERNEN_ZIELE = (
-    "figur", "kernthema", "format", "rahmen", "hauptkonflikt", "begriffe",
+    "figur", "kernthema", "format", "rahmen", "setting", "geschichte",
+    "hauptkonflikt", "begriffe",
     "fragen", "szene", "journal", "interview", "aufnahme",
 )
 
@@ -803,7 +814,9 @@ def _zerlege_entfernen(wert: str) -> tuple[str, str] | None:
 _ENTFERNEN_ARBEITSSTAND = {
     "kernthema": ("kernthema", "Kernthema"),
     "format": ("format", "Format"),
-    "rahmen": ("rahmen", "Rahmen"),
+    "rahmen": ("rahmen", "Setting"),
+    "setting": ("rahmen", "Setting"),
+    "geschichte": ("geschichte", "Geschichte"),
     "hauptkonflikt": ("hauptkonflikt", "Hauptkonflikt"),
     "begriffe": ("begriffe", "Begriffe"),
     "fragen": ("fragen", "Fragen"),
@@ -1000,6 +1013,44 @@ def _figuren_zeile(namen: list[str]) -> str:
     return f"{zahlwort} Figuren: {liste}"
 
 
+#: Wie weit zurueck geschaut wird, ob eine Notiert-Meldung schon dasteht.
+#: Drei Bot-Nachrichten sind das Fenster, das die Gruppe auf dem Telefon noch
+#: im Blick hat -- dieselbe Zahl wie in der system.md-Regel "wiederhole
+#: nichts, was in deinen letzten drei Nachrichten steht".
+MELDUNG_RUECKSCHAU = 3
+
+
+def _steht_schon_da(conn, chat_id: int, text: str) -> bool:
+    """Stand diese Notiert-Meldung wortgleich schon in einer der letzten
+    ``MELDUNG_RUECKSCHAU`` Bot-Nachrichten? (06.09.2026)
+
+    Wortgleich und nicht aehnlich: eine Notiert-Zeile ist deterministisch
+    aufgebaut (``baue_meldung``), zwei Laeufe ueber denselben Stand liefern
+    denselben String. Ein unscharfes Mass wuerde hier eine echte zweite
+    Aenderung verschlucken -- "Rahmen: A" und "Rahmen: B" teilen fast alle
+    Woerter."""
+    letzte = [
+        (zeile["text"] or "").strip()
+        for zeile in repo.letzte_nachrichten(conn, chat_id, 30)
+        if zeile["ist_bot"]
+    ]
+    return text.strip() in letzte[-MELDUNG_RUECKSCHAU:]
+
+
+def _biete_phase_an(conn, tg, chat_id: int) -> None:
+    """Die proaktive Phasenmeldung nach einem Speichern -- weich, damit ein
+    Fehlschlag hier die Notiert-Zeile nicht mitreisst (06.09.2026).
+
+    Spaeter Import wie ueberall: ``knoepfe`` greift seinerseits auf den
+    Erkenner zu."""
+    try:
+        from interview_theater import knoepfe
+
+        knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
+    except Exception:
+        log.exception("Phasenangebot nach dem Erkennerlauf fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     """Baut die eine Meldung je Erkennerlauf (SPEC § 4.3, teil-b.md Aufgabe
     4) -- nicht eine je Aenderung.
@@ -1024,6 +1075,7 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     kernthema = None
     formatwert = None
     rahmen = None
+    geschichte = None
     hauptkonflikt = None
     begriffe = None
     fragen = None
@@ -1044,6 +1096,8 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
             formatwert = wert
         elif art == "rahmen_setzen":
             rahmen = wert
+        elif art == "geschichte_setzen":
+            geschichte = wert
         elif art == "hauptkonflikt_setzen":
             hauptkonflikt = wert
         elif art == "begriffe_setzen":
@@ -1074,7 +1128,9 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     if formatwert:
         zeilen.append(f"Format: {formatwert}")
     if rahmen:
-        zeilen.append(f"Rahmen: {rahmen}")
+        zeilen.append(f"Setting: {rahmen}")
+    if geschichte:
+        zeilen.append(f"Geschichte: {geschichte}")
     if hauptkonflikt:
         zeilen.append(f"Hauptkonflikt: {hauptkonflikt}")
     if figuren_namen:
@@ -1110,7 +1166,6 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     if not zeilen:
         return None
 
-    zeilen.append("Falls das nicht stimmt, sagt es mir.")
     return "Notiert:\n" + "\n".join(zeilen)
 
 
@@ -1276,6 +1331,51 @@ def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> None:
         log.exception("Interviewabschluss konnte nicht gestartet werden, id=%s", kopf_id)
 
 
+#: Erkenner-Art -> (Ping-Pong-Art der Knopfleiste, Phase, in der sie traegt).
+#: Nur die Arten, ueber die in ihrer Phase im Ping-Pong entschieden wird --
+#: dort und nur dort gehoert die Grundleiste unter die Notiert-Meldung.
+#:
+#: Warum die Phase und nicht ``knoepfe.offene_art``: die Meldung geht raus,
+#: NACHDEM der Wert geschrieben wurde -- die Art ist dann nicht mehr "offen".
+_LEISTENARTEN = {
+    "begriffe_setzen": ("begriffe", 1),
+    "fragen_setzen": ("fragen", 2),
+    "rahmen_setzen": ("rahmen", 4),
+    "geschichte_setzen": ("geschichte", 5),
+}
+
+
+def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict]) -> int:
+    """Schickt die Notiert-Meldung -- mit Grundleiste, wenn der Erkenner
+    gerade die Art gespeichert hat, die in dieser Phase offen ist.
+
+    Der Anlass (Birk, Live-Befund 05.09.2026, 23:37): der Nachlauf laeuft
+    NACH der Gespraechsantwort, die Leiste hing also unter der Antwort und
+    nicht unter dem Wert. Sie gehoert dorthin, wo steht, worueber entschieden
+    wird.
+
+    Faellt die Tastatur aus (Telegram-Fehler), geht die Meldung trotzdem
+    raus: der Wert ist wichtiger als seine Knoepfe."""
+    from interview_theater import knoepfe
+
+    try:
+        phase = phasen.aktuelle(conn, chat_id)
+        for aenderung in wirkliche:
+            eintrag = _LEISTENARTEN.get(aenderung.get("art"))
+            if eintrag is None or eintrag[1] != phase:
+                continue
+            wert = str(aenderung.get("wert") or "").strip()
+            if not wert:
+                continue
+            message_id, _ = knoepfe.sende_notiert_mit_leiste(
+                conn, tg, chat_id, text, eintrag[0], wert
+            )
+            return message_id
+    except Exception:
+        log.exception("Leiste unter der Notiert-Meldung fehlgeschlagen, chat_id=%s", chat_id)
+    return tg.sende(chat_id, text)
+
+
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
     melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5),
@@ -1312,14 +1412,29 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         _starte_szene(klm, tg, conn, e, chat_id, aenderungen, wirkliche)
         text = baue_meldung(wirkliche)
         if text is None:
+            _biete_phase_an(conn, tg, chat_id)
             return
-        message_id = tg.sende(chat_id, text)
+        # Dieselbe Notiert-Zeile nicht zweimal (06.09.2026, Testgruppe
+        # 21:50/21:52: derselbe Szenenfolge-Block stand wortgleich zweimal im
+        # Chat). Gespeichert wurde in so einem Fall trotzdem korrekt -- nur
+        # die Meldung darueber ist ueberfluessig, und ein Bot, der dasselbe
+        # zweimal sagt, sieht kaputt aus.
+        if _steht_schon_da(conn, chat_id, text):
+            log.info("Notiert-Meldung als Wiederholung uebersprungen, chat_id=%s", chat_id)
+            _biete_phase_an(conn, tg, chat_id)
+            return
+        message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche)
         # Wie ablauf.antworte: die gesendete Meldung wird als Bot-Nachricht
         # mitgeschrieben, damit sie im naechsten Verlaufsfenster steht.
         repo.merke_nachricht(
             conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
             text, repo._jetzt(),
         )
+        # Direkt hinter der Notiert-Zeile: hat GENAU dieses Speichern die
+        # naechste Phase moeglich gemacht, sagt der Bot es sofort
+        # (06.09.2026). Hier ist die Stelle, an der die Voraussetzung
+        # entsteht -- ein Zug spaeter waere es schon eine Erinnerung.
+        _biete_phase_an(conn, tg, chat_id)
     except Exception:
         log.exception("Erkenner-Nachlauf fehlgeschlagen, chat_id=%s", chat_id)
         repo.merke_vorfall(

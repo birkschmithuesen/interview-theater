@@ -74,14 +74,16 @@ def test_arbeitsstand_erscheint_sobald_er_existiert(conn, einst):
 
 
 def test_pausenmarkierung_ab_einer_stunde(conn, einst):
-    """18 Stunden zwischen zwei Nachrichten im Fenster -- Uebernachtung."""
-    _sende(conn, 1, 1, "Ada", "Bis morgen dann.", _iso(0))
-    _sende(conn, 1, 2, "Ben", "Guten Morgen!", _iso(18 * 60))
-    ausloeser = [_sende(conn, 1, 3, "Ada", "Wo waren wir stehen geblieben?", _iso(18 * 60 + 1))]
+    """Eine Pause im Fenster wird markiert.
 
-    prompt = kontext.baue(conn, 1, ausloeser, einst)
-
-    assert "[Pause: 18 Stunden]" in prompt
+    Seit dem 06.09.2026 reicht das Fenster hoechstens ``FENSTER_MINUTEN``
+    zurueck (30) -- eine Uebernachtung liegt also nie mehr DARIN, sondern
+    davor. Die Pausenzeile bleibt trotzdem noetig: das Fenster kann eine
+    Kaffeepause enthalten, und die Uhrzeit soll sichtbar sein. Geprueft wird
+    deshalb die Funktion selbst, nicht mehr ein 18-Stunden-Fenster.
+    """
+    assert kontext._pausenzeile(_iso(0), _iso(18 * 60)) == "[Pause: 18 Stunden]"
+    assert kontext._pausenzeile(_iso(0), _iso(65)) == "[Pause: 1 Stunde]"
 
 
 def test_keine_pausenmarkierung_bei_kurzem_abstand(conn, einst):
@@ -183,19 +185,17 @@ def test_kuerzung_bei_grossem_fenster_ohne_transkripte_erhaelt_ausloeser(conn, e
     ausloeser_text = "Und worauf einigen wir uns jetzt fuer die naechste Szene?"
     ausloeser = [_sende(conn, 1, 999_999, "Ada", ausloeser_text, _iso(601))]
 
-    ungekuerzte_fensterzeilen = len(kontext._baue_fenster_eintraege(conn, 1, ausloeser))
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     assert kontext.schaetze(prompt) <= kontext.REISSLEINE
     assert ausloeser_text in prompt
+    # Seit dem 06.09.2026 beschneidet nicht mehr erst die Kuerzung, sondern
+    # schon der Fensterbau: hoechstens FENSTER_NACHRICHTEN Nachrichten und
+    # hoechstens FENSTER_MINUTEN zurueck. Von 600 Beitraegen bleibt damit ein
+    # Bruchteil -- und der Ausloeser bleibt in jedem Fall stehen.
     verbliebene_fensterzeilen = prompt.count("Ein laengerer Gespraechsbeitrag")
-    assert verbliebene_fensterzeilen < ungekuerzte_fensterzeilen, (
-        "das Fenster muss tatsaechlich beschnitten worden sein"
-    )
-    vorfaelle = conn.execute(
-        "SELECT count(*) FROM vorfall WHERE art = 'kuerzung'"
-    ).fetchone()[0]
-    assert vorfaelle >= 1
+    assert verbliebene_fensterzeilen <= kontext.FENSTER_NACHRICHTEN
+    assert verbliebene_fensterzeilen < 600
 
 
 def test_ohne_wortlaut_schalter_fehlen_die_transkripte(conn, einst):
@@ -349,16 +349,17 @@ def test_verdichtungen_stehen_ab_der_ersten_fertigen_im_prompt(conn, einst):
     assert "- Arbeit" in prompt
 
 
-def test_verdichtungen_bleiben_bis_zur_kernfrage_stehen(conn, einst):
-    """Bis zur Kernfrage haengt der Block an den Daten, nicht an der Phase:
-    das Kernthema entsteht AUS dem Material, also liegt es vor.
+def test_verdichtungen_stehen_bis_einschliesslich_phase_drei(conn, einst):
+    """Bis Phase 3 haengt der Block an den Daten, nicht an der Phase: dort
+    wird aufgenommen und ausgewertet, und die Verdichtung gehoert in den
+    Chat.
 
-    Danach uebernimmt das Kernpaket -- das ist der eigene Test
-    ``test_ab_der_kernfrage_stehen_weder_verdichtungen_noch_transkripte``."""
+    Ab 4 wird erfunden -- das ist der eigene Test
+    ``test_in_vier_und_fuenf_gibt_es_weder_material_noch_kernpaket``."""
     _verdichtetes_interview(conn)
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(1))]
 
-    for nummer in (3, 4):
+    for nummer in (1, 2, 3):
         phasen.setze(conn, 1, nummer, "befehl")
         prompt = kontext.baue(conn, 1, ausloeser, einst)
         assert '"Ich hatte nur einen Koffer"' in prompt, nummer
@@ -377,7 +378,7 @@ def test_gesetzte_phase_steht_am_anfang_des_arbeitsstands(conn, einst):
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     arbeitsstand = prompt.split("Arbeitsstand:\n", 1)[1]
-    assert arbeitsstand.startswith("Aktuelle Phase: 5 · Rahmen")
+    assert arbeitsstand.startswith("Aktuelle Phase: 5 · Geschichte")
 
 
 def test_die_frageliste_steht_im_arbeitsstand(conn, einst):
@@ -434,9 +435,14 @@ def _interview(conn, name="Interview 1"):
 def test_figuren_ohne_quelle_bringen_die_frage_in_den_prompt(conn, einst):
     """05.09.2026: der Bot fragt im Fluss, aus welchem Interview eine Figur
     spricht -- die Antwort loest den Sprachprofil-Aufruf aus, und ohne ihn
-    klingen in einer Szene alle Figuren gleich."""
+    klingen in einer Szene alle Figuren gleich.
+
+    Seit dem Umbau vom 05.09.2026 nachts erst **ab der Schaerfung** (6): in
+    4 und 5 wird erfunden, und die Interviewfrage waere dort die Ruecklenkung
+    aufs Material, die der Umbau vermeidet."""
     _interview(conn)
     repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    phasen.setze(conn, 1, 6, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)
@@ -460,16 +466,16 @@ def test_ohne_interview_wird_nicht_nach_der_quelle_gefragt(conn, einst):
     """Eine unbeantwortbare Frage ist keine: ohne Material gibt es nichts
     zuzuordnen."""
     repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
+    phasen.setze(conn, 1, 6, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
     assert "fehlt noch das Interview" not in kontext.baue(conn, 1, ausloeser, einst)
 
 
-def test_kernthema_und_zwei_figuren_fuehren_zu_format_und_rahmen(conn, einst):
-    """Es gibt keine freie Stelle mehr: mit Kernthema und zwei Figuren ist die
-    naechste Station eindeutig Rahmen (5) -- ueber die Form laesst
-    sich erst reden, wenn es ein Thema und Leute gibt, die es tragen."""
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+def test_setting_und_figuren_fuehren_zur_geschichte(conn, einst):
+    """Steht das Setting und ist die Figurenliste fixiert, ist die naechste
+    Station eindeutig die Geschichte (5)."""
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
     repo.setze_figur(conn, 1, "Elif", "Nachbarin")
     repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
@@ -478,21 +484,22 @@ def test_kernthema_und_zwei_figuren_fuehren_zu_format_und_rahmen(conn, einst):
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
-    assert "Materiallage wuerde Phase 5 · Rahmen hergeben" in prompt
+    assert "Materiallage wuerde Phase 5 · Geschichte hergeben" in prompt
     assert repo.hole_phase_angeboten(conn, 1) == 5
 
 
 def test_gefragt_wird_immer_nach_der_hoechsten_moeglichen_phase(conn, einst):
     """Stehen mehrere Stufen offen, nennt der Block die hoechste: die Gruppe
     kann in ihrer Antwort jede andere nennen, und der Erkenner nimmt sie."""
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.")
+    repo.lege_szene_an(conn, 1, 1, "Am Kiosk", "sie treffen sich", None)
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
-    repo.setze_figur(conn, 1, "Elif", "Nachbarin")
+    repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
     phasen.setze(conn, 1, 4, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
-    assert "Materiallage wuerde Phase 6 · Szenen hergeben" in kontext.baue(
+    assert "Materiallage wuerde Phase 7 · Szenentexte hergeben" in kontext.baue(
         conn, 1, ausloeser, einst
     )
 
@@ -503,6 +510,7 @@ def test_neue_stufe_wird_erneut_erfragt(conn, einst):
     kontext.baue(conn, 1, ausloeser, einst)  # fragt nach 2
 
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Hallo, wir sind ...")
 
     assert "Materiallage wuerde Phase 3" in kontext.baue(conn, 1, ausloeser, einst)
 
@@ -578,40 +586,45 @@ def _kernpaket_lage(conn):
     return aufnahme_id
 
 
-def test_bis_zur_kernfrage_steht_das_material_im_prompt(conn, einst):
-    """In Phase 4 entsteht das Kernthema AUS dem Material -- solange die
-    Kernfrage fehlt, liegt es also vor."""
-    _verdichtetes_interview(conn)
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
-    phasen.setze(conn, 1, 4, "befehl")
-    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(1))]
-
-    prompt = kontext.baue(conn, 1, ausloeser, einst)
-
-    assert "Verdichtungen:" in prompt
-    assert kontext.KERNPAKET_KOPF not in prompt
-
-
-def test_ab_der_kernfrage_stehen_weder_verdichtungen_noch_transkripte(conn, einst):
-    """Der Kern der Umstellung: ab den Figuren arbeitet der Bot aus dem
-    Kernpaket, nicht mehr am Material."""
+def test_in_vier_und_fuenf_gibt_es_weder_material_noch_kernpaket(conn, einst):
+    """**Der Kern des Umbaus vom 05.09.2026 nachts.** In Setting & Figuren (4)
+    und Geschichte (5) erfindet die Gruppe -- der Bot sieht dort keine
+    Verdichtung, kein Transkript und auch kein Kernpaket. Sonst schlaegt er
+    nicht Erfundenes vor, sondern referiert das Material."""
     _kernpaket_lage(conn)
     repo.setze_wortlaut_modus(conn, 1, "*")  # selbst mit Wortlaut-Schalter
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
+
+    for nummer in (4, 5):
+        phasen.setze(conn, 1, nummer, "befehl")
+        prompt = kontext.baue(conn, 1, ausloeser, einst)
+        assert "Verdichtungen:" not in prompt, nummer
+        assert "Volltranskripte:" not in prompt, nummer
+        assert kontext.KERNPAKET_KOPF not in prompt, nummer
+        # Und auch kein Zitat ueber einen anderen Weg.
+        assert "Ich hatte nur einen Koffer" not in prompt, nummer
+
+
+def test_in_vier_und_fuenf_stehen_begriffe_und_fragen_im_prompt(conn, einst):
+    """Was in den Erfindungsphasen erlaubt IST: Begriffe, Fragen, Rahmen und
+    der bisherige Arbeitsstand -- daraus schlaegt der Bot vor."""
+    _kernpaket_lage(conn)
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Bahnhof")
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
     phasen.setze(conn, 1, 4, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
-    assert "Verdichtungen:" not in prompt
-    assert "Volltranskripte:" not in prompt
-    assert kontext.KERNPAKET_KOPF in prompt
+    assert "Begriffe: Koffer, Bahnhof" in prompt
+    assert "Fragen: Was war in deinem Koffer?" in prompt
 
 
 def test_das_kernpaket_traegt_nur_die_gefilterten_verdichtungen(conn, einst):
     """Die Verdichtungen fliegen nicht raus, sie werden gefiltert: was zum
     Kernthema markiert ist, steht da -- alles andere nicht."""
     _kernpaket_lage(conn)
-    phasen.setze(conn, 1, 6, "befehl")
+    phasen.setze(conn, 1, 7, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)
@@ -628,11 +641,11 @@ def test_das_kernpaket_traegt_nur_die_gefilterten_verdichtungen(conn, einst):
     assert "Kurze Saetze, bricht ab" in prompt
 
 
-def test_in_phase_sechs_und_sieben_gilt_derselbe_filter(conn, einst):
+def test_ab_der_schaerfung_traegt_das_kernpaket(conn, einst):
     _kernpaket_lage(conn)
     ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
 
-    for nummer in (5, 6, 7):
+    for nummer in (6, 7, 8):
         phasen.setze(conn, 1, nummer, "befehl")
         prompt = kontext.baue(conn, 1, ausloeser, einst)
         assert "Verdichtungen:" not in prompt, nummer
@@ -651,12 +664,11 @@ def test_die_phasen_eins_bis_drei_bleiben_unveraendert(conn, einst):
         assert kontext.KERNPAKET_KOPF not in prompt, nummer
 
 
-def test_eine_zurueckgenommene_kernfrage_holt_das_material_zurueck(conn, einst):
-    """Datengetrieben und ohne gespeicherten Zustand: nimmt die Gruppe die
-    Kernfrage zurueck, steht das Material wieder da."""
+def test_ein_ruecksprung_nach_drei_holt_das_material_zurueck(conn, einst):
+    """Datengetrieben und ohne gespeicherten Zustand: geht die Gruppe zurueck
+    in die Interviews, steht das Material wieder da."""
     _kernpaket_lage(conn)
-    phasen.setze(conn, 1, 4, "befehl")
-    repo.setze_arbeitsstand(conn, 1, "kernfrage", None)
+    phasen.setze(conn, 1, 3, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)

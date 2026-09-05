@@ -226,7 +226,7 @@ def test_aufnahme_knopf_legt_je_umschaltung_genau_ein_interview_an(conn, einst, 
 
 def test_phasen_knopf_schaltet_um_wie_der_befehl(conn, einst, tg):
     knoepfe.biete_phase(conn, tg, 1, "Weitermachen?", 4)
-    assert tg.knoepfe[0][2][0][0] == "Weiter zu Kernthema & Figuren"
+    assert tg.knoepfe[0][2][0][0] == "Weiter zu Setting & Figuren"
 
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
@@ -557,7 +557,9 @@ def test_stueck_ohne_feld_zeigt_nur_den_rahmen(conn, einst, tg):
 def test_rahmen_vorschlaege_werden_zu_knoepfen(conn, einst, tg):
     """Phase 5 arbeitet nur noch am Rahmen: drei Vorschlaege, ein Knopf je
     Zeile, darunter die Grundleiste."""
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
 
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1,
@@ -574,7 +576,9 @@ def test_rahmen_vorschlaege_werden_zu_knoepfen(conn, einst, tg):
 
 
 def test_rahmen_knopf_schreibt_in_den_arbeitsstand(conn, einst, tg):
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG RAHMEN:\nBahnhofshalle, nachts\nHinterhof"
     )
@@ -587,7 +591,9 @@ def test_rahmen_knopf_schreibt_in_den_arbeitsstand(conn, einst, tg):
 def test_passt_aber_anders_speichert_bei_einer_rahmen_liste_den_ersten(conn, einst, tg):
     """Bei einer Auswahlliste traegt die Grundleiste den ERSTEN Vorschlag --
     "Passt, aber anders" braucht einen Wert, sonst stuende nichts da."""
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG RAHMEN:\nBahnhofshalle, nachts\nHinterhof"
     )
@@ -601,7 +607,9 @@ def test_passt_aber_anders_speichert_bei_einer_rahmen_liste_den_ersten(conn, ein
 def test_rahmen_callback_data_bleibt_unter_64_bytes(conn, tg):
     """Der Grund fuer die Knopf-Tabelle: ein ausformulierter Rahmen ist
     laenger als die ganze Telegram-Grenze."""
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     lang = ("Eine Bahnhofshalle kurz vor Mitternacht im letzten Sommer " * 3).strip()
     assert len(lang.encode("utf-8")) > telegram.CALLBACK_DATA_GRENZE
 
@@ -613,7 +621,9 @@ def test_rahmen_callback_data_bleibt_unter_64_bytes(conn, tg):
 
 
 def test_hoechstens_vier_auswahlknoepfe(conn, tg):
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG RAHMEN:\nA\nB\nC\nD\nE\nF"
     )
@@ -806,7 +816,9 @@ def test_slash_und_knopf_setzen_dasselbe_feld_ohne_sich_zu_stoeren(conn, einst, 
     (repo.setze_arbeitsstand) -- kein zweiter Mechanismus daneben."""
     from interview_theater import befehle
 
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     befehle.behandle(conn, tg, einst, 1, "/stueck rahmen Bahnhofshalle", "Ada")
     assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Bahnhofshalle"
 
@@ -887,7 +899,7 @@ def test_nach_aufnahme_haengt_die_phase_an_wenn_die_lage_sie_hergibt(conn, einst
 
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
     assert beschriftungen == [
-        "Auswerten", "Naechstes Interview", "Weiter zu Kernthema & Figuren",
+        "Auswerten", "Naechstes Interview", "Weiter zu Setting & Figuren",
     ]
 
 
@@ -1030,7 +1042,7 @@ def test_einstieg_haengt_die_phase_dazwischen(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Interview starten", "Weiter zu Kernthema & Figuren",
+        "Interview starten", "Weiter zu Setting & Figuren",
         "Stand zeigen", "Hilfe",
     ]
 
@@ -1082,13 +1094,13 @@ def test_nach_aufnahme_bietet_alle_auswerten_statt_phase_4(conn, einst, tg):
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 2 ist abgelegt.", zweites)
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
-    assert "Weiter zu Kernthema & Figuren" not in beschriftungen
+    assert "Weiter zu Setting & Figuren" not in beschriftungen
     assert beschriftungen == ["Auswerten", "Naechstes Interview"]
 
     # Sobald auch das zweite ausgewertet ist, steht der Schritt wieder da.
     repo.speichere_verdichtung(conn, 1, zweites, "Pal erzaehlt", [])
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Und weiter?", zweites)
-    assert "Weiter zu Kernthema & Figuren" in [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Weiter zu Setting & Figuren" in [b for b, _ in tg.knoepfe[-1][2]]
 
 
 def test_alle_auswerten_steht_da_wenn_ein_anderes_interview_offen_ist(conn, einst, tg):

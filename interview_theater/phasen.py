@@ -1,4 +1,12 @@
-"""Die sieben Arbeitsphasen als gespeicherter, sichtbarer Zustand.
+"""Die acht Arbeitsphasen als gespeicherter, sichtbarer Zustand.
+
+**Erst erfinden, dann schaerfen** (Birk, 05.09.2026, 23:30 -- der Umbau ab
+Phase 4). Bis dahin entstanden Figuren und Szenen AUS den Interviews, und die
+Gruppe erkannte ihren eigenen kreativen Anteil nicht wieder. Jetzt umgekehrt:
+in Phase 4 erfindet die Gruppe Setting und Figuren **frei** (Vorschlaege nur
+aus Begriffen und Fragen -- kein Material), in Phase 5 die Geschichte im
+Groben samt Szenenfolge, und erst in Phase 6 kommen die Interviews dazu und
+schaerfen, was schon dasteht.
 
 **Warum es das gibt.** Die SPEC hat eine Phasen-Zustandsmaschine verworfen --
 zu Recht: verworfen war, dass der Code die Phase *erraet* und still
@@ -39,24 +47,19 @@ nicht von sich aus anfaengt. Ein Kaefig ist sie nicht: bittet die Gruppe
 ausdruecklich um etwas aus einer anderen Phase, tut er es, und der Erkenner
 setzt die Phase nach.
 
-**Phase 5 heisst seit dem 05.09.2026 abends nur noch "Rahmen"** (Birk). Sie
-hiess erst "Hauptkonflikt", dann "Format & Rahmen" -- die Formatfrage ist
-ersatzlos gestrichen: *"wir wollen immer zuerst ein Textbuch; wie wir
-inszenieren, ist unser Ding."* An dieser Station entscheidet die Gruppe nur
-noch, **WORIN** es spielt (Ort, Zeit, Anlass, roter Faden). Was eine einzelne
-Szene zum Dialog, Monolog, Chor, Lied oder Rap macht, ist ihre **Form** --
-Pflichtfeld je Szene in Phase 6, nicht Sache dieser Station.
+**Der Rahmen ist Teil von Phase 4 geworden** (Setting = Ort, Zeit, Anlass).
+``arbeitsstand.rahmen`` bleibt dasselbe Feld, es wird nur frueher und ohne
+Material gefuellt. Das **Kernthema** entfaellt als eigene Station: seine
+Rolle im Kernpaket uebernimmt ``arbeitsstand.geschichte`` (Bogen und Ende).
+Die Kernthema-Felder, -Knoepfe und -Marker bleiben rueckwaertskompatibel im
+Code, werden aber nicht mehr angeboten.
 
-Ein durchgehender Konflikt ist EINE moegliche Rahmen-Entscheidung;
-``arbeitsstand.hauptkonflikt`` bleibt als optionales Feld bestehen und wird
-nur noch angezeigt, wenn es gesetzt ist. Keine Migration: die Nummer 5 bleibt
-5, ``arbeitsstand.format`` bleibt als Spalte stehen (nichts wird geloescht),
-wird aber fuer keine Entscheidung mehr gelesen.
+Alte Datenbanken werden umnummeriert (``db.PHASEN_SCHEMA``): 6 -> 7, 7 -> 8.
 """
 
 from interview_theater import repo
 
-#: Nummer, Kurzname, ein Satz. Die sieben Stationen sind wortgleich die aus
+#: Nummer, Kurzname, ein Satz. Die acht Stationen sind wortgleich die aus
 #: ``prompts/system.md`` -- dort als Landkarte fuer das Gespraech, hier als
 #: Datenmodell. Der Kurzname ist das, was in Meldungen und auf der
 #: Weboberflaeche steht ("5 · Format & Rahmen"), der Satz erklaert ihn, wenn die
@@ -80,17 +83,21 @@ PHASEN = (
     (3, "Interviews", "Interviews fuehren, das Material verdichten."),
     (
         4,
-        "Kernthema & Figuren",
-        "Aus den Verdichtungen das Kernthema herausschaelen und die Figuren "
-        "entwickeln.",
+        "Setting & Figuren",
+        "Frei erfinden: worin es spielt und wer vorkommt.",
     ),
     (
         5,
-        "Rahmen",
-        "Festlegen, WORIN es spielt: Ort, Zeit, Anlass, roter Faden.",
+        "Geschichte",
+        "Die Geschichte im Groben: was passiert, wie es endet, welche Szenen.",
     ),
-    (6, "Szenen", "Die Szenenfolge entwerfen und die Szenentexte schreiben."),
-    (7, "Durchlauf", "Durchlauf und Feinschliff vor der Auffuehrung."),
+    (
+        6,
+        "Schaerfung",
+        "Die erfundene Geschichte am Interviewmaterial schaerfen.",
+    ),
+    (7, "Szenentexte", "Szene fuer Szene die Texte schreiben."),
+    (8, "Durchlauf", "Durchlauf und Feinschliff vor der Auffuehrung."),
 )
 
 #: Woerter, unter denen eine Phase gemeint sein kann -- zusaetzlich zum
@@ -109,15 +116,22 @@ STICHWOERTER = {
     # landete beim Formulieren statt beim Aufnehmen.
     2: ("fragen", "frage", "frageliste"),
     3: ("interviews", "interview", "aufnahmen"),
-    4: ("kernthema", "kernthemas", "thema", "figuren", "figur"),
-    # "konflikt" und "format" bleiben als Altlast stehen: bis zum 05.09.2026
-    # hiess diese Phase "Hauptkonflikt", danach kurz "Format & Rahmen", und
-    # eine Gruppe (oder ein Journaleintrag von gestern) sagt weiter "wir sind
-    # beim Konflikt" oder "beim Format". Beides meint dieselbe Station -- nur
-    # ist keines von beidem mehr ihr Name.
-    5: ("format", "rahmen", "rahmung", "konflikt", "hauptkonflikt"),
-    6: ("szenen", "szene", "szenenfolge", "szenentexte"),
-    7: ("durchlauf", "feinschliff"),
+    # Setting UND Figuren -- der Rahmen (Ort, Zeit, Anlass) ist seit dem
+    # Umbau vom 05.09.2026 nachts Teil DIESER Station und nicht mehr eine
+    # eigene. "kernthema", "format" und "konflikt" bleiben als Altlast
+    # stehen: eine Gruppe (oder ein Journaleintrag von gestern) sagt weiter
+    # "wir sind beim Kernthema" und meint die Station, an der erfunden wird.
+    4: (
+        "setting", "figuren", "figur", "rahmen", "rahmung",
+        "kernthema", "kernthemas", "format", "konflikt", "hauptkonflikt",
+    ),
+    # "szenenfolge" steht hier NICHT: der Vergleich laeuft in beide
+    # Richtungen, und "szenen" waere darin enthalten -- die Gruppe landete
+    # bei der Geschichte statt bei den Szenentexten.
+    5: ("geschichte", "handlung", "grobstruktur"),
+    6: ("schaerfung", "schaerfen", "clustern", "verdichtungen"),
+    7: ("szenentexte", "szenentext", "szenen", "szene"),
+    8: ("durchlauf", "feinschliff"),
 }
 
 #: Die Phase, die gilt, solange keine gesetzt wurde (``phase IS NULL``).
@@ -206,7 +220,7 @@ def setze(conn, chat_id: int, nummer: int, quelle: str, notiz: str | None = None
 
 
 def liste() -> str:
-    """Die sieben Phasen als Text, eine Zeile je Phase (fuer ``/phase`` ohne
+    """Die acht Phasen als Text, eine Zeile je Phase (fuer ``/phase`` ohne
     Argument)."""
     return "\n".join(f"{nummer} · {name} - {text}" for nummer, name, text in PHASEN)
 
@@ -214,7 +228,7 @@ def liste() -> str:
 def nummer_fuer(wert: str | int | None) -> int | None:
     """Uebersetzt, was die Gruppe gesagt hat, in eine Phasennummer.
 
-    Tolerant, in vier Durchgaengen: eine Zahl 1-7; ein Kurzname genau; ein
+    Tolerant, in vier Durchgaengen: eine Zahl 1-8; ein Kurzname genau; ein
     Stichwort aus ``STICHWOERTER`` (in beide Richtungen -- "figuren" trifft,
     "wir sind bei den Figuren" ebenso); erst danach ein Teiltreffer im
     erklaerenden Satz. Passt nichts, ist das None -- und der Aufrufer aendert
@@ -268,20 +282,18 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
 
     Rein aus den Daten, ohne gespeicherten Zustand und ohne Modellaufruf:
     Begriffe da -> 2 ist moeglich; Fragen da -> 3; eine fertige Verdichtung
-    -> 4; Kernthema **und** zwei Figuren -> 5 (ueber den Rahmen laesst
-    sich erst reden, wenn es ein Thema und Leute gibt, die es tragen);
-    **Rahmen** gesetzt -> 6; eine Szene mit Volltext -> 7.
+    -> 4; **Setting (rahmen) und fixierte Figurenliste** -> 5; **Geschichte
+    und mindestens eine Szene** -> 6; Geschichte und Szenen -> 7 (die
+    Schaerfung ist ein Angebot, keine Pflicht); eine Szene mit Volltext -> 8.
     Phase 1 braucht keine Voraussetzung, dorthin kommt man immer zurueck.
 
-    Fuer 6 zaehlt seit dem 05.09.2026 abends ``rahmen``, nicht mehr
-    ``format`` und schon gar nicht ``hauptkonflikt``: das Format ist keine
-    Frage mehr (es entsteht immer zuerst ein Textbuch), ein durchgehender
-    Konflikt ist eine Moeglichkeit und keine Pflicht -- der Rahmen dagegen
-    sagt, WORIN gespielt wird, und ohne ihn erfindet das Modell ihn je Szene
-    neu. Die Form ist ab Phase 6 Pflicht, aber je Szene.
+    **Warum 4 weiter an einer Verdichtung haengt**, obwohl dort ohne Material
+    gearbeitet wird: die Bedingung ist nicht "das Material wird gebraucht",
+    sondern "die Interviews sind durch". Wer erfindet, bevor die Aufnahmen
+    ausgewertet sind, verliert die Schaerfung in Phase 6.
 
     Die Bedingungen sind nicht kumulativ: eine Gruppe, die ohne Interviews
-    direkt ein Kernthema und zwei Figuren setzt, darf trotzdem nach 5 -- die
+    direkt Setting und Figuren setzt, darf trotzdem nach 5 -- die
     Reihenfolge ist eine Landkarte, kein Zwang (SPEC § 6.1).
 
     Und sie sind eine Frage, keine Entscheidung: was hier True ergibt, wird
@@ -290,29 +302,44 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
     **Phase 4 hat seit dem 05.09.2026 eine zweite Bedingung**: es darf kein
     beendetes Interview ohne Verdichtung mehr geben
     (``aufnahme.unausgewertete_interviews``). Der Grund ist derselbe wie bei
-    allem anderen hier -- die Materiallage: aus dem Material das Kernthema
-    herauszuschaelen heisst aus dem GANZEN Material, nicht aus dem, was
-    zufaellig schon ausgewertet war. Solange etwas offen ist, bietet die
-    Knopfleiste \"Auswerten\" an statt \"Weiter zu Phase 4\"."""
+    allem anderen hier -- die Materiallage: geschaerft wird spaeter am GANZEN
+    Material, nicht an dem, was zufaellig schon ausgewertet war. Solange
+    etwas offen ist, bietet die Knopfleiste \"Auswerten\" an statt \"Weiter\"."""
     from interview_theater import aufnahme
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
-    kernthema = bool(stand and stand["kernthema"])
-    # Phase 5 haengt seit dem 05.09.2026 abends nicht mehr an "mindestens
-    # zwei Figuren", sondern daran, dass die Figurenliste **fixiert** ist:
-    # die Gruppe ist in Ebene 2 Figur fuer Figur durchgegangen (Interview,
-    # Duktus, entfernen) und hat sie damit abgenommen. Auch bei nur einer
-    # Figur -- ein Monolog ist ein Stueck, und die alte Schwelle sperrte
-    # eine Gruppe aus, die genau das wollte.
+    # Phase 5 haengt nicht an "mindestens zwei Figuren", sondern daran, dass
+    # die Figurenliste **fixiert** ist -- die Gruppe hat sie abgenommen.
+    # Auch bei nur einer Figur: ein Monolog ist ein Stueck.
     fixiert = bool(stand and (stand["figuren_fixiert_am"] or "").strip())
+    setting = bool(stand and (stand["rahmen"] or "").strip())
+    geschichte = bool(stand and (stand["geschichte"] or "").strip())
+    szenen = bool(repo.hole_szenen(conn, chat_id))
+
+    def feld(name: str) -> bool:
+        """Ein Arbeitsstandfeld, das eine alte Datenbank noch nicht hat --
+        die Migration ist additiv und laeuft beim Start, aber ein Leser darf
+        daran nicht scheitern."""
+        try:
+            return bool(stand and (stand[name] or "").strip())
+        except (IndexError, KeyError):
+            return False
+
     return {
         2: bool(stand and stand["begriffe"]),
-        3: bool(stand and stand["fragen"]),
+        # **Phase 3 haengt seit dem 06.09.2026 an ZWEI Dingen** (Birk): den
+        # Fragen UND dem Eroeffnungstext. Der Grund steht in ``leitfaden.py``:
+        # die Gruppe geht damit auf fremde Menschen zu, und eine Frageliste
+        # ohne Eroeffnung ist kein Interview, sondern eine Ansprache. Die
+        # Einleitungen zu heiklen Fragen duerfen dabei leer sein -- "keine
+        # noetig" ist ein Ergebnis der Pruefung, kein fehlender Wert.
+        3: bool(stand and stand["fragen"]) and feld("interview_eroeffnung"),
         4: bool(repo.verdichtungen(conn, chat_id))
         and not aufnahme.unausgewertete_interviews(conn, chat_id),
-        5: kernthema and fixiert and bool(repo.figuren(conn, chat_id)),
-        6: bool(stand and (stand["rahmen"] or "").strip()),
-        7: any(s["volltext"] for s in repo.hole_szenen(conn, chat_id)),
+        5: setting and fixiert and bool(repo.figuren(conn, chat_id)),
+        6: geschichte and szenen,
+        7: geschichte and szenen,
+        8: any(s["volltext"] for s in repo.hole_szenen(conn, chat_id)),
     }
 
 

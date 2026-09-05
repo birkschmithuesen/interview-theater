@@ -170,7 +170,7 @@ def test_rahmen_und_kernthema_stehen_vorn(conn, einst):
 
     text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
 
-    assert text.startswith("Rahmen: Eine Nacht im Treppenhaus")
+    assert text.startswith("Die Geschichte / der Rahmen des Stuecks") and "Eine Nacht im Treppenhaus" in text.split("Kernthema")[0]
     assert "Format des Stuecks" not in text
     assert "Musical" not in text
     assert "Kernthema: Ankommen (Begruendung: dreimal genannt)" in text
@@ -1130,3 +1130,68 @@ def test_kuerzung_laesst_kurze_szenen_in_ruhe(conn, einst):
     kurz = "MARIA: Da.\nELIF: Ja."
 
     assert szene._gekuerzter_volltext(kurz) == kurz
+
+
+def test_die_aufgabe_der_szene_steht_im_prompt(conn):
+    """06.09.2026: Szene 1 hing nicht mit der Geschichte zusammen -- der Prompt
+    sagte nirgends, was die erste Szene LEISTEN muss. Jetzt steht die Aufgabe
+    (Exposition: wer, zueinander, warum hier, worum) vor den Angaben."""
+    from interview_theater import szene
+
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Vier Freundinnen, eine verliebt")
+    a = repo.stelle_szene_sicher(conn, 1, 1)
+    b = repo.stelle_szene_sicher(conn, 1, 2)
+    c = repo.stelle_szene_sicher(conn, 1, 3)
+    erste = szene.baue_nutzertext(conn, 1, "Szene 1", repo.hole_szene(conn, a))
+    mitte = szene.baue_nutzertext(conn, 1, "Szene 2", repo.hole_szene(conn, b))
+    letzte = szene.baue_nutzertext(conn, 1, "Szene 3", repo.hole_szene(conn, c))
+    assert "ERSTE -- Exposition" in erste and "wer die Figuren sind" in erste
+    assert "Szene 2 von 3" in mitte
+    assert "die LETZTE" in letzte
+    assert erste.index("Aufgabe dieser Szene") < erste.index("Diese Szene sollst du schreiben")
+    assert "Vorgabe der Gruppe" in erste
+
+
+def test_neu_schreiben_nimmt_die_alte_fassung_nicht_als_vorlage(conn):
+    """06.09.2026: 'Neu schreiben' lieferte zweimal denselben Text, weil der
+    alte Volltext als 'soll ueberarbeitet werden' im Prompt stand."""
+    from interview_theater import szene
+
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+    sid = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.aktualisiere_szene(conn, sid, "Alt", "kurz", "LEYLA: Der alte Text.")
+    ziel = repo.hole_szene(conn, sid)
+    ueberarbeiten = szene.baue_nutzertext(conn, 1, "Schreib Szene 1.", ziel)
+    neu = szene.baue_nutzertext(conn, 1, f"Schreib Szene 1. {szene.NEU_MARKER}", ziel)
+    assert "Der alte Text" in ueberarbeiten
+    assert "Der alte Text" not in neu
+    assert "ANDERE Szene" in neu
+    assert szene.NEU_MARKER not in neu
+
+
+def test_waehrend_des_szenenlaufs_zeigt_der_bot_dass_er_arbeitet():
+    """06.09.2026 (Birk): waehrend Opus 1-3 Minuten schreibt, soll die Gruppe
+    sehen, dass gearbeitet wird -- Tippanzeige und eine Emoji-Zeile, die am
+    Ende wieder verschwindet."""
+    import threading, time
+    from interview_theater import szene
+
+    class Tg:
+        def __init__(self):
+            self.tipps = 0; self.gesendet = []; self.geloescht = []
+        def tippt(self, chat_id): self.tipps += 1
+        def sende(self, chat_id, text): self.gesendet.append(text); return len(self.gesendet)
+        def loesche_nachrichten(self, chat_id, ids): self.geloescht += ids; return len(ids)
+
+    tg = Tg(); stopp = threading.Event()
+    alt_takt = szene._ARBEITS_TAKT_S
+    szene._ARBEITS_TAKT_S = 4.0  # eine Zeile pro Tipp-Runde
+    try:
+        t = threading.Thread(target=szene._arbeitet_sichtbar, args=(tg, 1, stopp)); t.start()
+        time.sleep(9.0); stopp.set(); t.join(timeout=6)
+    finally:
+        szene._ARBEITS_TAKT_S = alt_takt
+    assert tg.tipps >= 2
+    assert len(tg.gesendet) >= 1 and any("..." in z for z in tg.gesendet)
+    assert tg.geloescht  # die letzte Zeile ist wieder weg

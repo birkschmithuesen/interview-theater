@@ -228,6 +228,39 @@ class Telegram:
             )
             antwort.raise_for_status()
 
+    def aktualisiere_knoepfe(
+        self, chat_id: int, message_id: int, knoepfe: list[tuple[str, str]]
+    ) -> None:
+        """Tauscht die Tastatur unter einer schon verschickten Nachricht aus
+        (editMessageReplyMarkup mit neuer Tastatur).
+
+        Gebraucht fuer die **Mehrfachauswahl** der Phase 2 (06.09.2026): ein
+        Druck togglet eine Frage, und die Gruppe soll das sehen, ohne dass
+        zehn Fragen ein zweites Mal in den Chat wandern -- nur der Haken vor
+        der Beschriftung aendert sich.
+
+        Wie ``entferne_knoepfe`` ein Fehlschlag, der den Aufrufer nicht
+        umbringt: der Zustand steht in der Datenbank
+        (``arbeitsstand.fragen_gewaehlt``), die Tastatur zeigt ihn nur.
+        Telegram antwortet mit HTTP 400, wenn die Tastatur unveraendert
+        waere -- das kann hier nicht passieren, weil jeder Druck den Haken
+        umdreht.
+        """
+        for _, daten in knoepfe:
+            if len(daten.encode("utf-8")) > CALLBACK_DATA_GRENZE:
+                raise ValueError(f"callback_data zu lang: {len(daten)} Zeichen")
+        tastatur = [[{"text": t, "callback_data": d}] for t, d in knoepfe]
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("editMessageReplyMarkup"),
+                json={
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "reply_markup": {"inline_keyboard": tastatur},
+                },
+            )
+            antwort.raise_for_status()
+
     def loesche_nachrichten(self, chat_id: int, message_ids: list[int]) -> int:
         """Loescht bis zu 100 Nachrichten auf einmal (deleteMessages). Braucht
         Admin-Rechte in der Gruppe. Liefert die Zahl der uebergebenen IDs;

@@ -91,7 +91,16 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- versehentliches Interview ist entfernbar, wenn die Gruppe es sagt. Die
   -- Audiodatei bleibt auf der Platte -- die Loeschzusage erfuellt weiterhin
   -- allein scripts/loeschen.py.
-  entfernt_am     TEXT
+  entfernt_am     TEXT,
+  -- Gesetzt = diese Zeile ist eine KOPIE aus einer anderen Gruppe
+  -- (scripts/interviews_uebernehmen.py, 06.09.2026). Form:
+  -- "<quell_chat_id>:<alte_aufnahme_id>". Zwei Aufgaben: Herkunft belegen
+  -- (das Material gehoert weiter der Gruppe, die es aufgenommen hat) und
+  -- Idempotenz -- ein zweiter Lauf ueberspringt, was diesen Marker schon
+  -- traegt. Additiv; bestehende Zeilen tragen NULL und sind damit eigenes
+  -- Material.
+  uebernommen_von TEXT,
+  uebernommen_am  TEXT
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,
@@ -183,6 +192,11 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- und sie steht ab da im Kernpaket ganz vorn: Figuren und Szenen kommen
   -- aus dem Kernthema, nicht aus den Interviews.
   kernfrage              TEXT,
+  -- Die Geschichte im Groben (Phase 5, Umbau 05.09.2026 nachts): Zeile 1 der
+  -- Bogen in einem Satz, Zeile 2 das Ende. Sie tritt im Kernpaket an die
+  -- Stelle, an der bis dahin das Kernthema stand -- die Gruppe erfindet sie
+  -- frei, aus Begriffen und Fragen, nicht aus dem Material.
+  geschichte             TEXT,
   -- Wie viele Figuren das Stueck haben soll -- die Gruppe sagt es vor der
   -- Figurenliste per Knopf (1-6 oder \"Andere Zahl\", 1-12). Frueher stand
   -- \"zwei bis vier\" im Prompt; das war eine Vorgabe des Bots an eine
@@ -220,6 +234,37 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Zuletzt angebotene Phase: verhindert, dass der Hinweisblock in
   -- kontext.baue jeden Zug erneut nach demselben Wechsel fragt.
   phase_angeboten        INTEGER,
+  -- Die zehn zur Wahl gestellten Interviewfragen (Phase 2, 06.09.2026,
+  -- Birk: die Fragen-Erarbeitung ist eine Mehrfachauswahl, kein Diktat).
+  -- Eine Frage je Zeile, in der Reihenfolge des Vorschlagsblocks -- die
+  -- Nummer einer Zeile ist zugleich der Wert ihres Knopfes.
+  fragen_auswahl         TEXT,
+  -- Welche davon angetippt sind: die Nummern, mit Komma getrennt. Der
+  -- Zustand der Mehrfachauswahl steht damit in der Datenbank und nicht in
+  -- der Telegram-Tastatur -- ein Neustart mitten in der Auswahl verliert
+  -- nichts, und ein zweiter Druck auf denselben Knopf nimmt die Wahl
+  -- zurueck, statt sie zu verdoppeln.
+  fragen_gewaehlt        TEXT,
+  -- Die Verfeinerungsebene der Fragen (Phase 2, 06.09.2026, Birk). Stehen
+  -- die Fragen, prueft der Bot sie einmal auf sensible Themen und schlaegt
+  -- je heikler Frage eine Einleitung vor -- ein bis zwei Saetze, die die
+  -- Interviewerin vor der Frage sagt (warum sie fragt, dass man nicht
+  -- antworten muss). Die Interviews fuehren 15-18-Jaehrige mit FREMDEN
+  -- Personen; die Einleitung ist der Unterschied zwischen einer Frage und
+  -- einem Uebergriff. Eine Zeile je Frage, Form ``<Nummer> — <Einleitung>``.
+  -- Darf leer bleiben ("Keine der Fragen braucht eine besondere
+  -- Einleitung.") -- das ist ein Ergebnis, kein fehlender Wert.
+  frage_einleitungen     TEXT,
+  -- Was die Interviewerin zu Beginn sagt: wer wir sind, was wir machen,
+  -- wofuer die Antworten verwendet werden (anonym, Material fuer ein
+  -- Stueck), dass man jederzeit aufhoeren kann, die Bitte um Erlaubnis zur
+  -- Aufnahme. Voraussetzung fuer Phase 3 (``phasen.voraussetzungen``):
+  -- ohne Eroeffnung geht niemand auf eine fremde Person zu.
+  interview_eroeffnung   TEXT,
+  -- Der Abschluss: Dank und was mit den Antworten weiter passiert. Eigenes
+  -- Feld und nicht Teil der Eroeffnung, weil er im Leitfaden GANZ UNTEN
+  -- steht (``leitfaden.baue``) -- ein Text, zwei Orte.
+  interview_abschluss    TEXT,
   geaendert_am           TEXT
 );
 
@@ -268,6 +313,14 @@ CREATE TABLE IF NOT EXISTS szene (
   -- bevorzugt). Entscheidet, welcher Formen-Block in den Szenen-Prompt geht
   -- (prompts/formen/<form>.md).
   form              TEXT,
+  -- Was der Bot in der Szenenfolge als Form VORGESCHLAGEN hat -- und warum
+  -- (Birk, 06.09.2026 00:30: \"Die Form Monolog habe ich niemals eingegeben
+  -- und aktiv bestaetigt.\"). Der Vorschlag steht hier und NICHT in ``form``:
+  -- gesetzt wird die Form allein durch einen Knopfdruck der Gruppe, Szene
+  -- fuer Szene. Ohne bestaetigte ``form`` wird nicht geschrieben
+  -- (szene.PFLICHTFELDER).
+  form_vorschlag       TEXT,
+  form_vorschlag_grund TEXT,
   ort               TEXT,
   zeit              TEXT,                   -- Tageszeit, "danach", "am nächsten Morgen"
   anlass            TEXT,                   -- warum sind sie hier
@@ -291,6 +344,32 @@ CREATE TABLE IF NOT EXISTS szene (
   entfernt_am       TEXT                    -- gesetzt = weich geloescht (N3)
 );
 CREATE INDEX IF NOT EXISTS idx_szene_aktuell ON szene(chat_id, geaendert_am DESC);
+
+-- Die Schaerfung am Material (Phase 6, Umbau 05.09.2026 nachts).
+--
+-- Ein Schema-Aufruf mappt jeden passenden **geprueften** Verdichtungseintrag
+-- auf eine Szene und/oder eine Figur; jede Zeile hier ist eine solche
+-- Zuordnung samt Begruendung. Additiv (``runde``): die Gruppe darf \"Noch
+-- eine Runde\" druecken, dann laeuft das Mapping mit dem geschaerften Stand
+-- erneut und schreibt Zeilen mit runde+1 dazu -- die alten bleiben stehen.
+-- ``entfernt_am`` ist das weiche Loeschen wie ueberall (N3).
+--
+-- Die Zitate haengen an den Zuordnungen: sie stehen nicht hier, sondern in
+-- ``verdichtung_thema.beleg_zitat`` -- geprueft (``zitat.pruefe``), nie
+-- kopiert und nie neu erfunden.
+CREATE TABLE IF NOT EXISTS schaerfung (
+  id                   INTEGER PRIMARY KEY,
+  chat_id              INTEGER NOT NULL,
+  verdichtung_thema_id INTEGER NOT NULL,
+  szene_id             INTEGER,
+  figur_id             INTEGER,
+  begruendung          TEXT,
+  runde                INTEGER NOT NULL DEFAULT 1,
+  uebernommen_am       TEXT,
+  erstellt_am          TEXT NOT NULL,
+  entfernt_am          TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_schaerfung_chat ON schaerfung(chat_id, id);
 
 -- Wer in einer Szene vorkommt: nur Figuren aus dem Arbeitsstand, deshalb eine
 -- Verknuepfung und keine Namensliste in einem Textfeld. Eine weich geloeschte
@@ -387,6 +466,7 @@ TABELLEN_MIT_CHAT_ID = (
     "figur",
     "szene",
     "szene_figur",
+    "schaerfung",
     "journal",
     "knopf",
     "vorfall",
@@ -450,9 +530,11 @@ def _migriere_fehlende_spalten(conn: sqlite3.Connection) -> None:
 
 #: Schemastand dieser Codefassung, gespeichert in ``PRAGMA user_version``.
 #: ``0`` ist eine Datenbank aus der Zeit vor der Umnummerierung der
-#: Arbeitsphasen (05.09.2026). Bewusst SQLites eingebauter Zaehler und keine
-#: eigene Tabelle: er kostet keine Zeile, keine Migration und kein Schema.
-SCHEMA_VERSION = 1
+#: Arbeitsphasen (05.09.2026), ``1`` das siebenstufige Modell desselben Tages,
+#: ``2`` das achtstufige nach dem Umbau \"erst erfinden, dann schaerfen\"
+#: (05.09.2026 nachts). Bewusst SQLites eingebauter Zaehler und keine eigene
+#: Tabelle: er kostet keine Zeile, keine Migration und kein Schema.
+SCHEMA_VERSION = 2
 
 #: Acht Phasen wurden sieben (Birk, 05.09.2026): Kernthema und Figuren sind
 #: EINE Phase geworden, alles darueber rutscht um eins nach unten. 1-4 bleiben,
@@ -461,34 +543,60 @@ SCHEMA_VERSION = 1
 #: interview_theater/phasen.py.
 PHASEN_UMNUMMERIERUNG = {5: 4, 6: 5, 7: 6, 8: 7}
 
+#: Sieben Phasen wurden acht (Birk, 05.09.2026 nachts): aus \"4 Kernthema &
+#: Figuren · 5 Rahmen · 6 Szenen · 7 Durchlauf\" wird \"4 Setting & Figuren ·
+#: 5 Geschichte · 6 Schaerfung · 7 Szenentexte · 8 Durchlauf\".
+#:
+#: 4 bleibt 4 (dort wird weiter Setting und Figurenarbeit gemacht), **5 bleibt
+#: 5**: die alte 5 war der Rahmen -- der ist jetzt Teil von 4, aber eine
+#: Gruppe, die dort steht, hat den Rahmen gerade in der Hand und ist damit
+#: naeher an der neuen 5 (Geschichte) als an irgendetwas anderem. Aus 6
+#: (Szenen) wird 7 (Szenentexte), aus 7 (Durchlauf) wird 8. Die Schaerfung (6)
+#: ist neu und wird niemandem zugewiesen: sie ist ein Angebot, keine Station,
+#: die jemand uebersprungen haette.
+PHASEN_UMNUMMERIERUNG_2 = {6: 7, 7: 8}
+
+
+def _rechne_phasen_um(conn: sqlite3.Connection, umnummerierung: dict[int, int]) -> None:
+    """Rechnet ``arbeitsstand.phase`` und ``phase_angeboten`` nach einer
+    Tabelle alt -> neu um -- ein einziges UPDATE je Spalte mit CASE, damit
+    die Umrechnung nicht kaskadiert (6 -> 7, danach 7 -> 8 wuerde sonst die
+    gerade geschriebenen Zeilen wieder anfassen)."""
+    faelle = " ".join(f"WHEN {alt} THEN {neu}" for alt, neu in umnummerierung.items())
+    betroffen = ", ".join(str(alt) for alt in umnummerierung)
+    for spalte in ("phase", "phase_angeboten"):
+        conn.execute(
+            f"UPDATE arbeitsstand SET {spalte} = CASE {spalte} {faelle} END "
+            f"WHERE {spalte} IN ({betroffen})"
+        )
+
 
 def _migriere_phasennummern(conn: sqlite3.Connection) -> None:
     """Rechnet gespeicherte Phasennummern einmalig auf das siebenstufige
-    Modell um (PHASEN_UMNUMMERIERUNG).
+    und danach auf das achtstufige Modell um (PHASEN_UMNUMMERIERUNG,
+    PHASEN_UMNUMMERIERUNG_2).
 
     Betrifft ``arbeitsstand.phase`` und ``arbeitsstand.phase_angeboten``:
     ohne diesen Schritt saehe eine Gruppe, die abends bei "8 · Durchlauf"
     aufgehoert hat, am naechsten Morgen eine Phasennummer, die es nicht mehr
     gibt -- und der Prompt-Zusatz dazu fehlte ersatzlos.
 
-    Ein einziges UPDATE je Spalte mit CASE, damit die Umrechnung nicht ueber
-    mehrere Schritte kaskadiert (5 -> 4, danach 6 -> 5 wuerde sonst die
-    gerade geschriebenen Zeilen wieder anfassen, sobald jemand die Tabelle
-    einmal umsortiert).
+    **Stufenweise und je Stufe genau einmal**: eine Datenbank aus der Zeit vor
+    beiden Umbauten (``user_version = 0``) laeuft durch beide Tabellen, eine
+    vom selben Tag (``1``) nur noch durch die zweite, und eine aktuelle
+    (``2``) durch keine. Der Merkposten ist ``PRAGMA user_version``.
 
     Das Journal bleibt unberuehrt: dort steht, was die Gruppe damals
     entschieden hat ("Phase 5 · Figuren"), und das ist auch nach der
     Umnummerierung wahr -- ein Journal wird nur angehaengt, nie umgeschrieben
     (AGENTS.md)."""
-    if conn.execute("PRAGMA user_version").fetchone()[0] >= SCHEMA_VERSION:
+    stand = conn.execute("PRAGMA user_version").fetchone()[0]
+    if stand >= SCHEMA_VERSION:
         return
-    faelle = " ".join(f"WHEN {alt} THEN {neu}" for alt, neu in PHASEN_UMNUMMERIERUNG.items())
-    betroffen = ", ".join(str(alt) for alt in PHASEN_UMNUMMERIERUNG)
-    for spalte in ("phase", "phase_angeboten"):
-        conn.execute(
-            f"UPDATE arbeitsstand SET {spalte} = CASE {spalte} {faelle} END "
-            f"WHERE {spalte} IN ({betroffen})"
-        )
+    if stand < 1:
+        _rechne_phasen_um(conn, PHASEN_UMNUMMERIERUNG)
+    if stand < 2:
+        _rechne_phasen_um(conn, PHASEN_UMNUMMERIERUNG_2)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
 

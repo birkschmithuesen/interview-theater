@@ -199,7 +199,7 @@ def _fertig_figuren(conn, chat_id, merker):
 
 
 def _fertig_phase_mitte(conn, chat_id, merker):
-    """Das Pflichtfeld der Phase 5 -- heute ``format`` -- oder, wenn das
+    """Das Pflichtfeld der Phase 5 -- heute ``geschichte`` -- oder, wenn das
     Schema keines hergibt, dass die Gruppe ueberhaupt dort angekommen ist.
 
     Nicht **alle** Felder der Phase: ``rahmen`` darf leer bleiben, und ein
@@ -317,9 +317,10 @@ SCHRITTE: tuple[Schritt, ...] = (
     Schritt(
         "phase_mitte",
         "Phase 5",
-        "Ihr seid jetzt bei '{phase_mitte}' und wollt festlegen, WORIN das "
-        "Stueck spielt. Lasst euch vom Bot Rahmen vorschlagen (Ort, Zeit, "
-        "Anlass) und stimmt einem davon zu, damit er ihn festhaelt.",
+        "Ihr seid jetzt bei '{phase_mitte}' und wollt die Geschichte im "
+        "Groben festlegen: was passiert, wie es endet, in welchen Szenen. "
+        "Lasst euch vom Bot einen Vorschlag machen und stimmt ihm zu, damit "
+        "er ihn festhaelt.",
         _fertig_phase_mitte,
     ),
     Schritt(
@@ -452,10 +453,10 @@ SCHRITTE_BIRK: tuple[Schritt, ...] = (
     ),
     Schritt(
         "phase_mitte",
-        "Phase 5: Rahmen",
-        "Ihr seid jetzt bei '{phase_mitte}'. Du hast dich fuer einen Rahmen "
-        f"entschieden: {RAHMEN_BIRK}. Sag es dem Bot und stimm zu, damit er "
-        "ihn festhaelt.",
+        "Phase 5: Geschichte",
+        "Ihr seid jetzt bei '{phase_mitte}'. Du weisst, worin es spielt "
+        f"({RAHMEN_BIRK}) -- jetzt sag dem Bot, was passieren und wie es "
+        "enden soll, und stimm seinem Vorschlag zu, damit er ihn festhaelt.",
         _fertig_phase_mitte,
     ),
     Schritt(

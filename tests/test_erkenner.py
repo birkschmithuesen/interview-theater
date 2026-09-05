@@ -160,7 +160,7 @@ def test_schema_kennt_kein_maxitems():
     assert "maxItems" not in str(erkenner.SCHEMA)
 
 
-def test_arten_enthaelt_alle_zwanzig_werte():
+def test_arten_enthaelt_alle_werte():
     erwartet = {
         # Eine Szene wird seit dem 05.09.2026 zuerst geplant und erst danach
         # geschrieben -- zwei Arten fuer zwei verschiedene Dinge.
@@ -173,6 +173,10 @@ def test_arten_enthaelt_alle_zwanzig_werte():
         # Phase 5 heisst seit dem 05.09.2026 "Rahmen": zwei neue
         # Arten, und der Hauptkonflikt bleibt als optionales Feld daneben.
         "format_setzen", "rahmen_setzen",
+        # Umbau 05.09.2026 nachts: die Geschichte im Groben (Phase 5). Der
+        # Regelweg ist der Vorschlagsblock mit seinen Knoepfen; diese Art ist
+        # der freie Weg fuer eine Gruppe, die sie einfach erzaehlt.
+        "geschichte_setzen",
         "hauptkonflikt_setzen", "figur_setzen", "wortlaut_an", "wortlaut_aus",
         "verworfen", "entschieden", "szene_schreiben", "phase_setzen",
         "entfernen", "an_den_bot",
@@ -557,7 +561,9 @@ def test_baue_meldung_kernthema_plus_drei_figuren_eine_nachricht_mit_beiden_zeil
     assert text is not None
     assert "Kernthema: Ankommen" in text
     assert "drei Figuren: Maria, Elif, Peter" in text
-    assert "Falls das nicht stimmt, sagt es mir." in text
+    # Der Zusatz ist am 06.09.2026 gestrichen (Fix e): die Grundleiste
+    # unter der Meldung sagt dasselbe, und zwar als Knopf.
+    assert "Falls das nicht stimmt" not in text
 
 
 def test_baue_meldung_eine_figur_steht_im_singular():
@@ -872,7 +878,7 @@ def test_ohne_erkannten_auftrag_laeuft_keine_szene(conn, einst, monkeypatch):
 @pytest.mark.parametrize(
     "wert, erwartet",
     [("5", 5), ("Figuren", 4), ("Kernthema", 4), ("interview", 3),
-     ("Hauptkonflikt", 5)],
+     ("Hauptkonflikt", 4)],
 )
 def test_phase_setzen_mappt_nummer_namen_und_teilstring(conn, einst, wert, erwartet):
     wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": wert}])
@@ -904,8 +910,10 @@ def test_phase_setzen_meldet_die_neue_phase(conn, einst):
 
     meldung = erkenner.baue_meldung(wirkliche)
 
-    assert "Wir sind jetzt bei 5 · Rahmen." in meldung
-    assert meldung.endswith("Falls das nicht stimmt, sagt es mir.")
+    assert "Wir sind jetzt bei 5 · Geschichte." in meldung
+    # Der Nachsatz ist am 06.09.2026 gestrichen (Fix e): die Grundleiste
+    # unter der Meldung sagt dasselbe, und zwar als Knopf.
+    assert "Falls das nicht stimmt" not in meldung
 
 
 def test_ruecksprung_ueber_den_erkenner(conn, einst):
@@ -990,7 +998,9 @@ def test_format_und_rahmen_landen_im_arbeitsstand_und_in_der_meldung(conn, einst
     assert stand["rahmen"] == "Demo, danach eine Kueche"
     meldung = erkenner.baue_meldung(wirkliche)
     assert "Format: Musical: Dialog, Lied, Rap" in meldung
-    assert "Rahmen: Demo, danach eine Kueche" in meldung
+    # Seit dem Umbau vom 05.09.2026 nachts heisst der Rahmen in der
+    # Notiert-Zeile "Setting" -- dasselbe Feld, das Wort der Gruppe.
+    assert "Setting: Demo, danach eine Kueche" in meldung
 
 
 def test_der_rahmen_steht_im_erkenner_kontext(conn, einst):
@@ -1175,7 +1185,7 @@ def test_entfernen_leert_kernthema_samt_begruendung(conn, einst):
     "feld, wert",
     [
         ("format", "Format"),
-        ("rahmen", "Rahmen"),
+        ("rahmen", "Setting"),
         ("hauptkonflikt", "Hauptkonflikt"),
         ("begriffe", "Begriffe"),
         ("fragen", "Fragen"),

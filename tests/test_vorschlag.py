@@ -110,24 +110,31 @@ def test_in_phase_2_zaehlen_die_fragen_nicht_die_begriffe(conn, tg):
     assert tg.knoepfe, "die Fragen-Leiste haengt dran"
 
 
-def test_in_phase_4_erst_kernthema_dann_figuren(conn, tg):
+def test_in_phase_4_erst_setting_dann_figuren(conn, tg):
+    """Der Ping-Pong der Phase 4 (Umbau 05.09.2026 nachts): zuerst das
+    SETTING (``rahmen``), dann die Figuren -- kein Kernthema, keine
+    Kernfrage: hier wird erfunden, nicht aus dem Material geschaelt."""
     phasen.setze(conn, 1, 4, "befehl")
-    assert knoepfe.offene_art(conn, 1) == "kernthema"
+    assert knoepfe.offene_art(conn, 1) == "rahmen"
 
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
-    # Stufe 3 (05.09.2026 abends): erst die Kernfrage, dann die Figuren.
-    assert knoepfe.offene_art(conn, 1) == "kernfrage"
-
-    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: Was passiert, wenn ...")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     assert knoepfe.offene_art(conn, 1) == "figuren"
 
-    # Die Figuren-Leiste bleibt, bis die Liste in Ebene 2 FIXIERT ist
-    # (05.09.2026 abends) -- nicht schon ab zwei Figuren.
+    # Die Figuren-Leiste bleibt, bis die Liste FIXIERT ist -- nicht schon ab
+    # zwei Figuren.
     repo.setze_figur(conn, 1, "Mira", "Naeherin")
     repo.setze_figur(conn, 1, "Pal", "Taxifahrer")
     assert knoepfe.offene_art(conn, 1) == "figuren"
 
     repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
+    assert knoepfe.offene_art(conn, 1) is None
+
+
+def test_in_phase_5_ist_die_geschichte_offen(conn, tg):
+    phasen.setze(conn, 1, 5, "befehl")
+    assert knoepfe.offene_art(conn, 1) == "geschichte"
+
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.")
     assert knoepfe.offene_art(conn, 1) is None
 
 
@@ -172,8 +179,7 @@ def test_kernthema_ueber_die_leiste_landet_im_arbeitsstand(conn, tg, einst):
 
 def test_figuren_ueber_die_leiste_werden_alle_angelegt(conn, tg, einst):
     phasen.setze(conn, 1, 4, "befehl")
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
-    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Frage: Was passiert, wenn ...")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1,
         "VORSCHLAG FIGUREN:\n"
@@ -202,7 +208,7 @@ def test_passt_aber_anders_speichert_trotzdem_und_fragt_gezielt(conn, tg, einst)
 
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat"
     assert tg.gesendet[-1][1] == (
-        "Gespeichert. Was genau soll anders sein - Wortwahl, Reihenfolge, etwas raus?"
+        "Gespeichert. Was soll anders sein?"
     )
 
 

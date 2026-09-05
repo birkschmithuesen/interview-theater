@@ -38,6 +38,10 @@ ART = "szenenfolge"
 #: Art des zweiten, kleineren Aufrufs: die fehlenden Felder EINER Szene.
 ART_FELDER = "szenenfelder"
 
+#: Art des Geschichte-Aufrufs (Phase 5, Umbau 05.09.2026 nachts): Bogen, Ende
+#: und Szenenfolge in EINEM Vorschlag -- und **ohne Material**.
+ART_GESCHICHTE = "geschichte"
+
 #: Ausgabebudget. Ein Vorschlag sind sechs Zeilen -- das Budget ist eine
 #: Obergrenze gegen Durchdrehen, kein Zielwert (wie ``szene.MAX_TOKENS``).
 #: ACHTUNG, AGENTS.md Falle 4: dieser Aufruf laeuft ueber ``klm.prosa`` und
@@ -100,6 +104,46 @@ Dialogen ist ein Fehler.
 
 Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
 
+#: Die Anweisung fuer den Geschichte-Aufruf (Phase 5). Der Unterschied zur
+#: Szenenfolge ist nicht die Form, sondern die Quelle: hier wird **erfunden**,
+#: aus den Begriffen und Fragen der Gruppe und dem, was sie in Phase 4
+#: festgelegt hat -- keine Interviews, keine Verdichtungen, keine Zitate. Das
+#: Material kommt erst in Phase 6 dazu und schaerft, was hier entsteht.
+ANWEISUNG_GESCHICHTE = """Du entwickelst mit einer Theatergruppe die Geschichte ihres Stuecks im Groben.
+
+Die Gruppe hat Setting und Figuren selbst erfunden. Jetzt geht es um den
+Bogen: was passiert, wie es endet, in welchen Szenen. Zum Beispiel eine
+Liebesgeschichte zweier Personen, die traurig endet, in drei Szenen; oder
+eine Gruppe, die jemanden verliert, sucht, und ein offenes Ende hat.
+
+**Du erfindest hier frei** -- aus den Begriffen und Fragen der Gruppe, aus
+dem Setting und den Figuren. Interviews, Verdichtungen und Zitate stehen dir
+bewusst nicht zur Verfuegung; sie kommen erst in der naechsten Station dazu
+und schaerfen, was ihr jetzt erfindet.
+
+Antworte in GENAU dieser Form, ohne Einleitung und ohne Nachwort:
+
+VORSCHLAG GESCHICHTE:
+Bogen in einem Satz
+Ende: wie es ausgeht
+Titel — ein Satz, was passiert — Figur, Figur — Form — warum diese Form
+Titel — ein Satz, was passiert — Figur, Figur — Form — warum diese Form
+
+Zeile 1 ist der Bogen, Zeile 2 beginnt mit \"Ende:\", danach eine Zeile je
+Szene. Nimm nur Figuren, die unten stehen.
+
+**Die Form schlaegst du VOR, du entscheidest sie nicht.** Sie steht als
+vierte Spalte, ihre Begruendung als fuenfte, und beide sind Pflicht -- die
+Gruppe bestaetigt die Form spaeter Szene fuer Szene per Knopf.
+
+Es gibt genau fuenf: Dialog, Monolog, Chor, Lied, Rap. **Dialog ist der
+Normalfall.** Monolog, Lied und Rap nur, wenn die Szene es verlangt: eine
+Figur allein mit sich, ein Gefuehl, das gesungen groesser wird, Wut, die
+Rhythmus braucht. Hoechstens EINE Nicht-Dialog-Szene je drei Szenen, und
+Szene 1 ist nie Monolog oder Lied -- die Exposition braucht Begegnung.
+
+Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
+
 #: Dasselbe fuer die fehlenden Felder EINER Szene. Der Anlass (Birk,
 #: 05.09.2026): \"Passt, schreiben\" lief bis dahin in den Sperrtext
 #: (``szene.sperrtext``) -- eine Liste dessen, was fehlt, und die Gruppe
@@ -151,9 +195,9 @@ def _sperre_fuer(chat_id: int) -> threading.Lock:
 _TRENNER = re.compile(r"\s+[—–]\s+|\s+-\s+")
 
 
-def zerlege(wert: str) -> list[tuple[str, str, list[str], str]]:
+def zerlege(wert: str) -> list[tuple[str, str, list[str], str, str]]:
     """Zerlegt den Szenenfolge-Block in ``(Titel, was_passiert, Figuren,
-    Form)``.
+    Formvorschlag, Begruendung)``.
 
     Eine Zeile je Szene. Fuehrende Aufzaehlungszeichen (\"- \", \"1. \",
     \"Szene 1: \") fallen weg -- ein Modell nummeriert gern mit, und die
@@ -163,15 +207,19 @@ def zerlege(wert: str) -> list[tuple[str, str, list[str], str]]:
     Besetzung ist ein normaler Planungszustand (``szene.sperrtext`` sagt es
     spaeter), kein Grund, die ganze Zeile wegzuwerfen.
 
-    Die **vierte Spalte ist die Form** (05.09.2026 abends, Birk): sie ist je
-    Szene Pflicht und wird deshalb schon hier vorgeschlagen. Fehlt sie, gilt
-    ``FORM_VORGABE`` -- geraten wird nichts, aber eine Zeile ohne vierte
-    Spalte ist kein Grund, die Szene wegzuwerfen. Uebersetzt wird ueber
-    ``szene.formdatei``: was das Modell schreibt ("gesungen"), landet bei
-    der Form, die es meint."""
+    Die **vierte Spalte ist der Formvorschlag** (05.09.2026 abends, Birk),
+    die **fuenfte seine Begruendung** (06.09.2026, Birk: "Die Form Monolog
+    habe ich niemals eingegeben und aktiv bestaetigt. Die Form muss mit mehr
+    Bedacht gewaehlt werden und vom User bestaetigt werden."). Beides ist ein
+    **Vorschlag**: gesetzt wird ``szene.form`` allein durch einen Knopfdruck
+    der Gruppe, Szene fuer Szene (``knoepfe.biete_szenenform``). Fehlt die
+    vierte Spalte, gilt ``FORM_VORGABE`` als Vorschlag -- Dialog ist der
+    Normalfall. Uebersetzt wird ueber ``szene.formdatei``: was das Modell
+    schreibt ("gesungen"), landet bei der Form, die es meint."""
+
     from interview_theater import szene as szene_modul
 
-    ergebnis: list[tuple[str, str, list[str], str]] = []
+    ergebnis: list[tuple[str, str, list[str], str, str]] = []
     for zeile in (wert or "").splitlines():
         roh = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", zeile).strip()
         roh = re.sub(r"^\s*szene\s*\d{0,3}\s*[:.]\s*", "", roh, flags=re.IGNORECASE)
@@ -187,12 +235,13 @@ def zerlege(wert: str) -> list[tuple[str, str, list[str], str]]:
             figuren = [f.strip(" .;:") for f in teile[2].split(",") if f.strip()]
         roh_form = teile[3].strip(" .;:") if len(teile) > 3 else ""
         form = szene_modul.formdatei(roh_form) if roh_form else FORM_VORGABE
-        ergebnis.append((titel, was, figuren, form))
+        grund = teile[4].strip() if len(teile) > 4 else ""
+        ergebnis.append((titel, was, figuren, form, grund))
     return ergebnis
 
 
 def lege_an(
-    conn, chat_id: int, zeilen: list[tuple[str, str, list[str], str]]
+    conn, chat_id: int, zeilen: list[tuple[str, str, list[str], str, str]]
 ) -> list[int]:
     """Legt aus einem Szenenfolge-Vorschlag die Szenen an und liefert ihre
     Nummern.
@@ -205,7 +254,12 @@ def lege_an(
     Die Besetzung wird nur gesetzt, soweit die Namen im Arbeitsstand stehen --
     eine Figur wird hier NIE angelegt. Figuren entstehen in Phase 4 mit
     Beschreibung und Interview; sie aus einer Szenenzeile zu raten waere genau
-    der Fehler, den ``vorschlag.py`` vermeidet."""
+    der Fehler, den ``vorschlag.py`` vermeidet.
+
+    **Die Form wird NICHT gesetzt** (Birk, 06.09.2026 00:30): sie landet als
+    ``form_vorschlag`` samt Begruendung in der Szene, ``form`` bleibt leer,
+    bis die Gruppe sie Szene fuer Szene per Knopf bestaetigt. Anlass: in einer
+    fertigen Szene stand "Monolog", ohne dass es je jemand gewaehlt hatte."""
     for alt in repo.hole_szenen(conn, chat_id):
         if alt["nummer"] is not None:
             repo.entferne_szene(conn, chat_id, alt["nummer"])
@@ -213,14 +267,18 @@ def lege_an(
     nummern: list[int] = []
     for nummer, zeile in enumerate(zeilen, start=1):
         titel, was, figuren = zeile[0], zeile[1], zeile[2]
-        # Die Form kommt aus der Vorschlagszeile (vierte Spalte); aeltere
-        # Aufrufer mit Dreiertupeln bekommen die Vorgabe.
+        # Der Formvorschlag kommt aus der vierten Spalte, seine Begruendung
+        # aus der fuenften; aeltere Aufrufer mit kuerzeren Tupeln bekommen die
+        # Vorgabe (Dialog).
         form = zeile[3] if len(zeile) > 3 and zeile[3] else FORM_VORGABE
+        grund = zeile[4] if len(zeile) > 4 else ""
         szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
         repo.setze_szenenfeld(conn, szene_id, "titel", titel)
         if was:
             repo.setze_szenenfeld(conn, szene_id, "was_passiert", was)
-        repo.setze_szenenfeld(conn, szene_id, "form", form)
+        repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", form)
+        if grund:
+            repo.setze_szenenfeld(conn, szene_id, "form_vorschlag_grund", grund)
         ids = [nach_name[n.lower()] for n in figuren if n.lower() in nach_name]
         if ids:
             repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
@@ -231,6 +289,35 @@ def lege_an(
 # ---------------------------------------------------------------------------
 # Was im Chat steht
 # ---------------------------------------------------------------------------
+
+
+#: Wie die Ende-Zeile eines Geschichte-Vorschlags anfaengt.
+_ENDE_PRAEFIX = re.compile(r"^\s*ende\s*[:\-–—]\s*", re.IGNORECASE)
+
+
+def zerlege_geschichte(wert: str) -> tuple[str, list[tuple[str, str, list[str], str]]]:
+    """Zerlegt einen ``VORSCHLAG GESCHICHTE:``-Block in ``(geschichte,
+    Szenenzeilen)``.
+
+    Zeile 1 ist der Bogen, Zeile 2 das Ende (mit oder ohne \"Ende:\" davor),
+    ab Zeile 3 die Szenen in der Form der Szenenfolge -- deshalb geht der
+    Rest durch ``zerlege()`` und nicht durch einen zweiten Zerleger.
+
+    ``geschichte`` ist der Text, der in ``arbeitsstand.geschichte`` landet:
+    zwei Zeilen, Bogen und Ende. Fehlt die Ende-Zeile (das Modell hat sie
+    weggelassen), bleibt es bei einer -- geraten wird nichts.
+    """
+    roh = [z.strip() for z in (wert or "").splitlines() if z.strip()]
+    if not roh:
+        return "", []
+    bogen = roh[0]
+    rest = roh[1:]
+    ende = ""
+    if rest and _ENDE_PRAEFIX.match(rest[0]):
+        ende = _ENDE_PRAEFIX.sub("", rest[0]).strip()
+        rest = rest[1:]
+    geschichte = bogen if not ende else f"{bogen}\nEnde: {ende}"
+    return geschichte, zerlege("\n".join(rest))
 
 
 def vorstellung(conn, zeile, chat_id: int | None = None) -> str:
@@ -465,17 +552,88 @@ def _material(conn, chat_id: int) -> str:
     return "\n\n".join(b for b in bloecke if b)
 
 
+def _erfundenes(conn, chat_id: int) -> str:
+    """Was in Phase 5 (Geschichte) im Prompt stehen darf: Begriffe, Fragen,
+    Setting, Figuren -- und die bestehende Folge.
+
+    **Kein Material.** Keine Verdichtungen, keine Zitate, keine Sprachprofile
+    (die haengen an Interviews). Das ist der Kontext-Filter dieser Phase, im
+    Code und nicht nur im Prompt: ein Modell, das die Interviews sieht,
+    erfindet nichts mehr, es referiert."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    zeilen: list[str] = []
+    if stand:
+        if (stand["begriffe"] or "").strip():
+            zeilen.append(f"Begriffe der Gruppe: {stand['begriffe'].strip()}")
+        if (stand["fragen"] or "").strip():
+            zeilen.append("Fragen der Gruppe:\n" + stand["fragen"].strip())
+        if (stand["rahmen"] or "").strip():
+            zeilen.append(f"Setting: {stand['rahmen'].strip()}")
+        if "geschichte" in stand.keys() and (stand["geschichte"] or "").strip():
+            zeilen.append("Bisherige Geschichte:\n" + stand["geschichte"].strip())
+    figuren = repo.figuren(conn, chat_id)
+    if figuren:
+        block = ["Figuren:"]
+        for figur in figuren:
+            kopf = f"- {figur['name']}"
+            if figur["beschreibung"]:
+                kopf += f" -- {figur['beschreibung']}"
+            block.append(kopf)
+        zeilen.append("\n".join(block))
+    szenen = repo.hole_szenen(conn, chat_id)
+    if szenen:
+        block = ["Bisherige Szenenfolge:"]
+        for s in szenen:
+            teile = [f"Szene {s['nummer']}"]
+            if s["titel"]:
+                teile.append(s["titel"])
+            if s["was_passiert"]:
+                teile.append(s["was_passiert"])
+            block.append(" — ".join(teile))
+        zeilen.append("\n".join(block))
+    return "\n\n".join(zeilen)
+
+
 def systemanweisung(anzahl: int) -> str:
     """Anweisung fuer den Folge-Aufruf: die Form (Marker!) plus der
-    Phasenfokus aus ``prompts/phasen/6.md``, heiss nachgeladen.
+    Phasenfokus aus ``prompts/phasen/7.md``, heiss nachgeladen.
 
     Die Phasendatei ist optional (``hole_optional``): fehlt sie am
     Workshoptag, entsteht trotzdem eine Szenenfolge."""
     teile = [ANWEISUNG_FOLGE.format(anzahl=anzahl)]
-    phase = anweisungen.hole_optional("phasen/6")
+    phase = anweisungen.hole_optional("phasen/7")
     if phase and phase.strip():
         teile.append(phase.strip())
     return "\n\n".join(teile)
+
+
+def systemanweisung_geschichte(anzahl: int | None = None) -> str:
+    """Anweisung fuer den Geschichte-Aufruf plus der Phasenfokus aus
+    ``prompts/phasen/5.md``.
+
+    ``anzahl`` ist eine Bitte, keine Vorgabe: wie viele Szenen es werden,
+    ergibt sich aus der Geschichte -- \"Anzahl aendern\" reicht sie herein,
+    wenn die Gruppe eine nennt."""
+    teile = [ANWEISUNG_GESCHICHTE]
+    if anzahl:
+        teile.append(f"Die Gruppe moechte {anzahl} Szenen.")
+    phase = anweisungen.hole_optional("phasen/5")
+    if phase and phase.strip():
+        teile.append(phase.strip())
+    return "\n\n".join(teile)
+
+
+def baue_nutzertext_geschichte(conn, chat_id: int, wunsch: str | None = None) -> str:
+    """Das Erfundene, dann der Auftrag -- **ohne Material** (``_erfundenes``)."""
+    teile = [_erfundenes(conn, chat_id)]
+    auftrag = (
+        "Euer Auftrag:\nSchlag die Geschichte im Groben vor: was passiert, "
+        "wie es endet, welche Szenen."
+    )
+    if wunsch and wunsch.strip():
+        auftrag += f"\n{wunsch.strip()}"
+    teile.append(auftrag)
+    return "\n\n".join(t for t in teile if t)
 
 
 def baue_nutzertext(conn, chat_id: int, anzahl: int, wunsch: str | None = None) -> str:
@@ -496,6 +654,7 @@ _TEXT_FEHLER = (
     "ich es neu."
 )
 _TEXT_FELDER_LAEUFT = "Ich schlage die fehlenden Angaben vor, einen Moment."
+_TEXT_GESCHICHTE_LAEUFT = "Ich schlage euch eine Geschichte vor, einen Moment."
 
 
 def _sende(conn, tg, e, chat_id: int, text: str) -> None:
@@ -559,6 +718,42 @@ def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
         target=_lauf,
         args=(conn, tg, klm, e, chat_id, systemanweisung(anzahl),
               baue_nutzertext(conn, chat_id, anzahl, wunsch), ART, sperre, _fertig),
+        daemon=True,
+    )
+    try:
+        thread.start()
+    except Exception:
+        sperre.release()
+        raise
+    return thread
+
+
+def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
+                      wunsch: str | None = None) -> threading.Thread | None:
+    """Der Geschichte-Vorschlag (Phase 5) -- derselbe Weg wie ``starte``, nur
+    mit anderer Anweisung und **ohne Material** im Nutzertext.
+
+    Kein Modellaufruf im aufrufenden Thread (Zusage 2): ein Knopf darf ihn
+    ausloesen, weil er sofort abgibt."""
+    if klm is None:
+        log.error("Geschichte ohne Sprachmodell, chat_id=%s", chat_id)
+        return None
+    sperre = _sperre_fuer(chat_id)
+    if not sperre.acquire(blocking=False):
+        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+        return None
+    _sende(conn, tg, e, chat_id, _TEXT_GESCHICHTE_LAEUFT)
+
+    def _fertig(antwort: str) -> None:
+        from interview_theater import knoepfe
+
+        knoepfe.sende_geschichte(conn, tg, chat_id, antwort)
+
+    thread = threading.Thread(
+        target=_lauf,
+        args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte(anzahl),
+              baue_nutzertext_geschichte(conn, chat_id, wunsch),
+              ART_GESCHICHTE, sperre, _fertig),
         daemon=True,
     )
     try:

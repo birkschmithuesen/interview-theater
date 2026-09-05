@@ -388,7 +388,7 @@ def test_phase_ohne_argument_zeigt_phase_und_liste(conn, einst, tg):
 
     assert behandelt is True
     text = tg.gesendet[0][1]
-    assert "Wir sind bei 5 · Rahmen." in text
+    assert "Wir sind bei 5 · Geschichte." in text
     for nummer, name, _ in phasen.PHASEN:
         assert f"{nummer} · {name}" in text
 
@@ -405,7 +405,7 @@ def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
     assert behandelt is True
     assert repo.hole_phase(conn, 1) == 5
     assert tg.gesendet == [
-        (1, "Wir sind jetzt bei 5 · Rahmen. Falls nicht, sagt es mir.")
+        (1, "Wir sind jetzt bei 5 · Geschichte. Falls nicht, sagt es mir.")
     ]
 
 
@@ -443,7 +443,7 @@ def test_stand_zeigt_die_phase_zuerst(conn, einst, tg):
 
     zeilen = tg.gesendet[0][1].splitlines()
     assert zeilen[0] == "Stand:"
-    assert zeilen[1] == "Phase: 5 · Rahmen"
+    assert zeilen[1] == "Phase: 5 · Geschichte"
 
 
 def test_stand_zeigt_den_rahmen_den_konflikt_nur_wenn_gesetzt(conn, einst, tg):
@@ -604,7 +604,7 @@ def test_aufnahme_startet_und_beendet_mit_demselben_befehl(conn, einst, tg):
     kopf = repo.laufendes_interview(conn, 1)
     assert kopf is not None
     assert "Bereit" in tg.gesendet[-1][1]
-    assert "Knopf" in tg.gesendet[-1][1], "die Bedienung steht in der Ansage"
+    assert len(tg.gesendet[-1][1]) < 120, "die Ansage bleibt kurz (Fix e)"
     assert "/aufnahme" not in tg.gesendet[-1][1], "kein Slash-Befehl mehr im Text"
 
     befehle.behandle(conn, tg, einst, 1, "/aufnahme", "Ada")
@@ -630,11 +630,13 @@ def test_aufnahme_ansage_erklaert_die_bedienung(conn, einst, tg):
     text = tg.gesendet[-1][1]
 
     assert "Sprachnachricht" in text or "Sprachnachrichten" in text
-    assert "Mitlesen" in text, "das zurueckgespielte Transkript wird angesagt"
-    # Seit 05.09.2026 (E) haengt kein Beenden-Knopf unter der Ansage -- der
-    # Text sagt deshalb, WO gefragt wird, ob es weitergeht: unter dem
-    # abgetippten Text (knoepfe.biete_nach_teil).
-    assert "Knopf" in text and "fertig" in text
+    assert "abgetippte" in text, "das zurueckgespielte Transkript wird angesagt"
+    # Seit 05.09.2026 (E) haengt kein Beenden-Knopf unter der Ansage. Seit dem
+    # 06.09.2026 (Fix e) erklaert sie auch nicht mehr, wo gefragt wird: die
+    # Knoepfe unter dem abgetippten Text sagen das selbst
+    # (knoepfe.biete_nach_teil).
+    assert "Knopf" not in text
+    assert len(text) < 120, "die Ansage bleibt kurz"
 
 
 # ---------------------------------------------------------------------------

@@ -911,7 +911,9 @@ def test_phase_setzen_meldet_die_neue_phase(conn, einst):
     meldung = erkenner.baue_meldung(wirkliche)
 
     assert "Wir sind jetzt bei 5 · Geschichte." in meldung
-    assert meldung.endswith("Falls das nicht stimmt, sagt es mir.")
+    # Der Nachsatz ist am 06.09.2026 gestrichen (Fix e): die Grundleiste
+    # unter der Meldung sagt dasselbe, und zwar als Knopf.
+    assert "Falls das nicht stimmt" not in meldung
 
 
 def test_ruecksprung_ueber_den_erkenner(conn, einst):

@@ -679,6 +679,23 @@ _ERSTER_ALS_WERT = {
 }
 
 
+def _feld_ist_frei(conn, chat_id: int, feld: str) -> bool:
+    """Darf die Grundleiste einen Auswahl-Vorschlag fuer dieses Feld tragen?
+
+    Ja, solange das Feld leer ist -- oder die Gruppe ausdruecklich um eine
+    Aenderung gebeten hat (``arbeitsstand.aenderung_offen``). Steht der Wert
+    und ist nichts offen, traegt die Leiste ihn nicht: das war der Live-Fall
+    vom 05.09.2026, 21:50 (siehe ``sende_mit_speicherleiste``)."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is None:
+        return True
+    if (stand["aenderung_offen"] or "").strip() == feld:
+        return True
+    if feld not in stand.keys():
+        return True
+    return not (stand[feld] or "").strip()
+
+
 def _auswahlleiste(conn, chat_id: int, marker: str, wert: str) -> list[tuple[str, str]]:
     """Ein Knopf je Zeile eines Auswahl-Blocks (``VORSCHLAG RICHTUNGEN:`` und
     Verwandte) -- die Zeile ist zugleich Beschriftung und gespeicherter Wert.
@@ -732,22 +749,23 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
 
     art = offene_art(conn, chat_id)
     wert = bloecke.get(art) if art else None
-    if marker in _ERSTER_ALS_WERT and _ERSTER_ALS_WERT[marker] == art:
+    if marker in _ERSTER_ALS_WERT and _feld_ist_frei(
+        conn, chat_id, _ERSTER_ALS_WERT[marker]
+    ):
         # Eine Auswahlliste: die Grundleiste traegt den ERSTEN Vorschlag,
         # nie die ganze Liste -- "Passt, aber anders" soll einen Rahmen
         # speichern, nicht drei untereinander.
         #
-        # **Nur, wenn die Liste zur offenen Art gehoert** (06.09.2026, Birk,
-        # Testgruppe 21:50): der Bot hatte in Phase 6 drei Szenenbilder als
-        # ``VORSCHLAG RAHMEN:`` angeboten, die Gruppe druckte "Gefaellt uns,
+        # **Nur, solange das Zielfeld frei ist** (06.09.2026, Birk,
+        # Testgruppe 21:50): der Bot bot in Phase 6 drei Szenenbilder als
+        # ``VORSCHLAG RAHMEN:`` an, die Gruppe druckte "Gefaellt uns,
         # weiter" -- und die Leiste ueberschrieb den Rahmen von 21:37 ("Vier
         # Freundinnen im Nordkiez ...") still mit "Leyla checkt ihr Handy auf
-        # dem Schulhof". Ohne diese Bedingung speichert jede Liste, die
-        # zufaellig einen bekannten Marker traegt, in ein Feld, um das es
-        # gerade gar nicht geht.
+        # dem Schulhof". Steht das Feld schon und hat niemand um eine
+        # Aenderung gebeten, traegt die Leiste diesen Wert gar nicht erst.
         erste = vorschlag.zeilen(bloecke[marker])
         if erste:
-            wert = erste[0]
+            art, wert = _ERSTER_ALS_WERT[marker], erste[0]
 
     if marker is None and (not art or not wert):
         return tg.sende(chat_id, sauber), False

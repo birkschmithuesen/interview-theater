@@ -557,7 +557,9 @@ def test_stueck_ohne_feld_zeigt_nur_den_rahmen(conn, einst, tg):
 def test_rahmen_vorschlaege_werden_zu_knoepfen(conn, einst, tg):
     """Phase 5 arbeitet nur noch am Rahmen: drei Vorschlaege, ein Knopf je
     Zeile, darunter die Grundleiste."""
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
 
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1,
@@ -574,7 +576,9 @@ def test_rahmen_vorschlaege_werden_zu_knoepfen(conn, einst, tg):
 
 
 def test_rahmen_knopf_schreibt_in_den_arbeitsstand(conn, einst, tg):
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG RAHMEN:\nBahnhofshalle, nachts\nHinterhof"
     )
@@ -587,7 +591,9 @@ def test_rahmen_knopf_schreibt_in_den_arbeitsstand(conn, einst, tg):
 def test_passt_aber_anders_speichert_bei_einer_rahmen_liste_den_ersten(conn, einst, tg):
     """Bei einer Auswahlliste traegt die Grundleiste den ERSTEN Vorschlag --
     "Passt, aber anders" braucht einen Wert, sonst stuende nichts da."""
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG RAHMEN:\nBahnhofshalle, nachts\nHinterhof"
     )
@@ -601,7 +607,9 @@ def test_passt_aber_anders_speichert_bei_einer_rahmen_liste_den_ersten(conn, ein
 def test_rahmen_callback_data_bleibt_unter_64_bytes(conn, tg):
     """Der Grund fuer die Knopf-Tabelle: ein ausformulierter Rahmen ist
     laenger als die ganze Telegram-Grenze."""
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     lang = ("Eine Bahnhofshalle kurz vor Mitternacht im letzten Sommer " * 3).strip()
     assert len(lang.encode("utf-8")) > telegram.CALLBACK_DATA_GRENZE
 
@@ -613,7 +621,9 @@ def test_rahmen_callback_data_bleibt_unter_64_bytes(conn, tg):
 
 
 def test_hoechstens_vier_auswahlknoepfe(conn, tg):
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG RAHMEN:\nA\nB\nC\nD\nE\nF"
     )
@@ -806,7 +816,9 @@ def test_slash_und_knopf_setzen_dasselbe_feld_ohne_sich_zu_stoeren(conn, einst, 
     (repo.setze_arbeitsstand) -- kein zweiter Mechanismus daneben."""
     from interview_theater import befehle
 
-    phasen.setze(conn, 1, 5, "befehl")
+    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
+    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+    phasen.setze(conn, 1, 4, "befehl")
     befehle.behandle(conn, tg, einst, 1, "/stueck rahmen Bahnhofshalle", "Ada")
     assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Bahnhofshalle"
 

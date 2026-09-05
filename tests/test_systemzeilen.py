@@ -78,7 +78,11 @@ def test_notiert_meldung_endet_mit_dem_wert():
     """Kein Nachsatz mehr unter der Notiert-Zeile."""
     text = erkenner.baue_meldung([{"art": "rahmen_setzen", "wert": "Schulhof"}])
 
-    assert text == "Notiert:\nRahmen: Schulhof"
+    # Die Beschriftung kommt aus ``erkenner._NOTIERT`` (seit dem
+    # Phasen-Umbau "Setting"); geprueft wird hier, dass NICHTS dahinter steht.
+    assert text.startswith("Notiert:\n")
+    assert text.endswith("Schulhof")
+    assert len(text.splitlines()) == 2
 
 
 # --- (f) "Bin wieder da" ---------------------------------------------------

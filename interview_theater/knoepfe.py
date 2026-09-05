@@ -61,6 +61,41 @@ ART_AUSWERTEN = "auswerten"
 ART_STAND = "stand"
 #: Bedienung zeigen -- dasselbe Ziel wie ``/hilfe``.
 ART_HILFE = "hilfe"
+#: Die Speicher-Leiste unter einem Vorschlag (05.09.2026): "So speichern"
+#: schreibt den Wert aus dem Vorschlagsblock (``vorschlag.py``) in den
+#: Arbeitsstand -- ueber dieselben Schreibwege wie ``erkenner.wende_an``.
+#: Der ``wert`` traegt beides, durch '|' getrennt: "begriffe|Heimat, Arbeit".
+#: '|' und nicht ':', weil ein Kernthema regelmaessig einen Doppelpunkt
+#: enthaelt ("Ankommen: zwischen zwei Sprachen").
+ART_SPEICHERN = "speichern"
+#: "Nochmal anders" -- Tastatur weg, ein Satz, KEIN Modellaufruf (Zusage 2).
+#: Der ``wert`` traegt die Art, damit die Leiste als Ganzes verfaellt.
+ART_ANDERS = "anders"
+#: Alle beendeten, aber noch nicht ausgewerteten Interviews nacheinander
+#: verdichten -- der Weg aus der Phase-4-Sperre (``phasen.voraussetzungen``).
+ART_AUSWERTEN_ALLE = "auswerten_alle"
+
+#: Trennzeichen im ``wert`` der Speicher-Leiste.
+TRENNER = "|"
+
+_TEXT_SPEICHERN_KNOPF = "So speichern"
+_TEXT_ANDERS_KNOPF = "Nochmal anders"
+_TEXT_ANDERS = "Sagt mir, was anders sein soll."
+_TEXT_AUSWERTEN_ALLE_KNOPF = "Alle auswerten"
+_TEXT_AUSWERTEN_ALLE_LAEUFT = "Ich werte die offenen Interviews aus."
+_TEXT_AUSWERTEN_ALLE_NICHTS = "Es ist nichts mehr offen."
+#: Die Frage unter dem Weiter-Knopf nach einem Speichern -- eine Frage, kein
+#: Wechsel (``phasen.py``: die Phase setzt allein die Gruppe).
+_TEXT_WEITER_FRAGE = "Gehen wir weiter?"
+
+#: Was nach dem Speichern in den Chat geht -- die Notiert-Zeile, im selben
+#: Wortlaut wie beim Erkenner (``erkenner.baue_meldung``): die Gruppe soll
+#: nicht zwei Formen fuer dieselbe Sache lernen.
+_NOTIERT = {
+    "begriffe": "Begriffe",
+    "fragen": "Fragen",
+    "kernthema": "Kernthema",
+}
 
 #: Hoechstens drei Vorschlaege je Kernthema-Angebot. Mehr ist keine Auswahl
 #: mehr, sondern eine Liste, die gelesen werden will -- und die Gruppe steht
@@ -241,12 +276,156 @@ def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
 def _phasenknopf(conn, chat_id: int) -> tuple[str, str] | None:
     """Der Knopf "Weiter zu Phase N", wenn die Materiallage eine hoehere
     Stufe hergibt -- sonst None (``phasen.naechste_moegliche``, reine
-    Leseabfrage)."""
+    Leseabfrage).
+
+    Die Sperre fuer Phase 4 steckt in ``phasen.voraussetzungen``, nicht
+    hier: solange ein beendetes Interview ohne Verdichtung offen ist, gibt
+    ``naechste_moegliche`` die 4 gar nicht erst her -- an allen drei Stellen
+    zugleich (diese Funktion, ``biete_nach_aufnahme``,
+    ``kontext._baue_phasenhinweis``)."""
     nummer = phasen.naechste_moegliche(conn, chat_id)
     if nummer is None:
         return None
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
     return (f"Weiter zu {phasen.bezeichnung(nummer)}", _daten(knopf_id))
+
+
+def _auswerten_alle_knopf(conn, chat_id: int, ausser: int | None = None) -> tuple[str, str] | None:
+    """"Alle auswerten", solange ein beendetes Interview ohne Verdichtung
+    offen ist -- sonst None.
+
+    Das Gegenstueck zur Phase-4-Sperre: wo "Weiter zu Phase 4" wegfaellt,
+    soll nicht einfach nichts stehen, sondern der Weg dorthin.
+
+    ``ausser`` nimmt das Interview aus, fuer das schon ein eigener
+    "Auswerten"-Knopf danebensteht (``biete_nach_aufnahme``): zwei Knoepfe
+    fuer dieselbe eine Auswertung waeren keine Auswahl, sondern eine
+    Verdopplung -- die Gruppe steht im Raum und trifft den ersten."""
+    from interview_theater import aufnahme
+
+    offen = [
+        kopf for kopf in aufnahme.unausgewertete_interviews(conn, chat_id)
+        if kopf["id"] != ausser
+    ]
+    if not offen:
+        return None
+    knopf_id = repo.lege_knopf_an(conn, chat_id, ART_AUSWERTEN_ALLE, None)
+    return (_TEXT_AUSWERTEN_ALLE_KNOPF, _daten(knopf_id))
+
+
+def _nimm_alte_leiste_ab(conn, tg, chat_id: int, art: str) -> None:
+    """Nimmt die Tastatur einer aelteren, ungedrueckten Speicher-Leiste
+    derselben Art ab, bevor eine neue kommt.
+
+    Warum: der Wert steckt im Knopf, nicht im Text. Nach drei Vorschlaegen
+    staenden sonst drei Leisten im Chat, und ein Druck auf die von vor zwei
+    Nachrichten speicherte den ueberholten Vorschlag -- genau die Sorte
+    stiller Fehler, gegen die die Knoepfe angetreten sind. Die alten
+    Knopfzeilen werden zusaetzlich als benutzt gestempelt
+    (``repo.verfallen_lassen``), damit sie auch dann nicht mehr wirken, wenn
+    die App die Tastatur noch einen Moment zeigt."""
+    alte = repo.offene_knoepfe(conn, chat_id, art)
+    if not alte:
+        return
+    repo.verfallen_lassen(conn, [k["id"] for k in alte])
+    for message_id in dict.fromkeys(k["message_id"] for k in alte):
+        _entferne_tastatur(tg, chat_id, message_id)
+
+
+def speicherleiste(conn, chat_id: int, art: str, wert: str) -> list[tuple[str, str]]:
+    """Die zwei Knoepfe unter einem Vorschlag: "So speichern" · "Nochmal
+    anders" (05.09.2026).
+
+    ``wert`` ist der Text aus dem Vorschlagsblock (``vorschlag.lies``) --
+    exakt der, der beim Druck gespeichert wird. Nichts wird hier
+    umformuliert, gekuerzt oder ergaenzt: was die Gruppe im Chat liest, ist
+    was in der Datenbank landet.
+
+    Der Volltext steht in der Tabelle ``knopf``, nie in ``callback_data``
+    (Zusage 1 im Moduldocstring) -- eine Begriffsliste sprengt die 64 Bytes
+    muehelos."""
+    speichern = repo.lege_knopf_an(
+        conn, chat_id, ART_SPEICHERN, f"{art}{TRENNER}{wert}"
+    )
+    anders = repo.lege_knopf_an(conn, chat_id, ART_ANDERS, art)
+    return [
+        (_TEXT_SPEICHERN_KNOPF, _daten(speichern)),
+        (_TEXT_ANDERS_KNOPF, _daten(anders)),
+    ]
+
+
+def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bool]:
+    """Schickt eine Bot-Antwort und haengt -- wenn beides zutrifft -- die
+    Speicher-Leiste darunter (05.09.2026). Liefert ``(message_id, leiste?)``.
+
+    Zwei Bedingungen, beide noetig:
+
+    1. Es fehlt gerade etwas, das ueber die Leiste gespeichert werden kann
+       (``offene_art``: Begriffe in Phase 1, Fragen in 2, Kernthema/Figuren
+       in 4).
+    2. Der Antworttext enthaelt einen **Vorschlagsblock** dieser Art
+       (``vorschlag.lies``). Fehlt er, gibt es keine Leiste -- **kein
+       Raten**: lieber keine Knoepfe als zwei, die den falschen Text
+       speichern.
+
+    Die Markerzeilen selbst gehen nie in den Chat (``vorschlag.ohne_marker``);
+    sie sind Technik zwischen Prompt und Code, kein Inhalt fuer die Gruppe.
+
+    Der Text ist auch ohne Leiste immer derselbe -- das ist wichtig: die
+    Gruppe soll nicht daran, ob Knoepfe darunter stehen, ablesen muessen, ob
+    das Modell die Form eingehalten hat."""
+    from interview_theater import vorschlag
+
+    sauber = vorschlag.ohne_marker(text) or text
+    art = offene_art(conn, chat_id)
+    wert = vorschlag.lies(text, art) if art else None
+    if not art or not wert:
+        return tg.sende(chat_id, sauber), False
+
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SPEICHERN)
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_ANDERS)
+    leiste = speicherleiste(conn, chat_id, art, wert)
+    message_id = tg.sende_mit_knoepfen(chat_id, sauber, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
+    )
+    return message_id, True
+
+
+def offene_art(conn, chat_id: int) -> str | None:
+    """Welche Art gerade noch fehlt und deshalb eine Speicher-Leiste
+    verdient -- oder None.
+
+    Die Reihenfolge ist die der Arbeit, nicht die des Alphabets, und sie
+    haengt an der **Phase**, damit in Phase 1 nicht ploetzlich nach Figuren
+    gefragt wird:
+
+    * Phase 1 -- ``begriffe``, solange das Feld leer ist.
+    * Phase 2 -- ``fragen``, solange das Feld leer ist.
+    * Phase 4 -- ``kernthema``, solange es keins gibt; danach ``figuren``,
+      solange es weniger als zwei gibt (dieselbe Schwelle wie
+      ``phasen.voraussetzungen[5]``: ein Stueck braucht zwei Wollen).
+
+    Steht der Wert, gibt es keine Leiste mehr -- **das** ist der Mechanismus
+    hinter "die Leiste kommt nach jeder Aenderung wieder": speichert weder
+    Knopf noch Erkenner, bleibt das Feld leer, und die naechste Bot-Antwort
+    mit einem Vorschlagsblock traegt sie erneut."""
+    phase = phasen.aktuelle(conn, chat_id)
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+
+    def leer(feld: str) -> bool:
+        return not (stand and (stand[feld] or "").strip())
+
+    if phase == 1:
+        return "begriffe" if leer("begriffe") else None
+    if phase == 2:
+        return "fragen" if leer("fragen") else None
+    if phase == 4:
+        if leer("kernthema"):
+            return "kernthema"
+        if len(repo.figuren(conn, chat_id)) < 2:
+            return "figuren"
+    return None
 
 
 def _aufnahme_anbieten(conn, chat_id: int, nur_phase_3: bool = False) -> bool:
@@ -340,6 +519,12 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
                 _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
             )
         )
+    # Solange ein beendetes Interview ohne Verdichtung offen ist, gibt
+    # ``phasen.naechste_moegliche`` die 4 nicht her (Phase-4-Sperre) -- an
+    # ihre Stelle tritt der Weg dorthin: alle offenen auswerten.
+    alle = _auswerten_alle_knopf(conn, chat_id, ausser=kopf_id)
+    if alle is not None:
+        knoepfe.append(alle)
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
         knoepfe.append(phasenknopf)
@@ -386,6 +571,12 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
         # Direkt hinter der Aufnahme, wenn es sie gibt -- sonst ganz vorn: der
         # Schritt in die naechste Phase ist dann die wahrscheinlichste Absicht.
         knoepfe.insert(1 if _aufnahme_anbieten(conn, chat_id) else 0, phasenknopf)
+    else:
+        # Kein Phasenknopf, aber offene Auswertungen: dann ist DAS der
+        # naechste Schritt (Phase-4-Sperre) -- an derselben Stelle.
+        alle = _auswerten_alle_knopf(conn, chat_id)
+        if alle is not None:
+            knoepfe.insert(1 if _aufnahme_anbieten(conn, chat_id) else 0, alle)
     return tg.sende_mit_knoepfen(chat_id, text, knoepfe)
 
 
@@ -478,6 +669,111 @@ def biete_szene_usa(conn, tg, chat_id: int, text: str | None = None) -> None:
 # --- Verarbeitung ---------------------------------------------------------
 
 
+def _speichere(conn, tg, chat_id: int, roh: str) -> str:
+    """Schreibt den Wert einer Speicher-Leiste in den Arbeitsstand -- ueber
+    **dieselben** ``repo``-Funktionen wie ``erkenner.wende_an``.
+
+    Das ist die ganze Uebung: kein zweiter Schreibweg, kein zweites Feld,
+    keine zweite Notiert-Zeile. Der Erkenner-Pfad bleibt daneben bestehen;
+    schreibt er zuerst, ist das Feld gesetzt und die Leiste erscheint gar
+    nicht mehr (``offene_art``).
+
+    ``roh`` ist ``"<art>|<wert>"`` (siehe ``ART_SPEICHERN``). Getrennt wird
+    am ERSTEN '|', damit ein Wert mit '|' darin (eine Frageliste zum
+    Beispiel) die Art nicht zerlegt."""
+    art, _, wert = roh.partition(TRENNER)
+    art = art.strip()
+    wert = wert.strip()
+    if not art or not wert:
+        log.error("Speicher-Knopf ohne Wert, chat_id=%s, roh=%r", chat_id, roh)
+        return _TEXT_UNBEKANNT
+
+    if art == "figuren":
+        from interview_theater import vorschlag
+
+        angelegt = []
+        for name, beschreibung in vorschlag.figuren(wert):
+            # Derselbe Schreibweg wie erkenner._wende_figur_an: eine Figur
+            # entsteht mit Name und Beschreibung, mehr braucht Phase 4 nicht.
+            repo.setze_figur(conn, chat_id, name, beschreibung)
+            angelegt.append(name)
+        if not angelegt:
+            log.error("Figuren-Knopf ohne verwertbare Zeile, chat_id=%s", chat_id)
+            return _TEXT_UNBEKANNT
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden", f"Figuren: {', '.join(angelegt)}",
+            quelle="knopf",
+        )
+        tg.sende(chat_id, "Notiert:\n" + _figurenzeile(angelegt)
+                 + "\nFalls das nicht stimmt, sagt es mir.")
+        return "Figuren uebernommen"
+
+    if art not in _NOTIERT:
+        log.error("Speicher-Knopf mit unbekannter art %r, chat_id=%s", art, chat_id)
+        return _TEXT_UNBEKANNT
+
+    repo.setze_arbeitsstand(conn, chat_id, art, wert)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", f"{_NOTIERT[art]}: {wert}", quelle="knopf",
+    )
+    tg.sende(
+        chat_id,
+        f"Notiert:\n{_NOTIERT[art]}: {wert}\nFalls das nicht stimmt, sagt es mir.",
+    )
+    # Danach der Weg weiter: mit dem gesetzten Feld gibt die Materiallage
+    # eine hoehere Stufe her (``phasen.voraussetzungen``) -- der Knopf sagt
+    # es, statt dass jemand raten muss, was jetzt dran ist.
+    phasenknopf = _phasenknopf(conn, chat_id)
+    if phasenknopf is not None:
+        tg.sende_mit_knoepfen(chat_id, _TEXT_WEITER_FRAGE, [phasenknopf])
+    return f"{_NOTIERT[art]} uebernommen"
+
+
+def _figurenzeile(namen: list[str]) -> str:
+    """Dieselbe Zeile, die der Erkenner baut (``erkenner._figuren_zeile``) --
+    von dort geholt statt hier zweitgepflegt: die Gruppe soll nicht zwei
+    Formulierungen fuer dasselbe Ereignis sehen."""
+    from interview_theater import erkenner
+
+    return erkenner._figuren_zeile(namen)
+
+
+def _werte_alle_aus(conn, tg, klm, e, chat_id: int) -> str:
+    """Wertet ALLE beendeten, noch nicht verdichteten Interviews aus --
+    nacheinander, in einem eigenen Thread (Zusage 2: kein Modellaufruf im
+    Handler selbst).
+
+    Nacheinander und nicht parallel: Infomaniak drosselt Parallelitaet mit
+    429/5xx statt mit einer Warteschlange (AGENTS.md, Falle 8). Jede fertige
+    Verdichtung geht von ``aufnahme._interview_abschliessen`` aus in den
+    Chat, die Gruppe sieht also den Fortschritt."""
+    import threading
+
+    from interview_theater import aufnahme
+
+    offen = aufnahme.unausgewertete_interviews(conn, chat_id)
+    if not offen:
+        tg.sende(chat_id, _TEXT_AUSWERTEN_ALLE_NICHTS)
+        return _TEXT_AUSWERTEN_ALLE_NICHTS
+    if klm is None:
+        log.error("Auswerten-alle ohne Sprachmodell, chat_id=%s", chat_id)
+        tg.sende(chat_id, _TEXT_AUSWERTEN_UNMOEGLICH)
+        return _TEXT_AUSWERTEN_UNMOEGLICH
+
+    ids = [kopf["id"] for kopf in offen]
+    tg.sende(chat_id, _TEXT_AUSWERTEN_ALLE_LAEUFT)
+
+    def _lauf() -> None:
+        for kopf_id in ids:
+            try:
+                aufnahme._auswerten(conn, tg, klm, e, kopf_id)
+            except Exception:
+                log.exception("Auswertung fehlgeschlagen, aufnahme_id=%s", kopf_id)
+
+    threading.Thread(target=_lauf, daemon=True).start()
+    return _TEXT_AUSWERTEN_ALLE_LAEUFT
+
+
 def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
     """Fuehrt die Wirkung eines beanspruchten Knopfes aus und liefert den
     kurzen Text fuer answerCallbackQuery.
@@ -486,6 +782,17 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
     die Idempotenz haengt an dieser einen Bedingung und nicht daran, dass
     jede Wirkung fuer sich wiederholbar waere."""
     art = knopf["art"]
+    if art == ART_SPEICHERN:
+        return _speichere(conn, tg, chat_id, str(knopf["wert"] or ""))
+    if art == ART_ANDERS:
+        # Kein Modellaufruf (Zusage 2): ein Satz, mehr nicht. Die naechste
+        # Bot-Antwort traegt die Leiste automatisch wieder, weil der Wert
+        # weiterhin leer ist (``offene_art``) -- genau das ist gemeint mit
+        # "das Menue kommt nach jeder Aenderung wieder".
+        tg.sende(chat_id, _TEXT_ANDERS)
+        return "Neuer Vorschlag"
+    if art == ART_AUSWERTEN_ALLE:
+        return _werte_alle_aus(conn, tg, klm, e, chat_id)
     if art == ART_KERNTHEMA:
         # Der eigentliche Punkt der Uebung: deterministisch schreiben, was
         # der Erkenner live nicht zuverlaessig traf.

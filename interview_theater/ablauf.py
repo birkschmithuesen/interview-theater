@@ -44,7 +44,7 @@ import re
 import threading
 from contextlib import contextmanager
 
-from interview_theater import befehle, kontext, phasen, repo
+from interview_theater import befehle, knoepfe, kontext, phasen, repo, vorschlag
 from interview_theater.llm import LLMFehler
 
 log = logging.getLogger(__name__)
@@ -420,7 +420,22 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             if hinweis:
                 text = f"{text}\n\n{hinweis}"
 
-        message_id = tg.sende(chat_id, text)
+        # Die Speicher-Leiste (05.09.2026): enthaelt die Antwort einen
+        # Vorschlagsblock (``vorschlag.py``) fuer das, was gerade fehlt --
+        # Begriffe in Phase 1, Fragen in 2, Kernthema/Figuren in 4 --, haengen
+        # "So speichern" und "Nochmal anders" darunter. Ohne Block gibt es
+        # nur den Text; geraten wird nichts. Die Markerzeilen fallen dabei
+        # weg, die Gruppe sieht sie nie.
+        #
+        # Faellt die Tastatur aus (Telegram-Fehler), geht der Text trotzdem
+        # raus: die Antwort ist wichtiger als ihre Knoepfe.
+        try:
+            message_id, _ = knoepfe.sende_mit_speicherleiste(conn, tg, chat_id, text)
+            text = vorschlag.ohne_marker(text) or text
+        except Exception:
+            log.exception("Speicher-Leiste fehlgeschlagen, chat_id=%s", chat_id)
+            text = vorschlag.ohne_marker(text) or text
+            message_id = tg.sende(chat_id, text)
         versand_erfolgreich = True
         # Die Antwort des Modells wird als Bot-Nachricht mitgeschrieben, damit
         # sie im Verlaufsfenster des naechsten Zuges steht (kontext.baue liest

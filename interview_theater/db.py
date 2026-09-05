@@ -263,7 +263,10 @@ CREATE TABLE IF NOT EXISTS knopf (
   wert         TEXT,                     -- Kernthema-Volltext, Phasennummer,
                                           -- Format, "<nr>:<form>" bzw. ja|nein
   erstellt_am  TEXT NOT NULL,
-  benutzt_am   TEXT                      -- gesetzt = schon gedrueckt
+  benutzt_am   TEXT,                     -- gesetzt = schon gedrueckt
+  message_id   INTEGER                   -- Nachricht, unter der er haengt --
+                                          -- noetig, um eine alte, ungenutzte
+                                          -- Speicher-Leiste abzunehmen
 );
 CREATE INDEX IF NOT EXISTS idx_knopf_chat ON knopf(chat_id, id);
 

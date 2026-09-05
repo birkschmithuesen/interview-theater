@@ -1015,3 +1015,49 @@ def test_hilfe_knopf_zeigt_die_bedienung(conn, einst, tg):
     knoepfe.behandle(conn, tg, None, einst, _druck(daten))
 
     assert "SO MACHT IHR EIN INTERVIEW" in tg.gesendet[-1][1]
+
+
+# --- Phase-4-Sperre: erst auswerten, dann weiter (05.09.2026) --------------
+
+
+def test_nach_aufnahme_bietet_alle_auswerten_statt_phase_4(conn, einst, tg):
+    """Der Live-Fall: Interview 1 ist ausgewertet, Interview 2 nicht -- dann
+    gibt es kein "Weiter zu Phase 4", sondern den Weg dorthin.
+
+    ``phasen.voraussetzungen[4]`` haelt die Stufe zurueck, solange
+    ``aufnahme.unausgewertete_interviews`` nicht leer ist."""
+    erstes = _interview_kopf(conn)
+    repo.speichere_verdichtung(conn, 1, erstes, "Maria erzaehlt", [])
+    zweites = _interview_kopf(conn)
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 2 ist abgelegt.", zweites)
+
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Weiter zu 4 · Kernthema & Figuren" not in beschriftungen
+    assert beschriftungen == ["Auswerten", "Naechste Aufnahme"]
+
+    # Sobald auch das zweite ausgewertet ist, steht der Schritt wieder da.
+    repo.speichere_verdichtung(conn, 1, zweites, "Pal erzaehlt", [])
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Und weiter?", zweites)
+    assert "Weiter zu 4 · Kernthema & Figuren" in [b for b, _ in tg.knoepfe[-1][2]]
+
+
+def test_alle_auswerten_steht_da_wenn_ein_anderes_interview_offen_ist(conn, einst, tg):
+    """Zwei offene Interviews, die Leiste haengt am zweiten: "Auswerten"
+    trifft dieses eine, "Alle auswerten" den Rest."""
+    _interview_kopf(conn)
+    zweites = _interview_kopf(conn)
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 2 ist abgelegt.", zweites)
+
+    assert "Alle auswerten" in [b for b, _ in tg.knoepfe[-1][2]]
+
+
+def test_einstieg_bietet_alle_auswerten_statt_eines_phasenknopfes(conn, einst, tg):
+    _interview_kopf(conn)
+
+    knoepfe.biete_einstieg(conn, tg, 1, "Wieder da.")
+
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Alle auswerten" in beschriftungen
+    assert not any(b.startswith("Weiter zu 4") for b in beschriftungen)

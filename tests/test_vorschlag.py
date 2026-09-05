@@ -1,0 +1,236 @@
+"""Deterministisches Speichern per Knopf (vorschlag.py + knoepfe-Leiste).
+
+Gemessen wird genau das, was am 05.09.2026 live gefehlt hat: dass ein
+Vorschlag des Bots **exakt so** in der Datenbank landet, wie er im Chat
+stand -- ohne Erkennerlauf, ohne Raten. Und die Gegenprobe: **ohne** einen
+klar markierten Vorschlagsblock gibt es keine Leiste, statt einen falschen
+Text zu speichern.
+"""
+
+import pytest
+
+from interview_theater import knoepfe, phasen, repo, vorschlag
+
+from test_knoepfe import TelegramAttrappe, _druck  # noqa: F401
+
+
+@pytest.fixture
+def tg():
+    return TelegramAttrappe()
+
+
+def _knopf_daten(tg, beschriftung):
+    """Die callback_data des Knopfes mit dieser Beschriftung, aus der
+    juengsten Tastatur."""
+    for text, daten in tg.knoepfe[-1][2]:
+        if text == beschriftung:
+            return daten
+    raise AssertionError(f"kein Knopf {beschriftung!r} in {tg.knoepfe[-1][2]}")
+
+
+# --- vorschlag.py: die Extraktion selbst ----------------------------------
+
+
+def test_block_wird_bis_zur_leerzeile_gelesen():
+    text = (
+        "Ich habe eure Liste sortiert.\n\n"
+        "VORSCHLAG BEGRIFFE:\n"
+        "Heimat, Arbeit, Angst\n\n"
+        "Passt das so?"
+    )
+    assert vorschlag.lies(text, "begriffe") == "Heimat, Arbeit, Angst"
+    assert vorschlag.lies(text, "fragen") is None
+
+
+def test_mehrzeiliger_block_bleibt_mehrzeilig():
+    text = "VORSCHLAG FRAGEN:\nWann warst du fremd?\nWas nimmst du mit?"
+    assert vorschlag.lies(text, "fragen") == "Wann warst du fremd?\nWas nimmst du mit?"
+
+
+def test_ohne_marker_gibt_es_nichts_zu_lesen():
+    """Der Kern der Zusage: kein Block, keine Leiste -- lieber gar nichts
+    als der falsche Text."""
+    text = "Ich wuerde Heimat, Arbeit und Angst nehmen. Passt das?"
+    assert vorschlag.lies(text, "begriffe") is None
+
+
+def test_marker_verschwindet_aus_dem_chattext():
+    text = "Hier mein Vorschlag:\n\nVORSCHLAG KERNTHEMA:\nAnkommen\n"
+    sauber = vorschlag.ohne_marker(text)
+    assert "VORSCHLAG" not in sauber
+    assert "Ankommen" in sauber
+
+
+def test_figurenzeilen_werden_in_name_und_satz_zerlegt():
+    wert = (
+        "Mira — Naeherin, will gefragt werden — Interview 1\n"
+        "- Pal - Taxifahrer, bleibt auf seiner Route - Interview 2"
+    )
+    assert vorschlag.figuren(wert) == [
+        ("Mira", "Naeherin, will gefragt werden"),
+        ("Pal", "Taxifahrer, bleibt auf seiner Route"),
+    ]
+
+
+# --- Die Leiste haengt nur bei extrahierbarem Block ------------------------
+
+
+def test_leiste_nur_bei_block(conn, tg):
+    """Zwei Antworten, dieselbe Phase, derselbe leere Arbeitsstand -- nur die
+    mit Block bekommt Knoepfe."""
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "Was faellt euch noch ein?")
+    assert tg.knoepfe == []
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "Vorschlag:\n\nVORSCHLAG BEGRIFFE:\nHeimat, Arbeit"
+    )
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["So speichern", "Nochmal anders"]
+
+
+def test_leiste_haengt_nicht_an_einer_schon_gefuellten_art(conn, tg):
+    """Steht der Wert, gibt es nichts mehr zu speichern -- die Leiste
+    verschwindet von selbst, auch wenn das Modell weiter Bloecke liefert."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Heimat, Arbeit")
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit, Angst"
+    )
+
+    assert tg.knoepfe == []
+
+
+def test_in_phase_2_zaehlen_die_fragen_nicht_die_begriffe(conn, tg):
+    phasen.setze(conn, 1, 2, "befehl")
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat\n\nVORSCHLAG FRAGEN:\nWarum?"
+    )
+
+    assert knoepfe.offene_art(conn, 1) == "fragen"
+    assert tg.knoepfe, "die Fragen-Leiste haengt dran"
+
+
+def test_in_phase_4_erst_kernthema_dann_figuren(conn, tg):
+    phasen.setze(conn, 1, 4, "befehl")
+    assert knoepfe.offene_art(conn, 1) == "kernthema"
+
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    assert knoepfe.offene_art(conn, 1) == "figuren"
+
+    repo.setze_figur(conn, 1, "Mira", "Naeherin")
+    repo.setze_figur(conn, 1, "Pal", "Taxifahrer")
+    assert knoepfe.offene_art(conn, 1) is None
+
+
+# --- "So speichern" schreibt exakt den Wert --------------------------------
+
+
+def test_speichern_schreibt_exakt_den_vorgeschlagenen_wert(conn, tg, einst):
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "Ich schlage vor:\n\nVORSCHLAG BEGRIFFE:\nHeimat, Arbeit, Angst"
+    )
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "So speichern")))
+
+    assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat, Arbeit, Angst"
+    assert any("Notiert:" in t for _, t in tg.gesendet)
+
+
+def test_speichern_ist_idempotent(conn, tg, einst):
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
+    daten = _knopf_daten(tg, "So speichern")
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "von Hand geaendert")
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+
+    assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "von Hand geaendert"
+
+
+def test_kernthema_ueber_die_leiste_landet_im_arbeitsstand(conn, tg, einst):
+    """Derselbe Schreibweg wie beim Erkenner (``kernthema_setzen``) und beim
+    Kernthema-Knopf -- nur deterministisch."""
+    phasen.setze(conn, 1, 4, "befehl")
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG KERNTHEMA:\nAnkommen, ohne die Sprache zu verlieren"
+    )
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "So speichern")))
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["kernthema"] == "Ankommen, ohne die Sprache zu verlieren"
+
+
+def test_figuren_ueber_die_leiste_werden_alle_angelegt(conn, tg, einst):
+    phasen.setze(conn, 1, 4, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        "VORSCHLAG FIGUREN:\n"
+        "Mira — Naeherin, will gefragt werden — Interview 1\n"
+        "Pal — Taxifahrer, bleibt auf seiner Route — Interview 2",
+    )
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "So speichern")))
+
+    namen = [f["name"] for f in repo.figuren(conn, 1)]
+    assert namen == ["Mira", "Pal"]
+    beschreibungen = {f["name"]: f["beschreibung"] for f in repo.figuren(conn, 1)}
+    assert beschreibungen["Mira"] == "Naeherin, will gefragt werden"
+
+
+# --- "Nochmal anders" ------------------------------------------------------
+
+
+def test_nochmal_anders_schreibt_nichts_und_bittet_um_richtung(conn, tg, einst):
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Nochmal anders")))
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not (stand and stand["begriffe"])
+    assert tg.gesendet[-1][1] == "Sagt mir, was anders sein soll."
+
+
+def test_nach_nochmal_anders_traegt_die_naechste_antwort_die_leiste_wieder(
+    conn, tg, einst
+):
+    """Der Kern der Zusage 'das Menue kommt nach jeder Aenderung wieder':
+    solange der Wert leer ist, haengt die Leiste erneut dran."""
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Nochmal anders")))
+
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit")
+
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["So speichern", "Nochmal anders"]
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "So speichern")))
+    assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat, Arbeit"
+
+
+def test_eine_neue_leiste_nimmt_die_alte_ab(conn, tg, einst):
+    """Sonst staenden zwei Leisten im Chat, und ein Druck auf die aeltere
+    speicherte den ueberholten Vorschlag."""
+    erste = knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")[0]
+    alt = _knopf_daten(tg, "So speichern")
+
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit")
+
+    assert (1, erste) in tg.entfernt
+    knoepfe.behandle(conn, tg, None, einst, _druck(alt))
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not (stand and stand["begriffe"]), "der ueberholte Knopf wirkt nicht mehr"
+
+
+# --- Der Erkenner-Pfad bleibt der zweite Weg -------------------------------
+
+
+def test_schreibt_der_erkenner_zuerst_verschwindet_die_leiste(conn, tg):
+    from interview_theater import erkenner
+
+    erkenner.wende_an(
+        conn, None, 1, [{"art": "begriffe_setzen", "wert": "Heimat, Arbeit"}]
+    )
+
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
+
+    assert tg.knoepfe == []

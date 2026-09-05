@@ -1762,6 +1762,53 @@ def lege_knopf_an(
 
 
 @_gesperrt
+def merke_knopf_nachricht(
+    conn: sqlite3.Connection, knopf_ids: list[int], message_id: int
+) -> None:
+    """Haelt fest, unter welcher Nachricht diese Knoepfe haengen.
+
+    Gebraucht fuer genau eine Sache (05.09.2026): eine **alte, ungenutzte
+    Speicher-Leiste** derselben Art abzunehmen, wenn eine neue kommt. Ohne
+    das stuenden nach drei Vorschlaegen drei Leisten im Chat, und die Gruppe
+    tippt die von vor zwei Nachrichten an -- gespeichert wuerde dann der
+    ueberholte Wert."""
+    if not knopf_ids:
+        return
+    conn.executemany(
+        "UPDATE knopf SET message_id = ? WHERE id = ?",
+        [(message_id, knopf_id) for knopf_id in knopf_ids],
+    )
+    conn.commit()
+
+
+@_gesperrt
+def offene_knoepfe(
+    conn: sqlite3.Connection, chat_id: int, art: str
+) -> list[sqlite3.Row]:
+    """Alle noch ungedrueckten Knoepfe einer Art mit bekannter Nachricht --
+    juengste zuerst."""
+    return conn.execute(
+        "SELECT * FROM knopf WHERE chat_id = ? AND art = ? AND benutzt_am IS NULL "
+        "AND message_id IS NOT NULL ORDER BY id DESC",
+        (chat_id, art),
+    ).fetchall()
+
+
+@_gesperrt
+def verfallen_lassen(conn: sqlite3.Connection, knopf_ids: list[int]) -> None:
+    """Stempelt Knoepfe als benutzt, ohne dass jemand sie gedrueckt hat --
+    eine ueberholte Leiste soll nicht mehr wirken, auch wenn die Tastatur in
+    der App noch einen Moment stehenbleibt."""
+    if not knopf_ids:
+        return
+    conn.executemany(
+        "UPDATE knopf SET benutzt_am = ? WHERE id = ? AND benutzt_am IS NULL",
+        [(_jetzt(), knopf_id) for knopf_id in knopf_ids],
+    )
+    conn.commit()
+
+
+@_gesperrt
 def hole_knopf(conn: sqlite3.Connection, knopf_id: int) -> sqlite3.Row | None:
     """Der Knopf zu einer id, egal ob schon benutzt -- der Aufrufer muss den
     Unterschied kennen, um einen zweiten Druck freundlich zu beantworten,

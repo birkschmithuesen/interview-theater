@@ -692,3 +692,53 @@ def test_gespraechszug_ueberlebt_eine_string_antwort(conn, einst, tg):
 
     assert any("ohne Umschlag" in t for _, t in tg.gesendet), \
         "die Antwort geht raus statt verloren"
+
+
+# ---------------------------------------------------------------------------
+# Speicher-Leiste am Gespraechszug (05.09.2026)
+# ---------------------------------------------------------------------------
+
+
+class TelegramMitKnoepfen(TelegramAttrappe):
+    """Zeichnet zusaetzlich auf, welche Knoepfe unter einer Antwort hingen."""
+
+    def __init__(self):
+        super().__init__()
+        self.knoepfe = []
+
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+        self.knoepfe.append((chat_id, text, list(knoepfe_)))
+        return self.sende(chat_id, text)
+
+    def entferne_knoepfe(self, chat_id, message_id):
+        pass
+
+
+def test_antwort_mit_vorschlagsblock_traegt_die_speicherleiste(conn, einst):
+    """Der Punkt der Uebung: der Vorschlag steht im Text, der Knopf traegt
+    den Wert -- und die Markerzeile sieht die Gruppe nie."""
+    tg = TelegramMitKnoepfen()
+    klm = KLMAttrappe(
+        "Ich habe eure Liste sortiert.\n\nVORSCHLAG BEGRIFFE:\nHeimat, Arbeit, Angst"
+    )
+    repo.sichere_gruppe(conn, 1, einst.bot_name, "Testgruppe")
+    repo.merke_nachricht(conn, 1, 10, "Lea", 0, "text", "hier die Liste", repo._jetzt())
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["So speichern", "Nochmal anders"]
+    assert "VORSCHLAG" not in tg.gesendet[-1][1]
+    assert "Heimat, Arbeit, Angst" in tg.gesendet[-1][1]
+
+
+def test_antwort_ohne_vorschlagsblock_bleibt_ohne_leiste(conn, einst):
+    """Kein Block, kein Knopf -- geraten wird nichts."""
+    tg = TelegramMitKnoepfen()
+    klm = KLMAttrappe("Was faellt euch zu Heimat noch ein?")
+    repo.sichere_gruppe(conn, 1, einst.bot_name, "Testgruppe")
+    repo.merke_nachricht(conn, 1, 10, "Lea", 0, "text", "hm", repo._jetzt())
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert tg.knoepfe == []
+    assert tg.gesendet[-1][1] == "Was faellt euch zu Heimat noch ein?"

@@ -1000,6 +1000,20 @@ def _figuren_zeile(namen: list[str]) -> str:
     return f"{zahlwort} Figuren: {liste}"
 
 
+def _biete_phase_an(conn, tg, chat_id: int) -> None:
+    """Die proaktive Phasenmeldung nach einem Speichern -- weich, damit ein
+    Fehlschlag hier die Notiert-Zeile nicht mitreisst (06.09.2026).
+
+    Spaeter Import wie ueberall: ``knoepfe`` greift seinerseits auf den
+    Erkenner zu."""
+    try:
+        from interview_theater import knoepfe
+
+        knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
+    except Exception:
+        log.exception("Phasenangebot nach dem Erkennerlauf fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     """Baut die eine Meldung je Erkennerlauf (SPEC § 4.3, teil-b.md Aufgabe
     4) -- nicht eine je Aenderung.
@@ -1354,6 +1368,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         _starte_szene(klm, tg, conn, e, chat_id, aenderungen, wirkliche)
         text = baue_meldung(wirkliche)
         if text is None:
+            _biete_phase_an(conn, tg, chat_id)
             return
         message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche)
         # Wie ablauf.antworte: die gesendete Meldung wird als Bot-Nachricht
@@ -1362,6 +1377,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
             text, repo._jetzt(),
         )
+        # Direkt hinter der Notiert-Zeile: hat GENAU dieses Speichern die
+        # naechste Phase moeglich gemacht, sagt der Bot es sofort
+        # (06.09.2026). Hier ist die Stelle, an der die Voraussetzung
+        # entsteht -- ein Zug spaeter waere es schon eine Erinnerung.
+        _biete_phase_an(conn, tg, chat_id)
     except Exception:
         log.exception("Erkenner-Nachlauf fehlgeschlagen, chat_id=%s", chat_id)
         repo.merke_vorfall(

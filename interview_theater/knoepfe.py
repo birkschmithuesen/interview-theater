@@ -46,6 +46,12 @@ PRAEFIX = "k:"
 ART_KERNTHEMA = "kernthema"
 ART_AUFNAHME = "aufnahme"
 ART_PHASE = "phase"
+#: "Noch nicht" unter der proaktiven Phasenmeldung (06.09.2026): das Angebot
+#: ist abgelehnt, der Merkposten ``arbeitsstand.phase_angeboten`` steht schon
+#: -- es passiert also genau nichts ausser einer kurzen Bestaetigung. Ein
+#: eigener Knopf und nicht "einfach nicht druecken", damit die Gruppe das
+#: Angebot vom Tisch nehmen kann, statt es stehen zu lassen.
+ART_NOCH_NICHT = "noch_nicht"
 #: Form je Szene (Phase 6) -- dasselbe Ziel wie ``/szene <n> form <wert>``.
 #: Der Wert der Knopfzeile traegt beides, durch ':' getrennt: "3:dialog".
 ART_SZENENFORM = "szenenform"
@@ -2512,6 +2518,69 @@ _TEXT_SCHLAG_VOR_KNOPF = "Schlag du vor"
 _TEXT_WIR_ZUERST = "Gut - ich hoere zu."
 
 
+#: Die proaktive Phasenmeldung (06.09.2026, Birk nach der Testgruppe): sobald
+#: alles Noetige gespeichert ist, sagt der Bot es von selbst -- in EINER
+#: kurzen, EIGENEN Nachricht, nicht als vierter Knopf unter 1 100 Zeichen
+#: Fliesstext. Gemessen am Testabend: neun angebotene Phasenknoepfe, null
+#: Druecke; sie hingen alle unter langen Texten.
+_TEXT_PHASE_ANGEBOT = "{erledigt} steht. Weiter zu {phase}?"
+_TEXT_PHASE_NOCH_NICHT_KNOPF = "Noch nicht"
+_TEXT_NOCH_NICHT = "Gut, wir bleiben hier."
+
+#: Was je Zielphase erledigt ist -- der halbe Satz vor "Weiter zu ...".
+#: Kurz und konkret, damit die Gruppe sieht, WORAUF sich das Angebot stuetzt,
+#: ohne dass der Bot den Arbeitsstand nacherzaehlt.
+_ERLEDIGT_FUER = {
+    2: "Eure Begriffe",
+    3: "Eure Fragen",
+    4: "Die Interviews sind ausgewertet und",
+    5: "Setting und Figuren",
+    6: "Geschichte und Szenenfolge",
+    7: "Eure Szenen",
+    8: "Der Szenentext",
+}
+
+
+def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
+    """Die eigene, kurze Nachricht "<Was steht>. Weiter zu <Phase>?" -- genau
+    einmal je Stufe, sofort wenn die Voraussetzungen gespeichert sind.
+
+    Liefert ``True``, wenn eine Nachricht rausging.
+
+    **Warum eine eigene Nachricht.** Bis zum 06.09.2026 stand das Angebot nur
+    als Prompt-Hinweis (``kontext._baue_phasenhinweis``) und als Knopf am Ende
+    einer Gespraechsantwort. Am Testabend wurde keiner der neun angebotenen
+    Phasenknoepfe gedrueckt: das Angebot ging im Text unter, und der Bot
+    redete danach weiter ueber die alte Phase. Jetzt steht es allein da, mit
+    zwei Knoepfen und ohne Fliesstext drumherum.
+
+    **Genau einmal.** Der Merkposten ist derselbe wie fuer den Prompt-Hinweis
+    (``phasen.offenes_angebot`` / ``merke_angebot``,
+    ``arbeitsstand.phase_angeboten``) -- deshalb verschluckt diese Nachricht
+    den Prompt-Hinweis und umgekehrt: es gibt EIN Angebot je Stufe, nicht
+    zwei aus zwei Kanaelen. Sagt die Gruppe "Noch nicht", bleibt es still,
+    bis die naechste Stufe erreichbar wird.
+
+    Deterministisch, kein Modellaufruf (Zusage 2)."""
+    stufe = phasen.offenes_angebot(conn, chat_id)
+    if stufe is None:
+        return False
+    phasen.merke_angebot(conn, chat_id, stufe)
+    weiter_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(stufe))
+    noch_nicht_id = repo.lege_knopf_an(conn, chat_id, ART_NOCH_NICHT, str(stufe))
+    leiste = [
+        (f"Weiter zu {phasen.knopfbezeichnung(stufe)}", _daten(weiter_id)),
+        (_TEXT_PHASE_NOCH_NICHT_KNOPF, _daten(noch_nicht_id)),
+    ]
+    text = _TEXT_PHASE_ANGEBOT.format(
+        erledigt=_ERLEDIGT_FUER.get(stufe, "Alles Noetige"),
+        phase=phasen.knopfbezeichnung(stufe),
+    )
+    message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
+    return True
+
+
 def biete_proaktiv(conn, tg, chat_id: int, phase: int) -> None:
     """Die Frage beim Eintritt in eine Phase (05.09.2026 abends, Birk):
     "Bevor ich vorschlage: habt ihr selbst schon Ideen?" mit zwei Knoepfen.
@@ -2903,6 +2972,12 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
 
         befehle._befehl_aufnahme(conn, tg, klm, e, chat_id)
         return "Aufnahme umgeschaltet"
+    if art == ART_NOCH_NICHT:
+        # Das Phasenangebot ist abgelehnt. Der Merkposten steht bereits
+        # (``biete_phase_proaktiv``), es wird also nichts geschrieben -- eine
+        # Zeile, damit der Druck sichtbar gewirkt hat, und Ruhe.
+        tg.sende(chat_id, _TEXT_NOCH_NICHT)
+        return _TEXT_NOCH_NICHT
     if art == ART_PHASE:
         nummer = int(knopf["wert"])
         if phasen.setze(conn, chat_id, nummer, "knopf"):

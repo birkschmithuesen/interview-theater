@@ -492,6 +492,22 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         repo.merke_nachricht(
             conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),
         )
+        # Proaktiv zur naechsten Phase (06.09.2026, Birk nach der
+        # Testgruppe): steht alles Noetige, sagt der Bot es SOFORT und in
+        # einer eigenen, kurzen Nachricht -- nicht als vierter Knopf unter
+        # einem langen Text. Gemessen am Testabend: neun angebotene
+        # Phasenknoepfe, null Druecke.
+        #
+        # Der Merkposten ist derselbe wie fuer den Prompt-Hinweis
+        # (``phasen.offenes_angebot``), es gibt also EIN Angebot je Stufe --
+        # hat ``kontext.baue`` den Hinweis in diesem Zug schon gesetzt, ist
+        # hier nichts mehr offen und es bleibt bei der einen Frage im Fluss.
+        # Ein Fehlschlag darf die Antwort nicht nachtraeglich zum Fehlerfall
+        # machen: sie steht schon in der Gruppe.
+        try:
+            knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
+        except Exception:
+            log.exception("Phasenangebot fehlgeschlagen, chat_id=%s", chat_id)
     except Exception:
         log.exception("Gespraechszug fehlgeschlagen, chat_id=%s", chat_id)
         repo.merke_vorfall(

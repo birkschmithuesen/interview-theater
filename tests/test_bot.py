@@ -433,3 +433,78 @@ def test_erstkontakt_nennt_die_gruppenseite_wenn_konfiguriert(conn, einst):
     bot.erstkontakt(conn, tg, mit_web, -200)
     token = repo.stelle_web_token_sicher(conn, -200)
     assert f"https://lab.test/theatersoap/g/{token}" in tg.gesendet[0][1]
+
+
+# ---------------------------------------------------------------------------
+# Inline-Knoepfe (05.09.2026, interview_theater/knoepfe.py): der zweite
+# Update-Typ, den die Schleife kennt. Trockenlauf ohne Netz -- FakeTelegram
+# liefert einen callback_query-Update, FakePool faengt ab, was geplant wurde.
+# ---------------------------------------------------------------------------
+
+
+def bau_knopfupdate(update_id: int, daten: str = "k:1"):
+    """Ein callback_query-Update, wie Telegram es aus getUpdates liefert --
+    bewusst OHNE 'message'-Schluessel auf oberster Ebene: genau daran haette
+    lies_nachricht() es verworfen, und die Schleife haette den Druck still
+    verschluckt."""
+    return {
+        "update_id": update_id,
+        "callback_query": {
+            "id": f"cbq-{update_id}",
+            "data": daten,
+            "from": {"id": 5, "first_name": "Ada"},
+            "message": {
+                "message_id": 300,
+                "chat": {"id": -100, "title": "Testgruppe"},
+                "date": int(JETZT.timestamp()),
+            },
+        },
+    }
+
+
+def test_schleife_gibt_knopfdruck_in_den_pool(conn, einst):
+    """Der Trockenlauf: ein callback_query-Update kommt aus getUpdates,
+    wird erkannt, normalisiert und als Knopfdruck in den Pool gegeben --
+    ohne Netz, ohne Sprachmodell."""
+    tg = FakeTelegramFuerSchleife([bau_knopfupdate(7, "k:42")])
+    pool = FakePool()
+
+    with pytest.raises(_StoppeSchleife):
+        bot.schleife(conn, einst, tg, object(), object(), pool)
+
+    assert len(pool.submits) == 1
+    fn, args, _ = pool.submits[0]
+    assert fn is bot._bearbeite_knopfdruck
+    druck = args[-1]
+    assert druck["data"] == "k:42"
+    assert druck["chat_id"] == -100
+    assert druck["callback_query_id"] == "cbq-7"
+    # Die Position rueckt weiter, sonst stellte Telegram denselben Druck
+    # beim naechsten Poll erneut zu (Auftragshinweis 4).
+    assert repo.hole_update_id(conn, einst.bot_name) == 7
+
+
+def test_knopfdruck_wird_nicht_als_nachricht_gespeichert(conn, einst):
+    """Ein Knopfdruck ist keine Nachricht: er hat nichts in 'nachricht' zu
+    suchen, sonst taeuchte er im Gespraechsfenster auf und der Erkenner
+    laese ihn wie einen Gruppenbeitrag."""
+    tg = FakeTelegramFuerSchleife([bau_knopfupdate(8)])
+
+    with pytest.raises(_StoppeSchleife):
+        bot.schleife(conn, einst, tg, object(), object(), FakePool())
+
+    assert conn.execute("SELECT COUNT(*) FROM nachricht").fetchone()[0] == 0
+
+
+def test_kaputter_knopfdruck_stoppt_die_schleife_nicht(conn, einst):
+    """Fehlerhaltung: _bearbeite_knopfdruck faengt jeden Fehlschlag ab --
+    ein Knopf darf den Bot einer Gruppe im Workshop nie anhalten."""
+    class KaputtesTelegram:
+        def beantworte_knopf(self, *a, **k):
+            raise RuntimeError("Netz weg")
+
+    # Der Aufruf geht durch, ohne zu werfen -- das ist die ganze Zusage.
+    bot._bearbeite_knopfdruck(
+        conn, KaputtesTelegram(), None, einst,
+        {"callback_query_id": "x", "data": "k:1", "chat_id": 1, "message_id": 2},
+    )

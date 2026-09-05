@@ -16,10 +16,27 @@ from interview_theater import befehle, phasen, repo
 class TelegramAttrappe:
     def __init__(self):
         self.gesendet = []  # Liste von (chat_id, text)
+        self.knoepfe = []  # Liste von (chat_id, text, [(beschriftung, daten)])
+        self.beantwortet = []  # Liste von (callback_query_id, text)
+        self.entfernt = []  # Liste von (chat_id, message_id)
 
     def sende(self, chat_id, text):
         self.gesendet.append((chat_id, text))
         return 9001
+
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe):
+        """Zeichnet die Inline-Tastatur mit auf -- und legt den Text auch in
+        ``gesendet`` ab, damit Tests, die nur den Text pruefen, nicht wissen
+        muessen, ob unter der Nachricht Knoepfe hingen."""
+        self.gesendet.append((chat_id, text))
+        self.knoepfe.append((chat_id, text, list(knoepfe)))
+        return 9001
+
+    def beantworte_knopf(self, callback_query_id, text=""):
+        self.beantwortet.append((callback_query_id, text))
+
+    def entferne_knoepfe(self, chat_id, message_id):
+        self.entfernt.append((chat_id, message_id))
 
 
 @pytest.fixture

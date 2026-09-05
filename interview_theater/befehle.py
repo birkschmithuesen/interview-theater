@@ -34,7 +34,7 @@ grosszuegig ab, unabhaengig davon, welcher Name genau dahintersteht."""
 import logging
 import re
 
-from interview_theater import aufnahme, erkenner, phasen, repo, szene
+from interview_theater import aufnahme, erkenner, knoepfe, phasen, repo, szene
 
 #: Woerter, die einen Befehl zu einer Entfernung machen (NACHTRAG N3).
 #: Grosszuegig, weil die Gruppe tippt, was ihr einfaellt -- aber eine feste
@@ -179,13 +179,13 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
     steht sichtbar in der Antwort."""
     if repo.ist_interviewmodus_an(conn, chat_id):
         kopf_id = aufnahme.beende_interview(conn, chat_id)
-        tg.sende(chat_id, _TEXT_INTERVIEW_AUS)
+        knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_INTERVIEW_AUS)
         if kopf_id is not None and klm is not None:
             aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
         return
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
-    tg.sende(chat_id, _TEXT_INTERVIEW_AN)
+    knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_INTERVIEW_AN)
 
 
 def _befehl_interview(conn, tg, chat_id: int) -> None:
@@ -244,9 +244,18 @@ def _befehl_auswerten(conn, tg, klm, e, chat_id: int, rest: str) -> None:
 def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
     """Setzt das Kernthema -- oder nimmt es mit ``/kernthema aus`` wieder
     weg (NACHTRAG N3, der deterministische Weg neben der Erkenner-art
-    ``entfernen``)."""
+    ``entfernen``).
+
+    Ohne Argument bietet der Befehl seit dem 05.09.2026 die Kernthema-
+    Vorschlaege als Knoepfe an (``knoepfe.biete_kernthema``), statt nur zu
+    erklaeren, wie man ihn benutzt: an genau diesem Auswahl-Moment ist die
+    Spracherkennung unzuverlaessig (siehe knoepfe.py), und die Vorschlaege
+    liegen schon fertig in den Verdichtungen -- ein Knopf spart der Gruppe
+    das Abtippen und dem Bot das Raten. Kein Modellaufruf: die Vorschlaege
+    kommen aus der Datenbank."""
     if not rest:
-        tg.sende(chat_id, _TEXT_KERNTHEMA_LEER)
+        if not knoepfe.biete_kernthema(conn, tg, chat_id):
+            tg.sende(chat_id, _TEXT_KERNTHEMA_LEER)
         return
     if rest.lower() == "aus":
         entfernt = erkenner.entferne(conn, chat_id, "kernthema", quelle="befehl")
@@ -293,21 +302,32 @@ def _befehl_phase(conn, tg, chat_id: int, rest: str) -> None:
     """Der Notausgang fuer die Arbeitsphase (interview_theater/phasen.py) -- neben
     dem Erkenner (art ``phase_setzen``) der zweite, deterministische Weg.
 
-    Ohne Argument zeigt er die aktuelle Phase und alle acht; mit Argument
+    Ohne Argument zeigt er die aktuelle Phase und alle sieben; mit Argument
     (Nummer oder Name) schaltet er um, auch rueckwaerts. Ein Argument, das
     sich keiner Phase zuordnen laesst, aendert nichts und bekommt die Liste
     zu sehen -- raten waere hier der teuerste Ausgang.
+
+    Gibt die Materiallage einen Schritt nach oben her, haengt seit dem
+    05.09.2026 ein Knopf "Weiter zu Phase N" darunter
+    (``knoepfe.biete_phase``, reine Leseabfrage ueber
+    ``phasen.naechste_moegliche``). Genau EIN Ziel und nicht die ganze
+    Liste: der Knopf ist eine Frage, keine Navigation -- zurueck geht
+    weiterhin ueber ``/phase 4``.
 
     Geantwortet wird immer, auch wenn die Phase schon stimmte: auf einen
     getippten Befehl zu schweigen sieht aus wie ein kaputter Bot. Ins
     Journal geht der Eintrag trotzdem nur bei einer echten Aenderung
     (``phasen.setze``)."""
     if not rest:
-        tg.sende(
-            chat_id,
+        text = (
             f"Wir sind bei {phasen.bezeichnung(phasen.aktuelle(conn, chat_id))}.\n\n"
-            f"{phasen.liste()}\n\n{_TEXT_PHASE_UMSCHALTEN}",
+            f"{phasen.liste()}\n\n{_TEXT_PHASE_UMSCHALTEN}"
         )
+        naechste = phasen.naechste_moegliche(conn, chat_id)
+        if naechste is None:
+            tg.sende(chat_id, text)
+        else:
+            knoepfe.biete_phase(conn, tg, chat_id, text, naechste)
         return
     nummer = phasen.nummer_fuer(rest)
     if nummer is None:

@@ -471,12 +471,16 @@ def test_interview_benennen_benennt_letztes_interview(conn, einst):
 
 
 def test_interview_starten_setzt_interviewmodus_seit(conn, einst):
-    """teil-b.md Aufgabe 5, SPEC § 10.1: der Absichtserkenner schaltet den
-    Modus ueber genau dasselbe Feld wie /interview es spaeter tun wird."""
+    """Seit 05.09.2026 (Birk nach Gruppe 3, 16:36) schaltet der Erkenner den
+    Modus **nicht** mehr ein: eine Ankuendigung ist eine Ankuendigung. Er
+    meldet die Absicht nur -- ``laufe()`` legt daraufhin die
+    Ablauf-Erklaerung mit dem Knopf "Interview starten" hin, und erst der
+    Druck schaltet an."""
     wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "interview_starten", "wert": ""}])
 
     assert wirkliche == [{"art": "interview_starten", "wert": ""}]
-    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
+    assert repo.laufendes_interview(conn, 1) is None
 
 
 def test_interview_beenden_leert_interviewmodus_seit(conn, einst):
@@ -642,16 +646,19 @@ def test_laufe_interview_starten_sendet_bestaetigung_getrennt_von_der_meldung(co
 
     texte = [t for _, t in tg.gesendet]
     assert len(texte) == 2, "Bestaetigung und Meldung sind getrennte Nachrichten"
-    assert any("Aufnahme laeuft." in t for t in texte)
+    assert any("Interview starten" in t for t in texte), "die Ablauf-Erklaerung"
     assert any("Kernthema: Ankommen" in t for t in texte)
-    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None, (
+        "die Ankuendigung startet nichts -- der Knopf tut es"
+    )
 
 
 def test_laufe_interview_starten_haengt_den_aufnahme_knopf_darunter(conn, einst):
-    """Birk, 05.09.2026 nach dem Live-Lauf: "der Knopf soll direkt kommen,
-    ohne Slash-Befehl". Sagt die Gruppe die Absicht in Sprache, muss derselbe
-    Umschalter erscheinen wie nach ``/aufnahme`` -- vorher hing dort nur Text
-    und die Gruppe musste den Befehl kennen."""
+    """Birk, 05.09.2026 nach Gruppe 3, 16:36: kuendigt die Gruppe ein
+    Interview an, bekommt sie die **Ablauf-Erklaerung** und den Knopf
+    "Interview starten" -- gestartet wird durch den Druck, nicht durch die
+    Ankuendigung. Vorher lief die Aufnahme schon, waehrend der Gespraechs-Bot
+    daneben erklaerte, wie man sie startet."""
     _nachricht(conn, 1, 1, "ich will noch eine Aufnahme machen")
     klm = LLMAttrappe(antwort={"aenderungen": [{"art": "interview_starten", "wert": ""}]})
     tg = TelegramAttrappe()
@@ -661,14 +668,14 @@ def test_laufe_interview_starten_haengt_den_aufnahme_knopf_darunter(conn, einst)
     assert len(tg.mit_knoepfen) == 1
     chat_id, text, tasten = tg.mit_knoepfen[0]
     assert chat_id == 1
-    assert "Aufnahme laeuft." in text, "derselbe Wortlaut wie /aufnahme"
-    # Der Modus laeuft jetzt -- der naechste Druck beendet ihn.
-    assert [b for b, _ in tasten] == ["Aufnahme beenden"]
+    assert text == knoepfe.TEXT_ABLAUF, "die drei Saetze, deterministisch"
+    # Der Modus laeuft NICHT -- der Druck startet ihn.
+    assert [b for b, _ in tasten] == ["Interview starten"]
     assert all(d.startswith(knoepfe.PRAEFIX) for _, d in tasten)
 
 
 def test_laufe_interview_beenden_haengt_den_aufnahme_knopf_darunter(conn, einst):
-    """Spiegelbildlich: nach dem Ende steht "Aufnahme starten" darunter --
+    """Spiegelbildlich: nach dem Ende steht "Interview starten" darunter --
     genau der Knopf, den eine Gruppe braucht, die "noch eine Aufnahme"
     machen will."""
     repo.setze_interviewmodus(conn, 1, repo._jetzt())
@@ -681,7 +688,7 @@ def test_laufe_interview_beenden_haengt_den_aufnahme_knopf_darunter(conn, einst)
     assert len(tg.mit_knoepfen) == 1
     _, text, tasten = tg.mit_knoepfen[0]
     assert "Aufnahme beendet." in text
-    assert [b for b, _ in tasten] == ["Aufnahme starten"]
+    assert [b for b, _ in tasten] == ["Interview starten"]
 
 
 def test_knopf_am_erkennerpfad_wirkt_nur_einmal(conn, einst):
@@ -718,15 +725,20 @@ def test_laufe_interview_beenden_sendet_bestaetigung(conn, einst):
 
 
 def test_laufe_interview_starten_legt_ein_interview_an(conn, einst):
-    """§ 10.6: der Erkenner nimmt denselben Weg wie /interview -- mit dem
-    Modus entsteht das Interview, zu dem die Sprachnachrichten gehoeren."""
+    """Spiegelbild zur Aenderung vom 05.09.2026: der Erkenner legt **kein**
+    Interview mehr an. Der Live-Fall Gruppe 3: der Gespraechs-Bot erklaerte
+    die Bedienung, gleichzeitig lief schon eine Aufnahme -- Text und Knopf
+    widersprachen sich."""
     _nachricht(conn, 1, 1, "so, Fatima ist da, wir machen jetzt ein Interview")
     klm = LLMAttrappe(antwort={"aenderungen": [{"art": "interview_starten", "wert": ""}]})
+    tg = TelegramAttrappe()
 
-    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+    erkenner.laufe(klm, tg, conn, einst, 1)
 
-    kopf = repo.laufendes_interview(conn, 1)
-    assert kopf is not None and kopf["name"] == "Interview 1"
+    assert repo.laufendes_interview(conn, 1) is None
+    assert repo.zaehle_interviews(conn, 1) == 0
+    # Angeboten wird es trotzdem -- mit dem Knopf, der es startet.
+    assert [b for _, _, ks in tg.mit_knoepfen for b, _ in ks] == ["Interview starten"]
 
 
 def test_laufe_interview_beenden_stoesst_den_abschluss_an(conn, einst, monkeypatch):

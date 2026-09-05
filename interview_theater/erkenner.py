@@ -667,19 +667,29 @@ def _wende_wortlaut_aus_an(conn, chat_id: int) -> dict | None:
 
 
 def _wende_interview_starten_an(conn, chat_id: int) -> dict | None:
-    """Schaltet den Interviewmodus an (teil-b.md Aufgabe 5, SPEC § 10.1) --
-    setzt gruppe.interviewmodus_seit auf jetzt und legt das Interview an, zu
-    dem alle folgenden Sprachnachrichten als Teile gehoeren (§ 10.6).
-    War der Modus schon an, ist das keine Aenderung (dieselbe Regel wie
-    ueberall sonst: derselbe Zustand zaehlt nicht als Aenderung, sonst
-    bestaetigte laufe() bei jedem Erkennerlauf erneut)."""
-    from interview_theater import aufnahme  # spaeter Import, haelt den Modulkopf frei
+    """Ein angekuendigtes Interview **startet nichts mehr** (05.09.2026,
+    Birk nach dem Live-Lauf Gruppe 3, 16:36) -- es loest nur noch das
+    ANGEBOT aus: die Ablauf-Erklaerung (``knoepfe.TEXT_ABLAUF``) mit dem
+    Knopf "Interview starten" darunter (``_melde_interviewmodus``).
 
+    Der gemessene Fall: die Gruppe sagte "Wir wollen ein Interview machen",
+    der Gespraechs-Bot schrieb dazu eine eigene Bedienungsanleitung ("tippt
+    auf Aufnahme starten"), und gleichzeitig schaltete diese Funktion den
+    Modus schon an -- die Systemzeile trug dann den Knopf "Aufnahme
+    beenden". Text und Knopf widersprachen sich, und die Gruppe hatte eine
+    laufende Aufnahme, die niemand gestartet hatte.
+
+    Eingeschaltet wird seitdem nur noch **durch eine Handlung**: der Knopf,
+    ``/aufnahme`` oder ``/interview``. Der Rueckweg
+    (``_wende_interview_beenden_an``, das gesprochene "fertig" aus der
+    Aufnahme) bleibt unveraendert -- dort laeuft schon etwas, das man
+    beenden kann, und es steht kein zweiter Weg daneben.
+
+    Laeuft schon eine Aufnahme, ist das keine Aenderung: dann braucht
+    niemand ein Angebot, den Modus einzuschalten."""
     gruppe = repo.hole_gruppe(conn, chat_id)
     if gruppe is not None and gruppe["interviewmodus_seit"] is not None:
         return None
-    repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
-    aufnahme.stelle_interview_sicher(conn, chat_id)
     return {"art": "interview_starten", "wert": ""}
 
 
@@ -1124,8 +1134,13 @@ def _interviewmodus_texte() -> dict[str, str]:
     importiert ``erkenner``, ein Modulimport hier waere ein Zyklus."""
     from interview_theater import befehle
 
+    from interview_theater import knoepfe
+
+    # ``interview_starten`` traegt seit 05.09.2026 NICHT mehr die
+    # Startbestaetigung (der Modus laeuft ja noch gar nicht), sondern die
+    # Ablauf-Erklaerung vor dem Start -- der Knopf darunter schaltet ein.
     return {
-        "interview_starten": befehle._TEXT_INTERVIEW_AN,
+        "interview_starten": knoepfe.TEXT_ABLAUF,
         "interview_beenden": befehle._TEXT_INTERVIEW_AUS,
     }
 
@@ -1145,12 +1160,20 @@ def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> N
     Die Beschriftung richtet sich nach dem Zustand JETZT -- ``wende_an`` hat
     schon geschrieben, wenn wir hier ankommen, also steht nach einem
     ``interview_starten`` "Aufnahme beenden" auf dem Knopf. Genau richtig:
-    der naechste Druck ist der, den die Gruppe als naechstes braucht."""
+    der naechste Druck ist der, den die Gruppe als naechstes braucht.
+
+    **Beim Start ist es kein Vollzug, sondern ein Angebot** (05.09.2026,
+    Birk nach Gruppe 3): ``_wende_interview_starten_an`` schaltet nichts
+    mehr ein, hier steht deshalb die Ablauf-Erklaerung
+    (``knoepfe.TEXT_ABLAUF``) mit dem Knopf "Interview starten" darunter --
+    erst sein Druck schaltet den Modus an. Beim Ende bleibt es beim
+    bisherigen Weg: "Aufnahme beendet." mit dem Umschalter darunter."""
     from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
 
     texte = _interviewmodus_texte()
     for aenderung in wirkliche:
-        text = texte.get(aenderung.get("art"))
+        art = aenderung.get("art")
+        text = texte.get(art)
         if text is None:
             continue
         try:
@@ -1162,7 +1185,7 @@ def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> N
         except Exception:
             log.exception(
                 "Interviewmodus-Bestaetigung fehlgeschlagen, chat_id=%s, art=%s",
-                chat_id, aenderung.get("art"),
+                chat_id, art,
             )
 
 

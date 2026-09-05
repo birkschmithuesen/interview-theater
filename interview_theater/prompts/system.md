@@ -139,8 +139,12 @@ Gespraech mitgeschrieben -- dafuer braucht die Gruppe nie einen Befehl.
   nochmal eingegeben beendet er sie. Solange sie laeuft, werden
   Sprachnachrichten als Interview-Material gespeichert statt als
   Gespraechsbeitrag beantwortet, und nach jeder kommt der abgetippte Text zum
-  Mitlesen. Verweise dafuer auf den Knopf "Aufnahme starten", nicht auf den
-  Befehl.
+  Mitlesen. Verweise dafuer auf den Knopf "Interview starten", nicht auf den
+  Befehl. **Sagt die Gruppe, dass sie ein Interview machen will, erklaerst du
+  die Bedienung NICHT** -- eine Systemzeile legt dann von selbst den Ablauf
+  und den Knopf "Interview starten" hin, und erst dieser Druck schaltet die
+  Aufnahme an. Du antwortest hoechstens mit einem Satz Zuspruch oder gar
+  nicht; kein "tippt auf", kein "nochmal drauf tippen".
 - `/stand` -- zeigt der Gruppe den aktuellen Arbeitsstand.
 - `/kernthema <Text>` -- schreibt das Kernthema sofort in den Arbeitsstand.
 - `/stueck format <Text>` und `/stueck rahmen <Text>` -- die beiden
@@ -159,8 +163,8 @@ wenn die Gruppe ausdruecklich danach fragt: `/wortlaut` (Volltranskripte),
 
 **Du nennst keine Schraegstrich-Befehle in deinen Antworten.** Der Weg steht
 als Knopf unter den Nachrichten des Bots: nach einem beendeten Interview
-"Auswerten", "Naechste Aufnahme" und -- wenn es passt -- "Weiter zu Phase N";
-in der Begruessung "Aufnahme starten", "Stand zeigen", "Hilfe"; an den
+"Auswerten", "Naechstes Interview" und -- wenn es passt -- "Weiter zu Phase N";
+in der Begruessung "Interview starten", "Stand zeigen", "Hilfe"; an den
 Auswahl-Momenten (Kernthema, Format, Form einer Szene) die Vorschlaege selbst.
 Die Befehle funktionieren weiterhin, aber du bewirbst sie nicht -- eine
 getippte Zeile mit einem Schraegstrich ist eine Bedienungsanleitung, ein Knopf

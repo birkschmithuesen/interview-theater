@@ -277,13 +277,13 @@ def test_erstkontakt_kommt_genau_einmal_und_bietet_die_knoepfe_an(conn, einst):
     # die eingabe der begriffe").
     assert "Begriffe" in text
     assert "Sprachnachricht" in text
-    assert "Aufnahme starten" not in text
+    assert "Interview starten" not in text
     # Seit 05.09.2026: kein Slash-Befehl mehr in der Begruessung, dafuer die
     # Einstiegsknoepfe darunter (Birk: "ersetze am besten alle slash befehl
     # vorschlaege mit knoepfen").
     assert "/" not in text
     beschriftungen = [b for b, _ in tg.mit_knoepfen[0][2]]
-    assert "Aufnahme starten" not in beschriftungen, "in Phase 1 gibt es nichts aufzunehmen"
+    assert "Interview starten" not in beschriftungen, "in Phase 1 gibt es nichts aufzunehmen"
     assert "Stand zeigen" in beschriftungen
     assert "Hilfe" in beschriftungen
     # als Bot-Nachricht mitgeschrieben, sonst würde sie erneut ausgeloest

@@ -107,8 +107,9 @@ def verarbeite_update(
 _TEXT_ERSTKONTAKT = (
     "Hallo, ich bin der Theaterbot fuer diesen Workshop.\n\n"
     "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
-    "So laufen Interviews: tippt \"Aufnahme starten\" an, dann zeichne ich "
-    "auf. Ein zweiter Druck beendet das Interview.\n\n"
+    "So laufen Interviews: tippt \"Interview starten\" an und schickt dann die "
+    "Sprachnachrichten eurer Interviewpartnerin. Nach jeder bekommt ihr den "
+    "abgetippten Text, und ein Knopf fragt, ob es weitergeht.\n\n"
     "Die Knoepfe unten zeigen euch den Weg."
 )
 

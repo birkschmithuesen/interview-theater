@@ -509,6 +509,7 @@ class Lauf:
             f"Ihr fangt jetzt ein Interview mit {interview.name} an. Sagt dem Bot, "
             "dass ihr aufnehmen wollt, in einem Satz."
         )
+        self._druecke_interview_starten()
 
         stuecke = interview.teile(teile)
         aufnahme_id = None
@@ -547,6 +548,39 @@ class Lauf:
         if len(repo.verdichtungen(self.conn, CHAT_ID)) > vorher:
             return
         self._notausgang(aufnahme_id, interview)
+
+    def _druecke_interview_starten(self) -> None:
+        """Drueckt den Knopf "Interview starten", wenn der Bot ihn anbietet
+        (05.09.2026).
+
+        Bis dahin schaltete der Erkenner den Interviewmodus selbst ein, wenn
+        die Gruppe eine Aufnahme ankuendigte. Seit dem Live-Lauf Gruppe 3
+        legt er stattdessen nur die Ablauf-Erklaerung mit dem Knopf hin --
+        gestartet wird durch eine Handlung. Die simulierten Stimmen sprechen
+        nur; diese eine Handlung uebernimmt der Simulator, damit der Rest des
+        Laufs (Textimport in den laufenden Kopf) unveraendert bleibt.
+
+        Kein Knopf da, keine Wirkung: dann legt ``_importiere`` den Kopf wie
+        bisher selbst an."""
+        from interview_theater import knoepfe as knoepfe_modul
+
+        if repo.ist_interviewmodus_an(self.conn, CHAT_ID):
+            return
+        for angebot in reversed(self.tg.knoepfe):
+            for beschriftung, daten in angebot["knoepfe"]:
+                if beschriftung != knoepfe_modul._TEXT_AUFNAHME_STARTEN:
+                    continue
+                knoepfe_modul.behandle(
+                    self.conn, self.tg, self.klm, self.e,
+                    {
+                        "callback_query_id": "sim",
+                        "data": daten,
+                        "chat_id": CHAT_ID,
+                        "message_id": angebot["message_id"],
+                    },
+                )
+                self._ereignis("Knopf \"Interview starten\" gedrueckt", marke="knopf")
+                return
 
     def _importiere(self, text: str, name: str, an: int | None = None) -> int:
         """Gibt Text als Interviewmaterial herein (§ 10.5).

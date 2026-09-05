@@ -126,6 +126,9 @@ _TEXT_HILFE = (
     "/kernthema <text> - das Kernthema festlegen\n"
     "/stueck format <text> - Sprechtheater, Musical, Mischform ...\n"
     "/stueck rahmen <text> - Ort, Zeit, Anlass des Abends\n"
+    "/szene <nummer> form <dialog|monolog|lied|rap|chor|stumm>\n"
+    "/szene <nummer> ort <text> - dasselbe fuer ort, zeit, anlass, figuren\n"
+    "/szene <auftrag> - eine Szene schreiben lassen\n"
     "/phase [nummer|name] - zeigt die Phase oder schaltet um\n"
     "/hilfe - diese Uebersicht\n\n"
     "Alles andere sagt ihr mir einfach: Figuren, Szenen, Entscheidungen - "
@@ -150,6 +153,7 @@ BEFEHLE_LISTE = [
     {"command": "auswerten", "description": "Interviews auswerten und anzeigen"},
     {"command": "kernthema", "description": "Kernthema festlegen oder korrigieren"},
     {"command": "stueck", "description": "Format und Rahmen des Stuecks (Phase 5)"},
+    {"command": "szene", "description": "Szene planen, Form setzen, schreiben lassen"},
     {"command": "phase", "description": "Arbeitsphase zeigen oder umschalten"},
     {"command": "hilfe", "description": "Wie der Bot funktioniert"},
 ]

@@ -211,8 +211,8 @@ def test_befehle_liste_ist_auf_fuenf_gekuerzt():
     Inhaltliche schreibt der Erkenner ohnehin aus dem Gespraech mit."""
     kommandos = {b["command"] for b in befehle.BEFEHLE_LISTE}
     assert kommandos == {
-        "aufnahme", "stand", "auswerten", "kernthema", "stueck", "phase",
-        "hilfe",
+        "aufnahme", "stand", "auswerten", "kernthema", "stueck", "szene",
+        "phase", "hilfe",
     }
     assert "interview" not in kommandos and "fertig" not in kommandos
 

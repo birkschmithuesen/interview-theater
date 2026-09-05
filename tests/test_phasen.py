@@ -190,9 +190,26 @@ def test_begriffe_erlauben_zwei(conn):
 
 
 def test_fragen_erlauben_drei(conn):
-    """Erst die Frageliste macht die Interviews moeglich."""
+    """Erst die Frageliste UND der Eroeffnungstext machen die Interviews
+    moeglich (06.09.2026, Birk): die Gruppe geht damit auf fremde Menschen
+    zu, und eine Frageliste ohne Eroeffnung ist kein Interview."""
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    assert phasen.moegliche_naechste(conn, 1) == [], "Eroeffnung fehlt noch"
+
+    repo.setze_arbeitsstand(
+        conn, 1, "interview_eroeffnung", "Hallo, wir machen ein Theaterprojekt."
+    )
     assert phasen.moegliche_naechste(conn, 1) == [3]
+
+
+def test_drei_braucht_keine_einleitungen(conn):
+    """\"Keine der Fragen braucht eine besondere Einleitung.\" ist ein
+    Ergebnis der Sensibilitaetspruefung, kein fehlender Wert -- die leeren
+    Einleitungen duerfen die Interviews nicht aufhalten."""
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Hallo, wir sind ...")
+
+    assert phasen.voraussetzungen(conn, 1)[3] is True
 
 
 def test_eine_verdichtung_erlaubt_vier(conn):
@@ -417,6 +434,7 @@ def test_eine_hoehere_stufe_wird_erneut_angeboten(conn):
     phasen.merke_angebot(conn, 1, 2)
 
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Hallo, wir sind ...")
     assert phasen.offenes_angebot(conn, 1) == 3
 
 

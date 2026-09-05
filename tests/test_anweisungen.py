@@ -274,7 +274,7 @@ def test_der_formblock_gibt_die_gemessenen_zielwerte_als_zahlen(betrieb):
     ist die Messung nicht im Modell angekommen."""
     text = anweisungen.hole("formen/dialog")
 
-    for zahl in ("700 bis 1500 Woerter", "65 %", "35 %", "acht Woerter"):
+    for zahl in ("700 bis 1500 Woerter", "80 %", "20 %", "acht Woerter"):
         assert zahl in text, zahl
 
 

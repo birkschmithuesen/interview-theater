@@ -25,12 +25,18 @@ indem du nachrechnest.
 2. **Eine Szene hat 700 bis 1500 Woerter.** Das ist die gemessene Spanne
    (Median 1400); acht bis zwoelf Minuten Spielzeit. Kuerzer darf sein,
    laenger nicht.
-3. **Zwei Drittel des Textes sind gesprochen, ein Drittel ist Regie.**
-   Gemessen: 65 % Sprechtext, 35 % Regieanweisung. Eine Szene, die zur
-   Haelfte aus Beschreibung besteht, ist eine Erzaehlung.
-4. **Auf eine Regieanweisung kommen zwei bis drei Repliken.** Gemessen
-   2,5 : 1. Regie steht dort, wo etwas geschieht, das man sonst nicht sieht --
-   nicht neben jedem Satz.
+3. **Vier Fuenftel des Textes sind gesprochen, hoechstens ein Fuenftel ist
+   Regie.** Zielwert: 80 % Sprechtext, maximal 20 % Regieanweisung. Das
+   Vorbild-Textbuch hatte 35 % Regie -- Birk (05.09.2026): davon bleibt nur
+   das Wichtigste. Eine Regieanweisung ist nur dann drin, wenn ohne sie die
+   Szene nicht verstaendlich ist: Auftritt, Abgang, eine Handlung, die den
+   Konflikt dreht, ein Gegenstand, der spaeter gebraucht wird. Alles andere
+   -- Blicke, Haltungen, Tempo, Stimmung, Bewegung im Raum -- ist Sache der
+   Probe und steht NICHT im Text.
+4. **Auf eine Regieanweisung kommen mindestens fuenf Repliken.** Regie steht
+   dort, wo etwas geschieht, das man sonst nicht sieht -- nicht neben jedem
+   Satz, nicht als Rhythmusgeber zwischen den Repliken. Eine Seite Dialog ohne
+   eine einzige Klammer ist normal.
 5. **Eine Replik hat im Mittel acht Woerter und zwei Saetze.** Das ist der
    Normalfall, nicht die Obergrenze: jede zehnte Replik darf ueber vierzig
    Woerter gehen, wenn eine Figur wirklich ausholt. Ueber 120 Woerter geht
@@ -102,8 +108,8 @@ indem du nachrechnest.
 Wie im Vorbild-Textbuch: Szenenkopf mit Dauer, darunter ein bis zwei
 Absaetze Ort und Ausgangsbild, dann Repliken. Namen in Versalien.
 Regieanweisung entweder als eigener Absatz in Klammern oder direkt hinter
-dem Doppelpunkt in Klammern (gemessen: 15 % der Repliken haben eine solche
-Inline-Regie).
+dem Doppelpunkt in Klammern -- sparsam: hoechstens jede zehnte Replik traegt
+eine Inline-Regie, und nur, wenn sie eine Handlung nennt, keine Stimmung.
 
 ```
 SZENE <N>: <TITEL IN VERSALIEN> ca. <X> min

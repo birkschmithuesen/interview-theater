@@ -207,6 +207,53 @@ def ist_echo(antwort: str | None, ausloeser: list) -> bool:
             return True
     return False
 
+#: Ab welchem Anteil der Wortmenge einer Antwort, der schon in der VORIGEN
+#: Bot-Nachricht stand, sie als Wiederholung verworfen wird (06.09.2026, Birk
+#: nach der Testgruppe: "Insgesamt viel zu viel Wiederholung").
+#:
+#: 0,6 ist an der Testgruppe gemessen: der Filter haette dort 4 von 59
+#: Bot-Nachrichten gefangen -- die beiden wortgleich verdoppelten
+#: Notiert-Bloecke (21:50/21:52), die doppelte "Bin wieder da"-Zeile und eine
+#: verdoppelte Interview-Meldung. Keine echte Antwort waere dabei
+#: verlorengegangen. Tiefer waere gefaehrlich: eine Antwort, die einen
+#: Vorschlag praezisiert, teilt zwangslaeufig die halbe Wortmenge mit ihm.
+WIEDERHOLUNG_ANTEIL = 0.6
+
+#: Kuerzere Antworten werden nicht geprueft. "Gut, ich hoere zu." teilt seine
+#: paar Woerter leicht mit irgendetwas -- und eine kurze Zeile kostet die
+#: Gruppe nichts, auch wenn sie sich aehnelt.
+WIEDERHOLUNG_MINDEST_WOERTER = 12
+
+
+def _wortmenge(text: str | None) -> set[str]:
+    """Die inhaltstragenden Woerter eines Textes -- kleingeschrieben, ab vier
+    Zeichen. Dasselbe grobe Mass wie in der Analyse
+    (``docs/analyse-interaktion-testgruppe-2026-09-05.md``), damit die
+    Schwelle hier und die gemessene Zahl dort dieselbe Groesse meinen."""
+    return {w for w in re.findall(r"\w+", (text or "").lower()) if len(w) > 3}
+
+
+def ist_wiederholung(antwort: str | None, vorige: str | None,
+                     anteil: float = WIEDERHOLUNG_ANTEIL) -> bool:
+    """Steckt diese Antwort zu ``anteil`` schon in der vorigen Bot-Nachricht?
+
+    Der Live-Fall (05.09.2026, Testgruppe 21:50 und 21:52): der Bot schickte
+    denselben Notiert-Block der Szenenfolge zweimal wortgleich, und um 16:39
+    und 20:52 dieselbe Wiederkehr-Zeile. Fuer die Gruppe sieht das aus wie
+    ein Bot, der nicht weiss, was er gerade gesagt hat.
+
+    Gemessen wird die Wortmenge, nicht die Reihenfolge: eine umformulierte
+    Wiederholung ist auch eine. Bewusst grob und ohne Modellaufruf -- der
+    Filter laeuft im kritischen Pfad, in dem die Gruppe wartet."""
+    gesagt = _wortmenge(antwort)
+    if len(gesagt) < WIEDERHOLUNG_MINDEST_WOERTER:
+        return False
+    davor = _wortmenge(vorige)
+    if not davor:
+        return False
+    return len(gesagt & davor) / len(gesagt) > anteil
+
+
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
 #: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab
 #: (global-constraints.md § 4).
@@ -467,6 +514,29 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             text = _ohne_echo(conn, klm, e, chat_id, system, koerper, offen, text)
             if hinweis:
                 text = f"{text}\n\n{hinweis}"
+
+        # Wiederholungsfilter (06.09.2026, Birk: "Insgesamt viel zu viel
+        # Wiederholung"): steckt die Antwort zu ueber WIEDERHOLUNG_ANTEIL
+        # schon in der vorigen Bot-Nachricht, wird sie NICHT verschickt --
+        # ersatzlos, nicht durch eine Entschuldigung ersetzt. Ein Bot, der
+        # nichts Neues zu sagen hat, schweigt; die Gruppe arbeitet weiter,
+        # und die Speicherleiste haengt ohnehin unter der Nachricht, die den
+        # Wert wirklich traegt.
+        #
+        # Kein zweiter Modellaufruf wie beim Echo: das Echo ist ein Fehler
+        # des Modells, den ein Anlauf mit Ermahnung heilt -- eine
+        # Wiederholung ist eine Antwort, die es einfach nicht braucht.
+        vorige = repo.letzte_bot_nachricht_vor(conn, chat_id, letzte_message_id + 1)
+        if vorige is not None and ist_wiederholung(text, vorige["text"]):
+            log.info("Antwort als Wiederholung verworfen, chat_id=%s", chat_id)
+            repo.merke_vorfall(
+                conn, chat_id, getattr(e, "bot_name", None), "wiederholung_verworfen",
+                "Modellantwort stand zu ueber "
+                f"{int(WIEDERHOLUNG_ANTEIL * 100)} % schon in der vorigen Bot-Nachricht",
+            )
+            versand_erfolgreich = True
+            knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
+            return
 
         # Die Speicher-Leiste (05.09.2026): enthaelt die Antwort einen
         # Vorschlagsblock (``vorschlag.py``) fuer das, was gerade fehlt --

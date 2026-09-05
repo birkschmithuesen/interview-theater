@@ -1000,6 +1000,30 @@ def _figuren_zeile(namen: list[str]) -> str:
     return f"{zahlwort} Figuren: {liste}"
 
 
+#: Wie weit zurueck geschaut wird, ob eine Notiert-Meldung schon dasteht.
+#: Drei Bot-Nachrichten sind das Fenster, das die Gruppe auf dem Telefon noch
+#: im Blick hat -- dieselbe Zahl wie in der system.md-Regel "wiederhole
+#: nichts, was in deinen letzten drei Nachrichten steht".
+MELDUNG_RUECKSCHAU = 3
+
+
+def _steht_schon_da(conn, chat_id: int, text: str) -> bool:
+    """Stand diese Notiert-Meldung wortgleich schon in einer der letzten
+    ``MELDUNG_RUECKSCHAU`` Bot-Nachrichten? (06.09.2026)
+
+    Wortgleich und nicht aehnlich: eine Notiert-Zeile ist deterministisch
+    aufgebaut (``baue_meldung``), zwei Laeufe ueber denselben Stand liefern
+    denselben String. Ein unscharfes Mass wuerde hier eine echte zweite
+    Aenderung verschlucken -- "Rahmen: A" und "Rahmen: B" teilen fast alle
+    Woerter."""
+    letzte = [
+        (zeile["text"] or "").strip()
+        for zeile in repo.letzte_nachrichten(conn, chat_id, 30)
+        if zeile["ist_bot"]
+    ]
+    return text.strip() in letzte[-MELDUNG_RUECKSCHAU:]
+
+
 def _biete_phase_an(conn, tg, chat_id: int) -> None:
     """Die proaktive Phasenmeldung nach einem Speichern -- weich, damit ein
     Fehlschlag hier die Notiert-Zeile nicht mitreisst (06.09.2026).
@@ -1368,6 +1392,15 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         _starte_szene(klm, tg, conn, e, chat_id, aenderungen, wirkliche)
         text = baue_meldung(wirkliche)
         if text is None:
+            _biete_phase_an(conn, tg, chat_id)
+            return
+        # Dieselbe Notiert-Zeile nicht zweimal (06.09.2026, Testgruppe
+        # 21:50/21:52: derselbe Szenenfolge-Block stand wortgleich zweimal im
+        # Chat). Gespeichert wurde in so einem Fall trotzdem korrekt -- nur
+        # die Meldung darueber ist ueberfluessig, und ein Bot, der dasselbe
+        # zweimal sagt, sieht kaputt aus.
+        if _steht_schon_da(conn, chat_id, text):
+            log.info("Notiert-Meldung als Wiederholung uebersprungen, chat_id=%s", chat_id)
             _biete_phase_an(conn, tg, chat_id)
             return
         message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche)

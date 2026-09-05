@@ -126,10 +126,16 @@ Phasenfrage als eigene, kurze Nachricht, sobald alles gespeichert ist.
   Test aus j5.
 - (c) **Proaktive Phasenmeldung.** 9 Phasenknöpfe, 0 Drücke — als Anhang wirkt
   der Knopf nicht.
-- (d) **Wiederholungsfilter.** Der 60-%-Filter hätte am Testabend 4 von 59
-  Bot-Nachrichten gefangen (7 %). Wenig, aber die richtigen: die beiden
-  wortgleichen Notiert-Blöcke und die doppelte „Bin wieder da"-Zeile. Die
-  größere Wirkung kommt aus der Prompt-Regel.
+- (d) **Wiederholungsfilter.** Der 60-%-Filter (`ablauf.ist_wiederholung`,
+  Mindestlänge 12 inhaltstragende Wörter) fängt am Testkorpus **3 von 65**
+  Bot-Nachrichten: die verdoppelte Fragen-Notiz (14:03), die doppelte
+  „Bin wieder da"-Zeile (20:52) und den verdoppelten Szenenfolge-Block
+  (21:50). Einschränkung, ehrlich: der Filter sitzt in `ablauf.antworte` und
+  greift damit nur bei **Gesprächsantworten** — die drei genannten Fälle sind
+  Systemzeilen bzw. Notiert-Zeilen und laufen an ihm vorbei. Er ist die
+  Versicherung gegen ein Modell, das sich wiederholt; die Systemzeilen sind
+  durch (e) und (f) direkt entschärft. Die größere Wirkung kommt aus der
+  Prompt-Regel.
 - (e) **Systemzeilen.** 13 × „Falls das nicht stimmt" = 13 überflüssige Zeilen
   in 104 Nachrichten.
 - (f) **„Bin wieder da".** Zweimal falsch, zweimal wortgleich.

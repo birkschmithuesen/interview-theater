@@ -36,6 +36,15 @@ wer spricht, hast du die Sprachprofile nicht benutzt und der Text ist
 unbrauchbar. Zwei Figuren mit demselben Satzbau und denselben Fuellwoertern
 sind ein Fehler, kein Stilmittel.
 
+Wenn zwei oder drei Figuren aus DEMSELBEN Interview stammen (dasselbe
+Sprachprofil, dieselben Zitate) oder eine Figur gar keins hat: dann
+unterscheide sie ueber das, was die Figurenbeschreibung hergibt -- und
+verteile die Sprechweise BEWUSST: eine bekommt den Rhythmus des Interviews
+(die Abbrueche, das "halt"), die zweite spricht in ganzen Saetzen und
+laenger, die dritte fast nur in Fragen oder fast gar nicht. Alle drei im
+selben Ein-Wort-Stakkato sind der haeufigste Fehler (gemessen 05.09., drei
+Laeufe: der Richter nannte es jedes Mal).
+
 Interviewer-Saetze gibt es hier nicht -- was du bekommst, sind Aeusserungen
 der befragten Personen. Schreib niemandem eine Interviewfrage in den Mund.
 

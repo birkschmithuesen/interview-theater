@@ -15,8 +15,8 @@ Zitaten der Figur, bevor du eine Zeile schreibst.
 2. **Vier Betonungen je Zeile.** Wer die Zeile laut liest, klopft viermal mit.
    Die Silbenzahl darf schwanken, die Betonungen nicht.
 3. **Zeilenpaare, Reim am Zeilenende.** Zwei Zeilen, ein Reim -- oder vier
-   Zeilen mit Kreuzreim. Welches Schema gilt, schreibst du als Kommentar in
-   Klammern darueber.
+   Zeilen mit Kreuzreim. Halte EIN Schema je Block durch. Kein Kommentar
+   dazu im Text -- das Schema hoert man.
 4. **Unreine Reime sind erlaubt und oft besser.** Ein Reim, der die Wortwahl
    verbiegt, ist schlechter als keiner.
 5. **Konkrete Woerter, kurze Woerter.** Zahlen, Orte, Gegenstaende,
@@ -35,13 +35,14 @@ Zitaten der Figur, bevor du eine Zeile schreibst.
 
 ## Ausgabeform
 
-Eine Zeile je Zeile, Namen der sprechenden Figur in Grossbuchstaben davor,
-Reimschema als Kommentar in Klammern ueber dem Block:
+Eine Zeile je Zeile, Name der sprechenden Figur in Grossbuchstaben davor.
+Nur Regieanweisungen in Klammern -- keine Anmerkungen zum Reimschema oder
+zur Form (gemessen 05.09.: "(Reimschema: Paarreim, vier Betonungen)" stand
+im Szenentext, und die Gruppe haette es vorgelesen):
 
 ```
 (Polizeikessel, seit zwei Stunden.)
 
-(Reimschema: Paarreim, vier Betonungen)
 PAL
 Zwei Stunden hier, kein Meter Platz
 Ich hab kein Netz, ich hab kein Satz

@@ -124,7 +124,33 @@ CREATE TABLE IF NOT EXISTS verdichtung_thema (
   -- zeigen beide Ansichten `thema`.
   kurz            TEXT,
   beleg_zitat     TEXT,                     -- NULL, wenn Prüfung nach § 5 fehlschlug
-  zitat_geprueft  INTEGER NOT NULL DEFAULT 0
+  zitat_geprueft  INTEGER NOT NULL DEFAULT 0,
+  -- Gesetzt = dieses Thema gehoert zum Kernthema der Gruppe (05.09.2026
+  -- abends): der Filter am Kernthema laeuft einmal, nachdem die Kernfrage
+  -- steht (interview_theater/kernzitate.py), und markiert die Themen, die
+  -- zur Kernfrage passen. Ab den Figuren sieht das Modell nur noch diese --
+  -- nicht mehr alle Verdichtungen und keine Transkripte (kontext.baue).
+  zum_kernthema_am TEXT
+);
+
+-- Die geprueften Belegzitate, die zum Kernthema passen (05.09.2026 abends).
+--
+-- Warum eine eigene Tabelle und kein Flag an verdichtung_thema: ein Kernzitat
+-- traegt mehr als eine Markierung -- einen Rang (die Reihenfolge, in der das
+-- Modell sie fuer tragend haelt) und einen Halbsatz, warum es passt. Beides
+-- steht im Kernpaket, das ab den Figuren den Platz der Transkripte einnimmt.
+-- Die Zitate sind nie neu erfunden: jedes wird gegen das Original in
+-- verdichtung_thema.beleg_zitat geprueft (zitat.pruefe), sonst verworfen.
+CREATE TABLE IF NOT EXISTS kernzitat (
+  id                   INTEGER PRIMARY KEY,
+  chat_id              INTEGER NOT NULL,
+  verdichtung_thema_id INTEGER,
+  aufnahme_id          INTEGER,
+  zitat                TEXT NOT NULL,
+  begruendung          TEXT,
+  rang                 INTEGER,
+  erstellt_am          TEXT NOT NULL,
+  entfernt_am          TEXT                 -- gesetzt = weich geloescht (N3)
 );
 
 CREATE TABLE IF NOT EXISTS arbeitsstand (
@@ -150,6 +176,18 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- festgehalten, ohne ``kernthema`` zu setzen -- sonst stuende eine halbe
   -- Entscheidung im Arbeitsstand.
   kernthema_richtung     TEXT,
+  -- Stufe 3 der Kernthema-Arbeit (05.09.2026 abends): die dramatische Frage.
+  -- Drei Zeilen -- \"Frage: Was passiert, wenn ...\", \"Gegensatz: <zwei
+  -- Wollen>\", \"Einsatz: <was auf dem Spiel steht>\". Sie ist der Filter, an
+  -- dem die Kernzitate und die passenden Verdichtungen ausgewaehlt werden,
+  -- und sie steht ab da im Kernpaket ganz vorn: Figuren und Szenen kommen
+  -- aus dem Kernthema, nicht aus den Interviews.
+  kernfrage              TEXT,
+  -- Wie viele Figuren das Stueck haben soll -- die Gruppe sagt es vor der
+  -- Figurenliste per Knopf (1-6 oder \"Andere Zahl\", 1-12). Frueher stand
+  -- \"zwei bis vier\" im Prompt; das war eine Vorgabe des Bots an eine
+  -- Entscheidung der Gruppe.
+  figuren_anzahl         TEXT,
   -- Die Figurenliste, solange sie noch ein Entwurf ist (Ebene 1: Anzahl und
   -- Namen aendern). Eine Zeile je Figur, Form ``Name — Satz — Interview N``
   -- wie im Vorschlagsblock. Erst \"Gefaellt uns, weiter\" legt daraus echte
@@ -344,6 +382,7 @@ TABELLEN_MIT_CHAT_ID = (
     "aufnahme",
     "verdichtung",
     "verdichtung_thema",
+    "kernzitat",
     "arbeitsstand",
     "figur",
     "szene",

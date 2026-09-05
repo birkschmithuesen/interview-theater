@@ -766,6 +766,120 @@ def themen_zu(conn: sqlite3.Connection, verdichtung_id: int) -> list[sqlite3.Row
 
 
 @_gesperrt
+def gepruefte_themen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle Verdichtungsthemen einer Gruppe mit **geprueftem** Belegzitat --
+    samt ``aufnahme_id`` und Zusammenfassung der Verdichtung, zu der sie
+    gehoeren (05.09.2026 abends).
+
+    Das ist die vollstaendige Eingabe des Kernthema-Filters
+    (``kernzitate.py``): das Modell waehlt daraus aus, es bekommt nichts
+    anderes -- keine Transkripte, nichts Erfundenes. Entfernte Verdichtungen
+    fallen weg (N5), ungeprueftes ebenso: was nicht woertlich belegt ist,
+    darf gar nicht erst zur Wahl stehen (N2)."""
+    return conn.execute(
+        f"""
+        SELECT t.*, v.aufnahme_id AS aufnahme_id, v.zusammenfassung AS zusammenfassung
+        FROM verdichtung_thema t
+        JOIN verdichtung v ON v.id = t.verdichtung_id
+        WHERE t.chat_id = ? AND t.zitat_geprueft = 1
+          AND t.beleg_zitat IS NOT NULL AND v.{_NICHT_ENTFERNT}
+        ORDER BY v.id ASC, t.id ASC
+        """,
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def markiere_themen_zum_kernthema(
+    conn: sqlite3.Connection, chat_id: int, thema_ids: list[int]
+) -> int:
+    """Markiert genau diese Themen als \"passt zum Kernthema\" und nimmt die
+    Markierung ueberall sonst wieder ab. Liefert die Zahl der Markierten.
+
+    Ersetzend und nicht anhaengend: der Filter laeuft an der Kernfrage, und
+    laeuft er ein zweites Mal (die Gruppe hat die Frage geaendert), gilt das
+    neue Ergebnis. Eine alte Markierung stehen zu lassen hiesse, das Modell
+    spaeter mit dem Material einer verworfenen Frage arbeiten zu lassen."""
+    conn.execute(
+        "UPDATE verdichtung_thema SET zum_kernthema_am = NULL WHERE chat_id = ?",
+        (chat_id,),
+    )
+    jetzt = _jetzt()
+    for thema_id in thema_ids:
+        conn.execute(
+            "UPDATE verdichtung_thema SET zum_kernthema_am = ? "
+            "WHERE id = ? AND chat_id = ?",
+            (jetzt, thema_id, chat_id),
+        )
+    conn.commit()
+    return len(thema_ids)
+
+
+@_gesperrt
+def kernthemen_themen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Die zum Kernthema passenden Verdichtungsthemen -- die gefilterten
+    Verdichtungen, aus denen ab Phase 4 (Figuren) gearbeitet wird."""
+    return conn.execute(
+        f"""
+        SELECT t.*, v.aufnahme_id AS aufnahme_id, v.zusammenfassung AS zusammenfassung
+        FROM verdichtung_thema t
+        JOIN verdichtung v ON v.id = t.verdichtung_id
+        WHERE t.chat_id = ? AND t.zum_kernthema_am IS NOT NULL
+          AND v.{_NICHT_ENTFERNT}
+        ORDER BY v.id ASC, t.id ASC
+        """,
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def ersetze_kernzitate(
+    conn: sqlite3.Connection, chat_id: int, zitate: list[dict]
+) -> int:
+    """Schreibt die ausgewaehlten Kernzitate -- und entfernt die vorherigen
+    weich (``entfernt_am``), statt sie zu loeschen.
+
+    Jedes Element braucht ``zitat``; ``verdichtung_thema_id``, ``aufnahme_id``
+    und ``begruendung`` sind optional. Der ``rang`` ist die Position in der
+    Liste, ab 1: die Reihenfolge ist die Auswahl des Modells und traegt im
+    Kernpaket die Gewichtung."""
+    conn.execute(
+        "UPDATE kernzitat SET entfernt_am = ? WHERE chat_id = ? AND entfernt_am IS NULL",
+        (_jetzt(), chat_id),
+    )
+    for rang, eintrag in enumerate(zitate, start=1):
+        conn.execute(
+            """
+            INSERT INTO kernzitat
+                (chat_id, verdichtung_thema_id, aufnahme_id, zitat, begruendung,
+                 rang, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                chat_id,
+                eintrag.get("verdichtung_thema_id"),
+                eintrag.get("aufnahme_id"),
+                eintrag["zitat"],
+                eintrag.get("begruendung"),
+                rang,
+                _jetzt(),
+            ),
+        )
+    conn.commit()
+    return len(zitate)
+
+
+@_gesperrt
+def kernzitate(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Die geltenden Kernzitate einer Gruppe, in ihrer Reihenfolge."""
+    return conn.execute(
+        f"SELECT * FROM kernzitat WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY rang ASC, id ASC",
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
 def transkripte(
     conn: sqlite3.Connection, chat_id: int, name: str | None = None
 ) -> list[sqlite3.Row]:
@@ -1023,6 +1137,10 @@ _ARBEITSSTAND_FELDER = (
     "begriffe", "fragen", "kernthema", "kernthema_begruendung", "format",
     "rahmen", "hauptkonflikt", "kernthema_richtung", "figuren_entwurf",
     "figuren_fixiert_am", "figur_aktuell", "aenderung_offen",
+    # Stufe 3 der Kernthema-Arbeit und die freie Figurenanzahl (05.09.2026
+    # abends): beide werden ueber denselben einen Schreibweg gesetzt wie
+    # alles andere im Arbeitsstand.
+    "kernfrage", "figuren_anzahl",
 )
 
 

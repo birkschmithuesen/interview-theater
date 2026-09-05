@@ -306,7 +306,11 @@ _FIGURENHINWEIS = (
     "Pola). Ohne diese Zuordnung klingen in einer Szene alle Figuren gleich; "
     "mit ihr bekommt jede ihre eigene Sprechweise. Frag nach, entscheide "
     "nicht. Sagt die Gruppe, eine Figur sei frei erfunden und habe kein "
-    "Interview, ist das eine Antwort: dann frag fuer diese Figur nicht mehr."
+    "Interview, ist das eine Antwort: dann frag fuer diese Figur nicht mehr. "
+    "Gibt es weniger Interviews als Figuren, darf ein Interview mehrere "
+    "Figuren speisen -- schlag das vor ('Pal und Pola koennten beide aus "
+    "Interview 1 sprechen, jede nimmt sich einen anderen Teil'), die Gruppe "
+    "entscheidet."
 )
 
 

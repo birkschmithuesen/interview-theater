@@ -64,7 +64,10 @@ Objekt mit "art" und "wert":
     Zustimmung zu deinem Vorschlag: "Pola koennte wie Interview 2 sprechen,
     passt das?" - "ja, genau" -> figur_quelle_setzen, wert "Pola: Interview
     2". Auch "Pola ist die aus dem zweiten Interview" oder "nein, Pola ist
-    eher Interview 3" gehoeren hierher.
+    eher Interview 3" gehoeren hierher. **Ein Interview darf mehrere Figuren
+    speisen** (Birk 05.09.): "alle drei sprechen wie Interview 1" -> drei
+    Aenderungen, je Figur eine. "Pal und Pola nehmen auch Birks Interview"
+    -> zwei.
 12. wortlaut_an            -- wert: der Name der Aufnahme, deren Originalton
     mitgelesen werden soll, oder leer ("") fuer alle Aufnahmen.
 13. wortlaut_aus           -- wert: leer ("").

@@ -50,8 +50,10 @@ DB_PFAD = "/tmp/it-webtest.db"
 BIND = "127.0.0.1:8019"
 BASIS = f"http://{BIND}"
 
-#: Hier schaut Birk die Seite an.
-SCHUSSVERZEICHNIS = Path("/tmp/it-webedit-shots")
+#: Hier schaut Birk die Seite an. Unterverzeichnis ``2``, weil der erste Lauf
+#: (vor dem Phasen-Umbau) daneben stehen bleiben soll -- die Seite sieht
+#: seitdem anders aus, und der Vergleich ist die Hälfte des Blicks.
+SCHUSSVERZEICHNIS = Path("/tmp/it-webedit-shots/2")
 
 #: Kommt im Transkript vor und darf auf keiner Seite stehen.
 MARKER = "Zwirbelkiste"
@@ -63,10 +65,14 @@ GEDULD = 5000
 
 
 def _baue_datenbank(pfad: str) -> str:
-    """Die Wegwerf-Datenbank: eine Gruppe in Phase 4, drei angebotene
-    Richtungen, zwei Kernthema-Vorschlaege, zwei Figuren, zwei Interviews und
-    eine Szene. Aufgebaut ueber ``repo``, nicht ueber SQL -- so steht am Ende
-    genau das da, was auch im Betrieb entsteht."""
+    """Die Wegwerf-Datenbank: eine Gruppe in Phase 4 (Setting & Figuren) mit
+    Begriffen, Fragen samt Leitfaden, zwei angebotenen Settings, zwei Figuren,
+    zwei Interviews, einer Szene mit Formvorschlag und einer Schaerfung.
+
+    Aufgebaut ueber ``repo``, nicht ueber SQL -- so steht am Ende genau das
+    da, was auch im Betrieb entsteht. Die eine Ausnahme ist die
+    ``schaerfung``-Zeile: die legt sonst ``schaerfung.mappe`` nach einem
+    Modellaufruf an, und der faellt hier nicht."""
     if os.path.exists(pfad):
         os.remove(pfad)
     for endung in ("-wal", "-shm"):
@@ -77,15 +83,21 @@ def _baue_datenbank(pfad: str) -> str:
     repo.sichere_gruppe(conn, 4711, "gruppe1", "Die Ankommenden")
     repo.setze_phase(conn, 4711, 4)
     repo.setze_arbeitsstand(conn, 4711, "begriffe", "Ankommen, Arbeit, Nacht")
-    repo.setze_arbeitsstand(conn, 4711, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(
+        conn, 4711, "fragen",
+        "Was war in deinem Koffer?\nWer hat auf dich gewartet?",
+    )
+    repo.setze_arbeitsstand(
+        conn, 4711, "interview_eroeffnung", "Wir machen ein Theaterstueck."
+    )
+    repo.setze_arbeitsstand(conn, 4711, "interview_abschluss", "Danke fuer die Zeit.")
+    repo.setze_arbeitsstand(conn, 4711, "rahmen", "Eine Nacht im Treppenhaus")
+    # Altbestand: das Kernthema ist keine Station mehr, soll aber sichtbar
+    # bleiben (read-only).
     repo.setze_arbeitsstand(conn, 4711, "kernthema", "Ankommen und Bleiben")
-    repo.setze_arbeitsstand(conn, 4711, "kernthema_richtung", "Heimat")
 
-    for wert in ("Heimat", "Arbeit", "Nachtschicht"):
-        repo.lege_knopf_an(conn, 4711, "richtung", wert)
-    for wert in ("Ankommen und Bleiben", "Zwei Staedte, ein Koffer"):
-        repo.lege_knopf_an(conn, 4711, "kernthema", wert)
-    repo.lege_knopf_an(conn, 4711, "rahmen", "Eine Nacht im Treppenhaus")
+    for wert in ("Eine Nacht im Treppenhaus", "Ein Bahnhof im Winter"):
+        repo.lege_knopf_an(conn, 4711, "rahmen", wert)
 
     repo.setze_figur(conn, 4711, "Mira", "24, arbeitet nachts")
     repo.setze_figur(conn, 4711, "Pola", "58, will zurueck")
@@ -103,6 +115,14 @@ def _baue_datenbank(pfad: str) -> str:
         repo.setze_transkript(
             conn, aufnahme_id, f"Ich hatte nur einen Koffer und eine {MARKER} dabei."
         )
+        if nummer == 1:
+            repo.speichere_verdichtung(
+                conn, 4711, aufnahme_id, "Mira erzaehlt vom ersten Winter",
+                [{"thema": "Der erste Winter war kalt und leer",
+                  "kurz": "Erster Winter",
+                  "beleg_zitat": "Ich hatte nur einen Koffer",
+                  "zitat_geprueft": 1}],
+            )
     repo.setze_figur_quelle(
         conn, repo.hole_figur(conn, 4711, "Mira")["id"],
         repo.transkripte(conn, 4711)[0]["id"],
@@ -112,9 +132,23 @@ def _baue_datenbank(pfad: str) -> str:
     repo.setze_szenenfeld(conn, szene_id, "titel", "Im Treppenhaus")
     # Kleingeschrieben wie der Knopf im Chat (knoepfe.biete_szenenform).
     repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
+    repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", "monolog")
     repo.setze_szenenfeld(conn, szene_id, "ort", "Treppenhaus")
 
-    repo.schreibe_journal(conn, 4711, "entschieden", "Kernthema steht", "extraktor")
+    # Eine Schaerfung, wie sie Phase 6 anlegt -- hier von Hand, weil
+    # schaerfung.mappe ein Modell braucht.
+    thema = conn.execute(
+        "SELECT id FROM verdichtung_thema ORDER BY id ASC LIMIT 1"
+    ).fetchone()
+    if thema is not None:
+        conn.execute(
+            "INSERT INTO schaerfung (chat_id, verdichtung_thema_id, szene_id, "
+            "begruendung, runde, erstellt_am) "
+            "VALUES (4711, ?, ?, 'passt zur Ankunft', 1, ?)",
+            (thema["id"], szene_id, repo._jetzt()),
+        )
+
+    repo.schreibe_journal(conn, 4711, "entschieden", "Setting steht", "extraktor")
     token = repo.stelle_web_token_sicher(conn, 4711)
     conn.commit()
     conn.close()
@@ -225,38 +259,48 @@ def schuss(seite, name: str) -> None:
 
 def test_die_seite_steht_und_zeigt_die_bedienelemente(seite):
     expect(seite.locator("h1")).to_have_text("Die Ankommenden")
-    expect(feld(seite, "kernthema").locator("select.auswahl")).to_be_visible()
     expect(feld(seite, "phase").locator("select.auswahl")).to_be_visible()
-    expect(feld(seite, "kernfrage").locator("textarea")).to_be_visible()
+    expect(feld(seite, "rahmen").locator("select.auswahl")).to_be_visible()
+    expect(feld(seite, "geschichte").locator("textarea")).to_be_visible()
+    expect(feld(seite, "interview_eroeffnung").locator("textarea")).to_be_visible()
     # Und die Grenze: das Transkript aus der Datenbank steht nirgends.
     assert MARKER not in seite.content()
     schuss(seite, "01-start.png")
 
 
-def test_kernthema_ueber_das_dropdown_aendern(seite, datenbank, token):
-    """Birks Beispiel, ganz durch: mehrere Vorschlaege im Dropdown, der
-    gewaehlte vorausgewaehlt, umstellen, speichern, neu laden -- der neue
-    Wert steht, und im Journal steht die Zeile."""
-    bereich = feld(seite, "kernthema")
-    auswahl = bereich.locator("select.auswahl")
-    expect(auswahl).to_have_value("Ankommen und Bleiben")
+def test_kernthema_steht_nur_noch_da_und_hat_kein_formular(seite):
+    """Das Kernthema ist keine Station mehr -- der Wert einer Gruppe von
+    gestern bleibt trotzdem lesbar."""
+    inhalt = seite.content()
 
-    auswahl.select_option("Zwei Staedte, ein Koffer")
+    assert "Ankommen und Bleiben" in inhalt
+    assert 'data-feld="kernthema"' not in inhalt
+    expect(seite.locator('.feld[data-feld="kernthema"]')).to_have_count(0)
+
+
+def test_setting_ueber_das_dropdown_aendern(seite, datenbank, token):
+    """Birks Beispiel, ganz durch -- jetzt am Setting: mehrere Vorschlaege im
+    Dropdown, der gewaehlte vorausgewaehlt, umstellen, speichern, neu laden --
+    der neue Wert steht, und im Journal steht die Zeile."""
+    bereich = feld(seite, "rahmen")
+    auswahl = bereich.locator("select.auswahl")
+    expect(auswahl).to_have_value("Eine Nacht im Treppenhaus")
+
+    auswahl.select_option("Ein Bahnhof im Winter")
     speichere(bereich)
-    schuss(seite, "02-kernthema-gespeichert.png")
+    schuss(seite, "02-setting-gespeichert.png")
 
     seite.reload()
-    expect(feld(seite, "kernthema").locator("select.auswahl")).to_have_value(
-        "Zwei Staedte, ein Koffer"
+    expect(feld(seite, "rahmen").locator("select.auswahl")).to_have_value(
+        "Ein Bahnhof im Winter"
     )
-    assert repo.hole_arbeitsstand(datenbank, 4711)["kernthema"] == \
-        "Zwei Staedte, ein Koffer"
+    assert repo.hole_arbeitsstand(datenbank, 4711)["rahmen"] == "Ein Bahnhof im Winter"
 
     oeffne_journal(seite)
-    expect(seite.locator(".eintrag", has_text="Kernthema geändert")).to_be_visible()
+    expect(seite.locator(".eintrag", has_text="Setting geändert")).to_be_visible()
     assert any(
-        t.startswith("Kernthema geändert über die Gruppenseite: "
-                     "Ankommen und Bleiben → Zwei Staedte, ein Koffer")
+        t.startswith("Setting geändert über die Gruppenseite: "
+                     "Eine Nacht im Treppenhaus → Ein Bahnhof im Winter")
         for t in journaltexte(datenbank)
     )
     schuss(seite, "03-journal.png")
@@ -265,36 +309,55 @@ def test_kernthema_ueber_das_dropdown_aendern(seite, datenbank, token):
 def test_eigene_formulierung_statt_eines_vorschlags(seite, datenbank):
     """Fehlt der passende Vorschlag, traegt „eigene …" das Freitextfeld
     daneben frei."""
-    bereich = feld(seite, "kernthema_richtung")
+    bereich = feld(seite, "rahmen")
     bereich.locator("select.auswahl").select_option("__EIGENE__")
     frei = bereich.locator("input.eigene")
     expect(frei).to_be_visible()
-    frei.fill("Bleiben, obwohl man gehen könnte")
+    frei.fill("Ein Treppenhaus, kurz vor Mitternacht")
     speichere(bereich)
 
-    assert repo.hole_arbeitsstand(datenbank, 4711)["kernthema_richtung"] == \
-        "Bleiben, obwohl man gehen könnte"
+    assert repo.hole_arbeitsstand(datenbank, 4711)["rahmen"] == \
+        "Ein Treppenhaus, kurz vor Mitternacht"
 
 
-def test_kernfrage_in_die_textbox_schreiben(seite, datenbank):
-    """Die Konkretisierung neben dem Kernthema: leer heisst 'noch offen'."""
-    bereich = feld(seite, "kernfrage")
+def test_geschichte_in_die_textbox_schreiben(seite, datenbank):
+    """Die Geschichte (Phase 5) hat die Rolle des Kernthemas uebernommen:
+    Bogen und Ende, frei erfunden, leer heisst 'noch offen'."""
+    bereich = feld(seite, "geschichte")
     kasten = bereich.locator("textarea")
     expect(kasten).to_have_value("")
 
     kasten.fill(
-        "Frage: Was passiert, wenn man bleibt?\n"
-        "Gegensatz: ankommen wollen gegen zurückwollen\n"
-        "Einsatz: die eigene Geschichte"
+        "Zwei Frauen treffen sich nachts im Treppenhaus.\n"
+        "Die eine will bleiben, die andere zurück.\n"
+        "Am Ende singen sie zusammen und keine geht."
     )
     speichere(bereich)
-    schuss(seite, "04-kernfrage.png")
+    schuss(seite, "04-geschichte.png")
 
     seite.reload()
-    expect(feld(seite, "kernfrage").locator("textarea")).to_contain_text(
-        "Was passiert, wenn man bleibt?"
+    expect(feld(seite, "geschichte").locator("textarea")).to_contain_text(
+        "Am Ende singen sie zusammen"
     )
-    assert "Gegensatz" in repo.hole_arbeitsstand(datenbank, 4711)["kernfrage"]
+    assert "Treppenhaus" in repo.hole_arbeitsstand(datenbank, 4711)["geschichte"]
+
+
+def test_leitfaden_folgt_der_eroeffnung(seite, datenbank):
+    """Die Leitfaden-Felder sind editierbar, der Leitfaden selbst nicht --
+    er wird darunter gebaut und zieht nach dem Speichern mit."""
+    bereich = feld(seite, "interview_eroeffnung")
+    bereich.locator("textarea").fill("Wir sind vom Theaterprojekt und haben Zeit.")
+    speichere(bereich)
+
+    seite.reload()
+    expect(seite.locator("pre.leitfaden")).to_contain_text(
+        "Wir sind vom Theaterprojekt und haben Zeit."
+    )
+    expect(seite.locator("pre.leitfaden")).to_contain_text(
+        "Was war in deinem Koffer?"
+    )
+    expect(seite.locator('.feld[data-feld="leitfaden"]')).to_have_count(0)
+    schuss(seite, "05-leitfaden.png")
 
 
 def test_figur_umbenennen(seite, datenbank):
@@ -305,7 +368,7 @@ def test_figur_umbenennen(seite, datenbank):
     seite.reload()
     assert [f["name"] for f in repo.figuren(datenbank, 4711)] == ["Meryem", "Pola"]
     expect(feld(seite, "figur_name").locator("textarea")).to_have_value("Meryem")
-    schuss(seite, "05-figur-umbenannt.png")
+    schuss(seite, "06-figur-umbenannt.png")
 
 
 def test_figur_wechselt_das_interview(seite, datenbank):
@@ -327,26 +390,49 @@ def test_figur_wechselt_das_interview(seite, datenbank):
     assert not (frisch["sprachprofil"] or "").strip()
     assert frisch["geprueft_am"] is None
     assert any(t.startswith("Sprachprofil neu nötig") for t in journaltexte(datenbank))
-    schuss(seite, "06-figur-interview.png")
+    schuss(seite, "07-figur-interview.png")
 
 
 def test_szene_form_aendern(seite, datenbank):
     """Die Szenenplanung steckt in einem zugeklappten <details> -- erst
-    aufklappen, dann umstellen."""
+    aufklappen, dann umstellen. Fuenf Formen, kleingeschrieben wie im Chat."""
     seite.locator("details.szene summary").first.click()
     bereich = feld(seite, "szene_form")
     expect(bereich.locator("select.auswahl")).to_have_value("dialog")
+    # Genau die fuenf plus "— offen —".
+    expect(bereich.locator("select.auswahl option")).to_have_count(6)
 
     # Beschriftung gross, Wert klein -- und geschrieben wird der Wert, damit
     # szene.formdatei denselben Regelblock findet wie nach einem Knopfdruck.
     bereich.locator("select.auswahl").select_option(label="Lied")
     speichere(bereich)
-    schuss(seite, "07-szene-form.png")
+    schuss(seite, "08-szene-form.png")
 
     szene_id = repo.hole_szenen(datenbank, 4711)[0]["id"]
     assert repo.hole_szene(datenbank, szene_id)["form"] == "lied"
     # Und kein anderes Feld ist mitgegangen.
     assert repo.hole_szene(datenbank, szene_id)["ort"] == "Treppenhaus"
+
+
+def test_formvorschlag_und_schaerfung_stehen_read_only_an_der_szene(seite):
+    """Der Formvorschlag des Bots und die Schaerfungen aus Phase 6 stehen an
+    der Szene -- als Anzeige, ohne Knopf. Bestaetigt ist allein ``form``, und
+    ein Belegzitat steht auf einer Seite ohne Login nirgends."""
+    seite.locator("details.szene summary").first.click()
+
+    expect(seite.locator("details.szene .zeit", has_text="Vorschlag:")).to_be_visible()
+    expect(seite.locator("details.szene .schaerfung")).to_contain_text("Erster Winter")
+    expect(seite.locator('.feld[data-feld="szene_form_vorschlag"]')).to_have_count(0)
+
+    # Im Schaerfungsblock steht die Kurzform und sonst nichts: weder das
+    # Belegzitat (das gehoert in den Interview-Block, geprueft) noch der
+    # ganze Themensatz, noch die Begruendung des Schaerfungslaufs.
+    block = seite.locator("details.szene .schaerfung").inner_text()
+    assert "Erster Winter" in block
+    assert "Ich hatte nur einen Koffer" not in block
+    assert "Der erste Winter war kalt und leer" not in block
+    assert "passt zur Ankunft" not in seite.content()
+    schuss(seite, "09-szene-schaerfung.png")
 
 
 def test_besetzung_der_szene_setzen(seite, datenbank):
@@ -361,8 +447,10 @@ def test_besetzung_der_szene_setzen(seite, datenbank):
 
 
 def test_phase_aendern(seite, datenbank):
+    """Acht Phasen seit dem Umbau; 6 heisst Schaerfung."""
     bereich = feld(seite, "phase")
     expect(bereich.locator("select.auswahl")).to_have_value("4")
+    expect(bereich.locator("select.auswahl option")).to_have_count(8)
 
     bereich.locator("select.auswahl").select_option("6")
     speichere(bereich)
@@ -370,8 +458,8 @@ def test_phase_aendern(seite, datenbank):
     seite.reload()
     expect(feld(seite, "phase").locator("select.auswahl")).to_have_value("6")
     assert repo.hole_phase(datenbank, 4711) == 6
-    assert any("Phase 6 · Szenen" in t for t in journaltexte(datenbank))
-    schuss(seite, "08-phase.png")
+    assert any("Phase 6 · Schaerfung" in t for t in journaltexte(datenbank))
+    schuss(seite, "10-phase.png")
 
 
 def test_phase_ausserhalb_wird_abgewiesen(seite, datenbank):
@@ -386,7 +474,7 @@ def test_phase_ausserhalb_wird_abgewiesen(seite, datenbank):
     )
     bereich.locator("button.speichern").click()
 
-    expect(bereich.locator(".hinweis")).to_contain_text("1 bis 7", timeout=GEDULD)
+    expect(bereich.locator(".hinweis")).to_contain_text("1 bis 8", timeout=GEDULD)
     assert repo.hole_phase(datenbank, 4711) == vorher
 
 
@@ -394,7 +482,7 @@ def test_nachladen_ueberschreibt_kein_offenes_feld(seite):
     """Der Edit-Zustand eines offenen Feldes darf durch das sanfte Nachladen
     nicht verlorengehen. Geprueft ueber die Zeit: NEULADEN_SEKUNDEN ist 10,
     wir warten laenger und tippen dabei nicht zu Ende."""
-    bereich = feld(seite, "kernfrage")
+    bereich = feld(seite, "geschichte")
     kasten = bereich.locator("textarea")
     kasten.click()
     kasten.fill("Halb getippt, noch nicht gespeichert")
@@ -421,7 +509,7 @@ def test_figur_hinzufuegen_und_wieder_entfernen(seite, datenbank):
     speichere(letzte)
 
     assert "Pal" not in [f["name"] for f in repo.figuren(datenbank, 4711)]
-    schuss(seite, "09-ende.png")
+    schuss(seite, "11-ende.png")
 
 
 def test_ohne_gueltigen_nonce_schreibt_die_seite_nicht(seite, datenbank, token):

@@ -62,6 +62,7 @@ BUDGETS = {
     "system": 900,
     "verdichtungen": 3000,
     "transkripte": 5000,
+    "kernpaket": 2000,
     "arbeitsstand": 1200,
     "phasenhinweis": 50,
     "figurenhinweis": 100,
@@ -82,7 +83,7 @@ PAUSE_AB_MINUTEN = 60
 #: Feste Reihenfolge des Prompt-Koerpers (ohne SYSTEM, das separat verschickt
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
-    "verdichtungen", "transkripte", "arbeitsstand", "phasenhinweis",
+    "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "phasenhinweis",
     "figurenhinweis", "szene", "journal", "fenster", "ausloeser", "erstkontakt",
 )
 
@@ -203,6 +204,113 @@ def _baue_transkripte(conn, chat_id: int) -> str:
     return "Volltranskripte:\n" + "\n\n".join(zeilen)
 
 
+# --- Das Kernpaket (05.09.2026 abends) ------------------------------------
+#
+# **Warum es das gibt.** Bis zu diesem Abend bekam der Figuren-Prompt alle
+# Verdichtungen und alle Transkripte, und ``prompts/phasen/4.md`` verlangte
+# Figuren, "die sich auf Interviewstellen stuetzen". Die Figuren kamen damit
+# aus den Interviews statt aus dem Kernthema, und die Gruppe konnte den Weg
+# Kernthema -> Figuren nicht nachvollziehen (Birk, nach dem Regie-Test).
+#
+# Ab den Figuren steht deshalb an der Stelle von Verdichtungen und
+# Transkripten EIN Block: das Kernpaket. Es enthaelt Kernthema, Kernfrage, die
+# ausgewaehlten Kernzitate, die **am Kernthema gefilterten** Verdichtungen
+# (nur die markierten Themen, mit Interview-Nummer), die Figuren mit ihrem
+# Sprachprofil und den Rahmen. Die Verdichtungen fliegen also nicht raus --
+# sie werden gefiltert, genau wie die Zitate.
+
+KERNPAKET_KOPF = (
+    "Das Kernpaket - hieraus arbeitest du. Figuren und Szenen kommen aus dem "
+    "Kernthema und dieser Auswahl, nicht aus den Interviews (die stehen dir "
+    "hier bewusst nicht mehr im Wortlaut zur Verfuegung):"
+)
+
+
+def _baue_kernpaket(conn, chat_id: int) -> str:
+    """Der Block, der ab den Figuren an die Stelle von Verdichtungen und
+    Transkripten tritt.
+
+    Datengetrieben wie alles: jeder Teil faellt weg, solange seine Daten leer
+    sind, und ohne Kernthema gibt es gar keinen Block."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if not stand:
+        return ""
+    zeilen: list[str] = []
+    if stand["kernthema"]:
+        zeile = f"Kernthema: {stand['kernthema']}"
+        if stand["kernthema_begruendung"]:
+            zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
+        zeilen.append(zeile)
+    if stand["kernfrage"]:
+        zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
+    if stand["rahmen"]:
+        zeilen.append(f"Rahmen: {stand['rahmen']}")
+
+    themen = repo.kernthemen_themen(conn, chat_id)
+    if themen:
+        block = ["Passende Stellen aus den Interviews (die Ausarbeitungsgrundlage):"]
+        for thema in themen:
+            name = interviewbezeichnung(conn, chat_id, thema["aufnahme_id"])
+            block.append(f"- {name}: {thema['thema']}")
+            if thema["zusammenfassung"]:
+                block.append(f"    {thema['zusammenfassung']}")
+        zeilen.append("\n".join(block))
+
+    zitate = repo.kernzitate(conn, chat_id)
+    if zitate:
+        block = ["Kernzitate (woertlich, geprueft):"]
+        for eintrag in zitate:
+            name = interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
+            zeile = f'- {name}: "{eintrag["zitat"]}"'
+            if eintrag["begruendung"]:
+                zeile += f" ({eintrag['begruendung']})"
+            block.append(zeile)
+        zeilen.append("\n".join(block))
+
+    figuren = repo.figuren(conn, chat_id)
+    if figuren:
+        block = ["Figuren:"]
+        for figur in figuren:
+            kopf = figur["name"]
+            if figur["beschreibung"]:
+                kopf += f" -- {figur['beschreibung']}"
+            block.append(f"- {kopf}")
+            if figur["sprachprofil"]:
+                block.append(f"    Sprachduktus: {figur['sprachprofil'].strip()}")
+        zeilen.append("\n".join(block))
+
+    if not zeilen:
+        return ""
+    return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
+
+
+#: Ab dieser Phase arbeitet der Bot aus dem Kernpaket statt aus dem Material.
+#: Innerhalb von Phase 4 entscheidet zusaetzlich die Kernfrage: solange sie
+#: fehlt, wird noch AM Material gearbeitet (das Kernthema entsteht ja
+#: daraus), sobald sie steht, ist gefiltert.
+PHASE_KERNPAKET = 4
+
+
+def material_erlaubt(conn, chat_id: int) -> bool:
+    """Duerfen Verdichtungen und Transkripte in den Prompt?
+
+    Ja bis einschliesslich Phase 3 und in Phase 4, solange die Kernfrage noch
+    fehlt -- dort entsteht das Kernthema aus dem Material, und ohne Material
+    entstuende es aus nichts. Nein ab der gesetzten Kernfrage und in allen
+    spaeteren Phasen: dann traegt das Kernpaket.
+
+    Eine reine Leseabfrage aus zwei Feldern, kein gespeicherter Zustand --
+    nimmt die Gruppe die Kernfrage zurueck, ist das Material wieder da."""
+    phase = phasen.aktuelle(conn, chat_id)
+    if phase < PHASE_KERNPAKET:
+        return True
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    kernfrage = (stand["kernfrage"] if stand else "") or ""
+    if phase == PHASE_KERNPAKET and not kernfrage.strip():
+        return True
+    return False
+
+
 def szenenzeile(s) -> str:
     """Eine Szene als eine Zeile: Nummer, Titel, Kurzbeschreibung (SPEC § 6.2
     Block 4). Fehlt eines der Felder, faellt nur dieser Teil weg -- die Zeile
@@ -241,6 +349,8 @@ def _baue_arbeitsstand(conn, chat_id: int) -> str:
             if stand["kernthema_begruendung"]:
                 zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
             zeilen.append(zeile)
+        if stand["kernfrage"]:
+            zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
         # Format & Rahmen (Phase 5, seit 05.09.2026). Datengetrieben wie alles
         # andere: der Hauptkonflikt steht nur da, wenn die Gruppe einen wollte
         # -- er ist eine Rahmen-Entscheidung, keine Pflicht.
@@ -512,10 +622,17 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     grundsaetzlich ausgenommen, es gibt keinen Zustand, in dem der Bot wegen
     des Budgets nicht antworten koennte."""
     fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser)
+    # Der Kontext-Filter je Phase (05.09.2026 abends): bis zur Kernfrage
+    # arbeitet der Bot AM Material (Verdichtungen; Transkripte, wenn der
+    # Wortlaut-Schalter steht), danach AUS dem Kernpaket. Datengetrieben wie
+    # alles andere -- es gibt keinen gespeicherten Zustand, nur zwei Felder,
+    # die die Lage beschreiben.
+    material = material_erlaubt(conn, chat_id)
     bloecke = {
         "erstkontakt": _baue_erstkontakt(conn, chat_id, e) if erstkontakt else "",
-        "verdichtungen": _baue_verdichtungen(conn, chat_id),
-        "transkripte": _baue_transkripte(conn, chat_id),
+        "verdichtungen": _baue_verdichtungen(conn, chat_id) if material else "",
+        "transkripte": _baue_transkripte(conn, chat_id) if material else "",
+        "kernpaket": "" if material else _baue_kernpaket(conn, chat_id),
         "arbeitsstand": _baue_arbeitsstand(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),

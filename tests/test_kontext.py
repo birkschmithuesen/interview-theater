@@ -349,14 +349,16 @@ def test_verdichtungen_stehen_ab_der_ersten_fertigen_im_prompt(conn, einst):
     assert "- Arbeit" in prompt
 
 
-def test_verdichtungen_bleiben_in_den_spaeteren_phasen_stehen(conn, einst):
-    """Der Block haengt an den Daten, nicht an der Phase: auch beim
-    Kernthema, bei den Figuren und beim Konflikt liegt das Material vor --
-    genau dort wird es gebraucht, um Vorschlaege zu belegen."""
+def test_verdichtungen_bleiben_bis_zur_kernfrage_stehen(conn, einst):
+    """Bis zur Kernfrage haengt der Block an den Daten, nicht an der Phase:
+    das Kernthema entsteht AUS dem Material, also liegt es vor.
+
+    Danach uebernimmt das Kernpaket -- das ist der eigene Test
+    ``test_ab_der_kernfrage_stehen_weder_verdichtungen_noch_transkripte``."""
     _verdichtetes_interview(conn)
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(1))]
 
-    for nummer in (4, 5, 6):
+    for nummer in (3, 4):
         phasen.setze(conn, 1, nummer, "befehl")
         prompt = kontext.baue(conn, 1, ausloeser, einst)
         assert '"Ich hatte nur einen Koffer"' in prompt, nummer
@@ -533,3 +535,130 @@ def test_entfernte_figuren_szenen_und_journalzeilen_fehlen_im_prompt(conn, einst
     assert "Ankunft" in prompt and "Abschied" not in prompt
     assert "Wir spielen im Hof" in prompt and "Kindheitsfragen" not in prompt
     assert "WEGDAMIT" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# Der Kontext-Filter je Phase und das Kernpaket (05.09.2026 abends)
+# ---------------------------------------------------------------------------
+
+
+def _kernpaket_lage(conn):
+    """Kernthema, Kernfrage, ein gefiltertes Thema, ein Kernzitat, eine Figur
+    mit Sprachprofil -- und ein zweites Interview, das NICHT dazugehoert."""
+    aufnahme_id = _verdichtetes_interview(conn)
+    repo.merke_nachricht(conn, 1, 91, "Ada", 0, "sprache", None, _iso(0))
+    fremd_id = repo.lege_aufnahme_an(conn, 1, 91, "lang", "sprache", "/tmp/b.ogg", 300)
+    repo.setze_aufnahme_name(conn, fremd_id, "Pal")
+    repo.speichere_verdichtung(
+        conn, 1, fremd_id, "Pal erzaehlt von seinen Wochenendfahrten.",
+        [{"thema": "Fahrten am Wochenende",
+          "beleg_zitat": "Am Samstag faehrt keiner", "zitat_geprueft": 1}],
+    )
+
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Arbeit, die niemand sieht")
+    repo.setze_arbeitsstand(
+        conn, 1, "kernfrage",
+        "Frage: Was passiert, wenn niemand fragt?\nGegensatz: sehen wollen - "
+        "gesehen werden\nEinsatz: ob die Arbeit zaehlt",
+    )
+    passend = next(
+        t for t in repo.gepruefte_themen(conn, 1) if t["thema"] == "Ankommen"
+    )
+    repo.markiere_themen_zum_kernthema(conn, 1, [passend["id"]])
+    repo.ersetze_kernzitate(
+        conn, 1,
+        [{"verdichtung_thema_id": passend["id"], "aufnahme_id": aufnahme_id,
+          "zitat": "Ich hatte nur einen Koffer",
+          "begruendung": "das Wenige ist der Einsatz"}],
+    )
+    repo.setze_figur(conn, 1, "Mira", "will gefragt werden")
+    figur = repo.hole_figur(conn, 1, "Mira")
+    repo.setze_figur_quelle(conn, figur["id"], aufnahme_id)
+    repo.setze_sprachprofil(conn, figur["id"], "Kurze Saetze, bricht ab", ["Halt."])
+    return aufnahme_id
+
+
+def test_bis_zur_kernfrage_steht_das_material_im_prompt(conn, einst):
+    """In Phase 4 entsteht das Kernthema AUS dem Material -- solange die
+    Kernfrage fehlt, liegt es also vor."""
+    _verdichtetes_interview(conn)
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    phasen.setze(conn, 1, 4, "befehl")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(1))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Verdichtungen:" in prompt
+    assert kontext.KERNPAKET_KOPF not in prompt
+
+
+def test_ab_der_kernfrage_stehen_weder_verdichtungen_noch_transkripte(conn, einst):
+    """Der Kern der Umstellung: ab den Figuren arbeitet der Bot aus dem
+    Kernpaket, nicht mehr am Material."""
+    _kernpaket_lage(conn)
+    repo.setze_wortlaut_modus(conn, 1, "*")  # selbst mit Wortlaut-Schalter
+    phasen.setze(conn, 1, 4, "befehl")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Verdichtungen:" not in prompt
+    assert "Volltranskripte:" not in prompt
+    assert kontext.KERNPAKET_KOPF in prompt
+
+
+def test_das_kernpaket_traegt_nur_die_gefilterten_verdichtungen(conn, einst):
+    """Die Verdichtungen fliegen nicht raus, sie werden gefiltert: was zum
+    Kernthema markiert ist, steht da -- alles andere nicht."""
+    _kernpaket_lage(conn)
+    phasen.setze(conn, 1, 6, "befehl")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Ankommen" in prompt
+    assert "Maria erzaehlt von der Ankunft 1998" in prompt
+    # Die nicht passende Verdichtung fehlt vollstaendig.
+    assert "Fahrten am Wochenende" not in prompt
+    assert "Pal erzaehlt von seinen Wochenendfahrten" not in prompt
+    # Kernfrage, Kernzitat mit Interview-Nummer, Figur mit Sprachprofil.
+    assert "Kernfrage:" in prompt
+    assert 'Interview 1: "Ich hatte nur einen Koffer"' in prompt
+    assert "Mira" in prompt
+    assert "Kurze Saetze, bricht ab" in prompt
+
+
+def test_in_phase_sechs_und_sieben_gilt_derselbe_filter(conn, einst):
+    _kernpaket_lage(conn)
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
+
+    for nummer in (5, 6, 7):
+        phasen.setze(conn, 1, nummer, "befehl")
+        prompt = kontext.baue(conn, 1, ausloeser, einst)
+        assert "Verdichtungen:" not in prompt, nummer
+        assert "Volltranskripte:" not in prompt, nummer
+        assert kontext.KERNPAKET_KOPF in prompt, nummer
+
+
+def test_die_phasen_eins_bis_drei_bleiben_unveraendert(conn, einst):
+    _kernpaket_lage(conn)
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
+
+    for nummer in (1, 2, 3):
+        phasen.setze(conn, 1, nummer, "befehl")
+        prompt = kontext.baue(conn, 1, ausloeser, einst)
+        assert "Verdichtungen:" in prompt, nummer
+        assert kontext.KERNPAKET_KOPF not in prompt, nummer
+
+
+def test_eine_zurueckgenommene_kernfrage_holt_das_material_zurueck(conn, einst):
+    """Datengetrieben und ohne gespeicherten Zustand: nimmt die Gruppe die
+    Kernfrage zurueck, steht das Material wieder da."""
+    _kernpaket_lage(conn)
+    phasen.setze(conn, 1, 4, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "kernfrage", None)
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Verdichtungen:" in prompt

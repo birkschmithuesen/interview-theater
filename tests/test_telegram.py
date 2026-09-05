@@ -37,6 +37,41 @@ def test_sende_liefert_message_id():
     assert bot.sende(-100, "hallo") == 42
 
 
+def test_sende_datei_schickt_ein_multipart_dokument():
+    """Der Textbuch-Export in Phase 7 (``szenenfolge.textbuch``): sendDocument
+    mit Dateiname, Inhalt und Bildunterschrift -- multipart, nicht JSON."""
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["url"] = str(request.url)
+        gesehen["koerper"] = request.content.decode("utf-8", "replace")
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 7}})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    assert bot.sende_datei(-100, "textbuch.md", "# Textbuch", "Euer Textbuch") == 7
+
+    assert "sendDocument" in gesehen["url"]
+    assert "textbuch.md" in gesehen["koerper"]
+    assert "# Textbuch" in gesehen["koerper"]
+    assert "Euer Textbuch" in gesehen["koerper"]
+
+
+def test_sende_datei_kuerzt_eine_zu_lange_bildunterschrift():
+    """Telegram nimmt hoechstens 1024 Zeichen als caption; laenger antwortet
+    die API mit HTTP 400 und die Datei kaeme nie an."""
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["koerper"] = request.content.decode("utf-8", "replace")
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 7}})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    bot.sende_datei(-100, "textbuch.md", "x", "A" * 2000)
+
+    assert "A" * 1024 in gesehen["koerper"]
+    assert "A" * 1025 not in gesehen["koerper"]
+
+
 def test_tippt_schickt_typing_aktion():
     gesehene_anfrage = {}
 

@@ -150,34 +150,87 @@ lädt, würde damit Gesprächszüge ausbremsen.
   beide Stellen teilen sich den Merkposten über `phasen.offenes_angebot()` /
   `merke_angebot()`, deshalb liest die eine Funktion nur und die andere
   schreibt.
-- **Die sieben Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews ·
-  4 Kernthema & Figuren · 5 Format & Rahmen · 6 Szenen · 7 Durchlauf**
-  (korrigiert am 05.09.2026). Drei Dinge daran sind Entscheidungen, keine
-  Nummerierung: Phase 1 **sammelt nicht** — die Begriffe entstehen analog im
-  Plenum, der Bot bekommt die fertige Liste; die Frageliste ist ein eigenes
-  Feld (`arbeitsstand.fragen`, art `fragen_setzen`) und die Voraussetzung für
-  die Interviews; und **Kernthema und Figuren sind EINE Phase** — welches von
-  beidem zuerst kommt, ergibt sich aus dem Material, und die Voraussetzung für
-  5 ist „Kernthema **und** ≥ 2 Figuren" (ein Konflikt braucht zwei Wollen,
-  auch wenn Phase 5 seit derselben Korrektur keinen mehr verlangt, siehe
-  unten). Damit ist auch die alte Sonderlogik der freien Stelle 5/6 weg. Die
-  vollständige Stationsliste steht in der **Basis**-Systemanweisung, nicht nur
-  im Phasen-Prompt: der Bot soll entscheiden können, welche Phase gerade
-  passt.
-- **Phase 5 heißt „Format & Rahmen", nicht mehr „Hauptkonflikt"** (05.09.2026,
-  `phasen.py`; Birk: „Es muss nicht immer einen Konflikt geben — es kann ein
-  Lied sein oder eine harmonische Liebesszene. Das Ganze wird vermutlich ein
-  Musical.") An dieser Station entscheidet die Gruppe zweierlei:
-  **WAS** entsteht (`arbeitsstand.format`, z. B. „Musical: Dialog, Lied, Rap")
-  und **WORIN** es spielt (`arbeitsstand.rahmen` — Ort, Zeit, Anlass, roter
-  Faden). `hauptkonflikt` bleibt als optionales Feld stehen, wird aber nur
-  noch angezeigt, wenn es gesetzt ist — die Voraussetzung für Phase 6 hängt
-  seitdem an `format`, nicht mehr am Hauptkonflikt: ohne Format weiß niemand,
-  ob die nächste Szene ein Dialog oder ein Rap wird, ohne Konflikt schon.
-  Erkenner-Arten `format_setzen` und `rahmen_setzen`, `entfernen` kennt beide.
-  Keine Migration: die Nummer 5 bleibt 5, nur Name und Voraussetzung ändern
-  sich, und „konflikt" bleibt als Stichwort auf 5 stehen — eine Gruppe, die
-  „wir sind beim Konflikt" sagt, meint weiter dieselbe Station.
+- **Die acht Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews ·
+  4 Setting & Figuren · 5 Geschichte · 6 Schärfung · 7 Szenentexte ·
+  8 Durchlauf** (Umbau 05.09.2026 nachts; davor: 7 Phasen mit „4 Kernthema &
+  Figuren · 5 Rahmen · 6 Szenen · 7 Durchlauf"). Der Grund ist **nicht**
+  Feingliederung, sondern eine umgedrehte Arbeitsrichtung.
+- **Erst erfinden, dann schärfen** (Birk, 05.09.2026 23:30 — die tragende
+  Entscheidung des Ablaufs). Bis dahin entstanden Figuren und Szenen **aus**
+  den Interviews; das Ergebnis war handwerklich richtig und dramaturgisch
+  tot, weil die Gruppe ihren eigenen kreativen Anteil nicht wiedererkannte —
+  sie sah eine Nacherzählung ihres Materials. Jetzt:
+  - In **4 (Setting & Figuren)** und **5 (Geschichte)** erfindet die Gruppe
+    frei. Der Bot fragt **offen** („Welche Personen soll es geben? In welchem
+    Setting spielt es?" / „Was soll passieren? Wie soll es enden?") mit nur
+    zwei Knöpfen — „Eigene Idee" und „Schlag du vor" —, und seine Vorschläge
+    speisen sich **ausschließlich aus `arbeitsstand.begriffe`, `fragen` und
+    dem schon Festgelegten**. Kein Material: `kontext.baue` liefert dort
+    weder Verdichtungen noch Transkripte noch das Kernpaket
+    (`kontext.material_erlaubt`), und `szenenfolge.baue_nutzertext_geschichte`
+    baut den Nutzertext ohne Material. Das ist im Code durchgesetzt, nicht im
+    Prompt gebeten — ein Prompt, der Material sieht, referiert es.
+  - In **6 (Schärfung)** kommt das Material dazu und legt sich **neben** das
+    Erfundene, statt es zu ersetzen. Beim Eintritt läuft automatisch ein
+    Schema-Aufruf (`schaerfung.mappe`, gemma, Thread — kein Modellaufruf im
+    Knopf-Handler): er bekommt Setting, Figuren, Geschichte, die Szenen mit
+    Nummer und **alle geprüften `verdichtung_thema`-Einträge nummeriert** und
+    ordnet jeden passenden Eintrag einer Szene und/oder einer Figur zu. Zeigen
+    kann er nur auf Nummern, Zitate werden mit `zitat.pruefe` gegen das
+    Original verifiziert, was nicht passt bleibt weg. Ergebnis: Tabelle
+    `schaerfung` (additiv, mit `runde`), daraus je Szene und je Figur eine
+    Vorschlagsnachricht mit Grundleiste; „Gefällt uns, weiter" schreibt die
+    Felder (`schaerfung.uebernimm_szene` / `uebernimm_figur`), „Noch eine
+    Runde" startet einen neuen Lauf mit dem geschärften Stand.
+  - **Die Figuren-Ebene 2 ist dorthin gewandert.** „Aus welchem Interview
+    spricht sie?" und der Sprachduktus laufen erst ab Phase 6
+    (`knoepfe.ebene2_erlaubt`); in Phase 4 ist die Liste nach Ebene 1 fixiert.
+    In 4 danach zu fragen wäre genau die Rücklenkung aufs Material, die der
+    Umbau vermeidet.
+  - **Das Kernthema ist keine eigene Station mehr.** `arbeitsstand.geschichte`
+    (Bogen + Ende) übernimmt seine Rolle im Kernpaket. Kernthema, Kernfrage
+    und Kernzitate bleiben im Code funktional und getestet
+    (rückwärtskompatibel für bestehende Gruppen), werden aber nicht mehr
+    angeboten; `kernzitate.py` bleibt als Basis, `schaerfung.py` nutzt
+    dieselbe Prüf- und Speicherlogik.
+  - Voraussetzungen (`phasen.voraussetzungen`): **5** braucht `rahmen` **und**
+    `figuren_fixiert_am`; **6 und 7** brauchen `geschichte` **und** ≥ 1 Szene
+    — die Schärfung ist ein Angebot, keine Pflicht, deshalb sperrt sie 7
+    nicht; **8** braucht einen geschriebenen Szenentext.
+- **Der Szenen-Prompt bekommt die Schärfungen JE SZENE, nicht global**
+  (`szene._kernpaket_text(conn, chat_id, ziel)`). Eine Szene sieht die
+  Interviewstellen, die zu ihr und zu ihren Figuren gehören — und keine
+  fremden. Ohne Schärfungen fällt der Code auf die alte, globale
+  Kernzitat-Auswahl zurück: eine Gruppe, die den Umbau nicht mitgemacht hat,
+  verliert nichts.
+- **Die Form je Szene ist ein Vorschlag, keine Vorentscheidung** (Birk,
+  06.09.2026 00:30: „Die Form Monolog habe ich niemals eingegeben und aktiv
+  bestätigt. Die Form muss mit mehr Bedacht gewählt werden und vom User
+  bestätigt werden."). Die vierte Spalte der Szenenzeile landet in
+  `szene.form_vorschlag`, die fünfte (Begründung, Pflicht) in
+  `form_vorschlag_grund`; **`szene.form` bleibt leer**, bis die Gruppe sie
+  Szene für Szene per Knopf bestätigt. In der Szenenvorstellung kommt deshalb
+  **zuerst** „Welche Form soll Szene N haben?" mit fünf Knöpfen — der
+  Vorschlag zuerst und mit „(Vorschlag)" markiert, darüber seine Begründung —
+  und **erst nach dem Druck** die Schreibfrage. `form` ist Pflichtfeld
+  (`szene.PFLICHTFELDER`), ohne bestätigte Form läuft kein Szenenlauf.
+  Vorschlagsregeln im Prompt: **Dialog ist der Normalfall**, höchstens eine
+  Nicht-Dialog-Szene je drei, Szene 1 nie Monolog oder Lied.
+- **Phase 4 heißt „Setting & Figuren"** — das frühere Feld `rahmen` ist das
+  Setting (Ort, Zeit, Anlass) und behält seinen Spaltennamen; nach außen
+  (Knopftexte, Notiert-Zeile, Weboberfläche) heißt es „Setting". `format` und
+  `hauptkonflikt` bleiben als Spalten stehen und tragen keine Entscheidung
+  mehr. Stichwörter: „Rahmen", „Setting", „Format", „Konflikt" und
+  „Kernthema" zeigen alle auf 4, „Geschichte" auf 5 — `prompts/erkenner.md`
+  wurde dafür **nicht** angefasst, die Zuordnung Wort→Nummer liegt in
+  `phasen.STICHWOERTER`.
+- **`geschichte_setzen` ist im Code, aber nicht im Erkenner-Prompt.** Der
+  Regelweg zur Geschichte ist der Vorschlagsblock mit seinen Knöpfen
+  (`knoepfe._speichere_geschichte`); die Erkenner-Art ist der zweite, freie
+  Weg. `prompts/erkenner.md` blieb unverändert, weil in derselben Nacht kein
+  Korpuslauf gegen das echte Modell möglich war — `tests/test_korpus.py`
+  hält das als `OHNE_KORPUSFAELLE` fest. **Wer den Prompt erweitert, nimmt
+  die Art dort heraus und legt zwei Korpusfälle an.**
 - **Der Phasen-Prompt ist Fokus, kein Käfig** (05.09.2026). Jede
   `prompts/phasen/N.md` hat den Abschnitt „Was du nicht von dir aus
   anfängst" mit dem festen Schlusssatz „Bittet die Gruppe ausdrücklich darum,
@@ -186,7 +239,11 @@ lädt, würde damit Gesprächszüge ausbremsen.
   Figuren, `2.md` sagte „kein Kernthema, keine Figuren", und getragen hat die
   Antwort nur, weil der Basis-Prompt sie trug.
 - **Phasennummern werden migriert, nicht umgedeutet** (`db.SCHEMA_VERSION`,
-  `db.PHASEN_UMNUMMERIERUNG`). Der Merkposten ist SQLites eingebautes
+  `db.PHASEN_UMNUMMERIERUNG`, `db.PHASEN_UMNUMMERIERUNG_2`). Zwei Schritte
+  hintereinander, eine alte Datenbank läuft durch beide: acht → sieben
+  (04.09.: Kernthema und Figuren wurden eine Phase) und sieben → acht
+  (05.09. nachts: 4 und 5 bleiben, 6 → 7, 7 → 8; die neue 6 bekommt niemand
+  zugewiesen, sie ist ein Angebot und keine übersprungene Station). Der Merkposten ist SQLites eingebautes
   `PRAGMA user_version` — keine eigene Tabelle, keine Zeile, kein Schema. Das
   Journal bleibt dabei unangetastet: dort steht „Phase 5 · Figuren", weil das
   am 04.09. wahr war, und ein Journal wird nur angehängt.

@@ -315,3 +315,58 @@ def test_ohne_bestaetigte_form_wird_nicht_geschrieben(erfunden, tg, einst):
 
     assert "form" in felder
     assert szene.sperrtext(erfunden, ziel) is not None
+
+
+# --- die Grundleiste haengt unter dem WERT, nicht unter der Antwort ------
+
+
+class _ErkennerAttrappe:
+    def __init__(self, aenderungen):
+        self.aenderungen = aenderungen
+
+    def schema(self, *a, **k):
+        return {"aenderungen": self.aenderungen}
+
+
+def test_die_notiert_meldung_traegt_die_grundleiste(erfunden, tg, einst):
+    """Live-Befund 05.09.2026 23:37: der Erkenner-Nachlauf laeuft NACH der
+    Gespraechsantwort. Speicherte er einen Ping-Pong-Wert, hing die
+    Grundleiste unter der Antwort davor -- unter einem Text, der den Wert noch
+    gar nicht kannte -- und die Nachricht mit dem Wert stand nackt da. Jetzt
+    haengt sie dort, wo der Wert steht."""
+    from interview_theater import erkenner
+
+    repo.merke_nachricht(
+        erfunden, 1, 42, "Ada", 0, "text", "zwei verlieren sich, offenes ende",
+        repo._jetzt(),
+    )
+    klm = _ErkennerAttrappe([
+        {"art": "geschichte_setzen", "wert": "Zwei verlieren sich."},
+    ])
+
+    erkenner.laufe(klm, tg, erfunden, einst, 1)
+
+    assert repo.hole_arbeitsstand(erfunden, 1)["geschichte"] == "Zwei verlieren sich."
+    assert "Geschichte: Zwei verlieren sich." in tg.knoepfe[-1][1]
+    assert tg.beschriftungen == [
+        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
+    ]
+
+
+def test_ohne_offene_art_bleibt_die_meldung_nackt(erfunden, tg, einst):
+    """Kein Knopf um des Knopfes willen: was in dieser Phase nicht offen ist,
+    bekommt auch keine Leiste."""
+    from interview_theater import erkenner
+
+    repo.merke_nachricht(
+        erfunden, 1, 43, "Ada", 0, "text", "es geht um bleiben gegen gehen",
+        repo._jetzt(),
+    )
+    klm = _ErkennerAttrappe([
+        {"art": "hauptkonflikt_setzen", "wert": "bleiben gegen gehen"},
+    ])
+
+    erkenner.laufe(klm, tg, erfunden, einst, 1)
+
+    assert tg.knoepfe == []
+    assert any("bleiben gegen gehen" in t for _, t in tg.gesendet)

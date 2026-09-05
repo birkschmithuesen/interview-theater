@@ -104,6 +104,8 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         "kernthema_begruendung": zeile["kernthema_begruendung"] if zeile else None,
         "format": _feld(zeile, "format"),
         "rahmen": _feld(zeile, "rahmen"),
+        # Die Geschichte im Groben (Phase 5, Umbau 05.09.2026 nachts).
+        "geschichte": _feld(zeile, "geschichte"),
         "hauptkonflikt": zeile["hauptkonflikt"] if zeile else None,
         "geaendert_am": zeile["geaendert_am"] if zeile else None,
     }
@@ -387,6 +389,10 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
 #: Anzeige -- ``web_daten`` importiert nichts aus dem Schreibpfad.
 SZENENFELDER = (
     ("form", "Form"),
+    # Der Formvorschlag des Bots (06.09.2026) -- er steht neben der Form, weil
+    # die Gruppe an der Seite sehen soll, was vorgeschlagen und was
+    # bestaetigt wurde. Bestaetigt ist allein ``form``.
+    ("form_vorschlag", "Form (Vorschlag)"),
     ("ort", "Ort"),
     ("zeit", "Zeit"),
     ("anlass", "Anlass"),

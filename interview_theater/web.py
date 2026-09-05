@@ -319,7 +319,14 @@ def _arbeitsstand_html(
             else ""
         )
         + "</dd>"
-        f"<dt>Rahmen</dt><dd>{_t(arbeitsstand.get('rahmen'))}</dd>"
+        f"<dt>Setting</dt><dd>{_t(arbeitsstand.get('rahmen'))}</dd>"
+        # Die Geschichte im Groben (Phase 5, Umbau 05.09.2026 nachts) -- nur,
+        # wenn es sie gibt, wie beim Hauptkonflikt.
+        + (
+            f"<dt>Geschichte</dt><dd>{_t(arbeitsstand['geschichte'])}</dd>"
+            if arbeitsstand.get("geschichte")
+            else ""
+        )
         # Der Hauptkonflikt steht nur da, wenn es einen gibt (05.09.2026): er
         # ist eine moegliche Rahmen-Entscheidung, keine Pflicht -- ein leeres
         # Feld daneben sieht aus wie eine unerledigte Aufgabe.

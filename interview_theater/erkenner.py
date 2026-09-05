@@ -1294,14 +1294,17 @@ def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> None:
         log.exception("Interviewabschluss konnte nicht gestartet werden, id=%s", kopf_id)
 
 
-#: Erkenner-Art -> Ping-Pong-Art der Knopfleiste. Nur die Arten, die in einer
-#: Phase \"offen\" sein koennen (``knoepfe.offene_art``): dort und nur dort
-#: gehoert die Grundleiste unter die Notiert-Meldung.
+#: Erkenner-Art -> (Ping-Pong-Art der Knopfleiste, Phase, in der sie traegt).
+#: Nur die Arten, ueber die in ihrer Phase im Ping-Pong entschieden wird --
+#: dort und nur dort gehoert die Grundleiste unter die Notiert-Meldung.
+#:
+#: Warum die Phase und nicht ``knoepfe.offene_art``: die Meldung geht raus,
+#: NACHDEM der Wert geschrieben wurde -- die Art ist dann nicht mehr "offen".
 _LEISTENARTEN = {
-    "begriffe_setzen": "begriffe",
-    "fragen_setzen": "fragen",
-    "rahmen_setzen": "rahmen",
-    "geschichte_setzen": "geschichte",
+    "begriffe_setzen": ("begriffe", 1),
+    "fragen_setzen": ("fragen", 2),
+    "rahmen_setzen": ("rahmen", 4),
+    "geschichte_setzen": ("geschichte", 5),
 }
 
 
@@ -1319,18 +1322,18 @@ def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict]) -> 
     from interview_theater import knoepfe
 
     try:
-        offen = knoepfe.offene_art(conn, chat_id)
-        if offen:
-            for aenderung in wirkliche:
-                if _LEISTENARTEN.get(aenderung.get("art")) != offen:
-                    continue
-                wert = str(aenderung.get("wert") or "").strip()
-                if not wert:
-                    continue
-                message_id, _ = knoepfe.sende_notiert_mit_leiste(
-                    conn, tg, chat_id, text, offen, wert
-                )
-                return message_id
+        phase = phasen.aktuelle(conn, chat_id)
+        for aenderung in wirkliche:
+            eintrag = _LEISTENARTEN.get(aenderung.get("art"))
+            if eintrag is None or eintrag[1] != phase:
+                continue
+            wert = str(aenderung.get("wert") or "").strip()
+            if not wert:
+                continue
+            message_id, _ = knoepfe.sende_notiert_mit_leiste(
+                conn, tg, chat_id, text, eintrag[0], wert
+            )
+            return message_id
     except Exception:
         log.exception("Leiste unter der Notiert-Meldung fehlgeschlagen, chat_id=%s", chat_id)
     return tg.sende(chat_id, text)

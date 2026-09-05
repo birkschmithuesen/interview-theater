@@ -360,6 +360,17 @@ vollständige Lauf gegen das echte Modell steht noch aus.
 **Stand 05.09. mittags (nach der Nachtschicht + Vormittag), was für den
 Workshop zählt:**
 
+- **Neu in der Nacht 05./06.09.: acht Phasen, „erst erfinden, dann schärfen".**
+  4 Setting & Figuren und 5 Geschichte macht die Gruppe **ohne Material**
+  (Kontext-Filter im Code), 6 Schärfung legt die geprüften Verdichtungen
+  automatisch auf Szenen und Figuren, 7 Szenentexte, 8 Durchlauf. **Ein
+  Neustart der vier Bots ist nötig**; bestehende Datenbanken migrieren selbst
+  (`db.PHASEN_UMNUMMERIERUNG_2`), die drei echten Gruppen stehen in Phase 3
+  und sind nicht betroffen.
+- **Die Form je Szene bestätigt die Gruppe per Knopf** (06.09.), der Bot
+  schlägt sie nur mit Begründung vor — vorher stand in einer fertigen Szene
+  „Monolog", ohne dass es jemand gewählt hatte.
+
 - **Szenentext = Claude Opus, mit Einwilligung der Gruppe.** Der Bot fragt vor
   der ersten Szene (einmal), was in die USA geht (Kernthema, Figuren mit
   Zitaten, Szenenangaben) und was nicht (Aufnahmen, Transkripte, Namen).

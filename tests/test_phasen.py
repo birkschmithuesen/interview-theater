@@ -38,6 +38,9 @@ def _zwei_figuren(conn):
 def _kernthema_und_figuren(conn):
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     _zwei_figuren(conn)
+    # Seit dem 05.09.2026 abends haengt Phase 5 an der FIXIERTEN Figurenliste
+    # (Ebene 2 durchgegangen), nicht mehr an "mindestens zwei Figuren".
+    repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
 
 
 # --- die Liste selbst -----------------------------------------------------
@@ -247,17 +250,25 @@ def test_ein_laufendes_interview_sperrt_nicht(conn):
     assert phasen.voraussetzungen(conn, 1)[4] is True
 
 
-def test_fuenf_braucht_kernthema_und_zwei_figuren(conn):
-    """Ein Konflikt braucht zwei Wollen: ohne zwei Figuren gibt es nichts,
-    wogegen etwas stehen koennte."""
+def test_fuenf_braucht_kernthema_und_eine_fixierte_figurenliste(conn):
+    """Seit dem 05.09.2026 abends (Birk): nicht mehr "mindestens zwei
+    Figuren", sondern eine ABGENOMMENE Liste -- die Gruppe ist in Ebene 2
+    Figur fuer Figur durchgegangen. Auch bei nur einer Figur: ein Monolog ist
+    ein Stueck, und die alte Schwelle sperrte genau diese Gruppe aus."""
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     assert phasen.voraussetzungen(conn, 1)[5] is False
 
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
-    assert phasen.voraussetzungen(conn, 1)[5] is False
+    assert phasen.voraussetzungen(conn, 1)[5] is False, "noch nicht fixiert"
 
-    repo.setze_figur(conn, 1, "Elif", "Nachbarin")
-    assert phasen.voraussetzungen(conn, 1)[5] is True
+    repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
+    assert phasen.voraussetzungen(conn, 1)[5] is True, "eine Figur genuegt"
+
+
+def test_fixierte_liste_ohne_kernthema_erlaubt_fuenf_nicht(conn):
+    repo.setze_figur(conn, 1, "Maria", "Naeherin")
+    repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
+    assert phasen.voraussetzungen(conn, 1)[5] is False
 
 
 def test_figuren_ohne_kernthema_erlauben_fuenf_nicht(conn):
@@ -334,12 +345,14 @@ def test_naechste_moegliche_ist_die_hoechste(conn):
 
 
 def test_entfernte_figuren_zaehlen_fuer_die_materiallage_nicht(conn):
-    """Weiches Loeschen wirkt auch hier: Kernthema und zwei Figuren erlauben
-    Phase 5, eine entfernte Figur nimmt die Voraussetzung wieder weg (N3)."""
+    """Weiches Loeschen wirkt auch hier: sind ALLE Figuren entfernt, faellt
+    die Voraussetzung fuer Phase 5 weg, auch wenn die Liste einmal fixiert
+    war (N3)."""
     _kernthema_und_figuren(conn)
     assert phasen.voraussetzungen(conn, 1)[5] is True
 
     repo.entferne_figur(conn, 1, "Elif")
+    repo.entferne_figur(conn, 1, "Maria")
     assert phasen.voraussetzungen(conn, 1)[5] is False
 
 

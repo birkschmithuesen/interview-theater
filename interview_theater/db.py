@@ -145,6 +145,29 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Ort(e), Zeit, Anlass, roter Faden.
   format                 TEXT,
   rahmen                 TEXT,
+  -- Zwischenstand der zweistufigen Kernthema-Wahl (05.09.2026): Stufe 1 ist
+  -- eine grobe Richtung, Stufe 2 die Formulierung. Die Richtung wird
+  -- festgehalten, ohne ``kernthema`` zu setzen -- sonst stuende eine halbe
+  -- Entscheidung im Arbeitsstand.
+  kernthema_richtung     TEXT,
+  -- Die Figurenliste, solange sie noch ein Entwurf ist (Ebene 1: Anzahl und
+  -- Namen aendern). Eine Zeile je Figur, Form ``Name — Satz — Interview N``
+  -- wie im Vorschlagsblock. Erst \"Gefaellt uns, weiter\" legt daraus echte
+  -- Figuren an.
+  figuren_entwurf        TEXT,
+  -- Zeitpunkt, zu dem die Figurenliste Figur fuer Figur durchgegangen und
+  -- damit fixiert wurde (Ebene 2). Voraussetzung fuer Phase 5 -- auch bei
+  -- nur einer Figur.
+  figuren_fixiert_am     TEXT,
+  -- Die Figur, die in Ebene 2 gerade vorgestellt wird. Merkposten fuer die
+  -- Knopfwege, die ueber einen Modellaufruf laufen (Duktus-Vorschlaege).
+  figur_aktuell          TEXT,
+  -- Die Art, zu der die Gruppe gerade "Passt, aber anders" gedrueckt hat.
+  -- Der Wert ist dabei GESPEICHERT worden (damit etwas dasteht) -- die
+  -- Leiste muss trotzdem wiederkommen, sonst gaebe es keinen Weg, den
+  -- ueberarbeiteten Vorschlag abzunehmen. Genau das haelt dieses Feld fest;
+  -- ein Speichern oder eine "Eigene Idee" raeumt es wieder ab.
+  aenderung_offen        TEXT,
   -- Bleibt als OPTIONALES Feld: ein durchgehender Konflikt ist eine
   -- Rahmen-Entscheidung, keine Pflicht. Gesetzt wird er weiter ueber
   -- hauptkonflikt_setzen; /stand und Web zeigen ihn nur, wenn er dasteht.
@@ -179,6 +202,11 @@ CREATE TABLE IF NOT EXISTS figur (
   sprachprofil        TEXT,
   zitate              TEXT,
   quelle_aufnahme_id  INTEGER,
+  -- Wann die Gruppe diese Figur in Ebene 2 abgenommen hat ("Passt").
+  -- Merkposten fuer den Durchgang Figur fuer Figur (knoepfe.py): er sitzt
+  -- an der Figur und nicht in einer Warteschlange, damit die Liste stimmt,
+  -- auch wenn zwischendurch eine Figur entfernt wird oder dazukommt.
+  geprueft_am         TEXT,
   geaendert_am        TEXT,
   entfernt_am         TEXT                  -- gesetzt = weich geloescht (N3)
 );

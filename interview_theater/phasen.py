@@ -153,6 +153,21 @@ def bezeichnung(nummer: int) -> str:
     return f"{nummer} · {name}" if name else str(nummer)
 
 
+def knopfbezeichnung(nummer: int) -> str:
+    """Wie eine Phase auf einem KNOPF heisst: ``"Kernthema & Figuren"`` --
+    nach Inhalt, nie nach Nummer (05.09.2026, Birk).
+
+    Der Grund ist einer aus dem Raum: "Weiter zu Phase 5" sagt einer Gruppe,
+    die zum ersten Mal mit dem Bot arbeitet, gar nichts -- sie kennt die
+    Nummerierung nicht und soll sie auch nicht lernen muessen. "Weiter zu
+    Format & Rahmen" sagt, was als naechstes passiert.
+
+    In Meldungen und auf der Weboberflaeche bleibt es bei ``bezeichnung()``
+    mit Nummer: dort ist die Nummer eine Ordnung, kein Bedienelement.
+    """
+    return kurzname(nummer) or str(nummer)
+
+
 #: Die Meldung, mit der jede Phasenaenderung hoerbar wird -- gleiche Form wie
 #: die Kernthema-Zeile des Erkenners: sagen, was jetzt gilt, und wie man
 #: widerspricht.
@@ -282,12 +297,19 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
     kernthema = bool(stand and stand["kernthema"])
+    # Phase 5 haengt seit dem 05.09.2026 abends nicht mehr an "mindestens
+    # zwei Figuren", sondern daran, dass die Figurenliste **fixiert** ist:
+    # die Gruppe ist in Ebene 2 Figur fuer Figur durchgegangen (Interview,
+    # Duktus, entfernen) und hat sie damit abgenommen. Auch bei nur einer
+    # Figur -- ein Monolog ist ein Stueck, und die alte Schwelle sperrte
+    # eine Gruppe aus, die genau das wollte.
+    fixiert = bool(stand and (stand["figuren_fixiert_am"] or "").strip())
     return {
         2: bool(stand and stand["begriffe"]),
         3: bool(stand and stand["fragen"]),
         4: bool(repo.verdichtungen(conn, chat_id))
         and not aufnahme.unausgewertete_interviews(conn, chat_id),
-        5: kernthema and len(repo.figuren(conn, chat_id)) >= 2,
+        5: kernthema and fixiert and bool(repo.figuren(conn, chat_id)),
         6: bool(stand and stand["format"]),
         7: any(s["volltext"] for s in repo.hole_szenen(conn, chat_id)),
     }

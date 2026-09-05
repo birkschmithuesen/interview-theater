@@ -498,3 +498,89 @@ def bearbeite(conn, tg, klm, e, chat_id: int, hinweis: str | None = None) -> Non
             hinweis = None
         finally:
             sperre.release()
+
+
+# ---------------------------------------------------------------------------
+# Auftragszug: ein Gespraechszug, den ein Knopf ausloest
+# ---------------------------------------------------------------------------
+
+#: Wie eine Anweisung an den Koerper des Gespraechs-Prompts gehaengt wird.
+#: Sie steht am ENDE, hinter der ausloesenden Nachricht -- was zuletzt im
+#: Prompt steht, wirkt am staerksten, und dieser Zug hat genau eine Aufgabe.
+_AUFTRAG_KOPF = "Deine Aufgabe in genau diesem Zug:"
+
+
+def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str) -> None:
+    """Ein vollstaendiger Gespraechszug mit einer zusaetzlichen Anweisung --
+    ausgeloest von einem Knopf, nicht von einer Nachricht (05.09.2026).
+
+    **Warum es das gibt.** Ein Knopf-Handler ruft kein Sprachmodell
+    (AGENTS.md, Zusage 2 in ``knoepfe.py``) -- was ein Modell braucht, geht
+    an einen eigenen Thread, wie bei ``/szene``. Die Knopfwege der Phase 4
+    und 5 brauchen das an mehreren Stellen: eine gewaehlte Kernthema-Richtung
+    soll drei Formulierungen ergeben, "Anzahl aendern" eine neue
+    Figurenliste, "Schlag du vor" ueberhaupt einen ersten Vorschlag.
+
+    Der Zug ist ein normaler Gespraechszug: derselbe Kontext, dieselbe
+    Systemanweisung, dieselben Sperren gegen Denkspur -- nur ohne
+    ausloesende Nachricht und mit ``anweisung`` am Ende des Koerpers. Die
+    Antwort geht wie jede andere durch ``knoepfe.sende_mit_speicherleiste``,
+    traegt also automatisch die Leiste, die zum Vorschlagsblock passt.
+
+    Fehler bleiben hier: die Gruppe hat einen Knopf gedrueckt und wartet, sie
+    bekommt eine kurze Zeile (SPEC § 11.1)."""
+    try:
+        with _tippanzeige(tg, chat_id):
+            phase = phasen.aktuelle(conn, chat_id)
+            koerper = kontext.baue(conn, chat_id, [], e)
+            koerper = f"{koerper}\n\n{_AUFTRAG_KOPF}\n{anweisung}"
+            system = kontext.system(e.bot_name, phase)
+            ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
+            if isinstance(ergebnis, str):
+                antwort = ergebnis
+            elif isinstance(ergebnis, dict):
+                antwort = ergebnis.get("antwort") or ""
+            else:
+                antwort = ""
+            if not str(antwort).strip():
+                raise LLMFehler("Sprachmodell lieferte keine verwertbare Antwort")
+            text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort)
+    except Exception:
+        log.exception("Auftragszug fehlgeschlagen, chat_id=%s", chat_id)
+        try:
+            repo.merke_vorfall(
+                conn, chat_id, getattr(e, "bot_name", None),
+                "auftragszug_fehlgeschlagen", "Knopf-Auftrag am Modell gescheitert",
+            )
+            tg.sende(chat_id, _TEXT_FEHLER)
+        except Exception:
+            log.exception("Fehlermeldung zum Auftragszug fehlgeschlagen")
+        return
+
+    try:
+        message_id, _ = knoepfe.sende_mit_speicherleiste(conn, tg, chat_id, text)
+        text = vorschlag.ohne_marker(text) or text
+    except Exception:
+        log.exception("Leiste am Auftragszug fehlgeschlagen, chat_id=%s", chat_id)
+        text = vorschlag.ohne_marker(text) or text
+        message_id = tg.sende(chat_id, text)
+    try:
+        repo.merke_nachricht(
+            conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),
+        )
+    except Exception:
+        log.exception("Auftragsantwort nicht mitgeschrieben, chat_id=%s", chat_id)
+
+
+def starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str):
+    """Gibt einen ``auftragszug`` an einen eigenen Thread ab und kehrt sofort
+    zurueck -- dasselbe Muster wie ``szene.starte`` und
+    ``sprachprofil.starte``. Liefert den Thread (fuer Tests) oder None."""
+    if klm is None or not (anweisung or "").strip():
+        log.error("Auftragszug ohne Modell oder Anweisung, chat_id=%s", chat_id)
+        return None
+    thread = threading.Thread(
+        target=auftragszug, args=(conn, tg, klm, e, chat_id, anweisung), daemon=True,
+    )
+    thread.start()
+    return thread

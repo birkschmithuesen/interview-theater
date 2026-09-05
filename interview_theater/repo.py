@@ -1021,7 +1021,8 @@ def leere_whisper_stumm_seit_falls_gesetzt(conn: sqlite3.Connection, chat_id: in
 #: ``format_setzen``/``rahmen_setzen``).
 _ARBEITSSTAND_FELDER = (
     "begriffe", "fragen", "kernthema", "kernthema_begruendung", "format",
-    "rahmen", "hauptkonflikt",
+    "rahmen", "hauptkonflikt", "kernthema_richtung", "figuren_entwurf",
+    "figuren_fixiert_am", "figur_aktuell", "aenderung_offen",
 )
 
 
@@ -1235,6 +1236,24 @@ def setze_figur_quelle(
     conn.execute(
         "UPDATE figur SET quelle_aufnahme_id = ?, geaendert_am = ? WHERE id = ?",
         (aufnahme_id, _jetzt(), figur_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_figur_geprueft(
+    conn: sqlite3.Connection, figur_id: int, wert: str | None = None
+) -> None:
+    """Haelt fest, dass die Gruppe diese Figur abgenommen hat
+    (``figur.geprueft_am``, 05.09.2026 abends -- Ebene 2 der Figurenarbeit).
+
+    ``wert=None`` nimmt die Abnahme zurueck: aendert sich Interview oder
+    Duktus einer Figur, ist sie wieder offen und wird erneut vorgestellt.
+    Ohne diese Ruecknahme waere ein Druck auf "Anderes Interview" das Ende
+    des Durchgangs statt eines Schritts darin."""
+    conn.execute(
+        "UPDATE figur SET geprueft_am = ?, geaendert_am = ? WHERE id = ?",
+        (wert if wert is not None else None, _jetzt(), figur_id),
     )
     conn.commit()
 

@@ -226,7 +226,7 @@ def test_aufnahme_knopf_legt_je_umschaltung_genau_ein_interview_an(conn, einst, 
 
 def test_phasen_knopf_schaltet_um_wie_der_befehl(conn, einst, tg):
     knoepfe.biete_phase(conn, tg, 1, "Weitermachen?", 4)
-    assert "Weiter zu 4" in tg.knoepfe[0][2][0][0]
+    assert tg.knoepfe[0][2][0][0] == "Weiter zu Kernthema & Figuren"
 
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
@@ -243,7 +243,10 @@ def test_phasen_knopf_meldet_nichts_wenn_die_phase_schon_stimmt(conn, einst, tg)
 
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
-    assert len(tg.gesendet) == vorher  # keine zweite "Wir sind jetzt bei"-Zeile
+    # Keine zweite "Wir sind jetzt bei"-Zeile -- die eine Nachricht, die
+    # dazukommt, ist die proaktive Frage (05.09.2026 abends).
+    assert not any("Wir sind jetzt bei" in t for _, t in tg.gesendet[vorher:])
+    assert tg.gesendet[-1][1] == knoepfe._TEXT_PROAKTIV
     assert len(tg.beantwortet) == 1  # aber beantwortet wird trotzdem
 
 
@@ -476,7 +479,7 @@ def test_phase_befehl_haengt_den_weiter_knopf_an(conn, einst, tg):
 
     befehle.behandle(conn, tg, einst, 1, "/phase", "Ada")
 
-    assert tg.knoepfe and "Weiter zu 2" in tg.knoepfe[0][2][0][0]
+    assert tg.knoepfe and tg.knoepfe[0][2][0][0] == "Weiter zu Fragen"
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
     assert phasen.aktuelle(conn, 1) == 2
 
@@ -507,86 +510,119 @@ def test_aufnahme_befehl_haengt_den_umschalter_an(conn, einst, tg):
     assert tg.knoepfe[0][2][0][0] == "Interview starten"
 
 
-# --- Format des Stuecks (Phase 5, 05.09.2026) -----------------------------
+# --- Format steht fest, Rahmen wird gewaehlt (Phase 5, 05.09.2026 abends) --
 
 
-def test_format_knopf_schreibt_in_den_arbeitsstand(conn, einst, tg):
-    """Derselbe Zweck wie beim Kernthema, eine Station spaeter: phasen/5.md
-    stellt das Format als nummerierte Auswahl, und auf "das erste" kann der
-    Erkenner nicht schliessen. Der Knopf traegt die Auswahl selbst."""
-    knoepfe.biete_format(conn, tg, 1, ["Sprechtheater: Dialog und Chor", "Musical"])
-
+def test_format_wird_beim_eintritt_in_phase_5_fest_gesetzt(conn, einst, tg):
+    """Birk, 05.09.2026 abends: das Format wird nicht mehr gewaehlt, es steht
+    fest. Der Phasenknopf nach 5 setzt es -- ohne Auswahl, ohne Rueckfrage."""
+    knoepfe.biete_phase(conn, tg, 1, "Weiter?", 5)
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
-    # Wirklich nachgelesen, nicht nur gesendet:
-    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Sprechtheater: Dialog und Chor"
-    assert any("Format notiert" in t for _, t in tg.gesendet)
-    assert len(tg.beantwortet) == 1
-    assert tg.entfernt == [(1, 777)]
+    assert repo.hole_arbeitsstand(conn, 1)["format"] == knoepfe.FORMAT_FEST
+    assert any("Urban Dance Tanztheater" in t for _, t in tg.gesendet)
 
 
-def test_format_knopf_schreibt_ins_journal(conn, einst, tg):
-    knoepfe.biete_format(conn, tg, 1, ["Revue"])
-    knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
+def test_festes_format_steht_im_journal(conn, einst, tg):
+    knoepfe.setze_format_fest(conn, 1)
 
     assert any(
-        j["art"] == "entschieden" and "Revue" in j["text"] and j["quelle"] == "knopf"
+        j["art"] == "entschieden" and "festgelegt" in j["text"]
+        and knoepfe.FORMAT_FEST in j["text"]
         for j in repo.journal(conn, 1)
     )
 
 
-def test_format_knopf_ist_idempotent(conn, einst, tg):
-    """Zweimal tippen darf nichts doppelt tun (AGENTS.md): der zweite Druck
-    wird beantwortet, aber ueberschreibt nichts -- auch dann nicht, wenn die
-    Gruppe zwischendurch etwas anderes gesetzt hat."""
-    knoepfe.biete_format(conn, tg, 1, ["Musical"])
-    daten = _daten_des_ersten_knopfes(tg)
-    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+def test_ein_selbst_gesetztes_format_wird_nicht_ueberschrieben(conn, einst, tg):
+    """`/stueck format <text>` bleibt funktionsfaehig: eine Gruppe, die
+    ausdruecklich etwas anderes will, behaelt es."""
     repo.setze_arbeitsstand(conn, 1, "format", "Sprechtheater")
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(daten, message_id=778, query_id="q2"))
-
+    assert knoepfe.setze_format_fest(conn, 1) is False
     assert repo.hole_arbeitsstand(conn, 1)["format"] == "Sprechtheater"
-    assert tg.beantwortet[-1][1] == knoepfe._TEXT_SCHON_BENUTZT
 
 
-def test_format_callback_data_bleibt_unter_64_bytes_auch_bei_langem_wert(conn, tg):
-    """Der Grund fuer die Knopf-Tabelle: ein ausformuliertes Format ist
-    laenger als die ganze Telegram-Grenze. In callback_data steht deshalb nur
-    die id -- geprueft wird an der echten Grenzpruefung
-    (telegram.sende_mit_knoepfen), nicht an einer nachgebauten."""
-    lang = ("Musical mit Sprechtheater, Chorpassagen, Liedern und Rap " * 4).strip()
-    assert len(lang.encode("utf-8")) > telegram.CALLBACK_DATA_GRENZE
-
-    knoepfe.biete_format(conn, tg, 1, [lang])
-
-    daten = _daten_des_ersten_knopfes(tg)
-    assert len(daten.encode("utf-8")) < telegram.CALLBACK_DATA_GRENZE
-    # Der Volltext ist trotzdem vollstaendig da -- er steht in der Tabelle.
-    assert repo.hole_knopf(conn, int(daten[len(knoepfe.PRAEFIX):]))["wert"] == lang
+def test_setze_format_fest_ist_idempotent(conn, tg):
+    assert knoepfe.setze_format_fest(conn, 1) is True
+    assert knoepfe.setze_format_fest(conn, 1) is False
 
 
-def test_format_ohne_vorschlaege_faellt_auf_die_standardformate(conn, einst, tg):
-    """Ohne Argument gelten die vier Formen aus phasen/5.md -- kein
-    Modellaufruf, wie AGENTS.md es fuer Knopf-Wege verlangt."""
-    assert knoepfe.biete_format(conn, tg, 1) is True
-    beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
-    assert beschriftungen == list(knoepfe.STANDARD_FORMATE)
-
-
-def test_format_hoechstens_vier_knoepfe(conn, einst, tg):
-    knoepfe.biete_format(conn, tg, 1, ["A", "B", "C", "D", "E", "F"])
-    assert len(tg.knoepfe[0][2]) == knoepfe.MAX_FORMATE == 4
-
-
-def test_stueck_format_ohne_wert_bietet_knoepfe_an(conn, einst, tg):
-    """Einhaengung: /stueck format ohne Wert erklaert nicht mehr die Syntax,
-    sondern legt die Auswahl hin."""
+def test_stueck_format_ohne_wert_nennt_das_feste_format(conn, einst, tg):
+    """Es gibt keine Formatknoepfe mehr -- der Befehl sagt, was gilt."""
     from interview_theater import befehle
 
     befehle.behandle(conn, tg, einst, 1, "/stueck format", "Ada")
 
-    assert tg.knoepfe and tg.knoepfe[0][2][0][0] == knoepfe.STANDARD_FORMATE[0]
+    assert tg.knoepfe == []
+    assert any("Urban Dance Tanztheater" in t for _, t in tg.gesendet)
+
+
+def test_rahmen_vorschlaege_werden_zu_knoepfen(conn, einst, tg):
+    """Phase 5 arbeitet nur noch am Rahmen: drei Vorschlaege, ein Knopf je
+    Zeile, darunter die Grundleiste."""
+    phasen.setze(conn, 1, 5, "befehl")
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        "Wo soll es spielen?\n\nVORSCHLAG RAHMEN:\n"
+        "Bahnhofshalle, nachts\nTreppenhaus, kurz vor sechs\nHinterhof im August",
+    )
+
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert beschriftungen == [
+        "Bahnhofshalle, nachts", "Treppenhaus, kurz vor sechs",
+        "Hinterhof im August",
+        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
+    ]
+
+
+def test_rahmen_knopf_schreibt_in_den_arbeitsstand(conn, einst, tg):
+    phasen.setze(conn, 1, 5, "befehl")
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG RAHMEN:\nBahnhofshalle, nachts\nHinterhof"
+    )
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
+
+    assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Bahnhofshalle, nachts"
+
+
+def test_passt_aber_anders_speichert_bei_einer_rahmen_liste_den_ersten(conn, einst, tg):
+    """Bei einer Auswahlliste traegt die Grundleiste den ERSTEN Vorschlag --
+    "Passt, aber anders" braucht einen Wert, sonst stuende nichts da."""
+    phasen.setze(conn, 1, 5, "befehl")
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG RAHMEN:\nBahnhofshalle, nachts\nHinterhof"
+    )
+    daten = dict((b, d) for b, d in tg.knoepfe[-1][2])["Passt, aber anders"]
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+
+    assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Bahnhofshalle, nachts"
+
+
+def test_rahmen_callback_data_bleibt_unter_64_bytes(conn, tg):
+    """Der Grund fuer die Knopf-Tabelle: ein ausformulierter Rahmen ist
+    laenger als die ganze Telegram-Grenze."""
+    phasen.setze(conn, 1, 5, "befehl")
+    lang = ("Eine Bahnhofshalle kurz vor Mitternacht im letzten Sommer " * 3).strip()
+    assert len(lang.encode("utf-8")) > telegram.CALLBACK_DATA_GRENZE
+
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, f"VORSCHLAG RAHMEN:\n{lang}")
+
+    daten = _daten_des_ersten_knopfes(tg)
+    assert len(daten.encode("utf-8")) < telegram.CALLBACK_DATA_GRENZE
+    assert repo.hole_knopf(conn, int(daten[len(knoepfe.PRAEFIX):]))["wert"] == lang
+
+
+def test_hoechstens_vier_auswahlknoepfe(conn, tg):
+    phasen.setze(conn, 1, 5, "befehl")
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG RAHMEN:\nA\nB\nC\nD\nE\nF"
+    )
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert beschriftungen[:knoepfe.MAX_AUSWAHL] == ["A", "B", "C", "D"]
+    assert len(beschriftungen) == knoepfe.MAX_AUSWAHL + 3
 
 
 def test_stueck_rahmen_ohne_wert_bleibt_bei_der_erklaerung(conn, einst, tg):
@@ -767,23 +803,24 @@ def test_szene_usa_ja_per_text_wirkt_weiter_wie_bisher(conn, einst, tg):
 
 
 def test_slash_und_knopf_setzen_dasselbe_feld_ohne_sich_zu_stoeren(conn, einst, tg):
-    """Der Rauchtest: erst /stueck format per Text, dann derselbe Wert per
+    """Der Rauchtest: erst /stueck rahmen per Text, dann derselbe Wert per
     Knopf. Beides landet im Arbeitsstand, und es gibt nur EINEN Schreibweg
     (repo.setze_arbeitsstand) -- kein zweiter Mechanismus daneben."""
     from interview_theater import befehle
 
-    befehle.behandle(conn, tg, einst, 1, "/stueck format Musical", "Ada")
-    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Musical"
+    phasen.setze(conn, 1, 5, "befehl")
+    befehle.behandle(conn, tg, einst, 1, "/stueck rahmen Bahnhofshalle", "Ada")
+    assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Bahnhofshalle"
 
-    knoepfe.biete_format(conn, tg, 1, ["Musical"])
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG RAHMEN:\nBahnhofshalle")
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
-    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Musical"
+    assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Bahnhofshalle"
 
     # Und andersherum: der Text gewinnt danach wieder, ohne dass der schon
     # verbrauchte Knopf etwas zurueckdreht.
-    befehle.behandle(conn, tg, einst, 1, "/stueck format Revue", "Ada")
-    assert repo.hole_arbeitsstand(conn, 1)["format"] == "Revue"
+    befehle.behandle(conn, tg, einst, 1, "/stueck rahmen Hinterhof", "Ada")
+    assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Hinterhof"
 
 
 def test_slash_und_knopf_setzen_dieselbe_szenenform(conn, einst, tg):
@@ -852,7 +889,7 @@ def test_nach_aufnahme_haengt_die_phase_an_wenn_die_lage_sie_hergibt(conn, einst
 
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
     assert beschriftungen == [
-        "Auswerten", "Naechstes Interview", "Weiter zu 4 · Kernthema & Figuren",
+        "Auswerten", "Naechstes Interview", "Weiter zu Kernthema & Figuren",
     ]
 
 
@@ -995,7 +1032,7 @@ def test_einstieg_haengt_die_phase_dazwischen(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Interview starten", "Weiter zu 4 · Kernthema & Figuren",
+        "Interview starten", "Weiter zu Kernthema & Figuren",
         "Stand zeigen", "Hilfe",
     ]
 
@@ -1009,7 +1046,7 @@ def test_einstieg_stellt_die_phase_ohne_aufnahme_nach_vorn(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Weiter zu 2 · Fragen", "Stand zeigen", "Hilfe",
+        "Weiter zu Fragen", "Stand zeigen", "Hilfe",
     ]
 
 
@@ -1047,13 +1084,13 @@ def test_nach_aufnahme_bietet_alle_auswerten_statt_phase_4(conn, einst, tg):
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 2 ist abgelegt.", zweites)
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
-    assert "Weiter zu 4 · Kernthema & Figuren" not in beschriftungen
+    assert "Weiter zu Kernthema & Figuren" not in beschriftungen
     assert beschriftungen == ["Auswerten", "Naechstes Interview"]
 
     # Sobald auch das zweite ausgewertet ist, steht der Schritt wieder da.
     repo.speichere_verdichtung(conn, 1, zweites, "Pal erzaehlt", [])
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Und weiter?", zweites)
-    assert "Weiter zu 4 · Kernthema & Figuren" in [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Weiter zu Kernthema & Figuren" in [b for b, _ in tg.knoepfe[-1][2]]
 
 
 def test_alle_auswerten_steht_da_wenn_ein_anderes_interview_offen_ist(conn, einst, tg):
@@ -1074,7 +1111,7 @@ def test_einstieg_bietet_alle_auswerten_statt_eines_phasenknopfes(conn, einst, t
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
     assert "Alle auswerten" in beschriftungen
-    assert not any(b.startswith("Weiter zu 4") for b in beschriftungen)
+    assert not any(b.startswith("Weiter zu Kernthema") for b in beschriftungen)
 
 
 # --- Leiste unter dem Teil-Transkript (05.09.2026) -------------------------
@@ -1139,4 +1176,4 @@ def test_einstieg_bietet_in_phase_3_keinen_weiter_zu_3_knopf(conn, einst, tg):
 
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
     assert "Interview starten" in beschriftungen
-    assert not any(b.startswith("Weiter zu 3") for b in beschriftungen)
+    assert not any(b.startswith("Weiter zu Interviews") for b in beschriftungen)

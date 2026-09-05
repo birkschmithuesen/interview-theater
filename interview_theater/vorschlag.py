@@ -27,10 +27,25 @@ ist Technik, kein Inhalt.
 
 import re
 
-#: Die vier Arten, die ueber einen Vorschlagsblock deterministisch gespeichert
+#: Die Arten, die ueber einen Vorschlagsblock deterministisch verarbeitet
 #: werden koennen. Der Name ist zugleich das Arbeitsstand-Feld (begriffe,
-#: fragen, kernthema) bzw. der Name der Figurenliste.
-ARTEN = ("begriffe", "fragen", "kernthema", "figuren")
+#: fragen, kernthema, rahmen) bzw. der Name einer Auswahl-Liste.
+#:
+#: Seit dem 05.09.2026 abends sind vier Auswahl-Marker dazugekommen, die
+#: **nichts** direkt speichern, sondern je Zeile einen Knopf ergeben
+#: (``knoepfe.sende_mit_speicherleiste``):
+#:
+#: * ``richtungen`` -- Stufe 1 der zweistufigen Kernthema-Wahl (grobe
+#:   Richtungen, aus denen die Gruppe eine antippt; danach kommen mit
+#:   ``kernthema`` die Formulierungen dazu).
+#: * ``namen``   -- Namensvorschlaege fuer EINE Figur (Ebene 1).
+#: * ``duktus``  -- alternative Sprachduktus-Beschreibungen fuer EINE Figur
+#:   (Ebene 2).
+#: * ``rahmen``  -- Ort/Zeit/Anlass-Vorschlaege (Phase 5).
+ARTEN = (
+    "begriffe", "fragen", "kernthema", "figuren",
+    "richtungen", "namen", "duktus", "rahmen",
+)
 
 #: Die Markerzeile. Grossbuchstaben, weil sie im Fliesstext nicht vorkommt
 #: und ein Modell sie zuverlaessig wiederholt; der Doppelpunkt macht sie
@@ -38,7 +53,9 @@ ARTEN = ("begriffe", "fragen", "kernthema", "figuren")
 MARKER = "VORSCHLAG {art}:"
 
 _ZEILE = re.compile(
-    r"^\s*VORSCHLAG\s+(BEGRIFFE|FRAGEN|KERNTHEMA|FIGUREN)\s*:\s*(.*)$",
+    r"^\s*VORSCHLAG\s+"
+    r"(BEGRIFFE|FRAGEN|KERNTHEMA|FIGUREN|RICHTUNGEN|NAMEN|DUKTUS|RAHMEN)"
+    r"\s*:\s*(.*)$",
     re.IGNORECASE,
 )
 
@@ -87,6 +104,29 @@ def lies(text: str, art: str) -> str | None:
     Leiste wieder, weil der Wert weiterhin leer ist.
     """
     return _zerlege(text).get(art)
+
+
+def alle(text: str) -> dict[str, str]:
+    """Alle Vorschlagsbloecke eines Textes auf einmal -- fuer den Aufrufer,
+    der entscheiden muss, WELCHE Leiste unter die Nachricht gehoert
+    (``knoepfe.sende_mit_speicherleiste``). Eine Nachricht traegt im
+    Normalfall genau einen Block; kommen zwei, entscheidet die Reihenfolge
+    dort, nicht hier."""
+    return _zerlege(text)
+
+
+def zeilen(wert: str) -> list[str]:
+    """Die Zeilen eines mehrzeiligen Vorschlagsblocks, ohne fuehrende
+    Aufzaehlungszeichen und ohne Leerzeilen -- eine Zeile, ein Knopf.
+
+    Dieselbe Saeuberung wie in ``figuren()``: Modelle schreiben mal ``1) ``,
+    mal ``- ``, und die Ziffer gehoert nicht in die Knopfbeschriftung."""
+    ergebnis = []
+    for zeile in (wert or "").splitlines():
+        roh = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", zeile).strip()
+        if roh:
+            ergebnis.append(roh)
+    return ergebnis
 
 
 def ohne_marker(text: str) -> str:

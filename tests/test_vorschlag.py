@@ -84,7 +84,7 @@ def test_leiste_nur_bei_block(conn, tg):
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "Vorschlag:\n\nVORSCHLAG BEGRIFFE:\nHeimat, Arbeit"
     )
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["So speichern", "Nochmal anders"]
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter"]
 
 
 def test_leiste_haengt_nicht_an_einer_schon_gefuellten_art(conn, tg):
@@ -117,12 +117,17 @@ def test_in_phase_4_erst_kernthema_dann_figuren(conn, tg):
     repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
     assert knoepfe.offene_art(conn, 1) == "figuren"
 
+    # Die Figuren-Leiste bleibt, bis die Liste in Ebene 2 FIXIERT ist
+    # (05.09.2026 abends) -- nicht schon ab zwei Figuren.
     repo.setze_figur(conn, 1, "Mira", "Naeherin")
     repo.setze_figur(conn, 1, "Pal", "Taxifahrer")
+    assert knoepfe.offene_art(conn, 1) == "figuren"
+
+    repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
     assert knoepfe.offene_art(conn, 1) is None
 
 
-# --- "So speichern" schreibt exakt den Wert --------------------------------
+# --- "Gefaellt uns, weiter" schreibt exakt den Wert --------------------------------
 
 
 def test_speichern_schreibt_exakt_den_vorgeschlagenen_wert(conn, tg, einst):
@@ -130,7 +135,7 @@ def test_speichern_schreibt_exakt_den_vorgeschlagenen_wert(conn, tg, einst):
         conn, tg, 1, "Ich schlage vor:\n\nVORSCHLAG BEGRIFFE:\nHeimat, Arbeit, Angst"
     )
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "So speichern")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Gefaellt uns, weiter")))
 
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat, Arbeit, Angst"
     assert any("Notiert:" in t for _, t in tg.gesendet)
@@ -138,7 +143,7 @@ def test_speichern_schreibt_exakt_den_vorgeschlagenen_wert(conn, tg, einst):
 
 def test_speichern_ist_idempotent(conn, tg, einst):
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
-    daten = _knopf_daten(tg, "So speichern")
+    daten = _knopf_daten(tg, "Gefaellt uns, weiter")
 
     knoepfe.behandle(conn, tg, None, einst, _druck(daten))
     repo.setze_arbeitsstand(conn, 1, "begriffe", "von Hand geaendert")
@@ -155,7 +160,7 @@ def test_kernthema_ueber_die_leiste_landet_im_arbeitsstand(conn, tg, einst):
         conn, tg, 1, "VORSCHLAG KERNTHEMA:\nAnkommen, ohne die Sprache zu verlieren"
     )
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "So speichern")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Gefaellt uns, weiter")))
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand["kernthema"] == "Ankommen, ohne die Sprache zu verlieren"
@@ -171,7 +176,7 @@ def test_figuren_ueber_die_leiste_werden_alle_angelegt(conn, tg, einst):
         "Pal — Taxifahrer, bleibt auf seiner Route — Interview 2",
     )
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "So speichern")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Gefaellt uns, weiter")))
 
     namen = [f["name"] for f in repo.figuren(conn, 1)]
     assert namen == ["Mira", "Pal"]
@@ -179,17 +184,33 @@ def test_figuren_ueber_die_leiste_werden_alle_angelegt(conn, tg, einst):
     assert beschreibungen["Mira"] == "Naeherin, will gefragt werden"
 
 
-# --- "Nochmal anders" ------------------------------------------------------
+# --- "Passt, aber anders" ------------------------------------------------------
 
 
-def test_nochmal_anders_schreibt_nichts_und_bittet_um_richtung(conn, tg, einst):
+def test_passt_aber_anders_speichert_trotzdem_und_fragt_gezielt(conn, tg, einst):
+    """05.09.2026 abends, Birk: "Passt, aber anders" ist keine Ablehnung --
+    es speichert die aktuelle Fassung (damit ueberhaupt etwas in der DB
+    steht) und fragt danach gezielt, was anders werden soll."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Nochmal anders")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Passt, aber anders")))
+
+    assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat"
+    assert tg.gesendet[-1][1] == (
+        "Gespeichert. Was genau soll anders sein - Wortwahl, Reihenfolge, etwas raus?"
+    )
+
+
+def test_eigene_idee_speichert_nicht(conn, tg, einst):
+    """Der Gegensatz: "Eigene Idee" schreibt NICHTS, der naechste Beitrag der
+    Gruppe ist der Vorschlag."""
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Eigene Idee")))
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert not (stand and stand["begriffe"])
-    assert tg.gesendet[-1][1] == "Sagt mir, was anders sein soll."
+    assert tg.gesendet[-1][1] == "Erzaehlt - ich baue es ein."
 
 
 def test_nach_nochmal_anders_traegt_die_naechste_antwort_die_leiste_wieder(
@@ -198,12 +219,12 @@ def test_nach_nochmal_anders_traegt_die_naechste_antwort_die_leiste_wieder(
     """Der Kern der Zusage 'das Menue kommt nach jeder Aenderung wieder':
     solange der Wert leer ist, haengt die Leiste erneut dran."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Nochmal anders")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Passt, aber anders")))
 
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit")
 
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["So speichern", "Nochmal anders"]
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "So speichern")))
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter"]
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Gefaellt uns, weiter")))
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat, Arbeit"
 
 
@@ -211,7 +232,7 @@ def test_eine_neue_leiste_nimmt_die_alte_ab(conn, tg, einst):
     """Sonst staenden zwei Leisten im Chat, und ein Druck auf die aeltere
     speicherte den ueberholten Vorschlag."""
     erste = knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")[0]
-    alt = _knopf_daten(tg, "So speichern")
+    alt = _knopf_daten(tg, "Gefaellt uns, weiter")
 
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit")
 

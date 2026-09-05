@@ -3,7 +3,10 @@
 Für jemanden — Mensch oder Agent —, der diese Arbeit beurteilen soll, ohne bei ihrer
 Entstehung dabei gewesen zu sein.
 
-**Stand:** 04.09.2026 · 575 Tests grün · 20 Module, 7.328 Zeilen · 86 Commits
+**Stand:** ~~04.09.2026 · 575 Tests grün · 20 Module, 7.328 Zeilen · 86 Commits~~
+**Nachtrag 05.09.2026 früh:** 746 Tests grün · 21 Module · 122 Commits — siehe
+„Nacht 04./05.09.: was sich geändert hat" unten für den größten Umbau seit dem
+Durchstich.
 **Erster Einsatz:** Workshop Dortmund, 05.+06.09.2026, 13:00
 
 Verwandte Dokumente: `README.md` (für Theaterleute) · `AGENTS.md` (für Entwicklung) ·
@@ -111,6 +114,69 @@ Transkript ist die Bestätigung); das Echo steht in **keinem Fenster**, sonst li
 Absichtserkenner die Erzählung der interviewten Person als Absicht der Gruppe; und ein noch
 offener Teil **hält den Abschluss auf**, statt ohne ihn zu verdichten — der Nachhol-Arbeiter
 holt ihn und schließt danach ab.
+
+---
+
+## Nacht 04./05.09.: was sich geändert hat
+
+Zwischen dem Probelauf am 04.09. abends und dem Workshopstart am 05.09. um 13:00 lag eine
+zweite, größere Korrekturrunde als der Abschnitt oben — ausgelöst durch denselben Probelauf,
+aber mit Wirkung bis in den Szenen-Prompt hinein. Neun Punkte, mit den Live-Belegen aus dem
+Probelauf-Chat (Nachrichtennummern) und den Commit-Kürzeln (`T1`–`T9`, `N4`–`N7`), unter
+denen die Details in Commit-Messages und Prompts stehen.
+
+1. **Interview als Einheit, jetzt vollständig.** Ergänzend zum Abschnitt oben wirkt die
+   Korrektur jetzt auch rückwärts: fehlt „fertig" im Chat, weil es in die Aufnahme
+   hineingesagt wurde, hört der Erkenner es trotzdem — er läuft über jedes Teil-Transkript
+   mit, gemma, unter einer Sekunde. Und unter `aufnahme.MINDEST_WOERTER` (40 Wörtern) wird gar
+   nicht erst verdichtet, kein Thema ohne wörtliches Zitat (N2).
+2. **Sieben Phasen, kein automatischer Sprung mehr.** Birk: „Datenstand ist nicht Absicht" —
+   eine fertige Verdichtung sagt nichts darüber, ob die Gruppe fertig ist. Phase 4 ist jetzt
+   Kernthema & Figuren zusammen, Phase 5 heißt „Format & Rahmen" statt „Hauptkonflikt": „nicht
+   jede Szene braucht einen Konflikt, es wird vermutlich ein Musical" (Birk, T1).
+3. **Im Zweifel eintragen (N7).** Zustimmung zu einem Vorschlag ist seitdem eine Festlegung,
+   auch beiläufig („passt", „nehmen wir") — Belege aus dem Chat sind die Nachrichten 67 und
+   69. Grund: seit weichem Löschen und `transkript_korrigieren` ist ein falscher Eintrag
+   billig, ein fehlender teuer — dreimal blieb der Arbeitsstand im Probelauf leer, obwohl die
+   Gruppe zugestimmt hatte.
+4. **Szenen werden geplant, dann geschrieben.** Neun Felder je Szene (`form`, `ort`, `zeit`,
+   `anlass`, `figuren`, `was_passiert`, `was_anders`, `kernsaetze`, `ton`), Beleg aus dem
+   Probelauf ist Nachricht 86 („Alle drei sind auf der Demo, Palästina-Demo, Polizeikessel" →
+   `rahmen_setzen`, davor war daraus eine Küche geworden). Dazu **Sprachprofil je Figur**: der
+   Bot schlägt eine Zuordnung mit Zitat vor, die Gruppe nickt, ein gemma-Aufruf analysiert
+   Satzlänge, Füllwörter, Dialekt.
+5. **Szenen-Prompt: Struktur statt Transkript.** Birk nach dem Probelauf: „genau andersrum ist
+   richtig — destillierte Begriffe, klare Strukturen, Zitate als Few-Shots für die Sprechweise,
+   Continuity mechanisch." Sechs Formen (`prompts/formen/`), Lied und Rap aus einer eigenen
+   Recherche zu Songwriting-Handwerk und deutschsprachigem queerfeministischem Rap (26 belegte
+   Zeilen); eine **Sperre** verhindert den Aufruf ganz, solange Pflichtfelder oder ein
+   Sprachprofil fehlen, statt wie im Probelauf viermal nachzufragen (Nachrichten 84, 98, 108,
+   114) und trotzdem die falsche Szene zu schreiben (Nachricht 97 wäre die richtige Stelle
+   gewesen).
+6. **Im Interviewmodus reagiert der Bot auf Anfragen** (`an_den_bot`, N4). Eine Sprachnachricht
+   im laufenden Interview muss nicht Material sein — die Gruppe fragt darin auch den Bot direkt
+   an, und die Antwort geht immer als Text zurück, unabhängig von der Sprache der Frage.
+7. **Korrekturen wirken jetzt tatsächlich** (`transkript_korrigieren`, N5). Ein Hörfehler von
+   Whisper wird überall ersetzt, wo er steht — Transkript, Zusammenfassung, Zitate —, ohne neu
+   zu verdichten; der Gesprächs-Bot behauptet dabei keine Schreibvorgänge mehr, die er nicht
+   ausführt. `entfernen` darf seitdem auch ein ganzes Interview treffen.
+8. **Weboberfläche zeigt Ergebnisse, nicht Fließtext.** Gruppenseite und Dashboard bekamen
+   aufklappbare `<details>`-Blöcke je Szene und Interview — Kurzform in der Summary-Zeile,
+   Details erst beim Aufklappen. Dazu: reiner Text ohne Markdown im Systemprompt, weil Telegram
+   Sternchen roh anzeigt, und maximal ein Vorschlag je Antwort.
+9. **`max_tokens` beim Szenen-Aufruf auf 200.000.** Infomaniak rechnet Eingabe und Ausgabe
+   gegen ein gemeinsames `max_total_tokens = 249.984` (HTTP 400 bei 250.000, gemessen); mit dem
+   erweiterten Prompt lief ein Lauf bei 12.000 Token nur im Denken leer, gemessen wurden 19.410
+   Antwort-Token beim ersten erfolgreichen Versuch.
+
+Dazu kommt der **Simulator** (`simulation/`, `scripts/simulation.py`, Stand im Worktree
+`feat/simulation`, wird gerade nach `main` gemergt): drei simulierte Personen, 15 erfundene
+Interviews in drei Sets, dazu `--set birk` mit Birks echtem Testinterview als Messlatte für die
+Navigation, ein Richter, Kennzahlen, ein vollständiger Verlauf in `verlauf.jsonl`. Der Bot
+läuft gegen Infomaniak, die Simulation gegen Claude Opus über einen Proxy — kein Modellvergleich,
+sondern ein zweiter, günstigerer Weg zum Probelauf. Eigene Dokumentation in
+`simulation/README.md`, hier nur erwähnt, weil er zeigt, wohin ein Probelauf gehört: vor den
+Workshop, nicht in ihn hinein.
 
 ---
 
@@ -258,7 +324,8 @@ also keine Dopplung mit dem Absichtserkenner.
 |---|---|
 | **Die zwei Weboberflächen** | Team-Dashboard und Leseansicht je Gruppe. Der Weg von außen steht (`https://lab.artesmobiles.art/theatersoap/`, nginx auf *herkules*, Tailnet, Port 8010, Zertifikat geprüft) — nur die Anwendung fehlt. Siehe `NACHTRAG-weboberflaeche-und-sprache.md`. |
 | ~~**Weiches Löschen**~~ (`entfernt_am`) | **Gebaut am 04.09.2026** (NACHTRAG N3): `entfernt_am` in `figur`, `szene`, `journal`, Arbeitsstandfelder auf NULL. Wege: Erkenner-art `entfernen`, `/figur … entfernen`, `/szene … entfernen`, `/kernthema aus`. Der ursprüngliche Grund („Überschreiben deckt den Alltagsfall ab") galt für Korrekturen, nicht fürs Zurücknehmen — eine Figur, die die Gruppe verwirft, lässt sich nicht überschreiben. **Material bleibt unentfernbar.** |
-| ~~**Phasen als Zustand**~~ | **Gebaut am 04.09.2026** (`interview_theater/phasen.py`, `arbeitsstand.phase`): gesetzt nur hörbar — von der Gruppe (`phase_setzen`, `/phase`) oder vom Bot mit Meldung, nie still erraten. Je Phase ein Prompt (`prompts/phasen/N.md`), der den Fokus steuert, nicht den Informationszugang. **Am selben Abend inhaltlich korrigiert, am 05.09.2026 noch einmal** (SPEC § 0 Leitsatz 3, zweiter und dritter Nachtrag). Es sind jetzt **sieben** Phasen: 1 Begriffe · 2 Fragen · 3 Interviews · 4 Kernthema & Figuren · 5 Hauptkonflikt · 6 Szenen · 7 Durchlauf — die Begriffe kommen aus dem Plenum, die Frageliste ist eine eigene Phase mit eigenem Feld, Kernthema und Figuren sind eine, und der Hauptkonflikt braucht beides. **Der automatische Sprung ist verworfen** (Datenstand ist nicht Absicht): der Bot fragt nach der nächsten Station, gesetzt wird sie nur von der Gruppe. Siehe auch `docs/entwurfsgeschichte.md` Korrektur 6 und 8. |
+| ~~**Phasen als Zustand**~~ | **Gebaut am 04.09.2026** (`interview_theater/phasen.py`, `arbeitsstand.phase`): gesetzt nur hörbar — von der Gruppe (`phase_setzen`, `/phase`) oder vom Bot mit Meldung, nie still erraten. Je Phase ein Prompt (`prompts/phasen/N.md`), der den Fokus steuert, nicht den Informationszugang. **Am selben Abend inhaltlich korrigiert, am 05.09.2026 noch einmal** (SPEC § 0 Leitsatz 3, zweiter und dritter Nachtrag). Es sind jetzt **sieben** Phasen: 1 Begriffe · 2 Fragen · 3 Interviews · 4 Kernthema & Figuren · ~~5 Hauptkonflikt~~ · 6 Szenen · 7 Durchlauf — die Begriffe kommen aus dem Plenum, die Frageliste ist eine eigene Phase mit eigenem Feld, Kernthema und Figuren sind eine, und die Voraussetzung für 5 braucht beides. **Der automatische Sprung ist verworfen** (Datenstand ist nicht Absicht): der Bot fragt nach der nächsten Station, gesetzt wird sie nur von der Gruppe. Siehe auch `docs/entwurfsgeschichte.md` Korrektur 6 und 8.
+> **Nachtrag 05.09.2026 früh.** Phase 5 heißt seit dem Probelauf „Format & Rahmen", nicht mehr „Hauptkonflikt" (Birk: „Es muss nicht immer einen Konflikt geben — es kann ein Lied sein oder eine harmonische Liebesszene. Das Ganze wird vermutlich ein Musical."). Details unten unter „Nacht 04./05.09." Punkt 2. |
 | ~~**Szenen**~~ | **Gebaut am 04.09.2026** (`interview_theater/szene.py`): eigener Prompt, eigener Thread, Auslöser `szene_schreiben` und `/szene`, dazu die Blöcke 4/5 im Gesprächs-Kontext. Der ursprüngliche Grund („etwas zu schreiben, das niemand liest, ist Fläche ohne Nutzen") ist damit weggefallen — jetzt liest es der Gesprächs-Prompt. |
 | **Sechs der vierzehn Befehle** | `SPEC` § 8.1 nennt je einen Grund. Zwei sind seit dem 04.09.2026 doch da: `/szene` mit den Szenentexten und `/figur` — letzterer aber **nur** als `/figur <Name> entfernen`; angelegt wird eine Figur weiterhin im Gespräch, und genau das war der ursprüngliche Grund gegen ihn. Dazu `/phase`, den die SPEC-Liste gar nicht kannte. |
 | ~~**Modus B**~~ (`LLM.prosa`) | **Verdrahtet am 04.09.2026**, genau für den Anwendungsfall, dessen Fehlen ihn tot hielt: Szenentext. Das Latenzargument entfällt mit dem eigenen Thread — 34 s sind keine Gesprächspause, wenn niemand wartet. Einziger Aufruf mit Reasoning AN im ganzen System. |
@@ -300,10 +367,18 @@ vollständige Lauf gegen das echte Modell steht noch aus.
    `letzte_journalisierte_message_id` ergänzt wurden **und die Nachrichten noch da sind**.
 3. **Gesetzte, nicht gemessene Werte:** `HINWEIS_AB_S = 60` (wann der Bot beiläufig auf den
    Interviewmodus hinweist) · `SCHWELLE_VERDRAENGUNG = 2000` · `LETZTE_JOURNALEINTRAEGE = 12`
-   · das kurze Fenster mit 8.000 Token · `szene.DECKEL = 40.000` und
-   `szene.TIMEOUT_S = 150`. Alle sind begründet, keiner ist gemessen. Bei den beiden
+   · das kurze Fenster mit 8.000 Token · ~~`szene.DECKEL = 40.000` und
+   `szene.TIMEOUT_S = 150`~~. Alle sind begründet, keiner ist gemessen. Bei den beiden
    Szenen-Werten ist die Fehlerrichtung bewusst gewählt: zu großzügig kostet Wartezeit,
    die niemand absitzt, zu knapp kostet den bezahlten Lauf.
+   > **Nachtrag 05.09.2026 früh.** `szene.DECKEL` ist mit der Prompt-Umstellung auf
+   > Struktur statt Transkript entfallen — alle Blöcke sind kurz, es gibt nichts mehr
+   > zu kürzen. `szene.TIMEOUT_S` steht jetzt bei 600 s, `szene.MAX_TOKENS` bei
+   > 200.000 (Infomaniak rechnet Eingabe und Ausgabe gegen ein gemeinsames
+   > `max_total_tokens = 249.984`, HTTP 400 bei 250.000, gemessen). Beide Werte sind
+   > damit auch nicht mehr „gesetzt, nicht gemessen": 12.000 Token liefen im Probelauf
+   > zweimal im Denken leer, gemessen wurden 19.410 Antwort-Token beim ersten
+   > erfolgreichen Lauf. Details in `AGENTS.md`, Falle 4.
 4. **Zwei Aussetzer beim Anbieter beobachtet:** ein HTTP 502 (Wiederholung nach 0,7 s
    erfolgreich) und ein `ReadTimeout` (zweiter Versuch sofort erfolgreich). Die Wiederholung
    mit Backoff fängt beides ab — aber es zeigt, dass der Dienst nicht durchgehend stabil ist.

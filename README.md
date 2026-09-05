@@ -36,7 +36,9 @@ Der Weg zum fertigen Stück lässt sich grob in sieben Stationen beschreiben:
    Revue, Hörstück) und welche Formen vorkommen dürfen (Dialog, Lied, Rap,
    Monolog, Chor, stumme Szene), und *worin* es spielt (Ort, Zeit, Anlass,
    roter Faden)
-6. **Szenen** — die Szenenfolge entwerfen und die Szenentexte schreiben
+6. **Szenen** — die Szenenfolge entwerfen (Ort, Zeit, Anlass, Besetzung, was
+   passiert) und die Szenentexte in der jeweiligen Form schreiben lassen —
+   Dialog, Lied, Rap, Monolog, Chor oder eine stumme Szene
 7. **Durchlauf** — Durchlauf und Feinschliff vor der Aufführung
 
 Die Begriffe entstehen **im Raum, nicht im Chat**: gesammelt wird im Plenum,
@@ -192,6 +194,11 @@ Es schreibt kein Stück. Es schlägt Kernthemen, Figuren, Konflikte und
 Szenenideen vor und belegt diese Vorschläge, wo möglich, mit wörtlichen
 Zitaten aus den Interviews — nachprüfbar, nicht behauptet. Was daraus wird,
 entscheidet ausschließlich die Gruppe.
+
+Getestet wird das nicht nur an echten Workshops: ein Simulator lässt
+erfundene Personen einen kompletten Ablauf durchspielen, damit sich Fehler
+wie „ein Interview aus fünf Sprachnachrichten wird als fünf Interviews
+behandelt" schon vor dem nächsten Termin zeigen, statt erst währenddessen.
 
 ---
 

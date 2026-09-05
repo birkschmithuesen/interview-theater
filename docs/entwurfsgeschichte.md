@@ -300,6 +300,47 @@ Abschnitt heißt seitdem in jeder Phasendatei „Was du **nicht von dir aus** an
 endet mit demselben Satz: *„Bittet die Gruppe ausdrücklich darum, tust du es trotzdem; die
 Phase ist dein Fokus, nicht ihre Grenze."*
 
+### 9. Nach dem zweiten Probelauf: drei weitere Annahmen fielen
+
+Korrektur 8 hat den Mechanismus der Phasen geklärt. Ein zweiter Probelauf, in der Nacht vom
+04. auf den 05.09.2026, zeigte drei weitere Stellen, an denen die Annahme aus der
+Werkzeugperspektive gedacht war — derselbe Befund wie bei Korrektur 1 bis 3, diesmal in den
+Phasen 5 und 6.
+
+**(a) Der automatische Sprung wurde in Korrektur 8 verworfen — im Probelauf hätte er trotzdem
+noch gegriffen.** *Was war:* Korrektur 8 (b) hatte `ART_ERMOEGLICHT` und `sprung_nach`
+gestrichen, weil ein Datenstand keine Absicht ist. *Warum das im Probelauf noch einmal
+auffiel:* der Rest des Systems — der Erkenner, die Sperre vor Szenen, der Szenen-Prompt —
+war zu diesem Zeitpunkt noch auf der Annahme aufgebaut, dass eine Phase automatisch mitzieht,
+sobald das Material reicht; Format und Rahmen fehlten als eigenes Ziel dafür noch. *Was
+jetzt gilt:* die Phase wird ausschließlich von der Gruppe gesetzt, die Frage
+(`phasen.moegliche_naechste`) bleibt die einzige Wirkung eines erfüllten Datenstands — bestätigt
+und unverändert seit Korrektur 8, jetzt mit Format & Rahmen (b) als Voraussetzung für Phase 6
+statt des Hauptkonflikts.
+
+**(b) Die Hauptkonflikt-Phase wurde zu Format & Rahmen.** *Was war:* Phase 5 hieß
+„Hauptkonflikt" und verlangte einen durchgehenden Konflikt als Voraussetzung für die
+Szenenphase. *Warum verworfen:* Birk, nach dem Probelauf: „Es muss nicht immer einen Konflikt
+geben. Nicht jede Szene muss einen Konflikt haben — es kann ein Lied sein oder eine
+harmonische Liebesszene. Das Ganze wird vermutlich ein Musical." Ein Konflikt ist eine
+mögliche dramaturgische Entscheidung, keine Voraussetzung für irgendetwas — die Annahme kam
+aus einem Sprechtheater-Modell, das die Gruppe nie geäußert hatte. *Was jetzt gilt:* Phase 5
+entscheidet WAS entsteht (`arbeitsstand.format`, welche Formen vorkommen dürfen) und WORIN es
+spielt (`arbeitsstand.rahmen`); `hauptkonflikt` bleibt als optionales Feld, die Voraussetzung
+für Phase 6 hängt an `format`. Keine Migration, nur Name und Voraussetzung ändern sich.
+
+**(c) Volltranskripte im Szenen-Prompt waren der falsche Reflex.** *Was war:* der Szenen-Prompt
+bekam alle Interviews im Wortlaut, mit der Begründung, der Text solle aus dem Material selbst
+kommen. *Warum verworfen:* im Ergebnis sollte das Modell aus Zehntausenden Token selbst
+heraushören, wer wie spricht und was in der Szene vorkommt — herausgekommen ist eine Küche
+statt eines Polizeikessels und drei Figuren, die alle gleich klangen. Birk: „Genau andersrum
+ist richtig: möglichst präzise destillierte Begriffe und klare Strukturen rein — was in den
+Szenen vorkommt, wo, wer, was gesagt wird. Continuity mechanisch." *Was jetzt gilt:*
+`szene.baue_nutzertext` baut sieben destillierte Blöcke (Format & Rahmen, Kernthema, Figuren
+mit Sprachprofil und wörtlichen Zitaten als Few-Shot für die Sprechweise, Continuity
+mechanisch aus der Datenbank, Verworfenes, die Felder dieser Szene, der Auftrag) — kein
+Volltranskript mehr, und damit auch kein Kürzungs-Deckel, weil es nichts mehr zu kürzen gibt.
+
 ---
 
 ## Der Weg von außen

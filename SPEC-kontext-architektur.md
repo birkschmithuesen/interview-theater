@@ -1230,3 +1230,42 @@ aus der Dateiendung abgeleitet (`stt.mime_typ`).
   (erzwungenes Schema, `reasoning_effort: "none"`). Gleiche dramaturgische Substanz bei
   4,5 s statt 33,8 s Latenz. Der zweistufige Weg entfällt. Details und Messwerte in § 4.1;
   das verbleibende Zitatrisiko wird durch § 5 abgefangen.
+
+---
+
+## Nachtrag: Stand 05.09.2026 früh
+
+Ein zweiter Probelauf am 04.09. abends hat mehr an dieser Spezifikation verändert als jeder
+Tag seit dem Ersteinsatz-Datum oben — Commits `f683429` bis `558ed3f` (`git log
+f683429^..558ed3f`), ausführlich in `docs/HANDOFF.md` unter „Nacht 04./05.09.: was sich
+geändert hat" und in `docs/entwurfsgeschichte.md` Korrektur 9. Diese Spezifikation wird dafür
+bewusst nicht umgeschrieben — sie beschreibt den Stand vom 03./04.09.2026, und die
+Nachträge in § 0 halten die Phasen-Korrekturen bereits fest. Zusammengefasst, mit Verweis auf
+die maßgeblichen Commits:
+
+- **Ein Interview ist eine Einheit**, mit Interview-Kopf, Teilen und Nachhol-Arbeiter für
+  offene Teile (`d87c382`, `bb01b7d`, `59ba5d9`, `f36eca4`) — ausführlich in § 10.6 (bereits
+  Teil dieser Fassung) und `AGENTS.md`.
+- **Sieben Phasen ohne automatischen Sprung**, Phase 5 „Format & Rahmen" statt
+  „Hauptkonflikt" (`f683429`, `564713e`) — § 0 Leitsatz 3 trägt die Nachträge dazu bereits.
+- **Im Zweifel eintragen** (`775112a`, N7) — die FP-Definition ist als Fußnote unter § 4.3a
+  eingetragen (siehe dort).
+- **Szenen werden geplant, bevor sie geschrieben werden** (`b7d3074`, T2), mit
+  **Sprachprofil je Figur** (`392b047`, T3) und **Struktur statt Transkript** im Szenen-Prompt
+  (`01d82bd`, T4) — die drei größten Abweichungen von § 4.5 und § 6.2 Block 3/4/5 dieser
+  Fassung: Volltranskripte und der Deckel-Mechanismus sind im Szenen-Prompt ersatzlos
+  entfallen, sechs Formen (`prompts/formen/`) treten an ihre Stelle.
+- **Sperre vor dem Szenen-Aufruf** (`3da64bd`, T5) statt eines Modellaufrufs, der fehlende
+  Angaben erfindet.
+- **`an_den_bot`** (`71193e5`, N4) und **`transkript_korrigieren`** (`7acc020`, N5) als zwei
+  weitere Erkenner-Arten — vollständige Liste jetzt in `erkenner.ARTEN`, nicht mehr in § 4.3
+  oben.
+- **`szene.MAX_TOKENS = 200.000`** (`11e4bf5`), weil Infomaniak Eingabe und Ausgabe gegen ein
+  gemeinsames `max_total_tokens = 249.984` rechnet — eine Randbedingung, die § 4.5 beim
+  Verdrahten von `LLM.prosa()` noch nicht kannte.
+- **Gruppenseite und Dashboard zeigen Ergebnisse, keinen Fließtext** (`beb2f3b`, T6/N6) —
+  eine Verfeinerung von § 9 dieser Spezifikation (Weboberfläche ist dort nicht Teil des
+  Geltungsbereichs, siehe Kopf).
+
+`AGENTS.md` ist seit diesen Commits die aktuellere Quelle für alles oben Genannte; bei
+Widerspruch zwischen dieser SPEC und `AGENTS.md`/Code gilt weiterhin, was tatsächlich läuft.

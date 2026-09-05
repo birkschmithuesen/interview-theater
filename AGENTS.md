@@ -31,7 +31,8 @@ Module unter `interview_theater/`:
 | `phasen.py` | Die sieben Arbeitsphasen: Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
-| `szene.py` | Szenentexte: eigener Prompt, eigener Thread, als einziger Aufruf mit Reasoning AN |
+| `szene.py` | Szenentexte: eigener Prompt (Struktur statt Transkript, ein Regelblock je Form), eigener Thread, als einziger Aufruf mit Reasoning AN, Sperre vor dem Aufruf gegen fehlende Pflichtfelder |
+| `sprachprofil.py` | Sprachprofil je Figur: ein gemma-Aufruf (Reasoning aus, eigener Thread) aus dem zugeordneten Interview, Zitate geprüft wie beim Verdichter |
 | `telegram.py` | Dünner HTTP-Wrapper um die Telegram-Bot-API |
 | `verdichter.py` | Verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten — an der Frageliste der Gruppe entlang, wenn es eine gibt (N3) |
 | `zitat.py` | Belegzitat-Verifikation: Teilstring-Vergleich nach Normalisierung |
@@ -39,7 +40,8 @@ Module unter `interview_theater/`:
 | `db.py` | Schema, Verbindungsaufbau samt PRAGMAs, Migration fehlender Spalten, Löschweg (`loesche_gruppe`) |
 | `einstellungen.py` | Konfiguration ausschließlich über Umgebungsvariablen |
 | `anweisungen.py` | Prompt-Texte mit Hot-Reload (mtime) + optionaler Regie-Zettel `betrieb/zusatz*.md` |
-| `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`, `szene` + `theater-tells`) |
+| `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`, `szene`, `sprachprofil` + `theater-tells`) |
+| `prompts/formen/` | Ein Regelblock je Szenenform (`dialog`, `lied`, `rap`, `monolog`, `chor`, `stumm`); `szene.formdatei` ordnet das freie Feld `szene.form` zu, Dialog ist der Rückfall. `dialog.md` trägt die dreizehn Dramaturgieregeln, `lied.md`/`rap.md` das Songwriting- bzw. Rap-Handwerk aus einer eigenen Recherche |
 | `prompts/phasen/` | Je Arbeitsphase eine Datei `1.md` … `8.md`: worauf der Bot dort den Fokus legt, was er *nicht* tut, woran die Phase fertig ist. Wird zwischen Basis-Systemanweisung und Regie-Zettel gehängt |
 | `web.py` | Weboberfläche: Routing, HTML und CSS für Dashboard und Gruppenseiten, `http.server`, nur Standardbibliothek |
 | `web_daten.py` | Die Lesezugriffe dazu — read-only geöffnete Verbindung, reine Funktionen, `conn` rein, Dicts raus |
@@ -84,18 +86,33 @@ lädt, würde damit Gesprächszüge ausbremsen.
   `merke_angebot()`, deshalb liest die eine Funktion nur und die andere
   schreibt.
 - **Die sieben Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews ·
-  4 Kernthema & Figuren · 5 Hauptkonflikt · 6 Szenen · 7 Durchlauf**
+  4 Kernthema & Figuren · 5 Format & Rahmen · 6 Szenen · 7 Durchlauf**
   (korrigiert am 05.09.2026). Drei Dinge daran sind Entscheidungen, keine
   Nummerierung: Phase 1 **sammelt nicht** — die Begriffe entstehen analog im
   Plenum, der Bot bekommt die fertige Liste; die Frageliste ist ein eigenes
   Feld (`arbeitsstand.fragen`, art `fragen_setzen`) und die Voraussetzung für
   die Interviews; und **Kernthema und Figuren sind EINE Phase** — welches von
-  beidem zuerst kommt, ergibt sich aus dem Material, und der Hauptkonflikt
-  braucht beides (ein Konflikt braucht zwei Wollen, deshalb ist die
-  Voraussetzung für 5 „Kernthema **und** ≥ 2 Figuren"). Damit ist auch die
-  alte Sonderlogik der freien Stelle 5/6 weg. Die vollständige Stationsliste
-  steht in der **Basis**-Systemanweisung, nicht nur im Phasen-Prompt: der Bot
-  soll entscheiden können, welche Phase gerade passt.
+  beidem zuerst kommt, ergibt sich aus dem Material, und die Voraussetzung für
+  5 ist „Kernthema **und** ≥ 2 Figuren" (ein Konflikt braucht zwei Wollen,
+  auch wenn Phase 5 seit derselben Korrektur keinen mehr verlangt, siehe
+  unten). Damit ist auch die alte Sonderlogik der freien Stelle 5/6 weg. Die
+  vollständige Stationsliste steht in der **Basis**-Systemanweisung, nicht nur
+  im Phasen-Prompt: der Bot soll entscheiden können, welche Phase gerade
+  passt.
+- **Phase 5 heißt „Format & Rahmen", nicht mehr „Hauptkonflikt"** (05.09.2026,
+  `phasen.py`; Birk: „Es muss nicht immer einen Konflikt geben — es kann ein
+  Lied sein oder eine harmonische Liebesszene. Das Ganze wird vermutlich ein
+  Musical.") An dieser Station entscheidet die Gruppe zweierlei:
+  **WAS** entsteht (`arbeitsstand.format`, z. B. „Musical: Dialog, Lied, Rap")
+  und **WORIN** es spielt (`arbeitsstand.rahmen` — Ort, Zeit, Anlass, roter
+  Faden). `hauptkonflikt` bleibt als optionales Feld stehen, wird aber nur
+  noch angezeigt, wenn es gesetzt ist — die Voraussetzung für Phase 6 hängt
+  seitdem an `format`, nicht mehr am Hauptkonflikt: ohne Format weiß niemand,
+  ob die nächste Szene ein Dialog oder ein Rap wird, ohne Konflikt schon.
+  Erkenner-Arten `format_setzen` und `rahmen_setzen`, `entfernen` kennt beide.
+  Keine Migration: die Nummer 5 bleibt 5, nur Name und Voraussetzung ändern
+  sich, und „konflikt" bleibt als Stichwort auf 5 stehen — eine Gruppe, die
+  „wir sind beim Konflikt" sagt, meint weiter dieselbe Station.
 - **Der Phasen-Prompt ist Fokus, kein Käfig** (05.09.2026). Jede
   `prompts/phasen/N.md` hat den Abschnitt „Was du nicht von dir aus
   anfängst" mit dem festen Schlusssatz „Bittet die Gruppe ausdrücklich darum,
@@ -130,7 +147,47 @@ lädt, würde damit Gesprächszüge ausbremsen.
   `erkenner.ARTEN_IN_AUFNAHME` eingeschränkt, nicht nur im Prompt gebeten:
   was eine interviewte Person erzählt, ist Material und nie eine Absicht der
   Gruppe (Korpusfälle n12/n26, a03/a04). Er rückt außerdem kein Wasserzeichen
-  vor — er hängt an einer Aufnahme, nicht am Gesprächsverlauf.
+  vor — er hängt an einer Aufnahme, nicht am Gesprächsverlauf. Die eine
+  Ausnahme ist `an_den_bot` (N4): eine Sprachnachricht im Interviewmodus muss
+  nicht Material sein, die Gruppe fragt darin auch den Bot direkt an ("zeig
+  mir die Verdichtungen"). Der Erkenner erkennt das, `aufnahme.py` zweigt die
+  Nachricht daraufhin aus dem Interview ab (`repo.loese_aus_interview`) und
+  der Bot antwortet — als Text, unabhängig davon, ob die Frage gesprochen war.
+- **Korrekturen wirken, nicht nur im Journal** (05.09.2026, N5,
+  `erkenner.transkript_korrigieren`). Ein Hörfehler von Whisper wird überall
+  ersetzt, wo er steht — im Transkript selbst, in Zusammenfassung und
+  Kernthemen der Verdichtung, in Zitaten von Figuren —, ohne neu zu
+  verdichten: die Ergebnisse der Gruppe bleiben stehen, nur der falsche
+  Wortlaut wird getauscht. Der Gesprächs-Bot behauptet dabei keine
+  Schreibvorgänge mehr, die er nicht selbst ausführt. `entfernen` darf seit
+  derselben Änderung auch ein ganzes Interview treffen.
+- **Sprachprofil je Figur** (05.09.2026, T3, `sprachprofil.py`): drei Felder
+  (`sprachprofil` — Satzlänge, Füllwörter, Abbrüche, Dialekt, Tempo, 3–5
+  Zeilen; `zitate` — 3–5 wörtliche Sätze; `quelle_aufnahme_id`). Der Weg
+  dahin ist ein Gespräch, kein Namensvergleich: hat eine Figur noch keine
+  Quelle, bekommt der Gesprächs-Prompt einen Hinweisblock
+  (`kontext._baue_figurenhinweis`), der Bot schlägt im Fluss eine Zuordnung
+  vor — mit Belegzitat —, die Gruppe nickt oder ändert
+  (`figur_quelle_setzen`), und erst danach läuft EIN Sprachprofil-Aufruf
+  (gemma, Reasoning aus, Schema, eigener Thread). Zitate werden geprüft wie
+  beim Verdichter (`zitat.pruefe`); ohne ein einziges belegtes Zitat wird gar
+  nichts gespeichert — ein erfundenes Zitat würde als Few-Shot in jeden
+  weiteren Szenenlauf eingehen.
+- **Eine Szene wird geplant, bevor sie geschrieben wird** (05.09.2026, T2):
+  neun Felder (`form`, `ort`, `zeit`, `anlass`, `figuren`, `was_passiert`,
+  `was_anders`, `kernsaetze`, `ton`), additiv über mehrere Nachrichten
+  gesetzt (`repo.setze_szenenfeld` rührt nie mehr als ein Feld an). Erkenner-
+  art `szene_planen`, kompakter Text mit `|`-getrennten Feldern. Sechs Formen
+  (`prompts/formen/`: Dialog, Lied, Rap, Monolog, Chor, stumm), Dialog ist
+  der Rückfall. **Sperre vor dem Aufruf** (T5, `szene.sperrtext`): fehlt ein
+  Pflichtfeld (`form`, `ort`, `figuren`, `was_passiert`) oder hat eine Figur
+  dieser Szene kein Sprachprofil, gibt es keinen Modellaufruf, sondern eine
+  Nachricht in einem Satz, was fehlt — gemessen gegen den Probelauf, in dem
+  ein Modell ohne Ort und Besetzung eine Küche statt eines Polizeikessels
+  erfand. **Keine Rückfragenkette vor einer Szene** (T7): sagt die Gruppe
+  „schreib sie" nach einer Planung, ist das ein Auftrag mit Szenenbezug aus
+  dem Verlauf, kein einzelnes Wort — die Sperre meldet in einer Nachricht,
+  was fehlt, statt viermal hintereinander nachzufragen.
 - **Kein Thema ohne wörtliches Belegzitat, keine Verdichtung ohne Material**
   (seit 05.09.2026, N2). Ein Kernthema, dessen Zitat die Prüfung aus
   `zitat.py` nicht besteht, wird **nicht gespeichert** — nicht mehr mit
@@ -223,10 +280,22 @@ Nachmittag noch einmal.
    Szenentext „wichtiger" wäre: entscheidend ist, ob ein Mensch wartet — und
    beim Szenenlauf wartet niemand, er hängt in einem eigenen Thread. Daran
    hängen zwei Werte, die dort eigens gesetzt sind und nicht aus `llm.py`
-   kommen: `max_tokens = 12.000` (unter 12.000 endet der Lauf im Denken) und
-   ein Zeitbudget von 150 s (der `httpx.Client` aus `bot.main` hat 30 s, das
-   reicht für einen Reasoning-Lauf nicht). Wer einen weiteren Aufruf mit
-   Reasoning baut, braucht beides wieder.
+   kommen: `max_tokens = 200.000` und ein Zeitbudget von 600 s (der
+   `httpx.Client` aus `bot.main` hat 30 s, das reicht für einen Reasoning-Lauf
+   nicht). Wer einen weiteren Aufruf mit Reasoning baut, braucht beides
+   wieder.
+
+   **`max_tokens` ist bei Infomaniak eine Obergrenze, kein Zielwert — und sie
+   zählt gegen Eingabe *und* Ausgabe zusammen.** Mit dem erweiterten
+   Szenen-Prompt (dreizehn Dramaturgieregeln, Formen-Regelblock, Tells) lief
+   ein Lauf bei 12.000 Token nur im Denken leer (`finish_reason: "length"`,
+   kein Inhalt), der erste erfolgreiche brauchte 19.410 Antwort-Token.
+   Zugleich rechnet Infomaniak `max_tokens + Eingabe` gegen
+   `max_total_tokens = 249.984` — bei 250.000 kam HTTP 400 zurück, gemessen
+   am 04.09.2026 abends. 200.000 lässt rund 50.000 Token Platz für die
+   Eingabe und liegt trotzdem klar über dem gemessenen Antwortbudget: ein
+   Deckel knapp über dem letzten Lauf programmiert nur den nächsten Abbruch
+   vor.
 
 5. **Modellwahl je Aufruf.** Kimi fürs Gespräch und den Verdichter,
    `google/gemma-4-31B-it` für Absichtserkennung und Journal (gemessen: 0
@@ -254,6 +323,14 @@ Nachmittag noch einmal.
    getUpdates-Offset verwenden), nie zwei Bots in dieselbe Telegram-Gruppe
    einladen (beide würden dort antworten — sofort sichtbar, aber
    vermeidbar).
+
+8. **Infomaniak drosselt Parallelität mit 429/5xx, nicht mit einer sauberen
+   Warteschlange.** Betrifft im Betrieb kaum den Bot selbst (Aufrufe je
+   Gruppe laufen ohnehin nacheinander), aber jeden eigenen Skriptlauf, der
+   mehrere Anfragen gleichzeitig schickt — `scripts/pruefe_prompts.py` ruft
+   deshalb sequenziell auf, nicht parallel. Wer ein Werkzeug baut, das mehrere
+   Aufrufe gleichzeitig absetzt, bekommt sporadische 429/5xx statt eines
+   verlässlichen Fehlers und sollte seriell bleiben oder selbst drosseln.
 
 ## Wo SPEC und Code auseinanderlaufen
 
@@ -337,6 +414,18 @@ python -m interview_theater.bot
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
 
+**Simulation** (`simulation/`, `scripts/simulation.py`, Stand 05.09.2026 im
+Worktree `feat/simulation`, wird gerade in `main` gemergt): drei simulierte
+Personen, fünfzehn erfundene Interviews in drei Sets, dazu `--set birk` mit
+Birks echtem Testinterview als Messlatte für die Navigation durch die sieben
+Phasen. Ein Richter bewertet den Ablauf, Kennzahlen und der volle Verlauf
+landen in `verlauf.jsonl`. Läuft gegen ein anderes Modell als der Bot: der
+Bot spricht mit Infomaniak, die Simulation mit Claude Opus über einen Proxy —
+kein Vergleichslauf, sondern ein zweiter, unabhängiger Blick auf denselben
+Ablauf. **Kein Test, kein Ersatz für `pytest` oder `pruefe_prompts.py`**,
+sondern ein Werkzeug gegen Probeläufe mit echten Menschen: eigene
+Dokumentation in `simulation/README.md`.
+
 ## Weboberfläche
 
 Ein einziger Prozess für alle Gruppen, neben den Bots:
@@ -379,14 +468,17 @@ Env-Datei soll die Interviews nicht ins offene Netz stellen.
 
 ### Prompt geändert? → Korpus laufen lassen
 
-Die vier Prompts werden heiß nachgeladen, also ändert sie jemand **während**
+Die fünf Prompts werden heiß nachgeladen, also ändert sie jemand **während**
 des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
-den Blindflug: 85 Absichtserkenner-Fälle (davon 31 Negativfälle; vier davon
-kommen aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1, und
-acht sind mit `zustimmung: true` markiert, N7), 22
-Journal-Abschnitte (davon 11 leere) und 7 erfundene Interviewtranskripte, alle
-mit Sollwert — darunter einer, dessen Sollwert **null** Kernthemen sind (der
-Live-Fall aus dem Probelauf, N2).
+den Blindflug: 121 Absichtserkenner-Fälle (davon 45 Negativfälle; darunter
+welche aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1 —,
+und 10 mit `zustimmung: true` markiert, N7; Stand 05.09.2026 nach dem
+Szenen-Umbau, alle `art`-Werte mindestens zweimal, `szene_planen` mit
+Szenenbezug), 22 Journal-Abschnitte (davon 11 leere), 7 erfundene
+Interviewtranskripte — darunter einer, dessen Sollwert **null** Kernthemen
+sind (der Live-Fall aus dem Probelauf, N2) — und 5 Sprachprofil-Fälle (T3,
+eine je Sprechweise: kurze Sätze mit Selbstkorrektur, Code-Switching,
+„man"-Distanz, Reihungen, Rückfragen), alle mit Sollwert.
 
 ```
 set -a; . ./betrieb/gruppe1.env; set +a
@@ -445,6 +537,14 @@ Netz.
 - **Schreiben über die Weboberfläche.** Beide Seiten sind read-only, der
   einzige Schreibweg bleibt der Chat — sonst laufen zwei Schreibwege
   gegeneinander (`NACHTRAG-weboberflaeche-und-sprache.md` N1).
+- **Der automatische Phasensprung.** Er hat einmal existiert
+  (`ART_ERMOEGLICHT`, `sprung_nach`) und ist am 05.09.2026 **bewusst und
+  ersatzlos** gestrichen worden, nicht aus Zeitmangel: **Datenstand ist nicht
+  Absicht** — eine fertige Verdichtung sagt nicht, ob noch drei Interviews
+  kommen, und ein gesetztes Kernthema sagt nicht, dass die Gruppe damit
+  fertig ist. Geblieben ist die Frage (`phasen.moegliche_naechste` /
+  `offenes_angebot`): erlaubt die Materiallage eine höhere Phase, bietet der
+  Bot sie im Fluss an, gesetzt wird sie nur von der Gruppe.
 
 Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
 „Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit

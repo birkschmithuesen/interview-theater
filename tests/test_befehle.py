@@ -388,7 +388,7 @@ def test_phase_ohne_argument_zeigt_phase_und_liste(conn, einst, tg):
 
     assert behandelt is True
     text = tg.gesendet[0][1]
-    assert "Wir sind bei 5 · Rahmen." in text
+    assert "Wir sind bei 5 · Geschichte." in text
     for nummer, name, _ in phasen.PHASEN:
         assert f"{nummer} · {name}" in text
 
@@ -405,7 +405,7 @@ def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
     assert behandelt is True
     assert repo.hole_phase(conn, 1) == 5
     assert tg.gesendet == [
-        (1, "Wir sind jetzt bei 5 · Rahmen. Falls nicht, sagt es mir.")
+        (1, "Wir sind jetzt bei 5 · Geschichte. Falls nicht, sagt es mir.")
     ]
 
 
@@ -443,7 +443,7 @@ def test_stand_zeigt_die_phase_zuerst(conn, einst, tg):
 
     zeilen = tg.gesendet[0][1].splitlines()
     assert zeilen[0] == "Stand:"
-    assert zeilen[1] == "Phase: 5 · Rahmen"
+    assert zeilen[1] == "Phase: 5 · Geschichte"
 
 
 def test_stand_zeigt_den_rahmen_den_konflikt_nur_wenn_gesetzt(conn, einst, tg):

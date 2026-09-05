@@ -82,6 +82,12 @@ ARTEN = (
     # WORIN es spielt (Ort, Zeit, Anlass, roter Faden).
     "format_setzen",
     "rahmen_setzen",
+    # Seit dem Umbau vom 05.09.2026 nachts: die Geschichte im Groben (Bogen
+    # und Ende, Phase 5). Der Regelweg dorthin ist der Vorschlagsblock mit
+    # seinen Knoepfen (``knoepfe._speichere_geschichte``) -- diese Art ist
+    # der zweite, freie Weg: sagt die Gruppe die Geschichte einfach, wird sie
+    # notiert wie jedes andere Arbeitsstandfeld.
+    "geschichte_setzen",
     # Bleibt -- aber als OPTIONALES Feld: ein durchgehender Konflikt ist eine
     # Rahmen-Entscheidung, keine Pflicht (Birk 05.09.2026).
     "hauptkonflikt_setzen",
@@ -414,6 +420,7 @@ _ARBEITSSTAND_ARTEN = {
     "kernthema_setzen": "kernthema",
     "format_setzen": "format",
     "rahmen_setzen": "rahmen",
+    "geschichte_setzen": "geschichte",
     "hauptkonflikt_setzen": "hauptkonflikt",
 }
 
@@ -762,8 +769,12 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
 #: es im Probelauf trotzdem stehen lassen. Weich bleibt es trotzdem: die
 #: Audiodatei liegt weiter auf der Platte, den vollstaendigen Loeschweg geht
 #: nach wie vor allein ``scripts/loeschen.py``, von Hand, mit Rueckfrage.
+#: \"setting\" steht neben \"rahmen\": seit dem Umbau vom 05.09.2026 nachts
+#: heisst dasselbe Feld in der Gruppe Setting, und wer \"Setting entfernen\"
+#: sagt, meint genau das (``_ENTFERNEN_ARBEITSSTAND``).
 _ENTFERNEN_ZIELE = (
-    "figur", "kernthema", "format", "rahmen", "hauptkonflikt", "begriffe",
+    "figur", "kernthema", "format", "rahmen", "setting", "geschichte",
+    "hauptkonflikt", "begriffe",
     "fragen", "szene", "journal", "interview", "aufnahme",
 )
 
@@ -803,7 +814,9 @@ def _zerlege_entfernen(wert: str) -> tuple[str, str] | None:
 _ENTFERNEN_ARBEITSSTAND = {
     "kernthema": ("kernthema", "Kernthema"),
     "format": ("format", "Format"),
-    "rahmen": ("rahmen", "Rahmen"),
+    "rahmen": ("rahmen", "Setting"),
+    "setting": ("rahmen", "Setting"),
+    "geschichte": ("geschichte", "Geschichte"),
     "hauptkonflikt": ("hauptkonflikt", "Hauptkonflikt"),
     "begriffe": ("begriffe", "Begriffe"),
     "fragen": ("fragen", "Fragen"),
@@ -1024,6 +1037,7 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     kernthema = None
     formatwert = None
     rahmen = None
+    geschichte = None
     hauptkonflikt = None
     begriffe = None
     fragen = None
@@ -1044,6 +1058,8 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
             formatwert = wert
         elif art == "rahmen_setzen":
             rahmen = wert
+        elif art == "geschichte_setzen":
+            geschichte = wert
         elif art == "hauptkonflikt_setzen":
             hauptkonflikt = wert
         elif art == "begriffe_setzen":
@@ -1074,7 +1090,9 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     if formatwert:
         zeilen.append(f"Format: {formatwert}")
     if rahmen:
-        zeilen.append(f"Rahmen: {rahmen}")
+        zeilen.append(f"Setting: {rahmen}")
+    if geschichte:
+        zeilen.append(f"Geschichte: {geschichte}")
     if hauptkonflikt:
         zeilen.append(f"Hauptkonflikt: {hauptkonflikt}")
     if figuren_namen:

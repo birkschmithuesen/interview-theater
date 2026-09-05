@@ -226,7 +226,7 @@ def test_aufnahme_knopf_legt_je_umschaltung_genau_ein_interview_an(conn, einst, 
 
 def test_phasen_knopf_schaltet_um_wie_der_befehl(conn, einst, tg):
     knoepfe.biete_phase(conn, tg, 1, "Weitermachen?", 4)
-    assert tg.knoepfe[0][2][0][0] == "Weiter zu Kernthema & Figuren"
+    assert tg.knoepfe[0][2][0][0] == "Weiter zu Setting & Figuren"
 
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
@@ -887,7 +887,7 @@ def test_nach_aufnahme_haengt_die_phase_an_wenn_die_lage_sie_hergibt(conn, einst
 
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
     assert beschriftungen == [
-        "Auswerten", "Naechstes Interview", "Weiter zu Kernthema & Figuren",
+        "Auswerten", "Naechstes Interview", "Weiter zu Setting & Figuren",
     ]
 
 
@@ -1030,7 +1030,7 @@ def test_einstieg_haengt_die_phase_dazwischen(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Interview starten", "Weiter zu Kernthema & Figuren",
+        "Interview starten", "Weiter zu Setting & Figuren",
         "Stand zeigen", "Hilfe",
     ]
 
@@ -1082,13 +1082,13 @@ def test_nach_aufnahme_bietet_alle_auswerten_statt_phase_4(conn, einst, tg):
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 2 ist abgelegt.", zweites)
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
-    assert "Weiter zu Kernthema & Figuren" not in beschriftungen
+    assert "Weiter zu Setting & Figuren" not in beschriftungen
     assert beschriftungen == ["Auswerten", "Naechstes Interview"]
 
     # Sobald auch das zweite ausgewertet ist, steht der Schritt wieder da.
     repo.speichere_verdichtung(conn, 1, zweites, "Pal erzaehlt", [])
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Und weiter?", zweites)
-    assert "Weiter zu Kernthema & Figuren" in [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Weiter zu Setting & Figuren" in [b for b, _ in tg.knoepfe[-1][2]]
 
 
 def test_alle_auswerten_steht_da_wenn_ein_anderes_interview_offen_ist(conn, einst, tg):

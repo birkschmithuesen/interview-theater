@@ -33,6 +33,7 @@ STIMME = (
     ("drei Figuren", "figur Meryem: die Aeltere"),
     ("stimmt ein Name", "die figur Meryem fliegt raus"),
     ("WORIN das Stueck spielt", "ja, ein wartesaal an einem abend"),
+    ("Geschichte im Groben", "die geschichte: zwei warten, eine geht, offenes ende"),
     ("wo sie spielt", "am bahnhof, Meryem und Ferzan, sie warten"),
 )
 
@@ -46,6 +47,8 @@ ERKENNER = (
     ("fliegt raus", "entfernen", "Figur Meryem"),
     ("figur ", "figur_setzen", "Meryem: die Aeltere"),
     ("wartesaal", "rahmen_setzen", "Ein Wartesaal, an einem Abend"),
+    ("die geschichte:", "geschichte_setzen",
+     "Zwei warten, eine geht.\nEnde: offen"),
 )
 
 

@@ -231,10 +231,12 @@ def _alte_phasen_db(tmp_path, name="acht.db"):
 
 
 def test_phasennummern_werden_einmalig_umgerechnet(tmp_path):
-    """Kernthema und Figuren sind eine Phase geworden, also rutscht alles
-    darueber um eins herunter (db.PHASEN_UMNUMMERIERUNG). Ohne diesen Schritt
-    saehe eine Gruppe, die abends bei '8 · Durchlauf' aufgehoert hat, am
-    naechsten Morgen eine Nummer, die es nicht mehr gibt."""
+    """Eine Datenbank aus der Zeit vor beiden Umbauten (``user_version = 0``)
+    laeuft durch BEIDE Tabellen: erst acht -> sieben (Kernthema und Figuren
+    sind eine Phase geworden), dann sieben -> acht (erst erfinden, dann
+    schaerfen). Ohne diesen Schritt saehe eine Gruppe, die abends bei
+    '8 · Durchlauf' aufgehoert hat, am naechsten Morgen eine Nummer, die es
+    nicht mehr gibt."""
     c = _alte_phasen_db(tmp_path)
 
     db.initialisiere(c)
@@ -245,11 +247,68 @@ def test_phasennummern_werden_einmalig_umgerechnet(tmp_path):
     }
     assert gelesen == {
         1: (3, 4),      # 1-3 bleiben, wo sie sind
-        2: (4, 5),      # alt 5 (Figuren) -> neu 4 (Kernthema & Figuren)
-        3: (5, 6),      # alt 6 (Hauptkonflikt) -> neu 5
-        4: (6, 7),      # alt 7 (Szenen) -> neu 6
-        5: (7, None),   # alt 8 (Durchlauf) -> neu 7, NULL bleibt NULL
+        2: (4, 5),      # alt 5 (Figuren) -> 4 -> 4 (Setting & Figuren)
+        3: (5, 7),      # alt 6 (Hauptkonflikt) -> 5 -> 5 (Geschichte)
+        4: (7, 8),      # alt 7 (Szenen) -> 6 -> 7 (Szenentexte)
+        5: (8, None),   # alt 8 (Durchlauf) -> 7 -> 8, NULL bleibt NULL
     }
+
+
+def _siebenstufige_db(tmp_path, name="sieben.db"):
+    """Eine Datenbank auf dem Stand vom 05.09.2026 tagsueber: sieben Phasen,
+    ``user_version`` auf 1. Sie darf NUR noch durch die zweite Tabelle."""
+    c = db.verbinde(str(tmp_path / name))
+    db.initialisiere(c)
+    for chat_id, phase, angeboten in ((1, 3, 4), (2, 5, 6), (3, 6, 7), (4, 7, None)):
+        repo.sichere_gruppe(c, chat_id, "gruppe1", f"Gruppe {chat_id}")
+        c.execute(
+            "UPDATE arbeitsstand SET phase = ?, phase_angeboten = ? WHERE chat_id = ?",
+            (phase, angeboten, chat_id),
+        ) if c.execute(
+            "SELECT 1 FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+        ).fetchone() else c.execute(
+            "INSERT INTO arbeitsstand (chat_id, phase, phase_angeboten) VALUES (?, ?, ?)",
+            (chat_id, phase, angeboten),
+        )
+    c.execute("PRAGMA user_version = 1")
+    c.commit()
+    return c
+
+
+def test_der_zweite_umbau_verschiebt_nur_sechs_und_sieben(tmp_path):
+    """Der Umbau vom 05.09.2026 nachts (db.PHASEN_UMNUMMERIERUNG_2): 4 und 5
+    bleiben, wo sie sind -- dort wird weiter Setting bzw. Geschichte
+    gearbeitet --, aus 6 (Szenen) wird 7 (Szenentexte), aus 7 (Durchlauf) 8.
+    Die neue 6 (Schaerfung) bekommt niemand zugewiesen: sie ist ein Angebot,
+    keine uebersprungene Station."""
+    c = _siebenstufige_db(tmp_path)
+
+    db.initialisiere(c)
+
+    gelesen = {
+        z["chat_id"]: (z["phase"], z["phase_angeboten"])
+        for z in c.execute("SELECT * FROM arbeitsstand ORDER BY chat_id")
+    }
+    assert gelesen == {
+        1: (3, 4),
+        2: (5, 7),      # 5 bleibt 5, das Angebot 6 wird zu 7
+        3: (7, 8),      # alt 6 (Szenen) -> 7 (Szenentexte)
+        4: (8, None),   # alt 7 (Durchlauf) -> 8
+    }
+    assert c.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+
+
+def test_eine_migrierte_gruppe_steht_auf_einer_gueltigen_phase(tmp_path):
+    """Die Probe: zu jedem migrierten Wert gibt es einen Kurznamen und eine
+    Phasendatei -- sonst faellt ``anweisungen.system`` ueber eine fehlende
+    ``phasen/N.md``."""
+    c = _siebenstufige_db(tmp_path)
+
+    db.initialisiere(c)
+
+    for z in c.execute("SELECT phase FROM arbeitsstand"):
+        assert phasen.kurzname(z["phase"]), z["phase"]
+        assert z["phase"] <= phasen.LETZTE
 
 
 def test_jede_umgerechnete_nummer_ist_eine_gueltige_phase(tmp_path):
@@ -274,7 +333,7 @@ def test_die_umrechnung_laeuft_nicht_zweimal(tmp_path):
     db.initialisiere(c)
     db.initialisiere(c)
 
-    assert c.execute("SELECT phase FROM arbeitsstand WHERE chat_id = 5").fetchone()[0] == 7
+    assert c.execute("SELECT phase FROM arbeitsstand WHERE chat_id = 5").fetchone()[0] == 8
     assert c.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
 
 

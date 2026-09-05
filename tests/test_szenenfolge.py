@@ -136,14 +136,15 @@ VORSCHLAG = (
 # --- Eintritt in Phase 6 --------------------------------------------------
 
 
-def test_phasenknopf_6_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
+def test_phasenknopf_7_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
     """Birk 05.09.2026: eine Gruppe, die schon Szenenideen hat, soll sie
-    nicht gegen eine fertige Liste verteidigen muessen. Der Eintritt in
-    Phase 6 ist deshalb dieselbe proaktive Frage wie in jeder anderen Phase
-    (``knoepfe.biete_proaktiv``) -- kein eigener Weg fuer dieselbe Sache."""
-    knoepfe.biete_phase(conn, tg, 1, "Weiter?", 6)
+    nicht gegen eine fertige Liste verteidigen muessen. Der Eintritt in die
+    Szenentexte ist deshalb dieselbe proaktive Frage wie in jeder anderen
+    Phase (``knoepfe.biete_proaktiv``) -- kein eigener Weg fuer dieselbe
+    Sache."""
+    knoepfe.biete_phase(conn, tg, 1, "Weiter?", 7)
 
-    _druecke(conn, tg, einst, "Weiter zu Szenen")
+    _druecke(conn, tg, einst, "Weiter zu Szenentexte")
 
     assert knoepfe._TEXT_PROAKTIV in tg.texte
     assert tg.beschriftungen == [
@@ -151,14 +152,14 @@ def test_phasenknopf_6_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
     ]
 
 
-def test_schlag_du_vor_in_phase_6_geht_ueber_szenenfolge(conn, einst, tg):
+def test_schlag_du_vor_in_phase_7_geht_ueber_szenenfolge(conn, einst, tg):
     """"Schlag du vor" braucht ein Modell -- und ruft es NICHT im Handler:
     ``szenenfolge.starte`` kuendigt an und startet einen Thread (Muster:
     ``szene.starte``). In Phase 6 ist es dieser Weg und nicht der allgemeine
     Auftragszug: der Vorschlag hat eine feste Zeilenform und traegt danach
     seine eigenen Knoepfe."""
     klm = LLMAttrappe(VORSCHLAG)
-    knoepfe.biete_proaktiv(conn, tg, 1, 6)
+    knoepfe.biete_proaktiv(conn, tg, 1, 7)
 
     _druecke(conn, tg, einst, knoepfe._TEXT_SCHLAG_VOR_KNOPF, klm=klm)
     # Der Thread laeuft nebenher; auf ihn wird ueber die Sperre gewartet.
@@ -256,6 +257,9 @@ def test_anzahl_aendern_zeigt_die_zahlen_und_ruft_kein_modell(conn, einst, tg):
 
 def test_eine_zahl_stoesst_einen_neuen_vorschlag_mit_dieser_anzahl_an(conn, einst, tg):
     klm = LLMAttrappe(VORSCHLAG)
+    # Ab Phase 7 ist \"Anzahl aendern\" eine Angabe zur Szenenfolge; in 5
+    # waere es eine zur Geschichte (eigener Weg, eigener Test).
+    phasen.setze(conn, 1, 7, "befehl")
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
     _druecke(conn, tg, einst, knoepfe.TEXT_ANZAHL_KNOPF, klm=klm)
 
@@ -599,14 +603,14 @@ def test_textbuch_fehler_laesst_die_gruppe_nicht_ratlos(conn, einst, tg):
     assert knoepfe._TEXT_TEXTBUCH_FEHLER in tg.texte
 
 
-def test_phasenknopf_7_zeigt_gleich_den_durchlauf(conn, einst, tg):
+def test_phasenknopf_8_zeigt_gleich_den_durchlauf(conn, einst, tg):
     szene_id = _eine_szene(conn)
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Da.")
-    knoepfe.biete_phase(conn, tg, 1, "Weiter?", 7)
+    knoepfe.biete_phase(conn, tg, 1, "Weiter?", 8)
 
     _druecke(conn, tg, einst, "Weiter zu Durchlauf")
 
-    assert phasen.aktuelle(conn, 1) == 7
+    assert phasen.aktuelle(conn, 1) == 8
     assert knoepfe.TEXT_TEXTBUCH_KNOPF in tg.beschriftungen
 
 

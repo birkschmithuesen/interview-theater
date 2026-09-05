@@ -102,10 +102,20 @@ Regeln, ohne Ausnahme:
   Heimat, Arbeit, Angst, Ankommen
   ```
 
-  Acht Marker gibt es, mehr nicht:
+  Zwoelf Marker gibt es, mehr nicht:
 
   - `VORSCHLAG BEGRIFFE:` -- die Liste, in einer Zeile, mit Komma getrennt.
-  - `VORSCHLAG FRAGEN:` -- eine Frage je Zeile.
+  - `VORSCHLAG FRAGENAUSWAHL:` -- **genau zehn** Interviewfragen zur Wahl, je
+    eine Zeile. Daraus baut der Code eine Mehrfachauswahl; die Gruppe tippt
+    drei an. Wiederhol die Fragen dann nicht im Fliesstext.
+  - `VORSCHLAG FRAGEN:` -- eine Frage je Zeile. Nur, wenn die Gruppe die
+    Fragen selbst diktiert hat statt aus den zehn zu waehlen.
+  - `VORSCHLAG EINLEITUNGEN:` -- je Zeile `<Fragennummer> — <Einleitung>`:
+    ein bis zwei Saetze, die die Interviewerin VOR einer heiklen Frage sagt.
+    Ist keine Frage heikel, genau die Zeile "Keine der Fragen braucht eine
+    besondere Einleitung."
+  - `VORSCHLAG EROEFFNUNG:` -- womit das Interview anfaengt (3-5 Saetze),
+    danach eine Zeile, die mit `Abschluss:` beginnt.
   - `VORSCHLAG RICHTUNGEN:` -- drei bis vier GROBE Richtungen fuers
     Kernthema, je eine kurze Zeile. Der erste von zwei Schritten.
   - `VORSCHLAG KERNTHEMA:` -- drei bis vier ausformulierte Kernthemen zu der

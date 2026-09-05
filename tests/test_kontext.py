@@ -510,6 +510,7 @@ def test_neue_stufe_wird_erneut_erfragt(conn, einst):
     kontext.baue(conn, 1, ausloeser, einst)  # fragt nach 2
 
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Hallo, wir sind ...")
 
     assert "Materiallage wuerde Phase 3" in kontext.baue(conn, 1, ausloeser, einst)
 

@@ -104,6 +104,7 @@ _SCROLL_JS = """
 _CSS_GEMEINSAM = """
 ul.fragen { list-style: none; padding: 0; margin: 0; }
 ul.fragen li { margin: .25em 0; }
+pre.leitfaden { white-space: pre-wrap; font-family: inherit; margin: 0; }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 1rem 1.2rem 3rem;
        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -277,6 +278,25 @@ def _fragen_html(fragen: str | None) -> str:
     return "<ul class=\"fragen\">" + "".join(zeilen) + "</ul>"
 
 
+def _leitfaden_html(arbeitsstand: dict) -> str:
+    """Der Gespraechsleitfaden als eigener Eintrag unter den Fragen -- oder
+    gar nichts (06.09.2026).
+
+    Read-only und ohne Werbung fuer sich selbst: steht kein Leitfaden, fehlt
+    die Zeile ganz, statt als leere Aufgabe dazustehen (dieselbe Regel wie
+    beim Hauptkonflikt). Der Text kommt aus ``leitfaden.aus_feldern`` -- der
+    reinen Funktion, die auch der Chat benutzt, damit auf der Gruppenseite
+    nichts anderes steht als auf dem Telefon. ``leitfaden`` selbst haengt an
+    keinem Schreib-Lock, solange es nur diese Funktion ist.
+    """
+    from interview_theater import leitfaden
+
+    text = leitfaden.aus_feldern(arbeitsstand)
+    if text == leitfaden.TEXT_LEER:
+        return ""
+    return f"<dt>Leitfaden</dt><dd><pre class=\"leitfaden\">{_t(text)}</pre></dd>"
+
+
 def _figur_html(f: dict, mit_stimme: bool) -> str:
     """Eine Figur: Name, Beschreibung -- und auf der Gruppenseite zusaetzlich
     das Interview, aus dem sie spricht, ihr Sprachprofil und ihre woertlichen
@@ -312,7 +332,12 @@ def _arbeitsstand_html(
         f"<dt>Phase</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
         f"<dt>Begriffe</dt><dd>{_t(arbeitsstand['begriffe'])}</dd>"
         f"<dt>Fragen</dt><dd>{_fragen_html(arbeitsstand.get('fragen'))}</dd>"
-        f"<dt>Kernthema</dt><dd>{_t(arbeitsstand['kernthema'])}"
+        # Der Leitfaden steht direkt unter den Fragen -- er ist ihre
+        # Gebrauchsanweisung (06.09.2026). Read-only wie alles hier: gebaut
+        # wird er aus denselben Feldern wie im Chat (``leitfaden.aus_feldern``),
+        # damit auf der Wand nichts anderes steht als auf dem Telefon.
+        + _leitfaden_html(arbeitsstand)
+        + f"<dt>Kernthema</dt><dd>{_t(arbeitsstand['kernthema'])}"
         + (
             f"<div class=\"zeit\">{_t(arbeitsstand['kernthema_begruendung'], '')}</div>"
             if arbeitsstand["kernthema_begruendung"]

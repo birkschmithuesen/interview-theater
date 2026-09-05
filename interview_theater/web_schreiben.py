@@ -49,18 +49,26 @@ JOURNAL_GRENZE = 120
 #: Was im Journal steht, wo vorher nichts stand.
 LEER = "(leer)"
 
-#: Die Formen, die das Dropdown je Szene anbietet (Birk: "klein und sinnvoll
-#: halten"). ``szene.FORMEN`` kennt mehr (``stumm``, ``tanztheater``); der
-#: aktuelle Wert einer Szene wird in ``web.py`` immer mit angeboten, eine
-#: Szene verliert ihre Form also nicht dadurch, dass sie hier fehlt.
-FORMEN = ("Dialog", "Monolog", "Chor", "Lied", "Rap")
+#: Die fuenf Formen je Szene -- **kleingeschrieben und wortgleich mit**
+#: ``szene.FORMEN``: der Knopf im Chat speichert ``"dialog"``, und das
+#: Dropdown muss denselben Wert schreiben, sonst stuenden fuer dieselbe Form
+#: zwei Schreibweisen in der Datenbank und ``szene.formdatei`` faende bei
+#: einer davon den Regelblock nicht mehr. Die Beschriftung macht ``web.py``
+#: mit ``capitalize()``, genau wie ``knoepfe.biete_szenenform``.
+#:
+#: Hier noch einmal als Literal statt importiert: ``szene`` zieht ``httpx``
+#: nach, und der Webserver kommt mit der Standardbibliothek aus. Dass die
+#: beiden Listen gleich bleiben, haelt
+#: ``test_web_edit.test_formen_sind_die_aus_szene`` fest.
+FORMEN = ("dialog", "monolog", "chor", "lied", "rap")
 
 #: Die Arbeitsstandfelder, die die Gruppenseite setzen darf, mit ihrer
 #: Beschriftung im Journal. Eine echte Teilmenge von
-#: ``repo._ARBEITSSTAND_FELDER``: ``format`` steht seit dem 05.09.2026 abends
-#: fest (Urban Dance Tanztheater), ``figuren_entwurf``, ``figur_aktuell``,
-#: ``aenderung_offen`` und ``figuren_fixiert_am`` sind Merkposten der
-#: Knopfwege und keine Parameter des Stuecks.
+#: ``repo._ARBEITSSTAND_FELDER``: ``format`` fehlt, weil es die Frage seit dem
+#: 05.09.2026 abends nicht mehr gibt (was zaehlt, ist die Form je Szene);
+#: ``figuren_entwurf``, ``figur_aktuell``, ``aenderung_offen`` und
+#: ``figuren_fixiert_am`` sind Merkposten der Knopfwege und keine Parameter
+#: des Stuecks.
 ARBEITSSTANDFELDER = {
     "begriffe": "Begriffe",
     "fragen": "Fragen",

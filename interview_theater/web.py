@@ -706,7 +706,9 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
             platzhalter="noch offen — Frage / Gegensatz / Einsatz",
         )
         + "</dd>"
-        f"<dt>Format</dt><dd>{_t(stand.get('format'))}</dd>"
+        # Kein Format mehr (05.09.2026 abends, wie in _arbeitsstand_html):
+        # das Format des Stuecks ist keine Frage mehr, die gestellt wird --
+        # was zaehlt, ist die Form JE SZENE.
         "<dt>Rahmen</dt><dd>"
         + _dropdown(
             "rahmen",
@@ -935,8 +937,9 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
         formen = list(web_schreiben.FORMEN)
         jetzige = (s.get("form") or "").strip()
         if jetzige and jetzige not in formen:
-            # Eine Szene verliert ihre Form nicht dadurch, dass sie nicht in
-            # der kleinen Auswahl steht (szene.FORMEN kennt mehr).
+            # Eine Szene aus der Zeit der sechs Formen ("stumm") oder eine
+            # frei formulierte behaelt ihre Angabe -- sie steht als erste
+            # Option da, statt stumm auf "offen" zurueckzufallen.
             formen.insert(0, jetzige)
         felder = (
             "<dt>Titel</dt><dd>"
@@ -951,7 +954,7 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
             + "</dd><dt>Form</dt><dd>"
             + _dropdown(
                 "szene_form",
-                [(f, f) for f in formen],
+                [(f, f.capitalize()) for f in formen],
                 jetzige,
                 s["id"],
                 leer="— offen —",

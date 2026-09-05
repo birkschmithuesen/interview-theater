@@ -93,7 +93,8 @@ def db_pfad(tmp_path):
 
     szene_id = repo.stelle_szene_sicher(conn, 1, 1)
     repo.setze_szenenfeld(conn, szene_id, "titel", "Im Treppenhaus")
-    repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
+    # Kleingeschrieben wie der Knopf im Chat (knoepfe.biete_szenenform).
+    repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
     repo.setze_szenenfeld(conn, szene_id, "ort", "Treppenhaus")
 
     repo.schreibe_journal(conn, 1, "entschieden", "Kernthema steht", "extraktor")
@@ -218,7 +219,8 @@ def test_gesetzte_werte_stehen_wirklich_in_den_formularen(basis, token, conn):
     assert "Ankommen, Arbeit, Nacht" in koerper
     assert "Was war in deinem Koffer?" in koerper
     assert '<option value="4" selected>' in koerper
-    assert '<option value="Dialog" selected>' in koerper
+    # Wert kleingeschrieben wie im Chat, Beschriftung gross wie auf dem Knopf.
+    assert '<option value="dialog" selected>Dialog</option>' in koerper
 
 
 def test_dashboard_bleibt_ohne_formulare(basis):
@@ -528,7 +530,7 @@ def szene(conn):
     "feld,wert",
     [
         ("titel", "Auf der Treppe"),
-        ("form", "Lied"),
+        ("form", "lied"),
         ("ort", "Hinterhof"),
         ("zeit", "kurz vor Mitternacht"),
         ("anlass", "der Aufzug steht"),
@@ -554,7 +556,7 @@ def test_szenenfeld_ruehrt_kein_anderes_an(basis, token, conn):
 
     frisch = repo.hole_szene(conn, szene_id)
     assert frisch["titel"] == "Im Treppenhaus"
-    assert frisch["form"] == "Dialog"
+    assert frisch["form"] == "dialog"
 
 
 def test_szenen_volltext_ist_nicht_aenderbar(basis, token, conn):
@@ -601,6 +603,16 @@ def test_szene_einer_fremden_gruppe_bleibt_unberuehrt(basis, token, conn):
 
 
 # --- Kein Material, kein zweiter Schreibweg -------------------------------
+
+
+def test_formen_sind_die_aus_szene():
+    """``web_schreiben.FORMEN`` ist ein Literal, weil ``szene`` httpx
+    nachzieht und der Webserver mit der Standardbibliothek auskommt -- die
+    beiden Listen duerfen deshalb nicht auseinanderlaufen. Sonst schriebe das
+    Dropdown eine Form, zu der ``szene.formdatei`` keinen Regelblock findet."""
+    from interview_theater import szene
+
+    assert web_schreiben.FORMEN == szene.FORMEN
 
 
 def test_material_steht_in_keinem_feld():

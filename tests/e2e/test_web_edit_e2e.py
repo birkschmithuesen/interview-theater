@@ -110,7 +110,8 @@ def _baue_datenbank(pfad: str) -> str:
 
     szene_id = repo.stelle_szene_sicher(conn, 4711, 1)
     repo.setze_szenenfeld(conn, szene_id, "titel", "Im Treppenhaus")
-    repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
+    # Kleingeschrieben wie der Knopf im Chat (knoepfe.biete_szenenform).
+    repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
     repo.setze_szenenfeld(conn, szene_id, "ort", "Treppenhaus")
 
     repo.schreibe_journal(conn, 4711, "entschieden", "Kernthema steht", "extraktor")
@@ -334,14 +335,16 @@ def test_szene_form_aendern(seite, datenbank):
     aufklappen, dann umstellen."""
     seite.locator("details.szene summary").first.click()
     bereich = feld(seite, "szene_form")
-    expect(bereich.locator("select.auswahl")).to_have_value("Dialog")
+    expect(bereich.locator("select.auswahl")).to_have_value("dialog")
 
-    bereich.locator("select.auswahl").select_option("Lied")
+    # Beschriftung gross, Wert klein -- und geschrieben wird der Wert, damit
+    # szene.formdatei denselben Regelblock findet wie nach einem Knopfdruck.
+    bereich.locator("select.auswahl").select_option(label="Lied")
     speichere(bereich)
     schuss(seite, "07-szene-form.png")
 
     szene_id = repo.hole_szenen(datenbank, 4711)[0]["id"]
-    assert repo.hole_szene(datenbank, szene_id)["form"] == "Lied"
+    assert repo.hole_szene(datenbank, szene_id)["form"] == "lied"
     # Und kein anderes Feld ist mitgegangen.
     assert repo.hole_szene(datenbank, szene_id)["ort"] == "Treppenhaus"
 

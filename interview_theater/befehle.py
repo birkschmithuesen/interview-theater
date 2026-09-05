@@ -426,7 +426,7 @@ def _befehl_figur(conn, tg, chat_id: int, rest: str) -> None:
     )
 
 
-def _befehl_phase(conn, tg, chat_id: int, rest: str) -> None:
+def _befehl_phase(conn, tg, chat_id: int, rest: str, klm=None, e=None) -> None:
     """Der Notausgang fuer die Arbeitsphase (interview_theater/phasen.py) -- neben
     dem Erkenner (art ``phase_setzen``) der zweite, deterministische Weg.
 
@@ -463,45 +463,58 @@ def _befehl_phase(conn, tg, chat_id: int, rest: str) -> None:
         return
     phasen.setze(conn, chat_id, nummer, "befehl")
     tg.sende(chat_id, phasen.meldung(nummer))
+    # Derselbe Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile,
+    # Einleitung, Checkliste und die Einstiegsknoepfe dieser Phase. Ein
+    # Befehl darf nicht in einer anderen Phase landen als ein Druck.
+    try:
+        knoepfe.eintritt_in_phase(conn, tg, klm, e, chat_id, nummer)
+    except Exception:
+        log.exception("Phaseneintritt nach /phase fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     """Baut die Stand-Antwort ausschliesslich aus der Datenbank -- ohne
     Sprachmodell, kann also nicht am LLM scheitern (teil-b.md Aufgabe 6).
 
-    Die Phase steht zuerst: sie ordnet alles darunter ein."""
+    Die Phase steht zuerst: sie ordnet alles darunter ein. Danach je Phase
+    bis zur aktuellen ein Block mit **denselben** Parameterzeilen, die auch
+    die Eintritts- und die Abschlussnachricht zeigen
+    (``phasentexte.standzeilen``, 06.09.2026). Eine Liste, drei Leser -- ein
+    zweiter Ort waere ein zweiter Stand.
+
+    Kernthema und Hauptkonflikt stehen weiter am Ende: sie sind seit dem
+    Umbau vom 05.09.2026 keiner Phase mehr zugeordnet, bleiben aber
+    rueckwaertskompatibel im Code und in bestehenden Gruppen."""
+    from interview_theater import phasentexte
+
     stand = repo.hole_arbeitsstand(conn, chat_id)
-    figuren = repo.figuren(conn, chat_id)
-    aufnahmen_namen = _namen_der_aufnahmen(conn, chat_id)
     gruppe = repo.hole_gruppe(conn, chat_id)
     interviewmodus_an = gruppe is not None and gruppe["interviewmodus_seit"] is not None
+    jetzige = phasen.aktuelle(conn, chat_id)
 
     zeilen = ["Stand:"]
-    zeilen.append(f"Phase: {phasen.bezeichnung(phasen.aktuelle(conn, chat_id))}")
-    zeilen.append(
-        f"Begriffe: {stand['begriffe']}" if stand and stand["begriffe"] else "Begriffe: noch keine"
-    )
-    zeilen.append(
-        f"Fragen: {stand['fragen']}" if stand and stand["fragen"] else "Fragen: noch keine"
-    )
-    zeilen.append(
-        f"Kernthema: {stand['kernthema']}" if stand and stand["kernthema"] else "Kernthema: noch offen"
-    )
-    zeilen.append(
-        f"Rahmen: {stand['rahmen']}" if stand and stand["rahmen"] else "Rahmen: noch offen"
-    )
+    zeilen.append(f"Phase: {phasen.bezeichnung(jetzige)}")
+    # Alle acht Bloecke, nicht nur die bis zur aktuellen Phase: der Stand ist
+    # die Uebersicht ueber das ganze Stueck, und eine Gruppe, die aus Phase 7
+    # nach 2 zurueckgesprungen ist, soll ihre Szenen darin nicht verlieren.
+    # Was noch nicht dasteht, steht als "noch keine"/"noch offen" da -- das
+    # ist die Information, nicht ihre Abwesenheit.
+    for nummer, _, _ in phasen.PHASEN:
+        block = phasentexte.standzeilen(conn, chat_id, nummer)
+        if not block:
+            continue
+        zeilen.append("")
+        zeilen.append(f"{phasen.bezeichnung(nummer)}")
+        zeilen.extend(block)
+    zeilen.append("")
+    if stand and stand["kernthema"]:
+        zeilen.append(f"Kernthema: {stand['kernthema']}")
     # Der Hauptkonflikt steht nur da, wenn es einen gibt (05.09.2026): er ist
     # eine moegliche Rahmen-Entscheidung, keine Pflicht -- und eine Zeile
     # "Hauptkonflikt: noch offen" liest sich wie eine Luecke, die zu fuellen
     # waere.
     if stand and stand["hauptkonflikt"]:
         zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
-    zeilen.append(
-        "Figuren: " + ", ".join(f["name"] for f in figuren) if figuren else "Figuren: noch keine"
-    )
-    zeilen.append(
-        "Interviews: " + ", ".join(aufnahmen_namen) if aufnahmen_namen else "Interviews: noch keine"
-    )
     zeilen.append("Interviewmodus: an" if interviewmodus_an else "Interviewmodus: aus")
     url = repo.gruppenseite_url(conn, chat_id, getattr(e, "web_url", ""))
     if url:
@@ -678,7 +691,7 @@ def behandle(
     elif befehl == "/auswerten":
         _befehl_auswerten(conn, tg, klm, e, chat_id, rest)
     elif befehl == "/phase":
-        _befehl_phase(conn, tg, chat_id, rest)
+        _befehl_phase(conn, tg, chat_id, rest, klm=klm, e=e)
     elif befehl == "/kernthema":
         _befehl_kernthema(conn, tg, chat_id, rest)
     elif befehl == "/stueck":

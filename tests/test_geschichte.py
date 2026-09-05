@@ -86,7 +86,10 @@ def test_der_eintritt_fragt_offen_und_schlaegt_nichts_vor(conn, tg, einst, phase
 
     knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, tg.beschriftungen[0])))
 
-    assert tg.gesendet[-1][1] == knoepfe._TEXT_PROAKTIV
+    # Der Phasenrahmen steht davor, die Frage darunter -- EINE Nachricht
+    # (06.09.2026).
+    assert tg.gesendet[-1][1].startswith(f"\u25b6\ufe0f Phase {phase} von 8")
+    assert tg.gesendet[-1][1].endswith(knoepfe._TEXT_PROAKTIV)
     assert tg.beschriftungen == ["Ja, wir zuerst", "Schlag du vor"]
 
 

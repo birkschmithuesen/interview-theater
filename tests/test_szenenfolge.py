@@ -146,7 +146,7 @@ def test_phasenknopf_7_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
 
     _druecke(conn, tg, einst, "Weiter zu Szenentexte")
 
-    assert knoepfe._TEXT_PROAKTIV in tg.texte
+    assert any(t.endswith(knoepfe._TEXT_PROAKTIV) for t in tg.texte)
     assert tg.beschriftungen == [
         knoepfe._TEXT_WIR_ZUERST_KNOPF, knoepfe._TEXT_SCHLAG_VOR_KNOPF,
     ]

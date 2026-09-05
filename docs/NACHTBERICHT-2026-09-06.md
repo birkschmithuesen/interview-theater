@@ -14,3 +14,9 @@ liest die letzte Zeile.
 - Web-Branch: origin/main gemergt (Konflikt web_daten gelöst), Claude Code passt jetzt an die 8 Phasen an (Geschichte/Leitfaden editierbar, Kernthema raus, E2E erneut) — läuft.
 - Prompt-Audit (`feat/prompt-audit`) läuft noch.
 - Bots noch NICHT neu gestartet (gruppe1–3 auf b9148b7, gruppe4 auf cdb8086) — Neustart nach Prompt-Audit + Web.
+
+## 01:20 — Prompt-Audit gemergt, ALLE VIER BOTS auf main
+- main = `c47039f` (+ Prompt-Audit `feat/prompt-audit`: harte Nutzertext-Grenze 24 000 Zeichen, Dedupe, 21 Prompt-Dumps, 41 Prompt-Tests). Volle Suite **1459 grün**.
+- Neustart einzeln gruppe4 → 1 → 2 → 3 (nichts lief). Alle aktiv, 4 Prozesse, nur 200 OK, keine neuen Tracebacks. soap.db migriert auf user_version 2 (Phasen unverändert 3/3/3); test.db Phase 7 (= Szenentexte, korrekt aus alt 6).
+- Web-Dashboard von außen erreichbar (browser_exec, Stand 01:18), noch alter Web-Code (Web-Unit startet nach Web-Merge).
+- Offen: Web-Branch (Claude Code passt an 8 Phasen an), dann Simulation.

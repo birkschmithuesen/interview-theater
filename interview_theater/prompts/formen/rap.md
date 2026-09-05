@@ -5,6 +5,10 @@
 > Recherche vorliegt (`interview-theater-material/ergebnis/form-rap.md`),
 > gehoert sie hierher -- diese Fassung ist die Notloesung.
 
+Auch ein Rap steht im Textbuch wie eine Sprechszene: Szenenkopf, Ort,
+Regie, dann der Rap-Text als Sprechzeilen der Figur(en) -- dieselbe
+Layout-Konvention wie `dialog.md` (Textbuch nach Herkules-Maß).
+
 Rap traegt, wo eine Erzaehlung von sich aus Rhythmus hat: Aufzaehlungen,
 Wiederholungen, ein Satz, der immer wiederkommt. Genau danach suchst du in den
 Zitaten der Figur, bevor du eine Zeile schreibst.

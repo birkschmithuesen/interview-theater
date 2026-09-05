@@ -5,6 +5,10 @@
 > Wenn die Recherche vorliegt (`interview-theater-material/ergebnis/
 > form-lied.md`), gehoert sie hierher -- diese Fassung ist die Notloesung.
 
+Auch ein Lied steht im Textbuch wie eine Sprechszene: Szenenkopf, Ort,
+Regie, dann der Liedtext als Sprechzeilen der Figur(en) -- dieselbe
+Layout-Konvention wie `dialog.md` (Textbuch nach Herkules-Maß).
+
 Ein Lied ist keine gesungene Szene. Es haelt an, wo der Dialog weitergeht:
 eine Figur (oder mehrere) sagt einmal, was sie in einem Gespraech nie sagen
 wuerde -- und darf dafuer laenger reden als sonst.

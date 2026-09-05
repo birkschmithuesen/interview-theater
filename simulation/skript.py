@@ -118,9 +118,9 @@ def _stand_gesetzt(conn, chat_id: int, feld: str) -> bool:
 # ---------------------------------------------------------------------------
 
 #: Die Arten, wie ein Schritt gefahren wird. ``stimmen`` ist der Normalfall
-#: (Stimme -> Zug -> Erkenner, bis der Zielzustand steht); die drei anderen
-#: haben einen eigenen Ablauf in ``lauf.py``, weil sie mehr tun als reden.
-ARTEN = ("stimmen", "interviews", "szene", "befehl")
+#: (Stimme -> Zug -> Erkenner, bis der Zielzustand steht); die anderen haben
+#: einen eigenen Ablauf in ``lauf.py``, weil sie mehr tun als reden.
+ARTEN = ("stimmen", "interviews", "szene", "befehl", "zitate")
 
 
 @dataclass(frozen=True)
@@ -219,6 +219,28 @@ def _fertig_stand(conn, chat_id, merker):
     return True
 
 
+def _fertig_zitate(conn, chat_id, merker):
+    """Die Zitatabfragen haben keinen Zielzustand in der Datenbank: sie
+    aendern nichts, sie fragen ab. Ob der Bot richtig geantwortet hat, sagen
+    der Richter und die Kennzahl ``zitat_erfunden`` -- nicht ein Feld."""
+    return True
+
+
+#: Die drei Fragen des Abfrage-Schritts, je eine Stimme. Sie sind bewusst
+#: verschieden schwer: die erste laesst sich aus den Verdichtungen beantworten
+#: (die stehen immer im Prompt), die zweite verlangt eine bestimmte Stelle,
+#: die dritte den Volltext -- und der steht nur mit ``/wortlaut`` im Kontext.
+#: Der Bericht sagt hinterher, was davon gereicht hat.
+ZITAT_ZIELE = (
+    "Du willst sehen, was der Bot sich aus einem Interview gemerkt hat: "
+    "frag ihn, ob er dir alle Zitate aus dem zweiten Interview zeigt.",
+    "Dich interessiert eine bestimmte Stelle: frag den Bot, was genau zu "
+    "einem der Begriffe gesagt wurde -- woertlich, nicht zusammengefasst.",
+    "Du willst den ganzen Text: bitte den Bot um das vollstaendige "
+    "Transkript des ersten Interviews.",
+)
+
+
 #: Die neun Schritte in der Reihenfolge, in der sie gefahren werden.
 SCHRITTE: tuple[Schritt, ...] = (
     Schritt(
@@ -281,6 +303,14 @@ SCHRITTE: tuple[Schritt, ...] = (
         _fertig_szene,
         art="szene",
         max_nachrichten=4,
+    ),
+    Schritt(
+        "zitate",
+        "Zitatabfragen",
+        "Ihr wollt wissen, was der Bot aus den Interviews woertlich hat.",
+        _fertig_zitate,
+        art="zitate",
+        max_nachrichten=len(ZITAT_ZIELE),
     ),
     Schritt(
         "korrektur",
@@ -399,6 +429,14 @@ SCHRITTE_BIRK: tuple[Schritt, ...] = (
         f"entschieden: {FORMAT_BIRK}. Sag es dem Bot und stimm zu, damit er "
         "es festhaelt.",
         _fertig_phase_mitte,
+    ),
+    Schritt(
+        "zitate",
+        "Zitatabfragen",
+        "Du willst wissen, was der Bot aus dem Interview woertlich hat.",
+        _fertig_zitate,
+        art="zitate",
+        max_nachrichten=len(ZITAT_ZIELE),
     ),
     Schritt(
         "szene1",

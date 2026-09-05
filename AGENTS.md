@@ -487,8 +487,20 @@ Belegzitate, Echo (`ablauf.ist_echo`), Rückfragen vor dem Szenenauftrag,
 **behauptete Schreibvorgänge** (Bot sagt „notiert", ohne dass der Erkenner
 etwas geschrieben hat — Soll 0), Namensanrede, Medianlänge der Bot-Antworten
 (Soll < 700 Zeichen), Kosten und Dauer. Dazu bewertet ein Richter (Opus)
-jeden Abschnitt mit 0/1/2 auf vier Kriterien und den Szenentext auf zwei
+jeden Abschnitt mit 0/1/2 auf vier Kriterien und jeden Szenentext auf drei
 weitere.
+
+**Und die zwei Hintergrundwege, die entscheiden, was der Bot weiß.** Das
+**Journal**: Einträge je Art, wie viele davon der Richter im Chat
+wiederfindet, welche Vorschläge fehlen, Doppeleinträge — und ob der Extraktor
+überhaupt lief (er läuft nur bei Verdrängung; sonst steht „Journal nicht
+ausgelöst" statt einer Null, `--fenster-klein` provoziert sie). Der
+**Kontextaufbau**: `kontext.baue(..., protokoll=list)` schreibt je Prompt mit,
+welcher Block mit wie vielen Token drin stand; der Bericht zeigt die
+Verteilung, die Prompts über `ZIEL`, die mit Kürzung — und bei den fünf
+schwächsten Antworten urteilt der Richter am Block-Umriss, ob dem Bot
+Information gefehlt hat, die in der DB stand. Dazu ein Skript-Schritt
+**Zitatabfragen** mit der mechanischen Kennzahl `zitat_erfunden` (Soll 0).
 
 **Kein Test, läuft nie automatisch, kostet Geld** — wie `pruefe_prompts.py`
 und `rauchtest.py`, nur eine Größenordnung mehr: ein voller Lauf sind einige

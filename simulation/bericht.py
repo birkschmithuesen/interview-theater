@@ -26,6 +26,8 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
+from interview_theater import kontext
+
 from simulation import kennzahlen, richter
 
 WURZEL = Path(__file__).resolve().parent
@@ -105,6 +107,8 @@ def kennzahlen_tabelle(zahlen: dict) -> list[str]:
           _anteil(zahlen["zitate_soll_gefunden"], zahlen["zitate_soll"]),
           "moeglichst viele",
           zahlen["zitate_soll_gefunden"] * 2 >= zahlen["zitate_soll"])
+    zeile("zitat_erfunden", zahlen.get("zitat_erfunden", 0), 0,
+          not zahlen.get("zitat_erfunden"))
     zeile("echo", zahlen["echo"], 0, zahlen["echo"] == 0)
     zeile("rueckfragen_vor_szene", zahlen["rueckfragen_vor_szene"],
           f"<= {kennzahlen.SOLL_RUECKFRAGEN_VOR_SZENE}",
@@ -183,78 +187,202 @@ def _abschnittsnoten(ergebnis, schritte) -> dict[str, int]:
     return noten
 
 
-def schlechteste_antworten(ergebnis, schritte, treffer: dict | None = None) -> list[str]:
-    """Die fuenf schlechtesten Bot-Antworten im Wortlaut -- **immer**.
+def kandidaten_schlechteste(ergebnis, schritte, treffer: dict | None = None) -> list[dict]:
+    """Die fuenf schlechtesten Bot-Antworten -- **immer** fuenf, wenn es sie
+    gibt.
 
-    Im ersten echten Lauf war dieser Abschnitt leer, obwohl in der Tabelle
-    ``behauptete_schreibvorgaenge = 1`` stand und ein Abschnitt eine 7 bekam:
-    der Richter hatte das Feld "schlechteste Antwort" freigelassen, weil er
-    den Lauf insgesamt in Ordnung fand. Damit war die Zahl in der Tabelle
-    unbelegt, und der Prompt-Pfleger konnte nichts daraus ableiten.
+    Im ersten echten Lauf war der Abschnitt im Bericht leer, obwohl in
+    derselben Tabelle ``behauptete_schreibvorgaenge = 1`` stand und ein
+    Abschnitt eine 7 bekam: der Richter hatte das Feld "schlechteste Antwort"
+    freigelassen, weil er den Lauf insgesamt in Ordnung fand. Damit war die
+    Zahl in der Tabelle unbelegt, und der Prompt-Pfleger konnte nichts daraus
+    ableiten.
 
-    Deshalb kommen die Kandidaten jetzt aus drei Quellen, in dieser Rangfolge:
+    Deshalb kommen die Kandidaten aus drei Quellen, in dieser Rangfolge:
 
     1. Antworten mit einem **mechanischen Treffer** (``treffer``): behauptete
-       Schreibvorgaenge, Echo, Namensanrede, erfundene Zitate. Sie sind
-       nachweisbar falsch, unabhaengig von jeder Note.
+       Schreibvorgaenge, Echo, Namensanrede. Sie sind nachweisbar falsch,
+       unabhaengig von jeder Note.
     2. Die vom Richter je Abschnitt benannte schlechteste Antwort, sortiert
        nach der Notensumme des Abschnitts.
     3. Wenn das nicht fuenf ergibt: die laengsten Antworten aus den
        schlechtesten Abschnitten -- die laengste Antwort eines schwachen
-       Abschnitts ist die, in der am meisten schiefgehen konnte."""
+       Abschnitts ist die, in der am meisten schiefgehen konnte.
+
+    Jeder Kandidat traegt den Zug mit, aus dem er stammt: der Richter
+    beurteilt anschliessend an dessen Kontext-Umriss, ob dem Bot ueberhaupt
+    die Information vorlag (N4b)."""
     treffer = treffer or {}
     noten = _abschnittsnoten(ergebnis, schritte)
     titel_fuer = {s.schluessel: s.titel for s in schritte}
-    kandidaten: list[tuple[int, int, str, str, str]] = []
+    kandidaten: list[dict] = []
     gesehen: set[str] = set()
 
-    def dazu(rang: int, note: int, schluessel: str, text: str, grund: str) -> None:
+    def dazu(rang: int, zug, text: str, grund: str) -> None:
         nackt = (text or "").strip()
         if not nackt or nackt in gesehen:
             return
         gesehen.add(nackt)
-        kandidaten.append((rang, note, titel_fuer.get(schluessel, schluessel),
-                           nackt, grund))
+        schluessel = zug.schritt if zug is not None else ""
+        kandidaten.append({
+            "rang": rang,
+            "note": noten.get(schluessel, 0),
+            "titel": titel_fuer.get(schluessel, schluessel),
+            "text": nackt,
+            "grund": grund,
+            "umriss": (zug.kontext[-1] if zug is not None and zug.kontext else {}),
+            "datenlage": (zug.datenlage if zug is not None else {}),
+            "kontext_urteil": {},
+        })
+
+    def zug_mit(text: str):
+        for zug in ergebnis.zuege:
+            if text in zug.bot:
+                return zug
+        return None
 
     # 1. mechanische Treffer
     for zug in ergebnis.zuege:
         for text in zug.bot:
             grund = treffer.get(text)
             if grund:
-                dazu(0, noten.get(zug.schritt, 0), zug.schritt, text,
-                     f"mechanisch: {grund}")
+                dazu(0, zug, text, f"mechanisch: {grund}")
 
     # 2. was der Richter benannt hat
     for schritt in schritte:
         urteil = ergebnis.urteile.get(schritt.schluessel, {})
-        dazu(1, noten.get(schritt.schluessel, 0), schritt.schluessel,
-             urteil.get("schlechteste_antwort", ""),
+        antwort = urteil.get("schlechteste_antwort", "")
+        dazu(1, zug_mit(antwort), antwort,
              urteil.get("begruendung", "") or "vom Richter als schwaechste benannt")
 
     # 3. auffuellen aus den schlechtesten Abschnitten
     fuellung = sorted(
-        (
-            (noten.get(z.schritt, 0), -len(t), z.schritt, t)
-            for z in ergebnis.zuege for t in z.bot if t.strip()
-        ),
+        ((noten.get(z.schritt, 0), -len(t), z, t)
+         for z in ergebnis.zuege for t in z.bot if t.strip()),
         key=lambda k: (k[0], k[1]),
     )
-    for note, _, schluessel, text in fuellung:
+    for note, _, zug, text in fuellung:
         if len(kandidaten) >= SCHLECHTESTE:
             break
-        dazu(2, note, schluessel, text,
+        dazu(2, zug, text,
              f"laengste Antwort im schwaechsten Abschnitt (Note {note})")
 
-    if not kandidaten:
+    kandidaten.sort(key=lambda k: (k["rang"], k["note"]))
+    return kandidaten[:SCHLECHTESTE]
+
+
+def schlechteste_antworten(ergebnis) -> list[str]:
+    """Die ausgewaehlten Antworten im Wortlaut, mit Begruendung, Block-Umriss
+    und dem Urteil des Richters, ob dem Bot Information gefehlt hat."""
+    if not ergebnis.schlechteste:
         return ["", "Der Bot hat in diesem Lauf keine einzige Antwort geschickt."]
 
-    kandidaten.sort(key=lambda k: (k[0], k[1]))
     zeilen = []
-    for _, note, titel, antwort, begruendung in kandidaten[:SCHLECHTESTE]:
-        zeilen += ["", f"**{titel}** (Abschnittsnote {note})", "",
-                   "> " + antwort.replace("\n", "\n> "), ""]
-        if begruendung:
-            zeilen.append(f"Warum: {begruendung}")
+    for kandidat in ergebnis.schlechteste:
+        zeilen += ["", f"**{kandidat['titel']}** (Abschnittsnote {kandidat['note']})",
+                   "", "> " + kandidat["text"].replace("\n", "\n> "), ""]
+        if kandidat["grund"]:
+            zeilen.append(f"Warum: {kandidat['grund']}")
+        urteil = kandidat.get("kontext_urteil") or {}
+        if urteil:
+            wert = urteil.get("information_lag_vor")
+            zeilen.append(
+                f"Information lag vor: {'–' if wert is None else wert} — "
+                + (urteil.get("satz") or "")
+            )
+        if kandidat.get("umriss"):
+            zeilen += ["", "<details><summary>Block-Umriss des Prompts</summary>", "",
+                       "```", richter.umriss_text(kandidat["umriss"]), "```",
+                       "", "</details>"]
+    return zeilen
+
+
+# ---------------------------------------------------------------------------
+# Journal und Kontextaufbau (N4)
+# ---------------------------------------------------------------------------
+
+
+def journal_abschnitt(zahlen: dict) -> list[str]:
+    """Was der Journal-Schreiber hinterlassen hat -- und ob er ueberhaupt
+    gelaufen ist.
+
+    **"Nicht ausgeloest" statt einer Null.** Der Journal-Extraktor laeuft nur
+    bei Verdraengung; ein kurzer Lauf verdraengt nie etwas. Eine Null waere
+    die Behauptung, er habe nichts gefunden -- er ist gar nicht gefragt
+    worden. Wer ihn messen will, faehrt einen Lauf mit ``--fenster-klein``."""
+    zeilen = ["", "## Journal", ""]
+    je_art = zahlen.get("journal_je_art") or {}
+    zeilen.append(
+        f"Eintraege gesamt: {zahlen.get('journal_eintraege', 0)}"
+        + (" (" + ", ".join(f"{k}={v}" for k, v in je_art.items()) + ")"
+           if je_art else "")
+    )
+
+    if not zahlen.get("journal_ausgeloest"):
+        zeilen += [
+            "",
+            "**Journal-Extraktor nicht ausgeloest.** Er laeuft nur bei "
+            "Verdraengung aus dem Gespraechsfenster, und dieser Lauf war zu "
+            "kurz dafuer. Die Eintraege oben stammen alle vom Erkenner "
+            "(`entschieden`/`verworfen`). Fuer eine Messung des Extraktors: "
+            "`--fenster-klein`.",
+        ]
+        return zeilen
+
+    vorgeschlagen = zahlen.get("journal_vorgeschlagen") or []
+    wieder = zahlen.get("journal_wiedergefunden") or []
+    nicht = zahlen.get("journal_nicht_wiedergefunden") or []
+    fehlt = zahlen.get("journal_fehlt") or []
+    zeilen += [
+        "",
+        "| Kennzahl | Wert | Soll | |",
+        "|---|---|---|---|",
+        f"| `vorgeschlagen`-Eintraege | {len(vorgeschlagen)} | – | |",
+        f"| davon im Chat wiedergefunden | {len(wieder)} | alle | "
+        f"{'ok' if not nicht else '**daneben**'} |",
+        f"| Vorschlaege ohne Journaleintrag | {len(fehlt)} | 0 | "
+        f"{'ok' if not fehlt else '**daneben**'} |",
+        f"| Doppeleintraege | {len(zahlen.get('journal_dubletten') or [])} | 0 | "
+        f"{'ok' if not zahlen.get('journal_dubletten') else '**daneben**'} |",
+    ]
+    if zahlen.get("journal_satz"):
+        zeilen += ["", zahlen["journal_satz"]]
+    for titel, liste in (("Nicht im Chat wiedergefunden", nicht),
+                         ("Im Chat, aber nicht im Journal", fehlt)):
+        if liste:
+            zeilen += ["", f"**{titel}:**", ""] + [f"- {t}" for t in liste]
+    for a, b in (zahlen.get("journal_dubletten") or []):
+        zeilen += ["", "**Doppeleintrag:**", f"- {a}", f"- {b}"]
+    return zeilen
+
+
+def kontext_abschnitt(zahlen: dict) -> list[str]:
+    """Was wann im Gespraechs-Prompt stand -- die Frage aus N4b.
+
+    Je Block Median und Maximum der geschaetzten Token, dazu wie oft ein
+    Prompt ueber das Ziel ging und wie oft gekuerzt wurde. Die Spalte
+    'leer' ist die interessanteste: ein Block, der in zwanzig von zwanzig
+    Zuegen leer war, ist entweder unnoetig -- oder er haette dasein sollen."""
+    if not zahlen.get("kontext_zuege"):
+        return []
+    zeilen = [
+        "", "## Kontextaufbau: was wann im Prompt stand", "",
+        f"{zahlen['kontext_zuege']} Gespraechs-Prompts, Median "
+        f"{zahlen['kontext_gesamt_median']} Token, Maximum "
+        f"{zahlen['kontext_gesamt_max']} Token "
+        f"(Ziel {kontext.ZIEL}).",
+        "",
+        f"- Prompts ueber dem Ziel: {zahlen['kontext_ueber_ziel']}",
+        f"- Prompts mit Kuerzung (`vorfall` kuerzung): {zahlen['kontext_gekuerzt']}",
+        "",
+        "| Block | Median Token | Maximum | in wie vielen Zuegen leer |",
+        "|---|---|---|---|",
+    ]
+    for name, werte in zahlen["kontext_bloecke"].items():
+        zeilen.append(
+            f"| {name} | {werte['median']} | {werte['max']} | "
+            f"{werte['leer']}/{zahlen['kontext_zuege']} |"
+        )
     return zeilen
 
 
@@ -390,6 +518,25 @@ def ableitung(zahlen: dict) -> list[str]:
             "vorgesehenen Zitaten sind als Beleg aufgetaucht -- der Verdichter "
             "greift zu Saetzen, die die Gruppe nicht wiedererkennt."
         )
+    if zahlen.get("zitat_erfunden"):
+        saetze.append(
+            f"{zahlen['zitat_erfunden']} Zitate in den Antworten auf die "
+            "Zitatabfragen stehen in keinem Transkript -- der Bot erfindet "
+            "Wortlaut, wenn er nach Wortlaut gefragt wird, und das ist der "
+            "teuerste Fehler von allen: die Gruppe glaubt ihm."
+        )
+    if zahlen.get("journal_fehlt"):
+        saetze.append(
+            f"{len(zahlen['journal_fehlt'])} Vorschlaege der Gruppe stehen im "
+            "Chat, aber nicht im Journal -- der Extraktor sieht sie nicht, "
+            "oder er ist nie gelaufen."
+        )
+    if zahlen.get("kontext_gekuerzt"):
+        saetze.append(
+            f"{zahlen['kontext_gekuerzt']} von {zahlen['kontext_zuege']} "
+            "Prompts wurden gekuerzt -- ab da hat der Bot ohne die "
+            "Volltranskripte geantwortet, ohne dass es jemand gemerkt haette."
+        )
     if zahlen["echo"]:
         saetze.append(
             f"{zahlen['echo']} Antworten spiegeln die Gruppe zurueck, statt etwas "
@@ -450,12 +597,9 @@ def baue(ergebnis, zahlen: dict, schritte, kopfdaten: dict) -> str:
     zeilen += ["", "## Die Szenen", ""]
     zeilen += szenen_noten(ergebnis)
     zeilen += ["", "## Die schlechtesten Bot-Antworten", ""]
-    zeilen += schlechteste_antworten(
-        ergebnis, schritte,
-        kennzahlen.mechanische_treffer(
-            ergebnis.zuege, [p.name for p in ergebnis.personen]
-        ),
-    )
+    zeilen += schlechteste_antworten(ergebnis)
+    zeilen += journal_abschnitt(zahlen)
+    zeilen += kontext_abschnitt(zahlen)
     zeilen += ["", "## Was der Prompt-Pfleger daraus ableiten koennte", ""]
     zeilen += [f"{i}. {satz}" for i, satz in enumerate(ableitung(zahlen), 1)]
     if zahlen["zitate_soll_vermisst"]:

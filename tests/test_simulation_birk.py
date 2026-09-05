@@ -362,10 +362,10 @@ def test_der_bericht_zeigt_die_drei_szenen_vollstaendig_und_den_vergleich(birk_l
     for form in skript.FORMEN_BIRK:
         assert f"Form: {form}" in text
     assert "form_eingehalten" in text
-    # Drei Szenenbloecke, jeder ungekuerzt -- der Zaehler liegt hoeher, weil
-    # die Vorschau derselben Szene auch im Abschnitt "schlechteste Antworten"
-    # stehen kann.
-    assert text.count("```") == 6, "drei Szenenbloecke"
+    # Drei Szenenbloecke, jeder ungekuerzt. Der Zaehler der Zeilen liegt
+    # hoeher, weil die Vorschau derselben Szene auch im Abschnitt
+    # "schlechteste Antworten" stehen kann.
+    assert text.count("### Szene ") == 3
     assert text.count("PAL: Pfannkuchen.") >= 3, "jede Szene ungekuerzt"
     assert birk.KERNTHEMA_DAMALS in text
 

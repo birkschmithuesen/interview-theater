@@ -132,6 +132,44 @@ Person): `IT_SIM_BIRK` zeigt darauf, Vorgabe ist
 einer Meldung ab; die Tests bauen sich ein eigenes Verzeichnis in `tmp_path`
 und laufen auch ohne.
 
+## Was der Bot weiss: Journal, Kontextaufbau, Zitatabfragen
+
+Der Simulator misst nicht nur den Gespraechs-Bot, sondern auch die zwei
+Hintergrundwege, die entscheiden, **was er ueberhaupt weiss**.
+
+**Journal.** Am Ende steht im Bericht, wie viele Eintraege je Art
+entstanden sind, wie viele davon der Richter im Chat wiederfindet (Soll:
+alle), welche Vorschlaege der Gruppe im Journal fehlen und ob zwei Eintraege
+dieselbe Sache sagen. Der Journal-Extraktor laeuft aber nur bei
+**Verdraengung** aus dem Gespraechsfenster, und ein Simulationslauf ist dafuer
+zu kurz. Dann steht im Bericht „Journal nicht ausgeloest" statt einer Null --
+eine Null waere die Behauptung, er habe nichts gefunden, dabei ist er gar
+nicht gefragt worden. Wer ihn messen will:
+
+```
+$PY -m scripts.simulation --set 1 --seed 1 --fenster-klein --ohne-szene
+```
+
+**Kontextaufbau.** `kontext.baue(..., protokoll=list)` schreibt je Prompt
+mit, welcher Block mit wie vielen geschaetzten Token darin stand (das
+Argument ist rein additiv, der Betrieb setzt es nie). Der Bericht zeigt je
+Block Median, Maximum und **in wie vielen Zuegen er leer war** — die
+interessanteste Spalte: ein Block, der immer leer war, ist entweder unnoetig
+oder haette dasein sollen. Dazu die Prompts ueber `kontext.ZIEL` und die mit
+Kuerzung. Und bei den fuenf schwaechsten Antworten urteilt der Richter am
+Block-Umriss, ob dem Bot **Information gefehlt** hat, die in der Datenbank
+stand (`information_lag_vor`, 2 = alles war da).
+
+**Zitatabfragen** sind ein eigener Skript-Schritt: eine Stimme fragt nach
+allen Zitaten eines Interviews, eine nach einer bestimmten Stelle, eine nach
+dem ganzen Text. Die drei sind verschieden schwer, weil verschieden viel
+davon im Prompt steht — Verdichtungen immer, Volltranskripte nur mit
+`/wortlaut`. Mechanisch geprueft wird `zitat_erfunden` (Soll 0): jede
+laengere Anfuehrung in einer Antwort auf diese Fragen muss Teilstring eines
+Transkripts sein. Nur in diesen Zuegen, nicht ueber den ganzen Lauf — der Bot
+setzt auch eigene Vorschlaege in Anfuehrungszeichen, und die stehen
+naturgemaess in keinem Transkript.
+
 ## Drei Dinge, die man wissen sollte
 
 **Der Simulator laeuft einfaedig.** `lauf.einfaedig()` ersetzt

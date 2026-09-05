@@ -35,6 +35,16 @@ class TelegramAttrappe:
         self._message_id = self.ERSTE_MESSAGE_ID
         self._start = time.monotonic()
 
+    def jetzt(self) -> float:
+        """Sekunden seit dem Anlegen der Attrappe -- dieselbe Uhr, mit der
+        ``sende`` seine Zeitstempel setzt.
+
+        Ohne sie muesste der Aufrufer fuer die Latenzmessung
+        (``kennzahlen.Zug.latenz_s``) selbst ``time.monotonic()`` nehmen und
+        den Nullpunkt der Attrappe abziehen -- zwei Uhren fuer eine Messung,
+        und die Differenz waere nirgends belegt."""
+        return time.monotonic() - self._start
+
     def naechste_message_id(self) -> int:
         """Die naechste message_id -- **eine** Folge fuer Bot und Gruppe.
 

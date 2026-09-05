@@ -42,6 +42,7 @@ Sekunden und wiederholt denselben Aufruf, wie ``pruefe_prompts``.
 """
 
 import argparse
+import contextlib
 import os
 import sys
 import tempfile
@@ -53,7 +54,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx
 
-from interview_theater import db, einstellungen, llm
+from interview_theater import db, einstellungen, kontext, llm
 from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN, PREISE_STAND
 from simulation import (
     bericht, birk, claude, kennzahlen, lauf, material, richter, skript,
@@ -71,6 +72,15 @@ VERSUCHE_429 = 3
 #: eigenes, laengeres Budget mitbringt (``szene.TIMEOUT_S``) und alles andere
 #: hier ohnehin sequenziell laeuft.
 TIMEOUT_S = 180.0
+
+#: Auf diesen Wert setzt ``--fenster-klein`` das Fensterbudget des
+#: Kontextaufbaus. Der Journal-Extraktor laeuft nur, wenn etwas aus dem
+#: Fenster faellt (``journal.berechne_verdraengten_abschnitt``) -- bei 8.000
+#: Token faellt in einem Simulationslauf nie etwas heraus, und der Extraktor
+#: bliebe ungemessen. 1.500 ist klein genug, dass Verdraengung schon im
+#: Interviewteil eintritt, und gross genug, dass der Bot noch ein Gespraech
+#: fuehren kann.
+FENSTER_KLEIN = 1500
 
 
 class LLMMitPause:
@@ -158,6 +168,10 @@ def baue_argumente(argv=None) -> argparse.Namespace:
                    help="Markdown-Bericht schreiben; ohne Pfad nach "
                         "simulation/berichte/<datum>-<mischung>-<seed>.md. "
                         "Transkript und verlauf.jsonl entstehen immer.")
+    p.add_argument("--fenster-klein", action="store_true",
+                   help="kontext.BUDGETS['fenster'] auf "
+                        f"{FENSTER_KLEIN} setzen, damit Verdraengung eintritt "
+                        "und der Journal-Extraktor ueberhaupt laeuft")
     p.add_argument("--alle", action="store_true",
                    help="vier Laeufe hintereinander: Sets 1-3 und birk")
     args = p.parse_args(argv)
@@ -250,7 +264,7 @@ def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
         ergebnis = durchlauf.fahre()
 
         print("  -> Richter", flush=True)
-        lauf.bewerte(sim, ergebnis, schritte)
+        lauf.bewerte(sim, conn, ergebnis, schritte)
 
         zahlen = kennzahlen.sammle(
             conn, lauf.CHAT_ID, ergebnis.zuege, gezogene,
@@ -259,6 +273,7 @@ def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
             ergebnis.schritte, e, PREISE_CHF_JE_MIO_TOKEN, ergebnis.dauer_s,
             notausgaenge=ergebnis.notausgaenge,
             sim_statistik=sim.statistik.als_dict(),
+            journal_urteil=ergebnis.journal_urteil,
         )
 
         kopfdaten = {
@@ -297,6 +312,26 @@ def einen_lauf(args, e, klient, mischung: str, sim=None) -> dict:
         return zahlen
 
 
+@contextlib.contextmanager
+def fenster_klein(an: bool):
+    """Setzt ``kontext.BUDGETS['fenster']`` herunter und danach zurueck.
+
+    Ein Modulwert und kein Argument: das Budget wird an zwei Stellen gelesen
+    (``kontext.baue`` und ``journal.berechne_verdraengten_abschnitt``), und
+    beide muessten dasselbe Argument durchgereicht bekommen, damit die
+    Verdraengung, die der Kontextaufbau erzeugt, auch die ist, die der
+    Extraktor sieht."""
+    if not an:
+        yield
+        return
+    alt = kontext.BUDGETS["fenster"]
+    kontext.BUDGETS["fenster"] = FENSTER_KLEIN
+    try:
+        yield
+    finally:
+        kontext.BUDGETS["fenster"] = alt
+
+
 def main(argv=None) -> int:
     args = baue_argumente(argv)
     e = einstellungen.laden()
@@ -311,7 +346,7 @@ def main(argv=None) -> int:
     else:
         laeufe.append(args)
 
-    with httpx.Client(timeout=TIMEOUT_S) as klient:
+    with httpx.Client(timeout=TIMEOUT_S) as klient, fenster_klein(args.fenster_klein):
         for einzeln in laeufe:
             # Je Lauf ein eigener Simulationsklient: seine Statistik gehoert
             # in die Verlaufszeile genau dieses Laufs, nicht in die Summe von

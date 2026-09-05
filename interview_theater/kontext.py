@@ -379,13 +379,38 @@ def _baue_erstkontakt(conn, chat_id: int, e) -> str:
     return ERSTKONTAKT.format(link=link)
 
 
-def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False) -> str:
+def umriss(bloecke: dict, gekuerzt: bool = False) -> dict:
+    """Welcher Block mit wie vielen geschaetzten Token im Prompt stand.
+
+    Reine Buchhaltung ueber dem fertigen Ergebnis, ohne Einfluss darauf.
+    Gebraucht wird sie vom Simulator: die Frage "was wird wann injiziert" --
+    lag die Verdichtung ueberhaupt im Prompt, als der Bot danebengeantwortet
+    hat? -- laesst sich sonst nur beantworten, indem man den ganzen Prompt
+    mitschreibt, und der ist bei 20.000 Token keine Berichtszeile mehr.
+
+    Leere Bloecke stehen mit 0 drin und fallen nicht weg: dass die
+    Verdichtungen fehlten, ist die interessantere Zeile als dass sie da
+    waren."""
+    return {
+        "bloecke": {name: schaetze(bloecke.get(name, "")) for name in _REIHENFOLGE},
+        "gesamt": schaetze(_zusammen(bloecke)),
+        "gekuerzt": bool(gekuerzt),
+    }
+
+
+def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
+         protokoll: list | None = None) -> str:
     """Baut den Koerper des Gespraechs-Prompts (ohne SYSTEM, das getrennt
     verschickt wird).
 
     ``ausloeser`` ist die Liste der Nachrichten, die diesen Zug ausgeloest
     haben (alles seit ``letzte_beantwortete_message_id``, § 1.3) -- vom
     Aufrufer ermittelt, hier nur formatiert.
+
+    ``protokoll`` ist rein additiv und im Betrieb nie gesetzt: ist es eine
+    Liste, wird ein ``umriss()`` des fertigen Prompts angehaengt. Der
+    Simulator misst damit, was wann im Prompt stand; der Bot selbst merkt von
+    diesem Argument nichts.
 
     Passt der Koerper nicht ins Zielbudget ZIEL, greift die zweistufige
     Kuerzung aus § 7.2: erst fliegen die Volltranskripte ganz raus, dann wird
@@ -409,7 +434,9 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False) -> str:
         "ausloeser": _baue_ausloeser(ausloeser),
     }
 
+    gekuerzt = False
     if schaetze(_zusammen(bloecke)) > ZIEL:
+        gekuerzt = True
         bloecke["transkripte"] = ""
         repo.merke_vorfall(
             conn, chat_id, getattr(e, "bot_name", None), "kuerzung", "Transkripte entfernt"
@@ -418,4 +445,6 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False) -> str:
             fenster_eintraege = fenster_eintraege[1:]
             bloecke["fenster"] = "\n".join(fenster_eintraege)
 
+    if protokoll is not None:
+        protokoll.append(umriss(bloecke, gekuerzt))
     return _zusammen(bloecke)

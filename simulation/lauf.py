@@ -33,9 +33,9 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from interview_theater import aufnahme, bot, phasen, repo, szene
+from interview_theater import aufnahme, bot, kontext, phasen, repo, szene
 
-from simulation import material, richter, skript, stimmen
+from simulation import bericht, kennzahlen, material, richter, skript, stimmen
 from simulation.kennzahlen import Beitrag, Zug
 
 log = logging.getLogger(__name__)
@@ -69,6 +69,11 @@ class Ergebnis:
     #: birk`` drei Szenen in drei Formen schreiben laesst -- und weil der
     #: Bericht sie **vollstaendig** zeigen soll, nicht die letzte davon.
     szenen: list = field(default_factory=list)
+    #: Die fuenf schlechtesten Bot-Antworten samt Block-Umriss und dem
+    #: Urteil, ob dem Bot Information gefehlt hat (``bericht.kandidaten_schlechteste``).
+    schlechteste: list = field(default_factory=list)
+    #: Was der Richter ueber das Journal sagt (N4a).
+    journal_urteil: dict = field(default_factory=dict)
     zahlen: dict = field(default_factory=dict)
     gezogene: list = field(default_factory=list)
     personen: list = field(default_factory=list)
@@ -145,6 +150,29 @@ def einfaedig():
         szene.starte, aufnahme.starte_abschluss, aufnahme.starte_auswertung = original
 
 
+@contextlib.contextmanager
+def kontext_protokoll(protokoll: list):
+    """Schreibt zu jedem Gespraechs-Prompt mit, welcher Block mit wie vielen
+    Token darin stand (``kontext.umriss``).
+
+    Gesetzt wird ``kontext.baue`` -- nicht ``ablauf.antworte``: die Frage
+    "was wird wann injiziert" haengt am Kontextaufbau, und ein Parameter, den
+    ``ablauf`` durchreichen muesste, waere im Betrieb ein totes Argument in
+    einem Pfad, in dem die Gruppe wartet. Das Argument ``protokoll`` von
+    ``kontext.baue`` selbst ist rein additiv und im Betrieb nie gesetzt."""
+    original = kontext.baue
+
+    def mitschreiben(*args, **kwargs):
+        kwargs.setdefault("protokoll", protokoll)
+        return original(*args, **kwargs)
+
+    kontext.baue = mitschreiben
+    try:
+        yield protokoll
+    finally:
+        kontext.baue = original
+
+
 # ---------------------------------------------------------------------------
 # Telegram-Updates bauen
 # ---------------------------------------------------------------------------
@@ -198,6 +226,10 @@ class Lauf:
             else material.begriffe(self.gezogene, self.zufall)
         )
         self.fragenliste = list(fragenliste) if fragenliste else []
+        #: Alle Kontext-Umrisse des Laufs, in der Reihenfolge, in der die
+        #: Prompts gebaut wurden (``kontext_protokoll``). Die Zuege schneiden
+        #: sich ihren Ausschnitt daraus.
+        self.kontexte: list[dict] = []
         self.ergebnis = Ergebnis(gezogene=self.gezogene, personen=self.personen)
         self._update_id = 0
         self._beitrag_nummer = 0
@@ -224,10 +256,28 @@ class Lauf:
             for z in zeilen if (z["text"] or "").strip()
         ]
 
-    def _zug(self, marke: str = "", notiz: str = "") -> Zug:
-        zug = Zug(schritt=self._schritt, marke=marke, notiz=notiz)
+    def _zug(self, marke: str = "", notiz: str = "", art: str = "gespraech") -> Zug:
+        zug = Zug(schritt=self._schritt, marke=marke, notiz=notiz, art=art)
         self.ergebnis.zuege.append(zug)
         return zug
+
+    def _schliesse_zug(self, zug: Zug, ab_gesendet: int, ab_kontext: int,
+                       start: float) -> None:
+        """Traegt nach, was erst nach dem Zug feststeht: die Bot-Antworten,
+        die Kontext-Umrisse und die Wartezeit.
+
+        Die Latenz wird bis zur **ersten** Bot-Nachricht gemessen, nicht bis
+        zum Ende des Zuges: das ist der Moment, in dem in der Gruppe etwas
+        aufploppt, und damit die Zahl, die eine Teilnehmerin erlebt. Kam gar
+        keine Antwort, bleibt sie ``None`` -- eine Null waere hier die
+        Behauptung, es sei schnell gegangen."""
+        zug.bot = self.tg.texte(ab_gesendet)
+        zug.kontext = self.kontexte[ab_kontext:]
+        zug.datenlage = kennzahlen.datenlage(self.conn, CHAT_ID)
+        if len(self.tg.gesendet) > ab_gesendet:
+            zug.latenz_s = round(
+                max(0.0, self.tg.gesendet[ab_gesendet]["zeit"] - start), 2
+            )
 
     def _schicke(self, zug: Zug, texte: list[tuple[str, str, str]]) -> None:
         """Schickt Nachrichten in die Gruppe und faehrt den Zug.
@@ -240,6 +290,8 @@ class Lauf:
         zweite Aufruf findet dann nichts Unbeantwortetes mehr und kehrt
         sofort zurueck."""
         vorher = len(self.tg.gesendet)
+        ab_kontext = len(self.kontexte)
+        start = self.tg.jetzt()
         for absender, profil, text in texte:
             if not text.strip():
                 continue
@@ -259,7 +311,7 @@ class Lauf:
             bot.verarbeite_update(self.conn, self.e, update, datetime.now(timezone.utc), False)
         for _ in zug.beitraege:
             bot._zug_und_erkenner(self.conn, self.tg, self.klm, self.e, CHAT_ID)
-        zug.bot = self.tg.texte(vorher)
+        self._schliesse_zug(zug, vorher, ab_kontext, start)
 
     def _stimmen_zug(self, ziel: str) -> Zug:
         """Ein Zug mit einer -- gelegentlich zwei -- Stimmen."""
@@ -278,7 +330,7 @@ class Lauf:
         damit der Bericht keine Luecken hat."""
         vorher = len(self.tg.gesendet)
         zug = self._zug(marke=marke, notiz=notiz)
-        zug.bot = self.tg.texte(vorher)
+        self._schliesse_zug(zug, vorher, len(self.kontexte), self.tg.jetzt())
         return zug
 
     # -- Schrittarten -------------------------------------------------------
@@ -290,6 +342,22 @@ class Lauf:
                 return True
             self._stimmen_zug(ziel)
         return bool(schritt.fertig(self.conn, CHAT_ID, merker))
+
+    def _fahre_zitate(self, schritt, merker: dict) -> bool:
+        """Drei Abfragen an den Bot: alle Zitate eines Interviews, eine
+        bestimmte Stelle, der ganze Text.
+
+        Reihum, eine je Person -- und wenn nur eine Person da ist
+        (``--set birk``), stellt sie alle drei. Die Fragen sind verschieden
+        schwer, weil verschieden viel davon ueberhaupt im Prompt steht: die
+        Verdichtungen immer, die Volltranskripte nur mit ``/wortlaut``. Der
+        Bericht sagt hinterher, was gereicht hat."""
+        for nummer, ziel in enumerate(skript.ZITAT_ZIELE):
+            person = self.personen[nummer % len(self.personen)]
+            zug = self._zug(marke="zitatabfrage")
+            text = stimmen.sprich(self.sim, person, self._verlauf(), ziel)
+            self._schicke(zug, [(person.name, person.profil, text)] if text else [])
+        return True
 
     def _fahre_befehl(self, schritt, merker: dict) -> bool:
         zug = self._zug()
@@ -358,7 +426,13 @@ class Lauf:
         for _ in range(schritt.max_nachrichten):
             if len(repo.verdichtungen(self.conn, CHAT_ID)) > vorher:
                 return
-            self._stimmen_zug(ziel)
+            zug = self._stimmen_zug(ziel)
+            if len(repo.verdichtungen(self.conn, CHAT_ID)) > vorher:
+                # In genau diesem Zug lief der Verdichter -- die Wartezeit
+                # gehoert deshalb nicht zu den Gespraechslatenzen, sie ist
+                # eine andere Groessenordnung und eine andere Erwartung.
+                zug.art = "verdichtung"
+                return
         if len(repo.verdichtungen(self.conn, CHAT_ID)) > vorher:
             return
         self._notausgang(aufnahme_id, interview)
@@ -439,11 +513,14 @@ class Lauf:
             # Frage, die dieser Schritt stellt.
             auftrag += f"\n\nForm: {schritt.form}."
         vorher = len(self.tg.gesendet)
+        ab_kontext = len(self.kontexte)
+        start = self.tg.jetzt()
         zug = self._zug(
-            marke="szene_aufruf", notiz=f"Szenen-Auftrag an den Bot: {auftrag[:200]}"
+            marke="szene_aufruf", notiz=f"Szenen-Auftrag an den Bot: {auftrag[:200]}",
+            art="szene",
         )
         _sofort_szene(self.conn, self.tg, self.klm, self.e, CHAT_ID, auftrag)
-        zug.bot = self.tg.texte(vorher)
+        self._schliesse_zug(zug, vorher, ab_kontext, start)
         return self._merke_szene(schritt, planung)
 
     def _merke_szene(self, schritt, planung: list[str]) -> bool:
@@ -503,7 +580,7 @@ class Lauf:
         nicht auf -- er wird vermerkt und der naechste beginnt."""
         start = time.monotonic()
         repo.sichere_gruppe(self.conn, CHAT_ID, self.e.bot_name, CHAT_TITEL)
-        with einfaedig():
+        with einfaedig(), kontext_protokoll(self.kontexte):
             for schritt in self.schrittliste:
                 self._schritt = schritt.schluessel
                 self.ergebnis.titel[schritt.schluessel] = schritt.titel
@@ -527,6 +604,8 @@ class Lauf:
             return self._fahre_szene(schritt, merker)
         if schritt.art == "befehl":
             return self._fahre_befehl(schritt, merker)
+        if schritt.art == "zitate":
+            return self._fahre_zitate(schritt, merker)
         return self._fahre_stimmen(schritt, merker)
 
 
@@ -563,9 +642,12 @@ def protokoll(ergebnis: Ergebnis, schritte) -> str:
     return "\n".join(teile)
 
 
-def bewerte(sim, ergebnis: Ergebnis, schritte) -> None:
-    """Laesst den Richter jeden Abschnitt und jede geschriebene Szene
-    bewerten. Schreibt die Urteile in ``ergebnis``."""
+def bewerte(sim, conn, ergebnis: Ergebnis, schritte) -> None:
+    """Laesst den Richter alles bewerten, was sich nicht zaehlen laesst:
+    jeden Abschnitt, jede geschriebene Szene, das Journal, und bei den fuenf
+    schwaechsten Antworten die Frage, ob dem Bot Information gefehlt hat.
+
+    Schreibt alle Urteile in ``ergebnis``."""
     for schritt in schritte:
         text = abschnitt(ergebnis.zuege, schritt.schluessel)
         ziel = ergebnis.ziele.get(schritt.schluessel) or schritt.ziel
@@ -579,4 +661,24 @@ def bewerte(sim, ergebnis: Ergebnis, schritte) -> None:
         planung = abschnitt(ergebnis.zuege, szene["schluessel"]) or szene["planung"]
         szene["urteil"] = richter.bewerte_szene(
             sim, planung, szene["volltext"], form=szene.get("form", "")
+        )
+
+    ergebnis.journal_urteil = richter.bewerte_journal(
+        sim, protokoll(ergebnis, schritte),
+        [e["text"] for e in repo.journal(conn, CHAT_ID)],
+    )
+
+    ergebnis.schlechteste = bericht.kandidaten_schlechteste(
+        ergebnis, schritte,
+        kennzahlen.mechanische_treffer(
+            ergebnis.zuege, [p.name for p in ergebnis.personen]
+        ),
+    )
+    for kandidat in ergebnis.schlechteste:
+        # Nur bei diesen fuenf, nicht bei allen: die Frage "hat dem Bot
+        # Information gefehlt" lohnt einen eigenen Aufruf nur dort, wo die
+        # Antwort schwach war. Bei einer guten Antwort ist sie beantwortet.
+        kandidat["kontext_urteil"] = richter.bewerte_kontext(
+            sim, kandidat["text"], kandidat["umriss"],
+            kennzahlen.datenlage_text(kandidat["datenlage"]),
         )

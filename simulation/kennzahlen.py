@@ -27,11 +27,12 @@ Gemessen wird gegen die Sollwerte aus dem Auftrag:
 
 from __future__ import annotations
 
+import re
 import statistics
 import unicodedata
 from dataclasses import dataclass, field
 
-from interview_theater import ablauf, erkenner, phasen, repo, zitat
+from interview_theater import ablauf, erkenner, kontext, phasen, repo, zitat
 
 from simulation import skript
 
@@ -39,6 +40,19 @@ from simulation import skript
 #: Bericht und Test dieselbe Zahl meinen.
 SOLL_LAENGE_BOT = 700
 SOLL_RUECKFRAGEN_VOR_SZENE = 1
+
+#: Median-Zeichenzahl, unter der eine Bot-Antwort auf dem Handy noch als eine
+#: Nachricht gelesen wird (N5.2). Strenger als ``SOLL_LAENGE_BOT``, das aus
+#: dem urspruenglichen Auftrag stammt -- beide stehen im Bericht, damit
+#: sichtbar bleibt, gegen welche Latte gerade gemessen wird.
+SOLL_LAENGE_BOT_KNAPP = 500
+
+#: Ab so vielen Aufzaehlungspunkten am Ende einer Antwort ist es eine
+#: Optionenliste und kein Vorschlag mehr (N5.2).
+OPTIONEN_AB = 3
+
+#: Sollwert fuer das 90. Perzentil der Gespraechslatenz, in Sekunden (N5.1).
+SOLL_P90_GESPRAECH_S = 12.0
 
 
 def _notiert_praefix() -> str:
@@ -102,6 +116,21 @@ class Zug:
     bot: list[str] = field(default_factory=list)
     marke: str = ""
     notiz: str = ""
+    #: Die Umrisse der Gespraechs-Prompts dieses Zuges (``kontext.umriss``):
+    #: welcher Block mit wie vielen geschaetzten Token drinstand. Ein Zug kann
+    #: mehrere haben, wenn der Bot mehrfach gefragt wurde (Echo-Wiederholung).
+    kontext: list[dict] = field(default_factory=list)
+    #: Was zum Zeitpunkt dieses Zuges in der Datenbank stand (``datenlage``).
+    #: Zusammen mit ``kontext`` beantwortet es die Frage aus N4b: lag die
+    #: Verdichtung vor, als der Bot danebengeantwortet hat -- und stand sie
+    #: auch im Prompt?
+    datenlage: dict = field(default_factory=dict)
+    #: Sekunden von "Update rein" bis zur ersten Bot-Nachricht in der
+    #: Attrappe -- die Wartezeit aus Sicht der Gruppe.
+    latenz_s: float | None = None
+    #: Wofuer der Zug Zeit gebraucht hat: 'gespraech', 'verdichtung',
+    #: 'szene'. Trennt die Latenzen im Bericht.
+    art: str = "gespraech"
 
     @property
     def hat_notiert(self) -> bool:
@@ -258,6 +287,253 @@ def _stand_wert(conn, chat_id: int, feld: str) -> str:
         return ""
 
 
+# ---------------------------------------------------------------------------
+# Latenz, Laenge, Optionenlisten (N5.1, N5.2)
+# ---------------------------------------------------------------------------
+
+
+def _perzentil(werte: list[float], anteil: float) -> float:
+    """Das Perzentil einer kleinen Stichprobe -- naechster Rang, nicht
+    interpoliert.
+
+    ``statistics.quantiles`` braucht mindestens zwei Werte und interpoliert;
+    bei acht gemessenen Zuegen ist das eine Genauigkeit, die es nicht gibt.
+    Der naechste Rang sagt "so lange hat der zweitlangsame Zug gedauert" --
+    eine Aussage, die man nachzaehlen kann."""
+    if not werte:
+        return 0.0
+    sortiert = sorted(werte)
+    rang = min(len(sortiert) - 1, int(round(anteil * (len(sortiert) - 1))))
+    return round(sortiert[rang], 2)
+
+
+def latenzen(zuege: list[Zug]) -> dict:
+    """Wartezeit aus Nutzersicht -- Median und p90, getrennt nach Gespraech,
+    Verdichtung und Szene.
+
+    Getrennt, weil die Erwartung eine andere ist: auf eine Gespraechsantwort
+    wartet die Gruppe im Chat (Soll p90 unter zwoelf Sekunden), auf eine
+    Verdichtung wartet sie nach dem Interview, auf eine Szene wartet sie gar
+    nicht -- der Bot sagt an, dass es dauert. Ein gemeinsamer Median ueber
+    alle drei waere eine Zahl ohne Erwartung daneben."""
+    ergebnis = {}
+    for art in ("gespraech", "verdichtung", "szene"):
+        werte = [z.latenz_s for z in zuege if z.art == art and z.latenz_s is not None]
+        ergebnis[art] = {
+            "n": len(werte),
+            "median": round(statistics.median(werte), 2) if werte else 0.0,
+            "p90": _perzentil(werte, 0.9),
+        }
+    return ergebnis
+
+
+#: Zeilen, die als Aufzaehlungspunkt zaehlen: Spiegelstrich, Bullet, Stern,
+#: oder eine Ziffer mit Punkt.
+_PUNKT = re.compile(r"^\s*(?:[-*•–]|\d+[.)])\s+\S")
+
+
+def optionenlisten(zuege: list[Zug], ab: int = OPTIONEN_AB) -> list[str]:
+    """Bot-Antworten, die mit ``ab`` oder mehr Aufzaehlungspunkten **enden**.
+
+    Am Ende, nicht irgendwo: eine Aufzaehlung mitten in einer Antwort ist eine
+    Aufstellung ("das habt ihr bisher"), eine am Schluss ist ein Menue. Der
+    Bot soll EINE Sache vorschlagen, ueber die die Gruppe entscheidet -- drei
+    gleichrangige Optionen schieben die Arbeit zurueck."""
+    treffer = []
+    for text in bot_antworten(zuege):
+        zeilen = [z for z in text.splitlines() if z.strip()]
+        punkte = 0
+        for zeile in reversed(zeilen):
+            if _PUNKT.match(zeile):
+                punkte += 1
+            else:
+                break
+        if punkte >= ab:
+            treffer.append(text)
+    return treffer
+
+
+# ---------------------------------------------------------------------------
+# Erfundene Zitate (N4c)
+# ---------------------------------------------------------------------------
+
+#: Was als Zitat gilt: ein laengerer Text zwischen Anfuehrungszeichen. Kurze
+#: Anfuehrungen ("fertig", "Kueche") sind keine Behauptung ueber das
+#: Transkript, sondern Erwaehnungen -- sie zaehlen nicht.
+_IN_ANFUEHRUNG = re.compile(r'[„"»“]([^„"»«“”]{20,400})[”“"«]')
+
+#: So viele Woerter muss eine Anfuehrung haben, damit sie als Zitat aus einem
+#: Interview gemeint sein kann.
+ZITAT_MINDEST_WOERTER = 4
+
+
+def erfundene_zitate(zuege: list[Zug], transkripte: list[str],
+                     marke: str = "zitatabfrage") -> list[str]:
+    """Anfuehrungen in Bot-Antworten, die in **keinem** Transkript stehen.
+
+    Gemessen wird nur in den Zuegen der Zitatabfragen (``marke``): dort
+    behauptet der Bot, aus dem Material zu zitieren, und nur dort ist eine
+    Anfuehrung eine ueberpruefbare Aussage darueber. Ueber den ganzen Lauf
+    gemessen wuerde die Zahl unbrauchbar -- der Bot setzt auch eigene
+    Vorschlaege in Anfuehrungszeichen ("waere 'Ankommen' ein Kernthema fuer
+    euch?"), und die stehen naturgemaess in keinem Transkript.
+
+    Verglichen wird mit ``zitat.normalisiere``, derselben Normalisierung, mit
+    der im Betrieb ueber ein Belegzitat entschieden wird."""
+    material_text = " ".join(zitat.normalisiere(t) for t in transkripte)
+    treffer = []
+    for zug in zuege:
+        if zug.marke != marke:
+            continue
+        for text in zug.bot:
+            for gefunden in _IN_ANFUEHRUNG.findall(text):
+                if len(gefunden.split()) < ZITAT_MINDEST_WOERTER:
+                    continue
+                if zitat.normalisiere(gefunden) not in material_text:
+                    treffer.append(gefunden.strip())
+    return treffer
+
+
+# ---------------------------------------------------------------------------
+# Journal und Kontextaufbau (N4a, N4b)
+# ---------------------------------------------------------------------------
+
+
+def _kern(text: str) -> frozenset:
+    """Die bedeutungstragenden Woerter eines Journaleintrags -- fuer die
+    Dublettenpruefung. Grob mit Absicht: zwei Eintraege ueber dieselbe Sache
+    sind selten wortgleich, aber fast immer wortgleich in den Substantiven."""
+    worte = {w for w in _falte(text).split() if len(w) > 4}
+    return frozenset(worte)
+
+
+#: Ab welchem Anteil gemeinsamer Kernwoerter zwei Journaleintraege als
+#: Dublette gelten. 0,7 ist hoch angesetzt: ein falscher Treffer waere hier
+#: ein Vorwurf gegen den Extraktor, den niemand nachvollziehen koennte.
+DUBLETTE_AB = 0.7
+
+
+def journallage(conn, chat_id: int) -> dict:
+    """Was am Ende im Journal steht -- je Art gezaehlt, plus Dubletten.
+
+    ``ausgeloest`` sagt, ob der Journal-Extraktor ueberhaupt gelaufen ist. Er
+    laeuft nur bei Verdraengung (``journal.berechne_verdraengten_abschnitt``),
+    und ein kurzer Lauf verdraengt nie etwas. Im Bericht steht dann "Journal
+    nicht ausgeloest" statt einer Null-Note: eine Null waere die Behauptung,
+    der Extraktor habe nichts gefunden -- er ist gar nicht gefragt worden."""
+    eintraege = repo.journal(conn, chat_id)
+    je_art: dict[str, int] = {}
+    je_quelle: dict[str, int] = {}
+    for e in eintraege:
+        je_art[e["art"]] = je_art.get(e["art"], 0) + 1
+        quelle = e["quelle"] or "?"
+        je_quelle[quelle] = je_quelle.get(quelle, 0) + 1
+
+    vorgeschlagen = [e["text"] for e in eintraege if e["art"] == "vorgeschlagen"]
+    dubletten = []
+    kerne = [(t, _kern(t)) for t in [e["text"] for e in eintraege]]
+    for i, (text_a, kern_a) in enumerate(kerne):
+        for text_b, kern_b in kerne[i + 1:]:
+            if not kern_a or not kern_b:
+                continue
+            gemeinsam = len(kern_a & kern_b) / max(len(kern_a), len(kern_b))
+            if gemeinsam >= DUBLETTE_AB:
+                dubletten.append((text_a, text_b))
+
+    return {
+        "journal_eintraege": len(eintraege),
+        "journal_je_art": dict(sorted(je_art.items())),
+        "journal_je_quelle": dict(sorted(je_quelle.items())),
+        "journal_vorgeschlagen": vorgeschlagen,
+        "journal_dubletten": dubletten,
+        "journal_ausgeloest": je_quelle.get("extraktor", 0) > 0,
+    }
+
+
+#: Die Arbeitsstandfelder, deren Vorhandensein in der Datenlage vermerkt
+#: wird. Aus dem Schema gelesen, nicht aufgezaehlt -- nach einem Umbau der
+#: Phase 5 taucht das neue Feld von selbst auf.
+def datenlage(conn, chat_id: int) -> dict:
+    """Was zu diesem Zeitpunkt in der Datenbank steht -- gezaehlt, nicht im
+    Wortlaut.
+
+    Wird je Zug festgehalten, weil der Richter bei den schwaechsten Antworten
+    beurteilen soll, ob dem Bot **Information gefehlt** hat, die dagewesen
+    waere (N4b). Ohne diese Momentaufnahme liesse sich das nur gegen den
+    Endstand pruefen -- und der sagt ueber den dritten Zug nichts."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    gesetzt = []
+    if stand is not None:
+        for spalte in skript.arbeitsstand_spalten(conn):
+            if spalte in skript._KEINE_FELDER:
+                continue
+            try:
+                if stand[spalte]:
+                    gesetzt.append(spalte)
+            except (IndexError, KeyError):
+                continue
+    gruppe = repo.hole_gruppe(conn, chat_id)
+    return {
+        "verdichtungen": len(repo.verdichtungen(conn, chat_id)),
+        "transkripte": len(repo.transkripte(conn, chat_id)),
+        "figuren": len(repo.figuren(conn, chat_id)),
+        "journal": len(repo.journal(conn, chat_id)),
+        "szenen": len(repo.hole_szenen(conn, chat_id)),
+        "arbeitsstand": gesetzt,
+        "wortlaut_modus": (gruppe["wortlaut_modus"] if gruppe else None) or "aus",
+    }
+
+
+def datenlage_text(lage: dict) -> str:
+    """Die Datenlage als lesbare Zeilen fuer den Richter."""
+    if not lage:
+        return ""
+    return "\n".join([
+        f"- Verdichtungen: {lage['verdichtungen']}",
+        f"- Transkripte: {lage['transkripte']} (Wortlaut-Modus: {lage['wortlaut_modus']})",
+        f"- Figuren: {lage['figuren']}, Szenen: {lage['szenen']}, "
+        f"Journaleintraege: {lage['journal']}",
+        "- gesetzte Arbeitsstandfelder: "
+        + (", ".join(lage["arbeitsstand"]) or "keine"),
+    ])
+
+
+def kontextlage(zuege: list[Zug]) -> dict:
+    """Was wann im Gespraechs-Prompt stand -- die Frage aus N4b.
+
+    Je Block der Median und das Maximum der geschaetzten Token ueber alle
+    Zuege, dazu die Zahl der Prompts ueber ``kontext.ZIEL`` und die mit
+    Kuerzung. Der Median, nicht der Mittelwert: ein einzelner Prompt mit
+    Volltranskripten wuerde den Mittelwert reissen und ueber die uebrigen
+    dreissig nichts mehr sagen."""
+    umrisse = [u for z in zuege for u in z.kontext]
+    if not umrisse:
+        return {
+            "kontext_zuege": 0, "kontext_bloecke": {},
+            "kontext_ueber_ziel": 0, "kontext_gekuerzt": 0,
+            "kontext_gesamt_median": 0, "kontext_gesamt_max": 0,
+        }
+
+    namen = sorted({name for u in umrisse for name in u["bloecke"]})
+    bloecke = {}
+    for name in namen:
+        werte = [u["bloecke"].get(name, 0) for u in umrisse]
+        bloecke[name] = {
+            "median": int(statistics.median(werte)),
+            "max": max(werte),
+            "leer": sum(1 for w in werte if w == 0),
+        }
+    gesamt = [u["gesamt"] for u in umrisse]
+    return {
+        "kontext_zuege": len(umrisse),
+        "kontext_bloecke": bloecke,
+        "kontext_ueber_ziel": sum(1 for g in gesamt if g > kontext.ZIEL),
+        "kontext_gekuerzt": sum(1 for u in umrisse if u["gekuerzt"]),
+        "kontext_gesamt_median": int(statistics.median(gesamt)),
+        "kontext_gesamt_max": max(gesamt),
+    }
+
+
 def arbeitsstand_vollstaendig(conn, chat_id: int) -> dict[str, int]:
     """Je Feld 0/1: Begriffe, Fragen, Kernthema, drei Figuren, die Felder der
     Phase 5.
@@ -366,7 +642,8 @@ def kosten(conn, e, preise: dict) -> dict:
 
 def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
            schritte, e, preise, dauer_s: float, notausgaenge: int = 0,
-           sim_statistik: dict | None = None) -> dict:
+           sim_statistik: dict | None = None, journal_urteil: dict | None = None,
+           stoerung: str = "") -> dict:
     """Alle mechanischen Kennzahlen eines Laufs in einem Dict -- die Form, in
     der sie in den Bericht und nach ``verlauf.jsonl`` gehen."""
     gespeichert, zustimmung_gesamt = zustimmungen(zuege, markiert)
@@ -381,6 +658,7 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
         "zustimmungen_gespeichert": gespeichert,
         "echo": len(echos(zuege)),
         "bot_rueckfragen": len(bot_rueckfragen(zuege)),
+        "optionenlisten": len(optionenlisten(zuege)),
         "rueckfragen_vor_szene": len(rueckfragen_vor_szene(zuege)),
         "behauptete_schreibvorgaenge": len(behauptete_schreibvorgaenge(zuege)),
         "namensanrede": len(namensanreden(zuege, namen)),
@@ -394,7 +672,18 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
         # heute neben das von damals, und dafuer braucht er den Satz.
         "kernthema": _stand_wert(conn, chat_id, "kernthema"),
         "figuren": [f["name"] for f in repo.figuren(conn, chat_id)],
+        "latenzen": latenzen(zuege),
+        "stoerung": stoerung,
+        "zitat_erfunden": len(
+            erfundene_zitate(zuege, [i.transkript for i in gezogene])
+        ),
+        "zitat_erfunden_liste": erfundene_zitate(
+            zuege, [i.transkript for i in gezogene]
+        ),
     }
+    zahlen.update(journallage(conn, chat_id))
+    zahlen.update(kontextlage(zuege))
+    zahlen.update(journal_urteil or {})
     zahlen.update(zitatlage(conn, chat_id, gezogene))
     zahlen.update(kosten(conn, e, preise))
     zahlen.update(sim_statistik or {

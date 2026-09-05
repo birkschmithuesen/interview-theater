@@ -296,6 +296,13 @@ def nummer_aus_auftrag(auftrag: str) -> int | None:
 #: fuer die Verknuepfung, nicht fuer eine Spalte.
 PFLICHTFELDER = ("form", "ort", "figuren", "was_passiert")
 
+#: Pflichtfelder, die nicht an der Szene haengen, sondern am Arbeitsstand der
+#: Gruppe: die Ergebnisse von Phase 5 (Format & Rahmen). Ohne sie ist nicht
+#: entschieden, WAS entsteht und WORIN es spielt -- das Modell erfindet dann
+#: beides, und zwar je Szene neu. Birk 05.09.2026, nachdem eine Szene ohne
+#: gesetztes Format und ohne Rahmen geschrieben wurde.
+ARBEITSSTAND_PFLICHTFELDER = ("format", "rahmen")
+
 #: Wie ein Feld in einer Nachricht an die Gruppe heisst.
 FELDNAMEN = {
     "form": "Form",
@@ -309,6 +316,10 @@ FELDNAMEN = {
     "ton": "Ton",
     "titel": "Titel",
     "kurzbeschreibung": "Kurz",
+    # Aus dem Arbeitsstand (ARBEITSSTAND_PFLICHTFELDER), nicht aus der Szene:
+    # so benannt, dass die Gruppe erkennt, wonach sie noch nicht gefragt wurde.
+    "format": "das Format des Stuecks (Phase 5)",
+    "rahmen": "der Rahmen: Ort, Zeit, Anlass des Abends (Phase 5)",
 }
 
 #: Schluessel, unter denen ein Feld in einer ``szene_planen``-Angabe stehen
@@ -434,7 +445,15 @@ def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
     dieselbe Antwort verhindert: ein Szenentext, den das Modell aus dem
     Nichts erfindet. Im Probelauf fehlten Ort und Besetzung, und heraus kam
     eine Kueche mit NINA und MORITZ; ohne Sprachprofil klingen alle Figuren
-    gleich."""
+    gleich.
+
+    Seit 05.09.2026 zaehlen ``format`` und ``rahmen`` aus dem Arbeitsstand
+    mit (Birk: "es wurde gerade szene geschrieben, ohne dass nach setting,
+    format, stil gefragt wurde -- diese variablen muessen alle vorher vom
+    user gesetzt sein, bevor eine szene geschrieben werden darf"). Sie
+    gehoeren zu Phase 5 und standen deshalb nicht in PFLICHTFELDER, das nur
+    die Felder der Szene selbst kennt -- gemessen an Szene 1 der Gruppe 1:
+    alle vier Szenenfelder gesetzt, format und rahmen leer, Szene lief."""
     figuren = repo.szene_figuren(conn, ziel["id"])
     felder = []
     for feld in PFLICHTFELDER:
@@ -442,6 +461,10 @@ def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
             if not figuren:
                 felder.append(feld)
         elif not ziel[feld]:
+            felder.append(feld)
+    stand = repo.hole_arbeitsstand(conn, ziel["chat_id"])
+    for feld in ARBEITSSTAND_PFLICHTFELDER:
+        if stand is None or not (stand[feld] or "").strip():
             felder.append(feld)
     ohne_profil = [f["name"] for f in figuren if not f["sprachprofil"]]
     # 05.09. spaeter: eine Figur OHNE Interview darf existieren ("Kati und

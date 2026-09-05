@@ -86,12 +86,18 @@ def _warte(thread):
 def _bereit_machen(conn, chat_id=1, nummer=1):
     """Eine Szene, die die Sperre passieren laesst: alle vier Pflichtfelder
     gesetzt und eine Figur mit Sprachprofil. Seit dem 05.09.2026 ist das die
-    Voraussetzung fuer jeden Szenen-Aufruf -- ohne sie gibt es keinen."""
+    Voraussetzung fuer jeden Szenen-Aufruf -- ohne sie gibt es keinen.
+
+    Dazu Format und Rahmen im Arbeitsstand (ARBEITSSTAND_PFLICHTFELDER, seit
+    05.09.2026 abends): ohne die Ergebnisse von Phase 5 ist nicht entschieden,
+    WAS entsteht und WORIN es spielt."""
     repo.setze_figur(conn, chat_id, "Maria", "Naeherin, kam 1998")
     figur_id = repo.hole_figur(conn, chat_id, "Maria")["id"]
     repo.setze_sprachprofil(
         conn, figur_id, "Kurze Saetze, bricht ab.", ["Ich hatte nur einen Koffer."]
     )
+    repo.setze_arbeitsstand(conn, chat_id, "format", "Sprechtheater: Dialog")
+    repo.setze_arbeitsstand(conn, chat_id, "rahmen", "Ein Bahnhof, ein Abend")
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
     repo.setze_szenenfeld(conn, szene_id, "ort", "Bahnhof")
@@ -560,7 +566,7 @@ def test_ohne_pflichtfelder_wird_gar_nicht_erst_gerufen(conn, einst, tg):
 
     assert thread is None
     assert klm.aufrufe == 0
-    assert tg.texte == ["Fuer Szene 1 fehlt noch: Form, Ort, Wer, Was passiert."]
+    assert tg.texte[0].startswith("Fuer Szene 1 fehlt noch: Form, Ort, Wer, Was passiert")
 
 
 def test_die_sperre_nennt_genau_das_fehlende(conn, einst, tg):
@@ -570,7 +576,7 @@ def test_die_sperre_nennt_genau_das_fehlende(conn, einst, tg):
 
     szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Schreib Szene 1")
 
-    assert tg.texte == ["Fuer Szene 1 fehlt noch: Ort."]
+    assert tg.texte[0].startswith("Fuer Szene 1 fehlt noch: Ort")
 
 
 def test_eine_figur_ohne_sprachprofil_haelt_die_szene_auf(conn, einst, tg):
@@ -580,6 +586,8 @@ def test_eine_figur_ohne_sprachprofil_haelt_die_szene_auf(conn, einst, tg):
     ("fuellst du frei") darf ohne Interview auftreten."""
     repo.setze_figur(conn, 1, "Pola", "")
     figur = repo.hole_figur(conn, 1, "Pola")["id"]
+    repo.setze_arbeitsstand(conn, 1, "format", "Sprechtheater: Dialog")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Ein Kessel, ein Abend")
     _geplante_szene(conn, 1, form="Dialog", ort="Kessel",
                     was_passiert="sie warten", figuren=[figur])
 
@@ -615,7 +623,7 @@ def test_fehlende_felder_und_fehlendes_profil_in_EINER_nachricht(conn, einst, tg
     szene.starte(conn, tg, LLMAttrappe(), einst, 1, "Schreib Szene 1")
 
     assert len(tg.texte) == 1
-    assert "Fuer Szene 1 fehlt noch: Ort, Was passiert." in tg.texte[0]
+    assert "Fuer Szene 1 fehlt noch: Ort, Was passiert" in tg.texte[0]
     assert "Pola hat noch kein Sprachprofil" in tg.texte[0]
 
 
@@ -819,3 +827,37 @@ def test_usa_frage_blockiert_die_szene_nicht_endlos(conn, einst, tg):
     assert repo.szene_usa_stand(conn, 1) == "nein", "Schweiz, nicht USA"
     assert any("nicht beantwortet" in t for t in tg.texte)
     szene._usa_erinnerungen.pop(1, None)
+
+
+def test_ohne_format_und_rahmen_wird_keine_szene_geschrieben(conn, einst, tg):
+    """Birk 05.09.2026 live: "es wurde gerade szene geschrieben, ohne dass
+    nach setting, format, stil gefragt wurde. das haette nicht passieren
+    duerfen, denn diese variablen muessen alle vorher vom user gesetzt sein".
+
+    Gemessen an Szene 1 der Gruppe 1: alle vier Szenen-Pflichtfelder waren
+    gesetzt (Form Monolog, Ort Kueche, zwei Figuren mit Sprachprofil, was
+    passiert), aber arbeitsstand.format und arbeitsstand.rahmen waren leer --
+    die Ergebnisse von Phase 5, die PFLICHTFELDER nicht kennt, weil dort nur
+    Felder der Szene selbst stehen. Die Szene lief trotzdem."""
+    figur = _figur_mit_stimme(conn)
+    _geplante_szene(conn, 1, form="Monolog", ort="Kueche",
+                    was_passiert="sie erinnert sich", figuren=[figur])
+    klm = LLMAttrappe()
+
+    thread = szene.starte(conn, tg, klm, einst, 1, "Schreib Szene 1")
+
+    assert thread is None, "kein Lauf ohne Format und Rahmen"
+    assert klm.aufrufe == 0, "und vor allem kein bezahlter Modellaufruf"
+    assert "Format" in tg.texte[0] and "Rahmen" in tg.texte[0]
+
+
+def test_mit_format_und_rahmen_laeuft_die_szene(conn, einst, tg):
+    """Die Gegenprobe: sind beide gesetzt, sperrt nichts mehr -- sonst waere
+    die neue Pruefung eine Sackgasse statt einer Sicherung."""
+    figur = _figur_mit_stimme(conn)
+    _geplante_szene(conn, 1, form="Monolog", ort="Kueche",
+                    was_passiert="sie erinnert sich", figuren=[figur])
+    repo.setze_arbeitsstand(conn, 1, "format", "Sprechtheater: Monolog")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Kueche, ein Abend")
+
+    assert szene.sperrtext(conn, repo.hole_szene(conn, 1)) is None

@@ -412,6 +412,41 @@ ul.fehlstellen li { margin: .3rem 0; }
 """
 
 
+#: Die Leitfaden-Ansicht (06.09.2026): gross gesetzt, hoher Kontrast, für ein
+#: Telefon in der Hand -- und für ein Blatt Papier. Kein gemeinsames CSS mit
+#: der Gruppenseite: dort geht es ums Überblicken, hier ums Vorlesen im
+#: Stehen, vor einer fremden Person.
+_CSS_LEITFADEN = """
+body { background: #ffffff; color: #000000; font-size: 1.25rem;
+       max-width: 34rem; margin: 0 auto; padding: 1.2rem 1.2rem 4rem;
+       line-height: 1.5; }
+h1 { font-size: 1.35rem; margin: 0 0 1.4rem; font-weight: 600; }
+h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; text-transform: uppercase;
+     letter-spacing: .06em; border: 0; opacity: .65; }
+.block { border-top: 3px solid #000; padding-top: .8rem; margin-top: 1.6rem; }
+.frage { border-top: 2px solid #000; padding: 1rem 0 .2rem;
+         margin-top: 1.4rem; }
+.frage .nummer { font-size: .95rem; font-weight: 700; opacity: .55;
+                 display: block; margin-bottom: .3rem; }
+.frage p { margin: 0; font-size: 1.35rem; }
+.frage .kern, .frage .vorher { font-size: 1rem; margin-top: .6rem;
+                               opacity: .75; }
+.frage .vorher { border-left: 4px solid #000; padding-left: .7rem;
+                 opacity: .85; }
+.sagen { font-size: 1.2rem; white-space: pre-wrap; margin: 0; }
+.leer { font-size: 1.15rem; opacity: .7; }
+.zurueck { display: block; margin-top: 3rem; font-size: .95rem; opacity: .6; }
+@media print {
+  /* Ausgedruckt gehört das Blatt der Gruppe: keine Navigation, kein
+     Grauschleier, und jede Frage bleibt auf einer Seite zusammen. */
+  body { font-size: 12pt; max-width: none; padding: 0; }
+  .zurueck { display: none; }
+  h2, .frage .nummer, .frage .kern { opacity: 1; }
+  .frage, .block { page-break-inside: avoid; }
+}
+"""
+
+
 def _t(wert, ersatz: str = "—") -> str:
     """Maskiert einen Wert aus der Datenbank fuer HTML.
 
@@ -535,7 +570,32 @@ def _fragen_html(fragen: str | None) -> str:
     return "<ul class=\"fragen\">" + "".join(zeilen) + "</ul>"
 
 
-def _leitfaden_html(arbeitsstand: dict) -> str:
+#: Die Beschriftung des Links auf die große Ansicht. Als Konstante, damit
+#: Test und Chat denselben Wortlaut prüfen können.
+TEXT_LEITFADEN_LINK = "Groß und zum Ausdrucken"
+
+
+def _leitfaden_link(token: str | None) -> str:
+    """Der Link auf ``/g/<token>/leitfaden`` -- relativ, damit er hinter
+    nginx genauso geht wie direkt auf Port 8010 (die Seite steht unter
+    ``…/g/<token>``, also führt ``<token>/leitfaden`` eine Ebene tiefer)."""
+    if not token:
+        return ""
+    return (
+        f'<div class="zeit"><a href="{_t(token)}/{leitfaden_pfad()}">'
+        f"{html.escape(TEXT_LEITFADEN_LINK)}</a></div>"
+    )
+
+
+def leitfaden_pfad() -> str:
+    """``leitfaden`` -- der Pfad steht in ``leitfaden.WEB_PFAD``, damit
+    Routing und Link nicht auseinanderlaufen."""
+    from interview_theater import leitfaden
+
+    return leitfaden.WEB_PFAD
+
+
+def _leitfaden_html(arbeitsstand: dict, token: str | None = None) -> str:
     """Der Gespraechsleitfaden als eigener Eintrag unter den Fragen -- oder
     gar nichts (06.09.2026).
 
@@ -551,7 +611,14 @@ def _leitfaden_html(arbeitsstand: dict) -> str:
     text = leitfaden.aus_feldern(arbeitsstand)
     if text == leitfaden.TEXT_LEER:
         return ""
-    return f"<dt>Leitfaden</dt><dd><pre class=\"leitfaden\">{_t(text)}</pre></dd>"
+    return (
+        "<dt>Leitfaden</dt><dd>"
+        f'<pre class="leitfaden">{_t(text)}</pre>'
+        # Der Link auf die große Ansicht (06.09.2026) -- zusätzlich, der Text
+        # bleibt: wer hier liest, will überblicken; wer losgeht, braucht ihn
+        # groß.
+        f"{_leitfaden_link(token)}</dd>"
+    )
 
 
 def _fehlstellen_html(eintraege: list[dict] | None) -> str:
@@ -860,7 +927,7 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
         # Der Leitfaden statt seiner drei Rohfelder: er ist das Ergebnis, das
         # die Gruppe braucht, und er wird gebaut, nicht getippt -- aus
         # denselben Feldern wie im Chat (``leitfaden.aus_feldern``).
-        + _leitfaden_html(stand)
+        + _leitfaden_html(stand, daten.get("web_token"))
         + "<dt>Setting</dt><dd>"
         + _dropdown(
             "rahmen",
@@ -891,7 +958,8 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
 
 
 def _arbeitsstand_html(
-    arbeitsstand: dict, figuren: list[dict], mit_stimmen: bool = False
+    arbeitsstand: dict, figuren: list[dict], mit_stimmen: bool = False,
+    token: str | None = None,
 ) -> str:
     figuren_html = "".join(_figur_html(f, mit_stimmen) for f in figuren)
     # Die Phase steht oben: sie ordnet alles darunter ein. Eine ungesetzte
@@ -907,7 +975,7 @@ def _arbeitsstand_html(
         # Gebrauchsanweisung (06.09.2026). Read-only wie alles hier: gebaut
         # wird er aus denselben Feldern wie im Chat (``leitfaden.aus_feldern``),
         # damit auf der Wand nichts anderes steht als auf dem Telefon.
-        + _leitfaden_html(arbeitsstand)
+        + _leitfaden_html(arbeitsstand, token)
         + f"<dt>Kernthema</dt><dd>{_t(arbeitsstand['kernthema'])}"
         + (
             f"<div class=\"zeit\">{_t(arbeitsstand['kernthema_begruendung'], '')}</div>"
@@ -1375,7 +1443,10 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
     stand = (
         _bearbeiten_html(daten, nonce_wert)
         if nonce_wert
-        else _arbeitsstand_html(daten["arbeitsstand"], daten["figuren"], mit_stimmen=True)
+        else _arbeitsstand_html(
+            daten["arbeitsstand"], daten["figuren"], mit_stimmen=True,
+            token=daten.get("web_token"),
+        )
     )
     return _seite(
         f"{titel} — interview-theater",
@@ -1397,6 +1468,85 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
         f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",
         bearbeitbar=bool(nonce_wert),
     )
+
+
+#: Was auf der Leitfaden-Seite steht, solange es keinen gibt. Ruhig und ohne
+#: Fehlerton: die Seite ist richtig, der Leitfaden ist nur noch nicht fertig.
+TEXT_LEITFADEN_LEER = "Der Leitfaden entsteht in Phase 2."
+TEXT_LEITFADEN_ZURUECK = "← zurück zum Arbeitsstand"
+
+
+def leitfaden_html(daten: dict) -> str:
+    """Die Leitfaden-Ansicht ``/g/<token>/leitfaden`` -- das Dokument, das
+    eine Sechzehnjährige in der Hand hält, wenn sie eine fremde Person
+    anspricht (06.09.2026).
+
+    **Gebaut aus derselben Funktion wie der Chat-Text**
+    (``leitfaden.bausteine``, auf der ``leitfaden.aus_feldern`` ebenfalls
+    steht): keine zweite Wahrheit, nur ein anderer Satz. Groß, hoher
+    Kontrast, jede Frage in einem eigenen Block -- und mit einer
+    ``@media print``-Regel, damit man sie ausdrucken kann.
+
+    **Kein Nachladen, kein POST, kein Nonce.** Die Seite bekommt deshalb auch
+    nicht den Rahmen der beiden anderen (``_seite``): das sanfte Nachladen
+    würde einer Interviewerin mitten im Gespräch den Text unter dem Daumen
+    austauschen.
+
+    Steht noch kein Leitfaden, kommt eine ruhige Seite und kein Fehler."""
+    from interview_theater import leitfaden
+
+    titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
+    teil = leitfaden.bausteine(daten["arbeitsstand"])
+    if teil is None:
+        koerper = f'<p class="leer">{html.escape(TEXT_LEITFADEN_LEER)}</p>'
+    else:
+        koerper = _leitfaden_blocks(teil, leitfaden)
+    zurueck = (
+        f'<a class="zurueck" href="../{_t(daten["token"], "")}">'
+        f"{html.escape(TEXT_LEITFADEN_ZURUECK)}</a>"
+        if daten.get("token")
+        else ""
+    )
+    return (
+        "<!doctype html>\n"
+        '<html lang="de"><head><meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f"<title>Leitfaden — {html.escape(titel)}</title>\n"
+        f"<style>{_CSS_LEITFADEN}</style></head>\n<body>\n"
+        f"<h1>{_t(titel)}</h1>\n{koerper}\n{zurueck}\n"
+        "</body></html>\n"
+    )
+
+
+def _leitfaden_blocks(teil: dict, leitfaden) -> str:
+    """Eröffnung, dann jede Frage einzeln, dann der Abschluss.
+
+    Die Überschriften sind wortgleich die des Chat-Texts
+    (``leitfaden.UEBERSCHRIFT_*``) -- wer beides nebeneinander hält, soll
+    dasselbe Dokument erkennen."""
+    stuecke = []
+    if teil["eroeffnung"]:
+        stuecke.append(
+            f'<div class="block"><h2>{html.escape(leitfaden.UEBERSCHRIFT_EROEFFNUNG)}'
+            f'</h2><p class="sagen">{_t(teil["eroeffnung"])}</p></div>'
+        )
+    stuecke.append(f"<h2>{html.escape(leitfaden.UEBERSCHRIFT_FRAGEN)}</h2>")
+    for frage in teil["fragen"]:
+        block = (
+            f'<div class="frage"><span class="nummer">{frage["nummer"]}</span>'
+            f'<p>{_t(frage["text"])}</p>'
+        )
+        if frage["einleitung"]:
+            block += f'<div class="vorher">Vorher sagen: {_t(frage["einleitung"])}</div>'
+        if frage["kern"]:
+            block += f'<div class="kern">Kern: {_t(frage["kern"])}</div>'
+        stuecke.append(block + "</div>")
+    if teil["abschluss"]:
+        stuecke.append(
+            f'<div class="block"><h2>{html.escape(leitfaden.UEBERSCHRIFT_ABSCHLUSS)}'
+            f'</h2><p class="sagen">{_t(teil["abschluss"])}</p></div>'
+        )
+    return "\n".join(stuecke)
 
 
 def nicht_gefunden_html() -> str:
@@ -1473,14 +1623,29 @@ def mache_handler(
                 if pfad == "/":
                     self._antworte(200, dashboard_html(self._dashboard(), praefix))
                 elif pfad.startswith("/g/"):
-                    token = pfad[len("/g/"):].strip("/")
-                    daten = self._gruppe(token)
-                    if daten is None:
+                    # ``/g/<token>`` und ``/g/<token>/leitfaden`` -- mehr
+                    # Unterseiten gibt es nicht, alles andere ist 404.
+                    from interview_theater import leitfaden as leitfaden_modul
+
+                    rest = pfad[len("/g/"):].strip("/")
+                    token, _, unterseite = rest.partition("/")
+                    if unterseite == leitfaden_modul.WEB_PFAD:
+                        daten = self._leitfaden(token)
+                        if daten is None:
+                            self._antworte(404, nicht_gefunden_html())
+                        else:
+                            daten["token"] = token
+                            self._antworte(200, leitfaden_html(daten))
+                    elif unterseite:
                         self._antworte(404, nicht_gefunden_html())
                     else:
-                        self._antworte(
-                            200, gruppe_html(daten, nonce(schluessel, token))
-                        )
+                        daten = self._gruppe(token)
+                        if daten is None:
+                            self._antworte(404, nicht_gefunden_html())
+                        else:
+                            self._antworte(
+                                200, gruppe_html(daten, nonce(schluessel, token))
+                            )
                 else:
                     self._antworte(404, nicht_gefunden_html())
             except sqlite3.Error as fehler:
@@ -1605,6 +1770,15 @@ def mache_handler(
             conn = web_daten.oeffne_lesend(db_pfad)
             try:
                 return web_daten.gruppe_nach_token(conn, token)
+            finally:
+                conn.close()
+
+        def _leitfaden(self, token: str) -> dict | None:
+            """Nur der Arbeitsstand -- die Leitfaden-Seite laedt weder Szenen
+            noch Interviews noch das Journal."""
+            conn = web_daten.oeffne_lesend(db_pfad)
+            try:
+                return web_daten.leitfaden_nach_token(conn, token)
             finally:
                 conn.close()
 

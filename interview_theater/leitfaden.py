@@ -101,6 +101,57 @@ def einleitungen(wert: str | None) -> dict[int, str]:
     return ergebnis
 
 
+def bausteine(felder: dict) -> dict | None:
+    """Die Bestandteile des Leitfadens -- oder None, wenn es keinen gibt.
+
+    ``{"eroeffnung": str, "fragen": [{"nummer", "text", "kern",
+    "einleitung"}], "abschluss": str}``. ``text`` ist das, was die
+    Interviewerin **sagt**; ``kern`` steht nur bei einer weich gefassten
+    Frage darunter (worum es dabei geht), ``einleitung`` nur bei einer
+    Frage ohne weiche Fassung (was sie vorher sagt) -- die beiden schliessen
+    sich aus, so wie im Chattext.
+
+    **Ein Zusammenbau, drei Aufrufer** (06.09.2026): ``aus_feldern`` setzt
+    daraus den Chattext, die Gruppenseite zeigt denselben Text, und die
+    Leitfaden-Route ``/g/<token>/leitfaden`` setzt daraus die grosse
+    Handy-Ansicht. Die Route baut damit **nicht** ihre eigene Wahrheit -- sie
+    setzt dieselben Stuecke nur anders."""
+    def feld(name: str) -> str:
+        return ((felder.get(name) or "") if felder else "").strip()
+
+    liste = fragen(feld("fragen"))
+    if not liste:
+        return None
+
+    vorher = einleitungen(feld("frage_einleitungen"))
+    # Die weichen Fassungen liegen in derselben Form wie die Einleitungen vor
+    # (``<Nummer> — <Text>``) und werden mit demselben Leser gelesen: es gibt
+    # einen nummerierten Zeilenblock in diesem Projekt, nicht zwei.
+    weich = einleitungen(feld("fragen_weich"))
+    eintraege = []
+    for nummer, frage in enumerate(liste, start=1):
+        # **Die weiche Fassung ist der Text, den die Gruppe spricht**
+        # (06.09.2026, 10:18): sie ersetzt die Aneinanderreihung von
+        # Einleitung und Frage, ist also KEINE zusaetzliche Zeile. Gibt es
+        # keine, steht die Frage selbst da -- eine nicht-sensible Frage
+        # braucht keine Umformulierung.
+        if nummer in weich:
+            eintraege.append(
+                {"nummer": nummer, "text": weich[nummer], "kern": frage,
+                 "einleitung": ""}
+            )
+            continue
+        eintraege.append(
+            {"nummer": nummer, "text": frage, "kern": "",
+             "einleitung": vorher.get(nummer, "")}
+        )
+    return {
+        "eroeffnung": feld("interview_eroeffnung"),
+        "fragen": eintraege,
+        "abschluss": feld("interview_abschluss"),
+    }
+
+
 def aus_feldern(felder: dict) -> str:
     """Der Leitfaden aus einem Dict statt aus der Datenbank -- die reine
     Funktion hinter ``baue``.
@@ -111,42 +162,25 @@ def aus_feldern(felder: dict) -> str:
     Webprozess zoege (AGENTS.md). Ein Text, zwei Aufrufer, eine
     Zusammenbau-Regel.
     """
-    def feld(name: str) -> str:
-        return ((felder.get(name) or "") if felder else "").strip()
-
-    liste = fragen(feld("fragen"))
-    if not liste:
+    teil = bausteine(felder)
+    if teil is None:
         return TEXT_LEER
 
-    vorher = einleitungen(feld("frage_einleitungen"))
-    # Die weichen Fassungen liegen in derselben Form wie die Einleitungen vor
-    # (``<Nummer> — <Text>``) und werden mit demselben Leser gelesen: es gibt
-    # einen nummerierten Zeilenblock in diesem Projekt, nicht zwei.
-    weich = einleitungen(feld("fragen_weich"))
     teile: list[str] = []
-    eroeffnung = feld("interview_eroeffnung")
-    if eroeffnung:
-        teile.append(f"{UEBERSCHRIFT_EROEFFNUNG}\n{eroeffnung}")
+    if teil["eroeffnung"]:
+        teile.append(f"{UEBERSCHRIFT_EROEFFNUNG}\n{teil['eroeffnung']}")
 
     zeilen = [UEBERSCHRIFT_FRAGEN]
-    for nummer, frage in enumerate(liste, start=1):
-        # **Die weiche Fassung ist der Text, den die Gruppe spricht**
-        # (06.09.2026, 10:18): sie ersetzt die Aneinanderreihung von
-        # Einleitung und Frage, ist also KEINE zusaetzliche Zeile. Gibt es
-        # keine, steht die Frage selbst da -- eine nicht-sensible Frage
-        # braucht keine Umformulierung.
-        if nummer in weich:
-            zeilen.append(f"{nummer}. {weich[nummer]}")
-            zeilen.append(_KERN_ZEILE.format(text=frage))
-            continue
-        zeilen.append(f"{nummer}. {frage}")
-        if nummer in vorher:
-            zeilen.append(_EINLEITUNG_ZEILE.format(text=vorher[nummer]))
+    for frage in teil["fragen"]:
+        zeilen.append(f"{frage['nummer']}. {frage['text']}")
+        if frage["kern"]:
+            zeilen.append(_KERN_ZEILE.format(text=frage["kern"]))
+        elif frage["einleitung"]:
+            zeilen.append(_EINLEITUNG_ZEILE.format(text=frage["einleitung"]))
     teile.append("\n".join(zeilen))
 
-    abschluss = feld("interview_abschluss")
-    if abschluss:
-        teile.append(f"{UEBERSCHRIFT_ABSCHLUSS}\n{abschluss}")
+    if teil["abschluss"]:
+        teile.append(f"{UEBERSCHRIFT_ABSCHLUSS}\n{teil['abschluss']}")
     return "\n\n".join(teile)
 
 
@@ -190,21 +224,49 @@ def steht(conn, chat_id: int) -> bool:
         return False
 
 
-def sende(conn, tg, chat_id: int, mit_kopf: bool = True) -> int | None:
+#: Der Pfad der Leitfaden-Ansicht unter der Gruppenseite -- eine Stelle,
+#: gelesen vom Webserver (Routing) und vom Bot (Link im Chat).
+WEB_PFAD = "leitfaden"
+
+#: Die Zeile unter dem Leitfaden im Chat (06.09.2026). Sie kommt
+#: **zusaetzlich** zum bestehenden Text: der bleibt, weil eine Gruppe ohne
+#: Netz im Probenraum sonst nichts mehr haette. Sie steht da, weil genau
+#: dieses Dokument eine Sechzehnjaehrige in der Hand haelt, wenn sie eine
+#: fremde Person anspricht -- und im Chat versinkt es nach zehn Nachrichten.
+TEXT_WEBLINK = "Gross und zum Ausdrucken: {url}"
+
+
+def weblink(conn, chat_id: int, e=None) -> str | None:
+    """Die URL der Leitfaden-Ansicht dieser Gruppe, oder None ohne Basis-URL
+    bzw. ohne Web-Token -- dieselbe Regel wie ``repo.gruppenseite_url``."""
+    from interview_theater import repo
+
+    basis = repo.gruppenseite_url(conn, chat_id, getattr(e, "web_url", "") or "")
+    return f"{basis}/{WEB_PFAD}" if basis else None
+
+
+def sende(conn, tg, chat_id: int, mit_kopf: bool = True, e=None) -> int | None:
     """Schickt den Leitfaden in den Chat. Liefert die ``message_id`` oder
     None, wenn es nichts zu schicken gab.
 
     Eine Nachricht, nicht zwei: der Kopf steht im selben Text wie der
     Leitfaden, damit die Gruppe ihn als EINE Nachricht weiterleiten oder
-    anheften kann.
+    anheften kann. Unter dem Text steht seit dem 06.09.2026 der Link auf die
+    grosse Handy-Ansicht (``TEXT_WEBLINK``) -- **zusaetzlich**, der Chattext
+    bleibt unveraendert.
     """
     text = baue(conn, chat_id)
     if text == TEXT_LEER:
         return tg.sende(chat_id, TEXT_LEER)
-    return tg.sende(chat_id, f"{TEXT_KOPF}\n\n{text}" if mit_kopf else text)
+    if mit_kopf:
+        text = f"{TEXT_KOPF}\n\n{text}"
+    url = weblink(conn, chat_id, e)
+    if url:
+        text = f"{text}\n\n{TEXT_WEBLINK.format(url=url)}"
+    return tg.sende(chat_id, text)
 
 
-def sende_einmal(conn, tg, chat_id: int) -> int | None:
+def sende_einmal(conn, tg, chat_id: int, e=None) -> int | None:
     """Schickt den Leitfaden **einmal je Gruppe** -- beim Schritt in die
     Interviews und beim Interviewstart, danach nie wieder von selbst
     (06.09.2026, Birk).
@@ -220,7 +282,7 @@ def sende_einmal(conn, tg, chat_id: int) -> int | None:
         return None
     if _schon_gezeigt(conn, chat_id):
         return None
-    message_id = sende(conn, tg, chat_id)
+    message_id = sende(conn, tg, chat_id, e=e)
     repo.schreibe_journal(
         conn, chat_id, "notiert", JOURNAL_GEZEIGT, quelle="leitfaden",
     )

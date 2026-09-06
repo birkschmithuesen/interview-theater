@@ -1606,7 +1606,7 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
     )
 
 
-def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
+def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None) -> str:
     """Zerlegt den Block ``VORSCHLAG EROEFFNUNG:`` in Eroeffnung und
     Abschluss und legt beides ab.
 
@@ -1658,7 +1658,7 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
     # hier, wenige Nachrichten spaeter noch einmal beim Phasenwechsel
     # (gemessen 06.09., Lauf tag1-gruppe1). Der Leitfaden ist lang; zweimal
     # hintereinander schiebt er alles andere aus dem Bild.
-    leitfaden.sende_einmal(conn, tg, chat_id)
+    leitfaden.sende_einmal(conn, tg, chat_id, e=e)
     # **Die Kette bricht hier nicht ab** (06.09.2026, 10:25, Birk): mit
     # Eroeffnung und Abschluss ist Phase 2 fertig, also kommt sofort die
     # Abschlussnachricht mit "Weiter zu Interviews". Vorher stand nach dem
@@ -4386,7 +4386,7 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         from interview_theater import leitfaden
 
         biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
-        leitfaden.sende_einmal(conn, tg, chat_id)
+        leitfaden.sende_einmal(conn, tg, chat_id, e=e)
     elif nummer == PHASE_STUECKPRUEFUNG:
         # Die Schaerfung des Stuecks (06.09.2026, Birk): das komplette
         # Textbuch geht EINMAL beim Eintritt an den Stueck-Judge, im Thread
@@ -4698,7 +4698,7 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             # ZWEI Felder -- deshalb ein eigener Speicherweg statt des
             # Arbeitsstand-Setters (wie bei der Geschichte in Phase 5).
             return _speichere_eroeffnung(
-                conn, tg, chat_id, roh.partition(TRENNER)[2]
+                conn, tg, chat_id, roh.partition(TRENNER)[2], e=e
             )
         if gespeicherte_art in ("einleitungen", "fragen_weich"):
             # Die Einleitungen sind abgenommen -- ohne Zwischenfrage weiter
@@ -4791,7 +4791,7 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
     if art == ART_LEITFADEN:
         from interview_theater import leitfaden
 
-        leitfaden.sende(conn, tg, chat_id)
+        leitfaden.sende(conn, tg, chat_id, e=e)
         return "Leitfaden"
     if art == ART_RICHTUNG:
         # Stufe 1 der zweistufigen Kernthema-Wahl: die Richtung wird

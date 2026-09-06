@@ -556,6 +556,31 @@ lädt, würde damit Gesprächszüge ausbremsen.
   `web_daten.fehlstellen` über die read-only geöffnete Verbindung — der
   Webserver bekommt dadurch keinen `repo`-Pfad.
 
+- **Der Leitfaden hat eine eigene Seite** (06.09.2026, Route
+  `/g/<token>/leitfaden`, auch unter `IT_WEB_PREFIX`). Der gebaute Leitfaden
+  ging einmal in den Chat und versank — dabei ist genau er das Dokument, das
+  eine Sechzehnjährige in der Hand hält, wenn sie eine fremde Person
+  anspricht. Die Seite ist **rein lesend**: kein Nachladen, kein POST, kein
+  Nonce, und deshalb auch nicht der Rahmen der beiden anderen Seiten
+  (`web._seite` hängt das sanfte Nachladen an, das einer Interviewerin mitten
+  im Gespräch den Text unter dem Daumen austauschen würde). Groß gesetzt,
+  hoher Kontrast, jede Frage in einem eigenen Block, dazu eine
+  `@media print`-Regel. **Keine zweite Wahrheit:** Route und Chat-Text stehen
+  beide auf `leitfaden.bausteine` — `aus_feldern` setzt daraus den Chattext,
+  `web.leitfaden_html` die Handy-Ansicht. `web_daten.leitfaden_nach_token`
+  lädt bewusst **nur** den Arbeitsstand und weder Szenen noch Interviews noch
+  Journal: was gar nicht geladen wird, kann auch nicht versehentlich
+  ausgeliefert werden (Test wie der bestehende in `tests/test_web.py`: kein
+  Transkript, kein Nachrichtentext im HTML). Verlinkt an zwei Orten —
+  auf der Gruppenseite unter dem Leitfaden-Text (relativ,
+  `<token>/leitfaden`, damit es hinter nginx genauso geht) und im Chat unter
+  dem Leitfaden selbst (`leitfaden.TEXT_WEBLINK`, **zusätzlich**; der
+  bestehende Text bleibt, weil eine Gruppe ohne Netz im Probenraum sonst
+  nichts mehr hätte). Steht noch kein Leitfaden, kommt eine ruhige Seite
+  („Der Leitfaden entsteht in Phase 2.") statt eines Fehlers. Dafür nehmen
+  `leitfaden.sende`/`sende_einmal` seit heute ein optionales `e` entgegen —
+  ohne Basis-URL steht die Zeile gar nicht da.
+
 - **Eine Szene bekommt Fassungen, statt überschrieben zu werden**
   (06.09.2026, Tabelle `szenenfassung`). „Neu schreiben" ersetzte bis dahin
   `szene.volltext`; die Gruppe kam nicht zurück, und in der Probe will man
@@ -863,8 +888,10 @@ nach `betrieb/web.log`.
 | `IT_WEB_URL` | `https://lab.artesmobiles.art/theatersoap` | nur für `scripts/web_links.py` |
 
 Routen: `/` (Team-Dashboard, projiziert, alle Gruppen), `/g/<token>`
-(Leseansicht einer Gruppe, Handy), `/gesund` (Health-Check, antwortet ohne
-Datenbankzugriff). Jede Route greift auch mit vorangestelltem
+(Leseansicht einer Gruppe, Handy), `/g/<token>/leitfaden` (der
+Gesprächsleitfaden groß und druckbar, rein lesend, ohne Nachladen — siehe
+„Der Leitfaden hat eine eigene Seite"), `/gesund` (Health-Check, antwortet
+ohne Datenbankzugriff). Jede Route greift auch mit vorangestelltem
 `IT_WEB_PREFIX`, weil erst die nginx-Konfiguration entscheidet, ob das
 Präfix beim Server ankommt.
 

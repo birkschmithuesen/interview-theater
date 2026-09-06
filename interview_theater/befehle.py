@@ -239,10 +239,10 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
     # und braucht Eroeffnung, Einleitungen und Fragen an einer Stelle. Danach
     # nur noch auf Nachfrage (``leitfaden.sende_einmal``) -- sonst schoebe er
     # vor jedem Interview das Transkript aus dem Bild.
-    leitfaden.sende_einmal(conn, tg, chat_id)
+    leitfaden.sende_einmal(conn, tg, chat_id, e=e)
 
 
-def _befehl_leitfaden(conn, tg, chat_id: int) -> None:
+def _befehl_leitfaden(conn, tg, chat_id: int, e=None) -> None:
     """``/leitfaden`` -- der Gespraechsleitfaden auf Zuruf.
 
     Nicht beworben (er steht in keiner ``BEFEHLE_LISTE``, in keinem
@@ -253,7 +253,7 @@ def _befehl_leitfaden(conn, tg, chat_id: int) -> None:
 
     Kein Modellaufruf: ``leitfaden.baue`` setzt nur zusammen, was schon in
     der Datenbank steht."""
-    leitfaden.sende(conn, tg, chat_id)
+    leitfaden.sende(conn, tg, chat_id, e=e)
 
 
 def _befehl_interview(conn, tg, chat_id: int) -> None:
@@ -742,5 +742,5 @@ def behandle(
     elif befehl == "/hilfe":
         _befehl_hilfe(tg, e, chat_id)
     elif befehl == "/leitfaden":
-        _befehl_leitfaden(conn, tg, chat_id)
+        _befehl_leitfaden(conn, tg, chat_id, e)
     return True

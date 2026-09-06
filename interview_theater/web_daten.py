@@ -940,6 +940,10 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     return {
         "chat_id": chat_id,
         "titel": zeile["titel"],
+        # Das Token geht mit, damit die Seite auf ihre Unterseiten verlinken
+        # kann (``/g/<token>/leitfaden``) -- relativ, also ohne zu wissen, ob
+        # nginx das Praefix durchreicht.
+        "web_token": token,
         "bot_name": zeile["bot_name"],
         "interviewmodus_seit": zeile["interviewmodus_seit"],
         "arbeitsstand": _arbeitsstand(conn, chat_id),
@@ -1018,6 +1022,35 @@ def fehlstellen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         hat_verdichtung=verdichtet,
         offene_interviews=_offene_interviews(conn, chat_id),
     )
+
+
+def leitfaden_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | None:
+    """Nur, was die Leitfaden-Ansicht braucht: Titel und die fuenf Felder,
+    aus denen ``leitfaden.bausteine`` ihn setzt.
+
+    Bewusst nicht ``gruppe_nach_token``: die Seite steht auf einem Telefon in
+    der Hand einer Sechzehnjaehrigen, waehrend sie eine fremde Person
+    anspricht -- sie soll Szenen, Interviews und Journal weder laden noch
+    ausliefern. Weniger Daten heisst hier auch weniger, was auf dieser Seite
+    stehen kann.
+
+    None bei unbekanntem Token, wie ueberall: der Aufrufer antwortet mit
+    404 und verraet nicht, ob es Gruppen gibt."""
+    if not token:
+        return None
+    try:
+        zeile = conn.execute(
+            "SELECT chat_id, titel FROM gruppe WHERE web_token = ?", (token,)
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if zeile is None:
+        return None
+    return {
+        "chat_id": zeile["chat_id"],
+        "titel": zeile["titel"],
+        "arbeitsstand": _arbeitsstand(conn, zeile["chat_id"]),
+    }
 
 
 def stueckpruefung(conn: sqlite3.Connection, chat_id: int) -> dict:

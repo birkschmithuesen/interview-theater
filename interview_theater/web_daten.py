@@ -23,6 +23,13 @@ import sqlite3
 import statistics
 from datetime import datetime, timedelta, timezone
 
+#: Der Vorspann ist die eine Ausnahme von "kein Import aus dem Botcode": das
+#: Modul kennt keine Datenbank und keinen Lock (``vorspann.daten`` nimmt
+#: Dicts), und genau darum darf die Regel "ein Fakt hat eine Stelle" hier
+#: gelten -- Chat, Textbuch und Gruppenseite schneiden dieselbe
+#: Figurenbeschreibung sonst dreimal verschieden.
+from interview_theater import vorspann
+
 #: Wie weit das Dashboard bei Vorfaellen zurueckschaut. Zwei Stunden, weil das
 #: Dashboard den laufenden Workshop-Block zeigen soll und nicht die Historie
 #: -- was von gestern rot leuchtet, verstellt den Blick auf das, was gerade
@@ -875,12 +882,21 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     for f in figuren:
         f["schaerfungen"] = geschaerft["figur"].get(f["id"], [])
     szenen = _szenen(conn, chat_id, geschaerft)
+    stand = _arbeitsstand(conn, chat_id)
     return {
         "chat_id": chat_id,
         "titel": zeile["titel"],
         "bot_name": zeile["bot_name"],
         "interviewmodus_seit": zeile["interviewmodus_seit"],
-        "arbeitsstand": _arbeitsstand(conn, chat_id),
+        "arbeitsstand": stand,
+        # Der Vorspann (07.09.2026): dieselben Werte wie im Chat und im
+        # Textbuch, aus derselben Funktion -- ``vorspann.daten`` nimmt Dicts
+        # und kennt keine Datenbank, deshalb darf ``web_daten`` es rufen,
+        # ohne read-only zu verlassen oder ``repo`` zu importieren.
+        "vorspann": vorspann.daten(
+            stand["rahmen"], stand["hauptkonflikt"], stand["format"],
+            szenen, figuren,
+        ),
         "figuren": figuren,
         "szenen": szenen,
         # Die kompakte Uebersicht steht vor den aufklappbaren Bloecken

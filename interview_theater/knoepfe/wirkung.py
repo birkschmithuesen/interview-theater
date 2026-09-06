@@ -19,6 +19,7 @@ from interview_theater.knoepfe.texte import (
     ANWEISUNGEN, ANWEISUNG_DUKTUS, ANWEISUNG_FRAGEN_ANDERE,
     ANWEISUNG_KERNTHEMA, ANWEISUNG_NAMEN, ART_ANDERS, ART_AUFNAHME,
     ART_AUSWERTEN, ART_AUSWERTEN_ALLE, ART_DURCHLAUF_SZENE, ART_EIGENE,
+    ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN, ART_DRAMATURGIE_SZENE,
     ART_FASSUNGEN, ART_SPRECHANTEILE,
     ART_FIGUREN_ANZAHL, ART_FIGUREN_ANZAHL_FREI, ART_FIGUREN_ANZAHL_MENU,
     ART_FIGUREN_NAMEN_MENU, ART_FIGUREN_ZUFALL, ART_FIGUR_DUKTUS,
@@ -43,6 +44,8 @@ from interview_theater.knoepfe.texte import (
     ART_TRANSKRIPT, ART_WIR_ZUERST, ART_ZUSAMMENFASSUNG, PHASE_SETTING,
     PHASE_SZENEN, TRENNER, _ANWEISUNG_ALLGEMEIN, _KETTE, _NOTIERT,
     _TEXT_ANDERS, _TEXT_ANZAHL_FRAGE, _TEXT_AUSWERTEN_UNBEKANNT,
+    _TEXT_DRAMATURGIE_LASSEN, _TEXT_DRAMATURGIE_UEBERHOLT,
+    _TEXT_DRAMATURGIE_UNBEKANNT,
     _TEXT_AUSWERTEN_UNMOEGLICH, _TEXT_EIGENE, _TEXT_EIGENE_IDEE,
     _TEXT_FIGUREN_ANZAHL_FRAGE, _TEXT_FIGUREN_ANZAHL_FREI_FRAGE,
     _TEXT_FIGUREN_NAMEN_FRAGE, _TEXT_FIGUREN_ZUFALL_FERTIG,
@@ -80,7 +83,7 @@ from interview_theater.knoepfe.szenen import (
     _naechste_offene, _pruefbefund, _schreibe_szene, _speichere_geschichte,
     _speichere_szenenfelder, _speichere_szenenfolge, _szene_mit_nummer,
     biete_kurzgeschichte, biete_schaerfung, biete_szene, biete_szenenform,
-    _zeige_fassungen,
+    _zeige_fassungen, starte_dramaturgie,
     biete_szenenstil, erwarte_geschichte_notiz, starte_schaerfung,
     starte_stueckpruefung, zeige_szenentext,
 )
@@ -434,6 +437,39 @@ def _wirkung_pruefung_szene(conn, d: Druck) -> str:
 
 def _wirkung_pruefung_lassen(conn, d: Druck) -> str:
     d.tg.sende(d.chat_id, _TEXT_PRUEFUNG_LASSEN)
+    return "Bleibt"
+
+
+def _wirkung_dramaturgie(conn, d: Druck) -> str:
+    """Kein Modellaufruf im Handler: ``fanout.starte`` gibt an einen eigenen
+    Thread ab (Zusage 2)."""
+    starte_dramaturgie(conn, d.tg, d.klm, d.e, d.chat_id)
+    return "Ich sehe die Szenen einzeln durch"
+
+
+def _wirkung_dramaturgie_szene(conn, d: Druck) -> str:
+    """Derselbe Weg wie "Szene N ueberarbeiten" nach der Stueckpruefung: ein
+    Szenenauftrag mit dem Umbauvorschlag als Regie-Notiz. **Erst der
+    Knopfdruck** loest ihn aus -- ein Befund allein aendert nichts."""
+    from interview_theater.dramaturgie import fanout
+
+    befund = repo.hole_dramaturgie_befund(conn, d.chat_id, int(d.wert))
+    if befund is None or befund["szene"] is None:
+        d.tg.sende(d.chat_id, _TEXT_DRAMATURGIE_UNBEKANNT)
+        return _TEXT_DRAMATURGIE_UNBEKANNT
+    from interview_theater import ablauf
+
+    nummer = int(befund["szene"])
+    ablauf.starte_auftrag(
+        conn, d.tg, d.klm, d.e, d.chat_id,
+        f"Schreib Szene {nummer} neu. {fanout.regienotiz(befund)}",
+    )
+    d.tg.sende(d.chat_id, _TEXT_DRAMATURGIE_UEBERHOLT)
+    return f"Szene {nummer} wird ueberarbeitet"
+
+
+def _wirkung_dramaturgie_lassen(conn, d: Druck) -> str:
+    d.tg.sende(d.chat_id, _TEXT_DRAMATURGIE_LASSEN)
     return "Bleibt"
 
 
@@ -1246,6 +1282,9 @@ _WIRKUNGEN = {
     ART_PRUEFUNG_SZENE: _wirkung_pruefung_szene,
     ART_PRUEFUNG_LASSEN: _wirkung_pruefung_lassen,
     ART_PRUEFUNG_RUNDE: _wirkung_pruefung_runde,
+    ART_DRAMATURGIE: _wirkung_dramaturgie,
+    ART_DRAMATURGIE_SZENE: _wirkung_dramaturgie_szene,
+    ART_DRAMATURGIE_LASSEN: _wirkung_dramaturgie_lassen,
     ART_TEXTBUCH: _wirkung_textbuch,
     ART_SPRECHANTEILE: _wirkung_sprechanteile,
     ART_FASSUNGEN: _wirkung_fassungen,

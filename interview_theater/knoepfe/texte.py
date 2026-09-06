@@ -235,6 +235,14 @@ ART_SCHAERFUNG_KEINE = "schaerfung_keine"
 ART_PRUEFUNG_SZENE = "pruefung_szene"
 ART_PRUEFUNG_LASSEN = "pruefung_lassen"
 ART_PRUEFUNG_RUNDE = "pruefung_runde"
+#: Phase 7 - Dramaturgie-Pruefung (06.09.2026, interview_theater/dramaturgie/).
+#: ``ART_DRAMATURGIE`` stoesst den Lauf an, ``ART_DRAMATURGIE_SZENE`` traegt
+#: die ``dramaturgie_befund.id`` und macht aus EINEM Befund EINEN
+#: Szenenauftrag -- **der Bot schlaegt vor, er handelt nicht**: erst der
+#: Knopfdruck loest einen Szenenlauf aus.
+ART_DRAMATURGIE = "dramaturgie"
+ART_DRAMATURGIE_SZENE = "dramaturgie_szene"
+ART_DRAMATURGIE_LASSEN = "dramaturgie_lassen"
 
 
 #: Trennzeichen im ``wert`` der Speicher-Leiste.
@@ -524,8 +532,31 @@ _TEXT_GESCHICHTE_LEER = (
     "Aus dem Vorschlag konnte ich keine Geschichte lesen. Erzaehlt sie mir "
     "einfach."
 )
+#: Die angetippte Zeile war eine FORMWAHL, keine Handlung (06.09.2026, B1/B2
+#: der Phase-4-Analyse). Die Wahl ist festgehalten, die Handlung fehlt noch --
+#: und genau das muss dastehen: bis hierher hat der Bot in so einem Fall
+#: "Notiert, eure Geschichte:" geantwortet und die Menuezeile darunter
+#: gezeigt, und niemandem fiel auf, dass die Handlung nirgends stand.
+_TEXT_NUR_FORMWAHL = (
+    "Die Form je Szene habe ich festgehalten. Die Handlung fehlt mir noch: "
+    "Was passiert, und wie geht es aus?"
+)
 
 #: Phase 6 · Schaerfung.
+#: Phase 7 - Dramaturgie-Pruefung.
+TEXT_DRAMATURGIE_KNOPF = "Dramaturgie pruefen"
+_TEXT_DRAMATURGIE_LAEUFT = (
+    "Ich sehe mir jetzt jede Szene einzeln an - Wendepunkt, Anschluss, "
+    "Stimmen, offene Faeden. Das dauert ein paar Minuten."
+)
+_TEXT_DRAMATURGIE_LASSEN_KNOPF = "Lassen"
+_TEXT_DRAMATURGIE_LASSEN = "Gut, das bleibt so."
+_TEXT_DRAMATURGIE_UNBEKANNT = "Diesen Befund finde ich nicht mehr."
+_TEXT_DRAMATURGIE_UEBERHOLT = (
+    "Sobald die Szene neu steht, ist dieser Befund ueberholt. Wenn ihr wollt, "
+    "sehe ich danach noch einmal nach."
+)
+
 TEXT_SCHAERFUNG_RUNDE_KNOPF = "Noch eine Runde"
 #: Die beiden Sammelknoepfe unter dem Schaerfungs-Menue (06.09.2026).
 _TEXT_SCHAERFUNG_ALLE_KNOPF = "Diese uebernehmen"

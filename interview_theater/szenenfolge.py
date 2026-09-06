@@ -374,6 +374,78 @@ def zerlege_geschichte(wert: str) -> tuple[str, list[tuple[str, str, list[str], 
     return geschichte, zerlege("\n".join(rest))
 
 
+#: Die fuenf Formen, wortgleich mit ``szene.FORMEN`` -- hier als Literal,
+#: weil ``szene`` httpx nachzieht und dieses Modul auch aus dem Knopf-Handler
+#: laeuft. Dass beide Listen gleich bleiben, haelt ein Test fest.
+_FORMEN = ("dialog", "monolog", "chor", "lied", "rap")
+
+#: Ein Formname als eigenes Wort, mit seiner Position im Text.
+_FORMWORT = re.compile(r"\b(" + "|".join(_FORMEN) + r")\b", re.IGNORECASE)
+
+#: "Szene 3" -- der Anker, an dem eine Form haengen kann.
+_SZENENWORT = re.compile(r"\bszene\s*(\d{1,2})\b", re.IGNORECASE)
+
+#: Zwei Formen direkt hintereinander, nur durch Strich, Schraegstrich oder
+#: Komma getrennt ("Chor-Dialog-Rap", "Lied / Monolog"). Das ist die Form,
+#: in der eine Auswahlzeile eine Abfolge nennt -- und der Unterschied zu
+#: einer Handlung, in der zufaellig gesungen und gerappt wird.
+_FORMENKETTE = re.compile(
+    r"\b(" + "|".join(_FORMEN) + r")\b\s*[-–—/,]\s*\b(" + "|".join(_FORMEN) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def formabfolge(text: str) -> dict[int, str] | None:
+    """Ist dieser Text eine **Formwahl je Szene** statt einer Handlung?
+
+    Liefert ``{Szenennummer: Form}`` oder ``None``.
+
+    Der gemessene Fall (docs/analyse-phase4-datenverlust-2026-09-06.md
+    § 2.1): der Bot bot drei Richtungen zur Wahl an, die dritte beschrieb
+    keine Handlung, sondern eine **Formabfolge** ueber drei Szenen. Die
+    Gruppe tippte sie an, ``zerlege_geschichte`` fand darin keine
+    Szenenzeilen -- und der ganze Menuetext landete in
+    ``arbeitsstand.geschichte``. Das Feld trug danach 113 Zeichen Formwahl
+    statt der 665 Zeichen langen, vierteiligen Handlung.
+
+    Erkannt wird eng, nicht grosszuegig: **mindestens zwei verschiedene
+    Formen**, und sie muessen strukturell verwendet sein -- entweder an
+    "Szene N" gebunden oder als Kette hintereinander ("Chor-Dialog-Rap").
+    Eine Handlung, in der jemand singt und jemand dagegen rappt, nennt
+    ebenfalls zwei Formen, aber im Satz und nicht als Liste; sie bleibt
+    eine Handlung. Die Fehlerrichtung ist bewusst gewaehlt: eine nicht
+    erkannte Formzeile kostet, was sie heute kostet, eine faelschlich
+    erkannte Handlung kostet die Handlung."""
+    roh = (text or "").strip()
+    if not roh:
+        return None
+    gefunden = [(m.start(), m.group(1).lower()) for m in _FORMWORT.finditer(roh)]
+    if len({form for _, form in gefunden}) < 2:
+        return None
+
+    # Erst der starke Anker: eine Form, die hinter "Szene N" steht.
+    zuordnung: dict[int, str] = {}
+    anker = list(_SZENENWORT.finditer(roh))
+    for stelle, treffer in enumerate(anker):
+        ende = anker[stelle + 1].start() if stelle + 1 < len(anker) else len(roh)
+        form = next(
+            (f for pos, f in gefunden if treffer.end() <= pos < ende), None
+        )
+        if form is not None:
+            zuordnung[int(treffer.group(1))] = form
+    if len(zuordnung) >= 2:
+        return zuordnung
+
+    # Sonst die Kette: die Reihenfolge der Formen IST die Zuordnung.
+    if not _FORMENKETTE.search(roh):
+        return None
+    reihe: list[str] = []
+    for _, form in gefunden:
+        if form not in reihe:
+            reihe.append(form)
+    return {nummer: form for nummer, form in enumerate(reihe, start=1)}
+
+
 def vorstellung(conn, zeile, chat_id: int | None = None) -> str:
     """Eine Szene, wie sie der Gruppe vorgestellt wird: alle Felder
     untereinander, fehlende Pflichtfelder als \"noch offen\" markiert.

@@ -807,6 +807,32 @@ def _journal(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     ]
 
 
+def _festlegungen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die geltenden Festlegungen, aelteste zuerst -- dieselbe Reihenfolge
+    wie im Prompt (``kontext._baue_festlegungen``).
+
+    **Mit der id**, anders als beim Journal: an ihr haengt der Loeschknopf.
+    Eine veraltete Festlegung, die niemand abraeumen kann, waere genau der
+    Fehler, den diese Tabelle beheben soll (Analyse § 2.5).
+
+    Fehlt die Tabelle noch (Datenbank aus der Zeit davor), ist das Ergebnis
+    leer statt ein Fehler: der Webserver migriert nichts, er liest
+    read-only."""
+    try:
+        zeilen = conn.execute(
+            "SELECT id, bereich, bezug, text, quelle, erstellt_am FROM festlegung "
+            f"WHERE chat_id = ? AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [
+        {"id": z["id"], "bereich": z["bereich"], "bezug": z["bezug"],
+         "text": z["text"], "quelle": z["quelle"], "erstellt_am": z["erstellt_am"]}
+        for z in zeilen
+    ]
+
+
 #: Woher die Dropdowns auf der Gruppenseite ihre Vorschlaege nehmen: aus der
 #: Tabelle ``knopf``, also aus genau dem, was der Bot der Gruppe im Chat schon
 #: einmal zur Auswahl gestellt hat (``knoepfe._AUSWAHLMARKER``). Das ist die
@@ -969,6 +995,11 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "bot_name": zeile["bot_name"],
         "interviewmodus_seit": zeile["interviewmodus_seit"],
         "arbeitsstand": _arbeitsstand(conn, chat_id),
+        # Was die Gruppe festgelegt hat und wofuer es kein Feld gibt
+        # (06.09.2026). Steht auf der Seite aufgeklappt, nicht in einem
+        # <details> wie das Journal: sichtbar war das Journal auch, und
+        # gewirkt hat es trotzdem nicht.
+        "festlegungen": _festlegungen(conn, chat_id),
         "figuren": figuren,
         "szenen": szenen,
         # Die kompakte Uebersicht steht vor den aufklappbaren Bloecken
@@ -986,6 +1017,10 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Wie viel jede Figur spricht (06.09.2026) -- ``szenen: 0`` heisst:
         # keine Szene war zaehlbar, der Abschnitt bleibt weg.
         "sprechanteile": sprechanteile(conn, chat_id),
+        # Die Dramaturgie-Pruefung (06.09.2026) -- leeres Dict heisst: es gab
+        # noch keinen Lauf, der Abschnitt bleibt weg. Belegzitate stehen NIE
+        # darin, die Gruppenseite ist oeffentlich erreichbar.
+        "dramaturgie": dramaturgie(conn, chat_id),
     }
 
 
@@ -1107,6 +1142,50 @@ def stueckpruefung(conn: sqlite3.Connection, chat_id: int) -> dict:
                 "begruendung": z["begruendung"],
                 "vorschlag": z["vorschlag"],
                 "szene_nummer": z["szene_nummer"],
+            }
+            for z in zeilen if z["runde"] == runde
+        ],
+    }
+
+
+def dramaturgie(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Die Befunde der letzten Dramaturgie-Runde (06.09.2026) --
+    **read-only**, wie alles auf dieser Seite.
+
+    Liefert ``{"runde": N, "befunde": [{pruefung, szene, figur, schwere, text,
+    vorschlag, quelle}, …]}`` oder ``{}``, wenn noch keine Runde gelaufen ist.
+
+    **Ohne Belegzitat**, und zwar ohne jedes -- nicht nur ohne ungepruefte.
+    Die Grenze auf dieser Seite lautet "kein Belegzitat ohne
+    ``zitat_geprueft = 1``" (AGENTS.md, Weboberflaeche); hier faellt das
+    Zitat ganz weg, weil es der Nachweis fuer den Code ist und nicht der Text
+    fuer die Gruppe. Was auf der Seite steht, ist der Befund -- dass er
+    belegt ist, ist die Zusage dahinter.
+
+    Fehlt die Tabelle noch (Datenbank aus der Zeit davor), ist das Ergebnis
+    leer statt ein Fehler: der Webserver migriert nichts."""
+    try:
+        zeilen = conn.execute(
+            "SELECT * FROM dramaturgie_befund WHERE chat_id = ? "
+            f"AND {_NICHT_ENTFERNT} ORDER BY runde ASC, id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    if not zeilen:
+        return {}
+    runde = max(z["runde"] for z in zeilen)
+    return {
+        "runde": runde,
+        "befunde": [
+            {
+                "pruefung": z["pruefung"],
+                "szene": z["szene"],
+                "figur": z["figur"],
+                "schwere": z["schwere"],
+                "text": z["text"],
+                "vorschlag": z["vorschlag"],
+                "quelle": z["quelle"],
             }
             for z in zeilen if z["runde"] == runde
         ],

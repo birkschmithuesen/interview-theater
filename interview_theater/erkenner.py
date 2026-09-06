@@ -129,6 +129,15 @@ ARTEN = (
     # Person -- aufnahme._teil_abschliessen zweigt sie daraufhin aus dem
     # Interview ab (repo.loese_aus_interview).
     "an_den_bot",
+    # Seit 06.09.2026 (docs/analyse-phase4-datenverlust-2026-09-06.md): die
+    # Auffangart. Eine sachliche Festlegung, die in KEIN bestehendes Feld
+    # passt, aber fuer Text oder Inszenierung zaehlt -- Gruppenzugehoerigkeit
+    # einer Figur, ihre Herkunft, "nur eine Szene, erste Folge einer Serie",
+    # eine Laengenvorgabe fuer Szenentexte. Bis dahin landete so etwas
+    # hoechstens als ``entschieden``/``vorgeschlagen`` im Journal und fiel
+    # nach acht weiteren Zeilen aus dem Prompt: von 42 Festlegungen einer
+    # Gruppe in Phase 4 waren 22 faktisch verloren.
+    "festlegung_setzen",
 )
 
 #: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im
@@ -511,7 +520,58 @@ def _wende_figur_an(conn, chat_id: int, wert: str) -> dict | None:
         return None
 
     repo.setze_figur(conn, chat_id, name, beschreibung)
+    if treffer is None:
+        _schmelze_platzhalter_ein(conn, chat_id, name, beschreibung)
     return {"art": "figur_setzen", "wert": name}
+
+
+def _schmelze_platzhalter_ein(
+    conn, chat_id: int, name: str, beschreibung: str
+) -> None:
+    """Wurde hier gerade ein Platzhalter NACHBENANNT? Dann verschmelzen die
+    beiden Zeilen (06.09.2026, B3 der Phase-4-Analyse).
+
+    Das Signal ist die **wortgleiche Beschreibung**: der Bot legt den
+    Platzhalter mit einem Merkmalssatz an ("laesst sich nichts gefallen,
+    redet zurueck"), die Gruppe liefert spaeter den Namen dazu, und der
+    Erkenner traegt beides zusammen ein -- Name aus dem Chat, Beschreibung
+    aus dem Vorschlag. Live entstanden so drei Paare mit identischer
+    Beschreibung, und die Arbeit (der Sprachstil) blieb am Platzhalter
+    haengen.
+
+    **Nur ein Platzhalter wird eingeschmolzen** (``ist_platzhaltername``),
+    nie zwei benannte Figuren: zwei Namen mit zufaellig gleicher
+    Beschreibung sind zwei Figuren, und sie zu verschmelzen waere derselbe
+    stille Verlust in der anderen Richtung. Ohne Beschreibung passiert gar
+    nichts -- dann gibt es kein Signal, und geraten wird hier nicht."""
+    beschreibung = " ".join((beschreibung or "").split()).lower()
+    if not beschreibung:
+        return
+    neu = repo.hole_figur(conn, chat_id, name)
+    if neu is None:
+        return
+    platzhalter = next(
+        (
+            f for f in repo.figuren(conn, chat_id)
+            if f["id"] != neu["id"]
+            and repo.ist_platzhaltername(f["name"])
+            and " ".join((f["beschreibung"] or "").split()).lower() == beschreibung
+        ),
+        None,
+    )
+    if platzhalter is None:
+        return
+    alter_name = repo.fuehre_figur_zusammen(conn, chat_id, platzhalter["id"], neu["id"])
+    if alter_name is None:
+        return
+    log.info("Platzhalter %r in %r eingeschmolzen, chat_id=%s",
+             alter_name, neu["name"], chat_id)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden",
+        f"Aus {alter_name} wurde {neu['name']} -- Sprachstil und "
+        "Szenenbesetzung sind mitgewandert.",
+        quelle="erkenner",
+    )
 
 
 #: Trennt in einer Korrektur das falsche vom richtigen Wort. Beide
@@ -685,16 +745,183 @@ def _wende_szene_planen_an(conn, chat_id: int, wert: str) -> dict | None:
     }
 
 
+#: Die Arbeitsstandfelder, gegen die eine Festlegung auf Redundanz geprueft
+#: wird (Analyse § 4.4 Risiko 2, "Doppelte Wahrheit"). Ein Fakt hat genau
+#: eine Stelle im Prompt -- steht er an zweien, ist eine davon zu loeschen
+#: (AGENTS.md, "Prompts werden nicht gelesen, sondern erzeugt und gemessen").
+_FESTLEGUNG_GEGENPROBE = (
+    "rahmen", "geschichte", "kernthema", "hauptkonflikt", "format",
+    "begriffe", "fragen",
+)
+
+
+def _steht_schon_in_einem_feld(conn, chat_id: int, text: str) -> bool:
+    """Traegt ein Arbeitsstandfeld diesen Text schon?
+
+    Verglichen wird auf Teilzeichenkette nach Normalisierung, und nur in
+    einer Richtung: die Festlegung steckt im Feld. Andersherum -- das Feld
+    steckt in der laengeren Festlegung -- ist sie eine Ergaenzung und
+    gehoert genau hierher."""
+    nadel = " ".join((text or "").lower().split())
+    if not nadel:
+        return False
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if not stand:
+        return False
+    schluessel = set(stand.keys())
+    return any(
+        nadel in " ".join((stand[feld] or "").lower().split())
+        for feld in _FESTLEGUNG_GEGENPROBE
+        if feld in schluessel and stand[feld]
+    )
+
+
+def _zerlege_festlegung(wert: str) -> tuple[str, str | None, str]:
+    """``"figur/Kassandra: 19 Jahre"`` -> ``("figur", "Kassandra", "19 Jahre")``.
+
+    Ohne Doppelpunkt gibt es keinen Bereich, und das ist kein Fehler,
+    sondern der haeufigste Fall von "passt in kein Fach": der ganze Wert
+    wird der Text, der Bereich ``sonstiges``. Lieber im falschen Fach als
+    verloren -- genau darum geht es bei dieser Tabelle."""
+    roh = (wert or "").strip()
+    kopf, trenner, text = roh.partition(":")
+    if not trenner:
+        return "sonstiges", None, roh
+    if not text.strip():
+        # Ein Kopf ohne Text ist keine Festlegung, sondern eine angefangene:
+        # der Aufrufer schreibt bei leerem Text nichts.
+        return "sonstiges", None, ""
+    bereich, _, bezug = kopf.partition("/")
+    return (
+        repo.normiere_bereich(bereich),
+        bezug.strip() or None,
+        text.strip(),
+    )
+
+
+def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
+    """Legt eine Festlegung in der Auffangtabelle ab (art
+    ``festlegung_setzen``, 06.09.2026).
+
+    Zwei Faelle schreiben nichts: ein leerer Text, und einer, der in einem
+    Arbeitsstandfeld ohnehin schon steht. Der zweite ist der wichtigere --
+    er ist das Gegenstueck zu ``_ist_geschichte`` weiter oben, nur in der
+    anderen Richtung: dort wird eine Handlung aus dem Setting-Feld
+    herausgehalten, hier ein Setting aus der Auffangtabelle. Beides steht in
+    der Auswertung und nicht im Prompt, weil ``erkenner.md`` ohne Korpuslauf
+    nicht anzufassen ist -- und weil ein Prompt bittet, wo Code
+    durchsetzt."""
+    bereich, bezug, text = _zerlege_festlegung(wert)
+    text = " ".join((text or "").split())
+    if not text:
+        return None
+    if _steht_schon_in_einem_feld(conn, chat_id, text):
+        log.info("Festlegung stand schon in einem Feld, verworfen: %r", text[:80])
+        repo.merke_vorfall(
+            conn, chat_id, None, "festlegung_stand_schon_im_feld",
+            "Eine Festlegung wiederholte ein gesetztes Arbeitsstandfeld",
+        )
+        return None
+    if repo.schreibe_festlegung(conn, chat_id, bereich, text, bezug=bezug) is None:
+        return None
+    return {
+        "art": "festlegung_setzen",
+        "wert": repo.festlegungszeile(bereich, bezug, text),
+        "bereich": bereich,
+        "bezug": bezug,
+        "text": text,
+    }
+
+
+#: Zahlwoerter, die die Gruppe statt einer Ziffer sagt. Bis zwoelf, weil der
+#: Knopf (``knoepfe.FIGURENZAHLEN``) nicht weiter geht -- eine Zahl darueber
+#: ist keine Figurenliste mehr, sondern ein Missverstaendnis.
+_ZAHLWOERTER = {
+    "eine": 1, "einer": 1, "zwei": 2, "drei": 3, "vier": 4, "fuenf": 5,
+    "fünf": 5, "sechs": 6, "sieben": 7, "acht": 8, "neun": 9, "zehn": 10,
+    "elf": 11, "zwoelf": 12, "zwölf": 12,
+}
+
+#: Eine Figurenzahl in einer Journalzeile: eine Zahl (oder eine Spanne "10
+#: bis 12") vor dem Wort "Figuren".
+#:
+#: **Nicht** vor "Hauptfiguren" oder "Nebenfiguren": live wurden beide
+#: getrennt gezaehlt ("2 bis 3 Hauptfiguren", "5 Nebenfiguren"), und eine
+#: Teilzahl als Gesamtzahl waere schlechter als gar keine. Der negative
+#: Lookahead sitzt deshalb vor dem Wortstamm.
+_FIGURENZAHL = re.compile(
+    r"\b(\d{1,2}|" + "|".join(_ZAHLWOERTER) + r")\b"
+    r"(?:\s*(?:bis|-|–|—)\s*(\d{1,2}|" + "|".join(_ZAHLWOERTER) + r")\b)?"
+    r"[^.,;]{0,20}?\s(?!haupt|neben)figuren\b",
+    re.IGNORECASE,
+)
+
+#: Die andere Richtung: "Die Figurenanzahl ist 6".
+_FIGURENZAHL_UMGEKEHRT = re.compile(
+    r"\bfigurenanzahl\b[^\d]{0,20}(\d{1,2})\b", re.IGNORECASE
+)
+
+
+def _zahl(wort: str) -> int | None:
+    wort = (wort or "").strip().lower()
+    if wort.isdigit():
+        return int(wort)
+    return _ZAHLWOERTER.get(wort)
+
+
+def figurenzahl_aus(text: str) -> str | None:
+    """Liest eine Gesamt-Figurenzahl aus einem Satz, oder ``None``.
+
+    Liefert sie in der Form, in der ``arbeitsstand.figuren_anzahl`` sie
+    traegt: ``"8"`` oder ``"10 bis 12"``. Rein deterministisch, kein
+    Modellaufruf -- der Satz liegt schon vor."""
+    roh = text or ""
+    treffer = _FIGURENZAHL.search(roh)
+    if treffer is not None:
+        erste = _zahl(treffer.group(1))
+        zweite = _zahl(treffer.group(2)) if treffer.group(2) else None
+        if erste is None or not 1 <= erste <= 12:
+            return None
+        if zweite is not None and 1 <= zweite <= 12 and zweite != erste:
+            return f"{erste} bis {zweite}"
+        return str(erste)
+    treffer = _FIGURENZAHL_UMGEKEHRT.search(roh)
+    if treffer is not None and 1 <= int(treffer.group(1)) <= 12:
+        return treffer.group(1)
+    return None
+
+
 def _wende_journal_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     """``verworfen``/``entschieden`` haengen eine Journalzeile an -- nie in
     den Arbeitsstand (SPEC § 4.3: 'Journaleintraege fallen hier mit ab').
     Das Journal ist nur-anhaengend, ein Dubletten-Check waere hier sachfremd:
-    zwei getrennte Aeusserungen mit demselben Wortlaut sind zwei Ereignisse."""
+    zwei getrennte Aeusserungen mit demselben Wortlaut sind zwei Ereignisse.
+
+    **Die eine Ausnahme: die Figurenanzahl** (06.09.2026, B4 der
+    Phase-4-Analyse). Live hat die Gruppe sie zweimal festgelegt, und beide
+    Male landete sie nur hier -- ``journal`` #27, art ``entschieden``, 77
+    Zeichen --, waehrend ``arbeitsstand.figuren_anzahl`` NULL blieb. Gesetzt
+    wurde das Feld bis dahin ausschliesslich vom Knopf; sagt die Gruppe die
+    Zahl einfach, gab es keinen Weg hinein.
+
+    Der Weg ist deterministisch (``figurenzahl_aus``, ein Regulaerausdruck
+    ueber einen Satz, der schon dasteht) und nicht eine neue Erkenner-art:
+    eine neue art kostet einen Korpuslauf, dieser Griff kostet nichts und
+    fasst genau den gemessenen Fall. Der Journaleintrag bleibt daneben
+    stehen -- er ist die Chronik, das Feld ist der Stand."""
     wert = wert.strip()
     if not wert:
         return None
     repo.schreibe_journal(conn, chat_id, art, wert, quelle="erkenner")
-    return {"art": art, "wert": wert}
+    ergebnis = {"art": art, "wert": wert}
+    if art == "entschieden":
+        anzahl = figurenzahl_aus(wert)
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        alt = (stand["figuren_anzahl"] if stand else None) or None
+        if anzahl is not None and anzahl != alt:
+            repo.setze_arbeitsstand(conn, chat_id, "figuren_anzahl", anzahl)
+            ergebnis["figuren_anzahl"] = anzahl
+    return ergebnis
 
 
 def _wende_wortlaut_an(conn, chat_id: int, wert: str) -> dict | None:
@@ -816,10 +1043,15 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
 #: \"setting\" steht neben \"rahmen\": seit dem Umbau vom 05.09.2026 nachts
 #: heisst dasselbe Feld in der Gruppe Setting, und wer \"Setting entfernen\"
 #: sagt, meint genau das (``_ENTFERNEN_ARBEITSSTAND``).
+#: \"festlegung\" ist am 06.09.2026 dazugekommen. Ohne diesen Weg erbte die
+#: neue Auffangtabelle den Fehler, den sie beheben soll: im Live-Fall stand
+#: elf Minuten NACH der Ruecknahme des zweiten Spielorts noch ein Eintrag
+#: darueber in der Datenbank, ``entfernt_am`` NULL, und kein Mechanismus
+#: raeumte ihn ab.
 _ENTFERNEN_ZIELE = (
     "figur", "kernthema", "format", "rahmen", "setting", "geschichte",
     "hauptkonflikt", "begriffe",
-    "fragen", "szene", "journal", "interview", "aufnahme",
+    "fragen", "szene", "journal", "festlegung", "interview", "aufnahme",
 )
 
 #: Journalzeile, die eine Entfernung festhaelt -- der Weg soll sichtbar
@@ -917,6 +1149,16 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
         )
         return {"art": "entfernen", "wert": f"Journal: {alter_text}"}
 
+    if ziel == "festlegung":
+        alter_text = repo.entferne_festlegung(conn, chat_id, rest)
+        if alter_text is None:
+            return None
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            _JOURNAL_ZURUECK.format(text=alter_text), quelle=quelle,
+        )
+        return {"art": "entfernen", "wert": f"Festlegung: {alter_text}"}
+
     if ziel in _ENTFERNEN_ARBEITSSTAND:
         bezeichnung = _entferne_arbeitsstandfeld(conn, chat_id, ziel)
     elif ziel == "figur":
@@ -963,6 +1205,8 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_figur_quelle_an(conn, chat_id, wert)
     if art == "szene_planen":
         return _wende_szene_planen_an(conn, chat_id, wert)
+    if art == "festlegung_setzen":
+        return _wende_festlegung_an(conn, chat_id, wert)
     if art in ("verworfen", "entschieden"):
         return _wende_journal_an(conn, chat_id, art, wert)
     if art == "wortlaut_an":
@@ -1167,8 +1411,9 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
     gesammelt: dict = {
         "kernthema": None, "format": None, "rahmen": None, "geschichte": None,
         "hauptkonflikt": None, "begriffe": None, "fragen": None,
-        "phase": None, "usa": None,
-        "figuren": [], "geplant": [], "korrigiert": [], "entfernt": [],
+        "phase": None, "usa": None, "figuren_anzahl": None,
+        "figuren": [], "geplant": [], "festgehalten": [],
+        "korrigiert": [], "entfernt": [],
     }
     einzeln = {
         "szene_usa": "usa",
@@ -1193,8 +1438,18 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
             gesammelt[einzeln[art]] = wert
         elif art in mehrfach:
             gesammelt[mehrfach[art]].append(wert)
+        elif art == "festlegung_setzen":
+            gesammelt["festgehalten"].append(
+                (aenderung.get("bezug"), aenderung.get("text", wert))
+            )
         elif art == "phase_setzen":
             gesammelt["phase"] = phasen.nummer_fuer(wert)
+        # Ein ``entschieden`` bleibt still -- ausser es hat nebenbei die
+        # Figurenanzahl gesetzt (B4). Dann ist es eine Arbeitsstandaenderung
+        # wie jede andere und gehoert in die Meldung: sonst stuende die Zahl
+        # in der Datenbank und die Gruppe wuesste nichts davon.
+        if aenderung.get("figuren_anzahl"):
+            gesammelt["figuren_anzahl"] = aenderung["figuren_anzahl"]
     return gesammelt
 
 
@@ -1211,6 +1466,8 @@ def _meldungszeilen(g: dict) -> list[str]:
         zeilen.append(f"Geschichte: {g['geschichte']}")
     if g["hauptkonflikt"]:
         zeilen.append(f"Hauptkonflikt: {g['hauptkonflikt']}")
+    if g["figuren_anzahl"]:
+        zeilen.append(f"Anzahl Figuren: {g['figuren_anzahl']}")
     if g["figuren"]:
         zeilen.append(_figuren_zeile(g["figuren"]))
     if g["begriffe"]:
@@ -1221,6 +1478,13 @@ def _meldungszeilen(g: dict) -> list[str]:
     # Polizeikessel · Mira, Pola"): die Gruppe soll sehen, welche Szene
     # gemeint ist, ohne die ganze Planung noch einmal zu lesen.
     zeilen.extend(g["geplant"])
+    # Eine Festlegung bekommt ihr eigenes Verb (06.09.2026) -- und mit dem
+    # Bezug in Klammern, wo es einen gibt. Sie MUSS sichtbar sein: sie steht
+    # in keinem Feld und auf keiner Checkliste, und die Gruppe braucht sie im
+    # Chat, um widersprechen zu koennen ("nimm das wieder raus").
+    for bezug, text in g["festgehalten"]:
+        marke = f" ({bezug})" if bezug else ""
+        zeilen.append(f"Festgehalten{marke}: {text}")
     # Eine Transkriptkorrektur bekommt ihr eigenes Verb (N5): "Korrigiert:
     # gepoekt -> gepogt". Sie ist der Beleg dafuer, dass wirklich etwas
     # passiert ist -- im Probelauf sagte der Bot dreimal "korrigiere ich",

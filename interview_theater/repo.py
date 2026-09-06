@@ -27,6 +27,7 @@ Threads ``zaehle_aufnahmen`` aufruft -- mit einem einfachen ``Lock`` wuerde
 sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 """
 
+import re
 import secrets
 import sqlite3
 import threading
@@ -1167,6 +1168,102 @@ def letzte_pruefrunde(conn: sqlite3.Connection, chat_id: int) -> int:
     return int(zeile["r"] or 0) if zeile else 0
 
 
+# --- Dramaturgie-Pruefung (06.09.2026) ------------------------------------
+
+
+@_gesperrt
+def lege_dramaturgie_befunde_an(
+    conn: sqlite3.Connection, chat_id: int, befunde: list[dict], runde: int = 1
+) -> int:
+    """Schreibt die Befunde EINER Dramaturgie-Runde und liefert ihre Anzahl.
+
+    Pflicht sind ``pruefung``, ``text`` und ``quelle`` -- ohne Pruefung gibt
+    es keinen Ort fuer den Befund, ohne Text nichts zu lesen, ohne Quelle
+    waere im Nachhinein nicht mehr zu sehen, ob gezaehlt oder gefragt wurde.
+    Alles andere darf fehlen: ein Sprechanteil haengt an keiner Szene, ein
+    mechanischer Befund an keinem Zitat.
+
+    ``beleg_geprueft`` ist die harte Grenze aus Recherche § 4: sie kommt vom
+    Aufrufer, der den Beleg gegen das vorgelegte Material geprueft hat
+    (``dramaturgie.beleg``), und wird hier nie erraten -- ohne das Feld ist
+    sie 0."""
+    angelegt = 0
+    for befund in befunde:
+        pruefung = str(befund.get("pruefung") or "").strip()
+        text = str(befund.get("text") or "").strip()
+        quelle = str(befund.get("quelle") or "").strip()
+        if not pruefung or not text or not quelle:
+            continue
+        conn.execute(
+            """
+            INSERT INTO dramaturgie_befund
+                (chat_id, runde, pruefung, szene, figur, schwere, text,
+                 beleg, beleg_geprueft, vorschlag, quelle, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                chat_id,
+                runde,
+                pruefung,
+                befund.get("szene"),
+                befund.get("figur"),
+                befund.get("schwere"),
+                text,
+                befund.get("beleg"),
+                1 if befund.get("beleg_geprueft") else 0,
+                befund.get("vorschlag"),
+                quelle,
+                _jetzt(),
+            ),
+        )
+        angelegt += 1
+    conn.commit()
+    return angelegt
+
+
+@_gesperrt
+def dramaturgie_befunde(
+    conn: sqlite3.Connection, chat_id: int, runde: int | None = None
+) -> list[sqlite3.Row]:
+    """Die geltenden Dramaturgie-Befunde, wahlweise nur einer Runde -- in der
+    Reihenfolge, in der sie geschrieben wurden."""
+    sql = (
+        "SELECT * FROM dramaturgie_befund WHERE chat_id = ? "
+        "AND entfernt_am IS NULL"
+    )
+    werte: list = [chat_id]
+    if runde is not None:
+        sql += " AND runde = ?"
+        werte.append(runde)
+    sql += " ORDER BY runde ASC, id ASC"
+    return conn.execute(sql, tuple(werte)).fetchall()
+
+
+@_gesperrt
+def letzte_dramaturgie_runde(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die hoechste bisher gelaufene Dramaturgie-Runde, oder 0. Aus den Daten
+    wie ``letzte_pruefrunde``, nicht aus einem Merkposten."""
+    zeile = conn.execute(
+        "SELECT MAX(runde) AS r FROM dramaturgie_befund WHERE chat_id = ? "
+        "AND entfernt_am IS NULL",
+        (chat_id,),
+    ).fetchone()
+    return int(zeile["r"] or 0) if zeile else 0
+
+
+@_gesperrt
+def hole_dramaturgie_befund(
+    conn: sqlite3.Connection, chat_id: int, befund_id: int
+) -> sqlite3.Row | None:
+    """Ein einzelner Befund -- der Knopf "Szene N so ueberarbeiten" traegt
+    seine id."""
+    return conn.execute(
+        "SELECT * FROM dramaturgie_befund WHERE id = ? AND chat_id = ? "
+        "AND entfernt_am IS NULL",
+        (befund_id, chat_id),
+    ).fetchone()
+
+
 @_gesperrt
 def transkripte(
     conn: sqlite3.Connection, chat_id: int, name: str | None = None
@@ -1740,6 +1837,92 @@ def hole_figur(conn: sqlite3.Connection, chat_id: int, name: str) -> sqlite3.Row
         "AND entfernt_am IS NULL",
         (chat_id, (name or "").strip().lower()),
     ).fetchone()
+
+
+#: Woran ein Platzhaltername erkennbar ist (06.09.2026, B3 der
+#: Phase-4-Analyse). Der Bot legt in Phase 4 Figurenplaetze an, bevor die
+#: Gruppe Namen hat -- "Nebenfigur Cool 1", "Nebenfigur Outsider 3",
+#: "Figur 2". Eng gefasst: nur ein Name, der MIT einem dieser Gattungswoerter
+#: beginnt. "Frau Reinhardt" oder "Sara" trifft er nicht, und das ist die
+#: Bedingung, unter der das Zusammenfuehren unten gefahrlos ist.
+_PLATZHALTERNAME = re.compile(
+    r"^\s*(neben|haupt)?figur\b|^\s*platzhalter\b", re.IGNORECASE
+)
+
+
+def ist_platzhaltername(name: str) -> bool:
+    """Ist das ein vom Bot vergebener Platzhalter statt eines Namens?"""
+    return bool(_PLATZHALTERNAME.match(name or ""))
+
+
+#: Was beim Zusammenfuehren vom Platzhalter auf den Namen wandert -- und zwar
+#: **nur, wenn das Ziel dort nichts hat**. Ein gesetztes Feld der benannten
+#: Figur ist die juengere Entscheidung und gewinnt.
+#:
+#: ``sprachstil`` steht zuerst, weil er der Anlass ist: live hingen die im
+#: Chat erarbeiteten Sprachstile an den Platzhaltern (188/196/187/167
+#: Zeichen), waehrend die benannten Figuren ``sprachstil`` NULL hatten.
+#: ``geprueft_am`` wandert bewusst NICHT mit: die Abnahme galt einer Zeile,
+#: die es nicht mehr gibt.
+_FIGUR_UEBERNAHME = (
+    "sprachstil", "sprachprofil", "zitate", "quelle_aufnahme_id", "beleg_zitat",
+    "beschreibung",
+)
+
+
+@_gesperrt
+def fuehre_figur_zusammen(
+    conn: sqlite3.Connection, chat_id: int, platzhalter_id: int, ziel_id: int
+) -> str | None:
+    """Schmilzt einen Platzhalter in die nachbenannte Figur -- **der Stil
+    wandert auf den Namen**, der Platzhalter wird weich geloescht.
+
+    Liefert den Namen des Platzhalters, oder ``None``, wenn nichts getan
+    wurde (eine der beiden ids gehoert nicht dieser Gruppe, ist schon
+    entfernt oder beide sind dieselbe).
+
+    Der gemessene Fall (Analyse § 2.4): ``figur`` fuehrte 16 Zeilen statt
+    10, drei Paare mit wortgleicher Beschreibung, keine einzige weich
+    geloescht. Der Schaden war nicht die Dublette, sondern ihre Richtung --
+    die Arbeit hing am Platzhalter, der Name war leer, und ``szene_figur``
+    verwies gemischt auf beide Seiten (eine Szene mit sechs Figuren fuehrte
+    neun Zuordnungen).
+
+    Deshalb **zusammenfuehren und nicht loeschen**: den Platzhalter samt
+    Stil wegzuwerfen waere derselbe Verlust noch einmal."""
+    platzhalter = conn.execute(
+        "SELECT * FROM figur WHERE id = ? AND chat_id = ? AND entfernt_am IS NULL",
+        (platzhalter_id, chat_id),
+    ).fetchone()
+    ziel = conn.execute(
+        "SELECT * FROM figur WHERE id = ? AND chat_id = ? AND entfernt_am IS NULL",
+        (ziel_id, chat_id),
+    ).fetchone()
+    if platzhalter is None or ziel is None or platzhalter_id == ziel_id:
+        return None
+
+    for feld in _FIGUR_UEBERNAHME:
+        alt = platzhalter[feld]
+        if alt in (None, "") or ziel[feld] not in (None, ""):
+            continue
+        conn.execute(f"UPDATE figur SET {feld} = ? WHERE id = ?", (alt, ziel_id))
+
+    # Die Szenenbesetzungen umhaengen. ``INSERT OR IGNORE`` und danach
+    # loeschen statt eines UPDATE: steht die Zielfigur in derselben Szene
+    # schon, verletzte das UPDATE den Primaerschluessel (szene_id, figur_id)
+    # -- und genau diese Doppelbesetzung gab es live.
+    conn.execute(
+        "INSERT OR IGNORE INTO szene_figur (chat_id, szene_id, figur_id) "
+        "SELECT chat_id, szene_id, ? FROM szene_figur WHERE figur_id = ?",
+        (ziel_id, platzhalter_id),
+    )
+    conn.execute("DELETE FROM szene_figur WHERE figur_id = ?", (platzhalter_id,))
+
+    conn.execute(
+        "UPDATE figur SET entfernt_am = ? WHERE id = ?", (_jetzt(), platzhalter_id)
+    )
+    conn.commit()
+    return platzhalter["name"]
 
 
 @_gesperrt
@@ -2353,6 +2536,193 @@ def schreibe_journal(
     )
     conn.commit()
     return cur.lastrowid
+
+
+# --- Festlegungen (06.09.2026) --------------------------------------------
+#
+# Die Auffangtabelle fuer alles, was die Gruppe festlegt und wofuer es kein
+# Feld gibt (docs/analyse-phase4-datenverlust-2026-09-06.md § 4.1). Der
+# Unterschied zum Journal steht im Schema-Kommentar in db.py: Chronik gegen
+# Geltungsanspruch. Hier stehen nur die Schreibwege.
+
+#: Die erlaubten Bereiche einer Festlegung.
+#:
+#: Bewusst grob und bewusst OHNE einen Namen, den ein Arbeitsstandfeld schon
+#: traegt (Analyse § 4.4 Risiko 2, "Doppelte Wahrheit"): was in ``rahmen``,
+#: ``geschichte`` oder ``figur.beschreibung`` passt, gehoert dorthin. Diese
+#: Tabelle faengt auf, was daneben faellt -- Gruppenzugehoerigkeiten,
+#: Herkuenfte, Struktur- und Stilvorgaben --, nicht, was schon ein Zuhause
+#: hat. Ein unbekannter Bereich wird zu ``sonstiges`` statt verworfen: eine
+#: Festlegung im falschen Fach ist immer noch besser als keine.
+FESTLEGUNG_BEREICHE = (
+    "figur",      # eine einzelne Figur: Herkunft, Alter, Beruf, Relation
+    "gruppe",     # eine Fraktion im Stueck: Merkmale, Faehigkeiten, Zuordnung
+    "ort",        # Teilorte unterhalb des Settings (Skatepark, Strassenzug)
+    "struktur",   # das Stueck als Ganzes: Serie, Folgenanzahl, Cliffhanger
+    "form",       # Formentscheidungen jenseits von szene.form
+    "stil",       # Stil- und Laengenvorgaben fuer Texte
+    "sonstiges",
+)
+
+#: Wovon eine Festlegung stammen kann.
+FESTLEGUNG_QUELLEN = ("erkenner", "befehl", "web")
+
+
+def normiere_bereich(bereich) -> str:
+    """Einen genannten Bereich auf ``FESTLEGUNG_BEREICHE`` abbilden.
+
+    Tolerant, weil die Werte aus einem Sprachmodell kommen: getrimmt,
+    kleingeschrieben, Mehrzahl abgeschnitten ("figuren" -> "figur"). Was
+    danach nicht passt, wird ``sonstiges``."""
+    wort = (bereich or "").strip().lower().strip(":")
+    if wort in FESTLEGUNG_BEREICHE:
+        return wort
+    if wort.endswith("en") and wort[:-2] in FESTLEGUNG_BEREICHE:
+        return wort[:-2]
+    if wort.endswith("n") and wort[:-1] in FESTLEGUNG_BEREICHE:
+        return wort[:-1]
+    return "sonstiges"
+
+
+def festlegungszeile(bereich: str, bezug: str | None, text: str) -> str:
+    """Eine Festlegung als die eine Zeile, die Prompt, Chat und
+    Weboberflaeche teilen: ``[bereich/bezug] Text``.
+
+    Eine Formatierung und nicht drei -- steht sie an drei Stellen, laufen
+    die drei irgendwann auseinander, und der Prompt zeigt etwas anderes als
+    die Gruppenseite."""
+    kopf = f"{bereich}/{bezug.strip()}" if (bezug or "").strip() else bereich
+    return f"[{kopf}] {text}"
+
+
+@_gesperrt
+def festlegungen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle noch geltenden Festlegungen einer Gruppe, **aelteste zuerst**.
+
+    Die Reihenfolge traegt die Kappung im Prompt (``kontext``): eine fruehe
+    Grundfestlegung ("nur eine Szene, erste Folge einer Serie") wiegt mehr
+    als eine spaete Detailnotiz -- anders als beim Journal, das die letzten
+    Zeilen behaelt."""
+    return conn.execute(
+        "SELECT * FROM festlegung WHERE chat_id = ? AND entfernt_am IS NULL "
+        "ORDER BY id ASC",
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def schreibe_festlegung(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    bereich: str,
+    text: str,
+    bezug: str | None = None,
+    quelle: str = "erkenner",
+) -> int | None:
+    """Haengt eine Festlegung an. Liefert die neue id, oder ``None``, wenn
+    nichts geschrieben wurde.
+
+    **Mit Dublettenschutz, anders als das Journal.** Dort sind zwei
+    gleichlautende Aeusserungen zwei Ereignisse und beide gehoeren in die
+    Chronik; hier ist eine Festlegung ein ZUSTAND, und derselbe Zustand
+    zweimal ist keine zweite Festlegung, sondern eine doppelte Prompt-Zeile.
+    Der Erkenner neigt messbar zur Uebererfassung (Analyse § 4.4 Risiko 1:
+    13 ``vorgeschlagen``-Eintraege in einer Phase, mehrere redundant) --
+    ohne diese Pruefung waechst der Block, bis die Kappung greift und die
+    aelteste, wichtigste Zeile verdraengt.
+
+    Eine schon entfernte Zeile blockiert nicht: zurueckgenommen und neu
+    gesagt ist eine neue Festlegung."""
+    text = " ".join((text or "").split())
+    if not text:
+        return None
+    bereich = normiere_bereich(bereich)
+    bezug = (bezug or "").strip() or None
+    schon_da = conn.execute(
+        "SELECT id FROM festlegung WHERE chat_id = ? AND entfernt_am IS NULL "
+        "AND bereich = ? AND text = ? AND IFNULL(bezug, '') = IFNULL(?, '')",
+        (chat_id, bereich, text, bezug),
+    ).fetchone()
+    if schon_da is not None:
+        return None
+    cur = conn.execute(
+        """
+        INSERT INTO festlegung (chat_id, bereich, bezug, text, quelle, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (chat_id, bereich, bezug, text, quelle, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def entferne_festlegung(
+    conn: sqlite3.Connection, chat_id: int, suchtext: str
+) -> str | None:
+    """Entfernt eine Festlegung weich und liefert ihren Text, oder ``None``.
+
+    Gesucht wird grosszuegig ueber Text UND Bezug (Teiltreffer,
+    Gross-/Kleinschreibung egal, wie ``entferne_journal``): die Gruppe sagt
+    "die Sache mit der Schule ist weg", nicht den vollen Eintragstext.
+    Passen mehrere, trifft es den juengsten -- der ist der wahrscheinlich
+    gemeinte."""
+    suchtext = (suchtext or "").strip()
+    if not suchtext:
+        return None
+    # Teiltreffer in Python statt als LIKE-Muster: ein '%' oder '_' im
+    # Suchtext waere dort ein Platzhalter (dieselbe Ueberlegung wie in
+    # entferne_journal und transkripte).
+    gesucht = suchtext.lower()
+    zeile = next(
+        (
+            z
+            for z in conn.execute(
+                "SELECT id, text, bezug FROM festlegung "
+                "WHERE chat_id = ? AND entfernt_am IS NULL ORDER BY id DESC",
+                (chat_id,),
+            )
+            if gesucht in (z["text"] or "").lower()
+            or gesucht in (z["bezug"] or "").lower()
+        ),
+        None,
+    )
+    if zeile is None:
+        return None
+    conn.execute(
+        "UPDATE festlegung SET entfernt_am = ? WHERE id = ?", (_jetzt(), zeile["id"])
+    )
+    conn.commit()
+    return zeile["text"]
+
+
+@_gesperrt
+def entferne_festlegung_nach_id(
+    conn: sqlite3.Connection, chat_id: int, festlegung_id
+) -> str | None:
+    """Dasselbe ueber die id -- der Weg des Loeschknopfs auf der
+    Gruppenseite.
+
+    ``chat_id`` ist hier keine Zierde, sondern die Zugehoerigkeitspruefung:
+    alle Gruppen teilen sich eine Datenbank, und eine id aus einem Formular
+    darf am Token in der URL nicht vorbeigreifen (dieselbe Regel wie
+    ``web_schreiben._figur``)."""
+    try:
+        festlegung_id = int(festlegung_id)
+    except (TypeError, ValueError):
+        return None
+    zeile = conn.execute(
+        "SELECT id, text FROM festlegung "
+        "WHERE id = ? AND chat_id = ? AND entfernt_am IS NULL",
+        (festlegung_id, chat_id),
+    ).fetchone()
+    if zeile is None:
+        return None
+    conn.execute(
+        "UPDATE festlegung SET entfernt_am = ? WHERE id = ?", (_jetzt(), zeile["id"])
+    )
+    conn.commit()
+    return zeile["text"]
 
 
 @_gesperrt

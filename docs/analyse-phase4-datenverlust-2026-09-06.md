@@ -416,5 +416,40 @@ Alle Zeitstempel UTC, alle Feldangaben aus `betrieb/soap.db` (read-only), `chat_
 
 ---
 
+## 6. Nachtrag 06.09.2026: warum `arbeitsstand.format` NULL blieb (Auftrag B4)
+
+§ 2.6 hält fest, **dass** das Serienformat nie gespeichert wurde. Die Frage nach dem **Warum**
+ist beim Umsetzen von B4 beantwortet worden, und die Antwort hat zwei Teile — beide belegt im
+Code, keiner davon ein Fehler des Modells:
+
+1. **Es fehlte das Fach, nicht die Erkennung.** `prompts/erkenner.md` definiert `format_setzen`
+   ausdrücklich als die **Art des Stücks und die Formen darin** („Musical: Dialog, Lied, Rap",
+   „Sprechtheater", „Revue mit Chor und Monologen"). Eine Aussage über die *Struktur* — eine
+   Szene, erste Folge einer Serie — passt in diese Definition nicht hinein. Der Erkenner hat
+   also richtig nichts geschrieben: es gab kein Feld für das, was die Gruppe gesagt hat. Das
+   ist genau die Strukturlücke aus § 3.
+
+2. **Selbst ein gesetztes `format` wäre nie im Prompt gelandet.** `kontext._baue_arbeitsstand`
+   führt das Feld seit dem 05.09.2026 abends nicht mehr („es wird nicht mehr gefragt, also wird
+   es auch nicht mehr vorgehalten"), und AGENTS.md sagt dasselbe: „`format` und `hauptkonflikt`
+   bleiben als Spalten stehen und tragen keine Entscheidung mehr." Das Feld ist eine Altlast,
+   kein Speicherort. Ein Test hält beides fest
+   (`tests/test_figurenanzahl.py::test_format_steht_nicht_mehr_im_prompt`).
+
+**Folge für die Umsetzung:** an `format` wurde nichts geändert — es zu befüllen hätte den
+Verlust nicht behoben, sondern nur verschoben. Die Festlegung „nur eine Szene, erste Folge einer
+Serie" geht seit dem 06.09. in die Auffangtabelle, Bereich `struktur` (Korpusfall `fl02`), und
+steht damit in jedem Gesprächs-Prompt.
+
+Die **Figurenanzahl** dagegen hatte ein Feld und blieb trotzdem NULL: gesetzt wurde
+`arbeitsstand.figuren_anzahl` bis dahin ausschließlich vom Knopf
+(`knoepfe.uebernimm_figurenanzahl`). Sagte die Gruppe die Zahl einfach, landete sie im Journal
+und nirgends sonst. Seit dem 06.09. liest `erkenner.figurenzahl_aus` sie deterministisch aus
+einer `entschieden`-Zeile — ohne Modellaufruf und ohne neue Erkenner-Art, also ohne Korpuslauf.
+Teilzahlen („2 bis 3 Hauptfiguren", „5 Nebenfiguren") sind dabei ausdrücklich ausgenommen: eine
+Teilzahl als Gesamtzahl wäre schlechter als keine.
+
+---
+
 *Erstellt 06.09.2026 als reine Lesanalyse. Keine Schreibzugriffe auf die Datenbank,
-keine Codeänderung, kein Commit.*
+keine Codeänderung, kein Commit. Abschnitt 6 als Nachtrag beim Umsetzen ergänzt.*

@@ -18,6 +18,7 @@ Kein Modellaufruf steht hier: was eines braucht, geht ueber
 from interview_theater import repo
 
 from interview_theater.knoepfe.texte import (
+    ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN, ART_DRAMATURGIE_SZENE,
     ART_DURCHLAUF_SZENE, ART_EIGENE, ART_FASSUNGEN, ART_GESCHICHTE_ANDERS,
     ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
@@ -31,6 +32,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
     ART_SPRECHANTEILE, ART_TEXTBUCH,
     MAX_AUSWAHL, MENUE_KNOPF_LAENGE, TEXT_ANDERS_KNOPF, TEXT_ANZAHL_KNOPF,
+    TEXT_DRAMATURGIE_KNOPF,
     TEXT_DURCHLAUF_SZENE_KNOPF, TEXT_EIGENE_IDEE_KNOPF, TEXT_FASSUNGEN_KNOPF,
     TEXT_FORM_VORSCHLAG_ZUSATZ, TEXT_GESCHICHTE_SCHREIBEN_KNOPF,
     TEXT_NAECHSTE_KNOPF, TEXT_NEU_KNOPF, TEXT_PASST_KNOPF,
@@ -39,11 +41,12 @@ from interview_theater.knoepfe.texte import (
     TEXT_SZENE_PLANEN_KNOPF, TEXT_SZENE_SCHREIBEN_KNOPF,
     TEXT_SZENE_SO_LASSEN_KNOPF, TEXT_SZENE_UEBERSPRINGEN_KNOPF,
     TEXT_TEXTBUCH_KNOPF, TRENNER, _TEXT_ANDERS, _TEXT_EIGENE_IDEE,
+    _TEXT_DRAMATURGIE_LAEUFT, _TEXT_DRAMATURGIE_LASSEN_KNOPF,
     _TEXT_FASSUNGEN_KOPF, _TEXT_FASSUNG_KOPF,
     _TEXT_FOLGE_GESPEICHERT, _TEXT_FOLGE_LEER, _TEXT_GESCHICHTE_ANDERS_KNOPF,
     _TEXT_GESCHICHTE_GESPEICHERT, _TEXT_GESCHICHTE_LEER,
     _TEXT_GESCHICHTE_NEU_KNOPF, _TEXT_GESCHICHTE_PASST_KNOPF,
-    _TEXT_KEINE_FASSUNGEN,
+    _TEXT_KEINE_FASSUNGEN, _TEXT_NUR_FORMWAHL,
     _TEXT_KEINE_NAECHSTE, _TEXT_MENUE_ANDERS_KNOPF, _TEXT_NACH_SPEICHERN_FRAGE,
     _TEXT_PROBENANSICHT, _TEXT_PRUEFUNG_LAEUFT, _TEXT_PRUEFUNG_LASSEN_KNOPF,
     _TEXT_PRUEFUNG_RUNDE_KNOPF, _TEXT_PRUEFUNG_SZENE_KNOPF,
@@ -536,6 +539,14 @@ def biete_nach_pruefung(conn, tg, chat_id: int, runde: int, e=None) -> int:
             TEXT_TEXTBUCH_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEXTBUCH, None)),
         ),
+        # Die feinkoernige Ebene daneben (06.09.2026): der Stueck-Judge sagt
+        # "Spannungsbogen 3/5", die Dramaturgie-Pruefung sagt "Szene 4 endet,
+        # wie sie anfaengt" -- mit Zitat und Szenennummer. Zwei Fragen, zwei
+        # Knoepfe; angeboten wird beides, gedrueckt wird, was die Gruppe will.
+        (
+            TEXT_DRAMATURGIE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_DRAMATURGIE, None)),
+        ),
     ]
     for s in repo.hole_szenen(conn, chat_id):
         if s["nummer"] is None:
@@ -561,6 +572,82 @@ def _pruefbefund(conn, chat_id: int, befund_id: int):
         (z for z in repo.stueckpruefungen(conn, chat_id) if z["id"] == befund_id),
         None,
     )
+
+
+
+# --- Phase 7 - Dramaturgie-Pruefung (06.09.2026) --------------------------
+
+
+def starte_dramaturgie(conn, tg, klm, e, chat_id: int) -> None:
+    """Stoesst die Dramaturgie-Pruefung an (im Thread).
+
+    Kein Modellaufruf hier: ``dramaturgie.fanout.starte`` gibt sofort ab
+    (Zusage 2)."""
+    from interview_theater.dramaturgie import fanout
+
+    tg.sende(chat_id, _TEXT_DRAMATURGIE_LAEUFT)
+    fanout.starte(conn, tg, klm, e, chat_id)
+
+
+def zeige_dramaturgie(conn, tg, chat_id: int, runde: int | None = None) -> int:
+    """Die Befunde EINER Dramaturgie-Runde: je Befund eine Zeile mit
+    Szenennummer, und je Ueberarbeitungsauftrag ein Knopf "Szene N so
+    ueberarbeiten".
+
+    **Der Bot schlaegt vor, er handelt nicht.** Kein automatisches
+    Neuschreiben; erst der Knopfdruck loest einen Szenenlauf aus -- dieselbe
+    Haltung wie ueberall im Repo: Datenstand ist nicht Absicht.
+
+    **Ohne Belegzitat im Chat.** Das Zitat ist der Nachweis fuer den Code;
+    dass es geprueft wurde, ist die Zusage, nicht seine Anzeige.
+
+    Deterministisch aus der Datenbank, kein Modellaufruf (Zusage 2). Liefert
+    die Zahl der verschickten Befund-Nachrichten."""
+    from interview_theater.dramaturgie import fanout
+
+    if runde is None:
+        runde = repo.letzte_dramaturgie_runde(conn, chat_id)
+    if not runde:
+        return 0
+    zeilen = repo.dramaturgie_befunde(conn, chat_id, runde=runde)
+    if not zeilen:
+        tg.sende(chat_id, fanout.MELDUNG_OHNE_BEFUND)
+        return 0
+    figuren = [f["name"] for f in repo.figuren(conn, chat_id)]
+    auftraege = {a["befund_id"]: a for a in fanout.auftraege(zeilen, figuren)}
+
+    tg.sende(chat_id, fanout.MELDUNG_KOPF.format(runde=runde))
+    verschickt = 0
+    for zeile in zeilen:
+        text = fanout.befundzeile(zeile)
+        if zeile["id"] not in auftraege:
+            tg.sende(chat_id, text)
+            verschickt += 1
+            continue
+        leiste = [
+            (
+                fanout.TEXT_AUFTRAG_KNOPF.format(nummer=zeile["szene"]),
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_DRAMATURGIE_SZENE, str(zeile["id"])
+                    )
+                ),
+            ),
+            (
+                _TEXT_DRAMATURGIE_LASSEN_KNOPF,
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_DRAMATURGIE_LASSEN, str(zeile["id"])
+                    )
+                ),
+            ),
+        ]
+        message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+        repo.merke_knopf_nachricht(
+            conn, [_id_aus_daten(d) for _, d in leiste], message_id
+        )
+        verschickt += 1
+    return verschickt
 
 
 def sende_szenenfelder(conn, tg, chat_id: int, nummer: int, antwort: str) -> int:
@@ -880,6 +967,56 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     return f"{len(nummern)} Szenen uebernommen"
 
 
+def _uebernimm_formwahl(conn, tg, chat_id: int, wert: str, formen: dict) -> str:
+    """Die angetippte Zeile war eine Formwahl je Szene -- **die Wahl wird
+    uebernommen, die Geschichte bleibt leer** (06.09.2026, B2).
+
+    Sie abzuweisen und sonst nichts zu tun waere ein zweiter Verlust: die
+    Formentscheidung der Gruppe stand am 06.09. nur als Fliesstext in einem
+    Feld, das ihr nicht gehoerte, und ``szene.form`` war in **allen 15**
+    Zeilen NULL.
+
+    Zwei Ablagen, weil es zwei Lagen gibt: **gibt es die Szene schon**, geht
+    die Form in ``szene.form``; **gibt es sie noch nicht** -- und das war der
+    Live-Fall, die Formwahl kam vor der Szenenfolge --, geht sie als
+    Festlegung in die Auffangtabelle und ist damit im Prompt, bis die Szenen
+    entstehen.
+
+    ``szene.form`` und nicht ``form_vorschlag``: die Gruppe hat den Knopf
+    **gedrueckt**. Die Regel aus AGENTS.md ("die Form ist ein Vorschlag,
+    keine Vorentscheidung") haelt den Vorschlag eines Modells aus dem Feld
+    heraus, nicht die Wahl der Gruppe -- gesetzt wird sie durch einen Druck,
+    und der ist hier passiert."""
+    vorhandene = {s["nummer"]: s["id"] for s in repo.hole_szenen(conn, chat_id)}
+    geschrieben = []
+    offen = []
+    for nummer in sorted(formen):
+        szene_id = vorhandene.get(nummer)
+        if szene_id is None:
+            offen.append(f"Szene {nummer}: {formen[nummer]}")
+            continue
+        repo.setze_szenenfeld(conn, szene_id, "form", formen[nummer])
+        geschrieben.append(f"Szene {nummer}: {formen[nummer]}")
+    if offen:
+        repo.schreibe_festlegung(
+            conn, chat_id, "form", "Form je Szene — " + ", ".join(offen),
+            quelle="knopf",
+        )
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden",
+        "Form je Szene: " + ", ".join(geschrieben + offen), quelle="knopf",
+    )
+    repo.merke_vorfall(
+        conn, chat_id, None, "geschichte_war_formwahl",
+        "Eine Formwahl sollte als Geschichte gespeichert werden",
+    )
+    log.info("Geschichte-Knopf trug eine Formwahl, chat_id=%s: %r", chat_id, wert[:80])
+    repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
+    tg.sende(chat_id, _TEXT_NUR_FORMWAHL)
+    return "Formwahl uebernommen, Geschichte fehlt noch"
+
+
+
 def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     """Speichert die GEWAEHLTE RICHTUNG (``arbeitsstand.geschichte``) und
     bietet danach die Szenenfolge an (06.09.2026, Birk 11:42).
@@ -907,6 +1044,18 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         log.error("Geschichte-Knopf ohne verwertbare Zeile, chat_id=%s", chat_id)
         tg.sende(chat_id, _TEXT_GESCHICHTE_LEER)
         return _TEXT_GESCHICHTE_LEER
+    # **Eine Menuezeile ist keine Geschichte** (06.09.2026, B1/B2 der
+    # Phase-4-Analyse). Der Kommentar unten benennt die Absicht richtig --
+    # sie traegt aber nur, wenn die Menuezeile eine HANDLUNGSrichtung
+    # beschreibt. Am 06.09. beschrieb sie eine Formabfolge ueber drei
+    # Szenen, und die ganze Zeile landete in ``arbeitsstand.geschichte``:
+    # 113 Zeichen Formwahl statt der 665 Zeichen langen, vierteiligen
+    # Handlung. Spiegelbildlich zu ``erkenner._ist_geschichte``, das
+    # denselben Fehler in der anderen Richtung abfaengt.
+    if not zeilen:
+        formen = szenenfolge.formabfolge(wert)
+        if formen:
+            return _uebernimm_formwahl(conn, tg, chat_id, wert, formen)
     # Eine Richtung ist eine Zeile "Titel — Bogen, Ende, Konflikt": sie ist
     # die Geschichte, nicht ihr erster Satz.
     geschichte = wert.strip() if not zeilen else geschichte

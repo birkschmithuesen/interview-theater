@@ -506,6 +506,43 @@ CREATE TABLE IF NOT EXISTS stueckpruefung (
 );
 CREATE INDEX IF NOT EXISTS idx_stueckpruefung_chat ON stueckpruefung(chat_id, id);
 
+-- Die Dramaturgie-Pruefung (06.09.2026, interview_theater/dramaturgie/).
+--
+-- Die feinkoernige Ebene NEBEN der Stueckpruefung: die gibt sechs Noten
+-- ueber das ganze Stueck, diese hier gibt einzelne Befunde mit Szene, Figur
+-- und Belegzitat -- und **keine Note**. Deshalb eine eigene Tabelle und
+-- keine Spalte mehr in ``stueckpruefung``: die beiden beantworten
+-- verschiedene Fragen, und eine gemeinsame Zeile haette an der Haelfte der
+-- Spalten NULL.
+--
+-- ``quelle`` trennt die beiden Wege, die hier zusammenlaufen: 'mechanik'
+-- (deterministisch gezaehlt, kein Modell) und 'judge' (ein Modellaufruf, eine
+-- Frage). ``beleg_geprueft`` ist die Zusage aus Recherche § 4 -- ein Beleg
+-- ohne 1 davor hat die Substring-Pruefung NICHT bestanden und darf nirgends
+-- angezeigt werden, wo Belegzitate stehen (dieselbe Grenze wie bei
+-- ``verdichtung_thema.zitat_geprueft``).
+--
+-- Additiv wie alles andere: ``runde`` zaehlt hoch, eine zweite Runde
+-- loescht die erste nicht.
+CREATE TABLE IF NOT EXISTS dramaturgie_befund (
+  id             INTEGER PRIMARY KEY,
+  chat_id        INTEGER NOT NULL,
+  runde          INTEGER NOT NULL DEFAULT 1,
+  pruefung       TEXT NOT NULL,            -- b1|a2|a6|c1|namensstabilitaet|…
+  szene          INTEGER,
+  figur          TEXT,
+  schwere        TEXT,                     -- hart|verdacht|hinweis bzw.
+                                            -- blocker|hoch|mittel|niedrig
+  text           TEXT NOT NULL,
+  beleg          TEXT,
+  beleg_geprueft INTEGER NOT NULL DEFAULT 0,
+  vorschlag      TEXT,
+  quelle         TEXT NOT NULL,            -- mechanik|judge
+  erstellt_am    TEXT NOT NULL,
+  entfernt_am    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_dramaturgie_chat ON dramaturgie_befund(chat_id, id);
+
 -- Wer in einer Szene vorkommt: nur Figuren aus dem Arbeitsstand, deshalb eine
 -- Verknuepfung und keine Namensliste in einem Textfeld. Eine weich geloeschte
 -- Figur verschwindet damit von selbst aus jeder Szene (repo.szene_figuren
@@ -533,6 +570,48 @@ CREATE TABLE IF NOT EXISTS journal (
   entfernt_am       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_journal_chat ON journal(chat_id, id);
+
+-- Die Auffangtabelle fuer alles, was die Gruppe festlegt und wofuer es kein
+-- Feld gibt (06.09.2026, docs/analyse-phase4-datenverlust-2026-09-06.md).
+--
+-- Der Befund dahinter: von 42 Festlegungen einer Gruppe in Phase 4 sind 22
+-- verloren. Das Schema kennt nur einen festen Satz vorab definierter Slots
+-- (``arbeitsstand.rahmen``, ``figur.beschreibung``, ``szene.ort`` ...); fuer
+-- jede relevante Angabe ausserhalb dieses Rasters gab es kein Feld, nur einen
+-- ``journal``-Eintrag -- und der faellt nach ``kontext.JOURNAL_EINTRAEGE``
+-- weiteren Zeilen aus dem Prompt und kommt nie zurueck. Verloren gingen so
+-- unter anderem: die Gruppenzugehoerigkeit jeder Figur, die Herkuenfte, die
+-- Vorgabe "nur eine Szene, erste Folge einer Serie" und die Laengenvorgabe
+-- fuer die Szenentexte.
+--
+-- **Bewusst NICHT im ``journal``.** Das Journal ist per AGENTS.md eine
+-- CHRONIK ("nur-anhaengend, es gibt bewusst kein aktualisiere_journal") und
+-- wird im Kontext gekappt, weil es sonst den Prompt flutet. Eine Festlegung
+-- braucht das Gegenteil: sie soll vollstaendig und dauerhaft mitgehen.
+-- Beides in einer Tabelle zu mischen erzwingt genau die Kappung, die den
+-- Verlust erzeugt hat.
+--
+-- Nur-anhaengend wie das Journal, weiches Loeschen ueber ``entfernt_am``
+-- (N3) -- das ist hier Pflicht und nicht Kuer: eine veraltete Festlegung
+-- ("ein zweiter Ort ist die Schule", elf Minuten nach ihrer Ruecknahme
+-- geschrieben) erbt sonst den alten Fehler.
+CREATE TABLE IF NOT EXISTS festlegung (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  -- figur|gruppe|ort|struktur|form|stil|sonstiges (repo.FESTLEGUNG_BEREICHE).
+  -- Bewusst KEIN Name eines bestehenden Arbeitsstandfeldes: was in ein Feld
+  -- passt, gehoert ins Feld -- sonst stuende derselbe Fakt an zwei Stellen
+  -- und beide widerspraechen sich irgendwann (Analyse § 4.4 Risiko 2).
+  bereich      TEXT NOT NULL,
+  -- Worauf sie sich bezieht: Figurenname, Gruppenname, Szenennummer. Optional
+  -- -- eine Strukturfestlegung ("nur eine Szene") bezieht sich auf alles.
+  bezug        TEXT,
+  text         TEXT NOT NULL,           -- die Festlegung, eine Zeile
+  quelle       TEXT NOT NULL,           -- erkenner|befehl|web
+  erstellt_am  TEXT NOT NULL,
+  entfernt_am  TEXT                     -- gesetzt = weich geloescht (N3)
+);
+CREATE INDEX IF NOT EXISTS idx_festlegung_chat ON festlegung(chat_id, id);
 
 -- Inline-Knoepfe (05.09.2026, interview_theater/knoepfe.py).
 --
@@ -605,7 +684,9 @@ TABELLEN_MIT_CHAT_ID = (
     "szenenfassung",
     "schaerfung",
     "stueckpruefung",
+    "dramaturgie_befund",
     "journal",
+    "festlegung",
     "knopf",
     "vorfall",
     "aufruf",

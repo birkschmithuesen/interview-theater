@@ -74,6 +74,14 @@ BUDGETS = {
     "transkripte": 5000,
     "kernpaket": 2000,
     "arbeitsstand": 1200,
+    # **Das einzige Budget, das wirklich durchgesetzt wird** (06.09.2026,
+    # Analyse § 4.2). Es steht hier nicht als Spec-Referenz, sondern als
+    # Grenze: ``_baue_festlegungen`` kappt daran und an
+    # ``FESTLEGUNGEN_ZEILEN``. Der Grund ist Risiko 1 der Analyse -- der
+    # Erkenner neigt zur Uebererfassung, und ein Auffangblock ohne Deckel
+    # waechst unbegrenzt. 800 Token sind rund 2.400 Zeichen; die gemessene
+    # Gruppe haette in Phase 4 etwa 12 Zeilen a 70 Zeichen erzeugt.
+    "festlegungen": 800,
     "phasenhinweis": 50,
     "figurenhinweis": 100,
     "szene": 1500,
@@ -130,8 +138,9 @@ PAUSE_AB_MINUTEN = 60
 #: Feste Reihenfolge des Prompt-Koerpers (ohne SYSTEM, das separat verschickt
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
-    "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "phasenhinweis",
-    "figurenhinweis", "szene", "journal", "fenster", "ausloeser", "erstkontakt",
+    "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
+    "phasenhinweis", "figurenhinweis", "szene", "journal", "fenster",
+    "ausloeser", "erstkontakt",
 )
 
 
@@ -504,6 +513,50 @@ def _baue_arbeitsstand(conn, chat_id: int, ohne_kernpaket_felder: bool = False) 
     if not zeilen:
         return ""
     return "Arbeitsstand:\n" + "\n".join(zeilen)
+
+
+#: Die Kopfzeile des Festlegungs-Blocks. Bewusst "weitere": der Arbeitsstand
+#: steht direkt darueber, und das Modell soll den Block als seine Fortsetzung
+#: lesen -- nicht als eine zweite, konkurrierende Wahrheit.
+FESTLEGUNGEN_KOPF = "Weitere Festlegungen der Gruppe (gelten wie der Arbeitsstand):"
+
+#: Wie viele Festlegungen hoechstens in den Prompt gehen (Analyse § 4.2).
+#: Zusammen mit ``BUDGETS["festlegungen"]`` der Deckel gegen Risiko 1
+#: (Prompt-Inflation durch einen uebererfassenden Erkenner).
+FESTLEGUNGEN_ZEILEN = 20
+
+
+def _baue_festlegungen(conn, chat_id: int) -> str:
+    """Die Auffangtabelle als Block, direkt hinter dem Arbeitsstand.
+
+    **Die aeltesten Zeilen bleiben** -- und das ist der eine Punkt, an dem
+    dieser Block sich vom Journal unterscheidet (``_baue_journal`` behaelt
+    die letzten N). Der Grund steht in der Analyse: eine fruehe
+    Grundfestlegung ("nur eine Szene, erste Folge einer Serie") wiegt mehr
+    als eine spaete Detailnotiz -- und genau diese Grundfestlegung ist am
+    06.09. aus dem Prompt gefallen, wonach das System sechs Szenen baute.
+
+    Zwei Deckel, weil zwei Fehler drohen: ``FESTLEGUNGEN_ZEILEN`` gegen
+    viele kurze Zeilen, ``BUDGETS["festlegungen"]`` gegen wenige lange. Die
+    Tabelle selbst bleibt unangetastet -- gekuerzt wird nur die Sicht des
+    Modells, wie beim Journal.
+
+    Datengetrieben wie jeder Block: keine Festlegung, kein Block."""
+    eintraege = repo.festlegungen(conn, chat_id)
+    if not eintraege:
+        return ""
+    grenze = BUDGETS["festlegungen"] * _ZEICHEN_JE_TOKEN
+    zeilen: list[str] = []
+    laenge = len(FESTLEGUNGEN_KOPF)
+    for eintrag in eintraege[:FESTLEGUNGEN_ZEILEN]:
+        zeile = "- " + repo.festlegungszeile(
+            eintrag["bereich"], eintrag["bezug"], eintrag["text"]
+        )
+        if zeilen and laenge + 1 + len(zeile) > grenze:
+            break
+        zeilen.append(zeile)
+        laenge += 1 + len(zeile)
+    return FESTLEGUNGEN_KOPF + "\n" + "\n".join(zeilen)
 
 
 #: Der Hinweisblock, mit dem der Bot einen Phasenwechsel zur Sprache bringt.
@@ -1018,6 +1071,9 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         "arbeitsstand": _baue_arbeitsstand(
             conn, chat_id, ohne_kernpaket_felder=bool(kernpaket)
         ),
+        # Direkt dahinter, und **unabhaengig von Phase und Materiallage**:
+        # was hier steht, passt in kein Feld und faellt deshalb sonst weg.
+        "festlegungen": _baue_festlegungen(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
@@ -1039,7 +1095,12 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
     2. Der Verlauf von vorn -- das Aelteste zuerst, eine ganze Nachricht je
        Schritt.
     3. Das Journal von vorn -- die aeltesten Notizen.
-    4. Die Verdichtungen -- zuletzt, weil sie das Material selbst sind.
+    4. Die Festlegungen von HINTEN -- die juengsten Details zuerst
+       (06.09.2026). Sie sind der vorletzte Kandidat: klein, stabil und genau
+       das, was ohne diese Tabelle gar nicht erst im Prompt stuende. Und
+       anders als beim Journal faellt hier das Juengste zuerst, damit die
+       Grundfestlegung als letzte geht.
+    5. Die Verdichtungen -- zuletzt, weil sie das Material selbst sind.
 
     Nie angetastet: Kernpaket, Arbeitsstand, Hinweise, aktuelle Szene und die
     ausloesende Nachricht. Es gibt keinen Zustand, in dem der Bot wegen des
@@ -1073,6 +1134,13 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
             bloecke["journal"] = "\n".join(journalzeilen)
         if _zu_lang():
             bloecke["journal"] = ""
+    if _zu_lang() and bloecke["festlegungen"]:
+        festlegungszeilen = bloecke["festlegungen"].split("\n")
+        while _zu_lang() and len(festlegungszeilen) > 2:
+            festlegungszeilen = festlegungszeilen[:-1]
+            bloecke["festlegungen"] = "\n".join(festlegungszeilen)
+        if _zu_lang():
+            bloecke["festlegungen"] = ""
     if _zu_lang():
         bloecke["verdichtungen"] = ""
     nachher = len(_zusammen(bloecke))

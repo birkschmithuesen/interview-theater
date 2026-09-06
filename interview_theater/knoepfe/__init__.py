@@ -1,0 +1,214 @@
+"""Inline-Knoepfe fuer die Auswahl-Momente (05.09.2026).
+
+**Warum es das gibt.** Die Sprachnavigation ist an Auswahl-Momenten
+unzuverlaessig -- gemessen am 05.09.2026: der Absichtserkenner
+(``erkenner.py``) erkennt eine Kernthema-Festlegung zuverlaessig, wenn er das
+ganze Gespraech sieht (3/3), aber live sieht er nur ein Fenster von ein bis
+drei Nachrichten. Im Fenster mit der Zustimmung schrieb er ``entschieden``
+(eine Journalnotiz) statt ``kernthema_setzen`` (ein Arbeitsstand-Feld). Die
+Festlegung landete deshalb nicht in der Datenbank und erschien nicht auf der
+Weboberflaeche.
+
+Ein Knopf traegt die Auswahl selbst -- es ist nichts zu erraten. Genau dafuer,
+und nur dafuer, sind Knoepfe hier gedacht: **Stellen, an denen die Gruppe aus
+wenigen benannten Moeglichkeiten waehlt** (Kernthema, Aufnahme an/aus,
+naechste Phase, Form je Szene, USA-Einwilligung). Alles andere -- Begriffe,
+Fragen, Figurenbeschreibungen -- bleibt bewusst Sprache: dort gibt es keine
+Liste, aus der sich waehlen liesse.
+
+**Drei Zusagen, an denen sich dieser Code messen laesst:**
+
+1. ``callback_data`` bleibt unter 64 Bytes (Telegram-Grenze). Ein Knopf traegt
+   nur ``k:<id>`` -- der eigentliche Wert (ein Kernthema kann laenger sein als
+   die ganze Grenze) steht in der Tabelle ``knopf``. Geprueft wird die Grenze
+   in ``telegram.Telegram.sende_mit_knoepfen``, nicht hier.
+2. **Kein Modellaufruf.** Wie bei den Slash-Befehlen (``befehle.py``) greift
+   ein Knopf frueh und deterministisch: ``bot.schleife`` gibt ihn ab, bevor
+   irgendein Kontext gebaut wird. Was ein Modell braucht, geht wie ueberall an
+   einen eigenen Thread (``basis._starte_auftrag``).
+3. **Idempotent.** Jeder Druck wird ueber ``repo.beanspruche_knopf``
+   beansprucht -- ein bedingtes UPDATE, das nur einmal gewinnt. Der zweite
+   Druck bekommt eine freundliche Rueckmeldung und loest nichts aus.
+
+``tests/test_knoepfe_struktur.py`` haelt alle drei am Quelltext fest.
+
+**Der Aufbau** (06.09.2026: die Datei war auf 4.400 Zeilen gewachsen und
+zerfiel entlang dieser Schichten von selbst). Jede Schicht liest nur nach
+unten; die vier Aufrufe nach oben stehen als lokaler Import in der Funktion,
+die sie braucht:
+
+* ``texte.py`` -- Arten, Wortlaute, Phasennummern, Auftragsvorlagen
+* ``basis.py`` -- callback_data, Grundleiste, Speicherweg, Auftragsabgabe
+* ``fragen.py`` -- Phase 2
+* ``figuren.py`` -- Phase 4
+* ``szenen.py`` -- Phasen 5 bis 8
+* ``interviews.py`` -- Phase 3
+* ``stationen.py`` -- der Phasenrahmen im Chat
+* ``wirkung.py`` -- die Dispatch-Tabelle und ihre Handler
+
+Dieses ``__init__`` re-exportiert die vollstaendige bisherige Modulflaeche,
+damit kein Aufrufer angepasst werden muss: ``knoepfe.behandle``,
+``knoepfe.biete_phase_proaktiv``, ``knoepfe.ART_SPEICHERN`` und alles Weitere
+sind unveraendert erreichbar.
+"""
+
+#: Arten, Wortlaute, Phasennummern, Auftragsvorlagen
+from interview_theater.knoepfe.texte import (  # noqa: F401
+    ANWEISUNGEN, ANWEISUNG_DUKTUS, ANWEISUNG_EINLEITUNGEN,
+    ANWEISUNG_EROEFFNUNG, ANWEISUNG_FIGURENZAHL, ANWEISUNG_FRAGEN_ANDERE,
+    ANWEISUNG_FRAGEN_EIGENE, ANWEISUNG_KERNFRAGE, ANWEISUNG_KERNTHEMA,
+    ANWEISUNG_NAMEN, ART_ANDERS, ART_AUFNAHME, ART_AUSWERTEN,
+    ART_AUSWERTEN_ALLE, ART_DURCHLAUF_SZENE, ART_EIGENE, ART_FIGUREN_ANZAHL,
+    ART_FIGUREN_ANZAHL_FREI, ART_FIGUREN_ANZAHL_MENU, ART_FIGUREN_NAMEN_MENU,
+    ART_FIGUR_DUKTUS, ART_FIGUR_DUKTUS_MENU, ART_FIGUR_ENTFERNEN,
+    ART_FIGUR_INTERVIEW, ART_FIGUR_INTERVIEW_MENU, ART_FIGUR_NAME,
+    ART_FIGUR_NAME_MENU, ART_FIGUR_PASST, ART_FRAGEN_ANDERE,
+    ART_FRAGEN_EIGENE, ART_FRAGEN_UEBERNEHMEN, ART_FRAGE_WAHL,
+    ART_GESCHICHTE_SPEICHERN, ART_HILFE, ART_KERNTHEMA, ART_LEITFADEN,
+    ART_NOCH_NICHT, ART_PHASE, ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
+    ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
+    ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN,
+    ART_STAND, ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
+    ART_SZENENFOLGE_ANZAHL_WERT, ART_SZENENFOLGE_REIHENFOLGE,
+    ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM, ART_SZENE_ANDERS,
+    ART_SZENE_FORM, ART_SZENE_NAECHSTE, ART_SZENE_NEU, ART_SZENE_PASST,
+    ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN, ART_SZENE_SO_LASSEN,
+    ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
+    ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_WIR_ZUERST,
+    ART_ZUSAMMENFASSUNG, FIGURENZAHLEN, FIGURENZAHL_MAX, FIGURENZAHL_MIN,
+    FRAGEN_ANZAHL, FRAGEN_ZUR_WAHL, KNOPF_LAENGE, MAX_AUSWAHL,
+    MAX_VORSCHLAEGE, PHASE_DURCHLAUF, PHASE_GESCHICHTE, PHASE_INTERVIEWS,
+    PHASE_RAHMEN, PHASE_SCHAERFUNG, PHASE_SETTING, PHASE_STUECKPRUEFUNG,
+    PHASE_SZENEN, PRAEFIX, TEXT_ABLAUF, TEXT_ANDERS_KNOPF, TEXT_ANZAHL_KNOPF,
+    TEXT_ARBEIT_EROEFFNUNG, TEXT_ARBEIT_SENSIBILITAET,
+    TEXT_DURCHLAUF_SZENE_KNOPF, TEXT_EIGENE_IDEE_KNOPF,
+    TEXT_FORM_VORSCHLAG_ZUSATZ, TEXT_NAECHSTE_KNOPF, TEXT_NEU_KNOPF,
+    TEXT_PASST_KNOPF, TEXT_PRUEFUNG_LAEUFT, TEXT_REIHENFOLGE_KNOPF,
+    TEXT_SCHAERFUNG_RUNDE_KNOPF, TEXT_SZENE_FORM_KNOPF,
+    TEXT_SZENE_PLANEN_KNOPF, TEXT_SZENE_SCHREIBEN_KNOPF,
+    TEXT_SZENE_SO_LASSEN_KNOPF, TEXT_SZENE_UEBERSPRINGEN_KNOPF,
+    TEXT_TEXTBUCH_KNOPF, TEXT_WEITER_KNOPF, TRENNER, _ANWEISUNG_ALLGEMEIN,
+    _AUSWAHLMARKER, _ERSTER_ALS_WERT, _FELD_FUER, _HAKEN, _KETTE, _NOTIERT,
+    _TEXT_ANDERS, _TEXT_ANDERS_KNOPF, _TEXT_ANZAHL_FRAGE,
+    _TEXT_AUFNAHME_BEENDEN, _TEXT_AUFNAHME_STARTEN,
+    _TEXT_AUSWERTEN_ALLE_KNOPF, _TEXT_AUSWERTEN_ALLE_LAEUFT,
+    _TEXT_AUSWERTEN_ALLE_NICHTS, _TEXT_AUSWERTEN_KNOPF,
+    _TEXT_AUSWERTEN_UNBEKANNT, _TEXT_AUSWERTEN_UNMOEGLICH, _TEXT_DUKTUS_FEHLT,
+    _TEXT_DUKTUS_LAEUFT, _TEXT_DUKTUS_OHNE_QUELLE, _TEXT_EIGENE,
+    _TEXT_EIGENE_IDEE, _TEXT_EIGENE_KNOPF, _TEXT_FIGURENZAHL_UNKLAR,
+    _TEXT_FIGUREN_ANZAHL_ERSTFRAGE, _TEXT_FIGUREN_ANZAHL_FRAGE,
+    _TEXT_FIGUREN_ANZAHL_FREI_FRAGE, _TEXT_FIGUREN_ANZAHL_FREI_KNOPF,
+    _TEXT_FIGUREN_ANZAHL_KNOPF, _TEXT_FIGUREN_FIXIERT, _TEXT_FIGUREN_KEINE,
+    _TEXT_FIGUREN_NAMEN_FRAGE, _TEXT_FIGUREN_NAMEN_KNOPF,
+    _TEXT_FIGUR_DUKTUS_KNOPF, _TEXT_FIGUR_ENTFERNEN_KNOPF,
+    _TEXT_FIGUR_INTERVIEW_FRAGE, _TEXT_FIGUR_INTERVIEW_KNOPF,
+    _TEXT_FIGUR_PASST_KNOPF, _TEXT_FOLGE_GESPEICHERT, _TEXT_FOLGE_LEER,
+    _TEXT_FRAGEN_ANDERE_KNOPF, _TEXT_FRAGEN_EIGENE, _TEXT_FRAGEN_EIGENE_KNOPF,
+    _TEXT_FRAGEN_KEINE_AUSWAHL, _TEXT_FRAGEN_NICHT_DREI, _TEXT_FRAGEN_NOTIERT,
+    _TEXT_FRAGEN_NUMMERN_FALSCH, _TEXT_FRAGEN_UEBERNEHMEN_KNOPF,
+    _TEXT_FRAGEN_UEBERNOMMEN, _TEXT_FRAGEN_WAHL, _TEXT_GESCHICHTE_GESPEICHERT,
+    _TEXT_GESCHICHTE_LEER, _TEXT_HILFE_KNOPF, _TEXT_KEINE_NAECHSTE,
+    _TEXT_KEIN_INTERVIEW, _TEXT_KEIN_TRANSKRIPT, _TEXT_KERNTHEMA_FRAGE,
+    _TEXT_KERNTHEMA_KEINE, _TEXT_LEITFADEN_KNOPF, _TEXT_NACH_SPEICHERN_FRAGE,
+    _TEXT_NAECHSTE_AUFNAHME_KNOPF, _TEXT_NOCH_NICHT, _TEXT_PASST,
+    _TEXT_PHASE_ANGEBOT, _TEXT_PHASE_NOCH_NICHT_KNOPF, _TEXT_PHASE_WEITER,
+    _TEXT_PROAKTIV, _TEXT_PRUEFUNG_LAEUFT, _TEXT_PRUEFUNG_LASSEN,
+    _TEXT_PRUEFUNG_LASSEN_KNOPF, _TEXT_PRUEFUNG_RUNDE_KNOPF,
+    _TEXT_PRUEFUNG_SZENE_KNOPF, _TEXT_PRUEFUNG_UEBERHOLT,
+    _TEXT_PRUEFUNG_UNBEKANNT, _TEXT_REIHENFOLGE_FRAGE, _TEXT_SCHAERFUNG_DURCH,
+    _TEXT_SCHAERFUNG_LAEUFT, _TEXT_SCHAERFUNG_NICHTS,
+    _TEXT_SCHAERFUNG_UEBERNOMMEN, _TEXT_SCHLAG_VOR_KNOPF, _TEXT_SCHON_BENUTZT,
+    _TEXT_SCHON_GESETZT, _TEXT_SPAETERE_GEPRUEFT, _TEXT_SPEICHERN_KNOPF,
+    _TEXT_STAND_KNOPF, _TEXT_SZENENFORM_FRAGE, _TEXT_SZENE_ANDERS_FRAGE,
+    _TEXT_SZENE_OHNE_TEXT, _TEXT_SZENE_PLANEN_FRAGE, _TEXT_SZENE_SO_GELASSEN,
+    _TEXT_SZENE_UEBERSPRUNGEN, _TEXT_SZENE_UNBEKANNT, _TEXT_TEIL_FERTIG_KNOPF,
+    _TEXT_TEIL_SCHON_AUS, _TEXT_TEIL_WEITER, _TEXT_TEIL_WEITER_KNOPF,
+    _TEXT_TEXTBUCH_BESCHREIBUNG, _TEXT_TEXTBUCH_FEHLER,
+    _TEXT_TRANSKRIPT_KNOPF, _TEXT_TROTZDEM_AUSWERTEN_KNOPF, _TEXT_UNBEKANNT,
+    _TEXT_USA_FRAGE_KNOEPFE, _TEXT_USA_JA, _TEXT_USA_JA_KNOPF, _TEXT_USA_NEIN,
+    _TEXT_USA_NEIN_KNOPF, _TEXT_WEITER_FRAGE, _TEXT_WIR_ZUERST,
+    _TEXT_WIR_ZUERST_KNOPF, _TEXT_ZITATE_VORSPANN, _TEXT_ZUR_GESCHICHTE,
+    _TEXT_ZUSAMMENFASSUNG_KNOPF, log,
+)
+
+#: callback_data, Grundleiste, Speicherweg, Auftragsabgabe
+from interview_theater.knoepfe.basis import (  # noqa: F401
+    _auswahlleiste, _daten, _entferne_tastatur, _feld_ist_frei, _id_aus_daten,
+    _ist_bestaetigung, _leistenwert, _mit_leiste, _nimm_alte_leiste_ab,
+    _phasenknopf, _sende_mit_grundleiste, _sende_nur_auswahl, _speichere,
+    _starte_auftrag, biete_kernthema, biete_phase, grundleiste,
+    kernthema_vorschlaege, offene_art, sende_mit_speicherleiste,
+    sende_notiert_mit_leiste, speicherleiste,
+)
+
+#: Phase 2
+from interview_theater.knoepfe.fragen import (  # noqa: F401
+    _ORDINALWOERTER, _auswahlfragen, _fragenleiste, _gewaehlte, _knopftext,
+    _leitfaden_knopf, _speichere_eroeffnung, _uebernimm_fragen,
+    biete_fragenauswahl, fragenliste, lies_fragennummern, nimm_fragennummern,
+    starte_eroeffnung, starte_sensibilitaetspruefung,
+)
+
+#: Phase 4
+from interview_theater.knoepfe.figuren import (  # noqa: F401
+    _INTERVIEWNUMMER, _anzahl_erwartet, _biete_interviews, _entwurfszeilen,
+    _ersetze_namen, _figurenvorstellung, _figurenzeile, _interview_aus_zeile,
+    _kette_weiter, _schliesse_figuren_ab, _sende_figurenvorstellung,
+    _uebernimm_figurenliste, _zahl_aus, biete_figurenanzahl,
+    biete_figurenliste, ebene2_erlaubt, erwarte_figurenanzahl,
+    naechste_offene_figur, nimm_figurenanzahl_erwartung, stelle_figur_vor,
+    uebernimm_figurenanzahl,
+)
+
+#: Phasen 5 bis 8
+from interview_theater.knoepfe.szenen import (  # noqa: F401
+    _biete_weiter_nach_szene, _melde_spaetere, _naechste_offene, _pruefbefund,
+    _schreibe_szene, _speichere_geschichte, _speichere_szenenfelder,
+    _speichere_szenenfolge, _szene_mit_nummer, biete_durchlauf,
+    biete_nach_pruefung, biete_nach_szenentext, biete_schaerfung, biete_szene,
+    biete_szene_usa, biete_szenenform, sende_geschichte, sende_szenenfelder,
+    sende_szenenfolge, starte_schaerfung, starte_stueckpruefung,
+    zeige_stueckpruefung, zeige_szenentext,
+)
+
+#: Phase 3
+from interview_theater.knoepfe.interviews import (  # noqa: F401
+    _aufnahme_anbieten, _auswerten_alle_knopf, _interviewknoepfe,
+    _werte_alle_aus, biete_aufnahme, biete_einstieg, biete_nach_aufnahme,
+    biete_nach_teil,
+)
+
+#: der Phasenrahmen im Chat
+from interview_theater.knoepfe.stationen import (  # noqa: F401
+    _ERLEDIGT_FUER, _abschlusstext, _mit_vorspann, biete_phase_proaktiv,
+    biete_proaktiv, eintritt_in_phase,
+)
+
+#: die Dispatch-Tabelle und ihre Handler
+from interview_theater.knoepfe.wirkung import (  # noqa: F401
+    Druck, _WIRKUNGEN, _speichere_einleitungen, _speichere_kettenglied,
+    _wirke, _wirkung_anders, _wirkung_aufnahme, _wirkung_auswerten,
+    _wirkung_auswerten_alle, _wirkung_durchlauf_szene, _wirkung_eigene,
+    _wirkung_figur_duktus, _wirkung_figur_duktus_menu,
+    _wirkung_figur_entfernen, _wirkung_figur_interview,
+    _wirkung_figur_interview_menu, _wirkung_figur_name,
+    _wirkung_figur_name_menu, _wirkung_figur_passt, _wirkung_figuren_anzahl,
+    _wirkung_figuren_anzahl_frei, _wirkung_figuren_anzahl_menu,
+    _wirkung_figuren_namen_menu, _wirkung_frage_wahl, _wirkung_fragen_andere,
+    _wirkung_fragen_eigene, _wirkung_geschichte_speichern, _wirkung_hilfe,
+    _wirkung_kernthema, _wirkung_leitfaden, _wirkung_noch_nicht,
+    _wirkung_phase, _wirkung_pruefung_lassen, _wirkung_pruefung_runde,
+    _wirkung_pruefung_szene, _wirkung_rahmen, _wirkung_richtung,
+    _wirkung_schaerfung_figur, _wirkung_schaerfung_runde,
+    _wirkung_schaerfung_szene, _wirkung_schlag_vor, _wirkung_speichern,
+    _wirkung_stand, _wirkung_szene_anders, _wirkung_szene_form,
+    _wirkung_szene_naechste, _wirkung_szene_neu, _wirkung_szene_passt,
+    _wirkung_szene_planen, _wirkung_szene_schreiben, _wirkung_szene_so_lassen,
+    _wirkung_szene_ueberspringen, _wirkung_szene_usa, _wirkung_szene_zeigen,
+    _wirkung_szenenfelder_speichern, _wirkung_szenenfolge_anzahl,
+    _wirkung_szenenfolge_anzahl_wert, _wirkung_szenenfolge_reihenfolge,
+    _wirkung_szenenfolge_speichern, _wirkung_szenenform, _wirkung_teil_fertig,
+    _wirkung_teil_weiter, _wirkung_textbuch, _wirkung_transkript,
+    _wirkung_wir_zuerst, _wirkung_zusammenfassung, behandle,
+)
+

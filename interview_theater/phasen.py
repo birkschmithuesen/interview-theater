@@ -479,6 +479,14 @@ def offenes_angebot(conn, chat_id: int) -> int | None:
     moegliche = moegliche_naechste(conn, chat_id)
     if not moegliche:
         return None
+    # 06.09.2026 13:30 (Birk): "Wenn explizit in eine Phase gesprungen wird,
+    # nicht automatisch in eine andere springen -- egal ob Interviews
+    # vorhanden sind." Das Angebot zaehlt nur, was die Gruppe SEIT dem
+    # Betreten dieser Phase gemacht hat. Ist seitdem nichts Neues entstanden,
+    # ist die Materiallage Altbestand -- kein Angebot, die Gruppe arbeitet.
+    # (Sagt sie ausdruecklich "weiter", geht der Erkenner-Weg trotzdem.)
+    if not repo.neues_material_seit(conn, chat_id, repo.hole_phase_gesetzt_am(conn, chat_id)):
+        return None
     # 06.09.2026 13:15 (Gruppe 1, live): nach dem Eroeffnungs-Schritt kam
     # KEIN "Weiter zu Interviews" -- die Gruppe hatte schon ein ausgewertetes
     # Interview vom Vortag, also war Phase 4 "moeglich", ``max`` waehlte 4,

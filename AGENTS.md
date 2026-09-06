@@ -432,6 +432,27 @@ lädt, würde damit Gesprächszüge ausbremsen.
   nicht installiert, nicht jetzt — `kontext.baue` braucht Blöcke als Objekte
   (Kürzung, Protokoll); Kandidaten für später sind die unkritischen Pfade.
 
+- **Das Eingabe-Budget des Szenenlaufs ist gemessen, nicht gesetzt**
+  (06.09.2026). Deutscher Prosatext tokenisiert schlechter als die Faustregel:
+  gegen `count_tokens` gemessen ergab der echte Szenen-Prompt 38 610 Zeichen =
+  20 222 Token, also **1,9 Zeichen je Token** — `kontext._ZEICHEN_JE_TOKEN = 3`
+  hätte um 36 % zu niedrig geschätzt, deshalb `szene.SZENE_ZEICHEN_JE_TOKEN`.
+  Die beiden Anbieterpfade sind nicht vergleichbar: bei Claude (`max_tokens =
+  32 000`, kein extended thinking) müssen Eingabe **plus** `max_tokens` unter
+  das Kontextfenster passen → 126 000 Token; bei Infomaniak zählen beide gegen
+  `max_total_tokens = 249 984`, und `llm.prosa` läuft mit 200 000 → 37 488
+  Token. Env `IT_SZENE_TOKEN_MAX` überschreibt. Jede Szene liefert per
+  Pflichtzeile `Zusammenfassung:` + `Anders gemacht:` (→ `szene.zusammenfassung`,
+  Journal-Eintrag bei Abweichung); passt der Volltext aller Vorszenen nicht,
+  greift die Kürzungsleiter älteste Szene → Zusammenfassung, dann Chat-Block auf
+  10, dann Kernpaket-Begründungen, dann 3 Zitate/Figur — nie Rahmen, Aufgabe,
+  Angaben, Auftrag; alles im Continuity-Kopf benannt, Vorfall
+  `szene_prompt_gekuerzt`. Der Szenenlauf bekommt den Chat seit der letzten
+  Fassung dieser Szene (mind. 20 Nachrichten) als Block „Was die Gruppe zuletzt
+  dazu gesagt hat" — Chat schlägt gespeicherte Angaben. `stop_reason ≠ end_turn`
+  ist ein Fehler (`szene_abgeschnitten`), kein Text; `_pruefe_budget` warnt ab
+  90 % der tatsächlichen Token.
+
 ## Die Fallen
 
 Jede hier gemessen, keine geraten. Wer das nicht liest, verliert denselben

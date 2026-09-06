@@ -1,0 +1,22 @@
+[
+ {
+  "modell": "claude-opus-5",
+  "zeichen": 2270400,
+  "status": 400,
+  "dauer_s": 0.5,
+  "input_tokens": null,
+  "output_tokens": null,
+  "antwort": "",
+  "fehler": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"prompt is too long: 1100623 tokens > 1000000 maximum\"},\"request_id\":\"req_011Cemi6z9QnAVEX9BjALyEy\"}"
+ },
+ {
+  "modell": "claude-opus-4-8",
+  "zeichen": 2270400,
+  "status": 400,
+  "dauer_s": 0.5,
+  "input_tokens": null,
+  "output_tokens": null,
+  "antwort": "",
+  "fehler": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"prompt is too long: 1100598 tokens > 1000000 maximum\"},\"request_id\":\"req_011Cemi72gTjcTNuDfMP18uw\"}"
+ }
+]

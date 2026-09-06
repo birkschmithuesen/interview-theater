@@ -794,3 +794,21 @@ def test_szene_laeuft_liest_nur_die_sperre(conn):
     finally:
         sperre.release()
         szene._sperren.clear()
+
+
+def test_selbstanweisung_im_wortlaut_der_systemanweisung_ist_denkspur():
+    """06.09.2026 11:55, Testgruppe: Kimi schickte der Gruppe eine Anweisung
+    an sich selbst -- "Du sollst die Szene schreiben, nicht Birk. ... 'Start
+    frei fuer Szene 1' war die System-Ankuendigung. Dein Zug ist leer oder ein
+    Satz Zuspruch." Das ist Systemprompt-Wortlaut, keine Nachricht an eine
+    Gruppe -- und wird als Denkspur verworfen."""
+    from interview_theater import ablauf
+
+    text = (
+        "Du sollst die Szene schreiben, nicht Birk. Sie hat Ja gesagt, die "
+        "Szenentexte sollen auf US-Server. 'Start frei fuer Szene 1 - ich "
+        "schreibe die Szene aus' war die System-Ankuendigung. Dein Zug ist leer "
+        "oder ein Satz Zuspruch. Keine Frage, keine Wiederholung, keine Erklaerung."
+    )
+    assert ablauf.ist_denkspur(text)
+    assert not ablauf.ist_denkspur("Klingt gut - womit fangt ihr an?")

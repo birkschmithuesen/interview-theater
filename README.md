@@ -9,8 +9,10 @@ immer die Gruppe.
 
 Die Gruppe führt Interviews miteinander und schickt sie als Sprachnachricht in
 den Chat. Von dort aus geht die Arbeit weiter: Das Material wird
-transkribiert und zu Kernthemen verdichtet, aus den Kernthemen entstehen
-Figuren, aus den Figuren ein Konflikt, aus dem Konflikt Szenentext.
+transkribiert und zu Kernthemen mit wörtlichen Belegzitaten verdichtet. Dann
+erfindet die Gruppe ihr Stück — Setting, Figuren, Geschichte — und schärft es
+anschließend an dem, was in den Interviews wirklich gesagt wurde. Daraus
+werden Szenen, erst als Geschichte, dann als Text.
 
 Der Bot begleitet diesen Weg. Er schlägt vor, ordnet ein, hält fest, was
 entschieden wurde — er entscheidet aber nichts selbst. Jeder Vorschlag ist ein
@@ -25,37 +27,44 @@ gibt, stehen sie in `docs/` als Referenz, nicht als Voraussetzung.
 
 ## Wie ein Workshop damit abläuft
 
-Der Weg zum fertigen Stück lässt sich grob in sieben Stationen beschreiben:
+Der Weg zum fertigen Stück lässt sich in sieben Stationen beschreiben:
 
 1. **Begriffe** — die im Plenum gesammelte Begriffsliste aufnehmen und ordnen
-2. **Fragen** — aus den Begriffen Interviewfragen entwickeln
+2. **Fragen** — aus den Begriffen zehn Interviewfragen entwickeln, drei davon
+   auswählen, heikle Fragen weicher fassen und daraus einen Gesprächsleitfaden
+   bekommen (Eröffnung, Fragen, Abschluss)
 3. **Interviews** — Interviews führen, das Material verdichten
-4. **Kernthema & Figuren** — aus den Verdichtungen das Kernthema herausschälen
-   und die Figuren entwickeln
-5. **Format & Rahmen** — festlegen, *was* entsteht (Sprechtheater, Musical,
-   Revue, Hörstück) und welche Formen vorkommen dürfen (Dialog, Lied, Rap,
-   Monolog, Chor, stumme Szene), und *worin* es spielt (Ort, Zeit, Anlass,
-   roter Faden)
-6. **Szenen** — die Szenenfolge entwerfen (Ort, Zeit, Anlass, Besetzung, was
-   passiert) und die Szenentexte in der jeweiligen Form schreiben lassen —
-   Dialog, Lied, Rap, Monolog, Chor oder eine stumme Szene
-7. **Durchlauf** — Durchlauf und Feinschliff vor der Aufführung
+4. **Setting, Figuren & Geschichte** — frei erfinden: worin es spielt, wer
+   vorkommt, was passiert und wie es endet
+5. **Schärfung** — die erfundene Geschichte am eigenen Interviewmaterial
+   schärfen: der Bot legt die belegten Stellen neben die Szenen und Figuren,
+   die Gruppe übernimmt, was passt
+6. **Szenen als Geschichte** — jede Szene erst einmal als Prosa erzählen: was
+   passiert, noch ohne Form
+7. **Feinschliff** — je Szene die Form wählen (Dialog, Monolog, Chor, Lied,
+   Rap), die Geschichte in diese Form übersetzen lassen und das ganze Stück
+   noch einmal prüfen
 
 Die Begriffe entstehen **im Raum, nicht im Chat**: gesammelt wird im Plenum,
 auf Zetteln oder an der Wand. Was der Bot bekommt, ist die fertige Liste —
 getippt, von einem Foto abgetippt oder als Sprachnachricht.
 
-**Kernthema und Figuren sind eine Station, nicht zwei.** Welches von beidem
-zuerst kommt, ergibt sich aus dem Material — manchmal steht das Thema und die
-Figuren fallen daraus ab, manchmal ist zuerst eine Figur da; oft geht beides
-zusammen. Format und Rahmen kommen danach, weil sich über die Form erst reden
-lässt, wenn es ein Thema und Leute gibt, die es tragen.
+**Erst erfinden, dann schärfen.** Setting, Figuren und Geschichte macht die
+Gruppe an Station 4 *ohne* das Interviewmaterial — bewusst. Als der Bot dort
+noch alle Verdichtungen vor sich hatte, schlug er nichts anderes vor als die
+Interviews, und das Ergebnis war eine Nacherzählung, in der die Gruppe ihren
+eigenen Anteil nicht wiedererkannte. Erst an Station 5 kommt das Material
+dazu und legt sich *neben* das Erfundene, statt es zu ersetzen.
+
+**Die Form kommt zuletzt.** An Station 6 wird jede Szene als Geschichte
+erzählt; erst im Feinschliff entscheidet die Gruppe je Szene, ob daraus ein
+Dialog, ein Monolog, ein Chor, ein Lied oder ein Rap wird. Der Bot schlägt
+eine Form vor und begründet sie, gewählt wird sie per Knopf — und ohne diesen
+Druck schreibt er nichts.
 
 **Es muss nicht immer einen Konflikt geben.** Nicht jede Szene braucht einen —
-es kann ein Lied sein, ein Chor oder eine harmonische Szene. Ein durchgehender
-Hauptkonflikt ist *eine* mögliche Rahmen-Entscheidung an Station 5, keine
-Voraussetzung für irgendetwas; der Bot fragt danach und nimmt ein Nein als
-Antwort.
+es kann ein Lied sein, ein Chor oder eine harmonische Szene. Der Bot fragt
+danach und nimmt ein Nein als Antwort.
 
 Das ist überhaupt eine Landkarte, kein Fahrplan. Die Gruppe darf jederzeit
 abbiegen, zu einer früheren Station zurückspringen oder eine Entscheidung
@@ -65,13 +74,13 @@ eine Reihenfolge — es gibt keine, die einzuhalten wäre.
 **Umgeschaltet wird nur, wenn die Gruppe es sagt.** Der Bot springt nie von
 selbst weiter, auch wenn das Material die nächste Station hergäbe: dass eine
 Verdichtung fertig ist, heißt nicht, dass keine drei Interviews mehr kommen.
-Er fragt stattdessen im Gespräch nach („Kommen noch Interviews, oder gehen wir
-ans Kernthema?") — einmal, nicht bei jeder Nachricht. Die Antwort genügt, ein
-Befehl ist nicht nötig.
+Er fragt stattdessen im Gespräch nach („Kommen noch Interviews, oder fangen
+wir mit dem Stück an?") — einmal, nicht bei jeder Nachricht. Die Antwort
+genügt, ein Befehl ist nicht nötig.
 
 **Die Station ist der Fokus des Bots, nicht die Grenze der Gruppe.** Wer in
-Phase 2 nach einem Kernthema fragt, bekommt eines; die Phase zieht danach
-einfach nach.
+Phase 2 nach Figuren fragt, bekommt welche; die Phase zieht danach einfach
+nach.
 
 ## Was der Bot versteht
 
@@ -135,12 +144,12 @@ Geht eine Sprachnachricht unterwegs verloren, sagt der Bot, welchen Teil ihr
 noch einmal schicken sollt. Hakt es beim Zuhören, holt er es später nach und
 schickt das Transkript dann — nichts geht verloren.
 
-Der Bot merkt sich Begriffe, Interviewfragen, Kernthema, Figuren und Konflikt
-von selbst, ohne dass jemand das eintragen muss. Jede Änderung meldet er kurz im Chat, zum
-Beispiel:
+Der Bot merkt sich Begriffe, Interviewfragen, Setting, Figuren und Geschichte
+von selbst, ohne dass jemand das eintragen muss. Jede Änderung meldet er in
+einer Zeile im Chat, zum Beispiel:
 
-> Notiert: Kernthema = Ankommen.
-> Falls das nicht stimmt, sagt es mir.
+> Notiert:
+> Setting: Ein Wartezimmer, spätnachmittags
 
 Korrigiert wird durch Widerspruch im Chat — es gibt kein Formular und keine
 Bestätigung, auf die gewartet werden müsste. Die Gruppe macht einfach weiter,
@@ -149,21 +158,24 @@ und wenn etwas falsch notiert wurde, wird das im nächsten Satz richtiggestellt.
 ## Die Befehle
 
 Der Bot versteht Sprache, keine Kommandosprache. Für den Fall, dass er etwas
-falsch verstanden hat, gibt es zehn Befehle als Notausgang — man braucht sie
-nicht, um mit ihm zu arbeiten:
+falsch verstanden hat, gibt es Befehle als Notausgang — man braucht sie
+nicht, um mit ihm zu arbeiten. Im Menü stehen diese acht:
 
 | Befehl | Wirkung |
 |---|---|
-| `/interview` | Aufnahme von Hand starten |
-| `/fertig` | Aufnahme von Hand beenden |
+| `/aufnahme` | Interview starten — und nochmal, um es zu beenden |
 | `/auswerten [Nummer]` | ein Interview doch noch verdichten, das der Bot als zu kurz übergangen hat |
 | `/phase [Nummer\|Name]` | zeigt, an welcher der sieben Stationen ihr gerade arbeitet — oder schaltet um, auch zurück |
 | `/kernthema <Text>` | Kernthema setzen oder korrigieren, `/kernthema aus` nimmt es wieder weg |
-| `/figur <Name> entfernen` | eine Figur wieder herausnehmen |
+| `/stueck` | zeigt das Setting des Stücks — oder setzt es (`/stueck rahmen <Text>`) |
 | `/szene <Auftrag>` | eine Szene ausschreiben lassen (dauert ein paar Minuten), `/szene <Nummer> entfernen` nimmt eine wieder weg |
 | `/stand` | zeigt, was der Bot sich bisher gemerkt hat |
-| `/wortlaut [Name\|aus]` | Originaltranskripte in seinem Gedächtnis mitlesen |
 | `/hilfe` | fasst zusammen, wie der Bot funktioniert |
+
+Dazu fünf, die er versteht, aber nicht anbietet: `/interview` und `/fertig`
+(Aufnahme nur an, nur aus), `/figur <Name> entfernen` (eine Figur wieder
+herausnehmen), `/wortlaut [Name|aus]` (Originaltranskripte im Gedächtnis des
+Bots mitlesen) und `/leitfaden` (den Gesprächsleitfaden noch einmal zeigen).
 
 Auch das Wegnehmen geht im Gespräch: „die Figur Peter kannst du wieder
 rausnehmen" genügt. **Aufnahmen und Transkripte kann der Bot nicht löschen** —
@@ -190,8 +202,8 @@ des Tages.
 
 ## Was das Werkzeug nicht tut
 
-Es schreibt kein Stück. Es schlägt Kernthemen, Figuren, Konflikte und
-Szenenideen vor und belegt diese Vorschläge, wo möglich, mit wörtlichen
+Es schreibt kein Stück. Es schlägt Settings, Figuren, Geschichten und
+Szenenideen vor und belegt sie, sobald es ums Schärfen geht, mit wörtlichen
 Zitaten aus den Interviews — nachprüfbar, nicht behauptet. Was daraus wird,
 entscheidet ausschließlich die Gruppe.
 

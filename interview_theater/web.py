@@ -1703,7 +1703,8 @@ def textbuch_html(
             if name not in sprecher:
                 sprecher.append(name)
     stueck = "".join(abschnitte) or (
-        '<p class="leer">Noch keine Szene. Die entstehen ab Phase 6.</p>'
+        '<p class="leer">Noch keine Szene — hier steht das Stück, sobald es '
+        "eine gibt.</p>"
     )
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
     wege = ""

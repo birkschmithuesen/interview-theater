@@ -66,7 +66,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from interview_theater import anweisungen, repo, szene_claude
+from interview_theater import anweisungen, phasen, repo, szene_claude
 from interview_theater.dramaturgie import beleg as beleg_modul
 from interview_theater.dramaturgie import mechanik
 
@@ -81,6 +81,9 @@ PROMPTS = {
     "b1": "dramaturgie/b1_wendung",
     "a2": "dramaturgie/a2_kausalkette",
     "a6": "dramaturgie/a6_tschechow",
+    "a9": "dramaturgie/a9_fokus",
+    "a10": "dramaturgie/a10_materialtreue",
+    "a11": "dramaturgie/a11_stueckvorgaben",
     "c1": "dramaturgie/c1_stimme",
 }
 
@@ -130,8 +133,9 @@ SCHWEREN_JUDGE = ("blocker", "hoch", "mittel", "niedrig")
 #: Die Ebene je Pruefung -- Geschichte vor Szene vor Stimme (Recherche § 3).
 #: Eine Prueung, die hier fehlt, sortiert ans Ende.
 EBENEN = {
-    "a2": 0, "a6": 0, "namensstabilitaet": 0, "geisterfigur": 0,
+    "a2": 0, "a6": 0, "a11": 0, "namensstabilitaet": 0, "geisterfigur": 0,
     "erstauftritt": 0, "figur_ohne_auftritt": 0,
+    "a9": 1, "fokus": 1, "a10": 1,
     "b1": 1, "besetzung_stumm": 1, "besetzung_fremd": 1,
     "formverteilung": 1, "form_regel": 1, "tschechow": 1,
     "c1": 2, "sprechanteil": 2,
@@ -318,6 +322,11 @@ _SCHLUESSEL = frozenset({
     "SCORE", "BEFUND", "BELEG", "SCHWERE", "VORSCHLAG", "UNSICHER", "SZENE",
     "WERT", "LADUNG", "ADDITIVE_SZENEN", "UNEINGELOEST", "ZUORDNUNG",
     "FRAGE", "PROMPT_VERSION",
+    # A9 Fokus
+    "THEMA", "KLASSEN", "DANEBEN",
+    # A10 Materialtreue -- RICHTUNG entscheidet, ob der Text oder die
+    # Festlegung nachzieht, und muss deshalb sicher ankommen.
+    "GEPRUEFT", "ABWEICHUNG", "GEWINN", "RICHTUNG",
 })
 
 
@@ -396,7 +405,29 @@ def zerlege(antwort: str) -> dict:
         "ladung": _erster(bloecke, "LADUNG") or None,
         "additive_szenen": _erster(bloecke, "ADDITIVE_SZENEN") or None,
         "uneingeloest": _erster(bloecke, "UNEINGELOEST") or None,
+        # A10: in welche Richtung korrigiert wird. "parameter" heisst, dass
+        # der Text recht hat und die Festlegung veraltet ist -- der Vorschlag
+        # geht dann NICHT an den Schreiber (siehe ``parameterkorrektur``).
+        "richtung": _richtung(_erster(bloecke, "RICHTUNG")),
+        "abweichung": _erster(bloecke, "ABWEICHUNG") or None,
+        "gewinn": _erster(bloecke, "GEWINN") or None,
     }
+
+
+#: Die beiden Richtungen einer A10-Korrektur. Alles andere ist keine.
+RICHTUNGEN = ("text", "parameter")
+
+
+def _richtung(wert: str) -> str | None:
+    """``text`` oder ``parameter`` -- oder None, wenn das Modell etwas
+    anderes geschrieben hat. Kein Rueckfall auf einen der beiden Werte: eine
+    geratene Richtung wuerde entweder den Text umschreiben oder eine
+    Festlegung der Gruppe ueberschreiben, und beides auf Verdacht."""
+    kern = (wert or "").strip().lower().rstrip(".")
+    for richtung in RICHTUNGEN:
+        if kern.startswith(richtung):
+            return richtung
+    return None
 
 
 #: ``1 = MIRA``, aber auch ``1: MIRA`` und mehrere Paare in einer Zeile
@@ -564,6 +595,278 @@ def frage_b1(conn, e, klm, chat_id: int, richter: Richter, szene) -> dict | None
         conn, e, klm, chat_id, richter, "b1", nutzer, material, f"b1 Szene {nummer}",
     )
     return _befund_aus("b1", antwort, stand, szene=nummer)
+
+
+def frage_a9(conn, e, klm, chat_id: int, richter: Richter, szene,
+             hauptkonflikt: str = "") -> dict | None:
+    """A9 Fokus fuer EINE Szene: wieviel Text spielt neben dem Hauptkonflikt?
+
+    **Warum es diese Frage gibt** (Birk, 06.09.2026, zum fertigen Text von
+    Gruppe 1): *"zu wenig Fokus auf die wesentliche Handlung, zu viele
+    belanglose Nebenschauplaetze, die vom Wesentlichen ablenken"*. Keine der
+    vier bestehenden Fragen konnte das melden: B1 prueft, ob die Wertladung
+    kippt (sie kippte), A2 die Verkettung der Szenen, A6 aufgeladene
+    Gegenstaende, C1 die Stimmen. Ein Text kann alle vier bestehen und
+    trotzdem zur Haelfte woanders spielen -- gemessen an Gruppe 1: Szene 1 zu
+    53 %, Szene 3 zu 52 %, waehrend Szene 2 mit 2 % die Szene ist, die alle
+    als die staerkste lesen.
+
+    **Der Hauptkonflikt geht in den Nutzertext, nicht in die
+    Systemanweisung** -- dort steht die Frage, hier das Material dieser
+    Gruppe. Ohne Hauptkonflikt gibt es keine Frage: dann ist unbestimmt,
+    wovon ein Nebenschauplatz abweichen wuerde.
+    """
+    material = material_szene(szene)
+    if not material or not (hauptkonflikt or "").strip():
+        return None
+    nummer = szene["nummer"]
+    kopf = (
+        f"Das ist Szene {nummer} des Stuecks.\n\n"
+        f"Der Hauptkonflikt des Stuecks: {hauptkonflikt.strip()}"
+    )
+    nutzer = umschliesse("szene", material, kopf)
+    antwort, stand = _stelle(
+        conn, e, klm, chat_id, richter, "a9", nutzer, material, f"a9 Szene {nummer}",
+    )
+    return _befund_aus("a9", antwort, stand, szene=nummer)
+
+
+#: Die Szenenfelder, die A10 als Festlegung vorlegt -- und die einzigen, die
+#: eine Parameterkorrektur setzen darf. ``ort`` steht dabei, weil es eine
+#: Entscheidung der Gruppe ist; ``titel`` nicht, der ist eine Beschriftung
+#: und keine Festlegung ueber den Inhalt.
+#:
+#: **``form`` steht NICHT hier.** Sie wird erst im Feinschliff (Phase 7)
+#: eingeloest; in Phase 6 schreibt das Modell ausdruecklich Prosa
+#: (``szene.py``: *"In Phase 6 geht IMMER prosa.md in die Systemanweisung --
+#: die Form der Szene ist dort noch gar nicht entschieden"*). Ein Judge, der
+#: eine Prosafassung an ihrer kuenftigen Form misst, meldet einen Fehler, der
+#: keiner ist -- gemessen 06.09.2026: A10 verlangte fuer Szene 3 gesprochenen
+#: Rap in einem Text, der ihn planmaessig noch nicht haben konnte.
+#: ``form`` wird stattdessen von ``FORM_JE_PHASE`` zugeschaltet, sobald das
+#: Stueck im Feinschliff ist.
+A10_FELDER = ("ort", "zeit", "anlass", "was_passiert", "kernsaetze", "ton")
+
+#: Ab dieser Phase ist die Form eingeloest und darf geprueft werden. Davor
+#: ist sie eine Notiz fuer spaeter (``szene.form_vorschlag``).
+A10_FORM_AB_PHASE = 7
+
+#: Wie die Felder im Nutzertext heissen. Der Judge soll den Feldnamen
+#: zurueckschreiben koennen (``anlass: <neuer Wert>``), deshalb steht der
+#: technische Name daneben.
+A10_BESCHRIFTUNG = {
+    "form": "Form", "ort": "Ort", "zeit": "Zeit", "anlass": "Anlass",
+    "was_passiert": "Was passiert", "kernsaetze": "Kernsaetze", "ton": "Ton",
+}
+
+
+def a10_felder(conn=None, chat_id: int | None = None) -> tuple[str, ...]:
+    """Die Felder, die A10 in dieser Phase prueft.
+
+    Im Feinschliff kommt ``form`` dazu: dort ist sie eingeloest und eine
+    Szene, die ihre Form verfehlt, ist ein echter Befund. In Phase 6 bleibt
+    sie draussen (siehe ``A10_FELDER``).
+    """
+    if conn is None or chat_id is None:
+        return A10_FELDER
+    try:
+        phase = phasen.aktuelle(conn, chat_id)
+    except Exception:  # noqa: BLE001 -- ohne Phase gilt die engere Liste
+        return A10_FELDER
+    if phase is not None and phase >= A10_FORM_AB_PHASE:
+        return ("form",) + A10_FELDER
+    return A10_FELDER
+
+
+def material_festlegungen(szene, felder=None) -> str:
+    """Die Festlegungen der Gruppe zu dieser Szene, als Liste.
+
+    Leere Felder werden weggelassen, nicht als "—" gezeigt: eine Festlegung,
+    die es nicht gibt, kann weder eingeloest noch verfehlt werden, und eine
+    Zeile "Ton: —" laedt den Judge ein, ueber ihr Fehlen zu urteilen.
+    """
+    zeilen = []
+    for feld in (felder if felder is not None else A10_FELDER):
+        try:
+            wert = (szene[feld] or "").strip()
+        except (IndexError, KeyError):
+            continue
+        if wert:
+            zeilen.append(f"- {A10_BESCHRIFTUNG[feld]} ({feld}): {wert}")
+    return "\n".join(zeilen)
+
+
+def frage_a10(conn, e, klm, chat_id: int, richter: Richter, szene) -> dict | None:
+    """A10 Materialtreue: haelt die Szene, was die Gruppe festgelegt hat?
+
+    **Und wenn nicht -- wer zieht nach?** (Birk, 06.09.2026: *"die Szene kann
+    und darf sich in der Entwicklung auch von den Ursprungsparametern
+    aendern, wenn es die Szene oder die Handlung verbessert... wenn die
+    Aenderung gut begruendet wird, sollte der Parameter angepasst werden"*).
+
+    Eine reine Treuepruefung wuerde ein Stueck starr machen: der Schreiblauf
+    findet regelmaessig etwas Besseres als die Planung, und ein Judge, der
+    das als Fehler meldet, biegt den Text auf eine ueberholte Festlegung
+    zurueck. Deshalb liefert A10 eine **Richtung**: ``text`` (der Schreiber
+    zieht nach) oder ``parameter`` (die Festlegung ist veraltet und wird auf
+    den Stand des Textes gebracht).
+
+    Ohne Festlegungen gibt es nichts zu pruefen -- dann kein Aufruf.
+    """
+    material = material_szene(szene)
+    felder = a10_felder(conn, chat_id)
+    festlegungen = material_festlegungen(szene, felder)
+    if not material or not festlegungen:
+        return None
+    nummer = szene["nummer"]
+    kopf = (
+        f"Das ist Szene {nummer} des Stuecks.\n\n"
+        f"Die Gruppe hat fuer diese Szene festgelegt:\n{festlegungen}"
+    )
+    nutzer = umschliesse("szene", material, kopf)
+    antwort, stand = _stelle(
+        conn, e, klm, chat_id, richter, "a10", nutzer, material,
+        f"a10 Szene {nummer}",
+    )
+    return _befund_aus("a10", antwort, stand, szene=nummer)
+
+
+#: ``anlass: Michael geht ins Wasser`` -- Feldname, Doppelpunkt, neuer Wert.
+#: ``form`` ist hier erlaubt, obwohl es nicht in ``A10_FELDER`` steht: im
+#: Feinschliff legt ``a10_felder`` es vor, und dann muss der Judge es auch
+#: zurueckschreiben duerfen. Vorgelegt wird es trotzdem nur phasenabhaengig --
+#: was nicht im Prompt stand, schlaegt ein Modell praktisch nie vor.
+_PARAMETER_ZEILE = re.compile(
+    r"^\s*(form|" + "|".join(A10_FELDER) + r")\s*:\s*(.+)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def parameterkorrektur(befund) -> tuple[str, str] | None:
+    """Aus einem A10-Befund mit ``richtung=parameter``: (Feld, neuer Wert).
+
+    **Der einzige Weg, auf dem ein Judge eine Festlegung der Gruppe aendern
+    kann** -- und er fuehrt nicht an ihr vorbei: was hier herauskommt, ist
+    ein *Vorschlag*, den die Gruppe im Chat bestaetigt. Ein Modell, das eine
+    Szenenplanung still ueberschreibt, waere genau die Sorte unsichtbarer
+    Aenderung, wegen der die Analyse vom 06.09. geschrieben wurde.
+
+    Liefert None, wenn die Richtung nicht ``parameter`` ist, der Beleg nicht
+    geprueft wurde oder der Vorschlag nicht als ``feld: wert`` lesbar ist.
+    """
+    if _feld(befund, "pruefung") != "a10":
+        return None
+    if _feld(befund, "richtung") != "parameter":
+        return None
+    if not _feld(befund, "beleg_geprueft"):
+        # Dieselbe Grenze wie beim Schreiber: ohne verifiziertes Zitat
+        # aendert sich nichts (Recherche § 4).
+        return None
+    treffer = _PARAMETER_ZEILE.search(_feld(befund, "vorschlag") or "")
+    if treffer is None:
+        return None
+    feld = treffer.group(1).lower()
+    wert = treffer.group(2).strip().strip("\"'")
+    return (feld, wert) if wert else None
+
+
+#: Die Felder des Arbeitsstands, die A11 als Vorgabe vorlegt -- und die
+#: einzigen, die eine Parameterkorrektur auf Stueckebene setzen darf.
+A11_FELDER = ("format", "rahmen", "figuren_anzahl", "geschichte")
+
+A11_BESCHRIFTUNG = {
+    "format": "Format", "rahmen": "Rahmen (Ort und Zeit)",
+    "figuren_anzahl": "Figurenzahl", "geschichte": "Geplante Szenenfolge",
+}
+
+
+def material_vorgaben(conn, chat_id: int) -> str:
+    """Die Vorgaben der Gruppe fuer das ganze Stueck, als Liste.
+
+    Leere Felder werden weggelassen -- was nie festgelegt wurde, kann nicht
+    verfehlt werden (dieselbe Regel wie bei ``material_festlegungen``).
+    """
+    zeile = repo.hole_arbeitsstand(conn, chat_id)
+    if zeile is None:
+        return ""
+    zeilen = []
+    for feld in A11_FELDER:
+        try:
+            wert = (zeile[feld] or "").strip()
+        except (IndexError, KeyError):
+            continue
+        if wert:
+            zeilen.append(f"- {A11_BESCHRIFTUNG[feld]} ({feld}): {wert}")
+    return "\n".join(zeilen)
+
+
+def frage_a11(conn, e, klm, chat_id: int, richter: Richter) -> dict | None:
+    """A11 Stueckvorgaben: haelt das Stueck, was fuer das Ganze galt?
+
+    **EIN Aufruf ueber die Synopsen-Kette**, nicht einer je Szene: Format,
+    Rahmen und Figurenzahl sind Eigenschaften des Stuecks, und eine Frage je
+    Szene wuerde dieselbe Antwort n-mal bezahlen.
+
+    Dieselbe Zwei-Richtungs-Logik wie A10 (siehe dort): ``text`` oder
+    ``parameter``. Beim Format ist der Prompt bewusst strenger -- "eine Folge,
+    Ende offen" ist eine Zusage darueber, was am Ende auf der Buehne steht,
+    keine Stilfrage.
+
+    Ohne Vorgaben oder mit lueckenhaften Synopsen: kein Aufruf. Die
+    Synopsen-Sperre ist dieselbe wie bei A2 (``synopsen_fehlen``) -- eine
+    Kette aus Platzhaltern beantwortet keine Frage ueber den Bogen.
+    """
+    vorgaben = material_vorgaben(conn, chat_id)
+    if not vorgaben:
+        return None
+    material = material_synopsen(conn, chat_id)
+    if not material.strip():
+        return None
+    luecken = synopsen_fehlen(material)
+    if len(luecken) > SYNOPSEN_LUECKEN_MAX:
+        log.info(
+            "a11 uebersprungen, chat_id=%s: keine Kurzfassung fuer Szene %s",
+            chat_id, ", ".join(str(n) for n in luecken),
+        )
+        return None
+    kopf = (
+        "Das ist die Szenenfolge des Stuecks als Kurzfassungen.\n\n"
+        f"Die Gruppe hat fuer das ganze Stueck vorgegeben:\n{vorgaben}"
+    )
+    nutzer = umschliesse("synopsen", material, kopf)
+    antwort, stand = _stelle(
+        conn, e, klm, chat_id, richter, "a11", nutzer, material, "a11",
+    )
+    return _befund_aus("a11", antwort, stand)
+
+
+#: ``format: eine Folge, Ende offen`` -- Feldname, Doppelpunkt, neuer Wert.
+_STUECKPARAMETER_ZEILE = re.compile(
+    r"^\s*(" + "|".join(A11_FELDER) + r")\s*:\s*(.+)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def stueckparameterkorrektur(befund) -> tuple[str, str] | None:
+    """Aus einem A11-Befund mit ``richtung=parameter``: (Feld, neuer Wert).
+
+    Gegenstueck zu ``parameterkorrektur`` fuer die Stueckebene, mit denselben
+    drei Sperren: richtige Pruefung, Richtung ``parameter``, geprueftes
+    Belegzitat. Und wie dort gilt: das Ergebnis ist ein **Vorschlag** an die
+    Gruppe, keine Aenderung.
+    """
+    if _feld(befund, "pruefung") != "a11":
+        return None
+    if _feld(befund, "richtung") != "parameter":
+        return None
+    if not _feld(befund, "beleg_geprueft"):
+        return None
+    treffer = _STUECKPARAMETER_ZEILE.search(_feld(befund, "vorschlag") or "")
+    if treffer is None:
+        return None
+    feld = treffer.group(1).lower()
+    wert = treffer.group(2).strip().strip("\"'")
+    return (feld, wert) if wert else None
 
 
 #: Was ``_synopse`` liefert, wenn eine Szene keinerlei Kurzfassung hat.
@@ -807,6 +1110,7 @@ def _befund_aus(schluessel: str, antwort: dict, stand, szene=None,
         "szene": szene, "figur": figur,
         "beleg": stand.beleg, "beleg_geprueft": 1,
         "vorschlag": antwort.get("vorschlag"),
+        "richtung": antwort.get("richtung"),
         "prompt_version": version(schluessel),
     }
 
@@ -851,9 +1155,36 @@ def pruefe(conn, e, klm, chat_id: int, richter: Richter | None = None,
                                       szenen[n]),
         ))
 
+    # A9 Fokus: dieselbe Adressierung wie B1 (eine Frage je Szene), aber mit
+    # dem Hauptkonflikt als Massstab. Einmal gelesen, nicht je Szene.
+    konflikt = mechanik.hauptkonflikt(conn, chat_id)
+    for nummer in lage.nummern:
+        _sammle(ergebnis, _versuch(
+            conn, e, chat_id, f"a9 Szene {nummer}",
+            lambda n=nummer: frage_a9(conn, e, klm, chat_id, ergebnis.richter,
+                                      szenen[n], konflikt),
+        ))
+
+    # A10 Materialtreue: haelt die Szene ihre eigenen Festlegungen -- und
+    # wenn nicht, zieht der Text nach oder der Parameter? Szenen ohne
+    # Festlegungen fragt ``frage_a10`` selbst nicht.
+    for nummer in lage.nummern:
+        _sammle(ergebnis, _versuch(
+            conn, e, chat_id, f"a10 Szene {nummer}",
+            lambda n=nummer: frage_a10(conn, e, klm, chat_id, ergebnis.richter,
+                                       szenen[n]),
+        ))
+
     _sammle(ergebnis, _versuch(
         conn, e, chat_id, "a2",
         lambda: frage_a2(conn, e, klm, chat_id, ergebnis.richter),
+    ))
+
+    # A11 Stueckvorgaben: EIN Aufruf ueber dieselbe Synopsen-Kette wie A2 --
+    # Format, Rahmen und Figurenzahl gelten fuer das Stueck, nicht je Szene.
+    _sammle(ergebnis, _versuch(
+        conn, e, chat_id, "a11",
+        lambda: frage_a11(conn, e, klm, chat_id, ergebnis.richter),
     ))
 
     for nummer in lage.mit_sprechern():
@@ -933,6 +1264,15 @@ def auftraege(befunde, figuren=()) -> list[dict]:
             anweisung = vorschlag or text
         else:
             if schwere not in ("blocker", "hoch"):
+                continue
+            # **Eine Parameterkorrektur ist kein Auftrag an den Schreiber.**
+            # Bei ``richtung=parameter`` sagt der Judge, dass der TEXT recht
+            # hat und die Festlegung veraltet ist (A10). Wer das an den
+            # Schreib-LLM gaebe, liesse ihn den Text auf eine ueberholte
+            # Planung zurueckbiegen -- also genau das Gegenteil dessen, was
+            # der Befund meint. Der Weg dafuer ist ``parameterkorrektur``,
+            # und der endet bei der Gruppe, nicht beim Modell.
+            if _feld(b, "richtung") == "parameter":
                 continue
             if not beleg_modul.darf_an_den_schreiber(dict(
                 beleg_geprueft=_feld(b, "beleg_geprueft"),

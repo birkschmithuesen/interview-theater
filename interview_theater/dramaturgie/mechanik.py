@@ -32,7 +32,7 @@ import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 
-from interview_theater import repo
+from interview_theater import phasen, repo
 
 log = logging.getLogger(__name__)
 
@@ -658,6 +658,17 @@ _ERSTE_VERBOTEN = ("monolog", "lied")
 #: Klumpung: so viele Nicht-Dialog-Szenen hintereinander sind zu viele.
 KLUMPUNG = 3
 
+#: Ab dieser Phase sind die Formen eingeloest und ihre Verteilung ist ein
+#: Befund. Davor (Phase 6, Prosafassung) steht in ``szene.form`` eine
+#: Entscheidung fuer den Feinschliff, die der Text noch gar nicht umsetzen
+#: soll -- ``szene.py``: *"In Phase 6 geht IMMER prosa.md in die
+#: Systemanweisung -- die Form der Szene ist dort noch gar nicht
+#: entschieden"*. Gemessen 06.09.2026: die Regel meldete bei jedem Lauf
+#: "2 von 3 Szenen sind keine Dialogszene" an einem Prosatext, in dem keine
+#: einzige Form umgesetzt war -- Rauschen, das die echten Befunde zudeckt.
+#: Dieselbe Grenze wie ``fanout.A10_FORM_AB_PHASE``.
+FORM_AB_PHASE = 7
+
 
 def _formklasse(form: str) -> str:
     wert = _schluessel(form)
@@ -667,13 +678,21 @@ def _formklasse(form: str) -> str:
     return "dialog" if wert else ""
 
 
-def formverteilung(lage: Szenenlage) -> list[Befund]:
+def formverteilung(lage: Szenenlage, phase: int | None = None) -> list[Befund]:
     """Wie viele Szenen je Form, wo sie klumpen, und die drei Regeln aus dem
     Szenen-Prompt: Dialog ist der Normalfall, hoechstens eine Nicht-Dialog-
     Szene je drei, Szene 1 nie Monolog oder Lied.
 
     Nur **bestaetigte** Formen (``szene.form``), nie ``form_vorschlag``: ein
-    Vorschlag ist keine Entscheidung (AGENTS.md)."""
+    Vorschlag ist keine Entscheidung (AGENTS.md).
+
+    **Und erst ab dem Feinschliff** (``FORM_AB_PHASE``): in Phase 6 ist der
+    Text die Prosafassung, die Formen sind dort noch gar nicht umgesetzt.
+    Ohne ``phase`` schweigt die Pruefung -- wer sie ohne Kontext aufruft,
+    bekommt keinen Befund statt eines falschen.
+    """
+    if phase is None or phase < FORM_AB_PHASE:
+        return []
     mit_form = [n for n in lage.nummern if _formklasse(lage.formen.get(n, ""))]
     if not mit_form:
         return []
@@ -765,15 +784,238 @@ def sprechanteile(lage: Szenenlage) -> list[Befund]:
 # Alles auf einmal
 # ---------------------------------------------------------------------------
 
+#: Ab welchem Anteil Text ohne die Konflikttraeger ein Fokusbefund entsteht.
+#: Gemessen 06.09.2026 an Gruppe 1, nachdem Birk den fertigen Text so
+#: kritisiert hat: *"zu wenig Fokus auf die wesentliche Handlung, zu viele
+#: belanglose Nebenschauplaetze, die vom Wesentlichen ablenken"*. Die
+#: Nachmessung gab ihm recht und zeigte zugleich, dass es szenenweise
+#: auseinanderfaellt: Szene 1 = 53 %, Szene 2 = 2 %, Szene 3 = 52 %. Szene 2
+#: ist die, die alle als die staerkste lesen.
+#:
+#: 45 % liegt bewusst ueber einem Drittel: ein Stueck braucht Umfeld, und
+#: eine Szene, in der die Traeger die Haelfte der Zeit da sind, traegt. Erst
+#: wenn die Mehrheit des Textes woanders spielt, ist es ein Befund.
+FOKUS_SCHWELLE = 0.45
+
+#: Wie viele Zeichen der laengste Nebenabsatz mindestens haben muss, damit er
+#: im Befundtext genannt wird. Kuerzere sind Uebergaenge, keine Schauplaetze.
+FOKUS_ABSATZ_MIN = 300
+
+#: Bis zu welchem Absatz einer Szene ein Erstauftritt als Einfuehrung zaehlt.
+#: Wer in Absatz 2 vorgestellt wird, wird eingefuehrt; wer in Absatz 9 zum
+#: ersten Mal auftaucht, ist ein neuer Schauplatz kurz vor Schluss.
+FOKUS_EINFUEHRUNG_BIS = 4
+
+#: Wie lang ein Wort mindestens sein muss, damit sein Wiederauftauchen in
+#: einer spaeteren Szene als aufgegriffener Seitenstrang zaehlt. Kurze Woerter
+#: ("Meter", "Leute", "Danach") kommen in jedem Text wieder vor und wuerden
+#: jeden Absatz zum Seitenstrang erklaeren -- gemessen 06.09.2026.
+FOKUS_STRANG_ZEICHEN = 7
+
+#: Wie viele solcher Woerter zurueckkommen muessen. Eines ist Zufall.
+FOKUS_STRANG_WOERTER = 2
+
+#: Was trotz Grossschreibung kein Motiv ist: Satzanfaenge und Allerweltsdinge.
+#: Dieselbe Not wie bei der Tschechow-Heuristik -- im Deutschen ist jedes
+#: Substantiv gross, also traegt Grossschreibung allein keine Information.
+_STRANG_STOPP = frozenset({
+    "Danach", "Dazwischen", "Trotzdem", "Nachmittag", "Abend", "Morgen",
+    "Leute", "Meter", "Minuten", "Sekunden", "Stunde", "Stunden", "Richtung",
+    "Haufen", "Seite", "Stelle", "Sache", "Sachen", "Dinge", "Wörter",
+})
+
+
+def _erstauftritte(lage: Szenenlage) -> dict[str, tuple[int, int]]:
+    """Wo jede Figur zum ersten Mal vorkommt: (Szene, Absatz).
+
+    **Absatzgenau, nicht nur szenengenau.** Sonst gilt jeder weitere Absatz
+    mit derselben Figur noch als Einfuehrung, obwohl sie laengst eingefuehrt
+    ist -- gemessen 06.09.2026 an einem Testfall, in dem ein reiner
+    Nebenschauplatz als "Einfuehrung" durchging, weil die Figuren einen
+    Absatz vorher schon dastanden.
+    """
+    erst: dict[str, tuple[int, int]] = {}
+    for nummer in lage.nummern:
+        absaetze = [a.strip() for a in lage.texte.get(nummer, "").split("\n\n")
+                    if a.strip()]
+        for position, absatz in enumerate(absaetze, 1):
+            for name in lage.figuren:
+                if name in erst or not name:
+                    continue
+                if re.search(rf"\b{re.escape(name)}\b", absatz, re.IGNORECASE):
+                    erst[name] = (nummer, position)
+    return erst
+
+
+def _motive(absatz: str, figuren) -> set[str]:
+    """Die Woerter eines Absatzes, die als Motiv taugen.
+
+    Lang genug, gross geschrieben, kein Satzanfangs-Allerweltswort, kein
+    Figurenname.
+    """
+    roh = set(re.findall(r"\b[A-ZÄÖÜ][a-zäöüß]{%d,}\b" % (FOKUS_STRANG_ZEICHEN - 1),
+                         absatz))
+    return {w for w in roh
+            if w not in _STRANG_STOPP and w not in set(figuren)}
+
+
+def einordnung(absatz: str, position: int, szene: int | None, spaeterer_text: str,
+               lage: Szenenlage, erst: dict[str, tuple[int, int]]) -> str:
+    """Was ist dieser Absatz ohne die Konflikttraeger?
+
+    **Warum diese Unterscheidung** (Birk, 06.09.2026): ein Absatz ohne die
+    Traegerfiguren ist nicht automatisch belanglos. Ein Stueck muss seine
+    Figuren einfuehren, darf Seitenstraenge oeffnen, die es spaeter
+    aufgreift, und ein Ort darf beschrieben werden. Ohne diese Trennung
+    bestraft der Check genau das, was ein Stueck braucht.
+
+    Liefert eine von vier Marken: ``einfuehrung``, ``seitenstrang``,
+    ``setting``, ``nebenschauplatz``. Nur die letzte zaehlt als Ablenkung.
+    """
+    namen = {n for n in lage.figuren
+             if n and re.search(rf"\b{re.escape(n)}\b", absatz, re.IGNORECASE)}
+
+    # Ein Absatz ganz ohne Figuren beschreibt den Ort oder die Lage.
+    if not namen:
+        return "setting"
+
+    # Einfuehrung heisst: GENAU HIER steht die Figur zum ersten Mal, und es
+    # ist frueh in der Szene. Der Vergleich geht auf (Szene, Absatz) -- eine
+    # Figur, die einen Absatz vorher schon dastand, wird nicht mehr
+    # eingefuehrt.
+    if (position <= FOKUS_EINFUEHRUNG_BIS
+            and any(erst.get(n) == (szene, position) for n in namen)):
+        return "einfuehrung"
+
+    # Kommen mehrere auffaellige Motive spaeter wieder vor, wurde hier ein
+    # Strang geoeffnet, den das Stueck aufgreift.
+    if spaeterer_text:
+        motive = _motive(absatz, lage.figuren)
+        zurueck = [w for w in motive
+                   if re.search(rf"\b{re.escape(w)}\b", spaeterer_text)]
+        if len(zurueck) >= FOKUS_STRANG_WOERTER:
+            return "seitenstrang"
+
+    return "nebenschauplatz"
+
+
+def _traegerfiguren(hauptkonflikt: str, figuren) -> list[str]:
+    """Welche Figuren im Hauptkonflikt genannt sind.
+
+    Keine Heuristik ueber Sprechanteile: wer den Konflikt traegt, hat die
+    Gruppe im Arbeitsstand aufgeschrieben. Steht dort kein Figurenname, gibt
+    es keine Traeger -- dann schweigt der Check, statt zu raten.
+    """
+    text = (hauptkonflikt or "").strip()
+    if not text:
+        return []
+    return [n for n in figuren
+            if n and re.search(rf"\b{re.escape(n)}\b", text, re.IGNORECASE)]
+
+
+def fokusanteil(text: str, traeger, szene=None, spaeterer_text="",
+                lage=None, erst=None) -> tuple[int, int, str]:
+    """Zeichen am Konflikt, Zeichen echter Nebenschauplatz, laengster davon.
+
+    Absatzweise, weil ein Absatz die kleinste Einheit ist, die man streichen
+    oder kuerzen kann -- eine Messung je Satz wuerde Nebensaetze zerhacken,
+    eine je Szene waere zu grob fuer einen Umbauvorschlag.
+
+    **Einfuehrung, Seitenstrang und Setting zaehlen NICHT als Ablenkung**
+    (siehe ``einordnung``). Ohne ``lage``/``erst`` entfaellt die
+    Unterscheidung und jeder Absatz ohne Traeger zaehlt als Nebenschauplatz --
+    diese Form nutzen nur Aufrufer, die genau das wollen.
+    """
+    mit = ohne = 0
+    laengster = ""
+    absaetze = [a.strip() for a in (text or "").split("\n\n") if a.strip()]
+    for position, absatz in enumerate(absaetze, 1):
+        if any(re.search(rf"\b{re.escape(n)}\b", absatz, re.IGNORECASE)
+               for n in traeger):
+            mit += len(absatz)
+            continue
+        if lage is not None and erst is not None:
+            marke = einordnung(absatz, position, szene, spaeterer_text, lage, erst)
+            if marke != "nebenschauplatz":
+                # Zaehlt weder als Konflikt noch als Ablenkung: der Absatz tut
+                # seine eigene Arbeit.
+                continue
+        ohne += len(absatz)
+        if len(absatz) > len(laengster):
+            laengster = absatz
+    return mit, ohne, laengster
+
+
+def fokus(lage: Szenenlage, hauptkonflikt: str = "") -> list[Befund]:
+    """Wieviel Text einer Szene ist echter Nebenschauplatz?
+
+    **Zaehlt, statt zu urteilen** -- wie jeder Check dieser Schicht: ob ein
+    Nebenschauplatz gut ist, entscheidet der Judge (A9) und am Ende die
+    Gruppe. Hier steht nur die nachpruefbare Zahl, und die kostet keinen
+    Modellaufruf.
+
+    Nicht mitgezaehlt werden Figureneinfuehrungen, Seitenstraenge, die
+    spaeter aufgegriffen werden, und Setting-Beschreibungen (``einordnung``).
+    """
+    traeger = _traegerfiguren(hauptkonflikt, lage.figuren)
+    if len(traeger) < 2:
+        # Ein Konflikt braucht zwei Seiten. Steht nur eine (oder keine) im
+        # Arbeitsstand, ist die Messung nicht aussagekraeftig.
+        return []
+    erst = _erstauftritte(lage)
+    befunde: list[Befund] = []
+    for nummer in lage.nummern:
+        spaeter = " ".join(lage.texte.get(n, "") for n in lage.nummern if n > nummer)
+        mit, ohne, laengster = fokusanteil(
+            lage.texte.get(nummer, ""), traeger,
+            szene=nummer, spaeterer_text=spaeter, lage=lage, erst=erst)
+        gesamt = mit + ohne
+        if gesamt < 400:
+            continue
+        anteil = ohne / gesamt
+        if anteil < FOKUS_SCHWELLE:
+            continue
+        text = (f"Szene {nummer}: {ohne} von {gesamt} Zeichen sind "
+                f"Nebenschauplatz -- weder am Konflikt von "
+                f"{' und '.join(traeger)}, noch Einfuehrung, Seitenstrang "
+                f"oder Ortsbeschreibung.")
+        if len(laengster) >= FOKUS_ABSATZ_MIN:
+            anfang = " ".join(laengster.split())[:70]
+            text += f" Der laengste beginnt mit „{anfang}…\"."
+        befunde.append(Befund(
+            pruefung="fokus", schwere="hinweis", text=text, szene=nummer))
+    return befunde
+
+
+def hauptkonflikt(conn, chat_id: int) -> str:
+    """Der Hauptkonflikt aus dem Arbeitsstand, oder ein leerer String.
+
+    Eigene Funktion, weil ``fokus`` das einzige Stueck dieser Schicht ist,
+    das ueber die Szenen hinaus etwas wissen muss -- und weil ein fehlendes
+    Feld hier kein Fehler ist, sondern nur bedeutet: dieser Check schweigt.
+    """
+    try:
+        zeile = repo.hole_arbeitsstand(conn, chat_id)
+    except Exception:  # noqa: BLE001 -- kein Arbeitsstand ist kein Fehler
+        return ""
+    if zeile is None:
+        return ""
+    try:
+        return (zeile["hauptkonflikt"] or "").strip()
+    except (IndexError, KeyError):
+        return ""
+
+
 #: Die Checks in fester Reihenfolge -- Name und Funktion. Ein weiterer Check
-#: braucht eine Zeile hier und sonst nichts.
+#: braucht eine Zeile hier und sonst nichts. ``fokus`` steht NICHT hier: er
+#: braucht den Hauptkonflikt aus dem Arbeitsstand und damit ein Argument mehr
+#: als die uebrigen; ``pruefe_alles`` ruft ihn getrennt.
 CHECKS = (
     ("namensstabilitaet", namensstabilitaet),
     ("geisterfiguren", geisterfiguren),
     ("besetzungsabgleich", besetzungsabgleich),
     ("erstauftritt_register", erstauftritt_register),
     ("tschechow", tschechow_befunde),
-    ("formverteilung", formverteilung),
     ("sprechanteile", sprechanteile),
 )
 
@@ -796,6 +1038,19 @@ def pruefe_alles(conn, chat_id: int, lage: Szenenlage | None = None) -> list[Bef
             befunde.extend(funktion(lage))
         except Exception:  # noqa: BLE001 -- ein Check reisst die anderen nicht mit
             log.exception("Mechanik-Check %s gescheitert, chat_id=%s", name, chat_id)
+    # Der Fokus-Check braucht den Hauptkonflikt und steht deshalb nicht in
+    # CHECKS (siehe dort). Gleiche Fehlerbehandlung wie die uebrigen.
+    try:
+        befunde.extend(fokus(lage, hauptkonflikt(conn, chat_id)))
+    except Exception:  # noqa: BLE001
+        log.exception("Mechanik-Check fokus gescheitert, chat_id=%s", chat_id)
+    # Die Formverteilung braucht die Phase: vor dem Feinschliff sind die
+    # Formen noch nicht umgesetzt (siehe ``FORM_AB_PHASE``).
+    try:
+        befunde.extend(formverteilung(lage, phasen.aktuelle(conn, chat_id)))
+    except Exception:  # noqa: BLE001
+        log.exception("Mechanik-Check formverteilung gescheitert, chat_id=%s",
+                      chat_id)
     befunde.sort(key=lambda b: (
         _SCHWERE_RANG.get(b.schwere, 9),
         b.szene if b.szene is not None else 10_000,

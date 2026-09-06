@@ -281,6 +281,9 @@ def test_es_gibt_kein_feld_gesamtnote():
     assert set(ergebnis) == {
         "score", "befund", "beleg", "schwere", "vorschlag", "szene",
         "unsicher", "wert", "ladung", "additive_szenen", "uneingeloest",
+        # A10: Richtung der Korrektur plus die zwei Felder, aus denen sie
+        # hergeleitet wird.
+        "richtung", "abweichung", "gewinn",
     }
 
 
@@ -638,6 +641,13 @@ def test_ein_lauf_speichert_mechanik_und_judge_getrennt(stueck, einst):
 
 
 def test_zwei_szenen_kosten_zwei_b1_und_je_einen_a2_a6(stueck, einst):
+    """Was ein Lauf ueber zwei Szenen kostet, Frage fuer Frage.
+
+    Szenenweise gefragt wird B1, A9, A10 und C1; einmal fuers ganze Stueck
+    A2 und A6. A9 und A10 fragen nur, wenn ihr Material da ist -- ohne
+    Hauptkonflikt bzw. ohne Szenenfestlegungen schweigen sie, und die
+    Fixture setzt beides nicht.
+    """
     richter = _voller_richter()
 
     fanout.pruefe(stueck, einst, None, 1, richter=richter)
@@ -647,7 +657,7 @@ def test_zwei_szenen_kosten_zwei_b1_und_je_einen_a2_a6(stueck, einst):
     assert arten.count(fanout.ARTEN["a2"]) == 1
     assert arten.count(fanout.ARTEN["a6"]) == 1
     assert arten.count(fanout.ARTEN["c1"]) == 2
-    assert richter.aufrufe == 6
+    assert richter.aufrufe == len(arten)
 
 
 def test_eine_zweite_runde_loescht_die_erste_nicht(stueck, einst):
@@ -867,3 +877,270 @@ def _druck(daten):
         "callback_query_id": "q1", "data": daten, "chat_id": 1,
         "chat_titel": "Testgruppe", "message_id": 777,
     }
+
+
+# --- A10 Materialtreue: welche Richtung wird korrigiert? -----------------
+#
+# Birk, 06.09.2026: "die szene kann und darf sich in der entwicklung auch von
+# den ursprungsparametern aendern, wenn es die szene oder die handlung
+# verbessert... wenn die aenderung gut begruendet wird, sollte der parameter
+# angepasst werden". Eine reine Treuepruefung waere die Falle -- sie wuerde
+# einen besseren Text auf eine ueberholte Planung zurueckbiegen.
+
+A10_TEXT_ZIEHT_NACH = """GEPRUEFT: anlass, kernsaetze
+ABWEICHUNG: Der Kernsatz der Gruppe kommt in der Szene nicht vor.
+GEWINN: nein
+SCORE: 0
+BEFUND: Der festgelegte Kernsatz fehlt ersatzlos.
+BELEG: MIRA: Der Koffer steht seit gestern hier.
+SCHWERE: hoch
+RICHTUNG: text
+VORSCHLAG: Szene 1: Lass Mira den festgelegten Kernsatz sagen, bevor Jonas
+den Koffer nimmt.
+UNSICHER: nein
+"""
+
+A10_PARAMETER_ZIEHT_NACH = """GEPRUEFT: anlass, was_passiert
+ABWEICHUNG: Nicht Mira nimmt den Koffer, sondern Jonas -- und das ist staerker.
+GEWINN: ja
+SCORE: 0
+BEFUND: Die Handlung ist umgekehrt zur Planung, die Umkehrung traegt die Szene.
+BELEG: MIRA: Lass den Koffer stehen.
+SCHWERE: hoch
+RICHTUNG: parameter
+VORSCHLAG: anlass: Jonas nimmt den Koffer, obwohl Mira es verbietet
+UNSICHER: nein
+"""
+
+
+def test_a10_legt_die_festlegungen_vor(stueck, einst):
+    """Der Judge muss die Parameter sehen -- sonst prueft er nichts."""
+    conn = stueck
+    conn.execute("UPDATE szene SET anlass = ?, kernsaetze = ? WHERE nummer = 1",
+                 ("Mira will den Koffer loswerden", "Lass den Koffer stehen."))
+    conn.commit()
+    szene = conn.execute("SELECT * FROM szene WHERE nummer = 1").fetchone()
+    richter = RichterAttrappe({fanout.ARTEN["a10"]: A10_TEXT_ZIEHT_NACH})
+
+    fanout.frage_a10(conn, einst, None, 1, richter, szene)
+
+    _, _, nutzer = richter.gesehen[0]
+    assert "Mira will den Koffer loswerden" in nutzer
+    assert "anlass" in nutzer  # der technische Feldname fuer die Rueckgabe
+
+
+def test_a10_fragt_nicht_ohne_festlegungen(stueck, einst):
+    """Ohne Parameter gibt es nichts zu pruefen -- und keinen Aufruf."""
+    conn = stueck
+    conn.execute(
+        "UPDATE szene SET anlass=NULL, was_passiert=NULL, kernsaetze=NULL, "
+        "ton=NULL, zeit=NULL, ort=NULL, form=NULL WHERE nummer = 1")
+    conn.commit()
+    szene = conn.execute("SELECT * FROM szene WHERE nummer = 1").fetchone()
+    richter = RichterAttrappe({fanout.ARTEN["a10"]: A10_TEXT_ZIEHT_NACH})
+
+    assert fanout.frage_a10(conn, einst, None, 1, richter, szene) is None
+    assert richter.gesehen == []
+
+
+def test_a10_prueft_die_form_nicht_in_der_prosaphase(stueck, einst):
+    """**Die Form ist in Phase 6 noch nicht eingeloest.**
+
+    Dort schreibt das Modell ausdruecklich Prosa (``szene.py``: "In Phase 6
+    geht IMMER prosa.md in die Systemanweisung -- die Form der Szene ist dort
+    noch gar nicht entschieden"). Gemessen 06.09.2026: A10 verlangte fuer
+    Szene 3 gesprochenen Rap in einem Text, der ihn planmaessig noch nicht
+    haben konnte -- ein Fehlbefund, der einen Ueberarbeitungsauftrag ausloeste.
+    """
+    conn = stueck
+    conn.execute("UPDATE szene SET form = 'rap', anlass = ? WHERE nummer = 1",
+                 ("Die Gruppen prallen aufeinander",))
+    repo.setze_phase(conn, 1, 6)
+    conn.commit()
+    szene = conn.execute("SELECT * FROM szene WHERE nummer = 1").fetchone()
+    richter = RichterAttrappe({fanout.ARTEN["a10"]: A10_TEXT_ZIEHT_NACH})
+
+    fanout.frage_a10(conn, einst, None, 1, richter, szene)
+
+    _, _, nutzer = richter.gesehen[0]
+    assert "Die Gruppen prallen aufeinander" in nutzer
+    assert "Form (form)" not in nutzer
+
+
+def test_a10_prueft_die_form_im_feinschliff(stueck, einst):
+    """Gegenprobe: ab Phase 7 ist die Form eingeloest und wird geprueft."""
+    conn = stueck
+    conn.execute("UPDATE szene SET form = 'rap' WHERE nummer = 1")
+    repo.setze_phase(conn, 1, fanout.A10_FORM_AB_PHASE)
+    conn.commit()
+    szene = conn.execute("SELECT * FROM szene WHERE nummer = 1").fetchone()
+    richter = RichterAttrappe({fanout.ARTEN["a10"]: A10_TEXT_ZIEHT_NACH})
+
+    fanout.frage_a10(conn, einst, None, 1, richter, szene)
+
+    _, _, nutzer = richter.gesehen[0]
+    assert "Form (form)" in nutzer
+
+
+def test_parameterkorrektur_liest_feld_und_wert():
+    befund = {
+        "pruefung": "a10", "richtung": "parameter", "beleg_geprueft": 1,
+        "vorschlag": "anlass: Jonas nimmt den Koffer, obwohl Mira es verbietet",
+    }
+
+    assert fanout.parameterkorrektur(befund) == (
+        "anlass", "Jonas nimmt den Koffer, obwohl Mira es verbietet")
+
+
+def test_parameterkorrektur_nur_mit_gepruefte_beleg():
+    """Ohne verifiziertes Zitat wird keine Festlegung der Gruppe angefasst."""
+    befund = {
+        "pruefung": "a10", "richtung": "parameter", "beleg_geprueft": 0,
+        "vorschlag": "anlass: irgendetwas",
+    }
+
+    assert fanout.parameterkorrektur(befund) is None
+
+
+def test_parameterkorrektur_nur_bei_richtung_parameter():
+    befund = {
+        "pruefung": "a10", "richtung": "text", "beleg_geprueft": 1,
+        "vorschlag": "anlass: irgendetwas",
+    }
+
+    assert fanout.parameterkorrektur(befund) is None
+
+
+def test_parameterkorrektur_lehnt_unbekanntes_feld_ab():
+    """Der Judge darf nur die Felder setzen, die ihm vorgelegt wurden."""
+    befund = {
+        "pruefung": "a10", "richtung": "parameter", "beleg_geprueft": 1,
+        "vorschlag": "titel: Ein neuer Titel",
+    }
+
+    assert fanout.parameterkorrektur(befund) is None
+
+
+def test_parameterbefund_geht_nicht_an_den_schreiber():
+    """**Die zentrale Sperre.** Bei ``richtung=parameter`` sagt der Judge,
+    dass der Text recht hat. Ein Auftrag daraus wuerde ihn auf die
+    ueberholte Planung zurueckbiegen -- genau verkehrt herum."""
+    befunde = [{
+        "pruefung": "a10", "quelle": "judge", "schwere": "hoch",
+        "szene": 1, "beleg_geprueft": 1, "richtung": "parameter",
+        "vorschlag": "anlass: Jonas nimmt den Koffer",
+    }]
+
+    assert fanout.auftraege(befunde) == []
+
+
+def test_textbefund_geht_sehr_wohl_an_den_schreiber():
+    """Gegenprobe -- sonst waere die Sperre zu breit."""
+    befunde = [{
+        "pruefung": "a10", "quelle": "judge", "schwere": "hoch",
+        "szene": 1, "beleg_geprueft": 1, "richtung": "text",
+        "vorschlag": "Szene 1: Lass Mira den Kernsatz sagen.",
+    }]
+
+    auftraege = fanout.auftraege(befunde)
+
+    assert len(auftraege) == 1
+    assert auftraege[0]["szene"] == 1
+
+
+def test_zerlege_liest_die_richtung():
+    assert fanout.zerlege(A10_PARAMETER_ZIEHT_NACH)["richtung"] == "parameter"
+    assert fanout.zerlege(A10_TEXT_ZIEHT_NACH)["richtung"] == "text"
+    # Was keine der beiden Richtungen ist, wird nicht geraten.
+    assert fanout.zerlege("RICHTUNG: vielleicht\nSCORE: 1\n")["richtung"] is None
+
+
+# --- A11 Stueckvorgaben: Format, Rahmen, Figurenzahl --------------------
+
+A11_ANTWORT = """GEPRUEFT: format, rahmen, figuren_anzahl
+ABWEICHUNG: Das Stueck loest am Ende alles auf statt offen zu bleiben.
+GEWINN: nein
+SCORE: 0
+BEFUND: Das vorgegebene offene Ende ist zu einem Schluss geworden.
+BELEG: Szene 2: Die Wohnung
+SCHWERE: hoch
+RICHTUNG: text
+VORSCHLAG: Szene 2: Lass die letzte Frage unbeantwortet stehen.
+UNSICHER: nein
+"""
+
+
+def test_a11_legt_die_stueckvorgaben_vor(stueck, einst):
+    conn = stueck
+    conn.execute("UPDATE szene SET zusammenfassung = 'Mira und Jonas streiten.'")
+    repo.setze_arbeitsstand(conn, 1, "format", "Eine Folge, Ende offen")
+    repo.setze_arbeitsstand(conn, 1, "figuren_anzahl", "10-12")
+    conn.commit()
+    richter = RichterAttrappe({fanout.ARTEN["a11"]: A11_ANTWORT})
+
+    fanout.frage_a11(conn, einst, None, 1, richter)
+
+    _, _, nutzer = richter.gesehen[0]
+    assert "Eine Folge, Ende offen" in nutzer
+    assert "10-12" in nutzer
+    # Die Synopsen, nicht der Volltext -- eine Frage ueber das Ganze.
+    assert "Mira und Jonas streiten." in nutzer
+    assert "Lass den Koffer stehen." not in nutzer
+
+
+def test_a11_fragt_nicht_ohne_vorgaben(stueck, einst):
+    """Kein Format, kein Rahmen, keine Figurenzahl -> nichts zu pruefen."""
+    conn = stueck
+    conn.execute("UPDATE szene SET zusammenfassung = 'Mira und Jonas streiten.'")
+    for feld in fanout.A11_FELDER:
+        repo.setze_arbeitsstand(conn, 1, feld, None)
+    conn.commit()
+    richter = RichterAttrappe({fanout.ARTEN["a11"]: A11_ANTWORT})
+
+    assert fanout.frage_a11(conn, einst, None, 1, richter) is None
+    assert richter.gesehen == []
+
+
+def test_a11_fragt_nicht_bei_luecken_in_den_synopsen(stueck, einst):
+    """Dieselbe Sperre wie A2: eine Kette aus Platzhaltern beantwortet
+    keine Frage ueber den Bogen des Stuecks."""
+    conn = stueck
+    conn.execute("UPDATE szene SET zusammenfassung = NULL, kurzbeschreibung = NULL")
+    repo.setze_arbeitsstand(conn, 1, "format", "Eine Folge, Ende offen")
+    conn.commit()
+    richter = RichterAttrappe({fanout.ARTEN["a11"]: A11_ANTWORT})
+
+    assert fanout.frage_a11(conn, einst, None, 1, richter) is None
+    assert richter.gesehen == []
+
+
+def test_stueckparameterkorrektur_liest_feld_und_wert():
+    befund = {
+        "pruefung": "a11", "richtung": "parameter", "beleg_geprueft": 1,
+        "vorschlag": "format: Zwei Folgen, die zweite bleibt offen",
+    }
+
+    assert fanout.stueckparameterkorrektur(befund) == (
+        "format", "Zwei Folgen, die zweite bleibt offen")
+
+
+def test_stueckparameterkorrektur_lehnt_szenenfeld_ab():
+    """``anlass`` gehoert zu einer Szene, nicht zum Stueck -- A11 darf es
+    nicht setzen, auch wenn A10 es duerfte."""
+    befund = {
+        "pruefung": "a11", "richtung": "parameter", "beleg_geprueft": 1,
+        "vorschlag": "anlass: irgendetwas",
+    }
+
+    assert fanout.stueckparameterkorrektur(befund) is None
+
+
+def test_a11_parameterbefund_geht_nicht_an_den_schreiber():
+    """Dieselbe Sperre wie bei A10, auf Stueckebene."""
+    befunde = [{
+        "pruefung": "a11", "quelle": "judge", "schwere": "hoch",
+        "szene": 1, "beleg_geprueft": 1, "richtung": "parameter",
+        "vorschlag": "format: Zwei Folgen",
+    }]
+
+    assert fanout.auftraege(befunde) == []

@@ -48,11 +48,15 @@ def miss(conn, chat_id: int) -> None:
     umriss = protokoll[0]
 
     print(f"  Phase {stufe} | {len(alle)} Nachrichten")
-    print(f"  SYSTEM  {len(system):>7} Zeichen / {kontext.schaetze(system):>6} Token")
+    print(f"  SYSTEM  {len(system):>7} Zeichen / {kontext.schaetze(system):>6} Token"
+          f"  (Testgrenze {kontext.SYSTEM_ZEICHEN_MAX})")
     print(f"  KOERPER {len(koerper):>7} Zeichen / {kontext.schaetze(koerper):>6} Token"
-          f"  (gekuerzt: {umriss['gekuerzt']})")
+          f"  (gekuerzt: {umriss['gekuerzt']}, Grenze {kontext.zeichengrenze()})")
     print(f"  GESAMT  {len(system) + len(koerper):>7} Zeichen"
-          f" -- Zeichengrenze {kontext.zeichengrenze()} prueft NUR den Koerper")
+          f" / {umriss['gesamt_mit_system']} Token"
+          f" -- Gesamtgrenze {kontext.gesamtgrenze()}"
+          + ("   <-- UEBER" if len(system) + len(koerper) > kontext.gesamtgrenze()
+             else ""))
     belegt = {k: v for k, v in umriss["bloecke"].items() if v}
     print(f"  Bloecke (Token): {belegt}")
 
@@ -89,7 +93,9 @@ def main(argv: list[str]) -> int:
           f" FENSTER_MINUTEN={kontext.FENSTER_MINUTEN}"
           f" BUDGETS[fenster]={kontext.BUDGETS['fenster']}"
           f" SCHWELLE_VERDRAENGUNG={journal.SCHWELLE_VERDRAENGUNG}"
-          f" ZEICHEN_GRENZE={kontext.zeichengrenze()} ZIEL={kontext.ZIEL}")
+          f" ZEICHEN_GRENZE={kontext.zeichengrenze()} ZIEL={kontext.ZIEL}"
+          f" GESAMT_GRENZE={kontext.gesamtgrenze()}"
+          f" SZENE_ZEICHEN_MAX={kontext.SZENE_ZEICHEN_MAX}")
     for chat_id in _gruppen(conn):
         print(f"\nGruppe {chat_id}:")
         miss(conn, chat_id)

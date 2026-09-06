@@ -31,6 +31,7 @@ from interview_theater import (
     db, einstellungen, journal, kontext, kernzitate, repo, schaerfung,
     sprachprofil, szene, szenenfolge, verdichter,
 )
+from tests.fixture_spaetstand import baue_spaetstand
 
 #: Ab dieser Laenge gilt eine wortgleiche Zeile als Dublette. Kuerzere Zeilen
 #: ("Szene 2", "Ja.", eine Ueberschrift) wiederholen sich zu Recht.
@@ -64,100 +65,13 @@ def spaetstand(tmp_path):
     gewuchertes Journal, ein langer Verlauf und ein Interview mit vielen
     markierten Themen.
 
-    Das ist der Stand, an dem die Fehler sichtbar werden. Eine frische
-    Datenbank zeigt keinen davon -- deshalb hat der Audit-Befund so lange
-    ueberlebt: die Tests liefen alle gegen den Vormittag.
+    Der Aufbau steht seit dem 06.09.2026 (Auftrag 5) in
+    ``tests/fixture_spaetstand.py`` -- ``scripts/kontext_recall.py`` misst
+    gegen dieselbe Gruppe, und zwei Fixtures waeren zwei Wahrheiten.
     """
     conn = db.verbinde(str(tmp_path / "t.db"))
     db.initialisiere(conn)
-    repo.sichere_gruppe(conn, 1, "gruppe4", "Testgruppe")
-
-    repo.setze_arbeitsstand(conn, 1, "begriffe", "Rassismus, Liebe, Spass, Streit")
-    repo.setze_arbeitsstand(conn, 1, "kernthema", "ungluecklich verliebt sein und Rassismus")
-    repo.setze_arbeitsstand(conn, 1, "kernfrage", "Was haelt uns bei jemandem, der uns kleinmacht?")
-    repo.setze_arbeitsstand(
-        conn, 1, "rahmen",
-        "Vier Freundinnen leben im Nordkiez in Dortmund. Eine ist ungluecklich "
-        "verliebt in einen rassistischen Typen; die anderen wollen sie ueberzeugen.",
-    )
-    repo.setze_arbeitsstand(
-        conn, 1, "geschichte",
-        "Leyla haelt an einem Jungen fest, der sie kleinmacht. Die drei Freundinnen "
-        "versuchen erst zu reden, dann zu draengen, dann zu schweigen. Am Ende "
-        "bleibt Leyla stehen und entscheidet zum ersten Mal selbst.",
-    )
-    repo.setze_phase(conn, 1, 7)
-
-    # Ein Interview mit einer langen Zusammenfassung und vielen Themen: genau
-    # die Lage, in der die Zusammenfassung elfmal in den Prompt geriet.
-    aufnahme_id = repo.lege_aufnahme_an(conn, 1, 10, "lang", "sprache", status="fertig")
-    repo.setze_transkript(conn, aufnahme_id, "T" * 400)
-    zusammenfassung = (
-        "Die befragte Person erzaehlt von ihrer Freundin, der in der Bahn das "
-        "Kopftuch abgezogen wurde, und raet Betroffenen, sich keine Gedanken zu "
-        "machen. Sie streitet regelmaessig mit ihrem Bruder, der ihre Sachen "
-        "ohne Fragen nimmt. Liebe hat sie noch nie bewusst erlebt."
-    )
-    themen = [
-        {"thema": thema, "beleg_zitat": f"Beleg {i}", "zitat_geprueft": 1,
-         "kurz": f"kurz {i}"}
-        for i, thema in enumerate(
-            ["Rassismus", "Rassismus", "Rassismus", "Streit", "Streit", "Streit",
-             "Liebe", "Liebe", "Spass", "Spass", "Spass"]
-        )
-    ]
-    verdichtung_id = repo.speichere_verdichtung(conn, 1, aufnahme_id, zusammenfassung, themen)
-    repo.markiere_themen_zum_kernthema(
-        conn, 1, [t["id"] for t in repo.themen_zu(conn, verdichtung_id)]
-    )
-
-    for name, beschreibung, profil in (
-        ("Leyla", "will, dass die Liebe reicht", "Kurze Saetze, bricht ab."),
-        ("Cemre", "will ihre Freundin retten", "Direkt, laesst nicht locker."),
-        ("Aylin", "will den Frieden halten", "Lange Schachtelsaetze, weicht aus."),
-        ("Zeynep", "will Fairness in der Familie", "Nennt Zahlen und Uhrzeiten."),
-    ):
-        repo.setze_figur(conn, 1, name, beschreibung)
-        repo.setze_sprachprofil(
-            conn, repo.hole_figur(conn, 1, name)["id"], profil, zitate=[]
-        )
-
-    szene_id = repo.lege_szene_an(
-        conn, 1, 1, "Einundfuenfzig Stunden",
-        "Leyla wartet auf dem Schulhof auf eine Antwort.",
-        "LEYLA: Gelesen.\n\nCEMRE: Sie geht nicht.\n",
-    )
-    for feld, wert in (("form", "dialog"), ("ort", "Schulhof"),
-                       ("zeit", "Freitagnachmittag")):
-        repo.setze_szenenfeld(conn, szene_id, feld, wert)
-    for nummer in (2, 3, 4):
-        repo.lege_szene_an(conn, 1, nummer, None, None, None)
-
-    # Ein Journal wie am 06.09.: mit vierfacher Dublette.
-    for art, text in (
-        ("entschieden", "Begriffe: Rassismus, Liebe, Spass, Streit"),
-        ("entschieden", "Phase 4 · Setting & Figuren"),
-        ("entschieden", "Szene 1 geschrieben: Einundfuenfzig Stunden"),
-        ("entschieden", "Szene 1 geschrieben: Einundfuenfzig Stunden"),
-        ("entschieden", "Szene 1 geschrieben: Einundfuenfzig Stunden"),
-        ("entschieden", "Szene 1 geschrieben: Einundfuenfzig Stunden"),
-        ("vorgeschlagen", "Leyla will, dass die Liebe reicht, basierend auf Interview 1."),
-        ("vorgeschlagen", "Cemre will ihre Freundin retten, basierend auf Interview 1."),
-        ("vorgeschlagen", "Aylin will den Frieden halten, basierend auf Interview 1."),
-        ("vorgeschlagen", "Zeynep will Fairness, basierend auf Interview 1."),
-        ("entschieden", "Szene 1 neu geplant: Dialog am Kiosk, Exposition der vier."),
-    ):
-        repo.schreibe_journal(conn, 1, art, text, quelle="befehl")
-
-    # Ein langer Verlauf: 400 Nachrichten, wie er ueber zwei Workshoptage
-    # entsteht. Ohne ihn greift keine Kuerzung.
-    for i in range(400):
-        repo.merke_nachricht(
-            conn, 1, 100 + i, "Bot" if i % 2 else "Birk", i % 2, "text",
-            f"Ein laengerer Gespraechsbeitrag ueber Szene 1 und die Figuren, Nummer {i}.",
-            _iso(i),
-        )
-    return conn
+    return baue_spaetstand(conn)
 
 
 def _dubletten(text: str) -> dict[str, int]:
@@ -443,3 +357,69 @@ def test_engere_grenze_kuerzt_mehr(spaetstand, einst, monkeypatch):
     eng = kontext.baue(spaetstand, 1, ausloeser, einst)
     assert len(eng) < len(weit)
     assert len(eng) <= 6000
+
+
+# --- Die Systemanweisung ist Teil der Messung (Auftrag 4, Befund C.1) ------
+
+
+@pytest.mark.parametrize("phase", [1, 2, 3, 4, 5, 6, 7, 8])
+def test_systemanweisung_bleibt_je_phase_unter_ihrer_grenze(einst, phase):
+    """Der Befund C.1 als Zusicherung: drei Viertel des Prompts sind die
+    Anweisung (gemessen 26.365 Zeichen System gegen 8.810 Zeichen Koerper),
+    und bis zum 06.09.2026 hat sie keine Grenze erfasst. ``system.md`` und
+    ``prompts/phasen/*.md`` duerfen nicht unbemerkt weiterwachsen, bis vom
+    Gesamtbudget nichts mehr fuer den Koerper bleibt."""
+    system = kontext.system(einst.bot_name, phase)
+    assert len(system) <= kontext.SYSTEM_ZEICHEN_MAX, (
+        f"Systemanweisung Phase {phase}: {len(system)} Zeichen ueber "
+        f"{kontext.SYSTEM_ZEICHEN_MAX}"
+    )
+
+
+@pytest.mark.parametrize("phase", [1, 2, 3, 4, 5, 6, 7, 8])
+def test_system_plus_koerper_bleiben_unter_der_gesamtgrenze(spaetstand, einst, phase):
+    """System UND Koerper zusammen -- die Zahl, die den ganzen Prompt
+    beschreibt. Vorher galt die Grenze nur fuer den kleineren Teil."""
+    from interview_theater import phasen
+
+    phasen.setze(spaetstand, 1, phase, "befehl")
+    ausloeser = [repo.hole_nachricht(spaetstand, 1, 499)]
+    koerper = kontext.baue(spaetstand, 1, ausloeser, einst)
+    system = kontext.system(einst.bot_name, phase)
+    assert len(system) + len(koerper) <= kontext.gesamtgrenze(), (
+        f"Phase {phase}: System {len(system)} + Koerper {len(koerper)} "
+        f"ueber Gesamtgrenze {kontext.gesamtgrenze()}"
+    )
+    assert len(koerper) <= kontext.zeichengrenze()
+
+
+def test_gesamtgrenze_kommt_aus_der_umgebung(monkeypatch):
+    monkeypatch.setenv("IT_PROMPT_ZEICHEN_GESAMT", "50000")
+    assert kontext.gesamtgrenze() == 50000
+    monkeypatch.setenv("IT_PROMPT_ZEICHEN_GESAMT", "keine Zahl")
+    assert kontext.gesamtgrenze() == kontext.GESAMT_ZEICHEN_GRENZE_VORGABE
+    monkeypatch.setenv("IT_PROMPT_ZEICHEN_GESAMT", "12")
+    assert kontext.gesamtgrenze() == kontext.GESAMT_ZEICHEN_GRENZE_VORGABE
+
+
+def test_enge_gesamtgrenze_kuerzt_den_koerper(spaetstand, einst, monkeypatch):
+    """Die Gesamtgrenze wirkt wirklich: sie zieht den Koerper zusammen,
+    obwohl die Koerpergrenze allein noch nicht gerissen waere."""
+    ausloeser = [repo.hole_nachricht(spaetstand, 1, 499)]
+    weit = kontext.baue(spaetstand, 1, ausloeser, einst)
+    system = kontext.system(einst.bot_name, 7)
+    monkeypatch.setenv("IT_PROMPT_ZEICHEN_GESAMT", str(len(system) + 4000))
+    eng = kontext.baue(spaetstand, 1, ausloeser, einst)
+    assert len(eng) < len(weit)
+    assert len(system) + len(eng) <= len(system) + 4000
+
+
+def test_umriss_weist_die_systemanweisung_aus(spaetstand, einst):
+    """Der Umriss zeigte bis zum 06.09.2026 nur den Koerper -- genau die
+    Teilmessung, die Befund C.1 verursacht hat."""
+    ausloeser = [repo.hole_nachricht(spaetstand, 1, 499)]
+    protokoll: list = []
+    kontext.baue(spaetstand, 1, ausloeser, einst, protokoll=protokoll)
+    zeile = protokoll[0]
+    assert zeile["system"] > 0
+    assert zeile["gesamt_mit_system"] == zeile["gesamt"] + zeile["system"]

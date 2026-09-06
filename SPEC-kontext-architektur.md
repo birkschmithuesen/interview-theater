@@ -697,18 +697,37 @@ genau darum funktioniert es.
 
 | # | Block | Budget | Ändert sich | Entfällt wenn |
 |---|---|---:|---|---|
-| 1 | **Systemanweisung** | 900 | nie | – |
+| 1 | **Systemanweisung** (Basis + Phasenanweisung + Regie-Zettel) | 9.000 (Deckel 10.000, `kontext.SYSTEM_ZEICHEN_MAX` = 30.000 Zeichen) | bei jedem Phasenwechsel | – |
 | 2 | **Verdichtungen** (mit Belegzitaten) | 3.000 | je Interview 1× | keine Interviews |
 | 3 | **Volltranskripte** | 5.000 | nie | `/wortlaut` aus (Normalfall) |
 | 4 | **Arbeitsstand** (Begriffe, Fragen, Kernthema + Begründung, Figuren, Konflikt, Szenenliste) | 1.200 | je Entscheidung | Feld leer |
-| 5 | **Aktuelle Szene im Volltext** | 1.500 | oft | keine Szene |
+| 5 | **Aktuelle Szene im Volltext** | 2.000 (Deckel `kontext.SZENE_ZEICHEN_MAX` = 6.000 Zeichen) | oft | keine Szene |
 | 6 | **Journal** (ältestes zuerst) | 1.500 | alle paar Züge | leer |
 | 7 | **Kurzes Fenster** (von hinten gefüllt) | 8.000 | jede Nachricht | – |
 | 8 | **Auslösende Nachricht(en)** | 300 | immer | – |
 
-Normalfall ohne `/wortlaut`: **~9.600 Token.** Mit: ~14.600.
+Normalfall ohne `/wortlaut`: **~9.600 Token** Körper, plus ~8.800 Token Anweisung.
+Mit `/wortlaut`: ~14.600 Token Körper.
 
-> **Warum 8.000 und nicht 2.500.** Die frühere Zahl war gesetzt, nicht begründet.
+> **Zu Block 1 — von 900 auf 9.000 korrigiert (06.09.2026, Audit-Befund C.1, Auftrag 4).**
+> Die 900 Token waren nie durchgesetzt und nie gemessen. Gemessen sind es je Phase
+> **23.010–28.018 Zeichen = 7.670–9.339 Token**, also das Zehnfache — und der
+> größte Block im ganzen Prompt: im Gesprächszug der Testgruppe standen 26.365
+> Zeichen Anweisung gegen 8.810 Zeichen Körper. Die Zahl hier ist deshalb der
+> **reale** Wert; die Diskrepanz um den Faktor 10 aufzulösen heißt, die Messung an
+> die Wirklichkeit anzupassen und ihr *dann* eine Bremse zu geben, nicht sie
+> fortzuschreiben. Die Bremse ist zweiteilig:
+>
+> - `kontext.SYSTEM_ZEICHEN_MAX = 30.000` Zeichen je Phase, gehalten von einem
+>   Test (`test_prompt_audit.py::test_systemanweisung_bleibt_je_phase_unter_ihrer_grenze`,
+>   je Phase eine Zusicherung). Die Anweisung wird zur Laufzeit **nie gekürzt** —
+>   sie ist die Rolle des Bots, nicht Material.
+> - `kontext.GESAMT_ZEICHEN_GRENZE_VORGABE = 40.000` Zeichen für System + Körper
+>   zusammen (Env `IT_PROMPT_ZEICHEN_GESAMT`), geprüft in `kontext.baue`. Der Körper
+>   behält daneben seine eigene Grenze von 24.000 Zeichen. Wächst die Anweisung,
+>   schrumpft der Körper — und nicht mehr umgekehrt still.
+>
+> **Warum 8.000 und nicht 2.500** (Block 7). Die frühere Zahl war gesetzt, nicht begründet.
 > 2.500 Token sind rund 1.200 Wörter, also gut vier Normseiten — in einem Gruppenchat
 > mit vier Personen über zwei Tage schnell durchgelaufen. Kimi hat bei Infomaniak ein
 > Kontextfenster von 256.000 Token; bei 8.000 nutzen wir etwa drei Prozent davon.
@@ -775,17 +794,37 @@ zeigt die Drift.
 
 ### 7.2 Kürzung
 
-Passt der Prompt nicht ins Budget, greift **eine Regel in zwei Schritten**:
+Passt der Prompt nicht ins Budget, greift **eine Leiter in sechs Schritten** (Reihenfolge
+korrigiert 06.09.2026, Audit-Befund C.4, Auftrag 3 — vorher schützte sie den größten Block
+und opferte die kleinsten):
 
 1. **Volltranskripte fliegen ganz raus.**
-2. Reicht das nicht, wird das **kurze Fenster von vorn beschnitten**, bis es passt.
+2. **Der Szenenblock fällt auf `SZENE_ZEICHEN_NOTFALL` (2.000 Zeichen)** — vor Fenster,
+   Journal und Verdichtungen. In Phase 6/7 arbeitet die Gruppe an einer Szene und ruft
+   Korrekturen zu; den Text zu behalten, den der Bot ohnehin gerade schreibt, und dafür
+   zu verlieren, was die Gruppe dazu gesagt hat, ist die Umkehrung der gewünschten
+   Priorität.
+3. Reicht das nicht, wird das **kurze Fenster von vorn beschnitten**, bis es passt.
+4. Dann das **Journal von vorn** (die Überschrift bleibt, solange eine Notiz darunter steht).
+5. Dann die **Verdichtungen** — zuletzt, weil sie das Material selbst sind.
+6. **Die Garantie:** passt es dann immer noch nicht, wird der Szenenblock auf genau den
+   Platz zusammengezogen, der rechnerisch übrig ist (bis hin zu leer). Bis zum 06.09.2026
+   konnte die Kürzung ihr Ziel verfehlen und meldete das nicht — gemessen blieben bei
+   einer zwanzigfachen Szene 105.988 Zeichen stehen, 4,4× über der Grenze, obwohl alles
+   Opferbare geopfert war.
 
-Was danach übrig bleibt, ist die **Notbremse**: Systemanweisung + Arbeitsstand + Fenster +
-auslösende Nachricht. Die passt immer — **es gibt keinen Zustand, in dem der Bot wegen des
-Budgets nicht antwortet.** Das ist der einzige Teil der alten fünfstufigen Leiter, der
-wirklich gebraucht wurde.
+Was danach übrig bleibt, ist die **Notbremse**: Systemanweisung + Kernpaket + Arbeitsstand +
+Hinweise + auslösende Nachricht. Die passt immer — **es gibt keinen Zustand, in dem der Bot
+wegen des Budgets nicht antwortet.**
 
-Jede Kürzung schreibt einen `vorfall`. Das Dashboard zeigt „Gruppe 2, 14:03, gekürzt".
+Geprüft werden dabei **drei** Maße (Auftrag 4): der Körper gegen `zeichengrenze()`
+(24.000 Zeichen, Env `IT_PROMPT_ZEICHEN`), der Körper gegen `ZIEL` (20.000 Token), und
+**System + Körper** gegen `gesamtgrenze()` (40.000 Zeichen, Env
+`IT_PROMPT_ZEICHEN_GESAMT`). Das dritte Maß ist neu und schließt die Lücke aus Befund C.1:
+bis dahin bemaß jede Grenze nur den kleineren Teil des Prompts.
+
+Jede Kürzung schreibt einen `vorfall` — mit Vorher/Nachher-Zahlen, der Systemgröße und
+beiden Grenzen. Das Dashboard zeigt „Gruppe 2, 14:03, gekürzt".
 
 **Nicht** verdichten bei Überschreitung — das wäre ein LLM-Aufruf im kritischen Pfad, ausgelöst
 genau dann, wenn ohnehin viel los ist. **Nicht** der Gruppe sagen „ich muss aufräumen" — das

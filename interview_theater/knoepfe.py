@@ -494,6 +494,15 @@ _TEXT_SPAETERE_GEPRUEFT = (
 TEXT_DURCHLAUF_SZENE_KNOPF = "Szene {nummer} ansehen"
 TEXT_TEXTBUCH_KNOPF = "Textbuch als Datei"
 _TEXT_TEXTBUCH_BESCHREIBUNG = "Euer Textbuch - alle Szenen in einer Datei."
+#: Die Probenansicht (06.09.2026) steht als Zeile NEBEN dem Datei-Knopf, nicht
+#: an seiner Stelle: die Datei nimmt man mit, die Seite liest man in der Probe
+#: (Rollenfilter, Schriftgroesse, Ausdruck). Als Text und nicht als Knopf, weil
+#: eine Inline-Tastatur hier ``callback_data`` traegt und keinen Link -- und
+#: weil ein Link, den man kopieren kann, im Probenraum weitergereicht wird.
+_TEXT_PROBENANSICHT = (
+    "\n\nZum Lesen in der Probe (Rollen hervorheben, groesser stellen, "
+    "ausdrucken): {url}"
+)
 _TEXT_TEXTBUCH_FEHLER = (
     "Die Datei ist nicht durchgekommen. Ich kann euch die Szenen auch einzeln "
     "schicken."
@@ -2309,7 +2318,24 @@ def starte_stueckpruefung(conn, tg, klm, e, chat_id: int) -> None:
     pruefung_modul.starte(conn, tg, klm, e, chat_id)
 
 
-def zeige_stueckpruefung(conn, tg, chat_id: int, runde: int | None = None) -> int:
+def probenansicht_zeile(conn, e, chat_id: int) -> str:
+    """Die Zeile mit dem Link auf ``/g/<token>/textbuch``, oder "".
+
+    Ohne ``IT_WEB_URL`` (``e.web_url``) gibt es keine Weboberflaeche und
+    also auch keinen Link -- das ist kein Fehlerfall, sondern der Zustand
+    eines Bots ohne Webserver daneben. Der Weg zum Token ist derselbe wie in
+    der Begruessung und in ``/stand`` (``repo.gruppenseite_url``), damit es
+    nicht zwei Arten gibt, dieselbe URL zu bauen."""
+    basis = getattr(e, "web_url", "") if e is not None else ""
+    if not basis:
+        return ""
+    url = repo.gruppenseite_url(conn, chat_id, basis)
+    return _TEXT_PROBENANSICHT.format(url=f"{url}/textbuch") if url else ""
+
+
+def zeige_stueckpruefung(
+    conn, tg, chat_id: int, runde: int | None = None, e=None
+) -> int:
     """Die Befunde EINER Runde: je Frage eine Nachricht mit "Szene N
     ueberarbeiten" und "Lassen", darunter die Abschlussleiste mit "Noch eine
     Pruefrunde", "Textbuch als Datei" und einem Knopf je Szene.
@@ -2357,13 +2383,16 @@ def zeige_stueckpruefung(conn, tg, chat_id: int, runde: int | None = None) -> in
             conn, [_id_aus_daten(d) for _, d in leiste], message_id
         )
         verschickt += 1
-    biete_nach_pruefung(conn, tg, chat_id, runde)
+    biete_nach_pruefung(conn, tg, chat_id, runde, e)
     return verschickt
 
 
-def biete_nach_pruefung(conn, tg, chat_id: int, runde: int) -> int:
+def biete_nach_pruefung(conn, tg, chat_id: int, runde: int, e=None) -> int:
     """Die Abschlussleiste unter den Befunden: "Noch eine Pruefrunde",
-    "Textbuch als Datei" und ein Knopf je Szene ("Szene N ansehen")."""
+    "Textbuch als Datei" und ein Knopf je Szene ("Szene N ansehen").
+
+    Mit ``e`` steht darueber die Zeile mit dem Link zur Probenansicht
+    (06.09.2026) -- neben dem Datei-Knopf, nicht an seiner Stelle."""
     from interview_theater import szenenfolge
 
     leiste = [
@@ -2391,7 +2420,8 @@ def biete_nach_pruefung(conn, tg, chat_id: int, runde: int) -> int:
                 ),
             )
         )
-    return _mit_leiste(conn, tg, chat_id, szenenfolge.uebersicht(conn, chat_id), leiste)
+    text = szenenfolge.uebersicht(conn, chat_id) + probenansicht_zeile(conn, e, chat_id)
+    return _mit_leiste(conn, tg, chat_id, text, leiste)
 
 
 def _pruefbefund(conn, chat_id: int, befund_id: int):
@@ -2539,12 +2569,16 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
     return _mit_leiste(conn, tg, chat_id, text, leiste)
 
 
-def biete_durchlauf(conn, tg, chat_id: int) -> int:
+def biete_durchlauf(conn, tg, chat_id: int, e=None) -> int:
     """Der Eintritt in Phase 7 (Schaerfung des Stuecks): die Szenenfolge mit Status als Text, darunter
     ein Knopf je Szene, "Textbuch als Datei" und "Eigene Idee".
 
     Alles deterministisch aus der Datenbank. Der Durchlauf ist eine Ansicht
-    auf das, was die Gruppe gebaut hat -- kein Anlass, ein Modell zu fragen."""
+    auf das, was die Gruppe gebaut hat -- kein Anlass, ein Modell zu fragen.
+
+    Mit ``e`` steht unter der Uebersicht die Zeile mit dem Link zur
+    Probenansicht (06.09.2026): die Datei nimmt man mit, die Seite liest man
+    in der Probe. Beides, nicht eines statt des anderen."""
     from interview_theater import szenenfolge
 
     leiste = []
@@ -2573,7 +2607,8 @@ def biete_durchlauf(conn, tg, chat_id: int) -> int:
             _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, ART_TEXTBUCH)),
         )
     )
-    return _mit_leiste(conn, tg, chat_id, szenenfolge.uebersicht(conn, chat_id), leiste)
+    text = szenenfolge.uebersicht(conn, chat_id) + probenansicht_zeile(conn, e, chat_id)
+    return _mit_leiste(conn, tg, chat_id, text, leiste)
 
 
 # --- Phase 6 · Szenentexte: Wirkungen ------------------------------------------
@@ -4299,7 +4334,7 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # ist, steht die Szenenfolge mit Status und den Knoepfen "Szene N
         # ansehen" / "Textbuch als Datei" -- alles aus der Datenbank.
         tg.sende(chat_id, kopf)
-        biete_durchlauf(conn, tg, chat_id)
+        biete_durchlauf(conn, tg, chat_id, e)
         starte_stueckpruefung(conn, tg, klm, e, chat_id)
     elif nummer == PHASE_SCHAERFUNG:
         # Die Schaerfung fragt nicht nach Ideen: sie legt die Geschichte

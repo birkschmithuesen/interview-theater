@@ -318,6 +318,21 @@ def test_je_frage_eine_nachricht_mit_knoepfen(stueck, einst, tg):
     assert [b for b, _ in letzter] == ["Lassen"]
 
 
+def test_unter_den_befunden_steht_der_link_zur_probenansicht(stueck, einst, tg):
+    """06.09.2026: dort, wo "Textbuch als Datei" angeboten wird, steht
+    zusaetzlich der Link zur Probenansicht -- der Knopf bleibt."""
+    import dataclasses
+
+    stueckpruefung.pruefe(LLMAttrappe(ANTWORT), stueck, einst, 1)
+    mit_web = dataclasses.replace(einst, web_url="https://lab.test/theatersoap")
+
+    knoepfe.zeige_stueckpruefung(stueck, tg, 1, 1, mit_web)
+
+    token = repo.stelle_web_token_sicher(stueck, 1)
+    assert f"https://lab.test/theatersoap/g/{token}/textbuch" in tg.knoepfe[-1][1]
+    assert knoepfe.TEXT_TEXTBUCH_KNOPF in [b for b, _ in tg.knoepfe[-1][2]]
+
+
 def test_am_ende_stehen_pruefrunde_textbuch_und_die_szenen(stueck, einst, tg):
     stueckpruefung.pruefe(LLMAttrappe(ANTWORT), stueck, einst, 1)
 

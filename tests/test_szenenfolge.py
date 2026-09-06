@@ -242,7 +242,9 @@ def test_gefaellt_uns_weiter_fragt_zuerst_nach_der_form_von_szene_1(conn, einst,
     ]
 
 
-def test_erst_nach_der_form_kommt_die_schreibfrage(conn, einst, tg):
+def test_nach_der_form_kommt_der_stil_und_dann_die_schreibfrage(conn, einst, tg):
+    """Seit dem 06.09.2026 (Birk, 12:50) liegt die Stilwahl zwischen Form
+    und Schreibfrage: erst die Form, dann "Welcher Stil?", dann schreiben."""
     _figuren(conn, "Mira", "Pal")
     phasen.setze(conn, 1, 7, "befehl")
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
@@ -251,6 +253,11 @@ def test_erst_nach_der_form_kommt_die_schreibfrage(conn, einst, tg):
     _druecke(conn, tg, einst, "Dialog" + knoepfe.TEXT_FORM_VORSCHLAG_ZUSATZ)
 
     assert repo.hole_szenen(conn, 1)[0]["form"] == "dialog"
+    assert "Welcher Stil?" in tg.knoepfe[-1][1]
+
+    # Und erst die Stilwahl fuehrt zur Schreibfrage.
+    _druecke(conn, tg, einst, "Ohne Stilvorlage")
+
     assert tg.beschriftungen == [
         knoepfe.TEXT_SZENE_SCHREIBEN_KNOPF,
         knoepfe.TEXT_SZENE_PLANEN_KNOPF,

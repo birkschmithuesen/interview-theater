@@ -415,6 +415,9 @@ SZENENFELDER = (
     # die Gruppe an der Seite sehen soll, was vorgeschlagen und was
     # bestaetigt wurde. Bestaetigt ist allein ``form``.
     ("form_vorschlag", "Form (Vorschlag)"),
+    # Die Stilvorlage je Szene (06.09.2026, Birk 12:50) -- der Slug aus
+    # ``prompts/stile/``; die lesbare Beschriftung macht ``web.py``.
+    ("stil", "Stil"),
     ("ort", "Ort"),
     ("zeit", "Zeit"),
     ("anlass", "Anlass"),

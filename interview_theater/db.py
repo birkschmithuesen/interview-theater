@@ -353,6 +353,16 @@ CREATE TABLE IF NOT EXISTS szene (
   -- (szene.PFLICHTFELDER).
   form_vorschlag       TEXT,
   form_vorschlag_grund TEXT,
+  -- Die STILVORLAGE dieser Szene (06.09.2026, Birk 12:50): ein Slug aus
+  -- ``prompts/stile/<slug>.md`` ("schlagabtausch", "litanei", "herkules").
+  -- Birk: "alle Gruppen sollen auf alle Stile zugreifen koennen, als
+  -- Auswahl, mit Nennung des Originalmaterials". Bis dahin hing der Stil am
+  -- Bot (eine Overlay-Datei je Gruppe) und war damit nicht waehlbar.
+  -- Leer heisst "ohne Stilvorlage" -- dann bleibt es bei den Formregeln.
+  -- Wirkt nur bei ``form != prosa``: die Prosafassung ist eine Geschichte,
+  -- kein Buehnentext, und ein Rap-Mass darauf waere sinnlos. Additiv
+  -- nachgeruestet ueber _migriere_fehlende_spalten.
+  stil              TEXT,
   ort               TEXT,
   zeit              TEXT,                   -- Tageszeit, "danach", "am nächsten Morgen"
   anlass            TEXT,                   -- warum sind sie hier

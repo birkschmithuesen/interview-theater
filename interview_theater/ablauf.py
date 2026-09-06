@@ -504,6 +504,34 @@ def _tippanzeige(tg, chat_id: int):
         thread.join(timeout=TIPP_INTERVALL + 1.0)
 
 
+#: Systemzeilen, die **nur** der Szenenlauf schreibt (06.09.2026, Birk
+#: 12:25). Der Gespraechs-Bot hat sie im Verlauf gelesen und sie live
+#: nachgesprochen -- "Start frei", "Ich schreibe die Szene aus", die
+#: US-Frage. Fuer die Gruppe sah das wie ein laufender Auftrag aus, und es
+#: lief keiner: die Nachricht war erfunden.
+_SYSTEMZEILEN = (
+    r"start\s*frei",
+    # "ich schreibe die Szene aus", "ich schreibe eure Szene jetzt aus" --
+    # zwischen Szene und "aus" darf stehen, was das Modell dazwischenschiebt
+    # (gemessen live: "jetzt", "gleich", "gerade").
+    r"schreibe\s+(die|eure|euch\s+die)\s+szene\b[^.\n]{0,30}\baus\b",
+    r"us[- ]?server",
+    r"us[- ]?modell.*\?",
+    r"\bschweiz\b.*\bus\b|\bus\b.*\bschweiz\b",
+)
+_SYSTEMZEILE = re.compile("|".join(_SYSTEMZEILEN), re.IGNORECASE)
+
+
+def ist_erfundene_systemzeile(text: str | None) -> bool:
+    """Sieht diese Gespraechsantwort aus wie eine Systemzeile des
+    Szenenlaufs?
+
+    Reiner Musterabgleich, kein Modellaufruf. Der Aufrufer prueft
+    zusaetzlich, ob wirklich ein Lauf laeuft -- steht einer, ist die Zeile
+    echt und geht durch."""
+    return _SYSTEMZEILE.search((text or "").strip()) is not None
+
+
 def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
                offen: list, antwort: str) -> str:
     """Liefert die Antwort -- oder, wenn sie ein Echo war, die eines zweiten
@@ -654,6 +682,20 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             )
             return
 
+        # Dieselbe Bauart fuer die Kurzgeschichte (06.09.2026, Birk 11:50):
+        # nach "Etwas aendern" unter der fertigen Geschichte ist diese eine
+        # Nachricht die Regie-Notiz -- sie geht als Anweisung in den
+        # naechsten Lauf, nicht in den Gespraechszug.
+        if knoepfe.nimm_geschichte_notiz(chat_id) and (
+            letzte_nachricht["text"] or ""
+        ).strip():
+            from interview_theater import kurzgeschichte
+
+            kurzgeschichte.starte(
+                conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip(),
+            )
+            return
+
         # Dieselbe Bauart fuer die gesagten Fragennummern (06.09.2026,
         # 10:05): der Bot hat gerade zehn Fragen ausgeschrieben hingelegt,
         # und "2, 5 und 9" ist die Antwort darauf. Greift nur, solange der
@@ -727,6 +769,22 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         # des Modells, den ein Anlauf mit Ermahnung heilt -- eine
         # Wiederholung ist eine Antwort, die es einfach nicht braucht.
         vorige = repo.letzte_bot_nachricht_vor(conn, chat_id, letzte_message_id + 1)
+        # **Keine erfundenen Systemzeilen** (06.09.2026, Birk 12:25): sagt
+        # der Gespraechs-Bot "Start frei", "ich schreibe die Szene aus" oder
+        # etwas ueber US-Server und Schweiz, OHNE dass ein Szenenlauf laeuft,
+        # ist die Zeile erfunden -- sie sieht fuer die Gruppe wie ein
+        # laufender Auftrag aus, und es laeuft keiner. Sie wird ersatzlos
+        # verworfen (wie eine Wiederholung), mit Vorfall.
+        if ist_erfundene_systemzeile(text) and not szene.laeuft(chat_id):
+            log.info("Erfundene Systemzeile verworfen, chat_id=%s", chat_id)
+            repo.merke_vorfall(
+                conn, chat_id, getattr(e, "bot_name", None),
+                "gespraech_systemzeile_erfunden",
+                "Antwort klang wie eine Systemzeile des Szenenlaufs, "
+                "ohne dass ein Lauf lief",
+            )
+            versand_erfolgreich = True
+            return
         # 06.09.2026 12:30 (Gruppe 1, live): "Kannst du die zweite
         # Formulierung umaendern" -> das Modell lieferte den ueberarbeiteten
         # Vorschlagsblock, der zwangslaeufig zu >60 % aus denselben Woertern

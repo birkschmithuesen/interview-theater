@@ -300,7 +300,7 @@ def formdatei(form: str | None) -> str:
     return "dialog"
 
 
-def systemanweisung(form: str | None = None) -> str:
+def systemanweisung(form: str | None = None, stil: str | None = None) -> str:
     """Die Systemanweisung des Szenen-Aufrufs, dreiteilig und heiss
     nachgeladen: ``prompts/szene.md`` (was fuer jede Form gilt), der
     Regelblock zur Form (``prompts/formen/<form>.md``) und die Negativliste
@@ -323,7 +323,14 @@ def systemanweisung(form: str | None = None) -> str:
     (Repliken, Regieanweisungen, Sprecherzeilen) noch ein Herkules-Regelblock
     gehen mit -- sie beschreiben Sprechtheater, und hier entsteht eine
     Geschichte. Die Tells bleiben: sie sind Sprachhygiene und gelten fuer
-    jeden Text."""
+    jeden Text.
+
+    **Der Stil-Block** (06.09.2026, 12:50, Birk) haengt hinter dem
+    Formen-Regelblock und VOR den Tells: er verschiebt, wie der Text klingt,
+    und kollidiert er mit der Form, gilt die Formdatei -- deshalb steht er
+    dahinter. Er kommt nur bei ``form != prosa`` mit: die Prosafassung ist
+    eine Geschichte, kein Buehnentext, und ein Rap-Mass darauf waere eine
+    Regel ueber eine Textsorte, die es hier nicht gibt."""
     if (form or "").strip().lower() == PROSA:
         return "\n\n".join(
             [anweisungen.hole(f"formen/{PROSA}"), anweisungen.hole("theater-tells")]
@@ -332,6 +339,11 @@ def systemanweisung(form: str | None = None) -> str:
     regeln = anweisungen.hole_optional(f"formen/{formdatei(form)}")
     if regeln and regeln.strip():
         teile.append(regeln.strip())
+    from interview_theater import stile as stile_modul
+
+    stilblock = stile_modul.regelblock(stil)
+    if stilblock:
+        teile.append(stilblock)
     teile.append(anweisungen.hole("theater-tells"))
     return "\n\n".join(teile)
 
@@ -1947,17 +1959,20 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     # fuer den Feinschliff).
     prosa_lauf = schreibt_prosa(conn, chat_id)
     form = PROSA if prosa_lauf else ziel["form"]
+    # Der Stil der Szene (06.09.2026, 12:50) -- gewaehlt im Feinschliff, im
+    # Prosalauf ohne Wirkung (``systemanweisung`` laesst ihn dort weg).
+    stil = ziel["stil"] if "stil" in ziel.keys() else None
     nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel, e)
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
     if ueber_claude:
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
-            chat_id, systemanweisung(form),
+            chat_id, systemanweisung(form, stil),
             nutzer, ART, timeout=TIMEOUT_S,
         )
     else:
         antwort = klm.prosa(
-            chat_id, systemanweisung(form),
+            chat_id, systemanweisung(form, stil),
             nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
         )
     _pruefe_budget(conn, chat_id, ueber_claude)

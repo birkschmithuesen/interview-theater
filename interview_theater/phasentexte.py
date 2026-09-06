@@ -107,10 +107,12 @@ EINLEITUNGEN = {
         "koennt noch eine Runde drehen."
     ),
     6: (
-        "Jetzt schreibe ich jede Szene als Geschichte, wie in einem Buch - "
-        "was passiert, wer da ist, was gesagt und gefuehlt wird, in Prosa. "
-        "Kein Theatertext, keine Form; das kommt danach. Ihr sagt mir, was "
-        "anders werden soll."
+        "Jetzt schreibe ich eure Geschichte am Stueck - eine Kurzgeschichte, "
+        "wie in einem Buch: was passiert, wer da ist, was gesagt und "
+        "gefuehlt wird, in Prosa. Wie viele Abschnitte es werden, entscheidet "
+        "die Geschichte. Aus jedem Abschnitt wird danach eine Szene. Kein "
+        "Theatertext, keine Form; das kommt im Feinschliff. Ihr lest sie und "
+        "sagt mir, was anders werden soll."
     ),
     7: (
         "Alle Szenen stehen als Geschichte. Jetzt der Feinschliff: Szene fuer "

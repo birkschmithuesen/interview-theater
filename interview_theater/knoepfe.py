@@ -519,8 +519,7 @@ _TEXT_FRAGEN_EIGENE_KNOPF = "Eigene Idee"
 #: verschwindet, ist schlechter als gar keiner.
 _TEXT_FRAGEN_WAHL = (
     f"Welche {FRAGEN_ANZAHL} Fragen wollt ihr nehmen? Sagt mir die Nummern - "
-    "getippt oder als Sprachnachricht. Wollt ihr andere oder eigene Fragen, "
-    "sagt das einfach."
+    "getippt oder gesprochen, oder sagt, dass ihr andere wollt."
 )
 #: Die Antwort auf "Diese 3 nehmen" bei falscher Anzahl. Sie geht als
 #: answerCallbackQuery raus (das kleine graue Band oben in der App) und

@@ -66,104 +66,53 @@ Alte Datenbanken werden umnummeriert (``db.PHASEN_UMNUMMERIERUNG_3``):
 5 -> 4, 6 -> 5, 7 -> 6, 8 -> 7.
 """
 
-from interview_theater import repo
+from interview_theater import repo, workshop
 
-#: Nummer, Kurzname, ein Satz. Die acht Stationen sind wortgleich die aus
-#: ``prompts/system.md`` -- dort als Landkarte fuer das Gespraech, hier als
-#: Datenmodell. Der Kurzname ist das, was in Meldungen und auf der
-#: Weboberflaeche steht ("5 · Format & Rahmen"), der Satz erklaert ihn, wenn die
-#: Gruppe ``/phase`` ohne Argument schickt.
+#: Nummer, Kurzname, ein Satz -- **seit dem 06.09.2026 aus dem
+#: Workshop-Profil** (``workshop/<name>/phasen.toml``, sonst
+#: ``workshop.VORGABE_PHASEN`` mit genau den Werten, die vorher hier
+#: standen).
 #:
-#: Korrigiert am 05.09.2026 (Birk, nach dem Probelauf): **Kernthema und
-#: Figuren sind EINE Phase.** Vorher waren es zwei mit freier Reihenfolge --
-#: im Probelauf bat die Gruppe dann "Kernthema und Figuren in einem Schritt",
-#: und das ist auch die ehrlichere Beschreibung der Arbeit: welches von
-#: beidem zuerst kommt, ergibt sich aus dem Material und nicht aus einer
-#: Nummerierung. Damit faellt auch die alte Sonderlogik der "freien Stelle"
-#: zwischen 5 und 6 ersatzlos weg.
+#: Die *Mechanik* bleibt hier: Phase halten, springen, das tolerante Mapping
+#: (``nummer_fuer``), die Voraussetzungen. Was hineinwandert, ist der
+#: Inhalt -- wie viele Stationen es gibt, wie sie heissen, unter welchen
+#: Woertern eine Gruppe sie meint. Fuer einen zweiten Einsatzort mit einem
+#: anderen Ablauf ist das der Unterschied zwischen einer Datei und einem
+#: Fork.
 #:
-#: Die uebrigen Entscheidungen von 04.09.2026 abends gelten weiter: die
-#: Begriffe werden **analog im Plenum** gesammelt, nicht mit dem Bot -- Phase 1
-#: ist die Uebergabe der fertigen Liste, keine Sammelphase. Fragen formulieren
-#: und Interviews fuehren sind zwei Arbeiten, nicht eine.
-PHASEN = (
-    (1, "Begriffe", "Die im Plenum gesammelte Begriffsliste aufnehmen und ordnen."),
-    (2, "Fragen", "Aus den Begriffen Interviewfragen entwickeln."),
-    (3, "Interviews", "Interviews fuehren, das Material verdichten."),
-    (
-        4,
-        "Setting, Figuren & Geschichte",
-        "Frei erfinden: worin es spielt, wer vorkommt, was passiert.",
-    ),
-    (
-        5,
-        "Schaerfung",
-        "Die erfundene Geschichte am Interviewmaterial schaerfen.",
-    ),
-    (
-        6,
-        "Szenen als Geschichte",
-        "Jede Szene als Prosa erzaehlen -- was passiert, noch ohne Form.",
-    ),
-    (
-        7,
-        "Feinschliff",
-        "Je Szene die Form waehlen, die Geschichte uebersetzen, das Stueck "
-        "pruefen.",
-    ),
-)
-
-#: Woerter, unter denen eine Phase gemeint sein kann -- zusaetzlich zum
-#: Kurznamen (``nummer_fuer``).
+#: Die Stationen sind wortgleich die aus ``prompts/system.md`` -- dort als
+#: Landkarte fuer das Gespraech, hier als Datenmodell. Der Kurzname ist das,
+#: was in Meldungen und auf der Weboberflaeche steht ("5 · Schaerfung"), der
+#: Satz erklaert ihn, wenn die Gruppe ``/phase`` ohne Argument schickt.
 #:
-#: Noetig, seit ein Kurzname aus zwei Sachen besteht: gegen "Kernthema &
-#: Figuren" trifft ein Teilstringvergleich weder "wir sind noch beim
-#: Kernthema" noch "lasst uns jetzt Figuren machen" -- beides sind genau die
-#: Saetze, mit denen eine Gruppe diese Phase benennt. Die Stichwoerter stehen
-#: hier als Daten und nicht als Sonderfall im Code, damit eine achte Phase
-#: (oder ein weiterer Doppelname) nichts als diese Tabelle braucht.
-STICHWOERTER = {
-    1: ("begriffe", "begriff", "begriffsliste"),
-    # "interviewfragen" steht hier bewusst NICHT: der Vergleich laeuft in
-    # beide Richtungen, und "interview" waere darin enthalten -- die Gruppe
-    # landete beim Formulieren statt beim Aufnehmen.
-    2: ("fragen", "frage", "frageliste"),
-    3: ("interviews", "interview", "aufnahmen"),
-    # Setting UND Figuren -- der Rahmen (Ort, Zeit, Anlass) ist seit dem
-    # Umbau vom 05.09.2026 nachts Teil DIESER Station und nicht mehr eine
-    # eigene. "kernthema", "format" und "konflikt" bleiben als Altlast
-    # stehen: eine Gruppe (oder ein Journaleintrag von gestern) sagt weiter
-    # "wir sind beim Kernthema" und meint die Station, an der erfunden wird.
-    4: (
-        "setting", "figuren", "figur", "rahmen", "rahmung",
-        "kernthema", "kernthemas", "format", "konflikt", "hauptkonflikt",
-        "geschichte", "handlung", "grobstruktur",
-    ),
-    # "schaerfung" steht in ZWEI Phasen (5 am Material, 7 am fertigen
-    # Stueck). Aufgeloest wird das nicht hier, sondern in ``nummer_fuer``
-    # ueber die Phase, in der die Gruppe gerade steht: wer vor der
-    # Schaerfung steht, meint 5; wer die Szenen schon hat, meint 7.
-    5: ("schaerfung", "schaerfen", "clustern", "verdichtungen"),
-    6: ("szenentexte", "szenentext", "szenen", "szene"),
-    7: ("durchlauf", "feinschliff", "stueckpruefung", "pruefrunde"),
-}
+#: ``PHASEN``, ``STICHWOERTER``, ``MEHRDEUTIG``, ``MELDUNG``, ``ERSTE`` und
+#: ``LETZTE`` bleiben als Namen bestehen und werden ueber ``__getattr__``
+#: (PEP 562) bei jedem Zugriff frisch beantwortet -- nicht einmal beim
+#: Import: zwei Profile in einem Prozess bekaemen sonst dieselben Phasen
+#: (D.5 der Analyse). Wer innerhalb dieses Moduls liest, ruft die
+#: ``workshop``-Funktionen direkt auf; ein Modul-``__getattr__`` greift bei
+#: einem einfachen Namen im eigenen Modul naemlich nicht.
 
-#: Die Stichwoerter, die in mehr als einer Phase vorkommen koennen, mit der
-#: spaeteren Phase, die sie meinen, sobald die Gruppe schon dort ist. Der
-#: Anlass ist Birks Umbau vom 06.09.2026: **beide** Schaerfungen heissen
-#: Schaerfung -- die am Material (5) und die am fertigen Stueck (7).
-MEHRDEUTIG = {5: 7}
 
-#: Die Phase, die gilt, solange keine gesetzt wurde (``phase IS NULL``).
-ERSTE = 1
-
-#: Hoechste Nummer -- eine Stelle statt einer 7 an sechs Stellen.
-LETZTE = PHASEN[-1][0]
+def __getattr__(name: str):
+    if name == "PHASEN":
+        return workshop.phasenliste()
+    if name == "STICHWOERTER":
+        return workshop.phasen_stichwoerter()
+    if name == "MEHRDEUTIG":
+        return workshop.phasen_mehrdeutig()
+    if name == "MELDUNG":
+        return workshop.phasen_meldung()
+    if name == "ERSTE":
+        return workshop.phase_erste()
+    if name == "LETZTE":
+        return workshop.phase_letzte()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def kurzname(nummer: int) -> str:
     """Der Kurzname einer Phase; leer bei einer unbekannten Nummer."""
-    for eintrag in PHASEN:
+    for eintrag in workshop.phasenliste():
         if eintrag[0] == nummer:
             return eintrag[1]
     return ""
@@ -171,7 +120,7 @@ def kurzname(nummer: int) -> str:
 
 def satz(nummer: int) -> str:
     """Der erklaerende Satz einer Phase; leer bei unbekannter Nummer."""
-    for eintrag in PHASEN:
+    for eintrag in workshop.phasenliste():
         if eintrag[0] == nummer:
             return eintrag[2]
     return ""
@@ -204,13 +153,12 @@ def knopfbezeichnung(nummer: int) -> str:
 
 #: Die Meldung, mit der jede Phasenaenderung hoerbar wird -- gleiche Form wie
 #: die Kernthema-Zeile des Erkenners: sagen, was jetzt gilt, und wie man
-#: widerspricht.
-MELDUNG = "Wir sind jetzt bei {bezeichnung}. Falls nicht, sagt es mir."
+#: widerspricht. Steht in ``phasen.toml``; siehe ``__getattr__`` oben.
 
 
 def meldung(nummer: int) -> str:
     """Die Zeile, mit der ein Phasenwechsel gemeldet wird."""
-    return MELDUNG.format(bezeichnung=bezeichnung(nummer))
+    return workshop.phasen_meldung().format(bezeichnung=bezeichnung(nummer))
 
 
 def setze(conn, chat_id: int, nummer: int, quelle: str, notiz: str | None = None) -> bool:
@@ -242,7 +190,10 @@ def setze(conn, chat_id: int, nummer: int, quelle: str, notiz: str | None = None
 def liste() -> str:
     """Die sieben Phasen als Text, eine Zeile je Phase (fuer ``/phase`` ohne
     Argument)."""
-    return "\n".join(f"{nummer} · {name} - {text}" for nummer, name, text in PHASEN)
+    return "\n".join(
+        f"{nummer} · {name} - {text}"
+        for nummer, name, text in workshop.phasenliste()
+    )
 
 
 def nummer_fuer(wert: str | int | None, jetzige: int | None = None) -> int | None:
@@ -272,23 +223,25 @@ def nummer_fuer(wert: str | int | None, jetzige: int | None = None) -> int | Non
     if wert is None:
         return None
     if isinstance(wert, int):
-        return wert if 1 <= wert <= LETZTE else None
+        return wert if 1 <= wert <= workshop.phase_letzte() else None
 
     text = wert.strip().lower().strip(".:!?")
     if not text:
         return None
     if text.isdigit():
         nummer = int(text)
-        return nummer if 1 <= nummer <= LETZTE else None
+        return nummer if 1 <= nummer <= workshop.phase_letzte() else None
 
-    for nummer, name, _ in PHASEN:
+    liste = workshop.phasenliste()
+    for nummer, name, _ in liste:
         if text == name.lower():
             return _aufgeloest(nummer, jetzige)
-    for nummer, _, _ in PHASEN:
-        for stichwort in STICHWOERTER.get(nummer, ()):
+    stichwoerter = workshop.phasen_stichwoerter()
+    for nummer, _, _ in liste:
+        for stichwort in stichwoerter.get(nummer, ()):
             if stichwort in text or text in stichwort:
                 return _aufgeloest(nummer, jetzige)
-    for nummer, _, erklaerung in PHASEN:
+    for nummer, _, erklaerung in liste:
         if text in erklaerung.lower():
             return _aufgeloest(nummer, jetzige)
     return None
@@ -297,7 +250,7 @@ def nummer_fuer(wert: str | int | None, jetzige: int | None = None) -> int | Non
 def _aufgeloest(nummer: int, jetzige: int | None) -> int:
     """Die spaetere Phase, wenn das Wort in beiden vorkommt und die Gruppe
     schon dort ist (``MEHRDEUTIG``) -- sonst die gefundene."""
-    spaeter = MEHRDEUTIG.get(nummer)
+    spaeter = workshop.phasen_mehrdeutig().get(nummer)
     # ``>`` und nicht ``>=``: eine Gruppe, die IN der Material-Schaerfung
     # steht und "Schaerfung" sagt, meint die, in der sie ist -- erst ab der
     # naechsten Station meint dasselbe Wort die des Stuecks.
@@ -312,7 +265,7 @@ def aktuelle(conn, chat_id: int) -> int:
     erklaeren muesste."""
     gespeichert = repo.hole_phase(conn, chat_id)
     if gespeichert is None:
-        return ERSTE
+        return workshop.phase_erste()
     return gespeichert
 
 

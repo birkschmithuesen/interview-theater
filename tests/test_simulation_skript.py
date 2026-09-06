@@ -11,7 +11,7 @@ heutigen.
 
 import pytest
 
-from interview_theater import phasen, repo
+from interview_theater import phasen, repo, workshop
 from simulation import skript
 
 
@@ -66,25 +66,28 @@ def test_felder_fuer_phase_ignoriert_schluessel_und_buchhaltung(conn):
         assert "phase" not in skript.felder_fuer_phase(conn, nummer)
 
 
+def _umbenannt(monkeypatch, nummer, neuer_name):
+    """Benennt eine Phase um -- am Workshop-Profil, aus dem ``phasen.py``
+    seit dem 06.09.2026 liest. Vorher stand die Liste als ``phasen.PHASEN``
+    im Modul, und der Test hat sie dort ueberschrieben."""
+    liste = tuple(
+        (n, neuer_name if n == nummer else name, satz)
+        for n, name, satz in phasen.PHASEN
+    )
+    monkeypatch.setattr(workshop, "phasenliste", lambda profil=None: liste)
+
+
 def test_felder_fuer_phase_folgt_einer_umbenannten_phase(conn, monkeypatch):
     """Bis zum 05.09.2026 hiess Phase 5 'Hauptkonflikt'. Hiesse eine Phase
     morgen wieder so, faende der Simulator die Spalte ``hauptkonflikt`` --
     ohne dass jemand diese Datei anfasst."""
-    umbenannt = tuple(
-        (n, "Hauptkonflikt" if n == 5 else name, satz)
-        for n, name, satz in phasen.PHASEN
-    )
-    monkeypatch.setattr(phasen, "PHASEN", umbenannt)
+    _umbenannt(monkeypatch, 5, "Hauptkonflikt")
     assert skript.felder_fuer_phase(conn, 5) == ["hauptkonflikt"]
     assert skript.pflichtfeld_fuer_phase(conn, 5) == "hauptkonflikt"
 
 
 def test_felder_fuer_phase_ist_leer_wenn_keine_spalte_passt(conn, monkeypatch):
-    umbenannt = tuple(
-        (n, "Weiss der Himmel" if n == 5 else name, satz)
-        for n, name, satz in phasen.PHASEN
-    )
-    monkeypatch.setattr(phasen, "PHASEN", umbenannt)
+    _umbenannt(monkeypatch, 5, "Weiss der Himmel")
     assert skript.felder_fuer_phase(conn, 5) == []
 
 

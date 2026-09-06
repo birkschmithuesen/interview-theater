@@ -514,7 +514,36 @@ In main, wartet auf Neustart: **Teil 4** = Phase 6 als EINE Kurzgeschichte (frei
 
 **Heute von Hand in soap.db gemacht (Journal-Vermerke „regie"):** Gruppen 1–3 auf Phase 2 zurück (11:25); Gruppe 1 Fragen gelöscht (11:35), Vortags-Interviews entfernt (13:25), Begriffe wiederhergestellt (13:45), Interview 27 beendet + 6/7 getrennt (13:50).
 
-## (i) Nach Dortmund: generischer Kern + einhängbares Workshop-Profil (Brainstorming-Einstieg)
+## (i) Nach Dortmund: generischer Kern + einhängbares Workshop-Profil
+
+**Gebaut am 06.09.2026 auf `feat/workshop-profil`** (neun Commits, einer je
+Schritt). Was der Abschnitt darunter als Brainstorming-Einstieg beschreibt,
+ist damit erledigt — er bleibt als Herkunft stehen. Der Stand:
+
+- **Anleitung und offene Punkte:** `docs/workshop-profil-umbau-2026-09-06.md`.
+  Kurzfassung in `AGENTS.md`, Abschnitt „Workshop-Profil".
+- **Eingehängt** wird mit `IT_WORKSHOP=<name>` je `betrieb/gruppeN.env`.
+  Ohne Variable gilt das eingebaute Vorgabeprofil = heutiges Dortmund.
+  `workshop/dortmund-2026/` trägt dieselben Werte; `workshop/padua-2026/`
+  liegt als Gerüst daneben und startet keinen Bot (`geruest = true`).
+- **Bitgleich, gemessen:** ohne Variable und mit `dortmund-2026` erzeugen
+  114 von 114 Abschnitten denselben SHA-256 wie vor dem Umbau
+  (`tests/test_profil_bitgleich.py` gegen
+  `docs/prompt-audit/schnappschuss-vor-profilumbau.txt`).
+- **Am Workshoptag geändert** (das Wichtige an dieser Stelle): der Block
+  „Rahmen des Stuecks" steht **nicht mehr** in
+  `interview_theater/prompts/system.md` — dort steht `{{rahmen}}`. Wer ihn
+  live ändert, ändert `workshop/dortmund-2026/prompts/rahmen.md`; der
+  Hot-Reload gilt dort genauso. `profil.toml`, `formen.toml`, `phasen.toml`
+  und `phasentexte.toml` werden dagegen nur beim Start gelesen.
+- **Vor jedem Start** läuft `scripts/pruefe_profil.py` aus
+  `scripts/betrieb-start.sh` und bricht mit Rückgabewert 3 ab, wenn ein
+  Platzhalter, ein Formen-Regelblock oder eine Einleitung fehlt.
+- **Nicht gebaut: Sprache.** `stt.py` liest `sprache.code` noch nicht, die
+  111 `_TEXT_*`-Konstanten in `knoepfe.py` stehen weiter im Code. Absicht
+  (E.1 Frage 5) — und `knoepfe.py` wurde am selben Tag parallel refaktoriert.
+
+---
 
 Birks Ziel (06.09.2026): das Repo soll für jede Zielgruppe / jeden Ort / jede
 Sprache funktionieren; alles Workshop-Individuelle (Alter, Orte, Formen-Katalog,

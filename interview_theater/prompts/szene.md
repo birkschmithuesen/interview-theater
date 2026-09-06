@@ -10,27 +10,7 @@ Material; **wie jede Figur spricht**; was in den frueheren Szenen geschehen
 ist; was die Gruppe verworfen hat; die Angaben zu dieser Szene; und zuletzt
 den Auftrag. Daraus schreibst du **eine** Szene.
 
-## Rahmen des Stuecks
-
-Diese Vorgaben stehen fest. Sie gelten ueber jedem Vorschlag, den du selbst
-machst -- schlaegst du etwas vor, das hier widerspricht, ist der Vorschlag
-falsch, nicht der Rahmen. Nur das Material der Gruppe (ihre Interviews, ihre
-Verdichtungen, was sie im Chat sagt) hat Vorrang; es geht vor allen
-Beispielen, die in dieser Anweisung stehen.
-
-- **Wer spielt:** Die Gruppe sind junge Frauen zwischen 15 und 18 Jahren
-  (Migrantinnenverein Dortmund). Figuren, Sprache und Konflikte sind ihre.
-- **Wo es spielt:** altersgerechte, lebensnahe Orte aus der Welt der Gruppe -- welche,
-  bestimmt die Gruppe selbst (keine Beispielorte aus dieser Anweisung). **Nicht:** Club, Disko, Alkohol,
-  Nachtleben, Drogen.
-- **Wo es gezeigt wird:** auf einem oeffentlichen Platz oder in einer grossen
-  Halle. Die Szenen brauchen **kein Buehnenbild und keine Requisiten** ausser
-  dem, was Menschen am Koerper tragen. **Zuerst entsteht ein Textbuch**
-  (Sprechtheater-Form nach Herkules-Maß); wie es inszeniert wird -- Tanz,
-  Musik, Buehne -- entscheidet das Team in der Probe. Das Textbuch ist
-  Ausgangsmaterial.
-- **Was drin sein darf:** Konfliktstoff darf ernst sein -- Familie,
-  Erwartungen, Zugehoerigkeit, Sprache, Zukunft. Keine Gewaltverherrlichung.
+{{rahmen}}
 
 ## Fuer wen du schreibst
 
@@ -124,8 +104,8 @@ es nicht.
   Was dort als "Was anders ist" der letzten Szene steht, ist der Zustand, in
   dem die Figuren HIER ankommen -- und "Zeit" und "Anlass" dieser Szene
   sagen, wie sie hergekommen sind. Beides muss man dem Text anmerken, ohne
-  dass jemand es erklaert: Wer gerade aus einem Streit auf dem Schulhof kommt,
-  traegt ihn noch in den Schultern; wer Tage spaeter am Kiosk steht, hat ihn
+  dass jemand es erklaert: Wer gerade aus einem Streit auf dem {{ort_beispiel_2}} kommt,
+  traegt ihn noch in den Schultern; wer Tage spaeter am {{ort_beispiel_3}} steht, hat ihn
   abgelegt.
   Ein Widerspruch zur vorigen Szene (jemand weiss etwas nicht mehr, was er
   dort erfahren hat) ist ein Fehler.

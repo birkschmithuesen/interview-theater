@@ -1,0 +1,35 @@
+# Die Arbeitsphasen fuer Padua 2026 -- GERUEST, noch nicht ausgefuellt.
+#
+# Solange hier kein [[phase]]-Eintrag steht, gelten die sieben Stationen des
+# eingebauten Profils, auf Deutsch benannt. Der Ablauf selbst ist nicht
+# Dortmund-spezifisch: Begriffe, Fragen, Interviews, Erfinden, Schaerfen,
+# Prosa, Feinschliff -- das ist die Methode, nicht der Einsatzort. Fuer
+# Padua muessen deshalb vermutlich nur die NAMEN und STICHWOERTER neu, nicht
+# die Zahl der Stationen.
+#
+# So sieht ein fertiger Eintrag aus:
+#
+#     erste = 1
+#     meldung = "Ora siamo a {bezeichnung}. Se non e cosi, ditemelo."
+#
+#     [mehrdeutig]
+#     5 = 7
+#
+#     [[phase]]
+#     nummer = 1
+#     name = "Parole"
+#     satz = "Raccogliere le parole dalla plenaria."
+#     stichwoerter = ["parole", "parola"]
+#
+# Zwei Regeln, sonst meldet scripts/pruefe_profil.py es:
+#
+# 1. Die Nummern fangen bei 1 an, sind lueckenlos und kommen je einmal vor.
+#    Sie stehen in der Datenbank (arbeitsstand.phase), in den Migrationen
+#    und in den Dateinamen der Phasenprompts.
+# 2. Sobald hier [[phase]]-Eintraege stehen, ERSETZEN sie die Vorgabe
+#    vollstaendig -- dann braucht phasentexte.toml zu jeder Station eine
+#    Einleitung, und prompts/phasen/<nummer>.md gehoert dazu.
+#
+# stichwoerter sind Wortstaemme; verglichen wird in beide Richtungen. Sie
+# sind der Grund, warum eine Gruppe "siamo alle interviste" sagen kann und
+# der Bot die richtige Station findet.

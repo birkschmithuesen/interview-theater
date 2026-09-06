@@ -41,7 +41,7 @@ erzeugt es beim naechsten Zug im eigenen Thread nach, und ein Journaleintrag
 "Sprachprofil neu noetig" haelt fest, warum.
 """
 
-from interview_theater import repo
+from interview_theater import repo, workshop
 
 #: Was im Journal als Quelle steht. Neben ``extraktor``, ``befehl`` und
 #: ``knopf`` -- damit im Nachhinein unterscheidbar bleibt, was im Chat und
@@ -56,18 +56,29 @@ JOURNAL_GRENZE = 120
 #: Was im Journal steht, wo vorher nichts stand.
 LEER = "(leer)"
 
-#: Die fuenf Formen je Szene -- **kleingeschrieben und wortgleich mit**
+#: Die Formen je Szene -- **kleingeschrieben und wortgleich mit**
 #: ``szene.FORMEN``: der Knopf im Chat speichert ``"dialog"``, und das
 #: Dropdown muss denselben Wert schreiben, sonst stuenden fuer dieselbe Form
 #: zwei Schreibweisen in der Datenbank und ``szene.formdatei`` faende bei
 #: einer davon den Regelblock nicht mehr. Die Beschriftung macht ``web.py``
 #: mit ``capitalize()``, genau wie ``knoepfe.biete_szenenform``.
 #:
-#: Hier noch einmal als Literal statt importiert: ``szene`` zieht ``httpx``
-#: nach, und der Webserver kommt mit der Standardbibliothek aus. Dass die
-#: beiden Listen gleich bleiben, haelt
-#: ``test_web_edit.test_formen_sind_die_aus_szene`` fest.
-FORMEN = ("dialog", "monolog", "chor", "lied", "rap")
+#: Bis zum 06.09.2026 stand die Tupel hier ein zweites Mal als Literal,
+#: absichtlich gespiegelt: ``szene`` zieht ``httpx`` nach, und der Webserver
+#: kommt mit der Standardbibliothek aus. Jetzt lesen beide dieselbe Quelle
+#: (``workshop.formen()``, aus ``formen.toml``) -- ``workshop`` haengt an
+#: nichts ausser der Standardbibliothek, die Spiegelung faellt damit weg und
+#: mit ihr die Gefahr aus D.8 der Analyse: eine Weboberflaeche, die eine
+#: andere Formenliste zeigt als der Chat. Dass die beiden Listen gleich
+#: bleiben, haelt ``test_web_edit.test_formen_sind_die_aus_szene`` fest.
+
+
+def __getattr__(name: str):
+    """``web_schreiben.FORMEN`` aus dem aktiven Profil -- bei jedem Zugriff
+    frisch, damit der Web-Dienst spaeter zwei Profile bedienen kann."""
+    if name == "FORMEN":
+        return workshop.formen()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 #: Die Stil-Slugs je Szene (06.09.2026, Birk 12:50) -- **wortgleich mit**
 #: ``stile.STILE``: der Knopf im Chat speichert ``"litanei"``, und das

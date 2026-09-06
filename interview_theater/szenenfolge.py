@@ -28,7 +28,7 @@ import logging
 import re
 import threading
 
-from interview_theater import anweisungen, repo
+from interview_theater import anweisungen, repo, workshop
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +72,15 @@ ANZAHL_MOEGLICH = (3, 4, 5, 6)
 #: Szenenvorstellung. Seit dem 05.09.2026 abends nennt der Prompt die Form
 #: je Zeile ausdruecklich (``ANWEISUNG_FOLGE``) -- der Rueckfall greift nur,
 #: wenn das Modell die vierte Spalte weglaesst.
-FORM_VORGABE = "dialog"
+#:
+#: Seit dem 06.09.2026 aus ``formen.toml`` (``vorgabe``), ueber
+#: ``__getattr__`` bei jedem Zugriff frisch -- siehe ``szene.py``.
+
+
+def __getattr__(name: str):
+    if name == "FORM_VORGABE":
+        return workshop.form_vorgabe()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 #: Trennt zwei Fassungen im Feld ``szene.fruehere_fassungen``.
 FASSUNGSTRENNER = "\n\n----- fruehere Fassung -----\n\n"
@@ -96,8 +104,8 @@ Eine Szene ohne Veraenderung ist ein Gespraech, kein Theater -- eine Szene
 ohne Konflikt dagegen schon.
 
 **Die Form ist Pflicht** und steht als vierte Spalte jeder Zeile. Es gibt
-genau fuenf: Dialog, Monolog, Chor, Lied, Rap. Waehl sie nach dem Material,
-nicht nach Gewohnheit -- **nicht jede Szene ist ein Dialog**. Wo ein Zitat
+genau {{formen_anzahl}}: {{formen_liste}}. Waehl sie nach dem Material,
+nicht nach Gewohnheit -- **nicht jede Szene ist ein {{form_vorgabe_anzeige}}**. Wo ein Zitat
 singt, steht ein Lied; wo eine Reihung klopft, ein Rap; wo eine allein
 bleibt, ein Monolog; wo viele dasselbe sagen, ein Chor. Eine Folge aus lauter
 Dialogen ist ein Fehler.
@@ -160,10 +168,10 @@ Nimm nur Figuren, die unten stehen.
 vierte Spalte, ihre Begruendung als fuenfte, und beide sind Pflicht -- die
 Gruppe bestaetigt die Form spaeter Szene fuer Szene per Knopf.
 
-Es gibt genau fuenf: Dialog, Monolog, Chor, Lied, Rap. **Dialog ist der
+Es gibt genau {{formen_anzahl}}: {{formen_liste}}. **{{form_vorgabe_anzeige}} ist der
 Normalfall.** Monolog, Lied und Rap nur, wenn die Szene es verlangt: eine
 Figur allein mit sich, ein Gefuehl, das gesungen groesser wird, Wut, die
-Rhythmus braucht. Hoechstens EINE Nicht-Dialog-Szene je drei Szenen, und
+Rhythmus braucht. Hoechstens EINE Nicht-{{form_vorgabe_anzeige}}-Szene je drei Szenen, und
 Szene 1 ist nie Monolog oder Lied -- die Exposition braucht Begegnung.
 
 Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
@@ -258,7 +266,8 @@ def zerlege(wert: str) -> list[tuple[str, str, list[str], str, str]]:
         if len(teile) > 2:
             figuren = [f.strip(" .;:") for f in teile[2].split(",") if f.strip()]
         roh_form = teile[3].strip(" .;:") if len(teile) > 3 else ""
-        form = szene_modul.formdatei(roh_form) if roh_form else FORM_VORGABE
+        form = (szene_modul.formdatei(roh_form) if roh_form
+                else workshop.form_vorgabe())
         grund = teile[4].strip() if len(teile) > 4 else ""
         ergebnis.append((titel, was, figuren, form, grund))
     return ergebnis
@@ -305,7 +314,8 @@ def lege_an(
         # Der Formvorschlag kommt aus der vierten Spalte, seine Begruendung
         # aus der fuenften; aeltere Aufrufer mit kuerzeren Tupeln bekommen die
         # Vorgabe (Dialog).
-        form = zeile[3] if len(zeile) > 3 and zeile[3] else FORM_VORGABE
+        form = (zeile[3] if len(zeile) > 3 and zeile[3]
+                else workshop.form_vorgabe())
         grund = zeile[4] if len(zeile) > 4 else ""
         abgleich.append(
             {
@@ -652,8 +662,16 @@ def systemanweisung(anzahl: int) -> str:
     Phasenfokus aus ``prompts/phasen/6.md``, heiss nachgeladen.
 
     Die Phasendatei ist optional (``hole_optional``): fehlt sie am
-    Workshoptag, entsteht trotzdem eine Szenenfolge."""
-    teile = [ANWEISUNG_FOLGE.format(anzahl=anzahl)]
+    Workshoptag, entsteht trotzdem eine Szenenfolge.
+
+    ``anweisungen.fuelle`` setzt die Platzhalter des Profils ein: die
+    Formenliste steht seit dem 06.09.2026 in ``formen.toml`` und nicht mehr
+    als "genau fuenf: Dialog, Monolog, Chor, Lied, Rap" im Code.
+
+    **Erst fuellen, dann formatieren.** ``str.format`` macht aus ``{{x}}``
+    ein wortwoertliches ``{x}`` -- in der anderen Reihenfolge stuende der
+    Platzhaltername im Prompt statt seines Werts."""
+    teile = [anweisungen.fuelle(ANWEISUNG_FOLGE).format(anzahl=anzahl)]
     phase = anweisungen.hole_optional("phasen/6")
     if phase and phase.strip():
         teile.append(phase.strip())
@@ -667,7 +685,7 @@ def systemanweisung_geschichte(anzahl: int | None = None) -> str:
     ``anzahl`` ist eine Bitte, keine Vorgabe: wie viele Szenen es werden,
     ergibt sich aus der Geschichte -- \"Anzahl aendern\" reicht sie herein,
     wenn die Gruppe eine nennt."""
-    teile = [ANWEISUNG_GESCHICHTE]
+    teile = [anweisungen.fuelle(ANWEISUNG_GESCHICHTE)]
     if anzahl:
         teile.append(f"Die Gruppe moechte {anzahl} Szenen.")
     phase = anweisungen.hole_optional("phasen/4")
@@ -829,7 +847,7 @@ def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
 def systemanweisung_geschichte_szenen() -> str:
     """Anweisung fuer die Szenenfolge NACH der gewaehlten Richtung
     (06.09.2026, Birk 11:42) plus der Phasenfokus aus ``prompts/phasen/4.md``."""
-    teile = [ANWEISUNG_GESCHICHTE_SZENEN]
+    teile = [anweisungen.fuelle(ANWEISUNG_GESCHICHTE_SZENEN)]
     phase = anweisungen.hole_optional("phasen/4")
     if phase and phase.strip():
         teile.append(phase.strip())

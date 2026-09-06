@@ -68,7 +68,7 @@ import threading
 
 import httpx
 
-from interview_theater import anweisungen, repo, szene_claude
+from interview_theater import anweisungen, repo, szene_claude, workshop
 
 log = logging.getLogger(__name__)
 
@@ -210,17 +210,35 @@ def laeuft(chat_id: int) -> bool:
     return bool(sperre is not None and sperre.locked())
 
 
-#: Die fuenf Formen, die eine Szene haben kann -- je eine mit eigenem
-#: Regelblock (``prompts/formen/<name>.md``). Die Reihenfolge ist die der
-#: Knopfleiste (``knoepfe.biete_szenenform``): erst die Sprechformen, dann
-#: die musikalischen.
+#: Die Formen, die eine Szene haben kann -- je eine mit eigenem Regelblock
+#: (``prompts/formen/<name>.md``). Die Reihenfolge ist die der Knopfleiste
+#: (``knoepfe.biete_szenenform``): erst die Sprechformen, dann die
+#: musikalischen.
 #:
 #: Ein "Format des Stuecks" gibt es seit dem 05.09.2026 abends nicht mehr
 #: (Birk: "wir wollen immer zuerst ein Textbuch; wie wir inszenieren, ist
 #: unser Ding") -- die Form haengt deshalb ausschliesslich an der EINZELNEN
 #: Szene und ist dort Pflichtfeld. "stumm" ist gestrichen: ein stummes Bild
 #: ist Inszenierung, nicht Textbuch.
-FORMEN = ("dialog", "monolog", "chor", "lied", "rap")
+#:
+#: **Seit dem 06.09.2026 kommt die Liste aus dem Workshop-Profil**
+#: (``workshop/<name>/formen.toml``, sonst ``workshop.VORGABE_FORMEN`` mit
+#: genau den fuenf Werten, die vorher hier standen). ``FORMEN`` und
+#: ``FORM_STICHWOERTER`` bleiben als Namen bestehen und werden ueber
+#: ``__getattr__`` bei jedem Zugriff frisch beantwortet -- nicht einmal beim
+#: Import: zwei Profile in einem Prozess bekaemen sonst dieselbe Liste
+#: (D.5 der Analyse).
+
+
+def __getattr__(name: str):
+    """``szene.FORMEN`` und ``szene.FORM_STICHWOERTER`` aus dem aktiven
+    Profil. Als Modul-``__getattr__`` (PEP 562), damit die rund zwanzig
+    Leser im Code und in den Tests unveraendert weiterlesen koennen."""
+    if name == "FORMEN":
+        return workshop.formen()
+    if name == "FORM_STICHWOERTER":
+        return workshop.form_stichwoerter()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 #: Die Formvariante der Phase 6 (06.09.2026, 10:30, Birk): erst entsteht die
 #: Szene als **Geschichte**, wie man sie in einem Buch liest -- kein
@@ -259,14 +277,7 @@ def schreibt_prosa(conn, chat_id: int) -> bool:
 #: ``phasen.STICHWOERTER``: das Feld ``szene.form`` ist frei (die Gruppe
 #: entscheidet, nicht der Code), und "gesungen" muss trotzdem beim Lied
 #: landen. Verglichen wird in beide Richtungen, deshalb genuegen Wortstaemme.
-FORM_STICHWOERTER = {
-    "lied": ("lied", "song", "gesang", "gesungen", "singen", "musik", "arie"),
-    "rap": ("rap", "sprechgesang", "beat", "reim", "hip-hop", "hiphop"),
-    "monolog": ("monolog", "soloszene", "solo"),
-    "chor": ("chor", "chorisch", "wir-form", "sprechchor"),
-    "dialog": ("dialog", "gespraech", "gespräch", "gesprochen", "sprechtheater",
-               "text", "sprechszene", "szene"),
-}
+#: Steht seit dem 06.09.2026 in ``formen.toml``; siehe ``__getattr__`` oben.
 
 
 def formdatei(form: str | None) -> str:
@@ -285,19 +296,23 @@ def formdatei(form: str | None) -> str:
     Format des Stuecks ist keine Frage mehr, die der Bot stellt. Was zaehlt,
     ist die Form JE SZENE.
 
-    **Dialog wird zuletzt geprueft**, nicht in Listenreihenfolge: das Wort
-    "Szene" steht in fast jeder Formangabe, und Dialog ist ohnehin der
-    Rueckfall -- er braucht keinen Vorrang, er braucht den Rest."""
+    **Die Rueckfall-Form wird zuletzt geprueft**, nicht in
+    Listenreihenfolge: das Wort "Szene" steht in fast jeder Formangabe, und
+    Dialog ist ohnehin der Rueckfall -- er braucht keinen Vorrang, er
+    braucht den Rest. Welche Form der Rueckfall ist, sagt seit dem
+    06.09.2026 das Profil (``formen.toml``, ``vorgabe``)."""
+    rueckfall = workshop.form_vorgabe()
     text = (form or "").strip().lower()
     if not text:
-        return "dialog"
-    for name in FORMEN:
-        if name == "dialog":
+        return rueckfall
+    stichwoerter = workshop.form_stichwoerter()
+    for name in workshop.formen():
+        if name == rueckfall:
             continue
-        for stichwort in FORM_STICHWOERTER.get(name, ()):
+        for stichwort in stichwoerter.get(name, ()):
             if stichwort in text:
                 return name
-    return "dialog"
+    return rueckfall
 
 
 def systemanweisung(form: str | None = None, stil: str | None = None) -> str:

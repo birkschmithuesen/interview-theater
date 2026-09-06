@@ -15,4 +15,15 @@ if [ -x .venv/bin/python ]; then
 else
   python="$(ls -d "$HOME"/.local/share/uv/python/cpython-3.11*/bin/python3 | head -1)"
 fi
+
+# Das Workshop-Profil VOR dem Bot pruefen (06.09.2026, E.1 Frage 9 der
+# Analyse). Ein Profil mit einem Tippfehler im Platzhalternamen faellt sonst
+# erst auf, wenn die Gruppe im Chat "{{zielgrupe}}" liest. Ohne IT_WORKSHOP
+# wird das eingebaute Vorgabeprofil geprueft -- das kostet zwei Sekunden und
+# faengt auch einen kaputten Repo-Prompt ab.
+if ! "$python" -m scripts.pruefe_profil "${IT_WORKSHOP:---vorgabe}"; then
+  echo "Start abgebrochen: das Workshop-Profil ist nicht in Ordnung." >&2
+  exit 3
+fi
+
 exec "$python" -u -c "from interview_theater.bot import main; main()"

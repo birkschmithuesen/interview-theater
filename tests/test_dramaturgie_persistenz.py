@@ -274,3 +274,83 @@ def test_der_bericht_nennt_richter_aufrufe_und_prompt_versionen():
     assert "claude-opus-5" in text
     assert "Modellaufrufe: 18" in text
     assert fanout.version("b1") in text
+    # Ohne Schleife steht auch kein Abschnitt dazu drin.
+    assert "Rueckkopplung" not in text
+
+
+def test_der_bericht_zeigt_die_bilanz_der_schleife():
+    from interview_theater.dramaturgie import bilanz, fanout, schleife
+    from scripts import dramaturgie_pruefen
+
+    erste = fanout.Ergebnis(runde=1, befunde=list(BEFUNDE), aufrufe=18)
+    zweite = fanout.Ergebnis(runde=2, befunde=[], aufrufe=36)
+    lauf = schleife.Schleifenergebnis(
+        runden=[
+            schleife.Runde(nummer=1, ergebnis=erste, auftraege=[{"szene": 2}],
+                           ueberarbeitet=[2]),
+            schleife.Runde(
+                nummer=2, ergebnis=zweite,
+                bilanz=bilanz.baue(
+                    [{"pruefung": "b1", "szene": 2, "score": 0}],
+                    [{"pruefung": "b1", "szene": 2, "score": 2}],
+                    von=1, nach=2,
+                ),
+            ),
+        ],
+        grund=schleife.GRUND_KEINE_AUFTRAEGE,
+        meldung=schleife.GRUENDE[schleife.GRUND_KEINE_AUFTRAEGE],
+    )
+
+    text = dramaturgie_pruefen.bericht(1, zweite, [], 90.0, lauf)
+
+    assert "## Rueckkopplung" in text
+    assert "Runde 1:" in text and "1 Szenen ueberarbeitet" in text
+    assert "B1 Wendung, Szene 2: 0 -> 2 (besser)" in text
+    assert schleife.GRUENDE[schleife.GRUND_KEINE_AUFTRAEGE] in text
+
+
+def test_der_bericht_sagt_es_wenn_eine_ueberarbeitung_geschadet_hat():
+    from interview_theater.dramaturgie import bilanz, fanout, schleife
+    from scripts import dramaturgie_pruefen
+
+    zweite = fanout.Ergebnis(runde=2, befunde=[])
+    lauf = schleife.Schleifenergebnis(
+        runden=[schleife.Runde(
+            nummer=2, ergebnis=zweite,
+            bilanz=bilanz.baue(
+                [{"pruefung": "a9", "szene": 1, "score": 2}],
+                [{"pruefung": "a9", "szene": 1, "score": 0}],
+                von=1, nach=2,
+            ),
+        )],
+        grund=schleife.GRUND_GESCHADET,
+        meldung=schleife.GRUENDE[schleife.GRUND_GESCHADET],
+    )
+
+    text = dramaturgie_pruefen.bericht(1, zweite, [], 90.0, lauf)
+
+    assert "A9 Fokus, Szene 1: 2 -> 0 (schlechter)" in text
+    assert "bevor ein Mensch sie gelesen hat" in text
+
+
+def test_die_schleife_laeuft_nicht_ohne_modellaufrufe():
+    """``--schleife`` braucht Judge-Scores, ``--nur-mechanik`` gibt keine --
+    lieber eine Zeile als ein Lauf, der stillschweigend nur die Haelfte tut."""
+    from scripts import dramaturgie_pruefen
+
+    code = dramaturgie_pruefen.main(["/tmp/gibtsnicht.db", "1", "--schleife",
+                                     "--nur-mechanik"])
+
+    assert code == 2
+
+
+def test_das_skript_schickt_nichts_in_einen_chat():
+    """Die Zusage "kein Telegram" als Objekt: jede Methode ist ein Nichtstun
+    mit einer message_id."""
+    from scripts import dramaturgie_pruefen
+
+    stumm = dramaturgie_pruefen.Stumm()
+
+    assert stumm.sende(1, "Text") == 1
+    assert stumm.sende_mit_knoepfen(1, "Text", []) == 2
+    assert stumm.eine_methode_die_es_noch_nicht_gibt(1) == 3

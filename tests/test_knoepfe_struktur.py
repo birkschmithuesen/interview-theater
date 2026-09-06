@@ -32,15 +32,17 @@ import pytest
 from interview_theater import knoepfe
 
 
-QUELLE = pathlib.Path(inspect.getfile(knoepfe))
-BAUM = ast.parse(QUELLE.read_text(encoding="utf-8"))
+PAKET = pathlib.Path(inspect.getfile(knoepfe)).parent
 
-#: Name -> AST-Knoten aller Funktionen des Moduls, verschachtelte eingeschlossen.
-FUNKTIONEN = {
-    knoten.name: knoten
-    for knoten in ast.walk(BAUM)
-    if isinstance(knoten, (ast.FunctionDef, ast.AsyncFunctionDef))
-}
+#: Name -> AST-Knoten aller Funktionen des Pakets, verschachtelte
+#: eingeschlossen. Ueber alle Moduldateien hinweg, weil die Zusagen dem Paket
+#: gelten und nicht einer Datei -- ein Handler, der in ein anderes Modul
+#: wandert, faellt hier nicht aus der Pruefung.
+FUNKTIONEN = {}
+for _datei in sorted(PAKET.glob("*.py")):
+    for _knoten in ast.walk(ast.parse(_datei.read_text(encoding="utf-8"))):
+        if isinstance(_knoten, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            FUNKTIONEN[_knoten.name] = _knoten
 
 #: Die Namen der Handler aus der Dispatch-Tabelle, ohne Doppelte.
 HANDLERNAMEN = sorted({f.__name__ for f in knoepfe._WIRKUNGEN.values()})

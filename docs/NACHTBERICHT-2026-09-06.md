@@ -39,3 +39,52 @@ liest die letzte Zeile.
 - Einzel-Neustarts aller vier Bots + Web: aktiv, 200 OK, /gesund ok (je ein 502 von Telegram-getUpdates bei g1/g3 — Telegram-seitig, selbstheilend).
 - Offen → läuft als letzter Delegate (feat/sim-rest): Phasenangebot erneuern auf „weiter"/`/stand`/nach Änderung; Bot erfindet keine Szenentexte („zeig Szene N" → Szene-ansehen). Punkt 8 (Meta-Feedback ist kein Inhalt) braucht Korpuslauf → morgen früh, wenn Zeit.
 - Skill `interview-theater-live-ops` aktualisiert (§ 2c Stand 06.09., Pitfall Parallel-Agenten/Worktrees/Claude-Code-Allowlist/Wasserzeichen-Falle beim Test-DB-Reset).
+
+## 03:50 — ABSCHLUSS der Nachtschicht (Zustandsbericht für 07:30)
+
+### 1. Läuft alles?
+- Units `interview-theater@gruppe1/2/3/4` + `interview-theater-web`: **aktiv**, 4 Bot-Prozesse, nur 200 OK, keine Tracebacks, `/gesund` ok, Dashboard + Gruppenseite von außen geprüft.
+- main **`e40cc5e`**, 93 Commits seit gestern Abend, Suite **1630 grün** (1 Skip = Playwright-E2E ohne venv; im Web-Lauf 16 grün).
+- Echte Gruppen: Phase 3 · Interviews, Daten unverändert (soap.db auf Schema user_version 2 migriert). Testgruppe: Phase 7, Rahmen „Vier Freundinnen im Nordkiez", Szene 1 neu geplant (Kiosk, Dialog).
+- Wache-Crons `it-nacht-wache` (30 min) und `it-nacht-aufwecker` (45 min) haben nichts gemeldet.
+
+### 2. Neu seit gestern Abend
+- Acht Phasen „erst erfinden, dann schärfen": 4 Setting & Figuren (ohne Material) → 5 Geschichte (Bogen, Ende, Szenen mit Form-Vorschlag) → 6 Schärfung (Interviews werden auf Szenen/Figuren gemappt, Runden) → 7 Szenentexte → 8 Durchlauf.
+- Phasenrahmen im Chat: „▶️ Phase N von 8 · Name" + Einleitung + Checkliste; „✅ … abgeschlossen" + alle Parameter + „Weiter zu …"; `/stand` aus derselben Quelle; Angebot kommt auf „weiter"/`/stand`/nach Änderung wieder.
+- Fragen: 10 Vorschläge als Knöpfe → genau 3 → Sensibilitätsprüfung mit Einleitungen → Eröffnung/Abschluss → Leitfaden (`/leitfaden`, Knopf, beim Interviewstart einmal, Web).
+- Form je Szene: nur Vorschlag mit Begründung, Gruppe bestätigt per Knopf; Dialog Normalfall, Szene 1 nie Monolog/Lied.
+- Interaktion: speichern beim ersten Mal (Notiert-Zeile trägt die Leiste), Grundleiste überschreibt nie still, Wiederholungsfilter, Gesprächs-Bot schweigt bei Aufträgen/Szenenläufen, eine Frage je Nachricht, Systemzeilen kurz, „Bin wieder da" nur nach >30 min mit richtiger Phase.
+- Prompts: Kontextfenster chronologisch (20 Nachrichten/30 min), harte Grenze 24 000 Zeichen, Dedupe (jeder Fakt einmal), Rahmenblock 15–18 J./öffentliche Orte, keine Beispiel-Eigennamen, Regie ≤ 20 %, Herkules-Maß fürs Textbuch, Aufgabe der Szene (Exposition/Mitte/Ende), Geschichte als bindende Vorgabe; 21 Prompt-Dumps + 41 Prompt-Tests.
+- Szenen: „Neu schreiben" ohne alte Vorlage, chronologisch erzwungen, Vorszenen als Volltext, USA-Knopf startet den Auftrag, `/szene 1` meint Szene 1, Emoji-Arbeitsanzeige, Bot erfindet keine Szenentexte („zeig Szene 2" → echter Text).
+- Web: Gruppenseite editierbar (Phase, Begriffe, Fragen, Leitfaden-Felder, Setting, Geschichte, Figuren, Szenenfelder inkl. Form), jede Änderung im Journal `quelle='web'`, Token + Nonce; Dashboard read-only.
+- Betrieb: `scripts.interviews_uebernehmen` (Interviews aller Gruppen in eine), Simulator auf 8 Phasen + Knöpfe mit PII-freien Tag-1-Stimmen — alle 4 Läufe erreichen Phase 8 (gestern max. 6).
+- Doku: AGENTS.md (7 neue Absätze), HANDOFF (f), Skill `interview-theater-live-ops` § 2c, Analysen `docs/analyse-workshop-tag1-…`, `docs/analyse-interaktion-testgruppe-…`, `docs/prompt-audit/2026-09-06/`, Vault `form-urban-dance.md`.
+
+### 3. Nicht fertig / Risiken
+- Erkenner-Prompt unverändert (Korpuslauf ~15 min steht aus): „Meta-Feedback ist kein Inhalt" und `geschichte_setzen` per Sprache fehlen — Knöpfe/Marker decken es.
+- Phase 4–8 nur in Testgruppe + Simulation gefahren, nie mit echten Menschen; USA-Frage morgen erstmals live.
+- Web-Edit + Chat schreiben aus zwei Prozessen (letzter gewinnt, beides im Journal).
+- Zwei 502 von Telegram-getUpdates um 03:12 (g1, g3) — Telegram-seitig, selbstheilend.
+- Test-Bot-Reset-Falle (Wasserzeichen) dokumentiert im Skill.
+
+### 4. Birk vor 13:30 prüfen/entscheiden
+1. In der Testgruppe Szene 1 „Neu schreiben" (Kiosk-Dialog) und einmal Phase 4→5 durchklicken — die acht Einleitungstexte stehen in `interview_theater/phasentexte.py` (Wortlaut unten), bitte gegenlesen.
+2. Klarnamen: darf der Bot Vornamen aus dem Chat ansprechen? (heute ja; 23 % der Bot-Texte Tag 1)
+3. Korpuslauf freigeben (`PY -m scripts.pruefe_prompts erkenner --bericht`, 15 min) — dann Erkenner-Prompt für Meta-Feedback/Geschichte.
+
+### 5. Interviews zusammenführen (wenn nur eine Gruppe weitermacht)
+1. Alle Interviews beendet, Interviewmodus aus (Skript verweigert sonst).
+2. `set -a; . ./betrieb/gruppe<ziel>.env; set +a; PY -m scripts.interviews_uebernehmen <ziel_chat> <quelle1> <quelle2>` → Zählung prüfen.
+3. Dasselbe mit `--ja` → Backup automatisch, Journal + Chat-Zeile „Ab jetzt liegen hier auch Interview 4–9". Kein Neustart nötig.
+
+### Die acht Einleitungstexte (Wortlaut, `phasentexte.py`)
+1 Begriffe — „Hier kommt eure Begriffsliste aus dem Plenum zu mir. Ihr schickt sie getippt oder als Sprachnachricht, so wie sie bei euch an der Wand steht. Ich halte sie fest, ordne sie und frage nach, wo ein Begriff noch zu gross ist. Am Ende stehen die Kernbegriffe, mit denen ihr weiterarbeitet."
+2 Fragen — „Aus euren Begriffen werden jetzt die Interviewfragen. Ich schlage euch zehn vor, ihr tippt genau drei davon an. Danach schauen wir, welche Frage heikel ist und was ihr vorher dazu sagt, und womit ihr ein Gespraech anfangt und aufhoert. Am Ende habt ihr einen Leitfaden zum Mitnehmen."
+3 Interviews — „Jetzt fuehrt ihr die Interviews. Den Leitfaden habt ihr dabei, aufgenommen wird ueber euer Handy: Aufnahme starten, so viele Sprachnachrichten schicken wie noetig, und ich tippe alles mit. Sagt ihr mir, dass ein Interview fertig ist, fasse ich zusammen, was darin steckt."
+4 Setting & Figuren — „Ab hier wird erfunden. Ihr denkt euch aus, worin euer Stueck spielt — Ort, Zeit, Anlass — und wer darin vorkommt. Die Interviews bleiben dabei absichtlich zu; sie kommen spaeter dazu und schaerfen, was ihr jetzt baut. Am Ende steht euer Setting und eine Figurenliste, die ihr abgenommen habt."
+5 Geschichte — „Jetzt die Geschichte, im Groben: was passiert und wie es ausgeht. Kein Wortlaut, sondern der Bogen — und dazu die Szenenfolge mit Titel, einem Satz, den Figuren und einem Vorschlag fuer die Form. Auch das erfindet ihr frei, ohne Material."
+6 Schaerfung — „Jetzt kommen die Interviews zurueck. Ich lege neben jede Szene und jede Figur die Stellen aus euren Aufnahmen, die dazu passen, mit dem woertlichen Zitat. Eure Geschichte aendert sich dadurch nicht, sie wird genauer. Ihr entscheidet Vorschlag fuer Vorschlag und koennt noch eine Runde drehen."
+7 Szenentexte — „Jetzt werden die Texte geschrieben, Szene fuer Szene. Zuerst bestaetigt ihr die Form — Dialog, Monolog, Chor, Lied oder Rap —, dann schreibe ich die Szene, und ihr sagt mir, was anders werden soll. So lange, bis sie sitzt. Am Ende steht zu jeder Szene ein Text."
+8 Durchlauf — „Alle Szenen stehen. Hier seht ihr euer Textbuch am Stueck, koennt es euch als Datei schicken lassen und einzelne Szenen noch einmal aufmachen. Wir achten auf die Uebergaenge und darauf, was sich beim Sprechen sperrig anfuehlt."
+
+Kosten Nacht: Claude Code (Web) ~$44 API; Delegates und Simulations-Richter über Abo-Proxy; Bot-Simulation 1,64 CHF Infomaniak.

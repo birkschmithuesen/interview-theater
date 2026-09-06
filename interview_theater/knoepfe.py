@@ -491,23 +491,34 @@ _HAKEN = "✓ "
 _TEXT_FRAGEN_UEBERNEHMEN_KNOPF = f"Diese {FRAGEN_ANZAHL} nehmen"
 _TEXT_FRAGEN_ANDERE_KNOPF = f"Andere {FRAGEN_ZUR_WAHL}"
 _TEXT_FRAGEN_EIGENE_KNOPF = "Eigene Idee"
-#: Die Aufforderung ueber der Auswahl. Sie sagt die Zahl, weil die Sperre
-#: unten sie erzwingt -- eine Regel, die erst beim Verstoss sichtbar wird,
-#: ist eine Falle.
+#: Die Aufforderung ueber der Auswahl (06.09.2026, 10:05, Birk).
+#:
+#: **Kein Menue mehr.** Die zehn Toggle-Knoepfe funktionierten am Telefon
+#: nicht: "sobald ich auf eine Frage klicke, verschwindet das Menue". Der
+#: Weg ist jetzt der einfachste, den es gibt -- die Fragen stehen
+#: ausgeschrieben und nummeriert im Text, und die Gruppe sagt die Nummern.
+#: Sprechen kann sie ohnehin; ein Knopf, der auf dem Geraet der Gruppe
+#: verschwindet, ist schlechter als gar keiner.
 _TEXT_FRAGEN_WAHL = (
-    f"Tippt genau {FRAGEN_ANZAHL} Fragen an - nochmal antippen nimmt die "
-    "Wahl zurueck."
+    f"Sagt mir die Nummern von genau {FRAGEN_ANZAHL} Fragen - getippt oder "
+    "als Sprachnachricht."
 )
 #: Die Antwort auf "Diese 3 nehmen" bei falscher Anzahl. Sie geht als
 #: answerCallbackQuery raus (das kleine graue Band oben in der App) und
 #: nicht als Nachricht: eine Fehlbedienung soll den Chat nicht zumuellen.
 _TEXT_FRAGEN_NICHT_DREI = f"Waehlt genau {FRAGEN_ANZAHL}."
+#: Dieselbe Regel im Chat, wenn die Gruppe Nummern GESAGT hat: hier ist eine
+#: Zeile richtig, weil die Gruppe auf eine Antwort wartet.
+_TEXT_FRAGEN_NUMMERN_FALSCH = f"Bitte genau {FRAGEN_ANZAHL} Nummern."
 _TEXT_FRAGEN_EIGENE = (
     "Schreibt eure Frage oder Fragen - ich nehme sie mit in die Auswahl."
 )
 _TEXT_FRAGEN_KEINE_AUSWAHL = "Diese Auswahl kenne ich nicht mehr."
 #: Nach dem Uebernehmen: die drei Fragen stehen, und die Pruefung laeuft an.
 _TEXT_FRAGEN_UEBERNOMMEN = "Notiert, eure {anzahl} Fragen:"
+#: Dasselbe, wenn die Gruppe die Nummern GESAGT hat (06.09.2026): die
+#: Nummern stehen mit drin, damit sie sieht, was der Bot verstanden hat.
+_TEXT_FRAGEN_NOTIERT = "Notiert: Fragen {nummern}:"
 #: Was der Bot sagt, waehrend die Sensibilitaetspruefung im Thread laeuft.
 #: Sie ist kein Selbstzweck und wird deshalb begruendet: die Gruppe soll
 #: wissen, warum der Bot nach dem Speichern noch etwas tut.
@@ -1065,149 +1076,191 @@ def _knopftext(nummer: int, frage: str, gewaehlt: bool) -> str:
 
 
 def _fragenleiste(conn, chat_id: int) -> list[tuple[str, str]]:
-    """Die vollstaendige Tastatur der Fragenauswahl: ein Knopf je Frage,
-    darunter die drei Handlungsknoepfe.
+    """Die Leiste unter dem Zehnervorschlag -- seit dem 06.09.2026 (10:05,
+    Birk) nur noch **zwei** Knoepfe: "Eigene Idee" und "Andere zehn".
 
-    Wird bei JEDEM Toggle neu gebaut und per ``aktualisiere_knoepfe``
-    getauscht -- die Knopfzeilen entstehen dabei neu, weil eine gedrueckte
-    Knopfzeile verbraucht ist (``repo.beanspruche_knopf``). Der Zustand
-    haengt deshalb nicht an den Knoepfen, sondern an
-    ``arbeitsstand.fragen_gewaehlt``: ein Toggle darf beliebig oft
-    stattfinden, ein Knopf nur einmal wirken."""
-    fragen = _auswahlfragen(conn, chat_id)
-    gewaehlt = set(_gewaehlte(conn, chat_id))
-    leiste = [
+    **Die zehn Toggle-Knoepfe sind weg.** Sie funktionierten am Telefon
+    nicht: "sobald ich auf eine Frage klicke, verschwindet das Menue" -- im
+    Log ein ``editMessageReplyMarkup``, das die Nachricht auf dem Geraet der
+    Gruppe ersetzte statt sie zu ergaenzen. Ein Bedienelement, das auf dem
+    Geraet der Gruppe verschwindet, ist schlechter als gar keins. Gewaehlt
+    wird jetzt per Nummer im Text oder in der Sprachnachricht
+    (``nimm_fragennummern``).
+
+    ``ART_FRAGE_WAHL`` und ``ART_FRAGEN_UEBERNEHMEN`` bleiben im Code, damit
+    ein Knopf aus einer alten Nachricht nicht ins Leere laeuft -- angeboten
+    werden sie nicht mehr."""
+    return [
         (
-            _knopftext(nummer, frage, nummer in gewaehlt),
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_WAHL, str(nummer))),
-        )
-        for nummer, frage in enumerate(fragen, start=1)
-    ]
-    leiste += [
-        (
-            _TEXT_FRAGEN_UEBERNEHMEN_KNOPF,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UEBERNEHMEN, None)),
+            _TEXT_FRAGEN_EIGENE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_EIGENE, None)),
         ),
         (
             _TEXT_FRAGEN_ANDERE_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_ANDERE, None)),
         ),
-        (
-            _TEXT_FRAGEN_EIGENE_KNOPF,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_EIGENE, None)),
-        ),
     ]
-    return leiste
+
+
+def fragenliste(conn, chat_id: int) -> str:
+    """Die zehn Fragen ausgeschrieben und nummeriert, eine je Zeile.
+
+    Ausgeschrieben und nicht gekuerzt (``_knopftext`` kuerzte auf 40
+    Zeichen): eine Frage, die eine Sechzehnjaehrige einer fremden Person
+    stellen soll, muss sie ganz lesen koennen, bevor sie sie waehlt."""
+    return "\n".join(
+        f"{nummer}. {frage}"
+        for nummer, frage in enumerate(_auswahlfragen(conn, chat_id), start=1)
+    )
 
 
 def biete_fragenauswahl(conn, tg, chat_id: int, wert: str, text: str | None = None) -> int:
-    """Stellt die zehn vorgeschlagenen Fragen als Mehrfachauswahl hin
-    (06.09.2026, Birk).
+    """Stellt die zehn vorgeschlagenen Fragen hin -- **ausgeschrieben, als
+    EINE Nachricht** (06.09.2026, 10:05, Birk).
 
     ``wert`` ist der Inhalt des Blocks ``VORSCHLAG FRAGENAUSWAHL:`` -- eine
     Frage je Zeile. Er wird als ``arbeitsstand.fragen_auswahl`` abgelegt,
-    **bevor** die Knoepfe entstehen: die Knoepfe tragen nur Nummern, und eine
-    Nummer ohne Liste waere nichts wert.
+    **bevor** die Nachricht rausgeht: die Gruppe antwortet mit Nummern, und
+    eine Nummer ohne Liste waere nichts wert.
 
-    Die vorherige Auswahl wird geleert. Ein neuer Zehnervorschlag ist eine
-    neue Frage an die Gruppe, kein Nachtrag zur alten -- sonst zeigte der
-    Haken auf eine Frage, die es nicht mehr gibt.
+    Darunter nur zwei Knoepfe ("Eigene Idee", "Andere zehn"). Gewaehlt wird
+    per Nummer im Chat -- der Weg ist ``nimm_fragennummern``, aufgerufen aus
+    ``ablauf.antworte``.
 
-    Liefert die ``message_id``; die Knopfzeilen merken sie sich, damit der
-    Toggle die Tastatur derselben Nachricht tauschen kann.
-    """
+    Liefert die ``message_id``."""
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGE_WAHL)
     for art in (ART_FRAGEN_UEBERNEHMEN, ART_FRAGEN_ANDERE, ART_FRAGEN_EIGENE):
         _nimm_alte_leiste_ab(conn, tg, chat_id, art)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", wert)
-    repo.setze_arbeitsstand(conn, chat_id, "fragen_gewaehlt", None)
     leiste = _fragenleiste(conn, chat_id)
-    message_id = tg.sende_mit_knoepfen(chat_id, text or _TEXT_FRAGEN_WAHL, leiste)
+    vorspann = (text or "").strip()
+    nachricht = "\n\n".join(
+        teil for teil in (vorspann, fragenliste(conn, chat_id), _TEXT_FRAGEN_WAHL)
+        if teil
+    )
+    message_id = tg.sende_mit_knoepfen(chat_id, nachricht, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(d) for _, d in leiste], message_id
     )
     return message_id
 
 
-def _toggle_frage(conn, tg, chat_id: int, knopf, nummer: int) -> str:
-    """Dreht die Wahl EINER Frage um und tauscht die Tastatur aus.
+#: Ordinalwoerter, mit denen eine Gruppe eine Frage benennt ("die zweite,
+#: fuenfte und neunte"). Sie stehen als Daten und nicht als Sonderfall im
+#: Code -- eine elfte Frage braucht nichts als eine Zeile hier.
+_ORDINALWOERTER = {
+    "erste": 1, "zweite": 2, "dritte": 3, "vierte": 4, "fuenfte": 5,
+    "sechste": 6, "siebte": 7, "siebente": 7, "achte": 8, "neunte": 9,
+    "zehnte": 10,
+}
 
-    Kein Modellaufruf, kein Speichern in ``fragen``: erst \"Diese 3 nehmen\"
-    macht aus der Auswahl eine Frageliste. Bis dahin ist jeder Druck
-    zuruecknehmbar -- das ist der ganze Punkt einer Mehrfachauswahl.
-    """
-    fragen = _auswahlfragen(conn, chat_id)
-    if not fragen or nummer > len(fragen):
-        tg.sende(chat_id, _TEXT_FRAGEN_KEINE_AUSWAHL)
-        return _TEXT_FRAGEN_KEINE_AUSWAHL
-    gewaehlt = _gewaehlte(conn, chat_id)
-    if nummer in gewaehlt:
-        gewaehlt.remove(nummer)
-        meldung = f"{nummer} wieder ab"
-    else:
-        gewaehlt.append(nummer)
-        meldung = f"{nummer} dazu"
-    repo.setze_arbeitsstand(
-        conn, chat_id, "fragen_gewaehlt", ",".join(str(n) for n in sorted(gewaehlt))
+
+def lies_fragennummern(text: str) -> list[int]:
+    """Die genannten Fragennummern aus einem Satz, in der Reihenfolge des
+    ersten Auftretens und ohne Dubletten.
+
+    Versteht Ziffern ("2, 5 und 9", "1 3 7", "2,5,9") und Ordinalwoerter
+    ("die zweite, fuenfte und neunte" -- mit und ohne Umlaut, weil Whisper
+    beides liefert). Zahlen ausserhalb 1..``FRAGEN_ZUR_WAHL`` fallen weg:
+    eine 47 ist keine Frage, sondern eine Jahreszahl.
+
+    Rein deterministisch, kein Modellaufruf -- der Aufrufer entscheidet, ob
+    die Zahl der Nummern stimmt."""
+    gefaltet = (
+        (text or "").lower()
+        .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
+        .replace("ß", "ss")
     )
-    # Die alte Tastatur derselben Nachricht wird ersetzt, nicht ergaenzt: die
-    # Gruppe sieht denselben Text mit neuen Haken.
-    message_id = knopf["message_id"]
-    leiste = _fragenleiste(conn, chat_id)
-    if message_id is not None:
-        try:
-            tg.aktualisiere_knoepfe(chat_id, message_id, leiste)
-            repo.merke_knopf_nachricht(
-                conn, [_id_aus_daten(d) for _, d in leiste], message_id
-            )
-        except Exception:
-            log.warning("Fragenauswahl nicht aktualisiert, chat_id=%s", chat_id)
-    return f"{meldung} ({len(gewaehlt)}/{FRAGEN_ANZAHL})"
+    gefunden: list[int] = []
+
+    def merke(nummer: int) -> None:
+        if 1 <= nummer <= FRAGEN_ZUR_WAHL and nummer not in gefunden:
+            gefunden.append(nummer)
+
+    for treffer in re.finditer(r"\d+|[a-z]+", gefaltet):
+        stueck = treffer.group()
+        if stueck.isdigit():
+            merke(int(stueck))
+        elif stueck in _ORDINALWOERTER:
+            merke(_ORDINALWOERTER[stueck])
+    return gefunden
 
 
-def _uebernimm_fragen(conn, tg, klm, e, chat_id: int) -> str:
-    """\"Diese 3 nehmen\": die angetippten Fragen werden zur Frageliste, und
-    danach laeuft die Sensibilitaetspruefung an.
+def nimm_fragennummern(conn, tg, klm, e, chat_id: int, text: str) -> bool:
+    """Die Gruppe hat Nummern gesagt: die drei Fragen werden zur Frageliste.
 
-    **Die Sperre ist der Punkt.** Bei einer anderen Anzahl als
-    ``FRAGEN_ANZAHL`` passiert NICHTS -- keine Nachricht, kein Speichern, nur
-    eine Zeile im grauen Band der App (``answerCallbackQuery``). Die Gruppe
-    steht im Raum und tippt weiter; eine Fehlermeldung im Chat waere hier
-    lauter als der Fehler.
-    """
-    gewaehlt = _gewaehlte(conn, chat_id)
-    if len(gewaehlt) != FRAGEN_ANZAHL:
-        return _TEXT_FRAGEN_NICHT_DREI
+    Liefert ``True``, wenn die Nachricht als Auswahl verstanden wurde -- dann
+    geht sie NICHT zusaetzlich in den Gespraechszug. ``False`` heisst
+    "war keine Auswahl", und der normale Weg laeuft weiter (der Erkenner
+    liest freie Fragen weiterhin als ``fragen_setzen``).
+
+    **Greift nur, solange der Zehnervorschlag offen ist** (``offene_art`` ==
+    "fragen" und eine Auswahlliste steht): sonst wuerde jede Nachricht mit
+    einer Zahl darin eine Frageliste ueberschreiben.
+
+    Kein Modellaufruf hier; die Sensibilitaetspruefung laeuft danach im
+    eigenen Thread (dieselbe Kette wie nach dem alten Knopf)."""
+    if offene_art(conn, chat_id) != "fragen":
+        return False
     fragen = _auswahlfragen(conn, chat_id)
-    ausgewaehlt = [fragen[n - 1] for n in gewaehlt if n <= len(fragen)]
+    if not fragen:
+        return False
+    nummern = lies_fragennummern(text)
+    if not nummern:
+        return False
+    if len(nummern) != FRAGEN_ANZAHL:
+        tg.sende(chat_id, _TEXT_FRAGEN_NUMMERN_FALSCH)
+        return True
+    ausgewaehlt = [fragen[n - 1] for n in nummern if n <= len(fragen)]
     if len(ausgewaehlt) != FRAGEN_ANZAHL:
         tg.sende(chat_id, _TEXT_FRAGEN_KEINE_AUSWAHL)
-        return _TEXT_FRAGEN_KEINE_AUSWAHL
+        return True
+    return _uebernimm_fragen(
+        conn, tg, klm, e, chat_id, ausgewaehlt, nummern=nummern,
+    ) is not None
+
+
+def _uebernimm_fragen(conn, tg, klm, e, chat_id: int, ausgewaehlt: list[str],
+                      nummern: list[int] | None = None) -> str:
+    """Die gewaehlten Fragen werden zur Frageliste, und danach laeuft die
+    Sensibilitaetspruefung an.
+
+    Ein Weg fuer beide Quellen -- die gesagten Nummern (der Regelweg seit
+    dem 06.09.2026) und den alten Knopf aus einer bereits verschickten
+    Nachricht."""
     wert = "\n".join(ausgewaehlt)
     repo.setze_arbeitsstand(conn, chat_id, "fragen", wert)
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
-    # Die Auswahl ist getroffen -- die zehn Toggle-Knoepfe und ihre Leiste
-    # kommen weg (06.09.2026, im Regie-Lauf gemessen). Vorher blieben sie
-    # haengen: die Regie beschwerte sich VIERMAL ("die knoepfe mit den zehn
-    # fragen sind immer noch da"), der Bot behauptete einmal, er habe sie
-    # entfernt, und der Richter zog es in fuenf Abschnitten hintereinander
-    # an. Ein Knopf, der eine ueberholte Auswahl traegt, ist genau die Sorte
-    # stiller Fehler, gegen die die Knoepfe angetreten sind
-    # (``_nimm_alte_leiste_ab``).
+    # Die Auswahl ist getroffen -- alte Leisten kommen weg (06.09.2026, im
+    # Regie-Lauf gemessen). Vorher blieben sie haengen: die Regie beschwerte
+    # sich VIERMAL ("die knoepfe mit den zehn fragen sind immer noch da").
     for art in (ART_FRAGE_WAHL, ART_FRAGEN_UEBERNEHMEN, ART_FRAGEN_ANDERE,
                 ART_FRAGEN_EIGENE):
         _nimm_alte_leiste_ab(conn, tg, chat_id, art)
     repo.schreibe_journal(
         conn, chat_id, "entschieden", f"Fragen: {wert}", quelle="knopf",
     )
+    kopf = (
+        _TEXT_FRAGEN_NOTIERT.format(nummern=", ".join(str(n) for n in nummern))
+        if nummern
+        else _TEXT_FRAGEN_UEBERNOMMEN.format(anzahl=len(ausgewaehlt))
+    )
     tg.sende(
         chat_id,
-        _TEXT_FRAGEN_UEBERNOMMEN.format(anzahl=len(ausgewaehlt))
-        + "\n"
-        + "\n".join(f"{n}. {f}" for n, f in enumerate(ausgewaehlt, start=1)),
+        kopf + "\n" + "\n".join(
+            f"{n}. {f}" for n, f in enumerate(ausgewaehlt, start=1)
+        ),
     )
     starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id)
     return "Fragen uebernommen"
+
+
+#: Die Arbeitszeilen, die SOFORT rausgehen, wenn ein laengerer Auftragszug
+#: startet (06.09.2026, 10:10, Birk). Sie werden geloescht, sobald die
+#: Antwort da ist (``ablauf.arbeitet_sichtbar``) -- eine Arbeitsmeldung, die
+#: stehen bleibt, liest sich wie eine haengende Aufgabe.
+TEXT_ARBEIT_SENSIBILITAET = "🤔 Ich sehe die Fragen kurz durch …"
+TEXT_ARBEIT_EROEFFNUNG = "✍️ Ich schreibe euch einen Eroeffnungstext …"
 
 
 def starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id: int) -> bool:
@@ -1233,7 +1286,8 @@ def starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id: int) -> bool:
         return False
     tg.sende(chat_id, TEXT_PRUEFUNG_LAEUFT)
     return _starte_auftrag(
-        conn, tg, klm, e, chat_id, ANWEISUNG_EINLEITUNGEN.format(fragen=fragen)
+        conn, tg, klm, e, chat_id, ANWEISUNG_EINLEITUNGEN.format(fragen=fragen),
+        arbeitszeile=TEXT_ARBEIT_SENSIBILITAET,
     )
 
 
@@ -1246,7 +1300,8 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
     stand = repo.hole_arbeitsstand(conn, chat_id)
     fragen = (stand["fragen"] if stand else "") or ""
     return _starte_auftrag(
-        conn, tg, klm, e, chat_id, ANWEISUNG_EROEFFNUNG.format(fragen=fragen)
+        conn, tg, klm, e, chat_id, ANWEISUNG_EROEFFNUNG.format(fragen=fragen),
+        arbeitszeile=TEXT_ARBEIT_EROEFFNUNG,
     )
 
 
@@ -1303,6 +1358,12 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
     # (gemessen 06.09., Lauf tag1-gruppe1). Der Leitfaden ist lang; zweimal
     # hintereinander schiebt er alles andere aus dem Bild.
     leitfaden.sende_einmal(conn, tg, chat_id)
+    # **Die Kette bricht hier nicht ab** (06.09.2026, 10:25, Birk): mit
+    # Eroeffnung und Abschluss ist Phase 2 fertig, also kommt sofort die
+    # Abschlussnachricht mit "Weiter zu Interviews". Vorher stand nach dem
+    # letzten "Gefaellt uns, weiter" nichts mehr da, und die Gruppe wartete
+    # auf einen Schritt, den niemand mehr machte.
+    biete_phase_proaktiv(conn, tg, chat_id)
     return "Eroeffnung uebernommen"
 
 
@@ -3520,13 +3581,18 @@ ANWEISUNG_EROEFFNUNG = (
 )
 
 
-def _starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str) -> bool:
+def _starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
+                    arbeitszeile: str | None = None) -> bool:
     """Gibt einen Gespraechszug mit Anweisung an einen eigenen Thread ab --
     der Weg, auf dem ein Knopf zu einem Modellaufruf kommt, ohne selbst
-    einen zu machen (Zusage 2)."""
+    einen zu machen (Zusage 2).
+
+    ``arbeitszeile`` macht die Wartezeit sichtbar (06.09.2026, 10:10)."""
     from interview_theater import ablauf
 
-    return ablauf.starte_auftrag(conn, tg, klm, e, chat_id, anweisung) is not None
+    return ablauf.starte_auftrag(
+        conn, tg, klm, e, chat_id, anweisung, arbeitszeile,
+    ) is not None
 
 
 def _werte_alle_aus(conn, tg, klm, e, chat_id: int) -> str:
@@ -3645,15 +3711,14 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", str(knopf["wert"] or ""))
         tg.sende(chat_id, _TEXT_EIGENE)
         return "Erzaehlt"
-    if art == ART_FRAGE_WAHL:
-        # Toggle, kein Speichern und kein Modellaufruf: der Zustand steht in
-        # ``arbeitsstand.fragen_gewaehlt``, die Tastatur zeigt ihn nur.
-        roh = str(knopf["wert"] or "").strip()
-        if not roh.isdigit():
-            return _TEXT_FRAGEN_KEINE_AUSWAHL
-        return _toggle_frage(conn, tg, chat_id, knopf, int(roh))
-    if art == ART_FRAGEN_UEBERNEHMEN:
-        return _uebernimm_fragen(conn, tg, klm, e, chat_id)
+    if art in (ART_FRAGE_WAHL, ART_FRAGEN_UEBERNEHMEN):
+        # **Stillgelegt** (06.09.2026, 10:05, Birk): die Toggle-Auswahl
+        # funktionierte am Telefon nicht. Angeboten werden diese Knoepfe
+        # nicht mehr (``_fragenleiste``); ein Druck aus einer alten Nachricht
+        # laeuft hier ins Leere und bekommt den Weg gesagt, statt still
+        # nichts zu tun.
+        tg.sende(chat_id, _TEXT_FRAGEN_WAHL)
+        return _TEXT_FRAGEN_WAHL
     if art == ART_FRAGEN_ANDERE:
         alte = _auswahlfragen(conn, chat_id)
         _starte_auftrag(

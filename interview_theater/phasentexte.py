@@ -73,10 +73,11 @@ EINLEITUNGEN = {
     ),
     2: (
         "Aus euren Begriffen werden jetzt die Interviewfragen. Ich schlage "
-        "euch zehn vor, ihr tippt genau drei davon an. Danach schauen wir, "
-        "welche Frage heikel ist und was ihr vorher dazu sagt, und womit ihr "
-        "ein Gespraech anfangt und aufhoert. Am Ende habt ihr einen "
-        "Leitfaden zum Mitnehmen."
+        "euch zehn vor, ihr sagt mir die Nummern von genau drei. Danach "
+        "schauen wir, welche Frage heikel ist und wie ihr sie so stellt, "
+        "dass sie leicht zu beantworten ist, und womit ihr ein Gespraech "
+        "anfangt und aufhoert. Am Ende habt ihr einen Leitfaden zum "
+        "Mitnehmen."
     ),
     3: (
         "Jetzt fuehrt ihr die Interviews - den Leitfaden habt ihr dabei. So "
@@ -196,6 +197,26 @@ def _einzeilig(wert: str) -> str:
     zu einer Zeile mit ``·`` -- eine Parameterzeile ist eine Zeile."""
     zeilen = [z.strip() for z in (wert or "").splitlines() if z.strip()]
     return TRENNER.join(zeilen)
+
+
+def _einleitungen_geprueft(conn, chat_id: int) -> str:
+    """Der Parameter "Einleitungen" von Phase 2 -- **geprueft**, nicht
+    "gefuellt" (06.09.2026, Birk, Live-Befund).
+
+    Die Sensibilitaetspruefung kann zu dem Ergebnis kommen, dass keine Frage
+    eine Einleitung braucht. Das ist ein Ergebnis, kein fehlender Wert --
+    also ein ``✅`` mit dem Text "geprueft, keine noetig" und nicht ein
+    ewiges ``⬜``. In der Datenbank ist der Unterschied ``NULL`` (nie
+    geprueft) gegen ``''`` (geprueft, nichts noetig); dieselbe
+    Unterscheidung wie in ``phasen.voraussetzungen``."""
+    stand = _stand(conn, chat_id)
+    try:
+        roh = stand["frage_einleitungen"] if stand else None
+    except (IndexError, KeyError):
+        return ""
+    if roh is None:
+        return ""
+    return _einzeilig(roh) or "geprueft, keine noetig"
 
 
 def _interviews(conn, chat_id: int) -> str:
@@ -319,8 +340,8 @@ PARAMETER: dict[int, tuple[tuple[str, Callable[..., str], str], ...]] = {
         ("Fragen", lambda c, i: _einzeilig(_feld(c, i, "fragen")), "noch keine"),
         (
             "Einleitungen",
-            lambda c, i: _einzeilig(_feld(c, i, "frage_einleitungen")),
-            "noch offen",
+            _einleitungen_geprueft,
+            "noch nicht geprueft",
         ),
         (
             "Eroeffnung",

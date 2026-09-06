@@ -43,7 +43,7 @@ def auftraege(monkeypatch):
     waeren -- statt ein Modell zu rufen."""
     gesammelt = []
 
-    def _fake(conn, tg_, klm, e, chat_id, anweisung):
+    def _fake(conn, tg_, klm, e, chat_id, anweisung, arbeitszeile=None):
         gesammelt.append(anweisung)
         return object()
 
@@ -67,107 +67,156 @@ def _druecke(conn, tg, einst, beschriftung, klm=None):
 
 
 def _auswahl(conn, tg, fragen=ZEHN):
+    phasen.setze(conn, 1, 2, "befehl")
     return knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, f"Hier sind zehn.\n\nVORSCHLAG FRAGENAUSWAHL:\n{fragen}"
     )
 
 
-# --- Die Mehrfachauswahl --------------------------------------------------
+def _sage(conn, tg, einst, text, klm=None):
+    """Die Gruppe sagt Nummern -- der Weg seit dem 06.09.2026 (10:05)."""
+    return knoepfe.nimm_fragennummern(conn, tg, klm, einst, 1, text)
 
 
-def test_zehn_fragen_werden_zu_zehn_knoepfen_plus_drei(conn, tg):
-    """Ein Knopf je Frage, darunter die drei Handlungsknoepfe."""
+# --- Die Wahl per Nummer (06.09.2026, 10:05) ------------------------------
+
+
+def test_die_zehn_fragen_stehen_ausgeschrieben_im_chat(conn, tg):
+    """**Kein Menue mehr** (Birk, Live-Befund 10:05: "sobald ich auf eine
+    Frage klicke, verschwindet das Menue"). Die Toggle-Knoepfe ersetzten auf
+    dem Telefon die Nachricht, statt sie zu ergaenzen -- ein Bedienelement,
+    das auf dem Geraet der Gruppe verschwindet, ist schlechter als keins.
+
+    Jetzt: alle zehn nummeriert im Text, darunter zwei Knoepfe."""
     _auswahl(conn, tg)
 
-    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
-    assert len(beschriftungen) == knoepfe.FRAGEN_ZUR_WAHL + 3
-    assert beschriftungen[0].startswith("1. Frage 1")
-    assert beschriftungen[-3:] == ["Diese 3 nehmen", "Andere 10", "Eigene Idee"]
+    text = tg.gesendet[-1][1]
+    assert text.startswith("Hier sind zehn.")
+    for nummer in range(1, 11):
+        assert f"{nummer}. Frage {nummer}?" in text, nummer
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Andere 10"]
 
 
-def test_die_fragen_stehen_nicht_zweimal_im_chat(conn, tg):
-    """Der Vorschlagsblock ist Technik: im Chat steht der Satz des Bots, die
-    Fragen stehen auf den Knoepfen."""
-    _auswahl(conn, tg)
-
-    assert tg.gesendet[-1][1] == "Hier sind zehn."
-
-
-def test_ein_druck_setzt_den_haken_ein_zweiter_nimmt_ihn_weg(conn, tg, einst):
-    _auswahl(conn, tg)
-
-    _druecke(conn, tg, einst, "1. Frage 1?")
-    assert repo.hole_arbeitsstand(conn, 1)["fragen_gewaehlt"] == "1"
-    assert any(b.startswith("✓ 1.") for b, _ in tg.aktualisiert[-1][2])
-
-    _druecke(conn, tg, einst, "✓ 1. Frage 1?")
-    assert (repo.hole_arbeitsstand(conn, 1)["fragen_gewaehlt"] or "") == ""
-
-
-def test_die_tastatur_derselben_nachricht_wird_getauscht(conn, tg, einst):
-    """Kein zweiter Zehnerblock im Chat: nur die Tastatur aendert sich."""
-    message_id, _ = _auswahl(conn, tg)
-    vorher = len(tg.gesendet)
-
-    _druecke(conn, tg, einst, "2. Frage 2?")
-
-    assert len(tg.gesendet) == vorher, "keine neue Nachricht"
-    assert tg.aktualisiert[-1][1] == message_id
-
-
-def test_eine_lange_frage_wird_sichtbar_gekuerzt(conn, tg):
+def test_eine_lange_frage_wird_nicht_gekuerzt(conn, tg):
+    """Die alte Knopfbeschriftung schnitt bei 40 Zeichen ab. Eine Frage, die
+    eine Sechzehnjaehrige einer fremden Person stellen soll, muss sie ganz
+    lesen koennen, bevor sie sie waehlt."""
     lang = "Was hast du erlebt, als du zum allerersten Mal ganz allein warst?"
     _auswahl(conn, tg, fragen=lang + "\n" + ZEHN)
 
-    beschriftung = tg.knoepfe[-1][2][0][0]
-    assert beschriftung.endswith("…")
-    assert len(beschriftung) <= knoepfe.KNOPF_LAENGE + 5
+    assert f"1. {lang}" in tg.gesendet[-1][1]
+    assert "…" not in tg.gesendet[-1][1]
 
 
-# --- Die Sperre bei falscher Anzahl ---------------------------------------
+@pytest.mark.parametrize("gesagt, erwartet", [
+    ("2, 5 und 9", [2, 5, 9]),
+    ("wir nehmen 1 3 7", [1, 3, 7]),
+    ("die zweite, fuenfte, neunte", [2, 5, 9]),
+    ("die zweite, fünfte und neunte", [2, 5, 9]),
+    ("2,5,9", [2, 5, 9]),
+    ("nur die 4", [4]),
+    ("2,5,9,10", [2, 5, 9, 10]),
+    ("Wir haben keine Ahnung.", []),
+    ("wir nehmen 2 und 2 und 5 und 9", [2, 5, 9]),
+    ("nimm 2, 5, 9 und 47", [2, 5, 9]),
+])
+def test_der_nummernparser_liest_ziffern_und_ordinalwoerter(gesagt, erwartet):
+    """Deterministisch, kein Modellaufruf. Ordinalwoerter mit und ohne
+    Umlaut, weil Whisper beides liefert; Zahlen ueber zehn fallen weg (eine
+    47 ist keine Frage); Dubletten zaehlen einmal."""
+    assert knoepfe.lies_fragennummern(gesagt) == erwartet
 
 
-@pytest.mark.parametrize("anzahl", [0, 1, 2, 4])
-def test_uebernehmen_wirkt_nur_bei_genau_drei(conn, tg, einst, anzahl, auftraege):
+def test_genau_drei_nummern_werden_gespeichert(conn, tg, einst, auftraege):
     _auswahl(conn, tg)
-    for nummer in range(1, anzahl + 1):
-        _druecke(conn, tg, einst, f"{nummer}. Frage {nummer}?")
 
-    _druecke(conn, tg, einst, "Diese 3 nehmen")
-
-    assert (repo.hole_arbeitsstand(conn, 1)["fragen"] or "") == ""
-    assert tg.beantwortet[-1][1] == "Waehlt genau 3."
-    assert auftraege == [], "keine Pruefung ohne Fragen"
-
-
-def test_genau_drei_werden_gespeichert(conn, tg, einst, auftraege):
-    _auswahl(conn, tg)
-    for nummer in (1, 3, 7):
-        _druecke(conn, tg, einst, f"{nummer}. Frage {nummer}?")
-
-    _druecke(conn, tg, einst, "Diese 3 nehmen")
+    assert _sage(conn, tg, einst, "2, 5 und 9") is True
 
     assert repo.hole_arbeitsstand(conn, 1)["fragen"].splitlines() == [
-        "Frage 1?", "Frage 3?", "Frage 7?",
+        "Frage 2?", "Frage 5?", "Frage 9?",
     ]
+    assert any(
+        t.startswith("Notiert: Fragen 2, 5, 9:") for _, t in tg.gesendet
+    ), [t for _, t in tg.gesendet]
     assert any(
         e["text"].startswith("Fragen:") for e in repo.journal(conn, 1)
     ), "die Festlegung steht im Journal"
 
 
-def test_speichern_loest_die_sensibilitaetspruefung_aus(conn, tg, einst, auftraege):
+@pytest.mark.parametrize("gesagt", ["nur die 4", "2,5,9,10", "1 und 2"])
+def test_weniger_oder_mehr_als_drei_speichert_nichts(
+    conn, tg, einst, auftraege, gesagt,
+):
+    _auswahl(conn, tg)
+
+    assert _sage(conn, tg, einst, gesagt) is True
+
+    assert (repo.hole_arbeitsstand(conn, 1)["fragen"] or "") == ""
+    assert tg.gesendet[-1][1] == "Bitte genau 3 Nummern."
+    assert auftraege == [], "keine Pruefung ohne Fragen"
+
+
+def test_ohne_nummern_greift_der_parser_nicht(conn, tg, einst, auftraege):
+    """"War keine Auswahl" -- die Nachricht geht ihren normalen Weg weiter,
+    der Erkenner liest freie Fragen weiterhin als ``fragen_setzen``."""
+    _auswahl(conn, tg)
+
+    assert _sage(conn, tg, einst, "Wir ueberlegen noch.") is False
+
+    assert (repo.hole_arbeitsstand(conn, 1)["fragen"] or "") == ""
+    assert auftraege == []
+
+
+def test_ohne_offenen_vorschlag_greift_der_parser_nicht(conn, tg, einst):
+    """Sonst wuerde jede Nachricht mit einer Zahl darin eine Frageliste
+    ueberschreiben. Der Parser haengt an ``offene_art`` == "fragen"."""
+    phasen.setze(conn, 1, 2, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+
+    assert _sage(conn, tg, einst, "2, 5 und 9") is False
+
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "Was war in deinem Koffer?"
+
+
+def test_die_wahl_loest_die_sensibilitaetspruefung_aus(conn, tg, einst, auftraege):
     """Der Kern des Auftrags: nach dem Festlegen prueft der Bot automatisch,
     ohne dass jemand danach fragt -- und ohne Modellaufruf im Handler."""
     _auswahl(conn, tg)
-    for nummer in (1, 2, 3):
-        _druecke(conn, tg, einst, f"{nummer}. Frage {nummer}?")
 
-    _druecke(conn, tg, einst, "Diese 3 nehmen")
+    _sage(conn, tg, einst, "1, 2, 3")
 
     assert len(auftraege) == 1
     assert "VORSCHLAG EINLEITUNGEN:" in auftraege[0]
     assert "FREMDEN" in auftraege[0]
     assert "Frage 1?" in auftraege[0], "die Fragen stehen im Auftrag"
+
+
+def test_zwischen_wahl_und_pruefung_kommt_kein_phasenangebot(
+    conn, tg, einst, auftraege,
+):
+    """**Der Live-Befund vom 10:10** (Birk): nach "Notiert: Fragen ..." bot
+    der Bot sofort die naechste Phase an, und ERST DANACH kam die Pruefung.
+    Jetzt haelt ``phasen.voraussetzungen[3]`` die Stufe zurueck, bis
+    Eroeffnung und Abschluss stehen -- es gibt also nichts anzubieten."""
+    _auswahl(conn, tg)
+
+    _sage(conn, tg, einst, "1, 2, 3")
+
+    assert not any(
+        b.startswith("Weiter zu") for _, _, l in tg.knoepfe for b, _ in l
+    ), [t for _, t in tg.gesendet]
+
+
+def test_die_alten_toggle_knoepfe_sind_stillgelegt(conn, tg, einst, auftraege):
+    """Ein Druck aus einer alten Nachricht darf nicht ins Leere laufen: er
+    bekommt den neuen Weg gesagt, statt still nichts zu tun."""
+    _auswahl(conn, tg)
+    knopf_id = repo.lege_knopf_an(conn, 1, knoepfe.ART_FRAGE_WAHL, "3")
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(f"k:{knopf_id}"))
+
+    assert "Nummern" in tg.gesendet[-1][1]
+    assert (repo.hole_arbeitsstand(conn, 1)["fragen"] or "") == ""
 
 
 def test_andere_zehn_nennt_die_alten_als_nicht_wieder(conn, tg, einst, auftraege):

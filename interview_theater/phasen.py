@@ -364,16 +364,39 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         except (IndexError, KeyError):
             return False
 
+    def geprueft(name: str) -> bool:
+        """Wie ``feld``, aber ein **leerer String zaehlt als gesetzt**
+        (06.09.2026, Birk, Live-Befund Testgruppe).
+
+        Der Fall sind die ``frage_einleitungen``: die Sensibilitaetspruefung
+        kann zu dem Ergebnis kommen, dass keine Frage eine Einleitung
+        braucht -- und *"keine noetig"* ist ein Ergebnis, kein fehlender
+        Wert. In der Datenbank ist der Unterschied ``NULL`` (noch nie
+        geprueft) gegen ``''`` (geprueft, nichts noetig). Ohne diese
+        Unterscheidung waere die Gruppe entweder fuer immer blockiert oder
+        die Pruefung nie noetig."""
+        try:
+            return bool(stand) and stand[name] is not None
+        except (IndexError, KeyError):
+            return False
+
     szenen_alle = repo.hole_szenen(conn, chat_id)
     return {
         2: bool(stand and stand["begriffe"]),
-        # **Phase 3 haengt seit dem 06.09.2026 an ZWEI Dingen** (Birk): den
-        # Fragen UND dem Eroeffnungstext. Der Grund steht in ``leitfaden.py``:
-        # die Gruppe geht damit auf fremde Menschen zu, und eine Frageliste
-        # ohne Eroeffnung ist kein Interview, sondern eine Ansprache. Die
-        # Einleitungen zu heiklen Fragen duerfen dabei leer sein -- "keine
-        # noetig" ist ein Ergebnis der Pruefung, kein fehlender Wert.
-        3: bool(stand and stand["fragen"]) and feld("interview_eroeffnung"),
+        # **Phase 3 haengt seit dem 06.09.2026 an VIER Dingen** (Birk, 09:20
+        # und 10:00): den Fragen, den geprueften Einleitungen, dem
+        # Eroeffnungs- UND dem Abschlusstext. Der Grund steht in
+        # ``leitfaden.py``: die Gruppe geht damit auf fremde Menschen zu, und
+        # eine Frageliste ohne Eroeffnung ist kein Interview, sondern eine
+        # Ansprache. Der Live-Befund vom 10:00 war die Gegenprobe: standen
+        # nur die Fragen, meldete der Bot Phase 2 als abgeschlossen und die
+        # Gruppe ging ohne Leitfaden los.
+        3: (
+            bool(stand and stand["fragen"])
+            and geprueft("frage_einleitungen")
+            and feld("interview_eroeffnung")
+            and feld("interview_abschluss")
+        ),
         4: bool(repo.verdichtungen(conn, chat_id))
         and not aufnahme.unausgewertete_interviews(conn, chat_id),
         5: setting and fixiert and bool(repo.figuren(conn, chat_id))

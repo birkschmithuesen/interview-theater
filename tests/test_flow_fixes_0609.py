@@ -131,22 +131,49 @@ def test_ohne_jede_szene_wird_nichts_behauptet(conn):
     assert "Alle Szenen stehen" not in text
 
 
-# --- Fix 5: die zehn Fragen-Knoepfe verschwinden nach der Wahl -------------
+# --- Fix 5: die Fragenwahl laeuft ueber Nummern, nicht ueber Knoepfe ------
 
 
-def test_diese_drei_nehmen_nimmt_die_zehn_knoepfe_ab(conn, einst):
+def test_die_wahl_per_nummer_nimmt_die_alten_leisten_ab(conn, einst):
     """Gemessen im Regie-Lauf: vier Beschwerden ueber haengende Knoepfe,
-    einmal die falsche Behauptung, sie seien weg."""
+    einmal die falsche Behauptung, sie seien weg. Seit dem 06.09.2026 (10:05)
+    gibt es die zehn Toggle-Knoepfe gar nicht mehr -- gewaehlt wird per
+    Nummer --, aber die Leiste unter dem Vorschlag muss trotzdem weg."""
+    from interview_theater import knoepfe
+
+    from interview_theater import phasen
+
+    tg = TelegramAttrappe()
+    phasen.setze(conn, CHAT, 2, "test")
+    fragen = "\n".join(f"Frage {n}" for n in range(1, 11))
+    knoepfe.biete_fragenauswahl(conn, tg, CHAT, fragen)
+
+    assert knoepfe.nimm_fragennummern(conn, tg, None, einst, CHAT, "1, 2 und 3")
+
+    assert repo.hole_arbeitsstand(conn, CHAT)["fragen"] == "Frage 1\nFrage 2\nFrage 3"
+    for art in (knoepfe.ART_FRAGE_WAHL, knoepfe.ART_FRAGEN_ANDERE,
+                knoepfe.ART_FRAGEN_EIGENE):
+        assert repo.offene_knoepfe(conn, CHAT, art) == [], art
+    assert tg.knoepfe_entfernt, "und ihre Tastatur ist abgenommen"
+
+
+def test_der_vorschlag_zeigt_alle_zehn_fragen_ausgeschrieben(conn):
+    """Kein Menue mehr (Birk, 10:05: "sobald ich auf eine Frage klicke,
+    verschwindet das Menue"). Die Fragen stehen im Text -- ganz, nicht auf
+    Knopflaenge gekuerzt: eine Frage, die eine Sechzehnjaehrige einer fremden
+    Person stellen soll, muss sie vorher lesen koennen."""
     from interview_theater import knoepfe
 
     tg = TelegramAttrappe()
-    fragen = "\n".join(f"Frage {n}" for n in range(1, 11))
-    knoepfe.biete_fragenauswahl(conn, tg, CHAT, fragen)
-    repo.setze_arbeitsstand(conn, CHAT, "fragen_gewaehlt", "1,2,3")
+    fragen = "\n".join(
+        f"Frage {n}, und zwar eine ziemlich lange, damit das Kuerzen auffiele?"
+        for n in range(1, 11)
+    )
+    knoepfe.biete_fragenauswahl(conn, tg, CHAT, fragen, text="Hier sind zehn.")
 
-    knoepfe._uebernimm_fragen(conn, tg, None, einst, CHAT)
-
-    assert repo.hole_arbeitsstand(conn, CHAT)["fragen"]
-    offen = repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_WAHL)
-    assert offen == [], "die Toggle-Knoepfe wirken nach der Wahl nicht mehr"
-    assert tg.knoepfe_entfernt, "und ihre Tastatur ist abgenommen"
+    text = tg.knoepfe[-1]["text"]
+    leiste = tg.knoepfe[-1]["knoepfe"]
+    for n in range(1, 11):
+        assert f"{n}. Frage {n}, und zwar eine ziemlich lange" in text, n
+    assert "…" not in text, "nichts gekuerzt"
+    assert [b for b, _ in leiste] == ["Eigene Idee", "Andere 10"]

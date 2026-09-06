@@ -396,6 +396,39 @@ def ist_ausloeser(n: dict, bot_name: str | None) -> bool:
 
 
 @contextmanager
+def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None):
+    """Tippanzeige waehrend eines laufenden Modellaufrufs -- und, wenn
+    ``text`` gesetzt ist, **sofort** eine kurze Arbeitszeile, die am Ende
+    wieder verschwindet (06.09.2026, 10:10, Birk).
+
+    Der Anlass: nach dem Speichern der Fragen sagte der Bot minutenlang
+    nichts, und die Gruppe wusste nicht, ob noch etwas kommt. Die Zeile geht
+    **im Handler** raus, nicht im Thread -- sie ist deterministisch, kostet
+    keinen Modellaufruf und steht damit VOR der Wartezeit statt danach.
+
+    Geloescht wird sie beim Verlassen des Blocks (wie die Emoji-Zeile des
+    Szenenlaufs, ``szene._arbeitet_sichtbar``): eine Arbeitsmeldung, die
+    stehen bleibt, liest sich beim naechsten Blick wie eine haengende
+    Aufgabe. Schlaegt das Loeschen fehl, bleibt sie stehen -- Schmuck darf
+    einen Zug nie mitreissen."""
+    arbeitszeile = None
+    if text:
+        try:
+            arbeitszeile = tg.sende(chat_id, text)
+        except Exception:
+            log.exception("Arbeitszeile fehlgeschlagen, chat_id=%s", chat_id)
+    try:
+        with _tippanzeige(tg, chat_id):
+            yield
+    finally:
+        if arbeitszeile is not None:
+            try:
+                tg.loesche_nachrichten(chat_id, [arbeitszeile])
+            except Exception:
+                log.exception("Arbeitszeile nicht geloescht, chat_id=%s", chat_id)
+
+
+@contextmanager
 def _tippanzeige(tg, chat_id: int):
     """Haelt die Tippanzeige waehrend eines laufenden Sprachmodell-Aufrufs am
     Leben (SPEC § 1.3): alle TIPP_INTERVALL Sekunden erneut ``tg.tippt``,
@@ -584,6 +617,18 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             )
             return
 
+        # Dieselbe Bauart fuer die gesagten Fragennummern (06.09.2026,
+        # 10:05): der Bot hat gerade zehn Fragen ausgeschrieben hingelegt,
+        # und "2, 5 und 9" ist die Antwort darauf. Greift nur, solange der
+        # Vorschlag offen ist (``knoepfe.offene_art`` == "fragen") -- sonst
+        # wuerde jede Nachricht mit einer Zahl darin eine Frageliste
+        # ueberschreiben. Freie Fragen der Gruppe bleiben der Rueckfall ueber
+        # den Erkenner (``fragen_setzen``).
+        if knoepfe.nimm_fragennummern(
+            conn, tg, klm, e, chat_id, letzte_nachricht["text"] or "",
+        ):
+            return
+
         # Dieselbe Bauart fuer die frei gesagte Figurenanzahl (05.09.2026
         # abends, "Andere Zahl"): der Bot hat gerade nach einer Zahl gefragt,
         # diese eine Nachricht ist die Antwort darauf. Steht keine Zahl darin,
@@ -762,7 +807,8 @@ def bearbeite(conn, tg, klm, e, chat_id: int, hinweis: str | None = None) -> Non
 _AUFTRAG_KOPF = "Deine Aufgabe in genau diesem Zug:"
 
 
-def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str) -> None:
+def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
+                arbeitszeile: str | None = None) -> None:
     """Ein vollstaendiger Gespraechszug mit einer zusaetzlichen Anweisung --
     ausgeloest von einem Knopf, nicht von einer Nachricht (05.09.2026).
 
@@ -782,7 +828,11 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str) -> None:
     Fehler bleiben hier: die Gruppe hat einen Knopf gedrueckt und wartet, sie
     bekommt eine kurze Zeile (SPEC § 11.1)."""
     try:
-        with _tippanzeige(tg, chat_id):
+        # ``arbeitszeile``: eine kurze Zeile, die SOFORT sichtbar macht, dass
+        # der Bot arbeitet, und beim Ende wieder verschwindet (06.09.2026,
+        # 10:10). Ohne sie schwieg der Bot zwischen "Notiert: Fragen ..." und
+        # der Sensibilitaetspruefung minutenlang.
+        with arbeitet_sichtbar(tg, chat_id, arbeitszeile):
             phase = phasen.aktuelle(conn, chat_id)
             koerper = kontext.baue(conn, chat_id, [], e)
             koerper = f"{koerper}\n\n{_AUFTRAG_KOPF}\n{anweisung}"
@@ -824,15 +874,22 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str) -> None:
         log.exception("Auftragsantwort nicht mitgeschrieben, chat_id=%s", chat_id)
 
 
-def starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str):
+def starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
+                   arbeitszeile: str | None = None):
     """Gibt einen ``auftragszug`` an einen eigenen Thread ab und kehrt sofort
     zurueck -- dasselbe Muster wie ``szene.starte`` und
-    ``sprachprofil.starte``. Liefert den Thread (fuer Tests) oder None."""
+    ``sprachprofil.starte``. Liefert den Thread (fuer Tests) oder None.
+
+    ``arbeitszeile`` wird im Thread gesendet und am Ende wieder geloescht
+    (``arbeitet_sichtbar``) -- fuer jeden Auftrag, der laenger als ein paar
+    Sekunden dauern kann."""
     if klm is None or not (anweisung or "").strip():
         log.error("Auftragszug ohne Modell oder Anweisung, chat_id=%s", chat_id)
         return None
     thread = threading.Thread(
-        target=auftragszug, args=(conn, tg, klm, e, chat_id, anweisung), daemon=True,
+        target=auftragszug,
+        args=(conn, tg, klm, e, chat_id, anweisung, arbeitszeile),
+        daemon=True,
     )
     thread.start()
     return thread

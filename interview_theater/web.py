@@ -390,6 +390,13 @@ table.uebersicht .umfang { white-space: nowrap; opacity: .7;
 .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
 .figur .marke { font-size: .78rem; opacity: .6; }
 .hinzu { margin-top: .8rem; }
+/* Der Weg zur Probenansicht (06.09.2026): deutlich, weil er in der Probe
+   gebraucht wird und die Gruppenseite lang ist. */
+.probenansicht { margin: 0 0 1rem; }
+.probenansicht a { display: inline-block; padding: .45rem .8rem;
+                   border: 1px solid #c9b98d; border-radius: .3rem;
+                   background: #ece7db; color: #1b1b1b; text-decoration: none;
+                   font-size: .95rem; }
 """
 
 
@@ -472,17 +479,35 @@ def _umfang(teile: int, sekunden: int | None) -> str:
     return " · ".join(stuecke)
 
 
-def _seite(titel: str, css: str, koerper: str, bearbeitbar: bool = False) -> str:
-    """Rahmen beider Seiten: ein einziges eingebettetes CSS, keine externe
+def _seite(
+    titel: str,
+    css: str,
+    koerper: str,
+    bearbeitbar: bool = False,
+    nachladen: bool = True,
+    skript: str = "",
+) -> str:
+    """Rahmen aller Seiten: ein einziges eingebettetes CSS, keine externe
     Ressource (der Workshopraum haengt an einem Tailnet, nicht am offenen
     Netz), sanftes Nachladen per fetch (siehe _SCROLL_JS) -- kein meta
     refresh mehr, der jedes aufgeklappte <details> wieder zuklappte.
 
     ``bearbeitbar`` haengt zusaetzlich ``_BEARBEITEN_JS`` an: nur die
-    Gruppenseite bekommt es, das Dashboard nie."""
-    skripte = _SCROLL_JS.replace("__NEULADEN_MS__", str(NEULADEN_SEKUNDEN * 1000))
+    Gruppenseite bekommt es, das Dashboard nie.
+
+    ``nachladen=False`` laesst das Nachladen ganz weg -- die Probenansicht
+    (06.09.2026) braucht es nicht: sie ist ein Manuskript, das man liest und
+    ausdruckt, und ein Austausch des ``<body>`` mitten in der Probe wuerde
+    Rollenfilter und Schriftgroesse zuruecksetzen. ``skript`` haengt statt
+    dessen das eigene JavaScript der Seite an."""
+    skripte = (
+        _SCROLL_JS.replace("__NEULADEN_MS__", str(NEULADEN_SEKUNDEN * 1000))
+        if nachladen
+        else ""
+    )
     if bearbeitbar:
         skripte += _BEARBEITEN_JS
+    skripte += skript
     return (
         "<!doctype html>\n"
         '<html lang="de"><head><meta charset="utf-8">\n'
@@ -1221,13 +1246,23 @@ def _interview_html(v: dict) -> str:
     )
 
 
-def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
+def gruppe_html(
+    daten: dict,
+    nonce_wert: str | None = None,
+    token: str | None = None,
+    praefix: str = VORGABE_PRAEFIX,
+) -> str:
     """Die Gruppenseite aus web_daten.gruppe_nach_token().
 
     Ohne ``nonce_wert`` bleibt sie, was sie war: eine Leseansicht. Mit
     ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
     Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
-    Feld in der Seite (siehe ``nonce``)."""
+    Feld in der Seite (siehe ``nonce``).
+
+    Mit ``token`` steht oben der Link zur **Probenansicht** (06.09.2026): die
+    Gruppenseite ist die Werkstatt, die Probenansicht das Stueck am Stueck.
+    Ohne Token faellt der Link weg -- die Seite laesst sich weiter ohne ihn
+    rendern (Tests, spaetere Aufrufer)."""
     szenen = "".join(
         _szene_html(s, daten["figuren"] if nonce_wert else None)
         for s in daten["szenen"]
@@ -1260,10 +1295,17 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
         if nonce_wert
         else _arbeitsstand_html(daten["arbeitsstand"], daten["figuren"], mit_stimmen=True)
     )
+    probenansicht = (
+        f'<p class="probenansicht"><a href="{_t(praefix, "")}/g/{_t(token)}/textbuch">'
+        "📖 Probenansicht — das ganze Stück am Stück, zum Lesen und Ausdrucken</a></p>"
+        if token
+        else ""
+    )
     return _seite(
         f"{titel} — interview-theater",
         _CSS_GRUPPE,
         f"<h1>{_t(titel)}</h1>\n"
+        f"{probenansicht}"
         "<h2>Arbeitsstand</h2>"
         f"{stand}\n"
         f"<h2>Szenen</h2>{uebersicht}{szenen}\n"
@@ -1271,6 +1313,429 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
         "<h2>Der Weg dahin</h2>"
         f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",
         bearbeitbar=bool(nonce_wert),
+    )
+
+
+# --- Die Probenansicht ----------------------------------------------------
+#
+# `/g/<token>/textbuch` (06.09.2026, Birk): das ganze Stueck am Stueck, zum
+# Lesen in der Probe und zum Ausdrucken. **Rein lesend** -- kein POST, kein
+# Formular, kein Nonce. Der Grund ist derselbe wie beim Dashboard: hier steht
+# niemand am Rechner, hier haelt jede Person ihr eigenes Telefon in der Hand
+# und spricht laut. Was in der Probe entschieden wird, geht in den Chat oder
+# auf die Gruppenseite -- diese Seite soll man anfassen koennen, ohne etwas
+# zu veraendern.
+#
+# Sie laedt sich auch nicht nach: ein Austausch des <body> alle zehn Sekunden
+# risse den Rollenfilter und die Schriftgroesse mit, und einen Grund dafuer
+# gibt es nicht -- ein Textbuch aendert sich nicht waehrend man es liest.
+
+#: Was in einer Sprecherzeile vor dem Doppelpunkt stehen darf: Versalien,
+#: Ziffern, Leerzeichen, Bindestrich, Apostroph. Kein Satzzeichen -- ein Satz
+#: mit Doppelpunkt ist keine Replik.
+_SPRECHER_VERBOTEN = ",;.!?\"'()[]/"
+
+#: Woerter, die am Zeilenanfang in Versalien mit Doppelpunkt stehen, ohne eine
+#: Figur zu sein. Alle aus den echten Szenentexten: der Szenenkopf des
+#: Dialog-Regelblocks ("SZENE 1: EINUNDFUENFZIG STUNDEN ca. 10 min") und die
+#: Pflichtzeilen des Szenen-Prompts, falls eine davon im Volltext gelandet
+#: ist. Ohne diese Liste haette jedes Stueck eine Figur namens "SZENE 1".
+_KEINE_SPRECHER = frozenset(
+    {"SZENE", "AKT", "BILD", "TITEL", "KURZ", "ZUSAMMENFASSUNG", "ANDERS",
+     "ORT", "ZEIT", "ANLASS", "FORM", "PERSONEN", "BESETZUNG", "DAUER"}
+)
+
+#: Wie lang der Name vor dem Doppelpunkt hoechstens sein darf. "FRAU MUELLER
+#: VON NEBENAN" ist eine Figur, ein halber Satz nicht mehr.
+_SPRECHER_MAX = 30
+
+
+def sprecher_der_zeile(zeile: str, bekannte: set[str] | None = None) -> str | None:
+    """Der Sprecher einer Zeile in Versalien, oder None.
+
+    **Defensiv, absichtlich** (Birk, 06.09.2026): der Rollenfilter markiert
+    lieber nichts als das Falsche. Erkannt wird die Grundform aus
+    ``prompts/szene.md`` -- "Figurennamen in GROSSBUCHSTABEN, danach ein
+    Doppelpunkt, dann die Replik" -- also ``LEYLA: Text`` und die im
+    Dialog-Regelblock vorgegebene enge Schreibweise ``LEYLA:(steht auf)Text``.
+    ``CHOR:`` aus ``formen/chor.md`` faellt von selbst darunter.
+
+    ``bekannte`` (die Figurennamen der Gruppe, in Versalien) ist die eine
+    Ausnahme von der Versalien-Regel: schreibt ein Modell ``Leyla:``, gilt die
+    Zeile nur dann als Replik, wenn die Gruppe wirklich eine Figur Leyla hat.
+    Ein Satz, der zufaellig mit "Name:" beginnt, bleibt damit ein Satz.
+
+    Rueckgabe ist der Name in Versalien -- er ist der Schluessel, unter dem
+    der Filter zuordnet, nicht die Schreibweise, die angezeigt wird."""
+    kopf, trenner, _rest = zeile.partition(":")
+    if not trenner:
+        return None
+    name = kopf.strip()
+    if not (2 <= len(name) <= _SPRECHER_MAX):
+        return None
+    if not any(z.isalpha() for z in name):
+        return None
+    if any(z in name for z in _SPRECHER_VERBOTEN):
+        return None
+    if name.split()[0].upper() in _KEINE_SPRECHER:
+        return None
+    if name != name.upper() and name.upper() not in (bekannte or set()):
+        return None
+    return name.upper()
+
+
+def _regie(text: str) -> str:
+    """Maskiert eine Replik und packt die Regieanweisungen in Klammern in ein
+    eigenes ``<span>``.
+
+    Zuerst maskieren, dann suchen: ``html.escape`` erzeugt keine runden
+    Klammern, der Ausdruck kann also nichts treffen, was nicht im Original
+    stand. Das ``<span>`` ist die Handhabe fuer "Regieanweisungen ausblenden"
+    -- ausgeblendet wird per CSS, der Text bleibt im HTML und damit im
+    Ausdruck, wenn man den Schalter wieder umlegt."""
+    return re.sub(
+        r"\(([^()]*)\)",
+        lambda treffer: f'<span class="regie">({treffer.group(1)})</span>',
+        _t(text, ""),
+    )
+
+
+def szenentext_html(text: str, bekannte: set[str] | None = None) -> tuple[str, list[str]]:
+    """Ein Szenentext als HTML, dazu die Sprecher in der Reihenfolge ihres
+    ersten Auftritts.
+
+    Zeile fuer Zeile, weil die Szenentexte zeilenweise gebaut sind (eine
+    Replik je Zeile, Regie in eigenen Zeilen oder inline). Was nicht als
+    Replik erkannt wird, steht trotzdem da -- als Absatz, nur ohne Zuordnung:
+    der Ort am Anfang, die Regiezeile dazwischen, die Fortsetzung einer
+    umbrochenen Replik. **Nichts wird weggelassen**, sonst waere die
+    Probenansicht eine zweite Wahrheit neben dem Textbuch.
+
+    Eine Zeile ohne eigenen Sprecher direkt unter einer Replik gehoert zu
+    dieser Replik (umbrochener Absatz) und wird mit ihr hervorgehoben; eine
+    Leerzeile beendet die Zugehoerigkeit."""
+    stuecke: list[str] = []
+    sprecher: list[str] = []
+    laufende: str | None = None
+    for zeile in text.splitlines():
+        blank = zeile.strip()
+        if not blank:
+            laufende = None
+            continue
+        name = sprecher_der_zeile(zeile, bekannte)
+        if name is not None:
+            if name not in sprecher:
+                sprecher.append(name)
+            laufende = name
+            kopf, _trenner, rest = zeile.partition(":")
+            stuecke.append(
+                f'<p class="replik" data-figur="{_t(name)}">'
+                f'<b class="sprecher">{_t(kopf.strip())}:</b> '
+                f"{_regie(rest.strip())}</p>"
+            )
+            continue
+        if blank.startswith("(") and blank.endswith(")"):
+            # Eine ganze Zeile in Klammern ist eine Regieanweisung fuer sich
+            # ("(Pause. Niemand sagt etwas.)") -- sie gehoert keiner Figur und
+            # verschwindet mit dem Schalter komplett.
+            laufende = None
+            stuecke.append(f'<p class="regie regie-zeile">{_t(blank)}</p>')
+            continue
+        if laufende is not None:
+            stuecke.append(
+                f'<p class="replik weiter" data-figur="{_t(laufende)}">'
+                f"{_regie(blank)}</p>"
+            )
+            continue
+        stuecke.append(f'<p class="prosa">{_regie(blank)}</p>')
+    return "".join(stuecke), sprecher
+
+
+#: Die Angaben einer Szene ueber ihrem Text, in dieser Reihenfolge. Weniger
+#: als die Planung auf der Gruppenseite: in der Probe braucht man Ort, Zeit
+#: und Anlass, nicht "was anders ist als in der Szene davor".
+_PROBE_ANGABEN = (("form", "Form"), ("ort", "Ort"), ("zeit", "Zeit"),
+                  ("anlass", "Anlass"))
+
+#: Die uebrigen Planungsfelder -- sie stehen nur unter einer Szene, die noch
+#: keinen Text hat. Dort sind sie das, was die Gruppe stattdessen lesen kann.
+_PROBE_PLANUNG = (("was_passiert", "Was passiert"), ("was_anders", "Was anders ist"),
+                  ("kernsaetze", "Kernsätze"), ("ton", "Ton"))
+
+TEXT_UNGESCHRIEBEN = "Noch nicht geschrieben."
+
+
+def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
+    """Eine Szene in der Probenansicht: Kopf, Angaben, Besetzung, Text.
+
+    Nicht aufklappbar (anders als auf der Gruppenseite): hier wird das Stueck
+    am Stueck gelesen, und ein ``<details>`` waere in der Probe ein Klick vor
+    jedem Einsatz -- und im Ausdruck eine zugeklappte Seite.
+
+    Eine Szene ohne Volltext faellt nicht weg, sondern steht als Platzhalter
+    mit ihrer Planung da (dieselbe Entscheidung wie in
+    ``szenenfolge.textbuch``: ein Textbuch, in dem Szene 4 fehlt, sieht aus
+    wie ein Fehler)."""
+    kopf = f"Szene {_t(s['nummer'])}" if s.get("nummer") is not None else "Szene"
+    if s.get("titel"):
+        kopf += f" — {_t(s['titel'])}"
+    angaben = " · ".join(
+        f"{label}: {_t(s[feld])}" for feld, label in _PROBE_ANGABEN if s.get(feld)
+    )
+    zeilen = [f'<h2 class="szenenkopf">{kopf}</h2>']
+    if angaben:
+        zeilen.append(f'<p class="angaben">{angaben}</p>')
+    if s.get("figuren"):
+        zeilen.append(
+            f'<p class="besetzung">Besetzung: {_t(", ".join(s["figuren"]))}</p>'
+        )
+    volltext = (s.get("volltext") or "").strip()
+    prosa = (s.get("prosa") or "").strip()
+    sprecher: list[str] = []
+    if volltext:
+        koerper, sprecher = szenentext_html(volltext, bekannte)
+        zeilen.append(f'<div class="text">{koerper}</div>')
+    else:
+        planung = "".join(
+            f"<dt>{label}</dt><dd>{_t(s[feld])}</dd>"
+            for feld, label in _PROBE_PLANUNG
+            if s.get(feld)
+        )
+        zeilen.append(f'<p class="offen">{TEXT_UNGESCHRIEBEN}</p>')
+        if prosa:
+            # Die Prosafassung aus Phase 6 ist der eigene Text der Gruppe und
+            # kein Material -- sie steht hier, wo sonst nichts stuende, und
+            # sagt dazu, dass sie noch keine Szene ist.
+            zeilen.append(
+                f'<p class="angaben">Als Geschichte:</p><div class="text">'
+                f'<p class="prosa">{_t(prosa)}</p></div>'
+            )
+        if planung:
+            zeilen.append(f'<dl class="planung">{planung}</dl>')
+    return f'<section class="probe-szene">{"".join(zeilen)}</section>', sprecher
+
+
+def _rollenleiste_html(sprecher: list[str], figuren: list[dict]) -> str:
+    """Die Leiste mit den Figuren des Stuecks -- oder gar nichts.
+
+    **Gar nichts, wenn keine Sprecherzeile erkannt wurde** (Birk, 06.09.2026):
+    eine Leiste, die nichts hervorhebt, ist schlimmer als keine. Genau das ist
+    der Fall bei einem Stueck, das erst als Geschichte (Phase 6, Prosa)
+    dasteht -- dort gibt es keine Repliken, und der Filter haette nichts zu
+    tun.
+
+    Gezeigt werden die Sprecher in der Reihenfolge ihres ersten Auftritts, mit
+    der Schreibweise aus der Figurenliste, wo es eine gibt ("Leyla" statt
+    "LEYLA") -- die steht auch im Link (``#figur=Leyla``), und der soll
+    lesbar sein."""
+    if not sprecher:
+        return ""
+    namen = {(f["name"] or "").upper(): f["name"] for f in figuren if f.get("name")}
+    knoepfe = [
+        '<button type="button" class="rolle" data-figur="" data-name="" '
+        'aria-pressed="true">alle</button>'
+    ]
+    for name in sprecher:
+        anzeige = namen.get(name, name.title())
+        knoepfe.append(
+            f'<button type="button" class="rolle" data-figur="{_t(name)}" '
+            f'data-name="{_t(anzeige)}" aria-pressed="false">{_t(anzeige)}</button>'
+        )
+    return (
+        '<div class="leiste rollen"><span class="marke">Rolle</span>'
+        + "".join(knoepfe)
+        + "</div>"
+    )
+
+
+_CSS_TEXTBUCH = """
+body { background: #fbfaf7; color: #1b1b1b; max-width: 46rem; margin: 0 auto;
+       padding: .8rem 1.1rem 4rem; }
+h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
+.wege { font-size: .85rem; margin: 0 0 .8rem; }
+.wege a { color: #6b5a2b; margin-right: .9rem; }
+.leiste { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
+          margin: 0 0 .5rem; }
+.leiste .marke { font-size: .72rem; text-transform: uppercase;
+                 letter-spacing: .04em; opacity: .55; margin-right: .3rem; }
+.leiste button { font: inherit; font-size: .9rem; padding: .35rem .7rem;
+                 border: 1px solid #cfc8b6; border-radius: 1rem;
+                 background: #fff; color: #1b1b1b; cursor: pointer; }
+.leiste button[aria-pressed="true"] { background: #2f4858; border-color: #2f4858;
+                                      color: #fff; }
+.probe-szene { margin: 0 0 2.2rem; }
+.szenenkopf { font-size: 1.15rem; border-bottom: 1px solid #ddd8cc;
+              padding-bottom: .2rem; margin: 1.6rem 0 .4rem; }
+.angaben, .besetzung { font-size: .85rem; opacity: .7; margin: .1rem 0; }
+.offen { font-style: italic; opacity: .6; margin: .6rem 0 .2rem; }
+.planung dt { font-size: .74rem; }
+.text { margin-top: .7rem; }
+.text p { margin: 0 0 .55rem; }
+.sprecher { letter-spacing: .03em; }
+.regie { opacity: .65; font-style: italic; }
+/* Der Rollenfilter daempft, er loescht nicht: die Stichworte muss man
+   mitlesen koennen, sonst weiss niemand, wann der eigene Einsatz kommt. */
+body[data-figur] .replik { opacity: .35; }
+body[data-figur] .replik.aktiv { opacity: 1; background: #fff6d9;
+                                 border-left: 3px solid #c9b98d;
+                                 padding: .15rem .4rem; margin-left: -.4rem; }
+body[data-figur] .regie-zeile, body[data-figur] .prosa { opacity: .45; }
+body.ohne-regie .regie, body.ohne-regie .regie-zeile { display: none; }
+body[data-schrift="gross"] .text { font-size: 1.35rem; line-height: 1.6; }
+body[data-schrift="mittel"] .text { font-size: 1.12rem; line-height: 1.55; }
+body[data-schrift="klein"] .text { font-size: 1rem; line-height: 1.45; }
+/* Der Ausdruck IST das PDF (06.09.2026): keine Abhaengigkeit, kein Dienst,
+   kein Layoutprogramm -- der Browser kann das. Deshalb faellt hier alles
+   weg, was Bedienung ist, und uebrig bleibt ein Manuskript: Serifenschrift,
+   Sprecher fett, je Szene eine neue Seite. */
+@media print {
+  body { background: #fff; color: #000; max-width: none; margin: 0;
+         padding: 0; font-family: Georgia, "Times New Roman", serif;
+         font-size: 12pt; line-height: 1.5; }
+  .wege, .leiste, .hinweis-druck { display: none !important; }
+  .probe-szene { break-after: page; page-break-after: always; }
+  .probe-szene:last-child { break-after: auto; page-break-after: auto; }
+  .szenenkopf { break-after: avoid; page-break-after: avoid; }
+  .replik, .regie-zeile, .prosa { break-inside: avoid; page-break-inside: avoid; }
+  /* Im Ausdruck gilt kein Filter: gedruckt wird das ganze Stueck, auch wenn
+     am Telefon gerade eine Rolle hervorgehoben ist. */
+  body[data-figur] .replik, body[data-figur] .replik.aktiv,
+  body[data-figur] .regie-zeile, body[data-figur] .prosa {
+        opacity: 1; background: none; border: 0; padding: 0; margin-left: 0; }
+  .sprecher { font-weight: 700; }
+  .angaben, .besetzung { opacity: 1; font-size: 10pt; }
+}
+"""
+
+#: Der Zustand der Probenansicht steht im URL-Fragment (``#figur=Leyla&
+#: schrift=gross&regie=aus``) und sonst nirgends: kein Server-Roundtrip
+#: (die Seite ist statisch), kein localStorage (der Link soll teilbar sein --
+#: "so liest sich das mit meiner Rolle"), keine Cookies. Faellt JavaScript
+#: aus, bleibt das ganze Stueck lesbar; nur die Leisten wirken dann nicht.
+_TEXTBUCH_JS = """
+(function () {
+  var lies = function () {
+    var s = {};
+    location.hash.replace(/^#/, '').split('&').forEach(function (paar) {
+      if (!paar) { return; }
+      var teile = paar.split('=');
+      var k = decodeURIComponent(teile[0].replace(/\\+/g, ' '));
+      if (k) { s[k] = decodeURIComponent((teile[1] || '').replace(/\\+/g, ' ')); }
+    });
+    return s;
+  };
+  var schreib = function (name, wert) {
+    var s = lies();
+    if (wert) { s[name] = wert; } else { delete s[name]; }
+    var text = Object.keys(s).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(s[k]);
+    }).join('&');
+    // Ueber location.hash, damit der Zurueck-Knopf des Browsers den
+    // vorigen Zustand wiederherstellt -- und damit der Link, den jemand
+    // kopiert, wirklich der ist, den er gerade sieht.
+    location.hash = text ? '#' + text : '';
+    wende_an();
+  };
+  var wende_an = function () {
+    var s = lies();
+    var figur = (s.figur || '').trim();
+    var koerper = document.body;
+    var schluessel = '';
+    document.querySelectorAll('.rolle').forEach(function (knopf) {
+      var name = knopf.dataset.name || '';
+      var passt = figur !== '' && name.toLowerCase() === figur.toLowerCase();
+      if (passt) { schluessel = knopf.dataset.figur || ''; }
+      knopf.setAttribute('aria-pressed', passt ? 'true' : 'false');
+    });
+    var alle = document.querySelector('.rolle[data-figur=""]');
+    if (alle && !schluessel) { alle.setAttribute('aria-pressed', 'true'); }
+    if (schluessel) { koerper.dataset.figur = schluessel; }
+    else { delete koerper.dataset.figur; }
+    document.querySelectorAll('.replik').forEach(function (p) {
+      p.classList.toggle('aktiv', !!schluessel && p.dataset.figur === schluessel);
+    });
+    var schrift = s.schrift || 'mittel';
+    koerper.dataset.schrift = schrift;
+    document.querySelectorAll('.schrift').forEach(function (knopf) {
+      knopf.setAttribute(
+        'aria-pressed', knopf.dataset.schrift === schrift ? 'true' : 'false');
+    });
+    var ohne = (s.regie || '') === 'aus';
+    koerper.classList.toggle('ohne-regie', ohne);
+    document.querySelectorAll('.regie-schalter').forEach(function (knopf) {
+      knopf.setAttribute('aria-pressed', ohne ? 'true' : 'false');
+    });
+  };
+  document.addEventListener('click', function (ev) {
+    var knopf = ev.target.closest ? ev.target.closest('button') : null;
+    if (!knopf) { return; }
+    if (knopf.classList.contains('rolle')) {
+      schreib('figur', knopf.dataset.name || '');
+    } else if (knopf.classList.contains('schrift')) {
+      schreib('schrift', knopf.dataset.schrift || '');
+    } else if (knopf.classList.contains('regie-schalter')) {
+      schreib('regie', document.body.classList.contains('ohne-regie') ? '' : 'aus');
+    }
+  });
+  window.addEventListener('hashchange', wende_an);
+  wende_an();
+})();
+"""
+
+
+def textbuch_html(
+    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
+) -> str:
+    """Die Probenansicht aus ``web_daten.gruppe_nach_token()``.
+
+    Enthaelt **ausschliesslich** Szenentexte und Szenenplanung. Kein
+    Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
+    Nachrichtentext -- die Grenze aus AGENTS.md ("Weboberflaeche") gilt hier
+    strenger als auf der Gruppenseite, weil dieser Link im Probenraum
+    herumgereicht wird."""
+    bekannte = {(f["name"] or "").upper() for f in daten["figuren"] if f.get("name")}
+    abschnitte = []
+    sprecher: list[str] = []
+    for s in daten["szenen"]:
+        html_stueck, gefunden = _probe_szene_html(s, bekannte)
+        abschnitte.append(html_stueck)
+        for name in gefunden:
+            if name not in sprecher:
+                sprecher.append(name)
+    stueck = "".join(abschnitte) or (
+        '<p class="leer">Noch keine Szene. Die entstehen ab Phase 6.</p>'
+    )
+    titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
+    wege = ""
+    if token:
+        wege = (
+            f'<p class="wege"><a href="{_t(praefix, "")}/g/{_t(token)}">'
+            "‹ Arbeitsstand</a>"
+            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.md">Textbuch .md</a>'
+            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.txt">Textbuch .txt</a>'
+            "</p>"
+        )
+    leisten = _rollenleiste_html(sprecher, daten["figuren"]) + (
+        '<div class="leiste"><span class="marke">Schrift</span>'
+        '<button type="button" class="schrift" data-schrift="klein" '
+        'aria-pressed="false">klein</button>'
+        '<button type="button" class="schrift" data-schrift="mittel" '
+        'aria-pressed="true">mittel</button>'
+        '<button type="button" class="schrift" data-schrift="gross" '
+        'aria-pressed="false">groß</button>'
+        '<button type="button" class="regie-schalter" aria-pressed="false">'
+        "Regieanweisungen ausblenden</button></div>"
+    )
+    return _seite(
+        f"{titel} — Probenansicht",
+        _CSS_TEXTBUCH,
+        f"<h1>{_t(titel)} — Probenansicht</h1>\n"
+        f"{wege}{leisten}\n"
+        f'<article class="stueck">{stueck}</article>\n'
+        '<p class="hinweis-druck leer">Zum Ausdrucken: die Druckfunktion des '
+        "Browsers — je Szene eine Seite, ohne Leisten und Farben.</p>",
+        nachladen=False,
+        skript=_TEXTBUCH_JS,
     )
 
 
@@ -1348,14 +1813,32 @@ def mache_handler(
                 if pfad == "/":
                     self._antworte(200, dashboard_html(self._dashboard(), praefix))
                 elif pfad.startswith("/g/"):
-                    token = pfad[len("/g/"):].strip("/")
-                    daten = self._gruppe(token)
-                    if daten is None:
-                        self._antworte(404, nicht_gefunden_html())
+                    # Hinter dem Token darf seit der Probenansicht noch etwas
+                    # stehen (06.09.2026). Alles Unbekannte wird 404 und
+                    # nicht etwa als Teil des Tokens gelesen -- sonst haette
+                    # /g/<token>/irgendwas dieselbe Seite geliefert wie
+                    # /g/<token>.
+                    rest = pfad[len("/g/"):].strip("/")
+                    token, _, unterpfad = rest.partition("/")
+                    if unterpfad in ("textbuch.md", "textbuch.txt"):
+                        self._textbuch_datei(token, unterpfad)
+                    elif unterpfad in ("", "textbuch"):
+                        daten = self._gruppe(token)
+                        if daten is None:
+                            self._antworte(404, nicht_gefunden_html())
+                        elif unterpfad == "textbuch":
+                            self._antworte(
+                                200, textbuch_html(daten, token, praefix)
+                            )
+                        else:
+                            self._antworte(
+                                200,
+                                gruppe_html(
+                                    daten, nonce(schluessel, token), token, praefix
+                                ),
+                            )
                     else:
-                        self._antworte(
-                            200, gruppe_html(daten, nonce(schluessel, token))
-                        )
+                        self._antworte(404, nicht_gefunden_html())
                 else:
                     self._antworte(404, nicht_gefunden_html())
             except sqlite3.Error as fehler:
@@ -1483,11 +1966,57 @@ def mache_handler(
             finally:
                 conn.close()
 
-        def _antworte(self, status: int, inhalt: str, typ: str = "text/html; charset=utf-8") -> None:
+        def _textbuch_datei(self, token: str, name: str) -> None:
+            """Das Textbuch als Datei: ``.md`` und ``.txt``, beide mit
+            demselben Inhalt.
+
+            Der Inhalt kommt aus ``szenenfolge.textbuch`` -- **derselben
+            Funktion**, die der Knopf "Textbuch als Datei" im Chat benutzt.
+            Eine zweite Fassung hier waere eine zweite Wahrheit: die Gruppe
+            haette zwei Textbuecher, die sich irgendwann unterscheiden, und
+            niemand wuesste welches gilt.
+
+            Der Import steht in der Funktion und nicht im Modulkopf, wie bei
+            ``leitfaden``: ``szenenfolge`` zieht den Szenen-Prompt und damit
+            den halben Bot nach, und der Webserver soll ohne das starten
+            koennen, solange niemand ein Textbuch abruft. Gelesen wird ueber
+            die read-only geoeffnete Verbindung -- ``textbuch`` fragt nur ab
+            (``repo.hole_szenen``, ``repo.hole_arbeitsstand``,
+            ``szenenfolge.vorstellung``), es schreibt nichts."""
+            from interview_theater import szenenfolge
+
+            conn = web_daten.oeffne_lesend(db_pfad)
+            try:
+                chat_id = web_daten.chat_id_nach_token(conn, token)
+                if chat_id is None:
+                    self._antworte(404, nicht_gefunden_html())
+                    return
+                inhalt = szenenfolge.textbuch(conn, chat_id)
+            finally:
+                conn.close()
+            typ = (
+                "text/markdown; charset=utf-8"
+                if name.endswith(".md")
+                else "text/plain; charset=utf-8"
+            )
+            self._antworte(200, inhalt, typ, dateiname=name)
+
+        def _antworte(
+            self, status: int, inhalt: str, typ: str = "text/html; charset=utf-8",
+            dateiname: str | None = None,
+        ) -> None:
             roh = inhalt.encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", typ)
             self.send_header("Content-Length", str(len(roh)))
+            if dateiname:
+                # Damit das Telefon die Datei ablegt, statt sie im Browser
+                # anzuzeigen -- der Weg in die Probe ist "herunterladen und
+                # weiterschicken". Der Name kommt aus dem Code, nie aus der
+                # URL (keine fremden Zeichen im Header).
+                self.send_header(
+                    "Content-Disposition", f'attachment; filename="{dateiname}"'
+                )
             # Der Browser soll bei jedem Neuladen wirklich neu fragen --
             # sonst zeigt der Beamer eine Viertelstunde alte Zahlen.
             self.send_header("Cache-Control", "no-store")

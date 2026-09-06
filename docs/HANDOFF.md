@@ -357,6 +357,26 @@ vollständige Lauf gegen das echte Modell steht noch aus.
 
 ## (f) Offene Punkte und Risiken
 
+**Stand 06.09. 03:45 (Nacht vor Tag 2) — Kurzfassung, Details `docs/NACHTBERICHT-2026-09-06.md`:**
+
+- main `b32c86f`, Suite 1630 grün; alle vier Bots + Web laufen darauf (Einzel-Neustarts 03:35).
+- Neu seit gestern Abend: acht Phasen „erst erfinden, dann schärfen" (Setting & Figuren
+  → Geschichte → Schärfung am Material → Szenentexte → Durchlauf), Phasenrahmen im Chat
+  (Eintritt/Abschluss/`/stand` aus `phasentexte`), Fragen als 10→3-Mehrfachauswahl +
+  Sensibilitätsprüfung + Leitfaden, Form je Szene per Knopf bestätigt, Grundleiste
+  überschreibt nie still, Wiederholungsfilter, Gesprächs-Bot schweigt bei Aufträgen,
+  Kontextfenster chronologisch/kurz + harte Prompt-Grenze (Prompt-Audit), „Neu schreiben"
+  ohne alte Vorlage, Aufgabe der Szene im Prompt, Arbeits-Emoji, Gruppenseite editierbar,
+  Import-Skript für das Zusammenführen der Interviews, Simulator auf 8 Phasen + Knöpfe mit
+  PII-freien Tag-1-Stimmen (alle Läufe erreichen Phase 8).
+- Offen/Risiko: (1) Erkenner-Prompt unverändert seit 05.09. — neue Arten (`geschichte_setzen`)
+  laufen nur über Knöpfe/Marker; Korpuslauf steht aus (Punkt 8 der Sim-Fixes: „Meta-Feedback
+  ist kein Inhalt"). (2) Die echten Gruppen stehen in Phase 3 mit altem Datenstand — Phase 4
+  ff. wurde nur in Testgruppe und Simulation gefahren, nie mit echten Menschen. (3) USA-Frage
+  kommt morgen erstmals live vor drei Gruppen. (4) Klarnamen-Politik (Bot spricht Vornamen
+  aus dem Chat) — Birks Entscheidung offen. (5) Web-Edit und Chat schreiben aus zwei
+  Prozessen (WAL + busy_timeout; letzter gewinnt, beides im Journal).
+
 **Stand 05.09. mittags (nach der Nachtschicht + Vormittag), was für den
 Workshop zählt:**
 

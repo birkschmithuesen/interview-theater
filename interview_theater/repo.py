@@ -27,6 +27,7 @@ Threads ``zaehle_aufnahmen`` aufruft -- mit einem einfachen ``Lock`` wuerde
 sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 """
 
+import re
 import secrets
 import sqlite3
 import threading
@@ -1837,6 +1838,92 @@ def hole_figur(conn: sqlite3.Connection, chat_id: int, name: str) -> sqlite3.Row
         "AND entfernt_am IS NULL",
         (chat_id, (name or "").strip().lower()),
     ).fetchone()
+
+
+#: Woran ein Platzhaltername erkennbar ist (06.09.2026, B3 der
+#: Phase-4-Analyse). Der Bot legt in Phase 4 Figurenplaetze an, bevor die
+#: Gruppe Namen hat -- "Nebenfigur Cool 1", "Nebenfigur Outsider 3",
+#: "Figur 2". Eng gefasst: nur ein Name, der MIT einem dieser Gattungswoerter
+#: beginnt. "Frau Reinhardt" oder "Sara" trifft er nicht, und das ist die
+#: Bedingung, unter der das Zusammenfuehren unten gefahrlos ist.
+_PLATZHALTERNAME = re.compile(
+    r"^\s*(neben|haupt)?figur\b|^\s*platzhalter\b", re.IGNORECASE
+)
+
+
+def ist_platzhaltername(name: str) -> bool:
+    """Ist das ein vom Bot vergebener Platzhalter statt eines Namens?"""
+    return bool(_PLATZHALTERNAME.match(name or ""))
+
+
+#: Was beim Zusammenfuehren vom Platzhalter auf den Namen wandert -- und zwar
+#: **nur, wenn das Ziel dort nichts hat**. Ein gesetztes Feld der benannten
+#: Figur ist die juengere Entscheidung und gewinnt.
+#:
+#: ``sprachstil`` steht zuerst, weil er der Anlass ist: live hingen die im
+#: Chat erarbeiteten Sprachstile an den Platzhaltern (188/196/187/167
+#: Zeichen), waehrend die benannten Figuren ``sprachstil`` NULL hatten.
+#: ``geprueft_am`` wandert bewusst NICHT mit: die Abnahme galt einer Zeile,
+#: die es nicht mehr gibt.
+_FIGUR_UEBERNAHME = (
+    "sprachstil", "sprachprofil", "zitate", "quelle_aufnahme_id", "beleg_zitat",
+    "beschreibung",
+)
+
+
+@_gesperrt
+def fuehre_figur_zusammen(
+    conn: sqlite3.Connection, chat_id: int, platzhalter_id: int, ziel_id: int
+) -> str | None:
+    """Schmilzt einen Platzhalter in die nachbenannte Figur -- **der Stil
+    wandert auf den Namen**, der Platzhalter wird weich geloescht.
+
+    Liefert den Namen des Platzhalters, oder ``None``, wenn nichts getan
+    wurde (eine der beiden ids gehoert nicht dieser Gruppe, ist schon
+    entfernt oder beide sind dieselbe).
+
+    Der gemessene Fall (Analyse § 2.4): ``figur`` fuehrte 16 Zeilen statt
+    10, drei Paare mit wortgleicher Beschreibung, keine einzige weich
+    geloescht. Der Schaden war nicht die Dublette, sondern ihre Richtung --
+    die Arbeit hing am Platzhalter, der Name war leer, und ``szene_figur``
+    verwies gemischt auf beide Seiten (eine Szene mit sechs Figuren fuehrte
+    neun Zuordnungen).
+
+    Deshalb **zusammenfuehren und nicht loeschen**: den Platzhalter samt
+    Stil wegzuwerfen waere derselbe Verlust noch einmal."""
+    platzhalter = conn.execute(
+        "SELECT * FROM figur WHERE id = ? AND chat_id = ? AND entfernt_am IS NULL",
+        (platzhalter_id, chat_id),
+    ).fetchone()
+    ziel = conn.execute(
+        "SELECT * FROM figur WHERE id = ? AND chat_id = ? AND entfernt_am IS NULL",
+        (ziel_id, chat_id),
+    ).fetchone()
+    if platzhalter is None or ziel is None or platzhalter_id == ziel_id:
+        return None
+
+    for feld in _FIGUR_UEBERNAHME:
+        alt = platzhalter[feld]
+        if alt in (None, "") or ziel[feld] not in (None, ""):
+            continue
+        conn.execute(f"UPDATE figur SET {feld} = ? WHERE id = ?", (alt, ziel_id))
+
+    # Die Szenenbesetzungen umhaengen. ``INSERT OR IGNORE`` und danach
+    # loeschen statt eines UPDATE: steht die Zielfigur in derselben Szene
+    # schon, verletzte das UPDATE den Primaerschluessel (szene_id, figur_id)
+    # -- und genau diese Doppelbesetzung gab es live.
+    conn.execute(
+        "INSERT OR IGNORE INTO szene_figur (chat_id, szene_id, figur_id) "
+        "SELECT chat_id, szene_id, ? FROM szene_figur WHERE figur_id = ?",
+        (ziel_id, platzhalter_id),
+    )
+    conn.execute("DELETE FROM szene_figur WHERE figur_id = ?", (platzhalter_id,))
+
+    conn.execute(
+        "UPDATE figur SET entfernt_am = ? WHERE id = ?", (_jetzt(), platzhalter_id)
+    )
+    conn.commit()
+    return platzhalter["name"]
 
 
 @_gesperrt

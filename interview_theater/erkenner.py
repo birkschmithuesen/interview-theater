@@ -520,7 +520,58 @@ def _wende_figur_an(conn, chat_id: int, wert: str) -> dict | None:
         return None
 
     repo.setze_figur(conn, chat_id, name, beschreibung)
+    if treffer is None:
+        _schmelze_platzhalter_ein(conn, chat_id, name, beschreibung)
     return {"art": "figur_setzen", "wert": name}
+
+
+def _schmelze_platzhalter_ein(
+    conn, chat_id: int, name: str, beschreibung: str
+) -> None:
+    """Wurde hier gerade ein Platzhalter NACHBENANNT? Dann verschmelzen die
+    beiden Zeilen (06.09.2026, B3 der Phase-4-Analyse).
+
+    Das Signal ist die **wortgleiche Beschreibung**: der Bot legt den
+    Platzhalter mit einem Merkmalssatz an ("laesst sich nichts gefallen,
+    redet zurueck"), die Gruppe liefert spaeter den Namen dazu, und der
+    Erkenner traegt beides zusammen ein -- Name aus dem Chat, Beschreibung
+    aus dem Vorschlag. Live entstanden so drei Paare mit identischer
+    Beschreibung, und die Arbeit (der Sprachstil) blieb am Platzhalter
+    haengen.
+
+    **Nur ein Platzhalter wird eingeschmolzen** (``ist_platzhaltername``),
+    nie zwei benannte Figuren: zwei Namen mit zufaellig gleicher
+    Beschreibung sind zwei Figuren, und sie zu verschmelzen waere derselbe
+    stille Verlust in der anderen Richtung. Ohne Beschreibung passiert gar
+    nichts -- dann gibt es kein Signal, und geraten wird hier nicht."""
+    beschreibung = " ".join((beschreibung or "").split()).lower()
+    if not beschreibung:
+        return
+    neu = repo.hole_figur(conn, chat_id, name)
+    if neu is None:
+        return
+    platzhalter = next(
+        (
+            f for f in repo.figuren(conn, chat_id)
+            if f["id"] != neu["id"]
+            and repo.ist_platzhaltername(f["name"])
+            and " ".join((f["beschreibung"] or "").split()).lower() == beschreibung
+        ),
+        None,
+    )
+    if platzhalter is None:
+        return
+    alter_name = repo.fuehre_figur_zusammen(conn, chat_id, platzhalter["id"], neu["id"])
+    if alter_name is None:
+        return
+    log.info("Platzhalter %r in %r eingeschmolzen, chat_id=%s",
+             alter_name, neu["name"], chat_id)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden",
+        f"Aus {alter_name} wurde {neu['name']} -- Sprachstil und "
+        "Szenenbesetzung sind mitgewandert.",
+        quelle="erkenner",
+    )
 
 
 #: Trennt in einer Korrektur das falsche vom richtigen Wort. Beide

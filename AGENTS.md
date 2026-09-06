@@ -38,6 +38,8 @@ Module unter `interview_theater/`:
 | `phasentexte.py` | Der Phasenrahmen im Chat (06.09.2026): die acht Einleitungen als Daten, `PARAMETER` je Phase, daraus Eintrittsnachricht („▶️ Phase N von 8 · Name" + Checkliste ✅/⬜), Abschlussnachricht („✅ … abgeschlossen" + alle gesetzten Parameter) und die Zeilen für `/stand`. Bot-Text an die Gruppe, kein Prompt — kein Modellaufruf, nur repo-Lesezugriffe |
 | `verdichter.py` | Verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten — an der Frageliste der Gruppe entlang, wenn es eine gibt (N3) |
 | `zitat.py` | Belegzitat-Verifikation: Teilstring-Vergleich nach Normalisierung |
+| `dramaturgie/` | Die feinkörnige Prüfung neben `stueckpruefung.py` (06.09.2026): `mechanik.py` zählt ohne Modell (Namensdrift, Geisterfiguren, Besetzung, Tschechow-Kandidaten, Formverteilung, Sprechanteile), `beleg.py` verifiziert Judge-Zitate über `zitat.pruefe` (ein Retry, dann `unsicher`), `fanout.py` stellt vier Fragen (B1, A2, A6, C1) an ein **anderes** Modell als das schreibende. Siehe „Die Dramaturgie-Prüfung" |
+| `prompts/dramaturgie/` | Ein Prompt je Judge-Frage, mit `prompt_version` im Dateikopf |
 | `repo.py` | Einzige SQL-Zugriffsschicht außer `db.py`, komplett `RLock`-serialisiert |
 | `db.py` | Schema, Verbindungsaufbau samt PRAGMAs, Migration fehlender Spalten, Löschweg (`loesche_gruppe`) |
 | `einstellungen.py` | Konfiguration ausschließlich über Umgebungsvariablen |
@@ -56,7 +58,9 @@ den Regressionskorpus unter `korpus/` gegen das echte Modell laufen (siehe
 kompletten simulierten Workshop durch alle Phasen und bewertet ihn (siehe
 „Simulation", Bausteine unter `simulation/`), `scripts/backup-robocloud.sh`
 sichert Betriebsdaten außerhalb des Repositories, `scripts/web_links.py` gibt
-je Gruppe die URL ihrer Gruppenseite aus.
+je Gruppe die URL ihrer Gruppenseite aus,
+`scripts/dramaturgie_pruefen.py` fährt die Dramaturgie-Prüfung gegen eine
+Kopie-Datenbank (siehe „Die Dramaturgie-Prüfung").
 
 `web_daten.py` ist die einzige Ausnahme von „SQL nur in `repo.py` und
 `db.py`". Grund: die Weboberfläche liest mit einer eigenen, read-only
@@ -84,9 +88,7 @@ lädt, würde damit Gesprächszüge ausbremsen.
   trägt die Auswahl selbst — nichts zu raten. Knöpfe gibt es deshalb **nur**
   dort, wo aus wenigen benannten Möglichkeiten gewählt wird: Kernthema-Vorschlag,
   Aufnahme-Umschalter, „Weiter zu Phase N", **Form je Szene** (Phase 6:
-  Dialog · Monolog · Chor · Lied · Rap), der **Stil je Szene** (Phase 7,
-  06.09.2026 — Schlagabtausch · Litanei · Herkules-Maß · Ohne Stilvorlage)
-  und die **USA-Einwilligung**. Freitext (Begriffe,
+  Dialog · Monolog · Chor · Lied · Rap) und die **USA-Einwilligung**. Freitext (Begriffe,
   Fragen, Figurenbeschreibungen) bleibt bewusst Sprache — dort gibt es keine
   Liste. Die letzten drei kamen am selben Tag dazu, nachdem die nummerierten
   Auswahllisten in `phasen/5.md` und `6.md` dieselbe Schwäche zeigten („das
@@ -251,6 +253,7 @@ lädt, würde damit Gesprächszüge ausbremsen.
   Journal bleibt dabei unangetastet: dort steht „Phase 5 · Figuren", weil das
   am 04.09. wahr war, und ein Journal wird nur angehängt.
 - **Eine lange Sprachnachricht ohne Interviewmodus wird gefragt, nicht gedeutet** (06.09.2026, Live-Fall Gruppe 1, 13:32–13:37). Der gemessene Fall: 186 Sekunden Interview ohne vorherigen Druck auf „Interview starten". Das Transkript ging als **Gesprächsbeitrag** in den Kontext, das Gesprächsmodell antwortete mit einem Denkspur-Rest, der **Absichtserkenner** las die Aufzählung der interviewten Person als Begriffsliste der Gruppe und **überschrieb `arbeitsstand.begriffe`** (Rassismus, Liebe, Spaß, Streit → Rausgehen, Familie, Musik hören), und der Journal-Extraktor schrieb einen `vorgeschlagen`-Eintrag aus dem Interviewinhalt. Drei Modellläufe auf Material, das keine Absicht der Gruppe war — genau der Fall, gegen den `repo.TYP_TRANSKRIPT` seit § 10.6 schützt, nur hier ungeschützt, weil ohne Modus niemand ein Interview vermutete. Seitdem gilt in `aufnahme._kurz_abschliessen`: Dauer über `HINWEIS_AB_S` (60 s) **und** Interviewmodus aus → **kein Gesprächszug, kein Erkenner, kein Journal-Extraktor** auf dieser Nachricht. Das Transkript wird gespeichert (Empfangen und In-den-Prompt-legen sind zwei Entscheidungen), aber **versteckt**: `repo.aktualisiere_transkribierte_nachricht(..., versteckt=True)` legt es als `TYP_TRANSKRIPT` ab, und damit fällt es aus allen drei Fenstern zugleich (`letzte_nachrichten`, `unextrahierte`, `unjournalisierte`) — `unterdrueckt` allein leistet das **nicht**, es filtert nur `unbeantwortete`. Stattdessen die deterministische Frage „Das klingt nach einem Interview (M:SS). Soll ich es als Interview speichern?" mit zwei Knöpfen (`knoepfe.biete_interview_ohne_knopf`, `ART_OHNE_KNOPF_JA`/`_NEIN`, die `aufnahme.id` im `wert`). Die Knopfregel ist erfüllt: es gibt etwas Fixes zu speichern und genau zwei benannte Möglichkeiten. **Ja** → `aufnahme.nimm_als_interview`: Modus an, Kopf anlegen, **gezielt genau diese Aufnahme** einsammeln (`repo.ziehe_eine_in_interview` mit der id — das `NACHZUEGLER_FENSTER_S`-Zeitfenster darf darüber nicht entscheiden, zwischen Sprechen und Knopfdruck stehen Minuten), `stelle_phase_interviews_sicher`, dann die Folgefrage „Fertig, auswerten" · „Es kommt noch was" (`ART_OHNE_KNOPF_FERTIG`/`_WEITER`, Kopf-id im `wert`); „Fertig" ist wortgleich derselbe Weg wie „Interview beenden" (`beende_interview` + `starte_abschluss` im Thread). **Nein** → `aufnahme.nimm_als_beitrag`: `repo.zeige_transkript_nachricht` macht die Zeile sichtbar, und `bot._zug_und_erkenner` wird **genau einmal** in einem eigenen Thread nachgeholt. **Keine Antwort → gar nichts** (kein Auto-Ja, kein Zeitgeber); fürs Dashboard bleibt der Vorfall `interview_ohne_knopf_offen` stehen, und „Interview starten" sammelt das Material weiterhin als Nachzügler ein — der Weg, der am Live-Tag fünf Minuten später tatsächlich funktioniert hat. Zusage 2 gilt: kein Modellaufruf in `knoepfe._wirke_ohne_knopf`. Unter 60 Sekunden ändert sich nichts, dort bleibt eine Sprachnachricht ohne Modus ein Gesprächsbeitrag. Der frühere beiläufige Materialhinweis (`aufnahme._TEXT_MATERIAL_HINWEIS`) ist damit tot: er hing an genau dem Zug, den es nicht geben durfte. Tests: `tests/test_interview_ohne_knopf.py`.
+
 - **Ein Interview ist eine Einheit** (seit 05.09.2026, SPEC § 10.6). Das ist
   die Korrektur aus dem Probelauf: ein Interview aus fünf Sprachnachrichten
   wurde zu fünf Aufnahmen, fünf Verdichtungen (zwei leer) und fünfmal „Ich
@@ -503,6 +506,578 @@ lädt, würde damit Gesprächszüge ausbremsen.
   dazu gesagt hat" — Chat schlägt gespeicherte Angaben. `stop_reason ≠ end_turn`
   ist ein Fehler (`szene_abgeschnitten`), kein Text; `_pruefe_budget` warnt ab
   90 % der tatsächlichen Token.
+
+## Die Dramaturgie-Prüfung
+
+Seit dem 06.09.2026, `interview_theater/dramaturgie/`. Sie steht **neben**
+`stueckpruefung.py` und ersetzt sie nicht: der Stück-Judge liest das ganze
+Textbuch und gibt sechs Noten 1–5, diese Ebene hier gibt **keine Note**,
+sondern einzelne Befunde mit Szenennummer, Figur und geprüftem Belegzitat.
+Zwei Fragen, zwei Tabellen (`stueckpruefung`, `dramaturgie_befund`), zwei
+Knöpfe unter der Abschlussleiste in Phase 7. Fachliche Grundlage:
+`docs/recherche-story-qualitaet-2026-09-06.md`.
+
+**Was mechanisch läuft und was das Modell macht.** `mechanik.py` zählt und
+vergleicht — Namensstabilität (`difflib`, Standardbibliothek: „Leyla"/„Layla"),
+Geisterfiguren, Besetzungsabgleich gegen `szene_figur`, Erstauftritt-Register,
+Tschechow-Kandidaten, Formverteilung gegen die Regeln des Szenen-Prompts und
+die Sprechanteile je Figur. Kein Modellaufruf, kein Netz, reine Funktionen.
+Das Modell bekommt nur, was sich nicht zählen lässt: ob eine Szene ihre
+Wertladung dreht (B1), ob eine Szene kausal an die vorige anschließt (A2), ob
+ein Kandidat überhaupt „aufgeladen" war (A6), ob zwei Figuren
+auseinanderzuhalten sind (C1). **Vier Fragen, nicht vierzehn** — die vier mit
+dem höchsten Ertrag pro Aufruf, in der Reihenfolge aus § 6 der Recherche. Für
+ein Stück mit 8 Szenen sind das 18 Aufrufe (8 × B1, 8 × C1, 1 × A2, 1 × A6),
+plus höchstens einen Retry je Frage.
+
+**Der Sprecherzeilen-Parser ist der kritische Punkt und deshalb defensiv.**
+Er liest die vier Ausgabeformen aus `prompts/formen/` (Dialog mit Inline-Regie
+ohne Leerzeichen, `CHOR:`, Rap mit dem Namen allein auf der Zeile, Lied mit
+`STROPHE (NAME)`); erkennt er in einer Szene **keine** Sprecherzeile, liefern
+alle sprecherabhängigen Checks für diese Szene **gar keinen** Befund. Ohne
+diese Regel meldete jede Liedszene ihre ganze Besetzung als stumm — ein
+falscher Befund kostet Vertrauen, ein fehlender nur eine Gelegenheit.
+
+**Warum der Richter ein anderes Modell sein muss.** Judges bevorzugen
+messbar Texte des eigenen Modells (Self-Enhancement Bias, MT-Bench Q17; G-Eval
+zeigt denselben Effekt zugunsten LLM-generierter Texte allgemein, Q19). Also
+`IT_JUDGE_MODELL`, Vorgabe ist der jeweils **andere** Anbieterweg: schreiben
+die Szenen über Claude, richtet das Infomaniak-Modell — und umgekehrt. Sind
+Schreiber und Richter dasselbe Modell, gibt es einen `RichterFehler` mit einem
+Satz für die Gruppe und **keinen Lauf**. Keine stille Abwertung: ein Abzug,
+den niemand nachrechnen kann, ist schlimmer als eine Fehlermeldung.
+
+**Warum der Beleg mechanisch verifiziert wird.** Ein Judge kann jede Note
+begründen, auch eine falsche — die Begründung entsteht nach dem Urteil. Das
+einzige mechanische Gegenmittel ist die Zitatpflicht: `beleg.py` prüft das
+Zitat mit `zitat.pruefe` (dieselbe Funktion wie bei Verdichter, Kernzitaten,
+Sprachprofil und Schärfung — **keine zweite, großzügigere Normalisierung**)
+gegen genau den Text, der dem Judge vorlag, nicht gegen das ganze Stück. Kein
+Treffer → **ein** Retry mit dem Hinweis „dein Zitat kam im Text nicht vor" →
+danach `unsicher`, der Score wird **verworfen** (nicht abgewertet), und der
+Befund geht ins Log statt an den Schreib-LLM. Das ist die wichtigste einzelne
+Maßnahme des Designs.
+
+**Bei C1 vergibt der Judge keinen Score.** Er bekommt die Repliken einer Szene
+ohne Namen und ordnet sie zu; die Trefferquote und damit der Score rechnet der
+Code aus der Ground Truth. Das Modell erfährt nie, wie gut es war, und kann
+sich deshalb nicht selbst benoten. Der Umbauvorschlag wird ebenfalls im Code
+gebaut, aus dem Figurenpaar, das am häufigsten verwechselt wurde.
+
+**Warum seriell statt parallel.** Die Recherche empfiehlt Nebenläufigkeit
+8–12. Das ist für unseren Betrieb falsch: Infomaniak drosselt Parallelität mit
+429/5xx statt mit einer Warteschlange (Falle 8 unten), und
+`scripts/pruefe_prompts.py` ruft aus demselben Grund sequenziell auf. Bei
+18 Aufrufen je Lauf ist das auch kein Verlust. Backoff steckt in den beiden
+vorhandenen Anbieterwegen (`llm.WARTEZEITEN`, `szene_claude.WARTEZEITEN`); ein
+einzelner gescheiterter Aufruf bekommt einen Vorfall
+(`dramaturgie_aufruf_fehlgeschlagen`) und reißt den Lauf nicht mit.
+
+**Der Bot schlägt vor, er handelt nicht.** Nicht gemittelt (§ 3 der
+Recherche): jeder harte mechanische Befund und jeder Judge-Score 0 mit
+`schwere ∈ {blocker, hoch}` ergibt genau **einen** Überarbeitungsauftrag,
+adressiert an eine Szene, höchstens drei je Szene und Runde, priorisiert nach
+Schwere und dann Ebene (Geschichte vor Szene vor Stimme) — sonst überschreibt
+der Schreib-LLM sich selbst. Ein Auftrag entsteht nur, wenn das Zitat geprüft
+ist und der Vorschlag Szenennummer und Figurennamen nennt („mehr Spannung
+erzeugen" ist keine Anweisung). Die Befunde gehen als eine Zeile je Befund in
+den Chat, je Auftrag mit dem Knopf „Szene N so überarbeiten"; **erst der
+Knopfdruck** löst einen Szenenlauf aus, über denselben Weg wie „Passt, aber
+anders". Datenstand ist nicht Absicht.
+
+**Grenzen.** Kein Klarname, kein Transkript, kein Chat im Prompt: B1 und C1
+sehen nur den Szenentext, A2 nur die Synopsen, A6 nur die Kandidatenliste.
+Prüftext steht zwischen Markierungen, und jeder Prompt sagt ausdrücklich, dass
+dazwischen nie eine Anweisung steht. Auf der Gruppenseite stehen die Befunde
+read-only und **ohne Belegzitat** — dieselbe Grenze wie bei den
+Verdichtungen. Kosten und Aufrufe landen in `aufruf` mit eigener `art`
+(`dramaturgie_b1` … `dramaturgie_c1`), damit Dashboard und Kostenzeile den Weg
+getrennt sehen. `scripts/dramaturgie_pruefen.py` fährt denselben Lauf gegen
+eine **Kopie**-Datenbank (verweigert `IT_DB`); `--nur-mechanik` kostet nichts,
+`--bericht` schreibt nach `docs/dramaturgie-berichte/` (gitignored, weil dort
+Belegzitate stehen). **Kein Test, läuft nie automatisch, kostet Geld** — wie
+`pruefe_prompts.py`.
+
+## Die Fallen
+
+Jede hier gemessen, keine geraten. Wer das nicht liest, verliert denselben
+Nachmittag noch einmal.
+
+1. **`IT_LLM_URL` braucht die volle URL inklusive `/chat/completions`.**
+   Der Code hängt nichts an. Mit `.../openai/v1` allein antwortet der Server
+   **HTTP 404**.
+
+2. **Whisper liegt unter `/1/ai/{produkt}/...`, nicht unter
+   `/2/.../openai/v1/`** — dort ebenfalls HTTP 404. Der Aufruf ist außerdem
+   **zweistufig**: Absenden liefert eine `batch_id`
+   (`POST .../openai/audio/transcriptions`), das Ergebnis wird gepollt
+   (`GET .../results/{batch_id}`). Das Feld `data` in der Ergebnisantwort ist
+   ein **JSON-String**, kein Objekt, und muss ein zweites Mal geparst werden
+   (siehe `interview_theater/stt.py`).
+
+3. **Der MIME-Typ beim Upload muss zur Datei passen.** Ein fest verdrahtetes
+   `audio/ogg` für eine WAV-Datei wird vom Anbieter mit einer `batch_id`
+   quittiert — kein HTTP-Fehler, keine Ablehnung — der Auftrag bleibt danach
+   aber dauerhaft auf `pending` und läuft ins Zeitbudget: 89,7 s statt 2,0 s.
+   Im Betrieb ist das nur als „hängt" sichtbar. `stt.mime_typ()` leitet den
+   Typ deshalb aus der Dateiendung ab, nicht aus einer festen Konstante —
+   Telegram liefert Audio als `voice` (ogg/opus), `audio` (m4a, mp3) und als
+   Dokument.
+
+4. **`reasoning_effort` ist binär, und das Feld wegzulassen schaltet
+   Reasoning AN.** `"none"` schaltet aus, jeder andere Wert — auch das Fehlen
+   des Feldes — schaltet an. Es gibt keine stille Voreinstellung „aus"
+   (`interview_theater/llm.py`, `LLM._anfrage`: das Feld wird deshalb **immer**
+   gesendet). Reasoning ist überall aus; bei Klassifikation mit Ausnahmen
+   (dem Absichtserkenner) senkt es die Trefferquote messbar. Eng verwandte
+   Falle: Reasoning verbraucht das Ausgabebudget, bevor der eigentliche
+   Inhalt beginnt — bei zu knappem `max_tokens` kommt HTTP 200 mit
+   `content: null` und `finish_reason: "length"` zurück, ein stiller
+   Durchfall statt eines Fehlers. Deshalb `MAX_TOKENS = 9000` und
+   `finish_reason == "length"` wird explizit als Budget-, nicht als
+   Formatfehler behandelt.
+
+   **Die eine Ausnahme: `szene.py`.** Dort ist Reasoning AN, und zwar nach
+   der Matrix in `reasoning-stufen-entscheidungshilfe.md` § 4.2, nicht weil
+   Szenentext „wichtiger" wäre: entscheidend ist, ob ein Mensch wartet — und
+   beim Szenenlauf wartet niemand, er hängt in einem eigenen Thread. Daran
+   hängen zwei Werte, die dort eigens gesetzt sind und nicht aus `llm.py`
+   kommen: `max_tokens = 200.000` und ein Zeitbudget von 600 s (der
+   `httpx.Client` aus `bot.main` hat 30 s, das reicht für einen Reasoning-Lauf
+   nicht). Wer einen weiteren Aufruf mit Reasoning baut, braucht beides
+   wieder.
+
+   **`max_tokens` ist bei Infomaniak eine Obergrenze, kein Zielwert — und sie
+   zählt gegen Eingabe *und* Ausgabe zusammen.** Mit dem erweiterten
+   Szenen-Prompt (dreizehn Dramaturgieregeln, Formen-Regelblock, Tells) lief
+   ein Lauf bei 12.000 Token nur im Denken leer (`finish_reason: "length"`,
+   kein Inhalt), der erste erfolgreiche brauchte 19.410 Antwort-Token.
+   Zugleich rechnet Infomaniak `max_tokens + Eingabe` gegen
+   `max_total_tokens = 249.984` — bei 250.000 kam HTTP 400 zurück, gemessen
+   am 04.09.2026 abends. 200.000 lässt rund 50.000 Token Platz für die
+   Eingabe und liegt trotzdem klar über dem gemessenen Antwortbudget: ein
+   Deckel knapp über dem letzten Lauf programmiert nur den nächsten Abbruch
+   vor.
+
+5. **Modellwahl je Aufruf.** Kimi fürs Gespräch und den Verdichter,
+   `google/gemma-4-31B-it` für Absichtserkennung und Journal (gemessen: 0
+   Falsch-Positive bei 25 Negativfällen, 30/30 Treffer; Kimi verpasste
+   `interview_beenden` 3 von 3 Mal). `gemma` hat rund 28 s Kaltstart, danach
+   unter 1 s — deshalb läuft `bot.warmlaufen()` beim Prozessstart in einem
+   eigenen Thread ins Leere. Nemotron-Nano ist bei der Absichtserkennung mit
+   6/27 Falsch-Positiven durchgefallen und darf nirgends als Vorgabewert
+   auftauchen.
+
+6. **Eine SQLite-Verbindung über mehrere Threads ist nicht
+   nebenläufigkeitssicher — auch nicht mit `check_same_thread=False`.** Das
+   hebt nur die Thread-Zugehörigkeitsprüfung auf, synchronisiert aber nicht
+   die interne Transaktionsbuchhaltung; beobachtet als sporadisches
+   `sqlite3.OperationalError: cannot commit - no transaction is active`
+   unter mehreren gleichzeitigen Schreibern. Deshalb ist jede Funktion in
+   `repo.py` über einen modulweiten `threading.RLock` serialisiert
+   (`repo._LOCK`, Dekorator `_gesperrt`). **`RLock`, nicht `Lock`:**
+   `lege_aufnahme_an` ruft innerhalb desselben Threads `zaehle_aufnahmen`
+   auf — mit einem einfachen `Lock` würde sich der Thread beim zweiten
+   `acquire` selbst blockieren.
+
+7. **Betrieb:** nie denselben Bot-Namen zweimal gleichzeitig starten
+   (beide würden dieselbe `bot_zustand`-Zeile und dasselbe
+   getUpdates-Offset verwenden), nie zwei Bots in dieselbe Telegram-Gruppe
+   einladen (beide würden dort antworten — sofort sichtbar, aber
+   vermeidbar).
+
+8. **Infomaniak drosselt Parallelität mit 429/5xx, nicht mit einer sauberen
+   Warteschlange.** Betrifft im Betrieb kaum den Bot selbst (Aufrufe je
+   Gruppe laufen ohnehin nacheinander), aber jeden eigenen Skriptlauf, der
+   mehrere Anfragen gleichzeitig schickt — `scripts/pruefe_prompts.py` ruft
+   deshalb sequenziell auf, nicht parallel. Wer ein Werkzeug baut, das mehrere
+   Aufrufe gleichzeitig absetzt, bekommt sporadische 429/5xx statt eines
+   verlässlichen Fehlers und sollte seriell bleiben oder selbst drosseln.
+
+## Wo SPEC und Code auseinanderlaufen
+
+`SPEC-kontext-architektur.md` § 8 beschreibt ursprünglich vierzehn Befehle
+und einen Modus B (`/gruendlich`, freier Prosatext mit
+`reasoning_effort: "medium"`, via `LLM.prosa()`). Nach dem ersten
+Workshoptag wurde das auf die sechs Befehle in `befehle.py` reduziert (siehe
+Commit „Sechs Befehle als Notausgang"): `/merken`, `/verworfen`,
+`/konflikt`, `/begriffe`, `/figur`, `/name`, `/material` und `/gruendlich`
+existieren in der SPEC, aber nicht mehr im Code. Seit dem 05.09.2026 sind es
+zehn: `/szene` ist dazugekommen, und mit ihm ist `LLM.prosa()` verdrahtet
+(`szene.py`, SPEC § 4.5 Nachtrag), dann `/phase` (Arbeitsphase zeigen oder
+umschalten), `/figur <Name> entfernen` (weiches Löschen, NACHTRAG N3) und
+`/auswerten [N]` (ein Interview unter `aufnahme.MINDEST_WOERTER` doch noch
+verdichten, N2) —
+`/figur` legt bewusst **nichts** an, das macht weiterhin der Erkenner im
+Gespräch. Wer an diesen Stellen weiterbaut, sollte sich auf `befehle.py`
+verlassen, nicht auf die SPEC-Tabelle.
+
+`befehle.behandle()` nimmt seit `/szene` ein optionales `klm` entgegen. Die
+alte strukturelle Garantie („behandle bekommt kein LLM-Objekt, also kann ein
+Befehl nicht am Modell scheitern") ist damit eine Zusage geworden, die der
+Code weiterhin einhält: **kein Befehl ruft synchron ein Modell** — `/szene`,
+`/fertig` und `/auswerten` geben sofort an einen eigenen Thread ab. Wer einen
+elften Befehl anhängt, halte sich daran.
+
+`einstellungen.py` liest zusätzlich `IT_MODELL_ERKENNER` (Vorgabewert
+`google/gemma-4-31B-it`) — diese Variable fehlt noch in
+`docs/betrieb-env.beispiel`.
+
+## Starten und testen
+
+**Regelweg: systemd-User-Units, nie Handstart.** Zwei Handstarts desselben
+Bots = beide bekommen `409 Conflict` bei `getUpdates`, keiner empfaengt —
+passiert am 04.09.2026 zweimal. Unit-Vorlage `docs/interview-theater@.service`
+(nach `~/.config/systemd/user/`, `daemon-reload`), Start ueber
+`scripts/betrieb-start.sh <gruppe>` (waehlt Python 3.11 aus `.venv`/uv —
+das System-Python 3.9 kann `X | None` nicht importieren).
+
+```
+systemctl --user enable --now interview-theater@gruppe1.service   # je Gruppe
+systemctl --user restart interview-theater@gruppe1.service        # Neustart
+tail -f betrieb/gruppe1.log                                 # Log je Gruppe
+```
+
+**Verhalten aendern ohne Neustart** (`interview_theater/anweisungen.py`): alle
+Prompts unter `interview_theater/prompts/` werden bei jedem Aufruf per mtime
+geprueft und heiss nachgeladen -- auch `szene.md` und die Negativliste
+`theater-tells.md`, die im Workshop waechst und beim naechsten Szenenauftrag
+wirkt. Fuer spontane Regieanweisungen gibt es
+`betrieb/zusatz.md` (alle Bots) und `betrieb/zusatz.<IT_BOT_NAME>.md` (ein
+Bot); der Inhalt wird ans Ende der Gespraechs-Systemanweisung gehaengt,
+Loeschen der Datei nimmt ihn zurueck. Erkenner/Journal/Verdichter bekommen
+bewusst keinen Zusatz (gemessene Few-Shot-Prompts). Bedienung aus Hermes:
+Skill `interview-theater-live-ops`.
+
+Umgebungsvariablen: siehe `docs/betrieb-env.beispiel` zum Kopieren nach
+`betrieb/<name>.env`. Handstart nur zum Debuggen, und nur wenn die Unit
+gestoppt ist:
+
+```
+set -a; . ./betrieb/gruppe1.env; set +a
+python -m interview_theater.bot
+```
+
+- `pytest` — die Testsuite unter `tests/`, läuft ohne Netzzugriff (Attrappen
+  statt echter Dienste). Enthält die Korpus-Validierung und die
+  Bewertungsfunktionen aus `scripts/pruefe_prompts.py`, nicht den Lauf gegen
+  das Modell.
+- `python -m scripts.rauchtest [pfad-zu-audio.ogg]` — **kein Test, läuft nie
+  automatisch, kostet Geld.** Ein echter Aufruf gegen Sprachmodell und
+  optional Whisper, zur Kalibrierung der Token-Schätzung und als
+  Erreichbarkeitsprüfung vor einem Einsatz.
+- `python scripts/chat_leeren.py <chat_id> [--ja]` — setzt eine Gruppe auf
+  null: löscht alle dem Bot bekannten Nachrichten aus dem Telegram-Chat
+  (`deleteMessages`, Bot muss Admin sein; Nachrichten von vor seinem
+  Eintritt und Telegram-Servicezeilen bleiben) und danach DB + Audio wie
+  `loeschen.py`. Für den Workshop-Start nach einem Probelauf. Env der
+  jeweiligen Gruppe laden — das Skript prüft, dass der Bot zur Gruppe passt.
+- `python -m scripts.chat_leeren_blind <chat_id> [--zurueck 300]` — wenn die
+  DB die Nachrichten nicht mehr kennt (nach `loeschen.py` oder nach einem
+  Simulationslauf mit `--echte-db`): Marker senden, dann die letzten 300
+  IDs rückwärts löschen. Telegram-Grenze: nur 48 h, nur als Admin.
+- `python -m scripts.szenen_vergleich --nur opus,kimi,mistral,apertus` —
+  eine Szene, gleicher Prompt, vier Modelle; Ausgabe als Markdown mit dem
+  Prompt als Anhang. Grundlage der Entscheidung für Opus (05.09.).
+- `python -m scripts.interviews_uebernehmen <ziel> <quelle> [<quelle> …] [--ja]`
+  — hebt die Gruppengrenze für **Material** auf (06.09.2026, Ende Tag 2: nur
+  noch eine Gruppe arbeitet weiter und soll alle Interviews sehen). Kopiert je
+  Quellinterview Kopf, Teile, Transkripte, Verdichtung und
+  `verdichtung_thema` (inkl. `zitat_geprueft`) sowie die Audiodateien in die
+  Zielgruppe; **kein Modellaufruf**, die Quellen bleiben unverändert.
+  Arbeitsstand, Figuren, Szenen, Knöpfe, Nachrichten, Journal und Kernzitate
+  wandern bewusst **nicht** — das ist die Arbeit der Quellgruppe an ihrem
+  Material, nicht das Material. `zum_kernthema_am` wird auf NULL gesetzt: was
+  zur Kernfrage passt, entscheidet die Zielgruppe selbst. Die Nummerierung
+  läuft weiter, weil `kontext.interviewbezeichnung` nach `id` zählt und neue
+  Zeilen höhere ids bekommen; `name` wird beim Import auf „Interview N"
+  gesetzt und nie aus der Quelle übernommen (dort kann ein Klarname stehen).
+  Idempotent über `aufnahme.uebernommen_von` („`<quell_chat_id>:<alte_id>`",
+  additiv migriert), alles in einer Transaktion, ohne `--ja` reiner
+  Trockenlauf mit Zählung. Verweigert den Dienst, solange in Ziel oder Quelle
+  eine Aufnahme läuft oder der Interviewmodus an ist. Mit `--ja` legt es
+  selbst ein DB-Backup an, schreibt einen Journaleintrag in die Zielgruppe und
+  eine Zeile in den Zielchat. Env der **Ziel**gruppe laden — die Quellen
+  dürfen anderen Bots gehören, sie liegen in derselben Datenbank.
+- `python scripts/loeschen.py <chat_id>` — der Löschweg: entfernt alle
+  Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
+  interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
+
+**Simulation** (`simulation/`, `scripts/simulation.py`, Stand 06.09.2026 nachts):
+simulierte Gruppen spielen den Bot durch alle **acht Phasen** — mit Inline-Knöpfen
+(`attrappe` merkt die Leisten, die Stimme drückt per Knopftext oder schreibt
+frei) und dem Schrittplan `skript.SCHRITTE_TAG2`. Stimmen: drei erfundene Sets
+plus **PII-freie Personas aus Tag 1** (`simulation/tag1.py`,
+`simulation/stimmen/tag1-gruppe{1,2,3}.md`, `regie.md`): nur Begriffe/Fragen der
+echten Gruppen, Themen-Stichworte und Verhaltensaggregate, nie Transkripte oder
+Klarnamen — `tests/test_simulation_tag1.py` prüft das gegen die echte DB, wenn
+sie da ist. Der Richter (Claude Opus über den Proxy) bewertet zusätzlich:
+Nachrichten bis zum Speichern, Fragen je Bot-Nachricht, Wiederholungsquote,
+„Bot redet parallel zum Auftrag", Knöpfe angeboten→gedrückt, Phasenwechsel
+proaktiv, Form je Szene bestätigt, Exposition der Szene 1. Berichte
+`simulation/laeufe/2026-09-06-*.md` + Sammelbericht. Läuft gegen ein anderes
+Modell als der Bot. **Kein Test, kein Ersatz für `pytest` oder
+`pruefe_prompts.py`**; Doku `simulation/README.md`.
+
+## Weboberfläche
+
+Ein einziger Prozess für alle Gruppen, neben den Bots:
+
+```
+IT_DB=betrieb/soap.db python -m interview_theater.web
+```
+
+Unit-Vorlage `docs/interview-theater-web.service` (nach `~/.config/systemd/user/`,
+`daemon-reload`, dann `systemctl --user enable --now interview-theater-web`), Log
+nach `betrieb/web.log`.
+
+| Variable | Vorgabe | Bedeutung |
+|---|---|---|
+| `IT_DB` | — (Pflicht) | dieselbe SQLite wie die Bots, **read-only** geöffnet |
+| `IT_WEB_BIND` | `127.0.0.1:8010` | im Betrieb `100.75.24.33:8010` (Tailnet) |
+| `IT_WEB_PREFIX` | `/theatersoap` | Präfix, unter dem nginx den Server durchreicht |
+| `IT_WEB_URL` | `https://lab.artesmobiles.art/theatersoap` | nur für `scripts/web_links.py` |
+
+Routen: `/` (Team-Dashboard, projiziert, alle Gruppen), `/g/<token>`
+(Leseansicht einer Gruppe, Handy), `/gesund` (Health-Check, antwortet ohne
+Datenbankzugriff). Jede Route greift auch mit vorangestelltem
+`IT_WEB_PREFIX`, weil erst die nginx-Konfiguration entscheidet, ob das
+Präfix beim Server ankommt.
+
+`python scripts/web_links.py` gibt aus, welche Gruppe welchen Link bekommt.
+Das Token steht in `gruppe.web_token`, erzeugt wird es beim ersten Kontakt
+vom Bot (`repo.stelle_web_token_sicher`, aufgerufen aus `sichere_gruppe`) —
+der Webserver kann es nicht anlegen, er liest read-only.
+
+**Drei Grenzen, die nicht verhandelbar sind**, weil beide Seiten ohne Login
+erreichbar sind und das Dashboard projiziert wird:
+
+- kein Nachrichtentext und keine Transkripte auf dem Dashboard,
+- kein Volltranskript auf der Gruppenseite (dafür gibt es `/wortlaut` im Chat),
+- kein Belegzitat ohne `zitat_geprueft = 1`.
+
+`IT_WEB_BIND` lehnt `0.0.0.0` mit einem Fehler ab: ein Tippfehler in einer
+Env-Datei soll die Interviews nicht ins offene Netz stellen.
+
+### Die Gruppenseite ändert Parameter (05.09.2026 abends)
+
+Bis zu diesem Abend war beides read-only, mit der Begründung „sonst laufen
+zwei Schreibwege gegeneinander" (N1). Die Begründung gilt weiter — deshalb
+gibt es **keinen zweiten Schreibweg, sondern einen zweiten Auslöser für den
+vorhandenen**: `web_schreiben.py` ruft ausschließlich `repo`-Funktionen,
+dieselben wie `knoepfe._speichere` und `erkenner.wende_an`. In `web_daten.py`
+kommt kein einziger Schreibpfad dazu; es bleibt read-only (`mode=ro`), und nur
+der POST-Handler öffnet eine schreibende Verbindung (`db.verbinde` — WAL und
+`busy_timeout`, wie `scripts/begruessen.py` aus einem fremden Prozess). Zwei
+Tests halten das fest: kein `SELECT`/`INSERT`/`UPDATE` in `web_schreiben.py`,
+kein Schreibpfad in `web_daten.py`. Änderbar ist **genau** `web_schreiben.FELDER`
+und nichts sonst: Setting (`rahmen`), Geschichte, je Figur
+Name/Beschreibung/Interview/Entfernen/Hinzufügen und je Szene Titel, Form,
+Ort, Zeit, Anlass, was passiert, was anders, Ton und die Besetzung — also
+genau das, was die Gruppe hier **fertig entscheiden** kann. Setting und
+Geschichte sind dabei **unabhängig voneinander**: ein neues Setting ändert die
+Geschichte nicht und stößt auch nichts an, was sie später ändern würde (Birk,
+06.09.2026 10:25 — kein Auftragsweg vom Web an den Bot, keine automatische
+Geschichte). Nicht änderbar: **nie Material** (Aufnahmen, Transkripte,
+Verdichtungen, Belegzitate), nie der Szenen-Volltext, nie das Journal, nie die
+USA-Einwilligung, nie der Sprachprofil-Text, nie die Schärfungs-Zuordnungen.
+**Was der Chat führt** (`web_schreiben.FUEHRT_DER_CHAT`): Phase, Begriffe,
+Fragen und die drei Leitfaden-Felder. Sie stehen auf der Seite an ihrem Platz,
+aber als Anzeige — sie entstehen im Gespräch über Knöpfe und Ping-Pong, oft mit
+einem Modellaufruf dahinter, und der Webserver hat keinen Modellklienten; sie
+hier umtippen zu lassen hieße, denselben Wert auf zwei Wegen zu pflegen, von
+denen einer die halbe Kette auslässt. Von den drei Leitfaden-Feldern steht
+nicht einmal das Rohfeld da, sondern der **gebaute Leitfaden**
+(`leitfaden.aus_feldern`, dieselbe Funktion wie im Chat): das, was die Gruppe
+im Interview in der Hand hält. Seit dem Phasen-Umbau fehlen außerdem
+**Kernthema, Kernthema-Richtung und Kernfrage**: sie sind keine Station mehr,
+`geschichte` hat ihre Rolle übernommen; gesetzte Werte bleiben sichtbar
+(`web_schreiben.NUR_ANZEIGE`, nur wenn gesetzt), änderbar sind sie nicht.
+Ebenfalls nur Anzeige: der Formvorschlag je Szene (`szene.form_vorschlag` —
+bestätigt ist allein `form`, und wer hier wählt, bestätigt gerade selbst) und
+die Schärfungen aus Phase 6, als Zähler mit Kurzformen und **ohne Belegzitat**.
+Die Dropdowns holen ihre Vorschläge aus der Tabelle `knopf`, zeigen also nur,
+was im Chat ohnehin schon zur Auswahl stand. Jede Änderung hängt einen Journaleintrag an, `art
+'entschieden'`, **`quelle 'web'`**, mit altem und neuem Wert (120 Zeichen je
+Seite) — das ist der einzige Weg, auf dem der Gesprächs-Bot davon erfährt, denn
+der Webserver spricht nicht mit Telegram: er liest das Journal bei jedem Zug
+frisch (`kontext._baue_journal`). Wie in einem Knopf-Handler fällt hier **kein
+Modellaufruf** an; wechselt eine Figur ihr Interview, wird deshalb das alte
+Sprachprofil geleert und `geprueft_am` zurückgenommen, `knoepfe.stelle_figur_vor`
+holt es im nächsten Zug im eigenen Thread nach. Das **Dashboard bleibt
+vollständig read-only** und nimmt gar kein POST an — es hängt am Beamer. CSRF:
+das Token in der URL ist das Geheimnis, dazu ein Formular-Nonce aus Token und
+Stundenfenster (abgeleitet, nicht gewürfelt — ein zufälliger Nonce ließe das
+sanfte Nachladen die Seite alle zehn Sekunden austauschen und risse jedes
+offene Eingabefeld mit); aus demselben Grund lädt die Seite gar nicht erst
+nach, solange der Fokus in einem Feld steht oder eines ungespeichert geändert
+ist. Ein Neustart der Unit `interview-theater-web.service` ist nötig, die Bots
+nicht.
+
+### Prompt geändert? → Korpus laufen lassen
+
+Die fünf Prompts werden heiß nachgeladen, also ändert sie jemand **während**
+des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
+den Blindflug: 121 Absichtserkenner-Fälle (davon 45 Negativfälle; darunter
+welche aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1 —,
+und 10 mit `zustimmung: true` markiert, N7; Stand 05.09.2026 nach dem
+Szenen-Umbau, alle `art`-Werte mindestens zweimal, `szene_planen` mit
+Szenenbezug), 22 Journal-Abschnitte (davon 11 leere), 7 erfundene
+Interviewtranskripte — darunter einer, dessen Sollwert **null** Kernthemen
+sind (der Live-Fall aus dem Probelauf, N2) — und 5 Sprachprofil-Fälle (T3,
+eine je Sprechweise: kurze Sätze mit Selbstkorrektur, Code-Switching,
+„man"-Distanz, Reihungen, Rückfragen), alle mit Sollwert.
+
+```
+set -a; . ./betrieb/gruppe1.env; set +a
+python -m scripts.pruefe_prompts erkenner             # nach einer Änderung an erkenner.md
+python -m scripts.pruefe_prompts alle --bericht       # vollständig, mit Markdown-Bericht
+python -m scripts.pruefe_prompts erkenner --nur e18-verworfen-kindheitsfragen
+python -m scripts.pruefe_prompts erkenner --modell <anderes>   # Modellvergleich
+```
+
+**Kein Test, läuft nie automatisch, kostet Rappen** — wie `rauchtest.py`. Rund
+70 Aufrufe für `alle`, sequenziell (Infomaniak liefert bei Parallelität
+429/5xx). Der Lauf schreibt seine `aufruf`- und `vorfall`-Zeilen in eine
+Wegwerf-Datenbank, nie in `IT_DB`.
+
+> **Die Regel: eine Änderung am Erkenner-Prompt gilt nur, wenn FP = 0 bleibt.**
+> Null Falsch-Positive bei 25 Negativfällen ist die Zahl, die den Erkenner
+> qualifiziert und die acht nicht gebauten Befehle begründet hat (SPEC § 4.3a,
+> § 8.1). Genau das ist deshalb der Exit-Code: das Skript endet mit 1, sobald
+> der Erkenner auch nur ein Falsch-Positiv liefert.
+>
+> **Was FP heißt, hat sich am 05.09.2026 gedreht (N7) — die Zahl nicht.** Ein
+> Falsch-Positiv ist jetzt: ein Eintrag, dem im Abschnitt **kein konkreter
+> Vorschlag und keine Zustimmung** vorausgeht. Ein Eintrag *nach* einer
+> Zustimmung ist keiner mehr, auch wenn sie beiläufig war („passt", „nehmen
+> wir", „das können wir so fix machen"). Grund: seit es weiches Löschen und
+> `transkript_korrigieren` gibt, ist ein falscher Eintrag billig — ein Satz der
+> Gruppe nimmt ihn zurück —, ein fehlender teuer: die Website bleibt leer, der
+> Bot weiß nichts davon, und die Gruppe muss alles noch einmal sagen. Im
+> Probelauf stimmte sie dreimal zu (Fragen, Kernthema, drei Figuren), und
+> dreimal blieb der Arbeitsstand leer. **Das Prüfskript rechnet dafür nicht
+> anders — es sind die Sollwerte im Korpus, die sich gedreht haben.** Daneben
+> steht seither eine zweite Kennzahl (nicht im Exit-Code): **Falsch-Negative in
+> Zustimmungsfällen**, Korpusfeld `zustimmung`, soll ebenfalls 0.
+>
+> Zwei Arten bleiben auf „im Zweifel kein Eintrag" kalibriert:
+> `szene_schreiben` (kostet zwei Minuten Wartezeit und eine unbestellte
+> Nachricht) und `entfernen` (nimmt etwas weg).
+
+Berichte landen in `korpus/berichte/` und sind **gitignored**: sie enthalten
+vollständige Modellantworten. Der Korpus selbst ist frei erfunden und gehört
+ins Repository.
+
+### Simulation: ein ganzer Workshop gegen die echten Modelle
+
+Der Korpus misst einzelne Prompts an einzelnen Fällen. Was er **nicht** misst,
+ist der Zusammenhang: ob eine Gruppe mit diesem Bot von einer Begriffsliste zu
+einem Szenentext kommt, ob Zustimmungen ankommen, ob der Bot behauptet, etwas
+notiert zu haben, das nirgends steht. Genau dafür gibt es
+`scripts/simulation.py` (Details in [simulation/README.md](simulation/README.md)).
+
+Drei simulierte Teilnehmerinnen arbeiten sich durch neun Schritte: Begriffe,
+Fragen, fünf Interviews, Kernthema, Figuren, Phase 5, eine Szene, eine
+Korrektur, `/stand`. Gefahren wird **derselbe Codepfad wie im Betrieb**
+(`bot.verarbeite_update`, `bot._zug_und_erkenner`), nur mit einer
+Telegram-Attrappe statt Netz und einer Wegwerf-Datenbank statt `IT_DB`. Der
+Umweg über Telegram ist gar nicht möglich: Telegram liefert Bot-Nachrichten
+nie an andere Bots (Bot-FAQ). Interviews kommen als Text
+(`aufnahme.importiere_text`, § 10.5), kein Whisper.
+
+**Zwei Modelle, eine Trennlinie.** Alles, was der Bot tut, läuft über
+Infomaniak — er ist der Prüfling. Alles, was Simulation ist (die Stimmen, der
+Richter, die einmalige Erzeugung der fünfzehn Interviewdatensätze), läuft über
+**Claude Opus** an einem lokalen Proxy (`simulation/claude.py`,
+`IT_SIM_URL`/`IT_SIM_MODELL`, Anthropic-Messages-Format, kein
+Authorization-Header). Ohne diese Trennung würde der Prüfling seine eigenen
+Teilnehmerinnen spielen und sich anschließend selbst benoten. Die
+Simulationsseite läuft über ein Abonnement und kostet je Aufruf nichts — die
+Kostenzeile im Bericht ist deshalb genau das, was ein Workshoptag zahlen
+würde.
+
+```
+set -a; . ./betrieb/gruppe1.env; set +a
+python -m scripts.simulation --set 1 --seed 7 --bericht
+python -m scripts.simulation --mix 1,2,3 --seed 3
+python -m scripts.simulation --set 1 --seed 1 --ohne-szene   # ohne Reasoning-Lauf
+python -m scripts.simulation --set birk --bericht            # echtes Material, ~10 min
+python -m scripts.simulation --alle                          # Sets 1-3 und birk
+```
+
+**Die Stimmen sind Personen, keine Sprachstile** (Gülten 58, Dilan 24,
+Halyna 41 — Steckbriefe in `simulation/stimmen/*.md`, je mit einem eigenen
+Ziel im Workshop). Wer dem Computer am wenigsten traut, schreibt am
+seltensten; der `--seed` variiert nur, wer wann spricht.
+
+**`--set birk` ist die Messlatte:** das einzige Set auf echten Daten (Birks
+Testinterview vom 04.09., eine Stimme, kalibriert auf seinen echten
+Chatverlauf). Gemessen wird die **Navigation**, nicht der Text — der Bericht
+stellt neben jede Zahl die aus dem echten Chat. Der Lauf schreibt drei Szenen
+in drei Formen (Dialog, Lied, Rap) und verbietet deshalb `--ohne-szene`. Das
+Material liegt außerhalb des Repositories (`IT_SIM_BIRK`).
+
+**Was sie misst.** Mechanisch, ohne Modell: erreichte Phase, Vollständigkeit
+des Arbeitsstands, Anteil der Zustimmungen, nach denen wirklich eine
+Notiert-Zeile kam (die Kennzahl aus N7), Verdichtungen und geprüfte
+Belegzitate, Echo (`ablauf.ist_echo`), Rückfragen vor dem Szenenauftrag,
+**behauptete Schreibvorgänge** (Bot sagt „notiert", ohne dass der Erkenner
+etwas geschrieben hat — Soll 0), Namensanrede, Medianlänge der Bot-Antworten
+(Soll < 700 Zeichen), Kosten und Dauer. Dazu bewertet ein Richter (Opus)
+jeden Abschnitt mit 0/1/2 auf vier Kriterien und jeden Szenentext auf drei
+weitere.
+
+**Und die zwei Hintergrundwege, die entscheiden, was der Bot weiß.** Das
+**Journal**: Einträge je Art, wie viele davon der Richter im Chat
+wiederfindet, welche Vorschläge fehlen, Doppeleinträge — und ob der Extraktor
+überhaupt lief (er läuft nur bei Verdrängung; sonst steht „Journal nicht
+ausgelöst" statt einer Null, `--fenster-klein` provoziert sie). Der
+**Kontextaufbau**: `kontext.baue(..., protokoll=list)` schreibt je Prompt mit,
+welcher Block mit wie vielen Token drin stand; der Bericht zeigt die
+Verteilung, die Prompts über `ZIEL`, die mit Kürzung — und bei den fünf
+schwächsten Antworten urteilt der Richter am Block-Umriss, ob dem Bot
+Information gefehlt hat, die in der DB stand. Dazu ein Skript-Schritt
+**Zitatabfragen** mit der mechanischen Kennzahl `zitat_erfunden` (Soll 0).
+
+**Kein Test, läuft nie automatisch, kostet Geld** — wie `pruefe_prompts.py`
+und `rauchtest.py`, nur eine Größenordnung mehr: ein voller Lauf sind einige
+hundert Aufrufe, grob 0,20–0,60 CHF für den Bot (die Stimmen und der Richter
+laufen über das Abonnement und kosten nichts), dazu ein Szenenlauf mit
+Reasoning (2–4 Minuten, der teuerste Einzelposten — `--ohne-szene` spart
+ihn). Sequenziell; bei 429 wartet das Skript und wiederholt, wie
+`pruefe_prompts`.
+
+> **Die Regel: nach jeder Prompt-Änderung ein Lauf mit `--set` und einer mit
+> `--mix`.** Der erste hält den Themenkreis fest und macht zwei Läufe
+> vergleichbar; der zweite mischt drei Themenkreise und zeigt, was nur an
+> einem Set hing. Beide mit demselben Seed wie beim letzten Mal, sonst
+> vergleicht man Besetzungen statt Prompts.
+
+Transkript (`simulation/laeufe/`) und Bericht (`simulation/berichte/`) sind
+**gitignored** — sie enthalten vollständige Modellantworten. Die eine
+Ausnahme ist `simulation/berichte/verlauf.jsonl`: eine Zeile je Lauf mit allen
+Kennzahlen und dem git-HEAD, der Vergleichsmaßstab zwischen zwei
+Prompt-Ständen. Die fünfzehn Interviewtranskripte unter
+`simulation/interviews/` sind frei erfunden und gehören ins Repository —
+geschrieben hat sie einmal `simulation/erzeuge_interviews.py` mit Opus, das
+**Ergebnis** ist das Artefakt, nicht das Skript.
+
+Der Simulator ist **datengetrieben** gebaut: Phasen aus `phasen.PHASEN`,
+Arbeitsstandfelder aus `PRAGMA table_info(arbeitsstand)`, das Wort „Notiert:"
+aus `erkenner.baue_meldung`. Ein Umbau an Phasen oder Feldern soll ihn nicht
+mitreißen — wer trotzdem etwas anpassen muss, findet die Stellen in
+`simulation/skript.py`.
+
+Beim Erweitern: `wert` im Erkenner-Korpus ist der **Kern** der Sache
+(`"Meryem"`, `"Mutter gegen Tochter"`), nicht der erwartete Wortlaut —
+verglichen wird als Teilstring in beide Richtungen, ein leerer `wert` prüft
+allein die `art`. `erwartet[].text` im Journal-Korpus ist ein
+**Muss-Stichwort-Set**, mit `|` getrennt (`"sechs|fragen"`), ebenfalls kein
+Wortlaut. `tests/test_korpus.py` prüft Form und Mindestbesetzung mit, ohne
+Netz.
+
+## Was bewusst fehlt
 
 - **Phase 6 ist EINE Kurzgeschichte, nicht fünf Szenenläufe** (06.09.2026,
   Birk 11:50, `kurzgeschichte.py`). Ein Opus-Lauf schreibt aus Setting,

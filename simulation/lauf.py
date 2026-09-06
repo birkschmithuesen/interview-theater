@@ -34,7 +34,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from interview_theater import aufnahme, bot, kontext, phasen, repo, szene
+from interview_theater import ablauf, aufnahme, bot, kontext, phasen, repo, szene
 
 from simulation import bericht, claude, kennzahlen, material, richter, skript, stimmen
 from simulation.kennzahlen import Beitrag, Zug
@@ -144,11 +144,23 @@ def _sofort_szene(conn, tg, klm, e, chat_id, auftrag):
     from interview_theater import szene_claude
     if szene_claude.angebot_faellig(e, conn, chat_id):
         repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
-        tg.sende(chat_id, szene._TEXT_ANGEBOT_USA)
+        # Ueber ``szene._sende_usa_angebot`` und nicht ueber ein blankes
+        # ``sende``: der Angebotstext allein traegt keine Knoepfe, und ohne
+        # sie kann die Gruppe die Einwilligung nur SAGEN -- genau der Fall,
+        # den ``knoepfe.biete_szene_usa`` abgeschafft hat (gemessen 05.09.:
+        # siebenmal ja, siebenmal als Figurenzustimmung gelesen). Gemessen
+        # 06.09. im ersten tag1-Lauf: die Stimme sagte dreimal "ja schreib
+        # jetzt endlich", der Bot wiederholte dreimal dieselbe Erinnerung,
+        # und es entstand kein Szenentext.
+        szene._sende_usa_angebot(conn, tg, e, chat_id)
         return "angebot"
     if szene_claude.wartet_auf_antwort(e, conn, chat_id):
         repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
+        # Auch die Erinnerung bekommt die Knoepfe wieder: sie ist genau der
+        # Moment, in dem die Gruppe sie braucht.
+        from interview_theater import knoepfe as knoepfe_modul
         tg.sende(chat_id, szene._TEXT_USA_ERINNERUNG)
+        knoepfe_modul.biete_szene_usa(conn, tg, chat_id)
         return "wartet"
     # Die Sperre (Pflichtfelder, Sprachprofil) laeuft hier NICHT: der
     # Simulator misst den Szenentext, nicht die Sperre, und seine
@@ -175,6 +187,35 @@ def _sofort_abschluss(conn, tg, klm, e, kopf_id):
 def _sofort_auswertung(conn, tg, klm, e, kopf_id):
     aufnahme._auswerten(conn, tg, klm, e, kopf_id)
     return None
+
+
+def _sofort_auftrag(conn, tg, klm, e, chat_id, anweisung):
+    """Ersatz fuer ``ablauf.starte_auftrag``: fuehrt den Auftragszug **im
+    aufrufenden Thread** aus.
+
+    Kam am 06.09.2026 dazu. Die Knopf-Handler der Phasen 2, 4 und 5
+    (Einleitungen, Eroeffnung, Figurenliste, Geschichte) geben ihren
+    Modellaufruf an einen Thread ab -- Zusage 2, kein Modellaufruf im
+    Handler. Im Simulator hiess das: der Druck kehrte sofort zurueck, die
+    naechste Stimme sprach in einen Chat, in dem der Vorschlag noch nicht
+    stand, und der Bot lieferte ihn danach ein zweites Mal. Gemessen im
+    ersten tag1-Lauf: Eroeffnung und Abschluss zweimal hintereinander, leicht
+    verschieden."""
+    if klm is None or not (anweisung or "").strip():
+        return None
+    try:
+        ablauf.auftragszug(conn, tg, klm, e, chat_id, anweisung)
+    except Exception:
+        log.exception("Auftragszug in der Simulation fehlgeschlagen")
+    # Nicht None: ``knoepfe._starte_auftrag`` liest das Ergebnis als
+    # "ist ein Auftrag losgelaufen" (``is not None``) und meldet der Gruppe
+    # sonst, dass gerade nichts passiert -- obwohl der Vorschlag schon im
+    # Chat steht. Im Betrieb ist der Rueckgabewert der Thread.
+    return _AUFTRAG_GELAUFEN
+
+
+#: Steht an der Stelle, an der im Betrieb der Thread zurueckkommt.
+_AUFTRAG_GELAUFEN = object()
 
 
 #: Die beiden Umbauten unten ersetzen Funktionen in Modulen des Betriebs.
@@ -214,18 +255,21 @@ def einfaedig():
     with _SPERRE:
         if _erster("einfaedig"):
             _ORIGINAL["einfaedig"] = (
-                szene.starte, aufnahme.starte_abschluss, aufnahme.starte_auswertung
+                szene.starte, aufnahme.starte_abschluss,
+                aufnahme.starte_auswertung, ablauf.starte_auftrag,
             )
             szene.starte = _sofort_szene
             aufnahme.starte_abschluss = _sofort_abschluss
             aufnahme.starte_auswertung = _sofort_auswertung
+            ablauf.starte_auftrag = _sofort_auftrag
     try:
         yield
     finally:
         with _SPERRE:
             if _letzter("einfaedig"):
                 (szene.starte, aufnahme.starte_abschluss,
-                 aufnahme.starte_auswertung) = _ORIGINAL.pop("einfaedig")
+                 aufnahme.starte_auswertung,
+                 ablauf.starte_auftrag) = _ORIGINAL.pop("einfaedig")
 
 
 #: Wohin ``kontext.baue`` gerade mitschreibt -- je Thread eines. Bei

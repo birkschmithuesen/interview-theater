@@ -584,6 +584,44 @@ def kontext_abschnitt(zahlen: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def _referenz_tag1(ergebnis, zahlen: dict, referenz: dict) -> list[str]:
+    """Der Referenzblock der ``tag1``-Sets (06.09.2026).
+
+    Anders als bei ``--set birk`` gibt es hier **keinen** Chatverlauf zum
+    Danebenstellen -- er duerfte gar nicht in diesem Repository liegen. Was
+    verglichen wird, sind Aggregate: wie kurz die echte Gruppe geschrieben
+    hat, wie viele Interviews sie geschafft hat, und wie oft sie einen
+    angebotenen Knopf wirklich gedrueckt hat. Die letzte Zeile ist die
+    interessante: an Tag 1 wurde kein einziger Phasenknopf gedrueckt."""
+    stimm = sum(len(z.beitraege) for z in ergebnis.zuege)
+    laengen = [len(b.text) for z in ergebnis.zuege for b in z.beitraege]
+    median = int(statistics.median(laengen)) if laengen else 0
+    return [
+        "", f"## Referenzvergleich: {referenz['quelle']}", "",
+        "Kein Chatverlauf, nur Zahlen -- der Wortlaut der Gruppen gehoert "
+        "nicht in dieses Repository (`simulation/tag1.py`).", "",
+        "| Kennzahl | Tag 1 (echt) | Simulation |",
+        "|---|---|---|",
+        f"| Nachrichten der Gruppe | {referenz['nachrichten_gesamt']} | {stimm} |",
+        f"| Medianlaenge (Zeichen) | {referenz['median_zeichen']} | {median} |",
+        f"| Interviews | {referenz['interviews']} | "
+        f"{zahlen.get('verdichtungen', 0)} |",
+        f"| Knoepfe angeboten | {referenz['knoepfe_angeboten']} | "
+        f"{zahlen.get('knoepfe_angeboten', 0)} |",
+        f"| Knoepfe gedrueckt | {referenz['knoepfe_gedrueckt']} | "
+        f"{zahlen.get('knoepfe_gedrueckt', 0)} |",
+        f"| Phasenknoepfe angeboten -> gedrueckt | "
+        f"{referenz['phasenknoepfe_angeboten']} -> "
+        f"{referenz['phasenknoepfe_gedrueckt']} | "
+        f"{len(zahlen.get('phasenwechsel_proaktiv') or []) + len(zahlen.get('phasenwechsel_selbst') or [])}"
+        f" -> {len(zahlen.get('phasenwechsel_proaktiv') or [])} |",
+        "",
+        "Begriffe der echten Gruppe: " + ", ".join(referenz["begriffe"]) + ".",
+        ("Themenstichworte: " + ", ".join(referenz["themen"]) + "."
+         if referenz.get("themen") else ""),
+    ]
+
+
 def referenzvergleich(ergebnis, zahlen: dict, schritte, referenz: dict) -> list[str]:
     """Was der Bot gebraucht hat, neben dem, was er am 04.09. wirklich
     gebraucht hat.
@@ -597,6 +635,8 @@ def referenzvergleich(ergebnis, zahlen: dict, schritte, referenz: dict) -> list[
     geworden."""
     if not referenz:
         return []
+    if referenz.get("quelle"):
+        return _referenz_tag1(ergebnis, zahlen, referenz)
 
     je_schritt: dict[str, int] = {}
     for zug in ergebnis.zuege:

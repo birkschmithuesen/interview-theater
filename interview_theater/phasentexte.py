@@ -7,7 +7,7 @@ eine Phase ueberhaupt will und was am Ende dastehen soll, stand nur im
 Prompt, also nie im Chat. Eine Gruppe, die um 14 Uhr in eine Station kommt,
 hatte damit keinen Anhaltspunkt, wo sie ist und wann sie fertig ist.
 
-Jetzt hat jede der acht Phasen im Chat **dieselbe Form**, zweimal:
+Jetzt hat jede der sieben Phasen im Chat **dieselbe Form**, zweimal:
 
 * beim **Eintritt** eine Nachricht mit Kopfzeile, Einleitung und der
   Checkliste der Parameter, die diese Phase setzt (``eintritt``),
@@ -46,8 +46,14 @@ WERT_GRENZE = 120
 TRENNER = " · "
 
 #: Wie lang eine Einleitung hoechstens sein darf. Geprueft in
-#: ``tests/test_phasentexte.py``: vier Saetze sind ein Rahmen, kein Vortrag.
-EINLEITUNG_GRENZE = 400
+#: ``tests/test_phasentexte.py``: ein Rahmen, kein Vortrag.
+#:
+#: Am 06.09.2026 von 400 auf 700 angehoben: die Einleitungen zu 3 und 4 sind
+#: Birks Wortlaut, und beide erklaeren einen Ablauf mit mehreren Schritten
+#: (Aufnahme starten, Sprachnachrichten, beenden, Zusammenfassung / Setting,
+#: Figuren, Geschichte, Szenenfolge). Ein Text, der den Ablauf halb erklaert,
+#: spart keine Aufmerksamkeit, er kostet eine Rueckfrage.
+EINLEITUNG_GRENZE = 700
 
 #: Die Einleitung je Phase -- zwei bis vier Saetze: was hier passiert, was
 #: die Gruppe tut, was ich tue, was am Ende steht.
@@ -73,73 +79,77 @@ EINLEITUNGEN = {
         "Leitfaden zum Mitnehmen."
     ),
     3: (
-        "Jetzt fuehrt ihr die Interviews. Den Leitfaden habt ihr dabei, "
-        "aufgenommen wird ueber euer Handy: Aufnahme starten, so viele "
-        "Sprachnachrichten schicken wie noetig, und ich tippe alles mit. "
-        "Sagt ihr mir, dass ein Interview fertig ist, fasse ich zusammen, "
-        "was darin steckt."
+        "Jetzt fuehrt ihr die Interviews - den Leitfaden habt ihr dabei. So "
+        "laeuft es: Ihr drueckt Aufnahme starten, dann nehmt ihr das Gespraech "
+        "als Sprachnachrichten auf, so viele wie noetig, gern auch in "
+        "Stuecken. Ich tippe alles mit. Am Ende drueckt ihr Interview beenden "
+        "(oder sagt am Schluss der Aufnahme \"fertig\"). Dann fasse ich das "
+        "Interview von selbst zusammen - die Themen und die woertlichen "
+        "Zitate, mit denen wir spaeter arbeiten. Am Ende steht zu jedem "
+        "Interview eine Zusammenfassung. Danach koennt ihr die "
+        "Zusammenfassung und das Transkript ansehen und gegenpruefen."
     ),
     4: (
-        "Ab hier wird erfunden. Ihr denkt euch aus, worin euer Stueck spielt "
-        "-- Ort, Zeit, Anlass -- und wer darin vorkommt. Die Interviews "
-        "bleiben dabei absichtlich zu; sie kommen spaeter dazu und schaerfen, "
-        "was ihr jetzt baut. Am Ende steht euer Setting und eine "
-        "Figurenliste, die ihr abgenommen habt."
+        "Ab hier wird erfunden - ganz frei, ohne Material. Ihr denkt euch aus, "
+        "wo euer Stueck spielt (Ort, Zeit, Anlass), wer darin vorkommt, und "
+        "was passiert: die Geschichte im Groben, wie sie ausgeht, und die "
+        "Szenenfolge mit Titel, einem Satz, den Figuren und einem Vorschlag "
+        "fuer die Form. Ich helfe mit Vorschlaegen, wenn ihr wollt. Direkt "
+        "danach kommen die Interviews ins Spiel und schaerfen, was ihr gebaut "
+        "habt."
     ),
     5: (
-        "Jetzt die Geschichte, im Groben: was passiert und wie es ausgeht. "
-        "Kein Wortlaut, sondern der Bogen -- und dazu die Szenenfolge mit "
-        "Titel, einem Satz, den Figuren und einem Vorschlag fuer die Form. "
-        "Auch das erfindet ihr frei, ohne Material."
-    ),
-    6: (
         "Jetzt kommen die Interviews zurueck. Ich lege neben jede Szene und "
         "jede Figur die Stellen aus euren Aufnahmen, die dazu passen, mit "
         "dem woertlichen Zitat. Eure Geschichte aendert sich dadurch nicht, "
         "sie wird genauer. Ihr entscheidet Vorschlag fuer Vorschlag und "
         "koennt noch eine Runde drehen."
     ),
-    7: (
+    6: (
         "Jetzt werden die Texte geschrieben, Szene fuer Szene. Zuerst "
         "bestaetigt ihr die Form -- Dialog, Monolog, Chor, Lied oder Rap --, "
         "dann schreibe ich die Szene, und ihr sagt mir, was anders werden "
         "soll. So lange, bis sie sitzt. Am Ende steht zu jeder Szene ein "
         "Text."
     ),
-    8: (
-        "Hier seht ihr euer Textbuch am Stueck, koennt "
-        "es euch als Datei schicken lassen und einzelne Szenen noch einmal "
-        "aufmachen. Wir achten auf die Uebergaenge und darauf, was sich beim "
-        "Sprechen sperrig anfuehlt."
+    7: (
+        "Alle Szenen stehen. Jetzt lese ich euer Stueck einmal als Ganzes - "
+        "nur den Text, wie ein Zuschauer - und sage euch zu jeder Frage, wo "
+        "es traegt und wo nicht: Spannungsbogen, Figuren, Spannung, "
+        "Nachvollziehbarkeit, Anfang und Ende, Sprechbarkeit. Zu jedem Punkt "
+        "ein Vorschlag, den ihr in die Szene geben koennt. Ihr koennt das "
+        "Textbuch jederzeit als Datei holen."
     ),
 }
 
-#: Was statt der Einleitung von Phase 8 dasteht, solange **nicht** jede
+#: Was statt der Einleitung von Phase 7 dasteht, solange **nicht** jede
 #: Szene einen Text hat (06.09.2026, in der Simulation gemessen).
 #:
 #: Der alte Text fing mit "Alle Szenen stehen" an -- ein Satz ueber die
 #: Datenlage, den der Text nicht geprueft hat. Im Lauf tag1-gruppe2 sprang
-#: der Bot mitten im Szenenschritt nach Phase 8 und behauptete das, waehrend
+#: der Bot mitten im Szenenschritt nach Phase 7 und behauptete das, waehrend
 #: keine einzige Szene geschrieben war; der naechste Knopfdruck antwortete
 #: mit "Szene 1 ist noch nicht geschrieben". Eine Behauptung ueber den Stand
 #: gehoert an die Daten gebunden, sonst ist sie ein Versprechen.
-EINLEITUNG_8_OFFEN = (
+EINLEITUNG_7_OFFEN = (
     "Hier seht ihr euer Textbuch am Stueck. Ein Teil der Szenen ist noch "
     "ungeschrieben - tippt eine davon an, dann hole ich das nach. Bei den "
     "fertigen achten wir auf die Uebergaenge und darauf, was sich beim "
     "Sprechen sperrig anfuehlt."
 )
+#: Rueckwaertskompatibler Name (bis 06.09.2026 hiess die Phase 8).
+EINLEITUNG_8_OFFEN = EINLEITUNG_7_OFFEN
 
 
 def _einleitung(conn, chat_id: int, phase: int) -> str:
-    """Die Einleitung einer Phase -- fuer Phase 8 abhaengig davon, ob
+    """Die Einleitung einer Phase -- fuer Phase 7 abhaengig davon, ob
     wirklich jede Szene einen Text hat."""
-    if phase != 8:
+    if phase != phasen.LETZTE:
         return EINLEITUNGEN.get(phase, "")
     szenen = repo.hole_szenen(conn, chat_id)
     if szenen and all((s["volltext"] or "").strip() for s in szenen):
-        return "Alle Szenen stehen. " + EINLEITUNGEN[8]
-    return EINLEITUNG_8_OFFEN
+        return EINLEITUNGEN[phasen.LETZTE]
+    return EINLEITUNG_7_OFFEN
 
 #: Die feste Zeile vor der Checkliste beim Eintritt.
 _KOPF_EINTRITT = "▶️ Phase {nummer} von {gesamt} · {name}"
@@ -272,6 +282,24 @@ def _abgenommene_szenen(conn, chat_id: int) -> str:
     )
 
 
+def _stueckpruefung(conn, chat_id: int) -> str:
+    """Der Parameter von Phase 7: was die letzte Pruefrunde ergeben hat.
+
+    Nicht der Wortlaut, sondern die Lage: Runde und Durchschnitt. Der
+    Wortlaut steht als eigene Nachricht je Frage im Chat und auf der
+    Gruppenseite -- eine Parameterzeile ist eine Zeile."""
+    from interview_theater import stueckpruefung
+
+    runde = repo.letzte_pruefrunde(conn, chat_id)
+    if not runde:
+        return ""
+    zeilen = repo.stueckpruefungen(conn, chat_id, runde=runde)
+    schnitt = stueckpruefung.durchschnitt(zeilen)
+    if schnitt is None:
+        return f"Runde {runde}"
+    return f"Runde {runde}, Schnitt {schnitt:.1f} von 5"
+
+
 #: Je Phase: welche Parameter sie setzt, in der Reihenfolge der Arbeit.
 #:
 #: Ein Eintrag ist ``(Name, Leser, Text-wenn-leer)``. Der Leser bekommt
@@ -312,19 +340,17 @@ PARAMETER: dict[int, tuple[tuple[str, Callable[..., str], str], ...]] = {
     4: (
         ("Setting", lambda c, i: _einzeilig(_feld(c, i, "rahmen")), "noch offen"),
         ("Figuren", _figuren, "noch keine"),
+        ("Geschichte", lambda c, i: _einzeilig(_feld(c, i, "geschichte")), "noch offen"),
+        ("Szenenfolge", _szenen, "noch keine"),
     ),
     5: (
-        ("Geschichte", lambda c, i: _einzeilig(_feld(c, i, "geschichte")), "noch offen"),
-        ("Szenen", _szenen, "noch keine"),
-    ),
-    6: (
         ("Zuordnungen", _zuordnungen, "noch keine"),
     ),
-    7: (
+    6: (
         ("Szenentexte", _geschriebene_szenen, "noch keine"),
     ),
-    8: (
-        ("Textbuch", _abgenommene_szenen, "noch keine"),
+    7: (
+        ("Stueckpruefung", _stueckpruefung, "noch keine"),
     ),
 }
 

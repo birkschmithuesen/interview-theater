@@ -166,12 +166,15 @@ def test_ohne_auftragsmarke_gibt_es_keine_parallelrede():
     assert kennzahlen.parallel_zum_auftrag(zuege) == []
 
 
-# --- Das Skript der acht Phasen --------------------------------------------
+# --- Das Skript der sieben Phasen --------------------------------------------
 
 
-def test_das_tag2_skript_faehrt_alle_acht_phasen_an():
+def test_das_tag2_skript_faehrt_alle_sieben_phasen_an():
+    """Sechs Phasenschritte fuer sieben Phasen: Phase 1 ist der Anfang, und
+    zwischen Figuren und Geschichte gibt es seit dem 06.09.2026 keinen
+    Wechsel mehr -- das ist EINE Station."""
     nummern = [s.phase_nummer for s in skript.SCHRITTE_TAG2 if s.art == "phase"]
-    assert nummern == [2, 3, 4, 5, 6, 7, 8]
+    assert nummern == [2, 3, 4, 5, 6, 7]
 
 
 def test_jeder_schritt_hat_eine_bekannte_art():

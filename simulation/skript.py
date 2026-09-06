@@ -44,7 +44,7 @@ FIGUREN_SOLL = 3
 #: Die Phase, deren Feld(er) Schritt 6 fuellt. Bewusst die **Nummer** und
 #: nicht der Name: wie sie heisst, liest der Schritt zur Laufzeit aus
 #: ``phasen.PHASEN``.
-PHASE_MITTE = 5
+PHASE_MITTE = 4
 
 #: Die Phase, in der ein Lauf enden soll (Kennzahl ``phase_erreicht``).
 #: Ueber den Kurznamen gesucht, nicht als Zahl hingeschrieben: nach einem
@@ -205,7 +205,7 @@ def _fertig_figuren(conn, chat_id, merker):
 
 
 def _fertig_phase_mitte(conn, chat_id, merker):
-    """Das Pflichtfeld der Phase 5 -- heute ``geschichte`` -- oder, wenn das
+    """Das Pflichtfeld der Phase 4 -- heute ``rahmen`` -- oder, wenn das
     Schema keines hergibt, dass die Gruppe ueberhaupt dort angekommen ist.
 
     Nicht **alle** Felder der Phase: ``rahmen`` darf leer bleiben, und ein
@@ -459,7 +459,7 @@ SCHRITTE_BIRK: tuple[Schritt, ...] = (
     ),
     Schritt(
         "phase_mitte",
-        "Phase 5: Geschichte",
+        "Phase 4: Geschichte",
         "Ihr seid jetzt bei '{phase_mitte}'. Du weisst, worin es spielt "
         f"({RAHMEN_BIRK}) -- jetzt sag dem Bot, was passieren und wie es "
         "enden soll, und stimm seinem Vorschlag zu, damit er ihn festhaelt.",
@@ -543,11 +543,13 @@ SCHRITTE_BIRK: tuple[Schritt, ...] = (
 PHASE_BEGRIFFE = 1
 PHASE_FRAGEN = 2
 PHASE_INTERVIEWS = 3
+#: Setting, Figuren UND Geschichte sind seit dem 06.09.2026 eine Station.
 PHASE_SETTING = 4
-PHASE_GESCHICHTE = 5
-PHASE_SCHAERFUNG = 6
-PHASE_SZENENTEXTE = 7
-PHASE_DURCHLAUF = 8
+PHASE_GESCHICHTE = PHASE_SETTING
+PHASE_SCHAERFUNG = 5
+PHASE_SZENENTEXTE = 6
+PHASE_STUECKPRUEFUNG = 7
+PHASE_DURCHLAUF = PHASE_STUECKPRUEFUNG
 
 
 def _fertig_eroeffnung(conn, chat_id, merker):
@@ -566,7 +568,8 @@ def _fertig_eroeffnung(conn, chat_id, merker):
 
 def _fertig_setting(conn, chat_id, merker):
     """Phase 4: Setting (``rahmen``) UND eine fixierte Figurenliste --
-    dieselben zwei Dinge, die ``phasen.voraussetzungen[5]`` verlangt."""
+    zwei der Dinge, die ``phasen.voraussetzungen[5]`` verlangt (die
+    Geschichte kommt im naechsten Schritt derselben Station dazu)."""
     return (
         _stand_gesetzt(conn, chat_id, "rahmen")
         and _stand_gesetzt(conn, chat_id, "figuren_fixiert_am")
@@ -575,7 +578,9 @@ def _fertig_setting(conn, chat_id, merker):
 
 
 def _fertig_geschichte(conn, chat_id, merker):
-    """Phase 5: die Geschichte steht und mindestens eine Szene ist geplant."""
+    """Phase 4, zweiter Teil: die Geschichte steht und mindestens eine Szene
+    ist geplant. Kein eigener Phasenschritt mehr davor -- der Bot leitet nach
+    der Figurenliste innerhalb derselben Station weiter (06.09.2026)."""
     return (
         _stand_gesetzt(conn, chat_id, "geschichte")
         and bool(repo.hole_szenen(conn, chat_id))
@@ -583,8 +588,8 @@ def _fertig_geschichte(conn, chat_id, merker):
 
 
 def _fertig_schaerfung(conn, chat_id, merker):
-    """Phase 6 ist ein **Angebot**, keine Pflicht (``phasen.voraussetzungen``
-    sperrt 7 nicht daran). Fertig ist der Schritt deshalb, sobald die Gruppe
+    """Die Schaerfung ist ein **Angebot**, keine Pflicht
+    (``phasen.voraussetzungen`` sperrt die Szenentexte nicht daran). Fertig ist der Schritt deshalb, sobald die Gruppe
     in Phase 6 war -- ob sie eine Runde uebernommen hat, misst die Kennzahl
     ``schaerfungen``, nicht der Zielzustand."""
     return phasen.aktuelle(conn, chat_id) >= PHASE_SCHAERFUNG
@@ -617,7 +622,7 @@ def _phasenschritt(nummer: int) -> Schritt:
     )
 
 
-#: Das Skript der acht Phasen. Die Interviews kommen aus den erfundenen Sets
+#: Das Skript der sieben Phasen. Die Interviews kommen aus den erfundenen Sets
 #: (``simulation/interviews/``), nie aus echtem Material -- die Stimmen sind
 #: aus Tag 1 abgeleitet, die Transkripte bleiben erfunden.
 SCHRITTE_TAG2: tuple[Schritt, ...] = (
@@ -662,10 +667,9 @@ SCHRITTE_TAG2: tuple[Schritt, ...] = (
         _fertig_setting,
         max_nachrichten=10,
     ),
-    _phasenschritt(PHASE_GESCHICHTE),
     Schritt(
         "geschichte",
-        "Phase 5: die Geschichte im Groben",
+        "Phase 4: die Geschichte im Groben (dieselbe Station)",
         "Was passiert, wie endet es, in welchen Szenen? Lasst euch einen "
         "Vorschlag machen, aendert eine Sache daran und nehmt ihn dann an. "
         "Ihr wollt am Ende eine Geschichte und eine Szenenfolge haben.",
@@ -675,7 +679,7 @@ SCHRITTE_TAG2: tuple[Schritt, ...] = (
     _phasenschritt(PHASE_SCHAERFUNG),
     Schritt(
         "schaerfung",
-        "Phase 6: am Material schaerfen",
+        "Phase 5: am Material schaerfen",
         "Jetzt kommt das Interviewmaterial dazu und legt sich NEBEN das "
         "Erfundene. Schaut euch an, was der Bot je Szene und je Figur "
         "vorschlaegt, und uebernehmt, was passt.",
@@ -685,7 +689,7 @@ SCHRITTE_TAG2: tuple[Schritt, ...] = (
     _phasenschritt(PHASE_SZENENTEXTE),
     Schritt(
         "szene1",
-        "Phase 7: Szene 1 -- Form bestaetigen, dann schreiben",
+        "Phase 6: Szene 1 -- Form bestaetigen, dann schreiben",
         "Ihr wollt Szene 1 geschrieben haben. Der Bot fragt euch zuerst nach "
         "der FORM -- bestaetigt sie (oder waehlt eine andere) -- und danach, "
         "ob er schreiben soll. Sagt ja. Wenn der Text da ist, sagt, ob er "
@@ -703,7 +707,7 @@ SCHRITTE_TAG2: tuple[Schritt, ...] = (
         art="zitate",
         max_nachrichten=len(ZITAT_ZIELE),
     ),
-    _phasenschritt(PHASE_DURCHLAUF),
+    _phasenschritt(PHASE_STUECKPRUEFUNG),
     Schritt(
         "stand",
         "/stand",

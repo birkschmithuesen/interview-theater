@@ -205,7 +205,7 @@ def test_unbekannte_szene_wird_nicht_erfunden(conn, tg):
 
 
 def test_der_prompt_sagt_dass_der_volltext_fehlt(tmp_path, monkeypatch):
-    """system.md und die Phasen 7/8 tragen den Satz -- der Modellweg fuer
+    """system.md und die Phasen 6/7 tragen den Satz -- der Modellweg fuer
     alles, was der Musterabgleich nicht faengt."""
     monkeypatch.setenv("IT_DB", str(tmp_path / "t.db"))
     anweisungen._CACHE.clear()
@@ -214,7 +214,7 @@ def test_der_prompt_sagt_dass_der_volltext_fehlt(tmp_path, monkeypatch):
     assert "Szenentexte nicht vor dir" in system
     assert "Szene N ansehen" in system
 
-    for nummer in (7, 8):
+    for nummer in (6, 7):
         text = anweisungen.hole(f"phasen/{nummer}")
         assert "Szenentexte nicht vor dir" in text
         assert "erfinde keinen Text" in text

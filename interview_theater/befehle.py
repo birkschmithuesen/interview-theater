@@ -98,12 +98,12 @@ _TEXT_KERNTHEMA_LEER = "Schreibt das Kernthema hinter den Befehl, zum Beispiel: 
 #: vertippt hat, soll nicht einen zweiten richtig treffen muessen.
 _TEXT_UNBEKANNT = "Diesen Befehl kenne ich nicht."
 _TEXT_WORTLAUT_AUS = "Wortlaut aus."
-_TEXT_PHASE_UMSCHALTEN = "Umschalten mit /phase 5 oder /phase Figuren - auch zurueck."
+_TEXT_PHASE_UMSCHALTEN = "Umschalten mit /phase 4 oder /phase Figuren - auch zurueck."
 _TEXT_FIGUR_HILFE = (
     "So nehme ich eine Figur weg: /figur Peter entfernen. "
     "Anlegen koennt ihr Figuren einfach im Gespraech."
 )
-_TEXT_PHASE_UNBEKANNT = "Diese Phase kenne ich nicht. Ich habe diese acht:"
+_TEXT_PHASE_UNBEKANNT = "Diese Phase kenne ich nicht. Ich habe diese sieben:"
 _TEXT_KEINE_AUFNAHMEN = "Es gibt noch keine Aufnahmen."
 _TEXT_SZENE_LEER = (
     "Schreibt den Auftrag hinter den Befehl, zum Beispiel: "
@@ -457,7 +457,7 @@ def _befehl_phase(conn, tg, chat_id: int, rest: str, klm=None, e=None) -> None:
         else:
             knoepfe.biete_phase(conn, tg, chat_id, text, naechste)
         return
-    nummer = phasen.nummer_fuer(rest)
+    nummer = phasen.nummer_fuer(rest, jetzige=phasen.aktuelle(conn, chat_id))
     if nummer is None:
         tg.sende(chat_id, f"{_TEXT_PHASE_UNBEKANNT}\n\n{phasen.liste()}")
         return

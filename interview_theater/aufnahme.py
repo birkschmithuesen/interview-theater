@@ -129,6 +129,14 @@ _TEXT_INTERVIEW_ABGELEGT = (
     "bis ihr alle Interviews zusammen habt."
 )
 
+#: Die EINE knappe Zeile, sobald die Verdichtung steht (Birk, 06.09.2026
+#: 09:55). Bis dahin sagte der Bot "ich halte mich damit zurueck" und die
+#: Gruppe erfuhr nie, ob ueberhaupt etwas herausgekommen war. Jetzt steht
+#: die Zaehlung da -- Themen und Zitate --, und die Verdichtung selbst bleibt
+#: hinter dem Knopf: **kein** Volltext ohne Knopfdruck, das bleibt die
+#: Entscheidung vom 05.09.2026.
+_TEXT_AUSGEWERTET = "{name} ausgewertet: {themen} Themen, {zitate} Zitate."
+
 _TEXT_VERDICHTUNG_KOPF = "{name} ist durch. Was ich darin hoere:"
 _TEXT_VERDICHTUNG_THEMEN = "Kernthemen:"
 _TEXT_VERDICHTUNG_FRAGE = "Stimmt das so? Sonst sagt es mir."
@@ -153,8 +161,8 @@ _TEXT_OHNE_BELEG = "Ich konnte kein Thema mit einem woertlichen Zitat belegen."
 #: Slash-Befehl: im Live-Lauf (Gruppe 2, 13:59) fragte die Gruppe nach diesem
 #: Text zweimal nach, und ausgewertet wurde nie.
 _TEXT_ZU_KURZ = (
-    "{name} ist sehr kurz ({dauer} s, {woerter} Woerter). Ich werte es nicht "
-    "von selbst aus."
+    "{name} war sehr kurz ({woerter} Woerter) - ich habe es nicht "
+    "ausgewertet."
 )
 
 #: "fertig" ohne eine einzige Sprachnachricht: eine Zeile, kein Modellaufruf.
@@ -868,7 +876,6 @@ def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
         conn, tg, e, row["chat_id"],
         _TEXT_ZU_KURZ.format(
             name=row["name"] or "Das Interview",
-            dauer=repo.dauer_gesamt(conn, row["id"]) or 0,
             woerter=woerter,
         ),
         row["id"],
@@ -948,8 +955,22 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> N
     # dann WILL die Gruppe den Text sehen und bekommt ihn.
     name = row["name"] or "Das Interview"
     if not erzwungen:
+        # Seit dem 06.09.2026 (Birk 09:55) sagt der Bot, WAS herausgekommen
+        # ist -- eine Zeile mit der Zaehlung, nicht die Verdichtung selbst.
+        # Der Volltext bleibt hinter "Zusammenfassung zeigen" (Entscheidung
+        # vom 05.09.2026: kein ungefragter Verdichtungstext im Chat), das
+        # Transkript hinter "Transkript zeigen" -- zum Gegenpruefen.
+        themen = repo.themen_zu(conn, verdichtung_id)
         _sende_nach_interview(
-            conn, tg, e, chat_id, _TEXT_INTERVIEW_ABGELEGT.format(name=name),
+            conn, tg, e, chat_id,
+            _TEXT_AUSGEWERTET.format(
+                name=name,
+                themen=len(themen),
+                zitate=sum(
+                    1 for t in themen
+                    if t["zitat_geprueft"] == 1 and t["beleg_zitat"]
+                ),
+            ),
             aufnahme_id,
         )
         return

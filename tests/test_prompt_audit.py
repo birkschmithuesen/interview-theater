@@ -28,8 +28,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from interview_theater import (
-    db, einstellungen, journal, kontext, kernzitate, repo, schaerfung,
-    sprachprofil, szene, szenenfolge, verdichter,
+    db, einstellungen, journal, kontext, kernzitate, phasen, repo, schaerfung,
+    sprachprofil, stueckpruefung, szene, szenenfolge, verdichter,
 )
 
 #: Ab dieser Laenge gilt eine wortgleiche Zeile als Dublette. Kuerzere Zeilen
@@ -60,7 +60,7 @@ def einst(tmp_path):
 
 @pytest.fixture
 def spaetstand(tmp_path):
-    """Eine Gruppe im Spaetstand: Phase 7, vier Figuren, vier Szenen, ein
+    """Eine Gruppe im Spaetstand: Phase 6 (Szenentexte), vier Figuren, vier Szenen, ein
     gewuchertes Journal, ein langer Verlauf und ein Interview mit vielen
     markierten Themen.
 
@@ -86,7 +86,7 @@ def spaetstand(tmp_path):
         "versuchen erst zu reden, dann zu draengen, dann zu schweigen. Am Ende "
         "bleibt Leyla stehen und entscheidet zum ersten Mal selbst.",
     )
-    repo.setze_phase(conn, 1, 7)
+    repo.setze_phase(conn, 1, 6)
 
     # Ein Interview mit einer langen Zusammenfassung und vielen Themen: genau
     # die Lage, in der die Zusammenfassung elfmal in den Prompt geriet.
@@ -246,22 +246,24 @@ def test_gespraech_ohne_fremde_beispielnamen(spaetstand, einst):
         assert name not in system, f"Beispielname {name!r} in der Systemanweisung"
 
 
-def test_systemanweisung_kennt_acht_stufen(einst):
-    """Nach dem Umbau vom 05.09. gibt es acht Stationen -- die Anweisung
-    sagte noch 'sieben Stationen' und listete darunter acht."""
-    system = kontext.system(einst.bot_name, 7)
-    assert "sieben Stationen" not in system
-    assert "acht Stationen" in system
-    assert "8. Durchlauf" in system
+def test_systemanweisung_kennt_sieben_stufen(einst):
+    """Nach dem Umbau vom 06.09. gibt es wieder sieben Stationen -- die
+    Anweisung hat zweimal die falsche Zahl getragen (04. und 05.09.), und
+    die Liste darunter muss dazu passen."""
+    system = kontext.system(einst.bot_name, phasen.LETZTE)
+    assert "acht Stationen" not in system
+    assert "sieben Stationen" in system
+    assert "7. Schaerfung des Stuecks" in system
 
 
 def test_systemanweisung_ohne_alte_stationsnamen(einst):
-    """'Kernthema & Figuren' und 'Format & Rahmen' heissen seit dem Umbau
-    'Setting & Figuren' und 'Geschichte'."""
-    system = kontext.system(einst.bot_name, 7)
+    """'Kernthema & Figuren' und 'Format & Rahmen' sind seit dem 05.09.
+    weg, 'Setting & Figuren' und 'Geschichte' als getrennte Stationen seit
+    dem 06.09.: Setting, Figuren und Geschichte sind EINE."""
+    system = kontext.system(einst.bot_name, phasen.LETZTE)
     assert "Kernthema & Figuren" not in system
     assert "Format & Rahmen" not in system
-    assert "Setting & Figuren" in system
+    assert "Setting, Figuren & Geschichte" in system
 
 
 # --- Auftragszuege ---------------------------------------------------------
@@ -439,7 +441,44 @@ def test_engere_grenze_kuerzt_mehr(spaetstand, einst, monkeypatch):
     """Die Grenze wirkt wirklich -- nicht nur als Zahl in der Doku."""
     ausloeser = [repo.hole_nachricht(spaetstand, 1, 499)]
     weit = kontext.baue(spaetstand, 1, ausloeser, einst)
-    monkeypatch.setenv("IT_PROMPT_ZEICHEN", "6000")
+    # Die Grenze muss UNTER der natuerlichen Laenge liegen, sonst misst der
+    # Test nichts (06.09.2026: nach dem Phasen-Umbau war der Spaetstand-Prompt
+    # kuerzer als die alten 6.000 Zeichen, und der Test war gruen, ohne dass
+    # gekuerzt wurde).
+    grenze = len(weit) - 1000
+    assert grenze >= 2000, len(weit)
+    monkeypatch.setenv("IT_PROMPT_ZEICHEN", str(grenze))
     eng = kontext.baue(spaetstand, 1, ausloeser, einst)
     assert len(eng) < len(weit)
-    assert len(eng) <= 6000
+    assert len(eng) <= grenze
+
+
+# --- Stueckpruefung (Phase 7, 06.09.2026) ---------------------------------
+
+
+def test_stueckpruefung_traegt_nur_das_textbuch(spaetstand):
+    """**Der Negativtest zum ganzen Modul.** Der Richter soll lesen wie ein
+    Zuschauer -- also NUR die Szenentexte. Kein Arbeitsstand, keine
+    Interviews, keine Zitate, kein Chat, kein Journal."""
+    nutzer = stueckpruefung.baue_nutzertext(spaetstand, 1)
+
+    assert nutzer.strip(), "ohne Szenentexte gibt es nichts zu pruefen"
+    for verboten in ("Kernthema", "Kernfrage", "Interview", "Verdichtung",
+                     "Zitat", "Journal", "Arbeitsstand", "Schaerfung"):
+        assert verboten not in nutzer, verboten
+
+
+def test_stueckpruefung_hat_keine_dubletten_und_bleibt_in_der_grenze(spaetstand):
+    nutzer = stueckpruefung.baue_nutzertext(spaetstand, 1)
+
+    _pruefe_ohne_dubletten(nutzer, "stueckpruefung")
+    assert len(nutzer) <= kontext.zeichengrenze()
+
+
+def test_stueckpruefungs_prompt_nennt_keinen_eigennamen():
+    """Anti-Nachplapper (AGENTS.md): ein Beispielname im Prompt kommt als
+    Figur zurueck. Der Systemtext ist fest und darf keinen tragen."""
+    system = stueckpruefung.prompt()
+
+    for name in FREMDE_NAMEN:
+        assert name not in system, name

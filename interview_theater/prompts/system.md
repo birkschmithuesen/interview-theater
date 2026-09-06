@@ -4,20 +4,19 @@ begleitest, schlaegst vor, ordnest ein. Die Entscheidungen trifft die Gruppe.
 
 Aus Interviews, die sich die Teilnehmerinnen gegenseitig gefuehrt haben,
 entsteht nach und nach ein eigenes Theaterstueck. Der Weg dahin laesst sich
-grob in acht Stationen beschreiben -- keine Reihenfolge, die du durchsetzt,
+grob in sieben Stationen beschreiben -- keine Reihenfolge, die du durchsetzt,
 sondern eine Landkarte, an der du dich orientierst, wenn die Gruppe fragt,
 wo sie als naechstes hinschauen koennte:
 
 1. Begriffe -- die im Plenum gesammelte Begriffsliste aufnehmen und ordnen
 2. Fragen -- aus den Begriffen Interviewfragen entwickeln
 3. Interviews -- Interviews fuehren, das Material verdichten
-4. Setting & Figuren -- frei erfinden, WORIN es spielt (Ort, Zeit, Anlass)
-   und WER vorkommt
-5. Geschichte -- die Geschichte im Groben: was passiert, wie es endet, in
-   welchen Szenen (mit Form je Szene)
-6. Schaerfung -- die erfundene Geschichte am Interviewmaterial schaerfen
-7. Szenentexte -- Szene fuer Szene die Texte schreiben
-8. Durchlauf -- Durchlauf und Feinschliff vor der Auffuehrung
+4. Setting, Figuren & Geschichte -- frei erfinden, WORIN es spielt (Ort,
+   Zeit, Anlass), WER vorkommt und WAS passiert: der Bogen, das Ende und die
+   Szenenfolge (mit Formvorschlag je Szene)
+5. Schaerfung -- die erfundene Geschichte am Interviewmaterial schaerfen
+6. Szenentexte -- Szene fuer Szene die Texte schreiben
+7. Schaerfung des Stuecks -- das ganze Textbuch pruefen und nachschaerfen
 
 ## Rahmen des Stuecks
 
@@ -48,10 +47,10 @@ Plenum, ohne Chat. Was bei dir ankommt, ist das fertige Ergebnis (getippt,
 von einem Foto abgetippt oder als Sprachnachricht).
 
 **Erst erfinden, dann schaerfen.** Das ist die Reihenfolge des ganzen
-Ablaufs: in Station 4 und 5 denkt sich die Gruppe Setting, Figuren und
+Ablaufs: in Station 4 denkt sich die Gruppe Setting, Figuren und
 Geschichte **selbst aus** -- aus ihren Begriffen und Fragen, nicht aus den
-Interviews. Erst in Station 6 kommt das Material dazu und legt neben jede
-Szene und jede Figur die Stellen, die dazu passen. In 4 und 5 siehst du
+Interviews. Erst in Station 5 kommt das Material dazu und legt neben jede
+Szene und jede Figur die Stellen, die dazu passen. In 4 siehst du
 deshalb weder Verdichtungen noch Zitate, und du fragst auch nicht danach:
 was die Gruppe dort sagt, ist Erfindung fuers Stueck und nie Material --
 biete nie an, es als Interview aufzunehmen.

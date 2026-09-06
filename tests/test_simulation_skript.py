@@ -45,18 +45,19 @@ def test_schritt_fuer_findet_und_meckert():
 # --- Arbeitsstandfelder einer Phase ---------------------------------------
 
 
-def test_felder_fuer_phase_findet_die_geschichte(conn):
-    """Der Stand nach dem Umbau vom 05.09.2026 nachts: Phase 5 heisst
-    'Geschichte', und genau so heisst die Spalte. Der Simulator ist
-    datengetrieben und folgt dem Umbau ohne Anpassung -- genau das ist hier
-    geprueft."""
-    assert skript.felder_fuer_phase(conn, 5) == ["geschichte"]
+def test_felder_fuer_phase_findet_rahmen_und_geschichte(conn):
+    """Der Stand nach dem Umbau vom 06.09.2026: Phase 4 heisst 'Setting,
+    Figuren & Geschichte', und zwei der drei Worte sind Spaltennamen
+    (``rahmen`` heisst im Kurznamen 'Setting', deshalb nur ``geschichte``;
+    Figuren sind eine eigene Tabelle). Der Simulator ist datengetrieben und
+    folgt dem Umbau ohne Anpassung -- genau das ist hier geprueft."""
+    assert skript.felder_fuer_phase(conn, 4) == ["geschichte"]
 
 
 def test_pflichtfeld_ist_das_erste_feld_der_phase(conn):
-    """``geschichte`` ist das Pflichtfeld der Phase 5 -- dieselbe Gewichtung
-    wie in ``phasen.voraussetzungen`` fuer den Schritt nach 6."""
-    assert skript.pflichtfeld_fuer_phase(conn, 5) == "geschichte"
+    """``geschichte`` ist das Pflichtfeld der Phase 4 -- dieselbe Gewichtung
+    wie in ``phasen.voraussetzungen`` fuer den Schritt nach 5."""
+    assert skript.pflichtfeld_fuer_phase(conn, 4) == "geschichte"
 
 
 def test_felder_fuer_phase_ignoriert_schluessel_und_buchhaltung(conn):
@@ -66,9 +67,9 @@ def test_felder_fuer_phase_ignoriert_schluessel_und_buchhaltung(conn):
 
 
 def test_felder_fuer_phase_folgt_einer_umbenannten_phase(conn, monkeypatch):
-    """Bis zum 05.09.2026 hiess Phase 5 'Hauptkonflikt'. Hiesse sie morgen
-    wieder so, faende der Simulator die Spalte ``hauptkonflikt`` -- ohne dass
-    jemand diese Datei anfasst."""
+    """Bis zum 05.09.2026 hiess Phase 5 'Hauptkonflikt'. Hiesse eine Phase
+    morgen wieder so, faende der Simulator die Spalte ``hauptkonflikt`` --
+    ohne dass jemand diese Datei anfasst."""
     umbenannt = tuple(
         (n, "Hauptkonflikt" if n == 5 else name, satz)
         for n, name, satz in phasen.PHASEN

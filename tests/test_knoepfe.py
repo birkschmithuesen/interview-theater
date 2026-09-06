@@ -226,7 +226,7 @@ def test_aufnahme_knopf_legt_je_umschaltung_genau_ein_interview_an(conn, einst, 
 
 def test_phasen_knopf_schaltet_um_wie_der_befehl(conn, einst, tg):
     knoepfe.biete_phase(conn, tg, 1, "Weitermachen?", 4)
-    assert tg.knoepfe[0][2][0][0] == "Weiter zu Setting & Figuren"
+    assert tg.knoepfe[0][2][0][0] == "Weiter zu Setting, Figuren & Geschichte"
 
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
@@ -247,7 +247,9 @@ def test_phasen_knopf_meldet_nichts_wenn_die_phase_schon_stimmt(conn, einst, tg)
     # dazukommt, ist die Eintrittsnachricht der Phase mit der proaktiven
     # Frage darunter (06.09.2026: beides in EINER Nachricht).
     assert not any("Wir sind jetzt bei" in t for _, t in tg.gesendet[vorher:])
-    assert tg.gesendet[-1][1].startswith("▶️ Phase 4 von 8 · Setting & Figuren")
+    assert tg.gesendet[-1][1].startswith(
+        "▶️ Phase 4 von 7 · Setting, Figuren & Geschichte"
+    )
     assert tg.gesendet[-1][1].endswith(knoepfe._TEXT_PROAKTIV)
     assert len(tg.beantwortet) == 1  # aber beantwortet wird trotzdem
 
@@ -878,15 +880,20 @@ def _interview_kopf(conn, transkript="ein kurzer Satz"):
     return kopf_id
 
 
-def test_nach_aufnahme_bietet_auswerten_und_naechste_aufnahme(conn, einst, tg):
-    """Die beiden Wege, die es nach jedem Interview gibt -- als Knopf, nicht
-    als Slash-Empfehlung im Text."""
+def test_nach_einem_zu_kurzen_interview_gibt_es_trotzdem_auswerten(conn, einst, tg):
+    """Der Sonderfall unter ``aufnahme.MINDEST_WOERTER``: es gibt keine
+    Verdichtung, also nichts zu zeigen -- nur etwas zu erzwingen. Der
+    normale "Auswerten"-Knopf ist am 06.09.2026 aus der Leiste verschwunden
+    (Birk 09:55): verdichtet wird ohnehin sofort."""
     kopf_id = _interview_kopf(conn)
 
-    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist sehr kurz.", kopf_id)
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 war sehr kurz.", kopf_id)
 
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
-    assert beschriftungen == ["Auswerten", "Naechstes Interview"]
+    assert beschriftungen == [
+        "Trotzdem auswerten", "Transkript zeigen", "Naechstes Interview",
+    ]
+    assert "Auswerten" not in beschriftungen
     assert "/" not in tg.knoepfe[0][1], "kein Slash-Befehl mehr im Text"
 
 
@@ -901,7 +908,8 @@ def test_nach_aufnahme_haengt_die_phase_an_wenn_die_lage_sie_hergibt(conn, einst
 
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
     assert beschriftungen == [
-        "Auswerten", "Naechstes Interview", "Weiter zu Setting & Figuren",
+        "Zusammenfassung zeigen", "Transkript zeigen", "Naechstes Interview",
+        "Weiter zu Setting, Figuren & Geschichte",
     ]
 
 
@@ -918,15 +926,17 @@ def test_nach_aufnahme_ohne_interview_bietet_nur_die_aufnahme_an(conn, einst, tg
 def test_nach_aufnahme_bietet_in_phase_4_keine_naechste_aufnahme_an(conn, einst, tg):
     """Der Live-Befund vom 05.09.2026 (Birk: "hast du die reihenfolge der
     phasen beachtet?"), gespiegelt auf die Leiste nach dem Interview: ist die
-    Gruppe inzwischen bei Kernthema & Figuren, ist "Naechstes Interview" kein
-    Angebot mehr, sondern ein Rueckschritt. "Auswerten" bleibt -- das
-    Material aus Phase 3 will ja gerade jetzt gelesen werden."""
+    Gruppe inzwischen bei Setting, Figuren & Geschichte, ist "Naechstes
+    Interview" kein Angebot mehr, sondern ein Rueckschritt. Die Wege ins
+    Material bleiben -- es will ja gerade jetzt gelesen werden."""
     kopf_id = _interview_kopf(conn)
     phasen.setze(conn, 1, 4, "befehl")
 
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
 
-    assert [b for b, _ in tg.knoepfe[0][2]] == ["Auswerten"]
+    assert [b for b, _ in tg.knoepfe[0][2]] == [
+        "Trotzdem auswerten", "Transkript zeigen",
+    ]
 
 
 def test_auswerten_knopf_spielt_eine_vorhandene_verdichtung_aus(conn, einst, tg):
@@ -1044,7 +1054,7 @@ def test_einstieg_haengt_die_phase_dazwischen(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Interview starten", "Weiter zu Setting & Figuren",
+        "Interview starten", "Weiter zu Setting, Figuren & Geschichte",
         "Stand zeigen", "Hilfe",
     ]
 
@@ -1096,13 +1106,15 @@ def test_nach_aufnahme_bietet_alle_auswerten_statt_phase_4(conn, einst, tg):
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 2 ist abgelegt.", zweites)
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
-    assert "Weiter zu Setting & Figuren" not in beschriftungen
-    assert beschriftungen == ["Auswerten", "Naechstes Interview"]
+    assert "Weiter zu Setting, Figuren & Geschichte" not in beschriftungen
+    assert beschriftungen == [
+        "Trotzdem auswerten", "Transkript zeigen", "Naechstes Interview",
+    ]
 
     # Sobald auch das zweite ausgewertet ist, steht der Schritt wieder da.
     repo.speichere_verdichtung(conn, 1, zweites, "Pal erzaehlt", [])
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Und weiter?", zweites)
-    assert "Weiter zu Setting & Figuren" in [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Weiter zu Setting, Figuren & Geschichte" in [b for b, _ in tg.knoepfe[-1][2]]
 
 
 def test_alle_auswerten_steht_da_wenn_ein_anderes_interview_offen_ist(conn, einst, tg):

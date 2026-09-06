@@ -363,12 +363,12 @@ def test_phase_setzen(basis, token, conn):
     assert repo.hole_phase(conn, 1) == 6
     # Phase 6 heisst seit dem Umbau "Schaerfung" -- der Name kommt aus
     # phasen.PHASEN, hier steht er nur als Erwartung.
-    assert ("entschieden", "web", "Phase 6 · Schaerfung (über die Gruppenseite)") \
+    assert ("entschieden", "web", "Phase 6 · Szenentexte (über die Gruppenseite)") \
         in journalzeilen(conn)
 
 
 @pytest.mark.parametrize("wert", ["0", "9", "vier", ""])
-def test_phase_ausserhalb_1_bis_8_bekommt_400(basis, token, conn, wert):
+def test_phase_ausserhalb_1_bis_7_bekommt_400(basis, token, conn, wert):
     """Acht Phasen seit dem Umbau (05.09.2026 nachts). Die Grenze steht nicht
     hier, sondern in ``phasen.LETZTE`` -- dieser Test hält nur fest, dass sie
     überhaupt gezogen wird."""
@@ -379,8 +379,8 @@ def test_phase_ausserhalb_1_bis_8_bekommt_400(basis, token, conn, wert):
     assert repo.hole_phase(conn, 1) == 4
 
 
-def test_phasen_dropdown_zeigt_alle_acht_mit_namen(basis, token):
-    """Acht Optionen, beschriftet aus ``phasen.PHASEN`` -- die Liste steht
+def test_phasen_dropdown_zeigt_alle_sieben_mit_namen(basis, token):
+    """Sieben Optionen, beschriftet aus ``phasen.PHASEN`` -- die Liste steht
     dort und wird im Web nicht zweitgepflegt. Verglichen wird gegen den
     maskierten Namen: "Setting & Figuren" steht als "Setting &amp; Figuren"
     im HTML."""
@@ -388,7 +388,7 @@ def test_phasen_dropdown_zeigt_alle_acht_mit_namen(basis, token):
 
     koerper = hole(f"{basis}/g/{token}")[1]
 
-    assert len(phasen.PHASEN) == 8
+    assert len(phasen.PHASEN) == 7
     for nummer, name, _ in phasen.PHASEN:
         assert f'<option value="{nummer}"' in koerper
         assert html_modul.escape(phasen.bezeichnung(nummer)) in koerper, name
@@ -833,3 +833,60 @@ def test_bot_sieht_die_aenderung_im_journalblock(basis, token, conn):
 
     block = kontext._baue_journal(conn, 1)
     assert "Geschichte geändert über die Gruppenseite" in block
+
+
+# --- Stueckpruefung: read-only auf der Gruppenseite (06.09.2026) ----------
+
+
+def test_ohne_pruefrunde_fehlt_der_block(basis, token):
+    """Eine leere Ueberschrift saehe aus wie eine offene Aufgabe -- dabei ist
+    die Pruefung erst in der letzten Phase dran."""
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "Stückprüfung" not in koerper
+
+
+def test_die_letzte_pruefrunde_steht_read_only_auf_der_seite(basis, token, conn):
+    """Der Befund ist ein Urteil ueber den EIGENEN Text der Gruppe -- kein
+    Interviewmaterial, kein Zitat. Er darf deshalb dort stehen, wo die
+    Kurzformen stehen. Nichts zum Anklicken: "Szene N ueberarbeiten" und
+    "Noch eine Pruefrunde" gibt es im Chat, wo die Gruppe entscheidet."""
+    repo.lege_stueckpruefung_an(conn, 1, [
+        {"frage": "Spannungsbogen", "bewertung": 3,
+         "begruendung": "Der Auftakt traegt, danach flacht es ab.",
+         "vorschlag": "Kuerz Szene 2 auf den Kippmoment.", "szene_nummer": 2},
+        {"frage": "Sprechbarkeit", "bewertung": 5,
+         "begruendung": "Die Saetze liegen gut im Mund.",
+         "vorschlag": None, "szene_nummer": None},
+    ], runde=1)
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "Stückprüfung Runde 1" in koerper
+    assert "Spannungsbogen 3/5" in koerper
+    assert "Der Auftakt traegt" in koerper
+    assert "Vorschlag: Szene 2: Kuerz Szene 2 auf den Kippmoment." in koerper
+    assert "Sprechbarkeit 5/5" in koerper
+    # Read-only: keine Eingabefelder und keine Knoepfe in diesem Block.
+    block = koerper.split("Stückprüfung Runde 1", 1)[1].split("</ul>", 1)[0]
+    assert "<input" not in block
+    assert "<button" not in block
+
+
+def test_nur_die_letzte_runde_steht_da(basis, token, conn):
+    """Additiv gespeichert, aber nicht additiv gezeigt: die Seite ist der
+    Stand, nicht das Archiv."""
+    repo.lege_stueckpruefung_an(conn, 1, [
+        {"frage": "Spannungsbogen", "bewertung": 2,
+         "begruendung": "Erste Runde.", "vorschlag": None, "szene_nummer": None},
+    ], runde=1)
+    repo.lege_stueckpruefung_an(conn, 1, [
+        {"frage": "Spannungsbogen", "bewertung": 4,
+         "begruendung": "Zweite Runde.", "vorschlag": None, "szene_nummer": None},
+    ], runde=2)
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    assert "Stückprüfung Runde 2" in koerper
+    assert "Zweite Runde." in koerper
+    assert "Erste Runde." not in koerper

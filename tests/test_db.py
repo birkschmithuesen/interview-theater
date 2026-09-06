@@ -208,7 +208,7 @@ def test_migration_ergaenzt_phase_und_entfernt_am_ohne_datenverlust(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Acht Phasen wurden sieben (05.09.2026, db._migriere_phasennummern)
+# Phasennummern-Migration (db._migriere_phasennummern), drei Stufen
 # ---------------------------------------------------------------------------
 
 
@@ -231,12 +231,17 @@ def _alte_phasen_db(tmp_path, name="acht.db"):
 
 
 def test_phasennummern_werden_einmalig_umgerechnet(tmp_path):
-    """Eine Datenbank aus der Zeit vor beiden Umbauten (``user_version = 0``)
-    laeuft durch BEIDE Tabellen: erst acht -> sieben (Kernthema und Figuren
-    sind eine Phase geworden), dann sieben -> acht (erst erfinden, dann
-    schaerfen). Ohne diesen Schritt saehe eine Gruppe, die abends bei
-    '8 · Durchlauf' aufgehoert hat, am naechsten Morgen eine Nummer, die es
-    nicht mehr gibt."""
+    """Eine Datenbank aus der Zeit vor ALLEN Umbauten (``user_version = 0``)
+    laeuft durch alle drei Tabellen: erst acht -> sieben (Kernthema und
+    Figuren sind eine Phase geworden, 04.09.), dann sieben -> acht (erst
+    erfinden, dann schaerfen, 05.09. nachts), dann acht -> sieben (Setting,
+    Figuren und Geschichte sind eine Station, 06.09.). Ohne diesen Schritt
+    saehe eine Gruppe, die abends bei '8 · Durchlauf' aufgehoert hat, am
+    naechsten Morgen eine Nummer, die es nicht mehr gibt.
+
+    **Die Kette 1 -> 3 ist der eigentliche Punkt** (06.09.2026): eine
+    Datenbank, die alle drei Umbauten verpasst hat, darf nicht auf halbem
+    Weg stehenbleiben."""
     c = _alte_phasen_db(tmp_path)
 
     db.initialisiere(c)
@@ -247,11 +252,12 @@ def test_phasennummern_werden_einmalig_umgerechnet(tmp_path):
     }
     assert gelesen == {
         1: (3, 4),      # 1-3 bleiben, wo sie sind
-        2: (4, 5),      # alt 5 (Figuren) -> 4 -> 4 (Setting & Figuren)
-        3: (5, 7),      # alt 6 (Hauptkonflikt) -> 5 -> 5 (Geschichte)
-        4: (7, 8),      # alt 7 (Szenen) -> 6 -> 7 (Szenentexte)
-        5: (8, None),   # alt 8 (Durchlauf) -> 7 -> 8, NULL bleibt NULL
+        2: (4, 4),      # alt 5 (Figuren) -> 4 -> 4 -> 4
+        3: (4, 6),      # alt 6 (Hauptkonflikt) -> 5 -> 5 -> 4
+        4: (6, 7),      # alt 7 (Szenen) -> 6 -> 7 -> 6 (Szenentexte)
+        5: (7, None),   # alt 8 (Durchlauf) -> 7 -> 8 -> 7, NULL bleibt NULL
     }
+    assert c.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
 
 
 def _siebenstufige_db(tmp_path, name="sieben.db"):
@@ -275,12 +281,10 @@ def _siebenstufige_db(tmp_path, name="sieben.db"):
     return c
 
 
-def test_der_zweite_umbau_verschiebt_nur_sechs_und_sieben(tmp_path):
-    """Der Umbau vom 05.09.2026 nachts (db.PHASEN_UMNUMMERIERUNG_2): 4 und 5
-    bleiben, wo sie sind -- dort wird weiter Setting bzw. Geschichte
-    gearbeitet --, aus 6 (Szenen) wird 7 (Szenentexte), aus 7 (Durchlauf) 8.
-    Die neue 6 (Schaerfung) bekommt niemand zugewiesen: sie ist ein Angebot,
-    keine uebersprungene Station."""
+def test_der_zweite_und_dritte_umbau_laufen_nacheinander(tmp_path):
+    """Eine Datenbank vom 05.09.2026 tagsueber (``user_version = 1``) laeuft
+    noch durch ZWEI Tabellen: erst PHASEN_UMNUMMERIERUNG_2 (6 -> 7, 7 -> 8),
+    dann PHASEN_UMNUMMERIERUNG_3 (5 -> 4, 6 -> 5, 7 -> 6, 8 -> 7)."""
     c = _siebenstufige_db(tmp_path)
 
     db.initialisiere(c)
@@ -291,9 +295,9 @@ def test_der_zweite_umbau_verschiebt_nur_sechs_und_sieben(tmp_path):
     }
     assert gelesen == {
         1: (3, 4),
-        2: (5, 7),      # 5 bleibt 5, das Angebot 6 wird zu 7
-        3: (7, 8),      # alt 6 (Szenen) -> 7 (Szenentexte)
-        4: (8, None),   # alt 7 (Durchlauf) -> 8
+        2: (4, 6),      # 5 -> 5 -> 4, das Angebot 6 -> 7 -> 6
+        3: (6, 7),      # alt 6 (Szenen) -> 7 -> 6 (Szenentexte)
+        4: (7, None),   # alt 7 (Durchlauf) -> 8 -> 7
     }
     assert c.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
 
@@ -314,7 +318,8 @@ def test_eine_migrierte_gruppe_steht_auf_einer_gueltigen_phase(tmp_path):
 def test_jede_umgerechnete_nummer_ist_eine_gueltige_phase(tmp_path):
     """Die Probe aufs Ganze: nach der Migration gibt es zu jedem gespeicherten
     Wert auch einen Kurznamen -- sonst stuende auf der Gruppenseite eine nackte
-    Zahl und ``anweisungen.system`` fiele ueber eine fehlende ``phasen/8.md``."""
+    Zahl und ``anweisungen.system`` fiele ueber eine fehlende
+    ``phasen/8.md``."""
     c = _alte_phasen_db(tmp_path)
 
     db.initialisiere(c)
@@ -333,7 +338,9 @@ def test_die_umrechnung_laeuft_nicht_zweimal(tmp_path):
     db.initialisiere(c)
     db.initialisiere(c)
 
-    assert c.execute("SELECT phase FROM arbeitsstand WHERE chat_id = 5").fetchone()[0] == 8
+    assert c.execute(
+        "SELECT phase FROM arbeitsstand WHERE chat_id = 5"
+    ).fetchone()[0] == 7
     assert c.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
 
 

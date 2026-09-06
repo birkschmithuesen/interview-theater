@@ -765,7 +765,7 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
     Ruecksprung (von 8 nach 5) ist ausdruecklich erlaubt: die Gruppe darf
     jederzeit zurueck, und genau so widerspricht sie auch einem
     automatischen Sprung."""
-    nummer = phasen.nummer_fuer(wert)
+    nummer = phasen.nummer_fuer(wert, jetzige=phasen.aktuelle(conn, chat_id))
     if nummer is None:
         return None
     if not phasen.setze(conn, chat_id, nummer, "erkenner"):
@@ -1086,7 +1086,7 @@ def _erneuere_angebot_auf_bitte(conn, chat_id: int, aenderungen: list[dict]) -> 
     bitten = [
         a for a in aenderungen
         if a.get("art") == "phase_setzen"
-        and (phasen.nummer_fuer(a.get("wert")) or 0) <= jetzige
+        and (phasen.nummer_fuer(a.get("wert"), jetzige=jetzige) or 0) <= jetzige
     ]
     if not bitten:
         return False
@@ -1387,7 +1387,9 @@ _LEISTENARTEN = {
     "begriffe_setzen": ("begriffe", 1),
     "fragen_setzen": ("fragen", 2),
     "rahmen_setzen": ("rahmen", 4),
-    "geschichte_setzen": ("geschichte", 5),
+    # Die Geschichte gehoert seit dem 06.09.2026 in dieselbe Phase 4 wie
+    # Setting und Figuren -- eine Station, drei Ping-Pong-Ebenen.
+    "geschichte_setzen": ("geschichte", 4),
 }
 
 

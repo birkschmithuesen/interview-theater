@@ -133,16 +133,16 @@ VORSCHLAG = (
 )
 
 
-# --- Eintritt in Phase 6 --------------------------------------------------
+# --- Eintritt in die Szenentexte --------------------------------------------------
 
 
-def test_phasenknopf_7_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
+def test_phasenknopf_6_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
     """Birk 05.09.2026: eine Gruppe, die schon Szenenideen hat, soll sie
     nicht gegen eine fertige Liste verteidigen muessen. Der Eintritt in die
     Szenentexte ist deshalb dieselbe proaktive Frage wie in jeder anderen
     Phase (``knoepfe.biete_proaktiv``) -- kein eigener Weg fuer dieselbe
     Sache."""
-    knoepfe.biete_phase(conn, tg, 1, "Weiter?", 7)
+    knoepfe.biete_phase(conn, tg, 1, "Weiter?", 6)
 
     _druecke(conn, tg, einst, "Weiter zu Szenentexte")
 
@@ -152,14 +152,14 @@ def test_phasenknopf_7_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
     ]
 
 
-def test_schlag_du_vor_in_phase_7_geht_ueber_szenenfolge(conn, einst, tg):
+def test_schlag_du_vor_in_phase_6_geht_ueber_szenenfolge(conn, einst, tg):
     """"Schlag du vor" braucht ein Modell -- und ruft es NICHT im Handler:
     ``szenenfolge.starte`` kuendigt an und startet einen Thread (Muster:
     ``szene.starte``). In Phase 6 ist es dieser Weg und nicht der allgemeine
     Auftragszug: der Vorschlag hat eine feste Zeilenform und traegt danach
     seine eigenen Knoepfe."""
     klm = LLMAttrappe(VORSCHLAG)
-    knoepfe.biete_proaktiv(conn, tg, 1, 7)
+    knoepfe.biete_proaktiv(conn, tg, 1, 6)
 
     _druecke(conn, tg, einst, knoepfe._TEXT_SCHLAG_VOR_KNOPF, klm=klm)
     # Der Thread laeuft nebenher; auf ihn wird ueber die Sperre gewartet.
@@ -478,16 +478,17 @@ def test_passt_stempelt_die_szene_fertig(conn, einst, tg):
     ]
 
 
-def test_passt_bei_der_letzten_szene_bietet_weiter_zu_durchlauf(conn, einst, tg):
-    """Nach der letzten abgenommenen Szene steht der Weg in den Durchlauf da,
-    nicht nichts -- und ohne Nummer im Knopftext (``phasen.bezeichnung``)."""
+def test_passt_bei_der_letzten_szene_bietet_weiter_zur_stueckpruefung(conn, einst, tg):
+    """Nach der letzten abgenommenen Szene steht der Weg in die Schaerfung
+    des Stuecks da, nicht nichts -- und ohne Nummer im Knopftext
+    (``phasen.bezeichnung``)."""
     szene_id = _eine_szene(conn)
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Da.")
     knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1")
 
     _druecke(conn, tg, einst, knoepfe.TEXT_PASST_KNOPF)
 
-    assert "Weiter zu Durchlauf" in tg.beschriftungen, tg.beschriftungen
+    assert "Weiter zu Schaerfung des Stuecks" in tg.beschriftungen, tg.beschriftungen
 
 
 def test_naechste_szene_springt_zur_naechsten_offenen(conn, einst, tg):
@@ -559,7 +560,7 @@ def test_passt_aber_anders_merkt_sich_die_erwartete_regienotiz(conn, einst, tg):
     assert szenenfolge.nimm_regienotiz(1) is None
 
 
-# --- Phase 7 · Durchlauf --------------------------------------------------
+# --- Phase 7 · Schaerfung des Stuecks --------------------------------------------------
 
 
 def test_durchlauf_zeigt_die_szenenfolge_mit_status(conn, tg):
@@ -636,14 +637,17 @@ def test_textbuch_fehler_laesst_die_gruppe_nicht_ratlos(conn, einst, tg):
     assert knoepfe._TEXT_TEXTBUCH_FEHLER in tg.texte
 
 
-def test_phasenknopf_8_zeigt_gleich_den_durchlauf(conn, einst, tg):
+def test_phasenknopf_7_zeigt_gleich_die_uebersicht(conn, einst, tg):
+    """Der Eintritt in die Schaerfung des Stuecks zeigt sofort die
+    Szenenfolge mit Status und "Textbuch als Datei" -- die Pruefung selbst
+    laeuft im Thread (``stueckpruefung.starte``), hier ohne Modell."""
     szene_id = _eine_szene(conn)
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Da.")
-    knoepfe.biete_phase(conn, tg, 1, "Weiter?", 8)
+    knoepfe.biete_phase(conn, tg, 1, "Weiter?", 7)
 
-    _druecke(conn, tg, einst, "Weiter zu Durchlauf")
+    _druecke(conn, tg, einst, "Weiter zu Schaerfung des Stuecks")
 
-    assert phasen.aktuelle(conn, 1) == 8
+    assert phasen.aktuelle(conn, 1) == 7
     assert knoepfe.TEXT_TEXTBUCH_KNOPF in tg.beschriftungen
 
 

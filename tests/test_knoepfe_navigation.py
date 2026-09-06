@@ -311,17 +311,21 @@ def test_passt_geht_zur_naechsten_figur_und_dann_zur_fixierung(conn, tg, einst):
     assert any("Figuren stehen" in t for _, t in tg.gesendet)
 
 
-def test_erst_die_fixierung_gibt_phase_fuenf_frei(conn, tg, einst):
-    """Die Voraussetzung haengt nicht mehr an der Zahl der Figuren, sondern
-    daran, dass die Gruppe die Liste durchgegangen ist."""
+def test_die_fixierung_leitet_ohne_phasenwechsel_zur_geschichte(conn, tg, einst):
+    """Seit dem 06.09.2026 (Birk) steht hier KEIN Phasenknopf mehr: Setting,
+    Figuren und Geschichte sind eine Station, und der Bot geht mit einer
+    kurzen Zeile und der offenen Frage weiter."""
     _interview(conn)
     _ebene1(conn, tg)
     _druecke(conn, tg, einst, "Gefaellt uns, weiter")
 
     # Ebene 2 (Figur fuer Figur mit Interview) laeuft seit dem Umbau erst in
     # der Schaerfung -- in Phase 4 ist die Liste mit Ebene 1 fixiert.
-    assert phasen.voraussetzungen(conn, 1)[5] is True
-    assert "Weiter zu Geschichte" in [b for b, _ in tg.knoepfe[-1][2]]
+    assert repo.hole_arbeitsstand(conn, 1)["figuren_fixiert_am"]
+    text, leiste = tg.knoepfe[-1][1], tg.knoepfe[-1][2]
+    assert "Was soll passieren, wie soll es ausgehen?" in text
+    assert not any(b.startswith("Weiter zu") for b, _ in leiste), text
+    assert [b for b, _ in leiste] == ["Ja, wir zuerst", "Schlag du vor"]
 
 
 def test_eine_einzige_figur_genuegt(conn, tg, einst):
@@ -335,7 +339,8 @@ def test_eine_einzige_figur_genuegt(conn, tg, einst):
     )
     _druecke(conn, tg, einst, "Gefaellt uns, weiter")
 
-    assert phasen.voraussetzungen(conn, 1)[5] is True
+    assert repo.hole_arbeitsstand(conn, 1)["figuren_fixiert_am"]
+    assert [f["name"] for f in repo.figuren(conn, 1)] == ["Mira"]
 
 
 def test_anderes_interview_bietet_je_interview_einen_knopf_und_setzt_die_quelle(
@@ -394,11 +399,10 @@ def test_entfernen_loescht_weich_und_geht_zur_naechsten(conn, tg, einst):
     [
         (2, "Weiter zu Fragen"),
         (3, "Weiter zu Interviews"),
-        (4, "Weiter zu Setting & Figuren"),
-        (5, "Weiter zu Geschichte"),
-        (6, "Weiter zu Schaerfung"),
-        (7, "Weiter zu Szenentexte"),
-        (8, "Weiter zu Durchlauf"),
+        (4, "Weiter zu Setting, Figuren & Geschichte"),
+        (5, "Weiter zu Schaerfung"),
+        (6, "Weiter zu Szenentexte"),
+        (7, "Weiter zu Schaerfung des Stuecks"),
     ],
 )
 def test_phasenknoepfe_heissen_nach_inhalt_nie_nach_nummer(conn, tg, nummer, text):
@@ -416,11 +420,16 @@ def test_der_phasenknopf_fragt_zuerst_die_gruppe(conn, tg, einst):
     Bot, ob die Gruppe selbst schon Ideen hat."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 4)
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Setting & Figuren")))
+    knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(_knopf(tg, "Weiter zu Setting, Figuren & Geschichte")),
+    )
 
     # Seit dem 06.09.2026 steht der Phasenrahmen in derselben Nachricht
     # darueber: Kopfzeile, Einleitung, Checkliste, dann die Frage.
-    assert tg.gesendet[-1][1].startswith("\u25b6\ufe0f Phase 4 von 8 \u00b7 Setting & Figuren")
+    assert tg.gesendet[-1][1].startswith(
+        "\u25b6\ufe0f Phase 4 von 7 \u00b7 Setting, Figuren & Geschichte"
+    )
     assert tg.gesendet[-1][1].endswith(knoepfe._TEXT_PROAKTIV)
     assert [b for b, _ in tg.knoepfe[-1][2]] == ["Ja, wir zuerst", "Schlag du vor"]
 
@@ -451,7 +460,7 @@ def test_der_schritt_nach_phase_fuenf_setzt_kein_format(conn, tg, einst):
     Phasenknopf setzt nichts mehr, er fuehrt nur weiter."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 5)
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Geschichte")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Schaerfung")))
 
     assert not (repo.hole_arbeitsstand(conn, 1)["format"] or "")
     assert not any("Urban Dance" in t for _, t in tg.gesendet)

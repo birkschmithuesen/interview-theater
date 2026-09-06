@@ -1,6 +1,6 @@
-"""Die Szenenfolge und die Szenenplanung als Knopf-Navigation (Phase 6).
+"""Die Szenenfolge und die Szenenplanung als Knopf-Navigation (Phase 6 Szenentexte).
 
-**Warum es dieses Modul gibt.** Phase 6 ist die laengste Strecke des
+**Warum es dieses Modul gibt.** Die Szenentexte-Phase ist die laengste Strecke des
 Workshops: erst eine Folge von vier bis sechs Szenen, dann Szene fuer Szene
 die Planung, dann je Szene ein Text. Bis zum 05.09.2026 lief das ganz im
 Gespraech -- und genau dort verlor der Bot die Entscheidungen, die die Gruppe
@@ -38,7 +38,7 @@ ART = "szenenfolge"
 #: Art des zweiten, kleineren Aufrufs: die fehlenden Felder EINER Szene.
 ART_FELDER = "szenenfelder"
 
-#: Art des Geschichte-Aufrufs (Phase 5, Umbau 05.09.2026 nachts): Bogen, Ende
+#: Art des Geschichte-Aufrufs (Phase 4, Umbau 05.09.2026 nachts): Bogen, Ende
 #: und Szenenfolge in EINEM Vorschlag -- und **ohne Material**.
 ART_GESCHICHTE = "geschichte"
 
@@ -104,11 +104,11 @@ Dialogen ist ein Fehler.
 
 Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
 
-#: Die Anweisung fuer den Geschichte-Aufruf (Phase 5). Der Unterschied zur
+#: Die Anweisung fuer den Geschichte-Aufruf (Phase 4). Der Unterschied zur
 #: Szenenfolge ist nicht die Form, sondern die Quelle: hier wird **erfunden**,
 #: aus den Begriffen und Fragen der Gruppe und dem, was sie in Phase 4
 #: festgelegt hat -- keine Interviews, keine Verdichtungen, keine Zitate. Das
-#: Material kommt erst in Phase 6 dazu und schaerft, was hier entsteht.
+#: Material kommt erst in Phase 5 dazu und schaerft, was hier entsteht.
 ANWEISUNG_GESCHICHTE = """Du entwickelst mit einer Theatergruppe die Geschichte ihres Stuecks im Groben.
 
 Die Gruppe hat Setting und Figuren selbst erfunden. Jetzt geht es um den
@@ -456,7 +456,7 @@ def nimm_pruefvermerk(conn, chat_id: int, nummer: int) -> None:
 
 
 def uebersicht(conn, chat_id: int) -> str:
-    """Die Szenenfolge mit Status, wie sie Phase 7 (Durchlauf) zeigt.
+    """Die Szenenfolge mit Status, wie sie Phase 7 (Schaerfung des Stuecks) zeigt.
 
     Drei Zustaende, in der Sprache der Gruppe: **fertig** (abgenommen),
     **geschrieben** (Text da, noch nicht abgenommen), **offen** (nur geplant).
@@ -562,7 +562,7 @@ def _material(conn, chat_id: int) -> str:
 
 
 def _erfundenes(conn, chat_id: int) -> str:
-    """Was in Phase 5 (Geschichte) im Prompt stehen darf: Begriffe, Fragen,
+    """Was in Phase 4 (Geschichte) im Prompt stehen darf: Begriffe, Fragen,
     Setting, Figuren -- und die bestehende Folge.
 
     **Kein Material.** Keine Verdichtungen, keine Zitate, keine Sprachprofile
@@ -605,12 +605,12 @@ def _erfundenes(conn, chat_id: int) -> str:
 
 def systemanweisung(anzahl: int) -> str:
     """Anweisung fuer den Folge-Aufruf: die Form (Marker!) plus der
-    Phasenfokus aus ``prompts/phasen/7.md``, heiss nachgeladen.
+    Phasenfokus aus ``prompts/phasen/6.md``, heiss nachgeladen.
 
     Die Phasendatei ist optional (``hole_optional``): fehlt sie am
     Workshoptag, entsteht trotzdem eine Szenenfolge."""
     teile = [ANWEISUNG_FOLGE.format(anzahl=anzahl)]
-    phase = anweisungen.hole_optional("phasen/7")
+    phase = anweisungen.hole_optional("phasen/6")
     if phase and phase.strip():
         teile.append(phase.strip())
     return "\n\n".join(teile)
@@ -618,7 +618,7 @@ def systemanweisung(anzahl: int) -> str:
 
 def systemanweisung_geschichte(anzahl: int | None = None) -> str:
     """Anweisung fuer den Geschichte-Aufruf plus der Phasenfokus aus
-    ``prompts/phasen/5.md``.
+    ``prompts/phasen/4.md``.
 
     ``anzahl`` ist eine Bitte, keine Vorgabe: wie viele Szenen es werden,
     ergibt sich aus der Geschichte -- \"Anzahl aendern\" reicht sie herein,
@@ -626,7 +626,7 @@ def systemanweisung_geschichte(anzahl: int | None = None) -> str:
     teile = [ANWEISUNG_GESCHICHTE]
     if anzahl:
         teile.append(f"Die Gruppe moechte {anzahl} Szenen.")
-    phase = anweisungen.hole_optional("phasen/5")
+    phase = anweisungen.hole_optional("phasen/4")
     if phase and phase.strip():
         teile.append(phase.strip())
     return "\n\n".join(teile)
@@ -739,7 +739,7 @@ def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
 
 def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
                       wunsch: str | None = None) -> threading.Thread | None:
-    """Der Geschichte-Vorschlag (Phase 5) -- derselbe Weg wie ``starte``, nur
+    """Der Geschichte-Vorschlag (Phase 4) -- derselbe Weg wie ``starte``, nur
     mit anderer Anweisung und **ohne Material** im Nutzertext.
 
     Kein Modellaufruf im aufrufenden Thread (Zusage 2): ein Knopf darf ihn
@@ -787,7 +787,7 @@ def starte_feldvorschlag(conn, tg, klm, e, chat_id: int, ziel) -> threading.Thre
         log.error("Feldvorschlag ohne Sprachmodell, chat_id=%s", chat_id)
         return None
     fehlende, _ = szene_modul.fehlendes(conn, ziel)
-    # Die Arbeitsstand-Felder (Format, Rahmen) gehoeren in Phase 5 und werden
+    # Die Arbeitsstand-Felder (Format, Rahmen) gehoeren in Phase 4 und werden
     # hier NICHT vorgeschlagen: sie haengen am Stueck, nicht an der Szene.
     fehlende = [f for f in fehlende if f not in szene_modul.ARBEITSSTAND_PFLICHTFELDER]
     if not fehlende:

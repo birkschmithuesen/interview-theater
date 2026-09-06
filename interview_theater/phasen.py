@@ -1,12 +1,20 @@
-"""Die acht Arbeitsphasen als gespeicherter, sichtbarer Zustand.
+"""Die sieben Arbeitsphasen als gespeicherter, sichtbarer Zustand.
 
 **Erst erfinden, dann schaerfen** (Birk, 05.09.2026, 23:30 -- der Umbau ab
 Phase 4). Bis dahin entstanden Figuren und Szenen AUS den Interviews, und die
 Gruppe erkannte ihren eigenen kreativen Anteil nicht wieder. Jetzt umgekehrt:
-in Phase 4 erfindet die Gruppe Setting und Figuren **frei** (Vorschlaege nur
-aus Begriffen und Fragen -- kein Material), in Phase 5 die Geschichte im
-Groben samt Szenenfolge, und erst in Phase 6 kommen die Interviews dazu und
-schaerfen, was schon dasteht.
+in Phase 4 erfindet die Gruppe Setting, Figuren **und** die Geschichte im
+Groben samt Szenenfolge -- **frei**, aus Begriffen und Fragen, ohne Material
+--, und erst in Phase 5 kommen die Interviews dazu und schaerfen, was schon
+dasteht.
+
+**Setting, Figuren und Geschichte sind EINE Phase** (Birk, 06.09.2026, 09:20).
+Vorher waren es zwei (4 Setting & Figuren, 5 Geschichte), und zwischen der
+fixierten Figurenliste und der Frage nach der Geschichte stand ein
+Phasenwechsel mit eigener Meldung -- eine Zaesur mitten in einem Arbeitsgang,
+den die Gruppe als einen erlebt. Jetzt leitet der Bot nach der Figurenliste
+mit einer Zeile und einer offenen Frage weiter ("Was soll passieren, wie soll
+es ausgehen?"), ohne Phasenmeldung.
 
 **Warum es das gibt.** Die SPEC hat eine Phasen-Zustandsmaschine verworfen --
 zu Recht: verworfen war, dass der Code die Phase *erraet* und still
@@ -54,7 +62,8 @@ Rolle im Kernpaket uebernimmt ``arbeitsstand.geschichte`` (Bogen und Ende).
 Die Kernthema-Felder, -Knoepfe und -Marker bleiben rueckwaertskompatibel im
 Code, werden aber nicht mehr angeboten.
 
-Alte Datenbanken werden umnummeriert (``db.PHASEN_SCHEMA``): 6 -> 7, 7 -> 8.
+Alte Datenbanken werden umnummeriert (``db.PHASEN_UMNUMMERIERUNG_3``):
+5 -> 4, 6 -> 5, 7 -> 6, 8 -> 7.
 """
 
 from interview_theater import repo
@@ -83,21 +92,20 @@ PHASEN = (
     (3, "Interviews", "Interviews fuehren, das Material verdichten."),
     (
         4,
-        "Setting & Figuren",
-        "Frei erfinden: worin es spielt und wer vorkommt.",
+        "Setting, Figuren & Geschichte",
+        "Frei erfinden: worin es spielt, wer vorkommt, was passiert.",
     ),
     (
         5,
-        "Geschichte",
-        "Die Geschichte im Groben: was passiert, wie es endet, welche Szenen.",
-    ),
-    (
-        6,
         "Schaerfung",
         "Die erfundene Geschichte am Interviewmaterial schaerfen.",
     ),
-    (7, "Szenentexte", "Szene fuer Szene die Texte schreiben."),
-    (8, "Durchlauf", "Durchlauf und Feinschliff vor der Auffuehrung."),
+    (6, "Szenentexte", "Szene fuer Szene die Texte schreiben."),
+    (
+        7,
+        "Schaerfung des Stuecks",
+        "Das ganze Textbuch pruefen und Szene fuer Szene nachschaerfen.",
+    ),
 )
 
 #: Woerter, unter denen eine Phase gemeint sein kann -- zusaetzlich zum
@@ -124,15 +132,22 @@ STICHWOERTER = {
     4: (
         "setting", "figuren", "figur", "rahmen", "rahmung",
         "kernthema", "kernthemas", "format", "konflikt", "hauptkonflikt",
+        "geschichte", "handlung", "grobstruktur",
     ),
-    # "szenenfolge" steht hier NICHT: der Vergleich laeuft in beide
-    # Richtungen, und "szenen" waere darin enthalten -- die Gruppe landete
-    # bei der Geschichte statt bei den Szenentexten.
-    5: ("geschichte", "handlung", "grobstruktur"),
-    6: ("schaerfung", "schaerfen", "clustern", "verdichtungen"),
-    7: ("szenentexte", "szenentext", "szenen", "szene"),
-    8: ("durchlauf", "feinschliff"),
+    # "schaerfung" steht in ZWEI Phasen (5 am Material, 7 am fertigen
+    # Stueck). Aufgeloest wird das nicht hier, sondern in ``nummer_fuer``
+    # ueber die Phase, in der die Gruppe gerade steht: wer vor der
+    # Schaerfung steht, meint 5; wer die Szenen schon hat, meint 7.
+    5: ("schaerfung", "schaerfen", "clustern", "verdichtungen"),
+    6: ("szenentexte", "szenentext", "szenen", "szene"),
+    7: ("durchlauf", "feinschliff", "stueckpruefung", "pruefrunde"),
 }
+
+#: Die Stichwoerter, die in mehr als einer Phase vorkommen koennen, mit der
+#: spaeteren Phase, die sie meinen, sobald die Gruppe schon dort ist. Der
+#: Anlass ist Birks Umbau vom 06.09.2026: **beide** Schaerfungen heissen
+#: Schaerfung -- die am Material (5) und die am fertigen Stueck (7).
+MEHRDEUTIG = {5: 7}
 
 #: Die Phase, die gilt, solange keine gesetzt wurde (``phase IS NULL``).
 ERSTE = 1
@@ -220,12 +235,12 @@ def setze(conn, chat_id: int, nummer: int, quelle: str, notiz: str | None = None
 
 
 def liste() -> str:
-    """Die acht Phasen als Text, eine Zeile je Phase (fuer ``/phase`` ohne
+    """Die sieben Phasen als Text, eine Zeile je Phase (fuer ``/phase`` ohne
     Argument)."""
     return "\n".join(f"{nummer} · {name} - {text}" for nummer, name, text in PHASEN)
 
 
-def nummer_fuer(wert: str | int | None) -> int | None:
+def nummer_fuer(wert: str | int | None, jetzige: int | None = None) -> int | None:
     """Uebersetzt, was die Gruppe gesagt hat, in eine Phasennummer.
 
     Tolerant, in vier Durchgaengen: eine Zahl 1-8; ein Kurzname genau; ein
@@ -241,7 +256,14 @@ def nummer_fuer(wert: str | int | None) -> int | None:
 
     Bei mehreren Teiltreffern gewinnt die kleinste Nummer: der frueheren
     Phase zu widersprechen ist billiger als eine zu ueberspringen -- die
-    Gruppe korrigiert es mit einem Satz."""
+    Gruppe korrigiert es mit einem Satz.
+
+    ``jetzige`` loest die eine Mehrdeutigkeit auf, die es seit dem
+    06.09.2026 gibt: **beide** Schaerfungen heissen Schaerfung. Sagt eine
+    Gruppe, die schon bei den Szenentexten oder darueber steht,
+    "Schaerfung", meint sie die des Stuecks (7) und nicht die am Material
+    (5) -- ein Ruecksprung um zwei Stationen waere die teurere Fehlannahme.
+    Ohne ``jetzige`` bleibt es bei der frueheren Phase."""
     if wert is None:
         return None
     if isinstance(wert, int):
@@ -256,15 +278,27 @@ def nummer_fuer(wert: str | int | None) -> int | None:
 
     for nummer, name, _ in PHASEN:
         if text == name.lower():
-            return nummer
+            return _aufgeloest(nummer, jetzige)
     for nummer, _, _ in PHASEN:
         for stichwort in STICHWOERTER.get(nummer, ()):
             if stichwort in text or text in stichwort:
-                return nummer
+                return _aufgeloest(nummer, jetzige)
     for nummer, _, erklaerung in PHASEN:
         if text in erklaerung.lower():
-            return nummer
+            return _aufgeloest(nummer, jetzige)
     return None
+
+
+def _aufgeloest(nummer: int, jetzige: int | None) -> int:
+    """Die spaetere Phase, wenn das Wort in beiden vorkommt und die Gruppe
+    schon dort ist (``MEHRDEUTIG``) -- sonst die gefundene."""
+    spaeter = MEHRDEUTIG.get(nummer)
+    # ``>`` und nicht ``>=``: eine Gruppe, die IN der Material-Schaerfung
+    # steht und "Schaerfung" sagt, meint die, in der sie ist -- erst ab der
+    # naechsten Station meint dasselbe Wort die des Stuecks.
+    if spaeter is not None and jetzige is not None and jetzige > nummer:
+        return spaeter
+    return nummer
 
 
 def aktuelle(conn, chat_id: int) -> int:
@@ -282,10 +316,15 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
 
     Rein aus den Daten, ohne gespeicherten Zustand und ohne Modellaufruf:
     Begriffe da -> 2 ist moeglich; Fragen da -> 3; eine fertige Verdichtung
-    -> 4; **Setting (rahmen) und fixierte Figurenliste** -> 5; **Geschichte
-    und mindestens eine Szene** -> 6; Geschichte und Szenen -> 7 (die
-    Schaerfung ist ein Angebot, keine Pflicht); eine Szene mit Volltext -> 8.
+    -> 4; **Setting (rahmen), fixierte Figurenliste, Geschichte und
+    mindestens eine Szene** -> 5; dieselbe Lage -> 6 (die Schaerfung ist ein
+    Angebot, keine Pflicht); **alle geplanten Szenen mit Volltext** -> 7.
     Phase 1 braucht keine Voraussetzung, dorthin kommt man immer zurueck.
+
+    **Phase 7 verlangt seit dem 06.09.2026 ALLE Szenen** und nicht mehr nur
+    eine: dort geht das komplette Textbuch an den Stueck-Judge
+    (``stueckpruefung``), und ein Urteil ueber ein Stueck, dem drei Szenen
+    fehlen, ist keins.
 
     **Warum 4 weiter an einer Verdichtung haengt**, obwohl dort ohne Material
     gearbeitet wird: die Bedingung ist nicht "das Material wird gebraucht",
@@ -325,6 +364,7 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         except (IndexError, KeyError):
             return False
 
+    szenen_alle = repo.hole_szenen(conn, chat_id)
     return {
         2: bool(stand and stand["begriffe"]),
         # **Phase 3 haengt seit dem 06.09.2026 an ZWEI Dingen** (Birk): den
@@ -336,10 +376,12 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         3: bool(stand and stand["fragen"]) and feld("interview_eroeffnung"),
         4: bool(repo.verdichtungen(conn, chat_id))
         and not aufnahme.unausgewertete_interviews(conn, chat_id),
-        5: setting and fixiert and bool(repo.figuren(conn, chat_id)),
+        5: setting and fixiert and bool(repo.figuren(conn, chat_id))
+        and geschichte and szenen,
         6: geschichte and szenen,
-        7: geschichte and szenen,
-        8: any(s["volltext"] for s in repo.hole_szenen(conn, chat_id)),
+        7: bool(szenen_alle) and all(
+            (s["volltext"] or "").strip() for s in szenen_alle
+        ),
     }
 
 

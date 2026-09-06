@@ -113,7 +113,7 @@ def test_phasenprompts_liegen_als_unterpfad(betrieb):
     """Je Phase eine Datei -- die Nummern kommen aus ``phasen.PHASEN``, nicht
     aus einer zweiten Liste hier: als acht Phasen sieben wurden, blieb sonst
     ein Test stehen, der eine ``phasen/8.md`` verlangt, die es nicht mehr
-    gibt."""
+    gibt (zweimal passiert: 05.09. und 06.09.2026)."""
     for nummer, _, _ in phasen.PHASEN:
         text = anweisungen.hole(f"phasen/{nummer}")
         assert len(text.splitlines()) >= 8, nummer
@@ -221,7 +221,7 @@ def test_keine_beispiel_eigennamen_in_den_prompts():
 
 
 @pytest.mark.parametrize(
-    "name", ["system", "szene", "phasen/4", "phasen/5", "phasen/6"],
+    "name", ["system", "szene", "phasen/4", "phasen/5"],
 )
 def test_rahmen_des_stuecks_steht_in_den_prompts(betrieb, name):
     """Die Gruppe sind junge Frauen zwischen 15 und 18 -- Orte, Auffuehrungsort
@@ -333,7 +333,7 @@ def test_lied_und_rap_nennen_die_layout_konvention(betrieb):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("name", ["phasen/4", "phasen/5"])
+@pytest.mark.parametrize("name", ["phasen/4"])
 def test_die_erfindungsphasen_verbieten_das_material_ausdruecklich(betrieb, name):
     """Der Kontext-Filter steht im Code (``kontext.material_erlaubt``) -- der
     Prompt sagt es zusaetzlich, damit das Modell nicht nach Material FRAGT,
@@ -345,7 +345,7 @@ def test_die_erfindungsphasen_verbieten_das_material_ausdruecklich(betrieb, name
     assert "Frag" in text and "nicht danach" in text
 
 
-@pytest.mark.parametrize("name", ["phasen/4", "phasen/5"])
+@pytest.mark.parametrize("name", ["phasen/4"])
 def test_die_erfindungsphasen_faengt_mit_einer_offenen_frage_an(betrieb, name):
     """Kein Vorschlag als Eroeffnung: erst die Frage, dann -- auf Bitte --
     der Vorschlag."""
@@ -355,7 +355,7 @@ def test_die_erfindungsphasen_faengt_mit_einer_offenen_frage_an(betrieb, name):
     assert "Eigene Idee" in text
 
 
-@pytest.mark.parametrize("name", ["phasen/4", "phasen/5"])
+@pytest.mark.parametrize("name", ["phasen/4"])
 def test_in_den_erfindungsphasen_wird_nichts_als_interview_angeboten(betrieb, name):
     """Live-Befund 05.09.2026: der Bot bot an, eine Stueck-Idee der Gruppe
     als Interview aufzunehmen -- damit wird aus ihrer Erfindung Rohstoff und
@@ -375,7 +375,7 @@ def test_in_den_erfindungsphasen_wird_nichts_als_interview_angeboten(betrieb, na
 def test_die_schaerfung_schreibt_die_geschichte_nicht_um(betrieb):
     """Das Material ist ein Angebot, kein Einwand: die Gruppe hat die
     Geschichte gemacht, und sie bleibt ihre."""
-    text = " ".join(anweisungen.hole("phasen/6").split())
+    text = " ".join(anweisungen.hole("phasen/5").split())
 
     assert "Keine neue Geschichte" in text
     assert "woertlich" in text
@@ -385,7 +385,7 @@ def test_die_geschichte_verlangt_bedacht_bei_der_form(betrieb):
     """Birk, 06.09.2026 00:30: die Form muss mit mehr Bedacht gewaehlt und
     vom Nutzer bestaetigt werden -- der Prompt schlaegt sie deshalb nur vor,
     mit Begruendung, und Dialog ist der Normalfall."""
-    text = " ".join(anweisungen.hole("phasen/5").split())
+    text = " ".join(anweisungen.hole("phasen/4").split())
 
     assert "schlaegst du VOR" in text
     assert "Dialog ist der Normalfall" in text
@@ -396,7 +396,7 @@ def test_die_geschichte_verlangt_bedacht_bei_der_form(betrieb):
 def test_die_szenentexte_arbeiten_aus_den_schaerfungen(betrieb):
     """Der Szenen-Prompt bekommt die Stellen DIESER Szene, nicht die aller --
     und keine Transkripte."""
-    text = " ".join(anweisungen.hole("phasen/7").split())
+    text = " ".join(anweisungen.hole("phasen/6").split())
 
     assert "Schaerfungen" in text
     assert "Volltranskripte" in text

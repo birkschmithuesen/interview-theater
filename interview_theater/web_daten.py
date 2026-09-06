@@ -784,4 +784,43 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "journal": _journal(conn, chat_id),
         "bearbeitbares": bearbeitbares(conn, chat_id),
         "schaerfungen": geschaerft,
+        "stueckpruefung": stueckpruefung(conn, chat_id),
+    }
+
+
+def stueckpruefung(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Die letzte Pruefrunde des ganzen Stuecks (Phase 7, 06.09.2026) --
+    **read-only**, wie alles auf dieser Seite.
+
+    Liefert ``{"runde": N, "befunde": [{frage, bewertung, begruendung,
+    vorschlag, szene_nummer}, …]}`` oder ``{}``, wenn noch keine Runde
+    gelaufen ist. Der Befund ist ein Urteil ueber den EIGENEN Text der
+    Gruppe -- kein Interviewmaterial, kein Zitat; er darf deshalb stehen, wo
+    die Kurzformen stehen.
+
+    Fehlt die Tabelle noch (Datenbank aus der Zeit davor), ist das Ergebnis
+    leer statt ein Fehler: der Webserver migriert nichts."""
+    try:
+        zeilen = conn.execute(
+            "SELECT * FROM stueckpruefung WHERE chat_id = ? "
+            f"AND {_NICHT_ENTFERNT} ORDER BY runde ASC, id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    if not zeilen:
+        return {}
+    runde = max(z["runde"] for z in zeilen)
+    return {
+        "runde": runde,
+        "befunde": [
+            {
+                "frage": z["frage"],
+                "bewertung": z["bewertung"],
+                "begruendung": z["begruendung"],
+                "vorschlag": z["vorschlag"],
+                "szene_nummer": z["szene_nummer"],
+            }
+            for z in zeilen if z["runde"] == runde
+        ],
     }

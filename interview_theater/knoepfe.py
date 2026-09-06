@@ -62,6 +62,13 @@ ART_SZENE_USA = "szene_usa"
 #: auch dann noch das gemeinte Interview trifft, wenn inzwischen ein weiteres
 #: aufgenommen wurde (05.09.2026).
 ART_AUSWERTEN = "auswerten"
+#: Die beiden Knoepfe unter der Auswertungs-Zeile (06.09.2026, Birk 09:55):
+#: die Zusammenfassung (= derselbe Weg wie ``aufnahme.zeige_verdichtung``)
+#: und das Transkript im Wortlaut (= der Weg von ``/wortlaut``, in Teilen,
+#: wenn es laenger ist als ``telegram.NACHRICHT_GRENZE``). ``wert`` ist die
+#: ``aufnahme.id`` des Interviewkopfes.
+ART_ZUSAMMENFASSUNG = "zusammenfassung"
+ART_TRANSKRIPT = "transkript"
 #: Arbeitsstand zeigen -- dasselbe Ziel wie ``/stand``.
 ART_STAND = "stand"
 #: Bedienung zeigen -- dasselbe Ziel wie ``/hilfe``.
@@ -191,18 +198,25 @@ ART_SZENE_NAECHSTE = "szene_naechste"
 #: "So lassen" -- die Antwort auf einen Pruef-Vermerk (eine fruehere Szene
 #: wurde geaendert). Nimmt den Vermerk zurueck und laesst den Text stehen.
 ART_SZENE_SO_LASSEN = "szene_so_lassen"
-#: Phase 7 · Durchlauf: eine Szene im Volltext zeigen, das Textbuch als Datei.
+#: Phase 7 · Schaerfung des Stuecks: eine Szene im Volltext zeigen, das
+#: Textbuch als Datei.
 ART_DURCHLAUF_SZENE = "durchlauf_szene"
 ART_TEXTBUCH = "textbuch"
-#: Phase 5 · Geschichte: den Vorschlag (Bogen, Ende, Szenenfolge) speichern.
+#: Phase 4 · Geschichte: den Vorschlag (Bogen, Ende, Szenenfolge) speichern.
 #: ``wert`` ist "<weiter|anders>|<Vorschlagstext>" wie bei der Szenenfolge.
 ART_GESCHICHTE_SPEICHERN = "geschichte_speichern"
-#: Phase 6 · Schaerfung: eine Szenen- bzw. Figuren-Schaerfung uebernehmen
+#: Phase 5 · Schaerfung: eine Szenen- bzw. Figuren-Schaerfung uebernehmen
 #: (``wert`` ist die Szenennummer bzw. der Figurenname), eine weitere Runde
 #: anstossen, oder weiter zu den Szenentexten.
 ART_SCHAERFUNG_SZENE = "schaerfung_szene"
 ART_SCHAERFUNG_FIGUR = "schaerfung_figur"
 ART_SCHAERFUNG_RUNDE = "schaerfung_runde"
+#: Phase 7 · Schaerfung des Stuecks (06.09.2026): je Befund "Szene N
+#: ueberarbeiten" (``wert`` ist die ``stueckpruefung.id``) und "Lassen",
+#: darunter "Noch eine Pruefrunde".
+ART_PRUEFUNG_SZENE = "pruefung_szene"
+ART_PRUEFUNG_LASSEN = "pruefung_lassen"
+ART_PRUEFUNG_RUNDE = "pruefung_runde"
 
 
 #: Trennzeichen im ``wert`` der Speicher-Leiste.
@@ -300,6 +314,14 @@ TEXT_ABLAUF = (
 )
 #: Die drei Knoepfe der Leiste nach einem beendeten Interview (05.09.2026).
 _TEXT_AUSWERTEN_KNOPF = "Auswerten"
+#: Der Sonderfall unter ``aufnahme.MINDEST_WOERTER``: nichts wurde
+#: verdichtet, und die Gruppe kann darauf bestehen (06.09.2026).
+_TEXT_TROTZDEM_AUSWERTEN_KNOPF = "Trotzdem auswerten"
+#: Die zwei Knoepfe unter der Auswertungs-Zeile (06.09.2026).
+_TEXT_ZUSAMMENFASSUNG_KNOPF = "Zusammenfassung zeigen"
+_TEXT_TRANSKRIPT_KNOPF = "Transkript zeigen"
+#: Was dasteht, wenn ein Interview gar kein Transkript hat.
+_TEXT_KEIN_TRANSKRIPT = "Zu diesem Interview habe ich keinen Wortlaut."
 _TEXT_NAECHSTE_AUFNAHME_KNOPF = "Naechstes Interview"
 _TEXT_STAND_KNOPF = "Stand zeigen"
 _TEXT_HILFE_KNOPF = "Hilfe"
@@ -323,21 +345,27 @@ _TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
 #: Arbeitsschritte zu weit.
 PHASE_INTERVIEWS = 3
 
-#: Setting & Figuren (frei erfunden). Der Rahmen wird seit dem Umbau vom
-#: 05.09.2026 nachts HIER gesetzt, nicht mehr in einer eigenen Phase.
+#: Setting, Figuren & Geschichte (frei erfunden). Der Rahmen wird seit dem
+#: Umbau vom 05.09.2026 nachts HIER gesetzt, die Geschichte seit dem
+#: 06.09.2026 ebenfalls -- es ist EINE Station, ohne Zaesur dazwischen.
 PHASE_SETTING = 4
 #: Rueckwaertskompatibler Name: der Rahmen ist Teil von Phase 4 geworden.
 PHASE_RAHMEN = PHASE_SETTING
+#: Rueckwaertskompatibler Name: die Geschichte ist Teil von Phase 4 geworden
+#: (06.09.2026). Dieselbe Nummer, damit kein Aufrufer eine Station meint,
+#: die es nicht mehr gibt.
+PHASE_GESCHICHTE = PHASE_SETTING
 
-#: Die Geschichte im Groben (Bogen, Ende, Szenenfolge mit Form).
-PHASE_GESCHICHTE = 5
 #: Die Schaerfung am Material -- hier kommen die Interviews wieder ins Spiel.
-PHASE_SCHAERFUNG = 6
-#: Die Phase, in der die Szenentexte entstehen, und die des Durchlaufs.
-#: Als Konstanten und nicht als 7 und 8 im Code: eine neunte Phase soll
+PHASE_SCHAERFUNG = 5
+#: Die Phase, in der die Szenentexte entstehen, und die der Stueck-Pruefung.
+#: Als Konstanten und nicht als 6 und 7 im Code: eine achte Phase soll
 #: nichts brauchen ausser ``phasen.PHASEN``.
-PHASE_SZENEN = 7
-PHASE_DURCHLAUF = 8
+PHASE_SZENEN = 6
+PHASE_STUECKPRUEFUNG = 7
+#: Rueckwaertskompatibler Name: bis zum 06.09.2026 hiess Phase 7 (damals 8)
+#: "Durchlauf".
+PHASE_DURCHLAUF = PHASE_STUECKPRUEFUNG
 
 _TEXT_SZENENFORM_FRAGE = "Welche Form soll Szene {nummer} haben?"
 #: Markiert den Vorschlag des Bots in der Formleiste -- er steht zuerst, ist
@@ -969,8 +997,11 @@ def offene_art(conn, chat_id: int) -> str | None:
             return "rahmen"
         if leer("figuren_fixiert_am"):
             return "figuren"
-    if phase == 5 and leer("geschichte"):
-        return "geschichte"
+        # Seit dem 06.09.2026 gehoert die Geschichte in dieselbe Station:
+        # steht die Figurenliste, ist sie die naechste offene Ebene -- ohne
+        # Phasenwechsel dazwischen.
+        if leer("geschichte"):
+            return "geschichte"
     return None
 
 
@@ -1348,14 +1379,41 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
     Liefert die ``message_id`` der Angebotsnachricht."""
     knoepfe: list[tuple[str, str]] = []
     if kopf_id is not None:
-        # Auch wenn schon verdichtet wurde: seit 05.09.2026 geht die
-        # Verdichtung NICHT mehr von selbst in den Chat -- der Knopf ist der
-        # Weg, sie zu sehen (``aufnahme.zeige_verdichtung``), nicht nur der
-        # Weg, sie nachtraeglich zu erzwingen.
+        # **Kein "Auswerten" mehr** (06.09.2026, Birk 09:55): verdichtet wird
+        # seit dem 05.09. ohnehin sofort, und der Knopf hiess nach einer
+        # Handlung, die schon passiert war. An seiner Stelle stehen die
+        # beiden Wege, die die Gruppe wirklich braucht -- die Zusammenfassung
+        # lesen und den Wortlaut gegenpruefen. Die art ``ART_AUSWERTEN``
+        # bleibt im Code: sie traegt weiter den Sonderfall unter
+        # ``aufnahme.MINDEST_WOERTER`` ("Trotzdem auswerten").
+        if repo.verdichtung_zu_aufnahme(conn, kopf_id) is not None:
+            knoepfe.append(
+                (
+                    _TEXT_ZUSAMMENFASSUNG_KNOPF,
+                    _daten(
+                        repo.lege_knopf_an(
+                            conn, chat_id, ART_ZUSAMMENFASSUNG, str(kopf_id)
+                        )
+                    ),
+                )
+            )
+        else:
+            # Unter der Mindestlaenge: hier gibt es nichts zu zeigen, nur
+            # etwas zu erzwingen.
+            knoepfe.append(
+                (
+                    _TEXT_TROTZDEM_AUSWERTEN_KNOPF,
+                    _daten(
+                        repo.lege_knopf_an(conn, chat_id, ART_AUSWERTEN, str(kopf_id))
+                    ),
+                )
+            )
         knoepfe.append(
             (
-                _TEXT_AUSWERTEN_KNOPF,
-                _daten(repo.lege_knopf_an(conn, chat_id, ART_AUSWERTEN, str(kopf_id))),
+                _TEXT_TRANSKRIPT_KNOPF,
+                _daten(
+                    repo.lege_knopf_an(conn, chat_id, ART_TRANSKRIPT, str(kopf_id))
+                ),
             )
         )
     # "Naechste Aufnahme" statt "Aufnahme starten": nach einem beendeten
@@ -1695,6 +1753,134 @@ def starte_schaerfung(conn, tg, klm, e, chat_id: int) -> None:
         biete_schaerfung(conn, tg, chat_id)
 
 
+# --- Phase 7 · Schaerfung des Stuecks (06.09.2026) ------------------------
+
+_TEXT_PRUEFUNG_LAEUFT = (
+    "Ich lese euer Stueck jetzt einmal am Stueck durch. Das dauert einen "
+    "Moment."
+)
+_TEXT_PRUEFUNG_SZENE_KNOPF = "Szene {nummer} ueberarbeiten"
+_TEXT_PRUEFUNG_LASSEN_KNOPF = "Lassen"
+_TEXT_PRUEFUNG_RUNDE_KNOPF = "Noch eine Pruefrunde"
+_TEXT_PRUEFUNG_LASSEN = "Gut, das bleibt so."
+_TEXT_PRUEFUNG_UNBEKANNT = "Diesen Befund finde ich nicht mehr."
+#: Was nach einer Ueberarbeitung dasteht: der Befund ist ueberholt, aber es
+#: laeuft KEINE Pruefung von selbst nach (Birk) -- ein Modellaufruf je
+#: Szenenaenderung waere ein Automatismus, den niemand bestellt hat.
+_TEXT_PRUEFUNG_UEBERHOLT = (
+    "Sobald die Szene neu steht, ist meine Pruefung von vorhin ueberholt. "
+    "Wenn ihr wollt, lese ich das Stueck noch einmal als Ganzes."
+)
+
+
+def starte_stueckpruefung(conn, tg, klm, e, chat_id: int) -> None:
+    """Stoesst die Pruefung des ganzen Stuecks an (im Thread) -- der
+    automatische EINE Lauf beim Eintritt in Phase 7.
+
+    Kein Modellaufruf hier: ``stueckpruefung.starte`` gibt sofort ab
+    (Zusage 2). Ohne Sprachmodell (Tests) bleibt der Weg still offen; dann
+    zeigt ``zeige_stueckpruefung`` das, was schon dasteht."""
+    from interview_theater import stueckpruefung as pruefung_modul
+
+    tg.sende(chat_id, _TEXT_PRUEFUNG_LAEUFT)
+    pruefung_modul.starte(conn, tg, klm, e, chat_id)
+
+
+def zeige_stueckpruefung(conn, tg, chat_id: int, runde: int | None = None) -> int:
+    """Die Befunde EINER Runde: je Frage eine Nachricht mit "Szene N
+    ueberarbeiten" und "Lassen", darunter die Abschlussleiste mit "Noch eine
+    Pruefrunde", "Textbuch als Datei" und einem Knopf je Szene.
+
+    Deterministisch aus der Datenbank, kein Modellaufruf (Zusage 2) -- der
+    Lauf ist gelaufen, hier wird nur vorgestellt. Liefert die Zahl der
+    verschickten Befund-Nachrichten."""
+    from interview_theater import stueckpruefung as pruefung_modul
+
+    if runde is None:
+        runde = repo.letzte_pruefrunde(conn, chat_id)
+    if not runde:
+        return 0
+    zeilen = repo.stueckpruefungen(conn, chat_id, runde=runde)
+    if not zeilen:
+        return 0
+    tg.sende(chat_id, pruefung_modul.MELDUNG_KOPF.format(runde=runde))
+    verschickt = 0
+    for zeile in zeilen:
+        leiste = []
+        if zeile["szene_nummer"] is not None and (zeile["vorschlag"] or "").strip():
+            leiste.append(
+                (
+                    _TEXT_PRUEFUNG_SZENE_KNOPF.format(nummer=zeile["szene_nummer"]),
+                    _daten(
+                        repo.lege_knopf_an(
+                            conn, chat_id, ART_PRUEFUNG_SZENE, str(zeile["id"])
+                        )
+                    ),
+                )
+            )
+        leiste.append(
+            (
+                _TEXT_PRUEFUNG_LASSEN_KNOPF,
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_PRUEFUNG_LASSEN, str(zeile["id"])
+                    )
+                ),
+            )
+        )
+        message_id = tg.sende_mit_knoepfen(
+            chat_id, pruefung_modul.befundtext(zeile), leiste
+        )
+        repo.merke_knopf_nachricht(
+            conn, [_id_aus_daten(d) for _, d in leiste], message_id
+        )
+        verschickt += 1
+    biete_nach_pruefung(conn, tg, chat_id, runde)
+    return verschickt
+
+
+def biete_nach_pruefung(conn, tg, chat_id: int, runde: int) -> int:
+    """Die Abschlussleiste unter den Befunden: "Noch eine Pruefrunde",
+    "Textbuch als Datei" und ein Knopf je Szene ("Szene N ansehen")."""
+    from interview_theater import szenenfolge
+
+    leiste = [
+        (
+            _TEXT_PRUEFUNG_RUNDE_KNOPF,
+            _daten(
+                repo.lege_knopf_an(conn, chat_id, ART_PRUEFUNG_RUNDE, str(runde))
+            ),
+        ),
+        (
+            TEXT_TEXTBUCH_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_TEXTBUCH, None)),
+        ),
+    ]
+    for s in repo.hole_szenen(conn, chat_id):
+        if s["nummer"] is None:
+            continue
+        leiste.append(
+            (
+                TEXT_DURCHLAUF_SZENE_KNOPF.format(nummer=s["nummer"]),
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_DURCHLAUF_SZENE, str(s["nummer"])
+                    )
+                ),
+            )
+        )
+    return _mit_leiste(conn, tg, chat_id, szenenfolge.uebersicht(conn, chat_id), leiste)
+
+
+def _pruefbefund(conn, chat_id: int, befund_id: int):
+    """Der Befund mit dieser id, oder None -- ueber ``repo``, damit das
+    weiche Loeschen an einer Stelle bleibt."""
+    return next(
+        (z for z in repo.stueckpruefungen(conn, chat_id) if z["id"] == befund_id),
+        None,
+    )
+
+
 def sende_szenenfelder(conn, tg, chat_id: int, nummer: int, antwort: str) -> int:
     """Der Feldvorschlag fuer EINE Szene, mit der Grundleiste darunter.
 
@@ -1825,7 +2011,7 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
 
 
 def biete_durchlauf(conn, tg, chat_id: int) -> int:
-    """Der Eintritt in Phase 7: die Szenenfolge mit Status als Text, darunter
+    """Der Eintritt in Phase 7 (Schaerfung des Stuecks): die Szenenfolge mit Status als Text, darunter
     ein Knopf je Szene, "Textbuch als Datei" und "Eigene Idee".
 
     Alles deterministisch aus der Datenbank. Der Durchlauf ist eine Ansicht
@@ -1861,7 +2047,7 @@ def biete_durchlauf(conn, tg, chat_id: int) -> int:
     return _mit_leiste(conn, tg, chat_id, szenenfolge.uebersicht(conn, chat_id), leiste)
 
 
-# --- Phase 6 · Szenen: Wirkungen ------------------------------------------
+# --- Phase 6 · Szenentexte: Wirkungen ------------------------------------------
 
 
 def _szene_mit_nummer(conn, chat_id: int, nummer: int):
@@ -2148,10 +2334,10 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
         return "Wie viele?"
 
     if art == ART_SZENENFOLGE_ANZAHL_WERT:
-        # In Phase 5 ist die Anzahl eine Angabe zur GESCHICHTE, nicht zu
+        # In Phase 4 ist die Anzahl eine Angabe zur GESCHICHTE, nicht zu
         # einer blanken Szenenfolge -- derselbe Knopf, der Weg richtet sich
         # nach der Station.
-        if phasen.aktuelle(conn, chat_id) <= PHASE_GESCHICHTE:
+        if phasen.aktuelle(conn, chat_id) <= PHASE_SETTING:
             szenenfolge.starte_geschichte(conn, tg, klm, e, chat_id, anzahl=int(wert))
         else:
             szenenfolge.starte(conn, tg, klm, e, chat_id, anzahl=int(wert))
@@ -2274,6 +2460,37 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
 
     if art == ART_DURCHLAUF_SZENE:
         return zeige_szenentext(conn, tg, chat_id, int(wert))
+
+    if art == ART_PRUEFUNG_SZENE:
+        # "Szene N ueberarbeiten" geht den bestehenden Weg "Passt, aber
+        # anders": ein Szenenauftrag mit dem Vorschlag als Regie-Notiz. Kein
+        # Modellaufruf hier -- ``ablauf.starte_auftrag`` gibt an einen
+        # eigenen Thread ab (Zusage 2).
+        befund = _pruefbefund(conn, chat_id, int(wert))
+        if befund is None or befund["szene_nummer"] is None:
+            tg.sende(chat_id, _TEXT_PRUEFUNG_UNBEKANNT)
+            return _TEXT_PRUEFUNG_UNBEKANNT
+        from interview_theater import ablauf, stueckpruefung as pruefung_modul
+
+        nummer = int(befund["szene_nummer"])
+        ablauf.starte_auftrag(
+            conn, tg, klm, e, chat_id,
+            f"Schreib Szene {nummer} neu. {pruefung_modul.regienotiz(befund)}",
+        )
+        # Nach einer Ueberarbeitung gilt der Stand als ungeprueft -- gesagt,
+        # nicht automatisch nachgelaufen (Birk).
+        tg.sende(chat_id, _TEXT_PRUEFUNG_UEBERHOLT)
+        return f"Szene {nummer} wird ueberarbeitet"
+
+    if art == ART_PRUEFUNG_LASSEN:
+        tg.sende(chat_id, _TEXT_PRUEFUNG_LASSEN)
+        return "Bleibt"
+
+    if art == ART_PRUEFUNG_RUNDE:
+        # Noch eine Pruefrunde: derselbe Weg wie beim Eintritt in die Phase,
+        # die Runde zaehlt in ``repo.letzte_pruefrunde`` von selbst hoch.
+        starte_stueckpruefung(conn, tg, klm, e, chat_id)
+        return "Ich lese noch einmal"
 
     if art == ART_TEXTBUCH:
         text = szenenfolge.textbuch(conn, chat_id)
@@ -2761,9 +2978,17 @@ _TEXT_FIGUR_INTERVIEW_KNOPF = "Anderes Interview"
 _TEXT_FIGUR_DUKTUS_KNOPF = "Anderer Duktus"
 _TEXT_FIGUR_ENTFERNEN_KNOPF = "Entfernen"
 _TEXT_FIGUR_INTERVIEW_FRAGE = "Aus welchem Interview spricht {name}?"
-#: Ebene 2 ist fertig -- ab hier gibt phasen.voraussetzungen[5] den Schritt
-#: nach "Format & Rahmen" her (``figuren_fixiert_am``).
+#: Ebene 2 ist fertig. Seit dem 06.09.2026 geht es damit NICHT in eine neue
+#: Phase, sondern innerhalb von Phase 4 weiter zur Geschichte: eine kurze
+#: Zeile und eine offene Frage, keine Phasenmeldung dazwischen (Birk).
 _TEXT_FIGUREN_FIXIERT = "Die Figuren stehen."
+#: Die Ueberleitung von der Figurenliste zur Geschichte -- Birks Wortlaut
+#: der offenen Frage. Zwei Knoepfe wie bei jedem Eintritt in eine Ebene:
+#: die Gruppe zuerst, oder ein Vorschlag vom Bot.
+_TEXT_ZUR_GESCHICHTE = (
+    "Die Figuren stehen - jetzt die Geschichte, im Groben.\n\n"
+    "Was soll passieren, wie soll es ausgehen?"
+)
 _TEXT_FIGUREN_KEINE = (
     "Es sind keine Figuren mehr uebrig. Sagt mir, wen ihr stattdessen wollt."
 )
@@ -2841,11 +3066,11 @@ def ebene2_erlaubt(conn, chat_id: int) -> bool:
     """Darf die Figurenarbeit Figur fuer Figur laufen (Interview-Zuordnung,
     Sprachduktus)?
 
-    Erst ab der Schaerfung (Phase 6). In Phase 4 wird **erfunden**: die
+    Erst ab der Schaerfung (Phase 5). In Phase 4 wird **erfunden**: die
     Figuren entstehen aus Begriffen, Fragen und Setting, und die Frage
     \"aus welchem Interview spricht sie?\" waere dort genau die Ruecklenkung
     aufs Material, die der Umbau vom 05.09.2026 nachts vermeidet. Die Liste
-    ist damit nach Ebene 1 fixiert; das Interview kommt in Phase 6 aus der
+    ist damit nach Ebene 1 fixiert; das Interview kommt in Phase 5 aus der
     Zuordnung (``schaerfung.uebernimm_figur``)."""
     return phasen.aktuelle(conn, chat_id) >= PHASE_SCHAERFUNG
 
@@ -2940,9 +3165,16 @@ def _sende_figurenvorstellung(conn, tg, chat_id: int, figur,
 
 
 def _schliesse_figuren_ab(conn, tg, chat_id: int) -> bool:
-    """Ebene 2 ist durch: Merkposten setzen, bestaetigen, den Weg nach
-    Phase 5 anbieten. Liefert immer False (es wurde keine Figur mehr
-    vorgestellt)."""
+    """Ebene 2 ist durch: Merkposten setzen und **innerhalb derselben Phase**
+    zur Geschichte ueberleiten. Liefert immer False (es wurde keine Figur
+    mehr vorgestellt).
+
+    Bis zum 06.09.2026 stand hier der Knopf "Weiter zu Geschichte" -- eine
+    eigene Station mit eigener Phasenmeldung. Birk hat beides
+    zusammengelegt: Setting, Figuren und Geschichte sind eine Arbeit, und
+    eine Zaesur mittendrin unterbricht sie, statt sie zu ordnen. Jetzt eine
+    kurze Zeile und die offene Frage, darunter dieselben zwei Knoepfe wie bei
+    jedem Eintritt ("Ja, wir zuerst" · "Schlag du vor")."""
     if not repo.figuren(conn, chat_id):
         tg.sende(chat_id, _TEXT_FIGUREN_KEINE)
         return False
@@ -2951,11 +3183,14 @@ def _schliesse_figuren_ab(conn, tg, chat_id: int) -> bool:
     repo.schreibe_journal(
         conn, chat_id, "entschieden", "Figurenliste steht", quelle="knopf",
     )
-    phasenknopf = _phasenknopf(conn, chat_id)
-    if phasenknopf is not None:
-        tg.sende_mit_knoepfen(chat_id, _TEXT_FIGUREN_FIXIERT, [phasenknopf])
-    else:
-        tg.sende(chat_id, _TEXT_FIGUREN_FIXIERT)
+    leiste = [
+        (_TEXT_WIR_ZUERST_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_WIR_ZUERST, str(PHASE_SETTING)))),
+        (_TEXT_SCHLAG_VOR_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHLAG_VOR, str(PHASE_SETTING)))),
+    ]
+    message_id = tg.sende_mit_knoepfen(chat_id, _TEXT_ZUR_GESCHICHTE, leiste)
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return False
 
 
@@ -3019,10 +3254,9 @@ _ERLEDIGT_FUER = {
     2: "Eure Begriffe",
     3: "Eure Fragen",
     4: "Die Interviews sind ausgewertet und",
-    5: "Setting und Figuren",
+    5: "Setting, Figuren und Geschichte",
     6: "Geschichte und Szenenfolge",
-    7: "Eure Szenen",
-    8: "Der Szenentext",
+    7: "Alle Szenentexte",
 }
 
 
@@ -3116,16 +3350,16 @@ def _mit_vorspann(vorspann: str | None, text: str) -> str:
 
 
 def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
-    """Was beim Eintritt in eine Phase passiert -- fuer ALLE acht gleich
+    """Was beim Eintritt in eine Phase passiert -- fuer ALLE sieben gleich
     aufgebaut (06.09.2026, Birk).
 
     Eine deterministische Nachricht (``phasentexte.eintritt``: Kopfzeile
-    "▶️ Phase N von 8 · Name", zwei bis vier Saetze Einleitung, die
+    "▶️ Phase N von 7 · Name", zwei bis vier Saetze Einleitung, die
     Parameter-Checkliste aus dem Arbeitsstand) und darunter die Knoepfe, die
     zum Einstieg DIESER Phase gehoeren. Neu erfunden wird dabei nichts: es
     sind dieselben Wege wie bisher -- die Eintritt-Frage mit "Ja, wir
-    zuerst · Schlag du vor", in Phase 3 der Leitfaden, in 6 die Schaerfung,
-    in 8 die Szenenfolge.
+    zuerst · Schlag du vor", in Phase 3 der Leitfaden, in 5 die Schaerfung,
+    in 7 die Szenenfolge mit der Pruefung des Stuecks.
 
     **Kein Modellaufruf** (Zusage 2): alles kommt aus der Datenbank, und was
     ein Modell braucht (Schaerfung), geht in einen eigenen Thread.
@@ -3146,12 +3380,15 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
 
         biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
         leitfaden.sende_einmal(conn, tg, chat_id)
-    elif nummer == PHASE_DURCHLAUF:
-        # die Szenenfolge mit Status, ein Knopf je Szene und das
-        # Textbuch (05.09.2026). Alles aus der Datenbank -- kein
-        # Modellaufruf in diesem Handler (Zusage 2).
+    elif nummer == PHASE_STUECKPRUEFUNG:
+        # Die Schaerfung des Stuecks (06.09.2026, Birk): das komplette
+        # Textbuch geht EINMAL beim Eintritt an den Stueck-Judge, im Thread
+        # (Zusage 2: kein Modellaufruf in diesem Handler). Bis der Befund da
+        # ist, steht die Szenenfolge mit Status und den Knoepfen "Szene N
+        # ansehen" / "Textbuch als Datei" -- alles aus der Datenbank.
         tg.sende(chat_id, kopf)
         biete_durchlauf(conn, tg, chat_id)
+        starte_stueckpruefung(conn, tg, klm, e, chat_id)
     elif nummer == PHASE_SCHAERFUNG:
         # Die Schaerfung fragt nicht nach Ideen: sie legt die Geschichte
         # neben die Interviews. Das Mapping laeuft automatisch beim
@@ -3187,12 +3424,10 @@ ANWEISUNGEN = {
        "erfunden aus den Begriffen und Fragen der Gruppe, NICHT aus "
        "Interviews. Haeng sie als Block 'VORSCHLAG RAHMEN:' an, einen "
        "Vorschlag je Zeile.",
-    5: "Schlag die Geschichte im Groben vor: was passiert, wie es endet, "
-       "welche Szenen. Frei erfunden aus Begriffen, Fragen, Setting und "
-       "Figuren - NICHT aus Interviews. Haeng sie als Block "
-       "'VORSCHLAG GESCHICHTE:' an: Zeile 1 der Bogen, Zeile 2 'Ende: ...', "
-       "danach je Szene 'Titel — ein Satz — Figuren — Form'.",
 }
+#: Die Geschichte ist seit dem 06.09.2026 Teil von Phase 4 und hat einen
+#: eigenen Weg (``szenenfolge.starte_geschichte``) -- sie steht deshalb
+#: nicht mehr in ``ANWEISUNGEN``, sondern als Anweisung dort.
 _ANWEISUNG_ALLGEMEIN = (
     "Schlag der Gruppe den naechsten Schritt dieser Phase vor - konkret, "
     "aus dem Material, und schliess mit einer offenen Frage."
@@ -3579,20 +3814,23 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         return "Wir hoeren zu"
     if art == ART_SCHLAG_VOR:
         phase = int(knopf["wert"] or 0)
-        if phase == PHASE_GESCHICHTE:
-            # Phase 5 hat einen eigenen Weg (``szenenfolge.starte_geschichte``):
-            # der Vorschlag ist Bogen + Ende + Szenenfolge mit fester
-            # Zeilenform, und er entsteht OHNE Material. Eigener Thread.
+        if phase == PHASE_SETTING and offene_art(conn, chat_id) == "geschichte":
+            # Innerhalb von Phase 4 hat die GESCHICHTE einen eigenen Weg
+            # (``szenenfolge.starte_geschichte``): Bogen + Ende + Szenenfolge
+            # mit fester Zeilenform, OHNE Material. Welche Ebene gemeint ist,
+            # sagt ``offene_art`` -- steht die Figurenliste, ist es die
+            # Geschichte, sonst Setting oder Figuren. Eigener Thread.
             from interview_theater import szenenfolge
 
             szenenfolge.starte_geschichte(conn, tg, klm, e, chat_id)
             return "Ich schlage vor"
         if phase == PHASE_SZENEN:
-            # Phase 6 hat einen eigenen Weg (``szenenfolge.starte``): der
-            # Vorschlag ist eine Szenenfolge mit fester Zeilenform, kein
-            # freier Gespraechszug -- und er traegt danach seine eigenen
-            # Knoepfe ("Anzahl aendern", "Reihenfolge aendern"). Auch er
-            # laeuft in einem eigenen Thread, kein Modellaufruf hier.
+            # Die Szenentexte-Phase hat einen eigenen Weg
+            # (``szenenfolge.starte``): der Vorschlag ist eine Szenenfolge
+            # mit fester Zeilenform, kein freier Gespraechszug -- und er
+            # traegt danach seine eigenen Knoepfe ("Anzahl aendern",
+            # "Reihenfolge aendern"). Auch er laeuft in einem eigenen
+            # Thread, kein Modellaufruf hier.
             from interview_theater import szenenfolge
 
             szenenfolge.starte(conn, tg, klm, e, chat_id)
@@ -3699,6 +3937,33 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         tg.sende(chat_id, f"Ich werte {name} aus.")
         aufnahme.starte_auswertung(conn, tg, klm, e, kopf_id)
         return "Auswertung laeuft"
+    if art == ART_ZUSAMMENFASSUNG:
+        # Derselbe Anzeigepfad wie bisher hinter "Auswerten"
+        # (``aufnahme.zeige_verdichtung``), nur ehrlicher benannt: verdichtet
+        # ist laengst, gezeigt wird jetzt. Reine Leseabfrage, kein
+        # Modellaufruf (Zusage 2).
+        from interview_theater import aufnahme
+
+        kopf_id = int(knopf["wert"])
+        if aufnahme.zeige_verdichtung(conn, tg, e, kopf_id):
+            return "Zusammenfassung"
+        tg.sende(chat_id, _TEXT_AUSWERTEN_UNBEKANNT)
+        return _TEXT_AUSWERTEN_UNBEKANNT
+    if art == ART_TRANSKRIPT:
+        # Der Wortlaut zum Gegenpruefen -- derselbe Text, den ``/wortlaut``
+        # ausspielt, in Teilen, wenn er laenger ist als
+        # ``telegram.NACHRICHT_GRENZE``. Deterministisch aus der Datenbank.
+        from interview_theater import telegram as telegram_modul
+
+        kopf = repo.hole_aufnahme(conn, int(knopf["wert"]))
+        text = (kopf["transkript"] or "").strip() if kopf is not None else ""
+        if not text:
+            tg.sende(chat_id, _TEXT_KEIN_TRANSKRIPT)
+            return _TEXT_KEIN_TRANSKRIPT
+        name = (kopf["name"] if kopf else None) or "Das Interview"
+        for stueck in telegram_modul.teile_text(f"{name}, im Wortlaut:\n{text}"):
+            tg.sende(chat_id, stueck)
+        return "Transkript"
     if art == ART_STAND:
         from interview_theater import befehle
 

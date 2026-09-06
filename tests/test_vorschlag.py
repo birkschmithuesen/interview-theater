@@ -110,10 +110,12 @@ def test_in_phase_2_zaehlen_die_fragen_nicht_die_begriffe(conn, tg):
     assert tg.knoepfe, "die Fragen-Leiste haengt dran"
 
 
-def test_in_phase_4_erst_setting_dann_figuren(conn, tg):
-    """Der Ping-Pong der Phase 4 (Umbau 05.09.2026 nachts): zuerst das
-    SETTING (``rahmen``), dann die Figuren -- kein Kernthema, keine
-    Kernfrage: hier wird erfunden, nicht aus dem Material geschaelt."""
+def test_in_phase_4_erst_setting_dann_figuren_dann_geschichte(conn, tg):
+    """Der Ping-Pong der Phase 4 (Umbau 05.09.2026 nachts, zusammengelegt am
+    06.09.2026): zuerst das SETTING (``rahmen``), dann die Figuren, dann die
+    GESCHICHTE -- kein Kernthema, keine Kernfrage: hier wird erfunden, nicht
+    aus dem Material geschaelt. Drei Ebenen, EINE Station: zwischen Figuren
+    und Geschichte gibt es keinen Phasenwechsel mehr."""
     phasen.setze(conn, 1, 4, "befehl")
     assert knoepfe.offene_art(conn, 1) == "rahmen"
 
@@ -127,11 +129,6 @@ def test_in_phase_4_erst_setting_dann_figuren(conn, tg):
     assert knoepfe.offene_art(conn, 1) == "figuren"
 
     repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
-    assert knoepfe.offene_art(conn, 1) is None
-
-
-def test_in_phase_5_ist_die_geschichte_offen(conn, tg):
-    phasen.setze(conn, 1, 5, "befehl")
     assert knoepfe.offene_art(conn, 1) == "geschichte"
 
     repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.")

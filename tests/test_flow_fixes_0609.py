@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from interview_theater import bot, db, einstellungen, erkenner, phasentexte, repo
+from interview_theater import (
+    bot, db, einstellungen, erkenner, phasen, phasentexte, repo,
+)
 
 from simulation.attrappe import TelegramAttrappe
 
@@ -98,25 +100,25 @@ def test_ein_zweiter_planungssatz_aendert_nur_den_vorschlag(conn, einst):
     assert zeile["form_vorschlag"] == "Chor"
 
 
-# --- Fix 3: Phase 8 behauptet nichts ueber Szenen, die nicht stehen ---------
+# --- Fix 3: die letzte Phase behauptet nichts ueber Szenen, die nicht stehen ---------
 
 
-def test_phase_8_behauptet_nicht_dass_alle_szenen_stehen(conn):
-    """Gemessen im Lauf tag1-gruppe2: der Bot sprang nach Phase 8 und sagte
+def test_die_letzte_phase_behauptet_nicht_dass_alle_szenen_stehen(conn):
+    """Gemessen im Lauf tag1-gruppe2: der Bot sprang in die letzte Phase und sagte
     'Alle Szenen stehen', waehrend keine geschrieben war."""
     repo.stelle_szene_sicher(conn, CHAT, 1)
 
-    text = phasentexte.eintritt(conn, CHAT, 8)
+    text = phasentexte.eintritt(conn, CHAT, phasen.LETZTE)
 
     assert "Alle Szenen stehen" not in text
     assert "noch ungeschrieben" in text
 
 
-def test_phase_8_sagt_es_wenn_wirklich_alle_stehen(conn):
+def test_die_letzte_phase_sagt_es_wenn_wirklich_alle_stehen(conn):
     szene_id = repo.stelle_szene_sicher(conn, CHAT, 1)
     repo.aktualisiere_szene(conn, szene_id, "Szene 1", None, "MIRA: Hallo.")
 
-    text = phasentexte.eintritt(conn, CHAT, 8)
+    text = phasentexte.eintritt(conn, CHAT, phasen.LETZTE)
 
     assert "Alle Szenen stehen" in text
 
@@ -124,7 +126,7 @@ def test_phase_8_sagt_es_wenn_wirklich_alle_stehen(conn):
 def test_ohne_jede_szene_wird_nichts_behauptet(conn):
     """``all()`` ueber eine leere Liste ist True -- ohne die
     Zusatzbedingung stuende 'Alle Szenen stehen' bei null Szenen."""
-    text = phasentexte.eintritt(conn, CHAT, 8)
+    text = phasentexte.eintritt(conn, CHAT, phasen.LETZTE)
 
     assert "Alle Szenen stehen" not in text
 

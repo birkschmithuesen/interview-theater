@@ -355,8 +355,8 @@ def test_der_phaseneintritt_stoesst_das_mapping_an(lage, tg, einst, monkeypatch)
         schaerfung, "starte",
         lambda *a, **k: gestartet.append(True) or None,
     )
-    phasen.setze(lage, 1, 5, "test")
-    knoepfe.biete_phase(lage, tg, 1, "Weiter?", 6)
+    phasen.setze(lage, 1, 4, "test")
+    knoepfe.biete_phase(lage, tg, 1, "Weiter?", 5)
 
     knoepfe.behandle(
         lage, tg, object(), einst, _druck(_knopf(tg, "Weiter zu Schaerfung"))

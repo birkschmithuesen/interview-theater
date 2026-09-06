@@ -477,11 +477,15 @@ def test_fertig_verdichtet_einmal_und_haelt_sich_im_chat_zurueck(conn, einst, tg
     assert [t["thema"] for t in themen] == ["Kindheit"], "verdichtet ist sie trotzdem"
 
     assert not [t for _, t in tg.gesendet if "ist durch" in t], "kein Ausspielen"
-    text = next(t for _, t in tg.gesendet if "aufgenommen und ausgewertet" in t)
+    text = next(t for _, t in tg.gesendet if "ausgewertet:" in t)
     assert "Stimmt das so" not in text, "keine Rueckfrage nach dem Interview"
     # Der Weg danach steht als Knoepfe darunter (05.09.2026), nicht als Text.
+    # Seit dem 06.09.2026 heissen sie nach dem, was sie tun: verdichtet ist
+    # laengst, gezeigt wird jetzt.
     beschriftungen = [b for _, _, ks in tg.mit_knoepfen for b, _ in ks]
-    assert "Auswerten" in beschriftungen
+    assert "Zusammenfassung zeigen" in beschriftungen
+    assert "Transkript zeigen" in beschriftungen
+    assert "Auswerten" not in beschriftungen
     assert "Naechstes Interview" in beschriftungen or "Interview starten" in beschriftungen
 
 
@@ -583,14 +587,15 @@ def test_sehr_kurzes_interview_wird_nicht_verdichtet(conn, einst, tg, klm):
     assert repo.verdichtungen(conn, 1) == []
     assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
     assert [t for _, t in tg.gesendet] == [
-        "Interview 1 ist sehr kurz (4 s, 8 Woerter). Ich werte es nicht "
-        "von selbst aus."
+        "Interview 1 war sehr kurz (8 Woerter) - ich habe es nicht ausgewertet."
     ]
     # Der Widerspruch ist seit 05.09.2026 ein Knopf, kein Slash-Hinweis:
     # im Live-Lauf (Gruppe 2, 13:59) fragte die Gruppe nach genau diesem Text
-    # zweimal nach, und ausgewertet wurde nie.
+    # zweimal nach, und ausgewertet wurde nie. Seit dem 06.09.2026 heisst er
+    # "Trotzdem auswerten" -- der normale Weg ist keiner mehr, weil ohnehin
+    # sofort verdichtet wird.
     beschriftungen = [b for _, _, ks in tg.mit_knoepfen for b, _ in ks]
-    assert "Auswerten" in beschriftungen
+    assert "Trotzdem auswerten" in beschriftungen
 
 
 def test_auswerten_verdichtet_ein_zu_kurzes_interview_doch(conn, einst, tg, klm):
@@ -665,7 +670,7 @@ def test_fertig_in_der_sprachnachricht_beendet_das_interview(conn, einst, tg):
 
     gesendet = [t for _, t in tg.gesendet]
     assert any(t.startswith("Aufnahme beendet.") for t in gesendet)
-    assert any("Interview 1 ist aufgenommen und ausgewertet" in t for t in gesendet)
+    assert any("Interview 1 ausgewertet:" in t for t in gesendet)
 
 
 def test_erkenner_darf_aus_interviewinhalt_nichts_anderes_schreiben(conn, einst, tg):
@@ -826,7 +831,7 @@ def test_nachholen_transkribiert_teil_nach_und_verdichtet_das_beendete_interview
     assert any(f"Interview 1, Teil 2:\n{TEIL_B}" == t for _, t in tg.gesendet)
     assert klm.nutzertexte == [f"{TEIL_A}\n\n{TEIL_B}"]
     assert len(repo.verdichtungen(conn, 1)) == 1
-    assert any("aufgenommen und ausgewertet" in t for _, t in tg.gesendet)
+    assert any("ausgewertet:" in t for _, t in tg.gesendet)
 
     # Ein zweiter Nachhol-Lauf greift nichts mehr auf.
     aufnahme.nachholen(conn, tg, klm, einst, stt_attrappe("egal"))

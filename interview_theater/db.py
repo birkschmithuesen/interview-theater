@@ -381,6 +381,25 @@ CREATE TABLE IF NOT EXISTS schaerfung (
 );
 CREATE INDEX IF NOT EXISTS idx_schaerfung_chat ON schaerfung(chat_id, id);
 
+-- Die Pruefung des GANZEN Stuecks (Phase 7, 06.09.2026). Je Runde und Frage
+-- eine Zeile: Bewertung 1-5, zwei Saetze Begruendung, EIN Vorschlag, und die
+-- Szene, auf die er zeigt (NULL, wenn er keine nennt). Additiv wie alles
+-- andere: eine zweite Runde loescht die erste nicht, sie kommt daneben --
+-- die Gruppe soll sehen, ob sich etwas gebessert hat.
+CREATE TABLE IF NOT EXISTS stueckpruefung (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  runde        INTEGER NOT NULL DEFAULT 1,
+  frage        TEXT NOT NULL,
+  bewertung    INTEGER,
+  begruendung  TEXT,
+  vorschlag    TEXT,
+  szene_nummer INTEGER,
+  erstellt_am  TEXT NOT NULL,
+  entfernt_am  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_stueckpruefung_chat ON stueckpruefung(chat_id, id);
+
 -- Wer in einer Szene vorkommt: nur Figuren aus dem Arbeitsstand, deshalb eine
 -- Verknuepfung und keine Namensliste in einem Textfeld. Eine weich geloeschte
 -- Figur verschwindet damit von selbst aus jeder Szene (repo.szene_figuren
@@ -477,6 +496,7 @@ TABELLEN_MIT_CHAT_ID = (
     "szene",
     "szene_figur",
     "schaerfung",
+    "stueckpruefung",
     "journal",
     "knopf",
     "vorfall",
@@ -544,7 +564,10 @@ def _migriere_fehlende_spalten(conn: sqlite3.Connection) -> None:
 #: ``2`` das achtstufige nach dem Umbau \"erst erfinden, dann schaerfen\"
 #: (05.09.2026 nachts). Bewusst SQLites eingebauter Zaehler und keine eigene
 #: Tabelle: er kostet keine Zeile, keine Migration und kein Schema.
-SCHEMA_VERSION = 2
+#: ``3`` ist das siebenstufige Modell vom 06.09.2026 (Setting, Figuren und
+#: Geschichte wurden EINE Phase, aus dem Durchlauf wurde die Schaerfung des
+#: Stuecks).
+SCHEMA_VERSION = 3
 
 #: Acht Phasen wurden sieben (Birk, 05.09.2026): Kernthema und Figuren sind
 #: EINE Phase geworden, alles darueber rutscht um eins nach unten. 1-4 bleiben,
@@ -566,6 +589,14 @@ PHASEN_UMNUMMERIERUNG = {5: 4, 6: 5, 7: 6, 8: 7}
 #: die jemand uebersprungen haette.
 PHASEN_UMNUMMERIERUNG_2 = {6: 7, 7: 8}
 
+#: Acht Phasen wurden wieder sieben (Birk, 06.09.2026, 09:20): **Setting &
+#: Figuren (4) und Geschichte (5) sind EINE Station**, alles darueber rutscht
+#: um eins nach unten. 4 bleibt 4, aus 5 wird ebenfalls 4 (dieselbe Arbeit,
+#: nur ohne Zaesur dazwischen), aus 6 (Schaerfung) wird 5, aus 7
+#: (Szenentexte) 6, aus 8 (Durchlauf) 7 -- das jetzt "Schaerfung des
+#: Stuecks" heisst und den Stueck-Judge traegt.
+PHASEN_UMNUMMERIERUNG_3 = {5: 4, 6: 5, 7: 6, 8: 7}
+
 
 def _rechne_phasen_um(conn: sqlite3.Connection, umnummerierung: dict[int, int]) -> None:
     """Rechnet ``arbeitsstand.phase`` und ``phase_angeboten`` nach einer
@@ -583,8 +614,9 @@ def _rechne_phasen_um(conn: sqlite3.Connection, umnummerierung: dict[int, int]) 
 
 def _migriere_phasennummern(conn: sqlite3.Connection) -> None:
     """Rechnet gespeicherte Phasennummern einmalig auf das siebenstufige
-    und danach auf das achtstufige Modell um (PHASEN_UMNUMMERIERUNG,
-    PHASEN_UMNUMMERIERUNG_2).
+    Modell (04.09.), danach auf das achtstufige (05.09. nachts) und danach
+    auf das siebenstufige von heute um (PHASEN_UMNUMMERIERUNG,
+    PHASEN_UMNUMMERIERUNG_2, PHASEN_UMNUMMERIERUNG_3).
 
     Betrifft ``arbeitsstand.phase`` und ``arbeitsstand.phase_angeboten``:
     ohne diesen Schritt saehe eine Gruppe, die abends bei "8 · Durchlauf"
@@ -592,9 +624,10 @@ def _migriere_phasennummern(conn: sqlite3.Connection) -> None:
     gibt -- und der Prompt-Zusatz dazu fehlte ersatzlos.
 
     **Stufenweise und je Stufe genau einmal**: eine Datenbank aus der Zeit vor
-    beiden Umbauten (``user_version = 0``) laeuft durch beide Tabellen, eine
-    vom selben Tag (``1``) nur noch durch die zweite, und eine aktuelle
-    (``2``) durch keine. Der Merkposten ist ``PRAGMA user_version``.
+    allen Umbauten (``user_version = 0``) laeuft durch alle drei Tabellen,
+    eine vom 04.09. (``1``) noch durch zwei, eine von heute Nacht (``2``) nur
+    noch durch die dritte, und eine aktuelle (``3``) durch keine. Der
+    Merkposten ist ``PRAGMA user_version``.
 
     Das Journal bleibt unberuehrt: dort steht, was die Gruppe damals
     entschieden hat ("Phase 5 · Figuren"), und das ist auch nach der
@@ -607,6 +640,8 @@ def _migriere_phasennummern(conn: sqlite3.Connection) -> None:
         _rechne_phasen_um(conn, PHASEN_UMNUMMERIERUNG)
     if stand < 2:
         _rechne_phasen_um(conn, PHASEN_UMNUMMERIERUNG_2)
+    if stand < 3:
+        _rechne_phasen_um(conn, PHASEN_UMNUMMERIERUNG_3)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
 

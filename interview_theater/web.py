@@ -1161,10 +1161,45 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
         "<h2>Arbeitsstand</h2>"
         f"{stand}\n"
         f"<h2>Szenen</h2>{szenen}\n"
+        f"{_stueckpruefung_html(daten.get('stueckpruefung'))}"
         f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
         "<h2>Der Weg dahin</h2>"
         f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",
         bearbeitbar=bool(nonce_wert),
+    )
+
+
+def _stueckpruefung_html(pruefung: dict | None) -> str:
+    """Der Block „Stückprüfung Runde N" — **read-only**, minimal.
+
+    Er steht unter den Szenen, weil er über sie urteilt. Ohne Runde fehlt er
+    ganz: eine leere Überschrift sähe aus wie eine offene Aufgabe, dabei ist
+    die Prüfung erst in der letzten Phase dran. Nichts zum Anklicken —
+    „Szene N überarbeiten" und „Noch eine Prüfrunde" gibt es im Chat, wo die
+    Gruppe die Entscheidung auch abnimmt."""
+    if not pruefung or not pruefung.get("befunde"):
+        return ""
+    zeilen = []
+    for b in pruefung["befunde"]:
+        kopf = _t(b["frage"])
+        if b.get("bewertung") is not None:
+            kopf += f" {_t(b['bewertung'])}/5"
+        stuecke = [f"<b>{kopf}</b>"]
+        if b.get("begruendung"):
+            stuecke.append(f"<div>{_t(b['begruendung'])}</div>")
+        if b.get("vorschlag"):
+            ziel = (
+                f"Szene {_t(b['szene_nummer'])}: "
+                if b.get("szene_nummer") is not None
+                else ""
+            )
+            stuecke.append(
+                f'<div class="zeit">Vorschlag: {ziel}{_t(b["vorschlag"])}</div>'
+            )
+        zeilen.append(f'<li>{"".join(stuecke)}</li>')
+    return (
+        f"<h2>Stückprüfung Runde {_t(pruefung['runde'])}</h2>"
+        f'<ul class="schaerfung">{"".join(zeilen)}</ul>\n'
     )
 
 

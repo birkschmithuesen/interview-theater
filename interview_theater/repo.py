@@ -982,6 +982,78 @@ def merke_schaerfung_uebernommen(conn: sqlite3.Connection, schaerfung_id: int) -
     conn.commit()
 
 
+# --- Stueckpruefung (Phase 7, 06.09.2026) ---------------------------------
+
+
+@_gesperrt
+def lege_stueckpruefung_an(
+    conn: sqlite3.Connection, chat_id: int, befunde: list[dict], runde: int = 1
+) -> int:
+    """Schreibt die Befunde EINER Pruefrunde und liefert ihre Anzahl.
+
+    Jedes Element braucht ``frage``; ``bewertung``, ``begruendung``,
+    ``vorschlag`` und ``szene_nummer`` sind optional -- ein Judge, der zu
+    einer Frage keine Szene nennt, hat trotzdem etwas gesagt. Ohne Frage
+    gibt es keinen Ort fuer den Befund, die Zeile faellt weg."""
+    angelegt = 0
+    for befund in befunde:
+        frage = str(befund.get("frage") or "").strip()
+        if not frage:
+            continue
+        conn.execute(
+            """
+            INSERT INTO stueckpruefung
+                (chat_id, runde, frage, bewertung, begruendung, vorschlag,
+                 szene_nummer, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                chat_id,
+                runde,
+                frage,
+                befund.get("bewertung"),
+                befund.get("begruendung"),
+                befund.get("vorschlag"),
+                befund.get("szene_nummer"),
+                _jetzt(),
+            ),
+        )
+        angelegt += 1
+    conn.commit()
+    return angelegt
+
+
+@_gesperrt
+def stueckpruefungen(
+    conn: sqlite3.Connection, chat_id: int, runde: int | None = None
+) -> list[sqlite3.Row]:
+    """Die geltenden Pruefbefunde einer Gruppe, wahlweise nur einer Runde --
+    in der Reihenfolge, in der sie geschrieben wurden (= die Reihenfolge der
+    Fragen im Prompt)."""
+    sql = (
+        "SELECT * FROM stueckpruefung WHERE chat_id = ? AND entfernt_am IS NULL"
+    )
+    werte: list = [chat_id]
+    if runde is not None:
+        sql += " AND runde = ?"
+        werte.append(runde)
+    sql += " ORDER BY runde ASC, id ASC"
+    return conn.execute(sql, tuple(werte)).fetchall()
+
+
+@_gesperrt
+def letzte_pruefrunde(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die hoechste bisher gelaufene Pruefrunde, oder 0 -- der Zaehler fuer
+    "Noch eine Pruefrunde". Aus den Daten wie
+    ``letzte_schaerfungsrunde``, nicht aus einem Merkposten."""
+    zeile = conn.execute(
+        "SELECT MAX(runde) AS r FROM stueckpruefung WHERE chat_id = ? "
+        "AND entfernt_am IS NULL",
+        (chat_id,),
+    ).fetchone()
+    return int(zeile["r"] or 0) if zeile else 0
+
+
 @_gesperrt
 def transkripte(
     conn: sqlite3.Connection, chat_id: int, name: str | None = None

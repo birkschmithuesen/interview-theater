@@ -1,4 +1,5 @@
-"""Tests fuer Phase 5 (Geschichte) und den Ping-Pong der Phase 4.
+"""Tests fuer die Geschichte (seit 06.09.2026 der dritte Teil von Phase 4)
+und den Ping-Pong derselben Phase.
 
 **Erst erfinden, dann schaerfen** (Birk, 05.09.2026 nachts). Gemessen wird
 hier die Erfindungsseite: dass der Bot in 4 und 5 offen fragt statt
@@ -55,7 +56,7 @@ def erfunden(conn):
     repo.setze_figur(conn, 1, "Mira", "will gefragt werden")
     repo.setze_figur(conn, 1, "Pal", "haelt an seiner Route fest")
     repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T23:00:00")
-    phasen.setze(conn, 1, 5, "test")
+    phasen.setze(conn, 1, 4, "test")
     return conn
 
 
@@ -77,7 +78,7 @@ def _knopf(tg, beschriftung):
 # --- der Eintritt: offene Frage zuerst ------------------------------------
 
 
-@pytest.mark.parametrize("phase", [4, 5])
+@pytest.mark.parametrize("phase", [4])
 def test_der_eintritt_fragt_offen_und_schlaegt_nichts_vor(conn, tg, einst, phase):
     """Der Bot faengt eine Erfindungsphase nicht mit einem Vorschlag an: erst
     die Frage, ob die Gruppe selbst schon Ideen hat -- \"Eigene Idee\" oder
@@ -88,13 +89,15 @@ def test_der_eintritt_fragt_offen_und_schlaegt_nichts_vor(conn, tg, einst, phase
 
     # Der Phasenrahmen steht davor, die Frage darunter -- EINE Nachricht
     # (06.09.2026).
-    assert tg.gesendet[-1][1].startswith(f"\u25b6\ufe0f Phase {phase} von 8")
+    assert tg.gesendet[-1][1].startswith(
+        f"\u25b6\ufe0f Phase {phase} von {phasen.LETZTE}"
+    )
     assert tg.gesendet[-1][1].endswith(knoepfe._TEXT_PROAKTIV)
     assert tg.beschriftungen == ["Ja, wir zuerst", "Schlag du vor"]
 
 
 def test_wir_zuerst_ruft_kein_modell(conn, tg, einst):
-    knoepfe.biete_proaktiv(conn, tg, 1, 5)
+    knoepfe.biete_proaktiv(conn, tg, 1, 4)
 
     knoepfe.behandle(
         conn, tg, None, einst, _druck(_knopf(tg, "Ja, wir zuerst"))
@@ -107,7 +110,7 @@ def test_wir_zuerst_ruft_kein_modell(conn, tg, einst):
 
 
 def test_der_geschichte_prompt_enthaelt_kein_material(erfunden, tg, einst):
-    """**Der Kontext-Filter der Phase 5, im Code und nicht nur im Prompt.**
+    """**Der Kontext-Filter der Erfindungsphase, im Code und nicht nur im Prompt.**
     Der Nutzertext traegt Begriffe, Fragen, Setting und Figuren -- und weder
     Verdichtung noch Zitat noch Transkript."""
     kopf_id = repo.lege_interview_an(erfunden, 1)
@@ -138,11 +141,13 @@ def test_die_anweisung_verbietet_das_material_ausdruecklich(erfunden):
     assert "Interviews" in system
 
 
-def test_schlag_du_vor_in_phase_5_geht_ueber_die_geschichte(erfunden, tg, einst):
-    """Zusage 2: der Handler ruft kein Modell -- ``starte_geschichte``
-    kuendigt an und gibt an einen Thread ab."""
+def test_schlag_du_vor_in_phase_4_geht_ueber_die_geschichte(erfunden, tg, einst):
+    """Steht die Figurenliste, meint "Schlag du vor" in Phase 4 die
+    GESCHICHTE (``offene_art``) -- und Zusage 2 gilt weiter: der Handler
+    ruft kein Modell, ``starte_geschichte`` kuendigt an und gibt an einen
+    Thread ab."""
     klm = LLMAttrappe(GESCHICHTE)
-    knoepfe.biete_proaktiv(erfunden, tg, 1, 5)
+    knoepfe.biete_proaktiv(erfunden, tg, 1, 4)
 
     knoepfe.behandle(
         erfunden, tg, klm, einst, _druck(_knopf(tg, "Schlag du vor"))
@@ -226,14 +231,14 @@ def test_gefaellt_uns_weiter_speichert_geschichte_und_szenen(erfunden, tg, einst
 
 
 def test_erst_die_geschichte_gibt_die_schaerfung_frei(erfunden, tg, einst):
-    assert phasen.voraussetzungen(erfunden, 1)[6] is False
+    assert phasen.voraussetzungen(erfunden, 1)[5] is False
 
     knoepfe.sende_geschichte(erfunden, tg, 1, GESCHICHTE)
     knoepfe.behandle(
         erfunden, tg, None, einst, _druck(_knopf(tg, "Gefaellt uns, weiter"))
     )
 
-    assert phasen.voraussetzungen(erfunden, 1)[6] is True
+    assert phasen.voraussetzungen(erfunden, 1)[5] is True
     # Angeboten wird die hoechste moegliche Stufe; die Schaerfung ist ein
     # Angebot, keine Pflicht, deshalb steht hier der Weg zu den Szenentexten.
     assert tg.beschriftungen == ["Weiter zu Szenentexte"]

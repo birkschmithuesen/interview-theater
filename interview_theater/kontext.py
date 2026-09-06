@@ -366,26 +366,30 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
     return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
 
 
-#: Die beiden Erfindungsphasen (Umbau 05.09.2026 nachts): 4 Setting & Figuren
-#: und 5 Geschichte. Dort sieht der Bot **kein** Material -- keine
-#: Verdichtungen, keine Transkripte, kein Kernpaket. Vorschlaege kommen
-#: ausschliesslich aus Begriffen, Fragen und dem, was die Gruppe schon
-#: festgelegt hat.
-PHASEN_ERFINDEN = (4, 5)
+#: Die Erfindungsphase (Umbau 05.09.2026 nachts, zusammengelegt am
+#: 06.09.2026): 4 Setting, Figuren & Geschichte. Dort sieht der Bot **kein**
+#: Material -- keine Verdichtungen, keine Transkripte, kein Kernpaket.
+#: Vorschlaege kommen ausschliesslich aus Begriffen, Fragen und dem, was die
+#: Gruppe schon festgelegt hat.
+#:
+#: Ein Tupel und keine einzelne Zahl: bis heute waren es zwei Stationen, und
+#: die Filter unten fragen nach dem Bereich, nicht nach einer Nummer -- eine
+#: kuenftige zweite Erfindungsphase braucht dann nur diese Zeile.
+PHASEN_ERFINDEN = (4,)
 
 #: Ab dieser Phase arbeitet der Bot aus dem Kernpaket (mit den Schaerfungen).
-PHASE_KERNPAKET = 6
+PHASE_KERNPAKET = 5
 
 
 def material_erlaubt(conn, chat_id: int) -> bool:
     """Duerfen Verdichtungen und Transkripte in den Prompt?
 
     Ja bis einschliesslich Phase 3: dort wird aufgenommen und ausgewertet,
-    und die Verdichtung gehoert in den Chat. **Nein in 4 und 5** -- das ist
+    und die Verdichtung gehoert in den Chat. **Nein in 4** -- das ist
     der Kern des Umbaus vom 05.09.2026 nachts: Setting, Figuren und
     Geschichte erfindet die Gruppe frei, und ein Bot, der dabei alle
     Interviews vor sich hat, schlaegt nichts anderes vor als die Interviews.
-    Nein auch ab 6, aber aus dem alten Grund: dort traegt das Kernpaket.
+    Nein auch ab 5, aber aus dem alten Grund: dort traegt das Kernpaket.
 
     Eine reine Leseabfrage aus einem Feld, kein gespeicherter Zustand --
     geht die Gruppe zurueck nach 3, ist das Material wieder da."""
@@ -393,9 +397,9 @@ def material_erlaubt(conn, chat_id: int) -> bool:
 
 
 def kernpaket_erlaubt(conn, chat_id: int) -> bool:
-    """Darf das Kernpaket in den Prompt? Erst ab der Schaerfung (Phase 6).
+    """Darf das Kernpaket in den Prompt? Erst ab der Schaerfung (Phase 5).
 
-    In 4 und 5 waere es dasselbe Leck wie die Verdichtungen: das Kernpaket
+    In 4 waere es dasselbe Leck wie die Verdichtungen: das Kernpaket
     traegt Zitate und gefilterte Verdichtungen, und genau die sollen dort
     nicht auf dem Tisch liegen."""
     return phasen.aktuelle(conn, chat_id) >= PHASE_KERNPAKET

@@ -382,7 +382,7 @@ def test_gesetzte_phase_steht_am_anfang_des_arbeitsstands(conn, einst):
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     arbeitsstand = prompt.split("Arbeitsstand:\n", 1)[1]
-    assert arbeitsstand.startswith("Aktuelle Phase: 5 · Geschichte")
+    assert arbeitsstand.startswith(f"Aktuelle Phase: {phasen.bezeichnung(5)}")
 
 
 def test_die_frageliste_steht_im_arbeitsstand(conn, einst):
@@ -470,26 +470,29 @@ def test_ohne_interview_wird_nicht_nach_der_quelle_gefragt(conn, einst):
     """Eine unbeantwortbare Frage ist keine: ohne Material gibt es nichts
     zuzuordnen."""
     repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
-    phasen.setze(conn, 1, 6, "befehl")
+    phasen.setze(conn, 1, 5, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
     assert "fehlt noch das Interview" not in kontext.baue(conn, 1, ausloeser, einst)
 
 
-def test_setting_und_figuren_fuehren_zur_geschichte(conn, einst):
-    """Steht das Setting und ist die Figurenliste fixiert, ist die naechste
-    Station eindeutig die Geschichte (5)."""
+def test_setting_figuren_und_geschichte_fuehren_zur_schaerfung(conn, einst):
+    """Stehen Setting, Figurenliste und Geschichte samt einer Szene, ist die
+    naechste Station die Schaerfung (5) -- die Geschichte selbst liegt seit
+    dem 06.09.2026 noch in Phase 4."""
     repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
     repo.setze_figur(conn, 1, "Elif", "Nachbarin")
     repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.")
+    repo.lege_szene_an(conn, 1, 1, "Am Kiosk", "sie treffen sich", None)
     phasen.setze(conn, 1, 4, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
-    assert "Materiallage wuerde Phase 5 · Geschichte hergeben" in prompt
-    assert repo.hole_phase_angeboten(conn, 1) == 5
+    assert "Materiallage wuerde Phase 6 · Szenentexte hergeben" in prompt
+    assert repo.hole_phase_angeboten(conn, 1) == 6
 
 
 def test_gefragt_wird_immer_nach_der_hoechsten_moeglichen_phase(conn, einst):
@@ -503,7 +506,7 @@ def test_gefragt_wird_immer_nach_der_hoechsten_moeglichen_phase(conn, einst):
     phasen.setze(conn, 1, 4, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
-    assert "Materiallage wuerde Phase 7 · Szenentexte hergeben" in kontext.baue(
+    assert "Materiallage wuerde Phase 6 · Szenentexte hergeben" in kontext.baue(
         conn, 1, ausloeser, einst
     )
 
@@ -590,16 +593,16 @@ def _kernpaket_lage(conn):
     return aufnahme_id
 
 
-def test_in_vier_und_fuenf_gibt_es_weder_material_noch_kernpaket(conn, einst):
-    """**Der Kern des Umbaus vom 05.09.2026 nachts.** In Setting & Figuren (4)
-    und Geschichte (5) erfindet die Gruppe -- der Bot sieht dort keine
+def test_in_der_erfindungsphase_gibt_es_weder_material_noch_kernpaket(conn, einst):
+    """**Der Kern des Umbaus vom 05.09.2026 nachts.** In Setting, Figuren &
+    Geschichte (4) erfindet die Gruppe -- der Bot sieht dort keine
     Verdichtung, kein Transkript und auch kein Kernpaket. Sonst schlaegt er
     nicht Erfundenes vor, sondern referiert das Material."""
     _kernpaket_lage(conn)
     repo.setze_wortlaut_modus(conn, 1, "*")  # selbst mit Wortlaut-Schalter
     ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(1))]
 
-    for nummer in (4, 5):
+    for nummer in kontext.PHASEN_ERFINDEN:
         phasen.setze(conn, 1, nummer, "befehl")
         prompt = kontext.baue(conn, 1, ausloeser, einst)
         assert "Verdichtungen:" not in prompt, nummer
@@ -609,7 +612,7 @@ def test_in_vier_und_fuenf_gibt_es_weder_material_noch_kernpaket(conn, einst):
         assert "Ich hatte nur einen Koffer" not in prompt, nummer
 
 
-def test_in_vier_und_fuenf_stehen_begriffe_und_fragen_im_prompt(conn, einst):
+def test_in_der_erfindungsphase_stehen_begriffe_und_fragen_im_prompt(conn, einst):
     """Was in den Erfindungsphasen erlaubt IST: Begriffe, Fragen, Rahmen und
     der bisherige Arbeitsstand -- daraus schlaegt der Bot vor."""
     _kernpaket_lage(conn)

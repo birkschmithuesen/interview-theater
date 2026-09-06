@@ -23,12 +23,12 @@ def tg():
 
 @pytest.mark.parametrize("nummer", [n for n, _, _ in phasen.PHASEN])
 def test_jede_phase_hat_dieselbe_eintrittsform(conn, nummer):
-    """Kopfzeile "▶️ Phase N von 8 · Name", eine Einleitung, die
-    Checkliste -- acht Mal gleich aufgebaut."""
+    """Kopfzeile "▶️ Phase N von 7 · Name", eine Einleitung, die
+    Checkliste -- sieben Mal gleich aufgebaut."""
     text = phasentexte.eintritt(conn, 1, nummer)
 
     zeilen = text.split("\n\n")
-    assert zeilen[0] == f"▶️ Phase {nummer} von 8 · {phasen.kurzname(nummer)}"
+    assert zeilen[0] == f"▶️ Phase {nummer} von {phasen.LETZTE} · {phasen.kurzname(nummer)}"
     # Phase 8 hat zwei Einleitungen: eine fuer "alle Szenen stehen" und eine
     # fuer den Fall, dass welche fehlen (06.09.2026). Die Fixture hier hat
     # keine Szene, also greift die zweite.
@@ -38,13 +38,18 @@ def test_jede_phase_hat_dieselbe_eintrittsform(conn, nummer):
 
 @pytest.mark.parametrize("nummer", [n for n, _, _ in phasen.PHASEN])
 def test_jede_einleitung_ist_kurz_und_vollstaendig(nummer):
-    """Zwei bis vier Saetze -- ein Rahmen, kein Vortrag. Die Grenze ist
-    gemessen an der Medianlaenge der Bot-Antworten (Soll < 700 Zeichen,
-    simulation): eine Nachricht, die man ueberliest, ist keine."""
+    """Ein Rahmen, kein Vortrag. Die Grenze ist gemessen an der
+    Medianlaenge der Bot-Antworten (Soll < 700 Zeichen, simulation): eine
+    Nachricht, die man ueberliest, ist keine.
+
+    Die Satzzahl ist am 06.09.2026 von hoechstens fuenf auf hoechstens acht
+    gegangen: die Einleitungen zu 3 und 4 sind Birks Wortlaut und erklaeren
+    einen Ablauf mit mehreren Schritten. Zwei Saetze bleiben das Minimum --
+    eine Einleitung, die nur eine Ueberschrift ist, erklaert nichts."""
     text = phasentexte.EINLEITUNGEN[nummer]
 
     assert len(text) <= phasentexte.EINLEITUNG_GRENZE, (nummer, len(text))
-    assert 2 <= text.count(".") + text.count("?") + text.count("!") <= 5
+    assert 2 <= text.count(".") + text.count("?") + text.count("!") <= 8
 
 
 @pytest.mark.parametrize("nummer", [n for n, _, _ in phasen.PHASEN])
@@ -71,11 +76,15 @@ def test_keine_einleitung_nennt_einen_eigennamen(nummer):
 def test_die_checkliste_kommt_aus_dem_arbeitsstand(conn):
     """Nicht geraten: was gespeichert ist, steht mit ✅ da -- auch beim
     Rueckweg in eine Phase, in der schon etwas steht."""
-    assert phasentexte.checkliste(conn, 1, 4) == "⬜ Setting  ⬜ Figuren"
+    assert phasentexte.checkliste(conn, 1, 4) == (
+        "⬜ Setting  ⬜ Figuren  ⬜ Geschichte  ⬜ Szenenfolge"
+    )
 
     repo.setze_arbeitsstand(conn, 1, "rahmen", "Ein Wartezimmer, nachmittags")
 
-    assert phasentexte.checkliste(conn, 1, 4) == "✅ Setting  ⬜ Figuren"
+    assert phasentexte.checkliste(conn, 1, 4) == (
+        "✅ Setting  ⬜ Figuren  ⬜ Geschichte  ⬜ Szenenfolge"
+    )
 
 
 def test_der_eintritt_haengt_die_einstiegsknoepfe_darunter(conn, einst, tg):
@@ -84,7 +93,7 @@ def test_der_eintritt_haengt_die_einstiegsknoepfe_darunter(conn, einst, tg):
     knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, 4)
 
     _, text, leiste = tg.knoepfe[-1]
-    assert text.startswith("▶️ Phase 4 von 8 · Setting & Figuren")
+    assert text.startswith("▶️ Phase 4 von 7 · Setting, Figuren & Geschichte")
     assert text.endswith(knoepfe._TEXT_PROAKTIV)
     assert [b for b, _ in leiste] == ["Ja, wir zuerst", "Schlag du vor"]
 
@@ -97,7 +106,7 @@ def test_der_eintritt_ruft_kein_modell(conn, einst, tg):
             continue  # gibt an einen Thread ab, eigener Test
         knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, nummer)
 
-    assert any(t.startswith("▶️ Phase 8 von 8") for _, t in tg.gesendet)
+    assert any(t.startswith(f"▶️ Phase {phasen.LETZTE} von {phasen.LETZTE}") for _, t in tg.gesendet)
 
 
 # --- Abschluss ------------------------------------------------------------
@@ -110,7 +119,7 @@ def test_die_abschlussnachricht_traegt_alle_gesetzten_parameter(conn):
     text = phasentexte.abschluss(conn, 1, 4)
 
     assert text.splitlines() == [
-        "✅ Phase 4 · Setting & Figuren abgeschlossen",
+        "✅ Phase 4 · Setting, Figuren & Geschichte abgeschlossen",
         "Setting: Ein Wartezimmer, nachmittags",
         "Figuren: Nesrin — will weg und bleibt",
     ]
@@ -132,7 +141,7 @@ def test_lange_werte_werden_gekuerzt(conn):
     des ganzen Arbeitsstands."""
     repo.setze_arbeitsstand(conn, 1, "geschichte", "Sie warten. " * 40)
 
-    zeilen = dict(phasentexte.parameterzeilen(conn, 1, 5))
+    zeilen = dict(phasentexte.parameterzeilen(conn, 1, 4))
 
     assert len(zeilen["Geschichte"]) <= phasentexte.WERT_GRENZE
     assert zeilen["Geschichte"].endswith("…")
@@ -156,13 +165,13 @@ def test_szenen_stehen_als_nummer_titel_form(conn):
     repo.setze_szenenfeld(conn, szene_id, "titel", "Vor der Tuer")
     repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", "Monolog")
 
-    zeilen = dict(phasentexte.parameterzeilen(conn, 1, 5))
-    assert zeilen["Szenen"] == "1 · Vor der Tuer"
+    zeilen = dict(phasentexte.parameterzeilen(conn, 1, 4))
+    assert zeilen["Szenenfolge"] == "1 · Vor der Tuer"
 
     repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
 
-    zeilen = dict(phasentexte.parameterzeilen(conn, 1, 5))
-    assert zeilen["Szenen"] == "1 · Vor der Tuer · Dialog"
+    zeilen = dict(phasentexte.parameterzeilen(conn, 1, 4))
+    assert zeilen["Szenenfolge"] == "1 · Vor der Tuer · Dialog"
 
 
 # --- Verschmelzung mit der proaktiven Phasenmeldung ------------------------
@@ -218,7 +227,7 @@ def test_der_weiter_knopf_fuehrt_in_den_phasenrahmen(conn, einst, tg):
     knoepfe.behandle(conn, tg, None, einst, _druck(weiter))
 
     assert phasen.aktuelle(conn, 1) == 2
-    assert tg.gesendet[-1][1].startswith("▶️ Phase 2 von 8 · Fragen")
+    assert tg.gesendet[-1][1].startswith("▶️ Phase 2 von 7 · Fragen")
 
 
 # --- /stand nutzt dieselbe Liste ------------------------------------------

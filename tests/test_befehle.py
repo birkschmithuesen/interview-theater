@@ -388,7 +388,7 @@ def test_phase_ohne_argument_zeigt_phase_und_liste(conn, einst, tg):
 
     assert behandelt is True
     text = tg.gesendet[0][1]
-    assert "Wir sind bei 5 · Geschichte." in text
+    assert "Wir sind bei 5 · Schaerfung." in text
     for nummer, name, _ in phasen.PHASEN:
         assert f"{nummer} · {name}" in text
 
@@ -405,11 +405,11 @@ def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
     assert behandelt is True
     assert repo.hole_phase(conn, 1) == 5
     assert tg.gesendet[0] == (
-        1, "Wir sind jetzt bei 5 · Geschichte. Falls nicht, sagt es mir."
+        1, "Wir sind jetzt bei 5 · Schaerfung. Falls nicht, sagt es mir."
     )
     # Danach derselbe Phasenrahmen wie ueber den Knopf (06.09.2026):
     # Kopfzeile, Einleitung, Checkliste.
-    assert tg.gesendet[1][1].startswith("▶️ Phase 5 von 8 · Geschichte")
+    assert tg.gesendet[1][1].startswith("▶️ Phase 5 von 7 · Schaerfung")
 
 
 def test_phase_mit_namen_schaltet_auch_zurueck(conn, einst, tg):
@@ -429,11 +429,13 @@ def test_phase_journalisiert_nur_die_echte_aenderung(conn, einst, tg):
     eintraege = repo.journal(conn, 1)
     assert len(eintraege) == 1
     assert eintraege[0]["quelle"] == "befehl"
-    # Je Aufruf zwei Nachrichten: die Meldung (auf einen getippten Befehl
-    # wird immer geantwortet, auch ohne Aenderung) und der Phasenrahmen.
-    assert [t.startswith("▶️ Phase 5") for _, t in tg.gesendet] == [
-        False, True, False, True,
-    ]
+    # Je Aufruf mindestens zwei Nachrichten: die Meldung (auf einen getippten
+    # Befehl wird immer geantwortet, auch ohne Aenderung) und der
+    # Phasenrahmen. Seit dem 06.09.2026 ist Phase 5 die Schaerfung, und die
+    # stoesst beim Eintritt ihr Mapping an -- das schickt weitere Zeilen.
+    kopfzeilen = [t.startswith("▶️ Phase 5") for _, t in tg.gesendet]
+    assert kopfzeilen.count(True) == 2, [t for _, t in tg.gesendet]
+    assert kopfzeilen[0] is False, "zuerst die Meldung"
 
 
 def test_phase_mit_unsinn_aendert_nichts_und_zeigt_die_liste(conn, einst, tg):
@@ -450,7 +452,7 @@ def test_stand_zeigt_die_phase_zuerst(conn, einst, tg):
 
     zeilen = tg.gesendet[0][1].splitlines()
     assert zeilen[0] == "Stand:"
-    assert zeilen[1] == "Phase: 5 · Geschichte"
+    assert zeilen[1] == "Phase: 5 · Schaerfung"
 
 
 def test_stand_zeigt_den_konflikt_nur_wenn_gesetzt(conn, einst, tg):
@@ -481,7 +483,7 @@ def test_stand_zeigt_das_setting_im_block_seiner_phase(conn, einst, tg):
     befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
 
     text = tg.gesendet[0][1]
-    assert "4 · Setting & Figuren" in text
+    assert "4 · Setting, Figuren & Geschichte" in text
     assert "Setting: Ein Wartezimmer, nachmittags" in text
 
 

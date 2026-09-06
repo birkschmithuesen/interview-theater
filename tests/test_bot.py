@@ -379,7 +379,7 @@ def test_wiederkehr_begruessung_nennt_die_phase(conn, einst):
 
     bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)
 
-    assert "5 · Geschichte" in tg.gesendet[0][1]
+    assert "5 · Schaerfung" in tg.gesendet[0][1]
 
 
 # ---------------------------------------------------------------------------

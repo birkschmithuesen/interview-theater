@@ -141,29 +141,42 @@ def zerlege(text: str) -> list[tuple[str, str, str]]:
 
 
 def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
-    """Legt aus den Abschnitten die Szenen an -- **ersetzend**, wie
-    ``szenenfolge.lege_an``.
+    """Gleicht die Abschnitte mit der bestehenden Szenenfolge ab --
+    **abgleichend**, wie ``szenenfolge.lege_an`` (06.09.2026).
 
     Je Abschnitt: Nummer, Titel, ``prosa``, ``was_passiert`` aus der
     Zusammenfassung und der Ort aus dem Setting (``szene.uebernimm_rahmen``).
-    ``form`` bleibt leer: sie entscheidet die Gruppe im Feinschliff."""
+    ``form`` bleibt leer: sie entscheidet die Gruppe im Feinschliff.
+
+    Bis zu diesem Umbau entfernte diese Funktion **alle** bestehenden Szenen
+    weich und legte danach neue an -- im Live-Fall Gruppe 1 zum zweiten Mal
+    an einem Nachmittag, diesmal samt der schon geschriebenen Prosa. Jetzt
+    gilt: gleiche Nummer -> aktualisieren, fehlende -> ergaenzen,
+    ueberzaehlige -> stehen lassen.
+
+    ``prosa`` und ``volltext`` sind hier ausdruecklich ueberschreibbar: der
+    Prosa-Lauf ist ihr Verfasser, und die Gruppe hat ihn gerade selbst per
+    Knopf gestartet. Die **Formfestlegung** (``form``, ``form_vorschlag``,
+    ``stil``) bleibt dagegen unangetastet -- die traegt ein Knopfdruck, kein
+    Modelllauf."""
     from interview_theater import szene as szene_modul
 
-    for alt in repo.hole_szenen(conn, chat_id):
-        if alt["nummer"] is not None:
-            repo.entferne_szene(conn, chat_id, alt["nummer"])
-    nummern: list[int] = []
-    for nummer, (titel, fassung, prosa) in enumerate(abschnitte, start=1):
-        szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
-        repo.setze_szenenfeld(conn, szene_id, "titel", titel or f"Abschnitt {nummer}")
-        if fassung:
-            repo.setze_szenenfeld(conn, szene_id, "was_passiert", fassung)
-        szene_modul.uebernimm_rahmen(conn, chat_id, szene_id)
-        repo.aktualisiere_szene(
-            conn, szene_id, titel or f"Abschnitt {nummer}", fassung or None,
-            None, fassung or None, prosa,
-        )
-        nummern.append(nummer)
+    zeilen = [
+        {
+            "titel": titel or f"Abschnitt {nummer}",
+            "was_passiert": fassung,
+            "kurzbeschreibung": fassung,
+            "zusammenfassung": fassung,
+            "prosa": prosa,
+        }
+        for nummer, (titel, fassung, prosa) in enumerate(abschnitte, start=1)
+    ]
+    bericht = repo.gleiche_szenenfolge_ab(
+        conn, chat_id, zeilen, ueberschreibbar=("prosa",)
+    )
+    for nummer in bericht["nummern"]:
+        szene_modul.uebernimm_rahmen(conn, chat_id, bericht["ids"][nummer])
+    nummern = list(bericht["nummern"])
     repo.schreibe_journal(
         conn, chat_id, "entschieden", JOURNAL.format(anzahl=len(nummern)),
         quelle="szene",

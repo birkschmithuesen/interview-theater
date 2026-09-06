@@ -267,53 +267,67 @@ def zerlege(wert: str) -> list[tuple[str, str, list[str], str, str]]:
 def lege_an(
     conn, chat_id: int, zeilen: list[tuple[str, str, list[str], str, str]]
 ) -> list[int]:
-    """Legt aus einem Szenenfolge-Vorschlag die Szenen an und liefert ihre
-    Nummern.
+    """Gleicht einen Szenenfolge-Vorschlag mit der bestehenden Folge ab und
+    liefert die Nummern.
 
-    **Ersetzend, nicht ergaenzend**: eine neue Folge ist eine neue Folge --
-    haette die Gruppe nur eine Szene aendern wollen, haette sie das gesagt.
-    Die alten Szenen werden weich entfernt (``repo.entferne_szene``, N3), also
-    nicht geloescht: was schon geschrieben war, bleibt in der Datenbank.
+    **Abgleichend, nicht ersetzend** (06.09.2026, Analyse
+    ``docs/analyse-phase5-chaos-2026-09-06.md`` Abschnitt B). Bis dahin stand
+    hier das Gegenteil -- "eine neue Folge ist eine neue Folge" --, und genau
+    das hat im Live-Fall Gruppe 1 drei geplante Szenen samt ihrer
+    Formfestlegung weich entfernt, ohne dass jemand darum gebeten hatte. Seit
+    diesem Umbau laeuft alles ueber ``repo.gleiche_szenenfolge_ab``: Szenen
+    mit derselben Nummer werden **aktualisiert**, fehlende **ergaenzt**,
+    ueberzaehlige **bleiben stehen**. Eine Szene verschwindet nur noch auf
+    ausdruecklichen Wunsch (``repo.entferne_szene``, N3).
+
+    Was dabei geschuetzt ist, steht in ``repo.GESCHUETZTE_SZENENFELDER``:
+    ``form``/``form_vorschlag``/``stil`` (Entscheidungen der Gruppe) und
+    ``volltext``/``prosa`` (geschriebene Texte) bleiben erhalten, solange sie
+    gefuellt sind.
 
     Die Besetzung wird nur gesetzt, soweit die Namen im Arbeitsstand stehen --
     eine Figur wird hier NIE angelegt. Figuren entstehen in Phase 4 mit
     Beschreibung und Interview; sie aus einer Szenenzeile zu raten waere genau
-    der Fehler, den ``vorschlag.py`` vermeidet.
+    der Fehler, den ``vorschlag.py`` vermeidet. Eine bestehende Besetzung
+    wird nicht geleert: nennt der Vorschlag keine bekannten Namen, bleibt sie
+    stehen.
 
     **Die Form wird NICHT gesetzt** (Birk, 06.09.2026 00:30): sie landet als
     ``form_vorschlag`` samt Begruendung in der Szene, ``form`` bleibt leer,
     bis die Gruppe sie Szene fuer Szene per Knopf bestaetigt. Anlass: in einer
     fertigen Szene stand "Monolog", ohne dass es je jemand gewaehlt hatte."""
-    for alt in repo.hole_szenen(conn, chat_id):
-        if alt["nummer"] is not None:
-            repo.entferne_szene(conn, chat_id, alt["nummer"])
     from interview_theater import szene as szene_modul
 
     nach_name = {f["name"].strip().lower(): f["id"] for f in repo.figuren(conn, chat_id)}
-    nummern: list[int] = []
-    for nummer, zeile in enumerate(zeilen, start=1):
-        titel, was, figuren = zeile[0], zeile[1], zeile[2]
+    abgleich: list[dict] = []
+    for zeile in zeilen:
+        titel, was = zeile[0], zeile[1]
         # Der Formvorschlag kommt aus der vierten Spalte, seine Begruendung
         # aus der fuenften; aeltere Aufrufer mit kuerzeren Tupeln bekommen die
         # Vorgabe (Dialog).
         form = zeile[3] if len(zeile) > 3 and zeile[3] else FORM_VORGABE
         grund = zeile[4] if len(zeile) > 4 else ""
-        szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
-        repo.setze_szenenfeld(conn, szene_id, "titel", titel)
+        abgleich.append(
+            {
+                "titel": titel,
+                "was_passiert": was,
+                "form_vorschlag": form,
+                "form_vorschlag_grund": grund,
+            }
+        )
+    bericht = repo.gleiche_szenenfolge_ab(conn, chat_id, abgleich)
+    for nummer, zeile in enumerate(zeilen, start=1):
+        szene_id = bericht["ids"][nummer]
         # Das Setting ist die Vorgabe fuer ort/zeit/anlass (06.09.2026, Birk
         # 12:00): jede Szene bekommt sie beim Anlegen, statt spaeter danach
-        # gefragt zu werden.
+        # gefragt zu werden. ``uebernimm_rahmen`` schreibt nur in leere
+        # Felder.
         szene_modul.uebernimm_rahmen(conn, chat_id, szene_id)
-        if was:
-            repo.setze_szenenfeld(conn, szene_id, "was_passiert", was)
-        repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", form)
-        if grund:
-            repo.setze_szenenfeld(conn, szene_id, "form_vorschlag_grund", grund)
+        figuren = zeile[2]
         ids = [nach_name[n.lower()] for n in figuren if n.lower() in nach_name]
         if ids:
             repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
-        nummern.append(nummer)
-    return nummern
+    return list(bericht["nummern"])
 
 
 # ---------------------------------------------------------------------------

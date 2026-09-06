@@ -1007,6 +1007,21 @@ def merke_schaerfung_uebernommen(conn: sqlite3.Connection, schaerfung_id: int) -
     conn.commit()
 
 
+@_gesperrt
+def entferne_schaerfung(conn: sqlite3.Connection, schaerfung_id: int) -> None:
+    """Nimmt eine Schaerfung weich heraus (N3) -- "Keine davon".
+
+    Weich und nicht hart, wie ueberall: die Zuordnung ist gelaufen, die
+    Gruppe hat sie gesehen und abgelehnt, und das ist ein Teil des Wegs.
+    Eine zweite Runde schlaegt sie dadurch nicht erneut vor
+    (``repo.schaerfungen`` filtert ``entfernt_am IS NULL``)."""
+    conn.execute(
+        "UPDATE schaerfung SET entfernt_am = ? WHERE id = ?",
+        (_jetzt(), schaerfung_id),
+    )
+    conn.commit()
+
+
 # --- Stueckpruefung (Phase 7, 06.09.2026) ---------------------------------
 
 
@@ -1929,6 +1944,128 @@ def hole_szenen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
         "ORDER BY nummer ASC, id ASC",
         (chat_id,),
     ).fetchall()
+
+
+#: Die Felder einer Szene, die ein Szenenfolge- oder Kurzgeschichte-Lauf
+#: **nicht** ueberschreibt, sobald sie gefuellt sind (06.09.2026, Analyse
+#: ``docs/analyse-phase5-chaos-2026-09-06.md`` Abschnitt B).
+#:
+#: Der Anlass ist der gemessene Live-Fall: drei geplante Szenen mit
+#: festgelegter Form wurden von einem zweiten Vorschlagslauf weich entfernt
+#: und durch sechs neue ersetzt -- zweimal hintereinander. Verloren ging
+#: dabei genau das, was die Gruppe selbst entschieden hatte.
+#:
+#: ``form`` und ``stil`` traegt allein ein Knopfdruck der Gruppe; der
+#: ``form_vorschlag`` ist die Fassung, an der sie diesen Druck festmacht;
+#: ``volltext`` und ``prosa`` sind geschriebene Texte. Ein neuer Vorschlag
+#: darf die Planung schaerfen, aber nichts davon wegnehmen.
+GESCHUETZTE_SZENENFELDER = (
+    "form",
+    "form_vorschlag",
+    "form_vorschlag_grund",
+    "stil",
+    "volltext",
+    "prosa",
+)
+
+#: Alle Spalten, die ``gleiche_szenenfolge_ab`` schreiben darf. Wie bei
+#: ``SZENENFELDER`` ist eine unbekannte Angabe ein Programmierfehler: nur
+#: nach dieser Pruefung landet ein Name im SQL-Text.
+ABGLEICHBARE_SZENENFELDER = (
+    *SZENENFELDER,
+    "zusammenfassung",
+    "volltext",
+    "prosa",
+)
+
+
+@_gesperrt
+def gleiche_szenenfolge_ab(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    zeilen: list[dict],
+    ueberschreibbar: tuple[str, ...] = (),
+) -> dict:
+    """Gleicht eine vorgeschlagene Szenenfolge mit der bestehenden ab --
+    **ergaenzend und aktualisierend, nie ersetzend** (06.09.2026).
+
+    Das ist die Umkehrung der bisherigen Regel aus ``szenenfolge.lege_an``
+    ("eine neue Folge ist eine neue Folge"). Gemessen hat diese Regel drei
+    geplante Szenen samt ihrer Formfestlegung geloescht, ohne dass jemand
+    das bestellt hatte; im selben Lauf entstanden sechs neue mit anderen
+    Titeln und anderen Formen.
+
+    Der Abgleich laeuft **ueber die Szenennummer**:
+
+    * Szene N gibt es schon -> ihre Felder werden aktualisiert, soweit der
+      Vorschlag etwas dazu sagt und das Feld nicht geschuetzt ist.
+    * Szene N gibt es noch nicht -> sie wird angelegt
+      (``stelle_szene_sicher``).
+    * Es gibt mehr bestehende Szenen als Zeilen -> die ueberzaehligen
+      **bleiben stehen** und werden im Bericht genannt. Entfernt wird eine
+      Szene nur noch auf ausdruecklichen Wunsch, ueber ``entferne_szene``.
+
+    ``GESCHUETZTE_SZENENFELDER`` werden nie ueberschrieben, solange sie
+    gefuellt sind -- ein leeres Feld dagegen wird gefuellt, sonst bekaeme
+    eine frisch angelegte Szene nie einen Formvorschlag. ``ueberschreibbar``
+    hebt den Schutz fuer einzelne Felder auf: der Prosa-Lauf ist der
+    Verfasser von ``prosa`` und darf seine eigene Fassung ersetzen, wenn die
+    Gruppe ihn ausdruecklich noch einmal startet.
+
+    Liefert einen Bericht:
+    ``{"nummern": [...], "ids": {nummer: szene_id}, "neu": [...],
+    "aktualisiert": [...], "ueberzaehlig": [...]}``.
+    """
+    bestehend = {
+        z["nummer"]: z["id"]
+        for z in conn.execute(
+            "SELECT id, nummer FROM szene "
+            "WHERE chat_id = ? AND nummer IS NOT NULL AND entfernt_am IS NULL "
+            "ORDER BY geaendert_am ASC, id ASC",
+            (chat_id,),
+        )
+    }
+    bericht: dict = {
+        "nummern": [],
+        "ids": {},
+        "neu": [],
+        "aktualisiert": [],
+        "ueberzaehlig": [],
+    }
+    for nummer, zeile in enumerate(zeilen, start=1):
+        war_da = nummer in bestehend
+        szene_id = stelle_szene_sicher(conn, chat_id, nummer)
+        alt = conn.execute("SELECT * FROM szene WHERE id = ?", (szene_id,)).fetchone()
+        felder: list[str] = []
+        werte: list[object] = []
+        for feld, wert in (zeile or {}).items():
+            if feld not in ABGLEICHBARE_SZENENFELDER:
+                raise ValueError(f"unbekanntes Szenenfeld: {feld!r}")
+            if wert is None or not str(wert).strip():
+                # Ein leerer Vorschlagswert loescht nichts: was dasteht,
+                # ist mehr als was fehlt.
+                continue
+            if (
+                feld in GESCHUETZTE_SZENENFELDER
+                and feld not in ueberschreibbar
+                and str(alt[feld] or "").strip()
+            ):
+                continue
+            felder.append(f"{feld} = ?")
+            werte.append(wert)
+        if felder:
+            conn.execute(
+                f"UPDATE szene SET {', '.join(felder)}, geaendert_am = ? WHERE id = ?",
+                (*werte, _jetzt_genau(), szene_id),
+            )
+            conn.commit()
+        bericht["nummern"].append(nummer)
+        bericht["ids"][nummer] = szene_id
+        (bericht["aktualisiert"] if war_da else bericht["neu"]).append(nummer)
+    bericht["ueberzaehlig"] = sorted(
+        n for n in bestehend if n > len(zeilen)
+    )
+    return bericht
 
 
 @_gesperrt

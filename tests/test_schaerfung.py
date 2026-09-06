@@ -205,7 +205,10 @@ def _mappe(lage, einst, **felder):
     schaerfung.mappe(KLMAttrappe(_antwort(**felder)), lage, einst, 1)
 
 
-def test_je_szene_eine_vorschlagsnachricht_mit_grundleiste(lage, tg, einst):
+def test_je_szene_ein_menue_mit_einem_knopf_je_stelle(lage, tg, einst):
+    """Seit dem 06.09.2026 ist das ein Menue wie jedes andere: Ueberschrift,
+    nummerierte Kurzoption, ein Knopf je Stelle -- statt eines Fliessblocks
+    mit einer globalen Ja/Nein-Frage (Analyse Abschnitt 2)."""
     _mappe(lage, einst, eintrag_nummern=[1], szenen_nummern=[1],
            figuren_namen=[""], begruendungen=["Mira erzaehlt davon"])
 
@@ -214,11 +217,31 @@ def test_je_szene_eine_vorschlagsnachricht_mit_grundleiste(lage, tg, einst):
     text = tg.knoepfe[-1][1]
     assert "Szene 1" in text
     assert "Interview 1" in text
-    assert ZITAT_A in text
     assert "Mira erzaehlt davon" in text
-    assert [b for b, _ in tg.knoepfe[-1][2]] == [
-        "Ja, speichern", "Nein, nochmal aendern",
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    # Ein Knopf je Stelle, dann die beiden Sammelknoepfe.
+    assert beschriftungen[0].startswith("1 · ")
+    assert beschriftungen[-2:] == [
+        knoepfe._TEXT_SCHAERFUNG_ALLE_KNOPF, knoepfe._TEXT_SCHAERFUNG_KEINE_KNOPF,
     ]
+    # Das Zitat steht als Kurzform da (hier passt es in die 12 Woerter).
+    assert f"„{ZITAT_A}“" in text
+    assert "Vorschlag:" not in text
+
+
+def test_ein_langes_zitat_wird_im_menue_gekuerzt(lage, einst):
+    assert schaerfung.ZITAT_WOERTER == 12
+    lang = " ".join(f"wort{n}" for n in range(1, 30))
+    _, beschreibung = schaerfung.option(
+        lage, 1,
+        {
+            "aufnahme_id": None, "thema": "Ein Thema", "zitat": lang,
+            "begruendung": "",
+        },
+    )
+    assert "wort12" in beschreibung
+    assert "wort13" not in beschreibung
+    assert "…" in beschreibung
 
 
 def test_je_figur_eine_vorschlagsnachricht(lage, tg, einst):
@@ -315,17 +338,77 @@ def _knopf(tg, beschriftung):
     raise AssertionError(f"kein Knopf {beschriftung!r}")
 
 
-def test_gefaellt_uns_weiter_uebernimmt_und_geht_weiter(lage, tg, einst):
+def test_diese_uebernehmen_uebernimmt_und_geht_weiter(lage, tg, einst):
     _mappe(lage, einst, eintrag_nummern=[1, 2], szenen_nummern=[1, 0],
            figuren_namen=["", "Pal"], begruendungen=["zur Szene", "zur Figur"])
     knoepfe.biete_schaerfung(lage, tg, 1)
 
-    knoepfe.behandle(lage, tg, None, einst, _druck(_knopf(tg, "Ja, speichern")))
+    knoepfe.behandle(
+        lage, tg, None, einst,
+        _druck(_knopf(tg, knoepfe._TEXT_SCHAERFUNG_ALLE_KNOPF)),
+    )
 
     frisch = repo.hole_szene(lage, repo.hole_szenen(lage, 1)[0]["id"])
     assert "zur Szene" in frisch["was_passiert"]
     # Und die naechste offene Schaerfung steht schon da: die Figur.
     assert "Pal" in tg.knoepfe[-1][1]
+
+
+def test_ein_knopf_uebernimmt_genau_eine_stelle(lage, tg, einst):
+    """Der Kern von Massnahme 4: Knopf N wirkt auf Punkt N -- und nur auf
+    ihn."""
+    _mappe(lage, einst, eintrag_nummern=[1, 2], szenen_nummern=[1, 1],
+           figuren_namen=["", ""], begruendungen=["erste Stelle", "zweite Stelle"])
+    knoepfe.biete_schaerfung(lage, tg, 1)
+    erster = [b for b, _ in tg.knoepfe[-1][2] if b.startswith("1 · ")][0]
+
+    knoepfe.behandle(lage, tg, None, einst, _druck(_knopf(tg, erster)))
+
+    frisch = repo.hole_szene(lage, repo.hole_szenen(lage, 1)[0]["id"])
+    assert "erste Stelle" in frisch["was_passiert"]
+    assert "zweite Stelle" not in frisch["was_passiert"]
+    offen = [z for z in repo.schaerfungen(lage, 1) if not z["uebernommen_am"]]
+    assert len(offen) == 1
+
+
+def test_keine_davon_verwirft_die_gezeigten_stellen(lage, tg, einst):
+    _mappe(lage, einst, eintrag_nummern=[1], szenen_nummern=[1],
+           figuren_namen=[""], begruendungen=["passt nicht"])
+    knoepfe.biete_schaerfung(lage, tg, 1)
+
+    knoepfe.behandle(
+        lage, tg, None, einst,
+        _druck(_knopf(tg, knoepfe._TEXT_SCHAERFUNG_KEINE_KNOPF)),
+    )
+
+    assert repo.schaerfungen(lage, 1) == []
+    frisch = repo.hole_szene(lage, repo.hole_szenen(lage, 1)[0]["id"])
+    assert "passt nicht" not in (frisch["was_passiert"] or "")
+
+
+def test_hoechstens_drei_stellen_je_nachricht(lage, tg, einst):
+    """Der Deckel gegen die Wall of Text (``schaerfung.MAX_STELLEN``)."""
+    assert schaerfung.MAX_STELLEN == 3
+    _mappe(lage, einst, eintrag_nummern=[1, 2, 1, 2], szenen_nummern=[1, 1, 1, 1],
+           figuren_namen=["", "", "", ""],
+           begruendungen=["a", "b", "c", "d"])
+
+    knoepfe.biete_schaerfung(lage, tg, 1)
+
+    optionsknoepfe = [b for b, _ in tg.knoepfe[-1][2] if b[0].isdigit()]
+    assert len(optionsknoepfe) == 3
+
+
+def test_callback_data_des_menues_bleibt_unter_der_grenze(lage, tg, einst):
+    """Zusage 1: auch mit mehreren ids im ``wert`` traegt der Knopf nur
+    ``k:<id>``."""
+    _mappe(lage, einst, eintrag_nummern=[1, 2], szenen_nummern=[1, 1],
+           figuren_namen=["", ""], begruendungen=["a", "b"])
+
+    knoepfe.biete_schaerfung(lage, tg, 1)
+
+    for _, daten in tg.knoepfe[-1][2]:
+        assert len(daten.encode("utf-8")) <= 64
 
 
 def test_noch_eine_runde_startet_das_mapping_erneut(lage, tg, einst, monkeypatch):

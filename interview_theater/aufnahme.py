@@ -106,7 +106,33 @@ _TEXT_AUSFALL = (
     "Aufnahmen und hole sie nach."
 )
 _TEXT_RUECKKEHR = "Ich kann wieder hoeren."
+
+#: Historisch (bis 06.09.2026): der beilaeufige Hinweis, der an einer
+#: Gespraechsantwort hing, wenn eine lange Sprachnachricht ausserhalb des
+#: Interviewmodus ankam. Ersetzt durch die deterministische Rueckfrage mit
+#: zwei Knoepfen (``_TEXT_INTERVIEW_OHNE_KNOPF``) -- der Hinweis half nicht,
+#: weil der Zug, an dem er hing, genau der Zug war, den es nicht geben durfte.
 _TEXT_MATERIAL_HINWEIS = "Das klingt nach Material fuer ein Interview."
+
+#: Die Rueckfrage nach einer langen Sprachnachricht ohne Interviewmodus
+#: (06.09.2026, Live-Fall Gruppe 1). Die Dauer steht als M:SS darin, damit
+#: die Gruppe erkennt, welche Aufnahme gemeint ist -- sie hat gerade drei
+#: Minuten gesprochen und sieht sonst nur eine Frage ohne Bezug.
+_TEXT_INTERVIEW_OHNE_KNOPF = (
+    "Das klingt nach einem Interview ({dauer}). Soll ich es als Interview "
+    "speichern?"
+)
+
+#: Die Folgefrage nach \"Ja, als Interview\": das Interview steht, aber es
+#: koennen noch Sprachnachrichten dazukommen. Ohne diese Frage waere die
+#: Gruppe im Interviewmodus, ohne es zu wissen.
+_TEXT_INTERVIEW_OHNE_KNOPF_WEITER = (
+    "Ist das Interview fertig, oder kommen noch Sprachnachrichten dazu?"
+)
+
+#: \"Nein, war ein Beitrag\": das Transkript wird sichtbar und der normale
+#: Weg einmal nachgeholt.
+_TEXT_INTERVIEW_OHNE_KNOPF_NEIN = "Gut, dann nehme ich es als Beitrag."
 
 #: Das Transkript-Echo eines Teils (§ 10.6): woertlich, ohne Kommentar, ohne
 #: Zusammenfassung. Der Kopf sagt, wozu es gehoert -- das ist der ganze
@@ -590,9 +616,13 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
 
     Diese Funktion laeuft ausschliesslich fuer Klasse *kurz* -- und damit,
     seit Aufgabe 5, ausschliesslich fuer Sprachnachrichten, die bei
-    interviewmodus AUS eintrafen (klasse_fuer). War die Nachricht dabei
-    laenger als HINWEIS_AB_S, haengt sie dem Gespraechszug einen beilaeufigen
-    Hinweis an -- keine Rueckfrage, kein eigener Zustand (§ 10.1)."""
+    interviewmodus AUS eintrafen (klasse_fuer).
+
+    **Die lange Sprachnachricht ohne Interviewmodus ist seit dem 06.09.2026
+    ein eigener, deterministischer Weg** (Live-Fall Gruppe 1, 13:32): sie
+    bekommt keinen beilaeufigen Hinweis mehr an einer Gespraechsantwort,
+    sondern gar keine Gespraechsantwort -- stattdessen die Frage, ob es ein
+    Interview war, mit zwei Knoepfen. Siehe ``_frage_interview_ohne_knopf``."""
     from interview_theater import bot  # spaeter Import: vermeidet einen Ladezyklus mit bot.py
 
     aufnahme_id = row["id"]
@@ -608,26 +638,146 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
         and not bot.ist_nachtstau(urspruengliche_nachricht["gesendet_am"], jetzt)
     )
 
+    dauer = row["dauer_sekunden"] or 0
+    interview_frage = (
+        jung
+        and dauer > HINWEIS_AB_S
+        and not repo.ist_interviewmodus_an(conn, chat_id)
+    )
+
     repo.aktualisiere_transkribierte_nachricht(
-        conn, chat_id, message_id, text, 0 if jung else 1
+        conn, chat_id, message_id, text, 1 if (interview_frage or not jung) else 0,
+        versteckt=interview_frage,
     )
     repo.setze_status(conn, aufnahme_id, "fertig")
 
+    if interview_frage:
+        _frage_interview_ohne_knopf(conn, tg, e, chat_id, aufnahme_id, dauer)
+        return
+
     if jung:
-        # Der Materialhinweis fragt, ob die Gruppe die Aufnahme als Interview
-        # festhalten will -- bei laufendem Interviewmodus ist das Unsinn. Der
-        # Fall entsteht seit N4: eine Aufnahme, die an den Bot gerichtet war,
-        # kommt als Klasse 'kurz' hierher, waehrend der Modus noch an ist.
-        dauer = row["dauer_sekunden"] or 0
-        hinweis = (
-            _TEXT_MATERIAL_HINWEIS
-            if dauer > HINWEIS_AB_S and not repo.ist_interviewmodus_an(conn, chat_id)
-            else None
-        )
         try:
-            zug(conn, tg, klm, e, chat_id, hinweis=hinweis)
+            zug(conn, tg, klm, e, chat_id, hinweis=None)
         except Exception:
             log.exception("Gespraechszug nach kurzer Aufnahme fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def dauer_mmss(sekunden: int) -> str:
+    """``186`` -> ``\"3:06\"``. Die Gruppe erkennt ihre Aufnahme an der Laenge,
+    nicht an einer Sekundenzahl."""
+    sekunden = max(0, int(sekunden or 0))
+    return f"{sekunden // 60}:{sekunden % 60:02d}"
+
+
+def _frage_interview_ohne_knopf(conn, tg, e, chat_id: int, aufnahme_id: int, dauer: int) -> None:
+    """Die deterministische Frage nach einer langen Sprachnachricht OHNE
+    laufenden Interviewmodus (06.09.2026, Live-Fall Gruppe 1, 13:32-13:37).
+
+    Was an dem Tag passierte: die Gruppe schickte 186 Sekunden Interview,
+    ohne vorher \"Interview starten\" zu druecken. Das Transkript ging als
+    **Gespraechsbeitrag** in den Kontext, das Gespraechsmodell antwortete mit
+    einem Denkspur-Rest, der **Absichtserkenner** las die Aufzaehlung der
+    interviewten Person als Begriffsliste der Gruppe und ueberschrieb
+    ``arbeitsstand.begriffe``, und der Journal-Extraktor schrieb einen
+    Vorschlag aus dem Interviewinhalt. Drei Modellaufrufe auf Material, das
+    keine Absicht der Gruppe war -- genau der Fall, gegen den
+    ``repo.TYP_TRANSKRIPT`` seit § 10.6 schuetzt, nur hier ungeschuetzt, weil
+    ohne Modus niemand ein Interview vermutete.
+
+    Deshalb jetzt: **kein Gespraechszug, kein Erkenner, kein Journal** auf
+    dieser Nachricht. Das Transkript ist gespeichert (Empfangen und
+    In-den-Prompt-legen sind zwei Entscheidungen), steht aber versteckt
+    (``versteckt=True``) und damit in keinem Fenster, bis die Gruppe geklaert
+    hat, was es war. Der Knopf traegt die Auswahl selbst -- es gibt etwas
+    Fixes zu speichern, also ist die Knopfregel erfuellt (AGENTS.md).
+
+    Kommt keine Antwort, passiert **nichts**: kein Auto-Ja, kein Zeitgeber.
+    Das Material liegt da und kann jederzeit ueber \"Interview starten\" als
+    Nachzuegler eingesammelt werden -- der Weg, der am Live-Tag fuenf Minuten
+    spaeter tatsaechlich funktioniert hat. Fuers Dashboard bleibt ein
+    Vorfall ``interview_ohne_knopf_offen`` stehen."""
+    from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+
+    text = _TEXT_INTERVIEW_OHNE_KNOPF.format(dauer=dauer_mmss(dauer))
+    try:
+        knoepfe.biete_interview_ohne_knopf(conn, tg, chat_id, text, aufnahme_id)
+    except Exception:
+        log.exception("Interview-Rueckfrage fehlgeschlagen, chat_id=%s", chat_id)
+        return
+    try:
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "interview_ohne_knopf_offen",
+            f"Aufnahme {aufnahme_id} ({dauer_mmss(dauer)}) wartet auf Ja/Nein",
+        )
+    except Exception:
+        log.exception("Vorfall interview_ohne_knopf_offen fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def nimm_als_interview(conn, tg, chat_id: int, aufnahme_id: int) -> int | None:
+    """\"Ja, als Interview\": legt den Kopf an, sammelt GENAU diese Aufnahme
+    ein und sichert Phase 3. Liefert die Kopf-id.
+
+    Kein Modellaufruf (Zusage 2) -- alles hier ist Datenbank und eine feste
+    Meldung. ``stelle_interview_sicher`` sammelt zwar seine Nachzuegler
+    ohnehin ein, aber nur die der letzten ``NACHZUEGLER_FENSTER_S`` Sekunden:
+    zwischen Aufnahme und Knopfdruck koennen mehr liegen (die Gruppe steht im
+    Raum). Deshalb danach ausdruecklich ``repo.ziehe_eine_in_interview`` mit
+    der bekannten id -- die eine Aufnahme, um die es geht, haengt danach in
+    jedem Fall am Kopf.
+
+    Der Interviewmodus bleibt dabei AN: es koennen noch Sprachnachrichten
+    kommen, und erst \"Fertig, auswerten\" beendet das Interview."""
+    repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
+    kopf_id = stelle_interview_sicher(conn, chat_id)
+    row = repo.hole_aufnahme(conn, aufnahme_id)
+    if row is not None and row["teil_von"] != kopf_id:
+        repo.ziehe_eine_in_interview(conn, aufnahme_id, kopf_id)
+    stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="knopf")
+    return kopf_id
+
+
+def nimm_als_beitrag(conn, tg, klm, e, chat_id: int, aufnahme_id: int) -> bool:
+    """\"Nein, war ein Beitrag\": macht das versteckte Transkript sichtbar und
+    holt Gespraechszug samt Erkenner GENAU EINMAL nach (06.09.2026).
+
+    Bis zum Knopfdruck stand die Zeile als ``TYP_TRANSKRIPT`` in der
+    Datenbank und damit in keinem Fenster. Jetzt ist geklaert, dass es ein
+    Beitrag der Gruppe war -- also gehoert sie in Verlauf, Erkenner und
+    Journal, und die Gruppe bekommt die Antwort, die sie vorhin bekommen
+    haette.
+
+    Der Zug laeuft in einem eigenen Thread: ein Knopf-Handler macht keinen
+    Modellaufruf (Zusage 2, AGENTS.md). Liefert True, wenn die Aufnahme
+    bekannt war."""
+    row = repo.hole_aufnahme(conn, aufnahme_id)
+    if row is None:
+        return False
+    repo.zeige_transkript_nachricht(conn, chat_id, row["message_id"])
+    starte_nachgeholten_zug(conn, tg, klm, e, chat_id)
+    return True
+
+
+def starte_nachgeholten_zug(conn, tg, klm, e, chat_id: int):
+    """Stoesst ``bot._zug_und_erkenner`` in einem eigenen Thread an -- der
+    normale Weg nach einer Textnachricht, hier einmal nachgeholt.
+
+    Der spaete Import haelt ``aufnahme.py`` frei von ``bot.py`` im Modulkopf
+    (derselbe Grund wie bei ``_kein_zug``). ``klm is None`` (Tests ohne
+    Modell) laeuft ins Leere statt in eine Ausnahme."""
+    if klm is None:
+        return None
+
+    def _lauf() -> None:
+        from interview_theater import bot
+
+        try:
+            bot._zug_und_erkenner(conn, tg, klm, e, chat_id)
+        except Exception:
+            log.exception("Nachgeholter Gespraechszug fehlgeschlagen, chat_id=%s", chat_id)
+
+    thread = threading.Thread(target=_lauf, daemon=True)
+    thread.start()
+    return thread
 
 
 def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") -> None:

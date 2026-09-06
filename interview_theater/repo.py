@@ -642,6 +642,31 @@ def ziehe_in_interview(
 
 
 @_gesperrt
+def ziehe_eine_in_interview(
+    conn: sqlite3.Connection, aufnahme_id: int, kopf_id: int
+) -> bool:
+    """Ordnet GENAU EINE Aufnahme einem Interview-Kopf zu -- die gezielte
+    Fassung von ``ziehe_in_interview`` (06.09.2026).
+
+    Gebraucht fuer den Weg \"Ja, als Interview\" nach einer langen
+    Sprachnachricht ohne Interviewmodus: dort ist bekannt, WELCHE Aufnahme
+    gemeint ist, und das Zeitfenster der Nachzuegler-Sammlung darf darueber
+    nicht entscheiden (die Gruppe kann sich Minuten Zeit lassen, bis sie den
+    Knopf drueckt). Liefert True, wenn die Zeile tatsaechlich gezogen wurde.
+
+    Ein Kopf wird nie in sich selbst gezogen, eine entfernte Aufnahme gar
+    nicht."""
+    cur = conn.execute(
+        "UPDATE aufnahme SET klasse = 'teil', teil_von = ? "
+        "WHERE id = ? AND id != ? AND entfernt_am IS NULL AND teil_von IS NULL "
+        "AND klasse != 'lang'",
+        (kopf_id, aufnahme_id, kopf_id),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+@_gesperrt
 def offene_aufnahmen(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """Alle Aufnahmen, an denen noch Arbeit offen ist -- Grundlage dafuer, dass
     ein Neustart ueber Nacht angefangene Arbeit zu Ende bringt
@@ -1184,18 +1209,46 @@ def hole_nachricht(conn: sqlite3.Connection, chat_id: int, message_id: int) -> s
 
 @_gesperrt
 def aktualisiere_transkribierte_nachricht(
-    conn: sqlite3.Connection, chat_id: int, message_id: int, text: str, unterdrueckt: int
+    conn: sqlite3.Connection, chat_id: int, message_id: int, text: str,
+    unterdrueckt: int, versteckt: bool = False,
 ) -> None:
     """Verwandelt die schon vorhandene Sprachnachricht-Zeile (typ='sprache',
     text=NULL) in eine Textnachricht -- per UPDATE, nicht per INSERT, damit im
     Verlauf keine zweite Zeile fuer dieselbe Aeusserung entsteht und die
     Reihenfolge erhalten bleibt (Aufgabe 8, SPEC-kontext-architektur.md
     § 10.2). ``unterdrueckt`` entscheidet der Aufrufer (Nachtstau-Regel bzw.
-    Nachgeholtes loest nie eine Antwort aus)."""
+    Nachgeholtes loest nie eine Antwort aus).
+
+    ``versteckt=True`` (06.09.2026, Live-Fall Gruppe 1 13:32) legt die Zeile
+    als ``TYP_TRANSKRIPT`` ab statt als ``text``: gespeichert ist sie damit
+    trotzdem, sie steht aber in **keinem** Fenster -- weder im
+    Gespraechsverlauf (``letzte_nachrichten``) noch beim Absichtserkenner
+    (``unextrahierte``) noch beim Journal-Extraktor (``unjournalisierte``).
+    ``unterdrueckt`` allein leistet das NICHT: es filtert nur
+    ``unbeantwortete``, also den Gespraechszug. Gebraucht fuer eine lange
+    Sprachnachricht ohne Interviewmodus, solange die Gruppe noch nicht
+    gesagt hat, ob es ein Interview war (``aufnahme._frage_interview_ohne_knopf``)."""
     conn.execute(
-        "UPDATE nachricht SET text = ?, typ = 'text', unterdrueckt = ? "
+        "UPDATE nachricht SET text = ?, typ = ?, unterdrueckt = ? "
         "WHERE chat_id = ? AND message_id = ?",
-        (text, unterdrueckt, chat_id, message_id),
+        (text, TYP_TRANSKRIPT if versteckt else "text", unterdrueckt, chat_id, message_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def zeige_transkript_nachricht(conn: sqlite3.Connection, chat_id: int, message_id: int) -> None:
+    """Hebt das Verstecken wieder auf: aus ``TYP_TRANSKRIPT`` wird ``text``,
+    ``unterdrueckt`` faellt auf 0.
+
+    Der Weg zurueck fuer den Fall \"Nein, war ein Beitrag\" (06.09.2026): die
+    Gruppe hat entschieden, dass die lange Sprachnachricht kein Interview war
+    -- ab jetzt ist sie ein Gespraechsbeitrag wie jeder andere und gehoert in
+    Fenster, Erkenner und Journal."""
+    conn.execute(
+        "UPDATE nachricht SET typ = 'text', unterdrueckt = 0 "
+        "WHERE chat_id = ? AND message_id = ?",
+        (chat_id, message_id),
     )
     conn.commit()
 

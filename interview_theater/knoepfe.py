@@ -132,6 +132,17 @@ ART_TEIL_WEITER = "teil_weiter"
 #: Das Gegenstueck: "Interview ist fertig" -- wortgleich dieselbe Wirkung wie
 #: "Aufnahme beenden" (``befehle._befehl_aufnahme``), kein zweiter Weg.
 ART_TEIL_FERTIG = "teil_fertig"
+#: Die Antwort auf \"Das klingt nach einem Interview (M:SS)\" -- eine lange
+#: Sprachnachricht, die OHNE laufenden Interviewmodus ankam (06.09.2026,
+#: Live-Fall Gruppe 1 13:32). Der ``wert`` traegt die ``aufnahme.id``: der
+#: Knopf muss genau DIESE Aufnahme einsammeln koennen, auch wenn inzwischen
+#: Minuten vergangen sind.
+ART_OHNE_KNOPF_JA = "ohne_knopf_ja"
+ART_OHNE_KNOPF_NEIN = "ohne_knopf_nein"
+#: Die Folgefrage nach \"Ja, als Interview\": fertig auswerten oder offen
+#: lassen. Der ``wert`` traegt die Kopf-id.
+ART_OHNE_KNOPF_FERTIG = "ohne_knopf_fertig"
+ART_OHNE_KNOPF_WEITER = "ohne_knopf_weiter"
 
 # --- Phase 2 · Fragen als Mehrfachauswahl und der Leitfaden (06.09.2026) ---
 #
@@ -311,6 +322,20 @@ _TEXT_TEIL_FERTIG_KNOPF = "Interview ist fertig"
 _TEXT_TEIL_WEITER = "Gut, ich hoere weiter zu."
 #: Der seltene Fall, dass die Aufnahme schon aus ist, wenn der Knopf kommt.
 _TEXT_TEIL_SCHON_AUS = "Die Aufnahme laeuft nicht mehr."
+
+#: Die vier Beschriftungen fuer die lange Sprachnachricht ohne Interviewmodus
+#: (06.09.2026). Bewusst als Aussagen der Gruppe formuliert, nicht als
+#: Ja/Nein: die Gruppe steht im Raum und liest im Vorbeigehen.
+_TEXT_OHNE_KNOPF_JA_KNOPF = "Ja, als Interview"
+_TEXT_OHNE_KNOPF_NEIN_KNOPF = "Nein, war ein Beitrag"
+_TEXT_OHNE_KNOPF_FERTIG_KNOPF = "Fertig, auswerten"
+_TEXT_OHNE_KNOPF_WEITER_KNOPF = "Es kommt noch was"
+#: \"Es kommt noch was\": der Modus bleibt an, der Kopf offen -- jede weitere
+#: Sprachnachricht laeuft als Teil hinein.
+_TEXT_OHNE_KNOPF_WEITER = "Gut, ich hoere weiter zu."
+#: Die Aufnahme, um die es ging, ist inzwischen weg (geloescht, in ein
+#: anderes Interview gezogen). Der Knopf bleibt trotzdem beantwortet.
+_TEXT_OHNE_KNOPF_UNBEKANNT = "Diese Aufnahme kenne ich nicht mehr."
 
 #: Die Ablauf-Erklaerung vor dem Start (05.09.2026, Birk nach Gruppe 3,
 #: 16:36). Der Anlass: die Gruppe sagte "wir wollen ein Interview machen",
@@ -695,6 +720,69 @@ def biete_nach_teil(conn, tg, chat_id: int, text: str) -> int:
     # ``typ='transkript'`` mit -- sonst laege Interviewinhalt als
     # Gruppenbeitrag im Erkenner-Fenster (§ 10.6).
     message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
+    )
+    return message_id
+
+
+def biete_interview_ohne_knopf(
+    conn, tg, chat_id: int, text: str, aufnahme_id: int
+) -> int:
+    """Die zwei Knoepfe unter \"Das klingt nach einem Interview (M:SS)\":
+    \"Ja, als Interview\" · \"Nein, war ein Beitrag\" (06.09.2026, Live-Fall
+    Gruppe 1 13:32).
+
+    Die Knopfregel ist erfuellt (AGENTS.md): es gibt etwas Fixes zu
+    speichern, naemlich diese eine Aufnahme, und genau zwei benannte
+    Moeglichkeiten. Die ``aufnahme.id`` steht im ``wert`` der Knopfzeile, nie
+    in ``callback_data`` (Zusage 1).
+
+    Eine aeltere, ungedrueckte Leiste derselben Art wird abgenommen: schickt
+    eine Gruppe zwei lange Sprachnachrichten hintereinander, soll der Druck
+    nicht die vorletzte treffen.
+
+    Liefert die ``message_id`` der Frage."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_OHNE_KNOPF_JA)
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_OHNE_KNOPF_NEIN)
+    wert = str(aufnahme_id)
+    leiste = [
+        (
+            _TEXT_OHNE_KNOPF_JA_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_OHNE_KNOPF_JA, wert)),
+        ),
+        (
+            _TEXT_OHNE_KNOPF_NEIN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_OHNE_KNOPF_NEIN, wert)),
+        ),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
+    )
+    return message_id
+
+
+def biete_interview_ohne_knopf_weiter(conn, tg, chat_id: int, text: str, kopf_id: int) -> int:
+    """Die Folgefrage nach \"Ja, als Interview\": \"Fertig, auswerten\" ·
+    \"Es kommt noch was\" (06.09.2026).
+
+    Ohne sie waere die Gruppe im Interviewmodus, ohne es entschieden zu
+    haben -- und der Kopf bliebe offen, bis jemand zufaellig \"Interview
+    beenden\" findet. Der ``wert`` traegt die Kopf-id, damit \"Fertig\" genau
+    dieses Interview abschliesst."""
+    wert = str(kopf_id)
+    leiste = [
+        (
+            _TEXT_OHNE_KNOPF_FERTIG_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_OHNE_KNOPF_FERTIG, wert)),
+        ),
+        (
+            _TEXT_OHNE_KNOPF_WEITER_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_OHNE_KNOPF_WEITER, wert)),
+        ),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
     )
@@ -4034,6 +4122,62 @@ def _werte_alle_aus(conn, tg, klm, e, chat_id: int) -> str:
     return _TEXT_AUSWERTEN_ALLE_LAEUFT
 
 
+def _wirke_ohne_knopf(conn, tg, klm, e, chat_id: int, art: str, wert) -> str:
+    """Die vier Knoepfe rund um die lange Sprachnachricht ohne
+    Interviewmodus (06.09.2026, Live-Fall Gruppe 1 13:32).
+
+    **Kein Modellaufruf in diesem Handler** (Zusage 2): \"Ja\" schreibt nur in
+    die Datenbank, \"Fertig\" gibt die Verdichtung an ``starte_abschluss``
+    (eigener Thread), \"Nein\" gibt den nachgeholten Gespraechszug an
+    ``aufnahme.starte_nachgeholten_zug`` (eigener Thread).
+
+    Ausgelagert aus ``_wirke``, damit die vier zusammenhaengenden Faelle als
+    eine Abfolge lesbar bleiben."""
+    from interview_theater import aufnahme
+
+    try:
+        kennung = int(str(wert))
+    except (TypeError, ValueError):
+        log.error("Knopf %s ohne brauchbaren wert %r, chat_id=%s", art, wert, chat_id)
+        return _TEXT_OHNE_KNOPF_UNBEKANNT
+
+    if art == ART_OHNE_KNOPF_JA:
+        if repo.hole_aufnahme(conn, kennung) is None:
+            tg.sende(chat_id, _TEXT_OHNE_KNOPF_UNBEKANNT)
+            return _TEXT_OHNE_KNOPF_UNBEKANNT
+        kopf_id = aufnahme.nimm_als_interview(conn, tg, chat_id, kennung)
+        kopf = repo.hole_aufnahme(conn, kopf_id) if kopf_id else None
+        name = (kopf["name"] if kopf else None) or "Das Interview"
+        biete_interview_ohne_knopf_weiter(
+            conn, tg, chat_id,
+            f"{name} steht. {aufnahme._TEXT_INTERVIEW_OHNE_KNOPF_WEITER}",
+            kopf_id,
+        )
+        return f"{name} angelegt"
+
+    if art == ART_OHNE_KNOPF_NEIN:
+        if not aufnahme.nimm_als_beitrag(conn, tg, klm, e, chat_id, kennung):
+            tg.sende(chat_id, _TEXT_OHNE_KNOPF_UNBEKANNT)
+            return _TEXT_OHNE_KNOPF_UNBEKANNT
+        tg.sende(chat_id, aufnahme._TEXT_INTERVIEW_OHNE_KNOPF_NEIN)
+        return "Als Beitrag genommen"
+
+    if art == ART_OHNE_KNOPF_WEITER:
+        # Nichts zu tun: der Modus ist an, der Kopf offen. Die Tastatur ist
+        # nach ``behandle`` weg, das ist die Rueckmeldung.
+        tg.sende(chat_id, _TEXT_OHNE_KNOPF_WEITER)
+        return "Ich hoere weiter zu"
+
+    # ART_OHNE_KNOPF_FERTIG -- wortgleich derselbe Weg wie \"Interview
+    # beenden\": beenden, dann verdichten im eigenen Thread.
+    kopf_id = aufnahme.beende_interview(conn, chat_id)
+    if kopf_id is None:
+        kopf_id = kennung
+    if klm is not None:
+        aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
+    return "Interview beendet"
+
+
 def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
     """Fuehrt die Wirkung eines beanspruchten Knopfes aus und liefert den
     kurzen Text fuer answerCallbackQuery.
@@ -4366,6 +4510,11 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             return _TEXT_TEIL_SCHON_AUS
         befehle._befehl_aufnahme(conn, tg, klm, e, chat_id)
         return "Interview beendet"
+    if art in (
+        ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
+        ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_WEITER,
+    ):
+        return _wirke_ohne_knopf(conn, tg, klm, e, chat_id, art, knopf["wert"])
     if art == ART_KERNTHEMA:
         # Der eigentliche Punkt der Uebung: deterministisch schreiben, was
         # der Erkenner live nicht zuverlaessig traf.

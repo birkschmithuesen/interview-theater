@@ -337,36 +337,93 @@ def test_aktiver_modus_loest_bei_sprachnachricht_keinen_gespraechszug_aus(conn, 
     assert any(TRANSKRIPT in t for _, t in tg.gesendet), "das Transkript geht in den Chat"
 
 
-def test_hinweis_bei_langer_aufnahme_ausserhalb_des_modus(conn, einst, tg, klm):
-    """Aufgabe 5, § 10.1: ueber HINWEIS_AB_S Sekunden UND Modus aus haengt der
-    Zug einen beilaeufigen Hinweis an -- keine eigene Nachricht, keine
-    Rueckfrage, nur ein zusaetzliches Argument fuer die ohnehin faellige
-    Antwort."""
-    gesehen = {}
+def test_lange_aufnahme_ohne_modus_fragt_statt_zu_antworten(conn, einst, tg, klm):
+    """06.09.2026, Live-Fall Gruppe 1 13:32: eine lange Sprachnachricht ohne
+    Interviewmodus loest KEINEN Gespraechszug aus (und damit auch keinen
+    Erkenner und keinen Journal-Extraktor), sondern die deterministische
+    Frage mit zwei Knoepfen. Das Transkript ist gespeichert, aber versteckt."""
+    gesehen = []
 
     def zug(conn, tg, klm, e, chat_id, hinweis=None):
-        gesehen["hinweis"] = hinweis
+        gesehen.append(hinweis)
 
     aid = aufnahme.empfange(
-        conn, tg, einst, sprachnachricht(dauer=aufnahme.HINWEIS_AB_S + 1, message_id=220)
+        conn, tg, einst, sprachnachricht(dauer=186, message_id=220)
     )
-    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("eine lange Erzaehlung"), aid, zug=zug)
+    aufnahme.verarbeite(
+        conn, tg, klm, einst, stt_attrappe("eine lange Erzaehlung"), aid, zug=zug
+    )
 
-    assert gesehen["hinweis"] is not None
-    assert "Material" in gesehen["hinweis"]
+    assert gesehen == [], "kein Gespraechszug (und damit kein Erkenner, kein Journal)"
+    assert klm.aufrufe == 0, "und kein Modellaufruf"
+
+    fragen = [t for _, t in tg.gesendet if "klingt nach einem Interview" in t]
+    assert len(fragen) == 1, "genau eine Frage"
+    assert "(3:06)" in fragen[0], "mit der Dauer als M:SS"
+
+    beschriftungen = [b for _, text, leiste in tg.mit_knoepfen
+                      if "klingt nach einem Interview" in text
+                      for b, _ in leiste]
+    assert beschriftungen == ["Ja, als Interview", "Nein, war ein Beitrag"]
+
+    zeile = repo.hole_nachricht(conn, 1, 220)
+    assert zeile["text"] == "eine lange Erzaehlung", "gespeichert ist es"
+    assert zeile["typ"] == repo.TYP_TRANSKRIPT, "aber versteckt"
+    assert zeile["unterdrueckt"] == 1
+
+
+def test_erkenner_und_journal_sehen_das_versteckte_transkript_nicht(conn, einst, tg, klm):
+    """Der Kern des Live-Befunds: der Erkenner las das Interview-Transkript
+    als Begriffsliste der Gruppe und ueberschrieb ``arbeitsstand.begriffe``.
+    Ein verstecktes Transkript steht in keinem seiner Fenster."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Rassismus, Liebe, Spass, Streit")
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=186, message_id=221))
+    aufnahme.verarbeite(
+        conn, tg, klm, einst,
+        stt_attrappe("Raussgehen, Familie, Musik hoeren, mit Freunden abhaengen"), aid,
+    )
+
+    texte = [(n["text"] or "") for n in repo.unextrahierte(conn, 1)]
+    assert not any("Raussgehen" in t for t in texte), "nicht im Erkenner-Fenster"
+    texte = [(n["text"] or "") for n in repo.unjournalisierte(conn, 1)]
+    assert not any("Raussgehen" in t for t in texte), "nicht im Journal-Fenster"
+    texte = [(n["text"] or "") for n in repo.letzte_nachrichten(conn, 1)]
+    assert not any("Raussgehen" in t for t in texte), "nicht im Gespraechsfenster"
+    assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Rassismus, Liebe, Spass, Streit"
 
 
 def test_kein_hinweis_unter_der_schwelle_oder_bei_aktivem_modus(conn, einst, tg, klm):
+    """Punkt 3 des Auftrags: eine kurze Sprachnachricht ohne Modus bleibt ein
+    Gespraechsbeitrag wie bisher -- Zug ja, Frage nein, sichtbar."""
     gesehen = {}
 
     def zug(conn, tg, klm, e, chat_id, hinweis=None):
         gesehen["hinweis"] = hinweis
 
     aid = aufnahme.empfange(
-        conn, tg, einst, sprachnachricht(dauer=aufnahme.HINWEIS_AB_S, message_id=230)
+        conn, tg, einst, sprachnachricht(dauer=20, message_id=230)
     )
     aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("kurz genug"), aid, zug=zug)
     assert gesehen["hinweis"] is None
+    assert not any("klingt nach einem Interview" in t for _, t in tg.gesendet)
+    zeile = repo.hole_nachricht(conn, 1, 230)
+    assert zeile["typ"] == "text" and zeile["unterdrueckt"] == 0
+
+
+def test_genau_an_der_schwelle_bleibt_beitrag(conn, einst, tg, klm):
+    """``HINWEIS_AB_S`` ist eine echte Untergrenze (``> HINWEIS_AB_S``)."""
+    aid = aufnahme.empfange(
+        conn, tg, einst,
+        sprachnachricht(dauer=aufnahme.HINWEIS_AB_S, message_id=231),
+    )
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("genau an der Grenze"), aid)
+    assert not any("klingt nach einem Interview" in t for _, t in tg.gesendet)
+
+
+def test_dauer_mmss():
+    assert aufnahme.dauer_mmss(186) == "3:06"
+    assert aufnahme.dauer_mmss(61) == "1:01"
+    assert aufnahme.dauer_mmss(0) == "0:00"
 
 
 def test_zeitbudget_ueberschritten_meldet_der_gruppe(conn, einst, tg, klm):

@@ -288,3 +288,53 @@ def vergiss() -> None:
     ``scripts/pruefe_profil.py`` -- im Betrieb wird ein Profil nie neu
     geladen (siehe ``_GELADEN``)."""
     _GELADEN.clear()
+    _PLATZHALTER.clear()
+
+
+#: Die Platzhalter je Profilname. Sie haengen nur an ``profil.toml``, und die
+#: wird je Prozess einmal gelesen -- also einmal bauen, nicht je Prompt.
+_PLATZHALTER: dict[str, dict[str, str]] = {}
+
+
+def _liste(wert: Any, trenner: str = ", ") -> str:
+    """Eine Liste aus dem Profil als Fliesstext. Ein einzelner String bleibt,
+    wie er ist -- wer ``ausgeschlossen = "Club und Disko"`` schreibt, meint
+    genau das."""
+    if isinstance(wert, (tuple, list)):
+        return trenner.join(str(teil) for teil in wert)
+    return "" if wert is None else str(wert)
+
+
+def platzhalter(profil: Profil | None = None) -> dict[str, str]:
+    """Die Werte, die ``{{...}}`` in einem Prompt fuellen.
+
+    Nur die **einzeiligen** Werte aus ``profil.toml``. Zusammenhaengende
+    Prosa (der Rahmenblock, ein Formen-Regelblock) kommt nicht von hier,
+    sondern als Markdown-Datei aus ``workshop/<name>/prompts/`` --
+    ``anweisungen.platzhalter()`` legt beides zusammen. Der Grund steht in
+    E.1 Frage 1 der Analyse: wer Prosa in eine Konfigurationsdatei presst,
+    bekommt unlesbare Blockskalare; wer Zahlen in Markdown laesst, kann sie
+    nicht pruefen.
+
+    Ein Wert wird eingesetzt, **wie er dasteht** -- er wird nicht neu
+    umbrochen. Ein Platzhalter gehoert deshalb an eine Stelle im Prompt, an
+    der der Wert in eine Zeile passt; alles andere ist ein Baustein und
+    keine Variable."""
+    profil = profil or aktiv()
+    fertig = _PLATZHALTER.get(profil.name)
+    if fertig is not None:
+        return fertig
+    werte = {
+        "beschreibung": _liste(profil.wert("beschreibung", "")),
+        "sprache": _liste(profil.wert("sprache.code", "")),
+        "anrede": _liste(profil.wert("sprache.anrede", "")),
+        "zielgruppe": _liste(profil.wert("zielgruppe.beschreibung", "")),
+        "zielgruppe_traeger": _liste(profil.wert("zielgruppe.traeger", "")),
+        "orte": _liste(profil.wert("orte.beschreibung", "")),
+        "orte_ausgeschlossen": _liste(profil.wert("orte.ausgeschlossen", ())),
+        "auffuehrungsort": _liste(profil.wert("orte.auffuehrung", "")),
+        "konflikt_erlaubt": _liste(profil.wert("konflikt.erlaubt", "")),
+        "konflikt_ausgeschlossen": _liste(profil.wert("konflikt.ausgeschlossen", "")),
+    }
+    _PLATZHALTER[profil.name] = werte
+    return werte

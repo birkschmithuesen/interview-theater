@@ -1155,6 +1155,17 @@ def _uebernimm_fragen(conn, tg, klm, e, chat_id: int) -> str:
     wert = "\n".join(ausgewaehlt)
     repo.setze_arbeitsstand(conn, chat_id, "fragen", wert)
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+    # Die Auswahl ist getroffen -- die zehn Toggle-Knoepfe und ihre Leiste
+    # kommen weg (06.09.2026, im Regie-Lauf gemessen). Vorher blieben sie
+    # haengen: die Regie beschwerte sich VIERMAL ("die knoepfe mit den zehn
+    # fragen sind immer noch da"), der Bot behauptete einmal, er habe sie
+    # entfernt, und der Richter zog es in fuenf Abschnitten hintereinander
+    # an. Ein Knopf, der eine ueberholte Auswahl traegt, ist genau die Sorte
+    # stiller Fehler, gegen die die Knoepfe angetreten sind
+    # (``_nimm_alte_leiste_ab``).
+    for art in (ART_FRAGE_WAHL, ART_FRAGEN_UEBERNEHMEN, ART_FRAGEN_ANDERE,
+                ART_FRAGEN_EIGENE):
+        _nimm_alte_leiste_ab(conn, tg, chat_id, art)
     repo.schreibe_journal(
         conn, chat_id, "entschieden", f"Fragen: {wert}", quelle="knopf",
     )

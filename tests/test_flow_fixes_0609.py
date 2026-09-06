@@ -127,3 +127,24 @@ def test_ohne_jede_szene_wird_nichts_behauptet(conn):
     text = phasentexte.eintritt(conn, CHAT, 8)
 
     assert "Alle Szenen stehen" not in text
+
+
+# --- Fix 5: die zehn Fragen-Knoepfe verschwinden nach der Wahl -------------
+
+
+def test_diese_drei_nehmen_nimmt_die_zehn_knoepfe_ab(conn, einst):
+    """Gemessen im Regie-Lauf: vier Beschwerden ueber haengende Knoepfe,
+    einmal die falsche Behauptung, sie seien weg."""
+    from interview_theater import knoepfe
+
+    tg = TelegramAttrappe()
+    fragen = "\n".join(f"Frage {n}" for n in range(1, 11))
+    knoepfe.biete_fragenauswahl(conn, tg, CHAT, fragen)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_gewaehlt", "1,2,3")
+
+    knoepfe._uebernimm_fragen(conn, tg, None, einst, CHAT)
+
+    assert repo.hole_arbeitsstand(conn, CHAT)["fragen"]
+    offen = repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_WAHL)
+    assert offen == [], "die Toggle-Knoepfe wirken nach der Wahl nicht mehr"
+    assert tg.knoepfe_entfernt, "und ihre Tastatur ist abgenommen"

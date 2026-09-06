@@ -506,9 +506,9 @@ _TEXT_FRAGEN_EIGENE_KNOPF = "Eigene Idee"
 #: Sprechen kann sie ohnehin; ein Knopf, der auf dem Geraet der Gruppe
 #: verschwindet, ist schlechter als gar keiner.
 _TEXT_FRAGEN_WAHL = (
-    f"Welche {FRAGEN_ANZAHL} Fragen wollt ihr nehmen? Sagt mir die Nummern - "
-    "getippt oder als Sprachnachricht. Wollt ihr andere oder eigene Fragen, "
-    "sagt das einfach."
+    "Sucht die Fragen aus, die ihr passend findet, und sagt mir die Nummern - "
+    "getippt oder als Sprachnachricht. Wollt ihr eine Frage aendern oder eigene "
+    "stellen, sagt das einfach: ihr seid die Chefinnen."
 )
 #: Die Antwort auf "Diese 3 nehmen" bei falscher Anzahl. Sie geht als
 #: answerCallbackQuery raus (das kleine graue Band oben in der App) und
@@ -1236,11 +1236,11 @@ def nimm_fragennummern(conn, tg, klm, e, chat_id: int, text: str) -> bool:
     nummern = lies_fragennummern(text)
     if not nummern:
         return False
-    if len(nummern) != FRAGEN_ANZAHL:
-        tg.sende(chat_id, _TEXT_FRAGEN_NUMMERN_FALSCH)
-        return True
+    # 06.09.2026 12:10 (Birk): KEINE Vorgabe "genau drei" mehr -- die Gruppe
+    # ist Chefin und nimmt so viele, wie sie passend findet (mindestens eine).
+    # FRAGEN_ANZAHL bleibt nur als Richtwert fuer den Prompt.
     ausgewaehlt = [fragen[n - 1] for n in nummern if n <= len(fragen)]
-    if len(ausgewaehlt) != FRAGEN_ANZAHL:
+    if not ausgewaehlt:
         tg.sende(chat_id, _TEXT_FRAGEN_KEINE_AUSWAHL)
         return True
     return _uebernimm_fragen(

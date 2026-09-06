@@ -144,17 +144,21 @@ def test_genau_drei_nummern_werden_gespeichert(conn, tg, einst, auftraege):
     ), "die Festlegung steht im Journal"
 
 
-@pytest.mark.parametrize("gesagt", ["nur die 4", "2,5,9,10", "1 und 2"])
-def test_weniger_oder_mehr_als_drei_speichert_nichts(
-    conn, tg, einst, auftraege, gesagt,
-):
+@pytest.mark.parametrize("gesagt,erwartet", [
+    ("nur die 4", ["Frage 4?"]),
+    ("2,5,9,10", ["Frage 2?", "Frage 5?", "Frage 9?", "Frage 10?"]),
+    ("1 und 2", ["Frage 1?", "Frage 2?"]),
+])
+def test_die_gruppe_nimmt_so_viele_wie_sie_will(conn, tg, einst, auftraege, gesagt, erwartet):
+    """06.09.2026 12:10 (Birk): keine Vorgabe "genau drei" -- die Gruppe ist
+    Chefin und nimmt eine, zwei oder vier Fragen; gespeichert wird, was sie
+    nennt, und die Pruefung laeuft an."""
     _auswahl(conn, tg)
 
     assert _sage(conn, tg, einst, gesagt) is True
 
-    assert (repo.hole_arbeitsstand(conn, 1)["fragen"] or "") == ""
-    assert tg.gesendet[-1][1] == "Bitte genau 3 Nummern."
-    assert auftraege == [], "keine Pruefung ohne Fragen"
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(erwartet)
+    assert auftraege, "die Pruefung laeuft an"
 
 
 def test_ohne_nummern_greift_der_parser_nicht(conn, tg, einst, auftraege):

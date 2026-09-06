@@ -402,13 +402,15 @@ def test_erfuellte_stufe_gleich_der_aktuellen_ist_kein_vorschlag(conn):
     assert phasen.moegliche_naechste(conn, 1) == []
 
 
-def test_naechste_moegliche_ist_die_hoechste(conn):
+def test_naechste_moegliche_ist_die_naechste(conn):
     """Der Merkposten fuer ``phase_angeboten`` braucht eine Zahl, keine
-    Liste -- das ist der einzige Grund, warum es beide Funktionen gibt."""
+    Liste. Seit 06.09.2026 13:15 die NAECHSTE erreichbare Stufe, nicht die
+    hoechste: Gruppe 1 bekam kein "Weiter zu Interviews", weil ein altes
+    Interview Phase 4 moeglich machte und 4 laengst angeboten war."""
     _setting_und_figuren(conn)
     _geschichte_und_szenen(conn)
     assert phasen.moegliche_naechste(conn, 1) == [5, 6]
-    assert phasen.naechste_moegliche(conn, 1) == 6
+    assert phasen.naechste_moegliche(conn, 1) == 5
 
 
 def test_entfernte_figuren_zaehlen_fuer_die_materiallage_nicht(conn):
@@ -475,6 +477,7 @@ def test_eine_hoehere_stufe_wird_erneut_angeboten(conn):
     eine hoehere erlaubt, ist das ein neues Angebot -- kein Draengeln."""
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer")
     phasen.merke_angebot(conn, 1, 2)
+    phasen.setze(conn, 1, 2, "test")
 
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
     repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")

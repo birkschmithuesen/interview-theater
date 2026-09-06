@@ -345,6 +345,21 @@ details.szene, details.verdichtung { border-bottom: 1px solid #e6e1d6;
           margin: .2rem 0 .3rem; }
 .eintrag { margin: .35rem 0; }
 .zeit { opacity: .5; font-size: .78rem; }
+/* Die Szenen-Uebersicht (06.09.2026, Birk: "Was mir in der Webansicht
+   gefehlt hat, ist eine Uebersicht ueber die Szenen"). Eine Zeile je Szene,
+   ueber den aufklappbaren Bloecken -- kompakt genug fuers Telefon. */
+table.uebersicht { width: 100%; border-collapse: collapse; margin: 0 0 1rem;
+                   font-size: .92rem; }
+table.uebersicht th { text-align: left; font-size: .74rem;
+                      text-transform: uppercase; letter-spacing: .04em;
+                      opacity: .55; border-bottom: 1px solid #ddd8cc;
+                      padding: .2rem .4rem .2rem 0; }
+table.uebersicht td { vertical-align: top; padding: .3rem .4rem .3rem 0;
+                      border-bottom: 1px solid #efeade; }
+table.uebersicht td.nr { white-space: nowrap; opacity: .6; }
+table.uebersicht .vorschlag { opacity: .6; font-style: italic; }
+table.uebersicht .umfang { white-space: nowrap; opacity: .7;
+                           font-size: .82rem; }
 /* Die Bearbeitung (05.09.2026 abends). Grosse Bedienelemente: die Seite wird
    auf dem Telefon benutzt, im Stehen, im Probenraum. */
 .feld { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
@@ -1091,6 +1106,54 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
     )
 
 
+def _szenenuebersicht_html(zeilen: list[dict]) -> str:
+    """Die kompakte Szenenliste ueber den aufklappbaren Bloecken
+    (06.09.2026, Birk: *"nachdem Szene 1,2,3 schon definiert sind, sollten
+    die da auch dargestellt werden"*).
+
+    Eine Zeile je Szene: Nummer, Titel mit Kurzbeschreibung, Form (bzw. der
+    Vorschlag, solange sie nicht bestaetigt ist), Stil und der Umfang von
+    Prosa und Volltext. **Der Text selbst steht hier nicht** -- nur seine
+    Zeichenzahl; die Fassung liest man im Block darunter.
+
+    Read-only, wie das Dashboard: hier wird nichts bearbeitet, die
+    Formularfelder stehen weiter in ``_szene_html``."""
+    if not zeilen:
+        return ""
+    reihen = []
+    for z in zeilen:
+        nummer = "—" if z["nummer"] is None else str(z["nummer"])
+        titel = _t(z["titel"], "ohne Titel")
+        if z["kurz"]:
+            titel += f'<div class="zeit">{_t(z["kurz"])}</div>'
+        if z["form"]:
+            form = _t(z["form"])
+        elif z["form_vorschlag"]:
+            form = f'<span class="vorschlag">{_t(z["form_vorschlag"])} (Vorschlag)</span>'
+        else:
+            form = "—"
+        umfang = []
+        if z["prosa_zeichen"]:
+            umfang.append(f"Prosa {z['prosa_zeichen']} Z.")
+        if z["volltext_zeichen"]:
+            umfang.append(f"Text {z['volltext_zeichen']} Z.")
+        # Die Zahlen entstehen hier und nicht in der Datenbank -- sie gehen
+        # trotzdem durch ``_t``, damit die Regel "alles maskiert" ohne
+        # Ausnahme gilt; das ``<br>`` dazwischen ist unser eigenes Markup.
+        umfang_html = "<br>".join(_t(t) for t in umfang) or "noch kein Text"
+        reihen.append(
+            f'<tr><td class="nr">{_t(nummer)}</td><td>{titel}</td>'
+            f"<td>{form}</td><td>{_t(z['stil'])}</td>"
+            f'<td class="umfang">{umfang_html}</td></tr>'
+        )
+    return (
+        '<table class="uebersicht"><thead><tr><th>Nr.</th><th>Szene</th>'
+        "<th>Form</th><th>Stil</th><th>Text</th></tr></thead><tbody>"
+        + "".join(reihen)
+        + "</tbody></table>"
+    )
+
+
 def _interview_html(v: dict) -> str:
     """Ein Interview als aufklappbarer Block (N6).
 
@@ -1145,6 +1208,10 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
     ) or (
         '<p class="leer">Noch keine Szene. Die entstehen in der letzten Phase.</p>'
     )
+    # Die Uebersicht steht VOR den aufklappbaren Bloecken (06.09.2026, Birk)
+    # und dupliziert sie nicht: dort die Zusammenfassung in einer Zeile je
+    # Szene, darunter die Planung mit ihren Formularfeldern.
+    uebersicht = _szenenuebersicht_html(daten.get("szenenuebersicht") or [])
 
     verdichtungen_html = "".join(
         _interview_html(v) for v in daten["interviews"]
@@ -1173,7 +1240,7 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
         f"<h1>{_t(titel)}</h1>\n"
         "<h2>Arbeitsstand</h2>"
         f"{stand}\n"
-        f"<h2>Szenen</h2>{szenen}\n"
+        f"<h2>Szenen</h2>{uebersicht}{szenen}\n"
         f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
         "<h2>Der Weg dahin</h2>"
         f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",

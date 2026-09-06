@@ -553,6 +553,50 @@ def _szenen(
     return szenen
 
 
+def szenenuebersicht(
+    conn: sqlite3.Connection, chat_id: int, szenen: list[dict] | None = None
+) -> list[dict]:
+    """Die kompakte Szenen-Uebersicht der Gruppenseite (06.09.2026, Birk:
+    *"Was mir in der Webansicht gefehlt hat, ist eine Uebersicht ueber die
+    Szenen -- nachdem Szene 1,2,3 schon definiert sind, sollten die da auch
+    dargestellt werden."*).
+
+    Je Szene eine Zeile: Nummer, Titel, eine kurze Beschreibung, die Form
+    (und der Formvorschlag, solange sie noch nicht bestaetigt ist), der Stil
+    und **die Zeichenzahl** von Prosa und Volltext. Die Texte selbst stehen
+    hier bewusst NICHT: die Uebersicht soll auf einen Blick sagen, was
+    festgelegt ist und was schon geschrieben wurde -- den Text zeigt der
+    aufklappbare Block darunter.
+
+    Sortiert nach Nummer, Zeilen ohne Nummer hinten. Read-only wie alles in
+    diesem Modul."""
+    zeilen = szenen if szenen is not None else _szenen(conn, chat_id)
+    uebersicht = []
+    for s in zeilen:
+        form = (s.get("form") or "").strip()
+        uebersicht.append(
+            {
+                "nummer": s.get("nummer"),
+                "titel": (s.get("titel") or "").strip(),
+                # Die Kurzbeschreibung zuerst; hat die Szene keine, sagt
+                # ``was_passiert``, worum es geht. Beides sind Felder der
+                # Planung, keine Modellausgabe.
+                "kurz": (s.get("kurzbeschreibung") or s.get("was_passiert") or "").strip(),
+                "form": form,
+                # Der Vorschlag steht nur da, solange die Gruppe die Form
+                # noch nicht bestaetigt hat -- danach waere er eine zweite,
+                # widersprechende Angabe.
+                "form_vorschlag": (
+                    "" if form else (s.get("form_vorschlag") or "").strip()
+                ),
+                "stil": (s.get("stil") or "").strip(),
+                "prosa_zeichen": len((s.get("prosa") or "")),
+                "volltext_zeichen": len((s.get("volltext") or "")),
+            }
+        )
+    return uebersicht
+
+
 def _themen(conn: sqlite3.Connection, verdichtung_id: int) -> list[dict]:
     """Die Kernthemen einer Verdichtung.
 
@@ -804,6 +848,7 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     figuren = _figuren(conn, chat_id)
     for f in figuren:
         f["schaerfungen"] = geschaerft["figur"].get(f["id"], [])
+    szenen = _szenen(conn, chat_id, geschaerft)
     return {
         "chat_id": chat_id,
         "titel": zeile["titel"],
@@ -811,7 +856,11 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "interviewmodus_seit": zeile["interviewmodus_seit"],
         "arbeitsstand": _arbeitsstand(conn, chat_id),
         "figuren": figuren,
-        "szenen": _szenen(conn, chat_id, geschaerft),
+        "szenen": szenen,
+        # Die kompakte Uebersicht steht vor den aufklappbaren Bloecken
+        # (06.09.2026, Birk) -- dieselben Zeilen, nur zusammengefasst; kein
+        # zweiter Lesevorgang.
+        "szenenuebersicht": szenenuebersicht(conn, chat_id, szenen),
         "interviews": _interviews(conn, chat_id),
         "journal": _journal(conn, chat_id),
         "bearbeitbares": bearbeitbares(conn, chat_id),

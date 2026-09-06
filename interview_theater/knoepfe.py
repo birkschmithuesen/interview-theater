@@ -32,6 +32,7 @@ aus der sich waehlen liesse.
 """
 
 import logging
+import random
 import re
 
 from interview_theater import phasen, repo
@@ -225,6 +226,14 @@ ART_GESCHICHTE_SPEICHERN = "geschichte_speichern"
 ART_SCHAERFUNG_SZENE = "schaerfung_szene"
 ART_SCHAERFUNG_FIGUR = "schaerfung_figur"
 ART_SCHAERFUNG_RUNDE = "schaerfung_runde"
+#: EINE Stelle aus dem Schaerfungs-Menue (06.09.2026, Analyse Abschnitt 2):
+#: ``wert`` ist die ``schaerfung.id``. Ein Knopf je Option, statt einer
+#: globalen Ja/Nein-Frage ueber einen Fliessblock.
+ART_SCHAERFUNG_STELLE = "schaerfung_stelle"
+#: "Keine davon": ``wert`` traegt die gezeigten ``schaerfung.id`` durch
+#: ``TRENNER`` getrennt -- sie fallen weich heraus (N3), damit die naechste
+#: Runde sie nicht erneut vorlegt.
+ART_SCHAERFUNG_KEINE = "schaerfung_keine"
 #: Phase 7 · Schaerfung des Stuecks (06.09.2026): je Befund "Szene N
 #: ueberarbeiten" (``wert`` ist die ``stueckpruefung.id``) und "Lassen",
 #: darunter "Noch eine Pruefrunde".
@@ -503,6 +512,12 @@ _TEXT_GESCHICHTE_LEER = (
 
 #: Phase 6 · Schaerfung.
 TEXT_SCHAERFUNG_RUNDE_KNOPF = "Noch eine Runde"
+#: Die beiden Sammelknoepfe unter dem Schaerfungs-Menue (06.09.2026).
+_TEXT_SCHAERFUNG_ALLE_KNOPF = "Diese uebernehmen"
+_TEXT_SCHAERFUNG_KEINE_KNOPF = "Keine davon"
+_TEXT_SCHAERFUNG_STELLE_UNBEKANNT = "Diese Stelle finde ich nicht mehr."
+_TEXT_SCHAERFUNG_STELLE_UEBERNOMMEN = "Uebernommen: {ziel}."
+_TEXT_SCHAERFUNG_VERWORFEN = "Gut, die lasse ich weg."
 _TEXT_SCHAERFUNG_LAEUFT = (
     "Ich lege eure Geschichte neben die Interviews und suche, was dazu passt."
 )
@@ -2130,32 +2145,49 @@ def sende_geschichte(conn, tg, chat_id: int, antwort: str) -> int:
 
 
 def biete_schaerfung(conn, tg, chat_id: int) -> bool:
-    """Stellt die naechste offene Schaerfung vor -- erst Szene fuer Szene,
-    dann Figur fuer Figur. Liefert True, solange noch eine kam.
+    """Stellt die naechste offene Schaerfung als **Menue** vor -- erst Szene
+    fuer Szene, dann Figur fuer Figur. Liefert True, solange noch eine kam.
 
-    Deterministisch aus der Datenbank (``schaerfung.szenenvorschlag`` /
-    ``figurvorschlag``): das Mapping ist schon gelaufen, hier wird nur
-    vorgestellt -- kein Modellaufruf im Handler (Zusage 2).
+    Bis zum 06.09.2026 war das hier der einzige Auswahl-Moment, der NICHT
+    ueber ``vorschlag.menuetext`` lief: ein Fliessblock mit vollstaendigen
+    Zitaten und **zwei** Knoepfen fuer alles (Analyse Abschnitt 2, gemessene
+    Bloecke von 712 und 1280 Zeichen). Jetzt dieselbe Bauweise wie ueberall
+    sonst: Ueberschrift, hoechstens ``schaerfung.MAX_STELLEN`` nummerierte
+    Kurzoptionen, **ein Knopf je Stelle** (Knopf N und Punkt N meinen
+    dasselbe, siehe ``stile.reihenfolge_mit_vorschlag``), darunter "Diese
+    uebernehmen" und "Keine davon".
+
+    Deterministisch aus der Datenbank -- kein Modellaufruf im Handler
+    (Zusage 2). Die ``callback_data`` traegt nur ``k:<id>`` (Zusage 1); was
+    gemeint ist, steht im ``wert`` der Knopfzeile.
 
     Ist nichts mehr offen, steht die Frage nach einer weiteren Runde da und,
-    wenn die Materiallage sie hergibt, der Weg zu den Szenentexten."""
+    wenn die Materiallage sie hergibt, der Weg zu den Szentexten."""
     from interview_theater import schaerfung as schaerfung_modul
 
     for szene in repo.hole_szenen(conn, chat_id):
-        text = schaerfung_modul.szenenvorschlag(conn, chat_id, szene)
-        if text is None:
-            continue
-        leiste = grundleiste(
-            conn, chat_id, ART_SCHAERFUNG_SZENE, str(szene["nummer"])
+        stellen = schaerfung_modul.offene_stellen(
+            conn, chat_id, szene_id=szene["id"]
         )
-        _mit_leiste(conn, tg, chat_id, text, leiste)
+        if not stellen:
+            continue
+        _sende_schaerfungsmenue(
+            conn, tg, chat_id,
+            schaerfung_modul.szenenueberschrift(conn, chat_id, szene),
+            stellen, ART_SCHAERFUNG_SZENE, str(szene["nummer"]),
+        )
         return True
     for figur in repo.figuren(conn, chat_id):
-        text = schaerfung_modul.figurvorschlag(conn, chat_id, figur)
-        if text is None:
+        stellen = schaerfung_modul.offene_stellen(
+            conn, chat_id, figur_id=figur["id"]
+        )
+        if not stellen:
             continue
-        leiste = grundleiste(conn, chat_id, ART_SCHAERFUNG_FIGUR, figur["name"])
-        _mit_leiste(conn, tg, chat_id, text, leiste)
+        _sende_schaerfungsmenue(
+            conn, tg, chat_id,
+            schaerfung_modul.figurueberschrift(figur),
+            stellen, ART_SCHAERFUNG_FIGUR, figur["name"],
+        )
         return True
     leiste = [
         (
@@ -2168,6 +2200,63 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
         leiste.append(phasenknopf)
     _mit_leiste(conn, tg, chat_id, _TEXT_SCHAERFUNG_DURCH, leiste)
     return False
+
+
+def _sende_schaerfungsmenue(
+    conn, tg, chat_id: int, ueberschrift: str, stellen: list,
+    sammelart: str, sammelwert: str,
+) -> int:
+    """Ein Schaerfungs-Menue: je Stelle ein Knopf, darunter die zwei
+    Sammelknoepfe.
+
+    Die Reihenfolge der Knoepfe ist die Reihenfolge der Punkte -- ``stellen``
+    wird genau einmal durchlaufen und speist beides."""
+    from interview_theater import schaerfung as schaerfung_modul, vorschlag
+
+    zeilen: list[str] = []
+    leiste: list[tuple[str, str]] = []
+    for nummer, eintrag in enumerate(stellen, start=1):
+        titel, beschreibung = schaerfung_modul.option(conn, chat_id, eintrag)
+        zeilen.append(f"{titel} — {beschreibung}".strip(" —"))
+        leiste.append(
+            (
+                f"{nummer} · {titel}"[:MENUE_KNOPF_LAENGE],
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_SCHAERFUNG_STELLE, str(eintrag["id"])
+                    )
+                ),
+            )
+        )
+    leiste.append(
+        (
+            _TEXT_SCHAERFUNG_ALLE_KNOPF,
+            _daten(
+                repo.lege_knopf_an(
+                    conn, chat_id, sammelart, f"weiter{TRENNER}{sammelwert}"
+                )
+            ),
+        )
+    )
+    leiste.append(
+        (
+            _TEXT_SCHAERFUNG_KEINE_KNOPF,
+            _daten(
+                repo.lege_knopf_an(
+                    conn, chat_id, ART_SCHAERFUNG_KEINE,
+                    TRENNER.join(str(z["id"]) for z in stellen),
+                )
+            ),
+        )
+    )
+    html, klar = vorschlag.menuetext(ueberschrift, "\n".join(zeilen))
+    message_id = _sende_knoepfe(
+        conn, tg, chat_id, html, leiste, parse_mode="HTML", klartext=klar
+    )
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id
+    )
+    return message_id
 
 
 def starte_schaerfung(conn, tg, klm, e, chat_id: int) -> None:
@@ -2897,6 +2986,33 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
             tg.sende(chat_id, _TEXT_EIGENE_IDEE)
         biete_schaerfung(conn, tg, chat_id)
         return f"{figur['name']} geschaerft"
+
+    if art == ART_SCHAERFUNG_STELLE:
+        # EIN Knopf, EINE Stelle (06.09.2026). Deterministisch, kein
+        # Modellaufruf; die naechste offene Stelle kommt sofort danach.
+        from interview_theater import schaerfung as schaerfung_modul
+
+        roh = wert.strip()
+        ziel = (
+            schaerfung_modul.uebernimm_stelle(conn, chat_id, int(roh))
+            if roh.isdigit()
+            else None
+        )
+        if ziel is None:
+            tg.sende(chat_id, _TEXT_SCHAERFUNG_STELLE_UNBEKANNT)
+            return _TEXT_SCHAERFUNG_STELLE_UNBEKANNT
+        tg.sende(chat_id, _TEXT_SCHAERFUNG_STELLE_UEBERNOMMEN.format(ziel=ziel))
+        biete_schaerfung(conn, tg, chat_id)
+        return f"Uebernommen: {ziel}"
+
+    if art == ART_SCHAERFUNG_KEINE:
+        from interview_theater import schaerfung as schaerfung_modul
+
+        ids = [t.strip() for t in wert.split(TRENNER) if t.strip().isdigit()]
+        schaerfung_modul.verwirf_stellen(conn, [int(t) for t in ids])
+        tg.sende(chat_id, _TEXT_SCHAERFUNG_VERWORFEN)
+        biete_schaerfung(conn, tg, chat_id)
+        return _TEXT_SCHAERFUNG_VERWORFEN
 
     if art == ART_SCHAERFUNG_RUNDE:
         # Eine weitere Runde mit dem inzwischen geschaerften Stand -- der
@@ -3669,6 +3785,31 @@ ART_FIGUR_STIL = "figur_stil"
 #: "Eigener Stil" -- der Freitextweg unter dem Menue. Speichert nichts; die
 #: naechste Nachricht der Gruppe ist der Stil.
 ART_FIGUR_STIL_FREI = "figur_stil_frei"
+#: "Zufaellig zuordnen" -- alle Figuren ohne Quelle bekommen in EINEM Druck
+#: eines der vorhandenen Interviews (06.09.2026, Analyse
+#: ``docs/analyse-phase5-chaos-2026-09-06.md`` Abschnitt 1).
+#:
+#: Bis dahin entstand ``figur.quelle_aufnahme_id`` nur als Nebenprodukt der
+#: Stilwahl: ein Modellaufruf JE FIGUR. Gemessen am 06.09.2026: 12 Laeufe,
+#: 718 s reine Modellzeit -- und fuenf von 16 Figuren blieben trotzdem ohne
+#: Quelle. Die drei Zusagen sind eingehalten: ``callback_data`` traegt nur
+#: ``k:<id>`` (``wert`` bleibt leer, es gibt nichts zu parametrisieren),
+#: **kein Modellaufruf** (reine DB-Operation), und idempotent -- doppelt
+#: ueber ``repo.beanspruche_knopf`` und ueber die Wirkung selbst, die nur
+#: Figuren OHNE Quelle anfasst.
+ART_FIGUREN_ZUFALL = "figuren_zufall"
+
+_TEXT_FIGUREN_ZUFALL_KNOPF = "Zufaellig zuordnen"
+_TEXT_FIGUREN_ZUFALL_OHNE_INTERVIEW = (
+    "Dafuer brauche ich mindestens ein Interview."
+)
+_TEXT_FIGUREN_ZUFALL_NICHTS_OFFEN = (
+    "Jede Figur hat schon ein Interview. Aendern koennt ihr jede einzeln."
+)
+_TEXT_FIGUREN_ZUFALL_FERTIG = (
+    "Zugeordnet: {figuren} Figuren auf {interviews} Interviews. Aendern "
+    "koennt ihr jede einzeln."
+)
 
 _TEXT_STIL_FRAGE = "Wie spricht {name}?"
 _TEXT_STIL_EIGENER_KNOPF = "Eigener Stil"
@@ -3757,6 +3898,12 @@ def sende_stil(conn, tg, chat_id: int, name: str, antwort: str) -> int:
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUR_STIL_FREI, name)),
         )
     )
+    # Der Ausweg aus der Figur-fuer-Figur-Schleife (06.09.2026): wer die
+    # zwoelf Minuten Modellzeit nicht abwarten will, ordnet in einem Druck
+    # zu und kommt weiter.
+    zufall = _zufallsknopf(conn, chat_id)
+    if zufall is not None:
+        leiste.append(zufall)
     html, klar = vorschlag.menuetext(
         _TEXT_STIL_FRAGE.format(name=name), "\n".join(zeilen_text)
     )
@@ -3770,6 +3917,59 @@ def _interviewkoepfe(conn, chat_id: int) -> list:
     from interview_theater import aufnahme as aufnahme_modul
 
     return aufnahme_modul.interviews(conn, chat_id)
+
+
+def _figuren_ohne_quelle(conn, chat_id: int) -> list:
+    """Die Figuren, denen noch kein Interview zugeordnet ist."""
+    return [f for f in repo.figuren(conn, chat_id) if not f["quelle_aufnahme_id"]]
+
+
+def _zufallsknopf(conn, chat_id: int) -> tuple[str, str] | None:
+    """Der Knopf "Zufaellig zuordnen" -- oder None, wenn es nichts zuzuordnen
+    gibt (keine offene Figur oder kein Interview).
+
+    Ein Knopf, der nichts tut, ist schlimmer als keiner: die Leiste steht
+    dann nur da, wo sie auch wirkt."""
+    if not _figuren_ohne_quelle(conn, chat_id):
+        return None
+    if not _interviewkoepfe(conn, chat_id):
+        return None
+    return (
+        _TEXT_FIGUREN_ZUFALL_KNOPF,
+        _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_ZUFALL, None)),
+    )
+
+
+def ordne_figuren_zufaellig_zu(conn, chat_id: int) -> tuple[int, int]:
+    """Ordnet allen Figuren OHNE Quelle reihum zufaellig ein vorhandenes
+    Interview zu. Liefert ``(Figuren, benutzte Interviews)``.
+
+    **Kein Modellaufruf** (Zusage 2): das ist eine reine Datenbankoperation
+    ueber ``repo.figuren`` und ``repo.setze_figur_quelle``. Sprachstile
+    entstehen dabei ausdruecklich **nicht** -- wer sie will, geht weiter
+    Figur fuer Figur ueber ``stelle_stil_vor``.
+
+    **Idempotent** (Zusage 3): bestehende Zuordnungen bleiben unangetastet,
+    ein zweiter Aufruf findet nichts Offenes mehr und schreibt nichts. Die
+    Knopf-Sperre in ``behandle`` kommt zusaetzlich davor.
+
+    Ein Interview darf mehrere Figuren speisen (ausdruecklich erlaubt): bei
+    mehr Figuren als Interviews wird die Interviewliste durchgereicht
+    (Round-Robin), damit keines leer ausgeht, bevor sich eines wiederholt."""
+    offen = _figuren_ohne_quelle(conn, chat_id)
+    koepfe = _interviewkoepfe(conn, chat_id)
+    if not offen or not koepfe:
+        return (0, 0)
+    reihenfolge = list(offen)
+    random.shuffle(reihenfolge)
+    quellen = [k["id"] for k in koepfe]
+    random.shuffle(quellen)
+    benutzt: set[int] = set()
+    for stelle, figur in enumerate(reihenfolge):
+        aufnahme_id = quellen[stelle % len(quellen)]
+        repo.setze_figur_quelle(conn, figur["id"], aufnahme_id)
+        benutzt.add(aufnahme_id)
+    return (len(reihenfolge), len(benutzt))
 
 
 def _zitat_belegt(conn, chat_id: int, aufnahme_id: int, text: str,
@@ -3899,6 +4099,13 @@ def _schliesse_figuren_ab(conn, tg, chat_id: int) -> bool:
         (_TEXT_SCHLAG_VOR_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHLAG_VOR, str(PHASE_SETTING)))),
     ]
+    # Genau hier startete bisher die Figur-fuer-Figur-Schleife mit einem
+    # Modellaufruf je Figur (06.09.2026, gemessen: 12 Laeufe, 718 s, und
+    # trotzdem fuenf Figuren ohne Quelle). Der Knopf daneben erledigt die
+    # Zuordnung in einem Druck, ohne Modell.
+    zufall = _zufallsknopf(conn, chat_id)
+    if zufall is not None:
+        leiste.append(zufall)
     message_id = _sende_knoepfe(conn, tg, chat_id, _TEXT_ZUR_GESCHICHTE, leiste)
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return False
@@ -4634,6 +4841,28 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         if not stelle_stil_vor(conn, tg, klm, e, chat_id):
             _schliesse_figuren_ab(conn, tg, chat_id)
         return "Stil uebernommen"
+    if art == ART_FIGUREN_ZUFALL:
+        # Ein Druck statt zwoelf Modellaufrufen (06.09.2026, Analyse
+        # Abschnitt 1). Reine DB-Operation, keine Sprachstile, bestehende
+        # Zuordnungen bleiben unangetastet.
+        if not _interviewkoepfe(conn, chat_id):
+            tg.sende(chat_id, _TEXT_FIGUREN_ZUFALL_OHNE_INTERVIEW)
+            return _TEXT_FIGUREN_ZUFALL_OHNE_INTERVIEW
+        anzahl, interviews = ordne_figuren_zufaellig_zu(conn, chat_id)
+        if not anzahl:
+            tg.sende(chat_id, _TEXT_FIGUREN_ZUFALL_NICHTS_OFFEN)
+            return _TEXT_FIGUREN_ZUFALL_NICHTS_OFFEN
+        meldung = _TEXT_FIGUREN_ZUFALL_FERTIG.format(
+            figuren=anzahl, interviews=interviews
+        )
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            f"Interviews zufaellig zugeordnet: {anzahl} Figuren auf "
+            f"{interviews} Interviews",
+            quelle="knopf",
+        )
+        tg.sende(chat_id, meldung)
+        return f"Zugeordnet: {anzahl}"
     if art == ART_FIGUR_STIL_FREI:
         # Speichert nichts (Knopfregel: nur was fix ist). Der naechste
         # Beitrag der Gruppe ist der Stil, und der Erkenner traegt ihn ein.
@@ -4895,16 +5124,24 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         # und liess den Auftrag liegen (Live-Fall Testgruppe 05.09. 22:09:
         # "USA" gedrueckt, nichts passierte, ein spaeteres "ja" im Chat war
         # wirkungslos, weil der Stand nicht mehr "offen" war).
+        #
+        # ERST die Phase, DANN der Auftrag (06.09.2026, Analyse
+        # docs/analyse-phase5-chaos-2026-09-06.md Abschnitt 3). Bis dahin
+        # stand der Auftrag zuerst -- und weil in Phase 6 immer ein gemerkter
+        # Einzelszenen-Auftrag ("Schreib Szene 1.") herumlag, war der
+        # Kurzgeschichte-Zweig darunter toter Code. Gemessener Live-Fall
+        # Gruppe 1, 13:55:26: USA "ja" -> Einzelszene statt der durchgehenden
+        # Geschichte. In Phase 6 gilt: der gemerkte Einzelauftrag wird
+        # verworfen (er gehoert zum Phase-5-Weg), und die Gruppe bekommt den
+        # Knopf, aus dem der Prosa-Lauf startet.
         auftrag = repo.hole_und_loesche_offenen_szenenauftrag(conn, chat_id)
-        if auftrag:
+        if phasen.aktuelle(conn, chat_id) == PHASE_SZENEN:
+            # Gestartet wird von der Gruppe, nicht von dieser Antwort.
+            biete_kurzgeschichte(conn, tg, chat_id, _TEXT_KURZGESCHICHTE_BEREIT)
+        elif auftrag:
             from interview_theater import szene
 
             szene.starte(conn, tg, klm, e, chat_id, auftrag)
-        elif phasen.aktuelle(conn, chat_id) == PHASE_SZENEN:
-            # In Phase 6 folgt auf die USA-Antwort der Knopf, aus dem der
-            # Prosa-Lauf startet (06.09.2026, Birk 12:25) -- gestartet wird
-            # er von der Gruppe, nicht von dieser Antwort.
-            biete_kurzgeschichte(conn, tg, chat_id, _TEXT_KURZGESCHICHTE_BEREIT)
         return "US-Modell: ja" if ja else "Bleibt in der Schweiz"
     # Unbekannte art: nur moeglich, wenn eine spaetere Fassung eine Art
     # einfuehrt und eine aeltere die Zeile liest. Nichts tun ist hier richtig.

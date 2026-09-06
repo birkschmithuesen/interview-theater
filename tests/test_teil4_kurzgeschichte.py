@@ -149,11 +149,17 @@ def test_abschnitte_werden_szenen(conn, anzahl):
     assert szenen[0]["titel"] == "Abschnitt Nummer 1"
 
 
-def test_neue_geschichte_ersetzt_die_alte_folge(conn):
+def test_neue_geschichte_ersetzt_die_alte_folge_nicht(conn):
+    """Der zweite Prosa-Lauf loescht keine Szene (06.09.2026, Analyse
+    Abschnitt B): drei neue Abschnitte aktualisieren 1-3, die Szenen 4-6
+    bleiben stehen."""
     _vorbereitet(conn)
     kurzgeschichte.lege_szenen_an(conn, 1, kurzgeschichte.zerlege(_antwort(6)))
+    vorher = {s["nummer"]: s["id"] for s in repo.hole_szenen(conn, 1)}
     kurzgeschichte.lege_szenen_an(conn, 1, kurzgeschichte.zerlege(_antwort(3)))
-    assert len(repo.hole_szenen(conn, 1)) == 3
+    szenen = repo.hole_szenen(conn, 1)
+    assert [s["nummer"] for s in szenen] == [1, 2, 3, 4, 5, 6]
+    assert {s["nummer"]: s["id"] for s in szenen} == vorher
 
 
 def test_journal_haelt_die_herkunft_fest(conn):

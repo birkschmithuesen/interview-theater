@@ -329,18 +329,23 @@ def test_reihenfolge_aendern_fragt_nur(conn, einst, tg):
     assert knoepfe._TEXT_REIHENFOLGE_FRAGE in tg.texte
 
 
-def test_eine_neue_folge_ersetzt_die_alte(conn, einst, tg):
-    """Eine neue Folge ist eine neue Folge -- die alten Szenen fallen weich
-    heraus (N3), statt neben den neuen stehenzubleiben."""
+def test_eine_neue_folge_ersetzt_die_alte_nicht(conn, einst, tg):
+    """Eine zweite Folge **ersetzt die erste nicht** (06.09.2026, Analyse
+    Abschnitt B): Szene 1 wird aktualisiert, die ueberzaehligen 2 und 3
+    bleiben stehen. Entfernt wird nur auf ausdruecklichen Wunsch."""
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
     _druecke(conn, tg, einst, knoepfe.TEXT_WEITER_KNOPF)
+    vorher = {s["nummer"]: s["id"] for s in repo.hole_szenen(conn, 1)}
 
     zweiter = "VORSCHLAG SZENENFOLGE:\nNur eine Szene — alles passiert — Mira"
     knoepfe.sende_szenenfolge(conn, tg, 1, zweiter)
     _druecke(conn, tg, einst, knoepfe.TEXT_WEITER_KNOPF)
 
     szenen = repo.hole_szenen(conn, 1)
-    assert [s["titel"] for s in szenen] == ["Nur eine Szene"]
+    assert [s["nummer"] for s in szenen] == [1, 2, 3]
+    assert szenen[0]["titel"] == "Nur eine Szene"
+    # Keine einzige id hat sich geaendert: es wurde nichts neu angelegt.
+    assert {s["nummer"]: s["id"] for s in szenen} == vorher
 
 
 # --- Szene fuer Szene -----------------------------------------------------

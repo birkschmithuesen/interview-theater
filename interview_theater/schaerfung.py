@@ -315,22 +315,130 @@ def _stelle(conn, chat_id: int, eintrag) -> str:
     return zeile
 
 
+#: Wie viele Stellen hoechstens in EINER Vorschlagsnachricht stehen
+#: (06.09.2026, Analyse Abschnitt 2). Der gemessene Fall waren Bloecke von
+#: 712 und 1280 Zeichen mit vollstaendigen Zitaten und **einer** globalen
+#: Ja/Nein-Frage -- die Wall of Text. Drei ist die Zahl, die auch die
+#: Fragenauswahl und die Geschichte-Richtungen benutzen.
+MAX_STELLEN = 3
+
+#: Wie viele Woerter eines Zitats in die Kurzoption gehen. Der Volltext des
+#: Zitats steht in der Datenbank und geht bei der Uebernahme in
+#: ``szene.kernsaetze`` -- im Menue braucht es nur so viel, dass die Gruppe
+#: die Stelle wiedererkennt.
+ZITAT_WOERTER = 12
+
+
+def _gekuerzt(text: str, woerter: int = ZITAT_WOERTER) -> str:
+    teile = (text or "").split()
+    if len(teile) <= woerter:
+        return " ".join(teile)
+    return " ".join(teile[:woerter]) + " …"
+
+
+def offene_stellen(conn, chat_id: int, szene_id=None, figur_id=None) -> list:
+    """Die noch offenen Schaerfungen zu einer Szene oder Figur, gedeckelt auf
+    ``MAX_STELLEN``.
+
+    Deterministisch aus der Datenbank, kein Modellaufruf: das Mapping ist
+    schon gelaufen. Der Deckel ist bewusst hier und nicht beim Anzeigen --
+    die Reihenfolge (Runde, dann id) entscheidet, was zuerst drankommt, und
+    was heute nicht mehr passt, steht beim naechsten Durchgang oben."""
+    eintraege = [
+        z for z in repo.schaerfungen(conn, chat_id, szene_id=szene_id, figur_id=figur_id)
+        if not z["uebernommen_am"]
+    ]
+    return eintraege[:MAX_STELLEN]
+
+
+def option(conn, chat_id: int, eintrag) -> tuple[str, str]:
+    """Eine Stelle als Menue-Option: ``(Titel, Beschreibung)``.
+
+    Der Titel ist zugleich die Knopfbeschriftung (``vorschlag.menuetext`` +
+    ``knoepfe.MENUE_KNOPF_LAENGE``) -- Knopf N und Punkt N meinen dadurch
+    dasselbe, wie bei ``stile.reihenfolge_mit_vorschlag``. Die Beschreibung
+    traegt das gekuerzte Zitat und, wenn es eine gibt, die Begruendung."""
+    from interview_theater import kontext
+
+    name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
+    titel = str(eintrag["thema"] or name or "Stelle").strip()
+    stuecke = []
+    zitat_kurz = _gekuerzt(str(eintrag["zitat"] or ""))
+    if zitat_kurz:
+        stuecke.append(f'{name}: „{zitat_kurz}“')
+    elif name:
+        stuecke.append(name)
+    if eintrag["begruendung"]:
+        stuecke.append(str(eintrag["begruendung"]).strip())
+    return (titel, " — ".join(stuecke))
+
+
+def szenenueberschrift(conn, chat_id: int, szene) -> str:
+    kopf = f"Szene {szene['nummer']}"
+    if szene["titel"]:
+        kopf += f": {szene['titel']}"
+    return f"{kopf} — was aus den Interviews dazupasst"
+
+
+def figurueberschrift(figur) -> str:
+    return f"{figur['name']} — was aus den Interviews dazupasst"
+
+
+def uebernimm_stelle(conn, chat_id: int, schaerfung_id: int) -> str | None:
+    """Uebernimmt GENAU EINE Stelle -- der Knopf je Option (06.09.2026).
+
+    Liefert einen kurzen Bezeichner ("Szene 2", "<Figurname>") oder None,
+    wenn es die Stelle nicht mehr gibt. Die Wirkung ist dieselbe wie bei
+    ``uebernimm_szene``/``uebernimm_figur``, nur auf einen Eintrag begrenzt:
+    ``was_passiert`` bzw. die Figurenbeschreibung werden **ergaenzt**, das
+    Zitat wandert in ``kernsaetze``."""
+    eintrag = next(
+        (z for z in repo.schaerfungen(conn, chat_id) if z["id"] == schaerfung_id),
+        None,
+    )
+    if eintrag is None or eintrag["uebernommen_am"]:
+        return None
+    if eintrag["szene_id"]:
+        szene = repo.hole_szene(conn, eintrag["szene_id"])
+        if szene is None:
+            return None
+        _ergaenze_szene(conn, szene, [eintrag])
+        repo.merke_schaerfung_uebernommen(conn, eintrag["id"])
+        return f"Szene {szene['nummer']}"
+    if eintrag["figur_id"]:
+        figur = repo.hole_figur_nach_id(conn, eintrag["figur_id"])
+        if figur is None:
+            return None
+        _ergaenze_figur(conn, chat_id, figur, [eintrag])
+        repo.merke_schaerfung_uebernommen(conn, eintrag["id"])
+        return str(figur["name"])
+    return None
+
+
+def verwirf_stellen(conn, ids: list[int]) -> int:
+    """"Keine davon": die gezeigten Stellen fallen weich heraus (N3), damit
+    die naechste Runde sie nicht erneut vorlegt."""
+    anzahl = 0
+    for schaerfung_id in ids:
+        repo.entferne_schaerfung(conn, schaerfung_id)
+        anzahl += 1
+    return anzahl
+
+
 def szenenvorschlag(conn, chat_id: int, szene) -> str | None:
     """Die Schaerfungs-Vorschlagsnachricht zu EINER Szene, oder None, wenn
     ihr nichts zugeordnet wurde.
 
     Deterministisch aus der Datenbank, kein Modellaufruf: das Mapping ist
-    schon gelaufen, hier wird nur vorgestellt."""
-    eintraege = [
-        z for z in repo.schaerfungen(conn, chat_id, szene_id=szene["id"])
-        if not z["uebernommen_am"]
-    ]
+    schon gelaufen, hier wird nur vorgestellt.
+
+    Seit dem 06.09.2026 baut ``knoepfe.biete_schaerfung`` daraus ein Menue
+    (``option``); diese Fliesstextfassung bleibt als Rueckfall und fuer
+    Protokolle stehen."""
+    eintraege = offene_stellen(conn, chat_id, szene_id=szene["id"])
     if not eintraege:
         return None
-    kopf = f"Szene {szene['nummer']}"
-    if szene["titel"]:
-        kopf += f": {szene['titel']}"
-    zeilen = [f"{kopf} - aus den Interviews passt:"]
+    zeilen = [szenenueberschrift(conn, chat_id, szene) + ":"]
     zeilen.extend(f"- {_stelle(conn, chat_id, z)}" for z in eintraege)
     zeilen.append("\nSoll das in die Szene?")
     return "\n".join(zeilen)
@@ -338,32 +446,18 @@ def szenenvorschlag(conn, chat_id: int, szene) -> str | None:
 
 def figurvorschlag(conn, chat_id: int, figur) -> str | None:
     """Dasselbe je Figur: die Stellen, aus denen sie sprechen koennte."""
-    eintraege = [
-        z for z in repo.schaerfungen(conn, chat_id, figur_id=figur["id"])
-        if not z["uebernommen_am"]
-    ]
+    eintraege = offene_stellen(conn, chat_id, figur_id=figur["id"])
     if not eintraege:
         return None
-    zeilen = [f"{figur['name']} - aus den Interviews passt:"]
+    zeilen = [figurueberschrift(figur) + ":"]
     zeilen.extend(f"- {_stelle(conn, chat_id, z)}" for z in eintraege)
     zeilen.append("\nSoll das zu dieser Figur?")
     return "\n".join(zeilen)
 
 
-def uebernimm_szene(conn, chat_id: int, szene) -> int:
-    """\"Gefaellt uns, weiter\" auf einer Szenen-Schaerfung: die zugeordneten
-    Stellen wandern in die Szenenfelder. Liefert die Zahl der Uebernahmen.
-
-    ``was_passiert`` und ``ton`` werden **ergaenzt**, nicht ersetzt: die
-    Gruppe hat sie erfunden, das Material schaerft sie. Die Zitate landen in
-    ``kernsaetze`` -- das ist das Feld, das der Szenen-Prompt als \"soll
-    woertlich vorkommen\" liest."""
-    eintraege = [
-        z for z in repo.schaerfungen(conn, chat_id, szene_id=szene["id"])
-        if not z["uebernommen_am"]
-    ]
-    if not eintraege:
-        return 0
+def _ergaenze_szene(conn, szene, eintraege) -> None:
+    """Die Schreibwirkung einer Szenen-Schaerfung -- geteilt von
+    ``uebernimm_szene`` (alle offenen) und ``uebernimm_stelle`` (eine)."""
     frisch = repo.hole_szene(conn, szene["id"])
     ergaenzung = "; ".join(
         (z["begruendung"] or z["thema"] or "").strip() for z in eintraege
@@ -382,6 +476,42 @@ def uebernimm_szene(conn, chat_id: int, szene) -> int:
         repo.setze_szenenfeld(
             conn, szene["id"], "kernsaetze", f"{alt} | {neu}" if alt else neu,
         )
+
+
+def _ergaenze_figur(conn, chat_id: int, figur, eintraege) -> None:
+    """Dasselbe je Figur: Beschreibung ergaenzen, Quelle nachtragen."""
+    frisch = repo.hole_figur_nach_id(conn, figur["id"])
+    ergaenzung = "; ".join(
+        (z["begruendung"] or z["thema"] or "").strip() for z in eintraege
+        if (z["begruendung"] or z["thema"] or "").strip()
+    )
+    if ergaenzung:
+        alt = (frisch["beschreibung"] or "").strip()
+        repo.setze_figur(
+            conn, chat_id, frisch["name"],
+            f"{alt} {ergaenzung}".strip() if alt else ergaenzung,
+        )
+    if frisch["quelle_aufnahme_id"] is None:
+        quelle = next((z["aufnahme_id"] for z in eintraege if z["aufnahme_id"]), None)
+        if quelle is not None:
+            repo.setze_figur_quelle(conn, frisch["id"], quelle)
+
+
+def uebernimm_szene(conn, chat_id: int, szene) -> int:
+    """\"Gefaellt uns, weiter\" auf einer Szenen-Schaerfung: die zugeordneten
+    Stellen wandern in die Szenenfelder. Liefert die Zahl der Uebernahmen.
+
+    ``was_passiert`` und ``ton`` werden **ergaenzt**, nicht ersetzt: die
+    Gruppe hat sie erfunden, das Material schaerft sie. Die Zitate landen in
+    ``kernsaetze`` -- das ist das Feld, das der Szenen-Prompt als \"soll
+    woertlich vorkommen\" liest."""
+    eintraege = [
+        z for z in repo.schaerfungen(conn, chat_id, szene_id=szene["id"])
+        if not z["uebernommen_am"]
+    ]
+    if not eintraege:
+        return 0
+    _ergaenze_szene(conn, szene, eintraege)
     for z in eintraege:
         repo.merke_schaerfung_uebernommen(conn, z["id"])
     return len(eintraege)
@@ -399,21 +529,7 @@ def uebernimm_figur(conn, chat_id: int, figur) -> int:
     ]
     if not eintraege:
         return 0
-    frisch = repo.hole_figur_nach_id(conn, figur["id"])
-    ergaenzung = "; ".join(
-        (z["begruendung"] or z["thema"] or "").strip() for z in eintraege
-        if (z["begruendung"] or z["thema"] or "").strip()
-    )
-    if ergaenzung:
-        alt = (frisch["beschreibung"] or "").strip()
-        repo.setze_figur(
-            conn, chat_id, frisch["name"],
-            f"{alt} {ergaenzung}".strip() if alt else ergaenzung,
-        )
-    if frisch["quelle_aufnahme_id"] is None:
-        quelle = next((z["aufnahme_id"] for z in eintraege if z["aufnahme_id"]), None)
-        if quelle is not None:
-            repo.setze_figur_quelle(conn, frisch["id"], quelle)
+    _ergaenze_figur(conn, chat_id, figur, eintraege)
     for z in eintraege:
         repo.merke_schaerfung_uebernommen(conn, z["id"])
     return len(eintraege)

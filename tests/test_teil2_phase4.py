@@ -132,6 +132,9 @@ def test_stil_menue_traegt_titel_zitat_und_beispielsatz(conn, tg):
 
     assert [b for b, _ in tg.knoepfe[-1][2]] == [
         "1 · Kurz und hart", "2 · Weit ausholend", "Eigener Stil",
+        # Der Ausweg aus der Figur-fuer-Figur-Schleife (06.09.2026, Analyse
+        # Abschnitt 1): eine Figur ohne Quelle und ein Interview sind da.
+        knoepfe._TEXT_FIGUREN_ZUFALL_KNOPF,
     ]
     text = tg.knoepfe[-1][1]
     assert "Ich sag das ganz kurz" in text

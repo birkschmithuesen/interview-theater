@@ -993,6 +993,118 @@ def umriss(bloecke: dict, gekuerzt: bool = False) -> dict:
     }
 
 
+def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
+             fenster_eintraege: list) -> dict:
+    """Die Bloecke des Nutzertexts, in ihrer Reihenfolge -- datengetrieben:
+    jeder Block bleibt leer, solange seine Daten leer sind (SPEC § 6.1)."""
+    # Der Kontext-Filter je Phase (05.09.2026 abends): bis zur Kernfrage
+    # arbeitet der Bot AM Material (Verdichtungen; Transkripte, wenn der
+    # Wortlaut-Schalter steht), danach AUS dem Kernpaket. Datengetrieben wie
+    # alles andere -- es gibt keinen gespeicherten Zustand, nur zwei Felder,
+    # die die Lage beschreiben.
+    material = material_erlaubt(conn, chat_id)
+    kernpaket = (
+        _baue_kernpaket(conn, chat_id) if kernpaket_erlaubt(conn, chat_id) else ""
+    )
+    return {
+        "erstkontakt": _baue_erstkontakt(conn, chat_id, e) if erstkontakt else "",
+        "verdichtungen": _baue_verdichtungen(conn, chat_id) if material else "",
+        "transkripte": _baue_transkripte(conn, chat_id) if material else "",
+        # In 4 und 5 gibt es WEDER Material NOCH Kernpaket: dort wird
+        # erfunden (``PHASEN_ERFINDEN``).
+        "kernpaket": kernpaket,
+        # Kernpaket ODER Arbeitsstand, nie beides fuer denselben Fakt
+        # (Audit-Befund G2).
+        "arbeitsstand": _baue_arbeitsstand(
+            conn, chat_id, ohne_kernpaket_felder=bool(kernpaket)
+        ),
+        "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
+        "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
+        "szene": _baue_szene(conn, chat_id),
+        "journal": _baue_journal(conn, chat_id),
+        "fenster": "\n".join(fenster_eintraege),
+        "ausloeser": _baue_ausloeser(ausloeser),
+    }
+
+
+def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
+                       fenster_eintraege: list) -> bool:
+    """Die Kuerzungsleiter aus § 7.2. Aendert ``bloecke`` an Ort und Stelle und
+    liefert, ob ueberhaupt gekuerzt wurde.
+
+    Reihenfolge (praezisiert im Audit 06.09.2026):
+
+    1. Volltranskripte -- der groesste einzelne Brocken, und ihr Inhalt steht
+       verdichtet ohnehin da.
+    2. Der Verlauf von vorn -- das Aelteste zuerst, eine ganze Nachricht je
+       Schritt.
+    3. Das Journal von vorn -- die aeltesten Notizen.
+    4. Die Verdichtungen -- zuletzt, weil sie das Material selbst sind.
+
+    Nie angetastet: Kernpaket, Arbeitsstand, Hinweise, aktuelle Szene und die
+    ausloesende Nachricht. Es gibt keinen Zustand, in dem der Bot wegen des
+    Budgets nicht antworten koennte."""
+    grenze = zeichengrenze()
+
+    def _zu_lang() -> bool:
+        """Ueber Zeichengrenze ODER ueber Token-Ziel -- beides bremst.
+
+        Zwei Masse, weil sie verschiedene Fehler fangen: ZIEL faengt den
+        Prompt, der insgesamt zu gross wird, die Zeichengrenze den, der es in
+        Token knapp nicht wird und trotzdem unlesbar ist (der Fall vom
+        06.09.2026)."""
+        text = _zusammen(bloecke)
+        return len(text) > grenze or schaetze(text) > ZIEL
+
+    if not _zu_lang():
+        return False
+
+    vorher = len(_zusammen(bloecke))
+    bloecke["transkripte"] = ""
+    while _zu_lang() and fenster_eintraege:
+        fenster_eintraege = fenster_eintraege[1:]
+        bloecke["fenster"] = "\n".join(fenster_eintraege)
+    if _zu_lang() and bloecke["journal"]:
+        journalzeilen = bloecke["journal"].split("\n")
+        # Zeile 0 ist die Ueberschrift "Journal:" -- sie bleibt, solange
+        # noch eine Notiz darunter steht.
+        while _zu_lang() and len(journalzeilen) > 2:
+            journalzeilen = [journalzeilen[0]] + journalzeilen[2:]
+            bloecke["journal"] = "\n".join(journalzeilen)
+        if _zu_lang():
+            bloecke["journal"] = ""
+    if _zu_lang():
+        bloecke["verdichtungen"] = ""
+    nachher = len(_zusammen(bloecke))
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None), "kontext_gekuerzt",
+        f"Nutzertext von {vorher} auf {nachher} Zeichen gekuerzt "
+        f"(Grenze {grenze}, Ziel {ZIEL} Token)",
+    )
+    # **Der zweite Vorfalltyp** (Audit 06.09.2026, Auftrag 1; Vorbild
+    # hermes-agent ``should_compress_info`` mit Grund-Rueckgabe:
+    # *"Without this signal an over-threshold session fails opaquely."*).
+    # Die vier Kuerzungsstufen sind durch, alles Opferbare ist geopfert --
+    # und der Prompt ist immer noch zu gross, weil Kernpaket, Arbeitsstand,
+    # Hinweise, Szene und Ausloeser nie angetastet werden (Befund C.4:
+    # gemessen 105.988 Zeichen bei einer ueberlangen Szene, 4,4x ueber der
+    # Grenze). Ohne diese Zeile steht auf dem Dashboard "gekuerzt", nicht
+    # "reicht nicht" -- und ein Mechanismus, der sein Ziel verfehlt, ist
+    # von einem, der es erreicht, nicht unterscheidbar.
+    if _zu_lang():
+        uebrig = umriss(bloecke, True)
+        log.warning("Kuerzung erfolglos, chat_id=%s: %s", chat_id,
+                    umrisszeile(uebrig))
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None),
+            "kontext_kuerzung_erfolglos",
+            f"Nutzertext nach vollstaendiger Kuerzung noch {nachher} Zeichen "
+            f"(Grenze {grenze}) -- alle Kuerzungsstufen durchlaufen, "
+            f"ungekuerzte Bloecke zu gross: {umrisszeile(uebrig)}",
+        )
+    return True
+
+
 def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
          protokoll: list | None = None) -> str:
     """Baut den Koerper des Gespraechs-Prompts (ohne SYSTEM, das getrennt
@@ -1017,103 +1129,8 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     grundsaetzlich ausgenommen, es gibt keinen Zustand, in dem der Bot wegen
     des Budgets nicht antworten koennte."""
     fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser)
-    # Der Kontext-Filter je Phase (05.09.2026 abends): bis zur Kernfrage
-    # arbeitet der Bot AM Material (Verdichtungen; Transkripte, wenn der
-    # Wortlaut-Schalter steht), danach AUS dem Kernpaket. Datengetrieben wie
-    # alles andere -- es gibt keinen gespeicherten Zustand, nur zwei Felder,
-    # die die Lage beschreiben.
-    material = material_erlaubt(conn, chat_id)
-    kernpaket = (
-        _baue_kernpaket(conn, chat_id) if kernpaket_erlaubt(conn, chat_id) else ""
-    )
-    bloecke = {
-        "erstkontakt": _baue_erstkontakt(conn, chat_id, e) if erstkontakt else "",
-        "verdichtungen": _baue_verdichtungen(conn, chat_id) if material else "",
-        "transkripte": _baue_transkripte(conn, chat_id) if material else "",
-        # In 4 und 5 gibt es WEDER Material NOCH Kernpaket: dort wird
-        # erfunden (``PHASEN_ERFINDEN``).
-        "kernpaket": kernpaket,
-        # Kernpaket ODER Arbeitsstand, nie beides fuer denselben Fakt
-        # (Audit-Befund G2).
-        "arbeitsstand": _baue_arbeitsstand(
-            conn, chat_id, ohne_kernpaket_felder=bool(kernpaket)
-        ),
-        "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
-        "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
-        "szene": _baue_szene(conn, chat_id),
-        "journal": _baue_journal(conn, chat_id),
-        "fenster": "\n".join(fenster_eintraege),
-        "ausloeser": _baue_ausloeser(ausloeser),
-    }
-
-    gekuerzt = False
-    grenze = zeichengrenze()
-
-    def _zu_lang() -> bool:
-        """Ueber Zeichengrenze ODER ueber Token-Ziel -- beides bremst.
-
-        Zwei Masse, weil sie verschiedene Fehler fangen: ZIEL faengt den
-        Prompt, der insgesamt zu gross wird, die Zeichengrenze den, der es in
-        Token knapp nicht wird und trotzdem unlesbar ist (der Fall vom
-        06.09.2026)."""
-        text = _zusammen(bloecke)
-        return len(text) > grenze or schaetze(text) > ZIEL
-
-    if _zu_lang():
-        gekuerzt = True
-        vorher = len(_zusammen(bloecke))
-        # Kuerzungsreihenfolge (§ 7.2, praezisiert im Audit 06.09.2026):
-        # 1. Volltranskripte -- der groesste einzelne Brocken, und ihr Inhalt
-        #    steht verdichtet ohnehin da.
-        # 2. Der Verlauf von vorn -- das Aelteste zuerst, eine ganze Nachricht
-        #    je Schritt.
-        # 3. Das Journal von vorn -- die aeltesten Notizen.
-        # 4. Die Verdichtungen -- zuletzt, weil sie das Material selbst sind.
-        # Nie angetastet: Kernpaket, Arbeitsstand, Hinweise, aktuelle Szene und
-        # die ausloesende Nachricht. Es gibt keinen Zustand, in dem der Bot
-        # wegen des Budgets nicht antworten koennte.
-        bloecke["transkripte"] = ""
-        while _zu_lang() and fenster_eintraege:
-            fenster_eintraege = fenster_eintraege[1:]
-            bloecke["fenster"] = "\n".join(fenster_eintraege)
-        if _zu_lang() and bloecke["journal"]:
-            journalzeilen = bloecke["journal"].split("\n")
-            # Zeile 0 ist die Ueberschrift "Journal:" -- sie bleibt, solange
-            # noch eine Notiz darunter steht.
-            while _zu_lang() and len(journalzeilen) > 2:
-                journalzeilen = [journalzeilen[0]] + journalzeilen[2:]
-                bloecke["journal"] = "\n".join(journalzeilen)
-            if _zu_lang():
-                bloecke["journal"] = ""
-        if _zu_lang():
-            bloecke["verdichtungen"] = ""
-        nachher = len(_zusammen(bloecke))
-        repo.merke_vorfall(
-            conn, chat_id, getattr(e, "bot_name", None), "kontext_gekuerzt",
-            f"Nutzertext von {vorher} auf {nachher} Zeichen gekuerzt "
-            f"(Grenze {grenze}, Ziel {ZIEL} Token)",
-        )
-        # **Der zweite Vorfalltyp** (Audit 06.09.2026, Auftrag 1; Vorbild
-        # hermes-agent ``should_compress_info`` mit Grund-Rueckgabe:
-        # *"Without this signal an over-threshold session fails opaquely."*).
-        # Die vier Kuerzungsstufen sind durch, alles Opferbare ist geopfert --
-        # und der Prompt ist immer noch zu gross, weil Kernpaket, Arbeitsstand,
-        # Hinweise, Szene und Ausloeser nie angetastet werden (Befund C.4:
-        # gemessen 105.988 Zeichen bei einer ueberlangen Szene, 4,4x ueber der
-        # Grenze). Ohne diese Zeile steht auf dem Dashboard "gekuerzt", nicht
-        # "reicht nicht" -- und ein Mechanismus, der sein Ziel verfehlt, ist
-        # von einem, der es erreicht, nicht unterscheidbar.
-        if _zu_lang():
-            uebrig = umriss(bloecke, True)
-            log.warning("Kuerzung erfolglos, chat_id=%s: %s", chat_id,
-                        umrisszeile(uebrig))
-            repo.merke_vorfall(
-                conn, chat_id, getattr(e, "bot_name", None),
-                "kontext_kuerzung_erfolglos",
-                f"Nutzertext nach vollstaendiger Kuerzung noch {nachher} Zeichen "
-                f"(Grenze {grenze}) -- alle Kuerzungsstufen durchlaufen, "
-                f"ungekuerzte Bloecke zu gross: {umrisszeile(uebrig)}",
-            )
+    bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege)
+    gekuerzt = _kuerze_auf_budget(conn, chat_id, e, bloecke, fenster_eintraege)
 
     stand = umriss(bloecke, gekuerzt)
     # **Im Betrieb mitschreiben** (Audit 06.09.2026, Auftrag 1). Bis hierher

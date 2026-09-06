@@ -1705,7 +1705,6 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
     Chattext: die Gruppe hat davon nichts, das Dashboard alles."""
     nummer = ziel["nummer"] if ziel is not None else nummer_aus_auftrag(auftrag)
     bausteine = _continuity_bloecke(conn, chat_id, nummer)
-    alle_nummern = {b["nummer"] for b in bausteine}
 
     def _bloecke(voll: set[int], chat_anzahl: int, kernpaket_kurz: bool,
                  zitate_kurz: bool) -> dict:
@@ -1734,11 +1733,23 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
         }
 
     budget = token_budget(szene_claude.ist_aktiv(e, conn, chat_id) if e else False)
-    voll = set(alle_nummern)
+    voll = {b["nummer"] for b in bausteine}
     text = _zusammen(_bloecke(voll, CHAT_NACHRICHTEN, False, False))
-    vorher = len(text)
     if schaetze_token(text) <= budget:
         return text
+    return _kuerze_szenenprompt(
+        conn, chat_id, e, _bloecke, bausteine, voll, text, budget, nummer,
+    )
+
+
+def _kuerze_szenenprompt(conn, chat_id: int, e, bloecke, bausteine,
+                         voll: set, text: str, budget: int, nummer) -> str:
+    """Die vier Kuerzungsstufen aus dem Docstring von ``baue_nutzertext``, in
+    ihrer Reihenfolge -- jede nur, wenn die vorige nicht gereicht hat.
+
+    Jede Kuerzung ist ein Vorfall mit Zahlen (``szene_prompt_gekuerzt``), kein
+    Chattext: die Gruppe hat davon nichts, das Dashboard alles."""
+    vorher = len(text)
 
     # Stufe 1: aelteste Vorszene zuerst auf ihre Zusammenfassung.
     zusammengefasst: list[int] = []
@@ -1749,7 +1760,7 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
             continue
         voll.discard(b["nummer"])
         zusammengefasst.append(b["nummer"])
-        text = _zusammen(_bloecke(voll, CHAT_NACHRICHTEN, False, False))
+        text = _zusammen(bloecke(voll, CHAT_NACHRICHTEN, False, False))
 
     stufen = []
     if zusammengefasst:
@@ -1772,13 +1783,19 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
             kernpaket_kurz = True
         else:
             zitate_kurz = True
-        text = _zusammen(_bloecke(voll, chat_anzahl, kernpaket_kurz, zitate_kurz))
+        text = _zusammen(bloecke(voll, chat_anzahl, kernpaket_kurz, zitate_kurz))
         stufen.append(name)
 
-    nachher = len(text)
+    _melde_kuerzung(conn, chat_id, e, nummer, vorher, text, budget, stufen)
+    return text
+
+
+def _melde_kuerzung(conn, chat_id: int, e, nummer, vorher: int, text: str,
+                    budget: int, stufen: list) -> None:
+    """Der Vorfall zur Kuerzung -- mit Zahlen und den durchlaufenen Stufen."""
     detail = (
         f"Szene {nummer if nummer is not None else '?'}: Prompt gekuerzt "
-        f"{vorher} -> {nachher} Zeichen "
+        f"{vorher} -> {len(text)} Zeichen "
         f"({schaetze_token(text)} von {budget} Token). " + "; ".join(stufen)
     )
     if schaetze_token(text) > budget:
@@ -1791,7 +1808,6 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
         )
     except Exception:
         log.exception("Vorfall szene_prompt_gekuerzt nicht geschrieben")
-    return text
 
 
 # ---------------------------------------------------------------------------

@@ -2050,13 +2050,265 @@ def _pfad_ohne_praefix(pfad: str, praefix: str) -> str:
 MAX_POST_BYTES = 64 * 1024
 
 
+def _beantworte_get(handler, db_pfad: str, praefix: str,
+                    schluessel: bytes) -> None:
+    """Das Routing der Leseansicht: ``/gesund``, ``/`` (Dashboard) und
+    ``/g/<token>`` (Gruppenseite), alles andere 404.
+
+    ``handler`` ist die Instanz aus ``mache_handler``; ausgelagert, weil das
+    Routing weder von ``self`` noch von der Klasse abhaengt und in einer
+    Fabrikfunktion sonst nur schwer zu finden ist."""
+    pfad = _pfad_ohne_praefix(
+        urllib.parse.unquote(urllib.parse.urlsplit(handler.path).path), praefix
+    )
+    if pfad == "/gesund":
+        # Ohne Datenbankzugriff: der Health-Check soll sagen, ob der
+        # Prozess laeuft, und nicht ueber die Datenbank mit-scheitern.
+        handler._antworte(200, "ok", "text/plain; charset=utf-8")
+        return
+    try:
+        if pfad == "/":
+            handler._antworte(200, dashboard_html(handler._dashboard(), praefix))
+        elif pfad.startswith("/g/"):
+            _beantworte_gruppenseite(
+                handler, db_pfad, pfad, praefix, schluessel
+            )
+        else:
+            handler._antworte(404, nicht_gefunden_html())
+    except sqlite3.Error as fehler:
+        # Typisch: IT_DB zeigt ins Leere, oder die Datei ist noch
+        # nicht angelegt. Kurz und ohne Pfade nach aussen, ausfuehrlich
+        # ins Log.
+        handler.log_error("Datenbankfehler: %s", fehler)
+        handler._antworte(
+            500,
+            "<!doctype html><html lang=\"de\"><meta charset=\"utf-8\">"
+            "<p>Die Datenbank ist gerade nicht lesbar.</p></html>",
+        )
+
+
+def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
+                             praefix: str, schluessel: bytes) -> None:
+    """Alles unter ``/g/<token>``: die Gruppenseite selbst, die Probenansicht
+    (``/textbuch``), das Textbuch als Datei und die Leitfaden-Seite.
+
+    Hinter dem Token darf seit der Probenansicht noch etwas stehen
+    (06.09.2026). Alles Unbekannte wird 404 und nicht etwa als Teil des Tokens
+    gelesen -- sonst haette ``/g/<token>/irgendwas`` dieselbe Seite geliefert
+    wie ``/g/<token>``."""
+    from interview_theater import leitfaden as leitfaden_modul
+
+    rest = pfad[len("/g/"):].strip("/")
+    token, _, unterpfad = rest.partition("/")
+    if unterpfad in ("textbuch.md", "textbuch.txt"):
+        _sende_textbuch_datei(handler, db_pfad, token, unterpfad)
+        return
+    if unterpfad == leitfaden_modul.WEB_PFAD:
+        daten = _leitfaden_daten(db_pfad, token)
+        if daten is None:
+            handler._antworte(404, nicht_gefunden_html())
+            return
+        # Die Leitfaden-Seite verlinkt zurueck auf die Gruppenseite und
+        # braucht dafuer ihr Token.
+        daten["token"] = token
+        handler._antworte(200, leitfaden_html(daten))
+        return
+    if unterpfad not in ("", "textbuch"):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    daten = handler._gruppe(token)
+    if daten is None:
+        handler._antworte(404, nicht_gefunden_html())
+    elif unterpfad == "textbuch":
+        handler._antworte(200, textbuch_html(daten, token, praefix))
+    else:
+        handler._antworte(
+            200, gruppe_html(daten, nonce(schluessel, token), token, praefix)
+        )
+
+
+def _sende_textbuch_datei(handler, db_pfad: str, token: str, name: str) -> None:
+    """Das Textbuch als Datei: ``.md`` und ``.txt``, beide mit demselben
+    Inhalt.
+
+    Der Inhalt kommt aus ``szenenfolge.textbuch`` -- **derselben Funktion**,
+    die der Knopf "Textbuch als Datei" im Chat benutzt. Eine zweite Fassung
+    hier waere eine zweite Wahrheit: die Gruppe haette zwei Textbuecher, die
+    sich irgendwann unterscheiden, und niemand wuesste welches gilt.
+
+    Der Import steht in der Funktion und nicht im Modulkopf, wie bei
+    ``leitfaden``: ``szenenfolge`` zieht den Szenen-Prompt und damit den halben
+    Bot nach, und der Webserver soll ohne das starten koennen, solange niemand
+    ein Textbuch abruft. Gelesen wird ueber die read-only geoeffnete
+    Verbindung -- ``textbuch`` fragt nur ab (``repo.hole_szenen``,
+    ``repo.hole_arbeitsstand``, ``szenenfolge.vorstellung``), es schreibt
+    nichts."""
+    from interview_theater import szenenfolge
+
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        chat_id = web_daten.chat_id_nach_token(conn, token)
+        if chat_id is None:
+            handler._antworte(404, nicht_gefunden_html())
+            return
+        inhalt = szenenfolge.textbuch(conn, chat_id)
+    finally:
+        conn.close()
+    typ = (
+        "text/markdown; charset=utf-8"
+        if name.endswith(".md")
+        else "text/plain; charset=utf-8"
+    )
+    handler._antworte(200, inhalt, typ, dateiname=name)
+
+
+def _leitfaden_daten(db_pfad: str, token: str) -> dict | None:
+    """Nur der Arbeitsstand -- die Leitfaden-Seite laedt weder Szenen noch
+    Interviews noch das Journal."""
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        return web_daten.leitfaden_nach_token(conn, token)
+    finally:
+        conn.close()
+
+
+def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> None:
+    """Ein geaenderter Parameter der Gruppenseite.
+
+    Die Reihenfolge der Pruefungen ist Absicht: **Pfad, Token, Nonce, Wert** --
+    erst 404, dann 403, dann 400. Ein unbekanntes Token bekommt dieselbe 404
+    wie beim GET (die Seite verraet ohnehin schon, ob es sie gibt); der Nonce
+    wird erst danach geprueft, weil er an das Token gebunden ist und fuer ein
+    Token, das es nicht gibt, gar nicht gueltig sein kann.
+
+    **Das Dashboard ist nicht dabei.** ``/`` nimmt kein POST an: es haengt am
+    Beamer und ist projiziert, dort soll niemand im Vorbeigehen etwas
+    umstellen."""
+    pfad = _pfad_ohne_praefix(
+        urllib.parse.unquote(urllib.parse.urlsplit(handler.path).path), praefix
+    )
+    if not pfad.startswith("/g/"):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    token = pfad[len("/g/"):].strip("/")
+    try:
+        daten = handler._koerper()
+    except ValueError as fehler:
+        handler._fehler(400, str(fehler))
+        return
+    try:
+        lesend = web_daten.oeffne_lesend(db_pfad)
+        try:
+            gruppe = web_daten.gruppe_nach_token(lesend, token)
+        finally:
+            lesend.close()
+        if gruppe is None:
+            handler._antworte(404, nicht_gefunden_html())
+            return
+        if not nonce_gueltig(schluessel, token, daten.get("nonce")):
+            handler._fehler(
+                403, "Die Seite ist veraltet — bitte einmal neu laden."
+            )
+            return
+        antwort = handler._schreibe(gruppe["chat_id"], daten)
+    except web_schreiben.Fehler as fehler:
+        handler._fehler(400, str(fehler))
+        return
+    except sqlite3.Error as fehler:
+        handler.log_error("Datenbankfehler beim Schreiben: %s", fehler)
+        handler._fehler(500, "Die Datenbank ist gerade nicht beschreibbar.")
+        return
+    handler._antworte(
+        200,
+        json.dumps(antwort, ensure_ascii=False),
+        "application/json; charset=utf-8",
+    )
+
+
+class _Basishandler(BaseHTTPRequestHandler):
+    """Alles am Handler, was die Konfiguration nicht braucht: Antworten,
+    Fehler, Anfragerumpf, Logzeile.
+
+    Steht auf Modulebene statt in ``mache_handler``, weil eine Klasse, die
+    nichts aus der Fabrik liest, dort nur den Blick auf das verstellt, was
+    wirklich je Server verschieden ist."""
+
+    server_version = "interview-theater"
+    protocol_version = "HTTP/1.1"
+    #: HTTP/1.1 haelt die Verbindung offen, und ThreadingHTTPServer bindet
+    #: je Verbindung einen Thread. Ohne Zeitlimit blieben die Threads
+    #: stiller Browser-Tabs (Beamer, drei Gruppen mit Handy) fuer immer
+    #: liegen; nach 30 s ohne neue Anfrage wird die Verbindung geschlossen.
+    timeout = 30
+
+    def _koerper(self) -> dict:
+        """Der JSON-Rumpf der Anfrage. Alles, was hier schiefgeht, ist ein
+        Bedienfehler von aussen und wird zu 400, nie zu einem Stacktrace."""
+        try:
+            laenge = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise ValueError("Ungültige Anfrage.") from None
+        if laenge <= 0:
+            raise ValueError("Leere Anfrage.")
+        if laenge > MAX_POST_BYTES:
+            raise ValueError("Der Text ist zu lang.")
+        try:
+            gelesen = json.loads(self.rfile.read(laenge).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise ValueError("Ungültige Anfrage.") from None
+        if not isinstance(gelesen, dict):
+            raise ValueError("Ungültige Anfrage.")
+        return gelesen
+
+    def _fehler(self, status: int, text: str) -> None:
+        """Fehler als Klartext, nicht als JSON: ``_BEARBEITEN_JS`` zeigt
+        den Rumpf einer 4xx-Antwort unveraendert neben dem Feld an, und
+        die Gruppe soll dort einen Satz lesen, keine geschweifte
+        Klammer."""
+        self._antworte(status, text, "text/plain; charset=utf-8")
+
+    def _antworte(
+        self, status: int, inhalt: str, typ: str = "text/html; charset=utf-8",
+        dateiname: str | None = None,
+    ) -> None:
+        roh = inhalt.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", typ)
+        self.send_header("Content-Length", str(len(roh)))
+        if dateiname:
+            # Damit das Telefon die Datei ablegt, statt sie im Browser
+            # anzuzeigen -- der Weg in die Probe ist "herunterladen und
+            # weiterschicken". Der Name kommt aus dem Code, nie aus der
+            # URL (keine fremden Zeichen im Header).
+            self.send_header(
+                "Content-Disposition", f'attachment; filename="{dateiname}"'
+            )
+        # Der Browser soll bei jedem Neuladen wirklich neu fragen --
+        # sonst zeigt der Beamer eine Viertelstunde alte Zahlen.
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(roh)
+
+    def log_message(self, format: str, *args) -> None:
+        """Eine Zeile je Anfrage nach stdout (systemd haengt das an
+        betrieb/web.log). Ohne Uhrzeit-Klammern der Vorlage, dafuer mit
+        ISO-Zeit -- damit die Zeilen zu denen des Bots passen."""
+        print(
+            f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} web "
+            f"{self.address_string()} {format % args}",
+            flush=True,
+        )
+
+
 def mache_handler(
     db_pfad: str, praefix: str = VORGABE_PRAEFIX, schluessel: bytes | None = None
 ):
     """Baut die Handler-Klasse mit ihrer Konfiguration.
 
     Als Fabrik statt globaler Variablen, damit ein Test einen zweiten Server
-    auf eine andere Datenbank stellen kann.
+    auf eine andere Datenbank stellen kann. Was die Konfiguration nicht
+    braucht, steht in ``_Basishandler``; hier bleibt nur, was ``db_pfad``,
+    ``praefix`` oder ``schluessel`` liest.
 
     ``schluessel`` unterschreibt die Formular-Nonces (siehe ``nonce``). Er
     entsteht beim Start und steht nirgends auf der Platte: ein Neustart macht
@@ -2065,149 +2317,12 @@ def mache_handler(
     vorgeben."""
     schluessel = schluessel or secrets.token_bytes(32)
 
-    class Handler(BaseHTTPRequestHandler):
-        server_version = "interview-theater"
-        protocol_version = "HTTP/1.1"
-        #: HTTP/1.1 haelt die Verbindung offen, und ThreadingHTTPServer bindet
-        #: je Verbindung einen Thread. Ohne Zeitlimit blieben die Threads
-        #: stiller Browser-Tabs (Beamer, drei Gruppen mit Handy) fuer immer
-        #: liegen; nach 30 s ohne neue Anfrage wird die Verbindung geschlossen.
-        timeout = 30
-
+    class Handler(_Basishandler):
         def do_GET(self) -> None:  # noqa: N802 (von BaseHTTPRequestHandler vorgegeben)
-            pfad = _pfad_ohne_praefix(
-                urllib.parse.unquote(urllib.parse.urlsplit(self.path).path), praefix
-            )
-            if pfad == "/gesund":
-                # Ohne Datenbankzugriff: der Health-Check soll sagen, ob der
-                # Prozess laeuft, und nicht ueber die Datenbank mit-scheitern.
-                self._antworte(200, "ok", "text/plain; charset=utf-8")
-                return
-            try:
-                if pfad == "/":
-                    self._antworte(200, dashboard_html(self._dashboard(), praefix))
-                elif pfad.startswith("/g/"):
-                    # Hinter dem Token darf seit der Probenansicht noch etwas
-                    # stehen (06.09.2026). Alles Unbekannte wird 404 und
-                    # nicht etwa als Teil des Tokens gelesen -- sonst haette
-                    # /g/<token>/irgendwas dieselbe Seite geliefert wie
-                    # /g/<token>.
-                    from interview_theater import leitfaden as leitfaden_modul
-
-                    rest = pfad[len("/g/"):].strip("/")
-                    token, _, unterpfad = rest.partition("/")
-                    if unterpfad in ("textbuch.md", "textbuch.txt"):
-                        self._textbuch_datei(token, unterpfad)
-                    elif unterpfad == leitfaden_modul.WEB_PFAD:
-                        daten = self._leitfaden(token)
-                        if daten is None:
-                            self._antworte(404, nicht_gefunden_html())
-                        else:
-                            # Die Leitfaden-Seite verlinkt zurueck auf die
-                            # Gruppenseite und braucht dafuer ihr Token.
-                            daten["token"] = token
-                            self._antworte(200, leitfaden_html(daten))
-                    elif unterpfad in ("", "textbuch"):
-                        daten = self._gruppe(token)
-                        if daten is None:
-                            self._antworte(404, nicht_gefunden_html())
-                        elif unterpfad == "textbuch":
-                            self._antworte(
-                                200, textbuch_html(daten, token, praefix)
-                            )
-                        else:
-                            self._antworte(
-                                200,
-                                gruppe_html(
-                                    daten, nonce(schluessel, token), token, praefix
-                                ),
-                            )
-                    else:
-                        self._antworte(404, nicht_gefunden_html())
-                else:
-                    self._antworte(404, nicht_gefunden_html())
-            except sqlite3.Error as fehler:
-                # Typisch: IT_DB zeigt ins Leere, oder die Datei ist noch
-                # nicht angelegt. Kurz und ohne Pfade nach aussen, ausfuehrlich
-                # ins Log.
-                self.log_error("Datenbankfehler: %s", fehler)
-                self._antworte(
-                    500,
-                    "<!doctype html><html lang=\"de\"><meta charset=\"utf-8\">"
-                    "<p>Die Datenbank ist gerade nicht lesbar.</p></html>",
-                )
+            _beantworte_get(self, db_pfad, praefix, schluessel)
 
         def do_POST(self) -> None:  # noqa: N802 (von BaseHTTPRequestHandler vorgegeben)
-            """Ein geaenderter Parameter der Gruppenseite.
-
-            Die Reihenfolge der Pruefungen ist Absicht: **Pfad, Token, Nonce,
-            Wert** -- erst 404, dann 403, dann 400. Ein unbekanntes Token
-            bekommt dieselbe 404 wie beim GET (die Seite verraet ohnehin
-            schon, ob es sie gibt); der Nonce wird erst danach geprueft, weil
-            er an das Token gebunden ist und fuer ein Token, das es nicht
-            gibt, gar nicht gueltig sein kann.
-
-            **Das Dashboard ist nicht dabei.** ``/`` nimmt kein POST an: es
-            haengt am Beamer und ist projiziert, dort soll niemand im
-            Vorbeigehen etwas umstellen."""
-            pfad = _pfad_ohne_praefix(
-                urllib.parse.unquote(urllib.parse.urlsplit(self.path).path), praefix
-            )
-            if not pfad.startswith("/g/"):
-                self._antworte(404, nicht_gefunden_html())
-                return
-            token = pfad[len("/g/"):].strip("/")
-            try:
-                daten = self._koerper()
-            except ValueError as fehler:
-                self._fehler(400, str(fehler))
-                return
-            try:
-                lesend = web_daten.oeffne_lesend(db_pfad)
-                try:
-                    gruppe = web_daten.gruppe_nach_token(lesend, token)
-                finally:
-                    lesend.close()
-                if gruppe is None:
-                    self._antworte(404, nicht_gefunden_html())
-                    return
-                if not nonce_gueltig(schluessel, token, daten.get("nonce")):
-                    self._fehler(
-                        403, "Die Seite ist veraltet — bitte einmal neu laden."
-                    )
-                    return
-                antwort = self._schreibe(gruppe["chat_id"], daten)
-            except web_schreiben.Fehler as fehler:
-                self._fehler(400, str(fehler))
-                return
-            except sqlite3.Error as fehler:
-                self.log_error("Datenbankfehler beim Schreiben: %s", fehler)
-                self._fehler(500, "Die Datenbank ist gerade nicht beschreibbar.")
-                return
-            self._antworte(
-                200,
-                json.dumps(antwort, ensure_ascii=False),
-                "application/json; charset=utf-8",
-            )
-
-        def _koerper(self) -> dict:
-            """Der JSON-Rumpf der Anfrage. Alles, was hier schiefgeht, ist ein
-            Bedienfehler von aussen und wird zu 400, nie zu einem Stacktrace."""
-            try:
-                laenge = int(self.headers.get("Content-Length") or 0)
-            except ValueError:
-                raise ValueError("Ungültige Anfrage.") from None
-            if laenge <= 0:
-                raise ValueError("Leere Anfrage.")
-            if laenge > MAX_POST_BYTES:
-                raise ValueError("Der Text ist zu lang.")
-            try:
-                gelesen = json.loads(self.rfile.read(laenge).decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                raise ValueError("Ungültige Anfrage.") from None
-            if not isinstance(gelesen, dict):
-                raise ValueError("Ungültige Anfrage.")
-            return gelesen
+            _beantworte_post(self, db_pfad, praefix, schluessel)
 
         def _schreibe(self, chat_id: int, daten: dict) -> dict:
             """Der eine Schreibvorgang, auf einer eigenen Verbindung.
@@ -2230,13 +2345,6 @@ def mache_handler(
             finally:
                 conn.close()
 
-        def _fehler(self, status: int, text: str) -> None:
-            """Fehler als Klartext, nicht als JSON: ``_BEARBEITEN_JS`` zeigt
-            den Rumpf einer 4xx-Antwort unveraendert neben dem Feld an, und
-            die Gruppe soll dort einen Satz lesen, keine geschweifte
-            Klammer."""
-            self._antworte(status, text, "text/plain; charset=utf-8")
-
         def _dashboard(self) -> dict:
             conn = web_daten.oeffne_lesend(db_pfad)
             try:
@@ -2250,81 +2358,6 @@ def mache_handler(
                 return web_daten.gruppe_nach_token(conn, token)
             finally:
                 conn.close()
-
-        def _textbuch_datei(self, token: str, name: str) -> None:
-            """Das Textbuch als Datei: ``.md`` und ``.txt``, beide mit
-            demselben Inhalt.
-
-            Der Inhalt kommt aus ``szenenfolge.textbuch`` -- **derselben
-            Funktion**, die der Knopf "Textbuch als Datei" im Chat benutzt.
-            Eine zweite Fassung hier waere eine zweite Wahrheit: die Gruppe
-            haette zwei Textbuecher, die sich irgendwann unterscheiden, und
-            niemand wuesste welches gilt.
-
-            Der Import steht in der Funktion und nicht im Modulkopf, wie bei
-            ``leitfaden``: ``szenenfolge`` zieht den Szenen-Prompt und damit
-            den halben Bot nach, und der Webserver soll ohne das starten
-            koennen, solange niemand ein Textbuch abruft. Gelesen wird ueber
-            die read-only geoeffnete Verbindung -- ``textbuch`` fragt nur ab
-            (``repo.hole_szenen``, ``repo.hole_arbeitsstand``,
-            ``szenenfolge.vorstellung``), es schreibt nichts."""
-            from interview_theater import szenenfolge
-
-            conn = web_daten.oeffne_lesend(db_pfad)
-            try:
-                chat_id = web_daten.chat_id_nach_token(conn, token)
-                if chat_id is None:
-                    self._antworte(404, nicht_gefunden_html())
-                    return
-                inhalt = szenenfolge.textbuch(conn, chat_id)
-            finally:
-                conn.close()
-            typ = (
-                "text/markdown; charset=utf-8"
-                if name.endswith(".md")
-                else "text/plain; charset=utf-8"
-            )
-            self._antworte(200, inhalt, typ, dateiname=name)
-
-        def _antworte(
-            self, status: int, inhalt: str, typ: str = "text/html; charset=utf-8",
-            dateiname: str | None = None,
-        ) -> None:
-            roh = inhalt.encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", typ)
-            self.send_header("Content-Length", str(len(roh)))
-            if dateiname:
-                # Damit das Telefon die Datei ablegt, statt sie im Browser
-                # anzuzeigen -- der Weg in die Probe ist "herunterladen und
-                # weiterschicken". Der Name kommt aus dem Code, nie aus der
-                # URL (keine fremden Zeichen im Header).
-                self.send_header(
-                    "Content-Disposition", f'attachment; filename="{dateiname}"'
-                )
-            # Der Browser soll bei jedem Neuladen wirklich neu fragen --
-            # sonst zeigt der Beamer eine Viertelstunde alte Zahlen.
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(roh)
-
-        def _leitfaden(self, token: str) -> dict | None:
-            """Nur der Arbeitsstand -- die Leitfaden-Seite laedt weder Szenen
-            noch Interviews noch das Journal."""
-            conn = web_daten.oeffne_lesend(db_pfad)
-            try:
-                return web_daten.leitfaden_nach_token(conn, token)
-            finally:
-                conn.close()
-        def log_message(self, format: str, *args) -> None:
-            """Eine Zeile je Anfrage nach stdout (systemd haengt das an
-            betrieb/web.log). Ohne Uhrzeit-Klammern der Vorlage, dafuer mit
-            ISO-Zeit -- damit die Zeilen zu denen des Bots passen."""
-            print(
-                f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} web "
-                f"{self.address_string()} {format % args}",
-                flush=True,
-            )
 
     return Handler
 

@@ -615,259 +615,334 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             # finally vor, wie bei jedem anderen erfolgreichen Zug.
             return
 
-        # Spaete Importe, wie ueberall hier: ``szene`` und ``szenenfolge``
-        # greifen ihrerseits auf ``knoepfe`` zu -- ein Modulimport oben waere
-        # ein Zyklus.
-        from interview_theater import szene, szenenfolge
-
-        # Ein laufender Szenenauftrag ist eine vollstaendige Antwort
-        # (05.09.2026, Testgruppe 22:05): waehrend der Szenenlauf seine
-        # Systemzeilen schickt ("Start frei", "Ich schreibe die Szene aus",
-        # der USA-Hinweis), kommentierte der Gespraechs-Bot sie parallel und
-        # stellte Rueckfragen zu laengst Festgelegtem ("wollt ihr die
-        # Reihenfolge behalten?"). Der Zug faellt deshalb aus; das
-        # Wasserzeichen rueckt im finally trotzdem vor, die Nachrichten
-        # stehen also nicht als unbeantwortet herum. Was die Gruppe WIRKLICH
-        # gefragt hat, geht damit nicht verloren: der Erkenner-Nachlauf
-        # (bot._zug_und_erkenner) laeuft unabhaengig weiter.
-        if szene.laeuft(chat_id):
-            log.info("Gespraechszug unterdrueckt, Szenenlauf laeuft, chat_id=%s", chat_id)
+        if _zug_faellt_aus(conn, tg, klm, e, chat_id, letzte_nachricht):
             return
 
-        # Und derselbe Gedanke eine Sekunde frueher (06.09.2026, Testgruppe
-        # 00:30): ist die ausloesende Nachricht nichts als ein Auftrag ("neu
-        # schreiben"), faellt der Gespraechszug aus, BEVOR der Szenenlauf
-        # ueberhaupt angelaufen ist. Der Erkenner-Nachlauf startet den
-        # Auftrag; dessen eigene Systemzeilen sind die vollstaendige Antwort.
-        #
-        # Ohne das antwortete der Bot am Testabend um 00:30:31 mit "Birk,
-        # klar -- Szene 1 neu. Eine Frage dazu: ...?" und eine Sekunde
-        # spaeter lief die Szene trotzdem los: die Frage war nie eine, sie
-        # stand nur im Weg.
-        if ist_auftrag(letzte_nachricht["text"]):
-            log.info(
-                "Gespraechszug unterdrueckt, Nachricht ist ein Auftrag, chat_id=%s",
-                chat_id,
-            )
-            return
+        text = _erfrage_antwort(conn, klm, e, chat_id, offen, tg, hinweis)
 
-        # "Lies uns Szene 2 vor" (06.09.2026, Nacht-Simulation Punkt 7): die
-        # Gruppe will den WORTLAUT einer Szene sehen. Den hat der
-        # Gespraechs-Bot gar nicht im Kontext (``kontext.baue`` gibt nur die
-        # zuletzt geaenderte Szene) -- in der Simulation hat er deshalb
-        # zusammengefasst statt gezeigt. Hier geht stattdessen der echte
-        # Text aus der Datenbank raus, derselbe Weg wie hinter dem Knopf
-        # "Szene N ansehen"; der Gespraechszug faellt aus. Reiner
-        # Musterabgleich, kein Modellaufruf.
-        gewuenscht = szenentext_gewuenscht(letzte_nachricht["text"])
-        if gewuenscht is not None:
-            log.info(
-                "Gespraechszug unterdrueckt, Szenentext gewuenscht (%s), chat_id=%s",
-                gewuenscht, chat_id,
-            )
-            knoepfe.zeige_szenentext(conn, tg, chat_id, gewuenscht)
-            return
-
-        # Die Regie-Notiz nach "Passt, aber anders" unter einem Szenentext
-        # (05.09.2026, Phase 6): der Bot hat gerade gefragt, was anders werden
-        # soll -- diese eine Nachricht ist die Antwort darauf und geht als
-        # Auftrag in den Szenenlauf, nicht in den Gespraechszug. Ohne das
-        # bekaeme die Gruppe eine freundliche Gespraechsantwort statt einer
-        # neuen Fassung, und die Notiz waere verloren.
-        nummer = szenenfolge.nimm_regienotiz(chat_id)
-        if nummer is not None and (letzte_nachricht["text"] or "").strip():
-            szene.starte(
-                conn, tg, klm, e, chat_id,
-                f"Schreib Szene {nummer} neu. {letzte_nachricht['text'].strip()}",
-            )
-            return
-
-        # Dieselbe Bauart fuer die Kurzgeschichte (06.09.2026, Birk 11:50):
-        # nach "Etwas aendern" unter der fertigen Geschichte ist diese eine
-        # Nachricht die Regie-Notiz -- sie geht als Anweisung in den
-        # naechsten Lauf, nicht in den Gespraechszug.
-        if knoepfe.nimm_geschichte_notiz(chat_id) and (
-            letzte_nachricht["text"] or ""
-        ).strip():
-            from interview_theater import kurzgeschichte
-
-            kurzgeschichte.starte(
-                conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip(),
-            )
-            return
-
-        # Dieselbe Bauart fuer die gesagten Fragennummern (06.09.2026,
-        # 10:05): der Bot hat gerade zehn Fragen ausgeschrieben hingelegt,
-        # und "2, 5 und 9" ist die Antwort darauf. Greift nur, solange der
-        # Vorschlag offen ist (``knoepfe.offene_art`` == "fragen") -- sonst
-        # wuerde jede Nachricht mit einer Zahl darin eine Frageliste
-        # ueberschreiben. Freie Fragen der Gruppe bleiben der Rueckfall ueber
-        # den Erkenner (``fragen_setzen``).
-        if knoepfe.nimm_fragennummern(
-            conn, tg, klm, e, chat_id, letzte_nachricht["text"] or "",
-        ):
-            return
-
-        # Dieselbe Bauart fuer die frei gesagte Figurenanzahl (05.09.2026
-        # abends, "Andere Zahl"): der Bot hat gerade nach einer Zahl gefragt,
-        # diese eine Nachricht ist die Antwort darauf. Steht keine Zahl darin,
-        # geht die Nachricht ganz normal ins Gespraech -- die Gruppe hat dann
-        # etwas anderes gemeint, und ein Bot, der auf einer Zahl beharrt,
-        # waere genau der Kaefig, den es hier nicht gibt.
-        if knoepfe.nimm_figurenanzahl_erwartung(chat_id):
-            anzahl = knoepfe._zahl_aus(letzte_nachricht["text"] or "")
-            if anzahl is not None:
-                knoepfe.uebernimm_figurenanzahl(conn, tg, klm, e, chat_id, anzahl)
-                return
-            tg.sende(chat_id, knoepfe._TEXT_FIGURENZAHL_UNKLAR)
-            knoepfe.erwarte_figurenanzahl(chat_id)
-            return
-
-        with _tippanzeige(tg, chat_id):
-            # Die Phase geht in die Systemanweisung (worauf der Bot gerade den
-            # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die
-            # datengetriebenen Bloecke bleiben unveraendert (phasen.py).
-            phase = phasen.aktuelle(conn, chat_id)
-            # Allererster Zug der Gruppe: die Begruessung entsteht aus der
-            # ersten Nachricht heraus (kontext.ERSTKONTAKT), nicht als fester
-            # Text vorweg (bot.erstkontakt ist seit 04.09. abends nur noch
-            # der Rueckfallweg, wenn der Modellaufruf scheitert).
-            erstkontakt = not repo.hat_bot_nachricht(conn, chat_id)
-            koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt)
-            system = kontext.system(e.bot_name, phase)
-            ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
-            # Das Modell liefert normalerweise {"antwort": "..."}, gelegentlich
-            # aber einen blanken String (gemessen 05.09.2026 im Testlauf:
-            # TypeError 'string indices must be integers' riss den ganzen
-            # Gespraechszug mit, die Gruppe bekam gar nichts). Ein Zug darf an
-            # der Verpackung nicht scheitern -- der Inhalt ist da.
-            if isinstance(ergebnis, str):
-                antwort = ergebnis
-            elif isinstance(ergebnis, dict):
-                antwort = ergebnis.get("antwort") or ""
-            else:
-                antwort = ""
-            if not str(antwort).strip():
-                raise LLMFehler(
-                    "Sprachmodell lieferte keine verwertbare Antwort "
-                    f"(Typ {type(ergebnis).__name__})"
-                )
-            text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort)
-            text = _ohne_echo(conn, klm, e, chat_id, system, koerper, offen, text)
-            if hinweis:
-                text = f"{text}\n\n{hinweis}"
-
-        # Wiederholungsfilter (06.09.2026, Birk: "Insgesamt viel zu viel
-        # Wiederholung"): steckt die Antwort zu ueber WIEDERHOLUNG_ANTEIL
-        # schon in der vorigen Bot-Nachricht, wird sie NICHT verschickt --
-        # ersatzlos, nicht durch eine Entschuldigung ersetzt. Ein Bot, der
-        # nichts Neues zu sagen hat, schweigt; die Gruppe arbeitet weiter,
-        # und die Speicherleiste haengt ohnehin unter der Nachricht, die den
-        # Wert wirklich traegt.
-        #
-        # Kein zweiter Modellaufruf wie beim Echo: das Echo ist ein Fehler
-        # des Modells, den ein Anlauf mit Ermahnung heilt -- eine
-        # Wiederholung ist eine Antwort, die es einfach nicht braucht.
-        vorige = repo.letzte_bot_nachricht_vor(conn, chat_id, letzte_message_id + 1)
-        # **Keine erfundenen Systemzeilen** (06.09.2026, Birk 12:25): sagt
-        # der Gespraechs-Bot "Start frei", "ich schreibe die Szene aus" oder
-        # etwas ueber US-Server und Schweiz, OHNE dass ein Szenenlauf laeuft,
-        # ist die Zeile erfunden -- sie sieht fuer die Gruppe wie ein
-        # laufender Auftrag aus, und es laeuft keiner. Sie wird ersatzlos
-        # verworfen (wie eine Wiederholung), mit Vorfall.
-        if ist_erfundene_systemzeile(text) and not szene.laeuft(chat_id):
-            log.info("Erfundene Systemzeile verworfen, chat_id=%s", chat_id)
-            repo.merke_vorfall(
-                conn, chat_id, getattr(e, "bot_name", None),
-                "gespraech_systemzeile_erfunden",
-                "Antwort klang wie eine Systemzeile des Szenenlaufs, "
-                "ohne dass ein Lauf lief",
-            )
+        if _erfundene_systemzeile(conn, e, chat_id, text):
             versand_erfolgreich = True
             return
-        # 06.09.2026 12:30 (Gruppe 1, live): "Kannst du die zweite
-        # Formulierung umaendern" -> das Modell lieferte den ueberarbeiteten
-        # Vorschlagsblock, der zwangslaeufig zu >60 % aus denselben Woertern
-        # besteht wie der vorige -- und wurde ZWEIMAL als Wiederholung
-        # verworfen; die Gruppe bekam keine Antwort. Ein Vorschlagsblock ist
-        # nie eine sinnlose Wiederholung: er traegt den neuen Wert.
-        from interview_theater import vorschlag as _vorschlag
 
-        traegt_vorschlag = _vorschlag.enthaelt_block(text)
-        if (vorige is not None and not traegt_vorschlag
-                and ist_wiederholung(text, vorige["text"])):
-            log.info("Antwort als Wiederholung verworfen, chat_id=%s", chat_id)
-            repo.merke_vorfall(
-                conn, chat_id, getattr(e, "bot_name", None), "wiederholung_verworfen",
-                "Modellantwort stand zu ueber "
-                f"{int(WIEDERHOLUNG_ANTEIL * 100)} % schon in der vorigen Bot-Nachricht",
-            )
+        if _wiederholt_die_vorige(conn, e, chat_id, text, letzte_message_id):
             versand_erfolgreich = True
             knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
             return
 
-        # Die Speicher-Leiste (05.09.2026): enthaelt die Antwort einen
-        # Vorschlagsblock (``vorschlag.py``) fuer das, was gerade fehlt --
-        # Begriffe in Phase 1, Fragen in 2, Kernthema/Figuren in 4 --, haengen
-        # "So speichern" und "Nochmal anders" darunter. Ohne Block gibt es
-        # nur den Text; geraten wird nichts. Die Markerzeilen fallen dabei
-        # weg, die Gruppe sieht sie nie.
-        #
-        # Faellt die Tastatur aus (Telegram-Fehler), geht der Text trotzdem
-        # raus: die Antwort ist wichtiger als ihre Knoepfe.
-        try:
-            message_id, _ = knoepfe.sende_mit_speicherleiste(conn, tg, chat_id, text)
-            text = vorschlag.ohne_marker(text) or text
-        except Exception:
-            log.exception("Speicher-Leiste fehlgeschlagen, chat_id=%s", chat_id)
-            text = vorschlag.ohne_marker(text) or text
-            message_id = tg.sende(chat_id, text)
+        message_id, text = _sende_mit_leiste(conn, tg, chat_id, text)
         versand_erfolgreich = True
-        # Die Antwort des Modells wird als Bot-Nachricht mitgeschrieben, damit
-        # sie im Verlaufsfenster des naechsten Zuges steht (kontext.baue liest
-        # sie ueber repo.letzte_nachrichten mit) -- sonst wuerde das Modell
-        # seine eigenen frueheren Aeusserungen vergessen.
-        repo.merke_nachricht(
-            conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),
-        )
-        # Proaktiv zur naechsten Phase (06.09.2026, Birk nach der
-        # Testgruppe): steht alles Noetige, sagt der Bot es SOFORT und in
-        # einer eigenen, kurzen Nachricht -- nicht als vierter Knopf unter
-        # einem langen Text. Gemessen am Testabend: neun angebotene
-        # Phasenknoepfe, null Druecke.
-        #
-        # Der Merkposten ist derselbe wie fuer den Prompt-Hinweis
-        # (``phasen.offenes_angebot``), es gibt also EIN Angebot je Stufe --
-        # hat ``kontext.baue`` den Hinweis in diesem Zug schon gesetzt, ist
-        # hier nichts mehr offen und es bleibt bei der einen Frage im Fluss.
-        # Ein Fehlschlag darf die Antwort nicht nachtraeglich zum Fehlerfall
-        # machen: sie steht schon in der Gruppe.
-        try:
-            knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
-        except Exception:
-            log.exception("Phasenangebot fehlgeschlagen, chat_id=%s", chat_id)
+        _nach_dem_senden(conn, tg, e, chat_id, message_id, text)
     except Exception:
         log.exception("Gespraechszug fehlgeschlagen, chat_id=%s", chat_id)
-        repo.merke_vorfall(
-            conn, chat_id, getattr(e, "bot_name", None), "gespraechszug_fehlgeschlagen",
-            "Sprachmodell-Aufruf im Gespraechszug fehlgeschlagen" if not versand_erfolgreich
-            else "Bot-Antwort in 'nachricht' mitzuschreiben ist fehlgeschlagen, obwohl "
-                 "die Antwort schon in der Gruppe steht",
-        )
-        if not versand_erfolgreich:
-            # Nur melden, wenn die Gruppe noch KEINE Antwort bekommen hat.
-            # Beim allerersten Zug lieber die feste Begruessung als eine
-            # Fehlerzeile -- die Gruppe soll nicht mit "hakt gerade" anfangen.
-            try:
-                if not repo.hat_bot_nachricht(conn, chat_id):
-                    from interview_theater import bot as _bot
-                    _bot.erstkontakt(conn, tg, e, chat_id)
-                else:
-                    tg.sende(chat_id, _TEXT_FEHLER)
-            except Exception:
-                log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
+        _melde_fehler(conn, tg, e, chat_id, versand_erfolgreich)
     finally:
         repo.setze_beantwortet_bis(conn, chat_id, letzte_message_id)
+
+
+def _nach_dem_senden(conn, tg, e, chat_id: int, message_id: int, text: str) -> None:
+    """Was nach einer verschickten Antwort noch faellig ist: mitschreiben und
+    das Phasenangebot.
+
+    Die Antwort des Modells wird als Bot-Nachricht mitgeschrieben, damit sie im
+    Verlaufsfenster des naechsten Zuges steht (``kontext.baue`` liest sie ueber
+    ``repo.letzte_nachrichten`` mit) -- sonst wuerde das Modell seine eigenen
+    frueheren Aeusserungen vergessen.
+
+    Proaktiv zur naechsten Phase (06.09.2026, Birk nach der Testgruppe): steht
+    alles Noetige, sagt der Bot es SOFORT und in einer eigenen, kurzen
+    Nachricht -- nicht als vierter Knopf unter einem langen Text. Gemessen am
+    Testabend: neun angebotene Phasenknoepfe, null Druecke. Der Merkposten ist
+    derselbe wie fuer den Prompt-Hinweis (``phasen.offenes_angebot``), es gibt
+    also EIN Angebot je Stufe -- hat ``kontext.baue`` den Hinweis in diesem Zug
+    schon gesetzt, ist hier nichts mehr offen und es bleibt bei der einen Frage
+    im Fluss. Ein Fehlschlag darf die Antwort nicht nachtraeglich zum
+    Fehlerfall machen: sie steht schon in der Gruppe."""
+    repo.merke_nachricht(
+        conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),
+    )
+    try:
+        knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
+    except Exception:
+        log.exception("Phasenangebot fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def _wiederholt_die_vorige(conn, e, chat_id: int, text: str,
+                           letzte_message_id: int) -> bool:
+    """Der Wiederholungsfilter (06.09.2026, Birk: "Insgesamt viel zu viel
+    Wiederholung"): steckt die Antwort zu ueber ``WIEDERHOLUNG_ANTEIL`` schon
+    in der vorigen Bot-Nachricht, wird sie NICHT verschickt -- ersatzlos, nicht
+    durch eine Entschuldigung ersetzt. Ein Bot, der nichts Neues zu sagen hat,
+    schweigt; die Gruppe arbeitet weiter, und die Speicherleiste haengt ohnehin
+    unter der Nachricht, die den Wert wirklich traegt.
+
+    Kein zweiter Modellaufruf wie beim Echo: das Echo ist ein Fehler des
+    Modells, den ein Anlauf mit Ermahnung heilt -- eine Wiederholung ist eine
+    Antwort, die es einfach nicht braucht.
+
+    **Ein Vorschlagsblock ist nie eine sinnlose Wiederholung** (06.09.2026
+    12:30, Gruppe 1 live): "Kannst du die zweite Formulierung umaendern" ->
+    das Modell lieferte den ueberarbeiteten Vorschlagsblock, der zwangslaeufig
+    zu ueber 60 % aus denselben Woertern besteht wie der vorige -- und wurde
+    ZWEIMAL verworfen; die Gruppe bekam keine Antwort. Er traegt den neuen
+    Wert und geht deshalb immer raus."""
+    from interview_theater import vorschlag as _vorschlag
+
+    vorige = repo.letzte_bot_nachricht_vor(conn, chat_id, letzte_message_id + 1)
+    if vorige is None or _vorschlag.enthaelt_block(text):
+        return False
+    if not ist_wiederholung(text, vorige["text"]):
+        return False
+    log.info("Antwort als Wiederholung verworfen, chat_id=%s", chat_id)
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None), "wiederholung_verworfen",
+        "Modellantwort stand zu ueber "
+        f"{int(WIEDERHOLUNG_ANTEIL * 100)} % schon in der vorigen Bot-Nachricht",
+    )
+    return True
+
+
+def _erfundene_systemzeile(conn, e, chat_id: int, text: str) -> bool:
+    """**Keine erfundenen Systemzeilen** (06.09.2026, Birk 12:25): sagt der
+    Gespraechs-Bot "Start frei", "ich schreibe die Szene aus" oder etwas ueber
+    US-Server und Schweiz, OHNE dass ein Szenenlauf laeuft, ist die Zeile
+    erfunden -- sie sieht fuer die Gruppe wie ein laufender Auftrag aus, und es
+    laeuft keiner. Sie wird ersatzlos verworfen (wie eine Wiederholung), mit
+    Vorfall."""
+    from interview_theater import szene
+
+    if not ist_erfundene_systemzeile(text) or szene.laeuft(chat_id):
+        return False
+    log.info("Erfundene Systemzeile verworfen, chat_id=%s", chat_id)
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None),
+        "gespraech_systemzeile_erfunden",
+        "Antwort klang wie eine Systemzeile des Szenenlaufs, "
+        "ohne dass ein Lauf lief",
+    )
+    return True
+
+
+def _melde_fehler(conn, tg, e, chat_id: int, versand_erfolgreich: bool) -> None:
+    """Der Vorfall zum gescheiterten Zug -- und die Zeile an die Gruppe, aber
+    nur, wenn sie noch KEINE Antwort bekommen hat."""
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None), "gespraechszug_fehlgeschlagen",
+        "Sprachmodell-Aufruf im Gespraechszug fehlgeschlagen" if not versand_erfolgreich
+        else "Bot-Antwort in 'nachricht' mitzuschreiben ist fehlgeschlagen, obwohl "
+             "die Antwort schon in der Gruppe steht",
+    )
+    if versand_erfolgreich:
+        return
+    # Beim allerersten Zug lieber die feste Begruessung als eine Fehlerzeile --
+    # die Gruppe soll nicht mit "hakt gerade" anfangen.
+    try:
+        if not repo.hat_bot_nachricht(conn, chat_id):
+            from interview_theater import bot as _bot
+            _bot.erstkontakt(conn, tg, e, chat_id)
+        else:
+            tg.sende(chat_id, _TEXT_FEHLER)
+    except Exception:
+        log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def _zug_faellt_aus(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> bool:
+    """Die Vorfahrtsregeln vor dem Gespraechszug: liefert True, wenn dieser Zug
+    ausfaellt, weil die Nachricht schon anderswo beantwortet ist.
+
+    Alle sieben Faelle haben denselben Grund -- **zwei Antworten auf dieselbe
+    Nachricht sind eine zu viel**. Das Wasserzeichen rueckt im ``finally`` von
+    ``antworte`` trotzdem vor, die Nachrichten stehen also nicht als
+    unbeantwortet herum; und der Erkenner-Nachlauf (``bot._zug_und_erkenner``)
+    laeuft unabhaengig weiter."""
+    return _szene_hat_vorfahrt(
+        conn, tg, klm, e, chat_id, letzte_nachricht
+    ) or _war_die_erwartete_antwort(conn, tg, klm, e, chat_id, letzte_nachricht)
+
+
+def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> bool:
+    """Die fuenf Faelle, in denen der Szenenweg die Nachricht beantwortet."""
+    # Spaete Importe, wie ueberall hier: ``szene`` und ``szenenfolge``
+    # greifen ihrerseits auf ``knoepfe`` zu -- ein Modulimport oben waere
+    # ein Zyklus.
+    from interview_theater import szene, szenenfolge
+
+    # Ein laufender Szenenauftrag ist eine vollstaendige Antwort
+    # (05.09.2026, Testgruppe 22:05): waehrend der Szenenlauf seine
+    # Systemzeilen schickt ("Start frei", "Ich schreibe die Szene aus",
+    # der USA-Hinweis), kommentierte der Gespraechs-Bot sie parallel und
+    # stellte Rueckfragen zu laengst Festgelegtem ("wollt ihr die
+    # Reihenfolge behalten?").
+    if szene.laeuft(chat_id):
+        log.info("Gespraechszug unterdrueckt, Szenenlauf laeuft, chat_id=%s", chat_id)
+        return True
+
+    # Und derselbe Gedanke eine Sekunde frueher (06.09.2026, Testgruppe
+    # 00:30): ist die ausloesende Nachricht nichts als ein Auftrag ("neu
+    # schreiben"), faellt der Gespraechszug aus, BEVOR der Szenenlauf
+    # ueberhaupt angelaufen ist. Der Erkenner-Nachlauf startet den
+    # Auftrag; dessen eigene Systemzeilen sind die vollstaendige Antwort.
+    #
+    # Ohne das antwortete der Bot am Testabend um 00:30:31 mit "Birk,
+    # klar -- Szene 1 neu. Eine Frage dazu: ...?" und eine Sekunde
+    # spaeter lief die Szene trotzdem los: die Frage war nie eine, sie
+    # stand nur im Weg.
+    if ist_auftrag(letzte_nachricht["text"]):
+        log.info(
+            "Gespraechszug unterdrueckt, Nachricht ist ein Auftrag, chat_id=%s",
+            chat_id,
+        )
+        return True
+
+    # "Lies uns Szene 2 vor" (06.09.2026, Nacht-Simulation Punkt 7): die
+    # Gruppe will den WORTLAUT einer Szene sehen. Den hat der
+    # Gespraechs-Bot gar nicht im Kontext (``kontext.baue`` gibt nur die
+    # zuletzt geaenderte Szene) -- in der Simulation hat er deshalb
+    # zusammengefasst statt gezeigt. Hier geht stattdessen der echte
+    # Text aus der Datenbank raus, derselbe Weg wie hinter dem Knopf
+    # "Szene N ansehen". Reiner Musterabgleich, kein Modellaufruf.
+    gewuenscht = szenentext_gewuenscht(letzte_nachricht["text"])
+    if gewuenscht is not None:
+        log.info(
+            "Gespraechszug unterdrueckt, Szenentext gewuenscht (%s), chat_id=%s",
+            gewuenscht, chat_id,
+        )
+        knoepfe.zeige_szenentext(conn, tg, chat_id, gewuenscht)
+        return True
+
+    # Die Regie-Notiz nach "Passt, aber anders" unter einem Szenentext
+    # (05.09.2026, Phase 6): der Bot hat gerade gefragt, was anders werden
+    # soll -- diese eine Nachricht ist die Antwort darauf und geht als
+    # Auftrag in den Szenenlauf, nicht in den Gespraechszug. Ohne das
+    # bekaeme die Gruppe eine freundliche Gespraechsantwort statt einer
+    # neuen Fassung, und die Notiz waere verloren.
+    nummer = szenenfolge.nimm_regienotiz(chat_id)
+    if nummer is not None and (letzte_nachricht["text"] or "").strip():
+        szene.starte(
+            conn, tg, klm, e, chat_id,
+            f"Schreib Szene {nummer} neu. {letzte_nachricht['text'].strip()}",
+        )
+        return True
+
+    # Dieselbe Bauart fuer die Kurzgeschichte (06.09.2026, Birk 11:50):
+    # nach "Etwas aendern" unter der fertigen Geschichte ist diese eine
+    # Nachricht die Regie-Notiz -- sie geht als Anweisung in den
+    # naechsten Lauf, nicht in den Gespraechszug.
+    if knoepfe.nimm_geschichte_notiz(chat_id) and (
+        letzte_nachricht["text"] or ""
+    ).strip():
+        from interview_theater import kurzgeschichte
+
+        kurzgeschichte.starte(
+            conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip(),
+        )
+        return True
+
+    return False
+
+
+def _war_die_erwartete_antwort(conn, tg, klm, e, chat_id: int,
+                               letzte_nachricht) -> bool:
+    """Die zwei Faelle, in denen der Bot gerade nach etwas Bestimmtem gefragt
+    hat und diese eine Nachricht die Antwort darauf ist."""
+    # Dieselbe Bauart fuer die gesagten Fragennummern (06.09.2026,
+    # 10:05): der Bot hat gerade zehn Fragen ausgeschrieben hingelegt,
+    # und "2, 5 und 9" ist die Antwort darauf. Greift nur, solange der
+    # Vorschlag offen ist (``knoepfe.offene_art`` == "fragen") -- sonst
+    # wuerde jede Nachricht mit einer Zahl darin eine Frageliste
+    # ueberschreiben. Freie Fragen der Gruppe bleiben der Rueckfall ueber
+    # den Erkenner (``fragen_setzen``).
+    if knoepfe.nimm_fragennummern(
+        conn, tg, klm, e, chat_id, letzte_nachricht["text"] or "",
+    ):
+        return True
+
+    # Dieselbe Bauart fuer die frei gesagte Figurenanzahl (05.09.2026
+    # abends, "Andere Zahl"): der Bot hat gerade nach einer Zahl gefragt,
+    # diese eine Nachricht ist die Antwort darauf. Steht keine Zahl darin,
+    # geht die Nachricht ganz normal ins Gespraech -- die Gruppe hat dann
+    # etwas anderes gemeint, und ein Bot, der auf einer Zahl beharrt,
+    # waere genau der Kaefig, den es hier nicht gibt.
+    if knoepfe.nimm_figurenanzahl_erwartung(chat_id):
+        anzahl = knoepfe._zahl_aus(letzte_nachricht["text"] or "")
+        if anzahl is not None:
+            knoepfe.uebernimm_figurenanzahl(conn, tg, klm, e, chat_id, anzahl)
+            return True
+        tg.sende(chat_id, knoepfe._TEXT_FIGURENZAHL_UNKLAR)
+        knoepfe.erwarte_figurenanzahl(chat_id)
+        return True
+
+    return False
+
+
+def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
+                     hinweis: str | None) -> str:
+    """Der eigentliche Gespraechszug: Kontext bauen, Modell fragen, Antwort
+    saeubern. Liefert den fertigen Text, wirft bei einer unbrauchbaren
+    Modellantwort ``LLMFehler``.
+
+    Die Tippanzeige laeuft ueber den ganzen Aufruf -- auch ueber die
+    Nachfassaufrufe in ``_ohne_denkspur`` und ``_ohne_echo``, die aus Sicht der
+    Gruppe zur selben Wartezeit gehoeren."""
+    with _tippanzeige(tg, chat_id):
+        # Die Phase geht in die Systemanweisung (worauf der Bot gerade den
+        # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die
+        # datengetriebenen Bloecke bleiben unveraendert (phasen.py).
+        phase = phasen.aktuelle(conn, chat_id)
+        # Allererster Zug der Gruppe: die Begruessung entsteht aus der
+        # ersten Nachricht heraus (kontext.ERSTKONTAKT), nicht als fester
+        # Text vorweg (bot.erstkontakt ist seit 04.09. abends nur noch
+        # der Rueckfallweg, wenn der Modellaufruf scheitert).
+        erstkontakt = not repo.hat_bot_nachricht(conn, chat_id)
+        koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt)
+        system = kontext.system(e.bot_name, phase)
+        ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
+        antwort = _antworttext(ergebnis)
+        if not str(antwort).strip():
+            raise LLMFehler(
+                "Sprachmodell lieferte keine verwertbare Antwort "
+                f"(Typ {type(ergebnis).__name__})"
+            )
+        text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort)
+        text = _ohne_echo(conn, klm, e, chat_id, system, koerper, offen, text)
+        if hinweis:
+            text = f"{text}\n\n{hinweis}"
+    return text
+
+
+def _antworttext(ergebnis) -> str:
+    """Der Antworttext aus dem, was das Modell geliefert hat.
+
+    Normalerweise ``{"antwort": "..."}``, gelegentlich aber ein blanker String
+    (gemessen 05.09.2026 im Testlauf: TypeError 'string indices must be
+    integers' riss den ganzen Gespraechszug mit, die Gruppe bekam gar nichts).
+    Ein Zug darf an der Verpackung nicht scheitern -- der Inhalt ist da."""
+    if isinstance(ergebnis, str):
+        return ergebnis
+    if isinstance(ergebnis, dict):
+        return ergebnis.get("antwort") or ""
+    return ""
+
+
+def _sende_mit_leiste(conn, tg, chat_id: int, text: str) -> tuple[int, str]:
+    """Schickt die Antwort mit der Speicher-Leiste und liefert
+    ``(message_id, text_ohne_marker)`` -- den Text so, wie er auch in
+    ``nachricht`` mitgeschrieben wird.
+
+    Die Speicher-Leiste (05.09.2026): enthaelt die Antwort einen
+    Vorschlagsblock (``vorschlag.py``) fuer das, was gerade fehlt -- Begriffe
+    in Phase 1, Fragen in 2, Kernthema/Figuren in 4 --, haengen "So speichern"
+    und "Nochmal anders" darunter. Ohne Block gibt es nur den Text; geraten
+    wird nichts. Die Markerzeilen fallen dabei weg, die Gruppe sieht sie nie.
+
+    Faellt die Tastatur aus (Telegram-Fehler), geht der Text trotzdem raus: die
+    Antwort ist wichtiger als ihre Knoepfe."""
+    try:
+        message_id, _ = knoepfe.sende_mit_speicherleiste(conn, tg, chat_id, text)
+        return message_id, vorschlag.ohne_marker(text) or text
+    except Exception:
+        log.exception("Speicher-Leiste fehlgeschlagen, chat_id=%s", chat_id)
+        sauber = vorschlag.ohne_marker(text) or text
+        return tg.sende(chat_id, sauber), sauber
 
 
 def bearbeite(conn, tg, klm, e, chat_id: int, hinweis: str | None = None) -> None:

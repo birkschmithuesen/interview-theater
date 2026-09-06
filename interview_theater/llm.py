@@ -274,6 +274,63 @@ class LLM:
         ohne Angabe auf MAX_TOKENS zurueck, ``timeout`` auf den des
         httpx.Client -- beide werden nur von Aufrufen mit aktivem Reasoning
         heraufgesetzt (siehe ``prosa``)."""
+        body = self._baue_body(
+            system=system, nutzer=nutzer, response_format=response_format,
+            reasoning_effort=reasoning_effort, modell=modell,
+            temperature=temperature, max_tokens=max_tokens,
+        )
+
+        geschaetzte_token = (len(system) + len(nutzer)) // 3
+        tatsaechliche_token = antwort_token = finish_reason = None
+        erfolg = 0
+        start = time.monotonic()
+        try:
+            koerper = self._sende_mit_wiederholung(
+                body, chat_id=chat_id, art=art, timeout=timeout
+            )
+            try:
+                auswahl = koerper["choices"][0]
+            except (KeyError, IndexError, TypeError) as fehler:
+                raise LLMFehler(f"keine choices in der Antwort: {fehler}") from fehler
+
+            finish_reason = auswahl.get("finish_reason")
+            nutzung = koerper.get("usage") or {}
+            tatsaechliche_token = nutzung.get("prompt_tokens")
+            antwort_token = nutzung.get("completion_tokens")
+
+            if finish_reason == "length":
+                self._melde_abgeschnitten(chat_id, art)
+
+            erfolg = 1
+            return koerper
+        finally:
+            dauer_ms = int((time.monotonic() - start) * 1000)
+            repo.merke_aufruf(
+                self._conn,
+                chat_id,
+                art,
+                modus,
+                geschaetzte_token,
+                tatsaechliche_token,
+                antwort_token,
+                finish_reason,
+                dauer_ms,
+                erfolg,
+            )
+
+    def _baue_body(
+        self,
+        *,
+        system: str,
+        nutzer: str,
+        response_format: dict | None,
+        reasoning_effort: str | None,
+        modell: str | None,
+        temperature: float | None,
+        max_tokens: int | None,
+    ) -> dict:
+        """Der Request-Koerper. Enthaelt die eine Falle, die diesem Modul den
+        Moduldocstring wert war -- siehe ``reasoning_effort`` unten."""
         body: dict = {
             "model": modell or self._e.llm_modell,
             "max_tokens": max_tokens or MAX_TOKENS,
@@ -306,59 +363,24 @@ class LLM:
         if reasoning_effort is None:
             reasoning_effort = "none"
         body["reasoning_effort"] = reasoning_effort
+        return body
 
-        geschaetzte_token = (len(system) + len(nutzer)) // 3
-        tatsaechliche_token = antwort_token = finish_reason = None
-        erfolg = 0
-        start = time.monotonic()
-        try:
-            koerper = self._sende_mit_wiederholung(
-                body, chat_id=chat_id, art=art, timeout=timeout
-            )
-            try:
-                auswahl = koerper["choices"][0]
-            except (KeyError, IndexError, TypeError) as fehler:
-                raise LLMFehler(f"keine choices in der Antwort: {fehler}") from fehler
-
-            finish_reason = auswahl.get("finish_reason")
-            nutzung = koerper.get("usage") or {}
-            tatsaechliche_token = nutzung.get("prompt_tokens")
-            antwort_token = nutzung.get("completion_tokens")
-
-            if finish_reason == "length":
-                # Fehlerbild 3 (Moduldocstring): niemals ein leeres Ergebnis
-                # durchreichen, sondern Fehler plus Vorfall. Ausdruecklich
-                # als Budgetproblem benannt (max_tokens zu klein), nicht als
-                # Formatproblem -- wer das im Log liest, soll nicht nach
-                # einem Parserfehler suchen.
-                repo.merke_vorfall(
-                    self._conn,
-                    chat_id,
-                    getattr(self._e, "bot_name", None),
-                    "abgeschnitten",
-                    f"Sprachmodell-Antwort abgeschnitten, max_tokens zu klein (art={art})",
-                )
-                raise LLMFehler(
-                    "Sprachmodell-Antwort abgeschnitten: max_tokens zu klein fuer diese "
-                    "Aufgabe (finish_reason: length) -- kein Formatfehler, ein Budgetproblem."
-                )
-
-            erfolg = 1
-            return koerper
-        finally:
-            dauer_ms = int((time.monotonic() - start) * 1000)
-            repo.merke_aufruf(
-                self._conn,
-                chat_id,
-                art,
-                modus,
-                geschaetzte_token,
-                tatsaechliche_token,
-                antwort_token,
-                finish_reason,
-                dauer_ms,
-                erfolg,
-            )
+    def _melde_abgeschnitten(self, chat_id: int | None, art: str) -> None:
+        """Fehlerbild 3 (Moduldocstring): niemals ein leeres Ergebnis
+        durchreichen, sondern Fehler plus Vorfall. Ausdruecklich als
+        Budgetproblem benannt (max_tokens zu klein), nicht als Formatproblem --
+        wer das im Log liest, soll nicht nach einem Parserfehler suchen."""
+        repo.merke_vorfall(
+            self._conn,
+            chat_id,
+            getattr(self._e, "bot_name", None),
+            "abgeschnitten",
+            f"Sprachmodell-Antwort abgeschnitten, max_tokens zu klein (art={art})",
+        )
+        raise LLMFehler(
+            "Sprachmodell-Antwort abgeschnitten: max_tokens zu klein fuer diese "
+            "Aufgabe (finish_reason: length) -- kein Formatfehler, ein Budgetproblem."
+        )
 
     def _sende_mit_wiederholung(
         self, body: dict, *, chat_id: int | None, art: str, timeout: float | None = None

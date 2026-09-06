@@ -29,6 +29,7 @@ Module unter `interview_theater/`:
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
 | `phasen.py` | Die sieben Arbeitsphasen: Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
+| `fehlstellen.py` | Das Fehlstellen-Register (06.09.2026): was der Gruppe noch fehlt, als Sätze. Reine Leseabfrage wie `phasen.voraussetzungen`, kein Modellaufruf; `aus_daten` ist rein, `register` liest über `repo`, `web_daten.fehlstellen` read-only |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
 | `szene.py` | Szenentexte: eigener Prompt (Struktur statt Transkript, ein Regelblock je Form), eigener Thread, als einziger Aufruf mit Reasoning AN, Sperre vor dem Aufruf gegen fehlende Pflichtfelder |
@@ -530,6 +531,29 @@ lädt, würde damit Gesprächszüge ausbremsen.
   „US-Server"/„Schweiz" ohne laufenden Lauf wird verworfen
   (`ablauf.ist_erfundene_systemzeile`, Vorfall
   `gespraech_systemzeile_erfunden`), und `system.md` verbietet die Ansage.
+
+- **Was fehlt, steht neben dem, was dasteht** (06.09.2026,
+  `fehlstellen.py`). `/stand` und die Gruppenseite zeigten bis dahin nur den
+  gefüllten Arbeitsstand; woran die Gruppe als nächstes arbeiten müsste,
+  musste sie sich aus sieben Blöcken mit „noch offen"-Zeilen selbst
+  zusammenreimen. Das Register dreht dieselbe Datenlage um und liefert je
+  Fehlstelle `bereich`, einen deutschen Satz, `szene`/`figur` wo zutreffend
+  und die Phase, in der das dranwäre. **Reine Leseabfrage, kein
+  Modellaufruf**, wie `phasen.voraussetzungen` — und geprüft wird genau das,
+  woran der Code schon hängt (`phasen.voraussetzungen`,
+  `szene.PFLICHTFELDER`, `aufnahme.unausgewertete_interviews`,
+  Ebene 2 der Figuren erst ab Phase 5 wie in `knoepfe.ebene2_erlaubt`); eine
+  zweite, frei erfundene Wunschliste wäre der erste Stand, der ausschert.
+  Ausgespielt wird an genau **zwei bestehenden Orten** — ein Abschnitt in
+  `/stand` und einer auf der Gruppenseite —, **nur wenn es Fehlstellen
+  gibt** (eine Zeile „nichts fehlt" ist Lärm), höchstens `HOECHSTENS` = 8
+  Zeilen. Kein neuer Knopf, keine eigene Bot-Nachricht. Sortiert wird nach
+  Arbeits-, nicht nach Phasenreihenfolge: erst die aktuelle Phase, dann der
+  Rückstand aus früheren (er blockiert), dann das Kommende. Wie beim
+  Leitfaden gibt es **einen Zusammenbau und zwei Aufrufer**: `aus_daten` ist
+  rein und kennt nur Dicts, `register` holt sie über `repo`,
+  `web_daten.fehlstellen` über die read-only geöffnete Verbindung — der
+  Webserver bekommt dadurch keinen `repo`-Pfad.
 
 - **Der Stil ist eine Auswahl je Szene, kein Overlay je Bot** (06.09.2026,
   Birk 12:50, `stile.py` + `prompts/stile/<slug>.md`). Birk: „alle Gruppen

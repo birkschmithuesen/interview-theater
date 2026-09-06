@@ -485,7 +485,7 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     Kernthema und Hauptkonflikt stehen weiter am Ende: sie sind seit dem
     Umbau vom 05.09.2026 keiner Phase mehr zugeordnet, bleiben aber
     rueckwaertskompatibel im Code und in bestehenden Gruppen."""
-    from interview_theater import phasentexte
+    from interview_theater import fehlstellen, phasentexte
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
     gruppe = repo.hole_gruppe(conn, chat_id)
@@ -515,6 +515,16 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     if fassungen:
         zeilen.append("Was bisher passiert:")
         zeilen.extend(fassungen)
+        zeilen.append("")
+    # Und was noch fehlt (06.09.2026): dieselbe Datenlage, andere Richtung.
+    # Die Phasenbloecke oben sagen, was **dasteht**; diese Liste macht daraus
+    # eine Arbeitsliste. Sie erscheint **nur, wenn es Fehlstellen gibt** --
+    # eine Zeile "nichts fehlt" waere Laerm. Reine Leseabfrage
+    # (``fehlstellen.zeilen``), kein Modellaufruf.
+    offen = fehlstellen.zeilen(conn, chat_id)
+    if offen:
+        zeilen.append(f"{fehlstellen.UEBERSCHRIFT}:")
+        zeilen.extend(offen)
         zeilen.append("")
     if stand and stand["kernthema"]:
         zeilen.append(f"Kernthema: {stand['kernthema']}")

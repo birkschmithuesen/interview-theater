@@ -387,6 +387,11 @@ table.uebersicht .umfang { white-space: nowrap; opacity: .7;
 /* Die Schaerfung: read-only, deshalb ohne Kasten und ohne Knopf. */
 .schaerfung { font-size: .85rem; margin: .3rem 0 .5rem; opacity: .85; }
 .schaerfung ul { margin: .1rem 0 0; }
+/* Das Fehlstellen-Register: eine Arbeitsliste, kein Alarm -- deshalb
+   dieselbe Papierfarbe wie der Rest und nur ein Strich an der Seite. */
+ul.fehlstellen { list-style: none; padding: 0 0 0 .7rem; margin: .2rem 0;
+                 border-left: 3px solid #c9b98d; }
+ul.fehlstellen li { margin: .3rem 0; }
 .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
 .figur .marke { font-size: .78rem; opacity: .6; }
 .hinzu { margin-top: .8rem; }
@@ -533,6 +538,27 @@ def _leitfaden_html(arbeitsstand: dict) -> str:
     if text == leitfaden.TEXT_LEER:
         return ""
     return f"<dt>Leitfaden</dt><dd><pre class=\"leitfaden\">{_t(text)}</pre></dd>"
+
+
+def _fehlstellen_html(eintraege: list[dict] | None) -> str:
+    """Der Abschnitt „Was noch fehlt" -- oder gar nichts (06.09.2026).
+
+    **Nur, wenn es Fehlstellen gibt.** Eine Ueberschrift mit der Zeile
+    „nichts fehlt" waere Laerm auf einer Seite, die sich alle zehn Sekunden
+    selbst nachlaedt. Read-only, ohne Knopf: die Liste ist ein Vorschlag,
+    keine Aufgabe, die man hier abhakt.
+
+    Der Text kommt aus ``fehlstellen.aus_daten`` -- derselben Funktion, aus
+    der auch ``/stand`` liest."""
+    if not eintraege:
+        return ""
+    from interview_theater import fehlstellen
+
+    zeilen = "".join(f"<li>{_t(e['text'])}</li>" for e in eintraege)
+    return (
+        f"<h2>{html.escape(fehlstellen.UEBERSCHRIFT)}</h2>"
+        f'<ul class="fehlstellen">{zeilen}</ul>'
+    )
 
 
 def _figur_html(f: dict, mit_stimme: bool) -> str:
@@ -1266,6 +1292,10 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
         f"<h1>{_t(titel)}</h1>\n"
         "<h2>Arbeitsstand</h2>"
         f"{stand}\n"
+        # „Was noch fehlt" steht direkt unter dem Arbeitsstand: es ist
+        # dieselbe Datenlage in der anderen Richtung (06.09.2026). Fehlt
+        # nichts, fehlt auch der Abschnitt.
+        f"{_fehlstellen_html(daten.get('fehlstellen'))}\n"
         f"<h2>Szenen</h2>{uebersicht}{szenen}\n"
         f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
         "<h2>Der Weg dahin</h2>"

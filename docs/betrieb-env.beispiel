@@ -47,3 +47,25 @@ IT_WEB_URL=https://lab.artesmobiles.art/theatersoap
 IT_SZENE_ANBIETER=claude
 # IT_SZENE_URL=http://127.0.0.1:28764/v1/messages
 # IT_SZENE_MODELL=claude-opus-5
+
+# --- Deckel, die ohne Neustart wirken sollen ------------------------------
+# Beide sind Notschrauben fuer den Workshoptag und haben brauchbare
+# Vorgabewerte -- eingetragen werden sie nur, wenn eine Messung dazu Anlass
+# gibt (06.09.2026 nachgetragen: sie fehlten hier, obwohl der Code sie liest).
+#
+# Harte Zeichengrenze des Gespraechs-Nutzertexts (kontext.zeichengrenze,
+# Vorgabe 24000). Darueber greift die Kuerzungsleiter Verlauf -> Journal ->
+# Verdichtungen, Vorfall 'kontext_gekuerzt'.
+# IT_PROMPT_ZEICHEN=24000
+#
+# Token-Budget der EINGABE des Szenenlaufs (szene.token_budget). Ohne Angabe
+# rechnet der Code es je Anbieter aus: 126000 bei Claude, 37488 bei
+# Infomaniak. Nur setzen, wenn ein Anbieter seine Grenzen aendert.
+# IT_SZENE_TOKEN_MAX=
+
+# --- Nur fuer den Webdienst, nicht fuer einen Bot-Prozess -----------------
+# Diese beiden liest ausschliesslich `python -m interview_theater.web`; sie
+# gehoeren in die Env der Web-Unit, nicht hierher. Hier stehen sie zur
+# Vollstaendigkeit, damit die Liste der IT_-Variablen an einer Stelle steht.
+# IT_WEB_BIND=127.0.0.1:8010     # 0.0.0.0 wird abgelehnt (kein Login!)
+# IT_WEB_PREFIX=/theatersoap     # Praefix, unter dem nginx durchreicht

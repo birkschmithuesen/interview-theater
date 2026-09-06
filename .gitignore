@@ -57,3 +57,7 @@ simulation/berichte/*
 # enthalten Belegzitate aus den Szenentexten der Gruppe und bleiben lokal.
 docs/dramaturgie-berichte/*
 !docs/dramaturgie-berichte/.gitkeep
+
+# Der Symlink auf das venv im Hauptbaum: `.venv/` mit Schraegstrich trifft
+# ein Verzeichnis, nicht den Link.
+.venv

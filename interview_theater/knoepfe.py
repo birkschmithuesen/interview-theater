@@ -465,6 +465,9 @@ _TEXT_SZENE_OHNE_TEXT = "Szene {nummer} ist noch nicht geschrieben."
 
 #: Phase 5 · Geschichte.
 _TEXT_GESCHICHTE_GESPEICHERT = "Notiert, eure Geschichte in {anzahl} Szenen:"
+#: Nach der Wahl EINER Richtung (06.09.2026, Birk 11:42) -- die Szenenfolge
+#: kommt danach als eigener Vorschlag, nicht in derselben Nachricht.
+_TEXT_RICHTUNG_GESPEICHERT = "Notiert, eure Geschichte:"
 _TEXT_GESCHICHTE_LEER = (
     "Aus dem Vorschlag konnte ich keine Geschichte lesen. Erzaehlt sie mir "
     "einfach."
@@ -1852,13 +1855,20 @@ def sende_szenenfolge(conn, tg, chat_id: int, antwort: str) -> int:
 
 
 def sende_geschichte(conn, tg, chat_id: int, antwort: str) -> int:
-    """Der Geschichte-Vorschlag im Chat (Phase 5): Bogen, Ende und
-    Szenenfolge, darunter \"Anzahl aendern\" · \"Reihenfolge aendern\" und die
-    Grundleiste.
+    """Die **drei Richtungen** der Geschichte als Optionen-Menue (Phase 4,
+    06.09.2026, Birk 11:42).
 
-    Derselbe Weg wie ``sende_szenenfolge`` -- ohne Marker keine Leiste, kein
-    Raten. Der ``wert`` traegt den ganzen Block: die Geschichte und ihre
-    Szenen sind EINE Entscheidung."""
+    Bis dahin trug ein ``VORSCHLAG GESCHICHTE:``-Block Bogen, Ende UND die
+    ganze Szenenfolge -- eine Entscheidung ueber alles auf einmal, mit einer
+    Grundleiste, die still den ersten Vorschlag nahm. Jetzt sind es drei
+    Richtungen, je fetter Titel und zwei bis drei Saetze, als Menue mit
+    Knoepfen "1 · Titel" … und "Anders". Die Szenenfolge kommt erst NACH der
+    Wahl, als eigener Vorschlag mit Ja/Nein
+    (``szenenfolge.starte_geschichte_szenen``).
+
+    Ohne Marker keine Leiste, kein Raten -- dieselbe Regel wie ueberall.
+    Enthaelt der Block nur EINE Zeile (das Modell hat sich nicht an die drei
+    gehalten), ist es eine Rueckspiegelung: Ja/Nein statt Menue."""
     from interview_theater import vorschlag
 
     sauber = vorschlag.ohne_marker(antwort) or antwort
@@ -1867,21 +1877,71 @@ def sende_geschichte(conn, tg, chat_id: int, antwort: str) -> int:
         log.error("Geschichte-Vorschlag ohne Marker, chat_id=%s", chat_id)
         return tg.sende(chat_id, sauber)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_GESCHICHTE_SPEICHERN)
-    leiste = [
-        (
-            TEXT_ANZAHL_KNOPF,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFOLGE_ANZAHL, None)),
-        ),
-        (
-            TEXT_REIHENFOLGE_KNOPF,
-            _daten(
-                repo.lege_knopf_an(
-                    conn, chat_id, ART_SZENENFOLGE_REIHENFOLGE, None
-                )
+    from interview_theater import szenenfolge
+
+    # Woran der alte Block erkennbar ist: seine ZWEITE Zeile beginnt mit
+    # "Ende:" (Bogen, Ende, dann je Szene eine Zeile). Drei Richtungen haben
+    # keine solche Zeile -- und genau daran haengt die Unterscheidung, nicht
+    # an der Zeilenzahl: drei Szenen und drei Richtungen saehen sonst gleich
+    # aus.
+    zeilen_roh = vorschlag.zeilen(wert)
+    alter_block = len(zeilen_roh) > 1 and szenenfolge._ENDE_PRAEFIX.match(zeilen_roh[1])
+    _, szenenzeilen = szenenfolge.zerlege_geschichte(wert)
+    if alter_block and szenenzeilen:
+        # Der alte Weg bleibt begehbar: liefert ein Modell noch Bogen, Ende
+        # UND Szenenfolge in einem Block (ein laufender Zug sieht den neuen
+        # Prompt nicht rueckwirkend), bleibt es bei einer Entscheidung mit
+        # Anzahl, Reihenfolge und Ja/Nein.
+        leiste = [
+            (
+                TEXT_ANZAHL_KNOPF,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFOLGE_ANZAHL, None)),
             ),
-        ),
-    ] + grundleiste(conn, chat_id, ART_GESCHICHTE_SPEICHERN, wert)
-    return _mit_leiste(conn, tg, chat_id, sauber, leiste)
+            (
+                TEXT_REIHENFOLGE_KNOPF,
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_SZENENFOLGE_REIHENFOLGE, None
+                    )
+                ),
+            ),
+        ] + grundleiste(conn, chat_id, ART_GESCHICHTE_SPEICHERN, wert)
+        return _mit_leiste(conn, tg, chat_id, sauber, leiste)
+    richtungen = vorschlag.zeilen(wert)[:MAX_AUSWAHL]
+    titel = [t for t, _ in vorschlag.optionen(wert)][:MAX_AUSWAHL]
+    if len(richtungen) == 1:
+        leiste = grundleiste(conn, chat_id, ART_GESCHICHTE_SPEICHERN, richtungen[0])
+        return _mit_leiste(conn, tg, chat_id, sauber, leiste)
+    leiste = []
+    for nummer, zeile in enumerate(richtungen, start=1):
+        kopf = titel[nummer - 1] if nummer - 1 < len(titel) else zeile
+        leiste.append(
+            (
+                f"{nummer} · {kopf}"[:MENUE_KNOPF_LAENGE],
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_GESCHICHTE_SPEICHERN,
+                        f"weiter{TRENNER}{zeile}",
+                    )
+                ),
+            )
+        )
+    leiste.append(
+        (
+            _TEXT_MENUE_ANDERS_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, "geschichte")),
+        )
+    )
+    html, klar = vorschlag.menuetext(
+        vorschlag.ohne_block(antwort, "geschichte"), wert
+    )
+    message_id = tg.sende_mit_knoepfen(
+        chat_id, html, leiste, parse_mode="HTML", klartext=klar
+    )
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id
+    )
+    return message_id
 
 
 # --- Phase 6 · Schaerfung am Material -------------------------------------
@@ -2328,48 +2388,67 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     return f"{len(nummern)} Szenen uebernommen"
 
 
-def _speichere_geschichte(conn, tg, chat_id: int, roh: str) -> str:
-    """Speichert Bogen und Ende (``arbeitsstand.geschichte``) UND legt die
-    Szenenfolge an -- Phase 5, ein Vorschlag, eine Entscheidung.
+def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
+    """Speichert die GEWAEHLTE RICHTUNG (``arbeitsstand.geschichte``) und
+    bietet danach die Szenenfolge an (06.09.2026, Birk 11:42).
 
-    Die Szenen entstehen ueber denselben ``szenenfolge.lege_an`` wie bisher:
-    es gibt einen Weg, eine Szenenfolge anzulegen, nicht zwei. Danach kommt
-    **keine** Szenenvorstellung -- die naechste Station ist die Schaerfung,
-    und die Gruppe bekommt dafuer den Phasenknopf."""
+    Bis dahin legte dieser Weg in einem Zug auch die Szenen an -- eine
+    Entscheidung ueber alles auf einmal. Jetzt ist die Richtung die
+    Entscheidung; die Szenenfolge ist der naechste, eigene Schritt
+    (``szenenfolge.starte_geschichte_szenen``, eigener Thread -- kein
+    Modellaufruf im Knopf-Handler, Zusage 2).
+
+    Der alte Weg bleibt begehbar: liefert ein Modell noch einen Block MIT
+    Szenenzeilen (der Prompt-Umbau aendert einen laufenden Zug nicht
+    rueckwirkend), werden sie wie bisher angelegt."""
     from interview_theater import szenenfolge
 
     modus, _, wert = roh.partition(TRENNER)
+    zeilen_roh = [z for z in (wert or "").splitlines() if z.strip()]
+    alter_block = (
+        len(zeilen_roh) > 1 and szenenfolge._ENDE_PRAEFIX.match(zeilen_roh[1].strip())
+    )
     geschichte, zeilen = szenenfolge.zerlege_geschichte(wert)
-    if not geschichte or not zeilen:
+    if not alter_block:
+        zeilen = []
+    if not geschichte:
         log.error("Geschichte-Knopf ohne verwertbare Zeile, chat_id=%s", chat_id)
         tg.sende(chat_id, _TEXT_GESCHICHTE_LEER)
         return _TEXT_GESCHICHTE_LEER
+    # Eine Richtung ist eine Zeile "Titel — Bogen, Ende, Konflikt": sie ist
+    # die Geschichte, nicht ihr erster Satz.
+    geschichte = wert.strip() if not zeilen else geschichte
     repo.setze_arbeitsstand(conn, chat_id, "geschichte", geschichte)
-    nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
     repo.schreibe_journal(
         conn, chat_id, "entschieden", f"Geschichte: {geschichte}", quelle="knopf",
     )
-    repo.schreibe_journal(
-        conn, chat_id, "entschieden",
-        "Szenenfolge: " + "; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen)),
-        quelle="knopf",
-    )
-    tg.sende(
-        chat_id,
-        _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=len(nummern))
-        + "\n" + geschichte,
-    )
-    if modus.strip() == "anders":
-        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
-        tg.sende(chat_id, _TEXT_ANDERS)
-        return "Gespeichert, was soll anders sein?"
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
-    phasenknopf = _phasenknopf(conn, chat_id)
-    if phasenknopf is not None:
-        _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
-    else:
-        tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
-    return f"Geschichte mit {len(nummern)} Szenen uebernommen"
+    if zeilen:
+        nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            "Szenenfolge: "
+            + "; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen)),
+            quelle="knopf",
+        )
+        tg.sende(
+            chat_id,
+            _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=len(nummern))
+            + "\n" + geschichte,
+        )
+        if modus.strip() == "anders":
+            repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
+            tg.sende(chat_id, _TEXT_ANDERS)
+            return "Gespeichert, was soll anders sein?"
+        phasenknopf = _phasenknopf(conn, chat_id)
+        if phasenknopf is not None:
+            _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
+        else:
+            tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
+        return f"Geschichte mit {len(nummern)} Szenen uebernommen"
+    tg.sende(chat_id, _TEXT_RICHTUNG_GESPEICHERT + "\n" + geschichte)
+    szenenfolge.starte_geschichte_szenen(conn, tg, klm, e, chat_id)
+    return "Richtung uebernommen"
 
 
 def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
@@ -2469,7 +2548,7 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
         return _speichere_szenenfolge(conn, tg, klm, e, chat_id, wert)
 
     if art == ART_GESCHICHTE_SPEICHERN:
-        return _speichere_geschichte(conn, tg, chat_id, wert)
+        return _speichere_geschichte(conn, tg, klm, e, chat_id, wert)
 
     if art == ART_SCHAERFUNG_SZENE:
         # Die Uebernahme ist deterministisch (Felder ergaenzen), der naechste
@@ -3274,6 +3353,126 @@ def ebene2_erlaubt(conn, chat_id: int) -> bool:
     return phasen.aktuelle(conn, chat_id) >= PHASE_SCHAERFUNG
 
 
+#: Der Sprachstil je Figur (06.09.2026, Birk 12:20). Zwei Arten: das Menue
+#: legt der Stil-Lauf hin, der Druck schreibt ``figur.sprachstil`` bzw.
+#: ``figur.quelle_aufnahme_id``.
+ART_FIGUR_STIL = "figur_stil"
+#: "Eigener Stil" -- der Freitextweg unter dem Menue. Speichert nichts; die
+#: naechste Nachricht der Gruppe ist der Stil.
+ART_FIGUR_STIL_FREI = "figur_stil_frei"
+
+_TEXT_STIL_FRAGE = "Wie spricht {name}?"
+_TEXT_STIL_EIGENER_KNOPF = "Eigener Stil"
+_TEXT_STIL_EIGENER = "Erzaehlt, wie sie spricht - ich baue es ein."
+_TEXT_STIL_GESPEICHERT = "Notiert, so spricht {name}."
+
+
+def stelle_stil_vor(conn, tg, klm, e, chat_id: int) -> bool:
+    """Fragt fuer die naechste Figur ohne Sprachstil: "Wie spricht <Figur>?"
+
+    Liefert True, wenn ein Stil-Lauf angestossen wurde. Kein Modellaufruf
+    hier (Zusage 2) -- ``sprachstil.starte`` gibt an einen Thread ab. Ohne
+    geprueftes Material aus den Interviews passiert nichts, und der Aufrufer
+    schliesst die Figurenliste wie bisher ab."""
+    from interview_theater import sprachstil
+
+    if klm is None:
+        return False
+    offen = next(
+        (
+            f for f in repo.figuren(conn, chat_id)
+            if not (f["sprachstil"] or "").strip() and not f["geprueft_am"]
+        ),
+        None,
+    )
+    if offen is None:
+        return False
+    if not sprachstil.stilmaterial(conn, chat_id):
+        return False
+    repo.setze_arbeitsstand(conn, chat_id, "figur_aktuell", offen["name"])
+    return sprachstil.starte(conn, tg, klm, e, chat_id, offen["name"]) is not None
+
+
+def sende_stil(conn, tg, chat_id: int, name: str, antwort: str) -> int:
+    """Das Stil-Menue EINER Figur: je Option Titel, gepruefte Zitatzeile und
+    der Beispielsatz -- darunter die Knoepfe und "Eigener Stil".
+
+    Die Zitate werden hier **gegen die Transkripte geprueft**
+    (``zitat.pruefe``, dieselbe Pruefung wie beim Verdichter): ein erfundenes
+    Zitat ginge sonst als Few-Shot in jeden weiteren Szenenlauf ein. Faellt
+    eine Option dabei weg, bleiben die anderen."""
+    from interview_theater import sprachstil, vorschlag, zitat as zitat_modul
+
+    sauber = vorschlag.ohne_marker(antwort) or antwort
+    wert = vorschlag.lies(antwort, "stil")
+    if not wert:
+        log.error("Stil-Vorschlag ohne Marker, chat_id=%s", chat_id)
+        return tg.sende(chat_id, sauber)
+    optionen = sprachstil.zerlege(wert)
+    quellen = {
+        i + 1: kopf["id"]
+        for i, kopf in enumerate(_interviewkoepfe(conn, chat_id))
+    }
+    zeilen_text: list[str] = []
+    leiste: list[tuple[str, str]] = []
+    nummer = 0
+    for titel, zitat, beispiel, interview in optionen:
+        aufnahme_id = quellen.get(interview) if interview else None
+        if zitat and aufnahme_id is not None and not _zitat_belegt(
+            conn, chat_id, aufnahme_id, zitat, zitat_modul
+        ):
+            log.info("Stil-Zitat nicht belegt, chat_id=%s, %r", chat_id, zitat)
+            zitat = ""
+        nummer += 1
+        beschreibung = " ".join(
+            t for t in (f'"{zitat}"' if zitat else "", beispiel) if t
+        )
+        zeilen_text.append(f"{titel} — {beschreibung}".strip(" —"))
+        leiste.append(
+            (
+                f"{nummer} · {titel}"[:MENUE_KNOPF_LAENGE],
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_FIGUR_STIL,
+                        f"{name}{TRENNER}{aufnahme_id or ''}{TRENNER}"
+                        f"{titel}: {beispiel or zitat}",
+                    )
+                ),
+            )
+        )
+    if not leiste:
+        return tg.sende(chat_id, sauber)
+    leiste.append(
+        (
+            _TEXT_STIL_EIGENER_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUR_STIL_FREI, name)),
+        )
+    )
+    html, klar = vorschlag.menuetext(
+        _TEXT_STIL_FRAGE.format(name=name), "\n".join(zeilen_text)
+    )
+    message_id = tg.sende_mit_knoepfen(
+        chat_id, html, leiste, parse_mode="HTML", klartext=klar
+    )
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
+    return message_id
+
+
+def _interviewkoepfe(conn, chat_id: int) -> list:
+    from interview_theater import aufnahme as aufnahme_modul
+
+    return aufnahme_modul.interviews(conn, chat_id)
+
+
+def _zitat_belegt(conn, chat_id: int, aufnahme_id: int, text: str,
+                  zitat_modul) -> bool:
+    """Steht dieses Zitat woertlich im Transkript dieses Interviews?"""
+    kopf = repo.hole_aufnahme(conn, aufnahme_id)
+    if kopf is None:
+        return False
+    return zitat_modul.pruefe(text, kopf["transkript"] or "")
+
+
 def stelle_figur_vor(conn, tg, klm, e, chat_id: int, figur=None) -> bool:
     """Stellt die naechste offene Figur mit ihren vier Knoepfen vor -- oder
     schliesst Ebene 2 ab, wenn keine mehr offen ist. Liefert True, solange
@@ -3288,8 +3487,13 @@ def stelle_figur_vor(conn, tg, klm, e, chat_id: int, figur=None) -> bool:
     sofort gesendete Fassung mit "Sprachduktus: entsteht gerade." blieb fuer
     immer stehen)."""
     if not ebene2_erlaubt(conn, chat_id):
-        # Phase 4: die Liste ist mit Ebene 1 fertig -- kein Durchgang Figur
-        # fuer Figur, keine Interview-Frage, kein Sprachprofil-Lauf.
+        # Phase 4: keine Interview-Frage und kein Sprachprofil-Lauf -- aber
+        # seit dem 06.09.2026 (Birk, 12:20) der **Sprachstil je Figur**: nach
+        # Name und "wer sie ist" EINE Nachricht "Wie spricht <Figur>?" mit
+        # zwei bis drei Optionen aus den Interviews. Steht kein Material
+        # bereit, ist die Liste wie bisher mit Ebene 1 fertig.
+        if stelle_stil_vor(conn, tg, klm, e, chat_id):
+            return True
         return _schliesse_figuren_ab(conn, tg, chat_id)
     figur = figur if figur is not None else naechste_offene_figur(conn, chat_id)
     if figur is None:
@@ -4016,6 +4220,37 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             conn, tg, klm, e, chat_id, repo.hole_figur(conn, chat_id, name)
         )
         return "Duktus uebernommen"
+    if art == ART_FIGUR_STIL:
+        # Der gewaehlte Sprachstil (06.09.2026, Birk 12:20): er schreibt
+        # ``figur.sprachstil`` und -- wenn der Stil aus einem Interview kommt
+        # -- zusaetzlich ``quelle_aufnahme_id``. Additiv: das Sprachprofil aus
+        # einem frueheren Lauf bleibt stehen.
+        name, _, rest = str(knopf["wert"] or "").partition(TRENNER)
+        roh_id, _, stil = rest.partition(TRENNER)
+        figur = repo.hole_figur(conn, chat_id, name)
+        if figur is None or not stil.strip():
+            tg.sende(chat_id, _TEXT_UNBEKANNT)
+            return _TEXT_UNBEKANNT
+        repo.setze_figur_sprachstil(conn, figur["id"], stil.strip())
+        if roh_id.strip().isdigit():
+            repo.setze_figur_quelle(conn, figur["id"], int(roh_id))
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            f"Sprachstil {name}: {stil.strip()}", quelle="knopf",
+        )
+        tg.sende(chat_id, _TEXT_STIL_GESPEICHERT.format(name=name))
+        # Sofort weiter: naechste Figur, sonst die Geschichte.
+        if not stelle_stil_vor(conn, tg, klm, e, chat_id):
+            _schliesse_figuren_ab(conn, tg, chat_id)
+        return "Stil uebernommen"
+    if art == ART_FIGUR_STIL_FREI:
+        # Speichert nichts (Knopfregel: nur was fix ist). Der naechste
+        # Beitrag der Gruppe ist der Stil, und der Erkenner traegt ihn ein.
+        repo.setze_arbeitsstand(
+            conn, chat_id, "figur_aktuell", str(knopf["wert"] or "")
+        )
+        tg.sende(chat_id, _TEXT_STIL_EIGENER)
+        return "Erzaehlt"
     if art == ART_FIGUR_ENTFERNEN:
         name = repo.entferne_figur(conn, chat_id, str(knopf["wert"] or ""))
         if name:

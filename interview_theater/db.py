@@ -292,6 +292,12 @@ CREATE TABLE IF NOT EXISTS figur (
   beschreibung        TEXT,
   beleg_zitat         TEXT,
   sprachprofil        TEXT,
+  -- Der in Phase 4 GEWAEHLTE Sprachstil (06.09.2026, Birk 12:20): eine
+  -- Entscheidung der Gruppe ("Titel: Beispielsatz"), additiv neben
+  -- sprachprofil, das aus einem Modellaufruf ueber ein Interview stammt.
+  -- Zwei Spalten und nicht eine, weil es zwei Herkuenfte sind: hier waehlt
+  -- die Gruppe, dort misst der Verdichter.
+  sprachstil          TEXT,
   zitate              TEXT,
   quelle_aufnahme_id  INTEGER,
   -- Wann die Gruppe diese Figur in Ebene 2 abgenommen hat ("Passt").

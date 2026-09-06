@@ -194,7 +194,7 @@ def test_der_vorschlag_traegt_anzahl_reihenfolge_und_die_grundleiste(erfunden, t
     assert tg.beschriftungen == [
         knoepfe.TEXT_ANZAHL_KNOPF, knoepfe.TEXT_REIHENFOLGE_KNOPF,
         "Ja, speichern", "Nein, nochmal aendern",
-    ][:2] + ["Ja, speichern", "Nein, nochmal aendern"]
+    ]
     # Die Markerzeile geht nie in den Chat.
     assert "VORSCHLAG GESCHICHTE:" not in tg.knoepfe[-1][1]
     assert "Zwei Freundinnen verlieren sich" in tg.knoepfe[-1][1]
@@ -258,9 +258,12 @@ def test_nein_nochmal_aendern_speichert_nicht(erfunden, tg, einst):
     assert not (stand and (stand["geschichte"] or "").strip())
 
 
-def test_ein_vorschlag_ohne_szenen_wird_nicht_gespeichert(erfunden, tg, einst):
-    """Eine Geschichte ohne Szenenfolge ist eine halbe Entscheidung -- und
-    eine halbe Festlegung im Arbeitsstand ist schlimmer als gar keine."""
+def test_eine_richtung_wird_gespeichert_und_legt_noch_keine_szenen_an(
+    erfunden, tg, einst
+):
+    """Der neue Weg (06.09.2026, Birk 11:42): die Geschichte kommt als drei
+    Richtungen, gespeichert wird die gewaehlte -- die Szenenfolge ist der
+    naechste, eigene Schritt."""
     knoepfe.sende_geschichte(
         erfunden, tg, 1, "VORSCHLAG GESCHICHTE:\nZwei verlieren sich."
     )
@@ -269,8 +272,47 @@ def test_ein_vorschlag_ohne_szenen_wird_nicht_gespeichert(erfunden, tg, einst):
         erfunden, tg, None, einst, _druck(_knopf(tg, "Ja, speichern"))
     )
 
-    assert not (repo.hole_arbeitsstand(erfunden, 1)["geschichte"] or "")
+    assert repo.hole_arbeitsstand(erfunden, 1)["geschichte"] == "Zwei verlieren sich."
     assert repo.hole_szenen(erfunden, 1) == []
+
+
+DREI_RICHTUNGEN = """Woran wollt ihr entlang?
+
+VORSCHLAG GESCHICHTE:
+Der lange Weg — Mira geht, Pal bleibt. Am Ende sieht keiner den anderen wieder.
+Zurueck — Beide kehren um, aber zu spaet. Das Ende ist ein Schweigen.
+Der Schluessel — Sie streiten um eine Wohnung, die keinem gehoert. Offenes Ende.
+"""
+
+
+def test_die_geschichte_kommt_als_menue_mit_drei_richtungen(erfunden, tg):
+    knoepfe.sende_geschichte(erfunden, tg, 1, DREI_RICHTUNGEN)
+
+    assert tg.beschriftungen == [
+        "1 · Der lange Weg", "2 · Zurueck", "3 · Der Schluessel", "Anders",
+    ]
+    # Kein Sammelknopf: nie still die erste Richtung.
+    assert "Ja, speichern" not in tg.beschriftungen
+
+
+def test_eine_gewaehlte_richtung_startet_die_szenenfolge(erfunden, tg, einst):
+    """Nach der Wahl kommt die Szenenfolge als eigener Vorschlag -- und der
+    Handler ruft dafuer kein Modell (Zusage 2), sondern gibt an einen Thread
+    ab."""
+    klm = LLMAttrappe(
+        "VORSCHLAG SZENENFOLGE:\nIm Treppenhaus — sie streiten — Mira, Pal — Dialog — Begegnung"
+    )
+    knoepfe.sende_geschichte(erfunden, tg, 1, DREI_RICHTUNGEN)
+
+    knoepfe.behandle(
+        erfunden, tg, klm, einst, _druck(_knopf(tg, "2 · Zurueck"))
+    )
+    szenenfolge._sperre_fuer(1).acquire(timeout=10)
+    szenenfolge._sperre_fuer(1).release()
+
+    assert repo.hole_arbeitsstand(erfunden, 1)["geschichte"].startswith("Zurueck")
+    assert klm.aufrufe == 1
+    assert klm.gesehen["art"] == szenenfolge.ART
 
 
 # --- die Form ist ein Vorschlag, keine Entscheidung (06.09.2026) ----------

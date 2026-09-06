@@ -520,6 +520,53 @@ def _kopf(zeile) -> str:
     return f"Szene {zeile['nummer']}" if zeile["nummer"] is not None else "die Szene"
 
 
+#: Wie das Setting (``arbeitsstand.rahmen``) auf die Szenenfelder abgebildet
+#: wird (06.09.2026, Birk 12:00/12:05). Das Setting IST Ort, Zeit und Anlass
+#: des Abends -- eine Szene danach noch einmal nach dem Ort zu fragen ("fehlt
+#: noch: Ort") war eine Frage nach etwas, das schon dasteht.
+_RAHMEN_FELD = re.compile(
+    r"(?:^|[,;\n])\s*(Ort|Zeit|Anlass)\s*:\s*([^,;\n]+)", re.IGNORECASE
+)
+
+
+def rahmenfelder(rahmen: str | None) -> dict[str, str]:
+    """Ort, Zeit und Anlass aus dem Setting-Freitext.
+
+    Zwei Formen, beide gemessen: ``"Ort: Treppenhaus, Zeit: nachts, Anlass:
+    eine Party"`` wird auseinandergenommen; alles andere ist als Ganzes der
+    **Ort** -- ein Setting ohne Doppelpunkte ("Ein Treppenhaus, nachts")
+    beschreibt genau das, und geraten wird an ihm nichts."""
+    roh = (rahmen or "").strip()
+    if not roh:
+        return {}
+    treffer = {
+        name.lower(): wert.strip()
+        for name, wert in _RAHMEN_FELD.findall(roh)
+        if wert.strip()
+    }
+    if treffer:
+        return treffer
+    return {"ort": roh}
+
+
+def uebernimm_rahmen(conn, chat_id: int, szene_id: int) -> None:
+    """Schreibt Ort, Zeit und Anlass aus dem Setting in eine Szene -- nur,
+    wo das Feld noch leer ist.
+
+    Additiv wie ``repo.setze_szenenfeld``: was die Gruppe je Szene selbst
+    gesagt hat, bleibt stehen."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    felder = rahmenfelder(stand["rahmen"] if stand else None)
+    if not felder:
+        return
+    zeile = repo.hole_szene(conn, szene_id)
+    if zeile is None:
+        return
+    for feld, wert in felder.items():
+        if feld in ("ort", "zeit", "anlass") and not (zeile[feld] or "").strip():
+            repo.setze_szenenfeld(conn, szene_id, feld, wert)
+
+
 def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
     """Was diese Szene noch braucht: ``(fehlende Pflichtfelder, Figuren ohne
     Sprachprofil)``.
@@ -554,6 +601,13 @@ def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
                 felder.append(feld)
         elif not ziel[feld]:
             felder.append(feld)
+    # **Das Setting ist die Vorgabe fuer ort/zeit/anlass** (06.09.2026, Birk
+    # 12:00): steht ein Rahmen, ist der Ort entschieden -- "fehlt noch: Ort"
+    # waere eine Frage nach etwas, das die Gruppe schon gesagt hat. Pflicht
+    # bleibt allein ``was_passiert``.
+    stand_vorab = repo.hole_arbeitsstand(conn, ziel["chat_id"])
+    if rahmenfelder(stand_vorab["rahmen"] if stand_vorab else None):
+        felder = [f for f in felder if f != "ort"]
     stand = repo.hole_arbeitsstand(conn, ziel["chat_id"])
     for feld in ARBEITSSTAND_PFLICHTFELDER:
         if stand is None or not (stand[feld] or "").strip():

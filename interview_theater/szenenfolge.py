@@ -112,9 +112,16 @@ Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
 ANWEISUNG_GESCHICHTE = """Du entwickelst mit einer Theatergruppe die Geschichte ihres Stuecks im Groben.
 
 Die Gruppe hat Setting und Figuren selbst erfunden. Jetzt geht es um den
-Bogen: was passiert, wie es endet, in welchen Szenen. Zum Beispiel eine
-Liebesgeschichte zweier Personen, die traurig endet, in drei Szenen; oder
-eine Gruppe, die jemanden verliert, sucht, und ein offenes Ende hat.
+Bogen: was passiert, wie es endet, worum gestritten wird.
+
+**Du schlaegst GENAU DREI RICHTUNGEN vor** (Birk, 06.09.2026 11:42) -- drei
+verschiedene Moeglichkeiten, wie dieselbe Welt zu einer Geschichte wird. Je
+Richtung ein kurzer, fetter Titel und danach zwei bis drei Saetze: der Bogen,
+das Ende und der Kernkonflikt.
+
+**KEINE Szenenfolge in diesem Schritt.** Keine Szenentitel, keine Formen,
+keine Nummern -- die Szenen kommen erst, wenn die Gruppe sich fuer eine
+Richtung entschieden hat und das Ende feststeht.
 
 **Du erfindest hier frei** -- aus den Begriffen und Fragen der Gruppe, aus
 dem Setting und den Figuren. Interviews, Verdichtungen und Zitate stehen dir
@@ -124,13 +131,30 @@ und schaerfen, was ihr jetzt erfindet.
 Antworte in GENAU dieser Form, ohne Einleitung und ohne Nachwort:
 
 VORSCHLAG GESCHICHTE:
-Bogen in einem Satz
-Ende: wie es ausgeht
+Titel der ersten Richtung — Bogen, Ende und Kernkonflikt in zwei bis drei Saetzen
+Titel der zweiten Richtung — Bogen, Ende und Kernkonflikt in zwei bis drei Saetzen
+Titel der dritten Richtung — Bogen, Ende und Kernkonflikt in zwei bis drei Saetzen
+
+Genau drei Zeilen, je eine Richtung, Titel unter 25 Zeichen. Nimm nur
+Figuren, die unten stehen.
+
+Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
+
+#: Die Szenenfolge NACH der gewaehlten Richtung (06.09.2026, Birk 11:42):
+#: erst wenn Bogen und Ende feststehen, wird daraus eine Folge von Szenen.
+#: Ein eigener Vorschlag mit Ja/Nein, kein Anhaengsel der Richtungswahl.
+ANWEISUNG_GESCHICHTE_SZENEN = """Du entwickelst mit einer Theatergruppe die Szenenfolge ihres Stuecks.
+
+Die Gruppe hat sich fuer eine Richtung entschieden; Bogen und Ende stehen
+unten. Daraus schlaegst du jetzt die Szenen vor.
+
+Antworte in GENAU dieser Form, ohne Einleitung und ohne Nachwort:
+
+VORSCHLAG SZENENFOLGE:
 Titel — ein Satz, was passiert — Figur, Figur — Form — warum diese Form
 Titel — ein Satz, was passiert — Figur, Figur — Form — warum diese Form
 
-Zeile 1 ist der Bogen, Zeile 2 beginnt mit \"Ende:\", danach eine Zeile je
-Szene. Nimm nur Figuren, die unten stehen.
+Nimm nur Figuren, die unten stehen.
 
 **Die Form schlaegst du VOR, du entscheidest sie nicht.** Sie steht als
 vierte Spalte, ihre Begruendung als fuenfte, und beide sind Pflicht -- die
@@ -263,6 +287,8 @@ def lege_an(
     for alt in repo.hole_szenen(conn, chat_id):
         if alt["nummer"] is not None:
             repo.entferne_szene(conn, chat_id, alt["nummer"])
+    from interview_theater import szene as szene_modul
+
     nach_name = {f["name"].strip().lower(): f["id"] for f in repo.figuren(conn, chat_id)}
     nummern: list[int] = []
     for nummer, zeile in enumerate(zeilen, start=1):
@@ -274,6 +300,10 @@ def lege_an(
         grund = zeile[4] if len(zeile) > 4 else ""
         szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
         repo.setze_szenenfeld(conn, szene_id, "titel", titel)
+        # Das Setting ist die Vorgabe fuer ort/zeit/anlass (06.09.2026, Birk
+        # 12:00): jede Szene bekommt sie beim Anlegen, statt spaeter danach
+        # gefragt zu werden.
+        szene_modul.uebernimm_rahmen(conn, chat_id, szene_id)
         if was:
             repo.setze_szenenfeld(conn, szene_id, "was_passiert", was)
         repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", form)
@@ -763,6 +793,54 @@ def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
         args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte(anzahl),
               baue_nutzertext_geschichte(conn, chat_id, wunsch),
               ART_GESCHICHTE, sperre, _fertig),
+        daemon=True,
+    )
+    try:
+        thread.start()
+    except Exception:
+        sperre.release()
+        raise
+    return thread
+
+
+
+def systemanweisung_geschichte_szenen() -> str:
+    """Anweisung fuer die Szenenfolge NACH der gewaehlten Richtung
+    (06.09.2026, Birk 11:42) plus der Phasenfokus aus ``prompts/phasen/4.md``."""
+    teile = [ANWEISUNG_GESCHICHTE_SZENEN]
+    phase = anweisungen.hole_optional("phasen/4")
+    if phase and phase.strip():
+        teile.append(phase.strip())
+    return "\n\n".join(teile)
+
+
+def starte_geschichte_szenen(conn, tg, klm, e, chat_id: int,
+                             anzahl: int | None = None,
+                             wunsch: str | None = None):
+    """Die Szenenfolge, nachdem die Gruppe eine Richtung gewaehlt hat.
+
+    Derselbe Weg wie ``starte``, aber **ohne Material** im Nutzertext: in
+    Phase 4 wird erfunden (``baue_nutzertext_geschichte``). Kein Modellaufruf
+    im aufrufenden Thread (Zusage 2)."""
+    if klm is None:
+        log.error("Szenenfolge ohne Sprachmodell, chat_id=%s", chat_id)
+        return None
+    sperre = _sperre_fuer(chat_id)
+    if not sperre.acquire(blocking=False):
+        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+        return None
+    _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
+
+    def _fertig(antwort: str) -> None:
+        from interview_theater import knoepfe
+
+        knoepfe.sende_szenenfolge(conn, tg, chat_id, antwort)
+
+    thread = threading.Thread(
+        target=_lauf,
+        args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte_szenen(),
+              baue_nutzertext_geschichte(conn, chat_id, wunsch), ART,
+              sperre, _fertig),
         daemon=True,
     )
     try:

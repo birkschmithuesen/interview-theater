@@ -76,6 +76,13 @@ ARTEN = (
     # nicht ``fragen``, weil ein FRAGENAUSWAHL-Block nichts speichert --
     # er wird zu zehn Knoepfen (``knoepfe.biete_fragenauswahl``).
     "fragenauswahl",
+    # Der Sprachstil EINER Figur (06.09.2026, Birk 12:20): je Zeile eine
+    # Stilvariante aus einem Interview -- Titel, ein geprueftes Zitat, ein
+    # Beispielsatz und die Interviewnummer. Eigener Marker und nicht
+    # ``duktus``, weil hier zusaetzlich die QUELLE gesetzt wird
+    # (``figur.quelle_aufnahme_id``): der Stil kommt aus einem bestimmten
+    # Interview, nicht aus dem Nichts.
+    "stil",
 )
 
 #: Die Markerzeile. Grossbuchstaben, weil sie im Fliesstext nicht vorkommt
@@ -91,7 +98,7 @@ _ZEILE = re.compile(
     r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN\s+WEICH|FRAGEN|KERNTHEMA|KERNFRAGE"
     r"|FIGUREN|RICHTUNGEN"
     r"|NAMEN|DUKTUS|RAHMEN"
-    r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG)"
+    r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG|STIL)"
     r"\s*:\s*(.*)$",
     re.IGNORECASE,
 )

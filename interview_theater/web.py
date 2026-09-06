@@ -387,6 +387,14 @@ table.uebersicht .umfang { white-space: nowrap; opacity: .7;
 /* Die Schaerfung: read-only, deshalb ohne Kasten und ohne Knopf. */
 .schaerfung { font-size: .85rem; margin: .3rem 0 .5rem; opacity: .85; }
 .schaerfung ul { margin: .1rem 0 0; }
+/* Die Fassungsleiste (07.09.2026): umschalten, nicht aufklappen. Grosse
+   Trefferflaechen -- die Seite wird auf dem Telefon benutzt, im Stehen. */
+.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }
+.fassung { display: inline-block; min-width: 2rem; text-align: center;
+           font-size: .85rem; padding: .25rem .55rem; border-radius: .3rem;
+           border: 1px solid #c9b98d; background: #f2ede1; color: #4a4032;
+           text-decoration: none; }
+.fassung.aktiv { background: #4a4032; border-color: #4a4032; color: #f7f3e8; }
 /* Der Vorspann (07.09.2026): read-only, deshalb ohne Kasten und ohne Knopf --
    dieselbe ruhige Flaeche wie .schaerfung, nur mit Zwischenueberschriften. */
 .vorspann h3 { font-size: .78rem; text-transform: uppercase;
@@ -1010,7 +1018,85 @@ def _szene_summary(s: dict) -> str:
     return SUMMARY_TRENNER.join(stuecke) or "Szene"
 
 
-def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
+def fassungslink(szene_id, nummer: int) -> str:
+    """Die Adresse einer Fassung: derselbe Pfad, nur mit Query und Anker.
+
+    Rein serverseitig und ohne JavaScript (07.09.2026): ein ``<a href="?…">``
+    behaelt das Token in der URL -- es steht im Pfad, nicht in der Query --,
+    und das sanfte Nachladen holt ``location.href`` samt Query, die Auswahl
+    bleibt also ueber den Austausch des ``<body>`` hinweg stehen. Der Anker
+    bringt den Browser zurueck an die Szene, statt an den Seitenanfang.
+
+    Liefert die rohe Adresse; ins Attribut geht sie durch ``_t`` wie jeder
+    andere Wert auch (aus ``&`` wird ``&amp;``) -- die Regel "alles maskiert"
+    gilt ohne Ausnahme, auch fuer das, was der Code selbst gebaut hat."""
+    return f"?szene={int(szene_id)}&fassung={int(nummer)}#szene-{int(szene_id)}"
+
+
+def _fassungen_html(s: dict, fassungen: list[dict] | None, gewaehlt: int | None) -> str:
+    """Die Fassungen einer Szene: **umschalten**, nicht aufklappen (07.09.2026).
+
+    Eine Leiste mit einer Nummer je Fassung -- die gewaehlte ist markiert und
+    kein Link mehr --, darunter der Text genau dieser Fassung und, wenn es eine
+    Vorgaengerin gibt, ein Link auf sie. Bei einer einzigen Fassung gibt es
+    nichts umzuschalten: dann steht hier nichts und ``_szene_html`` zeigt den
+    Volltext wie bisher.
+
+    **Read-only.** Kein Formular, kein POST, kein Schreibweg von aussen: eine
+    frueherer Fassung wieder in Kraft zu setzen ist eine Entscheidung der
+    Gruppe und gehoert in den Chat, wo die Knoepfe darunter haengen."""
+    if not fassungen or len(fassungen) < 2:
+        return ""
+    aktuelle = next(
+        (f["nummer"] for f in fassungen if f.get("aktuell")), fassungen[-1]["nummer"]
+    )
+    nummern = [f["nummer"] for f in fassungen]
+    if gewaehlt not in nummern:
+        gewaehlt = aktuelle
+    knoepfe = []
+    for f in fassungen:
+        marke = _t(str(f["nummer"]))
+        if f["nummer"] == aktuelle:
+            marke += " ●"
+        if f["nummer"] == gewaehlt:
+            knoepfe.append(f'<span class="fassung aktiv" aria-current="true">{marke}</span>')
+        else:
+            titel = f["beschriftung"] or f"Fassung {f['nummer']}"
+            knoepfe.append(
+                f'<a class="fassung" href="{_t(fassungslink(s["id"], f["nummer"]))}" '
+                f'title="{_t(titel)}">{marke}</a>'
+            )
+    zeigt = next(f for f in fassungen if f["nummer"] == gewaehlt)
+    kopf = f"{len(fassungen)} Fassungen"
+    zeile = f"Fassung {zeigt['nummer']} von {len(fassungen)}"
+    if zeigt["beschriftung"]:
+        zeile += f" · {zeigt['beschriftung']}"
+    if zeigt["erstellt_am"]:
+        zeile += f" · {_zeitpunkt(zeigt['erstellt_am'])}"
+    if zeigt.get("aktuell"):
+        zeile += " · die aktuelle"
+    zurueck = ""
+    if zeigt["nummer"] > nummern[0]:
+        vorige = nummern[nummern.index(zeigt["nummer"]) - 1]
+        zurueck = (
+            f'<p class="zeit"><a href="{_t(fassungslink(s["id"], vorige))}">'
+            f"← vorige Fassung ({vorige})</a></p>"
+        )
+    return (
+        f'<dl><dt>{_t(kopf)}</dt></dl>'
+        f'<nav class="fassungen">{"".join(knoepfe)}</nav>'
+        f'<p class="zeit">{_t(zeile)}</p>'
+        f'<div class="volltext">{_t(zeigt["volltext"])}</div>'
+        f"{zurueck}"
+    )
+
+
+def _szene_html(
+    s: dict,
+    figuren: list[dict] | None = None,
+    fassungen: list[dict] | None = None,
+    gewaehlt: int | None = None,
+) -> str:
     """Eine Szene als aufklappbarer Block: Summary-Zeile, darin alle Felder
     der Planung und danach der Volltext (05.09.2026).
 
@@ -1023,7 +1109,12 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
     ist, Ton und die Besetzung. Der **Volltext bleibt Anzeige** -- er entsteht
     aus einem Modellauf und wird im Chat abgenommen ("Passt" / "Passt, aber
     anders"); eine Textbox daneben waere ein zweiter, stiller Schreibweg an
-    genau der Stelle, an der die Regie-Notiz haengt."""
+    genau der Stelle, an der die Regie-Notiz haengt.
+
+    Mit ``fassungen`` (zwei oder mehr) tritt an die Stelle des einen Volltexts
+    die **Fassungsansicht**: umschalten und ein Link zurueck auf die vorige
+    (``_fassungen_html``). ``gewaehlt`` ist die Nummer aus der URL; ohne sie
+    steht die aktuelle da."""
     if figuren is None:
         felder = "".join(
             f"<dt>{label}</dt><dd>{_t(s[feld])}</dd>"
@@ -1113,12 +1204,24 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
             '<dl><dt>Als Geschichte</dt></dl>'
             f'<div class="volltext">{_t(s["prosa"])}</div>'
         )
-    if s.get("volltext"):
+    # Ab zwei Fassungen tritt die Umschaltung an die Stelle des einen
+    # Volltexts (07.09.2026) -- sonst stuende der aktuelle Text zweimal auf
+    # der Seite, einmal als "der Text" und einmal als "Fassung N".
+    fassungsblock = _fassungen_html(s, fassungen, gewaehlt)
+    if fassungsblock:
+        inhalt += fassungsblock
+    elif s.get("volltext"):
         inhalt += f'<div class="volltext">{_t(s["volltext"])}</div>'
     elif not s.get("prosa"):
         inhalt += '<p class="leer">Noch kein Text — die Szene ist geplant.</p>'
+    # ``id`` und ``open``: der Link aus der Uebersicht springt an die Szene,
+    # und die aufgeschlagene Fassung soll dabei sichtbar sein statt hinter
+    # einem zugeklappten <details> zu liegen.
+    anker = f' id="szene-{int(s["id"])}"' if s.get("id") is not None else ""
+    offen = " open" if fassungsblock and gewaehlt is not None else ""
     return (
-        f'<details class="szene"><summary>{_szene_summary(s)}</summary>{inhalt}</details>'
+        f'<details class="szene"{anker}{offen}>'
+        f"<summary>{_szene_summary(s)}</summary>{inhalt}</details>"
     )
 
 
@@ -1157,14 +1260,27 @@ def _szenenuebersicht_html(zeilen: list[dict]) -> str:
         # trotzdem durch ``_t``, damit die Regel "alles maskiert" ohne
         # Ausnahme gilt; das ``<br>`` dazwischen ist unser eigenes Markup.
         umfang_html = "<br>".join(_t(t) for t in umfang) or "noch kein Text"
+        # Der Zaehler (07.09.2026): eine Zeile je Szene sagt, wie viele
+        # Fassungen es gibt, und ist zugleich der Weg dorthin. Bei einer
+        # einzigen Fassung gibt es nichts umzuschalten -- dann keine Zahl.
+        anzahl = z.get("fassungen") or 0
+        if anzahl > 1 and z.get("id") is not None:
+            fassungen_html = (
+                f'<a href="{_t(fassungslink(z["id"], anzahl))}">'
+                f"{_t(f'{anzahl} Fassungen')}</a>"
+            )
+        else:
+            fassungen_html = "—"
         reihen.append(
             f'<tr><td class="nr">{_t(nummer)}</td><td>{titel}</td>'
             f"<td>{form}</td><td>{_t(z['stil'])}</td>"
-            f'<td class="umfang">{umfang_html}</td></tr>'
+            f'<td class="umfang">{umfang_html}</td>'
+            f'<td class="umfang">{fassungen_html}</td></tr>'
         )
     return (
         '<table class="uebersicht"><thead><tr><th>Nr.</th><th>Szene</th>'
-        "<th>Form</th><th>Stil</th><th>Text</th></tr></thead><tbody>"
+        "<th>Form</th><th>Stil</th><th>Text</th><th>Fassungen</th>"
+        "</tr></thead><tbody>"
         + "".join(reihen)
         + "</tbody></table>"
     )
@@ -1279,15 +1395,31 @@ def _interview_html(v: dict) -> str:
     )
 
 
-def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
+def gruppe_html(
+    daten: dict,
+    nonce_wert: str | None = None,
+    fassungswahl: dict[int, int] | None = None,
+) -> str:
     """Die Gruppenseite aus web_daten.gruppe_nach_token().
 
     Ohne ``nonce_wert`` bleibt sie, was sie war: eine Leseansicht. Mit
     ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
     Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
-    Feld in der Seite (siehe ``nonce``)."""
+    Feld in der Seite (siehe ``nonce``).
+
+    ``fassungswahl`` ist ``{szene_id: nummer}`` aus der Query (``?szene=…&
+    fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung
+    angezeigt wird -- sie schreibt nichts und bleibt deshalb in der URL statt
+    in der Datenbank."""
+    fassungen = daten.get("fassungen") or {}
+    fassungswahl = fassungswahl or {}
     szenen = "".join(
-        _szene_html(s, daten["figuren"] if nonce_wert else None)
+        _szene_html(
+            s,
+            daten["figuren"] if nonce_wert else None,
+            fassungen.get(s.get("id")),
+            fassungswahl.get(s.get("id")),
+        )
         for s in daten["szenen"]
     ) or (
         '<p class="leer">Noch keine Szene. Die entstehen in der letzten Phase.</p>'
@@ -1369,6 +1501,33 @@ def _pfad_ohne_praefix(pfad: str, praefix: str) -> str:
     return pfad or "/"
 
 
+def fassungswahl(query: str) -> dict[int, int]:
+    """Liest ``?szene=<id>&fassung=<n>`` und liefert ``{szene_id: nummer}``.
+
+    Nur GET, nur Anzeige (07.09.2026): die Auswahl aendert nichts in der
+    Datenbank, deshalb steht sie in der URL und nicht in einem Cookie und
+    nicht in einem POST. Alles, was keine Zahl ist, faellt weg statt zu einem
+    Fehler zu werden -- ein Tippfehler in der Adresszeile soll die Seite nicht
+    kosten. Eine Szene, die es nicht gibt, stoert nicht: ``gruppe_html``
+    schlaegt die id nur nach.
+
+    Bewusst genau EIN Paar je Aufruf: mehrere gleichzeitig geoeffnete
+    Fassungen sind keine Frage, die jemand hat, und jede weitere waere ein
+    zweiter Zustand in der URL, den das sanfte Nachladen mitschleppt."""
+    try:
+        werte = urllib.parse.parse_qs(query or "")
+    except ValueError:
+        return {}
+    try:
+        szene_id = int((werte.get("szene") or [""])[0])
+        nummer = int((werte.get("fassung") or [""])[0])
+    except (TypeError, ValueError):
+        return {}
+    if nummer < 1:
+        return {}
+    return {szene_id: nummer}
+
+
 #: Wie viel Text ein POST hoechstens tragen darf. Ein Szenenfeld ist ein paar
 #: Saetze, eine Frageliste ein paar Zeilen -- 64 KiB sind das Vielfache davon
 #: und trotzdem klein genug, dass niemand den Prozess mit einem Upload
@@ -1401,8 +1560,9 @@ def mache_handler(
         timeout = 30
 
         def do_GET(self) -> None:  # noqa: N802 (von BaseHTTPRequestHandler vorgegeben)
+            zerlegt = urllib.parse.urlsplit(self.path)
             pfad = _pfad_ohne_praefix(
-                urllib.parse.unquote(urllib.parse.urlsplit(self.path).path), praefix
+                urllib.parse.unquote(zerlegt.path), praefix
             )
             if pfad == "/gesund":
                 # Ohne Datenbankzugriff: der Health-Check soll sagen, ob der
@@ -1419,7 +1579,12 @@ def mache_handler(
                         self._antworte(404, nicht_gefunden_html())
                     else:
                         self._antworte(
-                            200, gruppe_html(daten, nonce(schluessel, token))
+                            200,
+                            gruppe_html(
+                                daten,
+                                nonce(schluessel, token),
+                                fassungswahl(zerlegt.query),
+                            ),
                         )
                 else:
                     self._antworte(404, nicht_gefunden_html())

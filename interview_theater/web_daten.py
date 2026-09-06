@@ -561,7 +561,10 @@ def _szenen(
 
 
 def szenenuebersicht(
-    conn: sqlite3.Connection, chat_id: int, szenen: list[dict] | None = None
+    conn: sqlite3.Connection,
+    chat_id: int,
+    szenen: list[dict] | None = None,
+    fassungen: dict[int, list[dict]] | None = None,
 ) -> list[dict]:
     """Die kompakte Szenen-Uebersicht der Gruppenseite (06.09.2026, Birk:
     *"Was mir in der Webansicht gefehlt hat, ist eine Uebersicht ueber die
@@ -578,11 +581,17 @@ def szenenuebersicht(
     Sortiert nach Nummer, Zeilen ohne Nummer hinten. Read-only wie alles in
     diesem Modul."""
     zeilen = szenen if szenen is not None else _szenen(conn, chat_id)
+    if fassungen is None:
+        fassungen = szenenfassungen(conn, chat_id, zeilen)
     uebersicht = []
     for s in zeilen:
         form = (s.get("form") or "").strip()
         uebersicht.append(
             {
+                # Die id traegt die Uebersicht seit der Fassungsansicht
+                # (07.09.2026): der Zaehler ist ein Link auf genau diese Szene.
+                "id": s.get("id"),
+                "fassungen": len(fassungen.get(s.get("id")) or []),
                 "nummer": s.get("nummer"),
                 "titel": (s.get("titel") or "").strip(),
                 # Die Kurzbeschreibung zuerst; hat die Szene keine, sagt
@@ -602,6 +611,98 @@ def szenenuebersicht(
             }
         )
     return uebersicht
+
+
+#: Trennzeichen zwischen zwei Fassungen im Altfeld
+#: ``szene.fruehere_fassungen`` -- muss mit ``szenenfolge.FASSUNGSTRENNER``
+#: uebereinstimmen (Test). Wie ``ZITAT_TRENNER`` bewusst hier noch einmal und
+#: nicht importiert: ``web_daten`` haengt an keiner Schreibschicht.
+FASSUNGSTRENNER = "\n\n----- fruehere Fassung -----\n\n"
+
+
+def szenenfassungen(
+    conn: sqlite3.Connection, chat_id: int, szenen: list[dict] | None = None
+) -> dict[int, list[dict]]:
+    """Die Fassungen je Szene, aelteste zuerst -- ``{szene_id: [Fassung, …]}``.
+
+    Drei Quellen, in dieser Reihenfolge zusammengelegt, weil eine Datenbank
+    aus dem laufenden Betrieb alle drei gleichzeitig enthalten kann:
+
+    1. das **Altfeld** ``szene.fruehere_fassungen`` (bis 06.09.2026 der
+       einzige Ort; ein Textblock mit ``FASSUNGSTRENNER``),
+    2. die Tabelle **``szenenfassung``** (seit 07.09.2026, eine Zeile je
+       Fassung mit Nummer und Beschriftung),
+    3. der **aktuelle** ``szene.volltext``.
+
+    Doppelt vorhandene Texte zaehlen einmal (verglichen wird der getrimmte
+    Text): ``repo.hebe_fassung_auf`` schreibt beim Nachruesten in beide
+    Quellen, und eine Fassung, die zweimal in der Liste stuende, waere fuer die
+    Gruppe ein Fehler und kein Verlauf. Danach wird von 1 an durchgezaehlt --
+    die Nummer in der Ansicht ist die Nummer in der Liste, nicht die aus der
+    Tabelle, sonst zeigte ein Link nach dem Nachruesten auf die falsche
+    Fassung.
+
+    Fehlt die Tabelle oder die Spalte noch (Datenbank aus der Zeit davor,
+    Deploy vor dem Bot-Neustart), ist das Ergebnis kleiner statt ein Fehler:
+    der Webserver migriert nichts."""
+    zeilen = szenen if szenen is not None else _szenen(conn, chat_id)
+    je_szene: dict[int, list[sqlite3.Row]] = {}
+    try:
+        for z in conn.execute(
+            "SELECT szene_id, nummer, beschriftung, volltext, erstellt_am "
+            "FROM szenenfassung WHERE chat_id = ? ORDER BY nummer ASC, id ASC",
+            (chat_id,),
+        ):
+            je_szene.setdefault(z["szene_id"], []).append(z)
+    except sqlite3.OperationalError:
+        je_szene = {}
+    altfeld: dict[int, str] = {}
+    try:
+        altfeld = {
+            z["id"]: (z["fruehere_fassungen"] or "")
+            for z in conn.execute(
+                "SELECT id, fruehere_fassungen FROM szene WHERE chat_id = ?",
+                (chat_id,),
+            )
+        }
+    except sqlite3.OperationalError:
+        altfeld = {}
+
+    ergebnis: dict[int, list[dict]] = {}
+    for s in zeilen:
+        szene_id = s.get("id")
+        gesammelt: list[dict] = []
+
+        def _dazu(text, beschriftung, erstellt_am=None):
+            text = (text or "").strip()
+            if not text or any(f["volltext"] == text for f in gesammelt):
+                return
+            gesammelt.append(
+                {
+                    "beschriftung": (beschriftung or "").strip(),
+                    "volltext": text,
+                    "erstellt_am": erstellt_am,
+                }
+            )
+
+        for stueck in (altfeld.get(szene_id) or "").split(FASSUNGSTRENNER):
+            _dazu(stueck, "")
+        for z in je_szene.get(szene_id, []):
+            _dazu(z["volltext"], z["beschriftung"], z["erstellt_am"])
+        aktuell = (s.get("volltext") or "").strip()
+        _dazu(aktuell, "")
+
+        fassungen = []
+        for nummer, f in enumerate(gesammelt, start=1):
+            f = dict(f, nummer=nummer, zeichen=len(f["volltext"]))
+            # "Die aktuelle" ist die, die in ``szene.volltext`` steht -- nicht
+            # einfach die letzte: eine Szene kann Fassungen im Archiv haben und
+            # gerade gar keinen Volltext.
+            f["aktuell"] = bool(aktuell) and f["volltext"] == aktuell
+            fassungen.append(f)
+        if fassungen:
+            ergebnis[szene_id] = fassungen
+    return ergebnis
 
 
 def _themen(conn: sqlite3.Connection, verdichtung_id: int) -> list[dict]:
@@ -882,6 +983,7 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     for f in figuren:
         f["schaerfungen"] = geschaerft["figur"].get(f["id"], [])
     szenen = _szenen(conn, chat_id, geschaerft)
+    fassungen = szenenfassungen(conn, chat_id, szenen)
     stand = _arbeitsstand(conn, chat_id)
     return {
         "chat_id": chat_id,
@@ -902,7 +1004,9 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Die kompakte Uebersicht steht vor den aufklappbaren Bloecken
         # (06.09.2026, Birk) -- dieselben Zeilen, nur zusammengefasst; kein
         # zweiter Lesevorgang.
-        "szenenuebersicht": szenenuebersicht(conn, chat_id, szenen),
+        "szenenuebersicht": szenenuebersicht(conn, chat_id, szenen, fassungen),
+        # Die Fassungen je Szene (07.09.2026) -- read-only wie alles hier.
+        "fassungen": fassungen,
         "interviews": _interviews(conn, chat_id),
         "journal": _journal(conn, chat_id),
         "bearbeitbares": bearbeitbares(conn, chat_id),

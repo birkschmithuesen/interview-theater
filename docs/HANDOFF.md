@@ -404,15 +404,20 @@ Workshop zählt:**
   wenn Interviews knapper sind als Figuren.
 - **Web lädt sanft nach** (fetch, kein meta refresh) — Klappzustand bleibt.
 - **Die Gruppenseite ändert jetzt Parameter** (05.09. abends, am 06.09. auf die
-  acht Phasen nachgezogen): Phase (1–8), Begriffe, Fragen samt den drei
-  Leitfaden-Feldern, Setting, Geschichte, Figuren (Name, Beschreibung,
-  Interview, entfernen, anlegen) und die Szenenplanung. Nur über `repo` —
+  acht Phasen nachgezogen und dann enger gezogen): **Setting, Geschichte,
+  Figuren** (Name, Beschreibung, Interview, entfernen, anlegen) **und die
+  Szenenplanung** — genau das, was die Gruppe dort fertig entscheiden kann.
+  Setting und Geschichte sind unabhängig voneinander; es gibt **keinen
+  Auftragsweg vom Web an den Bot** und keine automatisch nachgezogene
+  Geschichte (Birk, 06.09. 10:25: „lass das für jetzt weg"). Nur über `repo` —
   derselbe Weg wie die Knöpfe —, nur diese Felder, jede Änderung mit
   Journaleintrag `quelle='web'`; Material, Szenen-Volltext und Journal bleiben
   unveränderlich, das Dashboard bleibt read-only. Nur Anzeige, nicht Formular:
-  der gebaute Leitfaden, der Formvorschlag je Szene, die Schärfungen (Zähler
-  mit Kurzformen, ohne Zitat) und die Altfelder Kernthema/Kernfrage — die sind
-  keine Station mehr, bleiben aber sichtbar, wenn eine Gruppe sie gesetzt hat.
+  Phase, Begriffe, Fragen und der gebaute Leitfaden (statt seiner drei
+  Rohfelder) — die führt der Chat, teils über Modellaufrufe, die der Webserver
+  nicht hat —, dazu der Formvorschlag je Szene, die Schärfungen (Zähler mit
+  Kurzformen, ohne Zitat) und die Altfelder Kernthema/Kernfrage, die keine
+  Station mehr sind, aber sichtbar bleiben, wenn eine Gruppe sie gesetzt hat.
   **Braucht einen Neustart von `interview-theater-web.service`, die Bots
   nicht.** Risiko im Betrieb: Chat und Web schreiben aus zwei Prozessen — WAL
   und `busy_timeout` tragen das, ein „letzter gewinnt" bei gleichzeitiger

@@ -259,23 +259,33 @@ def schuss(seite, name: str) -> None:
 
 def test_die_seite_steht_und_zeigt_die_bedienelemente(seite):
     expect(seite.locator("h1")).to_have_text("Die Ankommenden")
-    expect(feld(seite, "phase").locator("select.auswahl")).to_be_visible()
     expect(feld(seite, "rahmen").locator("select.auswahl")).to_be_visible()
     expect(feld(seite, "geschichte").locator("textarea")).to_be_visible()
-    expect(feld(seite, "interview_eroeffnung").locator("textarea")).to_be_visible()
+    expect(feld(seite, "figur_name").first.locator("textarea")).to_be_visible()
     # Und die Grenze: das Transkript aus der Datenbank steht nirgends.
     assert MARKER not in seite.content()
     schuss(seite, "01-start.png")
 
 
-def test_kernthema_steht_nur_noch_da_und_hat_kein_formular(seite):
-    """Das Kernthema ist keine Station mehr -- der Wert einer Gruppe von
-    gestern bleibt trotzdem lesbar."""
+def test_was_der_chat_fuehrt_steht_nur_da(seite):
+    """Phase, Begriffe, Fragen und die Leitfaden-Felder sind Anzeige, kein
+    Formular (Birk, 06.09. 10:25) -- statt der drei Rohfelder steht der
+    gebaute Leitfaden da. Das Kernthema ebenso: keine Station mehr, aber der
+    Wert einer Gruppe von gestern bleibt lesbar."""
     inhalt = seite.content()
 
+    for feldname in ("phase", "begriffe", "fragen", "frage_einleitungen",
+                     "interview_eroeffnung", "interview_abschluss", "kernthema"):
+        expect(seite.locator(f'.feld[data-feld="{feldname}"]')).to_have_count(0)
+    assert "4 · Setting &amp; Figuren" in inhalt or "4 · Setting & Figuren" in inhalt
     assert "Ankommen und Bleiben" in inhalt
-    assert 'data-feld="kernthema"' not in inhalt
-    expect(seite.locator('.feld[data-feld="kernthema"]')).to_have_count(0)
+    expect(seite.locator("pre.leitfaden")).to_contain_text(
+        "Wir machen ein Theaterstueck."
+    )
+    expect(seite.locator("pre.leitfaden")).to_contain_text(
+        "Was war in deinem Koffer?"
+    )
+    schuss(seite, "02-anzeige-und-leitfaden.png")
 
 
 def test_setting_ueber_das_dropdown_aendern(seite, datenbank, token):
@@ -288,7 +298,7 @@ def test_setting_ueber_das_dropdown_aendern(seite, datenbank, token):
 
     auswahl.select_option("Ein Bahnhof im Winter")
     speichere(bereich)
-    schuss(seite, "02-setting-gespeichert.png")
+    schuss(seite, "03-setting-gespeichert.png")
 
     seite.reload()
     expect(feld(seite, "rahmen").locator("select.auswahl")).to_have_value(
@@ -303,7 +313,10 @@ def test_setting_ueber_das_dropdown_aendern(seite, datenbank, token):
                      "Eine Nacht im Treppenhaus → Ein Bahnhof im Winter")
         for t in journaltexte(datenbank)
     )
-    schuss(seite, "03-journal.png")
+    # Kein Auftrag, keine automatische Geschichte (Birk, 06.09. 10:25): das
+    # geaenderte Setting laesst die Geschichte in Ruhe.
+    assert not repo.hole_arbeitsstand(datenbank, 4711)["geschichte"]
+    schuss(seite, "04-journal.png")
 
 
 def test_eigene_formulierung_statt_eines_vorschlags(seite, datenbank):
@@ -333,31 +346,15 @@ def test_geschichte_in_die_textbox_schreiben(seite, datenbank):
         "Am Ende singen sie zusammen und keine geht."
     )
     speichere(bereich)
-    schuss(seite, "04-geschichte.png")
+    schuss(seite, "05-geschichte.png")
 
     seite.reload()
     expect(feld(seite, "geschichte").locator("textarea")).to_contain_text(
         "Am Ende singen sie zusammen"
     )
     assert "Treppenhaus" in repo.hole_arbeitsstand(datenbank, 4711)["geschichte"]
-
-
-def test_leitfaden_folgt_der_eroeffnung(seite, datenbank):
-    """Die Leitfaden-Felder sind editierbar, der Leitfaden selbst nicht --
-    er wird darunter gebaut und zieht nach dem Speichern mit."""
-    bereich = feld(seite, "interview_eroeffnung")
-    bereich.locator("textarea").fill("Wir sind vom Theaterprojekt und haben Zeit.")
-    speichere(bereich)
-
-    seite.reload()
-    expect(seite.locator("pre.leitfaden")).to_contain_text(
-        "Wir sind vom Theaterprojekt und haben Zeit."
-    )
-    expect(seite.locator("pre.leitfaden")).to_contain_text(
-        "Was war in deinem Koffer?"
-    )
-    expect(seite.locator('.feld[data-feld="leitfaden"]')).to_have_count(0)
-    schuss(seite, "05-leitfaden.png")
+    # Und das Setting bleibt, wie es war -- die beiden sind unabhaengig.
+    assert repo.hole_arbeitsstand(datenbank, 4711)["rahmen"]
 
 
 def test_figur_umbenennen(seite, datenbank):
@@ -446,35 +443,21 @@ def test_besetzung_der_szene_setzen(seite, datenbank):
     assert [f["name"] for f in repo.szene_figuren(datenbank, szene_id)] == namen
 
 
-def test_phase_aendern(seite, datenbank):
-    """Acht Phasen seit dem Umbau; 6 heisst Schaerfung."""
-    bereich = feld(seite, "phase")
-    expect(bereich.locator("select.auswahl")).to_have_value("4")
-    expect(bereich.locator("select.auswahl option")).to_have_count(8)
-
-    bereich.locator("select.auswahl").select_option("6")
-    speichere(bereich)
-
-    seite.reload()
-    expect(feld(seite, "phase").locator("select.auswahl")).to_have_value("6")
-    assert repo.hole_phase(datenbank, 4711) == 6
-    assert any("Phase 6 · Schaerfung" in t for t in journaltexte(datenbank))
-    schuss(seite, "10-phase.png")
-
-
-def test_phase_ausserhalb_wird_abgewiesen(seite, datenbank):
-    """Was das Dropdown nicht anbietet, weist der Server ab -- geprueft mit
-    einer von Hand eingehaengten Option, also genau so, wie es ein
-    manipuliertes Formular versuchen wuerde."""
+def test_ein_untergeschobenes_feld_wird_abgewiesen(seite, datenbank):
+    """Nicht das HTML entscheidet, was geschrieben wird, sondern
+    ``web_schreiben.FELDER``. Geprueft mit einem von Hand umgehaengten
+    ``data-feld`` -- also genau so, wie es ein manipuliertes Formular
+    versuchen wuerde."""
     vorher = repo.hole_phase(datenbank, 4711)
-    bereich = feld(seite, "phase")
-    bereich.locator("select.auswahl").evaluate(
-        "el => { var o = document.createElement('option'); o.value = '9'; "
-        "el.appendChild(o); el.value = '9'; }"
-    )
-    bereich.locator("button.speichern").click()
+    # Erst tippen, dann umhaengen: danach trifft der alte Locator nicht mehr,
+    # der Bereich heisst jetzt "phase".
+    feld(seite, "geschichte").locator("textarea").fill("6")
+    feld(seite, "geschichte").evaluate("el => el.dataset.feld = 'phase'")
 
-    expect(bereich.locator(".hinweis")).to_contain_text("1 bis 8", timeout=GEDULD)
+    untergeschoben = feld(seite, "phase")
+    untergeschoben.locator("button.speichern").click()
+
+    expect(untergeschoben.locator(".hinweis")).to_contain_text("phase", timeout=GEDULD)
     assert repo.hole_phase(datenbank, 4711) == vorher
 
 
@@ -509,18 +492,18 @@ def test_figur_hinzufuegen_und_wieder_entfernen(seite, datenbank):
     speichere(letzte)
 
     assert "Pal" not in [f["name"] for f in repo.figuren(datenbank, 4711)]
-    schuss(seite, "11-ende.png")
+    schuss(seite, "10-ende.png")
 
 
 def test_ohne_gueltigen_nonce_schreibt_die_seite_nicht(seite, datenbank, token):
     """Ein fremder Link soll nicht schreiben koennen. Hier von innen
     geprueft: der Nonce wird aus der Seite entfernt, danach geht nichts
     mehr durch."""
-    vorher = repo.hole_arbeitsstand(datenbank, 4711)["begriffe"]
+    vorher = repo.hole_arbeitsstand(datenbank, 4711)["geschichte"]
     seite.evaluate("document.getElementById('nonce').value = 'kaputt'")
-    bereich = feld(seite, "begriffe")
+    bereich = feld(seite, "geschichte")
     bereich.locator("textarea").fill("Heimlich geaendert")
     bereich.locator("button.speichern").click()
 
     expect(bereich.locator(".hinweis")).to_contain_text("neu laden", timeout=GEDULD)
-    assert repo.hole_arbeitsstand(datenbank, 4711)["begriffe"] == vorher
+    assert repo.hole_arbeitsstand(datenbank, 4711)["geschichte"] == vorher

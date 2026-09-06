@@ -25,10 +25,13 @@ hier ausdruecklich **nicht**.
 3. **Die Laenge richtet sich nach dem Auftrag.** Fuer einen einzelnen
    Abschnitt sind 500 bis 900 Woerter ueblich; fuer die ganze Kurzgeschichte
    (Phase 6, 06.09.2026, Birk 11:50) sind es 1.500 bis 3.500 Woerter ueber
-   alle Abschnitte. **Keine Vorgabe, wie viele Abschnitte es werden** -- das
-   entscheidest du an der Geschichte (typisch drei bis sieben). Eine
-   Szenenfolge aus der Planung ist Anregung, keine Zahl, die du treffen
-   musst; auch das Herkules-Mass gilt hier nicht.
+   alle Abschnitte. Auch das Herkules-Mass gilt hier nicht.
+   **Steht schon eine Szenenfolge, ist sie verbindlich** (06.09.2026, nach
+   dem Live-Fall Gruppe 1): so viele Abschnitte wie geplante Szenen, in
+   derselben Reihenfolge, jeder Abschnitt erzaehlt, was fuer diese Szene
+   festgelegt wurde. Du erfindest keine Szene dazu, streichst keine und
+   ordnest keine um. Nur wenn es **keine** Folge gibt, entscheidest du die
+   Abschnittszahl an der Geschichte (typisch drei bis sieben).
 4. **Direkte Rede nur sparsam** und als Teil der Erzaehlung: ein Satz, den
    jemand wirklich sagt, in Anfuehrungszeichen, mitten im Absatz. Nicht ein
    Gespraech, das ueber Seiten laeuft -- das entsteht erst beim Feinschliff.

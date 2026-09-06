@@ -571,6 +571,48 @@ CREATE TABLE IF NOT EXISTS journal (
 );
 CREATE INDEX IF NOT EXISTS idx_journal_chat ON journal(chat_id, id);
 
+-- Die Auffangtabelle fuer alles, was die Gruppe festlegt und wofuer es kein
+-- Feld gibt (06.09.2026, docs/analyse-phase4-datenverlust-2026-09-06.md).
+--
+-- Der Befund dahinter: von 42 Festlegungen einer Gruppe in Phase 4 sind 22
+-- verloren. Das Schema kennt nur einen festen Satz vorab definierter Slots
+-- (``arbeitsstand.rahmen``, ``figur.beschreibung``, ``szene.ort`` ...); fuer
+-- jede relevante Angabe ausserhalb dieses Rasters gab es kein Feld, nur einen
+-- ``journal``-Eintrag -- und der faellt nach ``kontext.JOURNAL_EINTRAEGE``
+-- weiteren Zeilen aus dem Prompt und kommt nie zurueck. Verloren gingen so
+-- unter anderem: die Gruppenzugehoerigkeit jeder Figur, die Herkuenfte, die
+-- Vorgabe "nur eine Szene, erste Folge einer Serie" und die Laengenvorgabe
+-- fuer die Szenentexte.
+--
+-- **Bewusst NICHT im ``journal``.** Das Journal ist per AGENTS.md eine
+-- CHRONIK ("nur-anhaengend, es gibt bewusst kein aktualisiere_journal") und
+-- wird im Kontext gekappt, weil es sonst den Prompt flutet. Eine Festlegung
+-- braucht das Gegenteil: sie soll vollstaendig und dauerhaft mitgehen.
+-- Beides in einer Tabelle zu mischen erzwingt genau die Kappung, die den
+-- Verlust erzeugt hat.
+--
+-- Nur-anhaengend wie das Journal, weiches Loeschen ueber ``entfernt_am``
+-- (N3) -- das ist hier Pflicht und nicht Kuer: eine veraltete Festlegung
+-- ("ein zweiter Ort ist die Schule", elf Minuten nach ihrer Ruecknahme
+-- geschrieben) erbt sonst den alten Fehler.
+CREATE TABLE IF NOT EXISTS festlegung (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  -- figur|gruppe|ort|struktur|form|stil|sonstiges (repo.FESTLEGUNG_BEREICHE).
+  -- Bewusst KEIN Name eines bestehenden Arbeitsstandfeldes: was in ein Feld
+  -- passt, gehoert ins Feld -- sonst stuende derselbe Fakt an zwei Stellen
+  -- und beide widerspraechen sich irgendwann (Analyse § 4.4 Risiko 2).
+  bereich      TEXT NOT NULL,
+  -- Worauf sie sich bezieht: Figurenname, Gruppenname, Szenennummer. Optional
+  -- -- eine Strukturfestlegung ("nur eine Szene") bezieht sich auf alles.
+  bezug        TEXT,
+  text         TEXT NOT NULL,           -- die Festlegung, eine Zeile
+  quelle       TEXT NOT NULL,           -- erkenner|befehl|web
+  erstellt_am  TEXT NOT NULL,
+  entfernt_am  TEXT                     -- gesetzt = weich geloescht (N3)
+);
+CREATE INDEX IF NOT EXISTS idx_festlegung_chat ON festlegung(chat_id, id);
+
 -- Inline-Knoepfe (05.09.2026, interview_theater/knoepfe.py).
 --
 -- Warum eine eigene Tabelle: Telegram begrenzt `callback_data` auf 64 Bytes.
@@ -644,6 +686,7 @@ TABELLEN_MIT_CHAT_ID = (
     "stueckpruefung",
     "dramaturgie_befund",
     "journal",
+    "festlegung",
     "knopf",
     "vorfall",
     "aufruf",

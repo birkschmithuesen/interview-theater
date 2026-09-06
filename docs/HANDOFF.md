@@ -357,6 +357,26 @@ vollständige Lauf gegen das echte Modell steht noch aus.
 
 ## (f) Offene Punkte und Risiken
 
+**Nachtrag 06.09.2026 abends, Zweig `feat/festlegungen` (nicht nach main
+gemergt, nicht gepusht):** Auffangtabelle `festlegung` plus die vier
+Sofortmaßnahmen aus `docs/analyse-phase4-datenverlust-2026-09-06.md`.
+Zwei Punkte, die davon offen bleiben:
+
+1. **Ein Erkenner-Korpuslauf steht aus.** `prompts/erkenner.md` hat mit
+   `festlegung_setzen` eine dreiundzwanzigste Art bekommen — die erste
+   Prompt-Änderung seit dem 05.09. Neun Korpusfälle (`fl01`–`fl09`) liegen
+   bereit, gemessen ist keiner: `scripts/pruefe_prompts.py` muss gegen das
+   echte Modell laufen, **bevor** der Zweig live geht. Die Gegenprobe zählt
+   dabei mehr als die Treffer — die Art fängt alles auf und ist damit die
+   mit dem größten Falsch-Positiv-Risiko.
+2. **Neustarts:** Auffangtabelle, Erkenner-Art, `/festlegung`, die
+   Menüzeilen-Sperre und die Figurenanzahl brauchen einen **Bot-Neustart**;
+   der aufgeklappte Festlegungs-Abschnitt auf der Gruppenseite einen
+   **Neustart von `interview-theater-web.service`**. Die Schema-Erweiterung
+   ist additiv (`CREATE TABLE IF NOT EXISTS`), läuft gegen eine gewachsene
+   Live-DB und braucht keinen eigenen Schritt. `scripts/figuren_aufraeumen.py`
+   läuft **nicht** automatisch mit — erst `--trocken` lesen.
+
 **Stand 06.09. 03:45 (Nacht vor Tag 2) — Kurzfassung, Details `docs/NACHTBERICHT-2026-09-06.md`:**
 
 - main `b32c86f`, Suite 1630 grün; alle vier Bots + Web laufen darauf (Einzel-Neustarts 03:35).

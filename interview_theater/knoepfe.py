@@ -546,6 +546,15 @@ _TEXT_GESCHICHTE_LEER = (
     "Aus dem Vorschlag konnte ich keine Geschichte lesen. Erzaehlt sie mir "
     "einfach."
 )
+#: Die angetippte Zeile war eine FORMWAHL, keine Handlung (06.09.2026, B1/B2
+#: der Phase-4-Analyse). Die Wahl ist festgehalten, die Handlung fehlt noch --
+#: und genau das muss dastehen: bis hierher hat der Bot in so einem Fall
+#: "Notiert, eure Geschichte:" geantwortet und die Menuezeile darunter
+#: gezeigt, und niemandem fiel auf, dass die Handlung nirgends stand.
+_TEXT_NUR_FORMWAHL = (
+    "Die Form je Szene habe ich festgehalten. Die Handlung fehlt mir noch: "
+    "Was passiert, und wie geht es aus?"
+)
 
 #: Phase 6 · Schaerfung.
 TEXT_SCHAERFUNG_RUNDE_KNOPF = "Noch eine Runde"
@@ -2840,6 +2849,55 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     return f"{len(nummern)} Szenen uebernommen"
 
 
+def _uebernimm_formwahl(conn, tg, chat_id: int, wert: str, formen: dict) -> str:
+    """Die angetippte Zeile war eine Formwahl je Szene -- **die Wahl wird
+    uebernommen, die Geschichte bleibt leer** (06.09.2026, B2).
+
+    Sie abzuweisen und sonst nichts zu tun waere ein zweiter Verlust: die
+    Formentscheidung der Gruppe stand am 06.09. nur als Fliesstext in einem
+    Feld, das ihr nicht gehoerte, und ``szene.form`` war in **allen 15**
+    Zeilen NULL.
+
+    Zwei Ablagen, weil es zwei Lagen gibt: **gibt es die Szene schon**, geht
+    die Form in ``szene.form``; **gibt es sie noch nicht** -- und das war der
+    Live-Fall, die Formwahl kam vor der Szenenfolge --, geht sie als
+    Festlegung in die Auffangtabelle und ist damit im Prompt, bis die Szenen
+    entstehen.
+
+    ``szene.form`` und nicht ``form_vorschlag``: die Gruppe hat den Knopf
+    **gedrueckt**. Die Regel aus AGENTS.md ("die Form ist ein Vorschlag,
+    keine Vorentscheidung") haelt den Vorschlag eines Modells aus dem Feld
+    heraus, nicht die Wahl der Gruppe -- gesetzt wird sie durch einen Druck,
+    und der ist hier passiert."""
+    vorhandene = {s["nummer"]: s["id"] for s in repo.hole_szenen(conn, chat_id)}
+    geschrieben = []
+    offen = []
+    for nummer in sorted(formen):
+        szene_id = vorhandene.get(nummer)
+        if szene_id is None:
+            offen.append(f"Szene {nummer}: {formen[nummer]}")
+            continue
+        repo.setze_szenenfeld(conn, szene_id, "form", formen[nummer])
+        geschrieben.append(f"Szene {nummer}: {formen[nummer]}")
+    if offen:
+        repo.schreibe_festlegung(
+            conn, chat_id, "form", "Form je Szene — " + ", ".join(offen),
+            quelle="knopf",
+        )
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden",
+        "Form je Szene: " + ", ".join(geschrieben + offen), quelle="knopf",
+    )
+    repo.merke_vorfall(
+        conn, chat_id, None, "geschichte_war_formwahl",
+        "Eine Formwahl sollte als Geschichte gespeichert werden",
+    )
+    log.info("Geschichte-Knopf trug eine Formwahl, chat_id=%s: %r", chat_id, wert[:80])
+    repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
+    tg.sende(chat_id, _TEXT_NUR_FORMWAHL)
+    return "Formwahl uebernommen, Geschichte fehlt noch"
+
+
 def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     """Speichert die GEWAEHLTE RICHTUNG (``arbeitsstand.geschichte``) und
     bietet danach die Szenenfolge an (06.09.2026, Birk 11:42).
@@ -2867,6 +2925,18 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         log.error("Geschichte-Knopf ohne verwertbare Zeile, chat_id=%s", chat_id)
         tg.sende(chat_id, _TEXT_GESCHICHTE_LEER)
         return _TEXT_GESCHICHTE_LEER
+    # **Eine Menuezeile ist keine Geschichte** (06.09.2026, B1/B2 der
+    # Phase-4-Analyse). Der Kommentar unten benennt die Absicht richtig --
+    # sie traegt aber nur, wenn die Menuezeile eine HANDLUNGSrichtung
+    # beschreibt. Am 06.09. beschrieb sie eine Formabfolge ueber drei
+    # Szenen, und die ganze Zeile landete in ``arbeitsstand.geschichte``:
+    # 113 Zeichen Formwahl statt der 665 Zeichen langen, vierteiligen
+    # Handlung. Spiegelbildlich zu ``erkenner._ist_geschichte``, das
+    # denselben Fehler in der anderen Richtung abfaengt.
+    if not zeilen:
+        formen = szenenfolge.formabfolge(wert)
+        if formen:
+            return _uebernimm_formwahl(conn, tg, chat_id, wert, formen)
     # Eine Richtung ist eine Zeile "Titel — Bogen, Ende, Konflikt": sie ist
     # die Geschichte, nicht ihr erster Satz.
     geschichte = wert.strip() if not zeilen else geschichte

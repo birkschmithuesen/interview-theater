@@ -426,6 +426,82 @@ def _befehl_figur(conn, tg, chat_id: int, rest: str) -> None:
     )
 
 
+#: Der Kopf der Liste, die ``/festlegung`` ohne Argument zeigt.
+_TEXT_FESTLEGUNG_KOPF = "Festgehalten, ausserhalb der Felder:"
+_TEXT_FESTLEGUNG_LEER = "Ausserhalb der Felder ist noch nichts festgehalten."
+#: Eine Zeile Syntax, nach dem Muster von ``_TEXT_PHASE_UMSCHALTEN``.
+_TEXT_FESTLEGUNG_HILFE = (
+    "Neu: /festlegung struktur: nur eine Szene - "
+    "zurueck: /festlegung weg <suchwort>. "
+    "Bereiche: figur, gruppe, ort, struktur, form, stil, sonstiges."
+)
+_TEXT_FESTLEGUNG_SCHON_DA = "Das steht schon so da."
+_TEXT_FESTLEGUNG_UNBEKANNT = "Dazu habe ich nichts festgehalten."
+
+#: "weg" als erstes Wort nimmt zurueck. Eng gefasst und nur dieses eine Wort:
+#: "/festlegung wegstrecke: ..." soll eine Festlegung SETZEN.
+_FESTLEGUNG_WEG = re.compile(r"^weg\s+(.+)$", re.IGNORECASE | re.DOTALL)
+
+
+def _befehl_festlegung(conn, tg, chat_id: int, rest: str) -> None:
+    """``/festlegung <bereich>[/<bezug>]: <text>`` und ``/festlegung weg
+    <suchwort>`` -- der deterministische Weg in die Auffangtabelle
+    (docs/analyse-phase4-datenverlust-2026-09-06.md § 4.1).
+
+    **Die Rueckfallebene, nicht der Komfortweg** (Analyse § 4.4 Risiko 4).
+    Der Regelweg ist die Erkenner-art ``festlegung_setzen``; die laeuft ueber
+    ein Modell, und das ist am 06.09. mitten in Phase 4 mit HTTP 5xx
+    ausgefallen (``vorfall`` id 19). Ohne diesen Befehl gaebe es in so einem
+    Moment keinen Weg, eine Festlegung abzulegen.
+
+    Nirgends beworben, wie ``/leitfaden``: die Gruppe soll keine Befehle
+    lernen muessen, sie sagt es einfach. Wer ihn kennt, ist das
+    Workshop-Team.
+
+    Geantwortet wird immer -- auch wenn nichts passiert ist. Anders als der
+    Erkenner (der still bleibt, wenn er nichts findet) wartet hier jemand auf
+    eine Antwort, und Schweigen sieht aus wie ein kaputter Bot."""
+    rest = (rest or "").strip()
+    if not rest:
+        zeilen = [
+            repo.festlegungszeile(z["bereich"], z["bezug"], z["text"])
+            for z in repo.festlegungen(conn, chat_id)
+        ]
+        kopf = (
+            _TEXT_FESTLEGUNG_KOPF + "\n" + "\n".join(zeilen)
+            if zeilen
+            else _TEXT_FESTLEGUNG_LEER
+        )
+        tg.sende(chat_id, f"{kopf}\n\n{_TEXT_FESTLEGUNG_HILFE}")
+        return
+
+    weg = _FESTLEGUNG_WEG.match(rest)
+    if weg:
+        # Ueber ``erkenner.entferne`` und nicht direkt ueber ``repo``: es gibt
+        # fuer beide Wege -- gesprochen und getippt -- nur eine Wahrheit, und
+        # die Journalzeile faellt dabei mit ab.
+        entfernt = erkenner.entferne(
+            conn, chat_id, f"festlegung {weg.group(1).strip()}", quelle="befehl"
+        )
+        tg.sende(chat_id, _melde_entfernt(entfernt, _TEXT_FESTLEGUNG_UNBEKANNT))
+        return
+
+    # Dieselbe Zerlegung wie beim Erkenner: ein Format, nicht zwei.
+    bereich, bezug, text = erkenner._zerlege_festlegung(rest)
+    if not text.strip():
+        tg.sende(chat_id, _TEXT_FESTLEGUNG_HILFE)
+        return
+    if repo.schreibe_festlegung(
+        conn, chat_id, bereich, text, bezug=bezug, quelle="befehl"
+    ) is None:
+        tg.sende(chat_id, _TEXT_FESTLEGUNG_SCHON_DA)
+        return
+    tg.sende(
+        chat_id,
+        "Festgehalten: " + repo.festlegungszeile(bereich, bezug, text.strip()),
+    )
+
+
 def _befehl_phase(conn, tg, chat_id: int, rest: str, klm=None, e=None) -> None:
     """Der Notausgang fuer die Arbeitsphase (interview_theater/phasen.py) -- neben
     dem Erkenner (art ``phase_setzen``) der zweite, deterministische Weg.
@@ -684,6 +760,10 @@ _BEKANNTE_BEFEHLE = {
     # Versteckt: nirgends beworben, aber gueltig (06.09.2026). Der Weg zum
     # Leitfaden ist der Knopf; dieser Befehl ist der Notausgang.
     "/leitfaden",
+    # Ebenfalls versteckt: der Regelweg in die Auffangtabelle ist die
+    # Erkenner-art ``festlegung_setzen``, dieser Befehl die Rueckfallebene
+    # fuer den Fall, dass das Erkenner-Modell ausfaellt.
+    "/festlegung",
 }
 
 
@@ -743,4 +823,6 @@ def behandle(
         _befehl_hilfe(tg, e, chat_id)
     elif befehl == "/leitfaden":
         _befehl_leitfaden(conn, tg, chat_id, e)
+    elif befehl == "/festlegung":
+        _befehl_festlegung(conn, tg, chat_id, rest)
     return True

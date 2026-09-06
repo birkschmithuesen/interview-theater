@@ -186,6 +186,9 @@ def test_arten_enthaelt_alle_werte():
         # 05.09. frueh: Antwort auf das Angebot, Szenentexte in den USA
         # schreiben zu lassen.
         "szene_usa",
+        # 06.09.: die Auffangart fuer alles, was in kein Feld passt
+        # (docs/analyse-phase4-datenverlust-2026-09-06.md).
+        "festlegung_setzen",
     }
     assert set(erkenner.ARTEN) == erwartet
 

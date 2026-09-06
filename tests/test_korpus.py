@@ -284,6 +284,44 @@ def test_erkenner_traegt_die_arten_vom_05_09(erkenner_faelle, art):
     assert len(negativ) >= MIN_NEGATIV_0509, f"{art}: nur {len(negativ)} Negativfaelle"
 
 
+#: ``festlegung_setzen`` (06.09.2026) ist die Auffangart aus der
+#: Phase-4-Analyse und traegt damit alles, wofuer es kein Feld gibt --
+#: entsprechend breit ist ihre Abgrenzung nach unten (was in ein Feld passt,
+#: gehoert ins Feld) und nach oben (was eine blosse Chroniknotiz ist, bleibt
+#: "entschieden"). Deshalb dieselbe Dichte wie bei den Arten vom 05.09., plus
+#: einen Abgrenzungsfall und den Ruecknahmeweg.
+PRAEFIX_FESTLEGUNG = "fl0"
+MIN_POSITIV_FESTLEGUNG = 5
+MIN_NEGATIV_FESTLEGUNG = 2
+
+
+def test_erkenner_traegt_die_auffangart(erkenner_faelle):
+    positiv = [
+        f for f in erkenner_faelle
+        if any(a["art"] == "festlegung_setzen" for a in f["erwartet"])
+    ]
+    negativ = [
+        f for f in erkenner_faelle
+        if not f["erwartet"] and f["id"].startswith(PRAEFIX_FESTLEGUNG)
+    ]
+    assert len(positiv) >= MIN_POSITIV_FESTLEGUNG, f"nur {len(positiv)} Positivfaelle"
+    assert len(negativ) >= MIN_NEGATIV_FESTLEGUNG, f"nur {len(negativ)} Negativfaelle"
+
+
+def test_erkenner_grenzt_die_auffangart_gegen_die_felder_ab(erkenner_faelle):
+    """Der teuerste Fehler der neuen art waere nicht ein fehlender Eintrag,
+    sondern ein doppelter: eine Angabe, die ein Feld hat, landet zusaetzlich
+    in der Auffangtabelle, und beide widersprechen sich irgendwann (Analyse
+    § 4.4 Risiko 2). Mindestens ein Fall muss das messen."""
+    abgrenzung = [
+        f for f in erkenner_faelle
+        if f["id"].startswith(PRAEFIX_FESTLEGUNG)
+        and f["erwartet"]
+        and all(a["art"] != "festlegung_setzen" for a in f["erwartet"])
+    ]
+    assert abgrenzung, "kein Abgrenzungsfall: Feld schlaegt Auffangart"
+
+
 def test_erkenner_hat_die_live_stellen_aus_dem_probelauf(erkenner_faelle):
     """Die vier Nachrichten aus dem Probelauf vom 05.09.2026, an denen der
     Umbau haengt: 76 (Rahmen), 86 (Szenenplanung mit Ort und Figuren), 97

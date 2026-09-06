@@ -394,6 +394,33 @@ def _lege_figur_an(conn, chat_id: int, wert, ziel) -> str:
     return name
 
 
+def _entferne_festlegung(conn, chat_id: int, wert, ziel) -> str:
+    """Nimmt eine Festlegung zurueck -- **weich** (N3), ueber
+    ``repo.entferne_festlegung_nach_id``, denselben Weg wie der Chat.
+
+    Der Loeschknopf ist hier Pflicht und nicht Kuer (Analyse § 4.4 Risiko
+    3): am 06.09. stand ein Eintrag ueber einen laengst zurueckgenommenen
+    zweiten Spielort bis zuletzt aktiv in der Datenbank, weil ihn kein
+    Mechanismus abraeumte. Eine Auffangtabelle ohne sichtbaren
+    Ruecknahmeweg erbt genau diesen Fehler.
+
+    **Angelegt wird hier nichts.** Eine Festlegung entsteht im Gespraech
+    (Erkenner) oder ueber ``/festlegung``; die Seite raeumt nur auf. Zwei
+    Wege zum Anlegen waeren die Doppelung, gegen die dieses Modul
+    geschrieben ist."""
+    zeile = repo.entferne_festlegung_nach_id(conn, chat_id, ziel)
+    if zeile is None:
+        raise Fehler("Festlegung nicht gefunden.")
+    repo.schreibe_journal(
+        conn,
+        chat_id,
+        "entschieden",
+        f"Festlegung {_kuerze(zeile)} entfernt über die Gruppenseite",
+        quelle=QUELLE,
+    )
+    return ""
+
+
 def _setze_szenenfeld(feld: str, label: str):
     """Ein Planungsfeld einer Szene, ueber ``repo.setze_szenenfeld`` -- das
     ruehrt nie mehr als dieses eine Feld an (die Regel, an der die additive
@@ -452,6 +479,8 @@ FELDER = {
     "figur_quelle": _setze_figur_quelle,
     "figur_entfernen": _entferne_figur,
     "figur_neu": _lege_figur_an,
+    # Nur entfernen, nicht anlegen (siehe dort).
+    "festlegung_entfernen": _entferne_festlegung,
     **{
         f"szene_{feld}": _setze_szenenfeld(feld, label)
         for feld, label in SZENENFELDER.items()

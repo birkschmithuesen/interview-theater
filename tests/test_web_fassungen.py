@@ -260,6 +260,19 @@ def test_unbrauchbare_query_wird_verworfen(query):
     assert web.fassungswahl(query) == {}
 
 
+def test_die_kopfzeile_endet_nicht_auf_einem_trenner(conn, token):
+    """``_zeitpunkt`` ist ein Praefix mit Trenner -- angehaengt endete die
+    Zeile auf ' · ' ohne Fortsetzung."""
+    szene_id = _szene_mit_fassungen(conn, ["eins", "zwei"])
+    daten = web_daten.gruppe_nach_token(conn, token)
+
+    seite = web.gruppe_html(daten, None, fassungswahl={szene_id: 1})
+
+    zeile = seite.split('<p class="zeit">')[1].split("</p>")[0]
+    assert "Fassung 1 von 2" in zeile
+    assert not zeile.rstrip().endswith("·")
+
+
 def test_seite_zeigt_die_gewaehlte_fassung(conn, token):
     szene_id = _szene_mit_fassungen(conn, ["eins", "zwei", "drei"])
     daten = web_daten.gruppe_nach_token(conn, token)

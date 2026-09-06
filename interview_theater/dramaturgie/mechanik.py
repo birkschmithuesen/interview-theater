@@ -330,6 +330,10 @@ def lies(conn, chat_id: int) -> Szenenlage:
         if s["nummer"] is None:
             continue
         nummer = int(s["nummer"])
+        if nummer in lage.texte:
+            # Zwei Szenen mit derselben Nummer (Nummernvergabe von Hand):
+            # die zuletzt gelesene gewinnt, gefragt wird trotzdem nur einmal.
+            lage.nummern.remove(nummer)
         text = _szenentext(s)
         lage.nummern.append(nummer)
         lage.texte[nummer] = text

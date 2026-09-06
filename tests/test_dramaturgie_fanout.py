@@ -149,11 +149,42 @@ def tg():
 
 def test_schreibt_infomaniak_richtet_claude(einst, conn, monkeypatch):
     monkeypatch.delenv(fanout.ENV_MODELL, raising=False)
+    repo.setze_szene_usa(conn, 1, True)
 
     richter = fanout.waehle_richter(einst, conn, 1)
 
     assert richter.weg == "claude"
     assert richter.modell != einst.llm_modell
+
+
+def test_ohne_usa_zustimmung_kein_richter_in_den_usa(einst, conn, monkeypatch):
+    """Der Judge liest den Szenentext. Dieselbe Zustimmung, die der
+    Szenenlauf braucht, braucht deshalb auch die Pruefung -- sonst ginge auf
+    dem Umweg ueber den Richter in die USA, was die Gruppe fuer das Schreiben
+    abgelehnt hat."""
+    monkeypatch.delenv(fanout.ENV_MODELL, raising=False)
+
+    with pytest.raises(fanout.RichterFehler) as fehler:
+        fanout.waehle_richter(einst, conn, 1)
+
+    assert "US-Modell" in str(fehler.value)
+    assert "IT_JUDGE_MODELL" in str(fehler.value)
+
+
+def test_ein_schweizer_richter_braucht_keine_usa_zustimmung(einst, conn, monkeypatch):
+    monkeypatch.setenv(fanout.ENV_MODELL, "mistralai/Mistral-Large")
+
+    richter = fanout.waehle_richter(einst, conn, 1)
+
+    assert richter.weg == "infomaniak"
+
+
+def test_abgelehnte_usa_zustimmung_sperrt_den_claude_richter(einst, conn, monkeypatch):
+    monkeypatch.setenv(fanout.ENV_MODELL, "claude-opus-5")
+    repo.setze_szene_usa(conn, 1, False)
+
+    with pytest.raises(fanout.RichterFehler):
+        fanout.waehle_richter(einst, conn, 1)
 
 
 def test_schreibt_claude_richtet_infomaniak(einst, conn, monkeypatch):
@@ -188,6 +219,7 @@ def test_gleiches_modell_auch_bei_anderer_schreibweise(einst, conn, monkeypatch)
 
 
 def test_eigenes_richtermodell_waehlt_den_weg(einst, conn, monkeypatch):
+    repo.setze_szene_usa(conn, 1, True)
     monkeypatch.setenv(fanout.ENV_MODELL, "mistralai/Mistral-Large")
     assert fanout.waehle_richter(einst, conn, 1).weg == "infomaniak"
     monkeypatch.setenv(fanout.ENV_MODELL, "claude-sonnet-5")
@@ -469,6 +501,33 @@ def test_c1_parser_liest_keinen_score():
 
     assert zuordnung == {1: "MIRA"}
     assert "score" not in rest
+
+
+def test_c1_parser_liest_auch_mehrere_paare_je_zeile():
+    """Der Prompt bittet um eine Zeile je Replik. Fasst das Modell sie
+    zusammen, ist das kein Grund, "nichts zugeordnet" zu melden -- das waere
+    ein Befund ueber den Parser, der als Befund ueber das Stueck ankaeme."""
+    zuordnung, _ = fanout.zerlege_zuordnung(
+        "ZUORDNUNG: 1 = MIRA, 2 = JONAS, 3 = MIRA\n"
+    )
+
+    assert zuordnung == {1: "MIRA", 2: "JONAS", 3: "MIRA"}
+
+
+def test_c1_ohne_zuordnung_gibt_es_keinen_befund(stueck, einst):
+    """Keine Zuordnung ist **kein** Score 0: die Trefferquote waere null und
+    der Befund "alle klingen gleich" -- ein Urteil ueber einen abgebrochenen
+    Aufruf, nicht ueber das Stueck."""
+    lage = mechanik.lies(stueck, 1)
+    richter = RichterAttrappe({
+        fanout.ARTEN["c1"]:
+            "BEFUND: Ich kann nichts zuordnen.\n"
+            "BELEG: Der Koffer steht seit gestern hier.\nUNSICHER: nein\n"
+    })
+
+    assert fanout.frage_c1(
+        stueck, einst, None, 1, richter, 1, lage.repliken[1]
+    ) is None
 
 
 # --- Der ganze Lauf -------------------------------------------------------

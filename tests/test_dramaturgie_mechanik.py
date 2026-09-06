@@ -436,3 +436,19 @@ def test_pruefe_alles_schreibt_nichts(conn):
 @pytest.mark.parametrize("text", ["", "   \n\n", "(Nur eine Regieanweisung.)"])
 def test_leerer_text_ist_kein_fehler(text):
     assert mechanik.repliken(text, ["Mira"]) == []
+
+
+def test_zwei_szenen_mit_derselben_nummer_zaehlen_einmal(conn):
+    """Eine Nummernvergabe von Hand kann zwei Szenen dieselbe Nummer geben.
+    Sie darf nicht dazu fuehren, dass der Fan-out dieselbe Szene zweimal
+    fragt und zweimal bezahlt."""
+    _figur(conn, "Mira")
+    _szene(conn, 1, "MIRA: Erste Fassung.\n")
+    zweite = repo.lege_szene_an(conn, 1, 1, "Nochmal", "dasselbe", None)
+    conn.execute("UPDATE szene SET volltext = ? WHERE id = ?",
+                 ("MIRA: Zweite Fassung.\n", zweite))
+    conn.commit()
+
+    lage = mechanik.lies(conn, 1)
+
+    assert lage.nummern == [1]

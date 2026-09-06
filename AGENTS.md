@@ -547,6 +547,14 @@ Schreiber und Richter dasselbe Modell, gibt es einen `RichterFehler` mit einem
 Satz für die Gruppe und **keinen Lauf**. Keine stille Abwertung: ein Abzug,
 den niemand nachrechnen kann, ist schlimmer als eine Fehlermeldung.
 
+**Der Richter fällt unter dieselbe USA-Einwilligung wie der Szenenlauf.** Er
+liest den Szenentext, und der Claude-Weg geht über eine amerikanische API —
+also verweigert `waehle_richter` einen Claude-Richter, solange
+`gruppe.szene_usa_bestaetigt_am` nicht auf „ja" steht. Sonst ginge auf dem
+Umweg über die Prüfung in die USA, was die Gruppe fürs Schreiben abgelehnt
+hat. Der Ausweg steht in der Meldung: zustimmen, oder `IT_JUDGE_MODELL` auf
+ein Schweizer Modell setzen, das nicht die Szenen geschrieben hat.
+
 **Warum der Beleg mechanisch verifiziert wird.** Ein Judge kann jede Note
 begründen, auch eine falsche — die Begründung entsteht nach dem Urteil. Das
 einzige mechanische Gegenmittel ist die Zitatpflicht: `beleg.py` prüft das

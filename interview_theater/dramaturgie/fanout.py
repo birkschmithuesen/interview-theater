@@ -147,6 +147,12 @@ MELDUNG_GLEICHES_MODELL = (
     "({modell}) - ein Modell, das seinen eigenen Text benotet, findet ihn gut. "
     "Setzt IT_JUDGE_MODELL auf ein anderes Modell, dann laeuft die Pruefung."
 )
+MELDUNG_OHNE_USA = (
+    "Fuer die Pruefung muesste ich eure Szenen an das US-Modell schicken "
+    "({modell}), und dem habt ihr nicht zugestimmt. Entweder ihr stimmt der "
+    "Uebermittlung zu, oder der Betreiber setzt IT_JUDGE_MODELL auf ein "
+    "Schweizer Modell, das nicht eure Szenen geschrieben hat."
+)
 MELDUNG_FEHLGESCHLAGEN = (
     "Die Dramaturgie-Pruefung hat nicht geklappt. Ihr koennt es gleich noch "
     "einmal versuchen."
@@ -251,7 +257,24 @@ def waehle_richter(e, conn=None, chat_id: int | None = None) -> Richter:
     if gewuenscht.strip().casefold() == (schreiber or "").strip().casefold():
         raise RichterFehler(MELDUNG_GLEICHES_MODELL.format(modell=schreiber))
     weg = "claude" if gewuenscht.lower().startswith("claude") else "infomaniak"
+    if weg == "claude" and not usa_erlaubt(conn, chat_id):
+        # **Der Judge liest den Szenentext**, und der Claude-Weg geht ueber
+        # eine amerikanische API. Dieselbe Zustimmung, die der Szenenlauf
+        # braucht (``szene_claude.ist_aktiv``), braucht deshalb auch die
+        # Pruefung -- sonst ginge auf dem Umweg ueber den Richter in die USA,
+        # was die Gruppe fuer das Schreiben ausdruecklich abgelehnt hat.
+        raise RichterFehler(MELDUNG_OHNE_USA.format(modell=gewuenscht))
     return Richter(weg, gewuenscht)
+
+
+def usa_erlaubt(conn=None, chat_id: int | None = None) -> bool:
+    """Hat die Gruppe der Uebermittlung in die USA zugestimmt?
+
+    Ohne Gruppenbezug (Skript, Test) True: dort entscheidet der Betreiber, wen
+    er fragt, und es gibt keine Gruppe, die widersprechen koennte."""
+    if conn is None or chat_id is None:
+        return True
+    return repo.szene_usa_stand(conn, chat_id) == "ja"
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +399,12 @@ def zerlege(antwort: str) -> dict:
     }
 
 
-_ZUORDNUNG = re.compile(r"^\s*(\d{1,3})\s*[=:.\-]\s*(.+?)\s*$")
+#: ``1 = MIRA``, aber auch ``1: MIRA`` und mehrere Paare in einer Zeile
+#: (``1 = MIRA, 2 = JONAS``). Der Prompt bittet um eine Zeile je Replik; ein
+#: Modell, das sie in einer Zeile zusammenfasst, soll deswegen nicht als
+#: "hat nichts zugeordnet" gelten -- das waere ein Befund ueber den Parser,
+#: der als Befund ueber das Stueck in den Chat ginge.
+_ZUORDNUNG = re.compile(r"(\d{1,3})\s*[=:]\s*([^,;\n]+)")
 
 
 def zerlege_zuordnung(antwort: str) -> tuple[dict[int, str], dict]:
@@ -388,10 +416,10 @@ def zerlege_zuordnung(antwort: str) -> tuple[dict[int, str], dict]:
     bloecke = _bloecke(antwort)
     zuordnung: dict[int, str] = {}
     for wert in bloecke.get("ZUORDNUNG") or []:
-        treffer = _ZUORDNUNG.match(wert)
-        if not treffer:
-            continue
-        zuordnung[int(treffer.group(1))] = treffer.group(2).strip().strip("„“\"'")
+        for nummer, name in _ZUORDNUNG.findall(wert):
+            gesaeubert = name.strip().strip("„“\"'*` ").strip()
+            if gesaeubert:
+                zuordnung.setdefault(int(nummer), gesaeubert)
     rest = {
         "befund": _erster(bloecke, "BEFUND") or None,
         "beleg": _erster(bloecke, "BELEG") or None,
@@ -611,6 +639,15 @@ def frage_c1(conn, e, klm, chat_id: int, richter: Richter, nummer: int,
     antwort, stand = beleg_modul.hole_mit_beleg(
         aufruf, material, f"c1 Szene {nummer}"
     )
+    if not zuordnung:
+        # **Keine Zuordnung ist kein Score 0.** Ohne Zuordnung waere die
+        # Trefferquote null und der Befund "die Figuren klingen alle gleich" --
+        # ein Urteil ueber den Parser oder einen abgebrochenen Aufruf, das als
+        # Urteil ueber das Stueck in den Chat ginge.
+        log.warning(
+            "C1 Szene %s: keine Zuordnung in der Antwort, kein Befund", nummer
+        )
+        return None
     richtig = sum(
         1 for i, r in enumerate(echte, start=1)
         if mechanik._schluessel(zuordnung.get(i, "")) == mechanik._schluessel(r.label)

@@ -478,6 +478,13 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
 
     profil = workshop.aktiv()
+    if profil.geruest():
+        raise workshop.ProfilFehler(
+            f"Workshop-Profil {profil.name!r} ist ein Geruest und noch nicht "
+            f"ausgefuellt (geruest = true in profil.toml). Fehlende Felder: "
+            f"{', '.join(profil.fehlende_pflichtfelder()) or 'keine'}. "
+            f"Pruefen mit: python -m scripts.pruefe_profil {profil.name}"
+        )
     log.info("Workshop-Profil: %s", profil.name)
 
     e = einstellungen.laden()

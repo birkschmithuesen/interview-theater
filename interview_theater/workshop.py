@@ -106,6 +106,11 @@ class ProfilFehler(RuntimeError):
 #: etwas aendert, aendert das Verhalten ohne Profil -- also fuer jeden
 #: Prozess, in dem ``IT_WORKSHOP`` nicht gesetzt ist.
 VORGABE_WERTE: dict[str, Any] = {
+    # Ein Geruest ist ein angefangenes Profil: die Struktur steht, die
+    # Inhalte fehlen. Es darf geladen und geprueft werden -- damit ein Test
+    # daran nicht scheitert (E.1 Frage 8) --, aber kein Bot startet damit.
+    # Wer es fertig macht, streicht diese Zeile.
+    "geruest": False,
     "beschreibung": (
         "Zweitaegiger Theaterworkshop mit einem Migrantinnenverein in "
         "Dortmund, 05./06.09.2026."
@@ -442,6 +447,17 @@ class Profil:
             stelle = stelle[schritt]
         return stelle
 
+    def geruest(self) -> bool:
+        """Ein angefangenes Profil: die Struktur steht, die Inhalte fehlen.
+
+        Es laesst sich laden und pruefen -- ein Test soll daran nicht
+        scheitern (E.1 Frage 8) --, aber kein Bot startet damit."""
+        return bool(self.wert("geruest", False))
+
+    def fehlende_pflichtfelder(self) -> list[str]:
+        """Welche Felder aus ``PFLICHTFELDER`` leer sind."""
+        return [feld for feld in PFLICHTFELDER if not self.wert(feld)]
+
 
 #: Der Name des eingebauten Profils. Er steht in Logzeilen und in der
 #: Ausgabe von ``scripts/pruefe_profil.py``; er ist kein Verzeichnis.
@@ -512,8 +528,12 @@ def lade(name: str) -> Profil:
         texte["einleitung"] = roh_texte["einleitung"]
     profil = Profil(name, verz, _einfrieren(werte), _einfrieren(formen),
                     _einfrieren(stationen), _einfrieren(texte))
-    fehlend = [feld for feld in PFLICHTFELDER if not profil.wert(feld)]
-    if fehlend:
+    # Ein Geruest darf unvollstaendig sein -- es soll sich ansehen und
+    # pruefen lassen, ohne dass ein Test daran scheitert (E.1 Frage 8).
+    # Dass damit kein Bot startet, steht in ``bot.main`` und in
+    # ``scripts/pruefe_profil.py``, wo es hingehoert: an den Start.
+    fehlend = profil.fehlende_pflichtfelder()
+    if fehlend and not profil.geruest():
         raise ProfilFehler(
             f"{datei}: Pflichtfeld(er) leer oder nicht gesetzt: "
             f"{', '.join(fehlend)}"

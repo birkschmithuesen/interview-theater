@@ -117,6 +117,16 @@ def pruefe(profil: workshop.Profil) -> Bericht:
     """Alles, was ohne Datenbank und ohne Netz pruefbar ist."""
     bericht = Bericht()
 
+    # --- Geruest: angefangen, nicht startbereit --------------------------
+    if profil.geruest():
+        fehlend = profil.fehlende_pflichtfelder()
+        bericht.fehlt(
+            "Das Profil ist ein Geruest (geruest = true in profil.toml) und "
+            "damit nicht startbereit."
+            + (f" Leere Pflichtfelder: {', '.join(fehlend)}." if fehlend else "")
+            + " Wer es fertig macht, fuellt die Felder und streicht die Zeile."
+        )
+
     # --- Formen: Katalog und Regelbloecke --------------------------------
     formen = workshop.formen(profil)
     for form in formen:

@@ -67,6 +67,15 @@ DATEI = "profil.toml"
 #: profil.toml Zielgruppe, Orte und Rahmen traegt.
 FORMEN_DATEI = "formen.toml"
 
+#: Die Arbeitsphasen: Nummer, Kurzname, Satz, Stichwoerter.
+PHASEN_DATEI = "phasen.toml"
+
+#: Die Einleitungen, die die Gruppe beim Eintritt in eine Phase liest.
+#: Eigene Datei, weil sie Nina und Birk gehoert und nicht dem Code -- es ist
+#: der Wortlaut, den jemand im Chat liest, und er wird oefter angefasst als
+#: die Phasenmechanik daneben.
+PHASENTEXTE_DATEI = "phasentexte.toml"
+
 #: Die Felder, ohne die ein Profil nicht startet. Punkte trennen Ebenen.
 #: Bewusst kurz: was fehlen darf, faellt auf den Wert des Vorgabeprofils
 #: zurueck -- was hier steht, ist das, dessen Fehlen am Workshoptag als
@@ -209,6 +218,168 @@ VORGABE_FORMEN: dict[str, Any] = {
 }
 
 
+#: Die Arbeitsphasen -- **exakt die Werte, die vor dem Umbau in
+#: ``phasen.PHASEN``, ``phasen.STICHWOERTER``, ``phasen.MEHRDEUTIG``,
+#: ``phasen.ERSTE`` und ``phasen.MELDUNG`` standen** (Stand 06.09.2026).
+#:
+#: Die *Mechanik* bleibt generisch (Phase halten, springen, Journal
+#: schreiben); was hier steht, ist der Inhalt: wie viele Stationen es gibt,
+#: wie sie heissen und unter welchen Woertern eine Gruppe sie meint.
+#:
+#: ``stichwoerter``: zusaetzlich zum Kurznamen. Noetig, seit ein Kurzname
+#: aus zwei Sachen besteht -- gegen "Setting, Figuren & Geschichte" trifft
+#: ein Teilstringvergleich weder "wir sind noch beim Setting" noch "lasst
+#: uns Figuren machen", und beides sind genau die Saetze, mit denen eine
+#: Gruppe diese Phase benennt.
+VORGABE_PHASEN: dict[str, Any] = {
+    # Die Phase, die gilt, solange keine gesetzt wurde (``phase IS NULL``).
+    "erste": 1,
+    # Die Meldung, mit der jede Phasenaenderung hoerbar wird.
+    "meldung": "Wir sind jetzt bei {bezeichnung}. Falls nicht, sagt es mir.",
+    # Stichwoerter, die in mehr als einer Phase vorkommen, mit der
+    # spaeteren Phase, die sie meinen, sobald die Gruppe schon dort ist:
+    # "Schaerfung" heisst beides -- die am Material (5) und die am
+    # fertigen Stueck (7).
+    "mehrdeutig": {"5": 7},
+    "phase": [
+        {
+            "nummer": 1, "name": "Begriffe",
+            "satz": "Die im Plenum gesammelte Begriffsliste aufnehmen und ordnen.",
+            "stichwoerter": ["begriffe", "begriff", "begriffsliste"],
+        },
+        {
+            "nummer": 2, "name": "Fragen",
+            "satz": "Aus den Begriffen Interviewfragen entwickeln.",
+            # "interviewfragen" steht hier bewusst NICHT: der Vergleich
+            # laeuft in beide Richtungen, und "interview" waere darin
+            # enthalten -- die Gruppe landete beim Formulieren statt beim
+            # Aufnehmen.
+            "stichwoerter": ["fragen", "frage", "frageliste"],
+        },
+        {
+            "nummer": 3, "name": "Interviews",
+            "satz": "Interviews fuehren, das Material verdichten.",
+            "stichwoerter": ["interviews", "interview", "aufnahmen"],
+        },
+        {
+            "nummer": 4, "name": "Setting, Figuren & Geschichte",
+            "satz": "Frei erfinden: worin es spielt, wer vorkommt, was passiert.",
+            # "kernthema", "format" und "konflikt" bleiben als Altlast
+            # stehen: eine Gruppe (oder ein Journaleintrag von gestern)
+            # sagt weiter "wir sind beim Kernthema" und meint die Station,
+            # an der erfunden wird.
+            "stichwoerter": [
+                "setting", "figuren", "figur", "rahmen", "rahmung",
+                "kernthema", "kernthemas", "format", "konflikt",
+                "hauptkonflikt", "geschichte", "handlung", "grobstruktur",
+            ],
+        },
+        {
+            "nummer": 5, "name": "Schaerfung",
+            "satz": "Die erfundene Geschichte am Interviewmaterial schaerfen.",
+            "stichwoerter": ["schaerfung", "schaerfen", "clustern", "verdichtungen"],
+        },
+        {
+            "nummer": 6, "name": "Szenen als Geschichte",
+            "satz": "Jede Szene als Prosa erzaehlen -- was passiert, noch ohne Form.",
+            "stichwoerter": ["szenentexte", "szenentext", "szenen", "szene"],
+        },
+        {
+            "nummer": 7, "name": "Feinschliff",
+            "satz": ("Je Szene die Form waehlen, die Geschichte uebersetzen, "
+                     "das Stueck pruefen."),
+            "stichwoerter": ["durchlauf", "feinschliff", "stueckpruefung", "pruefrunde"],
+        },
+    ],
+}
+
+#: Die Einleitungen im Chat -- **exakt der Wortlaut, der vor dem Umbau in
+#: ``phasentexte.EINLEITUNGEN`` stand** (Birk hat ihn am 06.09.2026
+#: ausdruecklich bestaetigt; er wandert in eine Datei und aendert sich dabei
+#: um kein Zeichen).
+#:
+#: Zwei bis vier Saetze je Phase: was hier passiert, was die Gruppe tut, was
+#: ich tue, was am Ende steht. Keine Eigennamen -- weder erfundene Figuren
+#: noch Orte: was hier als Beispiel steht, taucht spaeter als Vorschlag des
+#: Bots wieder auf. Keine Slash-Befehle: beworben wird der Knopf.
+VORGABE_PHASENTEXTE: dict[str, Any] = {
+    "einleitung": {
+        "1": (
+            "Hier kommt eure Begriffsliste aus dem Plenum zu mir. Ihr schickt "
+            "sie getippt oder als Sprachnachricht, so wie sie bei euch an der "
+            "Wand steht. Ich halte sie fest, ordne sie und frage nach, wo ein "
+            "Begriff noch zu gross ist. Am Ende stehen die Kernbegriffe, mit "
+            "denen ihr weiterarbeitet."
+        ),
+        "2": (
+            "Aus euren Begriffen werden jetzt die Interviewfragen. Ich schlage "
+            "euch zehn vor, ihr sagt mir die Nummern von genau drei. Danach "
+            "schauen wir, welche Frage heikel ist und wie ihr sie so stellt, "
+            "dass sie leicht zu beantworten ist, und womit ihr ein Gespraech "
+            "anfangt und aufhoert. Am Ende habt ihr einen Leitfaden zum "
+            "Mitnehmen."
+        ),
+        "3": (
+            "Jetzt fuehrt ihr die Interviews - den Leitfaden habt ihr dabei. So "
+            "laeuft es: Ihr drueckt Aufnahme starten, dann nehmt ihr das Gespraech "
+            "als Sprachnachrichten auf, so viele wie noetig, gern auch in "
+            "Stuecken. Ich tippe alles mit. Am Ende drueckt ihr Interview beenden "
+            "(oder sagt am Schluss der Aufnahme \"fertig\"). Dann fasse ich das "
+            "Interview von selbst zusammen - die Themen und die woertlichen "
+            "Zitate, mit denen wir spaeter arbeiten. Am Ende steht zu jedem "
+            "Interview eine Zusammenfassung. Danach koennt ihr die "
+            "Zusammenfassung und das Transkript ansehen und gegenpruefen."
+        ),
+        "4": (
+            "Ab hier wird erfunden - ganz frei, ohne Material. Ihr denkt euch aus, "
+            "wo euer Stueck spielt (Ort, Zeit, Anlass), wer darin vorkommt, und "
+            "was passiert: die Geschichte im Groben, wie sie ausgeht, und die "
+            "Szenenfolge mit Titel, einem Satz, den Figuren und einem Vorschlag "
+            "fuer die Form. Ich helfe mit Vorschlaegen, wenn ihr wollt. Direkt "
+            "danach kommen die Interviews ins Spiel und schaerfen, was ihr gebaut "
+            "habt."
+        ),
+        "5": (
+            "Jetzt kommen die Interviews zurueck. Ich lege neben jede Szene und "
+            "jede Figur die Stellen aus euren Aufnahmen, die dazu passen, mit "
+            "dem woertlichen Zitat. Eure Geschichte aendert sich dadurch nicht, "
+            "sie wird genauer. Ihr entscheidet Vorschlag fuer Vorschlag und "
+            "koennt noch eine Runde drehen."
+        ),
+        "6": (
+            "Jetzt schreibe ich eure Geschichte am Stueck - eine Kurzgeschichte, "
+            "wie in einem Buch: was passiert, wer da ist, was gesagt und "
+            "gefuehlt wird, in Prosa. Wie viele Abschnitte es werden, entscheidet "
+            "die Geschichte. Aus jedem Abschnitt wird danach eine Szene. Kein "
+            "Theatertext, keine Form; das kommt im Feinschliff. Ihr lest sie und "
+            "sagt mir, was anders werden soll."
+        ),
+        "7": (
+            "Alle Szenen stehen als Geschichte. Jetzt der Feinschliff: Szene fuer "
+            "Szene entscheidet ihr die Form - {{formen_liste_oder}} -, und ich "
+            "uebersetze die Geschichte in genau diese Form. "
+            "Danach lese ich euer Stueck einmal als Ganzes, wie ein Zuschauer, "
+            "und sage euch zu jeder Frage, wo es traegt und wo nicht: "
+            "Spannungsbogen, Figuren, Spannung, Nachvollziehbarkeit, Anfang und "
+            "Ende, Sprechbarkeit. Zu jedem Punkt ein Vorschlag, den ihr in die "
+            "Szene geben koennt. Ihr koennt das Textbuch jederzeit als Datei "
+            "holen."
+        ),
+    },
+    # Was statt der Einleitung der letzten Phase dasteht, solange **nicht**
+    # jede Szene einen Text hat (06.09.2026, in der Simulation gemessen).
+    # Der alte Text fing mit "Alle Szenen stehen" an -- ein Satz ueber die
+    # Datenlage, den der Text nicht geprueft hat. Eine Behauptung ueber den
+    # Stand gehoert an die Daten gebunden, sonst ist sie ein Versprechen.
+    "letzte_offen": (
+        "Hier seht ihr euer Textbuch am Stueck. Ein Teil der Szenen ist noch "
+        "ungeschrieben - tippt eine davon an, dann hole ich das nach. Bei den "
+        "fertigen achten wir auf die Uebergaenge und darauf, was sich beim "
+        "Sprechen sperrig anfuehlt."
+    ),
+}
+
+
 def _einfrieren(wert: Any) -> Any:
     """Macht aus dem geladenen TOML-Baum etwas Unveraenderliches.
 
@@ -251,6 +422,10 @@ class Profil:
     werte: Any
     #: Der Formen-Katalog aus ``formen.toml``, eingefroren wie ``werte``.
     formen: Any = None
+    #: Die Arbeitsphasen aus ``phasen.toml``.
+    phasen: Any = None
+    #: Die Einleitungen aus ``phasentexte.toml``.
+    phasentexte: Any = None
 
     def wert(self, pfad: str, vorgabe: Any = None) -> Any:
         """Ein Feld ueber seinen Punktpfad (``"zielgruppe.traeger"``).
@@ -275,7 +450,8 @@ VORGABE_NAME = "(eingebaut)"
 #: Das eingebaute Profil als fertiges Objekt -- einmal eingefroren, von
 #: allen geteilt.
 VORGABE = Profil(VORGABE_NAME, None,
-                 _einfrieren(VORGABE_WERTE), _einfrieren(VORGABE_FORMEN))
+                 _einfrieren(VORGABE_WERTE), _einfrieren(VORGABE_FORMEN),
+                 _einfrieren(VORGABE_PHASEN), _einfrieren(VORGABE_PHASENTEXTE))
 
 
 def basis() -> Path:
@@ -321,7 +497,21 @@ def lade(name: str) -> Profil:
         )
     werte = _vereinige(VORGABE_WERTE, _lies_toml(datei))
     formen = _vereinige(VORGABE_FORMEN, _lies_toml(verz / FORMEN_DATEI, pflicht=False))
-    profil = Profil(name, verz, _einfrieren(werte), _einfrieren(formen))
+    # Phasen und Phasentexte werden **nicht** Feld fuer Feld vereinigt,
+    # sobald ein Profil eigene mitbringt: sie sind ein zusammenhaengender
+    # Satz, kein Stapel einzelner Werte. Ein Profil mit drei Stationen
+    # erbte sonst die Einleitungen der Phasen 4 bis 7 und einen
+    # Mehrdeutigkeits-Eintrag fuer eine Phase, die es nicht hat.
+    roh_phasen = _lies_toml(verz / PHASEN_DATEI, pflicht=False)
+    stationen = _vereinige(VORGABE_PHASEN, roh_phasen)
+    if "phase" in roh_phasen and "mehrdeutig" not in roh_phasen:
+        stationen["mehrdeutig"] = {}
+    roh_texte = _lies_toml(verz / PHASENTEXTE_DATEI, pflicht=False)
+    texte = _vereinige(VORGABE_PHASENTEXTE, roh_texte)
+    if "einleitung" in roh_texte:
+        texte["einleitung"] = roh_texte["einleitung"]
+    profil = Profil(name, verz, _einfrieren(werte), _einfrieren(formen),
+                    _einfrieren(stationen), _einfrieren(texte))
     fehlend = [feld for feld in PFLICHTFELDER if not profil.wert(feld)]
     if fehlend:
         raise ProfilFehler(
@@ -329,6 +519,7 @@ def lade(name: str) -> Profil:
             f"{', '.join(fehlend)}"
         )
     _pruefe_formen(profil, verz / FORMEN_DATEI)
+    _pruefe_phasen(profil, verz / PHASEN_DATEI)
     return profil
 
 
@@ -372,6 +563,107 @@ def _pruefe_formen(profil: "Profil", datei: Path) -> None:
             f"({', '.join(namen)}). Die Vorgabe ist der Rueckfall, wenn eine "
             f"Szene keine Form nennt -- sie muss es geben."
         )
+
+
+def _pruefe_phasen(profil: "Profil", datei: Path) -> None:
+    """Die Phasen muessen luecken- und dublettenfrei bei 1 anfangen.
+
+    Die Nummern sind nicht Schmuck: sie stehen in der Datenbank
+    (``arbeitsstand.phase``), in den Migrationen und in den Dateinamen der
+    Phasenprompts. Eine Luecke waere eine Gruppe, die nicht weiterkommt."""
+    eintraege = profil.phasen.get("phase") if profil.phasen else None
+    if not eintraege:
+        raise ProfilFehler(f"{datei}: kein einziger [[phase]]-Eintrag.")
+    nummern = []
+    for stelle, eintrag in enumerate(eintraege, start=1):
+        nummer = eintrag.get("nummer") if hasattr(eintrag, "get") else None
+        if not isinstance(nummer, int):
+            raise ProfilFehler(
+                f"{datei}: [[phase]] Nr. {stelle} hat keine ganzzahlige 'nummer'.")
+        if not (eintrag.get("name") or "").strip():
+            raise ProfilFehler(f"{datei}: Phase {nummer} hat keinen 'name'.")
+        nummern.append(nummer)
+    if sorted(nummern) != list(range(1, len(nummern) + 1)):
+        raise ProfilFehler(
+            f"{datei}: die Nummern muessen 1..{len(nummern)} sein, "
+            f"lueckenlos und jede einmal -- sie sind: {sorted(nummern)}."
+        )
+    fehlend = sorted(set(phasentexte_einleitungen(profil)) - set(nummern))
+    if fehlend:
+        raise ProfilFehler(
+            f"{PHASENTEXTE_DATEI}: Einleitung(en) fuer Phase(n) {fehlend}, "
+            f"die es in {datei.name} nicht gibt."
+        )
+    mehrdeutig = phasen_mehrdeutig(profil)
+    unbekannt = sorted(
+        (set(mehrdeutig) | set(mehrdeutig.values())) - set(nummern))
+    if unbekannt:
+        raise ProfilFehler(
+            f"{datei}: [mehrdeutig] nennt Phase(n) {unbekannt}, die es nicht gibt."
+        )
+
+
+def phasenliste(profil: Profil | None = None) -> tuple[tuple[int, str, str], ...]:
+    """Die Arbeitsphasen als ``(Nummer, Kurzname, Satz)`` -- die Form, die
+    ``phasen.PHASEN`` seit jeher hat, jetzt aus dem Profil."""
+    profil = profil or aktiv()
+    return tuple(
+        (e["nummer"], e["name"], e.get("satz", ""))
+        for e in sorted(profil.phasen.get("phase", ()), key=lambda e: e["nummer"])
+    )
+
+
+def phasen_stichwoerter(profil: Profil | None = None) -> dict[int, tuple[str, ...]]:
+    """Woerter, unter denen eine Phase gemeint sein kann."""
+    profil = profil or aktiv()
+    return {
+        e["nummer"]: tuple(e.get("stichwoerter", ()))
+        for e in profil.phasen.get("phase", ())
+    }
+
+
+def phasen_mehrdeutig(profil: Profil | None = None) -> dict[int, int]:
+    """Stichwoerter, die zwei Phasen meinen koennen, mit der spaeteren.
+
+    Die Schluessel stehen in TOML als Text (``[mehrdeutig] 5 = 7``) und
+    werden hier zu Zahlen -- eine Phasennummer ist eine Zahl, und ein Leser
+    soll nicht wissen muessen, aus welchem Dateiformat sie kam."""
+    profil = profil or aktiv()
+    return {int(k): int(v) for k, v in profil.phasen.get("mehrdeutig", {}).items()}
+
+
+def phasen_meldung(profil: Profil | None = None) -> str:
+    """Die Zeile, mit der ein Phasenwechsel gemeldet wird (mit
+    ``{bezeichnung}`` als Fuellstelle)."""
+    profil = profil or aktiv()
+    return profil.phasen.get("meldung", "")
+
+
+def phase_erste(profil: Profil | None = None) -> int:
+    """Die Phase, die gilt, solange keine gesetzt wurde."""
+    profil = profil or aktiv()
+    return int(profil.phasen.get("erste", 1))
+
+
+def phase_letzte(profil: Profil | None = None) -> int:
+    """Die hoechste Phasennummer -- eine Stelle statt einer 7 an sechs."""
+    liste = phasenliste(profil)
+    return liste[-1][0] if liste else 0
+
+
+def phasentexte_einleitungen(profil: Profil | None = None) -> dict[int, str]:
+    """Die Einleitung je Phase, im Wortlaut. Platzhalter stehen noch drin --
+    gefuellt wird in ``phasentexte.py``, wo auch der Hot-Reload sitzt."""
+    profil = profil or aktiv()
+    roh = profil.phasentexte.get("einleitung", {}) if profil.phasentexte else {}
+    return {int(k): v for k, v in roh.items()}
+
+
+def phasentexte_letzte_offen(profil: Profil | None = None) -> str:
+    """Was statt der Einleitung der letzten Phase dasteht, solange nicht
+    jede Szene einen Text hat."""
+    profil = profil or aktiv()
+    return profil.phasentexte.get("letzte_offen", "") if profil.phasentexte else ""
 
 
 #: Geladene Profile je Name. Ein Profil wird einmal je Prozess von der Platte

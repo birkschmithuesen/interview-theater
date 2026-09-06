@@ -291,12 +291,6 @@ def zusammenfassungszeilen(conn, chat_id: int) -> list[str]:
     return zeilen
 
 
-def _abgenommene_szenen(conn, chat_id: int) -> str:
-    return TRENNER.join(
-        _szenenzeile(s) for s in repo.hole_szenen(conn, chat_id) if s["fertig_am"]
-    )
-
-
 def _stueckpruefung(conn, chat_id: int) -> str:
     """Der Parameter von Phase 7: was die letzte Pruefrunde ergeben hat.
 

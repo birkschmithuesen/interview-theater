@@ -446,9 +446,6 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
 
     typ = _bestimme_typ(nachricht)
 
-    reply = nachricht.get("reply_to_message") or {}
-    antwortet_auf_bot = bool((reply.get("from") or {}).get("is_bot", False))
-
     return {
         "chat_id": nachricht["chat"]["id"],
         "chat_titel": nachricht["chat"].get("title"),
@@ -459,7 +456,6 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         "file_id": _bestimme_file_id(nachricht, typ),
         "dauer": _sprachquelle(nachricht).get("duration"),
         "gesendet_am": _iso(nachricht["date"]),
-        "antwortet_auf_bot": antwortet_auf_bot,
     }
 
 

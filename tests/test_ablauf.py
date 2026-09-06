@@ -63,8 +63,8 @@ def klm():
     return KLMAttrappe()
 
 
-def _nachricht(text=None, typ="text", antwortet_auf_bot=False):
-    return {"typ": typ, "text": text, "antwortet_auf_bot": antwortet_auf_bot}
+def _nachricht(text=None, typ="text"):
+    return {"typ": typ, "text": text}
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +75,7 @@ def _nachricht(text=None, typ="text", antwortet_auf_bot=False):
 # ---------------------------------------------------------------------------
 
 def test_reply_auf_bot_loest_aus():
-    n = _nachricht(text="ja klar", antwortet_auf_bot=True)
+    n = _nachricht(text="ja klar")
     assert ablauf.ist_ausloeser(n, "gruppe1") is True
 
 

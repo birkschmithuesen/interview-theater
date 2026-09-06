@@ -886,17 +886,6 @@ def _bezugszeit(ausloeser):
     return max(zeiten) if zeiten else None
 
 
-def _juengste_zeit(ausloeser, kandidaten):
-    """Nur noch fuer Aufrufer ausserhalb dieses Moduls -- die Fensterauswahl
-    selbst geht seit dem 06.09.2026 ueber ``waehle_fenster``."""
-    zeiten = [n["gesendet_am"] for n in ausloeser] or [
-        n["gesendet_am"] for n in kandidaten
-    ]
-    if not zeiten:
-        return None
-    return datetime.fromisoformat(max(zeiten))
-
-
 def _baue_ausloeser(ausloeser) -> str:
     """Die ausloesende(n) Nachricht(en) -- ueberlebt jede Kuerzung (§ 7.2),
     darum von der Kuerzungslogik in baue() nie angefasst."""

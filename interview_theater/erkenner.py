@@ -833,16 +833,95 @@ def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
     }
 
 
+#: Zahlwoerter, die die Gruppe statt einer Ziffer sagt. Bis zwoelf, weil der
+#: Knopf (``knoepfe.FIGURENZAHLEN``) nicht weiter geht -- eine Zahl darueber
+#: ist keine Figurenliste mehr, sondern ein Missverstaendnis.
+_ZAHLWOERTER = {
+    "eine": 1, "einer": 1, "zwei": 2, "drei": 3, "vier": 4, "fuenf": 5,
+    "fünf": 5, "sechs": 6, "sieben": 7, "acht": 8, "neun": 9, "zehn": 10,
+    "elf": 11, "zwoelf": 12, "zwölf": 12,
+}
+
+#: Eine Figurenzahl in einer Journalzeile: eine Zahl (oder eine Spanne "10
+#: bis 12") vor dem Wort "Figuren".
+#:
+#: **Nicht** vor "Hauptfiguren" oder "Nebenfiguren": live wurden beide
+#: getrennt gezaehlt ("2 bis 3 Hauptfiguren", "5 Nebenfiguren"), und eine
+#: Teilzahl als Gesamtzahl waere schlechter als gar keine. Der negative
+#: Lookahead sitzt deshalb vor dem Wortstamm.
+_FIGURENZAHL = re.compile(
+    r"\b(\d{1,2}|" + "|".join(_ZAHLWOERTER) + r")\b"
+    r"(?:\s*(?:bis|-|–|—)\s*(\d{1,2}|" + "|".join(_ZAHLWOERTER) + r")\b)?"
+    r"[^.,;]{0,20}?\s(?!haupt|neben)figuren\b",
+    re.IGNORECASE,
+)
+
+#: Die andere Richtung: "Die Figurenanzahl ist 6".
+_FIGURENZAHL_UMGEKEHRT = re.compile(
+    r"\bfigurenanzahl\b[^\d]{0,20}(\d{1,2})\b", re.IGNORECASE
+)
+
+
+def _zahl(wort: str) -> int | None:
+    wort = (wort or "").strip().lower()
+    if wort.isdigit():
+        return int(wort)
+    return _ZAHLWOERTER.get(wort)
+
+
+def figurenzahl_aus(text: str) -> str | None:
+    """Liest eine Gesamt-Figurenzahl aus einem Satz, oder ``None``.
+
+    Liefert sie in der Form, in der ``arbeitsstand.figuren_anzahl`` sie
+    traegt: ``"8"`` oder ``"10 bis 12"``. Rein deterministisch, kein
+    Modellaufruf -- der Satz liegt schon vor."""
+    roh = text or ""
+    treffer = _FIGURENZAHL.search(roh)
+    if treffer is not None:
+        erste = _zahl(treffer.group(1))
+        zweite = _zahl(treffer.group(2)) if treffer.group(2) else None
+        if erste is None or not 1 <= erste <= 12:
+            return None
+        if zweite is not None and 1 <= zweite <= 12 and zweite != erste:
+            return f"{erste} bis {zweite}"
+        return str(erste)
+    treffer = _FIGURENZAHL_UMGEKEHRT.search(roh)
+    if treffer is not None and 1 <= int(treffer.group(1)) <= 12:
+        return treffer.group(1)
+    return None
+
+
 def _wende_journal_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     """``verworfen``/``entschieden`` haengen eine Journalzeile an -- nie in
     den Arbeitsstand (SPEC § 4.3: 'Journaleintraege fallen hier mit ab').
     Das Journal ist nur-anhaengend, ein Dubletten-Check waere hier sachfremd:
-    zwei getrennte Aeusserungen mit demselben Wortlaut sind zwei Ereignisse."""
+    zwei getrennte Aeusserungen mit demselben Wortlaut sind zwei Ereignisse.
+
+    **Die eine Ausnahme: die Figurenanzahl** (06.09.2026, B4 der
+    Phase-4-Analyse). Live hat die Gruppe sie zweimal festgelegt, und beide
+    Male landete sie nur hier -- ``journal`` #27, art ``entschieden``, 77
+    Zeichen --, waehrend ``arbeitsstand.figuren_anzahl`` NULL blieb. Gesetzt
+    wurde das Feld bis dahin ausschliesslich vom Knopf; sagt die Gruppe die
+    Zahl einfach, gab es keinen Weg hinein.
+
+    Der Weg ist deterministisch (``figurenzahl_aus``, ein Regulaerausdruck
+    ueber einen Satz, der schon dasteht) und nicht eine neue Erkenner-art:
+    eine neue art kostet einen Korpuslauf, dieser Griff kostet nichts und
+    fasst genau den gemessenen Fall. Der Journaleintrag bleibt daneben
+    stehen -- er ist die Chronik, das Feld ist der Stand."""
     wert = wert.strip()
     if not wert:
         return None
     repo.schreibe_journal(conn, chat_id, art, wert, quelle="erkenner")
-    return {"art": art, "wert": wert}
+    ergebnis = {"art": art, "wert": wert}
+    if art == "entschieden":
+        anzahl = figurenzahl_aus(wert)
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        alt = (stand["figuren_anzahl"] if stand else None) or None
+        if anzahl is not None and anzahl != alt:
+            repo.setze_arbeitsstand(conn, chat_id, "figuren_anzahl", anzahl)
+            ergebnis["figuren_anzahl"] = anzahl
+    return ergebnis
 
 
 def _wende_wortlaut_an(conn, chat_id: int, wert: str) -> dict | None:
@@ -1323,6 +1402,7 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     figuren_namen = []
     geplant = []
     festgehalten = []
+    figuren_anzahl = None
     korrigiert = []
     phase_gesetzt = None
     entfernt = []
@@ -1358,6 +1438,12 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
             phase_gesetzt = phasen.nummer_fuer(wert)
         elif art == "entfernen":
             entfernt.append(wert)
+        # Ein ``entschieden`` bleibt still -- ausser es hat nebenbei die
+        # Figurenanzahl gesetzt (B4). Dann ist es eine Arbeitsstandaenderung
+        # wie jede andere und gehoert in die Meldung: sonst stuende die Zahl
+        # in der Datenbank und die Gruppe wuesste nichts davon.
+        if aenderung.get("figuren_anzahl"):
+            figuren_anzahl = aenderung["figuren_anzahl"]
         # verworfen/entschieden/wortlaut_an/wortlaut_aus/interview_benennen:
         # bewusst ignoriert, bleiben still (Aufgabe 4). szene_schreiben
         # ebenfalls -- es meldet sich selbst, mit einer Ankuendigung und
@@ -1377,6 +1463,8 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
         zeilen.append(f"Geschichte: {geschichte}")
     if hauptkonflikt:
         zeilen.append(f"Hauptkonflikt: {hauptkonflikt}")
+    if figuren_anzahl:
+        zeilen.append(f"Anzahl Figuren: {figuren_anzahl}")
     if figuren_namen:
         zeilen.append(_figuren_zeile(figuren_namen))
     if begriffe:

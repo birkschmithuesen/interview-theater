@@ -247,29 +247,25 @@ def test_lies_nachricht_verarbeitet_edited_message_wie_eine_normale_nachricht():
     assert n["text"] == "korrigiert"
 
 
-def test_lies_nachricht_setzt_antwortet_auf_bot():
+# Ein Reply auf eine Bot-Nachricht ist seit dem 06.09.2026 kein eigener Fall
+# mehr: das Feld ``antwortet_auf_bot`` war seit der Ausloeser-Aenderung
+# (``ablauf.ist_ausloeser`` antwortet auf jede Nachricht) von keinem Codepfad
+# mehr gelesen und ist entfernt -- HANDOFF (f) Punkt 6. Der Fall selbst bleibt
+# geprueft: er darf nicht knallen.
+
+def test_lies_nachricht_kommt_mit_reply_zurecht():
     update = {"update_id": 8, "message": {
         "message_id": 15, "date": 1788600000,
         "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Gil"},
         "text": "ja gerne",
         "reply_to_message": {"from": {"is_bot": True}}}}
     n = telegram.lies_nachricht(update)
-    assert n["antwortet_auf_bot"] is True
+    assert n["text"] == "ja gerne"
 
 
-# Die folgenden zwei Tests stehen nicht im Brief, waeren spaeter aber teuer zu
-# finden: fehlendes reply_to_message darf nicht knallen, und eine Sprachnachricht
-# mit Bildunterschrift muss trotzdem als "sprache" erkannt werden (Punkt 5 der
-# Auftragshinweise -- vor "text" pruefen).
-
-def test_lies_nachricht_antwortet_auf_bot_ist_false_ohne_reply():
-    update = {"update_id": 9, "message": {
-        "message_id": 16, "date": 1788600000,
-        "chat": {"id": -100, "title": "Gruppe 1"}, "from": {"first_name": "Ina"},
-        "text": "einfach so"}}
-    n = telegram.lies_nachricht(update)
-    assert n["antwortet_auf_bot"] is False
-
+# Der folgende Test steht nicht im Brief, waere spaeter aber teuer zu finden:
+# eine Sprachnachricht mit Bildunterschrift muss trotzdem als "sprache" erkannt
+# werden (Punkt 5 der Auftragshinweise -- vor "text" pruefen).
 
 def test_lies_nachricht_erkennt_sprache_trotz_bildunterschrift():
     update = {"update_id": 10, "message": {

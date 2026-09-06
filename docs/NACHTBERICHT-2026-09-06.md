@@ -31,3 +31,11 @@ liest die letzte Zeile.
 - Einzel-Neustarts gruppe4/1/2/3 + Web: alle aktiv, 4 Prozesse, 200 OK, /gesund ok, keine Tracebacks.
 - Läuft: Simulation (Simulator auf 8 Phasen + Knöpfe, PII-freie Stimmen aus Tag-1-Material, 3–4 Läufe, Flow-Fixes) auf feat/simulation-tag2.
 - Danach: Skill `interview-theater-live-ops` + HANDOFF (f) aktualisieren, Bericht finalisieren.
+
+## 03:20 — Simulation gelaufen, Flow-Fixes 1–5 live
+- `feat/simulation-tag2` gemergt (main = `751fc69`), Suite **1605 grün**. Simulator kann jetzt Knöpfe drücken und fährt alle 8 Phasen; Stimmen PII-frei aus Tag-1-Material (Test gegen echte DB grün: kein Transkript-Wortlaut, keine Namen).
+- 4 Läufe (tag1-gruppe1, tag1-gruppe2, regie, gruppe1 nachher): **alle erreichen Phase 8** (gestern max. 6). Nachher-Lauf: Arbeitsstand 5/5, Fragen je Bot-Nachricht 0,87, Phasenwechsel 3/5 proaktiv, 1/16 Schritte gescheitert (vorher 4). Regie-Lauf schrieb 3 Szenen, Form je Szene bestätigt, Exposition 2/2 erfüllt. Kosten Bot 1,64 CHF.
+- Flow-Fixes umgesetzt: Begrüßung fordert nicht die eben gesendete Liste; Form ist Vorschlag statt gesetzt (auch Erkenner-Pfad); Phase 8 behauptet nichts Falsches; Leitfaden einmal; 10 Fragen-Knöpfe verschwinden nach der Wahl. Simulator-Bug (USA-Angebot ohne Knöpfe) gefixt.
+- Einzel-Neustarts aller vier Bots + Web: aktiv, 200 OK, /gesund ok (je ein 502 von Telegram-getUpdates bei g1/g3 — Telegram-seitig, selbstheilend).
+- Offen → läuft als letzter Delegate (feat/sim-rest): Phasenangebot erneuern auf „weiter"/`/stand`/nach Änderung; Bot erfindet keine Szenentexte („zeig Szene N" → Szene-ansehen). Punkt 8 (Meta-Feedback ist kein Inhalt) braucht Korpuslauf → morgen früh, wenn Zeit.
+- Skill `interview-theater-live-ops` aktualisiert (§ 2c Stand 06.09., Pitfall Parallel-Agenten/Worktrees/Claude-Code-Allowlist/Wasserzeichen-Falle beim Test-DB-Reset).

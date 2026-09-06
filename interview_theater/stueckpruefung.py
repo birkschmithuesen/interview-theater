@@ -320,7 +320,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
     else:
         zeilen.stoppe()
         try:
-            knoepfe.zeige_stueckpruefung(conn, tg, chat_id, runde)
+            knoepfe.zeige_stueckpruefung(conn, tg, chat_id, runde, e)
         except Exception:
             log.exception("Befunde nicht zustellbar, chat_id=%s", chat_id)
     if nachbereitung is not None:

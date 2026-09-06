@@ -606,6 +606,33 @@ def test_durchlauf_zeigt_die_szenenfolge_mit_status(conn, tg):
     ]
 
 
+def test_durchlauf_nennt_die_probenansicht_neben_dem_dateiknopf(conn, einst, tg):
+    """06.09.2026: die Datei nimmt man mit, die Probenansicht liest man in
+    der Probe. Der Knopf bleibt, die Zeile kommt dazu."""
+    import dataclasses
+
+    _eine_szene(conn, nummer=1)
+    mit_web = dataclasses.replace(einst, web_url="https://lab.test/theatersoap")
+
+    knoepfe.biete_durchlauf(conn, tg, 1, mit_web)
+
+    text = tg.knoepfe[-1][1]
+    token = repo.stelle_web_token_sicher(conn, 1)
+    assert f"https://lab.test/theatersoap/g/{token}/textbuch" in text
+    assert knoepfe.TEXT_TEXTBUCH_KNOPF in tg.beschriftungen
+
+
+def test_ohne_weboberflaeche_steht_keine_zeile_da(conn, einst, tg):
+    """Ohne ``IT_WEB_URL`` gibt es keinen Webserver daneben -- und dann auch
+    keinen halben Link im Chat."""
+    _eine_szene(conn, nummer=1)
+
+    knoepfe.biete_durchlauf(conn, tg, 1, einst)
+
+    assert "textbuch" not in tg.knoepfe[-1][1]
+    assert knoepfe.TEXT_TEXTBUCH_KNOPF in tg.beschriftungen
+
+
 def test_szene_ansehen_schickt_den_volltext(conn, einst, tg):
     szene_id = _eine_szene(conn)
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Da bin ich.")

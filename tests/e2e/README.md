@@ -5,6 +5,12 @@ Ein echtes Chromium klickt auf der Gruppenseite. Was hier geprüft wird, prüft
 fetch-Aufruf, der Nonce aus der Seite, das sanfte Nachladen — und ob nach
 einem Neuladen wirklich der neue Wert dasteht.
 
+Seit dem 06.09.2026 gehört die **Probenansicht** (`/g/<token>/textbuch`) dazu:
+Rollenfilter, „Regieanweisungen ausblenden" und der geteilte Link
+(`#figur=Pola&schrift=gross`) sind clientseitig — im Browser geklickt ist das
+die einzige Stelle, an der sie wirklich laufen. `tests/test_web_textbuch.py`
+prüft daneben, was der Server liefert.
+
 **Läuft nicht im normalen `pytest`-Lauf mit.** Dort gibt es kein Playwright,
 und die Datei überspringt sich selbst (`pytest.importorskip`). Das ist
 Absicht: die Testsuite soll ohne Browser und ohne Netz durchlaufen.

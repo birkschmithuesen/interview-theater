@@ -843,6 +843,28 @@ def bearbeitbares(conn: sqlite3.Connection, chat_id: int) -> dict:
     }
 
 
+def chat_id_nach_token(conn: sqlite3.Connection, token: str | None) -> int | None:
+    """Die ``chat_id`` zu einem Web-Token, oder None.
+
+    Die kleine Schwester von ``gruppe_nach_token`` fuer die Wege, die nur
+    wissen muessen, WELCHE Gruppe gemeint ist -- der Textbuch-Download
+    (``/g/<token>/textbuch.md``) baut seinen Inhalt aus
+    ``szenenfolge.textbuch`` und braucht die halbe Gruppenseite dafuer nicht.
+    Dieselben zwei Vorsichtsmassnahmen wie dort: ein leeres Token wird gar
+    nicht erst gesucht (sonst traefe ``/g/`` jede Gruppe mit leerer Spalte),
+    und eine fehlende Spalte ``web_token`` ist ein None und kein Fehler --
+    die Migration laeuft im Bot, nicht hier."""
+    if not token:
+        return None
+    try:
+        zeile = conn.execute(
+            "SELECT chat_id FROM gruppe WHERE web_token = ?", (token,)
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return zeile["chat_id"] if zeile else None
+
+
 def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | None:
     """Die Leseansicht einer Gruppe, adressiert ueber ihr Web-Token.
 

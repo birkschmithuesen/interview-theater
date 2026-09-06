@@ -788,10 +788,12 @@ nach `betrieb/web.log`.
 | `IT_WEB_URL` | `https://lab.artesmobiles.art/theatersoap` | nur für `scripts/web_links.py` |
 
 Routen: `/` (Team-Dashboard, projiziert, alle Gruppen), `/g/<token>`
-(Leseansicht einer Gruppe, Handy), `/gesund` (Health-Check, antwortet ohne
-Datenbankzugriff). Jede Route greift auch mit vorangestelltem
-`IT_WEB_PREFIX`, weil erst die nginx-Konfiguration entscheidet, ob das
-Präfix beim Server ankommt.
+(Leseansicht einer Gruppe, Handy), `/g/<token>/textbuch` (Probenansicht,
+siehe unten) samt `/g/<token>/textbuch.md` und `.txt`, `/gesund`
+(Health-Check, antwortet ohne Datenbankzugriff). Jede Route greift auch mit
+vorangestelltem `IT_WEB_PREFIX`, weil erst die nginx-Konfiguration
+entscheidet, ob das Präfix beim Server ankommt. Was hinter `/g/<token>/`
+nicht in dieser Liste steht, ist 404 und nicht etwa Teil des Tokens.
 
 `python scripts/web_links.py` gibt aus, welche Gruppe welchen Link bekommt.
 Das Token steht in `gruppe.web_token`, erzeugt wird es beim ersten Kontakt
@@ -807,6 +809,72 @@ erreichbar sind und das Dashboard projiziert wird:
 
 `IT_WEB_BIND` lehnt `0.0.0.0` mit einem Fehler ab: ein Tippfehler in einer
 Env-Datei soll die Interviews nicht ins offene Netz stellen.
+
+### Die Probenansicht (06.09.2026)
+
+`/g/<token>/textbuch` ist das ganze Stück am Stück — Szene für Szene mit
+Nummer, Titel, Form, Ort/Zeit/Anlass, Besetzung und Volltext, eine
+ungeschriebene Szene als Platzhalter mit ihrer Planung (dieselbe Entscheidung
+wie in `szenenfolge.textbuch`: eine fehlende Szene 4 sieht aus wie ein
+Fehler). Anlass ist Birks UX-Frage: bis dahin war Telegram der Arbeitsraum
+und das Web die Anzeige, und für die eigentliche Theaterarbeit — Rollen
+lesen, laut sprechen — ist ein Chatverlauf das falsche Medium. Der fertige
+Text versinkt zwischen hunderten Nachrichten, und in der Probe hält jede
+Person ihr eigenes Telefon in der Hand, nicht den Gruppenchat.
+
+**Sie bleibt rein lesend**, und das ist keine Sparmaßnahme: die Gruppenseite
+ändert seit dem 05.09. eine feste Liste von Parametern, weil dort *entschieden*
+wird. In der Probe wird *gespielt*. Ein Formular unter einem Szenentext, den
+man gerade laut liest, wäre eine Einladung zum Vertippen an der einen Stelle,
+die ohnehin dem Chat gehört (der Volltext entsteht aus einem Modellauf und
+wird dort abgenommen). Also: kein POST auf dieser Route (404), kein Nonce,
+keine Zeile in `web_schreiben.FELDER`. Und **kein Nachladen** — weder `meta
+refresh` noch das sanfte `fetch` der anderen Seiten: es würde alle zehn
+Sekunden Rollenfilter und Schriftgröße zurücksetzen, und ein Textbuch ändert
+sich nicht, während man es liest (`web._seite(..., nachladen=False)`).
+
+Die Grenze ist hier **enger als auf der Gruppenseite**: nur Szenentexte und
+Szenenplanung. Keine Interviews, kein Journal, keine Verdichtung, kein
+Belegzitat — der Link geht in der Probe von Hand zu Hand. Test:
+`test_kein_material_in_der_probenansicht`.
+
+**Der Rollenfilter parst defensiv** (`web.sprecher_der_zeile`). Erkannt wird
+die Grundform aus `prompts/szene.md` — „Figurennamen in GROSSBUCHSTABEN,
+danach ein Doppelpunkt, dann die Replik" — samt der engen Schreibweise aus
+`prompts/formen/dialog.md` (`LEYLA:(steht auf)Text`) und `CHOR:`. Dagegen
+gesperrt sind: Satzzeichen im Namen, mehr als 30 Zeichen, und die Wörter, die
+in echten Texten am Zeilenanfang mit Doppelpunkt stehen, ohne eine Figur zu
+sein (`SZENE 1: …` aus dem Szenenkopf, `TITEL:`, `KURZ:` — sonst hätte jedes
+Stück eine Figur namens „SZENE 1"). Ein kleingeschriebener Name gilt **nur**,
+wenn die Gruppe wirklich eine Figur dieses Namens hat. **Wird keine
+Sprecherzeile erkannt, fehlt die Leiste ganz** statt falsch zu markieren —
+genau der Fall eines Stücks, das erst als Geschichte dasteht (Phase 6, Prosa).
+Hervorgehoben wird gedämpft, nicht gelöscht: die Stichworte muss man
+mitlesen können, sonst weiß niemand, wann sein Einsatz kommt.
+
+Rollenfilter, Schriftgröße (drei Stufen) und „Regieanweisungen ausblenden"
+laufen clientseitig, ihr Zustand steht im **URL-Fragment**
+(`#figur=Leyla&schrift=gross&regie=aus`) und sonst nirgends — kein Cookie,
+kein localStorage, kein Server-Roundtrip: der Link soll teilbar sein („so
+liest sich das mit meiner Rolle"). Fällt JavaScript aus, bleibt das ganze
+Stück lesbar, nur die Leisten wirken nicht.
+
+**„PDF" ist ein Browser-Ausdruck.** Der `@media print`-Block wirft Leisten,
+Wege und Farben weg und setzt ein Manuskript: Serifenschrift, Sprecher fett,
+je Szene ein Seitenumbruch, und im Ausdruck gilt kein Rollenfilter (gedruckt
+wird das ganze Stück, auch wenn am Telefon gerade eine Rolle hervorgehoben
+ist). Damit braucht der Weg zum Papier keine Abhängigkeit.
+
+`/g/<token>/textbuch.md` und `.txt` liefern **wörtlich**
+`szenenfolge.textbuch(conn, chat_id)` — dieselbe Funktion, die der Knopf
+„Textbuch als Datei" im Chat verschickt, gelesen über die read-only geöffnete
+Verbindung. Keine zweite Wahrheit: zwei Textbücher, die irgendwann
+auseinanderlaufen, wären schlimmer als eines, das nicht jedes Format kennt.
+Im Chat steht der Link zur Probenansicht seitdem **neben** dem Datei-Knopf
+(`knoepfe.probenansicht_zeile`, an beiden Stellen: `biete_durchlauf` und
+`biete_nach_pruefung`) — als Textzeile, weil eine Inline-Tastatur
+`callback_data` trägt und keinen Link. Der Knopf bleibt: die Datei nimmt man
+mit, die Seite liest man in der Probe.
 
 ### Die Gruppenseite ändert Parameter (05.09.2026 abends)
 

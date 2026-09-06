@@ -3632,9 +3632,17 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
         befehle._befehl_aufnahme(conn, tg, klm, e, chat_id)
         return "Aufnahme umgeschaltet"
     if art == ART_NOCH_NICHT:
-        # Das Phasenangebot ist abgelehnt. Der Merkposten steht bereits
-        # (``biete_phase_proaktiv``), es wird also nichts geschrieben -- eine
-        # Zeile, damit der Druck sichtbar gewirkt hat, und Ruhe.
+        # Das Phasenangebot ist abgelehnt -- aber nicht fuer immer
+        # (06.09.2026, Nacht-Simulation Punkt 6). Der Merkposten wird
+        # NEGATIV gesetzt: still bleibt es weiterhin, bis die Gruppe
+        # wirklich etwas aendert; der naechste gespeicherte Parameter
+        # derselben Phase holt das Angebot dann einmal zurueck
+        # (``phasen.erneuere_nach_aenderung``). Vorher stand hier nichts,
+        # und das Angebot war nach diesem Druck fuer immer weg.
+        try:
+            phasen.lehne_angebot_ab(conn, chat_id, int(knopf["wert"]))
+        except (TypeError, ValueError):
+            pass
         tg.sende(chat_id, _TEXT_NOCH_NICHT)
         return _TEXT_NOCH_NICHT
     if art == ART_PHASE:

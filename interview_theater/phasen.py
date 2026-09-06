@@ -386,7 +386,11 @@ def offenes_angebot(conn, chat_id: int) -> int | None:
     if not moegliche:
         return None
     merkposten = max(moegliche)
-    if repo.hole_phase_angeboten(conn, chat_id) == merkposten:
+    gemerkt = repo.hole_phase_angeboten(conn, chat_id)
+    # ``abs``: ein NEGATIVER Merkposten ist dieselbe Stufe, nur abgelehnt
+    # (``lehne_angebot_ab``) -- auch dann bleibt es still, bis
+    # ``erneuere_nach_aenderung`` den Weg wieder freigibt.
+    if gemerkt is not None and abs(gemerkt) == merkposten:
         return None
     return merkposten
 
@@ -395,3 +399,47 @@ def merke_angebot(conn, chat_id: int, nummer: int) -> None:
     """Haelt fest, dass diese Stufe angeboten wurde -- damit das Angebot sich
     nicht jeden Zug wiederholt (``arbeitsstand.phase_angeboten``)."""
     repo.setze_phase_angeboten(conn, chat_id, nummer)
+
+
+#: Der Merkposten-Wert fuer "nichts gemerkt". Nicht ``None``, weil
+#: ``setze_phase_angeboten`` eine Zahl schreibt; 0 ist keine Phase und
+#: vergleicht sich deshalb mit keiner Stufe.
+KEIN_ANGEBOT = 0
+
+
+def vergiss_angebot(conn, chat_id: int) -> None:
+    """Raeumt den Merkposten ab -- das naechste ``offenes_angebot`` bietet
+    dieselbe Stufe wieder an (06.09.2026, Nacht-Simulation Punkt 6).
+
+    Der Anlass: das Angebot fiel genau einmal je Stufe. Ging es unter, oder
+    drueckte die Gruppe \"Noch etwas aendern\", kam es nie wieder -- auch nicht,
+    wenn die Gruppe zwei Zuege spaeter ausdruecklich \"weiter\" sagte. Eine
+    Bitte der Gruppe ist der Grund, ein Angebot zu ERNEUERN; genau dafuer ist
+    diese Funktion da. Von selbst raeumt niemand ab."""
+    repo.setze_phase_angeboten(conn, chat_id, KEIN_ANGEBOT)
+
+
+def lehne_angebot_ab(conn, chat_id: int, nummer: int) -> None:
+    """\"Noch etwas aendern\": das Angebot ist abgelehnt, aber nicht fuer immer.
+
+    Gemerkt wird die Stufe NEGATIV. Fuer ``offenes_angebot`` zaehlt sie
+    dadurch weiter als angeboten (kein Draengeln bei jeder Nachricht) -- und
+    ``erneuere_nach_aenderung`` erkennt am Vorzeichen, dass das Angebot beim
+    naechsten gespeicherten Parameter derselben Phase wiederkommen soll: die
+    Gruppe hat ja gesagt, dass sie noch etwas aendern will, und wenn sie es
+    getan hat, ist die Frage \"weiter?\" wieder faellig."""
+    repo.setze_phase_angeboten(conn, chat_id, -abs(nummer))
+
+
+def erneuere_nach_aenderung(conn, chat_id: int) -> bool:
+    """Gab die Gruppe nach \"Noch etwas aendern\" wirklich etwas Neues an, wird
+    das Angebot einmal erneuert. Liefert True, wenn das passiert ist.
+
+    Einmal je Aenderung, nicht bei jeder Nachricht: der Aufrufer ist der
+    Erkenner-Nachlauf, und der ruft hier nur auf, wenn tatsaechlich etwas in
+    den Arbeitsstand geschrieben wurde."""
+    gemerkt = repo.hole_phase_angeboten(conn, chat_id)
+    if gemerkt is None or gemerkt >= 0:
+        return False
+    vergiss_angebot(conn, chat_id)
+    return True

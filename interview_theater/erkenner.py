@@ -1065,6 +1065,38 @@ def _biete_phase_an(conn, tg, chat_id: int) -> None:
         log.exception("Phasenangebot nach dem Erkennerlauf fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def _erneuere_angebot_auf_bitte(conn, chat_id: int, aenderungen: list[dict]) -> bool:
+    """Eine Bitte der Gruppe erneuert das Phasenangebot (06.09.2026,
+    Nacht-Simulation Punkt 6). Liefert True, wenn der Merkposten abgeraeumt
+    wurde.
+
+    Der gemessene Fall: die Gruppe sagt \"weiter\", \"naechste Phase\" oder \"wir
+    sind fertig hier\". Der Erkenner macht daraus ein ``phase_setzen`` -- ohne
+    Nummer, weil in dem Satz keine steht (``phasen.nummer_fuer`` liefert
+    None), oder mit der Nummer der Phase, in der die Gruppe ohnehin schon
+    steht. Beides schreibt nichts, taucht in ``wirkliche`` also nie auf, und
+    bis heute passierte danach: nichts. Der Knopf \"Weiter zu <Phase>\" war
+    einmal dagewesen und kam nie wieder.
+
+    Deterministisch und ohne eigenen Modellaufruf: gelesen wird nur, was der
+    Erkennerlauf ohnehin geliefert hat (Zusage 2). Abgeraeumt wird nur, wenn
+    es ueberhaupt etwas anzubieten gibt -- sonst waere es ein Angebot ins
+    Leere."""
+    jetzige = phasen.aktuelle(conn, chat_id)
+    bitten = [
+        a for a in aenderungen
+        if a.get("art") == "phase_setzen"
+        and (phasen.nummer_fuer(a.get("wert")) or 0) <= jetzige
+    ]
+    if not bitten:
+        return False
+    naechste = phasen.naechste_moegliche(conn, chat_id)
+    if naechste is None or naechste <= jetzige:
+        return False
+    phasen.vergiss_angebot(conn, chat_id)
+    return True
+
+
 def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     """Baut die eine Meldung je Erkennerlauf (SPEC § 4.3, teil-b.md Aufgabe
     4) -- nicht eine je Aenderung.
@@ -1434,6 +1466,21 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         if not aenderungen:
             return
         wirkliche = wende_an(conn, e, chat_id, aenderungen)
+        # Punkt 6 der Nacht-Simulation, zwei Wege zurueck zum Angebot:
+        #
+        # 1. Die Gruppe BITTET darum ("weiter", "naechste Phase", "fertig
+        #    hier") -- der Erkenner liest das als ``phase_setzen`` ohne
+        #    wirksame Nummer. Dann kommt die Abschlussnachricht mit "Weiter
+        #    zu <Phase>" erneut.
+        # 2. Die Gruppe hat "Noch etwas aendern" gedrueckt und danach etwas
+        #    gespeichert -- genau EIN Angebot je Aenderung, nicht bei jeder
+        #    Nachricht.
+        #
+        # Beides raeumt nur den Merkposten ab; verschickt wird weiter unten
+        # ueber den einen Weg (``_biete_phase_an``).
+        _erneuere_angebot_auf_bitte(conn, chat_id, aenderungen)
+        if wirkliche:
+            phasen.erneuere_nach_aenderung(conn, chat_id)
         _melde_interviewmodus(tg, conn, e, chat_id, wirkliche)
         # Nach der Bestaetigung "Aufnahme beendet.": das Interview
         # zusammenfuegen und einmal verdichten (§ 10.6).

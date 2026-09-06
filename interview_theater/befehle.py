@@ -520,7 +520,23 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     if url:
         zeilen.append(f"Zum Mitlesen: {url}")
 
-    tg.sende(chat_id, "\n".join(zeilen))
+    # Steht die naechste Phase offen, haengt der Knopf "Weiter zu <Phase>"
+    # unter dem Stand (06.09.2026, Nacht-Simulation Punkt 6). ``/stand`` ist
+    # der Griff, zu dem eine Gruppe greift, wenn sie die Orientierung sucht
+    # -- und genau dann soll der naechste Schritt ein Druck sein und nicht
+    # der versteckte Befehl ``/phase``. Reine Leseabfrage, kein Modellaufruf;
+    # der Merkposten bleibt unberuehrt, weil dieser Knopf keine eigene
+    # Angebotsnachricht ist.
+    text = "\n".join(zeilen)
+    naechste = phasen.naechste_moegliche(conn, chat_id)
+    if naechste is None or naechste <= jetzige:
+        tg.sende(chat_id, text)
+        return
+    try:
+        knoepfe.biete_phase(conn, tg, chat_id, text, naechste)
+    except Exception:
+        log.exception("Phasenknopf unter /stand fehlgeschlagen, chat_id=%s", chat_id)
+        tg.sende(chat_id, text)
 
 
 def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:

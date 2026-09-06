@@ -468,6 +468,42 @@ Workshop zählt:**
 
 ---
 
+## (h) Probenüberwachung während des Workshops (Tag 2, 06.09.) — Startpaket für eine frische Session
+
+**Rolle der Session:** Orchestrator. Beobachten, kleine Fixes selbst (Prompts heiß, Systemzeilen), alles Größere per `delegate_task` (Opus) in eigenem Worktree; nie zwei Agenten uncommitted im Hauptbaum. Regeln: Skill `interview-theater-live-ops` (§ 0 Zustand, § 1 Prompts ohne Neustart, § 2c Stand 06.09., § 4 Beobachten, § 5 Schweigen).
+
+**Betrieb:** Units `interview-theater@gruppe1/2/3` (soap.db, `@theatersoap1/2/3_bot`), `@gruppe4` (test.db, `@theatersoap_testbot`, Testgruppe `-5257292234`), `interview-theater-web` (Port 8010, nur soap.db). Chat-IDs: G1 `-5143986099`, G2 `-5552492879`, G3 `-5339679310`. Envs `betrieb/gruppeN.env` — nie lesen, nur `set -a; . …; set +a`. Neustart als EINZELNER Befehl, nie verkettet; vorher prüfen, dass keine Aufnahme läuft und kein Interviewmodus an ist. Nie von Hand starten (409-Falle).
+
+**Zustandscheck (alle 4 Gruppen, ein Aufruf):**
+```
+bash /home/birk/.hermes/profiles/birk/cache/blocked-scripts/blocked-1788650257-ba96df7d.sh
+```
+(= `is-active` ×4, Prozesszahl = 4, HTTP-Codes je Log, neue Tracebacks, `/gesund`). Web von außen nur per `browser_exec` (`https://lab.artesmobiles.art/theatersoap/`), nicht curl.
+
+**Wache-Abfrage alle ~30 min (read-only, PII-frei):**
+```
+PY=~/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/bin/python3
+$PY - <<'PY'
+import sqlite3; c=sqlite3.connect('file:betrieb/soap.db?mode=ro',uri=True)
+print('vorfaelle 30min', c.execute("select art,count(*) from vorfall where erstellt_am>datetime('now','-30 minutes') group by 1").fetchall())
+print('aufrufe 30min', c.execute("select art,erfolg,count(*),round(avg(dauer_ms)) from aufruf where erstellt_am>datetime('now','-30 minutes') group by 1,2").fetchall())
+print('phase', c.execute("select chat_id,phase from arbeitsstand").fetchall())
+print('letzte nachricht je gruppe', c.execute("select chat_id,max(gesendet_am),sum(ist_bot=0),sum(ist_bot=1) from nachricht where gesendet_am>datetime('now','-30 minutes') group by 1").fetchall())
+print('aufnahmen', c.execute("select status,count(*) from aufnahme where entfernt_am is null group by 1").fetchall())
+print('journal 30min', c.execute("select chat_id,art,count(*) from journal where erstellt_am>datetime('now','-30 minutes') group by 1,2").fetchall())
+PY
+```
+Melden, wenn: `http_5xx` häuft (≥3), `zitat_ungeprueft` auftaucht, `szene_abgeschnitten`/`szene_fehlgeschlagen`/`kontext_gekuerzt` erscheint, ein Bot schweigt (Mensch-Nachrichten ohne Bot-Antwort), eine Gruppe >20 min keine Nachricht hat, `aufnahme.status='empfangen'` älter 5 min (Whisper). Stiller no-agent-Cron `it-nacht-wache` (Skript `~/.hermes/profiles/birk/scripts/it_nacht_wache.sh`, alle 30 min) meldet Units/409/5xx/Tracebacks/`/gesund` von selbst — nicht doppelt bauen.
+
+**Nachmittag-Ablauf:** Gruppen stehen in Phase 3; Phasen 4–8 (Setting & Figuren → Geschichte → Schärfung → Szenentexte → Durchlauf) laufen erstmals mit echten Menschen; USA-Frage kommt beim ersten Szenenauftrag je Gruppe. Interviews zusammenführen: Abschnitt oben („Interviews in eine Gruppe zusammenführen"). Rollback: `bash betrieb/buttons-zurueck.sh` (alt) — heute besser: `git log`, gezielter Revert, Neustart einzeln.
+
+**Was Birks Feedback braucht (Stand 06.09. 05:20):**
+1. Die acht Einleitungstexte gegenlesen (`interview_theater/phasentexte.py`, Wortlaut in `docs/NACHTBERICHT-2026-09-06.md`) — Bot-Text, heiß änderbar nach Neustart (Code, kein Prompt).
+2. Klarnamen-Politik: Bot spricht Vornamen aus dem Chat an (23 % der Bot-Texte Tag 1) — lassen oder verbieten?
+3. Szene 1 in der Testgruppe „Neu schreiben" (Kiosk-Dialog) und Phase 4→5 einmal durchklicken — Qualitätsurteil am Material.
+4. Opus-Messung (1M-Kontext, Thinking) und Kontext-Audit laufen als Delegates (Branches `feat/opus-messung`, `docs/kontext-audit`); Ergebnis entscheidet: 1M-Präfix im Proxy freischalten? Thinking für Szenen an? Kontext-Aufträge vor/nach 13:30?
+5. Szenen-Zusammenfassung/Budget/Chat-Block (`feat/szenen-zusammenfassung`) — nach Merge Neustart aller vier; Birk sieht die „Anders gemacht:"-Zeile im Journal.
+
 ## (g) Nach dem Workshop: wie man aus der Datenbank lernt
 
 **Die Datenbank enthält vollständiges Auswertungsmaterial.** Nichts davon wurde für die

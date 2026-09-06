@@ -1068,13 +1068,15 @@ def _fassungen_html(s: dict, fassungen: list[dict] | None, gewaehlt: int | None)
             )
     zeigt = next(f for f in fassungen if f["nummer"] == gewaehlt)
     kopf = f"{len(fassungen)} Fassungen"
-    zeile = f"Fassung {zeigt['nummer']} von {len(fassungen)}"
+    stuecke = [f"Fassung {zeigt['nummer']} von {len(fassungen)}"]
     if zeigt["beschriftung"]:
-        zeile += f" · {zeigt['beschriftung']}"
-    if zeigt["erstellt_am"]:
-        zeile += f" · {_zeitpunkt(zeigt['erstellt_am'])}"
+        stuecke.append(zeigt["beschriftung"])
     if zeigt.get("aktuell"):
-        zeile += " · die aktuelle"
+        stuecke.append("die aktuelle")
+    # ``_zeitpunkt`` liefert einen PRAEFIX samt Trenner (siehe dort) -- er
+    # steht deshalb vorn und wird nicht angehaengt, sonst endet die Zeile auf
+    # einem Mittelpunkt ohne Fortsetzung.
+    zeile = _zeitpunkt(zeigt["erstellt_am"]) + SUMMARY_TRENNER.join(stuecke)
     zurueck = ""
     if zeigt["nummer"] > nummern[0]:
         vorige = nummern[nummern.index(zeigt["nummer"]) - 1]

@@ -142,6 +142,40 @@ CREATE TABLE IF NOT EXISTS verdichtung_thema (
   zum_kernthema_am TEXT
 );
 
+-- Welche Kernbegriffe der Gruppe eine Verdichtung traegt (06.09.2026).
+--
+-- n:m, deshalb eine eigene Tabelle und keine Spalte an ``verdichtung``: ein
+-- Interview traegt mehrere Begriffe, ein Begriff sammelt mehrere Interviews.
+-- Der Begriff steht als TEXT und nicht als id -- es gibt keine Begriffstabelle:
+-- ``arbeitsstand.begriffe`` ist Freitext, den die Gruppe jederzeit umschreibt
+-- (interview_theater/begriffe.py zerlegt ihn). Eine Fremdschluesselbeziehung
+-- auf etwas, das es als Zeile nicht gibt, waere eine Erfindung.
+--
+-- Die Zeilen sind ABGELEITET, nicht entschieden: sie entstehen deterministisch
+-- aus Zusammenfassung und Kernthemen der Verdichtung und werden bei jedem Lauf
+-- fuer diese Verdichtung ersetzt (repo.setze_verdichtung_begriffe). Deshalb
+-- gibt es hier kein ``entfernt_am`` -- weiches Loeschen haelt Entscheidungen
+-- fest, und eine Zuordnung ist keine. Die Verdichtung selbst bleibt dabei
+-- unberuehrt (AGENTS.md: Verdichtungen werden nie nachtraeglich geaendert).
+--
+-- UNIQUE ueber (verdichtung_id, begriff): derselbe Begriff steht an einer
+-- Verdichtung genau einmal, auch wenn ein Nachtragslauf zweimal faellt.
+CREATE TABLE IF NOT EXISTS verdichtung_begriff (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  verdichtung_id  INTEGER NOT NULL,
+  aufnahme_id     INTEGER,
+  begriff         TEXT NOT NULL,
+  -- Woher die Zuordnung kommt: 'abgleich' = deterministischer Begriffsabgleich
+  -- (interview_theater/begriffe.py). Als Feld angelegt, damit eine spaetere,
+  -- andere Herkunft unterscheidbar bliebe, ohne die Tabelle zu aendern.
+  quelle          TEXT NOT NULL DEFAULT 'abgleich',
+  erstellt_am     TEXT NOT NULL,
+  UNIQUE (verdichtung_id, begriff)
+);
+CREATE INDEX IF NOT EXISTS idx_verdichtung_begriff_chat
+  ON verdichtung_begriff(chat_id, verdichtung_id);
+
 -- Die geprueften Belegzitate, die zum Kernthema passen (05.09.2026 abends).
 --
 -- Warum eine eigene Tabelle und kein Flag an verdichtung_thema: ein Kernzitat
@@ -530,6 +564,7 @@ TABELLEN_MIT_CHAT_ID = (
     "aufnahme",
     "verdichtung",
     "verdichtung_thema",
+    "verdichtung_begriff",
     "kernzitat",
     "arbeitsstand",
     "figur",

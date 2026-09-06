@@ -791,6 +791,80 @@ def themen_zu(conn: sqlite3.Connection, verdichtung_id: int) -> list[sqlite3.Row
 
 
 @_gesperrt
+def setze_verdichtung_begriffe(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    verdichtung_id: int,
+    begriffe: list[str],
+    aufnahme_id: int | None = None,
+    quelle: str = "abgleich",
+) -> int:
+    """Setzt die Kernbegriffe einer Verdichtung -- **ersetzend** (06.09.2026).
+
+    Die Zuordnung ist abgeleitet und nicht entschieden: sie faellt beim
+    Verdichten ab (``verdichter.verdichte``) und kann fuer bestehende
+    Verdichtungen jederzeit nachgezogen werden
+    (``scripts/begriffe_zuordnen.py``). Aendert die Gruppe ihre Begriffsliste,
+    muss der zweite Lauf die Zeilen des ersten loswerden -- deshalb erst
+    ``DELETE``, dann ``INSERT``, beides in einer Sperre.
+
+    Ersetzend heisst NICHT, dass hier eine Verdichtung geaendert wuerde: die
+    Zeilen der Verdichtung selbst bleiben unberuehrt (AGENTS.md). Liefert die
+    Anzahl der gesetzten Begriffe."""
+    conn.execute(
+        "DELETE FROM verdichtung_begriff WHERE verdichtung_id = ?", (verdichtung_id,)
+    )
+    jetzt = _jetzt()
+    gesetzt = 0
+    for begriff in begriffe:
+        begriff = (begriff or "").strip()
+        if not begriff:
+            continue
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO verdichtung_begriff
+                (chat_id, verdichtung_id, aufnahme_id, begriff, quelle, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (chat_id, verdichtung_id, aufnahme_id, begriff, quelle, jetzt),
+        )
+        gesetzt += 1
+    conn.commit()
+    return gesetzt
+
+
+@_gesperrt
+def begriffe_zu_verdichtung(
+    conn: sqlite3.Connection, verdichtung_id: int
+) -> list[sqlite3.Row]:
+    """Die zugeordneten Kernbegriffe einer Verdichtung, in Setzreihenfolge --
+    das ist die Reihenfolge der Begriffsliste der Gruppe."""
+    return conn.execute(
+        "SELECT * FROM verdichtung_begriff WHERE verdichtung_id = ? ORDER BY id ASC",
+        (verdichtung_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def verdichtungen_zu_begriff(
+    conn: sqlite3.Connection, chat_id: int, begriff: str
+) -> list[sqlite3.Row]:
+    """Die andere Richtung der n:m-Beziehung: alle Verdichtungen einer Gruppe,
+    die diesen Begriff tragen. Der Vergleich laeuft ueber ``lower()``, weil der
+    Wortlaut so gespeichert wird, wie die Gruppe ihn geschrieben hat."""
+    return conn.execute(
+        f"""
+        SELECT b.*, v.zusammenfassung AS zusammenfassung
+        FROM verdichtung_begriff b
+        JOIN verdichtung v ON v.id = b.verdichtung_id
+        WHERE b.chat_id = ? AND lower(b.begriff) = lower(?) AND v.{_NICHT_ENTFERNT}
+        ORDER BY v.id ASC
+        """,
+        (chat_id, begriff),
+    ).fetchall()
+
+
+@_gesperrt
 def gepruefte_themen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle Verdichtungsthemen einer Gruppe mit **geprueftem** Belegzitat --
     samt ``aufnahme_id`` und Zusammenfassung der Verdichtung, zu der sie

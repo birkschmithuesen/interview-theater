@@ -578,6 +578,28 @@ def _themen(conn: sqlite3.Connection, verdichtung_id: int) -> list[dict]:
     ]
 
 
+def _begriffe(conn: sqlite3.Connection, verdichtung_id: int) -> list[str]:
+    """Die zugeordneten Kernbegriffe einer Verdichtung (06.09.2026) -- in der
+    Reihenfolge, in der sie gesetzt wurden, und das ist die Reihenfolge der
+    Begriffsliste der Gruppe.
+
+    Die ``OperationalError``-Notbremse wie ueberall hier: die Weboberflaeche
+    oeffnet read-only und migriert nichts. Zwischen einem Deploy und dem
+    Neustart des Bots gibt es die Tabelle vielleicht noch gar nicht -- dann
+    hat eben keine Verdichtung Tags, und die Seite steht trotzdem."""
+    try:
+        return [
+            z["begriff"]
+            for z in conn.execute(
+                "SELECT begriff FROM verdichtung_begriff "
+                "WHERE verdichtung_id = ? ORDER BY id ASC",
+                (verdichtung_id,),
+            )
+        ]
+    except sqlite3.OperationalError:
+        return []
+
+
 def _teile_zahlen(conn: sqlite3.Connection, aufnahme_id: int) -> tuple[int, int | None]:
     """Anzahl der Teile eines Interviews und ihre Gesamtdauer in Sekunden
     (§ 10.6). Ohne Teile ``(0, None)`` -- dann gilt die Dauer am Kopf selbst
@@ -658,6 +680,10 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
                 "zusammenfassung": verdichtung["zusammenfassung"] if verdichtung else None,
                 "erstellt_am": verdichtung["erstellt_am"] if verdichtung else None,
                 "themen": _themen(conn, verdichtung["id"]) if verdichtung else [],
+                # Die Kernbegriffe der Gruppe, die dieses Interview traegt
+                # (06.09.2026): n:m, deterministisch zugeordnet, als Tags auf
+                # der Gruppenseite. Ohne Verdichtung gibt es nichts zuzuordnen.
+                "begriffe": _begriffe(conn, verdichtung["id"]) if verdichtung else [],
             }
         )
     return ergebnis

@@ -26,7 +26,7 @@ und ``aufnahme._verdichtungstext`` sagt der Gruppe, dass nichts belegbar war.
 """
 
 
-from interview_theater import repo, zitat
+from interview_theater import begriffe, repo, zitat
 
 #: System-Prompt, wortidentisch aus der Datei geladen (siehe
 #: interview_theater/prompts/verdichter.md fuer die vollstaendige Anweisung).
@@ -171,6 +171,40 @@ def verdichte(klm, conn, e, aufnahme_id: int) -> int:
                 f"Thema ohne belegtes Zitat verworfen (thema={thema!r})",
             )
 
-    return repo.speichere_verdichtung(
+    verdichtung_id = repo.speichere_verdichtung(
         conn, chat_id, aufnahme_id, ergebnis["zusammenfassung"], themen
     )
+    ordne_begriffe_zu(conn, chat_id, verdichtung_id, aufnahme_id,
+                      ergebnis["zusammenfassung"], themen, stand)
+    return verdichtung_id
+
+
+def ordne_begriffe_zu(
+    conn, chat_id: int, verdichtung_id: int, aufnahme_id: int | None,
+    zusammenfassung: str | None, themen, stand=None,
+) -> list[str]:
+    """Ordnet die frische Verdichtung den Kernbegriffen der Gruppe zu
+    (06.09.2026, ``interview_theater.begriffe``).
+
+    **Deterministisch, kein zweiter Modellaufruf** -- der Abgleich laeuft
+    gegen Zusammenfassung und Kernthemen, die gerade entstanden sind; die
+    Begruendung steht im Modulkopf von ``begriffe.py``. Leere Begriffsliste
+    (die Gruppe ist noch in Phase 1) heisst schlicht: keine Tags.
+
+    Ein Fehler hier darf die Verdichtung nicht kosten: sie ist gespeichert,
+    die Zuordnung ist Beiwerk, und die Gruppe wartet auf den Text im Chat.
+    Deshalb faengt der Aufrufpfad in ``verdichte`` nichts ab -- die Funktion
+    selbst gibt bei fehlendem Arbeitsstand einfach eine leere Liste
+    zurueck."""
+    if stand is None:
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+    liste = begriffe.zerlege(stand["begriffe"] if stand else None)
+    if not liste:
+        return []
+    treffer = begriffe.ordne_zu(
+        liste, begriffe.texte_der_verdichtung(zusammenfassung, themen)
+    )
+    repo.setze_verdichtung_begriffe(
+        conn, chat_id, verdichtung_id, treffer, aufnahme_id=aufnahme_id
+    )
+    return treffer

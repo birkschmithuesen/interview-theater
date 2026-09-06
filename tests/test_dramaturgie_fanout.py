@@ -399,6 +399,80 @@ def test_a2_sieht_synopsen_und_nie_den_volltext(stueck, einst):
     assert "Lass den Koffer stehen." not in nutzer
 
 
+def test_a2_laeuft_nicht_ohne_kurzfassungen(stueck, einst):
+    """Fehlt einer Szene die Kurzfassung, gibt es KEINEN Aufruf.
+
+    Gemessen 06.09.2026 im ersten echten Judge-Lauf gegen Opus: die
+    Synopsen-Kette bestand aus Titeln und dem Platzhalterwort, und der Judge
+    meldete pflichtgemaess, es gebe keinen kausalen Anschluss -- ein wahrer
+    Satz ueber unsere Datenlage, ein falscher ueber das Stueck. Ein bezahlter
+    Aufruf fuer einen Befund, der eine Gruppe zu einem unnoetigen Umbau
+    verleitet haette.
+    """
+    conn = stueck
+    conn.execute("UPDATE szene SET zusammenfassung = NULL, kurzbeschreibung = NULL")
+    conn.commit()
+    richter = RichterAttrappe({fanout.ARTEN["a2"]: A2_ANTWORT})
+
+    ergebnis = fanout.frage_a2(conn, einst, None, 1, richter)
+
+    assert ergebnis is None
+    assert richter.gesehen == [], "A2 hat trotz fehlender Kurzfassungen gefragt"
+
+
+def test_a2_laeuft_wenn_jede_szene_eine_kurzfassung_hat(stueck, einst):
+    """Die Gegenprobe -- sonst waere die Sperre zu scharf.
+
+    Geprueft wird nur, DASS gefragt wurde: die Zahl der Aufrufe haengt an der
+    Belegschleife (ein Retry, wenn das Zitat nicht woertlich vorkommt) und ist
+    hier nicht die Aussage.
+    """
+    conn = stueck
+    conn.execute("UPDATE szene SET zusammenfassung = 'Mira und Jonas streiten.'")
+    conn.commit()
+    richter = RichterAttrappe({fanout.ARTEN["a2"]: A2_ANTWORT})
+
+    fanout.frage_a2(conn, einst, None, 1, richter)
+
+    assert richter.gesehen, "A2 hat trotz vollstaendiger Kurzfassungen nicht gefragt"
+
+
+def test_a2_laeuft_nicht_bei_inhaltsleerer_kurzfassung(stueck, einst):
+    """Der zweite, gefaehrlichere Fall: Feld gefuellt, Inhalt leer.
+
+    Im Gegenprobelauf am 06.09.2026 stand als Kurzbeschreibung das Wort
+    "szene". Formal belegt, inhaltlich nichts -- und die erste Fassung der
+    Sperre, die nur auf den Platzhalter prueft, liess den Aufruf durch. Opus
+    meldete daraufhin erneut einen Befund ueber unsere Datenlage.
+    """
+    conn = stueck
+    conn.execute(
+        "UPDATE szene SET zusammenfassung = NULL, kurzbeschreibung = 'szene'")
+    conn.commit()
+    richter = RichterAttrappe({fanout.ARTEN["a2"]: A2_ANTWORT})
+
+    ergebnis = fanout.frage_a2(conn, einst, None, 1, richter)
+
+    assert ergebnis is None
+    assert richter.gesehen == [], "A2 hat bei inhaltsleerer Kurzfassung gefragt"
+
+
+def test_synopsen_fehlen_nennt_die_szenennummern():
+    """Reine Funktion, ohne Datenbank -- die Sperre muss sagen, WO es fehlt."""
+    material = (
+        "Szene 1: Am Kiosk (dialog)\n"
+        f"{fanout.OHNE_SYNOPSE}\n"
+        "Szene 2: Zweite\n"
+        "Sie streiten laut.\n"
+        "Szene 3: Dritte\n"
+        f"{fanout.OHNE_SYNOPSE}"
+    )
+
+    assert fanout.synopsen_fehlen(material) == [1, 3]
+    assert fanout.synopsen_fehlen("Szene 1: A\nSie streiten.") == []
+    assert fanout.synopsen_fehlen("") == []
+
+
 def test_a6_laeuft_nur_ueber_die_kandidatenliste(stueck, einst):
     kandidaten = mechanik.tschechow_kandidaten(mechanik.lies(stueck, 1))
     richter = RichterAttrappe({fanout.ARTEN["a6"]: A6_ANTWORT})

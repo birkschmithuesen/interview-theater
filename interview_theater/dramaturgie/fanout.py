@@ -508,7 +508,7 @@ def _synopse(s) -> str:
             continue
         if wert:
             return wert[:SYNOPSE_ZEICHEN]
-    return "(noch nichts geschrieben)"
+    return OHNE_SYNOPSE
 
 
 def material_kandidaten(kandidaten) -> str:
@@ -566,10 +566,85 @@ def frage_b1(conn, e, klm, chat_id: int, richter: Richter, szene) -> dict | None
     return _befund_aus("b1", antwort, stand, szene=nummer)
 
 
+#: Was ``_synopse`` liefert, wenn eine Szene keinerlei Kurzfassung hat.
+#: Steht als Konstante hier, weil ``synopsen_fehlen`` daran erkennt, dass eine
+#: Zeile leer ist -- ein Vergleich gegen einen wiederholten Literalstring waere
+#: genau die Stelle, an der die Sperre beim naechsten Umformulieren aufhoert
+#: zu greifen.
+OHNE_SYNOPSE = "(noch nichts geschrieben)"
+
+#: Wie viele Szenen hoechstens ohne Kurzfassung dastehen duerfen, damit A2
+#: noch laeuft. Null: die Frage lautet, ob Szene n kausal an eine fruehere
+#: anschliesst -- fehlt auch nur eine Kurzfassung, ist die Kette an dieser
+#: Stelle nicht pruefbar, und der Judge beantwortet in Wahrheit eine Frage
+#: ueber unsere Datenlage.
+SYNOPSEN_LUECKEN_MAX = 0
+
+
+#: Ab wie vielen Woertern eine Kurzfassung als Kurzfassung gilt. Gemessen am
+#: 06.09.2026: eine Kurzbeschreibung wie "szene" oder "Szene 2" ist formal
+#: gefuellt und inhaltlich leer -- der Judge liest daraus dieselbe Luecke wie
+#: aus einem fehlenden Feld, nur merkt es niemand, weil das Feld belegt ist.
+#:
+#: **Woerter, nicht Zeichen.** Der erste Versuch nahm 25 Zeichen und verwarf
+#: damit "Sie streiten." und "Mira und Jonas streiten." -- gueltige, nur kurze
+#: Synopsen. Zwei Woerter trennen den Satz vom Etikett, ohne knappe Saetze zu
+#: bestrafen: "Sie streiten." bleibt drin, "szene" und "Szene 2" fallen raus.
+SYNOPSE_MINDEST_WOERTER = 2
+
+
+def synopsen_fehlen(material: str) -> list[int]:
+    """Die Szenennummern ohne brauchbare Kurzfassung in der Synopsen-Kette.
+
+    **Warum das eine eigene Sperre braucht** (gemessen 06.09.2026 in den
+    ersten beiden echten Judge-Laeufen gegen Opus): ``material_synopsen``
+    liefert *immer* einen nicht-leeren Text -- eine Szene ohne jede
+    Kurzfassung steht mit ``OHNE_SYNOPSE`` da. Die alte Pruefung
+    ``if not material.strip()`` konnte deshalb nie greifen. Der Judge bekam
+    eine Kette aus Titeln und Platzhaltern und meldete pflichtgemaess, es gebe
+    *"weder in Szene 2 noch in Szene 3 einen erkennbaren kausalen Anschluss"*
+    -- ein wahrer Satz ueber unsere Datenlage und ein falscher ueber das
+    Stueck. Ein bezahlter Aufruf fuer einen Befund, der eine Gruppe zu einem
+    Umbau verleitet haette, den ihr Stueck nicht braucht.
+
+    **Zwei Faelle, nicht einer** (der zweite kam erst im Gegenprobelauf ans
+    Licht): das Feld fehlt ganz (``OHNE_SYNOPSE``) -- oder es ist gefuellt und
+    trotzdem leer ("szene", "Szene 2"). Der zweite Fall ist der gefaehrlichere,
+    weil er wie Inhalt aussieht. Geprueft wird deshalb auf Satzcharakter
+    (``SYNOPSE_MINDEST_WOERTER``), nicht auf Existenz.
+
+    Dieselbe Haltung wie ``szene.sperrtext``: fehlt eine Voraussetzung, gibt
+    es **keinen Modellaufruf**, sondern eine Nachricht in einem Satz, was
+    fehlt.
+    """
+    luecken: list[int] = []
+    nummer: int | None = None
+    for zeile in (material or "").splitlines():
+        treffer = re.match(r"^Szene (\d+)", zeile.strip())
+        if treffer is not None:
+            nummer = int(treffer.group(1))
+            continue
+        if nummer is None:
+            continue
+        text = zeile.strip()
+        if text == OHNE_SYNOPSE or len(text.split()) < SYNOPSE_MINDEST_WOERTER:
+            luecken.append(nummer)
+        nummer = None
+    return luecken
+
+
 def frage_a2(conn, e, klm, chat_id: int, richter: Richter) -> dict | None:
     """A2 Kausale Verkettung -- EIN Aufruf ueber die Synopsen-Kette (M5)."""
     material = material_synopsen(conn, chat_id)
     if not material.strip():
+        return None
+    # Sperre VOR dem Aufruf, nicht Bewertung danach (siehe ``synopsen_fehlen``).
+    luecken = synopsen_fehlen(material)
+    if len(luecken) > SYNOPSEN_LUECKEN_MAX:
+        log.info(
+            "a2 uebersprungen, chat_id=%s: keine Kurzfassung fuer Szene %s",
+            chat_id, ", ".join(str(n) for n in luecken),
+        )
         return None
     stand_zeile = repo.hole_arbeitsstand(conn, chat_id)
     kopf = "Das ist die Szenenfolge des Stuecks als Kurzfassungen."

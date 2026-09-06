@@ -427,12 +427,21 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
 
         return sende_geschichte(conn, tg, chat_id, text), True
 
+    return _sende_mit_grundleiste(conn, tg, chat_id, sauber, art, wert)
+
+
+def _sende_mit_grundleiste(
+    conn, tg, chat_id: int, sauber: str, art: str, wert: str,
+) -> tuple[int, bool]:
+    """Fall 2 der Knopfregel: die Rueckspiegelung EINES Wertes. Begriffe,
+    Fragen, Einleitungen sind mehrzeilig, aber EIN Wert -- deshalb Ja/Nein und
+    kein Menue.
+
+    Die alten Leisten kommen vorher ab, damit im Chat nur eine bedienbar
+    ist."""
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SPEICHERN)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_ANDERS)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_EIGENE)
-    # Fall 2 der Knopfregel: die Rueckspiegelung EINES Wertes. Begriffe,
-    # Fragen, Einleitungen sind mehrzeilig, aber EIN Wert -- deshalb Ja/Nein
-    # und kein Menue.
     leiste = speicherleiste(conn, chat_id, art, wert)
     message_id = _sende_knoepfe(conn, tg, chat_id, sauber, leiste)
     repo.merke_knopf_nachricht(

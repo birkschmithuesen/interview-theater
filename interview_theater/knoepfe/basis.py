@@ -378,7 +378,7 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
         # ``ohne_block`` statt ``ohne_marker``: die zehn Fragen stehen gleich
         # auf den Knoepfen, und zweimal dieselbe Liste ist auf dem Telefon
         # eine halbe Bildschirmseite Doppelung.
-        from interview_theater.knoepfe import biete_fragenauswahl
+        from interview_theater.knoepfe.fragen import biete_fragenauswahl
 
         return biete_fragenauswahl(
             conn, tg, chat_id, bloecke["fragenauswahl"],

@@ -521,8 +521,9 @@ _TEXT_FRAGEN_EIGENE_KNOPF = "Eigene Idee"
 #: Sprechen kann sie ohnehin; ein Knopf, der auf dem Geraet der Gruppe
 #: verschwindet, ist schlechter als gar keiner.
 _TEXT_FRAGEN_WAHL = (
-    f"Welche {FRAGEN_ANZAHL} Fragen wollt ihr nehmen? Sagt mir die Nummern - "
-    "getippt oder gesprochen, oder sagt, dass ihr andere wollt."
+    "Sucht die Fragen aus, die ihr passend findet, und sagt mir die Nummern - "
+    "getippt oder als Sprachnachricht. Wollt ihr eine Frage aendern oder eigene "
+    "stellen, sagt das einfach: ihr seid die Chefinnen."
 )
 #: Die Antwort auf "Diese 3 nehmen" bei falscher Anzahl. Sie geht als
 #: answerCallbackQuery raus (das kleine graue Band oben in der App) und
@@ -1347,11 +1348,11 @@ def nimm_fragennummern(conn, tg, klm, e, chat_id: int, text: str) -> bool:
     nummern = lies_fragennummern(text)
     if not nummern:
         return False
-    if len(nummern) != FRAGEN_ANZAHL:
-        tg.sende(chat_id, _TEXT_FRAGEN_NUMMERN_FALSCH)
-        return True
+    # 06.09.2026 12:10 (Birk): KEINE Vorgabe "genau drei" mehr -- die Gruppe
+    # ist Chefin und nimmt so viele, wie sie passend findet (mindestens eine).
+    # FRAGEN_ANZAHL bleibt nur als Richtwert fuer den Prompt.
     ausgewaehlt = [fragen[n - 1] for n in nummern if n <= len(fragen)]
-    if len(ausgewaehlt) != FRAGEN_ANZAHL:
+    if not ausgewaehlt:
         tg.sende(chat_id, _TEXT_FRAGEN_KEINE_AUSWAHL)
         return True
     return _uebernimm_fragen(
@@ -1398,8 +1399,8 @@ def _uebernimm_fragen(conn, tg, klm, e, chat_id: int, ausgewaehlt: list[str],
 #: startet (06.09.2026, 10:10, Birk). Sie werden geloescht, sobald die
 #: Antwort da ist (``ablauf.arbeitet_sichtbar``) -- eine Arbeitsmeldung, die
 #: stehen bleibt, liest sich wie eine haengende Aufgabe.
-TEXT_ARBEIT_SENSIBILITAET = "🤔 Ich sehe die Fragen kurz durch …"
-TEXT_ARBEIT_EROEFFNUNG = "✍️ Ich schreibe euch einen Eroeffnungstext …"
+TEXT_ARBEIT_SENSIBILITAET = "🤔 Ich sehe die Fragen kurz durch und formuliere heikle weicher …"
+TEXT_ARBEIT_EROEFFNUNG = "✍️ Jetzt die Einleitung fuers Interview: wie ihr anfangt und aufhoert …"
 
 
 def starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id: int) -> bool:
@@ -3917,8 +3918,11 @@ ANWEISUNG_EINLEITUNGEN = (
     "'<Fragennummer> — <weiche Fassung>' - nur fuer die sensiblen Fragen, "
     "die uebrigen bleiben, wie sie sind. Ist keine Frage sensibel, schreib "
     "in den Block genau die eine Zeile 'Keine der Fragen braucht eine "
-    "besondere Einleitung.' Sag im Text davor in einem Satz, was du "
-    "gefunden hast, und stell eine Frage an die Gruppe. Schreib die "
+    "besondere Einleitung.' Sag im Text davor in EINEM Satz, welche Fragen "
+    "du weicher formuliert hast - nenne es 'weichere Formulierung', NICHT "
+    "'Einleitung': die Einleitung des Interviews (Eroeffnung) kommt erst in "
+    "der naechsten Nachricht, kuendige sie hier nicht an und schreib sie "
+    "nicht. Stell hoechstens eine Frage an die Gruppe. Schreib die "
     "Fragenliste nicht noch einmal unveraendert ab."
 )
 #: Eroeffnung und Abschluss in einem Block -- es ist eine Entscheidung.

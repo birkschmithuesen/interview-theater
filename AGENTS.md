@@ -774,19 +774,27 @@ der POST-Handler öffnet eine schreibende Verbindung (`db.verbinde` — WAL und
 `busy_timeout`, wie `scripts/begruessen.py` aus einem fremden Prozess). Zwei
 Tests halten das fest: kein `SELECT`/`INSERT`/`UPDATE` in `web_schreiben.py`,
 kein Schreibpfad in `web_daten.py`. Änderbar ist **genau** `web_schreiben.FELDER`
-und nichts sonst: Phase (1–8, Namen aus `phasen.PHASEN`), Begriffe, Fragen und
-die drei Leitfaden-Felder (`frage_einleitungen`, `interview_eroeffnung`,
-`interview_abschluss`), Setting (`rahmen`), Geschichte, je Figur
+und nichts sonst: Setting (`rahmen`), Geschichte, je Figur
 Name/Beschreibung/Interview/Entfernen/Hinzufügen und je Szene Titel, Form,
-Ort, Zeit, Anlass, was passiert, was anders, Ton und die Besetzung — **nie
-Material** (Aufnahmen, Transkripte, Verdichtungen, Belegzitate), nie der
-Szenen-Volltext, nie das Journal, nie die USA-Einwilligung, nie der
-Sprachprofil-Text, nie die Schärfungs-Zuordnungen. Auch **nicht der
-Leitfaden**: er wird aus seinen Feldern gebaut (`leitfaden.aus_feldern`,
-dieselbe Funktion wie im Chat) und steht read-only darunter — editierbar sind
-die Quellen, nicht das Ergebnis. Seit dem Phasen-Umbau fehlen **Kernthema,
-Kernthema-Richtung und Kernfrage**: sie sind keine Station mehr, `geschichte`
-hat ihre Rolle übernommen; gesetzte Werte bleiben sichtbar
+Ort, Zeit, Anlass, was passiert, was anders, Ton und die Besetzung — also
+genau das, was die Gruppe hier **fertig entscheiden** kann. Setting und
+Geschichte sind dabei **unabhängig voneinander**: ein neues Setting ändert die
+Geschichte nicht und stößt auch nichts an, was sie später ändern würde (Birk,
+06.09.2026 10:25 — kein Auftragsweg vom Web an den Bot, keine automatische
+Geschichte). Nicht änderbar: **nie Material** (Aufnahmen, Transkripte,
+Verdichtungen, Belegzitate), nie der Szenen-Volltext, nie das Journal, nie die
+USA-Einwilligung, nie der Sprachprofil-Text, nie die Schärfungs-Zuordnungen.
+**Was der Chat führt** (`web_schreiben.FUEHRT_DER_CHAT`): Phase, Begriffe,
+Fragen und die drei Leitfaden-Felder. Sie stehen auf der Seite an ihrem Platz,
+aber als Anzeige — sie entstehen im Gespräch über Knöpfe und Ping-Pong, oft mit
+einem Modellaufruf dahinter, und der Webserver hat keinen Modellklienten; sie
+hier umtippen zu lassen hieße, denselben Wert auf zwei Wegen zu pflegen, von
+denen einer die halbe Kette auslässt. Von den drei Leitfaden-Feldern steht
+nicht einmal das Rohfeld da, sondern der **gebaute Leitfaden**
+(`leitfaden.aus_feldern`, dieselbe Funktion wie im Chat): das, was die Gruppe
+im Interview in der Hand hält. Seit dem Phasen-Umbau fehlen außerdem
+**Kernthema, Kernthema-Richtung und Kernfrage**: sie sind keine Station mehr,
+`geschichte` hat ihre Rolle übernommen; gesetzte Werte bleiben sichtbar
 (`web_schreiben.NUR_ANZEIGE`, nur wenn gesetzt), änderbar sind sie nicht.
 Ebenfalls nur Anzeige: der Formvorschlag je Szene (`szene.form_vorschlag` —
 bestätigt ist allein `form`, und wer hier wählt, bestätigt gerade selbst) und

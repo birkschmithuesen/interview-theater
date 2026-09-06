@@ -1,0 +1,58 @@
+# Der Formen-Katalog fuer Dortmund 2026.
+#
+# Jede Szene hat genau eine Form. Was hier steht, ist zugleich die
+# Knopfleiste im Chat, das Dropdown auf der Gruppenseite und die Liste im
+# Prompt ("Es gibt genau fuenf: Dialog, Monolog, Chor, Lied, Rap") -- eine
+# Quelle, damit Chat und Weboberflaeche nie zwei verschiedene Listen zeigen.
+#
+# Zu jeder Form gehoert ein Regelblock als Markdown-Datei. Die Vorgabe liegt
+# im Repo unter interview_theater/prompts/formen/<name>.md; ein Profil kann
+# sie mit workshop/<name>/prompts/formen/<name>.md ersetzen. Wer eine Form
+# hinzufuegt, legt die Datei mit an -- scripts/pruefe_profil.py sagt es,
+# wenn sie fehlt.
+#
+# "prosa" steht bewusst nicht in dieser Liste: das ist die Fassung der
+# Phase 6, die der Code setzt und die Gruppe nie waehlt.
+
+# Die Form, mit der eine Szene startet, wenn keine genannt ist. Zugleich der
+# Rueckfall, wenn eine Gruppe eine Form nennt, die es nicht gibt
+# ("Bewegungsszene") -- im Zweifel ist das gesprochenes Theater.
+vorgabe = "dialog"
+
+# Wie die Anzahl im Prompt-Fliesstext ausgeschrieben wird ("Es gibt genau
+# fuenf: ..."). Muss zur Zahl der [[form]]-Eintraege passen.
+anzahl_wort = "fuenf"
+
+# Die Reihenfolge ist die der Knopfleiste im Chat: erst die Sprechformen,
+# dann die musikalischen.
+#
+# stichwoerter: woran der Code erkennt, dass eine frei getippte Formangabe
+# diese Form meint. Verglichen wird in beide Richtungen, deshalb genuegen
+# Wortstaemme. "dialog" wird zuletzt geprueft -- das Wort "Szene" steht in
+# fast jeder Formangabe, und Dialog ist ohnehin der Rueckfall.
+
+[[form]]
+name = "dialog"
+anzeige = "Dialog"
+stichwoerter = ["dialog", "gespraech", "gespräch", "gesprochen",
+                "sprechtheater", "text", "sprechszene", "szene"]
+
+[[form]]
+name = "monolog"
+anzeige = "Monolog"
+stichwoerter = ["monolog", "soloszene", "solo"]
+
+[[form]]
+name = "chor"
+anzeige = "Chor"
+stichwoerter = ["chor", "chorisch", "wir-form", "sprechchor"]
+
+[[form]]
+name = "lied"
+anzeige = "Lied"
+stichwoerter = ["lied", "song", "gesang", "gesungen", "singen", "musik", "arie"]
+
+[[form]]
+name = "rap"
+anzeige = "Rap"
+stichwoerter = ["rap", "sprechgesang", "beat", "reim", "hip-hop", "hiphop"]

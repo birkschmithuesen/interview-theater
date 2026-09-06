@@ -1,0 +1,84 @@
+# Was die Gruppe beim Eintritt in eine Phase im Chat liest.
+#
+# Zwei bis vier Saetze je Phase: was hier passiert, was ihr tut, was ich
+# tue, was am Ende steht. Das ist Bot-Text an die Gruppe und KEIN Prompt --
+# er geht nie an ein Modell.
+#
+# Keine Eigennamen, weder erfundene Figuren noch Orte: was hier als Beispiel
+# steht, taucht spaeter als Vorschlag des Bots wieder auf. Keine
+# Slash-Befehle: beworben wird der Knopf.
+#
+# {{formen_liste_oder}} wird aus formen.toml gefuellt -- damit im Chat
+# dieselbe Formenliste steht wie im Prompt.
+#
+# Laenge: hoechstens 700 Zeichen je Einleitung (phasentexte.EINLEITUNG_GRENZE).
+
+# Was statt der Einleitung der letzten Phase dasteht, solange nicht jede
+# Szene einen Text hat. Der alte Text fing mit "Alle Szenen stehen" an --
+# ein Satz ueber die Datenlage, den der Text nicht geprueft hat.
+letzte_offen = """\
+Hier seht ihr euer Textbuch am Stueck. Ein Teil der Szenen ist noch \
+ungeschrieben - tippt eine davon an, dann hole ich das nach. Bei den \
+fertigen achten wir auf die Uebergaenge und darauf, was sich beim \
+Sprechen sperrig anfuehlt."""
+
+[einleitung]
+1 = """\
+Hier kommt eure Begriffsliste aus dem Plenum zu mir. Ihr schickt sie \
+getippt oder als Sprachnachricht, so wie sie bei euch an der Wand \
+steht. Ich halte sie fest, ordne sie und frage nach, wo ein Begriff \
+noch zu gross ist. Am Ende stehen die Kernbegriffe, mit denen ihr \
+weiterarbeitet."""
+
+2 = """\
+Aus euren Begriffen werden jetzt die Interviewfragen. Ich schlage \
+euch zehn vor, ihr sagt mir die Nummern von genau drei. Danach \
+schauen wir, welche Frage heikel ist und wie ihr sie so stellt, dass \
+sie leicht zu beantworten ist, und womit ihr ein Gespraech anfangt \
+und aufhoert. Am Ende habt ihr einen Leitfaden zum Mitnehmen."""
+
+3 = """\
+Jetzt fuehrt ihr die Interviews - den Leitfaden habt ihr dabei. So \
+laeuft es: Ihr drueckt Aufnahme starten, dann nehmt ihr das \
+Gespraech als Sprachnachrichten auf, so viele wie noetig, gern auch \
+in Stuecken. Ich tippe alles mit. Am Ende drueckt ihr Interview \
+beenden (oder sagt am Schluss der Aufnahme "fertig"). Dann fasse ich \
+das Interview von selbst zusammen - die Themen und die woertlichen \
+Zitate, mit denen wir spaeter arbeiten. Am Ende steht zu jedem \
+Interview eine Zusammenfassung. Danach koennt ihr die \
+Zusammenfassung und das Transkript ansehen und gegenpruefen."""
+
+4 = """\
+Ab hier wird erfunden - ganz frei, ohne Material. Ihr denkt euch \
+aus, wo euer Stueck spielt (Ort, Zeit, Anlass), wer darin vorkommt, \
+und was passiert: die Geschichte im Groben, wie sie ausgeht, und die \
+Szenenfolge mit Titel, einem Satz, den Figuren und einem Vorschlag \
+fuer die Form. Ich helfe mit Vorschlaegen, wenn ihr wollt. Direkt \
+danach kommen die Interviews ins Spiel und schaerfen, was ihr gebaut \
+habt."""
+
+5 = """\
+Jetzt kommen die Interviews zurueck. Ich lege neben jede Szene und \
+jede Figur die Stellen aus euren Aufnahmen, die dazu passen, mit dem \
+woertlichen Zitat. Eure Geschichte aendert sich dadurch nicht, sie \
+wird genauer. Ihr entscheidet Vorschlag fuer Vorschlag und koennt \
+noch eine Runde drehen."""
+
+6 = """\
+Jetzt schreibe ich eure Geschichte am Stueck - eine Kurzgeschichte, \
+wie in einem Buch: was passiert, wer da ist, was gesagt und gefuehlt \
+wird, in Prosa. Wie viele Abschnitte es werden, entscheidet die \
+Geschichte. Aus jedem Abschnitt wird danach eine Szene. Kein \
+Theatertext, keine Form; das kommt im Feinschliff. Ihr lest sie und \
+sagt mir, was anders werden soll."""
+
+7 = """\
+Alle Szenen stehen als Geschichte. Jetzt der Feinschliff: Szene fuer \
+Szene entscheidet ihr die Form - {{formen_liste_oder}} -, und ich \
+uebersetze die Geschichte in genau diese Form. Danach lese ich euer \
+Stueck einmal als Ganzes, wie ein Zuschauer, und sage euch zu jeder \
+Frage, wo es traegt und wo nicht: Spannungsbogen, Figuren, Spannung, \
+Nachvollziehbarkeit, Anfang und Ende, Sprechbarkeit. Zu jedem Punkt \
+ein Vorschlag, den ihr in die Szene geben koennt. Ihr koennt das \
+Textbuch jederzeit als Datei holen."""
+

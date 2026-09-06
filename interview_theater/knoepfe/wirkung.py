@@ -19,6 +19,7 @@ from interview_theater.knoepfe.texte import (
     ANWEISUNGEN, ANWEISUNG_DUKTUS, ANWEISUNG_FRAGEN_ANDERE,
     ANWEISUNG_KERNTHEMA, ANWEISUNG_NAMEN, ART_ANDERS, ART_AUFNAHME,
     ART_AUSWERTEN, ART_AUSWERTEN_ALLE, ART_DURCHLAUF_SZENE, ART_EIGENE,
+    ART_FASSUNGEN, ART_SPRECHANTEILE,
     ART_FIGUREN_ANZAHL, ART_FIGUREN_ANZAHL_FREI, ART_FIGUREN_ANZAHL_MENU,
     ART_FIGUREN_NAMEN_MENU, ART_FIGUREN_ZUFALL, ART_FIGUR_DUKTUS,
     ART_FIGUR_DUKTUS_MENU, ART_FIGUR_ENTFERNEN, ART_FIGUR_INTERVIEW,
@@ -79,6 +80,7 @@ from interview_theater.knoepfe.szenen import (
     _naechste_offene, _pruefbefund, _schreibe_szene, _speichere_geschichte,
     _speichere_szenenfelder, _speichere_szenenfolge, _szene_mit_nummer,
     biete_kurzgeschichte, biete_schaerfung, biete_szene, biete_szenenform,
+    _zeige_fassungen,
     biete_szenenstil, erwarte_geschichte_notiz, starte_schaerfung,
     starte_stueckpruefung, zeige_szenentext,
 )
@@ -461,6 +463,26 @@ def _wirkung_textbuch(conn, d: Druck) -> str:
     return "Textbuch"
 
 
+def _wirkung_sprechanteile(conn, d: Druck) -> str:
+    """Deterministisch aus der Datenbank (``sprecher.anteile``), kein
+    Modellaufruf -- Zusage 2 gilt auch fuer diesen Handler."""
+    from interview_theater import sprecher
+
+    d.tg.sende(
+        d.chat_id,
+        sprecher.text(
+            sprecher.anteile(
+                repo.hole_szenen(conn, d.chat_id), repo.figuren(conn, d.chat_id)
+            )
+        ),
+    )
+    return sprecher.UEBERSCHRIFT
+
+
+def _wirkung_fassungen(conn, d: Druck) -> str:
+    return _zeige_fassungen(conn, d.tg, d.chat_id, int(d.wert))
+
+
 # --- Die Wirkungen der Grundleiste, der Fragen und der Figuren -------------
 
 
@@ -476,7 +498,7 @@ def _wirkung_speichern(conn, d: Druck) -> str:
         # ZWEI Felder -- deshalb ein eigener Speicherweg statt des
         # Arbeitsstand-Setters (wie bei der Geschichte in Phase 5).
         return _speichere_eroeffnung(
-            conn, d.tg, d.chat_id, roh.partition(TRENNER)[2]
+            conn, d.tg, d.chat_id, roh.partition(TRENNER)[2], e=d.e
         )
     if gespeicherte_art in ("einleitungen", "fragen_weich"):
         return _speichere_einleitungen(conn, d, roh)
@@ -590,7 +612,7 @@ def _wirkung_fragen_eigene(conn, d: Druck) -> str:
 def _wirkung_leitfaden(conn, d: Druck) -> str:
     from interview_theater import leitfaden
 
-    leitfaden.sende(conn, d.tg, d.chat_id)
+    leitfaden.sende(conn, d.tg, d.chat_id, e=d.e)
     return "Leitfaden"
 
 
@@ -1225,6 +1247,8 @@ _WIRKUNGEN = {
     ART_PRUEFUNG_LASSEN: _wirkung_pruefung_lassen,
     ART_PRUEFUNG_RUNDE: _wirkung_pruefung_runde,
     ART_TEXTBUCH: _wirkung_textbuch,
+    ART_SPRECHANTEILE: _wirkung_sprechanteile,
+    ART_FASSUNGEN: _wirkung_fassungen,
     ART_SPEICHERN: _wirkung_speichern,
     ART_ANDERS: _wirkung_anders,
     ART_EIGENE: _wirkung_eigene,

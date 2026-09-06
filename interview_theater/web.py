@@ -387,6 +387,25 @@ table.uebersicht .umfang { white-space: nowrap; opacity: .7;
 /* Die Schaerfung: read-only, deshalb ohne Kasten und ohne Knopf. */
 .schaerfung { font-size: .85rem; margin: .3rem 0 .5rem; opacity: .85; }
 .schaerfung ul { margin: .1rem 0 0; }
+/* Die frueheren Fassungen: ein Block im Block, deshalb eingerueckt und
+   kleiner gesetzt als der aktuelle Text. Read-only, ohne Knopf. */
+details.fassungen { margin-top: .6rem; font-size: .92rem; }
+details.fassungen summary { font-weight: 600; opacity: .75; }
+details.fassung { margin: .3rem 0 .3rem .8rem; }
+details.fassung summary { font-weight: normal; opacity: .7; }
+/* Wer wie viel spricht: vier schmale Spalten, damit die Tabelle auf ein
+   Telefon passt. Die Hinweiszeilen darunter sind Fliesstext, kein Alarm. */
+table.anteile { margin: .3rem 0 .5rem; }
+table.anteile th, table.anteile td { text-align: left;
+       padding: .2rem .8rem .2rem 0; border-bottom: 1px solid #e6e1d6; }
+table.anteile th { font-size: .78rem; text-transform: uppercase;
+       letter-spacing: .04em; opacity: .6; font-weight: 600; }
+.hinweiszeile { font-size: .9rem; opacity: .8; margin: .2rem 0; }
+/* Das Fehlstellen-Register: eine Arbeitsliste, kein Alarm -- deshalb
+   dieselbe Papierfarbe wie der Rest und nur ein Strich an der Seite. */
+ul.fehlstellen { list-style: none; padding: 0 0 0 .7rem; margin: .2rem 0;
+                 border-left: 3px solid #c9b98d; }
+ul.fehlstellen li { margin: .3rem 0; }
 .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
 .figur .marke { font-size: .78rem; opacity: .6; }
 .hinzu { margin-top: .8rem; }
@@ -397,6 +416,41 @@ table.uebersicht .umfang { white-space: nowrap; opacity: .7;
                    border: 1px solid #c9b98d; border-radius: .3rem;
                    background: #ece7db; color: #1b1b1b; text-decoration: none;
                    font-size: .95rem; }
+"""
+
+
+#: Die Leitfaden-Ansicht (06.09.2026): gross gesetzt, hoher Kontrast, für ein
+#: Telefon in der Hand -- und für ein Blatt Papier. Kein gemeinsames CSS mit
+#: der Gruppenseite: dort geht es ums Überblicken, hier ums Vorlesen im
+#: Stehen, vor einer fremden Person.
+_CSS_LEITFADEN = """
+body { background: #ffffff; color: #000000; font-size: 1.25rem;
+       max-width: 34rem; margin: 0 auto; padding: 1.2rem 1.2rem 4rem;
+       line-height: 1.5; }
+h1 { font-size: 1.35rem; margin: 0 0 1.4rem; font-weight: 600; }
+h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; text-transform: uppercase;
+     letter-spacing: .06em; border: 0; opacity: .65; }
+.block { border-top: 3px solid #000; padding-top: .8rem; margin-top: 1.6rem; }
+.frage { border-top: 2px solid #000; padding: 1rem 0 .2rem;
+         margin-top: 1.4rem; }
+.frage .nummer { font-size: .95rem; font-weight: 700; opacity: .55;
+                 display: block; margin-bottom: .3rem; }
+.frage p { margin: 0; font-size: 1.35rem; }
+.frage .kern, .frage .vorher { font-size: 1rem; margin-top: .6rem;
+                               opacity: .75; }
+.frage .vorher { border-left: 4px solid #000; padding-left: .7rem;
+                 opacity: .85; }
+.sagen { font-size: 1.2rem; white-space: pre-wrap; margin: 0; }
+.leer { font-size: 1.15rem; opacity: .7; }
+.zurueck { display: block; margin-top: 3rem; font-size: .95rem; opacity: .6; }
+@media print {
+  /* Ausgedruckt gehört das Blatt der Gruppe: keine Navigation, kein
+     Grauschleier, und jede Frage bleibt auf einer Seite zusammen. */
+  body { font-size: 12pt; max-width: none; padding: 0; }
+  .zurueck { display: none; }
+  h2, .frage .nummer, .frage .kern { opacity: 1; }
+  .frage, .block { page-break-inside: avoid; }
+}
 """
 
 
@@ -541,7 +595,32 @@ def _fragen_html(fragen: str | None) -> str:
     return "<ul class=\"fragen\">" + "".join(zeilen) + "</ul>"
 
 
-def _leitfaden_html(arbeitsstand: dict) -> str:
+#: Die Beschriftung des Links auf die große Ansicht. Als Konstante, damit
+#: Test und Chat denselben Wortlaut prüfen können.
+TEXT_LEITFADEN_LINK = "Groß und zum Ausdrucken"
+
+
+def _leitfaden_link(token: str | None) -> str:
+    """Der Link auf ``/g/<token>/leitfaden`` -- relativ, damit er hinter
+    nginx genauso geht wie direkt auf Port 8010 (die Seite steht unter
+    ``…/g/<token>``, also führt ``<token>/leitfaden`` eine Ebene tiefer)."""
+    if not token:
+        return ""
+    return (
+        f'<div class="zeit"><a href="{_t(token)}/{leitfaden_pfad()}">'
+        f"{html.escape(TEXT_LEITFADEN_LINK)}</a></div>"
+    )
+
+
+def leitfaden_pfad() -> str:
+    """``leitfaden`` -- der Pfad steht in ``leitfaden.WEB_PFAD``, damit
+    Routing und Link nicht auseinanderlaufen."""
+    from interview_theater import leitfaden
+
+    return leitfaden.WEB_PFAD
+
+
+def _leitfaden_html(arbeitsstand: dict, token: str | None = None) -> str:
     """Der Gespraechsleitfaden als eigener Eintrag unter den Fragen -- oder
     gar nichts (06.09.2026).
 
@@ -557,7 +636,72 @@ def _leitfaden_html(arbeitsstand: dict) -> str:
     text = leitfaden.aus_feldern(arbeitsstand)
     if text == leitfaden.TEXT_LEER:
         return ""
-    return f"<dt>Leitfaden</dt><dd><pre class=\"leitfaden\">{_t(text)}</pre></dd>"
+    return (
+        "<dt>Leitfaden</dt><dd>"
+        f'<pre class="leitfaden">{_t(text)}</pre>'
+        # Der Link auf die große Ansicht (06.09.2026) -- zusätzlich, der Text
+        # bleibt: wer hier liest, will überblicken; wer losgeht, braucht ihn
+        # groß.
+        f"{_leitfaden_link(token)}</dd>"
+    )
+
+
+def _fehlstellen_html(eintraege: list[dict] | None) -> str:
+    """Der Abschnitt „Was noch fehlt" -- oder gar nichts (06.09.2026).
+
+    **Nur, wenn es Fehlstellen gibt.** Eine Ueberschrift mit der Zeile
+    „nichts fehlt" waere Laerm auf einer Seite, die sich alle zehn Sekunden
+    selbst nachlaedt. Read-only, ohne Knopf: die Liste ist ein Vorschlag,
+    keine Aufgabe, die man hier abhakt.
+
+    Der Text kommt aus ``fehlstellen.aus_daten`` -- derselben Funktion, aus
+    der auch ``/stand`` liest."""
+    if not eintraege:
+        return ""
+    from interview_theater import fehlstellen
+
+    zeilen = "".join(f"<li>{_t(e['text'])}</li>" for e in eintraege)
+    return (
+        f"<h2>{html.escape(fehlstellen.UEBERSCHRIFT)}</h2>"
+        f'<ul class="fehlstellen">{zeilen}</ul>'
+    )
+
+
+def _sprechanteile_html(daten: dict | None) -> str:
+    """Wie viel jede Figur spricht -- Liste und Hinweiszeilen (06.09.2026).
+
+    **Nur, wenn mindestens eine Szene zählbar war.** Konnte in keinem
+    Szenentext eine Sprecherzeile erkannt werden (Lied, Rap, Chor), bleibt
+    der Abschnitt weg -- eine Tabelle voller Nullen wäre eine Aussage, die
+    die Zählung nicht deckt.
+
+    Die Hinweiszeilen unter der Liste sind bewusst sachlich: die Zahl steht
+    da, die Entscheidung gehört der Gruppe."""
+    if not (daten or {}).get("szenen"):
+        return ""
+    from interview_theater import sprecher
+
+    zeilen = "".join(
+        "<tr><td>{name}</td><td>{anteil}</td><td>{repliken}</td>"
+        "<td>{szenen}</td></tr>".format(
+            name=_t(f["name"]),
+            anteil=_t(sprecher._prozent(f["anteil"])),
+            repliken=f["repliken"],
+            szenen=f["szenen"],
+        )
+        for f in daten["figuren"]
+    )
+    leise = [f for f in daten["figuren"] if f["anteil"] < sprecher.SCHWELLE_ANTEIL]
+    hinweise = "".join(
+        f'<div class="hinweiszeile">{_t(sprecher.hinweis(f, daten["szenen"]))}</div>'
+        for f in leise
+    )
+    return (
+        f"<h2>{html.escape(sprecher.UEBERSCHRIFT)}</h2>"
+        '<table class="anteile"><tr><th>Figur</th><th>Anteil</th>'
+        f"<th>Repliken</th><th>Szenen</th></tr>{zeilen}</table>"
+        f"{hinweise}"
+    )
 
 
 def _figur_html(f: dict, mit_stimme: bool) -> str:
@@ -808,7 +952,7 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
         # Der Leitfaden statt seiner drei Rohfelder: er ist das Ergebnis, das
         # die Gruppe braucht, und er wird gebaut, nicht getippt -- aus
         # denselben Feldern wie im Chat (``leitfaden.aus_feldern``).
-        + _leitfaden_html(stand)
+        + _leitfaden_html(stand, daten.get("web_token"))
         + "<dt>Setting</dt><dd>"
         + _dropdown(
             "rahmen",
@@ -839,7 +983,8 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
 
 
 def _arbeitsstand_html(
-    arbeitsstand: dict, figuren: list[dict], mit_stimmen: bool = False
+    arbeitsstand: dict, figuren: list[dict], mit_stimmen: bool = False,
+    token: str | None = None,
 ) -> str:
     figuren_html = "".join(_figur_html(f, mit_stimmen) for f in figuren)
     # Die Phase steht oben: sie ordnet alles darunter ein. Eine ungesetzte
@@ -855,7 +1000,7 @@ def _arbeitsstand_html(
         # Gebrauchsanweisung (06.09.2026). Read-only wie alles hier: gebaut
         # wird er aus denselben Feldern wie im Chat (``leitfaden.aus_feldern``),
         # damit auf der Wand nichts anderes steht als auf dem Telefon.
-        + _leitfaden_html(arbeitsstand)
+        + _leitfaden_html(arbeitsstand, token)
         + f"<dt>Kernthema</dt><dd>{_t(arbeitsstand['kernthema'])}"
         + (
             f"<div class=\"zeit\">{_t(arbeitsstand['kernthema_begruendung'], '')}</div>"
@@ -1134,6 +1279,7 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
         inhalt += f'<div class="volltext">{_t(s["volltext"])}</div>'
     elif not s.get("prosa"):
         inhalt += '<p class="leer">Noch kein Text — die Szene ist geplant.</p>'
+    inhalt += _fassungen_html(s.get("fassungen"))
     return (
         f'<details class="szene"><summary>{_szene_summary(s)}</summary>{inhalt}</details>'
     )
@@ -1202,6 +1348,45 @@ def _begriffe_html(begriffe: list[str] | None) -> str:
         return ""
     chips = "".join(f'<span class="begriff">{_t(b)}</span>' for b in begriffe)
     return f'<div class="begriffe">{chips}</div>'
+
+
+#: Die Beschriftung des aufklappbaren Blocks mit den früheren Fassungen --
+#: als Konstante, damit Test und Chat-Knopf denselben Wortlaut prüfen können,
+#: ohne ihn abzuschreiben.
+TEXT_FASSUNGEN = "Frühere Fassungen"
+
+
+def _fassungen_html(fassungen: list[dict] | None) -> str:
+    """Die früheren Fassungen einer Szene als aufklappbarer Block
+    (06.09.2026).
+
+    **Read-only, und ausdrücklich ohne „Zurücksetzen".** Eine frühere Fassung
+    wieder zur aktuellen zu machen ist eine Entscheidung mit Datenwirkung;
+    hier steht sie zum Lesen, weil man in der Probe zwei Fassungen
+    nebeneinander halten will.
+
+    Beschriftet wird jede Fassung mit Datum und der Zeile `Anders gemacht:`
+    des Laufs, der sie geschrieben hat -- das ist der Satz, an dem die Gruppe
+    sie wiedererkennt. Fehlt er (Fassung aus der Zeit davor, Prosalauf), steht
+    nur das Datum da. Gibt es keine früheren Fassungen, fehlt der Block."""
+    if not fassungen:
+        return ""
+    bloecke = []
+    for f in fassungen:
+        # ``_zeitpunkt`` liefert den Trenner gleich mit ("06.09.2026 14:33 · ")
+        # oder gar nichts, wenn der Zeitstempel unlesbar ist.
+        teile = [f"Fassung {f['nummer']}", _zeitpunkt(f["erstellt_am"]).rstrip(" ·")]
+        if (f.get("anders_gemacht") or "").strip():
+            teile.append(f["anders_gemacht"].strip())
+        beschriftung = SUMMARY_TRENNER.join(t for t in teile if t)
+        bloecke.append(
+            f'<details class="fassung"><summary>{_t(beschriftung)}</summary>'
+            f'<div class="volltext">{_t(f.get("volltext"), "")}</div></details>'
+        )
+    return (
+        f'<details class="fassungen"><summary>{html.escape(TEXT_FASSUNGEN)} '
+        f'({len(fassungen)})</summary>{"".join(bloecke)}</details>'
+    )
 
 
 def _interview_html(v: dict) -> str:
@@ -1293,7 +1478,10 @@ def gruppe_html(
     stand = (
         _bearbeiten_html(daten, nonce_wert)
         if nonce_wert
-        else _arbeitsstand_html(daten["arbeitsstand"], daten["figuren"], mit_stimmen=True)
+        else _arbeitsstand_html(
+            daten["arbeitsstand"], daten["figuren"], mit_stimmen=True,
+            token=daten.get("web_token"),
+        )
     )
     probenansicht = (
         f'<p class="probenansicht"><a href="{_t(praefix, "")}/g/{_t(token)}/textbuch">'
@@ -1308,7 +1496,15 @@ def gruppe_html(
         f"{probenansicht}"
         "<h2>Arbeitsstand</h2>"
         f"{stand}\n"
+        # „Was noch fehlt" steht direkt unter dem Arbeitsstand: es ist
+        # dieselbe Datenlage in der anderen Richtung (06.09.2026). Fehlt
+        # nichts, fehlt auch der Abschnitt.
+        f"{_fehlstellen_html(daten.get('fehlstellen'))}\n"
         f"<h2>Szenen</h2>{uebersicht}{szenen}\n"
+        # Die Sprechanteile stehen unter den Szenen: sie sind eine Zählung
+        # über genau diese Texte (06.09.2026). Ohne zählbare Szene fehlt der
+        # Abschnitt ganz.
+        f"{_sprechanteile_html(daten.get('sprechanteile'))}\n"
         f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
         "<h2>Der Weg dahin</h2>"
         f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",
@@ -1738,6 +1934,83 @@ def textbuch_html(
         nachladen=False,
         skript=_TEXTBUCH_JS,
     )
+#: Was auf der Leitfaden-Seite steht, solange es keinen gibt. Ruhig und ohne
+#: Fehlerton: die Seite ist richtig, der Leitfaden ist nur noch nicht fertig.
+TEXT_LEITFADEN_LEER = "Der Leitfaden entsteht in Phase 2."
+TEXT_LEITFADEN_ZURUECK = "← zurück zum Arbeitsstand"
+
+
+def leitfaden_html(daten: dict) -> str:
+    """Die Leitfaden-Ansicht ``/g/<token>/leitfaden`` -- das Dokument, das
+    eine Sechzehnjährige in der Hand hält, wenn sie eine fremde Person
+    anspricht (06.09.2026).
+
+    **Gebaut aus derselben Funktion wie der Chat-Text**
+    (``leitfaden.bausteine``, auf der ``leitfaden.aus_feldern`` ebenfalls
+    steht): keine zweite Wahrheit, nur ein anderer Satz. Groß, hoher
+    Kontrast, jede Frage in einem eigenen Block -- und mit einer
+    ``@media print``-Regel, damit man sie ausdrucken kann.
+
+    **Kein Nachladen, kein POST, kein Nonce.** Die Seite bekommt deshalb auch
+    nicht den Rahmen der beiden anderen (``_seite``): das sanfte Nachladen
+    würde einer Interviewerin mitten im Gespräch den Text unter dem Daumen
+    austauschen.
+
+    Steht noch kein Leitfaden, kommt eine ruhige Seite und kein Fehler."""
+    from interview_theater import leitfaden
+
+    titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
+    teil = leitfaden.bausteine(daten["arbeitsstand"])
+    if teil is None:
+        koerper = f'<p class="leer">{html.escape(TEXT_LEITFADEN_LEER)}</p>'
+    else:
+        koerper = _leitfaden_blocks(teil, leitfaden)
+    zurueck = (
+        f'<a class="zurueck" href="../{_t(daten["token"], "")}">'
+        f"{html.escape(TEXT_LEITFADEN_ZURUECK)}</a>"
+        if daten.get("token")
+        else ""
+    )
+    return (
+        "<!doctype html>\n"
+        '<html lang="de"><head><meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f"<title>Leitfaden — {html.escape(titel)}</title>\n"
+        f"<style>{_CSS_LEITFADEN}</style></head>\n<body>\n"
+        f"<h1>{_t(titel)}</h1>\n{koerper}\n{zurueck}\n"
+        "</body></html>\n"
+    )
+
+
+def _leitfaden_blocks(teil: dict, leitfaden) -> str:
+    """Eröffnung, dann jede Frage einzeln, dann der Abschluss.
+
+    Die Überschriften sind wortgleich die des Chat-Texts
+    (``leitfaden.UEBERSCHRIFT_*``) -- wer beides nebeneinander hält, soll
+    dasselbe Dokument erkennen."""
+    stuecke = []
+    if teil["eroeffnung"]:
+        stuecke.append(
+            f'<div class="block"><h2>{html.escape(leitfaden.UEBERSCHRIFT_EROEFFNUNG)}'
+            f'</h2><p class="sagen">{_t(teil["eroeffnung"])}</p></div>'
+        )
+    stuecke.append(f"<h2>{html.escape(leitfaden.UEBERSCHRIFT_FRAGEN)}</h2>")
+    for frage in teil["fragen"]:
+        block = (
+            f'<div class="frage"><span class="nummer">{frage["nummer"]}</span>'
+            f'<p>{_t(frage["text"])}</p>'
+        )
+        if frage["einleitung"]:
+            block += f'<div class="vorher">Vorher sagen: {_t(frage["einleitung"])}</div>'
+        if frage["kern"]:
+            block += f'<div class="kern">Kern: {_t(frage["kern"])}</div>'
+        stuecke.append(block + "</div>")
+    if teil["abschluss"]:
+        stuecke.append(
+            f'<div class="block"><h2>{html.escape(leitfaden.UEBERSCHRIFT_ABSCHLUSS)}'
+            f'</h2><p class="sagen">{_t(teil["abschluss"])}</p></div>'
+        )
+    return "\n".join(stuecke)
 
 
 def nicht_gefunden_html() -> str:
@@ -1819,10 +2092,21 @@ def mache_handler(
                     # nicht etwa als Teil des Tokens gelesen -- sonst haette
                     # /g/<token>/irgendwas dieselbe Seite geliefert wie
                     # /g/<token>.
+                    from interview_theater import leitfaden as leitfaden_modul
+
                     rest = pfad[len("/g/"):].strip("/")
                     token, _, unterpfad = rest.partition("/")
                     if unterpfad in ("textbuch.md", "textbuch.txt"):
                         self._textbuch_datei(token, unterpfad)
+                    elif unterpfad == leitfaden_modul.WEB_PFAD:
+                        daten = self._leitfaden(token)
+                        if daten is None:
+                            self._antworte(404, nicht_gefunden_html())
+                        else:
+                            # Die Leitfaden-Seite verlinkt zurueck auf die
+                            # Gruppenseite und braucht dafuer ihr Token.
+                            daten["token"] = token
+                            self._antworte(200, leitfaden_html(daten))
                     elif unterpfad in ("", "textbuch"):
                         daten = self._gruppe(token)
                         if daten is None:
@@ -2024,6 +2308,14 @@ def mache_handler(
             self.end_headers()
             self.wfile.write(roh)
 
+        def _leitfaden(self, token: str) -> dict | None:
+            """Nur der Arbeitsstand -- die Leitfaden-Seite laedt weder Szenen
+            noch Interviews noch das Journal."""
+            conn = web_daten.oeffne_lesend(db_pfad)
+            try:
+                return web_daten.leitfaden_nach_token(conn, token)
+            finally:
+                conn.close()
         def log_message(self, format: str, *args) -> None:
             """Eine Zeile je Anfrage nach stdout (systemd haengt das an
             betrieb/web.log). Ohne Uhrzeit-Klammern der Vorlage, dafuer mit

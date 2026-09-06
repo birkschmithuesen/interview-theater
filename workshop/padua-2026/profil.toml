@@ -1,0 +1,54 @@
+# Workshop-Profil Padua 2026 -- GERUEST.
+#
+# Die Struktur steht, die Inhalte fehlen. Was hier leer ist, schreibt ein
+# Mensch, der Italienisch kann und die Gruppe kennt -- nicht ein Agent und
+# nicht durch Uebersetzen der Dortmunder Fassung. Ein italienischer Prompt
+# ist ein eigener Text, keine Uebersetzung (Teil C der Analyse).
+#
+# Solange die naechste Zeile dasteht, startet kein Bot mit diesem Profil.
+# Wer es fertig macht, fuellt die Felder und streicht sie.
+geruest = true
+
+beschreibung = ""   # z.B. "Theaterworkshop in Padua, <Datum>, mit <Traeger>."
+
+[sprache]
+# Prompt- und Chatsprache. Steuert spaeter auch die Whisper-Sprache
+# (stt.py) -- die Umstellung ist noch nicht gebaut, siehe LIESMICH.md.
+code = "it"
+# Wie die Gruppe angesprochen wird. Deutsch "ihr", italienisch "voi".
+anrede = "voi"
+
+[zielgruppe]
+# Wer spielt. Ein Satz, wie er im Rahmenblock steht -- Alter, Geschlecht,
+# was die Gruppe ausmacht. Beispiel Dortmund: "junge Frauen zwischen 15 und
+# 18 Jahren".
+beschreibung = ""
+# Der Traegerkontext in Klammern. Leer = keine Klammer.
+traeger = ""
+
+[orte]
+# Wie die Prompts die Spielorte beschreiben. In Dortmund steht hier
+# ausdruecklich KEINE Beispielliste: die Orte nennt die Gruppe, ein Beispiel
+# im Prompt wird nachgeplappert. Fuer Padua ebenso zu formulieren.
+beschreibung = ""
+# Was ausgeschlossen ist (Dortmund: Club, Disko, Alkohol, Nachtleben,
+# Drogen). Fuer Padua entscheidet das der Traeger.
+ausgeschlossen = []
+# Wo das fertige Stueck gezeigt wird.
+auffuehrung = ""
+# Orte, die in den Prompts als BEISPIEL vorkommen -- nicht die Orte des
+# Stuecks. Sprache und Ort sind zwei getrennte Felder (Teil C.4 der
+# Analyse): ein italienisches Profil hat italienische Beispielorte.
+beispiele = ["fermata", "piazza", "bar", "stazione"]
+
+[konflikt]
+# Was an Stoff drin sein darf, und was nicht.
+erlaubt = ""
+ausgeschlossen = ""
+
+[projekt]
+# Worum es geht, in einem Satz -- so, wie es eine Interviewerin einer
+# fremden Person auf der Strasse sagt. Steht im Auftrag fuer den
+# Eroeffnungstext. Der lange Wortlaut gehoert daneben als
+# prompts/projekt.md.
+kurzbeschreibung = ""

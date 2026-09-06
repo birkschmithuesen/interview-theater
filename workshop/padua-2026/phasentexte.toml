@@ -1,0 +1,31 @@
+# Was die Gruppe beim Eintritt in eine Phase im Chat liest -- GERUEST.
+#
+# Solange hier keine [einleitung]-Tabelle steht, gelten die deutschen
+# Einleitungen des eingebauten Profils. Fuer Padua sind sie neu zu
+# schreiben, nicht zu uebersetzen: es ist Sprechsprache fuer eine bestimmte
+# Gruppe, und das ueberlebt eine Uebersetzung selten.
+#
+# So sieht es fertig aus:
+#
+#     letzte_offen = """\
+#     ..."""
+#
+#     [einleitung]
+#     1 = """\
+#     Testo della prima stazione, due o quattro frasi: cosa succede qui, \
+#     cosa fate voi, cosa faccio io, cosa c'e alla fine."""
+#
+# Vier Regeln, aus dem Dortmunder Betrieb:
+#
+# 1. Zwei bis vier Saetze, hoechstens 700 Zeichen
+#    (phasentexte.EINLEITUNG_GRENZE).
+# 2. Keine Eigennamen -- weder erfundene Figuren noch Orte: was hier als
+#    Beispiel steht, taucht spaeter als Vorschlag des Bots wieder auf.
+# 3. Keine Slash-Befehle. Beworben wird der Knopf.
+# 4. Die Anrede aus profil.toml (sprache.anrede) durchhalten.
+#
+# {{formen_liste_oder}} und die uebrigen Platzhalter funktionieren auch
+# hier -- damit im Chat dieselbe Formenliste steht wie im Prompt.
+#
+# Sobald hier eine [einleitung]-Tabelle steht, ERSETZT sie die Vorgabe
+# vollstaendig: dann braucht jede Station aus phasen.toml einen Eintrag.

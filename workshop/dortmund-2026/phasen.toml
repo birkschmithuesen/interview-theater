@@ -1,0 +1,94 @@
+# Die Arbeitsphasen fuer Dortmund 2026.
+#
+# Wie viele Stationen es gibt, wie sie heissen und unter welchen Woertern
+# eine Gruppe sie meint. Die Mechanik dahinter -- Phase halten, springen,
+# Journal schreiben, Voraussetzungen pruefen -- steht im Code und ist fuer
+# jeden Workshop dieselbe.
+#
+# Die Nummern muessen bei 1 anfangen, lueckenlos sein und jede genau einmal
+# vorkommen: sie stehen in der Datenbank (arbeitsstand.phase), in den
+# Migrationen und in den Dateinamen der Phasenprompts
+# (interview_theater/prompts/phasen/<nummer>.md).
+
+# Die Phase, die gilt, solange keine gesetzt wurde.
+erste = 1
+
+# Die Meldung, mit der jede Phasenaenderung hoerbar wird. {bezeichnung} wird
+# durch "5 · Schaerfung" ersetzt.
+meldung = "Wir sind jetzt bei {bezeichnung}. Falls nicht, sagt es mir."
+
+# Stichwoerter, die zwei Phasen meinen koennen, mit der spaeteren: sobald
+# die Gruppe schon dort ist, meint das Wort die spaetere. Beide
+# Schaerfungen heissen Schaerfung -- die am Material (5) und die am
+# fertigen Stueck (7).
+[mehrdeutig]
+5 = 7
+
+# stichwoerter: zusaetzlich zum Kurznamen. Verglichen wird in beide
+# Richtungen, deshalb genuegen Wortstaemme.
+
+[[phase]]
+nummer = 1
+name = "Begriffe"
+satz = """\
+Die im Plenum gesammelte Begriffsliste aufnehmen und ordnen."""
+stichwoerter = [
+    "begriffe", "begriff", "begriffsliste"
+]
+
+[[phase]]
+nummer = 2
+name = "Fragen"
+satz = """\
+Aus den Begriffen Interviewfragen entwickeln."""
+stichwoerter = [
+    "fragen", "frage", "frageliste"
+]
+
+[[phase]]
+nummer = 3
+name = "Interviews"
+satz = """\
+Interviews fuehren, das Material verdichten."""
+stichwoerter = [
+    "interviews", "interview", "aufnahmen"
+]
+
+[[phase]]
+nummer = 4
+name = "Setting, Figuren & Geschichte"
+satz = """\
+Frei erfinden: worin es spielt, wer vorkommt, was passiert."""
+stichwoerter = [
+    "setting", "figuren", "figur", "rahmen", "rahmung", "kernthema",
+    "kernthemas", "format", "konflikt", "hauptkonflikt", "geschichte",
+    "handlung", "grobstruktur"
+]
+
+[[phase]]
+nummer = 5
+name = "Schaerfung"
+satz = """\
+Die erfundene Geschichte am Interviewmaterial schaerfen."""
+stichwoerter = [
+    "schaerfung", "schaerfen", "clustern", "verdichtungen"
+]
+
+[[phase]]
+nummer = 6
+name = "Szenen als Geschichte"
+satz = """\
+Jede Szene als Prosa erzaehlen -- was passiert, noch ohne Form."""
+stichwoerter = [
+    "szenentexte", "szenentext", "szenen", "szene"
+]
+
+[[phase]]
+nummer = 7
+name = "Feinschliff"
+satz = """\
+Je Szene die Form waehlen, die Geschichte uebersetzen, das Stueck \
+pruefen."""
+stichwoerter = [
+    "durchlauf", "feinschliff", "stueckpruefung", "pruefrunde"
+]

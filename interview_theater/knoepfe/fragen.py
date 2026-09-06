@@ -11,7 +11,7 @@ Nummern im Text (``lies_fragennummern``).
 
 import re
 
-from interview_theater import repo
+from interview_theater import anweisungen, repo
 
 from interview_theater.knoepfe.texte import (
     ANWEISUNG_EINLEITUNGEN, ANWEISUNG_EROEFFNUNG, ART_FRAGEN_ANDERE,
@@ -288,12 +288,13 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
     stand = repo.hole_arbeitsstand(conn, chat_id)
     fragen = (stand["fragen"] if stand else "") or ""
     return _starte_auftrag(
-        conn, tg, klm, e, chat_id, ANWEISUNG_EROEFFNUNG.format(fragen=fragen),
+        conn, tg, klm, e, chat_id,
+        anweisungen.fuelle(ANWEISUNG_EROEFFNUNG).format(fragen=fragen),
         arbeitszeile=TEXT_ARBEIT_EROEFFNUNG, arbeitsart="eroeffnung",
     )
 
 
-def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
+def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None) -> str:
     """Zerlegt den Block ``VORSCHLAG EROEFFNUNG:`` in Eroeffnung und
     Abschluss und legt beides ab.
 
@@ -345,7 +346,7 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
     # hier, wenige Nachrichten spaeter noch einmal beim Phasenwechsel
     # (gemessen 06.09., Lauf tag1-gruppe1). Der Leitfaden ist lang; zweimal
     # hintereinander schiebt er alles andere aus dem Bild.
-    leitfaden.sende_einmal(conn, tg, chat_id)
+    leitfaden.sende_einmal(conn, tg, chat_id, e=e)
     # **Die Kette bricht hier nicht ab** (06.09.2026, 10:25, Birk): mit
     # Eroeffnung und Abschluss ist Phase 2 fertig, also kommt sofort die
     # Abschlussnachricht mit "Weiter zu Interviews". Vorher stand nach dem

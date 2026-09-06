@@ -33,7 +33,7 @@ Emoji in der Kopfzeile und die Einrueckung.
 
 from collections.abc import Callable
 
-from interview_theater import phasen, repo
+from interview_theater import anweisungen, phasen, repo, workshop
 
 #: Wie lang ein einzelner Wert in einer Parameterzeile werden darf. Laenger
 #: gekuerzt (``_kuerze``): der Abschluss ist eine Quittung, keine Ausgabe des
@@ -58,103 +58,55 @@ EINLEITUNG_GRENZE = 700
 #: Die Einleitung je Phase -- zwei bis vier Saetze: was hier passiert, was
 #: die Gruppe tut, was ich tue, was am Ende steht.
 #:
-#: Zielgruppe sind junge Frauen zwischen 15 und 18 (AGENTS.md, "Rahmen des
-#: Stuecks"), angesprochen mit "ihr". Keine Eigennamen -- weder erfundene
-#: Figuren noch Orte: was hier als Beispiel steht, taucht spaeter als
-#: Vorschlag des Bots wieder auf. Keine Slash-Befehle: beworben wird der
-#: Knopf (AGENTS.md, "Slash-Befehle werden nicht mehr beworben").
-EINLEITUNGEN = {
-    1: (
-        "Hier kommt eure Begriffsliste aus dem Plenum zu mir. Ihr schickt "
-        "sie getippt oder als Sprachnachricht, so wie sie bei euch an der "
-        "Wand steht. Ich halte sie fest, ordne sie und frage nach, wo ein "
-        "Begriff noch zu gross ist. Am Ende stehen die Kernbegriffe, mit "
-        "denen ihr weiterarbeitet."
-    ),
-    2: (
-        "Aus euren Begriffen werden jetzt die Interviewfragen. Ich schlage "
-        "euch zehn vor, ihr sagt mir die Nummern von genau drei. Danach "
-        "schauen wir, welche Frage heikel ist und wie ihr sie so stellt, "
-        "dass sie leicht zu beantworten ist, und womit ihr ein Gespraech "
-        "anfangt und aufhoert. Am Ende habt ihr einen Leitfaden zum "
-        "Mitnehmen."
-    ),
-    3: (
-        "Jetzt fuehrt ihr die Interviews - den Leitfaden habt ihr dabei. So "
-        "laeuft es: Ihr drueckt Aufnahme starten, dann nehmt ihr das Gespraech "
-        "als Sprachnachrichten auf, so viele wie noetig, gern auch in "
-        "Stuecken. Ich tippe alles mit. Am Ende drueckt ihr Interview beenden "
-        "(oder sagt am Schluss der Aufnahme \"fertig\"). Dann fasse ich das "
-        "Interview von selbst zusammen - die Themen und die woertlichen "
-        "Zitate, mit denen wir spaeter arbeiten. Am Ende steht zu jedem "
-        "Interview eine Zusammenfassung. Danach koennt ihr die "
-        "Zusammenfassung und das Transkript ansehen und gegenpruefen."
-    ),
-    4: (
-        "Ab hier wird erfunden - ganz frei, ohne Material. Ihr denkt euch aus, "
-        "wo euer Stueck spielt (Ort, Zeit, Anlass), wer darin vorkommt, und "
-        "was passiert: die Geschichte im Groben, wie sie ausgeht, und die "
-        "Szenenfolge mit Titel, einem Satz, den Figuren und einem Vorschlag "
-        "fuer die Form. Ich helfe mit Vorschlaegen, wenn ihr wollt. Direkt "
-        "danach kommen die Interviews ins Spiel und schaerfen, was ihr gebaut "
-        "habt."
-    ),
-    5: (
-        "Jetzt kommen die Interviews zurueck. Ich lege neben jede Szene und "
-        "jede Figur die Stellen aus euren Aufnahmen, die dazu passen, mit "
-        "dem woertlichen Zitat. Eure Geschichte aendert sich dadurch nicht, "
-        "sie wird genauer. Ihr entscheidet Vorschlag fuer Vorschlag und "
-        "koennt noch eine Runde drehen."
-    ),
-    6: (
-        "Jetzt schreibe ich eure Geschichte am Stueck - eine Kurzgeschichte, "
-        "wie in einem Buch: was passiert, wer da ist, was gesagt und "
-        "gefuehlt wird, in Prosa. Wie viele Abschnitte es werden, entscheidet "
-        "die Geschichte. Aus jedem Abschnitt wird danach eine Szene. Kein "
-        "Theatertext, keine Form; das kommt im Feinschliff. Ihr lest sie und "
-        "sagt mir, was anders werden soll."
-    ),
-    7: (
-        "Alle Szenen stehen als Geschichte. Jetzt der Feinschliff: Szene fuer "
-        "Szene entscheidet ihr die Form - Dialog, Monolog, Chor, Lied oder "
-        "Rap -, und ich uebersetze die Geschichte in genau diese Form. "
-        "Danach lese ich euer Stueck einmal als Ganzes, wie ein Zuschauer, "
-        "und sage euch zu jeder Frage, wo es traegt und wo nicht: "
-        "Spannungsbogen, Figuren, Spannung, Nachvollziehbarkeit, Anfang und "
-        "Ende, Sprechbarkeit. Zu jedem Punkt ein Vorschlag, den ihr in die "
-        "Szene geben koennt. Ihr koennt das Textbuch jederzeit als Datei "
-        "holen."
-    ),
-}
-
-#: Was statt der Einleitung von Phase 7 dasteht, solange **nicht** jede
-#: Szene einen Text hat (06.09.2026, in der Simulation gemessen).
+#: **Seit dem 06.09.2026 aus dem Workshop-Profil**
+#: (``workshop/<name>/phasentexte.toml``, sonst
+#: ``workshop.VORGABE_PHASENTEXTE`` mit genau dem Wortlaut, der vorher hier
+#: stand -- Birk hat ihn an diesem Tag ausdruecklich bestaetigt; er ist in
+#: eine Datei gewandert und hat sich dabei um kein Zeichen geaendert). Der
+#: Grund ist derselbe wie bei den Phasen: das ist Wortlaut fuer eine
+#: bestimmte Gruppe, keine Mechanik. Nina und Birk sollen ihn aendern
+#: koennen, ohne Python anzufassen.
 #:
-#: Der alte Text fing mit "Alle Szenen stehen" an -- ein Satz ueber die
-#: Datenlage, den der Text nicht geprueft hat. Im Lauf tag1-gruppe2 sprang
-#: der Bot mitten im Szenenschritt nach Phase 7 und behauptete das, waehrend
-#: keine einzige Szene geschrieben war; der naechste Knopfdruck antwortete
-#: mit "Szene 1 ist noch nicht geschrieben". Eine Behauptung ueber den Stand
-#: gehoert an die Daten gebunden, sonst ist sie ein Versprechen.
-EINLEITUNG_7_OFFEN = (
-    "Hier seht ihr euer Textbuch am Stueck. Ein Teil der Szenen ist noch "
-    "ungeschrieben - tippt eine davon an, dann hole ich das nach. Bei den "
-    "fertigen achten wir auf die Uebergaenge und darauf, was sich beim "
-    "Sprechen sperrig anfuehlt."
-)
-#: Rueckwaertskompatibler Name (bis 06.09.2026 hiess die Phase 8).
-EINLEITUNG_8_OFFEN = EINLEITUNG_7_OFFEN
+#: Zielgruppe und Anrede stehen im Profil (``zielgruppe``,
+#: ``sprache.anrede``). Keine Eigennamen -- weder erfundene Figuren noch
+#: Orte: was hier als Beispiel steht, taucht spaeter als Vorschlag des Bots
+#: wieder auf. Keine Slash-Befehle: beworben wird der Knopf (AGENTS.md,
+#: "Slash-Befehle werden nicht mehr beworben").
+#:
+#: Platzhalter werden beim Lesen gefuellt (``einleitung``), damit die
+#: Formenliste im Chat dieselbe ist wie im Prompt.
+
+
+def __getattr__(name: str):
+    """``EINLEITUNGEN`` und die Ersatzfassung der letzten Phase aus dem
+    aktiven Profil, bei jedem Zugriff frisch (PEP 562, wie ``phasen.py``)."""
+    if name == "EINLEITUNGEN":
+        return {
+            nummer: anweisungen.fuelle(text)
+            for nummer, text in workshop.phasentexte_einleitungen().items()
+        }
+    if name in ("EINLEITUNG_LETZTE_OFFEN", "EINLEITUNG_7_OFFEN",
+                "EINLEITUNG_8_OFFEN"):
+        # Die beiden Zahlnamen sind rueckwaertskompatibel: bis zum
+        # 06.09.2026 hiess die letzte Phase 8, davor 7.
+        return anweisungen.fuelle(workshop.phasentexte_letzte_offen())
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _einleitung(conn, chat_id: int, phase: int) -> str:
     """Die Einleitung einer Phase -- fuer Phase 7 abhaengig davon, ob
     wirklich jede Szene einen Text hat."""
-    if phase != phasen.LETZTE:
-        return EINLEITUNGEN.get(phase, "")
+    einleitungen = {
+        nummer: anweisungen.fuelle(text)
+        for nummer, text in workshop.phasentexte_einleitungen().items()
+    }
+    letzte = workshop.phase_letzte()
+    if phase != letzte:
+        return einleitungen.get(phase, "")
     szenen = repo.hole_szenen(conn, chat_id)
     if szenen and all((s["volltext"] or "").strip() for s in szenen):
-        return EINLEITUNGEN[phasen.LETZTE]
-    return EINLEITUNG_7_OFFEN
+        return einleitungen[letzte]
+    return anweisungen.fuelle(workshop.phasentexte_letzte_offen())
 
 #: Die feste Zeile vor der Checkliste beim Eintritt.
 _KOPF_EINTRITT = "▶️ Phase {nummer} von {gesamt} · {name}"
@@ -466,7 +418,8 @@ def eintritt(conn, chat_id: int, phase: int) -> str:
     (``knoepfe.eintritt_in_phase``): welche Knoepfe zum Einstieg gehoeren,
     weiss ``knoepfe`` und nicht dieses Modul."""
     kopf = _KOPF_EINTRITT.format(
-        nummer=phase, gesamt=phasen.LETZTE, name=phasen.kurzname(phase),
+        nummer=phase, gesamt=workshop.phase_letzte(),
+        name=phasen.kurzname(phase),
     )
     zeilen = [kopf]
     einleitung = _einleitung(conn, chat_id, phase)

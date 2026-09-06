@@ -157,7 +157,7 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         from interview_theater import leitfaden
 
         biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
-        leitfaden.sende_einmal(conn, tg, chat_id)
+        leitfaden.sende_einmal(conn, tg, chat_id, e=e)
     elif nummer == PHASE_STUECKPRUEFUNG:
         # Die Schaerfung des Stuecks (06.09.2026, Birk): das komplette
         # Textbuch geht EINMAL beim Eintritt an den Stueck-Judge, im Thread

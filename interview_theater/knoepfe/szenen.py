@@ -18,7 +18,8 @@ Kein Modellaufruf steht hier: was eines braucht, geht ueber
 from interview_theater import repo
 
 from interview_theater.knoepfe.texte import (
-    ART_DURCHLAUF_SZENE, ART_EIGENE, ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_NEU,
+    ART_DURCHLAUF_SZENE, ART_EIGENE, ART_FASSUNGEN, ART_GESCHICHTE_ANDERS,
+    ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
     ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE,
@@ -27,18 +28,22 @@ from interview_theater.knoepfe.texte import (
     ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM, ART_SZENENSTIL,
     ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_NAECHSTE, ART_SZENE_NEU,
     ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
-    ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA, ART_TEXTBUCH,
+    ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
+    ART_SPRECHANTEILE, ART_TEXTBUCH,
     MAX_AUSWAHL, MENUE_KNOPF_LAENGE, TEXT_ANDERS_KNOPF, TEXT_ANZAHL_KNOPF,
-    TEXT_DURCHLAUF_SZENE_KNOPF, TEXT_EIGENE_IDEE_KNOPF,
+    TEXT_DURCHLAUF_SZENE_KNOPF, TEXT_EIGENE_IDEE_KNOPF, TEXT_FASSUNGEN_KNOPF,
     TEXT_FORM_VORSCHLAG_ZUSATZ, TEXT_GESCHICHTE_SCHREIBEN_KNOPF,
     TEXT_NAECHSTE_KNOPF, TEXT_NEU_KNOPF, TEXT_PASST_KNOPF,
-    TEXT_REIHENFOLGE_KNOPF, TEXT_SCHAERFUNG_RUNDE_KNOPF, TEXT_SZENE_FORM_KNOPF,
+    TEXT_REIHENFOLGE_KNOPF, TEXT_SCHAERFUNG_RUNDE_KNOPF, TEXT_SPRECHANTEILE_KNOPF,
+    TEXT_SZENE_FORM_KNOPF,
     TEXT_SZENE_PLANEN_KNOPF, TEXT_SZENE_SCHREIBEN_KNOPF,
     TEXT_SZENE_SO_LASSEN_KNOPF, TEXT_SZENE_UEBERSPRINGEN_KNOPF,
     TEXT_TEXTBUCH_KNOPF, TRENNER, _TEXT_ANDERS, _TEXT_EIGENE_IDEE,
+    _TEXT_FASSUNGEN_KOPF, _TEXT_FASSUNG_KOPF,
     _TEXT_FOLGE_GESPEICHERT, _TEXT_FOLGE_LEER, _TEXT_GESCHICHTE_ANDERS_KNOPF,
     _TEXT_GESCHICHTE_GESPEICHERT, _TEXT_GESCHICHTE_LEER,
     _TEXT_GESCHICHTE_NEU_KNOPF, _TEXT_GESCHICHTE_PASST_KNOPF,
+    _TEXT_KEINE_FASSUNGEN,
     _TEXT_KEINE_NAECHSTE, _TEXT_MENUE_ANDERS_KNOPF, _TEXT_NACH_SPEICHERN_FRAGE,
     _TEXT_PROBENANSICHT, _TEXT_PRUEFUNG_LAEUFT, _TEXT_PRUEFUNG_LASSEN_KNOPF,
     _TEXT_PRUEFUNG_RUNDE_KNOPF, _TEXT_PRUEFUNG_SZENE_KNOPF,
@@ -726,6 +731,16 @@ def biete_durchlauf(conn, tg, chat_id: int, e=None) -> int:
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEXTBUCH, None)),
         )
     )
+    # "Wer spricht wie viel" (06.09.2026): der Durchlauf ist die Stelle, an
+    # der die Gruppe das Stueck als Ganzes ansieht -- und die einzige, an der
+    # die Frage nach den Sprechanteilen im Chat einen Ort hat. Reine
+    # Zaehlung, kein Modellaufruf.
+    leiste.append(
+        (
+            TEXT_SPRECHANTEILE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SPRECHANTEILE, None)),
+        )
+    )
     leiste.append(
         (
             TEXT_EIGENE_IDEE_KNOPF,
@@ -771,8 +786,55 @@ def zeige_szenentext(conn, tg, chat_id: int, nummer: int) -> str:
     kopf = f"Szene {nummer}"
     if ziel["titel"]:
         kopf += f": {ziel['titel']}"
-    tg.sende(chat_id, f"{kopf}\n\n{volltext}")
+    text = f"{kopf}\n\n{volltext}"
+    # Gibt es frueher geschriebene Fassungen, haengt darunter EIN Knopf
+    # (06.09.2026). Kein neuer automatischer Text: die Liste kommt erst auf
+    # Druck, deterministisch aus der Datenbank. Ohne fruehere Fassung bleibt
+    # es bei der Nachricht, die es vorher auch gab.
+    if len(repo.szenenfassungen(conn, ziel["id"])) > 1:
+        leiste = [(
+            TEXT_FASSUNGEN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FASSUNGEN, str(nummer))),
+        )]
+        _mit_leiste(conn, tg, chat_id, text, leiste)
+        return f"Szene {nummer}"
+    tg.sende(chat_id, text)
     return f"Szene {nummer}"
+
+
+def _zeige_fassungen(conn, tg, chat_id: int, nummer: int) -> str:
+    """Die frueher geschriebenen Fassungen einer Szene, aelteste zuerst.
+
+    Deterministisch aus ``szenenfassung``, kein Modellaufruf (Zusage 2). Die
+    aktuelle Fassung bleibt weg -- sie steht in der Nachricht darueber.
+
+    **Zurueckgesetzt wird nichts.** Eine frueherer Fassung wieder zur
+    aktuellen zu machen ist eine Entscheidung mit Datenwirkung; hier gibt es
+    sie nur zum Lesen, damit die Gruppe in der Probe zwei Fassungen
+    nebeneinander halten kann."""
+    ziel = _szene_mit_nummer(conn, chat_id, nummer)
+    if ziel is None:
+        tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
+        return _TEXT_SZENE_UNBEKANNT
+    fassungen = repo.szenenfassungen(conn, ziel["id"])[:-1]
+    if not fassungen:
+        text = _TEXT_KEINE_FASSUNGEN.format(nummer=nummer)
+        tg.sende(chat_id, text)
+        return text
+    teile = [_TEXT_FASSUNGEN_KOPF.format(nummer=nummer)]
+    for f in fassungen:
+        anders = (f["anders_gemacht"] or "").strip()
+        teile.append(
+            _TEXT_FASSUNG_KOPF.format(
+                nummer=f["nummer"],
+                zeit=(f["erstellt_am"] or "")[:16].replace("T", " "),
+                anders=f" {anders}" if anders else "",
+            )
+        )
+        teile.append(f["volltext"] or "")
+    # Lange Texte teilt der Telegram-Wrapper selbst (``telegram.teile_text``).
+    tg.sende(chat_id, "\n\n".join(teile))
+    return TEXT_FASSUNGEN_KNOPF
 
 
 def _naechste_offene(conn, chat_id: int, nach: int):

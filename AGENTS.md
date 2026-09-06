@@ -29,6 +29,8 @@ Module unter `interview_theater/`:
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
 | `phasen.py` | Die sieben Arbeitsphasen: Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
+| `sprecher.py` | Sprecherzeilen-Parsing und Sprechanteile je Figur (06.09.2026): reine Zählung über `szene.volltext`, kein Modellaufruf. Bekannte Grenze im Docstring benannt (`FRAU K.:`, `MIRA, LEISE:`) |
+| `fehlstellen.py` | Das Fehlstellen-Register (06.09.2026): was der Gruppe noch fehlt, als Sätze. Reine Leseabfrage wie `phasen.voraussetzungen`, kein Modellaufruf; `aus_daten` ist rein, `register` liest über `repo`, `web_daten.fehlstellen` read-only |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
 | `szene.py` | Szenentexte: eigener Prompt (Struktur statt Transkript, ein Regelblock je Form), eigener Thread, als einziger Aufruf mit Reasoning AN, Sperre vor dem Aufruf gegen fehlende Pflichtfelder |
@@ -41,7 +43,8 @@ Module unter `interview_theater/`:
 | `repo.py` | Einzige SQL-Zugriffsschicht außer `db.py`, komplett `RLock`-serialisiert |
 | `db.py` | Schema, Verbindungsaufbau samt PRAGMAs, Migration fehlender Spalten, Löschweg (`loesche_gruppe`) |
 | `einstellungen.py` | Konfiguration ausschließlich über Umgebungsvariablen |
-| `anweisungen.py` | Prompt-Texte mit Hot-Reload (mtime) + optionaler Regie-Zettel `betrieb/zusatz*.md` |
+| `anweisungen.py` | Prompt-Texte mit Hot-Reload (mtime) + optionaler Regie-Zettel `betrieb/zusatz*.md`; **der Einhängepunkt des Workshop-Profils** (Platzhalter, Dateiersatz, Cache-Schlüssel mit Profil) |
+| `workshop.py` | Das Workshop-Profil: liest `IT_WORKSHOP`, lädt `workshop/<name>/*.toml`, liefert ein eingefrorenes Objekt. Ohne Variable gilt das eingebaute Vorgabeprofil mit den heutigen Dortmunder Werten. Siehe „Workshop-Profil" |
 | `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`, `szene`, `sprachprofil` + `theater-tells`) |
 | `prompts/formen/` | Ein Regelblock je Szenenform — genau fünf: `dialog`, `monolog`, `chor`, `lied`, `rap` (05.09.2026 abends). `szene.formdatei(form)` ordnet das freie Feld `szene.form` zu, Dialog ist der Rückfall. `dialog.md` trägt den am Herkules.exe-Textbuch gemessenen Regelblock (Sprechszene, Ausgangsmaterial, keine Choreografie); `lied.md`/`rap.md` das Songwriting- bzw. Rap-Handwerk. Eine Figurenanzahl gibt kein Regelblock vor — die kommt aus der Planung (Feld `figuren`) |
 | `prompts/phasen/` | Je Arbeitsphase eine Datei `1.md` … `8.md`: worauf der Bot dort den Fokus legt, was er *nicht* tut, woran die Phase fertig ist. Wird zwischen Basis-Systemanweisung und Regie-Zettel gehängt |
@@ -531,6 +534,104 @@ lädt, würde damit Gesprächszüge ausbremsen.
   (`ablauf.ist_erfundene_systemzeile`, Vorfall
   `gespraech_systemzeile_erfunden`), und `system.md` verbietet die Ansage.
 
+- **Was fehlt, steht neben dem, was dasteht** (06.09.2026,
+  `fehlstellen.py`). `/stand` und die Gruppenseite zeigten bis dahin nur den
+  gefüllten Arbeitsstand; woran die Gruppe als nächstes arbeiten müsste,
+  musste sie sich aus sieben Blöcken mit „noch offen"-Zeilen selbst
+  zusammenreimen. Das Register dreht dieselbe Datenlage um und liefert je
+  Fehlstelle `bereich`, einen deutschen Satz, `szene`/`figur` wo zutreffend
+  und die Phase, in der das dranwäre. **Reine Leseabfrage, kein
+  Modellaufruf**, wie `phasen.voraussetzungen` — und geprüft wird genau das,
+  woran der Code schon hängt (`phasen.voraussetzungen`,
+  `szene.PFLICHTFELDER`, `aufnahme.unausgewertete_interviews`,
+  Ebene 2 der Figuren erst ab Phase 5 wie in `knoepfe.ebene2_erlaubt`); eine
+  zweite, frei erfundene Wunschliste wäre der erste Stand, der ausschert.
+  Ausgespielt wird an genau **zwei bestehenden Orten** — ein Abschnitt in
+  `/stand` und einer auf der Gruppenseite —, **nur wenn es Fehlstellen
+  gibt** (eine Zeile „nichts fehlt" ist Lärm), höchstens `HOECHSTENS` = 8
+  Zeilen. Kein neuer Knopf, keine eigene Bot-Nachricht. Sortiert wird nach
+  Arbeits-, nicht nach Phasenreihenfolge: erst die aktuelle Phase, dann der
+  Rückstand aus früheren (er blockiert), dann das Kommende. Wie beim
+  Leitfaden gibt es **einen Zusammenbau und zwei Aufrufer**: `aus_daten` ist
+  rein und kennt nur Dicts, `register` holt sie über `repo`,
+  `web_daten.fehlstellen` über die read-only geöffnete Verbindung — der
+  Webserver bekommt dadurch keinen `repo`-Pfad.
+
+- **Der Leitfaden hat eine eigene Seite** (06.09.2026, Route
+  `/g/<token>/leitfaden`, auch unter `IT_WEB_PREFIX`). Der gebaute Leitfaden
+  ging einmal in den Chat und versank — dabei ist genau er das Dokument, das
+  eine Sechzehnjährige in der Hand hält, wenn sie eine fremde Person
+  anspricht. Die Seite ist **rein lesend**: kein Nachladen, kein POST, kein
+  Nonce, und deshalb auch nicht der Rahmen der beiden anderen Seiten
+  (`web._seite` hängt das sanfte Nachladen an, das einer Interviewerin mitten
+  im Gespräch den Text unter dem Daumen austauschen würde). Groß gesetzt,
+  hoher Kontrast, jede Frage in einem eigenen Block, dazu eine
+  `@media print`-Regel. **Keine zweite Wahrheit:** Route und Chat-Text stehen
+  beide auf `leitfaden.bausteine` — `aus_feldern` setzt daraus den Chattext,
+  `web.leitfaden_html` die Handy-Ansicht. `web_daten.leitfaden_nach_token`
+  lädt bewusst **nur** den Arbeitsstand und weder Szenen noch Interviews noch
+  Journal: was gar nicht geladen wird, kann auch nicht versehentlich
+  ausgeliefert werden (Test wie der bestehende in `tests/test_web.py`: kein
+  Transkript, kein Nachrichtentext im HTML). Verlinkt an zwei Orten —
+  auf der Gruppenseite unter dem Leitfaden-Text (relativ,
+  `<token>/leitfaden`, damit es hinter nginx genauso geht) und im Chat unter
+  dem Leitfaden selbst (`leitfaden.TEXT_WEBLINK`, **zusätzlich**; der
+  bestehende Text bleibt, weil eine Gruppe ohne Netz im Probenraum sonst
+  nichts mehr hätte). Steht noch kein Leitfaden, kommt eine ruhige Seite
+  („Der Leitfaden entsteht in Phase 2.") statt eines Fehlers. Dafür nehmen
+  `leitfaden.sende`/`sende_einmal` seit heute ein optionales `e` entgegen —
+  ohne Basis-URL steht die Zeile gar nicht da.
+
+- **Eine Szene bekommt Fassungen, statt überschrieben zu werden**
+  (06.09.2026, Tabelle `szenenfassung`). „Neu schreiben" ersetzte bis dahin
+  `szene.volltext`; die Gruppe kam nicht zurück, und in der Probe will man
+  zwei Fassungen nebeneinander lesen. Jeder **erfolgreiche** Szenenlauf
+  (`szene.schreibe` und der Prosalauf in `kurzgeschichte.lege_szenen_an`)
+  hängt seine Fassung **zusätzlich** an — `szene.volltext` bleibt genau wie
+  bisher die aktuelle Fassung, **kein Aufrufer außerhalb ändert sich**.
+  Dasselbe Prinzip wie beim Journal: **nur anhängen, nie ändern, nie
+  löschen** — es gibt bewusst kein `aktualisiere_szenenfassung` und kein
+  `entfernt_am`. Scheitert das Anhängen, ist die Szene trotzdem geschrieben:
+  eine verlorene Historienzeile darf keinen bezahlten Lauf kosten. Migration:
+  `db._migriere_erste_szenenfassung` gibt jeder bestehenden Szene mit
+  Volltext **eine** Fassung Nummer 1 mit `szene.geaendert_am` als Zeitpunkt —
+  idempotent über ein `NOT EXISTS` und ohne eigenen `user_version`-Schritt,
+  damit auch eine später importierte Szene noch richtig durchläuft. Gezeigt
+  wird sie an zwei Orten, beide **read-only**: ein aufklappbarer Abschnitt je
+  Szene auf der Gruppenseite (beschriftet mit Datum und der
+  `Anders gemacht:`-Zeile des Laufs) und ein Knopf „Fruehere Fassungen"
+  unter einer angesehenen Szene (`knoepfe.ART_FASSUNGEN`, deterministisch,
+  Zusage 2 gilt) — beide zeigen die **aktuelle** Fassung nicht noch einmal
+  und fehlen ganz, solange es nur eine gibt. **Zurücksetzen auf eine frühere
+  Fassung ist bewusst nicht gebaut:** das ist eine Entscheidung mit
+  Datenwirkung, die Birk erst freigeben muss. `szene.fruehere_fassungen`
+  (der `FASSUNGSTRENNER`-Text aus `repo.hebe_fassung_auf`) bleibt daneben
+  unverändert stehen — er ist der ältere, gröbere Weg und wird von der neuen
+  Tabelle nicht angefasst.
+
+- **Sprechanteile sind gezählt, nicht geschätzt** (06.09.2026,
+  `sprecher.py`). Der praktisch wichtigste Befund für eine Laiengruppe stand
+  nirgends: eine Spielerin mit vier Zeilen merkt das in der Probe, und dann
+  ist der Text geschrieben. Gezählt wird über `szene.volltext` — den
+  Theatertext, nicht die Prosafassung —, **kein Modellaufruf**. Die Regel für
+  eine Sprecherzeile ist bewusst schlank: am Zeilenanfang ein Name, danach
+  ein Doppelpunkt; ein Name gilt, wenn er in der Figurenliste steht oder
+  durchgehend großgeschrieben ist. **Die Grenze steht im Docstring und in
+  einem Test:** Namen mit Punkt (`FRAU K.:`) oder Komma (`MIRA, LEISE:`)
+  werden nicht erkannt — sie mitzunehmen hieße, „Sie sagt: nein." als
+  Sprecherzeile zu lesen. Eine Ziffer im Kopf schließt aus, gemessen an den
+  echten Opus-Texten unter `docs/prompt-audit/2026-09-06/opus-thinking-texte/`:
+  dort stand `SZENE 1: … ca. 10 min` über dem Text und zählte ohne diese
+  Regel mit rund 30 Wörtern als Sprecher mit. **Erkennt eine Szene keine
+  einzige Sprecherzeile, liefert sie gar nichts** (Lied, Rap und Chor können
+  ohne Sprecherkopf geschrieben sein) und zählt auch nicht in den Nenner:
+  lieber „1 von 4 Szenen" als eine erfundene Null. Regieanweisungen in runden
+  Klammern zählen nicht als gesprochenes Wort. Ausgespielt auf der
+  Gruppenseite als Tabelle (Figur, Anteil, Repliken, Szenen) mit einer
+  sachlichen Hinweiszeile je Figur unter `SCHWELLE_ANTEIL` = 3 %, und im Chat
+  als Zeile „Wer spricht wie viel" im Durchlauf-Knopfmenü
+  (`knoepfe.ART_SPRECHANTEILE`, deterministisch, Zusage 2 gilt).
+
 - **Der Stil ist eine Auswahl je Szene, kein Overlay je Bot** (06.09.2026,
   Birk 12:50, `stile.py` + `prompts/stile/<slug>.md`). Birk: „alle Gruppen
   sollen auf alle Stile zugreifen können, als Auswahl, mit Nennung des
@@ -546,6 +647,97 @@ lädt, würde damit Gesprächszüge ausbremsen.
   **nur bei `form != prosa`**: die Prosafassung ist eine Geschichte, kein
   Bühnentext. Die Web-Gruppenseite hat dasselbe als Dropdown je Szene;
   `web_schreiben.STILE` muss wortgleich zu `stile.STILE` bleiben (Test).
+
+## Workshop-Profil
+
+**Anlass** (Birk, 06.09.2026, nach `docs/workshop-profil-analyse-2026-09-06.md`):
+das Repository war an 1217 gemessenen Stellen „Dortmund" — Alter der Gruppe,
+Trägerverein, Aufführungsort, Formenliste, Phasennamen, der Wortlaut der
+Einleitungen. Für einen zweiten Einsatzort hieße das entweder das Repo
+gabeln oder bei jedem Workshop dieselben sechs Dateien von Hand umschreiben;
+beim nächsten `git pull` wäre es wieder weg. Seither liegt alles
+Individuelle unter `workshop/<name>/` und wird über **`IT_WORKSHOP`** je
+Prozess eingehängt (`betrieb/gruppeN.env`, nie global — zwei Workshops
+können damit parallel auf einem Server laufen).
+
+**Ohne Variable gilt das eingebaute Vorgabeprofil**
+(`workshop.VORGABE_WERTE` und die drei Geschwister) mit exakt den Werten,
+die vorher im Code standen. `workshop/dortmund-2026/` trägt dieselben. Das
+ist keine Redundanz aus Bequemlichkeit, sondern das Abnahmekriterium des
+Umbaus: mit `IT_WORKSHOP=dortmund-2026` und ohne Variable entstehen
+zeichengleiche Prompts. Geprüft wird das dreifach in
+`tests/test_profil_bitgleich.py` gegen
+`docs/prompt-audit/schnappschuss-vor-profilumbau.txt` — 114 Abschnitte, je
+ein SHA-256, erzeugt mit `scripts/prompt_schnappschuss.py` vor dem ersten
+Umbauschritt.
+
+**Der Einhängepunkt ist `anweisungen.py`** und nur der: es ist die einzige
+Stelle, an der Prompt-Text entsteht. Die Reihenfolge im Gesprächs-Prompt
+lautet seither
+
+Basis → Phase → **Profil** (`workshop/<name>/prompts/anweisung.md`) →
+`zusatz.md` → `zusatz.<bot>.md`.
+
+Der Regie-Zettel bleibt hinten, weil das Ende des Prompts am schwersten
+wiegt (SPEC § 6.1): eine spontane Regieanweisung soll Basis, Phase **und**
+Profil überstimmen können.
+
+**Platzhalter statt Dateiersatz** ist der Normalfall (E.1 Frage 2 der
+Analyse). `{{rahmen}}`, `{{zielgruppe}}`, `{{formen_liste}}` werden aus dem
+aktiven Profil gefüllt; jede Prompt-Datei ist zugleich der Wert ihres
+Platzhalters (`prompts/rahmen.md` → `{{rahmen}}`,
+`prompts/formen/dialog.md` → `{{formen_dialog}}`, Bindestrich wird
+Unterstrich), und die Fassung des Profils gewinnt über die des Repos. Ganze
+Dateien zu ersetzen ist **erlaubt** — eine gleichnamige Datei in
+`workshop/<name>/prompts/` schlägt die Repo-Datei —, aber der Ausnahmefall:
+wer eine ganze Datei ersetzt, bekommt jede spätere Verbesserung am
+generischen Prompt nicht mehr mit. Für ein Prompt-Set in einer anderen
+Sprache ist Ersetzen richtig, für eine andere Altersgruppe nicht.
+
+**Der Cache trägt das Profil im Schlüssel**: `_CACHE[(Profilname, Herkunft,
+Prompt-Name)]` statt wie früher nur den Namen. Solange ein Prozess ein
+Profil hat (heute so: ein Prozess je Gruppe), fällt das alte Verhalten nicht
+auf — sobald zwei Profile in **einem** Prozess vorkommen, liefert der Cache
+den Text des falschen Workshops. Das ist kein hypothetischer Fall: der
+Web-Dienst läuft einmal für alle Gruppen (D.5 der Analyse). Aus demselben
+Grund beantworten `szene.FORMEN`, `szene.FORM_STICHWOERTER`,
+`web_schreiben.FORMEN`, `szenenfolge.FORM_VORGABE`, `phasen.PHASEN`,
+`phasen.STICHWOERTER`, `phasen.MEHRDEUTIG`, `phasen.MELDUNG`,
+`phasen.ERSTE`, `phasen.LETZTE` und `phasentexte.EINLEITUNGEN` ihren Wert
+über ein Modul-`__getattr__` (PEP 562) bei **jedem** Zugriff frisch, nicht
+einmal beim Import. Innerhalb desselben Moduls greift das nicht — dort
+rufen die Funktionen `workshop.*` direkt auf.
+
+**Format ist TOML, nicht YAML.** PyYAML ist keine Abhängigkeit dieses
+Projekts, und eine neue Abhängigkeit für eine Konfigurationsdatei ist der
+falsche Preis; `tomllib` steht seit Python 3.11 in der Standardbibliothek.
+Kein Profil-Element ist Python (E.1 Frage 10): wenn eine Anpassung Code
+braucht, liegt sie in der falschen Schicht.
+
+**Kein Halbstart.** Ein fehlendes oder kaputtes Profil bricht `bot.main` ab,
+bevor eine Datenbank geöffnet wird; `scripts/pruefe_profil.py` prüft
+dasselbe vorher und läuft in `scripts/betrieb-start.sh` **vor** dem Bot.
+Ein angefangenes Profil trägt `geruest = true` in `profil.toml`: es lädt und
+lässt sich ansehen (damit ein Test nicht daran scheitert, E.1 Frage 8),
+aber kein Bot startet damit. Fehlerbild am Workshoptag ist die teuerste
+Währung.
+
+**Verhaltensänderung für den Workshoptag** (D.10): der Block „Rahmen des
+Stuecks" steht nicht mehr in `prompts/system.md`, dort steht `{{rahmen}}`.
+Wer ihn im laufenden Workshop ändert, ändert
+`workshop/dortmund-2026/prompts/rahmen.md` — hot-reload gilt dort genauso.
+Die TOML-Dateien werden dagegen nur beim Start gelesen: eine halb
+gespeicherte `profil.toml` mitten im Gespräch wäre genau der Halbstart, den
+der Lader verhindert.
+
+**Tests zweistufig** (D.1): generische Tests prüfen Struktur und gelten für
+jedes Profil; `tests/profile/test_dortmund.py` prüft die Werte im Wortlaut
+und läuft ausdrücklich mit `IT_WORKSHOP=dortmund-2026`. Wer ein Literal
+durch einen Profil-Lookup ersetzt, prüft am Ende nur noch, dass zwei
+Stellen dasselbe sagen.
+
+Anleitung zum Anlegen eines Profils, offene Punkte und der Grund für jede
+Abweichung von der Analyse: `docs/workshop-profil-umbau-2026-09-06.md`.
 
 ## Die Fallen
 
@@ -794,6 +986,12 @@ siehe unten) samt `/g/<token>/textbuch.md` und `.txt`, `/gesund`
 vorangestelltem `IT_WEB_PREFIX`, weil erst die nginx-Konfiguration
 entscheidet, ob das Präfix beim Server ankommt. Was hinter `/g/<token>/`
 nicht in dieser Liste steht, ist 404 und nicht etwa Teil des Tokens.
+(Leseansicht einer Gruppe, Handy), `/g/<token>/leitfaden` (der
+Gesprächsleitfaden groß und druckbar, rein lesend, ohne Nachladen — siehe
+„Der Leitfaden hat eine eigene Seite"), `/gesund` (Health-Check, antwortet
+ohne Datenbankzugriff). Jede Route greift auch mit vorangestelltem
+`IT_WEB_PREFIX`, weil erst die nginx-Konfiguration entscheidet, ob das
+Präfix beim Server ankommt.
 
 `python scripts/web_links.py` gibt aus, welche Gruppe welchen Link bekommt.
 Das Token steht in `gruppe.web_token`, erzeugt wird es beim ersten Kontakt

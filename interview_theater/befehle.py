@@ -239,10 +239,10 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
     # und braucht Eroeffnung, Einleitungen und Fragen an einer Stelle. Danach
     # nur noch auf Nachfrage (``leitfaden.sende_einmal``) -- sonst schoebe er
     # vor jedem Interview das Transkript aus dem Bild.
-    leitfaden.sende_einmal(conn, tg, chat_id)
+    leitfaden.sende_einmal(conn, tg, chat_id, e=e)
 
 
-def _befehl_leitfaden(conn, tg, chat_id: int) -> None:
+def _befehl_leitfaden(conn, tg, chat_id: int, e=None) -> None:
     """``/leitfaden`` -- der Gespraechsleitfaden auf Zuruf.
 
     Nicht beworben (er steht in keiner ``BEFEHLE_LISTE``, in keinem
@@ -253,7 +253,7 @@ def _befehl_leitfaden(conn, tg, chat_id: int) -> None:
 
     Kein Modellaufruf: ``leitfaden.baue`` setzt nur zusammen, was schon in
     der Datenbank steht."""
-    leitfaden.sende(conn, tg, chat_id)
+    leitfaden.sende(conn, tg, chat_id, e=e)
 
 
 def _befehl_interview(conn, tg, chat_id: int) -> None:
@@ -485,7 +485,7 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     Kernthema und Hauptkonflikt stehen weiter am Ende: sie sind seit dem
     Umbau vom 05.09.2026 keiner Phase mehr zugeordnet, bleiben aber
     rueckwaertskompatibel im Code und in bestehenden Gruppen."""
-    from interview_theater import phasentexte
+    from interview_theater import fehlstellen, phasentexte
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
     gruppe = repo.hole_gruppe(conn, chat_id)
@@ -515,6 +515,16 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     if fassungen:
         zeilen.append("Was bisher passiert:")
         zeilen.extend(fassungen)
+        zeilen.append("")
+    # Und was noch fehlt (06.09.2026): dieselbe Datenlage, andere Richtung.
+    # Die Phasenbloecke oben sagen, was **dasteht**; diese Liste macht daraus
+    # eine Arbeitsliste. Sie erscheint **nur, wenn es Fehlstellen gibt** --
+    # eine Zeile "nichts fehlt" waere Laerm. Reine Leseabfrage
+    # (``fehlstellen.zeilen``), kein Modellaufruf.
+    offen = fehlstellen.zeilen(conn, chat_id)
+    if offen:
+        zeilen.append(f"{fehlstellen.UEBERSCHRIFT}:")
+        zeilen.extend(offen)
         zeilen.append("")
     if stand and stand["kernthema"]:
         zeilen.append(f"Kernthema: {stand['kernthema']}")
@@ -732,5 +742,5 @@ def behandle(
     elif befehl == "/hilfe":
         _befehl_hilfe(tg, e, chat_id)
     elif befehl == "/leitfaden":
-        _befehl_leitfaden(conn, tg, chat_id)
+        _befehl_leitfaden(conn, tg, chat_id, e)
     return True

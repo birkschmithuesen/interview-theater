@@ -1,0 +1,31 @@
+# Der Formen-Katalog fuer Padua 2026 -- GERUEST, noch nicht ausgefuellt.
+#
+# Solange in dieser Datei kein [[form]]-Eintrag steht, gilt der eingebaute
+# Katalog (fuenf deutsche Formen). Das ist Absicht: ein halb ausgefuelltes
+# Profil soll ladbar bleiben, nicht abstuerzen. Fuer den Betrieb ist es
+# trotzdem nichts -- die Formen heissen dann Dialog, Monolog, Chor, Lied,
+# Rap, und die Regelbloecke sind auf Deutsch.
+#
+# So sieht ein fertiger Eintrag aus (aus workshop/dortmund-2026/formen.toml):
+#
+#     vorgabe = "dialogo"
+#     anzahl_wort = "cinque"
+#
+#     [[form]]
+#     name = "dialogo"                 # kleingeschrieben, steht so in der DB
+#     anzeige = "Dialogo"              # so steht es im Prompt-Fliesstext
+#     stichwoerter = ["dialogo", "conversazione"]
+#
+# Drei Dinge gehoeren dazu, sonst meldet scripts/pruefe_profil.py es:
+#
+# 1. "vorgabe" muss eine der Formen sein -- sie ist der Rueckfall, wenn eine
+#    Szene keine Form nennt oder eine unbekannte ("Bewegungsszene").
+# 2. "anzahl_wort" muss zur Zahl der Eintraege passen: der Prompt schreibt
+#    "Es gibt genau <anzahl_wort>: <Liste>".
+# 3. Zu jeder Form gehoert ein Regelblock als Markdown-Datei unter
+#    workshop/padua-2026/prompts/formen/<name>.md. Ohne eigene Datei nimmt
+#    der Kern die des Repos -- die ist deutsch und am Herkules.exe-Textbuch
+#    gemessen, also fuer Padua nur ein Ausgangspunkt.
+#
+# Padua darf andere Formen haben als Dortmund (Commedia? Coro?). Die Zahl
+# ist nirgends festgeschrieben.

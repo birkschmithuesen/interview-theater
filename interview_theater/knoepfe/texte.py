@@ -203,6 +203,15 @@ ART_SZENE_SO_LASSEN = "szene_so_lassen"
 #: Textbuch als Datei.
 ART_DURCHLAUF_SZENE = "durchlauf_szene"
 ART_TEXTBUCH = "textbuch"
+#: "Wer spricht wie viel" -- die Sprechanteile je Figur (06.09.2026). Reine
+#: Zaehlung ueber die Szentexte (``sprecher.anteile``), deterministisch aus
+#: der Datenbank: Zusage 2 gilt, hier faellt kein Modellaufruf an.
+ART_SPRECHANTEILE = "sprechanteile"
+#: "Fruehere Fassungen" -- die Liste der frueher geschriebenen Fassungen
+#: EINER Szene (06.09.2026, ``wert`` ist die Szenennummer). Deterministisch
+#: aus ``szenenfassung``, kein Modellaufruf. Zurueckgesetzt wird nichts: das
+#: waere eine Entscheidung mit Datenwirkung und ist bewusst nicht gebaut.
+ART_FASSUNGEN = "fassungen"
 #: Phase 4 · Geschichte: den Vorschlag (Bogen, Ende, Szenenfolge) speichern.
 #: ``wert`` ist "<weiter|anders>|<Vorschlagstext>" wie bei der Szenenfolge.
 ART_GESCHICHTE_SPEICHERN = "geschichte_speichern"
@@ -479,6 +488,17 @@ _TEXT_SPAETERE_GEPRUEFT = (
 #: Phase 7 · Durchlauf.
 TEXT_DURCHLAUF_SZENE_KNOPF = "Szene {nummer} ansehen"
 TEXT_TEXTBUCH_KNOPF = "Textbuch als Datei"
+#: Der Durchlauf ist der Ort, an dem die Gruppe das Stueck als Ganzes
+#: ansieht -- und damit der Ort fuer die Frage, wer wie viel spricht.
+TEXT_SPRECHANTEILE_KNOPF = "Wer spricht wie viel"
+#: Der Knopf unter einer angesehenen Szene, wenn es fruehere Fassungen gibt.
+TEXT_FASSUNGEN_KNOPF = "Fruehere Fassungen"
+_TEXT_FASSUNGEN_KOPF = "Fruehere Fassungen von Szene {nummer}:"
+#: Die Kopfzeile je Fassung. ``anders`` ist die Zeile "Anders gemacht:" des
+#: Laufs, der sie geschrieben hat -- der Satz, an dem die Gruppe sie
+#: wiedererkennt.
+_TEXT_FASSUNG_KOPF = "--- Fassung {nummer} ({zeit}){anders} ---"
+_TEXT_KEINE_FASSUNGEN = "Von Szene {nummer} gibt es nur die eine Fassung."
 _TEXT_TEXTBUCH_BESCHREIBUNG = "Euer Textbuch - alle Szenen in einer Datei."
 #: Die Probenansicht (06.09.2026) steht als Zeile NEBEN dem Datei-Knopf, nicht
 #: an seiner Stelle: die Datei nimmt man mit, die Seite liest man in der Probe
@@ -964,15 +984,16 @@ ANWEISUNG_EINLEITUNGEN = (
     "Fragenliste nicht noch einmal unveraendert ab."
 )
 #: Eroeffnung und Abschluss in einem Block -- es ist eine Entscheidung.
+#:
+#: ``{{projekt_kurz}}`` kommt aus dem Workshop-Profil (06.09.2026): worum es
+#: in dem Stueck geht, ist die Angabe, die sich zwischen zwei Einsatzorten
+#: als Erstes aendert. Gefuellt wird beim Aufruf und **vor** ``.format`` --
+#: ``str.format`` machte aus ``{{x}}`` sonst ein woertliches ``{x}``.
 ANWEISUNG_EROEFFNUNG = (
     "Jetzt fehlt noch, womit das Interview anfaengt und aufhoert. Schlag "
     "einen Eroeffnungstext vor, den die Interviewerin einer fremden Person "
     "sagt, bevor sie die erste Frage stellt - drei bis fuenf Saetze: wer wir "
-    "sind, worum es geht (ein Theaterstueck ueber das Leben der Menschen in "
-    "der Dortmunder Nordstadt; die Befragten sind Expertinnen und Experten "
-    "fuer das Leben hier und erzaehlen persoenliche Geschichten, die im "
-    "Theater im Depot in der Nachbarschaft sichtbar werden - ihre "
-    "Geschichten werden erzaehlt), wofuer die Antworten "
+    "sind, worum es geht ({{projekt_kurz}}), wofuer die Antworten "
     "verwendet werden (anonym, als Material fuer ein Stueck), dass man "
     "jederzeit aufhoeren kann, und die Bitte um Erlaubnis, das Gespraech "
     "aufzunehmen. Dazu einen kurzen Abschluss: Dank und was jetzt weiter "

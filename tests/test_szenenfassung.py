@@ -215,6 +215,10 @@ def test_die_tabelle_faellt_mit_der_gruppe(conn):
 
 
 def test_gruppenseite_zeigt_fruehere_fassungen(conn, einst, tg):
+    """Seit dem 07.09.2026 wird **umgeschaltet** statt aufgeklappt: die Leiste
+    nennt jede Fassung, angezeigt wird genau eine. Die fruehere ist damit
+    nicht mehr sofort sichtbar, aber einen Klick weit weg -- und der Klick ist
+    ein GET auf dieselbe Seite, kein neuer Zustand irgendwo."""
     klm = ModellAttrappe([
         _antwort("MARIA:Da bin ich.", "Erste Fassung."),
         _antwort("MARIA:Immer noch da.", "Kuerzer gemacht."),
@@ -223,13 +227,21 @@ def test_gruppenseite_zeigt_fruehere_fassungen(conn, einst, tg):
     szene.schreibe(conn, tg, klm, einst, 1, "Szene 1")
     szene.schreibe(conn, tg, klm, einst, 1, "Szene 1")
     token = repo.stelle_web_token_sicher(conn, 1)
+    daten = web_daten.gruppe_nach_token(conn, token)
+    szene_id = daten["szenen"][0]["id"]
 
-    seite = web.gruppe_html(web_daten.gruppe_nach_token(conn, token))
+    seite = web.gruppe_html(daten)
 
     assert web.TEXT_FASSUNGEN in seite
     # Beschriftet mit der "Anders gemacht"-Zeile des Laufs, der sie schrieb.
     assert "Erste Fassung." in seite
-    assert "MARIA:Da bin ich." in seite
+    # Ohne Auswahl steht die aktuelle da, die erste nur als Weg dorthin.
+    assert "MARIA:Immer noch da." in seite
+    assert web.fassungslink(szene_id, 1).replace("&", "&amp;") in seite
+
+    gewaehlt = web.gruppe_html(daten, fassungswahl={szene_id: 1})
+
+    assert "MARIA:Da bin ich." in gewaehlt
 
 
 def test_gruppenseite_ohne_fruehere_fassung_ohne_block(conn, einst, tg):

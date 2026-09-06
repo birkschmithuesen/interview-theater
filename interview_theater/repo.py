@@ -1569,8 +1569,15 @@ def aktualisiere_szene(
     titel: str | None,
     kurzbeschreibung: str | None,
     volltext: str | None,
+    zusammenfassung: str | None = None,
 ) -> None:
     """Ueberschreibt eine Szene vollstaendig und setzt ``geaendert_am`` neu.
+
+    ``zusammenfassung`` wird **bei jeder Fassung neu** geschrieben, auch wenn
+    sie leer ist (06.09.2026): sie beschreibt genau den Text, der hier gerade
+    gespeichert wird -- die Zusammenfassung der vorigen Fassung stehen zu
+    lassen waere eine Aussage ueber einen Text, den es nicht mehr gibt. Bleibt
+    sie leer, greift im Prompt der Rueckfall (``szene._zusammenfassung_fuer``).
 
     ``geaendert_am`` ist nicht bloss Buchhaltung: es entscheidet, welche Szene
     als 'die aktuelle' in den Gespraechs-Prompt wandert (hole_letzte_szene,
@@ -1579,10 +1586,11 @@ def aktualisiere_szene(
     das § 6.1 beschreibt."""
     conn.execute(
         """
-        UPDATE szene SET titel = ?, kurzbeschreibung = ?, volltext = ?, geaendert_am = ?
+        UPDATE szene SET titel = ?, kurzbeschreibung = ?, volltext = ?,
+                         zusammenfassung = ?, geaendert_am = ?
         WHERE id = ?
         """,
-        (titel, kurzbeschreibung, volltext, _jetzt_genau(), szene_id),
+        (titel, kurzbeschreibung, volltext, zusammenfassung, _jetzt_genau(), szene_id),
     )
     conn.commit()
 

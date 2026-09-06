@@ -309,6 +309,16 @@ CREATE TABLE IF NOT EXISTS szene (
   nummer            INTEGER,
   titel             TEXT,
   kurzbeschreibung  TEXT,                   -- eine Zeile, geht immer mit
+  -- Was in dieser Szene passiert, 3-5 Saetze (06.09.2026, Birk: "Jede Szene
+  -- soll eine Zusammenfassung haben, was in der Szene passiert; wenn die
+  -- originale Szene nicht mehr reinpasst, geht die Zusammenfassung in den
+  -- Kontext."). Sie kommt vom Szenen-Modell selbst mit -- dritte Pflichtzeile
+  -- der Antwort (ZUSAMMENFASSUNG:, szene.zerlege) --, kostet also keinen
+  -- zweiten Aufruf, und wird bei jeder Fassung neu geschrieben. Bestehende
+  -- Szenen aus der Zeit davor haben sie nicht; dann greift der Rueckfall in
+  -- szene._szenen_zusammenfassung (Stichzeilen plus Schluss). Additiv
+  -- nachgeruestet ueber _migriere_fehlende_spalten.
+  zusammenfassung   TEXT,
   -- Dialog | Lied | Rap | Monolog | Chor | stumm (frei, aber diese Namen
   -- bevorzugt). Entscheidet, welcher Formen-Block in den Szenen-Prompt geht
   -- (prompts/formen/<form>.md).

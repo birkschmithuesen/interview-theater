@@ -504,6 +504,42 @@ Melden, wenn: `http_5xx` häuft (≥3), `zitat_ungeprueft` auftaucht, `szene_abg
 4. Opus-Messung (1M-Kontext, Thinking) und Kontext-Audit laufen als Delegates (Branches `feat/opus-messung`, `docs/kontext-audit`); Ergebnis entscheidet: 1M-Präfix im Proxy freischalten? Thinking für Szenen an? Kontext-Aufträge vor/nach 13:30?
 5. Szenen-Zusammenfassung/Budget/Chat-Block (`feat/szenen-zusammenfassung`) — nach Merge Neustart aller vier; Birk sieht die „Anders gemacht:"-Zeile im Journal.
 
+## (i) Nach Dortmund: generischer Kern + einhängbares Workshop-Profil (Brainstorming-Einstieg)
+
+Birks Ziel (06.09.2026): das Repo soll für jede Zielgruppe / jeden Ort / jede
+Sprache funktionieren; alles Workshop-Individuelle (Alter, Orte, Formen-Katalog,
+Textbuch-Maß, Rahmen des Stücks, Phasentexte, Leitfaden-Bausteine, Bot-Namen,
+USA-Regel, Korpus-Sprache, Simulations-Personas) liegt in einem einhängbaren
+Profil `workshop/<name>/` — Padua bekommt ein eigenes, Dortmund bleibt bitgleich.
+**Noch nicht umgebaut.** Grundlage für eine Claude-Code-Brainstorming-Session
+(superpowers: brainstorming → writing-plans → subagent-driven-development):
+
+- **Analyse + Startpaket:** `docs/workshop-profil-analyse-2026-09-06.md` —
+  Inventar (1 217 Fundstellen, 8 Kategorien, mit Datei/Zeile), Schichtenmodell
+  Kern vs. Profil, Sonderfall Sprache (Italienisch: 9 Prompts, Whisper-`language`,
+  136 Korpusfälle mit FP=0-Regel, Stichwortlisten, 111 Knopftexte), Risiken,
+  Abschnitt E = 10 Entscheidungsfragen mit Empfehlung, Zielstruktur
+  (`workshop/dortmund-2026/`, `workshop/padua-2026/`), 12 einzeln ausrollbare
+  Schritte (~9,5 PT Mechanik, + Padua-Inhalt). Messskript: `scripts/inventar_workshop.py`.
+- **Empfohlene Einhängemechanik:** `anweisungen.system()` ist schon der Punkt —
+  Basis → Phase → **Profil-Overlay** → `zusatz.md` → `zusatz.<bot>.md`, Auswahl
+  per `IT_WORKSHOP=<name>` je `betrieb/gruppeN.env` (zwei Workshops parallel
+  möglich), fehlt die Variable = heutiges Dortmund. Werte in
+  `workshop/<name>/profil.yaml`, Prosa als Markdown-Overlay mit Platzhaltern.
+- **Bitgleichheits-Beweis:** die Prompt-Dumps `docs/prompt-audit/2026-09-06/`
+  (21 Pfade, `uebersicht.tsv`) als Golden Files — Profil `dortmund-2026` muss
+  identische Prompts erzeugen (Falle: `erzeuge_prompts._entschaerfe()`-Stufe,
+  Vergleich auf gleicher Stufe). Weitere Falle: `anweisungen._CACHE` ist nach
+  Prompt-Name gekeyt, nicht nach Profil — bricht bei zwei Profilen im Web-Dienst.
+- **Vault-Konvention:** Padua gehört unter
+  `projekte/<produktion>/shows/2026-xx-padua/`; Profilnamen spiegeln das.
+
+Startprompt für die Session: „Lies `docs/workshop-profil-analyse-2026-09-06.md`
+vollständig, dann `/superpowers:brainstorming` zum Schichtenmodell Kern/Profil —
+beantworte die 10 Fragen aus Abschnitt E mit mir, schreibe die Spec, dann den Plan;
+Randbedingungen: Dortmund bitgleich (Golden Files), kein Schema-Umbau, jeder
+Schritt einzeln ausrollbar, Live-Bots laufen aus dem Hauptbaum."
+
 ## (g) Nach dem Workshop: wie man aus der Datenbank lernt
 
 **Die Datenbank enthält vollständiges Auswertungsmaterial.** Nichts davon wurde für die

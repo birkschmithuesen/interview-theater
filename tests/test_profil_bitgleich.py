@@ -72,14 +72,18 @@ def frisch(monkeypatch):
     anweisungen._CACHE.clear()
 
 
+#: Eine Zeile des Fingerabdrucks: Pruefsumme, Laenge (rechtsbuendig), Name.
+_ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")
+
+
 def _fingerabdruck() -> dict[str, str]:
     """Abschnittsname -> ``sha256 laenge``."""
     anweisungen._CACHE.clear()
     zeilen = prompt_schnappschuss.fingerabdruck().splitlines()
     fertig = {}
     for zeile in zeilen:
-        pruef, laenge, name = zeile.split("  ", 2)
-        fertig[name.strip()] = f"{pruef} {laenge.strip()}"
+        pruef, laenge, name = _ZEILE.match(zeile).groups()
+        fertig[name] = f"{pruef} {laenge}"
     return fertig
 
 
@@ -103,8 +107,8 @@ def _vergleiche(erwartet: dict[str, str], jetzt: dict[str, str]) -> None:
 def _massstab() -> dict[str, str]:
     fertig = {}
     for zeile in SCHNAPPSCHUSS.read_text(encoding="utf-8").splitlines():
-        pruef, laenge, name = zeile.split("  ", 2)
-        fertig[name.strip()] = f"{pruef} {laenge.strip()}"
+        pruef, laenge, name = _ZEILE.match(zeile).groups()
+        fertig[name] = f"{pruef} {laenge}"
     return fertig
 
 

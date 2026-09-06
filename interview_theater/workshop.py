@@ -62,6 +62,11 @@ _PAKET = Path(__file__).resolve().parent
 #: Der Dateiname des Profils im Profilverzeichnis.
 DATEI = "profil.toml"
 
+#: Der Formen-Katalog. Eigene Datei, weil sie einer anderen Hand gehoert:
+#: welche Formen es gibt, entscheiden Birk und die Choreografin, waehrend
+#: profil.toml Zielgruppe, Orte und Rahmen traegt.
+FORMEN_DATEI = "formen.toml"
+
 #: Die Felder, ohne die ein Profil nicht startet. Punkte trennen Ebenen.
 #: Bewusst kurz: was fehlen darf, faellt auf den Wert des Vorgabeprofils
 #: zurueck -- was hier steht, ist das, dessen Fehlen am Workshoptag als
@@ -129,6 +134,62 @@ VORGABE_WERTE: dict[str, Any] = {
 }
 
 
+#: Der eingebaute Formen-Katalog -- **exakt die Werte, die vor dem Umbau in
+#: ``szene.FORMEN``, ``szene.FORM_STICHWOERTER``, ``web_schreiben.FORMEN`` und
+#: ``szenenfolge.FORM_VORGABE`` standen** (Stand 06.09.2026).
+#:
+#: Die Reihenfolge ist die der Knopfleiste (``knoepfe.biete_szenenform``):
+#: erst die Sprechformen, dann die musikalischen. ``anzeige`` ist die
+#: Schreibweise im Prompt-Fliesstext ("Dialog, Monolog, Chor, Lied, Rap"),
+#: ``name`` die kleingeschriebene, die in der Datenbank landet.
+#:
+#: ``prosa`` steht bewusst **nicht** darin: sie ist die Formvariante der
+#: Phase 6, die der Code setzt und die Gruppe nie waehlt.
+VORGABE_FORMEN: dict[str, Any] = {
+    # Die Form, mit der eine Szene startet, wenn die Vorschlagszeile keine
+    # nennt, und der Rueckfall von ``szene.formdatei``.
+    "vorgabe": "dialog",
+    # Wie die Anzahl im Prompt-Fliesstext ausgeschrieben wird ("genau
+    # fuenf: ..."). Muss zur Zahl der Eintraege passen;
+    # scripts/pruefe_profil.py prueft das fuer deutschsprachige Profile.
+    "anzahl_wort": "fuenf",
+    "form": [
+        {
+            "name": "dialog",
+            "anzeige": "Dialog",
+            # "Dialog wird zuletzt geprueft" -- das Wort "Szene" steht in
+            # fast jeder Formangabe, und Dialog ist ohnehin der Rueckfall.
+            "stichwoerter": [
+                "dialog", "gespraech", "gespräch", "gesprochen",
+                "sprechtheater", "text", "sprechszene", "szene",
+            ],
+        },
+        {
+            "name": "monolog",
+            "anzeige": "Monolog",
+            "stichwoerter": ["monolog", "soloszene", "solo"],
+        },
+        {
+            "name": "chor",
+            "anzeige": "Chor",
+            "stichwoerter": ["chor", "chorisch", "wir-form", "sprechchor"],
+        },
+        {
+            "name": "lied",
+            "anzeige": "Lied",
+            "stichwoerter": ["lied", "song", "gesang", "gesungen", "singen",
+                             "musik", "arie"],
+        },
+        {
+            "name": "rap",
+            "anzeige": "Rap",
+            "stichwoerter": ["rap", "sprechgesang", "beat", "reim", "hip-hop",
+                             "hiphop"],
+        },
+    ],
+}
+
+
 def _einfrieren(wert: Any) -> Any:
     """Macht aus dem geladenen TOML-Baum etwas Unveraenderliches.
 
@@ -169,6 +230,8 @@ class Profil:
     name: str
     verzeichnis: Path | None
     werte: Any
+    #: Der Formen-Katalog aus ``formen.toml``, eingefroren wie ``werte``.
+    formen: Any = None
 
     def wert(self, pfad: str, vorgabe: Any = None) -> Any:
         """Ein Feld ueber seinen Punktpfad (``"zielgruppe.traeger"``).
@@ -192,7 +255,8 @@ VORGABE_NAME = "(eingebaut)"
 
 #: Das eingebaute Profil als fertiges Objekt -- einmal eingefroren, von
 #: allen geteilt.
-VORGABE = Profil(VORGABE_NAME, None, _einfrieren(VORGABE_WERTE))
+VORGABE = Profil(VORGABE_NAME, None,
+                 _einfrieren(VORGABE_WERTE), _einfrieren(VORGABE_FORMEN))
 
 
 def basis() -> Path:
@@ -236,22 +300,59 @@ def lade(name: str) -> Profil:
         raise ProfilFehler(
             f"Workshop-Profil {name!r} hat keine {DATEI}: {datei} fehlt."
         )
-    try:
-        roh = tomllib.loads(datei.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as fehler:
-        raise ProfilFehler(f"{datei} ist kein gueltiges TOML: {fehler}") from fehler
-    except OSError as fehler:
-        raise ProfilFehler(f"{datei} ist nicht lesbar: {fehler}") from fehler
-
-    werte = _vereinige(VORGABE_WERTE, roh)
-    profil = Profil(name, verz, _einfrieren(werte))
+    werte = _vereinige(VORGABE_WERTE, _lies_toml(datei))
+    formen = _vereinige(VORGABE_FORMEN, _lies_toml(verz / FORMEN_DATEI, pflicht=False))
+    profil = Profil(name, verz, _einfrieren(werte), _einfrieren(formen))
     fehlend = [feld for feld in PFLICHTFELDER if not profil.wert(feld)]
     if fehlend:
         raise ProfilFehler(
             f"{datei}: Pflichtfeld(er) leer oder nicht gesetzt: "
             f"{', '.join(fehlend)}"
         )
+    _pruefe_formen(profil, verz / FORMEN_DATEI)
     return profil
+
+
+def _lies_toml(datei: Path, pflicht: bool = True) -> dict[str, Any]:
+    """Eine TOML-Datei des Profils. Fehlt eine nicht verpflichtende, gilt
+    die Vorgabe -- ein Profil, das nichts an den Formen aendert, braucht
+    keine ``formen.toml``."""
+    try:
+        return tomllib.loads(datei.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        if pflicht:
+            raise ProfilFehler(f"{datei} fehlt.") from None
+        return {}
+    except tomllib.TOMLDecodeError as fehler:
+        raise ProfilFehler(f"{datei} ist kein gueltiges TOML: {fehler}") from fehler
+    except OSError as fehler:
+        raise ProfilFehler(f"{datei} ist nicht lesbar: {fehler}") from fehler
+
+
+def _pruefe_formen(profil: "Profil", datei: Path) -> None:
+    """Der Formen-Katalog muss benutzbar sein, bevor ein Bot startet.
+
+    Was hier abbricht, waere sonst ein Fehlerbild mitten in Phase 7: eine
+    Szene ohne Regelblock, eine Knopfleiste ohne Beschriftung, ein
+    Rueckfall auf eine Form, die es nicht gibt."""
+    eintraege = profil.formen.get("form") if profil.formen else None
+    if not eintraege:
+        raise ProfilFehler(f"{datei}: kein einziger [[form]]-Eintrag.")
+    namen = []
+    for nummer, eintrag in enumerate(eintraege, start=1):
+        wert = (eintrag.get("name") or "").strip() if hasattr(eintrag, "get") else ""
+        if not wert:
+            raise ProfilFehler(f"{datei}: [[form]] Nr. {nummer} hat keinen 'name'.")
+        if wert in namen:
+            raise ProfilFehler(f"{datei}: Form {wert!r} steht zweimal.")
+        namen.append(wert)
+    vorgabe = profil.formen.get("vorgabe")
+    if vorgabe not in namen:
+        raise ProfilFehler(
+            f"{datei}: vorgabe={vorgabe!r} ist keine der Formen "
+            f"({', '.join(namen)}). Die Vorgabe ist der Rueckfall, wenn eine "
+            f"Szene keine Form nennt -- sie muss es geben."
+        )
 
 
 #: Geladene Profile je Name. Ein Profil wird einmal je Prozess von der Platte
@@ -305,6 +406,46 @@ def _liste(wert: Any, trenner: str = ", ") -> str:
     return "" if wert is None else str(wert)
 
 
+def formen(profil: Profil | None = None) -> tuple[str, ...]:
+    """Die Formen, die eine Szene haben kann -- kleingeschrieben, in der
+    Reihenfolge der Knopfleiste.
+
+    Die eine Quelle. ``szene.FORMEN`` und ``web_schreiben.FORMEN`` lesen
+    beide hier (D.8 der Analyse: sie trugen dieselbe Tupel zweimal, und die
+    Weboberflaeche haette sonst eine andere Formenliste zeigen koennen als
+    der Chat)."""
+    profil = profil or aktiv()
+    return tuple(e["name"] for e in profil.formen.get("form", ()))
+
+
+def form_anzeige(profil: Profil | None = None) -> tuple[str, ...]:
+    """Dieselben Formen, wie sie im Prompt-Fliesstext geschrieben werden
+    ("Dialog"). Fehlt ``anzeige``, wird der Name gross geschrieben."""
+    profil = profil or aktiv()
+    return tuple(
+        e.get("anzeige") or e["name"].capitalize()
+        for e in profil.formen.get("form", ())
+    )
+
+
+def form_stichwoerter(profil: Profil | None = None) -> dict[str, tuple[str, ...]]:
+    """Woerter, unter denen eine Form gemeint sein kann. Das Feld
+    ``szene.form`` ist frei -- die Gruppe entscheidet, nicht der Code --,
+    und "gesungen" muss trotzdem beim Lied landen."""
+    profil = profil or aktiv()
+    return {
+        e["name"]: tuple(e.get("stichwoerter", ()))
+        for e in profil.formen.get("form", ())
+    }
+
+
+def form_vorgabe(profil: Profil | None = None) -> str:
+    """Die Form, die gilt, wenn keine genannt ist -- der Rueckfall von
+    ``szene.formdatei`` und die Vorgabe der Szenenfolge."""
+    profil = profil or aktiv()
+    return profil.formen.get("vorgabe", "")
+
+
 def platzhalter(profil: Profil | None = None) -> dict[str, str]:
     """Die Werte, die ``{{...}}`` in einem Prompt fuellen.
 
@@ -336,5 +477,23 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
         "konflikt_erlaubt": _liste(profil.wert("konflikt.erlaubt", "")),
         "konflikt_ausgeschlossen": _liste(profil.wert("konflikt.ausgeschlossen", "")),
     }
+    anzeige = form_anzeige(profil)
+    werte.update({
+        # "genau fuenf" -- ausgeschrieben, weil es im Fliesstext steht.
+        "formen_anzahl": _liste(profil.formen.get("anzahl_wort", "")),
+        # "Dialog, Monolog, Chor, Lied, Rap"
+        "formen_liste": ", ".join(anzeige),
+        # "Dialog, Monolog, Chor, Lied oder Rap" -- fuer die Stellen, an
+        # denen der Satz eine Auswahl beschreibt und kein Verzeichnis.
+        "formen_liste_oder": (
+            " oder ".join([", ".join(anzeige[:-1]), anzeige[-1]])
+            if len(anzeige) > 1 else "".join(anzeige)
+        ),
+        "form_vorgabe": form_vorgabe(profil),
+        "form_vorgabe_anzeige": next(
+            (a for n, a in zip(formen(profil), anzeige) if n == form_vorgabe(profil)),
+            "",
+        ),
+    })
     _PLATZHALTER[profil.name] = werte
     return werte

@@ -35,7 +35,7 @@ deshalb weder Verdichtungen noch Zitate, und du fragst auch nicht danach:
 was die Gruppe dort sagt, ist Erfindung fuers Stueck und nie Material --
 biete nie an, es als Interview aufzunehmen.
 
-**Jede Szene hat eine Form** -- genau eine von fuenf: Dialog, Monolog, Chor,
+**Jede Szene hat eine Form** -- genau eine von {{formen_anzahl}}: Dialog, Monolog, Chor,
 Lied oder Rap. Sie steht schon im Szenenfolge-Vorschlag, ist in der
 Szenenvorstellung sichtbar und laesst sich per Knopf aendern. Eine Szene ohne
 Form wird nicht geschrieben.

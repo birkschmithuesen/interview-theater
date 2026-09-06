@@ -261,6 +261,9 @@ _NOTIERT = {
     # Die Verfeinerungsebene der Fragen (06.09.2026): dieselbe Grundleiste,
     # dieselbe Notiert-Zeile, derselbe Schreibweg -- nur ein anderes Feld.
     "einleitungen": "Einleitungen",
+    # Die weichen Fassungen (06.09.2026, 10:18): derselbe Weg, dieselbe
+    # Leiste, dieselbe Notiert-Zeile -- nur ein anderes Feld.
+    "fragen_weich": "Fragen in weicher Fassung",
 }
 
 #: Wo eine Art landet, wenn das Arbeitsstand-Feld anders heisst als der
@@ -887,6 +890,13 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
 
     art = offene_art(conn, chat_id)
     wert = bloecke.get(art) if art else None
+    if art == "fragen_weich" and wert is None and "einleitungen" in bloecke:
+        # Der alte Weg bleibt begehbar (06.09.2026, 10:18): liefert ein
+        # Modell noch ``VORSCHLAG EINLEITUNGEN:`` -- weil der Prompt-Umbau
+        # den laufenden Zug einer Gruppe nicht ruecklaeufig aendert --,
+        # traegt die Leiste diesen Block. Sonst staende die Antwort ohne
+        # Knoepfe da, und die Stufe waere nicht abzunehmen.
+        art, wert = "einleitungen", bloecke["einleitungen"]
     if marker in _ERSTER_ALS_WERT and _feld_ist_frei(
         conn, chat_id, _ERSTER_ALS_WERT[marker]
     ):
@@ -998,8 +1008,13 @@ def offene_art(conn, chat_id: int) -> str | None:
         # einer frueheren und speicherte den falschen Text.
         if leer("fragen"):
             return "fragen"
-        if leer("frage_einleitungen"):
-            return "einleitungen"
+        # **Seit dem 06.09.2026, 10:18 ist die zweite Stufe die weiche
+        # Fassung** und nicht mehr die Einleitung: die sensible Frage wird
+        # umformuliert, nicht mit einem Vorsatz versehen. ``frage_einleitungen``
+        # bleibt daneben stehen -- eine Gruppe, die den alten Weg schon
+        # durchlaufen hat, soll ihn nicht ein zweites Mal gehen.
+        if leer("fragen_weich") and leer("frage_einleitungen"):
+            return "fragen_weich"
         if leer("interview_eroeffnung"):
             return "eroeffnung"
         return None
@@ -3557,14 +3572,22 @@ ANWEISUNG_EINLEITUNGEN = (
     "Die Interviews fuehren 15- bis 18-jaehrige Frauen mit FREMDEN Personen "
     "auf der Strasse oder im Verein. Pruefe jede Frage: beruehrt sie ein "
     "sensibles Thema (Familie, Herkunft, Religion, Gewalt, Liebe und Koerper, "
-    "Geld, Krankheit, Flucht, Diskriminierung)? Fuer JEDE sensible Frage "
-    "schlag eine kurze Einleitung vor - ein bis zwei Saetze, die die "
-    "Interviewerin VOR der Frage sagt: warum sie fragt, und dass man nicht "
-    "antworten muss. Haeng das als Block 'VORSCHLAG EINLEITUNGEN:' an, je "
-    "Zeile '<Fragennummer> — <Einleitung>'. Ist keine Frage sensibel, "
-    "schreib in den Block genau die eine Zeile 'Keine der Fragen braucht "
-    "eine besondere Einleitung.' Sag im Text davor in einem Satz, was du "
-    "gefunden hast, und stell eine Frage an die Gruppe."
+    "Geld, Krankheit, Flucht, Diskriminierung)? Formuliere JEDE sensible "
+    "Frage zu EINEM weichen Gespraechsstueck um - zwei bis drei Saetze, die "
+    "die Interviewerin am Stueck sagt: der Grund, die Freiheit nicht zu "
+    "antworten, und die Frage selbst, in EINEM Fluss. Nicht Einleitung und "
+    "Frage aneinandergehaengt, sondern ein Text, den man so ausspricht. "
+    "Du-Form, sprechbar, im Ton einer 15- bis 18-Jaehrigen, die eine fremde "
+    "Person anspricht - kein Behoerdendeutsch, keine Floskeln wie 'im Rahmen "
+    "unseres Projektes'. Der Kern der Frage bleibt derselbe: erfinde kein "
+    "neues Thema und lass keines weg. Haeng das als Block "
+    "'VORSCHLAG FRAGEN WEICH:' an, je Zeile "
+    "'<Fragennummer> — <weiche Fassung>' - nur fuer die sensiblen Fragen, "
+    "die uebrigen bleiben, wie sie sind. Ist keine Frage sensibel, schreib "
+    "in den Block genau die eine Zeile 'Keine der Fragen braucht eine "
+    "besondere Einleitung.' Sag im Text davor in einem Satz, was du "
+    "gefunden hast, und stell eine Frage an die Gruppe. Schreib die "
+    "Fragenliste nicht noch einmal unveraendert ab."
 )
 #: Eroeffnung und Abschluss in einem Block -- es ist eine Entscheidung.
 ANWEISUNG_EROEFFNUNG = (
@@ -3652,10 +3675,15 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             return _speichere_eroeffnung(
                 conn, tg, chat_id, roh.partition(TRENNER)[2]
             )
-        if gespeicherte_art == "einleitungen":
+        if gespeicherte_art in ("einleitungen", "fragen_weich"):
             # Die Einleitungen sind abgenommen -- ohne Zwischenfrage weiter
             # zum Eroeffnungstext: die Gruppe soll die Verfeinerung als
             # einen Weg erleben, nicht als drei Aufgaben.
+            #
+            # Seit dem 06.09.2026, 10:18 laeuft dieselbe Stufe unter
+            # ``fragen_weich`` (die weiche Fassung ersetzt die Einleitung).
+            # Beide Arten gehen denselben Weg -- eine Gruppe, die den alten
+            # Vorschlag noch offen hatte, kann ihn trotzdem abnehmen.
             meldung = _speichere(conn, tg, chat_id, roh, weiterfrage=False)
             if meldung != _TEXT_UNBEKANNT:
                 repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)

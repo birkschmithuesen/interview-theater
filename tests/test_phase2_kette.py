@@ -150,7 +150,7 @@ def test_nach_den_fragen_folgt_die_sensibilitaetspruefung(
     knoepfe.nimm_fragennummern(conn, tg, None, einst, 1, "2, 5 und 9")
 
     assert len(auftraege) == 1
-    assert "VORSCHLAG EINLEITUNGEN:" in auftraege[0][0]
+    assert "VORSCHLAG FRAGEN WEICH:" in auftraege[0][0]
 
 
 def test_nach_den_einleitungen_folgt_der_eroeffnungsauftrag(

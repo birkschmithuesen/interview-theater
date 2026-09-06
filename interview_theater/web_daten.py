@@ -106,6 +106,7 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         # Datenbank read-only sieht -- zwischen Deploy und Bot-Neustart kann
         # die Spalte noch fehlen.
         "frage_einleitungen": _feld(zeile, "frage_einleitungen"),
+        "fragen_weich": _feld(zeile, "fragen_weich"),
         "interview_eroeffnung": _feld(zeile, "interview_eroeffnung"),
         "interview_abschluss": _feld(zeile, "interview_abschluss"),
         "kernthema": zeile["kernthema"] if zeile else None,

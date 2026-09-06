@@ -1324,6 +1324,10 @@ _ARBEITSSTAND_FELDER = (
     # eine Schreibweg wie alles andere im Arbeitsstand -- der Leitfaden
     # (``leitfaden.baue``) liest sie nur.
     "frage_einleitungen", "interview_eroeffnung", "interview_abschluss",
+    # Die weichen Fragefassungen (06.09.2026, 10:18, Birk): die sensible
+    # Frage als EIN sprechbares Gespraechsstueck. Sie treten an die Stelle
+    # der Einleitungen; der Kern bleibt in ``fragen``.
+    "fragen_weich",
     # Die Mehrfachauswahl der Phase 2 (06.09.2026): die zehn vorgeschlagenen
     # Fragen und die angetippten Nummern. Zustand in der Datenbank, nicht in
     # der Tastatur -- siehe ``db.SCHEMA``.

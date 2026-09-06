@@ -52,6 +52,13 @@ TEXT_LEER = (
 #: sagt der Interviewerin: das sagst du VOR der Frage.
 _EINLEITUNG_ZEILE = "   ↳ vorher sagen: {text}"
 
+#: Die Kern-Zeile unter einer weich gefassten Frage (06.09.2026, 10:18,
+#: Birk). Im Leitfaden steht oben, was die Interviewerin SAGT -- ein
+#: Gespraechsstueck, kein Behoerdensatz --, und darunter in Klammern, worum
+#: es dabei geht. Ohne die Kern-Zeile wuesste eine Interviewerin, die im
+#: Gespraech abkommt, nicht mehr, was sie eigentlich fragen wollte.
+_KERN_ZEILE = "   (Kern: {text})"
+
 #: Wie eine Einleitungszeile im Vorschlagsblock aussieht: ``2 — <Text>``.
 #: Gedankenstrich wie ueberall, der einfache Bindestrich mit Leerzeichen und
 #: der Doppelpunkt zusaetzlich -- Modelle liefern alle drei.
@@ -112,6 +119,10 @@ def aus_feldern(felder: dict) -> str:
         return TEXT_LEER
 
     vorher = einleitungen(feld("frage_einleitungen"))
+    # Die weichen Fassungen liegen in derselben Form wie die Einleitungen vor
+    # (``<Nummer> — <Text>``) und werden mit demselben Leser gelesen: es gibt
+    # einen nummerierten Zeilenblock in diesem Projekt, nicht zwei.
+    weich = einleitungen(feld("fragen_weich"))
     teile: list[str] = []
     eroeffnung = feld("interview_eroeffnung")
     if eroeffnung:
@@ -119,6 +130,15 @@ def aus_feldern(felder: dict) -> str:
 
     zeilen = [UEBERSCHRIFT_FRAGEN]
     for nummer, frage in enumerate(liste, start=1):
+        # **Die weiche Fassung ist der Text, den die Gruppe spricht**
+        # (06.09.2026, 10:18): sie ersetzt die Aneinanderreihung von
+        # Einleitung und Frage, ist also KEINE zusaetzliche Zeile. Gibt es
+        # keine, steht die Frage selbst da -- eine nicht-sensible Frage
+        # braucht keine Umformulierung.
+        if nummer in weich:
+            zeilen.append(f"{nummer}. {weich[nummer]}")
+            zeilen.append(_KERN_ZEILE.format(text=frage))
+            continue
         zeilen.append(f"{nummer}. {frage}")
         if nummer in vorher:
             zeilen.append(_EINLEITUNG_ZEILE.format(text=vorher[nummer]))
@@ -152,8 +172,8 @@ def baue(conn, chat_id: int) -> str:
         {
             name: feld(name)
             for name in (
-                "fragen", "frage_einleitungen", "interview_eroeffnung",
-                "interview_abschluss",
+                "fragen", "frage_einleitungen", "fragen_weich",
+                "interview_eroeffnung", "interview_abschluss",
             )
         }
     )

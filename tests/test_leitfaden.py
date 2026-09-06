@@ -186,7 +186,8 @@ def test_die_wahl_loest_die_sensibilitaetspruefung_aus(conn, tg, einst, auftraeg
     _sage(conn, tg, einst, "1, 2, 3")
 
     assert len(auftraege) == 1
-    assert "VORSCHLAG EINLEITUNGEN:" in auftraege[0]
+    # Seit dem 06.09.2026, 10:18: weiche Fassungen statt Einleitungen.
+    assert "VORSCHLAG FRAGEN WEICH:" in auftraege[0]
     assert "FREMDEN" in auftraege[0]
     assert "Frage 1?" in auftraege[0], "die Fragen stehen im Auftrag"
 
@@ -253,7 +254,7 @@ def test_diktierte_fragen_loesen_die_pruefung_ebenfalls_aus(conn, tg, einst, auf
 
     assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "Was war in deinem Koffer?"
     assert len(auftraege) == 1
-    assert "VORSCHLAG EINLEITUNGEN:" in auftraege[0]
+    assert "VORSCHLAG FRAGEN WEICH:" in auftraege[0]
 
 
 # --- Einleitungen und Eroeffnung ------------------------------------------

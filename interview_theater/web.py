@@ -755,6 +755,17 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
             platzhalter="1 — vorher sagen: …",
         )
         + "</dd>"
+        # Die weichen Fassungen (06.09.2026, 10:18): der Text, den die
+        # Interviewerin wirklich spricht. Er steht direkt unter den Fragen,
+        # weil er sie im Leitfaden ERSETZT -- der Kern bleibt oben.
+        "<dt>Fragen in weicher Fassung</dt><dd>"
+        + _textfeld(
+            "fragen_weich",
+            stand.get("fragen_weich"),
+            zeilen=4,
+            platzhalter="1 — so sagt ihr es …",
+        )
+        + "</dd>"
         "<dt>Interview-Eröffnung</dt><dd>"
         + _textfeld(
             "interview_eroeffnung",

@@ -255,6 +255,15 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Darf leer bleiben ("Keine der Fragen braucht eine besondere
   -- Einleitung.") -- das ist ein Ergebnis, kein fehlender Wert.
   frage_einleitungen     TEXT,
+  -- Die WEICHE FASSUNG einer sensiblen Frage (06.09.2026, 10:18, Birk):
+  -- statt "Einleitung + Frage" aneinandergehaengt wird die heikle Frage zu
+  -- EINEM Gespraechsstueck umformuliert -- zwei bis drei Saetze, Du-Form,
+  -- sprechbar, im Ton einer 15- bis 18-Jaehrigen, die eine fremde Person
+  -- anspricht. Der KERN bleibt in ``fragen`` (er ist das, worueber die
+  -- Gruppe entschieden hat); hier steht, wie sie es sagt. Eine Zeile je
+  -- Frage, Form ``<Nummer> — <weiche Fassung>``, additiv nachgeruestet.
+  -- Nicht-sensible Fragen haben keine Zeile: sie brauchen keine.
+  fragen_weich           TEXT,
   -- Was die Interviewerin zu Beginn sagt: wer wir sind, was wir machen,
   -- wofuer die Antworten verwendet werden (anonym, Material fuer ein
   -- Stueck), dass man jederzeit aufhoeren kann, die Bitte um Erlaubnis zur

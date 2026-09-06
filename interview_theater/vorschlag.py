@@ -65,6 +65,12 @@ ARTEN = (
     # laufen ueber die Grundleiste wie jeder andere Vorschlag -- es gibt
     # einen Weg, einen Vorschlag abzunehmen, nicht drei.
     "einleitungen", "eroeffnung",
+    # Die weichen Fragefassungen (06.09.2026, 10:18, Birk): eine sensible
+    # Frage wird zu EINEM Gespraechsstueck umformuliert, statt eine
+    # Einleitung davorzuhaengen. Marker ``VORSCHLAG FRAGEN WEICH:``, je
+    # Zeile ``<Nummer> — <weiche Fassung>``; die Art heisst intern
+    # ``fragen_weich`` wie die Spalte.
+    "fragen_weich",
     # Die Mehrfachauswahl der Phase 2 (06.09.2026, Birk): zehn Fragen zur
     # Wahl, aus denen die Gruppe genau drei antippt. Eigener Marker und
     # nicht ``fragen``, weil ein FRAGENAUSWAHL-Block nichts speichert --
@@ -79,7 +85,11 @@ MARKER = "VORSCHLAG {art}:"
 
 _ZEILE = re.compile(
     r"^\s*VORSCHLAG\s+"
-    r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN|KERNTHEMA|KERNFRAGE|FIGUREN|RICHTUNGEN"
+    # ``FRAGEN WEICH`` steht VOR ``FRAGEN``: eine Alternation nimmt die
+    # erste passende, und ``FRAGEN`` allein wuerde die weichen Fassungen als
+    # neue Frageliste verbuchen.
+    r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN\s+WEICH|FRAGEN|KERNTHEMA|KERNFRAGE"
+    r"|FIGUREN|RICHTUNGEN"
     r"|NAMEN|DUKTUS|RAHMEN"
     r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG)"
     r"\s*:\s*(.*)$",
@@ -90,7 +100,10 @@ _ZEILE = re.compile(
 def marker(art: str) -> str:
     """Die Markerzeile fuer eine Art -- eine Stelle statt vier Zeichenketten
     im Prompt und im Test."""
-    return MARKER.format(art=art.upper())
+    # ``fragen_weich`` heisst im Text ``FRAGEN WEICH`` -- ein Marker ist
+    # etwas, das ein Modell zuverlaessig abschreibt, und ein Unterstrich
+    # gehoert nicht dazu.
+    return MARKER.format(art=art.upper().replace("_", " "))
 
 
 def _zerlege(text: str) -> dict[str, str]:
@@ -109,6 +122,9 @@ def _zerlege(text: str) -> dict[str, str]:
             i += 1
             continue
         art = treffer.group(1).lower()
+        # ``FRAGEN WEICH`` -> ``fragen_weich``: im Text zwei Woerter, im Code
+        # eine Art (und derselbe Name wie die Spalte).
+        art = re.sub(r"\s+", "_", art)
         teile = [treffer.group(2).strip()] if treffer.group(2).strip() else []
         i += 1
         while i < len(zeilen):

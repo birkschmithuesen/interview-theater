@@ -208,12 +208,23 @@ def _einleitungen_geprueft(conn, chat_id: int) -> str:
     also ein ``✅`` mit dem Text "geprueft, keine noetig" und nicht ein
     ewiges ``⬜``. In der Datenbank ist der Unterschied ``NULL`` (nie
     geprueft) gegen ``''`` (geprueft, nichts noetig); dieselbe
-    Unterscheidung wie in ``phasen.voraussetzungen``."""
+    Unterscheidung wie in ``phasen.voraussetzungen``.
+
+    Seit dem 06.09.2026, 10:18 schreibt die Pruefung **weiche Fassungen**
+    (``fragen_weich``) statt Einleitungen; steht dort etwas, ist das der
+    Wert, den ``/stand`` zeigt. ``frage_einleitungen`` bleibt als Rueckfall
+    fuer Gruppen, die den alten Weg gegangen sind."""
     stand = _stand(conn, chat_id)
-    try:
-        roh = stand["frage_einleitungen"] if stand else None
-    except (IndexError, KeyError):
-        return ""
+
+    def hole(name: str):
+        try:
+            return stand[name] if stand else None
+        except (IndexError, KeyError):
+            return None
+
+    roh = hole("fragen_weich")
+    if roh is None:
+        roh = hole("frage_einleitungen")
     if roh is None:
         return ""
     return _einzeilig(roh) or "geprueft, keine noetig"

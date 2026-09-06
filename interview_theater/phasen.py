@@ -393,7 +393,12 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         # Gruppe ging ohne Leitfaden los.
         3: (
             bool(stand and stand["fragen"])
-            and geprueft("frage_einleitungen")
+            # Geprueft ist die Sensibilitaet, sobald EINES der beiden Felder
+            # gesetzt ist: seit dem 06.09.2026, 10:18 schreibt die Pruefung
+            # weiche Fassungen (``fragen_weich``), davor Einleitungen. Eine
+            # Gruppe, die den alten Weg schon hinter sich hat, wird nicht
+            # zurueckgeworfen.
+            and (geprueft("fragen_weich") or geprueft("frage_einleitungen"))
             and feld("interview_eroeffnung")
             and feld("interview_abschluss")
         ),

@@ -785,6 +785,8 @@ def _thema_text(conn, chat_id: int) -> str:
     Seit dem Abend des 05.09.2026 steht hier auch die **Kernfrage** (die
     dramatische Frage samt Gegensatz und Einsatz): sie ist der Faden, an dem
     die Szene haengt, und sie steht vor allem anderen."""
+    from interview_theater import kontext
+
     stand = repo.hole_arbeitsstand(conn, chat_id)
     if not stand:
         return ""
@@ -793,11 +795,9 @@ def _thema_text(conn, chat_id: int) -> str:
     # in ``_format_rahmen_text`` als "Bogen und Ende" (Audit-Befund S1,
     # 06.09.2026 -- wortgleich zweimal im selben Prompt, 260 Zeichen). Ein
     # Fakt, eine Stelle.
-    if stand["kernthema"]:
-        zeile = f"Kernthema: {stand['kernthema']}"
-        if stand["kernthema_begruendung"]:
-            zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
-        zeilen.append(zeile)
+    kernthema = kontext.kernthema_zeile(stand)
+    if kernthema:
+        zeilen.append(kernthema)
     if stand["kernfrage"]:
         zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
     if stand["hauptkonflikt"]:
@@ -1811,10 +1811,7 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str) -> None:
     Senden wird nur geloggt: er darf den Szenenlauf nicht mitreissen."""
     try:
         message_id = tg.sende(chat_id, text)
-        repo.merke_nachricht(
-            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
-            text, repo._jetzt(),
-        )
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     except Exception:
         log.exception("Szenen-Nachricht fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -1997,10 +1994,7 @@ def _sende_szenentext(conn, tg, e, chat_id: int, nummer: int, titel: str,
     text = f"Szene {nummer}: {titel}\n\n{volltext}"
     try:
         message_id = knoepfe.biete_nach_szenentext(conn, tg, chat_id, nummer, text)
-        repo.merke_nachricht(
-            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
-            text, repo._jetzt(),
-        )
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     except Exception:
         log.exception("Szenentext-Leiste fehlgeschlagen, chat_id=%s", chat_id)
         _sende_und_merke(conn, tg, e, chat_id, text)

@@ -266,10 +266,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
     if meldung:
         try:
             message_id = tg.sende(chat_id, meldung)
-            repo.merke_nachricht(
-                conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
-                meldung, repo._jetzt(),
-            )
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, meldung)
         except Exception:
             log.exception("Schaerfungs-Meldung fehlgeschlagen, chat_id=%s", chat_id)
     if nachbereitung is not None:

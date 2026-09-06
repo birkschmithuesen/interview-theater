@@ -414,7 +414,7 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
         # Figuren sind zweistufig (05.09.2026 abends): Ebene 1 ist die Liste
         # mit "Anzahl aendern" und "Namen aendern" -- ein eigener Weg, kein
         # Sonderfall der Grundleiste.
-        from interview_theater.knoepfe import biete_figurenliste
+        from interview_theater.knoepfe.figuren import biete_figurenliste
 
         return biete_figurenliste(conn, tg, chat_id, wert, sauber), True
 
@@ -669,7 +669,7 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
         return _TEXT_UNBEKANNT
 
     if art == "figuren":
-        from interview_theater.knoepfe import _uebernimm_figurenliste
+        from interview_theater.knoepfe.figuren import _uebernimm_figurenliste
 
         return _uebernimm_figurenliste(conn, tg, chat_id, wert)
 

@@ -110,11 +110,33 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
                      if isinstance(b, dict) and b.get("type") == "text"]
             text = "\n".join(teile).strip()
             nutzung = daten.get("usage") or {}
-            _buche(conn, chat_id, e, art, modell, nutzung, daten.get("stop_reason"),
+            stop = daten.get("stop_reason")
+            _buche(conn, chat_id, e, art, modell, nutzung, stop,
                    time.monotonic() - start, erfolg=bool(text))
             if not text:
                 raise ClaudeFehler(
-                    f"keine Textbloecke (stop_reason={daten.get('stop_reason')})"
+                    f"keine Textbloecke (stop_reason={stop})"
+                )
+            # **Ein abgeschnittener Text ist ein Fehler, kein Ergebnis**
+            # (Birk, 06.09.2026: "Nichts darf stillschweigend abgeschnitten
+            # werden."). ``stop_reason=max_tokens`` heisst, dass die Antwort
+            # am Ausgabedeckel endete -- mitten im Satz, ohne die
+            # Pflichtzeilen, ohne Schluss. Bis dahin wanderte so ein Halbtext
+            # als fertige Szene in die Datenbank und in den Chat.
+            if stop and stop != "end_turn":
+                try:
+                    repo.merke_vorfall(
+                        conn, chat_id, getattr(e, "bot_name", None),
+                        "szene_abgeschnitten",
+                        f"stop_reason={stop}, {len(text)} Zeichen, "
+                        f"{nutzung.get('output_tokens')} von {MAX_TOKENS} "
+                        f"Ausgabe-Token",
+                    )
+                except Exception:
+                    log.exception("Vorfall szene_abgeschnitten nicht geschrieben")
+                raise ClaudeFehler(
+                    f"Antwort abgeschnitten (stop_reason={stop}) -- "
+                    f"kein halber Szenentext"
                 )
             return text
         except httpx.HTTPStatusError as fehler:

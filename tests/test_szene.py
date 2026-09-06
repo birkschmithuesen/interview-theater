@@ -10,13 +10,21 @@ Die Threads aus ``szene.starte()`` werden in den Tests eingesammelt
 (``.join()``), damit kein Test dem naechsten in die Datenbank schreibt.
 """
 
+import os
 import threading
 
 import pytest
 
 from interview_theater import anweisungen, repo, szene
 
-ANTWORT = "TITEL: Am Bahnhof\nKURZ: Maria kommt an und trifft Elif.\n\nMARIA: Da.\nELIF: Ja."
+ANTWORT = (
+    "TITEL: Am Bahnhof\n"
+    "KURZ: Maria kommt an und trifft Elif.\n"
+    "ZUSAMMENFASSUNG: Maria steht am Bahnhof und wartet. Elif kommt dazu. "
+    "Sie reden ueber den Koffer. Am Ende gehen sie gemeinsam los.\n"
+    "ANDERS GEMACHT: nichts\n"
+    "\nMARIA: Da.\nELIF: Ja."
+)
 
 
 class LLMAttrappe:
@@ -420,7 +428,7 @@ def test_planungszeile_laesst_weg_was_fehlt(conn):
 
 
 def test_zerlege_trennt_titel_kurz_und_text():
-    titel, kurz, volltext = szene.zerlege(ANTWORT)
+    titel, kurz, _fassung, _anders, volltext = szene.zerlege(ANTWORT)
 
     assert titel == "Am Bahnhof"
     assert kurz == "Maria kommt an und trifft Elif."
@@ -428,7 +436,7 @@ def test_zerlege_trennt_titel_kurz_und_text():
 
 
 def test_zerlege_vertraegt_markdown_um_die_kopfzeilen():
-    titel, kurz, volltext = szene.zerlege("**TITEL:** Am Bahnhof\n**KURZ:** Eine Zeile\n\nMARIA: Da.")
+    titel, kurz, _fassung, _anders, volltext = szene.zerlege("**TITEL:** Am Bahnhof\n**KURZ:** Eine Zeile\n\nMARIA: Da.")
 
     assert (titel, kurz, volltext) == ("Am Bahnhof", "Eine Zeile", "MARIA: Da.")
 
@@ -436,7 +444,7 @@ def test_zerlege_vertraegt_markdown_um_die_kopfzeilen():
 def test_zerlege_ohne_kopf_liefert_den_ganzen_text():
     """Ein fehlender Titel ist kein Grund, einen fertigen Szenentext
     wegzuwerfen -- der Aufrufer setzt dann 'Szene N' ein."""
-    titel, kurz, volltext = szene.zerlege("MARIA: Ohne Kopf.\nELIF: Trotzdem gut.")
+    titel, kurz, _fassung, _anders, volltext = szene.zerlege("MARIA: Ohne Kopf.\nELIF: Trotzdem gut.")
 
     assert titel is None and kurz is None
     assert volltext == "MARIA: Ohne Kopf.\nELIF: Trotzdem gut."
@@ -826,6 +834,34 @@ def test_claude_prosa_liest_textbloecke_und_bucht(conn, einst):
     assert tuple(zeile) == ("C", 20, 1)
 
 
+def test_claude_prosa_gibt_keinen_abgeschnittenen_text_zurueck(conn, einst):
+    """06.09.2026 (Birk: "Nichts darf stillschweigend abgeschnitten
+    werden."): ``stop_reason=max_tokens`` heisst, dass die Antwort am
+    Ausgabedeckel endete -- mitten im Satz, ohne die Pflichtzeilen. Bis dahin
+    wanderte so ein Halbtext als fertige Szene in die Datenbank."""
+    import dataclasses
+
+    import httpx
+
+    from interview_theater import repo, szene_claude
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "content": [{"type": "text", "text": "TITEL: X\n\nMIRA: Halber Sa"}],
+            "stop_reason": "max_tokens",
+            "usage": {"input_tokens": 100, "output_tokens": 32000},
+        })
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler))
+    e = dataclasses.replace(einst, szene_anbieter="claude")
+    with pytest.raises(szene_claude.ClaudeFehler, match="abgeschnitten"):
+        szene_claude.prosa(conn, e, klient, 1, "sys", "nutzer", "szene", timeout=10)
+
+    arten = [z["art"] for z in conn.execute("SELECT art FROM vorfall")]
+    assert "szene_abgeschnitten" in arten
+
+
 def test_usa_frage_blockiert_die_szene_nicht_endlos(conn, einst, tg):
     """Simulation 05.09. (Set birk, Seed 509): Birk sagte "ja stimmt alles"
     und dreimal "jetzt endlich die szene schreiben" -- der Erkenner las das
@@ -1102,10 +1138,11 @@ def test_ohne_volltext_bleibt_es_bei_den_stichzeilen(conn, einst):
     assert szene.CONTINUITY_VOLLTEXT_KOPF.format(nummer=1) not in text
 
 
-def test_zu_lange_volltexte_werden_bei_den_aeltesten_gekuerzt(conn, einst):
-    """Ueber CONTINUITY_ZEICHEN_MAX faellt die AELTESTE Szene auf ihren
-    Schluss zurueck -- die juengste bleibt vollstaendig, an sie wird
-    unmittelbar angeschlossen."""
+def test_zu_lange_volltexte_werden_bei_den_aeltesten_zusammengefasst(conn, einst):
+    """Ueber dem Token-Budget faellt die AELTESTE Szene auf ihre
+    Zusammenfassung zurueck -- die juengste bleibt vollstaendig, an sie wird
+    unmittelbar angeschlossen (Birk, 06.09.2026: "Erste Szenen zuerst per
+    Zusammenfassung")."""
     figur = _figur_mit_stimme(conn)
     lang = "\n".join(f"ZEILE {i}: " + "x" * 100 for i in range(400))
     for nummer in (1, 2):
@@ -1114,22 +1151,368 @@ def test_zu_lange_volltexte_werden_bei_den_aeltesten_gekuerzt(conn, einst):
         repo.aktualisiere_szene(
             conn, zeile["id"], f"Szene {nummer}", "kurz",
             f"ANFANG {nummer}\n{lang}\nSCHLUSS {nummer}",
+            f"In Szene {nummer} passiert etwas.",
         )
     ziel = _geplante_szene(conn, 3, form="Dialog", ort="Treppenhaus",
                            was_passiert="sie streiten", figuren=[figur])
 
-    text = szene.baue_nutzertext(conn, 1, "Szene 3 schreiben", ziel)
+    # Budget knapp unter den Volltexten: eine der beiden muss weichen.
+    os.environ["IT_SZENE_TOKEN_MAX"] = "25000"
+    try:
+        text = szene.baue_nutzertext(conn, 1, "Szene 3 schreiben", ziel)
+    finally:
+        del os.environ["IT_SZENE_TOKEN_MAX"]
 
-    assert szene._TEXT_CONTINUITY_GEKUERZT in text
-    assert "ANFANG 1" not in text, "die aelteste Szene wird gekuerzt"
-    assert "SCHLUSS 1" in text, "ihr Schluss bleibt stehen"
+    assert "ANFANG 1" not in text, "die aelteste Szene wird zusammengefasst"
+    assert "In Szene 1 passiert etwas." in text, "ihre Zusammenfassung steht da"
     assert "ANFANG 2" in text, "die juengste Szene bleibt vollstaendig"
+    assert szene.CONTINUITY_FASSUNG_KOPF.format(nummer=1) in text
 
 
 def test_kuerzung_laesst_kurze_szenen_in_ruhe(conn, einst):
     kurz = "MARIA: Da.\nELIF: Ja."
 
     assert szene._gekuerzter_volltext(kurz) == kurz
+
+
+# ---------------------------------------------------------------------------
+# Zusammenfassung je Szene und Token-Budget (06.09.2026)
+# ---------------------------------------------------------------------------
+
+
+ANTWORT_MIT_FASSUNG = (
+    "TITEL: Am Bahnhof\n"
+    "KURZ: Maria kommt an.\n"
+    "ZUSAMMENFASSUNG: Maria wartet am Bahnhof auf Elif. Sie streiten ueber "
+    "den Koffer. Am Ende geht Maria allein.\n"
+    "ANDERS GEMACHT: Elif kommt nicht vor, die Gruppe wollte sie raus.\n"
+    "\nMARIA: Da.\nELIF: Ja."
+)
+
+
+def test_zerlege_liest_zusammenfassung_und_anders_gemacht():
+    titel, kurz, fassung, anders, volltext = szene.zerlege(ANTWORT_MIT_FASSUNG)
+
+    assert titel == "Am Bahnhof"
+    assert fassung.startswith("Maria wartet am Bahnhof")
+    assert anders == "Elif kommt nicht vor, die Gruppe wollte sie raus."
+    assert volltext == "MARIA: Da.\nELIF: Ja."
+
+
+def test_zerlege_macht_aus_anders_nichts_ein_none():
+    """Eine Journalzeile 'Szene 3: nichts' waere Rauschen."""
+    _t, _k, _f, anders, _v = szene.zerlege(ANTWORT)
+
+    assert anders is None
+
+
+def test_zusammenfassung_wird_gespeichert(conn, einst):
+    _figur_mit_stimme(conn)
+    _geplante_szene(conn, 1, form="Dialog", ort="Bahnhof",
+                    was_passiert="Maria kommt an",
+                    figuren=[repo.hole_figur(conn, 1, "Maria")["id"]])
+    tg = TelegramAttrappe()
+    klm = LLMAttrappe(ANTWORT_MIT_FASSUNG)
+
+    szene.schreibe(conn, tg, klm, einst, 1, "Schreib Szene 1.")
+
+    gespeichert = repo.hole_szenen(conn, 1)[0]
+    assert gespeichert["zusammenfassung"].startswith("Maria wartet am Bahnhof")
+
+
+def test_anders_gemacht_wird_eine_journalzeile(conn, einst):
+    """06.09.2026: der Journal-Extraktor lief an Tag 1 nie -- eine
+    Freitext-Korrektur stand nur im Chat. Jetzt sagt das Modell selbst, was es
+    abweichend gemacht hat, und der Lauf schreibt es ins Journal."""
+    _figur_mit_stimme(conn)
+    _geplante_szene(conn, 1, form="Dialog", ort="Bahnhof",
+                    was_passiert="Maria kommt an",
+                    figuren=[repo.hole_figur(conn, 1, "Maria")["id"]])
+    tg = TelegramAttrappe()
+
+    szene.schreibe(conn, tg, LLMAttrappe(ANTWORT_MIT_FASSUNG), einst, 1,
+                   "Schreib Szene 1.")
+
+    texte = [e["text"] for e in repo.journal(conn, 1)]
+    assert any("Elif kommt nicht vor" in t for t in texte), texte
+
+
+def test_fehlende_zusammenfassung_meldet_einen_vorfall(conn, einst):
+    """Haelt sich das Modell nicht an die Pflichtzeile, ist die Szene
+    trotzdem gut -- aber es wird gemeldet, weil im Prompt dann der Rueckfall
+    greift."""
+    _figur_mit_stimme(conn)
+    _geplante_szene(conn, 1, form="Dialog", ort="Bahnhof",
+                    was_passiert="Maria kommt an",
+                    figuren=[repo.hole_figur(conn, 1, "Maria")["id"]])
+    tg = TelegramAttrappe()
+
+    szene.schreibe(conn, tg, LLMAttrappe("TITEL: Ohne\n\nMARIA: Da."), einst, 1,
+                   "Schreib Szene 1.")
+
+    arten = [
+        z["art"] for z in conn.execute("SELECT art FROM vorfall").fetchall()
+    ]
+    assert "szene_ohne_zusammenfassung" in arten
+
+
+def test_rueckfall_ohne_zusammenfassung_ist_nie_leer(conn, einst):
+    """Bestehende Szenen (Testgruppe: Szene 1 mit Volltext, ohne
+    Zusammenfassung) fallen auf Stichzeilen plus Schluss zurueck -- ohne
+    Modellaufruf."""
+    figur = _figur_mit_stimme(conn)
+    lang = "\n".join(f"ZEILE {i}: " + "x" * 100 for i in range(400))
+    eins = _geplante_szene(conn, 1, ort="Bahnhof", was_passiert="Maria kommt an",
+                           figuren=[figur])
+    repo.aktualisiere_szene(conn, eins["id"], "Ankunft", "kurz",
+                            f"ANFANG\n{lang}\nSCHLUSSZEILE EINS")
+    ziel = _geplante_szene(conn, 2, form="Dialog", ort="Treppenhaus",
+                           was_passiert="sie streiten", figuren=[figur])
+
+    os.environ["IT_SZENE_TOKEN_MAX"] = "6000"
+    try:
+        text = szene.baue_nutzertext(conn, 1, "Szene 2 schreiben", ziel)
+    finally:
+        del os.environ["IT_SZENE_TOKEN_MAX"]
+
+    assert szene.CONTINUITY_FASSUNG_KOPF.format(nummer=1) in text
+    assert "SCHLUSSZEILE EINS" in text, "der Schluss ist der Anschluss"
+    assert "Ort: Bahnhof" in text
+
+
+def test_kleine_szenen_werden_nicht_gekuerzt(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    eins = _geplante_szene(conn, 1, ort="Bahnhof", was_passiert="etwas",
+                           figuren=[figur])
+    repo.aktualisiere_szene(conn, eins["id"], "Ankunft", "kurz",
+                            "MARIA: Da.", "Maria kommt an.")
+    ziel = _geplante_szene(conn, 2, form="Dialog", ort="Treppenhaus",
+                           was_passiert="sie streiten", figuren=[figur])
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 2 schreiben", ziel)
+
+    assert szene.CONTINUITY_VOLLTEXT_KOPF.format(nummer=1) in text
+    assert conn.execute("SELECT count(*) FROM vorfall").fetchone()[0] == 0
+
+
+def test_kuerzung_meldet_einen_vorfall_mit_zahlen(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    lang = "\n".join(f"ZEILE {i}: " + "x" * 100 for i in range(400))
+    for nummer in (1, 2, 3, 4, 5, 6):
+        zeile = _geplante_szene(conn, nummer, ort=f"Ort {nummer}",
+                                was_passiert="etwas", figuren=[figur])
+        repo.aktualisiere_szene(
+            conn, zeile["id"], f"Szene {nummer}", "kurz",
+            f"ANFANG {nummer}\n{lang}\nSCHLUSS {nummer}",
+            f"Zusammenfassung von Szene {nummer}.",
+        )
+    ziel = _geplante_szene(conn, 7, form="Dialog", ort="Treppenhaus",
+                           was_passiert="sie streiten", figuren=[figur])
+
+    os.environ["IT_SZENE_TOKEN_MAX"] = "30000"
+    try:
+        text = szene.baue_nutzertext(conn, 1, "Szene 7 schreiben", ziel)
+    finally:
+        del os.environ["IT_SZENE_TOKEN_MAX"]
+
+    vorfall = conn.execute(
+        "SELECT art, detail FROM vorfall ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    assert vorfall["art"] == "szene_prompt_gekuerzt"
+    assert "Zeichen" in vorfall["detail"] and "Token" in vorfall["detail"]
+    assert "Vorszenen als Zusammenfassung: 1" in vorfall["detail"]
+    # Die juengste Vorszene bleibt voll, die aeltesten nicht.
+    assert "ANFANG 1" not in text
+    assert "ANFANG 6" in text
+    assert szene.schaetze_token(text) <= 30000
+
+
+def test_kopfzeile_nennt_die_aufteilung(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    lang = "\n".join(f"ZEILE {i}: " + "x" * 100 for i in range(400))
+    for nummer in (1, 2, 3):
+        zeile = _geplante_szene(conn, nummer, ort=f"Ort {nummer}",
+                                was_passiert="etwas", figuren=[figur])
+        repo.aktualisiere_szene(
+            conn, zeile["id"], f"Szene {nummer}", "kurz",
+            f"ANFANG {nummer}\n{lang}\nSCHLUSS {nummer}",
+            f"Zusammenfassung {nummer}.",
+        )
+    ziel = _geplante_szene(conn, 4, form="Dialog", ort="Treppenhaus",
+                           was_passiert="sie streiten", figuren=[figur])
+
+    os.environ["IT_SZENE_TOKEN_MAX"] = "30000"
+    try:
+        text = szene.baue_nutzertext(conn, 1, "Szene 4 schreiben", ziel)
+    finally:
+        del os.environ["IT_SZENE_TOKEN_MAX"]
+
+    assert "als Zusammenfassung" in text
+    assert "im vollen Wortlaut" in text
+    assert "Schliesse an Szene 3 an." in text
+
+
+def test_budget_bleibt_unter_fenster_minus_ausgabe():
+    """Die Herleitung, als Test: das Eingabe-Budget muss unter
+    Kontextfenster minus Ausgabedeckel liegen, sonst antwortet die API mit
+    HTTP 400 statt zu kuerzen."""
+    from interview_theater import szene_claude
+
+    assert szene.SZENE_TOKEN_MAX_CLAUDE < (
+        szene.CLAUDE_FENSTER_TOKEN - szene_claude.MAX_TOKENS
+    )
+    assert szene.SZENE_TOKEN_MAX_INFOMANIAK < (
+        szene.INFOMANIAK_GESAMT_TOKEN - szene.MAX_TOKENS
+    )
+    # Und der gemessene Divisor darf nicht ueber der optimistischen Drei
+    # liegen (sonst schaetzt der Szenenlauf zu niedrig).
+    assert szene.SZENE_ZEICHEN_JE_TOKEN < 3
+
+
+def test_budget_kann_per_env_gesetzt_werden():
+    os.environ["IT_SZENE_TOKEN_MAX"] = "44000"
+    try:
+        assert szene.token_budget(True) == 44000
+    finally:
+        del os.environ["IT_SZENE_TOKEN_MAX"]
+    os.environ["IT_SZENE_TOKEN_MAX"] = "unsinn"
+    try:
+        assert szene.token_budget(True) == szene.SZENE_TOKEN_MAX_CLAUDE
+    finally:
+        del os.environ["IT_SZENE_TOKEN_MAX"]
+
+
+def test_stand_und_uebersicht_zeigen_die_zusammenfassung(conn, einst):
+    from interview_theater import phasentexte, szenenfolge
+
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+    sid = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.aktualisiere_szene(conn, sid, "Ankunft", "kurz", "MARIA: Da.",
+                            "Maria kommt am Bahnhof an und wartet.")
+
+    zeilen = phasentexte.zusammenfassungszeilen(conn, 1)
+    assert zeilen == ["Szene 1: Maria kommt am Bahnhof an und wartet."]
+    assert "Maria kommt am Bahnhof an" in szenenfolge.uebersicht(conn, 1)
+
+
+def test_web_zeigt_die_zusammenfassung_read_only(conn, einst):
+    from interview_theater import web_daten
+
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+    sid = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.aktualisiere_szene(conn, sid, "Ankunft", "kurz", "MARIA: Da.",
+                            "Maria kommt am Bahnhof an.")
+
+    szenen = web_daten._szenen(conn, 1)
+    assert szenen[0]["zusammenfassung"] == "Maria kommt am Bahnhof an."
+
+
+# ---------------------------------------------------------------------------
+# Der Chat im Szenen-Prompt (06.09.2026)
+# ---------------------------------------------------------------------------
+
+
+def _nachricht(conn, text, ist_bot=0, minuten=0, absender="Birk"):
+    from datetime import datetime, timedelta, timezone
+
+    zeit = (datetime.now(timezone.utc) - timedelta(minutes=minuten)).isoformat(
+        timespec="seconds"
+    )
+    _nachricht.zaehler = getattr(_nachricht, "zaehler", 0) + 1
+    conn.execute(
+        "INSERT INTO nachricht (chat_id, message_id, absender, ist_bot, typ, "
+        "text, gesendet_am) VALUES (?, ?, ?, ?, 'text', ?, ?)",
+        (1, _nachricht.zaehler, absender, ist_bot, text, zeit),
+    )
+    conn.commit()
+
+
+def test_chatblock_steht_im_prompt_und_ist_chronologisch(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    _nachricht(conn, "Die Szene soll kuerzer werden.", minuten=5)
+    _nachricht(conn, "Verstanden.", ist_bot=1, minuten=4)
+    _nachricht(conn, "Und ohne den Bruder.", minuten=3)
+    ziel = _geplante_szene(conn, 1, form="Dialog", ort="Bahnhof",
+                           was_passiert="etwas", figuren=[figur])
+
+    text = szene.baue_nutzertext(conn, 1, "Schreib Szene 1", ziel)
+
+    assert szene.CHAT_KOPF in text
+    assert text.index("Die Szene soll kuerzer werden.") < text.index(
+        "Und ohne den Bruder."
+    ), "chronologisch, aelteste zuerst"
+    # Der Chat steht vor den Angaben dieser Szene.
+    assert text.index(szene.CHAT_KOPF) < text.index(szene.DIESE_SZENE_KOPF)
+
+
+def test_chatblock_traegt_keine_klarnamen(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    _nachricht(conn, "Mach es kuerzer.", absender="Birk", minuten=2)
+    ziel = _geplante_szene(conn, 1, form="Dialog", ort="Bahnhof",
+                           was_passiert="etwas", figuren=[figur])
+
+    text = szene.baue_nutzertext(conn, 1, "Schreib Szene 1", ziel)
+
+    assert "Birk" not in text
+    assert "Gruppe: Mach es kuerzer." in text
+
+
+def test_chatblock_traegt_die_regienotizen_dieser_szene(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    repo.schreibe_journal(conn, 1, "entschieden", "Szene 1: ohne den Bruder",
+                          quelle="test")
+    repo.schreibe_journal(conn, 1, "entschieden", "Szene 5: irgendwas anderes",
+                          quelle="test")
+    ziel = _geplante_szene(conn, 1, form="Dialog", ort="Bahnhof",
+                           was_passiert="etwas", figuren=[figur])
+
+    text = szene.baue_nutzertext(conn, 1, "Schreib Szene 1", ziel)
+
+    assert "Szene 1: ohne den Bruder" in text
+    assert "Szene 5: irgendwas anderes" not in text
+
+
+def test_chatblock_wird_gekuerzt_aber_nie_entfernt(conn, einst):
+    figur = _figur_mit_stimme(conn)
+    lang = "\n".join(f"ZEILE {i}: " + "x" * 100 for i in range(400))
+    for nummer in (1, 2):
+        zeile = _geplante_szene(conn, nummer, ort=f"Ort {nummer}",
+                                was_passiert="etwas", figuren=[figur])
+        repo.aktualisiere_szene(conn, zeile["id"], f"Szene {nummer}", "kurz",
+                                f"ANFANG {nummer}\n{lang}\nSCHLUSS {nummer}",
+                                f"Zusammenfassung {nummer}.")
+    for i in range(20):
+        _nachricht(conn, f"Nachricht {i} " + "y" * 200, minuten=20 - i)
+    ziel = _geplante_szene(conn, 3, form="Dialog", ort="Treppenhaus",
+                           was_passiert="etwas", figuren=[figur])
+
+    os.environ["IT_SZENE_TOKEN_MAX"] = "2000"
+    try:
+        text = szene.baue_nutzertext(conn, 1, "Szene 3 schreiben", ziel)
+    finally:
+        del os.environ["IT_SZENE_TOKEN_MAX"]
+
+    assert szene.CHAT_KOPF in text, "der Chat faellt nie ganz weg"
+    assert "Nachricht 19" in text, "die juengsten Nachrichten bleiben"
+    assert "Nachricht 0" not in text, "die aeltesten fallen weg"
+
+
+def test_chatfenster_reicht_bis_zur_letzten_fassung(conn, einst):
+    """Freitext-Korrekturen zwischen zwei Fassungen gehen nicht verloren,
+    auch wenn mehr als FENSTER_MINUTEN dazwischen liegen."""
+    figur = _figur_mit_stimme(conn)
+    ziel = _geplante_szene(conn, 1, form="Dialog", ort="Bahnhof",
+                           was_passiert="etwas", figuren=[figur])
+    repo.aktualisiere_szene(conn, ziel["id"], "Alt", "kurz", "MARIA: Alt.",
+                            "Alte Fassung.")
+    ziel = repo.hole_szene(conn, ziel["id"])
+    # Zwei Stunden alt -- weit ausserhalb des Zeitfensters, aber nach der
+    # letzten Fassung.
+    _nachricht(conn, "Bitte ohne den Bruder.", minuten=0)
+
+    text = szene.baue_nutzertext(conn, 1, "Schreib Szene 1 neu", ziel)
+
+    assert "Bitte ohne den Bruder." in text
 
 
 def test_die_aufgabe_der_szene_steht_im_prompt(conn):

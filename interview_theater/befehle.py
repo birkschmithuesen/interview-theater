@@ -507,6 +507,15 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
         zeilen.append(f"{phasen.bezeichnung(nummer)}")
         zeilen.extend(block)
     zeilen.append("")
+    # Je geschriebener Szene eine Zeile, was in ihr passiert (06.09.2026).
+    # Sie steht nach den Phasenbloecken und vor dem Kernthema: das ist der
+    # Inhalt des Stuecks, und eine Gruppe, die ``/stand`` aufruft, sucht
+    # genau ihn -- die Phasenbloecke nennen nur Nummer, Titel und Form.
+    fassungen = phasentexte.zusammenfassungszeilen(conn, chat_id)
+    if fassungen:
+        zeilen.append("Was bisher passiert:")
+        zeilen.extend(fassungen)
+        zeilen.append("")
     if stand and stand["kernthema"]:
         zeilen.append(f"Kernthema: {stand['kernthema']}")
     # Der Hauptkonflikt steht nur da, wenn es einen gibt (05.09.2026): er ist

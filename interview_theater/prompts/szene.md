@@ -231,12 +231,17 @@ danach. Genau in dieser Form:
 ```
 TITEL: <kurzer Szenentitel, hoechstens fuenf Woerter>
 KURZ: <eine einzige Zeile, was in der Szene passiert>
+ZUSAMMENFASSUNG: <3-5 Saetze: wer, wo, was passiert, wie es ausgeht, was am Ende anders ist -- der Stand, den die naechste Szene braucht>
+ANDERS GEMACHT: <was du wegen des Chats anders gemacht hast als die Angaben sagen, oder das Wort "nichts">
 
 <hier die Szene>
 ```
 
-Die ersten beiden Zeilen sind Pflicht und stehen genau so da -- sie werden
-maschinell ausgelesen. Danach eine Leerzeile, dann die Szene.
+Die ersten vier Zeilen sind Pflicht und stehen genau so da -- sie werden
+maschinell ausgelesen. Danach eine Leerzeile, dann die Szene. Die
+Zusammenfassung tritt in spaeteren Laeufen an die Stelle deines Volltexts,
+wenn der Prompt sonst zu lang wuerde: Namen statt "sie", das Ende
+ausdruecklich.
 
 ## Bevor du abgibst -- fuenf Pruefungen, in dieser Reihenfolge
 

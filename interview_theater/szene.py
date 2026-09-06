@@ -62,6 +62,7 @@ haette die Gruppe minutenlang hingehalten.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
 
@@ -912,19 +913,134 @@ CONTINUITY_ANSCHLUSS = (
 #: Wie ein Volltext im Continuity-Block ueberschrieben wird.
 CONTINUITY_VOLLTEXT_KOPF = "Szene {nummer} - vollstaendiger Text:"
 
-#: Ab wie vielen Zeichen an Volltexten gekuerzt wird. MAX_TOKENS = 200.000
-#: reicht fuer sechs Szenen bequem; der Deckel faengt den Ausreisser ab (sechs
-#: sehr lange Szenen), damit Infomaniaks max_total_tokens nicht gerissen wird.
-#: Gekuerzt werden die AELTESTEN Szenen -- die juengste ist die, an die
-#: unmittelbar angeschlossen wird.
-CONTINUITY_ZEICHEN_MAX = 60_000
+#: Wie eine auf ihre Zusammenfassung reduzierte Szene ueberschrieben wird
+#: (06.09.2026). Sie steht ausdruecklich als Zusammenfassung da und nicht als
+#: gekuerzter Text: eine stille Auslassung saehe fuer das Modell aus wie eine
+#: Szene, die so kurz war.
+CONTINUITY_FASSUNG_KOPF = "Szene {nummer} - Zusammenfassung (nicht der Wortlaut):"
 
-#: Wie viele Zeilen einer gekuerzten Szene stehen bleiben: ihr Schluss. Genau
-#: er ist der Anschluss -- wie eine Szene ausgeht, entscheidet, wie die
-#: naechste anfaengt.
+#: Der Schluessel der dritten Pflichtzeile der Modellantwort.
+ZUSAMMENFASSUNG_SCHLUESSEL = "ZUSAMMENFASSUNG"
+
+#: Der Schluessel der vierten Pflichtzeile (06.09.2026): was das Modell wegen
+#: des Chats oder einer Regie-Notiz von den gespeicherten Angaben abweichend
+#: gemacht hat. Sie ist der Weg, auf dem eine Freitext-Korrektur der Gruppe
+#: nach dem Lauf im **Journal** landet und nicht nur im Szenentext -- der
+#: Journal-Extraktor greift erst, wenn 2.000 Zeichen aus dem Gespraechsfenster
+#: verdraengt wurden, und lief an Tag 1 nie.
+ANDERS_SCHLUESSEL = "ANDERS GEMACHT"
+
+#: Was in dieser Zeile "nichts" heisst. Eine Journalzeile "Szene 3: nichts"
+#: waere Rauschen im Arbeitsstand.
+_ANDERS_NICHTS = ("nichts", "keine abweichung", "keine", "-", "nichts anders")
+
+#: Der Kopf der Journalzeile, die aus "ANDERS GEMACHT" entsteht.
+_JOURNAL_ANDERS = "Szene {nummer}: {text}"
+
+#: Zeilenkopf der Zusammenfassung in ``/stand`` und in der Phase-8-Uebersicht.
+STAND_ZUSAMMENFASSUNG = "Szene {nummer}: {text}"
+
+#: Wie viele Zeilen einer Szene ohne eigene Zusammenfassung stehen bleiben:
+#: ihr Schluss. Genau er ist der Anschluss -- wie eine Szene ausgeht,
+#: entscheidet, wie die naechste anfaengt.
 CONTINUITY_KUERZUNG_ZEILEN = 15
 
 _TEXT_CONTINUITY_GEKUERZT = "(Anfang gekuerzt, hier der Schluss der Szene:)"
+
+#: **Das Token-Budget des Szenen-Prompts -- hergeleitet, nicht gesetzt**
+#: (Birk, 06.09.2026 04:30: *"Ob 50k fuer Reasoning reicht, nicht behaupten,
+#: sondern pruefen; lieber konservativ; nichts darf abgeschnitten werden."*).
+#:
+#: **Zeichen je Token: 1,9, nicht 3.** ``kontext._ZEICHEN_JE_TOKEN`` = 3 ist
+#: fuer ein Qualitaetsbudget gut genug; als harte Fenstergrenze waere es
+#: gefaehrlich. Gemessen am 06.09.2026 gegen den Proxy
+#: (``POST /v1/messages/count_tokens``, claude-opus-5, echter Szenen-Prompt
+#: der Testgruppe): **38.610 Zeichen = 20.222 Token = 1,909 Zeichen je
+#: Token** -- die Drei-Zeichen-Regel haette 12.870 geschaetzt und damit um
+#: 36 % zu niedrig gelegen. Deutscher Prosatext mit Umlauten und
+#: Eigennamen tokenisiert schlechter als englischer Fliesstext. Der Wert
+#: deckt sich mit den gebuchten Laeufen (``aufruf``: 19.024 / 15.030 /
+#: 14.920 / 13.689 / 12.575 Eingabe-Token, alle ``stop_reason=end_turn``).
+SZENE_ZEICHEN_JE_TOKEN = 1.9
+
+#: Kontextfenster von claude-opus-5: **200.000 Token fuer Eingabe UND
+#: Ausgabe zusammen** -- Eingabe + ``max_tokens`` muessen darunter bleiben.
+#: (Anthropic, Models overview, Stand 06.09.2026: das dort genannte 1M-Fenster
+#: gilt fuer die aktuelle API-Generation; der hier benutzte Proxy faehrt das
+#: konservative 200k-Fenster, und konservativ ist genau das, was hier
+#: gebraucht wird -- ein zu grosszuegiges Budget quittiert die API mit
+#: HTTP 400 statt mit einer Kuerzung.)
+CLAUDE_FENSTER_TOKEN = 200_000
+
+#: Das Fenster des Infomaniak-Pfads: Eingabe und Ausgabe zaehlen dort gegen
+#: ein **gemeinsames** ``max_total_tokens = 249.984``
+#: (SPEC-kontext-architektur.md, Nachtrag zu ``szene.MAX_TOKENS``). Weil
+#: ``llm.prosa`` mit ``max_tokens = MAX_TOKENS`` = 200.000 gerufen wird, bleibt
+#: dort rechnerisch nur der Rest fuer die Eingabe -- deutlich weniger als beim
+#: Claude-Pfad. Das ist ein Befund, keine Annahme: wer dem Szenenlauf ueber
+#: Infomaniak mehr Eingabe geben will, muss ``MAX_TOKENS`` senken.
+INFOMANIAK_GESAMT_TOKEN = 249_984
+
+#: Sicherheitsabschlag auf das rechnerische Budget: 25 %. Er faengt ab, was
+#: die Zeichenschaetzung nicht sieht -- Systemanweisung, Formatierung des
+#: Anbieters, Sonderzeichen in einem Interviewzitat, und die Schwankung der
+#: Tokenisierung zwischen 1,9 und (im schlechtesten gemessenen Fall) knapp
+#: darunter.
+BUDGET_RESERVE = 0.75
+
+#: Eingabe-Budget des Claude-Pfads: (200.000 - 32.000 Ausgabedeckel) x 0,75.
+#: Gemessene Laeufe brauchen davon rund 15 % -- der Deckel ist die Bremse fuer
+#: den Ausreisser (sechs lange Vorszenen im Volltext), nicht der Normalfall.
+SZENE_TOKEN_MAX_CLAUDE = int(
+    (CLAUDE_FENSTER_TOKEN - szene_claude.MAX_TOKENS) * BUDGET_RESERVE
+)
+
+#: Eingabe-Budget des Infomaniak-Pfads: (249.984 - 200.000) x 0,75. Klein,
+#: aber ehrlich -- siehe ``INFOMANIAK_GESAMT_TOKEN``.
+SZENE_TOKEN_MAX_INFOMANIAK = int(
+    (INFOMANIAK_GESAMT_TOKEN - MAX_TOKENS) * BUDGET_RESERVE
+)
+
+#: Ab diesem Anteil des Budgets warnt der Lauf nach dem Aufruf ins Log --
+#: mit den TATSAECHLICHEN Token des Anbieters, nicht mit der Schaetzung. So
+#: bleibt die Herleitung oben im Betrieb messbar und faellt auf, bevor sie
+#: reisst.
+BUDGET_WARNSCHWELLE = 0.9
+
+
+def token_budget(claude: bool) -> int:
+    """Das geltende Eingabe-Budget in Token, je nach Anbieter.
+
+    ``IT_SZENE_TOKEN_MAX`` ueberschreibt beides -- bei jedem Aufruf gelesen
+    (wie ``kontext.zeichengrenze``): am Workshoptag soll eine Korrektur ohne
+    Neustart wirken. Ein unlesbarer oder unsinniger Wert faellt still auf die
+    Herleitung zurueck."""
+    vorgabe = SZENE_TOKEN_MAX_CLAUDE if claude else SZENE_TOKEN_MAX_INFOMANIAK
+    roh = os.environ.get("IT_SZENE_TOKEN_MAX")
+    if not roh:
+        return vorgabe
+    try:
+        wert = int(roh)
+    except ValueError:
+        log.warning("IT_SZENE_TOKEN_MAX unlesbar (%r), nehme %d", roh, vorgabe)
+        return vorgabe
+    if wert < 1_000:
+        log.warning("IT_SZENE_TOKEN_MAX zu klein (%d), nehme %d", wert, vorgabe)
+        return vorgabe
+    return wert
+
+
+def schaetze_token(text: str) -> int:
+    """Tokenschaetzung fuer den Szenen-Prompt: Zeichen ÷ 1,9 (gemessen, siehe
+    ``SZENE_ZEICHEN_JE_TOKEN``). Bewusst NICHT ``kontext.schaetze``: dessen
+    Divisor 3 ist fuer ein Qualitaetsbudget gedacht, hier zaehlt eine harte
+    Fenstergrenze."""
+    return int(len(text) / SZENE_ZEICHEN_JE_TOKEN)
+
+
+#: Auf so viele Zitate je Figur faellt das Sprachprofil zurueck, wenn selbst
+#: nach allen anderen Kuerzungen nichts passt (letzte Stufe).
+SPRACHPROFIL_ZITATE_MAX = 3
 
 
 def _gekuerzter_volltext(volltext: str) -> str:
@@ -938,60 +1054,149 @@ def _gekuerzter_volltext(volltext: str) -> str:
     return f"{_TEXT_CONTINUITY_GEKUERZT}\n{schluss}"
 
 
-def _continuity_text(conn, chat_id: int, nummer: int | None) -> str:
-    """Block 4: die frueheren Szenen, mechanisch aus der Datenbank -- mit
-    Stichzeilen UND vollstaendigem Text.
+def _zusammenfassung_fuer(conn, szene) -> str:
+    """Die Zusammenfassung einer Szene fuer den Continuity-Block -- oder der
+    Rueckfall, wenn sie keine hat.
+
+    **Der Rueckfall ist nie leer** (06.09.2026). Bestehende Szenen stammen aus
+    der Zeit vor der Pflichtzeile, und ein Modell, das sich nicht daran haelt,
+    darf keine Luecke im Prompt hinterlassen: dann stehen die Stichzeilen
+    (Ort, Wer, Was passiert, Was anders) und die letzten
+    ``CONTINUITY_KUERZUNG_ZEILEN`` Zeilen des Textes da. Bewusst wird dafuer
+    **kein Modell** gerufen -- ein automatischer Opus-Aufruf ohne Auftrag der
+    Gruppe waere Geld, das niemand bewilligt hat."""
+    eigene = ""
+    try:
+        eigene = (szene["zusammenfassung"] or "").strip()
+    except (IndexError, KeyError):
+        eigene = ""
+    if eigene:
+        return eigene
+    zeilen = _szenenfelder_zeilen(conn, szene, _CONTINUITY_FELDER)
+    text = (szene["volltext"] or "").strip()
+    if text:
+        zeilen.append(_gekuerzter_volltext(text))
+    if not zeilen:
+        return "(keine Angaben zu dieser Szene)"
+    return "\n".join(zeilen)
+
+
+def _continuity_bloecke(conn, chat_id: int, nummer: int | None) -> list[dict]:
+    """Die frueheren Szenen als Bausteine: je Szene Kopf, Stichzeilen,
+    Volltext und Zusammenfassung -- unentschieden, was davon in den Prompt
+    geht. Die Entscheidung faellt in ``baue_nutzertext``, wenn feststeht, wie
+    viel Platz uebrig ist.
 
     **Nur Szenen mit kleinerer Nummer** -- was danach kommt, ist fuer diese
     Szene keine Vorgeschichte, und eine Szene 5 als "bisher" zu lesen waere
     schlicht falsch. Ohne genannte Nummer (ein Auftrag ohne Szenenzahl) zaehlt
-    alles Vorhandene als bisher.
-
-    **Der Volltext geht mit** (05.09.2026, Birk nach der Testgruppe): bis
-    dahin standen hier nur Ort, Wer, Was passiert und Was anders -- Szene 2
-    kannte Szene 1 damit nicht wirklich, weder ihre Saetze noch ihren Ton.
-    Der Platz ist da: ``MAX_TOKENS`` = 200.000.
-
-    Wird es doch zu viel (``CONTINUITY_ZEICHEN_MAX``), werden die AELTESTEN
-    Szenen auf Stichzeilen plus ihren Schluss gekuerzt -- die juengste bleibt
-    vollstaendig, denn an sie wird unmittelbar angeschlossen."""
+    alles Vorhandene als bisher."""
     frueher = [
         s for s in repo.hole_szenen(conn, chat_id)
         if s["nummer"] is not None
         and (nummer is None or s["nummer"] < nummer)
     ]
-    if not frueher:
-        return ""
-
-    # Von hinten nach vorn ausgeben, wer noch vollstaendig mitgeht: die
-    # juengste Szene zuerst ins Budget, die aelteste zuletzt.
-    voll = set()
-    summe = 0
-    for szene in reversed(frueher):
-        text = (szene["volltext"] or "").strip()
-        if not text:
-            continue
-        if summe + len(text) > CONTINUITY_ZEICHEN_MAX:
-            continue
-        summe += len(text)
-        voll.add(szene["id"])
-
-    bloecke = []
+    bausteine = []
     for szene in frueher:
         kopf = f"Szene {szene['nummer']}"
         if szene["titel"]:
             kopf += f": {szene['titel']}"
         angaben = _szenenfelder_zeilen(conn, szene, _CONTINUITY_FELDER)
-        teile = [kopf + ("\n  " + "\n  ".join(angaben) if angaben else "")]
-        text = (szene["volltext"] or "").strip()
-        if text:
+        bausteine.append({
+            "nummer": szene["nummer"],
+            "kopf": kopf + ("\n  " + "\n  ".join(angaben) if angaben else ""),
+            "volltext": (szene["volltext"] or "").strip(),
+            "zusammenfassung": _zusammenfassung_fuer(conn, szene),
+        })
+    return bausteine
+
+
+def _continuity_kennzeichnung(bausteine: list[dict], voll: set[int]) -> str:
+    """Der ehrliche Satz darueber, welche Szene vollstaendig dasteht und
+    welche nur als Zusammenfassung (Birk, 06.09.2026: keine stillen
+    Auslassungen).
+
+    Er nennt Nummern, keine Mengen: "Szene 1-2 als Zusammenfassung, Szene 3 im
+    vollen Wortlaut -- schliesse an Szene 3 an". Ein Modell, das nicht weiss,
+    dass es eine Kurzfassung liest, behandelt sie wie den Wortlaut und
+    wiederholt Saetze, die so nie gefallen sind."""
+    mit_text = [b for b in bausteine if b["volltext"]]
+    if not mit_text:
+        return ""
+    kurz = [b["nummer"] for b in mit_text if b["nummer"] not in voll]
+    ganz = [b["nummer"] for b in mit_text if b["nummer"] in voll]
+    if not kurz:
+        return ""
+    teile = [f"Szene {_nummernfolge(kurz)} als Zusammenfassung"]
+    if ganz:
+        teile.append(f"Szene {_nummernfolge(ganz)} im vollen Wortlaut")
+    satz = ", ".join(teile) + "."
+    if ganz:
+        satz += f" Schliesse an Szene {max(ganz)} an."
+    return satz
+
+
+def _nummernfolge(nummern: list[int]) -> str:
+    """``[1, 2, 3]`` -> ``"1-3"``, ``[1, 3]`` -> ``"1 und 3"`` -- eine Zeile
+    Kosmetik, damit der Kennzeichnungssatz lesbar bleibt."""
+    if not nummern:
+        return ""
+    if len(nummern) == 1:
+        return str(nummern[0])
+    if nummern == list(range(min(nummern), max(nummern) + 1)):
+        return f"{min(nummern)}-{max(nummern)}"
+    return ", ".join(str(n) for n in nummern[:-1]) + f" und {nummern[-1]}"
+
+
+def _continuity_text(conn, chat_id: int, nummer: int | None,
+                     voll: set[int] | None = None) -> str:
+    """Block 4: die frueheren Szenen, mechanisch aus der Datenbank.
+
+    ``voll`` sagt, welche Szenennummern im vollen Wortlaut dastehen duerfen;
+    alle uebrigen erscheinen als Zusammenfassung. ``None`` heisst "alle voll"
+    -- so wird der Block zuerst gebaut, und erst wenn der GESAMTE Nutzertext
+    ueber ``SZENE_TOKEN_MAX`` liegt, wird er mit einem kleineren ``voll`` neu
+    gebaut (``baue_nutzertext``).
+
+    **Der Volltext geht mit** (05.09.2026, Birk nach der Testgruppe): bis
+    dahin standen hier nur Ort, Wer, Was passiert und Was anders -- Szene 2
+    kannte Szene 1 damit nicht wirklich, weder ihre Saetze noch ihren Ton.
+
+    **Gekuerzt wird von der AELTESTEN Szene an** (06.09.2026, Birk: *"Erste
+    Szenen zuerst per Zusammenfassung."*). Die juengste Vorszene bleibt so
+    lange wie irgend moeglich vollstaendig: an sie wird unmittelbar
+    angeschlossen, und ihr Wortlaut ist der Ton, den die neue Szene
+    weiterfuehrt."""
+    bausteine = _continuity_bloecke(conn, chat_id, nummer)
+    if not bausteine:
+        return ""
+    if voll is None:
+        voll = {b["nummer"] for b in bausteine}
+
+    bloecke = []
+    for b in bausteine:
+        teile = [b["kopf"]]
+        if b["volltext"] and b["nummer"] in voll:
             teile.append(
-                CONTINUITY_VOLLTEXT_KOPF.format(nummer=szene["nummer"])
-                + "\n"
-                + (text if szene["id"] in voll else _gekuerzter_volltext(text))
+                CONTINUITY_VOLLTEXT_KOPF.format(nummer=b["nummer"])
+                + "\n" + b["volltext"]
+            )
+        elif b["volltext"]:
+            # Nur wo es einen Text GIBT, steht eine Zusammenfassung: eine
+            # bloss geplante Szene hat nichts zusammenzufassen, und ihr
+            # Rueckfall waeren exakt die Stichzeilen, die schon im Kopf
+            # stehen (Dublette -- Prompt-Audit-Regel 1).
+            teile.append(
+                CONTINUITY_FASSUNG_KOPF.format(nummer=b["nummer"])
+                + "\n" + b["zusammenfassung"]
             )
         bloecke.append("\n\n".join(teile))
-    return CONTINUITY_KOPF + "\n" + CONTINUITY_ANSCHLUSS + "\n\n" + "\n\n".join(bloecke)
+
+    kopf = [CONTINUITY_KOPF, CONTINUITY_ANSCHLUSS]
+    kennzeichnung = _continuity_kennzeichnung(bausteine, voll)
+    if kennzeichnung:
+        kopf.append(kennzeichnung)
+    return "\n".join(kopf) + "\n\n" + "\n\n".join(bloecke)
 
 
 #: Ueberschrift von Block 6. Der Satz dahinter ist der Kern der Umstellung:
@@ -1097,6 +1302,140 @@ def _verworfen_text(conn, chat_id: int) -> str:
     )
 
 
+#: Ueberschrift des Chat-Blocks (06.09.2026, Birk: *"Der Szenenlauf sollte
+#: auch den Chat mitbekommen, sonst kann nie von der vorgegebenen Struktur
+#: abgewichen werden und es kommt immer zu Situationen, wo das Modell
+#: scheinbar nicht richtig reagiert oder sich wiederholt."*).
+CHAT_KOPF = "Was die Gruppe zuletzt dazu gesagt hat:"
+
+#: Der Satz, der sagt, was mit dem Chat zu tun ist. Er raeumt den Vorrang
+#: ausdruecklich ein: die gespeicherten Angaben sind der Stand von gestern,
+#: der Chat ist die frische Absicht -- und ohne diesen Satz gewinnt im Zweifel
+#: das, was oefter und strukturierter im Prompt steht (die Felder).
+CHAT_ANSCHLUSS = (
+    "Der Chat unten ist die frische Absicht der Gruppe. Widerspricht er den "
+    "gespeicherten Angaben, gilt der Chat -- und du sagst in der "
+    "Zusammenfassungszeile, was du deshalb anders gemacht hast. Wiederhole "
+    "nicht, was die Gruppe an einer frueheren Fassung bemaengelt hat."
+)
+
+#: Kopf ueber den Journalzeilen zu genau dieser Szene.
+CHAT_REGIE_KOPF = "Notizen der Gruppe zu dieser Szene:"
+
+#: Wie viele Chatnachrichten hoechstens mitgehen -- dieselbe Zahl wie im
+#: Gespraechsfenster (``kontext.FENSTER_NACHRICHTEN``), aber eigenstaendig:
+#: hier ist es ein Untergrenze-Fenster, dort eine Obergrenze.
+CHAT_NACHRICHTEN = 20
+
+#: Auf so viele Nachrichten faellt der Block zurueck, wenn das Budget nicht
+#: reicht. **Nie auf null**: der Chat ist der einzige Weg, auf dem eine
+#: Freitext-Korrektur ueberhaupt in den Lauf kommt.
+CHAT_NACHRICHTEN_KURZ = 10
+
+#: So viele Zeichen einer Bot-Nachricht gehen mit. Der Bot schickt ganze
+#: Szenentexte in den Chat -- die stehen als Continuity schon im Prompt, und
+#: ein zweites Mal waeren sie die groesste Dublette ueberhaupt
+#: (Prompt-Audit-Regel 1).
+CHAT_BOT_ZEICHEN = 300
+
+
+def _chat_nachrichten(conn, chat_id: int, ziel, anzahl: int) -> list:
+    """Die Nachrichten, die in den Chat-Block gehoeren -- **seit der letzten
+    Fassung dieser Szene**, mindestens aber die letzten ``anzahl`` bzw. die
+    letzten ``kontext.FENSTER_MINUTEN`` (06.09.2026, Birk).
+
+    Der Grund fuer das Fassungs-Fenster: eine Gruppe schreibt um 14 Uhr "die
+    Szene ist zu lang", geht essen und drueckt um 16 Uhr "neu schreiben". Ein
+    reines Zeitfenster haette die Korrektur da laengst vergessen -- ein
+    Fenster, das an ``szene.geaendert_am`` haengt, nie.
+
+    Systemzeilen, Interview-Echos und die Bin-wieder-da-Meldungen fallen
+    heraus (``kontext._ist_systemzeile``, ``repo.letzte_nachrichten``): sie
+    sind Ereignisse, keine Gespraechsbeitraege."""
+    from datetime import datetime, timedelta
+
+    from interview_theater import kontext
+
+    roh = [
+        n for n in repo.letzte_nachrichten(conn, chat_id, anzahl=kontext._FENSTER_POOL)
+        if not kontext._ist_systemzeile(n)
+    ]
+    roh.sort(key=lambda n: n["gesendet_am"])
+    if not roh:
+        return []
+
+    juengste = datetime.fromisoformat(roh[-1]["gesendet_am"])
+    zeitfenster = [
+        n for n in roh[-anzahl:]
+        if datetime.fromisoformat(n["gesendet_am"])
+        >= juengste - timedelta(minutes=kontext.FENSTER_MINUTEN)
+    ]
+
+    seit = None
+    if ziel is not None:
+        try:
+            seit = ziel["geaendert_am"]
+        except (IndexError, KeyError):
+            seit = None
+    seit_fassung = [n for n in roh if seit and n["gesendet_am"] >= seit]
+
+    # Die groessere der beiden Mengen, gedeckelt auf ``anzahl``: was seit der
+    # letzten Fassung kam, ist der Kern -- das Zeitfenster ist die Untergrenze
+    # fuer eine Szene, die gerade erst geschrieben wurde.
+    gewaehlt = seit_fassung if len(seit_fassung) > len(zeitfenster) else zeitfenster
+    return gewaehlt[-anzahl:]
+
+
+def _regienotizen(conn, chat_id: int, nummer: int | None) -> list[str]:
+    """Die Journalzeilen, die diese Szene beim Namen nennen -- Festlegungen
+    und Verworfenes (``entschieden``/``verworfen``).
+
+    Sie stehen im Chat-Block und nicht im Verworfen-Block, weil sie zu genau
+    dieser Szene gehoeren und nicht zum Stueck. Hintergrund (06.09.2026): der
+    Journal-Extraktor laeuft erst, wenn 2.000 Zeichen aus dem Fenster
+    verdraengt wurden, und lief an Tag 1 nie -- Freitext-Korrekturen zu Szenen
+    standen ausschliesslich im Chat."""
+    if nummer is None:
+        return []
+    marke = f"Szene {nummer}"
+    return [
+        f"- {e['text']}" for e in repo.journal(conn, chat_id)
+        if e["art"] in ("entschieden", "verworfen") and marke in (e["text"] or "")
+    ]
+
+
+def _chat_text(conn, chat_id: int, ziel, nummer: int | None,
+               anzahl: int = CHAT_NACHRICHTEN) -> str:
+    """Block: der frische Chat plus die Regie-Notizen zu dieser Szene.
+
+    **Ohne Klarnamen** (AGENTS.md, Anti-Klarnamen-Regel): jede Nachricht der
+    Gruppe steht als ``Gruppe:``, jede des Bots als ``Du:``. Der
+    Telegram-Vorname wandert bewusst NICHT mit -- ein Modell, dem er
+    vorliegt, baut ihn in den Szenentext ein ("spricht wie Birk"), und in
+    einem Prompt, der ausserdem in die USA geht, hat er nichts zu suchen.
+    Genau deshalb wird hier auch nicht ``kontext.sprecherzeile``
+    wiederverwendet: die setzt den Vornamen."""
+    zeilen = []
+    for n in _chat_nachrichten(conn, chat_id, ziel, anzahl):
+        text = (n["text"] or "").strip()
+        if n["ist_bot"]:
+            if len(text) > CHAT_BOT_ZEICHEN:
+                text = text[:CHAT_BOT_ZEICHEN].rstrip() + " [...]"
+            zeilen.append(f"Du: {text}" if text else f"Du: ({n['typ']})")
+        else:
+            zeilen.append(f"Gruppe: {text}" if text else f"Gruppe: ({n['typ']})")
+
+    notizen = _regienotizen(conn, chat_id, nummer)
+    if not zeilen and not notizen:
+        return ""
+    teile = [CHAT_KOPF + "\n" + CHAT_ANSCHLUSS]
+    if zeilen:
+        teile.append("\n".join(zeilen))
+    if notizen:
+        teile.append(CHAT_REGIE_KOPF + "\n" + "\n".join(notizen))
+    return "\n\n".join(teile)
+
+
 #: Reihenfolge des Nutzertextes. Wie in kontext.py: stabil nach vorn,
 #: entscheidend nach hinten -- was am Ende des Prompts steht, wiegt am
 #: schwersten (SPEC § 6.1). Der Auftrag steht deshalb zuletzt, die Angaben zu
@@ -1117,7 +1456,7 @@ def _verworfen_text(conn, chat_id: int) -> str:
 #: (SPEC § 6.1) -- dort stehen die Angaben, die bindend sind, und der Auftrag.
 _REIHENFOLGE = (
     "format_rahmen", "aufgabe", "thema", "kernpaket", "figuren", "continuity",
-    "verworfen", "diese_szene", "auftrag",
+    "verworfen", "chat", "diese_szene", "auftrag",
 )
 
 
@@ -1125,41 +1464,148 @@ def _zusammen(bloecke: dict) -> str:
     return "\n\n".join(bloecke[k] for k in _REIHENFOLGE if bloecke.get(k))
 
 
-def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None) -> str:
+def _kernpaket_ohne_begruendungen(text: str) -> str:
+    """Streicht die Klammer-Begruendungen aus den Kernpaket-Zeilen -- die
+    Zitate bleiben, weil sie die Sprechweise tragen; die Begruendung war die
+    Auswahlentscheidung der Gruppe und steht auch im Journal."""
+    return re.sub(r'"\)?\s+\([^()]*\)\s*$', '"', text, flags=re.MULTILINE)
+
+
+def _figuren_mit_wenig_zitaten(text: str) -> str:
+    """Laesst je Figur hoechstens ``SPRACHPROFIL_ZITATE_MAX`` Zitatzeilen
+    stehen. Letzte Kuerzungsstufe -- drei Zitate reichen als Few-Shot fuer
+    eine Sprechweise, null reichten nicht (Audit-Befund S4: ein Prompt, der
+    Zitate ankuendigt und keine liefert, laesst das Modell welche
+    erfinden)."""
+    zeilen, gezaehlt = [], 0
+    for zeile in text.splitlines():
+        ist_zitat = zeile.startswith('  "')
+        if not ist_zitat:
+            gezaehlt = 0
+            zeilen.append(zeile)
+            continue
+        gezaehlt += 1
+        if gezaehlt <= SPRACHPROFIL_ZITATE_MAX:
+            zeilen.append(zeile)
+    return "\n".join(zeilen)
+
+
+def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
     """Baut den Nutzertext des Szenen-Aufrufs -- **Struktur statt Transkript**
-    (Birk, 05.09.2026).
+    (Birk, 05.09.2026) und **unter einem harten Token-Deckel** (06.09.2026).
 
-    Sieben Bloecke, in dieser Reihenfolge: Format & Rahmen; Kernthema (und
-    Hauptkonflikt, falls es einen gibt); die Figuren mit Sprachprofil und
-    woertlichen Zitaten; Continuity aus der Datenbank; was die Gruppe
-    verworfen hat; die Felder DIESER Szene; der Auftrag.
+    Bloecke in dieser Reihenfolge: Format & Rahmen; die Aufgabe dieser Szene;
+    Kernthema; das Kernpaket; die Figuren mit Sprachprofil und woertlichen
+    Zitaten; die frueheren Szenen (Continuity); was die Gruppe verworfen hat;
+    der frische Chat; die Felder DIESER Szene; der Auftrag.
 
-    **Was hier nicht mehr steht:** Volltranskripte und Verdichtungen. Sie
-    waren der falsche Reflex -- "der Text soll aus dem Material kommen" hiess
-    im Ergebnis, dass das Modell aus 40.000 Token selbst heraussuchen sollte,
-    wer wie spricht und was in der Szene vorkommt. Beides steht jetzt
-    destilliert da: die Sprechweise als Sprachprofil je Figur (T3), die
-    Szenenlage als Felder (T2).
+    **Die Kuerzungsleiter** (Birk, 06.09.2026: *"Der komplette Kontext soll
+    ausgeschoepft werden koennen, aber gleichzeitig ein Deckel auf den
+    Gesamt-Prompt"*). Zuerst steht alles im Volltext da. Passt das nicht unter
+    ``token_budget()``, wird in dieser Reihenfolge gekuerzt:
 
-    Damit entfaellt auch der Deckel-Mechanismus: alle Bloecke sind kurz, es
-    gibt nichts mehr, was gekuerzt werden muesste. Jeder Block faellt weg,
-    solange seine Daten leer sind -- dasselbe datengetriebene Prinzip wie in
-    ``kontext.baue``."""
+    1. **Vorszenen, aelteste zuerst**, jeweils auf ihre Zusammenfassung --
+       eine nach der anderen, bis es passt. Die juengste Vorszene bleibt
+       vollstaendig, solange irgend moeglich: an sie wird angeschlossen.
+    2. **Der Chat** auf ``CHAT_NACHRICHTEN_KURZ`` Nachrichten -- nie ganz weg.
+    3. **Kernpaket-Begruendungen** (die Zitate bleiben).
+    4. **Sprachprofil-Zitate** auf drei je Figur.
+
+    Nie gekuerzt werden Rahmen/Geschichte, die Aufgabe, die Angaben dieser
+    Szene und der Auftrag: das ist genau das, was die Gruppe entschieden hat,
+    und ein Modell, dem es fehlt, erfindet es (gemessen 05.09.2026 -- Szene in
+    einer Kueche statt im Polizeikessel).
+
+    Jede Kuerzung ist ein Vorfall mit Zahlen (``szene_prompt_gekuerzt``), kein
+    Chattext: die Gruppe hat davon nichts, das Dashboard alles."""
     nummer = ziel["nummer"] if ziel is not None else nummer_aus_auftrag(auftrag)
-    bloecke = {
-        "format_rahmen": _format_rahmen_text(conn, chat_id),
-        "thema": _thema_text(conn, chat_id),
-        # Je Szene, nicht global (Umbau 05.09.2026 nachts): die Schaerfungen
-        # DIESER Szene und ihrer Figuren.
-        "kernpaket": _kernpaket_text(conn, chat_id, ziel),
-        "figuren": _figuren_text(conn, chat_id),
-        "continuity": _continuity_text(conn, chat_id, nummer),
-        "verworfen": _verworfen_text(conn, chat_id),
-        "aufgabe": _aufgabe_text(conn, chat_id, ziel),
-        "diese_szene": _diese_szene_text(conn, ziel, neu=NEU_MARKER in (auftrag or "")),
-        "auftrag": f"Euer Auftrag:\n{auftrag.replace(NEU_MARKER, '').strip()}",
-    }
-    return _zusammen(bloecke)
+    bausteine = _continuity_bloecke(conn, chat_id, nummer)
+    alle_nummern = {b["nummer"] for b in bausteine}
+
+    def _bloecke(voll: set[int], chat_anzahl: int, kernpaket_kurz: bool,
+                 zitate_kurz: bool) -> dict:
+        kernpaket = _kernpaket_text(conn, chat_id, ziel)
+        if kernpaket_kurz:
+            kernpaket = _kernpaket_ohne_begruendungen(kernpaket)
+        figuren = _figuren_text(conn, chat_id)
+        if zitate_kurz:
+            figuren = _figuren_mit_wenig_zitaten(figuren)
+        return {
+            "format_rahmen": _format_rahmen_text(conn, chat_id),
+            "thema": _thema_text(conn, chat_id),
+            # Je Szene, nicht global (Umbau 05.09.2026 nachts): die
+            # Schaerfungen DIESER Szene und ihrer Figuren.
+            "kernpaket": kernpaket,
+            "figuren": figuren,
+            "continuity": _continuity_text(conn, chat_id, nummer, voll),
+            "verworfen": _verworfen_text(conn, chat_id),
+            "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl),
+            "aufgabe": _aufgabe_text(conn, chat_id, ziel),
+            "diese_szene": _diese_szene_text(
+                conn, ziel, neu=NEU_MARKER in (auftrag or "")
+            ),
+            "auftrag": f"Euer Auftrag:\n{auftrag.replace(NEU_MARKER, '').strip()}",
+        }
+
+    budget = token_budget(szene_claude.ist_aktiv(e, conn, chat_id) if e else False)
+    voll = set(alle_nummern)
+    text = _zusammen(_bloecke(voll, CHAT_NACHRICHTEN, False, False))
+    vorher = len(text)
+    if schaetze_token(text) <= budget:
+        return text
+
+    # Stufe 1: aelteste Vorszene zuerst auf ihre Zusammenfassung.
+    zusammengefasst: list[int] = []
+    for b in bausteine:
+        if schaetze_token(text) <= budget:
+            break
+        if b["nummer"] not in voll or not b["volltext"]:
+            continue
+        voll.discard(b["nummer"])
+        zusammengefasst.append(b["nummer"])
+        text = _zusammen(_bloecke(voll, CHAT_NACHRICHTEN, False, False))
+
+    stufen = []
+    if zusammengefasst:
+        stufen.append(
+            "Vorszenen als Zusammenfassung: "
+            + ", ".join(str(n) for n in zusammengefasst)
+        )
+    # Stufen 2-4, jede nur wenn die vorige nicht reichte.
+    chat_anzahl, kernpaket_kurz, zitate_kurz = CHAT_NACHRICHTEN, False, False
+    for name, setzen in (
+        (f"Chat auf {CHAT_NACHRICHTEN_KURZ} Nachrichten", "chat"),
+        ("Kernpaket ohne Begruendungen", "kernpaket"),
+        (f"Sprachprofil auf {SPRACHPROFIL_ZITATE_MAX} Zitate je Figur", "zitate"),
+    ):
+        if schaetze_token(text) <= budget:
+            break
+        if setzen == "chat":
+            chat_anzahl = CHAT_NACHRICHTEN_KURZ
+        elif setzen == "kernpaket":
+            kernpaket_kurz = True
+        else:
+            zitate_kurz = True
+        text = _zusammen(_bloecke(voll, chat_anzahl, kernpaket_kurz, zitate_kurz))
+        stufen.append(name)
+
+    nachher = len(text)
+    detail = (
+        f"Szene {nummer if nummer is not None else '?'}: Prompt gekuerzt "
+        f"{vorher} -> {nachher} Zeichen "
+        f"({schaetze_token(text)} von {budget} Token). " + "; ".join(stufen)
+    )
+    if schaetze_token(text) > budget:
+        detail += " -- REICHT IMMER NOCH NICHT"
+    log.warning("Szenen-Prompt gekuerzt: %s", detail)
+    try:
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None),
+            "szene_prompt_gekuerzt", detail,
+        )
+    except Exception:
+        log.exception("Vorfall szene_prompt_gekuerzt nicht geschrieben")
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -1182,15 +1628,27 @@ def _kopfwert(zeile: str, schluessel: str) -> str | None:
     return rest[1:].strip().strip("*` ").strip()
 
 
-def zerlege(text: str) -> tuple[str | None, str | None, str]:
-    """Trennt ``TITEL:``/``KURZ:`` vom eigentlichen Szenentext.
+def zerlege(text: str) -> tuple[str | None, str | None, str | None, str | None, str]:
+    """Trennt die Kopfzeilen der Modellantwort vom Szenentext.
 
-    Liefert ``(titel, kurzbeschreibung, volltext)``; die ersten beiden koennen
-    None sein. Fehlt der Kopf ganz, ist der gesamte Text die Szene -- ein
-    fehlender Titel ist kein Grund, einen fertigen Szenentext wegzuwerfen. Der
-    Aufrufer setzt dann 'Szene N' ein."""
+    Liefert ``(titel, kurzbeschreibung, zusammenfassung, anders_gemacht,
+    volltext)``; alles ausser dem Volltext kann None sein. Fehlt der Kopf ganz,
+    ist der gesamte Text die Szene -- ein fehlender Titel ist kein Grund, einen
+    fertigen Szenentext wegzuwerfen. Der Aufrufer setzt dann 'Szene N' ein.
+
+    ``ZUSAMMENFASSUNG`` und ``ANDERS GEMACHT`` sind seit dem 06.09.2026
+    Pflichtzeilen (``prompts/szene.md``, Abschnitt "Deine Ausgabe"). Sie kommen
+    vom Szenen-Modell selbst mit und kosten deshalb keinen zweiten Aufruf --
+    genau der Punkt: das Modell hat den Text gerade geschrieben und weiss am
+    besten, was in ihm passiert und was es wegen des Chats anders gemacht hat.
+    Haelt es sich nicht daran, ist das kein Fehler des Laufs: der Aufrufer
+    meldet einen Vorfall, und der Prompt faellt spaeter auf Stichzeilen plus
+    Schluss zurueck (``_zusammenfassung_fuer``).
+
+    ``ANDERS GEMACHT: nichts`` wird zu ``None`` -- eine Journalzeile "Szene 3:
+    nichts" waere Rauschen."""
     zeilen = text.splitlines()
-    titel = kurz = None
+    titel = kurz = fassung = anders = None
     ab = 0
     for i, zeile in enumerate(zeilen[:_KOPFZEILEN]):
         if not zeile.strip():
@@ -1204,10 +1662,20 @@ def zerlege(text: str) -> tuple[str | None, str | None, str]:
         if wert is not None and kurz is None:
             kurz, ab = wert, i + 1
             continue
+        wert = _kopfwert(zeile, ZUSAMMENFASSUNG_SCHLUESSEL)
+        if wert is not None and fassung is None:
+            fassung, ab = wert, i + 1
+            continue
+        wert = _kopfwert(zeile, ANDERS_SCHLUESSEL)
+        if wert is not None and anders is None:
+            anders, ab = wert, i + 1
+            continue
         break
 
     volltext = "\n".join(zeilen[ab:]).strip()
-    return (titel or None), (kurz or None), volltext
+    if anders and anders.strip().lower().strip(".") in _ANDERS_NICHTS:
+        anders = None
+    return (titel or None), (kurz or None), (fassung or None), (anders or None), volltext
 
 
 # ---------------------------------------------------------------------------
@@ -1257,6 +1725,51 @@ def _sende_usa_angebot(conn, tg, e, chat_id: int) -> None:
         log.exception("USA-Knoepfe fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def _pruefe_budget(conn, chat_id: int, ueber_claude: bool) -> None:
+    """Vergleicht die TATSAECHLICHEN Eingabe-Token des gerade gebuchten Laufs
+    mit dem Budget und warnt ab ``BUDGET_WARNSCHWELLE``.
+
+    Der Sinn ist, dass die Herleitung oben (Zeichen ÷ 1,9, Fenster minus
+    Ausgabedeckel, 25 % Reserve) im Betrieb **messbar** bleibt statt geglaubt
+    zu werden: der Anbieter sagt nach jedem Aufruf, wie viele Token die
+    Eingabe wirklich hatte. Laeuft die Schaetzung auseinander, faellt es hier
+    auf, bevor die API mit HTTP 400 antwortet.
+
+    Reine Beobachtung: ein Fehlschlag beim Lesen darf einen fertigen
+    Szenentext nicht mitreissen."""
+    budget = token_budget(ueber_claude)
+    try:
+        zeile = conn.execute(
+            "SELECT tatsaechliche_token, geschaetzte_token FROM aufruf "
+            "WHERE art = ? AND chat_id = ? ORDER BY id DESC LIMIT 1",
+            (ART, chat_id),
+        ).fetchone()
+    except Exception:
+        log.exception("Budgetpruefung: aufruf nicht lesbar")
+        return
+    if zeile is None:
+        return
+    echt = zeile["tatsaechliche_token"] or 0
+    if not echt:
+        return
+    anteil = echt / budget
+    if anteil >= BUDGET_WARNSCHWELLE:
+        log.warning(
+            "Szenen-Prompt bei %.0f %% des Budgets: %d von %d Token "
+            "(geschaetzt %s) -- Herleitung pruefen",
+            anteil * 100, echt, budget, zeile["geschaetzte_token"],
+        )
+        try:
+            repo.merke_vorfall(
+                conn, chat_id, None, "szene_budget_knapp",
+                f"Eingabe {echt} von {budget} Token ({anteil:.0%})",
+            )
+        except Exception:
+            log.exception("Vorfall szene_budget_knapp nicht geschrieben")
+    else:
+        log.info("Szenen-Prompt: %d von %d Token (%.0f %%)", echt, budget, anteil * 100)
+
+
 def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     """Der eigentliche Szenen-Aufruf: Prompt bauen, Modell fragen, Szene
     speichern, Journal schreiben, Vorschau in die Gruppe schicken. Liefert
@@ -1268,8 +1781,9 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     ziel = ziel_fuer(conn, chat_id, auftrag)
     nummer = ziel["nummer"]
 
-    nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel)
-    if szene_claude.ist_aktiv(e, conn, chat_id):
+    nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel, e)
+    ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
+    if ueber_claude:
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
             chat_id, systemanweisung(ziel["form"]),
@@ -1280,16 +1794,31 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
             chat_id, systemanweisung(ziel["form"]),
             nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
         )
+    _pruefe_budget(conn, chat_id, ueber_claude)
 
-    titel, kurz, volltext = zerlege(antwort)
+    titel, kurz, fassung, anders, volltext = zerlege(antwort)
     if not volltext:
         raise SzeneFehler("Antwort des Sprachmodells enthielt keinen Szenentext")
 
+    # Die Zusammenfassung ist Pflichtzeile des Prompts (prompts/szene.md).
+    # Fehlt sie, ist der Szenentext trotzdem gut -- gemeldet wird es
+    # trotzdem, denn ohne sie faellt jeder spaetere Szenenlauf fuer diese
+    # Szene auf Stichzeilen plus Schluss zurueck (_zusammenfassung_fuer).
+    if not (fassung or "").strip():
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None),
+            "szene_ohne_zusammenfassung",
+            f"Szene {nummer}: Modellantwort ohne Pflichtzeile "
+            f"'{ZUSAMMENFASSUNG_SCHLUESSEL}:' -- im Prompt greift der Rueckfall",
+        )
+
     # Immer ein UPDATE: die Szene existiert an dieser Stelle bereits, weil
     # ``ziel_fuer`` sie notfalls angelegt hat. Die Planungsfelder bleiben
-    # dabei stehen -- ``aktualisiere_szene`` fasst nur Titel, Kurzform und
-    # Volltext an.
-    repo.aktualisiere_szene(conn, ziel["id"], titel or ziel["titel"], kurz, volltext)
+    # dabei stehen -- ``aktualisiere_szene`` fasst nur Titel, Kurzform,
+    # Zusammenfassung und Volltext an.
+    repo.aktualisiere_szene(
+        conn, ziel["id"], titel or ziel["titel"], kurz, volltext, fassung,
+    )
 
     titel = titel or f"Szene {nummer}"
     # Das Journal haelt fest, was gilt (SPEC § 2) -- eine geschriebene Szene
@@ -1299,6 +1828,16 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
         conn, chat_id, "entschieden", f"Szene {nummer} geschrieben: {titel}",
         quelle="szene",
     )
+    # Was das Modell wegen des Chats anders gemacht hat, wird eine eigene
+    # Journalzeile (06.09.2026). Sonst stuende die Freitext-Korrektur der
+    # Gruppe ("kuerzer, ohne den Bruder") nur im Chat, waere nach dreissig
+    # Minuten aus dem Fenster gerollt und beim naechsten Lauf vergessen.
+    if (anders or "").strip():
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            _JOURNAL_ANDERS.format(nummer=nummer, text=anders.strip()),
+            quelle="szene",
+        )
     # Der Text geht VOLLSTAENDIG in den Chat (05.09.2026, Birk): lange Texte
     # teilt der Telegram-Wrapper selbst (``telegram.teile_text``), und eine
     # Vorschau von sechs Zeilen war fuer eine Gruppe, die im Raum steht und

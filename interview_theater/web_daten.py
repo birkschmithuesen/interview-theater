@@ -531,6 +531,9 @@ def _szenen(
             "nummer": z["nummer"],
             "titel": z["titel"],
             "kurzbeschreibung": z["kurzbeschreibung"],
+            # Read-only auf der Gruppenseite (06.09.2026): das Modell schreibt
+            # sie, die Gruppe liest sie -- es gibt kein Formularfeld dafuer.
+            "zusammenfassung": _feld(z, "zusammenfassung"),
             "volltext": z["volltext"],
             "geaendert_am": z["geaendert_am"],
             "figuren": _szene_figuren(conn, z["id"]),

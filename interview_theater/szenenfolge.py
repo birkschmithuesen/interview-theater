@@ -473,6 +473,15 @@ def uebersicht(conn, chat_id: int) -> str:
         else:
             stand = "offen"
         zeilen.append(f"{kopf} — {stand}")
+        # Die Zusammenfassung als eine eingerueckte Zeile darunter
+        # (06.09.2026): die Uebersicht sagte bis dahin nur, DASS eine Szene
+        # geschrieben ist, nicht was in ihr passiert.
+        try:
+            fassung = (s["zusammenfassung"] or "").strip()
+        except (IndexError, KeyError):
+            fassung = ""
+        if fassung:
+            zeilen.append(f"  {' '.join(fassung.split())}")
     if not zeilen:
         return "Es gibt noch keine Szenen."
     return "Euer Durchlauf:\n" + "\n".join(zeilen)

@@ -148,7 +148,7 @@ def main(argv=None) -> int:
                     text, dauer, _ = _schreibe_opus(system, nutzer)
                 else:
                     text, dauer, _ = _schreibe_infomaniak(klm, e, system, nutzer, modell, kurz)
-                titel, kurzb, volltext = szene.zerlege(text)
+                titel, kurzb, _fassung, _anders, volltext = szene.zerlege(text)
                 ergebnisse.append((kurz, modell, dauer, titel, kurzb, volltext or text))
                 print(f"   {dauer:.0f} s, {len(text)} Zeichen", flush=True)
             except Exception as fehler:  # noqa: BLE001

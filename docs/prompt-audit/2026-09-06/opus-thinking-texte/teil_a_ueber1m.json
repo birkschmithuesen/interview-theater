@@ -1,0 +1,22 @@
+[
+ {
+  "modell": "claude-opus-5",
+  "zeichen": 1056000,
+  "status": 200,
+  "dauer_s": 9.0,
+  "input_tokens": 511950,
+  "output_tokens": 75,
+  "antwort": "Grob geschätzt handelt es sich um etwa 100.000 bis 130.000 Wörter, da derselbe Absatz aus rund 90 Wörtern etwa tausendfach wiederholt wurde.",
+  "fehler": ""
+ },
+ {
+  "modell": "claude-opus-4-8",
+  "zeichen": 1056000,
+  "status": 200,
+  "dauer_s": 8.7,
+  "input_tokens": 511950,
+  "output_tokens": 80,
+  "antwort": "Grob geschätzt handelt es sich um etwa 30.000 bis 40.000 Wörter, da der immer gleiche Absatz mit rund 90 Wörtern mehrere hundert Mal wiederholt wurde.",
+  "fehler": ""
+ }
+]

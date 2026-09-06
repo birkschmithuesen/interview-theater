@@ -678,3 +678,99 @@ def test_ein_ruecksprung_nach_drei_holt_das_material_zurueck(conn, einst):
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     assert "Verdichtungen:" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Deckel des Szenenblocks (Audit 06.09.2026, Befund C.4, Auftrag 3)
+# ---------------------------------------------------------------------------
+
+
+def _lange_szene(zeilen: int) -> str:
+    return "\n".join(
+        f"LEYLA: Ein ausgeschriebener Satz mitten in der Szene, Zeile {i}."
+        for i in range(zeilen)
+    )
+
+
+def test_kurze_szene_bleibt_unangetastet(conn, einst):
+    """Der Deckel darf im Normalfall nichts tun -- eine gewoehnliche Szene
+    geht vollstaendig in den Prompt."""
+    text = _lange_szene(10)
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", text)
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert text in prompt
+    assert kontext._TEXT_SZENE_GEKUERZT not in prompt
+
+
+def test_ueberlange_szene_wird_auf_anfang_und_schluss_gedeckelt(conn, einst):
+    """SZENE_ZEICHEN_MAX: darueber stehen Anfang UND Schluss mit
+    Auslassungsmarke -- nicht nur der Schluss (der Anfang traegt die
+    Exposition) und nicht stillschweigend (das Modell wuerde eine Szene, die
+    mittendrin anfaengt, selbst zu ergaenzen versuchen)."""
+    zeilen = _lange_szene(400).splitlines()
+    zeilen[0] = "LEYLA: ERSTE-ZEILE-DER-SZENE."
+    zeilen[-1] = "CEMRE: LETZTE-ZEILE-DER-SZENE."
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", "\n".join(zeilen))
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Und jetzt?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "ERSTE-ZEILE-DER-SZENE." in prompt
+    assert "LETZTE-ZEILE-DER-SZENE." in prompt
+    assert kontext._TEXT_SZENE_GEKUERZT in prompt
+    szenenblock = prompt.split("Aktuelle Szene (")[1]
+    assert len(szenenblock) <= kontext.SZENE_ZEICHEN_MAX + 200
+
+
+def test_gekuerzte_szene_haelt_jede_grenze():
+    """Die Funktion selbst, gegen mehrere Grenzen -- inklusive der Faelle, in
+    denen fast nichts uebrig bleibt."""
+    text = _lange_szene(500)
+    for grenze in (200, 1_000, 6_000, 20_000):
+        gekuerzt = kontext._gekuerzte_szene(text, grenze)
+        assert len(gekuerzt) <= grenze, grenze
+    # Eine einzige, sehr lange Zeile (ein Modell-Ausrutscher ohne Umbrueche).
+    einzeilig = "A" * 50_000
+    assert len(kontext._gekuerzte_szene(einzeilig, 3_000)) <= 3_000
+
+
+def test_zwanzigfache_szene_bleibt_nach_kuerzung_unter_der_grenze(conn, einst):
+    """Befund C.4 als Test: bei einer 20-fachen Szene blieb der Prompt nach
+    *vollstaendiger* Kuerzung bei 105.988 Zeichen -- 4,4x ueber der Grenze,
+    und alles Opferbare war geopfert."""
+    riesig = _lange_szene(20 * 200)
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", riesig)
+    for i in range(60):
+        _sende(conn, 1, i + 1, "Ada" if i % 2 else "Ben",
+               f"Ein Gespraechsbeitrag ueber die Szene, Nummer {i}.", _iso(i))
+    ausloeser = [_sende(conn, 1, 999, "Ada", "Und jetzt?", _iso(61))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert len(prompt) <= kontext.zeichengrenze(), (
+        f"{len(prompt)} Zeichen ueber der Grenze {kontext.zeichengrenze()}"
+    )
+    assert kontext.schaetze(prompt) <= kontext.ZIEL
+
+
+def test_ueberlange_szene_opfert_nicht_fenster_und_journal(conn, einst):
+    """Die Umkehrung der Prioritaet aus C.4: der Bot behielt die Szene, an
+    der er ohnehin schreibt, und verlor, was die Gruppe dazu gesagt hat.
+    Jetzt faellt der Szenenblock zuerst -- Fenster und Journal ueberleben."""
+    repo.lege_szene_an(conn, 1, 1, "Ankunft", "Maria kommt an", _lange_szene(1200))
+    repo.schreibe_journal(conn, 1, "entschieden", "JOURNALMARKE Kernthema gesetzt.",
+                          quelle="befehl")
+    for i in range(8):
+        _sende(conn, 1, i + 1, "Ada" if i % 2 else "Ben",
+               f"FENSTERMARKE Beitrag zur Szene, Nummer {i}.", _iso(i))
+    ausloeser = [_sende(conn, 1, 999, "Ada", "Und jetzt?", _iso(9))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "FENSTERMARKE" in prompt, "das Fenster darf der Szene nicht geopfert werden"
+    assert "JOURNALMARKE" in prompt, "das Journal darf der Szene nicht geopfert werden"
+    assert kontext._TEXT_SZENE_GEKUERZT in prompt
+    assert len(prompt) <= kontext.zeichengrenze()

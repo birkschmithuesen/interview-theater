@@ -565,18 +565,101 @@ def _baue_figurenhinweis(conn, chat_id: int) -> str:
     return _FIGURENHINWEIS.format(namen=", ".join(ohne))
 
 
-def _baue_szene(conn, chat_id: int) -> str:
+#: **Deckel des Szenenblocks in Zeichen** (Audit 06.09.2026, Befund C.4,
+#: Auftrag 3). Der Szenenblock war der einzige unbegrenzte Wachstumspfad im
+#: Gespraechs-Prompt: ``_baue_szene`` nahm ``szene["volltext"]`` wie er ist,
+#: und die Kuerzung nahm ihn ausdruecklich aus. Gemessen blieb der Prompt bei
+#: einer zwanzigfachen Szene nach *vollstaendiger* Kuerzung -- Fenster,
+#: Journal und Verdichtungen restlos geopfert -- bei 105.988 Zeichen, also
+#: 4,4x ueber der Grenze.
+#:
+#: Der Szenenpfad kennt diesen Deckel laengst (``szene.CONTINUITY_ZEICHEN_MAX``,
+#: ``szene._gekuerzter_volltext``); der Gespraechspfad hatte ihn nicht.
+#: hermes-agent nennt dieselbe Lektion ausdruecklich: ein geschuetzter Block
+#: ohne Deckel laesst das Budget nicht binden (``LEAN_TAIL_CAP_TOKENS``).
+#:
+#: 6.000 Zeichen sind rund 2.000 Token nach unserer Schaetzung -- etwas mehr,
+#: als § 6.2 Block 5 mit 1.500 Token vorsieht, und genug fuer eine
+#: ausgewachsene Szene (gemessen: die laengste Szene der Testgruppe hat
+#: 5.349 Zeichen und bleibt damit ungekuerzt).
+SZENE_ZEICHEN_MAX = 6_000
+
+#: Worauf der Szenenblock in der Kuerzung faellt, bevor Journal und
+#: Verdichtungen geopfert werden (Stufe 2 der Leiter in ``baue``).
+SZENE_ZEICHEN_NOTFALL = 2_000
+
+#: Wie viel vom Deckel auf den Anfang der Szene entfaellt. Anfang UND Schluss,
+#: weil beide etwas anderes tragen: der Anfang die Exposition (wer, wo,
+#: worum), der Schluss den Stand, an dem die Gruppe gerade arbeitet. Ein rein
+#: hinten abgeschnittener Text saehe fuer das Modell aus wie eine Szene, die
+#: mittendrin anfaengt -- deshalb die Auslassungsmarke dazwischen.
+_SZENE_ANTEIL_ANFANG = 0.4
+
+_TEXT_SZENE_GEKUERZT = "[... Mittelteil der Szene ausgelassen ...]"
+
+
+def _gekuerzte_szene(volltext: str, grenze: int) -> str:
+    """Anfang + Schluss einer zu langen Szene, mit Auslassungsmarke dazwischen.
+
+    Geschnitten wird an Zeilengrenzen (dieselbe Ueberlegung wie in
+    ``szene._gekuerzter_volltext``, das im Szenenpfad nur den Schluss
+    behaelt): eine Szene besteht aus Sprecherzeilen, und eine halbe
+    Sprecherzeile ist schlechter zu lesen als eine fehlende.
+
+    Die Marke steht IMMER drin, wenn gekuerzt wurde -- ein stillschweigend
+    zusammengeschobener Text waere fuer das Modell ein Widerspruch zwischen
+    Szenentitel und Inhalt, den es selbst aufzuloesen versuchte."""
+    text = volltext.strip()
+    if len(text) <= grenze:
+        return text
+    platz = max(0, grenze - len(_TEXT_SZENE_GEKUERZT) - 2)
+    kopf_max = int(platz * _SZENE_ANTEIL_ANFANG)
+    schluss_max = platz - kopf_max
+    zeilen = text.splitlines()
+
+    kopf: list[str] = []
+    gezaehlt = 0
+    for zeile in zeilen:
+        if gezaehlt + len(zeile) + 1 > kopf_max:
+            break
+        kopf.append(zeile)
+        gezaehlt += len(zeile) + 1
+
+    schluss: list[str] = []
+    gezaehlt = 0
+    for zeile in reversed(zeilen[len(kopf):]):
+        if gezaehlt + len(zeile) + 1 > schluss_max:
+            break
+        schluss.insert(0, zeile)
+        gezaehlt += len(zeile) + 1
+
+    if not kopf and not schluss:
+        # Eine einzige, sehr lange Zeile: dann eben hart an Zeichen, sonst
+        # bliebe vom Szenenblock nur die Marke.
+        return f"{text[:kopf_max]}\n{_TEXT_SZENE_GEKUERZT}\n{text[len(text) - schluss_max:]}"
+    teile = kopf + [_TEXT_SZENE_GEKUERZT] + schluss
+    return "\n".join(teile)
+
+
+def _baue_szene(conn, chat_id: int, grenze: int | None = None) -> str:
     """Block 5: die EINE zuletzt geaenderte Szene im Volltext (SPEC § 6.2).
 
     Datengetrieben wie alle Bloecke, ohne gespeicherten Zustand: woran die
     Gruppe zuletzt gearbeitet hat, ist die Szene, um die es gerade geht --
     springt sie zu einer frueheren zurueck und ueberarbeitet sie, wandert
     diese automatisch hierher (repo.aktualisiere_szene setzt geaendert_am
-    neu)."""
+    neu).
+
+    ``grenze`` deckelt den Volltext (Vorgabe ``SZENE_ZEICHEN_MAX``): darueber
+    stehen Anfang und Schluss mit einer Auslassungsmarke dazwischen. Der
+    Kopfzeile (Titel, Nummer) passiert nie etwas -- das Modell soll auch bei
+    einer gekuerzten Szene wissen, um welche es geht."""
     szene = repo.hole_letzte_szene(conn, chat_id)
     if szene is None or not szene["volltext"]:
         return ""
-    return f"Aktuelle Szene ({szenenzeile(szene)}):\n{szene['volltext']}"
+    grenze = SZENE_ZEICHEN_MAX if grenze is None else grenze
+    volltext = _gekuerzte_szene(szene["volltext"], grenze)
+    return f"Aktuelle Szene ({szenenzeile(szene)}):\n{volltext}"
 
 
 #: Wie viele Journaleintraege in den Prompt gehen -- die letzten N nach
@@ -831,15 +914,16 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     Simulator misst damit, was wann im Prompt stand; der Bot selbst merkt von
     diesem Argument nichts.
 
-    Passt der Koerper nicht ins Zielbudget ZIEL, greift die zweistufige
-    Kuerzung aus § 7.2: erst fliegen die Volltranskripte ganz raus, dann wird
-    das Fenster von vorn beschnitten -- eine ganze Nachricht (oder Pausenzeile)
-    je Schritt, nie nur eine physische Zeile eines mehrzeiligen Beitrags --
-    bis es passt oder leer ist. Die Notbremse -- Systemanweisung,
-    Arbeitsstand, Fenster, ausloesende Nachricht -- wird dabei nie
-    angetastet: Arbeitsstand und Ausloeser sind von der Kuerzung
-    grundsaetzlich ausgenommen, es gibt keinen Zustand, in dem der Bot wegen
-    des Budgets nicht antworten koennte."""
+    Passt der Koerper nicht ins Zielbudget ZIEL, greift die Kuerzung aus
+    § 7.2 in der Reihenfolge Transkripte -> Szenenblock -> Fenster ->
+    Journal -> Verdichtungen -> Szenenblock auf den Restplatz (siehe die
+    Leiter unten). Das Fenster wird von vorn beschnitten -- eine ganze
+    Nachricht (oder Pausenzeile) je Schritt, nie nur eine physische Zeile
+    eines mehrzeiligen Beitrags. Arbeitsstand, Kernpaket, Hinweise und
+    Ausloeser sind von der Kuerzung grundsaetzlich ausgenommen; es gibt
+    keinen Zustand, in dem der Bot wegen des Budgets nicht antworten
+    koennte. Seit dem 06.09.2026 (Auftrag 3) endet die Leiter garantiert
+    unter der Grenze."""
     fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser)
     # Der Kontext-Filter je Phase (05.09.2026 abends): bis zur Kernfrage
     # arbeitet der Bot AM Material (Verdichtungen; Transkripte, wenn der
@@ -886,17 +970,32 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     if _zu_lang():
         gekuerzt = True
         vorher = len(_zusammen(bloecke))
-        # Kuerzungsreihenfolge (§ 7.2, praezisiert im Audit 06.09.2026):
+        # Kuerzungsreihenfolge (§ 7.2, praezisiert im Audit 06.09.2026,
+        # Auftrag 3 -- die Reihenfolge war bis dahin falsch herum: sie
+        # schuetzte den groessten Block und opferte die kleinsten):
         # 1. Volltranskripte -- der groesste einzelne Brocken, und ihr Inhalt
         #    steht verdichtet ohnehin da.
-        # 2. Der Verlauf von vorn -- das Aelteste zuerst, eine ganze Nachricht
+        # 2. Der Szenenblock auf SZENE_ZEICHEN_NOTFALL -- **vor** Fenster,
+        #    Journal und Verdichtungen. Begruendung: in Phase 6/7 arbeitet
+        #    die Gruppe an einer Szene und ruft Korrekturen zu; den Text zu
+        #    behalten, den der Bot ohnehin gerade schreibt, und dafuer zu
+        #    verlieren, was die Gruppe dazu gesagt hat, ist die Umkehrung
+        #    der gewuenschten Prioritaet (Befund C.4).
+        # 3. Der Verlauf von vorn -- das Aelteste zuerst, eine ganze Nachricht
         #    je Schritt.
-        # 3. Das Journal von vorn -- die aeltesten Notizen.
-        # 4. Die Verdichtungen -- zuletzt, weil sie das Material selbst sind.
-        # Nie angetastet: Kernpaket, Arbeitsstand, Hinweise, aktuelle Szene und
-        # die ausloesende Nachricht. Es gibt keinen Zustand, in dem der Bot
+        # 4. Das Journal von vorn -- die aeltesten Notizen.
+        # 5. Die Verdichtungen -- zuletzt, weil sie das Material selbst sind.
+        # 6. Die Garantie: passt es dann immer noch nicht, wird der
+        #    Szenenblock auf genau den Platz zusammengezogen, der uebrig ist
+        #    (bis hin zu leer). Bis zum 06.09.2026 konnte die Kuerzung ihr
+        #    Ziel verfehlen und meldete das nicht -- gemessen blieben bei
+        #    einer 20-fachen Szene 105.988 Zeichen stehen.
+        # Nie angetastet: Kernpaket, Arbeitsstand, Hinweise und die
+        # ausloesende Nachricht. Es gibt keinen Zustand, in dem der Bot
         # wegen des Budgets nicht antworten koennte.
         bloecke["transkripte"] = ""
+        if _zu_lang() and bloecke["szene"]:
+            bloecke["szene"] = _baue_szene(conn, chat_id, SZENE_ZEICHEN_NOTFALL)
         while _zu_lang() and fenster_eintraege:
             fenster_eintraege = fenster_eintraege[1:]
             bloecke["fenster"] = "\n".join(fenster_eintraege)
@@ -911,6 +1010,20 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
                 bloecke["journal"] = ""
         if _zu_lang():
             bloecke["verdichtungen"] = ""
+        if _zu_lang() and bloecke["szene"]:
+            # Die Garantie. Wieviel Platz bleibt dem Szenenblock, wenn alles
+            # andere steht? Genau der wird ihm gegeben -- nicht geschaetzt,
+            # sondern ausgerechnet.
+            ohne_szene = dict(bloecke, szene="")
+            rest = grenze - len(_zusammen(ohne_szene)) - 2
+            ziel_rest = ZIEL * _ZEICHEN_JE_TOKEN - len(_zusammen(ohne_szene)) - 2
+            platz = min(rest, ziel_rest)
+            if platz < 200:
+                bloecke["szene"] = ""
+            else:
+                bloecke["szene"] = _baue_szene(conn, chat_id, platz)
+                if _zu_lang():
+                    bloecke["szene"] = ""
         nachher = len(_zusammen(bloecke))
         repo.merke_vorfall(
             conn, chat_id, getattr(e, "bot_name", None), "kontext_gekuerzt",

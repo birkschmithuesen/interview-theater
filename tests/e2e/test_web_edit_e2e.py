@@ -21,6 +21,7 @@ playwright (``importorskip`` unten).
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -130,6 +131,15 @@ def _baue_datenbank(pfad: str) -> str:
 
     szene_id = repo.stelle_szene_sicher(conn, 4711, 1)
     repo.setze_szenenfeld(conn, szene_id, "titel", "Im Treppenhaus")
+    # Ein Szenentext in der Grundform aus prompts/szene.md -- er traegt den
+    # Rollenfilter der Probenansicht (06.09.2026).
+    repo.aktualisiere_szene(
+        conn, szene_id, "Im Treppenhaus", None,
+        "(Treppenhaus, kurz nach Mitternacht.)\n\n"
+        "MIRA:(schliesst die Tuer)Du bist noch wach.\n"
+        "POLA: Ich schlafe hier nicht mehr.\n"
+        "MIRA: Dann komm runter.\n",
+    )
     # Kleingeschrieben wie der Knopf im Chat (knoepfe.biete_szenenform).
     repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
     repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", "monolog")
@@ -217,6 +227,18 @@ def seite(server, browser, token):
     seite = kontext.new_page()
     seite.set_default_timeout(GEDULD)
     seite.goto(f"{BASIS}/g/{token}")
+    yield seite
+    kontext.close()
+
+
+@pytest.fixture
+def probenseite(server, browser, token):
+    """Dieselbe Gruppe, aber die Probenansicht (06.09.2026) -- die Seite, die
+    in der Probe auf dem Telefon liegt."""
+    kontext = browser.new_context(viewport={"width": 420, "height": 1100})
+    seite = kontext.new_page()
+    seite.set_default_timeout(GEDULD)
+    seite.goto(f"{BASIS}/g/{token}/textbuch")
     yield seite
     kontext.close()
 
@@ -507,3 +529,68 @@ def test_ohne_gueltigen_nonce_schreibt_die_seite_nicht(seite, datenbank, token):
 
     expect(bereich.locator(".hinweis")).to_contain_text("neu laden", timeout=GEDULD)
     assert repo.hole_arbeitsstand(datenbank, 4711)["geschichte"] == vorher
+
+
+# --- Die Probenansicht (06.09.2026) ----------------------------------------
+
+
+def test_der_weg_von_der_gruppenseite_in_die_probenansicht(seite):
+    seite.locator(".probenansicht a").click()
+    expect(seite.locator("h1")).to_contain_text("Probenansicht")
+    expect(seite.locator(".probe-szene")).to_have_count(1)
+    # Die Grenze gilt hier strenger als auf der Gruppenseite: nur Szenentext
+    # und Szenenplanung.
+    inhalt = seite.content()
+    assert MARKER not in inhalt
+    assert "Erster Winter" not in inhalt
+
+
+def test_der_rollenfilter_daempft_statt_zu_loeschen(probenseite):
+    """Birk: die Stichworte muss man mitlesen koennen. Also wird gedaempft,
+    nicht ausgeblendet -- und der Zustand steht in der URL, damit der Link
+    teilbar ist."""
+    mira = probenseite.locator('.replik[data-figur="MIRA"]').first
+    pola = probenseite.locator('.replik[data-figur="POLA"]').first
+
+    probenseite.locator('.rolle[data-name="Pola"]').click()
+
+    aktiv = re.compile(r"\baktiv\b")
+    assert "figur=Pola" in probenseite.url
+    expect(pola).to_have_class(aktiv)
+    expect(mira).not_to_have_class(aktiv)
+    # Gedaempft, aber da: die Replik der anderen Figur bleibt sichtbar.
+    expect(mira).to_be_visible()
+    schuss(probenseite, "11-probenansicht-rolle.png")
+
+
+def test_der_geteilte_link_stellt_die_rolle_wieder_her(probenseite, token):
+    probenseite.goto(f"{BASIS}/g/{token}/textbuch#figur=Pola&schrift=gross")
+
+    expect(probenseite.locator("body")).to_have_attribute("data-figur", "POLA")
+    expect(probenseite.locator("body")).to_have_attribute("data-schrift", "gross")
+    expect(probenseite.locator('.rolle[data-name="Pola"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+
+
+def test_regieanweisungen_lassen_sich_ausblenden(probenseite):
+    regie = probenseite.locator(".regie").first
+    expect(regie).to_be_visible()
+
+    probenseite.locator(".regie-schalter").click()
+
+    assert "regie=aus" in probenseite.url
+    expect(regie).to_be_hidden()
+    # Der Text der Replik bleibt stehen -- ausgeblendet ist nur die Klammer.
+    expect(probenseite.locator('.replik[data-figur="MIRA"]').first).to_contain_text(
+        "Du bist noch wach."
+    )
+    schuss(probenseite, "12-probenansicht-ohne-regie.png")
+
+
+def test_die_probenansicht_laedt_sich_nicht_von_selbst_nach(probenseite):
+    """Kein sanftes Nachladen: es risse den Rollenfilter mit. Geprueft am
+    Zustand, der zehn Sekunden spaeter noch derselbe sein muss."""
+    probenseite.locator('.rolle[data-name="Mira"]').click()
+    probenseite.wait_for_timeout(1500)
+    expect(probenseite.locator("body")).to_have_attribute("data-figur", "MIRA")

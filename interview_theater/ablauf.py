@@ -293,6 +293,42 @@ _AUFTRAG = re.compile("|".join(_AUFTRAGSFORMEN), re.IGNORECASE)
 AUFTRAG_HOECHSTLAENGE = 60
 
 
+#: Die Bitte um den WORTLAUT einer Szene (06.09.2026, Nacht-Simulation
+#: Punkt 7): "lies uns Szene 2 vor", "zeig mal den text von szene 3",
+#: "szene 1 ansehen".
+#:
+#: Der gemessene Fall: die Gruppe fragte in Phase 7/8 nach dem Text einer
+#: Szene, und der Gespraechs-Bot antwortete INHALTLICH -- obwohl der
+#: Volltext gar nicht in seinem Kontext liegt (``kontext.baue`` gibt nur die
+#: zuletzt geaenderte Szene). Er hat also zusammengefasst oder erfunden, was
+#: er nicht kennt. Der Prompt sagt es jetzt (system.md, phasen/7.md,
+#: phasen/8.md); dieser Weg hier braucht das Modell gar nicht erst: die
+#: Gruppe bekommt den echten Volltext aus der Datenbank.
+#:
+#: Zwei Bedingungen, beide muessen zutreffen -- eine Nummer ("szene 2") UND
+#: ein Wort, das nach dem Text fragt. Absichtlich eng: "in szene 2 soll er
+#: gehen" ist kein Lesewunsch und darf weiter ins Gespraech.
+_SZENENTEXT_NUMMER = re.compile(r"szene\s*(?:nr\.?\s*)?(\d{1,3})", re.IGNORECASE)
+_SZENENTEXT_WOERTER = re.compile(
+    r"zeig|lies|vorles|vorlesen|ansehen|anschauen|\btext\b|wortlaut|"
+    r"was steht|zeigen",
+    re.IGNORECASE,
+)
+
+
+def szenentext_gewuenscht(text: str | None) -> int | None:
+    """Die Szenennummer, deren TEXT die Gruppe sehen will -- oder None.
+
+    Reiner Musterabgleich, kein Modellaufruf (Zusage 2)."""
+    roh = (text or "").strip()
+    if not roh:
+        return None
+    treffer = _SZENENTEXT_NUMMER.search(roh)
+    if treffer is None or _SZENENTEXT_WOERTER.search(roh) is None:
+        return None
+    return int(treffer.group(1))
+
+
 def ist_auftrag(text: str | None) -> bool:
     """Ist diese Nachricht nichts als ein Auftrag, den ein anderer Weg
     ausfuehrt? Dann schweigt der Gespraechs-Bot (06.09.2026)."""
@@ -515,6 +551,23 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
                 "Gespraechszug unterdrueckt, Nachricht ist ein Auftrag, chat_id=%s",
                 chat_id,
             )
+            return
+
+        # "Lies uns Szene 2 vor" (06.09.2026, Nacht-Simulation Punkt 7): die
+        # Gruppe will den WORTLAUT einer Szene sehen. Den hat der
+        # Gespraechs-Bot gar nicht im Kontext (``kontext.baue`` gibt nur die
+        # zuletzt geaenderte Szene) -- in der Simulation hat er deshalb
+        # zusammengefasst statt gezeigt. Hier geht stattdessen der echte
+        # Text aus der Datenbank raus, derselbe Weg wie hinter dem Knopf
+        # "Szene N ansehen"; der Gespraechszug faellt aus. Reiner
+        # Musterabgleich, kein Modellaufruf.
+        gewuenscht = szenentext_gewuenscht(letzte_nachricht["text"])
+        if gewuenscht is not None:
+            log.info(
+                "Gespraechszug unterdrueckt, Szenentext gewuenscht (%s), chat_id=%s",
+                gewuenscht, chat_id,
+            )
+            knoepfe.zeige_szenentext(conn, tg, chat_id, gewuenscht)
             return
 
         # Die Regie-Notiz nach "Passt, aber anders" unter einem Szenentext

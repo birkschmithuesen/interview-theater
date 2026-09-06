@@ -1871,6 +1871,35 @@ def _szene_mit_nummer(conn, chat_id: int, nummer: int):
     )
 
 
+def zeige_szenentext(conn, tg, chat_id: int, nummer: int) -> str:
+    """Der Volltext EINER Szene, deterministisch aus der Datenbank -- der
+    Weg hinter dem Knopf "Szene N ansehen" (Phase 8).
+
+    Seit dem 06.09.2026 (Nacht-Simulation Punkt 7) eine eigene Funktion und
+    nicht mehr nur ein Zweig im Knopf-Handler: derselbe Weg wird jetzt auch
+    ohne Knopfdruck gegangen, wenn die Gruppe im Chat nach dem Text fragt
+    (``ablauf.szenentext_gewuenscht``). Der Grund ist der gemessene: der
+    Gespraechs-Bot hat den Volltext gar nicht im Kontext und hat ihn deshalb
+    zusammengefasst statt gezeigt. Ein Ort fuer den Text, zwei Ausloeser.
+
+    Liefert die Zeile fuer die Knopfquittung."""
+    ziel = _szene_mit_nummer(conn, chat_id, nummer)
+    if ziel is None:
+        tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
+        return _TEXT_SZENE_UNBEKANNT
+    volltext = (ziel["volltext"] or "").strip()
+    if not volltext:
+        tg.sende(chat_id, _TEXT_SZENE_OHNE_TEXT.format(nummer=nummer))
+        return _TEXT_SZENE_OHNE_TEXT.format(nummer=nummer)
+    # Der Volltext geht ungekuerzt raus -- lange Texte teilt der
+    # Telegram-Wrapper selbst (``telegram.teile_text``).
+    kopf = f"Szene {nummer}"
+    if ziel["titel"]:
+        kopf += f": {ziel['titel']}"
+    tg.sende(chat_id, f"{kopf}\n\n{volltext}")
+    return f"Szene {nummer}"
+
+
 def _naechste_offene(conn, chat_id: int, nach: int):
     """Die naechste Szene nach ``nach``, die noch nicht abgenommen ist -- oder
     None, wenn keine mehr kommt.
@@ -2244,22 +2273,7 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
         return f"Szene {naechste['nummer']}"
 
     if art == ART_DURCHLAUF_SZENE:
-        nummer = int(wert)
-        ziel = _szene_mit_nummer(conn, chat_id, nummer)
-        if ziel is None:
-            tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
-            return _TEXT_SZENE_UNBEKANNT
-        volltext = (ziel["volltext"] or "").strip()
-        if not volltext:
-            tg.sende(chat_id, _TEXT_SZENE_OHNE_TEXT.format(nummer=nummer))
-            return _TEXT_SZENE_OHNE_TEXT.format(nummer=nummer)
-        # Der Volltext geht ungekuerzt raus -- lange Texte teilt der
-        # Telegram-Wrapper selbst (``telegram.teile_text``).
-        kopf = f"Szene {nummer}"
-        if ziel["titel"]:
-            kopf += f": {ziel['titel']}"
-        tg.sende(chat_id, f"{kopf}\n\n{volltext}")
-        return f"Szene {nummer}"
+        return zeige_szenentext(conn, tg, chat_id, int(wert))
 
     if art == ART_TEXTBUCH:
         text = szenenfolge.textbuch(conn, chat_id)

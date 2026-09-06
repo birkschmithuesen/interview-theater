@@ -238,6 +238,34 @@ def _geschriebene_szenen(conn, chat_id: int) -> str:
     )
 
 
+def _szenenfeld(zeile, feld: str) -> str:
+    """Ein Szenenfeld lesen, ohne an einer Datenbank zu scheitern, in der die
+    Spalte noch fehlt (dieselbe Haltung wie in ``web_daten._feld``)."""
+    try:
+        return (zeile[feld] or "").strip()
+    except (IndexError, KeyError):
+        return ""
+
+
+def zusammenfassungszeilen(conn, chat_id: int) -> list[str]:
+    """Je geschriebener Szene eine Zeile ``Szene N: <Zusammenfassung>``
+    (06.09.2026).
+
+    Sie ist das, was ``/stand`` und die Phase-8-Uebersicht von der Szene
+    zeigen sollen, ohne den Volltext zu wiederholen: die Gruppe hat den Text
+    im Chat gelesen, im Stand will sie wissen, wo das Stueck steht. Szenen
+    ohne Zusammenfassung (geschrieben vor dem 06.09.2026) fallen still
+    heraus -- eine Zeile "Szene 1: noch keine" waere eine Luecke, die die
+    Gruppe nicht schliessen kann."""
+    zeilen = []
+    for s in repo.hole_szenen(conn, chat_id):
+        text = _szenenfeld(s, "zusammenfassung")
+        if not text or s["nummer"] is None:
+            continue
+        zeilen.append(f"Szene {s['nummer']}: {_kuerze(text, 300)}")
+    return zeilen
+
+
 def _abgenommene_szenen(conn, chat_id: int) -> str:
     return TRENNER.join(
         _szenenzeile(s) for s in repo.hole_szenen(conn, chat_id) if s["fertig_am"]

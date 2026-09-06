@@ -1062,6 +1062,11 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
         )
     if s.get("kurzbeschreibung"):
         felder += f"<dt>Kurz</dt><dd>{_t(s['kurzbeschreibung'])}</dd>"
+    # Read-only: die Zusammenfassung kommt vom Szenen-Modell und beschreibt
+    # genau die gespeicherte Fassung -- ein Formularfeld waere eine Einladung,
+    # sie vom Text abweichen zu lassen.
+    if s.get("zusammenfassung"):
+        felder += f"<dt>Zusammenfassung</dt><dd>{_t(s['zusammenfassung'])}</dd>"
     inhalt = f"<dl>{felder}</dl>" if felder else ""
     inhalt += _schaerfungen_html(s.get("schaerfungen"))
     if s.get("volltext"):

@@ -176,4 +176,4 @@ def test_der_vorschlag_zeigt_alle_zehn_fragen_ausgeschrieben(conn):
     for n in range(1, 11):
         assert f"{n}. Frage {n}, und zwar eine ziemlich lange" in text, n
     assert "…" not in text, "nichts gekuerzt"
-    assert [b for b, _ in leiste] == ["Eigene Idee", "Andere 10"]
+    assert [b for b, _ in leiste] == ["Eigene Idee", "Andere Fragen"]

@@ -94,7 +94,7 @@ def test_die_zehn_fragen_stehen_ausgeschrieben_im_chat(conn, tg):
     assert text.startswith("Hier sind zehn.")
     for nummer in range(1, 11):
         assert f"{nummer}. Frage {nummer}?" in text, nummer
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Andere 10"]
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Andere Fragen"]
 
 
 def test_eine_lange_frage_wird_nicht_gekuerzt(conn, tg):
@@ -223,7 +223,7 @@ def test_die_alten_toggle_knoepfe_sind_stillgelegt(conn, tg, einst, auftraege):
 def test_andere_zehn_nennt_die_alten_als_nicht_wieder(conn, tg, einst, auftraege):
     _auswahl(conn, tg)
 
-    _druecke(conn, tg, einst, "Andere 10")
+    _druecke(conn, tg, einst, "Andere Fragen")
 
     assert len(auftraege) == 1
     assert "nimm keine davon wieder" in auftraege[0]
@@ -484,3 +484,23 @@ def test_ohne_leitfaden_steht_auf_der_seite_nichts(conn):
     from interview_theater import web
 
     assert web._leitfaden_html({"fragen": None}) == ""
+
+
+def test_fragenliste_gruppiert_fuenf_je_begriff(conn):
+    """06.09.2026 11:40 (Birk, live in Gruppe 1): fuenf Fragen je Kernbegriff,
+    nach Begriffen gruppiert -- 'Begriff: Frage' wird zur Ueberschrift mit
+    durchlaufender Nummerierung; Zeilen ohne Begriff bleiben, wie sie sind."""
+    from interview_theater import knoepfe, repo
+
+    chat_id = -900
+    repo.stelle_gruppe_sicher(conn, chat_id, "t") if hasattr(repo, "stelle_gruppe_sicher") else None
+    wert = "\n".join(
+        [f"Heimat: Frage {i}?" for i in range(1, 6)]
+        + [f"Streit: Frage {i}?" for i in range(6, 11)]
+    )
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", wert)
+    liste = knoepfe.fragenliste(conn, chat_id)
+    assert liste.startswith("Heimat\n1. Frage 1?")
+    assert "\n\nStreit\n6. Frage 6?" in liste
+    assert "10. Frage 10?" in liste
+    assert "Heimat: " not in liste

@@ -479,7 +479,10 @@ _TEXT_SCHAERFUNG_DURCH = (
 #: Strasse anspricht, ohne dass es ein Verhoer wird (Birk, 06.09.2026).
 #: "Andere Zahl" gibt es hier bewusst NICHT -- die Zahl ist eine Vorgabe des
 #: Stuecks, keine Entscheidung der Gruppe.
-FRAGEN_ZUR_WAHL = 10
+#: 06.09.2026 11:40 (Birk, live): fuenf Fragen JE BEGRIFF, nicht zehn insgesamt.
+#: Obergrenze fuer den Nummern-Parser = 5 x hoechstens 8 Begriffe.
+FRAGEN_JE_BEGRIFF = 5
+FRAGEN_ZUR_WAHL = 40
 FRAGEN_ANZAHL = 3
 
 #: Wie lang eine Frage auf einem Knopf sein darf. Telegram schneidet laengere
@@ -492,7 +495,7 @@ KNOPF_LAENGE = 40
 _HAKEN = "✓ "
 
 _TEXT_FRAGEN_UEBERNEHMEN_KNOPF = f"Diese {FRAGEN_ANZAHL} nehmen"
-_TEXT_FRAGEN_ANDERE_KNOPF = f"Andere {FRAGEN_ZUR_WAHL}"
+_TEXT_FRAGEN_ANDERE_KNOPF = "Andere Fragen"
 _TEXT_FRAGEN_EIGENE_KNOPF = "Eigene Idee"
 #: Die Aufforderung ueber der Auswahl (06.09.2026, 10:05, Birk).
 #:
@@ -1123,10 +1126,20 @@ def fragenliste(conn, chat_id: int) -> str:
     Ausgeschrieben und nicht gekuerzt (``_knopftext`` kuerzte auf 40
     Zeichen): eine Frage, die eine Sechzehnjaehrige einer fremden Person
     stellen soll, muss sie ganz lesen koennen, bevor sie sie waehlt."""
-    return "\n".join(
-        f"{nummer}. {frage}"
-        for nummer, frage in enumerate(_auswahlfragen(conn, chat_id), start=1)
-    )
+    zeilen: list[str] = []
+    letzter_begriff = None
+    for nummer, frage in enumerate(_auswahlfragen(conn, chat_id), start=1):
+        # 06.09.2026 11:40: fuenf je Begriff, nach Begriffen gruppiert --
+        # "Begriff: Frage" wird zur Ueberschrift + nummerierter Frage.
+        begriff, trenner, rest = frage.partition(":")
+        if trenner and 0 < len(begriff.strip()) <= 30 and rest.strip():
+            if begriff.strip() != letzter_begriff:
+                letzter_begriff = begriff.strip()
+                zeilen.append(("\n" if zeilen else "") + f"{letzter_begriff}")
+            zeilen.append(f"{nummer}. {rest.strip()}")
+        else:
+            zeilen.append(f"{nummer}. {frage}")
+    return "\n".join(zeilen)
 
 
 def biete_fragenauswahl(conn, tg, chat_id: int, wert: str, text: str | None = None) -> int:
@@ -3492,13 +3505,14 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
 ANWEISUNGEN = {
     1: "Schlag der Gruppe eine Begriffsliste vor und haeng sie als Block "
        "'VORSCHLAG BEGRIFFE:' an.",
-    2: "Schlag der Gruppe genau zehn Interviewfragen zur Auswahl vor. Haeng "
-       "sie als Block 'VORSCHLAG FRAGENAUSWAHL:' an, eine Frage je Zeile, "
-       "genau zehn Zeilen, ohne Nummerierung. Thematisch gestreut ueber die "
-       "Begriffe der Gruppe, altersgerecht, und so, dass eine 15- bis "
-       "18-Jaehrige sie einer FREMDEN Person auf der Strasse stellen kann. "
-       "Wiederhol die Fragen nicht im Fliesstext - die Gruppe sieht sie auf "
-       "den Knoepfen.",
+    2: "Schlag der Gruppe Interviewfragen zur Auswahl vor: GENAU FUENF je "
+       "Kernbegriff der Gruppe, nach Begriffen geordnet (erst alle fuenf zum "
+       "ersten Begriff, dann die fuenf zum zweiten usw.). Haeng sie als Block "
+       "'VORSCHLAG FRAGENAUSWAHL:' an, eine Frage je Zeile im Format "
+       "'Begriff: Frage', ohne Nummerierung. Altersgerecht, und so, dass eine "
+       "15- bis 18-Jaehrige sie einer FREMDEN Person auf der Strasse stellen "
+       "kann. Wiederhol die Fragen nicht im Fliesstext - die Gruppe sieht die "
+       "nummerierte Liste und nennt drei Nummern.",
     # Phase 4: das SETTING zuerst -- und ausschliesslich aus den Begriffen
     # und Fragen der Gruppe. Kein Material: die Interviews stehen in diesem
     # Prompt gar nicht (``kontext.material_erlaubt``), und der Auftrag sagt

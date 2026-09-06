@@ -88,3 +88,9 @@ liest die letzte Zeile.
 8 Durchlauf — „Alle Szenen stehen. Hier seht ihr euer Textbuch am Stueck, koennt es euch als Datei schicken lassen und einzelne Szenen noch einmal aufmachen. Wir achten auf die Uebergaenge und darauf, was sich beim Sprechen sperrig anfuehlt."
 
 Kosten Nacht: Claude Code (Web) ~$44 API; Delegates und Simulations-Richter über Abo-Proxy; Bot-Simulation 1,64 CHF Infomaniak.
+
+## 08:45 — Szenen-Zusammenfassung/Budget/Chat-Block live (main `2e55239`, 1649 grün)
+- Jede Szene liefert `Zusammenfassung:` + `Anders gemacht:` (Journal-Eintrag bei Abweichung); Szenenlauf bekommt den Chat seit der letzten Fassung; Kürzungsleiter älteste Szene → Zusammenfassung … nie Rahmen/Aufgabe/Angaben.
+- **Budget gemessen, nicht gesetzt**: echter Szenen-Prompt = 1,9 Zeichen/Token (count_tokens), nicht 3. Claude-Pfad 126 000 Token Eingabe (Fenster 200k − 32k Ausgabe), Infomaniak-Pfad 37 488 (max_total 249 984 − 200k max_tokens). Normalbetrieb ~15 % des Claude-Budgets. Abgeschnittene Antworten (`stop_reason=max_tokens`) sind jetzt Fehler + Vorfall, kein Halbtext.
+- Einzel-Neustarts aller vier + Web: aktiv, 200 OK, /gesund ok, Spalte migriert.
+- Läuft noch: Opus-Messung (1M + Thinking, Texte fertig, Richter läuft), Kontext-Audit (Fable).

@@ -111,6 +111,72 @@ def test_ein_befund_ist_ueber_seine_id_wiederfindbar(conn):
     assert repo.hole_dramaturgie_befund(conn, 2, zeile["id"]) is None
 
 
+# --- Bewertungen (die Datenbankform der Bilanz) ---------------------------
+
+BEWERTUNGEN = [
+    {"pruefung": "b1", "szene": 1, "score": 0},
+    {"pruefung": "b1", "szene": 2, "score": 2},
+    {"pruefung": "a2", "szene": None, "score": 1},
+]
+
+
+def test_bewertungen_werden_mit_runde_gespeichert(conn):
+    assert repo.lege_dramaturgie_bewertungen_an(conn, 1, BEWERTUNGEN, runde=1) == 3
+    assert repo.lege_dramaturgie_bewertungen_an(conn, 1, BEWERTUNGEN[:1], runde=2) == 1
+
+    assert len(repo.dramaturgie_bewertungen(conn, 1, runde=1)) == 3
+    assert len(repo.dramaturgie_bewertungen(conn, 1)) == 4
+
+
+def test_auch_die_erfuellte_frage_steht_da(conn):
+    """Der Kern des Erfolgsmasses: ein Score 2 erzeugt keinen Befund, aber
+    sehr wohl eine Bewertung -- sonst waere sein Absturz in der naechsten
+    Runde nicht zu sehen."""
+    repo.lege_dramaturgie_bewertungen_an(conn, 1, BEWERTUNGEN, runde=1)
+
+    scores = {
+        (z["pruefung"], z["szene"]): z["score"]
+        for z in repo.dramaturgie_bewertungen(conn, 1, runde=1)
+    }
+    assert scores[("b1", 2)] == 2
+    assert scores[("a2", None)] == 1
+
+
+def test_bewertung_ohne_score_faellt_weg(conn):
+    """Ein verworfener Score (kein bestaetigtes Belegzitat) ist keine Note --
+    er darf die Bilanz nicht mitrechnen."""
+    unvollstaendig = [
+        {"pruefung": "b1", "szene": 1, "score": None},
+        {"pruefung": "", "szene": 1, "score": 2},
+    ]
+
+    assert repo.lege_dramaturgie_bewertungen_an(conn, 1, unvollstaendig) == 0
+
+
+def test_die_bewertungstabelle_haengt_an_der_loeschzusage(conn):
+    assert "dramaturgie_bewertung" in db.TABELLEN_MIT_CHAT_ID
+    repo.lege_dramaturgie_bewertungen_an(conn, 1, BEWERTUNGEN, runde=1)
+
+    db.loesche_gruppe(conn, 1)
+
+    assert repo.dramaturgie_bewertungen(conn, 1) == []
+
+
+def test_alte_datenbank_bekommt_die_bewertungstabelle(tmp_path):
+    pfad = str(tmp_path / "alt.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, 1, "gruppe1", "Testgruppe")
+    conn.execute("DROP TABLE dramaturgie_bewertung")
+    conn.commit()
+    conn.close()
+
+    zweite = db.verbinde(pfad)
+    db.initialisiere(zweite)
+
+    assert repo.dramaturgie_bewertungen(zweite, 1) == []
+
+
 # --- Gruppenseite ---------------------------------------------------------
 
 

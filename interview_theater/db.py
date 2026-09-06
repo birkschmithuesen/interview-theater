@@ -543,6 +543,42 @@ CREATE TABLE IF NOT EXISTS dramaturgie_befund (
 );
 CREATE INDEX IF NOT EXISTS idx_dramaturgie_chat ON dramaturgie_befund(chat_id, id);
 
+-- Die Bewertungen einer Dramaturgie-Runde (07.09.2026, die Rueckkopplung).
+--
+-- **Warum das nicht in ``dramaturgie_befund`` passt.** Dort steht, was
+-- schieflaeuft; eine erfuellte Frage erzeugt dort zu Recht keine Zeile
+-- (``fanout._befund_aus``: "Score 2 ist kein Befund"). Fuer die Frage, ob eine
+-- Ueberarbeitung geholfen hat, ist genau das die falsche Zaehlung: ein guter
+-- Text erzeugt keine Befunde, und "null Befunde" heisst dann nicht "besser
+-- geworden", sondern "war schon gut". Verglichen werden deshalb die **Scores
+-- je Frage und Szene** zwischen zwei Runden -- und dafuer muss auch die Zwei
+-- irgendwo stehen.
+--
+-- ``szene`` ist NULL, wo die Frage dem ganzen Stueck gilt (A2, A6, A11 laufen
+-- als EIN Aufruf ueber die Synopsen-Kette). Es ist die Adresse, unter der
+-- **gefragt** wurde, nicht die, die der Judge in seiner Antwort nennt --
+-- sonst haetten zwei Runden verschiedene Schluessel und liessen sich nicht
+-- vergleichen.
+--
+-- Es steht hier **kein Score ohne verifiziertes Belegzitat**: ein verworfener
+-- Score (``beleg.Belegstand.unsicher``) ist keine schlechtere Note, er ist
+-- keine, und eine Bilanz aus verworfenen Noten waere eine erfundene Messung.
+-- Deshalb ist ``score`` NOT NULL.
+--
+-- Kein ``entfernt_am``: das ist eine Messung und keine Festlegung der Gruppe;
+-- was gemessen wurde, wird nicht zurueckgenommen (wie ``aufruf``).
+CREATE TABLE IF NOT EXISTS dramaturgie_bewertung (
+  id          INTEGER PRIMARY KEY,
+  chat_id     INTEGER NOT NULL,
+  runde       INTEGER NOT NULL,
+  pruefung    TEXT NOT NULL,              -- b1|a2|a6|a9|a10|a11|c1
+  szene       INTEGER,                    -- NULL = die Frage gilt dem Stueck
+  score       INTEGER NOT NULL,           -- 0|1|2
+  erstellt_am TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dramaturgie_bewertung_chat
+  ON dramaturgie_bewertung(chat_id, runde);
+
 -- Wer in einer Szene vorkommt: nur Figuren aus dem Arbeitsstand, deshalb eine
 -- Verknuepfung und keine Namensliste in einem Textfeld. Eine weich geloeschte
 -- Figur verschwindet damit von selbst aus jeder Szene (repo.szene_figuren
@@ -685,6 +721,7 @@ TABELLEN_MIT_CHAT_ID = (
     "schaerfung",
     "stueckpruefung",
     "dramaturgie_befund",
+    "dramaturgie_bewertung",
     "journal",
     "festlegung",
     "knopf",

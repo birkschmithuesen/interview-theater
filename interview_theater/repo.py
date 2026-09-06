@@ -1253,6 +1253,56 @@ def letzte_dramaturgie_runde(conn: sqlite3.Connection, chat_id: int) -> int:
 
 
 @_gesperrt
+def lege_dramaturgie_bewertungen_an(
+    conn: sqlite3.Connection, chat_id: int, bewertungen: list[dict], runde: int = 1
+) -> int:
+    """Schreibt die Scores EINER Dramaturgie-Runde und liefert ihre Anzahl.
+
+    Das Gegenstueck zu ``lege_dramaturgie_befunde_an``: dort steht, was
+    schieflaeuft, hier, wie jede Frage ausgegangen ist -- **auch die erfuellte**
+    (Score 2). Ohne diese Zeilen liesse sich zwischen zwei Runden nur die Zahl
+    der Befunde vergleichen, und die faellt auch dann, wenn ein Text schlechter
+    geworden ist und der Judge deshalb keinen Beleg mehr findet.
+
+    Pflicht sind ``pruefung`` und ein Score aus 0-2. Ein fehlender oder
+    verworfener Score (kein bestaetigtes Belegzitat) wird **nicht** als Zeile
+    abgelegt: eine Note ohne Beleg ist keine schlechtere Note, sie ist keine
+    (Recherche § 4)."""
+    angelegt = 0
+    for bewertung in bewertungen:
+        pruefung = str(bewertung.get("pruefung") or "").strip()
+        score = bewertung.get("score")
+        if not pruefung or score is None:
+            continue
+        conn.execute(
+            """
+            INSERT INTO dramaturgie_bewertung
+                (chat_id, runde, pruefung, szene, score, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (chat_id, runde, pruefung, bewertung.get("szene"), int(score), _jetzt()),
+        )
+        angelegt += 1
+    conn.commit()
+    return angelegt
+
+
+@_gesperrt
+def dramaturgie_bewertungen(
+    conn: sqlite3.Connection, chat_id: int, runde: int | None = None
+) -> list[sqlite3.Row]:
+    """Die Scores einer Gruppe, wahlweise nur einer Runde -- in der
+    Reihenfolge, in der sie gemessen wurden."""
+    sql = "SELECT * FROM dramaturgie_bewertung WHERE chat_id = ?"
+    werte: list = [chat_id]
+    if runde is not None:
+        sql += " AND runde = ?"
+        werte.append(runde)
+    sql += " ORDER BY runde ASC, id ASC"
+    return conn.execute(sql, tuple(werte)).fetchall()
+
+
+@_gesperrt
 def hole_dramaturgie_befund(
     conn: sqlite3.Connection, chat_id: int, befund_id: int
 ) -> sqlite3.Row | None:

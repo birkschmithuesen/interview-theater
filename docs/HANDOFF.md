@@ -501,21 +501,15 @@ Melden, wenn: `http_5xx` häuft (≥3), `zitat_ungeprueft` auftaucht, `szene_abg
 
 **Nachmittag-Ablauf:** Gruppen stehen in Phase 3; Phasen 4–8 (Setting & Figuren → Geschichte → Schärfung → Szenentexte → Durchlauf) laufen erstmals mit echten Menschen; USA-Frage kommt beim ersten Szenenauftrag je Gruppe. Interviews zusammenführen: Abschnitt oben („Interviews in eine Gruppe zusammenführen"). Rollback: `bash betrieb/buttons-zurueck.sh` (alt) — heute besser: `git log`, gezielter Revert, Neustart einzeln.
 
-**Stand 06.09. 14:10 — Bots laufen auf `2edf0e3` (Neustart 12:53), main ist `63318d2` (12 Commits weiter, NICHT auf den Bots — Neustart steht aus, Birk gibt das Go).**
+**Stand 06.09. 14:35 — Bots laufen auf `b8a9131` (Neustart 14:27: Phase-4-Paket, Phasen-Fixes, Flow-Fix Sprachnachricht ohne Knopf). main ist `0b70781` (Teil 4 gemergt, 1839 grün) — NEUSTART STEHT AUS (Go von Birk).**
 
-Auf den Bots (2edf0e3): sieben Phasen; Phase 2 komplett (5 Fragen je Begriff, Auswahl per Nummern-Text ohne Knöpfe, beliebig viele = Chefin, weiche Formulierungen, Eröffnung mit Projektbeschreibung, Leitfaden, Kette bis „Weiter zu Interviews"); Interview-Auswertung knapp; Kontext 1+2; Denkspur-/Wiederholungs-Fixes; Vorschlag-Dedupe.
-
-**In main, wartet auf Neustart (`git log 2edf0e3..63318d2`):**
-- Phase-4-Paket (Teile 1–3 der Live-Zusätze): Vorschlagsmenü 1/2/3 + Anders, „Ja, speichern · Nein, nochmal ändern", ein Feld pro Nachricht, keine Einstiegsknöpfe in 4, drei Geschichte-Richtungen, Setting → Szenenfelder, Sprachstil je Figur, Arbeitszeilen wechselnd, Knopfnachrichten in DB, Phase-3-Angebot nach jeder Auswertung, Auftrags-Schweigen „Interview starten".
-- Phasen-Fixes: nächste Stufe statt höchste (a690c39); Angebot nur aus NEUEM Material seit Betreten der Phase (0b467ad, Spalte `phase_gesetzt_am`, Migration automatisch).
-- Web (bereits live, eigene Unit): Interviews chronologisch mit Datum/Uhrzeit/Dauer.
-**Vor dem Neustart prüfen:** keine Aufnahme `laeuft` (Gruppe 1 nimmt gerade auf!) — Bots einzeln, gruppe1 zuletzt oder wenn frei.
+In main, wartet auf Neustart: **Teil 4** = Phase 6 als EINE Kurzgeschichte (freie Abschnittszahl → Szenen, Passt/Ändern/Neu für die ganze Geschichte, Regie-Notiz), USA-Frage beim Eintritt 6 vor dem ersten Lauf, Sperre gegen erfundene Systemzeilen (Vorfall `gespraech_systemzeile_erfunden`), Stil-Auswahl je Szene im Feinschliff (`prompts/stile/`, `szene.stil`, Web-Dropdown). Prompts davon sind heiß. Nötig, bevor eine Gruppe Phase 6 betritt.
 
 **Offen (Reihenfolge):**
-1. **Neustart gruppe1–4** auf `63318d2` (Go von Birk).
-2. **Flow-Fix „Sprachnachricht > 60 s ohne Interview-Knopf"** (Gruppe 1, 13:32): heute geht das Transkript in Gesprächszug + Erkenner (Erkenner überschrieb die BEGRIFFE mit Interviewinhalt; Bot redete Unsinn). Soll: deterministisch „Das klingt nach einem Interview — als Interview N speichern?" mit Ja/Nein, Transkript bis zur Antwort für Erkenner/Journal unsichtbar; Ja → Kopf anlegen + Nachzügler einsammeln (existiert: `stelle_interview_sicher`) + beenden + verdichten. NICHT gebaut.
-3. **Teil 4** (Branch `feat/live-zusaetze`, WIP-Commit f41105c, ungetestet): Phase 6 als Kurzgeschichte (freie Abschnittszahl → Szenen), USA-Frage beim Eintritt 6, Sperre gegen erfundene Systemzeilen, Stil-Auswahl im Feinschliff (`prompts/stile/` angelegt, `szene.stil` + Menü fehlen). Neuer Delegate im Worktree /tmp/it-rest2, Suite komplett laufen lassen. Nötig, bevor eine Gruppe Phase 6 erreicht (frühestens ~16:30).
-4. **Kontext 3–5** (`feat/kontext-3-5`, 1679 grün): Merge nur nach Birks Freigabe, nach dem Workshop.
+1. **Neustart gruppe1–4** auf `0b70781` (Teil 4) — Go von Birk; vorher Testgruppe: Phase 6 Eintritt → USA-Frage → „Geschichte schreiben" → Abschnitte + Passt/Ändern/Neu; Phase 7 Form → „Welcher Stil?".
+2. ~~Flow-Fix Sprachnachricht ohne Knopf~~ — live seit 14:27 (`c063421`).
+3. ~~Teil 4~~ — in main (`0b70781`), Neustart ausstehend.
+4. **Kontext 3–5** (`feat/kontext-3-5`): Merge-Versuch 14:25 ABGEBROCHEN — Konflikte in kontext.py/test_prompt_audit.py (beide Seiten `umriss`) UND der Branch fixiert `SYSTEM_ZEICHEN_MAX 30_000`/Gesamt 40 000, die Prompts sind aber gewachsen (Phase 2 = 33 023, Phase 4 = 32 000 Zeichen) → Test rot, Laufzeit würde den Gesprächskörper in 2/4 auf ~7–8 k Zeichen kürzen. Nach dem Workshop: Grenzen auf gemessene Werte heben (System ~36 000, Gesamt ~50 000), Konflikte lösen (umrisszeile + system_zeichen beide behalten), Recall-Skript laufen lassen, dann Freigabe.
 5. Kleinigkeiten: „Interview N ausgewertet"-Zeile fehlt, wenn die Verdichtung über den Nachhol-Weg läuft (still); Gruppe-2-Stilvorlage stützt sich nur auf einen Song (Interview-Video ohne Untertitel; Whisper-Freigabe?); Phaseneinleitung als Textangebot statt fest.
 
 **Heute von Hand in soap.db gemacht (Journal-Vermerke „regie"):** Gruppen 1–3 auf Phase 2 zurück (11:25); Gruppe 1 Fragen gelöscht (11:35), Vortags-Interviews entfernt (13:25), Begriffe wiederhergestellt (13:45), Interview 27 beendet + 6/7 getrennt (13:50).

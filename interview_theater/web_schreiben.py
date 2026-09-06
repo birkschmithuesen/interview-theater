@@ -69,6 +69,25 @@ LEER = "(leer)"
 #: ``test_web_edit.test_formen_sind_die_aus_szene`` fest.
 FORMEN = ("dialog", "monolog", "chor", "lied", "rap")
 
+#: Die Stil-Slugs je Szene (06.09.2026, Birk 12:50) -- **wortgleich mit**
+#: ``stile.STILE``: der Knopf im Chat speichert ``"litanei"``, und das
+#: Dropdown muss denselben Wert schreiben, sonst faende
+#: ``stile.regelblock`` die Prompt-Datei nicht mehr. Wie bei ``FORMEN`` hier
+#: als Literal statt importiert (``stile`` haengt an ``anweisungen`` und
+#: damit am Prompt-Verzeichnis; der Webserver kommt mit der
+#: Standardbibliothek aus). Dass die Listen gleich bleiben, haelt
+#: ``test_web_edit.test_stile_sind_die_aus_stile`` fest.
+STILE = ("schlagabtausch", "litanei", "herkules")
+
+#: Die Beschriftungen dazu -- fuer das Dropdown. Mit der Herkunft, wie im
+#: Chat: wer waehlt, soll wissen, woher das Mass kommt (dieselbe Zusage wie
+#: in ``stile.menuetext``).
+STIL_BESCHRIFTUNG = {
+    "schlagabtausch": "Knapper Schlagabtausch (Schatten — Morpheuz x Monet192)",
+    "litanei": "Litanei (Lovesong — Adele)",
+    "herkules": "Herkules-Maß (Herkules.exe — ArtesMobiles)",
+}
+
 #: Die Arbeitsstandfelder, die die Gruppenseite setzen darf, mit ihrer
 #: Beschriftung im Journal. Eine echte Teilmenge von
 #: ``repo._ARBEITSSTAND_FELDER``: ``format`` fehlt, weil es die Frage seit dem
@@ -130,6 +149,10 @@ NUR_ANZEIGE = {
 SZENENFELDER = {
     "titel": "Titel",
     "form": "Form",
+    # Die Stilvorlage (06.09.2026, Birk 12:50) -- wie die Form ein Dropdown,
+    # kein Freitext: ein getippter Slug, den es nicht gibt, waere ein Stil
+    # ohne Regelblock.
+    "stil": "Stil",
     "ort": "Ort",
     "zeit": "Zeit",
     "anlass": "Anlass",

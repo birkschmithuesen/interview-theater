@@ -1009,6 +1009,12 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
             # frei formulierte behaelt ihre Angabe -- sie steht als erste
             # Option da, statt stumm auf "offen" zurueckzufallen.
             formen.insert(0, jetzige)
+        stile_liste = list(web_schreiben.STILE)
+        jetziger_stil = (s.get("stil") or "").strip()
+        if jetziger_stil and jetziger_stil not in stile_liste:
+            # Wie bei der Form: ein Slug aus einer aelteren Fassung bleibt
+            # sichtbar, statt stumm auf "ohne" zurueckzufallen.
+            stile_liste.insert(0, jetziger_stil)
         felder = (
             "<dt>Titel</dt><dd>"
             + _textfeld("szene_titel", s.get("titel"), s["id"])
@@ -1036,13 +1042,28 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
                 if s.get("form_vorschlag")
                 else ""
             )
+            # Der Stil je Szene (06.09.2026, Birk 12:50) -- dasselbe Element
+            # wie die Form und derselbe Wertevorrat wie der Knopf im Chat.
+            # Die Beschriftung nennt die Vorlage, wie im Menue: wer waehlt,
+            # soll wissen, woher das Mass kommt.
+            + "</dd><dt>Stil</dt><dd>"
+            + _dropdown(
+                "szene_stil",
+                [
+                    (slug, web_schreiben.STIL_BESCHRIFTUNG.get(slug, slug))
+                    for slug in stile_liste
+                ],
+                jetziger_stil,
+                s["id"],
+                leer="— ohne Stilvorlage —",
+            )
             + "</dd>"
             + "".join(
                 f"<dt>{label}</dt><dd>"
                 + _textfeld(f"szene_{feld}", s.get(feld), s["id"], zeilen=2)
                 + "</dd>"
                 for feld, label in web_schreiben.SZENENFELDER.items()
-                if feld not in ("titel", "form")
+                if feld not in ("titel", "form", "stil")
             )
         )
     if s.get("kurzbeschreibung"):

@@ -511,7 +511,10 @@ def _tippanzeige(tg, chat_id: int):
 #: lief keiner: die Nachricht war erfunden.
 _SYSTEMZEILEN = (
     r"start\s*frei",
-    r"schreibe\s+(die|eure)\s+szene\s+aus",
+    # "ich schreibe die Szene aus", "ich schreibe eure Szene jetzt aus" --
+    # zwischen Szene und "aus" darf stehen, was das Modell dazwischenschiebt
+    # (gemessen live: "jetzt", "gleich", "gerade").
+    r"schreibe\s+(die|eure|euch\s+die)\s+szene\b[^.\n]{0,30}\baus\b",
     r"us[- ]?server",
     r"us[- ]?modell.*\?",
     r"\bschweiz\b.*\bus\b|\bus\b.*\bschweiz\b",
@@ -676,6 +679,20 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             szene.starte(
                 conn, tg, klm, e, chat_id,
                 f"Schreib Szene {nummer} neu. {letzte_nachricht['text'].strip()}",
+            )
+            return
+
+        # Dieselbe Bauart fuer die Kurzgeschichte (06.09.2026, Birk 11:50):
+        # nach "Etwas aendern" unter der fertigen Geschichte ist diese eine
+        # Nachricht die Regie-Notiz -- sie geht als Anweisung in den
+        # naechsten Lauf, nicht in den Gespraechszug.
+        if knoepfe.nimm_geschichte_notiz(chat_id) and (
+            letzte_nachricht["text"] or ""
+        ).strip():
+            from interview_theater import kurzgeschichte
+
+            kurzgeschichte.starte(
+                conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip(),
             )
             return
 

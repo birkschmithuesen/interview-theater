@@ -1763,6 +1763,10 @@ SZENENFELDER = (
     # Der Formvorschlag des Bots samt Begruendung (06.09.2026). Er ist NICHT
     # ``form``: gesetzt wird die Form allein durch einen Knopfdruck.
     "form_vorschlag", "form_vorschlag_grund",
+    # Die Stilvorlage je Szene (06.09.2026, Birk 12:50) -- ein Slug aus
+    # ``prompts/stile/``. Wie die Form: gesetzt allein durch die Auswahl der
+    # Gruppe, leer heisst "ohne Stilvorlage".
+    "stil",
 )
 
 

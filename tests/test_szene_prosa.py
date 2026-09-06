@@ -286,7 +286,10 @@ def test_der_phasentext_6_kuendigt_eine_geschichte_an():
 
     text = phasentexte.EINLEITUNGEN[6]
 
-    assert "als Geschichte" in text
+    # Seit dem 06.09.2026 (Birk, 11:50) ist es EINE Kurzgeschichte am Stueck
+    # mit freier Abschnittszahl -- nicht mehr Szene fuer Szene.
+    assert "Kurzgeschichte" in text
+    assert "Abschnitt" in text
     assert "Kein Theatertext" in text
     assert "Form" in text
 

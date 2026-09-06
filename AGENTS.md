@@ -84,7 +84,9 @@ lädt, würde damit Gesprächszüge ausbremsen.
   trägt die Auswahl selbst — nichts zu raten. Knöpfe gibt es deshalb **nur**
   dort, wo aus wenigen benannten Möglichkeiten gewählt wird: Kernthema-Vorschlag,
   Aufnahme-Umschalter, „Weiter zu Phase N", **Form je Szene** (Phase 6:
-  Dialog · Monolog · Chor · Lied · Rap) und die **USA-Einwilligung**. Freitext (Begriffe,
+  Dialog · Monolog · Chor · Lied · Rap), der **Stil je Szene** (Phase 7,
+  06.09.2026 — Schlagabtausch · Litanei · Herkules-Maß · Ohne Stilvorlage)
+  und die **USA-Einwilligung**. Freitext (Begriffe,
   Fragen, Figurenbeschreibungen) bleibt bewusst Sprache — dort gibt es keine
   Liste. Die letzten drei kamen am selben Tag dazu, nachdem die nummerierten
   Auswahllisten in `phasen/5.md` und `6.md` dieselbe Schwäche zeigten („das
@@ -500,6 +502,49 @@ lädt, würde damit Gesprächszüge ausbremsen.
   dazu gesagt hat" — Chat schlägt gespeicherte Angaben. `stop_reason ≠ end_turn`
   ist ein Fehler (`szene_abgeschnitten`), kein Text; `_pruefe_budget` warnt ab
   90 % der tatsächlichen Token.
+
+- **Phase 6 ist EINE Kurzgeschichte, nicht fünf Szenenläufe** (06.09.2026,
+  Birk 11:50, `kurzgeschichte.py`). Ein Opus-Lauf schreibt aus Setting,
+  Figuren (mit `figur.sprachstil`) und der gewählten Geschichte eine
+  zusammenhängende Kurzgeschichte, **und das Modell wählt die Zahl der
+  Abschnitte selbst** (typisch 3–7; die Szenenfolge aus Phase 4 ist
+  Anregung, nicht Vorgabe). Danach werden die Abschnitte zu Szenen —
+  `nummer`, `titel` = Überschrift, `prosa` = Abschnittstext, `was_passiert`
+  aus der Pflichtzeile `Zusammenfassung:`, `ort`/`zeit`/`anlass` aus dem
+  Setting (`szene.rahmenfelder`), **`form` bleibt NULL** (die entscheidet
+  der Feinschliff). Die bestehende Szenenfolge wird ersetzt (weich, wie
+  `szenenfolge.lege_an`), das Journal hält die Herkunft fest. Es gibt daher
+  **keine Vorgabe zur Abschnittszahl** im Prompt und keine Herkules-Zahlen
+  in `formen/prosa.md` — ein Test misst das (`test_teil4_kurzgeschichte`:
+  vier Überschriften → vier Szenen, sechs → sechs).
+
+- **Der Prosa-Lauf startet nur aus einem Knopf, und die USA-Frage steht beim
+  Eintritt in Phase 6** (06.09.2026, Birk 12:25). Beim Eintritt kommen
+  Einleitung und — einmal je Gruppe, **vor** dem ersten Lauf — die
+  USA-Einwilligung als eigene Nachricht mit genau „Ja, US-Modell" / „Nein,
+  Schweiz"; erst nach der Antwort steht der Knopf „Geschichte schreiben".
+  Vorher kam die Frage mitten aus dem Szenenlauf, wenn die Gruppe schon
+  wartete, und der Lauf brach dafür ab. Der Gesprächs-Bot löst **nie** einen
+  Lauf aus: eine Antwort mit „Start frei", „ich schreibe die Szene aus",
+  „US-Server"/„Schweiz" ohne laufenden Lauf wird verworfen
+  (`ablauf.ist_erfundene_systemzeile`, Vorfall
+  `gespraech_systemzeile_erfunden`), und `system.md` verbietet die Ansage.
+
+- **Der Stil ist eine Auswahl je Szene, kein Overlay je Bot** (06.09.2026,
+  Birk 12:50, `stile.py` + `prompts/stile/<slug>.md`). Birk: „alle Gruppen
+  sollen auf alle Stile zugreifen können, als Auswahl, mit Nennung des
+  Originalmaterials." Im Feinschliff folgt auf die Form-Frage **eine**
+  Nachricht „Welcher Stil?" als Optionen-Menü (fetter Titel, ein Satz,
+  Herkunft — Schatten/Morpheuz x Monet192, Lovesong/Adele,
+  Herkules.exe/ArtesMobiles) plus „Ohne Stilvorlage"; der Bot schlägt
+  passend zur Form vor (Rap → Schlagabtausch, Lied/Chor → Litanei,
+  Dialog/Monolog → Herkules) **mit Begründung**, gesetzt wird aber allein
+  durch den Druck (`szene.stil`, additive Spalte über
+  `_migriere_fehlende_spalten`). `szene.systemanweisung(form, stil)` hängt
+  den Stil-Block **nach** dem Formen-Regelblock und **vor** die Tells — und
+  **nur bei `form != prosa`**: die Prosafassung ist eine Geschichte, kein
+  Bühnentext. Die Web-Gruppenseite hat dasselbe als Dropdown je Szene;
+  `web_schreiben.STILE` muss wortgleich zu `stile.STILE` bleiben (Test).
 
 ## Die Fallen
 

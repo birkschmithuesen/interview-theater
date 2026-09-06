@@ -23,17 +23,69 @@ def tg():
 
 @pytest.mark.parametrize("nummer", [n for n, _, _ in phasen.PHASEN])
 def test_jede_phase_hat_dieselbe_eintrittsform(conn, nummer):
-    """Kopfzeile "▶️ Phase N von 7 · Name", eine Einleitung, die
-    Checkliste -- sieben Mal gleich aufgebaut."""
+    """Kopfzeile "▶️ Phase N von 7 · Name", die Angebotszeile, eine
+    Einleitung, die Checkliste -- sieben Mal gleich aufgebaut."""
     text = phasentexte.eintritt(conn, 1, nummer)
 
     zeilen = text.split("\n\n")
     assert zeilen[0] == f"▶️ Phase {nummer} von {phasen.LETZTE} · {phasen.kurzname(nummer)}"
+    assert zeilen[1] == phasentexte.ZEILE_ANGEBOT
     # Phase 8 hat zwei Einleitungen: eine fuer "alle Szenen stehen" und eine
     # fuer den Fall, dass welche fehlen (06.09.2026). Die Fixture hier hat
     # keine Szene, also greift die zweite.
-    assert zeilen[1] == phasentexte._einleitung(conn, 1, nummer)
-    assert zeilen[2].startswith("Dafuer braucht es: ")
+    assert zeilen[2] == phasentexte._einleitung(conn, 1, nummer)
+    assert zeilen[3].startswith("Dafuer braucht es: ")
+
+
+# --- Die Einleitung ist ein Angebot, kein Beschluss -----------------------
+
+
+@pytest.mark.parametrize("nummer", [n for n, _, _ in phasen.PHASEN])
+def test_jede_einleitung_steht_als_angebot_da(conn, nummer):
+    """Offener Punkt 5 (HANDOFF h): die Phaseneinleitung ist ein
+    TEXTANGEBOT und keine gesetzte Wahrheit. In JEDER Phase steht die
+    Angebotszeile unmittelbar vor der Einleitung -- der Angebotscharakter
+    wird gelesen, bevor der Ablauf gelesen wird."""
+    text = phasentexte.eintritt(conn, 1, nummer)
+
+    assert phasentexte.ZEILE_ANGEBOT in text
+    assert text.index(phasentexte.ZEILE_ANGEBOT) < text.index(
+        phasentexte._einleitung(conn, 1, nummer)
+    )
+
+
+def test_die_angebotszeile_nennt_den_weg_zum_widerspruch():
+    """Ein Angebot, das man nicht ablehnen kann, ist keins. Die Zeile sagt
+    beides in einem Satz: dass es ein Vorschlag ist und dass Widerspruch
+    genuegt -- in Sprache, ohne Slash-Befehl (AGENTS.md)."""
+    zeile = phasentexte.ZEILE_ANGEBOT
+
+    assert "Vorschlag" in zeile
+    assert "anders" in zeile
+    assert "/" not in zeile
+    assert " Sie " not in zeile
+
+
+def test_das_angebot_haengt_keinen_knopf_an(conn, einst, tg):
+    """Bewusst kein Knopf (AGENTS.md, "Inline-Knoepfe an den
+    Auswahl-Momenten"): unter dem Angebot ist nichts Fixes zu speichern und
+    es gibt keine benannten Alternativen. Angenommen wird es durch
+    Weiterarbeiten -- ein Pflichtklick waere genau der Zwang, den das
+    Angebot vermeidet."""
+    knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, 4)
+
+    _, text = tg.gesendet[-1]
+    assert phasentexte.ZEILE_ANGEBOT in text
+    assert tg.knoepfe == []
+
+
+def test_die_abschlussnachricht_ist_kein_angebot(conn):
+    """Nur die EINLEITUNG ist ein Angebot. Der Abschluss quittiert, was die
+    Gruppe wirklich gesetzt hat -- ein "sagt gern, wenn ihr es anders wollt"
+    ueber ihren eigenen Werten waere sinnlos."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Warten, Amt")
+
+    assert phasentexte.ZEILE_ANGEBOT not in phasentexte.abschluss(conn, 1, 1)
 
 
 @pytest.mark.parametrize("nummer", [n for n, _, _ in phasen.PHASEN])

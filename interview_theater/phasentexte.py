@@ -159,6 +159,33 @@ def _einleitung(conn, chat_id: int, phase: int) -> str:
 #: Die feste Zeile vor der Checkliste beim Eintritt.
 _KOPF_EINTRITT = "▶️ Phase {nummer} von {gesamt} · {name}"
 _ZEILE_CHECKLISTE = "Dafuer braucht es: {liste}"
+
+#: **Die Einleitung ist ein Angebot, keine gesetzte Wahrheit** (06.09.2026,
+#: Birk, offener Punkt 5 aus ``docs/HANDOFF.md``).
+#:
+#: Bis dahin verkuendete die Eintrittsnachricht den Ablauf ("Jetzt fuehrt ihr
+#: die Interviews", "Ab hier wird erfunden", "Jetzt schreibe ich eure
+#: Geschichte am Stueck"). Fuer eine Gruppe, die gerade etwas anderes vorhat,
+#: liest sich das wie eine Ansage des Bots -- und widersprechen muss man erst
+#: einmal wagen. Der Leitsatz des Ablaufs ist aber, dass die Gruppe die Phase
+#: setzt (AGENTS.md, "Die Phase setzt allein die Gruppe"); dann darf auch das,
+#: was in einer Phase passiert, nicht als Beschluss dastehen.
+#:
+#: Diese eine Zeile rahmt die unveraenderten acht Einleitungen als
+#: **Vorschlag** und nennt im selben Atemzug den Weg zum Widerspruch. Sie
+#: steht zwischen Kopfzeile und Einleitung, damit die Gruppe den
+#: Angebotscharakter liest, BEVOR sie den Ablauf liest.
+#:
+#: **Kein Knopf** (bewusst): unter dem Angebot gibt es nichts Fixes zu
+#: speichern und keine benannten Alternativen, aus denen zu waehlen waere --
+#: genau die Bedingung, unter der dieses Repo Knoepfe setzt (AGENTS.md,
+#: "Inline-Knoepfe an den Auswahl-Momenten"). Angenommen wird das Angebot,
+#: indem die Gruppe weiterarbeitet; abgelehnt, indem sie sagt, was sie
+#: stattdessen will -- das ist Freitext und bleibt Sprache. Ein Knopf
+#: "Passt, los" waere ein Pflichtklick vor jeder Phase, also genau der Zwang,
+#: den das Angebot vermeiden soll.
+ZEILE_ANGEBOT = "Mein Vorschlag fuer diese Phase - sagt gern, wenn ihr es anders wollt:"
+
 _KOPF_ABSCHLUSS = "✅ Phase {bezeichnung} abgeschlossen"
 _ERLEDIGT = "✅"
 _OFFEN = "⬜"
@@ -426,7 +453,14 @@ def checkliste(conn, chat_id: int, phase: int) -> str:
 
 
 def eintritt(conn, chat_id: int, phase: int) -> str:
-    """Die Eintrittsnachricht einer Phase: Kopfzeile, Einleitung, Checkliste.
+    """Die Eintrittsnachricht einer Phase: Kopfzeile, **Angebotszeile**,
+    Einleitung, Checkliste.
+
+    Die Einleitung ist ein **Textangebot** und keine Ansage (06.09.2026,
+    ``ZEILE_ANGEBOT``): der Bot schlaegt vor, wie diese Phase laufen kann,
+    und sagt in derselben Nachricht, dass die Gruppe es anders haben darf.
+    Angenommen wird das Angebot durch Weiterarbeiten -- es gibt nichts zu
+    bestaetigen, kein Knopfdruck haelt die Gruppe auf.
 
     Ohne Knoepfe -- die haengt der Aufrufer darunter
     (``knoepfe.eintritt_in_phase``): welche Knoepfe zum Einstieg gehoeren,
@@ -437,6 +471,7 @@ def eintritt(conn, chat_id: int, phase: int) -> str:
     zeilen = [kopf]
     einleitung = _einleitung(conn, chat_id, phase)
     if einleitung:
+        zeilen.append(ZEILE_ANGEBOT)
         zeilen.append(einleitung)
     liste = checkliste(conn, chat_id, phase)
     if liste:

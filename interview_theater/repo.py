@@ -2189,9 +2189,17 @@ def hebe_fassung_auf(conn: sqlite3.Connection, szene_id: int) -> None:
     Additiv und nie loeschend: eine Gruppe, die nachmittags merkt, dass die
     erste Fassung besser war, hat sie sonst nirgends mehr -- der Chatverlauf
     zeigt nur die Vorschau. Ohne Volltext passiert nichts (die erste Fassung
-    hat keine Vorgaengerin)."""
+    hat keine Vorgaengerin).
+
+    Seit dem 07.09.2026 wird derselbe Text zusaetzlich als Zeile in
+    ``szenenfassung`` gesichert. Das Feld bleibt daneben stehen: es ist der
+    Rueckfall fuer Szenen aus der Zeit davor. Fuer eine Szene, die seither
+    geschrieben wurde, steht die Zeile schon da -- ``lege_szenenfassung_an``
+    legt dann keine zweite an (idempotent ueber den Textvergleich)."""
     zeile = conn.execute(
-        "SELECT volltext, fruehere_fassungen FROM szene WHERE id = ?", (szene_id,)
+        "SELECT chat_id, volltext, fruehere_fassungen, form, stil "
+        "FROM szene WHERE id = ?",
+        (szene_id,),
     ).fetchone()
     if zeile is None or not (zeile["volltext"] or "").strip():
         return
@@ -2203,6 +2211,67 @@ def hebe_fassung_auf(conn: sqlite3.Connection, szene_id: int) -> None:
         "UPDATE szene SET fruehere_fassungen = ? WHERE id = ?", (neu, szene_id)
     )
     conn.commit()
+    lege_szenenfassung_an(
+        conn, zeile["chat_id"], szene_id, zeile["volltext"],
+        szenenfolge.fassungsbeschriftung(zeile["form"], zeile["stil"]),
+    )
+
+
+@_gesperrt
+def lege_szenenfassung_an(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    szene_id: int,
+    volltext: str | None,
+    beschriftung: str | None = None,
+) -> int:
+    """Haengt eine Fassung an eine Szene an und liefert ihre Nummer
+    (07.09.2026, Tabelle ``szenenfassung``).
+
+    **Nur-anhaengend**, wie das Journal: es gibt kein Gegenstueck, das eine
+    Fassung aendert oder loescht. Die ``nummer`` laeuft je Szene fortlaufend
+    ab 1 und wird hier vergeben, nicht vom Aufrufer -- zwei gleichzeitige
+    Laeufe an derselben Szene gibt es nicht (``szene`` haelt eine Sperre je
+    Gruppe), und der modulweite ``repo._LOCK`` deckt den Rest.
+
+    **Idempotent gegen Doppelaufrufe**: ist die letzte Fassung Zeichen fuer
+    Zeichen dieselbe, kommt keine zweite dazu und ihre Nummer kommt zurueck.
+    Ein leerer Text legt gar nichts an und liefert 0 -- eine Fassung ohne Text
+    ist keine.
+    """
+    text = (volltext or "").strip()
+    if not text:
+        return 0
+    letzte = conn.execute(
+        "SELECT nummer, volltext FROM szenenfassung WHERE szene_id = ? "
+        "ORDER BY nummer DESC, id DESC LIMIT 1",
+        (szene_id,),
+    ).fetchone()
+    if letzte is not None and (letzte["volltext"] or "").strip() == text:
+        return letzte["nummer"]
+    nummer = (letzte["nummer"] if letzte is not None else 0) + 1
+    conn.execute(
+        """
+        INSERT INTO szenenfassung
+            (chat_id, szene_id, nummer, beschriftung, volltext, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (chat_id, szene_id, nummer, (beschriftung or "").strip() or None,
+         text, _jetzt_genau()),
+    )
+    conn.commit()
+    return nummer
+
+
+@_gesperrt
+def szenenfassungen(conn: sqlite3.Connection, szene_id: int) -> list[sqlite3.Row]:
+    """Alle Fassungen einer Szene, aelteste zuerst. Lesend und ohne
+    Nebenwirkung; die Weboberflaeche liest dieselbe Tabelle ueber ihre eigene
+    read-only-Verbindung (``web_daten.szenenfassungen``)."""
+    return conn.execute(
+        "SELECT * FROM szenenfassung WHERE szene_id = ? ORDER BY nummer ASC, id ASC",
+        (szene_id,),
+    ).fetchall()
 
 
 @_gesperrt

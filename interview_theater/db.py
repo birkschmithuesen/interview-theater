@@ -429,6 +429,37 @@ CREATE TABLE IF NOT EXISTS szene (
 );
 CREATE INDEX IF NOT EXISTS idx_szene_aktuell ON szene(chat_id, geaendert_am DESC);
 
+-- Die Fassungen einer Szene als ZEILEN (07.09.2026).
+--
+-- ``szene.fruehere_fassungen`` haelt dasselbe seit dem 05.09. als einen
+-- Textblock mit Trennzeichen. Das reicht, um nichts zu verlieren, aber nicht,
+-- um zwischen zwei Fassungen umzuschalten: ein Feld hat keine Nummer, keine
+-- Zeit und keine Beschriftung, und wer die zweite von vier Fassungen sehen
+-- will, bekommt alle vier am Stueck. Deshalb hier eine Zeile je Fassung.
+--
+-- **Nur-anhaengend**, wie das Journal: es gibt kein
+-- ``aktualisiere_szenenfassung`` und keinen DELETE. Was einmal geschrieben
+-- wurde, bleibt stehen -- eine Gruppe, die um 16 Uhr merkt, dass die erste
+-- Fassung besser war, hat sie sonst nirgends mehr.
+--
+-- ``nummer`` laeuft **je Szene** fortlaufend ab 1 (repo.lege_szenenfassung_an
+-- vergibt sie), ``beschriftung`` ist die kurze Kennung in der Ansicht ("Dialog
+-- · Herkules-Mass"). ``szene.volltext`` bleibt daneben stehen und ist die
+-- aktuelle Fassung: eine Szene ohne eine einzige Zeile hier funktioniert
+-- unveraendert weiter, und alle Leser fallen dann auf
+-- ``fruehere_fassungen`` zurueck (rueckwaertskompatibel,
+-- web_daten.szenenfassungen).
+CREATE TABLE IF NOT EXISTS szenenfassung (
+  id            INTEGER PRIMARY KEY,
+  chat_id       INTEGER NOT NULL,
+  szene_id      INTEGER NOT NULL,
+  nummer        INTEGER NOT NULL,
+  beschriftung  TEXT,
+  volltext      TEXT,
+  erstellt_am   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_szenenfassung_szene ON szenenfassung(szene_id, nummer);
+
 -- Die Schaerfung am Material (Phase 6, Umbau 05.09.2026 nachts).
 --
 -- Ein Schema-Aufruf mappt jeden passenden **geprueften** Verdichtungseintrag
@@ -569,6 +600,7 @@ TABELLEN_MIT_CHAT_ID = (
     "arbeitsstand",
     "figur",
     "szene",
+    "szenenfassung",
     "szene_figur",
     "schaerfung",
     "stueckpruefung",

@@ -2007,6 +2007,19 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
         None if prosa_lauf else volltext, fassung,
         prosa=volltext if prosa_lauf else None,
     )
+    # Jede geschriebene Fassung bekommt eine Zeile (07.09.2026,
+    # ``szenenfassung``). Hier und nicht in ``aktualisiere_szene``: dort
+    # waere es eine unsichtbare Nebenwirkung einer allgemeinen
+    # Schreibfunktion, die auch die Weboberflaeche und der Abgleich rufen.
+    # Nur der Theatertext, nicht die Prosafassung -- die Fassungen sind das,
+    # was "Passt, aber anders" und "Neu schreiben" erzeugen.
+    if not prosa_lauf:
+        from interview_theater import szenenfolge as szenenfolge_modul
+
+        repo.lege_szenenfassung_an(
+            conn, chat_id, ziel["id"], volltext,
+            szenenfolge_modul.fassungsbeschriftung(form, stil),
+        )
 
     titel = titel or f"Szene {nummer}"
     # Das Journal haelt fest, was gilt (SPEC § 2) -- eine geschriebene Szene

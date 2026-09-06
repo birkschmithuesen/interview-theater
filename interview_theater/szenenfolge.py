@@ -77,6 +77,18 @@ FORM_VORGABE = "dialog"
 #: Trennt zwei Fassungen im Feld ``szene.fruehere_fassungen``.
 FASSUNGSTRENNER = "\n\n----- fruehere Fassung -----\n\n"
 
+
+def fassungsbeschriftung(form: str | None, stil: str | None) -> str:
+    """Die kurze Kennung einer Fassung in der Uebersicht (07.09.2026): Form
+    und Stil, mit Mittelpunkt verbunden.
+
+    Warum genau die beiden: sie sind das, was zwei Fassungen derselben Szene
+    unterscheidet, sobald die Gruppe im Feinschliff umschaltet (Dialog → Rap).
+    Die Uhrzeit steht ohnehin in ``szenenfassung.erstellt_am``, und den Anlass
+    ("neu" oder "anders") kennt nur der Knopf-Handler."""
+    teile = [str(t).strip() for t in (form, stil) if t and str(t).strip()]
+    return " · ".join(teile)
+
 #: Die Anweisung fuer den Vorschlags-Aufruf. Bewusst kurz und ausdruecklich
 #: auf das Format bezogen: der Marker ist die einzige Stelle, an der der Code
 #: den Vorschlag wiederfindet (``vorschlag.lies``), und ein Vorschlag ohne

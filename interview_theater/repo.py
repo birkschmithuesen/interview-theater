@@ -2452,6 +2452,193 @@ def schreibe_journal(
     return cur.lastrowid
 
 
+# --- Festlegungen (06.09.2026) --------------------------------------------
+#
+# Die Auffangtabelle fuer alles, was die Gruppe festlegt und wofuer es kein
+# Feld gibt (docs/analyse-phase4-datenverlust-2026-09-06.md § 4.1). Der
+# Unterschied zum Journal steht im Schema-Kommentar in db.py: Chronik gegen
+# Geltungsanspruch. Hier stehen nur die Schreibwege.
+
+#: Die erlaubten Bereiche einer Festlegung.
+#:
+#: Bewusst grob und bewusst OHNE einen Namen, den ein Arbeitsstandfeld schon
+#: traegt (Analyse § 4.4 Risiko 2, "Doppelte Wahrheit"): was in ``rahmen``,
+#: ``geschichte`` oder ``figur.beschreibung`` passt, gehoert dorthin. Diese
+#: Tabelle faengt auf, was daneben faellt -- Gruppenzugehoerigkeiten,
+#: Herkuenfte, Struktur- und Stilvorgaben --, nicht, was schon ein Zuhause
+#: hat. Ein unbekannter Bereich wird zu ``sonstiges`` statt verworfen: eine
+#: Festlegung im falschen Fach ist immer noch besser als keine.
+FESTLEGUNG_BEREICHE = (
+    "figur",      # eine einzelne Figur: Herkunft, Alter, Beruf, Relation
+    "gruppe",     # eine Fraktion im Stueck: Merkmale, Faehigkeiten, Zuordnung
+    "ort",        # Teilorte unterhalb des Settings (Skatepark, Strassenzug)
+    "struktur",   # das Stueck als Ganzes: Serie, Folgenanzahl, Cliffhanger
+    "form",       # Formentscheidungen jenseits von szene.form
+    "stil",       # Stil- und Laengenvorgaben fuer Texte
+    "sonstiges",
+)
+
+#: Wovon eine Festlegung stammen kann.
+FESTLEGUNG_QUELLEN = ("erkenner", "befehl", "web")
+
+
+def normiere_bereich(bereich) -> str:
+    """Einen genannten Bereich auf ``FESTLEGUNG_BEREICHE`` abbilden.
+
+    Tolerant, weil die Werte aus einem Sprachmodell kommen: getrimmt,
+    kleingeschrieben, Mehrzahl abgeschnitten ("figuren" -> "figur"). Was
+    danach nicht passt, wird ``sonstiges``."""
+    wort = (bereich or "").strip().lower().strip(":")
+    if wort in FESTLEGUNG_BEREICHE:
+        return wort
+    if wort.endswith("en") and wort[:-2] in FESTLEGUNG_BEREICHE:
+        return wort[:-2]
+    if wort.endswith("n") and wort[:-1] in FESTLEGUNG_BEREICHE:
+        return wort[:-1]
+    return "sonstiges"
+
+
+def festlegungszeile(bereich: str, bezug: str | None, text: str) -> str:
+    """Eine Festlegung als die eine Zeile, die Prompt, Chat und
+    Weboberflaeche teilen: ``[bereich/bezug] Text``.
+
+    Eine Formatierung und nicht drei -- steht sie an drei Stellen, laufen
+    die drei irgendwann auseinander, und der Prompt zeigt etwas anderes als
+    die Gruppenseite."""
+    kopf = f"{bereich}/{bezug.strip()}" if (bezug or "").strip() else bereich
+    return f"[{kopf}] {text}"
+
+
+@_gesperrt
+def festlegungen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle noch geltenden Festlegungen einer Gruppe, **aelteste zuerst**.
+
+    Die Reihenfolge traegt die Kappung im Prompt (``kontext``): eine fruehe
+    Grundfestlegung ("nur eine Szene, erste Folge einer Serie") wiegt mehr
+    als eine spaete Detailnotiz -- anders als beim Journal, das die letzten
+    Zeilen behaelt."""
+    return conn.execute(
+        "SELECT * FROM festlegung WHERE chat_id = ? AND entfernt_am IS NULL "
+        "ORDER BY id ASC",
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def schreibe_festlegung(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    bereich: str,
+    text: str,
+    bezug: str | None = None,
+    quelle: str = "erkenner",
+) -> int | None:
+    """Haengt eine Festlegung an. Liefert die neue id, oder ``None``, wenn
+    nichts geschrieben wurde.
+
+    **Mit Dublettenschutz, anders als das Journal.** Dort sind zwei
+    gleichlautende Aeusserungen zwei Ereignisse und beide gehoeren in die
+    Chronik; hier ist eine Festlegung ein ZUSTAND, und derselbe Zustand
+    zweimal ist keine zweite Festlegung, sondern eine doppelte Prompt-Zeile.
+    Der Erkenner neigt messbar zur Uebererfassung (Analyse § 4.4 Risiko 1:
+    13 ``vorgeschlagen``-Eintraege in einer Phase, mehrere redundant) --
+    ohne diese Pruefung waechst der Block, bis die Kappung greift und die
+    aelteste, wichtigste Zeile verdraengt.
+
+    Eine schon entfernte Zeile blockiert nicht: zurueckgenommen und neu
+    gesagt ist eine neue Festlegung."""
+    text = " ".join((text or "").split())
+    if not text:
+        return None
+    bereich = normiere_bereich(bereich)
+    bezug = (bezug or "").strip() or None
+    schon_da = conn.execute(
+        "SELECT id FROM festlegung WHERE chat_id = ? AND entfernt_am IS NULL "
+        "AND bereich = ? AND text = ? AND IFNULL(bezug, '') = IFNULL(?, '')",
+        (chat_id, bereich, text, bezug),
+    ).fetchone()
+    if schon_da is not None:
+        return None
+    cur = conn.execute(
+        """
+        INSERT INTO festlegung (chat_id, bereich, bezug, text, quelle, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (chat_id, bereich, bezug, text, quelle, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def entferne_festlegung(
+    conn: sqlite3.Connection, chat_id: int, suchtext: str
+) -> str | None:
+    """Entfernt eine Festlegung weich und liefert ihren Text, oder ``None``.
+
+    Gesucht wird grosszuegig ueber Text UND Bezug (Teiltreffer,
+    Gross-/Kleinschreibung egal, wie ``entferne_journal``): die Gruppe sagt
+    "die Sache mit der Schule ist weg", nicht den vollen Eintragstext.
+    Passen mehrere, trifft es den juengsten -- der ist der wahrscheinlich
+    gemeinte."""
+    suchtext = (suchtext or "").strip()
+    if not suchtext:
+        return None
+    # Teiltreffer in Python statt als LIKE-Muster: ein '%' oder '_' im
+    # Suchtext waere dort ein Platzhalter (dieselbe Ueberlegung wie in
+    # entferne_journal und transkripte).
+    gesucht = suchtext.lower()
+    zeile = next(
+        (
+            z
+            for z in conn.execute(
+                "SELECT id, text, bezug FROM festlegung "
+                "WHERE chat_id = ? AND entfernt_am IS NULL ORDER BY id DESC",
+                (chat_id,),
+            )
+            if gesucht in (z["text"] or "").lower()
+            or gesucht in (z["bezug"] or "").lower()
+        ),
+        None,
+    )
+    if zeile is None:
+        return None
+    conn.execute(
+        "UPDATE festlegung SET entfernt_am = ? WHERE id = ?", (_jetzt(), zeile["id"])
+    )
+    conn.commit()
+    return zeile["text"]
+
+
+@_gesperrt
+def entferne_festlegung_nach_id(
+    conn: sqlite3.Connection, chat_id: int, festlegung_id
+) -> str | None:
+    """Dasselbe ueber die id -- der Weg des Loeschknopfs auf der
+    Gruppenseite.
+
+    ``chat_id`` ist hier keine Zierde, sondern die Zugehoerigkeitspruefung:
+    alle Gruppen teilen sich eine Datenbank, und eine id aus einem Formular
+    darf am Token in der URL nicht vorbeigreifen (dieselbe Regel wie
+    ``web_schreiben._figur``)."""
+    try:
+        festlegung_id = int(festlegung_id)
+    except (TypeError, ValueError):
+        return None
+    zeile = conn.execute(
+        "SELECT id, text FROM festlegung "
+        "WHERE id = ? AND chat_id = ? AND entfernt_am IS NULL",
+        (festlegung_id, chat_id),
+    ).fetchone()
+    if zeile is None:
+        return None
+    conn.execute(
+        "UPDATE festlegung SET entfernt_am = ? WHERE id = ?", (_jetzt(), zeile["id"])
+    )
+    conn.commit()
+    return zeile["text"]
+
+
 @_gesperrt
 def merke_aufruf(
     conn: sqlite3.Connection,

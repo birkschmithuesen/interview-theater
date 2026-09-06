@@ -234,7 +234,8 @@ _BEARBEITEN_JS = """
     if (!feld) { return; }
     // Entfernen fragt einmal nach -- ohne Dialogfenster, damit ein
     // Fehlgriff auf dem Telefon nicht gleich eine Figur kostet.
-    if (feld.dataset.feld === 'figur_entfernen' && knopf.dataset.sicher !== '1') {
+    var entfernt = (feld.dataset.feld || '').slice(-10) === '_entfernen';
+    if (entfernt && knopf.dataset.sicher !== '1') {
       knopf.dataset.sicher = '1';
       knopf.textContent = 'Wirklich entfernen?';
       return;
@@ -459,6 +460,15 @@ h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; text-transform: uppercase;
   h2, .frage .nummer, .frage .kern { opacity: 1; }
   .frage, .block { page-break-inside: avoid; }
 }
+/* Die Festlegungen: eine Zeile je Eintrag, die Bereichsmarke davor. Ohne
+   Kasten und ohne Aufklappen -- sie sollen gelesen werden, nicht geoeffnet. */
+.festlegung { display: flex; flex-wrap: wrap; align-items: baseline;
+              gap: .1rem .5rem; padding: .3rem 0;
+              border-top: 1px solid #eee7d8; }
+.festlegung:first-child { border-top: none; }
+.festlegung .marke { font-size: .72rem; opacity: .6; text-transform: uppercase;
+                     letter-spacing: .04em; }
+.festlegung .feld { flex: 0 0 auto; }
 """
 
 
@@ -940,6 +950,43 @@ def _figur_formular(f: dict, interviews: list[dict]) -> str:
         _rahmen("", "figur_entfernen", f["id"], knopf="Entfernen")
     )
     stuecke.append("</div>")
+    return "".join(stuecke)
+
+
+def _festlegungen_html(daten: dict, nonce_wert: str | None) -> str:
+    """Was die Gruppe festgelegt hat und wofuer es kein Feld gibt.
+
+    **Aufgeklappt**, nicht in einem ``<details>`` wie das Journal. Das ist
+    der eine Punkt, an dem sich dieser Abschnitt vom Journal unterscheidet,
+    und er ist der Grund, warum es ihn gibt: das Journal steht auf derselben
+    Seite, eingeklappt, und war damit *sichtbar, nicht wirksam*
+    (docs/analyse-phase4-datenverlust-2026-09-06.md § 2.7).
+
+    Mit ``nonce_wert`` bekommt jede Zeile einen Loeschknopf -- Pflicht, nicht
+    Kuer (§ 4.4 Risiko 3): ohne ihn bleibt eine ueberholte Festlegung fuer
+    immer stehen, so wie am 06.09. der Eintrag ueber einen laengst
+    zurueckgenommenen zweiten Spielort. Angelegt wird hier nichts; das tut
+    der Chat."""
+    zeilen = daten.get("festlegungen") or []
+    if not zeilen:
+        return (
+            '<p class="leer">Noch nichts festgehalten, was in kein Feld '
+            "passt.</p>"
+        )
+    stuecke = []
+    for z in zeilen:
+        marke = z["bereich"] + (f" · {z['bezug']}" if z.get("bezug") else "")
+        knopf = (
+            _rahmen("", "festlegung_entfernen", z["id"], knopf="Entfernen")
+            if nonce_wert
+            else ""
+        )
+        stuecke.append(
+            '<div class="festlegung"><span class="marke">{marke}</span>'
+            "<span>{text}</span>{knopf}</div>".format(
+                marke=_t(marke), text=_t(z["text"]), knopf=knopf
+            )
+        )
     return "".join(stuecke)
 
 
@@ -1545,6 +1592,11 @@ def gruppe_html(
         # dieselbe Datenlage in der anderen Richtung (06.09.2026). Fehlt
         # nichts, fehlt auch der Abschnitt.
         f"{_fehlstellen_html(daten.get('fehlstellen'))}\n"
+        # Direkt hinter dem Arbeitsstand -- an derselben Stelle wie im
+        # Prompt (kontext._REIHENFOLGE): was die Gruppe auf ihrer Seite
+        # liest, soll da stehen, wo das Modell es auch liest.
+        "<h2>Weitere Festlegungen</h2>"
+        f"{_festlegungen_html(daten, nonce_wert)}\n"
         f"<h2>Szenen</h2>{uebersicht}{szenen}\n"
         # Die Sprechanteile stehen unter den Szenen: sie sind eine Zählung
         # über genau diese Texte (06.09.2026). Ohne zählbare Szene fehlt der

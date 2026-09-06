@@ -292,6 +292,16 @@ _AUFTRAGSFORMEN = (
     r"^\s*ausschreiben\s*$",
     r"interview\s*starten",
     r"^\s*aufnahme\s*(starten|beenden)\s*$",
+    # **Interview starten/beenden, gesprochen wie getippt** (06.09.2026,
+    # Birk 10:45): "wir wollen jetzt ein interview machen", "interview
+    # anfangen", "interview los". Der Erkenner erkennt es eine Sekunde
+    # spaeter und legt die Systemzeile mit dem Knopf hin -- der
+    # Gespraechs-Bot erklaerte bis dahin parallel die Bedienung ("tippt
+    # unten auf ..."), und der Knopf, auf den er verwies, war noch gar
+    # nicht da.
+    r"interview\b.{0,20}\b(starten|machen|anfangen|los)\b",
+    r"\b(starten|machen|anfangen|los)\b.{0,20}\binterview\b",
+    r"interview\s*(beenden|fertig|aus)\b",
 )
 
 _AUFTRAG = re.compile("|".join(_AUFTRAGSFORMEN), re.IGNORECASE)
@@ -406,31 +416,48 @@ def ist_ausloeser(n: dict, bot_name: str | None) -> bool:
 
 
 @contextmanager
-def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None):
-    """Tippanzeige waehrend eines laufenden Modellaufrufs -- und, wenn
-    ``text`` gesetzt ist, **sofort** eine kurze Arbeitszeile, die am Ende
-    wieder verschwindet (06.09.2026, 10:10, Birk).
+def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None,
+                      art: str | None = None):
+    """Tippanzeige plus wechselnde Arbeitszeile waehrend eines laufenden
+    Modellaufrufs (06.09.2026, 10:10/11:15, Birk).
 
     Der Anlass: nach dem Speichern der Fragen sagte der Bot minutenlang
     nichts, und die Gruppe wusste nicht, ob noch etwas kommt. Die Zeile geht
     **im Handler** raus, nicht im Thread -- sie ist deterministisch, kostet
     keinen Modellaufruf und steht damit VOR der Wartezeit statt danach.
 
-    Geloescht wird sie beim Verlassen des Blocks (wie die Emoji-Zeile des
-    Szenenlaufs, ``szene._arbeitet_sichtbar``): eine Arbeitsmeldung, die
-    stehen bleibt, liest sich beim naechsten Blick wie eine haengende
-    Aufgabe. Schlaegt das Loeschen fehl, bleibt sie stehen -- Schmuck darf
-    einen Zug nie mitreissen."""
+    Seit dem 06.09.2026, 11:15 ist es **eine** Umsetzung fuer alle Auftraege
+    (``arbeitszeilen.Lauf``, vorher zusaetzlich ``szene._arbeitet_sichtbar``):
+    sofort die erste Zeile, danach alle ``arbeitszeilen.TAKT_S`` eine neue
+    (editMessageText), am Ende geloescht. ``art`` waehlt die Liste
+    (``arbeitszeilen.ZEILEN``); ``text`` ist der alte Weg mit genau EINER
+    festen Zeile und bleibt fuer die Stellen, die einen bestimmten Satz
+    zeigen wollen.
+
+    Eine Arbeitsmeldung, die stehen bleibt, liest sich beim naechsten Blick
+    wie eine haengende Aufgabe -- deshalb wird immer aufgeraeumt. Schlaegt
+    das fehl, bleibt sie stehen: Schmuck darf einen Zug nie mitreissen."""
+    from interview_theater import arbeitszeilen
+
+    lauf = None
     arbeitszeile = None
-    if text:
+    if art:
+        lauf = arbeitszeilen.sichtbar(tg, chat_id, art)
+    elif text:
         try:
             arbeitszeile = tg.sende(chat_id, text)
         except Exception:
             log.exception("Arbeitszeile fehlgeschlagen, chat_id=%s", chat_id)
     try:
-        with _tippanzeige(tg, chat_id):
+        if lauf is not None:
+            # Der Lauf haelt die Tippanzeige selbst am Leben.
             yield
+        else:
+            with _tippanzeige(tg, chat_id):
+                yield
     finally:
+        if lauf is not None:
+            lauf.stoppe()
         if arbeitszeile is not None:
             try:
                 tg.loesche_nachrichten(chat_id, [arbeitszeile])
@@ -828,7 +855,8 @@ _AUFTRAG_KOPF = "Deine Aufgabe in genau diesem Zug:"
 
 
 def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
-                arbeitszeile: str | None = None) -> None:
+                arbeitszeile: str | None = None,
+                arbeitsart: str | None = None) -> None:
     """Ein vollstaendiger Gespraechszug mit einer zusaetzlichen Anweisung --
     ausgeloest von einem Knopf, nicht von einer Nachricht (05.09.2026).
 
@@ -852,7 +880,7 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         # der Bot arbeitet, und beim Ende wieder verschwindet (06.09.2026,
         # 10:10). Ohne sie schwieg der Bot zwischen "Notiert: Fragen ..." und
         # der Sensibilitaetspruefung minutenlang.
-        with arbeitet_sichtbar(tg, chat_id, arbeitszeile):
+        with arbeitet_sichtbar(tg, chat_id, arbeitszeile, arbeitsart):
             phase = phasen.aktuelle(conn, chat_id)
             koerper = kontext.baue(conn, chat_id, [], e)
             koerper = f"{koerper}\n\n{_AUFTRAG_KOPF}\n{anweisung}"
@@ -895,7 +923,8 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
 
 
 def starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
-                   arbeitszeile: str | None = None):
+                   arbeitszeile: str | None = None,
+                   arbeitsart: str | None = None):
     """Gibt einen ``auftragszug`` an einen eigenen Thread ab und kehrt sofort
     zurueck -- dasselbe Muster wie ``szene.starte`` und
     ``sprachprofil.starte``. Liefert den Thread (fuer Tests) oder None.
@@ -908,7 +937,7 @@ def starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
         return None
     thread = threading.Thread(
         target=auftragszug,
-        args=(conn, tg, klm, e, chat_id, anweisung, arbeitszeile),
+        args=(conn, tg, klm, e, chat_id, anweisung, arbeitszeile, arbeitsart),
         daemon=True,
     )
     thread.start()

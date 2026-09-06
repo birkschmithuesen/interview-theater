@@ -425,6 +425,23 @@ _ARBEITSSTAND_ARTEN = {
 }
 
 
+#: Woran ein Handlungstext erkennbar ist, der faelschlich als Setting
+#: (``rahmen``) gespeichert werden soll (06.09.2026, Birk 11:42). Zwei
+#: Merkmale, beide aus dem Live-Fall: eine ausdrueckliche Ende-Angabe und
+#: schiere Laenge -- ein Setting ist "Ort, Zeit, Anlass", kein Absatz.
+_GESCHICHTE_MARKER = re.compile(
+    r"\bEnde\s*:|\bam Ende\b|\bzum Schluss\b|\bdann\b.*\bdann\b", re.IGNORECASE
+)
+#: Ab hier ist es kein Setting mehr, sondern eine Erzaehlung.
+RAHMEN_HOECHSTLAENGE = 300
+
+
+def _ist_geschichte(wert: str) -> bool:
+    """Sieht dieser Text nach der Handlung aus statt nach dem Setting?"""
+    roh = (wert or "").strip()
+    return len(roh) > RAHMEN_HOECHSTLAENGE or _GESCHICHTE_MARKER.search(roh) is not None
+
+
 def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     """Ueberschreibt ein Arbeitsstand-Feld -- aber nur, wenn sich der Wert
     tatsaechlich aendert (die wichtigste Regel aus Aufgabe 3: derselbe Wert
@@ -434,6 +451,19 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
     if not wert:
         return None
     feld = _ARBEITSSTAND_ARTEN[art]
+    if feld == "rahmen" and _ist_geschichte(wert):
+        # **Der Rahmen ist das SETTING, nicht die Handlung** (06.09.2026,
+        # Birk 11:42, live gemessen: der Erkenner schrieb einen
+        # Geschichte-Vorschlag in ``rahmen``, und das Setting war um die
+        # ganze Handlung erweitert). Abgefangen wird das hier in der
+        # Auswertung und nicht im Prompt -- ``erkenner.md`` ist ohne
+        # Korpuslauf nicht anzufassen.
+        log.info("rahmen_setzen sah nach Handlung aus, verworfen: %r", wert[:80])
+        repo.merke_vorfall(
+            conn, chat_id, None, "rahmen_war_geschichte",
+            "Ein Geschichte-Text sollte in den Rahmen geschrieben werden",
+        )
+        return None
     stand = repo.hole_arbeitsstand(conn, chat_id)
     aktuell = stand[feld] if stand else None
     if aktuell == wert:

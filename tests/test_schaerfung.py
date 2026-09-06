@@ -217,7 +217,7 @@ def test_je_szene_eine_vorschlagsnachricht_mit_grundleiste(lage, tg, einst):
     assert ZITAT_A in text
     assert "Mira erzaehlt davon" in text
     assert [b for b, _ in tg.knoepfe[-1][2]] == [
-        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
+        "Ja, speichern", "Nein, nochmal aendern",
     ]
 
 
@@ -320,7 +320,7 @@ def test_gefaellt_uns_weiter_uebernimmt_und_geht_weiter(lage, tg, einst):
            figuren_namen=["", "Pal"], begruendungen=["zur Szene", "zur Figur"])
     knoepfe.biete_schaerfung(lage, tg, 1)
 
-    knoepfe.behandle(lage, tg, None, einst, _druck(_knopf(tg, "Gefaellt uns, weiter")))
+    knoepfe.behandle(lage, tg, None, einst, _druck(_knopf(tg, "Ja, speichern")))
 
     frisch = repo.hole_szene(lage, repo.hole_szenen(lage, 1)[0]["id"])
     assert "zur Szene" in frisch["was_passiert"]

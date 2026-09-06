@@ -10,7 +10,7 @@ waren:
    wenn die Antwort da ist -- eine Arbeitsmeldung, die stehen bleibt, liest
    sich beim naechsten Blick wie eine haengende Aufgabe.
 
-2. **Die Invariante der Phase 2**: nach JEDEM "Gefaellt uns, weiter" folgt
+2. **Die Invariante der Phase 2**: nach JEDEM "Ja, speichern" folgt
    eine Aktion, nie Stille. Fragen -> Sensibilitaetspruefung; Einleitungen
    -> Eroeffnungs-Auftrag; Eroeffnung -> Abschlussnachricht mit
    "Weiter zu Interviews". Der Live-Befund vom 10:25 war das Gegenteil:
@@ -56,7 +56,8 @@ def auftraege(monkeypatch):
     """Zeichnet Anweisung UND Arbeitszeile auf -- statt ein Modell zu rufen."""
     gesammelt = []
 
-    def _fake(conn, tg_, klm, e, chat_id, anweisung, arbeitszeile=None):
+    def _fake(conn, tg_, klm, e, chat_id, anweisung, arbeitszeile=None,
+              arbeitsart=None):
         gesammelt.append((anweisung, arbeitszeile))
         return object()
 
@@ -161,7 +162,7 @@ def test_nach_den_einleitungen_folgt_der_eroeffnungsauftrag(
         conn, tg, 1, "VORSCHLAG EINLEITUNGEN:\n1 — Du musst nicht antworten."
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert len(auftraege) == 1
     assert "VORSCHLAG EROEFFNUNG:" in auftraege[0][0]
@@ -185,7 +186,7 @@ def test_nach_der_eroeffnung_folgt_die_abschlussnachricht(
     Phase 2 fertig -- also kommt sofort das Angebot, nicht Stille."""
     _mit_eroeffnungsvorschlag(conn, tg)
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     letzte = [b for b, _ in tg.knoepfe[-1][2]]
     assert letzte == [
@@ -203,7 +204,7 @@ def test_mit_der_eroeffnung_kommt_der_leitfaden_und_sein_knopf(
     und behaelt ihn ueber den Knopf erreichbar."""
     _mit_eroeffnungsvorschlag(conn, tg)
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert any(t.startswith(leitfaden.TEXT_KOPF) for _, t in tg.gesendet)
     assert leitfaden.steht(conn, 1)
@@ -211,13 +212,13 @@ def test_mit_der_eroeffnung_kommt_der_leitfaden_und_sein_knopf(
 
 def test_die_kette_endet_nie_stumm(conn, tg, einst, auftraege):
     """Die Invariante als ein Test ueber die ganze Kette: nach JEDEM
-    "Gefaellt uns, weiter" in Phase 2 steht entweder ein Auftrag an oder
+    "Ja, speichern" in Phase 2 steht entweder ein Auftrag an oder
     eine Nachricht mit Knoepfen -- nie nichts."""
     _mit_fragen(conn)
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG EINLEITUNGEN:\n1 — Du musst nicht antworten."
     )
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
     assert len(auftraege) == 1, "Schritt 1: Eroeffnungs-Auftrag"
 
     knoepfe.sende_mit_speicherleiste(
@@ -225,7 +226,7 @@ def test_die_kette_endet_nie_stumm(conn, tg, einst, auftraege):
         "VORSCHLAG EROEFFNUNG:\nHallo, wir sind da.\nAbschluss: Danke dir.",
     )
     vorher = len(tg.knoepfe)
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert len(tg.knoepfe) > vorher, "Schritt 2: das Phasenangebot"
     assert phasen.voraussetzungen(conn, 1)[3] is True

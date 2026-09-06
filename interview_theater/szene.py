@@ -520,6 +520,53 @@ def _kopf(zeile) -> str:
     return f"Szene {zeile['nummer']}" if zeile["nummer"] is not None else "die Szene"
 
 
+#: Wie das Setting (``arbeitsstand.rahmen``) auf die Szenenfelder abgebildet
+#: wird (06.09.2026, Birk 12:00/12:05). Das Setting IST Ort, Zeit und Anlass
+#: des Abends -- eine Szene danach noch einmal nach dem Ort zu fragen ("fehlt
+#: noch: Ort") war eine Frage nach etwas, das schon dasteht.
+_RAHMEN_FELD = re.compile(
+    r"(?:^|[,;\n])\s*(Ort|Zeit|Anlass)\s*:\s*([^,;\n]+)", re.IGNORECASE
+)
+
+
+def rahmenfelder(rahmen: str | None) -> dict[str, str]:
+    """Ort, Zeit und Anlass aus dem Setting-Freitext.
+
+    Zwei Formen, beide gemessen: ``"Ort: Treppenhaus, Zeit: nachts, Anlass:
+    eine Party"`` wird auseinandergenommen; alles andere ist als Ganzes der
+    **Ort** -- ein Setting ohne Doppelpunkte ("Ein Treppenhaus, nachts")
+    beschreibt genau das, und geraten wird an ihm nichts."""
+    roh = (rahmen or "").strip()
+    if not roh:
+        return {}
+    treffer = {
+        name.lower(): wert.strip()
+        for name, wert in _RAHMEN_FELD.findall(roh)
+        if wert.strip()
+    }
+    if treffer:
+        return treffer
+    return {"ort": roh}
+
+
+def uebernimm_rahmen(conn, chat_id: int, szene_id: int) -> None:
+    """Schreibt Ort, Zeit und Anlass aus dem Setting in eine Szene -- nur,
+    wo das Feld noch leer ist.
+
+    Additiv wie ``repo.setze_szenenfeld``: was die Gruppe je Szene selbst
+    gesagt hat, bleibt stehen."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    felder = rahmenfelder(stand["rahmen"] if stand else None)
+    if not felder:
+        return
+    zeile = repo.hole_szene(conn, szene_id)
+    if zeile is None:
+        return
+    for feld, wert in felder.items():
+        if feld in ("ort", "zeit", "anlass") and not (zeile[feld] or "").strip():
+            repo.setze_szenenfeld(conn, szene_id, feld, wert)
+
+
 def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
     """Was diese Szene noch braucht: ``(fehlende Pflichtfelder, Figuren ohne
     Sprachprofil)``.
@@ -554,6 +601,13 @@ def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
                 felder.append(feld)
         elif not ziel[feld]:
             felder.append(feld)
+    # **Das Setting ist die Vorgabe fuer ort/zeit/anlass** (06.09.2026, Birk
+    # 12:00): steht ein Rahmen, ist der Ort entschieden -- "fehlt noch: Ort"
+    # waere eine Frage nach etwas, das die Gruppe schon gesagt hat. Pflicht
+    # bleibt allein ``was_passiert``.
+    stand_vorab = repo.hole_arbeitsstand(conn, ziel["chat_id"])
+    if rahmenfelder(stand_vorab["rahmen"] if stand_vorab else None):
+        felder = [f for f in felder if f != "ort"]
     stand = repo.hole_arbeitsstand(conn, ziel["chat_id"])
     for feld in ARBEITSSTAND_PFLICHTFELDER:
         if stand is None or not (stand[feld] or "").strip():
@@ -1995,53 +2049,20 @@ def _sende_szenentext(conn, tg, e, chat_id: int, nummer: int, titel: str,
 #: arbeitet (Birk, 06.09.2026: "so ein witziges Emoji, dass er arbeitet"):
 #: alle ~4 s die Tippanzeige (sie verfaellt nach 5 s), und alle 40 s eine
 #: kleine Zeile mit wechselndem Emoji, die am Ende wieder geloescht wird.
-_ARBEITS_ZEILEN = (
-    "\u270d\ufe0f schreibe ...",
-    "\U0001f3ad probiere Repliken ...",
-    "\u2702\ufe0f streiche Regie ...",
-    "\U0001f50d pruefe die vier Fragen ...",
-    "\u2615 noch einen Moment ...",
-)
-_ARBEITS_TAKT_S = 40.0
-
-
-def _arbeitet_sichtbar(tg, chat_id: int, stopp: threading.Event) -> None:
-    """Tippanzeige + wechselnde Emoji-Zeile, bis ``stopp`` gesetzt ist. Alle
-    Fehler still: das ist Schmuck, kein Betriebspfad."""
-    letzte_id = None
-    n = 0
-    seit = 0.0
-    while not stopp.wait(4.0):
-        try:
-            tg.tippt(chat_id)
-        except Exception:
-            pass
-        seit += 4.0
-        if seit >= _ARBEITS_TAKT_S:
-            seit = 0.0
-            try:
-                if letzte_id is not None:
-                    tg.loesche_nachrichten(chat_id, [letzte_id])
-                letzte_id = tg.sende(chat_id, _ARBEITS_ZEILEN[n % len(_ARBEITS_ZEILEN)])
-                n += 1
-            except Exception:
-                letzte_id = None
-    if letzte_id is not None:
-        try:
-            tg.loesche_nachrichten(chat_id, [letzte_id])
-        except Exception:
-            pass
+#: **Zusammengefasst am 06.09.2026** (Birk, 11:15): die wechselnde Zeile
+#: waehrend eines Szenenlaufs ist dieselbe Umsetzung wie ueberall sonst
+#: (``arbeitszeilen.Lauf``). Hier steht nur noch, WELCHE Liste gilt: die
+#: Prosa-Zeilen, weil ein Szenenlauf Prosa schreibt.
+ARBEITSART = "prosa"
 
 
 def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str, sperre: threading.Lock) -> None:
     """Der Thread-Rumpf: ``schreibe()`` mit Fehlerbehandlung und garantierter
     Freigabe der Sperre. Bliebe sie bei einem Fehlschlag liegen, koennte die
     Gruppe fuer den Rest des Workshops keine Szene mehr schreiben lassen."""
-    stopp = threading.Event()
-    herz = threading.Thread(
-        target=_arbeitet_sichtbar, args=(tg, chat_id, stopp), daemon=True
-    )
-    herz.start()
+    from interview_theater import arbeitszeilen
+
+    zeilen = arbeitszeilen.sichtbar(tg, chat_id, ARBEITSART)
     try:
         schreibe(conn, tg, klm, e, chat_id, auftrag)
     except Exception:
@@ -2057,7 +2078,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str, sperre: threading.Lock) 
         # gerade die Ankuendigung bekommen und wartet (SPEC § 11.1).
         _sende_und_merke(conn, tg, e, chat_id, _TEXT_FEHLER)
     finally:
-        stopp.set()
+        zeilen.stoppe()
         sperre.release()
 
 

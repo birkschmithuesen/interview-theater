@@ -26,12 +26,12 @@ class TelegramAttrappe:
         self.dateien = []
         self.naechste_message_id = 500
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self.gesendet.append((chat_id, text))
         self.naechste_message_id += 1
         return self.naechste_message_id
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         self.gesendet.append((chat_id, text))
         self.knoepfe.append((chat_id, text, list(knoepfe_)))
         self.naechste_message_id += 1
@@ -147,9 +147,8 @@ def test_phasenknopf_6_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
     _druecke(conn, tg, einst, "Weiter zu Szenen als Geschichte")
 
     assert any(t.endswith(knoepfe._TEXT_PROAKTIV) for t in tg.texte)
-    assert tg.beschriftungen == [
-        knoepfe._TEXT_WIR_ZUERST_KNOPF, knoepfe._TEXT_SCHLAG_VOR_KNOPF,
-    ]
+    # Keine Einstiegsknoepfe mehr (Birk, 06.09.2026 11:10).
+    assert knoepfe._TEXT_SCHLAG_VOR_KNOPF not in tg.beschriftungen
 
 
 def test_schlag_du_vor_in_phase_6_geht_ueber_szenenfolge(conn, einst, tg):
@@ -161,7 +160,11 @@ def test_schlag_du_vor_in_phase_6_geht_ueber_szenenfolge(conn, einst, tg):
     klm = LLMAttrappe(VORSCHLAG)
     knoepfe.biete_proaktiv(conn, tg, 1, 6)
 
-    _druecke(conn, tg, einst, knoepfe._TEXT_SCHLAG_VOR_KNOPF, klm=klm)
+    # Der Knopf ist weg, der Weg bleibt: dieselbe Wirkung, ausgeloest durch
+    # ein gesprochenes "schlag du vor".
+    knoepfe._wirke(
+        conn, tg, klm, einst, {"art": knoepfe.ART_SCHLAG_VOR, "wert": "6"}, 1,
+    )
     # Der Thread laeuft nebenher; auf ihn wird ueber die Sperre gewartet.
     szenenfolge._sperre_fuer(1).acquire(timeout=10)
     szenenfolge._sperre_fuer(1).release()
@@ -179,9 +182,8 @@ def test_vorschlag_traegt_die_grundleiste_und_die_zwei_aenderungsknoepfe(conn, t
     assert tg.beschriftungen == [
         knoepfe.TEXT_ANZAHL_KNOPF,
         knoepfe.TEXT_REIHENFOLGE_KNOPF,
-        knoepfe.TEXT_EIGENE_IDEE_KNOPF,
-        knoepfe.TEXT_ANDERS_KNOPF,
         knoepfe.TEXT_WEITER_KNOPF,
+        knoepfe.TEXT_ANDERS_KNOPF,
     ]
     # Die Markerzeile geht nie in den Chat -- sie ist Technik, kein Inhalt.
     assert "VORSCHLAG SZENENFOLGE" not in tg.knoepfe[-1][1]
@@ -273,14 +275,13 @@ def test_die_gruppe_darf_gegen_den_vorschlag_entscheiden(conn, einst, tg):
     assert repo.hole_szenen(conn, 1)[0]["form"] == "rap"
 
 
-def test_passt_aber_anders_speichert_auch_und_fragt_danach(conn, einst, tg):
-    """Birk: eine Gruppe soll einen brauchbaren Vorschlag nicht wegwerfen
-    muessen, nur weil ein Detail nicht stimmt."""
+def test_nein_nochmal_aendern_speichert_nicht(conn, einst, tg):
+    """Neue Knopfregel (06.09.2026, Birk 11:00): "Nein" schreibt nichts."""
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
 
     _druecke(conn, tg, einst, knoepfe.TEXT_ANDERS_KNOPF)
 
-    assert len(repo.hole_szenen(conn, 1)) == 3
+    assert repo.hole_szenen(conn, 1) == []
     assert knoepfe._TEXT_EIGENE_IDEE in tg.texte
 
 
@@ -422,9 +423,8 @@ def test_passt_schreiben_bei_fehlenden_feldern_schlaegt_sie_vor_statt_zu_sperren
     # Kein Sperrtext -- stattdessen der Vorschlag mit der Grundleiste.
     assert not any("fehlt noch" in t for t in tg.texte)
     assert tg.beschriftungen == [
-        knoepfe.TEXT_EIGENE_IDEE_KNOPF,
-        knoepfe.TEXT_ANDERS_KNOPF,
         knoepfe.TEXT_WEITER_KNOPF,
+        knoepfe.TEXT_ANDERS_KNOPF,
     ]
 
 
@@ -672,7 +672,7 @@ def test_eigene_idee_ruft_kein_modell_und_schreibt_nichts(conn, einst, tg):
     klm = LLMAttrappe()
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
 
-    _druecke(conn, tg, einst, knoepfe.TEXT_EIGENE_IDEE_KNOPF, klm=klm)
+    _druecke(conn, tg, einst, knoepfe.TEXT_ANDERS_KNOPF, klm=klm)
 
     assert klm.aufrufe == 0
     assert repo.hole_szenen(conn, 1) == []

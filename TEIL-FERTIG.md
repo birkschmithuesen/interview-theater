@@ -1,0 +1,2 @@
+Teil 1 (Vorschlagsmenue-Navigation + Knopfregel): c6c7103 auf feat/live-zusaetze, Suite 1742 gruen, origin/main (1eece61) eingemerged. Prompts heiss -- KEIN Neustart noetig fuer prompts/; knoepfe.py/telegram.py/vorschlag.py sind Code -> Neustart noetig.
+Teil 2 (Phase 4: drei Geschichte-Richtungen, Setting->Szenenfelder, Sprachstil je Figur): a0fdc3d auf feat/live-zusaetze, Suite 1756 gruen, origin/main (e9bb07a) eingemerged. Code geaendert (knoepfe/szenenfolge/szene/erkenner/repo/db + neues Modul sprachstil.py) -> NEUSTART noetig; Prompts phasen/4,6,7 heiss.

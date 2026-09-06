@@ -250,6 +250,9 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
     darauf (SPEC § 11.1). Die Nachbereitung laeuft in jedem Fall -- der Weg
     durch die Phase darf an einem Mapping-Lauf nicht haengenbleiben."""
     anzahl = 0
+    from interview_theater import arbeitszeilen
+
+    zeilen = arbeitszeilen.sichtbar(tg, chat_id, "schaerfung")
     try:
         anzahl, _ = mappe(klm, conn, e, chat_id)
         meldung = MELDUNG.format(anzahl=anzahl) if anzahl else MELDUNG_LEER
@@ -263,6 +266,8 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
         except Exception:
             log.exception("Vorfall zur Schaerfung nicht schreibbar")
         meldung = None
+    finally:
+        zeilen.stoppe()
     if meldung:
         try:
             message_id = tg.sende(chat_id, meldung)

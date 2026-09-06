@@ -28,7 +28,8 @@ def tg():
 def auftraege(monkeypatch):
     gesammelt = []
 
-    def _fake(conn, tg_, klm, e, chat_id, anweisung, arbeitszeile=None):
+    def _fake(conn, tg_, klm, e, chat_id, anweisung, arbeitszeile=None,
+              arbeitsart=None):
         gesammelt.append(anweisung)
         return object()
 
@@ -93,7 +94,7 @@ def test_die_weichen_fassungen_landen_in_ihrer_eigenen_spalte(
         conn, tg, 1, f"Eine ist heikel.\n\nVORSCHLAG FRAGEN WEICH:\n{WEICH}"
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand["fragen_weich"].startswith("1 — Wir fragen alle danach")
@@ -112,7 +113,7 @@ def test_nach_den_weichen_fassungen_kommt_die_eroeffnung_von_selbst(
         conn, tg, 1, f"VORSCHLAG FRAGEN WEICH:\n{WEICH}"
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert len(auftraege) == 1
     assert "VORSCHLAG EROEFFNUNG:" in auftraege[0]

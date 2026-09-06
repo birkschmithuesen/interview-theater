@@ -227,9 +227,21 @@ TRENNER = "|"
 #: Birk). Der Wortlaut ist Absicht: er sagt, was die Gruppe TUT, nicht was
 #: der Bot tut. "So speichern" ist deshalb ueberall durch "Gefaellt uns,
 #: weiter" ersetzt.
-_TEXT_EIGENE_KNOPF = "Eigene Idee"
-_TEXT_ANDERS_KNOPF = "Passt, aber anders"
-_TEXT_SPEICHERN_KNOPF = "Gefaellt uns, weiter"
+#: Die Knopfregel vom 06.09.2026 (Birk, 10:55-11:10): Knoepfe gibt es nur,
+#: wenn dahinter etwas FIXES gespeichert werden kann. Daraus folgen genau
+#: drei Faelle -- (1) ein Optionen-Menue, (2) die Rueckspiegelung EINES
+#: Wertes, (3) Phasen- und Kettenknoepfe. Unter einer offenen Frage steht
+#: nichts.
+#:
+#: Die alte Grundleiste ("Eigene Idee" · "Passt, aber anders" · "Gefaellt
+#: uns, weiter") ist damit weg: sie stand auch unter Listen, aus denen sich
+#: gar kein einzelner Wert ergab, und "Gefaellt uns, weiter" nahm dann still
+#: den ersten Vorschlag. Die Arten im Code bleiben (``ART_SPEICHERN``,
+#: ``ART_ANDERS``, ``ART_EIGENE``) -- nur die Texte und die Zusammenstellung
+#: sind neu.
+_TEXT_EIGENE_KNOPF = "Anders"
+_TEXT_ANDERS_KNOPF = "Nein, nochmal aendern"
+_TEXT_SPEICHERN_KNOPF = "Ja, speichern"
 #: "Passt, aber anders" speichert und fragt dann gezielt -- deterministisch,
 #: kein Modellaufruf (Zusage 2). Der erste Halbsatz ist die Quittung, der
 #: zweite die Frage: eine offene Aufforderung ("sagt mir, was anders sein
@@ -453,6 +465,9 @@ _TEXT_SZENE_OHNE_TEXT = "Szene {nummer} ist noch nicht geschrieben."
 
 #: Phase 5 · Geschichte.
 _TEXT_GESCHICHTE_GESPEICHERT = "Notiert, eure Geschichte in {anzahl} Szenen:"
+#: Nach der Wahl EINER Richtung (06.09.2026, Birk 11:42) -- die Szenenfolge
+#: kommt danach als eigener Vorschlag, nicht in derselben Nachricht.
+_TEXT_RICHTUNG_GESPEICHERT = "Notiert, eure Geschichte:"
 _TEXT_GESCHICHTE_LEER = (
     "Aus dem Vorschlag konnte ich keine Geschichte lesen. Erzaehlt sie mir "
     "einfach."
@@ -608,7 +623,7 @@ def biete_kernthema(conn, tg, chat_id: int, vorschlaege: list[str] | None = None
         (wert, _daten(repo.lege_knopf_an(conn, chat_id, ART_KERNTHEMA, wert)))
         for wert in vorschlaege
     ]
-    tg.sende_mit_knoepfen(chat_id, _TEXT_KERNTHEMA_FRAGE, knoepfe)
+    _sende_knoepfe(conn, tg, chat_id, _TEXT_KERNTHEMA_FRAGE, knoepfe)
     return True
 
 
@@ -640,7 +655,7 @@ def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True) -> int
     laeuft = repo.ist_interviewmodus_an(conn, chat_id)
     beschriftung = _TEXT_AUFNAHME_BEENDEN if laeuft else _TEXT_AUFNAHME_STARTEN
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)
-    return tg.sende_mit_knoepfen(chat_id, text, [(beschriftung, _daten(knopf_id))])
+    return _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
 
 
 def biete_nach_teil(conn, tg, chat_id: int, text: str) -> int:
@@ -675,6 +690,10 @@ def biete_nach_teil(conn, tg, chat_id: int, text: str) -> int:
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEIL_FERTIG, None)),
         ),
     ]
+    # **Hier NICHT ueber ``_sende_knoepfe``**: der Text ist ein
+    # Teil-Transkript, und das schreibt ``aufnahme.py`` selbst mit
+    # ``typ='transkript'`` mit -- sonst laege Interviewinhalt als
+    # Gruppenbeitrag im Erkenner-Fenster (§ 10.6).
     message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
@@ -691,7 +710,7 @@ def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
     Angebot ein Menue."""
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
     beschriftung = f"Weiter zu {phasen.knopfbezeichnung(nummer)}"
-    tg.sende_mit_knoepfen(chat_id, text, [(beschriftung, _daten(knopf_id))])
+    _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
 
 
 def _phasenknopf(conn, chat_id: int) -> tuple[str, str] | None:
@@ -734,6 +753,38 @@ def _auswerten_alle_knopf(conn, chat_id: int, ausser: int | None = None) -> tupl
     return (_TEXT_AUSWERTEN_ALLE_KNOPF, _daten(knopf_id))
 
 
+def _merke_botnachricht(conn, chat_id: int, message_id: int, text: str) -> None:
+    """Schreibt eine Knopfnachricht in ``nachricht`` (``ist_bot = 1``) --
+    genau wie ``tg.sende`` es ueber ``ablauf.antworte`` tut (06.09.2026,
+    Birk 12:05).
+
+    Der Anlass: **alle Vorschlagsmenues fehlten im Gespraechsfenster.** Der
+    Bot legte drei Richtungen hin, die Gruppe antwortete darauf -- und im
+    naechsten Zug wusste er nichts davon, weil nur ``sende`` mitschrieb und
+    ``sende_mit_knoepfen`` nicht. Ein Fehlschlag ist unkritisch und wird nur
+    geloggt: die Nachricht steht im Chat, das ist der Betriebspfad."""
+    if not message_id or not (text or "").strip():
+        return
+    try:
+        repo.merke_nachricht(
+            conn, chat_id, message_id, None, 1, "text", text, repo._jetzt(),
+        )
+    except Exception:
+        log.exception("Knopfnachricht nicht mitgeschrieben, chat_id=%s", chat_id)
+
+
+def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste, **kw) -> int:
+    """``tg.sende_mit_knoepfen`` plus Mitschrift in ``nachricht``.
+
+    **Der eine Sendeweg fuer Knopfnachrichten** (06.09.2026, Birk 12:05):
+    vorher schrieb nur ``tg.sende`` mit, und deshalb fehlten saemtliche
+    Vorschlagsmenues im Gespraechsfenster des naechsten Zuges. Wer hier eine
+    neue Leiste baut, nimmt diese Funktion und nicht ``tg`` direkt."""
+    message_id = tg.sende_mit_knoepfen(chat_id, text, leiste, **kw)
+    _merke_botnachricht(conn, chat_id, message_id, kw.get("klartext") or text)
+    return message_id
+
+
 def _nimm_alte_leiste_ab(conn, tg, chat_id: int, art: str) -> None:
     """Nimmt die Tastatur einer aelteren, ungedrueckten Speicher-Leiste
     derselben Art ab, bevor eine neue kommt.
@@ -754,35 +805,32 @@ def _nimm_alte_leiste_ab(conn, tg, chat_id: int, art: str) -> None:
 
 
 def speicherleiste(conn, chat_id: int, art: str, wert: str) -> list[tuple[str, str]]:
-    """Die **Grundleiste** unter einem Vorschlag: "Eigene Idee" · "Passt,
-    aber anders" · "Gefaellt uns, weiter" (05.09.2026 abends, Birk).
+    """Die **Rueckspiegelung EINES Wertes**: "Ja, speichern" · "Nein,
+    nochmal aendern" (06.09.2026, Birk 11:00 -- vorher die dreiteilige
+    Grundleiste "Eigene Idee · Passt, aber anders · Gefaellt uns, weiter").
 
     ``wert`` ist der Text aus dem Vorschlagsblock (``vorschlag.lies``) --
     exakt der, der beim Druck gespeichert wird. Nichts wird hier
     umformuliert, gekuerzt oder ergaenzt: was die Gruppe im Chat liest, ist
     was in der Datenbank landet.
 
-    **Beide rechten Knoepfe speichern.** "Passt, aber anders" schreibt
-    denselben Wert wie "Gefaellt uns, weiter" und fragt danach nach der
-    Aenderung -- der Unterschied ist, was DANACH passiert, nicht ob etwas in
-    der Datenbank steht. Der Anlass ist gemessen: ein "nochmal anders" ohne
-    Speichern liess die Gruppe drei Runden lang mit einem leeren
-    Arbeitsstand weiterarbeiten, und beim Abbruch war nichts da.
+    **Genau zwei Knoepfe, und nur EINER speichert.** Die Leiste steht unter
+    einer Rueckspiegelung ("ihr habt Mira, Selin und Nour genannt --
+    speichern?"), also unter genau einem fixen Wert: dann ist Ja/Nein die
+    ehrliche Frage. "Nein, nochmal aendern" schreibt nichts und macht den
+    Weg frei (``ART_EIGENE``); der naechste Beitrag der Gruppe ist die neue
+    Fassung.
 
     Der Volltext steht in der Tabelle ``knopf``, nie in ``callback_data``
     (Zusage 1 im Moduldocstring) -- eine Begriffsliste sprengt die 64 Bytes
     muehelos."""
-    eigene = repo.lege_knopf_an(conn, chat_id, ART_EIGENE, art)
-    anders = repo.lege_knopf_an(
-        conn, chat_id, ART_ANDERS, f"{art}{TRENNER}{wert}"
-    )
     speichern = repo.lege_knopf_an(
         conn, chat_id, ART_SPEICHERN, f"{art}{TRENNER}{wert}"
     )
+    nochmal = repo.lege_knopf_an(conn, chat_id, ART_EIGENE, art)
     return [
-        (_TEXT_EIGENE_KNOPF, _daten(eigene)),
-        (_TEXT_ANDERS_KNOPF, _daten(anders)),
         (_TEXT_SPEICHERN_KNOPF, _daten(speichern)),
+        (_TEXT_ANDERS_KNOPF, _daten(nochmal)),
     ]
 
 
@@ -797,18 +845,23 @@ _AUSWAHLMARKER = {
     "rahmen": ART_RAHMEN,
 }
 
-#: Wie viele Auswahlknoepfe hoechstens ueber der Grundleiste stehen. Vier
-#: plus drei ist auf dem Telefon noch eine Leiste; mehr ist eine Liste.
+#: Wie viele Optionen ein Menue hoechstens traegt. Vier plus "Anders" ist auf
+#: dem Telefon noch eine Leiste; mehr ist eine Liste.
 MAX_AUSWAHL = 4
 
-#: Fuer welche Auswahl-Marker die Grundleiste den ERSTEN Vorschlag als
-#: speicherbaren Wert traegt -- ``"Passt, aber anders"`` braucht einen Wert,
-#: und bei einer Liste ist der erste Vorschlag die ehrlichste Wahl (er steht
-#: oben und ist der, den das Modell fuer den besten haelt).
-_ERSTER_ALS_WERT = {
-    "kernthema": "kernthema",
-    "rahmen": "rahmen",
-}
+#: Die Hoechstlaenge einer Menue-Beschriftung (Birk, 06.09.2026, 11:05):
+#: "1 · <Titel>". Laengeres schneidet Telegram auf dem Telefon ab, und ein
+#: abgeschnittener Knopf ist keine Auswahl mehr.
+MENUE_KNOPF_LAENGE = 30
+#: Der Ausweg unter jedem Menue -- speichert nichts, macht den Weg frei.
+_TEXT_MENUE_ANDERS_KNOPF = _TEXT_EIGENE_KNOPF
+
+#: **Ersatzlos gestrichen am 06.09.2026** (Birk, 11:00): frueher trug die
+#: Grundleiste unter einer Optionenliste den ERSTEN Vorschlag als
+#: speicherbaren Wert -- "Gefaellt uns, weiter" nahm also still Option 1,
+#: auch wenn die Gruppe Option 3 meinte. Bei mehreren Optionen gibt es jetzt
+#: keinen Sammelknopf mehr, nur die nummerierten Optionen selbst.
+_ERSTER_ALS_WERT: dict[str, str] = {}
 
 
 def _feld_ist_frei(conn, chat_id: int, feld: str) -> bool:
@@ -829,18 +882,110 @@ def _feld_ist_frei(conn, chat_id: int, feld: str) -> bool:
 
 
 def _auswahlleiste(conn, chat_id: int, marker: str, wert: str) -> list[tuple[str, str]]:
-    """Ein Knopf je Zeile eines Auswahl-Blocks (``VORSCHLAG RICHTUNGEN:`` und
-    Verwandte) -- die Zeile ist zugleich Beschriftung und gespeicherter Wert.
+    """Ein Knopf je Option eines Menue-Blocks (``VORSCHLAG RICHTUNGEN:`` und
+    Verwandte).
+
+    Beschriftung seit dem 06.09.2026 (Birk, 11:05): ``"1 · <Titel>"``,
+    hoechstens ``MENUE_KNOPF_LAENGE`` Zeichen -- die Nummer verbindet Knopf
+    und Text, der Titel macht ihn lesbar. **Gespeichert wird weiterhin die
+    ganze Zeile** (Titel und Beschreibung): die Beschriftung ist Anzeige,
+    der ``wert`` in der Tabelle ``knopf`` ist der Inhalt.
 
     Der Volltext steht wie ueberall in der Tabelle ``knopf``; in
     ``callback_data`` steht nur die id (Zusage 1)."""
     from interview_theater import vorschlag
 
     art = _AUSWAHLMARKER[marker]
-    return [
-        (zeile, _daten(repo.lege_knopf_an(conn, chat_id, art, zeile)))
-        for zeile in vorschlag.zeilen(wert)[:MAX_AUSWAHL]
+    leiste: list[tuple[str, str]] = []
+    zeilen = vorschlag.zeilen(wert)[:MAX_AUSWAHL]
+    titel = [t for t, _ in vorschlag.optionen(wert)][:MAX_AUSWAHL]
+    for nummer, zeile in enumerate(zeilen, start=1):
+        kopf = titel[nummer - 1] if nummer - 1 < len(titel) else zeile
+        beschriftung = f"{nummer} · {kopf}"[:MENUE_KNOPF_LAENGE]
+        leiste.append(
+            (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, art, zeile)))
+        )
+    return leiste
+
+
+def _erster_block(text: str, bloecke: dict[str, str]) -> str:
+    """Welche Vorschlagsart im TEXT zuerst steht -- deterministisch.
+
+    ``vorschlag.alle`` liefert ein dict; dessen Reihenfolge ist zwar seit
+    Python 3.7 die Einfuegereihenfolge, aber hier soll das nicht implizit
+    sein, sondern gemessen: gesucht wird die Position der Markerzeile."""
+    from interview_theater import vorschlag
+
+    def position(art: str) -> int:
+        stelle = (text or "").upper().find(vorschlag.marker(art).upper())
+        return stelle if stelle >= 0 else 10**9
+
+    return min(bloecke, key=position)
+
+
+def _sende_menue(conn, tg, chat_id: int, text: str, marker: str,
+                 wert: str) -> tuple[int, bool]:
+    """Fall 1 der Knopfregel: ein **Optionen-Menue** (06.09.2026, Birk).
+
+    Im Text nummerierte Optionen mit fettem Titel und Beschreibung darunter
+    (``vorschlag.menuetext``, HTML mit Escaping und Rueckfall auf Klartext),
+    als Knoepfe ``"1 · Titel"`` ... und darunter ``"Anders"``. **Kein
+    Sammelknopf**: bei mehreren Optionen gibt es nichts, das \"alle\"
+    speichern koennte -- genau daran nahm die alte Grundleiste still den
+    ersten Vorschlag."""
+    from interview_theater import vorschlag
+
+    oben = _auswahlleiste(conn, chat_id, marker, wert)
+    if not oben:
+        return tg.sende(chat_id, vorschlag.ohne_marker(text) or text), False
+    oben.append(
+        (
+            _TEXT_MENUE_ANDERS_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, marker)),
+        )
+    )
+    vorspann = vorschlag.ohne_block(text, marker)
+    html, klar = vorschlag.menuetext(vorspann, wert)
+    message_id = _sende_knoepfe(conn, tg, chat_id, html, oben, parse_mode="HTML", klartext=klar
+    )
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in oben], message_id)
+    return message_id, True
+
+
+def _sende_rueckspiegelung(conn, tg, chat_id: int, sauber: str, marker: str,
+                           wert: str) -> tuple[int, bool]:
+    """Fall 2 der Knopfregel, Menue-Variante: **ein** Vorschlag statt zwei
+    bis vier -- dann ist es kein Menue, sondern eine Rueckspiegelung.
+
+    "Ja, speichern" traegt dieselbe Knopf-Art wie eine Option des Menues
+    (``_AUSWAHLMARKER``) und wirkt deshalb genauso; "Nein, nochmal aendern"
+    speichert nichts.
+
+    Steht hinter dem Marker ein Arbeitsstand-Feld (``_NOTIERT`` -- Rahmen,
+    Kernthema), laeuft der Druck ueber ``ART_SPEICHERN``: nur dieser Weg
+    traegt die Kette danach weiter (``_kette_weiter``: Setting -> Anzahl der
+    Figuren, Kernthema -> Kernfrage)."""
+    if marker in _NOTIERT:
+        leiste = speicherleiste(conn, chat_id, marker, wert)
+        message_id = _sende_knoepfe(conn, tg, chat_id, sauber, leiste)
+        repo.merke_knopf_nachricht(
+            conn, [_id_aus_daten(d) for _, d in leiste], message_id
+        )
+        return message_id, True
+    art = _AUSWAHLMARKER[marker]
+    leiste = [
+        (
+            _TEXT_SPEICHERN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, art, wert)),
+        ),
+        (
+            _TEXT_ANDERS_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, marker)),
+        ),
     ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, sauber, leiste)
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
+    return message_id, True
 
 
 def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bool]:
@@ -867,11 +1012,31 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
 
     Der Text ist auch ohne Leiste immer derselbe -- das ist wichtig: die
     Gruppe soll nicht daran, ob Knoepfe darunter stehen, ablesen muessen, ob
-    das Modell die Form eingehalten hat."""
+    das Modell die Form eingehalten hat.
+
+    **Ein Feld je Nachricht** (06.09.2026, Birk 11:00): enthaelt eine
+    Antwort zwei Vorschlagsbloecke VERSCHIEDENER Arten, geht nur der erste
+    raus, der zweite wird verworfen (Vorfall ``vorschlag_mehrere_arten``).
+    Zwei Themen in einer Nachricht heissen: die Gruppe beantwortet eines und
+    das andere verfaellt."""
     from interview_theater import vorschlag
 
-    sauber = vorschlag.ohne_marker(text) or text
     bloecke = vorschlag.alle(text)
+    if len(bloecke) > 1:
+        # Deterministisch: die Reihenfolge im TEXT entscheidet, nicht die
+        # eines dicts -- der erste Block im Text ist der, den das Modell
+        # gemeint hat, alles danach gehoert in eine eigene Nachricht.
+        erster = _erster_block(text, bloecke)
+        verworfen = [a for a in bloecke if a != erster]
+        repo.merke_vorfall(
+            conn, chat_id, None, "vorschlag_mehrere_arten",
+            "Zwei Vorschlagsbloecke in einer Nachricht: "
+            f"'{erster}' gesendet, {verworfen} verworfen",
+        )
+        for art_weg in verworfen:
+            text = vorschlag.ohne_block(text, art_weg)
+        bloecke = {erster: bloecke[erster]}
+    sauber = vorschlag.ohne_marker(text) or text
 
     # Die Fragenauswahl der Phase 2 (06.09.2026) ist keine Leiste, sondern
     # eine eigene Mehrfachauswahl: zehn Knoepfe zum Antippen und drei
@@ -901,54 +1066,33 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
         # traegt die Leiste diesen Block. Sonst staende die Antwort ohne
         # Knoepfe da, und die Stufe waere nicht abzunehmen.
         art, wert = "einleitungen", bloecke["einleitungen"]
-    if marker in _ERSTER_ALS_WERT and _feld_ist_frei(
-        conn, chat_id, _ERSTER_ALS_WERT[marker]
-    ):
-        # Eine Auswahlliste: die Grundleiste traegt den ERSTEN Vorschlag,
-        # nie die ganze Liste -- "Passt, aber anders" soll einen Rahmen
-        # speichern, nicht drei untereinander.
-        #
-        # **Nur, solange das Zielfeld frei ist** (06.09.2026, Birk,
-        # Testgruppe 21:50): der Bot bot in Phase 6 drei Szenenbilder als
-        # ``VORSCHLAG RAHMEN:`` an, die Gruppe druckte "Gefaellt uns,
-        # weiter" -- und die Leiste ueberschrieb den Rahmen von 21:37 ("Vier
-        # Freundinnen im Nordkiez ...") still mit "Leyla checkt ihr Handy auf
-        # dem Schulhof". Steht das Feld schon und hat niemand um eine
-        # Aenderung gebeten, traegt die Leiste diesen Wert gar nicht erst.
-        erste = vorschlag.zeilen(bloecke[marker])
-        if erste:
-            art, wert = _ERSTER_ALS_WERT[marker], erste[0]
+    # ``_ERSTER_ALS_WERT`` ist am 06.09.2026 leergeraeumt worden (Birk): bei
+    # mehreren Optionen wird NIE still die erste genommen.
 
     if marker is None and (not art or not wert):
         return tg.sende(chat_id, sauber), False
 
-    oben = _auswahlleiste(conn, chat_id, marker, bloecke[marker]) if marker else []
-    if not art or not wert:
-        # Auswahlknoepfe ohne speicherbaren Wert (Richtungen, Namen, Duktus):
-        # die Grundleiste faellt weg, die Optionen bleiben. "Eigene Idee"
-        # kommt trotzdem mit -- ohne sie gaebe es keinen Weg an der Liste
-        # vorbei.
-        if oben:
-            oben.append(
-                (
-                    _TEXT_EIGENE_KNOPF,
-                    _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, marker)),
-                )
+    if marker is not None:
+        # Fall 1 der Knopfregel: ein Optionen-Menue. Nummerierte Optionen mit
+        # fettem Titel im Text, "1 · Titel" ... als Knoepfe, "Anders"
+        # darunter -- und KEIN Sammelknopf, der etwas speichert.
+        if len(vorschlag.zeilen(bloecke[marker])) == 1:
+            # Ein einziger Vorschlag ist kein Menue, sondern eine
+            # Rueckspiegelung: dann Ja/Nein (Birk, 06.09.2026 11:00 --
+            # "ein Wert → Ja/Nein; 2-4 Werte → Menue").
+            return _sende_rueckspiegelung(
+                conn, tg, chat_id, sauber, marker,
+                vorschlag.zeilen(bloecke[marker])[0],
             )
-            message_id = tg.sende_mit_knoepfen(chat_id, sauber, oben)
-            repo.merke_knopf_nachricht(
-                conn, [_id_aus_daten(d) for _, d in oben], message_id
-            )
-            return message_id, True
-        return tg.sende(chat_id, sauber), False
+        return _sende_menue(conn, tg, chat_id, text, marker, bloecke[marker])
 
-    if art == "figuren" and not oben:
+    if art == "figuren":
         # Figuren sind zweistufig (05.09.2026 abends): Ebene 1 ist die Liste
         # mit "Anzahl aendern" und "Namen aendern" -- ein eigener Weg, kein
         # Sonderfall der Grundleiste.
         return biete_figurenliste(conn, tg, chat_id, wert, sauber), True
 
-    if art == "geschichte" and not oben:
+    if art == "geschichte":
         # Die Geschichte traegt Bogen, Ende UND die Szenenfolge; sie geht
         # deshalb ueber ihren eigenen Speicherweg (``_speichere_geschichte``)
         # und nicht ueber den Arbeitsstand-Setter -- sonst staende der
@@ -958,8 +1102,11 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SPEICHERN)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_ANDERS)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_EIGENE)
-    leiste = oben + speicherleiste(conn, chat_id, art, wert)
-    message_id = tg.sende_mit_knoepfen(chat_id, sauber, leiste)
+    # Fall 2 der Knopfregel: die Rueckspiegelung EINES Wertes. Begriffe,
+    # Fragen, Einleitungen sind mehrzeilig, aber EIN Wert -- deshalb Ja/Nein
+    # und kein Menue.
+    leiste = speicherleiste(conn, chat_id, art, wert)
+    message_id = _sende_knoepfe(conn, tg, chat_id, sauber, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
     )
@@ -1052,7 +1199,7 @@ def sende_notiert_mit_leiste(conn, tg, chat_id: int, text: str, art: str,
     for alte in (ART_SPEICHERN, ART_ANDERS, ART_EIGENE):
         _nimm_alte_leiste_ab(conn, tg, chat_id, alte)
     leiste = speicherleiste(conn, chat_id, art, wert)
-    message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
     )
@@ -1315,7 +1462,7 @@ def starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id: int) -> bool:
     tg.sende(chat_id, TEXT_PRUEFUNG_LAEUFT)
     return _starte_auftrag(
         conn, tg, klm, e, chat_id, ANWEISUNG_EINLEITUNGEN.format(fragen=fragen),
-        arbeitszeile=TEXT_ARBEIT_SENSIBILITAET,
+        arbeitszeile=TEXT_ARBEIT_SENSIBILITAET, arbeitsart="sensibilitaet",
     )
 
 
@@ -1329,7 +1476,7 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
     fragen = (stand["fragen"] if stand else "") or ""
     return _starte_auftrag(
         conn, tg, klm, e, chat_id, ANWEISUNG_EROEFFNUNG.format(fragen=fragen),
-        arbeitszeile=TEXT_ARBEIT_EROEFFNUNG,
+        arbeitszeile=TEXT_ARBEIT_EROEFFNUNG, arbeitsart="eroeffnung",
     )
 
 
@@ -1538,10 +1685,18 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
         leitfadenknopf = _leitfaden_knopf(conn, chat_id)
         if leitfadenknopf is not None:
             knoepfe.append(leitfadenknopf)
+    # **Nach JEDER Auswertung kommt das Angebot erneut** (06.09.2026, Birk
+    # 10:45). Der Merkposten ``phase_angeboten`` haelt sonst fest, dass die
+    # Stufe schon einmal angeboten wurde, und ab dem zweiten Interview stand
+    # unter der Auswertung kein Weg mehr nach vorn -- die Gruppe im Raum
+    # sah nur noch "Naechstes Interview". Hier wird er deshalb abgeraeumt:
+    # das Angebot haengt an der Auswertung, nicht am Merkposten.
+    if kopf_id is not None and phasen.aktuelle(conn, chat_id) == PHASE_INTERVIEWS:
+        phasen.vergiss_angebot(conn, chat_id)
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
         knoepfe.append(phasenknopf)
-    return tg.sende_mit_knoepfen(chat_id, text, knoepfe)
+    return _sende_knoepfe(conn, tg, chat_id, text, knoepfe)
 
 
 def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
@@ -1597,7 +1752,7 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
         alle = _auswerten_alle_knopf(conn, chat_id)
         if alle is not None:
             knoepfe.insert(1 if _aufnahme_anbieten(conn, chat_id) else 0, alle)
-    return tg.sende_mit_knoepfen(chat_id, text, knoepfe)
+    return _sende_knoepfe(conn, tg, chat_id, text, knoepfe)
 
 
 def biete_szenenform(conn, tg, chat_id: int, nummer: int, text: str | None = None,
@@ -1670,38 +1825,33 @@ def biete_szene_usa(conn, tg, chat_id: int, text: str | None = None) -> None:
         (_TEXT_USA_JA_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_USA, "ja"))),
         (_TEXT_USA_NEIN_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_USA, "nein"))),
     ]
-    tg.sende_mit_knoepfen(chat_id, text or _TEXT_USA_FRAGE_KNOEPFE, knoepfe)
+    _sende_knoepfe(conn, tg, chat_id, text or _TEXT_USA_FRAGE_KNOEPFE, knoepfe)
 
 
 # --- Phase 6 · Szenen: Angebote -------------------------------------------
 
 
 def grundleiste(conn, chat_id: int, art: str, wert: str) -> list[tuple[str, str]]:
-    """Die drei Knoepfe, die unter JEDEM Vorschlag in Phase 6 stehen:
-    "Eigene Idee" · "Passt, aber anders" · "Gefaellt uns, weiter".
+    """Die **Rueckspiegelung EINES Wertes** in den spaeten Phasen:
+    "Ja, speichern" · "Nein, nochmal aendern" (06.09.2026, Birk 11:00 --
+    vorher drei Knoepfe).
 
     ``art`` ist die Knopf-Art, unter der gespeichert wird
     (``ART_SZENENFOLGE_SPEICHERN``, ``ART_SZENENFELDER_SPEICHERN``), ``wert``
     der Text, der beim Druck wirkt -- exakt der, der im Chat steht. Nichts
     wird hier umformuliert (dieselbe Zusage wie in ``speicherleiste``).
 
-    "Gefaellt uns, weiter" und "Passt, aber anders" speichern BEIDE. Der
-    Unterschied steht im Praefix des Wertes und wirkt danach: "anders" nimmt
-    den Vorschlag an und fragt zugleich, was noch geaendert werden soll -- die
-    Gruppe soll einen brauchbaren Vorschlag nicht wegwerfen muessen, nur weil
-    ein Detail nicht stimmt (Birk, 05.09.2026)."""
+    Nur **einer** speichert: "Ja". "Nein, nochmal aendern" schreibt nichts
+    und macht den Weg frei -- der naechste Beitrag der Gruppe ist die neue
+    Fassung."""
     return [
-        (
-            TEXT_EIGENE_IDEE_KNOPF,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, art)),
-        ),
-        (
-            TEXT_ANDERS_KNOPF,
-            _daten(repo.lege_knopf_an(conn, chat_id, art, f"anders{TRENNER}{wert}")),
-        ),
         (
             TEXT_WEITER_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, art, f"weiter{TRENNER}{wert}")),
+        ),
+        (
+            TEXT_ANDERS_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, art)),
         ),
     ]
 
@@ -1710,7 +1860,7 @@ def _mit_leiste(conn, tg, chat_id: int, text: str, leiste: list[tuple[str, str]]
     """Schickt ``text`` mit ``leiste`` und merkt sich die Nachricht je Knopf --
     damit eine spaetere Leiste die alte abnehmen kann
     (``_nimm_alte_leiste_ab``)."""
-    message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
     )
@@ -1749,13 +1899,20 @@ def sende_szenenfolge(conn, tg, chat_id: int, antwort: str) -> int:
 
 
 def sende_geschichte(conn, tg, chat_id: int, antwort: str) -> int:
-    """Der Geschichte-Vorschlag im Chat (Phase 5): Bogen, Ende und
-    Szenenfolge, darunter \"Anzahl aendern\" · \"Reihenfolge aendern\" und die
-    Grundleiste.
+    """Die **drei Richtungen** der Geschichte als Optionen-Menue (Phase 4,
+    06.09.2026, Birk 11:42).
 
-    Derselbe Weg wie ``sende_szenenfolge`` -- ohne Marker keine Leiste, kein
-    Raten. Der ``wert`` traegt den ganzen Block: die Geschichte und ihre
-    Szenen sind EINE Entscheidung."""
+    Bis dahin trug ein ``VORSCHLAG GESCHICHTE:``-Block Bogen, Ende UND die
+    ganze Szenenfolge -- eine Entscheidung ueber alles auf einmal, mit einer
+    Grundleiste, die still den ersten Vorschlag nahm. Jetzt sind es drei
+    Richtungen, je fetter Titel und zwei bis drei Saetze, als Menue mit
+    Knoepfen "1 · Titel" … und "Anders". Die Szenenfolge kommt erst NACH der
+    Wahl, als eigener Vorschlag mit Ja/Nein
+    (``szenenfolge.starte_geschichte_szenen``).
+
+    Ohne Marker keine Leiste, kein Raten -- dieselbe Regel wie ueberall.
+    Enthaelt der Block nur EINE Zeile (das Modell hat sich nicht an die drei
+    gehalten), ist es eine Rueckspiegelung: Ja/Nein statt Menue."""
     from interview_theater import vorschlag
 
     sauber = vorschlag.ohne_marker(antwort) or antwort
@@ -1764,21 +1921,70 @@ def sende_geschichte(conn, tg, chat_id: int, antwort: str) -> int:
         log.error("Geschichte-Vorschlag ohne Marker, chat_id=%s", chat_id)
         return tg.sende(chat_id, sauber)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_GESCHICHTE_SPEICHERN)
-    leiste = [
-        (
-            TEXT_ANZAHL_KNOPF,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFOLGE_ANZAHL, None)),
-        ),
-        (
-            TEXT_REIHENFOLGE_KNOPF,
-            _daten(
-                repo.lege_knopf_an(
-                    conn, chat_id, ART_SZENENFOLGE_REIHENFOLGE, None
-                )
+    from interview_theater import szenenfolge
+
+    # Woran der alte Block erkennbar ist: seine ZWEITE Zeile beginnt mit
+    # "Ende:" (Bogen, Ende, dann je Szene eine Zeile). Drei Richtungen haben
+    # keine solche Zeile -- und genau daran haengt die Unterscheidung, nicht
+    # an der Zeilenzahl: drei Szenen und drei Richtungen saehen sonst gleich
+    # aus.
+    zeilen_roh = vorschlag.zeilen(wert)
+    alter_block = len(zeilen_roh) > 1 and szenenfolge._ENDE_PRAEFIX.match(zeilen_roh[1])
+    _, szenenzeilen = szenenfolge.zerlege_geschichte(wert)
+    if alter_block and szenenzeilen:
+        # Der alte Weg bleibt begehbar: liefert ein Modell noch Bogen, Ende
+        # UND Szenenfolge in einem Block (ein laufender Zug sieht den neuen
+        # Prompt nicht rueckwirkend), bleibt es bei einer Entscheidung mit
+        # Anzahl, Reihenfolge und Ja/Nein.
+        leiste = [
+            (
+                TEXT_ANZAHL_KNOPF,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFOLGE_ANZAHL, None)),
             ),
-        ),
-    ] + grundleiste(conn, chat_id, ART_GESCHICHTE_SPEICHERN, wert)
-    return _mit_leiste(conn, tg, chat_id, sauber, leiste)
+            (
+                TEXT_REIHENFOLGE_KNOPF,
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_SZENENFOLGE_REIHENFOLGE, None
+                    )
+                ),
+            ),
+        ] + grundleiste(conn, chat_id, ART_GESCHICHTE_SPEICHERN, wert)
+        return _mit_leiste(conn, tg, chat_id, sauber, leiste)
+    richtungen = vorschlag.zeilen(wert)[:MAX_AUSWAHL]
+    titel = [t for t, _ in vorschlag.optionen(wert)][:MAX_AUSWAHL]
+    if len(richtungen) == 1:
+        leiste = grundleiste(conn, chat_id, ART_GESCHICHTE_SPEICHERN, richtungen[0])
+        return _mit_leiste(conn, tg, chat_id, sauber, leiste)
+    leiste = []
+    for nummer, zeile in enumerate(richtungen, start=1):
+        kopf = titel[nummer - 1] if nummer - 1 < len(titel) else zeile
+        leiste.append(
+            (
+                f"{nummer} · {kopf}"[:MENUE_KNOPF_LAENGE],
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_GESCHICHTE_SPEICHERN,
+                        f"weiter{TRENNER}{zeile}",
+                    )
+                ),
+            )
+        )
+    leiste.append(
+        (
+            _TEXT_MENUE_ANDERS_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, "geschichte")),
+        )
+    )
+    html, klar = vorschlag.menuetext(
+        vorschlag.ohne_block(antwort, "geschichte"), wert
+    )
+    message_id = _sende_knoepfe(conn, tg, chat_id, html, leiste, parse_mode="HTML", klartext=klar
+    )
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id
+    )
+    return message_id
 
 
 # --- Phase 6 · Schaerfung am Material -------------------------------------
@@ -1917,8 +2123,7 @@ def zeige_stueckpruefung(conn, tg, chat_id: int, runde: int | None = None) -> in
                 ),
             )
         )
-        message_id = tg.sende_mit_knoepfen(
-            chat_id, pruefung_modul.befundtext(zeile), leiste
+        message_id = _sende_knoepfe(conn, tg, chat_id, pruefung_modul.befundtext(zeile), leiste
         )
         repo.merke_knopf_nachricht(
             conn, [_id_aus_daten(d) for _, d in leiste], message_id
@@ -2225,48 +2430,67 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     return f"{len(nummern)} Szenen uebernommen"
 
 
-def _speichere_geschichte(conn, tg, chat_id: int, roh: str) -> str:
-    """Speichert Bogen und Ende (``arbeitsstand.geschichte``) UND legt die
-    Szenenfolge an -- Phase 5, ein Vorschlag, eine Entscheidung.
+def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
+    """Speichert die GEWAEHLTE RICHTUNG (``arbeitsstand.geschichte``) und
+    bietet danach die Szenenfolge an (06.09.2026, Birk 11:42).
 
-    Die Szenen entstehen ueber denselben ``szenenfolge.lege_an`` wie bisher:
-    es gibt einen Weg, eine Szenenfolge anzulegen, nicht zwei. Danach kommt
-    **keine** Szenenvorstellung -- die naechste Station ist die Schaerfung,
-    und die Gruppe bekommt dafuer den Phasenknopf."""
+    Bis dahin legte dieser Weg in einem Zug auch die Szenen an -- eine
+    Entscheidung ueber alles auf einmal. Jetzt ist die Richtung die
+    Entscheidung; die Szenenfolge ist der naechste, eigene Schritt
+    (``szenenfolge.starte_geschichte_szenen``, eigener Thread -- kein
+    Modellaufruf im Knopf-Handler, Zusage 2).
+
+    Der alte Weg bleibt begehbar: liefert ein Modell noch einen Block MIT
+    Szenenzeilen (der Prompt-Umbau aendert einen laufenden Zug nicht
+    rueckwirkend), werden sie wie bisher angelegt."""
     from interview_theater import szenenfolge
 
     modus, _, wert = roh.partition(TRENNER)
+    zeilen_roh = [z for z in (wert or "").splitlines() if z.strip()]
+    alter_block = (
+        len(zeilen_roh) > 1 and szenenfolge._ENDE_PRAEFIX.match(zeilen_roh[1].strip())
+    )
     geschichte, zeilen = szenenfolge.zerlege_geschichte(wert)
-    if not geschichte or not zeilen:
+    if not alter_block:
+        zeilen = []
+    if not geschichte:
         log.error("Geschichte-Knopf ohne verwertbare Zeile, chat_id=%s", chat_id)
         tg.sende(chat_id, _TEXT_GESCHICHTE_LEER)
         return _TEXT_GESCHICHTE_LEER
+    # Eine Richtung ist eine Zeile "Titel — Bogen, Ende, Konflikt": sie ist
+    # die Geschichte, nicht ihr erster Satz.
+    geschichte = wert.strip() if not zeilen else geschichte
     repo.setze_arbeitsstand(conn, chat_id, "geschichte", geschichte)
-    nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
     repo.schreibe_journal(
         conn, chat_id, "entschieden", f"Geschichte: {geschichte}", quelle="knopf",
     )
-    repo.schreibe_journal(
-        conn, chat_id, "entschieden",
-        "Szenenfolge: " + "; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen)),
-        quelle="knopf",
-    )
-    tg.sende(
-        chat_id,
-        _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=len(nummern))
-        + "\n" + geschichte,
-    )
-    if modus.strip() == "anders":
-        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
-        tg.sende(chat_id, _TEXT_ANDERS)
-        return "Gespeichert, was soll anders sein?"
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
-    phasenknopf = _phasenknopf(conn, chat_id)
-    if phasenknopf is not None:
-        _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
-    else:
-        tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
-    return f"Geschichte mit {len(nummern)} Szenen uebernommen"
+    if zeilen:
+        nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            "Szenenfolge: "
+            + "; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen)),
+            quelle="knopf",
+        )
+        tg.sende(
+            chat_id,
+            _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=len(nummern))
+            + "\n" + geschichte,
+        )
+        if modus.strip() == "anders":
+            repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
+            tg.sende(chat_id, _TEXT_ANDERS)
+            return "Gespeichert, was soll anders sein?"
+        phasenknopf = _phasenknopf(conn, chat_id)
+        if phasenknopf is not None:
+            _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
+        else:
+            tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
+        return f"Geschichte mit {len(nummern)} Szenen uebernommen"
+    tg.sende(chat_id, _TEXT_RICHTUNG_GESPEICHERT + "\n" + geschichte)
+    szenenfolge.starte_geschichte_szenen(conn, tg, klm, e, chat_id)
+    return "Richtung uebernommen"
 
 
 def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
@@ -2366,7 +2590,7 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
         return _speichere_szenenfolge(conn, tg, klm, e, chat_id, wert)
 
     if art == ART_GESCHICHTE_SPEICHERN:
-        return _speichere_geschichte(conn, tg, chat_id, wert)
+        return _speichere_geschichte(conn, tg, klm, e, chat_id, wert)
 
     if art == ART_SCHAERFUNG_SZENE:
         # Die Uebernahme ist deterministisch (Felder ergaenzen), der naechste
@@ -2749,7 +2973,7 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
     if weiterfrage:
         phasenknopf = _phasenknopf(conn, chat_id)
         if phasenknopf is not None:
-            tg.sende_mit_knoepfen(chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
+            _sende_knoepfe(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
         else:
             tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
     return f"{_NOTIERT[art]} uebernommen"
@@ -2896,8 +3120,7 @@ def biete_figurenanzahl(conn, tg, chat_id: int, text: str | None = None) -> int:
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_ANZAHL_FREI, None)),
         )
     )
-    message_id = tg.sende_mit_knoepfen(
-        chat_id, text or _TEXT_FIGUREN_ANZAHL_ERSTFRAGE, leiste
+    message_id = _sende_knoepfe(conn, tg, chat_id, text or _TEXT_FIGUREN_ANZAHL_ERSTFRAGE, leiste
     )
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return message_id
@@ -3002,7 +3225,7 @@ def biete_figurenliste(conn, tg, chat_id: int, wert: str, text: str | None = Non
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_NAMEN_MENU, None)),
         ),
     ] + speicherleiste(conn, chat_id, "figuren", wert)
-    message_id = tg.sende_mit_knoepfen(chat_id, text or wert, leiste)
+    message_id = _sende_knoepfe(conn, tg, chat_id, text or wert, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(d) for _, d in leiste], message_id
     )
@@ -3171,6 +3394,125 @@ def ebene2_erlaubt(conn, chat_id: int) -> bool:
     return phasen.aktuelle(conn, chat_id) >= PHASE_SCHAERFUNG
 
 
+#: Der Sprachstil je Figur (06.09.2026, Birk 12:20). Zwei Arten: das Menue
+#: legt der Stil-Lauf hin, der Druck schreibt ``figur.sprachstil`` bzw.
+#: ``figur.quelle_aufnahme_id``.
+ART_FIGUR_STIL = "figur_stil"
+#: "Eigener Stil" -- der Freitextweg unter dem Menue. Speichert nichts; die
+#: naechste Nachricht der Gruppe ist der Stil.
+ART_FIGUR_STIL_FREI = "figur_stil_frei"
+
+_TEXT_STIL_FRAGE = "Wie spricht {name}?"
+_TEXT_STIL_EIGENER_KNOPF = "Eigener Stil"
+_TEXT_STIL_EIGENER = "Erzaehlt, wie sie spricht - ich baue es ein."
+_TEXT_STIL_GESPEICHERT = "Notiert, so spricht {name}."
+
+
+def stelle_stil_vor(conn, tg, klm, e, chat_id: int) -> bool:
+    """Fragt fuer die naechste Figur ohne Sprachstil: "Wie spricht <Figur>?"
+
+    Liefert True, wenn ein Stil-Lauf angestossen wurde. Kein Modellaufruf
+    hier (Zusage 2) -- ``sprachstil.starte`` gibt an einen Thread ab. Ohne
+    geprueftes Material aus den Interviews passiert nichts, und der Aufrufer
+    schliesst die Figurenliste wie bisher ab."""
+    from interview_theater import sprachstil
+
+    if klm is None:
+        return False
+    offen = next(
+        (
+            f for f in repo.figuren(conn, chat_id)
+            if not (f["sprachstil"] or "").strip() and not f["geprueft_am"]
+        ),
+        None,
+    )
+    if offen is None:
+        return False
+    if not sprachstil.stilmaterial(conn, chat_id):
+        return False
+    repo.setze_arbeitsstand(conn, chat_id, "figur_aktuell", offen["name"])
+    return sprachstil.starte(conn, tg, klm, e, chat_id, offen["name"]) is not None
+
+
+def sende_stil(conn, tg, chat_id: int, name: str, antwort: str) -> int:
+    """Das Stil-Menue EINER Figur: je Option Titel, gepruefte Zitatzeile und
+    der Beispielsatz -- darunter die Knoepfe und "Eigener Stil".
+
+    Die Zitate werden hier **gegen die Transkripte geprueft**
+    (``zitat.pruefe``, dieselbe Pruefung wie beim Verdichter): ein erfundenes
+    Zitat ginge sonst als Few-Shot in jeden weiteren Szenenlauf ein. Faellt
+    eine Option dabei weg, bleiben die anderen."""
+    from interview_theater import sprachstil, vorschlag, zitat as zitat_modul
+
+    sauber = vorschlag.ohne_marker(antwort) or antwort
+    wert = vorschlag.lies(antwort, "stil")
+    if not wert:
+        log.error("Stil-Vorschlag ohne Marker, chat_id=%s", chat_id)
+        return tg.sende(chat_id, sauber)
+    optionen = sprachstil.zerlege(wert)
+    quellen = {
+        i + 1: kopf["id"]
+        for i, kopf in enumerate(_interviewkoepfe(conn, chat_id))
+    }
+    zeilen_text: list[str] = []
+    leiste: list[tuple[str, str]] = []
+    nummer = 0
+    for titel, zitat, beispiel, interview in optionen:
+        aufnahme_id = quellen.get(interview) if interview else None
+        if zitat and aufnahme_id is not None and not _zitat_belegt(
+            conn, chat_id, aufnahme_id, zitat, zitat_modul
+        ):
+            log.info("Stil-Zitat nicht belegt, chat_id=%s, %r", chat_id, zitat)
+            zitat = ""
+        nummer += 1
+        beschreibung = " ".join(
+            t for t in (f'"{zitat}"' if zitat else "", beispiel) if t
+        )
+        zeilen_text.append(f"{titel} — {beschreibung}".strip(" —"))
+        leiste.append(
+            (
+                f"{nummer} · {titel}"[:MENUE_KNOPF_LAENGE],
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_FIGUR_STIL,
+                        f"{name}{TRENNER}{aufnahme_id or ''}{TRENNER}"
+                        f"{titel}: {beispiel or zitat}",
+                    )
+                ),
+            )
+        )
+    if not leiste:
+        return tg.sende(chat_id, sauber)
+    leiste.append(
+        (
+            _TEXT_STIL_EIGENER_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUR_STIL_FREI, name)),
+        )
+    )
+    html, klar = vorschlag.menuetext(
+        _TEXT_STIL_FRAGE.format(name=name), "\n".join(zeilen_text)
+    )
+    message_id = _sende_knoepfe(conn, tg, chat_id, html, leiste, parse_mode="HTML", klartext=klar
+    )
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
+    return message_id
+
+
+def _interviewkoepfe(conn, chat_id: int) -> list:
+    from interview_theater import aufnahme as aufnahme_modul
+
+    return aufnahme_modul.interviews(conn, chat_id)
+
+
+def _zitat_belegt(conn, chat_id: int, aufnahme_id: int, text: str,
+                  zitat_modul) -> bool:
+    """Steht dieses Zitat woertlich im Transkript dieses Interviews?"""
+    kopf = repo.hole_aufnahme(conn, aufnahme_id)
+    if kopf is None:
+        return False
+    return zitat_modul.pruefe(text, kopf["transkript"] or "")
+
+
 def stelle_figur_vor(conn, tg, klm, e, chat_id: int, figur=None) -> bool:
     """Stellt die naechste offene Figur mit ihren vier Knoepfen vor -- oder
     schliesst Ebene 2 ab, wenn keine mehr offen ist. Liefert True, solange
@@ -3185,8 +3527,13 @@ def stelle_figur_vor(conn, tg, klm, e, chat_id: int, figur=None) -> bool:
     sofort gesendete Fassung mit "Sprachduktus: entsteht gerade." blieb fuer
     immer stehen)."""
     if not ebene2_erlaubt(conn, chat_id):
-        # Phase 4: die Liste ist mit Ebene 1 fertig -- kein Durchgang Figur
-        # fuer Figur, keine Interview-Frage, kein Sprachprofil-Lauf.
+        # Phase 4: keine Interview-Frage und kein Sprachprofil-Lauf -- aber
+        # seit dem 06.09.2026 (Birk, 12:20) der **Sprachstil je Figur**: nach
+        # Name und "wer sie ist" EINE Nachricht "Wie spricht <Figur>?" mit
+        # zwei bis drei Optionen aus den Interviews. Steht kein Material
+        # bereit, ist die Liste wie bisher mit Ebene 1 fertig.
+        if stelle_stil_vor(conn, tg, klm, e, chat_id):
+            return True
         return _schliesse_figuren_ab(conn, tg, chat_id)
     figur = figur if figur is not None else naechste_offene_figur(conn, chat_id)
     if figur is None:
@@ -3254,8 +3601,7 @@ def _sende_figurenvorstellung(conn, tg, chat_id: int, figur,
         (_TEXT_EIGENE_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, "figur"))),
     ]
-    message_id = tg.sende_mit_knoepfen(
-        chat_id, _figurenvorstellung(conn, chat_id, figur, ohne_beleg), leiste
+    message_id = _sende_knoepfe(conn, tg, chat_id, _figurenvorstellung(conn, chat_id, figur, ohne_beleg), leiste
     )
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
 
@@ -3285,7 +3631,7 @@ def _schliesse_figuren_ab(conn, tg, chat_id: int) -> bool:
         (_TEXT_SCHLAG_VOR_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHLAG_VOR, str(PHASE_SETTING)))),
     ]
-    message_id = tg.sende_mit_knoepfen(chat_id, _TEXT_ZUR_GESCHICHTE, leiste)
+    message_id = _sende_knoepfe(conn, tg, chat_id, _TEXT_ZUR_GESCHICHTE, leiste)
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return False
 
@@ -3309,8 +3655,7 @@ def _biete_interviews(conn, tg, chat_id: int, name: str) -> str:
         )
         for kopf in koepfe
     ]
-    message_id = tg.sende_mit_knoepfen(
-        chat_id, _TEXT_FIGUR_INTERVIEW_FRAGE.format(name=name), leiste
+    message_id = _sende_knoepfe(conn, tg, chat_id, _TEXT_FIGUR_INTERVIEW_FRAGE.format(name=name), leiste
     )
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return "Interview waehlen"
@@ -3388,7 +3733,7 @@ def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
         (_TEXT_PHASE_NOCH_NICHT_KNOPF, _daten(noch_nicht_id)),
     ]
     text = _abschlusstext(conn, chat_id, stufe)
-    message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return True
 
@@ -3415,28 +3760,24 @@ def _abschlusstext(conn, chat_id: int, stufe: int) -> str:
 
 
 def biete_proaktiv(conn, tg, chat_id: int, phase: int, vorspann: str | None = None) -> None:
-    """Die Frage beim Eintritt in eine Phase (05.09.2026 abends, Birk):
-    "Bevor ich vorschlage: habt ihr selbst schon Ideen?" mit zwei Knoepfen.
+    """Die **offene Frage** beim Eintritt in eine Phase.
 
-    Deterministischer Systemtext, kein Modellaufruf. Der Grund ist einer aus
-    dem Raum: ein Bot, der beim Phasenwechsel sofort drei Vorschlaege
-    hinlegt, nimmt der Gruppe den Moment, in dem sie selbst etwas hat -- und
-    genau der ist die Arbeit. "Schlag du vor" holt den Vorschlag dann in
-    einem eigenen Thread (``ablauf.starte_auftrag``).
+    Bis zum 06.09.2026 standen darunter zwei Einstiegsknoepfe -- "Ja, wir
+    zuerst" und "Schlag du vor". Sie sind weg (Birk, 11:10): unter einer
+    OFFENEN FRAGE gibt es keine Knoepfe, weil dahinter nichts Fixes zu
+    speichern ist. Der Bot fragt, die Gruppe antwortet in Sprache; sagt sie
+    ausdruecklich "schlag du vor", erkennt das der Erkenner
+    (``ART_SCHLAG_VOR`` bleibt als Knopf-Art fuer die Wege bestehen, die ihn
+    weiterhin auslegen).
 
-    ``vorspann`` ist seit dem 06.09.2026 die Eintrittsnachricht der Phase
-    (``phasentexte.eintritt``): Kopfzeile, Einleitung, Checkliste. Sie steht
-    in DERSELBEN Nachricht wie die Frage und die Knoepfe -- der Testabend hat
-    gezeigt, was passiert, wenn eine Frage in einer eigenen Nachricht unter
-    einem Text haengt (neun Phasenknoepfe, null Druecke)."""
-    leiste = [
-        (_TEXT_WIR_ZUERST_KNOPF,
-         _daten(repo.lege_knopf_an(conn, chat_id, ART_WIR_ZUERST, str(phase)))),
-        (_TEXT_SCHLAG_VOR_KNOPF,
-         _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHLAG_VOR, str(phase)))),
-    ]
-    message_id = tg.sende_mit_knoepfen(chat_id, _mit_vorspann(vorspann, _TEXT_PROAKTIV), leiste)
-    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
+    Deterministischer Systemtext, kein Modellaufruf. ``vorspann`` ist die
+    Eintrittsnachricht der Phase (``phasentexte.eintritt``): Kopfzeile,
+    Einleitung, Checkliste -- in DERSELBEN Nachricht wie die Frage."""
+    message_id = tg.sende(chat_id, _mit_vorspann(vorspann, _TEXT_PROAKTIV))
+    repo.merke_nachricht(
+        conn, chat_id, message_id, None, 1, "text",
+        _mit_vorspann(vorspann, _TEXT_PROAKTIV), repo._jetzt(),
+    )
 
 
 def _mit_vorspann(vorspann: str | None, text: str) -> str:
@@ -3643,7 +3984,8 @@ ANWEISUNG_EROEFFNUNG = (
 
 
 def _starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
-                    arbeitszeile: str | None = None) -> bool:
+                    arbeitszeile: str | None = None,
+                    arbeitsart: str | None = None) -> bool:
     """Gibt einen Gespraechszug mit Anweisung an einen eigenen Thread ab --
     der Weg, auf dem ein Knopf zu einem Modellaufruf kommt, ohne selbst
     einen zu machen (Zusage 2).
@@ -3652,7 +3994,7 @@ def _starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
     from interview_theater import ablauf
 
     return ablauf.starte_auftrag(
-        conn, tg, klm, e, chat_id, anweisung, arbeitszeile,
+        conn, tg, klm, e, chat_id, anweisung, arbeitszeile, arbeitsart,
     ) is not None
 
 
@@ -3857,7 +4199,7 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
                     )),
                 )
             )
-        message_id = tg.sende_mit_knoepfen(chat_id, _TEXT_FIGUREN_NAMEN_FRAGE, leiste)
+        message_id = _sende_knoepfe(conn, tg, chat_id, _TEXT_FIGUREN_NAMEN_FRAGE, leiste)
         repo.merke_knopf_nachricht(
             conn, [_id_aus_daten(d) for _, d in leiste], message_id
         )
@@ -3926,6 +4268,37 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             conn, tg, klm, e, chat_id, repo.hole_figur(conn, chat_id, name)
         )
         return "Duktus uebernommen"
+    if art == ART_FIGUR_STIL:
+        # Der gewaehlte Sprachstil (06.09.2026, Birk 12:20): er schreibt
+        # ``figur.sprachstil`` und -- wenn der Stil aus einem Interview kommt
+        # -- zusaetzlich ``quelle_aufnahme_id``. Additiv: das Sprachprofil aus
+        # einem frueheren Lauf bleibt stehen.
+        name, _, rest = str(knopf["wert"] or "").partition(TRENNER)
+        roh_id, _, stil = rest.partition(TRENNER)
+        figur = repo.hole_figur(conn, chat_id, name)
+        if figur is None or not stil.strip():
+            tg.sende(chat_id, _TEXT_UNBEKANNT)
+            return _TEXT_UNBEKANNT
+        repo.setze_figur_sprachstil(conn, figur["id"], stil.strip())
+        if roh_id.strip().isdigit():
+            repo.setze_figur_quelle(conn, figur["id"], int(roh_id))
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            f"Sprachstil {name}: {stil.strip()}", quelle="knopf",
+        )
+        tg.sende(chat_id, _TEXT_STIL_GESPEICHERT.format(name=name))
+        # Sofort weiter: naechste Figur, sonst die Geschichte.
+        if not stelle_stil_vor(conn, tg, klm, e, chat_id):
+            _schliesse_figuren_ab(conn, tg, chat_id)
+        return "Stil uebernommen"
+    if art == ART_FIGUR_STIL_FREI:
+        # Speichert nichts (Knopfregel: nur was fix ist). Der naechste
+        # Beitrag der Gruppe ist der Stil, und der Erkenner traegt ihn ein.
+        repo.setze_arbeitsstand(
+            conn, chat_id, "figur_aktuell", str(knopf["wert"] or "")
+        )
+        tg.sende(chat_id, _TEXT_STIL_EIGENER)
+        return "Erzaehlt"
     if art == ART_FIGUR_ENTFERNEN:
         name = repo.entferne_figur(conn, chat_id, str(knopf["wert"] or ""))
         if name:
@@ -4158,6 +4531,21 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
     return _TEXT_UNBEKANNT
 
 
+def _beantworte(tg, callback_query_id: str, text: str = "") -> None:
+    """``answerCallbackQuery`` mit geschlucktem Fehler (06.09.2026, Birk
+    12:05).
+
+    Telegram antwortet mit **400**, sobald der Druck aelter als rund eine
+    Minute ist ("query is too old"). Das ist kein Fehler des Bots: die
+    Wirkung ist laengst eingetreten, nur die Ladeanzeige laesst sich nicht
+    mehr abschalten. Bis heute stand dafuer ein Traceback im Log und
+    verdeckte die echten Fehler."""
+    try:
+        tg.beantworte_knopf(callback_query_id, text)
+    except Exception as fehler:
+        log.info("answerCallbackQuery nicht zugestellt: %s", fehler)
+
+
 def behandle(conn, tg, klm, e, druck: dict) -> bool:
     """Verarbeitet einen normalisierten Knopfdruck
     (``telegram.lies_knopfdruck``). Liefert True, wenn er zu diesem Bot
@@ -4177,17 +4565,17 @@ def behandle(conn, tg, klm, e, druck: dict) -> bool:
     chat_id = druck["chat_id"]
     knopf = repo.hole_knopf(conn, knopf_id)
     if knopf is None or (chat_id is not None and knopf["chat_id"] != chat_id):
-        tg.beantworte_knopf(druck["callback_query_id"], _TEXT_UNBEKANNT)
+        _beantworte(tg, druck["callback_query_id"], _TEXT_UNBEKANNT)
         return True
 
     chat_id = knopf["chat_id"]
     if not repo.beanspruche_knopf(conn, knopf_id):
         # Zweiter Druck: beantworten, aber nichts wiederholen (AGENTS.md).
-        tg.beantworte_knopf(druck["callback_query_id"], _TEXT_SCHON_BENUTZT)
+        _beantworte(tg, druck["callback_query_id"], _TEXT_SCHON_BENUTZT)
         _entferne_tastatur(tg, chat_id, druck["message_id"])
         return True
 
     meldung = _wirke(conn, tg, klm, e, knopf, chat_id)
-    tg.beantworte_knopf(druck["callback_query_id"], meldung)
+    _beantworte(tg, druck["callback_query_id"], meldung)
     _entferne_tastatur(tg, chat_id, druck["message_id"])
     return True

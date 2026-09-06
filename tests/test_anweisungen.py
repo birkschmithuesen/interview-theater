@@ -348,11 +348,13 @@ def test_die_erfindungsphasen_verbieten_das_material_ausdruecklich(betrieb, name
 @pytest.mark.parametrize("name", ["phasen/4"])
 def test_die_erfindungsphasen_faengt_mit_einer_offenen_frage_an(betrieb, name):
     """Kein Vorschlag als Eroeffnung: erst die Frage, dann -- auf Bitte --
-    der Vorschlag."""
+    der Vorschlag. Und unter der offenen Frage stehen seit dem 06.09.2026
+    (Birk, 11:10) KEINE Einstiegsknoepfe."""
     text = " ".join(anweisungen.hole(name).split())
 
-    assert "Schlag du vor" in text
-    assert "Eigene Idee" in text
+    assert "Die offene Frage kommt zuerst" in text
+    assert "keine Knoepfe" in text
+    assert "Eigene Idee" not in text
 
 
 @pytest.mark.parametrize("name", ["phasen/4"])

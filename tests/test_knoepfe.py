@@ -28,12 +28,12 @@ class TelegramAttrappe:
         self.entfernt = []
         self.naechste_message_id = 500
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self.gesendet.append((chat_id, text))
         self.naechste_message_id += 1
         return self.naechste_message_id
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         self.gesendet.append((chat_id, text))
         self.knoepfe.append((chat_id, text, list(knoepfe_)))
         self.naechste_message_id += 1
@@ -559,8 +559,9 @@ def test_stueck_ohne_feld_zeigt_nur_den_rahmen(conn, einst, tg):
 
 
 def test_rahmen_vorschlaege_werden_zu_knoepfen(conn, einst, tg):
-    """Phase 5 arbeitet nur noch am Rahmen: drei Vorschlaege, ein Knopf je
-    Zeile, darunter die Grundleiste."""
+    """Das Optionen-Menue (06.09.2026, Birk 11:05): drei Vorschlaege, je ein
+    Knopf "N · Titel", darunter "Anders" -- und KEIN Sammelknopf, der still
+    den ersten nimmt."""
     # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
     # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
     phasen.setze(conn, 1, 4, "befehl")
@@ -573,10 +574,10 @@ def test_rahmen_vorschlaege_werden_zu_knoepfen(conn, einst, tg):
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
     assert beschriftungen == [
-        "Bahnhofshalle, nachts", "Treppenhaus, kurz vor sechs",
-        "Hinterhof im August",
-        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
+        "1 · Bahnhofshalle, nachts", "2 · Treppenhaus, kurz vor sech",
+        "3 · Hinterhof im August", "Anders",
     ]
+    assert "Ja, speichern" not in beschriftungen
 
 
 def test_rahmen_knopf_schreibt_in_den_arbeitsstand(conn, einst, tg):
@@ -592,20 +593,25 @@ def test_rahmen_knopf_schreibt_in_den_arbeitsstand(conn, einst, tg):
     assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Bahnhofshalle, nachts"
 
 
-def test_passt_aber_anders_speichert_bei_einer_rahmen_liste_den_ersten(conn, einst, tg):
-    """Bei einer Auswahlliste traegt die Grundleiste den ERSTEN Vorschlag --
-    "Passt, aber anders" braucht einen Wert, sonst stuende nichts da."""
-    # Der Rahmen (Setting) gehoert seit dem Phasen-Umbau vom 05.09.2026
-    # nachts in Phase 4, nicht mehr in 5 (knoepfe.offene_art).
+def test_bei_mehreren_optionen_speichert_nichts_still_den_ersten(conn, einst, tg):
+    """Die Umkehrung der alten Regel (Birk, 06.09.2026 11:00): frueher trug
+    die Grundleiste den ERSTEN Vorschlag, und "Gefaellt uns, weiter" schrieb
+    ihn -- auch wenn die Gruppe Option 3 meinte. Jetzt gibt es unter einem
+    Menue keinen Knopf mehr, der irgendetwas speichert ausser der gewaehlten
+    Option; "Anders" schreibt nichts."""
     phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, "VORSCHLAG RAHMEN:\nBahnhofshalle, nachts\nHinterhof"
+        conn, tg, 1,
+        "VORSCHLAG RAHMEN:\nBahnhofshalle, nachts\nHinterhof\nSchulhof",
     )
-    daten = dict((b, d) for b, d in tg.knoepfe[-1][2])["Passt, aber anders"]
+    beschriftungen = dict((b, d) for b, d in tg.knoepfe[-1][2])
+    assert "Ja, speichern" not in beschriftungen
+    assert "Gefaellt uns, weiter" not in beschriftungen
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+    knoepfe.behandle(conn, tg, None, einst, _druck(beschriftungen["Anders"]))
 
-    assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Bahnhofshalle, nachts"
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not (stand and (stand["rahmen"] or "").strip())
 
 
 def test_rahmen_callback_data_bleibt_unter_64_bytes(conn, tg):
@@ -621,7 +627,10 @@ def test_rahmen_callback_data_bleibt_unter_64_bytes(conn, tg):
 
     daten = _daten_des_ersten_knopfes(tg)
     assert len(daten.encode("utf-8")) < telegram.CALLBACK_DATA_GRENZE
-    assert repo.hole_knopf(conn, int(daten[len(knoepfe.PRAEFIX):]))["wert"] == lang
+    # Ein einziger Vorschlag ist eine Rueckspiegelung: der Wert traegt die
+    # Art davor ("rahmen|<Text>"), der Volltext steht trotzdem in der
+    # Tabelle und nie in callback_data.
+    assert repo.hole_knopf(conn, int(daten[len(knoepfe.PRAEFIX):]))["wert"].endswith(lang)
 
 
 def test_hoechstens_vier_auswahlknoepfe(conn, tg):
@@ -632,8 +641,10 @@ def test_hoechstens_vier_auswahlknoepfe(conn, tg):
         conn, tg, 1, "VORSCHLAG RAHMEN:\nA\nB\nC\nD\nE\nF"
     )
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
-    assert beschriftungen[:knoepfe.MAX_AUSWAHL] == ["A", "B", "C", "D"]
-    assert len(beschriftungen) == knoepfe.MAX_AUSWAHL + 3
+    assert beschriftungen[:knoepfe.MAX_AUSWAHL] == [
+        "1 · A", "2 · B", "3 · C", "4 · D",
+    ]
+    assert len(beschriftungen) == knoepfe.MAX_AUSWAHL + 1
 
 
 def test_stueck_rahmen_ohne_wert_bleibt_bei_der_erklaerung(conn, einst, tg):

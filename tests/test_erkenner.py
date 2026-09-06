@@ -596,14 +596,14 @@ class TelegramAttrappe:
         self._letzte_message_id = 9000
         self._fehler = fehler
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         if self._fehler is not None:
             raise self._fehler
         self._letzte_message_id += 1
         self.gesendet.append((chat_id, text))
         return self._letzte_message_id
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         message_id = self.sende(chat_id, text)
         self.mit_knoepfen.append((chat_id, text, list(knoepfe_)))
         return message_id

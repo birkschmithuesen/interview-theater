@@ -73,12 +73,12 @@ class TelegramAttrappe:
         self.mit_knoepfen = []
         self._letzte_message_id = 9000
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self.gesendet.append((chat_id, text))
         self._letzte_message_id += 1
         return self._letzte_message_id
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         """Seit dem 05.09.2026 kommt auch die Interviewmodus-Bestaetigung des
         Erkenners mit dem Aufnahme-Umschalter darunter
         (``erkenner._melde_interviewmodus``). Fuer diese Tests zaehlt der

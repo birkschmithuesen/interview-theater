@@ -66,12 +66,12 @@ class _TG:
         self.gesendet = []
         self.naechste_message_id = 800
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self.gesendet.append((chat_id, text))
         self.naechste_message_id += 1
         return self.naechste_message_id
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         return self.sende(chat_id, text)
 
     def entferne_knoepfe(self, chat_id, message_id):

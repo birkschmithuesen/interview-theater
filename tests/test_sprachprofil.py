@@ -58,7 +58,7 @@ class TelegramAttrappe:
         self.gesendet = []
         self._naechste = 7000
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self.gesendet.append((chat_id, text))
         self._naechste += 1
         return self._naechste

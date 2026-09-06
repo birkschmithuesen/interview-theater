@@ -8,6 +8,7 @@ Der httpx.Client wird von aussen uebergeben (Dependency Injection), damit
 Tests einen httpx.MockTransport einsetzen koennen und nie ins Netz gehen.
 """
 
+import logging
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,8 @@ import httpx
 
 BASIS = "https://api.telegram.org"
 
+log = logging.getLogger(__name__)
+
 #: Telegram-Grenze fuer ``callback_data`` (Bot-API: 1-64 Bytes). Deshalb
 #: traegt ein Knopf hier nie einen Volltext, sondern nur eine kurze Referenz
 #: auf eine Zeile in der Tabelle ``knopf`` (siehe interview_theater/knoepfe.py).
@@ -25,6 +28,33 @@ CALLBACK_DATA_GRENZE = 64
 #: Telegram Bot-API: sendMessage nimmt hoechstens 4096 Zeichen. Etwas Luft,
 #: weil Telegram in UTF-16-Einheiten zaehlt und Emojis doppelt wiegen.
 NACHRICHT_GRENZE = 4000
+
+
+def escape_html(text: str) -> str:
+    """Maskiert die drei Zeichen, die Telegrams HTML-Modus deutet.
+
+    Warum eigenhaendig und nicht ``html.escape``: Telegram deutet genau
+    ``&``, ``<`` und ``>`` (Bot-API, \"HTML style\"), und ``html.escape``
+    wuerde zusaetzlich Anfuehrungszeichen ersetzen -- die stehen in
+    Vorschlagstexten haeufig und saehen als ``&quot;`` im Chat kaputt aus.
+    Die Reihenfolge ist wichtig: ``&`` zuerst, sonst maskiert man die eigenen
+    Ersetzungen ein zweites Mal."""
+    return (
+        (text or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def _ist_400(fehler: Exception) -> bool:
+    """War das ein HTTP 400 von Telegram? Genau dieser Fall bekommt den
+    Rueckfall auf Klartext (06.09.2026): eine Formatierung, die Telegram
+    nicht annimmt, darf die Nachricht nicht verschlucken."""
+    antwort = getattr(fehler, "response", None)
+    if antwort is not None and getattr(antwort, "status_code", None) == 400:
+        return True
+    return "400" in str(fehler)
 
 
 def teile_text(text: str, grenze: int = NACHRICHT_GRENZE) -> list[str]:
@@ -107,7 +137,34 @@ class Telegram:
             antwort.raise_for_status()
             return antwort.json()["result"]
 
-    def sende(self, chat_id: int, text: str) -> int:
+    def _post_nachricht(self, nutzlast: dict, roher_text: str) -> int:
+        """Ein sendMessage-Aufruf mit Rueckfall auf Klartext.
+
+        Der Rueckfall (06.09.2026, Vorschlagsmenues in HTML): antwortet
+        Telegram mit **400**, war die Formatierung schuld -- ein nicht
+        geschlossenes ``<b>``, ein Zeichen, das der Escaper nicht erwischt
+        hat. Dann geht dieselbe Nachricht ohne ``parse_mode`` und mit dem
+        rohen (unmaskierten) Text raus. Eine Nachricht, die wegen
+        Fettschrift gar nicht ankommt, ist der teuerste Ausgang; die Gruppe
+        wartet darauf."""
+        try:
+            with self._fange_http_fehler():
+                antwort = self._klient.post(self._url("sendMessage"), json=nutzlast)
+                antwort.raise_for_status()
+                return antwort.json()["result"]["message_id"]
+        except TelegramFehler as fehler:
+            if not nutzlast.get("parse_mode") or not _ist_400(fehler):
+                raise
+            log.info("HTML abgelehnt, Rueckfall auf Klartext: %s", fehler)
+        ohne = {k: v for k, v in nutzlast.items() if k != "parse_mode"}
+        ohne["text"] = roher_text
+        with self._fange_http_fehler():
+            antwort = self._klient.post(self._url("sendMessage"), json=ohne)
+            antwort.raise_for_status()
+            return antwort.json()["result"]["message_id"]
+
+    def sende(self, chat_id: int, text: str, parse_mode: str | None = None,
+              klartext: str | None = None) -> int:
         """Schickt eine Textnachricht. Liefert die message_id der gesendeten Nachricht.
 
         Telegram nimmt hoechstens 4096 Zeichen je Nachricht (Bot-API,
@@ -115,19 +172,27 @@ class Telegram:
         Live-Fall Gruppe 2: ein Teil-Transkript mit 7 957 Zeichen -> HTTP 400
         auf beiden Sendewegen, das Echo kam nie an). Zurueck kommt die
         message_id des LETZTEN Stuecks -- an dem haengen Tastatur und
-        Verweise."""
+        Verweise.
+
+        ``parse_mode`` (``"HTML"``) und ``klartext`` gehoeren zusammen: der
+        erste formatiert, der zweite ist dieselbe Nachricht ohne Auszeichnung
+        fuer den Rueckfall bei HTTP 400 (``_post_nachricht``). Ohne
+        ``parse_mode`` bleibt alles wie vorher -- reiner Text."""
+        stuecke = teile_text(text)
+        roh = teile_text(klartext) if klartext is not None else stuecke
         letzte = 0
-        for stueck in teile_text(text):
-            with self._fange_http_fehler():
-                antwort = self._klient.post(
-                    self._url("sendMessage"), json={"chat_id": chat_id, "text": stueck}
-                )
-                antwort.raise_for_status()
-                letzte = antwort.json()["result"]["message_id"]
+        for i, stueck in enumerate(stuecke):
+            nutzlast = {"chat_id": chat_id, "text": stueck}
+            if parse_mode:
+                nutzlast["parse_mode"] = parse_mode
+            letzte = self._post_nachricht(
+                nutzlast, roh[i] if i < len(roh) else stueck
+            )
         return letzte
 
     def sende_mit_knoepfen(
-        self, chat_id: int, text: str, knoepfe: list[tuple[str, str]]
+        self, chat_id: int, text: str, knoepfe: list[tuple[str, str]],
+        parse_mode: str | None = None, klartext: str | None = None,
     ) -> int:
         """Wie ``sende``, nur mit einer Inline-Tastatur darunter: je Eintrag
         ``(beschriftung, callback_data)`` eine Zeile, untereinander.
@@ -146,21 +211,24 @@ class Telegram:
                 raise ValueError(f"callback_data zu lang: {len(daten)} Zeichen")
         tastatur = [[{"text": t, "callback_data": d}] for t, d in knoepfe]
         stuecke = teile_text(text)
+        roh = teile_text(klartext) if klartext is not None else stuecke
         # Alle Stuecke bis auf das letzte ohne Tastatur -- die Knoepfe gehoeren
         # unter das Ende des Textes, nicht in seine Mitte.
-        for stueck in stuecke[:-1]:
-            self.sende(chat_id, stueck)
-        with self._fange_http_fehler():
-            antwort = self._klient.post(
-                self._url("sendMessage"),
-                json={
-                    "chat_id": chat_id,
-                    "text": stuecke[-1],
-                    "reply_markup": {"inline_keyboard": tastatur},
-                },
+        for i, stueck in enumerate(stuecke[:-1]):
+            self.sende(
+                chat_id, stueck, parse_mode=parse_mode,
+                klartext=roh[i] if i < len(roh) else None,
             )
-            antwort.raise_for_status()
-            return antwort.json()["result"]["message_id"]
+        nutzlast = {
+            "chat_id": chat_id,
+            "text": stuecke[-1],
+            "reply_markup": {"inline_keyboard": tastatur},
+        }
+        if parse_mode:
+            nutzlast["parse_mode"] = parse_mode
+        return self._post_nachricht(
+            nutzlast, roh[-1] if roh else stuecke[-1]
+        )
 
     def sende_datei(
         self, chat_id: int, dateiname: str, inhalt: bytes | str,
@@ -205,6 +273,22 @@ class Telegram:
             antwort = self._klient.post(
                 self._url("answerCallbackQuery"),
                 json={"callback_query_id": callback_query_id, "text": text},
+            )
+            antwort.raise_for_status()
+
+    def aendere_text(self, chat_id: int, message_id: int, text: str) -> None:
+        """Tauscht den Text einer schon verschickten Nachricht
+        (editMessageText) -- gebraucht fuer die wechselnden Arbeitszeilen
+        (``arbeitszeilen.py``, 06.09.2026).
+
+        Ersetzen statt neu senden: sonst waechst der Chat waehrend eines
+        Szenenlaufs um zehn Zeilen, die niemand lesen will. Ein Fehlschlag
+        ist unkritisch und wird vom Aufrufer geschluckt -- Telegram
+        antwortet mit 400, wenn der Text unveraendert waere."""
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("editMessageText"),
+                json={"chat_id": chat_id, "message_id": message_id, "text": text},
             )
             antwort.raise_for_status()
 

@@ -20,11 +20,11 @@ class TelegramAttrappe:
         self.gesendet = []
         self.mit_knoepfen = []
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self.gesendet.append((chat_id, text))
         return 500 + len(self.gesendet)
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         message_id = self.sende(chat_id, text)
         self.mit_knoepfen.append((chat_id, text, list(knoepfe_)))
         return message_id

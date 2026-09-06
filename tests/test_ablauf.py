@@ -19,12 +19,12 @@ class TelegramAttrappe:
         self.getippt = []    # Liste von chat_id
         self._letzte_message_id = 9000
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self._letzte_message_id += 1
         self.gesendet.append((chat_id, text))
         return self._letzte_message_id
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         """Begruessungen und Abschlussnachrichten tragen seit 05.09.2026
         eine Inline-Tastatur (knoepfe.biete_einstieg). Fuer diese Tests
         zaehlt der Text wie bei ``sende``."""
@@ -415,14 +415,14 @@ class _FakeTGSchleife:
             return self._updates
         raise _StoppeSchleife()
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         # bot.erstkontakt() ruft dies bei der ersten Nachricht einer Gruppe
         # auf (teil-b.md Aufgabe 7) -- fuer diese Tests ohne eigene Bedeutung,
         # nur damit erstkontakt() nicht an einer fehlenden Methode scheitert.
         self._letzte_message_id += 1
         return self._letzte_message_id
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         return self.sende(chat_id, text)
 
 
@@ -706,7 +706,7 @@ class TelegramMitKnoepfen(TelegramAttrappe):
         super().__init__()
         self.knoepfe = []
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         self.knoepfe.append((chat_id, text, list(knoepfe_)))
         return self.sende(chat_id, text)
 
@@ -726,7 +726,7 @@ def test_antwort_mit_vorschlagsblock_traegt_die_speicherleiste(conn, einst):
 
     ablauf.bearbeite(conn, tg, klm, einst, 1)
 
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter"]
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Ja, speichern", "Nein, nochmal aendern"]
     assert "VORSCHLAG" not in tg.gesendet[-1][1]
     assert "Heimat, Arbeit, Angst" in tg.gesendet[-1][1]
 

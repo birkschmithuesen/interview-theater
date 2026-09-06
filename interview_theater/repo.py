@@ -1613,6 +1613,22 @@ def setze_sprachprofil(
 
 
 @_gesperrt
+def setze_figur_sprachstil(
+    conn: sqlite3.Connection, figur_id: int, stil: str
+) -> None:
+    """Der in Phase 4 gewaehlte Sprachstil einer Figur (06.09.2026, Birk).
+
+    Additiv neben ``sprachprofil``: der Stil ist die Wahl der Gruppe, das
+    Profil das Messergebnis aus einem Interview -- eins ueberschreibt das
+    andere nicht."""
+    conn.execute(
+        "UPDATE figur SET sprachstil = ?, geaendert_am = ? WHERE id = ?",
+        (stil, _jetzt(), figur_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def lege_szene_an(
     conn: sqlite3.Connection,
     chat_id: int,

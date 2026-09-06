@@ -241,7 +241,7 @@ def test_erst_die_geschichte_gibt_die_schaerfung_frei(erfunden, tg, einst):
     assert phasen.voraussetzungen(erfunden, 1)[5] is True
     # Angeboten wird die hoechste moegliche Stufe; die Schaerfung ist ein
     # Angebot, keine Pflicht, deshalb steht hier der Weg zu den Szenentexten.
-    assert tg.beschriftungen == ["Weiter zu Szenentexte"]
+    assert tg.beschriftungen == ["Weiter zu Szenen als Geschichte"]
 
 
 def test_passt_aber_anders_speichert_trotzdem_und_fragt(erfunden, tg, einst):
@@ -310,9 +310,13 @@ def test_die_begruendung_des_formvorschlags_wird_mitgespeichert(erfunden, tg, ei
 
 def test_ohne_bestaetigte_form_wird_nicht_geschrieben(erfunden, tg, einst):
     """Die Sperre (``szene.PFLICHTFELDER``): ``form`` ist Pflichtfeld, und
-    ein Formvorschlag ist keine Form."""
-    from interview_theater import szene
+    ein Formvorschlag ist keine Form.
 
+    **Im Feinschliff** (Phase 7) -- in Phase 6 entsteht die Szene als
+    Geschichte, dort wird die Form gar nicht verlangt (06.09.2026, 10:30)."""
+    from interview_theater import phasen, szene
+
+    phasen.setze(erfunden, 1, 7, "befehl")
     knoepfe.sende_geschichte(erfunden, tg, 1, GESCHICHTE)
     knoepfe.behandle(
         erfunden, tg, None, einst, _druck(_knopf(tg, "Gefaellt uns, weiter"))

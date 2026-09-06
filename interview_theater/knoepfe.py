@@ -1999,10 +1999,17 @@ def biete_szene(conn, tg, chat_id: int, zeile) -> int:
     erster Knopf mit "(Vorschlag)"; die Schreibfrage kommt erst nach dem
     Druck. Ohne bestaetigte Form wird nicht geschrieben
     (``szene.PFLICHTFELDER``)."""
-    from interview_theater import szenenfolge
+    from interview_theater import szene as szene_modul, szenenfolge
 
     nummer = zeile["nummer"]
-    if not (zeile["form"] or "").strip():
+    # **In Phase 6 entfaellt die Formfrage** (06.09.2026, 10:30, Birk): dort
+    # entsteht die Szene als Geschichte, und was daraus wird -- Dialog,
+    # Monolog, Rap, Lied --, entscheidet die Gruppe erst im Feinschliff
+    # (Phase 7). ``form`` bleibt solange NULL, ``form_vorschlag`` ist eine
+    # Notiz fuer dann.
+    if not (zeile["form"] or "").strip() and not szene_modul.schreibt_prosa(
+        conn, chat_id
+    ):
         return biete_szenenform(conn, tg, chat_id, nummer, zeile=zeile)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_SCHREIBEN)
     if szenenfolge.zu_pruefen(conn, chat_id, nummer):

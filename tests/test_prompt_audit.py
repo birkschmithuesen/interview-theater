@@ -331,7 +331,7 @@ def test_systemanweisung_kennt_sieben_stufen(einst):
     system = kontext.system(einst.bot_name, phasen.LETZTE)
     assert "acht Stationen" not in system
     assert "sieben Stationen" in system
-    assert "7. Schaerfung des Stuecks" in system
+    assert "7. Feinschliff" in system
 
 
 def test_systemanweisung_ohne_alte_stationsnamen(einst):

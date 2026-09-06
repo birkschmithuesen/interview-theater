@@ -15,8 +15,9 @@ wo sie als naechstes hinschauen koennte:
    Zeit, Anlass), WER vorkommt und WAS passiert: der Bogen, das Ende und die
    Szenenfolge (mit Formvorschlag je Szene)
 5. Schaerfung -- die erfundene Geschichte am Interviewmaterial schaerfen
-6. Szenentexte -- Szene fuer Szene die Texte schreiben
-7. Schaerfung des Stuecks -- das ganze Textbuch pruefen und nachschaerfen
+6. Szenen als Geschichte -- jede Szene als Prosa erzaehlen, noch ohne Form
+7. Feinschliff -- je Szene die Form waehlen, die Geschichte uebersetzen,
+   das Stueck pruefen
 
 ## Rahmen des Stuecks
 

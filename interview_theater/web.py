@@ -1035,9 +1035,16 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
         felder += f"<dt>Zusammenfassung</dt><dd>{_t(s['zusammenfassung'])}</dd>"
     inhalt = f"<dl>{felder}</dl>" if felder else ""
     inhalt += _schaerfungen_html(s.get("schaerfungen"))
+    # Die Geschichte (Phase 6) steht ueber dem Theatertext: sie ist die
+    # Vorlage, aus der er entsteht (06.09.2026, 10:30). Beide read-only.
+    if s.get("prosa"):
+        inhalt += (
+            '<dl><dt>Als Geschichte</dt></dl>'
+            f'<div class="volltext">{_t(s["prosa"])}</div>'
+        )
     if s.get("volltext"):
         inhalt += f'<div class="volltext">{_t(s["volltext"])}</div>'
-    else:
+    elif not s.get("prosa"):
         inhalt += '<p class="leer">Noch kein Text — die Szene ist geplant.</p>'
     return (
         f'<details class="szene"><summary>{_szene_summary(s)}</summary>{inhalt}</details>'

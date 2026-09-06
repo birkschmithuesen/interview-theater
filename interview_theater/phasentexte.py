@@ -107,19 +107,21 @@ EINLEITUNGEN = {
         "koennt noch eine Runde drehen."
     ),
     6: (
-        "Jetzt werden die Texte geschrieben, Szene fuer Szene. Zuerst "
-        "bestaetigt ihr die Form -- Dialog, Monolog, Chor, Lied oder Rap --, "
-        "dann schreibe ich die Szene, und ihr sagt mir, was anders werden "
-        "soll. So lange, bis sie sitzt. Am Ende steht zu jeder Szene ein "
-        "Text."
+        "Jetzt schreibe ich jede Szene als Geschichte, wie in einem Buch - "
+        "was passiert, wer da ist, was gesagt und gefuehlt wird, in Prosa. "
+        "Kein Theatertext, keine Form; das kommt danach. Ihr sagt mir, was "
+        "anders werden soll."
     ),
     7: (
-        "Alle Szenen stehen. Jetzt lese ich euer Stueck einmal als Ganzes - "
-        "nur den Text, wie ein Zuschauer - und sage euch zu jeder Frage, wo "
-        "es traegt und wo nicht: Spannungsbogen, Figuren, Spannung, "
-        "Nachvollziehbarkeit, Anfang und Ende, Sprechbarkeit. Zu jedem Punkt "
-        "ein Vorschlag, den ihr in die Szene geben koennt. Ihr koennt das "
-        "Textbuch jederzeit als Datei holen."
+        "Alle Szenen stehen als Geschichte. Jetzt der Feinschliff: Szene fuer "
+        "Szene entscheidet ihr die Form - Dialog, Monolog, Chor, Lied oder "
+        "Rap -, und ich uebersetze die Geschichte in genau diese Form. "
+        "Danach lese ich euer Stueck einmal als Ganzes, wie ein Zuschauer, "
+        "und sage euch zu jeder Frage, wo es traegt und wo nicht: "
+        "Spannungsbogen, Figuren, Spannung, Nachvollziehbarkeit, Anfang und "
+        "Ende, Sprechbarkeit. Zu jedem Punkt ein Vorschlag, den ihr in die "
+        "Szene geben koennt. Ihr koennt das Textbuch jederzeit als Datei "
+        "holen."
     ),
 }
 

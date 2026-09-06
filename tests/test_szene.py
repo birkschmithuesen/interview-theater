@@ -15,7 +15,7 @@ import threading
 
 import pytest
 
-from interview_theater import anweisungen, repo, szene
+from interview_theater import anweisungen, phasen, repo, szene
 
 ANTWORT = (
     "TITEL: Am Bahnhof\n"
@@ -99,6 +99,11 @@ def _bereit_machen(conn, chat_id=1, nummer=1):
     Dazu Format und Rahmen im Arbeitsstand (ARBEITSSTAND_PFLICHTFELDER, seit
     05.09.2026 abends): ohne die Ergebnisse von Phase 5 ist nicht entschieden,
     WAS entsteht und WORIN es spielt."""
+    # **Phase 7 (Feinschliff)**: dort entsteht der Theatertext, den diese
+    # Tests messen. In Phase 6 schreibt derselbe Lauf eine Geschichte nach
+    # ``szene.prosa`` (06.09.2026, 10:30) -- das misst
+    # ``tests/test_szene_prosa.py``.
+    phasen.setze(conn, chat_id, 7, "befehl")
     repo.setze_figur(conn, chat_id, "Maria", "Naeherin, kam 1998")
     figur_id = repo.hole_figur(conn, chat_id, "Maria")["id"]
     repo.setze_sprachprofil(
@@ -592,14 +597,19 @@ def test_ohne_titel_faellt_der_code_auf_szene_n_zurueck(conn, einst, tg, bereit)
 def test_ohne_pflichtfelder_wird_gar_nicht_erst_gerufen(conn, einst, tg):
     """Birk 05.09.2026: "wenn Figuren fehlen, darf die Szene gar nicht
     erstellt werden". Ein Modell, dem Ort und Besetzung fehlen, scheitert
-    nicht -- es erfindet welche."""
+    nicht -- es erfindet welche.
+
+    **Die Form steht seit dem 06.09.2026, 10:30 nicht mehr dabei**: in
+    Phase 6 entsteht die Szene als Geschichte, und die Form entscheidet die
+    Gruppe erst im Feinschliff."""
     klm = LLMAttrappe()
 
     thread = szene.starte(conn, tg, klm, einst, 1, "Schreib Szene 1")
 
     assert thread is None
     assert klm.aufrufe == 0
-    assert tg.texte[0].startswith("Fuer Szene 1 fehlt noch: Form, Ort, Wer, Was passiert")
+    assert tg.texte[0].startswith("Fuer Szene 1 fehlt noch: Ort, Wer, Was passiert")
+    assert "Form" not in tg.texte[0]
 
 
 def test_die_sperre_nennt_genau_das_fehlende(conn, einst, tg):

@@ -222,6 +222,39 @@ def laeuft(chat_id: int) -> bool:
 #: ist Inszenierung, nicht Textbuch.
 FORMEN = ("dialog", "monolog", "chor", "lied", "rap")
 
+#: Die Formvariante der Phase 6 (06.09.2026, 10:30, Birk): erst entsteht die
+#: Szene als **Geschichte**, wie man sie in einem Buch liest -- kein
+#: Theaterskript. Sie steht bewusst NICHT in ``FORMEN``: die Gruppe waehlt
+#: sie nie, und sie taucht auf keinem Formknopf auf. Sie ist der Schritt
+#: davor, den der Code setzt.
+PROSA = "prosa"
+
+#: Die Phase, in der die Szenen als Geschichte entstehen (06.09.2026,
+#: 10:30). Ab Phase 7 (\"Feinschliff\") wird die Prosa in die gewaehlte Form
+#: uebersetzt.
+PHASE_PROSA = 6
+
+
+def schreibt_prosa(conn, chat_id: int) -> bool:
+    """Schreibt dieser Lauf eine **Geschichte** (Phase 6) oder einen
+    **Theatertext** (Phase 7 und alles danach)?
+
+    Die eine Stelle, an der die Verzweigung haengt -- Systemanweisung,
+    Zielspalte und Vorlage lesen sie alle hier ab. An der Phase und nicht an
+    einem eigenen Schalter: die Gruppe entscheidet mit dem Phasenwechsel,
+    dass die Geschichten stehen (``phasen.voraussetzungen[7]``).
+
+    Faellt die Phase nicht zu lesen (fehlende Zeile, alte Datenbank), gilt
+    Prosa: eine Gruppe, die zu frueh einen Theatertext bekommt, verliert den
+    Schritt, um den es hier geht."""
+    from interview_theater import phasen
+
+    try:
+        return phasen.aktuelle(conn, chat_id) <= PHASE_PROSA
+    except Exception:  # pragma: no cover -- Verteidigung, kein Weg
+        log.exception("Phase fuer den Szenenlauf nicht lesbar, chat_id=%s", chat_id)
+        return True
+
 #: Woerter, unter denen eine Form gemeint sein kann -- wie
 #: ``phasen.STICHWOERTER``: das Feld ``szene.form`` ist frei (die Gruppe
 #: entscheidet, nicht der Code), und "gesungen" muss trotzdem beim Lied
@@ -283,7 +316,18 @@ def systemanweisung(form: str | None = None) -> str:
     laufend erweitert ("das klingt schon wieder wie ChatGPT"), waehrend die
     Anweisung selbst stehen bleibt. Drei Dateien, drei Aenderungsrhythmen --
     und dank des Hot-Reloads in ``anweisungen.py`` wirkt eine Ergaenzung ohne
-    Neustart, beim naechsten Szenen-Auftrag."""
+    Neustart, beim naechsten Szenen-Auftrag.
+
+    **Die Prosafassung (Phase 6) ist die Ausnahme** (06.09.2026, 10:30,
+    Birk): dort gilt ``prompts/formen/prosa.md`` ALLEIN. Weder ``szene.md``
+    (Repliken, Regieanweisungen, Sprecherzeilen) noch ein Herkules-Regelblock
+    gehen mit -- sie beschreiben Sprechtheater, und hier entsteht eine
+    Geschichte. Die Tells bleiben: sie sind Sprachhygiene und gelten fuer
+    jeden Text."""
+    if (form or "").strip().lower() == PROSA:
+        return "\n\n".join(
+            [anweisungen.hole(f"formen/{PROSA}"), anweisungen.hole("theater-tells")]
+        )
     teile = [anweisungen.hole("szene")]
     regeln = anweisungen.hole_optional(f"formen/{formdatei(form)}")
     if regeln and regeln.strip():
@@ -495,7 +539,16 @@ def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
     alle vier Szenenfelder gesetzt, format und rahmen leer, Szene lief."""
     figuren = repo.szene_figuren(conn, ziel["id"])
     felder = []
-    for feld in PFLICHTFELDER:
+    # **In Phase 6 ist die Form kein Pflichtfeld** (06.09.2026, 10:30): dort
+    # entsteht die Szene als Geschichte, und welche Form daraus wird -- Dialog,
+    # Monolog, Rap, Lied --, entscheidet die Gruppe erst im Feinschliff. Eine
+    # Sperre auf ein Feld, nach dem gar nicht mehr gefragt wird, waere eine
+    # Sackgasse.
+    pflicht = tuple(
+        f for f in PFLICHTFELDER
+        if not (f == "form" and schreibt_prosa(conn, ziel["chat_id"]))
+    )
+    for feld in pflicht:
         if feld == "figuren":
             if not figuren:
                 felder.append(feld)
@@ -606,13 +659,21 @@ def kleinste_offene(conn, chat_id: int, vor: int | None = None) -> int | None:
 
     "Offen" heisst hier **ohne Volltext**, nicht "nicht abgenommen": eine
     geschriebene, aber noch nicht abgenommene Szene ist geschrieben, und ihre
-    Ueberarbeitung darf die naechste nicht aufhalten."""
+    Ueberarbeitung darf die naechste nicht aufhalten.
+
+    In Phase 6 zaehlt die **Prosafassung** als geschrieben (06.09.2026,
+    10:30): dort ist die Geschichte das Ergebnis, und die Chronologie-Sperre
+    haengt an dem, was die Phase gerade herstellt."""
+    prosa_lauf = schreibt_prosa(conn, chat_id)
     for szene in repo.hole_szenen(conn, chat_id):
         if szene["nummer"] is None:
             continue
         if vor is not None and szene["nummer"] >= vor:
             continue
-        if not (szene["volltext"] or "").strip():
+        geschrieben = (
+            _prosa_von(szene) if prosa_lauf else (szene["volltext"] or "").strip()
+        )
+        if not geschrieben:
             return szene["nummer"]
     return None
 
@@ -631,7 +692,11 @@ def vorzuziehen(conn, chat_id: int, ziel) -> int | None:
     Vorwegnahme. Nur eine noch leere Szene wird zurueckgestellt."""
     if ziel is None or ziel["nummer"] is None:
         return None
-    if (ziel["volltext"] or "").strip():
+    fertig = (
+        _prosa_von(ziel) if schreibt_prosa(conn, chat_id)
+        else (ziel["volltext"] or "").strip()
+    )
+    if fertig:
         return None
     return kleinste_offene(conn, chat_id, vor=ziel["nummer"])
 
@@ -1105,10 +1170,27 @@ def _continuity_bloecke(conn, chat_id: int, nummer: int | None) -> list[dict]:
         bausteine.append({
             "nummer": szene["nummer"],
             "kopf": kopf + ("\n  " + "\n  ".join(angaben) if angaben else ""),
-            "volltext": (szene["volltext"] or "").strip(),
+            # **Volltext, sonst Prosa** (06.09.2026, 10:30): in Phase 6 gibt
+            # es noch keinen Theatertext, aber sehr wohl die Geschichte der
+            # Vorszene -- und ohne sie schriebe jede Szene an der vorigen
+            # vorbei. In Phase 7 gewinnt der schon uebersetzte Volltext.
+            "volltext": (szene["volltext"] or "").strip()
+            or _prosa_von(szene),
             "zusammenfassung": _zusammenfassung_fuer(conn, szene),
         })
     return bausteine
+
+
+def _prosa_von(szene) -> str:
+    """Die Prosafassung einer Szene -- oder "", wenn die Spalte in einer
+    alten Datenbank noch fehlt.
+
+    Die Migration ist additiv und laeuft beim Start; ein Leser darf daran
+    trotzdem nicht scheitern (dieselbe Haltung wie ``phasen.feld``)."""
+    try:
+        return (szene["prosa"] or "").strip()
+    except (IndexError, KeyError):
+        return ""
 
 
 def _continuity_kennzeichnung(bausteine: list[dict], voll: set[int]) -> str:
@@ -1266,18 +1348,40 @@ NEU_HINWEIS = (
 )
 
 
-def _diese_szene_text(conn, ziel, neu: bool = False) -> str:
+#: Der Kopf ueber der Prosafassung im Feinschliff-Prompt (Phase 7,
+#: 06.09.2026, 10:30). Die Geschichte ist dort **bindende Vorlage**: was
+#: entsteht, ist eine Uebersetzung in eine Form, keine neue Szene.
+VORLAGE_KOPF = (
+    "Diese Szene steht bereits als Geschichte fest. Uebersetze sie in die "
+    "Form \"{form}\": dieselben Ereignisse, dieselbe Reihenfolge, dieselben "
+    "Figuren, dasselbe Ende. Erfinde nichts hinzu, was der Geschichte "
+    "widerspricht, und lass nichts weg, was in ihr passiert. Was die "
+    "Geschichte erzaehlt, wird jetzt gespielt.\n\n"
+    "Die Geschichte dieser Szene:"
+)
+
+
+def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False) -> str:
     """Block 6: alle Felder der zu schreibenden Szene, und bei einer
     Ueberarbeitung ihr bisheriger Text.
 
     Der Volltext geht nur bei einer Ueberarbeitung mit -- also dann, wenn es
     schon einen gibt. Bei einer neuen Szene waere ein fremder Volltext vor
-    allem eine Vorlage zum Abschreiben."""
+    allem eine Vorlage zum Abschreiben.
+
+    ``vorlage`` ist der Feinschliff (Phase 7): dann traegt der Block die
+    **Prosafassung** als bindende Vorlage. Das ist der eine Fall, in dem ein
+    fremder Text ausdruecklich abgeschrieben werden soll -- er ist das, was
+    die Gruppe abgenommen hat."""
     if ziel is None:
         return ""
     kopf = f"Szene {ziel['nummer']}" if ziel["nummer"] is not None else "Szene"
     zeilen = [DIESE_SZENE_KOPF, kopf]
     zeilen += _szenenfelder_zeilen(conn, ziel, _DIESE_SZENE_FELDER)
+    if vorlage and _prosa_von(ziel):
+        zeilen.append("")
+        zeilen.append(VORLAGE_KOPF.format(form=(ziel["form"] or "Dialog")))
+        zeilen.append(_prosa_von(ziel))
     if ziel["volltext"] and not neu:
         zeilen.append("")
         zeilen.append("Bisheriger Text dieser Szene, er soll ueberarbeitet werden:")
@@ -1542,7 +1646,8 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
             "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl),
             "aufgabe": _aufgabe_text(conn, chat_id, ziel),
             "diese_szene": _diese_szene_text(
-                conn, ziel, neu=NEU_MARKER in (auftrag or "")
+                conn, ziel, neu=NEU_MARKER in (auftrag or ""),
+                vorlage=not schreibt_prosa(conn, chat_id),
             ),
             "auftrag": f"Euer Auftrag:\n{auftrag.replace(NEU_MARKER, '').strip()}",
         }
@@ -1781,17 +1886,24 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     ziel = ziel_fuer(conn, chat_id, auftrag)
     nummer = ziel["nummer"]
 
+    # **Phase 6 schreibt eine Geschichte, Phase 7 den Theatertext**
+    # (06.09.2026, 10:30, Birk). In Phase 6 geht IMMER prosa.md in die
+    # Systemanweisung -- die Form der Szene ist dort noch gar nicht
+    # entschieden (``form`` bleibt NULL, ``form_vorschlag`` ist eine Notiz
+    # fuer den Feinschliff).
+    prosa_lauf = schreibt_prosa(conn, chat_id)
+    form = PROSA if prosa_lauf else ziel["form"]
     nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel, e)
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
     if ueber_claude:
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
-            chat_id, systemanweisung(ziel["form"]),
+            chat_id, systemanweisung(form),
             nutzer, ART, timeout=TIMEOUT_S,
         )
     else:
         antwort = klm.prosa(
-            chat_id, systemanweisung(ziel["form"]),
+            chat_id, systemanweisung(form),
             nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
         )
     _pruefe_budget(conn, chat_id, ueber_claude)
@@ -1816,8 +1928,15 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     # ``ziel_fuer`` sie notfalls angelegt hat. Die Planungsfelder bleiben
     # dabei stehen -- ``aktualisiere_szene`` fasst nur Titel, Kurzform,
     # Zusammenfassung und Volltext an.
+    #
+    # In Phase 6 geht der Text in ``prosa`` und NICHT in ``volltext``: die
+    # Geschichte ist kein Theatertext, und ``volltext`` ist die Bedingung
+    # dafuer, dass Phase 7 abgeschlossen ist. Die Zusammenfassung kommt in
+    # beiden Faellen aus dem gerade geschriebenen Text.
     repo.aktualisiere_szene(
-        conn, ziel["id"], titel or ziel["titel"], kurz, volltext, fassung,
+        conn, ziel["id"], titel or ziel["titel"], kurz,
+        None if prosa_lauf else volltext, fassung,
+        prosa=volltext if prosa_lauf else None,
     )
 
     titel = titel or f"Szene {nummer}"

@@ -100,11 +100,16 @@ PHASEN = (
         "Schaerfung",
         "Die erfundene Geschichte am Interviewmaterial schaerfen.",
     ),
-    (6, "Szenentexte", "Szene fuer Szene die Texte schreiben."),
+    (
+        6,
+        "Szenen als Geschichte",
+        "Jede Szene als Prosa erzaehlen -- was passiert, noch ohne Form.",
+    ),
     (
         7,
-        "Schaerfung des Stuecks",
-        "Das ganze Textbuch pruefen und Szene fuer Szene nachschaerfen.",
+        "Feinschliff",
+        "Je Szene die Form waehlen, die Geschichte uebersetzen, das Stueck "
+        "pruefen.",
     ),
 )
 
@@ -407,10 +412,27 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         5: setting and fixiert and bool(repo.figuren(conn, chat_id))
         and geschichte and szenen,
         6: geschichte and szenen,
+        # **Phase 7 (Feinschliff) verlangt seit dem 06.09.2026, 10:30 alle
+        # Szenen als GESCHICHTE** (``szene.prosa``) und nicht mehr als
+        # Theatertext: den schreibt erst der Feinschliff selbst, aus der
+        # Prosa. Eine alte Datenbank ohne die Spalte faellt auf ``volltext``
+        # zurueck -- eine Gruppe, die ihre Szenentexte schon hat, soll nicht
+        # zurueckgeworfen werden.
         7: bool(szenen_alle) and all(
-            (s["volltext"] or "").strip() for s in szenen_alle
+            _prosa_oder_volltext(s) for s in szenen_alle
         ),
     }
+
+
+def _prosa_oder_volltext(szene) -> bool:
+    """Steht diese Szene als Geschichte (oder, aus einem aelteren Lauf, als
+    Theatertext) da?"""
+    try:
+        if (szene["prosa"] or "").strip():
+            return True
+    except (IndexError, KeyError):
+        pass
+    return bool((szene["volltext"] or "").strip())
 
 
 def moegliche_naechste(conn, chat_id: int) -> list[int]:

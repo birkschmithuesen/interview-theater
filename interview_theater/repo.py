@@ -1646,6 +1646,7 @@ def aktualisiere_szene(
     kurzbeschreibung: str | None,
     volltext: str | None,
     zusammenfassung: str | None = None,
+    prosa: str | None = None,
 ) -> None:
     """Ueberschreibt eine Szene vollstaendig und setzt ``geaendert_am`` neu.
 
@@ -1659,14 +1660,26 @@ def aktualisiere_szene(
     als 'die aktuelle' in den Gespraechs-Prompt wandert (hole_letzte_szene,
     SPEC § 6.2 Block 5). Wer eine Szene ueberarbeitet, macht sie damit
     automatisch wieder zur aktuellen -- genau das datengetriebene Verhalten,
-    das § 6.1 beschreibt."""
+    das § 6.1 beschreibt.
+
+    ``prosa`` (06.09.2026, 10:30) ist die Geschichte der Szene, wie Phase 6
+    sie schreibt. ``volltext`` und ``prosa`` werden **nur geschrieben, wenn
+    sie mitkommen**: der Feinschliff (Phase 7) setzt den Volltext und darf
+    die Prosafassung dabei nicht loeschen -- sie ist die Vorlage, gegen die
+    sich der Theatertext pruefen laesst."""
+    felder = ["titel = ?", "kurzbeschreibung = ?", "zusammenfassung = ?"]
+    werte: list[object] = [titel, kurzbeschreibung, zusammenfassung]
+    if volltext is not None:
+        felder.append("volltext = ?")
+        werte.append(volltext)
+    if prosa is not None:
+        felder.append("prosa = ?")
+        werte.append(prosa)
+    felder.append("geaendert_am = ?")
+    werte.append(_jetzt_genau())
     conn.execute(
-        """
-        UPDATE szene SET titel = ?, kurzbeschreibung = ?, volltext = ?,
-                         zusammenfassung = ?, geaendert_am = ?
-        WHERE id = ?
-        """,
-        (titel, kurzbeschreibung, volltext, zusammenfassung, _jetzt_genau(), szene_id),
+        f"UPDATE szene SET {', '.join(felder)} WHERE id = ?",
+        (*werte, szene_id),
     )
     conn.commit()
 

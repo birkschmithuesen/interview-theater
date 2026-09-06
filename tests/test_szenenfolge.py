@@ -144,7 +144,7 @@ def test_phasenknopf_6_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
     Sache."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 6)
 
-    _druecke(conn, tg, einst, "Weiter zu Szenentexte")
+    _druecke(conn, tg, einst, "Weiter zu Szenen als Geschichte")
 
     assert any(t.endswith(knoepfe._TEXT_PROAKTIV) for t in tg.texte)
     assert tg.beschriftungen == [
@@ -222,8 +222,13 @@ def test_gefaellt_uns_weiter_legt_die_szenen_an(conn, einst, tg):
 def test_gefaellt_uns_weiter_fragt_zuerst_nach_der_form_von_szene_1(conn, einst, tg):
     """Nach dem Speichern geht es weiter, ohne dass jemand etwas tippen muss
     -- aber die erste Frage ist die nach der FORM (Birk, 06.09.2026 00:30).
-    Der Vorschlag des Bots steht zuerst und ist als solcher markiert."""
+    Der Vorschlag des Bots steht zuerst und ist als solcher markiert.
+
+    **Seit dem 06.09.2026, 10:30 gilt das fuer den Feinschliff (Phase 7)**:
+    in Phase 6 entsteht die Szene als Geschichte, und die Form wird dort
+    ueberhaupt nicht gefragt."""
     _figuren(conn, "Mira", "Pal")
+    phasen.setze(conn, 1, 7, "befehl")
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
 
     _druecke(conn, tg, einst, knoepfe.TEXT_WEITER_KNOPF)
@@ -237,6 +242,7 @@ def test_gefaellt_uns_weiter_fragt_zuerst_nach_der_form_von_szene_1(conn, einst,
 
 def test_erst_nach_der_form_kommt_die_schreibfrage(conn, einst, tg):
     _figuren(conn, "Mira", "Pal")
+    phasen.setze(conn, 1, 7, "befehl")
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
     _druecke(conn, tg, einst, knoepfe.TEXT_WEITER_KNOPF)
 
@@ -255,8 +261,10 @@ def test_erst_nach_der_form_kommt_die_schreibfrage(conn, einst, tg):
 
 def test_die_gruppe_darf_gegen_den_vorschlag_entscheiden(conn, einst, tg):
     """Der Vorschlag steht zuerst -- er gilt aber nicht. Gesetzt wird, was
-    gedrueckt wurde."""
+    gedrueckt wurde. (Feinschliff, Phase 7 -- in Phase 6 gibt es die Frage
+    nicht.)"""
     _figuren(conn, "Mira", "Pal")
+    phasen.setze(conn, 1, 7, "befehl")
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
     _druecke(conn, tg, einst, knoepfe.TEXT_WEITER_KNOPF)
 
@@ -438,6 +446,8 @@ def test_feldvorschlag_speichern_schreibt_die_felder_und_stellt_neu_vor(conn, ei
 
 
 def test_passt_schreiben_startet_den_szenenlauf_wenn_nichts_fehlt(conn, einst, tg):
+    """In Phase 6 landet das Ergebnis als GESCHICHTE (``prosa``), nicht als
+    Theatertext (06.09.2026, 10:30, Birk)."""
     klm = LLMAttrappe("TITEL: Am Bahnhof\n\nMARIA: Da bin ich.")
     szene_id = _eine_szene(conn)
     knoepfe.biete_szene(conn, tg, 1, repo.hole_szene(conn, szene_id))
@@ -447,7 +457,9 @@ def test_passt_schreiben_startet_den_szenenlauf_wenn_nichts_fehlt(conn, einst, t
     szene._sperre_fuer(1).release()
 
     assert klm.gesehen["art"] == szene.ART
-    assert (repo.hole_szene(conn, szene_id)["volltext"] or "").strip()
+    zeile = repo.hole_szene(conn, szene_id)
+    assert (zeile["prosa"] or "").strip()
+    assert not (zeile["volltext"] or "").strip(), "der Theatertext kommt erst in 7"
 
 
 # --- Nach dem Szenentext --------------------------------------------------
@@ -488,7 +500,7 @@ def test_passt_bei_der_letzten_szene_bietet_weiter_zur_stueckpruefung(conn, eins
 
     _druecke(conn, tg, einst, knoepfe.TEXT_PASST_KNOPF)
 
-    assert "Weiter zu Schaerfung des Stuecks" in tg.beschriftungen, tg.beschriftungen
+    assert "Weiter zu Feinschliff" in tg.beschriftungen, tg.beschriftungen
 
 
 def test_naechste_szene_springt_zur_naechsten_offenen(conn, einst, tg):
@@ -507,6 +519,7 @@ def test_neu_schreiben_hebt_die_alte_fassung_auf(conn, einst, tg):
     Datenbank, der Fertig-Stempel faellt -- ein neuer Text ist wieder ein
     Entwurf."""
     klm = LLMAttrappe("TITEL: Am Bahnhof\n\nMARIA: Jetzt anders.")
+    phasen.setze(conn, 1, 7, "befehl")
     szene_id = _eine_szene(conn)
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Erste Fassung.")
     repo.setze_szene_fertig(conn, szene_id, True)
@@ -530,6 +543,7 @@ def test_die_regienotiz_geht_als_auftrag_in_den_szenenlauf(conn, einst, tg):
     from interview_theater import ablauf
 
     klm = LLMAttrappe("TITEL: Am Bahnhof\n\nMARIA: Jetzt leiser.")
+    phasen.setze(conn, 1, 7, "befehl")
     szene_id = _eine_szene(conn, nummer=1)
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Erste.")
     knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1")
@@ -645,7 +659,7 @@ def test_phasenknopf_7_zeigt_gleich_die_uebersicht(conn, einst, tg):
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Da.")
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 7)
 
-    _druecke(conn, tg, einst, "Weiter zu Schaerfung des Stuecks")
+    _druecke(conn, tg, einst, "Weiter zu Feinschliff")
 
     assert phasen.aktuelle(conn, 1) == 7
     assert knoepfe.TEXT_TEXTBUCH_KNOPF in tg.beschriftungen
@@ -877,6 +891,7 @@ def test_eine_leere_form_steht_als_offen_in_zeile_zwei(conn):
     nennt sie als erstes, damit \"Ja, schreiben\" sie zuerst vorschlaegt."""
     from interview_theater import szene as szene_modul
 
+    phasen.setze(conn, 1, 7, "befehl")
     szene_id = repo.stelle_szene_sicher(conn, 1, 1)
     repo.setze_szenenfeld(conn, szene_id, "titel", "Am Bahnhof")
     zeile = repo.hole_szene(conn, szene_id)

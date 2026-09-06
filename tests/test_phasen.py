@@ -67,7 +67,7 @@ def test_die_korrigierte_reihenfolge_der_kurznamen():
     und zuletzt wird das ganze Stueck geschaerft (7)."""
     assert [name for _, name, _ in phasen.PHASEN] == [
         "Begriffe", "Fragen", "Interviews", "Setting, Figuren & Geschichte",
-        "Schaerfung", "Szenentexte", "Schaerfung des Stuecks",
+        "Schaerfung", "Szenen als Geschichte", "Feinschliff",
     ]
 
 
@@ -108,7 +108,7 @@ def test_jede_phase_hat_stichwoerter():
         ("konflikt", 4),                   # Teilstring in die andere Richtung
         ("Geschichte", 4),                 # seit 06.09. dieselbe Station
         ("Schaerfung", 5),                 # ohne ``jetzige``: die fruehere
-        ("Szenentexte", 6),
+        ("Szenen als Geschichte", 6),
         ("szenen", 6),
         ("Durchlauf.", 7),                 # Satzzeichen stoert nicht
         ("wir sind noch beim Kernthema", 4),      # Stichwort im Satz

@@ -125,6 +125,20 @@ class Ergebnis:
 # ---------------------------------------------------------------------------
 
 
+def _text_der_szene(szene) -> str:
+    """Der Text einer Szene -- Theatertext, sonst die Geschichte.
+
+    Seit dem 06.09.2026 (10:30) schreibt Phase 6 nach ``prosa`` und erst der
+    Feinschliff nach ``volltext``. Der Bericht zeigt, was da ist."""
+    voll = (szene["volltext"] or "") if "volltext" in szene.keys() else ""
+    if voll.strip():
+        return voll
+    try:
+        return szene["prosa"] or ""
+    except (IndexError, KeyError):
+        return ""
+
+
 def _sofort_szene(conn, tg, klm, e, chat_id, auftrag):
     """Ersatz fuer ``szene.starte``: schreibt die Szene **im aufrufenden
     Thread**.
@@ -862,7 +876,7 @@ class Lauf:
         urteilen zu koennen."""
         szenen = [
             s for s in repo.hole_szenen(self.conn, CHAT_ID)
-            if s["nummer"] == schritt.szene_nummer and s["volltext"]
+            if s["nummer"] == schritt.szene_nummer and _text_der_szene(s)
         ]
         if not szenen:
             return False
@@ -874,7 +888,7 @@ class Lauf:
             "titel": szene_zeile["titel"] or f"Szene {szene_zeile['nummer']}",
             "form": schritt.form,
             "planung": " ".join(planung),
-            "volltext": szene_zeile["volltext"],
+            "volltext": _text_der_szene(szene_zeile),
             "urteil": {},
         })
         return True

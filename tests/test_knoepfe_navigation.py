@@ -401,8 +401,8 @@ def test_entfernen_loescht_weich_und_geht_zur_naechsten(conn, tg, einst):
         (3, "Weiter zu Interviews"),
         (4, "Weiter zu Setting, Figuren & Geschichte"),
         (5, "Weiter zu Schaerfung"),
-        (6, "Weiter zu Szenentexte"),
-        (7, "Weiter zu Schaerfung des Stuecks"),
+        (6, "Weiter zu Szenen als Geschichte"),
+        (7, "Weiter zu Feinschliff"),
     ],
 )
 def test_phasenknoepfe_heissen_nach_inhalt_nie_nach_nummer(conn, tg, nummer, text):

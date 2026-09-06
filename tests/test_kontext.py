@@ -491,7 +491,7 @@ def test_setting_figuren_und_geschichte_fuehren_zur_schaerfung(conn, einst):
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
-    assert "Materiallage wuerde Phase 6 · Szenentexte hergeben" in prompt
+    assert "Materiallage wuerde Phase 6 · Szenen als Geschichte hergeben" in prompt
     assert repo.hole_phase_angeboten(conn, 1) == 6
 
 
@@ -506,7 +506,7 @@ def test_gefragt_wird_immer_nach_der_hoechsten_moeglichen_phase(conn, einst):
     phasen.setze(conn, 1, 4, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
-    assert "Materiallage wuerde Phase 6 · Szenentexte hergeben" in kontext.baue(
+    assert "Materiallage wuerde Phase 6 · Szenen als Geschichte hergeben" in kontext.baue(
         conn, 1, ausloeser, einst
     )
 

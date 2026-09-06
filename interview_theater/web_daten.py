@@ -536,6 +536,10 @@ def _szenen(
             # sie, die Gruppe liest sie -- es gibt kein Formularfeld dafuer.
             "zusammenfassung": _feld(z, "zusammenfassung"),
             "volltext": z["volltext"],
+            # Die Prosafassung (Phase 6, 06.09.2026): read-only auf der
+            # Gruppenseite -- sie ist die Vorlage, die der Feinschliff in
+            # eine Form uebersetzt, und wird nicht von Hand gepflegt.
+            "prosa": _feld(z, "prosa"),
             "geaendert_am": z["geaendert_am"],
             "figuren": _szene_figuren(conn, z["id"]),
             "figur_ids": _szene_figur_ids(conn, z["id"]),

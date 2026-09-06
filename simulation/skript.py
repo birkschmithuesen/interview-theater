@@ -217,8 +217,19 @@ def _fertig_phase_mitte(conn, chat_id, merker):
     return _stand_gesetzt(conn, chat_id, feld)
 
 
+def _geschrieben(szene) -> bool:
+    """Steht diese Szene? In Phase 6 als Geschichte (``prosa``), ab Phase 7
+    als Theatertext (``volltext``) -- 06.09.2026, 10:30."""
+    try:
+        if szene["prosa"]:
+            return True
+    except (IndexError, KeyError):
+        pass
+    return bool(szene["volltext"])
+
+
 def _fertig_szene(conn, chat_id, merker):
-    return any(s["volltext"] for s in repo.hole_szenen(conn, chat_id))
+    return any(_geschrieben(s) for s in repo.hole_szenen(conn, chat_id))
 
 
 def _fertig_szene_nummer(nummer: int):
@@ -230,7 +241,7 @@ def _fertig_szene_nummer(nummer: int):
     fertig, und die Szenen 2 und 3 entstuenden nie."""
     def fertig(conn, chat_id, merker):
         return any(
-            s["nummer"] == nummer and s["volltext"]
+            s["nummer"] == nummer and _geschrieben(s)
             for s in repo.hole_szenen(conn, chat_id)
         )
     return fertig

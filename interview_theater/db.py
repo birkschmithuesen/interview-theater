@@ -348,6 +348,14 @@ CREATE TABLE IF NOT EXISTS szene (
   kernsaetze        TEXT,                   -- Sätze, die wörtlich vorkommen sollen
   ton               TEXT,                   -- Register: leise, komisch, harmonisch, hitzig
   volltext          TEXT,                   -- nur die zuletzt geänderte Szene geht mit
+  -- Die PROSAFASSUNG der Szene (06.09.2026, Birk, 10:30): "In der Phase des
+  -- Szenenbauens soll vom Format her zuerst eine Geschichte rauskommen, so
+  -- wie wir sie als Buch lesen -- kein Theaterskript-Dialog, sondern eine
+  -- Beschreibung von dem, was passiert." Phase 6 schreibt hierher, Phase 7
+  -- uebersetzt sie in die gewaehlte Form nach ``volltext``. Beide bleiben
+  -- stehen: die Prosa ist die Vorlage, gegen die der Theatertext geprueft
+  -- werden kann. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  prosa             TEXT,
   -- Gesetzt = die Gruppe hat den Text mit "Passt" abgenommen (Phase 6,
   -- knoepfe.ART_SZENE_PASST). Ein Volltext allein heisst nur "geschrieben":
   -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer

@@ -240,7 +240,10 @@ def main() -> None:
     # --- 11. Szene, je Form -----------------------------------------------
     szenen = repo.hole_szenen(conn, chat_id)
     ziel_szene = szenen[0] if szenen else None
-    for form in ("dialog", "monolog", "chor", "lied", "rap"):
+    # ``prosa`` steht mit in der Liste: sie ist der Prompt der Phase 6
+    # (Szenen als Geschichte, 06.09.2026) und gehoert damit genauso in den
+    # Audit wie die fuenf Theaterformen.
+    for form in ("prosa", "dialog", "monolog", "chor", "lied", "rap"):
         zeilen.append(_schreibe(
             ziel, f"13-szene-{form}", szene.systemanweisung(form),
             szene.baue_nutzertext(conn, chat_id, "Schreib Szene 1.", ziel_szene),

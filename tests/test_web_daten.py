@@ -385,3 +385,26 @@ def test_dashboard_zaehlt_entfernte_szenen_nicht_mit(gefuellt):
 
     erste = next(g for g in dashboard["gruppen"] if g["chat_id"] == 1)
     assert erste["szenen"] == 0
+
+
+def test_interviews_chronologisch_nach_beginn_mit_zeitpunkt(conn):
+    """06.09.2026 14:00 (Gruppe 1): ein nachtraeglich getrenntes Interview
+    bekam eine hoehere id als das spaeter gestartete und stand als 'Interview 3'
+    hinter dem laufenden. Sortiert wird nach dem Beginn (fruehester Teil),
+    und jede Zeile traegt ihren Beginn."""
+    from interview_theater import repo, web_daten
+
+    a = repo.lege_aufnahme_an(conn, 1, 0, "lang", "sprache", status="laeuft")   # 11:44 gestartet
+    b = repo.lege_aufnahme_an(conn, 1, 0, "lang", "sprache", status="fertig")   # spaeter angelegt ...
+    conn.execute("UPDATE aufnahme SET empfangen_am = '2026-09-06T11:44:48+00:00' WHERE id = ?", (a,))
+    conn.execute("UPDATE aufnahme SET empfangen_am = '2026-09-06T11:46:03+00:00' WHERE id = ?", (b,))
+    # ... traegt aber einen Teil von 11:41 -> beginnt frueher
+    t = repo.lege_aufnahme_an(conn, 1, 5, "teil", "sprache", status="fertig")
+    conn.execute("UPDATE aufnahme SET teil_von = ?, empfangen_am = '2026-09-06T11:41:53+00:00', dauer_sekunden = 218 WHERE id = ?", (b, t))
+    conn.commit()
+
+    liste = web_daten._interviews(conn, 1)
+    assert [i["bezeichnung"] for i in liste] == ["Interview 1", "Interview 2"]
+    assert liste[0]["beginn"].startswith("2026-09-06T11:41:53")
+    assert liste[1]["beginn"].startswith("2026-09-06T11:44:48")
+    assert [i["id"] for i in web_daten.interview_liste(conn, 1)] == [b, a] if hasattr(web_daten, "interview_liste") else True

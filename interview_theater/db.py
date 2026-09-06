@@ -429,6 +429,38 @@ CREATE TABLE IF NOT EXISTS szene (
 );
 CREATE INDEX IF NOT EXISTS idx_szene_aktuell ON szene(chat_id, geaendert_am DESC);
 
+-- Jede Fassung einer Szene, nur angehaengt (06.09.2026).
+--
+-- Bis dahin ersetzte jeder Szenenlauf den Volltext. Die Gruppe konnte nicht
+-- zurueck, und in der Probe will man zwei Fassungen nebeneinander lesen.
+-- Seitdem schreibt jeder erfolgreiche Lauf seine Fassung ZUSAETZLICH hierher;
+-- ``szene.volltext`` bleibt genau wie bisher die aktuelle Fassung, damit kein
+-- Aufrufer ausserhalb etwas anderes lesen muss.
+--
+-- Dasselbe Prinzip wie beim Journal: **nur anhaengen, nie aendern, nie
+-- loeschen**. Deshalb gibt es hier kein ``entfernt_am`` und keine
+-- Aktualisierungsfunktion in repo.py.
+--
+-- ``nummer`` zaehlt je Szene fortlaufend ab 1. ``volltext`` ist der Text, den
+-- der Lauf geliefert hat -- in Phase 6 die Prosafassung der Geschichte, im
+-- Feinschliff der Theatertext; welcher es war, sagt die Szene selbst.
+-- ``anders_gemacht`` ist die Pflichtzeile ``Anders gemacht:`` desselben Laufs
+-- und dient auf der Gruppenseite als Beschriftung des aufklappbaren Blocks.
+CREATE TABLE IF NOT EXISTS szenenfassung (
+  id               INTEGER PRIMARY KEY,
+  chat_id          INTEGER NOT NULL,
+  szene_id         INTEGER NOT NULL,
+  nummer           INTEGER NOT NULL,
+  volltext         TEXT,
+  zusammenfassung  TEXT,
+  anders_gemacht   TEXT,
+  erstellt_am      TEXT NOT NULL,
+  anbieter         TEXT,
+  modell           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_szenenfassung_szene
+  ON szenenfassung(szene_id, nummer);
+
 -- Die Schaerfung am Material (Phase 6, Umbau 05.09.2026 nachts).
 --
 -- Ein Schema-Aufruf mappt jeden passenden **geprueften** Verdichtungseintrag
@@ -570,6 +602,7 @@ TABELLEN_MIT_CHAT_ID = (
     "figur",
     "szene",
     "szene_figur",
+    "szenenfassung",
     "schaerfung",
     "stueckpruefung",
     "journal",
@@ -721,17 +754,54 @@ def _migriere_phasennummern(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migriere_erste_szenenfassung(conn: sqlite3.Connection) -> int:
+    """Gibt jeder bestehenden Szene mit Volltext **eine** Fassung Nummer 1
+    mit dem vorhandenen Text (06.09.2026). Liefert, wie viele angelegt wurden.
+
+    Der Grund ist die Ansicht: „Fruehere Fassungen" darf nicht leer aussehen,
+    wo es einen Text gibt, nur weil er vor dieser Aenderung entstanden ist.
+
+    **Idempotent** ueber das ``NOT EXISTS`` -- eine Szene, die schon eine
+    Fassung hat, bekommt keine zweite. Kein ``user_version``-Schritt und kein
+    eigener Merkposten: die Bedingung ist die Datenlage selbst, und damit
+    laeuft die Migration auch fuer eine Szene richtig, die erst spaeter aus
+    einem Import dazukommt.
+
+    Kein Zeitstempel geraten: ``erstellt_am`` ist ``szene.geaendert_am`` --
+    der Moment, in dem dieser Text entstanden ist. Anbieter und Modell
+    bleiben NULL: sie sind fuer die alten Fassungen nicht mehr feststellbar,
+    und eine Vermutung im Feld waere schlechter als eine Leerstelle."""
+    cur = conn.execute(
+        """
+        INSERT INTO szenenfassung
+            (chat_id, szene_id, nummer, volltext, zusammenfassung, erstellt_am)
+        SELECT s.chat_id, s.id, 1, s.volltext, s.zusammenfassung, s.geaendert_am
+        FROM szene s
+        WHERE trim(coalesce(s.volltext, '')) <> ''
+          AND NOT EXISTS (
+              SELECT 1 FROM szenenfassung f WHERE f.szene_id = s.id
+          )
+        """
+    )
+    conn.commit()
+    return cur.rowcount
+
+
 def initialisiere(conn: sqlite3.Connection) -> None:
     """Legt das Schema an, falls noch nicht vorhanden, ergaenzt in einer schon
     vorhandenen Datenbank fehlende Spalten (siehe _migriere_fehlende_spalten)
-    und rechnet einmalig die Phasennummern um (_migriere_phasennummern).
+    rechnet einmalig die Phasennummern um (_migriere_phasennummern) und legt
+    fuer bestehende Szenentexte die erste Fassung an
+    (_migriere_erste_szenenfassung).
 
     Reihenfolge: erst die Spalten, dann ihr Inhalt -- ``phase_angeboten``
-    koennte in einer sehr alten Datenbank noch gar nicht existieren."""
+    koennte in einer sehr alten Datenbank noch gar nicht existieren, und
+    ``szene.zusammenfassung`` ebenfalls."""
     conn.executescript(SCHEMA)
     conn.commit()
     _migriere_fehlende_spalten(conn)
     _migriere_phasennummern(conn)
+    _migriere_erste_szenenfassung(conn)
 
 
 def loesche_gruppe(conn: sqlite3.Connection, chat_id: int) -> None:

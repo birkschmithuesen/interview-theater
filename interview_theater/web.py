@@ -387,6 +387,12 @@ table.uebersicht .umfang { white-space: nowrap; opacity: .7;
 /* Die Schaerfung: read-only, deshalb ohne Kasten und ohne Knopf. */
 .schaerfung { font-size: .85rem; margin: .3rem 0 .5rem; opacity: .85; }
 .schaerfung ul { margin: .1rem 0 0; }
+/* Die frueheren Fassungen: ein Block im Block, deshalb eingerueckt und
+   kleiner gesetzt als der aktuelle Text. Read-only, ohne Knopf. */
+details.fassungen { margin-top: .6rem; font-size: .92rem; }
+details.fassungen summary { font-weight: 600; opacity: .75; }
+details.fassung { margin: .3rem 0 .3rem .8rem; }
+details.fassung summary { font-weight: normal; opacity: .7; }
 /* Wer wie viel spricht: vier schmale Spalten, damit die Tabelle auf ein
    Telefon passt. Die Hinweiszeilen darunter sind Fliesstext, kein Alarm. */
 table.anteile { margin: .3rem 0 .5rem; }
@@ -1180,6 +1186,7 @@ def _szene_html(s: dict, figuren: list[dict] | None = None) -> str:
         inhalt += f'<div class="volltext">{_t(s["volltext"])}</div>'
     elif not s.get("prosa"):
         inhalt += '<p class="leer">Noch kein Text — die Szene ist geplant.</p>'
+    inhalt += _fassungen_html(s.get("fassungen"))
     return (
         f'<details class="szene"><summary>{_szene_summary(s)}</summary>{inhalt}</details>'
     )
@@ -1248,6 +1255,45 @@ def _begriffe_html(begriffe: list[str] | None) -> str:
         return ""
     chips = "".join(f'<span class="begriff">{_t(b)}</span>' for b in begriffe)
     return f'<div class="begriffe">{chips}</div>'
+
+
+#: Die Beschriftung des aufklappbaren Blocks mit den früheren Fassungen --
+#: als Konstante, damit Test und Chat-Knopf denselben Wortlaut prüfen können,
+#: ohne ihn abzuschreiben.
+TEXT_FASSUNGEN = "Frühere Fassungen"
+
+
+def _fassungen_html(fassungen: list[dict] | None) -> str:
+    """Die früheren Fassungen einer Szene als aufklappbarer Block
+    (06.09.2026).
+
+    **Read-only, und ausdrücklich ohne „Zurücksetzen".** Eine frühere Fassung
+    wieder zur aktuellen zu machen ist eine Entscheidung mit Datenwirkung;
+    hier steht sie zum Lesen, weil man in der Probe zwei Fassungen
+    nebeneinander halten will.
+
+    Beschriftet wird jede Fassung mit Datum und der Zeile `Anders gemacht:`
+    des Laufs, der sie geschrieben hat -- das ist der Satz, an dem die Gruppe
+    sie wiedererkennt. Fehlt er (Fassung aus der Zeit davor, Prosalauf), steht
+    nur das Datum da. Gibt es keine früheren Fassungen, fehlt der Block."""
+    if not fassungen:
+        return ""
+    bloecke = []
+    for f in fassungen:
+        # ``_zeitpunkt`` liefert den Trenner gleich mit ("06.09.2026 14:33 · ")
+        # oder gar nichts, wenn der Zeitstempel unlesbar ist.
+        teile = [f"Fassung {f['nummer']}", _zeitpunkt(f["erstellt_am"]).rstrip(" ·")]
+        if (f.get("anders_gemacht") or "").strip():
+            teile.append(f["anders_gemacht"].strip())
+        beschriftung = SUMMARY_TRENNER.join(t for t in teile if t)
+        bloecke.append(
+            f'<details class="fassung"><summary>{_t(beschriftung)}</summary>'
+            f'<div class="volltext">{_t(f.get("volltext"), "")}</div></details>'
+        )
+    return (
+        f'<details class="fassungen"><summary>{html.escape(TEXT_FASSUNGEN)} '
+        f'({len(fassungen)})</summary>{"".join(bloecke)}</details>'
+    )
 
 
 def _interview_html(v: dict) -> str:

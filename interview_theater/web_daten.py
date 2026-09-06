@@ -506,6 +506,36 @@ def schaerfungen(conn: sqlite3.Connection, chat_id: int) -> dict:
     return ergebnis
 
 
+def _fruehere_fassungen(conn: sqlite3.Connection, szene_id: int) -> list[dict]:
+    """Die **frueheren** Fassungen einer Szene, juengste zuerst -- ohne die
+    aktuelle (06.09.2026).
+
+    Die letzte Zeile in ``szenenfassung`` ist der Text, der oben auf der
+    Seite ohnehin steht; sie ein zweites Mal aufzuklappen waere Doppelung.
+    Bleibt nichts uebrig, fehlt der Block ganz.
+
+    Fehlt die Tabelle noch (Datenbank aus der Zeit davor), ist das Ergebnis
+    leer statt ein Fehler: der Webserver migriert nichts."""
+    try:
+        zeilen = conn.execute(
+            "SELECT * FROM szenenfassung WHERE szene_id = ? "
+            "ORDER BY nummer ASC, id ASC",
+            (szene_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [
+        {
+            "nummer": z["nummer"],
+            "volltext": z["volltext"],
+            "zusammenfassung": z["zusammenfassung"],
+            "anders_gemacht": z["anders_gemacht"],
+            "erstellt_am": z["erstellt_am"],
+        }
+        for z in reversed(zeilen[:-1])
+    ]
+
+
 def _szenen(
     conn: sqlite3.Connection, chat_id: int, geschaerft: dict | None = None
 ) -> list[dict]:
@@ -550,6 +580,9 @@ def _szenen(
             "geaendert_am": z["geaendert_am"],
             "figuren": _szene_figuren(conn, z["id"]),
             "figur_ids": _szene_figur_ids(conn, z["id"]),
+            # Die frueheren Fassungen (06.09.2026) -- read-only, aufklappbar,
+            # ohne die aktuelle. Leere Liste heisst: kein Block.
+            "fassungen": _fruehere_fassungen(conn, z["id"]),
         }
         for feld, _ in SZENENFELDER:
             eintrag[feld] = _feld(z, feld)

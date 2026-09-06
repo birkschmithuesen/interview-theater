@@ -556,6 +556,33 @@ lädt, würde damit Gesprächszüge ausbremsen.
   `web_daten.fehlstellen` über die read-only geöffnete Verbindung — der
   Webserver bekommt dadurch keinen `repo`-Pfad.
 
+- **Eine Szene bekommt Fassungen, statt überschrieben zu werden**
+  (06.09.2026, Tabelle `szenenfassung`). „Neu schreiben" ersetzte bis dahin
+  `szene.volltext`; die Gruppe kam nicht zurück, und in der Probe will man
+  zwei Fassungen nebeneinander lesen. Jeder **erfolgreiche** Szenenlauf
+  (`szene.schreibe` und der Prosalauf in `kurzgeschichte.lege_szenen_an`)
+  hängt seine Fassung **zusätzlich** an — `szene.volltext` bleibt genau wie
+  bisher die aktuelle Fassung, **kein Aufrufer außerhalb ändert sich**.
+  Dasselbe Prinzip wie beim Journal: **nur anhängen, nie ändern, nie
+  löschen** — es gibt bewusst kein `aktualisiere_szenenfassung` und kein
+  `entfernt_am`. Scheitert das Anhängen, ist die Szene trotzdem geschrieben:
+  eine verlorene Historienzeile darf keinen bezahlten Lauf kosten. Migration:
+  `db._migriere_erste_szenenfassung` gibt jeder bestehenden Szene mit
+  Volltext **eine** Fassung Nummer 1 mit `szene.geaendert_am` als Zeitpunkt —
+  idempotent über ein `NOT EXISTS` und ohne eigenen `user_version`-Schritt,
+  damit auch eine später importierte Szene noch richtig durchläuft. Gezeigt
+  wird sie an zwei Orten, beide **read-only**: ein aufklappbarer Abschnitt je
+  Szene auf der Gruppenseite (beschriftet mit Datum und der
+  `Anders gemacht:`-Zeile des Laufs) und ein Knopf „Fruehere Fassungen"
+  unter einer angesehenen Szene (`knoepfe.ART_FASSUNGEN`, deterministisch,
+  Zusage 2 gilt) — beide zeigen die **aktuelle** Fassung nicht noch einmal
+  und fehlen ganz, solange es nur eine gibt. **Zurücksetzen auf eine frühere
+  Fassung ist bewusst nicht gebaut:** das ist eine Entscheidung mit
+  Datenwirkung, die Birk erst freigeben muss. `szene.fruehere_fassungen`
+  (der `FASSUNGSTRENNER`-Text aus `repo.hebe_fassung_auf`) bleibt daneben
+  unverändert stehen — er ist der ältere, gröbere Weg und wird von der neuen
+  Tabelle nicht angefasst.
+
 - **Sprechanteile sind gezählt, nicht geschätzt** (06.09.2026,
   `sprecher.py`). Der praktisch wichtigste Befund für eine Laiengruppe stand
   nirgends: eine Spielerin mit vier Zeilen merkt das in der Probe, und dann

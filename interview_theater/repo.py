@@ -1187,7 +1187,14 @@ def lege_dramaturgie_befunde_an(
     ``beleg_geprueft`` ist die harte Grenze aus Recherche § 4: sie kommt vom
     Aufrufer, der den Beleg gegen das vorgelegte Material geprueft hat
     (``dramaturgie.beleg``), und wird hier nie erraten -- ohne das Feld ist
-    sie 0."""
+    sie 0.
+
+    ``richtung`` wird mitgeschrieben, weil sie eine **Sperre** ist und keine
+    Notiz: ``fanout.auftraege`` laesst aus ``parameter`` nie einen
+    Schreibauftrag entstehen. Stuende sie nur im Arbeitsspeicher, griffe die
+    Sperre im frischen Lauf und waere fuer jeden Leser aus der Datenbank
+    verschwunden -- und genau so lesen der Knopfweg und die
+    Rueckkopplungsschleife die Befunde."""
     angelegt = 0
     for befund in befunde:
         pruefung = str(befund.get("pruefung") or "").strip()
@@ -1199,8 +1206,9 @@ def lege_dramaturgie_befunde_an(
             """
             INSERT INTO dramaturgie_befund
                 (chat_id, runde, pruefung, szene, figur, schwere, text,
-                 beleg, beleg_geprueft, vorschlag, quelle, erstellt_am)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 beleg, beleg_geprueft, vorschlag, richtung, quelle,
+                 erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chat_id,
@@ -1213,6 +1221,7 @@ def lege_dramaturgie_befunde_an(
                 befund.get("beleg"),
                 1 if befund.get("beleg_geprueft") else 0,
                 befund.get("vorschlag"),
+                befund.get("richtung"),
                 quelle,
                 _jetzt(),
             ),

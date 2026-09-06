@@ -1099,6 +1099,37 @@ def test_parameterbefund_geht_nicht_an_den_schreiber():
     assert fanout.auftraege(befunde) == []
 
 
+def test_die_sperre_haelt_auch_aus_der_datenbank(conn):
+    """**Die Sperre darf nicht ueber die Datenbank zu umgehen sein.** Der
+    Knopfweg (``knoepfe.zeige_dramaturgie``), das Skript und die
+    Rueckkopplungsschleife lesen die Befunde nicht aus dem Lauf, sondern aus
+    ``dramaturgie_befund`` -- stand die Richtung nur im Arbeitsspeicher, war
+    sie fuer sie alle verschwunden, und aus einem Parameterbefund wurde doch
+    ein Schreibauftrag."""
+    befunde = [
+        {
+            "pruefung": "a10", "quelle": "judge", "schwere": "hoch", "szene": 1,
+            "text": "Der Anlass stimmt nicht mehr.", "beleg": "Der Koffer.",
+            "beleg_geprueft": 1, "richtung": "parameter",
+            "vorschlag": "anlass: Jonas nimmt den Koffer",
+        },
+        {
+            "pruefung": "b1", "quelle": "judge", "schwere": "hoch", "szene": 2,
+            "text": "Szene 2 endet, wie sie anfaengt.", "beleg": "Der Koffer.",
+            "beleg_geprueft": 1, "richtung": "text",
+            "vorschlag": "Szene 2: Lass Mira den Koffer oeffnen.",
+        },
+    ]
+    repo.lege_dramaturgie_befunde_an(conn, 1, befunde, runde=1)
+
+    zeilen = repo.dramaturgie_befunde(conn, 1, runde=1)
+
+    assert {z["pruefung"]: z["richtung"] for z in zeilen} == {
+        "a10": "parameter", "b1": "text",
+    }
+    assert [a["pruefung"] for a in fanout.auftraege(zeilen)] == ["b1"]
+
+
 def test_textbefund_geht_sehr_wohl_an_den_schreiber():
     """Gegenprobe -- sonst waere die Sperre zu breit."""
     befunde = [{

@@ -1410,11 +1410,34 @@ def befundzeile(zeile) -> str:
 def regienotiz(zeile) -> str:
     """Was als Regie-Notiz in den Szenenauftrag geht, wenn die Gruppe "Szene N
     so ueberarbeiten" drueckt -- mit der Pruefung davor, damit im Auftrag
-    steht, WORAUF sie zielt (wie ``stueckpruefung.regienotiz``)."""
-    vorschlag = (_feld(zeile, "vorschlag") or "").strip()
+    steht, WORAUF sie zielt (wie ``stueckpruefung.regienotiz``).
+
+    Nimmt einen **Befund** (Feld ``vorschlag``, so kommt er aus der Datenbank)
+    oder einen **Auftrag** aus ``auftraege()`` (Feld ``anweisung``, so kommt er
+    aus der Schleife). Beides ist derselbe Satz unter zwei Namen; ihn zweimal
+    zu formulieren waere ein zweiter Wortlaut fuer denselben Weg."""
+    vorschlag = (
+        (_feld(zeile, "vorschlag") or _feld(zeile, "anweisung") or "").strip()
+    )
     pruefung = _feld(zeile, "pruefung") or "Dramaturgie"
     return f"{pruefung}: {vorschlag}" if vorschlag else str(
         (_feld(zeile, "text") or "").strip() or pruefung
+    )
+
+
+#: Der Auftragstext, mit dem eine Ueberarbeitung in den Schreibpfad geht.
+#: Er steht hier und nicht in ``knoepfe.py``, weil ihn seit dem 07.09.2026
+#: zwei Wege benutzen: der Knopf "Szene N so ueberarbeiten" und die Schleife
+#: (``dramaturgie.schleife``). Zwei Wortlaute waeren zwei Prompts -- und ein
+#: Unterschied, den niemand bemerkt, weil beide funktionieren.
+TEXT_SZENENAUFTRAG = "Schreib Szene {nummer} neu. {notiz}"
+
+
+def szenenauftrag(zeile) -> str:
+    """Der fertige Auftragstext fuer ``szene.schreibe`` -- aus einem Befund
+    (Knopfweg) oder einem Auftrag (Schleifenweg)."""
+    return TEXT_SZENENAUFTRAG.format(
+        nummer=_feld(zeile, "szene"), notiz=regienotiz(zeile)
     )
 
 

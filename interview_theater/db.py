@@ -537,6 +537,19 @@ CREATE TABLE IF NOT EXISTS dramaturgie_befund (
   beleg          TEXT,
   beleg_geprueft INTEGER NOT NULL DEFAULT 0,
   vorschlag      TEXT,
+  -- Wohin die Korrektur zeigt (A10/A11, 07.09.2026): 'text' = der Schreiber
+  -- zieht nach, 'parameter' = der TEXT hat recht und die Festlegung der
+  -- Gruppe ist veraltet. NULL bei jeder anderen Frage.
+  --
+  -- **Die Spalte ist eine Sperre und keine Notiz.** fanout.auftraege laesst
+  -- aus 'parameter' nie einen Schreibauftrag entstehen -- das gaebe den Text
+  -- an den Schreiber, damit er ihn auf eine ueberholte Planung
+  -- zurueckbiegt, also das Gegenteil des Befunds. Solange die Richtung nur
+  -- im Arbeitsspeicher stand, griff diese Sperre nur im frischen Lauf und
+  -- nicht mehr, sobald dieselben Befunde aus der Datenbank gelesen wurden
+  -- (knoepfe.zeige_dramaturgie, scripts/dramaturgie_pruefen.py und die
+  -- Rueckkopplungsschleife tun genau das).
+  richtung       TEXT,                     -- text|parameter|NULL
   quelle         TEXT NOT NULL,            -- mechanik|judge
   erstellt_am    TEXT NOT NULL,
   entfernt_am    TEXT

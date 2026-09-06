@@ -1118,101 +1118,96 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     05.09.2026 nur noch aus einer Quelle: der Gruppe (art ``phase_setzen``).
     Den automatischen Sprung des Bots gab es einmal; er ist verworfen, weil
     ein Datenstand keine Absicht ist (interview_theater/phasen.py)."""
-    kernthema = None
-    formatwert = None
-    rahmen = None
-    geschichte = None
-    hauptkonflikt = None
-    begriffe = None
-    fragen = None
-    figuren_namen = []
-    geplant = []
-    korrigiert = []
-    phase_gesetzt = None
-    entfernt = []
-    usa = None
+    zeilen = _meldungszeilen(_sammle_meldbares(wirkliche_aenderungen))
+    if not zeilen:
+        return None
+    return "Notiert:\n" + "\n".join(zeilen)
+
+
+def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
+    """Ordnet die Aenderungen eines Laufs nach ihrer Art vor.
+
+    Was hier fehlt, bleibt still: ``verworfen``/``entschieden``/``wortlaut_an``
+    /``wortlaut_aus``/``interview_benennen`` sind bewusst nicht dabei
+    (Aufgabe 4). ``szene_schreiben`` ebenfalls -- es meldet sich selbst, mit
+    einer Ankuendigung und spaeter der fertigen Szene (``szene.py``). Und
+    ``figur_quelle_setzen`` aus demselben Grund: die Zeile, die zaehlt, ist
+    "Sprachprofil fuer Pola aus Interview 2: ..." und die kommt aus
+    ``sprachprofil.py``, wenn das Profil wirklich steht."""
+    gesammelt: dict = {
+        "kernthema": None, "format": None, "rahmen": None, "geschichte": None,
+        "hauptkonflikt": None, "begriffe": None, "fragen": None,
+        "phase": None, "usa": None,
+        "figuren": [], "geplant": [], "korrigiert": [], "entfernt": [],
+    }
+    einzeln = {
+        "szene_usa": "usa",
+        "kernthema_setzen": "kernthema",
+        "format_setzen": "format",
+        "rahmen_setzen": "rahmen",
+        "geschichte_setzen": "geschichte",
+        "hauptkonflikt_setzen": "hauptkonflikt",
+        "begriffe_setzen": "begriffe",
+        "fragen_setzen": "fragen",
+    }
+    mehrfach = {
+        "figur_setzen": "figuren",
+        "szene_planen": "geplant",
+        "transkript_korrigieren": "korrigiert",
+        "entfernen": "entfernt",
+    }
     for aenderung in wirkliche_aenderungen:
         art = aenderung.get("art")
         wert = aenderung.get("wert", "")
-        if art == "szene_usa":
-            usa = wert
-        elif art == "kernthema_setzen":
-            kernthema = wert
-        elif art == "format_setzen":
-            formatwert = wert
-        elif art == "rahmen_setzen":
-            rahmen = wert
-        elif art == "geschichte_setzen":
-            geschichte = wert
-        elif art == "hauptkonflikt_setzen":
-            hauptkonflikt = wert
-        elif art == "begriffe_setzen":
-            begriffe = wert
-        elif art == "fragen_setzen":
-            fragen = wert
-        elif art == "figur_setzen":
-            figuren_namen.append(wert)
-        elif art == "szene_planen":
-            geplant.append(wert)
-        elif art == "transkript_korrigieren":
-            korrigiert.append(wert)
+        if art in einzeln:
+            gesammelt[einzeln[art]] = wert
+        elif art in mehrfach:
+            gesammelt[mehrfach[art]].append(wert)
         elif art == "phase_setzen":
-            phase_gesetzt = phasen.nummer_fuer(wert)
-        elif art == "entfernen":
-            entfernt.append(wert)
-        # verworfen/entschieden/wortlaut_an/wortlaut_aus/interview_benennen:
-        # bewusst ignoriert, bleiben still (Aufgabe 4). szene_schreiben
-        # ebenfalls -- es meldet sich selbst, mit einer Ankuendigung und
-        # spaeter der fertigen Szene (interview_theater/szene.py). Und
-        # figur_quelle_setzen aus demselben Grund: die Zeile, die zaehlt, ist
-        # "Sprachprofil fuer Pola aus Interview 2: ..." und die kommt aus
-        # interview_theater/sprachprofil.py, wenn das Profil wirklich steht.
+            gesammelt["phase"] = phasen.nummer_fuer(wert)
+    return gesammelt
 
+
+def _meldungszeilen(g: dict) -> list[str]:
+    """Aus dem Vorgeordneten die Zeilen der Meldung, in fester Reihenfolge."""
     zeilen = []
-    if kernthema:
-        zeilen.append(f"Kernthema: {kernthema}")
-    if formatwert:
-        zeilen.append(f"Format: {formatwert}")
-    if rahmen:
-        zeilen.append(f"Setting: {rahmen}")
-    if geschichte:
-        zeilen.append(f"Geschichte: {geschichte}")
-    if hauptkonflikt:
-        zeilen.append(f"Hauptkonflikt: {hauptkonflikt}")
-    if figuren_namen:
-        zeilen.append(_figuren_zeile(figuren_namen))
-    if begriffe:
-        zeilen.append(f"Begriffe: {begriffe}")
-    if fragen:
-        zeilen.append(f"Fragen: {fragen}")
+    if g["kernthema"]:
+        zeilen.append(f"Kernthema: {g['kernthema']}")
+    if g["format"]:
+        zeilen.append(f"Format: {g['format']}")
+    if g["rahmen"]:
+        zeilen.append(f"Setting: {g['rahmen']}")
+    if g["geschichte"]:
+        zeilen.append(f"Geschichte: {g['geschichte']}")
+    if g["hauptkonflikt"]:
+        zeilen.append(f"Hauptkonflikt: {g['hauptkonflikt']}")
+    if g["figuren"]:
+        zeilen.append(_figuren_zeile(g["figuren"]))
+    if g["begriffe"]:
+        zeilen.append(f"Begriffe: {g['begriffe']}")
+    if g["fragen"]:
+        zeilen.append(f"Fragen: {g['fragen']}")
     # Eine geplante Szene bekommt ihre Kurzzeile ("Szene 1 · Dialog ·
     # Polizeikessel · Mira, Pola"): die Gruppe soll sehen, welche Szene
     # gemeint ist, ohne die ganze Planung noch einmal zu lesen.
-    for zeile in geplant:
-        zeilen.append(zeile)
+    zeilen.extend(g["geplant"])
     # Eine Transkriptkorrektur bekommt ihr eigenes Verb (N5): "Korrigiert:
     # gepoekt -> gepogt". Sie ist der Beleg dafuer, dass wirklich etwas
     # passiert ist -- im Probelauf sagte der Bot dreimal "korrigiere ich",
     # und in der Datenbank aenderte sich nichts.
-    for zeile in korrigiert:
-        zeilen.append(f"Korrigiert: {zeile}")
+    zeilen.extend(f"Korrigiert: {zeile}" for zeile in g["korrigiert"])
     # Entfernungen stehen in derselben Meldung wie alles andere -- eine
     # Nachricht je Erkennerlauf bleibt die Regel (SPEC § 4.3). Sie tragen ihr
     # eigenes Verb, damit niemand "Notiert:" liest und denkt, es sei etwas
     # dazugekommen.
-    for was in entfernt:
-        zeilen.append(f"Entfernt: {was}")
-    if phase_gesetzt is not None:
-        zeilen.append(f"Wir sind jetzt bei {phasen.bezeichnung(phase_gesetzt)}.")
-    if usa == "ja":
+    zeilen.extend(f"Entfernt: {was}" for was in g["entfernt"])
+    if g["phase"] is not None:
+        zeilen.append(f"Wir sind jetzt bei {phasen.bezeichnung(g['phase'])}.")
+    if g["usa"] == "ja":
         zeilen.append("Szenentexte kommen ab jetzt vom US-Modell (Anthropic). Ich sage es vor jeder Szene nochmal.")
-    elif usa == "nein":
+    elif g["usa"] == "nein":
         zeilen.append("Szenentexte bleiben in der Schweiz. Ich frage nicht wieder.")
-
-    if not zeilen:
-        return None
-
-    return "Notiert:\n" + "\n".join(zeilen)
+    return zeilen
 
 
 def _interviewmodus_texte() -> dict[str, str]:

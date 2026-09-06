@@ -316,6 +316,32 @@ def aktuelle(conn, chat_id: int) -> int:
     return gespeichert
 
 
+def _feld_gesetzt(stand, name: str) -> bool:
+    """Ein Arbeitsstandfeld, das eine alte Datenbank noch nicht hat -- die
+    Migration ist additiv und laeuft beim Start, aber ein Leser darf daran
+    nicht scheitern."""
+    try:
+        return bool(stand and (stand[name] or "").strip())
+    except (IndexError, KeyError):
+        return False
+
+
+def _feld_geprueft(stand, name: str) -> bool:
+    """Wie ``_feld_gesetzt``, aber ein **leerer String zaehlt als gesetzt**
+    (06.09.2026, Birk, Live-Befund Testgruppe).
+
+    Der Fall sind die ``frage_einleitungen``: die Sensibilitaetspruefung kann
+    zu dem Ergebnis kommen, dass keine Frage eine Einleitung braucht -- und
+    *"keine noetig"* ist ein Ergebnis, kein fehlender Wert. In der Datenbank
+    ist der Unterschied ``NULL`` (noch nie geprueft) gegen ``''`` (geprueft,
+    nichts noetig). Ohne diese Unterscheidung waere die Gruppe entweder fuer
+    immer blockiert oder die Pruefung nie noetig."""
+    try:
+        return bool(stand) and stand[name] is not None
+    except (IndexError, KeyError):
+        return False
+
+
 def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
     """Welche Phase die Materiallage hergibt, je Phase ein Ja/Nein.
 
@@ -358,34 +384,15 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
     fixiert = bool(stand and (stand["figuren_fixiert_am"] or "").strip())
     setting = bool(stand and (stand["rahmen"] or "").strip())
     geschichte = bool(stand and (stand["geschichte"] or "").strip())
-    szenen = bool(repo.hole_szenen(conn, chat_id))
+    szenen_alle = repo.hole_szenen(conn, chat_id)
+    szenen = bool(szenen_alle)
 
     def feld(name: str) -> bool:
-        """Ein Arbeitsstandfeld, das eine alte Datenbank noch nicht hat --
-        die Migration ist additiv und laeuft beim Start, aber ein Leser darf
-        daran nicht scheitern."""
-        try:
-            return bool(stand and (stand[name] or "").strip())
-        except (IndexError, KeyError):
-            return False
+        return _feld_gesetzt(stand, name)
 
     def geprueft(name: str) -> bool:
-        """Wie ``feld``, aber ein **leerer String zaehlt als gesetzt**
-        (06.09.2026, Birk, Live-Befund Testgruppe).
+        return _feld_geprueft(stand, name)
 
-        Der Fall sind die ``frage_einleitungen``: die Sensibilitaetspruefung
-        kann zu dem Ergebnis kommen, dass keine Frage eine Einleitung
-        braucht -- und *"keine noetig"* ist ein Ergebnis, kein fehlender
-        Wert. In der Datenbank ist der Unterschied ``NULL`` (noch nie
-        geprueft) gegen ``''`` (geprueft, nichts noetig). Ohne diese
-        Unterscheidung waere die Gruppe entweder fuer immer blockiert oder
-        die Pruefung nie noetig."""
-        try:
-            return bool(stand) and stand[name] is not None
-        except (IndexError, KeyError):
-            return False
-
-    szenen_alle = repo.hole_szenen(conn, chat_id)
     return {
         2: bool(stand and stand["begriffe"]),
         # **Phase 3 haengt seit dem 06.09.2026 an VIER Dingen** (Birk, 09:20

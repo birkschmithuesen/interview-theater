@@ -501,32 +501,24 @@ Melden, wenn: `http_5xx` häuft (≥3), `zitat_ungeprueft` auftaucht, `szene_abg
 
 **Nachmittag-Ablauf:** Gruppen stehen in Phase 3; Phasen 4–8 (Setting & Figuren → Geschichte → Schärfung → Szenentexte → Durchlauf) laufen erstmals mit echten Menschen; USA-Frage kommt beim ersten Szenenauftrag je Gruppe. Interviews zusammenführen: Abschnitt oben („Interviews in eine Gruppe zusammenführen"). Rollback: `bash betrieb/buttons-zurueck.sh` (alt) — heute besser: `git log`, gezielter Revert, Neustart einzeln.
 
-**Stand 09:50 — gemergt und live (main `4a57b6f`, 1661 grün, alle vier Bots neu gestartet):**
-Kontext-Aufträge 1+2 (Fenster zeichenbemessen 12 000, nie leer — Untergrenze 6
-Nachrichten, Pausenzeile vor dem Auslöser; Journal-Extraktor an dieselbe
-Grenze gekoppelt, Schwelle 600; Umriss-Zeile je Gesprächszug im Log, Vorfall
-`kontext_kuerzung_erfolglos`). Prompt-Diff: `docs/prompt-audit/2026-09-06/kontext-1-2-diff.md`.
+**Stand 06.09. 14:10 — Bots laufen auf `2edf0e3` (Neustart 12:53), main ist `63318d2` (12 Commits weiter, NICHT auf den Bots — Neustart steht aus, Birk gibt das Go).**
 
-**WARTET auf Birks Freigabe (nicht gemergt):** `feat/kontext-3-5` (Szenenblock
-im Gesprächs-Prompt auf 6 000 Zeichen gedeckelt + Kürzungsreihenfolge; System
-+ Körper gemessen, Grenze 40 000; Recall-Skript `scripts/kontext_recall.py`).
-Suite dort 1679 grün. Bericht `docs/prompt-audit/2026-09-06/kontext-3-5-bericht.md`.
-Ändert, was der Bot in Phase 6/7 von der letzten Szene sieht (Anfang + Schluss
-statt Volltext) — nach dem Workshop mit Birk entscheiden, dann Merge + Neustart.
+Auf den Bots (2edf0e3): sieben Phasen; Phase 2 komplett (5 Fragen je Begriff, Auswahl per Nummern-Text ohne Knöpfe, beliebig viele = Chefin, weiche Formulierungen, Eröffnung mit Projektbeschreibung, Leitfaden, Kette bis „Weiter zu Interviews"); Interview-Auswertung knapp; Kontext 1+2; Denkspur-/Wiederholungs-Fixes; Vorschlag-Dedupe.
 
-**LÄUFT noch (Worktrees):** `feat/sieben-phasen` (4+5 verschmolzen, 7 = Stück-
-Judge, Interview-Auswertung als knappe Zeile mit Zusammenfassung/Transkript-
-Knöpfen, neue Einleitungen 3/4/7) — Merge + Neustart aller vier durch den
-Orchestrator, sobald grün; `feat/web-edit-2` (Gruppenseite: nur noch Setting,
-Geschichte, Figuren, Szenen editierbar; Rest Anzeige, Leitfaden statt
-Rohfelder) — Merge + Web-Unit-Neustart.
+**In main, wartet auf Neustart (`git log 2edf0e3..63318d2`):**
+- Phase-4-Paket (Teile 1–3 der Live-Zusätze): Vorschlagsmenü 1/2/3 + Anders, „Ja, speichern · Nein, nochmal ändern", ein Feld pro Nachricht, keine Einstiegsknöpfe in 4, drei Geschichte-Richtungen, Setting → Szenenfelder, Sprachstil je Figur, Arbeitszeilen wechselnd, Knopfnachrichten in DB, Phase-3-Angebot nach jeder Auswertung, Auftrags-Schweigen „Interview starten".
+- Phasen-Fixes: nächste Stufe statt höchste (a690c39); Angebot nur aus NEUEM Material seit Betreten der Phase (0b467ad, Spalte `phase_gesetzt_am`, Migration automatisch).
+- Web (bereits live, eigene Unit): Interviews chronologisch mit Datum/Uhrzeit/Dauer.
+**Vor dem Neustart prüfen:** keine Aufnahme `laeuft` (Gruppe 1 nimmt gerade auf!) — Bots einzeln, gruppe1 zuletzt oder wenn frei.
 
-**Was Birks Feedback braucht (Stand 06.09. 05:20):**
-1. Die acht Einleitungstexte gegenlesen (`interview_theater/phasentexte.py`, Wortlaut in `docs/NACHTBERICHT-2026-09-06.md`) — Bot-Text, heiß änderbar nach Neustart (Code, kein Prompt).
-2. Klarnamen-Politik: Bot spricht Vornamen aus dem Chat an (23 % der Bot-Texte Tag 1) — lassen oder verbieten?
-3. Szene 1 in der Testgruppe „Neu schreiben" (Kiosk-Dialog) und Phase 4→5 einmal durchklicken — Qualitätsurteil am Material.
-4. Opus-Messung (1M-Kontext, Thinking) und Kontext-Audit laufen als Delegates (Branches `feat/opus-messung`, `docs/kontext-audit`); Ergebnis entscheidet: 1M-Präfix im Proxy freischalten? Thinking für Szenen an? Kontext-Aufträge vor/nach 13:30?
-5. Szenen-Zusammenfassung/Budget/Chat-Block (`feat/szenen-zusammenfassung`) — nach Merge Neustart aller vier; Birk sieht die „Anders gemacht:"-Zeile im Journal.
+**Offen (Reihenfolge):**
+1. **Neustart gruppe1–4** auf `63318d2` (Go von Birk).
+2. **Flow-Fix „Sprachnachricht > 60 s ohne Interview-Knopf"** (Gruppe 1, 13:32): heute geht das Transkript in Gesprächszug + Erkenner (Erkenner überschrieb die BEGRIFFE mit Interviewinhalt; Bot redete Unsinn). Soll: deterministisch „Das klingt nach einem Interview — als Interview N speichern?" mit Ja/Nein, Transkript bis zur Antwort für Erkenner/Journal unsichtbar; Ja → Kopf anlegen + Nachzügler einsammeln (existiert: `stelle_interview_sicher`) + beenden + verdichten. NICHT gebaut.
+3. **Teil 4** (Branch `feat/live-zusaetze`, WIP-Commit f41105c, ungetestet): Phase 6 als Kurzgeschichte (freie Abschnittszahl → Szenen), USA-Frage beim Eintritt 6, Sperre gegen erfundene Systemzeilen, Stil-Auswahl im Feinschliff (`prompts/stile/` angelegt, `szene.stil` + Menü fehlen). Neuer Delegate im Worktree /tmp/it-rest2, Suite komplett laufen lassen. Nötig, bevor eine Gruppe Phase 6 erreicht (frühestens ~16:30).
+4. **Kontext 3–5** (`feat/kontext-3-5`, 1679 grün): Merge nur nach Birks Freigabe, nach dem Workshop.
+5. Kleinigkeiten: „Interview N ausgewertet"-Zeile fehlt, wenn die Verdichtung über den Nachhol-Weg läuft (still); Gruppe-2-Stilvorlage stützt sich nur auf einen Song (Interview-Video ohne Untertitel; Whisper-Freigabe?); Phaseneinleitung als Textangebot statt fest.
+
+**Heute von Hand in soap.db gemacht (Journal-Vermerke „regie"):** Gruppen 1–3 auf Phase 2 zurück (11:25); Gruppe 1 Fragen gelöscht (11:35), Vortags-Interviews entfernt (13:25), Begriffe wiederhergestellt (13:45), Interview 27 beendet + 6/7 getrennt (13:50).
 
 ## (i) Nach Dortmund: generischer Kern + einhängbares Workshop-Profil (Brainstorming-Einstieg)
 

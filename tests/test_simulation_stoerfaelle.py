@@ -293,10 +293,12 @@ def test_der_bericht_rechnet_die_kosten_hoch(mini):
 def test_fenster_klein_setzt_das_budget_und_stellt_es_zurueck():
     from interview_theater import kontext
 
-    vorher = kontext.BUDGETS["fenster"]
+    vorher = kontext.FENSTER_ZEICHEN
     with sim.fenster_klein(True):
-        assert kontext.BUDGETS["fenster"] == sim.FENSTER_KLEIN
-    assert kontext.BUDGETS["fenster"] == vorher
+        assert kontext.FENSTER_ZEICHEN == sim.FENSTER_KLEIN
+        # Die Kopplung: der Extraktor muss dieselbe Aenderung sehen.
+        assert kontext.fenster_grenzen()["zeichen"] == sim.FENSTER_KLEIN
+    assert kontext.FENSTER_ZEICHEN == vorher
 
     with sim.fenster_klein(False):
-        assert kontext.BUDGETS["fenster"] == vorher
+        assert kontext.FENSTER_ZEICHEN == vorher

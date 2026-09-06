@@ -10,8 +10,8 @@ kann einen Vorfall schreiben, deshalb **nur gegen eine Kopie** laufen lassen::
 Gibt aus: Prompt-Groessen je Block, Fensterinhalt, ob die Kuerzung greift und
 -- der eigentliche Zweck -- ob der Journal-Extraktor mit dem aktuellen Fenster
 ueberhaupt je anspringt (Befund C.3 des Audits: seine Verdraengungsrechnung
-haengt an ``kontext.BUDGETS["fenster"]``, waehrend das reale Fenster seit dem
-06.09.2026 nach Nachrichten und Minuten bemessen wird).
+hing an ``kontext.BUDGETS["fenster"]``, waehrend das reale Fenster anders
+bemessen war -- seit Auftrag 2 lesen beide ``kontext.fenster_grenzen()``).
 
 Gibt **keine** Nachrichtentexte, Transkripte oder Namen aus -- nur Zahlen.
 """
@@ -70,10 +70,10 @@ def miss(conn, chat_id: int) -> None:
     print(f"  unjournalisiert: {len(unjournalisiert)} Nachrichten"
           f" -> verdraengt {len(verdraengt)}"
           f" -> Extraktor laeuft: {bool(verdraengt)}")
+    grenzen = kontext.fenster_grenzen()
     print(f"  Verlauf gesamt {verlauf_token} Token"
-          f" vs. Verdraengungsbudget {kontext.BUDGETS['fenster']} Token"
-          + ("   <-- kann nie verdraengen"
-             if verlauf_token < kontext.BUDGETS["fenster"] else ""))
+          f" vs. Fensterbudget {kontext.schaetze('x' * grenzen['zeichen'])} Token"
+          f" (aus kontext.fenster_grenzen(), dieselbe Quelle wie der Promptbau)")
 
 
 def main(argv: list[str]) -> int:
@@ -87,7 +87,8 @@ def main(argv: list[str]) -> int:
     conn = db.verbinde(pfad)
     print(f"Konstanten: FENSTER_NACHRICHTEN={kontext.FENSTER_NACHRICHTEN}"
           f" FENSTER_MINUTEN={kontext.FENSTER_MINUTEN}"
-          f" BUDGETS[fenster]={kontext.BUDGETS['fenster']}"
+          f" FENSTER_ZEICHEN={kontext.FENSTER_ZEICHEN}"
+          f" FENSTER_MIN_NACHRICHTEN={kontext.FENSTER_MIN_NACHRICHTEN}"
           f" SCHWELLE_VERDRAENGUNG={journal.SCHWELLE_VERDRAENGUNG}"
           f" ZEICHEN_GRENZE={kontext.zeichengrenze()} ZIEL={kontext.ZIEL}")
     for chat_id in _gruppen(conn):

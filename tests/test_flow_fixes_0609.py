@@ -154,7 +154,7 @@ def test_die_wahl_per_nummer_nimmt_die_alten_leisten_ab(conn, einst):
     for art in (knoepfe.ART_FRAGE_WAHL, knoepfe.ART_FRAGEN_ANDERE,
                 knoepfe.ART_FRAGEN_EIGENE):
         assert repo.offene_knoepfe(conn, CHAT, art) == [], art
-    assert tg.knoepfe_entfernt, "und ihre Tastatur ist abgenommen"
+    # 06.09.2026 11:45: unter der Liste haengen keine Knoepfe mehr -- nichts abzunehmen.
 
 
 def test_der_vorschlag_zeigt_alle_zehn_fragen_ausgeschrieben(conn):
@@ -171,9 +171,8 @@ def test_der_vorschlag_zeigt_alle_zehn_fragen_ausgeschrieben(conn):
     )
     knoepfe.biete_fragenauswahl(conn, tg, CHAT, fragen, text="Hier sind zehn.")
 
-    text = tg.knoepfe[-1]["text"]
-    leiste = tg.knoepfe[-1]["knoepfe"]
+    text = tg.gesendet[-1]["text"]
     for n in range(1, 11):
         assert f"{n}. Frage {n}, und zwar eine ziemlich lange" in text, n
     assert "…" not in text, "nichts gekuerzt"
-    assert [b for b, _ in leiste] == ["Eigene Idee", "Andere 10"]
+    assert not tg.knoepfe, "keine Knoepfe unter der Fragenliste"

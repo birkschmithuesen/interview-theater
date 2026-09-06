@@ -496,6 +496,26 @@ Melden, wenn: `http_5xx` häuft (≥3), `zitat_ungeprueft` auftaucht, `szene_abg
 
 **Nachmittag-Ablauf:** Gruppen stehen in Phase 3; Phasen 4–8 (Setting & Figuren → Geschichte → Schärfung → Szenentexte → Durchlauf) laufen erstmals mit echten Menschen; USA-Frage kommt beim ersten Szenenauftrag je Gruppe. Interviews zusammenführen: Abschnitt oben („Interviews in eine Gruppe zusammenführen"). Rollback: `bash betrieb/buttons-zurueck.sh` (alt) — heute besser: `git log`, gezielter Revert, Neustart einzeln.
 
+**Stand 09:50 — gemergt und live (main `4a57b6f`, 1661 grün, alle vier Bots neu gestartet):**
+Kontext-Aufträge 1+2 (Fenster zeichenbemessen 12 000, nie leer — Untergrenze 6
+Nachrichten, Pausenzeile vor dem Auslöser; Journal-Extraktor an dieselbe
+Grenze gekoppelt, Schwelle 600; Umriss-Zeile je Gesprächszug im Log, Vorfall
+`kontext_kuerzung_erfolglos`). Prompt-Diff: `docs/prompt-audit/2026-09-06/kontext-1-2-diff.md`.
+
+**WARTET auf Birks Freigabe (nicht gemergt):** `feat/kontext-3-5` (Szenenblock
+im Gesprächs-Prompt auf 6 000 Zeichen gedeckelt + Kürzungsreihenfolge; System
++ Körper gemessen, Grenze 40 000; Recall-Skript `scripts/kontext_recall.py`).
+Suite dort 1679 grün. Bericht `docs/prompt-audit/2026-09-06/kontext-3-5-bericht.md`.
+Ändert, was der Bot in Phase 6/7 von der letzten Szene sieht (Anfang + Schluss
+statt Volltext) — nach dem Workshop mit Birk entscheiden, dann Merge + Neustart.
+
+**LÄUFT noch (Worktrees):** `feat/sieben-phasen` (4+5 verschmolzen, 7 = Stück-
+Judge, Interview-Auswertung als knappe Zeile mit Zusammenfassung/Transkript-
+Knöpfen, neue Einleitungen 3/4/7) — Merge + Neustart aller vier durch den
+Orchestrator, sobald grün; `feat/web-edit-2` (Gruppenseite: nur noch Setting,
+Geschichte, Figuren, Szenen editierbar; Rest Anzeige, Leitfaden statt
+Rohfelder) — Merge + Web-Unit-Neustart.
+
 **Was Birks Feedback braucht (Stand 06.09. 05:20):**
 1. Die acht Einleitungstexte gegenlesen (`interview_theater/phasentexte.py`, Wortlaut in `docs/NACHTBERICHT-2026-09-06.md`) — Bot-Text, heiß änderbar nach Neustart (Code, kein Prompt).
 2. Klarnamen-Politik: Bot spricht Vornamen aus dem Chat an (23 % der Bot-Texte Tag 1) — lassen oder verbieten?

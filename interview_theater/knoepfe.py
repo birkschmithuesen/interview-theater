@@ -3632,7 +3632,9 @@ ANWEISUNG_EROEFFNUNG = (
     "aufzunehmen. Dazu einen kurzen Abschluss: Dank und was jetzt weiter "
     "passiert. Haeng beides als Block 'VORSCHLAG EROEFFNUNG:' an - zuerst "
     "die Eroeffnung, danach eine Zeile, die mit 'Abschluss:' beginnt. "
-    "Sprache wie von einer 16-Jaehrigen, keine Behoerdensaetze."
+    "Sprache wie von einer 16-Jaehrigen, keine Behoerdensaetze. Der Text "
+    "steht NUR im Block - schreib ihn nicht zusaetzlich davor in den "
+    "Fliesstext; davor hoechstens ein Satz und eine Frage."
 )
 
 

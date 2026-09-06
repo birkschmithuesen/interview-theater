@@ -172,14 +172,47 @@ def zeilen(wert: str) -> list[str]:
     return ergebnis
 
 
+def _normal(zeile: str) -> str:
+    return re.sub(r"\s+", " ", (zeile or "")).strip().lower()
+
+
 def ohne_marker(text: str) -> str:
     """Der Antworttext, wie die Gruppe ihn sehen soll: ohne die
     Markerzeilen, mit dem Inhalt darunter.
 
     Nur die Markerzeile faellt weg, nie der Vorschlag selbst -- er ist ja
     genau das, worueber die Gruppe entscheidet. Doppelte Leerzeilen, die
-    dabei entstehen koennen, werden eingedampft."""
-    zeilen = [z for z in (text or "").splitlines() if _ZEILE.match(z) is None]
+    dabei entstehen koennen, werden eingedampft.
+
+    **Keine Doppelung** (06.09.2026 12:50, Gruppe 1): das Modell schrieb die
+    Eroeffnung einmal im Fliesstext UND einmal im Block ``VORSCHLAG
+    EROEFFNUNG:`` -- die Gruppe las 600 Zeichen zweimal untereinander. Eine
+    Fliesstextzeile, die wortgleich (nach Whitespace/Kleinschreibung) auch im
+    Blockinhalt steht, wird deshalb aus dem Fliesstext gestrichen; der Block
+    behaelt sie, denn er ist die Fassung, ueber die die Gruppe entscheidet."""
+    roh = (text or "").splitlines()
+    im_block: set[str] = set()
+    aktiv = False
+    for z in roh:
+        if _ZEILE.match(z) is not None:
+            aktiv = True
+            continue
+        if aktiv:
+            if not z.strip():
+                aktiv = False
+            elif len(_normal(z)) >= 40:
+                im_block.add(_normal(z))
+    zeilen: list[str] = []
+    aktiv = False
+    for z in roh:
+        if _ZEILE.match(z) is not None:
+            aktiv = True
+            continue
+        if aktiv and not z.strip():
+            aktiv = False
+        if not aktiv and _normal(z) in im_block:
+            continue
+        zeilen.append(z)
     zusammen = "\n".join(zeilen)
     return re.sub(r"\n{3,}", "\n\n", zusammen).strip()
 

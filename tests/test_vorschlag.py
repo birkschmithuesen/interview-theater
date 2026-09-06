@@ -298,3 +298,22 @@ def test_alle_liefert_jeden_block_einer_nachricht():
     text = "VORSCHLAG RICHTUNGEN:\nA\n\nVORSCHLAG RAHMEN:\nB"
 
     assert vorschlag.alle(text) == {"richtungen": "A", "rahmen": "B"}
+
+
+def test_ohne_marker_streicht_fliesstext_der_den_block_wiederholt():
+    """06.09.2026 12:50 (Gruppe 1): Eroeffnung im Fliesstext UND im Block --
+    die Gruppe las sie zweimal. Der Fliesstext-Doppel faellt, der Block bleibt."""
+    from interview_theater import vorschlag
+
+    satz = ("Hallo, wir sind eine Gruppe von Maedels und machen gerade ein "
+            "Theaterstueck ueber Sachen, die uns im Alltag begegnen.")
+    text = (f"Klar -- dann wie folgt.\n\n{satz}\nAbschluss: Danke fuer deine Zeit, "
+            f"wir melden uns.\n\nTrifft das?\n\nVORSCHLAG EROEFFNUNG:\n{satz}\n"
+            "Abschluss: Danke fuer deine Zeit, wir melden uns.")
+    sauber = vorschlag.ohne_marker(text)
+    assert sauber.count(satz) == 1
+    assert sauber.count("Abschluss: Danke") == 1
+    assert sauber.startswith("Klar -- dann wie folgt.")
+    assert "Trifft das?" in sauber
+    # Block-Inhalt bleibt lesbar (er steht hinten)
+    assert sauber.rstrip().endswith("wir melden uns.")

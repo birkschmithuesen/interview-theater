@@ -3,7 +3,7 @@
 
 Anders als der Absichtserkenner (der jeden Zug ueber die letzten paar
 Nachrichten laeuft) laeuft der Journal-Extraktor nur bei VERDRAENGUNG: wenn
-ein Abschnitt aus dem kurzen Fenster (kontext.BUDGETS["fenster"]) faellt und
+ein Abschnitt aus dem kurzen Fenster (kontext.fenster_grenzen()) faellt und
 dieser Abschnitt SCHWELLE_VERDRAENGUNG geschaetzte Token uebersteigt. Er
 sieht dann genau diesen Abschnitt, nicht das ganze Gespraech, und schreibt
 ausschliesslich die Kategorie "vorgeschlagen" ins Journal -- "verworfen" und
@@ -87,7 +87,7 @@ def test_verdraengter_abschnitt_unter_schwelle_loest_nicht_aus():
     SCHWELLE_VERDRAENGUNG -- der Extraktor soll noch warten, statt bei jedem
     kleinen Ausschnitt einen eigenen Modellaufruf zu machen."""
     verdraengt = [_msg(1, "kurz")]  # winzig, weit unter der Schwelle
-    fenster = [_msg(2, _lang(kontext.BUDGETS["fenster"] + 500))]  # fuellt das Fenster allein
+    fenster = [_msg(2, _lang(kontext.FENSTER_ZEICHEN))]  # fuellt das Fenster allein
     nachrichten = verdraengt + fenster
 
     assert journal.berechne_verdraengten_abschnitt(nachrichten) == []
@@ -95,7 +95,7 @@ def test_verdraengter_abschnitt_unter_schwelle_loest_nicht_aus():
 
 def test_verdraengter_abschnitt_ueber_schwelle_loest_aus_und_liefert_nur_ihn():
     verdraengt = [_msg(1, _lang(journal.SCHWELLE_VERDRAENGUNG + 200))]
-    fenster = [_msg(2, _lang(kontext.BUDGETS["fenster"] + 500))]
+    fenster = [_msg(2, _lang(kontext.FENSTER_ZEICHEN))]
     nachrichten = verdraengt + fenster
 
     ergebnis = journal.berechne_verdraengten_abschnitt(nachrichten)
@@ -108,12 +108,156 @@ def test_verdraengter_abschnitt_mehrere_nachrichten_zusammen_ueber_schwelle():
         _msg(1, _lang(journal.SCHWELLE_VERDRAENGUNG // 2 + 100)),
         _msg(2, _lang(journal.SCHWELLE_VERDRAENGUNG // 2 + 100)),
     ]
-    fenster = [_msg(3, _lang(kontext.BUDGETS["fenster"] + 500))]
+    fenster = [_msg(3, _lang(kontext.FENSTER_ZEICHEN))]
     nachrichten = verdraengt + fenster
 
     ergebnis = journal.berechne_verdraengten_abschnitt(nachrichten)
 
     assert [n["message_id"] for n in ergebnis] == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# Die Kopplung an kontext.fenster_grenzen() (Audit 06.09.2026, Befund C.3)
+# ---------------------------------------------------------------------------
+
+
+def test_verdraengung_rechnet_gegen_dasselbe_fenster_wie_der_prompt():
+    """**Der Regressionstest, dessen Fehlen Befund C.3 verursacht hat.**
+
+    ``journal.berechne_verdraengten_abschnitt`` rechnete gegen
+    ``kontext.BUDGETS["fenster"] = 8000`` Token, waehrend
+    ``kontext._baue_fenster_eintraege`` das Fenster nach Nachrichten und
+    Minuten bemass. Gemessen hielt der Extraktor damit **31 Nachrichten fuer
+    "noch im Fenster"**, waehrend der Prompt nur 20 sah -- die Nachrichten
+    21-31 wurden nie journalisiert und standen danach nirgends mehr.
+
+    Der Test vergleicht die beiden Mengen direkt: was NICHT verdraengt ist,
+    muss genau das sein, was ``kontext.waehle_fenster`` ins Fenster nimmt.
+    Laufen sie je wieder auseinander, faellt das hier auf und nicht erst in
+    einer Messung nach dem Workshop."""
+    nachrichten = [
+        _msg(i, f"Beitrag {i}: " + "text " * 60) for i in range(60)
+    ]
+
+    im_fenster = kontext.waehle_fenster(nachrichten)
+    verdraengt = journal.berechne_verdraengten_abschnitt(nachrichten)
+
+    assert verdraengt, "diese Menge muss ueberhaupt etwas verdraengen"
+    fenster_ids = [n["message_id"] for n in im_fenster]
+    verdraengt_ids = [n["message_id"] for n in verdraengt]
+    alle = [n["message_id"] for n in nachrichten]
+
+    assert verdraengt_ids + fenster_ids == alle, (
+        "Fenster und verdraengter Abschnitt muessen die Liste luecken- und "
+        f"ueberschneidungsfrei teilen: {verdraengt_ids} | {fenster_ids}"
+    )
+    assert not set(fenster_ids) & set(verdraengt_ids), (
+        "keine Nachricht darf zugleich im Fenster und verdraengt sein"
+    )
+
+
+def test_kopplung_zieht_eine_geaenderte_fenstergrenze_mit(monkeypatch):
+    """Eine Zahl aendern und die andere vergessen -- genau so ist die
+    Kopplung am 06.09. um 00:39 gebrochen. Jetzt gibt es nur noch eine."""
+    nachrichten = [_msg(i, f"Beitrag {i}: " + "text " * 60) for i in range(60)]
+
+    monkeypatch.setattr(kontext, "FENSTER_ZEICHEN", 3_000)
+    eng = journal.berechne_verdraengten_abschnitt(nachrichten)
+    monkeypatch.setattr(kontext, "FENSTER_ZEICHEN", 30_000)
+    weit = journal.berechne_verdraengten_abschnitt(nachrichten)
+
+    assert len(eng) > len(weit), (
+        "ein kleineres Fenster muss mehr verdraengen -- sonst liest der "
+        "Extraktor eine andere Grenze als der Promptbau"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Volumen von Tag 1 (Audit 06.09.2026, C.3: der Extraktor lief 0x)
+# ---------------------------------------------------------------------------
+
+
+#: Das gemessene Volumen der drei echten Betriebsgruppen an Tag 1
+#: (Audit C.3): 48-66 Nachrichten, 4.671-6.342 Token Verlauf. Der Extraktor
+#: sprang bei allen dreien **kein einziges Mal** an -- ihr ganzer Tagesverlauf
+#: lag unter dem damaligen Fensterbudget von 8.000 Token.
+TAG1_NACHRICHTEN = 60
+TAG1_TOKEN = 6_000
+
+
+def _tag1_verlauf() -> list:
+    """Eine Fixture mit dem Volumen von Tag 1: 60 Nachrichten, zusammen rund
+    6.000 geschaetzte Token, in realistisch ungleichen Laengen (im Gruppenchat
+    sind vier Redebeitraege nicht vier gleich grosse Bloecke)."""
+    laengen = [20, 60, 130, 40, 250, 75]  # Token je Nachricht, zyklisch
+    nachrichten = []
+    for i in range(TAG1_NACHRICHTEN):
+        ziel = laengen[i % len(laengen)]
+        nachrichten.append(_msg(i, _lang(ziel, buchstabe=chr(97 + i % 26))))
+    return nachrichten
+
+
+def test_bei_tag1_volumen_springt_der_extraktor_mindestens_einmal_an():
+    """**Auftrag 2, Test (c).** Gemessen an den drei echten Betriebsgruppen
+    von Tag 1: Wasserzeichen bei allen auf 0, kein einziger
+    ``extraktor``-Eintrag im Betriebsjournal, obwohl die Gruppen den ganzen
+    Tag geredet haben. Was sie beschlossen haben, stand im Chat, bis es aus
+    dem Fenster fiel -- und danach nirgends.
+
+    Mit dem tokenbemessenen Fenster (12.000 Zeichen) und
+    ``SCHWELLE_VERDRAENGUNG = 600`` muss bei diesem Volumen etwas
+    herausfallen."""
+    verlauf = _tag1_verlauf()
+    gesamt = kontext.schaetze("\n".join(kontext.sprecherzeile(n) for n in verlauf))
+    assert TAG1_TOKEN * 0.8 <= gesamt <= TAG1_TOKEN * 1.4, (
+        f"die Fixture soll das Tag-1-Volumen treffen, ist aber {gesamt} Token"
+    )
+
+    verdraengt = journal.berechne_verdraengten_abschnitt(verlauf)
+
+    assert verdraengt, (
+        "bei einem ganzen Workshoptag muss der Extraktor mindestens einmal "
+        "anspringen -- an Tag 1 tat er es in keiner einzigen Gruppe"
+    )
+
+
+def test_bei_tag1_volumen_springt_der_extraktor_nicht_bei_jeder_nachricht():
+    """**Birk, 06.09.2026, vor dem Merge**: die obere Schranke zur Gegenprobe.
+
+    Die Senkung der Schwelle von 2.000 auf 600 Token soll den Extraktor
+    haeufiger, aber nicht dauernd laufen lassen -- jeder Lauf ist ein eigener
+    Modellaufruf. Zugesichert wird: **hoechstens ein Lauf je
+    ``SCHWELLE_VERDRAENGUNG`` verdraengter Token.**
+
+    Simuliert wird der Betrieb, wie er wirklich laeuft: nach jedem Zug
+    ``repo.unjournalisierte`` -> Verdraengung rechnen -> bei Treffer
+    Wasserzeichen vorruecken (hier: den Abschnitt aus der Liste nehmen)."""
+    verlauf = _tag1_verlauf()
+    laeufe = 0
+    journalisiert_bis = 0
+    verdraengte_token = 0
+
+    for ende in range(1, len(verlauf) + 1):
+        offen = verlauf[journalisiert_bis:ende]
+        verdraengt = journal.berechne_verdraengten_abschnitt(offen)
+        if verdraengt:
+            laeufe += 1
+            verdraengte_token += kontext.schaetze(
+                "\n".join(kontext.sprecherzeile(n) for n in verdraengt)
+            )
+            journalisiert_bis += len(verdraengt)
+
+    assert laeufe >= 1, "unter Betriebsbedingungen muss er ueberhaupt laufen"
+    schranke = verdraengte_token / journal.SCHWELLE_VERDRAENGUNG + 1
+    assert laeufe <= schranke, (
+        f"{laeufe} Laeufe fuer {verdraengte_token} verdraengte Token -- "
+        f"hoechstens {schranke:.1f} erlaubt (ein Lauf je "
+        f"{journal.SCHWELLE_VERDRAENGUNG} Token)"
+    )
+    assert laeufe < len(verlauf) / 4, (
+        f"{laeufe} Laeufe bei {len(verlauf)} Nachrichten -- der Extraktor "
+        "darf nicht bei jeder Nachricht anspringen"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +270,7 @@ def _fuelle_verdraengung(conn, chat_id, ab_message_id=1):
     eine grosse alte Nachricht (ueber der Schwelle) gefolgt von einer
     grossen neuen Nachricht, die das Fenster allein fuellt."""
     _nachricht(conn, chat_id, ab_message_id, _lang(journal.SCHWELLE_VERDRAENGUNG + 200))
-    _nachricht(conn, chat_id, ab_message_id + 1, _lang(kontext.BUDGETS["fenster"] + 500))
+    _nachricht(conn, chat_id, ab_message_id + 1, _lang(kontext.FENSTER_ZEICHEN))
 
 
 def test_leere_liste_ist_der_normalfall_kein_fehler(conn, einst):
@@ -226,7 +370,7 @@ def test_wasserzeichen_bleibt_bei_fehlschlag_stehen_und_schreibt_vorfall(conn, e
 
 def test_extraktor_bekommt_nur_verdraengten_abschnitt_nicht_das_ganze_gespraech(conn, einst):
     _nachricht(conn, 1, 2, _lang(journal.SCHWELLE_VERDRAENGUNG + 200, buchstabe="d"))
-    _nachricht(conn, 1, 3, _lang(kontext.BUDGETS["fenster"] + 500, buchstabe="f"))
+    _nachricht(conn, 1, 3, _lang(kontext.FENSTER_ZEICHEN, buchstabe="f"))
     klm = LLMAttrappe(antwort={"eintraege": []})
 
     journal.extrahiere(klm, conn, einst, 1)

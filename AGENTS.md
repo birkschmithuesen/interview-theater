@@ -374,10 +374,58 @@ lädt, würde damit Gesprächszüge ausbremsen.
   der Gesprächs-Bot ganz (`ablauf.ist_auftrag`). Die Grundleiste speichert nie
   über ein gesetztes Feld hinweg, solange keine Änderung offen ist
   (`knoepfe._ist_bestaetigung`, `_feld_ist_frei`). Das Kontextfenster ist kurz
-  und chronologisch: höchstens `kontext.FENSTER_NACHRICHTEN` (20) oder
-  `FENSTER_MINUTEN` (30), sortiert nach `gesendet_am` — **nicht** nach
+  und chronologisch, sortiert nach `gesendet_am` — **nicht** nach
   `message_id`, denn übernommene Historien tragen negative, absteigend
-  vergebene ids. Belege: `docs/analyse-interaktion-testgruppe-2026-09-05.md`.
+  vergebene ids. Seine Grenzen stehen im nächsten Absatz
+  (`kontext.fenster_grenzen()`). Belege:
+  `docs/analyse-interaktion-testgruppe-2026-09-05.md`.
+
+- **Das Gesprächsfenster ist in ZEICHEN bemessen, es ist nie leer, und der
+  Journal-Extraktor liest dieselbe Grenze** (06.09.2026, Kontext-Audit
+  Aufträge 1+2, `docs/kontext-audit-2026-09-06.md` C.2/C.3/C.4). Drei Sätze,
+  die zusammengehören, weil sie eine Wurzel haben — *Grenzen, die nur einen
+  Teil bemessen, und Schwellen, die nebeneinander statt voneinander abgeleitet
+  gesetzt sind*:
+  1. **`kontext.FENSTER_ZEICHEN` (12.000) ist das primäre Maß**, nicht mehr die
+     Nachrichtenzahl (SPEC § 6.2 Block 7, und dieselbe Entscheidung, die
+     hermes-agent in `context_compressor.py:13` getroffen hat: *„Token-budget
+     tail protection instead of fixed message count"*).
+     `FENSTER_NACHRICHTEN` (20) ist die Obergrenze darüber.
+  2. **`FENSTER_MINUTEN` (30) ist weich**: mindestens die letzten
+     `FENSTER_MIN_NACHRICHTEN` (6) bleiben immer im Fenster. Gemessen war das
+     Fenster nach *jeder* Pause über 30 Minuten — Mittag, Nacht, Probe —
+     **vollständig leer** (Befund C.2, an der Test-DB reproduziert). Damit
+     funktioniert auch die Pausenzeile `[Pause: N Stunden]` aus § 6.2 zum
+     ersten Mal: sie steht auch **vor dem Auslöser**, weil der häufigste Fall
+     einer langen Pause der ist, in dem die erste Nachricht danach den Zug
+     auslöst.
+  3. **`kontext.fenster_grenzen()` / `kontext.waehle_fenster()` sind die eine
+     Quelle**, die der Promptbau *und* `journal.berechne_verdraengten_abschnitt`
+     lesen. Vorher rechnete der Extraktor gegen `BUDGETS["fenster"] = 8000`
+     Token und hielt 31 Nachrichten für „noch im Fenster", während der Prompt
+     20 sah — die Differenz wurde nie journalisiert und stand danach nirgends.
+     `BUDGETS["fenster"]` ist seitdem **historisch und von keinem Codepfad mehr
+     gelesen**. `journal.SCHWELLE_VERDRAENGUNG` ist von 2.000 auf **600** Token
+     gesenkt (sie bezog sich auf das alte 8.000er Fenster; an Tag 1 sprang der
+     Extraktor in **allen drei** Betriebsgruppen kein einziges Mal an).
+     **Wer eine Fenstergrenze ändert, ändert sie in `fenster_grenzen()` — und
+     der Regressionstest `test_verdraengung_rechnet_gegen_dasselbe_fenster_wie_
+     der_prompt` prüft, dass Fenster und verdrängter Abschnitt die
+     Nachrichtenliste lückenlos und überschneidungsfrei teilen.**
+
+  Dazu die Sichtbarkeit, die vorher fehlte: **`kontext.baue` schreibt bei jedem
+  Aufruf eine Umriss-Zeile ins Log** (`kontext.umrisszeile`, Token je Block,
+  Gesamt, gekürzt ja/nein — **nur Zahlen, nie Prompt-Inhalt**). Sie steht in
+  `baue()` selbst und nicht bei den Aufrufern, damit sie jeden Pfad erfasst;
+  ein durchgereichter Parameter wäre genau der Weg, auf dem sie beim nächsten
+  neuen Aufrufer wieder fehlt (`umriss()` gab es seit jeher, es rief nur
+  niemand). Und ein **zweiter Vorfalltyp `kontext_kuerzung_erfolglos`**: ist
+  der Körper nach allen vier Kürzungsstufen immer noch über der Grenze, wird
+  das eigens vermerkt, mit dem Umriss der übrig gebliebenen Blöcke.
+  `kontext_gekuerzt` bleibt daneben stehen — beides ist wahr, aber „gekürzt"
+  und „reicht nicht" sind zwei verschiedene Meldungen (hermes-agent,
+  `should_compress_info`: *„Without this signal an over-threshold session fails
+  opaquely."*).
 
 - **Die Fragen sind eine Auswahl, und danach kommt der Leitfaden** (06.09.2026,
   Birk). Phase 2 schlägt zehn Fragen als `VORSCHLAG FRAGENAUSWAHL:` vor, aus
@@ -726,19 +774,27 @@ der POST-Handler öffnet eine schreibende Verbindung (`db.verbinde` — WAL und
 `busy_timeout`, wie `scripts/begruessen.py` aus einem fremden Prozess). Zwei
 Tests halten das fest: kein `SELECT`/`INSERT`/`UPDATE` in `web_schreiben.py`,
 kein Schreibpfad in `web_daten.py`. Änderbar ist **genau** `web_schreiben.FELDER`
-und nichts sonst: Phase (1–8, Namen aus `phasen.PHASEN`), Begriffe, Fragen und
-die drei Leitfaden-Felder (`frage_einleitungen`, `interview_eroeffnung`,
-`interview_abschluss`), Setting (`rahmen`), Geschichte, je Figur
+und nichts sonst: Setting (`rahmen`), Geschichte, je Figur
 Name/Beschreibung/Interview/Entfernen/Hinzufügen und je Szene Titel, Form,
-Ort, Zeit, Anlass, was passiert, was anders, Ton und die Besetzung — **nie
-Material** (Aufnahmen, Transkripte, Verdichtungen, Belegzitate), nie der
-Szenen-Volltext, nie das Journal, nie die USA-Einwilligung, nie der
-Sprachprofil-Text, nie die Schärfungs-Zuordnungen. Auch **nicht der
-Leitfaden**: er wird aus seinen Feldern gebaut (`leitfaden.aus_feldern`,
-dieselbe Funktion wie im Chat) und steht read-only darunter — editierbar sind
-die Quellen, nicht das Ergebnis. Seit dem Phasen-Umbau fehlen **Kernthema,
-Kernthema-Richtung und Kernfrage**: sie sind keine Station mehr, `geschichte`
-hat ihre Rolle übernommen; gesetzte Werte bleiben sichtbar
+Ort, Zeit, Anlass, was passiert, was anders, Ton und die Besetzung — also
+genau das, was die Gruppe hier **fertig entscheiden** kann. Setting und
+Geschichte sind dabei **unabhängig voneinander**: ein neues Setting ändert die
+Geschichte nicht und stößt auch nichts an, was sie später ändern würde (Birk,
+06.09.2026 10:25 — kein Auftragsweg vom Web an den Bot, keine automatische
+Geschichte). Nicht änderbar: **nie Material** (Aufnahmen, Transkripte,
+Verdichtungen, Belegzitate), nie der Szenen-Volltext, nie das Journal, nie die
+USA-Einwilligung, nie der Sprachprofil-Text, nie die Schärfungs-Zuordnungen.
+**Was der Chat führt** (`web_schreiben.FUEHRT_DER_CHAT`): Phase, Begriffe,
+Fragen und die drei Leitfaden-Felder. Sie stehen auf der Seite an ihrem Platz,
+aber als Anzeige — sie entstehen im Gespräch über Knöpfe und Ping-Pong, oft mit
+einem Modellaufruf dahinter, und der Webserver hat keinen Modellklienten; sie
+hier umtippen zu lassen hieße, denselben Wert auf zwei Wegen zu pflegen, von
+denen einer die halbe Kette auslässt. Von den drei Leitfaden-Feldern steht
+nicht einmal das Rohfeld da, sondern der **gebaute Leitfaden**
+(`leitfaden.aus_feldern`, dieselbe Funktion wie im Chat): das, was die Gruppe
+im Interview in der Hand hält. Seit dem Phasen-Umbau fehlen außerdem
+**Kernthema, Kernthema-Richtung und Kernfrage**: sie sind keine Station mehr,
+`geschichte` hat ihre Rolle übernommen; gesetzte Werte bleiben sichtbar
 (`web_schreiben.NUR_ANZEIGE`, nur wenn gesetzt), änderbar sind sie nicht.
 Ebenfalls nur Anzeige: der Formvorschlag je Szene (`szene.form_vorschlag` —
 bestätigt ist allein `form`, und wer hier wählt, bestätigt gerade selbst) und

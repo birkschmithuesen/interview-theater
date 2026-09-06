@@ -404,15 +404,20 @@ Workshop zählt:**
   wenn Interviews knapper sind als Figuren.
 - **Web lädt sanft nach** (fetch, kein meta refresh) — Klappzustand bleibt.
 - **Die Gruppenseite ändert jetzt Parameter** (05.09. abends, am 06.09. auf die
-  acht Phasen nachgezogen): Phase (1–8), Begriffe, Fragen samt den drei
-  Leitfaden-Feldern, Setting, Geschichte, Figuren (Name, Beschreibung,
-  Interview, entfernen, anlegen) und die Szenenplanung. Nur über `repo` —
+  acht Phasen nachgezogen und dann enger gezogen): **Setting, Geschichte,
+  Figuren** (Name, Beschreibung, Interview, entfernen, anlegen) **und die
+  Szenenplanung** — genau das, was die Gruppe dort fertig entscheiden kann.
+  Setting und Geschichte sind unabhängig voneinander; es gibt **keinen
+  Auftragsweg vom Web an den Bot** und keine automatisch nachgezogene
+  Geschichte (Birk, 06.09. 10:25: „lass das für jetzt weg"). Nur über `repo` —
   derselbe Weg wie die Knöpfe —, nur diese Felder, jede Änderung mit
   Journaleintrag `quelle='web'`; Material, Szenen-Volltext und Journal bleiben
   unveränderlich, das Dashboard bleibt read-only. Nur Anzeige, nicht Formular:
-  der gebaute Leitfaden, der Formvorschlag je Szene, die Schärfungen (Zähler
-  mit Kurzformen, ohne Zitat) und die Altfelder Kernthema/Kernfrage — die sind
-  keine Station mehr, bleiben aber sichtbar, wenn eine Gruppe sie gesetzt hat.
+  Phase, Begriffe, Fragen und der gebaute Leitfaden (statt seiner drei
+  Rohfelder) — die führt der Chat, teils über Modellaufrufe, die der Webserver
+  nicht hat —, dazu der Formvorschlag je Szene, die Schärfungen (Zähler mit
+  Kurzformen, ohne Zitat) und die Altfelder Kernthema/Kernfrage, die keine
+  Station mehr sind, aber sichtbar bleiben, wenn eine Gruppe sie gesetzt hat.
   **Braucht einen Neustart von `interview-theater-web.service`, die Bots
   nicht.** Risiko im Betrieb: Chat und Web schreiben aus zwei Prozessen — WAL
   und `busy_timeout` tragen das, ein „letzter gewinnt" bei gleichzeitiger
@@ -474,28 +479,47 @@ Workshop zählt:**
 
 **Betrieb:** Units `interview-theater@gruppe1/2/3` (soap.db, `@theatersoap1/2/3_bot`), `@gruppe4` (test.db, `@theatersoap_testbot`, Testgruppe `-5257292234`), `interview-theater-web` (Port 8010, nur soap.db). Chat-IDs: G1 `-5143986099`, G2 `-5552492879`, G3 `-5339679310`. Envs `betrieb/gruppeN.env` — nie lesen, nur `set -a; . …; set +a`. Neustart als EINZELNER Befehl, nie verkettet; vorher prüfen, dass keine Aufnahme läuft und kein Interviewmodus an ist. Nie von Hand starten (409-Falle).
 
-**Zustandscheck (alle 4 Gruppen, ein Aufruf):**
+**Zustandscheck (alle 4 Gruppen + Web, ein Aufruf):**
 ```
-bash /home/birk/.hermes/profiles/birk/cache/blocked-scripts/blocked-1788650257-ba96df7d.sh
+bash ~/.hermes/profiles/birk/scripts/it_check.sh
 ```
-(= `is-active` ×4, Prozesszahl = 4, HTTP-Codes je Log, neue Tracebacks, `/gesund`). Web von außen nur per `browser_exec` (`https://lab.artesmobiles.art/theatersoap/`), nicht curl.
+(= `is-active` ×5, Prozesszahl = 4, HTTP-Codes je Log, Tracebacks/409, `/gesund`.
+Ersetzt den alten `cache/blocked-scripts/blocked-1788650257-*.sh` — der lief mit
+`sleep 25` in den Approval-Timeout und war im Betrieb unbrauchbar.) Web von außen nur per `browser_exec` (`https://lab.artesmobiles.art/theatersoap/`), nicht curl.
 
 **Wache-Abfrage alle ~30 min (read-only, PII-frei):**
 ```
-PY=~/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/bin/python3
-$PY - <<'PY'
-import sqlite3; c=sqlite3.connect('file:betrieb/soap.db?mode=ro',uri=True)
-print('vorfaelle 30min', c.execute("select art,count(*) from vorfall where erstellt_am>datetime('now','-30 minutes') group by 1").fetchall())
-print('aufrufe 30min', c.execute("select art,erfolg,count(*),round(avg(dauer_ms)) from aufruf where erstellt_am>datetime('now','-30 minutes') group by 1,2").fetchall())
-print('phase', c.execute("select chat_id,phase from arbeitsstand").fetchall())
-print('letzte nachricht je gruppe', c.execute("select chat_id,max(gesendet_am),sum(ist_bot=0),sum(ist_bot=1) from nachricht where gesendet_am>datetime('now','-30 minutes') group by 1").fetchall())
-print('aufnahmen', c.execute("select status,count(*) from aufnahme where entfernt_am is null group by 1").fetchall())
-print('journal 30min', c.execute("select chat_id,art,count(*) from journal where erstellt_am>datetime('now','-30 minutes') group by 1,2").fetchall())
-PY
+python3 ~/.hermes/profiles/birk/scripts/it_wache.py
 ```
+(Aggregate: Vorfälle/Aufrufe 30 min, Phase je Gruppe, Nachrichten 30 min +
+„min her" je Gruppe, Aufnahmestatus inkl. `empfangen>5min`, Journal 30 min,
+Szenen mit Volltext. **Achtung:** `aufnahme` hat `empfangen_am`, kein
+`erstellt_am`; `nachricht.gesendet_am` steht mit `+00:00`-Offset und braucht
+`datetime(...)` beim Vergleich — die frühere Heredoc-Fassung in diesem
+Abschnitt lieferte deshalb falsche Zahlen bzw. brach ab.)
 Melden, wenn: `http_5xx` häuft (≥3), `zitat_ungeprueft` auftaucht, `szene_abgeschnitten`/`szene_fehlgeschlagen`/`kontext_gekuerzt` erscheint, ein Bot schweigt (Mensch-Nachrichten ohne Bot-Antwort), eine Gruppe >20 min keine Nachricht hat, `aufnahme.status='empfangen'` älter 5 min (Whisper). Stiller no-agent-Cron `it-nacht-wache` (Skript `~/.hermes/profiles/birk/scripts/it_nacht_wache.sh`, alle 30 min) meldet Units/409/5xx/Tracebacks/`/gesund` von selbst — nicht doppelt bauen.
 
 **Nachmittag-Ablauf:** Gruppen stehen in Phase 3; Phasen 4–8 (Setting & Figuren → Geschichte → Schärfung → Szenentexte → Durchlauf) laufen erstmals mit echten Menschen; USA-Frage kommt beim ersten Szenenauftrag je Gruppe. Interviews zusammenführen: Abschnitt oben („Interviews in eine Gruppe zusammenführen"). Rollback: `bash betrieb/buttons-zurueck.sh` (alt) — heute besser: `git log`, gezielter Revert, Neustart einzeln.
+
+**Stand 09:50 — gemergt und live (main `4a57b6f`, 1661 grün, alle vier Bots neu gestartet):**
+Kontext-Aufträge 1+2 (Fenster zeichenbemessen 12 000, nie leer — Untergrenze 6
+Nachrichten, Pausenzeile vor dem Auslöser; Journal-Extraktor an dieselbe
+Grenze gekoppelt, Schwelle 600; Umriss-Zeile je Gesprächszug im Log, Vorfall
+`kontext_kuerzung_erfolglos`). Prompt-Diff: `docs/prompt-audit/2026-09-06/kontext-1-2-diff.md`.
+
+**WARTET auf Birks Freigabe (nicht gemergt):** `feat/kontext-3-5` (Szenenblock
+im Gesprächs-Prompt auf 6 000 Zeichen gedeckelt + Kürzungsreihenfolge; System
++ Körper gemessen, Grenze 40 000; Recall-Skript `scripts/kontext_recall.py`).
+Suite dort 1679 grün. Bericht `docs/prompt-audit/2026-09-06/kontext-3-5-bericht.md`.
+Ändert, was der Bot in Phase 6/7 von der letzten Szene sieht (Anfang + Schluss
+statt Volltext) — nach dem Workshop mit Birk entscheiden, dann Merge + Neustart.
+
+**LÄUFT noch (Worktrees):** `feat/sieben-phasen` (4+5 verschmolzen, 7 = Stück-
+Judge, Interview-Auswertung als knappe Zeile mit Zusammenfassung/Transkript-
+Knöpfen, neue Einleitungen 3/4/7) — Merge + Neustart aller vier durch den
+Orchestrator, sobald grün; `feat/web-edit-2` (Gruppenseite: nur noch Setting,
+Geschichte, Figuren, Szenen editierbar; Rest Anzeige, Leitfaden statt
+Rohfelder) — Merge + Web-Unit-Neustart.
 
 **Was Birks Feedback braucht (Stand 06.09. 05:20):**
 1. Die acht Einleitungstexte gegenlesen (`interview_theater/phasentexte.py`, Wortlaut in `docs/NACHTBERICHT-2026-09-06.md`) — Bot-Text, heiß änderbar nach Neustart (Code, kein Prompt).
@@ -503,6 +527,42 @@ Melden, wenn: `http_5xx` häuft (≥3), `zitat_ungeprueft` auftaucht, `szene_abg
 3. Szene 1 in der Testgruppe „Neu schreiben" (Kiosk-Dialog) und Phase 4→5 einmal durchklicken — Qualitätsurteil am Material.
 4. Opus-Messung (1M-Kontext, Thinking) und Kontext-Audit laufen als Delegates (Branches `feat/opus-messung`, `docs/kontext-audit`); Ergebnis entscheidet: 1M-Präfix im Proxy freischalten? Thinking für Szenen an? Kontext-Aufträge vor/nach 13:30?
 5. Szenen-Zusammenfassung/Budget/Chat-Block (`feat/szenen-zusammenfassung`) — nach Merge Neustart aller vier; Birk sieht die „Anders gemacht:"-Zeile im Journal.
+
+## (i) Nach Dortmund: generischer Kern + einhängbares Workshop-Profil (Brainstorming-Einstieg)
+
+Birks Ziel (06.09.2026): das Repo soll für jede Zielgruppe / jeden Ort / jede
+Sprache funktionieren; alles Workshop-Individuelle (Alter, Orte, Formen-Katalog,
+Textbuch-Maß, Rahmen des Stücks, Phasentexte, Leitfaden-Bausteine, Bot-Namen,
+USA-Regel, Korpus-Sprache, Simulations-Personas) liegt in einem einhängbaren
+Profil `workshop/<name>/` — Padua bekommt ein eigenes, Dortmund bleibt bitgleich.
+**Noch nicht umgebaut.** Grundlage für eine Claude-Code-Brainstorming-Session
+(superpowers: brainstorming → writing-plans → subagent-driven-development):
+
+- **Analyse + Startpaket:** `docs/workshop-profil-analyse-2026-09-06.md` —
+  Inventar (1 217 Fundstellen, 8 Kategorien, mit Datei/Zeile), Schichtenmodell
+  Kern vs. Profil, Sonderfall Sprache (Italienisch: 9 Prompts, Whisper-`language`,
+  136 Korpusfälle mit FP=0-Regel, Stichwortlisten, 111 Knopftexte), Risiken,
+  Abschnitt E = 10 Entscheidungsfragen mit Empfehlung, Zielstruktur
+  (`workshop/dortmund-2026/`, `workshop/padua-2026/`), 12 einzeln ausrollbare
+  Schritte (~9,5 PT Mechanik, + Padua-Inhalt). Messskript: `scripts/inventar_workshop.py`.
+- **Empfohlene Einhängemechanik:** `anweisungen.system()` ist schon der Punkt —
+  Basis → Phase → **Profil-Overlay** → `zusatz.md` → `zusatz.<bot>.md`, Auswahl
+  per `IT_WORKSHOP=<name>` je `betrieb/gruppeN.env` (zwei Workshops parallel
+  möglich), fehlt die Variable = heutiges Dortmund. Werte in
+  `workshop/<name>/profil.yaml`, Prosa als Markdown-Overlay mit Platzhaltern.
+- **Bitgleichheits-Beweis:** die Prompt-Dumps `docs/prompt-audit/2026-09-06/`
+  (21 Pfade, `uebersicht.tsv`) als Golden Files — Profil `dortmund-2026` muss
+  identische Prompts erzeugen (Falle: `erzeuge_prompts._entschaerfe()`-Stufe,
+  Vergleich auf gleicher Stufe). Weitere Falle: `anweisungen._CACHE` ist nach
+  Prompt-Name gekeyt, nicht nach Profil — bricht bei zwei Profilen im Web-Dienst.
+- **Vault-Konvention:** Padua gehört unter
+  `projekte/<produktion>/shows/2026-xx-padua/`; Profilnamen spiegeln das.
+
+Startprompt für die Session: „Lies `docs/workshop-profil-analyse-2026-09-06.md`
+vollständig, dann `/superpowers:brainstorming` zum Schichtenmodell Kern/Profil —
+beantworte die 10 Fragen aus Abschnitt E mit mir, schreibe die Spec, dann den Plan;
+Randbedingungen: Dortmund bitgleich (Golden Files), kein Schema-Umbau, jeder
+Schritt einzeln ausrollbar, Live-Bots laufen aus dem Hauptbaum."
 
 ## (g) Nach dem Workshop: wie man aus der Datenbank lernt
 

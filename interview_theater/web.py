@@ -709,11 +709,17 @@ def _altbestand_html(stand: dict) -> str:
 def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
     """Der Arbeitsstand der Gruppenseite -- zum Lesen **und** zum Ändern.
 
-    Genau die Parameter aus ``web_schreiben.FELDER`` und keinen mehr, in der
-    Reihenfolge der acht Phasen: Begriffe (1), Fragen samt Leitfaden (2),
-    Setting und Figuren (4), Geschichte (5). Was fehlt, fehlt mit Absicht:
-    Material wird nicht angefasst, der Szenen-Volltext gehört in den Chat,
-    der Leitfaden wird gebaut und nicht getippt, und die Felder der alten
+    Editierbar ist genau, was die Gruppe hier auch **fertig entscheiden**
+    kann: Setting, Geschichte, die Figuren und die Szenenplanung. Alles davor
+    führt der Chat (Birk, 06.09.2026 10:25) — Phase, Begriffe, Fragen und die
+    drei Leitfaden-Felder stehen als Anzeige da, denn sie entstehen über
+    Knöpfe und Ping-Pong, oft mit einem Modellaufruf dahinter, und der
+    Webserver hat keinen Modellklienten. Statt der drei Rohfelder steht der
+    **gebaute Leitfaden** (``leitfaden.aus_feldern``): das, was die Gruppe im
+    Interview wirklich in der Hand hält.
+
+    Was sonst fehlt, fehlt mit Absicht: Material wird nicht angefasst, der
+    Szenen-Volltext gehört in den Chat, und die Felder der alten
     Kernthema-Station stehen nur noch read-only da (``_altbestand_html``)."""
     stand = daten["arbeitsstand"]
     auswahl = daten.get("bearbeitbares") or {}
@@ -725,67 +731,16 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
     return (
         f'<input type="hidden" id="nonce" value="{_t(nonce_wert)}">'
         "<dl>"
-        "<dt>Phase</dt><dd>"
-        + _dropdown(
-            # Acht Phasen, Namen aus phasen.PHASEN -- die Liste steht dort und
-            # wird hier nicht zweitgepflegt.
-            "phase",
-            [(nummer, phasen.bezeichnung(nummer)) for nummer, _, _ in phasen.PHASEN],
-            phase,
-        )
-        + "</dd>"
-        "<dt>Begriffe</dt><dd>"
-        + _textfeld(
-            "begriffe", stand["begriffe"], platzhalter="mit Komma getrennt"
-        )
-        + "</dd>"
-        "<dt>Fragen</dt><dd>"
-        + _textfeld(
-            "fragen", stand.get("fragen"), zeilen=5, platzhalter="eine Frage je Zeile"
-        )
-        + "</dd>"
-        # Die drei Leitfaden-Felder stehen unter den Fragen, weil sie zu ihnen
-        # gehören: die Einleitungen hängen an einzelnen Fragen (nummeriert),
-        # Eröffnung und Abschluss rahmen sie ein.
-        "<dt>Einleitungen zu den Fragen</dt><dd>"
-        + _textfeld(
-            "frage_einleitungen",
-            stand.get("frage_einleitungen"),
-            zeilen=3,
-            platzhalter="1 — vorher sagen: …",
-        )
-        + "</dd>"
-        # Die weichen Fassungen (06.09.2026, 10:18): der Text, den die
-        # Interviewerin wirklich spricht. Er steht direkt unter den Fragen,
-        # weil er sie im Leitfaden ERSETZT -- der Kern bleibt oben.
-        "<dt>Fragen in weicher Fassung</dt><dd>"
-        + _textfeld(
-            "fragen_weich",
-            stand.get("fragen_weich"),
-            zeilen=4,
-            platzhalter="1 — so sagt ihr es …",
-        )
-        + "</dd>"
-        "<dt>Interview-Eröffnung</dt><dd>"
-        + _textfeld(
-            "interview_eroeffnung",
-            stand.get("interview_eroeffnung"),
-            zeilen=3,
-            platzhalter="womit ihr anfangt",
-        )
-        + "</dd>"
-        "<dt>Interview-Abschluss</dt><dd>"
-        + _textfeld(
-            "interview_abschluss",
-            stand.get("interview_abschluss"),
-            zeilen=3,
-            platzhalter="womit ihr aufhört",
-        )
-        + "</dd>"
-        # Der Leitfaden selbst wird gebaut, nicht getippt: er ist die Summe der
-        # Felder darüber (``leitfaden.aus_feldern``, dieselbe Funktion wie im
-        # Chat). Read-only -- ihn hier editierbar zu machen hiesse, ein
-        # abgeleitetes Ergebnis neben seinen Quellen zu pflegen.
+        # Die Phase steht oben, weil sie alles darunter einordnet -- als
+        # Anzeige. Gesetzt wird sie allein von der Gruppe, und zwar im Chat
+        # (AGENTS.md, "Die Phase setzt allein die Gruppe"): der Bot bietet den
+        # Wechsel an, sobald die Materiallage ihn hergibt.
+        f"<dt>Phase</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
+        f"<dt>Begriffe</dt><dd>{_t(stand['begriffe'])}</dd>"
+        f"<dt>Fragen</dt><dd>{_fragen_html(stand.get('fragen'))}</dd>"
+        # Der Leitfaden statt seiner drei Rohfelder: er ist das Ergebnis, das
+        # die Gruppe braucht, und er wird gebaut, nicht getippt -- aus
+        # denselben Feldern wie im Chat (``leitfaden.aus_feldern``).
         + _leitfaden_html(stand)
         + "<dt>Setting</dt><dd>"
         + _dropdown(
@@ -1172,45 +1127,10 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
         "<h2>Arbeitsstand</h2>"
         f"{stand}\n"
         f"<h2>Szenen</h2>{szenen}\n"
-        f"{_stueckpruefung_html(daten.get('stueckpruefung'))}"
         f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
         "<h2>Der Weg dahin</h2>"
         f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",
         bearbeitbar=bool(nonce_wert),
-    )
-
-
-def _stueckpruefung_html(pruefung: dict | None) -> str:
-    """Der Block „Stückprüfung Runde N" — **read-only**, minimal.
-
-    Er steht unter den Szenen, weil er über sie urteilt. Ohne Runde fehlt er
-    ganz: eine leere Überschrift sähe aus wie eine offene Aufgabe, dabei ist
-    die Prüfung erst in der letzten Phase dran. Nichts zum Anklicken —
-    „Szene N überarbeiten" und „Noch eine Prüfrunde" gibt es im Chat, wo die
-    Gruppe die Entscheidung auch abnimmt."""
-    if not pruefung or not pruefung.get("befunde"):
-        return ""
-    zeilen = []
-    for b in pruefung["befunde"]:
-        kopf = _t(b["frage"])
-        if b.get("bewertung") is not None:
-            kopf += f" {_t(b['bewertung'])}/5"
-        stuecke = [f"<b>{kopf}</b>"]
-        if b.get("begruendung"):
-            stuecke.append(f"<div>{_t(b['begruendung'])}</div>")
-        if b.get("vorschlag"):
-            ziel = (
-                f"Szene {_t(b['szene_nummer'])}: "
-                if b.get("szene_nummer") is not None
-                else ""
-            )
-            stuecke.append(
-                f'<div class="zeit">Vorschlag: {ziel}{_t(b["vorschlag"])}</div>'
-            )
-        zeilen.append(f'<li>{"".join(stuecke)}</li>')
-    return (
-        f"<h2>Stückprüfung Runde {_t(pruefung['runde'])}</h2>"
-        f'<ul class="schaerfung">{"".join(zeilen)}</ul>\n'
     )
 
 

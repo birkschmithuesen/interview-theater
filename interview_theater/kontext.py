@@ -62,6 +62,12 @@ _ZEICHEN_JE_TOKEN = 3
 #: Transkripte). ``arbeitsstand`` enthaelt laut § 6.2 Block 4 auch die
 #: Szenenliste (Titel plus je eine Zeile), ``szene`` ist Block 5: die eine
 #: zuletzt geaenderte Szene im Volltext.
+#:
+#: ``fenster`` ist seit dem 06.09.2026 (Auftrag 2) **historisch**: das reale
+#: Fensterbudget steht in ``FENSTER_ZEICHEN`` und wird ueber
+#: ``fenster_grenzen()`` gelesen. Der Wert hier bleibt als Spec-Referenz
+#: stehen und wird von **keinem** Codepfad mehr benutzt -- er war der
+#: Ausgangspunkt von Befund C.3.
 BUDGETS = {
     "system": 900,
     "verdichtungen": 3000,
@@ -631,15 +637,35 @@ _FENSTER_POOL = 1000
 #: gemessen an der Testgruppe um 00:33: der Nutzertext hatte **52 000
 #: Zeichen**, und darin standen 700 Zeilen bis in den Vormittag zurueck).
 #:
-#: Zwanzig ist die Zahl, die eine laufende Arbeitsphase abdeckt, ohne den
-#: Vormittag mitzuschleppen. Alles Aeltere, das wirklich zaehlt, steht
-#: ohnehin strukturiert im Prompt: Arbeitsstand, Journal, Figuren,
-#: Verdichtungen. Das Fenster ist fuer den Ton und den letzten Faden da,
-#: nicht als Archiv.
+#: Seit dem Audit vom 06.09.2026 (Auftrag 2) ist das die **Obergrenze**, nicht
+#: mehr das primaere Mass -- das ist ``FENSTER_ZEICHEN``. Zwanzig ist die
+#: Zahl, die eine laufende Arbeitsphase abdeckt, ohne den Vormittag
+#: mitzuschleppen. Alles Aeltere, das wirklich zaehlt, steht ohnehin
+#: strukturiert im Prompt: Arbeitsstand, Journal, Figuren, Verdichtungen. Das
+#: Fenster ist fuer den Ton und den letzten Faden da, nicht als Archiv.
 FENSTER_NACHRICHTEN = 20
 
+#: **Das primaere Mass des Fensters, in ZEICHEN** (Audit 06.09.2026,
+#: Auftrag 2; SPEC § 6.2 Block 7: *"in Token statt Nachrichten bemessen -- im
+#: Gruppenchat koennen 'N Nachrichten' vier Redebeitraege oder vierzig
+#: Sekunden Geplaenkel sein"*).
+#:
+#: 12.000 Zeichen sind nach ``schaetze`` rund 4.000 Token. Die Zahl ist die
+#: Haelfte der harten Koerpergrenze (``ZEICHEN_GRENZE_VORGABE`` = 24.000):
+#: das Fenster ist der groesste veraenderliche Block, und es soll den Prompt
+#: nicht allein reissen koennen, aber auch nicht so klein sein, dass der
+#: letzte Faden abreisst.
+#:
+#: Zeichen und nicht Token, aus demselben Grund wie bei der Zeichengrenze
+#: (§ 7.1): wir haben keinen Tokenizer, und die Groesse, die wir ohne einen
+#: sicher pruefen koennen, ist die Zeichenzahl. hermes-agent hat dieselbe
+#: Entscheidung in dieselbe Richtung getroffen -- *"Token-budget tail
+#: protection instead of fixed message count"* (``context_compressor.py:13``).
+FENSTER_ZEICHEN = 12_000
+
 #: Und zeitlich: was laenger als das her ist, gehoert nicht mehr zur
-#: laufenden Unterhaltung. Es gilt die KLEINERE der beiden Grenzen.
+#: laufenden Unterhaltung. Seit dem Audit (Auftrag 2) ist das eine **weiche**
+#: Grenze -- sie wird von ``FENSTER_MIN_NACHRICHTEN`` unterlaufen.
 #:
 #: Der Anlass ist gemessen (05.09.2026, 21:50): weil der Vormittag mit im
 #: Fenster stand -- und wegen der falschen Sortierung sogar OBEN --, hielt
@@ -647,6 +673,114 @@ FENSTER_NACHRICHTEN = 20
 #: Tag 1 und wir stehen erst am Anfang. Also: Rassismus, Liebe, Spaß,
 #: Streit."
 FENSTER_MINUTEN = 30
+
+#: **Die Untergrenze: so viele Nachrichten bleiben IMMER im Fenster**, auch
+#: wenn sie aelter als ``FENSTER_MINUTEN`` sind (Audit 06.09.2026, Befund
+#: C.2, Auftrag 2).
+#:
+#: Gemessen an der Test-DB: der Ausloeser lag um 23:56, die zwanzig
+#: Kandidaten zwischen 21:53 und 22:32 -- die 30-Minuten-Grenze schnitt
+#: **alle zwanzig** weg, und der Bot antwortete ohne einen einzigen Satz
+#: Gespraechsverlauf. Das ist nach jeder Pause ueber 30 Minuten der Fall:
+#: Mittagspause, Nacht, Ortswechsel, Probe.
+#:
+#: Damit funktioniert auch die Pausenmarkierung aus § 6.2 wieder wie
+#: vorgesehen: ``[Pause: 18 Stunden]`` kann nur erscheinen, wenn das, was vor
+#: der Pause lag, ueberhaupt noch im Fenster steht. Die Zeitgrenze bemisst,
+#: **wie viel** von vorher mitgeht -- nicht mehr, **ob**.
+FENSTER_MIN_NACHRICHTEN = 6
+
+
+def fenster_grenzen() -> dict:
+    """**Die eine Quelle der Fenstergrenzen** (Audit 06.09.2026, Befund C.3).
+
+    Gelesen von ``_baue_fenster_eintraege`` (die den Prompt baut) UND von
+    ``journal.berechne_verdraengten_abschnitt`` (die ausrechnet, was aus
+    genau diesem Fenster gefallen ist). Vorher standen die beiden Zahlen
+    nebeneinander statt voneinander abgeleitet: der Extraktor rechnete gegen
+    ``BUDGETS["fenster"] = 8000`` Token, waehrend das reale Fenster seit dem
+    Fensterumbau 20 Nachrichten / 30 Minuten war. Gemessen hielt er damit
+    **31 Nachrichten fuer "noch im Fenster"**, waehrend der Prompt nur 20 sah
+    -- ein Loch von elf Nachrichten breit, das mit jedem Zug mitwanderte und
+    dessen Inhalt nie journalisiert wurde und danach nirgends mehr stand.
+
+    Eine Funktion und keine Konstante, aus demselben Grund wie bei
+    ``zeichengrenze()``: sie wird bei jedem Aufruf gelesen, damit der
+    Simulator (``scripts/simulation.py --fenster-klein``) und ein Test die
+    Werte zur Laufzeit setzen koennen und **beide** Leser dieselbe Aenderung
+    sehen. hermes-agent leitet die zweite Schwelle genauso aus der ersten ab
+    (``native_compaction``: *"clamped safely below the local compressor's
+    trigger"*), statt sie danebenzusetzen.
+    """
+    return {
+        "zeichen": FENSTER_ZEICHEN,
+        "nachrichten": FENSTER_NACHRICHTEN,
+        "minuten": FENSTER_MINUTEN,
+        "min_nachrichten": FENSTER_MIN_NACHRICHTEN,
+    }
+
+
+def waehle_fenster(nachrichten: list, bezug=None) -> list:
+    """Waehlt aus einer chronologisch aufsteigenden Liste die Nachrichten,
+    die ins Fenster gehoeren -- **die eine Auswahlregel**, die sowohl der
+    Promptbau als auch die Verdraengungsrechnung benutzt.
+
+    Die Regel, in der Reihenfolge ihrer Anwendung:
+
+    1. Hoechstens ``FENSTER_NACHRICHTEN`` (Obergrenze, von hinten).
+    2. Von hinten auffuellen, bis ``FENSTER_ZEICHEN`` voll ist -- das
+       **primaere** Mass (§ 6.2 Block 7). Die juengste Nachricht gehoert
+       immer dazu, auch wenn sie das Budget allein sprengt: ein Fenster ist
+       nie leer.
+    3. ``FENSTER_MINUTEN`` als **weiche** Grenze gegen ``bezug`` (die
+       ausloesende Nachricht, sonst die juengste im Fenster) -- aber nie
+       unter ``FENSTER_MIN_NACHRICHTEN``.
+
+    ``bezug`` ist ein ISO-Zeitstempel oder None. Ohne ``gesendet_am`` in den
+    Nachrichten (die Verdraengungsrechnung arbeitet auf Rohdicts aus Tests
+    ohne Zeitfeld) entfaellt Schritt 3 stillschweigend -- Zeichen- und
+    Nachrichtengrenze tragen dann allein.
+    """
+    if not nachrichten:
+        return []
+    grenzen = fenster_grenzen()
+
+    kandidaten = nachrichten[-grenzen["nachrichten"]:]
+
+    # Schritt 2: von hinten auffuellen. Die juengste ist gesetzt.
+    kumuliert = len(sprecherzeile(kandidaten[-1]))
+    beginnt_bei = len(kandidaten) - 1
+    for index in range(len(kandidaten) - 2, -1, -1):
+        groesse = len(sprecherzeile(kandidaten[index])) + 1  # +1 Zeilenumbruch
+        if kumuliert + groesse > grenzen["zeichen"]:
+            break
+        kumuliert += groesse
+        beginnt_bei = index
+    kandidaten = kandidaten[beginnt_bei:]
+
+    # Schritt 3: die weiche Zeitgrenze, mit Untergrenze.
+    try:
+        zeiten = [n["gesendet_am"] for n in kandidaten]
+    except (KeyError, IndexError):
+        return kandidaten
+    if any(z is None for z in zeiten):
+        return kandidaten
+    bezugszeit = datetime.fromisoformat(bezug) if bezug else datetime.fromisoformat(
+        max(zeiten)
+    )
+    schwelle = bezugszeit - timedelta(minutes=grenzen["minuten"])
+    im_zeitfenster = [
+        n for n in kandidaten
+        if datetime.fromisoformat(n["gesendet_am"]) >= schwelle
+    ]
+    # **Nie leer, nie unter der Untergrenze** (Befund C.2). Die Zeitgrenze
+    # darf kuerzen, aber nicht abschneiden: nach einer Nacht sieht der Bot
+    # sonst beim ersten Zug danach keinen Verlauf und die Pausenzeile, die
+    # genau diesen Fall benennen soll, kann nie erscheinen.
+    if len(im_zeitfenster) < grenzen["min_nachrichten"]:
+        return kandidaten[-grenzen["min_nachrichten"]:]
+    return im_zeitfenster
+
 
 #: Systemzeilen, die nicht ins Fenster gehoeren (06.09.2026). Sie sind
 #: Ereignisse, keine Gespraechsbeitraege: was sie festhalten, steht im
@@ -680,9 +814,15 @@ def _ist_systemzeile(n) -> bool:
 
 def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
     """Liefert die Eintraege des kurzen Fensters (Nachrichtenzeilen und
-    Pausenmarkierungen), **aeltester zuerst** -- die letzten
-    ``FENSTER_NACHRICHTEN`` Nachrichten oder die letzten ``FENSTER_MINUTEN``,
-    was weniger ist, ohne Systemzeilen.
+    Pausenmarkierungen), **aeltester zuerst** -- nach den Grenzen aus
+    ``fenster_grenzen()`` (primaer ``FENSTER_ZEICHEN``, Obergrenze
+    ``FENSTER_NACHRICHTEN``, weiche Zeitgrenze ``FENSTER_MINUTEN`` mit
+    Untergrenze ``FENSTER_MIN_NACHRICHTEN``), ohne Systemzeilen.
+
+    Die Auswahlregel selbst steht in ``waehle_fenster()`` -- **dieselbe
+    Funktion**, die ``journal.berechne_verdraengten_abschnitt`` benutzt, um
+    auszurechnen, was aus diesem Fenster gefallen ist (Audit-Befund C.3: die
+    beiden liefen auseinander, weil sie zwei Zahlen nebeneinander hatten).
 
     **Warum das am 06.09.2026 umgebaut wurde.** Gemessen an der Testgruppe:
     der Nutzertext eines Zuges war 52 000 Zeichen lang, das Fenster reichte
@@ -709,14 +849,8 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
     # Nach der Uhrzeit, nicht nach der id (siehe Docstring).
     roh.sort(key=lambda n: n["gesendet_am"])
 
-    kandidaten = roh[-FENSTER_NACHRICHTEN:]
-    juengste = _juengste_zeit(ausloeser, kandidaten)
-    if juengste is not None:
-        grenze = juengste - timedelta(minutes=FENSTER_MINUTEN)
-        kandidaten = [
-            n for n in kandidaten
-            if datetime.fromisoformat(n["gesendet_am"]) >= grenze
-        ]
+    bezug = _bezugszeit(ausloeser)
+    kandidaten = waehle_fenster(roh, bezug)
 
     eintraege = []
     vorherige_zeit = None
@@ -727,13 +861,34 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
                 eintraege.append(pause)
         eintraege.append(sprecherzeile(n))
         vorherige_zeit = n["gesendet_am"]
+    # **Die Pause VOR dem Ausloeser** (06.09.2026, Auftrag 2). Der haeufigste
+    # Fall einer langen Pause ist gerade der, in dem die erste Nachricht
+    # danach den Zug ausloest: die Gruppe kommt am naechsten Morgen wieder.
+    # Der Ausloeser steht in seinem eigenen Block, also faellt der Sprung
+    # zwischen dem Fenster und ihm sonst durch -- das Modell saehe "gestern
+    # Abend" und direkt darunter "Aktuell:", ohne Hinweis auf die Nacht
+    # dazwischen. Genau dafuer hat § 6.2 die Pausenmarkierung erfunden; sie
+    # konnte bis heute nie erscheinen, weil vor der Pause nichts mehr im
+    # Fenster stand (Befund C.2).
+    if vorherige_zeit is not None and bezug:
+        pause = _pausenzeile(vorherige_zeit, bezug)
+        if pause:
+            eintraege.append(pause)
     return eintraege
 
 
+def _bezugszeit(ausloeser):
+    """Der Bezugspunkt der weichen Zeitgrenze: die ausloesende Nachricht,
+    sonst None (dann nimmt ``waehle_fenster`` die juengste im Fenster).
+    Nicht ``jetzt``: ein Test und ein Nachlauf sollen dieselbe Antwort
+    bekommen wie der Livezug."""
+    zeiten = [n["gesendet_am"] for n in ausloeser]
+    return max(zeiten) if zeiten else None
+
+
 def _juengste_zeit(ausloeser, kandidaten):
-    """Der Bezugspunkt der 30-Minuten-Grenze: die ausloesende Nachricht, oder
-    -- wenn es keine gibt -- die juengste im Fenster. Nicht ``jetzt``: ein
-    Test und ein Nachlauf sollen dieselbe Antwort bekommen wie der Livezug."""
+    """Nur noch fuer Aufrufer ausserhalb dieses Moduls -- die Fensterauswahl
+    selbst geht seit dem 06.09.2026 ueber ``waehle_fenster``."""
     zeiten = [n["gesendet_am"] for n in ausloeser] or [
         n["gesendet_am"] for n in kandidaten
     ]
@@ -802,6 +957,23 @@ def _baue_erstkontakt(conn, chat_id: int, e) -> str:
     return ERSTKONTAKT.format(link=link)
 
 
+def umrisszeile(stand: dict) -> str:
+    """Der Umriss als EINE Logzeile -- Blocknamen mit Token, Gesamt, gekuerzt.
+
+    Bewusst keine Prompt-Inhalte: die Zeile geht ins Betriebslog, und dort
+    haben weder Nachrichtentexte noch Transkripte etwas verloren (§ 11, und
+    dieselbe Disziplin, mit der ``scripts/erzeuge_prompts.py`` entschaerft).
+    Nur Zahlen, damit am Workshoptag jemand mitlesen kann, **was** im Prompt
+    stand, ohne den Prompt selbst zu haben."""
+    teile = " ".join(
+        f"{name}={token}" for name, token in stand["bloecke"].items() if token
+    )
+    return (
+        f"kontext-umriss gesamt={stand['gesamt']} "
+        f"gekuerzt={'ja' if stand['gekuerzt'] else 'nein'} {teile}"
+    )
+
+
 def umriss(bloecke: dict, gekuerzt: bool = False) -> dict:
     """Welcher Block mit wie vielen geschaetzten Token im Prompt stand.
 
@@ -830,10 +1002,10 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     haben (alles seit ``letzte_beantwortete_message_id``, § 1.3) -- vom
     Aufrufer ermittelt, hier nur formatiert.
 
-    ``protokoll`` ist rein additiv und im Betrieb nie gesetzt: ist es eine
-    Liste, wird ein ``umriss()`` des fertigen Prompts angehaengt. Der
-    Simulator misst damit, was wann im Prompt stand; der Bot selbst merkt von
-    diesem Argument nichts.
+    ``protokoll`` ist rein additiv: ist es eine Liste, wird ein ``umriss()``
+    des fertigen Prompts angehaengt (der Simulator misst damit, was wann im
+    Prompt stand). **Unabhaengig davon** schreibt jeder Aufruf seit dem
+    06.09.2026 eine Umriss-Zeile ins Log -- nur Zahlen, kein Prompt-Inhalt.
 
     Passt der Koerper nicht ins Zielbudget ZIEL, greift die zweistufige
     Kuerzung aus § 7.2: erst fliegen die Volltranskripte ganz raus, dann wird
@@ -921,7 +1093,42 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
             f"Nutzertext von {vorher} auf {nachher} Zeichen gekuerzt "
             f"(Grenze {grenze}, Ziel {ZIEL} Token)",
         )
+        # **Der zweite Vorfalltyp** (Audit 06.09.2026, Auftrag 1; Vorbild
+        # hermes-agent ``should_compress_info`` mit Grund-Rueckgabe:
+        # *"Without this signal an over-threshold session fails opaquely."*).
+        # Die vier Kuerzungsstufen sind durch, alles Opferbare ist geopfert --
+        # und der Prompt ist immer noch zu gross, weil Kernpaket, Arbeitsstand,
+        # Hinweise, Szene und Ausloeser nie angetastet werden (Befund C.4:
+        # gemessen 105.988 Zeichen bei einer ueberlangen Szene, 4,4x ueber der
+        # Grenze). Ohne diese Zeile steht auf dem Dashboard "gekuerzt", nicht
+        # "reicht nicht" -- und ein Mechanismus, der sein Ziel verfehlt, ist
+        # von einem, der es erreicht, nicht unterscheidbar.
+        if _zu_lang():
+            uebrig = umriss(bloecke, True)
+            log.warning("Kuerzung erfolglos, chat_id=%s: %s", chat_id,
+                        umrisszeile(uebrig))
+            repo.merke_vorfall(
+                conn, chat_id, getattr(e, "bot_name", None),
+                "kontext_kuerzung_erfolglos",
+                f"Nutzertext nach vollstaendiger Kuerzung noch {nachher} Zeichen "
+                f"(Grenze {grenze}) -- alle Kuerzungsstufen durchlaufen, "
+                f"ungekuerzte Bloecke zu gross: {umrisszeile(uebrig)}",
+            )
+
+    stand = umriss(bloecke, gekuerzt)
+    # **Im Betrieb mitschreiben** (Audit 06.09.2026, Auftrag 1). Bis hierher
+    # lieferte ``umriss()`` genau die Aufschluesselung, die hermes-agent in
+    # ``context_breakdown.py`` fuer die Anzeige baut -- aber nur, wenn
+    # ``protokoll`` uebergeben wurde, und das tat im Betrieb niemand
+    # (Befund B, Zeile "Verlust sichtbar machen": *"Wir haben das Werkzeug und
+    # schalten es im Betrieb ab."*). Die Zeile steht hier und nicht beim
+    # Aufrufer, damit sie **jeden** Pfad erfasst -- Gespraechszug, Auftragszug,
+    # Erstkontakt, Messskript: ein durchgereichter Parameter waere genau der
+    # Weg gewesen, auf dem sie beim naechsten neuen Aufrufer wieder fehlt.
+    # Am Workshoptag ist die wichtigste Faehigkeit, einen Fehler zu SEHEN,
+    # waehrend er passiert. Eine Logzeile je Zug, nur Zahlen, kein Inhalt.
+    log.info("%s chat_id=%s", umrisszeile(stand), chat_id)
 
     if protokoll is not None:
-        protokoll.append(umriss(bloecke, gekuerzt))
+        protokoll.append(stand)
     return _zusammen(bloecke)

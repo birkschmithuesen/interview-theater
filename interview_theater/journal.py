@@ -26,13 +26,16 @@ verwirft.
 
 **Verdraengung statt Dauerschwelle** (analog Absichtserkenner-Wasserzeichen,
 aber mit eigenem Auslaeser): das kurze Fenster, das ``kontext.baue()`` in den
-Gespraechs-Prompt gibt, umfasst ungefaehr ``kontext.BUDGETS["fenster"]``
-geschaetzte Token. Waechst der Verlauf weiter, faellt irgendwann ein
-Abschnitt aus diesem Fenster -- das ist der Moment, in dem der Extraktor
-etwas zu tun bekommt. ``berechne_verdraengten_abschnitt()`` ist bewusst eine
-eigenstaendige, ungebundene Funktion (nicht in ``extrahiere()`` verschachtelt),
-damit sie ohne Datenbank und ohne Sprachmodell-Attrappe fuer sich alleine
-getestet werden kann.
+Gespraechs-Prompt gibt, ist ueber ``kontext.fenster_grenzen()`` bemessen.
+Waechst der Verlauf weiter, faellt irgendwann ein Abschnitt aus diesem
+Fenster -- das ist der Moment, in dem der Extraktor etwas zu tun bekommt.
+``berechne_verdraengten_abschnitt()`` fragt dafuer **dieselbe** Funktion, die
+den Fensterblock baut (``kontext.waehle_fenster``), statt eine eigene Zahl
+danebenzustellen: genau daran ist die Kopplung bis zum 06.09.2026
+auseinandergelaufen (Audit-Befund C.3). Sie ist bewusst eine eigenstaendige,
+ungebundene Funktion (nicht in ``extrahiere()`` verschachtelt), damit sie
+ohne Datenbank und ohne Sprachmodell-Attrappe fuer sich alleine getestet
+werden kann.
 
 **Fehlerhaltung wie beim Absichtserkenner** (global-constraints.md
 'Fehlerhaltung'): laeuft nachgelagert, niemand wartet darauf. Bei Erfolg
@@ -84,7 +87,16 @@ TEMPERATURE = 0.2
 #: wuerde jeder einzelne, winzige Verdraengungsschritt (ein paar Worte) einen
 #: eigenen Aufruf ausloesen -- Latenz- und Kostenlast ohne Ertrag, weil ein
 #: derart kurzer Ausschnitt so gut wie nie etwas Journalwuerdiges enthaelt.
-SCHWELLE_VERDRAENGUNG = 2000
+#:
+#: **2.000 -> 600 am 06.09.2026** (Audit, Befund C.3, Auftrag 2). Die 2.000
+#: waren gegen ein 8.000-Token-Fenster gesetzt, also gegen ein Viertel davon.
+#: Das reale Fenster ist seit dem Umbau rund 4.000 Token gross
+#: (``kontext.FENSTER_ZEICHEN`` = 12.000 Zeichen) -- 2.000 waeren die Haelfte
+#: des Fensters, und gemessen sprang der Extraktor an Tag 1 in **allen drei**
+#: echten Betriebsgruppen **kein einziges Mal** an (Wasserzeichen bei allen
+#: auf 0, kein einziger ``extraktor``-Eintrag im Betriebsjournal). 600 Token
+#: halten dasselbe Verhaeltnis zum neuen Fenster, das 2.000 zum alten hatten.
+SCHWELLE_VERDRAENGUNG = 600
 
 #: Wie viele der zuletzt geschriebenen Journaleintraege dem Prompt als
 #: Dedup-Referenz beigelegt werden (gedaechtnis-extraktion-agenten.md § 2.6:
@@ -121,38 +133,38 @@ SCHEMA = {
 
 
 def berechne_verdraengten_abschnitt(nachrichten: list) -> list:
-    """Liefert genau den Abschnitt, der aus dem kurzen Fenster
-    (``kontext.BUDGETS["fenster"]`` geschaetzte Token) gefallen ist -- oder
-    eine leere Liste, wenn entweder noch nichts verdraengt wurde oder der
-    verdraengte Teil kleiner als ``SCHWELLE_VERDRAENGUNG`` ist.
+    """Liefert genau den Abschnitt, der aus dem kurzen Fenster gefallen ist
+    -- oder eine leere Liste, wenn entweder noch nichts verdraengt wurde oder
+    der verdraengte Teil kleiner als ``SCHWELLE_VERDRAENGUNG`` ist.
+
+    **Die Fenstergrenze kommt aus ``kontext.waehle_fenster()``** -- derselben
+    Funktion, die den Fensterblock des Gespraechs-Prompts baut (Audit
+    06.09.2026, Befund C.3, Auftrag 2). Vorher rechnete diese Funktion gegen
+    ``kontext.BUDGETS["fenster"] = 8000`` Token, waehrend das reale Fenster
+    seit dem Fensterumbau ganz anders bemessen war: gemessen hielt sie
+    **31 Nachrichten fuer "noch im Fenster"**, waehrend der Prompt nur 20
+    sah. Die Nachrichten 21-31 waren aus dem Prompt verschwunden, galten hier
+    aber als anwesend -- sie wurden nie journalisiert und standen danach
+    nirgends mehr. Ein Loch von elf Nachrichten Breite, das mit jedem Zug
+    mitwanderte.
+
+    Zwei Zahlen nebeneinander laufen auseinander, sobald eine davon geaendert
+    wird; eine Funktion, die beide lesen, kann das nicht. ``tests/
+    test_journal.py`` haelt die Kopplung als Regressionstest fest.
 
     ``nachrichten`` ist chronologisch aufsteigend (aeltester zuerst) und
     ungefiltert (wie ``repo.unjournalisierte`` sie liefert) -- typischerweise
     alles seit dem Journal-Wasserzeichen. Diese Funktion beruehrt weder die
     Datenbank noch ein Sprachmodell und laesst sich deshalb ohne beides
-    testen.
-
-    Vorgehen: die juengste Nachricht gehoert immer zum Fenster (ein Fenster
-    ist nie leer, auch wenn schon sie allein das Budget sprengt). Von dort
-    rueckwaerts werden weitere Nachrichten aufgenommen, solange die Summe
-    unter dem Budget bleibt -- die erste, die es sprengen wuerde, und alles
-    davor ist "aus dem Fenster gefallen". Bleibt die Summe ueber die ganze
-    Liste unter dem Budget, ist noch gar nichts verdraengt (die Liste vorn
-    ist dann leer)."""
+    testen."""
     if not nachrichten:
         return []
 
-    letzter_index = len(nachrichten) - 1
-    kumuliert = kontext.schaetze(kontext.sprecherzeile(nachrichten[letzter_index]))
-    fenster_beginnt_bei = letzter_index
-    for index in range(letzter_index - 1, -1, -1):
-        groesse = kontext.schaetze(kontext.sprecherzeile(nachrichten[index]))
-        if kumuliert + groesse > kontext.BUDGETS["fenster"]:
-            break
-        kumuliert += groesse
-        fenster_beginnt_bei = index
-
-    verdraengt = nachrichten[:fenster_beginnt_bei]
+    im_fenster = kontext.waehle_fenster(nachrichten)
+    # Identitaet, nicht Gleichheit: zwei Nachrichten koennen denselben Text
+    # tragen (ein "ja" ist haeufig), und ``sqlite3.Row`` ist nicht hashbar.
+    im_fenster_ids = {id(n) for n in im_fenster}
+    verdraengt = [n for n in nachrichten if id(n) not in im_fenster_ids]
     if not verdraengt:
         return []
 

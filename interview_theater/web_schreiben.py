@@ -41,7 +41,7 @@ erzeugt es beim naechsten Zug im eigenen Thread nach, und ein Journaleintrag
 "Sprachprofil neu noetig" haelt fest, warum.
 """
 
-from interview_theater import phasen, repo
+from interview_theater import repo
 
 #: Was im Journal als Quelle steht. Neben ``extraktor``, ``befehl`` und
 #: ``knopf`` -- damit im Nachhinein unterscheidbar bleibt, was im Chat und
@@ -77,27 +77,33 @@ FORMEN = ("dialog", "monolog", "chor", "lied", "rap")
 #: ``figuren_fixiert_am`` sind Merkposten der Knopfwege und keine Parameter
 #: des Stuecks.
 ARBEITSSTANDFELDER = {
-    "begriffe": "Begriffe",
-    "fragen": "Fragen",
-    # Die Verfeinerungsebene der Fragen (Phase 2, 06.09.2026). Sie stehen hier
-    # als Textfelder und nicht als Auswahl: Einleitung, Eroeffnung und
-    # Abschluss sind Formulierungen, keine Optionen -- im Chat entstehen sie
-    # ueber Ping-Pong mit der Grundleiste, hier tippt man sie um. Aus ihnen
-    # baut ``leitfaden.aus_feldern`` den Leitfaden, der darunter read-only
-    # steht.
-    "frage_einleitungen": "Einleitungen zu den Fragen",
-    "interview_eroeffnung": "Interview-Eröffnung",
-    "interview_abschluss": "Interview-Abschluss",
     # ``rahmen`` heisst seit dem Phasen-Umbau nach aussen **Setting** (Ort,
     # Zeit, Anlass) -- der Spaltenname bleibt, die Beschriftung folgt dem, was
     # die Gruppe im Chat hoert (AGENTS.md, "Phase 4 heisst Setting & Figuren").
     "rahmen": "Setting",
     # Die Geschichte im Groben (Phase 5): Bogen und Ende. Sie hat die Rolle
-    # uebernommen, die frueher das Kernthema hatte -- deshalb ist sie
-    # editierbar und Kernthema/Kernfrage/Kernthema-Richtung sind es nicht
-    # mehr (siehe ``NUR_ANZEIGE``).
+    # uebernommen, die frueher das Kernthema hatte.
     "geschichte": "Geschichte",
 }
+
+#: **Was der Chat führt** (Birk, 06.09.2026 10:25). Diese Felder stehen auf der
+#: Gruppenseite an ihrem gewohnten Platz -- die Phase ganz oben, Begriffe und
+#: Fragen darunter --, aber als Anzeige. Sie entstehen im Gespräch über Knöpfe
+#: und Ping-Pong, oft mit einem Modellaufruf dahinter (Sensibilitätsprüfung,
+#: Eröffnung/Abschluss), und der Webserver hat keinen Modellklienten. Sie hier
+#: umtippen zu lassen hieße, denselben Wert auf zwei Wegen zu pflegen, von
+#: denen einer die halbe Kette auslässt. Von den drei Leitfaden-Feldern steht
+#: gar nicht das Rohfeld auf der Seite, sondern der **gebaute Leitfaden**
+#: (``leitfaden.aus_feldern``): das, was die Gruppe im Interview in der Hand
+#: hält.
+#:
+#: Reine Dokumentation dessen, was ``FELDER`` nicht enthält -- gerendert wird
+#: nach dieser Liste nichts (das tut ``web._bearbeiten_html`` an Ort und
+#: Stelle). Der Test dazu hält beides zusammen.
+FUEHRT_DER_CHAT = (
+    "phase", "begriffe", "fragen",
+    "frage_einleitungen", "interview_eroeffnung", "interview_abschluss",
+)
 
 #: Was die Gruppenseite **anzeigt, aber nicht mehr ändert** -- die Felder der
 #: alten Dramaturgie (Umbau 05.09.2026 nachts). Kernthema, Kernfrage und
@@ -106,6 +112,9 @@ ARBEITSSTANDFELDER = {
 #: Formular dafür wäre eine Einladung, an einer Stelle weiterzuarbeiten, die
 #: der Bot nicht mehr anbietet -- gesetzte Werte einer bestehenden Gruppe
 #: sollen trotzdem sichtbar bleiben, statt stumm zu verschwinden.
+#:
+#: Anders als ``FUEHRT_DER_CHAT`` wird hiernach wirklich gerendert
+#: (``web._altbestand_html``), und zwar nur, was gesetzt ist.
 NUR_ANZEIGE = {
     "kernthema": "Kernthema",
     "kernthema_richtung": "Kernthema-Richtung",
@@ -228,20 +237,13 @@ def _szenenname(zeile) -> str:
 # --- Die einzelnen Parameter ----------------------------------------------
 
 
-def _setze_phase(conn, chat_id: int, wert, ziel) -> str:
-    """Die Arbeitsphase, ueber ``phasen.setze`` -- denselben Weg, den
-    ``/phase`` und der Phasenknopf nehmen.
-
-    ``phasen.setze`` schreibt seinen Journaleintrag selbst (art
-    ``entschieden``, hier mit ``quelle='web'``); der Klammerzusatz sagt, auf
-    welchem Weg. Ein zweiter Eintrag von hier waere dieselbe Nachricht
-    doppelt."""
-    text = _text(wert)
-    if not text.isdigit() or not (1 <= int(text) <= phasen.LETZTE):
-        raise Fehler(f"Phase muss eine Zahl von 1 bis {phasen.LETZTE} sein.")
-    nummer = int(text)
-    phasen.setze(conn, chat_id, nummer, QUELLE, notiz="über die Gruppenseite")
-    return str(nummer)
+# Die Phase setzt allein die Gruppe -- und zwar im Chat (AGENTS.md,
+# "Die Phase setzt allein die Gruppe"). Sie stand hier einmal als Dropdown und
+# ist am 06.09.2026 wieder herausgenommen worden (Birk): der Bot bietet den
+# Wechsel im Fluss an, sobald die Materiallage ihn hergibt
+# (``knoepfe.biete_phase_proaktiv``), und ein zweiter Weg daneben macht aus
+# einem Angebot eine Einstellung. Auf der Gruppenseite steht die Phase weiter
+# ganz oben -- als Anzeige, die alles darunter einordnet.
 
 
 def _setze_arbeitsstand(feld: str):
@@ -410,7 +412,6 @@ def _interviews(conn, chat_id: int) -> list[dict]:
 #: Unterschied zwischen "read-only mit Ausnahmen" und "beschreibbar mit
 #: Grenzen".
 FELDER = {
-    "phase": _setze_phase,
     **{feld: _setze_arbeitsstand(feld) for feld in ARBEITSSTANDFELDER},
     "figur_name": _setze_figurenfeld("name", "Name"),
     "figur_beschreibung": _setze_figurenfeld("beschreibung", "Beschreibung"),

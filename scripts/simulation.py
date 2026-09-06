@@ -79,13 +79,14 @@ VERSUCHE_429 = 3
 TIMEOUT_S = 180.0
 
 #: Auf diesen Wert setzt ``--fenster-klein`` das Fensterbudget des
-#: Kontextaufbaus. Der Journal-Extraktor laeuft nur, wenn etwas aus dem
-#: Fenster faellt (``journal.berechne_verdraengten_abschnitt``) -- bei 8.000
-#: Token faellt in einem Simulationslauf nie etwas heraus, und der Extraktor
-#: bliebe ungemessen. 1.500 ist klein genug, dass Verdraengung schon im
-#: Interviewteil eintritt, und gross genug, dass der Bot noch ein Gespraech
-#: fuehren kann.
-FENSTER_KLEIN = 1500
+#: Kontextaufbaus (``kontext.FENSTER_ZEICHEN``, in ZEICHEN seit dem Umbau vom
+#: 06.09.2026). Der Journal-Extraktor laeuft nur, wenn etwas aus dem
+#: Fenster faellt (``journal.berechne_verdraengten_abschnitt``) -- bei den
+#: regulaeren 12.000 Zeichen faellt in einem Simulationslauf selten etwas
+#: heraus, und der Extraktor bliebe ungemessen. 4.500 Zeichen (~1.500 Token)
+#: sind klein genug, dass Verdraengung schon im Interviewteil eintritt, und
+#: gross genug, dass der Bot noch ein Gespraech fuehren kann.
+FENSTER_KLEIN = 4500
 
 
 class LLMMitPause:
@@ -200,7 +201,7 @@ def baue_argumente(argv=None) -> argparse.Namespace:
                    help="N Laeufe gleichzeitig in Threads gegen denselben "
                         "Anbieter -- misst, wie oft er dabei drosselt")
     p.add_argument("--fenster-klein", action="store_true",
-                   help="kontext.BUDGETS['fenster'] auf "
+                   help="kontext.FENSTER_ZEICHEN auf "
                         f"{FENSTER_KLEIN} setzen, damit Verdraengung eintritt "
                         "und der Journal-Extraktor ueberhaupt laeuft")
     p.add_argument("--alle", action="store_true",
@@ -410,22 +411,24 @@ def einen_lauf(args, e, klient, mischung: str, sim=None, ordner=None) -> dict:
 
 @contextlib.contextmanager
 def fenster_klein(an: bool):
-    """Setzt ``kontext.BUDGETS['fenster']`` herunter und danach zurueck.
+    """Setzt ``kontext.FENSTER_ZEICHEN`` herunter und danach zurueck.
 
     Ein Modulwert und kein Argument: das Budget wird an zwei Stellen gelesen
     (``kontext.baue`` und ``journal.berechne_verdraengten_abschnitt``), und
     beide muessten dasselbe Argument durchgereicht bekommen, damit die
     Verdraengung, die der Kontextaufbau erzeugt, auch die ist, die der
-    Extraktor sieht."""
+    Extraktor sieht. Seit dem 06.09.2026 lesen beide ueber
+    ``kontext.fenster_grenzen()`` denselben Modulwert -- das Zurueckstellen
+    hier wirkt damit auf beide."""
     if not an:
         yield
         return
-    alt = kontext.BUDGETS["fenster"]
-    kontext.BUDGETS["fenster"] = FENSTER_KLEIN
+    alt = kontext.FENSTER_ZEICHEN
+    kontext.FENSTER_ZEICHEN = FENSTER_KLEIN
     try:
         yield
     finally:
-        kontext.BUDGETS["fenster"] = alt
+        kontext.FENSTER_ZEICHEN = alt
 
 
 def main(argv=None) -> int:

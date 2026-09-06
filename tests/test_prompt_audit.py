@@ -228,6 +228,84 @@ def test_ausloeser_ueberlebt_jede_kuerzung(spaetstand, einst):
     assert "worauf einigen wir uns jetzt" in prompt
 
 
+# --- Auftrag 1: Umriss im Betrieb, Vorfall bei erfolgloser Kuerzung --------
+
+
+def test_ein_zug_schreibt_eine_umrisszeile_mit_allen_blocknamen(
+        spaetstand, einst, caplog):
+    """**Auftrag 1 des Audits vom 06.09.2026.** ``kontext.umriss()`` lieferte
+    die Aufschluesselung schon immer -- aber nur bei uebergebenem
+    ``protokoll``, und das tat im Betrieb niemand (*"Wir haben das Werkzeug
+    und schalten es im Betrieb ab"*). Jetzt schreibt jeder Zug eine Zeile.
+
+    Geprueft wird auch, dass **kein Prompt-Inhalt** in der Zeile steht: sie
+    geht ins Betriebslog, und dort haben Nachrichtentexte nichts verloren."""
+    ausloeser = [repo.hole_nachricht(spaetstand, 1, 499)]
+    with caplog.at_level("INFO", logger="interview_theater.kontext"):
+        prompt = kontext.baue(spaetstand, 1, ausloeser, einst)
+
+    zeilen = [r.getMessage() for r in caplog.records if "kontext-umriss" in r.getMessage()]
+    assert len(zeilen) == 1, f"genau eine Umriss-Zeile je Zug, nicht {len(zeilen)}"
+    zeile = zeilen[0]
+    assert "gesamt=" in zeile and "gekuerzt=" in zeile
+    for name in ("arbeitsstand", "fenster", "ausloeser"):
+        assert f"{name}=" in zeile, f"Block {name} fehlt im Umriss: {zeile}"
+    # Kein Inhalt: keine der langen Prompt-Zeilen taucht in der Logzeile auf.
+    for prompt_zeile in prompt.splitlines():
+        if len(prompt_zeile.strip()) >= 40:
+            assert prompt_zeile.strip() not in zeile
+
+
+def test_umriss_nennt_die_leeren_bloecke_nicht_und_bleibt_eine_zeile(spaetstand, einst):
+    stand = kontext.umriss({"fenster": "abc" * 10, "journal": ""}, gekuerzt=True)
+    zeile = kontext.umrisszeile(stand)
+    assert "\n" not in zeile
+    assert "journal=" not in zeile, "leere Bloecke blaehen die Betriebszeile auf"
+    assert "fenster=10" in zeile
+    assert "gekuerzt=ja" in zeile
+
+
+def test_erfolglose_kuerzung_schreibt_einen_eigenen_vorfall(
+        spaetstand, einst, monkeypatch):
+    """**Befund C.4 / Auftrag 1**, Vorbild hermes-agent
+    ``should_compress_info``: *"Without this signal an over-threshold session
+    fails opaquely."*
+
+    Erzwungen mit einer Grenze, die selbst die nie angetasteten Bloecke
+    (Kernpaket, Arbeitsstand, Szene, Ausloeser) nicht unterschreiten koennen:
+    alle vier Kuerzungsstufen laufen durch, alles Opferbare ist geopfert, und
+    der Prompt ist trotzdem zu gross. Auf dem Dashboard stand dafuer bisher
+    nur "gekuerzt", nicht "reicht nicht"."""
+    monkeypatch.setenv("IT_PROMPT_ZEICHEN", "2000")
+    ausloeser = [repo.hole_nachricht(spaetstand, 1, 499)]
+    kontext.baue(spaetstand, 1, ausloeser, einst)
+
+    zeilen = spaetstand.execute(
+        "SELECT detail FROM vorfall WHERE art = 'kontext_kuerzung_erfolglos'"
+    ).fetchall()
+    assert zeilen, "eine Kuerzung, die ihr Ziel verfehlt, muss sichtbar sein"
+    detail = zeilen[0]["detail"]
+    assert "nach vollstaendiger Kuerzung" in detail
+    assert "kontext-umriss" in detail, "der Vorfall nennt, welche Bloecke uebrig sind"
+    # Der alte Vorfall steht daneben, nicht statt seiner: beides ist wahr.
+    assert spaetstand.execute(
+        "SELECT 1 FROM vorfall WHERE art = 'kontext_gekuerzt'"
+    ).fetchone()
+
+
+def test_erfolgreiche_kuerzung_schreibt_keinen_erfolglos_vorfall(
+        spaetstand, einst, monkeypatch):
+    """Die Gegenprobe -- sonst waere der neue Vorfall nur Rauschen."""
+    monkeypatch.setenv("IT_PROMPT_ZEICHEN", "12000")
+    ausloeser = [repo.hole_nachricht(spaetstand, 1, 499)]
+    prompt = kontext.baue(spaetstand, 1, ausloeser, einst)
+
+    assert len(prompt) <= 12000
+    assert not spaetstand.execute(
+        "SELECT 1 FROM vorfall WHERE art = 'kontext_kuerzung_erfolglos'"
+    ).fetchone()
+
+
 def test_gespraech_nennt_die_phase_genau_einmal(spaetstand, einst):
     """Der Widerspruch vom 06.09.: der Arbeitsstand sagte Phase 7, das
     Journal Phase 6. Eine Quelle -- ``phasen.aktuelle`` -- und im

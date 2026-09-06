@@ -190,19 +190,53 @@ def letzte_webzeile(conn) -> str:
 
 
 def test_gruppenseite_traegt_die_formulare(basis, token):
-    """Was die Gruppenseite an Bedienelementen haben muss -- nach dem
-    Phasen-Umbau: Phase, Begriffe, Fragen samt Leitfaden-Feldern, Setting,
-    Geschichte, Figuren und die Szenenplanung."""
+    """Was die Gruppenseite an Bedienelementen haben muss (Birk, 06.09. 10:25):
+    Setting, Geschichte, die Figuren und die Szenenplanung -- also genau das,
+    was die Gruppe hier fertig entscheiden kann."""
     status, koerper = hole(f"{basis}/g/{token}")
 
     assert status == 200
     assert "<select" in koerper
-    for feld in ("phase", "begriffe", "fragen", "frage_einleitungen",
-                 "interview_eroeffnung", "interview_abschluss", "rahmen",
-                 "geschichte", "figur_name", "figur_quelle", "figur_entfernen",
-                 "figur_neu", "szene_form", "szene_figuren"):
+    for feld in ("rahmen", "geschichte", "figur_name", "figur_quelle",
+                 "figur_entfernen", "figur_neu", "szene_form", "szene_figuren"):
         assert f'data-feld="{feld}"' in koerper, feld
     assert 'id="nonce"' in koerper
+
+
+def test_was_der_chat_fuehrt_hat_kein_formular(basis, token):
+    """Phase, Begriffe, Fragen und die drei Leitfaden-Felder entstehen im
+    Gespräch -- über Knöpfe und Ping-Pong, oft mit einem Modellaufruf
+    dahinter. Der Webserver hat keinen Modellklienten; sie hier umtippen zu
+    lassen hieße, denselben Wert auf zwei Wegen zu pflegen."""
+    koerper = hole(f"{basis}/g/{token}")[1]
+
+    for feld in web_schreiben.FUEHRT_DER_CHAT:
+        assert f'data-feld="{feld}"' not in koerper, feld
+        assert feld not in web_schreiben.FELDER, feld
+    # Angezeigt werden sie trotzdem -- die Phase ordnet alles darunter ein.
+    assert "<dt>Phase</dt>" in koerper
+    assert phasen.bezeichnung(4).replace("&", "&amp;") in koerper
+    assert "Ankommen, Arbeit, Nacht" in koerper
+    assert "Was war in deinem Koffer?" in koerper
+    # Und jedes genau einmal -- nicht oben als Anzeige und unten noch einmal.
+    assert koerper.count("<dt>Begriffe</dt>") == 1
+    assert koerper.count("<dt>Fragen</dt>") == 1
+
+
+@pytest.mark.parametrize("feld", web_schreiben.FUEHRT_DER_CHAT)
+def test_was_der_chat_fuehrt_laesst_sich_auch_nicht_per_post_setzen(
+    basis, token, conn, feld, wert="Heimlich"
+):
+    """Nicht nur kein Formular: auch ein von Hand geschicktes POST prallt ab.
+    Die Liste ist der Schreibweg, nicht das HTML."""
+    vorher = repo.hole_phase(conn, 1) if feld == "phase" else stand(conn, feld)
+
+    status, text = sende(basis, token, feld, wert)
+
+    assert status == 400
+    assert feld in text
+    nachher = repo.hole_phase(conn, 1) if feld == "phase" else stand(conn, feld)
+    assert nachher == vorher
 
 
 def test_kernthema_ist_nicht_mehr_editierbar_aber_sichtbar(basis, token, conn):
@@ -240,9 +274,6 @@ def test_gesetzte_werte_stehen_wirklich_in_den_formularen(basis, token, conn):
     koerper = hole(f"{basis}/g/{token}")[1]
 
     assert "Sie bleibt, er geht." in koerper
-    assert "Ankommen, Arbeit, Nacht" in koerper
-    assert "Was war in deinem Koffer?" in koerper
-    assert '<option value="4" selected>' in koerper
     assert '<option value="Eine Nacht im Treppenhaus" selected>' in koerper
     # Wert kleingeschrieben wie im Chat, Beschriftung gross wie auf dem Knopf.
     assert '<option value="dialog" selected>Dialog</option>' in koerper
@@ -355,57 +386,9 @@ def test_unbekanntes_feld_bekommt_400(basis, token):
 # --- Je Parameter einmal setzen -------------------------------------------
 
 
-def test_phase_setzen(basis, token, conn):
-    status, antwort = sende(basis, token, "phase", "6")
-
-    assert status == 200
-    assert json.loads(antwort) == {"ok": True, "feld": "phase", "wert": "6", "id": None}
-    assert repo.hole_phase(conn, 1) == 6
-    # Phase 6 heisst seit dem Umbau "Schaerfung" -- der Name kommt aus
-    # phasen.PHASEN, hier steht er nur als Erwartung.
-    assert ("entschieden", "web", "Phase 6 · Szenentexte (über die Gruppenseite)") \
-        in journalzeilen(conn)
-
-
-@pytest.mark.parametrize("wert", ["0", "9", "vier", ""])
-def test_phase_ausserhalb_1_bis_7_bekommt_400(basis, token, conn, wert):
-    """Acht Phasen seit dem Umbau (05.09.2026 nachts). Die Grenze steht nicht
-    hier, sondern in ``phasen.LETZTE`` -- dieser Test hält nur fest, dass sie
-    überhaupt gezogen wird."""
-    status, text = sende(basis, token, "phase", wert)
-
-    assert status == 400
-    assert f"1 bis {phasen.LETZTE}" in text
-    assert repo.hole_phase(conn, 1) == 4
-
-
-def test_phasen_dropdown_zeigt_alle_sieben_mit_namen(basis, token):
-    """Sieben Optionen, beschriftet aus ``phasen.PHASEN`` -- die Liste steht
-    dort und wird im Web nicht zweitgepflegt. Verglichen wird gegen den
-    maskierten Namen: "Setting & Figuren" steht als "Setting &amp; Figuren"
-    im HTML."""
-    import html as html_modul
-
-    koerper = hole(f"{basis}/g/{token}")[1]
-
-    assert len(phasen.PHASEN) == 7
-    for nummer, name, _ in phasen.PHASEN:
-        assert f'<option value="{nummer}"' in koerper
-        assert html_modul.escape(phasen.bezeichnung(nummer)) in koerper, name
-    assert '<option value="4" selected>' in koerper
-
-
 @pytest.mark.parametrize(
     "feld,wert,label",
     [
-        ("begriffe", "Ankommen, Nacht, Koffer", "Begriffe"),
-        ("fragen", "Was war im Koffer?\nWer hat gewartet?", "Fragen"),
-        ("frage_einleitungen", "2 — vorher sagen: nur wenn du magst",
-         "Einleitungen zu den Fragen"),
-        ("interview_eroeffnung", "Wir schreiben ein Stueck.",
-         "Interview-Eröffnung"),
-        ("interview_abschluss", "Danke, dass du Zeit hattest.",
-         "Interview-Abschluss"),
         ("rahmen", "Ein Bahnhof im Winter", "Setting"),
         ("geschichte", "Sie bleibt, er geht — und am Ende singen beide.",
          "Geschichte"),
@@ -671,10 +654,13 @@ def test_leitfaden_steht_read_only_unter_seinen_feldern(basis, token, conn):
     assert "Danke fuer die Zeit." in koerper
 
 
-def test_leitfaden_folgt_einer_aenderung_ueber_die_seite(basis, token, conn):
-    """Die Probe aufs Exempel: ein Feld ändern, und der gebaute Leitfaden
-    darunter zieht mit."""
-    sende(basis, token, "interview_eroeffnung", "Wir sind vom Theaterprojekt.")
+def test_leitfaden_folgt_dem_chat(basis, token, conn):
+    """Die Probe aufs Exempel: ändert der Chat ein Quellfeld, zieht der
+    gebaute Leitfaden auf der Seite mit -- er wird bei jedem Aufruf neu aus
+    denselben Feldern gebaut wie im Chat, nicht zwischengespeichert."""
+    repo.setze_arbeitsstand(
+        conn, 1, "interview_eroeffnung", "Wir sind vom Theaterprojekt."
+    )
 
     koerper = hole(f"{basis}/g/{token}")[1]
 
@@ -692,7 +678,7 @@ def test_leitfaden_folgt_einer_aenderung_ueber_die_seite(basis, token, conn):
 def test_ohne_fragen_kein_leitfaden(basis, token, conn):
     """Ohne Fragen gibt es keinen Leitfaden -- dann fehlt die Zeile ganz,
     statt als leere Aufgabe dazustehen."""
-    sende(basis, token, "fragen", "")
+    repo.setze_arbeitsstand(conn, 1, "fragen", None)
 
     koerper = hole(f"{basis}/g/{token}")[1]
 
@@ -798,11 +784,48 @@ def test_alle_felder_schreiben_ins_journal(basis, token, conn):
     einzige Art, wie der Gespraechs-Bot von einer Web-Aenderung erfaehrt
     (kontext._baue_journal)."""
     vorher = len([1 for _, quelle, _ in journalzeilen(conn) if quelle == "web"])
-    sende(basis, token, "begriffe", "Koffer")
-    sende(basis, token, "phase", "5")
+    sende(basis, token, "rahmen", "Ein Bahnhof im Winter")
+    sende(basis, token, "geschichte", "Sie bleibt.")
 
     nachher = [t for _, quelle, t in journalzeilen(conn) if quelle == "web"]
     assert len(nachher) == vorher + 2
+
+
+def test_setting_und_geschichte_sind_unabhaengig(basis, token, conn):
+    """Birk, 06.09.2026 10:25: keine automatische Geschichte, kein Auftrag an
+    den Bot. Ein neues Setting ändert die Geschichte nicht und legt auch
+    nichts an, was sie später ändern würde -- beide Felder stehen
+    nebeneinander und werden einzeln entschieden."""
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Sie bleibt, er geht.")
+
+    sende(basis, token, "rahmen", "Ein Bahnhof im Winter")
+
+    assert stand(conn, "geschichte") == "Sie bleibt, er geht."
+    # Genau ein Journaleintrag, und der spricht nur vom Setting.
+    neu = [t for _, quelle, t in journalzeilen(conn) if quelle == "web"]
+    assert len(neu) == 1
+    assert neu[0].startswith("Setting geändert über die Gruppenseite")
+
+    # Und umgekehrt.
+    sende(basis, token, "geschichte", "Beide bleiben.")
+    assert stand(conn, "rahmen") == "Ein Bahnhof im Winter"
+
+
+def test_kein_auftragsweg_vom_web_an_den_bot(conn):
+    """Es gibt keine Auftragstabelle und keinen Nachhol-Weg vom Webserver zum
+    Bot (Birk, 06.09.2026 10:25: „lass das für jetzt weg"). Die Gruppenseite
+    schreibt, was sie schreibt, und sonst nichts."""
+    from pathlib import Path
+
+    tabellen = {
+        z["name"]
+        for z in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
+    assert "web_auftrag" not in tabellen
+
+    for modul in (web_schreiben, web_daten, web):
+        quelltext = Path(modul.__file__).read_text(encoding="utf-8")
+        assert "web_auftrag" not in quelltext, modul.__name__
 
 
 def test_web_schreiben_hat_kein_sql():
@@ -833,60 +856,3 @@ def test_bot_sieht_die_aenderung_im_journalblock(basis, token, conn):
 
     block = kontext._baue_journal(conn, 1)
     assert "Geschichte geändert über die Gruppenseite" in block
-
-
-# --- Stueckpruefung: read-only auf der Gruppenseite (06.09.2026) ----------
-
-
-def test_ohne_pruefrunde_fehlt_der_block(basis, token):
-    """Eine leere Ueberschrift saehe aus wie eine offene Aufgabe -- dabei ist
-    die Pruefung erst in der letzten Phase dran."""
-    koerper = hole(f"{basis}/g/{token}")[1]
-
-    assert "Stückprüfung" not in koerper
-
-
-def test_die_letzte_pruefrunde_steht_read_only_auf_der_seite(basis, token, conn):
-    """Der Befund ist ein Urteil ueber den EIGENEN Text der Gruppe -- kein
-    Interviewmaterial, kein Zitat. Er darf deshalb dort stehen, wo die
-    Kurzformen stehen. Nichts zum Anklicken: "Szene N ueberarbeiten" und
-    "Noch eine Pruefrunde" gibt es im Chat, wo die Gruppe entscheidet."""
-    repo.lege_stueckpruefung_an(conn, 1, [
-        {"frage": "Spannungsbogen", "bewertung": 3,
-         "begruendung": "Der Auftakt traegt, danach flacht es ab.",
-         "vorschlag": "Kuerz Szene 2 auf den Kippmoment.", "szene_nummer": 2},
-        {"frage": "Sprechbarkeit", "bewertung": 5,
-         "begruendung": "Die Saetze liegen gut im Mund.",
-         "vorschlag": None, "szene_nummer": None},
-    ], runde=1)
-
-    koerper = hole(f"{basis}/g/{token}")[1]
-
-    assert "Stückprüfung Runde 1" in koerper
-    assert "Spannungsbogen 3/5" in koerper
-    assert "Der Auftakt traegt" in koerper
-    assert "Vorschlag: Szene 2: Kuerz Szene 2 auf den Kippmoment." in koerper
-    assert "Sprechbarkeit 5/5" in koerper
-    # Read-only: keine Eingabefelder und keine Knoepfe in diesem Block.
-    block = koerper.split("Stückprüfung Runde 1", 1)[1].split("</ul>", 1)[0]
-    assert "<input" not in block
-    assert "<button" not in block
-
-
-def test_nur_die_letzte_runde_steht_da(basis, token, conn):
-    """Additiv gespeichert, aber nicht additiv gezeigt: die Seite ist der
-    Stand, nicht das Archiv."""
-    repo.lege_stueckpruefung_an(conn, 1, [
-        {"frage": "Spannungsbogen", "bewertung": 2,
-         "begruendung": "Erste Runde.", "vorschlag": None, "szene_nummer": None},
-    ], runde=1)
-    repo.lege_stueckpruefung_an(conn, 1, [
-        {"frage": "Spannungsbogen", "bewertung": 4,
-         "begruendung": "Zweite Runde.", "vorschlag": None, "szene_nummer": None},
-    ], runde=2)
-
-    koerper = hole(f"{basis}/g/{token}")[1]
-
-    assert "Stückprüfung Runde 2" in koerper
-    assert "Zweite Runde." in koerper
-    assert "Erste Runde." not in koerper

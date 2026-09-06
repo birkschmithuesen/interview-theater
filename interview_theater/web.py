@@ -387,6 +387,14 @@ table.uebersicht .umfang { white-space: nowrap; opacity: .7;
 /* Die Schaerfung: read-only, deshalb ohne Kasten und ohne Knopf. */
 .schaerfung { font-size: .85rem; margin: .3rem 0 .5rem; opacity: .85; }
 .schaerfung ul { margin: .1rem 0 0; }
+/* Die Dramaturgie-Pruefung: ebenfalls read-only. Die Schwere faerbt, mehr
+   nicht -- entschieden wird im Chat. */
+.befund { font-size: .9rem; margin: .35rem 0; padding-left: .6rem;
+          border-left: 3px solid #d8d0bd; }
+.befund.hart { border-left-color: #a12b2b; }
+.befund.blocker, .befund.hoch { border-left-color: #a12b2b; }
+.befund .marke { font-size: .75rem; opacity: .6; }
+.befund .vorschlag { display: block; font-size: .82rem; opacity: .8; }
 .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
 .figur .marke { font-size: .78rem; opacity: .6; }
 .hinzu { margin-top: .8rem; }
@@ -686,6 +694,43 @@ def _schaerfungen_html(kurzformen, was: str = "Schärfung") -> str:
     return (
         f'<div class="schaerfung"><b>{_t(was)} ({len(kurzformen)})</b>'
         f"<ul>{zeilen}</ul></div>"
+    )
+
+
+def _dramaturgie_html(daten: dict) -> str:
+    """Der Abschnitt „Dramaturgie-Prüfung" auf der Gruppenseite: die Befunde
+    der letzten Runde, **read-only** und **ohne Belegzitat**.
+
+    Dieselbe Grenze wie bei den Verdichtungen (AGENTS.md, „Drei Grenzen"): das
+    Belegzitat ist der Nachweis, mit dem der Code den Befund zugelassen hat,
+    nicht der Text für die Seite — und eine Seite ohne Login ist nicht der
+    Ort, an dem geprüfte und ungeprüfte Zitate nebeneinander stehen.
+
+    Ohne gelaufene Runde fehlt der Abschnitt ganz, statt als leere
+    Überschrift dazustehen."""
+    runde = (daten or {}).get("runde")
+    befunde = (daten or {}).get("befunde") or []
+    if not runde or not befunde:
+        return ""
+    zeilen = []
+    for b in befunde:
+        schwere = (b.get("schwere") or "").lower()
+        marke = b.get("pruefung") or ""
+        if b.get("szene") is not None:
+            marke = f"Szene {b['szene']} · {marke}"
+        vorschlag = (b.get("vorschlag") or "").strip()
+        zusatz = (
+            f'<span class="vorschlag">{_t(vorschlag)}</span>' if vorschlag else ""
+        )
+        zeilen.append(
+            f'<div class="befund {html.escape(schwere)}">'
+            f'<span class="marke">{_t(marke)}</span><br>{_t(b.get("text"))}'
+            f"{zusatz}</div>"
+        )
+    return (
+        f"<h2>Dramaturgie-Prüfung</h2>"
+        f'<p class="leer">Runde {int(runde)}, {len(befunde)} Befunde. '
+        "Entschieden wird im Chat.</p>" + "".join(zeilen)
     )
 
 
@@ -1267,6 +1312,7 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
         "<h2>Arbeitsstand</h2>"
         f"{stand}\n"
         f"<h2>Szenen</h2>{uebersicht}{szenen}\n"
+        f"{_dramaturgie_html(daten.get('dramaturgie'))}\n"
         f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
         "<h2>Der Weg dahin</h2>"
         f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",

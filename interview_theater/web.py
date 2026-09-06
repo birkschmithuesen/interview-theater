@@ -340,6 +340,14 @@ details { margin-top: .5rem; }
 summary { cursor: pointer; font-weight: 600; }
 details.szene, details.verdichtung { border-bottom: 1px solid #e6e1d6;
                                      padding-bottom: .5rem; }
+/* Die Kernbegriffe je Interview als Chips (06.09.2026). Kompakt und im
+   bestehenden Ton der Seite -- dieselbe Rundung und dieselbe Sandfarbe wie
+   .art, nur mit Rahmen statt Flaeche, damit sie neben der Themenzeile nicht
+   um Aufmerksamkeit ringen. */
+.begriffe { display: flex; flex-wrap: wrap; gap: .3rem; margin: .1rem 0 .5rem; }
+.begriff { display: inline-block; font-size: .76rem; padding: .1rem .55rem;
+           border-radius: .8rem; border: 1px solid #c9b98d; background: #f2ede1;
+           color: #4a4032; }
 /* Das Sprachprofil einer Figur: mehrzeilig, so wie es gespeichert ist. */
 .profil { white-space: pre-wrap; font-size: .92rem; opacity: .8;
           margin: .2rem 0 .3rem; }
@@ -1154,6 +1162,23 @@ def _szenenuebersicht_html(zeilen: list[dict]) -> str:
     )
 
 
+def _begriffe_html(begriffe: list[str] | None) -> str:
+    """Die Kernbegriffe eines Interviews als Chips (06.09.2026).
+
+    Sie stehen aufgeklappt ganz oben, vor der Zusammenfassung: die Frage
+    \"worum geht es hier\" beantwortet der Begriff schneller als ein Absatz.
+    Keine Begriffe heisst keine Zeile -- ein leerer Kasten waere ein Hinweis
+    auf etwas, das die Gruppe nicht vermisst (sie hat vielleicht noch keine
+    Begriffe festgelegt).
+
+    Read-only: die Zuordnung entsteht beim Verdichten, nicht hier."""
+    begriffe = [b for b in (begriffe or []) if b]
+    if not begriffe:
+        return ""
+    chips = "".join(f'<span class="begriff">{_t(b)}</span>' for b in begriffe)
+    return f'<div class="begriffe">{chips}</div>'
+
+
 def _interview_html(v: dict) -> str:
     """Ein Interview als aufklappbarer Block (N6).
 
@@ -1184,6 +1209,7 @@ def _interview_html(v: dict) -> str:
     )
     inhalt = (
         f'<p class="zeit">{_zeitpunkt(v.get("beginn"))}{_umfang(v["teile"], v["dauer_sekunden"])}</p>'
+        + _begriffe_html(v.get("begriffe"))
         + (
             f'<p class="zusammenfassung">{_t(v["zusammenfassung"], "")}</p>{themen}'
             if v["zusammenfassung"]

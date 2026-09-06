@@ -21,7 +21,7 @@ import httpx
 
 from interview_theater import (
     ablauf, aufnahme, befehle, db, einstellungen, erkenner, journal, knoepfe, phasen,
-    repo, telegram,
+    repo, telegram, workshop,
 )
 from interview_theater.einstellungen import Einstellungen
 from interview_theater.llm import LLM
@@ -469,8 +469,16 @@ def main() -> None:
     Ein ThreadPoolExecutor bearbeitet Sprachnachrichten, ein Daemon-Thread
     holt in festen Abstaenden nach, was liegen geblieben ist (Aufgabe 8,
     § 10.3) -- inklusive eines Anlaufs sofort beim Start, der genau denselben
-    Weg nimmt wie die Nacht zwischen zwei Workshoptagen (§ 9.1 Schritt 3)."""
+    Weg nimmt wie die Nacht zwischen zwei Workshoptagen (§ 9.1 Schritt 3).
+
+    **Das Workshop-Profil wird als Erstes geladen** (06.09.2026): fehlt es
+    oder ist es kaputt, bricht der Start hier ab, bevor eine Datenbank
+    geoeffnet und ein Long-Poll begonnen wird. Ein Bot, der mit dem falschen
+    Rahmen antwortet, ist teurer als einer, der gar nicht startet."""
     logging.basicConfig(level=logging.INFO)
+
+    profil = workshop.aktiv()
+    log.info("Workshop-Profil: %s", profil.name)
 
     e = einstellungen.laden()
     conn = db.verbinde(e.db_pfad)

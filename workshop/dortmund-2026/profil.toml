@@ -1,0 +1,46 @@
+# Workshop-Profil Dortmund 2026
+#
+# Diese Datei aendert man ohne Python. Was hier steht, geht in die Prompts
+# und in die Texte, die die Gruppe im Chat liest. Eingehaengt wird sie mit
+#
+#     IT_WORKSHOP=dortmund-2026
+#
+# in betrieb/gruppeN.env. Ohne die Variable gilt das eingebaute
+# Vorgabeprofil (interview_theater/workshop.py, VORGABE_WERTE) -- und das
+# traegt dieselben Werte wie diese Datei. Beides ist Absicht und wird von
+# tests/test_profil_bitgleich.py Feld fuer Feld geprueft: Dortmund bleibt
+# bitgleich, mit und ohne Variable.
+#
+# Format ist TOML, nicht YAML: PyYAML ist keine Abhaengigkeit dieses
+# Projekts, tomllib steht seit Python 3.11 in der Standardbibliothek.
+
+beschreibung = "Zweitaegiger Theaterworkshop mit einem Migrantinnenverein in Dortmund, 05./06.09.2026."
+
+[sprache]
+# Prompt- und Chatsprache.
+code = "de"
+# Wie die Gruppe angesprochen wird. Deutsch "ihr", italienisch "voi".
+anrede = "ihr"
+
+[zielgruppe]
+# Der Satz, der wortgleich in mehreren Prompts steht.
+beschreibung = "junge Frauen zwischen 15 und 18 Jahren"
+# Der Traegerkontext in Klammern; leer = keine Klammer.
+traeger = "Migrantinnenverein Dortmund"
+
+[orte]
+# Wie die Prompts die Spielorte beschreiben. Hier steht bewusst KEINE
+# Beispielliste: die Orte nennt die Gruppe, ein Beispiel im Prompt wird
+# nachgeplappert (06.09.2026).
+beschreibung = """
+altersgerechte, lebensnahe Orte aus der Welt der Gruppe -- welche,
+bestimmt die Gruppe selbst (keine Beispielorte aus dieser Anweisung)."""
+# Was ausgeschlossen ist.
+ausgeschlossen = ["Club", "Disko", "Alkohol", "Nachtleben", "Drogen"]
+# Wo das fertige Stueck gezeigt wird.
+auffuehrung = "auf einem oeffentlichen Platz oder in einer grossen Halle"
+
+[konflikt]
+# Was an Stoff drin sein darf, und was nicht.
+erlaubt = "Familie, Erwartungen, Zugehoerigkeit, Sprache, Zukunft"
+ausgeschlossen = "Keine Gewaltverherrlichung"

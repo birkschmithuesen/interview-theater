@@ -1,0 +1,199 @@
+"""Der Phasenrahmen im Chat: Eintritt, Abschluss, proaktives Angebot.
+
+Jede Phase hat denselben Rahmen (06.09.2026, Birk): Eintritt ueber EINEN Weg
+(``eintritt_in_phase`` -- Knopf, ``/phase``, Erkenner, proaktive Meldung) mit
+der deterministischen Nachricht aus ``phasentexte``, Abschluss ueber
+``biete_phase_proaktiv`` mit allen gesetzten Parametern und "Weiter zu
+<Phase>" - "Noch etwas aendern", **einmal** je Stufe (Merkposten
+``arbeitsstand.phase_angeboten``).
+
+Der Knopf "Weiter zu Phase N" selbst steht eine Schicht tiefer
+(``basis._phasenknopf``): ihn haengen auch die Aufnahme- und Szenen-Leisten
+unter ihre Nachrichten.
+"""
+
+from interview_theater import phasen, repo
+
+from interview_theater.knoepfe.texte import (
+    ART_NOCH_NICHT, ART_PHASE, PHASE_INTERVIEWS, PHASE_SCHAERFUNG,
+    PHASE_STUECKPRUEFUNG, PHASE_SZENEN, _TEXT_KURZGESCHICHTE_BEREIT,
+    _TEXT_PHASE_ANGEBOT, _TEXT_PHASE_NOCH_NICHT_KNOPF, _TEXT_PHASE_WEITER,
+    _TEXT_PROAKTIV,
+)
+from interview_theater.knoepfe.basis import (
+    _daten, _id_aus_daten, _sende_knoepfe,
+)
+from interview_theater.knoepfe.szenen import (
+    biete_durchlauf, biete_kurzgeschichte, biete_szene_usa, starte_schaerfung,
+    starte_stueckpruefung,
+)
+
+
+#: Was je Zielphase erledigt ist -- der halbe Satz vor "Weiter zu ...".
+#: Kurz und konkret, damit die Gruppe sieht, WORAUF sich das Angebot stuetzt,
+#: ohne dass der Bot den Arbeitsstand nacherzaehlt.
+_ERLEDIGT_FUER = {
+    2: "Eure Begriffe",
+    3: "Eure Fragen",
+    4: "Die Interviews sind ausgewertet und",
+    5: "Setting, Figuren und Geschichte",
+    6: "Geschichte und Szenenfolge",
+    7: "Alle Szenentexte",
+}
+
+
+def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
+    """Die eigene, kurze Nachricht "<Was steht>. Weiter zu <Phase>?" -- genau
+    einmal je Stufe, sofort wenn die Voraussetzungen gespeichert sind.
+
+    Liefert ``True``, wenn eine Nachricht rausging.
+
+    **Warum eine eigene Nachricht.** Bis zum 06.09.2026 stand das Angebot nur
+    als Prompt-Hinweis (``kontext._baue_phasenhinweis``) und als Knopf am Ende
+    einer Gespraechsantwort. Am Testabend wurde keiner der neun angebotenen
+    Phasenknoepfe gedrueckt: das Angebot ging im Text unter, und der Bot
+    redete danach weiter ueber die alte Phase. Jetzt steht es allein da, mit
+    zwei Knoepfen und ohne Fliesstext drumherum.
+
+    **Genau einmal.** Der Merkposten ist derselbe wie fuer den Prompt-Hinweis
+    (``phasen.offenes_angebot`` / ``merke_angebot``,
+    ``arbeitsstand.phase_angeboten``) -- deshalb verschluckt diese Nachricht
+    den Prompt-Hinweis und umgekehrt: es gibt EIN Angebot je Stufe, nicht
+    zwei aus zwei Kanaelen. Sagt die Gruppe "Noch nicht", bleibt es still,
+    bis die naechste Stufe erreichbar wird.
+
+    Deterministisch, kein Modellaufruf (Zusage 2)."""
+    stufe = phasen.offenes_angebot(conn, chat_id)
+    if stufe is None:
+        return False
+    phasen.merke_angebot(conn, chat_id, stufe)
+    weiter_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(stufe))
+    noch_nicht_id = repo.lege_knopf_an(conn, chat_id, ART_NOCH_NICHT, str(stufe))
+    leiste = [
+        (f"Weiter zu {phasen.knopfbezeichnung(stufe)}", _daten(weiter_id)),
+        (_TEXT_PHASE_NOCH_NICHT_KNOPF, _daten(noch_nicht_id)),
+    ]
+    text = _abschlusstext(conn, chat_id, stufe)
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
+    return True
+
+
+def _abschlusstext(conn, chat_id: int, stufe: int) -> str:
+    """Die Abschlussnachricht der GERADE FERTIGEN Phase plus die Frage nach
+    der naechsten (06.09.2026, Birk) -- eine Nachricht, nicht zwei.
+
+    Welche Phase fertig ist, steht nicht in ``stufe``: das ist die Zielphase.
+    Fertig ist die, in der die Gruppe gerade steht (``phasen.aktuelle``) --
+    und wenn die schon ueber dem Ziel liegt (Rueckkehr aus einer hoeheren
+    Phase), gibt es nichts abzuschliessen, dann bleibt es beim alten,
+    kurzen Angebot."""
+    from interview_theater import phasentexte
+
+    jetzige = phasen.aktuelle(conn, chat_id)
+    frage = _TEXT_PHASE_WEITER.format(phase=phasen.knopfbezeichnung(stufe))
+    if jetzige >= stufe:
+        return _TEXT_PHASE_ANGEBOT.format(
+            erledigt=_ERLEDIGT_FUER.get(stufe, "Alles Noetige"),
+            phase=phasen.knopfbezeichnung(stufe),
+        )
+    return f"{phasentexte.abschluss(conn, chat_id, jetzige)}\n\n{frage}"
+
+
+def biete_proaktiv(conn, tg, chat_id: int, phase: int, vorspann: str | None = None) -> None:
+    """Die **offene Frage** beim Eintritt in eine Phase.
+
+    Bis zum 06.09.2026 standen darunter zwei Einstiegsknoepfe -- "Ja, wir
+    zuerst" und "Schlag du vor". Sie sind weg (Birk, 11:10): unter einer
+    OFFENEN FRAGE gibt es keine Knoepfe, weil dahinter nichts Fixes zu
+    speichern ist. Der Bot fragt, die Gruppe antwortet in Sprache; sagt sie
+    ausdruecklich "schlag du vor", erkennt das der Erkenner
+    (``ART_SCHLAG_VOR`` bleibt als Knopf-Art fuer die Wege bestehen, die ihn
+    weiterhin auslegen).
+
+    Deterministischer Systemtext, kein Modellaufruf. ``vorspann`` ist die
+    Eintrittsnachricht der Phase (``phasentexte.eintritt``): Kopfzeile,
+    Einleitung, Checkliste -- in DERSELBEN Nachricht wie die Frage."""
+    message_id = tg.sende(chat_id, _mit_vorspann(vorspann, _TEXT_PROAKTIV))
+    repo.merke_nachricht(
+        conn, chat_id, message_id, None, 1, "text",
+        _mit_vorspann(vorspann, _TEXT_PROAKTIV), repo._jetzt(),
+    )
+
+
+def _mit_vorspann(vorspann: str | None, text: str) -> str:
+    """Haengt einen Text unter die Eintrittsnachricht -- oder gibt ihn allein
+    zurueck, wenn es keine gibt."""
+    return f"{vorspann}\n\n{text}" if vorspann else text
+
+
+def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
+    """Was beim Eintritt in eine Phase passiert -- fuer ALLE sieben gleich
+    aufgebaut (06.09.2026, Birk).
+
+    Eine deterministische Nachricht (``phasentexte.eintritt``: Kopfzeile
+    "▶️ Phase N von 7 · Name", zwei bis vier Saetze Einleitung, die
+    Parameter-Checkliste aus dem Arbeitsstand) und darunter die Knoepfe, die
+    zum Einstieg DIESER Phase gehoeren. Neu erfunden wird dabei nichts: es
+    sind dieselben Wege wie bisher -- die Eintritt-Frage mit "Ja, wir
+    zuerst · Schlag du vor", in Phase 3 der Leitfaden, in 5 die Schaerfung,
+    in 7 die Szenenfolge mit der Pruefung des Stuecks.
+
+    **Kein Modellaufruf** (Zusage 2): alles kommt aus der Datenbank, und was
+    ein Modell braucht (Schaerfung), geht in einen eigenen Thread.
+
+    Ein Aufrufweg fuer alle vier Eintrittswege -- Knopf "Weiter zu ...",
+    ``/phase N``, Erkenner-art ``phase_setzen`` und die proaktive
+    Phasenmeldung: die Gruppe soll denselben Rahmen sehen, egal wie sie
+    hergekommen ist."""
+    from interview_theater import phasentexte
+
+    kopf = phasentexte.eintritt(conn, chat_id, nummer)
+    if nummer == PHASE_INTERVIEWS:
+        # Der Schritt in die Interviews ist der Moment, in dem die Gruppe
+        # den Leitfaden braucht -- gleich geht sie damit auf fremde
+        # Menschen zu. Einmal ungefragt (``sende_einmal``), danach nur
+        # noch ueber den Knopf: deterministisch, kein Modellaufruf.
+        from interview_theater import leitfaden
+
+        biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
+        leitfaden.sende_einmal(conn, tg, chat_id)
+    elif nummer == PHASE_STUECKPRUEFUNG:
+        # Die Schaerfung des Stuecks (06.09.2026, Birk): das komplette
+        # Textbuch geht EINMAL beim Eintritt an den Stueck-Judge, im Thread
+        # (Zusage 2: kein Modellaufruf in diesem Handler). Bis der Befund da
+        # ist, steht die Szenenfolge mit Status und den Knoepfen "Szene N
+        # ansehen" / "Textbuch als Datei" -- alles aus der Datenbank.
+        tg.sende(chat_id, kopf)
+        biete_durchlauf(conn, tg, chat_id, e)
+        starte_stueckpruefung(conn, tg, klm, e, chat_id)
+    elif nummer == PHASE_SCHAERFUNG:
+        # Die Schaerfung fragt nicht nach Ideen: sie legt die Geschichte
+        # neben die Interviews. Das Mapping laeuft automatisch beim
+        # Eintritt, im Thread (Zusage 2).
+        tg.sende(chat_id, kopf)
+        starte_schaerfung(conn, tg, klm, e, chat_id)
+    else:
+        # Beim Eintritt in eine Phase fragt der Bot zuerst die Gruppe,
+        # statt sofort vorzuschlagen (Zusage: proaktiv, aber nicht
+        # vorlaut).
+        biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
+        if nummer == PHASE_SZENEN:
+            # **Die USA-Frage steht beim EINTRITT** (06.09.2026, Birk
+            # 12:25), als eigene Nachricht direkt nach der Einleitung und
+            # VOR dem ersten Prosa-Lauf. Bis dahin kam sie mitten aus dem
+            # Szenenlauf heraus, wenn die Gruppe schon wartete -- und der
+            # Lauf brach dafuer ab. Einmal je Gruppe: steht die Antwort
+            # oder wurde schon gefragt, passiert nichts.
+            from interview_theater import szene_claude
+
+            if szene_claude.angebot_faellig(e, conn, chat_id):
+                from interview_theater import szene as szene_modul
+
+                repo.merke_szene_usa_angeboten(conn, chat_id)
+                tg.sende(chat_id, szene_modul._TEXT_ANGEBOT_USA)
+                biete_szene_usa(conn, tg, chat_id)
+            else:
+                # Die Frage ist beantwortet (oder es gibt kein US-Modell):
+                # dann steht hier gleich der Knopf, aus dem der Lauf startet.
+                biete_kurzgeschichte(conn, tg, chat_id, _TEXT_KURZGESCHICHTE_BEREIT)

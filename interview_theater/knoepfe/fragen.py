@@ -351,7 +351,7 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
     # Abschlussnachricht mit "Weiter zu Interviews". Vorher stand nach dem
     # letzten "Gefaellt uns, weiter" nichts mehr da, und die Gruppe wartete
     # auf einen Schritt, den niemand mehr machte.
-    from interview_theater.knoepfe import biete_phase_proaktiv
+    from interview_theater.knoepfe.stationen import biete_phase_proaktiv
 
     biete_phase_proaktiv(conn, tg, chat_id)
     return "Eroeffnung uebernommen"

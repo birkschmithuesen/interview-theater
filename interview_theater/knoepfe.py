@@ -506,8 +506,9 @@ _TEXT_FRAGEN_EIGENE_KNOPF = "Eigene Idee"
 #: Sprechen kann sie ohnehin; ein Knopf, der auf dem Geraet der Gruppe
 #: verschwindet, ist schlechter als gar keiner.
 _TEXT_FRAGEN_WAHL = (
-    f"Sagt mir die Nummern von genau {FRAGEN_ANZAHL} Fragen - getippt oder "
-    "als Sprachnachricht. Wollt ihr andere oder eigene Fragen, sagt das einfach."
+    f"Welche {FRAGEN_ANZAHL} Fragen wollt ihr nehmen? Sagt mir die Nummern - "
+    "getippt oder als Sprachnachricht. Wollt ihr andere oder eigene Fragen, "
+    "sagt das einfach."
 )
 #: Die Antwort auf "Diese 3 nehmen" bei falscher Anzahl. Sie geht als
 #: answerCallbackQuery raus (das kleine graue Band oben in der App) und
@@ -3508,10 +3509,14 @@ ANWEISUNGEN = {
        "Kernbegriff der Gruppe, nach Begriffen geordnet (erst alle fuenf zum "
        "ersten Begriff, dann die fuenf zum zweiten usw.). Haeng sie als Block "
        "'VORSCHLAG FRAGENAUSWAHL:' an, eine Frage je Zeile im Format "
-       "'Begriff: Frage', ohne Nummerierung. Altersgerecht, und so, dass eine "
-       "15- bis 18-Jaehrige sie einer FREMDEN Person auf der Strasse stellen "
-       "kann. Wiederhol die Fragen nicht im Fliesstext - die Gruppe sieht die "
-       "nummerierte Liste und nennt drei Nummern.",
+       "'Begriff: Frage', ohne Nummerierung. JEDE Frage steht fuer sich: sie "
+       "darf sich nicht auf eine andere Frage beziehen, nichts voraussetzen, "
+       "was eine andere Frage erst erfragt (kein 'und dann?', kein 'in dem "
+       "Moment', kein 'davon') - die Gruppe nimmt drei beliebige heraus. "
+       "Altersgerecht, und so, dass eine 15- bis 18-Jaehrige sie einer "
+       "FREMDEN Person auf der Strasse stellen kann. Wiederhol die Fragen "
+       "nicht im Fliesstext - die Gruppe sieht die nummerierte Liste und "
+       "nennt drei Nummern.",
     # Phase 4: das SETTING zuerst -- und ausschliesslich aus den Begriffen
     # und Fragen der Gruppe. Kein Material: die Interviews stehen in diesem
     # Prompt gar nicht (``kontext.material_erlaubt``), und der Auftrag sagt

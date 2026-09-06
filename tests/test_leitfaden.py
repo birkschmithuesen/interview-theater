@@ -43,7 +43,8 @@ def auftraege(monkeypatch):
     waeren -- statt ein Modell zu rufen."""
     gesammelt = []
 
-    def _fake(conn, tg_, klm, e, chat_id, anweisung, arbeitszeile=None):
+    def _fake(conn, tg_, klm, e, chat_id, anweisung, arbeitszeile=None,
+              arbeitsart=None):
         gesammelt.append(anweisung)
         return object()
 

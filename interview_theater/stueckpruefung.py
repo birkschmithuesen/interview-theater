@@ -298,9 +298,13 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
     from interview_theater import knoepfe
 
     runde = 0
+    from interview_theater import arbeitszeilen
+
+    zeilen = arbeitszeilen.sichtbar(tg, chat_id, "stueckpruefung")
     try:
         _, runde = pruefe(klm, conn, e, chat_id)
     except PruefungFehler as fehler:
+        zeilen.stoppe()
         _sende(conn, tg, e, chat_id, str(fehler))
     except Exception:
         log.exception("Stueckpruefung fehlgeschlagen, chat_id=%s", chat_id)
@@ -311,8 +315,10 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
             )
         except Exception:
             log.exception("Vorfall zur Stueckpruefung nicht schreibbar")
+        zeilen.stoppe()
         _sende(conn, tg, e, chat_id, MELDUNG_FEHLGESCHLAGEN)
     else:
+        zeilen.stoppe()
         try:
             knoepfe.zeige_stueckpruefung(conn, tg, chat_id, runde)
         except Exception:

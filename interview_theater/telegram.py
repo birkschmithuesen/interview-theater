@@ -276,6 +276,22 @@ class Telegram:
             )
             antwort.raise_for_status()
 
+    def aendere_text(self, chat_id: int, message_id: int, text: str) -> None:
+        """Tauscht den Text einer schon verschickten Nachricht
+        (editMessageText) -- gebraucht fuer die wechselnden Arbeitszeilen
+        (``arbeitszeilen.py``, 06.09.2026).
+
+        Ersetzen statt neu senden: sonst waechst der Chat waehrend eines
+        Szenenlaufs um zehn Zeilen, die niemand lesen will. Ein Fehlschlag
+        ist unkritisch und wird vom Aufrufer geschluckt -- Telegram
+        antwortet mit 400, wenn der Text unveraendert waere."""
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("editMessageText"),
+                json={"chat_id": chat_id, "message_id": message_id, "text": text},
+            )
+            antwort.raise_for_status()
+
     def entferne_knoepfe(self, chat_id: int, message_id: int) -> None:
         """Nimmt die Tastatur unter einer schon verschickten Nachricht weg
         (editMessageReplyMarkup mit leerer Tastatur).

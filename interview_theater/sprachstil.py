@@ -166,7 +166,10 @@ def starte(conn, tg, klm, e, chat_id: int, name: str):
     system = systemanweisung(name)
     nutzer = baue_nutzertext(conn, chat_id, name)
 
+    from interview_theater import arbeitszeilen
+
     def _lauf() -> None:
+        zeilen = arbeitszeilen.sichtbar(tg, chat_id, ART)
         try:
             antwort = klm.prosa(
                 chat_id, system, nutzer, ART,
@@ -188,6 +191,7 @@ def starte(conn, tg, klm, e, chat_id: int, name: str):
             except Exception:
                 log.exception("Fehlermeldung zum Stil-Lauf fehlgeschlagen")
         finally:
+            zeilen.stoppe()
             sperre.release()
 
     thread = threading.Thread(target=_lauf, daemon=True)

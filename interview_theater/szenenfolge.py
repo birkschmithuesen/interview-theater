@@ -708,7 +708,14 @@ def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
           sperre: threading.Lock, nachbereitung) -> None:
     """Der Thread-Rumpf: Modell fragen, Antwort mit Leiste ausspielen, Sperre
     in JEDEM Fall freigeben -- bliebe sie liegen, koennte die Gruppe fuer den
-    Rest des Workshops keinen Vorschlag mehr bekommen (wie ``szene._lauf``)."""
+    Rest des Workshops keinen Vorschlag mehr bekommen (wie ``szene._lauf``).
+
+    Waehrenddessen laufen die Arbeitszeilen (06.09.2026, Birk 11:15): je
+    Auftragsart eine eigene Liste, alle 15 s eine neue Zeile, am Ende
+    geloescht (``arbeitszeilen.Lauf``)."""
+    from interview_theater import arbeitszeilen
+
+    zeilen = arbeitszeilen.sichtbar(tg, chat_id, art)
     try:
         antwort = klm.prosa(
             chat_id, system, nutzer, art, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
@@ -727,6 +734,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
             log.exception("Vorfall nicht schreibbar, chat_id=%s", chat_id)
         _sende(conn, tg, e, chat_id, _TEXT_FEHLER)
     finally:
+        zeilen.stoppe()
         sperre.release()
 
 

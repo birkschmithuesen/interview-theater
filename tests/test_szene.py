@@ -713,7 +713,8 @@ def test_starte_kuendigt_sofort_an_und_schreibt_die_szene_im_thread(conn, einst,
     _warte(thread)
 
     assert "das dauert eine Minute" in tg.texte[0]
-    assert tg.texte[1].startswith("Szene 1: Am Bahnhof")
+    # Dazwischen steht die Arbeitszeile (06.09.2026, arbeitszeilen.Lauf).
+    assert any(z.startswith("Szene 1: Am Bahnhof") for z in tg.texte)
     assert len(repo.hole_szenen(conn, 1)) == 1
 
 
@@ -1564,27 +1565,45 @@ def test_neu_schreiben_nimmt_die_alte_fassung_nicht_als_vorlage(conn):
 
 
 def test_waehrend_des_szenenlaufs_zeigt_der_bot_dass_er_arbeitet():
-    """06.09.2026 (Birk): waehrend Opus 1-3 Minuten schreibt, soll die Gruppe
-    sehen, dass gearbeitet wird -- Tippanzeige und eine Emoji-Zeile, die am
-    Ende wieder verschwindet."""
-    import threading, time
-    from interview_theater import szene
+    """Die wechselnde Arbeitszeile ist seit dem 06.09.2026 (Birk, 11:15) EINE
+    Umsetzung fuer alle Auftraege (``arbeitszeilen.Lauf``); der Szenenlauf
+    waehlt nur noch die Liste (``szene.ARBEITSART``)."""
+    import time
+    from interview_theater import arbeitszeilen, szene
 
     class Tg:
         def __init__(self):
-            self.tipps = 0; self.gesendet = []; self.geloescht = []
-        def tippt(self, chat_id): self.tipps += 1
-        def sende(self, chat_id, text, **_kw): self.gesendet.append(text); return len(self.gesendet)
-        def loesche_nachrichten(self, chat_id, ids): self.geloescht += ids; return len(ids)
+            self.tipps = 0
+            self.gesendet = []
+            self.geaendert = []
+            self.geloescht = []
 
-    tg = Tg(); stopp = threading.Event()
-    alt_takt = szene._ARBEITS_TAKT_S
-    szene._ARBEITS_TAKT_S = 4.0  # eine Zeile pro Tipp-Runde
+        def tippt(self, chat_id):
+            self.tipps += 1
+
+        def sende(self, chat_id, text, **_kw):
+            self.gesendet.append(text)
+            return len(self.gesendet)
+
+        def aendere_text(self, chat_id, message_id, text):
+            self.geaendert.append(text)
+
+        def loesche_nachrichten(self, chat_id, ids):
+            self.geloescht += ids
+            return len(ids)
+
+    tg = Tg()
+    alt_takt, alt_tipp = arbeitszeilen.TAKT_S, arbeitszeilen.TIPP_S
+    arbeitszeilen.TAKT_S, arbeitszeilen.TIPP_S = 0.2, 0.1
     try:
-        t = threading.Thread(target=szene._arbeitet_sichtbar, args=(tg, 1, stopp)); t.start()
-        time.sleep(9.0); stopp.set(); t.join(timeout=6)
+        lauf = arbeitszeilen.sichtbar(tg, 1, szene.ARBEITSART)
+        # Die erste Zeile steht SOFORT da, nicht erst nach dem ersten Takt.
+        assert len(tg.gesendet) == 1
+        time.sleep(0.9)
+        lauf.stoppe()
     finally:
-        szene._ARBEITS_TAKT_S = alt_takt
+        arbeitszeilen.TAKT_S, arbeitszeilen.TIPP_S = alt_takt, alt_tipp
+
     assert tg.tipps >= 2
-    assert len(tg.gesendet) >= 1 and any("..." in z for z in tg.gesendet)
-    assert tg.geloescht  # die letzte Zeile ist wieder weg
+    assert tg.geaendert, "die Zeile wechselt"
+    assert tg.geloescht, "die letzte Zeile ist wieder weg"

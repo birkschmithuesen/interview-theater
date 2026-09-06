@@ -2049,53 +2049,20 @@ def _sende_szenentext(conn, tg, e, chat_id: int, nummer: int, titel: str,
 #: arbeitet (Birk, 06.09.2026: "so ein witziges Emoji, dass er arbeitet"):
 #: alle ~4 s die Tippanzeige (sie verfaellt nach 5 s), und alle 40 s eine
 #: kleine Zeile mit wechselndem Emoji, die am Ende wieder geloescht wird.
-_ARBEITS_ZEILEN = (
-    "\u270d\ufe0f schreibe ...",
-    "\U0001f3ad probiere Repliken ...",
-    "\u2702\ufe0f streiche Regie ...",
-    "\U0001f50d pruefe die vier Fragen ...",
-    "\u2615 noch einen Moment ...",
-)
-_ARBEITS_TAKT_S = 40.0
-
-
-def _arbeitet_sichtbar(tg, chat_id: int, stopp: threading.Event) -> None:
-    """Tippanzeige + wechselnde Emoji-Zeile, bis ``stopp`` gesetzt ist. Alle
-    Fehler still: das ist Schmuck, kein Betriebspfad."""
-    letzte_id = None
-    n = 0
-    seit = 0.0
-    while not stopp.wait(4.0):
-        try:
-            tg.tippt(chat_id)
-        except Exception:
-            pass
-        seit += 4.0
-        if seit >= _ARBEITS_TAKT_S:
-            seit = 0.0
-            try:
-                if letzte_id is not None:
-                    tg.loesche_nachrichten(chat_id, [letzte_id])
-                letzte_id = tg.sende(chat_id, _ARBEITS_ZEILEN[n % len(_ARBEITS_ZEILEN)])
-                n += 1
-            except Exception:
-                letzte_id = None
-    if letzte_id is not None:
-        try:
-            tg.loesche_nachrichten(chat_id, [letzte_id])
-        except Exception:
-            pass
+#: **Zusammengefasst am 06.09.2026** (Birk, 11:15): die wechselnde Zeile
+#: waehrend eines Szenenlaufs ist dieselbe Umsetzung wie ueberall sonst
+#: (``arbeitszeilen.Lauf``). Hier steht nur noch, WELCHE Liste gilt: die
+#: Prosa-Zeilen, weil ein Szenenlauf Prosa schreibt.
+ARBEITSART = "prosa"
 
 
 def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str, sperre: threading.Lock) -> None:
     """Der Thread-Rumpf: ``schreibe()`` mit Fehlerbehandlung und garantierter
     Freigabe der Sperre. Bliebe sie bei einem Fehlschlag liegen, koennte die
     Gruppe fuer den Rest des Workshops keine Szene mehr schreiben lassen."""
-    stopp = threading.Event()
-    herz = threading.Thread(
-        target=_arbeitet_sichtbar, args=(tg, chat_id, stopp), daemon=True
-    )
-    herz.start()
+    from interview_theater import arbeitszeilen
+
+    zeilen = arbeitszeilen.sichtbar(tg, chat_id, ARBEITSART)
     try:
         schreibe(conn, tg, klm, e, chat_id, auftrag)
     except Exception:
@@ -2111,7 +2078,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str, sperre: threading.Lock) 
         # gerade die Ankuendigung bekommen und wartet (SPEC § 11.1).
         _sende_und_merke(conn, tg, e, chat_id, _TEXT_FEHLER)
     finally:
-        stopp.set()
+        zeilen.stoppe()
         sperre.release()
 
 

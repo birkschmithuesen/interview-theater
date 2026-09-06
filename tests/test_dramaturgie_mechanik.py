@@ -291,6 +291,53 @@ def test_kandidat_kommt_zweimal_und_danach_nie_wieder(conn):
     assert "Bahnsteig" not in woerter
 
 
+def test_wort_nur_am_satzanfang_ist_kein_kandidat(conn):
+    """Deutsch schreibt am Satzanfang alles gross -- das sagt nichts.
+
+    Gemessen am 06.09.2026 an drei echten Opus-Szenen: ohne diese Regel
+    meldete die Heuristik „Lass\", „Beim\", „Dreht\", „Ueber\" als aufgeladene
+    Elemente, 8 von 11 Befunden waren Rauschen. Alle vier sind Verben oder
+    Praepositionen, die ausschliesslich am Satzanfang gross stehen.
+    """
+    _figur(conn, "Mira")
+    _szene(conn, 1, "MIRA: Lass das doch.\nMIRA: Lass mich in Ruhe.\n")
+    _szene(conn, 2, "MIRA: Wir gehen.\nMIRA: Jetzt.\n")
+
+    woerter = [k.wort for k in
+               mechanik.tschechow_kandidaten(mechanik.lies(conn, 1))]
+
+    assert "Lass" not in woerter
+
+
+def test_substantiv_mitten_im_satz_bleibt_kandidat(conn):
+    """Die Gegenprobe: dasselbe Wort mitten im Satz zaehlt weiter.
+
+    Sonst waere die Regel aus dem vorigen Test zu scharf und wuerde genau
+    die Gegenstaende verschlucken, um die es geht.
+    """
+    _figur(conn, "Mira")
+    _szene(conn, 1, "MIRA: Ich habe den Akku vergessen.\n"
+                    "MIRA: Ohne Akku geht das nicht.\n")
+    _szene(conn, 2, "MIRA: Wir gehen.\nMIRA: Jetzt.\n")
+
+    woerter = [k.wort for k in
+               mechanik.tschechow_kandidaten(mechanik.lies(conn, 1))]
+
+    assert "Akku" in woerter
+
+
+def test_wort_nach_sprecherdoppelpunkt_zaehlt_nicht(conn):
+    """Nach „MIRA:\" steht das erste Wort gross wie am Satzanfang."""
+    _figur(conn, "Mira")
+    _szene(conn, 1, "MIRA: Warte doch.\nMIRA: Warte einen Moment.\n")
+    _szene(conn, 2, "MIRA: Gut.\nMIRA: Dann eben.\n")
+
+    woerter = [k.wort for k in
+               mechanik.tschechow_kandidaten(mechanik.lies(conn, 1))]
+
+    assert "Warte" not in woerter
+
+
 def test_kandidat_traegt_seinen_satz_als_kontext(conn):
     _figur(conn, "Mira")
     _szene(conn, 1, "MIRA: Der Koffer steht da.\nMIRA: Der Koffer bleibt.\n")

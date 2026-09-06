@@ -206,15 +206,20 @@ def test_begriffe_erlauben_zwei(conn):
 
 
 def test_fragen_erlauben_drei(conn):
-    """Erst die Frageliste UND der Eroeffnungstext machen die Interviews
-    moeglich (06.09.2026, Birk): die Gruppe geht damit auf fremde Menschen
-    zu, und eine Frageliste ohne Eroeffnung ist kein Interview."""
+    """Erst der GANZE Leitfaden macht die Interviews moeglich (06.09.2026,
+    Birk, 10:00): Fragen, geprueffte Einleitungen, Eroeffnung UND Abschluss.
+    Die Gruppe geht damit auf fremde Menschen zu -- eine Frageliste ohne
+    Eroeffnung ist kein Interview, sondern eine Ansprache."""
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
-    assert phasen.moegliche_naechste(conn, 1) == [], "Eroeffnung fehlt noch"
+    assert phasen.moegliche_naechste(conn, 1) == [], "Leitfaden ist unfertig"
 
+    repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")
     repo.setze_arbeitsstand(
         conn, 1, "interview_eroeffnung", "Hallo, wir machen ein Theaterprojekt."
     )
+    assert phasen.moegliche_naechste(conn, 1) == [], "Abschluss fehlt noch"
+
+    repo.setze_arbeitsstand(conn, 1, "interview_abschluss", "Danke dir!")
     assert phasen.moegliche_naechste(conn, 1) == [3]
 
 
@@ -223,9 +228,21 @@ def test_drei_braucht_keine_einleitungen(conn):
     Ergebnis der Sensibilitaetspruefung, kein fehlender Wert -- die leeren
     Einleitungen duerfen die Interviews nicht aufhalten."""
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")
     repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Hallo, wir sind ...")
+    repo.setze_arbeitsstand(conn, 1, "interview_abschluss", "Danke dir!")
 
     assert phasen.voraussetzungen(conn, 1)[3] is True
+
+
+def test_drei_bleibt_zu_solange_die_einleitungen_nie_geprueft_wurden(conn):
+    """Die Gegenprobe zum Test darueber: ``NULL`` heisst *nie geprueft* und
+    haelt Phase 3 zu -- nur ``''`` heisst *geprueft, nichts noetig*."""
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Hallo, wir sind ...")
+    repo.setze_arbeitsstand(conn, 1, "interview_abschluss", "Danke dir!")
+
+    assert phasen.voraussetzungen(conn, 1)[3] is False
 
 
 def test_eine_verdichtung_erlaubt_vier(conn):
@@ -460,7 +477,9 @@ def test_eine_hoehere_stufe_wird_erneut_angeboten(conn):
     phasen.merke_angebot(conn, 1, 2)
 
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")
     repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Hallo, wir sind ...")
+    repo.setze_arbeitsstand(conn, 1, "interview_abschluss", "Danke dir!")
     assert phasen.offenes_angebot(conn, 1) == 3
 
 

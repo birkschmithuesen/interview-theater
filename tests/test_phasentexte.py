@@ -209,7 +209,9 @@ def test_abgeschlossen_wird_die_phase_der_gruppe_nicht_das_ziel(conn, tg):
     der die Gruppe wirklich steht."""
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Warten, Amt")
     repo.setze_arbeitsstand(conn, 1, "fragen", "Worauf wartest du?")
+    repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")
     repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Wir machen Theater.")
+    repo.setze_arbeitsstand(conn, 1, "interview_abschluss", "Danke dir!")
 
     knoepfe.biete_phase_proaktiv(conn, tg, 1)
 

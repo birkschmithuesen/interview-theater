@@ -53,7 +53,7 @@ import urllib.parse
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import db, phasen, web_daten, web_schreiben  # noqa: F401 -- SZENENFELDER im HTML
+from . import db, phasen, vorspann, web_daten, web_schreiben  # noqa: F401 -- SZENENFELDER im HTML
 
 VORGABE_BIND = "127.0.0.1:8010"
 #: Externer URL-Pfad, unter dem nginx auf herkules den Server durchreicht.
@@ -415,6 +415,14 @@ ul.fehlstellen li { margin: .3rem 0; }
 .befund.blocker, .befund.hoch { border-left-color: #a12b2b; }
 .befund .marke { font-size: .75rem; opacity: .6; }
 .befund .vorschlag { display: block; font-size: .82rem; opacity: .8; }
+/* Der Vorspann (07.09.2026): read-only, deshalb ohne Kasten und ohne Knopf --
+   dieselbe ruhige Flaeche wie .schaerfung, nur mit Zwischenueberschriften. */
+.vorspann h3 { font-size: .78rem; text-transform: uppercase;
+               letter-spacing: .04em; opacity: .55; font-weight: 600;
+               margin: .8rem 0 .15rem; }
+.vorspann p { margin: 0 0 .2rem; }
+.vorspann ul { list-style: none; margin: 0; padding: 0; }
+.vorspann li { margin: .1rem 0; }
 .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
 .figur .marke { font-size: .78rem; opacity: .6; }
 .hinzu { margin-top: .8rem; }
@@ -1425,6 +1433,56 @@ def _szenenuebersicht_html(zeilen: list[dict]) -> str:
     )
 
 
+def _vorspann_html(d: dict | None) -> str:
+    """Der Vorspann ganz oben auf der Gruppenseite (07.09.2026).
+
+    Derselbe Inhalt wie im Chat und im Textbuch, aus derselben Quelle
+    (``web_daten.gruppe_nach_token`` ruft ``vorspann.daten``): wo und wann,
+    worum es geht, welche Form, welche Szenen, wer vorkommt. **Read-only** --
+    geaendert werden Setting, Konflikt, Format und Figuren weiter unten im
+    Arbeitsstand; hier steht die Zusammenschau, die ein Aussenstehender
+    zuerst braucht.
+
+    Ist nichts festgelegt, steht hier nichts: eine Ueberschrift ueber einem
+    Gedankenstrich waere ein Hinweis auf etwas, das die Gruppe nicht
+    vermisst."""
+    if not d or vorspann.ist_leer(d):
+        return ""
+    teile = []
+    for kopf, feld in (
+        ("Wo und wann", "rahmen"),
+        ("Worum es geht", "hauptkonflikt"),
+        ("Form", "format"),
+    ):
+        if d[feld]:
+            teile.append(f"<h3>{kopf}</h3><p>{_t(d[feld])}</p>")
+    if d["szenen"]:
+        anzahl = len(d["szenen"])
+        # Die Nummern kommen aus der Datenbank und muessen nicht bei 1
+        # anfangen -- deshalb eine <ul> mit ausgeschriebener Nummer und keine
+        # <ol>, die eine eigene, falsche Zaehlung darueberlegte.
+        zeilen = "".join(
+            "<li>{nr}. {titel}{form}</li>".format(
+                nr=_t("—" if s["nummer"] is None else str(s["nummer"])),
+                titel=_t(s["titel"], "ohne Titel"),
+                form=f' <span class="zeit">({_t(s["form"])})</span>' if s["form"] else "",
+            )
+            for s in d["szenen"]
+        )
+        kopf = f"{anzahl} Szene" + ("n" if anzahl != 1 else "")
+        teile.append(f"<h3>{_t(kopf)}</h3><ul>{zeilen}</ul>")
+    if d["figuren"]:
+        zeilen = "".join(
+            "<li><b>{name}</b>{rest}</li>".format(
+                name=_t(f["name"]),
+                rest=f" — {_t(f['beschreibung'])}" if f["beschreibung"] else "",
+            )
+            for f in d["figuren"]
+        )
+        teile.append(f"<h3>Wer vorkommt</h3><ul>{zeilen}</ul>")
+    return f'<section class="vorspann">{"".join(teile)}</section>'
+
+
 def _begriffe_html(begriffe: list[str] | None) -> str:
     """Die Kernbegriffe eines Interviews als Chips (06.09.2026).
 
@@ -1581,11 +1639,18 @@ def gruppe_html(
         if token
         else ""
     )
+    # Der Vorspann steht GANZ OBEN (07.09.2026): er ist die Antwort auf die
+    # Frage, die jemand hat, der die Seite zum ersten Mal aufmacht -- wo
+    # spielt das, worum geht es, wer sind die dreizehn Namen weiter unten.
+    kopf = _vorspann_html(daten.get("vorspann"))
+    if kopf:
+        kopf = f"<h2>Überblick</h2>{kopf}\n"
     return _seite(
         f"{titel} — interview-theater",
         _CSS_GRUPPE,
         f"<h1>{_t(titel)}</h1>\n"
         f"{probenansicht}"
+        f"{kopf}"
         "<h2>Arbeitsstand</h2>"
         f"{stand}\n"
         # „Was noch fehlt" steht direkt unter dem Arbeitsstand: es ist

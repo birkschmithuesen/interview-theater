@@ -66,6 +66,7 @@ langsamer machen.
 | `skript.py` | die neun Schritte: Ziel und Zielzustand je Schritt |
 | `claude.py` | der Klient der Simulationsseite (Opus am lokalen Proxy) |
 | `stimmen.py` + `stimmen/*.md` | drei Personen (Guelten, Dilan, Halyna) und Birk |
+| `tag1.py` + `stimmen/tag1-*.md`, `stimmen/regie.md` | die vier Sets aus dem echten Tag 1 -- **PII-frei abgeleitet** |
 | `birk.py` | `--set birk`: echtes Material, echte Stimme, Referenzzahlen |
 | `material.py` + `interviews/set{1,2,3}/*.md` | 15 erfundene Transkripte, Mischung per Seed |
 | `erzeuge_interviews.py` | hat die 15 Transkripte einmal geschrieben (Opus) |
@@ -227,3 +228,63 @@ $PY -m simulation.erzeuge_interviews --nur 2-sevil-erste-liebe
 ```
 
 Alles darin ist frei erfunden. Kein Satz stammt aus einem echten Interview.
+
+## Die vier Sets aus dem echten Tag 1 (06.09.2026)
+
+```
+$PY -m scripts.simulation --set tag1-gruppe1 --bericht
+$PY -m scripts.simulation --set tag1-gruppe2 --bericht
+$PY -m scripts.simulation --set tag1-gruppe3 --bericht
+$PY -m scripts.simulation --set regie --bericht
+```
+
+Vier Stimmen, abgeleitet aus dem, was am 05./06.09. wirklich passiert ist:
+drei Gruppen Sechzehnjaehriger und die Testgruppe (Regie). Sie fahren das
+Skript der **acht Phasen** (`skript.SCHRITTE_TAG2`), nicht das der neun
+Schritte -- und sie **druecken Knoepfe**: jede Stimme sieht je Zug die
+antippbaren Knopftexte und entscheidet, ob sie `KNOPF: <Text>` antwortet
+oder frei schreibt.
+
+| Set | Begriffe der echten Gruppe | Antwortstil |
+|---|---|---|
+| `tag1-gruppe1` | Trauma, Macht, Stereotype, Massenkontrolle | sehr kurz, drueckt schnell, liest lange Nachrichten nicht zu Ende |
+| `tag1-gruppe2` | Liebe, Freundschaft, Mord, Depression | lehnt Vorschlaege oft ab, prueft nach, ob gespeichert wurde |
+| `tag1-gruppe3` | Rassismus, Liebe, Spass, Streit | bestaetigt fast alles, drueckt auch mal den falschen Knopf |
+| `regie` | (Testgruppe) | knapp und imperativ, Meta-Feedback ueber den Bot, testet Kanten |
+
+**Was aus Tag 1 kommt und was nicht.** Aus den echten Daten stammen: die
+Begriffslisten (`arbeitsstand.begriffe` -- die Gruppen haben sie selbst als
+Stueckthema gesetzt), die Themen als **Stichwort** (nicht als Zusammenfassung,
+nicht als Zitat), und Verhaltensmuster als **Aggregat** (Anzahl Nachrichten,
+Medianlaenge, Knoepfe angeboten gegen gedrueckt). Bei `regie` zusaetzlich
+Birks eigene Saetze als Stil-Beispiele -- er ist ihr Autor.
+
+**Nie darin**: `aufnahme.transkript` (Lebensgeschichten Minderjaehriger),
+Telegram-Usernamen, Klarnamen, Nachrichtentexte der Teilnehmerinnen im
+Wortlaut. Beide Betriebsdatenbanken werden ausschliesslich
+`sqlite3.connect('file:…?mode=ro', uri=True)` geoeffnet.
+`tests/test_simulation_tag1.py` prueft gegen die echte Datenbank, dass keine
+Achtwortfolge aus einem Transkript und kein Absendername in `tag1.py` oder
+den Steckbriefen steht -- und ueberspringt sich, wenn die Datenbank fehlt.
+
+**Die Interviews bleiben erfunden.** Ein tag1-Lauf zieht zwei Transkripte
+aus dem thematisch naechsten Set unter `interviews/` (`tag1.INTERVIEWSET`).
+Zwei statt fuenf: die echten Gruppen brachten an Tag 1 je EINE Verdichtung
+zustande, und ein Lauf mit fuenf sauberen Interviews misst einen Nachmittag,
+den es nicht gab.
+
+**Der Referenzblock** im Bericht stellt neben jede Zahl die aus Tag 1 --
+aber nur Aggregate, keinen Chatverlauf (`tag1.referenz`). Die
+aufschlussreichste Zeile ist die letzte: an Tag 1 wurden 25 Phasenknoepfe
+angeboten und **null** gedrueckt.
+
+### Die Kennzahlen des Knopf-Umbaus
+
+Dazugekommen am 06.09., alle mechanisch: Nachrichten bis zum Speichern
+(Soll <= 2), Fragen je Bot-Nachricht (Soll <= 1), Wiederholungsquote,
+"Bot redet parallel zum Auftrag" (Soll 0), Knoepfe angeboten gegen
+gedrueckt, Phasenwechsel proaktiv gegen `/phase`-Notweg, Form je Szene
+bestaetigt statt gesetzt, Rahmen/Geschichte mehrfach geschrieben,
+`kontext_gekuerzt`. Dazu ein viertes Szenenkriterium beim Richter:
+`exposition_erfuellt` -- nur bei Szene 1 eine echte Frage (wer, wie
+zueinander, warum hier, worum).

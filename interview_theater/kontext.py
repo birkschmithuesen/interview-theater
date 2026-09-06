@@ -135,6 +135,21 @@ _REIHENFOLGE = (
 )
 
 
+def kernthema_zeile(stand) -> str:
+    """Die Zeile "Kernthema: … (Begruendung: …)" aus einem Arbeitsstand.
+
+    Sie stand am 06.09.2026 wortgleich an drei Stellen (zweimal hier, einmal
+    in ``szene._thema_text``) -- und ein Fakt hat genau eine Stelle im Prompt,
+    also auch genau eine im Code, die ihn formt. Ohne Kernthema: leerer
+    String, der Aufrufer haengt nichts an."""
+    if not stand["kernthema"]:
+        return ""
+    zeile = f"Kernthema: {stand['kernthema']}"
+    if stand["kernthema_begruendung"]:
+        zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
+    return zeile
+
+
 def schaetze(text: str) -> int:
     """Schaetzt die Tokenzahl eines Textes: Zeichen ÷ 3, kein Tokenizer (§ 7.1)."""
     return len(text) // _ZEICHEN_JE_TOKEN
@@ -289,11 +304,9 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
     # Gruppe eines gesetzt hat (rueckwaertskompatibel).
     if "geschichte" in stand.keys() and stand["geschichte"]:
         zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
-    if stand["kernthema"]:
-        zeile = f"Kernthema: {stand['kernthema']}"
-        if stand["kernthema_begruendung"]:
-            zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
-        zeilen.append(zeile)
+    kernthema = kernthema_zeile(stand)
+    if kernthema:
+        zeilen.append(kernthema)
     if stand["kernfrage"]:
         zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
     if stand["rahmen"]:
@@ -457,11 +470,9 @@ def _baue_arbeitsstand(conn, chat_id: int, ohne_kernpaket_felder: bool = False) 
             zeilen.append(f"Begriffe: {stand['begriffe']}")
         if stand["fragen"]:
             zeilen.append(f"Fragen: {stand['fragen']}")
-        if stand["kernthema"] and not ohne_kernpaket_felder:
-            zeile = f"Kernthema: {stand['kernthema']}"
-            if stand["kernthema_begruendung"]:
-                zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
-            zeilen.append(zeile)
+        kernthema = kernthema_zeile(stand)
+        if kernthema and not ohne_kernpaket_felder:
+            zeilen.append(kernthema)
         if stand["kernfrage"] and not ohne_kernpaket_felder:
             zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
         # Die Geschichte im Groben (Phase 5): Bogen und Ende.

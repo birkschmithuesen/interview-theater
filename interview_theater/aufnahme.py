@@ -822,10 +822,7 @@ def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | N
         _sende_und_merke(conn, tg, e, chat_id, text)
         return
     try:
-        repo.merke_nachricht(
-            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
-            text, repo._jetzt(), 0,
-        )
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     except Exception:
         log.exception("Abschlussnachricht mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -1226,9 +1223,8 @@ def _verwirf_leeres_interview(conn, tg, e, chat_id: int, kopf_id: int) -> None:
         log.exception("Leeres Interview entfernen fehlgeschlagen, id=%s", kopf_id)
     try:
         message_id = knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_LEER_VERWORFEN)
-        repo.merke_nachricht(
-            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
-            _TEXT_LEER_VERWORFEN, repo._jetzt(), 0,
+        repo.merke_bot_zeile(
+            conn, chat_id, message_id, e, _TEXT_LEER_VERWORFEN
         )
     except Exception:
         log.exception("Meldung zum leeren Interview fehlgeschlagen, chat_id=%s", chat_id)

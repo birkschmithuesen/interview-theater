@@ -280,7 +280,15 @@ class LLM:
             temperature=temperature, max_tokens=max_tokens,
         )
 
-        geschaetzte_token = (len(system) + len(nutzer)) // 3
+        # Dieselbe Schaetzung wie beim Promptbau (Zeichen / 3, kein
+        # Tokenizer) -- und ausdruecklich dieselbe FUNKTION: die Spalte
+        # ``aufruf.geschaetzte_token`` ist die Messreihe, an der der Divisor
+        # nachjustiert wird (HANDOFF (g)). Stuende die 3 hier ein zweites Mal,
+        # wuerde eine Korrektur an ``kontext.schaetze`` die Messreihe nicht
+        # mit korrigieren.
+        from interview_theater import kontext
+
+        geschaetzte_token = kontext.schaetze(system + nutzer)
         tatsaechliche_token = antwort_token = finish_reason = None
         erfolg = 0
         start = time.monotonic()

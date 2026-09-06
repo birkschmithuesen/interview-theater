@@ -171,10 +171,7 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str) -> None:
     Gespraechszugs steht."""
     try:
         message_id = tg.sende(chat_id, text)
-        repo.merke_nachricht(
-            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
-            text, repo._jetzt(),
-        )
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     except Exception:
         log.exception("Sprachprofil-Nachricht fehlgeschlagen, chat_id=%s", chat_id)
 

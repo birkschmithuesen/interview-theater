@@ -1302,10 +1302,7 @@ def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> N
             continue
         try:
             message_id = knoepfe.biete_aufnahme(conn, tg, chat_id, text)
-            repo.merke_nachricht(
-                conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
-                text, repo._jetzt(),
-            )
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
         except Exception:
             log.exception(
                 "Interviewmodus-Bestaetigung fehlgeschlagen, chat_id=%s, art=%s",
@@ -1537,10 +1534,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche)
         # Wie ablauf.antworte: die gesendete Meldung wird als Bot-Nachricht
         # mitgeschrieben, damit sie im naechsten Verlaufsfenster steht.
-        repo.merke_nachricht(
-            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
-            text, repo._jetzt(),
-        )
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
         # Hat die Gruppe im selben Zug die Phase gewechselt, kommt direkt
         # hinter der Meldung der Phasenrahmen (06.09.2026): derselbe Eintritt
         # wie ueber den Knopf und ueber ``/phase``.

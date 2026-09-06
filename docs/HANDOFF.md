@@ -501,12 +501,12 @@ Melden, wenn: `http_5xx` häuft (≥3), `zitat_ungeprueft` auftaucht, `szene_abg
 
 **Nachmittag-Ablauf:** Gruppen stehen in Phase 3; Phasen 4–8 (Setting & Figuren → Geschichte → Schärfung → Szenentexte → Durchlauf) laufen erstmals mit echten Menschen; USA-Frage kommt beim ersten Szenenauftrag je Gruppe. Interviews zusammenführen: Abschnitt oben („Interviews in eine Gruppe zusammenführen"). Rollback: `bash betrieb/buttons-zurueck.sh` (alt) — heute besser: `git log`, gezielter Revert, Neustart einzeln.
 
-**Stand 06.09. 14:35 — Bots laufen auf `b8a9131` (Neustart 14:27: Phase-4-Paket, Phasen-Fixes, Flow-Fix Sprachnachricht ohne Knopf). main ist `0b70781` (Teil 4 gemergt, 1839 grün) — NEUSTART STEHT AUS (Go von Birk).**
+**Stand 06.09. 14:45 — ALLE Bots + Web laufen auf main `825146d` (Neustart 14:44, Teil 4 drin, 1839 grün). Kein Neustart offen. Alle /tmp-Worktrees entfernt.**
 
 In main, wartet auf Neustart: **Teil 4** = Phase 6 als EINE Kurzgeschichte (freie Abschnittszahl → Szenen, Passt/Ändern/Neu für die ganze Geschichte, Regie-Notiz), USA-Frage beim Eintritt 6 vor dem ersten Lauf, Sperre gegen erfundene Systemzeilen (Vorfall `gespraech_systemzeile_erfunden`), Stil-Auswahl je Szene im Feinschliff (`prompts/stile/`, `szene.stil`, Web-Dropdown). Prompts davon sind heiß. Nötig, bevor eine Gruppe Phase 6 betritt.
 
 **Offen (Reihenfolge):**
-1. **Neustart gruppe1–4** auf `0b70781` (Teil 4) — Go von Birk; vorher Testgruppe: Phase 6 Eintritt → USA-Frage → „Geschichte schreiben" → Abschnitte + Passt/Ändern/Neu; Phase 7 Form → „Welcher Stil?".
+1. ~~Neustart~~ erledigt 14:44. In der Testgruppe prüfen: Phase 6 Eintritt → USA-Frage → „Geschichte schreiben" → Abschnitte + Passt/Ändern/Neu; Phase 7 Form → „Welcher Stil?".
 2. ~~Flow-Fix Sprachnachricht ohne Knopf~~ — live seit 14:27 (`c063421`).
 3. ~~Teil 4~~ — in main (`0b70781`), Neustart ausstehend.
 4. **Kontext 3–5** (`feat/kontext-3-5`): Merge-Versuch 14:25 ABGEBROCHEN — Konflikte in kontext.py/test_prompt_audit.py (beide Seiten `umriss`) UND der Branch fixiert `SYSTEM_ZEICHEN_MAX 30_000`/Gesamt 40 000, die Prompts sind aber gewachsen (Phase 2 = 33 023, Phase 4 = 32 000 Zeichen) → Test rot, Laufzeit würde den Gesprächskörper in 2/4 auf ~7–8 k Zeichen kürzen. Nach dem Workshop: Grenzen auf gemessene Werte heben (System ~36 000, Gesamt ~50 000), Konflikte lösen (umrisszeile + system_zeichen beide behalten), Recall-Skript laufen lassen, dann Freigabe.

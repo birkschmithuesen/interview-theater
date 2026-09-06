@@ -491,13 +491,16 @@ def test_setting_figuren_und_geschichte_fuehren_zur_schaerfung(conn, einst):
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
-    assert "Materiallage wuerde Phase 6 · Szenen als Geschichte hergeben" in prompt
-    assert repo.hole_phase_angeboten(conn, 1) == 6
+    # Seit 06.09.2026 13:15: die NAECHSTE Stufe (5 · Schaerfung), nicht die
+    # hoechste -- erst schaerfen, dann Prosa.
+    assert "Materiallage wuerde Phase 5 · Schaerfung hergeben" in prompt
+    assert repo.hole_phase_angeboten(conn, 1) == 5
 
 
-def test_gefragt_wird_immer_nach_der_hoechsten_moeglichen_phase(conn, einst):
-    """Stehen mehrere Stufen offen, nennt der Block die hoechste: die Gruppe
-    kann in ihrer Antwort jede andere nennen, und der Erkenner nimmt sie."""
+def test_gefragt_wird_nach_der_naechsten_moeglichen_phase(conn, einst):
+    """Stehen mehrere Stufen offen, nennt der Block die NAECHSTE (seit
+    06.09.2026 13:15, min statt max): Phasen werden der Reihe nach begangen;
+    die Gruppe kann in ihrer Antwort jede andere nennen, der Erkenner nimmt sie."""
     repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
     repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.")
     repo.lege_szene_an(conn, 1, 1, "Am Kiosk", "sie treffen sich", None)
@@ -506,7 +509,7 @@ def test_gefragt_wird_immer_nach_der_hoechsten_moeglichen_phase(conn, einst):
     phasen.setze(conn, 1, 4, "befehl")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
-    assert "Materiallage wuerde Phase 6 · Szenen als Geschichte hergeben" in kontext.baue(
+    assert "Materiallage wuerde Phase 5 · Schaerfung hergeben" in kontext.baue(
         conn, 1, ausloeser, einst
     )
 
@@ -515,6 +518,7 @@ def test_neue_stufe_wird_erneut_erfragt(conn, einst):
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Bahnhof")
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
     kontext.baue(conn, 1, ausloeser, einst)  # fragt nach 2
+    phasen.setze(conn, 1, 2, "test")  # die Gruppe geht nach 2
 
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
     repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")

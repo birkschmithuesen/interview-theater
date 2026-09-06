@@ -204,9 +204,9 @@ def test_keine_doppelsendung_je_stufe(conn, tg):
 
 
 def test_abgeschlossen_wird_die_phase_der_gruppe_nicht_das_ziel(conn, tg):
-    """``offenes_angebot`` liefert die HOECHSTE moegliche Stufe -- sind
-    zwei auf einmal moeglich, darf trotzdem nur die abgeschlossen werden, in
-    der die Gruppe wirklich steht."""
+    """``offenes_angebot`` liefert seit 06.09.2026 13:15 die NAECHSTE
+    moegliche Stufe -- Gruppe in 1, Material fuer 2 und 3: angeboten wird 2,
+    abgeschlossen die Phase, in der die Gruppe wirklich steht."""
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Warten, Amt")
     repo.setze_arbeitsstand(conn, 1, "fragen", "Worauf wartest du?")
     repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")
@@ -217,7 +217,7 @@ def test_abgeschlossen_wird_die_phase_der_gruppe_nicht_das_ziel(conn, tg):
 
     _, text, _ = tg.knoepfe[-1]
     assert text.startswith("✅ Phase 1 · Begriffe abgeschlossen")
-    assert text.endswith(f"Weiter zu {phasen.knopfbezeichnung(3)}?")
+    assert text.endswith(f"Weiter zu {phasen.knopfbezeichnung(2)}?")
 
 
 def test_der_weiter_knopf_fuehrt_in_den_phasenrahmen(conn, einst, tg):

@@ -452,14 +452,16 @@ def moegliche_naechste(conn, chat_id: int) -> list[int]:
 
 
 def naechste_moegliche(conn, chat_id: int) -> int | None:
-    """Die hoechste moegliche Phase (``moegliche_naechste``) oder None.
+    """Die NAECHSTE moegliche Phase ueber der aktuellen (``moegliche_naechste``)
+    oder None -- seit 06.09.2026 13:15 ``min`` statt ``max`` (siehe
+    ``offenes_angebot``).
 
     Bleibt als eigene Funktion, weil an genau einer Stelle eine einzelne Zahl
     gebraucht wird: ``arbeitsstand.phase_angeboten`` merkt sich, welche Stufe
     schon angeboten wurde, und ein Merkposten braucht einen Wert, keine
     Liste."""
     moegliche = moegliche_naechste(conn, chat_id)
-    return max(moegliche) if moegliche else None
+    return min(moegliche) if moegliche else None
 
 
 def offenes_angebot(conn, chat_id: int) -> int | None:
@@ -477,7 +479,22 @@ def offenes_angebot(conn, chat_id: int) -> int | None:
     moegliche = moegliche_naechste(conn, chat_id)
     if not moegliche:
         return None
-    merkposten = max(moegliche)
+    # 06.09.2026 13:30 (Birk): "Wenn explizit in eine Phase gesprungen wird,
+    # nicht automatisch in eine andere springen -- egal ob Interviews
+    # vorhanden sind." Das Angebot zaehlt nur, was die Gruppe SEIT dem
+    # Betreten dieser Phase gemacht hat. Ist seitdem nichts Neues entstanden,
+    # ist die Materiallage Altbestand -- kein Angebot, die Gruppe arbeitet.
+    # (Sagt sie ausdruecklich "weiter", geht der Erkenner-Weg trotzdem.)
+    if not repo.neues_material_seit(conn, chat_id, repo.hole_phase_gesetzt_am(conn, chat_id)):
+        return None
+    # 06.09.2026 13:15 (Gruppe 1, live): nach dem Eroeffnungs-Schritt kam
+    # KEIN "Weiter zu Interviews" -- die Gruppe hatte schon ein ausgewertetes
+    # Interview vom Vortag, also war Phase 4 "moeglich", ``max`` waehlte 4,
+    # und 4 war laengst als angeboten gemerkt. Angeboten wird die NAECHSTE
+    # erreichbare Stufe ueber der aktuellen (``min``), nicht die hoechste:
+    # Phasen werden der Reihe nach begangen, ein Sprung ist die Ausnahme,
+    # die /phase N abdeckt.
+    merkposten = min(moegliche)
     gemerkt = repo.hole_phase_angeboten(conn, chat_id)
     # ``abs``: ein NEGATIVER Merkposten ist dieselbe Stufe, nur abgelehnt
     # (``lehne_angebot_ab``) -- auch dann bleibt es still, bis

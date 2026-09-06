@@ -413,6 +413,25 @@ def _dauer(sekunden: int | None) -> str:
     return f"{int(sekunden) // 60}:{int(sekunden) % 60:02d}"
 
 
+def _zeitpunkt(iso: str | None) -> str:
+    """Datum und Uhrzeit des Aufnahmebeginns (06.09.2026 14:00, Birk: neben
+    der Nummer immer Datum, Uhrzeit und Dauer) -- lokale Zeit Europe/Berlin,
+    als Praefix mit Trenner; leer, wenn unbekannt."""
+    if not iso:
+        return ""
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=ZoneInfo("UTC"))
+        lokal = t.astimezone(ZoneInfo("Europe/Berlin"))
+        return f"{lokal.strftime('%d.%m.%Y %H:%M')} · "
+    except (ValueError, TypeError):
+        return ""
+
+
 def _umfang(teile: int, sekunden: int | None) -> str:
     """Die Kopfzeile eines Interviews auf der Gruppenseite: aus wie vielen
     Sprachnachrichten es besteht und wie lang es insgesamt ist (§ 10.6).
@@ -1080,7 +1099,7 @@ def _interview_html(v: dict) -> str:
         for t in v["themen"]
     )
     inhalt = (
-        f'<p class="zeit">{_umfang(v["teile"], v["dauer_sekunden"])}</p>'
+        f'<p class="zeit">{_zeitpunkt(v.get("beginn"))}{_umfang(v["teile"], v["dauer_sekunden"])}</p>'
         + (
             f'<p class="zusammenfassung">{_t(v["zusammenfassung"], "")}</p>{themen}'
             if v["zusammenfassung"]

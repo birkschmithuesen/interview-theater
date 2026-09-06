@@ -1396,15 +1396,66 @@ def setze_phase(conn: sqlite3.Connection, chat_id: int, nummer: int) -> None:
     Korrekturbefehl setzen darf."""
     conn.execute(
         """
-        INSERT INTO arbeitsstand (chat_id, phase, geaendert_am)
-        VALUES (?, ?, ?)
+        INSERT INTO arbeitsstand (chat_id, phase, phase_gesetzt_am, geaendert_am)
+        VALUES (?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             phase = excluded.phase,
-            geaendert_am = excluded.geaendert_am
+            phase_gesetzt_am = excluded.phase_gesetzt_am
         """,
-        (chat_id, nummer, _jetzt()),
+        (chat_id, nummer, _jetzt_fein(), _jetzt()),
     )
     conn.commit()
+
+
+def _jetzt_fein() -> str:
+    """Wie ``_jetzt``, aber mikrosekundengenau -- fuer ``phase_gesetzt_am``,
+    damit ein Arbeitsstand-Schreibvorgang in derselben Sekunde noch als
+    'danach' erkennbar ist (``neues_material_seit``)."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+@_gesperrt
+def hole_phase_gesetzt_am(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Wann die aktuelle Phase betreten wurde (ISO) -- None fuer Gruppen,
+    die ihre Phase vor dem 06.09.2026 13:30 gesetzt haben."""
+    zeile = conn.execute(
+        "SELECT phase_gesetzt_am FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    return zeile["phase_gesetzt_am"] if zeile else None
+
+
+@_gesperrt
+def neues_material_seit(conn: sqlite3.Connection, chat_id: int, seit: str | None) -> bool:
+    """Ist seit ``seit`` etwas Neues entstanden, das eine Phase erfuellen
+    koennte -- eine Verdichtung, ein beendetes Interview, eine Figur, eine
+    Szene oder ein Arbeitsstand-Feld? ``seit`` None = ja (Altbestand)."""
+    if not seit:
+        return True
+    fragen = (
+        ("arbeitsstand", "geaendert_am"),
+        ("verdichtung", "erstellt_am"),
+        ("aufnahme", "beendet_am"),
+        ("figur", "geaendert_am"),
+        ("szene", "erstellt_am"),
+    )
+    # ``seit`` ist mikrosekundengenau, die Stempel der Tabellen sekundengenau:
+    # verglichen wird auf die Sekunde gerundet -- alles aus derselben Sekunde
+    # wie das Phasensetzen zaehlt als danach.
+    # Das Phasensetzen selbst stempelt ``geaendert_am`` NICHT (nur
+    # ``phase_gesetzt_am``) -- deshalb zaehlt hier ein Arbeitsstand-Stempel
+    # aus derselben Sekunde als neues Material.
+    sekunde = seit[:19]
+    for tabelle, spalte in fragen:
+        try:
+            zeile = conn.execute(
+                f"SELECT 1 FROM {tabelle} WHERE chat_id = ? AND substr({spalte}, 1, 19) >= ? LIMIT 1",
+                (chat_id, sekunde),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            continue
+        if zeile:
+            return True
+    return False
 
 
 @_gesperrt

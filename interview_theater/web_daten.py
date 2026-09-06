@@ -620,6 +620,21 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         ).fetchall()
         mit_teilen = False
 
+    # 06.09.2026 14:00 (Birk): chronologisch nach dem BEGINN der Aufnahme
+    # (fruehester Teil; ohne Teile der Kopf selbst) -- nicht nach id: ein
+    # nachtraeglich getrenntes Interview bekommt eine hoehere id als ein
+    # spaeter aufgenommenes, und die Nummer stimmt dann nicht mehr.
+    def _beginn(z):
+        if mit_teilen:
+            erster = conn.execute(
+                f"SELECT min(empfangen_am) AS t FROM aufnahme WHERE teil_von = ? AND {_NICHT_ENTFERNT}",
+                (z["id"],),
+            ).fetchone()
+            if erster and erster["t"]:
+                return erster["t"]
+        return z["empfangen_am"] or ""
+
+    zeilen = sorted(zeilen, key=_beginn)
     ergebnis = []
     for nummer, z in enumerate(zeilen, start=1):
         teile, teile_dauer = _teile_zahlen(conn, z["id"]) if mit_teilen else (0, None)
@@ -635,6 +650,7 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
                 "bezeichnung": f"Interview {nummer}",
                 "status": z["status"],
                 "teile": teile,
+                "beginn": _beginn(z),
                 "dauer_sekunden": teile_dauer if teile else z["dauer_sekunden"],
                 "zusammenfassung": verdichtung["zusammenfassung"] if verdichtung else None,
                 "erstellt_am": verdichtung["erstellt_am"] if verdichtung else None,
@@ -718,12 +734,20 @@ def interviewliste(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     Login."""
     try:
         zeilen = conn.execute(
-            f"SELECT id FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            f"SELECT id, empfangen_am FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
             f"AND teil_von IS NULL AND {_NICHT_ENTFERNT} ORDER BY id ASC",
             (chat_id,),
         ).fetchall()
     except sqlite3.OperationalError:
         return []
+    def _beginn(z):
+        erster = conn.execute(
+            f"SELECT min(empfangen_am) AS t FROM aufnahme WHERE teil_von = ? AND {_NICHT_ENTFERNT}",
+            (z["id"],),
+        ).fetchone()
+        return (erster["t"] if erster and erster["t"] else None) or z["empfangen_am"] or ""
+
+    zeilen = sorted(zeilen, key=_beginn)
     return [
         {"id": z["id"], "bezeichnung": f"Interview {nummer}"}
         for nummer, z in enumerate(zeilen, start=1)

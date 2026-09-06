@@ -234,6 +234,13 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Zuletzt angebotene Phase: verhindert, dass der Hinweisblock in
   -- kontext.baue jeden Zug erneut nach demselben Wechsel fragt.
   phase_angeboten        INTEGER,
+  -- Wann die Gruppe die aktuelle Phase betreten hat (06.09.2026 13:30,
+  -- Birk: "wenn explizit in eine Phase gesprungen wird, nicht automatisch
+  -- in eine andere springen -- egal ob Interviews vorhanden sind"). Das
+  -- proaktive Angebot zaehlt nur Material, das NACH diesem Zeitpunkt
+  -- entstanden ist: eine Gruppe, die nach 3 zurueckgeht, wird nicht von
+  -- ihren Vortags-Interviews sofort wieder nach 4 geschoben.
+  phase_gesetzt_am       TEXT,
   -- Die zehn zur Wahl gestellten Interviewfragen (Phase 2, 06.09.2026,
   -- Birk: die Fragen-Erarbeitung ist eine Mehrfachauswahl, kein Diktat).
   -- Eine Frage je Zeile, in der Reihenfolge des Vorschlagsblocks -- die

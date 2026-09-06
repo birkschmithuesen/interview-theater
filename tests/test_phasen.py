@@ -402,13 +402,15 @@ def test_erfuellte_stufe_gleich_der_aktuellen_ist_kein_vorschlag(conn):
     assert phasen.moegliche_naechste(conn, 1) == []
 
 
-def test_naechste_moegliche_ist_die_hoechste(conn):
+def test_naechste_moegliche_ist_die_naechste(conn):
     """Der Merkposten fuer ``phase_angeboten`` braucht eine Zahl, keine
-    Liste -- das ist der einzige Grund, warum es beide Funktionen gibt."""
+    Liste. Seit 06.09.2026 13:15 die NAECHSTE erreichbare Stufe, nicht die
+    hoechste: Gruppe 1 bekam kein "Weiter zu Interviews", weil ein altes
+    Interview Phase 4 moeglich machte und 4 laengst angeboten war."""
     _setting_und_figuren(conn)
     _geschichte_und_szenen(conn)
     assert phasen.moegliche_naechste(conn, 1) == [5, 6]
-    assert phasen.naechste_moegliche(conn, 1) == 6
+    assert phasen.naechste_moegliche(conn, 1) == 5
 
 
 def test_entfernte_figuren_zaehlen_fuer_die_materiallage_nicht(conn):
@@ -475,6 +477,7 @@ def test_eine_hoehere_stufe_wird_erneut_angeboten(conn):
     eine hoehere erlaubt, ist das ein neues Angebot -- kein Draengeln."""
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer")
     phasen.merke_angebot(conn, 1, 2)
+    phasen.setze(conn, 1, 2, "test")
 
     repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
     repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")
@@ -485,3 +488,37 @@ def test_eine_hoehere_stufe_wird_erneut_angeboten(conn):
 
 def test_ohne_moegliche_phase_gibt_es_kein_angebot(conn):
     assert phasen.offenes_angebot(conn, 1) is None
+
+
+def test_explizit_gesetzte_phase_wird_nicht_von_altbestand_weitergeschoben(conn):
+    """06.09.2026 13:30 (Birk, Gruppe 1 live): die Gruppe springt per /phase
+    zurueck nach 3, hat aber Interviews vom Vortag -- der Bot bot sofort
+    wieder 4 an. Seit dem Betreten der Phase zaehlt nur NEUES Material."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer")
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war im Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")
+    repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Hallo")
+    repo.setze_arbeitsstand(conn, 1, "interview_abschluss", "Danke")
+    conn.execute(
+        "INSERT INTO verdichtung (chat_id, aufnahme_id, zusammenfassung, erstellt_am) "
+        "VALUES (1, 1, 'alt', '2026-09-05T10:00:00+00:00')"
+    )
+    # Der Altbestand liegt (wie im Live-Fall) VOR dem Phasensprung -- die
+    # Stempel sind sekundengenau, deshalb den Arbeitsstand in die
+    # Vergangenheit datieren statt eine Sekunde zu schlafen.
+    conn.execute(
+        "UPDATE arbeitsstand SET geaendert_am = '2026-09-05T10:00:00+00:00' WHERE chat_id = 1"
+    )
+    conn.commit()
+    phasen.setze(conn, 1, 3, "befehl")  # explizit zurueck nach 3
+
+    assert 4 in phasen.moegliche_naechste(conn, 1), "Material fuer 4 liegt vor"
+    assert phasen.offenes_angebot(conn, 1) is None, "aber es ist Altbestand: kein Angebot"
+
+    # Neues Material nach dem Betreten -> Angebot kommt
+    conn.execute(
+        "INSERT INTO verdichtung (chat_id, aufnahme_id, zusammenfassung, erstellt_am) VALUES (1, 2, 'neu', ?)",
+        (repo._jetzt(),),
+    )
+    conn.commit()
+    assert phasen.offenes_angebot(conn, 1) == 4

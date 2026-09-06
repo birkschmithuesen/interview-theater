@@ -217,6 +217,10 @@ ART_SZENE_SO_LASSEN = "szene_so_lassen"
 #: Textbuch als Datei.
 ART_DURCHLAUF_SZENE = "durchlauf_szene"
 ART_TEXTBUCH = "textbuch"
+#: "Wer spricht wie viel" -- die Sprechanteile je Figur (06.09.2026). Reine
+#: Zaehlung ueber die Szentexte (``sprecher.anteile``), deterministisch aus
+#: der Datenbank: Zusage 2 gilt, hier faellt kein Modellaufruf an.
+ART_SPRECHANTEILE = "sprechanteile"
 #: Phase 4 · Geschichte: den Vorschlag (Bogen, Ende, Szenenfolge) speichern.
 #: ``wert`` ist "<weiter|anders>|<Vorschlagstext>" wie bei der Szenenfolge.
 ART_GESCHICHTE_SPEICHERN = "geschichte_speichern"
@@ -493,6 +497,9 @@ _TEXT_SPAETERE_GEPRUEFT = (
 #: Phase 7 · Durchlauf.
 TEXT_DURCHLAUF_SZENE_KNOPF = "Szene {nummer} ansehen"
 TEXT_TEXTBUCH_KNOPF = "Textbuch als Datei"
+#: Der Durchlauf ist der Ort, an dem die Gruppe das Stueck als Ganzes
+#: ansieht -- und damit der Ort fuer die Frage, wer wie viel spricht.
+TEXT_SPRECHANTEILE_KNOPF = "Wer spricht wie viel"
 _TEXT_TEXTBUCH_BESCHREIBUNG = "Euer Textbuch - alle Szenen in einer Datei."
 _TEXT_TEXTBUCH_FEHLER = (
     "Die Datei ist nicht durchgekommen. Ich kann euch die Szenen auch einzeln "
@@ -2567,6 +2574,16 @@ def biete_durchlauf(conn, tg, chat_id: int) -> int:
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEXTBUCH, None)),
         )
     )
+    # "Wer spricht wie viel" (06.09.2026): der Durchlauf ist die Stelle, an
+    # der die Gruppe das Stueck als Ganzes ansieht -- und die einzige, an der
+    # die Frage nach den Sprechanteilen im Chat einen Ort hat. Reine
+    # Zaehlung, kein Modellaufruf.
+    leiste.append(
+        (
+            TEXT_SPRECHANTEILE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SPRECHANTEILE, None)),
+        )
+    )
     leiste.append(
         (
             TEXT_EIGENE_IDEE_KNOPF,
@@ -3211,6 +3228,21 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
             tg.sende(chat_id, _TEXT_TEXTBUCH_FEHLER)
             return _TEXT_TEXTBUCH_FEHLER
         return "Textbuch"
+
+    if art == ART_SPRECHANTEILE:
+        # Deterministisch aus der Datenbank (``sprecher.anteile``), kein
+        # Modellaufruf -- Zusage 2 gilt auch fuer diesen Handler.
+        from interview_theater import sprecher
+
+        tg.sende(
+            chat_id,
+            sprecher.text(
+                sprecher.anteile(
+                    repo.hole_szenen(conn, chat_id), repo.figuren(conn, chat_id)
+                )
+            ),
+        )
+        return sprecher.UEBERSCHRIFT
 
     return None
 

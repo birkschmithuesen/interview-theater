@@ -29,6 +29,7 @@ Module unter `interview_theater/`:
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
 | `phasen.py` | Die sieben Arbeitsphasen: Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
+| `sprecher.py` | Sprecherzeilen-Parsing und Sprechanteile je Figur (06.09.2026): reine Zählung über `szene.volltext`, kein Modellaufruf. Bekannte Grenze im Docstring benannt (`FRAU K.:`, `MIRA, LEISE:`) |
 | `fehlstellen.py` | Das Fehlstellen-Register (06.09.2026): was der Gruppe noch fehlt, als Sätze. Reine Leseabfrage wie `phasen.voraussetzungen`, kein Modellaufruf; `aus_daten` ist rein, `register` liest über `repo`, `web_daten.fehlstellen` read-only |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
@@ -554,6 +555,29 @@ lädt, würde damit Gesprächszüge ausbremsen.
   rein und kennt nur Dicts, `register` holt sie über `repo`,
   `web_daten.fehlstellen` über die read-only geöffnete Verbindung — der
   Webserver bekommt dadurch keinen `repo`-Pfad.
+
+- **Sprechanteile sind gezählt, nicht geschätzt** (06.09.2026,
+  `sprecher.py`). Der praktisch wichtigste Befund für eine Laiengruppe stand
+  nirgends: eine Spielerin mit vier Zeilen merkt das in der Probe, und dann
+  ist der Text geschrieben. Gezählt wird über `szene.volltext` — den
+  Theatertext, nicht die Prosafassung —, **kein Modellaufruf**. Die Regel für
+  eine Sprecherzeile ist bewusst schlank: am Zeilenanfang ein Name, danach
+  ein Doppelpunkt; ein Name gilt, wenn er in der Figurenliste steht oder
+  durchgehend großgeschrieben ist. **Die Grenze steht im Docstring und in
+  einem Test:** Namen mit Punkt (`FRAU K.:`) oder Komma (`MIRA, LEISE:`)
+  werden nicht erkannt — sie mitzunehmen hieße, „Sie sagt: nein." als
+  Sprecherzeile zu lesen. Eine Ziffer im Kopf schließt aus, gemessen an den
+  echten Opus-Texten unter `docs/prompt-audit/2026-09-06/opus-thinking-texte/`:
+  dort stand `SZENE 1: … ca. 10 min` über dem Text und zählte ohne diese
+  Regel mit rund 30 Wörtern als Sprecher mit. **Erkennt eine Szene keine
+  einzige Sprecherzeile, liefert sie gar nichts** (Lied, Rap und Chor können
+  ohne Sprecherkopf geschrieben sein) und zählt auch nicht in den Nenner:
+  lieber „1 von 4 Szenen" als eine erfundene Null. Regieanweisungen in runden
+  Klammern zählen nicht als gesprochenes Wort. Ausgespielt auf der
+  Gruppenseite als Tabelle (Figur, Anteil, Repliken, Szenen) mit einer
+  sachlichen Hinweiszeile je Figur unter `SCHWELLE_ANTEIL` = 3 %, und im Chat
+  als Zeile „Wer spricht wie viel" im Durchlauf-Knopfmenü
+  (`knoepfe.ART_SPRECHANTEILE`, deterministisch, Zusage 2 gilt).
 
 - **Der Stil ist eine Auswahl je Szene, kein Overlay je Bot** (06.09.2026,
   Birk 12:50, `stile.py` + `prompts/stile/<slug>.md`). Birk: „alle Gruppen

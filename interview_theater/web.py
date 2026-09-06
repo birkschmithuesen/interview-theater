@@ -387,6 +387,14 @@ table.uebersicht .umfang { white-space: nowrap; opacity: .7;
 /* Die Schaerfung: read-only, deshalb ohne Kasten und ohne Knopf. */
 .schaerfung { font-size: .85rem; margin: .3rem 0 .5rem; opacity: .85; }
 .schaerfung ul { margin: .1rem 0 0; }
+/* Wer wie viel spricht: vier schmale Spalten, damit die Tabelle auf ein
+   Telefon passt. Die Hinweiszeilen darunter sind Fliesstext, kein Alarm. */
+table.anteile { margin: .3rem 0 .5rem; }
+table.anteile th, table.anteile td { text-align: left;
+       padding: .2rem .8rem .2rem 0; border-bottom: 1px solid #e6e1d6; }
+table.anteile th { font-size: .78rem; text-transform: uppercase;
+       letter-spacing: .04em; opacity: .6; font-weight: 600; }
+.hinweiszeile { font-size: .9rem; opacity: .8; margin: .2rem 0; }
 /* Das Fehlstellen-Register: eine Arbeitsliste, kein Alarm -- deshalb
    dieselbe Papierfarbe wie der Rest und nur ein Strich an der Seite. */
 ul.fehlstellen { list-style: none; padding: 0 0 0 .7rem; margin: .2rem 0;
@@ -558,6 +566,43 @@ def _fehlstellen_html(eintraege: list[dict] | None) -> str:
     return (
         f"<h2>{html.escape(fehlstellen.UEBERSCHRIFT)}</h2>"
         f'<ul class="fehlstellen">{zeilen}</ul>'
+    )
+
+
+def _sprechanteile_html(daten: dict | None) -> str:
+    """Wie viel jede Figur spricht -- Liste und Hinweiszeilen (06.09.2026).
+
+    **Nur, wenn mindestens eine Szene zählbar war.** Konnte in keinem
+    Szenentext eine Sprecherzeile erkannt werden (Lied, Rap, Chor), bleibt
+    der Abschnitt weg -- eine Tabelle voller Nullen wäre eine Aussage, die
+    die Zählung nicht deckt.
+
+    Die Hinweiszeilen unter der Liste sind bewusst sachlich: die Zahl steht
+    da, die Entscheidung gehört der Gruppe."""
+    if not (daten or {}).get("szenen"):
+        return ""
+    from interview_theater import sprecher
+
+    zeilen = "".join(
+        "<tr><td>{name}</td><td>{anteil}</td><td>{repliken}</td>"
+        "<td>{szenen}</td></tr>".format(
+            name=_t(f["name"]),
+            anteil=_t(sprecher._prozent(f["anteil"])),
+            repliken=f["repliken"],
+            szenen=f["szenen"],
+        )
+        for f in daten["figuren"]
+    )
+    leise = [f for f in daten["figuren"] if f["anteil"] < sprecher.SCHWELLE_ANTEIL]
+    hinweise = "".join(
+        f'<div class="hinweiszeile">{_t(sprecher.hinweis(f, daten["szenen"]))}</div>'
+        for f in leise
+    )
+    return (
+        f"<h2>{html.escape(sprecher.UEBERSCHRIFT)}</h2>"
+        '<table class="anteile"><tr><th>Figur</th><th>Anteil</th>'
+        f"<th>Repliken</th><th>Szenen</th></tr>{zeilen}</table>"
+        f"{hinweise}"
     )
 
 
@@ -1297,6 +1342,10 @@ def gruppe_html(daten: dict, nonce_wert: str | None = None) -> str:
         # nichts, fehlt auch der Abschnitt.
         f"{_fehlstellen_html(daten.get('fehlstellen'))}\n"
         f"<h2>Szenen</h2>{uebersicht}{szenen}\n"
+        # Die Sprechanteile stehen unter den Szenen: sie sind eine Zählung
+        # über genau diese Texte (06.09.2026). Ohne zählbare Szene fehlt der
+        # Abschnitt ganz.
+        f"{_sprechanteile_html(daten.get('sprechanteile'))}\n"
         f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
         "<h2>Der Weg dahin</h2>"
         f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",

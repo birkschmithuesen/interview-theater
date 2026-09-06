@@ -924,7 +924,23 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Was noch fehlt (06.09.2026) -- leere Liste heisst: der Abschnitt
         # bleibt weg, nicht "nichts fehlt".
         "fehlstellen": fehlstellen(conn, chat_id),
+        # Wie viel jede Figur spricht (06.09.2026) -- ``szenen: 0`` heisst:
+        # keine Szene war zaehlbar, der Abschnitt bleibt weg.
+        "sprechanteile": sprechanteile(conn, chat_id),
     }
+
+
+def sprechanteile(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Wie viel jede Figur spricht (``interview_theater/sprecher.py``) --
+    reine Zaehlung ueber die Szenentexte, kein Modellaufruf.
+
+    Wie beim Leitfaden und beim Fehlstellen-Register bleibt der Zusammenbau
+    in seinem Modul: ``sprecher.anteile`` kennt nur Dicts und haengt an
+    keiner Schreibschicht. Ohne zaehlbare Szene ist ``szenen`` 0 -- dann
+    zeigt die Seite den Abschnitt gar nicht."""
+    from interview_theater import sprecher
+
+    return sprecher.anteile(_szenen(conn, chat_id), _figuren(conn, chat_id))
 
 
 def _offene_interviews(conn: sqlite3.Connection, chat_id: int) -> list[str]:

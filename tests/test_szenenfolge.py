@@ -600,9 +600,13 @@ def test_durchlauf_zeigt_die_szenenfolge_mit_status(conn, tg):
     text = tg.knoepfe[-1][1]
     assert "Szene 1: Am Bahnhof — fertig" in text
     assert "Szene 2: Am Bahnhof — offen" in text
+    # "Wer spricht wie viel" steht seit dem 06.09.2026 zwischen Textbuch und
+    # "Eigene Idee": der Durchlauf ist der Ort, an dem die Gruppe das Stueck
+    # als Ganzes ansieht (``sprecher.py``).
     assert tg.beschriftungen == [
         "Szene 1 ansehen", "Szene 2 ansehen",
-        knoepfe.TEXT_TEXTBUCH_KNOPF, knoepfe.TEXT_EIGENE_IDEE_KNOPF,
+        knoepfe.TEXT_TEXTBUCH_KNOPF, knoepfe.TEXT_SPRECHANTEILE_KNOPF,
+        knoepfe.TEXT_EIGENE_IDEE_KNOPF,
     ]
 
 

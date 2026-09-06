@@ -1168,6 +1168,102 @@ def letzte_pruefrunde(conn: sqlite3.Connection, chat_id: int) -> int:
     return int(zeile["r"] or 0) if zeile else 0
 
 
+# --- Dramaturgie-Pruefung (06.09.2026) ------------------------------------
+
+
+@_gesperrt
+def lege_dramaturgie_befunde_an(
+    conn: sqlite3.Connection, chat_id: int, befunde: list[dict], runde: int = 1
+) -> int:
+    """Schreibt die Befunde EINER Dramaturgie-Runde und liefert ihre Anzahl.
+
+    Pflicht sind ``pruefung``, ``text`` und ``quelle`` -- ohne Pruefung gibt
+    es keinen Ort fuer den Befund, ohne Text nichts zu lesen, ohne Quelle
+    waere im Nachhinein nicht mehr zu sehen, ob gezaehlt oder gefragt wurde.
+    Alles andere darf fehlen: ein Sprechanteil haengt an keiner Szene, ein
+    mechanischer Befund an keinem Zitat.
+
+    ``beleg_geprueft`` ist die harte Grenze aus Recherche § 4: sie kommt vom
+    Aufrufer, der den Beleg gegen das vorgelegte Material geprueft hat
+    (``dramaturgie.beleg``), und wird hier nie erraten -- ohne das Feld ist
+    sie 0."""
+    angelegt = 0
+    for befund in befunde:
+        pruefung = str(befund.get("pruefung") or "").strip()
+        text = str(befund.get("text") or "").strip()
+        quelle = str(befund.get("quelle") or "").strip()
+        if not pruefung or not text or not quelle:
+            continue
+        conn.execute(
+            """
+            INSERT INTO dramaturgie_befund
+                (chat_id, runde, pruefung, szene, figur, schwere, text,
+                 beleg, beleg_geprueft, vorschlag, quelle, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                chat_id,
+                runde,
+                pruefung,
+                befund.get("szene"),
+                befund.get("figur"),
+                befund.get("schwere"),
+                text,
+                befund.get("beleg"),
+                1 if befund.get("beleg_geprueft") else 0,
+                befund.get("vorschlag"),
+                quelle,
+                _jetzt(),
+            ),
+        )
+        angelegt += 1
+    conn.commit()
+    return angelegt
+
+
+@_gesperrt
+def dramaturgie_befunde(
+    conn: sqlite3.Connection, chat_id: int, runde: int | None = None
+) -> list[sqlite3.Row]:
+    """Die geltenden Dramaturgie-Befunde, wahlweise nur einer Runde -- in der
+    Reihenfolge, in der sie geschrieben wurden."""
+    sql = (
+        "SELECT * FROM dramaturgie_befund WHERE chat_id = ? "
+        "AND entfernt_am IS NULL"
+    )
+    werte: list = [chat_id]
+    if runde is not None:
+        sql += " AND runde = ?"
+        werte.append(runde)
+    sql += " ORDER BY runde ASC, id ASC"
+    return conn.execute(sql, tuple(werte)).fetchall()
+
+
+@_gesperrt
+def letzte_dramaturgie_runde(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die hoechste bisher gelaufene Dramaturgie-Runde, oder 0. Aus den Daten
+    wie ``letzte_pruefrunde``, nicht aus einem Merkposten."""
+    zeile = conn.execute(
+        "SELECT MAX(runde) AS r FROM dramaturgie_befund WHERE chat_id = ? "
+        "AND entfernt_am IS NULL",
+        (chat_id,),
+    ).fetchone()
+    return int(zeile["r"] or 0) if zeile else 0
+
+
+@_gesperrt
+def hole_dramaturgie_befund(
+    conn: sqlite3.Connection, chat_id: int, befund_id: int
+) -> sqlite3.Row | None:
+    """Ein einzelner Befund -- der Knopf "Szene N so ueberarbeiten" traegt
+    seine id."""
+    return conn.execute(
+        "SELECT * FROM dramaturgie_befund WHERE id = ? AND chat_id = ? "
+        "AND entfernt_am IS NULL",
+        (befund_id, chat_id),
+    ).fetchone()
+
+
 @_gesperrt
 def transkripte(
     conn: sqlite3.Connection, chat_id: int, name: str | None = None

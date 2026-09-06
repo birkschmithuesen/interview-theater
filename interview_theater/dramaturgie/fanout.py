@@ -1,0 +1,966 @@
+"""Schicht 3: der Fan-out -- vier Judge-Fragen, je ein Aufruf, je eine Frage.
+
+**Nicht alle vierzehn Fragen des Katalogs** (Recherche § 2), sondern die vier
+mit dem hoechsten Ertrag pro Aufruf, in der Reihenfolge aus § 6:
+
+* **B1 Value Flip** (Materialklasse M1, je Szene) -- findet die Plauderszene,
+  den haeufigsten Fehlermodus einer LLM-geschriebenen Szene.
+* **A2 Kausale Verkettung** (M5, Synopsen-Kette, EIN Aufruf fuers ganze
+  Stueck) -- findet strukturelles Auseinanderfallen, solange Umbau billig ist.
+* **A6 Tschechow** (EIN Aufruf am Ende, **nur ueber die Kandidatenliste aus
+  Schicht 1**) -- nicht ueber das ganze Stueck: das waere derselbe Aufruf
+  noch einmal, nur teurer.
+* **C1 Blind-Attribution** (M2, anonymisiert, je Szene) -- **der Judge vergibt
+  hier keinen Score.** Er ordnet Repliken zu; die Trefferquote und damit der
+  Score wird im Code aus dem Abgleich mit der Ground Truth berechnet. Das ist
+  der Kern der Bias-Freiheit dieser Frage: das Modell weiss nicht, wie gut es
+  war, und kann sich deshalb nicht selbst benoten (Recherche § 4).
+
+## Sechs bindende Regeln, alle im Code und nicht im Prompt
+
+1. **Ein Aufruf = eine Frage.** Kein Feld "Gesamtnote" im Antwortschema --
+   auch nicht optional, sonst fuellt das Modell es (Recherche § 4,
+   Halo-Effekt).
+2. **Jeder Prompt ist eine eigene Datei** unter ``prompts/dramaturgie/`` und
+   laeuft ueber ``anweisungen.hole`` -- heiss nachgeladen wie jeder andere
+   Prompt. Die ``prompt_version`` steht in der Datei und kommt aus dem
+   Dateikopf ins Ergebnis, **nicht** aus der Modellantwort: eine Version, die
+   das Modell selbst nennt, sagt nichts darueber, welche Datei gelaufen ist.
+3. **Antwortformat sind Markerbloecke**, wie in ``stueckpruefung.py`` -- kein
+   erzwungenes JSON-Schema. Grund: die Szenen-Anbieter liefern Prosa
+   (``llm.prosa`` / ``szene_claude.prosa``), und der Claude-Weg kennt
+   ``response_format`` gar nicht. Ein zweiter Anbieterpfad nur fuer diese
+   Pruefung waere ein zweiter Ort fuer dieselbe Entscheidung. Der Parser ist
+   dafuer streng und getestet.
+4. **Getrennter Richter.** Der Judge darf nicht dasselbe Modell sein wie der
+   Schreiber (Recherche § 4, Self-Enhancement Bias). Erzwungen in
+   ``waehle_richter``: sind beide gleich, gibt es einen ``RichterFehler`` mit
+   klarer Meldung und **keinen Lauf** -- keine stille Abwertung.
+5. **Seriell.** Die Recherche empfiehlt Nebenlaeufigkeit 8-12. Das ist fuer
+   unseren Betrieb falsch: Infomaniak drosselt Parallelitaet mit 429/5xx
+   statt mit einer Warteschlange (AGENTS.md, Falle 8), und
+   ``scripts/pruefe_prompts.py`` ruft aus demselben Grund sequenziell auf.
+   Ein voller Lauf ueber acht Szenen sind ohnehin nur rund achtzehn Aufrufe.
+   Backoff steckt in den beiden Anbieterwegen (``llm.WARTEZEITEN``,
+   ``szene_claude.WARTEZEITEN``).
+6. **Kein Modellaufruf im Knopf-Handler** (bindende Zusage 2): ``starte()``
+   gibt an einen eigenen Thread ab, wie ``stueckpruefung.starte``.
+
+## Was der Judge sieht
+
+Kein Klarname, kein Transkript, kein Chat, kein Arbeitsstand ausser der
+Geschichte: **B1 und C1 sehen nur den Szenentext**, A2 nur die Synopsen,
+A6 nur die Kandidatenliste. Der Prueftext steht zwischen Markierungen, und
+jeder Prompt sagt ausdruecklich, dass dazwischen niemals eine Anweisung
+steht (Recherche § 4, Prompt Injection).
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import logging
+import os
+import re
+import threading
+from dataclasses import dataclass, field
+
+import httpx
+
+from interview_theater import anweisungen, repo, szene_claude
+from interview_theater.dramaturgie import beleg as beleg_modul
+from interview_theater.dramaturgie import mechanik
+
+log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Konstanten
+# ---------------------------------------------------------------------------
+
+#: Prompt-Namen unter ``interview_theater/prompts/``.
+PROMPTS = {
+    "b1": "dramaturgie/b1_wendung",
+    "a2": "dramaturgie/a2_kausalkette",
+    "a6": "dramaturgie/a6_tschechow",
+    "c1": "dramaturgie/c1_stimme",
+}
+
+#: ``art`` in der Tabelle ``aufruf`` -- je Frage eine eigene, damit Dashboard
+#: und Kostenzeile den Weg getrennt sehen (und nicht mit ``szene`` oder
+#: ``stueckpruefung`` verrechnen).
+ARTEN = {schluessel: f"dramaturgie_{schluessel}" for schluessel in PROMPTS}
+
+#: Zeitbudget und Ausgabedeckel je Aufruf. Der Deckel ist eine Obergrenze
+#: gegen ein durchdrehendes Modell, kein Zielwert (Birk, 04.09.2026) -- eine
+#: Judge-Antwort sind acht Zeilen, aber der Infomaniak-Weg laeuft ueber
+#: ``llm.prosa`` mit aktivem Reasoning, und das verbraucht das Budget vor dem
+#: eigentlichen Inhalt (AGENTS.md, Falle 4).
+TIMEOUT_S = 300.0
+MAX_TOKENS = 16_000
+
+#: **Seriell.** Der Wert steht hier, damit er benannt ist und nicht als
+#: stillschweigende Eigenschaft einer for-Schleife existiert. Wer ihn
+#: heraufsetzt, liest vorher AGENTS.md Falle 8; die Obergrenze aus dem
+#: Auftrag ist 3, nicht die 12 aus der Recherche.
+GLEICHZEITIG = 1
+
+#: Ab so vielen Repliken lohnt sich C1. Darunter ist die Trefferquote
+#: Zufall -- bei drei Repliken und zwei Figuren raet man 50 % richtig, ohne
+#: irgendetwas gehoert zu haben.
+C1_REPLIKEN_MIN = 6
+C1_FIGUREN_MIN = 2
+
+#: Die Schwellen aus Recherche § 2, C1. Sie werden **im Code** angewandt, weil
+#: der Judge seinen eigenen Score nicht kennt.
+C1_SCHWELLE_GUT = 0.8
+C1_SCHWELLE_MITTEL = 0.5
+
+#: Hoechstens so viele Ueberarbeitungsauftraege je Szene und Runde
+#: (Recherche § 3): sonst ueberschreibt der Schreib-LLM sich selbst.
+AUFTRAEGE_JE_SZENE = 3
+
+#: Rang der Schweregrade, ueber beide Quellen hinweg. ``hart`` (Mechanik) und
+#: ``blocker`` (Judge) sind derselbe Rang -- beides heisst "im Text
+#: nachweisbar falsch".
+SCHWERE_RANG = {
+    "blocker": 0, "hart": 0, "hoch": 1, "mittel": 2, "verdacht": 2,
+    "niedrig": 3, "hinweis": 3,
+}
+SCHWEREN_JUDGE = ("blocker", "hoch", "mittel", "niedrig")
+
+#: Die Ebene je Pruefung -- Geschichte vor Szene vor Stimme (Recherche § 3).
+#: Eine Prueung, die hier fehlt, sortiert ans Ende.
+EBENEN = {
+    "a2": 0, "a6": 0, "namensstabilitaet": 0, "geisterfigur": 0,
+    "erstauftritt": 0, "figur_ohne_auftritt": 0,
+    "b1": 1, "besetzung_stumm": 1, "besetzung_fremd": 1,
+    "formverteilung": 1, "form_regel": 1, "tschechow": 1,
+    "c1": 2, "sprechanteil": 2,
+}
+
+#: Was in den Chat geht, wenn der Lauf nicht laufen konnte.
+MELDUNG_OHNE_SZENEN = (
+    "Ich kann die Dramaturgie noch nicht pruefen - es ist noch keine Szene "
+    "geschrieben."
+)
+MELDUNG_GLEICHES_MODELL = (
+    "Ich pruefe nicht mit demselben Modell, das die Szenen geschrieben hat "
+    "({modell}) - ein Modell, das seinen eigenen Text benotet, findet ihn gut. "
+    "Setzt IT_JUDGE_MODELL auf ein anderes Modell, dann laeuft die Pruefung."
+)
+MELDUNG_FEHLGESCHLAGEN = (
+    "Die Dramaturgie-Pruefung hat nicht geklappt. Ihr koennt es gleich noch "
+    "einmal versuchen."
+)
+MELDUNG_KOPF = "Ich habe eure Szenen einzeln durchgesehen - Runde {runde}:"
+MELDUNG_OHNE_BEFUND = (
+    "Ich habe eure Szenen einzeln durchgesehen und nichts gefunden, was ich "
+    "euch melden muesste."
+)
+
+
+class RichterFehler(Exception):
+    """Der Richter steht nicht -- mit einem Text fuer die Gruppe."""
+
+
+class DramaturgieFehler(Exception):
+    """Der Lauf konnte nicht laufen -- mit einem Text fuer die Gruppe."""
+
+
+# ---------------------------------------------------------------------------
+# Der Richter: ein anderes Modell als der Schreiber
+# ---------------------------------------------------------------------------
+
+#: Umgebungsvariable, mit der der Betreiber das Richtermodell setzt. Ohne sie
+#: wird der jeweils ANDERE Weg genommen: schreiben die Szenen ueber Claude,
+#: richtet Infomaniak -- und umgekehrt.
+ENV_MODELL = "IT_JUDGE_MODELL"
+
+
+@dataclass
+class Richter:
+    """Wer prueft: ein Anbieterweg und ein Modellname.
+
+    ``weg`` ist ``"claude"`` (lokaler Proxy, Anthropic-Format) oder
+    ``"infomaniak"`` (chat/completions). Welcher, entscheidet der Modellname:
+    alles, was mit ``claude`` beginnt, geht ueber den Proxy.
+
+    ``aufrufe`` zaehlt die **Modellaufrufe**, nicht die Fragen: ein Retry nach
+    einem nicht gefundenen Beleg ist ein zweiter Aufruf und kostet zweimal.
+    Der Bericht soll die Zahl nennen, die auf der Rechnung steht."""
+
+    weg: str
+    modell: str
+    aufrufe: int = 0
+
+    def frage(self, conn, e, klm, chat_id: int, system: str, nutzer: str,
+              art: str) -> str:
+        """Ein Aufruf, ein Text. Bucht in ``aufruf`` mit der ``art`` dieser
+        Frage -- der Weg selbst ist der vorhandene, hier kommt kein dritter
+        Anbieterpfad dazu."""
+        self.aufrufe += 1
+        if self.weg == "claude":
+            klient = getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S)
+            return szene_claude.prosa(
+                conn, dataclasses.replace(e, szene_modell=self.modell), klient,
+                chat_id, system, nutzer, art, timeout=TIMEOUT_S,
+            )
+        from interview_theater.llm import LLM
+
+        klient = getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S)
+        richter_klm = LLM(
+            dataclasses.replace(e, llm_modell=self.modell), klient, conn
+        )
+        return richter_klm.prosa(
+            chat_id, system, nutzer, art, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
+        )
+
+
+def schreibermodell(e, conn=None, chat_id: int | None = None) -> str:
+    """Welches Modell die Szenen dieser Gruppe schreibt.
+
+    Nicht aus einer Konstante, sondern aus derselben Bedingung, die
+    ``szene.py`` benutzt: der Betreiber muss den Claude-Weg erlaubt haben UND
+    die Gruppe zugestimmt haben. Sonst ist es das Infomaniak-Modell."""
+    if szene_claude.ist_aktiv(e, conn, chat_id):
+        return getattr(e, "szene_modell", None) or szene_claude.MODELL_VORGABE
+    return getattr(e, "llm_modell", "") or ""
+
+
+def waehle_richter(e, conn=None, chat_id: int | None = None) -> Richter:
+    """Der Richter fuer diese Gruppe -- oder ein ``RichterFehler``.
+
+    **Weigert sich zu laufen, wenn Schreiber == Richter.** Das ist die
+    Gegenmassnahme gegen den Self-Enhancement Bias (Recherche § 4, Q17/Q19):
+    ein Judge bevorzugt Texte des eigenen Modells, gemessen und
+    reproduzierbar. Der Fehler ist laut und traegt eine Meldung fuer die
+    Gruppe; eine stille Abwertung ("wir ziehen einen Punkt ab") waere eine
+    Zahl, die niemand nachrechnen kann.
+
+    Ohne ``IT_JUDGE_MODELL`` gilt die Vorgabe: schreiben die Szenen ueber
+    Claude, richtet das Infomaniak-Modell -- und umgekehrt."""
+    schreiber = schreibermodell(e, conn, chat_id)
+    gewuenscht = (os.environ.get(ENV_MODELL) or "").strip()
+    if not gewuenscht:
+        gewuenscht = (
+            (getattr(e, "llm_modell", "") or "")
+            if szene_claude.ist_aktiv(e, conn, chat_id)
+            else szene_claude.MODELL_VORGABE
+        )
+    if not gewuenscht:
+        raise RichterFehler(MELDUNG_GLEICHES_MODELL.format(modell=schreiber or "?"))
+    if gewuenscht.strip().casefold() == (schreiber or "").strip().casefold():
+        raise RichterFehler(MELDUNG_GLEICHES_MODELL.format(modell=schreiber))
+    weg = "claude" if gewuenscht.lower().startswith("claude") else "infomaniak"
+    return Richter(weg, gewuenscht)
+
+
+# ---------------------------------------------------------------------------
+# Prompt und Version
+# ---------------------------------------------------------------------------
+
+_VERSION = re.compile(r"^\s*prompt_version:\s*(\S+)\s*$", re.MULTILINE)
+
+
+def prompt(schluessel: str) -> str:
+    """Der Prompt einer Frage, heiss nachgeladen (``anweisungen.hole``)."""
+    return anweisungen.hole(PROMPTS[schluessel])
+
+
+def version(schluessel: str) -> str:
+    """Die ``prompt_version`` aus der Prompt-Datei.
+
+    Aus der **Datei**, nicht aus der Antwort: welche Fassung gelaufen ist,
+    weiss der Code und nicht das Modell. Fehlt die Zeile, ist das ``"?"`` --
+    ein Ergebnis ohne Versionsangabe ist besser als kein Ergebnis, aber es
+    soll auffallen."""
+    treffer = _VERSION.search(prompt(schluessel))
+    return treffer.group(1) if treffer else "?"
+
+
+# ---------------------------------------------------------------------------
+# Der Parser: Markerbloecke
+# ---------------------------------------------------------------------------
+
+_MARKERZEILE = re.compile(r"^([A-ZÄÖÜ][A-ZÄÖÜ_ ]{1,28}?)\s*:\s*(.*)$")
+
+#: Die Marker, die es gibt -- und **nur** die eroeffnen einen Block.
+#:
+#: Der Grund ist ein Fehler, der ohne Liste passiert waere: ein Belegzitat aus
+#: einer Dialogszene beginnt regelmaessig mit einem Sprechernamen in Versalien
+#: und einem Doppelpunkt (``BELEG: MIRA: Gib mir den Schluessel.``). Geht das
+#: Zitat ueber zwei Zeilen, saehe die zweite (``JONAS: Nein.``) wie ein neuer
+#: Marker aus, und der Beleg waere abgeschnitten. Mit der Liste ist jede Zeile,
+#: die keinen bekannten Marker traegt, eine Fortsetzung.
+_SCHLUESSEL = frozenset({
+    "SCORE", "BEFUND", "BELEG", "SCHWERE", "VORSCHLAG", "UNSICHER", "SZENE",
+    "WERT", "LADUNG", "ADDITIVE_SZENEN", "UNEINGELOEST", "ZUORDNUNG",
+    "FRAGE", "PROMPT_VERSION",
+})
+
+
+def _bloecke(antwort: str) -> dict[str, list[str]]:
+    """Zerlegt eine Markerantwort in Schluessel -> Werte, in Reihenfolge.
+
+    Fortsetzungszeilen (eine Zeile ohne bekannten Marker) gehoeren zum zuletzt
+    geoeffneten Marker: ein Beleg oder ein Vorschlag darf ueber zwei Zeilen
+    gehen. Markdown-Beiwerk (``**BELEG:** ...``) wird abgeraeumt, wie in
+    ``szene._kopfwert`` -- das Modell setzt seine Marker gern fett."""
+    ergebnis: dict[str, list[str]] = {}
+    letzter: str | None = None
+    for roh in (antwort or "").splitlines():
+        zeile = roh.strip().lstrip("*#`> -").strip()
+        if not zeile:
+            letzter = None
+            continue
+        treffer = _MARKERZEILE.match(zeile)
+        schluessel = (
+            "_".join(treffer.group(1).split()).upper() if treffer else ""
+        )
+        if schluessel in _SCHLUESSEL:
+            wert = treffer.group(2).strip().strip("*` ").strip()
+            ergebnis.setdefault(schluessel, []).append(wert)
+            letzter = schluessel
+            continue
+        if letzter and ergebnis[letzter]:
+            ergebnis[letzter][-1] = (ergebnis[letzter][-1] + " " + zeile).strip()
+    return ergebnis
+
+
+def _erster(bloecke: dict, schluessel: str) -> str:
+    werte = bloecke.get(schluessel) or []
+    return werte[0] if werte else ""
+
+
+def _score(wert: str):
+    treffer = re.search(r"[0-2]", wert or "")
+    return int(treffer.group()) if treffer else None
+
+
+def _schwere(wert: str) -> str:
+    gefaltet = (wert or "").lower()
+    for name in SCHWEREN_JUDGE:
+        if name in gefaltet:
+            return name
+    return "mittel"
+
+
+def _ja(wert: str) -> bool:
+    gefaltet = (wert or "").strip().lower()
+    return gefaltet.startswith(("ja", "true", "yes", "y"))
+
+
+def _nummer(wert: str):
+    treffer = re.search(r"\d+", wert or "")
+    return int(treffer.group()) if treffer else None
+
+
+def zerlege(antwort: str) -> dict:
+    """Die Markerantwort einer Frage mit Score als Dict.
+
+    **Kein Feld "Gesamtnote"** -- es gibt keins im Schema und deshalb auch
+    keins hier. Was nicht dasteht, ist None; ein fehlender Score macht den
+    Befund unbrauchbar, aber nicht den Lauf kaputt."""
+    bloecke = _bloecke(antwort)
+    return {
+        "score": _score(_erster(bloecke, "SCORE")),
+        "befund": _erster(bloecke, "BEFUND") or None,
+        "beleg": _erster(bloecke, "BELEG") or None,
+        "schwere": _schwere(_erster(bloecke, "SCHWERE")),
+        "vorschlag": _erster(bloecke, "VORSCHLAG") or None,
+        "szene": _nummer(_erster(bloecke, "SZENE")),
+        "unsicher": _ja(_erster(bloecke, "UNSICHER")),
+        "wert": _erster(bloecke, "WERT") or None,
+        "ladung": _erster(bloecke, "LADUNG") or None,
+        "additive_szenen": _erster(bloecke, "ADDITIVE_SZENEN") or None,
+        "uneingeloest": _erster(bloecke, "UNEINGELOEST") or None,
+    }
+
+
+_ZUORDNUNG = re.compile(r"^\s*(\d{1,3})\s*[=:.\-]\s*(.+?)\s*$")
+
+
+def zerlege_zuordnung(antwort: str) -> tuple[dict[int, str], dict]:
+    """Die C1-Antwort: Replik-Nummer -> vermutete Figur, plus Beleg.
+
+    **Kein Score.** Der Prompt fragt keinen ab, und dieser Parser liest
+    keinen -- selbst wenn das Modell einen mitschickt, ist er hier nicht
+    abholbar. Genau das ist die Massnahme."""
+    bloecke = _bloecke(antwort)
+    zuordnung: dict[int, str] = {}
+    for wert in bloecke.get("ZUORDNUNG") or []:
+        treffer = _ZUORDNUNG.match(wert)
+        if not treffer:
+            continue
+        zuordnung[int(treffer.group(1))] = treffer.group(2).strip().strip("„“\"'")
+    rest = {
+        "befund": _erster(bloecke, "BEFUND") or None,
+        "beleg": _erster(bloecke, "BELEG") or None,
+        "unsicher": _ja(_erster(bloecke, "UNSICHER")),
+    }
+    return zuordnung, rest
+
+
+# ---------------------------------------------------------------------------
+# Das Material: was der Judge sieht
+# ---------------------------------------------------------------------------
+
+#: Die Markierungen um den Prueftext. Sie stehen im Prompt und hier -- eine
+#: Aenderung braucht beide Stellen, und ein Test haelt sie zusammen.
+MARKEN = {
+    "szene": ("<<<SZENE", "SZENE>>>"),
+    "synopsen": ("<<<SYNOPSEN", "SYNOPSEN>>>"),
+    "kandidaten": ("<<<KANDIDATEN", "KANDIDATEN>>>"),
+    "repliken": ("<<<REPLIKEN", "REPLIKEN>>>"),
+}
+
+
+def umschliesse(marke: str, material: str, kopf: str = "") -> str:
+    """Der Nutzertext: eine Kopfzeile ausserhalb, der Prueftext innerhalb der
+    Markierungen. Der Beleg wird gegen ``material`` geprueft und nie gegen
+    diesen ganzen String -- was ausserhalb steht, hat der Judge nicht als
+    Stueck gelesen."""
+    auf, zu = MARKEN[marke]
+    teile = [kopf.strip()] if kopf.strip() else []
+    teile.append(f"{auf}\n{material.strip()}\n{zu}")
+    return "\n\n".join(teile)
+
+
+def material_szene(zeile) -> str:
+    """Nur der Szenentext -- kein Klarname, kein Transkript, kein Chat."""
+    for feld in ("volltext", "prosa"):
+        try:
+            wert = (zeile[feld] or "").strip()
+        except (IndexError, KeyError):
+            continue
+        if wert:
+            return wert
+    return ""
+
+
+def material_synopsen(conn, chat_id: int) -> str:
+    """Die Synopsen-Kette (Materialklasse M5): je Szene Nummer, Titel, Form
+    und die Kurzfassung -- nie der Volltext.
+
+    Quelle der Kurzfassung ist ``szene.zusammenfassung`` (die schreibt das
+    Szenen-Modell selbst mit, kostet also keinen Aufruf), sonst
+    ``kurzbeschreibung``, sonst der Anfang der Prosafassung. Fehlt alles,
+    steht die Szene mit ihrer Planung da und nicht als Luecke."""
+    teile: list[str] = []
+    for s in repo.hole_szenen(conn, chat_id):
+        if s["nummer"] is None:
+            continue
+        kopf = f"Szene {s['nummer']}"
+        if (s["titel"] or "").strip():
+            kopf += f": {s['titel'].strip()}"
+        if (s["form"] or "").strip():
+            kopf += f" ({s['form'].strip()})"
+        teile.append(kopf)
+        teile.append(_synopse(s))
+    return "\n".join(teile)
+
+
+#: So viele Zeichen der Prosafassung stehen im Rueckfall in der Synopse. Drei
+#: Zeilen, wie es die Materialklasse M5 vorsieht -- nicht der halbe Volltext,
+#: sonst ist die Kette so teuer wie das Fenster.
+SYNOPSE_ZEICHEN = 400
+
+
+def _synopse(s) -> str:
+    for feld in ("zusammenfassung", "kurzbeschreibung"):
+        try:
+            wert = (s[feld] or "").strip()
+        except (IndexError, KeyError):
+            continue
+        if wert:
+            return wert
+    for feld in ("prosa", "was_passiert"):
+        try:
+            wert = " ".join((s[feld] or "").split())
+        except (IndexError, KeyError):
+            continue
+        if wert:
+            return wert[:SYNOPSE_ZEICHEN]
+    return "(noch nichts geschrieben)"
+
+
+def material_kandidaten(kandidaten) -> str:
+    """Die Tschechow-Kandidaten mit ihrem Satz als Kontext.
+
+    Der Satz ist da, damit der Judge ueberhaupt etwas **zitieren** kann: eine
+    reine Wortliste liesse ihn zwischen "kein Beleg moeglich" und einem
+    erfundenen Zitat waehlen."""
+    zeilen = []
+    for k in kandidaten:
+        zeile = f"Szene {k.szene} - \"{k.wort}\" ({k.anzahl}-mal)"
+        if k.satz:
+            zeile += f": {k.satz}"
+        zeilen.append(zeile)
+    return "\n".join(zeilen)
+
+
+def material_repliken(repliken) -> str:
+    """Die Repliken einer Szene **ohne Namen**, durchnummeriert (M2)."""
+    return "\n".join(f"{i}. {r.text}" for i, r in enumerate(repliken, start=1))
+
+
+# ---------------------------------------------------------------------------
+# Die vier Fragen
+# ---------------------------------------------------------------------------
+
+
+def _stelle(conn, e, klm, chat_id, richter, schluessel, nutzer, material, marke):
+    """Ein Aufruf mit Belegpflicht: fragen, Beleg pruefen, hoechstens einmal
+    nachfragen (``beleg.hole_mit_beleg``)."""
+    system = prompt(schluessel)
+
+    def aufruf(hinweis):
+        text = nutzer if not hinweis else f"{nutzer}\n\n{hinweis}"
+        return zerlege(
+            richter.frage(conn, e, klm, chat_id, system, text, ARTEN[schluessel])
+        )
+
+    return beleg_modul.hole_mit_beleg(aufruf, material, marke)
+
+
+def frage_b1(conn, e, klm, chat_id: int, richter: Richter, szene) -> dict | None:
+    """B1 Value Flip fuer EINE Szene (M1). None, wenn die Szene keinen Text
+    hat."""
+    material = material_szene(szene)
+    if not material:
+        return None
+    nummer = szene["nummer"]
+    nutzer = umschliesse(
+        "szene", material, f"Das ist Szene {nummer} des Stuecks."
+    )
+    antwort, stand = _stelle(
+        conn, e, klm, chat_id, richter, "b1", nutzer, material, f"b1 Szene {nummer}",
+    )
+    return _befund_aus("b1", antwort, stand, szene=nummer)
+
+
+def frage_a2(conn, e, klm, chat_id: int, richter: Richter) -> dict | None:
+    """A2 Kausale Verkettung -- EIN Aufruf ueber die Synopsen-Kette (M5)."""
+    material = material_synopsen(conn, chat_id)
+    if not material.strip():
+        return None
+    stand_zeile = repo.hole_arbeitsstand(conn, chat_id)
+    kopf = "Das ist die Szenenfolge des Stuecks als Kurzfassungen."
+    geschichte = ""
+    if stand_zeile is not None:
+        try:
+            geschichte = (stand_zeile["geschichte"] or "").strip()
+        except (IndexError, KeyError):
+            geschichte = ""
+    if geschichte:
+        kopf += f"\nDie Gruppe hat sich die Geschichte so vorgenommen:\n{geschichte}"
+    nutzer = umschliesse("synopsen", material, kopf)
+    antwort, stand = _stelle(
+        conn, e, klm, chat_id, richter, "a2", nutzer, material, "a2 Kausalkette",
+    )
+    return _befund_aus("a2", antwort, stand, szene=antwort.get("szene"))
+
+
+def frage_a6(conn, e, klm, chat_id: int, richter: Richter, kandidaten) -> dict | None:
+    """A6 Tschechow -- EIN Aufruf am Ende, **nur** ueber die Kandidatenliste
+    aus Schicht 1. None, wenn es keine Kandidaten gibt: dann gibt es nichts
+    zu fragen, und ein Aufruf "prueft doch mal das ganze Stueck" waere genau
+    der teure Aufruf, den die Vorfilterung spart."""
+    if not kandidaten:
+        return None
+    material = material_kandidaten(kandidaten)
+    nutzer = umschliesse(
+        "kandidaten", material,
+        "Das ist die maschinelle Kandidatenliste zu diesem Stueck.",
+    )
+    antwort, stand = _stelle(
+        conn, e, klm, chat_id, richter, "a6", nutzer, material, "a6 Tschechow",
+    )
+    return _befund_aus("a6", antwort, stand, szene=antwort.get("szene"))
+
+
+def frage_c1(conn, e, klm, chat_id: int, richter: Richter, nummer: int,
+             repliken) -> dict | None:
+    """C1 Blind-Attribution fuer EINE Szene (M2).
+
+    **Der Judge vergibt keinen Score** -- er ordnet zu, und die Trefferquote
+    rechnet diese Funktion aus. Sie kennt die Ground Truth (die Labels, die
+    ``mechanik.repliken`` gelesen hat) und gibt sie nie in den Prompt."""
+    echte = [r for r in repliken
+             if mechanik._schluessel(r.label) not in mechanik.KOLLEKTIV]
+    figuren = list(dict.fromkeys(r.label for r in echte))
+    if len(echte) < C1_REPLIKEN_MIN or len(figuren) < C1_FIGUREN_MIN:
+        return None
+
+    material = material_repliken(echte)
+    kopf = (
+        f"Das sind die Repliken von Szene {nummer}, ohne Namen. "
+        "In dieser Szene sprechen: " + ", ".join(figuren) + "."
+    )
+    nutzer = umschliesse("repliken", material, kopf)
+    system = prompt("c1")
+    zuordnung: dict[int, str] = {}
+
+    def aufruf(hinweis):
+        nonlocal zuordnung
+        text = nutzer if not hinweis else f"{nutzer}\n\n{hinweis}"
+        zuordnung, rest = zerlege_zuordnung(
+            richter.frage(conn, e, klm, chat_id, system, text, ARTEN["c1"])
+        )
+        return rest
+
+    antwort, stand = beleg_modul.hole_mit_beleg(
+        aufruf, material, f"c1 Szene {nummer}"
+    )
+    richtig = sum(
+        1 for i, r in enumerate(echte, start=1)
+        if mechanik._schluessel(zuordnung.get(i, "")) == mechanik._schluessel(r.label)
+    )
+    quote = richtig / len(echte)
+    score = (
+        2 if quote >= C1_SCHWELLE_GUT
+        else 1 if quote >= C1_SCHWELLE_MITTEL
+        else 0
+    )
+    if score == 2:
+        return None
+
+    paar = _verwechseltes_paar(echte, zuordnung) or figuren[:2]
+    antwort = dict(antwort)
+    antwort["score"] = None if stand.unsicher else score
+    # Score 0 heisst "die Figuren sind nicht auseinanderzuhalten" -- fuer eine
+    # Laiengruppe ein Befund, an dem eine ganze Szene haengt. Score 1 wird in
+    # ``_befund_aus`` ohnehin zum ``verdacht``.
+    antwort["schwere"] = "hoch"
+    antwort["befund"] = (
+        f"Von {len(echte)} Repliken in Szene {nummer} liessen sich {richtig} "
+        "der richtigen Figur zuordnen, als die Namen weg waren."
+    )
+    antwort["vorschlag"] = (
+        f"Szene {nummer}: {paar[0]} und {paar[1]} klingen austauschbar. Gib "
+        f"{paar[0]} ein eigenes Sprachmerkmal - kuerzere Saetze, ein "
+        "Fuellwort, ein Abbruch - und schreib ihre Repliken in Szene "
+        f"{nummer} damit neu."
+    )
+    return _befund_aus("c1", antwort, stand, szene=nummer, figur=paar[0])
+
+
+def _verwechseltes_paar(repliken, zuordnung) -> tuple[str, str] | None:
+    """Das Figurenpaar, das am haeufigsten verwechselt wurde -- die Adresse
+    des Umbauvorschlags. Deterministisch aus der Zuordnung, nicht vom
+    Modell."""
+    zaehler: dict[tuple[str, str], int] = {}
+    for i, r in enumerate(repliken, start=1):
+        geraten = (zuordnung.get(i) or "").strip()
+        if not geraten:
+            continue
+        if mechanik._schluessel(geraten) == mechanik._schluessel(r.label):
+            continue
+        paar = tuple(sorted((r.label, geraten), key=mechanik._schluessel))
+        zaehler[paar] = zaehler.get(paar, 0) + 1
+    if not zaehler:
+        return None
+    return max(zaehler.items(), key=lambda p: (p[1], p[0]))[0]
+
+
+def _befund_aus(schluessel: str, antwort: dict, stand, szene=None,
+                figur=None) -> dict | None:
+    """Aus einer geprueften Judge-Antwort ein Befund -- oder None.
+
+    **Score 2 ist kein Befund.** Das Kriterium ist erfuellt; es gibt nichts
+    zu melden, und eine Zeile "alles gut" in einer Befundliste ist Rauschen.
+    Score 1 wird zum ``verdacht``, Score 0 traegt die Schwere des Judges.
+
+    Ein unsicherer Befund (Beleg auch nach dem Retry nicht gefunden) bleibt
+    erhalten, aber als ``hinweis`` mit ``beleg_geprueft = 0`` und ohne
+    Vorschlag: er geht in die Liste und ins Log, nie an den Schreib-LLM."""
+    score = antwort.get("score")
+    if not stand.geprueft or antwort.get("unsicher"):
+        text = antwort.get("befund") or "Der Judge fand keinen Beleg im Text."
+        return {
+            "pruefung": schluessel, "quelle": "judge", "schwere": "hinweis",
+            "text": f"{text} (Belegzitat nicht bestaetigt - Bewertung verworfen.)",
+            "szene": szene, "figur": figur, "beleg": None, "beleg_geprueft": 0,
+            "vorschlag": None, "prompt_version": version(schluessel),
+        }
+    if score is None or score >= 2:
+        return None
+    # Score 0 traegt die Schwere, die der Judge genannt hat; Score 1 ("teilweise
+    # erfuellt") ist immer ein ``verdacht`` -- ein halb erfuelltes Kriterium ist
+    # kein Blocker, egal wie dringlich das Modell klingt.
+    schwere = (antwort.get("schwere") or "mittel") if score == 0 else "verdacht"
+    return {
+        "pruefung": schluessel, "quelle": "judge",
+        "schwere": schwere,
+        "text": antwort.get("befund") or "(kein Befundtext)",
+        "szene": szene, "figur": figur,
+        "beleg": stand.beleg, "beleg_geprueft": 1,
+        "vorschlag": antwort.get("vorschlag"),
+        "prompt_version": version(schluessel),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Der Lauf
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Ergebnis:
+    """Was ein Lauf zurueckgibt: Runde, Befunde, Zahl der Modellaufrufe."""
+
+    runde: int = 0
+    befunde: list = field(default_factory=list)
+    aufrufe: int = 0
+    richter: Richter | None = None
+
+
+def pruefe(conn, e, klm, chat_id: int, richter: Richter | None = None,
+           runde: int | None = None) -> Ergebnis:
+    """Der ganze Lauf: Mechanik, dann vier Judge-Fragen, dann speichern.
+
+    **Seriell** (siehe ``GLEICHZEITIG``). Ein einzelner gescheiterter Aufruf
+    reisst den Lauf nicht mit: er wird geloggt, bekommt einen Vorfall, und
+    die uebrigen Fragen laufen weiter -- die Mechanik-Befunde und die Haelfte
+    der Judge-Befunde sind mehr wert als gar nichts."""
+    lage = mechanik.lies(conn, chat_id)
+    if not lage.nummern:
+        raise DramaturgieFehler(MELDUNG_OHNE_SZENEN)
+
+    ergebnis = Ergebnis(richter=richter or waehle_richter(e, conn, chat_id))
+    ergebnis.befunde = [b.als_dict() for b in mechanik.pruefe_alles(conn, chat_id, lage)]
+
+    szenen = {s["nummer"]: s for s in repo.hole_szenen(conn, chat_id)
+              if s["nummer"] is not None}
+
+    for nummer in lage.nummern:
+        _sammle(ergebnis, _versuch(
+            conn, e, chat_id, f"b1 Szene {nummer}",
+            lambda n=nummer: frage_b1(conn, e, klm, chat_id, ergebnis.richter,
+                                      szenen[n]),
+        ))
+
+    _sammle(ergebnis, _versuch(
+        conn, e, chat_id, "a2",
+        lambda: frage_a2(conn, e, klm, chat_id, ergebnis.richter),
+    ))
+
+    for nummer in lage.mit_sprechern():
+        _sammle(ergebnis, _versuch(
+            conn, e, chat_id, f"c1 Szene {nummer}",
+            lambda n=nummer: frage_c1(conn, e, klm, chat_id, ergebnis.richter,
+                                      n, lage.repliken[n]),
+        ))
+
+    _sammle(ergebnis, _versuch(
+        conn, e, chat_id, "a6",
+        lambda: frage_a6(conn, e, klm, chat_id, ergebnis.richter,
+                         mechanik.tschechow_kandidaten(lage)),
+    ))
+
+    ergebnis.aufrufe = ergebnis.richter.aufrufe
+    ergebnis.runde = runde or repo.letzte_dramaturgie_runde(conn, chat_id) + 1
+    repo.lege_dramaturgie_befunde_an(
+        conn, chat_id, ergebnis.befunde, runde=ergebnis.runde
+    )
+    return ergebnis
+
+
+def _versuch(conn, e, chat_id, marke, funktion):
+    """Ein Aufruf, dessen Scheitern nur diesen einen Befund kostet."""
+    try:
+        return funktion()
+    except Exception:  # noqa: BLE001 -- ein Aufruf reisst den Lauf nicht mit
+        log.exception("Dramaturgie-Aufruf %s gescheitert, chat_id=%s", marke, chat_id)
+        try:
+            repo.merke_vorfall(
+                conn, chat_id, getattr(e, "bot_name", None),
+                "dramaturgie_aufruf_fehlgeschlagen", f"{marke} gescheitert",
+            )
+        except Exception:
+            log.exception("Vorfall zur Dramaturgie nicht geschrieben")
+        return None
+
+
+def _sammle(ergebnis: Ergebnis, befund) -> None:
+    if befund is not None:
+        ergebnis.befunde.append(befund)
+
+
+# ---------------------------------------------------------------------------
+# Aggregation: aus Befunden werden Auftraege
+# ---------------------------------------------------------------------------
+
+
+def auftraege(befunde, figuren=()) -> list[dict]:
+    """Aus Befunden werden Ueberarbeitungsauftraege -- **nicht gemittelt**.
+
+    Recherche § 3: jeder harte Befund und jeder Judge-Score 0 mit hoher
+    Schwere ergibt **genau einen** Auftrag, adressiert an eine Szene, mit dem
+    konkreten Umbauvorschlag als Anweisung. Ein Mittelwert ueber Befunde
+    verschiedener Ebenen sagt nichts: "1,4" ist keine Anweisung an eine Szene.
+
+    **Hoechstens drei je Szene und Runde**, priorisiert nach Schwere, dann
+    Ebene (Geschichte vor Szene vor Stimme) -- sonst ueberschreibt der
+    Schreib-LLM sich selbst.
+
+    Ein Befund ohne Szene (Sprechanteil, Formverteilung ueber das ganze
+    Stueck) erzeugt keinen Auftrag: es gibt keine Adresse. Er steht trotzdem
+    in der Liste und im Chat -- die Gruppe entscheidet, was daraus folgt."""
+    kandidaten = []
+    for b in befunde:
+        szene = b.get("szene") if isinstance(b, dict) else b["szene"]
+        if szene is None:
+            continue
+        quelle = _feld(b, "quelle")
+        schwere = (_feld(b, "schwere") or "").lower()
+        vorschlag = (_feld(b, "vorschlag") or "").strip()
+        text = (_feld(b, "text") or "").strip()
+        if quelle == "mechanik":
+            if schwere != "hart":
+                continue
+            anweisung = vorschlag or text
+        else:
+            if schwere not in ("blocker", "hoch"):
+                continue
+            if not beleg_modul.darf_an_den_schreiber(dict(
+                beleg_geprueft=_feld(b, "beleg_geprueft"),
+                unsicher=False, szene=szene, vorschlag=vorschlag,
+            ), figuren):
+                continue
+            anweisung = vorschlag
+        if not anweisung:
+            continue
+        kandidaten.append({
+            "szene": int(szene),
+            "pruefung": _feld(b, "pruefung"),
+            "schwere": schwere,
+            "anweisung": anweisung,
+            "befund_id": _feld(b, "id"),
+        })
+
+    kandidaten.sort(key=lambda a: (
+        SCHWERE_RANG.get(a["schwere"], 9),
+        EBENEN.get(a["pruefung"], 9),
+        a["szene"],
+    ))
+    je_szene: dict[int, int] = {}
+    ergebnis = []
+    for auftrag in kandidaten:
+        zahl = je_szene.get(auftrag["szene"], 0)
+        if zahl >= AUFTRAEGE_JE_SZENE:
+            continue
+        je_szene[auftrag["szene"]] = zahl + 1
+        ergebnis.append(auftrag)
+    ergebnis.sort(key=lambda a: (a["szene"], SCHWERE_RANG.get(a["schwere"], 9)))
+    return ergebnis
+
+
+def _feld(zeile, name):
+    """Ein Feld aus einem Dict oder einer ``sqlite3.Row`` -- der Aufrufer soll
+    beides uebergeben duerfen (frischer Lauf bzw. Datenbank)."""
+    if isinstance(zeile, dict):
+        return zeile.get(name)
+    try:
+        return zeile[name]
+    except (IndexError, KeyError):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Was im Chat steht
+# ---------------------------------------------------------------------------
+
+TEXT_BEFUND = "Szene {szene}: {text}"
+TEXT_BEFUND_OHNE_SZENE = "{text}"
+TEXT_AUFTRAG_KNOPF = "Szene {nummer} so ueberarbeiten"
+
+
+def befundzeile(zeile) -> str:
+    """Eine Zeile je Befund, mit Szenennummer davor.
+
+    **Ohne Belegzitat.** Das Zitat ist der Nachweis fuer den Code, nicht der
+    Text fuer die Gruppe -- und ein Zitat, dessen Pruefung nicht bestanden
+    hat, darf nirgends stehen, wo Belegzitate stehen (dieselbe Grenze wie bei
+    den Verdichtungen)."""
+    text = (_feld(zeile, "text") or "").strip()
+    szene = _feld(zeile, "szene")
+    if szene is None:
+        return TEXT_BEFUND_OHNE_SZENE.format(text=text)
+    return TEXT_BEFUND.format(szene=szene, text=text)
+
+
+def regienotiz(zeile) -> str:
+    """Was als Regie-Notiz in den Szenenauftrag geht, wenn die Gruppe "Szene N
+    so ueberarbeiten" drueckt -- mit der Pruefung davor, damit im Auftrag
+    steht, WORAUF sie zielt (wie ``stueckpruefung.regienotiz``)."""
+    vorschlag = (_feld(zeile, "vorschlag") or "").strip()
+    pruefung = _feld(zeile, "pruefung") or "Dramaturgie"
+    return f"{pruefung}: {vorschlag}" if vorschlag else str(
+        (_feld(zeile, "text") or "").strip() or pruefung
+    )
+
+
+# ---------------------------------------------------------------------------
+# Der Thread
+# ---------------------------------------------------------------------------
+
+
+def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
+    """Der Thread-Rumpf: pruefen, die Befunde in den Chat legen.
+
+    Ein Fehlschlag bleibt fuer die Gruppe **nicht** still (SPEC § 11.1) --
+    sie wartet gerade darauf."""
+    from interview_theater import knoepfe
+
+    runde = 0
+    try:
+        ergebnis = pruefe(conn, e, klm, chat_id)
+        runde = ergebnis.runde
+    except (RichterFehler, DramaturgieFehler) as fehler:
+        _sende(conn, tg, e, chat_id, str(fehler))
+    except Exception:
+        log.exception("Dramaturgie-Pruefung fehlgeschlagen, chat_id=%s", chat_id)
+        try:
+            repo.merke_vorfall(
+                conn, chat_id, getattr(e, "bot_name", None),
+                "dramaturgie_fehlgeschlagen", "Dramaturgie-Pruefung fehlgeschlagen",
+            )
+        except Exception:
+            log.exception("Vorfall zur Dramaturgie nicht schreibbar")
+        _sende(conn, tg, e, chat_id, MELDUNG_FEHLGESCHLAGEN)
+    else:
+        try:
+            knoepfe.zeige_dramaturgie(conn, tg, chat_id, runde)
+        except Exception:
+            log.exception("Befunde nicht zustellbar, chat_id=%s", chat_id)
+    if nachbereitung is not None:
+        try:
+            nachbereitung()
+        except Exception:
+            log.exception("Nachbereitung der Dramaturgie gescheitert, chat_id=%s",
+                          chat_id)
+
+
+def _sende(conn, tg, e, chat_id: int, text: str) -> None:
+    try:
+        message_id = tg.sende(chat_id, text)
+        repo.merke_nachricht(
+            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
+            text, repo._jetzt(),
+        )
+    except Exception:
+        log.exception("Meldung der Dramaturgie fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def starte(conn, tg, klm, e, chat_id: int, nachbereitung=None):
+    """Gibt die Pruefung an einen eigenen Thread ab -- dasselbe Muster wie
+    ``stueckpruefung.starte`` (Zusage 2: kein Modellaufruf in einem
+    Knopf-Handler). Liefert den Thread (fuer Tests) oder None."""
+    if klm is None:
+        log.error("Dramaturgie-Pruefung ohne Sprachmodell, chat_id=%s", chat_id)
+        return None
+    thread = threading.Thread(
+        target=_lauf, args=(conn, tg, klm, e, chat_id, nachbereitung), daemon=True,
+    )
+    thread.start()
+    return thread

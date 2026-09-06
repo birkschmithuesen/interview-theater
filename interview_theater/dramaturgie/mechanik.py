@@ -743,13 +743,18 @@ CHECKS = (
 )
 
 
-def pruefe_alles(conn, chat_id: int) -> list[Befund]:
+def pruefe_alles(conn, chat_id: int, lage: Szenenlage | None = None) -> list[Befund]:
     """Alle mechanischen Checks, sortiert nach Schwere, dann Szene.
 
     Rein lesend. Ein einzelner Check, der an unerwarteten Daten scheitert,
     darf die uebrigen nicht mitreissen -- der Nutzen dieser Schicht ist, dass
-    sie **immer** laeuft."""
-    lage = lies(conn, chat_id)
+    sie **immer** laeuft.
+
+    ``lage`` nimmt eine schon gelesene Szenenlage entgegen: der Fan-out
+    (Schicht 3) braucht sie ohnehin fuer die C1- und A6-Aufrufe und soll die
+    Datenbank nicht zweimal lesen."""
+    if lage is None:
+        lage = lies(conn, chat_id)
     befunde: list[Befund] = []
     for name, funktion in CHECKS:
         try:

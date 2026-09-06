@@ -93,17 +93,17 @@ def test_der_eintritt_fragt_offen_und_schlaegt_nichts_vor(conn, tg, einst, phase
         f"\u25b6\ufe0f Phase {phase} von {phasen.LETZTE}"
     )
     assert tg.gesendet[-1][1].endswith(knoepfe._TEXT_PROAKTIV)
-    assert tg.beschriftungen == ["Ja, wir zuerst", "Schlag du vor"]
+    # Keine Einstiegsknoepfe mehr unter der offenen Frage (Birk, 06.09.2026).
+    assert "Ja, wir zuerst" not in tg.beschriftungen
+    assert "Schlag du vor" not in tg.beschriftungen
 
 
-def test_wir_zuerst_ruft_kein_modell(conn, tg, einst):
+def test_der_eintritt_traegt_keine_knoepfe(conn, tg, einst):
+    """Unter einer offenen Frage steht nichts Antippbares (Birk, 11:10)."""
     knoepfe.biete_proaktiv(conn, tg, 1, 4)
 
-    knoepfe.behandle(
-        conn, tg, None, einst, _druck(_knopf(tg, "Ja, wir zuerst"))
-    )
-
-    assert tg.gesendet[-1][1] == knoepfe._TEXT_WIR_ZUERST
+    assert tg.knoepfe == []
+    assert tg.gesendet[-1][1] == knoepfe._TEXT_PROAKTIV
 
 
 # --- Vorschlaege kommen NUR aus Begriffen, Fragen und Festgelegtem --------
@@ -149,8 +149,9 @@ def test_schlag_du_vor_in_phase_4_geht_ueber_die_geschichte(erfunden, tg, einst)
     klm = LLMAttrappe(GESCHICHTE)
     knoepfe.biete_proaktiv(erfunden, tg, 1, 4)
 
-    knoepfe.behandle(
-        erfunden, tg, klm, einst, _druck(_knopf(tg, "Schlag du vor"))
+    knoepfe._wirke(
+        erfunden, tg, klm, einst,
+        {"art": knoepfe.ART_SCHLAG_VOR, "wert": "4"}, 1,
     )
     szenenfolge._sperre_fuer(1).acquire(timeout=10)
     szenenfolge._sperre_fuer(1).release()
@@ -192,8 +193,8 @@ def test_der_vorschlag_traegt_anzahl_reihenfolge_und_die_grundleiste(erfunden, t
 
     assert tg.beschriftungen == [
         knoepfe.TEXT_ANZAHL_KNOPF, knoepfe.TEXT_REIHENFOLGE_KNOPF,
-        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
-    ]
+        "Ja, speichern", "Nein, nochmal aendern",
+    ][:2] + ["Ja, speichern", "Nein, nochmal aendern"]
     # Die Markerzeile geht nie in den Chat.
     assert "VORSCHLAG GESCHICHTE:" not in tg.knoepfe[-1][1]
     assert "Zwei Freundinnen verlieren sich" in tg.knoepfe[-1][1]
@@ -214,7 +215,7 @@ def test_gefaellt_uns_weiter_speichert_geschichte_und_szenen(erfunden, tg, einst
     knoepfe.sende_geschichte(erfunden, tg, 1, GESCHICHTE)
 
     knoepfe.behandle(
-        erfunden, tg, None, einst, _druck(_knopf(tg, "Gefaellt uns, weiter"))
+        erfunden, tg, None, einst, _druck(_knopf(tg, "Ja, speichern"))
     )
 
     stand = repo.hole_arbeitsstand(erfunden, 1)
@@ -235,7 +236,7 @@ def test_erst_die_geschichte_gibt_die_schaerfung_frei(erfunden, tg, einst):
 
     knoepfe.sende_geschichte(erfunden, tg, 1, GESCHICHTE)
     knoepfe.behandle(
-        erfunden, tg, None, einst, _druck(_knopf(tg, "Gefaellt uns, weiter"))
+        erfunden, tg, None, einst, _druck(_knopf(tg, "Ja, speichern"))
     )
 
     assert phasen.voraussetzungen(erfunden, 1)[5] is True
@@ -244,17 +245,17 @@ def test_erst_die_geschichte_gibt_die_schaerfung_frei(erfunden, tg, einst):
     assert tg.beschriftungen == ["Weiter zu Szenen als Geschichte"]
 
 
-def test_passt_aber_anders_speichert_trotzdem_und_fragt(erfunden, tg, einst):
-    """Dieselbe Regel wie ueberall (05.09.2026 abends): damit ueberhaupt
-    etwas in der Datenbank steht, auch wenn die Gruppe danach abbricht."""
+def test_nein_nochmal_aendern_speichert_nicht(erfunden, tg, einst):
+    """Neue Regel (06.09.2026, Birk 11:00): "Nein" schreibt nichts und macht
+    den Weg frei."""
     knoepfe.sende_geschichte(erfunden, tg, 1, GESCHICHTE)
 
     knoepfe.behandle(
-        erfunden, tg, None, einst, _druck(_knopf(tg, "Passt, aber anders"))
+        erfunden, tg, None, einst, _druck(_knopf(tg, "Nein, nochmal aendern"))
     )
 
-    assert repo.hole_arbeitsstand(erfunden, 1)["geschichte"]
-    assert repo.hole_arbeitsstand(erfunden, 1)["aenderung_offen"] == "geschichte"
+    stand = repo.hole_arbeitsstand(erfunden, 1)
+    assert not (stand and (stand["geschichte"] or "").strip())
 
 
 def test_ein_vorschlag_ohne_szenen_wird_nicht_gespeichert(erfunden, tg, einst):
@@ -265,7 +266,7 @@ def test_ein_vorschlag_ohne_szenen_wird_nicht_gespeichert(erfunden, tg, einst):
     )
 
     knoepfe.behandle(
-        erfunden, tg, None, einst, _druck(_knopf(tg, "Gefaellt uns, weiter"))
+        erfunden, tg, None, einst, _druck(_knopf(tg, "Ja, speichern"))
     )
 
     assert not (repo.hole_arbeitsstand(erfunden, 1)["geschichte"] or "")
@@ -282,7 +283,7 @@ def test_die_szenen_werden_ohne_bestaetigte_form_angelegt(erfunden, tg, einst):
     knoepfe.sende_geschichte(erfunden, tg, 1, GESCHICHTE)
 
     knoepfe.behandle(
-        erfunden, tg, None, einst, _druck(_knopf(tg, "Gefaellt uns, weiter"))
+        erfunden, tg, None, einst, _druck(_knopf(tg, "Ja, speichern"))
     )
 
     szenen = repo.hole_szenen(erfunden, 1)
@@ -301,7 +302,7 @@ def test_die_begruendung_des_formvorschlags_wird_mitgespeichert(erfunden, tg, ei
     )
 
     knoepfe.behandle(
-        erfunden, tg, None, einst, _druck(_knopf(tg, "Gefaellt uns, weiter"))
+        erfunden, tg, None, einst, _druck(_knopf(tg, "Ja, speichern"))
     )
 
     szene = repo.hole_szenen(erfunden, 1)[0]
@@ -319,7 +320,7 @@ def test_ohne_bestaetigte_form_wird_nicht_geschrieben(erfunden, tg, einst):
     phasen.setze(erfunden, 1, 7, "befehl")
     knoepfe.sende_geschichte(erfunden, tg, 1, GESCHICHTE)
     knoepfe.behandle(
-        erfunden, tg, None, einst, _druck(_knopf(tg, "Gefaellt uns, weiter"))
+        erfunden, tg, None, einst, _druck(_knopf(tg, "Ja, speichern"))
     )
 
     ziel = repo.hole_szenen(erfunden, 1)[0]
@@ -361,7 +362,7 @@ def test_die_notiert_meldung_traegt_die_grundleiste(erfunden, tg, einst):
     assert repo.hole_arbeitsstand(erfunden, 1)["geschichte"] == "Zwei verlieren sich."
     assert "Geschichte: Zwei verlieren sich." in tg.knoepfe[-1][1]
     assert tg.beschriftungen == [
-        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
+        "Ja, speichern", "Nein, nochmal aendern",
     ]
 
 

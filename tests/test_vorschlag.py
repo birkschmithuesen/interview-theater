@@ -84,7 +84,7 @@ def test_leiste_nur_bei_block(conn, tg):
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "Vorschlag:\n\nVORSCHLAG BEGRIFFE:\nHeimat, Arbeit"
     )
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter"]
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Ja, speichern", "Nein, nochmal aendern"]
 
 
 def test_leiste_haengt_nicht_an_einer_schon_gefuellten_art(conn, tg):
@@ -99,15 +99,23 @@ def test_leiste_haengt_nicht_an_einer_schon_gefuellten_art(conn, tg):
     assert tg.knoepfe == []
 
 
-def test_in_phase_2_zaehlen_die_fragen_nicht_die_begriffe(conn, tg):
+def test_zwei_bloecke_verschiedener_arten_werden_zu_einem(conn, tg):
+    """Ein Feld je Nachricht (06.09.2026, Birk 11:00): kommen zwei
+    Vorschlagsbloecke verschiedener Arten, geht NUR der erste raus -- der
+    zweite wird verworfen und als Vorfall vermerkt."""
     phasen.setze(conn, 1, 2, "befehl")
 
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat\n\nVORSCHLAG FRAGEN:\nWarum?"
     )
 
-    assert knoepfe.offene_art(conn, 1) == "fragen"
-    assert tg.knoepfe, "die Fragen-Leiste haengt dran"
+    text = tg.gesendet[-1][1] if tg.gesendet else tg.knoepfe[-1][1]
+    assert "Heimat" in text
+    assert "Warum?" not in text, "der zweite Block ist verworfen"
+    arten = [
+        z["art"] for z in conn.execute("SELECT art FROM vorfall").fetchall()
+    ]
+    assert "vorschlag_mehrere_arten" in arten
 
 
 def test_in_phase_4_erst_setting_dann_figuren_dann_geschichte(conn, tg):
@@ -135,7 +143,7 @@ def test_in_phase_4_erst_setting_dann_figuren_dann_geschichte(conn, tg):
     assert knoepfe.offene_art(conn, 1) is None
 
 
-# --- "Gefaellt uns, weiter" schreibt exakt den Wert --------------------------------
+# --- "Ja, speichern" schreibt exakt den Wert --------------------------------
 
 
 def test_speichern_schreibt_exakt_den_vorgeschlagenen_wert(conn, tg, einst):
@@ -143,7 +151,7 @@ def test_speichern_schreibt_exakt_den_vorgeschlagenen_wert(conn, tg, einst):
         conn, tg, 1, "Ich schlage vor:\n\nVORSCHLAG BEGRIFFE:\nHeimat, Arbeit, Angst"
     )
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Gefaellt uns, weiter")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Ja, speichern")))
 
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat, Arbeit, Angst"
     assert any("Notiert:" in t for _, t in tg.gesendet)
@@ -151,7 +159,7 @@ def test_speichern_schreibt_exakt_den_vorgeschlagenen_wert(conn, tg, einst):
 
 def test_speichern_ist_idempotent(conn, tg, einst):
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
-    daten = _knopf_daten(tg, "Gefaellt uns, weiter")
+    daten = _knopf_daten(tg, "Ja, speichern")
 
     knoepfe.behandle(conn, tg, None, einst, _druck(daten))
     repo.setze_arbeitsstand(conn, 1, "begriffe", "von Hand geaendert")
@@ -168,7 +176,7 @@ def test_kernthema_ueber_die_leiste_landet_im_arbeitsstand(conn, tg, einst):
         conn, tg, 1, "VORSCHLAG KERNTHEMA:\nAnkommen, ohne die Sprache zu verlieren"
     )
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Gefaellt uns, weiter")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Ja, speichern")))
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand["kernthema"] == "Ankommen, ohne die Sprache zu verlieren"
@@ -184,7 +192,7 @@ def test_figuren_ueber_die_leiste_werden_alle_angelegt(conn, tg, einst):
         "Pal — Taxifahrer, bleibt auf seiner Route — Interview 2",
     )
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Gefaellt uns, weiter")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Ja, speichern")))
 
     namen = [f["name"] for f in repo.figuren(conn, 1)]
     assert namen == ["Mira", "Pal"]
@@ -195,18 +203,19 @@ def test_figuren_ueber_die_leiste_werden_alle_angelegt(conn, tg, einst):
 # --- "Passt, aber anders" ------------------------------------------------------
 
 
-def test_passt_aber_anders_speichert_trotzdem_und_fragt_gezielt(conn, tg, einst):
+def test_nein_nochmal_aendern_speichert_nicht(conn, tg, einst):
     """05.09.2026 abends, Birk: "Passt, aber anders" ist keine Ablehnung --
     es speichert die aktuelle Fassung (damit ueberhaupt etwas in der DB
     steht) und fragt danach gezielt, was anders werden soll."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Passt, aber anders")))
-
-    assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat"
-    assert tg.gesendet[-1][1] == (
-        "Gespeichert. Was soll anders sein?"
+    knoepfe.behandle(
+        conn, tg, None, einst, _druck(_knopf_daten(tg, "Nein, nochmal aendern"))
     )
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not (stand and stand["begriffe"]), "Nein speichert nichts"
+    assert tg.gesendet[-1][1] == "Erzaehlt - ich baue es ein."
 
 
 def test_eigene_idee_speichert_nicht(conn, tg, einst):
@@ -214,7 +223,9 @@ def test_eigene_idee_speichert_nicht(conn, tg, einst):
     Gruppe ist der Vorschlag."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Eigene Idee")))
+    knoepfe.behandle(
+        conn, tg, None, einst, _druck(_knopf_daten(tg, "Nein, nochmal aendern"))
+    )
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert not (stand and stand["begriffe"])
@@ -227,12 +238,14 @@ def test_nach_nochmal_anders_traegt_die_naechste_antwort_die_leiste_wieder(
     """Der Kern der Zusage 'das Menue kommt nach jeder Aenderung wieder':
     solange der Wert leer ist, haengt die Leiste erneut dran."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Passt, aber anders")))
+    knoepfe.behandle(
+        conn, tg, None, einst, _druck(_knopf_daten(tg, "Nein, nochmal aendern"))
+    )
 
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit")
 
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter"]
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Gefaellt uns, weiter")))
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Ja, speichern", "Nein, nochmal aendern"]
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Ja, speichern")))
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat, Arbeit"
 
 
@@ -240,7 +253,7 @@ def test_eine_neue_leiste_nimmt_die_alte_ab(conn, tg, einst):
     """Sonst staenden zwei Leisten im Chat, und ein Druck auf die aeltere
     speicherte den ueberholten Vorschlag."""
     erste = knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")[0]
-    alt = _knopf_daten(tg, "Gefaellt uns, weiter")
+    alt = _knopf_daten(tg, "Ja, speichern")
 
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit")
 

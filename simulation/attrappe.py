@@ -74,7 +74,7 @@ class TelegramAttrappe:
 
     # -- was der Bot benutzt -------------------------------------------------
 
-    def sende(self, chat_id: int, text: str) -> int:
+    def sende(self, chat_id: int, text: str, **_kw) -> int:
         message_id = self.naechste_message_id()
         self.gesendet.append({
             "chat_id": chat_id,
@@ -84,7 +84,7 @@ class TelegramAttrappe:
         })
         return message_id
 
-    def sende_mit_knoepfen(self, chat_id: int, text: str, knoepfe) -> int:
+    def sende_mit_knoepfen(self, chat_id: int, text: str, knoepfe, **_kw) -> int:
         """Inline-Knoepfe (interview_theater/knoepfe.py) im simulierten Lauf.
 
         Der Text geht denselben Weg wie bei ``sende``: fuer die Bewertung

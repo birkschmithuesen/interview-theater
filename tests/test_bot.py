@@ -118,14 +118,14 @@ class FakeTelegramFuerSchleife:
             return self._updates
         raise _StoppeSchleife()
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         # bot.erstkontakt() ruft dies bei der ersten Nachricht einer Gruppe
         # auf (teil-b.md Aufgabe 7) -- fuer diese Tests ohne eigene Bedeutung,
         # nur damit erstkontakt() nicht an einer fehlenden Methode scheitert.
         self._letzte_message_id += 1
         return self._letzte_message_id
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         # Dasselbe fuer die Einstiegsknoepfe unter der Begruessung
         # (knoepfe.biete_einstieg, 05.09.2026).
         return self.sende(chat_id, text)
@@ -251,12 +251,12 @@ class TelegramAttrappe:
         self.mit_knoepfen = []
         self._letzte_message_id = 9000
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self._letzte_message_id += 1
         self.gesendet.append((chat_id, text))
         return self._letzte_message_id
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         message_id = self.sende(chat_id, text)
         self.mit_knoepfen.append((chat_id, text, list(knoepfe_)))
         return message_id
@@ -298,7 +298,7 @@ def test_erstkontakt_sendefehlschlag_wird_nur_geloggt(conn, einst):
     repo.sichere_gruppe(conn, -100, einst.bot_name, "Gruppe 1")
 
     class KaputtesTG:
-        def sende(self, chat_id, text):
+        def sende(self, chat_id, text, **_kw):
             raise RuntimeError("Telegram nicht erreichbar (simuliert)")
 
     bot.erstkontakt(conn, KaputtesTG(), einst, -100)  # darf nicht krachen
@@ -353,7 +353,7 @@ def test_sende_wiederkehr_begruessungen_ein_fehlschlag_reisst_andere_nicht_mit(c
         )
 
     class HalbKaputtesTG(TelegramAttrappe):
-        def sende(self, chat_id, text):
+        def sende(self, chat_id, text, **_kw):
             if chat_id == -100:
                 raise RuntimeError("kaputt (simuliert)")
             return super().sende(chat_id, text)
@@ -584,11 +584,11 @@ def test_neue_knopfarten_laufen_durch_die_update_schleife(conn, einst):
             self.gesendet = []
             self.knoepfe = []
 
-        def sende(self, chat_id, text):
+        def sende(self, chat_id, text, **_kw):
             self.gesendet.append((chat_id, text))
             return 1
 
-        def sende_mit_knoepfen(self, chat_id, text, knoepfe_):
+        def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
             self.knoepfe.append(list(knoepfe_))
             return 1
 

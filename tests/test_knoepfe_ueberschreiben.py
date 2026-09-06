@@ -4,7 +4,7 @@ Was passierte: in Phase 6 bot der Bot drei Szenenbilder als
 ``VORSCHLAG RAHMEN:`` an. Die Grundleiste darunter trug den ersten davon als
 speicherbaren Wert, obwohl ``arbeitsstand.rahmen`` seit 21:37 gesetzt war
 ("Vier Freundinnen leben im Nordkiez in Dortmund ..."). Ein Druck auf
-"Gefaellt uns, weiter" ersetzte ihn still durch "Leyla checkt ihr Handy auf
+"Ja, speichern" ersetzte ihn still durch "Leyla checkt ihr Handy auf
 dem Schulhof, die anderen beobachten sie von weitem" -- Journal-Zeile j5 der
 Testgruppe ist der einzige Beleg dafuer.
 

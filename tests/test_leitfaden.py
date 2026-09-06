@@ -250,7 +250,7 @@ def test_diktierte_fragen_loesen_die_pruefung_ebenfalls_aus(conn, tg, einst, auf
         conn, tg, 1, "VORSCHLAG FRAGEN:\nWas war in deinem Koffer?"
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "Was war in deinem Koffer?"
     assert len(auftraege) == 1
@@ -274,7 +274,7 @@ def test_die_einleitungen_landen_in_ihrer_eigenen_spalte(conn, tg, einst, auftra
         "3 — Das ist privat, sag nur, was du magst.",
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert "1 — Wir fragen nach Herkunft" in stand["frage_einleitungen"]
@@ -287,7 +287,7 @@ def test_nach_den_einleitungen_kommt_die_eroeffnung_von_selbst(conn, tg, einst, 
         conn, tg, 1, "VORSCHLAG EINLEITUNGEN:\n1 — Du musst nicht antworten."
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert len(auftraege) == 1
     assert "VORSCHLAG EROEFFNUNG:" in auftraege[0]
@@ -303,7 +303,7 @@ def test_der_leerfall_haelt_nichts_auf(conn, tg, einst, auftraege):
         "Einleitung.",
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert "Keine der Fragen" in stand["frage_einleitungen"]
@@ -322,7 +322,7 @@ def test_eroeffnung_und_abschluss_gehen_in_zwei_felder(conn, tg, einst):
         "Abschluss: Danke dir. Wir bauen daraus ein Stueck.",
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand["interview_eroeffnung"].startswith("Hallo, wir sind")

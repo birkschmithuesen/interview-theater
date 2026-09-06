@@ -54,7 +54,7 @@ class TelegramAttrappe:
         self.gesendet = []
         self._naechste = 9000
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self.gesendet.append((chat_id, text))
         self._naechste += 1
         return self._naechste
@@ -1574,7 +1574,7 @@ def test_waehrend_des_szenenlaufs_zeigt_der_bot_dass_er_arbeitet():
         def __init__(self):
             self.tipps = 0; self.gesendet = []; self.geloescht = []
         def tippt(self, chat_id): self.tipps += 1
-        def sende(self, chat_id, text): self.gesendet.append(text); return len(self.gesendet)
+        def sende(self, chat_id, text, **_kw): self.gesendet.append(text); return len(self.gesendet)
         def loesche_nachrichten(self, chat_id, ids): self.geloescht += ids; return len(ids)
 
     tg = Tg(); stopp = threading.Event()

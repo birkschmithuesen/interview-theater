@@ -244,3 +244,64 @@ def figuren(wert: str) -> list[tuple[str, str]]:
         beschreibung = teile[1].strip() if len(teile) > 1 else ""
         ergebnis.append((name, beschreibung))
     return ergebnis
+
+
+#: Das Trennzeichen zwischen Titel und Beschreibung einer Option
+#: (06.09.2026, Birk 11:05): ``Titel — Beschreibung``. Derselbe
+#: Gedankenstrich wie in der Figurenzeile, plus der einfache Bindestrich mit
+#: Leerzeichen -- Modelle liefern beides.
+_OPTION_TRENNER = _FIGUR_TRENNER
+
+
+def optionen(wert: str) -> list[tuple[str, str]]:
+    """Zerlegt einen Vorschlagsblock in ``(Titel, Beschreibung)`` je Zeile.
+
+    Das ist die Form, die Birk am 06.09.2026 (11:05) fuer JEDES
+    Optionen-Menue festgelegt hat: nummeriert, **fetter Titel**, darunter
+    die Beschreibung. Der Titel ist zugleich die Knopfbeschriftung
+    (``knoepfe.MENUE_KNOPF_LAENGE``), die Beschreibung steht nur im Text.
+
+    Ohne Trenner ist die ganze Zeile der Titel und die Beschreibung leer --
+    kurze Zeilen (Namen, Begriffe) sind selbst schon der Titel."""
+    ergebnis: list[tuple[str, str]] = []
+    for zeile in zeilen(wert):
+        teile = [t.strip() for t in _OPTION_TRENNER.split(zeile, maxsplit=1)]
+        titel = teile[0].strip(" .;:")
+        if not titel:
+            continue
+        ergebnis.append((titel, teile[1].strip() if len(teile) > 1 else ""))
+    return ergebnis
+
+
+def menuetext(vorspann: str, wert: str, html: bool = True) -> tuple[str, str]:
+    """Der Text einer Menue-Nachricht -- ``(html, klartext)``.
+
+    Nummeriert, fetter Titel, Beschreibung dahinter:
+
+    .. code-block:: text
+
+        1. <b>Der lange Weg</b> — sie geht, ohne sich zu verabschieden
+
+    Zwei Fassungen, weil Telegram HTML mit **400** ablehnen kann und
+    ``telegram.sende`` dann auf die zweite zurueckfaellt -- eine Nachricht,
+    die wegen Fettschrift gar nicht ankommt, waere der teuerste Ausgang."""
+    from interview_theater import telegram
+
+    zeilen_html: list[str] = []
+    zeilen_klar: list[str] = []
+    for nummer, (titel, beschreibung) in enumerate(optionen(wert), start=1):
+        e_titel = telegram.escape_html(titel)
+        if beschreibung:
+            zeilen_html.append(
+                f"{nummer}. <b>{e_titel}</b> — {telegram.escape_html(beschreibung)}"
+            )
+            zeilen_klar.append(f"{nummer}. {titel} — {beschreibung}")
+        else:
+            zeilen_html.append(f"{nummer}. <b>{e_titel}</b>")
+            zeilen_klar.append(f"{nummer}. {titel}")
+    kopf = (vorspann or "").strip()
+    text_html = "\n\n".join(
+        t for t in (telegram.escape_html(kopf), "\n".join(zeilen_html)) if t
+    )
+    text_klar = "\n\n".join(t for t in (kopf, "\n".join(zeilen_klar)) if t)
+    return (text_html if html else text_klar), text_klar

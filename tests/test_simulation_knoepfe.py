@@ -61,10 +61,10 @@ def _person():
 
 
 def test_knopftexte_stehen_im_nutzertext_einer_stimme():
-    knoepfe = [{"beschriftung": "Gefaellt uns, weiter"},
+    knoepfe = [{"beschriftung": "Ja, speichern"},
                {"beschriftung": "Passt, aber anders"}]
     text = stimmen.baue_nutzertext(_person(), [], "Ziel", knoepfe)
-    assert "Gefaellt uns, weiter" in text
+    assert "Ja, speichern" in text
     assert "Passt, aber anders" in text
     assert stimmen.KNOPF_PRAEFIX in text
 
@@ -85,11 +85,11 @@ def test_knopfliste_entfernt_dubletten_und_deckelt():
 
 
 def test_knopfwahl_wird_exakt_und_unscharf_erkannt():
-    knoepfe = [{"beschriftung": "Gefaellt uns, weiter", "daten": "k:3"}]
+    knoepfe = [{"beschriftung": "Ja, speichern", "daten": "k:3"}]
     assert stimmen.lies_knopfwahl(
-        "KNOPF: Gefaellt uns, weiter", knoepfe)["daten"] == "k:3"
+        "KNOPF: Ja, speichern", knoepfe)["daten"] == "k:3"
     assert stimmen.lies_knopfwahl(
-        'KNOPF: "Gefaellt uns, weiter"', knoepfe)["daten"] == "k:3"
+        'KNOPF: "Ja, speichern"', knoepfe)["daten"] == "k:3"
 
 
 def test_freitext_ist_keine_knopfwahl():

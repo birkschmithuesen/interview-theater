@@ -64,19 +64,20 @@ def _interview(conn, name="Interview 1"):
 # --- Die Grundleiste ------------------------------------------------------
 
 
-def test_jede_vorschlagsnachricht_traegt_dieselben_drei_knoepfe(conn, tg):
-    """Die Zusage in einem Test: drei Knoepfe, immer dieselben, immer unten."""
+def test_ein_wert_traegt_die_ja_nein_rueckspiegelung(conn, tg):
+    """Fall 2 der Knopfregel (06.09.2026): ein Wert -> "Ja, speichern" ·
+    "Nein, nochmal aendern"."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit")
 
-    assert [b for b, _ in tg.knoepfe[-1][2]][-3:] == [
-        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
+    assert [b for b, _ in tg.knoepfe[-1][2]] == [
+        "Ja, speichern", "Nein, nochmal aendern",
     ]
 
 
 def test_gefaellt_uns_weiter_speichert_und_fragt_nach_ergaenzungen(conn, tg, einst):
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat"
     assert any(
@@ -85,18 +86,19 @@ def test_gefaellt_uns_weiter_speichert_und_fragt_nach_ergaenzungen(conn, tg, ein
     assert tg.entfernt, "die Tastatur ist weg"
 
 
-def test_nach_passt_aber_anders_kommt_die_leiste_wieder_und_ueberschreibt(
+def test_nach_nein_kommt_die_leiste_wieder_und_ueberschreibt(
     conn, tg, einst
 ):
-    """Der Kern des zweiten Knopfes: gespeichert ist gespeichert, aber die
-    Gruppe kommt an den Wert wieder heran -- sonst waere die Aenderung eine
-    Sackgasse."""
+    """Der Kern des zweiten Knopfes (06.09.2026 neu: "Nein, nochmal
+    aendern"): er speichert NICHT, aber die Gruppe kommt an den Wert wieder
+    heran -- sonst waere die Aenderung eine Sackgasse."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
-    _druecke(conn, tg, einst, "Passt, aber anders")
-    assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat"
+    _druecke(conn, tg, einst, "Nein, nochmal aendern")
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not (stand and (stand["begriffe"] or "").strip())
 
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit")
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat, Arbeit"
 
@@ -115,11 +117,11 @@ def test_richtungen_werden_zu_knoepfen(conn, tg):
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
     assert beschriftungen[:3] == [
-        "Arbeit, die niemand sieht", "Zwischen zwei Sprachen", "Was bleibt",
+        "1 · Arbeit, die niemand sieht", "2 · Zwischen zwei Sprachen",
+        "3 · Was bleibt",
     ]
-    # Eine Richtung ist noch kein Kernthema -- die Grundleiste haengt hier
-    # nicht dran, nur der Weg an der Liste vorbei.
-    assert beschriftungen[-1] == "Eigene Idee"
+    # Kein Sammelknopf -- nur die Optionen und der Weg daran vorbei.
+    assert beschriftungen[-1] == "Anders"
 
 
 def test_eine_richtung_setzt_kein_kernthema_sondern_die_richtung(
@@ -133,7 +135,7 @@ def test_eine_richtung_setzt_kein_kernthema_sondern_die_richtung(
         conn, tg, 1, "VORSCHLAG RICHTUNGEN:\nArbeit, die niemand sieht\nWas bleibt"
     )
 
-    _druecke(conn, tg, einst, "Arbeit, die niemand sieht", klm=object())
+    _druecke(conn, tg, einst, "1 · Arbeit, die niemand sieht", klm=object())
 
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand["kernthema_richtung"] == "Arbeit, die niemand sieht"
@@ -146,10 +148,11 @@ def test_eine_richtung_loest_einen_gespraechszug_im_thread_aus(
     """Zusage 2: der Handler ruft kein Modell -- er gibt einen Auftrag ab."""
     phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, "VORSCHLAG RICHTUNGEN:\nArbeit, die niemand sieht"
+        conn, tg, 1,
+        "VORSCHLAG RICHTUNGEN:\nArbeit, die niemand sieht\nWas bleibt",
     )
 
-    _druecke(conn, tg, einst, "Arbeit, die niemand sieht", klm=object())
+    _druecke(conn, tg, einst, "1 · Arbeit, die niemand sieht", klm=object())
 
     assert len(auftraege) == 1
     assert "Arbeit, die niemand sieht" in auftraege[0]
@@ -163,22 +166,29 @@ def test_stufe_zwei_speichert_das_kernthema(conn, tg, einst):
         conn, tg, 1,
         "VORSCHLAG KERNTHEMA:\nArbeit, die niemand sieht\nZwei Sprachen im Kopf",
     )
-    _druecke(conn, tg, einst, "Zwei Sprachen im Kopf")
+    _druecke(conn, tg, einst, "2 · Zwei Sprachen im Kopf")
 
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Zwei Sprachen im Kopf"
 
 
-def test_bei_stufe_zwei_speichert_passt_aber_anders_den_ersten_vorschlag(
+def test_bei_stufe_zwei_wird_nie_still_der_erste_vorschlag_genommen(
     conn, tg, einst
 ):
+    """Birk, 06.09.2026 11:00: drei Werte, dazu die alte Grundleiste -- und
+    NICHTS wird gespeichert, solange die Gruppe keine Option antippt."""
     phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, "VORSCHLAG KERNTHEMA:\nArbeit, die niemand sieht\nZwei Sprachen"
+        conn, tg, 1,
+        "VORSCHLAG KERNTHEMA:\nArbeit, die niemand sieht\nZwei Sprachen\nWas bleibt",
     )
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Gefaellt uns, weiter" not in beschriftungen
+    assert "Ja, speichern" not in beschriftungen
 
-    _druecke(conn, tg, einst, "Passt, aber anders")
+    _druecke(conn, tg, einst, "Anders")
 
-    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Arbeit, die niemand sieht"
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not (stand and (stand["kernthema"] or "").strip())
 
 
 # --- Figuren, Ebene 1 -----------------------------------------------------
@@ -203,7 +213,7 @@ def test_die_figurenliste_traegt_anzahl_und_namen(conn, tg):
 
     assert [b for b, _ in tg.knoepfe[-1][2]] == [
         "Anzahl aendern", "Namen aendern",
-        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
+        "Ja, speichern", "Nein, nochmal aendern",
     ]
 
 
@@ -255,7 +265,7 @@ def test_ein_namensvorschlag_ersetzt_nur_den_namen_in_der_zeile(
     assert "VORSCHLAG NAMEN:" in auftraege[0]
 
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG NAMEN:\nAmina\nNour\nSelin")
-    _druecke(conn, tg, einst, "Amina")
+    _druecke(conn, tg, einst, "1 · Amina")
 
     entwurf = repo.hole_arbeitsstand(conn, 1)["figuren_entwurf"]
     assert entwurf.splitlines()[0] == (
@@ -275,7 +285,7 @@ def test_ein_namensvorschlag_ersetzt_nur_den_namen_in_der_zeile(
 def _ebene2(conn, tg, einst):
     """Ebene 1 abnehmen, in die Schaerfung wechseln, Ebene 2 starten."""
     _ebene1(conn, tg)
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
     phasen.setze(conn, 1, 6, "befehl")
     knoepfe.stelle_figur_vor(conn, tg, None, einst, 1)
 
@@ -292,7 +302,7 @@ def test_gefaellt_uns_weiter_legt_alle_figuren_an_und_startet_ebene_zwei(
     assert repo.hole_figur(conn, 1, "Mira")["quelle_aufnahme_id"] == kopf_id
     # Und die erste Figur steht schon zur Abnahme da.
     assert [b for b, _ in tg.knoepfe[-1][2]] == [
-        "Passt", "Anderes Interview", "Anderer Duktus", "Entfernen", "Eigene Idee",
+        "Passt", "Anderes Interview", "Anderer Duktus", "Entfernen", "Anders",
     ]
     assert "Mira" in tg.knoepfe[-1][1]
 
@@ -317,7 +327,7 @@ def test_die_fixierung_leitet_ohne_phasenwechsel_zur_geschichte(conn, tg, einst)
     kurzen Zeile und der offenen Frage weiter."""
     _interview(conn)
     _ebene1(conn, tg)
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     # Ebene 2 (Figur fuer Figur mit Interview) laeuft seit dem Umbau erst in
     # der Schaerfung -- in Phase 4 ist die Liste mit Ebene 1 fixiert.
@@ -337,7 +347,7 @@ def test_eine_einzige_figur_genuegt(conn, tg, einst):
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG FIGUREN:\nMira — Naeherin — Interview 1"
     )
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert repo.hole_arbeitsstand(conn, 1)["figuren_fixiert_am"]
     assert [f["name"] for f in repo.figuren(conn, 1)] == ["Mira"]
@@ -376,7 +386,7 @@ def test_anderer_duktus_holt_vorschlaege_im_thread_und_speichert_die_wahl(
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG DUKTUS:\nKurze Saetze, viele Abbrueche\nLangsam, ruhig"
     )
-    _druecke(conn, tg, einst, "Langsam, ruhig")
+    _druecke(conn, tg, einst, "2 · Langsam, ruhig")
 
     assert repo.hole_figur(conn, 1, "Mira")["sprachprofil"] == "Langsam, ruhig"
 
@@ -431,22 +441,29 @@ def test_der_phasenknopf_fragt_zuerst_die_gruppe(conn, tg, einst):
         "\u25b6\ufe0f Phase 4 von 7 \u00b7 Setting, Figuren & Geschichte"
     )
     assert tg.gesendet[-1][1].endswith(knoepfe._TEXT_PROAKTIV)
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Ja, wir zuerst", "Schlag du vor"]
+    # Seit dem 06.09.2026 (Birk, 11:10) stehen unter der OFFENEN FRAGE keine
+    # Einstiegsknoepfe mehr -- die Gruppe antwortet in Sprache.
+    assert not any(
+        b in ("Ja, wir zuerst", "Schlag du vor")
+        for _, _, leiste in tg.knoepfe for b, _ in leiste
+    )
 
 
-def test_wir_zuerst_ruft_kein_modell(conn, tg, einst, auftraege):
+def test_der_eintritt_traegt_keine_einstiegsknoepfe(conn, tg, einst, auftraege):
+    """Birk, 06.09.2026 11:10: unter einer offenen Frage keine Knoepfe."""
     knoepfe.biete_proaktiv(conn, tg, 1, 4)
 
-    _druecke(conn, tg, einst, "Ja, wir zuerst", klm=object())
-
-    assert auftraege == []
-    assert tg.gesendet[-1][1] == knoepfe._TEXT_WIR_ZUERST
+    assert tg.knoepfe == []
+    assert tg.gesendet[-1][1] == knoepfe._TEXT_PROAKTIV
 
 
 def test_schlag_du_vor_gibt_einen_auftrag_je_phase_ab(conn, tg, einst, auftraege):
-    knoepfe.biete_proaktiv(conn, tg, 1, 4)
-
-    _druecke(conn, tg, einst, "Schlag du vor", klm=object())
+    """Der Knopf ist weg, der Weg bleibt: sagt die Gruppe "schlag du vor",
+    laeuft derselbe Auftrag."""
+    knoepfe._wirke(
+        conn, tg, object(), einst,
+        {"art": knoepfe.ART_SCHLAG_VOR, "wert": "4"}, 1,
+    )
 
     assert len(auftraege) == 1
     # Phase 4 schlaegt seit dem Umbau das SETTING vor, nicht mehr
@@ -524,7 +541,7 @@ def test_vorstellung_kommt_erst_nach_dem_sprachprofil(conn, tg, einst, monkeypat
     _fake_starte.nachbereitung()
 
     assert [b for b, _ in tg.knoepfe[-1][2]] == [
-        "Passt", "Anderes Interview", "Anderer Duktus", "Entfernen", "Eigene Idee",
+        "Passt", "Anderes Interview", "Anderer Duktus", "Entfernen", "Anders",
     ]
     assert "– Wir haben zusammen gearbeitet." in tg.knoepfe[-1][1]
 
@@ -570,7 +587,7 @@ def test_nach_dem_kernthema_kommt_die_kernfrage_im_thread(conn, tg, einst, auftr
         conn, tg, 1, "VORSCHLAG KERNTHEMA:\nArbeit, die niemand sieht"
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter", klm=object())
+    _druecke(conn, tg, einst, "Ja, speichern", klm=object())
 
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Arbeit, die niemand sieht"
     assert len(auftraege) == 1
@@ -580,7 +597,7 @@ def test_nach_dem_kernthema_kommt_die_kernfrage_im_thread(conn, tg, einst, auftr
 
 def test_das_setting_traegt_die_grundleiste_und_wird_gespeichert(conn, tg, einst):
     """Der Ping-Pong der Phase 4: der Setting-Vorschlag traegt die drei
-    Knoepfe, \"Gefaellt uns, weiter\" schreibt ``rahmen``."""
+    Knoepfe, \"Ja, speichern\" schreibt ``rahmen``."""
     phasen.setze(conn, 1, 4, "befehl")
 
     knoepfe.sende_mit_speicherleiste(
@@ -588,11 +605,17 @@ def test_das_setting_traegt_die_grundleiste_und_wird_gespeichert(conn, tg, einst
         "Wo spielt es?\n\nVORSCHLAG RAHMEN:\nEine Nacht im Treppenhaus\n"
         "Ein Kiosk am Morgen",
     )
-    assert [b for b, _ in tg.knoepfe[-1][2]][-3:] == [
-        "Eigene Idee", "Passt, aber anders", "Gefaellt uns, weiter",
+    assert [b for b, _ in tg.knoepfe[-1][2]] == [
+        "1 · Eine Nacht im Treppenhaus", "2 · Ein Kiosk am Morgen", "Anders",
+    ]
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG RAHMEN:\nEine Nacht im Treppenhaus"
+    )
+    assert [b for b, _ in tg.knoepfe[-1][2]] == [
+        "Ja, speichern", "Nein, nochmal aendern",
     ]
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Eine Nacht im Treppenhaus"
 
@@ -605,7 +628,7 @@ def test_nach_dem_setting_kommt_die_frage_nach_der_figurenanzahl(conn, tg, einst
         conn, tg, 1, "VORSCHLAG RAHMEN:\nEine Nacht im Treppenhaus"
     )
 
-    _druecke(conn, tg, einst, "Gefaellt uns, weiter")
+    _druecke(conn, tg, einst, "Ja, speichern")
 
     assert [b for b, _ in tg.knoepfe[-1][2]] == [
         "1", "2", "3", "4", "5", "6", "Andere Zahl",

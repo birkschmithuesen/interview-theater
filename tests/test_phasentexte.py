@@ -87,15 +87,15 @@ def test_die_checkliste_kommt_aus_dem_arbeitsstand(conn):
     )
 
 
-def test_der_eintritt_haengt_die_einstiegsknoepfe_darunter(conn, einst, tg):
-    """Nichts Neues erfunden: unter der Eintrittsnachricht steht die
-    vorhandene Eintritt-Frage mit ihren zwei Knoepfen."""
+def test_der_eintritt_stellt_die_offene_frage_ohne_knoepfe(conn, einst, tg):
+    """Eintrittsnachricht + offene Frage, EINE Nachricht -- und seit dem
+    06.09.2026 (Birk, 11:10) ohne Einstiegsknoepfe darunter."""
     knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, 4)
 
-    _, text, leiste = tg.knoepfe[-1]
+    _, text = tg.gesendet[-1]
     assert text.startswith("▶️ Phase 4 von 7 · Setting, Figuren & Geschichte")
     assert text.endswith(knoepfe._TEXT_PROAKTIV)
-    assert [b for b, _ in leiste] == ["Ja, wir zuerst", "Schlag du vor"]
+    assert tg.knoepfe == []
 
 
 def test_der_eintritt_ruft_kein_modell(conn, einst, tg):

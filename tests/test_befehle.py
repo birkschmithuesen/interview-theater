@@ -20,11 +20,11 @@ class TelegramAttrappe:
         self.beantwortet = []  # Liste von (callback_query_id, text)
         self.entfernt = []  # Liste von (chat_id, message_id)
 
-    def sende(self, chat_id, text):
+    def sende(self, chat_id, text, **_kw):
         self.gesendet.append((chat_id, text))
         return 9001
 
-    def sende_mit_knoepfen(self, chat_id, text, knoepfe):
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe, **_kw):
         """Zeichnet die Inline-Tastatur mit auf -- und legt den Text auch in
         ``gesendet`` ab, damit Tests, die nur den Text pruefen, nicht wissen
         muessen, ob unter der Nachricht Knoepfe hingen."""

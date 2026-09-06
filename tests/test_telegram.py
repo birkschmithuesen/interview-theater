@@ -336,3 +336,52 @@ def test_bereinige_steigt_nicht_aus_wenn_der_token_kein_string_ist():
         "Fehler bei https://api.telegram.org/bot<token>/sendMessage"
     )
     assert "GEHEIM123" not in telegram._bereinige(text, Fremd())
+
+
+# --- HTML fuer Vorschlagsmenues (06.09.2026, Birk 11:05) ------------------
+
+
+def test_menuetext_setzt_fette_titel_und_nummern():
+    from interview_theater import vorschlag
+
+    html, klar = vorschlag.menuetext(
+        "Woran wollt ihr entlang?",
+        "Der lange Weg — sie geht ohne Abschied\nZurueck — sie bleibt",
+    )
+
+    assert "1. <b>Der lange Weg</b> — sie geht ohne Abschied" in html
+    assert "2. <b>Zurueck</b> — sie bleibt" in html
+    assert "<b>" not in klar
+    assert "1. Der lange Weg — sie geht ohne Abschied" in klar
+
+
+def test_menuetext_maskiert_spitze_klammern():
+    from interview_theater import vorschlag
+
+    html, klar = vorschlag.menuetext("", "Ein <Ort> & eine Zeit — jetzt")
+
+    assert "&lt;Ort&gt; &amp; eine Zeit" in html
+    assert "<Ort>" in klar
+
+
+def test_sende_mit_html_faellt_bei_400_auf_klartext_zurueck():
+    """Eine Nachricht, die wegen Fettschrift gar nicht ankommt, waere der
+    teuerste Ausgang -- deshalb der Rueckfall (06.09.2026)."""
+    gesehen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nutzlast = json.loads(request.content)
+        gesehen.append(nutzlast)
+        if nutzlast.get("parse_mode"):
+            return httpx.Response(400, json={"description": "can't parse entities"})
+        return httpx.Response(200, json={"result": {"message_id": 7}})
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler))
+    tg = telegram.Telegram("TOKEN", klient)
+
+    message_id = tg.sende(1, "1. <b>A</b>", parse_mode="HTML", klartext="1. A")
+
+    assert message_id == 7
+    assert len(gesehen) == 2
+    assert gesehen[1].get("parse_mode") is None
+    assert gesehen[1]["text"] == "1. A"

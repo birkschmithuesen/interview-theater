@@ -986,6 +986,10 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Wie viel jede Figur spricht (06.09.2026) -- ``szenen: 0`` heisst:
         # keine Szene war zaehlbar, der Abschnitt bleibt weg.
         "sprechanteile": sprechanteile(conn, chat_id),
+        # Die Dramaturgie-Pruefung (06.09.2026) -- leeres Dict heisst: es gab
+        # noch keinen Lauf, der Abschnitt bleibt weg. Belegzitate stehen NIE
+        # darin, die Gruppenseite ist oeffentlich erreichbar.
+        "dramaturgie": dramaturgie(conn, chat_id),
     }
 
 
@@ -1107,6 +1111,50 @@ def stueckpruefung(conn: sqlite3.Connection, chat_id: int) -> dict:
                 "begruendung": z["begruendung"],
                 "vorschlag": z["vorschlag"],
                 "szene_nummer": z["szene_nummer"],
+            }
+            for z in zeilen if z["runde"] == runde
+        ],
+    }
+
+
+def dramaturgie(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Die Befunde der letzten Dramaturgie-Runde (06.09.2026) --
+    **read-only**, wie alles auf dieser Seite.
+
+    Liefert ``{"runde": N, "befunde": [{pruefung, szene, figur, schwere, text,
+    vorschlag, quelle}, …]}`` oder ``{}``, wenn noch keine Runde gelaufen ist.
+
+    **Ohne Belegzitat**, und zwar ohne jedes -- nicht nur ohne ungepruefte.
+    Die Grenze auf dieser Seite lautet "kein Belegzitat ohne
+    ``zitat_geprueft = 1``" (AGENTS.md, Weboberflaeche); hier faellt das
+    Zitat ganz weg, weil es der Nachweis fuer den Code ist und nicht der Text
+    fuer die Gruppe. Was auf der Seite steht, ist der Befund -- dass er
+    belegt ist, ist die Zusage dahinter.
+
+    Fehlt die Tabelle noch (Datenbank aus der Zeit davor), ist das Ergebnis
+    leer statt ein Fehler: der Webserver migriert nichts."""
+    try:
+        zeilen = conn.execute(
+            "SELECT * FROM dramaturgie_befund WHERE chat_id = ? "
+            f"AND {_NICHT_ENTFERNT} ORDER BY runde ASC, id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    if not zeilen:
+        return {}
+    runde = max(z["runde"] for z in zeilen)
+    return {
+        "runde": runde,
+        "befunde": [
+            {
+                "pruefung": z["pruefung"],
+                "szene": z["szene"],
+                "figur": z["figur"],
+                "schwere": z["schwere"],
+                "text": z["text"],
+                "vorschlag": z["vorschlag"],
+                "quelle": z["quelle"],
             }
             for z in zeilen if z["runde"] == runde
         ],

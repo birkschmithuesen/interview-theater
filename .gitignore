@@ -52,3 +52,12 @@ simulation/laeufe/*
 simulation/berichte/*
 !simulation/berichte/.gitkeep
 !simulation/berichte/verlauf.jsonl
+
+# Berichte der Dramaturgie-Pruefung (scripts/dramaturgie_pruefen.py): sie
+# enthalten Belegzitate aus den Szenentexten der Gruppe und bleiben lokal.
+docs/dramaturgie-berichte/*
+!docs/dramaturgie-berichte/.gitkeep
+
+# Der Symlink auf das venv im Hauptbaum: `.venv/` mit Schraegstrich trifft
+# ein Verzeichnis, nicht den Link.
+.venv

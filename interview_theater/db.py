@@ -506,6 +506,43 @@ CREATE TABLE IF NOT EXISTS stueckpruefung (
 );
 CREATE INDEX IF NOT EXISTS idx_stueckpruefung_chat ON stueckpruefung(chat_id, id);
 
+-- Die Dramaturgie-Pruefung (06.09.2026, interview_theater/dramaturgie/).
+--
+-- Die feinkoernige Ebene NEBEN der Stueckpruefung: die gibt sechs Noten
+-- ueber das ganze Stueck, diese hier gibt einzelne Befunde mit Szene, Figur
+-- und Belegzitat -- und **keine Note**. Deshalb eine eigene Tabelle und
+-- keine Spalte mehr in ``stueckpruefung``: die beiden beantworten
+-- verschiedene Fragen, und eine gemeinsame Zeile haette an der Haelfte der
+-- Spalten NULL.
+--
+-- ``quelle`` trennt die beiden Wege, die hier zusammenlaufen: 'mechanik'
+-- (deterministisch gezaehlt, kein Modell) und 'judge' (ein Modellaufruf, eine
+-- Frage). ``beleg_geprueft`` ist die Zusage aus Recherche § 4 -- ein Beleg
+-- ohne 1 davor hat die Substring-Pruefung NICHT bestanden und darf nirgends
+-- angezeigt werden, wo Belegzitate stehen (dieselbe Grenze wie bei
+-- ``verdichtung_thema.zitat_geprueft``).
+--
+-- Additiv wie alles andere: ``runde`` zaehlt hoch, eine zweite Runde
+-- loescht die erste nicht.
+CREATE TABLE IF NOT EXISTS dramaturgie_befund (
+  id             INTEGER PRIMARY KEY,
+  chat_id        INTEGER NOT NULL,
+  runde          INTEGER NOT NULL DEFAULT 1,
+  pruefung       TEXT NOT NULL,            -- b1|a2|a6|c1|namensstabilitaet|…
+  szene          INTEGER,
+  figur          TEXT,
+  schwere        TEXT,                     -- hart|verdacht|hinweis bzw.
+                                            -- blocker|hoch|mittel|niedrig
+  text           TEXT NOT NULL,
+  beleg          TEXT,
+  beleg_geprueft INTEGER NOT NULL DEFAULT 0,
+  vorschlag      TEXT,
+  quelle         TEXT NOT NULL,            -- mechanik|judge
+  erstellt_am    TEXT NOT NULL,
+  entfernt_am    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_dramaturgie_chat ON dramaturgie_befund(chat_id, id);
+
 -- Wer in einer Szene vorkommt: nur Figuren aus dem Arbeitsstand, deshalb eine
 -- Verknuepfung und keine Namensliste in einem Textfeld. Eine weich geloeschte
 -- Figur verschwindet damit von selbst aus jeder Szene (repo.szene_figuren
@@ -605,6 +642,7 @@ TABELLEN_MIT_CHAT_ID = (
     "szenenfassung",
     "schaerfung",
     "stueckpruefung",
+    "dramaturgie_befund",
     "journal",
     "knopf",
     "vorfall",

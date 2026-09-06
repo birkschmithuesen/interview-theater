@@ -249,6 +249,14 @@ ART_SCHAERFUNG_KEINE = "schaerfung_keine"
 ART_PRUEFUNG_SZENE = "pruefung_szene"
 ART_PRUEFUNG_LASSEN = "pruefung_lassen"
 ART_PRUEFUNG_RUNDE = "pruefung_runde"
+#: Phase 7 · Dramaturgie-Pruefung (06.09.2026, interview_theater/dramaturgie/).
+#: ``ART_DRAMATURGIE`` stoesst den Lauf an, ``ART_DRAMATURGIE_SZENE`` traegt
+#: die ``dramaturgie_befund.id`` und macht aus EINEM Befund EINEN
+#: Szenenauftrag -- **der Bot schlaegt vor, er handelt nicht**: erst der
+#: Knopfdruck loest einen Szenenlauf aus.
+ART_DRAMATURGIE = "dramaturgie"
+ART_DRAMATURGIE_SZENE = "dramaturgie_szene"
+ART_DRAMATURGIE_LASSEN = "dramaturgie_lassen"
 
 
 #: Trennzeichen im ``wert`` der Speicher-Leiste.
@@ -2427,6 +2435,14 @@ def biete_nach_pruefung(conn, tg, chat_id: int, runde: int, e=None) -> int:
             TEXT_TEXTBUCH_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEXTBUCH, None)),
         ),
+        # Die feinkoernige Ebene daneben (06.09.2026): der Stueck-Judge sagt
+        # "Spannungsbogen 3/5", die Dramaturgie-Pruefung sagt "Szene 4 endet,
+        # wie sie anfaengt" -- mit Zitat und Szenennummer. Zwei Fragen, zwei
+        # Knoepfe; angeboten wird beides, gedrueckt wird, was die Gruppe will.
+        (
+            TEXT_DRAMATURGIE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_DRAMATURGIE, None)),
+        ),
     ]
     for s in repo.hole_szenen(conn, chat_id):
         if s["nummer"] is None:
@@ -2452,6 +2468,94 @@ def _pruefbefund(conn, chat_id: int, befund_id: int):
         (z for z in repo.stueckpruefungen(conn, chat_id) if z["id"] == befund_id),
         None,
     )
+
+
+# --- Phase 7 · Dramaturgie-Pruefung (06.09.2026) --------------------------
+
+TEXT_DRAMATURGIE_KNOPF = "Dramaturgie pruefen"
+_TEXT_DRAMATURGIE_LAEUFT = (
+    "Ich sehe mir jetzt jede Szene einzeln an - Wendepunkt, Anschluss, "
+    "Stimmen, offene Faeden. Das dauert ein paar Minuten."
+)
+_TEXT_DRAMATURGIE_LASSEN_KNOPF = "Lassen"
+_TEXT_DRAMATURGIE_LASSEN = "Gut, das bleibt so."
+_TEXT_DRAMATURGIE_UNBEKANNT = "Diesen Befund finde ich nicht mehr."
+_TEXT_DRAMATURGIE_UEBERHOLT = (
+    "Sobald die Szene neu steht, ist dieser Befund ueberholt. Wenn ihr wollt, "
+    "sehe ich danach noch einmal nach."
+)
+
+
+def starte_dramaturgie(conn, tg, klm, e, chat_id: int) -> None:
+    """Stoesst die Dramaturgie-Pruefung an (im Thread).
+
+    Kein Modellaufruf hier: ``dramaturgie.fanout.starte`` gibt sofort ab
+    (Zusage 2)."""
+    from interview_theater.dramaturgie import fanout
+
+    tg.sende(chat_id, _TEXT_DRAMATURGIE_LAEUFT)
+    fanout.starte(conn, tg, klm, e, chat_id)
+
+
+def zeige_dramaturgie(conn, tg, chat_id: int, runde: int | None = None) -> int:
+    """Die Befunde EINER Dramaturgie-Runde: je Befund eine Zeile mit
+    Szenennummer, und je Ueberarbeitungsauftrag ein Knopf "Szene N so
+    ueberarbeiten".
+
+    **Der Bot schlaegt vor, er handelt nicht.** Kein automatisches
+    Neuschreiben; erst der Knopfdruck loest einen Szenenlauf aus -- dieselbe
+    Haltung wie ueberall im Repo: Datenstand ist nicht Absicht.
+
+    **Ohne Belegzitat im Chat.** Das Zitat ist der Nachweis fuer den Code;
+    dass es geprueft wurde, ist die Zusage, nicht seine Anzeige.
+
+    Deterministisch aus der Datenbank, kein Modellaufruf (Zusage 2). Liefert
+    die Zahl der verschickten Befund-Nachrichten."""
+    from interview_theater.dramaturgie import fanout
+
+    if runde is None:
+        runde = repo.letzte_dramaturgie_runde(conn, chat_id)
+    if not runde:
+        return 0
+    zeilen = repo.dramaturgie_befunde(conn, chat_id, runde=runde)
+    if not zeilen:
+        tg.sende(chat_id, fanout.MELDUNG_OHNE_BEFUND)
+        return 0
+    figuren = [f["name"] for f in repo.figuren(conn, chat_id)]
+    auftraege = {a["befund_id"]: a for a in fanout.auftraege(zeilen, figuren)}
+
+    tg.sende(chat_id, fanout.MELDUNG_KOPF.format(runde=runde))
+    verschickt = 0
+    for zeile in zeilen:
+        text = fanout.befundzeile(zeile)
+        if zeile["id"] not in auftraege:
+            tg.sende(chat_id, text)
+            verschickt += 1
+            continue
+        leiste = [
+            (
+                fanout.TEXT_AUFTRAG_KNOPF.format(nummer=zeile["szene"]),
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_DRAMATURGIE_SZENE, str(zeile["id"])
+                    )
+                ),
+            ),
+            (
+                _TEXT_DRAMATURGIE_LASSEN_KNOPF,
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_DRAMATURGIE_LASSEN, str(zeile["id"])
+                    )
+                ),
+            ),
+        ]
+        message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+        repo.merke_knopf_nachricht(
+            conn, [_id_aus_daten(d) for _, d in leiste], message_id
+        )
+        verschickt += 1
+    return verschickt
 
 
 def sende_szenenfelder(conn, tg, chat_id: int, nummer: int, antwort: str) -> int:
@@ -3266,6 +3370,36 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
 
     if art == ART_PRUEFUNG_LASSEN:
         tg.sende(chat_id, _TEXT_PRUEFUNG_LASSEN)
+        return "Bleibt"
+
+    if art == ART_DRAMATURGIE:
+        # Kein Modellaufruf im Handler: ``fanout.starte`` gibt an einen
+        # eigenen Thread ab (Zusage 2).
+        starte_dramaturgie(conn, tg, klm, e, chat_id)
+        return "Ich sehe die Szenen einzeln durch"
+
+    if art == ART_DRAMATURGIE_SZENE:
+        # Derselbe Weg wie "Szene N ueberarbeiten" nach der Stueckpruefung:
+        # ein Szenenauftrag mit dem Umbauvorschlag als Regie-Notiz. **Erst der
+        # Knopfdruck** loest ihn aus -- ein Befund allein aendert nichts.
+        from interview_theater.dramaturgie import fanout
+
+        befund = repo.hole_dramaturgie_befund(conn, chat_id, int(wert))
+        if befund is None or befund["szene"] is None:
+            tg.sende(chat_id, _TEXT_DRAMATURGIE_UNBEKANNT)
+            return _TEXT_DRAMATURGIE_UNBEKANNT
+        from interview_theater import ablauf
+
+        nummer = int(befund["szene"])
+        ablauf.starte_auftrag(
+            conn, tg, klm, e, chat_id,
+            f"Schreib Szene {nummer} neu. {fanout.regienotiz(befund)}",
+        )
+        tg.sende(chat_id, _TEXT_DRAMATURGIE_UEBERHOLT)
+        return f"Szene {nummer} wird ueberarbeitet"
+
+    if art == ART_DRAMATURGIE_LASSEN:
+        tg.sende(chat_id, _TEXT_DRAMATURGIE_LASSEN)
         return "Bleibt"
 
     if art == ART_PRUEFUNG_RUNDE:

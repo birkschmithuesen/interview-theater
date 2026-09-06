@@ -2874,8 +2874,20 @@ def zeige_kurzgeschichte(conn, tg, chat_id: int) -> None:
     Abschnittsweise, weil eine Kurzgeschichte ueber
     ``telegram.NACHRICHT_GRENZE`` liegt und Telegram sie sonst abschneidet --
     und weil die Gruppe sie so liest, wie sie spaeter gearbeitet wird: ein
-    Abschnitt ist eine Szene."""
-    from interview_theater import telegram as telegram_modul
+    Abschnitt ist eine Szene.
+
+    **Davor steht der Vorspann** (07.09.2026, ``vorspann.py``): Setting,
+    Worum-es-geht, Form, die Szenen und die Besetzung. Er ist nicht Teil der
+    Geschichte, sondern die Antwort auf die Frage, die eine Gruppe mit
+    dreizehn Figuren beim ersten Absatz hat -- wer ist wer. Deterministisch,
+    ohne Modellaufruf, als eigene Nachricht: er soll ueber der Geschichte
+    stehen bleiben, wenn die weiterscrollt."""
+    from interview_theater import telegram as telegram_modul, vorspann
+
+    kopfzeilen = vorspann.als_chattext(vorspann.aus_datenbank(conn, chat_id))
+    if kopfzeilen:
+        for stueck in telegram_modul.teile_text(kopfzeilen):
+            tg.sende(chat_id, stueck)
 
     for szene in repo.hole_szenen(conn, chat_id):
         prosa = (szene["prosa"] or "").strip()

@@ -3462,8 +3462,7 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
 
         nummer = int(befund["szene"])
         ablauf.starte_auftrag(
-            conn, tg, klm, e, chat_id,
-            f"Schreib Szene {nummer} neu. {fanout.regienotiz(befund)}",
+            conn, tg, klm, e, chat_id, fanout.szenenauftrag(befund),
         )
         tg.sende(chat_id, _TEXT_DRAMATURGIE_UEBERHOLT)
         return f"Szene {nummer} wird ueberarbeitet"

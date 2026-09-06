@@ -40,7 +40,7 @@ Module unter `interview_theater/`:
 | `phasentexte.py` | Der Phasenrahmen im Chat (06.09.2026): die acht Einleitungen als Daten, `PARAMETER` je Phase, daraus Eintrittsnachricht („▶️ Phase N von 8 · Name" + Checkliste ✅/⬜), Abschlussnachricht („✅ … abgeschlossen" + alle gesetzten Parameter) und die Zeilen für `/stand`. Bot-Text an die Gruppe, kein Prompt — kein Modellaufruf, nur repo-Lesezugriffe |
 | `verdichter.py` | Verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten — an der Frageliste der Gruppe entlang, wenn es eine gibt (N3) |
 | `zitat.py` | Belegzitat-Verifikation: Teilstring-Vergleich nach Normalisierung |
-| `dramaturgie/` | Die feinkörnige Prüfung neben `stueckpruefung.py` (06.09.2026): `mechanik.py` zählt ohne Modell (Namensdrift, Geisterfiguren, Besetzung, Tschechow-Kandidaten, Formverteilung, Sprechanteile), `beleg.py` verifiziert Judge-Zitate über `zitat.pruefe` (ein Retry, dann `unsicher`), `fanout.py` stellt vier Fragen (B1, A2, A6, C1) an ein **anderes** Modell als das schreibende. Siehe „Die Dramaturgie-Prüfung" |
+| `dramaturgie/` | Die feinkörnige Prüfung neben `stueckpruefung.py` (06.09.2026): `mechanik.py` zählt ohne Modell (Namensdrift, Geisterfiguren, Besetzung, Tschechow-Kandidaten, Formverteilung, Sprechanteile), `beleg.py` verifiziert Judge-Zitate über `zitat.pruefe` (ein Retry, dann `unsicher`), `fanout.py` stellt sieben Fragen (B1, A2, A6, A9, A10, A11, C1) an ein **anderes** Modell als das schreibende, `bilanz.py` und `schleife.py` schließen die Rückkopplung (07.09.2026). Siehe „Die Dramaturgie-Prüfung" |
 | `prompts/dramaturgie/` | Ein Prompt je Judge-Frage, mit `prompt_version` im Dateikopf |
 | `repo.py` | Einzige SQL-Zugriffsschicht außer `db.py`, komplett `RLock`-serialisiert |
 | `db.py` | Schema, Verbindungsaufbau samt PRAGMAs, Migration fehlender Spalten, Löschweg (`loesche_gruppe`) |
@@ -600,6 +600,50 @@ den Chat, je Auftrag mit dem Knopf „Szene N so überarbeiten"; **erst der
 Knopfdruck** löst einen Szenenlauf aus, über denselben Weg wie „Passt, aber
 anders". Datenstand ist nicht Absicht.
 
+**Die Rückkopplung: gemessen wird an den Scores, nicht an den Befunden**
+(07.09.2026, `bilanz.py` + `schleife.py`). `pruefe()` → `auftraege()` →
+umschreiben → `pruefe()` → vergleichen. Der Punkt, an dem das leicht falsch
+wird, ist das Erfolgsmaß: **die Zahl der Befunde taugt nicht.** Sie fällt in
+drei Fällen, und einer davon ist der gefährliche — wird ein Text schlechter,
+findet der Judge für seinen Befund oft kein Belegzitat mehr, weil die Stelle
+umgeschrieben wurde; der Befund entfällt, und der Schaden sähe aus wie ein
+Erfolg. Verglichen werden deshalb die **Scores je Frage und Szene**
+(Tabelle `dramaturgie_bewertung`, gefüllt in `fanout._merke`) — und dort
+steht auch die **Zwei**, die als Befund bewusst nicht existiert. Die Adresse
+ist die, unter der *gefragt* wurde: A2, A6 und A11 laufen als ein Aufruf über
+das Stück und tragen deshalb `szene = NULL`, auch wenn ihre Antwort eine
+Nummer nennt. Kein Score ohne bestätigtes Belegzitat — ein verworfener Score
+ist keine schlechtere Note, sondern keine, und er fällt aus der Bilanz
+heraus, statt als Verschlechterung zu erscheinen.
+
+Drei Abbrüche: keine Aufträge mehr (Regelfall), ein gefallener Score (dann
+**bricht die Schleife ab** und schreibt einen Vorfall
+`dramaturgie_verschlechterung` — sichtbar heißt nicht „steht in einer Bilanz,
+die jemand lesen müsste"), und `schleife.RUNDEN_MAX = 2`
+Überarbeitungsrunden als Auffangfall. Der Schreibweg kommt aus der Phase:
+Feinschliff = ein `szene.schreibe()` je Auftrag (mit `szene.sperrtext` davor
+— `schreibe()` prüft die Sperre selbst nicht, das tut sonst `starte()`),
+Prosa-Phase = **ein** Lauf über die ganze Geschichte mit allen Aufträgen als
+einer Regie-Notiz. Fehlt der Weg für die Phase, gibt es **keinen
+Modellaufruf**, sondern einen Satz, was fehlt: der phasenfremde Pfad läuft
+ohne Fehler durch und liefert gemessen schwächere Texte. Und: **die Schleife
+hängt an keinem Knopf.** Sie fährt der Betreiber gegen eine Kopie
+(`scripts/dramaturgie_pruefen.py --schleife`, der teuerste Schalter des
+Repos), was dabei herauskommt, ist ein Vorschlag samt Bilanz. Der Bot
+schlägt vor, die Gruppe bestätigt — ein Test hält fest, dass weder
+`knoepfe.py` noch `fanout.py` `schleife.schliesse` rufen.
+
+**`dramaturgie_befund.richtung` ist eine Sperre, keine Notiz** (07.09.2026).
+`fanout.auftraege()` lässt aus `richtung=parameter` nie einen Schreibauftrag
+entstehen — dort sagt der Judge, dass der TEXT recht hat und die Festlegung
+veraltet ist; ein Auftrag daraus gäbe den Text an den Schreiber, damit er ihn
+auf die überholte Planung zurückbiegt. Die Richtung stand bis zu diesem Tag
+nur im Arbeitsspeicher, und die Sperre griff deshalb **nur im frischen Lauf**:
+`knoepfe.zeige_dramaturgie`, `scripts/dramaturgie_pruefen.py` und die Schleife
+lesen die Befunde aus der Datenbank, und dort war sie verschwunden. Wer eine
+Entscheidung im Code trifft, die ein späterer Leser aus der Datenbank braucht,
+schreibt sie in die Datenbank.
+
 **Grenzen.** Kein Klarname, kein Transkript, kein Chat im Prompt: B1 und C1
 sehen nur den Szenentext, A2 nur die Synopsen, A6 nur die Kandidatenliste.
 Prüftext steht zwischen Markierungen, und jeder Prompt sagt ausdrücklich, dass
@@ -610,8 +654,9 @@ Verdichtungen. Kosten und Aufrufe landen in `aufruf` mit eigener `art`
 getrennt sehen. `scripts/dramaturgie_pruefen.py` fährt denselben Lauf gegen
 eine **Kopie**-Datenbank (verweigert `IT_DB`); `--nur-mechanik` kostet nichts,
 `--bericht` schreibt nach `docs/dramaturgie-berichte/` (gitignored, weil dort
-Belegzitate stehen). **Kein Test, läuft nie automatisch, kostet Geld** — wie
-`pruefe_prompts.py`.
+Belegzitate stehen), `--schleife` fährt zusätzlich die Rückkopplung und
+schreibt dabei Szenentexte **in die Kopie**. **Kein Test, läuft nie
+automatisch, kostet Geld** — wie `pruefe_prompts.py`.
 
 ## Die Fallen
 

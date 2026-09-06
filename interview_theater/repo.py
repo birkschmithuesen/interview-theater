@@ -1187,7 +1187,14 @@ def lege_dramaturgie_befunde_an(
     ``beleg_geprueft`` ist die harte Grenze aus Recherche § 4: sie kommt vom
     Aufrufer, der den Beleg gegen das vorgelegte Material geprueft hat
     (``dramaturgie.beleg``), und wird hier nie erraten -- ohne das Feld ist
-    sie 0."""
+    sie 0.
+
+    ``richtung`` wird mitgeschrieben, weil sie eine **Sperre** ist und keine
+    Notiz: ``fanout.auftraege`` laesst aus ``parameter`` nie einen
+    Schreibauftrag entstehen. Stuende sie nur im Arbeitsspeicher, griffe die
+    Sperre im frischen Lauf und waere fuer jeden Leser aus der Datenbank
+    verschwunden -- und genau so lesen der Knopfweg und die
+    Rueckkopplungsschleife die Befunde."""
     angelegt = 0
     for befund in befunde:
         pruefung = str(befund.get("pruefung") or "").strip()
@@ -1199,8 +1206,9 @@ def lege_dramaturgie_befunde_an(
             """
             INSERT INTO dramaturgie_befund
                 (chat_id, runde, pruefung, szene, figur, schwere, text,
-                 beleg, beleg_geprueft, vorschlag, quelle, erstellt_am)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 beleg, beleg_geprueft, vorschlag, richtung, quelle,
+                 erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chat_id,
@@ -1213,6 +1221,7 @@ def lege_dramaturgie_befunde_an(
                 befund.get("beleg"),
                 1 if befund.get("beleg_geprueft") else 0,
                 befund.get("vorschlag"),
+                befund.get("richtung"),
                 quelle,
                 _jetzt(),
             ),
@@ -1250,6 +1259,56 @@ def letzte_dramaturgie_runde(conn: sqlite3.Connection, chat_id: int) -> int:
         (chat_id,),
     ).fetchone()
     return int(zeile["r"] or 0) if zeile else 0
+
+
+@_gesperrt
+def lege_dramaturgie_bewertungen_an(
+    conn: sqlite3.Connection, chat_id: int, bewertungen: list[dict], runde: int = 1
+) -> int:
+    """Schreibt die Scores EINER Dramaturgie-Runde und liefert ihre Anzahl.
+
+    Das Gegenstueck zu ``lege_dramaturgie_befunde_an``: dort steht, was
+    schieflaeuft, hier, wie jede Frage ausgegangen ist -- **auch die erfuellte**
+    (Score 2). Ohne diese Zeilen liesse sich zwischen zwei Runden nur die Zahl
+    der Befunde vergleichen, und die faellt auch dann, wenn ein Text schlechter
+    geworden ist und der Judge deshalb keinen Beleg mehr findet.
+
+    Pflicht sind ``pruefung`` und ein Score aus 0-2. Ein fehlender oder
+    verworfener Score (kein bestaetigtes Belegzitat) wird **nicht** als Zeile
+    abgelegt: eine Note ohne Beleg ist keine schlechtere Note, sie ist keine
+    (Recherche § 4)."""
+    angelegt = 0
+    for bewertung in bewertungen:
+        pruefung = str(bewertung.get("pruefung") or "").strip()
+        score = bewertung.get("score")
+        if not pruefung or score is None:
+            continue
+        conn.execute(
+            """
+            INSERT INTO dramaturgie_bewertung
+                (chat_id, runde, pruefung, szene, score, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (chat_id, runde, pruefung, bewertung.get("szene"), int(score), _jetzt()),
+        )
+        angelegt += 1
+    conn.commit()
+    return angelegt
+
+
+@_gesperrt
+def dramaturgie_bewertungen(
+    conn: sqlite3.Connection, chat_id: int, runde: int | None = None
+) -> list[sqlite3.Row]:
+    """Die Scores einer Gruppe, wahlweise nur einer Runde -- in der
+    Reihenfolge, in der sie gemessen wurden."""
+    sql = "SELECT * FROM dramaturgie_bewertung WHERE chat_id = ?"
+    werte: list = [chat_id]
+    if runde is not None:
+        sql += " AND runde = ?"
+        werte.append(runde)
+    sql += " ORDER BY runde ASC, id ASC"
+    return conn.execute(sql, tuple(werte)).fetchall()
 
 
 @_gesperrt

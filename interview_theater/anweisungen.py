@@ -155,30 +155,50 @@ def _profil_pfad(name: str) -> Path | None:
     return pfad
 
 
+def bausteinschluessel(pfad: Path, wurzel: Path) -> str:
+    """Der Platzhaltername einer Prompt-Datei: der Pfad unterhalb von
+    ``wurzel``, ohne Endung, mit ``_`` statt ``/`` und ``-``.
+
+    ``rahmen.md`` -> ``{{rahmen}}``, ``rahmen-kurz.md`` -> ``{{rahmen_kurz}}``,
+    ``formen/dialog.md`` -> ``{{formen_dialog}}``. Der Bindestrich wandert
+    mit, weil ein Platzhalter ein Bezeichner ist und die Dateinamen im
+    Repo (``theater-tells.md``) Bindestriche tragen."""
+    kurz = str(pfad.relative_to(wurzel).with_suffix(""))
+    return kurz.replace("\\", "/").replace("/", "_").replace("-", "_")
+
+
 def _bausteine() -> dict[str, str]:
-    """Jede Datei unter ``workshop/<name>/prompts/`` als Platzhalterwert.
+    """Jede Prompt-Datei als Platzhalterwert -- erst die des Repos, dann
+    die des Profils darueber.
 
-    Der Schluessel ist der Pfad ohne Endung, mit ``_`` statt ``/``:
-    ``prompts/rahmen.md`` -> ``{{rahmen}}``, ``prompts/formen/dialog.md`` ->
-    ``{{formen_dialog}}``. Eine Regel, keine Sonderfaelle -- dieselbe Datei
-    ersetzt zugleich eine gleichnamige Repo-Datei, falls es die gibt.
+    **Eine Regel, keine Sonderfaelle** (06.09.2026, Schritt 3): dieselbe
+    Datei, die eine gleichnamige Repo-Datei ersetzen kann, ist zugleich der
+    Wert ihres Platzhalters. Der Rahmenblock steht damit genau einmal --
+    als ``prompts/rahmen.md`` -- und wird in ``system.md``, ``szene.md`` und
+    den Phasendateien nur noch mit ``{{rahmen}}`` eingesetzt, statt sechsmal
+    dupliziert dazustehen.
 
-    Gelesen wird ueber ``_lies``, also mit demselben Hot-Reload wie die
-    Repo-Prompts: wer am Workshoptag ``rahmen.md`` aendert, sieht es beim
-    naechsten Zug. Das Verzeichnis wird dabei jedes Mal durchgesehen -- es
-    hat eine Handvoll Dateien, und eine neu angelegte soll ohne Neustart
-    wirken."""
-    wurzel = profil_verzeichnis()
-    if wurzel is None or not wurzel.is_dir():
-        return {}
+    Die Repo-Fassung ist die Vorgabe, damit ein Prozess **ohne**
+    ``IT_WORKSHOP`` denselben Text bekommt wie einer mit
+    ``IT_WORKSHOP=dortmund-2026``. Das Profil gewinnt, wo es eine Datei
+    mitbringt.
+
+    Gelesen wird ueber ``_lies``, also mit demselben Hot-Reload wie jeder
+    andere Prompt: wer am Workshoptag ``rahmen.md`` aendert, sieht es beim
+    naechsten Zug. Beide Verzeichnisse werden dabei jedes Mal durchgesehen
+    -- es sind ein paar Dutzend Dateien, und eine neu angelegte soll ohne
+    Neustart wirken. Der Aufwand faellt nur an, wenn ein Text ueberhaupt
+    ein ``{{`` traegt (``fuelle``)."""
     profil = workshop.name()
-    werte = {}
-    for pfad in sorted(wurzel.rglob("*.md")):
-        kurz = str(pfad.relative_to(wurzel).with_suffix(""))
-        schluessel = kurz.replace("\\", "/").replace("/", "_")
-        text = _lies(pfad, (profil, "baustein", schluessel))
-        if text is not None:
-            werte[schluessel] = text.strip("\n")
+    werte: dict[str, str] = {}
+    for herkunft, wurzel in (("repo", _VERZEICHNIS), ("profil", profil_verzeichnis())):
+        if wurzel is None or not wurzel.is_dir():
+            continue
+        for pfad in sorted(wurzel.rglob("*.md")):
+            schluessel = bausteinschluessel(pfad, wurzel)
+            text = _lies(pfad, (profil, f"baustein-{herkunft}", schluessel))
+            if text is not None:
+                werte[schluessel] = text.strip("\n")
     return werte
 
 

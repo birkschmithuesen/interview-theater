@@ -72,38 +72,56 @@ def frisch(monkeypatch):
     anweisungen._CACHE.clear()
 
 
-def _fingerabdruck() -> str:
+def _fingerabdruck() -> dict[str, str]:
+    """Abschnittsname -> ``sha256 laenge``."""
     anweisungen._CACHE.clear()
-    return prompt_schnappschuss.fingerabdruck()
+    zeilen = prompt_schnappschuss.fingerabdruck().splitlines()
+    fertig = {}
+    for zeile in zeilen:
+        pruef, laenge, name = zeile.split("  ", 2)
+        fertig[name.strip()] = f"{pruef} {laenge.strip()}"
+    return fertig
 
 
-def _erste_abweichung(a: str, b: str) -> str:
-    """Die erste Zeile, in der sich zwei Fingerabdruecke unterscheiden --
-    als Fehlermeldung brauchbarer als 10 000 Zeichen Diff."""
-    for links, rechts in zip(a.splitlines(), b.splitlines()):
-        if links != rechts:
-            return f"\n  erwartet: {links}\n  bekommen: {rechts}"
-    return f"\n  unterschiedlich viele Abschnitte: {len(a.splitlines())} / {len(b.splitlines())}"
+def _vergleiche(erwartet: dict[str, str], jetzt: dict[str, str]) -> None:
+    """Jeder Abschnitt des Massstabs muss unveraendert dastehen.
+
+    **Neue** Abschnitte sind erlaubt: eine zusaetzliche Prompt-Datei ist eine
+    gewoehnliche Repo-Aenderung und keine Undichtigkeit des Profils -- sie
+    kann an dem, was schon da war, nichts verschieben, und genau das prueft
+    diese Schleife. Ein **fehlender** Abschnitt ist dagegen immer ein
+    Befund."""
+    fehlend = sorted(set(erwartet) - set(jetzt))
+    assert not fehlend, f"Abschnitt(e) verschwunden: {', '.join(fehlend)}"
+    abweichend = [
+        f"\n  {name}\n    erwartet: {erwartet[name]}\n    bekommen: {jetzt[name]}"
+        for name in erwartet if erwartet[name] != jetzt[name]
+    ]
+    assert not abweichend, "".join(abweichend)
+
+
+def _massstab() -> dict[str, str]:
+    fertig = {}
+    for zeile in SCHNAPPSCHUSS.read_text(encoding="utf-8").splitlines():
+        pruef, laenge, name = zeile.split("  ", 2)
+        fertig[name.strip()] = f"{pruef} {laenge.strip()}"
+    return fertig
 
 
 def test_ohne_variable_wie_vor_dem_umbau():
-    erwartet = SCHNAPPSCHUSS.read_text(encoding="utf-8")
-    jetzt = _fingerabdruck()
-    assert jetzt == erwartet, _erste_abweichung(erwartet, jetzt)
+    _vergleiche(_massstab(), _fingerabdruck())
 
 
 def test_dortmund_wie_vor_dem_umbau(monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, DORTMUND)
-    erwartet = SCHNAPPSCHUSS.read_text(encoding="utf-8")
-    jetzt = _fingerabdruck()
-    assert jetzt == erwartet, _erste_abweichung(erwartet, jetzt)
+    _vergleiche(_massstab(), _fingerabdruck())
 
 
 def test_dortmund_und_keine_variable_sind_identisch(monkeypatch):
     ohne = _fingerabdruck()
     monkeypatch.setenv(workshop.VARIABLE, DORTMUND)
     mit = _fingerabdruck()
-    assert mit == ohne, _erste_abweichung(ohne, mit)
+    assert mit == ohne, _vergleiche(ohne, mit)
 
 
 def _golden_system(name: str) -> str:

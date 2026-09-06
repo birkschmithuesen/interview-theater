@@ -133,10 +133,19 @@ def test_profil_anweisung_steht_zwischen_phase_und_regiezettel(profilbaum, monke
     assert text.index("PROFILBLOCK") < text.index("REGIEZETTEL")
 
 
-def test_ohne_profil_anweisung_bleibt_die_systemanweisung_wie_sie_war(profilbaum, monkeypatch):
-    ohne = anweisungen.system("gruppe1", 4)
+def test_ohne_profil_anweisung_haengt_nichts_an(profilbaum, monkeypatch):
+    """Ein Profil ohne ``anweisung.md`` baut die Systemanweisung genauso auf
+    wie gar keins -- gleiche Bausteine, gleiche Reihenfolge. Der Wortlaut
+    darf sich unterscheiden (das Testprofil hat eine andere Zielgruppe),
+    der Aufbau nicht."""
+    def aufbau():
+        return (anweisungen.hole("system")
+                + anweisungen.PHASEN_UEBERSCHRIFT
+                + anweisungen.hole("phasen/4").strip())
+
+    assert anweisungen.system("gruppe1", 4) == aufbau()
     _hinein(profilbaum, monkeypatch)
-    assert anweisungen.system("gruppe1", 4) == ohne
+    assert anweisungen.system("gruppe1", 4) == aufbau()
 
 
 # --- Der Cache-Schluessel (D.5 der Analyse) ------------------------------

@@ -29,9 +29,8 @@ Beispielen, die in dieser Anweisung stehen.
 
 - **Wer spielt:** Die Gruppe sind junge Frauen zwischen 15 und 18 Jahren
   (Migrantinnenverein Dortmund). Figuren, Sprache und Konflikte sind ihre.
-- **Wo es spielt:** altersgerechte, lebensnahe oeffentliche Orte -- Schulhof,
-  Strasse, oeffentlicher Platz, Bushaltestelle, Kiosk, Bahnhof, das
-  Wohnzimmer der Familie, Handy und Chat. **Nicht:** Club, Disko, Alkohol,
+- **Wo es spielt:** altersgerechte, lebensnahe Orte aus der Welt der Gruppe -- welche,
+  bestimmt die Gruppe selbst (keine Beispielorte aus dieser Anweisung). **Nicht:** Club, Disko, Alkohol,
   Nachtleben, Drogen.
 - **Wo es gezeigt wird:** auf einem oeffentlichen Platz oder in einer grossen
   Halle. Die Szenen brauchen **kein Buehnenbild und keine Requisiten** ausser

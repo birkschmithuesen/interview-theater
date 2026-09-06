@@ -228,7 +228,7 @@ def test_rahmen_des_stuecks_steht_in_den_prompts(betrieb, name):
     und Format stehen fest und gehen jedem Modellvorschlag vor."""
     text = anweisungen.hole(name)
     assert "Rahmen des Stuecks" in text
-    for stichwort in ("15 und 18", "Bushaltestelle", "Halle", "Buehnenbild"):
+    for stichwort in ("15 und 18", "keine Beispielorte", "Halle", "Buehnenbild"):
         assert stichwort in text, (name, stichwort)
 
 

@@ -1287,8 +1287,8 @@ def _uebernimm_fragen(conn, tg, klm, e, chat_id: int, ausgewaehlt: list[str],
 #: startet (06.09.2026, 10:10, Birk). Sie werden geloescht, sobald die
 #: Antwort da ist (``ablauf.arbeitet_sichtbar``) -- eine Arbeitsmeldung, die
 #: stehen bleibt, liest sich wie eine haengende Aufgabe.
-TEXT_ARBEIT_SENSIBILITAET = "🤔 Ich sehe die Fragen kurz durch …"
-TEXT_ARBEIT_EROEFFNUNG = "✍️ Ich schreibe euch einen Eroeffnungstext …"
+TEXT_ARBEIT_SENSIBILITAET = "🤔 Ich sehe die Fragen kurz durch und formuliere heikle weicher …"
+TEXT_ARBEIT_EROEFFNUNG = "✍️ Jetzt die Einleitung fuers Interview: wie ihr anfangt und aufhoert …"
 
 
 def starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id: int) -> bool:
@@ -3614,8 +3614,11 @@ ANWEISUNG_EINLEITUNGEN = (
     "'<Fragennummer> — <weiche Fassung>' - nur fuer die sensiblen Fragen, "
     "die uebrigen bleiben, wie sie sind. Ist keine Frage sensibel, schreib "
     "in den Block genau die eine Zeile 'Keine der Fragen braucht eine "
-    "besondere Einleitung.' Sag im Text davor in einem Satz, was du "
-    "gefunden hast, und stell eine Frage an die Gruppe. Schreib die "
+    "besondere Einleitung.' Sag im Text davor in EINEM Satz, welche Fragen "
+    "du weicher formuliert hast - nenne es 'weichere Formulierung', NICHT "
+    "'Einleitung': die Einleitung des Interviews (Eroeffnung) kommt erst in "
+    "der naechsten Nachricht, kuendige sie hier nicht an und schreib sie "
+    "nicht. Stell hoechstens eine Frage an die Gruppe. Schreib die "
     "Fragenliste nicht noch einmal unveraendert ab."
 )
 #: Eroeffnung und Abschluss in einem Block -- es ist eine Entscheidung.

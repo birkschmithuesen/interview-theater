@@ -140,6 +140,27 @@ _TEXT_ERSTKONTAKT_BEGRIFFE = (
     "Die Knoepfe unten zeigen euch den Weg."
 )
 
+#: Dieselbe Begruessung fuer den Fall, dass die Begriffsliste **schon
+#: dasteht** (06.09.2026, in der Simulation gemessen). Beide tag1-Laeufe
+#: fingen so an: die Gruppe schickte als erste Nachricht ihre vier Begriffe,
+#: und der Bot antwortete mit "Ihr habt im Raum schon Begriffe gesammelt.
+#: Schickt mir die Liste" plus "Gibt es noch mehr aus der Sammelrunde?" --
+#: nach einem ausdruecklichen "das ist alles". Der Richter zog beide Male
+#: dafuer ab ("eine Rueckfrage, die die Gruppe explizit ausgeschlossen
+#: hatte").
+#:
+#: Ein zweiter Festtext und keine Bedingung im ersten: der Erstkontakt
+#: laeuft, bevor irgendein Modell etwas gesehen hat, und ein Text, der sich
+#: selbst zusammensetzt, ist beim Nachlesen schwerer zu pruefen als zwei, die
+#: nebeneinander stehen.
+_TEXT_ERSTKONTAKT_BEGRIFFE_DA = (
+    "Hallo, ich bin der Theaterbot fuer diesen Workshop.\n\n"
+    "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
+    "Eure Begriffe habe ich schon. Daraus entwickeln wir jetzt eure "
+    "Interviewfragen - und erst danach geht es ans Aufnehmen.\n\n"
+    "Die Knoepfe unten zeigen euch den Weg."
+)
+
 #: Angehaengt, wenn eine Weboberflaeche konfiguriert ist (IT_WEB_URL): die
 #: Leseansicht der Gruppe, zum Mitlesen neben dem Chat. Der Link ist das
 #: Geheimnis (kein Login) -- er geht nur in diese eine Gruppe.
@@ -207,11 +228,14 @@ def erstkontakt(conn, tg, e, chat_id: int) -> None:
     # Phase 1 (Begriffe) ist der Regelfall beim Erstkontakt: dann sagt die
     # Begruessung, dass jetzt die Begriffsliste aus dem Plenum kommt, und
     # nicht, wie man eine Aufnahme startet (05.09.2026).
-    vorlage = (
-        _TEXT_ERSTKONTAKT_BEGRIFFE
-        if phasen.aktuelle(conn, chat_id) < knoepfe.PHASE_INTERVIEWS
-        else _TEXT_ERSTKONTAKT
-    )
+    if phasen.aktuelle(conn, chat_id) >= knoepfe.PHASE_INTERVIEWS:
+        vorlage = _TEXT_ERSTKONTAKT
+    elif repo.hat_gruppennachricht(conn, chat_id):
+        # Die Gruppe ist mit ihrer Liste vorangegangen -- dann ist "schickt
+        # mir die Liste" eine Aufforderung zu etwas, das gerade passiert ist.
+        vorlage = _TEXT_ERSTKONTAKT_BEGRIFFE_DA
+    else:
+        vorlage = _TEXT_ERSTKONTAKT_BEGRIFFE
     text = vorlage.format(bot_name=e.bot_name)
     url = stelle_link_sicher(conn, e, chat_id)
     if url:

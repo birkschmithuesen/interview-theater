@@ -38,6 +38,17 @@ korpus/berichte/*
 # (simulation/interviews/) sind frei erfunden und ebenfalls versioniert.
 simulation/laeufe/*
 !simulation/laeufe/.gitkeep
+# Ausnahme: die von Hand geschriebenen Auswertungen eines Lauftages
+# (`<datum>-<set>.md` ohne Seed-Suffix, `<datum>-sammel.md`). Sie enthalten
+# keine vollstaendigen Modellantworten, sondern Kennzahlen, das Richterurteil
+# und die abgeleiteten Fixes -- genau das, was beim naechsten Umbau gebraucht
+# wird. Die automatisch erzeugten Transkripte tragen immer ein Seed-Suffix
+# (`…-tag1-gruppe1-1.md`) und bleiben ignoriert.
+!simulation/laeufe/2026-09-06-tag1-gruppe1.md
+!simulation/laeufe/2026-09-06-tag1-gruppe2.md
+!simulation/laeufe/2026-09-06-tag1-gruppe3.md
+!simulation/laeufe/2026-09-06-regie.md
+!simulation/laeufe/2026-09-06-sammel.md
 simulation/berichte/*
 !simulation/berichte/.gitkeep
 !simulation/berichte/verlauf.jsonl

@@ -29,7 +29,10 @@ def test_jede_phase_hat_dieselbe_eintrittsform(conn, nummer):
 
     zeilen = text.split("\n\n")
     assert zeilen[0] == f"▶️ Phase {nummer} von 8 · {phasen.kurzname(nummer)}"
-    assert zeilen[1] == phasentexte.EINLEITUNGEN[nummer]
+    # Phase 8 hat zwei Einleitungen: eine fuer "alle Szenen stehen" und eine
+    # fuer den Fall, dass welche fehlen (06.09.2026). Die Fixture hier hat
+    # keine Szene, also greift die zweite.
+    assert zeilen[1] == phasentexte._einleitung(conn, 1, nummer)
     assert zeilen[2].startswith("Dafuer braucht es: ")
 
 

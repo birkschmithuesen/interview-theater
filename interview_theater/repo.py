@@ -1933,6 +1933,26 @@ def hat_bot_nachricht(conn: sqlite3.Connection, chat_id: int) -> bool:
 
 
 @_gesperrt
+def hat_gruppennachricht(conn: sqlite3.Connection, chat_id: int) -> bool:
+    """Liefert True, wenn diese Gruppe schon selbst etwas geschrieben hat.
+
+    Das Gegenstueck zu ``hat_bot_nachricht`` und aus demselben Grund da: die
+    Begruessung soll nicht auffordern, was gerade passiert ist. Schickt eine
+    Gruppe als erste Nachricht ihre Begriffsliste, waere \\"Schickt mir die
+    Liste\\" die erste Antwort, die sie liest (gemessen 06.09. in beiden
+    tag1-Simulationslaeufen).
+
+    Transkript-Echos zaehlen nicht mit (``typ='transkript'``): sie sind
+    Interviewinhalt, kein Beitrag der Gruppe."""
+    zeile = conn.execute(
+        "SELECT 1 FROM nachricht WHERE chat_id = ? AND ist_bot = 0 "
+        "AND (typ IS NULL OR typ != 'transkript') LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    return zeile is not None
+
+
+@_gesperrt
 def letzte_nachricht_zeit(conn: sqlite3.Connection, chat_id: int) -> str | None:
     """Liefert ``gesendet_am`` der zeitlich juengsten Nachricht einer Gruppe
     (gleich welcher Art), oder None ohne jede Nachricht -- Grundlage fuer

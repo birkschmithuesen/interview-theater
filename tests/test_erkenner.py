@@ -1080,11 +1080,16 @@ def test_szene_planen_legt_die_szene_an_und_setzt_die_felder(conn, einst):
     }])
 
     zeile = repo.hole_szenen(conn, 1)[0]
-    assert (zeile["nummer"], zeile["form"], zeile["ort"]) == (1, "Dialog", "Polizeikessel")
+    # ``form`` bleibt LEER: die Form ist ein Vorschlag, bis die Gruppe sie
+    # per Knopf bestaetigt (06.09.2026, Birk). Was der Erkenner hoert, landet
+    # in ``form_vorschlag``.
+    assert (zeile["nummer"], zeile["form"], zeile["ort"]) == (1, None, "Polizeikessel")
+    assert zeile["form_vorschlag"] == "Dialog"
     assert zeile["was_passiert"] == "sie kommen nicht raus"
     assert [f["name"] for f in repo.szene_figuren(conn, zeile["id"])] == ["Mira", "Pola"]
-    assert wirkliche[0]["wert"] == "Szene 1 · Dialog · Polizeikessel · Mira, Pola"
-    assert "Szene 1 · Dialog" in erkenner.baue_meldung(wirkliche)
+    assert wirkliche[0]["wert"].startswith("Szene 1 ·")
+    assert "Polizeikessel" in wirkliche[0]["wert"]
+    assert "Szene 1 ·" in erkenner.baue_meldung(wirkliche)
 
 
 def test_szene_planen_traegt_nach_ohne_zu_ueberschreiben(conn, einst):
@@ -1103,7 +1108,8 @@ def test_szene_planen_traegt_nach_ohne_zu_ueberschreiben(conn, einst):
 
     zeile = repo.hole_szenen(conn, 1)[0]
     assert zeile["ort"] == "Polizeikessel"
-    assert zeile["form"] == "Dialog"
+    assert zeile["form"] is None
+    assert zeile["form_vorschlag"] == "Dialog"
     assert zeile["kernsaetze"] == '"Trump macht daraus eine Riviera"'
     assert [f["name"] for f in repo.szene_figuren(conn, zeile["id"])] == ["Mira"]
 

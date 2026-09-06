@@ -1254,7 +1254,13 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
     # danach fragen zu muessen.
     from interview_theater import leitfaden
 
-    leitfaden.sende(conn, tg, chat_id)
+    # ``sende_einmal`` und nicht ``sende``: derselbe Merkposten wie beim
+    # Schritt in die Interviews (``_eintrittstext``, ``befehle`` beim ersten
+    # Interviewstart). Vorher stand er zweimal wortgleich im Chat -- einmal
+    # hier, wenige Nachrichten spaeter noch einmal beim Phasenwechsel
+    # (gemessen 06.09., Lauf tag1-gruppe1). Der Leitfaden ist lang; zweimal
+    # hintereinander schiebt er alles andere aus dem Bild.
+    leitfaden.sende_einmal(conn, tg, chat_id)
     return "Eroeffnung uebernommen"
 
 

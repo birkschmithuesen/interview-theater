@@ -615,6 +615,20 @@ def _wende_szene_planen_an(conn, chat_id: int, wert: str) -> dict | None:
 
     geaendert = []
     for feld, neuer_wert in felder.items():
+        if feld == "form":
+            # **Die Form ist ein Vorschlag, keine Vorentscheidung** (Birk,
+            # 06.09.2026: "Die Form Monolog habe ich niemals eingegeben und
+            # aktiv bestaetigt"). ``szene.form`` schreibt allein der
+            # Form-Knopf (``knoepfe`` ART_SZENENFORM). Was der Erkenner in
+            # einem Planungssatz hoert, geht deshalb nach
+            # ``form_vorschlag`` -- die Gruppe bestaetigt sie danach Szene
+            # fuer Szene.
+            #
+            # Gemessen 06.09. im Lauf tag1-gruppe2: vier Szenen bekamen ihre
+            # Form ueber diesen Pfad gesetzt, keine einzige wurde bestaetigt
+            # (Kennzahl ``form_bestaetigt`` 0/4). Der Knopf war gebaut und
+            # kam nie zum Zug, weil das Feld schon voll war.
+            feld = "form_vorschlag"
         if feld == "figuren":
             ids = _figuren_aus_namen(conn, chat_id, neuer_wert)
             # Keine bekannte Figur getroffen: die Besetzung bleibt, wie sie

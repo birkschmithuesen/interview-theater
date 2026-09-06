@@ -107,12 +107,39 @@ EINLEITUNGEN = {
         "Text."
     ),
     8: (
-        "Alle Szenen stehen. Hier seht ihr euer Textbuch am Stueck, koennt "
+        "Hier seht ihr euer Textbuch am Stueck, koennt "
         "es euch als Datei schicken lassen und einzelne Szenen noch einmal "
         "aufmachen. Wir achten auf die Uebergaenge und darauf, was sich beim "
         "Sprechen sperrig anfuehlt."
     ),
 }
+
+#: Was statt der Einleitung von Phase 8 dasteht, solange **nicht** jede
+#: Szene einen Text hat (06.09.2026, in der Simulation gemessen).
+#:
+#: Der alte Text fing mit "Alle Szenen stehen" an -- ein Satz ueber die
+#: Datenlage, den der Text nicht geprueft hat. Im Lauf tag1-gruppe2 sprang
+#: der Bot mitten im Szenenschritt nach Phase 8 und behauptete das, waehrend
+#: keine einzige Szene geschrieben war; der naechste Knopfdruck antwortete
+#: mit "Szene 1 ist noch nicht geschrieben". Eine Behauptung ueber den Stand
+#: gehoert an die Daten gebunden, sonst ist sie ein Versprechen.
+EINLEITUNG_8_OFFEN = (
+    "Hier seht ihr euer Textbuch am Stueck. Ein Teil der Szenen ist noch "
+    "ungeschrieben - tippt eine davon an, dann hole ich das nach. Bei den "
+    "fertigen achten wir auf die Uebergaenge und darauf, was sich beim "
+    "Sprechen sperrig anfuehlt."
+)
+
+
+def _einleitung(conn, chat_id: int, phase: int) -> str:
+    """Die Einleitung einer Phase -- fuer Phase 8 abhaengig davon, ob
+    wirklich jede Szene einen Text hat."""
+    if phase != 8:
+        return EINLEITUNGEN.get(phase, "")
+    szenen = repo.hole_szenen(conn, chat_id)
+    if szenen and all((s["volltext"] or "").strip() for s in szenen):
+        return "Alle Szenen stehen. " + EINLEITUNGEN[8]
+    return EINLEITUNG_8_OFFEN
 
 #: Die feste Zeile vor der Checkliste beim Eintritt.
 _KOPF_EINTRITT = "▶️ Phase {nummer} von {gesamt} · {name}"
@@ -318,7 +345,7 @@ def eintritt(conn, chat_id: int, phase: int) -> str:
         nummer=phase, gesamt=phasen.LETZTE, name=phasen.kurzname(phase),
     )
     zeilen = [kopf]
-    einleitung = EINLEITUNGEN.get(phase)
+    einleitung = _einleitung(conn, chat_id, phase)
     if einleitung:
         zeilen.append(einleitung)
     liste = checkliste(conn, chat_id, phase)

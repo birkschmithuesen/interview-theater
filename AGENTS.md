@@ -64,6 +64,10 @@ sichert Betriebsdaten außerhalb des Repositories, `scripts/web_links.py` gibt
 je Gruppe die URL ihrer Gruppenseite aus,
 `scripts/dramaturgie_pruefen.py` fährt die Dramaturgie-Prüfung gegen eine
 Kopie-Datenbank (siehe „Die Dramaturgie-Prüfung").
+je Gruppe die URL ihrer Gruppenseite aus, `scripts/figuren_aufraeumen.py`
+führt in Bestandsdaten Platzhalterfiguren mit ihren Nachbenennungen zusammen
+(`--trocken`, läuft **nie** automatisch — es verändert Arbeitsergebnisse
+einer Gruppe).
 
 `web_daten.py` ist die einzige Ausnahme von „SQL nur in `repo.py` und
 `db.py`". Grund: die Weboberfläche liest mit einer eigenen, read-only
@@ -1214,6 +1218,69 @@ Netz.
   sachlichen Hinweiszeile je Figur unter `SCHWELLE_ANTEIL` = 3 %, und im Chat
   als Zeile „Wer spricht wie viel" im Durchlauf-Knopfmenü
   (`knoepfe.ART_SPRECHANTEILE`, deterministisch, Zusage 2 gilt).
+- **Was in kein Feld passt, geht in die Tabelle `festlegung` — nicht ins
+  Journal** (06.09.2026, `docs/analyse-phase4-datenverlust-2026-09-06.md`).
+  Der Befund: von 42 Festlegungen einer Gruppe in Phase 4 waren **22
+  verloren**. Das Schema kennt nur einen festen Satz vorab definierter Slots;
+  alles daneben — Gruppenzugehörigkeit einer Figur, ihre Herkunft, „nur eine
+  Szene, erste Folge einer Serie", eine Längenvorgabe für Szenentexte —
+  landete höchstens als `journal`-Eintrag und fiel nach `JOURNAL_EINTRAEGE`
+  = 8 weiteren Zeilen aus dem Prompt, ohne je zurückzukehren.
+  **Journal und Festlegung sind Chronik gegen Geltungsanspruch:** das Journal
+  hält den *Weg* fest und wird gekappt, eine Festlegung *gilt* und geht
+  vollständig mit. Beides in einer Tabelle zu mischen erzwingt genau die
+  Kappung, die den Verlust erzeugt hat.
+  Drei Schreibwege, einer davon die Rückfallebene: die Erkenner-art
+  `festlegung_setzen` (der Regelweg), der versteckte Befehl `/festlegung
+  <bereich>: <text>` (weil der Erkenner über ein Modell läuft, und das ist
+  am 06.09. mitten in Phase 4 mit HTTP 5xx ausgefallen) und der Knopfweg für
+  die Formwahl. Zurückgenommen wird über `entfernen` („Festlegung: …"),
+  `/festlegung weg <suchwort>` oder den Löschknopf auf der Gruppenseite —
+  **Pflicht, nicht Kür**: ohne ihn erbt die Tabelle den alten Fehler mit den
+  veralteten Einträgen.
+  Zwei Sperren gegen die **doppelte Wahrheit**: kein `bereich` heißt wie ein
+  Arbeitsstandfeld (`repo.FESTLEGUNG_BEREICHE`), und ein Text, der in einem
+  gesetzten Feld ohnehin schon steht, wird verworfen (Vorfall
+  `festlegung_stand_schon_im_feld`) — das Gegenstück zu
+  `erkenner._ist_geschichte` in der anderen Richtung. Im Prompt steht der
+  Block **direkt hinter dem Arbeitsstand**, gedeckelt auf 20 Zeilen und 800
+  Token, und gekappt wird **die jüngste Zeile zuerst**: anders als beim
+  Journal, weil eine frühe Grundfestlegung mehr wiegt als eine späte
+  Detailnotiz. Auf der Gruppenseite steht er **aufgeklappt** — das Journal
+  war dort auch sichtbar und trotzdem unwirksam.
+  **Der Erkenner-Korpuslauf für `festlegung_setzen` steht aus**
+  (`korpus/erkenner.jsonl`, Fälle `fl01`–`fl09`).
+
+- **Eine Menüzeile ist keine Geschichte** (06.09.2026, aus derselben
+  Analyse). `knoepfe._speichere_geschichte` speicherte eine angetippte
+  Auswahlzeile ohne Szenenzeilen als ganze Geschichte — die Absicht trägt
+  aber nur, wenn die Zeile eine *Handlungs*richtung beschreibt. Live
+  beschrieb sie eine **Formabfolge** über drei Szenen:
+  `arbeitsstand.geschichte` trug 113 Zeichen Formwahl statt der 665 Zeichen
+  langen, vierteiligen Handlung, und `szene.form` war in allen 15 Zeilen
+  NULL. `szenenfolge.formabfolge` erkennt so eine Zeile eng — mindestens
+  zwei verschiedene Formen, und strukturell verwendet (an „Szene N"
+  gebunden oder als Kette „Chor-Dialog-Rap") —, und die Wahl wird
+  **übernommen statt verworfen**: in `szene.form`, wo die Szene existiert,
+  sonst als Festlegung im Bereich `form`. `form` und nicht `form_vorschlag`:
+  die Regel „die Form ist ein Vorschlag" hält den Vorschlag eines Modells
+  aus dem Feld heraus, nicht die Wahl der Gruppe — und hier hat sie
+  gedrückt.
+
+- **Eine nachbenannte Figur schluckt ihren Platzhalter** (06.09.2026, aus
+  derselben Analyse). `figur` führte 16 Zeilen statt 10, drei Paare mit
+  wortgleicher Beschreibung, keine weich gelöscht — und der Schaden war
+  nicht die Dublette, sondern ihre Richtung: die im Chat erarbeiteten
+  Sprachstile hingen an den **Platzhaltern**, die benannten Figuren hatten
+  `sprachstil` NULL, und `szene_figur` verwies gemischt auf beide Seiten.
+  `repo.fuehre_figur_zusammen` schmilzt sie zusammen — Stil, Profil, Zitate,
+  Interviewzuordnung und Besetzung wandern auf den Namen, aber nur, wo der
+  Name dort nichts hat; der Platzhalter bekommt `entfernt_am`.
+  **Zusammenführen und nicht löschen**: den Platzhalter samt Stil
+  wegzuwerfen wäre derselbe Verlust noch einmal. Ausgelöst wird es nur von
+  einem **Platzhalternamen** mit wortgleicher Beschreibung
+  (`repo.ist_platzhaltername`) — zwei benannte Figuren werden nie
+  verschmolzen.
 
 - **Der Stil ist eine Auswahl je Szene, kein Overlay je Bot** (06.09.2026,
   Birk 12:50, `stile.py` + `prompts/stile/<slug>.md`). Birk: „alle Gruppen

@@ -22,8 +22,13 @@ hier ausdruecklich **nicht**.
    mit Doppelpunkt am Zeilenanfang.
 2. **Ein Tempus, durchgehend.** Praesens oder Praeteritum -- du entscheidest
    dich einmal und bleibst dabei.
-3. **500 bis 900 Woerter.** Genug fuer eine ganze Szene, kurz genug, dass sie
-   sich in einem Zug lesen laesst.
+3. **Die Laenge richtet sich nach dem Auftrag.** Fuer einen einzelnen
+   Abschnitt sind 500 bis 900 Woerter ueblich; fuer die ganze Kurzgeschichte
+   (Phase 6, 06.09.2026, Birk 11:50) sind es 1.500 bis 3.500 Woerter ueber
+   alle Abschnitte. **Keine Vorgabe, wie viele Abschnitte es werden** -- das
+   entscheidest du an der Geschichte (typisch drei bis sieben). Eine
+   Szenenfolge aus der Planung ist Anregung, keine Zahl, die du treffen
+   musst; auch das Herkules-Mass gilt hier nicht.
 4. **Direkte Rede nur sparsam** und als Teil der Erzaehlung: ein Satz, den
    jemand wirklich sagt, in Anfuehrungszeichen, mitten im Absatz. Nicht ein
    Gespraech, das ueber Seiten laeuft -- das entsteht erst beim Feinschliff.

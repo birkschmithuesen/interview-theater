@@ -2574,6 +2574,83 @@ def _schreibe_szene(conn, tg, klm, e, chat_id: int, nummer: int,
     return f"Szene {nummer} laeuft"
 
 
+# --- Phase 6 · die Kurzgeschichte (06.09.2026, Birk 11:50) ---------------
+
+#: Der Knopf, aus dem der Prosa-Lauf startet -- und **nur** aus ihm: der
+#: Gespraechs-Bot loest keinen Lauf aus (Birk, 12:25).
+ART_GESCHICHTE_SCHREIBEN = "geschichte_schreiben"
+#: "Passt" / "Anders" / "Neu" unter der fertigen Kurzgeschichte.
+ART_GESCHICHTE_PASST = "geschichte_passt"
+ART_GESCHICHTE_ANDERS = "geschichte_anders"
+ART_GESCHICHTE_NEU = "geschichte_neu"
+
+TEXT_GESCHICHTE_SCHREIBEN_KNOPF = "Geschichte schreiben"
+#: Was die Gruppe zwischen zwei Laeufen geaendert haben will -- eine
+#: Regie-Notiz je Gruppe, im Prozess und nicht in der Datenbank (wie
+#: ``szenenfolge.erwarte_regienotiz``): sie gilt fuer den naechsten Lauf und
+#: ist danach verbraucht.
+kurzgeschichte_notiz: dict[int, str] = {}
+_TEXT_GESCHICHTE_PASST_KNOPF = "Passt so"
+_TEXT_GESCHICHTE_ANDERS_KNOPF = "Etwas aendern"
+_TEXT_GESCHICHTE_NEU_KNOPF = "Ganz neu schreiben"
+_TEXT_GESCHICHTE_ANDERS = (
+    "Sagt mir, was anders soll - ich nehme es in den naechsten Lauf mit."
+)
+_TEXT_GESCHICHTE_PASST = "Gut. Dann geht es im Feinschliff Abschnitt fuer Abschnitt weiter."
+#: Die Zeile ueber dem Startknopf. Sie sagt, was passiert -- nicht, dass es
+#: schon passiert (der Bot kuendigt nichts an, was er nicht tut).
+_TEXT_KURZGESCHICHTE_BEREIT = (
+    "Ich kann eure Geschichte jetzt am Stueck schreiben - aus Setting, "
+    "Figuren und eurer Richtung. Sagt Bescheid, wann."
+)
+
+
+def biete_kurzgeschichte(conn, tg, chat_id: int, text: str) -> int:
+    """Der Knopf, aus dem der Prosa-Lauf startet.
+
+    **Nie aus dem Gespraech** (06.09.2026, Birk 12:25): der Lauf kostet
+    Minuten und Geld, und ein Modell, das ihn "ankuendigt", hat ihn nicht
+    gestartet. Er haengt an diesem einen Knopf."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_GESCHICHTE_SCHREIBEN)
+    leiste = [
+        (
+            TEXT_GESCHICHTE_SCHREIBEN_KNOPF,
+            _daten(
+                repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_SCHREIBEN, None)
+            ),
+        ),
+    ]
+    return _mit_leiste(conn, tg, chat_id, text, leiste)
+
+
+def zeige_kurzgeschichte(conn, tg, chat_id: int) -> None:
+    """Spielt die fertige Kurzgeschichte abschnittsweise aus und haengt die
+    drei Wege darunter: passt / anders / ganz neu.
+
+    Abschnittsweise, weil eine Kurzgeschichte ueber
+    ``telegram.NACHRICHT_GRENZE`` liegt und Telegram sie sonst abschneidet --
+    und weil die Gruppe sie so liest, wie sie spaeter gearbeitet wird: ein
+    Abschnitt ist eine Szene."""
+    from interview_theater import telegram as telegram_modul
+
+    for szene in repo.hole_szenen(conn, chat_id):
+        prosa = (szene["prosa"] or "").strip()
+        if not prosa:
+            continue
+        kopf = f"{szene['nummer']}. {szene['titel'] or ''}".strip()
+        for stueck in telegram_modul.teile_text(f"{kopf}\n\n{prosa}"):
+            tg.sende(chat_id, stueck)
+    leiste = [
+        (_TEXT_GESCHICHTE_PASST_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_PASST, None))),
+        (_TEXT_GESCHICHTE_ANDERS_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_ANDERS, None))),
+        (_TEXT_GESCHICHTE_NEU_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_NEU, None))),
+    ]
+    _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, leiste)
+
+
 def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
     """Die Wirkungen der Phase-6- und Phase-7-Knoepfe. Liefert None, wenn die
     Art nicht hierher gehoert -- ``_wirke`` macht dann weiter.
@@ -2588,6 +2665,30 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
 
     if art == ART_SZENENFOLGE_SPEICHERN:
         return _speichere_szenenfolge(conn, tg, klm, e, chat_id, wert)
+
+    if art == ART_GESCHICHTE_SCHREIBEN:
+        # Der EINE Weg in den Prosa-Lauf (06.09.2026, Birk 11:50/12:25).
+        # Kein Modellaufruf hier: ``kurzgeschichte.starte`` gibt an einen
+        # Thread ab (Zusage 2).
+        from interview_theater import kurzgeschichte
+
+        regie = kurzgeschichte_notiz.pop(chat_id, None)
+        if kurzgeschichte.starte(conn, tg, klm, e, chat_id, regie) is None:
+            return "Laeuft schon"
+        return "Geschichte laeuft"
+
+    if art == ART_GESCHICHTE_PASST:
+        tg.sende(chat_id, _TEXT_GESCHICHTE_PASST)
+        biete_phase_proaktiv(conn, tg, chat_id)
+        return "Passt"
+
+    if art in (ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_NEU):
+        # Speichert nichts: die naechste Nachricht der Gruppe ist die
+        # Regie-Notiz, und sie geht in den naechsten Lauf.
+        kurzgeschichte_notiz[chat_id] = ""
+        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "kurzgeschichte")
+        tg.sende(chat_id, _TEXT_GESCHICHTE_ANDERS)
+        return "Was soll anders sein?"
 
     if art == ART_GESCHICHTE_SPEICHERN:
         return _speichere_geschichte(conn, tg, klm, e, chat_id, wert)
@@ -3837,6 +3938,25 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # statt sofort vorzuschlagen (Zusage: proaktiv, aber nicht
         # vorlaut).
         biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
+        if nummer == PHASE_SZENEN:
+            # **Die USA-Frage steht beim EINTRITT** (06.09.2026, Birk
+            # 12:25), als eigene Nachricht direkt nach der Einleitung und
+            # VOR dem ersten Prosa-Lauf. Bis dahin kam sie mitten aus dem
+            # Szenenlauf heraus, wenn die Gruppe schon wartete -- und der
+            # Lauf brach dafuer ab. Einmal je Gruppe: steht die Antwort
+            # oder wurde schon gefragt, passiert nichts.
+            from interview_theater import szene_claude
+
+            if szene_claude.angebot_faellig(e, conn, chat_id):
+                from interview_theater import szene as szene_modul
+
+                repo.merke_szene_usa_angeboten(conn, chat_id)
+                tg.sende(chat_id, szene_modul._TEXT_ANGEBOT_USA)
+                biete_szene_usa(conn, tg, chat_id)
+            else:
+                # Die Frage ist beantwortet (oder es gibt kein US-Modell):
+                # dann steht hier gleich der Knopf, aus dem der Lauf startet.
+                biete_kurzgeschichte(conn, tg, chat_id, _TEXT_KURZGESCHICHTE_BEREIT)
 
 
 #: Was "Schlag du vor" je Phase vom Modell verlangt -- die Anweisung, die
@@ -4520,6 +4640,11 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             from interview_theater import szene
 
             szene.starte(conn, tg, klm, e, chat_id, auftrag)
+        elif phasen.aktuelle(conn, chat_id) == PHASE_SZENEN:
+            # In Phase 6 folgt auf die USA-Antwort der Knopf, aus dem der
+            # Prosa-Lauf startet (06.09.2026, Birk 12:25) -- gestartet wird
+            # er von der Gruppe, nicht von dieser Antwort.
+            biete_kurzgeschichte(conn, tg, chat_id, _TEXT_KURZGESCHICHTE_BEREIT)
         return "US-Modell: ja" if ja else "Bleibt in der Schweiz"
     # Unbekannte art: nur moeglich, wenn eine spaetere Fassung eine Art
     # einfuehrt und eine aeltere die Zeile liest. Nichts tun ist hier richtig.

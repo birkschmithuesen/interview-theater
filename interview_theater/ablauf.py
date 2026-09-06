@@ -71,10 +71,20 @@ _DENKSPUR_MARKER = (
     "moegliche kernthemen:", "mögliche kernthemen:", "ich schlage ein ",
     "perfekt. das ist", "die regel sagt", "der erkenner setzt",
     "keine markdown", "unter 500 zeichen", "als angebot formulieren",
+    # 06.09.2026 11:55 (Testgruppe): Kimi schrieb sich SELBST eine Anweisung
+    # in die Antwort -- "Du sollst die Szene schreiben, nicht Birk. ... Dein
+    # Zug ist leer oder ein Satz Zuspruch. Keine Frage, keine Wiederholung,
+    # keine Erklaerung." -- der Wortlaut der Systemanweisung, an die Gruppe
+    # gesendet. Ein Bot spricht die Gruppe nie mit "du sollst" ueber sich
+    # selbst an und nennt nie "dein Zug"/"Systemzeile"/"System-Ankuendigung".
+    "du sollst ", "dein zug ist", "systemzeile", "system-ankuendigung",
+    "system-ankündigung", "die systemanweisung", "satz zuspruch",
 )
 #: Diese Marker sind allein schon Beweis -- so redet niemand mit einer Gruppe.
 _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
-                       "keine markdown", "unter 500 zeichen")
+                       "keine markdown", "unter 500 zeichen",
+                       "dein zug ist", "systemzeile", "system-ankuendigung",
+                       "system-ankündigung", "die systemanweisung")
 
 
 def ist_denkspur(text: str) -> bool:

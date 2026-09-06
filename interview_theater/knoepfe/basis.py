@@ -423,7 +423,7 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
         # deshalb ueber ihren eigenen Speicherweg (``_speichere_geschichte``)
         # und nicht ueber den Arbeitsstand-Setter -- sonst staende der
         # Vorschlagstext als ein Feld da und keine Szene in der Tabelle.
-        from interview_theater.knoepfe import sende_geschichte
+        from interview_theater.knoepfe.szenen import sende_geschichte
 
         return sende_geschichte(conn, tg, chat_id, text), True
 

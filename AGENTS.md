@@ -45,6 +45,7 @@ Module unter `interview_theater/`:
 | `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`, `szene`, `sprachprofil` + `theater-tells`) |
 | `prompts/formen/` | Ein Regelblock je Szenenform — genau fünf: `dialog`, `monolog`, `chor`, `lied`, `rap` (05.09.2026 abends). `szene.formdatei(form)` ordnet das freie Feld `szene.form` zu, Dialog ist der Rückfall. `dialog.md` trägt den am Herkules.exe-Textbuch gemessenen Regelblock (Sprechszene, Ausgangsmaterial, keine Choreografie); `lied.md`/`rap.md` das Songwriting- bzw. Rap-Handwerk. Eine Figurenanzahl gibt kein Regelblock vor — die kommt aus der Planung (Feld `figuren`) |
 | `prompts/phasen/` | Je Arbeitsphase eine Datei `1.md` … `8.md`: worauf der Bot dort den Fokus legt, was er *nicht* tut, woran die Phase fertig ist. Wird zwischen Basis-Systemanweisung und Regie-Zettel gehängt |
+| `vorspann.py` | Der Vorspann vor dem Text (07.09.2026): Wo und wann · Worum es geht · Form · die Szenen · Wer vorkommt. Deterministisch aus `arbeitsstand.*`, `szene.titel`/`form` und `figur.name`/`beschreibung` — **kein Modellaufruf**. `daten()` nimmt Dicts und kennt keine Datenbank (deshalb darf `web_daten` es importieren), `aus_datenbank()` ist die `repo`-Abkürzung, `als_markdown()`/`als_chattext()` die zwei Darstellungen |
 | `web.py` | Weboberfläche: Routing, HTML und CSS für Dashboard und Gruppenseiten, `http.server`, nur Standardbibliothek |
 | `web_daten.py` | Die Lesezugriffe dazu — read-only geöffnete Verbindung, reine Funktionen, `conn` rein, Dicts raus |
 
@@ -531,6 +532,51 @@ lädt, würde damit Gesprächszüge ausbremsen.
   (`ablauf.ist_erfundene_systemzeile`, Vorfall
   `gespraech_systemzeile_erfunden`), und `system.md` verbietet die Ansage.
 
+- **Vor dem Text steht, wer vorkommt** (07.09.2026, `vorspann.py`). Phase 6
+  lieferte die Kurzgeschichte ohne Vorspann; die Gruppe — und jeder, der den
+  Text später liest — hatte dreizehn Figuren vor sich, ohne zu wissen, wer wer
+  ist. Der Vorspann ist ausdrücklich **nicht Teil der Geschichte**, sondern
+  steht davor, an **drei Orten mit demselben Inhalt**: im Chat vor den
+  Abschnitten (`knoepfe.zeige_kurzgeschichte`), ganz oben auf der Gruppenseite
+  (`web._vorspann_html`, read-only) und unter der Überschrift des
+  Textbuch-Exports (`szenenfolge.textbuch`).
+  **Deterministisch, kein Modellaufruf** — und das ist die Entscheidung, nicht
+  eine Sparmaßnahme: der Vorspann darf nichts erfinden, und er soll bei jedem
+  Abruf identisch sein. Ein Modell dazwischen hätte drei Fassungen derselben
+  Liste erzeugt. Datengetrieben wie `kontext.baue`: jeder Block fällt weg,
+  solange seine Daten leer sind.
+  Zwei am echten Material gemessene Fallen sind im Code:
+  (1) `figur.beschreibung` trägt die **Schärfungsnotizen aus Phase 5 ohne
+  Trennzeichen angeklebt** („kaempft mit sich selbst liefert den Hintergrund
+  fuer ihre Ablehnung", 371 Zeichen) — es gibt dort kein Satzende, an dem sich
+  schneiden ließe, deshalb schneidet `vorspann.erster_satz` an den Formeln
+  (`liefert`, `macht deutlich`, `zeigt`, `begruendet`, `erklaert`,
+  `verstaerkt`, `unterstreicht`, mit und ohne Umlaut), sonst am Satzende. Die
+  Untergrenze `MINDEST_ZEICHEN` (20) ist der Grund, warum „Mira zeigt Härte."
+  nicht zu „Mira" wird: die Formeln sind Notiz-Anfänge, keine verbotenen
+  Wörter. (2) Figuren mit `entfernt_am IS NOT NULL` gehören nicht hinein — hier
+  noch einmal gefiltert, obwohl `repo.figuren` und `web_daten._figuren` es
+  schon tun: der Vorspann ist die eine Liste, die ein Außenstehender liest.
+- **Fassungen einer Szene sind Zeilen, nicht ein Textblock** (07.09.2026,
+  Tabelle `szenenfassung`). `szene.fruehere_fassungen` hält seit dem 05.09.
+  dasselbe als einen Block mit `szenenfolge.FASSUNGSTRENNER` — das verliert
+  nichts, lässt aber nicht **umschalten**: ein Feld hat keine Nummer, keine
+  Zeit und keine Beschriftung. Die Tabelle ist **nur-anhängend wie das
+  Journal** (kein `aktualisiere_szenenfassung`, kein `DELETE`, kein `UPDATE`),
+  die `nummer` läuft je Szene fortlaufend ab 1 und wird in
+  `repo.lege_szenenfassung_an` vergeben, nicht vom Aufrufer;
+  derselbe Text zweimal legt keine zweite Zeile an. Angehängt wird in
+  `szene.schreibe` direkt nach `repo.aktualisiere_szene` — nicht *in*
+  `aktualisiere_szene`, das wäre eine unsichtbare Nebenwirkung einer
+  allgemeinen Schreibfunktion, die auch die Weboberfläche ruft. **Nur der
+  Theatertext**, nicht die Prosafassung: die Fassungen sind das, was „Passt,
+  aber anders" und „Neu schreiben" erzeugen.
+  **Rückwärtskompatibel in beide Richtungen**: `repo.hebe_fassung_auf`
+  schreibt weiter ins alte Feld *und* rüstet die Zeile nach, und
+  `web_daten.szenenfassungen` legt Altfeld, Tabelle und aktuellen `volltext`
+  zusammen, zählt doppelte Texte einmal und nummeriert die Liste selbst durch
+  — die Nummer in der URL ist die Nummer in der Ansicht, nicht die aus der
+  Tabelle, sonst zeigte ein Link nach dem Nachrüsten auf die falsche Fassung.
 - **Der Stil ist eine Auswahl je Szene, kein Overlay je Bot** (06.09.2026,
   Birk 12:50, `stile.py` + `prompts/stile/<slug>.md`). Birk: „alle Gruppen
   sollen auf alle Stile zugreifen können, als Auswahl, mit Nennung des
@@ -862,6 +908,23 @@ offene Eingabefeld mit); aus demselben Grund lädt die Seite gar nicht erst
 nach, solange der Fokus in einem Feld steht oder eines ungespeichert geändert
 ist. Ein Neustart der Unit `interview-theater-web.service` ist nötig, die Bots
 nicht.
+
+### Fassungen umschalten (07.09.2026)
+
+Die Szenenübersicht trägt je Szene einen Zähler („3 Fassungen"), der auf die
+Szene zeigt; im Szenenblock steht dann eine Leiste mit einer Nummer je
+Fassung, **genau ein** Text und darunter der Link auf die vorige. **Rein
+serverseitig** über `?szene=<id>&fassung=<n>` (`web.fassungswahl`,
+`web.fassungslink`) — kein neues Framework, kein JavaScript, kein POST, und
+**keine Änderung am Auth-Modell**: das Token steht weiter im Pfad, nicht in
+der Query. Das sanfte Nachladen holt `location.href` samt Query, die Auswahl
+überlebt also den Austausch des `<body>`; der Anker `#szene-<id>` bringt den
+Browser an die Szene zurück, die deshalb bei einer Auswahl serverseitig `open`
+bekommt. **Read-only**: eine frühere Fassung wieder in Kraft zu setzen ist
+eine Entscheidung der Gruppe und gehört in den Chat, wo die Knöpfe darunter
+hängen — `web_schreiben.FELDER` kennt kein Feld dafür. Auch hierfür genügt ein
+Neustart von `interview-theater-web.service`; die Bots brauchen einen nur, weil
+`szene.schreibe` die neuen Zeilen anlegt.
 
 ### Prompt geändert? → Korpus laufen lassen
 

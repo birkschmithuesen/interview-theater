@@ -474,25 +474,24 @@ Workshop zählt:**
 
 **Betrieb:** Units `interview-theater@gruppe1/2/3` (soap.db, `@theatersoap1/2/3_bot`), `@gruppe4` (test.db, `@theatersoap_testbot`, Testgruppe `-5257292234`), `interview-theater-web` (Port 8010, nur soap.db). Chat-IDs: G1 `-5143986099`, G2 `-5552492879`, G3 `-5339679310`. Envs `betrieb/gruppeN.env` — nie lesen, nur `set -a; . …; set +a`. Neustart als EINZELNER Befehl, nie verkettet; vorher prüfen, dass keine Aufnahme läuft und kein Interviewmodus an ist. Nie von Hand starten (409-Falle).
 
-**Zustandscheck (alle 4 Gruppen, ein Aufruf):**
+**Zustandscheck (alle 4 Gruppen + Web, ein Aufruf):**
 ```
-bash /home/birk/.hermes/profiles/birk/cache/blocked-scripts/blocked-1788650257-ba96df7d.sh
+bash ~/.hermes/profiles/birk/scripts/it_check.sh
 ```
-(= `is-active` ×4, Prozesszahl = 4, HTTP-Codes je Log, neue Tracebacks, `/gesund`). Web von außen nur per `browser_exec` (`https://lab.artesmobiles.art/theatersoap/`), nicht curl.
+(= `is-active` ×5, Prozesszahl = 4, HTTP-Codes je Log, Tracebacks/409, `/gesund`.
+Ersetzt den alten `cache/blocked-scripts/blocked-1788650257-*.sh` — der lief mit
+`sleep 25` in den Approval-Timeout und war im Betrieb unbrauchbar.) Web von außen nur per `browser_exec` (`https://lab.artesmobiles.art/theatersoap/`), nicht curl.
 
 **Wache-Abfrage alle ~30 min (read-only, PII-frei):**
 ```
-PY=~/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/bin/python3
-$PY - <<'PY'
-import sqlite3; c=sqlite3.connect('file:betrieb/soap.db?mode=ro',uri=True)
-print('vorfaelle 30min', c.execute("select art,count(*) from vorfall where erstellt_am>datetime('now','-30 minutes') group by 1").fetchall())
-print('aufrufe 30min', c.execute("select art,erfolg,count(*),round(avg(dauer_ms)) from aufruf where erstellt_am>datetime('now','-30 minutes') group by 1,2").fetchall())
-print('phase', c.execute("select chat_id,phase from arbeitsstand").fetchall())
-print('letzte nachricht je gruppe', c.execute("select chat_id,max(gesendet_am),sum(ist_bot=0),sum(ist_bot=1) from nachricht where gesendet_am>datetime('now','-30 minutes') group by 1").fetchall())
-print('aufnahmen', c.execute("select status,count(*) from aufnahme where entfernt_am is null group by 1").fetchall())
-print('journal 30min', c.execute("select chat_id,art,count(*) from journal where erstellt_am>datetime('now','-30 minutes') group by 1,2").fetchall())
-PY
+python3 ~/.hermes/profiles/birk/scripts/it_wache.py
 ```
+(Aggregate: Vorfälle/Aufrufe 30 min, Phase je Gruppe, Nachrichten 30 min +
+„min her" je Gruppe, Aufnahmestatus inkl. `empfangen>5min`, Journal 30 min,
+Szenen mit Volltext. **Achtung:** `aufnahme` hat `empfangen_am`, kein
+`erstellt_am`; `nachricht.gesendet_am` steht mit `+00:00`-Offset und braucht
+`datetime(...)` beim Vergleich — die frühere Heredoc-Fassung in diesem
+Abschnitt lieferte deshalb falsche Zahlen bzw. brach ab.)
 Melden, wenn: `http_5xx` häuft (≥3), `zitat_ungeprueft` auftaucht, `szene_abgeschnitten`/`szene_fehlgeschlagen`/`kontext_gekuerzt` erscheint, ein Bot schweigt (Mensch-Nachrichten ohne Bot-Antwort), eine Gruppe >20 min keine Nachricht hat, `aufnahme.status='empfangen'` älter 5 min (Whisper). Stiller no-agent-Cron `it-nacht-wache` (Skript `~/.hermes/profiles/birk/scripts/it_nacht_wache.sh`, alle 30 min) meldet Units/409/5xx/Tracebacks/`/gesund` von selbst — nicht doppelt bauen.
 
 **Nachmittag-Ablauf:** Gruppen stehen in Phase 3; Phasen 4–8 (Setting & Figuren → Geschichte → Schärfung → Szenentexte → Durchlauf) laufen erstmals mit echten Menschen; USA-Frage kommt beim ersten Szenenauftrag je Gruppe. Interviews zusammenführen: Abschnitt oben („Interviews in eine Gruppe zusammenführen"). Rollback: `bash betrieb/buttons-zurueck.sh` (alt) — heute besser: `git log`, gezielter Revert, Neustart einzeln.

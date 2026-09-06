@@ -507,7 +507,7 @@ _TEXT_FRAGEN_EIGENE_KNOPF = "Eigene Idee"
 #: verschwindet, ist schlechter als gar keiner.
 _TEXT_FRAGEN_WAHL = (
     f"Sagt mir die Nummern von genau {FRAGEN_ANZAHL} Fragen - getippt oder "
-    "als Sprachnachricht."
+    "als Sprachnachricht. Wollt ihr andere oder eigene Fragen, sagt das einfach."
 )
 #: Die Antwort auf "Diese 3 nehmen" bei falscher Anzahl. Sie geht als
 #: answerCallbackQuery raus (das kleine graue Band oben in der App) und
@@ -1160,17 +1160,16 @@ def biete_fragenauswahl(conn, tg, chat_id: int, wert: str, text: str | None = No
     for art in (ART_FRAGEN_UEBERNEHMEN, ART_FRAGEN_ANDERE, ART_FRAGEN_EIGENE):
         _nimm_alte_leiste_ab(conn, tg, chat_id, art)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", wert)
-    leiste = _fragenleiste(conn, chat_id)
     vorspann = (text or "").strip()
     nachricht = "\n\n".join(
         teil for teil in (vorspann, fragenliste(conn, chat_id), _TEXT_FRAGEN_WAHL)
         if teil
     )
-    message_id = tg.sende_mit_knoepfen(chat_id, nachricht, leiste)
-    repo.merke_knopf_nachricht(
-        conn, [_id_aus_daten(d) for _, d in leiste], message_id
-    )
-    return message_id
+    # 06.09.2026 11:45 (Birk, live): KEINE Knoepfe unter der Fragenliste --
+    # die Auswahl kommt per Text mit den Nummern; "andere Fragen" oder
+    # eigene Fragen sagt die Gruppe ebenfalls im Text (Erkenner fragen_setzen
+    # bzw. Gespraechszug). Knoepfe nur, wo etwas Fixes gespeichert wird.
+    return tg.sende(chat_id, nachricht)
 
 
 #: Ordinalwoerter, mit denen eine Gruppe eine Frage benennt ("die zweite,

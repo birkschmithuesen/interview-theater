@@ -94,7 +94,8 @@ def test_die_zehn_fragen_stehen_ausgeschrieben_im_chat(conn, tg):
     assert text.startswith("Hier sind zehn.")
     for nummer in range(1, 11):
         assert f"{nummer}. Frage {nummer}?" in text, nummer
-    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Eigene Idee", "Andere Fragen"]
+    # 06.09.2026 11:45 (Birk): KEINE Knoepfe unter der Liste -- Auswahl per Text.
+    assert not tg.knoepfe, "keine Knoepfe unter der Fragenliste"
 
 
 def test_eine_lange_frage_wird_nicht_gekuerzt(conn, tg):
@@ -218,27 +219,6 @@ def test_die_alten_toggle_knoepfe_sind_stillgelegt(conn, tg, einst, auftraege):
 
     assert "Nummern" in tg.gesendet[-1][1]
     assert (repo.hole_arbeitsstand(conn, 1)["fragen"] or "") == ""
-
-
-def test_andere_zehn_nennt_die_alten_als_nicht_wieder(conn, tg, einst, auftraege):
-    _auswahl(conn, tg)
-
-    _druecke(conn, tg, einst, "Andere Fragen")
-
-    assert len(auftraege) == 1
-    assert "nimm keine davon wieder" in auftraege[0]
-    for nummer in range(1, 11):
-        assert f"Frage {nummer}?" in auftraege[0]
-
-
-def test_eigene_idee_speichert_nichts_und_wartet(conn, tg, einst, auftraege):
-    _auswahl(conn, tg)
-
-    _druecke(conn, tg, einst, "Eigene Idee")
-
-    assert (repo.hole_arbeitsstand(conn, 1)["fragen"] or "") == ""
-    assert repo.hole_arbeitsstand(conn, 1)["aenderung_offen"] == "fragen"
-    assert auftraege == []
 
 
 def test_diktierte_fragen_loesen_die_pruefung_ebenfalls_aus(conn, tg, einst, auftraege):

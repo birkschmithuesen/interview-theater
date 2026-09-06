@@ -29,6 +29,8 @@ Module unter `interview_theater/`:
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
 | `phasen.py` | Die sieben Arbeitsphasen: Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
+| `sprecher.py` | Sprecherzeilen-Parsing und Sprechanteile je Figur (06.09.2026): reine Zählung über `szene.volltext`, kein Modellaufruf. Bekannte Grenze im Docstring benannt (`FRAU K.:`, `MIRA, LEISE:`) |
+| `fehlstellen.py` | Das Fehlstellen-Register (06.09.2026): was der Gruppe noch fehlt, als Sätze. Reine Leseabfrage wie `phasen.voraussetzungen`, kein Modellaufruf; `aus_daten` ist rein, `register` liest über `repo`, `web_daten.fehlstellen` read-only |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
 | `szene.py` | Szenentexte: eigener Prompt (Struktur statt Transkript, ein Regelblock je Form), eigener Thread, als einziger Aufruf mit Reasoning AN, Sperre vor dem Aufruf gegen fehlende Pflichtfelder |
@@ -531,6 +533,104 @@ lädt, würde damit Gesprächszüge ausbremsen.
   (`ablauf.ist_erfundene_systemzeile`, Vorfall
   `gespraech_systemzeile_erfunden`), und `system.md` verbietet die Ansage.
 
+- **Was fehlt, steht neben dem, was dasteht** (06.09.2026,
+  `fehlstellen.py`). `/stand` und die Gruppenseite zeigten bis dahin nur den
+  gefüllten Arbeitsstand; woran die Gruppe als nächstes arbeiten müsste,
+  musste sie sich aus sieben Blöcken mit „noch offen"-Zeilen selbst
+  zusammenreimen. Das Register dreht dieselbe Datenlage um und liefert je
+  Fehlstelle `bereich`, einen deutschen Satz, `szene`/`figur` wo zutreffend
+  und die Phase, in der das dranwäre. **Reine Leseabfrage, kein
+  Modellaufruf**, wie `phasen.voraussetzungen` — und geprüft wird genau das,
+  woran der Code schon hängt (`phasen.voraussetzungen`,
+  `szene.PFLICHTFELDER`, `aufnahme.unausgewertete_interviews`,
+  Ebene 2 der Figuren erst ab Phase 5 wie in `knoepfe.ebene2_erlaubt`); eine
+  zweite, frei erfundene Wunschliste wäre der erste Stand, der ausschert.
+  Ausgespielt wird an genau **zwei bestehenden Orten** — ein Abschnitt in
+  `/stand` und einer auf der Gruppenseite —, **nur wenn es Fehlstellen
+  gibt** (eine Zeile „nichts fehlt" ist Lärm), höchstens `HOECHSTENS` = 8
+  Zeilen. Kein neuer Knopf, keine eigene Bot-Nachricht. Sortiert wird nach
+  Arbeits-, nicht nach Phasenreihenfolge: erst die aktuelle Phase, dann der
+  Rückstand aus früheren (er blockiert), dann das Kommende. Wie beim
+  Leitfaden gibt es **einen Zusammenbau und zwei Aufrufer**: `aus_daten` ist
+  rein und kennt nur Dicts, `register` holt sie über `repo`,
+  `web_daten.fehlstellen` über die read-only geöffnete Verbindung — der
+  Webserver bekommt dadurch keinen `repo`-Pfad.
+
+- **Der Leitfaden hat eine eigene Seite** (06.09.2026, Route
+  `/g/<token>/leitfaden`, auch unter `IT_WEB_PREFIX`). Der gebaute Leitfaden
+  ging einmal in den Chat und versank — dabei ist genau er das Dokument, das
+  eine Sechzehnjährige in der Hand hält, wenn sie eine fremde Person
+  anspricht. Die Seite ist **rein lesend**: kein Nachladen, kein POST, kein
+  Nonce, und deshalb auch nicht der Rahmen der beiden anderen Seiten
+  (`web._seite` hängt das sanfte Nachladen an, das einer Interviewerin mitten
+  im Gespräch den Text unter dem Daumen austauschen würde). Groß gesetzt,
+  hoher Kontrast, jede Frage in einem eigenen Block, dazu eine
+  `@media print`-Regel. **Keine zweite Wahrheit:** Route und Chat-Text stehen
+  beide auf `leitfaden.bausteine` — `aus_feldern` setzt daraus den Chattext,
+  `web.leitfaden_html` die Handy-Ansicht. `web_daten.leitfaden_nach_token`
+  lädt bewusst **nur** den Arbeitsstand und weder Szenen noch Interviews noch
+  Journal: was gar nicht geladen wird, kann auch nicht versehentlich
+  ausgeliefert werden (Test wie der bestehende in `tests/test_web.py`: kein
+  Transkript, kein Nachrichtentext im HTML). Verlinkt an zwei Orten —
+  auf der Gruppenseite unter dem Leitfaden-Text (relativ,
+  `<token>/leitfaden`, damit es hinter nginx genauso geht) und im Chat unter
+  dem Leitfaden selbst (`leitfaden.TEXT_WEBLINK`, **zusätzlich**; der
+  bestehende Text bleibt, weil eine Gruppe ohne Netz im Probenraum sonst
+  nichts mehr hätte). Steht noch kein Leitfaden, kommt eine ruhige Seite
+  („Der Leitfaden entsteht in Phase 2.") statt eines Fehlers. Dafür nehmen
+  `leitfaden.sende`/`sende_einmal` seit heute ein optionales `e` entgegen —
+  ohne Basis-URL steht die Zeile gar nicht da.
+
+- **Eine Szene bekommt Fassungen, statt überschrieben zu werden**
+  (06.09.2026, Tabelle `szenenfassung`). „Neu schreiben" ersetzte bis dahin
+  `szene.volltext`; die Gruppe kam nicht zurück, und in der Probe will man
+  zwei Fassungen nebeneinander lesen. Jeder **erfolgreiche** Szenenlauf
+  (`szene.schreibe` und der Prosalauf in `kurzgeschichte.lege_szenen_an`)
+  hängt seine Fassung **zusätzlich** an — `szene.volltext` bleibt genau wie
+  bisher die aktuelle Fassung, **kein Aufrufer außerhalb ändert sich**.
+  Dasselbe Prinzip wie beim Journal: **nur anhängen, nie ändern, nie
+  löschen** — es gibt bewusst kein `aktualisiere_szenenfassung` und kein
+  `entfernt_am`. Scheitert das Anhängen, ist die Szene trotzdem geschrieben:
+  eine verlorene Historienzeile darf keinen bezahlten Lauf kosten. Migration:
+  `db._migriere_erste_szenenfassung` gibt jeder bestehenden Szene mit
+  Volltext **eine** Fassung Nummer 1 mit `szene.geaendert_am` als Zeitpunkt —
+  idempotent über ein `NOT EXISTS` und ohne eigenen `user_version`-Schritt,
+  damit auch eine später importierte Szene noch richtig durchläuft. Gezeigt
+  wird sie an zwei Orten, beide **read-only**: ein aufklappbarer Abschnitt je
+  Szene auf der Gruppenseite (beschriftet mit Datum und der
+  `Anders gemacht:`-Zeile des Laufs) und ein Knopf „Fruehere Fassungen"
+  unter einer angesehenen Szene (`knoepfe.ART_FASSUNGEN`, deterministisch,
+  Zusage 2 gilt) — beide zeigen die **aktuelle** Fassung nicht noch einmal
+  und fehlen ganz, solange es nur eine gibt. **Zurücksetzen auf eine frühere
+  Fassung ist bewusst nicht gebaut:** das ist eine Entscheidung mit
+  Datenwirkung, die Birk erst freigeben muss. `szene.fruehere_fassungen`
+  (der `FASSUNGSTRENNER`-Text aus `repo.hebe_fassung_auf`) bleibt daneben
+  unverändert stehen — er ist der ältere, gröbere Weg und wird von der neuen
+  Tabelle nicht angefasst.
+
+- **Sprechanteile sind gezählt, nicht geschätzt** (06.09.2026,
+  `sprecher.py`). Der praktisch wichtigste Befund für eine Laiengruppe stand
+  nirgends: eine Spielerin mit vier Zeilen merkt das in der Probe, und dann
+  ist der Text geschrieben. Gezählt wird über `szene.volltext` — den
+  Theatertext, nicht die Prosafassung —, **kein Modellaufruf**. Die Regel für
+  eine Sprecherzeile ist bewusst schlank: am Zeilenanfang ein Name, danach
+  ein Doppelpunkt; ein Name gilt, wenn er in der Figurenliste steht oder
+  durchgehend großgeschrieben ist. **Die Grenze steht im Docstring und in
+  einem Test:** Namen mit Punkt (`FRAU K.:`) oder Komma (`MIRA, LEISE:`)
+  werden nicht erkannt — sie mitzunehmen hieße, „Sie sagt: nein." als
+  Sprecherzeile zu lesen. Eine Ziffer im Kopf schließt aus, gemessen an den
+  echten Opus-Texten unter `docs/prompt-audit/2026-09-06/opus-thinking-texte/`:
+  dort stand `SZENE 1: … ca. 10 min` über dem Text und zählte ohne diese
+  Regel mit rund 30 Wörtern als Sprecher mit. **Erkennt eine Szene keine
+  einzige Sprecherzeile, liefert sie gar nichts** (Lied, Rap und Chor können
+  ohne Sprecherkopf geschrieben sein) und zählt auch nicht in den Nenner:
+  lieber „1 von 4 Szenen" als eine erfundene Null. Regieanweisungen in runden
+  Klammern zählen nicht als gesprochenes Wort. Ausgespielt auf der
+  Gruppenseite als Tabelle (Figur, Anteil, Repliken, Szenen) mit einer
+  sachlichen Hinweiszeile je Figur unter `SCHWELLE_ANTEIL` = 3 %, und im Chat
+  als Zeile „Wer spricht wie viel" im Durchlauf-Knopfmenü
+  (`knoepfe.ART_SPRECHANTEILE`, deterministisch, Zusage 2 gilt).
+
 - **Der Stil ist eine Auswahl je Szene, kein Overlay je Bot** (06.09.2026,
   Birk 12:50, `stile.py` + `prompts/stile/<slug>.md`). Birk: „alle Gruppen
   sollen auf alle Stile zugreifen können, als Auswahl, mit Nennung des
@@ -794,6 +894,12 @@ siehe unten) samt `/g/<token>/textbuch.md` und `.txt`, `/gesund`
 vorangestelltem `IT_WEB_PREFIX`, weil erst die nginx-Konfiguration
 entscheidet, ob das Präfix beim Server ankommt. Was hinter `/g/<token>/`
 nicht in dieser Liste steht, ist 404 und nicht etwa Teil des Tokens.
+(Leseansicht einer Gruppe, Handy), `/g/<token>/leitfaden` (der
+Gesprächsleitfaden groß und druckbar, rein lesend, ohne Nachladen — siehe
+„Der Leitfaden hat eine eigene Seite"), `/gesund` (Health-Check, antwortet
+ohne Datenbankzugriff). Jede Route greift auch mit vorangestelltem
+`IT_WEB_PREFIX`, weil erst die nginx-Konfiguration entscheidet, ob das
+Präfix beim Server ankommt.
 
 `python scripts/web_links.py` gibt aus, welche Gruppe welchen Link bekommt.
 Das Token steht in `gruppe.web_token`, erzeugt wird es beim ersten Kontakt

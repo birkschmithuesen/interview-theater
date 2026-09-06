@@ -217,6 +217,15 @@ ART_SZENE_SO_LASSEN = "szene_so_lassen"
 #: Textbuch als Datei.
 ART_DURCHLAUF_SZENE = "durchlauf_szene"
 ART_TEXTBUCH = "textbuch"
+#: "Wer spricht wie viel" -- die Sprechanteile je Figur (06.09.2026). Reine
+#: Zaehlung ueber die Szentexte (``sprecher.anteile``), deterministisch aus
+#: der Datenbank: Zusage 2 gilt, hier faellt kein Modellaufruf an.
+ART_SPRECHANTEILE = "sprechanteile"
+#: "Fruehere Fassungen" -- die Liste der frueher geschriebenen Fassungen
+#: EINER Szene (06.09.2026, ``wert`` ist die Szenennummer). Deterministisch
+#: aus ``szenenfassung``, kein Modellaufruf. Zurueckgesetzt wird nichts: das
+#: waere eine Entscheidung mit Datenwirkung und ist bewusst nicht gebaut.
+ART_FASSUNGEN = "fassungen"
 #: Phase 4 · Geschichte: den Vorschlag (Bogen, Ende, Szenenfolge) speichern.
 #: ``wert`` ist "<weiter|anders>|<Vorschlagstext>" wie bei der Szenenfolge.
 ART_GESCHICHTE_SPEICHERN = "geschichte_speichern"
@@ -493,6 +502,17 @@ _TEXT_SPAETERE_GEPRUEFT = (
 #: Phase 7 · Durchlauf.
 TEXT_DURCHLAUF_SZENE_KNOPF = "Szene {nummer} ansehen"
 TEXT_TEXTBUCH_KNOPF = "Textbuch als Datei"
+#: Der Durchlauf ist der Ort, an dem die Gruppe das Stueck als Ganzes
+#: ansieht -- und damit der Ort fuer die Frage, wer wie viel spricht.
+TEXT_SPRECHANTEILE_KNOPF = "Wer spricht wie viel"
+#: Der Knopf unter einer angesehenen Szene, wenn es fruehere Fassungen gibt.
+TEXT_FASSUNGEN_KNOPF = "Fruehere Fassungen"
+_TEXT_FASSUNGEN_KOPF = "Fruehere Fassungen von Szene {nummer}:"
+#: Die Kopfzeile je Fassung. ``anders`` ist die Zeile "Anders gemacht:" des
+#: Laufs, der sie geschrieben hat -- der Satz, an dem die Gruppe sie
+#: wiedererkennt.
+_TEXT_FASSUNG_KOPF = "--- Fassung {nummer} ({zeit}){anders} ---"
+_TEXT_KEINE_FASSUNGEN = "Von Szene {nummer} gibt es nur die eine Fassung."
 _TEXT_TEXTBUCH_BESCHREIBUNG = "Euer Textbuch - alle Szenen in einer Datei."
 #: Die Probenansicht (06.09.2026) steht als Zeile NEBEN dem Datei-Knopf, nicht
 #: an seiner Stelle: die Datei nimmt man mit, die Seite liest man in der Probe
@@ -1595,7 +1615,7 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
     )
 
 
-def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
+def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None) -> str:
     """Zerlegt den Block ``VORSCHLAG EROEFFNUNG:`` in Eroeffnung und
     Abschluss und legt beides ab.
 
@@ -1647,7 +1667,7 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str) -> str:
     # hier, wenige Nachrichten spaeter noch einmal beim Phasenwechsel
     # (gemessen 06.09., Lauf tag1-gruppe1). Der Leitfaden ist lang; zweimal
     # hintereinander schiebt er alles andere aus dem Bild.
-    leitfaden.sende_einmal(conn, tg, chat_id)
+    leitfaden.sende_einmal(conn, tg, chat_id, e=e)
     # **Die Kette bricht hier nicht ab** (06.09.2026, 10:25, Birk): mit
     # Eroeffnung und Abschluss ist Phase 2 fertig, also kommt sofort die
     # Abschlussnachricht mit "Weiter zu Interviews". Vorher stand nach dem
@@ -2601,6 +2621,16 @@ def biete_durchlauf(conn, tg, chat_id: int, e=None) -> int:
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEXTBUCH, None)),
         )
     )
+    # "Wer spricht wie viel" (06.09.2026): der Durchlauf ist die Stelle, an
+    # der die Gruppe das Stueck als Ganzes ansieht -- und die einzige, an der
+    # die Frage nach den Sprechanteilen im Chat einen Ort hat. Reine
+    # Zaehlung, kein Modellaufruf.
+    leiste.append(
+        (
+            TEXT_SPRECHANTEILE_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SPRECHANTEILE, None)),
+        )
+    )
     leiste.append(
         (
             TEXT_EIGENE_IDEE_KNOPF,
@@ -2646,7 +2676,19 @@ def zeige_szenentext(conn, tg, chat_id: int, nummer: int) -> str:
     kopf = f"Szene {nummer}"
     if ziel["titel"]:
         kopf += f": {ziel['titel']}"
-    tg.sende(chat_id, f"{kopf}\n\n{volltext}")
+    text = f"{kopf}\n\n{volltext}"
+    # Gibt es frueher geschriebene Fassungen, haengt darunter EIN Knopf
+    # (06.09.2026). Kein neuer automatischer Text: die Liste kommt erst auf
+    # Druck, deterministisch aus der Datenbank. Ohne fruehere Fassung bleibt
+    # es bei der Nachricht, die es vorher auch gab.
+    if len(repo.szenenfassungen(conn, ziel["id"])) > 1:
+        leiste = [(
+            TEXT_FASSUNGEN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_FASSUNGEN, str(nummer))),
+        )]
+        _mit_leiste(conn, tg, chat_id, text, leiste)
+        return f"Szene {nummer}"
+    tg.sende(chat_id, text)
     return f"Szene {nummer}"
 
 
@@ -3247,7 +3289,60 @@ def _wirke_phase6(conn, tg, klm, e, knopf, chat_id: int) -> str | None:
             return _TEXT_TEXTBUCH_FEHLER
         return "Textbuch"
 
+    if art == ART_SPRECHANTEILE:
+        # Deterministisch aus der Datenbank (``sprecher.anteile``), kein
+        # Modellaufruf -- Zusage 2 gilt auch fuer diesen Handler.
+        from interview_theater import sprecher
+
+        tg.sende(
+            chat_id,
+            sprecher.text(
+                sprecher.anteile(
+                    repo.hole_szenen(conn, chat_id), repo.figuren(conn, chat_id)
+                )
+            ),
+        )
+        return sprecher.UEBERSCHRIFT
+
+    if art == ART_FASSUNGEN:
+        return _zeige_fassungen(conn, tg, chat_id, int(wert))
+
     return None
+
+
+def _zeige_fassungen(conn, tg, chat_id: int, nummer: int) -> str:
+    """Die frueher geschriebenen Fassungen einer Szene, aelteste zuerst.
+
+    Deterministisch aus ``szenenfassung``, kein Modellaufruf (Zusage 2). Die
+    aktuelle Fassung bleibt weg -- sie steht in der Nachricht darueber.
+
+    **Zurueckgesetzt wird nichts.** Eine frueherer Fassung wieder zur
+    aktuellen zu machen ist eine Entscheidung mit Datenwirkung; hier gibt es
+    sie nur zum Lesen, damit die Gruppe in der Probe zwei Fassungen
+    nebeneinander halten kann."""
+    ziel = _szene_mit_nummer(conn, chat_id, nummer)
+    if ziel is None:
+        tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
+        return _TEXT_SZENE_UNBEKANNT
+    fassungen = repo.szenenfassungen(conn, ziel["id"])[:-1]
+    if not fassungen:
+        text = _TEXT_KEINE_FASSUNGEN.format(nummer=nummer)
+        tg.sende(chat_id, text)
+        return text
+    teile = [_TEXT_FASSUNGEN_KOPF.format(nummer=nummer)]
+    for f in fassungen:
+        anders = (f["anders_gemacht"] or "").strip()
+        teile.append(
+            _TEXT_FASSUNG_KOPF.format(
+                nummer=f["nummer"],
+                zeit=(f["erstellt_am"] or "")[:16].replace("T", " "),
+                anders=f" {anders}" if anders else "",
+            )
+        )
+        teile.append(f["volltext"] or "")
+    # Lange Texte teilt der Telegram-Wrapper selbst (``telegram.teile_text``).
+    tg.sende(chat_id, "\n\n".join(teile))
+    return TEXT_FASSUNGEN_KNOPF
 
 
 def _melde_spaetere(conn, tg, chat_id: int, nummer: int) -> list[int]:
@@ -4326,7 +4421,7 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         from interview_theater import leitfaden
 
         biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
-        leitfaden.sende_einmal(conn, tg, chat_id)
+        leitfaden.sende_einmal(conn, tg, chat_id, e=e)
     elif nummer == PHASE_STUECKPRUEFUNG:
         # Die Schaerfung des Stuecks (06.09.2026, Birk): das komplette
         # Textbuch geht EINMAL beim Eintritt an den Stueck-Judge, im Thread
@@ -4638,7 +4733,7 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
             # ZWEI Felder -- deshalb ein eigener Speicherweg statt des
             # Arbeitsstand-Setters (wie bei der Geschichte in Phase 5).
             return _speichere_eroeffnung(
-                conn, tg, chat_id, roh.partition(TRENNER)[2]
+                conn, tg, chat_id, roh.partition(TRENNER)[2], e=e
             )
         if gespeicherte_art in ("einleitungen", "fragen_weich"):
             # Die Einleitungen sind abgenommen -- ohne Zwischenfrage weiter
@@ -4731,7 +4826,7 @@ def _wirke(conn, tg, klm, e, knopf, chat_id: int) -> str:
     if art == ART_LEITFADEN:
         from interview_theater import leitfaden
 
-        leitfaden.sende(conn, tg, chat_id)
+        leitfaden.sende(conn, tg, chat_id, e=e)
         return "Leitfaden"
     if art == ART_RICHTUNG:
         # Stufe 1 der zweistufigen Kernthema-Wahl: die Richtung wird

@@ -2206,6 +2206,70 @@ def hebe_fassung_auf(conn: sqlite3.Connection, szene_id: int) -> None:
 
 
 @_gesperrt
+def haenge_szenenfassung_an(
+    conn: sqlite3.Connection,
+    chat_id: int,
+    szene_id: int,
+    volltext: str | None,
+    zusammenfassung: str | None = None,
+    anders_gemacht: str | None = None,
+    anbieter: str | None = None,
+    modell: str | None = None,
+) -> int | None:
+    """Haengt die Fassung eines erfolgreichen Szenenlaufs an
+    ``szenenfassung`` an und liefert ihre laufende Nummer (06.09.2026).
+
+    **Nur anhaengen, nie aendern, nie loeschen** -- dasselbe Prinzip wie beim
+    Journal. Es gibt deshalb bewusst kein ``aktualisiere_szenenfassung`` und
+    kein weiches Loeschen: "Neu schreiben" ersetzte bis heute den Volltext,
+    und die Gruppe konnte nicht zurueck.
+
+    ``szene.volltext`` bleibt unberuehrt -- die aktuelle Fassung steht
+    weiterhin genau dort, und **kein Aufrufer ausserhalb muss geaendert
+    werden**. Diese Funktion kommt zusaetzlich dazu, nicht anstelle von
+    ``aktualisiere_szene``.
+
+    Ohne Text passiert nichts (``None``): ein leerer Lauf ist keine Fassung.
+    Die Nummer zaehlt je Szene fortlaufend ab 1 -- gelesen und geschrieben
+    unter demselben ``_LOCK`` wie alles andere in dieser Datei, zwei
+    gleichzeitige Laeufe je Gruppe gibt es ohnehin nicht (``szene._sperre``)."""
+    if not (volltext or "").strip():
+        return None
+    zeile = conn.execute(
+        "SELECT max(nummer) AS letzte FROM szenenfassung WHERE szene_id = ?",
+        (szene_id,),
+    ).fetchone()
+    nummer = ((zeile["letzte"] if zeile else None) or 0) + 1
+    conn.execute(
+        """
+        INSERT INTO szenenfassung
+            (chat_id, szene_id, nummer, volltext, zusammenfassung,
+             anders_gemacht, erstellt_am, anbieter, modell)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            chat_id, szene_id, nummer, volltext, zusammenfassung,
+            anders_gemacht, _jetzt(), anbieter, modell,
+        ),
+    )
+    conn.commit()
+    return nummer
+
+
+@_gesperrt
+def szenenfassungen(conn: sqlite3.Connection, szene_id: int) -> list[sqlite3.Row]:
+    """Alle Fassungen einer Szene, aelteste zuerst.
+
+    Reine Leseabfrage -- der Weg hinter dem Knopf "Fruehere Fassungen" und
+    hinter dem aufklappbaren Block auf der Gruppenseite. Kein Modellaufruf,
+    und nichts, was hier gelesen wird, aendert etwas."""
+    return conn.execute(
+        "SELECT * FROM szenenfassung WHERE szene_id = ? ORDER BY nummer ASC, id ASC",
+        (szene_id,),
+    ).fetchall()
+
+
+@_gesperrt
 def hole_letzte_szene(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | None:
     """Die zuletzt geaenderte Szene einer Gruppe, oder None (SPEC § 6.2 Block 5,
     dort woertlich als ``ORDER BY geaendert_am DESC LIMIT 1`` vorgegeben).

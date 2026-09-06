@@ -176,6 +176,16 @@ def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
     )
     for nummer in bericht["nummern"]:
         szene_modul.uebernimm_rahmen(conn, chat_id, bericht["ids"][nummer])
+    # Auch der Prosalauf ist ein erfolgreicher Szenenlauf und haengt seine
+    # Fassung an (06.09.2026). Steht hier NACH ``gleiche_szenenfolge_ab``,
+    # damit die Fassung an der Szene haengt, die am Ende wirklich existiert.
+    for nummer, (_titel, fassung, prosa) in enumerate(abschnitte, start=1):
+        szene_id = bericht["ids"].get(nummer)
+        if szene_id is None:
+            continue
+        repo.haenge_szenenfassung_an(
+            conn, chat_id, szene_id, prosa, fassung or None,
+        )
     nummern = list(bericht["nummern"])
     repo.schreibe_journal(
         conn, chat_id, "entschieden", JOURNAL.format(anzahl=len(nummern)),

@@ -2007,6 +2007,25 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
         None if prosa_lauf else volltext, fassung,
         prosa=volltext if prosa_lauf else None,
     )
+    # Und zusaetzlich als Fassung ans Ende von ``szenenfassung`` (06.09.2026):
+    # "Neu schreiben" ersetzte bis dahin den Volltext, und die Gruppe konnte
+    # nicht zurueck. Reines Anhaengen, nie Aendern -- ``szene.volltext``
+    # bleibt genau wie bisher die aktuelle Fassung, kein Aufrufer ausserhalb
+    # muss etwas anderes lesen. Scheitert es, ist die Szene trotzdem
+    # geschrieben: eine verlorene Historienzeile darf keinen bezahlten Lauf
+    # kosten.
+    try:
+        repo.haenge_szenenfassung_an(
+            conn, chat_id, ziel["id"], volltext, fassung, anders,
+            anbieter="claude" if ueber_claude else "infomaniak",
+            modell=(
+                (getattr(e, "szene_modell", None) or szene_claude.MODELL_VORGABE)
+                if ueber_claude
+                else getattr(e, "llm_modell", None)
+            ),
+        )
+    except Exception:
+        log.exception("Szenenfassung nicht angehaengt, chat_id=%s", chat_id)
 
     titel = titel or f"Szene {nummer}"
     # Das Journal haelt fest, was gilt (SPEC § 2) -- eine geschriebene Szene

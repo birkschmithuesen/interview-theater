@@ -122,6 +122,10 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         "kernfrage": _feld(zeile, "kernfrage"),
         # Die Geschichte im Groben (Phase 5, Umbau 05.09.2026 nachts).
         "geschichte": _feld(zeile, "geschichte"),
+        # Wann die Figurenliste abgenommen wurde (06.09.2026). Steht auf der
+        # Seite nirgends -- das Fehlstellen-Register braucht es, weil es eine
+        # Voraussetzung der naechsten Phase ist (``phasen.voraussetzungen``).
+        "figuren_fixiert_am": _feld(zeile, "figuren_fixiert_am"),
         "hauptkonflikt": zeile["hauptkonflikt"] if zeile else None,
         "geaendert_am": zeile["geaendert_am"] if zeile else None,
     }
@@ -502,6 +506,36 @@ def schaerfungen(conn: sqlite3.Connection, chat_id: int) -> dict:
     return ergebnis
 
 
+def _fruehere_fassungen(conn: sqlite3.Connection, szene_id: int) -> list[dict]:
+    """Die **frueheren** Fassungen einer Szene, juengste zuerst -- ohne die
+    aktuelle (06.09.2026).
+
+    Die letzte Zeile in ``szenenfassung`` ist der Text, der oben auf der
+    Seite ohnehin steht; sie ein zweites Mal aufzuklappen waere Doppelung.
+    Bleibt nichts uebrig, fehlt der Block ganz.
+
+    Fehlt die Tabelle noch (Datenbank aus der Zeit davor), ist das Ergebnis
+    leer statt ein Fehler: der Webserver migriert nichts."""
+    try:
+        zeilen = conn.execute(
+            "SELECT * FROM szenenfassung WHERE szene_id = ? "
+            "ORDER BY nummer ASC, id ASC",
+            (szene_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [
+        {
+            "nummer": z["nummer"],
+            "volltext": z["volltext"],
+            "zusammenfassung": z["zusammenfassung"],
+            "anders_gemacht": z["anders_gemacht"],
+            "erstellt_am": z["erstellt_am"],
+        }
+        for z in reversed(zeilen[:-1])
+    ]
+
+
 def _szenen(
     conn: sqlite3.Connection, chat_id: int, geschaerft: dict | None = None
 ) -> list[dict]:
@@ -546,6 +580,9 @@ def _szenen(
             "geaendert_am": z["geaendert_am"],
             "figuren": _szene_figuren(conn, z["id"]),
             "figur_ids": _szene_figur_ids(conn, z["id"]),
+            # Die frueheren Fassungen (06.09.2026) -- read-only, aufklappbar,
+            # ohne die aktuelle. Leere Liste heisst: kein Block.
+            "fassungen": _fruehere_fassungen(conn, z["id"]),
         }
         for feld, _ in SZENENFELDER:
             eintrag[feld] = _feld(z, feld)
@@ -656,6 +693,22 @@ def _teile_zahlen(conn: sqlite3.Connection, aufnahme_id: int) -> tuple[int, int 
     return (zeile["anzahl"] or 0), zeile["dauer"]
 
 
+def _hat_teil_transkript(conn: sqlite3.Connection, kopf_id: int, mit_teilen: bool) -> bool:
+    """Hat mindestens ein Teil dieses Interviews ein Transkript?
+
+    Das Gegenstueck zu ``repo.zusammengefuegtes_transkript`` fuer die
+    read-only Seite: ein Interview-Kopf traegt seit § 10.6 oft selbst keinen
+    Text, sondern nur seine Teile."""
+    if not mit_teilen:
+        return False
+    zeile = conn.execute(
+        "SELECT 1 FROM aufnahme WHERE teil_von = ? "
+        f"AND {_NICHT_ENTFERNT} AND trim(coalesce(transkript, '')) <> '' LIMIT 1",
+        (kopf_id,),
+    ).fetchone()
+    return zeile is not None
+
+
 def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     """Die Interviews der Gruppe -- je Interview eine Zeile mit Name, Dauer,
     Teile-Zahl und, sobald es sie gibt, der Verdichtung samt Belegzitaten
@@ -718,6 +771,15 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
                 # Anzeige ohne Klarnamen (Birk 05.09.): "Interview 2".
                 "bezeichnung": f"Interview {nummer}",
                 "status": z["status"],
+                # Fuer das Fehlstellen-Register (06.09.2026): dieselben zwei
+                # Bedingungen wie in ``aufnahme.unausgewertete_interviews``.
+                # Beide gehen nicht in die Anzeige ein -- sie stehen hier,
+                # damit ``_offene_interviews`` sie nicht ein zweites Mal
+                # abfragen muss.
+                "beendet": bool(_feld(z, "beendet_am"))
+                or z["status"] in ("fertig", "transkribiert"),
+                "hat_transkript": bool((z["transkript"] or "").strip())
+                or _hat_teil_transkript(conn, z["id"], mit_teilen),
                 "teile": teile,
                 "beginn": _beginn(z),
                 "dauer_sekunden": teile_dauer if teile else z["dauer_sekunden"],
@@ -900,6 +962,10 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     return {
         "chat_id": chat_id,
         "titel": zeile["titel"],
+        # Das Token geht mit, damit die Seite auf ihre Unterseiten verlinken
+        # kann (``/g/<token>/leitfaden``) -- relativ, also ohne zu wissen, ob
+        # nginx das Praefix durchreicht.
+        "web_token": token,
         "bot_name": zeile["bot_name"],
         "interviewmodus_seit": zeile["interviewmodus_seit"],
         "arbeitsstand": _arbeitsstand(conn, chat_id),
@@ -914,6 +980,98 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "bearbeitbares": bearbeitbares(conn, chat_id),
         "schaerfungen": geschaerft,
         "stueckpruefung": stueckpruefung(conn, chat_id),
+        # Was noch fehlt (06.09.2026) -- leere Liste heisst: der Abschnitt
+        # bleibt weg, nicht "nichts fehlt".
+        "fehlstellen": fehlstellen(conn, chat_id),
+        # Wie viel jede Figur spricht (06.09.2026) -- ``szenen: 0`` heisst:
+        # keine Szene war zaehlbar, der Abschnitt bleibt weg.
+        "sprechanteile": sprechanteile(conn, chat_id),
+    }
+
+
+def sprechanteile(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Wie viel jede Figur spricht (``interview_theater/sprecher.py``) --
+    reine Zaehlung ueber die Szenentexte, kein Modellaufruf.
+
+    Wie beim Leitfaden und beim Fehlstellen-Register bleibt der Zusammenbau
+    in seinem Modul: ``sprecher.anteile`` kennt nur Dicts und haengt an
+    keiner Schreibschicht. Ohne zaehlbare Szene ist ``szenen`` 0 -- dann
+    zeigt die Seite den Abschnitt gar nicht."""
+    from interview_theater import sprecher
+
+    return sprecher.anteile(_szenen(conn, chat_id), _figuren(conn, chat_id))
+
+
+def _offene_interviews(conn: sqlite3.Connection, chat_id: int) -> list[str]:
+    """Die Bezeichnungen der Interviews, die beendet sind und Material haben,
+    aber noch keine Verdichtung -- das read-only Gegenstueck zu
+    ``aufnahme.unausgewertete_interviews``.
+
+    Dieselben drei Bedingungen (beendet, Transkript da, keine Verdichtung),
+    nur ohne ``repo``: der Webserver hat die Schreibschicht nicht. Fehlt eine
+    Spalte noch (Datenbank aus der Zeit davor), ist die Liste leer statt ein
+    Fehler."""
+    offen = []
+    for eintrag in _interviews(conn, chat_id):
+        if eintrag["zusammenfassung"]:
+            continue
+        if not eintrag.get("beendet"):
+            continue
+        if not eintrag.get("hat_transkript"):
+            continue
+        offen.append(eintrag["bezeichnung"])
+    return offen
+
+
+def fehlstellen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Was der Gruppe noch fehlt (``interview_theater/fehlstellen.py``) --
+    aus der read-only geoeffneten Verbindung.
+
+    ``fehlstellen`` selbst haengt an keiner Schreibschicht, solange nur
+    ``aus_daten`` gerufen wird: die reine Funktion kennt Dicts, keine
+    Verbindung. Dasselbe Muster wie beim Leitfaden (``leitfaden.aus_feldern``)
+    -- ein Zusammenbau, zwei Aufrufer, damit auf der Gruppenseite nichts
+    anderes steht als im Chat."""
+    from interview_theater import fehlstellen as modul, phasen
+
+    stand = _arbeitsstand(conn, chat_id)
+    verdichtet = any(e["zusammenfassung"] for e in _interviews(conn, chat_id))
+    return modul.aus_daten(
+        stand,
+        _figuren(conn, chat_id),
+        _szenen(conn, chat_id),
+        stand.get("phase") or phasen.ERSTE,
+        hat_verdichtung=verdichtet,
+        offene_interviews=_offene_interviews(conn, chat_id),
+    )
+
+
+def leitfaden_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | None:
+    """Nur, was die Leitfaden-Ansicht braucht: Titel und die fuenf Felder,
+    aus denen ``leitfaden.bausteine`` ihn setzt.
+
+    Bewusst nicht ``gruppe_nach_token``: die Seite steht auf einem Telefon in
+    der Hand einer Sechzehnjaehrigen, waehrend sie eine fremde Person
+    anspricht -- sie soll Szenen, Interviews und Journal weder laden noch
+    ausliefern. Weniger Daten heisst hier auch weniger, was auf dieser Seite
+    stehen kann.
+
+    None bei unbekanntem Token, wie ueberall: der Aufrufer antwortet mit
+    404 und verraet nicht, ob es Gruppen gibt."""
+    if not token:
+        return None
+    try:
+        zeile = conn.execute(
+            "SELECT chat_id, titel FROM gruppe WHERE web_token = ?", (token,)
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if zeile is None:
+        return None
+    return {
+        "chat_id": zeile["chat_id"],
+        "titel": zeile["titel"],
+        "arbeitsstand": _arbeitsstand(conn, zeile["chat_id"]),
     }
 
 

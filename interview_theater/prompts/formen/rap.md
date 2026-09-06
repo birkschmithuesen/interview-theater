@@ -45,7 +45,7 @@ zur Form (gemessen 05.09.: "(Reimschema: Paarreim, vier Betonungen)" stand
 im Szenentext, und die Gruppe haette es vorgelesen):
 
 ```
-(Bahnhof, seit zwei Stunden.)
+({{ort_beispiel_4}}, seit zwei Stunden.)
 
 <FIGUR A>
 Zwei Stunden hier, kein Meter Platz

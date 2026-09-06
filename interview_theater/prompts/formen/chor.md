@@ -29,7 +29,7 @@ etwas sagen, das niemandem allein gehoert.
 Regieanweisungen in Klammern, knapp:
 
 ```
-(Bushaltestelle, frueher Abend.)
+({{ort_beispiel_1}}, frueher Abend.)
 
 CHOR: Wir warten seit zwei Stunden hier.
 <FIGUR A>: Ich hab kein Netz.

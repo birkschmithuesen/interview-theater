@@ -125,6 +125,25 @@ VORGABE_WERTE: dict[str, Any] = {
         "ausgeschlossen": ["Club", "Disko", "Alkohol", "Nachtleben", "Drogen"],
         # Wo das fertige Stueck gezeigt wird.
         "auffuehrung": "auf einem oeffentlichen Platz oder in einer grossen Halle",
+        # Orte, die in den Prompts als BEISPIEL vorkommen -- in einem
+        # Satz ueber das Vorschlagen, in einem Layoutbeispiel. Nicht die
+        # Orte des Stuecks: die nennt die Gruppe. Die Reihenfolge zaehlt,
+        # die Prompts greifen ueber {{ort_beispiel_1}} ... darauf zu.
+        "beispiele": ["Bushaltestelle", "Schulhof", "Kiosk", "Bahnhof"],
+    },
+    "projekt": {
+        # Worum es in dem Stueck geht, in einem Satz -- so, wie es eine
+        # Interviewerin einer fremden Person auf der Strasse sagt. Steht im
+        # Auftrag fuer den Eroeffnungstext (knoepfe.ANWEISUNG_EROEFFNUNG).
+        # Der lange Wortlaut, den die Workshopleitung den Gruppen erklaert
+        # hat, steht als prompts/projekt.md daneben.
+        "kurzbeschreibung": (
+            "ein Theaterstueck ueber das Leben der Menschen in der "
+            "Dortmunder Nordstadt; die Befragten sind Expertinnen und "
+            "Experten fuer das Leben hier und erzaehlen persoenliche "
+            "Geschichten, die im Theater im Depot in der Nachbarschaft "
+            "sichtbar werden - ihre Geschichten werden erzaehlt"
+        ),
     },
     "konflikt": {
         # Was an Stoff drin sein darf, und was nicht.
@@ -476,7 +495,16 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
         "auffuehrungsort": _liste(profil.wert("orte.auffuehrung", "")),
         "konflikt_erlaubt": _liste(profil.wert("konflikt.erlaubt", "")),
         "konflikt_ausgeschlossen": _liste(profil.wert("konflikt.ausgeschlossen", "")),
+        "projekt_kurz": _liste(profil.wert("projekt.kurzbeschreibung", "")),
     }
+    # Die Beispielorte einzeln ({{ort_beispiel_1}} ...) und als Aufzaehlung.
+    # Einzeln, weil ein Prompt sie an verschiedenen Stellen und in
+    # verschiedenen Rollen braucht: einmal als Ort, an dem sich zwei
+    # treffen, einmal als Zeile in einem Layoutbeispiel.
+    beispiele = profil.wert("orte.beispiele", ()) or ()
+    for nummer, ort in enumerate(beispiele, start=1):
+        werte[f"ort_beispiel_{nummer}"] = str(ort)
+    werte["orte_beispiele"] = _liste(beispiele)
     anzeige = form_anzeige(profil)
     werte.update({
         # "genau fuenf" -- ausgeschrieben, weil es im Fliesstext steht.

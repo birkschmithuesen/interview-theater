@@ -35,7 +35,7 @@ import logging
 import random
 import re
 
-from interview_theater import phasen, repo
+from interview_theater import anweisungen, phasen, repo
 
 log = logging.getLogger(__name__)
 
@@ -1581,7 +1581,8 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
     stand = repo.hole_arbeitsstand(conn, chat_id)
     fragen = (stand["fragen"] if stand else "") or ""
     return _starte_auftrag(
-        conn, tg, klm, e, chat_id, ANWEISUNG_EROEFFNUNG.format(fragen=fragen),
+        conn, tg, klm, e, chat_id,
+        anweisungen.fuelle(ANWEISUNG_EROEFFNUNG).format(fragen=fragen),
         arbeitszeile=TEXT_ARBEIT_EROEFFNUNG, arbeitsart="eroeffnung",
     )
 
@@ -4457,15 +4458,16 @@ ANWEISUNG_EINLEITUNGEN = (
     "Fragenliste nicht noch einmal unveraendert ab."
 )
 #: Eroeffnung und Abschluss in einem Block -- es ist eine Entscheidung.
+#:
+#: ``{{projekt_kurz}}`` kommt aus dem Workshop-Profil (06.09.2026): worum es
+#: in dem Stueck geht, ist die Angabe, die sich zwischen zwei Einsatzorten
+#: als Erstes aendert. Gefuellt wird beim Aufruf und **vor** ``.format`` --
+#: ``str.format`` machte aus ``{{x}}`` sonst ein woertliches ``{x}``.
 ANWEISUNG_EROEFFNUNG = (
     "Jetzt fehlt noch, womit das Interview anfaengt und aufhoert. Schlag "
     "einen Eroeffnungstext vor, den die Interviewerin einer fremden Person "
     "sagt, bevor sie die erste Frage stellt - drei bis fuenf Saetze: wer wir "
-    "sind, worum es geht (ein Theaterstueck ueber das Leben der Menschen in "
-    "der Dortmunder Nordstadt; die Befragten sind Expertinnen und Experten "
-    "fuer das Leben hier und erzaehlen persoenliche Geschichten, die im "
-    "Theater im Depot in der Nachbarschaft sichtbar werden - ihre "
-    "Geschichten werden erzaehlt), wofuer die Antworten "
+    "sind, worum es geht ({{projekt_kurz}}), wofuer die Antworten "
     "verwendet werden (anonym, als Material fuer ein Stueck), dass man "
     "jederzeit aufhoeren kann, und die Bitte um Erlaubnis, das Gespraech "
     "aufzunehmen. Dazu einen kurzen Abschluss: Dank und was jetzt weiter "

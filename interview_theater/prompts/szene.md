@@ -104,8 +104,8 @@ es nicht.
   Was dort als "Was anders ist" der letzten Szene steht, ist der Zustand, in
   dem die Figuren HIER ankommen -- und "Zeit" und "Anlass" dieser Szene
   sagen, wie sie hergekommen sind. Beides muss man dem Text anmerken, ohne
-  dass jemand es erklaert: Wer gerade aus einem Streit auf dem Schulhof kommt,
-  traegt ihn noch in den Schultern; wer Tage spaeter am Kiosk steht, hat ihn
+  dass jemand es erklaert: Wer gerade aus einem Streit auf dem {{ort_beispiel_2}} kommt,
+  traegt ihn noch in den Schultern; wer Tage spaeter am {{ort_beispiel_3}} steht, hat ihn
   abgelegt.
   Ein Widerspruch zur vorigen Szene (jemand weiss etwas nicht mehr, was er
   dort erfahren hat) ist ein Fehler.

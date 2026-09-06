@@ -39,6 +39,18 @@ bestimmt die Gruppe selbst (keine Beispielorte aus dieser Anweisung)."""
 ausgeschlossen = ["Club", "Disko", "Alkohol", "Nachtleben", "Drogen"]
 # Wo das fertige Stueck gezeigt wird.
 auffuehrung = "auf einem oeffentlichen Platz oder in einer grossen Halle"
+# Orte, die in den Prompts als BEISPIEL vorkommen -- in einem Satz ueber das
+# Vorschlagen, in einem Layoutbeispiel eines Regelblocks. Das sind NICHT die
+# Orte des Stuecks: die nennt die Gruppe. Die Reihenfolge zaehlt, die Prompts
+# greifen mit {{ort_beispiel_1}} bis {{ort_beispiel_4}} darauf zu.
+beispiele = ["Bushaltestelle", "Schulhof", "Kiosk", "Bahnhof"]
+
+[projekt]
+# Worum es geht, in einem Satz -- so, wie es eine Interviewerin einer fremden
+# Person auf der Strasse sagt. Steht im Auftrag fuer den Eroeffnungstext.
+# Der lange Wortlaut, den die Workshopleitung den Gruppen erklaert hat, steht
+# als prompts/projekt.md daneben.
+kurzbeschreibung = "ein Theaterstueck ueber das Leben der Menschen in der Dortmunder Nordstadt; die Befragten sind Expertinnen und Experten fuer das Leben hier und erzaehlen persoenliche Geschichten, die im Theater im Depot in der Nachbarschaft sichtbar werden - ihre Geschichten werden erzaehlt"
 
 [konflikt]
 # Was an Stoff drin sein darf, und was nicht.

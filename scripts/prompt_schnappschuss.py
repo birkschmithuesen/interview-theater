@@ -36,12 +36,13 @@ Aufruf::
 """
 
 import hashlib
+import re
 import sys
 from pathlib import Path
 
 from interview_theater import (
-    anweisungen, leitfaden, phasen, phasentexte, stile, szene, szenenfolge,
-    web_schreiben, workshop,
+    anweisungen, knoepfe, leitfaden, phasen, phasentexte, stile, szene,
+    szenenfolge, web_schreiben, workshop,
 )
 
 #: Der Bot-Name, mit dem die Systemanweisung gebaut wird. Fest, damit der
@@ -128,6 +129,14 @@ def teile() -> list[tuple[str, str]]:
                  "UEBERSCHRIFT_ABSCHLUSS", "TEXT_LEER"):
         stuecke.append((f"leitfaden.{feld}", getattr(leitfaden, feld)))
 
+    # Die Auftrags-Anweisungen der Knoepfe: Prompt-Text, der im Code steht
+    # (ein Knopf schickt ihn ueber ablauf.starte_auftrag an das Modell).
+    # ``fuelle`` wie am Aufrufort, sonst stuende hier der Platzhalter.
+    for feld in sorted(f for f in dir(knoepfe) if f.startswith("ANWEISUNG_")):
+        wert = getattr(knoepfe, feld)
+        if isinstance(wert, str):
+            stuecke.append((f"knoepfe.{feld}", anweisungen.fuelle(wert)))
+
     return stuecke
 
 
@@ -152,11 +161,45 @@ def voll(stuecke: list[tuple[str, str]] | None = None) -> str:
     )
 
 
+#: Eine Zeile des Fingerabdrucks: Pruefsumme, Laenge (rechtsbuendig), Name.
+_ZEILE = re.compile(r"^\S+\s+\d+\s+(.*)$")
+
+
+def _name(zeile: str) -> str:
+    treffer = _ZEILE.match(zeile)
+    return treffer.group(1) if treffer else zeile
+
+
+def ergaenze(datei: Path) -> list[str]:
+    """Haengt **nur neue** Abschnitte an einen abgelegten Fingerabdruck an.
+
+    Der Massstab wird nie neu geschrieben -- eine geaenderte Zeile bliebe
+    sonst unbemerkt, und genau die soll der Bitgleichheits-Test finden. Wer
+    einen Abschnitt neu in den Schnappschuss aufnimmt (weil eine weitere
+    Stelle profilabhaengig geworden ist), ergaenzt ihn hiermit und weist
+    getrennt nach, dass sein Wert sich nicht geaendert hat."""
+    vorhanden = {
+        _name(zeile) for zeile in datei.read_text(encoding="utf-8").splitlines()
+    }
+    neu = [zeile for zeile in fingerabdruck().splitlines()
+           if _name(zeile) not in vorhanden]
+    if neu:
+        with datei.open("a", encoding="utf-8") as ziel:
+            ziel.write("\n".join(neu) + "\n")
+    return neu
+
+
 def main() -> None:
     argumente = list(sys.argv[1:])
     volltext = "--voll" in argumente
     if volltext:
         argumente.remove("--voll")
+    if "--ergaenze" in argumente:
+        argumente.remove("--ergaenze")
+        neu = ergaenze(Path(argumente[0]))
+        print(f"{len(neu)} Abschnitt(e) ergaenzt:")
+        print("\n".join(neu))
+        return
     stuecke = teile()
     text = voll(stuecke) if volltext else fingerabdruck(stuecke)
     if argumente:

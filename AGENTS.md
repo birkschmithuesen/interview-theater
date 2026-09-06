@@ -637,17 +637,21 @@ python -m interview_theater.bot
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
 
-**Simulation** (`simulation/`, `scripts/simulation.py`, Stand 05.09.2026 im
-Worktree `feat/simulation`, wird gerade in `main` gemergt): drei simulierte
-Personen, fünfzehn erfundene Interviews in drei Sets, dazu `--set birk` mit
-Birks echtem Testinterview als Messlatte für die Navigation durch die sieben
-Phasen. Ein Richter bewertet den Ablauf, Kennzahlen und der volle Verlauf
-landen in `verlauf.jsonl`. Läuft gegen ein anderes Modell als der Bot: der
-Bot spricht mit Infomaniak, die Simulation mit Claude Opus über einen Proxy —
-kein Vergleichslauf, sondern ein zweiter, unabhängiger Blick auf denselben
-Ablauf. **Kein Test, kein Ersatz für `pytest` oder `pruefe_prompts.py`**,
-sondern ein Werkzeug gegen Probeläufe mit echten Menschen: eigene
-Dokumentation in `simulation/README.md`.
+**Simulation** (`simulation/`, `scripts/simulation.py`, Stand 06.09.2026 nachts):
+simulierte Gruppen spielen den Bot durch alle **acht Phasen** — mit Inline-Knöpfen
+(`attrappe` merkt die Leisten, die Stimme drückt per Knopftext oder schreibt
+frei) und dem Schrittplan `skript.SCHRITTE_TAG2`. Stimmen: drei erfundene Sets
+plus **PII-freie Personas aus Tag 1** (`simulation/tag1.py`,
+`simulation/stimmen/tag1-gruppe{1,2,3}.md`, `regie.md`): nur Begriffe/Fragen der
+echten Gruppen, Themen-Stichworte und Verhaltensaggregate, nie Transkripte oder
+Klarnamen — `tests/test_simulation_tag1.py` prüft das gegen die echte DB, wenn
+sie da ist. Der Richter (Claude Opus über den Proxy) bewertet zusätzlich:
+Nachrichten bis zum Speichern, Fragen je Bot-Nachricht, Wiederholungsquote,
+„Bot redet parallel zum Auftrag", Knöpfe angeboten→gedrückt, Phasenwechsel
+proaktiv, Form je Szene bestätigt, Exposition der Szene 1. Berichte
+`simulation/laeufe/2026-09-06-*.md` + Sammelbericht. Läuft gegen ein anderes
+Modell als der Bot. **Kein Test, kein Ersatz für `pytest` oder
+`pruefe_prompts.py`**; Doku `simulation/README.md`.
 
 ## Weboberfläche
 

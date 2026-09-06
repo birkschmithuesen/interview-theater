@@ -244,3 +244,13 @@ def figuren(wert: str) -> list[tuple[str, str]]:
         beschreibung = teile[1].strip() if len(teile) > 1 else ""
         ergebnis.append((name, beschreibung))
     return ergebnis
+
+
+def enthaelt_block(text: str | None) -> bool:
+    """Steht irgendein ``VORSCHLAG <ART>:``-Marker in diesem Text?
+
+    Gebraucht vom Wiederholungsfilter (ablauf.antworte, 06.09.2026): eine
+    Antwort mit Vorschlagsblock traegt einen Wert und wird nie als
+    Wiederholung verworfen -- auch wenn sie dem vorigen Vorschlag aehnelt
+    (eine Ueberarbeitung tut das immer)."""
+    return any(_ZEILE.match(z) is not None for z in (text or "").splitlines())

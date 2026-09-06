@@ -700,7 +700,17 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         # des Modells, den ein Anlauf mit Ermahnung heilt -- eine
         # Wiederholung ist eine Antwort, die es einfach nicht braucht.
         vorige = repo.letzte_bot_nachricht_vor(conn, chat_id, letzte_message_id + 1)
-        if vorige is not None and ist_wiederholung(text, vorige["text"]):
+        # 06.09.2026 12:30 (Gruppe 1, live): "Kannst du die zweite
+        # Formulierung umaendern" -> das Modell lieferte den ueberarbeiteten
+        # Vorschlagsblock, der zwangslaeufig zu >60 % aus denselben Woertern
+        # besteht wie der vorige -- und wurde ZWEIMAL als Wiederholung
+        # verworfen; die Gruppe bekam keine Antwort. Ein Vorschlagsblock ist
+        # nie eine sinnlose Wiederholung: er traegt den neuen Wert.
+        from interview_theater import vorschlag as _vorschlag
+
+        traegt_vorschlag = _vorschlag.enthaelt_block(text)
+        if (vorige is not None and not traegt_vorschlag
+                and ist_wiederholung(text, vorige["text"])):
             log.info("Antwort als Wiederholung verworfen, chat_id=%s", chat_id)
             repo.merke_vorfall(
                 conn, chat_id, getattr(e, "bot_name", None), "wiederholung_verworfen",

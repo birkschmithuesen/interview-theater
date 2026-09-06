@@ -812,3 +812,21 @@ def test_selbstanweisung_im_wortlaut_der_systemanweisung_ist_denkspur():
     )
     assert ablauf.ist_denkspur(text)
     assert not ablauf.ist_denkspur("Klingt gut - womit fangt ihr an?")
+
+
+def test_ueberarbeiteter_vorschlagsblock_ist_keine_wiederholung():
+    """06.09.2026 12:30 (Gruppe 1, live): "Kannst du die zweite Formulierung
+    umaendern" -> der ueberarbeitete Block teilt >60 % der Woerter mit dem
+    vorigen und wurde zweimal als Wiederholung verworfen; die Gruppe bekam
+    keine Antwort. Ein Vorschlagsblock traegt den neuen Wert -- nie verwerfen."""
+    from interview_theater import ablauf, vorschlag
+
+    vorige = ("Zwei Fragen sind heikel.\n\nVORSCHLAG FRAGEN WEICH:\n"
+              "2 — Wenn du magst: Hast du mal erlebt, dass jemand wegen seiner Herkunft anders behandelt wurde?\n"
+              "4 — Nur wenn du willst: Was hat dir in so einem Moment geholfen?")
+    neu = ("Hier die zweite noch mal, mit mehr Thema.\n\nVORSCHLAG FRAGEN WEICH:\n"
+           "2 — Wenn du magst: Hast du mal erlebt, dass jemand wegen seiner Herkunft anders behandelt wurde?\n"
+           "4 — Nur wenn du willst: Rassismus passiert oft mitten im Alltag - was hat dir in so einem Moment geholfen?")
+    assert ablauf.ist_wiederholung(neu, vorige), "der grobe Filter schlaegt an - genau das Problem"
+    assert vorschlag.enthaelt_block(neu)
+    assert not vorschlag.enthaelt_block("Klingt gut, was meint ihr?")

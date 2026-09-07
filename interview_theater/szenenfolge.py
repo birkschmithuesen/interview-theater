@@ -618,9 +618,19 @@ def textbuch(conn, chat_id: int) -> str:
 
     Szenen ohne Volltext stehen mit ihrer Planung drin und nicht als Luecke:
     ein Textbuch, in dem Szene 4 fehlt, sieht aus wie ein Fehler; eines, in
-    dem Szene 4 als \"noch nicht geschrieben\" steht, sagt die Wahrheit."""
+    dem Szene 4 als \"noch nicht geschrieben\" steht, sagt die Wahrheit.
+
+    **Ganz oben der Vorspann** (07.09.2026, ``vorspann.py``): das Textbuch
+    verlaesst den Chat als Datei und wird von Leuten gelesen, die beim
+    Workshop nicht dabei waren -- ohne Besetzungsliste sind die Namen darin
+    nur Namen. Deterministisch aus dem Arbeitsstand, kein Modellaufruf."""
+    from interview_theater import vorspann
+
     stand = repo.hole_arbeitsstand(conn, chat_id)
     teile = ["# Textbuch"]
+    kopf_block = vorspann.als_markdown(vorspann.aus_datenbank(conn, chat_id))
+    if kopf_block:
+        teile.append(kopf_block)
     if stand and (stand["kernthema"] or "").strip():
         teile.append(f"Kernthema: {stand['kernthema'].strip()}")
     for s in repo.hole_szenen(conn, chat_id):

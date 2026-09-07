@@ -2351,9 +2351,8 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
     ``handler`` ist die Instanz aus ``mache_handler``; ausgelagert, weil das
     Routing weder von ``self`` noch von der Klasse abhaengt und in einer
     Fabrikfunktion sonst nur schwer zu finden ist."""
-    pfad = _pfad_ohne_praefix(
-        urllib.parse.unquote(urllib.parse.urlsplit(handler.path).path), praefix
-    )
+    zerlegt = urllib.parse.urlsplit(handler.path)
+    pfad = _pfad_ohne_praefix(urllib.parse.unquote(zerlegt.path), praefix)
     if pfad == "/gesund":
         # Ohne Datenbankzugriff: der Health-Check soll sagen, ob der
         # Prozess laeuft, und nicht ueber die Datenbank mit-scheitern.
@@ -2364,7 +2363,7 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
             handler._antworte(200, dashboard_html(handler._dashboard(), praefix))
         elif pfad.startswith("/g/"):
             _beantworte_gruppenseite(
-                handler, db_pfad, pfad, praefix, schluessel
+                handler, db_pfad, pfad, praefix, schluessel, zerlegt.query
             )
         else:
             handler._antworte(404, nicht_gefunden_html())
@@ -2381,7 +2380,8 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
 
 
 def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
-                             praefix: str, schluessel: bytes) -> None:
+                             praefix: str, schluessel: bytes,
+                             query: str = "") -> None:
     """Alles unter ``/g/<token>``: die Gruppenseite selbst, die Probenansicht
     (``/textbuch``), das Textbuch als Datei und die Leitfaden-Seite.
 
@@ -2416,7 +2416,11 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
         handler._antworte(200, textbuch_html(daten, token, praefix))
     else:
         handler._antworte(
-            200, gruppe_html(daten, nonce(schluessel, token), token, praefix)
+            200,
+            gruppe_html(
+                daten, nonce(schluessel, token), token, praefix,
+                fassungswahl(query),
+            ),
         )
 
 

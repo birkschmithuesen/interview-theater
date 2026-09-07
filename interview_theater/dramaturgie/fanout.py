@@ -581,7 +581,8 @@ def _stelle(conn, e, klm, chat_id, richter, schluessel, nutzer, material, marke)
     return beleg_modul.hole_mit_beleg(aufruf, material, marke)
 
 
-def frage_b1(conn, e, klm, chat_id: int, richter: Richter, szene) -> dict | None:
+def frage_b1(conn, e, klm, chat_id: int, richter: Richter, szene,
+             bewertungen=None) -> dict | None:
     """B1 Value Flip fuer EINE Szene (M1). None, wenn die Szene keinen Text
     hat."""
     material = material_szene(szene)
@@ -594,11 +595,12 @@ def frage_b1(conn, e, klm, chat_id: int, richter: Richter, szene) -> dict | None
     antwort, stand = _stelle(
         conn, e, klm, chat_id, richter, "b1", nutzer, material, f"b1 Szene {nummer}",
     )
+    _merke(bewertungen, "b1", nummer, antwort, stand)
     return _befund_aus("b1", antwort, stand, szene=nummer)
 
 
 def frage_a9(conn, e, klm, chat_id: int, richter: Richter, szene,
-             hauptkonflikt: str = "") -> dict | None:
+             hauptkonflikt: str = "", bewertungen=None) -> dict | None:
     """A9 Fokus fuer EINE Szene: wieviel Text spielt neben dem Hauptkonflikt?
 
     **Warum es diese Frage gibt** (Birk, 06.09.2026, zum fertigen Text von
@@ -628,6 +630,7 @@ def frage_a9(conn, e, klm, chat_id: int, richter: Richter, szene,
     antwort, stand = _stelle(
         conn, e, klm, chat_id, richter, "a9", nutzer, material, f"a9 Szene {nummer}",
     )
+    _merke(bewertungen, "a9", nummer, antwort, stand)
     return _befund_aus("a9", antwort, stand, szene=nummer)
 
 
@@ -696,7 +699,8 @@ def material_festlegungen(szene, felder=None) -> str:
     return "\n".join(zeilen)
 
 
-def frage_a10(conn, e, klm, chat_id: int, richter: Richter, szene) -> dict | None:
+def frage_a10(conn, e, klm, chat_id: int, richter: Richter, szene,
+              bewertungen=None) -> dict | None:
     """A10 Materialtreue: haelt die Szene, was die Gruppe festgelegt hat?
 
     **Und wenn nicht -- wer zieht nach?** (Birk, 06.09.2026: *"die Szene kann
@@ -728,6 +732,7 @@ def frage_a10(conn, e, klm, chat_id: int, richter: Richter, szene) -> dict | Non
         conn, e, klm, chat_id, richter, "a10", nutzer, material,
         f"a10 Szene {nummer}",
     )
+    _merke(bewertungen, "a10", nummer, antwort, stand)
     return _befund_aus("a10", antwort, stand, szene=nummer)
 
 
@@ -800,7 +805,8 @@ def material_vorgaben(conn, chat_id: int) -> str:
     return "\n".join(zeilen)
 
 
-def frage_a11(conn, e, klm, chat_id: int, richter: Richter) -> dict | None:
+def frage_a11(conn, e, klm, chat_id: int, richter: Richter,
+              bewertungen=None) -> dict | None:
     """A11 Stueckvorgaben: haelt das Stueck, was fuer das Ganze galt?
 
     **EIN Aufruf ueber die Synopsen-Kette**, nicht einer je Szene: Format,
@@ -837,6 +843,8 @@ def frage_a11(conn, e, klm, chat_id: int, richter: Richter) -> dict | None:
     antwort, stand = _stelle(
         conn, e, klm, chat_id, richter, "a11", nutzer, material, "a11",
     )
+    # Adresse ``None``: A11 gilt dem Stueck, nicht einer Szene.
+    _merke(bewertungen, "a11", None, antwort, stand)
     return _befund_aus("a11", antwort, stand)
 
 
@@ -936,7 +944,8 @@ def synopsen_fehlen(material: str) -> list[int]:
     return luecken
 
 
-def frage_a2(conn, e, klm, chat_id: int, richter: Richter) -> dict | None:
+def frage_a2(conn, e, klm, chat_id: int, richter: Richter,
+             bewertungen=None) -> dict | None:
     """A2 Kausale Verkettung -- EIN Aufruf ueber die Synopsen-Kette (M5)."""
     material = material_synopsen(conn, chat_id)
     if not material.strip():
@@ -963,10 +972,15 @@ def frage_a2(conn, e, klm, chat_id: int, richter: Richter) -> dict | None:
     antwort, stand = _stelle(
         conn, e, klm, chat_id, richter, "a2", nutzer, material, "a2 Kausalkette",
     )
+    # Adresse ``None``: gefragt wurde ueber die ganze Kette. Die Szenennummer
+    # in der Antwort ist die Fundstelle und geht in den Befund, nicht in die
+    # Bilanz (siehe ``_merke``).
+    _merke(bewertungen, "a2", None, antwort, stand)
     return _befund_aus("a2", antwort, stand, szene=antwort.get("szene"))
 
 
-def frage_a6(conn, e, klm, chat_id: int, richter: Richter, kandidaten) -> dict | None:
+def frage_a6(conn, e, klm, chat_id: int, richter: Richter, kandidaten,
+             bewertungen=None) -> dict | None:
     """A6 Tschechow -- EIN Aufruf am Ende, **nur** ueber die Kandidatenliste
     aus Schicht 1. None, wenn es keine Kandidaten gibt: dann gibt es nichts
     zu fragen, und ein Aufruf "prueft doch mal das ganze Stueck" waere genau
@@ -981,11 +995,12 @@ def frage_a6(conn, e, klm, chat_id: int, richter: Richter, kandidaten) -> dict |
     antwort, stand = _stelle(
         conn, e, klm, chat_id, richter, "a6", nutzer, material, "a6 Tschechow",
     )
+    _merke(bewertungen, "a6", None, antwort, stand)
     return _befund_aus("a6", antwort, stand, szene=antwort.get("szene"))
 
 
 def frage_c1(conn, e, klm, chat_id: int, richter: Richter, nummer: int,
-             repliken) -> dict | None:
+             repliken, bewertungen=None) -> dict | None:
     """C1 Blind-Attribution fuer EINE Szene (M2).
 
     **Der Judge vergibt keinen Score** -- er ordnet zu, und die Trefferquote
@@ -1037,11 +1052,16 @@ def frage_c1(conn, e, klm, chat_id: int, richter: Richter, nummer: int,
         else 0
     )
     if score == 2:
+        # Erfuellt: kein Befund -- aber sehr wohl eine Bewertung. Genau diese
+        # Zwei ist es, deren Absturz in der naechsten Runde zeigt, dass eine
+        # Ueberarbeitung geschadet hat.
+        _merke(bewertungen, "c1", nummer, {"score": score}, stand)
         return None
 
     paar = _verwechseltes_paar(echte, zuordnung) or figuren[:2]
     antwort = dict(antwort)
     antwort["score"] = None if stand.unsicher else score
+    _merke(bewertungen, "c1", nummer, antwort, stand)
     # Score 0 heisst "die Figuren sind nicht auseinanderzuhalten" -- fuer eine
     # Laiengruppe ein Befund, an dem eine ganze Szene haengt. Score 1 wird in
     # ``_befund_aus`` ohnehin zum ``verdacht``.
@@ -1075,6 +1095,36 @@ def _verwechseltes_paar(repliken, zuordnung) -> tuple[str, str] | None:
     if not zaehler:
         return None
     return max(zaehler.items(), key=lambda p: (p[1], p[0]))[0]
+
+
+def _merke(bewertungen, pruefung: str, szene, antwort: dict, stand) -> None:
+    """Legt den Score dieser Frage fuer die Bilanz ab (Schicht 4).
+
+    **Auch die Zwei.** ``_befund_aus`` gibt fuer einen erfuellten Score
+    bewusst keinen Befund zurueck -- fuer die Frage, ob eine Ueberarbeitung
+    geholfen hat, ist er aber die wichtigste Zahl: faellt eine Zwei auf eine
+    Null, hat die Ueberarbeitung geschadet, und ohne die Zwei der Vorrunde
+    saehe man nur einen neuen Befund und wuesste nicht, ob er neu ist.
+
+    **Die Adresse ist die, unter der gefragt wurde**, nicht die, die der Judge
+    nennt: A2 und A6 tragen in ihrer Antwort eine Szenennummer, laufen aber als
+    EIN Aufruf ueber das ganze Stueck. Wuerde die Bilanz diese Nummer als
+    Schluessel nehmen, verglichen zwei Runden verschiedene Dinge, sobald der
+    Judge auf eine andere Szene zeigt.
+
+    **Kein Score ohne bestaetigtes Belegzitat.** Ein verworfener Score
+    (Recherche § 4) ist keine Note und geht deshalb auch nicht in die Bilanz;
+    dieselbe Grenze wie beim Schreibauftrag."""
+    if bewertungen is None:
+        return
+    if not stand.geprueft or antwort.get("unsicher"):
+        return
+    score = antwort.get("score")
+    if score is None:
+        return
+    bewertungen.append(
+        {"pruefung": pruefung, "szene": szene, "score": int(score)}
+    )
 
 
 def _befund_aus(schluessel: str, antwort: dict, stand, szene=None,
@@ -1122,10 +1172,16 @@ def _befund_aus(schluessel: str, antwort: dict, stand, szene=None,
 
 @dataclass
 class Ergebnis:
-    """Was ein Lauf zurueckgibt: Runde, Befunde, Zahl der Modellaufrufe."""
+    """Was ein Lauf zurueckgibt: Runde, Befunde, Bewertungen, Modellaufrufe.
+
+    ``befunde`` sagt, was schieflaeuft; ``bewertungen`` sagt, wie **jede**
+    Frage ausgegangen ist -- auch die erfuellte. Die Bilanz zwischen zwei
+    Runden (``dramaturgie.schleife``) rechnet mit den Bewertungen und nie mit
+    der Zahl der Befunde: ein guter Text erzeugt zu Recht keine Befunde."""
 
     runde: int = 0
     befunde: list = field(default_factory=list)
+    bewertungen: list = field(default_factory=list)
     aufrufe: int = 0
     richter: Richter | None = None
 
@@ -1152,7 +1208,7 @@ def pruefe(conn, e, klm, chat_id: int, richter: Richter | None = None,
         _sammle(ergebnis, _versuch(
             conn, e, chat_id, f"b1 Szene {nummer}",
             lambda n=nummer: frage_b1(conn, e, klm, chat_id, ergebnis.richter,
-                                      szenen[n]),
+                                      szenen[n], ergebnis.bewertungen),
         ))
 
     # A9 Fokus: dieselbe Adressierung wie B1 (eine Frage je Szene), aber mit
@@ -1162,7 +1218,7 @@ def pruefe(conn, e, klm, chat_id: int, richter: Richter | None = None,
         _sammle(ergebnis, _versuch(
             conn, e, chat_id, f"a9 Szene {nummer}",
             lambda n=nummer: frage_a9(conn, e, klm, chat_id, ergebnis.richter,
-                                      szenen[n], konflikt),
+                                      szenen[n], konflikt, ergebnis.bewertungen),
         ))
 
     # A10 Materialtreue: haelt die Szene ihre eigenen Festlegungen -- und
@@ -1172,38 +1228,48 @@ def pruefe(conn, e, klm, chat_id: int, richter: Richter | None = None,
         _sammle(ergebnis, _versuch(
             conn, e, chat_id, f"a10 Szene {nummer}",
             lambda n=nummer: frage_a10(conn, e, klm, chat_id, ergebnis.richter,
-                                       szenen[n]),
+                                       szenen[n], ergebnis.bewertungen),
         ))
 
     _sammle(ergebnis, _versuch(
         conn, e, chat_id, "a2",
-        lambda: frage_a2(conn, e, klm, chat_id, ergebnis.richter),
+        lambda: frage_a2(conn, e, klm, chat_id, ergebnis.richter,
+                         ergebnis.bewertungen),
     ))
 
     # A11 Stueckvorgaben: EIN Aufruf ueber dieselbe Synopsen-Kette wie A2 --
     # Format, Rahmen und Figurenzahl gelten fuer das Stueck, nicht je Szene.
     _sammle(ergebnis, _versuch(
         conn, e, chat_id, "a11",
-        lambda: frage_a11(conn, e, klm, chat_id, ergebnis.richter),
+        lambda: frage_a11(conn, e, klm, chat_id, ergebnis.richter,
+                          ergebnis.bewertungen),
     ))
 
     for nummer in lage.mit_sprechern():
         _sammle(ergebnis, _versuch(
             conn, e, chat_id, f"c1 Szene {nummer}",
             lambda n=nummer: frage_c1(conn, e, klm, chat_id, ergebnis.richter,
-                                      n, lage.repliken[n]),
+                                      n, lage.repliken[n], ergebnis.bewertungen),
         ))
 
     _sammle(ergebnis, _versuch(
         conn, e, chat_id, "a6",
         lambda: frage_a6(conn, e, klm, chat_id, ergebnis.richter,
-                         mechanik.tschechow_kandidaten(lage)),
+                         mechanik.tschechow_kandidaten(lage),
+                         ergebnis.bewertungen),
     ))
 
     ergebnis.aufrufe = ergebnis.richter.aufrufe
     ergebnis.runde = runde or repo.letzte_dramaturgie_runde(conn, chat_id) + 1
     repo.lege_dramaturgie_befunde_an(
         conn, chat_id, ergebnis.befunde, runde=ergebnis.runde
+    )
+    # Die Scores derselben Runde -- getrennte Tabelle, gleiche Rundennummer.
+    # Sie sind die Datenbankform der Bilanz (``dramaturgie.schleife``): aus
+    # zwei Runden Scores laesst sich der Vergleich jederzeit neu rechnen, aus
+    # einem abgelegten Vergleich nie wieder die Messung.
+    repo.lege_dramaturgie_bewertungen_an(
+        conn, chat_id, ergebnis.bewertungen, runde=ergebnis.runde
     )
     return ergebnis
 
@@ -1344,11 +1410,34 @@ def befundzeile(zeile) -> str:
 def regienotiz(zeile) -> str:
     """Was als Regie-Notiz in den Szenenauftrag geht, wenn die Gruppe "Szene N
     so ueberarbeiten" drueckt -- mit der Pruefung davor, damit im Auftrag
-    steht, WORAUF sie zielt (wie ``stueckpruefung.regienotiz``)."""
-    vorschlag = (_feld(zeile, "vorschlag") or "").strip()
+    steht, WORAUF sie zielt (wie ``stueckpruefung.regienotiz``).
+
+    Nimmt einen **Befund** (Feld ``vorschlag``, so kommt er aus der Datenbank)
+    oder einen **Auftrag** aus ``auftraege()`` (Feld ``anweisung``, so kommt er
+    aus der Schleife). Beides ist derselbe Satz unter zwei Namen; ihn zweimal
+    zu formulieren waere ein zweiter Wortlaut fuer denselben Weg."""
+    vorschlag = (
+        (_feld(zeile, "vorschlag") or _feld(zeile, "anweisung") or "").strip()
+    )
     pruefung = _feld(zeile, "pruefung") or "Dramaturgie"
     return f"{pruefung}: {vorschlag}" if vorschlag else str(
         (_feld(zeile, "text") or "").strip() or pruefung
+    )
+
+
+#: Der Auftragstext, mit dem eine Ueberarbeitung in den Schreibpfad geht.
+#: Er steht hier und nicht in ``knoepfe.py``, weil ihn seit dem 07.09.2026
+#: zwei Wege benutzen: der Knopf "Szene N so ueberarbeiten" und die Schleife
+#: (``dramaturgie.schleife``). Zwei Wortlaute waeren zwei Prompts -- und ein
+#: Unterschied, den niemand bemerkt, weil beide funktionieren.
+TEXT_SZENENAUFTRAG = "Schreib Szene {nummer} neu. {notiz}"
+
+
+def szenenauftrag(zeile) -> str:
+    """Der fertige Auftragstext fuer ``szene.schreibe`` -- aus einem Befund
+    (Knopfweg) oder einem Auftrag (Schleifenweg)."""
+    return TEXT_SZENENAUFTRAG.format(
+        nummer=_feld(zeile, "szene"), notiz=regienotiz(zeile)
     )
 
 

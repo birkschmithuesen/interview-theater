@@ -111,6 +111,72 @@ def test_ein_befund_ist_ueber_seine_id_wiederfindbar(conn):
     assert repo.hole_dramaturgie_befund(conn, 2, zeile["id"]) is None
 
 
+# --- Bewertungen (die Datenbankform der Bilanz) ---------------------------
+
+BEWERTUNGEN = [
+    {"pruefung": "b1", "szene": 1, "score": 0},
+    {"pruefung": "b1", "szene": 2, "score": 2},
+    {"pruefung": "a2", "szene": None, "score": 1},
+]
+
+
+def test_bewertungen_werden_mit_runde_gespeichert(conn):
+    assert repo.lege_dramaturgie_bewertungen_an(conn, 1, BEWERTUNGEN, runde=1) == 3
+    assert repo.lege_dramaturgie_bewertungen_an(conn, 1, BEWERTUNGEN[:1], runde=2) == 1
+
+    assert len(repo.dramaturgie_bewertungen(conn, 1, runde=1)) == 3
+    assert len(repo.dramaturgie_bewertungen(conn, 1)) == 4
+
+
+def test_auch_die_erfuellte_frage_steht_da(conn):
+    """Der Kern des Erfolgsmasses: ein Score 2 erzeugt keinen Befund, aber
+    sehr wohl eine Bewertung -- sonst waere sein Absturz in der naechsten
+    Runde nicht zu sehen."""
+    repo.lege_dramaturgie_bewertungen_an(conn, 1, BEWERTUNGEN, runde=1)
+
+    scores = {
+        (z["pruefung"], z["szene"]): z["score"]
+        for z in repo.dramaturgie_bewertungen(conn, 1, runde=1)
+    }
+    assert scores[("b1", 2)] == 2
+    assert scores[("a2", None)] == 1
+
+
+def test_bewertung_ohne_score_faellt_weg(conn):
+    """Ein verworfener Score (kein bestaetigtes Belegzitat) ist keine Note --
+    er darf die Bilanz nicht mitrechnen."""
+    unvollstaendig = [
+        {"pruefung": "b1", "szene": 1, "score": None},
+        {"pruefung": "", "szene": 1, "score": 2},
+    ]
+
+    assert repo.lege_dramaturgie_bewertungen_an(conn, 1, unvollstaendig) == 0
+
+
+def test_die_bewertungstabelle_haengt_an_der_loeschzusage(conn):
+    assert "dramaturgie_bewertung" in db.TABELLEN_MIT_CHAT_ID
+    repo.lege_dramaturgie_bewertungen_an(conn, 1, BEWERTUNGEN, runde=1)
+
+    db.loesche_gruppe(conn, 1)
+
+    assert repo.dramaturgie_bewertungen(conn, 1) == []
+
+
+def test_alte_datenbank_bekommt_die_bewertungstabelle(tmp_path):
+    pfad = str(tmp_path / "alt.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, 1, "gruppe1", "Testgruppe")
+    conn.execute("DROP TABLE dramaturgie_bewertung")
+    conn.commit()
+    conn.close()
+
+    zweite = db.verbinde(pfad)
+    db.initialisiere(zweite)
+
+    assert repo.dramaturgie_bewertungen(zweite, 1) == []
+
+
 # --- Gruppenseite ---------------------------------------------------------
 
 
@@ -208,3 +274,83 @@ def test_der_bericht_nennt_richter_aufrufe_und_prompt_versionen():
     assert "claude-opus-5" in text
     assert "Modellaufrufe: 18" in text
     assert fanout.version("b1") in text
+    # Ohne Schleife steht auch kein Abschnitt dazu drin.
+    assert "Rueckkopplung" not in text
+
+
+def test_der_bericht_zeigt_die_bilanz_der_schleife():
+    from interview_theater.dramaturgie import bilanz, fanout, schleife
+    from scripts import dramaturgie_pruefen
+
+    erste = fanout.Ergebnis(runde=1, befunde=list(BEFUNDE), aufrufe=18)
+    zweite = fanout.Ergebnis(runde=2, befunde=[], aufrufe=36)
+    lauf = schleife.Schleifenergebnis(
+        runden=[
+            schleife.Runde(nummer=1, ergebnis=erste, auftraege=[{"szene": 2}],
+                           ueberarbeitet=[2]),
+            schleife.Runde(
+                nummer=2, ergebnis=zweite,
+                bilanz=bilanz.baue(
+                    [{"pruefung": "b1", "szene": 2, "score": 0}],
+                    [{"pruefung": "b1", "szene": 2, "score": 2}],
+                    von=1, nach=2,
+                ),
+            ),
+        ],
+        grund=schleife.GRUND_KEINE_AUFTRAEGE,
+        meldung=schleife.GRUENDE[schleife.GRUND_KEINE_AUFTRAEGE],
+    )
+
+    text = dramaturgie_pruefen.bericht(1, zweite, [], 90.0, lauf)
+
+    assert "## Rueckkopplung" in text
+    assert "Runde 1:" in text and "1 Szenen ueberarbeitet" in text
+    assert "B1 Wendung, Szene 2: 0 -> 2 (besser)" in text
+    assert schleife.GRUENDE[schleife.GRUND_KEINE_AUFTRAEGE] in text
+
+
+def test_der_bericht_sagt_es_wenn_eine_ueberarbeitung_geschadet_hat():
+    from interview_theater.dramaturgie import bilanz, fanout, schleife
+    from scripts import dramaturgie_pruefen
+
+    zweite = fanout.Ergebnis(runde=2, befunde=[])
+    lauf = schleife.Schleifenergebnis(
+        runden=[schleife.Runde(
+            nummer=2, ergebnis=zweite,
+            bilanz=bilanz.baue(
+                [{"pruefung": "a9", "szene": 1, "score": 2}],
+                [{"pruefung": "a9", "szene": 1, "score": 0}],
+                von=1, nach=2,
+            ),
+        )],
+        grund=schleife.GRUND_GESCHADET,
+        meldung=schleife.GRUENDE[schleife.GRUND_GESCHADET],
+    )
+
+    text = dramaturgie_pruefen.bericht(1, zweite, [], 90.0, lauf)
+
+    assert "A9 Fokus, Szene 1: 2 -> 0 (schlechter)" in text
+    assert "bevor ein Mensch sie gelesen hat" in text
+
+
+def test_die_schleife_laeuft_nicht_ohne_modellaufrufe():
+    """``--schleife`` braucht Judge-Scores, ``--nur-mechanik`` gibt keine --
+    lieber eine Zeile als ein Lauf, der stillschweigend nur die Haelfte tut."""
+    from scripts import dramaturgie_pruefen
+
+    code = dramaturgie_pruefen.main(["/tmp/gibtsnicht.db", "1", "--schleife",
+                                     "--nur-mechanik"])
+
+    assert code == 2
+
+
+def test_das_skript_schickt_nichts_in_einen_chat():
+    """Die Zusage "kein Telegram" als Objekt: jede Methode ist ein Nichtstun
+    mit einer message_id."""
+    from scripts import dramaturgie_pruefen
+
+    stumm = dramaturgie_pruefen.Stumm()
+
+    assert stumm.sende(1, "Text") == 1
+    assert stumm.sende_mit_knoepfen(1, "Text", []) == 2
+    assert stumm.eine_methode_die_es_noch_nicht_gibt(1) == 3

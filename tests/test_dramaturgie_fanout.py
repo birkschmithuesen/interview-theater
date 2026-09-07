@@ -660,6 +660,71 @@ def test_zwei_szenen_kosten_zwei_b1_und_je_einen_a2_a6(stueck, einst):
     assert richter.aufrufe == len(arten)
 
 
+def test_ein_lauf_legt_die_scores_je_frage_und_szene_ab(stueck, einst):
+    """Schicht 4 braucht die Scores, nicht die Befunde: was in ``befunde``
+    steht, ist die Auswahl der Fehlschlaege."""
+    ergebnis = fanout.pruefe(stueck, einst, None, 1, richter=_voller_richter())
+
+    adressen = {(b["pruefung"], b["szene"]) for b in ergebnis.bewertungen}
+    # B1 wird je Szene gefragt, A2 und A6 einmal fuers ganze Stueck -- und
+    # tragen deshalb keine Szenennummer, auch wenn ihre Antwort eine nennt.
+    assert ("b1", 1) in adressen and ("b1", 2) in adressen
+    assert ("a2", None) in adressen and ("a6", None) in adressen
+    assert all(0 <= b["score"] <= 2 for b in ergebnis.bewertungen)
+
+    gespeichert = repo.dramaturgie_bewertungen(stueck, 1, runde=ergebnis.runde)
+    assert len(gespeichert) == len(ergebnis.bewertungen)
+
+
+def test_die_erfuellte_frage_gibt_keinen_befund_aber_eine_bewertung(stueck, einst):
+    """Der Grund, warum die Zahl der Befunde als Erfolgsmass nicht taugt: eine
+    erfuellte Frage ist unsichtbar, solange nur Befunde gezaehlt werden."""
+    gut = B1_ANTWORT.replace("SCORE: 0", "SCORE: 2")
+    richter = RichterAttrappe({fanout.ARTEN["b1"]: gut})
+    bewertungen = []
+    szene = {s["nummer"]: s for s in repo.hole_szenen(stueck, 1)}[1]
+
+    befund = fanout.frage_b1(stueck, einst, None, 1, richter, szene, bewertungen)
+
+    assert befund is None
+    assert bewertungen == [{"pruefung": "b1", "szene": 1, "score": 2}]
+
+
+def test_ein_verworfener_score_geht_nicht_in_die_bilanz(stueck, einst):
+    """Kein Score ohne bestaetigtes Belegzitat -- dieselbe Grenze wie beim
+    Schreibauftrag. Eine Note ohne Beleg ist keine schlechtere Note, sie ist
+    keine."""
+    erfunden = B1_ANTWORT.replace(
+        "BELEG: Lass den Koffer stehen.", "BELEG: Das steht so nirgends im Text."
+    )
+    richter = RichterAttrappe({fanout.ARTEN["b1"]: erfunden})
+    bewertungen = []
+    szene = {s["nummer"]: s for s in repo.hole_szenen(stueck, 1)}[1]
+
+    befund = fanout.frage_b1(stueck, einst, None, 1, richter, szene, bewertungen)
+
+    assert befund["schwere"] == "hinweis"
+    assert bewertungen == []
+
+
+def test_c1_legt_auch_die_volle_trefferquote_als_bewertung_ab(stueck, einst):
+    """C1 rechnet seinen Score im Code aus -- auch die Zwei muss abgelegt
+    werden, obwohl sie keinen Befund erzeugt."""
+    lage = mechanik.lies(stueck, 1)
+    richtige = _c1_antwort(
+        [(i, r.label) for i, r in enumerate(lage.repliken[1], start=1)]
+    )
+    richter = RichterAttrappe({fanout.ARTEN["c1"]: richtige})
+    bewertungen = []
+
+    befund = fanout.frage_c1(
+        stueck, einst, None, 1, richter, 1, lage.repliken[1], bewertungen
+    )
+
+    assert befund is None
+    assert bewertungen == [{"pruefung": "c1", "szene": 1, "score": 2}]
+
+
 def test_eine_zweite_runde_loescht_die_erste_nicht(stueck, einst):
     fanout.pruefe(stueck, einst, None, 1, richter=_voller_richter())
     zweite = fanout.pruefe(stueck, einst, None, 1, richter=_voller_richter())
@@ -1032,6 +1097,37 @@ def test_parameterbefund_geht_nicht_an_den_schreiber():
     }]
 
     assert fanout.auftraege(befunde) == []
+
+
+def test_die_sperre_haelt_auch_aus_der_datenbank(conn):
+    """**Die Sperre darf nicht ueber die Datenbank zu umgehen sein.** Der
+    Knopfweg (``knoepfe.zeige_dramaturgie``), das Skript und die
+    Rueckkopplungsschleife lesen die Befunde nicht aus dem Lauf, sondern aus
+    ``dramaturgie_befund`` -- stand die Richtung nur im Arbeitsspeicher, war
+    sie fuer sie alle verschwunden, und aus einem Parameterbefund wurde doch
+    ein Schreibauftrag."""
+    befunde = [
+        {
+            "pruefung": "a10", "quelle": "judge", "schwere": "hoch", "szene": 1,
+            "text": "Der Anlass stimmt nicht mehr.", "beleg": "Der Koffer.",
+            "beleg_geprueft": 1, "richtung": "parameter",
+            "vorschlag": "anlass: Jonas nimmt den Koffer",
+        },
+        {
+            "pruefung": "b1", "quelle": "judge", "schwere": "hoch", "szene": 2,
+            "text": "Szene 2 endet, wie sie anfaengt.", "beleg": "Der Koffer.",
+            "beleg_geprueft": 1, "richtung": "text",
+            "vorschlag": "Szene 2: Lass Mira den Koffer oeffnen.",
+        },
+    ]
+    repo.lege_dramaturgie_befunde_an(conn, 1, befunde, runde=1)
+
+    zeilen = repo.dramaturgie_befunde(conn, 1, runde=1)
+
+    assert {z["pruefung"]: z["richtung"] for z in zeilen} == {
+        "a10": "parameter", "b1": "text",
+    }
+    assert [a["pruefung"] for a in fanout.auftraege(zeilen)] == ["b1"]
 
 
 def test_textbefund_geht_sehr_wohl_an_den_schreiber():

@@ -461,8 +461,7 @@ def _wirkung_dramaturgie_szene(conn, d: Druck) -> str:
 
     nummer = int(befund["szene"])
     ablauf.starte_auftrag(
-        conn, d.tg, d.klm, d.e, d.chat_id,
-        f"Schreib Szene {nummer} neu. {fanout.regienotiz(befund)}",
+        conn, d.tg, d.klm, d.e, d.chat_id, fanout.szenenauftrag(befund),
     )
     d.tg.sende(d.chat_id, _TEXT_DRAMATURGIE_UEBERHOLT)
     return f"Szene {nummer} wird ueberarbeitet"

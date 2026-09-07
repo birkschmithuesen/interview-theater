@@ -125,7 +125,6 @@ def sprachnachricht(dauer, message_id=10, chat_id=1) -> dict:
         "file_id": "FILE1",
         "dauer": dauer,
         "gesendet_am": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "antwortet_auf_bot": False,
     }
 
 

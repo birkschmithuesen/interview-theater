@@ -24,11 +24,11 @@ Module unter `interview_theater/`:
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, Interviewfluss (kurz/teil/lang) |
-| `befehle.py` | Die neun Slash-Befehle, laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
+| `befehle.py` | Die Slash-Befehle (`_BEKANNTE_BEFEHLE`, zurzeit dreizehn; acht davon stehen über `setMyCommands` im Menü, `BEFEHLE_LISTE`), laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
-| `phasen.py` | Die sieben Arbeitsphasen: Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
+| `phasen.py` | Die sieben Arbeitsphasen (`PHASEN`, seit dem Profil-Umbau aus `workshop.VORGABE_PHASEN`): Liste, tolerantes Mapping, `moegliche_naechste()` aus der Materiallage (reine Leseabfrage, kein Modellaufruf) |
 | `sprecher.py` | Sprecherzeilen-Parsing und Sprechanteile je Figur (06.09.2026): reine Zählung über `szene.volltext`, kein Modellaufruf. Bekannte Grenze im Docstring benannt (`FRAU K.:`, `MIRA, LEISE:`) |
 | `fehlstellen.py` | Das Fehlstellen-Register (06.09.2026): was der Gruppe noch fehlt, als Sätze. Reine Leseabfrage wie `phasen.voraussetzungen`, kein Modellaufruf; `aus_daten` ist rein, `register` liest über `repo`, `web_daten.fehlstellen` read-only |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
@@ -36,8 +36,16 @@ Module unter `interview_theater/`:
 | `szene.py` | Szenentexte: eigener Prompt (Struktur statt Transkript, ein Regelblock je Form), eigener Thread, als einziger Aufruf mit Reasoning AN, Sperre vor dem Aufruf gegen fehlende Pflichtfelder |
 | `sprachprofil.py` | Sprachprofil je Figur: ein gemma-Aufruf (Reasoning aus, eigener Thread) aus dem zugeordneten Interview, Zitate geprüft wie beim Verdichter |
 | `telegram.py` | Dünner HTTP-Wrapper um die Telegram-Bot-API, inkl. Inline-Tastatur und `answerCallbackQuery` |
-| `knoepfe.py` | Inline-Knöpfe an den drei Auswahl-Momenten (Kernthema, Aufnahme-Umschalter, Phasenwechsel): Angebot, Idempotenz-Sperre, Wirkung |
-| `phasentexte.py` | Der Phasenrahmen im Chat (06.09.2026): die acht Einleitungen als Daten, `PARAMETER` je Phase, daraus Eintrittsnachricht („▶️ Phase N von 8 · Name" + Checkliste ✅/⬜), Abschlussnachricht („✅ … abgeschlossen" + alle gesetzten Parameter) und die Zeilen für `/stand`. Bot-Text an die Gruppe, kein Prompt — kein Modellaufruf, nur repo-Lesezugriffe |
+| `knoepfe/` | Inline-Knöpfe an den Auswahl-Momenten: Angebot, Idempotenz-Sperre, Wirkung. Seit 06.09.2026 ein Paket aus acht Modulen (siehe „Modulkarte") statt einer Datei; `knoepfe/__init__.py` re-exportiert die vollständige bisherige Modulfläche |
+| `phasentexte.py` | Der Phasenrahmen im Chat (06.09.2026): die sieben Einleitungen als Daten, `PARAMETER` je Phase, daraus Eintrittsnachricht („▶️ Phase N von 7 · Name" + Checkliste ✅/⬜), Abschlussnachricht („✅ … abgeschlossen" + alle gesetzten Parameter) und die Zeilen für `/stand`. Bot-Text an die Gruppe, kein Prompt — kein Modellaufruf, nur repo-Lesezugriffe |
+| `szenenfolge.py` | Die Szenenfolge und die Geschichte als Vorschlag: ein Modellaufruf im eigenen Thread, feste Zeilenform, daraus Zeilen in der Tabelle `szene`. Dazu die Merkposten für Regie-Notiz und Prüf-Vermerk und das Textbuch als Datei |
+| `schaerfung.py` | Phase 5: legt die geprüften `verdichtung_thema`-Einträge per Schema-Aufruf (gemma, Thread) auf Szenen und Figuren, prüft die Zitate mit `zitat.pruefe` und schreibt in die Tabelle `schaerfung` (additiv, mit `runde`) |
+| `stueckpruefung.py` | Phase 7: der Stück-Judge über das ganze Textbuch — je Befund eine Frage mit Szenenbezug, Tabelle `stueckpruefung`, eigener Thread |
+| `kernzitate.py` | Die Auswahl der Belegzitate zum Kernthema (`waehle`), rückwärtskompatible Basis der Schärfung — dieselbe Prüf- und Speicherlogik |
+| `leitfaden.py` | Baut aus Eröffnung, den gewählten Fragen mit ihren weichen Fassungen und dem Abschluss **deterministisch** den Gesprächsleitfaden (`baue`, `aus_feldern`) — kein Modellaufruf, dieselbe Funktion für Chat und Gruppenseite |
+| `vorschlag.py` | Die Markerzeilen im Antworttext (`VORSCHLAG BEGRIFFE:` und Verwandte): lesen, in Blöcke zerlegen, aus dem Chattext entfernen. Die Schnittstelle zwischen Prompt und Knopfleiste |
+| `szene_claude.py` | Der zweite Anbieterpfad für den Szenenlauf: Anthropic-Messages-Format über den lokalen Proxy, nur nach Einwilligung der Gruppe (`ist_aktiv`) |
+| `web_schreiben.py` | Die Schreibpfade der Gruppenseite — ruft **ausschließlich** `repo`-Funktionen, kein eigenes SQL. `FELDER` ist die vollständige Liste des Änderbaren, `FUEHRT_DER_CHAT` und `NUR_ANZEIGE` das Gegenteil |
 | `verdichter.py` | Verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten — an der Frageliste der Gruppe entlang, wenn es eine gibt (N3) |
 | `zitat.py` | Belegzitat-Verifikation: Teilstring-Vergleich nach Normalisierung |
 | `dramaturgie/` | Die feinkörnige Prüfung neben `stueckpruefung.py` (06.09.2026): `mechanik.py` zählt ohne Modell (Namensdrift, Geisterfiguren, Besetzung, Tschechow-Kandidaten, Formverteilung, Sprechanteile), `beleg.py` verifiziert Judge-Zitate über `zitat.pruefe` (ein Retry, dann `unsicher`), `fanout.py` stellt sieben Fragen (B1, A2, A6, A9, A10, A11, C1) an ein **anderes** Modell als das schreibende, `bilanz.py` und `schleife.py` schließen die Rückkopplung (07.09.2026). Siehe „Die Dramaturgie-Prüfung" |
@@ -77,6 +85,67 @@ den modulweiten Schreib-Lock des Bots für Anfragen zu nehmen, die den Bot
 nichts angehen — ein projiziertes Dashboard, das sich alle zehn Sekunden neu
 lädt, würde damit Gesprächszüge ausbremsen.
 
+## Modulkarte
+
+Stand 06.09.2026 nach dem konsolidierenden Refactoring. Die Tabelle oben sagt,
+**was** ein Modul tut; dieser Abschnitt sagt, **wo man anfängt zu lesen** und
+in welche Richtung die Abhängigkeiten zeigen.
+
+**Vier Schichten, von unten nach oben.** Jede liest nur nach unten; die
+wenigen Aufrufe nach oben stehen als lokaler Import in der Funktion, die sie
+braucht (das ist im ganzen Repo die Bauart, mit der Zyklen aufgelöst werden —
+`from interview_theater import befehle` mitten in einer Funktion ist kein
+Versehen).
+
+| Schicht | Module |
+|---|---|
+| **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
+| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` |
+| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` |
+
+**Wo man anfängt, je nach Frage:**
+
+| Frage | Einstieg |
+|---|---|
+| Warum antwortet der Bot (nicht)? | `ablauf.antworte` → `_zug_faellt_aus` |
+| Was steht im Prompt? | `kontext.baue` → `_bloecke` → `_kuerze_auf_budget` |
+| Was passiert bei einem Knopfdruck? | `knoepfe.behandle` → `knoepfe/wirkung.py`, Tabelle `_WIRKUNGEN` |
+| Was schreibt der Erkenner? | `erkenner.laufe` → `wende_an` → `baue_meldung` |
+| Wie entsteht ein Szenentext? | `szene.starte` → `baue_nutzertext` → `schreibe` |
+| Wann darf die Gruppe weiter? | `phasen.voraussetzungen` (die einzige Stelle) |
+
+**Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
+entstanden, die entlang dieser Schichten von selbst zerfiel):
+
+| Modul | Inhalt |
+|---|---|
+| `texte.py` | ART-Kennungen, Knopfbeschriftungen, Systemzeilen, Phasennummern, Auftragsvorlagen — alles, was ein Wert ist und keine Wirkung |
+| `basis.py` | `callback_data` (Zusage 1), Grundleiste, Speicherweg, `_starte_auftrag` (Zusage 2) |
+| `fragen.py` · `figuren.py` · `szenen.py` · `interviews.py` | die Angebote je Phase (2 · 4 · 5–7 · 3) — `szenen.py` trägt Schärfung, Geschichte, Szenentexte, Stückprüfung und Durchlauf zusammen |
+| `stationen.py` | der Phasenrahmen im Chat: Eintritt, Abschluss, proaktives Angebot |
+| `wirkung.py` | `Druck`, ein Handler je Knopfart, die Tabelle `_WIRKUNGEN`, `_wirke`, `behandle` |
+| `__init__.py` | re-exportiert die vollständige bisherige Modulfläche — kein Aufrufer außerhalb musste angepasst werden |
+
+`tests/test_knoepfe_struktur.py` liest dieses Paket per AST und hält die drei
+Zusagen **am Quelltext** fest: jede `ART_*`-Konstante hat einen Handler,
+`PRAEFIX` steht nur in `_daten`/`_id_aus_daten`, kein Handler fasst `klm` an,
+und `_wirke` wird nur aus `behandle` gerufen — hinter der
+`beanspruche_knopf`-Wache. Wer eine Knopfart hinzufügt, merkt es dort, bevor
+es jemand im Chat merkt.
+
+**Was bewusst mehrfach existiert** — damit niemand es „aufräumt":
+
+- `repo.py` **und** `web_daten.py` haben ähnliche SELECTs. Das ist die
+  Entscheidung von oben (zwei Verbindungen, eine davon read-only), keine
+  Wiederholung.
+- `kontext.schaetze` (Zeichen ÷ 3) **und** `szene.schaetze_token` (÷ 1,9).
+  Der zweite Wert ist an einem echten Szenen-Prompt gemessen; deutscher
+  Prosatext tokenisiert schlechter als die Faustregel.
+- Ein Sperren-Register je Nebenläufigkeit (`ablauf`, `szene`, `szenenfolge`).
+  Gleicher Code, verschiedene Sperren — eine gemeinsame Sperre würde den
+  Gesprächszug am Szenenlauf hängen lassen.
+
 ## Bindende Entwurfsentscheidungen
 
 - **Empfangen, Antworten und In-den-Prompt-legen sind drei getrennte
@@ -87,7 +156,7 @@ lädt, würde damit Gesprächszüge ausbremsen.
 - **Der Prompt ist datengetrieben.** `kontext.baue()` lässt jeden Block weg,
   solange die zugrundeliegenden Daten leer sind. Biegt die Gruppe ab, ändert
   sich die Materiallage und der Prompt folgt automatisch (SPEC § 6.1).
-- **Inline-Knöpfe an den Auswahl-Momenten** (05.09.2026, `knoepfe.py`).
+- **Inline-Knöpfe an den Auswahl-Momenten** (05.09.2026, `knoepfe/`).
   Gemessen an diesem Tag: der Erkenner trifft eine Kernthema-Festlegung
   zuverlässig, wenn er das ganze Gespräch sieht (3/3) — live sieht er aber nur
   ein Fenster von 1–3 Nachrichten, und im Fenster mit der Zustimmung schrieb er
@@ -163,27 +232,38 @@ lädt, würde damit Gesprächszüge ausbremsen.
   beide Stellen teilen sich den Merkposten über `phasen.offenes_angebot()` /
   `merke_angebot()`, deshalb liest die eine Funktion nur und die andere
   schreibt.
-- **Die acht Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews ·
-  4 Setting & Figuren · 5 Geschichte · 6 Schärfung · 7 Szenentexte ·
-  8 Durchlauf** (Umbau 05.09.2026 nachts; davor: 7 Phasen mit „4 Kernthema &
-  Figuren · 5 Rahmen · 6 Szenen · 7 Durchlauf"). Der Grund ist **nicht**
-  Feingliederung, sondern eine umgedrehte Arbeitsrichtung.
+- **Die sieben Phasen sind: 1 Begriffe · 2 Fragen · 3 Interviews ·
+  4 Setting, Figuren & Geschichte · 5 Schärfung · 6 Szenen als Geschichte ·
+  7 Feinschliff** (Stand 06.09.2026 abends, `phasen.PHASEN` — die Liste im
+  Code ist die Wahrheit, nicht diese Zeile). Die Geschichte des Umbaus in
+  zwei Schritten: 05.09. nachts wurden aus sieben Phasen acht („4 Setting &
+  Figuren · 5 Geschichte · 6 Schärfung · 7 Szenentexte · 8 Durchlauf"),
+  06.09. abends wurden daraus wieder sieben — **4 und 5 sind wieder eine
+  Station** (die Gruppe erfindet Setting, Figuren und Geschichte in einem
+  Zug), und aus „Szenentexte + Durchlauf" wurde „6 Szenen als Geschichte" +
+  „7 Feinschliff". Der Grund ist in beiden Schritten **nicht**
+  Feingliederung, sondern die Arbeitsrichtung: erst erfinden, dann schärfen,
+  und die Form einer Szene erst wählen, wenn die Geschichte steht.
+  Migriert wird zwischen den Ständen, nicht umgedeutet
+  (`db.PHASEN_UMNUMMERIERUNG*`).
 - **Erst erfinden, dann schärfen** (Birk, 05.09.2026 23:30 — die tragende
   Entscheidung des Ablaufs). Bis dahin entstanden Figuren und Szenen **aus**
   den Interviews; das Ergebnis war handwerklich richtig und dramaturgisch
   tot, weil die Gruppe ihren eigenen kreativen Anteil nicht wiedererkannte —
   sie sah eine Nacherzählung ihres Materials. Jetzt:
-  - In **4 (Setting & Figuren)** und **5 (Geschichte)** erfindet die Gruppe
-    frei. Der Bot fragt **offen** („Welche Personen soll es geben? In welchem
+  - In **4 (Setting, Figuren & Geschichte)** erfindet die Gruppe frei. Der
+    Bot fragt **offen** („Welche Personen soll es geben? In welchem
     Setting spielt es?" / „Was soll passieren? Wie soll es enden?") mit nur
     zwei Knöpfen — „Eigene Idee" und „Schlag du vor" —, und seine Vorschläge
     speisen sich **ausschließlich aus `arbeitsstand.begriffe`, `fragen` und
     dem schon Festgelegten**. Kein Material: `kontext.baue` liefert dort
     weder Verdichtungen noch Transkripte noch das Kernpaket
-    (`kontext.material_erlaubt`), und `szenenfolge.baue_nutzertext_geschichte`
-    baut den Nutzertext ohne Material. Das ist im Code durchgesetzt, nicht im
-    Prompt gebeten — ein Prompt, der Material sieht, referiert es.
-  - In **6 (Schärfung)** kommt das Material dazu und legt sich **neben** das
+    (`kontext.PHASEN_ERFINDEN = (4,)`, `material_erlaubt`,
+    `kernpaket_erlaubt` ab `PHASE_KERNPAKET = 5`), und
+    `szenenfolge.baue_nutzertext_geschichte` baut den Nutzertext ohne
+    Material. Das ist im Code durchgesetzt, nicht im Prompt gebeten — ein
+    Prompt, der Material sieht, referiert es.
+  - In **5 (Schärfung)** kommt das Material dazu und legt sich **neben** das
     Erfundene, statt es zu ersetzen. Beim Eintritt läuft automatisch ein
     Schema-Aufruf (`schaerfung.mappe`, gemma, Thread — kein Modellaufruf im
     Knopf-Handler): er bekommt Setting, Figuren, Geschichte, die Szenen mit
@@ -196,7 +276,7 @@ lädt, würde damit Gesprächszüge ausbremsen.
     Felder (`schaerfung.uebernimm_szene` / `uebernimm_figur`), „Noch eine
     Runde" startet einen neuen Lauf mit dem geschärften Stand.
   - **Die Figuren-Ebene 2 ist dorthin gewandert.** „Aus welchem Interview
-    spricht sie?" und der Sprachduktus laufen erst ab Phase 6
+    spricht sie?" und der Sprachduktus laufen erst ab Phase 5
     (`knoepfe.ebene2_erlaubt`); in Phase 4 ist die Liste nach Ebene 1 fixiert.
     In 4 danach zu fragen wäre genau die Rücklenkung aufs Material, die der
     Umbau vermeidet.
@@ -206,10 +286,17 @@ lädt, würde damit Gesprächszüge ausbremsen.
     (rückwärtskompatibel für bestehende Gruppen), werden aber nicht mehr
     angeboten; `kernzitate.py` bleibt als Basis, `schaerfung.py` nutzt
     dieselbe Prüf- und Speicherlogik.
-  - Voraussetzungen (`phasen.voraussetzungen`): **5** braucht `rahmen` **und**
-    `figuren_fixiert_am`; **6 und 7** brauchen `geschichte` **und** ≥ 1 Szene
-    — die Schärfung ist ein Angebot, keine Pflicht, deshalb sperrt sie 7
-    nicht; **8** braucht einen geschriebenen Szenentext.
+  - Voraussetzungen (`phasen.voraussetzungen`, der Code ist die Wahrheit):
+    **2** braucht Begriffe; **3** braucht Fragen, die geprüfte Sensibilität
+    (`fragen_weich` **oder** `frage_einleitungen`, beide zählen auch leer),
+    `interview_eroeffnung` **und** `interview_abschluss`; **4** braucht eine
+    fertige Verdichtung **und** kein offenes, unausgewertetes Interview;
+    **5** braucht `rahmen`, `figuren_fixiert_am`, mindestens eine Figur,
+    `geschichte` und ≥ 1 Szene; **6** braucht `geschichte` **und** ≥ 1 Szene
+    — die Schärfung ist ein Angebot, keine Pflicht, deshalb sperrt sie 6
+    nicht; **7** braucht **alle** geplanten Szenen als Geschichte
+    (`szene.prosa`, ersatzweise `volltext`) — ein Urteil über ein Stück, dem
+    drei Szenen fehlen, ist keins.
 - **Der Szenen-Prompt bekommt die Schärfungen JE SZENE, nicht global**
   (`szene._kernpaket_text(conn, chat_id, ziel)`). Eine Szene sieht die
   Interviewstellen, die zu ihr und zu ihren Figuren gehören — und keine
@@ -229,14 +316,14 @@ lädt, würde damit Gesprächszüge ausbremsen.
   (`szene.PFLICHTFELDER`), ohne bestätigte Form läuft kein Szenenlauf.
   Vorschlagsregeln im Prompt: **Dialog ist der Normalfall**, höchstens eine
   Nicht-Dialog-Szene je drei, Szene 1 nie Monolog oder Lied.
-- **Phase 4 heißt „Setting & Figuren"** — das frühere Feld `rahmen` ist das
-  Setting (Ort, Zeit, Anlass) und behält seinen Spaltennamen; nach außen
-  (Knopftexte, Notiert-Zeile, Weboberfläche) heißt es „Setting". `format` und
-  `hauptkonflikt` bleiben als Spalten stehen und tragen keine Entscheidung
-  mehr. Stichwörter: „Rahmen", „Setting", „Format", „Konflikt" und
-  „Kernthema" zeigen alle auf 4, „Geschichte" auf 5 — `prompts/erkenner.md`
-  wurde dafür **nicht** angefasst, die Zuordnung Wort→Nummer liegt in
-  `phasen.STICHWOERTER`.
+- **Phase 4 heißt „Setting, Figuren & Geschichte"** — das frühere Feld
+  `rahmen` ist das Setting (Ort, Zeit, Anlass) und behält seinen
+  Spaltennamen; nach außen (Knopftexte, Notiert-Zeile, Weboberfläche) heißt
+  es „Setting". `format` und `hauptkonflikt` bleiben als Spalten stehen und
+  tragen keine Entscheidung mehr. Stichwörter: „Rahmen", „Setting", „Format",
+  „Konflikt", „Kernthema" **und „Geschichte"** zeigen seit dem Zusammenlegen
+  alle auf 4 — `prompts/erkenner.md` wurde dafür **nicht** angefasst, die
+  Zuordnung Wort→Nummer liegt in `phasen.STICHWOERTER`.
 - **`geschichte_setzen` ist im Code, aber nicht im Erkenner-Prompt.** Der
   Regelweg zur Geschichte ist der Vorschlagsblock mit seinen Knöpfen
   (`knoepfe._speichere_geschichte`); die Erkenner-Art ist der zweite, freie
@@ -251,17 +338,18 @@ lädt, würde damit Gesprächszüge ausbremsen.
   Datei. Der Live-Fall dahinter: eine Gruppe in Phase 2 bat um Kernthema und
   Figuren, `2.md` sagte „kein Kernthema, keine Figuren", und getragen hat die
   Antwort nur, weil der Basis-Prompt sie trug.
-- **Phasennummern werden migriert, nicht umgedeutet** (`db.SCHEMA_VERSION`,
-  `db.PHASEN_UMNUMMERIERUNG`, `db.PHASEN_UMNUMMERIERUNG_2`). Zwei Schritte
-  hintereinander, eine alte Datenbank läuft durch beide: acht → sieben
-  (04.09.: Kernthema und Figuren wurden eine Phase) und sieben → acht
-  (05.09. nachts: 4 und 5 bleiben, 6 → 7, 7 → 8; die neue 6 bekommt niemand
-  zugewiesen, sie ist ein Angebot und keine übersprungene Station). Der Merkposten ist SQLites eingebautes
-  `PRAGMA user_version` — keine eigene Tabelle, keine Zeile, kein Schema. Das
-  Journal bleibt dabei unangetastet: dort steht „Phase 5 · Figuren", weil das
-  am 04.09. wahr war, und ein Journal wird nur angehängt.
-- **Eine lange Sprachnachricht ohne Interviewmodus wird gefragt, nicht gedeutet** (06.09.2026, Live-Fall Gruppe 1, 13:32–13:37). Der gemessene Fall: 186 Sekunden Interview ohne vorherigen Druck auf „Interview starten". Das Transkript ging als **Gesprächsbeitrag** in den Kontext, das Gesprächsmodell antwortete mit einem Denkspur-Rest, der **Absichtserkenner** las die Aufzählung der interviewten Person als Begriffsliste der Gruppe und **überschrieb `arbeitsstand.begriffe`** (Rassismus, Liebe, Spaß, Streit → Rausgehen, Familie, Musik hören), und der Journal-Extraktor schrieb einen `vorgeschlagen`-Eintrag aus dem Interviewinhalt. Drei Modellläufe auf Material, das keine Absicht der Gruppe war — genau der Fall, gegen den `repo.TYP_TRANSKRIPT` seit § 10.6 schützt, nur hier ungeschützt, weil ohne Modus niemand ein Interview vermutete. Seitdem gilt in `aufnahme._kurz_abschliessen`: Dauer über `HINWEIS_AB_S` (60 s) **und** Interviewmodus aus → **kein Gesprächszug, kein Erkenner, kein Journal-Extraktor** auf dieser Nachricht. Das Transkript wird gespeichert (Empfangen und In-den-Prompt-legen sind zwei Entscheidungen), aber **versteckt**: `repo.aktualisiere_transkribierte_nachricht(..., versteckt=True)` legt es als `TYP_TRANSKRIPT` ab, und damit fällt es aus allen drei Fenstern zugleich (`letzte_nachrichten`, `unextrahierte`, `unjournalisierte`) — `unterdrueckt` allein leistet das **nicht**, es filtert nur `unbeantwortete`. Stattdessen die deterministische Frage „Das klingt nach einem Interview (M:SS). Soll ich es als Interview speichern?" mit zwei Knöpfen (`knoepfe.biete_interview_ohne_knopf`, `ART_OHNE_KNOPF_JA`/`_NEIN`, die `aufnahme.id` im `wert`). Die Knopfregel ist erfüllt: es gibt etwas Fixes zu speichern und genau zwei benannte Möglichkeiten. **Ja** → `aufnahme.nimm_als_interview`: Modus an, Kopf anlegen, **gezielt genau diese Aufnahme** einsammeln (`repo.ziehe_eine_in_interview` mit der id — das `NACHZUEGLER_FENSTER_S`-Zeitfenster darf darüber nicht entscheiden, zwischen Sprechen und Knopfdruck stehen Minuten), `stelle_phase_interviews_sicher`, dann die Folgefrage „Fertig, auswerten" · „Es kommt noch was" (`ART_OHNE_KNOPF_FERTIG`/`_WEITER`, Kopf-id im `wert`); „Fertig" ist wortgleich derselbe Weg wie „Interview beenden" (`beende_interview` + `starte_abschluss` im Thread). **Nein** → `aufnahme.nimm_als_beitrag`: `repo.zeige_transkript_nachricht` macht die Zeile sichtbar, und `bot._zug_und_erkenner` wird **genau einmal** in einem eigenen Thread nachgeholt. **Keine Antwort → gar nichts** (kein Auto-Ja, kein Zeitgeber); fürs Dashboard bleibt der Vorfall `interview_ohne_knopf_offen` stehen, und „Interview starten" sammelt das Material weiterhin als Nachzügler ein — der Weg, der am Live-Tag fünf Minuten später tatsächlich funktioniert hat. Zusage 2 gilt: kein Modellaufruf in `knoepfe._wirke_ohne_knopf`. Unter 60 Sekunden ändert sich nichts, dort bleibt eine Sprachnachricht ohne Modus ein Gesprächsbeitrag. Der frühere beiläufige Materialhinweis (`aufnahme._TEXT_MATERIAL_HINWEIS`) ist damit tot: er hing an genau dem Zug, den es nicht geben durfte. Tests: `tests/test_interview_ohne_knopf.py`.
-
+- **Phasennummern werden migriert, nicht umgedeutet** (`db.SCHEMA_VERSION`
+  = 3, `db.PHASEN_UMNUMMERIERUNG` bis `_3`). **Drei** Schritte hintereinander,
+  eine alte Datenbank läuft durch alle drei: acht → sieben (04.09.: Kernthema
+  und Figuren wurden eine Phase), sieben → acht (05.09. nachts: 4 und 5
+  bleiben, 6 → 7, 7 → 8; die neue 6 bekommt niemand zugewiesen, sie ist ein
+  Angebot und keine übersprungene Station) und acht → sieben (06.09. abends:
+  4 und 5 werden wieder eine Station, 6 → 5, 7 → 6, 8 → 7). Der Merkposten
+  ist SQLites eingebautes `PRAGMA user_version` — keine eigene Tabelle, keine
+  Zeile, kein Schema. Das Journal bleibt dabei unangetastet: dort steht
+  „Phase 5 · Figuren", weil das am 04.09. wahr war, und ein Journal wird nur
+  angehängt.
+- **Eine lange Sprachnachricht ohne Interviewmodus wird gefragt, nicht gedeutet** (06.09.2026, Live-Fall Gruppe 1, 13:32–13:37). Der gemessene Fall: 186 Sekunden Interview ohne vorherigen Druck auf „Interview starten". Das Transkript ging als **Gesprächsbeitrag** in den Kontext, das Gesprächsmodell antwortete mit einem Denkspur-Rest, der **Absichtserkenner** las die Aufzählung der interviewten Person als Begriffsliste der Gruppe und **überschrieb `arbeitsstand.begriffe`** (Rassismus, Liebe, Spaß, Streit → Rausgehen, Familie, Musik hören), und der Journal-Extraktor schrieb einen `vorgeschlagen`-Eintrag aus dem Interviewinhalt. Drei Modellläufe auf Material, das keine Absicht der Gruppe war — genau der Fall, gegen den `repo.TYP_TRANSKRIPT` seit § 10.6 schützt, nur hier ungeschützt, weil ohne Modus niemand ein Interview vermutete. Seitdem gilt in `aufnahme._kurz_abschliessen`: Dauer über `HINWEIS_AB_S` (60 s) **und** Interviewmodus aus → **kein Gesprächszug, kein Erkenner, kein Journal-Extraktor** auf dieser Nachricht. Das Transkript wird gespeichert (Empfangen und In-den-Prompt-legen sind zwei Entscheidungen), aber **versteckt**: `repo.aktualisiere_transkribierte_nachricht(..., versteckt=True)` legt es als `TYP_TRANSKRIPT` ab, und damit fällt es aus allen drei Fenstern zugleich (`letzte_nachrichten`, `unextrahierte`, `unjournalisierte`) — `unterdrueckt` allein leistet das **nicht**, es filtert nur `unbeantwortete`. Stattdessen die deterministische Frage „Das klingt nach einem Interview (M:SS). Soll ich es als Interview speichern?" mit zwei Knöpfen (`knoepfe.biete_interview_ohne_knopf`, `ART_OHNE_KNOPF_JA`/`_NEIN`, die `aufnahme.id` im `wert`). Die Knopfregel ist erfüllt: es gibt etwas Fixes zu speichern und genau zwei benannte Möglichkeiten. **Ja** → `aufnahme.nimm_als_interview`: Modus an, Kopf anlegen, **gezielt genau diese Aufnahme** einsammeln (`repo.ziehe_eine_in_interview` mit der id — das `NACHZUEGLER_FENSTER_S`-Zeitfenster darf darüber nicht entscheiden, zwischen Sprechen und Knopfdruck stehen Minuten), `stelle_phase_interviews_sicher`, dann die Folgefrage „Fertig, auswerten" · „Es kommt noch was" (`ART_OHNE_KNOPF_FERTIG`/`_WEITER`, Kopf-id im `wert`); „Fertig" ist wortgleich derselbe Weg wie „Interview beenden" (`beende_interview` + `starte_abschluss` im Thread). **Nein** → `aufnahme.nimm_als_beitrag`: `repo.zeige_transkript_nachricht` macht die Zeile sichtbar, und `bot._zug_und_erkenner` wird **genau einmal** in einem eigenen Thread nachgeholt. **Keine Antwort → gar nichts** (kein Auto-Ja, kein Zeitgeber); fürs Dashboard bleibt der Vorfall `interview_ohne_knopf_offen` stehen, und „Interview starten" sammelt das Material weiterhin als Nachzügler ein — der Weg, der am Live-Tag fünf Minuten später tatsächlich funktioniert hat. Zusage 2 gilt: kein Modellaufruf in den vier Handlern `knoepfe._wirkung_ohne_knopf_ja/_nein/_weiter/_fertig`. Unter 60 Sekunden ändert sich nichts, dort bleibt eine Sprachnachricht ohne Modus ein Gesprächsbeitrag. Der frühere beiläufige Materialhinweis (`aufnahme._TEXT_MATERIAL_HINWEIS`) ist damit tot: er hing an genau dem Zug, den es nicht geben durfte. Tests: `tests/test_interview_ohne_knopf.py`.
 - **Ein Interview ist eine Einheit** (seit 05.09.2026, SPEC § 10.6). Das ist
   die Korrektur aus dem Probelauf: ein Interview aus fünf Sprachnachrichten
   wurde zu fünf Aufnahmen, fünf Verdichtungen (zwei leer) und fünfmal „Ich
@@ -314,9 +402,10 @@ lädt, würde damit Gesprächszüge ausbremsen.
   neun Felder (`form`, `ort`, `zeit`, `anlass`, `figuren`, `was_passiert`,
   `was_anders`, `kernsaetze`, `ton`), additiv über mehrere Nachrichten
   gesetzt (`repo.setze_szenenfeld` rührt nie mehr als ein Feld an). Erkenner-
-  art `szene_planen`, kompakter Text mit `|`-getrennten Feldern. Sechs Formen
-  (`prompts/formen/`: Dialog, Lied, Rap, Monolog, Chor, stumm), Dialog ist
-  der Rückfall. **Sperre vor dem Aufruf** (T5, `szene.sperrtext`): fehlt ein
+  art `szene_planen`, kompakter Text mit `|`-getrennten Feldern. **Fünf**
+  Formen (`szene.FORMEN`: Dialog, Monolog, Chor, Lied, Rap), Dialog ist
+  der Rückfall — eine „stumme Szene" gibt es nicht mehr, und `prosa.md` im
+  selben Verzeichnis ist keine Form, sondern der Regelblock der Phase 6. **Sperre vor dem Aufruf** (T5, `szene.sperrtext`): fehlt ein
   Pflichtfeld (`form`, `ort`, `figuren`, `was_passiert`) oder hat eine Figur
   dieser Szene kein Sprachprofil, gibt es keinen Modellaufruf, sondern eine
   Nachricht in einem Satz, was fehlt — gemessen gegen den Probelauf, in dem
@@ -1585,29 +1674,47 @@ Nachmittag noch einmal.
 `SPEC-kontext-architektur.md` § 8 beschreibt ursprünglich vierzehn Befehle
 und einen Modus B (`/gruendlich`, freier Prosatext mit
 `reasoning_effort: "medium"`, via `LLM.prosa()`). Nach dem ersten
-Workshoptag wurde das auf die sechs Befehle in `befehle.py` reduziert (siehe
-Commit „Sechs Befehle als Notausgang"): `/merken`, `/verworfen`,
-`/konflikt`, `/begriffe`, `/figur`, `/name`, `/material` und `/gruendlich`
-existieren in der SPEC, aber nicht mehr im Code. Seit dem 05.09.2026 sind es
-zehn: `/szene` ist dazugekommen, und mit ihm ist `LLM.prosa()` verdrahtet
-(`szene.py`, SPEC § 4.5 Nachtrag), dann `/phase` (Arbeitsphase zeigen oder
-umschalten), `/figur <Name> entfernen` (weiches Löschen, NACHTRAG N3) und
-`/auswerten [N]` (ein Interview unter `aufnahme.MINDEST_WOERTER` doch noch
-verdichten, N2) —
-`/figur` legt bewusst **nichts** an, das macht weiterhin der Erkenner im
-Gespräch. Wer an diesen Stellen weiterbaut, sollte sich auf `befehle.py`
-verlassen, nicht auf die SPEC-Tabelle.
+Workshoptag wurde das auf sechs Befehle reduziert (Commit „Sechs Befehle als
+Notausgang"): `/merken`, `/verworfen`, `/konflikt`, `/begriffe`, `/name`,
+`/material` und `/gruendlich` existieren in der SPEC, aber nicht mehr im
+Code. Seitdem sind Befehle wieder dazugekommen; **die Wahrheit ist
+`befehle._BEKANNTE_BEFEHLE`, nicht diese Aufzählung und nicht die
+SPEC-Tabelle.** Stand 06.09.2026 sind es dreizehn:
+
+| Befehl | Wirkung |
+|---|---|
+| `/aufnahme` | Interview-Umschalter (an, und nochmal für aus) |
+| `/interview` · `/fertig` | dasselbe in zwei Richtungen: nur an, nur aus |
+| `/auswerten [N]` | ein Interview unter `aufnahme.MINDEST_WOERTER` doch noch verdichten (N2) |
+| `/stand` · `/hilfe` | Arbeitsstand zeigen, Bedienung erklären |
+| `/phase [Nummer\|Name]` | Arbeitsphase zeigen oder umschalten, auch zurück |
+| `/kernthema <Text>` | Kernthema setzen, `/kernthema aus` nimmt es zurück |
+| `/stueck [rahmen <Text>]` | das Setting zeigen oder setzen (`format` bleibt stilles Synonym) |
+| `/szene <Auftrag>` | Szene planen, Form setzen, schreiben lassen — mit `/szene` ist `LLM.prosa()` verdrahtet (SPEC § 4.5 Nachtrag) |
+| `/figur <Name> entfernen` | weiches Löschen (NACHTRAG N3); `/figur` legt bewusst **nichts** an, das macht weiterhin der Erkenner im Gespräch |
+| `/wortlaut [Name\|aus]` | Originaltranskripte im Prompt mitlesen |
+| `/leitfaden` | den gebauten Gesprächsleitfaden zeigen (versteckt) |
+
+Im Telegram-Menü (`setMyCommands`, `befehle.BEFEHLE_LISTE`) stehen davon
+**acht** — `/interview`, `/fertig`, `/figur`, `/wortlaut` und `/leitfaden`
+sind bewusst nicht beworben. Das ist kein Versehen: **Slash-Befehle werden
+nicht mehr beworben**, beworben wird der Knopf.
 
 `befehle.behandle()` nimmt seit `/szene` ein optionales `klm` entgegen. Die
 alte strukturelle Garantie („behandle bekommt kein LLM-Objekt, also kann ein
 Befehl nicht am Modell scheitern") ist damit eine Zusage geworden, die der
 Code weiterhin einhält: **kein Befehl ruft synchron ein Modell** — `/szene`,
 `/fertig` und `/auswerten` geben sofort an einen eigenen Thread ab. Wer einen
-elften Befehl anhängt, halte sich daran.
+vierzehnten Befehl anhängt, halte sich daran.
 
-`einstellungen.py` liest zusätzlich `IT_MODELL_ERKENNER` (Vorgabewert
-`google/gemma-4-31B-it`) — diese Variable fehlt noch in
-`docs/betrieb-env.beispiel`.
+**Toter Code, der stehenbleibt:** die Spalte `gruppe.gruendlich_naechster_zug`
+gehörte zum gestrichenen `/gruendlich` und wird von keiner Zeile Python mehr
+gelesen. Sie bleibt trotzdem im Schema (06.09.2026, Refactoring): sie zu
+entfernen hieße, das Schema einer laufenden Datenbank umzubauen — SQLite
+braucht dafür je nach Version einen Tabellenneubau, `db.py` migriert
+ausschließlich additiv, und im Betrieb laufen vier Bots auf denselben
+Dateien. Eine tote Spalte kostet ein Byte je Gruppe; ein misslungener
+Schema-Umbau kostet den Workshop.
 
 ## Starten und testen
 
@@ -1690,9 +1797,12 @@ python -m interview_theater.bot
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
 
 **Simulation** (`simulation/`, `scripts/simulation.py`, Stand 06.09.2026 nachts):
-simulierte Gruppen spielen den Bot durch alle **acht Phasen** — mit Inline-Knöpfen
+simulierte Gruppen spielen den Bot durch **alle Phasen** — mit Inline-Knöpfen
 (`attrappe` merkt die Leisten, die Stimme drückt per Knopftext oder schreibt
-frei) und dem Schrittplan `skript.SCHRITTE_TAG2`. Stimmen: drei erfundene Sets
+frei) und dem Schrittplan `skript.SCHRITTE_TAG2`. Wie viele Phasen das sind,
+steht nirgends im Simulator: er liest `phasen.PHASEN`, die Arbeitsstandfelder
+aus `PRAGMA table_info(arbeitsstand)` und die Zielphase über
+`skript.phase_szenen()` — ein Umbau an den Phasen soll ihn nicht mitreißen. Stimmen: drei erfundene Sets
 plus **PII-freie Personas aus Tag 1** (`simulation/tag1.py`,
 `simulation/stimmen/tag1-gruppe{1,2,3}.md`, `regie.md`): nur Begriffe/Fragen der
 echten Gruppen, Themen-Stichworte und Verhaltensaggregate, nie Transkripte oder
@@ -1726,17 +1836,14 @@ nach `betrieb/web.log`.
 
 Routen: `/` (Team-Dashboard, projiziert, alle Gruppen), `/g/<token>`
 (Leseansicht einer Gruppe, Handy), `/g/<token>/textbuch` (Probenansicht,
-siehe unten) samt `/g/<token>/textbuch.md` und `.txt`, `/gesund`
-(Health-Check, antwortet ohne Datenbankzugriff). Jede Route greift auch mit
-vorangestelltem `IT_WEB_PREFIX`, weil erst die nginx-Konfiguration
+siehe unten) samt `/g/<token>/textbuch.md` und `.txt`,
+`/g/<token>/leitfaden` (der Gesprächsleitfaden groß und druckbar, rein
+lesend, ohne Nachladen — siehe „Der Leitfaden hat eine eigene Seite") und
+`/gesund` (Health-Check, antwortet ohne Datenbankzugriff). Jede Route greift
+auch mit vorangestelltem `IT_WEB_PREFIX`, weil erst die nginx-Konfiguration
 entscheidet, ob das Präfix beim Server ankommt. Was hinter `/g/<token>/`
-nicht in dieser Liste steht, ist 404 und nicht etwa Teil des Tokens.
-(Leseansicht einer Gruppe, Handy), `/g/<token>/leitfaden` (der
-Gesprächsleitfaden groß und druckbar, rein lesend, ohne Nachladen — siehe
-„Der Leitfaden hat eine eigene Seite"), `/gesund` (Health-Check, antwortet
-ohne Datenbankzugriff). Jede Route greift auch mit vorangestelltem
-`IT_WEB_PREFIX`, weil erst die nginx-Konfiguration entscheidet, ob das
-Präfix beim Server ankommt.
+nicht in dieser Liste steht, ist 404 und nicht etwa Teil des Tokens
+(`web._beantworte_gruppenseite`).
 
 `python scripts/web_links.py` gibt aus, welche Gruppe welchen Link bekommt.
 Das Token steht in `gruppe.web_token`, erzeugt wird es beim ersten Kontakt

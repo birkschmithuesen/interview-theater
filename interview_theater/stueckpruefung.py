@@ -333,10 +333,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
 def _sende(conn, tg, e, chat_id: int, text: str) -> None:
     try:
         message_id = tg.sende(chat_id, text)
-        repo.merke_nachricht(
-            conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
-            text, repo._jetzt(),
-        )
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     except Exception:
         log.exception("Meldung der Stueckpruefung fehlgeschlagen, chat_id=%s", chat_id)
 

@@ -457,12 +457,13 @@ Workshop zählt:**
    eine künstlich alte geprüft, aber es lag keine gewachsene vor. Beim ersten Start mit
    einer bestehenden `interview_theater.db` nachsehen, dass `interviewmodus_seit` und
    `letzte_journalisierte_message_id` ergänzt wurden **und die Nachrichten noch da sind**.
-3. **Gesetzte, nicht gemessene Werte:** `HINWEIS_AB_S = 60` (wann der Bot beiläufig auf den
-   Interviewmodus hinweist) · `SCHWELLE_VERDRAENGUNG = 2000` · `LETZTE_JOURNALEINTRAEGE = 12`
-   · das kurze Fenster mit 8.000 Token · ~~`szene.DECKEL = 40.000` und
-   `szene.TIMEOUT_S = 150`~~. Alle sind begründet, keiner ist gemessen. Bei den beiden
-   Szenen-Werten ist die Fehlerrichtung bewusst gewählt: zu großzügig kostet Wartezeit,
-   die niemand absitzt, zu knapp kostet den bezahlten Lauf.
+3. **Gesetzte, nicht gemessene Werte** — von fünf sind vier erledigt, übrig ist einer:
+   `HINWEIS_AB_S = 60` (wann der Bot beiläufig auf den Interviewmodus hinweist) ist
+   weiterhin gesetzt und nicht gemessen.
+   ~~`SCHWELLE_VERDRAENGUNG = 2000`~~ · ~~das kurze Fenster mit 8.000 Token~~ ·
+   ~~`szene.DECKEL = 40.000`~~ · ~~`szene.TIMEOUT_S = 150`~~ sind alle abgelöst;
+   `LETZTE_JOURNALEINTRAEGE = 12` steht weiter, ist aber nicht mehr die Grenze, an
+   der es hängt (die ist das Zeichenfenster).
    > **Nachtrag 05.09.2026 früh.** `szene.DECKEL` ist mit der Prompt-Umstellung auf
    > Struktur statt Transkript entfallen — alle Blöcke sind kurz, es gibt nichts mehr
    > zu kürzen. `szene.TIMEOUT_S` steht jetzt bei 600 s, `szene.MAX_TOKENS` bei
@@ -471,6 +472,16 @@ Workshop zählt:**
    > damit auch nicht mehr „gesetzt, nicht gemessen": 12.000 Token liefen im Probelauf
    > zweimal im Denken leer, gemessen wurden 19.410 Antwort-Token beim ersten
    > erfolgreichen Lauf. Details in `AGENTS.md`, Falle 4.
+   > **Nachtrag 06.09.2026 (Kontext-Audit, Aufträge 1+2).** Das Fenster ist nicht mehr
+   > in Token bemessen, sondern in **Zeichen**: `kontext.FENSTER_ZEICHEN = 12.000` ist
+   > das primäre Maß, `FENSTER_NACHRICHTEN = 20` die Obergrenze darüber,
+   > `FENSTER_MINUTEN = 30` weich mit `FENSTER_MIN_NACHRICHTEN = 6` als Untergrenze.
+   > `BUDGETS["fenster"] = 8000` ist seitdem historisch und wird von keinem Codepfad
+   > mehr gelesen. `journal.SCHWELLE_VERDRAENGUNG` steht bei **600** statt 2.000 —
+   > sie bezog sich auf das alte 8.000er Fenster, und an Tag 1 sprang der Extraktor in
+   > allen drei Betriebsgruppen kein einziges Mal an. Beide Zahlen sind damit gemessen,
+   > nicht gesetzt. Details in `AGENTS.md`, „Das Gesprächsfenster ist in ZEICHEN
+   > bemessen", und `docs/kontext-audit-2026-09-06.md` C.2/C.3/C.4.
 4. **Zwei Aussetzer beim Anbieter beobachtet:** ein HTTP 502 (Wiederholung nach 0,7 s
    erfolgreich) und ein `ReadTimeout` (zweiter Versuch sofort erfolgreich). Die Wiederholung
    mit Backoff fängt beides ab — aber es zeigt, dass der Dienst nicht durchgehend stabil ist.

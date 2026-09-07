@@ -190,6 +190,26 @@ def merke_nachricht(
     return cur.rowcount == 1
 
 
+@_gesperrt
+def merke_bot_zeile(
+    conn: sqlite3.Connection, chat_id: int, message_id: int, e, text: str,
+) -> bool:
+    """Eine eben verschickte Bot-Zeile mitschreiben, damit sie im
+    Verlaufsfenster des naechsten Gespraechszugs steht (``kontext.baue`` liest
+    sie ueber ``letzte_nachrichten``) -- sonst wuerde das Modell seine eigenen
+    frueheren Aeusserungen vergessen.
+
+    Dieselbe Zeile stand am 06.09.2026 wortgleich an fuenf Stellen
+    (``erkenner``, ``sprachprofil``, ``stueckpruefung``, ``szene`` zweimal):
+    immer ``ist_bot=1``, immer ``typ='text'``, immer ``_jetzt()``, immer der
+    Botname ueber ``getattr`` -- weil manche Aufrufer eine Attrappe ohne
+    ``bot_name`` durchreichen."""
+    return merke_nachricht(
+        conn, chat_id, message_id, getattr(e, "bot_name", None), 1, "text",
+        text, _jetzt(),
+    )
+
+
 #: Das Transkript-Echo eines Interview-Teils, das der Bot zur Kontrolle in den
 #: Chat schreibt (§ 10.6). Es steht in ``nachricht`` wie jede andere Nachricht
 #: -- Empfangen und In-den-Prompt-legen sind zwei Entscheidungen (SPEC § 1) --,
@@ -521,27 +541,6 @@ def zusammengefuegtes_transkript(conn: sqlite3.Connection, aufnahme_id: int) -> 
         "SELECT transkript FROM aufnahme WHERE id = ?", (aufnahme_id,)
     ).fetchone()
     return (zeile["transkript"] if zeile else None) or ""
-
-
-@_gesperrt
-def dauer_gesamt(conn: sqlite3.Connection, aufnahme_id: int) -> int | None:
-    """Die Gesamtdauer eines Interviews in Sekunden: die Summe seiner Teile,
-    ersatzweise die Dauer am Kopf selbst (Textimport oder eine Aufnahme aus
-    der Zeit vor § 10.6).
-
-    Gebraucht fuer die Zeile, mit der ein sehr kurzes Interview abgelehnt
-    wird ("Interview 3 ist sehr kurz (4 s, 10 Woerter)", Nachtrag N2): die
-    Gruppe soll an der Zahl erkennen, welche Aufnahme gemeint ist."""
-    zeile = conn.execute(
-        "SELECT sum(dauer_sekunden) AS dauer FROM aufnahme WHERE teil_von = ?",
-        (aufnahme_id,),
-    ).fetchone()
-    if zeile is not None and zeile["dauer"]:
-        return zeile["dauer"]
-    eigene = conn.execute(
-        "SELECT dauer_sekunden FROM aufnahme WHERE id = ?", (aufnahme_id,)
-    ).fetchone()
-    return eigene["dauer_sekunden"] if eigene else None
 
 
 @_gesperrt

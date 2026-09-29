@@ -1128,21 +1128,35 @@ CLAUDE_FENSTER_TOKEN = 200_000
 INFOMANIAK_GESAMT_TOKEN = 249_984
 
 #: Sicherheitsabschlag auf das rechnerische Budget: 25 %. Er faengt ab, was
-#: die Zeichenschaetzung nicht sieht -- Systemanweisung, Formatierung des
-#: Anbieters, Sonderzeichen in einem Interviewzitat, und die Schwankung der
+#: die Zeichenschaetzung nicht sieht -- Formatierung des Anbieters,
+#: Sonderzeichen in einem Interviewzitat, und die Schwankung der
 #: Tokenisierung zwischen 1,9 und (im schlechtesten gemessenen Fall) knapp
 #: darunter.
+#:
+#: **Die Systemanweisung faengt er NICHT ab** (Kalibrierung 30.09.2026,
+#: ``docs/kontext-3-5-kalibrierung.md`` § 6). Bis dahin war das der Plan,
+#: und er ging nicht auf: die groesste Szenen-Systemanweisung
+#: (``dialog`` + Stil ``schlagabtausch``) misst 37.043 Zeichen ≈ 19.496
+#: Token, der Abschlag auf den Infomaniak-Raum sind nur 12.496. Ein
+#: Nutzertext am Budget haette mit ihr 56.984 Token gegen 49.984 Raum
+#: ergeben -- HTTP 400, bevor die Kuerzungsleiter anspringt. Seither ist das
+#: Budget eines, das System **und** Nutzertext zusammen fassen muss:
+#: ``baue_nutzertext`` zieht die Systemanweisung des Laufs (Form + Stil) ab,
+#: bevor es den Nutzertext misst (``nutzer_budget``).
 BUDGET_RESERVE = 0.75
 
-#: Eingabe-Budget des Claude-Pfads: (200.000 - 32.000 Ausgabedeckel) x 0,75.
+#: Eingabe-Budget des Claude-Pfads: (200.000 - 32.000 Ausgabedeckel) x 0,75,
+#: fuer System + Nutzertext zusammen.
 #: Gemessene Laeufe brauchen davon rund 15 % -- der Deckel ist die Bremse fuer
 #: den Ausreisser (sechs lange Vorszenen im Volltext), nicht der Normalfall.
 SZENE_TOKEN_MAX_CLAUDE = int(
     (CLAUDE_FENSTER_TOKEN - szene_claude.MAX_TOKENS) * BUDGET_RESERVE
 )
 
-#: Eingabe-Budget des Infomaniak-Pfads: (249.984 - 200.000) x 0,75. Klein,
-#: aber ehrlich -- siehe ``INFOMANIAK_GESAMT_TOKEN``.
+#: Eingabe-Budget des Infomaniak-Pfads: (249.984 - 200.000) x 0,75, fuer
+#: System + Nutzertext zusammen. Klein, aber ehrlich -- siehe
+#: ``INFOMANIAK_GESAMT_TOKEN``. Mit der groessten Systemanweisung (19.496
+#: Token) bleiben dem Nutzertext davon 17.992.
 SZENE_TOKEN_MAX_INFOMANIAK = int(
     (INFOMANIAK_GESAMT_TOKEN - MAX_TOKENS) * BUDGET_RESERVE
 )
@@ -1155,9 +1169,13 @@ BUDGET_WARNSCHWELLE = 0.9
 
 
 def token_budget(claude: bool) -> int:
-    """Das geltende Eingabe-Budget in Token, je nach Anbieter.
+    """Das geltende Eingabe-Budget in Token, je nach Anbieter -- fuer die
+    **ganze** Eingabe, Systemanweisung und Nutzertext zusammen (seit
+    30.09.2026; vorher wurde nur der Nutzertext dagegen gemessen). Wie viel
+    davon dem Nutzertext bleibt, rechnet ``nutzer_budget`` aus.
 
-    ``IT_SZENE_TOKEN_MAX`` ueberschreibt beides -- bei jedem Aufruf gelesen
+    ``IT_SZENE_TOKEN_MAX`` ueberschreibt beides und meint dasselbe: die
+    ganze Eingabe inklusive Systemanweisung -- bei jedem Aufruf gelesen
     (wie ``kontext.zeichengrenze``): am Workshoptag soll eine Korrektur ohne
     Neustart wirken. Ein unlesbarer oder unsinniger Wert faellt still auf die
     Herleitung zurueck."""
@@ -1174,6 +1192,18 @@ def token_budget(claude: bool) -> int:
         log.warning("IT_SZENE_TOKEN_MAX zu klein (%d), nehme %d", wert, vorgabe)
         return vorgabe
     return wert
+
+
+def nutzer_budget(claude: bool, system: str | None = None) -> int:
+    """Was vom Eingabe-Budget fuer den Nutzertext bleibt: ``token_budget``
+    minus die geschaetzten Token der Systemanweisung dieses Laufs.
+
+    Gerechnet wird mit der TATSAECHLICHEN Anweisung (Form + Stil), nicht mit
+    einer Konstante fuer den groessten Fall: ein Stilblatt, das waechst,
+    schiebt die Grenze mit, statt eine feste Zahl veralten zu lassen. Nie
+    negativ -- ist die Anweisung allein schon ueber dem Budget, bleibt 0,
+    die Leiter kuerzt bis zum Ende und meldet, dass es nicht reicht."""
+    return max(0, token_budget(claude) - schaetze_token(system or ""))
 
 
 def schaetze_token(text: str) -> int:
@@ -1675,7 +1705,8 @@ def _figuren_mit_wenig_zitaten(text: str) -> str:
     return "\n".join(zeilen)
 
 
-def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
+def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
+                    system: str | None = None) -> str:
     """Baut den Nutzertext des Szenen-Aufrufs -- **Struktur statt Transkript**
     (Birk, 05.09.2026) und **unter einem harten Token-Deckel** (06.09.2026).
 
@@ -1687,7 +1718,10 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
     **Die Kuerzungsleiter** (Birk, 06.09.2026: *"Der komplette Kontext soll
     ausgeschoepft werden koennen, aber gleichzeitig ein Deckel auf den
     Gesamt-Prompt"*). Zuerst steht alles im Volltext da. Passt das nicht unter
-    ``token_budget()``, wird in dieser Reihenfolge gekuerzt:
+    ``nutzer_budget()`` -- ``token_budget()`` minus die Systemanweisung
+    ``system`` dieses Laufs, die der Aufrufer mitgibt (30.09.2026; ohne
+    ``system`` wird nichts abgezogen) --, wird in dieser Reihenfolge
+    gekuerzt:
 
     1. **Vorszenen, aelteste zuerst**, jeweils auf ihre Zusammenfassung --
        eine nach der anderen, bis es passt. Die juengste Vorszene bleibt
@@ -1732,18 +1766,22 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None) -> str:
             "auftrag": f"Euer Auftrag:\n{auftrag.replace(NEU_MARKER, '').strip()}",
         }
 
-    budget = token_budget(szene_claude.ist_aktiv(e, conn, chat_id) if e else False)
+    budget = nutzer_budget(
+        szene_claude.ist_aktiv(e, conn, chat_id) if e else False, system
+    )
     voll = {b["nummer"] for b in bausteine}
     text = _zusammen(_bloecke(voll, CHAT_NACHRICHTEN, False, False))
     if schaetze_token(text) <= budget:
         return text
     return _kuerze_szenenprompt(
         conn, chat_id, e, _bloecke, bausteine, voll, text, budget, nummer,
+        schaetze_token(system or ""),
     )
 
 
 def _kuerze_szenenprompt(conn, chat_id: int, e, bloecke, bausteine,
-                         voll: set, text: str, budget: int, nummer) -> str:
+                         voll: set, text: str, budget: int, nummer,
+                         system_token: int = 0) -> str:
     """Die vier Kuerzungsstufen aus dem Docstring von ``baue_nutzertext``, in
     ihrer Reihenfolge -- jede nur, wenn die vorige nicht gereicht hat.
 
@@ -1786,17 +1824,23 @@ def _kuerze_szenenprompt(conn, chat_id: int, e, bloecke, bausteine,
         text = _zusammen(bloecke(voll, chat_anzahl, kernpaket_kurz, zitate_kurz))
         stufen.append(name)
 
-    _melde_kuerzung(conn, chat_id, e, nummer, vorher, text, budget, stufen)
+    _melde_kuerzung(conn, chat_id, e, nummer, vorher, text, budget, stufen,
+                    system_token)
     return text
 
 
 def _melde_kuerzung(conn, chat_id: int, e, nummer, vorher: int, text: str,
-                    budget: int, stufen: list) -> None:
+                    budget: int, stufen: list, system_token: int = 0) -> None:
     """Der Vorfall zur Kuerzung -- mit Zahlen und den durchlaufenen Stufen."""
+    abzug = (
+        f", Systemanweisung {system_token} Token schon abgezogen"
+        if system_token else ""
+    )
     detail = (
         f"Szene {nummer if nummer is not None else '?'}: Prompt gekuerzt "
         f"{vorher} -> {len(text)} Zeichen "
-        f"({schaetze_token(text)} von {budget} Token). " + "; ".join(stufen)
+        f"({schaetze_token(text)} von {budget} Token{abzug}). "
+        + "; ".join(stufen)
     )
     if schaetze_token(text) > budget:
         detail += " -- REICHT IMMER NOCH NICHT"
@@ -1931,7 +1975,8 @@ def _pruefe_budget(conn, chat_id: int, ueber_claude: bool) -> None:
     Der Sinn ist, dass die Herleitung oben (Zeichen ÷ 1,9, Fenster minus
     Ausgabedeckel, 25 % Reserve) im Betrieb **messbar** bleibt statt geglaubt
     zu werden: der Anbieter sagt nach jedem Aufruf, wie viele Token die
-    Eingabe wirklich hatte. Laeuft die Schaetzung auseinander, faellt es hier
+    Eingabe wirklich hatte -- System UND Nutzertext, also genau das, was
+    ``token_budget`` seit dem 30.09.2026 bemisst. Laeuft die Schaetzung auseinander, faellt es hier
     auf, bevor die API mit HTTP 400 antwortet.
 
     Reine Beobachtung: ein Fehlschlag beim Lesen darf einen fertigen
@@ -1990,17 +2035,20 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     # Der Stil der Szene (06.09.2026, 12:50) -- gewaehlt im Feinschliff, im
     # Prosalauf ohne Wirkung (``systemanweisung`` laesst ihn dort weg).
     stil = ziel["stil"] if "stil" in ziel.keys() else None
-    nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel, e)
+    # Die Anweisung zuerst: ihr Umfang geht vom Budget des Nutzertexts ab
+    # (Kalibrierung 30.09.2026 -- Form + Stil bis 19.496 Token).
+    system = systemanweisung(form, stil)
+    nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel, e, system=system)
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
     if ueber_claude:
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
-            chat_id, systemanweisung(form, stil),
+            chat_id, system,
             nutzer, ART, timeout=TIMEOUT_S,
         )
     else:
         antwort = klm.prosa(
-            chat_id, systemanweisung(form, stil),
+            chat_id, system,
             nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
         )
     _pruefe_budget(conn, chat_id, ueber_claude)

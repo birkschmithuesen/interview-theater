@@ -249,8 +249,11 @@ def pruefe(klm, conn, e, chat_id: int) -> tuple[int, int]:
         raise PruefungFehler(MELDUNG_OHNE_SZENEN)
 
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
+    system = prompt()
+    # ``token_budget`` bemisst seit dem 30.09.2026 die ganze Eingabe,
+    # Systemanweisung eingeschlossen (Kalibrierung, szene.BUDGET_RESERVE).
     budget = szene_modul.token_budget(ueber_claude)
-    geschaetzt = szene_modul.schaetze_token(nutzer)
+    geschaetzt = szene_modul.schaetze_token(system + nutzer)
     if geschaetzt > budget:
         # **Kein Kuerzen.** Der Volltext ist der ganze Punkt dieses Aufrufs;
         # ein gekuerztes Textbuch beantwortet die Fragen nach Bogen und Ende
@@ -266,7 +269,6 @@ def pruefe(klm, conn, e, chat_id: int) -> tuple[int, int]:
         raise PruefungFehler(MELDUNG_ZU_LANG.format(zeichen=len(nutzer)))
 
     runde = repo.letzte_pruefrunde(conn, chat_id) + 1
-    system = prompt()
     if ueber_claude:
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),

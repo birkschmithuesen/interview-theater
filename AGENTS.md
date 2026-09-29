@@ -592,7 +592,13 @@ es jemand im Chat merkt.
   32 000`, kein extended thinking) müssen Eingabe **plus** `max_tokens` unter
   das Kontextfenster passen → 126 000 Token; bei Infomaniak zählen beide gegen
   `max_total_tokens = 249 984`, und `llm.prosa` läuft mit 200 000 → 37 488
-  Token. Env `IT_SZENE_TOKEN_MAX` überschreibt. Jede Szene liefert per
+  Token. Beide Budgets gelten seit dem 30.09.2026 für die **ganze** Eingabe,
+  Systemanweisung eingeschlossen: `szene.nutzer_budget` zieht die Anweisung
+  des Laufs (Form + Stil, gemessen bis 37 043 Zeichen ≈ 19 496 Token) ab,
+  bevor der Nutzertext gemessen wird — vorher hätte ein Nutzertext am Budget
+  mit ihr den Infomaniak-Raum um 7 000 Token gerissen
+  (`docs/kontext-3-5-kalibrierung.md`). Env `IT_SZENE_TOKEN_MAX` überschreibt
+  und meint ebenfalls die ganze Eingabe. Jede Szene liefert per
   Pflichtzeile `Zusammenfassung:` + `Anders gemacht:` (→ `szene.zusammenfassung`,
   Journal-Eintrag bei Abweichung); passt der Volltext aller Vorszenen nicht,
   greift die Kürzungsleiter älteste Szene → Zusammenfassung, dann Chat-Block auf

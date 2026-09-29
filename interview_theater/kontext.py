@@ -68,8 +68,13 @@ _ZEICHEN_JE_TOKEN = 3
 #: ``fenster_grenzen()`` gelesen. Der Wert hier bleibt als Spec-Referenz
 #: stehen und wird von **keinem** Codepfad mehr benutzt -- er war der
 #: Ausgangspunkt von Befund C.3.
+#:
+#: ``system`` steht seit dem 06.09.2026 (Auftrag 4) auf dem **gemessenen**
+#: Wert statt auf den nie durchgesetzten 900 aus der Spec: je Phase 7.670 bis
+#: 9.339 Token. Durchgesetzt wird er nicht hier, sondern von
+#: ``SYSTEM_ZEICHEN_MAX`` (Test) und ``gesamtgrenze()`` (Laufzeit).
 BUDGETS = {
-    "system": 900,
+    "system": 9000,
     "verdichtungen": 3000,
     "transkripte": 5000,
     "kernpaket": 2000,
@@ -84,7 +89,7 @@ BUDGETS = {
     "festlegungen": 800,
     "phasenhinweis": 50,
     "figurenhinweis": 100,
-    "szene": 1500,
+    "szene": 2000,
     "journal": 1500,
     "fenster": 8000,
     "ausloeser": 300,
@@ -109,27 +114,86 @@ REISSLEINE = 40_000
 #: ohne Codeaenderung nachziehen lassen.
 ZEICHEN_GRENZE_VORGABE = 24_000
 
+#: **Harte Obergrenze fuer System + Koerper zusammen, in ZEICHEN** (Audit
+#: 06.09.2026, Befund C.1, Auftrag 4). Bis hierher bemass jede Grenze nur den
+#: Koerper -- und der ist im Betrieb der kleinere Teil: gemessen standen im
+#: Gespraechszug der Testgruppe **26.365 Zeichen Systemanweisung gegen 8.810
+#: Zeichen Koerper**, drei Viertel des Prompts also ausserhalb jeder Messung.
+#: Wer ``ZEICHEN_GRENZE`` auf 24.000 las und den Prompt fuer ~8.000 Token
+#: hielt, irrte um den Faktor 4,4. § 6.2 Block 1 setzt fuer die
+#: Systemanweisung 900 Token; gemessen sind es je Phase 7.784-9.339.
+#:
+#: Wert (30.09.2026, ``docs/kontext-3-5-kalibrierung.md``): **60.000 Zeichen**
+#: (~20.000 Token nach unserer Schaetzung -- weit unter Kimis Fenster, 256K).
+#: Die 40.000 vom 06.09. schnitten nach dem Prompt-Umbau in 6 von 7 Phasen:
+#: gemessen, phasengerechte Vollast, System + Koerper roh bis **53.012
+#: Zeichen (Phase 7)**, und die Kuerzung drueckte das Fenster dabei auf 4
+#: Eintraege, unter ``FENSTER_MIN_NACHRICHTEN``. Hergeleitet ist 60.000 nicht
+#: aus dem letzten Lauf, sondern strukturell: ``SYSTEM_ZEICHEN_MAX`` (36.000)
+#: + ``ZEICHEN_GRENZE_VORGABE`` (24.000). Damit greift die Gesamtgrenze erst,
+#: wenn schon eine Teilgrenze gebrochen ist -- typisch eine Anweisung, die
+#: zur Laufzeit durch Regie-Zettel oder Profil-Anweisung ueber ihren
+#: Testdeckel waechst (Befund C.1). Reserve gegen die Messung: 6.988 (13 %).
+#: Die Summe steht als Zahl da, nicht als Ausdruck; ein Test
+#: (``test_gesamtgrenze_ist_system_plus_koerper``) haelt die Herleitung fest,
+#: damit ein angehobener ``SYSTEM_ZEICHEN_MAX`` die Gesamtgrenze nicht still
+#: mitzieht, sondern eine bewusste Entscheidung verlangt.
+#: Die Koerpergrenze oben bleibt daneben bestehen: sie faengt den Fall, in dem
+#: der Koerper allein entgleist, auch wenn die Anweisung gerade kurz ist.
+#:
+#: Ueber ``IT_PROMPT_ZEICHEN_GESAMT`` konfigurierbar -- dieselbe Ueberlegung
+#: wie bei ``IT_PROMPT_ZEICHEN``: am Workshoptag ohne Codeaenderung nachziehbar.
+GESAMT_ZEICHEN_GRENZE_VORGABE = 60_000
 
-def zeichengrenze() -> int:
-    """Die geltende harte Obergrenze in Zeichen (``IT_PROMPT_ZEICHEN``).
+#: Obergrenze der Systemanweisung je Phase, in Zeichen -- kein Laufzeit-Limit
+#: (die Anweisung wird nie gekuerzt, sie ist die Rolle des Bots), sondern eine
+#: Zusicherung, die ein Test haelt (``test_prompt_audit``). Sie verhindert,
+#: dass ``prompts/system.md`` und ``prompts/phasen/*.md`` unbemerkt
+#: weiterwachsen, bis vom Gesamtbudget nichts mehr fuer den Koerper bleibt.
+#: Gemessen lag die groesste Phase (2) am 06.09.2026 bei 28.018 Zeichen
+#: (Deckel damals 30.000). Beim Merge von feat/kontext-3-5 in den heutigen
+#: Stand (30.09.2026) neu gemessen, nach dem Prompt-Umbau auf main
+#: (sieben Phasen, Phasentexte, Workshop-Profil), Vorgabeprofil, Bot
+#: ``gruppe4``, ohne Regie-Zettel: Phase 1: 26.085 · 2: 33.676 · 3: 27.598 ·
+#: 4: 33.064 · 5: 26.883 · 6: 30.014 · 7: 29.389 Zeichen. Der Deckel steht
+#: mit demselben Abstand (~7 %) ueber dem Maximum wie vorher: 36.000.
+SYSTEM_ZEICHEN_MAX = 36_000
+
+
+def _aus_umgebung(name: str, vorgabe: int, mindestens: int) -> int:
+    """Eine Zeichengrenze aus der Umgebung, mit stillem Rueckfall.
 
     Bei jedem Aufruf gelesen, nicht beim Import: dieselbe Ueberlegung wie beim
     Hot-Reload der Prompts (``anweisungen.py``) -- eine Aenderung soll ohne
     Neustart wirken. Ein unlesbarer oder unsinniger Wert faellt still auf die
     Vorgabe zurueck; am Workshoptag darf ein Tippfehler in einer Umgebung den
     Bot nicht stumm schalten."""
-    roh = os.environ.get("IT_PROMPT_ZEICHEN")
+    roh = os.environ.get(name)
     if not roh:
-        return ZEICHEN_GRENZE_VORGABE
+        return vorgabe
     try:
         wert = int(roh)
     except ValueError:
-        log.warning("IT_PROMPT_ZEICHEN unlesbar (%r), nehme %d", roh, ZEICHEN_GRENZE_VORGABE)
-        return ZEICHEN_GRENZE_VORGABE
-    if wert < 2_000:
-        log.warning("IT_PROMPT_ZEICHEN zu klein (%d), nehme %d", wert, ZEICHEN_GRENZE_VORGABE)
-        return ZEICHEN_GRENZE_VORGABE
+        log.warning("%s unlesbar (%r), nehme %d", name, roh, vorgabe)
+        return vorgabe
+    if wert < mindestens:
+        log.warning("%s zu klein (%d), nehme %d", name, wert, vorgabe)
+        return vorgabe
     return wert
+
+
+def zeichengrenze() -> int:
+    """Die geltende harte Obergrenze des **Koerpers** in Zeichen
+    (``IT_PROMPT_ZEICHEN``). Die Gesamtgrenze steht in ``gesamtgrenze()``."""
+    return _aus_umgebung("IT_PROMPT_ZEICHEN", ZEICHEN_GRENZE_VORGABE, 2_000)
+
+
+def gesamtgrenze() -> int:
+    """Die geltende harte Obergrenze fuer **System + Koerper** in Zeichen
+    (``IT_PROMPT_ZEICHEN_GESAMT``, Auftrag 4)."""
+    return _aus_umgebung(
+        "IT_PROMPT_ZEICHEN_GESAMT", GESAMT_ZEICHEN_GRENZE_VORGABE, 4_000
+    )
 
 #: Ab dieser Zeitspanne zwischen zwei Nachrichten im Fenster wird eine
 #: Pausenzeile eingeschoben (§ 6.2 "Pausenmarkierung").
@@ -639,18 +703,101 @@ def _baue_figurenhinweis(conn, chat_id: int) -> str:
     return _FIGURENHINWEIS.format(namen=", ".join(ohne))
 
 
-def _baue_szene(conn, chat_id: int) -> str:
+#: **Deckel des Szenenblocks in Zeichen** (Audit 06.09.2026, Befund C.4,
+#: Auftrag 3). Der Szenenblock war der einzige unbegrenzte Wachstumspfad im
+#: Gespraechs-Prompt: ``_baue_szene`` nahm ``szene["volltext"]`` wie er ist,
+#: und die Kuerzung nahm ihn ausdruecklich aus. Gemessen blieb der Prompt bei
+#: einer zwanzigfachen Szene nach *vollstaendiger* Kuerzung -- Fenster,
+#: Journal und Verdichtungen restlos geopfert -- bei 105.988 Zeichen, also
+#: 4,4x ueber der Grenze.
+#:
+#: Der Szenenpfad kennt diesen Deckel laengst (``szene.CONTINUITY_ZEICHEN_MAX``,
+#: ``szene._gekuerzter_volltext``); der Gespraechspfad hatte ihn nicht.
+#: hermes-agent nennt dieselbe Lektion ausdruecklich: ein geschuetzter Block
+#: ohne Deckel laesst das Budget nicht binden (``LEAN_TAIL_CAP_TOKENS``).
+#:
+#: 6.000 Zeichen sind rund 2.000 Token nach unserer Schaetzung -- etwas mehr,
+#: als § 6.2 Block 5 mit 1.500 Token vorsieht, und genug fuer eine
+#: ausgewachsene Szene (gemessen: die laengste Szene der Testgruppe hat
+#: 5.349 Zeichen und bleibt damit ungekuerzt).
+SZENE_ZEICHEN_MAX = 6_000
+
+#: Worauf der Szenenblock in der Kuerzung faellt, bevor Journal und
+#: Verdichtungen geopfert werden (Stufe 2 der Leiter in ``baue``).
+SZENE_ZEICHEN_NOTFALL = 2_000
+
+#: Wie viel vom Deckel auf den Anfang der Szene entfaellt. Anfang UND Schluss,
+#: weil beide etwas anderes tragen: der Anfang die Exposition (wer, wo,
+#: worum), der Schluss den Stand, an dem die Gruppe gerade arbeitet. Ein rein
+#: hinten abgeschnittener Text saehe fuer das Modell aus wie eine Szene, die
+#: mittendrin anfaengt -- deshalb die Auslassungsmarke dazwischen.
+_SZENE_ANTEIL_ANFANG = 0.4
+
+_TEXT_SZENE_GEKUERZT = "[... Mittelteil der Szene ausgelassen ...]"
+
+
+def _gekuerzte_szene(volltext: str, grenze: int) -> str:
+    """Anfang + Schluss einer zu langen Szene, mit Auslassungsmarke dazwischen.
+
+    Geschnitten wird an Zeilengrenzen (dieselbe Ueberlegung wie in
+    ``szene._gekuerzter_volltext``, das im Szenenpfad nur den Schluss
+    behaelt): eine Szene besteht aus Sprecherzeilen, und eine halbe
+    Sprecherzeile ist schlechter zu lesen als eine fehlende.
+
+    Die Marke steht IMMER drin, wenn gekuerzt wurde -- ein stillschweigend
+    zusammengeschobener Text waere fuer das Modell ein Widerspruch zwischen
+    Szenentitel und Inhalt, den es selbst aufzuloesen versuchte."""
+    text = volltext.strip()
+    if len(text) <= grenze:
+        return text
+    platz = max(0, grenze - len(_TEXT_SZENE_GEKUERZT) - 2)
+    kopf_max = int(platz * _SZENE_ANTEIL_ANFANG)
+    schluss_max = platz - kopf_max
+    zeilen = text.splitlines()
+
+    kopf: list[str] = []
+    gezaehlt = 0
+    for zeile in zeilen:
+        if gezaehlt + len(zeile) + 1 > kopf_max:
+            break
+        kopf.append(zeile)
+        gezaehlt += len(zeile) + 1
+
+    schluss: list[str] = []
+    gezaehlt = 0
+    for zeile in reversed(zeilen[len(kopf):]):
+        if gezaehlt + len(zeile) + 1 > schluss_max:
+            break
+        schluss.insert(0, zeile)
+        gezaehlt += len(zeile) + 1
+
+    if not kopf and not schluss:
+        # Eine einzige, sehr lange Zeile: dann eben hart an Zeichen, sonst
+        # bliebe vom Szenenblock nur die Marke.
+        return f"{text[:kopf_max]}\n{_TEXT_SZENE_GEKUERZT}\n{text[len(text) - schluss_max:]}"
+    teile = kopf + [_TEXT_SZENE_GEKUERZT] + schluss
+    return "\n".join(teile)
+
+
+def _baue_szene(conn, chat_id: int, grenze: int | None = None) -> str:
     """Block 5: die EINE zuletzt geaenderte Szene im Volltext (SPEC § 6.2).
 
     Datengetrieben wie alle Bloecke, ohne gespeicherten Zustand: woran die
     Gruppe zuletzt gearbeitet hat, ist die Szene, um die es gerade geht --
     springt sie zu einer frueheren zurueck und ueberarbeitet sie, wandert
     diese automatisch hierher (repo.aktualisiere_szene setzt geaendert_am
-    neu)."""
+    neu).
+
+    ``grenze`` deckelt den Volltext (Vorgabe ``SZENE_ZEICHEN_MAX``): darueber
+    stehen Anfang und Schluss mit einer Auslassungsmarke dazwischen. Der
+    Kopfzeile (Titel, Nummer) passiert nie etwas -- das Modell soll auch bei
+    einer gekuerzten Szene wissen, um welche es geht."""
     szene = repo.hole_letzte_szene(conn, chat_id)
     if szene is None or not szene["volltext"]:
         return ""
-    return f"Aktuelle Szene ({szenenzeile(szene)}):\n{szene['volltext']}"
+    grenze = SZENE_ZEICHEN_MAX if grenze is None else grenze
+    volltext = _gekuerzte_szene(szene["volltext"], grenze)
+    return f"Aktuelle Szene ({szenenzeile(szene)}):\n{volltext}"
 
 
 #: Wie viele Journaleintraege in den Prompt gehen -- die letzten N nach
@@ -1017,17 +1164,27 @@ def umrisszeile(stand: dict) -> str:
     haben weder Nachrichtentexte noch Transkripte etwas verloren (§ 11, und
     dieselbe Disziplin, mit der ``scripts/erzeuge_prompts.py`` entschaerft).
     Nur Zahlen, damit am Workshoptag jemand mitlesen kann, **was** im Prompt
-    stand, ohne den Prompt selbst zu haben."""
+    stand, ohne den Prompt selbst zu haben.
+
+    Seit Auftrag 4 (Befund C.1) traegt der Umriss auch die Systemanweisung;
+    ist sie gemessen, steht sie mit in der Zeile -- ``gesamt`` allein ist nur
+    der Koerper, also der kleinere Teil des Prompts."""
     teile = " ".join(
         f"{name}={token}" for name, token in stand["bloecke"].items() if token
     )
+    system = ""
+    if stand.get("system"):
+        system = (
+            f"system={stand['system']} "
+            f"gesamt_mit_system={stand['gesamt_mit_system']} "
+        )
     return (
-        f"kontext-umriss gesamt={stand['gesamt']} "
+        f"kontext-umriss gesamt={stand['gesamt']} {system}"
         f"gekuerzt={'ja' if stand['gekuerzt'] else 'nein'} {teile}"
     )
 
 
-def umriss(bloecke: dict, gekuerzt: bool = False) -> dict:
+def umriss(bloecke: dict, gekuerzt: bool = False, system_zeichen: int = 0) -> dict:
     """Welcher Block mit wie vielen geschaetzten Token im Prompt stand.
 
     Reine Buchhaltung ueber dem fertigen Ergebnis, ohne Einfluss darauf.
@@ -1038,12 +1195,39 @@ def umriss(bloecke: dict, gekuerzt: bool = False) -> dict:
 
     Leere Bloecke stehen mit 0 drin und fallen nicht weg: dass die
     Verdichtungen fehlten, ist die interessantere Zeile als dass sie da
-    waren."""
+    waren.
+
+    ``system_zeichen`` ist seit dem 06.09.2026 (Auftrag 4) dabei: der Umriss
+    zeigte bis dahin nur den Koerper -- also ein Viertel des Prompts -- und
+    genau diese Teilmessung ist die Wurzel des Befunds C.1."""
     return {
         "bloecke": {name: schaetze(bloecke.get(name, "")) for name in _REIHENFOLGE},
+        "system": system_zeichen // _ZEICHEN_JE_TOKEN,
         "gesamt": schaetze(_zusammen(bloecke)),
+        "gesamt_mit_system": (
+            schaetze(_zusammen(bloecke)) + system_zeichen // _ZEICHEN_JE_TOKEN
+        ),
         "gekuerzt": bool(gekuerzt),
     }
+
+
+def _systemgroesse(conn, chat_id: int, e) -> int:
+    """Die Zeichenzahl der Systemanweisung, die zu diesem Zug verschickt wird.
+
+    Der Koerper wird hier gebaut, die Anweisung dort (``ablauf``) -- aber
+    gemessen werden muessen sie zusammen (Befund C.1). Statt die Anweisung
+    durchzureichen und alle Aufrufer zu aendern, wird sie hier noch einmal
+    geholt: ``anweisungen`` cacht sie ohnehin nach mtime, das kostet einen
+    stat-Aufruf.
+
+    Faellt das aus irgendeinem Grund aus (fehlende Prompt-Datei am
+    Workshoptag), gilt 0: die Gesamtgrenze bremst dann nicht, aber der Bot
+    antwortet -- die Koerpergrenze steht ja weiter."""
+    try:
+        return len(system(getattr(e, "bot_name", None), phasen.aktuelle(conn, chat_id)))
+    except Exception:  # pragma: no cover -- Notausgang, siehe Docstring
+        log.warning("Systemanweisung fuer die Messung nicht lesbar", exc_info=True)
+        return 0
 
 
 def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
@@ -1084,44 +1268,74 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
 
 
 def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
-                       fenster_eintraege: list) -> bool:
+                       fenster_eintraege: list, system_zeichen: int = 0) -> bool:
     """Die Kuerzungsleiter aus § 7.2. Aendert ``bloecke`` an Ort und Stelle und
     liefert, ob ueberhaupt gekuerzt wurde.
 
-    Reihenfolge (praezisiert im Audit 06.09.2026):
+    ``system_zeichen`` ist die Groesse der Systemanweisung dieses Zuges
+    (``_systemgroesse``, Auftrag 4): sie wird nie gekuerzt, zaehlt aber gegen
+    die Gesamtgrenze. ``baue`` holt sie einmal und reicht sie hierher und in
+    den Umriss -- zwei Messungen derselben Zahl waeren zwei Wahrheiten.
+
+    Reihenfolge (praezisiert im Audit 06.09.2026; Auftrag 3 hat sie
+    korrigiert -- bis dahin schuetzte sie den groessten Block und opferte
+    die kleinsten):
 
     1. Volltranskripte -- der groesste einzelne Brocken, und ihr Inhalt steht
        verdichtet ohnehin da.
-    2. Der Verlauf von vorn -- das Aelteste zuerst, eine ganze Nachricht je
+    2. Der Szenenblock auf ``SZENE_ZEICHEN_NOTFALL`` -- **vor** Fenster,
+       Journal und Verdichtungen. Begruendung: in Phase 6/7 arbeitet die
+       Gruppe an einer Szene und ruft Korrekturen zu; den Text zu behalten,
+       den der Bot ohnehin gerade schreibt, und dafuer zu verlieren, was die
+       Gruppe dazu gesagt hat, ist die Umkehrung der gewuenschten Prioritaet
+       (Befund C.4).
+    3. Der Verlauf von vorn -- das Aelteste zuerst, eine ganze Nachricht je
        Schritt.
-    3. Das Journal von vorn -- die aeltesten Notizen.
-    4. Die Festlegungen von HINTEN -- die juengsten Details zuerst
-       (06.09.2026). Sie sind der vorletzte Kandidat: klein, stabil und genau
-       das, was ohne diese Tabelle gar nicht erst im Prompt stuende. Und
-       anders als beim Journal faellt hier das Juengste zuerst, damit die
-       Grundfestlegung als letzte geht.
-    5. Die Verdichtungen -- zuletzt, weil sie das Material selbst sind.
+    4. Das Journal von vorn -- die aeltesten Notizen.
+    5. Die Festlegungen von HINTEN -- die juengsten Details zuerst
+       (06.09.2026). Sie sind der vorletzte opferbare Block vor dem Material:
+       klein, stabil und genau das, was ohne diese Tabelle gar nicht erst im
+       Prompt stuende. Und anders als beim Journal faellt hier das Juengste
+       zuerst, damit die Grundfestlegung als letzte geht.
+    6. Die Verdichtungen -- weil sie das Material selbst sind.
+    7. Die Garantie: passt es dann immer noch nicht, wird der Szenenblock auf
+       genau den Platz zusammengezogen, der uebrig ist (bis hin zu leer). Bis
+       zum 06.09.2026 konnte die Kuerzung ihr Ziel verfehlen -- gemessen
+       blieben bei einer 20-fachen Szene 105.988 Zeichen stehen.
 
-    Nie angetastet: Kernpaket, Arbeitsstand, Hinweise, aktuelle Szene und die
-    ausloesende Nachricht. Es gibt keinen Zustand, in dem der Bot wegen des
-    Budgets nicht antworten koennte."""
+    Nie angetastet: Kernpaket, Arbeitsstand, Hinweise und die ausloesende
+    Nachricht. Es gibt keinen Zustand, in dem der Bot wegen des Budgets nicht
+    antworten koennte. Reissen diese allein die Grenze, bleibt der Vorfall
+    ``kontext_kuerzung_erfolglos`` (Auftrag 1) -- die Garantie aus Stufe 7
+    reicht nur so weit, wie es opferbare Bloecke gibt."""
     grenze = zeichengrenze()
+    gesamt = gesamtgrenze()
 
     def _zu_lang() -> bool:
-        """Ueber Zeichengrenze ODER ueber Token-Ziel -- beides bremst.
+        """Ueber Koerpergrenze ODER Token-Ziel ODER Gesamtgrenze -- alle drei
+        bremsen.
 
-        Zwei Masse, weil sie verschiedene Fehler fangen: ZIEL faengt den
-        Prompt, der insgesamt zu gross wird, die Zeichengrenze den, der es in
+        Drei Masse, weil sie verschiedene Fehler fangen: ZIEL faengt den
+        Koerper, der insgesamt zu gross wird, die Zeichengrenze den, der es in
         Token knapp nicht wird und trotzdem unlesbar ist (der Fall vom
-        06.09.2026)."""
+        06.09.2026), und die Gesamtgrenze den Prompt, dessen **Anweisung**
+        gewachsen ist -- bis zum Audit (Befund C.1) war das der ungemessene
+        Dreiviertelanteil: 26.365 Zeichen System gegen 8.810 Zeichen Koerper.
+        """
         text = _zusammen(bloecke)
-        return len(text) > grenze or schaetze(text) > ZIEL
+        return (
+            len(text) > grenze
+            or schaetze(text) > ZIEL
+            or system_zeichen + len(text) > gesamt
+        )
 
     if not _zu_lang():
         return False
 
     vorher = len(_zusammen(bloecke))
     bloecke["transkripte"] = ""
+    if _zu_lang() and bloecke["szene"]:
+        bloecke["szene"] = _baue_szene(conn, chat_id, SZENE_ZEICHEN_NOTFALL)
     while _zu_lang() and fenster_eintraege:
         fenster_eintraege = fenster_eintraege[1:]
         bloecke["fenster"] = "\n".join(fenster_eintraege)
@@ -1143,32 +1357,51 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
             bloecke["festlegungen"] = ""
     if _zu_lang():
         bloecke["verdichtungen"] = ""
+    if _zu_lang() and bloecke["szene"]:
+        # Die Garantie. Wieviel Platz bleibt dem Szenenblock, wenn alles
+        # andere steht? Genau der wird ihm gegeben -- nicht geschaetzt,
+        # sondern ausgerechnet.
+        ohne_szene = dict(bloecke, szene="")
+        fest = len(_zusammen(ohne_szene))
+        platz = min(
+            grenze - fest - 2,
+            ZIEL * _ZEICHEN_JE_TOKEN - fest - 2,
+            gesamt - system_zeichen - fest - 2,
+        )
+        if platz < 200:
+            bloecke["szene"] = ""
+        else:
+            bloecke["szene"] = _baue_szene(conn, chat_id, platz)
+            if _zu_lang():
+                bloecke["szene"] = ""
     nachher = len(_zusammen(bloecke))
     repo.merke_vorfall(
         conn, chat_id, getattr(e, "bot_name", None), "kontext_gekuerzt",
         f"Nutzertext von {vorher} auf {nachher} Zeichen gekuerzt "
-        f"(Grenze {grenze}, Ziel {ZIEL} Token)",
+        f"(Grenze {grenze}, Ziel {ZIEL} Token, System {system_zeichen} "
+        f"Zeichen, Gesamtgrenze {gesamt})",
     )
     # **Der zweite Vorfalltyp** (Audit 06.09.2026, Auftrag 1; Vorbild
     # hermes-agent ``should_compress_info`` mit Grund-Rueckgabe:
     # *"Without this signal an over-threshold session fails opaquely."*).
-    # Die vier Kuerzungsstufen sind durch, alles Opferbare ist geopfert --
-    # und der Prompt ist immer noch zu gross, weil Kernpaket, Arbeitsstand,
-    # Hinweise, Szene und Ausloeser nie angetastet werden (Befund C.4:
-    # gemessen 105.988 Zeichen bei einer ueberlangen Szene, 4,4x ueber der
-    # Grenze). Ohne diese Zeile steht auf dem Dashboard "gekuerzt", nicht
-    # "reicht nicht" -- und ein Mechanismus, der sein Ziel verfehlt, ist
-    # von einem, der es erreicht, nicht unterscheidbar.
+    # Alle Kuerzungsstufen sind durch, alles Opferbare ist geopfert -- seit
+    # Auftrag 3 auch die Szene, bis hin zu leer -- und der Prompt ist immer
+    # noch zu gross, weil Kernpaket, Arbeitsstand, Hinweise und Ausloeser nie
+    # angetastet werden (oder die Systemanweisung allein die Gesamtgrenze
+    # frisst). Ohne diese Zeile steht auf dem Dashboard "gekuerzt", nicht
+    # "reicht nicht" -- und ein Mechanismus, der sein Ziel verfehlt, ist von
+    # einem, der es erreicht, nicht unterscheidbar.
     if _zu_lang():
-        uebrig = umriss(bloecke, True)
+        uebrig = umriss(bloecke, True, system_zeichen=system_zeichen)
         log.warning("Kuerzung erfolglos, chat_id=%s: %s", chat_id,
                     umrisszeile(uebrig))
         repo.merke_vorfall(
             conn, chat_id, getattr(e, "bot_name", None),
             "kontext_kuerzung_erfolglos",
             f"Nutzertext nach vollstaendiger Kuerzung noch {nachher} Zeichen "
-            f"(Grenze {grenze}) -- alle Kuerzungsstufen durchlaufen, "
-            f"ungekuerzte Bloecke zu gross: {umrisszeile(uebrig)}",
+            f"(Grenze {grenze}, System {system_zeichen} Zeichen, Gesamtgrenze "
+            f"{gesamt}) -- alle Kuerzungsstufen durchlaufen, ungekuerzte "
+            f"Bloecke zu gross: {umrisszeile(uebrig)}",
         )
     return True
 
@@ -1187,20 +1420,26 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     Prompt stand). **Unabhaengig davon** schreibt jeder Aufruf seit dem
     06.09.2026 eine Umriss-Zeile ins Log -- nur Zahlen, kein Prompt-Inhalt.
 
-    Passt der Koerper nicht ins Zielbudget ZIEL, greift die zweistufige
-    Kuerzung aus § 7.2: erst fliegen die Volltranskripte ganz raus, dann wird
-    das Fenster von vorn beschnitten -- eine ganze Nachricht (oder Pausenzeile)
-    je Schritt, nie nur eine physische Zeile eines mehrzeiligen Beitrags --
-    bis es passt oder leer ist. Die Notbremse -- Systemanweisung,
-    Arbeitsstand, Fenster, ausloesende Nachricht -- wird dabei nie
-    angetastet: Arbeitsstand und Ausloeser sind von der Kuerzung
-    grundsaetzlich ausgenommen, es gibt keinen Zustand, in dem der Bot wegen
-    des Budgets nicht antworten koennte."""
+    Passt der Koerper nicht ins Zielbudget ZIEL, unter die Koerpergrenze oder
+    -- zusammen mit der Systemanweisung -- unter die Gesamtgrenze, greift die
+    Kuerzung aus § 7.2 in der Reihenfolge Transkripte -> Szenenblock ->
+    Fenster -> Journal -> Festlegungen -> Verdichtungen -> Szenenblock auf
+    den Restplatz (``_kuerze_auf_budget``). Das Fenster wird von vorn
+    beschnitten -- eine ganze Nachricht (oder Pausenzeile) je Schritt, nie
+    nur eine physische Zeile eines mehrzeiligen Beitrags. Arbeitsstand,
+    Kernpaket, Hinweise und Ausloeser sind von der Kuerzung grundsaetzlich
+    ausgenommen; es gibt keinen Zustand, in dem der Bot wegen des Budgets
+    nicht antworten koennte."""
     fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser)
     bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege)
-    gekuerzt = _kuerze_auf_budget(conn, chat_id, e, bloecke, fenster_eintraege)
+    # Einmal gemessen, zweimal gebraucht: in der Kuerzung (Gesamtgrenze) und
+    # im Umriss (Auftrag 4, Befund C.1).
+    system_zeichen = _systemgroesse(conn, chat_id, e)
+    gekuerzt = _kuerze_auf_budget(
+        conn, chat_id, e, bloecke, fenster_eintraege, system_zeichen
+    )
 
-    stand = umriss(bloecke, gekuerzt)
+    stand = umriss(bloecke, gekuerzt, system_zeichen=system_zeichen)
     # **Im Betrieb mitschreiben** (Audit 06.09.2026, Auftrag 1). Bis hierher
     # lieferte ``umriss()`` genau die Aufschluesselung, die hermes-agent in
     # ``context_breakdown.py`` fuer die Anzeige baut -- aber nur, wenn

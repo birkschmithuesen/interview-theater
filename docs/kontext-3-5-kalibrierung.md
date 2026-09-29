@@ -511,7 +511,7 @@ jüngsten Vorszenen bleiben im Volltext.
 
 | Konstante | Wert | Warum nicht geändert |
 |---|---:|---|
-| `SYSTEM_ZEICHEN_MAX` | 36.000 | Kein Laufzeit-Limit, sondern ein Stolperdraht gegen Promptwachstum (Test je Phase): gemessen 33.676 (Phase 2, +2.324); ein Test, der rot wird, wenn `system.md`/`phasen/*.md` weiterwachsen, ist das gewollte Signal — ihn vorsorglich anzuheben hieße, das Signal abzuschalten. |
+| `SYSTEM_ZEICHEN_MAX` | 36.000 | Kein Laufzeit-Limit, sondern ein Stolperdraht gegen Promptwachstum (Test je Phase): gemessen 33.676 (Phase 2, +2.324); ein Test, der rot wird, wenn `system.md`/`phasen/*.md` weiterwachsen, ist das gewollte Signal — ihn vorsorglich anzuheben hieße, das Signal abzuschalten. War in dieser Kalibrierung selbst keine Änderung: 30.000 → 36.000 geschah bereits im Merge `daed9aa`, ausgelöst durch dieselbe gemessene Systemanweisung (33.676 Zeichen, Phase 2); in Task 3 bewusst nicht weiter angehoben (Stolperdraht). |
 | `ZEICHEN_GRENZE_VORGABE` | 24.000 | Weiche Kürzungsgrenze: phasengerecht max. 23.623 (+377) schneidet nicht; reißt sie, trimmt die Leiter und das Gespräch läuft weiter — kein Ausfall wie beim Szenenbudget. |
 | `SZENE_TOKEN_MAX_INFOMANIAK` / `_CLAUDE` | 37.488 / 126.000 | Die Konstanten sind richtig hergeleitet (Raum × 0,75); falsch war, wogegen gemessen wurde — das behebt `nutzer_budget`. |
 | `BUDGET_RESERVE` | 0,75 | Bleibt der Abschlag für Tokenisierungsschwankung und Formatierung; seine frühere Zusatzaufgabe (Systemanweisung) ist jetzt explizit abgezogen, er ist dadurch nicht kleiner, sondern ehrlicher. |

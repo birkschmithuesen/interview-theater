@@ -58,6 +58,12 @@ IT_SZENE_ANBIETER=claude
 # Verdichtungen, Vorfall 'kontext_gekuerzt'.
 # IT_PROMPT_ZEICHEN=24000
 #
+# Obergrenze fuer Systemanweisung + Koerper des Gespraechs-Prompts in
+# Zeichen (kontext.gesamtgrenze, Vorgabe 60000); muss deutlich ueber der
+# groessten Systemanweisung liegen (gemessen 33.676 Zeichen, Phase 2, siehe
+# docs/kontext-3-5-kalibrierung.md), sonst kuerzt jeder Zug.
+# IT_PROMPT_ZEICHEN_GESAMT=60000
+#
 # Token-Budget der EINGABE des Szenenlaufs (szene.token_budget), fuer
 # Systemanweisung UND Nutzertext zusammen (seit 30.09.2026). Ohne Angabe
 # rechnet der Code es je Anbieter aus: 126000 bei Claude, 37488 bei

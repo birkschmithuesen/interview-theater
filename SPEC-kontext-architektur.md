@@ -697,7 +697,7 @@ genau darum funktioniert es.
 
 | # | Block | Budget | Ändert sich | Entfällt wenn |
 |---|---|---:|---|---|
-| 1 | **Systemanweisung** (Basis + Phasenanweisung + Regie-Zettel) | 9.000 (Deckel 10.000, `kontext.SYSTEM_ZEICHEN_MAX` = 36.000 Zeichen) | bei jedem Phasenwechsel | – |
+| 1 | **Systemanweisung** (Basis + Phasenanweisung + Regie-Zettel) | 9.000 (Deckel 12.000, `kontext.SYSTEM_ZEICHEN_MAX` = 36.000 Zeichen) | bei jedem Phasenwechsel | – |
 | 2 | **Verdichtungen** (mit Belegzitaten) | 3.000 | je Interview 1× | keine Interviews |
 | 3 | **Volltranskripte** | 5.000 | nie | `/wortlaut` aus (Normalfall) |
 | 4 | **Arbeitsstand** (Begriffe, Fragen, Kernthema + Begründung, Figuren, Konflikt, Szenenliste) | 1.200 | je Entscheidung | Feld leer |
@@ -706,7 +706,7 @@ genau darum funktioniert es.
 | 7 | **Kurzes Fenster** (von hinten gefüllt) | 8.000 | jede Nachricht | – |
 | 8 | **Auslösende Nachricht(en)** | 300 | immer | – |
 
-Normalfall ohne `/wortlaut`: **~9.600 Token** Körper, plus ~8.800 Token Anweisung.
+Normalfall ohne `/wortlaut`: **~9.600 Token** Körper, plus bis ~11.200 Token Anweisung.
 Mit `/wortlaut`: ~14.600 Token Körper.
 
 > **Zu Block 1 — von 900 auf 9.000 korrigiert (06.09.2026, Audit-Befund C.1, Auftrag 4).**

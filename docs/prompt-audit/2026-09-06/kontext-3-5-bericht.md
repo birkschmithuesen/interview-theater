@@ -1,5 +1,8 @@
 # Kontext-Aufträge 3–5: Messbericht
 
+> Grenzen seit 30.09.2026 überholt (Gesamtgrenze 60.000, SYSTEM_ZEICHEN_MAX
+> 36.000) — siehe docs/kontext-3-5-kalibrierung.md.
+
 06.09.2026, Branch `feat/kontext-3-5`, Grundlage
 `docs/kontext-audit-2026-09-06.md` Abschnitt D (Aufträge 3, 4, 5).
 

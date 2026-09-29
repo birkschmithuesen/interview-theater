@@ -259,8 +259,8 @@ def tabelle_system(messungen: list[dict]) -> str:
 def tabelle_koerper(messungen: list[dict]) -> str:
     grenze, gesamt, ziel = kontext.zeichengrenze(), kontext.gesamtgrenze(), kontext.ZIEL
     zeilen = [
-        "| Phase | Koerper roh | Reserve Koerper (24.000) | Gesamt roh (Sys+Koerper) "
-        "| Reserve gesamt (40.000) | Reserve ZIEL (Token) | Koerper nach Kuerzung "
+        f"| Phase | Koerper roh | Reserve Koerper ({_z(grenze)}) | Gesamt roh (Sys+Koerper) "
+        f"| Reserve gesamt ({_z(gesamt)}) | Reserve ZIEL (Token) | Koerper nach Kuerzung "
         "| gekuerzt | Fenster Eintraege vor→nach (Min " + str(kontext.FENSTER_MIN_NACHRICHTEN) + ") "
         "| Fenster Zeichen vor→nach | aus Fenster gekuerzt, nie journalisiert |",
         "|---|---:|---:|---:|---:|---:|---:|---|---|---|---|",
@@ -355,12 +355,24 @@ def miss_szene(conn, nummer: int) -> list[dict]:
         ergebnis.append({"form": "prosa (Phase 6)", "stil": "-",
                          "system": len(kurzgeschichte.systemanweisung()),
                          "nutzer": len(kurzgeschichte.baue_nutzertext(conn, 1))})
-        return ergebnis
     finally:
         if alt is None:
             os.environ.pop("IT_SZENE_TOKEN_MAX", None)
         else:
             os.environ["IT_SZENE_TOKEN_MAX"] = alt
+    # Und so, wie der Lauf ihn wirklich baut (seit 30.09.2026): unter dem
+    # geltenden Infomaniak-Budget (``e=None`` = kein Claude-Pfad), mit der
+    # Systemanweisung dieser Form, die ``szene.nutzer_budget`` abzieht.
+    # Schreibt bei einer Kuerzung einen Vorfall -- in die Wegwerf-DB.
+    for m in ergebnis:
+        if m["form"] not in szene.FORMEN:
+            continue
+        stil_slug = None if m["stil"] == "(kein Stil)" else m["stil"]
+        system = szene.systemanweisung(m["form"], stil_slug)
+        m["nutzer_lauf_info"] = len(szene.baue_nutzertext(
+            conn, 1, f"Schreib Szene {nummer}.", ziel, system=system,
+        ))
+    return ergebnis
 
 
 def tabelle_szene(messungen: list[dict]) -> str:
@@ -371,20 +383,29 @@ def tabelle_szene(messungen: list[dict]) -> str:
     zeilen = [
         f"| Form | Stil (groesstes System) | System (Z.) | Nutzer (Z.) | Nutzer Tok. (÷{j}) "
         f"| System+Nutzer Tok. "
-        f"| Reserve Budget Claude ({_z(b_claude)}, nur Nutzer) "
-        f"| Reserve Budget Infomaniak ({_z(b_info)}, nur Nutzer) "
+        f"| Reserve Budget Claude ({_z(b_claude)}, Sys+Nutzer) "
+        f"| Reserve Budget Infomaniak ({_z(b_info)}, Sys+Nutzer) "
         f"| Reserve Eingaberaum Claude ({_z(fenster_claude)}, Sys+Nutzer) "
-        f"| Reserve Eingaberaum Infomaniak ({_z(fenster_info)}, Sys+Nutzer) |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        f"| Reserve Eingaberaum Infomaniak ({_z(fenster_info)}, Sys+Nutzer) "
+        f"| Lauf Infomaniak: Nutzer Z. nach Kuerzung | Lauf Infomaniak: Sys+Nutzer Tok. "
+        f"| Lauf Infomaniak: Reserve Eingaberaum |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for m in messungen:
         nt = int(m["nutzer"] / j)
         gt = int((m["system"] + m["nutzer"]) / j)
+        if "nutzer_lauf_info" in m:
+            lt = szene.schaetze_token("x" * m["system"]) + szene.schaetze_token(
+                "x" * m["nutzer_lauf_info"])
+            lauf = (f"| {_z(m['nutzer_lauf_info'])} | {_z(lt)} "
+                    f"| {_r(fenster_info, lt)} |")
+        else:
+            lauf = "| – | – | – |"
         zeilen.append(
             f"| {m['form']} | {m.get('stil', '-')} | {_z(m['system'])} | {_z(m['nutzer'])} "
             f"| {_z(nt)} | {_z(gt)} "
-            f"| {_r(b_claude, nt)} | {_r(b_info, nt)} "
-            f"| {_r(fenster_claude, gt)} | {_r(fenster_info, gt)} |"
+            f"| {_r(b_claude, gt)} | {_r(b_info, gt)} "
+            f"| {_r(fenster_claude, gt)} | {_r(fenster_info, gt)} " + lauf
         )
     return "\n".join(zeilen)
 

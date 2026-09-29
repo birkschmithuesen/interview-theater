@@ -3,8 +3,11 @@
 Stand 30.09.2026, Padua K (Task 2), nach dem Merge von `feat/kontext-3-5`
 (`daed9aa`). Gemessen wird, **wie viel Platz die Prompts heute brauchen**, und
 das gegen jede Budget- und Grenzkonstante aus `interview_theater/kontext.py`
-und `interview_theater/szene.py`. **Keine Konstante wurde geändert.** Das
-Anpassen ist Task 3. Die Empfehlungen stehen am Ende.
+und `interview_theater/szene.py`. Die Abschnitte 1–6 sind die Messung
+**vor** jeder Änderung (Stand `ce16518`, Gesamtgrenze 40.000, Szenenbudget
+nur gegen den Nutzertext). Was Task 3 daraufhin geändert hat und wie die
+Reserven danach nachgemessen aussehen, steht am Ende unter
+[„Anpassungen (Task 3)“](#anpassungen-task-3).
 
 > **Ersetzt ältere Zahlen.** Die Werte vom 06.09. in
 > `docs/prompt-audit/2026-09-06/kontext-3-5-bericht.md` gelten nicht mehr.
@@ -383,3 +386,163 @@ der Leiter.
 
 `ZIEL` (20.000 Token) bindet nie vor der Körpergrenze, `REISSLEINE` wird
 nicht gelesen. Beide sind unschädlich und kein Kalibrierungsgegenstand.
+
+## Anpassungen (Task 3)
+
+Stand 30.09.2026, Padua K (Task 3). Zwei Grenzen geändert, je ein eigener
+Commit mit dem Messwert in der Botschaft. Danach neu gemessen mit
+demselben Aufruf wie oben (`python3.11 -m scripts.kalibriere_kontext`).
+Das Skript hat dafür zwei Änderungen bekommen: die Spaltenköpfe lesen die
+geltenden Grenzen statt „(24.000)“/„(40.000)“ fest zu drucken, und die
+Szenentabelle zeigt zusätzlich den Nutzertext so, wie der Lauf ihn unter dem
+Infomaniak-Budget **mit** Abzug der Systemanweisung baut.
+
+### Geändert
+
+| Grenze | alt → neu | Messwert, der es verlangt hat | Reserve danach (nachgemessen) |
+|---|---|---|---|
+| `kontext.GESAMT_ZEICHEN_GRENZE_VORGABE` (`gesamtgrenze()`, Env `IT_PROMPT_ZEICHEN_GESAMT`) | 40.000 → **60.000** Zeichen | System + Körper roh, Vollast phasengerecht, bis **53.012** (Phase 7); 40.000 schnitt in 6 von 7 Phasen um 4.461–13.012 und drückte das Fenster in Phase 4 und 7 auf 4 Einträge (< `FENSTER_MIN_NACHRICHTEN` 6) | phasengerecht **+6.988** (Phase 7, 13 %) bis +20.329; **in keiner Phase gekürzt**, Fenster überall 19→19 |
+| Szenenlauf: Budgetprüfung des Nutzertexts (`szene.nutzer_budget`, neu) | Nutzertext allein gegen `token_budget()` → **System + Nutzertext** gegen `token_budget()`; der Nutzertext bekommt `token_budget − schaetze_token(systemanweisung(form, stil))` | größte Szenen-Systemanweisung `(dialog, schlagabtausch)` **37.043 Z. ≈ 19.496 Token**; Nutzertext am Infomaniak-Budget 37.488 + diese Anweisung = 56.984 Token > Raum 49.984 → HTTP 400 | Vollast Szene 8, Infomaniak: Nutzertext 54.188 → 33.118 Z. gekürzt (Stufe 1, Vorszenen 1–3 als Zusammenfassung), System + Nutzer **36.926 Token** ≤ 37.488, Reserve zum Eingaberaum **+13.058** (vorher ungekürzt +1.968, am Budget −7.000) |
+
+**Zur Gesamtgrenze.** 60.000 ist nicht „knapp über dem letzten Lauf“,
+sondern strukturell hergeleitet: `SYSTEM_ZEICHEN_MAX` (36.000) +
+`ZEICHEN_GRENZE_VORGABE` (24.000). Solange beide Teilgrenzen halten, kann die
+Gesamtgrenze nicht reißen; sie greift erst, wenn die Anweisung zur Laufzeit
+über ihren Testdeckel wächst (Regie-Zettel, Profil-`anweisung.md`) — der
+Fall aus Befund C.1, für den sie gebaut ist. Der Wert steht als Zahl im
+Code; `test_prompt_audit.py::test_gesamtgrenze_ist_system_plus_koerper` hält
+die Herleitung fest, damit ein angehobener `SYSTEM_ZEICHEN_MAX` die
+Gesamtgrenze nicht still mitzieht. SPEC § 6.2/§ 7 nachgezogen.
+
+**Zum Szenenbudget.** Gewählt wurde die Rechnung mit der **tatsächlichen**
+Anweisung des Laufs statt einer neuen Konstante (37.488 − 19.496 = 17.992):
+die Konstante veraltete mit dem nächsten wachsenden Stilblatt, die Rechnung
+schiebt sich mit. Der Eingriff sitzt an einer Stelle: `schreibe()` baut die
+Anweisung jetzt **vor** dem Nutzertext und gibt sie an
+`baue_nutzertext(…, system=…)`, die Kürzungsleiter kürzt gegen den
+verkleinerten Raum (unverändert in ihrer Reihenfolge), und der Vorfall
+`szene_prompt_gekuerzt` nennt den Abzug. Folgen:
+
+- `token_budget()` und `IT_SZENE_TOKEN_MAX` meinen jetzt die **ganze
+  Eingabe inklusive Systemanweisung**. Das ist dieselbe Größe, die
+  `_pruefe_budget` nach dem Lauf ohnehin mit den echten Eingabe-Token des
+  Anbieters vergleicht — Schätzung und Messung bemessen jetzt dasselbe.
+  Dokumentiert im Docstring, in `AGENTS.md` und in
+  `docs/betrieb-env.beispiel`.
+- **Claude-Pfad:** dieselbe Lücke (die 126.000 = (200.000 − 32.000) × 0,75
+  zogen die Anweisung ebenfalls nicht ab), dieselbe Rechnung greift, weil
+  der Code für beide Pfade derselbe ist. Folgenlos in der Messung: Vollast
+  System + Nutzer 48.016 Token, Reserve zum Budget **+77.984**, keine Kürzung.
+- `stueckpruefung.pruefe` misst aus demselben Grund `system + nutzer` gegen
+  `token_budget()` (ihre Anweisung hat nur 2.435 Zeichen, also praktisch
+  folgenlos, aber sonst bemäße dieselbe Zahl an zwei Stellen zwei
+  verschiedene Dinge).
+- Aufrufer ohne `system` (Skripte, ältere Tests) bekommen das alte Verhalten
+  (kein Abzug).
+- Tests: `test_systemanweisung_geht_vom_budget_des_nutzertexts_ab` (eine
+  große Anweisung verkleinert den Raum so, dass System + Nutzer ≤ Budget
+  bleibt, wo es ohne Abzug gerissen wäre),
+  `test_nutzer_budget_zieht_die_systemanweisung_ab`,
+  `test_schreibe_gibt_die_systemanweisung_ins_budget`.
+
+### Nachmessung Gesprächs-Prompt (Gesamtgrenze 60.000)
+
+Vollast phasengerecht:
+
+| Phase | Körper roh | Gesamt roh | Reserve gesamt (60.000) | gekürzt | Fenster vor→nach |
+|---|---:|---:|---:|---|---|
+| 1 | 13.586 | 39.671 | +20.329 | nein | 19→19 |
+| 2 | 13.584 | 47.260 | +12.740 | nein | 19→19 |
+| 3 | 20.126 | 47.724 | +12.276 | nein | 19→19 |
+| 4 | 15.979 | 49.043 | +10.957 | nein | 19→19 |
+| 5 | 17.578 | 44.461 | +15.539 | nein | 19→19 |
+| 6 | 17.589 | 47.603 | +12.397 | nein | 19→19 |
+| 7 | 23.623 | 53.012 | **+6.988** | nein | 19→19 |
+
+Vollast mit allen Blöcken in jeder Phase (Obergrenze):
+
+| Phase | Körper roh | Gesamt roh | Reserve gesamt (60.000) | Reserve Körper (24.000) | gekürzt | Fenster vor→nach | aus dem Fenster gekürzt / davon im Extraktor-Abschnitt |
+|---|---:|---:|---:|---:|---|---|---|
+| 1 | 29.731 | 55.816 | +4.184 | −5.731 | ja | 19→16 | 3 Eintr. / 2.217 Z. (~738 Tok.) / 1 |
+| 2 | 29.588 | 63.264 | −3.264 | −5.588 | ja | 19→16 | 3 Eintr. / 2.217 Z. (~738 Tok.) / 1 |
+| 3 | 29.151 | 56.749 | +3.251 | −5.151 | ja | 19→17 | 2 Eintr. / 1.212 Z. (~403 Tok.) / 1 |
+| 4 | 22.491 | 55.555 | +4.445 | +1.509 | nein | 19→19 | – |
+| 5 | 23.930 | 50.813 | +9.187 | +70 | nein | 19→19 | – |
+| 6 | 23.792 | 53.806 | +6.194 | +208 | nein | 19→19 | – |
+| 7 | 23.623 | 53.012 | +6.988 | +377 | nein | 19→19 | – |
+
+In den Phasen 1–3 schneidet jetzt die **Körpergrenze** (Material und
+Szenentext gleichzeitig, siehe Abschnitt 4), in Phase 2 zusätzlich die
+Gesamtgrenze (−3.264, weil dort die größte Anweisung, 33.676, auf den
+größten Körper trifft). Vorher fiel das Fenster in diesen Phasen auf 0.
+
+**Messrauschen, keine Folge der Änderung:** in den Phasen 1, 2 und 4 liegt
+„Körper roh“ um 258–273 Zeichen unter den Werten aus Abschnitt 3/4. Das ist
+genau der Phasenhinweis (256/279/271 Z.): ob er im Prompt steht, entscheidet
+`phasen.offenes_angebot` über `repo.neues_material_seit(phase_gesetzt_am)`,
+und in der Fixture fallen Phasenwechsel und Materialzeitstempel in dieselbe
+Sekunde. Mit derselben Fixture in einem getrennten Lauf gegen 40.000 und
+60.000 gemessen sind die Rohwerte zeichengleich (13.844 in Phase 1 beide
+Male). Die Grenzänderung ändert Rohbedarf nicht, nur die Kürzung.
+
+### Nachmessung Szenenlauf (System zählt mit)
+
+Vollast (Ziel Szene 8, sieben Vorszenen), je Form das größte System über
+alle Stile, Lauf so gebaut wie im Betrieb (Infomaniak, `system=` übergeben):
+
+| Form | System Tok. | Nutzer Z. ungekürzt → im Lauf | System + Nutzer Tok. im Lauf | Reserve Budget 37.488 | Reserve Eingaberaum 49.984 |
+|---|---:|---|---:|---:|---:|
+| dialog (schlagabtausch) | 19.496 | 54.188 → 33.118 | 36.926 | +562 | +13.058 |
+| monolog (schlagabtausch) | 15.892 | 54.188 → 38.150 | 35.970 | +1.518 | +14.014 |
+| chor (schlagabtausch) | 16.570 | 54.188 → 38.150 | 36.648 | +840 | +13.336 |
+| lied (schlagabtausch) | 16.502 | 54.188 → 38.150 | 36.580 | +908 | +13.404 |
+| rap (schlagabtausch) | 16.485 | 54.188 → 38.150 | 36.563 | +925 | +13.421 |
+| prosa (Phase 6) | 6.728 | 1.121 (eigener Weg, `kurzgeschichte`) | 7.318 | +30.170 | +42.666 |
+
+Die Reserve zum Budget ist klein, weil die Leiter bis ans Budget auffüllt
+(so gebaut); die Reserve, die vor HTTP 400 schützt, ist die zum
+Eingaberaum: **+13.058 Token im schlechtesten Fall**, das ist der
+unangetastete 25-%-Abschlag (12.496) plus die 562 Token, die die Leiter
+unter dem Budget übrig lässt. Kürzung in
+Stufe 1 (Vorszenen als Zusammenfassung: 1–3 bei Dialog, 1–2 sonst); die
+jüngsten Vorszenen bleiben im Volltext.
+
+### Unverändert (je ein Satz Begründung)
+
+| Konstante | Wert | Warum nicht geändert |
+|---|---:|---|
+| `SYSTEM_ZEICHEN_MAX` | 36.000 | Kein Laufzeit-Limit, sondern ein Stolperdraht gegen Promptwachstum (Test je Phase): gemessen 33.676 (Phase 2, +2.324); ein Test, der rot wird, wenn `system.md`/`phasen/*.md` weiterwachsen, ist das gewollte Signal — ihn vorsorglich anzuheben hieße, das Signal abzuschalten. |
+| `ZEICHEN_GRENZE_VORGABE` | 24.000 | Weiche Kürzungsgrenze: phasengerecht max. 23.623 (+377) schneidet nicht; reißt sie, trimmt die Leiter und das Gespräch läuft weiter — kein Ausfall wie beim Szenenbudget. |
+| `SZENE_TOKEN_MAX_INFOMANIAK` / `_CLAUDE` | 37.488 / 126.000 | Die Konstanten sind richtig hergeleitet (Raum × 0,75); falsch war, wogegen gemessen wurde — das behebt `nutzer_budget`. |
+| `BUDGET_RESERVE` | 0,75 | Bleibt der Abschlag für Tokenisierungsschwankung und Formatierung; seine frühere Zusatzaufgabe (Systemanweisung) ist jetzt explizit abgezogen, er ist dadurch nicht kleiner, sondern ehrlicher. |
+| `FENSTER_ZEICHEN` | 12.000 | Füllt sich wie gewollt (11.912). |
+| `FENSTER_NACHRICHTEN` / `FENSTER_MIN_NACHRICHTEN` | 20 / 6 | Nach der Änderung A in keiner Messung mehr unterschritten (min. 16 Einträge). |
+| `SZENE_ZEICHEN_MAX` / `_NOTFALL` | 6.000 / 2.000 | Der Deckel greift wie gewollt (Block 6.042 mit Kopfzeile). |
+| `BUDGETS["festlegungen"]`, `JOURNAL_EINTRAEGE` | 800 / 8 | Deckel greifen wie gewollt (2.370 von 2.400 Z.; 1.422 Z.). |
+| `journal.SCHWELLE_VERDRAENGUNG` | 600 | Keine Messung spricht dagegen; siehe offener Punkt unten. |
+| `SZENE_ZEICHEN_JE_TOKEN` | 1,9 | Offline nicht nachmessbar (braucht `count_tokens` übers Netz). |
+| `BUDGETS["system"]`, `["phasenhinweis"]`, `["figurenhinweis"]` | 9.000 / 50 / 100 | Rein dokumentarisch, von keinem Codepfad durchgesetzt; eine Anpassung wäre kosmetisch. |
+| `ZIEL` / `REISSLEINE` | 20.000 / 40.000 Token | `ZIEL` bindet nie vor der Körpergrenze, `REISSLEINE` wird nicht gelesen. |
+
+### Offene Punkte (kein Konstantenproblem, bewusst nicht behoben)
+
+1. **Die Kürzungsleiter kennt `FENSTER_MIN_NACHRICHTEN` nicht, und was sie
+   aus dem Fenster nimmt, journalisiert niemand.** `_kuerze_auf_budget`
+   schneidet das Fenster notfalls bis auf 0, und der Journal-Extraktor
+   rechnet „verdrängt“ gegen das ungekürzte `waehle_fenster`. Nach
+   Änderung A nachgemessen: **phasengerecht tritt es nicht mehr auf** (in
+   keiner Phase gekürzt). In der Obergrenzen-Vollast (alle Blöcke in jeder
+   Phase) bleibt es in den Phasen 1–3: das Fenster fällt auf **16–17**
+   Einträge (nicht mehr unter das Minimum von 6, vorher auf 0), aus dem
+   Fenster fallen 2–3 Einträge = **403–738 Token** je Zug, davon liegt je
+   genau **einer** im Extraktor-Abschnitt. Der Rest (bis ~738 Token, also
+   über `SCHWELLE_VERDRAENGUNG` = 600) steht dann weder im Prompt noch im
+   Journal. Das ist ein Verhalten der Leiter, keine Grenze; es zu beheben
+   (Untergrenze in der Leiter, oder der Extraktor rechnet gegen das
+   gekürzte Fenster) ist eine eigene Aufgabe.
+2. **Szenenbudget bei sehr großer Anweisung.** Wüchse eine
+   Szenen-Systemanweisung allein über das Budget (heute 19.496 von 37.488
+   Token), bliebe dem Nutzertext 0; die Leiter kürzt dann bis zum Ende und
+   meldet „REICHT IMMER NOCH NICHT“ — der Lauf geht trotzdem raus. Heute
+   weit entfernt; ein Stolperdraht wie `SYSTEM_ZEICHEN_MAX` für die
+   Szenenanweisung existiert nicht.

@@ -58,7 +58,8 @@ IT_SZENE_ANBIETER=claude
 # Verdichtungen, Vorfall 'kontext_gekuerzt'.
 # IT_PROMPT_ZEICHEN=24000
 #
-# Token-Budget der EINGABE des Szenenlaufs (szene.token_budget). Ohne Angabe
+# Token-Budget der EINGABE des Szenenlaufs (szene.token_budget), fuer
+# Systemanweisung UND Nutzertext zusammen (seit 30.09.2026). Ohne Angabe
 # rechnet der Code es je Anbieter aus: 126000 bei Claude, 37488 bei
 # Infomaniak. Nur setzen, wenn ein Anbieter seine Grenzen aendert.
 # IT_SZENE_TOKEN_MAX=

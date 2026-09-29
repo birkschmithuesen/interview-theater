@@ -1338,6 +1338,99 @@ def test_kuerzung_meldet_einen_vorfall_mit_zahlen(conn, einst):
     assert szene.schaetze_token(text) <= 30000
 
 
+def test_systemanweisung_geht_vom_budget_des_nutzertexts_ab(conn, einst):
+    """Kalibrierung 30.09.2026: das Budget bemisst System UND Nutzertext.
+    Eine grosse Systemanweisung verkleinert den Raum so, dass beide zusammen
+    unter dem Budget bleiben -- vorher haette ein Nutzertext am Budget plus
+    Anweisung (dialog + schlagabtausch, 19.496 Token) den Infomaniak-Raum
+    um 7.000 Token gerissen."""
+    figur = _figur_mit_stimme(conn)
+    lang = "\n".join(f"ZEILE {i}: " + "x" * 100 for i in range(400))
+    for nummer in (1, 2, 3, 4, 5, 6):
+        zeile = _geplante_szene(conn, nummer, ort=f"Ort {nummer}",
+                                was_passiert="etwas", figuren=[figur])
+        repo.aktualisiere_szene(
+            conn, zeile["id"], f"Szene {nummer}", "kurz",
+            f"ANFANG {nummer}\n{lang}\nSCHLUSS {nummer}",
+            f"Zusammenfassung von Szene {nummer}.",
+        )
+    ziel = _geplante_szene(conn, 7, form="Dialog", ort="Treppenhaus",
+                           was_passiert="sie streiten", figuren=[figur])
+    system = "S" * 30_000  # ~15.789 Token, in der Groesse der echten Anweisung
+
+    os.environ["IT_SZENE_TOKEN_MAX"] = "30000"
+    try:
+        ohne = szene.baue_nutzertext(conn, 1, "Szene 7 schreiben", ziel)
+        mit = szene.baue_nutzertext(conn, 1, "Szene 7 schreiben", ziel,
+                                    system=system)
+        budget = szene.token_budget(False)
+    finally:
+        del os.environ["IT_SZENE_TOKEN_MAX"]
+
+    # Ohne Abzug passt der Nutzertext allein unter das Budget, mit der
+    # Anweisung zusammen aber nicht -- genau die alte Luecke.
+    assert szene.schaetze_token(ohne) <= budget
+    assert szene.schaetze_token(system) + szene.schaetze_token(ohne) > budget
+    # Mit Abzug bleibt die ganze Eingabe unter dem Budget.
+    assert szene.schaetze_token(system) + szene.schaetze_token(mit) <= budget
+    assert len(mit) < len(ohne)
+    # Die Leiter kuerzt gegen den kleineren Raum weiter: ohne Abzug blieb
+    # die juengste Vorszene voll, mit Abzug passt auch sie nicht mehr.
+    assert "ANFANG 6" in ohne and "ANFANG 6" not in mit
+    assert "Ort: Treppenhaus" in mit, "die Angaben dieser Szene bleiben"
+    vorfall = conn.execute(
+        "SELECT detail FROM vorfall WHERE art = 'szene_prompt_gekuerzt' "
+        "ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    assert "Systemanweisung" in vorfall["detail"]
+
+
+def test_nutzer_budget_zieht_die_systemanweisung_ab():
+    os.environ["IT_SZENE_TOKEN_MAX"] = "20000"
+    try:
+        assert szene.nutzer_budget(False) == 20000
+        assert szene.nutzer_budget(False, "x" * 19) == 20000 - 10
+        # Nie negativ: die Leiter kuerzt dann bis zum Ende und meldet es.
+        assert szene.nutzer_budget(False, "x" * 100_000) == 0
+    finally:
+        del os.environ["IT_SZENE_TOKEN_MAX"]
+
+
+def test_schreibe_gibt_die_systemanweisung_ins_budget(conn, einst, monkeypatch):
+    """``schreibe`` rechnet mit der Anweisung DIESES Laufs (Form + Stil),
+    nicht mit einer festen Zahl."""
+    gesehen = {}
+    echt = szene.baue_nutzertext
+
+    def spion(*args, **kwargs):
+        gesehen["system"] = kwargs.get("system")
+        return echt(*args, **kwargs)
+
+    monkeypatch.setattr(szene, "baue_nutzertext", spion)
+    figur = _figur_mit_stimme(conn)
+    _geplante_szene(conn, 1, form="Dialog", ort="Bahnhof",
+                    was_passiert="Maria kommt an", figuren=[figur])
+
+    class Klm:
+        def prosa(self, chat_id, system, nutzer, art, **kw):
+            gesehen["gesendet"] = system
+            return "TITEL: Ankunft\nKURZ: kurz\nZUSAMMENFASSUNG: z\n\nMARIA: Da."
+
+    class Tg:
+        def sende(self, *a, **k):
+            return 1
+
+        def __getattr__(self, name):
+            return lambda *a, **k: 1
+
+    try:
+        szene.schreibe(conn, Tg(), Klm(), einst, 1, "Schreib Szene 1")
+    except Exception:
+        pass  # Nachlauf (Senden, Journal) ist hier nicht Gegenstand
+    assert gesehen.get("system")
+    assert gesehen["system"] == gesehen["gesendet"]
+
+
 def test_kopfzeile_nennt_die_aufteilung(conn, einst):
     figur = _figur_mit_stimme(conn)
     lang = "\n".join(f"ZEILE {i}: " + "x" * 100 for i in range(400))

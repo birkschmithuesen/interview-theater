@@ -724,8 +724,11 @@ Mit `/wortlaut`: ~14.600 Token Körper.
 >   Test (`test_prompt_audit.py::test_systemanweisung_bleibt_je_phase_unter_ihrer_grenze`,
 >   je Phase eine Zusicherung). Die Anweisung wird zur Laufzeit **nie gekürzt** —
 >   sie ist die Rolle des Bots, nicht Material.
-> - `kontext.GESAMT_ZEICHEN_GRENZE_VORGABE = 40.000` Zeichen für System + Körper
->   zusammen (Env `IT_PROMPT_ZEICHEN_GESAMT`), geprüft in `kontext.baue`. Der Körper
+> - `kontext.GESAMT_ZEICHEN_GRENZE_VORGABE` für System + Körper zusammen (am 06.09.
+>   40.000 Zeichen; am 30.09.2026 auf 60.000 = `SYSTEM_ZEICHEN_MAX` +
+>   `ZEICHEN_GRENZE_VORGABE`, weil phasengerecht gemessen bis 53.012 Zeichen in
+>   Phase 7 anfielen und 40.000 in 6 von 7 Phasen schnitt, siehe
+>   `docs/kontext-3-5-kalibrierung.md`; Env `IT_PROMPT_ZEICHEN_GESAMT`), geprüft in `kontext.baue`. Der Körper
 >   behält daneben seine eigene Grenze von 24.000 Zeichen. Wächst die Anweisung,
 >   schrumpft der Körper — und nicht mehr umgekehrt still.
 >
@@ -825,7 +828,7 @@ was übrig blieb (Auftrag 1).
 
 Geprüft werden dabei **drei** Maße (Auftrag 4): der Körper gegen `zeichengrenze()`
 (24.000 Zeichen, Env `IT_PROMPT_ZEICHEN`), der Körper gegen `ZIEL` (20.000 Token), und
-**System + Körper** gegen `gesamtgrenze()` (40.000 Zeichen, Env
+**System + Körper** gegen `gesamtgrenze()` (60.000 Zeichen, Env
 `IT_PROMPT_ZEICHEN_GESAMT`). Das dritte Maß ist neu und schließt die Lücke aus Befund C.1:
 bis dahin bemaß jede Grenze nur den kleineren Teil des Prompts.
 

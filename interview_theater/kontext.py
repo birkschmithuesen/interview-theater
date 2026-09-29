@@ -123,14 +123,27 @@ ZEICHEN_GRENZE_VORGABE = 24_000
 #: hielt, irrte um den Faktor 4,4. § 6.2 Block 1 setzt fuer die
 #: Systemanweisung 900 Token; gemessen sind es je Phase 7.784-9.339.
 #:
-#: 40.000 Zeichen sind rund 13.300 Token nach unserer Schaetzung -- weit unter
-#: Kimis Fenster (256K), aber eine Zahl, die den **ganzen** Prompt beschreibt.
+#: Wert (30.09.2026, ``docs/kontext-3-5-kalibrierung.md``): **60.000 Zeichen**
+#: (~20.000 Token nach unserer Schaetzung -- weit unter Kimis Fenster, 256K).
+#: Die 40.000 vom 06.09. schnitten nach dem Prompt-Umbau in 6 von 7 Phasen:
+#: gemessen, phasengerechte Vollast, System + Koerper roh bis **53.012
+#: Zeichen (Phase 7)**, und die Kuerzung drueckte das Fenster dabei auf 4
+#: Eintraege, unter ``FENSTER_MIN_NACHRICHTEN``. Hergeleitet ist 60.000 nicht
+#: aus dem letzten Lauf, sondern strukturell: ``SYSTEM_ZEICHEN_MAX`` (36.000)
+#: + ``ZEICHEN_GRENZE_VORGABE`` (24.000). Damit greift die Gesamtgrenze erst,
+#: wenn schon eine Teilgrenze gebrochen ist -- typisch eine Anweisung, die
+#: zur Laufzeit durch Regie-Zettel oder Profil-Anweisung ueber ihren
+#: Testdeckel waechst (Befund C.1). Reserve gegen die Messung: 6.988 (13 %).
+#: Die Summe steht als Zahl da, nicht als Ausdruck; ein Test
+#: (``test_gesamtgrenze_ist_system_plus_koerper``) haelt die Herleitung fest,
+#: damit ein angehobener ``SYSTEM_ZEICHEN_MAX`` die Gesamtgrenze nicht still
+#: mitzieht, sondern eine bewusste Entscheidung verlangt.
 #: Die Koerpergrenze oben bleibt daneben bestehen: sie faengt den Fall, in dem
 #: der Koerper allein entgleist, auch wenn die Anweisung gerade kurz ist.
 #:
 #: Ueber ``IT_PROMPT_ZEICHEN_GESAMT`` konfigurierbar -- dieselbe Ueberlegung
 #: wie bei ``IT_PROMPT_ZEICHEN``: am Workshoptag ohne Codeaenderung nachziehbar.
-GESAMT_ZEICHEN_GRENZE_VORGABE = 40_000
+GESAMT_ZEICHEN_GRENZE_VORGABE = 60_000
 
 #: Obergrenze der Systemanweisung je Phase, in Zeichen -- kein Laufzeit-Limit
 #: (die Anweisung wird nie gekuerzt, sie ist die Rolle des Bots), sondern eine

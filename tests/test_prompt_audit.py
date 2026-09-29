@@ -518,6 +518,16 @@ def test_gesamtgrenze_kommt_aus_der_umgebung(monkeypatch):
     assert kontext.gesamtgrenze() == kontext.GESAMT_ZEICHEN_GRENZE_VORGABE
 
 
+def test_gesamtgrenze_ist_system_plus_koerper():
+    """Die Herleitung der Vorgabe (Kalibrierung 30.09.2026): die
+    Gesamtgrenze greift erst, wenn schon eine Teilgrenze gebrochen ist.
+    Wer ``SYSTEM_ZEICHEN_MAX`` oder ``ZEICHEN_GRENZE_VORGABE`` anhebt, muss
+    hier bewusst entscheiden, ob die Gesamtgrenze mitgeht."""
+    assert kontext.GESAMT_ZEICHEN_GRENZE_VORGABE == (
+        kontext.SYSTEM_ZEICHEN_MAX + kontext.ZEICHEN_GRENZE_VORGABE
+    )
+
+
 def test_enge_gesamtgrenze_kuerzt_den_koerper(spaetstand, einst, monkeypatch):
     """Die Gesamtgrenze wirkt wirklich: sie zieht den Koerper zusammen,
     obwohl die Koerpergrenze allein noch nicht gerissen waere."""

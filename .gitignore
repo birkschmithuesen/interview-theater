@@ -1,5 +1,6 @@
 .superpowers/
 __pycache__/
+*.egg-info/
 .venv/
 *.db*
 audio/
@@ -58,6 +59,8 @@ simulation/berichte/*
 docs/dramaturgie-berichte/*
 !docs/dramaturgie-berichte/.gitkeep
 
-# Der Symlink auf das venv im Hauptbaum: `.venv/` mit Schraegstrich trifft
-# ein Verzeichnis, nicht den Link.
+# `.venv/` mit Schraegstrich trifft ein echtes venv-Verzeichnis (dieser
+# Arbeitsbaum), aber nicht einen Symlink auf das venv im Hauptbaum, den
+# andere Arbeitsbaeume noch verwenden koennen -- deshalb zusaetzlich ohne
+# Schraegstrich.
 .venv

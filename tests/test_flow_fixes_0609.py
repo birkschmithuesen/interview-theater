@@ -31,8 +31,12 @@ def conn(tmp_path):
 def einst(tmp_path, monkeypatch):
     monkeypatch.setenv("IT_DB", str(tmp_path / "t.db"))
     monkeypatch.setenv("IT_BOT_TOKEN", "x")
+    monkeypatch.setenv("IT_BOT_NAME", "testbot")
     monkeypatch.setenv("IT_LLM_URL", "http://x/chat/completions")
     monkeypatch.setenv("IT_LLM_TOKEN", "x")
+    monkeypatch.setenv("IT_LLM_KEY", "x")
+    monkeypatch.setenv("IT_LLM_MODELL", "kimi")
+    monkeypatch.setenv("IT_STT_PRODUKT", "PRODUKT-ID")
     monkeypatch.setenv("IT_CHAT_ID", str(CHAT))
     monkeypatch.delenv("IT_WEB_URL", raising=False)
     return einstellungen.laden()

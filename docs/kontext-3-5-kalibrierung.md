@@ -214,6 +214,19 @@ dokumentarisch (Kopfzeile bzw. fester Hinweistext) und werden nirgends
 durchgesetzt. `system` = 9.000 ist der Wert vom 06.09. und liegt heute
 2.225 Token unter dem Maximum.
 
+**`transkripte` ist der einzige Block, der in der Vollast nicht bis an
+seinen Deckel gefüllt ist** (0 statt bis zu 15.000 Z.): der
+Wortlaut-Schalter (`/wortlaut`, `gruppe.wortlaut_modus`) steht in beiden
+Fixturen (Spätstand wie Vollast) auf aus, also liefert `_baue_transkripte`
+nichts, egal wie viel Interviewmaterial da wäre. Das ist hier bewusst NICHT
+nachgezogen: `_kuerze_auf_budget` schneidet Volltranskripte laut eigenem
+Docstring als **ersten** Schritt der Kürzungsleiter („der größte einzelne
+Brocken"), noch vor Journal, Festlegungen und Verdichtungen. Ein voll
+gefüllter `transkripte`-Block würde also nur zeigen, was ohnehin als
+Erstes wieder verschwindet — eine ungenutzte Reserve an der Stelle, die am
+wenigsten schützenswert ist, ändert an den knappen Stellen (`system`,
+Infomaniak-Szenenbudget, Gesamtgrenze) nichts.
+
 Nicht belegt: `REISSLEINE` = 40.000 Token wird von keinem Codepfad gelesen.
 `ZIEL` = 20.000 Token (= 60.000 Zeichen) bindet nie vor der Körpergrenze
 (24.000 Zeichen ≈ 8.000 Token). Seine Reserve liegt in jeder Messung über
@@ -233,41 +246,66 @@ Eingaberaum des Anbieters muss aber System **und** Nutzer fassen:
 - **Claude:** 200.000 − `szene_claude.MAX_TOKENS` 32.000 = 168.000.
 - **Infomaniak:** 249.984 − `szene.MAX_TOKENS` 200.000 = 49.984.
 
-**Fixture Spätstand** (Ziel Szene 4, ungekürzt):
+**Die Systemanweisung hängt seit dem Stil-Umbau (06.09.2026) auch vom Stil
+ab** (`szene.systemanweisung(form, stil)`, `stile.py`): ein Stilblock hängt
+bis zu 5.484 Zeichen an (`stile.regelblock("schlagabtausch")`, nach Abzug
+des Kopfkommentars der Prompt-Datei; `litanei` 5.038, `herkules` 375). Die
+Gruppe wählt den Stil frei — unabhängig vom Vorschlag
+(`stile.VORSCHLAG`, der für `dialog` z. B. `herkules` nahelegt, das kleinste
+der drei Stilblätter). Gemessen wird deshalb je Form das **größte** System
+über alle Stile (inklusive `stil=None`, kein Stil gewählt), aus der echten
+Liste `stile.STILE`: das ist der Wert, der im Betrieb tatsächlich vorkommen
+kann, nicht nur der vorgeschlagene. Bei `prosa` wirkt kein Stil
+(`systemanweisung` hängt ihn nur bei `form != prosa` an), die Prosa-Zeile
+bleibt deshalb unverändert.
 
-| Form | System (Z.) | Nutzer (Z.) | Nutzer Tok. ÷1,9 | System+Nutzer Tok. | Reserve Budget Claude (nur Nutzer) | Reserve Budget Infomaniak (nur Nutzer) | Reserve Eingaberaum Claude (Sys+Nutzer) | Reserve Eingaberaum Infomaniak (Sys+Nutzer) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| dialog | 31.557 | 4.502 | 2.369 | 18.978 | +123.631 | +35.119 | +149.022 | +31.006 |
-| monolog | 24.709 | 4.502 | 2.369 | 15.374 | +123.631 | +35.119 | +152.626 | +34.610 |
-| chor | 25.997 | 4.502 | 2.369 | 16.052 | +123.631 | +35.119 | +151.948 | +33.932 |
-| lied | 25.869 | 4.502 | 2.369 | 15.984 | +123.631 | +35.119 | +152.016 | +34.000 |
-| rap | 25.836 | 4.502 | 2.369 | 15.967 | +123.631 | +35.119 | +152.033 | +34.017 |
-| prosa (Phase 6) | 12.785 | 726 | 382 | 7.111 | +125.618 | +37.106 | +160.889 | +42.873 |
+**Fixture Spätstand** (Ziel Szene 4, ungekürzt, je Form das größte System
+über alle Stile):
 
-**Vollast** (Ziel Szene 8, sieben Vorszenen im Volltext, ungekürzt):
+| Form | Stil (größtes System) | System (Z.) | Nutzer (Z.) | Nutzer Tok. ÷1,9 | System+Nutzer Tok. | Reserve Budget Claude (nur Nutzer) | Reserve Budget Infomaniak (nur Nutzer) | Reserve Eingaberaum Claude (Sys+Nutzer) | Reserve Eingaberaum Infomaniak (Sys+Nutzer) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| dialog | schlagabtausch | 37.043 | 4.502 | 2.369 | 21.865 | +123.631 | +35.119 | +146.135 | +28.119 |
+| monolog | schlagabtausch | 30.195 | 4.502 | 2.369 | 18.261 | +123.631 | +35.119 | +149.739 | +31.723 |
+| chor | schlagabtausch | 31.483 | 4.502 | 2.369 | 18.939 | +123.631 | +35.119 | +149.061 | +31.045 |
+| lied | schlagabtausch | 31.355 | 4.502 | 2.369 | 18.872 | +123.631 | +35.119 | +149.128 | +31.112 |
+| rap | schlagabtausch | 31.322 | 4.502 | 2.369 | 18.854 | +123.631 | +35.119 | +149.146 | +31.130 |
+| prosa (Phase 6) | – | 12.785 | 726 | 382 | 7.111 | +125.618 | +37.106 | +160.889 | +42.873 |
 
-| Form | System (Z.) | Nutzer (Z.) | Nutzer Tok. ÷1,9 | System+Nutzer Tok. | Reserve Budget Claude (nur Nutzer) | Reserve Budget Infomaniak (nur Nutzer) | Reserve Eingaberaum Claude (Sys+Nutzer) | Reserve Eingaberaum Infomaniak (Sys+Nutzer) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| dialog | 31.557 | 54.188 | 28.520 | 45.128 | +97.480 | +8.968 | +122.872 | **+4.856** |
-| monolog | 24.709 | 54.188 | 28.520 | 41.524 | +97.480 | +8.968 | +126.476 | +8.460 |
-| chor | 25.997 | 54.188 | 28.520 | 42.202 | +97.480 | +8.968 | +125.798 | +7.782 |
-| lied | 25.869 | 54.188 | 28.520 | 42.135 | +97.480 | +8.968 | +125.865 | +7.849 |
-| rap | 25.836 | 54.188 | 28.520 | 42.117 | +97.480 | +8.968 | +125.883 | +7.867 |
-| prosa (Phase 6) | 12.785 | 1.121 | 590 | 7.318 | +125.410 | +36.898 | +160.682 | +42.666 |
+**Vollast** (Ziel Szene 8, sieben Vorszenen im Volltext, ungekürzt, je Form
+das größte System über alle Stile):
+
+| Form | Stil (größtes System) | System (Z.) | Nutzer (Z.) | Nutzer Tok. ÷1,9 | System+Nutzer Tok. | Reserve Budget Claude (nur Nutzer) | Reserve Budget Infomaniak (nur Nutzer) | Reserve Eingaberaum Claude (Sys+Nutzer) | Reserve Eingaberaum Infomaniak (Sys+Nutzer) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| dialog | schlagabtausch | 37.043 | 54.188 | 28.520 | 48.016 | +97.480 | +8.968 | +119.984 | **+1.968** |
+| monolog | schlagabtausch | 30.195 | 54.188 | 28.520 | 44.412 | +97.480 | +8.968 | +123.588 | +5.572 |
+| chor | schlagabtausch | 31.483 | 54.188 | 28.520 | 45.090 | +97.480 | +8.968 | +122.910 | +4.894 |
+| lied | schlagabtausch | 31.355 | 54.188 | 28.520 | 45.022 | +97.480 | +8.968 | +122.978 | +4.962 |
+| rap | schlagabtausch | 31.322 | 54.188 | 28.520 | 45.005 | +97.480 | +8.968 | +122.995 | +4.979 |
+| prosa (Phase 6) | – | 12.785 | 1.121 | 590 | 7.318 | +125.410 | +36.898 | +160.682 | +42.666 |
+
+**Der größte Szenen-Systemprompt insgesamt ist `(dialog, schlagabtausch)`
+mit 37.043 Zeichen** — nicht `dialog` allein (31.557 Z., der Wert vom
+06.09. ohne Stil) und nicht der vorgeschlagene Stil für Dialog
+(`herkules`, nur 375 Z. zusätzlich). Diese Kombination trägt jede folgende
+Rechnung in diesem Abschnitt.
 
 **Befund Infomaniak:**
 
-- Die Dialog-Systemanweisung allein sind 31.557 Z. ≈ **16.609 Token**. Der
-  Sicherheitsabschlag von 25 % auf 49.984 sind nur 12.496 Token. Er soll
-  laut Kommentar an `BUDGET_RESERVE` „die Systemanweisung“ auffangen und
-  kann das nicht mehr.
-- Ein Nutzertext genau am Budget (37.488) plus die Dialog-Anweisung ergibt
-  54.097 Token. Das liegt **4.113 Token über** dem Eingaberaum
-  (`max_total_tokens`), und die API antwortet mit HTTP 400 (Falle 4).
-  Die Kürzungsleiter des Szenenlaufs springt in diesem Fall gar nicht erst
-  an.
-- Schon die Vollast ohne Kürzung hat nur noch 4.856 Token (≈ 10 %) Luft.
-- Die Prosa (Phase 6) ist klein und unkritisch.
+- Die größte Szenen-Systemanweisung (`dialog` + `schlagabtausch`) sind
+  37.043 Z. ≈ **19.496 Token** (`int(37043 / 1,9)`). Der Sicherheitsabschlag
+  von 25 % auf 49.984 sind nur 12.496 Token. Er soll laut Kommentar an
+  `BUDGET_RESERVE` „die Systemanweisung“ auffangen und deckt damit nicht
+  einmal zwei Drittel dieses Werts.
+- Ein Nutzertext genau am Budget (37.488) plus diese Systemanweisung ergibt
+  56.984 Token. Das liegt **7.000 Token über** dem Eingaberaum
+  (`max_total_tokens` = 49.984), und die API antwortet mit HTTP 400
+  (Falle 4). Die Kürzungsleiter des Szenenlaufs springt in diesem Fall gar
+  nicht erst an.
+- Schon die Vollast ohne Kürzung hat mit dieser Kombination nur noch 1.968
+  Token (≈ 4 %) Luft im Eingaberaum — knapper als die 4.856 Token (≈ 10 %),
+  die ohne Stil sichtbar waren.
+- Die Prosa (Phase 6) ist klein und unkritisch, weil ihr `systemanweisung`
+  nie einen Stilblock anhängt.
 - Claude hat in allen Fällen reichlich Reserve.
 
 `SZENE_ZEICHEN_JE_TOKEN` = 1,9 wurde nicht neu gemessen, das ginge nur mit
@@ -282,9 +320,16 @@ Eingaberaum des Anbieters muss aber System **und** Nutzer fassen:
 2. **`SYSTEM_ZEICHEN_MAX` = 36.000**: Phase 2 hat noch +2.324, Phase 4
    +2.936.
 3. **`SZENE_TOKEN_MAX_INFOMANIAK` = 37.488**: am Budget liegt die Summe
-   rechnerisch über dem Eingaberaum (−4.113 Token mit Dialog-Anweisung).
+   rechnerisch über dem Eingaberaum (−7.000 Token mit der größten
+   Systemanweisung, `dialog` + Stil `schlagabtausch`).
 4. **`ZEICHEN_GRENZE_VORGABE` = 24.000**: phasengerecht nur in Phase 7 knapp
-   (+377), sonst ≥ +3.874.
+   (+377), sonst ≥ +3.874. Sie bleibt trotz der knappen Phase-7-Reserve
+   unangetastet, weil sie eine **weiche** Kürzungsgrenze ist: schneidet sie,
+   trimmt die Kürzungsleiter Verlauf, Journal und Festlegungen schrittweise
+   (`_kuerze_auf_budget`) — das Gespräch geht weiter, nur mit weniger
+   Material im Prompt. Anders als beim Infomaniak-Szenenbudget oben, wo ein
+   Überschreiten HTTP 400 auslöst, ist ein knappes `ZEICHEN_GRENZE_VORGABE`
+   also kein Ausfall, sondern der Normalfall, für den die Leiter gebaut ist.
 
 ## Folgerungen für Task 3 (je Grenze mit dem Messwert, der sie trägt)
 
@@ -299,10 +344,13 @@ Eingaberaum des Anbieters muss aber System **und** Nutzer fassen:
     Profil-Anweisung zur Laufzeit. Das ist der Fall, für den sie gebaut
     wurde (Befund C.1).
 - **Szenenlauf Infomaniak: System in die Budgetprüfung aufnehmen**, oder
-  gleichwertig das Nutzerbudget um die Systemanweisung senken. Für Dialog
-  wären das 37.488 − 16.609 = 20.879 Token.
-  - Grund: ein Nutzertext am heutigen Budget ergibt mit Dialog-Anweisung
-    54.097 > 49.984 Token.
+  gleichwertig das Nutzerbudget um die größte Systemanweisung senken —
+  gemessen über alle (Form, Stil)-Paare, nicht nur `dialog` ohne Stil, denn
+  die Gruppe wählt Form und Stil unabhängig voneinander. Das Maximum ist
+  `(dialog, schlagabtausch)` mit 37.043 Z. ≈ 19.496 Token; damit wären das
+  37.488 − 19.496 ≈ **17.992 Token**.
+  - Grund: ein Nutzertext am heutigen Budget ergibt mit dieser
+    Systemanweisung 56.984 > 49.984 Token.
 
 **Dokumentarisch nachziehen:**
 
@@ -320,7 +368,7 @@ der Leiter.
 
 | Konstante | Wert | Messwert | Reserve |
 |---|---:|---:|---:|
-| `ZEICHEN_GRENZE_VORGABE` | 24.000 | 23.623 (phasengerecht, max.) | +377 |
+| `ZEICHEN_GRENZE_VORGABE` | 24.000 | 23.623 (phasengerecht, max.) | +377, weiche Kürzungsgrenze (s. o.) |
 | `SYSTEM_ZEICHEN_MAX` | 36.000 | 33.676 (Phase 2) | +2.324 |
 | `FENSTER_ZEICHEN` | 12.000 | 11.912 | voll, wie gewollt |
 | `FENSTER_NACHRICHTEN` | 20 | – | – |

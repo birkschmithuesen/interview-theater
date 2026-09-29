@@ -32,7 +32,7 @@ import os
 import sys
 
 from interview_theater import db, journal, kontext, kurzgeschichte, phasen, repo, szene
-from interview_theater import szene_claude
+from interview_theater import stile, szene_claude
 
 BOT = "gruppe4"
 
@@ -325,18 +325,34 @@ def miss_szene(conn, nummer: int) -> list[dict]:
     """Der Szenen-Prompt fuer Szene ``nummer`` je Form, plus Prosa (Phase 6).
 
     Gemessen wird der UNGEKUERZTE Rohbedarf: ``IT_SZENE_TOKEN_MAX`` wird
-    dafuer weit gesetzt, damit die Kuerzungsleiter nicht greift."""
+    dafuer weit gesetzt, damit die Kuerzungsleiter nicht greift.
+
+    Die Systemanweisung haengt seit dem Stil-Umbau (06.09.2026) auch vom
+    Stil ab (``szene.systemanweisung(form, stil)``, ``stil.py``) -- ein
+    Stilblock haengt bis zu 5.760 Zeichen an (``schlagabtausch.md``). Die
+    Gruppe waehlt den Stil frei, unabhaengig vom Vorschlag
+    (``stile.VORSCHLAG``); gemessen wird deshalb je Form das GROESSTE System
+    ueber ALLE Stile inklusive ``stil=None`` (kein Stil gewaehlt), aus der
+    echten Liste ``stile.STILE`` -- nicht nur der Vorschlag. Bei ``prosa``
+    wirkt kein Stil (``systemanweisung`` haengt ihn nur bei ``form !=
+    prosa`` an), deshalb bleibt die Prosa-Zeile unveraendert."""
     alt = os.environ.get("IT_SZENE_TOKEN_MAX")
     os.environ["IT_SZENE_TOKEN_MAX"] = str(10_000_000)
     try:
         phasen.setze(conn, 1, 7, "befehl")
         ziel = {s["nummer"]: s for s in repo.hole_szenen(conn, 1)}[nummer]
         nutzer = szene.baue_nutzertext(conn, 1, f"Schreib Szene {nummer}.", ziel)
+        stile_slugs = [None] + [s["slug"] for s in stile.STILE]
         ergebnis = []
-        for form in ("dialog", "monolog", "chor", "lied", "rap"):
-            ergebnis.append({"form": form, "system": len(szene.systemanweisung(form)),
-                             "nutzer": len(nutzer)})
-        ergebnis.append({"form": "prosa (Phase 6)",
+        for form in szene.FORMEN:
+            bester_stil, beste_laenge = None, -1
+            for stil_slug in stile_slugs:
+                laenge = len(szene.systemanweisung(form, stil_slug))
+                if laenge > beste_laenge:
+                    bester_stil, beste_laenge = stil_slug, laenge
+            ergebnis.append({"form": form, "stil": bester_stil or "(kein Stil)",
+                             "system": beste_laenge, "nutzer": len(nutzer)})
+        ergebnis.append({"form": "prosa (Phase 6)", "stil": "-",
                          "system": len(kurzgeschichte.systemanweisung()),
                          "nutzer": len(kurzgeschichte.baue_nutzertext(conn, 1))})
         return ergebnis
@@ -353,18 +369,20 @@ def tabelle_szene(messungen: list[dict]) -> str:
     fenster_claude = szene.CLAUDE_FENSTER_TOKEN - szene_claude.MAX_TOKENS
     fenster_info = szene.INFOMANIAK_GESAMT_TOKEN - szene.MAX_TOKENS
     zeilen = [
-        f"| Form | System (Z.) | Nutzer (Z.) | Nutzer Tok. (÷{j}) | System+Nutzer Tok. "
+        f"| Form | Stil (groesstes System) | System (Z.) | Nutzer (Z.) | Nutzer Tok. (÷{j}) "
+        f"| System+Nutzer Tok. "
         f"| Reserve Budget Claude ({_z(b_claude)}, nur Nutzer) "
         f"| Reserve Budget Infomaniak ({_z(b_info)}, nur Nutzer) "
         f"| Reserve Eingaberaum Claude ({_z(fenster_claude)}, Sys+Nutzer) "
         f"| Reserve Eingaberaum Infomaniak ({_z(fenster_info)}, Sys+Nutzer) |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for m in messungen:
         nt = int(m["nutzer"] / j)
         gt = int((m["system"] + m["nutzer"]) / j)
         zeilen.append(
-            f"| {m['form']} | {_z(m['system'])} | {_z(m['nutzer'])} | {_z(nt)} | {_z(gt)} "
+            f"| {m['form']} | {m.get('stil', '-')} | {_z(m['system'])} | {_z(m['nutzer'])} "
+            f"| {_z(nt)} | {_z(gt)} "
             f"| {_r(b_claude, nt)} | {_r(b_info, nt)} "
             f"| {_r(fenster_claude, gt)} | {_r(fenster_info, gt)} |"
         )
@@ -392,38 +410,54 @@ def konstanten() -> str:
 
 def main(argv: list[str]) -> int:
     # Kein Regie-Zettel aus einer Betriebsumgebung: ``zusatz.md`` liegt neben
-    # ``IT_DB`` -- ohne IT_DB wird keiner gelesen.
-    os.environ.pop("IT_DB", None)
-    if "--profil" in argv:
-        # Statt ``IT_WORKSHOP=... python -m ...``: ``workshop.aktiv()`` liest
-        # die Variable bei jedem Aufruf, also genuegt es, sie hier zu setzen.
-        os.environ["IT_WORKSHOP"] = argv[argv.index("--profil") + 1]
-    print(konstanten())
-    phasenliste = range(phasen.ERSTE, phasen.LETZTE + 1)
+    # ``IT_DB`` -- ohne IT_DB wird keiner gelesen. Beide Variablen werden am
+    # Ende wiederhergestellt (try/finally) -- sonst liesse ein Aufruf aus dem
+    # selben Prozess (z.B. der Test) ``IT_DB``/``IT_WORKSHOP`` fuer alles
+    # Nachfolgende geloescht bzw. veraendert stehen.
+    alt_db = os.environ.pop("IT_DB", None)
+    alt_workshop = os.environ.get("IT_WORKSHOP")
+    hatte_workshop = "IT_WORKSHOP" in os.environ
+    try:
+        if "--profil" in argv:
+            # Statt ``IT_WORKSHOP=... python -m ...``: ``workshop.aktiv()``
+            # liest die Variable bei jedem Aufruf, also genuegt es, sie hier
+            # zu setzen.
+            os.environ["IT_WORKSHOP"] = argv[argv.index("--profil") + 1]
+        print(konstanten())
+        phasenliste = range(phasen.ERSTE, phasen.LETZTE + 1)
 
-    conn, _ = spaetstand()
-    fixture = [miss_phase(conn, p) for p in phasenliste]
-    print("\n## Systemanweisung je Phase\n")
-    print(tabelle_system(fixture))
-    if "--nur-system" in argv:
+        conn, _ = spaetstand()
+        fixture = [miss_phase(conn, p) for p in phasenliste]
+        print("\n## Systemanweisung je Phase\n")
+        print(tabelle_system(fixture))
+        if "--nur-system" in argv:
+            return 0
+        print("\n## Gespraechs-Prompt, Fixture Spaetstand\n")
+        print(tabelle_koerper(fixture))
+        szene_fixture = miss_szene(conn, 4)
+
+        conn, _ = vollast()
+        last = [miss_phase(conn, p) for p in phasenliste]
+        print("\n## Gespraechs-Prompt, Vollast (alle Bloecke in jeder Phase)\n")
+        print(tabelle_koerper(last))
+        print("\n## Gespraechs-Prompt, Vollast phasengerecht\n")
+        print(tabelle_koerper([miss_phase(conn, p, phasengerecht=True) for p in phasenliste]))
+        print("\n## Bloecke gegen BUDGETS (Vollast, groesster Rohwert ueber alle Phasen)\n")
+        print(tabelle_bloecke(last))
+        print("\n## Szenenlauf, Fixture Spaetstand (Ziel Szene 4, ungekuerzt)\n")
+        print(tabelle_szene(szene_fixture))
+        print("\n## Szenenlauf, Vollast (Ziel Szene 8, sieben Vorszenen, ungekuerzt)\n")
+        print(tabelle_szene(miss_szene(conn, 8)))
         return 0
-    print("\n## Gespraechs-Prompt, Fixture Spaetstand\n")
-    print(tabelle_koerper(fixture))
-    szene_fixture = miss_szene(conn, 4)
-
-    conn, _ = vollast()
-    last = [miss_phase(conn, p) for p in phasenliste]
-    print("\n## Gespraechs-Prompt, Vollast (alle Bloecke in jeder Phase)\n")
-    print(tabelle_koerper(last))
-    print("\n## Gespraechs-Prompt, Vollast phasengerecht\n")
-    print(tabelle_koerper([miss_phase(conn, p, phasengerecht=True) for p in phasenliste]))
-    print("\n## Bloecke gegen BUDGETS (Vollast, groesster Rohwert ueber alle Phasen)\n")
-    print(tabelle_bloecke(last))
-    print("\n## Szenenlauf, Fixture Spaetstand (Ziel Szene 4, ungekuerzt)\n")
-    print(tabelle_szene(szene_fixture))
-    print("\n## Szenenlauf, Vollast (Ziel Szene 8, sieben Vorszenen, ungekuerzt)\n")
-    print(tabelle_szene(miss_szene(conn, 8)))
-    return 0
+    finally:
+        if alt_db is None:
+            os.environ.pop("IT_DB", None)
+        else:
+            os.environ["IT_DB"] = alt_db
+        if hatte_workshop:
+            os.environ["IT_WORKSHOP"] = alt_workshop
+        else:
+            os.environ.pop("IT_WORKSHOP", None)
 
 
 if __name__ == "__main__":

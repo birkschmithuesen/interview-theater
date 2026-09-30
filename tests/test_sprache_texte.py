@@ -1,0 +1,330 @@
+"""Die Texttabelle ist vollstaendig, und jeder Nutzertext laeuft ueber sie (D3).
+
+Am Quelltext geprueft (AST), wie ``test_knoepfe_struktur.py``: ein neuer
+Knopftext, der am Zugriff ``T`` vorbeigeht, faellt hier auf und nicht erst
+in Padua im Chat.
+
+1. Jeder Zugriff ``T.NAME`` / ``modul.T.NAME`` zeigt auf eine deutsche
+   Modul-Konstante und hat einen englischen Eintrag.
+2. Kein englischer Eintrag ohne deutsche Konstante.
+3. Platzhalter (``{name}``, ``{{name}}``, ``%s``) gleich, Blatt fuer Blatt;
+   Behaelter gleich gebaut; ``slug``/``command`` woertlich gleich.
+4. In einem umgestellten Modul liest niemand eine registrierte Konstante
+   mehr nackt (``_TEXT_X`` statt ``T._TEXT_X``).
+5. Ein umgestelltes Modul hat keine deutsche Konstante ausserhalb der
+   Tabelle und keine deutschen Inline-Literale -- ausser mit Grund.
+"""
+
+import ast
+import pathlib
+import re
+
+import pytest
+
+from interview_theater import sprache
+
+PAKET = pathlib.Path(sprache.__file__).resolve().parent
+
+#: Module (Kurzname), deren Texte ueber T laufen. Waechst je Aufgabe.
+UMGESTELLT: set[str] = {"anweisungen"}
+
+#: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
+ALLE_MODULE = {
+    "ablauf", "anweisungen", "arbeitszeilen", "aufnahme", "befehle", "bot",
+    "dramaturgie.beleg", "dramaturgie.fanout", "dramaturgie.mechanik",
+    "erkenner", "fehlstellen", "journal", "kernzitate", "knoepfe.basis",
+    "knoepfe.figuren", "knoepfe.fragen", "knoepfe.interviews",
+    "knoepfe.stationen", "knoepfe.szenen", "knoepfe.texte", "knoepfe.wirkung",
+    "kontext", "kuerzung", "kurzgeschichte", "leitfaden", "phasen",
+    "phasentexte", "schaerfung", "sprachprofil", "sprachstil", "sprecher",
+    "stile", "stueckpruefung", "szene", "szenenfolge", "verdichter",
+    "vorspann", "web", "web_schreiben",
+}
+
+#: Bleibt deutsch, mit Grund (nie im Chat, nie im Prompt einer Gruppe).
+BLEIBT_DEUTSCH = {
+    "dramaturgie.bilanz.KOPF": "Betreiberausgabe (scripts/dramaturgie_pruefen.py)",
+    "dramaturgie.bilanz.OHNE_VERGLEICH": "Betreiberausgabe",
+    "dramaturgie.schleife.GRUENDE": "Betreiberausgabe (--schleife)",
+    "dramaturgie.schleife.MELDUNG_OHNE_GESCHICHTENWEG": "Betreiberausgabe (--schleife)",
+    "szenenfolge.DETAIL_RICHTUNG_UNVOLLSTAENDIG": "Vorfall-Detail, Dashboard des Teams",
+}
+
+#: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit
+#: englischem Gegenstueck *_EN (Aufgaben 22-24).
+PARSER = {
+    "ablauf._DENKSPUR_MARKER", "ablauf._DENKSPUR_EINDEUTIG",
+    "ablauf._AUFTRAGSFORMEN", "ablauf._SYSTEMZEILEN",
+    "befehle._ENTFERNEN_WOERTER", "kontext._SYSTEMANFAENGE",
+    "szene._ANDERS_NICHTS", "dramaturgie.mechanik._STRUKTUR",
+    "dramaturgie.mechanik._TSCHECHOW_STOPP", "dramaturgie.mechanik._STRANG_STOPP",
+    "vorspann.SCHAERFUNGSFORMELN", "stueckpruefung.FRAGEN",
+}
+
+#: Deutsche Inline-Literale, die bleiben duerfen: Vorfall-Details
+#: (repo.merke_vorfall, Dashboard des Teams). Schluessel: Modul und die
+#: ersten 40 Zeichen des Literals, wie ``_inline_texte`` sie liefert.
+INLINE_ERLAUBT: dict[tuple[str, str], str] = {}
+
+_STOPP = re.compile(
+    r"\b(und|nicht|ist|ihr|euch|wir|ich|mit|fuer|für|auf|eine|noch|schon|"
+    r"auch|oder|wenn|dass|sich|bitte|jetzt|hier|sind|eure|euer|uns|kein|"
+    r"keine|den|dem|du|dein|deine)\b", re.I)
+_TEXTNAME = re.compile(r"^_?(TEXT|UEBERSCHRIFT|ANWEISUNG|MELDUNG|JOURNAL|HINWEIS|ZEILE)"
+                       r"|_(KOPF|ANSCHLUSS|HINWEIS)$")
+
+
+def _kurz(pfad: pathlib.Path) -> str:
+    return ".".join(pfad.relative_to(PAKET).with_suffix("").parts).removesuffix(".__init__")
+
+
+BAEUME = {_kurz(p): ast.parse(p.read_text(encoding="utf-8"))
+          for p in sorted(PAKET.rglob("*.py"))}
+
+
+def _konstanten(baum) -> dict[str, ast.AST]:
+    fertig = {}
+    for knoten in baum.body:
+        ziele = []
+        if isinstance(knoten, ast.Assign):
+            ziele = [z.id for z in knoten.targets if isinstance(z, ast.Name)]
+        elif isinstance(knoten, ast.AnnAssign) and isinstance(knoten.target, ast.Name):
+            ziele = [knoten.target.id]
+        for z in ziele:
+            if re.match(r"^_?[A-Z][A-Z0-9_]*$", z):
+                fertig[z] = knoten
+    return fertig
+
+
+KONSTANTEN = {m: _konstanten(b) for m, b in BAEUME.items()}
+
+
+def _hat_eigenes_t(baum) -> bool:
+    return any(
+        isinstance(k, ast.Assign)
+        and any(isinstance(z, ast.Name) and z.id == "T" for z in k.targets)
+        for k in baum.body
+    )
+
+
+def _aliase(modul: str, baum) -> dict[str, str]:
+    """Name im Modul -> Kurzname des Moduls, aus dem er stammt, fuer alle
+    Importe (auch lokale in Funktionen)."""
+    aliase = {}
+    for k in ast.walk(baum):
+        if isinstance(k, ast.ImportFrom) and k.module and k.module.startswith("interview_theater"):
+            basis = k.module[len("interview_theater"):].lstrip(".")
+            for n in k.names:
+                ziel = f"{basis}.{n.name}".lstrip(".") if f"{basis}.{n.name}".lstrip(".") in BAEUME else basis
+                aliase[n.asname or n.name] = ziel
+        elif isinstance(k, ast.Import):
+            for n in k.names:
+                if n.name.startswith("interview_theater."):
+                    aliase[n.asname or n.name.split(".")[-1]] = n.name[len("interview_theater."):]
+    # ``knoepfe`` re-exportiert T aus knoepfe.texte
+    return {name: ("knoepfe.texte" if ziel == "knoepfe" else ziel) for name, ziel in aliase.items()}
+
+
+def _zugriffe() -> list[tuple[str, str, str, int]]:
+    """(lesendes Modul, Zielmodul, NAME, Zeile) fuer jedes T.NAME."""
+    fertig = []
+    for modul, baum in BAEUME.items():
+        aliase = _aliase(modul, baum)
+        eigenes = _hat_eigenes_t(baum)
+        for k in ast.walk(baum):
+            if not isinstance(k, ast.Attribute) or not isinstance(k.value, (ast.Name, ast.Attribute)):
+                continue
+            wert = k.value
+            if isinstance(wert, ast.Name) and wert.id == "T":
+                ziel = modul if eigenes else aliase.get("T")
+            elif (isinstance(wert, ast.Attribute) and wert.attr == "T"
+                  and isinstance(wert.value, ast.Name)):
+                ziel = aliase.get(wert.value.id)
+                ziel = "knoepfe.texte" if ziel == "knoepfe" else ziel
+            else:
+                continue
+            if ziel is not None:
+                fertig.append((modul, ziel, k.attr, k.lineno))
+    return fertig
+
+
+ZUGRIFFE = _zugriffe()
+
+
+def _tabelle():
+    sprache.vergiss()
+    return sprache.tabelle("en")
+
+
+def test_jeder_zugriff_zeigt_auf_eine_deutsche_konstante():
+    falsch = [f"{m}:{z} {ziel}.{n}" for m, ziel, n, z in ZUGRIFFE
+              if n not in KONSTANTEN.get(ziel, {})]
+    assert falsch == []
+
+
+def test_jeder_zugriff_hat_einen_englischen_eintrag():
+    tabelle = _tabelle()
+    fehlend = sorted({f"{ziel}.{n}" for _, ziel, n, _ in ZUGRIFFE
+                      if n not in tabelle.get(ziel, {})})
+    assert fehlend == []
+
+
+def test_kein_englischer_eintrag_ohne_deutsche_konstante():
+    tabelle = _tabelle()
+    verwaist = [f"{m}.{n}" for m, eintraege in tabelle.items()
+                for n in eintraege if n not in KONSTANTEN.get(m, {})]
+    assert verwaist == []
+
+
+def _paare(deutsch, englisch, pfad):
+    if isinstance(deutsch, str):
+        yield pfad, deutsch, englisch
+    elif isinstance(deutsch, dict):
+        assert isinstance(englisch, dict), pfad
+        assert {str(k) for k in deutsch} == {str(k) for k in englisch}, pfad
+        for k, v in deutsch.items():
+            e = englisch[k] if k in englisch else englisch[str(k)]
+            if k in ("slug", "command"):
+                assert e == v, f"{pfad}.{k} ist Protokoll"
+                continue
+            yield from _paare(v, e, f"{pfad}.{k}")
+    elif isinstance(deutsch, (list, tuple, set, frozenset)):
+        assert isinstance(englisch, (list, tuple, set, frozenset)), pfad
+        assert len(deutsch) == len(englisch), pfad
+        for i, (d, e) in enumerate(zip(deutsch, englisch)):
+            yield from _paare(d, e, f"{pfad}[{i}]")
+
+
+@pytest.mark.parametrize("modul, name", sorted(
+    (m, n) for m, eintraege in _tabelle().items() for n in eintraege))
+def test_platzhalter_und_form_gleich(modul, name):
+    import importlib
+
+    deutsch = getattr(importlib.import_module(f"interview_theater.{modul}"), name)
+    englisch = sprache.angleichen(deutsch, _tabelle()[modul][name])
+    if isinstance(deutsch, dict) and englisch.keys() != deutsch.keys() and all(
+            isinstance(k, str) for k in deutsch):
+        # Beschriftungstabelle (K4): deutsche Schluessel, englische Werte
+        assert set(englisch) <= set(deutsch), f"{modul}.{name}"
+        return
+    for pfad, d, e in _paare(deutsch, englisch, f"{modul}.{name}"):
+        assert sprache.platzhalter(d) == sprache.platzhalter(e), pfad
+
+
+def _registriert(tabelle) -> set[tuple[str, str]]:
+    return {(m, n) for m, eintraege in tabelle.items() for n in eintraege}
+
+
+@pytest.mark.parametrize("modul", sorted(UMGESTELLT))
+def test_keine_nackte_verwendung(modul):
+    tabelle = _tabelle()
+    registriert = _registriert(tabelle)
+    baum = BAEUME[modul]
+    aliase = _aliase(modul, baum)
+    nackt = set()
+    # Nur Lesezugriffe in Funktionen und Lambdas: dort laeuft Code zur
+    # Aufrufzeit. Auf Modulebene setzt die deutsche Tabelle sich aus ihren
+    # eigenen Konstanten zusammen -- das ist Definition, keine Verwendung.
+    for funktion in ast.walk(baum):
+        if not isinstance(funktion, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            continue
+        for k in ast.walk(funktion):
+            if isinstance(k, ast.Name) and isinstance(k.ctx, ast.Load):
+                herkunft = modul if k.id in KONSTANTEN[modul] else aliase.get(k.id)
+                if herkunft and (herkunft, k.id) in registriert:
+                    nackt.add(f"{modul}:{k.lineno} {k.id}")
+    assert sorted(nackt) == []
+
+
+def _sieht_deutsch_aus(wert) -> bool:
+    if isinstance(wert, str):
+        return bool(_STOPP.search(wert) or re.search(r"[äöüß]", wert))
+    if isinstance(wert, dict):
+        return any(_sieht_deutsch_aus(v) for v in wert.values())
+    if isinstance(wert, (list, tuple, set, frozenset)):
+        return any(_sieht_deutsch_aus(v) for v in wert)
+    return False
+
+
+@pytest.mark.parametrize("modul", sorted(UMGESTELLT))
+def test_keine_unuebersetzte_konstante(modul):
+    import importlib
+
+    tabelle = _tabelle()
+    m = importlib.import_module(f"interview_theater.{modul}")
+    offen = []
+    for name in KONSTANTEN[modul]:
+        schluessel = f"{modul}.{name}"
+        if name in tabelle.get(modul, {}) or schluessel in BLEIBT_DEUTSCH or schluessel in PARSER:
+            continue
+        if name.startswith("ART_") or name.endswith("_EN"):
+            continue
+        wert = getattr(m, name, None)
+        if isinstance(wert, re.Pattern):
+            continue
+        if _sieht_deutsch_aus(wert) or (_TEXTNAME.search(name) and isinstance(wert, str) and wert.strip()):
+            offen.append(schluessel)
+    assert offen == []
+
+
+def _inline_texte(baum) -> list[tuple[int, str]]:
+    """Deutsche String-Literale in Funktionen -- ohne Docstrings,
+    log-/raise-Aufrufe und SQL (dieselbe Heuristik wie
+    Anhang A.2 des Plans)."""
+    verboten: set[int] = set()
+    fertig = []
+
+    class Sammler(ast.NodeVisitor):
+        tiefe = 0
+
+        def visit_FunctionDef(self, k):
+            if k.body and isinstance(k.body[0], ast.Expr) and isinstance(k.body[0].value, ast.Constant):
+                verboten.add(id(k.body[0].value))
+            self.tiefe += 1
+            self.generic_visit(k)
+            self.tiefe -= 1
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Call(self, k):
+            name = ast.unparse(k.func)
+            if re.match(r"^(log|logging|_log|logger)\.", name) or name.endswith(("Fehler", "Error")):
+                verboten.update(id(x) for x in ast.walk(k))
+            self.generic_visit(k)
+
+        def visit_Raise(self, k):
+            verboten.update(id(x) for x in ast.walk(k))
+            self.generic_visit(k)
+
+        def visit_JoinedStr(self, k):
+            self._pruefe(k, "".join(v.value if isinstance(v, ast.Constant) else "{}" for v in k.values))
+            verboten.update(id(x) for x in ast.walk(k))
+
+        def visit_Constant(self, k):
+            if isinstance(k.value, str):
+                self._pruefe(k, k.value)
+
+        def _pruefe(self, k, text):
+            if self.tiefe == 0 or id(k) in verboten:
+                return
+            if re.match(r"^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|PRAGMA|WITH)\b", text, re.I):
+                return
+            worte = _STOPP.findall(text)
+            if len(worte) >= 2 or (re.search(r"[äöüß]", text) and len(text) > 3) \
+                    or (worte and len(text.split()) >= 3):
+                fertig.append((k.lineno, text))
+
+    Sammler().visit(baum)
+    return fertig
+
+
+@pytest.mark.parametrize("modul", sorted(UMGESTELLT))
+def test_keine_deutschen_inline_texte(modul):
+    offen = [f"{modul}:{zeile} {text[:60]!r}"
+             for zeile, text in _inline_texte(BAEUME[modul])
+             if (modul, text[:40]) not in INLINE_ERLAUBT]
+    assert offen == []
+
+
+def test_umgestellt_ist_teilmenge_von_alle_module():
+    assert UMGESTELLT <= ALLE_MODULE

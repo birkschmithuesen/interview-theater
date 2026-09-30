@@ -2149,7 +2149,7 @@ Vorfall-Details). Die Aufgaben 8 und 10–17 fuegen ihre Module hinzu.
   `ALLE_MODULE: set[str]` — die Menge, die `UMGESTELLT` in Aufgabe 17
   erreichen muss.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 ```python
 """Die Texttabelle ist vollstaendig, und jeder Nutzertext laeuft ueber sie (D3).
@@ -2484,7 +2484,7 @@ def test_umgestellt_ist_teilmenge_von_alle_module():
     assert UMGESTELLT <= ALLE_MODULE
 ```
 
-- [ ] **Schritt 2: Rot sehen, dann gruen**
+- [x] **Schritt 2: Rot sehen, dann gruen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprache_texte.py`
 Expected zuerst: gruen fuer `anweisungen` — **Rotsehen erzwingen:** in
@@ -2492,7 +2492,7 @@ Expected zuerst: gruen fuer `anweisungen` — **Rotsehen erzwingen:** in
 → `test_jeder_zugriff_hat_einen_englischen_eintrag` rot mit
 `anweisungen.UEBERSCHRIFT`. Wiederherstellen → gruen.
 
-- [ ] **Schritt 3: Mutationsnachweise**
+- [x] **Schritt 3: Mutationsnachweise**
 
 - In `anweisungen.system()` `T.UEBERSCHRIFT` zurueck auf `UEBERSCHRIFT` →
   `test_keine_nackte_verwendung[anweisungen]` rot (`anweisungen:… UEBERSCHRIFT`).
@@ -2500,7 +2500,7 @@ Expected zuerst: gruen fuer `anweisungen` — **Rotsehen erzwingen:** in
   `"Additional {x} instruction"` ersetzen → `test_platzhalter_und_form_gleich`
   rot. Zuruecksetzen.
 
-- [ ] **Schritt 4: SUITE, Commit**
+- [x] **Schritt 4: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider

@@ -115,6 +115,8 @@ _TEXT_ERST_FRUEHERE = (
 _TEXT_FEHLER = (
     "Die Szene ist mir nicht gelungen. Sagt es nochmal, dann versuche ich es neu."
 )
+#: Der fertige Szenentext im Chat: Kopf, Leerzeile, Text.
+_TEXT_SZENENTEXT = "Szene {nummer}: {titel}\n\n{volltext}"
 
 #: Birk 05.09.: "schaltet Opus als Modell ein ab /szene mit einer Warnung,
 #: dass ab nun die Daten nach Amerika abfliessen." Steht VOR der
@@ -374,6 +376,10 @@ def systemanweisung(form: str | None = None, stil: str | None = None) -> str:
 #: Fehlerrichtung ist damit die harmlose.
 _NUMMER = re.compile(r"\bszene\s*(?:nr\.?|nummer)?\s*(\d{1,3})\b", re.IGNORECASE)
 
+#: Dasselbe auf Englisch (Karte A1, K5): "write scene 2", "scene no. 4".
+#: Ausgabeparser -- beide werden probiert, deutsch zuerst.
+_NUMMER_EN = re.compile(r"\bscene\s*(?:no\.?|number)?\s*(\d{1,3})\b", re.IGNORECASE)
+
 
 def nummer_aus_auftrag(auftrag: str) -> int | None:
     """Liest die Szenennummer aus dem Auftrag, oder None.
@@ -381,9 +387,10 @@ def nummer_aus_auftrag(auftrag: str) -> int | None:
     Nennt der Auftrag eine Nummer, zu der es schon eine Szene gibt, wird
     diese ueberschrieben (der Normalfall "Szene 2 nochmal, aber kuerzer");
     sonst entsteht eine neue."""
-    treffer = _NUMMER.search(auftrag or "")
-    if treffer:
-        return int(treffer.group(1))
+    for muster in (_NUMMER, _NUMMER_EN):
+        treffer = muster.search(auftrag or "")
+        if treffer:
+            return int(treffer.group(1))
     # Eine nackte Zahl ("/szene 1" kommt hier als "1" an) meint die Szene mit
     # dieser Nummer. Live-Fall Testgruppe 05.09. 22:20: "/szene 1" schrieb
     # Szene 3, weil "1" als "keine Nummer" gelesen wurde und dann die zuletzt
@@ -461,6 +468,28 @@ FELD_ALIASE = {
     "kurzbeschreibung": "kurzbeschreibung",
 }
 
+#: Dieselben Aliase auf Englisch (Karte A1, K5) -- Ziel sind die deutschen
+#: Spaltennamen (Protokoll). ``feldname`` sucht erst deutsch, dann englisch.
+#: Abweichung vom Plan: "summary" zeigt auf ``kurzbeschreibung`` (die Spalte,
+#: auf die das deutsche "kurz" zeigt), weil es keine Spalte ``kurz`` gibt.
+FELD_ALIASE_EN = {
+    "place": "ort",
+    "location": "ort",
+    "time": "zeit",
+    "occasion": "anlass",
+    "characters": "figuren",
+    "cast": "figuren",
+    "who": "figuren",
+    "what happens": "was_passiert",
+    "plot": "was_passiert",
+    "what's different": "was_anders",
+    "what is different": "was_anders",
+    "key lines": "kernsaetze",
+    "tone": "ton",
+    "title": "titel",
+    "summary": "kurzbeschreibung",
+}
+
 #: Trennt die Angaben einer Planung. Bewusst die Pipe und nicht das Komma:
 #: in "figuren: Mira, Pola, Pal" und in einem Handlungssatz stehen Kommas.
 PLANUNG_TRENNER = "|"
@@ -469,14 +498,21 @@ PLANUNG_TRENNER = "|"
 _PLANUNG_NUMMER = re.compile(r"^\s*(?:szene\s*(?:nr\.?|nummer)?\s*)?(\d{1,3})\s*$",
                              re.IGNORECASE)
 
+#: Dasselbe mit "scene" (Karte A1, K5): "Scene 1", "scene no. 2".
+_PLANUNG_NUMMER_EN = re.compile(
+    r"^\s*(?:(?:szene|scene)\s*(?:nr\.?|nummer|no\.?|number)?\s*)?(\d{1,3})\s*$",
+    re.IGNORECASE)
+
 
 def feldname(wort: str) -> str | None:
     """Uebersetzt ein Wort in einen Szenenfeldnamen, oder None.
 
     Die eine Stelle, an der ``FELD_ALIASE`` ausgewertet wird -- der Befehl
     ``/szene <n> <feld> <wert>`` und die Erkennerangabe ``szene_planen``
-    sollen dieselben Woerter verstehen."""
-    return FELD_ALIASE.get((wort or "").strip().lower())
+    sollen dieselben Woerter verstehen. Erst deutsch, dann englisch
+    (``FELD_ALIASE_EN``)."""
+    schluessel = (wort or "").strip().lower()
+    return FELD_ALIASE.get(schluessel) or FELD_ALIASE_EN.get(schluessel)
 
 
 def zerlege_planung(wert: str) -> tuple[int | None, dict[str, str]]:
@@ -506,7 +542,9 @@ def zerlege_planung(wert: str) -> tuple[int | None, dict[str, str]]:
                 felder[schluessel] = rest.strip()
             continue
         # Kein bekanntes Feld: dann ist es der Kopf mit der Szenennummer.
-        treffer = _PLANUNG_NUMMER.match(teil.split(":", 1)[0])
+        kopfteil = teil.split(":", 1)[0]
+        treffer = (_PLANUNG_NUMMER.match(kopfteil)
+                   or _PLANUNG_NUMMER_EN.match(kopfteil))
         if treffer and nummer is None:
             nummer = int(treffer.group(1))
     return nummer, felder
@@ -536,15 +574,32 @@ _TEXT_NEUE_FIGUR_MEHRERE = (
 )
 
 
+#: Die Bausteine, aus denen Szenenkoepfe und Aufzaehlungen im Chat und im
+#: Szenen-Prompt entstehen (Karte A1: ueber ``T`` gelesen).
+_UND = " und "
+_SZENE_MIT_NUMMER = "Szene {nummer}"
+_SZENE_OHNE_NUMMER = "Szene"
+_DIE_SZENE = "die Szene"
+
+
 def _und(namen: list[str]) -> str:
     """"Mira, Pola und Pal" -- eine Aufzaehlung, wie man sie spricht."""
     if len(namen) <= 1:
         return "".join(namen)
-    return ", ".join(namen[:-1]) + " und " + namen[-1]
+    return ", ".join(namen[:-1]) + T._UND + namen[-1]
+
+
+def _szenenkopf(nummer) -> str:
+    """"Szene 3" -- oder "Szene", wenn die Szene keine Nummer hat."""
+    if nummer is None:
+        return T._SZENE_OHNE_NUMMER
+    return T._SZENE_MIT_NUMMER.format(nummer=nummer)
 
 
 def _kopf(zeile) -> str:
-    return f"Szene {zeile['nummer']}" if zeile["nummer"] is not None else "die Szene"
+    if zeile["nummer"] is not None:
+        return T._SZENE_MIT_NUMMER.format(nummer=zeile["nummer"])
+    return T._DIE_SZENE
 
 
 #: Wie das Setting (``arbeitsstand.rahmen``) auf die Szenenfelder abgebildet
@@ -554,6 +609,13 @@ def _kopf(zeile) -> str:
 _RAHMEN_FELD = re.compile(
     r"(?:^|[,;\n])\s*(Ort|Zeit|Anlass)\s*:\s*([^,;\n]+)", re.IGNORECASE
 )
+
+#: Dasselbe auf Englisch (Karte A1, K5); ``_RAHMEN_ZUORDNUNG_EN`` bildet auf
+#: die deutschen Spaltennamen ab.
+_RAHMEN_FELD_EN = re.compile(
+    r"(?:^|[,;\n])\s*(Place|Time|Occasion)\s*:\s*([^,;\n]+)", re.IGNORECASE
+)
+_RAHMEN_ZUORDNUNG_EN = {"place": "ort", "time": "zeit", "occasion": "anlass"}
 
 
 def rahmenfelder(rahmen: str | None) -> dict[str, str]:
@@ -569,6 +631,13 @@ def rahmenfelder(rahmen: str | None) -> dict[str, str]:
     treffer = {
         name.lower(): wert.strip()
         for name, wert in _RAHMEN_FELD.findall(roh)
+        if wert.strip()
+    }
+    if treffer:
+        return treffer
+    treffer = {
+        _RAHMEN_ZUORDNUNG_EN[name.lower()]: wert.strip()
+        for name, wert in _RAHMEN_FELD_EN.findall(roh)
         if wert.strip()
     }
     if treffer:
@@ -666,13 +735,14 @@ def sperrtext(conn, ziel) -> str | None:
         return None
     teile = []
     if felder:
-        teile.append(_TEXT_FEHLENDE_FELDER.format(
-            kopf=_kopf(ziel), felder=", ".join(FELDNAMEN[f] for f in felder),
+        feldnamen = T.FELDNAMEN
+        teile.append(T._TEXT_FEHLENDE_FELDER.format(
+            kopf=_kopf(ziel), felder=", ".join(feldnamen[f] for f in felder),
         ))
     if ohne_profil:
         vorlage = (
-            _TEXT_OHNE_PROFIL_EINE if len(ohne_profil) == 1
-            else _TEXT_OHNE_PROFIL_MEHRERE
+            T._TEXT_OHNE_PROFIL_EINE if len(ohne_profil) == 1
+            else T._TEXT_OHNE_PROFIL_MEHRERE
         )
         teile.append(vorlage.format(namen=_und(ohne_profil)))
     return " ".join(teile)
@@ -702,7 +772,7 @@ def neue_figuren_hinweis(conn, chat_id: int, ziel) -> str | None:
     neue = [f["name"] for f in repo.szene_figuren(conn, ziel["id"]) if f["id"] not in frueher]
     if not neue:
         return None
-    vorlage = _TEXT_NEUE_FIGUR_EINE if len(neue) == 1 else _TEXT_NEUE_FIGUR_MEHRERE
+    vorlage = T._TEXT_NEUE_FIGUR_EINE if len(neue) == 1 else T._TEXT_NEUE_FIGUR_MEHRERE
     return vorlage.format(namen=_und(neue), nummer=ziel["nummer"])
 
 
@@ -715,7 +785,7 @@ def planungszeile(conn, zeile) -> str:
     Chat soll die Gruppe auf einen Blick erkennen, welche Szene gemeint ist,
     nicht die ganze Planung noch einmal lesen."""
     nummer = zeile["nummer"]
-    stuecke = [f"Szene {nummer}" if nummer is not None else "Szene"]
+    stuecke = [_szenenkopf(nummer)]
     for feld in ("form", "ort"):
         if zeile[feld]:
             stuecke.append(zeile[feld])
@@ -844,15 +914,23 @@ def _format_rahmen_text(conn, chat_id: int) -> str:
         return ""
     zeilen = []
     if stand["rahmen"]:
-        zeilen.append(
-            "Die Geschichte / der Rahmen des Stuecks -- das ist die Vorgabe der "
-            "Gruppe, jede Szene ist ein Teil davon und muss dazu passen:\n"
-            f"{stand['rahmen']}"
-        )
+        zeilen.append(T._RAHMEN_BLOCK.format(rahmen=stand["rahmen"]))
     geschichte = stand["geschichte"] if "geschichte" in stand.keys() else None
     if geschichte:
-        zeilen.append(f"Bogen und Ende:\n{geschichte}")
+        zeilen.append(T._BOGEN_BLOCK.format(geschichte=geschichte))
     return "\n\n".join(zeilen)
+
+
+#: Die Koepfe der ersten beiden Bloecke des Szenen-Prompts (W3: der
+#: Nutzertext spricht die Sprache des Profils).
+_RAHMEN_BLOCK = (
+    "Die Geschichte / der Rahmen des Stuecks -- das ist die Vorgabe der "
+    "Gruppe, jede Szene ist ein Teil davon und muss dazu passen:\n"
+    "{rahmen}"
+)
+_BOGEN_BLOCK = "Bogen und Ende:\n{geschichte}"
+_KERNFRAGE_KOPF = "Kernfrage:\n"
+_ZEILE_HAUPTKONFLIKT = "Hauptkonflikt: {hauptkonflikt}"
 
 
 def _thema_text(conn, chat_id: int) -> str:
@@ -880,9 +958,9 @@ def _thema_text(conn, chat_id: int) -> str:
     if kernthema:
         zeilen.append(kernthema)
     if stand["kernfrage"]:
-        zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
+        zeilen.append(T._KERNFRAGE_KOPF + stand["kernfrage"].strip())
     if stand["hauptkonflikt"]:
-        zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
+        zeilen.append(T._ZEILE_HAUPTKONFLIKT.format(hauptkonflikt=stand["hauptkonflikt"]))
     return "\n".join(zeilen)
 
 
@@ -934,7 +1012,7 @@ def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
                     f'"{eintrag["zitat"]}"'
                 )
         if zeilen:
-            return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
+            return T.KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
     # Die Zusammenfassung gehoert der Verdichtung, nicht dem Thema: elf
     # markierte Themen eines Interviews schrieben sie elfmal (Audit-Befund
     # S2, 06.09.2026 -- 7.700 Zeichen Dublette). Einmal je Interview.
@@ -955,7 +1033,7 @@ def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
         zeilen.append(zeile)
     if not zeilen:
         return ""
-    return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
+    return T.KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
 
 
 #: Ueberschrift von Block 3 -- die wichtigste Zeile des ganzen Prompts (Birk,
@@ -1010,7 +1088,7 @@ def _figuren_text(conn, chat_id: int) -> str:
         bloecke.append("\n".join(zeilen))
     if not bloecke:
         return ""
-    kopf = FIGUREN_KOPF if mit_zitat else FIGUREN_KOPF_OHNE_STIMME
+    kopf = T.FIGUREN_KOPF if mit_zitat else T.FIGUREN_KOPF_OHNE_STIMME
     return kopf + "\n\n" + "\n\n".join(bloecke)
 
 
@@ -1025,14 +1103,15 @@ def _szenenfelder_zeilen(conn, zeile, felder) -> list[str]:
     Die eine Stelle, an der Szenenfelder formatiert werden -- Continuity und
     "Diese Szene" sollen nie auseinanderlaufen."""
     zeilen = []
+    feldnamen = T.FELDNAMEN
     for feld in felder:
         if feld == "figuren":
             namen = [f["name"] for f in repo.szene_figuren(conn, zeile["id"])]
             if namen:
-                zeilen.append(f"{FELDNAMEN['figuren']}: {', '.join(namen)}")
+                zeilen.append(f"{feldnamen['figuren']}: {', '.join(namen)}")
             continue
         if zeile[feld]:
-            zeilen.append(f"{FELDNAMEN[feld]}: {zeile[feld]}")
+            zeilen.append(f"{feldnamen[feld]}: {zeile[feld]}")
     return zeilen
 
 
@@ -1080,8 +1159,23 @@ ANDERS_SCHLUESSEL = "ANDERS GEMACHT"
 #: waere Rauschen im Arbeitsstand.
 _ANDERS_NICHTS = ("nichts", "keine abweichung", "keine", "-", "nichts anders")
 
+#: Dasselbe auf Englisch (Karte A1): der englische Szenenprompt verlangt
+#: ``ANDERS GEMACHT: nothing``. Gelesen wird die Vereinigung.
+_ANDERS_NICHTS_EN = ("nothing", "none", "no deviation", "nothing different", "-")
+
+#: Die englischen Alternativen der Kopfzeilen-Schluessel (Karte A1, K5). Der
+#: Prompt verlangt die deutschen Protokoll-Token; ein englisches Modell
+#: labelt trotzdem manchmal englisch. Deutsch wird zuerst probiert.
+_TITEL_SCHLUESSEL = ("TITEL", "TITLE")
+_KURZ_SCHLUESSEL = ("KURZ", "SHORT")
+_ZUSAMMENFASSUNG_SCHLUESSEL_BEIDE = (ZUSAMMENFASSUNG_SCHLUESSEL, "SUMMARY")
+_ANDERS_SCHLUESSEL_BEIDE = (ANDERS_SCHLUESSEL, "DONE DIFFERENTLY")
+
 #: Der Kopf der Journalzeile, die aus "ANDERS GEMACHT" entsteht.
 _JOURNAL_ANDERS = "Szene {nummer}: {text}"
+
+#: Die Journalzeile nach einem Szenenlauf.
+_JOURNAL_GESCHRIEBEN = "Szene {nummer} geschrieben: {titel}"
 
 #: Zeilenkopf der Zusammenfassung in ``/stand`` und in der Phase-8-Uebersicht.
 STAND_ZUSAMMENFASSUNG = "Szene {nummer}: {text}"
@@ -1092,6 +1186,7 @@ STAND_ZUSAMMENFASSUNG = "Szene {nummer}: {text}"
 CONTINUITY_KUERZUNG_ZEILEN = 15
 
 _TEXT_CONTINUITY_GEKUERZT = "(Anfang gekuerzt, hier der Schluss der Szene:)"
+_TEXT_KEINE_ANGABEN = "(keine Angaben zu dieser Szene)"
 
 #: **Das Token-Budget des Szenen-Prompts -- hergeleitet, nicht gesetzt**
 #: (Birk, 06.09.2026 04:30: *"Ob 50k fuer Reasoning reicht, nicht behaupten,
@@ -1227,7 +1322,7 @@ def _gekuerzter_volltext(volltext: str) -> str:
     if len(zeilen) <= CONTINUITY_KUERZUNG_ZEILEN:
         return volltext.strip()
     schluss = "\n".join(zeilen[-CONTINUITY_KUERZUNG_ZEILEN:])
-    return f"{_TEXT_CONTINUITY_GEKUERZT}\n{schluss}"
+    return f"{T._TEXT_CONTINUITY_GEKUERZT}\n{schluss}"
 
 
 def _zusammenfassung_fuer(conn, szene) -> str:
@@ -1253,7 +1348,7 @@ def _zusammenfassung_fuer(conn, szene) -> str:
     if text:
         zeilen.append(_gekuerzter_volltext(text))
     if not zeilen:
-        return "(keine Angaben zu dieser Szene)"
+        return T._TEXT_KEINE_ANGABEN
     return "\n".join(zeilen)
 
 
@@ -1274,7 +1369,7 @@ def _continuity_bloecke(conn, chat_id: int, nummer: int | None) -> list[dict]:
     ]
     bausteine = []
     for szene in frueher:
-        kopf = f"Szene {szene['nummer']}"
+        kopf = T._SZENE_MIT_NUMMER.format(nummer=szene["nummer"])
         if szene["titel"]:
             kopf += f": {szene['titel']}"
         angaben = _szenenfelder_zeilen(conn, szene, _CONTINUITY_FELDER)
@@ -1326,13 +1421,19 @@ def _continuity_kennzeichnung(bausteine: list[dict], voll: set[int]) -> str:
     ganz = [b["nummer"] for b in mit_text if b["nummer"] in voll]
     if not kurz:
         return ""
-    teile = [f"Szene {_nummernfolge(kurz)} als Zusammenfassung"]
+    teile = [T._KENNZEICHNUNG_KURZ.format(nummern=_nummernfolge(kurz))]
     if ganz:
-        teile.append(f"Szene {_nummernfolge(ganz)} im vollen Wortlaut")
+        teile.append(T._KENNZEICHNUNG_GANZ.format(nummern=_nummernfolge(ganz)))
     satz = ", ".join(teile) + "."
     if ganz:
-        satz += f" Schliesse an Szene {max(ganz)} an."
+        satz += T._KENNZEICHNUNG_ANSCHLUSS.format(nummer=max(ganz))
     return satz
+
+
+#: Der Kennzeichnungssatz des Continuity-Blocks, in seinen drei Teilen.
+_KENNZEICHNUNG_KURZ = "Szene {nummern} als Zusammenfassung"
+_KENNZEICHNUNG_GANZ = "Szene {nummern} im vollen Wortlaut"
+_KENNZEICHNUNG_ANSCHLUSS = " Schliesse an Szene {nummer} an."
 
 
 def _nummernfolge(nummern: list[int]) -> str:
@@ -1344,7 +1445,7 @@ def _nummernfolge(nummern: list[int]) -> str:
         return str(nummern[0])
     if nummern == list(range(min(nummern), max(nummern) + 1)):
         return f"{min(nummern)}-{max(nummern)}"
-    return ", ".join(str(n) for n in nummern[:-1]) + f" und {nummern[-1]}"
+    return ", ".join(str(n) for n in nummern[:-1]) + T._UND + str(nummern[-1])
 
 
 def _continuity_text(conn, chat_id: int, nummer: int | None,
@@ -1377,7 +1478,7 @@ def _continuity_text(conn, chat_id: int, nummer: int | None,
         teile = [b["kopf"]]
         if b["volltext"] and b["nummer"] in voll:
             teile.append(
-                CONTINUITY_VOLLTEXT_KOPF.format(nummer=b["nummer"])
+                T.CONTINUITY_VOLLTEXT_KOPF.format(nummer=b["nummer"])
                 + "\n" + b["volltext"]
             )
         elif b["volltext"]:
@@ -1386,12 +1487,12 @@ def _continuity_text(conn, chat_id: int, nummer: int | None,
             # Rueckfall waeren exakt die Stichzeilen, die schon im Kopf
             # stehen (Dublette -- Prompt-Audit-Regel 1).
             teile.append(
-                CONTINUITY_FASSUNG_KOPF.format(nummer=b["nummer"])
+                T.CONTINUITY_FASSUNG_KOPF.format(nummer=b["nummer"])
                 + "\n" + b["zusammenfassung"]
             )
         bloecke.append("\n\n".join(teile))
 
-    kopf = [CONTINUITY_KOPF, CONTINUITY_ANSCHLUSS]
+    kopf = [T.CONTINUITY_KOPF, T.CONTINUITY_ANSCHLUSS]
     kennzeichnung = _continuity_kennzeichnung(bausteine, voll)
     if kennzeichnung:
         kopf.append(kennzeichnung)
@@ -1447,10 +1548,10 @@ def _aufgabe_text(conn, chat_id: int, ziel) -> str:
     gesamt = max([s["nummer"] for s in szenen] + [ziel["nummer"]])
     nummer = ziel["nummer"]
     if nummer <= 1:
-        return _AUFGABE_ERSTE
+        return T._AUFGABE_ERSTE
     if nummer >= gesamt and gesamt > 1:
-        return _AUFGABE_LETZTE
-    return _AUFGABE_MITTE.format(nummer=nummer, gesamt=gesamt)
+        return T._AUFGABE_LETZTE
+    return T._AUFGABE_MITTE.format(nummer=nummer, gesamt=gesamt)
 
 
 #: Steht dieser Marker im Auftrag, ist es ein Neuschreiben: die alte Fassung
@@ -1475,6 +1576,16 @@ NEU_HINWEIS = (
 BISHER_MARKER = "[BISHER]"
 BISHER_KOPF = "Bisheriger Text dieser Szene, er soll ueberarbeitet werden:"
 
+#: Die internen Auftragszeilen an ``starte`` (Karte A1, Aufgabe 23). Sie
+#: landen unter dem Auftragskopf im Szenen-Prompt und gehen deshalb ueber
+#: ``T``; lesbar bleiben sie in beiden Sprachen, weil
+#: ``nummer_aus_auftrag`` "Szene N" und "scene N" versteht. Die Marker
+#: (``NEU_MARKER``, ``BISHER_MARKER``) sind Protokoll und bleiben, wie sie
+#: sind -- sie haengen hinten an ``notiz``. Aufrufer: ``starte`` selbst,
+#: ``ablauf`` (Regie-Notiz), ``kuerzung``, ``knoepfe.szenen``/``wirkung``.
+TEXT_AUFTRAG_SCHREIBEN = "Schreib Szene {nummer}."
+TEXT_AUFTRAG_NEU = "Schreib Szene {nummer} neu. {notiz}"
+
 
 #: Der Kopf ueber der Prosafassung im Feinschliff-Prompt (Phase 7,
 #: 06.09.2026, 10:30). Die Geschichte ist dort **bindende Vorlage**: was
@@ -1487,6 +1598,9 @@ VORLAGE_KOPF = (
     "Geschichte erzaehlt, wird jetzt gespielt.\n\n"
     "Die Geschichte dieser Szene:"
 )
+
+#: Die Form, die im Vorlagenkopf steht, wenn die Szene noch keine hat.
+_FORM_RUECKFALL = "Dialog"
 
 
 def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False,
@@ -1508,24 +1622,23 @@ def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False,
     ``volltext`` dort leer ist."""
     if ziel is None:
         return ""
-    kopf = f"Szene {ziel['nummer']}" if ziel["nummer"] is not None else "Szene"
-    zeilen = [DIESE_SZENE_KOPF, kopf]
+    zeilen = [T.DIESE_SZENE_KOPF, _szenenkopf(ziel["nummer"])]
     zeilen += _szenenfelder_zeilen(conn, ziel, _DIESE_SZENE_FELDER)
     if vorlage and _prosa_von(ziel):
         zeilen.append("")
-        zeilen.append(VORLAGE_KOPF.format(form=(ziel["form"] or "Dialog")))
+        zeilen.append(T.VORLAGE_KOPF.format(form=(ziel["form"] or T._FORM_RUECKFALL)))
         zeilen.append(_prosa_von(ziel))
     if ziel["volltext"] and not neu:
         zeilen.append("")
-        zeilen.append(BISHER_KOPF)
+        zeilen.append(T.BISHER_KOPF)
         zeilen.append(ziel["volltext"])
     elif bisher_prosa and not vorlage and not neu and _prosa_von(ziel):
         zeilen.append("")
-        zeilen.append(BISHER_KOPF)
+        zeilen.append(T.BISHER_KOPF)
         zeilen.append(_prosa_von(ziel))
     elif ziel["volltext"] and neu:
         zeilen.append("")
-        zeilen.append(NEU_HINWEIS)
+        zeilen.append(T.NEU_HINWEIS)
     return "\n".join(zeilen)
 
 
@@ -1538,9 +1651,10 @@ def _verworfen_text(conn, chat_id: int) -> str:
     ]
     if not zeilen:
         return ""
-    return (
-        "Das hat die Gruppe verworfen, es kommt nicht wieder vor:\n" + "\n".join(zeilen)
-    )
+    return T._VERWORFEN_KOPF + "\n".join(zeilen)
+
+
+_VERWORFEN_KOPF = "Das hat die Gruppe verworfen, es kommt nicht wieder vor:\n"
 
 
 #: Ueberschrift des Chat-Blocks (06.09.2026, Birk: *"Der Szenenlauf sollte
@@ -1562,6 +1676,13 @@ CHAT_ANSCHLUSS = (
 
 #: Kopf ueber den Journalzeilen zu genau dieser Szene.
 CHAT_REGIE_KOPF = "Notizen der Gruppe zu dieser Szene:"
+
+#: Wer im Chat-Block spricht -- ohne Klarnamen (siehe ``_chat_text``).
+_SPRECHER_DU = "Du"
+_SPRECHER_GRUPPE = "Gruppe"
+
+#: Der Kopf ueber dem Auftrag, ganz am Ende des Nutzertexts.
+_AUFTRAG_KOPF = "Euer Auftrag:\n"
 
 #: Wie viele Chatnachrichten hoechstens mitgehen -- dieselbe Zahl wie im
 #: Gespraechsfenster (``kontext.FENSTER_NACHRICHTEN``), aber eigenstaendig:
@@ -1638,10 +1759,16 @@ def _regienotizen(conn, chat_id: int, nummer: int | None) -> list[str]:
     standen ausschliesslich im Chat."""
     if nummer is None:
         return []
-    marke = f"Szene {nummer}"
+    # Rundreise-Marker (Karte A1): ein Journal kann Eintraege aus beiden
+    # Sprachen tragen -- "Szene 3" und "Scene 3" meinen dieselbe Szene.
+    marken = {
+        _SZENE_MIT_NUMMER.format(nummer=nummer),
+        T._SZENE_MIT_NUMMER.format(nummer=nummer),
+    }
     return [
         f"- {e['text']}" for e in repo.journal(conn, chat_id)
-        if e["art"] in ("entschieden", "verworfen") and marke in (e["text"] or "")
+        if e["art"] in ("entschieden", "verworfen")
+        and any(marke in (e["text"] or "") for marke in marken)
     ]
 
 
@@ -1657,23 +1784,24 @@ def _chat_text(conn, chat_id: int, ziel, nummer: int | None,
     Genau deshalb wird hier auch nicht ``kontext.sprecherzeile``
     wiederverwendet: die setzt den Vornamen."""
     zeilen = []
+    du, gruppe = T._SPRECHER_DU, T._SPRECHER_GRUPPE
     for n in _chat_nachrichten(conn, chat_id, ziel, anzahl):
         text = (n["text"] or "").strip()
         if n["ist_bot"]:
             if len(text) > CHAT_BOT_ZEICHEN:
                 text = text[:CHAT_BOT_ZEICHEN].rstrip() + " [...]"
-            zeilen.append(f"Du: {text}" if text else f"Du: ({n['typ']})")
+            zeilen.append(f"{du}: {text}" if text else f"{du}: ({n['typ']})")
         else:
-            zeilen.append(f"Gruppe: {text}" if text else f"Gruppe: ({n['typ']})")
+            zeilen.append(f"{gruppe}: {text}" if text else f"{gruppe}: ({n['typ']})")
 
     notizen = _regienotizen(conn, chat_id, nummer)
     if not zeilen and not notizen:
         return ""
-    teile = [CHAT_KOPF + "\n" + CHAT_ANSCHLUSS]
+    teile = [T.CHAT_KOPF + "\n" + T.CHAT_ANSCHLUSS]
     if zeilen:
         teile.append("\n".join(zeilen))
     if notizen:
-        teile.append(CHAT_REGIE_KOPF + "\n" + "\n".join(notizen))
+        teile.append(T.CHAT_REGIE_KOPF + "\n" + "\n".join(notizen))
     return "\n\n".join(teile)
 
 
@@ -1790,7 +1918,7 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
                 vorlage=not schreibt_prosa(conn, chat_id),
                 bisher_prosa=BISHER_MARKER in (auftrag or ""),
             ),
-            "auftrag": "Euer Auftrag:\n" + (
+            "auftrag": T._AUFTRAG_KOPF + (
                 auftrag.replace(NEU_MARKER, "").replace(BISHER_MARKER, "").strip()
             ),
         }
@@ -1903,6 +2031,16 @@ def _kopfwert(zeile: str, schluessel: str) -> str | None:
     return rest[1:].strip().strip("*` ").strip()
 
 
+def _kopfwert_einer(zeile: str, schluessel: tuple[str, ...]) -> str | None:
+    """``_kopfwert`` fuer den ersten passenden Schluessel -- deutsch zuerst
+    (Karte A1, K5)."""
+    for s in schluessel:
+        wert = _kopfwert(zeile, s)
+        if wert is not None:
+            return wert
+    return None
+
+
 def zerlege(text: str) -> tuple[str | None, str | None, str | None, str | None, str]:
     """Trennt die Kopfzeilen der Modellantwort vom Szenentext.
 
@@ -1929,26 +2067,27 @@ def zerlege(text: str) -> tuple[str | None, str | None, str | None, str | None, 
         if not zeile.strip():
             ab = i + 1
             continue
-        wert = _kopfwert(zeile, "TITEL")
+        wert = _kopfwert_einer(zeile, _TITEL_SCHLUESSEL)
         if wert is not None and titel is None:
             titel, ab = wert, i + 1
             continue
-        wert = _kopfwert(zeile, "KURZ")
+        wert = _kopfwert_einer(zeile, _KURZ_SCHLUESSEL)
         if wert is not None and kurz is None:
             kurz, ab = wert, i + 1
             continue
-        wert = _kopfwert(zeile, ZUSAMMENFASSUNG_SCHLUESSEL)
+        wert = _kopfwert_einer(zeile, _ZUSAMMENFASSUNG_SCHLUESSEL_BEIDE)
         if wert is not None and fassung is None:
             fassung, ab = wert, i + 1
             continue
-        wert = _kopfwert(zeile, ANDERS_SCHLUESSEL)
+        wert = _kopfwert_einer(zeile, _ANDERS_SCHLUESSEL_BEIDE)
         if wert is not None and anders is None:
             anders, ab = wert, i + 1
             continue
         break
 
     volltext = "\n".join(zeilen[ab:]).strip()
-    if anders and anders.strip().lower().strip(".") in _ANDERS_NICHTS:
+    if anders and anders.strip().lower().strip(".") in (
+            _ANDERS_NICHTS + _ANDERS_NICHTS_EN):
         anders = None
     return (titel or None), (kurz or None), (fassung or None), (anders or None), volltext
 
@@ -1990,7 +2129,7 @@ def _sende_usa_angebot(conn, tg, e, chat_id: int) -> None:
     # Derselbe Grund wie beim befehle-Import in knoepfe._wirke.
     from interview_theater import knoepfe
 
-    _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEBOT_USA)
+    _sende_und_merke(conn, tg, e, chat_id, T._TEXT_ANGEBOT_USA)
     try:
         knoepfe.biete_szene_usa(conn, tg, chat_id)
     except Exception:
@@ -2132,12 +2271,13 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     except Exception:
         log.exception("Szenenfassung nicht angehaengt, chat_id=%s", chat_id)
 
-    titel = titel or f"Szene {nummer}"
+    titel = titel or T._SZENE_MIT_NUMMER.format(nummer=nummer)
     # Das Journal haelt fest, was gilt (SPEC § 2) -- eine geschriebene Szene
     # ist eine Festlegung der Gruppe, kein Vorschlag. Der Eintrag steht
     # danach im Gespraechs-Prompt und im Szenen-Prompt jedes weiteren Laufs.
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", f"Szene {nummer} geschrieben: {titel}",
+        conn, chat_id, "entschieden",
+        T._JOURNAL_GESCHRIEBEN.format(nummer=nummer, titel=titel),
         quelle="szene",
     )
     # Was das Modell wegen des Chats anders gemacht hat, wird eine eigene
@@ -2147,7 +2287,7 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
     if (anders or "").strip():
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
-            _JOURNAL_ANDERS.format(nummer=nummer, text=anders.strip()),
+            T._JOURNAL_ANDERS.format(nummer=nummer, text=anders.strip()),
             quelle="szene",
         )
     # Der Text geht VOLLSTAENDIG in den Chat (05.09.2026, Birk): lange Texte
@@ -2171,7 +2311,7 @@ def _sende_szenentext(conn, tg, e, chat_id: int, nummer: int, titel: str,
     Knoepfe."""
     from interview_theater import knoepfe
 
-    text = f"Szene {nummer}: {titel}\n\n{volltext}"
+    text = T._TEXT_SZENENTEXT.format(nummer=nummer, titel=titel, volltext=volltext)
     try:
         message_id = knoepfe.biete_nach_szenentext(conn, tg, chat_id, nummer, text)
         repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
@@ -2212,7 +2352,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str, sperre: threading.Lock) 
             log.exception("Vorfall zum Szenen-Fehler nicht schreibbar, chat_id=%s", chat_id)
         # Anders als beim Absichtserkenner erfaehrt die Gruppe davon: sie hat
         # gerade die Ankuendigung bekommen und wartet (SPEC § 11.1).
-        _sende_und_merke(conn, tg, e, chat_id, _TEXT_FEHLER)
+        _sende_und_merke(conn, tg, e, chat_id, T._TEXT_FEHLER)
     finally:
         zeilen.stoppe()
         sperre.release()
@@ -2257,11 +2397,11 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
     ):
         _sende_und_merke(
             conn, tg, e, chat_id,
-            _TEXT_ERST_FRUEHERE.format(
+            T._TEXT_ERST_FRUEHERE.format(
                 nummer=gemeint["nummer"], vorher=ziel["nummer"],
             ),
         )
-        auftrag = f"Schreib Szene {ziel['nummer']}."
+        auftrag = T.TEXT_AUFTRAG_SCHREIBEN.format(nummer=ziel["nummer"])
 
     fehlt = sperrtext(conn, ziel)
     if fehlt:
@@ -2288,20 +2428,20 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
         _usa_erinnerungen[chat_id] = erinnerungen
         if erinnerungen <= USA_ERINNERUNGEN_MAX:
             repo.merke_szene_usa_angeboten(conn, chat_id, auftrag)
-            _sende_und_merke(conn, tg, e, chat_id, _TEXT_USA_ERINNERUNG)
+            _sende_und_merke(conn, tg, e, chat_id, T._TEXT_USA_ERINNERUNG)
             return None
         repo.setze_szene_usa(conn, chat_id, False)
         _usa_erinnerungen.pop(chat_id, None)
-        _sende_und_merke(conn, tg, e, chat_id, _TEXT_USA_KEINE_ANTWORT)
+        _sende_und_merke(conn, tg, e, chat_id, T._TEXT_USA_KEINE_ANTWORT)
 
     sperre = _sperre_fuer(chat_id)
     if not sperre.acquire(blocking=False):
-        _sende_und_merke(conn, tg, e, chat_id, _TEXT_BESETZT)
+        _sende_und_merke(conn, tg, e, chat_id, T._TEXT_BESETZT)
         return None
 
     if szene_claude.ist_aktiv(e, conn, chat_id):
-        _sende_und_merke(conn, tg, e, chat_id, _TEXT_WARNUNG_USA)
-    _sende_und_merke(conn, tg, e, chat_id, _TEXT_ANGEKUENDIGT)
+        _sende_und_merke(conn, tg, e, chat_id, T._TEXT_WARNUNG_USA)
+    _sende_und_merke(conn, tg, e, chat_id, T._TEXT_ANGEKUENDIGT)
     # Hinweis, keine Sperre: die Szene wird trotzdem geschrieben.
     hinweis = neue_figuren_hinweis(conn, chat_id, ziel)
     if hinweis:
@@ -2317,3 +2457,7 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
         sperre.release()
         raise
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

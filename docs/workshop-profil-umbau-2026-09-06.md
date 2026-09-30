@@ -288,38 +288,52 @@ Der Rahmenblock steht nicht mehr in `system.md`, dort steht `{{rahmen}}`.
 
 ## 5. Was noch fehlt
 
-**Sprache ist der nächste Schritt** — und er ist bewusst nicht gebaut.
+**Sprache war der nächste Schritt** — inzwischen gebaut (Karte A1,
+30.09.2026, `docs/superpowers/plans/2026-09-30-padua-a1-sprache.md`): eigene
+Sprachschicht `interview_theater/sprache.py` +
+`interview_theater/sprachen/en/**`, Padua läuft komplett auf Englisch. Details
+und Grenzen: AGENTS.md, Abschnitt „Workshop-Profil" (Absatz „Sprache") und
+E8.
 
-- **`stt.py` liest `sprache.code` noch nicht.** Zeile 129 trägt
-  `"language": "de"` hart. Ein Parameter, eine halbe Stunde; er gehört in
-  denselben Schritt wie die Chat-Texte, weil er allein nichts nützt.
-- **Die rund 111 `_TEXT_*`-Konstanten in `knoepfe.py`** (dazu `befehle.py`,
-  `leitfaden.py`) stehen weiter im Code. Die Analyse empfiehlt in E.1
-  Frage 5 ausdrücklich, sie **nicht** im ersten Anlauf anzufassen: deutsche
-  Knopftexte sind ein Sprachproblem, kein Dortmund-Problem, und für einen
-  zweiten deutschsprachigen Workshop irrelevant. Dazu kommt ein praktischer
-  Grund vom selben Tag: `knoepfe.py` wurde parallel refaktoriert, und ein
-  gleichzeitiger Umbau derselben Konstanten hätte einen Merge-Konflikt
-  erzeugt, den niemand auflösen will. Wenn Padua konkret wird: `texte.toml`
-  mit Schlüsseln, in einem Rutsch.
-- **Die Auftragsmuster in `ablauf.py`** (`_AUFTRAGSFORMEN`) sind deutsche
-  Regex.
+- **`stt.py` liest `sprache.code` inzwischen** — **gebaut (Karte A1,
+  30.09.2026)**: `sprache=`-Parameter, `"auto"` schickt die Anfrage ohne
+  `language`-Feld und lässt Whisper die Sprache selbst erkennen (Whisper-
+  Rauchtest zur Bestätigung steht noch aus, siehe AGENTS.md).
+- **Die `_TEXT_*`-Konstanten** (`knoepfe/`, `befehle.py`, `leitfaden.py` und
+  alle übrigen Module mit Nutzertexten) sind **gebaut (Karte A1,
+  30.09.2026)**: `T = sprache.Texte(__name__)` schlägt zur Aufrufzeit in
+  `interview_theater/sprachen/en/texte.toml` nach, die deutschen Konstanten
+  bleiben unverändert die deutsche Tabelle. Der befürchtete Merge-Konflikt
+  trat nicht auf, weil der Umbau nach dem `knoepfe.py`-Refactoring kam.
+- **Die Auftragsmuster in `ablauf.py`** (`_AUFTRAGSFORMEN`) — **gebaut
+  (Karte A1, 30.09.2026)**: englische Entsprechungen als eigene `_EN`-
+  Konstanten, deutsches Verhalten bleibt zeichengleich (siehe AGENTS.md,
+  Konvention „Parser je Sprache" im Plan).
 - **Die Anti-Nachplapper-Wortlisten** in `tests/test_anweisungen.py` und
   `tests/test_prompt_audit.py` (`FREMDE_NAMEN = ("Kessel", "Mira", "Pola",
-  "Pal ")`) sind Dortmunder Historie und gehören ins Profil.
-- **Korpus und Simulations-Personas je Profil** (E.3 Schritt 10). Der Lader
-  und `pruefe_profil.py` kennen `workshop/<name>/korpus/` schon und prüfen
-  dort die Mindestzahlen; der *Betriebscode* liest ihn noch nicht — nur der
-  Repo-Korpus wird verwendet.
-- **Zweite Web-Instanz je Workshop** (E.3 Schritt 11). Der Cache-Schlüssel
-  ist umgestellt, die Formenliste kommt aus dem Profil; was fehlt, ist eine
-  Web-Instanz mit eigenem Präfix und eigener DB.
-- **Betriebsnamen entdortmunden** (E.3 Schritt 8): `einstellungen.py` 19,
-  `web.py` 62 und `scripts/web_links.py` 25 tragen weiterhin
-  `lab.artesmobiles.art/theatersoap` als Vorgabewert. Billig und
+  "Pal ")`) sind Dortmunder Historie und gehören ins Profil — **weiterhin
+  offen**, nicht Teil von Karte A1.
+- **Korpus und Simulations-Personas je Profil** (E.3 Schritt 10) —
+  **weiterhin offen**. Der Lader und `pruefe_profil.py` kennen
+  `workshop/<name>/korpus/` schon und prüfen dort die Mindestzahlen; der
+  *Betriebscode* liest ihn noch nicht — nur der Repo-Korpus wird verwendet.
+  Karte A1 legt mit `korpus/en/erkenner.jsonl` einen zweiten, sprachbasierten
+  Korpus an (`--sprache en`), das ist etwas anderes als ein Korpus je Profil.
+- **Zweite Web-Instanz je Workshop** (E.3 Schritt 11) — **weiterhin offen**.
+  Der Cache-Schlüssel ist umgestellt, die Formenliste kommt aus dem Profil;
+  was fehlt, ist eine Web-Instanz mit eigenem Präfix und eigener DB.
+- **Betriebsnamen entdortmunden** (E.3 Schritt 8) — **weiterhin offen**:
+  `einstellungen.py` 19, `web.py` 62 und `scripts/web_links.py` 25 tragen
+  weiterhin `lab.artesmobiles.art/theatersoap` als Vorgabewert. Billig und
   risikoarm — stand nicht in der Schrittliste dieses Auftrags.
-- **Einwilligung/Recht** (E.3 Schritt 9): `szene._TEXT_*USA*` steht
-  unverändert im Code.
+- **Einwilligung/Recht** (E.3 Schritt 9) — **gebaut (Karte A1, 30.09.2026)**:
+  `szene._TEXT_*USA*` läuft seit dem Sprach-Umbau über `T` und liegt englisch
+  in `interview_theater/sprachen/en/texte.toml`; die rechtliche Aussage
+  selbst (US-Modell/Schweiz) ist unverändert.
+- **Englische Nicht-Erkenner-Korpora** (Journal, Verdichter, Sprachprofil) —
+  **weiterhin offen**: Karte A1 misst nur den Erkenner englisch
+  (`korpus/en/erkenner.jsonl`); die drei anderen Prompts laufen in Padua
+  ungemessen (siehe AGENTS.md, Korpus-Abschnitt).
 
 ### Kleinere offene Punkte aus dem Bau
 

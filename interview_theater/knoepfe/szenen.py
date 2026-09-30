@@ -20,43 +20,18 @@ from interview_theater import repo
 from interview_theater.knoepfe.texte import (
     ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN, ART_DRAMATURGIE_SZENE,
     ART_DURCHLAUF_SZENE, ART_EIGENE, ART_FASSUNGEN, ART_GESCHICHTE_ANDERS,
-    ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
-    ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
+    ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU, ART_GESCHICHTE_PASST,
+    ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
     ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE,
-    ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SZENENFELDER_SPEICHERN,
-    ART_SZENENFOLGE_ANZAHL, ART_SZENENFOLGE_REIHENFOLGE,
-    ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM, ART_SZENENSTIL,
-    ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN, ART_SZENE_NAECHSTE,
-    ART_SZENE_NEU,
-    ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
-    ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
-    ART_SPRECHANTEILE, ART_TEXTBUCH,
-    MAX_AUSWAHL, MENUE_KNOPF_LAENGE, TEXT_ANDERS_KNOPF, TEXT_ANZAHL_KNOPF,
-    TEXT_DRAMATURGIE_KNOPF,
-    TEXT_DURCHLAUF_SZENE_KNOPF, TEXT_EIGENE_IDEE_KNOPF, TEXT_FASSUNGEN_KNOPF,
-    TEXT_FORM_VORSCHLAG_ZUSATZ, TEXT_GESCHICHTE_SCHREIBEN_KNOPF,
-    TEXT_KUERZEN_KNOPF,
-    TEXT_NAECHSTE_KNOPF, TEXT_NEU_KNOPF, TEXT_PASST_KNOPF,
-    TEXT_REIHENFOLGE_KNOPF, TEXT_SCHAERFUNG_RUNDE_KNOPF, TEXT_SPRECHANTEILE_KNOPF,
-    TEXT_SZENE_FORM_KNOPF,
-    TEXT_SZENE_PLANEN_KNOPF, TEXT_SZENE_SCHREIBEN_KNOPF,
-    TEXT_SZENE_SO_LASSEN_KNOPF, TEXT_SZENE_UEBERSPRINGEN_KNOPF,
-    TEXT_TEXTBUCH_KNOPF, TRENNER, _TEXT_ANDERS, _TEXT_EIGENE_IDEE,
-    _TEXT_DRAMATURGIE_LAEUFT, _TEXT_DRAMATURGIE_LASSEN_KNOPF,
-    _TEXT_FASSUNGEN_KOPF, _TEXT_FASSUNG_KOPF,
-    _TEXT_FOLGE_GESPEICHERT, _TEXT_FOLGE_LEER, _TEXT_GESCHICHTE_ANDERS_KNOPF,
-    _TEXT_GESCHICHTE_GESPEICHERT, _TEXT_GESCHICHTE_LEER,
-    _TEXT_GESCHICHTE_NEU_KNOPF, _TEXT_GESCHICHTE_PASST_KNOPF,
-    _TEXT_KEINE_FASSUNGEN, _TEXT_NUR_FORMWAHL,
-    _TEXT_KEINE_NAECHSTE, _TEXT_MENUE_ANDERS_KNOPF, _TEXT_NACH_SPEICHERN_FRAGE,
-    _TEXT_PROBENANSICHT, _TEXT_PRUEFUNG_LAEUFT, _TEXT_PRUEFUNG_LASSEN_KNOPF,
-    _TEXT_PRUEFUNG_RUNDE_KNOPF, _TEXT_PRUEFUNG_SZENE_KNOPF,
-    _TEXT_RICHTUNG_GESPEICHERT, _TEXT_SCHAERFUNG_ALLE_KNOPF,
-    _TEXT_SCHAERFUNG_DURCH, _TEXT_SCHAERFUNG_KEINE_KNOPF,
-    _TEXT_SCHAERFUNG_LAEUFT, _TEXT_SPAETERE_GEPRUEFT, _TEXT_SZENENFORM_FRAGE,
-    _TEXT_SZENE_OHNE_TEXT, _TEXT_SZENE_UNBEKANNT, _TEXT_UNBEKANNT,
-    _TEXT_USA_FRAGE_KNOEPFE, _TEXT_USA_JA_KNOPF, _TEXT_USA_NEIN_KNOPF, log,
+    ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SPRECHANTEILE,
+    ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
+    ART_SZENENFOLGE_REIHENFOLGE, ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM,
+    ART_SZENENSTIL, ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN,
+    ART_SZENE_NAECHSTE, ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN,
+    ART_SZENE_SCHREIBEN, ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN,
+    ART_SZENE_USA, ART_TEXTBUCH, MAX_AUSWAHL, MENUE_KNOPF_LAENGE, T,
+    TRENNER, log,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _mit_leiste, _nimm_alte_leiste_ab, _phasenknopf,
@@ -102,15 +77,22 @@ def biete_szenenform(conn, tg, chat_id: int, nummer: int, text: str | None = Non
         if grund:
             zusatz = "\n\n" + grund
 
+    # Die Beschriftung ist der Anzeigename aus dem Profil (Padua "Chorus",
+    # Dortmund "Chor" -- dort gleich ``form.capitalize()``, also
+    # zeichengleich zum Stand davor); der Knopfwert bleibt der
+    # Datenbankwert. Gefunden vom Render-Pruefer (Aufgabe 30).
+    from interview_theater import workshop
+
+    anzeige = dict(zip(workshop.formen(), workshop.form_anzeige()))
     knoepfe = [
         (
-            form.capitalize() + (TEXT_FORM_VORSCHLAG_ZUSATZ if form == vorschlag_form
-                                 else ""),
+            anzeige.get(form, form.capitalize())
+            + (T.TEXT_FORM_VORSCHLAG_ZUSATZ if form == vorschlag_form else ""),
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFORM, f"{nummer}:{form}")),
         )
         for form in reihenfolge
     ]
-    frage = text or _TEXT_SZENENFORM_FRAGE.format(nummer=nummer)
+    frage = text or T._TEXT_SZENENFORM_FRAGE.format(nummer=nummer)
     return _mit_leiste(conn, tg, chat_id, frage + zusatz, knoepfe)
 
 
@@ -151,7 +133,7 @@ def biete_szenenstil(conn, tg, chat_id: int, nummer: int) -> int:
     ]
     leiste.append(
         (
-            stile.TEXT_OHNE,
+            stile.T.TEXT_OHNE,
             _daten(
                 repo.lege_knopf_an(
                     conn, chat_id, ART_SZENENSTIL, f"{nummer}:{stile.OHNE}"
@@ -179,10 +161,10 @@ def biete_szene_usa(conn, tg, chat_id: int, text: str | None = None) -> None:
     und ein Nein muss genauso ein Druck sein wie ein Ja -- sonst waere
     Schweigen die einzige Form der Ablehnung."""
     knoepfe = [
-        (_TEXT_USA_JA_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_USA, "ja"))),
-        (_TEXT_USA_NEIN_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_USA, "nein"))),
+        (T._TEXT_USA_JA_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_USA, "ja"))),
+        (T._TEXT_USA_NEIN_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_USA, "nein"))),
     ]
-    _sende_knoepfe(conn, tg, chat_id, text or _TEXT_USA_FRAGE_KNOEPFE, knoepfe)
+    _sende_knoepfe(conn, tg, chat_id, text or T._TEXT_USA_FRAGE_KNOEPFE, knoepfe)
 
 
 def sende_szenenfolge(conn, tg, chat_id: int, antwort: str) -> int:
@@ -203,11 +185,11 @@ def sende_szenenfolge(conn, tg, chat_id: int, antwort: str) -> int:
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENENFOLGE_SPEICHERN)
     leiste = [
         (
-            TEXT_ANZAHL_KNOPF,
+            T.TEXT_ANZAHL_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFOLGE_ANZAHL, None)),
         ),
         (
-            TEXT_REIHENFOLGE_KNOPF,
+            T.TEXT_REIHENFOLGE_KNOPF,
             _daten(
                 repo.lege_knopf_an(conn, chat_id, ART_SZENENFOLGE_REIHENFOLGE, None)
             ),
@@ -247,7 +229,7 @@ def sende_geschichte(conn, tg, chat_id: int, antwort: str) -> int:
     # an der Zeilenzahl: drei Szenen und drei Richtungen saehen sonst gleich
     # aus.
     zeilen_roh = vorschlag.zeilen(wert)
-    alter_block = len(zeilen_roh) > 1 and szenenfolge._ENDE_PRAEFIX.match(zeilen_roh[1])
+    alter_block = len(zeilen_roh) > 1 and szenenfolge.ist_ende_zeile(zeilen_roh[1])
     _, szenenzeilen = szenenfolge.zerlege_geschichte(wert)
     if alter_block and szenenzeilen:
         # Der alte Weg bleibt begehbar: liefert ein Modell noch Bogen, Ende
@@ -256,11 +238,11 @@ def sende_geschichte(conn, tg, chat_id: int, antwort: str) -> int:
         # Anzahl, Reihenfolge und Ja/Nein.
         leiste = [
             (
-                TEXT_ANZAHL_KNOPF,
+                T.TEXT_ANZAHL_KNOPF,
                 _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFOLGE_ANZAHL, None)),
             ),
             (
-                TEXT_REIHENFOLGE_KNOPF,
+                T.TEXT_REIHENFOLGE_KNOPF,
                 _daten(
                     repo.lege_knopf_an(
                         conn, chat_id, ART_SZENENFOLGE_REIHENFOLGE, None
@@ -290,7 +272,7 @@ def sende_geschichte(conn, tg, chat_id: int, antwort: str) -> int:
         )
     leiste.append(
         (
-            _TEXT_MENUE_ANDERS_KNOPF,
+            T._TEXT_MENUE_ANDERS_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, "geschichte")),
         )
     )
@@ -355,14 +337,14 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
         return True
     leiste = [
         (
-            TEXT_SCHAERFUNG_RUNDE_KNOPF,
+            T.TEXT_SCHAERFUNG_RUNDE_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHAERFUNG_RUNDE, None)),
         )
     ]
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
         leiste.append(phasenknopf)
-    _mit_leiste(conn, tg, chat_id, _TEXT_SCHAERFUNG_DURCH, leiste)
+    _mit_leiste(conn, tg, chat_id, T._TEXT_SCHAERFUNG_DURCH, leiste)
     return False
 
 
@@ -394,7 +376,7 @@ def _sende_schaerfungsmenue(
         )
     leiste.append(
         (
-            _TEXT_SCHAERFUNG_ALLE_KNOPF,
+            T._TEXT_SCHAERFUNG_ALLE_KNOPF,
             _daten(
                 repo.lege_knopf_an(
                     conn, chat_id, sammelart, f"weiter{TRENNER}{sammelwert}"
@@ -404,7 +386,7 @@ def _sende_schaerfungsmenue(
     )
     leiste.append(
         (
-            _TEXT_SCHAERFUNG_KEINE_KNOPF,
+            T._TEXT_SCHAERFUNG_KEINE_KNOPF,
             _daten(
                 repo.lege_knopf_an(
                     conn, chat_id, ART_SCHAERFUNG_KEINE,
@@ -445,7 +427,7 @@ def starte_schaerfung(conn, tg, klm, e, chat_id: int) -> None:
 
     frei = not vorschlagssperre.laeuft(chat_id)
     if frei:
-        tg.sende(chat_id, _TEXT_SCHAERFUNG_LAEUFT)
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_LAEUFT)
     if schaerfung_modul.starte(conn, tg, klm, e, chat_id, nachbereitung=_danach) is None:
         biete_schaerfung(conn, tg, chat_id)
 
@@ -459,7 +441,7 @@ def starte_stueckpruefung(conn, tg, klm, e, chat_id: int) -> None:
     zeigt ``zeige_stueckpruefung`` das, was schon dasteht."""
     from interview_theater import stueckpruefung as pruefung_modul
 
-    tg.sende(chat_id, _TEXT_PRUEFUNG_LAEUFT)
+    tg.sende(chat_id, T._TEXT_PRUEFUNG_LAEUFT)
     pruefung_modul.starte(conn, tg, klm, e, chat_id)
 
 
@@ -475,7 +457,7 @@ def probenansicht_zeile(conn, e, chat_id: int) -> str:
     if not basis:
         return ""
     url = repo.gruppenseite_url(conn, chat_id, basis)
-    return _TEXT_PROBENANSICHT.format(url=f"{url}/textbuch") if url else ""
+    return T._TEXT_PROBENANSICHT.format(url=f"{url}/textbuch") if url else ""
 
 
 def zeige_stueckpruefung(
@@ -497,14 +479,14 @@ def zeige_stueckpruefung(
     zeilen = repo.stueckpruefungen(conn, chat_id, runde=runde)
     if not zeilen:
         return 0
-    tg.sende(chat_id, pruefung_modul.MELDUNG_KOPF.format(runde=runde))
+    tg.sende(chat_id, pruefung_modul.T.MELDUNG_KOPF.format(runde=runde))
     verschickt = 0
     for zeile in zeilen:
         leiste = []
         if zeile["szene_nummer"] is not None and (zeile["vorschlag"] or "").strip():
             leiste.append(
                 (
-                    _TEXT_PRUEFUNG_SZENE_KNOPF.format(nummer=zeile["szene_nummer"]),
+                    T._TEXT_PRUEFUNG_SZENE_KNOPF.format(nummer=zeile["szene_nummer"]),
                     _daten(
                         repo.lege_knopf_an(
                             conn, chat_id, ART_PRUEFUNG_SZENE, str(zeile["id"])
@@ -514,7 +496,7 @@ def zeige_stueckpruefung(
             )
         leiste.append(
             (
-                _TEXT_PRUEFUNG_LASSEN_KNOPF,
+                T._TEXT_PRUEFUNG_LASSEN_KNOPF,
                 _daten(
                     repo.lege_knopf_an(
                         conn, chat_id, ART_PRUEFUNG_LASSEN, str(zeile["id"])
@@ -542,13 +524,13 @@ def biete_nach_pruefung(conn, tg, chat_id: int, runde: int, e=None) -> int:
 
     leiste = [
         (
-            _TEXT_PRUEFUNG_RUNDE_KNOPF,
+            T._TEXT_PRUEFUNG_RUNDE_KNOPF,
             _daten(
                 repo.lege_knopf_an(conn, chat_id, ART_PRUEFUNG_RUNDE, str(runde))
             ),
         ),
         (
-            TEXT_TEXTBUCH_KNOPF,
+            T.TEXT_TEXTBUCH_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEXTBUCH, None)),
         ),
         # Die feinkoernige Ebene daneben (06.09.2026): der Stueck-Judge sagt
@@ -556,7 +538,7 @@ def biete_nach_pruefung(conn, tg, chat_id: int, runde: int, e=None) -> int:
         # wie sie anfaengt" -- mit Zitat und Szenennummer. Zwei Fragen, zwei
         # Knoepfe; angeboten wird beides, gedrueckt wird, was die Gruppe will.
         (
-            TEXT_DRAMATURGIE_KNOPF,
+            T.TEXT_DRAMATURGIE_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_DRAMATURGIE, None)),
         ),
     ]
@@ -565,7 +547,7 @@ def biete_nach_pruefung(conn, tg, chat_id: int, runde: int, e=None) -> int:
             continue
         leiste.append(
             (
-                TEXT_DURCHLAUF_SZENE_KNOPF.format(nummer=s["nummer"]),
+                T.TEXT_DURCHLAUF_SZENE_KNOPF.format(nummer=s["nummer"]),
                 _daten(
                     repo.lege_knopf_an(
                         conn, chat_id, ART_DURCHLAUF_SZENE, str(s["nummer"])
@@ -597,7 +579,7 @@ def starte_dramaturgie(conn, tg, klm, e, chat_id: int) -> None:
     (Zusage 2)."""
     from interview_theater.dramaturgie import fanout
 
-    tg.sende(chat_id, _TEXT_DRAMATURGIE_LAEUFT)
+    tg.sende(chat_id, T._TEXT_DRAMATURGIE_LAEUFT)
     fanout.starte(conn, tg, klm, e, chat_id)
 
 
@@ -623,12 +605,12 @@ def zeige_dramaturgie(conn, tg, chat_id: int, runde: int | None = None) -> int:
         return 0
     zeilen = repo.dramaturgie_befunde(conn, chat_id, runde=runde)
     if not zeilen:
-        tg.sende(chat_id, fanout.MELDUNG_OHNE_BEFUND)
+        tg.sende(chat_id, fanout.T.MELDUNG_OHNE_BEFUND)
         return 0
     figuren = [f["name"] for f in repo.figuren(conn, chat_id)]
     auftraege = {a["befund_id"]: a for a in fanout.auftraege(zeilen, figuren)}
 
-    tg.sende(chat_id, fanout.MELDUNG_KOPF.format(runde=runde))
+    tg.sende(chat_id, fanout.T.MELDUNG_KOPF.format(runde=runde))
     verschickt = 0
     for zeile in zeilen:
         text = fanout.befundzeile(zeile)
@@ -638,7 +620,7 @@ def zeige_dramaturgie(conn, tg, chat_id: int, runde: int | None = None) -> int:
             continue
         leiste = [
             (
-                fanout.TEXT_AUFTRAG_KNOPF.format(nummer=zeile["szene"]),
+                fanout.T.TEXT_AUFTRAG_KNOPF.format(nummer=zeile["szene"]),
                 _daten(
                     repo.lege_knopf_an(
                         conn, chat_id, ART_DRAMATURGIE_SZENE, str(zeile["id"])
@@ -646,7 +628,7 @@ def zeige_dramaturgie(conn, tg, chat_id: int, runde: int | None = None) -> int:
                 ),
             ),
             (
-                _TEXT_DRAMATURGIE_LASSEN_KNOPF,
+                T._TEXT_DRAMATURGIE_LASSEN_KNOPF,
                 _daten(
                     repo.lege_knopf_an(
                         conn, chat_id, ART_DRAMATURGIE_LASSEN, str(zeile["id"])
@@ -720,11 +702,11 @@ def biete_szene(conn, tg, chat_id: int, zeile) -> int:
     if szenenfolge.zu_pruefen(conn, chat_id, nummer):
         leiste = [
             (
-                TEXT_NEU_KNOPF,
+                T.TEXT_NEU_KNOPF,
                 _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_NEU, str(nummer))),
             ),
             (
-                TEXT_SZENE_SO_LASSEN_KNOPF,
+                T.TEXT_SZENE_SO_LASSEN_KNOPF,
                 _daten(
                     repo.lege_knopf_an(conn, chat_id, ART_SZENE_SO_LASSEN, str(nummer))
                 ),
@@ -735,25 +717,25 @@ def biete_szene(conn, tg, chat_id: int, zeile) -> int:
         )
     leiste = [
         (
-            TEXT_SZENE_SCHREIBEN_KNOPF,
+            T.TEXT_SZENE_SCHREIBEN_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_SCHREIBEN, str(nummer))),
         ),
         (
-            TEXT_SZENE_PLANEN_KNOPF,
+            T.TEXT_SZENE_PLANEN_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_PLANEN, str(nummer))),
         ),
         (
-            TEXT_SZENE_FORM_KNOPF,
+            T.TEXT_SZENE_FORM_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_FORM, str(nummer))),
         ),
         (
-            TEXT_SZENE_UEBERSPRINGEN_KNOPF,
+            T.TEXT_SZENE_UEBERSPRINGEN_KNOPF,
             _daten(
                 repo.lege_knopf_an(conn, chat_id, ART_SZENE_UEBERSPRINGEN, str(nummer))
             ),
         ),
         (
-            TEXT_EIGENE_IDEE_KNOPF,
+            T.TEXT_EIGENE_IDEE_KNOPF,
             _daten(
                 repo.lege_knopf_an(conn, chat_id, ART_EIGENE, ART_SZENE_SCHREIBEN)
             ),
@@ -786,23 +768,23 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
     leiste = [
         (
-            TEXT_PASST_KNOPF,
+            T.TEXT_PASST_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_PASST, str(nummer))),
         ),
         (
-            TEXT_ANDERS_KNOPF,
+            T.TEXT_ANDERS_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_ANDERS, str(nummer))),
         ),
         (
-            TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+            T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_KUERZEN, str(nummer))),
         ),
         (
-            TEXT_NEU_KNOPF,
+            T.TEXT_NEU_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_NEU, str(nummer))),
         ),
         (
-            TEXT_NAECHSTE_KNOPF,
+            T.TEXT_NAECHSTE_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_NAECHSTE, str(nummer))),
         ),
     ]
@@ -827,7 +809,7 @@ def biete_durchlauf(conn, tg, chat_id: int, e=None) -> int:
             continue
         leiste.append(
             (
-                TEXT_DURCHLAUF_SZENE_KNOPF.format(nummer=s["nummer"]),
+                T.TEXT_DURCHLAUF_SZENE_KNOPF.format(nummer=s["nummer"]),
                 _daten(
                     repo.lege_knopf_an(
                         conn, chat_id, ART_DURCHLAUF_SZENE, str(s["nummer"])
@@ -837,7 +819,7 @@ def biete_durchlauf(conn, tg, chat_id: int, e=None) -> int:
         )
     leiste.append(
         (
-            TEXT_TEXTBUCH_KNOPF,
+            T.TEXT_TEXTBUCH_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEXTBUCH, None)),
         )
     )
@@ -847,13 +829,13 @@ def biete_durchlauf(conn, tg, chat_id: int, e=None) -> int:
     # Zaehlung, kein Modellaufruf.
     leiste.append(
         (
-            TEXT_SPRECHANTEILE_KNOPF,
+            T.TEXT_SPRECHANTEILE_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SPRECHANTEILE, None)),
         )
     )
     leiste.append(
         (
-            TEXT_EIGENE_IDEE_KNOPF,
+            T.TEXT_EIGENE_IDEE_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, ART_TEXTBUCH)),
         )
     )
@@ -885,15 +867,15 @@ def zeige_szenentext(conn, tg, chat_id: int, nummer: int) -> str:
     Liefert die Zeile fuer die Knopfquittung."""
     ziel = _szene_mit_nummer(conn, chat_id, nummer)
     if ziel is None:
-        tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
-        return _TEXT_SZENE_UNBEKANNT
+        tg.sende(chat_id, T._TEXT_SZENE_UNBEKANNT)
+        return T._TEXT_SZENE_UNBEKANNT
     volltext = (ziel["volltext"] or "").strip()
     if not volltext:
-        tg.sende(chat_id, _TEXT_SZENE_OHNE_TEXT.format(nummer=nummer))
-        return _TEXT_SZENE_OHNE_TEXT.format(nummer=nummer)
+        tg.sende(chat_id, T._TEXT_SZENE_OHNE_TEXT.format(nummer=nummer))
+        return T._TEXT_SZENE_OHNE_TEXT.format(nummer=nummer)
     # Der Volltext geht ungekuerzt raus -- lange Texte teilt der
     # Telegram-Wrapper selbst (``telegram.teile_text``).
-    kopf = f"Szene {nummer}"
+    kopf = T._TEXT_SZENE_KOPF.format(nummer=nummer)
     if ziel["titel"]:
         kopf += f": {ziel['titel']}"
     text = f"{kopf}\n\n{volltext}"
@@ -903,13 +885,13 @@ def zeige_szenentext(conn, tg, chat_id: int, nummer: int) -> str:
     # es bei der Nachricht, die es vorher auch gab.
     if len(repo.szenenfassungen(conn, ziel["id"])) > 1:
         leiste = [(
-            TEXT_FASSUNGEN_KNOPF,
+            T.TEXT_FASSUNGEN_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FASSUNGEN, str(nummer))),
         )]
         _mit_leiste(conn, tg, chat_id, text, leiste)
-        return f"Szene {nummer}"
+        return T._TEXT_SZENE_KOPF.format(nummer=nummer)
     tg.sende(chat_id, text)
-    return f"Szene {nummer}"
+    return T._TEXT_SZENE_KOPF.format(nummer=nummer)
 
 
 def _zeige_fassungen(conn, tg, chat_id: int, nummer: int) -> str:
@@ -924,18 +906,18 @@ def _zeige_fassungen(conn, tg, chat_id: int, nummer: int) -> str:
     nebeneinander halten kann."""
     ziel = _szene_mit_nummer(conn, chat_id, nummer)
     if ziel is None:
-        tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
-        return _TEXT_SZENE_UNBEKANNT
+        tg.sende(chat_id, T._TEXT_SZENE_UNBEKANNT)
+        return T._TEXT_SZENE_UNBEKANNT
     fassungen = repo.szenenfassungen(conn, ziel["id"])[:-1]
     if not fassungen:
-        text = _TEXT_KEINE_FASSUNGEN.format(nummer=nummer)
+        text = T._TEXT_KEINE_FASSUNGEN.format(nummer=nummer)
         tg.sende(chat_id, text)
         return text
-    teile = [_TEXT_FASSUNGEN_KOPF.format(nummer=nummer)]
+    teile = [T._TEXT_FASSUNGEN_KOPF.format(nummer=nummer)]
     for f in fassungen:
         anders = (f["anders_gemacht"] or "").strip()
         teile.append(
-            _TEXT_FASSUNG_KOPF.format(
+            T._TEXT_FASSUNG_KOPF.format(
                 nummer=f["nummer"],
                 zeit=(f["erstellt_am"] or "")[:16].replace("T", " "),
                 anders=f" {anders}" if anders else "",
@@ -944,7 +926,7 @@ def _zeige_fassungen(conn, tg, chat_id: int, nummer: int) -> str:
         teile.append(f["volltext"] or "")
     # Lange Texte teilt der Telegram-Wrapper selbst (``telegram.teile_text``).
     tg.sende(chat_id, "\n\n".join(teile))
-    return TEXT_FASSUNGEN_KNOPF
+    return T.TEXT_FASSUNGEN_KNOPF
 
 
 def _naechste_offene(conn, chat_id: int, nach: int):
@@ -973,21 +955,23 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     zeilen = szenenfolge.zerlege(wert)
     if not zeilen:
         log.error("Szenenfolge-Knopf ohne verwertbare Zeile, chat_id=%s", chat_id)
-        tg.sende(chat_id, _TEXT_FOLGE_LEER)
-        return _TEXT_FOLGE_LEER
+        tg.sende(chat_id, T._TEXT_FOLGE_LEER)
+        return T._TEXT_FOLGE_LEER
     nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
     repo.schreibe_journal(
         conn, chat_id, "entschieden",
-        "Szenenfolge: " + "; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen)),
+        T._JOURNAL_SZENENFOLGE.format(
+            liste="; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen))
+        ),
         quelle="knopf",
     )
-    tg.sende(chat_id, _TEXT_FOLGE_GESPEICHERT.format(anzahl=len(nummern)))
+    tg.sende(chat_id, T._TEXT_FOLGE_GESPEICHERT.format(anzahl=len(nummern)))
     if modus.strip() == "anders":
-        tg.sende(chat_id, _TEXT_EIGENE_IDEE)
+        tg.sende(chat_id, T._TEXT_EIGENE_IDEE)
     erste = _szene_mit_nummer(conn, chat_id, nummern[0])
     if erste is not None:
         biete_szene(conn, tg, chat_id, erste)
-    return f"{len(nummern)} Szenen uebernommen"
+    return T._TEXT_SZENEN_UEBERNOMMEN_QUITTUNG.format(anzahl=len(nummern))
 
 
 def _uebernimm_formwahl(conn, tg, chat_id: int, wert: str, formen: dict) -> str:
@@ -1016,18 +1000,19 @@ def _uebernimm_formwahl(conn, tg, chat_id: int, wert: str, formen: dict) -> str:
     for nummer in sorted(formen):
         szene_id = vorhandene.get(nummer)
         if szene_id is None:
-            offen.append(f"Szene {nummer}: {formen[nummer]}")
+            offen.append(T._TEXT_SZENE_EINTRAG.format(nummer=nummer, was=formen[nummer]))
             continue
         repo.setze_szenenfeld(conn, szene_id, "form", formen[nummer])
-        geschrieben.append(f"Szene {nummer}: {formen[nummer]}")
+        geschrieben.append(T._TEXT_SZENE_EINTRAG.format(nummer=nummer, was=formen[nummer]))
     if offen:
         repo.schreibe_festlegung(
-            conn, chat_id, "form", "Form je Szene — " + ", ".join(offen),
+            conn, chat_id, "form", T._TEXT_FESTLEGUNG_FORMEN.format(liste=", ".join(offen)),
             quelle="knopf",
         )
     repo.schreibe_journal(
         conn, chat_id, "entschieden",
-        "Form je Szene: " + ", ".join(geschrieben + offen), quelle="knopf",
+        T._JOURNAL_FORM_JE_SZENE.format(liste=", ".join(geschrieben + offen)),
+        quelle="knopf",
     )
     repo.merke_vorfall(
         conn, chat_id, None, "geschichte_war_formwahl",
@@ -1035,8 +1020,8 @@ def _uebernimm_formwahl(conn, tg, chat_id: int, wert: str, formen: dict) -> str:
     )
     log.info("Geschichte-Knopf trug eine Formwahl, chat_id=%s: %r", chat_id, wert[:80])
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
-    tg.sende(chat_id, _TEXT_NUR_FORMWAHL)
-    return "Formwahl uebernommen, Geschichte fehlt noch"
+    tg.sende(chat_id, T._TEXT_NUR_FORMWAHL)
+    return T._TEXT_FORMWAHL_QUITTUNG
 
 
 
@@ -1064,15 +1049,15 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     modus, _, wert = roh.partition(TRENNER)
     zeilen_roh = [z for z in (wert or "").splitlines() if z.strip()]
     alter_block = (
-        len(zeilen_roh) > 1 and szenenfolge._ENDE_PRAEFIX.match(zeilen_roh[1].strip())
+        len(zeilen_roh) > 1 and szenenfolge.ist_ende_zeile(zeilen_roh[1].strip())
     )
     geschichte, zeilen = szenenfolge.zerlege_geschichte(wert)
     if not alter_block:
         zeilen = []
     if not geschichte:
         log.error("Geschichte-Knopf ohne verwertbare Zeile, chat_id=%s", chat_id)
-        tg.sende(chat_id, _TEXT_GESCHICHTE_LEER)
-        return _TEXT_GESCHICHTE_LEER
+        tg.sende(chat_id, T._TEXT_GESCHICHTE_LEER)
+        return T._TEXT_GESCHICHTE_LEER
     # **Eine Menuezeile ist keine Geschichte** (06.09.2026, B1/B2 der
     # Phase-4-Analyse). Der Kommentar unten benennt die Absicht richtig --
     # sie traegt aber nur, wenn die Menuezeile eine HANDLUNGSrichtung
@@ -1113,7 +1098,8 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     geschichte = wert.strip() if not zeilen else geschichte
     repo.setze_arbeitsstand(conn, chat_id, "geschichte", geschichte)
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", f"Geschichte: {geschichte}", quelle="knopf",
+        conn, chat_id, "entschieden", T._JOURNAL_GESCHICHTE.format(geschichte=geschichte),
+        quelle="knopf",
     )
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
     # **Nennt die Richtung ihre Szenen selbst, werden sie mitgespeichert**
@@ -1136,7 +1122,7 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         nummern = szenenfolge.lege_inline_an(conn, chat_id, inline)
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
-            szenenfolge.JOURNAL_INLINE.format(
+            szenenfolge.T.JOURNAL_INLINE.format(
                 liste="; ".join(f"{n}. {t}" for n, t, _f in inline)
             ),
             quelle="knopf",
@@ -1147,15 +1133,16 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
-            "Szenenfolge: "
-            + "; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen)),
+            T._JOURNAL_SZENENFOLGE.format(
+                liste="; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen))
+            ),
             quelle="knopf",
         )
         return _nach_szenen_gespeichert(conn, tg, chat_id, geschichte, modus,
                                         len(nummern))
-    tg.sende(chat_id, _TEXT_RICHTUNG_GESPEICHERT + "\n" + geschichte)
+    tg.sende(chat_id, T._TEXT_RICHTUNG_GESPEICHERT + "\n" + geschichte)
     szenenfolge.starte_geschichte_szenen(conn, tg, klm, e, chat_id)
-    return "Richtung uebernommen"
+    return T._TEXT_RICHTUNG_QUITTUNG
 
 
 def _nach_szenen_gespeichert(conn, tg, chat_id: int, geschichte: str,
@@ -1166,18 +1153,18 @@ def _nach_szenen_gespeichert(conn, tg, chat_id: int, geschichte: str,
     bei "anders" die Rueckfrage, sonst die Frage nach dem naechsten Schritt."""
     tg.sende(
         chat_id,
-        _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=anzahl) + "\n" + geschichte,
+        T._TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=anzahl) + "\n" + geschichte,
     )
     if modus.strip() == "anders":
         repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
-        tg.sende(chat_id, _TEXT_ANDERS)
-        return "Gespeichert, was soll anders sein?"
+        tg.sende(chat_id, T._TEXT_ANDERS)
+        return T._TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
-        _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
+        _mit_leiste(conn, tg, chat_id, T._TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
     else:
-        tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
-    return f"Geschichte mit {anzahl} Szenen uebernommen"
+        tg.sende(chat_id, T._TEXT_NACH_SPEICHERN_FRAGE)
+    return T._JOURNAL_GESCHICHTE_MIT_SZENEN.format(anzahl=anzahl)
 
 
 def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
@@ -1195,7 +1182,7 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
         nummer = int(roh_nummer)
     except ValueError:
         log.error("Feldvorschlag ohne Nummer, chat_id=%s, roh=%r", chat_id, roh)
-        return _TEXT_UNBEKANNT
+        return T._TEXT_UNBEKANNT
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     gesetzt = []
     for zeile in wert.splitlines():
@@ -1220,9 +1207,9 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
         gesetzt.append(feld)
     if not gesetzt:
         log.error("Feldvorschlag ohne verwertbares Feld, chat_id=%s", chat_id)
-        return _TEXT_UNBEKANNT
+        return T._TEXT_UNBEKANNT
     biete_szene(conn, tg, chat_id, repo.hole_szene(conn, szene_id))
-    return f"Szene {nummer}: {', '.join(gesetzt)}"
+    return T._TEXT_SZENE_EINTRAG.format(nummer=nummer, was=", ".join(gesetzt))
 
 
 def _schreibe_szene(conn, tg, klm, e, chat_id: int, nummer: int,
@@ -1245,20 +1232,20 @@ def _schreibe_szene(conn, tg, klm, e, chat_id: int, nummer: int,
 
     ziel = _szene_mit_nummer(conn, chat_id, nummer)
     if ziel is None:
-        tg.sende(chat_id, _TEXT_SZENE_UNBEKANNT)
-        return _TEXT_SZENE_UNBEKANNT
+        tg.sende(chat_id, T._TEXT_SZENE_UNBEKANNT)
+        return T._TEXT_SZENE_UNBEKANNT
     fehlende, _ = szene_modul.fehlendes(conn, ziel)
     eigene = [
         f for f in fehlende if f not in szene_modul.ARBEITSSTAND_PFLICHTFELDER
     ]
     if eigene:
         if szenenfolge.starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel) is not None:
-            return "Ich schlage die fehlenden Angaben vor"
-    auftrag = f"Schreib Szene {nummer}."
+            return T._TEXT_SCHLAGE_ANGABEN_VOR
+    auftrag = szene_modul.T.TEXT_AUFTRAG_SCHREIBEN.format(nummer=nummer)
     if notiz and notiz.strip():
         auftrag += f" {notiz.strip()}"
     szene_modul.starte(conn, tg, klm, e, chat_id, auftrag)
-    return f"Szene {nummer} laeuft"
+    return T._TEXT_SZENE_LAEUFT_QUITTUNG.format(nummer=nummer)
 #: Wartet diese Gruppe gerade darauf, uns zu sagen, was an der Kurzgeschichte
 #: anders werden soll? Im Prozess und nicht in der Datenbank (wie
 #: ``szenenfolge._regienotiz_erwartet``): der Merker gilt fuer genau die
@@ -1291,7 +1278,7 @@ def biete_kurzgeschichte(conn, tg, chat_id: int, text: str) -> int:
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_GESCHICHTE_SCHREIBEN)
     leiste = [
         (
-            TEXT_GESCHICHTE_SCHREIBEN_KNOPF,
+            T.TEXT_GESCHICHTE_SCHREIBEN_KNOPF,
             _daten(
                 repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_SCHREIBEN, None)
             ),
@@ -1335,16 +1322,16 @@ def zeige_kurzgeschichte(conn, tg, chat_id: int) -> None:
         for stueck in telegram_modul.teile_text(f"{kopf}\n\n{prosa}"):
             tg.sende(chat_id, stueck)
     leiste = [
-        (_TEXT_GESCHICHTE_PASST_KNOPF,
+        (T._TEXT_GESCHICHTE_PASST_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_PASST, None))),
-        (_TEXT_GESCHICHTE_ANDERS_KNOPF,
+        (T._TEXT_GESCHICHTE_ANDERS_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_ANDERS, None))),
-        (TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+        (T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_KUERZEN, None))),
-        (_TEXT_GESCHICHTE_NEU_KNOPF,
+        (T._TEXT_GESCHICHTE_NEU_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_NEU, None))),
     ]
-    _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, leiste)
+    _mit_leiste(conn, tg, chat_id, T._TEXT_NACH_SPEICHERN_FRAGE, leiste)
 
 
 def _melde_spaetere(conn, tg, chat_id: int, nummer: int) -> list[int]:
@@ -1361,11 +1348,11 @@ def _melde_spaetere(conn, tg, chat_id: int, nummer: int) -> list[int]:
     betroffen = szenenfolge.markiere_spaetere(conn, chat_id, nummer)
     if not betroffen:
         return []
-    namen = ", ".join(f"Szene {n}" for n in betroffen)
+    namen = ", ".join(T._TEXT_SZENE_KOPF.format(nummer=n) for n in betroffen)
     try:
         tg.sende(
             chat_id,
-            _TEXT_SPAETERE_GEPRUEFT.format(nummer=nummer, spaetere=namen),
+            T._TEXT_SPAETERE_GEPRUEFT.format(nummer=nummer, spaetere=namen),
         )
     except Exception:
         log.exception("Hinweis auf spaetere Szenen fehlgeschlagen, chat_id=%s", chat_id)
@@ -1387,6 +1374,6 @@ def _biete_weiter_nach_szene(conn, tg, chat_id: int, nummer: int) -> None:
         return
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
-        _mit_leiste(conn, tg, chat_id, _TEXT_KEINE_NAECHSTE, [phasenknopf])
+        _mit_leiste(conn, tg, chat_id, T._TEXT_KEINE_NAECHSTE, [phasenknopf])
     else:
-        tg.sende(chat_id, _TEXT_KEINE_NAECHSTE)
+        tg.sende(chat_id, T._TEXT_KEINE_NAECHSTE)

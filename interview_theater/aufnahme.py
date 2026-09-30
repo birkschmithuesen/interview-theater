@@ -62,7 +62,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from interview_theater import phasen, repo, stt, verdichter
+from interview_theater import phasen, repo, sprache, stt, verdichter
 
 log = logging.getLogger(__name__)
 
@@ -204,6 +204,29 @@ _TEXT_OHNE_AUFNAHME = "{name} hatte keine Aufnahme - ich habe nichts verdichtet.
 #: nochmal zu versuchen.
 _TEXT_LEER_VERWORFEN = "Keine Aufnahme dabei - nichts gespeichert."
 
+#: Wie ein Interview ohne gespeicherten Namen im Satz heisst.
+_TEXT_DAS_INTERVIEW = "Das Interview"
+
+#: Die Fehlerzeilen rund um eine Sprachnachricht und die Bausteine, mit denen
+#: ``_aufnahme_beschreibung`` sagt, welche Aufnahme gemeint ist.
+_TEXT_DOWNLOAD_FEHLER = (
+    "Die Aufnahme ist bei mir nicht angekommen - schickt sie bitte nochmal."
+)
+_TEXT_BITTE_NOCHMAL = (
+    "{beschreibung} konnte ich nicht verstehen - schickt sie bitte nochmal."
+)
+_TEXT_VERDICHTUNG_GESCHEITERT = (
+    "Ich konnte {beschreibung} nicht auswerten. Das Transkript bleibt "
+    "gespeichert, nur die Zusammenfassung fehlt."
+)
+_ARTIKEL_GROSS = "Die"
+_ARTIKEL_KLEIN = "die"
+_BESCHREIBUNG_TEIL = "{artikel} Aufnahme von {name}, Teil {nummer}"
+_BESCHREIBUNG_NAME = "{artikel} Aufnahme von {name}"
+_BESCHREIBUNG_LETZTE = "{artikel} letzte {art}"
+_ART_LANG = "lange Aufnahme"
+_ART_KURZ = "kurze Aufnahme"
+
 
 def klasse_fuer(conn, chat_id: int) -> str:
     """Ordnet eine eingehende Sprachnachricht ihrer Klasse zu (§ 10.1, § 10.6)
@@ -298,7 +321,7 @@ def stelle_phase_interviews_sicher(conn, tg, chat_id: int, quelle: str = "knopf"
         return False
     if not phasen.setze(
         conn, chat_id, PHASE_INTERVIEWS, quelle,
-        notiz=_JOURNAL_PHASE_DURCH_AUFNAHME,
+        notiz=T._JOURNAL_PHASE_DURCH_AUFNAHME,
     ):
         return False
     try:
@@ -390,10 +413,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
             f"Sprachnachricht message_id={message_id}: {type(fehler).__name__}",
         )
         try:
-            tg.sende(
-                chat_id,
-                "Die Aufnahme ist bei mir nicht angekommen - schickt sie bitte nochmal.",
-            )
+            tg.sende(chat_id, T._TEXT_DOWNLOAD_FEHLER)
         except Exception:
             log.exception("Download-Fehlermeldung fehlgeschlagen, chat_id=%s", chat_id)
         return None
@@ -472,6 +492,14 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
         _interview_abschliessen(conn, tg, klm, e, row)
 
 
+def whisper_sprache(conn, chat_id: int) -> str:
+    """Welche Sprache Whisper fuer diese Gruppe hoeren soll (Karte A1, D2):
+    der Gruppenwert (``gruppe.stt_sprache``, per Knopf oder /sprache
+    gesetzt) vor dem Profilwert (``sprache.whisper``). ``"auto"`` heisst:
+    Whisper erkennt selbst."""
+    return repo.stt_sprache(conn, chat_id) or sprache.whisper_vorgabe()
+
+
 def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
     """Ruft stt.transkribiere auf, waehrenddessen die Tippanzeige laeuft (ab
     TIPPANZEIGE_AB_S, fuer jede Klasse). Die Zwischenmeldung ("Ich hoer noch
@@ -494,7 +522,7 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
 
     def _zwischenmeldung():
         try:
-            tg.sende(chat_id, _TEXT_ZWISCHENMELDUNG)
+            tg.sende(chat_id, T._TEXT_ZWISCHENMELDUNG)
         except Exception:
             log.exception("Zwischenmeldung fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -507,7 +535,8 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
     timer_meldung.start()
 
     try:
-        return stt.transkribiere(e, klient, pfad, budget)
+        return stt.transkribiere(e, klient, pfad, budget,
+                                 sprache=whisper_sprache(conn, chat_id))
     except Exception as fehler:
         _melde_transkriptionsfehler(conn, tg, e, row, fehler)
         return None
@@ -523,6 +552,19 @@ def _ist_ersatzname(name: str | None) -> bool:
     return bool(name) and re.fullmatch(r"Interview \d+", name) is not None
 
 
+def anzeigename(conn, row, ersatz: str) -> str:
+    """Wie eine Aufnahme in einem Bot-Text heisst (E8, Karte A1): in einem
+    Profil mit Pseudonymen immer "Interview N" -- ein Aufnahmename ist oft
+    ein Klarname ("das war Marias Interview") oder der Telegram-Name dessen,
+    der das Handy hielt, und Bot-Texte kommen als "Du:"-Zeilen zurueck in
+    jedes Fenster. Sonst wie bisher: der Name oder ``ersatz``."""
+    if sprache.pseudonyme():
+        from interview_theater import kontext
+
+        return kontext.interviewbezeichnung(conn, row["chat_id"], row["id"]) or ersatz
+    return row["name"] or ersatz
+
+
 def _aufnahme_beschreibung(conn, row, gross: bool) -> str:
     """Beschreibt eine Aufnahme in einer Nutzernachricht. Ein automatisch
     vergebener Ersatzname wie 'Interview 1' wirkt in einer Chatnachricht
@@ -533,22 +575,25 @@ def _aufnahme_beschreibung(conn, row, gross: bool) -> str:
     Bei einem Teil ist das anders: 'Interview 1, Teil 3' ist keine Verlegenheit,
     sondern die einzige Angabe, mit der die Gruppe weiss, WELCHE der fuenf
     Sprachnachrichten sie noch einmal schicken soll."""
-    artikel = "Die" if gross else "die"
+    artikel = T._ARTIKEL_GROSS if gross else T._ARTIKEL_KLEIN
     if row["teil_von"]:
         kopf = repo.hole_aufnahme(conn, row["teil_von"])
-        name = (kopf["name"] if kopf else None) or "Interview"
-        return f"{artikel} Aufnahme von {name}, Teil {repo.teil_nummer(conn, row['id'])}"
-    name = row["name"]
+        name = anzeigename(conn, kopf, "Interview") if kopf else "Interview"
+        return T._BESCHREIBUNG_TEIL.format(
+            artikel=artikel, name=name, nummer=repo.teil_nummer(conn, row["id"]),
+        )
+    # E8: mit Pseudonymen ist das immer "Interview N" -- ein Ersatzname, also
+    # die Klassenbeschreibung wie ohne echten Namen.
+    name = anzeigename(conn, row, "")
     if name and not _ist_ersatzname(name):
-        return f"{artikel} Aufnahme von {name}"
-    art = "lange Aufnahme" if row["klasse"] == "lang" else "kurze Aufnahme"
-    return f"{artikel} letzte {art}"
+        return T._BESCHREIBUNG_NAME.format(artikel=artikel, name=name)
+    art = T._ART_LANG if row["klasse"] == "lang" else T._ART_KURZ
+    return T._BESCHREIBUNG_LETZTE.format(artikel=artikel, art=art)
 
 
 def _sende_bitte_nochmal(conn, tg, chat_id, row) -> None:
-    text = (
-        f"{_aufnahme_beschreibung(conn, row, gross=True)} konnte ich nicht "
-        "verstehen - schickt sie bitte nochmal."
+    text = T._TEXT_BITTE_NOCHMAL.format(
+        beschreibung=_aufnahme_beschreibung(conn, row, gross=True),
     )
     try:
         tg.sende(chat_id, text)
@@ -557,9 +602,8 @@ def _sende_bitte_nochmal(conn, tg, chat_id, row) -> None:
 
 
 def _sende_verdichtung_gescheitert(conn, tg, chat_id, row) -> None:
-    text = (
-        f"Ich konnte {_aufnahme_beschreibung(conn, row, gross=False)} nicht auswerten. "
-        "Das Transkript bleibt gespeichert, nur die Zusammenfassung fehlt."
+    text = T._TEXT_VERDICHTUNG_GESCHEITERT.format(
+        beschreibung=_aufnahme_beschreibung(conn, row, gross=False),
     )
     try:
         tg.sende(chat_id, text)
@@ -698,7 +742,7 @@ def _frage_interview_ohne_knopf(conn, tg, e, chat_id: int, aufnahme_id: int, dau
     Vorfall ``interview_ohne_knopf_offen`` stehen."""
     from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
 
-    text = _TEXT_INTERVIEW_OHNE_KNOPF.format(dauer=dauer_mmss(dauer))
+    text = T._TEXT_INTERVIEW_OHNE_KNOPF.format(dauer=dauer_mmss(dauer))
     try:
         knoepfe.biete_interview_ohne_knopf(conn, tg, chat_id, text, aufnahme_id)
     except Exception:
@@ -899,8 +943,8 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
         return
 
     kopf = repo.hole_aufnahme(conn, row["teil_von"])
-    text = _TEXT_TEIL_ECHO.format(
-        name=(kopf["name"] if kopf else None) or "Interview",
+    text = T._TEXT_TEIL_ECHO.format(
+        name=anzeigename(conn, kopf, "Interview") if kopf else "Interview",
         nummer=repo.teil_nummer(conn, row["id"]),
         transkript=row["transkript"],
     )
@@ -969,20 +1013,20 @@ def _verdichtungstext(conn, name: str, verdichtung_id: int) -> str:
     laeuft weiter, ob die Gruppe antwortet oder nicht (SPEC § 1.4)."""
     verdichtung = repo.hole_verdichtung(conn, verdichtung_id)
     zeilen = [
-        _TEXT_VERDICHTUNG_KOPF.format(name=name),
+        T._TEXT_VERDICHTUNG_KOPF.format(name=name),
         verdichtung["zusammenfassung"] if verdichtung else "",
         "",
     ]
     themen = repo.themen_zu(conn, verdichtung_id)
     if themen:
-        zeilen.append(_TEXT_VERDICHTUNG_THEMEN)
+        zeilen.append(T._TEXT_VERDICHTUNG_THEMEN)
         for thema in themen:
             if thema["zitat_geprueft"] == 1 and thema["beleg_zitat"]:
                 zeilen.append(f'- {thema["thema"]}: "{thema["beleg_zitat"]}"')
             else:
                 zeilen.append(f'- {thema["thema"]}')
     else:
-        zeilen.append(_TEXT_OHNE_BELEG)
+        zeilen.append(T._TEXT_OHNE_BELEG)
     zeilen.append("")
     return "\n".join(zeilen)
 
@@ -1005,7 +1049,7 @@ def _phasenfrage(conn, chat_id: int) -> str:
     if phasen.offenes_angebot(conn, chat_id) != 4:
         return ""
     phasen.merke_angebot(conn, chat_id, 4)
-    return _TEXT_PHASENFRAGE
+    return T._TEXT_PHASENFRAGE
 
 
 def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
@@ -1021,8 +1065,8 @@ def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
     repo.setze_status(conn, row["id"], "fertig")
     _sende_nach_interview(
         conn, tg, e, row["chat_id"],
-        _TEXT_ZU_KURZ.format(
-            name=row["name"] or "Das Interview",
+        T._TEXT_ZU_KURZ.format(
+            name=anzeigename(conn, row, T._TEXT_DAS_INTERVIEW),
             woerter=woerter,
         ),
         row["id"],
@@ -1049,7 +1093,7 @@ def zeige_verdichtung(conn, tg, e, kopf_id: int) -> bool:
     if verdichtung is None:
         return False
     kopf = repo.hole_aufnahme(conn, kopf_id)
-    name = (kopf["name"] if kopf else None) or "Das Interview"
+    name = anzeigename(conn, kopf, T._TEXT_DAS_INTERVIEW) if kopf else T._TEXT_DAS_INTERVIEW
     _sende_und_merke(
         conn, tg, e, verdichtung["chat_id"],
         _verdichtungstext(conn, name, verdichtung["id"]),
@@ -1100,7 +1144,7 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> N
     # das Material ist gesichert, steht auf der Gruppenseite und ist ueber
     # ``/auswerten`` jederzeit abrufbar. ``erzwungen`` kommt genau von dort --
     # dann WILL die Gruppe den Text sehen und bekommt ihn.
-    name = row["name"] or "Das Interview"
+    name = anzeigename(conn, row, T._TEXT_DAS_INTERVIEW)
     if not erzwungen:
         # Seit dem 06.09.2026 (Birk 09:55) sagt der Bot, WAS herausgekommen
         # ist -- eine Zeile mit der Zaehlung, nicht die Verdichtung selbst.
@@ -1110,7 +1154,7 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> N
         themen = repo.themen_zu(conn, verdichtung_id)
         _sende_nach_interview(
             conn, tg, e, chat_id,
-            _TEXT_AUSGEWERTET.format(
+            T._TEXT_AUSGEWERTET.format(
                 name=name,
                 themen=len(themen),
                 zitate=sum(
@@ -1170,7 +1214,7 @@ def schliesse_ab(conn, tg, klm, e, kopf_id: int) -> bool:
     if repo.hat_offene_teile(conn, kopf_id):
         return False
 
-    name = kopf["name"] or "Das Interview"
+    name = anzeigename(conn, kopf, T._TEXT_DAS_INTERVIEW)
     transkript = repo.zusammengefuegtes_transkript(conn, kopf_id)
     if not transkript.strip():
         if not repo.hole_teile(conn, kopf_id):
@@ -1182,7 +1226,7 @@ def schliesse_ab(conn, tg, klm, e, kopf_id: int) -> bool:
             return True
         repo.setze_status(conn, kopf_id, "fertig")
         _sende_nach_interview(
-            conn, tg, e, kopf["chat_id"], _TEXT_OHNE_AUFNAHME.format(name=name),
+            conn, tg, e, kopf["chat_id"], T._TEXT_OHNE_AUFNAHME.format(name=name),
             None,
         )
         return True
@@ -1222,9 +1266,9 @@ def _verwirf_leeres_interview(conn, tg, e, chat_id: int, kopf_id: int) -> None:
     except Exception:
         log.exception("Leeres Interview entfernen fehlgeschlagen, id=%s", kopf_id)
     try:
-        message_id = knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_LEER_VERWORFEN)
+        message_id = knoepfe.biete_aufnahme(conn, tg, chat_id, T._TEXT_LEER_VERWORFEN)
         repo.merke_bot_zeile(
-            conn, chat_id, message_id, e, _TEXT_LEER_VERWORFEN
+            conn, chat_id, message_id, e, T._TEXT_LEER_VERWORFEN
         )
     except Exception:
         log.exception("Meldung zum leeren Interview fehlgeschlagen, chat_id=%s", chat_id)
@@ -1308,6 +1352,12 @@ def finde_interview(conn, chat_id: int, bezeichnung: str = ""):
     treffer = re.search(r"\d{1,4}", bezeichnung)
     if treffer:
         gesucht = f"Interview {int(treffer.group(0))}"
+        if sprache.pseudonyme():
+            # E8: gezeigt (und im Prompt genannt) wird "Interview N" nach
+            # Position -- genau das meint die Gruppe und der Erkenner, nicht
+            # ein gespeicherter Name, der nach einem Entfernen verrutscht ist.
+            return next((a for a in vorhandene
+                         if anzeigename(conn, a, "") == gesucht), None)
         return next((a for a in vorhandene if (a["name"] or "") == gesucht), None)
     gesucht = bezeichnung.lower()
     return next((a for a in vorhandene if gesucht in (a["name"] or "").lower()), None)
@@ -1328,7 +1378,7 @@ def _auswerten(conn, tg, klm, e, kopf_id: int) -> None:
         if not transkript.strip():
             _sende_und_merke(
                 conn, tg, e, row["chat_id"],
-                _TEXT_OHNE_AUFNAHME.format(name=row["name"] or "Das Interview"),
+                T._TEXT_OHNE_AUFNAHME.format(name=anzeigename(conn, row, T._TEXT_DAS_INTERVIEW)),
             )
             return
         repo.setze_transkript(conn, kopf_id, transkript)
@@ -1367,7 +1417,7 @@ def melde_ausfall(conn, tg, e, chat_id) -> None:
     if not repo.setze_whisper_stumm_seit_falls_leer(conn, chat_id, repo._jetzt()):
         return  # ein anderer Thread war schneller, oder das Feld war schon gesetzt
     try:
-        tg.sende(chat_id, _TEXT_AUSFALL)
+        tg.sende(chat_id, T._TEXT_AUSFALL)
     except Exception:
         log.exception("Ausfall-Hinweis fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -1381,7 +1431,7 @@ def melde_rueckkehr(conn, tg, e, chat_id) -> None:
     if not repo.leere_whisper_stumm_seit_falls_gesetzt(conn, chat_id):
         return
     try:
-        tg.sende(chat_id, _TEXT_RUECKKEHR)
+        tg.sende(chat_id, T._TEXT_RUECKKEHR)
     except Exception:
         log.exception("Rueckkehr-Hinweis fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -1457,3 +1507,6 @@ def importiere_text(conn, e, chat_id: int, message_id: int, text: str, name: str
     if name:
         repo.setze_aufnahme_name(conn, aufnahme_id, name)
     return aufnahme_id
+
+
+T = sprache.Texte(__name__)

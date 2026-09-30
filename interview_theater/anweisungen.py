@@ -70,6 +70,35 @@ log = logging.getLogger(__name__)
 
 _VERZEICHNIS = Path(__file__).parent / "prompts"
 
+
+def sprach_verzeichnis() -> Path | None:
+    """Die Sprachschicht des aktiven Profils (Karte A1): englische Fassungen
+    der Repo-Prompts unter ``sprachen/<code>/prompts/``, gleicher relativer
+    Pfad. Bei Deutsch gibt es keine -- dort sind die Repo-Dateien die
+    Sprache, und Dortmund bleibt bitgleich.
+
+    Die Schicht liegt bewusst NICHT unter ``prompts/``: dort sammelt
+    ``scripts/prompt_schnappschuss._prompt_namen`` per rglob, und neue
+    Abschnitte veraenderten den Dortmund-Massstab."""
+    from interview_theater import sprache
+
+    if sprache.code() == sprache.DEUTSCH:
+        return None
+    return sprache.VERZEICHNIS / sprache.code() / "prompts"
+
+
+def _sprach_pfad(name: str) -> Path | None:
+    """Pfad einer Prompt-Datei in der Sprachschicht, dieselbe Pfadpruefung
+    wie ``_pfad``."""
+    wurzel = sprach_verzeichnis()
+    if wurzel is None:
+        return None
+    pfad = (wurzel / f"{name}.md").resolve()
+    if not pfad.is_relative_to(wurzel.resolve()):
+        raise ValueError(f"Prompt-Name zeigt aus der Sprachschicht heraus: {name!r}")
+    return pfad
+
+
 #: Das Unterverzeichnis eines Profils, in dem Prompt-Dateien und
 #: Prompt-Bausteine liegen.
 PROFIL_PROMPTS = "prompts"
@@ -188,10 +217,20 @@ def _bausteine() -> dict[str, str]:
     naechsten Zug. Beide Verzeichnisse werden dabei jedes Mal durchgesehen
     -- es sind ein paar Dutzend Dateien, und eine neu angelegte soll ohne
     Neustart wirken. Der Aufwand faellt nur an, wenn ein Text ueberhaupt
-    ein ``{{`` traegt (``fuelle``)."""
+    ein ``{{`` traegt (``fuelle``).
+
+    Seit Karte A1 liegt zwischen Repo und Profil die Sprachschicht; bei
+    Deutsch ist sie leer."""
+    from interview_theater import sprache
+
     profil = workshop.name()
     werte: dict[str, str] = {}
-    for herkunft, wurzel in (("repo", _VERZEICHNIS), ("profil", profil_verzeichnis())):
+    schichten = (
+        ("repo", _VERZEICHNIS),
+        (f"sprache-{sprache.code()}", sprach_verzeichnis()),
+        ("profil", profil_verzeichnis()),
+    )
+    for herkunft, wurzel in schichten:
         if wurzel is None or not wurzel.is_dir():
             continue
         for pfad in sorted(wurzel.rglob("*.md")):
@@ -245,12 +284,19 @@ def fuelle(text: str) -> str:
 
 
 def _roh(name: str) -> str | None:
-    """Der Prompt-Text ohne Platzhalter -- aus dem Profil, sonst aus dem
-    Repo. Eine gleichnamige Datei im Profil ersetzt die Repo-Datei."""
+    """Der Prompt-Text ohne Platzhalter -- aus dem Profil, sonst aus der
+    Sprachschicht (Karte A1, nur bei code != "de"), sonst aus dem Repo."""
+    from interview_theater import sprache
+
     profil = workshop.name()
     eigen = _profil_pfad(name)
     if eigen is not None:
         text = _lies(eigen, (profil, "profil", name))
+        if text is not None:
+            return text
+    uebersetzt = _sprach_pfad(name)
+    if uebersetzt is not None:
+        text = _lies(uebersetzt, (profil, f"sprache-{sprache.code()}", name))
         if text is not None:
             return text
     return _lies(_pfad(name), (profil, "repo", name))
@@ -331,5 +377,10 @@ def system(bot_name: str | None = None, phase: int | None = None) -> str:
         for schluessel in namen:
             text = _lies(verz / f"{schluessel}.md", (profil, "zusatz", schluessel))
             if text and text.strip():
-                teile.append(UEBERSCHRIFT + text.strip())
+                teile.append(T.UEBERSCHRIFT + text.strip())
     return "".join(teile)
+
+
+from interview_theater import sprache  # noqa: E402  (unten: kein Zyklus beim Import)
+
+T = sprache.Texte(__name__)

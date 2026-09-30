@@ -122,20 +122,20 @@ def baue_nutzertext(conn, chat_id: int, eintraege: list[dict]) -> str:
     stand = repo.hole_arbeitsstand(conn, chat_id)
     zeilen: list[str] = []
     if stand and (stand["rahmen"] or "").strip():
-        zeilen.append(f"Setting: {stand['rahmen'].strip()}")
+        zeilen.append(T._ZEILE_SETTING.format(rahmen=stand["rahmen"].strip()))
     if stand and "geschichte" in stand.keys() and (stand["geschichte"] or "").strip():
-        zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
+        zeilen.append(T._GESCHICHTE_KOPF + stand["geschichte"].strip())
 
     figuren = repo.figuren(conn, chat_id)
     if figuren:
-        zeilen.append("Figuren (Namen genau so schreiben):")
+        zeilen.append(T._FIGUREN_KOPF)
         for figur in figuren:
             beschreibung = (figur["beschreibung"] or "").strip()
             zeilen.append(f"- {figur['name']}" + (f" -- {beschreibung}" if beschreibung else ""))
 
     szenen = repo.hole_szenen(conn, chat_id)
     if szenen:
-        zeilen.append("Szenen (Nummer verwenden):")
+        zeilen.append(T._SZENEN_KOPF)
         for szene in szenen:
             teile = [f"[{szene['nummer']}]"]
             if szene["titel"]:
@@ -143,11 +143,11 @@ def baue_nutzertext(conn, chat_id: int, eintraege: list[dict]) -> str:
             if szene["was_passiert"]:
                 teile.append(szene["was_passiert"])
             if szene["form"]:
-                teile.append(f"Form: {szene['form']}")
+                teile.append(T._ZEILE_FORM.format(form=szene["form"]))
             zeilen.append(" — ".join(teile))
 
     zeilen.append("")
-    zeilen.append("Material (nur hieraus waehlen, nach Nummer):")
+    zeilen.append(T._MATERIAL_KOPF)
     # Die Zusammenfassung gehoert dem Interview, nicht der Zeile: elf geprueft
     # Themen desselben Interviews schrieben sie elfmal (Audit-Befund M1,
     # 06.09.2026 -- 7.700 Zeichen Dublette in einem 9.000-Zeichen-Prompt).
@@ -157,16 +157,27 @@ def baue_nutzertext(conn, chat_id: int, eintraege: list[dict]) -> str:
         if eintrag["interview"] != letztes_interview:
             letztes_interview = eintrag["interview"]
             if eintrag["zusammenfassung"]:
-                zeilen.append(
-                    f"\n{eintrag['interview']} -- worum es darin geht: "
-                    f"{eintrag['zusammenfassung']}"
-                )
-        zeilen.append(
-            f"[{eintrag['nummer']}] {eintrag['interview']} | "
-            f"Thema: {eintrag['thema']} | "
-            f'Zitat: "{eintrag["zitat"]}"'
-        )
+                zeilen.append(T._ZEILE_WORUM.format(
+                    interview=eintrag["interview"],
+                    zusammenfassung=eintrag["zusammenfassung"],
+                ))
+        zeilen.append(T._ZEILE_EINTRAG.format(
+            nummer=eintrag["nummer"], interview=eintrag["interview"],
+            thema=eintrag["thema"], zitat=eintrag["zitat"],
+        ))
     return "\n".join(zeilen)
+
+
+#: Die Koepfe und Zeilen des Nutzertexts (W3). ``_ZEILE_WORUM`` und
+#: ``_ZEILE_EINTRAG`` teilt sich ``kernzitate`` -- dieselbe Materialliste.
+_ZEILE_SETTING = "Setting: {rahmen}"
+_GESCHICHTE_KOPF = "Geschichte:\n"
+_FIGUREN_KOPF = "Figuren (Namen genau so schreiben):"
+_SZENEN_KOPF = "Szenen (Nummer verwenden):"
+_ZEILE_FORM = "Form: {form}"
+_MATERIAL_KOPF = "Material (nur hieraus waehlen, nach Nummer):"
+_ZEILE_WORUM = "\n{interview} -- worum es darin geht: {zusammenfassung}"
+_ZEILE_EINTRAG = '[{nummer}] {interview} | Thema: {thema} | Zitat: "{zitat}"'
 
 
 def _liste(ergebnis: dict, name: str) -> list:
@@ -249,7 +260,7 @@ def mappe(klm, conn, e, chat_id: int) -> tuple[int, int]:
     if anzahl:
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
-            f"Schaerfung Runde {runde}: {anzahl} Stellen zugeordnet",
+            T._JOURNAL_RUNDE.format(runde=runde, anzahl=anzahl),
             quelle="schaerfung",
         )
     return anzahl, runde
@@ -273,7 +284,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
         zeilen = arbeitszeilen.sichtbar(tg, chat_id, "schaerfung")
         try:
             anzahl, _ = mappe(klm, conn, e, chat_id)
-            meldung = MELDUNG.format(anzahl=anzahl) if anzahl else MELDUNG_LEER
+            meldung = T.MELDUNG.format(anzahl=anzahl) if anzahl else T.MELDUNG_LEER
         except Exception:
             log.exception("Schaerfung fehlgeschlagen, chat_id=%s", chat_id)
             try:
@@ -324,8 +335,9 @@ def starte(conn, tg, klm, e, chat_id: int, nachbereitung=None):
         chat_id, ART, lambda: starte(conn, tg, klm, e, chat_id, nachbereitung),
     ):
         try:
-            message_id = tg.sende(chat_id, TEXT_GEMERKT)
-            repo.merke_bot_zeile(conn, chat_id, message_id, e, TEXT_GEMERKT)
+            gemerkt = T.TEXT_GEMERKT
+            message_id = tg.sende(chat_id, gemerkt)
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, gemerkt)
         except Exception:
             log.exception("Wartemeldung der Schaerfung fehlgeschlagen, chat_id=%s",
                           chat_id)
@@ -355,8 +367,17 @@ def _stelle(conn, chat_id: int, eintrag) -> str:
     name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
     zeile = f'{name} "{eintrag["thema"]}": "{eintrag["zitat"]}"'
     if eintrag["begruendung"]:
-        zeile += f"\n  Vorschlag: {eintrag['begruendung']}"
+        zeile += T._ZEILE_VORSCHLAG.format(begruendung=eintrag["begruendung"])
     return zeile
+
+
+#: Die Bausteine der Vorschlagsnachrichten im Chat.
+_JOURNAL_RUNDE = "Schaerfung Runde {runde}: {anzahl} Stellen zugeordnet"
+_ZEILE_VORSCHLAG = "\n  Vorschlag: {begruendung}"
+_STELLE = "Stelle"
+_UEBERSCHRIFT = "{kopf} — was aus den Interviews dazupasst"
+_FRAGE_SZENE = "\nSoll das in die Szene?"
+_FRAGE_FIGUR = "\nSoll das zu dieser Figur?"
 
 
 #: Wie viele Stellen hoechstens in EINER Vorschlagsnachricht stehen
@@ -405,7 +426,7 @@ def option(conn, chat_id: int, eintrag) -> tuple[str, str]:
     from interview_theater import kontext
 
     name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
-    titel = str(eintrag["thema"] or name or "Stelle").strip()
+    titel = str(eintrag["thema"] or name or T._STELLE).strip()
     stuecke = []
     zitat_kurz = _gekuerzt(str(eintrag["zitat"] or ""))
     if zitat_kurz:
@@ -418,14 +439,16 @@ def option(conn, chat_id: int, eintrag) -> tuple[str, str]:
 
 
 def szenenueberschrift(conn, chat_id: int, szene) -> str:
-    kopf = f"Szene {szene['nummer']}"
+    from interview_theater import szene as szene_modul
+
+    kopf = szene_modul.T._SZENE_MIT_NUMMER.format(nummer=szene["nummer"])
     if szene["titel"]:
         kopf += f": {szene['titel']}"
-    return f"{kopf} — was aus den Interviews dazupasst"
+    return T._UEBERSCHRIFT.format(kopf=kopf)
 
 
 def figurueberschrift(figur) -> str:
-    return f"{figur['name']} — was aus den Interviews dazupasst"
+    return T._UEBERSCHRIFT.format(kopf=figur["name"])
 
 
 def uebernimm_stelle(conn, chat_id: int, schaerfung_id: int) -> str | None:
@@ -448,7 +471,9 @@ def uebernimm_stelle(conn, chat_id: int, schaerfung_id: int) -> str | None:
             return None
         _ergaenze_szene(conn, szene, [eintrag])
         repo.merke_schaerfung_uebernommen(conn, eintrag["id"])
-        return f"Szene {szene['nummer']}"
+        from interview_theater import szene as szene_modul
+
+        return szene_modul.T._SZENE_MIT_NUMMER.format(nummer=szene["nummer"])
     if eintrag["figur_id"]:
         figur = repo.hole_figur_nach_id(conn, eintrag["figur_id"])
         if figur is None:
@@ -484,7 +509,7 @@ def szenenvorschlag(conn, chat_id: int, szene) -> str | None:
         return None
     zeilen = [szenenueberschrift(conn, chat_id, szene) + ":"]
     zeilen.extend(f"- {_stelle(conn, chat_id, z)}" for z in eintraege)
-    zeilen.append("\nSoll das in die Szene?")
+    zeilen.append(T._FRAGE_SZENE)
     return "\n".join(zeilen)
 
 
@@ -495,7 +520,7 @@ def figurvorschlag(conn, chat_id: int, figur) -> str | None:
         return None
     zeilen = [figurueberschrift(figur) + ":"]
     zeilen.extend(f"- {_stelle(conn, chat_id, z)}" for z in eintraege)
-    zeilen.append("\nSoll das zu dieser Figur?")
+    zeilen.append(T._FRAGE_FIGUR)
     return "\n".join(zeilen)
 
 
@@ -577,3 +602,7 @@ def uebernimm_figur(conn, chat_id: int, figur) -> int:
     for z in eintraege:
         repo.merke_schaerfung_uebernommen(conn, z["id"])
     return len(eintraege)
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

@@ -125,7 +125,7 @@ def hole_mit_beleg(aufruf, material: str, marke: str = "") -> tuple[dict, Belegs
         "Dramaturgie-Beleg nicht bestaetigt (%s), %s -- ein Retry",
         marke or "ohne Marke", stand.grund,
     )
-    zweite = dict(aufruf(HINWEIS) or {})
+    zweite = dict(aufruf(T.HINWEIS) or {})
     stand = _stand(zweite.get("beleg"), material, versuche=2)
     if stand.geprueft:
         return zweite, stand
@@ -176,3 +176,7 @@ def darf_an_den_schreiber(befund: dict, figuren=()) -> bool:
             for name in figuren
         )
     return True
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

@@ -16,25 +16,16 @@ eine Druck statt zwoelf Modellaufrufen.
 import random
 import re
 
-from interview_theater import phasen, repo
+from interview_theater import phasen, repo, sprache
 
 from interview_theater.knoepfe.texte import (
-    ANWEISUNG_FIGURENZAHL, ANWEISUNG_KERNFRAGE, ART_ANDERS, ART_EIGENE,
-    ART_FIGUREN_ANZAHL, ART_FIGUREN_ANZAHL_FREI, ART_FIGUREN_ANZAHL_MENU,
-    ART_FIGUREN_NAMEN_MENU, ART_FIGUREN_ZUFALL, ART_FIGUR_DUKTUS_MENU,
-    ART_FIGUR_ENTFERNEN, ART_FIGUR_INTERVIEW, ART_FIGUR_INTERVIEW_MENU,
-    ART_FIGUR_PASST, ART_FIGUR_STIL, ART_FIGUR_STIL_FREI, ART_SCHLAG_VOR,
-    ART_SPEICHERN, ART_WIR_ZUERST, FIGURENZAHLEN, FIGURENZAHL_MAX,
-    FIGURENZAHL_MIN, MENUE_KNOPF_LAENGE, PHASE_SCHAERFUNG, PHASE_SETTING,
-    TRENNER, _TEXT_DUKTUS_FEHLT, _TEXT_DUKTUS_LAEUFT, _TEXT_DUKTUS_OHNE_QUELLE,
-    _TEXT_EIGENE_KNOPF, _TEXT_FIGUREN_ANZAHL_ERSTFRAGE,
-    _TEXT_FIGUREN_ANZAHL_FREI_KNOPF, _TEXT_FIGUREN_ANZAHL_KNOPF,
-    _TEXT_FIGUREN_KEINE, _TEXT_FIGUREN_NAMEN_KNOPF, _TEXT_FIGUREN_ZUFALL_KNOPF,
-    _TEXT_FIGUR_DUKTUS_KNOPF, _TEXT_FIGUR_ENTFERNEN_KNOPF,
-    _TEXT_FIGUR_INTERVIEW_FRAGE, _TEXT_FIGUR_INTERVIEW_KNOPF,
-    _TEXT_FIGUR_PASST_KNOPF, _TEXT_KEIN_INTERVIEW, _TEXT_SCHLAG_VOR_KNOPF,
-    _TEXT_STIL_EIGENER_KNOPF, _TEXT_STIL_FRAGE, _TEXT_UNBEKANNT,
-    _TEXT_WIR_ZUERST_KNOPF, _TEXT_ZITATE_VORSPANN, _TEXT_ZUR_GESCHICHTE, log,
+    ART_ANDERS, ART_EIGENE, ART_FIGUREN_ANZAHL, ART_FIGUREN_ANZAHL_FREI,
+    ART_FIGUREN_ANZAHL_MENU, ART_FIGUREN_NAMEN_MENU, ART_FIGUREN_ZUFALL,
+    ART_FIGUR_DUKTUS_MENU, ART_FIGUR_ENTFERNEN, ART_FIGUR_INTERVIEW,
+    ART_FIGUR_INTERVIEW_MENU, ART_FIGUR_PASST, ART_FIGUR_STIL,
+    ART_FIGUR_STIL_FREI, ART_SCHLAG_VOR, ART_SPEICHERN, ART_WIR_ZUERST,
+    FIGURENZAHLEN, FIGURENZAHL_MAX, FIGURENZAHL_MIN, MENUE_KNOPF_LAENGE,
+    PHASE_SCHAERFUNG, PHASE_SETTING, T, TRENNER, log,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _nimm_alte_leiste_ab, _sende_knoepfe,
@@ -54,8 +45,8 @@ def _ersetze_namen(conn, tg, chat_id: int, neuer_name: str) -> str:
     zeilen = _entwurfszeilen(conn, chat_id)
     if not roh_index.isdigit() or int(roh_index) >= len(zeilen) or not neuer_name:
         log.error("Namensknopf ohne Zeile, chat_id=%s", chat_id)
-        tg.sende(chat_id, _TEXT_UNBEKANNT)
-        return _TEXT_UNBEKANNT
+        tg.sende(chat_id, T._TEXT_UNBEKANNT)
+        return T._TEXT_UNBEKANNT
     index = int(roh_index)
     alt_zeile = zeilen[index]
     # Nur der Namensteil wird getauscht -- Satz und Interview bleiben, sie
@@ -70,7 +61,7 @@ def _ersetze_namen(conn, tg, chat_id: int, neuer_name: str) -> str:
         zeilen[index] = f"{neuer_name} — {rest[1].lstrip()}"
     repo.setze_arbeitsstand(conn, chat_id, "figur_aktuell", None)
     biete_figurenliste(conn, tg, chat_id, "\n".join(zeilen))
-    return "Name geaendert"
+    return T._TEXT_NAME_GEAENDERT_QUITTUNG
 
 
 def _figurenzeile(namen: list[str]) -> str:
@@ -105,6 +96,15 @@ def nimm_figurenanzahl_erwartung(chat_id: int) -> bool:
     return True
 
 
+#: Ausgeschriebene Zahlen fuer eine englischsprachige Gruppe (Karte A1,
+#: Aufgabe 22). Die deutsche Liste bleibt, wie sie war, im Rumpf von
+#: ``_zahl_aus``; gewaehlt wird je Sprache.
+_ZAHLWOERTER_EN = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
+
+
 def _zahl_aus(text: str) -> int | None:
     """Die erste Zahl in einer Nachricht, wenn sie im erlaubten Bereich liegt.
 
@@ -120,6 +120,7 @@ def _zahl_aus(text: str) -> int | None:
             "fuenf": 5, "fünf": 5, "sechs": 6, "sieben": 7, "acht": 8,
             "neun": 9, "zehn": 10, "elf": 11, "zwoelf": 12, "zwölf": 12,
         }
+        worte = sprache.je_sprache({"de": worte, "en": _ZAHLWOERTER_EN})
         gefunden = [
             wert for wort, wert in worte.items()
             if re.search(rf"\b{wort}\b", (text or "").lower())
@@ -147,11 +148,11 @@ def biete_figurenanzahl(conn, tg, chat_id: int, text: str | None = None) -> int:
     ]
     leiste.append(
         (
-            _TEXT_FIGUREN_ANZAHL_FREI_KNOPF,
+            T._TEXT_FIGUREN_ANZAHL_FREI_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_ANZAHL_FREI, None)),
         )
     )
-    message_id = _sende_knoepfe(conn, tg, chat_id, text or _TEXT_FIGUREN_ANZAHL_ERSTFRAGE, leiste
+    message_id = _sende_knoepfe(conn, tg, chat_id, text or T._TEXT_FIGUREN_ANZAHL_ERSTFRAGE, leiste
     )
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return message_id
@@ -163,10 +164,11 @@ def uebernimm_figurenanzahl(conn, tg, klm, e, chat_id: int, anzahl: int) -> None
     egal ob sie aus einem Knopf oder aus einer Nachricht kam."""
     repo.setze_arbeitsstand(conn, chat_id, "figuren_anzahl", str(anzahl))
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", f"Figurenanzahl: {anzahl}", quelle="knopf",
+        conn, chat_id, "entschieden", T._JOURNAL_FIGURENANZAHL.format(anzahl=anzahl),
+        quelle="knopf",
     )
     _starte_auftrag(
-        conn, tg, klm, e, chat_id, ANWEISUNG_FIGURENZAHL.format(anzahl=anzahl),
+        conn, tg, klm, e, chat_id, T.ANWEISUNG_FIGURENZAHL.format(anzahl=anzahl),
     )
 
 
@@ -181,7 +183,7 @@ def _kette_weiter(conn, tg, klm, e, chat_id: int, art: str) -> None:
     if art == "kernthema":
         _starte_auftrag(
             conn, tg, klm, e, chat_id,
-            ANWEISUNG_KERNFRAGE.format(
+            T.ANWEISUNG_KERNFRAGE.format(
                 kernthema=(stand["kernthema"] if stand else "") or ""
             ),
         )
@@ -227,11 +229,11 @@ def biete_figurenliste(conn, tg, chat_id: int, wert: str, text: str | None = Non
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_EIGENE)
     leiste = [
         (
-            _TEXT_FIGUREN_ANZAHL_KNOPF,
+            T._TEXT_FIGUREN_ANZAHL_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_ANZAHL_MENU, None)),
         ),
         (
-            _TEXT_FIGUREN_NAMEN_KNOPF,
+            T._TEXT_FIGUREN_NAMEN_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_NAMEN_MENU, None)),
         ),
     ] + speicherleiste(conn, chat_id, "figuren", wert)
@@ -269,14 +271,14 @@ def _uebernimm_figurenliste(conn, tg, chat_id: int, wert: str) -> str:
         angelegt.append(name)
     if not angelegt:
         log.error("Figuren-Knopf ohne verwertbare Zeile, chat_id=%s", chat_id)
-        return _TEXT_UNBEKANNT
+        return T._TEXT_UNBEKANNT
     repo.setze_arbeitsstand(conn, chat_id, "figuren_entwurf", wert)
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", f"Figuren: {', '.join(angelegt)}",
+        conn, chat_id, "entschieden", T._JOURNAL_FIGUREN.format(namen=", ".join(angelegt)),
         quelle="knopf",
     )
-    tg.sende(chat_id, "Notiert:\n" + _figurenzeile(angelegt))
-    return "Figuren uebernommen"
+    tg.sende(chat_id, T._TEXT_NOTIERT_KOPF + _figurenzeile(angelegt))
+    return T._TEXT_FIGUREN_QUITTUNG
 
 
 #: "Interview 2" am Ende einer Entwurfszeile.
@@ -317,15 +319,15 @@ def _figurenvorstellung(conn, chat_id: int, figur, ohne_beleg: bool = False) -> 
         )
         profil = (figur["sprachprofil"] or "").strip()
         if profil:
-            zeilen.append(f"Sprachduktus: {profil}")
+            zeilen.append(T._TEXT_SPRACHDUKTUS_ZEILE.format(profil=profil))
         elif ohne_beleg:
             from interview_theater import sprachprofil
 
             zeilen.append(
-                sprachprofil._TEXT_KEIN_ZITAT.format(name=figur["name"])
+                sprachprofil.T._TEXT_KEIN_ZITAT.format(name=figur["name"])
             )
         else:
-            zeilen.append(_TEXT_DUKTUS_FEHLT)
+            zeilen.append(T._TEXT_DUKTUS_FEHLT)
         zitate = [
             z.strip()
             for z in (figur["zitate"] or "").split(repo.ZITAT_TRENNER)
@@ -333,10 +335,10 @@ def _figurenvorstellung(conn, chat_id: int, figur, ohne_beleg: bool = False) -> 
         ]
         if zitate:
             zeilen.append("")
-            zeilen.append(_TEXT_ZITATE_VORSPANN)
+            zeilen.append(T._TEXT_ZITATE_VORSPANN)
             zeilen.extend(f"– {z}" for z in zitate)
     else:
-        zeilen.append(_TEXT_DUKTUS_OHNE_QUELLE)
+        zeilen.append(T._TEXT_DUKTUS_OHNE_QUELLE)
     return "\n".join(zeilen)
 
 
@@ -443,7 +445,7 @@ def sende_stil(conn, tg, chat_id: int, name: str, antwort: str) -> int:
         return tg.sende(chat_id, sauber)
     leiste.append(
         (
-            _TEXT_STIL_EIGENER_KNOPF,
+            T._TEXT_STIL_EIGENER_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUR_STIL_FREI, name)),
         )
     )
@@ -454,7 +456,7 @@ def sende_stil(conn, tg, chat_id: int, name: str, antwort: str) -> int:
     if zufall is not None:
         leiste.append(zufall)
     html, klar = vorschlag.menuetext(
-        _TEXT_STIL_FRAGE.format(name=name), "\n".join(zeilen_text)
+        T._TEXT_STIL_FRAGE.format(name=name), "\n".join(zeilen_text)
     )
     message_id = _sende_knoepfe(conn, tg, chat_id, html, leiste, parse_mode="HTML", klartext=klar
     )
@@ -484,7 +486,7 @@ def _zufallsknopf(conn, chat_id: int) -> tuple[str, str] | None:
     if not _interviewkoepfe(conn, chat_id):
         return None
     return (
-        _TEXT_FIGUREN_ZUFALL_KNOPF,
+        T._TEXT_FIGUREN_ZUFALL_KNOPF,
         _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUREN_ZUFALL, None)),
     )
 
@@ -583,10 +585,10 @@ def stelle_figur_vor(conn, tg, klm, e, chat_id: int, figur=None) -> bool:
         if thread is not None:
             quelle = kontext.interviewbezeichnung(
                 conn, chat_id, figur["quelle_aufnahme_id"]
-            ) or "das Interview"
+            ) or T._TEXT_DAS_INTERVIEW
             tg.sende(
                 chat_id,
-                _TEXT_DUKTUS_LAEUFT.format(quelle=quelle, name=figur["name"]),
+                T._TEXT_DUKTUS_LAEUFT.format(quelle=quelle, name=figur["name"]),
             )
             return True
 
@@ -607,15 +609,15 @@ def _sende_figurenvorstellung(conn, tg, chat_id: int, figur,
                 ART_FIGUR_DUKTUS_MENU, ART_FIGUR_ENTFERNEN):
         _nimm_alte_leiste_ab(conn, tg, chat_id, art)
     leiste = [
-        (_TEXT_FIGUR_PASST_KNOPF,
+        (T._TEXT_FIGUR_PASST_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUR_PASST, name))),
-        (_TEXT_FIGUR_INTERVIEW_KNOPF,
+        (T._TEXT_FIGUR_INTERVIEW_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUR_INTERVIEW_MENU, name))),
-        (_TEXT_FIGUR_DUKTUS_KNOPF,
+        (T._TEXT_FIGUR_DUKTUS_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUR_DUKTUS_MENU, name))),
-        (_TEXT_FIGUR_ENTFERNEN_KNOPF,
+        (T._TEXT_FIGUR_ENTFERNEN_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_FIGUR_ENTFERNEN, name))),
-        (_TEXT_EIGENE_KNOPF,
+        (T._TEXT_EIGENE_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, "figur"))),
     ]
     message_id = _sende_knoepfe(conn, tg, chat_id, _figurenvorstellung(conn, chat_id, figur, ohne_beleg), leiste
@@ -635,17 +637,17 @@ def _schliesse_figuren_ab(conn, tg, chat_id: int) -> bool:
     kurze Zeile und die offene Frage, darunter dieselben zwei Knoepfe wie bei
     jedem Eintritt ("Ja, wir zuerst" · "Schlag du vor")."""
     if not repo.figuren(conn, chat_id):
-        tg.sende(chat_id, _TEXT_FIGUREN_KEINE)
+        tg.sende(chat_id, T._TEXT_FIGUREN_KEINE)
         return False
     repo.setze_arbeitsstand(conn, chat_id, "figuren_fixiert_am", repo._jetzt())
     repo.setze_arbeitsstand(conn, chat_id, "figur_aktuell", None)
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", "Figurenliste steht", quelle="knopf",
+        conn, chat_id, "entschieden", T._JOURNAL_FIGURENLISTE_STEHT, quelle="knopf",
     )
     leiste = [
-        (_TEXT_WIR_ZUERST_KNOPF,
+        (T._TEXT_WIR_ZUERST_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_WIR_ZUERST, str(PHASE_SETTING)))),
-        (_TEXT_SCHLAG_VOR_KNOPF,
+        (T._TEXT_SCHLAG_VOR_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHLAG_VOR, str(PHASE_SETTING)))),
     ]
     # Genau hier startete bisher die Figur-fuer-Figur-Schleife mit einem
@@ -655,7 +657,7 @@ def _schliesse_figuren_ab(conn, tg, chat_id: int) -> bool:
     zufall = _zufallsknopf(conn, chat_id)
     if zufall is not None:
         leiste.append(zufall)
-    message_id = _sende_knoepfe(conn, tg, chat_id, _TEXT_ZUR_GESCHICHTE, leiste)
+    message_id = _sende_knoepfe(conn, tg, chat_id, T._TEXT_ZUR_GESCHICHTE, leiste)
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return False
 
@@ -668,8 +670,8 @@ def _biete_interviews(conn, tg, chat_id: int, name: str) -> str:
 
     koepfe = aufnahme_modul.interviews(conn, chat_id)
     if not koepfe:
-        tg.sende(chat_id, _TEXT_KEIN_INTERVIEW)
-        return _TEXT_KEIN_INTERVIEW
+        tg.sende(chat_id, T._TEXT_KEIN_INTERVIEW)
+        return T._TEXT_KEIN_INTERVIEW
     leiste = [
         (
             kontext.interviewbezeichnung(conn, chat_id, kopf["id"]),
@@ -679,7 +681,7 @@ def _biete_interviews(conn, tg, chat_id: int, name: str) -> str:
         )
         for kopf in koepfe
     ]
-    message_id = _sende_knoepfe(conn, tg, chat_id, _TEXT_FIGUR_INTERVIEW_FRAGE.format(name=name), leiste
-    )
+    frage = T._TEXT_FIGUR_INTERVIEW_FRAGE.format(name=name)
+    message_id = _sende_knoepfe(conn, tg, chat_id, frage, leiste)
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
-    return "Interview waehlen"
+    return T._TEXT_INTERVIEW_WAEHLEN_QUITTUNG

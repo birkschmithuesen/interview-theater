@@ -86,6 +86,42 @@ _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
                        "dein zug ist", "systemzeile", "system-ankuendigung",
                        "system-ankündigung", "die systemanweisung")
 
+#: Dieselben Marker auf Englisch (Karte A1, K5) -- ein Modell denkt auch mal
+#: in der anderen Sprache laut. Gelesen wird die Vereinigung, fuer beide
+#: Profile. Abweichung vom Plan: "you should " fehlt -- anders als "du
+#: sollst" ist es die normale englische Ratschlagsform an eine Gruppe
+#: ("you should ask her about ..."), zusammen mit einem zweiten weichen
+#: Marker waere eine echte Antwort als Denkspur verworfen worden.
+#: Nachbesserung (Review Commit fbc47e9, Befund 1): vier weitere Marker
+#: waren so allgemein formuliert, dass sie normale Antworten trafen --
+#: gemessen: "Perfect. That is a strong ending. I suggest a title: The
+#: Pier." (zwei weiche Treffer aus "perfect. that is" + "i suggest a ");
+#: "Good idea. I should mention that scene 2 still has no place. I suggest
+#: a park at night." (aus "i should " + "i suggest a "); "Nice. The group
+#: wants a sad ending, so I suggest a final image at the station." (aus
+#: "the group wants" + "i suggest a "); "Your turn is next: tell me who the
+#: third character is." (allein aus dem eindeutigen "your turn is"). "i
+#: suggest a " und das weiche "i should " sind deshalb ganz raus -- ein
+#: Vorschlag oder ein Ratschlag ist eine normale Antwort an eine Gruppe,
+#: kein Selbstgespraech --, "perfect. that is" und "your turn is" wurden auf
+#: den vollen Denkspur-Wortlaut verengt, so spezifisch wie ihre deutschen
+#: Vorbilder ("perfekt. das ist [ein Angebot]", "dein zug ist [leer]").
+_DENKSPUR_MARKER_EN = (
+    "i should:", "the group wants", "what is in the material",
+    "possible core themes:", "perfect. that is an offer",
+    "the rule says", "the recogniser sets", "no markdown",
+    "under 500 characters", "phrase it as an offer", "your turn is empty",
+    "system line", "system announcement", "the system instruction",
+    "one sentence of encouragement",
+)
+_DENKSPUR_EINDEUTIG_EN = ("i should:", "what is in the material", "the recogniser sets",
+                          "no markdown", "under 500 characters", "your turn is empty",
+                          "system line", "system announcement", "the system instruction")
+
+#: Womit ein geretteter Antwortabsatz anfangen darf -- deutsch und englisch.
+_KERN_ANFAENGE = ("Ihr", "Euer", "Eure", "Ein", "Eine", "Das", "Die", "Der", "Was", "Wie")
+_KERN_ANFAENGE_EN = ("You", "Your", "A", "An", "The", "What", "How", "This", "Here")
+
 
 def ist_denkspur(text: str) -> bool:
     """True, wenn ein Antworttext nach Selbstgespraech aussieht: zwei oder
@@ -93,22 +129,30 @@ def ist_denkspur(text: str) -> bool:
     weicher Marker reicht nicht -- "die Gruppe will" kann in einer echten
     Antwort vorkommen."""
     t = text.lower()
-    if any(m in t for m in _DENKSPUR_EINDEUTIG):
+    if any(m in t for m in _DENKSPUR_EINDEUTIG + _DENKSPUR_EINDEUTIG_EN):
         return True
-    return len([m for m in _DENKSPUR_MARKER if m in t]) >= 2
+    return len([m for m in _DENKSPUR_MARKER + _DENKSPUR_MARKER_EN if m in t]) >= 2
 
 
 def _denkspur_kern(text: str) -> str | None:
     """Versucht, aus einer Denkspur den eigentlichen Antwortabsatz zu
     retten: der letzte Absatz ohne Marker, der wie eine Nachricht an die
-    Gruppe beginnt und 40-700 Zeichen lang ist. Sonst None."""
+    Gruppe beginnt und 40-700 Zeichen lang ist. Sonst None.
+
+    Nachbesserung (Review Commit fbc47e9, Befund 2): welche Anfaenge als
+    "das klingt nach einer Nachricht an die Gruppe" gelten, war bisher immer
+    die Vereinigung aus Deutsch und Englisch -- eine kleine Verhaltensaenderung
+    auch fuer Dortmund, das nie englisch antwortet. Jetzt gilt je aktivem
+    Profil genau eine Liste (``sprache.je_sprache``), fuer ``code() == "de"``
+    also wortgleich wie vor der Karte A1."""
+    anfaenge = sprache.je_sprache({"de": _KERN_ANFAENGE, "en": _KERN_ANFAENGE_EN})
     absaetze = [a.strip() for a in text.split("\n\n") if a.strip()]
     for a in reversed(absaetze):
         al = a.lower()
-        if any(m in al for m in _DENKSPUR_MARKER):
+        if any(m in al for m in _DENKSPUR_MARKER + _DENKSPUR_MARKER_EN):
             continue
         erstes = a.split()[0].rstrip(",.:") if a.split() else ""
-        if erstes in ("Ihr", "Euer", "Eure", "Ein", "Eine", "Das", "Die", "Der", "Was", "Wie") or a.startswith('"'):
+        if erstes in anfaenge or a.startswith('"'):
             if 40 <= len(a) <= 700:
                 return a
     return None
@@ -132,9 +176,7 @@ def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str) -> str:
         return kern
     zweite = klm.schema(
         chat_id, system,
-        f"{koerper}\n\nDeine letzte Antwort war dein Selbstgespraech, nicht die "
-        "Nachricht an die Gruppe. Schreib NUR die Nachricht: was du der Gruppe "
-        "sagst, in ihren Worten, unter 500 Zeichen.",
+        f"{koerper}\n\n{T._TEXT_DENKSPUR_ERMAHNUNG}",
         SCHEMA, "gespraech",
     )["antwort"]
     if ist_denkspur(zweite):
@@ -149,6 +191,13 @@ def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str) -> str:
 #: schickte Birks Nachricht 1:1 zurueck, mit "Birk:" davor, und sonst nichts).
 #: Sie sagt nicht nur, was falsch war, sondern was stattdessen kommen soll --
 #: ein blosses "nicht zitieren" laesst offen, was der Bot dann tun soll.
+#: Dasselbe fuer den zweiten Anlauf nach einer Denkspur (``_ohne_denkspur``).
+_TEXT_DENKSPUR_ERMAHNUNG = (
+    "Deine letzte Antwort war dein Selbstgespraech, nicht die "
+    "Nachricht an die Gruppe. Schreib NUR die Nachricht: was du der Gruppe "
+    "sagst, in ihren Worten, unter 500 Zeichen."
+)
+
 _TEXT_ECHO_ERMAHNUNG = (
     "Deine letzte Antwort war ein Zitat der Gruppe. Zitiere nicht - antworte "
     "mit einem eigenen Impuls: eine Einschaetzung, ein Vorschlag oder eine "
@@ -306,6 +355,32 @@ _AUFTRAGSFORMEN = (
 
 _AUFTRAG = re.compile("|".join(_AUFTRAGSFORMEN), re.IGNORECASE)
 
+#: Dieselben Auftragsformen fuer eine englischsprachige Gruppe (Karte A1,
+#: Aufgabe 22). Gewaehlt wird je Sprache des Profils, nicht vereinigt: was
+#: die Gruppe tippt, ist in ihrer Sprache -- die deutsche Liste bleibt
+#: dadurch fuer Dortmund zeichengleich wirksam.
+#: Nachbesserung (Review Commit 15d70a8, Befund 2/3, mit dem Interpreter
+#: gemessen): das erste Muster war unverankert -- "I would rewrite the
+#: ending" traf mitten im Satz --, jetzt am Satzanfang verankert. Das
+#: Interview-Muster mit "go" traf harmlose Fragen und Feststellungen
+#: ("How did the interview go?", "The interview will go well") -- "go"
+#: ist gestrichen, "start"/"begin" bleiben (Faelle wie "let's go" fehlen
+#: dadurch bewusst; ein leiser Auftrag ist billiger als ein falscher).
+_AUFTRAGSFORMEN_EN = (
+    r"^\s*(please\s+)?re-?write\b",
+    r"(write|make)\s*(me\s*|us\s*)?(the\s*)?scene\b",
+    r"^\s*(again|once more)\s*$",
+    r"^\s*(keep|continue)\s*writing\s*$",
+    r"^\s*write\s*it\s*out\s*$",
+    r"(start|begin)\s*(the\s*|an?\s*)?interview",
+    r"^\s*(start|stop|end)\s*(the\s*)?recording\s*$",
+    r"interview\b.{0,20}\b(start|begin)\b",
+    r"\b(start|begin|let'?s\s+do)\b.{0,20}\binterview\b",
+    r"(end|finish|stop)\s*(the\s*)?interview\b|interview\s*(done|finished|over)\b",
+)
+
+_AUFTRAG_EN = re.compile("|".join(_AUFTRAGSFORMEN_EN), re.IGNORECASE)
+
 #: Laengere Nachrichten sind keine reinen Auftraege mehr, sondern tragen
 #: Inhalt -- "Schreib Szene 1. Stell immer nur eine Frage auf einmal." ist
 #: beides, und die Regieanweisung darin darf nicht verlorengehen. 60 Zeichen
@@ -334,6 +409,18 @@ _SZENENTEXT_WOERTER = re.compile(
     r"was steht|zeigen",
     re.IGNORECASE,
 )
+#: Englische Fassung derselben zwei Bedingungen (Aufgabe 22), je Sprache
+#: gewaehlt.
+#: Nachbesserung (Review Commit 15d70a8, Befund 1, mit dem Interpreter
+#: gemessen): ohne Wortgrenzen traf "read" den Substring in "already" und
+#: "show" den in "shower"; "what does" allein loeste bei jeder Frage aus
+#: ("what does she want in scene 3"). Jetzt mit Wortgrenzen, "what does"
+#: gestrichen -- die Zahl allein reicht ohnehin nicht, es braucht weiter
+#: eines der uebrigen Lesewoerter.
+_SZENENTEXT_NUMMER_EN = re.compile(r"scene\s*(?:no\.?\s*|number\s*)?(\d{1,3})", re.I)
+_SZENENTEXT_WOERTER_EN = re.compile(
+    r"\bshow\b|\bread\b|\blook at\b|\btext\b|\bwording\b", re.I
+)
 
 
 def szenentext_gewuenscht(text: str | None) -> int | None:
@@ -343,19 +430,24 @@ def szenentext_gewuenscht(text: str | None) -> int | None:
     roh = (text or "").strip()
     if not roh:
         return None
-    treffer = _SZENENTEXT_NUMMER.search(roh)
-    if treffer is None or _SZENENTEXT_WOERTER.search(roh) is None:
+    nummer = sprache.je_sprache({"de": _SZENENTEXT_NUMMER, "en": _SZENENTEXT_NUMMER_EN})
+    woerter = sprache.je_sprache({"de": _SZENENTEXT_WOERTER, "en": _SZENENTEXT_WOERTER_EN})
+    treffer = nummer.search(roh)
+    if treffer is None or woerter.search(roh) is None:
         return None
     return int(treffer.group(1))
 
 
 def ist_auftrag(text: str | None) -> bool:
     """Ist diese Nachricht nichts als ein Auftrag, den ein anderer Weg
-    ausfuehrt? Dann schweigt der Gespraechs-Bot (06.09.2026)."""
+    ausfuehrt? Dann schweigt der Gespraechs-Bot (06.09.2026). Die Muster
+    kommen aus der Sprache des Profils (Karte A1): eine englische Gruppe
+    schreibt 'write the scene'."""
     roh = (text or "").strip()
     if not roh or len(roh) > AUFTRAG_HOECHSTLAENGE:
         return False
-    return _AUFTRAG.search(roh) is not None
+    muster = sprache.je_sprache({"de": _AUFTRAG, "en": _AUFTRAG_EN})
+    return muster.search(roh) is not None
 
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
@@ -491,7 +583,7 @@ def _tippanzeige(tg, chat_id: int):
             if not hinweis_gesendet and vergangen >= HINWEIS_NACH:
                 hinweis_gesendet = True
                 try:
-                    tg.sende(chat_id, _TEXT_HINWEIS)
+                    tg.sende(chat_id, T._TEXT_HINWEIS)
                 except Exception:
                     log.exception("Hinweis-Zeile fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -521,6 +613,24 @@ _SYSTEMZEILEN = (
 )
 _SYSTEMZEILE = re.compile("|".join(_SYSTEMZEILEN), re.IGNORECASE)
 
+#: Dieselben Zeilen auf Englisch (Karte A1, Aufgabe 24) -- die Wendungen,
+#: die ``sprachen/en/prompts/system.md`` unter "What you do NOT say"
+#: verbietet ("Starting now", "I'm writing out the scene", US-Server,
+#: US-Modell, Switzerland), angepasst an ``szene._TEXT_ANGEKUENDIGT`` in
+#: ``sprachen/en/texte.toml``. Enger als das Deutsche, weil "us" im
+#: Englischen ein Pronomen ist: US steht nur **grossgeschrieben**
+#: (``(?-i:...)``), sonst traefe "Tell us ... Switzerland". "Starting now"
+#: gilt nur am Satzanfang -- "we could try starting now" ist ein Vorschlag.
+_SYSTEMZEILEN_EN = (
+    r"(?:^|[.!?]\s+)starting\s+now\b",
+    r"\bwriting\s+out\s+(?:the|your)\s+scene\b",
+    r"\bwriting\s+(?:the|your)\s+scene\s+(?:now|out)\b",
+    r"\b(?-i:US)[- ]?servers?\b",
+    r"\b(?-i:US)[- ]?model\b.*\?",
+    r"\bswitzerland\b.*\b(?-i:USA?)\b|\b(?-i:USA?)\b.*\bswitzerland\b",
+)
+_SYSTEMZEILE_EN = re.compile("|".join(_SYSTEMZEILEN_EN), re.IGNORECASE)
+
 
 def ist_erfundene_systemzeile(text: str | None) -> bool:
     """Sieht diese Gespraechsantwort aus wie eine Systemzeile des
@@ -528,8 +638,11 @@ def ist_erfundene_systemzeile(text: str | None) -> bool:
 
     Reiner Musterabgleich, kein Modellaufruf. Der Aufrufer prueft
     zusaetzlich, ob wirklich ein Lauf laeuft -- steht einer, ist die Zeile
-    echt und geht durch."""
-    return _SYSTEMZEILE.search((text or "").strip()) is not None
+    echt und geht durch. Modellausgabe, deshalb beide Sprachen (K5),
+    Deutsch zuerst."""
+    roh = (text or "").strip()
+    return any(muster.search(roh) is not None
+               for muster in (_SYSTEMZEILE, _SYSTEMZEILE_EN))
 
 
 def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
@@ -553,7 +666,7 @@ def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
     )
     try:
         zweite = klm.schema(
-            chat_id, system, f"{koerper}\n\n{_TEXT_ECHO_ERMAHNUNG}", SCHEMA, "gespraech"
+            chat_id, system, f"{koerper}\n\n{T._TEXT_ECHO_ERMAHNUNG}", SCHEMA, "gespraech"
         )["antwort"]
     except Exception:
         log.exception("Zweiter Anlauf nach Echo fehlgeschlagen, chat_id=%s", chat_id)
@@ -740,7 +853,7 @@ def _melde_fehler(conn, tg, e, chat_id: int, versand_erfolgreich: bool) -> None:
             from interview_theater import bot as _bot
             _bot.erstkontakt(conn, tg, e, chat_id)
         else:
-            tg.sende(chat_id, _TEXT_FEHLER)
+            tg.sende(chat_id, T._TEXT_FEHLER)
     except Exception:
         log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -819,7 +932,8 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     if nummer is not None and (letzte_nachricht["text"] or "").strip():
         szene.starte(
             conn, tg, klm, e, chat_id,
-            f"Schreib Szene {nummer} neu. {letzte_nachricht['text'].strip()}",
+            szene.T.TEXT_AUFTRAG_NEU.format(
+                nummer=nummer, notiz=letzte_nachricht["text"].strip()),
         )
         return True
 
@@ -1016,7 +1130,7 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         with arbeitet_sichtbar(tg, chat_id, arbeitszeile, arbeitsart):
             phase = phasen.aktuelle(conn, chat_id)
             koerper = kontext.baue(conn, chat_id, [], e)
-            koerper = f"{koerper}\n\n{_AUFTRAG_KOPF}\n{anweisung}"
+            koerper = f"{koerper}\n\n{T._AUFTRAG_KOPF}\n{anweisung}"
             system = kontext.system(e.bot_name, phase)
             ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
             if isinstance(ergebnis, str):
@@ -1035,7 +1149,7 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
                 conn, chat_id, getattr(e, "bot_name", None),
                 "auftragszug_fehlgeschlagen", "Knopf-Auftrag am Modell gescheitert",
             )
-            tg.sende(chat_id, _TEXT_FEHLER)
+            tg.sende(chat_id, T._TEXT_FEHLER)
         except Exception:
             log.exception("Fehlermeldung zum Auftragszug fehlgeschlagen")
         return
@@ -1075,3 +1189,8 @@ def starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
     )
     thread.start()
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

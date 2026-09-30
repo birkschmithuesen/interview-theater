@@ -172,6 +172,36 @@ SZENENFELDER = {
     "ton": "Ton",
 }
 
+#: Die Figurenfelder der Gruppenseite mit ihrer Beschriftung im Journal.
+FIGURENFELDER = {
+    "name": "Name",
+    "beschreibung": "Beschreibung",
+}
+
+#: Die Journalzeilen der Gruppenseite (Karte A1: ueber ``T`` gelesen -- der
+#: Bot liest sie im naechsten Zug, also in der Sprache des Profils).
+JOURNAL_GEAENDERT = "{label} geändert über die Gruppenseite: {alt} → {neu}"
+JOURNAL_SPRACHPROFIL = "Sprachprofil neu nötig: {name} spricht jetzt aus {quelle}."
+JOURNAL_FIGUR_ENTFERNT = "Figur {name} entfernt über die Gruppenseite"
+JOURNAL_FIGUR_ANGELEGT = "Figur {name} angelegt über die Gruppenseite"
+JOURNAL_FESTLEGUNG_ENTFERNT = "Festlegung {text} entfernt über die Gruppenseite"
+_KEINEM_INTERVIEW = "keinem Interview"
+_LABEL_FIGUR = "Figur {name} · {feld}"
+_LABEL_INTERVIEW = "Interview"
+_LABEL_BESETZUNG = "Besetzung"
+_SZENE_MIT_NUMMER = "Szene {nummer}"
+_SZENE_OHNE_NUMMER = "Szene"
+
+#: Die Fehlermeldungen (``Fehler``) -- ``web.py`` zeigt sie der Gruppe als
+#: HTTP 400 neben dem Feld, deshalb in der Sprache des Profils.
+_FEHLER_FIGUR_FEHLT = "Figur nicht gefunden."
+_FEHLER_SZENE_FEHLT = "Szene nicht gefunden."
+_FEHLER_NAME_FEHLT = "Eine Figur braucht einen Namen."
+_FEHLER_INTERVIEW_FEHLT = "Interview nicht gefunden."
+_FEHLER_FIGUR_DOPPELT = "„{name}“ gibt es schon."
+_FEHLER_FESTLEGUNG_FEHLT = "Festlegung nicht gefunden."
+_FEHLER_PARAMETER = "Unbekannter Parameter: {feld}"
+
 
 class Fehler(Exception):
     """Ein Wert, den die Gruppenseite nicht schreiben darf oder kann.
@@ -189,7 +219,7 @@ def _kuerze(wert: str | None) -> str:
     Eintrag macht und der Journalblock im Prompt seine Form verliert."""
     text = " ".join((wert or "").split())
     if not text:
-        return LEER
+        return T.LEER
     if len(text) <= JOURNAL_GRENZE:
         return text
     return text[: JOURNAL_GRENZE - 1].rstrip() + "…"
@@ -202,10 +232,7 @@ def journaltext(label: str, alt: str | None, neu: str | None) -> str:
     Weg zu einer Entscheidung steht (SPEC § 2), und "Kernthema geaendert"
     allein sagt nicht, was vorher galt -- weder der Gruppe beim Nachlesen
     noch dem Bot im naechsten Zug."""
-    return (
-        f"{label} geändert über die Gruppenseite: "
-        f"{_kuerze(alt)} → {_kuerze(neu)}"
-    )
+    return T.JOURNAL_GEAENDERT.format(label=label, alt=_kuerze(alt), neu=_kuerze(neu))
 
 
 def _notiere(conn, chat_id: int, label: str, alt, neu) -> None:
@@ -245,9 +272,9 @@ def _figur(conn, chat_id: int, figur_id):
     try:
         zeile = repo.hole_figur_nach_id(conn, int(figur_id))
     except (TypeError, ValueError):
-        raise Fehler("Figur nicht gefunden.") from None
+        raise Fehler(T._FEHLER_FIGUR_FEHLT) from None
     if zeile is None or zeile["chat_id"] != chat_id or zeile["entfernt_am"]:
-        raise Fehler("Figur nicht gefunden.")
+        raise Fehler(T._FEHLER_FIGUR_FEHLT)
     return zeile
 
 
@@ -257,15 +284,17 @@ def _szene(conn, chat_id: int, szene_id):
     try:
         zeile = repo.hole_szene(conn, int(szene_id))
     except (TypeError, ValueError):
-        raise Fehler("Szene nicht gefunden.") from None
+        raise Fehler(T._FEHLER_SZENE_FEHLT) from None
     if zeile is None or zeile["chat_id"] != chat_id or zeile["entfernt_am"]:
-        raise Fehler("Szene nicht gefunden.")
+        raise Fehler(T._FEHLER_SZENE_FEHLT)
     return zeile
 
 
 def _szenenname(zeile) -> str:
     nummer = zeile["nummer"]
-    return f"Szene {nummer}" if nummer is not None else "Szene"
+    if nummer is None:
+        return T._SZENE_OHNE_NUMMER
+    return T._SZENE_MIT_NUMMER.format(nummer=nummer)
 
 
 # --- Die einzelnen Parameter ----------------------------------------------
@@ -290,7 +319,7 @@ def _setze_arbeitsstand(feld: str):
         alt = (stand[feld] if stand else None) or ""
         neu = _text(wert)
         repo.setze_arbeitsstand(conn, chat_id, feld, _leer_zu_none(neu))
-        _notiere(conn, chat_id, ARBEITSSTANDFELDER[feld], alt, neu)
+        _notiere(conn, chat_id, T.ARBEITSSTANDFELDER[feld], alt, neu)
         return neu
 
     return handler
@@ -303,10 +332,14 @@ def _setze_figurenfeld(feld: str, label: str):
         zeile = _figur(conn, chat_id, ziel)
         neu = _text(wert)
         if feld == "name" and not neu:
-            raise Fehler("Eine Figur braucht einen Namen.")
+            raise Fehler(T._FEHLER_NAME_FEHLT)
         alt = zeile[feld] or ""
         repo.setze_figur_feld(conn, zeile["id"], feld, neu)
-        _notiere(conn, chat_id, f"Figur {zeile['name']} · {label}", alt, neu)
+        beschriftung = T.FIGURENFELDER.get(feld, label)
+        _notiere(
+            conn, chat_id, T._LABEL_FIGUR.format(name=zeile["name"], feld=beschriftung),
+            alt, neu,
+        )
         return neu
 
     return handler
@@ -333,11 +366,11 @@ def _setze_figur_quelle(conn, chat_id: int, wert, ziel) -> str:
     zeile = _figur(conn, chat_id, ziel)
     text = _text(wert)
     if text and not text.isdigit():
-        raise Fehler("Interview nicht gefunden.")
+        raise Fehler(T._FEHLER_INTERVIEW_FEHLT)
     neue_id = int(text) if text else None
     erlaubte = {a["id"] for a in _interviews(conn, chat_id)}
     if neue_id is not None and neue_id not in erlaubte:
-        raise Fehler("Interview nicht gefunden.")
+        raise Fehler(T._FEHLER_INTERVIEW_FEHLT)
 
     alt_id = zeile["quelle_aufnahme_id"]
     if alt_id == neue_id:
@@ -348,13 +381,17 @@ def _setze_figur_quelle(conn, chat_id: int, wert, ziel) -> str:
     repo.setze_figur_quelle(conn, zeile["id"], neue_id)
     repo.setze_sprachprofil(conn, zeile["id"], "", [])
     repo.setze_figur_geprueft(conn, zeile["id"], None)
-    _notiere(conn, chat_id, f"Figur {zeile['name']} · Interview", alt, neu)
+    _notiere(
+        conn, chat_id,
+        T._LABEL_FIGUR.format(name=zeile["name"], feld=T._LABEL_INTERVIEW), alt, neu,
+    )
     repo.schreibe_journal(
         conn,
         chat_id,
         "offen",
-        f"Sprachprofil neu nötig: {zeile['name']} spricht jetzt aus "
-        f"{neu or 'keinem Interview'}.",
+        T.JOURNAL_SPRACHPROFIL.format(
+            name=zeile["name"], quelle=neu or T._KEINEM_INTERVIEW,
+        ),
         quelle=QUELLE,
     )
     return text
@@ -369,7 +406,7 @@ def _entferne_figur(conn, chat_id: int, wert, ziel) -> str:
         conn,
         chat_id,
         "entschieden",
-        f"Figur {_kuerze(name or zeile['name'])} entfernt über die Gruppenseite",
+        T.JOURNAL_FIGUR_ENTFERNT.format(name=_kuerze(name or zeile["name"])),
         quelle=QUELLE,
     )
     return ""
@@ -380,15 +417,15 @@ def _lege_figur_an(conn, chat_id: int, wert, ziel) -> str:
     ``repo.setze_figur``, denselben Weg wie der Erkenner."""
     name = _text(wert)
     if not name:
-        raise Fehler("Eine Figur braucht einen Namen.")
+        raise Fehler(T._FEHLER_NAME_FEHLT)
     if repo.hole_figur(conn, chat_id, name) is not None:
-        raise Fehler(f"„{name}“ gibt es schon.")
+        raise Fehler(T._FEHLER_FIGUR_DOPPELT.format(name=name))
     repo.setze_figur(conn, chat_id, name, "")
     repo.schreibe_journal(
         conn,
         chat_id,
         "entschieden",
-        f"Figur {_kuerze(name)} angelegt über die Gruppenseite",
+        T.JOURNAL_FIGUR_ANGELEGT.format(name=_kuerze(name)),
         quelle=QUELLE,
     )
     return name
@@ -410,12 +447,12 @@ def _entferne_festlegung(conn, chat_id: int, wert, ziel) -> str:
     geschrieben ist."""
     zeile = repo.entferne_festlegung_nach_id(conn, chat_id, ziel)
     if zeile is None:
-        raise Fehler("Festlegung nicht gefunden.")
+        raise Fehler(T._FEHLER_FESTLEGUNG_FEHLT)
     repo.schreibe_journal(
         conn,
         chat_id,
         "entschieden",
-        f"Festlegung {_kuerze(zeile)} entfernt über die Gruppenseite",
+        T.JOURNAL_FESTLEGUNG_ENTFERNT.format(text=_kuerze(zeile)),
         quelle=QUELLE,
     )
     return ""
@@ -431,7 +468,8 @@ def _setze_szenenfeld(feld: str, label: str):
         alt = zeile[feld] or ""
         neu = _text(wert)
         repo.setze_szenenfeld(conn, zeile["id"], feld, _leer_zu_none(neu))
-        _notiere(conn, chat_id, f"{_szenenname(zeile)} · {label}", alt, neu)
+        beschriftung = T.SZENENFELDER.get(feld, label)
+        _notiere(conn, chat_id, f"{_szenenname(zeile)} · {beschriftung}", alt, neu)
         return neu
 
     return handler
@@ -453,7 +491,7 @@ def _setze_szene_figuren(conn, chat_id: int, wert, ziel) -> str:
     alt = ", ".join(f["name"] for f in repo.szene_figuren(conn, zeile["id"]))
     repo.setze_szene_figuren(conn, chat_id, zeile["id"], ids)
     neu = ", ".join(f["name"] for f in repo.szene_figuren(conn, zeile["id"]))
-    _notiere(conn, chat_id, f"{_szenenname(zeile)} · Besetzung", alt, neu)
+    _notiere(conn, chat_id, f"{_szenenname(zeile)} · {T._LABEL_BESETZUNG}", alt, neu)
     return neu
 
 
@@ -501,6 +539,10 @@ def wende_an(conn, chat_id: int, feld: str, wert, ziel=None) -> dict:
     aus einem Formular, also von aussen."""
     handler = FELDER.get(feld)
     if handler is None:
-        raise Fehler(f"Unbekannter Parameter: {feld}")
+        raise Fehler(T._FEHLER_PARAMETER.format(feld=feld))
     neu = handler(conn, chat_id, wert, ziel)
     return {"ok": True, "feld": feld, "wert": neu, "id": ziel}
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

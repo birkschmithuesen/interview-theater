@@ -1,54 +1,52 @@
 # Workshop-Profil Padua 2026 -- GERUEST.
 #
-# Die Struktur steht, die Inhalte fehlen. Was hier leer ist, schreibt ein
-# Mensch, der Italienisch kann und die Gruppe kennt -- nicht ein Agent und
-# nicht durch Uebersetzen der Dortmunder Fassung. Ein italienischer Prompt
-# ist ein eigener Text, keine Uebersetzung (Teil C der Analyse).
+# A1 hat Sprache, Phasen und Formen gesetzt; die Inhaltsfelder sind
+# Platzhalter, Karte P ersetzt sie aus Birks Vault. `geruest = true`
+# streicht Karte P.
+#
+# Jede Inhaltszeile traegt den Marker "ANNAHME (Platzhalter A1" --
+# tests/test_profile_geruest.py zaehlt sie. Die Rahmen-Vorlagen, in die diese
+# Werte eingesetzt werden, liegen in der Sprachschicht
+# (interview_theater/sprachen/en/prompts/rahmen*.md, projekt.md), nicht hier.
 #
 # Solange die naechste Zeile dasteht, startet kein Bot mit diesem Profil.
-# Wer es fertig macht, fuellt die Felder und streicht sie.
 geruest = true
 
-beschreibung = ""   # z.B. "Theaterworkshop in Padua, <Datum>, mit <Traeger>."
+beschreibung = "Theatre workshop in Padua, October 2026."   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
 
 [sprache]
-# Prompt- und Chatsprache. Steuert spaeter auch die Whisper-Sprache
-# (stt.py) -- die Umstellung ist noch nicht gebaut, siehe LIESMICH.md.
-code = "it"
-# Wie die Gruppe angesprochen wird. Deutsch "ihr", italienisch "voi".
-anrede = "voi"
+# Prompt- und Chatsprache (Birk, 29.09.2026: Padua laeuft auf Englisch).
+code = "en"
+# Wie die Gruppe angesprochen wird.
+anrede = "you"
+# Die Interviewsprache ist offen -- Whisper erkennt sie selbst (E5). Eine
+# Gruppe kann per Knopf in Phase 3 oder /sprache umstellen. Unbestaetigt,
+# siehe LIESMICH.md (Annahme A1, Rauchtest Aufgabe 9 offen).
+whisper = "auto"
+
+[datenschutz]
+# E8: der Bot spricht nie mit Vornamen an; im Prompt stehen "Member 1, 2, ...".
+pseudonyme = true
 
 [zielgruppe]
-# Wer spielt. Ein Satz, wie er im Rahmenblock steht -- Alter, Geschlecht,
-# was die Gruppe ausmacht. Beispiel Dortmund: "junge Frauen zwischen 15 und
-# 18 Jahren".
-beschreibung = ""
-# Der Traegerkontext in Klammern. Leer = keine Klammer.
-traeger = ""
+beschreibung = "young people taking part in this workshop"   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+# Der Traegerkontext in Klammern im Rahmenblock -- gesetzt, damit dort keine
+# leere Klammer "()" steht.
+traeger = "the workshop partner in Padua"                      # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
 
 [orte]
-# Wie die Prompts die Spielorte beschreiben. In Dortmund steht hier
-# ausdruecklich KEINE Beispielliste: die Orte nennt die Gruppe, ein Beispiel
-# im Prompt wird nachgeplappert. Fuer Padua ebenso zu formulieren.
-beschreibung = ""
-# Was ausgeschlossen ist (Dortmund: Club, Disko, Alkohol, Nachtleben,
-# Drogen). Fuer Padua entscheidet das der Traeger.
-ausgeschlossen = []
-# Wo das fertige Stueck gezeigt wird.
-auffuehrung = ""
+beschreibung = "everyday, age-appropriate places from the group's own world -- the group decides which (no example places from these instructions)."   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+ausgeschlossen = ["club", "disco", "alcohol", "nightlife", "drugs"]   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+auffuehrung = "in a public space or a large hall"                     # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
 # Orte, die in den Prompts als BEISPIEL vorkommen -- nicht die Orte des
-# Stuecks. Sprache und Ort sind zwei getrennte Felder (Teil C.4 der
-# Analyse): ein italienisches Profil hat italienische Beispielorte.
-beispiele = ["fermata", "piazza", "bar", "stazione"]
+# Stuecks. Englisch, weil sie in englischen Prompt-Saetzen stehen ("maybe
+# they meet at the bus stop"); ein italienisches Wort dort waere ein
+# Fremdkoerper (Review A1).
+beispiele = ["bus stop", "piazza", "café", "station"]   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
 
 [konflikt]
-# Was an Stoff drin sein darf, und was nicht.
-erlaubt = ""
-ausgeschlossen = ""
+erlaubt = "family, expectations, belonging, language, future"   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+ausgeschlossen = "No glorification of violence"                  # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
 
 [projekt]
-# Worum es geht, in einem Satz -- so, wie es eine Interviewerin einer
-# fremden Person auf der Strasse sagt. Steht im Auftrag fuer den
-# Eroeffnungstext. Der lange Wortlaut gehoert daneben als
-# prompts/projekt.md.
-kurzbeschreibung = ""
+kurzbeschreibung = "a piece of theatre about the lives of people in this city; the people we interview are experts on life here, and their personal stories become visible on stage"   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)

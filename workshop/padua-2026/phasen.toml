@@ -1,35 +1,54 @@
-# Die Arbeitsphasen fuer Padua 2026 -- GERUEST, noch nicht ausgefuellt.
+# Die Arbeitsphasen fuer Padua 2026 (Karte A1): dieselben sieben Stationen
+# wie in Dortmund -- die Methode, nicht der Einsatzort --, englisch benannt.
 #
-# Solange hier kein [[phase]]-Eintrag steht, gelten die sieben Stationen des
-# eingebauten Profils, auf Deutsch benannt. Der Ablauf selbst ist nicht
-# Dortmund-spezifisch: Begriffe, Fragen, Interviews, Erfinden, Schaerfen,
-# Prosa, Feinschliff -- das ist die Methode, nicht der Einsatzort. Fuer
-# Padua muessen deshalb vermutlich nur die NAMEN und STICHWOERTER neu, nicht
-# die Zahl der Stationen.
-#
-# So sieht ein fertiger Eintrag aus:
-#
-#     erste = 1
-#     meldung = "Ora siamo a {bezeichnung}. Se non e cosi, ditemelo."
-#
-#     [mehrdeutig]
-#     5 = 7
-#
-#     [[phase]]
-#     nummer = 1
-#     name = "Parole"
-#     satz = "Raccogliere le parole dalla plenaria."
-#     stichwoerter = ["parole", "parola"]
-#
-# Zwei Regeln, sonst meldet scripts/pruefe_profil.py es:
-#
-# 1. Die Nummern fangen bei 1 an, sind lueckenlos und kommen je einmal vor.
-#    Sie stehen in der Datenbank (arbeitsstand.phase), in den Migrationen
-#    und in den Dateinamen der Phasenprompts.
-# 2. Sobald hier [[phase]]-Eintraege stehen, ERSETZEN sie die Vorgabe
-#    vollstaendig -- dann braucht phasentexte.toml zu jeder Station eine
-#    Einleitung, und prompts/phasen/<nummer>.md gehoert dazu.
-#
-# stichwoerter sind Wortstaemme; verglichen wird in beide Richtungen. Sie
-# sind der Grund, warum eine Gruppe "siamo alle interviste" sagen kann und
-# der Bot die richtige Station findet.
+# stichwoerter sind Wortstaemme; verglichen wird in beide Richtungen
+# (phasen.nummer_fuer), die erste Phase in Nummernfolge gewinnt. Phase 4
+# traegt auch die Woerter der alten Phasenliste ("core theme", "format"),
+# weil der englische Erkenner-Prompt sie noch nennt.
+erste = 1
+meldung = "We're now at {bezeichnung}. If that's not right, tell me."
+
+[[phase]]
+nummer = 1
+name = "Terms"
+satz = "Take in and sort the list of terms collected in the plenary."
+stichwoerter = ["terms", "term", "term list", "keywords"]
+
+[[phase]]
+nummer = 2
+name = "Questions"
+satz = "Develop interview questions from the terms."
+# "interview questions" bewusst nicht: der Vergleich laeuft in beide
+# Richtungen, "interview" waere darin enthalten (wie im Deutschen).
+stichwoerter = ["questions", "question", "question list"]
+
+[[phase]]
+nummer = 3
+name = "Interviews"
+satz = "Conduct the interviews, summarise the material."
+stichwoerter = ["interviews", "interview", "recordings"]
+
+[[phase]]
+nummer = 4
+name = "Setting, Characters & Story"
+satz = "Invent freely: where it is set, who is in it, what happens."
+stichwoerter = ["setting", "characters", "character", "frame", "core theme",
+                "format", "conflict", "story", "plot", "outline"]
+
+[[phase]]
+nummer = 5
+name = "Sharpening"
+satz = "Sharpen the invented story against the interview material."
+stichwoerter = ["sharpening", "sharpen", "clustering", "summaries"]
+
+[[phase]]
+nummer = 6
+name = "Scenes as Story"
+satz = "Tell each scene as prose -- what happens, still without a form."
+stichwoerter = ["scene texts", "scene text", "scenes", "scene"]
+
+[[phase]]
+nummer = 7
+name = "Polish"
+satz = "Choose the form of each scene, translate the story into it, check the play."
+stichwoerter = ["run-through", "polish", "play check", "review round"]

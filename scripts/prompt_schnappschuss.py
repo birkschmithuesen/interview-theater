@@ -96,7 +96,7 @@ def teile() -> list[tuple[str, str]]:
                         szenenfolge.systemanweisung_geschichte(anzahl)))
     stuecke.append(("szenenfolge.systemanweisung_geschichte_szenen",
                     szenenfolge.systemanweisung_geschichte_szenen()))
-    stuecke.append(("szenenfolge.ANWEISUNG_FELDER", szenenfolge.ANWEISUNG_FELDER))
+    stuecke.append(("szenenfolge.ANWEISUNG_FELDER", szenenfolge.T.ANWEISUNG_FELDER))
 
     stuecke.append(("szene.FORMEN", repr(tuple(szene.FORMEN))))
     stuecke.append(("szene.FORM_STICHWOERTER", repr(
@@ -127,7 +127,8 @@ def teile() -> list[tuple[str, str]]:
 
     for feld in ("TEXT_KOPF", "UEBERSCHRIFT_EROEFFNUNG", "UEBERSCHRIFT_FRAGEN",
                  "UEBERSCHRIFT_ABSCHLUSS", "TEXT_LEER"):
-        stuecke.append((f"leitfaden.{feld}", getattr(leitfaden, feld)))
+        # Ueber den Sprachzugriff (Karte A1): im Deutschen dasselbe Objekt.
+        stuecke.append((f"leitfaden.{feld}", getattr(leitfaden.T, feld)))
 
     # Die Auftrags-Anweisungen der Knoepfe: Prompt-Text, der im Code steht
     # (ein Knopf schickt ihn ueber ablauf.starte_auftrag an das Modell).
@@ -135,7 +136,9 @@ def teile() -> list[tuple[str, str]]:
     for feld in sorted(f for f in dir(knoepfe) if f.startswith("ANWEISUNG_")):
         wert = getattr(knoepfe, feld)
         if isinstance(wert, str):
-            stuecke.append((f"knoepfe.{feld}", anweisungen.fuelle(wert)))
+            # Ueber den Sprachzugriff (Karte A1): im Deutschen dasselbe
+            # Objekt, unter einem englischen Profil der englische Auftrag.
+            stuecke.append((f"knoepfe.{feld}", anweisungen.fuelle(getattr(knoepfe.T, feld))))
 
     return stuecke
 

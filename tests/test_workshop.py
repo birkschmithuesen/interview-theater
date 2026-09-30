@@ -159,3 +159,15 @@ def test_zwei_profile_im_selben_prozess_bleiben_getrennt(monkeypatch, tmp_path):
     assert workshop.aktiv().wert("zielgruppe.beschreibung") == "Erwachsene"
     monkeypatch.setenv(workshop.VARIABLE, "eins-2026")
     assert workshop.aktiv().wert("zielgruppe.beschreibung") == "Kinder"
+
+
+def test_vorgabe_hoert_deutsch_und_ohne_pseudonyme():
+    """D1/A5: ohne Profil bleibt Whisper auf Deutsch und niemand wird
+    pseudonymisiert -- das heutige Verhalten."""
+    profil = workshop.aktiv()
+    assert profil.wert("sprache.whisper") == "de"
+    assert profil.wert("datenschutz.pseudonyme") is False
+
+
+def test_nur_gebaute_sprachen():
+    assert workshop.SPRACHEN == ("de", "en")

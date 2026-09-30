@@ -1,19 +1,5 @@
-# Was die Gruppe beim Eintritt in eine Phase im Chat liest -- GERUEST.
-#
-# Solange hier keine [einleitung]-Tabelle steht, gelten die deutschen
-# Einleitungen des eingebauten Profils. Fuer Padua sind sie neu zu
-# schreiben, nicht zu uebersetzen: es ist Sprechsprache fuer eine bestimmte
-# Gruppe, und das ueberlebt eine Uebersetzung selten.
-#
-# So sieht es fertig aus:
-#
-#     letzte_offen = """\
-#     ..."""
-#
-#     [einleitung]
-#     1 = """\
-#     Testo della prima stazione, due o quattro frasi: cosa succede qui, \
-#     cosa fate voi, cosa faccio io, cosa c'e alla fine."""
+# Was die Gruppe beim Eintritt in eine Phase im Chat liest -- Padua 2026,
+# englisch (Karte A1). Birk nimmt den Wortlaut in Karte P ab.
 #
 # Vier Regeln, aus dem Dortmunder Betrieb:
 #
@@ -22,10 +8,51 @@
 # 2. Keine Eigennamen -- weder erfundene Figuren noch Orte: was hier als
 #    Beispiel steht, taucht spaeter als Vorschlag des Bots wieder auf.
 # 3. Keine Slash-Befehle. Beworben wird der Knopf.
-# 4. Die Anrede aus profil.toml (sprache.anrede) durchhalten.
+# 4. Die Anrede aus profil.toml (sprache.anrede = "you") durchhalten.
 #
 # {{formen_liste_oder}} und die uebrigen Platzhalter funktionieren auch
 # hier -- damit im Chat dieselbe Formenliste steht wie im Prompt.
-#
-# Sobald hier eine [einleitung]-Tabelle steht, ERSETZT sie die Vorgabe
-# vollstaendig: dann braucht jede Station aus phasen.toml einen Eintrag.
+
+letzte_offen = """\
+Here is your script in one piece. Some of the scenes are not written yet - \
+tap one of them and I'll catch up. In the finished ones we look at the \
+transitions and at whatever feels awkward to say out loud."""
+
+[einleitung]
+1 = """\
+This is where your list of terms from the plenary comes to me. Send it typed \
+or as a voice message, just as it is on your wall. I keep it, sort it and ask \
+where a term is still too big. At the end you have the core terms you will \
+keep working with."""
+2 = """\
+Now your terms become interview questions. I suggest ten, you tell me the \
+numbers of exactly three. Then we look at which question is sensitive and how \
+to ask it so it is easy to answer, and how you start and end a conversation. \
+At the end you have an interview guide to take with you."""
+3 = """\
+Now you do the interviews - you have the guide with you. Tap Start interview, \
+then record the conversation as voice messages, as many as you need. I type \
+everything up. At the end tap End interview (or say "done" at the end of the \
+recording), and I summarise the interview by myself - the themes and the \
+word-for-word quotes we will work with later."""
+4 = """\
+From here on we invent - freely, without material. You decide where your play \
+is set (place, time, occasion), who is in it, and what happens: the story in \
+outline, how it ends, and the sequence of scenes with a title, one sentence, \
+the characters and a suggested form. I help with suggestions if you want. \
+Right after that the interviews come in and sharpen what you have built."""
+5 = """\
+Now the interviews come back. Next to every scene and every character I put \
+the passages from your recordings that fit, with the word-for-word quote. \
+Your story does not change, it gets more precise. You decide suggestion by \
+suggestion and can go another round."""
+6 = """\
+Now I write your story in one piece - a short story, like in a book: what \
+happens, who is there, what is said and felt, in prose. The story decides how \
+many sections it gets. Each section then becomes a scene. No stage text, no \
+form yet; that comes in the polish. You read it and tell me what should change."""
+7 = """\
+All scenes are there as a story. Now the polish: scene by scene you choose the \
+form - {{formen_liste_oder}} - and I translate the story into exactly that \
+form. Then I read your play once as a whole, like an audience, and tell you \
+where it holds and where it doesn't. You can get the script as a file at any time."""

@@ -232,34 +232,46 @@ def _arbeitsstand_text(conn, chat_id: int) -> str:
 
     zeilen = []
     if stand:
-        if stand["begriffe"]:
-            zeilen.append(f"Begriffe: {stand['begriffe']}")
-        if stand["fragen"]:
-            zeilen.append(f"Fragen: {stand['fragen']}")
-        if stand["kernthema"]:
-            zeilen.append(f"Kernthema: {stand['kernthema']}")
-        if stand["rahmen"]:
-            zeilen.append(f"Rahmen: {stand['rahmen']}")
-        if stand["hauptkonflikt"]:
-            zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
+        beschriftung = T._STAND_BESCHRIFTUNG
+        for feld in beschriftung:
+            if stand[feld]:
+                zeilen.append(f"{beschriftung[feld]}: {stand[feld]}")
     for figur in figuren:
         beschreibung = f": {figur['beschreibung']}" if figur["beschreibung"] else ""
-        zeilen.append(f"Figur {figur['name']}{beschreibung}")
+        zeilen.append(T._STAND_FIGUR_ZEILE.format(name=figur["name"], beschreibung=beschreibung))
 
     if not zeilen:
         return ""
-    return "Arbeitsstand:\n" + "\n".join(zeilen)
+    return T._ARBEITSSTAND_KOPF + "\n".join(zeilen)
 
 
-def _nachrichten_text(nachrichten, vorlauf=None) -> str:
-    zeilen = [kontext.sprecherzeile(n) for n in nachrichten]
-    text = "Neue Nachrichten:\n" + "\n".join(zeilen)
+#: Die Koepfe des Nutzertexts (W3: ein englischer Systemprompt mit deutschem
+#: Nutzertext liesse das Modell deutsch antworten). ``_STAND_BESCHRIFTUNG``:
+#: Arbeitsstandfeld -> Beschriftung, in dieser Reihenfolge; die Schluessel
+#: sind Spaltennamen (Protokoll), uebersetzt werden nur die Werte.
+_STAND_BESCHRIFTUNG = {
+    "begriffe": "Begriffe",
+    "fragen": "Fragen",
+    "kernthema": "Kernthema",
+    "rahmen": "Rahmen",
+    "hauptkonflikt": "Hauptkonflikt",
+}
+_STAND_FIGUR_ZEILE = "Figur {name}{beschreibung}"
+_ARBEITSSTAND_KOPF = "Arbeitsstand:\n"
+_NACHRICHTEN_KOPF = "Neue Nachrichten:\n"
+_VORLAUF_KOPF = (
+    "Vorlauf (die letzte Bot-Nachricht davor -- schon verarbeitet, nur "
+    "damit du siehst, worauf sich eine Zustimmung bezieht):\n"
+)
+
+
+def _nachrichten_text(nachrichten, vorlauf=None, namen=None) -> str:
+    """``namen``: Pseudonyme aus ``kontext.pseudonyme`` (E8), ``None`` =
+    Vornamen wie bisher."""
+    zeilen = [kontext.sprecherzeile(n, namen) for n in nachrichten]
+    text = T._NACHRICHTEN_KOPF + "\n".join(zeilen)
     if vorlauf is not None:
-        text = (
-            "Vorlauf (die letzte Bot-Nachricht davor -- schon verarbeitet, nur "
-            "damit du siehst, worauf sich eine Zustimmung bezieht):\n"
-            + kontext.sprecherzeile(vorlauf) + "\n\n" + text
-        )
+        text = T._VORLAUF_KOPF + kontext.sprecherzeile(vorlauf, namen) + "\n\n" + text
     return text
 
 
@@ -268,7 +280,11 @@ def _baue_nutzertext(conn, chat_id: int, nachrichten, vorlauf=None) -> str:
     die neuen Nachrichten seit dem Wasserzeichen -- nicht das Journal, nicht
     die Transkripte (SPEC § 4.3). Seit 05.09. mit Vorlauf (letzte
     Bot-Nachricht vor dem Fenster), siehe ``erkenne``."""
-    bloecke = [b for b in (_arbeitsstand_text(conn, chat_id), _nachrichten_text(nachrichten, vorlauf)) if b]
+    namen = kontext.pseudonyme(
+        conn, chat_id, list(nachrichten) + ([vorlauf] if vorlauf is not None else [])
+    )
+    bloecke = [b for b in (_arbeitsstand_text(conn, chat_id),
+                           _nachrichten_text(nachrichten, vorlauf, namen)) if b]
     return "\n\n".join(bloecke)
 
 
@@ -373,7 +389,7 @@ def baue_aufnahme_nutzertext(transkript: str) -> str:
     Oeffentlich, damit ``scripts/pruefe_prompts.py`` denselben Text baut wie
     der Betrieb (dieselbe Ueberlegung wie bei
     ``verdichter.baue_nutzertext``)."""
-    return f"{_AUFNAHME_KOPF}\n{(transkript or '').strip()}"
+    return f"{T._AUFNAHME_KOPF}\n{(transkript or '').strip()}"
 
 
 def erkenne_in_aufnahme(klm, conn, e, chat_id: int, transkript: str) -> list[dict]:
@@ -456,6 +472,10 @@ _ARBEITSSTAND_ARTEN = {
 _GESCHICHTE_MARKER = re.compile(
     r"\bEnde\s*:|\bam Ende\b|\bzum Schluss\b|\bdann\b.*\bdann\b", re.IGNORECASE
 )
+#: Dasselbe auf Englisch (Karte A1, K5) -- gelesen wird die Vereinigung.
+_GESCHICHTE_MARKER_EN = re.compile(
+    r"\bEnd(?:ing)?\s*:|\bin the end\b|\bthen\b.*\bthen\b", re.IGNORECASE
+)
 #: Ab hier ist es kein Setting mehr, sondern eine Erzaehlung.
 RAHMEN_HOECHSTLAENGE = 300
 
@@ -463,7 +483,9 @@ RAHMEN_HOECHSTLAENGE = 300
 def _ist_geschichte(wert: str) -> bool:
     """Sieht dieser Text nach der Handlung aus statt nach dem Setting?"""
     roh = (wert or "").strip()
-    return len(roh) > RAHMEN_HOECHSTLAENGE or _GESCHICHTE_MARKER.search(roh) is not None
+    return (len(roh) > RAHMEN_HOECHSTLAENGE
+            or _GESCHICHTE_MARKER.search(roh) is not None
+            or _GESCHICHTE_MARKER_EN.search(roh) is not None)
 
 
 def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
@@ -583,8 +605,7 @@ def _schmelze_platzhalter_ein(
              alter_name, neu["name"], chat_id)
     repo.schreibe_journal(
         conn, chat_id, "entschieden",
-        f"Aus {alter_name} wurde {neu['name']} -- Sprachstil und "
-        "Szenenbesetzung sind mitgewandert.",
+        T._JOURNAL_ZUSAMMENGEFUEHRT.format(alt=alter_name, neu=neu["name"]),
         quelle="erkenner",
     )
 
@@ -627,7 +648,7 @@ def _wende_transkript_korrektur_an(conn, chat_id: int, wert: str) -> dict | None
         return None
     text = ", ".join(gewirkt)
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", f"Transkript korrigiert: {text}",
+        conn, chat_id, "entschieden", T._JOURNAL_KORRIGIERT.format(text=text),
         quelle="erkenner",
     )
     return {"art": "transkript_korrigieren", "wert": text}
@@ -665,7 +686,9 @@ def _wende_figur_quelle_an(conn, chat_id: int, wert: str) -> dict | None:
     repo.setze_figur_quelle(conn, figur["id"], kopf["id"])
     return {
         "art": "figur_quelle_setzen",
-        "wert": f"{figur['name']}: {kopf['name'] or 'Interview'}",
+        # E8: die Notiert-Zeile kommt als Bot-Zeile zurueck in die Fenster
+        # von Erkenner und Journal -- in Padua deshalb "Interview N".
+        "wert": f"{figur['name']}: {aufnahme.anzeigename(conn, kopf, 'Interview')}",
         "figur_id": figur["id"],
     }
 
@@ -876,12 +899,33 @@ _FIGURENZAHL_UMGEKEHRT = re.compile(
     r"\bfigurenanzahl\b[^\d]{0,20}(\d{1,2})\b", re.IGNORECASE
 )
 
+#: Dasselbe auf Englisch (Karte A1, K5): "three characters", "four to five
+#: characters", "number of characters is 6". Das Ergebnis bleibt im
+#: deutschen Format ("4 bis 5") -- Protokoll zum Arbeitsstand.
+_ZAHLWOERTER_EN = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
+#: Statt des Lookaheads vor dem Wortstamm ("Hauptfiguren" ist ein Wort)
+#: stehen im Englischen Lookbehinds vor dem Leerzeichen: "2 main characters"
+#: sind zwei Woerter, und eine Teilzahl als Gesamtzahl waere falsch.
+_FIGURENZAHL_EN = re.compile(
+    r"\b(\d{1,2}|" + "|".join(_ZAHLWOERTER_EN) + r")\b"
+    r"(?:\s*(?:to|-|–|—)\s*(\d{1,2}|" + "|".join(_ZAHLWOERTER_EN) + r")\b)?"
+    r"[^.,;]{0,20}?(?<!main)(?<!side)(?<!minor)(?<!supporting)\scharacters?\b",
+    re.IGNORECASE,
+)
+_FIGURENZAHL_UMGEKEHRT_EN = re.compile(
+    r"\bnumber of characters\b[^\d]{0,20}(\d{1,2})\b", re.IGNORECASE
+)
+
 
 def _zahl(wort: str) -> int | None:
     wort = (wort or "").strip().lower()
     if wort.isdigit():
         return int(wort)
-    return _ZAHLWOERTER.get(wort)
+    zahl = _ZAHLWOERTER.get(wort)
+    return zahl if zahl is not None else _ZAHLWOERTER_EN.get(wort)
 
 
 def figurenzahl_aus(text: str) -> str | None:
@@ -891,18 +935,21 @@ def figurenzahl_aus(text: str) -> str | None:
     traegt: ``"8"`` oder ``"10 bis 12"``. Rein deterministisch, kein
     Modellaufruf -- der Satz liegt schon vor."""
     roh = text or ""
-    treffer = _FIGURENZAHL.search(roh)
-    if treffer is not None:
-        erste = _zahl(treffer.group(1))
-        zweite = _zahl(treffer.group(2)) if treffer.group(2) else None
-        if erste is None or not 1 <= erste <= 12:
-            return None
-        if zweite is not None and 1 <= zweite <= 12 and zweite != erste:
-            return f"{erste} bis {zweite}"
-        return str(erste)
-    treffer = _FIGURENZAHL_UMGEKEHRT.search(roh)
-    if treffer is not None and 1 <= int(treffer.group(1)) <= 12:
-        return treffer.group(1)
+    # Deutsch zuerst (beide Richtungen), dann Englisch (Karte A1, K5).
+    for vorwaerts, umgekehrt in ((_FIGURENZAHL, _FIGURENZAHL_UMGEKEHRT),
+                                 (_FIGURENZAHL_EN, _FIGURENZAHL_UMGEKEHRT_EN)):
+        treffer = vorwaerts.search(roh)
+        if treffer is not None:
+            erste = _zahl(treffer.group(1))
+            zweite = _zahl(treffer.group(2)) if treffer.group(2) else None
+            if erste is None or not 1 <= erste <= 12:
+                return None
+            if zweite is not None and 1 <= zweite <= 12 and zweite != erste:
+                return f"{erste} bis {zweite}"
+            return str(erste)
+        treffer = umgekehrt.search(roh)
+        if treffer is not None and 1 <= int(treffer.group(1)) <= 12:
+            return treffer.group(1)
     return None
 
 
@@ -1069,10 +1116,34 @@ _ENTFERNEN_ZIELE = (
     "fragen", "szene", "journal", "festlegung", "interview", "aufnahme",
 )
 
+#: Dieselben Ziele auf Englisch (Karte A1, K5) -> die deutschen Ziele. Der
+#: englische Erkenner-Prompt laesst die deutschen Woerter liefern; das hier
+#: ist der Zusatz fuer ein Modell, das trotzdem englisch labelt.
+_ENTFERNEN_ZIELE_EN = {
+    "character": "figur",
+    "core theme": "kernthema",
+    "setting": "rahmen",
+    "story": "geschichte",
+    "terms": "begriffe",
+    "questions": "fragen",
+    "scene": "szene",
+    "agreement": "festlegung",
+    "interview": "interview",
+    "recording": "aufnahme",
+}
+
+#: Die englischen Antworten auf die USA-Frage -> die deutschen Protokollwerte.
+_USA_EN = {"yes": "ja", "no": "nein"}
+
 #: Journalzeile, die eine Entfernung festhaelt -- der Weg soll sichtbar
 #: bleiben, auch wenn das Entfernte es nicht mehr ist.
 _JOURNAL_ENTFERNT = "Entfernt: {was}"
 _JOURNAL_ZURUECK = "Zurueckgenommen: {text}"
+#: Wie ein Entferntes in Meldung und Journal heisst ("Entfernt: Figur Peter").
+_BEZEICHNUNG_JOURNAL = "Journal: {text}"
+_BEZEICHNUNG_FESTLEGUNG = "Festlegung: {text}"
+_BEZEICHNUNG_FIGUR = "Figur {name}"
+_BEZEICHNUNG_SZENE = "Szene {nummer}"
 
 #: Szenennummer aus "Szene 2", "szene nr. 2", "2".
 _SZENENNUMMER = re.compile(r"(\d{1,3})")
@@ -1093,9 +1164,15 @@ def _zerlege_entfernen(wert: str) -> tuple[str, str] | None:
         return None
     erstes, _, rest = text.partition(" ")
     ziel = erstes.strip(" :,.").lower()
-    if ziel not in _ENTFERNEN_ZIELE:
-        return None
-    return ziel, rest.strip(" :,")
+    if ziel in _ENTFERNEN_ZIELE:
+        return ziel, rest.strip(" :,")
+    # Englisch erst danach (Karte A1, K5); "core theme" hat zwei Woerter,
+    # deshalb am Textanfang mit Wortgrenze statt am ersten Wort.
+    for wort, ziel in _ENTFERNEN_ZIELE_EN.items():
+        treffer = re.match(re.escape(wort) + r"\b[\s:,.]*", text, re.IGNORECASE)
+        if treffer:
+            return ziel, text[treffer.end():].strip(" :,")
+    return None
 
 
 #: art -> Arbeitsstandfeld fuer die vier Ziele, die schlicht auf NULL gesetzt
@@ -1128,7 +1205,7 @@ def _entferne_arbeitsstandfeld(conn, chat_id: int, ziel: str) -> str | None:
     repo.setze_arbeitsstand(conn, chat_id, feld, None)
     if feld == "kernthema":
         repo.setze_arbeitsstand(conn, chat_id, "kernthema_begruendung", None)
-    return bezeichnung
+    return T._FELD_BESCHRIFTUNG.get(feld, bezeichnung)
 
 
 def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | None:
@@ -1160,9 +1237,9 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
             return None
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
-            _JOURNAL_ZURUECK.format(text=alter_text), quelle=quelle,
+            T._JOURNAL_ZURUECK.format(text=alter_text), quelle=quelle,
         )
-        return {"art": "entfernen", "wert": f"Journal: {alter_text}"}
+        return {"art": "entfernen", "wert": T._BEZEICHNUNG_JOURNAL.format(text=alter_text)}
 
     if ziel == "festlegung":
         alter_text = repo.entferne_festlegung(conn, chat_id, rest)
@@ -1170,15 +1247,15 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
             return None
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
-            _JOURNAL_ZURUECK.format(text=alter_text), quelle=quelle,
+            T._JOURNAL_ZURUECK.format(text=alter_text), quelle=quelle,
         )
-        return {"art": "entfernen", "wert": f"Festlegung: {alter_text}"}
+        return {"art": "entfernen", "wert": T._BEZEICHNUNG_FESTLEGUNG.format(text=alter_text)}
 
     if ziel in _ENTFERNEN_ARBEITSSTAND:
         bezeichnung = _entferne_arbeitsstandfeld(conn, chat_id, ziel)
     elif ziel == "figur":
         name = repo.entferne_figur(conn, chat_id, rest) if rest else None
-        bezeichnung = f"Figur {name}" if name else None
+        bezeichnung = T._BEZEICHNUNG_FIGUR.format(name=name) if name else None
     elif ziel in ("interview", "aufnahme"):
         # Ohne Angabe wird NICHT geraten: "loesch das Interview" ohne Nummer
         # oder Namen koennte jedes von fuenfen meinen, und weggenommen wird
@@ -1186,18 +1263,23 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
         from interview_theater import aufnahme  # spaeter Import
 
         kopf = aufnahme.finde_interview(conn, chat_id, rest) if rest else None
+        # E8: die Bezeichnung VOR dem Entfernen bilden -- danach zaehlt die
+        # Nummer das entfernte Interview nicht mehr mit. Sie geht ins Journal
+        # (jeder Gespraechs-Prompt) und in die Bot-Zeile.
+        anzeige = (aufnahme.anzeigename(conn, kopf, "Interview")
+                   if kopf and sprache.pseudonyme() else None)
         name = repo.entferne_aufnahme(conn, chat_id, kopf["id"]) if kopf else None
-        bezeichnung = name if name else None
+        bezeichnung = (anzeige or name) if name else None
     else:  # szene
         treffer = _SZENENNUMMER.search(rest or "")
         nummer = repo.entferne_szene(conn, chat_id, int(treffer.group(1))) if treffer else None
-        bezeichnung = f"Szene {nummer}" if nummer is not None else None
+        bezeichnung = T._BEZEICHNUNG_SZENE.format(nummer=nummer) if nummer is not None else None
 
     if bezeichnung is None:
         return None
     repo.schreibe_journal(
         conn, chat_id, "entschieden",
-        _JOURNAL_ENTFERNT.format(was=bezeichnung), quelle=quelle,
+        T._JOURNAL_ENTFERNT.format(was=bezeichnung), quelle=quelle,
     )
     return {"art": "entfernen", "wert": bezeichnung}
 
@@ -1241,6 +1323,9 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         if not g or not g["szene_usa_angeboten_am"]:
             return None
         w = (wert or "").strip().lower()
+        # Englisch zusaetzlich (Karte A1, K5): gespeichert und quittiert wird
+        # der deutsche Protokollwert.
+        w = _USA_EN.get(w, w)
         if w not in ("ja", "nein"):
             return None
         repo.setze_szene_usa(conn, chat_id, w == "ja")
@@ -1311,14 +1396,23 @@ def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
 #: mehr als fuenf Aenderungen (und damit hoechstens fuenf figur_setzen)
 #: vorkommen koennen.
 _FIGUREN_ZAHLWORT = {2: "zwei", 3: "drei", 4: "vier", 5: "fuenf"}
+_ZEILE_EINE_FIGUR = "eine Figur: {liste}"
+_ZEILE_FIGUREN = "{zahlwort} Figuren: {liste}"
+
+#: Journalzeilen fuer das Zusammenfuehren eines Platzhalters und fuer eine
+#: Transkriptkorrektur.
+_JOURNAL_ZUSAMMENGEFUEHRT = (
+    "Aus {alt} wurde {neu} -- Sprachstil und Szenenbesetzung sind mitgewandert."
+)
+_JOURNAL_KORRIGIERT = "Transkript korrigiert: {text}"
 
 
 def _figuren_zeile(namen: list[str]) -> str:
     liste = ", ".join(namen)
     if len(namen) == 1:
-        return f"eine Figur: {liste}"
-    zahlwort = _FIGUREN_ZAHLWORT.get(len(namen), str(len(namen)))
-    return f"{zahlwort} Figuren: {liste}"
+        return T._ZEILE_EINE_FIGUR.format(liste=liste)
+    zahlwort = T._FIGUREN_ZAHLWORT.get(len(namen), str(len(namen)))
+    return T._ZEILE_FIGUREN.format(zahlwort=zahlwort, liste=liste)
 
 
 #: Wie weit zurueck geschaut wird, ob eine Notiert-Meldung schon dasteht.
@@ -1415,7 +1509,7 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     zeilen = _meldungszeilen(_sammle_meldbares(wirkliche_aenderungen))
     if not zeilen:
         return None
-    return "Notiert:\n" + "\n".join(zeilen)
+    return T._NOTIERT_KOPF + "\n".join(zeilen)
 
 
 def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
@@ -1473,27 +1567,53 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
     return gesammelt
 
 
+#: Der Kopf der Meldung -- "Notiert:" ist zugleich das Kennzeichen, an dem
+#: ``repo.letzte_bot_nachricht_vor`` die Meldung aus dem Vorlauf nimmt (dort
+#: werden beide Sprachfassungen erkannt) und das der Simulator aus
+#: ``baue_meldung`` selbst liest.
+_NOTIERT_KOPF = "Notiert:\n"
+
+#: Arbeitsstandfeld -> Beschriftung in der Meldung (und in "Entfernt: ...").
+#: Schluessel sind Spaltennamen, uebersetzt werden nur die Werte.
+_FELD_BESCHRIFTUNG = {
+    "kernthema": "Kernthema",
+    "format": "Format",
+    "rahmen": "Setting",
+    "geschichte": "Geschichte",
+    "hauptkonflikt": "Hauptkonflikt",
+    "figuren_anzahl": "Anzahl Figuren",
+    "begriffe": "Begriffe",
+    "fragen": "Fragen",
+}
+
+#: Die uebrigen Zeilen der Meldung, je mit eigenem Verb.
+_ZEILE_FESTGEHALTEN = "Festgehalten{marke}: {text}"
+_ZEILE_KORRIGIERT = "Korrigiert: {zeile}"
+_ZEILE_ENTFERNT = "Entfernt: {was}"
+_ZEILE_PHASE = "Wir sind jetzt bei {phase}."
+_ZEILE_USA_JA = (
+    "Szenentexte kommen ab jetzt vom US-Modell (Anthropic). Ich sage es vor "
+    "jeder Szene nochmal."
+)
+_ZEILE_USA_NEIN = "Szenentexte bleiben in der Schweiz. Ich frage nicht wieder."
+
+
 def _meldungszeilen(g: dict) -> list[str]:
     """Aus dem Vorgeordneten die Zeilen der Meldung, in fester Reihenfolge."""
     zeilen = []
-    if g["kernthema"]:
-        zeilen.append(f"Kernthema: {g['kernthema']}")
-    if g["format"]:
-        zeilen.append(f"Format: {g['format']}")
-    if g["rahmen"]:
-        zeilen.append(f"Setting: {g['rahmen']}")
-    if g["geschichte"]:
-        zeilen.append(f"Geschichte: {g['geschichte']}")
-    if g["hauptkonflikt"]:
-        zeilen.append(f"Hauptkonflikt: {g['hauptkonflikt']}")
-    if g["figuren_anzahl"]:
-        zeilen.append(f"Anzahl Figuren: {g['figuren_anzahl']}")
+    beschriftung = T._FELD_BESCHRIFTUNG
+
+    def feld(name: str) -> None:
+        if g[name]:
+            zeilen.append(f"{beschriftung[name]}: {g[name]}")
+
+    for name in ("kernthema", "format", "rahmen", "geschichte",
+                 "hauptkonflikt", "figuren_anzahl"):
+        feld(name)
     if g["figuren"]:
         zeilen.append(_figuren_zeile(g["figuren"]))
-    if g["begriffe"]:
-        zeilen.append(f"Begriffe: {g['begriffe']}")
-    if g["fragen"]:
-        zeilen.append(f"Fragen: {g['fragen']}")
+    feld("begriffe")
+    feld("fragen")
     # Eine geplante Szene bekommt ihre Kurzzeile ("Szene 1 · Dialog ·
     # Polizeikessel · Mira, Pola"): die Gruppe soll sehen, welche Szene
     # gemeint ist, ohne die ganze Planung noch einmal zu lesen.
@@ -1504,23 +1624,23 @@ def _meldungszeilen(g: dict) -> list[str]:
     # Chat, um widersprechen zu koennen ("nimm das wieder raus").
     for bezug, text in g["festgehalten"]:
         marke = f" ({bezug})" if bezug else ""
-        zeilen.append(f"Festgehalten{marke}: {text}")
+        zeilen.append(T._ZEILE_FESTGEHALTEN.format(marke=marke, text=text))
     # Eine Transkriptkorrektur bekommt ihr eigenes Verb (N5): "Korrigiert:
     # gepoekt -> gepogt". Sie ist der Beleg dafuer, dass wirklich etwas
     # passiert ist -- im Probelauf sagte der Bot dreimal "korrigiere ich",
     # und in der Datenbank aenderte sich nichts.
-    zeilen.extend(f"Korrigiert: {zeile}" for zeile in g["korrigiert"])
+    zeilen.extend(T._ZEILE_KORRIGIERT.format(zeile=zeile) for zeile in g["korrigiert"])
     # Entfernungen stehen in derselben Meldung wie alles andere -- eine
     # Nachricht je Erkennerlauf bleibt die Regel (SPEC § 4.3). Sie tragen ihr
     # eigenes Verb, damit niemand "Notiert:" liest und denkt, es sei etwas
     # dazugekommen.
-    zeilen.extend(f"Entfernt: {was}" for was in g["entfernt"])
+    zeilen.extend(T._ZEILE_ENTFERNT.format(was=was) for was in g["entfernt"])
     if g["phase"] is not None:
-        zeilen.append(f"Wir sind jetzt bei {phasen.bezeichnung(g['phase'])}.")
+        zeilen.append(T._ZEILE_PHASE.format(phase=phasen.bezeichnung(g["phase"])))
     if g["usa"] == "ja":
-        zeilen.append("Szenentexte kommen ab jetzt vom US-Modell (Anthropic). Ich sage es vor jeder Szene nochmal.")
+        zeilen.append(T._ZEILE_USA_JA)
     elif g["usa"] == "nein":
-        zeilen.append("Szenentexte bleiben in der Schweiz. Ich frage nicht wieder.")
+        zeilen.append(T._ZEILE_USA_NEIN)
     return zeilen
 
 
@@ -1549,7 +1669,7 @@ def _interviewmodus_texte() -> dict[str, str]:
     # Ablauf-Erklaerung vor dem Start -- der Knopf darunter schaltet ein.
     return {
         "interview_starten": knoepfe.TEXT_ABLAUF,
-        "interview_beenden": befehle._TEXT_INTERVIEW_AUS,
+        "interview_beenden": befehle.T._TEXT_INTERVIEW_AUS,
     }
 
 
@@ -1662,12 +1782,12 @@ def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
     nummer = kuerzung.nummer_aus_wert(treffer.get("wert"))
     try:
         if nummer is None and not szene.schreibt_prosa(conn, chat_id):
-            message_id = tg.sende(chat_id, kuerzung.TEXT_WELCHE_SZENE)
+            message_id = tg.sende(chat_id, kuerzung.T.TEXT_WELCHE_SZENE)
             # Wie die Notiert-Meldung (siehe unten in ``laufe``): ohne diesen
             # Eintrag sehen Erkenner und Gespraechsbot die Rueckfrage im
             # naechsten Fenster nicht, wenn die Gruppe nur mit einer Zahl
             # antwortet.
-            repo.merke_bot_zeile(conn, chat_id, message_id, e, kuerzung.TEXT_WELCHE_SZENE)
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, kuerzung.T.TEXT_WELCHE_SZENE)
             return
         kuerzung.starte(conn, tg, klm, e, chat_id, nummer)
     except Exception:
@@ -1890,3 +2010,8 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             "erkenner_nachlauf_fehler",
             "Erkenner-Nachlauf (anwenden/melden) fehlgeschlagen",
         )
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

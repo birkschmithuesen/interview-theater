@@ -87,6 +87,13 @@ PFLICHTFELDER = (
     "zielgruppe.beschreibung",
 )
 
+#: Die Sprachen, fuer die es Chat- und Prompttexte gibt (Karte A1,
+#: 30.09.2026). Deutsch steht im Code, jede weitere unter
+#: ``interview_theater/sprachen/<code>/``. Ein Profil mit einer anderen
+#: Sprache weist ``scripts/pruefe_profil.py`` ab: es liefe sonst halb
+#: deutsch, ohne dass es jemand merkt.
+SPRACHEN = ("de", "en")
+
 
 class ProfilFehler(RuntimeError):
     """Ein Profil fehlt, ist unlesbar oder unvollstaendig.
@@ -120,6 +127,18 @@ VORGABE_WERTE: dict[str, Any] = {
         "code": "de",
         # Wie die Gruppe angesprochen wird. Deutsch "ihr", italienisch "voi".
         "anrede": "ihr",
+        # Was Whisper erkennen soll: ein ISO-639-1-Code ("de", "it") oder
+        # "auto" -- dann schickt stt.py gar keine Sprache mit und Whisper
+        # erkennt sie selbst (Karte A1, Birk E5). Eine Gruppe kann den Wert
+        # fuer sich umstellen (gruppe.stt_sprache, /sprache, Knopf in Phase 3).
+        "whisper": "de",
+    },
+    "datenschutz": {
+        # E8 (Birk, 29.09.2026): ersetzt die Vornamen im Gespraechsverlauf
+        # durch "Mitglied 1", "Mitglied 2" ..., bevor sie in einen Prompt
+        # gehen -- ein Modell kann keinen Namen verwenden, den es nie sieht.
+        # Aus in Dortmund: dort war der Name im Verlauf gewollt.
+        "pseudonyme": False,
     },
     "zielgruppe": {
         # Der Satz, der sechsmal wortgleich in den Prompts steht.
@@ -777,6 +796,11 @@ def form_vorgabe(profil: Profil | None = None) -> str:
     return profil.formen.get("vorgabe", "")
 
 
+#: Wie eine Auswahl im Fliesstext verbunden wird ("Lied oder Rap"). Hier und
+#: nicht in sprache.py, weil sprache.py dieses Modul importiert (Karte A1).
+_ODER = {"de": " oder ", "en": " or "}
+
+
 def platzhalter(profil: Profil | None = None) -> dict[str, str]:
     """Die Werte, die ``{{...}}`` in einem Prompt fuellen.
 
@@ -826,7 +850,8 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
         # "Dialog, Monolog, Chor, Lied oder Rap" -- fuer die Stellen, an
         # denen der Satz eine Auswahl beschreibt und kein Verzeichnis.
         "formen_liste_oder": (
-            " oder ".join([", ".join(anzeige[:-1]), anzeige[-1]])
+            _ODER.get(str(profil.wert("sprache.code", "de")), " oder ").join(
+                [", ".join(anzeige[:-1]), anzeige[-1]])
             if len(anzeige) > 1 else "".join(anzeige)
         ),
         "form_vorgabe": form_vorgabe(profil),

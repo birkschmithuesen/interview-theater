@@ -287,13 +287,16 @@ def unextrahierte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
 def letzte_bot_nachricht_vor(conn: sqlite3.Connection, chat_id: int, message_id: int):
     """Die juengste Bot-Textnachricht VOR ``message_id`` -- der Vorlauf fuer
     den Absichtserkenner (erkenner.erkenne), damit eine Zustimmung ihren
-    Vorschlag sieht. Keine Notiert-Zeilen (die tragen keinen Vorschlag),
-    keine Transkript-Echos. None, wenn es keine gibt."""
+    Vorschlag sieht. Keine Notiert-Zeilen (die tragen keinen Vorschlag) --
+    in beiden Sprachfassungen, "Notiert:" und "Noted:" (Karte A1: der
+    Chatverlauf einer Gruppe kann beide tragen) --, keine Transkript-Echos.
+    None, wenn es keine gibt."""
     return conn.execute(
         f"""
         SELECT n.* FROM nachricht n
         WHERE n.chat_id = ? AND n.message_id < ? AND n.ist_bot = 1
           AND n.text IS NOT NULL AND n.text NOT LIKE 'Notiert:%'
+          AND n.text NOT LIKE 'Noted:%'
           AND {_OHNE_TRANSKRIPT_ECHO}
         ORDER BY n.message_id DESC LIMIT 1
         """,
@@ -339,6 +342,21 @@ def letzte_nachrichten(conn: sqlite3.Connection, chat_id: int, anzahl: int = 200
         """,
         (chat_id, anzahl),
     ).fetchall()
+
+
+@_gesperrt
+def absender_in_reihenfolge(conn: sqlite3.Connection, chat_id: int) -> list[str]:
+    """Die Absendernamen der Gruppe (ohne Bot) in der Reihenfolge ihres
+    ersten Auftretens -- die Grundlage stabiler Pseudonyme (E8, Karte A1).
+    ``telegram_user`` wird nie geschrieben (db.py:45), also bleibt der
+    Vorname der einzige Schluessel."""
+    zeilen = conn.execute(
+        "SELECT absender, MIN(gesendet_am) AS zuerst FROM nachricht "
+        "WHERE chat_id = ? AND ist_bot = 0 AND absender IS NOT NULL AND absender != '' "
+        "GROUP BY absender ORDER BY zuerst, absender",
+        (chat_id,),
+    ).fetchall()
+    return [z["absender"] for z in zeilen]
 
 
 @_gesperrt
@@ -1908,10 +1926,17 @@ _PLATZHALTERNAME = re.compile(
     r"^\s*(neben|haupt)?figur\b|^\s*platzhalter\b", re.IGNORECASE
 )
 
+#: Dasselbe auf Englisch (Karte A1, K5): "Character 2", "Side character 1",
+#: "Placeholder". Gelesen wird die Vereinigung.
+_PLATZHALTERNAME_EN = re.compile(
+    r"^\s*(main\s+|side\s+)?character\b|^\s*placeholder\b", re.IGNORECASE
+)
+
 
 def ist_platzhaltername(name: str) -> bool:
     """Ist das ein vom Bot vergebener Platzhalter statt eines Namens?"""
-    return bool(_PLATZHALTERNAME.match(name or ""))
+    return bool(_PLATZHALTERNAME.match(name or "")
+                or _PLATZHALTERNAME_EN.match(name or ""))
 
 
 #: Was beim Zusammenfuehren vom Platzhalter auf den Namen wandert -- und zwar
@@ -2962,6 +2987,24 @@ def setze_wortlaut_modus(conn: sqlite3.Connection, chat_id: int, wert: str | Non
         "UPDATE gruppe SET wortlaut_modus = ? WHERE chat_id = ?", (wert, chat_id)
     )
     conn.commit()
+
+
+@_gesperrt
+def setze_stt_sprache(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
+    """Die Whisper-Sprache dieser Gruppe (Karte A1, D2): 'auto', ein
+    ISO-639-1-Code oder None (= wieder der Profilwert). Gesetzt ueber den
+    Knopf in Phase 3 oder /sprache."""
+    conn.execute("UPDATE gruppe SET stt_sprache = ? WHERE chat_id = ?", (wert, chat_id))
+    conn.commit()
+
+
+@_gesperrt
+def stt_sprache(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Der Gruppenwert oder None -- None heisst: der Profilwert gilt."""
+    g = hole_gruppe(conn, chat_id)
+    if g is None or "stt_sprache" not in g.keys():
+        return None
+    return g["stt_sprache"] or None
 
 
 @_gesperrt

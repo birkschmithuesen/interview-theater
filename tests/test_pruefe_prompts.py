@@ -627,3 +627,25 @@ def test_429_wird_nach_pause_wiederholt(attrappe, monkeypatch):
     assert code == 0
     assert zaehler["n"] == 2
     assert schlaefer == [0]
+
+
+# --- --sprache en (A1, D8, W12) --------------------------------------------
+
+def test_sprache_en_liest_den_englischen_korpus():
+    faelle = pp.lade_korpus("erkenner", sprache="en")
+    assert faelle and all(f["id"].startswith("en-") for f in faelle)
+
+
+def test_deutsch_bleibt_vorgabe():
+    args = pp.baue_argumente(["erkenner"])
+    assert args.sprache == "de"
+    assert pp.lade_korpus("erkenner")[0]["id"].startswith("e01")
+
+
+def test_sprache_en_nur_fuer_den_erkenner():
+    with pytest.raises(SystemExit):
+        pp.main(["journal", "--sprache", "en"])
+
+
+def test_bericht_traegt_die_sprache(tmp_path):
+    assert pp.berichtspfad(None, ["erkenner"], sprache="en").name.endswith("-erkenner-en.md")

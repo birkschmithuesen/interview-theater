@@ -1,0 +1,1524 @@
+# Die englische Texttabelle (Karte A1, 30.09.2026).
+#
+# Je definierendem Modul eine Tabelle (Modulname ohne "interview_theater.",
+# in Anfuehrungszeichen), darin der Name der deutschen Konstante. Gelesen
+# wird ueber interview_theater/sprache.py (T._TEXT_X). Platzhalter
+# ({name}, {{name}}, %s) muessen dieselben sein wie im Deutschen --
+# tests/test_sprache_texte.py prueft das. Die Texte sind Uebersetzungen;
+# Birk nimmt sie in Karte P am Prompt-Dump ab.
+
+["anweisungen"]
+UEBERSCHRIFT = "\n\nAdditional instruction for this workshop:\n\n"
+
+["knoepfe.texte"]
+# Knopfbeschriftungen, Systemzeilen und die Auftragsvorlagen (ANWEISUNG*)
+# in Definitionsreihenfolge (K2). Die ANWEISUNG*-Texte sind Prompt: die
+# Protokoll-Token (VORSCHLAG ...:) stehen woertlich und gross da (K6).
+_TEXT_EIGENE_KNOPF = "Something else"
+_TEXT_ANDERS_KNOPF = "No, change it again"
+_TEXT_SPEICHERN_KNOPF = "Yes, save"
+_TEXT_ANDERS = "Saved. What should be different?"
+_TEXT_EIGENE = "Tell me - I'll work it in."
+_TEXT_NACH_SPEICHERN_FRAGE = "Do you want to add anything before we move on?"
+_TEXT_AUSWERTEN_ALLE_KNOPF = "Analyse all"
+_TEXT_AUSWERTEN_ALLE_LAEUFT = "I'm analysing the open interviews."
+_TEXT_AUSWERTEN_ALLE_NICHTS = "There's nothing left open."
+_TEXT_WEITER_FRAGE = "Shall we move on?"
+_NOTIERT.begriffe = "Terms"
+_NOTIERT.fragen = "Questions"
+_NOTIERT.kernthema = "Core theme"
+_NOTIERT.kernfrage = "Core question"
+_NOTIERT.rahmen = "Setting"
+_NOTIERT.geschichte = "Story"
+_NOTIERT.einleitungen = "Lead-ins"
+_NOTIERT.fragen_weich = "Questions in softer wording"
+_TEXT_NOTIERT_ZEILE = "Noted:\n{feld}: {wert}"
+_TEXT_FELD_UEBERNOMMEN = "{feld} saved"
+_TEXT_KERNTHEMA_FRAGE = "Which core theme shall we take? Tap one - or tell me a different one."
+_TEXT_KERNTHEMA_KEINE = """\
+I don't have any suggestions yet - they come from the analysed \
+interviews. You can also just tell me the core theme."""
+_TEXT_SCHON_BENUTZT = "I've already taken that on."
+_TEXT_UNBEKANNT = "I don't know this button any more."
+_TEXT_AUFNAHME_STARTEN = "Start interview"
+_TEXT_AUFNAHME_BEENDEN = "End interview"
+_TEXT_TEIL_WEITER_KNOPF = "Interview continues"
+_TEXT_TEIL_FERTIG_KNOPF = "Interview is finished"
+_TEXT_TEIL_WEITER = "Good, I'm still listening."
+_TEXT_TEIL_SCHON_AUS = "The recording isn't running any more."
+_TEXT_OHNE_KNOPF_JA_KNOPF = "Yes, as an interview"
+_TEXT_OHNE_KNOPF_NEIN_KNOPF = "No, it was a contribution"
+_TEXT_OHNE_KNOPF_FERTIG_KNOPF = "Done, analyse it"
+_TEXT_OHNE_KNOPF_WEITER_KNOPF = "There's more to come"
+_TEXT_OHNE_KNOPF_WEITER = "Good, I'm still listening."
+_TEXT_OHNE_KNOPF_UNBEKANNT = "I don't know this recording any more."
+TEXT_ABLAUF = """\
+This is how an interview works: tap "Start interview". Then send the \
+voice message or voice messages of your interviewee - after each one you \
+get the typed-out text and tell me with a button whether the interview \
+continues or is finished. For the next person, tap "Start interview" \
+again."""
+_TEXT_AUSWERTEN_KNOPF = "Analyse"
+_TEXT_TROTZDEM_AUSWERTEN_KNOPF = "Analyse anyway"
+_TEXT_ZUSAMMENFASSUNG_KNOPF = "Show summary"
+_TEXT_TRANSKRIPT_KNOPF = "Show transcript"
+_TEXT_KEIN_TRANSKRIPT = "I don't have the wording for this interview."
+_TEXT_NAECHSTE_AUFNAHME_KNOPF = "Next interview"
+_TEXT_STAND_KNOPF = "Where we are"
+_TEXT_HILFE_KNOPF = "Help"
+_TEXT_AUSWERTEN_UNBEKANNT = "I don't know this interview any more."
+_TEXT_AUSWERTEN_UNMOEGLICH = "I can't analyse right now."
+_TEXT_SZENENFORM_FRAGE = "Which form should scene {nummer} have?"
+TEXT_FORM_VORSCHLAG_ZUSATZ = " (suggested)"
+_TEXT_USA_FRAGE_KNOEPFE = "Tap what should apply:"
+_TEXT_USA_JA_KNOPF = "Yes, US model"
+_TEXT_USA_NEIN_KNOPF = "No, Switzerland"
+_TEXT_USA_JA = """\
+Good, scenes will come from the US model from now on. I'll mention it \
+again before every scene."""
+_TEXT_USA_NEIN = "Understood, everything stays in Switzerland. I won't ask again."
+_TEXT_STT_SPRACHE_FRAGE = "Which language are your interviews in? With \"Auto\" I work it out myself."
+_TEXT_STT_SPRACHE_GESETZT = "Interview language from now on: {sprache}."
+_TEXT_STT_SPRACHE_AUTO = "automatic (I detect it myself)"
+_TEXT_STT_SPRACHE_KURZ = "Language set"
+_JOURNAL_STT_SPRACHE = "Interview language for Whisper: {sprache}"
+TEXT_WEITER_KNOPF = "Yes, save"
+TEXT_ANDERS_KNOPF = "No, change it again"
+TEXT_EIGENE_IDEE_KNOPF = "Something else"
+_TEXT_EIGENE_IDEE = "Tell me - I'll work it in."
+TEXT_ANZAHL_KNOPF = "Change the number"
+TEXT_REIHENFOLGE_KNOPF = "Change the order"
+_TEXT_ANZAHL_FRAGE = "How many scenes should there be?"
+_TEXT_REIHENFOLGE_FRAGE = "Tell me what the order should be - I'll work it in."
+_TEXT_FOLGE_GESPEICHERT = "Noted, {anzahl} scenes:"
+_TEXT_FOLGE_LEER = "I couldn't read any scenes from the suggestion. Just tell me what they are."
+TEXT_SZENE_SCHREIBEN_KNOPF = "Yes, write it"
+TEXT_SZENE_PLANEN_KNOPF = "Plan it differently"
+TEXT_SZENE_FORM_KNOPF = "Change form"
+TEXT_SZENE_UEBERSPRINGEN_KNOPF = "Skip"
+_TEXT_SZENE_PLANEN_FRAGE = "What should be different about this scene?"
+_TEXT_SZENE_UEBERSPRUNGEN = "Scene {nummer} is out."
+_TEXT_SZENE_UNBEKANNT = "I don't know this scene any more."
+TEXT_PASST_KNOPF = "Looks good"
+TEXT_NEU_KNOPF = "Rewrite"
+TEXT_NAECHSTE_KNOPF = "Next scene"
+TEXT_KUERZEN_KNOPF = "Shorter ({prozent} %)"
+_TEXT_PASST = "Scene {nummer} is done."
+_TEXT_SZENE_ANDERS_FRAGE = "What should change? Tell me, and I'll rewrite it."
+_TEXT_KEINE_NAECHSTE = "That was the last scene. Do you want to go through the whole thing?"
+TEXT_SZENE_SO_LASSEN_KNOPF = "Leave it"
+_TEXT_SZENE_SO_GELASSEN = "Good, scene {nummer} stays as it is."
+_TEXT_SPAETERE_GEPRUEFT = """\
+Because scene {nummer} has changed, I'll look at {spaetere} again with \
+you - I haven't rewritten anything."""
+TEXT_DURCHLAUF_SZENE_KNOPF = "View scene {nummer}"
+TEXT_TEXTBUCH_KNOPF = "Script as a file"
+TEXT_SPRECHANTEILE_KNOPF = "Who speaks how much"
+TEXT_FASSUNGEN_KNOPF = "Earlier versions"
+_TEXT_FASSUNGEN_KOPF = "Earlier versions of scene {nummer}:"
+_TEXT_FASSUNG_KOPF = "--- Version {nummer} ({zeit}){anders} ---"
+_TEXT_KEINE_FASSUNGEN = "There's only the one version of scene {nummer}."
+_TEXT_TEXTBUCH_BESCHREIBUNG = "Your script - all scenes in one file."
+_TEXT_PROBENANSICHT = """\
+\n\nFor reading in rehearsal (highlight roles, make it bigger, \
+print it): {url}"""
+_TEXT_TEXTBUCH_FEHLER = "The file didn't go through. I can also send you the scenes one by one."
+_TEXT_SZENE_OHNE_TEXT = "Scene {nummer} hasn't been written yet."
+_TEXT_GESCHICHTE_GESPEICHERT = "Noted, your story in {anzahl} scenes:"
+_TEXT_RICHTUNG_GESPEICHERT = "Noted, your story:"
+_TEXT_GESCHICHTE_LEER = "I couldn't read a story from the suggestion. Just tell it to me."
+_TEXT_NUR_FORMWAHL = """\
+I've noted the form for each scene. I'm still missing the plot: what \
+happens, and how does it end?"""
+TEXT_DRAMATURGIE_KNOPF = "Check the dramaturgy"
+_TEXT_DRAMATURGIE_LAEUFT = """\
+I'm now looking at each scene on its own - turning point, connection, \
+voices, loose threads. That takes a few minutes."""
+_TEXT_DRAMATURGIE_LASSEN_KNOPF = "Leave it"
+_TEXT_DRAMATURGIE_LASSEN = "Good, that stays as it is."
+_TEXT_DRAMATURGIE_UNBEKANNT = "I can't find this finding any more."
+_TEXT_DRAMATURGIE_UEBERHOLT = """\
+As soon as the scene has been rewritten, this finding is out of date. If \
+you like, I'll check again afterwards."""
+TEXT_SCHAERFUNG_RUNDE_KNOPF = "One more round"
+_TEXT_SCHAERFUNG_ALLE_KNOPF = "Take these"
+_TEXT_SCHAERFUNG_KEINE_KNOPF = "None of them"
+_TEXT_SCHAERFUNG_STELLE_UNBEKANNT = "I can't find this passage any more."
+_TEXT_SCHAERFUNG_STELLE_UEBERNOMMEN = "Taken on: {ziel}."
+_TEXT_SCHAERFUNG_VERWORFEN = "Good, I'll leave that out."
+_TEXT_SCHAERFUNG_LAEUFT = "I'm putting your story next to the interviews and looking for what fits."
+_TEXT_SCHAERFUNG_UEBERNOMMEN = "Taken on: {anzahl} passages."
+_TEXT_SCHAERFUNG_NICHTS = "There's nothing open on that right now."
+_TEXT_SCHAERFUNG_DURCH = """\
+That was everything I could match. Do you want another round, or shall \
+we move on to the scene texts?"""
+_TEXT_FRAGEN_UEBERNEHMEN_KNOPF = "Take these 3"
+_TEXT_FRAGEN_ANDERE_KNOPF = "Other questions"
+_TEXT_FRAGEN_EIGENE_KNOPF = "Own idea"
+_TEXT_FRAGEN_WAHL = """\
+Pick the questions you think fit and tell me the numbers - typed or as a \
+voice message. If you want to change a question or ask your own, just say \
+so: you're the bosses."""
+_TEXT_FRAGEN_NICHT_DREI = "Pick exactly 3."
+_TEXT_FRAGEN_NUMMERN_FALSCH = "Exactly 3 numbers, please."
+_TEXT_FRAGEN_EIGENE = "Write your question or questions - I'll add them to the selection."
+_TEXT_FRAGEN_KEINE_AUSWAHL = "I don't know this selection any more."
+_TEXT_FRAGEN_UEBERNOMMEN = "Noted, your {anzahl} questions:"
+_TEXT_FRAGEN_NOTIERT = "Noted: questions {nummern}:"
+_TEXT_FRAGEN_QUITTUNG = "Questions saved"
+_JOURNAL_FRAGEN = "Questions: {wert}"
+TEXT_PRUEFUNG_LAEUFT = """\
+I'm going through the questions once more: which ones need a lead-in \
+sentence before you ask them to a stranger?"""
+_TEXT_LEITFADEN_KNOPF = "Show interview guide"
+_TEXT_MENUE_ANDERS_KNOPF = "Something else"
+TEXT_ARBEIT_SENSIBILITAET = "🤔 I'm quickly going through the questions and softening the sensitive ones …"
+TEXT_ARBEIT_EROEFFNUNG = "✍️ Now the framing for the interview: how you start and how you finish …"
+_JOURNAL_EROEFFNUNG_FESTGELEGT = "Opening and closing agreed"
+_TEXT_EROEFFNUNG_QUITTUNG = "Opening saved"
+_TEXT_PRUEFUNG_LAEUFT = "I'm now reading your play once from start to finish. That takes a moment."
+_TEXT_PRUEFUNG_SZENE_KNOPF = "Revise scene {nummer}"
+_TEXT_PRUEFUNG_LASSEN_KNOPF = "Leave it"
+_TEXT_PRUEFUNG_RUNDE_KNOPF = "One more check"
+_TEXT_PRUEFUNG_LASSEN = "Good, that stays as it is."
+_TEXT_PRUEFUNG_UNBEKANNT = "I can't find this finding any more."
+_TEXT_PRUEFUNG_UEBERHOLT = """\
+As soon as the scene has been rewritten, my check from earlier is out of \
+date. If you like, I'll read the whole play again."""
+TEXT_GESCHICHTE_SCHREIBEN_KNOPF = "Write the story"
+_TEXT_GESCHICHTE_PASST_KNOPF = "Looks good"
+_TEXT_GESCHICHTE_ANDERS_KNOPF = "Change something"
+_TEXT_GESCHICHTE_NEU_KNOPF = "Rewrite from scratch"
+_TEXT_GESCHICHTE_ANDERS = "Tell me what should change - I'll take it into the next run."
+_TEXT_GESCHICHTE_PASST = "Good. Then we carry on section by section in Polish."
+_TEXT_KURZGESCHICHTE_BEREIT = """\
+I can now write your story in one go - from the setting, the characters \
+and your direction. Let me know when."""
+_TEXT_SCHON_GESETZT = "That's already in place."
+_TEXT_FIGUREN_ANZAHL_KNOPF = "Change the number"
+_TEXT_FIGUREN_NAMEN_KNOPF = "Change names"
+_TEXT_FIGUREN_ANZAHL_FRAGE = "How many characters should there be?"
+_TEXT_FIGUREN_NAMEN_FRAGE = "Which name do you want to change?"
+_TEXT_FIGUREN_ANZAHL_ERSTFRAGE = "How many characters should the play have?"
+_TEXT_FIGUREN_ANZAHL_FREI_KNOPF = "Other number"
+_TEXT_FIGUREN_ANZAHL_FREI_FRAGE = "Tell me the number - I'll then suggest exactly that many characters."
+_TEXT_FIGURENZAHL_UNKLAR = "I didn't read that as a number. Tell me a number between 1 and 12."
+_TEXT_FIGUR_PASST_KNOPF = "Looks good"
+_TEXT_FIGUR_INTERVIEW_KNOPF = "Different interview"
+_TEXT_FIGUR_DUKTUS_KNOPF = "Different speech style"
+_TEXT_FIGUR_ENTFERNEN_KNOPF = "Remove"
+_TEXT_FIGUR_INTERVIEW_FRAGE = "Which interview does {name} speak from?"
+_TEXT_FIGUREN_FIXIERT = "The characters are set."
+_TEXT_ZUR_GESCHICHTE = """\
+The characters are set - now the story, in broad strokes.\n\n\
+What should happen, and how should it end?"""
+_TEXT_FIGUREN_KEINE = "There are no characters left. Tell me who you want instead."
+_TEXT_DUKTUS_FEHLT = "Speech style: being worked out right now."
+_TEXT_DUKTUS_OHNE_QUELLE = "Speech style: none yet - the interview for it is missing."
+_TEXT_ZITATE_VORSPANN = "This is how they talk, for example:"
+_TEXT_DUKTUS_LAEUFT = "I'm listening to {quelle} right now to capture how {name} speaks …"
+_TEXT_FIGUREN_ZUFALL_KNOPF = "Assign at random"
+_TEXT_FIGUREN_ZUFALL_OHNE_INTERVIEW = "For that I need at least one interview."
+_TEXT_FIGUREN_ZUFALL_NICHTS_OFFEN = "Every character already has an interview. You can change each one individually."
+_TEXT_FIGUREN_ZUFALL_FERTIG = """\
+Assigned: {figuren} characters to {interviews} interviews. You can change \
+each one individually."""
+_TEXT_STIL_FRAGE = "How does {name} speak?"
+_TEXT_STIL_EIGENER_KNOPF = "Own style"
+_TEXT_STIL_EIGENER = "Tell me how they speak - I'll work it in."
+_TEXT_STIL_GESPEICHERT = "Noted, this is how {name} speaks."
+_TEXT_KEIN_INTERVIEW = "There's no interview yet for this character to speak from."
+_TEXT_PROAKTIV = "Before I suggest anything: do you have ideas of your own?"
+_TEXT_WIR_ZUERST_KNOPF = "Yes, us first"
+_TEXT_SCHLAG_VOR_KNOPF = "You suggest"
+_TEXT_WIR_ZUERST = "Good - I'm listening."
+_TEXT_PHASE_ANGEBOT = "{erledigt} are in place. On to {phase}?"
+_ERLEDIGT_FUER."2" = "Your terms"
+_ERLEDIGT_FUER."3" = "Your questions"
+_ERLEDIGT_FUER."4" = "The interviews are analysed and"
+_ERLEDIGT_FUER."5" = "Setting, characters and story"
+_ERLEDIGT_FUER."6" = "Story and scene sequence"
+_ERLEDIGT_FUER."7" = "All scene texts"
+_TEXT_PHASE_WEITER = "On to {phase}?"
+_TEXT_PHASE_NOCH_NICHT_KNOPF = "Change something first"
+_TEXT_NOCH_NICHT = "Good, we'll stay here."
+_TEXT_WEITER_ZU_KNOPF = "On to {phase}"
+_TEXT_ALLES_NOETIGE = "All the essentials"
+_TEXT_NAME_GEAENDERT_QUITTUNG = "Name changed"
+_JOURNAL_FIGURENANZAHL = "Number of characters: {anzahl}"
+_JOURNAL_FIGUREN = "Characters: {namen}"
+_TEXT_NOTIERT_KOPF = "Noted:\n"
+_TEXT_FIGUREN_QUITTUNG = "Characters saved"
+_TEXT_SPRACHDUKTUS_ZEILE = "Speech style: {profil}"
+_TEXT_DAS_INTERVIEW = "the interview"
+_JOURNAL_FIGURENLISTE_STEHT = "Character list agreed"
+_TEXT_INTERVIEW_WAEHLEN_QUITTUNG = "Choose an interview"
+_TEXT_SZENE_KOPF = "Scene {nummer}"
+_TEXT_SZENE_EINTRAG = "Scene {nummer}: {was}"
+_JOURNAL_SZENENFOLGE = "Scene sequence: {liste}"
+_TEXT_SZENEN_UEBERNOMMEN_QUITTUNG = "{anzahl} scenes saved"
+_TEXT_FESTLEGUNG_FORMEN = "Form for each scene — {liste}"
+_JOURNAL_FORM_JE_SZENE = "Form for each scene: {liste}"
+_TEXT_FORMWAHL_QUITTUNG = "Form choice saved, the story is still missing"
+_JOURNAL_GESCHICHTE = "Story: {geschichte}"
+_TEXT_RICHTUNG_QUITTUNG = "Direction saved"
+_TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG = "Saved. What should change?"
+_JOURNAL_GESCHICHTE_MIT_SZENEN = "Story taken on with {anzahl} scenes"
+_TEXT_SCHLAGE_ANGABEN_VOR = "I'll suggest the missing details"
+_TEXT_SZENE_LAEUFT_QUITTUNG = "Scene {nummer} is being written"
+_ANTWORT_LAEUFT_SCHON = "Already running"
+_ANTWORT_GESCHICHTE_LAEUFT = "Story is on its way"
+_ANTWORT_PASST = "Good"
+_ANTWORT_WAS_ANDERS = "What should change?"
+_ANTWORT_SZENE_GESCHAERFT = "Scene {nummer} sharpened"
+_ANTWORT_FIGUR_GESCHAERFT = "{name} sharpened"
+_ANTWORT_UEBERNOMMEN = "Taken on: {was}"
+_ANTWORT_NOCH_EINE_RUNDE = "One more round"
+_ANTWORT_WIE_VIELE = "How many?"
+_ANTWORT_SZENEN_ANZAHL = "{anzahl} scenes"
+_ANTWORT_REIHENFOLGE = "Tell me the order"
+_ANTWORT_WELCHE_FORM = "Which form?"
+_ANTWORT_SZENE_RAUS = "Scene {nummer} removed"
+_ANTWORT_SZENE_STEHT = "Scene {nummer} is done"
+_ANTWORT_WAS_ANDERS_WERDEN = "What should be different?"
+_ANTWORT_SZENE_BLEIBT = "Scene {nummer} stays"
+_ANTWORT_LETZTE = "That was the last one"
+_ANTWORT_SZENE_UEBERARBEITET = "Scene {nummer} is being revised"
+_ANTWORT_BLEIBT = "Stays as it is"
+_ANTWORT_SZENEN_EINZELN = "Going through the scenes one by one"
+_ANTWORT_NOCH_EINMAL = "Reading it again"
+_ANTWORT_TEXTBUCH = "Script"
+_ANTWORT_ERZAEHLT = "Go ahead"
+_ANTWORT_ANDERE_VOR = "Suggesting others"
+_ANTWORT_LEITFADEN = "Interview guide"
+_ANTWORT_FIGUREN_ANZAHL = "{anzahl} characters"
+_ANTWORT_ZAHL = "Tell me the number"
+_ANTWORT_WELCHER_NAME = "Which name?"
+_ANTWORT_NAMEN_VORSCHLAGEN = "Suggesting names"
+_ANTWORT_INTERVIEW_GEWECHSELT = "Interview changed"
+_ANTWORT_DUKTUS_VORSCHLAEGE = "Speech style suggestions"
+_ANTWORT_DUKTUS_UEBERNOMMEN = "Speech style saved"
+_ANTWORT_STIL_UEBERNOMMEN = "Style saved"
+_ANTWORT_ZUGEORDNET = "Assigned: {anzahl}"
+_ANTWORT_ENTFERNT = "Removed"
+_ANTWORT_WIR_HOEREN_ZU = "Listening"
+_ANTWORT_ICH_SCHLAGE_VOR = "Making a suggestion"
+_ANTWORT_HOERE_WEITER_ZU = "Still listening"
+_ANTWORT_INTERVIEW_BEENDET = "Interview finished"
+_ANTWORT_ANGELEGT = "{name} created"
+_ANTWORT_ALS_BEITRAG = "Taken as a contribution"
+_ANTWORT_KERNTHEMA = "Core theme saved"
+_ANTWORT_AUFNAHME_UMGESCHALTET = "Recording switched"
+_ANTWORT_PHASE = "Phase {nummer}"
+_ANTWORT_AUSWERTUNG_LAEUFT = "Analysis is running"
+_ANTWORT_AUSWERTUNG = "Analysis"
+_ANTWORT_ZUSAMMENFASSUNG = "Summary"
+_ANTWORT_TRANSKRIPT = "Transcript"
+_ANTWORT_STAND = "Where we are"
+_ANTWORT_HILFE = "Help"
+_ANTWORT_SZENE_STIL = "Scene {nummer}: style {stil}"
+_ANTWORT_USA_JA = "US model: yes"
+_ANTWORT_USA_NEIN = "Stays in Switzerland"
+_JOURNAL_SZENE_ABGENOMMEN = "Scene {nummer} approved: {titel}"
+_JOURNAL_RICHTUNG = "Direction: {richtung}"
+_TEXT_FIGUR_NR_KNOPF = "Character {nr}: {name}"
+_JOURNAL_SPRACHSTIL = "Speech style {name}: {stil}"
+_JOURNAL_ZUFALL_ZUGEORDNET = "Interviews assigned at random: {figuren} characters across {interviews} interviews"
+_JOURNAL_FIGUR_ENTFERNT = "Character removed: {name}"
+_TEXT_FIGUR_RAUS = "{name} is out."
+_TEXT_DAS_INTERVIEW_ANFANG = "The interview"
+_TEXT_INTERVIEW_STEHT = "{name} is saved. {weiter}"
+_JOURNAL_KERNTHEMA = "Core theme: {kernthema}"
+_TEXT_KERNTHEMA_NOTIERT = "Core theme noted: {kernthema}"
+_TEXT_ICH_WERTE_AUS = "Analysing: {name}."
+_TEXT_IM_WORTLAUT = "{name}, word for word:\n{text}"
+_TEXT_SZENE_STIL_GESETZT = "Scene {nummer}, style: {stil} (source: {herkunft})."
+_TEXT_SZENE_OHNE_STIL = "Scene {nummer}: no style template, the form stays as it is."
+_JOURNAL_SZENE_STIL = "Scene {nummer} style: {stil}"
+_TEXT_STIL_OHNE_WORT = "none"
+_JOURNAL_USA_JA = "US model for scene texts: yes"
+_JOURNAL_USA_NEIN = "US model for scene texts: no"
+ANWEISUNGEN."1" = """\
+Suggest a list of terms to the group and attach it as a block \
+'VORSCHLAG BEGRIFFE:'."""
+ANWEISUNGEN."2" = """\
+Suggest interview questions for the group to choose from: EXACTLY FIVE per \
+core term of the group, ordered by term (first all five for the first \
+term, then the five for the second, and so on). Attach them as a block \
+'VORSCHLAG FRAGENAUSWAHL:', one question per line in the format \
+'Term: Question', without numbering. EVERY question stands on its own in \
+its SENTENCE STRUCTURE: in content they may follow on from each other, but \
+no question may point back to something earlier in its wording (no 'and \
+then?', no 'in that moment', no 'of that', no 'this person', no 'while \
+doing so') - whatever a question picks up from an earlier one, it says \
+again itself ('If you have ever experienced racism: what helped you in \
+that moment?') - each one must be understandable when read out on its \
+own, because the group picks any three. Age-appropriate, and phrased so \
+that a young interviewer from the group can ask it of a STRANGER in the \
+street. Don't repeat the questions in the running text - the group sees \
+the numbered list and names three numbers."""
+ANWEISUNGEN."4" = """\
+Suggest three settings - place, time, occasion on one line each, freely \
+invented from the group's terms and questions, NOT from interviews. \
+Attach them as a block 'VORSCHLAG RAHMEN:', one suggestion per line."""
+_ANWEISUNG_ALLGEMEIN = """\
+Suggest the next step of this phase to the group - concrete, drawn from \
+the material, and finish with an open question."""
+ANWEISUNG_KERNTHEMA = """\
+The group has chosen the direction '{richtung}'. Suggest three to four \
+concrete wordings of a core theme for it, each one with a link to the \
+material. Attach them as a block 'VORSCHLAG KERNTHEMA:', one wording per \
+line."""
+ANWEISUNG_KERNFRAGE = """\
+The group's core theme is '{kernthema}'. Sharpen it into ONE dramatic \
+question. Attach it as a block 'VORSCHLAG KERNFRAGE:', with exactly these \
+three lines: 'Question: What happens if ...', 'Opposition: <two wants that \
+collide>', 'Stakes: <what is at stake>'. No choice, no second suggestion - \
+one question."""
+ANWEISUNG_FIGURENZAHL = """\
+Suggest a list of characters with exactly {anzahl} characters - **freely \
+invented**, from the group's terms and questions and the setting. NOT from \
+the interviews: they come in later and sharpen what you invent now. Which \
+{anzahl} characters does this setting need? Each one wants something. \
+Attach the list as a block 'VORSCHLAG FIGUREN:', one character per line \
+in the form 'Name - one sentence'."""
+ANWEISUNG_NAMEN = """\
+Suggest three names for this character: {zeile}. Attach them as a block \
+'VORSCHLAG NAMEN:', one name per line, nothing else."""
+ANWEISUNG_DUKTUS = """\
+Suggest two to three alternative descriptions of how {name} speaks - one \
+line each, concrete (sentence length, filler words, pace). Attach them as \
+a block 'VORSCHLAG DUKTUS:', one description per line."""
+ANWEISUNG_FRAGEN_ANDERE = """\
+Suggest exactly ten OTHER interview questions. We have already had these, \
+take none of them again and don't reword any of them:\n{alte}\n\
+Attach the new ones as a block 'VORSCHLAG FRAGENAUSWAHL:', one question per \
+line, exactly ten lines. Don't repeat them in the running text."""
+ANWEISUNG_FRAGEN_EIGENE = """\
+The group has named questions of its own. Take them unchanged as the first \
+lines and add your own suggestions to make exactly ten. Attach everything \
+as a block 'VORSCHLAG FRAGENAUSWAHL:', one question per line."""
+ANWEISUNG_EINLEITUNGEN = """\
+Look at these interview questions from the group:\n{fragen}\n\n\
+The interviews are carried out by young people from the group with \
+STRANGERS in the street or in their neighbourhood. Check each question: \
+does it touch on a sensitive topic (family, origin, religion, violence, \
+love and the body, money, illness, flight, discrimination)? Rewrite EVERY \
+sensitive question as ONE gentle piece of conversation - two to three \
+sentences that the interviewer says in one go: the reason, the freedom \
+not to answer, and the question itself, in ONE flow. Not a lead-in and a \
+question strung together, but one text that you say just like that. \
+Informal 'you', easy to say out loud, in the tone of a young person \
+speaking to a stranger - no officialese, no stock phrases like 'as part \
+of our \
+project'. The core of the question stays the same: don't invent a new \
+topic and don't leave one out. Attach this as a block \
+'VORSCHLAG FRAGEN WEICH:', one line each as \
+'<question number> — <softer version>' - only for the sensitive questions, \
+the others stay as they are. If no question is sensitive, write exactly \
+this one line in the block: 'None of the questions needs a special \
+lead-in.' In the text before it, say in ONE sentence which questions you \
+have worded more softly - call it 'softer wording', NOT 'lead-in': the \
+opening of the interview only comes in the next message, don't announce it \
+here and don't write it. Ask the group at most one question. Don't copy \
+out the list of questions again unchanged."""
+ANWEISUNG_EROEFFNUNG = """\
+Now we still need how the interview starts and how it ends. Suggest an \
+opening text that the interviewer says to a stranger before they ask the \
+first question - three to five sentences: who we are, what it is about \
+({{projekt_kurz}}), what the answers will be used for (anonymously, as \
+material for a play), that you can stop at any time, and asking \
+permission to record the conversation. Add a short closing: thanks and \
+what happens next. Attach both as a block 'VORSCHLAG EROEFFNUNG:' - first \
+the opening, then a line that starts with 'ABSCHLUSS:'. Language like a \
+young person's, no official-sounding sentences. The text stands ONLY in the \
+block - don't also write it before it in the running text; before it, at \
+most one sentence and one question."""
+
+["befehle"]
+_TEXT_INTERVIEW_AN = "Ready - send your voice messages. After each one you get the typed-out text."
+_TEXT_INTERVIEW_AUS = "Recording stopped."
+_TEXT_KERNTHEMA_LEER = "Write the core theme after the command, for example: /kernthema Arriving"
+_TEXT_UNBEKANNT = "I don't know that command."
+_TEXT_WORTLAUT_AUS = "Word for word off."
+_TEXT_PHASE_UMSCHALTEN = "Switch with /phase 4 or /phase Characters - going back works too."
+_TEXT_FIGUR_HILFE = """\
+This is how I remove a character: /figur <name> entfernen. \
+You can create characters simply in the conversation."""
+_TEXT_PHASE_UNBEKANNT = "I don't know that phase. These are the seven I have:"
+_TEXT_KEINE_AUFNAHMEN = "There are no recordings yet."
+_TEXT_SPRACHE_STAND = "Interview language: {sprache}."
+_TEXT_SPRACHE_GESETZT = "Interview language from now on: {sprache}."
+_TEXT_SPRACHE_UNBEKANNT = "I don't know that one. Use auto or a language code like it, en, de."
+_TEXT_SPRACHE_AUTO = "automatic (I detect it myself)"
+_JOURNAL_SPRACHE = "Interview language for Whisper: {sprache}"
+_TEXT_SZENE_LEER = """\
+Write the task after the command, for example: \
+/szene Scene 2: two characters meet at the station"""
+_TEXT_SZENE_FIGUR_UNBEKANNT = """\
+I don't know these characters: {namen}. A scene only uses \
+characters from your progress - create them in the conversation first."""
+_TEXT_SZENE_UNMOEGLICH = "I can't write a scene right now."
+_TEXT_AUSWERTEN_UNMOEGLICH = "I can't analyse right now."
+_TEXT_NAME_UNBEKANNT = "I don't know that name. Existing recordings: {namen}"
+_TEXT_INTERVIEW_UNBEKANNT = "I don't know that interview. Existing ones: {namen}"
+_TEXT_RAHMEN_ZEILE = "Setting: {rahmen}"
+_TEXT_RAHMEN_OFFEN = "Setting: still open"
+_TEXT_RAHMEN_SETZEN = "Set it: /stueck rahmen A waiting room, one afternoon"
+_TEXT_STUECK_UNBEKANNT = "I don't know that one. There is /stueck rahmen <text>."
+_TEXT_STUECK_WERT_LEER = "Add the {bezeichnung} after the command, for example: /stueck {feld} {beispiel}"
+_TEXT_STUECK_NICHT_GESETZT = "Nothing was set for {bezeichnung}."
+_TEXT_STUECK_NOTIERT = "{bezeichnung} noted: {wert}"
+_TEXT_KERNTHEMA_NICHT_GESETZT = "No core theme was set."
+_TEXT_ENTFERNT = "Removed: {wert}."
+_TEXT_FIGUR_UNBEKANNT = "I don't know a character called {name}."
+_TEXT_SZENE_UNBEKANNT = "I don't know a scene {nummer}."
+_TEXT_FESTGEHALTEN = "Agreed: {zeile}"
+_TEXT_WIR_SIND_BEI = "We're at {phase}."
+_TEXT_STAND_KOPF = "Where we are:"
+_TEXT_STAND_PHASE = "Phase: {phase}"
+_TEXT_WAS_BISHER = "What has happened so far:"
+_TEXT_STAND_KERNTHEMA = "Core theme: {wert}"
+_TEXT_STAND_HAUPTKONFLIKT = "Main conflict: {wert}"
+_TEXT_INTERVIEWMODUS_AN = "Interview mode: on"
+_TEXT_INTERVIEWMODUS_AUS = "Interview mode: off"
+_TEXT_ZUM_MITLESEN = "To follow along: {url}"
+_TEXT_WORTLAUT_ALLE = "Word for word on: all recordings."
+_TEXT_WORTLAUT_AN = "Word for word on: {name}"
+_TEXT_HILFE = """\
+Just write or speak - I read everything and answer.
+
+HOW TO DO AN INTERVIEW:
+1. Tap "Start interview"
+2. Send the voice messages from the person you're interviewing, as many \
+as you like - they all belong to this one interview
+3. After each one I send you the typed-out text to read along, and below \
+it a button asks whether the interview continues or is finished. If a \
+word is wrong, just tell me.
+4. After "Interview is finished" the next steps appear as buttons: \
+Analyse, Next interview, On to the next station.
+
+The buttons are the way. If you'd rather type, you can also use these \
+commands:
+/aufnahme - start and stop an interview
+/stand - shows what I've kept so far
+/auswerten [number] - what's in the interviews
+/kernthema <text> - set the core theme
+/stueck rahmen <text> - place, time, occasion of the evening
+/szene <number> form <dialog|monolog|chor|lied|rap>
+/szene <number> ort|zeit|anlass|figuren <text> - place, time, occasion, cast
+/szene <task> - have a scene written
+/phase [number|name] - shows the phase or switches it
+/hilfe - this overview
+
+Everything else you just tell me: characters, scenes, decisions - I \
+keep track of it without you needing a command."""
+BEFEHLE_LISTE = [
+    { command = "aufnahme", description = "Start interview - and again to stop" },
+    { command = "stand", description = "Show where we are" },
+    { command = "auswerten", description = "Analyse and show interviews" },
+    { command = "kernthema", description = "Set or correct the core theme" },
+    { command = "stueck", description = "Format and setting of the play (phase 5)" },
+    { command = "szene", description = "Plan a scene, set its form, have it written" },
+    { command = "phase", description = "Show or switch the working phase" },
+    { command = "hilfe", description = "How the bot works" },
+]
+_TEXT_FESTLEGUNG_KOPF = "Agreed, outside the fields:"
+_TEXT_FESTLEGUNG_LEER = "Nothing has been agreed outside the fields yet."
+_TEXT_FESTLEGUNG_HILFE = """\
+New: /festlegung <figur|gruppe|ort|struktur|form|stil|sonstiges>: <text> - \
+back: /festlegung weg <search word>."""
+_TEXT_FESTLEGUNG_SCHON_DA = "That's already there."
+_TEXT_FESTLEGUNG_UNBEKANNT = "I haven't agreed anything on that."
+
+["befehle"._STUECK_FELDER]
+rahmen = "Setting"
+format = "Format"
+
+["befehle"._BEISPIEL_ARBEITSSTAND]
+format = "Spoken theatre: dialogue and chorus"
+rahmen = "A waiting room, one afternoon"
+
+["bot"]
+_TEXT_ERSTKONTAKT = """\
+Hi, I'm the theatre bot for this workshop.
+
+Just write or speak - I read everything and answer.
+
+How interviews work: tap "Start interview" and then send the voice \
+messages from the person you're interviewing. After each one you get the \
+typed-out text, and a button asks whether it continues.
+
+The buttons below show you the way."""
+_TEXT_ERSTKONTAKT_BEGRIFFE = """\
+Hi, I'm the theatre bot for this workshop.
+
+Just write or speak - I read everything and answer.
+
+First, send me your terms from the plenary session: typed or as a voice \
+message, just as they are on your wall. I'll keep them and sort them with \
+you.
+
+From them we'll develop your interview questions - and only after that \
+do we start recording.
+
+The buttons below show you the way."""
+_TEXT_ERSTKONTAKT_BEGRIFFE_DA = """\
+Hi, I'm the theatre bot for this workshop.
+
+Just write or speak - I read everything and answer.
+
+I already have your terms. From them we'll now develop your interview \
+questions - and only after that do we start recording.
+
+The buttons below show you the way."""
+_TEXT_GRUPPENSEITE = """
+
+
+You can follow everything we keep here (only for your group): {url}"""
+_TEXT_WIEDERKEHR = "I'm back. We're at {phase}."
+
+["leitfaden"]
+TEXT_KOPF = "Your interview guide:"
+UEBERSCHRIFT_EROEFFNUNG = "How to start:"
+UEBERSCHRIFT_FRAGEN = "Your questions:"
+UEBERSCHRIFT_ABSCHLUSS = "How to finish:"
+TEXT_LEER = "I don't have an interview guide yet - for that I need your questions first."
+_EINLEITUNG_ZEILE = "   ↳ say beforehand: {text}"
+_KERN_ZEILE = "   (core: {text})"
+TEXT_WEBLINK = "Large and printable: {url}"
+JOURNAL_GEZEIGT = "Interview guide shown"
+
+["phasentexte"]
+_KOPF_EINTRITT = "▶️ Phase {nummer} of {gesamt} · {name}"
+_ZEILE_CHECKLISTE = "What it takes: {liste}"
+ZEILE_ANGEBOT = "My suggestion for this phase - tell me if you want it differently:"
+_KOPF_ABSCHLUSS = "✅ Phase {bezeichnung} complete"
+_TEXT_GEPRUEFT_KEINE_NOETIG = "checked, none needed"
+_TEXT_AUSGEWERTET = "{anzahl} analysed"
+_TEXT_ZUORDNUNG_EINE = "{anzahl} passage from the interviews assigned (round {runde})"
+_TEXT_ZUORDNUNGEN = "{anzahl} passages from the interviews assigned (round {runde})"
+_TEXT_ZUSAMMENFASSUNG_ZEILE = "Scene {nummer}: {text}"
+_TEXT_RUNDE = "Round {runde}"
+_TEXT_RUNDE_SCHNITT = "Round {runde}, average {schnitt:.1f} of 5"
+
+["phasentexte".PARAMETER_BESCHRIFTUNG]
+"Begriffe" = "Terms"
+"noch keine" = "none yet"
+"Fragen" = "Questions"
+"Einleitungen" = "Lead-ins"
+"noch nicht geprueft" = "not checked yet"
+"Eroeffnung" = "Opening"
+"noch offen" = "still open"
+"Abschluss" = "Closing"
+"Interviews" = "Interviews"
+"Auswertungen" = "Analyses"
+"Setting" = "Setting"
+"Figuren" = "Characters"
+"Geschichte" = "Story"
+"Szenenfolge" = "Scene sequence"
+"Zuordnungen" = "Assignments"
+"Szenentexte" = "Scene texts"
+"Stueckpruefung" = "Play review"
+
+["fehlstellen"]
+UEBERSCHRIFT = "What's still missing"
+_SATZ_BEGRIFFE = "The list of terms from the plenary session isn't there yet."
+_SATZ_FRAGEN = "No interview questions have been chosen yet."
+_SATZ_FRAGEN_UNGEPRUEFT = "The questions haven't been checked for sensitive spots yet."
+_SATZ_EROEFFNUNG = "The interview guide is missing the opening - how you start the conversation."
+_SATZ_ABSCHLUSS = "The interview guide is missing the closing - how you end the conversation."
+_SATZ_KEIN_INTERVIEW = "No interview has been analysed yet."
+_SATZ_INTERVIEW_OFFEN = "{name} is recorded but not analysed yet."
+_SATZ_SETTING = "The setting isn't there yet - place, time, occasion."
+_SATZ_GESCHICHTE = "The story isn't there yet - what happens, how it ends."
+_SATZ_FIGUREN_OFFEN = "The list of characters hasn't been approved yet."
+_SATZ_KEINE_FIGUREN = "There are no characters yet."
+_SATZ_FIGUR_OHNE_BESCHREIBUNG = "{name} has no description yet."
+_SATZ_FIGUR_OHNE_INTERVIEW = "No interview has been assigned to {name} yet - which one does this character speak from?"
+_SATZ_FIGUR_OHNE_SPRACHPROFIL = "{name} has no speech profile yet."
+_SATZ_KEINE_SZENEN = "There are no scenes yet."
+_SATZ_SZENE_NICHT_ERZAEHLT = "{kopf} hasn't been told yet."
+_SATZ_SZENE_OHNE_FORM = "No form has been confirmed for {kopf} yet."
+_SATZ_SZENE_FELDER = "{kopf} is still missing: {felder}."
+_SATZ_SZENE_OHNE_TEXT = "{kopf} has no scene text yet."
+_TEXT_EINE_FIGUR = "A character"
+_TEXT_SZENE_KOPF = "Scene {nummer}"
+_TEXT_EINE_SZENE = "A scene"
+
+["stile"]
+TEXT_OHNE = "No style template"
+STILE = [
+    { slug = "schlagabtausch", titel = "Sharp back-and-forth", satz = "Short lines, hard cuts, a hook that comes back - I-to-you, lots of negation.", herkunft = "Schatten - Morpheuz x Monet192 (YouTube)" },
+    { slug = "litanei", titel = "Litany", satz = "One sentence pattern, again and again, with one word that changes - the build-up lies in the repetition.", herkunft = "Lovesong - Adele (YouTube)" },
+    { slug = "herkules", titel = "Herkules measure", satz = "The measured style of a production by the workshop team: short lines, few stage directions, no further shift in style.", herkunft = "Herkules.exe - ArtesMobiles (own production)" },
+]
+_TEXT_MENUE_KOPF = "Which style?"
+_TEXT_MARKE_VORSCHLAG = " (suggestion)"
+_TEXT_MENUE_EINTRAG = "{nummer}. **{titel}**{marke}\n{satz}\nTemplate: {herkunft}"
+_TEXT_MENUE_OHNE = "{nummer}. **{ohne}**\nThe rules of the form apply."
+
+["stile".VORSCHLAG_GRUND]
+rap = "A rap suits the sharp back-and-forth: short lines, a hook."
+lied = "A song suits the litany: a line that keeps coming back."
+chor = "A chorus lives on repetition - that's what the litany is built for."
+dialog = "For a dialogue, the Herkules measure stays - the workshop team's own."
+monolog = "For a monologue, the Herkules measure stays - the workshop team's own."
+
+["arbeitszeilen"]
+VORGABE = [
+    "🎭 working on your play …",
+    "👟 walking the scene through once on the rehearsal floor …",
+]
+
+["arbeitszeilen".ZEILEN]
+geschichte = [
+    "🎭 laying out three arcs on the rehearsal floor …",
+    "🔁 running the story through once in my head …",
+    "🔚 looking for an ending that still echoes …",
+]
+prosa = [
+    "✍️ writing, crossing out, writing again …",
+    "👟 watching the characters rehearse …",
+    "☕ short break at the edge of the rehearsal floor …",
+    "📐 checking whether the first entrance already pulls you in …",
+]
+schaerfung = [
+    "🔍 searching your interviews for sentences that want to go on stage …",
+    "🧩 matching quotes to the characters …",
+]
+stueckpruefung = [
+    "🎭 standing at the edge of the stage and watching …",
+    "📊 counting where the tension sags …",
+    "🔦 lighting up the transitions between the scenes …",
+]
+feinschliff = [
+    "🎶 listening whether this sounds like rap, song or chorus …",
+    "🥁 looking for the beat under the lines …",
+    "🗣️ speaking the lines out loud once …",
+]
+sensibilitaet = [
+    "🤔 reading the questions again with a stranger's eyes …",
+    "🫶 checking where someone wants to be asked gently …",
+]
+eroeffnung = [
+    "🎤 practising the first sentence in front of the mirror …",
+]
+sprachstil = [
+    "🗣️ listening to how the character sounds once they get going …",
+    "👂 comparing two ways of speaking side by side …",
+]
+
+["sprecher"]
+UEBERSCHRIFT = "Speaking shares"
+TEXT_LEER = "I can't count speaking shares yet - for that I need scene texts with speaker lines."
+_TEXT_KOPF_ZEILE = "{ueberschrift}, scenes counted: {szenen}"
+_TEXT_FIGURENZEILE = "{name}: {anteil}, lines: {repliken}, scenes: {szenen}"
+_TEXT_HINWEIS_LEISE = "{name} speaks in {szenen} of {gesamt} scenes, {anteil} of the words."
+_DEZIMALZEICHEN = "."
+
+["kuerzung"]
+TEXT_NOTIZ_SZENE = "Shorten this scene by about {prozent} percent. Same events, same order, same characters, same ending -- just tighter: less repetition, shorter lines, nothing new added."
+TEXT_NOTIZ_PROSA = "Shorten the story by about {prozent} percent. Keep exactly {anzahl} sections with their titles and in their order, and shorten within the sections -- same events, same ending, nothing new added."
+TEXT_NICHTS_ZU_KUERZEN = "There's no text yet that I could shorten."
+TEXT_KEIN_LAUF = "Not started, see chat"
+TEXT_SZENE_GESTARTET = "Scene {nummer} is getting shorter"
+TEXT_GESCHICHTE_GESTARTET = "The story is getting shorter"
+TEXT_WELCHE_SZENE = "Which scene should get shorter? Tell me the number."
+
+["vorspann"]
+_UEBERSCHRIFT_WO_UND_WANN = "Where and when"
+_UEBERSCHRIFT_WORUM = "What it's about"
+_UEBERSCHRIFT_FORM = "Form"
+_UEBERSCHRIFT_EINE_SZENE = "{anzahl} scene"
+_UEBERSCHRIFT_SZENEN = "{anzahl} scenes"
+_UEBERSCHRIFT_FIGUREN = "Who appears"
+
+["vorspann".FORM_BESCHRIFTUNG]
+dialog = "dialogue"
+monolog = "monologue"
+chor = "chorus"
+lied = "song"
+rap = "rap"
+
+["verdichter"]
+_FRAGEN_KOPF = "The group's interview questions:"
+_TRANSKRIPT_KOPF = "The transcript:"
+_NACHTRAG_WOERTLICH = "\n\nIMPORTANT, second attempt: In the first attempt, supporting quotes did not match the transcript word for word. Copy every quote CHARACTER BY CHARACTER from the transcript -- no smoothing, no moved comma, no filler words removed, no spelling corrected. Better a shorter quote that matches exactly than a longer one you touched up."
+
+["journal"]
+_BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"
+_AUSSCHNITT_KOPF = "Excerpt:\n"
+
+["ablauf"]
+_TEXT_HINWEIS = "One moment, I'm thinking."
+_TEXT_FEHLER = "Something is stuck on my end - ask again."
+_TEXT_DENKSPUR_ERMAHNUNG = "Your last answer was you talking to yourself, not the message to the group. Write ONLY the message: what you say to the group, in their words, under 500 characters."
+_TEXT_ECHO_ERMAHNUNG = "Your last answer was a quote from the group. Don't quote - answer with an impulse of your own: an assessment, a suggestion or a follow-up question."
+_AUFTRAG_KOPF = "Your task in exactly this turn:"
+
+["erkenner"]
+_STAND_FIGUR_ZEILE = "Character {name}{beschreibung}"
+_ARBEITSSTAND_KOPF = "Progress:\n"
+_NACHRICHTEN_KOPF = "New messages:\n"
+_VORLAUF_KOPF = "Lead-up (the last bot message before this -- already processed, only so you can see what an agreement refers to):\n"
+_AUFNAHME_KOPF = "A voice message from an ongoing interview, just transcribed:"
+_JOURNAL_ENTFERNT = "Removed: {was}"
+_JOURNAL_ZURUECK = "Withdrawn: {text}"
+_BEZEICHNUNG_JOURNAL = "Journal: {text}"
+_BEZEICHNUNG_FESTLEGUNG = "Agreement: {text}"
+_BEZEICHNUNG_FIGUR = "Character {name}"
+_BEZEICHNUNG_SZENE = "Scene {nummer}"
+_ZEILE_EINE_FIGUR = "one character: {liste}"
+_ZEILE_FIGUREN = "{zahlwort} characters: {liste}"
+_JOURNAL_ZUSAMMENGEFUEHRT = "{alt} became {neu} -- speech style and scene casting moved along."
+_JOURNAL_KORRIGIERT = "Transcript corrected: {text}"
+_NOTIERT_KOPF = "Noted:\n"
+_ZEILE_FESTGEHALTEN = "Agreed{marke}: {text}"
+_ZEILE_KORRIGIERT = "Corrected: {zeile}"
+_ZEILE_ENTFERNT = "Removed: {was}"
+_ZEILE_PHASE = "We're now at {phase}."
+_ZEILE_USA_JA = "Scene texts will come from the US model (Anthropic) from now on. I'll mention it again before every scene."
+_ZEILE_USA_NEIN = "Scene texts stay in Switzerland. I won't ask again."
+
+["erkenner"._STAND_BESCHRIFTUNG]
+begriffe = "Terms"
+fragen = "Questions"
+kernthema = "Core theme"
+rahmen = "Setting"
+hauptkonflikt = "Main conflict"
+
+["erkenner"._FIGUREN_ZAHLWORT]
+2 = "two"
+3 = "three"
+4 = "four"
+5 = "five"
+
+["erkenner"._FELD_BESCHRIFTUNG]
+kernthema = "Core theme"
+format = "Format"
+rahmen = "Setting"
+geschichte = "Story"
+hauptkonflikt = "Main conflict"
+figuren_anzahl = "Number of characters"
+begriffe = "Terms"
+fragen = "Questions"
+
+["kontext"]
+_SPRECHER_BOT = "You"
+_PSEUDONYM = "Member {nummer}"
+_PSEUDONYM_UNBEKANNT = "Member"
+_PAUSE_STUNDE = "[Break: {stunden} hour]"
+_PAUSE_STUNDEN = "[Break: {stunden} hours]"
+_ZEILE_KERNTHEMA = "Core theme: {kernthema}"
+_ZEILE_BEGRUENDUNG = " (Reason: {begruendung})"
+_BEZEICHNUNG_AUFNAHME = "Recording {id}"
+_VERDICHTUNGEN_KOPF = "Summaries:\n"
+_ZEILE_VOLLTRANSKRIPT = "--- {name} (full transcript) ---\n{transkript}"
+_VOLLTRANSKRIPTE_KOPF = "Full transcripts:\n"
+_GESCHICHTE_KOPF = "Story:\n"
+_KERNFRAGE_KOPF = "Core question:\n"
+_ZEILE_SETTING_RAHMEN = "Setting: {rahmen}"
+_STELLEN_KOPF = "Matching passages from the interviews (the basis for your work):"
+_KERNZITATE_KOPF = "Core quotes (verbatim, checked):"
+_FIGUREN_KOPF = "Characters:"
+_ZEILE_SPRACHDUKTUS = "    Way of speaking: {profil}"
+_ZEILE_AUS_INTERVIEW = '    From {name}: {thema} -- "{zitat}"'
+_GESCHAERFT_KOPF = "Sharpened against the material, per scene:\n"
+_SZENE_MIT_NUMMER = "Scene {nummer}"
+_SZENE_OHNE_NUMMER = "Scene"
+_ZEILE_AKTUELLE_PHASE = "Current phase: {phase}"
+_ZEILE_BEGRIFFE = "Terms: {wert}"
+_ZEILE_FRAGEN = "Questions: {wert}"
+_ZEILE_RAHMEN = "Setting: {wert}"
+_ZEILE_HAUPTKONFLIKT = "Main conflict: {wert}"
+_ZEILE_FIGUR = "Character {name}{beschreibung}"
+_ARBEITSSTAND_KOPF = "Progress:\n"
+_TEXT_AKTUELLE_SZENE = "Current scene ({szene}):\n{volltext}"
+_JOURNAL_KOPF = "Journal:\n"
+_AUSLOESER_KOPF = "Now:\n"
+KERNPAKET_KOPF = "The core package - this is what you work from. Characters and scenes come from the core theme and this selection, not from the interviews (they are deliberately no longer available to you here word for word):"
+FESTLEGUNGEN_KOPF = "Further agreements of the group (they count like the progress above):"
+_PHASENHINWEIS = "The material would allow phase {bezeichnung}. Ask in the flow of the conversation whether the group wants to go there yet -- one sentence, no announcement (\"Are more interviews coming, or shall we move on?\"). You don't switch yourself; the group's answer does that."
+_FIGURENHINWEIS = "These characters are still missing the interview they speak from: {namen}. If it fits, ONE sentence about it, at most: '<character name> could speak like <interview name> -- does that fit?' No quote, no reasoning, no explanation of what the assignment is for, and nothing repeated that has already been said or noted (the assignment used to be too long-winded). Only character names from the list above and interview names from the summaries. If the group says a character is entirely made up, stop asking about it. One interview may feed several characters."
+_TEXT_SZENE_GEKUERZT = "[... middle part of the scene left out ...]"
+ERSTKONTAKT = "This is the very first message in this group -- your answer is also the welcome. First respond to what was just said, then take your time: this is the moment when the group understands how the work goes here. Cover the following, in this order and in full sentences, not as a list: who you are and what you do together (the group's terms turn into questions, the group takes the questions out and does interviews, the interviews later become the play); that you read everything and answer everything, typed or spoken; **that an interview starts with the button \"Start interview\" and that after every voice message a button asks whether it goes on or is finished** -- the buttons under your message show the way, **don't mention any slash command**{link}. **End with the question about the terms**: the group has collected terms in the room -- ask them to send you that list, typed, typed up from a photo or as a voice message. That is the first working step, and the welcome ends with it. No form, no bullet-point list -- a warm, detailed start that begins with what was said and ends with the request for the terms. Never address anyone by first name."
+ERSTKONTAKT_LINK = "; and that the group can follow everything that has been recorded at {url} (only for this group, give the link exactly like this)"
+
+["kontext".JOURNALART_BESCHRIFTUNG]
+vorgeschlagen = "suggested"
+verworfen = "rejected"
+entschieden = "decided"
+offen = "open"
+notiert = "noted"
+
+["aufnahme"]
+_TEXT_ZWISCHENMELDUNG = "I'm still typing up the voice message, one moment."
+_TEXT_AUSFALL = "I can't listen right now. Write to me in the meantime - I'll collect the recordings and catch up later."
+_TEXT_RUECKKEHR = "I can listen again."
+_TEXT_MATERIAL_HINWEIS = "That sounds like material for an interview."
+_TEXT_INTERVIEW_OHNE_KNOPF = "That sounds like an interview ({dauer}). Should I save it as an interview?"
+_TEXT_INTERVIEW_OHNE_KNOPF_WEITER = "Is the interview finished, or are more voice messages coming?"
+_TEXT_INTERVIEW_OHNE_KNOPF_NEIN = "Fine, then I'll take it as a contribution."
+_TEXT_TEIL_ECHO = "{name}, part {nummer}:\n{transkript}"
+_TEXT_INTERVIEW_ABGELEGT = "{name} is recorded and analysed - I'll hold back on it until you have all the interviews together."
+_TEXT_AUSGEWERTET = "{name} analysed: {themen} themes, {zitate} quotes."
+_TEXT_VERDICHTUNG_KOPF = "{name} is done. What I hear in it:"
+_TEXT_VERDICHTUNG_THEMEN = "Core themes:"
+_TEXT_VERDICHTUNG_FRAGE = "Is that right? If not, tell me."
+_TEXT_PHASENFRAGE = "Are more interviews coming, or shall we move on?"
+_TEXT_OHNE_BELEG = "I couldn't back up any theme with a word-for-word quote."
+_TEXT_ZU_KURZ = "{name} was very short ({woerter} words) - I didn't analyse it."
+_TEXT_OHNE_AUFNAHME = "{name} had no recording - I didn't summarise anything."
+_TEXT_LEER_VERWORFEN = "No recording in there - nothing saved."
+_TEXT_DAS_INTERVIEW = "The interview"
+_TEXT_DOWNLOAD_FEHLER = "The recording didn't reach me - please send it again."
+_TEXT_BITTE_NOCHMAL = "I couldn't understand {beschreibung} - please send it again."
+_TEXT_VERDICHTUNG_GESCHEITERT = "I couldn't analyse {beschreibung}. The transcript stays saved, only the summary is missing."
+_ARTIKEL_GROSS = "the"
+_ARTIKEL_KLEIN = "the"
+_BESCHREIBUNG_TEIL = "{artikel} recording of {name}, part {nummer}"
+_BESCHREIBUNG_NAME = "{artikel} recording of {name}"
+_BESCHREIBUNG_LETZTE = "{artikel} last {art}"
+_ART_LANG = "long recording"
+_ART_KURZ = "short recording"
+_JOURNAL_PHASE_DURCH_AUFNAHME = "by starting a recording"
+
+["szene"]
+_TEXT_ANGEKUENDIGT = "I'm writing out the scene, that takes a minute."
+_TEXT_BESETZT = "I'm still writing a scene, one moment."
+_TEXT_ERST_FRUEHERE = "Scene {nummer} comes after scene {vorher} - I'll write that one first."
+_TEXT_FEHLER = "The scene didn't work out. Say it again and I'll try once more."
+_TEXT_SZENENTEXT = "Scene {nummer}: {titel}\n\n{volltext}"
+_TEXT_WARNUNG_USA = "Note: the scene text is written by a model from Anthropic (USA). For that, your progress, the characters with their quotes and the scene details now go to a server in the USA -- no audio recordings, no complete interviews, no names from this chat. Everything else stays in Switzerland."
+_TEXT_ANGEBOT_USA = """\
+Before I write the first scene, a decision for you.\n\n\
+Until now everything ran in Switzerland: your recordings, the interviews, \
+everything with names. That stays that way.\n\n\
+For the scene text there is a better model - from Anthropic, in the USA. \
+We compared them this morning: it writes much better stage texts. If you \
+choose it, your core theme, the characters with their quotes and the scene \
+details go to a server in the USA - that is, what will be on stage anyway. \
+No recordings, no complete interviews, no names from this chat.\n\n\
+Do you want that? Say yes or no. If you say no, I'll write the scene in \
+Switzerland - that works too, the text will be simpler."""
+_TEXT_USA_JA = """\
+Good, scenes will come from the US model from now on. I'll mention it \
+again before every scene."""
+_TEXT_USA_NEIN = "Understood, everything stays in Switzerland. I won't ask again."
+_TEXT_USA_ERINNERUNG = "The scene comes as soon as you've answered the question above: US model, yes or no? Tap one of the two buttons."
+_TEXT_USA_KEINE_ANTWORT = "You didn't answer the question about the US model - so I'm writing the scene in Switzerland. If you want it differently after all, tell me."
+_UND = " and "
+_SZENE_MIT_NUMMER = "Scene {nummer}"
+_SZENE_OHNE_NUMMER = "Scene"
+_DIE_SZENE = "the scene"
+_TEXT_FEHLENDE_FELDER = "For {kopf} we still need: {felder}."
+_TEXT_OHNE_PROFIL_EINE = "And {namen} has no speech profile yet - which interview do they speak from?"
+_TEXT_OHNE_PROFIL_MEHRERE = "And {namen} have no speech profile yet - which interviews do they speak from?"
+_TEXT_NEUE_FIGUR_EINE = "{namen} appears for the first time in scene {nummer} - where were they before?"
+_TEXT_NEUE_FIGUR_MEHRERE = "{namen} appear for the first time in scene {nummer} - where were they before?"
+_RAHMEN_BLOCK = "The story / the setting of the play -- this is the group's brief, every scene is part of it and has to fit it:\n{rahmen}"
+_BOGEN_BLOCK = "Arc and ending:\n{geschichte}"
+_KERNFRAGE_KOPF = "Core question:\n"
+_ZEILE_HAUPTKONFLIKT = "Main conflict: {hauptkonflikt}"
+KERNPAKET_KOPF = "The passages that belong to the core theme (filtered by the core theme, with interview number). They are the basis - you deliberately don't see any other material here:"
+FIGUREN_KOPF = "This is how each character speaks (from their interview, word for word -- copy this way of speaking):"
+FIGUREN_KOPF_OHNE_STIMME = "The characters (who they are, what they want). Their way of speaking isn't backed by interviews yet -- give each character their own distinct way of talking (sentence length, pace, favourite words), and keep it up:"
+CONTINUITY_KOPF = "What has happened so far:"
+CONTINUITY_ANSCHLUSS = "This has already been written and stands. Continue from it: characters, motifs, movement patterns, key lines and tone carry on; repeat nothing word for word, except as a deliberate echo."
+CONTINUITY_VOLLTEXT_KOPF = "Scene {nummer} - full text:"
+CONTINUITY_FASSUNG_KOPF = "Scene {nummer} - summary (not the wording):"
+_JOURNAL_ANDERS = "Scene {nummer}: {text}"
+_JOURNAL_GESCHRIEBEN = "Scene {nummer} written: {titel}"
+_TEXT_CONTINUITY_GEKUERZT = "(Beginning shortened, here is the end of the scene:)"
+_TEXT_KEINE_ANGABEN = "(no details for this scene)"
+_KENNZEICHNUNG_KURZ = "Scene {nummern} as a summary"
+_KENNZEICHNUNG_GANZ = "Scene {nummern} in full wording"
+_KENNZEICHNUNG_ANSCHLUSS = " Continue from scene {nummer}."
+DIESE_SZENE_KOPF = "This is the scene you are to write. The details are binding -- replace nothing, invent nothing that contradicts them:"
+_AUFGABE_ERSTE = "Task of this scene (it is the FIRST -- exposition): When it's over, the audience knows without explanation (1) who the characters are, (2) how they relate to each other, (3) why they are here in this place, (4) what it's about -- the conflict is opened, not resolved. All four must appear in the text, shown through action and speech, not through explaining sentences. A scene 1 that only shows a mood is not a scene 1."
+_AUFGABE_MITTE = "Task of this scene (scene {nummer} of {gesamt}): It carries on what was opened in the earlier scenes -- the conflict sharpens or turns; at the end the situation is different from the beginning (\"What's different\"). It must not explain again anything the audience already knows, and it has to give the audience a reason to wait for the next scene."
+_AUFGABE_LETZTE = "Task of this scene (it is the LAST): It delivers what the story promised -- the ending as the group set it (open, sad, reconciled: it's in the setting/the story). Every character who wanted something in the play gets a last image here. Nothing new is opened."
+NEU_HINWEIS = "There was already a version of this scene; the group rejected it. Write a DIFFERENT scene from the same details: different opening, different structure, different images, different title. Reuse nothing from the old version -- you don't know it."
+BISHER_KOPF = "Previous text of this scene, to be revised:"
+TEXT_AUFTRAG_SCHREIBEN = "Write scene {nummer}."
+TEXT_AUFTRAG_NEU = "Rewrite scene {nummer}. {notiz}"
+VORLAGE_KOPF = "This scene already exists as a story. Translate it into the form \"{form}\": the same events, the same order, the same characters, the same ending. Invent nothing that contradicts the story, and leave out nothing that happens in it. What the story tells is now acted.\n\nThe story of this scene:"
+_FORM_RUECKFALL = "Dialogue"
+_VERWORFEN_KOPF = "The group rejected this, it doesn't come back:\n"
+CHAT_KOPF = "What the group said about it most recently:"
+CHAT_ANSCHLUSS = "The chat below is the group's fresh intention. If it contradicts the saved details, the chat wins -- and you say in the summary line what you did differently because of it. Don't repeat what the group criticised about an earlier version."
+CHAT_REGIE_KOPF = "The group's notes on this scene:"
+_SPRECHER_DU = "You"
+_SPRECHER_GRUPPE = "Group"
+_AUFTRAG_KOPF = "Your task:\n"
+
+["szene".FELDNAMEN]
+form = "Form"
+ort = "Place"
+zeit = "Time"
+anlass = "Occasion"
+figuren = "Who"
+was_passiert = "What happens"
+was_anders = "What's different"
+kernsaetze = "Key lines"
+ton = "Tone"
+titel = "Title"
+kurzbeschreibung = "Short"
+rahmen = "the setting: place, time and occasion of the evening (phase 4)"
+
+["szenenfolge"]
+ANWEISUNG_FOLGE = """You are planning the scene sequence of a theatre group's play with them.
+
+Suggest exactly {anzahl} scenes. Answer in EXACTLY this form, without an
+introduction and without an afterword:
+
+VORSCHLAG SZENENFOLGE:
+Title — one sentence about what happens — Character, Character — Form
+Title — one sentence about what happens — Character, Character — Form
+
+One line per scene, {anzahl} lines. Only use characters listed in the
+progress below. Think in situations: place, people involved, what changes.
+A scene without change is a conversation, not theatre -- a scene without
+conflict, on the other hand, is fine.
+
+**The form is mandatory** and stands as the fourth column of every line. There
+are exactly {{formen_anzahl}}: {{formen_liste}}. Choose it from the material,
+not out of habit -- **not every scene is a {{form_vorgabe_anzeige}}**. Where a quote
+sings, there's a song; where a list pounds, a rap; where someone stays
+alone, a monologue; where many say the same thing, a chorus. A sequence made
+only of dialogues is a mistake.
+
+Then one sentence and an open question to the group, two lines at most."""
+ANWEISUNG_GESCHICHTE = """You are developing the rough story of a theatre group's play with them.
+
+The group has invented the setting and the characters themselves. Now it's
+about the arc: what happens, how it ends, what the fight is about.
+
+**You suggest EXACTLY THREE DIRECTIONS** -- three different ways the same
+world becomes a story. Per direction a short, bold title, followed by two to
+three sentences: the arc, the ending and the core conflict.
+
+**NO scene sequence in this step.** No scene titles, no forms, no numbers --
+the scenes only come once the group has chosen a direction and the ending
+is settled.
+
+**You invent freely here** -- from the group's terms and questions, from the
+setting and the characters. Interviews, summaries and quotes are
+deliberately not available to you; they only come in at the next stage and
+sharpen what you invent now.
+
+Answer in EXACTLY this form, without an introduction and without an afterword:
+
+VORSCHLAG GESCHICHTE:
+Title of the first direction — arc, ending and core conflict in two to three sentences
+Title of the second direction — arc, ending and core conflict in two to three sentences
+Title of the third direction — arc, ending and core conflict in two to three sentences
+
+Exactly three lines, one direction each, titles under 25 characters. Only
+use characters listed below.
+
+Then one sentence and an open question to the group, two lines at most."""
+ANWEISUNG_GESCHICHTE_SZENEN = """You are developing the scene sequence of a theatre group's play with them.
+
+The group has chosen a direction; the arc and the ending are below. From
+that you now suggest the scenes.
+
+Answer in EXACTLY this form, without an introduction and without an afterword:
+
+VORSCHLAG SZENENFOLGE:
+Title — one sentence about what happens — Character, Character — Form — why this form
+Title — one sentence about what happens — Character, Character — Form — why this form
+
+Only use characters listed below.
+
+**You SUGGEST the form, you don't decide it.** It stands as the fourth
+column, its reason as the fifth, and both are mandatory -- the group
+confirms the form later, scene by scene, with a button.
+
+There are exactly {{formen_anzahl}}: {{formen_liste}}. **{{form_vorgabe_anzeige}} is the
+normal case.** Monologue, song and rap only when the scene demands it: a
+character alone with themselves, a feeling that grows bigger when sung, anger
+that needs rhythm. At most ONE non-{{form_vorgabe_anzeige}} scene per three scenes, and
+scene 1 is never a monologue or a song -- the exposition needs an encounter.
+
+Then one sentence and an open question to the group, two lines at most."""
+ANWEISUNG_FELDER = """You are planning a single scene with a theatre group.
+
+For the scene below, details are still missing: {felder}.
+
+Suggest them -- from the material below, not freely invented.
+Answer in EXACTLY this form, without an introduction and without an afterword:
+
+VORSCHLAG SZENE:
+field: value
+field: value
+
+One line per field, only the missing fields, the field names exactly as in
+the list above. Then one sentence and an open question to the group, two
+lines at most."""
+_GESCHICHTE_MIT_ENDE = "{bogen}\nEnding: {ende}"
+JOURNAL_INLINE = "Scenes from the chosen direction: {liste}"
+_NOCH_OFFEN = "still open"
+_ES_FEHLT_AUSSERDEM = "Also missing: "
+_FRAGE_SCHREIBEN_OFFEN = "\nShall I write scene {nummer} now? I'll suggest whatever is still open first."
+_FRAGE_SCHREIBEN = "\nShall I write scene {nummer} now?"
+PRUEFVERMERK = "Scene {nummer} needs checking after a change to scene {geaendert}"
+_PRUEFVERMERK_ANFANG = "Scene {nummer} needs checking after a change to scene "
+TEXT_ZU_PRUEFEN = "An earlier scene was changed - rewrite this one?"
+_STAND_FERTIG = "done"
+_STAND_GESCHRIEBEN = "written"
+_STAND_OFFEN = "open"
+_TEXT_KEINE_SZENEN = "There are no scenes yet."
+_DURCHLAUF_KOPF = "Your run-through:\n"
+_TEXTBUCH_TITEL = "# Script"
+_ZEILE_KERNTHEMA = "Core theme: {kernthema}"
+_NOCH_NICHT_GESCHRIEBEN = "(not written yet)"
+_ZEILE_BEGRIFFE = "The group's terms: {begriffe}"
+_FRAGEN_KOPF = "The group's questions:\n"
+_ZEILE_SETTING = "Setting: {rahmen}"
+_GESCHICHTE_KOPF = "Story so far:\n"
+_FIGUREN_KOPF = "Characters:"
+_SZENENFOLGE_KOPF = "Scene sequence so far:"
+_WUNSCH_ANZAHL = "The group would like {anzahl} scenes."
+_AUFTRAG_GESCHICHTE = "Your task:\nSuggest the rough story: what happens, how it ends, which scenes."
+_AUFTRAG_FOLGE = "Your task:\nSuggest {anzahl} scenes."
+_AUFTRAG_FELDER = "Your task:\nSuggest the missing details for scene {nummer}."
+_TEXT_LAEUFT = "I'm suggesting a scene sequence, one moment."
+_TEXT_BESETZT = "I'm already thinking about the scene sequence, one moment."
+_TEXT_GEMERKT = "I'm still thinking about something else. As soon as I'm done with that, I'll carry on with the scene sequence."
+_TEXT_FEHLER = "The scene sequence didn't work out. Say it again and I'll try once more."
+_TEXT_FELDER_LAEUFT = "I'm suggesting the missing details, one moment."
+_TEXT_GESCHICHTE_LAEUFT = "I'm suggesting a story, one moment."
+
+["szenenfolge".FELD_IM_PROMPT]
+form = "form"
+ort = "place"
+figuren = "characters"
+was_passiert = "what happens"
+
+["kurzgeschichte"]
+ANWEISUNG = """You are writing the short story of a theatre play.
+
+Below are the setting, the characters with their speech style and the story
+the group has agreed on. From these you write ONE coherent short story -- no
+list of scenes, no stage text, no screenplay.
+
+**You choose the number of sections yourself.** Three to seven is typical;
+what matters is what the story needs, not a number. A scene sequence from
+the planning is a suggestion, not a requirement: if it fits, use it; if it
+doesn't, do better.
+
+1,500 to 3,500 words in total.
+
+Every section begins with a heading and a mandatory line:
+
+```
+1. Title of the section
+ZUSAMMENFASSUNG: one sentence about what happens in this section
+
+<the section as narrative prose>
+
+2. Title of the next section
+ZUSAMMENFASSUNG: one sentence
+...
+```
+
+The line `ZUSAMMENFASSUNG:` is **mandatory** and keeps exactly this label --
+the planning of the scene is later built from it. Without it the section is
+dropped.
+
+The rules for the text itself are below (prose rule block). No comment
+before or after, no moral at the end, no intermediate titles apart from the
+section headings."""
+_TEXT_LAEUFT = "I'm writing your story in one go now. That takes a few minutes."
+_TEXT_BESETZT = "I'm already writing, one moment."
+_TEXT_FEHLER = "The story didn't work out. Say it again and I'll try once more."
+_TEXT_FERTIG = "Your story in {anzahl} sections:"
+JOURNAL = "Scene sequence from the short story: {anzahl} sections"
+_ABSCHNITT_N = "Section {nummer}"
+UEBERSCHRIFT_VORLAGE = "The previous version you are revising (section by section):"
+_STILE_KOPF = "This is how the characters speak:\n"
+_AUFTRAG = "Your task:\nWrite the story in one go."
+_ZEILE_REGIE = "\nThe group says about it: {regie}"
+
+["schaerfung"]
+MELDUNG = "I've assigned {anzahl} passages from your interviews to your scenes and characters. I'll go through them with you."
+MELDUNG_LEER = "No passage from the interviews fits your story - it stays the way you invented it."
+MELDUNG_OHNE_MATERIAL = "There are no analysed interviews yet that I could sharpen against."
+TEXT_GEMERKT = "I'm still thinking about something else. As soon as I'm done with that, I'll lay your material next to your story."
+_ZEILE_SETTING = "Setting: {rahmen}"
+_GESCHICHTE_KOPF = "Story:\n"
+_FIGUREN_KOPF = "Characters (write the names exactly like this):"
+_SZENEN_KOPF = "Scenes (use the number):"
+_ZEILE_FORM = "Form: {form}"
+_MATERIAL_KOPF = "Material (choose only from here, by number):"
+_ZEILE_WORUM = "\n{interview} -- what it's about: {zusammenfassung}"
+_ZEILE_EINTRAG = '[{nummer}] {interview} | Theme: {thema} | Quote: "{zitat}"'
+_JOURNAL_RUNDE = "Sharpening round {runde}: {anzahl} passages assigned"
+_ZEILE_VORSCHLAG = "\n  Suggestion: {begruendung}"
+_STELLE = "Passage"
+_UEBERSCHRIFT = "{kopf} — what fits from the interviews"
+_FRAGE_SZENE = "\nShould this go into the scene?"
+_FRAGE_FIGUR = "\nShould this go with this character?"
+
+["sprachprofil"]
+MELDUNG = "Speech profile for {name} from {quelle}: {kurz}"
+_TEXT_KEIN_TRANSKRIPT = "I have no transcript for {quelle} - without it I can't hear how {name} speaks."
+_TEXT_KEIN_ZITAT = "I couldn't back up a single sentence word for word for {name}. Name another interview and I'll try with that."
+_DEM_INTERVIEW = "the interview"
+_JOURNAL = "Speech profile for {name} from {quelle}"
+_KURZ_STEHT = "done"
+
+["sprachstil"]
+ANWEISUNG = """You are suggesting to a theatre group HOW one of their characters speaks.
+
+The character is called {name}. Below are ways of speaking from the group's
+interviews, each with a word-for-word quote.
+
+Suggest two to three styles, one per line, in EXACTLY this form, without an
+introduction and without an afterword:
+
+VORSCHLAG STIL:
+Short title — "the word-for-word quote" — example sentence of how {name} would talk about the play's core conflict in this style — Interview N
+Short title — "the word-for-word quote" — example sentence — Interview N
+
+Four columns per line, separated by dashes:
+
+1. **Title** under 25 characters -- it will later be on a button.
+2. **The quote** letter for letter from the list below. Don't invent one, don't
+   smooth one, don't add ellipses. A quote that isn't there word for word is
+   thrown out.
+3. **The example sentence** is yours: ONE sentence of how {name} would talk
+   about the play's core conflict in this style. It shows the style on the
+   group's story, not on the interview.
+4. **Interview N** -- the number the style comes from, written exactly like
+   this.
+
+Then one sentence and an open question, two lines at most."""
+_TEXT_LAEUFT = "I'm listening for how {name} could speak …"
+_TEXT_FEHLER = "The style suggestions didn't work out. Say it again."
+_TEXT_KEIN_MATERIAL = "For the speech style I need interviews with checked quotes - there aren't any yet."
+_STIL_KOPF = "Ways of speaking from the interviews:"
+_ZEILE_SPRACHDUKTUS = "    Way of speaking: {profil}"
+_AUFTRAG = "Your task:\nSuggest two to three ways of speaking for {name}."
+
+["kernzitate"]
+MELDUNG = "I've chosen {anzahl} passages from {interviews} as the basis for the characters."
+MELDUNG_LEER = "No quote fits the core theme - the characters will then come from the core theme alone."
+_ZEILE_KERNTHEMA = "Core theme: {kernthema}"
+_KERNFRAGE_KOPF = "Core question:\n"
+_MATERIAL_KOPF = "Material (choose only from here, by number):"
+_ZEILE_WORUM = "\n{interview} -- what it's about: {zusammenfassung}"
+_ZEILE_EINTRAG = '[{nummer}] {interview} | Theme: {thema} | Quote: "{zitat}"'
+_DEN_INTERVIEWS = "the interviews"
+_UND = " and "
+_JOURNAL_LEER = "Core quotes: no passage fits the core theme"
+_JOURNAL_AUSGEWAEHLT = "Core quotes: {anzahl} chosen from {liste}"
+
+["stueckpruefung"]
+MELDUNG_OHNE_SZENEN = "I can't read the play as a whole yet - no scene has been written."
+MELDUNG_ZU_LANG = "Your script is longer than I can read in one go ({zeichen} characters). I won't shorten any of it - let me know, and we'll look at the scenes one by one."
+MELDUNG_FEHLGESCHLAGEN = "The check didn't work. You can try again in a moment."
+MELDUNG_LEER = "I read the play, but I'm not getting a usable result back. Try again."
+MELDUNG_KOPF = "I read your play as a whole - round {runde}:"
+TEXT_BEFUND = "{frage} {bewertung}/5 - {begruendung}"
+TEXT_BEFUND_OHNE_NOTE = "{frage} - {begruendung}"
+TEXT_VORSCHLAG = "Suggestion: {vorschlag}"
+TEXT_VORSCHLAG_SZENE = "Suggestion: scene {nummer} - {vorschlag}"
+_KEINE_BEGRUENDUNG = "no reason given."
+_JOURNAL_RUNDE = "Play check round {runde}: {anzahl} findings"
+
+["stueckpruefung".FRAGE_BESCHRIFTUNG]
+Spannungsbogen = "Arc"
+Figuren = "Characters"
+Spannung = "Tension"
+Nachvollziehbarkeit = "Plausibility"
+"Anfang und Ende" = "Beginning and ending"
+Sprechbarkeit = "Speakability"
+
+["dramaturgie.beleg"]
+HINWEIS = "Your quote did not appear word for word in the text. Take one continuous piece of the material between the markers, copied letter for letter, at least 15 characters long. If you don't join anything together and don't change anything, the check will find it."
+
+["dramaturgie.fanout"]
+MELDUNG_OHNE_SZENEN = "I can't check the dramaturgy yet - no scene has been written."
+MELDUNG_GLEICHES_MODELL = "I won't check with the same model that wrote the scenes ({modell}) - a model that grades its own text likes it. Set IT_JUDGE_MODELL to a different model, then the check will run."
+MELDUNG_OHNE_USA = "For the check I would have to send your scenes to the US model ({modell}), and you haven't agreed to that. Either you agree to the transfer, or the operator sets IT_JUDGE_MODELL to a Swiss model that didn't write your scenes."
+MELDUNG_FEHLGESCHLAGEN = "The dramaturgy check didn't work. You can try again in a moment."
+MELDUNG_KOPF = "I went through your scenes one by one - round {runde}:"
+MELDUNG_OHNE_BEFUND = "I went through your scenes one by one and found nothing I need to report to you."
+OHNE_SYNOPSE = "(nothing written yet)"
+_SZENE_MIT_NUMMER = "Scene {nummer}"
+_ZEILE_KANDIDAT = 'Scene {szene} - "{wort}" ({anzahl} times)'
+_KOPF_SZENE = "This is scene {nummer} of the play."
+_KOPF_HAUPTKONFLIKT = "\n\nThe main conflict of the play: {hauptkonflikt}"
+_KOPF_FESTLEGUNGEN = "\n\nThe group has set for this scene:\n{festlegungen}"
+_KOPF_SYNOPSEN = "This is the scene sequence of the play as short summaries."
+_KOPF_VORGABEN = "\n\nThe group has set for the whole play:\n{vorgaben}"
+_KOPF_GESCHICHTE = "\nThe group planned the story like this:\n{geschichte}"
+_KOPF_KANDIDATEN = "This is the machine-generated candidate list for this play."
+_KOPF_REPLIKEN = "These are the lines of scene {nummer}, without names. Speaking in this scene: {figuren}."
+_C1_BEFUND = "Of {repliken} lines in scene {nummer}, {richtig} could be matched to the right character once the names were gone."
+_C1_VORSCHLAG = "Scene {nummer}: {erste} and {zweite} sound interchangeable. Give {erste} a speech feature of their own - shorter sentences, a filler word, a break-off - and rewrite their lines in scene {nummer} with it."
+_KEIN_BELEG = "The judge found no supporting quote in the text."
+_ZUSATZ_UNSICHER = "{text} (Supporting quote not confirmed - rating discarded.)"
+_KEIN_BEFUNDTEXT = "(no finding text)"
+TEXT_BEFUND = "Scene {szene}: {text}"
+TEXT_BEFUND_OHNE_SZENE = "{text}"
+TEXT_AUFTRAG_KNOPF = "Revise scene {nummer} like this"
+_DRAMATURGIE = "Dramaturgy"
+
+["dramaturgie.fanout".A10_BESCHRIFTUNG]
+form = "Form"
+ort = "Place"
+zeit = "Time"
+anlass = "Occasion"
+was_passiert = "What happens"
+kernsaetze = "Key lines"
+ton = "Tone"
+
+["dramaturgie.fanout".A11_BESCHRIFTUNG]
+format = "Format"
+rahmen = "Setting (place and time)"
+figuren_anzahl = "Number of characters"
+geschichte = "Planned scene sequence"
+
+["dramaturgie.mechanik"]
+_TEXT_NAMENSDRIFT = "In scene {nummer}, „{label}“ speaks - the character list says „{figur}“. One of the two names is misspelled."
+_TEXT_GEISTERFIGUR = "In scene {nummer}, „{label}“ speaks - there is no such character in your character list."
+_TEXT_OHNE_AUFTRITT = "„{name}“ is in the character list, but speaks in no scene and is mentioned in none."
+_TEXT_BESETZUNG_STUMM = "{name} is in the cast of scene {nummer}, but doesn't speak a line there."
+_TEXT_BESETZUNG_FREMD = "{label} speaks in scene {nummer}, but isn't in the cast there."
+_TEXT_ERSTAUFTRITT = "{name} is already named in scene {frueher}, but only speaks for the first time in scene {erste} - check whether it's explained there how people know them."
+_TEXT_TSCHECHOW = "„{wort}“ appears {anzahl} times in scene {szene} and in no scene after that."
+_TEXT_ERSTE_FORM = "Scene {erste} is a {form}. The first scene should never be a monologue or a song - it has to show who is there and what it's about."
+_SZENE_N = "Scene {nummer}"
+_TEXT_FORMREGEL = "Of {mit_form} scenes with a chosen form, {nicht_dialog} are not dialogue scenes ({namen}). The rule in the scene prompt is at most one non-dialogue scene per three."
+_TEXT_FORMVERTEILUNG = "{namen} are non-dialogue scenes in a row. Three non-dialogue scenes in a row stop the action."
+_TEXT_SPRECHANTEIL = "{name} speaks {anzahl} of {gesamt} words in the whole play. That's too little for a part someone is supposed to play."
+_TEXT_FOKUS = "Scene {nummer}: {ohne} of {gesamt} characters are a side plot -- not about the conflict of {traeger}, not an introduction, subplot or description of the place."
+_TEXT_FOKUS_LAENGSTER = " The longest begins with „{anfang}…\"."
+_UND = " and "
+
+["dramaturgie.mechanik"._FORM_BESCHRIFTUNG]
+dialog = "dialogue"
+monolog = "monologue"
+chor = "chorus"
+lied = "song"
+rap = "rap"
+
+["web_schreiben"]
+LEER = "(empty)"
+JOURNAL_GEAENDERT = "{label} changed via the group page: {alt} → {neu}"
+JOURNAL_SPRACHPROFIL = "Speech profile needed again: {name} now speaks from {quelle}."
+JOURNAL_FIGUR_ENTFERNT = "Character {name} removed via the group page"
+JOURNAL_FIGUR_ANGELEGT = "Character {name} added via the group page"
+JOURNAL_FESTLEGUNG_ENTFERNT = "Agreement {text} removed via the group page"
+_KEINEM_INTERVIEW = "no interview"
+_LABEL_FIGUR = "Character {name} · {feld}"
+_LABEL_INTERVIEW = "Interview"
+_LABEL_BESETZUNG = "Cast"
+_SZENE_MIT_NUMMER = "Scene {nummer}"
+_SZENE_OHNE_NUMMER = "Scene"
+_FEHLER_FIGUR_FEHLT = "Character not found."
+_FEHLER_SZENE_FEHLT = "Scene not found."
+_FEHLER_NAME_FEHLT = "A character needs a name."
+_FEHLER_INTERVIEW_FEHLT = "Interview not found."
+_FEHLER_FIGUR_DOPPELT = "“{name}” already exists."
+_FEHLER_FESTLEGUNG_FEHLT = "Agreement not found."
+_FEHLER_PARAMETER = "Unknown parameter: {feld}"
+
+["web_schreiben".STIL_BESCHRIFTUNG]
+schlagabtausch = "Sharp back-and-forth (Schatten — Morpheuz x Monet192)"
+litanei = "Litany (Lovesong — Adele)"
+herkules = "Herkules measure (Herkules.exe — ArtesMobiles)"
+
+["web_schreiben".ARBEITSSTANDFELDER]
+rahmen = "Setting"
+geschichte = "Story"
+
+["web_schreiben".NUR_ANZEIGE]
+kernthema = "Core theme"
+kernthema_richtung = "Core theme direction"
+kernfrage = "Core question"
+hauptkonflikt = "Main conflict"
+
+["web_schreiben".SZENENFELDER]
+titel = "Title"
+form = "Form"
+stil = "Style"
+ort = "Place"
+zeit = "Time"
+anlass = "Occasion"
+was_passiert = "What happens"
+was_anders = "What's different"
+ton = "Tone"
+
+["web_schreiben".FIGURENFELDER]
+name = "Name"
+beschreibung = "Description"
+
+["web"]
+TEXT_SPEICHERN = "Save"
+TEXT_ENTFERNEN = "Remove"
+_TEXT_EIGENE = "your own …"
+_TEXT_EIGENE_FORMULIERUNG = "your own wording"
+_TEXT_OHNE_BESCHREIBUNG = "no description"
+_TEXT_SPRECHWEISE_AUS = "Way of speaking from {quelle}"
+_TEXT_SPRICHT_AUS = "Speaks from"
+_TEXT_KEIN_INTERVIEW = "— no interview —"
+_TEXT_NOCH_OFFEN = "— still open —"
+_TEXT_OFFEN = "— open —"
+_TEXT_OHNE_STIL = "— no style model —"
+_TEXT_OHNE_TITEL = "untitled"
+_ZITAT = "“{zitat}”"
+_TEXT_KEINE_FIGUREN = "No characters yet."
+_TEXT_KEINE_FIGUR = "No character yet."
+_TEXT_NOCH_KEINE = "none yet"
+_TEXT_SCHAERFUNG = "Sharpening"
+_TEXT_SZENE = "Scene"
+_TEXT_SZENE_NR = "Scene {nummer}"
+_UEBERSCHRIFT_DRAMATURGIE = "Dramaturgy check"
+_TEXT_DRAMATURGIE_RUNDE = "Round {runde}, {anzahl} findings. Decisions are made in the chat."
+_TEXT_KEINE_FESTLEGUNGEN = "Nothing recorded yet that doesn't fit a field."
+_PLATZ_SETTING = "place, time, occasion"
+_PLATZ_GESCHICHTE = "what happens, how it ends"
+_PLATZ_NEUE_FIGUR = "name of the new character"
+_TEXT_FIGUR_HINZU = "Add character"
+_SPRECHANTEILE_KOEPFE = ["Character", "Share", "Lines", "Scenes"]
+_TEXT_EIN_TEIL = "1 part"
+_TEXT_TEILE = "{anzahl} parts"
+_TEXT_WER = "Who"
+_TEXT_VORSCHLAG = "Suggested: {form}"
+_TEXT_KURZ = "In short"
+_TEXT_ZUSAMMENFASSUNG = "Summary"
+_TEXT_ALS_GESCHICHTE = "As a story"
+_TEXT_GEPLANT = "No text yet — the scene is planned."
+_TEXT_FASSUNG_NR = "Version {nummer}"
+_TEXT_N_FASSUNGEN = "{anzahl} versions"
+_TEXT_FASSUNG_VON = "Version {nummer} of {gesamt}"
+_TEXT_DIE_AKTUELLE = "the current one"
+_TEXT_VORIGE_FASSUNG = "← previous version ({nummer})"
+_UEBERSICHT_KOEPFE = ["No.", "Scene", "Form", "Style", "Text", "Versions"]
+_TEXT_ALS_VORSCHLAG = "{form} (suggested)"
+_TEXT_UMFANG_PROSA = "Prose {zeichen} ch."
+_TEXT_UMFANG_TEXT = "Text {zeichen} ch."
+_TEXT_KEIN_TEXT = "no text yet"
+_TEXT_INTERVIEW = "Interview"
+_TEXT_NICHT_VERDICHTET = "Not summarised yet."
+_TEXT_KEINE_SZENE = "No scene yet. Scenes are created in the last phase."
+_TEXT_KEIN_INTERVIEW_NOCH = "No interview yet — say “we're doing an interview now” and just start talking."
+_TEXT_NICHTS_NOTIERT = "Nothing noted yet."
+_TEXT_GRUPPE = "Group {chat_id}"
+_TITEL_GRUPPENSEITE = "{titel} — interview-theater"
+_TEXT_PROBENANSICHT_LINK = "📖 Rehearsal view — the whole play in one piece, to read and print"
+_UEBERSCHRIFT_UEBERBLICK = "Overview"
+_UEBERSCHRIFT_ARBEITSSTAND = "Where we are"
+_UEBERSCHRIFT_FESTLEGUNGEN = "Other agreements"
+_UEBERSCHRIFT_SZENEN = "Scenes"
+_UEBERSCHRIFT_INTERVIEWS = "From the interviews"
+_UEBERSCHRIFT_WEG = "How we got here"
+_TEXT_JOURNAL = "Journal ({anzahl})"
+_JS_SICHER = "Really remove?"
+_JS_SPEICHERT = "saving …"
+_JS_GESPEICHERT = "saved"
+_JS_FEHLER = "didn't work"
+_TEXT_STUECK_LEER = "No scene yet — the play will be here as soon as there is one."
+_TITEL_PROBENANSICHT = "{titel} — rehearsal view"
+_TEXT_ZUM_ARBEITSSTAND = "‹ Where we are"
+_TEXT_TEXTBUCH_MD = "Script .md"
+_TEXT_TEXTBUCH_TXT = "Script .txt"
+_TEXT_SCHRIFT = "Text size"
+_TEXT_SCHRIFT_KLEIN = "small"
+_TEXT_SCHRIFT_MITTEL = "medium"
+_TEXT_SCHRIFT_GROSS = "large"
+_TEXT_REGIE_AUS = "Hide stage directions"
+_TEXT_DRUCKEN = "To print: use your browser's print function — one page per scene, without bars and colours."
+_TEXT_ROLLE = "Role"
+_TEXT_ALLE = "all"
+_TEXT_BESETZUNG = "Cast: {figuren}"
+_TEXT_ALS_GESCHICHTE_DOPPELPUNKT = "As a story:"
+_TITEL_LEITFADEN = "Interview guide — {titel}"
+_TEXT_VORHER_SAGEN = "Say beforehand: {text}"
+_TEXT_KERN = "Core: {text}"
+_TITEL_NICHT_GEFUNDEN = "Not found"
+_TEXT_NICHT_GEFUNDEN = "This address doesn't exist. Ask for the link in the workshop."
+_TEXT_DB_NICHT_LESBAR = "The database can't be read right now."
+_TEXT_DB_NICHT_BESCHREIBBAR = "The database can't be written right now."
+_TEXT_SEITE_VERALTET = "This page is out of date — please reload it once."
+_TEXT_UNGUELTIG = "Invalid request."
+_TEXT_LEER_ANFRAGE = "Empty request."
+_TEXT_ZU_LANG = "The text is too long."
+TEXT_LEITFADEN_LINK = "Large and printable"
+TEXT_FASSUNGEN = "Earlier versions"
+_PROBE_ANGABEN = [["form", "Form"], ["ort", "Place"], ["zeit", "Time"], ["anlass", "Occasion"]]
+_PROBE_PLANUNG = [["was_passiert", "What happens"], ["was_anders", "What's different"], ["kernsaetze", "Key lines"], ["ton", "Tone"]]
+TEXT_UNGESCHRIEBEN = "Not written yet."
+TEXT_LEITFADEN_LEER = "The interview guide is created in phase 2."
+TEXT_LEITFADEN_ZURUECK = "← back to where we are"
+
+["web".ARBEITSSTAND_BESCHRIFTUNG]
+phase = "Phase"
+begriffe = "Terms"
+fragen = "Questions"
+leitfaden = "Interview guide"
+kernthema = "Core theme"
+rahmen = "Setting"
+geschichte = "Story"
+hauptkonflikt = "Main conflict"
+figuren = "Characters"
+
+["web".SZENENFELD_BESCHRIFTUNG]
+"Form" = "Form"
+"Form (Vorschlag)" = "Form (suggested)"
+"Stil" = "Style"
+"Ort" = "Place"
+"Zeit" = "Time"
+"Anlass" = "Occasion"
+"Was passiert" = "What happens"
+"Was anders ist" = "What's different"
+"Kernsätze" = "Key lines"
+"Ton" = "Tone"
+
+["web".FORM_BESCHRIFTUNG]
+dialog = "dialogue"
+monolog = "monologue"
+chor = "chorus"
+lied = "song"
+rap = "rap"
+
+["web".JOURNALART_BESCHRIFTUNG]
+vorgeschlagen = "suggested"
+verworfen = "rejected"
+entschieden = "decided"
+offen = "open"
+notiert = "noted"
+
+["web".FESTLEGUNG_BEREICH_BESCHRIFTUNG]
+figur = "character"
+gruppe = "faction"
+ort = "place"
+struktur = "structure"
+form = "form"
+stil = "style"
+sonstiges = "other"
+
+["web".PRUEFUNG_BESCHRIFTUNG]
+a2 = "causal chain"
+a6 = "Chekhov's gun"
+a9 = "focus"
+a10 = "faithfulness to the material"
+a11 = "requirements for the play"
+b1 = "turning point"
+c1 = "distinct voices"
+namensstabilitaet = "consistent names"
+geisterfigur = "ghost character"
+erstauftritt = "first appearance"
+figur_ohne_auftritt = "character without an appearance"
+fokus = "focus"
+besetzung_stumm = "silent cast member"
+besetzung_fremd = "speaker not in the cast"
+formverteilung = "spread of forms"
+form_regel = "form rule"
+tschechow = "Chekhov candidate"
+sprechanteil = "speaking share"

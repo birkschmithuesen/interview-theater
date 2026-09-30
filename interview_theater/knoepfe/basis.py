@@ -18,12 +18,8 @@ from interview_theater import phasen, repo
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_EIGENE, ART_KERNTHEMA, ART_PHASE, ART_SPEICHERN,
-    MAX_AUSWAHL, MAX_VORSCHLAEGE, MENUE_KNOPF_LAENGE, PRAEFIX,
-    TEXT_ANDERS_KNOPF, TEXT_WEITER_KNOPF, TRENNER, _AUSWAHLMARKER, _FELD_FUER,
-    _NOTIERT, _TEXT_ANDERS_KNOPF, _TEXT_FRAGEN_WAHL, _TEXT_KERNTHEMA_FRAGE,
-    _TEXT_KERNTHEMA_KEINE, _TEXT_MENUE_ANDERS_KNOPF,
-    _TEXT_NACH_SPEICHERN_FRAGE, _TEXT_SCHON_GESETZT, _TEXT_SPEICHERN_KNOPF,
-    _TEXT_UNBEKANNT, log,
+    MAX_AUSWAHL, MAX_VORSCHLAEGE, MENUE_KNOPF_LAENGE, PRAEFIX, TRENNER,
+    _AUSWAHLMARKER, _FELD_FUER, T, log,
 )
 
 
@@ -92,13 +88,13 @@ def biete_kernthema(conn, tg, chat_id: int, vorschlaege: list[str] | None = None
         vorschlaege = kernthema_vorschlaege(conn, chat_id)
     vorschlaege = [v for v in vorschlaege if v.strip()][:MAX_VORSCHLAEGE]
     if not vorschlaege:
-        tg.sende(chat_id, _TEXT_KERNTHEMA_KEINE)
+        tg.sende(chat_id, T._TEXT_KERNTHEMA_KEINE)
         return False
     knoepfe = [
         (wert, _daten(repo.lege_knopf_an(conn, chat_id, ART_KERNTHEMA, wert)))
         for wert in vorschlaege
     ]
-    _sende_knoepfe(conn, tg, chat_id, _TEXT_KERNTHEMA_FRAGE, knoepfe)
+    _sende_knoepfe(conn, tg, chat_id, T._TEXT_KERNTHEMA_FRAGE, knoepfe)
     return True
 
 
@@ -110,7 +106,7 @@ def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
     ``/phase 4`` -- selten genug, und ein Knopf je Phase machte aus dem
     Angebot ein Menue."""
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
-    beschriftung = f"Weiter zu {phasen.knopfbezeichnung(nummer)}"
+    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.knopfbezeichnung(nummer))
     _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
 
 
@@ -128,7 +124,8 @@ def _phasenknopf(conn, chat_id: int) -> tuple[str, str] | None:
     if nummer is None:
         return None
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
-    return (f"Weiter zu {phasen.knopfbezeichnung(nummer)}", _daten(knopf_id))
+    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.knopfbezeichnung(nummer))
+    return (beschriftung, _daten(knopf_id))
 
 
 def _merke_botnachricht(conn, chat_id: int, message_id: int, text: str) -> None:
@@ -207,8 +204,8 @@ def speicherleiste(conn, chat_id: int, art: str, wert: str) -> list[tuple[str, s
     )
     nochmal = repo.lege_knopf_an(conn, chat_id, ART_EIGENE, art)
     return [
-        (_TEXT_SPEICHERN_KNOPF, _daten(speichern)),
-        (_TEXT_ANDERS_KNOPF, _daten(nochmal)),
+        (T._TEXT_SPEICHERN_KNOPF, _daten(speichern)),
+        (T._TEXT_ANDERS_KNOPF, _daten(nochmal)),
     ]
 
 
@@ -288,7 +285,7 @@ def _sende_menue(conn, tg, chat_id: int, text: str, marker: str,
         return tg.sende(chat_id, vorschlag.ohne_marker(text) or text), False
     oben.append(
         (
-            _TEXT_MENUE_ANDERS_KNOPF,
+            T._TEXT_MENUE_ANDERS_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, marker)),
         )
     )
@@ -313,7 +310,7 @@ def _sende_rueckspiegelung(conn, tg, chat_id: int, sauber: str, marker: str,
     Kernthema), laeuft der Druck ueber ``ART_SPEICHERN``: nur dieser Weg
     traegt die Kette danach weiter (``_kette_weiter``: Setting -> Anzahl der
     Figuren, Kernthema -> Kernfrage)."""
-    if marker in _NOTIERT:
+    if marker in T._NOTIERT:
         leiste = speicherleiste(conn, chat_id, marker, wert)
         message_id = _sende_knoepfe(conn, tg, chat_id, sauber, leiste)
         repo.merke_knopf_nachricht(
@@ -323,11 +320,11 @@ def _sende_rueckspiegelung(conn, tg, chat_id: int, sauber: str, marker: str,
     art = _AUSWAHLMARKER[marker]
     leiste = [
         (
-            _TEXT_SPEICHERN_KNOPF,
+            T._TEXT_SPEICHERN_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, art, wert)),
         ),
         (
-            _TEXT_ANDERS_KNOPF,
+            T._TEXT_ANDERS_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, marker)),
         ),
     ]
@@ -382,7 +379,7 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
 
         return biete_fragenauswahl(
             conn, tg, chat_id, bloecke["fragenauswahl"],
-            vorschlag.ohne_block(text, "fragenauswahl") or _TEXT_FRAGEN_WAHL,
+            vorschlag.ohne_block(text, "fragenauswahl") or T._TEXT_FRAGEN_WAHL,
         ), True
 
     # Oben: die Auswahlknoepfe. Kommen mehrere Auswahl-Bloecke in einer
@@ -609,11 +606,11 @@ def grundleiste(conn, chat_id: int, art: str, wert: str) -> list[tuple[str, str]
     Fassung."""
     return [
         (
-            TEXT_WEITER_KNOPF,
+            T.TEXT_WEITER_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, art, f"weiter{TRENNER}{wert}")),
         ),
         (
-            TEXT_ANDERS_KNOPF,
+            T.TEXT_ANDERS_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, art)),
         ),
     ]
@@ -645,7 +642,7 @@ def _ist_bestaetigung(conn, chat_id: int, art: str, wert: str) -> bool:
     ``aenderung_offen``) und durch den Erkenner, wenn die Gruppe den neuen
     Wert wirklich sagt -- beides sind ausgesprochene Absichten, kein
     Nebeneffekt eines Knopfdrucks."""
-    if art not in _NOTIERT:
+    if art not in T._NOTIERT:
         return False
     stand = repo.hole_arbeitsstand(conn, chat_id)
     if stand is None:
@@ -675,16 +672,16 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
     wert = wert.strip()
     if not art or not wert:
         log.error("Speicher-Knopf ohne Wert, chat_id=%s, roh=%r", chat_id, roh)
-        return _TEXT_UNBEKANNT
+        return T._TEXT_UNBEKANNT
 
     if art == "figuren":
         from interview_theater.knoepfe.figuren import _uebernimm_figurenliste
 
         return _uebernimm_figurenliste(conn, tg, chat_id, wert)
 
-    if art not in _NOTIERT:
+    if art not in T._NOTIERT:
         log.error("Speicher-Knopf mit unbekannter art %r, chat_id=%s", art, chat_id)
-        return _TEXT_UNBEKANNT
+        return T._TEXT_UNBEKANNT
 
     if nur_bestaetigen and _ist_bestaetigung(conn, chat_id, art, wert):
         # Das Feld steht, niemand hat um eine Aenderung gebeten: der Druck
@@ -698,8 +695,8 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
             conn, chat_id, None, "ueberschreiben_verhindert",
             f"'{art}' steht bereits und wurde durch einen Speicher-Knopf nicht ersetzt",
         )
-        tg.sende(chat_id, _TEXT_SCHON_GESETZT)
-        return _TEXT_SCHON_GESETZT
+        tg.sende(chat_id, T._TEXT_SCHON_GESETZT)
+        return T._TEXT_SCHON_GESETZT
 
     repo.setze_arbeitsstand(conn, chat_id, _FELD_FUER.get(art, art), wert)
     if weiterfrage:
@@ -707,11 +704,11 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
         # verschwindet wieder (``offene_art``).
         repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", f"{_NOTIERT[art]}: {wert}", quelle="knopf",
+        conn, chat_id, "entschieden", f"{T._NOTIERT[art]}: {wert}", quelle="knopf",
     )
     tg.sende(
         chat_id,
-        f"Notiert:\n{_NOTIERT[art]}: {wert}",
+        T._TEXT_NOTIERT_ZEILE.format(feld=T._NOTIERT[art], wert=wert),
     )
     # Danach die eine Frage, die den Zwischenraum offenhaelt -- und darunter,
     # wenn die Materiallage es hergibt, der Weg weiter
@@ -720,10 +717,10 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
     if weiterfrage:
         phasenknopf = _phasenknopf(conn, chat_id)
         if phasenknopf is not None:
-            _sende_knoepfe(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
+            _sende_knoepfe(conn, tg, chat_id, T._TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
         else:
-            tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
-    return f"{_NOTIERT[art]} uebernommen"
+            tg.sende(chat_id, T._TEXT_NACH_SPEICHERN_FRAGE)
+    return T._TEXT_FELD_UEBERNOMMEN.format(feld=T._NOTIERT[art])
 
 
 def _starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,

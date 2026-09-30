@@ -90,7 +90,7 @@ VERBOTEN = ("kino", "film", "vorhang", "kamera", "leinwand", "dreh")
 
 def liste(art: str | None) -> tuple[str, ...]:
     """Die Zeilen zu einer Auftragsart -- oder die allgemeinen."""
-    return ZEILEN.get((art or "").strip().lower(), VORGABE)
+    return T.ZEILEN.get((art or "").strip().lower(), T.VORGABE)
 
 
 def _reihenfolge(art: str | None) -> list[str]:
@@ -184,3 +184,8 @@ def sichtbar(tg, chat_id: int, art: str | None = None) -> Lauf:
     lauf = Lauf(tg, chat_id, art)
     lauf.starte()
     return lauf
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

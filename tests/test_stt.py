@@ -332,3 +332,59 @@ def test_dauerhaft_pending_laeuft_in_die_frist(einst, monkeypatch):
     ))
     with pytest.raises(stt.STTFehler):
         stt.abholen(einst, klient, "B1", 0.2)
+
+
+def _multipart_mitschnitt(zustand):
+    def handler(request):
+        if "audio/transcriptions" in request.url.path:
+            zustand["body"] = request.read()
+            return httpx.Response(200, json={"batch_id": "B1"})
+        return httpx.Response(200, json={
+            "status": "success",
+            "data": json.dumps({"text": "Ciao a tutti.", "language": "italian"})})
+    return handler
+
+
+def test_ohne_angabe_bleibt_es_bei_deutsch(einst, tmp_path, monkeypatch):
+    """Dortmund unveraendert: dasselbe Feld, derselbe Wert wie vor A1."""
+    monkeypatch.setattr(stt.time, "sleep", lambda s: None)
+    zustand = {}
+    datei = tmp_path / "a.ogg"
+    datei.write_bytes(b"OggS")
+    stt.transkribiere(einst, _klient(_multipart_mitschnitt(zustand)), datei, 30.0)
+    assert b'name="language"\r\n\r\nde\r\n' in zustand["body"]
+
+
+def test_auto_schickt_kein_language_feld(einst, tmp_path, monkeypatch):
+    """Birk E5: die Interviewsprache ist offen -- Whisper erkennt sie selbst."""
+    monkeypatch.setattr(stt.time, "sleep", lambda s: None)
+    zustand = {}
+    datei = tmp_path / "a.ogg"
+    datei.write_bytes(b"OggS")
+    text = stt.transkribiere(
+        einst, _klient(_multipart_mitschnitt(zustand)), datei, 30.0, sprache="auto")
+    assert text == "Ciao a tutti."
+    assert b'name="language"' not in zustand["body"]
+    assert b'name="response_format"' in zustand["body"]
+
+
+def test_gruppenwert_it_geht_als_language_it(einst, tmp_path, monkeypatch):
+    monkeypatch.setattr(stt.time, "sleep", lambda s: None)
+    zustand = {}
+    datei = tmp_path / "a.ogg"
+    datei.write_bytes(b"OggS")
+    stt.transkribiere(einst, _klient(_multipart_mitschnitt(zustand)), datei, 30.0, sprache="it")
+    assert b'name="language"\r\n\r\nit\r\n' in zustand["body"]
+
+
+def test_erkannte_sprache_steht_im_log(einst, tmp_path, monkeypatch, caplog):
+    """ANNAHME A1: das Ergebnis traegt ein Feld 'language'. Wenn ja, soll es
+    im Log stehen -- dort sieht der Betrieb, was Whisper gehoert hat."""
+    import logging
+
+    monkeypatch.setattr(stt.time, "sleep", lambda s: None)
+    datei = tmp_path / "a.ogg"
+    datei.write_bytes(b"OggS")
+    with caplog.at_level(logging.INFO, logger="interview_theater.stt"):
+        stt.transkribiere(einst, _klient(_multipart_mitschnitt({})), datei, 30.0, sprache="auto")
+    assert "italian" in caplog.text

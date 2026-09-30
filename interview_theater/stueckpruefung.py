@@ -80,6 +80,19 @@ FRAGEN: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Sprechbarkeit", ("sprechbarkeit", "sprache", "sprechen")),
 )
 
+#: Dieselben Stichwoerter auf Englisch (Karte A1, K5): der englische Prompt
+#: nennt "Tension arc", "Characters", ... Schluessel sind die deutschen
+#: Fragenamen aus ``FRAGEN`` (Speicherschluessel). ``frage_fuer`` probiert
+#: erst die deutschen, dann diese -- deutsches Verhalten bleibt gleich.
+_STICHWOERTER_EN: dict[str, tuple[str, ...]] = {
+    "Spannungsbogen": ("tension arc", "arc"),
+    "Figuren": ("characters", "character"),
+    "Spannung": ("suspense", "tension"),
+    "Nachvollziehbarkeit": ("plausibility", "logic", "motivation"),
+    "Anfang und Ende": ("beginning", "ending", "exposition"),
+    "Sprechbarkeit": ("speakability", "spoken", "language"),
+}
+
 #: Die Markerzeilen des Antwortformats.
 _MARKER_BEFUND = "BEFUND:"
 _MARKER_BEWERTUNG = "BEWERTUNG:"
@@ -135,7 +148,9 @@ def baue_nutzertext(conn, chat_id: int) -> str:
         volltext = (s["volltext"] or "").strip()
         if not volltext:
             continue
-        kopf = f"Szene {s['nummer']}" if s["nummer"] is not None else "Szene"
+        from interview_theater import szene as szene_modul
+
+        kopf = szene_modul._szenenkopf(s["nummer"])
         if (s["titel"] or "").strip():
             kopf += f": {s['titel'].strip()}"
         if (s["form"] or "").strip():
@@ -167,6 +182,11 @@ def frage_fuer(text: str) -> str | None:
             return name
     for name, stichwoerter in FRAGEN:
         if any(s in gefaltet for s in stichwoerter):
+            return name
+    # Englisch erst nach allen deutschen Wegen, mit Wortanfang: "arc" soll
+    # nicht in "search" treffen (Wortgrenzen-Lehre aus Aufgabe 22).
+    for name, stichwoerter in _STICHWOERTER_EN.items():
+        if any(re.search(r"\b" + re.escape(s), gefaltet) for s in stichwoerter):
             return name
     return None
 
@@ -246,7 +266,7 @@ def pruefe(klm, conn, e, chat_id: int) -> tuple[int, int]:
 
     nutzer = baue_nutzertext(conn, chat_id)
     if not nutzer.strip():
-        raise PruefungFehler(MELDUNG_OHNE_SZENEN)
+        raise PruefungFehler(T.MELDUNG_OHNE_SZENEN)
 
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
     system = prompt()
@@ -266,7 +286,7 @@ def pruefe(klm, conn, e, chat_id: int) -> tuple[int, int]:
             )
         except Exception:
             log.exception("Vorfall stueckpruefung_zu_lang nicht geschrieben")
-        raise PruefungFehler(MELDUNG_ZU_LANG.format(zeichen=len(nutzer)))
+        raise PruefungFehler(T.MELDUNG_ZU_LANG.format(zeichen=len(nutzer)))
 
     runde = repo.letzte_pruefrunde(conn, chat_id) + 1
     if ueber_claude:
@@ -281,12 +301,12 @@ def pruefe(klm, conn, e, chat_id: int) -> tuple[int, int]:
 
     befunde = zerlege(antwort)
     if not befunde:
-        raise PruefungFehler(MELDUNG_LEER)
+        raise PruefungFehler(T.MELDUNG_LEER)
     anzahl = repo.lege_stueckpruefung_an(conn, chat_id, befunde, runde=runde)
     if anzahl:
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
-            f"Stueckpruefung Runde {runde}: {anzahl} Befunde",
+            T._JOURNAL_RUNDE.format(runde=runde, anzahl=anzahl),
             quelle="stueckpruefung",
         )
     return anzahl, runde
@@ -318,7 +338,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
         except Exception:
             log.exception("Vorfall zur Stueckpruefung nicht schreibbar")
         zeilen.stoppe()
-        _sende(conn, tg, e, chat_id, MELDUNG_FEHLGESCHLAGEN)
+        _sende(conn, tg, e, chat_id, T.MELDUNG_FEHLGESCHLAGEN)
     else:
         zeilen.stoppe()
         try:
@@ -366,26 +386,47 @@ TEXT_BEFUND = "{frage} {bewertung}/5 - {begruendung}"
 TEXT_BEFUND_OHNE_NOTE = "{frage} - {begruendung}"
 TEXT_VORSCHLAG = "Vorschlag: {vorschlag}"
 TEXT_VORSCHLAG_SZENE = "Vorschlag: Szene {nummer} - {vorschlag}"
+_KEINE_BEGRUENDUNG = "keine Begruendung."
+_JOURNAL_RUNDE = "Stueckpruefung Runde {runde}: {anzahl} Befunde"
+
+#: Die sichtbaren Namen der sechs Fragen (K4): ``FRAGEN`` ist Parser und
+#: Speicherschluessel und bleibt deutsch, angezeigt wird ueber diese Tabelle
+#: -- deutsch auf sich selbst abgebildet, die englische Fassung steht in
+#: ``sprachen/en/texte.toml``.
+FRAGE_BESCHRIFTUNG = {
+    "Spannungsbogen": "Spannungsbogen",
+    "Figuren": "Figuren",
+    "Spannung": "Spannung",
+    "Nachvollziehbarkeit": "Nachvollziehbarkeit",
+    "Anfang und Ende": "Anfang und Ende",
+    "Sprechbarkeit": "Sprechbarkeit",
+}
+
+
+def _frage(zeile) -> str:
+    """Der angezeigte Name der Frage eines Befunds."""
+    frage = str(zeile["frage"])
+    return T.FRAGE_BESCHRIFTUNG.get(frage, frage)
 
 
 def befundtext(zeile) -> str:
     """Der Text EINER Befund-Nachricht."""
-    begruendung = (zeile["begruendung"] or "").strip() or "keine Begruendung."
+    begruendung = (zeile["begruendung"] or "").strip() or T._KEINE_BEGRUENDUNG
     if zeile["bewertung"] is not None:
-        kopf = TEXT_BEFUND.format(
-            frage=zeile["frage"], bewertung=zeile["bewertung"],
+        kopf = T.TEXT_BEFUND.format(
+            frage=_frage(zeile), bewertung=zeile["bewertung"],
             begruendung=begruendung,
         )
     else:
-        kopf = TEXT_BEFUND_OHNE_NOTE.format(
-            frage=zeile["frage"], begruendung=begruendung,
+        kopf = T.TEXT_BEFUND_OHNE_NOTE.format(
+            frage=_frage(zeile), begruendung=begruendung,
         )
     vorschlag = (zeile["vorschlag"] or "").strip()
     if not vorschlag:
         return kopf
     if zeile["szene_nummer"] is not None:
-        return f"{kopf}\n{TEXT_VORSCHLAG_SZENE.format(nummer=zeile['szene_nummer'], vorschlag=vorschlag)}"
-    return f"{kopf}\n{TEXT_VORSCHLAG.format(vorschlag=vorschlag)}"
+        return f"{kopf}\n{T.TEXT_VORSCHLAG_SZENE.format(nummer=zeile['szene_nummer'], vorschlag=vorschlag)}"
+    return f"{kopf}\n{T.TEXT_VORSCHLAG.format(vorschlag=vorschlag)}"
 
 
 def regienotiz(zeile) -> str:
@@ -393,4 +434,8 @@ def regienotiz(zeile) -> str:
     "Szene N ueberarbeiten" drueckt: der Vorschlag des Richters, mit der
     Frage davor, damit im Auftrag steht, WORAUF er zielt."""
     vorschlag = (zeile["vorschlag"] or "").strip()
-    return f"{zeile['frage']}: {vorschlag}" if vorschlag else str(zeile["frage"])
+    return f"{_frage(zeile)}: {vorschlag}" if vorschlag else _frage(zeile)
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

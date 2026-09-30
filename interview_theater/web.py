@@ -208,6 +208,12 @@ _BEARBEITEN_JS = """
     var eingabe = feld.querySelector('textarea, input');
     return eingabe ? eingabe.value : '';
   };
+  // Die Meldungen stehen als data-Attribute im <body> (#meldungen), in der
+  // Sprache des Profils -- im Skript steht kein Nutzertext (Karte A1).
+  var meldung = function (name) {
+    var m = document.getElementById('meldungen');
+    return (m && m.dataset[name]) || '';
+  };
   var melde = function (feld, text, schlecht) {
     var hinweis = feld.querySelector('.hinweis');
     if (!hinweis) { return; }
@@ -237,11 +243,11 @@ _BEARBEITEN_JS = """
     var entfernt = (feld.dataset.feld || '').slice(-10) === '_entfernen';
     if (entfernt && knopf.dataset.sicher !== '1') {
       knopf.dataset.sicher = '1';
-      knopf.textContent = 'Wirklich entfernen?';
+      knopf.textContent = meldung('sicher');
       return;
     }
     knopf.disabled = true;
-    melde(feld, 'speichert …', false);
+    melde(feld, meldung('speichert'), false);
     fetch(location.pathname, {
       method: 'POST',
       cache: 'no-store',
@@ -259,12 +265,12 @@ _BEARBEITEN_JS = """
       return r.text().then(function (t) { return { ok: r.ok, text: t }; });
     }).then(function (a) {
       knopf.disabled = false;
-      if (!a.ok) { melde(feld, a.text || 'ging nicht', true); return; }
+      if (!a.ok) { melde(feld, a.text || meldung('fehler'), true); return; }
       feld.dataset.schmutzig = '0';
-      melde(feld, 'gespeichert', false);
+      melde(feld, meldung('gespeichert'), false);
     }).catch(function () {
       knopf.disabled = false;
-      melde(feld, 'ging nicht', true);
+      melde(feld, meldung('fehler'), true);
     });
   });
 })();
@@ -488,6 +494,223 @@ h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; text-transform: uppercase;
 """
 
 
+# --- Die sichtbaren Texte der Gruppenseite, Probenansicht, Leitfaden-Seite --
+#
+# Karte A1 (Aufgabe 17): die deutschen Konstanten SIND die deutsche Tabelle,
+# die englische steht in ``sprachen/en/texte.toml`` unter ``["web"]``. Gelesen
+# wird ueber ``T`` zur Aufrufzeit -- ein Web-Prozess bedient alle Gruppen, ein
+# beim Import eingefrorener Text waere der falsche Workshop. **Nicht** hier:
+# die Texte des Team-Dashboards (``dashboard_html``) -- es haengt am Beamer,
+# ist fuer das Team und bleibt deutsch (``INLINE_ERLAUBT`` in
+# ``tests/test_sprache_texte.py``).
+
+#: Die Beschriftungen im Arbeitsstand (``<dt>``), je Feld.
+ARBEITSSTAND_BESCHRIFTUNG = {
+    "phase": "Phase",
+    "begriffe": "Begriffe",
+    "fragen": "Fragen",
+    "leitfaden": "Leitfaden",
+    "kernthema": "Kernthema",
+    "rahmen": "Setting",
+    "geschichte": "Geschichte",
+    "hauptkonflikt": "Hauptkonflikt",
+    "figuren": "Figuren",
+}
+
+#: Die Beschriftungen aus ``web_daten.SZENENFELDER`` (K4: deutsch auf sich
+#: selbst abgebildet). ``web_daten`` bleibt ohne Sprachzugriff -- es liefert
+#: Daten, beschriftet wird hier.
+SZENENFELD_BESCHRIFTUNG = {
+    "Form": "Form",
+    "Form (Vorschlag)": "Form (Vorschlag)",
+    "Stil": "Stil",
+    "Ort": "Ort",
+    "Zeit": "Zeit",
+    "Anlass": "Anlass",
+    "Was passiert": "Was passiert",
+    "Was anders ist": "Was anders ist",
+    "Kernsätze": "Kernsätze",
+    "Ton": "Ton",
+}
+
+#: Wie eine Form auf der Seite heisst. Der Schluessel ist der Datenbankwert
+#: (Protokoll, ``szene.form``), der Wert die Anzeige -- deutsch der Wert
+#: selbst, damit Dortmund zeigt, was es immer zeigte. Das Dropdown setzt ihn
+#: mit ``capitalize()`` (wie ``knoepfe.biete_szenenform``).
+#:
+#: **Eine zweite Liste neben ``workshop.form_anzeige``**: die Schluessel sind
+#: die fuenf Formen der Vorgabe. Ein Profil mit einer anderen Formenliste
+#: zieht hier nicht nach -- eine unbekannte Form bleibt als Rohwert stehen
+#: (``_form_anzeige``). Fuer Padua haelt
+#: ``tests/test_web_sprache.py::test_web_formnamen_passen_zum_profil`` beide
+#: Listen gleich (Aufgabe 29); offen fuer Aufgabe 32: diese Tabelle aus dem
+#: Profil speisen oder durch ``workshop.form_anzeige`` ersetzen.
+FORM_BESCHRIFTUNG = {
+    "dialog": "dialog",
+    "monolog": "monolog",
+    "chor": "chor",
+    "lied": "lied",
+    "rap": "rap",
+}
+
+#: Wie eine Journalart als Marke heisst -- Schluessel ist der Datenbankwert
+#: (``repo.schreibe_journal``), deutsch der Wert selbst.
+JOURNALART_BESCHRIFTUNG = {
+    "vorgeschlagen": "vorgeschlagen",
+    "verworfen": "verworfen",
+    "entschieden": "entschieden",
+    "offen": "offen",
+    "notiert": "notiert",
+}
+
+#: Wie der Bereich einer Festlegung als Marke heisst -- Schluessel ist der
+#: Datenbankwert (``repo.FESTLEGUNG_BEREICHE``, Protokoll), deutsch der Wert
+#: selbst (K4). ``web`` importiert ``repo`` nicht; ein Test haelt die
+#: Schluessel deckungsgleich.
+FESTLEGUNG_BEREICH_BESCHRIFTUNG = {
+    "figur": "figur",
+    "gruppe": "gruppe",
+    "ort": "ort",
+    "struktur": "struktur",
+    "form": "form",
+    "stil": "stil",
+    "sonstiges": "sonstiges",
+}
+
+#: Wie eine Pruefkennung der Dramaturgie-Pruefung als Marke heisst --
+#: Schluessel ist ``dramaturgie_befund.pruefung`` (die Judge-Fragen aus
+#: ``fanout.PROMPTS`` und die mechanischen Pruefungen aus ``mechanik``, alle
+#: in ``fanout.EBENEN``), deutsch der Wert selbst (K4).
+PRUEFUNG_BESCHRIFTUNG = {
+    "a2": "a2",
+    "a6": "a6",
+    "a9": "a9",
+    "a10": "a10",
+    "a11": "a11",
+    "b1": "b1",
+    "c1": "c1",
+    "namensstabilitaet": "namensstabilitaet",
+    "geisterfigur": "geisterfigur",
+    "erstauftritt": "erstauftritt",
+    "figur_ohne_auftritt": "figur_ohne_auftritt",
+    "fokus": "fokus",
+    "besetzung_stumm": "besetzung_stumm",
+    "besetzung_fremd": "besetzung_fremd",
+    "formverteilung": "formverteilung",
+    "form_regel": "form_regel",
+    "tschechow": "tschechow",
+    "sprechanteil": "sprechanteil",
+}
+
+TEXT_SPEICHERN = "Speichern"
+TEXT_ENTFERNEN = "Entfernen"
+_TEXT_EIGENE = "eigene …"
+_TEXT_EIGENE_FORMULIERUNG = "eigene Formulierung"
+_TEXT_OHNE_BESCHREIBUNG = "ohne Beschreibung"
+_TEXT_SPRECHWEISE_AUS = "Sprechweise aus {quelle}"
+_TEXT_SPRICHT_AUS = "Spricht aus"
+_TEXT_KEIN_INTERVIEW = "— kein Interview —"
+_TEXT_NOCH_OFFEN = "— noch offen —"
+_TEXT_OFFEN = "— offen —"
+_TEXT_OHNE_STIL = "— ohne Stilvorlage —"
+_TEXT_OHNE_TITEL = "ohne Titel"
+#: Ein woertliches Zitat in Anfuehrungszeichen der Sprache.
+_ZITAT = "„{zitat}“"
+_TEXT_KEINE_FIGUREN = "Noch keine Figuren."
+_TEXT_KEINE_FIGUR = "Noch keine Figur."
+_TEXT_NOCH_KEINE = "noch keine"
+_TEXT_SCHAERFUNG = "Schärfung"
+_TEXT_SZENE = "Szene"
+_TEXT_SZENE_NR = "Szene {nummer}"
+_UEBERSCHRIFT_DRAMATURGIE = "Dramaturgie-Prüfung"
+_TEXT_DRAMATURGIE_RUNDE = "Runde {runde}, {anzahl} Befunde. Entschieden wird im Chat."
+_TEXT_KEINE_FESTLEGUNGEN = "Noch nichts festgehalten, was in kein Feld passt."
+_PLATZ_SETTING = "Ort, Zeit, Anlass"
+_PLATZ_GESCHICHTE = "was passiert, wie es endet"
+_PLATZ_NEUE_FIGUR = "Name der neuen Figur"
+_TEXT_FIGUR_HINZU = "Figur hinzufügen"
+#: Die Spaltenkoepfe der Sprechanteile: Figur, Anteil, Repliken, Szenen.
+_SPRECHANTEILE_KOEPFE = ("Figur", "Anteil", "Repliken", "Szenen")
+_TEXT_EIN_TEIL = "1 Teil"
+_TEXT_TEILE = "{anzahl} Teile"
+_TEXT_WER = "Wer"
+_TEXT_VORSCHLAG = "Vorschlag: {form}"
+_TEXT_KURZ = "Kurz"
+_TEXT_ZUSAMMENFASSUNG = "Zusammenfassung"
+_TEXT_ALS_GESCHICHTE = "Als Geschichte"
+_TEXT_GEPLANT = "Noch kein Text — die Szene ist geplant."
+_TEXT_FASSUNG_NR = "Fassung {nummer}"
+_TEXT_N_FASSUNGEN = "{anzahl} Fassungen"
+_TEXT_FASSUNG_VON = "Fassung {nummer} von {gesamt}"
+_TEXT_DIE_AKTUELLE = "die aktuelle"
+_TEXT_VORIGE_FASSUNG = "← vorige Fassung ({nummer})"
+#: Die Spaltenkoepfe der Szenenuebersicht.
+_UEBERSICHT_KOEPFE = ("Nr.", "Szene", "Form", "Stil", "Text", "Fassungen")
+_TEXT_ALS_VORSCHLAG = "{form} (Vorschlag)"
+_TEXT_UMFANG_PROSA = "Prosa {zeichen} Z."
+_TEXT_UMFANG_TEXT = "Text {zeichen} Z."
+_TEXT_KEIN_TEXT = "noch kein Text"
+_TEXT_INTERVIEW = "Interview"
+_TEXT_NICHT_VERDICHTET = "Noch nicht verdichtet."
+_TEXT_KEINE_SZENE = "Noch keine Szene. Die entstehen in der letzten Phase."
+_TEXT_KEIN_INTERVIEW_NOCH = (
+    "Noch kein Interview — sagt „wir machen jetzt ein Interview“ und "
+    "sprecht drauflos."
+)
+_TEXT_NICHTS_NOTIERT = "Noch nichts notiert."
+_TEXT_GRUPPE = "Gruppe {chat_id}"
+_TITEL_GRUPPENSEITE = "{titel} — interview-theater"
+_TEXT_PROBENANSICHT_LINK = (
+    "📖 Probenansicht — das ganze Stück am Stück, zum Lesen und Ausdrucken"
+)
+_UEBERSCHRIFT_UEBERBLICK = "Überblick"
+_UEBERSCHRIFT_ARBEITSSTAND = "Arbeitsstand"
+_UEBERSCHRIFT_FESTLEGUNGEN = "Weitere Festlegungen"
+_UEBERSCHRIFT_SZENEN = "Szenen"
+_UEBERSCHRIFT_INTERVIEWS = "Aus den Interviews"
+_UEBERSCHRIFT_WEG = "Der Weg dahin"
+_TEXT_JOURNAL = "Journal ({anzahl})"
+#: Was das Speichern auf der Gruppenseite neben dem Feld meldet. Das
+#: JavaScript liest sie aus ``data-``-Attributen (``_BEARBEITEN_JS``), damit
+#: kein Nutzertext im Skript steht.
+_JS_SICHER = "Wirklich entfernen?"
+_JS_SPEICHERT = "speichert …"
+_JS_GESPEICHERT = "gespeichert"
+_JS_FEHLER = "ging nicht"
+# Probenansicht
+_TEXT_STUECK_LEER = "Noch keine Szene — hier steht das Stück, sobald es eine gibt."
+_TITEL_PROBENANSICHT = "{titel} — Probenansicht"
+_TEXT_ZUM_ARBEITSSTAND = "‹ Arbeitsstand"
+_TEXT_TEXTBUCH_MD = "Textbuch .md"
+_TEXT_TEXTBUCH_TXT = "Textbuch .txt"
+_TEXT_SCHRIFT = "Schrift"
+_TEXT_SCHRIFT_KLEIN = "klein"
+_TEXT_SCHRIFT_MITTEL = "mittel"
+_TEXT_SCHRIFT_GROSS = "groß"
+_TEXT_REGIE_AUS = "Regieanweisungen ausblenden"
+_TEXT_DRUCKEN = (
+    "Zum Ausdrucken: die Druckfunktion des Browsers — je Szene eine Seite, "
+    "ohne Leisten und Farben."
+)
+_TEXT_ROLLE = "Rolle"
+_TEXT_ALLE = "alle"
+_TEXT_BESETZUNG = "Besetzung: {figuren}"
+_TEXT_ALS_GESCHICHTE_DOPPELPUNKT = "Als Geschichte:"
+# Leitfaden-Seite
+_TITEL_LEITFADEN = "Leitfaden — {titel}"
+_TEXT_VORHER_SAGEN = "Vorher sagen: {text}"
+_TEXT_KERN = "Kern: {text}"
+# Fehlerseiten und Fehlermeldungen
+_TITEL_NICHT_GEFUNDEN = "Nicht gefunden"
+_TEXT_NICHT_GEFUNDEN = "Diese Adresse gibt es nicht. Fragt im Workshop nach dem Link."
+_TEXT_DB_NICHT_LESBAR = "Die Datenbank ist gerade nicht lesbar."
+_TEXT_DB_NICHT_BESCHREIBBAR = "Die Datenbank ist gerade nicht beschreibbar."
+_TEXT_SEITE_VERALTET = "Die Seite ist veraltet — bitte einmal neu laden."
+_TEXT_UNGUELTIG = "Ungültige Anfrage."
+_TEXT_LEER_ANFRAGE = "Leere Anfrage."
+_TEXT_ZU_LANG = "Der Text ist zu lang."
+
+
 def _t(wert, ersatz: str = "—") -> str:
     """Maskiert einen Wert aus der Datenbank fuer HTML.
 
@@ -558,9 +781,9 @@ def _umfang(teile: int, sekunden: int | None) -> str:
     Teile-Zahl weg statt '0 Teile' zu behaupten."""
     stuecke = []
     if teile == 1:
-        stuecke.append("1 Teil")
+        stuecke.append(T._TEXT_EIN_TEIL)
     elif teile > 1:
-        stuecke.append(f"{teile} Teile")
+        stuecke.append(T._TEXT_TEILE.format(anzahl=teile))
     dauer = _dauer(sekunden)
     if dauer:
         stuecke.append(dauer)
@@ -574,6 +797,7 @@ def _seite(
     bearbeitbar: bool = False,
     nachladen: bool = True,
     skript: str = "",
+    lang: str | None = None,
 ) -> str:
     """Rahmen aller Seiten: ein einziges eingebettetes CSS, keine externe
     Ressource (der Workshopraum haengt an einem Tailnet, nicht am offenen
@@ -587,7 +811,10 @@ def _seite(
     (06.09.2026) braucht es nicht: sie ist ein Manuskript, das man liest und
     ausdruckt, und ein Austausch des ``<body>`` mitten in der Probe wuerde
     Rollenfilter und Schriftgroesse zuruecksetzen. ``skript`` haengt statt
-    dessen das eigene JavaScript der Seite an."""
+    dessen das eigene JavaScript der Seite an.
+
+    ``lang`` ist die Sprache der Seite -- ohne Angabe die des Profils (Karte
+    A1); das Team-Dashboard gibt ``de`` vor, seine Texte bleiben deutsch."""
     skripte = (
         _SCROLL_JS.replace("__NEULADEN_MS__", str(NEULADEN_SEKUNDEN * 1000))
         if nachladen
@@ -598,7 +825,7 @@ def _seite(
     skripte += skript
     return (
         "<!doctype html>\n"
-        '<html lang="de"><head><meta charset="utf-8">\n'
+        f'<html lang="{html.escape(lang or sprache.code())}"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{html.escape(titel)}</title>\n"
         f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body>\n"
@@ -642,7 +869,7 @@ def _leitfaden_link(token: str | None) -> str:
         return ""
     return (
         f'<div class="zeit"><a href="{_t(token)}/{leitfaden_pfad()}">'
-        f"{html.escape(TEXT_LEITFADEN_LINK)}</a></div>"
+        f"{html.escape(T.TEXT_LEITFADEN_LINK)}</a></div>"
     )
 
 
@@ -668,10 +895,10 @@ def _leitfaden_html(arbeitsstand: dict, token: str | None = None) -> str:
     from interview_theater import leitfaden
 
     text = leitfaden.aus_feldern(arbeitsstand)
-    if text == leitfaden.TEXT_LEER:
+    if text == leitfaden.T.TEXT_LEER:
         return ""
     return (
-        "<dt>Leitfaden</dt><dd>"
+        f"<dt>{html.escape(T.ARBEITSSTAND_BESCHRIFTUNG['leitfaden'])}</dt><dd>"
         f'<pre class="leitfaden">{_t(text)}</pre>'
         # Der Link auf die große Ansicht (06.09.2026) -- zusätzlich, der Text
         # bleibt: wer hier liest, will überblicken; wer losgeht, braucht ihn
@@ -696,7 +923,7 @@ def _fehlstellen_html(eintraege: list[dict] | None) -> str:
 
     zeilen = "".join(f"<li>{_t(e['text'])}</li>" for e in eintraege)
     return (
-        f"<h2>{html.escape(fehlstellen.UEBERSCHRIFT)}</h2>"
+        f"<h2>{html.escape(fehlstellen.T.UEBERSCHRIFT)}</h2>"
         f'<ul class="fehlstellen">{zeilen}</ul>'
     )
 
@@ -730,10 +957,10 @@ def _sprechanteile_html(daten: dict | None) -> str:
         f'<div class="hinweiszeile">{_t(sprecher.hinweis(f, daten["szenen"]))}</div>'
         for f in leise
     )
+    koepfe = "".join(f"<th>{html.escape(k)}</th>" for k in T._SPRECHANTEILE_KOEPFE)
     return (
-        f"<h2>{html.escape(sprecher.UEBERSCHRIFT)}</h2>"
-        '<table class="anteile"><tr><th>Figur</th><th>Anteil</th>'
-        f"<th>Repliken</th><th>Szenen</th></tr>{zeilen}</table>"
+        f"<h2>{html.escape(sprecher.T.UEBERSCHRIFT)}</h2>"
+        f'<table class="anteile"><tr>{koepfe}</tr>{zeilen}</table>'
         f"{hinweise}"
     )
 
@@ -749,15 +976,32 @@ def _figur_html(f: dict, mit_stimme: bool) -> str:
     vor dem Speichern geprueft (``sprachprofil.erstelle``), stehen also unter
     derselben Zusage wie die Belegzitate der Verdichtungen: kein Satz in
     Anfuehrungszeichen, den niemand gesagt hat."""
-    teile = [f"<b>{_t(f['name'])}</b> — {_t(f.get('beschreibung'), 'ohne Beschreibung')}"]
+    teile = [f"<b>{_t(f['name'])}</b> — {_t(f.get('beschreibung'), T._TEXT_OHNE_BESCHREIBUNG)}"]
     if f.get("quelle"):
-        teile.append(f'<div class="zeit">Sprechweise aus {_t(f["quelle"])}</div>')
+        teile.append(f'<div class="zeit">{_sprechweise(f["quelle"])}</div>')
     if mit_stimme:
         if f.get("sprachprofil"):
             teile.append(f'<div class="profil">{_t(f["sprachprofil"])}</div>')
         for satz in f.get("zitate") or []:
-            teile.append(f"<blockquote>„{_t(satz)}“</blockquote>")
+            teile.append(f"<blockquote>{_zitat(satz)}</blockquote>")
     return "<li>" + "".join(teile) + "</li>"
+
+
+def _sprechweise(quelle) -> str:
+    """"Sprechweise aus Interview 2" -- maskiert."""
+    return _t(T._TEXT_SPRECHWEISE_AUS.format(quelle=quelle))
+
+
+def _zitat(satz) -> str:
+    """Ein woertliches Zitat in den Anfuehrungszeichen der Seitensprache --
+    der Satz selbst bleibt, wie er ist (D7: Zitate werden nie uebersetzt)."""
+    return T._ZITAT.format(zitat=_t(satz))
+
+
+def _form_anzeige(wert) -> str:
+    """Wie ein Formwert aus der Datenbank auf der Seite heisst (roh, nicht
+    maskiert). Deutsch der Wert selbst; unbekannte Werte bleiben stehen."""
+    return T.FORM_BESCHRIFTUNG.get(wert, wert)
 
 
 # --- Bearbeiten: die Bausteine der Formulare ------------------------------
@@ -769,18 +1013,18 @@ def _figur_html(f: dict, mit_stimme: bool) -> str:
 # einziger Feldname im JavaScript vor.
 
 
-def _rahmen(inhalt: str, feld: str, ziel=None, knopf: str = "Speichern") -> str:
+def _rahmen(inhalt: str, feld: str, ziel=None, knopf: str | None = None) -> str:
     ziel_attr = f' data-ziel="{_t(ziel, "")}"' if ziel is not None else ""
     return (
         f'<div class="feld" data-feld="{_t(feld)}"{ziel_attr}>{inhalt}'
-        f'<button type="button" class="speichern">{_t(knopf)}</button>'
+        f'<button type="button" class="speichern">{_t(knopf or T.TEXT_SPEICHERN)}</button>'
         '<span class="hinweis" aria-live="polite"></span></div>'
     )
 
 
 def _textfeld(
     feld: str, wert, ziel=None, zeilen: int = 1, platzhalter: str = "",
-    beschriftung: str = "", knopf: str = "Speichern",
+    beschriftung: str = "", knopf: str | None = None,
 ) -> str:
     """Ein Textfeld mit Speicherknopf. Immer ``<textarea>``, auch einzeilig:
     eine Begriffsliste ist laenger als der Bildschirm, und ein ``<input>``
@@ -816,7 +1060,7 @@ def _dropdown(
     aktuell,
     ziel=None,
     mit_eigener: bool = False,
-    platzhalter: str = "eigene Formulierung",
+    platzhalter: str | None = None,
     leer: str | None = None,
     beschriftung: str = "",
 ) -> str:
@@ -835,7 +1079,7 @@ def _dropdown(
         bekannt.add("")
     frei = mit_eigener and aktuell not in bekannt
     if mit_eigener:
-        liste.append((EIGENE, "eigene …"))
+        liste.append((EIGENE, T._TEXT_EIGENE))
     gewaehlt = EIGENE if frei else aktuell
     stuecke = []
     if beschriftung:
@@ -846,7 +1090,7 @@ def _dropdown(
             '<input type="text" class="eigene" value="{wert}" '
             'placeholder="{platz}"{versteckt}>'.format(
                 wert=_t(aktuell if frei else "", ""),
-                platz=_t(platzhalter, ""),
+                platz=_t(platzhalter or T._TEXT_EIGENE_FORMULIERUNG, ""),
                 versteckt="" if frei else " hidden",
             )
         )
@@ -867,13 +1111,13 @@ def _mehrfachauswahl(feld: str, paare, gewaehlt, ziel=None) -> str:
         for wert, beschriftung in paare
     )
     if not optionen:
-        return '<p class="leer">Noch keine Figuren.</p>'
+        return f'<p class="leer">{html.escape(T._TEXT_KEINE_FIGUREN)}</p>'
     return _rahmen(
         f'<select multiple size="4">{optionen}</select>', feld, ziel
     )
 
 
-def _schaerfungen_html(kurzformen, was: str = "Schärfung") -> str:
+def _schaerfungen_html(kurzformen, was: str | None = None) -> str:
     """Die bei der Schärfung zugeordneten Interviewstellen -- **read-only**,
     als Zähler mit Liste (Phase 6, Umbau 05.09.2026 nachts).
 
@@ -887,7 +1131,7 @@ def _schaerfungen_html(kurzformen, was: str = "Schärfung") -> str:
         return ""
     zeilen = "".join(f"<li>{_t(k)}</li>" for k in kurzformen)
     return (
-        f'<div class="schaerfung"><b>{_t(was)} ({len(kurzformen)})</b>'
+        f'<div class="schaerfung"><b>{_t(was or T._TEXT_SCHAERFUNG)} ({len(kurzformen)})</b>'
         f"<ul>{zeilen}</ul></div>"
     )
 
@@ -910,9 +1154,10 @@ def _dramaturgie_html(daten: dict) -> str:
     zeilen = []
     for b in befunde:
         schwere = (b.get("schwere") or "").lower()
-        marke = b.get("pruefung") or ""
+        pruefung = b.get("pruefung") or ""
+        marke = T.PRUEFUNG_BESCHRIFTUNG.get(pruefung, pruefung)
         if b.get("szene") is not None:
-            marke = f"Szene {b['szene']} · {marke}"
+            marke = f"{T._TEXT_SZENE_NR.format(nummer=b['szene'])} · {marke}"
         vorschlag = (b.get("vorschlag") or "").strip()
         zusatz = (
             f'<span class="vorschlag">{_t(vorschlag)}</span>' if vorschlag else ""
@@ -922,10 +1167,10 @@ def _dramaturgie_html(daten: dict) -> str:
             f'<span class="marke">{_t(marke)}</span><br>{_t(b.get("text"))}'
             f"{zusatz}</div>"
         )
+    kopf = T._TEXT_DRAMATURGIE_RUNDE.format(runde=int(runde), anzahl=len(befunde))
     return (
-        f"<h2>Dramaturgie-Prüfung</h2>"
-        f'<p class="leer">Runde {int(runde)}, {len(befunde)} Befunde. '
-        "Entschieden wird im Chat.</p>" + "".join(zeilen)
+        f"<h2>{html.escape(T._UEBERSCHRIFT_DRAMATURGIE)}</h2>"
+        f'<p class="leer">{html.escape(kopf)}</p>' + "".join(zeilen)
     )
 
 
@@ -938,32 +1183,36 @@ def _figur_formular(f: dict, interviews: list[dict]) -> str:
     wechselt das Interview; das Profil entsteht dann neu."""
     stuecke = [
         f'<div class="figur" data-figur="{_t(f["id"])}">',
-        _textfeld("figur_name", f["name"], f["id"], beschriftung="Name"),
+        _textfeld(
+            "figur_name", f["name"], f["id"],
+            beschriftung=web_schreiben.T.FIGURENFELDER["name"],
+        ),
         _textfeld(
             "figur_beschreibung", f.get("beschreibung"), f["id"],
-            zeilen=2, platzhalter="ohne Beschreibung", beschriftung="Beschreibung",
+            zeilen=2, platzhalter=T._TEXT_OHNE_BESCHREIBUNG,
+            beschriftung=web_schreiben.T.FIGURENFELDER["beschreibung"],
         ),
         _dropdown(
             "figur_quelle",
             [(i["id"], i["bezeichnung"]) for i in interviews],
             f.get("quelle_aufnahme_id"),
             f["id"],
-            leer="— kein Interview —",
-            beschriftung="Spricht aus",
+            leer=T._TEXT_KEIN_INTERVIEW,
+            beschriftung=T._TEXT_SPRICHT_AUS,
         ),
     ]
     if f.get("quelle"):
         # Bleibt neben dem Dropdown stehen: die Zeile sagt in Worten, was
         # das Auswahlfeld nur als markierte Option zeigt -- und sie ist die
         # Zeile, an der die Gruppe die Stimme der Figur wiedererkennt.
-        stuecke.append(f'<div class="zeit">Sprechweise aus {_t(f["quelle"])}</div>')
+        stuecke.append(f'<div class="zeit">{_sprechweise(f["quelle"])}</div>')
     if f.get("sprachprofil"):
         stuecke.append(f'<div class="profil">{_t(f["sprachprofil"])}</div>')
     for satz in f.get("zitate") or []:
-        stuecke.append(f"<blockquote>„{_t(satz)}“</blockquote>")
+        stuecke.append(f"<blockquote>{_zitat(satz)}</blockquote>")
     stuecke.append(_schaerfungen_html(f.get("schaerfungen")))
     stuecke.append(
-        _rahmen("", "figur_entfernen", f["id"], knopf="Entfernen")
+        _rahmen("", "figur_entfernen", f["id"], knopf=T.TEXT_ENTFERNEN)
     )
     stuecke.append("</div>")
     return "".join(stuecke)
@@ -985,15 +1234,13 @@ def _festlegungen_html(daten: dict, nonce_wert: str | None) -> str:
     der Chat."""
     zeilen = daten.get("festlegungen") or []
     if not zeilen:
-        return (
-            '<p class="leer">Noch nichts festgehalten, was in kein Feld '
-            "passt.</p>"
-        )
+        return f'<p class="leer">{html.escape(T._TEXT_KEINE_FESTLEGUNGEN)}</p>'
     stuecke = []
     for z in zeilen:
-        marke = z["bereich"] + (f" · {z['bezug']}" if z.get("bezug") else "")
+        bereich = T.FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(z["bereich"], z["bereich"])
+        marke = bereich + (f" · {z['bezug']}" if z.get("bezug") else "")
         knopf = (
-            _rahmen("", "festlegung_entfernen", z["id"], knopf="Entfernen")
+            _rahmen("", "festlegung_entfernen", z["id"], knopf=T.TEXT_ENTFERNEN)
             if nonce_wert
             else ""
         )
@@ -1019,7 +1266,7 @@ def _altbestand_html(stand: dict) -> str:
     (dieselbe Regel wie beim Hauptkonflikt)."""
     zeilen = [
         f"<dt>{label}</dt><dd>{_t(stand.get(feld))}</dd>"
-        for feld, label in web_schreiben.NUR_ANZEIGE.items()
+        for feld, label in web_schreiben.T.NUR_ANZEIGE.items()
         if (stand.get(feld) or "").strip()
     ]
     return "".join(zeilen)
@@ -1043,48 +1290,61 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
     stand = daten["arbeitsstand"]
     auswahl = daten.get("bearbeitbares") or {}
     phase = stand.get("phase") or phasen.ERSTE
+    dt = T.ARBEITSSTAND_BESCHRIFTUNG
     figuren = "".join(
         _figur_formular(f, auswahl.get("interviews") or [])
         for f in daten["figuren"]
-    ) or '<p class="leer">Noch keine Figur.</p>'
+    ) or f'<p class="leer">{html.escape(T._TEXT_KEINE_FIGUR)}</p>'
+    # Die Meldungen des Speicherns (``_BEARBEITEN_JS``) als data-Attribute:
+    # im Skript steht kein Nutzertext, und sie kommen mit dem <body> frisch
+    # aus der Sprache des Profils.
+    meldungen = (
+        '<span id="meldungen" hidden data-sicher="{sicher}" '
+        'data-speichert="{speichert}" data-gespeichert="{gespeichert}" '
+        'data-fehler="{fehler}"></span>'.format(
+            sicher=_t(T._JS_SICHER), speichert=_t(T._JS_SPEICHERT),
+            gespeichert=_t(T._JS_GESPEICHERT), fehler=_t(T._JS_FEHLER),
+        )
+    )
     return (
         f'<input type="hidden" id="nonce" value="{_t(nonce_wert)}">'
+        f"{meldungen}"
         "<dl>"
         # Die Phase steht oben, weil sie alles darunter einordnet -- als
         # Anzeige. Gesetzt wird sie allein von der Gruppe, und zwar im Chat
         # (AGENTS.md, "Die Phase setzt allein die Gruppe"): der Bot bietet den
         # Wechsel an, sobald die Materiallage ihn hergibt.
-        f"<dt>Phase</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
-        f"<dt>Begriffe</dt><dd>{_t(stand['begriffe'])}</dd>"
-        f"<dt>Fragen</dt><dd>{_fragen_html(stand.get('fragen'))}</dd>"
+        f"<dt>{_t(dt['phase'])}</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
+        f"<dt>{_t(dt['begriffe'])}</dt><dd>{_t(stand['begriffe'])}</dd>"
+        f"<dt>{_t(dt['fragen'])}</dt><dd>{_fragen_html(stand.get('fragen'))}</dd>"
         # Der Leitfaden statt seiner drei Rohfelder: er ist das Ergebnis, das
         # die Gruppe braucht, und er wird gebaut, nicht getippt -- aus
         # denselben Feldern wie im Chat (``leitfaden.aus_feldern``).
         + _leitfaden_html(stand, daten.get("web_token"))
-        + "<dt>Setting</dt><dd>"
+        + f"<dt>{_t(dt['rahmen'])}</dt><dd>"
         + _dropdown(
             "rahmen",
             [(w, w) for w in auswahl.get("rahmen") or []],
             stand.get("rahmen"),
             mit_eigener=True,
-            platzhalter="Ort, Zeit, Anlass",
-            leer="— noch offen —",
+            platzhalter=T._PLATZ_SETTING,
+            leer=T._TEXT_NOCH_OFFEN,
         )
         + "</dd>"
-        "<dt>Geschichte</dt><dd>"
+        + f"<dt>{_t(dt['geschichte'])}</dt><dd>"
         + _textfeld(
             "geschichte",
             stand.get("geschichte"),
             zeilen=5,
-            platzhalter="was passiert, wie es endet",
+            platzhalter=T._PLATZ_GESCHICHTE,
         )
         + "</dd>"
         + _altbestand_html(stand)
-        + f"<dt>Figuren</dt><dd>{figuren}"
+        + f"<dt>{_t(dt['figuren'])}</dt><dd>{figuren}"
         + '<div class="hinzu">'
         + _textfeld(
-            "figur_neu", "", platzhalter="Name der neuen Figur",
-            knopf="Figur hinzufügen",
+            "figur_neu", "", platzhalter=T._PLATZ_NEUE_FIGUR,
+            knopf=T._TEXT_FIGUR_HINZU,
         )
         + "</div></dd></dl>"
     )
@@ -1099,28 +1359,29 @@ def _arbeitsstand_html(
     # Phase (NULL) gilt wie 1 -- diese Anzeigeregel steht hier, web_daten
     # liefert den rohen Wert (interview_theater/phasen.py).
     phase = arbeitsstand.get("phase") or phasen.ERSTE
+    dt = T.ARBEITSSTAND_BESCHRIFTUNG
     return (
         "<dl>"
-        f"<dt>Phase</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
-        f"<dt>Begriffe</dt><dd>{_t(arbeitsstand['begriffe'])}</dd>"
-        f"<dt>Fragen</dt><dd>{_fragen_html(arbeitsstand.get('fragen'))}</dd>"
+        f"<dt>{_t(dt['phase'])}</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
+        f"<dt>{_t(dt['begriffe'])}</dt><dd>{_t(arbeitsstand['begriffe'])}</dd>"
+        f"<dt>{_t(dt['fragen'])}</dt><dd>{_fragen_html(arbeitsstand.get('fragen'))}</dd>"
         # Der Leitfaden steht direkt unter den Fragen -- er ist ihre
         # Gebrauchsanweisung (06.09.2026). Read-only wie alles hier: gebaut
         # wird er aus denselben Feldern wie im Chat (``leitfaden.aus_feldern``),
         # damit auf der Wand nichts anderes steht als auf dem Telefon.
         + _leitfaden_html(arbeitsstand, token)
-        + f"<dt>Kernthema</dt><dd>{_t(arbeitsstand['kernthema'])}"
+        + f"<dt>{_t(dt['kernthema'])}</dt><dd>{_t(arbeitsstand['kernthema'])}"
         + (
             f"<div class=\"zeit\">{_t(arbeitsstand['kernthema_begruendung'], '')}</div>"
             if arbeitsstand["kernthema_begruendung"]
             else ""
         )
         + "</dd>"
-        f"<dt>Setting</dt><dd>{_t(arbeitsstand.get('rahmen'))}</dd>"
+        + f"<dt>{_t(dt['rahmen'])}</dt><dd>{_t(arbeitsstand.get('rahmen'))}</dd>"
         # Die Geschichte im Groben (Phase 5, Umbau 05.09.2026 nachts) -- nur,
         # wenn es sie gibt, wie beim Hauptkonflikt.
         + (
-            f"<dt>Geschichte</dt><dd>{_t(arbeitsstand['geschichte'])}</dd>"
+            f"<dt>{_t(dt['geschichte'])}</dt><dd>{_t(arbeitsstand['geschichte'])}</dd>"
             if arbeitsstand.get("geschichte")
             else ""
         )
@@ -1128,12 +1389,16 @@ def _arbeitsstand_html(
         # ist eine moegliche Rahmen-Entscheidung, keine Pflicht -- ein leeres
         # Feld daneben sieht aus wie eine unerledigte Aufgabe.
         + (
-            f"<dt>Hauptkonflikt</dt><dd>{_t(arbeitsstand['hauptkonflikt'])}</dd>"
+            f"<dt>{_t(dt['hauptkonflikt'])}</dt><dd>{_t(arbeitsstand['hauptkonflikt'])}</dd>"
             if arbeitsstand.get("hauptkonflikt")
             else ""
         )
-        + "<dt>Figuren</dt><dd>"
-        + (f'<ul class="figuren">{figuren_html}</ul>' if figuren else '<span class="leer">noch keine</span>')
+        + f"<dt>{_t(dt['figuren'])}</dt><dd>"
+        + (
+            f'<ul class="figuren">{figuren_html}</ul>'
+            if figuren
+            else f'<span class="leer">{html.escape(T._TEXT_NOCH_KEINE)}</span>'
+        )
         + "</dd></dl>"
     )
 
@@ -1253,6 +1518,7 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
         "<h2>Bot-Zuordnung</h2>"
         "<table><tr><th>Bot</th><th>Gruppe</th><th>chat_id</th>"
         f"<th>letzte Aktivität</th></tr>{zuordnung}</table>",
+        lang=sprache.DEUTSCH,
     )
 
 
@@ -1269,15 +1535,16 @@ def _szene_summary(s: dict) -> str:
     -- und genau die Felder, die sie entschieden hat."""
     stuecke = []
     if s["nummer"] is not None:
-        stuecke.append(f"Szene {_t(s['nummer'])}")
+        stuecke.append(_t(T._TEXT_SZENE_NR.format(nummer=s["nummer"])))
     if s.get("titel"):
         stuecke.append(_t(s["titel"]))
-    for feld in ("form", "ort"):
-        if s.get(feld):
-            stuecke.append(_t(s[feld]))
+    if s.get("form"):
+        stuecke.append(_t(_form_anzeige(s["form"])))
+    if s.get("ort"):
+        stuecke.append(_t(s["ort"]))
     if s.get("figuren"):
         stuecke.append(_t(", ".join(s["figuren"])))
-    return SUMMARY_TRENNER.join(stuecke) or "Szene"
+    return SUMMARY_TRENNER.join(stuecke) or _t(T._TEXT_SZENE)
 
 
 def fassungslink(szene_id, nummer: int) -> str:
@@ -1331,18 +1598,18 @@ def _fassungen_html(s: dict, fassungen: list[dict] | None, gewaehlt: int | None)
         if f["nummer"] == gewaehlt:
             knoepfe.append(f'<span class="fassung aktiv" aria-current="true">{marke}</span>')
         else:
-            titel = f["beschriftung"] or f"Fassung {f['nummer']}"
+            titel = f["beschriftung"] or T._TEXT_FASSUNG_NR.format(nummer=f["nummer"])
             knoepfe.append(
                 f'<a class="fassung" href="{_t(fassungslink(s["id"], f["nummer"]))}" '
                 f'title="{_t(titel)}">{marke}</a>'
             )
     zeigt = next(f for f in fassungen if f["nummer"] == gewaehlt)
-    kopf = f"{len(fassungen)} Fassungen"
-    stuecke = [f"Fassung {zeigt['nummer']} von {len(fassungen)}"]
+    kopf = T._TEXT_N_FASSUNGEN.format(anzahl=len(fassungen))
+    stuecke = [T._TEXT_FASSUNG_VON.format(nummer=zeigt["nummer"], gesamt=len(fassungen))]
     if zeigt["beschriftung"]:
         stuecke.append(zeigt["beschriftung"])
     if zeigt.get("aktuell"):
-        stuecke.append("die aktuelle")
+        stuecke.append(T._TEXT_DIE_AKTUELLE)
     # ``_zeitpunkt`` liefert einen PRAEFIX samt Trenner (siehe dort) -- er
     # steht deshalb vorn und wird nicht angehaengt, sonst endet die Zeile auf
     # einem Mittelpunkt ohne Fortsetzung.
@@ -1352,14 +1619,14 @@ def _fassungen_html(s: dict, fassungen: list[dict] | None, gewaehlt: int | None)
         vorige = nummern[nummern.index(zeigt["nummer"]) - 1]
         zurueck = (
             f'<p class="zeit"><a href="{_t(fassungslink(s["id"], vorige))}">'
-            f"← vorige Fassung ({vorige})</a></p>"
+            f"{_t(T._TEXT_VORIGE_FASSUNG.format(nummer=vorige))}</a></p>"
         )
     return (
         f'<dl><dt>{_t(kopf)}</dt></dl>'
         # Die Leiste ist eine Navigation und braucht einen Namen, wenn sie
         # vorgelesen wird: die Nummern allein sagen nichts. Derselbe Wortlaut
         # wie am Chat-Knopf (``TEXT_FASSUNGEN``).
-        f'<nav class="fassungen" aria-label="{html.escape(TEXT_FASSUNGEN)}">'
+        f'<nav class="fassungen" aria-label="{html.escape(T.TEXT_FASSUNGEN)}">'
         f'{"".join(knoepfe)}</nav>'
         f'<p class="zeit">{_t(zeile)}</p>'
         f'<div class="volltext">{_t(zeigt["volltext"])}</div>'
@@ -1393,12 +1660,17 @@ def _szene_html(
     steht die aktuelle da."""
     if figuren is None:
         felder = "".join(
-            f"<dt>{label}</dt><dd>{_t(s[feld])}</dd>"
+            "<dt>{label}</dt><dd>{wert}</dd>".format(
+                label=_t(T.SZENENFELD_BESCHRIFTUNG.get(label, label)),
+                wert=_t(_form_anzeige(s[feld]) if feld in ("form", "form_vorschlag") else s[feld]),
+            )
             for feld, label in web_daten.SZENENFELDER
             if s.get(feld)
         )
         if s.get("figuren"):
-            felder = f"<dt>Wer</dt><dd>{_t(', '.join(s['figuren']))}</dd>" + felder
+            felder = (
+                f"<dt>{_t(T._TEXT_WER)}</dt><dd>{_t(', '.join(s['figuren']))}</dd>" + felder
+            )
     else:
         formen = list(web_schreiben.FORMEN)
         jetzige = (s.get("form") or "").strip()
@@ -1413,30 +1685,32 @@ def _szene_html(
             # Wie bei der Form: ein Slug aus einer aelteren Fassung bleibt
             # sichtbar, statt stumm auf "ohne" zurueckzufallen.
             stile_liste.insert(0, jetziger_stil)
+        feldnamen = web_schreiben.T.SZENENFELDER
         felder = (
-            "<dt>Titel</dt><dd>"
+            f"<dt>{_t(feldnamen['titel'])}</dt><dd>"
             + _textfeld("szene_titel", s.get("titel"), s["id"])
-            + "</dd><dt>Wer</dt><dd>"
+            + f"</dd><dt>{_t(T._TEXT_WER)}</dt><dd>"
             + _mehrfachauswahl(
                 "szene_figuren",
                 [(f["id"], f["name"]) for f in figuren],
                 s.get("figur_ids") or [],
                 s["id"],
             )
-            + "</dd><dt>Form</dt><dd>"
+            + f"</dd><dt>{_t(feldnamen['form'])}</dt><dd>"
             + _dropdown(
                 "szene_form",
-                [(f, f.capitalize()) for f in formen],
+                [(f, _form_anzeige(f).capitalize()) for f in formen],
                 jetzige,
                 s["id"],
-                leer="— offen —",
+                leer=T._TEXT_OFFEN,
             )
             # Der Vorschlag des Bots steht daneben und bleibt Anzeige
             # (06.09.2026): bestaetigt ist allein ``form``, und wer hier
             # waehlt, bestaetigt gerade selbst. Ihn editierbar zu machen
             # hiesse, den Vorschlag zur zweiten Entscheidung zu machen.
             + (
-                f'<div class="zeit">Vorschlag: {_t(s["form_vorschlag"])}</div>'
+                f'<div class="zeit">'
+                f'{_t(T._TEXT_VORSCHLAG.format(form=_form_anzeige(s["form_vorschlag"])))}</div>'
                 if s.get("form_vorschlag")
                 else ""
             )
@@ -1444,40 +1718,40 @@ def _szene_html(
             # wie die Form und derselbe Wertevorrat wie der Knopf im Chat.
             # Die Beschriftung nennt die Vorlage, wie im Menue: wer waehlt,
             # soll wissen, woher das Mass kommt.
-            + "</dd><dt>Stil</dt><dd>"
+            + f"</dd><dt>{_t(feldnamen['stil'])}</dt><dd>"
             + _dropdown(
                 "szene_stil",
                 [
-                    (slug, web_schreiben.STIL_BESCHRIFTUNG.get(slug, slug))
+                    (slug, web_schreiben.T.STIL_BESCHRIFTUNG.get(slug, slug))
                     for slug in stile_liste
                 ],
                 jetziger_stil,
                 s["id"],
-                leer="— ohne Stilvorlage —",
+                leer=T._TEXT_OHNE_STIL,
             )
             + "</dd>"
             + "".join(
-                f"<dt>{label}</dt><dd>"
+                f"<dt>{_t(label)}</dt><dd>"
                 + _textfeld(f"szene_{feld}", s.get(feld), s["id"], zeilen=2)
                 + "</dd>"
-                for feld, label in web_schreiben.SZENENFELDER.items()
+                for feld, label in feldnamen.items()
                 if feld not in ("titel", "form", "stil")
             )
         )
     if s.get("kurzbeschreibung"):
-        felder += f"<dt>Kurz</dt><dd>{_t(s['kurzbeschreibung'])}</dd>"
+        felder += f"<dt>{_t(T._TEXT_KURZ)}</dt><dd>{_t(s['kurzbeschreibung'])}</dd>"
     # Read-only: die Zusammenfassung kommt vom Szenen-Modell und beschreibt
     # genau die gespeicherte Fassung -- ein Formularfeld waere eine Einladung,
     # sie vom Text abweichen zu lassen.
     if s.get("zusammenfassung"):
-        felder += f"<dt>Zusammenfassung</dt><dd>{_t(s['zusammenfassung'])}</dd>"
+        felder += f"<dt>{_t(T._TEXT_ZUSAMMENFASSUNG)}</dt><dd>{_t(s['zusammenfassung'])}</dd>"
     inhalt = f"<dl>{felder}</dl>" if felder else ""
     inhalt += _schaerfungen_html(s.get("schaerfungen"))
     # Die Geschichte (Phase 6) steht ueber dem Theatertext: sie ist die
     # Vorlage, aus der er entsteht (06.09.2026, 10:30). Beide read-only.
     if s.get("prosa"):
         inhalt += (
-            '<dl><dt>Als Geschichte</dt></dl>'
+            f'<dl><dt>{_t(T._TEXT_ALS_GESCHICHTE)}</dt></dl>'
             f'<div class="volltext">{_t(s["prosa"])}</div>'
         )
     # Ab zwei Fassungen tritt die Umschaltung an die Stelle des einen
@@ -1489,7 +1763,7 @@ def _szene_html(
     elif s.get("volltext"):
         inhalt += f'<div class="volltext">{_t(s["volltext"])}</div>'
     elif not s.get("prosa"):
-        inhalt += '<p class="leer">Noch kein Text — die Szene ist geplant.</p>'
+        inhalt += f'<p class="leer">{_t(T._TEXT_GEPLANT)}</p>'
     # ``id`` und ``open``: der Link aus der Uebersicht springt an die Szene,
     # und die aufgeschlagene Fassung soll dabei sichtbar sein statt hinter
     # einem zugeklappten <details> zu liegen.
@@ -1518,24 +1792,25 @@ def _szenenuebersicht_html(zeilen: list[dict]) -> str:
     reihen = []
     for z in zeilen:
         nummer = "—" if z["nummer"] is None else str(z["nummer"])
-        titel = _t(z["titel"], "ohne Titel")
+        titel = _t(z["titel"], T._TEXT_OHNE_TITEL)
         if z["kurz"]:
             titel += f'<div class="zeit">{_t(z["kurz"])}</div>'
         if z["form"]:
-            form = _t(z["form"])
+            form = _t(_form_anzeige(z["form"]))
         elif z["form_vorschlag"]:
-            form = f'<span class="vorschlag">{_t(z["form_vorschlag"])} (Vorschlag)</span>'
+            vorschlag = T._TEXT_ALS_VORSCHLAG.format(form=_form_anzeige(z["form_vorschlag"]))
+            form = f'<span class="vorschlag">{_t(vorschlag)}</span>'
         else:
             form = "—"
         umfang = []
         if z["prosa_zeichen"]:
-            umfang.append(f"Prosa {z['prosa_zeichen']} Z.")
+            umfang.append(T._TEXT_UMFANG_PROSA.format(zeichen=z["prosa_zeichen"]))
         if z["volltext_zeichen"]:
-            umfang.append(f"Text {z['volltext_zeichen']} Z.")
+            umfang.append(T._TEXT_UMFANG_TEXT.format(zeichen=z["volltext_zeichen"]))
         # Die Zahlen entstehen hier und nicht in der Datenbank -- sie gehen
         # trotzdem durch ``_t``, damit die Regel "alles maskiert" ohne
         # Ausnahme gilt; das ``<br>`` dazwischen ist unser eigenes Markup.
-        umfang_html = "<br>".join(_t(t) for t in umfang) or "noch kein Text"
+        umfang_html = "<br>".join(_t(t) for t in umfang) or _t(T._TEXT_KEIN_TEXT)
         # Der Zaehler (07.09.2026): eine Zeile je Szene sagt, wie viele
         # Fassungen es gibt, und ist zugleich der Weg dorthin. Bei einer
         # einzigen Fassung gibt es nichts umzuschalten -- dann keine Zahl.
@@ -1543,7 +1818,7 @@ def _szenenuebersicht_html(zeilen: list[dict]) -> str:
         if anzahl > 1 and z.get("id") is not None:
             fassungen_html = (
                 f'<a href="{_t(fassungslink(z["id"], anzahl))}">'
-                f"{_t(f'{anzahl} Fassungen')}</a>"
+                f"{_t(T._TEXT_N_FASSUNGEN.format(anzahl=anzahl))}</a>"
             )
         else:
             fassungen_html = "—"
@@ -1553,9 +1828,9 @@ def _szenenuebersicht_html(zeilen: list[dict]) -> str:
             f'<td class="umfang">{umfang_html}</td>'
             f'<td class="umfang">{fassungen_html}</td></tr>'
         )
+    koepfe = "".join(f"<th>{_t(k)}</th>" for k in T._UEBERSICHT_KOEPFE)
     return (
-        '<table class="uebersicht"><thead><tr><th>Nr.</th><th>Szene</th>'
-        "<th>Form</th><th>Stil</th><th>Text</th><th>Fassungen</th>"
+        f'<table class="uebersicht"><thead><tr>{koepfe}'
         "</tr></thead><tbody>"
         + "".join(reihen)
         + "</tbody></table>"
@@ -1579,12 +1854,12 @@ def _vorspann_html(d: dict | None) -> str:
         return ""
     teile = []
     for kopf, feld in (
-        ("Wo und wann", "rahmen"),
-        ("Worum es geht", "hauptkonflikt"),
-        ("Form", "format"),
+        (vorspann.T._UEBERSCHRIFT_WO_UND_WANN, "rahmen"),
+        (vorspann.T._UEBERSCHRIFT_WORUM, "hauptkonflikt"),
+        (vorspann.T._UEBERSCHRIFT_FORM, "format"),
     ):
         if d[feld]:
-            teile.append(f"<h3>{kopf}</h3><p>{_t(d[feld])}</p>")
+            teile.append(f"<h3>{_t(kopf)}</h3><p>{_t(d[feld])}</p>")
     if d["szenen"]:
         anzahl = len(d["szenen"])
         # Die Nummern kommen aus der Datenbank und muessen nicht bei 1
@@ -1593,12 +1868,18 @@ def _vorspann_html(d: dict | None) -> str:
         zeilen = "".join(
             "<li>{nr}. {titel}{form}</li>".format(
                 nr=_t("—" if s["nummer"] is None else str(s["nummer"])),
-                titel=_t(s["titel"], "ohne Titel"),
-                form=f' <span class="zeit">({_t(s["form"])})</span>' if s["form"] else "",
+                titel=_t(s["titel"], T._TEXT_OHNE_TITEL),
+                form=(
+                    f' <span class="zeit">({_t(_form_anzeige(s["form"]))})</span>'
+                    if s["form"] else ""
+                ),
             )
             for s in d["szenen"]
         )
-        kopf = f"{anzahl} Szene" + ("n" if anzahl != 1 else "")
+        kopf = (
+            vorspann.T._UEBERSCHRIFT_EINE_SZENE if anzahl == 1
+            else vorspann.T._UEBERSCHRIFT_SZENEN
+        ).format(anzahl=anzahl)
         teile.append(f"<h3>{_t(kopf)}</h3><ul>{zeilen}</ul>")
     if d["figuren"]:
         zeilen = "".join(
@@ -1608,7 +1889,7 @@ def _vorspann_html(d: dict | None) -> str:
             )
             for f in d["figuren"]
         )
-        teile.append(f"<h3>Wer vorkommt</h3><ul>{zeilen}</ul>")
+        teile.append(f"<h3>{_t(vorspann.T._UEBERSCHRIFT_FIGUREN)}</h3><ul>{zeilen}</ul>")
     return f'<section class="vorspann">{"".join(teile)}</section>'
 
 
@@ -1641,7 +1922,7 @@ def _interview_html(v: dict) -> str:
     kurzformen = [t["kurz"] for t in v["themen"] if t.get("kurz")]
     # Interview-Nummer statt Aufnahmename (Birk 05.09.: der Name ist ein
     # Klarname oder der Telegram-Name dessen, der das Handy hielt).
-    summary = _t(v.get("bezeichnung") or v["name"], "Interview")
+    summary = _t(v.get("bezeichnung") or v["name"], T._TEXT_INTERVIEW)
     if kurzformen:
         summary += SUMMARY_TRENNER + SUMMARY_TRENNER.join(_t(k) for k in kurzformen)
     # Je Aspekt eine Unterueberschrift (die Kurzform), darunter die
@@ -1653,7 +1934,7 @@ def _interview_html(v: dict) -> str:
         '<div class="thema"><h4>{kurz}</h4><p>{thema}</p>{zitat}</div>'.format(
             kurz=_t(t.get("kurz") or t["thema"]),
             thema=_t(t["thema"]),
-            zitat=f"<blockquote>„{_t(t['zitat'], '')}“</blockquote>" if t["zitat"] else "",
+            zitat=f"<blockquote>{_zitat(t['zitat'])}</blockquote>" if t["zitat"] else "",
         )
         for t in v["themen"]
     )
@@ -1663,7 +1944,7 @@ def _interview_html(v: dict) -> str:
         + (
             f'<p class="zusammenfassung">{_t(v["zusammenfassung"], "")}</p>{themen}'
             if v["zusammenfassung"]
-            else '<p class="leer">Noch nicht verdichtet.</p>'
+            else f'<p class="leer">{_t(T._TEXT_NICHT_VERDICHTET)}</p>'
         )
     )
     return (
@@ -1704,9 +1985,7 @@ def gruppe_html(
             fassungswahl.get(s.get("id")),
         )
         for s in daten["szenen"]
-    ) or (
-        '<p class="leer">Noch keine Szene. Die entstehen in der letzten Phase.</p>'
-    )
+    ) or f'<p class="leer">{_t(T._TEXT_KEINE_SZENE)}</p>'
     # Die Uebersicht steht VOR den aufklappbaren Bloecken (06.09.2026, Birk)
     # und dupliziert sie nicht: dort die Zusammenfassung in einer Zeile je
     # Szene, darunter die Planung mit ihren Formularfeldern.
@@ -1714,20 +1993,19 @@ def gruppe_html(
 
     verdichtungen_html = "".join(
         _interview_html(v) for v in daten["interviews"]
-    ) or (
-        '<p class="leer">Noch kein Interview — sagt „wir machen jetzt ein '
-        "Interview“ und sprecht drauflos.</p>"
-    )
+    ) or f'<p class="leer">{_t(T._TEXT_KEIN_INTERVIEW_NOCH)}</p>'
 
     journal = "".join(
         '<div class="eintrag"><span class="art">{art}</span>{text} '
         '<span class="zeit">{zeit}</span></div>'.format(
-            art=_t(e["art"]), text=_t(e["text"]), zeit=_zeitpunkt(e["erstellt_am"])
+            art=_t(T.JOURNALART_BESCHRIFTUNG.get(e["art"], e["art"])),
+            text=_t(e["text"]),
+            zeit=_zeitpunkt(e["erstellt_am"]),
         )
         for e in daten["journal"]
-    ) or '<p class="leer">Noch nichts notiert.</p>'
+    ) or f'<p class="leer">{_t(T._TEXT_NICHTS_NOTIERT)}</p>'
 
-    titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     stand = (
         _bearbeiten_html(daten, nonce_wert)
         if nonce_wert
@@ -1738,7 +2016,7 @@ def gruppe_html(
     )
     probenansicht = (
         f'<p class="probenansicht"><a href="{_t(praefix, "")}/g/{_t(token)}/textbuch">'
-        "📖 Probenansicht — das ganze Stück am Stück, zum Lesen und Ausdrucken</a></p>"
+        f"{_t(T._TEXT_PROBENANSICHT_LINK)}</a></p>"
         if token
         else ""
     )
@@ -1747,14 +2025,14 @@ def gruppe_html(
     # spielt das, worum geht es, wer sind die dreizehn Namen weiter unten.
     kopf = _vorspann_html(daten.get("vorspann"))
     if kopf:
-        kopf = f"<h2>Überblick</h2>{kopf}\n"
+        kopf = f"<h2>{_t(T._UEBERSCHRIFT_UEBERBLICK)}</h2>{kopf}\n"
     return _seite(
-        f"{titel} — interview-theater",
+        T._TITEL_GRUPPENSEITE.format(titel=titel),
         _CSS_GRUPPE,
         f"<h1>{_t(titel)}</h1>\n"
         f"{probenansicht}"
         f"{kopf}"
-        "<h2>Arbeitsstand</h2>"
+        f"<h2>{_t(T._UEBERSCHRIFT_ARBEITSSTAND)}</h2>"
         f"{stand}\n"
         # „Was noch fehlt" steht direkt unter dem Arbeitsstand: es ist
         # dieselbe Datenlage in der anderen Richtung (06.09.2026). Fehlt
@@ -1763,17 +2041,18 @@ def gruppe_html(
         # Direkt hinter dem Arbeitsstand -- an derselben Stelle wie im
         # Prompt (kontext._REIHENFOLGE): was die Gruppe auf ihrer Seite
         # liest, soll da stehen, wo das Modell es auch liest.
-        "<h2>Weitere Festlegungen</h2>"
+        f"<h2>{_t(T._UEBERSCHRIFT_FESTLEGUNGEN)}</h2>"
         f"{_festlegungen_html(daten, nonce_wert)}\n"
-        f"<h2>Szenen</h2>{uebersicht}{szenen}\n"
+        f"<h2>{_t(T._UEBERSCHRIFT_SZENEN)}</h2>{uebersicht}{szenen}\n"
         # Die Sprechanteile stehen unter den Szenen: sie sind eine Zählung
         # über genau diese Texte (06.09.2026). Ohne zählbare Szene fehlt der
         # Abschnitt ganz.
         f"{_sprechanteile_html(daten.get('sprechanteile'))}\n"
         f"{_dramaturgie_html(daten.get('dramaturgie'))}\n"
-        f"<h2>Aus den Interviews</h2>{verdichtungen_html}\n"
-        "<h2>Der Weg dahin</h2>"
-        f"<details><summary>Journal ({len(daten['journal'])})</summary>{journal}</details>",
+        f"<h2>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</h2>{verdichtungen_html}\n"
+        f"<h2>{_t(T._UEBERSCHRIFT_WEG)}</h2>"
+        f"<details><summary>{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}"
+        f"</summary>{journal}</details>",
         bearbeitbar=bool(nonce_wert),
     )
 
@@ -1805,6 +2084,15 @@ _SPRECHER_VERBOTEN = ",;.!?\"'()[]/"
 _KEINE_SPRECHER = frozenset(
     {"SZENE", "AKT", "BILD", "TITEL", "KURZ", "ZUSAMMENFASSUNG", "ANDERS",
      "ORT", "ZEIT", "ANLASS", "FORM", "PERSONEN", "BESETZUNG", "DAUER"}
+)
+
+#: Dasselbe auf Englisch (Karte A1, K5): der englische Szenenprompt laesst
+#: "SCENE 1: ..." schreiben. Gelesen wird die Vereinigung. Geprueft wird nur
+#: das ERSTE Wort des Namens, deshalb steht neben "DONE DIFFERENTLY" auch
+#: "DONE" da (Zusatz zum Plan).
+_KEINE_SPRECHER_EN = frozenset(
+    {"SCENE", "ACT", "TITLE", "SHORT", "SUMMARY", "CHANGED", "DONE DIFFERENTLY",
+     "DONE", "PLACE", "TIME", "OCCASION", "FORM", "CAST", "CHARACTERS", "DURATION"}
 )
 
 #: Wie lang der Name vor dem Doppelpunkt hoechstens sein darf. "FRAU MUELLER
@@ -1839,7 +2127,7 @@ def sprecher_der_zeile(zeile: str, bekannte: set[str] | None = None) -> str | No
         return None
     if any(z in name for z in _SPRECHER_VERBOTEN):
         return None
-    if name.split()[0].upper() in _KEINE_SPRECHER:
+    if name.split()[0].upper() in _KEINE_SPRECHER | _KEINE_SPRECHER_EN:
         return None
     if name != name.upper() and name.upper() not in (bekannte or set()):
         return None
@@ -1938,18 +2226,27 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
     mit ihrer Planung da (dieselbe Entscheidung wie in
     ``szenenfolge.textbuch``: ein Textbuch, in dem Szene 4 fehlt, sieht aus
     wie ein Fehler)."""
-    kopf = f"Szene {_t(s['nummer'])}" if s.get("nummer") is not None else "Szene"
+    kopf = _t(
+        T._TEXT_SZENE_NR.format(nummer=s["nummer"])
+        if s.get("nummer") is not None else T._TEXT_SZENE
+    )
     if s.get("titel"):
         kopf += f" — {_t(s['titel'])}"
     angaben = " · ".join(
-        f"{label}: {_t(s[feld])}" for feld, label in _PROBE_ANGABEN if s.get(feld)
+        "{label}: {wert}".format(
+            label=_t(label),
+            wert=_t(_form_anzeige(s[feld]) if feld == "form" else s[feld]),
+        )
+        for feld, label in T._PROBE_ANGABEN
+        if s.get(feld)
     )
     zeilen = [f'<h2 class="szenenkopf">{kopf}</h2>']
     if angaben:
         zeilen.append(f'<p class="angaben">{angaben}</p>')
     if s.get("figuren"):
         zeilen.append(
-            f'<p class="besetzung">Besetzung: {_t(", ".join(s["figuren"]))}</p>'
+            f'<p class="besetzung">'
+            f'{_t(T._TEXT_BESETZUNG.format(figuren=", ".join(s["figuren"])))}</p>'
         )
     volltext = (s.get("volltext") or "").strip()
     prosa = (s.get("prosa") or "").strip()
@@ -1959,17 +2256,17 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
         zeilen.append(f'<div class="text">{koerper}</div>')
     else:
         planung = "".join(
-            f"<dt>{label}</dt><dd>{_t(s[feld])}</dd>"
-            for feld, label in _PROBE_PLANUNG
+            f"<dt>{_t(label)}</dt><dd>{_t(s[feld])}</dd>"
+            for feld, label in T._PROBE_PLANUNG
             if s.get(feld)
         )
-        zeilen.append(f'<p class="offen">{TEXT_UNGESCHRIEBEN}</p>')
+        zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
         if prosa:
             # Die Prosafassung aus Phase 6 ist der eigene Text der Gruppe und
             # kein Material -- sie steht hier, wo sonst nichts stuende, und
             # sagt dazu, dass sie noch keine Szene ist.
             zeilen.append(
-                f'<p class="angaben">Als Geschichte:</p><div class="text">'
+                f'<p class="angaben">{_t(T._TEXT_ALS_GESCHICHTE_DOPPELPUNKT)}</p><div class="text">'
                 f'<p class="prosa">{_t(prosa)}</p></div>'
             )
         if planung:
@@ -1995,7 +2292,7 @@ def _rollenleiste_html(sprecher: list[str], figuren: list[dict]) -> str:
     namen = {(f["name"] or "").upper(): f["name"] for f in figuren if f.get("name")}
     knoepfe = [
         '<button type="button" class="rolle" data-figur="" data-name="" '
-        'aria-pressed="true">alle</button>'
+        f'aria-pressed="true">{_t(T._TEXT_ALLE)}</button>'
     ]
     for name in sprecher:
         anzeige = namen.get(name, name.title())
@@ -2004,7 +2301,7 @@ def _rollenleiste_html(sprecher: list[str], figuren: list[dict]) -> str:
             f'data-name="{_t(anzeige)}" aria-pressed="false">{_t(anzeige)}</button>'
         )
     return (
-        '<div class="leiste rollen"><span class="marke">Rolle</span>'
+        f'<div class="leiste rollen"><span class="marke">{_t(T._TEXT_ROLLE)}</span>'
         + "".join(knoepfe)
         + "</div>"
     )
@@ -2164,39 +2461,38 @@ def textbuch_html(
         for name in gefunden:
             if name not in sprecher:
                 sprecher.append(name)
-    stueck = "".join(abschnitte) or (
-        '<p class="leer">Noch keine Szene — hier steht das Stück, sobald es '
-        "eine gibt.</p>"
-    )
-    titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
+    stueck = "".join(abschnitte) or f'<p class="leer">{_t(T._TEXT_STUECK_LEER)}</p>'
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     wege = ""
     if token:
         wege = (
             f'<p class="wege"><a href="{_t(praefix, "")}/g/{_t(token)}">'
-            "‹ Arbeitsstand</a>"
-            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.md">Textbuch .md</a>'
-            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.txt">Textbuch .txt</a>'
+            f"{_t(T._TEXT_ZUM_ARBEITSSTAND)}</a>"
+            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.md">'
+            f"{_t(T._TEXT_TEXTBUCH_MD)}</a>"
+            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.txt">'
+            f"{_t(T._TEXT_TEXTBUCH_TXT)}</a>"
             "</p>"
         )
     leisten = _rollenleiste_html(sprecher, daten["figuren"]) + (
-        '<div class="leiste"><span class="marke">Schrift</span>'
+        f'<div class="leiste"><span class="marke">{_t(T._TEXT_SCHRIFT)}</span>'
         '<button type="button" class="schrift" data-schrift="klein" '
-        'aria-pressed="false">klein</button>'
+        f'aria-pressed="false">{_t(T._TEXT_SCHRIFT_KLEIN)}</button>'
         '<button type="button" class="schrift" data-schrift="mittel" '
-        'aria-pressed="true">mittel</button>'
+        f'aria-pressed="true">{_t(T._TEXT_SCHRIFT_MITTEL)}</button>'
         '<button type="button" class="schrift" data-schrift="gross" '
-        'aria-pressed="false">groß</button>'
+        f'aria-pressed="false">{_t(T._TEXT_SCHRIFT_GROSS)}</button>'
         '<button type="button" class="regie-schalter" aria-pressed="false">'
-        "Regieanweisungen ausblenden</button></div>"
+        f"{_t(T._TEXT_REGIE_AUS)}</button></div>"
     )
+    kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
     return _seite(
-        f"{titel} — Probenansicht",
+        kopfzeile,
         _CSS_TEXTBUCH,
-        f"<h1>{_t(titel)} — Probenansicht</h1>\n"
+        f"<h1>{_t(kopfzeile)}</h1>\n"
         f"{wege}{leisten}\n"
         f'<article class="stueck">{stueck}</article>\n'
-        '<p class="hinweis-druck leer">Zum Ausdrucken: die Druckfunktion des '
-        "Browsers — je Szene eine Seite, ohne Leisten und Farben.</p>",
+        f'<p class="hinweis-druck leer">{_t(T._TEXT_DRUCKEN)}</p>',
         nachladen=False,
         skript=_TEXTBUCH_JS,
     )
@@ -2225,23 +2521,23 @@ def leitfaden_html(daten: dict) -> str:
     Steht noch kein Leitfaden, kommt eine ruhige Seite und kein Fehler."""
     from interview_theater import leitfaden
 
-    titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     teil = leitfaden.bausteine(daten["arbeitsstand"])
     if teil is None:
-        koerper = f'<p class="leer">{html.escape(TEXT_LEITFADEN_LEER)}</p>'
+        koerper = f'<p class="leer">{html.escape(T.TEXT_LEITFADEN_LEER)}</p>'
     else:
         koerper = _leitfaden_blocks(teil, leitfaden)
     zurueck = (
         f'<a class="zurueck" href="../{_t(daten["token"], "")}">'
-        f"{html.escape(TEXT_LEITFADEN_ZURUECK)}</a>"
+        f"{html.escape(T.TEXT_LEITFADEN_ZURUECK)}</a>"
         if daten.get("token")
         else ""
     )
     return (
         "<!doctype html>\n"
-        '<html lang="de"><head><meta charset="utf-8">\n'
+        f'<html lang="{html.escape(sprache.code())}"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f"<title>Leitfaden — {html.escape(titel)}</title>\n"
+        f"<title>{html.escape(T._TITEL_LEITFADEN.format(titel=titel))}</title>\n"
         f"<style>{_CSS_LEITFADEN}</style></head>\n<body>\n"
         f"<h1>{_t(titel)}</h1>\n{koerper}\n{zurueck}\n"
         "</body></html>\n"
@@ -2257,23 +2553,26 @@ def _leitfaden_blocks(teil: dict, leitfaden) -> str:
     stuecke = []
     if teil["eroeffnung"]:
         stuecke.append(
-            f'<div class="block"><h2>{html.escape(leitfaden.UEBERSCHRIFT_EROEFFNUNG)}'
+            f'<div class="block"><h2>{html.escape(leitfaden.T.UEBERSCHRIFT_EROEFFNUNG)}'
             f'</h2><p class="sagen">{_t(teil["eroeffnung"])}</p></div>'
         )
-    stuecke.append(f"<h2>{html.escape(leitfaden.UEBERSCHRIFT_FRAGEN)}</h2>")
+    stuecke.append(f"<h2>{html.escape(leitfaden.T.UEBERSCHRIFT_FRAGEN)}</h2>")
     for frage in teil["fragen"]:
         block = (
             f'<div class="frage"><span class="nummer">{frage["nummer"]}</span>'
             f'<p>{_t(frage["text"])}</p>'
         )
         if frage["einleitung"]:
-            block += f'<div class="vorher">Vorher sagen: {_t(frage["einleitung"])}</div>'
+            block += (
+                f'<div class="vorher">'
+                f'{_t(T._TEXT_VORHER_SAGEN.format(text=frage["einleitung"]))}</div>'
+            )
         if frage["kern"]:
-            block += f'<div class="kern">Kern: {_t(frage["kern"])}</div>'
+            block += f'<div class="kern">{_t(T._TEXT_KERN.format(text=frage["kern"]))}</div>'
         stuecke.append(block + "</div>")
     if teil["abschluss"]:
         stuecke.append(
-            f'<div class="block"><h2>{html.escape(leitfaden.UEBERSCHRIFT_ABSCHLUSS)}'
+            f'<div class="block"><h2>{html.escape(leitfaden.T.UEBERSCHRIFT_ABSCHLUSS)}'
             f'</h2><p class="sagen">{_t(teil["abschluss"])}</p></div>'
         )
     return "\n".join(stuecke)
@@ -2285,14 +2584,15 @@ def nicht_gefunden_html() -> str:
     Sagt bewusst nichts darueber, ob es Gruppen gibt oder wie ein gueltiges
     Token aussaehe -- und laedt sich, anders als die beiden echten Seiten,
     nicht selbst neu."""
+    titel = html.escape(T._TITEL_NICHT_GEFUNDEN)
     return (
         "<!doctype html>\n"
-        '<html lang="de"><head><meta charset="utf-8">'
+        f'<html lang="{html.escape(sprache.code())}"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        "<title>Nicht gefunden</title>"
+        f"<title>{titel}</title>"
         f"<style>{_CSS_GEMEINSAM}{_CSS_GRUPPE}</style></head>"
-        "<body><h1>Nicht gefunden</h1>"
-        "<p>Diese Adresse gibt es nicht. Fragt im Workshop nach dem Link.</p>"
+        f"<body><h1>{titel}</h1>"
+        f"<p>{html.escape(T._TEXT_NICHT_GEFUNDEN)}</p>"
         "</body></html>\n"
     )
 
@@ -2374,8 +2674,8 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
         handler.log_error("Datenbankfehler: %s", fehler)
         handler._antworte(
             500,
-            "<!doctype html><html lang=\"de\"><meta charset=\"utf-8\">"
-            "<p>Die Datenbank ist gerade nicht lesbar.</p></html>",
+            f'<!doctype html><html lang="{html.escape(sprache.code())}"><meta charset="utf-8">'
+            f"<p>{html.escape(T._TEXT_DB_NICHT_LESBAR)}</p></html>",
         )
 
 
@@ -2503,9 +2803,7 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
             handler._antworte(404, nicht_gefunden_html())
             return
         if not nonce_gueltig(schluessel, token, daten.get("nonce")):
-            handler._fehler(
-                403, "Die Seite ist veraltet — bitte einmal neu laden."
-            )
+            handler._fehler(403, T._TEXT_SEITE_VERALTET)
             return
         antwort = handler._schreibe(gruppe["chat_id"], daten)
     except web_schreiben.Fehler as fehler:
@@ -2513,7 +2811,7 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
         return
     except sqlite3.Error as fehler:
         handler.log_error("Datenbankfehler beim Schreiben: %s", fehler)
-        handler._fehler(500, "Die Datenbank ist gerade nicht beschreibbar.")
+        handler._fehler(500, T._TEXT_DB_NICHT_BESCHREIBBAR)
         return
     handler._antworte(
         200,
@@ -2544,17 +2842,17 @@ class _Basishandler(BaseHTTPRequestHandler):
         try:
             laenge = int(self.headers.get("Content-Length") or 0)
         except ValueError:
-            raise ValueError("Ungültige Anfrage.") from None
+            raise ValueError(T._TEXT_UNGUELTIG) from None
         if laenge <= 0:
-            raise ValueError("Leere Anfrage.")
+            raise ValueError(T._TEXT_LEER_ANFRAGE)
         if laenge > MAX_POST_BYTES:
-            raise ValueError("Der Text ist zu lang.")
+            raise ValueError(T._TEXT_ZU_LANG)
         try:
             gelesen = json.loads(self.rfile.read(laenge).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            raise ValueError("Ungültige Anfrage.") from None
+            raise ValueError(T._TEXT_UNGUELTIG) from None
         if not isinstance(gelesen, dict):
-            raise ValueError("Ungültige Anfrage.")
+            raise ValueError(T._TEXT_UNGUELTIG)
         return gelesen
 
     def _fehler(self, status: int, text: str) -> None:
@@ -2708,5 +3006,15 @@ def main() -> None:
     server.serve_forever()
 
 
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+# ``__spec__.name`` statt ``__name__``: der Dienst startet mit
+# ``python -m interview_theater.web``, dann heisst das Modul ``__main__`` --
+# und unter diesem Namen faende die Texttabelle nichts (``["web"]``), die
+# Seiten blieben in Padua still deutsch.
+T = sprache.Texte(__spec__.name if __spec__ else __name__)
+
+
 if __name__ == "__main__":
+    # Damit ``sprache.text`` das Modul unter seinem Paketnamen findet.
+    sys.modules.setdefault("interview_theater.web", sys.modules[__name__])
     main()

@@ -24,7 +24,7 @@ Module unter `interview_theater/`:
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, Interviewfluss (kurz/teil/lang) |
-| `befehle.py` | Die Slash-Befehle (`_BEKANNTE_BEFEHLE`, zurzeit dreizehn; acht davon stehen über `setMyCommands` im Menü, `BEFEHLE_LISTE`), laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
+| `befehle.py` | Die Slash-Befehle (`_BEKANNTE_BEFEHLE`, zurzeit fünfzehn; acht davon stehen über `setMyCommands` im Menü, `BEFEHLE_LISTE`), laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
 | `kontext.py` | Baut den Gesprächs-Prompt datengetrieben zusammen, inklusive zweistufiger Kürzung |
@@ -57,6 +57,8 @@ Module unter `interview_theater/`:
 | `einstellungen.py` | Konfiguration ausschließlich über Umgebungsvariablen |
 | `anweisungen.py` | Prompt-Texte mit Hot-Reload (mtime) + optionaler Regie-Zettel `betrieb/zusatz*.md`; **der Einhängepunkt des Workshop-Profils** (Platzhalter, Dateiersatz, Cache-Schlüssel mit Profil) |
 | `workshop.py` | Das Workshop-Profil: liest `IT_WORKSHOP`, lädt `workshop/<name>/*.toml`, liefert ein eingefrorenes Objekt. Ohne Variable gilt das eingebaute Vorgabeprofil mit den heutigen Dortmunder Werten. Siehe „Workshop-Profil" |
+| `sprache.py` | Die Sprache eines Workshops (Karte A1, 30.09.2026): `code()` (`de`/`en`), `whisper_vorgabe()`, `pseudonyme()` (E8), `je_sprache()` für Parser, und der Nachschlagezugriff `Texte`/`T` — `T._TEXT_X` liest zur Aufrufzeit aus der Tabelle der aktiven Sprache. Deutsch bleibt die Python-Konstante selbst (bitgleich), jede weitere Sprache steht in `sprachen/<code>/texte.toml`. Siehe „Workshop-Profil", Absatz „Sprache" |
+| `sprachen/` | Die Sprachschicht zwischen Repo und Profil (Karte A1): `en/texte.toml` (eine Tabelle je definierendem Modul, Konstantenname als Schlüssel) und `en/prompts/**` (englische Fassung je Prompt-Datei, gleicher Pfad wie im Repo). Wird von `sprache.py` bzw. `anweisungen.py` gelesen, nie direkt importiert |
 | `prompts/` | Die Prompt-Texte als eigene `.md`-Dateien (`system`, `erkenner`, `journal`, `verdichter`, `szene`, `sprachprofil` + `theater-tells`) |
 | `prompts/formen/` | Ein Regelblock je Szenenform — genau fünf: `dialog`, `monolog`, `chor`, `lied`, `rap` (05.09.2026 abends). `szene.formdatei(form)` ordnet das freie Feld `szene.form` zu, Dialog ist der Rückfall. `dialog.md` trägt den am Herkules.exe-Textbuch gemessenen Regelblock (Sprechszene, Ausgangsmaterial, keine Choreografie); `lied.md`/`rap.md` das Songwriting- bzw. Rap-Handwerk. Eine Figurenanzahl gibt kein Regelblock vor — die kommt aus der Planung (Feld `figuren`) |
 | `prompts/phasen/` | Je Arbeitsphase eine Datei `1.md` … `8.md`: worauf der Bot dort den Fokus legt, was er *nicht* tut, woran die Phase fertig ist. Wird zwischen Basis-Systemanweisung und Regie-Zettel gehängt |
@@ -102,7 +104,7 @@ Versehen).
 | Schicht | Module |
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
-| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` |
+| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` |
 | **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` |
 

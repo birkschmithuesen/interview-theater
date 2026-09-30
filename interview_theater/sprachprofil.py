@@ -84,6 +84,12 @@ _TEXT_KEIN_ZITAT = (
     "Ich konnte fuer {name} keinen Satz woertlich belegen. Sagt mir ein "
     "anderes Interview, dann versuche ich es damit."
 )
+#: Die Quelle, wenn das Interview keine Bezeichnung hat.
+_DEM_INTERVIEW = "dem Interview"
+#: Die Journalzeile nach einem Sprachprofil.
+_JOURNAL = "Sprachprofil fuer {name} aus {quelle}"
+#: Die Kurzfassung in der Meldung, wenn die Analyse leer war.
+_KURZ_STEHT = "steht"
 
 
 def prompt() -> str:
@@ -125,10 +131,10 @@ def erstelle(klm, conn, e, figur_id: int) -> str | None:
         return None
     aufnahme = repo.hole_aufnahme(conn, figur["quelle_aufnahme_id"])
     from interview_theater import kontext
-    quelle = kontext.interviewbezeichnung(conn, figur["chat_id"], figur["quelle_aufnahme_id"]) or "dem Interview"
+    quelle = kontext.interviewbezeichnung(conn, figur["chat_id"], figur["quelle_aufnahme_id"]) or T._DEM_INTERVIEW
     transkript = repo.zusammengefuegtes_transkript(conn, figur["quelle_aufnahme_id"])
     if not transkript.strip():
-        return _TEXT_KEIN_TRANSKRIPT.format(quelle=quelle, name=figur["name"])
+        return T._TEXT_KEIN_TRANSKRIPT.format(quelle=quelle, name=figur["name"])
 
     ergebnis = klm.schema(
         figur["chat_id"], prompt(), baue_nutzertext(transkript), SCHEMA, ART,
@@ -152,16 +158,16 @@ def erstelle(klm, conn, e, figur_id: int) -> str | None:
             conn, figur["chat_id"], getattr(e, "bot_name", None), "zitat_ungeprueft",
             f"Sprachprofil ohne belegtes Zitat verworfen (figur={figur['name']!r})",
         )
-        return _TEXT_KEIN_ZITAT.format(name=figur["name"])
+        return T._TEXT_KEIN_ZITAT.format(name=figur["name"])
 
     profil = (ergebnis.get("profil") or "").strip()
     repo.setze_sprachprofil(conn, figur_id, profil, geprueft)
     repo.schreibe_journal(
         conn, figur["chat_id"], "entschieden",
-        f"Sprachprofil fuer {figur['name']} aus {quelle}", quelle="sprachprofil",
+        T._JOURNAL.format(name=figur["name"], quelle=quelle), quelle="sprachprofil",
     )
-    return MELDUNG.format(
-        name=figur["name"], quelle=quelle, kurz=_kurzfassung(profil) or "steht",
+    return T.MELDUNG.format(
+        name=figur["name"], quelle=quelle, kurz=_kurzfassung(profil) or T._KURZ_STEHT,
     )
 
 
@@ -236,3 +242,7 @@ def starte(conn, tg, klm, e, chat_id: int, figur_ids: list[int],
     )
     thread.start()
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

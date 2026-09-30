@@ -35,7 +35,7 @@ import logging
 import re
 
 from interview_theater import (
-    aufnahme, erkenner, knoepfe, leitfaden, phasen, repo, szene,
+    aufnahme, erkenner, knoepfe, leitfaden, phasen, repo, sprache, szene,
 )
 
 #: Woerter, die einen Befehl zu einer Entfernung machen (NACHTRAG N3).
@@ -48,6 +48,31 @@ _SZENE_ENTFERNEN = re.compile(
     r"^(?:szene\s*)?(\d{1,3})\s+(?:" + "|".join(_ENTFERNEN_WOERTER) + r")\.?$",
     re.IGNORECASE,
 )
+
+#: Die Befehlsargumente einer englischsprachigen Gruppe (Karte A1,
+#: Aufgabe 22). Gewaehlt wird je Sprache; die englische Wahl nimmt die
+#: deutschen Argumentwoerter **mit**, weil sie nach Annahme A4 Teil der
+#: Befehlssyntax bleiben und die englische Hilfe sie nennt
+#: ("/figur <name> entfernen", "/festlegung weg <search word>").
+_ENTFERNEN_WOERTER_EN = {"remove", "delete", "drop", "out"}
+_ENTFERNEN_JE_SPRACHE = {
+    "de": _ENTFERNEN_WOERTER,
+    "en": _ENTFERNEN_WOERTER | _ENTFERNEN_WOERTER_EN,
+}
+#: Nachbesserung (Review Commit 15d70a8, Befund 4, mit dem Interpreter
+#: gemessen): der Praefix kannte nur "scene", der Slash-Befehl heisst aber
+#: weiter "/szene" (Annahme A4) -- "/szene szene 2 remove" fiel bis zum
+#: Schreibauftrag durch, weil das Praefixwort "szene" nicht erkannt wurde.
+#: Jetzt akzeptiert der Praefix beide Schreibweisen.
+_SZENE_PRAEFIX_EN = r"(?:s(?:z|c)ene\s*)?"
+_SZENE_ENTFERNEN_EN = re.compile(
+    r"^" + _SZENE_PRAEFIX_EN + r"(\d{1,3})\s+(?:"
+    + "|".join(sorted(_ENTFERNEN_JE_SPRACHE["en"])) + r")\.?$",
+    re.IGNORECASE,
+)
+
+#: Das Argument, das ein Feld wieder leert ("/kernthema aus").
+_AUS = {"de": ("aus",), "en": ("off", "aus")}
 
 #: "/szene usa ja" bzw. "/szene usa nein" -- die Antwort auf das
 #: Einwilligungs-Angebot fuer das US-Modell, deterministisch statt ueber den
@@ -66,6 +91,12 @@ _SZENE_USA_LEER = re.compile(r"^usa\.?$", re.IGNORECASE)
 #: Sonderform faengt ``_SZENE_FELD`` den Text nicht (es verlangt einen Wert),
 #: und der Rest liefe als Szenen-SCHREIBauftrag ins Sprachmodell.
 _SZENE_FORM_LEER = re.compile(r"^(?:szene\s*)?(\d{1,3})\s+form\.?$", re.IGNORECASE)
+#: Nachbesserung (Review Commit 15d70a8, Befund 4, derselbe Praefix-Fund wie
+#: bei ``_SZENE_ENTFERNEN_EN``): "szene" war hier ebenso wenig erkannt wie
+#: dort, mit dem Interpreter nachgemessen.
+_SZENE_FORM_LEER_EN = re.compile(
+    r"^" + _SZENE_PRAEFIX_EN + r"(\d{1,3})\s+form\.?$", re.IGNORECASE
+)
 
 #: "/szene 2 ort Polizeikessel" -- Nummer, ein bekannter Feldname, der Wert.
 #: Der Korrekturweg zu den Szenenfeldern (05.09.2026), neben der Erkenner-art
@@ -75,6 +106,19 @@ _SZENE_FORM_LEER = re.compile(r"^(?:szene\s*)?(\d{1,3})\s+form\.?$", re.IGNORECA
 _SZENE_FELD = re.compile(
     r"^(?:szene\s*)?(\d{1,3})\s+(\w+)\s+(.+)$", re.IGNORECASE | re.DOTALL
 )
+#: Dieselben zwei Muster fuer eine englischsprachige Gruppe ("/szene scene 2
+#: ort ..."). Der Feldname selbst laeuft weiter ueber ``szene.feldname``.
+#: Nachbesserung (Review Commit 15d70a8, Befund 4): Praefix akzeptiert jetzt
+#: "szene" oder "scene", siehe ``_SZENE_PRAEFIX_EN``.
+_SZENE_FELD_EN = re.compile(
+    r"^" + _SZENE_PRAEFIX_EN + r"(\d{1,3})\s+(\w+)\s+(.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _ist_aus(wert: str) -> bool:
+    """Ist ``wert`` das Leer-Argument der Sprache ("aus", englisch "off")?"""
+    return wert.lower() in sprache.je_sprache(_AUS)
 
 log = logging.getLogger(__name__)
 
@@ -105,6 +149,17 @@ _TEXT_FIGUR_HILFE = (
 )
 _TEXT_PHASE_UNBEKANNT = "Diese Phase kenne ich nicht. Ich habe diese sieben:"
 _TEXT_KEINE_AUFNAHMEN = "Es gibt noch keine Aufnahmen."
+#: /sprache (Karte A1, D2) -- versteckt, wie /leitfaden: der Weg ist der
+#: Knopf in Phase 3, der Befehl der Notausgang und die Anzeige.
+_TEXT_SPRACHE_STAND = "Interviewsprache: {sprache}."
+_TEXT_SPRACHE_GESETZT = "Interviewsprache ab jetzt: {sprache}."
+_TEXT_SPRACHE_UNBEKANNT = (
+    "Das kenne ich nicht. Moeglich sind auto oder ein Sprachkuerzel wie "
+    "it, en, de."
+)
+_TEXT_SPRACHE_AUTO = "automatisch (ich erkenne sie selbst)"
+_JOURNAL_SPRACHE = "Interviewsprache fuer Whisper: {sprache}"
+_SPRACHWERT = re.compile(r"^(auto|[a-z]{2})$")
 _TEXT_SZENE_LEER = (
     "Schreibt den Auftrag hinter den Befehl, zum Beispiel: "
     "/szene Szene 2: Maria kommt am Bahnhof an und trifft Elif"
@@ -121,6 +176,40 @@ _TEXT_SZENE_FIGUR_UNBEKANNT = (
 #: ein Programmierfehler, aber einer, der die Gruppe nicht ratlos lassen soll.
 _TEXT_SZENE_UNMOEGLICH = "Ich kann gerade keine Szene schreiben."
 _TEXT_AUSWERTEN_UNMOEGLICH = "Ich kann gerade nicht auswerten."
+
+#: Die frueheren Inline-Saetze der Befehle (Karte A1): als Konstanten, damit
+#: sie ueber ``T`` laufen. Zeichengleich mit dem, was vorher am
+#: Verwendungsort stand.
+_TEXT_NAME_UNBEKANNT = "Ich kenne diesen Namen nicht. Vorhandene Aufnahmen: {namen}"
+_TEXT_INTERVIEW_UNBEKANNT = "Dieses Interview kenne ich nicht. Vorhandene: {namen}"
+#: /stueck: Feldname -> sichtbare Bezeichnung. Die Schluessel sind Protokoll
+#: (Spaltennamen und Befehlsargument), nur die Werte sind Anzeige.
+_STUECK_FELDER = {"rahmen": "Rahmen", "format": "Format"}
+_TEXT_RAHMEN_ZEILE = "Rahmen: {rahmen}"
+_TEXT_RAHMEN_OFFEN = "Rahmen: noch offen"
+_TEXT_RAHMEN_SETZEN = "Setzen: /stueck rahmen Ein Wartezimmer, an einem Nachmittag"
+_TEXT_STUECK_UNBEKANNT = "Das kenne ich nicht. Es gibt /stueck rahmen <text>."
+_TEXT_STUECK_WERT_LEER = (
+    "Schreibt den {bezeichnung} dahinter, zum Beispiel: /stueck {feld} {beispiel}"
+)
+_TEXT_STUECK_NICHT_GESETZT = "Ein {bezeichnung} war nicht gesetzt."
+_TEXT_STUECK_NOTIERT = "{bezeichnung} notiert: {wert}"
+_TEXT_KERNTHEMA_NICHT_GESETZT = "Ein Kernthema war nicht gesetzt."
+_TEXT_ENTFERNT = "Entfernt: {wert}."
+_TEXT_FIGUR_UNBEKANNT = "Eine Figur {name} kenne ich nicht."
+_TEXT_SZENE_UNBEKANNT = "Eine Szene {nummer} kenne ich nicht."
+_TEXT_FESTGEHALTEN = "Festgehalten: {zeile}"
+_TEXT_WIR_SIND_BEI = "Wir sind bei {phase}."
+_TEXT_STAND_KOPF = "Stand:"
+_TEXT_STAND_PHASE = "Phase: {phase}"
+_TEXT_WAS_BISHER = "Was bisher passiert:"
+_TEXT_STAND_KERNTHEMA = "Kernthema: {wert}"
+_TEXT_STAND_HAUPTKONFLIKT = "Hauptkonflikt: {wert}"
+_TEXT_INTERVIEWMODUS_AN = "Interviewmodus: an"
+_TEXT_INTERVIEWMODUS_AUS = "Interviewmodus: aus"
+_TEXT_ZUM_MITLESEN = "Zum Mitlesen: {url}"
+_TEXT_WORTLAUT_ALLE = "Wortlaut an: alle Aufnahmen."
+_TEXT_WORTLAUT_AN = "Wortlaut an: {name}"
 
 #: Wortidentisch mit der Begruessung aus bot.erstkontakt (teil-b.md Aufgabe
 #: 7) in den ersten beiden Absaetzen -- /hilfe ist das jederzeit abrufbare
@@ -192,11 +281,20 @@ def _namen_der_aufnahmen(conn, chat_id: int) -> list[str]:
     return [a["name"] for a in repo.transkripte(conn, chat_id) if a["name"]]
 
 
+def _aufnahmen_mit_anzeige(conn, chat_id: int) -> list[tuple[str, str]]:
+    """(gespeicherter Name, Anzeigename) je benannter Aufnahme. Ohne
+    Pseudonyme sind beide gleich; mit Pseudonymen (E8) zeigt der Bot
+    "Interview N" und nimmt beides an -- was er zeigt, muss die Gruppe auch
+    tippen koennen."""
+    return [(a["name"], aufnahme.anzeigename(conn, a, a["name"]))
+            for a in repo.transkripte(conn, chat_id) if a["name"]]
+
+
 def _wortlaut_liste(conn, chat_id: int) -> str:
-    namen = _namen_der_aufnahmen(conn, chat_id)
+    namen = [anzeige for _, anzeige in _aufnahmen_mit_anzeige(conn, chat_id)]
     if not namen:
-        return _TEXT_KEINE_AUFNAHMEN
-    return "Ich kenne diesen Namen nicht. Vorhandene Aufnahmen: " + ", ".join(namen)
+        return T._TEXT_KEINE_AUFNAHMEN
+    return T._TEXT_NAME_UNBEKANNT.format(namen=", ".join(namen))
 
 
 def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
@@ -226,14 +324,14 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
       (``knoepfe.biete_nach_teil``), der Text sagt das."""
     if repo.ist_interviewmodus_an(conn, chat_id):
         kopf_id = aufnahme.beende_interview(conn, chat_id)
-        knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_INTERVIEW_AUS)
+        knoepfe.biete_aufnahme(conn, tg, chat_id, T._TEXT_INTERVIEW_AUS)
         if kopf_id is not None and klm is not None:
             aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
         return
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
     aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")
-    knoepfe.biete_aufnahme(conn, tg, chat_id, _TEXT_INTERVIEW_AN, knopf=False)
+    knoepfe.biete_aufnahme(conn, tg, chat_id, T._TEXT_INTERVIEW_AN, knopf=False)
     # Beim ersten Interviewstart geht der Leitfaden EINMAL mit raus
     # (06.09.2026): die Gruppe steht in dem Moment vor einer fremden Person
     # und braucht Eroeffnung, Einleitungen und Fragen an einer Stelle. Danach
@@ -262,7 +360,7 @@ def _befehl_interview(conn, tg, chat_id: int) -> None:
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
     aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")
-    tg.sende(chat_id, _TEXT_INTERVIEW_AN)
+    tg.sende(chat_id, T._TEXT_INTERVIEW_AN)
 
 
 def _befehl_fertig(conn, tg, klm, e, chat_id: int) -> None:
@@ -273,7 +371,7 @@ def _befehl_fertig(conn, tg, klm, e, chat_id: int) -> None:
     ``klm`` (ein Aufrufer ohne Sprachmodell) bleibt das Interview auf
     'transkribiert' stehen und der Nachhol-Arbeiter verdichtet es."""
     kopf_id = aufnahme.beende_interview(conn, chat_id)
-    tg.sende(chat_id, _TEXT_INTERVIEW_AUS)
+    tg.sende(chat_id, T._TEXT_INTERVIEW_AUS)
     if kopf_id is not None and klm is not None:
         aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
 
@@ -291,14 +389,15 @@ def _befehl_auswerten(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     starte_auswertung``) -- kein Befehl ruft synchron ein Modell."""
     kopf = aufnahme.finde_interview(conn, chat_id, rest)
     if kopf is None:
-        namen = [a["name"] for a in aufnahme.interviews(conn, chat_id) if a["name"]]
+        namen = [aufnahme.anzeigename(conn, a, a["name"])
+                 for a in aufnahme.interviews(conn, chat_id) if a["name"]]
         tg.sende(
             chat_id,
-            _TEXT_KEINE_AUFNAHMEN if not namen
-            else "Dieses Interview kenne ich nicht. Vorhandene: " + ", ".join(namen),
+            T._TEXT_KEINE_AUFNAHMEN if not namen
+            else T._TEXT_INTERVIEW_UNBEKANNT.format(namen=", ".join(namen)),
         )
         return
-    name = kopf["name"] or "Das Interview"
+    name = aufnahme.anzeigename(conn, kopf, knoepfe.T._TEXT_DAS_INTERVIEW_ANFANG)
     if aufnahme.zeige_verdichtung(conn, tg, e, kopf["id"]):
         # Schon verdichtet: die vorhandene Auswertung wird ausgespielt, nicht
         # ein zweites Mal erzeugt (05.09.2026). Vorher stand hier nur "ist
@@ -307,9 +406,9 @@ def _befehl_auswerten(conn, tg, klm, e, chat_id: int, rest: str) -> None:
         return
     if klm is None:
         log.error("/auswerten ohne Sprachmodell aufgerufen, chat_id=%s", chat_id)
-        tg.sende(chat_id, _TEXT_AUSWERTEN_UNMOEGLICH)
+        tg.sende(chat_id, T._TEXT_AUSWERTEN_UNMOEGLICH)
         return
-    tg.sende(chat_id, f"Ich werte {name} aus.")
+    tg.sende(chat_id, knoepfe.T._TEXT_ICH_WERTE_AUS.format(name=name))
     aufnahme.starte_auswertung(conn, tg, klm, e, kopf["id"])
 
 
@@ -327,38 +426,41 @@ def _befehl_stueck(conn, tg, chat_id: int, rest: str) -> None:
     wie wir inszenieren, ist unser Ding").
 
     ``aus`` als Wert nimmt das Feld wieder weg, wie bei ``/kernthema aus``."""
-    felder = {"rahmen": "Rahmen", "format": "Format"}
+    felder = T._STUECK_FELDER
     feld, _, wert = rest.partition(" ")
     feld = feld.strip().lower()
+    feld = sprache.je_sprache({"de": {}, "en": _STUECK_SYNONYME_EN}).get(feld, feld)
     wert = wert.strip()
 
     if not feld:
         stand = repo.hole_arbeitsstand(conn, chat_id)
         gesetzt = (stand["rahmen"] if stand else None) or ""
-        zeilen = [f"Rahmen: {gesetzt}" if gesetzt else "Rahmen: noch offen"]
-        zeilen.append("Setzen: /stueck rahmen Ein Wartezimmer, an einem Nachmittag")
+        zeilen = [T._TEXT_RAHMEN_ZEILE.format(rahmen=gesetzt) if gesetzt
+                  else T._TEXT_RAHMEN_OFFEN]
+        zeilen.append(T._TEXT_RAHMEN_SETZEN)
         tg.sende(chat_id, "\n".join(zeilen))
         return
 
     if feld not in felder:
-        tg.sende(chat_id, "Das kenne ich nicht. Es gibt /stueck rahmen <text>.")
+        tg.sende(chat_id, T._TEXT_STUECK_UNBEKANNT)
         return
 
     bezeichnung = felder[feld]
     if not wert:
-        beispiel = _BEISPIEL_ARBEITSSTAND[feld]
+        beispiel = T._BEISPIEL_ARBEITSSTAND[feld]
         tg.sende(
             chat_id,
-            f"Schreibt den {bezeichnung} dahinter, zum Beispiel: "
-            f"/stueck {feld} {beispiel}",
+            T._TEXT_STUECK_WERT_LEER.format(
+                bezeichnung=bezeichnung, feld=feld, beispiel=beispiel),
         )
         return
-    if wert.lower() == "aus":
+    if _ist_aus(wert):
         entfernt = erkenner.entferne(conn, chat_id, feld, quelle="befehl")
-        tg.sende(chat_id, _melde_entfernt(entfernt, f"Ein {bezeichnung} war nicht gesetzt."))
+        tg.sende(chat_id, _melde_entfernt(
+            entfernt, T._TEXT_STUECK_NICHT_GESETZT.format(bezeichnung=bezeichnung)))
         return
     repo.setze_arbeitsstand(conn, chat_id, feld, wert)
-    tg.sende(chat_id, f"{bezeichnung} notiert: {wert}")
+    tg.sende(chat_id, T._TEXT_STUECK_NOTIERT.format(bezeichnung=bezeichnung, wert=wert))
 
 
 #: Beispiele fuer die Hilfezeilen von /stueck -- konkret, damit
@@ -367,6 +469,10 @@ _BEISPIEL_ARBEITSSTAND = {
     "format": "Sprechtheater: Dialog und Chor",
     "rahmen": "Ein Wartezimmer, an einem Nachmittag",
 }
+
+#: "/stueck setting <text>" -- das englische Wort fuer das Feld ``rahmen``
+#: (Aufgabe 22). Nach aussen heisst ``rahmen`` ohnehin "Setting".
+_STUECK_SYNONYME_EN = {"setting": "rahmen"}
 
 
 def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
@@ -383,14 +489,14 @@ def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
     kommen aus der Datenbank."""
     if not rest:
         if not knoepfe.biete_kernthema(conn, tg, chat_id):
-            tg.sende(chat_id, _TEXT_KERNTHEMA_LEER)
+            tg.sende(chat_id, T._TEXT_KERNTHEMA_LEER)
         return
-    if rest.lower() == "aus":
+    if _ist_aus(rest):
         entfernt = erkenner.entferne(conn, chat_id, "kernthema", quelle="befehl")
-        tg.sende(chat_id, _melde_entfernt(entfernt, "Ein Kernthema war nicht gesetzt."))
+        tg.sende(chat_id, _melde_entfernt(entfernt, T._TEXT_KERNTHEMA_NICHT_GESETZT))
         return
     repo.setze_arbeitsstand(conn, chat_id, "kernthema", rest)
-    tg.sende(chat_id, f"Kernthema notiert: {rest}")
+    tg.sende(chat_id, knoepfe.T._TEXT_KERNTHEMA_NOTIERT.format(kernthema=rest))
 
 
 def _melde_entfernt(entfernt: dict | None, wenn_nichts: str) -> str:
@@ -402,7 +508,7 @@ def _melde_entfernt(entfernt: dict | None, wenn_nichts: str) -> str:
     eine Antwort, und Schweigen sieht aus wie ein kaputter Bot."""
     if entfernt is None:
         return wenn_nichts
-    return f"Entfernt: {entfernt['wert']}."
+    return T._TEXT_ENTFERNT.format(wert=entfernt["wert"])
 
 
 def _befehl_figur(conn, tg, chat_id: int, rest: str) -> None:
@@ -414,15 +520,16 @@ def _befehl_figur(conn, tg, chat_id: int, rest: str) -> None:
     dasselbe waere genau die Doppelung, die die Befehlsliste am ersten
     Workshoptag von fuenfzehn auf sechs gebracht hat."""
     name, _, schlusswort = rest.rpartition(" ")
-    if schlusswort.lower().strip(".") not in _ENTFERNEN_WOERTER or not name.strip():
-        tg.sende(chat_id, _TEXT_FIGUR_HILFE)
+    woerter = sprache.je_sprache(_ENTFERNEN_JE_SPRACHE)
+    if schlusswort.lower().strip(".") not in woerter or not name.strip():
+        tg.sende(chat_id, T._TEXT_FIGUR_HILFE)
         return
     entfernt = erkenner.entferne(
         conn, chat_id, f"figur {name.strip()}", quelle="befehl"
     )
     tg.sende(
         chat_id,
-        _melde_entfernt(entfernt, f"Eine Figur {name.strip()} kenne ich nicht."),
+        _melde_entfernt(entfernt, T._TEXT_FIGUR_UNBEKANNT.format(name=name.strip())),
     )
 
 
@@ -441,6 +548,9 @@ _TEXT_FESTLEGUNG_UNBEKANNT = "Dazu habe ich nichts festgehalten."
 #: "weg" als erstes Wort nimmt zurueck. Eng gefasst und nur dieses eine Wort:
 #: "/festlegung wegstrecke: ..." soll eine Festlegung SETZEN.
 _FESTLEGUNG_WEG = re.compile(r"^weg\s+(.+)$", re.IGNORECASE | re.DOTALL)
+#: Englisch "remove"; "weg" gilt dort weiter (A4, die englische Hilfe nennt
+#: "/festlegung weg <search word>").
+_FESTLEGUNG_WEG_EN = re.compile(r"^remove\s+(.+)$", re.IGNORECASE | re.DOTALL)
 
 
 def _befehl_festlegung(conn, tg, chat_id: int, rest: str) -> None:
@@ -468,14 +578,17 @@ def _befehl_festlegung(conn, tg, chat_id: int, rest: str) -> None:
             for z in repo.festlegungen(conn, chat_id)
         ]
         kopf = (
-            _TEXT_FESTLEGUNG_KOPF + "\n" + "\n".join(zeilen)
+            T._TEXT_FESTLEGUNG_KOPF + "\n" + "\n".join(zeilen)
             if zeilen
-            else _TEXT_FESTLEGUNG_LEER
+            else T._TEXT_FESTLEGUNG_LEER
         )
-        tg.sende(chat_id, f"{kopf}\n\n{_TEXT_FESTLEGUNG_HILFE}")
+        tg.sende(chat_id, f"{kopf}\n\n{T._TEXT_FESTLEGUNG_HILFE}")
         return
 
-    weg = _FESTLEGUNG_WEG.match(rest)
+    weg = next(filter(None, (
+        muster.match(rest) for muster in sprache.je_sprache(
+            {"de": (_FESTLEGUNG_WEG,), "en": (_FESTLEGUNG_WEG_EN, _FESTLEGUNG_WEG)})
+    )), None)
     if weg:
         # Ueber ``erkenner.entferne`` und nicht direkt ueber ``repo``: es gibt
         # fuer beide Wege -- gesprochen und getippt -- nur eine Wahrheit, und
@@ -483,22 +596,23 @@ def _befehl_festlegung(conn, tg, chat_id: int, rest: str) -> None:
         entfernt = erkenner.entferne(
             conn, chat_id, f"festlegung {weg.group(1).strip()}", quelle="befehl"
         )
-        tg.sende(chat_id, _melde_entfernt(entfernt, _TEXT_FESTLEGUNG_UNBEKANNT))
+        tg.sende(chat_id, _melde_entfernt(entfernt, T._TEXT_FESTLEGUNG_UNBEKANNT))
         return
 
     # Dieselbe Zerlegung wie beim Erkenner: ein Format, nicht zwei.
     bereich, bezug, text = erkenner._zerlege_festlegung(rest)
     if not text.strip():
-        tg.sende(chat_id, _TEXT_FESTLEGUNG_HILFE)
+        tg.sende(chat_id, T._TEXT_FESTLEGUNG_HILFE)
         return
     if repo.schreibe_festlegung(
         conn, chat_id, bereich, text, bezug=bezug, quelle="befehl"
     ) is None:
-        tg.sende(chat_id, _TEXT_FESTLEGUNG_SCHON_DA)
+        tg.sende(chat_id, T._TEXT_FESTLEGUNG_SCHON_DA)
         return
     tg.sende(
         chat_id,
-        "Festgehalten: " + repo.festlegungszeile(bereich, bezug, text.strip()),
+        T._TEXT_FESTGEHALTEN.format(
+            zeile=repo.festlegungszeile(bereich, bezug, text.strip())),
     )
 
 
@@ -524,8 +638,9 @@ def _befehl_phase(conn, tg, chat_id: int, rest: str, klm=None, e=None) -> None:
     (``phasen.setze``)."""
     if not rest:
         text = (
-            f"Wir sind bei {phasen.bezeichnung(phasen.aktuelle(conn, chat_id))}.\n\n"
-            f"{phasen.liste()}\n\n{_TEXT_PHASE_UMSCHALTEN}"
+            T._TEXT_WIR_SIND_BEI.format(
+                phase=phasen.bezeichnung(phasen.aktuelle(conn, chat_id)))
+            + f"\n\n{phasen.liste()}\n\n{T._TEXT_PHASE_UMSCHALTEN}"
         )
         naechste = phasen.naechste_moegliche(conn, chat_id)
         if naechste is None:
@@ -535,7 +650,7 @@ def _befehl_phase(conn, tg, chat_id: int, rest: str, klm=None, e=None) -> None:
         return
     nummer = phasen.nummer_fuer(rest, jetzige=phasen.aktuelle(conn, chat_id))
     if nummer is None:
-        tg.sende(chat_id, f"{_TEXT_PHASE_UNBEKANNT}\n\n{phasen.liste()}")
+        tg.sende(chat_id, f"{T._TEXT_PHASE_UNBEKANNT}\n\n{phasen.liste()}")
         return
     phasen.setze(conn, chat_id, nummer, "befehl")
     tg.sende(chat_id, phasen.meldung(nummer))
@@ -568,8 +683,8 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     interviewmodus_an = gruppe is not None and gruppe["interviewmodus_seit"] is not None
     jetzige = phasen.aktuelle(conn, chat_id)
 
-    zeilen = ["Stand:"]
-    zeilen.append(f"Phase: {phasen.bezeichnung(jetzige)}")
+    zeilen = [T._TEXT_STAND_KOPF]
+    zeilen.append(T._TEXT_STAND_PHASE.format(phase=phasen.bezeichnung(jetzige)))
     # Alle acht Bloecke, nicht nur die bis zur aktuellen Phase: der Stand ist
     # die Uebersicht ueber das ganze Stueck, und eine Gruppe, die aus Phase 7
     # nach 2 zurueckgesprungen ist, soll ihre Szenen darin nicht verlieren.
@@ -589,7 +704,7 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     # genau ihn -- die Phasenbloecke nennen nur Nummer, Titel und Form.
     fassungen = phasentexte.zusammenfassungszeilen(conn, chat_id)
     if fassungen:
-        zeilen.append("Was bisher passiert:")
+        zeilen.append(T._TEXT_WAS_BISHER)
         zeilen.extend(fassungen)
         zeilen.append("")
     # Und was noch fehlt (06.09.2026): dieselbe Datenlage, andere Richtung.
@@ -599,21 +714,22 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     # (``fehlstellen.zeilen``), kein Modellaufruf.
     offen = fehlstellen.zeilen(conn, chat_id)
     if offen:
-        zeilen.append(f"{fehlstellen.UEBERSCHRIFT}:")
+        zeilen.append(f"{fehlstellen.T.UEBERSCHRIFT}:")
         zeilen.extend(offen)
         zeilen.append("")
     if stand and stand["kernthema"]:
-        zeilen.append(f"Kernthema: {stand['kernthema']}")
+        zeilen.append(T._TEXT_STAND_KERNTHEMA.format(wert=stand["kernthema"]))
     # Der Hauptkonflikt steht nur da, wenn es einen gibt (05.09.2026): er ist
     # eine moegliche Rahmen-Entscheidung, keine Pflicht -- und eine Zeile
     # "Hauptkonflikt: noch offen" liest sich wie eine Luecke, die zu fuellen
     # waere.
     if stand and stand["hauptkonflikt"]:
-        zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
-    zeilen.append("Interviewmodus: an" if interviewmodus_an else "Interviewmodus: aus")
+        zeilen.append(T._TEXT_STAND_HAUPTKONFLIKT.format(wert=stand["hauptkonflikt"]))
+    zeilen.append(T._TEXT_INTERVIEWMODUS_AN if interviewmodus_an
+                  else T._TEXT_INTERVIEWMODUS_AUS)
     url = repo.gruppenseite_url(conn, chat_id, getattr(e, "web_url", ""))
     if url:
-        zeilen.append(f"Zum Mitlesen: {url}")
+        zeilen.append(T._TEXT_ZUM_MITLESEN.format(url=url))
 
     # Steht die naechste Phase offen, haengt der Knopf "Weiter zu <Phase>"
     # unter dem Stand (06.09.2026, Nacht-Simulation Punkt 6). ``/stand`` ist
@@ -635,27 +751,34 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
 
 
 def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:
-    if rest.lower() == "aus":
+    if _ist_aus(rest):
         repo.setze_wortlaut_modus(conn, chat_id, None)
-        tg.sende(chat_id, _TEXT_WORTLAUT_AUS)
+        tg.sende(chat_id, T._TEXT_WORTLAUT_AUS)
         return
     if not rest:
         repo.setze_wortlaut_modus(conn, chat_id, "*")
-        tg.sende(chat_id, "Wortlaut an: alle Aufnahmen.")
+        tg.sende(chat_id, T._TEXT_WORTLAUT_ALLE)
         return
-    vorhanden = _namen_der_aufnahmen(conn, chat_id)
-    treffer = next((n for n in vorhanden if n.lower() == rest.lower()), None)
+    # Nur gegen das, was der Bot zeigt: ohne Pseudonyme ist das der
+    # gespeicherte Name; mit Pseudonymen (E8) "Interview N" -- ein
+    # gespeicherter Name "Interview 3" traefe sonst nach einem entfernten
+    # Interview eine andere Aufnahme als die gezeigte.
+    treffer = next(
+        ((name, anzeige) for name, anzeige in _aufnahmen_mit_anzeige(conn, chat_id)
+         if rest.lower() == anzeige.lower()),
+        None,
+    )
     if treffer is None:
         # Unbekannter Name: die vorhandenen aufzaehlen statt zu raten
         # (teil-b.md Aufgabe 6).
         tg.sende(chat_id, _wortlaut_liste(conn, chat_id))
         return
-    repo.setze_wortlaut_modus(conn, chat_id, treffer)
-    tg.sende(chat_id, f"Wortlaut an: {treffer}")
+    repo.setze_wortlaut_modus(conn, chat_id, treffer[0])
+    tg.sende(chat_id, T._TEXT_WORTLAUT_AN.format(name=treffer[1]))
 
 
 def _befehl_hilfe(tg, e, chat_id: int) -> None:
-    tg.sende(chat_id, _TEXT_HILFE.format(bot_name=e.bot_name))
+    tg.sende(chat_id, T._TEXT_HILFE.format(bot_name=e.bot_name))
 
 
 def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:
@@ -669,7 +792,7 @@ def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:
     Die Abgrenzung ist eng: der zweite Token muss ein bekannter Feldname sein
     (``szene.FELD_ALIASE``). Alles andere ist ein Schreibauftrag -- "/szene 2
     nochmal, aber kuerzer" darf nicht als Feld 'nochmal' enden."""
-    treffer = _SZENE_FELD.match(rest)
+    treffer = sprache.je_sprache({"de": _SZENE_FELD, "en": _SZENE_FELD_EN}).match(rest)
     if treffer is None:
         return False
     feld = szene.feldname(treffer.group(2))
@@ -680,7 +803,7 @@ def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:
     if feld == "figuren":
         ids = erkenner._figuren_aus_namen(conn, chat_id, wert)
         if not ids:
-            tg.sende(chat_id, _TEXT_SZENE_FIGUR_UNBEKANNT.format(namen=wert))
+            tg.sende(chat_id, T._TEXT_SZENE_FIGUR_UNBEKANNT.format(namen=wert))
             return True
         repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
     else:
@@ -701,7 +824,7 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     Schickt selbst keine Ankuendigung: das macht ``szene.starte``, samt der
     Abfuhr, wenn schon eine Szene fuer diese Gruppe laeuft."""
     if not rest:
-        tg.sende(chat_id, _TEXT_SZENE_LEER)
+        tg.sende(chat_id, T._TEXT_SZENE_LEER)
         return
     # /szene usa ja|nein -- die Antwort auf das Einwilligungs-Angebot, ohne
     # dass sie der Erkenner treffen muss. In der Simulation am 05.09. las er
@@ -711,12 +834,9 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     if usa:
         ja = usa.group(1).lower() in ("ja", "j", "yes")
         repo.setze_szene_usa(conn, chat_id, ja)
-        tg.sende(
-            chat_id,
-            "Gut, Szenen kommen ab jetzt vom US-Modell. Ich sage es vor jeder "
-            "Szene nochmal." if ja else
-            "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder.",
-        )
+        # Wortgleich mit knoepfe._TEXT_USA_JA/_NEIN (und szene._TEXT_USA_*):
+        # auf die Knopftexte verweisen statt eine weitere Kopie anzulegen.
+        tg.sende(chat_id, szene.T._TEXT_USA_JA if ja else szene.T._TEXT_USA_NEIN)
         return
     # "/szene usa" ohne Antwort: die beiden Knoepfe statt einer Syntaxzeile.
     # Genau hier ist die Sprachnavigation am 05.09.2026 gescheitert -- die
@@ -728,25 +848,49 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     # "/szene 2 form" ohne Wert: die sechs Formknoepfe. Muss VOR
     # _setze_szenenfeld stehen, sonst faellt der Text durch bis zum
     # Schreibauftrag.
-    form_leer = _SZENE_FORM_LEER.match(rest)
+    form_leer = sprache.je_sprache(
+        {"de": _SZENE_FORM_LEER, "en": _SZENE_FORM_LEER_EN}).match(rest)
     if form_leer:
         knoepfe.biete_szenenform(conn, tg, chat_id, int(form_leer.group(1)))
         return
     if _setze_szenenfeld(conn, tg, chat_id, rest):
         return
-    entfernung = _SZENE_ENTFERNEN.match(rest)
+    entfernung = sprache.je_sprache(
+        {"de": _SZENE_ENTFERNEN, "en": _SZENE_ENTFERNEN_EN}).match(rest)
     if entfernung:
         nummer = entfernung.group(1)
         entfernt = erkenner.entferne(conn, chat_id, f"szene {nummer}", quelle="befehl")
         tg.sende(
-            chat_id, _melde_entfernt(entfernt, f"Eine Szene {nummer} kenne ich nicht.")
+            chat_id, _melde_entfernt(entfernt, T._TEXT_SZENE_UNBEKANNT.format(nummer=nummer))
         )
         return
     if klm is None:
         log.error("/szene ohne Sprachmodell aufgerufen, chat_id=%s", chat_id)
-        tg.sende(chat_id, _TEXT_SZENE_UNMOEGLICH)
+        tg.sende(chat_id, T._TEXT_SZENE_UNMOEGLICH)
         return
     szene.starte(conn, tg, klm, e, chat_id, rest)
+
+
+def _befehl_sprache(conn, tg, chat_id: int, rest: str) -> None:
+    """``/sprache`` zeigt, ``/sprache auto|it|en|…`` setzt die Whisper-Sprache
+    dieser Gruppe (Karte A1). Kein Modellaufruf."""
+
+    def anzeige(wert: str) -> str:
+        return (T._TEXT_SPRACHE_AUTO if wert == sprache.AUTO
+                else sprache.SPRACHNAMEN.get(wert, wert))
+
+    wert = rest.strip().lower()
+    if not wert:
+        tg.sende(chat_id, T._TEXT_SPRACHE_STAND.format(
+            sprache=anzeige(aufnahme.whisper_sprache(conn, chat_id))))
+        return
+    if not _SPRACHWERT.match(wert):
+        tg.sende(chat_id, T._TEXT_SPRACHE_UNBEKANNT)
+        return
+    repo.setze_stt_sprache(conn, chat_id, wert)
+    repo.schreibe_journal(conn, chat_id, "entschieden",
+                          T._JOURNAL_SPRACHE.format(sprache=wert), quelle="befehl")
+    tg.sende(chat_id, T._TEXT_SPRACHE_GESETZT.format(sprache=anzeige(wert)))
 
 
 #: Die erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
@@ -764,6 +908,9 @@ _BEKANNTE_BEFEHLE = {
     # Erkenner-art ``festlegung_setzen``, dieser Befehl die Rueckfallebene
     # fuer den Fall, dass das Erkenner-Modell ausfaellt.
     "/festlegung",
+    # Versteckt (Karte A1): die Whisper-Sprache dieser Gruppe zeigen oder
+    # umstellen. Der Weg ist der Knopf in Phase 3.
+    "/sprache",
 }
 
 
@@ -791,10 +938,10 @@ def behandle(
         # (05.09.2026): der naechste Schritt ist ein Druck, kein zweiter
         # Tippversuch.
         try:
-            knoepfe.biete_einstieg(conn, tg, chat_id, _TEXT_UNBEKANNT)
+            knoepfe.biete_einstieg(conn, tg, chat_id, T._TEXT_UNBEKANNT)
         except Exception:
             log.exception("Einstiegsknoepfe fehlgeschlagen, chat_id=%s", chat_id)
-            tg.sende(chat_id, _TEXT_UNBEKANNT)
+            tg.sende(chat_id, T._TEXT_UNBEKANNT)
         return True
 
     if befehl == "/aufnahme":
@@ -825,4 +972,9 @@ def behandle(
         _befehl_leitfaden(conn, tg, chat_id, e)
     elif befehl == "/festlegung":
         _befehl_festlegung(conn, tg, chat_id, rest)
+    elif befehl == "/sprache":
+        _befehl_sprache(conn, tg, chat_id, rest)
     return True
+
+
+T = sprache.Texte(__name__)

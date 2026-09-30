@@ -47,6 +47,9 @@ ART_SZENENFORM = "szenenform"
 ART_SZENENSTIL = "szenenstil"
 #: Einwilligung ins US-Modell -- dasselbe Ziel wie ``/szene usa ja|nein``.
 ART_SZENE_USA = "szene_usa"
+#: Die Interviewsprache fuer Whisper (Karte A1, D2) -- nur in Profilen mit
+#: sprache.whisper = "auto" (Padua), beim Eintritt in Phase 3.
+ART_STT_SPRACHE = "stt_sprache"
 #: Ein Interview jetzt auswerten -- dasselbe Ziel wie ``/auswerten <N>``. Der
 #: ``wert`` traegt die ``aufnahme_id`` des Interview-Kopfes, damit der Druck
 #: auch dann noch das gemeinte Interview trifft, wenn inzwischen ein weiteres
@@ -303,6 +306,10 @@ _NOTIERT = {
     # Leiste, dieselbe Notiert-Zeile -- nur ein anderes Feld.
     "fragen_weich": "Fragen in weicher Fassung",
 }
+#: Die Notiert-Zeile selbst und die Knopf-Quittung dazu (``basis._speichere``;
+#: Karte A1, Aufgabe 11: vorher Inline-Literale).
+_TEXT_NOTIERT_ZEILE = "Notiert:\n{feld}: {wert}"
+_TEXT_FELD_UEBERNOMMEN = "{feld} uebernommen"
 
 #: Wo eine Art landet, wenn das Arbeitsstand-Feld anders heisst als der
 #: Vorschlagsmarker. Eine Tabelle statt eines ``if`` in ``_speichere``: der
@@ -434,6 +441,17 @@ _TEXT_USA_JA = (
     "Szene nochmal."
 )
 _TEXT_USA_NEIN = "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder."
+#: Die drei Knoepfe: fest benannt, Sprachnamen in ihrer eigenen Sprache --
+#: nicht uebersetzt, wer Italienisch spricht, sucht "Italiano".
+STT_KNOEPFE = (("auto", "Auto"), ("en", "English"), ("it", "Italiano"))
+_TEXT_STT_SPRACHE_FRAGE = (
+    "In welcher Sprache fuehrt ihr eure Interviews? Mit \"Auto\" hoere ich "
+    "selbst heraus, welche es ist."
+)
+_TEXT_STT_SPRACHE_GESETZT = "Interviewsprache ab jetzt: {sprache}."
+_TEXT_STT_SPRACHE_AUTO = "automatisch (ich erkenne sie selbst)"
+_TEXT_STT_SPRACHE_KURZ = "Sprache gesetzt"
+_JOURNAL_STT_SPRACHE = "Interviewsprache fuer Whisper: {sprache}"
 
 # --- Wortlaut der Phase-6/7-Knoepfe ---------------------------------------
 #
@@ -636,6 +654,9 @@ _TEXT_FRAGEN_UEBERNOMMEN = "Notiert, eure {anzahl} Fragen:"
 #: Dasselbe, wenn die Gruppe die Nummern GESAGT hat (06.09.2026): die
 #: Nummern stehen mit drin, damit sie sieht, was der Bot verstanden hat.
 _TEXT_FRAGEN_NOTIERT = "Notiert: Fragen {nummern}:"
+#: Knopf-Quittung und Journalzeile zum Uebernehmen (``fragen._uebernimm_fragen``).
+_TEXT_FRAGEN_QUITTUNG = "Fragen uebernommen"
+_JOURNAL_FRAGEN = "Fragen: {wert}"
 #: Was der Bot sagt, waehrend die Sensibilitaetspruefung im Thread laeuft.
 #: Sie ist kein Selbstzweck und wird deshalb begruendet: die Gruppe soll
 #: wissen, warum der Bot nach dem Speichern noch etwas tut.
@@ -682,6 +703,10 @@ _ERSTER_ALS_WERT: dict[str, str] = {}
 #: stehen bleibt, liest sich wie eine haengende Aufgabe.
 TEXT_ARBEIT_SENSIBILITAET = "🤔 Ich sehe die Fragen kurz durch und formuliere heikle weicher …"
 TEXT_ARBEIT_EROEFFNUNG = "✍️ Jetzt die Einleitung fuers Interview: wie ihr anfangt und aufhoert …"
+#: Journalzeile und Knopf-Quittung, wenn Eroeffnung und Abschluss stehen
+#: (``fragen._speichere_eroeffnung``).
+_JOURNAL_EROEFFNUNG_FESTGELEGT = "Eroeffnung und Abschluss festgelegt"
+_TEXT_EROEFFNUNG_QUITTUNG = "Eroeffnung uebernommen"
 
 
 # --- Phase 7 · Schaerfung des Stuecks (06.09.2026) ------------------------
@@ -890,6 +915,17 @@ _TEXT_WIR_ZUERST = "Gut - ich hoere zu."
 #: Fliesstext. Gemessen am Testabend: neun angebotene Phasenknoepfe, null
 #: Druecke; sie hingen alle unter langen Texten.
 _TEXT_PHASE_ANGEBOT = "{erledigt} steht. Weiter zu {phase}?"
+#: Was je Zielphase erledigt ist -- der halbe Satz vor "Weiter zu ...".
+#: Kurz und konkret, damit die Gruppe sieht, WORAUF sich das Angebot stuetzt,
+#: ohne dass der Bot den Arbeitsstand nacherzaehlt.
+_ERLEDIGT_FUER = {
+    2: "Eure Begriffe",
+    3: "Eure Fragen",
+    4: "Die Interviews sind ausgewertet und",
+    5: "Setting, Figuren und Geschichte",
+    6: "Geschichte und Szenenfolge",
+    7: "Alle Szenentexte",
+}
 #: Die Frage unter der Abschlussnachricht (06.09.2026): die Parameter stehen
 #: darueber, hier steht nur noch, wohin es geht.
 _TEXT_PHASE_WEITER = "Weiter zu {phase}?"
@@ -899,6 +935,139 @@ _TEXT_PHASE_WEITER = "Weiter zu {phase}?"
 #: schon. Die art (``ART_NOCH_NICHT``) und ihre Wirkung bleiben.
 _TEXT_PHASE_NOCH_NICHT_KNOPF = "Noch etwas aendern"
 _TEXT_NOCH_NICHT = "Gut, wir bleiben hier."
+#: Die Beschriftung des Phasenknopfs (``basis.biete_phase``,
+#: ``basis._phasenknopf``, ``stationen.biete_phase_proaktiv``).
+_TEXT_WEITER_ZU_KNOPF = "Weiter zu {phase}"
+#: Rueckfall fuer ``_ERLEDIGT_FUER`` -- im Aufruf, nicht in einer Signatur (K1).
+_TEXT_ALLES_NOETIGE = "Alles Noetige"
+
+#: Die frueheren Inline-Literale aus ``figuren.py`` (Aufgabe 12, A1):
+#: Knopf-Quittungen (answerCallbackQuery), Journalzeilen, Chatzeilen.
+_TEXT_NAME_GEAENDERT_QUITTUNG = "Name geaendert"
+_JOURNAL_FIGURENANZAHL = "Figurenanzahl: {anzahl}"
+_JOURNAL_FIGUREN = "Figuren: {namen}"
+#: Kopf vor der Figurenzeile aus ``erkenner._figuren_zeile``.
+_TEXT_NOTIERT_KOPF = "Notiert:\n"
+_TEXT_FIGUREN_QUITTUNG = "Figuren uebernommen"
+_TEXT_SPRACHDUKTUS_ZEILE = "Sprachduktus: {profil}"
+#: Rueckfall fuer ``{quelle}`` in ``_TEXT_DUKTUS_LAEUFT``.
+_TEXT_DAS_INTERVIEW = "das Interview"
+_JOURNAL_FIGURENLISTE_STEHT = "Figurenliste steht"
+_TEXT_INTERVIEW_WAEHLEN_QUITTUNG = "Interview waehlen"
+
+#: Die frueheren Inline-Literale aus ``szenen.py`` (Aufgabe 12, A1).
+#: ``_TEXT_SZENE_KOPF`` ist Kopf eines Szenentexts, Knopf-Quittung und
+#: Listeneintrag im Hinweis auf spaetere Szenen.
+_TEXT_SZENE_KOPF = "Szene {nummer}"
+#: Eine Szene mit Angabe dahinter: Form je Szene (Journal, Festlegung) und
+#: die Quittung nach einem Feldvorschlag.
+_TEXT_SZENE_EINTRAG = "Szene {nummer}: {was}"
+_JOURNAL_SZENENFOLGE = "Szenenfolge: {liste}"
+_TEXT_SZENEN_UEBERNOMMEN_QUITTUNG = "{anzahl} Szenen uebernommen"
+_TEXT_FESTLEGUNG_FORMEN = "Form je Szene — {liste}"
+_JOURNAL_FORM_JE_SZENE = "Form je Szene: {liste}"
+_TEXT_FORMWAHL_QUITTUNG = "Formwahl uebernommen, Geschichte fehlt noch"
+_JOURNAL_GESCHICHTE = "Geschichte: {geschichte}"
+_TEXT_RICHTUNG_QUITTUNG = "Richtung uebernommen"
+_TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG = "Gespeichert, was soll anders sein?"
+#: Name aus dem Plan; der Text ist die Knopf-Quittung von
+#: ``szenen._nach_szenen_gespeichert``, keine Journalzeile.
+_JOURNAL_GESCHICHTE_MIT_SZENEN = "Geschichte mit {anzahl} Szenen uebernommen"
+_TEXT_SCHLAGE_ANGABEN_VOR = "Ich schlage die fehlenden Angaben vor"
+_TEXT_SZENE_LAEUFT_QUITTUNG = "Szene {nummer} laeuft"
+
+#: Was nach einem Druck kurz eingeblendet wird (answerCallbackQuery,
+#: Karte A1 aus Literalen gebildet). Ein bis vier Woerter. Die Rueckgaben
+#: der Handler in ``wirkung.py`` (Aufgabe 13); wo derselbe Wortlaut schon
+#: als Quittung aus ``figuren``/``szenen`` in der Tabelle steht
+#: (``_TEXT_SZENE_KOPF``, ``_TEXT_SZENE_EINTRAG``, ``_TEXT_RICHTUNG_QUITTUNG``,
+#: ``_TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG``), liest der Handler jene.
+_ANTWORT_LAEUFT_SCHON = "Laeuft schon"
+_ANTWORT_GESCHICHTE_LAEUFT = "Geschichte laeuft"
+_ANTWORT_PASST = "Passt"
+_ANTWORT_WAS_ANDERS = "Was soll anders sein?"
+_ANTWORT_SZENE_GESCHAERFT = "Szene {nummer} geschaerft"
+_ANTWORT_FIGUR_GESCHAERFT = "{name} geschaerft"
+_ANTWORT_UEBERNOMMEN = "Uebernommen: {was}"
+_ANTWORT_NOCH_EINE_RUNDE = "Noch eine Runde"
+_ANTWORT_WIE_VIELE = "Wie viele?"
+_ANTWORT_SZENEN_ANZAHL = "{anzahl} Szenen"
+_ANTWORT_REIHENFOLGE = "Sagt mir die Reihenfolge"
+_ANTWORT_WELCHE_FORM = "Welche Form?"
+_ANTWORT_SZENE_RAUS = "Szene {nummer} raus"
+_ANTWORT_SZENE_STEHT = "Szene {nummer} steht"
+_ANTWORT_WAS_ANDERS_WERDEN = "Was soll anders werden?"
+_ANTWORT_SZENE_BLEIBT = "Szene {nummer} bleibt"
+_ANTWORT_LETZTE = "Das war die letzte"
+_ANTWORT_SZENE_UEBERARBEITET = "Szene {nummer} wird ueberarbeitet"
+_ANTWORT_BLEIBT = "Bleibt"
+_ANTWORT_SZENEN_EINZELN = "Ich sehe die Szenen einzeln durch"
+_ANTWORT_NOCH_EINMAL = "Ich lese noch einmal"
+_ANTWORT_TEXTBUCH = "Textbuch"
+_ANTWORT_ERZAEHLT = "Erzaehlt"
+_ANTWORT_ANDERE_VOR = "Ich schlage andere vor"
+_ANTWORT_LEITFADEN = "Leitfaden"
+_ANTWORT_FIGUREN_ANZAHL = "{anzahl} Figuren"
+_ANTWORT_ZAHL = "Sagt mir die Zahl"
+_ANTWORT_WELCHER_NAME = "Welchen Namen?"
+_ANTWORT_NAMEN_VORSCHLAGEN = "Namen vorschlagen"
+_ANTWORT_INTERVIEW_GEWECHSELT = "Interview gewechselt"
+_ANTWORT_DUKTUS_VORSCHLAEGE = "Duktus-Vorschlaege"
+_ANTWORT_DUKTUS_UEBERNOMMEN = "Duktus uebernommen"
+_ANTWORT_STIL_UEBERNOMMEN = "Stil uebernommen"
+_ANTWORT_ZUGEORDNET = "Zugeordnet: {anzahl}"
+_ANTWORT_ENTFERNT = "Entfernt"
+_ANTWORT_WIR_HOEREN_ZU = "Wir hoeren zu"
+_ANTWORT_ICH_SCHLAGE_VOR = "Ich schlage vor"
+_ANTWORT_HOERE_WEITER_ZU = "Ich hoere weiter zu"
+_ANTWORT_INTERVIEW_BEENDET = "Interview beendet"
+_ANTWORT_ANGELEGT = "{name} angelegt"
+_ANTWORT_ALS_BEITRAG = "Als Beitrag genommen"
+_ANTWORT_KERNTHEMA = "Kernthema uebernommen"
+_ANTWORT_AUFNAHME_UMGESCHALTET = "Aufnahme umgeschaltet"
+_ANTWORT_PHASE = "Phase {nummer}"
+_ANTWORT_AUSWERTUNG_LAEUFT = "Auswertung laeuft"
+_ANTWORT_AUSWERTUNG = "Auswertung"
+_ANTWORT_ZUSAMMENFASSUNG = "Zusammenfassung"
+_ANTWORT_TRANSKRIPT = "Transkript"
+_ANTWORT_STAND = "Stand"
+_ANTWORT_HILFE = "Hilfe"
+#: ``{stil}`` ist der Slug des Stils oder ``_TEXT_STIL_OHNE_WORT``.
+_ANTWORT_SZENE_STIL = "Szene {nummer}: Stil {stil}"
+_ANTWORT_USA_JA = "US-Modell: ja"
+_ANTWORT_USA_NEIN = "Bleibt in der Schweiz"
+
+#: Die uebrigen frueheren Inline-Literale aus ``wirkung.py`` (Aufgabe 13):
+#: Journalzeilen (gehen ueber ``kontext._baue_journal`` in den Prompt),
+#: Chatzeilen und eine Knopfbeschriftung.
+_JOURNAL_SZENE_ABGENOMMEN = "Szene {nummer} abgenommen: {titel}"
+_JOURNAL_RICHTUNG = "Richtung: {richtung}"
+_TEXT_FIGUR_NR_KNOPF = "Figur {nr}: {name}"
+_JOURNAL_SPRACHSTIL = "Sprachstil {name}: {stil}"
+_JOURNAL_ZUFALL_ZUGEORDNET = (
+    "Interviews zufaellig zugeordnet: {figuren} Figuren auf "
+    "{interviews} Interviews"
+)
+_JOURNAL_FIGUR_ENTFERNT = "Figur entfernt: {name}"
+_TEXT_FIGUR_RAUS = "{name} ist raus."
+#: Rueckfall fuer einen Interviewnamen am Satzanfang (vgl.
+#: ``_TEXT_DAS_INTERVIEW`` mitten im Satz).
+_TEXT_DAS_INTERVIEW_ANFANG = "Das Interview"
+#: ``{weiter}`` ist ``aufnahme._TEXT_INTERVIEW_OHNE_KNOPF_WEITER``.
+_TEXT_INTERVIEW_STEHT = "{name} steht. {weiter}"
+_JOURNAL_KERNTHEMA = "Kernthema: {kernthema}"
+_TEXT_KERNTHEMA_NOTIERT = "Kernthema notiert: {kernthema}"
+_TEXT_ICH_WERTE_AUS = "Ich werte {name} aus."
+_TEXT_IM_WORTLAUT = "{name}, im Wortlaut:\n{text}"
+_TEXT_SZENE_STIL_GESETZT = "Szene {nummer}, Stil: {stil} (Vorlage: {herkunft})."
+_TEXT_SZENE_OHNE_STIL = "Szene {nummer}: ohne Stilvorlage, es bleibt bei der Form."
+_JOURNAL_SZENE_STIL = "Szene {nummer} Stil: {stil}"
+#: Das Wort fuer "kein Stil" in Journal und Einblendung.
+_TEXT_STIL_OHNE_WORT = "ohne"
+#: Die Journalzeile der USA-Einwilligung. Die Entscheidung selbst faellt am
+#: internen Knopfwert ``"ja"`` (``_wirkung_szene_usa``), nie an diesem Text.
+_JOURNAL_USA_JA = "US-Modell fuer Szenentexte: ja"
+_JOURNAL_USA_NEIN = "US-Modell fuer Szenentexte: nein"
 
 
 #: Was "Schlag du vor" je Phase vom Modell verlangt -- die Anweisung, die
@@ -1044,3 +1213,7 @@ ANWEISUNG_EROEFFNUNG = (
     "steht NUR im Block - schreib ihn nicht zusaetzlich davor in den "
     "Fliesstext; davor hoechstens ein Satz und eine Frage."
 )
+
+from interview_theater import sprache  # noqa: E402  (unten: kein Zyklus beim Import)
+
+T = sprache.Texte(__name__)

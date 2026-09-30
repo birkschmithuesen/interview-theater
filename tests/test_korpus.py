@@ -650,3 +650,70 @@ def test_sprachprofil_nutzt_die_verdichter_transkripte(
     bekannt = {f["transkript"] for f in verdichter_faelle}
     for fall in sprachprofil_faelle:
         assert fall["transkript"] in bekannt, fall["id"]
+
+
+# --- englischer Korpus (Padua, D8) ----------------------------------------
+
+KORPUS_EN = KORPUS / "en"
+MIN_EN = 60
+MIN_EN_NEGATIV = 24
+MIN_EN_AUFNAHME = 3
+MIN_EN_ZUSTIMMUNG = 5
+MIN_EN_ITALIENISCH = 2
+ITALIENISCH = ("va bene", "perfetto", "allora", "dai", "grazie", "basta", "andiamo", "sì", "certo")
+#: Namen aus dem Projektumfeld, die im Korpus nie stehen duerfen.
+NICHT_ERLAUBT = {"Birk", "Nina"}
+
+
+@pytest.fixture(scope="module")
+def en_faelle():
+    zeilen = (KORPUS_EN / "erkenner.jsonl").read_text(encoding="utf-8").splitlines()
+    return [json.loads(z) for z in zeilen if z.strip()]
+
+
+def test_en_ids_eindeutig_mit_praefix(en_faelle):
+    ids = [f["id"] for f in en_faelle]
+    assert len(ids) == len(set(ids))
+    assert all(i.startswith("en-") for i in ids)
+
+
+def test_en_mindestbesetzung(en_faelle):
+    assert len(en_faelle) >= MIN_EN
+    assert sum(1 for f in en_faelle if not f["erwartet"]) >= MIN_EN_NEGATIV
+    assert sum(1 for f in en_faelle if ist_aufnahmefall(f)) >= MIN_EN_AUFNAHME
+    assert sum(1 for f in en_faelle if f.get("zustimmung")) >= MIN_EN_ZUSTIMMUNG
+    italienisch = [f for f in en_faelle if any(w in t for t in texte_von(f) for w in ITALIENISCH)]
+    assert len(italienisch) >= MIN_EN_ITALIENISCH
+
+
+def test_en_jede_deutsch_belegte_art_positiv(erkenner_faelle, en_faelle):
+    deutsch = {a["art"] for f in erkenner_faelle for a in f["erwartet"]}
+    englisch = {a["art"] for f in en_faelle for a in f["erwartet"]}
+    assert sorted(deutsch - englisch) == []
+
+
+def test_en_form_wie_der_deutsche_korpus(en_faelle):
+    for fall in en_faelle:
+        assert fall.get("notiz", "").strip(), fall["id"]
+        assert isinstance(fall.get("arbeitsstand"), dict), fall["id"]
+        for aenderung in fall["erwartet"]:
+            assert aenderung["art"] in erkenner.ARTEN, fall["id"]
+            assert isinstance(aenderung.get("wert"), str), fall["id"]
+        if ist_aufnahmefall(fall):
+            assert "nachrichten" not in fall, fall["id"]
+            assert all(a["art"] in erkenner.ARTEN_IN_AUFNAHME for a in fall["erwartet"]), fall["id"]
+        else:
+            assert fall["nachrichten"] and all(n.get("absender") and n.get("text") for n in fall["nachrichten"])
+
+
+def test_en_keine_namen_aus_dem_projektumfeld(en_faelle):
+    for fall in en_faelle:
+        text = json.dumps(fall, ensure_ascii=False)
+        assert not [n for n in NICHT_ERLAUBT if n in text], fall["id"]
+
+
+def test_deutscher_korpus_unveraendert_gezaehlt(erkenner_faelle):
+    """D8: der deutsche Korpus bleibt, wie er ist (150 Faelle, 53 negativ,
+    gemessen 30.09.2026) -- seine FP=0-Zusage haengt an genau diesen Faellen."""
+    assert len(erkenner_faelle) == 150
+    assert sum(1 for f in erkenner_faelle if not f["erwartet"]) == 53

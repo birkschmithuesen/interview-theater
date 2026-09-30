@@ -37,6 +37,8 @@ werden nie nachtraeglich geaendert).
 import re
 import unicodedata
 
+from interview_theater import sprache
+
 #: Woran eine Begriffsliste zerlegt wird. Der Freitext kommt aus dem Chat --
 #: mal \"Heimat, Arbeit, Angst\", mal eine Zeile je Begriff, mal mit
 #: Aufzaehlungsstrichen.
@@ -59,11 +61,19 @@ MINDESTLAENGE = 4
 #: ``MINDESTLAENGE`` Zeichen hat.
 _ENDUNGEN = ("ungen", "enden", "ende", "keit", "heit", "en", "er", "es", "em", "e", "n", "s")
 
+#: Dieselbe dumme Liste fuer eine englischsprachige Gruppe (Karte A1,
+#: Aufgabe 22): "meeting" trifft "meetings", "story" trifft "stories".
+#: Gewaehlt wird je Sprache des Profils; die Umlautfaltung gilt nur fuers
+#: Deutsche.
+_ENDUNGEN_EN = ("ings", "ing", "ies", "es", "s", "ed")
+
 
 def normalisiere(text: str) -> str:
     """Kleinschreibung, Umlaute ausgeschrieben, Whitespace zu einem
-    Leerzeichen. Wie ``zitat.normalisiere`` bewusst arm an Regeln."""
-    text = unicodedata.normalize("NFC", text or "").lower().translate(_UMLAUTE)
+    Leerzeichen. Wie ``zitat.normalisiere`` bewusst arm an Regeln.
+    Umlaute werden nur fuer eine deutschsprachige Gruppe ausgeschrieben."""
+    text = unicodedata.normalize("NFC", text or "").lower()
+    text = sprache.je_sprache({"de": text.translate(_UMLAUTE), "en": text})
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -71,7 +81,7 @@ def stamm(wort: str) -> str:
     """Der Vergleichsstamm eines Wortes: normalisiert und um genau eine
     Flexionsendung gekuerzt, solange ``MINDESTLAENGE`` gewahrt bleibt."""
     wort = re.sub(r"[^a-z0-9 ]+", "", normalisiere(wort))
-    for endung in _ENDUNGEN:
+    for endung in sprache.je_sprache({"de": _ENDUNGEN, "en": _ENDUNGEN_EN}):
         if wort.endswith(endung) and len(wort) - len(endung) >= MINDESTLAENGE:
             return wort[: -len(endung)]
     return wort

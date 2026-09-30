@@ -47,6 +47,14 @@ _UEBERSCHRIFT = re.compile(
 #: Die Pflichtzeile je Abschnitt -- sie wird ``szene.was_passiert``.
 _ZUSAMMENFASSUNG = re.compile(r"^\s*Zusammenfassung\s*:\s*(.+)$", re.IGNORECASE)
 
+#: Dasselbe auf Englisch (Karte A1, K5): ``SECTION 1: …``/``PART 1: …`` und
+#: ``Summary: …``. Beide werden probiert, deutsch zuerst.
+_UEBERSCHRIFT_EN = re.compile(
+    r"^\s*(?:#{1,4}\s*)?(?:(?:ABSCHNITT|SECTION|PART)\s*)?(\d{1,2})[.):]\s*(.+?)\s*$",
+    re.IGNORECASE,
+)
+_ZUSAMMENFASSUNG_EN = re.compile(r"^\s*Summary\s*:\s*(.+)$", re.IGNORECASE)
+
 ANWEISUNG = """Du schreibst die Kurzgeschichte eines Theaterstuecks.
 
 Unten stehen das Setting, die Figuren mit ihrem Sprachstil und die
@@ -91,6 +99,8 @@ _TEXT_FEHLER = (
 )
 _TEXT_FERTIG = "Eure Geschichte in {anzahl} Abschnitten:"
 JOURNAL = "Szenenfolge aus der Kurzgeschichte: {anzahl} Abschnitte"
+#: Der Titel eines Abschnitts, der ohne eigene Ueberschrift kam.
+_ABSCHNITT_N = "Abschnitt {nummer}"
 
 _sperren: dict[int, threading.Lock] = {}
 _sperren_schutz = threading.Lock()
@@ -120,14 +130,15 @@ def zerlege(text: str) -> list[tuple[str, str, str]]:
     Ueberschrift allein ist keine Szene."""
     abschnitte: list[tuple[str, str, list[str]]] = []
     for zeile in (text or "").splitlines():
-        treffer = _UEBERSCHRIFT.match(zeile)
+        treffer = _UEBERSCHRIFT.match(zeile) or _UEBERSCHRIFT_EN.match(zeile)
         if treffer is not None and len(treffer.group(2)) <= 80:
             abschnitte.append((treffer.group(2).strip(" .:—-"), "", []))
             continue
         if not abschnitte:
             continue
         titel, fassung, koerper = abschnitte[-1]
-        zusammen = _ZUSAMMENFASSUNG.match(zeile)
+        zusammen = (_ZUSAMMENFASSUNG.match(zeile)
+                    or _ZUSAMMENFASSUNG_EN.match(zeile))
         if zusammen is not None and not fassung:
             abschnitte[-1] = (titel, zusammen.group(1).strip(), koerper)
             continue
@@ -163,7 +174,7 @@ def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
 
     zeilen = [
         {
-            "titel": titel or f"Abschnitt {nummer}",
+            "titel": titel or T._ABSCHNITT_N.format(nummer=nummer),
             "was_passiert": fassung,
             "kurzbeschreibung": fassung,
             "zusammenfassung": fassung,
@@ -188,7 +199,7 @@ def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
         )
     nummern = list(bericht["nummern"])
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", JOURNAL.format(anzahl=len(nummern)),
+        conn, chat_id, "entschieden", T.JOURNAL.format(anzahl=len(nummern)),
         quelle="szene",
     )
     return nummern
@@ -197,7 +208,7 @@ def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
 def systemanweisung() -> str:
     """Die Anweisung plus dem Prosa-Regelblock -- heiss nachgeladen wie
     jeder Prompt."""
-    teile = [ANWEISUNG]
+    teile = [T.ANWEISUNG]
     prosa = anweisungen.hole_optional("formen/prosa")
     if prosa and prosa.strip():
         teile.append(prosa.strip())
@@ -229,11 +240,17 @@ def vorlage_text(conn, chat_id: int) -> str:
         prosa = szene_modul.prosa_von(s)
         if not prosa:
             continue
-        titel = (s["titel"] or "").strip() or f"Abschnitt {s['nummer']}"
+        titel = (s["titel"] or "").strip() or T._ABSCHNITT_N.format(nummer=s["nummer"])
         abschnitte.append(f"{s['nummer']}. {titel}\n\n{prosa}")
     if not abschnitte:
         return ""
-    return UEBERSCHRIFT_VORLAGE + "\n\n" + "\n\n".join(abschnitte)
+    return T.UEBERSCHRIFT_VORLAGE + "\n\n" + "\n\n".join(abschnitte)
+
+
+#: Die Koepfe des Nutzertexts (W3).
+_STILE_KOPF = "So sprechen die Figuren:\n"
+_AUFTRAG = "Euer Auftrag:\nSchreib die Geschichte am Stueck."
+_ZEILE_REGIE = "\nDie Gruppe sagt dazu: {regie}"
 
 
 def baue_nutzertext(
@@ -255,12 +272,12 @@ def baue_nutzertext(
         if (f["sprachstil"] or "").strip()
     ]
     if stile:
-        teile.append("So sprechen die Figuren:\n" + "\n".join(stile))
+        teile.append(T._STILE_KOPF + "\n".join(stile))
     if vorlage:
         teile.append(vorlage_text(conn, chat_id))
-    auftrag = "Euer Auftrag:\nSchreib die Geschichte am Stueck."
+    auftrag = T._AUFTRAG
     if regie and regie.strip():
-        auftrag += f"\nDie Gruppe sagt dazu: {regie.strip()}"
+        auftrag += T._ZEILE_REGIE.format(regie=regie.strip())
     teile.append(auftrag)
     return "\n\n".join(t for t in teile if t)
 
@@ -279,11 +296,11 @@ def starte(
         return None
     sperre = _sperre_fuer(chat_id)
     if not sperre.acquire(blocking=False):
-        tg.sende(chat_id, _TEXT_BESETZT)
+        tg.sende(chat_id, T._TEXT_BESETZT)
         return None
     from interview_theater import szene as szene_modul
 
-    szene_modul._sende_und_merke(conn, tg, e, chat_id, _TEXT_LAEUFT)
+    szene_modul._sende_und_merke(conn, tg, e, chat_id, T._TEXT_LAEUFT)
 
     def _lauf() -> None:
         from interview_theater import arbeitszeilen, szene_claude
@@ -311,7 +328,7 @@ def starte(
             nummern = lege_szenen_an(conn, chat_id, abschnitte)
             zeilen.stoppe()
             szene_modul._sende_und_merke(
-                conn, tg, e, chat_id, _TEXT_FERTIG.format(anzahl=len(nummern)),
+                conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
             )
             from interview_theater import knoepfe
 
@@ -323,7 +340,7 @@ def starte(
                     conn, chat_id, getattr(e, "bot_name", None),
                     "kurzgeschichte_fehlgeschlagen", "Lauf gescheitert",
                 )
-                szene_modul._sende_und_merke(conn, tg, e, chat_id, _TEXT_FEHLER)
+                szene_modul._sende_und_merke(conn, tg, e, chat_id, T._TEXT_FEHLER)
             except Exception:
                 log.exception("Fehlermeldung zur Kurzgeschichte fehlgeschlagen")
         finally:
@@ -337,3 +354,7 @@ def starte(
         sperre.release()
         raise
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

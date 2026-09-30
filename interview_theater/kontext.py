@@ -208,6 +208,64 @@ _REIHENFOLGE = (
 )
 
 
+#: Die Koepfe und Zeilenbeschriftungen des Nutzertexts (W3: ein englischer
+#: Systemprompt mit deutschem Nutzertext liesse das Modell deutsch
+#: antworten). Jede steht genau einmal hier, die Blockfunktionen lesen sie
+#: zur Aufrufzeit ueber ``T``.
+#:
+#: ``_SPRECHER_BOT``: so heisst der Bot im Verlauf (``sprecherzeile``) -- das
+#: Modell liest seine eigenen frueheren Aeusserungen in der zweiten Person.
+_SPRECHER_BOT = "Du"
+#: Wie ein Mitglied der Gruppe im Prompt heisst, wenn das Profil Pseudonyme
+#: verlangt (E8, Karte A1). In Dortmund nie benutzt -- die deutsche Tabelle
+#: braucht trotzdem einen Wert.
+_PSEUDONYM = "Mitglied {nummer}"
+_PSEUDONYM_UNBEKANNT = "Mitglied"
+_PAUSE_STUNDE = "[Pause: {stunden} Stunde]"
+_PAUSE_STUNDEN = "[Pause: {stunden} Stunden]"
+_ZEILE_KERNTHEMA = "Kernthema: {kernthema}"
+_ZEILE_BEGRUENDUNG = " (Begruendung: {begruendung})"
+_BEZEICHNUNG_AUFNAHME = "Aufnahme {id}"
+_VERDICHTUNGEN_KOPF = "Verdichtungen:\n"
+_ZEILE_VOLLTRANSKRIPT = "--- {name} (Volltranskript) ---\n{transkript}"
+_VOLLTRANSKRIPTE_KOPF = "Volltranskripte:\n"
+_GESCHICHTE_KOPF = "Geschichte:\n"
+_KERNFRAGE_KOPF = "Kernfrage:\n"
+_ZEILE_SETTING_RAHMEN = "Setting (Rahmen): {rahmen}"
+_STELLEN_KOPF = "Passende Stellen aus den Interviews (die Ausarbeitungsgrundlage):"
+_KERNZITATE_KOPF = "Kernzitate (woertlich, geprueft):"
+_FIGUREN_KOPF = "Figuren:"
+_ZEILE_SPRACHDUKTUS = "    Sprachduktus: {profil}"
+_ZEILE_AUS_INTERVIEW = '    Aus {name}: {thema} -- "{zitat}"'
+_GESCHAERFT_KOPF = "Geschaerft am Material, je Szene:\n"
+_SZENE_MIT_NUMMER = "Szene {nummer}"
+_SZENE_OHNE_NUMMER = "Szene"
+_ZEILE_AKTUELLE_PHASE = "Aktuelle Phase: {phase}"
+_ZEILE_BEGRIFFE = "Begriffe: {wert}"
+_ZEILE_FRAGEN = "Fragen: {wert}"
+_ZEILE_RAHMEN = "Rahmen: {wert}"
+_ZEILE_HAUPTKONFLIKT = "Hauptkonflikt: {wert}"
+_ZEILE_FIGUR = "Figur {name}{beschreibung}"
+_ARBEITSSTAND_KOPF = "Arbeitsstand:\n"
+_TEXT_AKTUELLE_SZENE = "Aktuelle Szene ({szene}):\n{volltext}"
+_JOURNAL_KOPF = "Journal:\n"
+
+#: Wie die Art eines Journaleintrags (``journal.art``, ein Datenbankwert) in
+#: einer Journalzeile des Nutzertexts steht. Deutsch: der Wert selbst
+#: (``- [notiert] …``, zeichengleich zum Stand vor Aufgabe 30); die englische
+#: Tabelle uebersetzt ihn wie ``web.JOURNALART_BESCHRIFTUNG`` -- sonst stand
+#: im englischen Gespraechs- und Journal-Prompt "[notiert]" (Render-Pruefer,
+#: Quelle c2). Unbekannte Arten bleiben roh.
+JOURNALART_BESCHRIFTUNG = {
+    "vorgeschlagen": "vorgeschlagen",
+    "verworfen": "verworfen",
+    "entschieden": "entschieden",
+    "offen": "offen",
+    "notiert": "notiert",
+}
+_AUSLOESER_KOPF = "Aktuell:\n"
+
+
 def kernthema_zeile(stand) -> str:
     """Die Zeile "Kernthema: … (Begruendung: …)" aus einem Arbeitsstand.
 
@@ -217,9 +275,9 @@ def kernthema_zeile(stand) -> str:
     String, der Aufrufer haengt nichts an."""
     if not stand["kernthema"]:
         return ""
-    zeile = f"Kernthema: {stand['kernthema']}"
+    zeile = T._ZEILE_KERNTHEMA.format(kernthema=stand["kernthema"])
     if stand["kernthema_begruendung"]:
-        zeile += f" (Begruendung: {stand['kernthema_begruendung']})"
+        zeile += T._ZEILE_BEGRUENDUNG.format(begruendung=stand["kernthema_begruendung"])
     return zeile
 
 
@@ -228,10 +286,33 @@ def schaetze(text: str) -> int:
     return len(text) // _ZEICHEN_JE_TOKEN
 
 
-def sprecherzeile(n) -> str:
+def pseudonyme(conn, chat_id: int, zeilen=()) -> dict[str, str] | None:
+    """{Vorname: "Member N"} nach erstem Auftreten, oder None, wenn das
+    Profil keine Pseudonyme verlangt (dann bleibt alles, wie es war).
+    ``zeilen`` ergaenzt Namen, die (noch) nicht in der Datenbank stehen --
+    der Korpuslauf fuettert den Erkenner mit Zeilen ohne DB (pruefe_prompts).
+
+    "Ein Modell kann keinen Namen verwenden, den es nie sieht" (E8): die
+    Regel steht im Prompt, dieser Schalter sorgt dafuer, dass der Code gar
+    keinen Vornamen hineinlegt. Stabil ist die Nummer, weil sie aus der
+    Reihenfolge des ersten Auftretens kommt (``repo.absender_in_reihenfolge``)
+    -- wer als Erste geschrieben hat, bleibt "Member 1", auch wenn sie
+    laengst aus dem Fenster gefallen ist."""
+    if not sprache.pseudonyme():
+        return None
+    namen = list(repo.absender_in_reihenfolge(conn, chat_id))
+    for n in zeilen:
+        absender = n["absender"]
+        if not n["ist_bot"] and absender and absender not in namen:
+            namen.append(absender)
+    return {name: T._PSEUDONYM.format(nummer=i) for i, name in enumerate(namen, start=1)}
+
+
+def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
     """Formatiert eine ``nachricht``-Zeile als ``"Sprecher: Text"``.
 
-    Bot-Nachrichten erscheinen als Sprecher ``Du``: das Sprachmodell bekommt
+    Bot-Nachrichten erscheinen als Sprecher ``Du`` (``_SPRECHER_BOT``,
+    englisch ``You``): das Sprachmodell bekommt
     den Verlauf als einen zusammenhaengenden Text, nicht als mehrteiligen
     Chat mit eigener Rolle je Zug, und liest darin seine eigenen frueheren
     Aeusserungen in der zweiten Person. Menschliche Nachrichten tragen den
@@ -240,8 +321,17 @@ def sprecherzeile(n) -> str:
     Nachrichten ohne Text (Sprache ohne Transkript, Foto, Sticker, ...)
     erscheinen als ``"Name: (typ)"`` statt als leere Zeile -- die Gruppe hat
     etwas geschickt, und das Modell soll das wissen.
+
+    ``namen`` (E8, Karte A1): steht dort ein Mapping (``pseudonyme()``),
+    ersetzt es den Vornamen; ein Name, der darin fehlt, wird nie
+    durchgereicht, sondern heisst "Member". ``None`` ist das alte Verhalten.
     """
-    sprecher = "Du" if n["ist_bot"] else n["absender"]
+    if n["ist_bot"]:
+        sprecher = T._SPRECHER_BOT
+    elif namen is None:
+        sprecher = n["absender"]
+    else:
+        sprecher = namen.get(n["absender"], T._PSEUDONYM_UNBEKANNT)
     text = n["text"]
     if text:
         return f"{sprecher}: {text}"
@@ -259,8 +349,8 @@ def _pausenzeile(vorher_iso: str, nachher_iso: str) -> str | None:
     if minuten <= PAUSE_AB_MINUTEN:
         return None
     stunden = max(1, round(minuten / 60))
-    einheit = "Stunde" if stunden == 1 else "Stunden"
-    return f"[Pause: {stunden} {einheit}]"
+    muster = T._PAUSE_STUNDE if stunden == 1 else T._PAUSE_STUNDEN
+    return muster.format(stunden=stunden)
 
 
 def interviewbezeichnung(conn, chat_id: int, aufnahme_id: int | None) -> str:
@@ -281,7 +371,8 @@ def interviewbezeichnung(conn, chat_id: int, aufnahme_id: int | None) -> str:
 def _baue_verdichtungen(conn, chat_id: int) -> str:
     bloecke = []
     for v in repo.verdichtungen(conn, chat_id):
-        name = interviewbezeichnung(conn, chat_id, v["aufnahme_id"]) or f"Aufnahme {v['aufnahme_id']}"
+        name = (interviewbezeichnung(conn, chat_id, v["aufnahme_id"])
+                or T._BEZEICHNUNG_AUFNAHME.format(id=v["aufnahme_id"]))
         zeilen = [f"{name}: {v['zusammenfassung']}"]
         for thema in repo.themen_zu(conn, v["id"]):
             if thema["beleg_zitat"]:
@@ -291,7 +382,7 @@ def _baue_verdichtungen(conn, chat_id: int) -> str:
         bloecke.append("\n".join(zeilen))
     if not bloecke:
         return ""
-    return "Verdichtungen:\n" + "\n\n".join(bloecke)
+    return T._VERDICHTUNGEN_KOPF + "\n\n".join(bloecke)
 
 
 def _baue_transkripte(conn, chat_id: int) -> str:
@@ -333,10 +424,14 @@ def _baue_transkripte(conn, chat_id: int) -> str:
             continue
         transkript = repo.zusammengefuegtes_transkript(conn, a["id"])
         if transkript:
-            zeilen.append(f"--- {a['name']} (Volltranskript) ---\n{transkript}")
+            # E8: in einem Profil mit Pseudonymen nie der Aufnahmename (oft
+            # ein Klarname), sondern die Nummer wie bei den Verdichtungen.
+            anzeige = (interviewbezeichnung(conn, chat_id, a["id"])
+                       if sprache.pseudonyme() else a["name"])
+            zeilen.append(T._ZEILE_VOLLTRANSKRIPT.format(name=anzeige, transkript=transkript))
     if not zeilen:
         return ""
-    return "Volltranskripte:\n" + "\n\n".join(zeilen)
+    return T._VOLLTRANSKRIPTE_KOPF + "\n\n".join(zeilen)
 
 
 # --- Das Kernpaket (05.09.2026 abends) ------------------------------------
@@ -376,18 +471,18 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
     # alles haengt. Das Kernthema bleibt darunter stehen, solange eine alte
     # Gruppe eines gesetzt hat (rueckwaertskompatibel).
     if "geschichte" in stand.keys() and stand["geschichte"]:
-        zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
+        zeilen.append(T._GESCHICHTE_KOPF + stand["geschichte"].strip())
     kernthema = kernthema_zeile(stand)
     if kernthema:
         zeilen.append(kernthema)
     if stand["kernfrage"]:
-        zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
+        zeilen.append(T._KERNFRAGE_KOPF + stand["kernfrage"].strip())
     if stand["rahmen"]:
-        zeilen.append(f"Setting (Rahmen): {stand['rahmen']}")
+        zeilen.append(T._ZEILE_SETTING_RAHMEN.format(rahmen=stand["rahmen"]))
 
     themen = repo.kernthemen_themen(conn, chat_id)
     if themen:
-        block = ["Passende Stellen aus den Interviews (die Ausarbeitungsgrundlage):"]
+        block = [T._STELLEN_KOPF]
         # Die Zusammenfassung gehoert der VERDICHTUNG, nicht dem Thema:
         # ``kernthemen_themen`` liefert sie je Zeile mit, und ein Interview mit
         # elf markierten Themen schrieb sie deshalb elfmal in den Prompt --
@@ -406,7 +501,7 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
 
     zitate = repo.kernzitate(conn, chat_id)
     if zitate:
-        block = ["Kernzitate (woertlich, geprueft):"]
+        block = [T._KERNZITATE_KOPF]
         for eintrag in zitate:
             name = interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
             zeile = f'- {name}: "{eintrag["zitat"]}"'
@@ -417,19 +512,19 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
 
     figuren = repo.figuren(conn, chat_id)
     if figuren:
-        block = ["Figuren:"]
+        block = [T._FIGUREN_KOPF]
         for figur in figuren:
             kopf = figur["name"]
             if figur["beschreibung"]:
                 kopf += f" -- {figur['beschreibung']}"
             block.append(f"- {kopf}")
             if figur["sprachprofil"]:
-                block.append(f"    Sprachduktus: {figur['sprachprofil'].strip()}")
+                block.append(T._ZEILE_SPRACHDUKTUS.format(profil=figur["sprachprofil"].strip()))
             for eintrag in repo.schaerfungen(conn, chat_id, figur_id=figur["id"]):
                 name = interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
-                block.append(
-                    f'    Aus {name}: {eintrag["thema"]} -- "{eintrag["zitat"]}"'
-                )
+                block.append(T._ZEILE_AUS_INTERVIEW.format(
+                    name=name, thema=eintrag["thema"], zitat=eintrag["zitat"],
+                ))
         zeilen.append("\n".join(block))
 
     # Die Schaerfungen je Szene (Phase 6): jede Szene mit den Stellen, die
@@ -449,13 +544,11 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
             block.append(zeile)
         szenenbloecke.append("\n".join(block))
     if szenenbloecke:
-        zeilen.append(
-            "Geschaerft am Material, je Szene:\n" + "\n".join(szenenbloecke)
-        )
+        zeilen.append(T._GESCHAERFT_KOPF + "\n".join(szenenbloecke))
 
     if not zeilen:
         return ""
-    return KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
+    return T.KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
 
 
 #: Die Erfindungsphase (Umbau 05.09.2026 nachts, zusammengelegt am
@@ -502,7 +595,8 @@ def szenenzeile(s) -> str:
     Block 4). Fehlt eines der Felder, faellt nur dieser Teil weg -- die Zeile
     bleibt lesbar, auch wenn das Sprachmodell einmal keinen Titel geliefert
     hat und ``interview_theater.szene`` auf 'Szene N' zurueckgefallen ist."""
-    kopf = f"Szene {s['nummer']}" if s["nummer"] is not None else "Szene"
+    kopf = (T._SZENE_MIT_NUMMER.format(nummer=s["nummer"])
+            if s["nummer"] is not None else T._SZENE_OHNE_NUMMER)
     if s["titel"]:
         kopf += f": {s['titel']}"
     if s["kurzbeschreibung"]:
@@ -537,34 +631,34 @@ def _baue_arbeitsstand(conn, chat_id: int, ohne_kernpaket_felder: bool = False) 
     # (anweisungen.system).
     gespeicherte_phase = repo.hole_phase(conn, chat_id)
     if gespeicherte_phase is not None:
-        zeilen.append(f"Aktuelle Phase: {phasen.bezeichnung(gespeicherte_phase)}")
+        zeilen.append(T._ZEILE_AKTUELLE_PHASE.format(phase=phasen.bezeichnung(gespeicherte_phase)))
     if stand:
         if stand["begriffe"]:
-            zeilen.append(f"Begriffe: {stand['begriffe']}")
+            zeilen.append(T._ZEILE_BEGRIFFE.format(wert=stand["begriffe"]))
         if stand["fragen"]:
-            zeilen.append(f"Fragen: {stand['fragen']}")
+            zeilen.append(T._ZEILE_FRAGEN.format(wert=stand["fragen"]))
         kernthema = kernthema_zeile(stand)
         if kernthema and not ohne_kernpaket_felder:
             zeilen.append(kernthema)
         if stand["kernfrage"] and not ohne_kernpaket_felder:
-            zeilen.append("Kernfrage:\n" + stand["kernfrage"].strip())
+            zeilen.append(T._KERNFRAGE_KOPF + stand["kernfrage"].strip())
         # Die Geschichte im Groben (Phase 5): Bogen und Ende.
         if ("geschichte" in stand.keys() and stand["geschichte"]
                 and not ohne_kernpaket_felder):
-            zeilen.append("Geschichte:\n" + stand["geschichte"].strip())
+            zeilen.append(T._GESCHICHTE_KOPF + stand["geschichte"].strip())
         # Der Rahmen (Phase 5, seit 05.09.2026). Datengetrieben wie alles
         # andere: der Hauptkonflikt steht nur da, wenn die Gruppe einen wollte
         # -- er ist eine Rahmen-Entscheidung, keine Pflicht. Ein "Format" des
         # Stuecks steht hier seit dem Abend des 05.09.2026 nicht mehr: es
         # wird nicht mehr gefragt, also wird es auch nicht mehr vorgehalten.
         if stand["rahmen"] and not ohne_kernpaket_felder:
-            zeilen.append(f"Rahmen: {stand['rahmen']}")
+            zeilen.append(T._ZEILE_RAHMEN.format(wert=stand["rahmen"]))
         if stand["hauptkonflikt"]:
-            zeilen.append(f"Hauptkonflikt: {stand['hauptkonflikt']}")
+            zeilen.append(T._ZEILE_HAUPTKONFLIKT.format(wert=stand["hauptkonflikt"]))
     if not ohne_kernpaket_felder:
         for figur in figuren:
             beschreibung = f": {figur['beschreibung']}" if figur["beschreibung"] else ""
-            zeilen.append(f"Figur {figur['name']}{beschreibung}")
+            zeilen.append(T._ZEILE_FIGUR.format(name=figur["name"], beschreibung=beschreibung))
     # Szenenliste: Teil des Arbeitsstands, nicht ein eigener Block -- SPEC
     # § 6.2 fuehrt sie woertlich in Block 4 auf ("Begriffe, Fragen, Kernthema +
     # Begruendung, Figuren, Konflikt, Szenenliste"). Nur Titel und die eine
@@ -576,7 +670,7 @@ def _baue_arbeitsstand(conn, chat_id: int, ohne_kernpaket_felder: bool = False) 
 
     if not zeilen:
         return ""
-    return "Arbeitsstand:\n" + "\n".join(zeilen)
+    return T._ARBEITSSTAND_KOPF + "\n".join(zeilen)
 
 
 #: Die Kopfzeile des Festlegungs-Blocks. Bewusst "weitere": der Arbeitsstand
@@ -611,7 +705,8 @@ def _baue_festlegungen(conn, chat_id: int) -> str:
         return ""
     grenze = BUDGETS["festlegungen"] * _ZEICHEN_JE_TOKEN
     zeilen: list[str] = []
-    laenge = len(FESTLEGUNGEN_KOPF)
+    kopf = T.FESTLEGUNGEN_KOPF
+    laenge = len(kopf)
     for eintrag in eintraege[:FESTLEGUNGEN_ZEILEN]:
         zeile = "- " + repo.festlegungszeile(
             eintrag["bereich"], eintrag["bezug"], eintrag["text"]
@@ -620,7 +715,7 @@ def _baue_festlegungen(conn, chat_id: int) -> str:
             break
         zeilen.append(zeile)
         laenge += 1 + len(zeile)
-    return FESTLEGUNGEN_KOPF + "\n" + "\n".join(zeilen)
+    return kopf + "\n" + "\n".join(zeilen)
 
 
 #: Der Hinweisblock, mit dem der Bot einen Phasenwechsel zur Sprache bringt.
@@ -652,7 +747,7 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
     if stufe is None:
         return ""
     phasen.merke_angebot(conn, chat_id, stufe)
-    return _PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(stufe))
+    return T._PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(stufe))
 
 
 #: Der Hinweisblock, mit dem der Bot die Interview-Zuordnung einer Figur zur
@@ -700,7 +795,7 @@ def _baue_figurenhinweis(conn, chat_id: int) -> str:
         return ""
     if not any(a["klasse"] == "lang" for a in repo.transkripte(conn, chat_id)):
         return ""
-    return _FIGURENHINWEIS.format(namen=", ".join(ohne))
+    return T._FIGURENHINWEIS.format(namen=", ".join(ohne))
 
 
 #: **Deckel des Szenenblocks in Zeichen** (Audit 06.09.2026, Befund C.4,
@@ -750,7 +845,8 @@ def _gekuerzte_szene(volltext: str, grenze: int) -> str:
     text = volltext.strip()
     if len(text) <= grenze:
         return text
-    platz = max(0, grenze - len(_TEXT_SZENE_GEKUERZT) - 2)
+    marke = T._TEXT_SZENE_GEKUERZT
+    platz = max(0, grenze - len(marke) - 2)
     kopf_max = int(platz * _SZENE_ANTEIL_ANFANG)
     schluss_max = platz - kopf_max
     zeilen = text.splitlines()
@@ -774,8 +870,8 @@ def _gekuerzte_szene(volltext: str, grenze: int) -> str:
     if not kopf and not schluss:
         # Eine einzige, sehr lange Zeile: dann eben hart an Zeichen, sonst
         # bliebe vom Szenenblock nur die Marke.
-        return f"{text[:kopf_max]}\n{_TEXT_SZENE_GEKUERZT}\n{text[len(text) - schluss_max:]}"
-    teile = kopf + [_TEXT_SZENE_GEKUERZT] + schluss
+        return f"{text[:kopf_max]}\n{marke}\n{text[len(text) - schluss_max:]}"
+    teile = kopf + [marke] + schluss
     return "\n".join(teile)
 
 
@@ -797,7 +893,7 @@ def _baue_szene(conn, chat_id: int, grenze: int | None = None) -> str:
         return ""
     grenze = SZENE_ZEICHEN_MAX if grenze is None else grenze
     volltext = _gekuerzte_szene(szene["volltext"], grenze)
-    return f"Aktuelle Szene ({szenenzeile(szene)}):\n{volltext}"
+    return T._TEXT_AKTUELLE_SZENE.format(szene=szenenzeile(szene), volltext=volltext)
 
 
 #: Wie viele Journaleintraege in den Prompt gehen -- die letzten N nach
@@ -834,8 +930,15 @@ def _baue_journal(conn, chat_id: int) -> str:
         gesehen.add(schluessel)
         behalten.append(e)
     behalten = list(reversed(behalten))[-JOURNAL_EINTRAEGE:]
-    zeilen = [f"- [{e['art']}] {e['text']}" for e in behalten]
-    return "Journal:\n" + "\n".join(zeilen)
+    zeilen = [journalzeile(e) for e in behalten]
+    return T._JOURNAL_KOPF + "\n".join(zeilen)
+
+
+def journalzeile(eintrag) -> str:
+    """Eine Journalzeile im Nutzertext: ``- [<Art>] <Text>`` -- die eine
+    Stelle fuer Gespraechs-Prompt und Journal-Extraktor."""
+    art = T.JOURNALART_BESCHRIFTUNG.get(eintrag["art"], eintrag["art"])
+    return f"- [{art}] {eintrag['text']}"
 
 
 #: Obergrenze fuer den Nachrichtenpool, aus dem das Fenster gebaut wird --
@@ -931,7 +1034,7 @@ def fenster_grenzen() -> dict:
     }
 
 
-def waehle_fenster(nachrichten: list, bezug=None) -> list:
+def waehle_fenster(nachrichten: list, bezug=None, namen: dict[str, str] | None = None) -> list:
     """Waehlt aus einer chronologisch aufsteigenden Liste die Nachrichten,
     die ins Fenster gehoeren -- **die eine Auswahlregel**, die sowohl der
     Promptbau als auch die Verdraengungsrechnung benutzt.
@@ -951,6 +1054,9 @@ def waehle_fenster(nachrichten: list, bezug=None) -> list:
     Nachrichten (die Verdraengungsrechnung arbeitet auf Rohdicts aus Tests
     ohne Zeitfeld) entfaellt Schritt 3 stillschweigend -- Zeichen- und
     Nachrichtengrenze tragen dann allein.
+
+    ``namen`` (E8): dieselben Pseudonyme wie im Prompt, damit das Fenster
+    genau an der Stelle schneidet, an der es misst.
     """
     if not nachrichten:
         return []
@@ -959,10 +1065,10 @@ def waehle_fenster(nachrichten: list, bezug=None) -> list:
     kandidaten = nachrichten[-grenzen["nachrichten"]:]
 
     # Schritt 2: von hinten auffuellen. Die juengste ist gesetzt.
-    kumuliert = len(sprecherzeile(kandidaten[-1]))
+    kumuliert = len(sprecherzeile(kandidaten[-1], namen))
     beginnt_bei = len(kandidaten) - 1
     for index in range(len(kandidaten) - 2, -1, -1):
-        groesse = len(sprecherzeile(kandidaten[index])) + 1  # +1 Zeilenumbruch
+        groesse = len(sprecherzeile(kandidaten[index], namen)) + 1  # +1 Zeilenumbruch
         if kumuliert + groesse > grenzen["zeichen"]:
             break
         kumuliert += groesse
@@ -1011,6 +1117,27 @@ _SYSTEMANFAENGE = (
     "Entfernt:",
 )
 
+#: Dieselben Systemzeilen in ihrer englischen Fassung (Karte A1, Aufgabe 24)
+#: -- je ein Anfang eines Eintrags aus ``sprachen/en/texte.toml``; ein Test
+#: haelt die Rundreise fest. Gelesen wird die Vereinigung beider Tabellen:
+#: der Bot erkennt seine eigenen Zeilen, gleich in welcher Sprache sie
+#: stehen. "Aufnahme laeuft." hat kein Gegenstueck -- der deutsche Text
+#: existiert im Code nicht mehr, der Eintrag oben ist ein Altbestand fuer
+#: alte Chatverlaeufe. "Withdrawn:" ist der Anfang von
+#: ``erkenner._JOURNAL_ZURUECK``.
+_SYSTEMANFAENGE_EN = (
+    "I'm back.",
+    "Noted:",
+    "Recording stopped.",
+    "Ready -",
+    "Note: the scene text",
+    "I'm writing out the scene",
+    "I'm still writing",
+    "I'm analysing the open interviews",
+    "Removed:",
+    "Withdrawn:",
+)
+
 
 def _ist_systemzeile(n) -> bool:
     """Ist diese Bot-Nachricht eine Systemmeldung und kein Gespraechsbeitrag?
@@ -1020,10 +1147,11 @@ def _ist_systemzeile(n) -> bool:
     if not n["ist_bot"]:
         return False
     text = (n["text"] or "").lstrip()
-    return any(text.startswith(anfang) for anfang in _SYSTEMANFAENGE)
+    return any(text.startswith(anfang)
+               for anfang in _SYSTEMANFAENGE + _SYSTEMANFAENGE_EN)
 
 
-def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
+def _baue_fenster_eintraege(conn, chat_id: int, ausloeser, namen=None) -> list[str]:
     """Liefert die Eintraege des kurzen Fensters (Nachrichtenzeilen und
     Pausenmarkierungen), **aeltester zuerst** -- nach den Grenzen aus
     ``fenster_grenzen()`` (primaer ``FENSTER_ZEICHEN``, Obergrenze
@@ -1051,7 +1179,12 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
 
     Jeder Listeneintrag bleibt eine atomare Einheit (eine Pausenzeile oder
     eine einzelne Nachricht) -- Grundlage dafuer, dass die Kuerzung in
-    ``baue()`` ganze Nachrichten abschneiden kann."""
+    ``baue()`` ganze Nachrichten abschneiden kann.
+
+    ``namen``: die Pseudonyme aus ``baue()`` (E8); fehlen sie, holt die
+    Funktion sie selbst -- die Messskripte rufen sie ohne."""
+    if namen is None:
+        namen = pseudonyme(conn, chat_id, ausloeser)
     ausloeser_ids = {n["message_id"] for n in ausloeser}
     roh = [
         n for n in repo.letzte_nachrichten(conn, chat_id, anzahl=_FENSTER_POOL)
@@ -1061,7 +1194,7 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
     roh.sort(key=lambda n: n["gesendet_am"])
 
     bezug = _bezugszeit(ausloeser)
-    kandidaten = waehle_fenster(roh, bezug)
+    kandidaten = waehle_fenster(roh, bezug, namen)
 
     eintraege = []
     vorherige_zeit = None
@@ -1070,7 +1203,7 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
             pause = _pausenzeile(vorherige_zeit, n["gesendet_am"])
             if pause:
                 eintraege.append(pause)
-        eintraege.append(sprecherzeile(n))
+        eintraege.append(sprecherzeile(n, namen))
         vorherige_zeit = n["gesendet_am"]
     # **Die Pause VOR dem Ausloeser** (06.09.2026, Auftrag 2). Der haeufigste
     # Fall einer langen Pause ist gerade der, in dem die erste Nachricht
@@ -1097,13 +1230,13 @@ def _bezugszeit(ausloeser):
     return max(zeiten) if zeiten else None
 
 
-def _baue_ausloeser(ausloeser) -> str:
+def _baue_ausloeser(ausloeser, namen: dict[str, str] | None = None) -> str:
     """Die ausloesende(n) Nachricht(en) -- ueberlebt jede Kuerzung (§ 7.2),
     darum von der Kuerzungslogik in baue() nie angefasst."""
     if not ausloeser:
         return ""
-    zeilen = [sprecherzeile(n) for n in ausloeser]
-    return "Aktuell:\n" + "\n".join(zeilen)
+    zeilen = [sprecherzeile(n, namen) for n in ausloeser]
+    return T._AUSLOESER_KOPF + "\n".join(zeilen)
 
 
 def _zusammen(bloecke: dict) -> str:
@@ -1153,8 +1286,8 @@ def _baue_erstkontakt(conn, chat_id: int, e) -> str:
     from interview_theater import bot
 
     url = bot.stelle_link_sicher(conn, e, chat_id)
-    link = ERSTKONTAKT_LINK.format(url=url) if url else ""
-    return ERSTKONTAKT.format(link=link)
+    link = T.ERSTKONTAKT_LINK.format(url=url) if url else ""
+    return T.ERSTKONTAKT.format(link=link)
 
 
 def umrisszeile(stand: dict) -> str:
@@ -1231,7 +1364,7 @@ def _systemgroesse(conn, chat_id: int, e) -> int:
 
 
 def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
-             fenster_eintraege: list) -> dict:
+             fenster_eintraege: list, namen: dict[str, str] | None = None) -> dict:
     """Die Bloecke des Nutzertexts, in ihrer Reihenfolge -- datengetrieben:
     jeder Block bleibt leer, solange seine Daten leer sind (SPEC § 6.1)."""
     # Der Kontext-Filter je Phase (05.09.2026 abends): bis zur Kernfrage
@@ -1263,7 +1396,7 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         "szene": _baue_szene(conn, chat_id),
         "journal": _baue_journal(conn, chat_id),
         "fenster": "\n".join(fenster_eintraege),
-        "ausloeser": _baue_ausloeser(ausloeser),
+        "ausloeser": _baue_ausloeser(ausloeser, namen),
     }
 
 
@@ -1430,8 +1563,10 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     Kernpaket, Hinweise und Ausloeser sind von der Kuerzung grundsaetzlich
     ausgenommen; es gibt keinen Zustand, in dem der Bot wegen des Budgets
     nicht antworten koennte."""
-    fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser)
-    bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege)
+    # E8: die Pseudonyme einmal je Prompt, fuer Fenster UND Ausloeser.
+    namen = pseudonyme(conn, chat_id, ausloeser)
+    fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser, namen)
+    bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege, namen)
     # Einmal gemessen, zweimal gebraucht: in der Kuerzung (Gesamtgrenze) und
     # im Umriss (Auftrag 4, Befund C.1).
     system_zeichen = _systemgroesse(conn, chat_id, e)
@@ -1456,3 +1591,8 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     if protokoll is not None:
         protokoll.append(stand)
     return _zusammen(bloecke)
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

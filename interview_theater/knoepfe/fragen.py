@@ -317,12 +317,14 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None) -> str:
             continue
         ohne = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", roh)
         kopf, sep, rest = ohne.partition(":")
-        if sep and kopf.strip().lower().startswith("abschluss"):
+        # Beide Sprachen (Karte A1, K5): der englische Prompt verlangt
+        # "Opening:"/"Closing:", ein Modell labelt aber auch mal deutsch.
+        if sep and kopf.strip().lower().startswith(("abschluss", "closing")):
             ziel = abschluss
             if rest.strip():
                 ziel.append(rest.strip())
             continue
-        if sep and kopf.strip().lower().startswith("eroeffnung"):
+        if sep and kopf.strip().lower().startswith(("eroeffnung", "opening")):
             ziel = eroeffnung
             if rest.strip():
                 ziel.append(rest.strip())

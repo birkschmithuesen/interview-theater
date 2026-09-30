@@ -102,6 +102,12 @@ class Kandidat:
 #: (``prompts/formen/chor.md``).
 KOLLEKTIV = frozenset({"chor", "alle", "beide", "gruppe", "ensemble", "chorus"})
 
+#: Dasselbe auf Englisch (Karte A1, K5): der englische Szenenprompt laesst
+#: ``BOTH:`` und ``HOOK (ALL)`` schreiben. Gelesen wird die Vereinigung
+#: ``KOLLEKTIVE``.
+KOLLEKTIV_EN = frozenset({"all", "both", "choir", "group", "everyone"})
+KOLLEKTIVE = KOLLEKTIV | KOLLEKTIV_EN
+
 #: Zeilenanfaenge, die wie eine Sprecherzeile aussehen (Wort + Doppelpunkt),
 #: aber Struktur sind: Szenenkopf, die Kopfzeilen der Modellantwort
 #: (``szene.zerlege``), Planungsfelder, Formmarker aus ``prompts/formen/``.
@@ -113,6 +119,15 @@ _STRUKTUR = frozenset({
     "prolog", "epilog", "vorspiel", "nachspiel", "musik", "licht", "video",
 })
 
+#: Dasselbe auf Englisch (Karte A1, K5), gelesen als Vereinigung
+#: ``_STRUKTUREN``.
+_STRUKTUR_EN = frozenset({
+    "scene", "title", "short", "summary", "done differently", "place", "time",
+    "occasion", "characters", "cast", "tone", "act", "prologue", "epilogue",
+    "music", "light", "duration", "end",
+})
+_STRUKTUREN = _STRUKTUR | _STRUKTUR_EN
+
 #: Formmarker aus ``prompts/formen/lied.md`` und ``rap.md``. Sie sind keine
 #: Sprecher -- steht ein Name in Klammern dahinter (``STROPHE (MIRA)``), ist
 #: DER der Sprecher des folgenden Blocks.
@@ -121,6 +136,10 @@ _MARKER = frozenset({
     "part", "chorus", "pre-chorus", "prechorus", "coda", "zwischenspiel",
     "instrumental", "beat", "teil",
 })
+
+#: Dasselbe auf Englisch (Karte A1, K5), gelesen als Vereinigung ``_MARKEN``.
+_MARKER_EN = frozenset({"verse", "interlude"})
+_MARKEN = _MARKER | _MARKER_EN
 
 #: ``STROPHE (MIRA)`` / ``HOOK (ALLE)`` -- Marker mit Sprecherangabe.
 _MARKER_MIT_NAME = re.compile(r"^([^()\d]{1,20}?)\s*\(([^()]{1,40})\)\s*$")
@@ -214,7 +233,7 @@ def repliken(text: str, figuren=()) -> list[Replik]:
     if gefunden:
         return gefunden
     namen = {_schluessel(n) for n in figuren if (n or "").strip()}
-    namen |= KOLLEKTIV
+    namen |= KOLLEKTIVE
     if not namen:
         return []
     return _repliken_durchgang(text, erlaubt=namen)
@@ -237,24 +256,24 @@ def _repliken_durchgang(text: str, erlaubt) -> list[Replik]:
         kopf, trenner, rest = zeile.partition(":")
         if trenner and _label_form_ok(kopf):
             name = _labelname(kopf)
-            if _grundwort(kopf) not in _STRUKTUR and _erlaubt(name, erlaubt):
+            if _grundwort(kopf) not in _STRUKTUREN and _erlaubt(name, erlaubt):
                 ergebnis.append(Replik(name, _ohne_regie(rest), nummer))
                 block = None
                 continue
 
         if erlaubt is None:
             treffer = _MARKER_MIT_NAME.match(zeile)
-            if treffer and _grundwort(treffer.group(1)) in _MARKER:
+            if treffer and _grundwort(treffer.group(1)) in _MARKEN:
                 name = _labelname(treffer.group(2))
                 block = name if _erlaubt(name, erlaubt) else None
                 continue
 
-            if _grundwort(zeile) in _MARKER:
+            if _grundwort(zeile) in _MARKEN:
                 block = None
                 continue
 
             if not trenner and _label_form_ok(zeile) \
-                    and _grundwort(zeile) not in _STRUKTUR:
+                    and _grundwort(zeile) not in _STRUKTUREN:
                 name = _labelname(zeile)
                 if _erlaubt(name, erlaubt):
                     block = name
@@ -381,7 +400,7 @@ def namensstabilitaet(lage: Szenenlage) -> list[Befund]:
     gesehen: set[tuple[str, str]] = set()
     for nummer in lage.mit_sprechern():
         for replik in lage.repliken[nummer]:
-            if _schluessel(replik.label) in KOLLEKTIV:
+            if _schluessel(replik.label) in KOLLEKTIVE:
                 continue
             if lage.figur_fuer(replik.label) is not None:
                 continue
@@ -410,7 +429,7 @@ def geisterfiguren(lage: Szenenlage) -> list[Befund]:
     """Zwei Richtungen: ein Sprecher ohne Figurenzeile (Fehler) und eine
     Figur, die nirgends spricht und nirgends vorkommt (Warnung)."""
     befunde: list[Befund] = []
-    bekannt = {_schluessel(n) for n in lage.figuren} | KOLLEKTIV
+    bekannt = {_schluessel(n) for n in lage.figuren} | KOLLEKTIVE
     aehnlich = [_schluessel(n) for n in lage.figuren]
     gesehen: set[str] = set()
     for nummer in lage.mit_sprechern():
@@ -471,7 +490,7 @@ def besetzungsabgleich(lage: Szenenlage) -> list[Befund]:
             continue
         sprecher = {
             _schluessel(r.label) for r in lage.repliken[nummer]
-            if _schluessel(r.label) not in KOLLEKTIV
+            if _schluessel(r.label) not in KOLLEKTIVE
         }
         for name in besetzung:
             if _schluessel(name) not in sprecher:
@@ -483,7 +502,7 @@ def besetzungsabgleich(lage: Szenenlage) -> list[Befund]:
         geplant = {_schluessel(n) for n in besetzung}
         for label in dict.fromkeys(
             r.label for r in lage.repliken[nummer]
-            if _schluessel(r.label) not in KOLLEKTIV
+            if _schluessel(r.label) not in KOLLEKTIVE
         ):
             if _schluessel(label) in geplant:
                 continue
@@ -584,8 +603,14 @@ def tschechow_kandidaten(lage: Szenenlage) -> list[Kandidat]:
 
     Gefiltert wird nur, was sicher kein Kandidat ist: Figurennamen,
     Kollektivlabel, Woerter unter vier Buchstaben, Versalien (Sprecherzeilen),
-    und eine kurze Stoppwortliste fuer Satzanfaenge."""
-    verboten = {_schluessel(n) for n in lage.figuren} | KOLLEKTIV | _TSCHECHOW_STOPP
+    und eine kurze Stoppwortliste fuer Satzanfaenge.
+
+    **Nur im Deutschen** (Karte A1, Annahme A7): die Heuristik haengt an der
+    deutschen Substantiv-Grossschreibung. Im Englischen gibt es keine
+    Kandidaten -- ein fehlender Befund kostet nur eine Gelegenheit."""
+    if sprache.code() != sprache.DEUTSCH:
+        return []
+    verboten = {_schluessel(n) for n in lage.figuren} | KOLLEKTIVE | _TSCHECHOW_STOPP
     letzte: dict[str, int] = {}
     zaehler: dict[int, Counter] = {}
     for nummer in lage.nummern:
@@ -696,7 +721,9 @@ def formverteilung(lage: Szenenlage, phase: int | None = None) -> list[Befund]:
     if klassen.get(erste) in _ERSTE_VERBOTEN:
         befunde.append(Befund(
             "form_regel", "hart",
-            T._TEXT_ERSTE_FORM.format(erste=erste, form=lage.formen[erste]),
+            T._TEXT_ERSTE_FORM.format(
+                erste=erste,
+                form=T._FORM_BESCHRIFTUNG.get(lage.formen[erste], lage.formen[erste])),
             szene=erste,
         ))
 
@@ -747,7 +774,7 @@ def sprechanteile(lage: Szenenlage) -> list[Befund]:
     woerter: Counter = Counter()
     for nummer in szenen:
         for replik in lage.repliken[nummer]:
-            if _schluessel(replik.label) in KOLLEKTIV:
+            if _schluessel(replik.label) in KOLLEKTIVE:
                 continue
             name = lage.figur_fuer(replik.label)
             if name is None:
@@ -840,8 +867,11 @@ def _motive(absatz: str, figuren) -> set[str]:
     """Die Woerter eines Absatzes, die als Motiv taugen.
 
     Lang genug, gross geschrieben, kein Satzanfangs-Allerweltswort, kein
-    Figurenname.
+    Figurenname. Nur im Deutschen (Annahme A7, wie ``tschechow_kandidaten``):
+    im Englischen ist Grossschreibung kein Substantivmerkmal.
     """
+    if sprache.code() != sprache.DEUTSCH:
+        return set()
     roh = set(re.findall(r"\b[A-ZÄÖÜ][a-zäöüß]{%d,}\b" % (FOKUS_STRANG_ZEICHEN - 1),
                          absatz))
     return {w for w in roh
@@ -1082,6 +1112,16 @@ _TEXT_ERSTE_FORM = (
     "Szene {erste} ist ein {form}. Die erste Szene soll nie ein Monolog oder "
     "ein Lied sein - sie muss zeigen, wer da ist und worum es geht."
 )
+#: Wie eine Form in ``_TEXT_ERSTE_FORM`` heisst (K4) -- Schluessel ist der
+#: DB-Wert, deutsch der Wert selbst (zeichengleich zu vorher), englisch
+#: "monologue" statt des rohen "monolog". Eine unbekannte Form bleibt roh.
+_FORM_BESCHRIFTUNG = {
+    "dialog": "dialog",
+    "monolog": "monolog",
+    "chor": "chor",
+    "lied": "lied",
+    "rap": "rap",
+}
 _SZENE_N = "Szene {nummer}"
 _TEXT_FORMREGEL = (
     "Von {mit_form} Szenen mit gewaehlter Form sind {nicht_dialog} keine "

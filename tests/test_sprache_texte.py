@@ -66,10 +66,9 @@ BLEIBT_DEUTSCH = {
     "dramaturgie.beleg.GRUND_ZU_KURZ": "Log-Grund (Belegstand.grund), nur im Log",
     "dramaturgie.beleg.GRUND_FEHLT": "Log-Grund (Belegstand.grund), nur im Log",
     "dramaturgie.beleg.GRUND_NICHT_GEFUNDEN": "Log-Grund (Belegstand.grund), nur im Log",
-    "dramaturgie.fanout.TEXT_SZENENAUFTRAG": (
-        "Interner Auftrag an szene.starte (\"Schreib Szene N neu. ...\"); der "
-        "Szenennummer-Parser liest bis Aufgabe 23 nur Deutsch"
-    ),
+    # Aufgabe 23: dramaturgie.fanout.TEXT_SZENENAUFTRAG steht nicht mehr
+    # hier -- der Szenennummer-Parser liest jetzt beide Sprachen, der
+    # Auftrag geht ueber T.
     # Aufgabe 17: Skript und Stil der Webseiten -- deutsch sind nur die
     # Kommentare darin. Die Meldungen des Speicherns liest _BEARBEITEN_JS aus
     # data-Attributen (#meldungen, web._JS_*), nicht aus dem Skript.
@@ -93,6 +92,8 @@ PARSER = {
     "szene._ANDERS_NICHTS", "dramaturgie.mechanik._STRUKTUR",
     "dramaturgie.mechanik._TSCHECHOW_STOPP", "dramaturgie.mechanik._STRANG_STOPP",
     "vorspann.SCHAERFUNGSFORMELN", "stueckpruefung.FRAGEN",
+    # Aufgabe 23: Vereinigungen und Parserlisten der Modellausgabe (K5).
+    "ablauf._KERN_ANFAENGE", "dramaturgie.mechanik._STRUKTUREN",
 }
 
 #: Strukturen mit Funktionen (K4): uebersetzt werden sie ueber eine

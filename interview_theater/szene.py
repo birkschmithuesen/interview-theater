@@ -376,6 +376,10 @@ def systemanweisung(form: str | None = None, stil: str | None = None) -> str:
 #: Fehlerrichtung ist damit die harmlose.
 _NUMMER = re.compile(r"\bszene\s*(?:nr\.?|nummer)?\s*(\d{1,3})\b", re.IGNORECASE)
 
+#: Dasselbe auf Englisch (Karte A1, K5): "write scene 2", "scene no. 4".
+#: Ausgabeparser -- beide werden probiert, deutsch zuerst.
+_NUMMER_EN = re.compile(r"\bscene\s*(?:no\.?|number)?\s*(\d{1,3})\b", re.IGNORECASE)
+
 
 def nummer_aus_auftrag(auftrag: str) -> int | None:
     """Liest die Szenennummer aus dem Auftrag, oder None.
@@ -383,9 +387,10 @@ def nummer_aus_auftrag(auftrag: str) -> int | None:
     Nennt der Auftrag eine Nummer, zu der es schon eine Szene gibt, wird
     diese ueberschrieben (der Normalfall "Szene 2 nochmal, aber kuerzer");
     sonst entsteht eine neue."""
-    treffer = _NUMMER.search(auftrag or "")
-    if treffer:
-        return int(treffer.group(1))
+    for muster in (_NUMMER, _NUMMER_EN):
+        treffer = muster.search(auftrag or "")
+        if treffer:
+            return int(treffer.group(1))
     # Eine nackte Zahl ("/szene 1" kommt hier als "1" an) meint die Szene mit
     # dieser Nummer. Live-Fall Testgruppe 05.09. 22:20: "/szene 1" schrieb
     # Szene 3, weil "1" als "keine Nummer" gelesen wurde und dann die zuletzt
@@ -463,6 +468,28 @@ FELD_ALIASE = {
     "kurzbeschreibung": "kurzbeschreibung",
 }
 
+#: Dieselben Aliase auf Englisch (Karte A1, K5) -- Ziel sind die deutschen
+#: Spaltennamen (Protokoll). ``feldname`` sucht erst deutsch, dann englisch.
+#: Abweichung vom Plan: "summary" zeigt auf ``kurzbeschreibung`` (die Spalte,
+#: auf die das deutsche "kurz" zeigt), weil es keine Spalte ``kurz`` gibt.
+FELD_ALIASE_EN = {
+    "place": "ort",
+    "location": "ort",
+    "time": "zeit",
+    "occasion": "anlass",
+    "characters": "figuren",
+    "cast": "figuren",
+    "who": "figuren",
+    "what happens": "was_passiert",
+    "plot": "was_passiert",
+    "what's different": "was_anders",
+    "what is different": "was_anders",
+    "key lines": "kernsaetze",
+    "tone": "ton",
+    "title": "titel",
+    "summary": "kurzbeschreibung",
+}
+
 #: Trennt die Angaben einer Planung. Bewusst die Pipe und nicht das Komma:
 #: in "figuren: Mira, Pola, Pal" und in einem Handlungssatz stehen Kommas.
 PLANUNG_TRENNER = "|"
@@ -471,14 +498,21 @@ PLANUNG_TRENNER = "|"
 _PLANUNG_NUMMER = re.compile(r"^\s*(?:szene\s*(?:nr\.?|nummer)?\s*)?(\d{1,3})\s*$",
                              re.IGNORECASE)
 
+#: Dasselbe mit "scene" (Karte A1, K5): "Scene 1", "scene no. 2".
+_PLANUNG_NUMMER_EN = re.compile(
+    r"^\s*(?:(?:szene|scene)\s*(?:nr\.?|nummer|no\.?|number)?\s*)?(\d{1,3})\s*$",
+    re.IGNORECASE)
+
 
 def feldname(wort: str) -> str | None:
     """Uebersetzt ein Wort in einen Szenenfeldnamen, oder None.
 
     Die eine Stelle, an der ``FELD_ALIASE`` ausgewertet wird -- der Befehl
     ``/szene <n> <feld> <wert>`` und die Erkennerangabe ``szene_planen``
-    sollen dieselben Woerter verstehen."""
-    return FELD_ALIASE.get((wort or "").strip().lower())
+    sollen dieselben Woerter verstehen. Erst deutsch, dann englisch
+    (``FELD_ALIASE_EN``)."""
+    schluessel = (wort or "").strip().lower()
+    return FELD_ALIASE.get(schluessel) or FELD_ALIASE_EN.get(schluessel)
 
 
 def zerlege_planung(wert: str) -> tuple[int | None, dict[str, str]]:
@@ -508,7 +542,9 @@ def zerlege_planung(wert: str) -> tuple[int | None, dict[str, str]]:
                 felder[schluessel] = rest.strip()
             continue
         # Kein bekanntes Feld: dann ist es der Kopf mit der Szenennummer.
-        treffer = _PLANUNG_NUMMER.match(teil.split(":", 1)[0])
+        kopfteil = teil.split(":", 1)[0]
+        treffer = (_PLANUNG_NUMMER.match(kopfteil)
+                   or _PLANUNG_NUMMER_EN.match(kopfteil))
         if treffer and nummer is None:
             nummer = int(treffer.group(1))
     return nummer, felder
@@ -574,6 +610,13 @@ _RAHMEN_FELD = re.compile(
     r"(?:^|[,;\n])\s*(Ort|Zeit|Anlass)\s*:\s*([^,;\n]+)", re.IGNORECASE
 )
 
+#: Dasselbe auf Englisch (Karte A1, K5); ``_RAHMEN_ZUORDNUNG_EN`` bildet auf
+#: die deutschen Spaltennamen ab.
+_RAHMEN_FELD_EN = re.compile(
+    r"(?:^|[,;\n])\s*(Place|Time|Occasion)\s*:\s*([^,;\n]+)", re.IGNORECASE
+)
+_RAHMEN_ZUORDNUNG_EN = {"place": "ort", "time": "zeit", "occasion": "anlass"}
+
 
 def rahmenfelder(rahmen: str | None) -> dict[str, str]:
     """Ort, Zeit und Anlass aus dem Setting-Freitext.
@@ -588,6 +631,13 @@ def rahmenfelder(rahmen: str | None) -> dict[str, str]:
     treffer = {
         name.lower(): wert.strip()
         for name, wert in _RAHMEN_FELD.findall(roh)
+        if wert.strip()
+    }
+    if treffer:
+        return treffer
+    treffer = {
+        _RAHMEN_ZUORDNUNG_EN[name.lower()]: wert.strip()
+        for name, wert in _RAHMEN_FELD_EN.findall(roh)
         if wert.strip()
     }
     if treffer:
@@ -1109,6 +1159,18 @@ ANDERS_SCHLUESSEL = "ANDERS GEMACHT"
 #: waere Rauschen im Arbeitsstand.
 _ANDERS_NICHTS = ("nichts", "keine abweichung", "keine", "-", "nichts anders")
 
+#: Dasselbe auf Englisch (Karte A1): der englische Szenenprompt verlangt
+#: ``ANDERS GEMACHT: nothing``. Gelesen wird die Vereinigung.
+_ANDERS_NICHTS_EN = ("nothing", "none", "no deviation", "nothing different", "-")
+
+#: Die englischen Alternativen der Kopfzeilen-Schluessel (Karte A1, K5). Der
+#: Prompt verlangt die deutschen Protokoll-Token; ein englisches Modell
+#: labelt trotzdem manchmal englisch. Deutsch wird zuerst probiert.
+_TITEL_SCHLUESSEL = ("TITEL", "TITLE")
+_KURZ_SCHLUESSEL = ("KURZ", "SHORT")
+_ZUSAMMENFASSUNG_SCHLUESSEL_BEIDE = (ZUSAMMENFASSUNG_SCHLUESSEL, "SUMMARY")
+_ANDERS_SCHLUESSEL_BEIDE = (ANDERS_SCHLUESSEL, "DONE DIFFERENTLY")
+
 #: Der Kopf der Journalzeile, die aus "ANDERS GEMACHT" entsteht.
 _JOURNAL_ANDERS = "Szene {nummer}: {text}"
 
@@ -1513,6 +1575,16 @@ NEU_HINWEIS = (
 #: ``NEU_MARKER`` wird er aus dem Auftrag entfernt.
 BISHER_MARKER = "[BISHER]"
 BISHER_KOPF = "Bisheriger Text dieser Szene, er soll ueberarbeitet werden:"
+
+#: Die internen Auftragszeilen an ``starte`` (Karte A1, Aufgabe 23). Sie
+#: landen unter dem Auftragskopf im Szenen-Prompt und gehen deshalb ueber
+#: ``T``; lesbar bleiben sie in beiden Sprachen, weil
+#: ``nummer_aus_auftrag`` "Szene N" und "scene N" versteht. Die Marker
+#: (``NEU_MARKER``, ``BISHER_MARKER``) sind Protokoll und bleiben, wie sie
+#: sind -- sie haengen hinten an ``notiz``. Aufrufer: ``starte`` selbst,
+#: ``ablauf`` (Regie-Notiz), ``kuerzung``, ``knoepfe.szenen``/``wirkung``.
+TEXT_AUFTRAG_SCHREIBEN = "Schreib Szene {nummer}."
+TEXT_AUFTRAG_NEU = "Schreib Szene {nummer} neu. {notiz}"
 
 
 #: Der Kopf ueber der Prosafassung im Feinschliff-Prompt (Phase 7,
@@ -1959,6 +2031,16 @@ def _kopfwert(zeile: str, schluessel: str) -> str | None:
     return rest[1:].strip().strip("*` ").strip()
 
 
+def _kopfwert_einer(zeile: str, schluessel: tuple[str, ...]) -> str | None:
+    """``_kopfwert`` fuer den ersten passenden Schluessel -- deutsch zuerst
+    (Karte A1, K5)."""
+    for s in schluessel:
+        wert = _kopfwert(zeile, s)
+        if wert is not None:
+            return wert
+    return None
+
+
 def zerlege(text: str) -> tuple[str | None, str | None, str | None, str | None, str]:
     """Trennt die Kopfzeilen der Modellantwort vom Szenentext.
 
@@ -1985,26 +2067,27 @@ def zerlege(text: str) -> tuple[str | None, str | None, str | None, str | None, 
         if not zeile.strip():
             ab = i + 1
             continue
-        wert = _kopfwert(zeile, "TITEL")
+        wert = _kopfwert_einer(zeile, _TITEL_SCHLUESSEL)
         if wert is not None and titel is None:
             titel, ab = wert, i + 1
             continue
-        wert = _kopfwert(zeile, "KURZ")
+        wert = _kopfwert_einer(zeile, _KURZ_SCHLUESSEL)
         if wert is not None and kurz is None:
             kurz, ab = wert, i + 1
             continue
-        wert = _kopfwert(zeile, ZUSAMMENFASSUNG_SCHLUESSEL)
+        wert = _kopfwert_einer(zeile, _ZUSAMMENFASSUNG_SCHLUESSEL_BEIDE)
         if wert is not None and fassung is None:
             fassung, ab = wert, i + 1
             continue
-        wert = _kopfwert(zeile, ANDERS_SCHLUESSEL)
+        wert = _kopfwert_einer(zeile, _ANDERS_SCHLUESSEL_BEIDE)
         if wert is not None and anders is None:
             anders, ab = wert, i + 1
             continue
         break
 
     volltext = "\n".join(zeilen[ab:]).strip()
-    if anders and anders.strip().lower().strip(".") in _ANDERS_NICHTS:
+    if anders and anders.strip().lower().strip(".") in (
+            _ANDERS_NICHTS + _ANDERS_NICHTS_EN):
         anders = None
     return (titel or None), (kurz or None), (fassung or None), (anders or None), volltext
 
@@ -2318,7 +2401,7 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
                 nummer=gemeint["nummer"], vorher=ziel["nummer"],
             ),
         )
-        auftrag = f"Schreib Szene {ziel['nummer']}."
+        auftrag = T.TEXT_AUFTRAG_SCHREIBEN.format(nummer=ziel["nummer"])
 
     fehlt = sperrtext(conn, ziel)
     if fehlt:

@@ -368,10 +368,19 @@ def _score(wert: str):
     return int(treffer.group()) if treffer else None
 
 
+#: Die englischen Schwere-Woerter (Karte A1, K5) -> die deutschen
+#: Protokollwerte aus ``SCHWEREN_JUDGE``. Erst nach den deutschen probiert,
+#: mit Wortgrenzen ("low" soll nicht in "below"/"follow" treffen).
+_SCHWEREN_EN = (("high", "hoch"), ("medium", "mittel"), ("low", "niedrig"))
+
+
 def _schwere(wert: str) -> str:
     gefaltet = (wert or "").lower()
     for name in SCHWEREN_JUDGE:
         if name in gefaltet:
+            return name
+    for wort, name in _SCHWEREN_EN:
+        if re.search(r"\b" + wort + r"\b", gefaltet):
             return name
     return "mittel"
 
@@ -1022,7 +1031,7 @@ def frage_c1(conn, e, klm, chat_id: int, richter: Richter, nummer: int,
     rechnet diese Funktion aus. Sie kennt die Ground Truth (die Labels, die
     ``mechanik.repliken`` gelesen hat) und gibt sie nie in den Prompt."""
     echte = [r for r in repliken
-             if mechanik._schluessel(r.label) not in mechanik.KOLLEKTIV]
+             if mechanik._schluessel(r.label) not in mechanik.KOLLEKTIVE]
     figuren = list(dict.fromkeys(r.label for r in echte))
     if len(echte) < C1_REPLIKEN_MIN or len(figuren) < C1_FIGUREN_MIN:
         return None
@@ -1467,7 +1476,7 @@ TEXT_SZENENAUFTRAG = "Schreib Szene {nummer} neu. {notiz}"
 def szenenauftrag(zeile) -> str:
     """Der fertige Auftragstext fuer ``szene.schreibe`` -- aus einem Befund
     (Knopfweg) oder einem Auftrag (Schleifenweg)."""
-    return TEXT_SZENENAUFTRAG.format(
+    return T.TEXT_SZENENAUFTRAG.format(
         nummer=_feld(zeile, "szene"), notiz=regienotiz(zeile)
     )
 

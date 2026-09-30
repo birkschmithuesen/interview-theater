@@ -58,6 +58,24 @@ _FORMEL = re.compile(
     re.IGNORECASE,
 )
 
+#: Dieselben Formeln auf Englisch (Karte A1, K5) -- ein englisches Modell
+#: klebt "provides the background ..." an. Deutsch wird zuerst probiert;
+#: ``MINDEST_ZEICHEN`` schuetzt wie im Deutschen ("Mira shows grit.").
+SCHAERFUNGSFORMELN_EN = (
+    "makes clear",
+    "provides",
+    "shows",
+    "justifies",
+    "explains",
+    "reinforces",
+    "underlines",
+)
+
+_FORMEL_EN = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in SCHAERFUNGSFORMELN_EN) + r")\b",
+    re.IGNORECASE,
+)
+
 #: Ein Satzende: Punkt, Ausrufe- oder Fragezeichen, gefolgt von Leerraum oder
 #: Textende. Das Lookahead haelt Abkuerzungen und Zahlen zusammen ("z. B." hat
 #: hinter dem ersten Punkt ein Leerzeichen -- deshalb steht die Formel-Regel
@@ -91,9 +109,11 @@ def erster_satz(text: str | None, grenze: int = GRENZE) -> str:
     if not text:
         return ""
     schnitt = len(text)
-    treffer = _FORMEL.search(text)
-    if treffer is not None and treffer.start() >= MINDEST_ZEICHEN:
-        schnitt = treffer.start()
+    for formel in (_FORMEL, _FORMEL_EN):
+        treffer = formel.search(text)
+        if treffer is not None and treffer.start() >= MINDEST_ZEICHEN:
+            schnitt = treffer.start()
+            break
     satz = _SATZENDE.search(text)
     if satz is not None and satz.end() < schnitt:
         # Das Satzzeichen bleibt stehen: der Vorspann zitiert die

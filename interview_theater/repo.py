@@ -1911,10 +1911,17 @@ _PLATZHALTERNAME = re.compile(
     r"^\s*(neben|haupt)?figur\b|^\s*platzhalter\b", re.IGNORECASE
 )
 
+#: Dasselbe auf Englisch (Karte A1, K5): "Character 2", "Side character 1",
+#: "Placeholder". Gelesen wird die Vereinigung.
+_PLATZHALTERNAME_EN = re.compile(
+    r"^\s*(main\s+|side\s+)?character\b|^\s*placeholder\b", re.IGNORECASE
+)
+
 
 def ist_platzhaltername(name: str) -> bool:
     """Ist das ein vom Bot vergebener Platzhalter statt eines Namens?"""
-    return bool(_PLATZHALTERNAME.match(name or ""))
+    return bool(_PLATZHALTERNAME.match(name or "")
+                or _PLATZHALTERNAME_EN.match(name or ""))
 
 
 #: Was beim Zusammenfuehren vom Platzhalter auf den Namen wandert -- und zwar

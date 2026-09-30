@@ -252,6 +252,7 @@ def zerlege(wert: str) -> list[tuple[str, str, list[str], str, str]]:
     for zeile in (wert or "").splitlines():
         roh = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", zeile).strip()
         roh = re.sub(r"^\s*szene\s*\d{0,3}\s*[:.]\s*", "", roh, flags=re.IGNORECASE)
+        roh = _SZENE_PRAEFIX_EN.sub("", roh)
         if not roh:
             continue
         teile = [t.strip() for t in _TRENNER.split(roh)]
@@ -345,6 +346,25 @@ def lege_an(
 #: Wie die Ende-Zeile eines Geschichte-Vorschlags anfaengt.
 _ENDE_PRAEFIX = re.compile(r"^\s*ende\s*[:\-–—]\s*", re.IGNORECASE)
 
+#: Dasselbe auf Englisch (Karte A1, K5): ``End:``/``Ending:`` -- so schreibt
+#: der englische Prompt die Ende-Zeile, und so legt ``_GESCHICHTE_MIT_ENDE``
+#: sie in Englisch ab. Deutsch wird zuerst probiert.
+_ENDE_PRAEFIX_EN = re.compile(r"^\s*end(?:ing)?\s*[:\-–—]\s*", re.IGNORECASE)
+
+
+def ist_ende_zeile(zeile: str) -> bool:
+    """Beginnt die Zeile mit "Ende:" oder "End(ing):"? Die eine Stelle fuer
+    alle Leser der Ende-Zeile (auch ``knoepfe.szenen``)."""
+    return _ende_praefix(zeile) is not None
+
+
+def _ende_praefix(zeile: str):
+    """Das passende Ende-Muster, deutsch zuerst, oder None."""
+    for muster in (_ENDE_PRAEFIX, _ENDE_PRAEFIX_EN):
+        if muster.match(zeile or ""):
+            return muster
+    return None
+
 
 def zerlege_geschichte(wert: str) -> tuple[str, list[tuple[str, str, list[str], str]]]:
     """Zerlegt einen ``VORSCHLAG GESCHICHTE:``-Block in ``(geschichte,
@@ -364,8 +384,9 @@ def zerlege_geschichte(wert: str) -> tuple[str, list[tuple[str, str, list[str], 
     bogen = roh[0]
     rest = roh[1:]
     ende = ""
-    if rest and _ENDE_PRAEFIX.match(rest[0]):
-        ende = _ENDE_PRAEFIX.sub("", rest[0]).strip()
+    muster = _ende_praefix(rest[0]) if rest else None
+    if muster is not None:
+        ende = muster.sub("", rest[0]).strip()
         rest = rest[1:]
     geschichte = bogen if not ende else T._GESCHICHTE_MIT_ENDE.format(bogen=bogen, ende=ende)
     return geschichte, zerlege("\n".join(rest))
@@ -395,8 +416,47 @@ _FORMENKETTE = re.compile(
     re.IGNORECASE,
 )
 
+#: Die englischen Formwoerter (Karte A1, K5) und die DEUTSCHEN DB-Werte, auf
+#: die sie zeigen -- zurueckgegeben werden immer die deutschen Werte.
+_FORM_AUS_EN = {
+    "dialogue": "dialog",
+    "monologue": "monolog",
+    "chorus": "chor",
+    "choir": "chor",
+    "song": "lied",
+    "rap": "rap",
+}
+
+#: Der englische Durchgang kennt die deutschen UND die englischen Formwoerter
+#: (ein englisches Modell schreibt auch "Scene 1: Dialog"), aber nur den
+#: Anker "scene" -- eine Zeile mit "Szene N" geht allein durch den
+#: deutschen Durchgang und verhaelt sich damit wie vorher.
+_FORMEN_EN = tuple(dict.fromkeys(_FORMEN + tuple(_FORM_AUS_EN)))
+_FORMWORT_EN = re.compile(r"\b(" + "|".join(_FORMEN_EN) + r")\b", re.IGNORECASE)
+_SZENENWORT_EN = re.compile(r"\bscene\s*(\d{1,2})\b", re.IGNORECASE)
+_FORMENKETTE_EN = re.compile(
+    r"\b(" + "|".join(_FORMEN_EN) + r")\b\s*[-–—/,]\s*\b(" + "|".join(_FORMEN_EN) + r")\b",
+    re.IGNORECASE,
+)
+
+#: Der Szenenpraefix einer Szenenzeile auf Englisch ("Scene 2: ...").
+_SZENE_PRAEFIX_EN = re.compile(r"^\s*scene\s*\d{0,3}\s*[:.]\s*", re.IGNORECASE)
+
+
+def _form_aus(wort: str) -> str:
+    """Ein gefundenes Formwort als deutscher DB-Wert."""
+    wort = wort.lower()
+    return _FORM_AUS_EN.get(wort, wort)
+
 
 def formabfolge(text: str) -> dict[int, str] | None:
+    """Deutsch zuerst, dann Englisch (Karte A1, K5) -- siehe
+    ``_formabfolge_mit``; Rueckgabe sind immer die deutschen DB-Werte."""
+    return (_formabfolge_mit(text, _FORMWORT, _SZENENWORT, _FORMENKETTE)
+            or _formabfolge_mit(text, _FORMWORT_EN, _SZENENWORT_EN, _FORMENKETTE_EN))
+
+
+def _formabfolge_mit(text: str, formwort, szenenwort, formenkette) -> dict[int, str] | None:
     """Ist dieser Text eine **Formwahl je Szene** statt einer Handlung?
 
     Liefert ``{Szenennummer: Form}`` oder ``None``.
@@ -420,13 +480,13 @@ def formabfolge(text: str) -> dict[int, str] | None:
     roh = (text or "").strip()
     if not roh:
         return None
-    gefunden = [(m.start(), m.group(1).lower()) for m in _FORMWORT.finditer(roh)]
+    gefunden = [(m.start(), _form_aus(m.group(1))) for m in formwort.finditer(roh)]
     if len({form for _, form in gefunden}) < 2:
         return None
 
     # Erst der starke Anker: eine Form, die hinter "Szene N" steht.
     zuordnung: dict[int, str] = {}
-    anker = list(_SZENENWORT.finditer(roh))
+    anker = list(szenenwort.finditer(roh))
     for stelle, treffer in enumerate(anker):
         ende = anker[stelle + 1].start() if stelle + 1 < len(anker) else len(roh)
         form = next(
@@ -438,7 +498,7 @@ def formabfolge(text: str) -> dict[int, str] | None:
         return zuordnung
 
     # Sonst die Kette: die Reihenfolge der Formen IST die Zuordnung.
-    if not _FORMENKETTE.search(roh):
+    if not formenkette.search(roh):
         return None
     reihe: list[str] = []
     for _, form in gefunden:
@@ -459,6 +519,14 @@ _FORM_ANHANG = re.compile(
     r"[\(\[]?\s*(" + "|".join(_FORMEN) + r")\s*[\)\]]?[\s.;,]*$", re.IGNORECASE
 )
 
+#: Dasselbe auf Englisch (Karte A1, K5): "Scene 1: Arrival (Dialogue)". Wie
+#: bei ``formabfolge`` nur der Anker "scene"; welcher Durchgang gilt,
+#: entscheidet ``_durchgang`` (deutsch, sobald ein "Szene N:" dasteht).
+_SZENE_ANKER_EN = re.compile(r"\bscene\s*(\d{1,2})\s*[:\-–—]\s*", re.IGNORECASE)
+_FORM_ANHANG_EN = re.compile(
+    r"[\(\[]?\s*(" + "|".join(_FORMEN_EN) + r")\s*[\)\]]?[\s.;,]*$", re.IGNORECASE
+)
+
 #: Der Journaleintrag, wenn die gewaehlte Richtung ihre Szenen mitbrachte.
 JOURNAL_INLINE = "Szenen aus der gewaehlten Richtung: {liste}"
 
@@ -477,21 +545,31 @@ DETAIL_RICHTUNG_UNVOLLSTAENDIG = (
 )
 
 
+def _durchgang(roh: str):
+    """``(anker, anhang, formwort)`` fuer diese Zeile: deutsch, sobald ein
+    "Szene N:" dasteht -- dann verhaelt sich alles wie vorher --, sonst der
+    englische Durchgang (Karte A1, K5)."""
+    if _SZENE_ANKER.search(roh or ""):
+        return _SZENE_ANKER, _FORM_ANHANG, _FORMWORT
+    return _SZENE_ANKER_EN, _FORM_ANHANG_EN, _FORMWORT_EN
+
+
 def _szenenstuecke(zeile: str) -> tuple[list[tuple[int, str, str]], bool]:
     """Alle Anker einer Zeile mit nicht-leerem Titel, ungeprueft:
     ``([(nummer, titel, form)], zu_lang)``. ``zu_lang`` ist wahr, sobald ein
     Titel ueber ``TITEL_MAX`` liegt."""
     roh = " ".join((zeile or "").split())
-    anker = list(_SZENE_ANKER.finditer(roh))
+    anker_muster, anhang_muster, _formwort = _durchgang(roh)
+    anker = list(anker_muster.finditer(roh))
     stuecke: list[tuple[int, str, str]] = []
     zu_lang = False
     for stelle, treffer in enumerate(anker):
         ende = anker[stelle + 1].start() if stelle + 1 < len(anker) else len(roh)
         stueck = roh[treffer.end():ende].strip()
         form = ""
-        anhang = _FORM_ANHANG.search(stueck)
+        anhang = anhang_muster.search(stueck)
         if anhang is not None:
-            form = anhang.group(1).lower()
+            form = _form_aus(anhang.group(1))
             stueck = stueck[:anhang.start()]
         titel = stueck.strip(" .;,()[]–—-/|").strip()
         if not titel:
@@ -550,10 +628,11 @@ def nummern_unvollstaendig(zeile: str) -> list[int] | None:
     return nummern
 
 
-def _ist_formtitel(titel: str) -> bool:
+def _ist_formtitel(titel: str, formwort=_FORMWORT) -> bool:
     """Beginnt der "Titel" mit einem Formwort ("Chor mit Dance", "Rap
-    eskaliert"), ist er eine Formangabe mit Zusatz und kein Titel."""
-    return _FORMWORT.match(titel) is not None
+    eskaliert"), ist er eine Formangabe mit Zusatz und kein Titel.
+    ``formwort`` kommt aus dem Durchgang der Zeile (``_durchgang``)."""
+    return formwort.match(titel) is not None
 
 
 def szenen_der_richtung(zeile: str) -> list[tuple[int, str, str]]:
@@ -574,9 +653,16 @@ def szenen_der_richtung(zeile: str) -> list[tuple[int, str, str]]:
     inline = szenen_in_zeile(zeile)
     if not inline:
         return []
-    if any(_ist_formtitel(titel) for _n, titel, _f in inline):
+    roh = " ".join((zeile or "").split())
+    _anker, _anhang, formwort = _durchgang(roh)
+    if any(_ist_formtitel(titel, formwort) for _n, titel, _f in inline):
         return []
-    formen = formabfolge(zeile)
+    # Derselbe Durchgang wie fuer die Anker: eine deutsche Zeile sieht nur
+    # die deutsche Formabfolge, wie vorher.
+    if formwort is _FORMWORT:
+        formen = _formabfolge_mit(zeile, _FORMWORT, _SZENENWORT, _FORMENKETTE)
+    else:
+        formen = _formabfolge_mit(zeile, _FORMWORT_EN, _SZENENWORT_EN, _FORMENKETTE_EN)
     if formen:
         anhaenge = {n: form for n, _t, form in inline if form}
         if anhaenge != formen:

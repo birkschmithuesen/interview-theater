@@ -466,6 +466,10 @@ _ARBEITSSTAND_ARTEN = {
 _GESCHICHTE_MARKER = re.compile(
     r"\bEnde\s*:|\bam Ende\b|\bzum Schluss\b|\bdann\b.*\bdann\b", re.IGNORECASE
 )
+#: Dasselbe auf Englisch (Karte A1, K5) -- gelesen wird die Vereinigung.
+_GESCHICHTE_MARKER_EN = re.compile(
+    r"\bEnd(?:ing)?\s*:|\bin the end\b|\bthen\b.*\bthen\b", re.IGNORECASE
+)
 #: Ab hier ist es kein Setting mehr, sondern eine Erzaehlung.
 RAHMEN_HOECHSTLAENGE = 300
 
@@ -473,7 +477,9 @@ RAHMEN_HOECHSTLAENGE = 300
 def _ist_geschichte(wert: str) -> bool:
     """Sieht dieser Text nach der Handlung aus statt nach dem Setting?"""
     roh = (wert or "").strip()
-    return len(roh) > RAHMEN_HOECHSTLAENGE or _GESCHICHTE_MARKER.search(roh) is not None
+    return (len(roh) > RAHMEN_HOECHSTLAENGE
+            or _GESCHICHTE_MARKER.search(roh) is not None
+            or _GESCHICHTE_MARKER_EN.search(roh) is not None)
 
 
 def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
@@ -885,12 +891,33 @@ _FIGURENZAHL_UMGEKEHRT = re.compile(
     r"\bfigurenanzahl\b[^\d]{0,20}(\d{1,2})\b", re.IGNORECASE
 )
 
+#: Dasselbe auf Englisch (Karte A1, K5): "three characters", "four to five
+#: characters", "number of characters is 6". Das Ergebnis bleibt im
+#: deutschen Format ("4 bis 5") -- Protokoll zum Arbeitsstand.
+_ZAHLWOERTER_EN = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
+#: Statt des Lookaheads vor dem Wortstamm ("Hauptfiguren" ist ein Wort)
+#: stehen im Englischen Lookbehinds vor dem Leerzeichen: "2 main characters"
+#: sind zwei Woerter, und eine Teilzahl als Gesamtzahl waere falsch.
+_FIGURENZAHL_EN = re.compile(
+    r"\b(\d{1,2}|" + "|".join(_ZAHLWOERTER_EN) + r")\b"
+    r"(?:\s*(?:to|-|–|—)\s*(\d{1,2}|" + "|".join(_ZAHLWOERTER_EN) + r")\b)?"
+    r"[^.,;]{0,20}?(?<!main)(?<!side)(?<!minor)(?<!supporting)\scharacters?\b",
+    re.IGNORECASE,
+)
+_FIGURENZAHL_UMGEKEHRT_EN = re.compile(
+    r"\bnumber of characters\b[^\d]{0,20}(\d{1,2})\b", re.IGNORECASE
+)
+
 
 def _zahl(wort: str) -> int | None:
     wort = (wort or "").strip().lower()
     if wort.isdigit():
         return int(wort)
-    return _ZAHLWOERTER.get(wort)
+    zahl = _ZAHLWOERTER.get(wort)
+    return zahl if zahl is not None else _ZAHLWOERTER_EN.get(wort)
 
 
 def figurenzahl_aus(text: str) -> str | None:
@@ -900,18 +927,21 @@ def figurenzahl_aus(text: str) -> str | None:
     traegt: ``"8"`` oder ``"10 bis 12"``. Rein deterministisch, kein
     Modellaufruf -- der Satz liegt schon vor."""
     roh = text or ""
-    treffer = _FIGURENZAHL.search(roh)
-    if treffer is not None:
-        erste = _zahl(treffer.group(1))
-        zweite = _zahl(treffer.group(2)) if treffer.group(2) else None
-        if erste is None or not 1 <= erste <= 12:
-            return None
-        if zweite is not None and 1 <= zweite <= 12 and zweite != erste:
-            return f"{erste} bis {zweite}"
-        return str(erste)
-    treffer = _FIGURENZAHL_UMGEKEHRT.search(roh)
-    if treffer is not None and 1 <= int(treffer.group(1)) <= 12:
-        return treffer.group(1)
+    # Deutsch zuerst (beide Richtungen), dann Englisch (Karte A1, K5).
+    for vorwaerts, umgekehrt in ((_FIGURENZAHL, _FIGURENZAHL_UMGEKEHRT),
+                                 (_FIGURENZAHL_EN, _FIGURENZAHL_UMGEKEHRT_EN)):
+        treffer = vorwaerts.search(roh)
+        if treffer is not None:
+            erste = _zahl(treffer.group(1))
+            zweite = _zahl(treffer.group(2)) if treffer.group(2) else None
+            if erste is None or not 1 <= erste <= 12:
+                return None
+            if zweite is not None and 1 <= zweite <= 12 and zweite != erste:
+                return f"{erste} bis {zweite}"
+            return str(erste)
+        treffer = umgekehrt.search(roh)
+        if treffer is not None and 1 <= int(treffer.group(1)) <= 12:
+            return treffer.group(1)
     return None
 
 
@@ -1078,6 +1108,25 @@ _ENTFERNEN_ZIELE = (
     "fragen", "szene", "journal", "festlegung", "interview", "aufnahme",
 )
 
+#: Dieselben Ziele auf Englisch (Karte A1, K5) -> die deutschen Ziele. Der
+#: englische Erkenner-Prompt laesst die deutschen Woerter liefern; das hier
+#: ist der Zusatz fuer ein Modell, das trotzdem englisch labelt.
+_ENTFERNEN_ZIELE_EN = {
+    "character": "figur",
+    "core theme": "kernthema",
+    "setting": "rahmen",
+    "story": "geschichte",
+    "terms": "begriffe",
+    "questions": "fragen",
+    "scene": "szene",
+    "agreement": "festlegung",
+    "interview": "interview",
+    "recording": "aufnahme",
+}
+
+#: Die englischen Antworten auf die USA-Frage -> die deutschen Protokollwerte.
+_USA_EN = {"yes": "ja", "no": "nein"}
+
 #: Journalzeile, die eine Entfernung festhaelt -- der Weg soll sichtbar
 #: bleiben, auch wenn das Entfernte es nicht mehr ist.
 _JOURNAL_ENTFERNT = "Entfernt: {was}"
@@ -1107,9 +1156,15 @@ def _zerlege_entfernen(wert: str) -> tuple[str, str] | None:
         return None
     erstes, _, rest = text.partition(" ")
     ziel = erstes.strip(" :,.").lower()
-    if ziel not in _ENTFERNEN_ZIELE:
-        return None
-    return ziel, rest.strip(" :,")
+    if ziel in _ENTFERNEN_ZIELE:
+        return ziel, rest.strip(" :,")
+    # Englisch erst danach (Karte A1, K5); "core theme" hat zwei Woerter,
+    # deshalb am Textanfang mit Wortgrenze statt am ersten Wort.
+    for wort, ziel in _ENTFERNEN_ZIELE_EN.items():
+        treffer = re.match(re.escape(wort) + r"\b[\s:,.]*", text, re.IGNORECASE)
+        if treffer:
+            return ziel, text[treffer.end():].strip(" :,")
+    return None
 
 
 #: art -> Arbeitsstandfeld fuer die vier Ziele, die schlicht auf NULL gesetzt
@@ -1255,6 +1310,9 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         if not g or not g["szene_usa_angeboten_am"]:
             return None
         w = (wert or "").strip().lower()
+        # Englisch zusaetzlich (Karte A1, K5): gespeichert und quittiert wird
+        # der deutsche Protokollwert.
+        w = _USA_EN.get(w, w)
         if w not in ("ja", "nein"):
             return None
         repo.setze_szene_usa(conn, chat_id, w == "ja")

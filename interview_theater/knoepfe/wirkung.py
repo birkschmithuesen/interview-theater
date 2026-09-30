@@ -439,11 +439,13 @@ def _wirkung_pruefung_szene(conn, d: Druck) -> str:
         d.tg.sende(d.chat_id, T._TEXT_PRUEFUNG_UNBEKANNT)
         return T._TEXT_PRUEFUNG_UNBEKANNT
     from interview_theater import ablauf, stueckpruefung as pruefung_modul
+    from interview_theater import szene as szene_modul
 
     nummer = int(befund["szene_nummer"])
     ablauf.starte_auftrag(
         conn, d.tg, d.klm, d.e, d.chat_id,
-        f"Schreib Szene {nummer} neu. {pruefung_modul.regienotiz(befund)}",
+        szene_modul.T.TEXT_AUFTRAG_NEU.format(
+            nummer=nummer, notiz=pruefung_modul.regienotiz(befund)),
     )
     # Nach einer Ueberarbeitung gilt der Stand als ungeprueft -- gesagt,
     # nicht automatisch nachgelaufen (Birk).

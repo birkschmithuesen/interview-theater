@@ -6,7 +6,9 @@ Aufgaben 22-24) -- sie aendern sich durch A1 nicht.
 
 import pytest
 
-from interview_theater import ablauf, begriffe, sprache
+from interview_theater import (ablauf, begriffe, erkenner, kuerzung, kurzgeschichte, sprache,
+                               stueckpruefung, szenenfolge, vorspann, web)
+from interview_theater import szene as szene_modul
 from interview_theater.knoepfe import figuren, fragen
 
 
@@ -311,3 +313,391 @@ def test_szene_form_leer_englisch_mit_szene_praefix(conn, einst, englisch, monke
                         lambda conn, tg, chat_id, nummer: gerufen.append(nummer))
     _befehl(conn, einst, "/szene szene 3 form")
     assert gerufen == [3]
+
+
+# --- Modellausgabe in beiden Sprachen (Aufgabe 23, D5 Art A) -------------
+# Ausgabeparser probieren beide Sprachen, deutsch zuerst -- unabhaengig vom
+# Profil, weil ein englisches Modell manchmal deutsch labelt und umgekehrt.
+# Die deutschen Sollwerte sind gegen a739997 (vor Aufgabe 23) nachgemessen.
+
+DE_SZENE = ("TITEL: Nacht\nKURZ: Zwei streiten.\nZUSAMMENFASSUNG: Sie streiten.\n"
+            "ANDERS GEMACHT: nichts\n\nNADIA: Hallo")
+EN_SZENE = ("TITLE: Night\nSHORT: Two argue.\nSUMMARY: They argue.\n"
+            "DONE DIFFERENTLY: nothing\n\nNADIA: Hi")
+
+
+class _Tg:
+    def sende(self, *a, **k):
+        return None
+
+
+def test_szenenkopf_deutsch_wie_vorher():
+    assert szene_modul.zerlege(DE_SZENE) == (
+        "Nacht", "Zwei streiten.", "Sie streiten.", None, "NADIA: Hallo")
+
+
+def test_szenenkopf_englisch_auch_unter_deutschem_profil():
+    assert szene_modul.zerlege(EN_SZENE) == ("Night", "Two argue.", "They argue.", None, "NADIA: Hi")
+
+
+def test_anders_gemacht_nothing_ist_keine_abweichung():
+    """Offener Punkt (c): der englische Szenenprompt verlangt
+    ``ANDERS GEMACHT: nothing``."""
+    assert szene_modul.zerlege("ANDERS GEMACHT: nothing\n\nNADIA: Hi")[3] is None
+    assert szene_modul.zerlege("ANDERS GEMACHT: nichts\n\nNADIA: Hi")[3] is None
+    assert szene_modul.zerlege("ANDERS GEMACHT: Mira geht frueher\n\nNADIA: Hi")[3] == (
+        "Mira geht frueher")
+
+
+@pytest.mark.parametrize("text, soll", [("Schreib Szene 2", 2), ("write scene 2", 2),
+                                        ("scene no. 4 please", 4)])
+def test_szenennummer_beide(text, soll):
+    assert szene_modul.nummer_aus_auftrag(text) == soll
+
+
+@pytest.mark.parametrize("wort, soll", [("ort", "ort"), ("was passiert", "was_passiert"),
+                                        ("place", "ort"), ("what happens", "was_passiert"),
+                                        ("tone", "ton"), ("summary", "kurzbeschreibung")])
+def test_feldname_beide(wort, soll):
+    assert szene_modul.feldname(wort) == soll
+
+
+@pytest.mark.parametrize("wert, soll", [
+    ("Szene 2 | ort: Kanal", (2, {"ort": "Kanal"})),
+    ("Scene 2 | place: canal", (2, {"ort": "canal"})),
+    ("scene no. 3 | tone: quiet", (3, {"ton": "quiet"})),
+])
+def test_planung_beide(wert, soll):
+    assert szene_modul.zerlege_planung(wert) == soll
+
+
+@pytest.mark.parametrize("rahmen, soll", [
+    ("Ort: Kanal, Zeit: Nacht", {"ort": "Kanal", "zeit": "Nacht"}),
+    ("Ein Kanal bei Nacht", {"ort": "Ein Kanal bei Nacht"}),
+    ("Place: canal, Time: night, Occasion: a farewell",
+     {"ort": "canal", "zeit": "night", "anlass": "a farewell"}),
+])
+def test_rahmenfelder_beide(rahmen, soll):
+    assert szene_modul.rahmenfelder(rahmen) == soll
+
+
+@pytest.mark.parametrize("wert, soll", [("Szene 3", 3), ("3", 3), ("Scene 3", 3),
+                                        ("Szene drei", None)])
+def test_kuerzung_nummer_beide(wert, soll):
+    assert kuerzung.nummer_aus_wert(wert) == soll
+
+
+def test_kurzgeschichte_englische_zusammenfassung():
+    text = ("## 1. Arrival\nText one.\nSummary: She arrives.\n\n"
+            "## 2. Fight\nText two.\nSummary: It explodes.")
+    assert kurzgeschichte.zerlege(text) == [("Arrival", "She arrives.", "Text one."),
+                                           ("Fight", "It explodes.", "Text two.")]
+
+
+def test_kurzgeschichte_englische_abschnittsueberschrift():
+    text = "SECTION 1: Arrival\nText one.\nSummary: She arrives.\n\nPART 2: Fight\nText two."
+    assert [t for t, _, _ in kurzgeschichte.zerlege(text)] == ["Arrival", "Fight"]
+
+
+def test_kurzgeschichte_deutsch_wie_vorher():
+    text = ("## 1. Ankunft\nText eins.\nZusammenfassung: Sie kommt an.\n\n"
+            "## 2. Streit\nText zwei.\nZusammenfassung: Es kracht.")
+    assert kurzgeschichte.zerlege(text) == [("Ankunft", "Sie kommt an.", "Text eins."),
+                                           ("Streit", "Es kracht.", "Text zwei.")]
+
+
+@pytest.mark.parametrize("text, soll", [
+    ("Szene 1: Dialog, Szene 2: Monolog, Szene 3: Chor", {1: "dialog", 2: "monolog", 3: "chor"}),
+    ("Chor-Dialog-Rap", {1: "chor", 2: "dialog", 3: "rap"}),
+    ("Szene 1: Dialog, Szene 2: Song", None),
+    ("Scene 1: Dialogue, Scene 2: Monologue, Scene 3: Chorus",
+     {1: "dialog", 2: "monolog", 3: "chor"}),
+    ("Choir-Dialogue-Song", {1: "chor", 2: "dialog", 3: "lied"}),
+    ("They sing a song and then rap about it.", None),
+])
+def test_formabfolge_beide(text, soll):
+    assert szenenfolge.formabfolge(text) == soll
+
+
+def test_szenen_in_zeile_beide():
+    assert szenenfolge.szenen_in_zeile(
+        "Nacht am Kanal. Szene 1: Ankunft am Steg. Szene 2: Das Gestaendnis.") == [
+        (1, "Ankunft am Steg", ""), (2, "Das Gestaendnis", "")]
+    assert szenenfolge.szenen_in_zeile(
+        "Night by the canal. Scene 1: Arrival at the pier. Scene 2: The confession.") == [
+        (1, "Arrival at the pier", ""), (2, "The confession", "")]
+
+
+def test_szenen_der_richtung_englisch_mit_form():
+    assert szenenfolge.szenen_der_richtung(
+        "Night. Scene 1: Arrival at the pier (Dialogue). Scene 2: The confession (Song).") == [
+        (1, "Arrival at the pier", "dialog"), (2, "The confession", "lied")]
+    # Ein Titel, der mit einem Formwort beginnt, ist eine Formwahl.
+    assert szenenfolge.szenen_der_richtung(
+        "Scene 1: Chorus with dance. Scene 2: Dialogue with interruptions.") == []
+
+
+def test_szenenfolge_zeile_mit_englischem_praefix():
+    assert szenenfolge.zerlege("Scene 1: Arrival - She arrives")[0][:2] == (
+        "Arrival", "She arrives")
+    assert szenenfolge.zerlege("Szene 1: Ankunft - Sie kommt an")[0][:2] == (
+        "Ankunft", "Sie kommt an")
+
+
+def test_ende_zeile_deutsch_wie_vorher():
+    assert szenenfolge.zerlege_geschichte("Sie treffen sich.\nEnde: Sie gehen.") == (
+        "Sie treffen sich.\nEnde: Sie gehen.", [])
+
+
+@pytest.mark.parametrize("wort", ["End", "Ending"])
+def test_ende_zeile_englisch(wort):
+    """Abweichung vom Brief-Sollwert ("...\\nEnd: They leave."): die Ende-Zeile
+    wird wie im Deutschen ueber ``T._GESCHICHTE_MIT_ENDE`` neu gesetzt -- unter
+    dem deutschen Profil also "Ende:". Das Soll des Briefs ("gehoert zur
+    Geschichte, keine Szene") gilt."""
+    eingabe = "They meet.\n" + wort + ": They leave."
+    assert szenenfolge.zerlege_geschichte(eingabe) == ("They meet.\nEnde: They leave.", [])
+
+
+def test_ende_zeile_englisch_unter_englischem_profil(englisch):
+    """Offener Punkt (b): in Englisch legt ``zerlege_geschichte`` "Ending:" ab,
+    und genau das muss beim naechsten Lesen wieder erkannt werden."""
+    assert szenenfolge.zerlege_geschichte("They meet.\nEnd: They leave.") == (
+        "They meet.\nEnding: They leave.", [])
+    assert szenenfolge.ist_ende_zeile("Ending: They leave.")
+    assert szenenfolge.ist_ende_zeile("Ende: Sie gehen.")
+    assert not szenenfolge.ist_ende_zeile("Endless night by the canal.")
+    assert erkenner._ist_geschichte("They meet. Ending: They leave.")
+
+
+@pytest.mark.parametrize("zeile, soll", [
+    ("SZENE 1: Der Anfang", None), ("NADIA: Hallo", "NADIA"),
+    ("SCENE 1: The beginning", None), ("TITLE: Night", None),
+    ("DONE DIFFERENTLY: nothing", None),
+])
+def test_sprecher_der_zeile_beide(zeile, soll):
+    assert web.sprecher_der_zeile(zeile) == soll
+
+
+@pytest.mark.parametrize("wert, soll", [
+    ("Sie streiten. Ende: Versoehnung.", True), ("Ein Kanal bei Nacht", False),
+    ("They fight. End: reconciliation.", True),
+    ("In the end they make up, then they leave, then it rains.", True),
+    ("A canal at night", False),
+])
+def test_ist_geschichte_beide(wert, soll):
+    assert erkenner._ist_geschichte(wert) is soll
+
+
+@pytest.mark.parametrize("text, soll", [
+    ("Wir wollen drei Figuren", "3"), ("vier bis fuenf Figuren", "4 bis 5"),
+    ("2 bis 3 Hauptfiguren", None),
+    ("We want three characters", "3"), ("four to five characters", "4 bis 5"),
+    ("The number of characters is 6", "6"),
+    ("2 main characters", None), ("5 side characters", None),
+])
+def test_figurenzahl_aus_beide(text, soll):
+    assert erkenner.figurenzahl_aus(text) == soll
+
+
+@pytest.mark.parametrize("wert, soll", [
+    ("Figur Peter", ("figur", "Peter")), ("Kernthema", ("kernthema", "")),
+    ("character Peter", ("figur", "Peter")), ("core theme", ("kernthema", "")),
+    ("Scene 2", ("szene", "2")), ("recording of Meryem", ("aufnahme", "of Meryem")),
+    ("storyline", None),
+])
+def test_entfernen_ziele_beide(wert, soll):
+    assert erkenner._zerlege_entfernen(wert) == soll
+
+
+@pytest.mark.parametrize("name, soll", [
+    ("Figur 2", True), ("Nebenfigur 1", True), ("Character 2", True),
+    ("Side character 1", True), ("Placeholder", True), ("Nadia", False),
+    ("Charlotte", False),
+])
+def test_platzhaltername_beide(name, soll):
+    from interview_theater import repo
+
+    assert repo.ist_platzhaltername(name) is soll
+
+
+def test_vorspann_schneidet_englische_formeln():
+    assert vorspann.erster_satz(
+        "Nadia fights with herself provides the background for her refusal") == (
+        "Nadia fights with herself")
+    assert vorspann.erster_satz(
+        "Mira kaempft mit sich selbst liefert den Hintergrund fuer ihre Ablehnung") == (
+        "Mira kaempft mit sich selbst")
+    # Die Untergrenze schuetzt wie im Deutschen.
+    assert vorspann.erster_satz("Mira shows grit.") == "Mira shows grit."
+
+
+@pytest.mark.parametrize("text, soll", [
+    ("Spannungsbogen", "Spannungsbogen"), ("Anfang und Ende", "Anfang und Ende"),
+    ("Figurenzeichnung", "Figuren"),
+    # Offener Punkt (d): die sechs Namen aus sprachen/en/prompts/stueckpruefung.md.
+    ("Tension arc", "Spannungsbogen"), ("Characters", "Figuren"),
+    ("Suspense", "Spannung"), ("Plausibility", "Nachvollziehbarkeit"),
+    ("Beginning and end", "Anfang und Ende"), ("Language and speakability", "Sprechbarkeit"),
+    ("Research", None),
+])
+def test_frage_fuer_beide(text, soll):
+    assert stueckpruefung.frage_fuer(text) == soll
+
+
+def test_die_sechs_englischen_fragenamen_treffen_die_sechs_fragen():
+    """Offener Punkt (d), gegen den Prompt selbst statt gegen eine Abschrift."""
+    import pathlib
+    import re
+
+    prompt = (pathlib.Path(stueckpruefung.__file__).parent
+              / "sprachen/en/prompts/stueckpruefung.md").read_text(encoding="utf-8")
+    namen = re.findall(r"^\d\. (.+?) --", prompt, re.MULTILINE)
+    assert len(namen) == 6
+    assert [stueckpruefung.frage_fuer(n) for n in namen] == [
+        name for name, _ in stueckpruefung.FRAGEN]
+
+
+def test_denkspur_beide():
+    assert ablauf.ist_denkspur("I should: help the group. The group wants more. The rule says no markdown.")
+    assert ablauf.ist_denkspur("Ich soll: der Gruppe helfen. Die Gruppe will mehr.")
+    # Eine echte englische Antwort mit Ratschlag ist keine Denkspur.
+    assert not ablauf.ist_denkspur(
+        "You should ask her about her childhood. I should add: take your time.")
+
+
+def test_denkspur_kern_englisch():
+    text = ("I should: keep it short. The group wants a scene.\n\n"
+            "Your scene is ready to go - tell me which moment you want to start with, "
+            "and I will write it.")
+    assert ablauf._denkspur_kern(text).startswith("Your scene is ready")
+
+
+def test_tschechow_ist_im_englischen_aus(englisch):
+    from interview_theater.dramaturgie import mechanik
+
+    assert mechanik._motive("The Suitcase stands in the Kitchen again and again.", ()) == set()
+
+
+def test_tschechow_bleibt_im_deutschen():
+    from interview_theater.dramaturgie import mechanik
+
+    assert "Reisekoffer" in mechanik._motive("Dann steht der Reisekoffer wieder da.", ())
+
+
+def test_tschechow_kandidaten_im_englischen_leer(englisch):
+    from interview_theater.dramaturgie import mechanik
+
+    lage = mechanik.Szenenlage(nummern=[1], texte={1: (
+        "NADIA: The Suitcase is here. The Suitcase is heavy. The Suitcase stays.")})
+    assert mechanik.tschechow_kandidaten(lage) == []
+
+
+def test_kollektive_englisch():
+    """Offener Punkt (c): ``BOTH:`` und ``HOOK (ALL)`` aus den englischen
+    Formen sind Kollektive, keine Geisterfiguren."""
+    from interview_theater.dramaturgie import mechanik
+
+    repliken = mechanik.repliken("BOTH: We stay.\n\nHOOK (ALL)\nLine")
+    assert [r.label for r in repliken]
+    assert {mechanik._schluessel(r.label) for r in repliken} <= mechanik.KOLLEKTIV_EN
+    assert all(mechanik._schluessel(r.label) in mechanik.KOLLEKTIVE for r in repliken)
+    lage = mechanik.Szenenlage(nummern=[1], figuren=["Nadia"], texte={1: ""},
+                               repliken={1: repliken})
+    assert [b for b in mechanik.geisterfiguren(lage) if b.pruefung == "geisterfigur"] == []
+
+
+def test_englische_strukturzeilen_sind_keine_sprecher():
+    from interview_theater.dramaturgie import mechanik
+
+    labels = [r.label for r in mechanik.repliken(
+        "SCENE 1: The pier\nTITLE: Night\nNADIA: Hi.\n\nVERSE (NADIA)\nI stay")]
+    assert labels == ["NADIA", "NADIA"]
+
+
+def test_erste_form_englisch_mit_beschriftung(englisch):
+    """Offener Punkt (g): ``_TEXT_ERSTE_FORM`` nennt in Englisch die
+    Anzeigebeschriftung ("monologue"), nicht den rohen DB-Wert."""
+    from interview_theater.dramaturgie import mechanik
+
+    lage = mechanik.Szenenlage(nummern=[1, 2], formen={1: "monolog", 2: "dialog"})
+    texte = [b.text for b in mechanik.formverteilung(lage, phase=mechanik.FORM_AB_PHASE)]
+    assert any(t.startswith("Scene 1 is a monologue.") for t in texte)
+
+
+def test_erste_form_deutsch_wie_vorher():
+    from interview_theater.dramaturgie import mechanik
+
+    lage = mechanik.Szenenlage(nummern=[1, 2], formen={1: "monolog", 2: "dialog"})
+    texte = [b.text for b in mechanik.formverteilung(lage, phase=mechanik.FORM_AB_PHASE)]
+    assert any(t.startswith("Szene 1 ist ein monolog.") for t in texte)
+
+
+@pytest.mark.parametrize("wert, soll", [
+    ("hoch", "hoch"), ("blocker", "blocker"), ("niedrig", "niedrig"), ("", "mittel"),
+    ("high", "hoch"), ("Medium", "mittel"), ("low", "niedrig"),
+    ("below average", "mittel"),
+])
+def test_schwere_beide(wert, soll):
+    """Offener Punkt (e)."""
+    from interview_theater.dramaturgie import fanout
+
+    assert fanout._schwere(wert) == soll
+
+
+@pytest.mark.parametrize("wert", [
+    "Hallo, wir sind vom Theaterprojekt.\nAbschluss: Danke fuer deine Zeit.",
+    "Opening: Hallo, wir sind vom Theaterprojekt.\nClosing: Danke fuer deine Zeit.",
+    "Hallo, wir sind vom Theaterprojekt.\nClosing: Danke fuer deine Zeit.",
+])
+def test_eroeffnung_abschluss_beide(conn, wert):
+    """Offener Punkt (f): "Opening:"/"Closing:" zusaetzlich zu den deutschen
+    Koepfen."""
+    from interview_theater import repo
+
+    repo.sichere_gruppe(conn, 1, "test", "Gruppe")
+    fragen._speichere_eroeffnung(conn, _Tg(), 1, wert)
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["interview_eroeffnung"] == "Hallo, wir sind vom Theaterprojekt."
+    assert stand["interview_abschluss"] == "Danke fuer deine Zeit."
+
+
+# --- Interne Auftragszeilen (offener Punkt a) ----------------------------
+
+def test_auftragszeilen_deutsch_wie_vorher():
+    from interview_theater.dramaturgie import fanout
+
+    assert szene_modul.T.TEXT_AUFTRAG_SCHREIBEN.format(nummer=2) == "Schreib Szene 2."
+    assert szene_modul.T.TEXT_AUFTRAG_NEU.format(nummer=2, notiz="Kuerzer.") == (
+        "Schreib Szene 2 neu. Kuerzer.")
+    assert fanout.T.TEXT_SZENENAUFTRAG.format(nummer=3, notiz="X") == "Schreib Szene 3 neu. X"
+
+
+def test_auftragszeilen_englisch_und_lesbar(englisch):
+    from interview_theater.dramaturgie import fanout
+
+    schreiben = szene_modul.T.TEXT_AUFTRAG_SCHREIBEN.format(nummer=2)
+    neu = szene_modul.T.TEXT_AUFTRAG_NEU.format(
+        nummer=4, notiz="Shorter. " + szene_modul.BISHER_MARKER)
+    pruefung = fanout.T.TEXT_SZENENAUFTRAG.format(nummer=3, notiz="More conflict.")
+    assert (schreiben, neu.split(".")[0], pruefung) == (
+        "Write scene 2.", "Rewrite scene 4", "Rewrite scene 3. More conflict.")
+    # Der Parser liest die Nummer, der Marker bleibt Protokoll.
+    assert [szene_modul.nummer_aus_auftrag(t) for t in (schreiben, neu, pruefung)] == [2, 4, 3]
+    assert szene_modul.BISHER_MARKER in neu
+
+
+def test_kuerzungsauftrag_englisch(conn, englisch, monkeypatch):
+    """Der Kuerzungsauftrag geht in Englisch als "Rewrite scene N." an
+    ``szene.starte`` -- die Nummer bleibt lesbar, der Marker bleibt."""
+    from interview_theater.knoepfe import szenen as knoepfe_szenen
+
+    gerufen = []
+    monkeypatch.setattr(szene_modul, "starte",
+                        lambda conn, tg, klm, e, chat_id, auftrag: gerufen.append(auftrag) or object())
+    monkeypatch.setattr(kuerzung, "_hat_text", lambda conn, chat_id, nummer: True)
+    monkeypatch.setattr(knoepfe_szenen, "_melde_spaetere", lambda *a: None)
+    kuerzung.starte(conn, _Tg(), None, None, 1, 2)
+    assert gerufen and gerufen[0].startswith("Rewrite scene 2. ")
+    assert szene_modul.nummer_aus_auftrag(gerufen[0]) == 2
+    assert szene_modul.BISHER_MARKER in gerufen[0]

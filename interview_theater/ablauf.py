@@ -86,6 +86,28 @@ _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
                        "dein zug ist", "systemzeile", "system-ankuendigung",
                        "system-ankündigung", "die systemanweisung")
 
+#: Dieselben Marker auf Englisch (Karte A1, K5) -- ein Modell denkt auch mal
+#: in der anderen Sprache laut. Gelesen wird die Vereinigung, fuer beide
+#: Profile. Abweichung vom Plan: "you should " fehlt -- anders als "du
+#: sollst" ist es die normale englische Ratschlagsform an eine Gruppe
+#: ("you should ask her about ..."), zusammen mit einem zweiten weichen
+#: Marker waere eine echte Antwort als Denkspur verworfen worden.
+_DENKSPUR_MARKER_EN = (
+    "i should:", "i should ", "the group wants", "what is in the material",
+    "possible core themes:", "i suggest a ", "perfect. that is",
+    "the rule says", "the recogniser sets", "no markdown",
+    "under 500 characters", "phrase it as an offer", "your turn is",
+    "system line", "system announcement", "the system instruction",
+    "one sentence of encouragement",
+)
+_DENKSPUR_EINDEUTIG_EN = ("i should:", "what is in the material", "the recogniser sets",
+                          "no markdown", "under 500 characters", "your turn is",
+                          "system line", "system announcement", "the system instruction")
+
+#: Womit ein geretteter Antwortabsatz anfangen darf -- deutsch und englisch.
+_KERN_ANFAENGE = ("Ihr", "Euer", "Eure", "Ein", "Eine", "Das", "Die", "Der", "Was", "Wie")
+_KERN_ANFAENGE_EN = ("You", "Your", "A", "An", "The", "What", "How", "This", "Here")
+
 
 def ist_denkspur(text: str) -> bool:
     """True, wenn ein Antworttext nach Selbstgespraech aussieht: zwei oder
@@ -93,9 +115,9 @@ def ist_denkspur(text: str) -> bool:
     weicher Marker reicht nicht -- "die Gruppe will" kann in einer echten
     Antwort vorkommen."""
     t = text.lower()
-    if any(m in t for m in _DENKSPUR_EINDEUTIG):
+    if any(m in t for m in _DENKSPUR_EINDEUTIG + _DENKSPUR_EINDEUTIG_EN):
         return True
-    return len([m for m in _DENKSPUR_MARKER if m in t]) >= 2
+    return len([m for m in _DENKSPUR_MARKER + _DENKSPUR_MARKER_EN if m in t]) >= 2
 
 
 def _denkspur_kern(text: str) -> str | None:
@@ -105,10 +127,10 @@ def _denkspur_kern(text: str) -> str | None:
     absaetze = [a.strip() for a in text.split("\n\n") if a.strip()]
     for a in reversed(absaetze):
         al = a.lower()
-        if any(m in al for m in _DENKSPUR_MARKER):
+        if any(m in al for m in _DENKSPUR_MARKER + _DENKSPUR_MARKER_EN):
             continue
         erstes = a.split()[0].rstrip(",.:") if a.split() else ""
-        if erstes in ("Ihr", "Euer", "Eure", "Ein", "Eine", "Das", "Die", "Der", "Was", "Wie") or a.startswith('"'):
+        if erstes in _KERN_ANFAENGE + _KERN_ANFAENGE_EN or a.startswith('"'):
             if 40 <= len(a) <= 700:
                 return a
     return None
@@ -867,7 +889,8 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     if nummer is not None and (letzte_nachricht["text"] or "").strip():
         szene.starte(
             conn, tg, klm, e, chat_id,
-            f"Schreib Szene {nummer} neu. {letzte_nachricht['text'].strip()}",
+            szene.T.TEXT_AUFTRAG_NEU.format(
+                nummer=nummer, notiz=letzte_nachricht["text"].strip()),
         )
         return True
 

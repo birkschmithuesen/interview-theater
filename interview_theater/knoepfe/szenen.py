@@ -222,7 +222,7 @@ def sende_geschichte(conn, tg, chat_id: int, antwort: str) -> int:
     # an der Zeilenzahl: drei Szenen und drei Richtungen saehen sonst gleich
     # aus.
     zeilen_roh = vorschlag.zeilen(wert)
-    alter_block = len(zeilen_roh) > 1 and szenenfolge._ENDE_PRAEFIX.match(zeilen_roh[1])
+    alter_block = len(zeilen_roh) > 1 and szenenfolge.ist_ende_zeile(zeilen_roh[1])
     _, szenenzeilen = szenenfolge.zerlege_geschichte(wert)
     if alter_block and szenenzeilen:
         # Der alte Weg bleibt begehbar: liefert ein Modell noch Bogen, Ende
@@ -1042,7 +1042,7 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     modus, _, wert = roh.partition(TRENNER)
     zeilen_roh = [z for z in (wert or "").splitlines() if z.strip()]
     alter_block = (
-        len(zeilen_roh) > 1 and szenenfolge._ENDE_PRAEFIX.match(zeilen_roh[1].strip())
+        len(zeilen_roh) > 1 and szenenfolge.ist_ende_zeile(zeilen_roh[1].strip())
     )
     geschichte, zeilen = szenenfolge.zerlege_geschichte(wert)
     if not alter_block:
@@ -1234,7 +1234,7 @@ def _schreibe_szene(conn, tg, klm, e, chat_id: int, nummer: int,
     if eigene:
         if szenenfolge.starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel) is not None:
             return T._TEXT_SCHLAGE_ANGABEN_VOR
-    auftrag = f"Schreib Szene {nummer}."
+    auftrag = szene_modul.T.TEXT_AUFTRAG_SCHREIBEN.format(nummer=nummer)
     if notiz and notiz.strip():
         auftrag += f" {notiz.strip()}"
     szene_modul.starte(conn, tg, klm, e, chat_id, auftrag)

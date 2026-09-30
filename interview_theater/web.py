@@ -2084,6 +2084,15 @@ _KEINE_SPRECHER = frozenset(
      "ORT", "ZEIT", "ANLASS", "FORM", "PERSONEN", "BESETZUNG", "DAUER"}
 )
 
+#: Dasselbe auf Englisch (Karte A1, K5): der englische Szenenprompt laesst
+#: "SCENE 1: ..." schreiben. Gelesen wird die Vereinigung. Geprueft wird nur
+#: das ERSTE Wort des Namens, deshalb steht neben "DONE DIFFERENTLY" auch
+#: "DONE" da (Zusatz zum Plan).
+_KEINE_SPRECHER_EN = frozenset(
+    {"SCENE", "ACT", "TITLE", "SHORT", "SUMMARY", "CHANGED", "DONE DIFFERENTLY",
+     "DONE", "PLACE", "TIME", "OCCASION", "FORM", "CAST", "CHARACTERS", "DURATION"}
+)
+
 #: Wie lang der Name vor dem Doppelpunkt hoechstens sein darf. "FRAU MUELLER
 #: VON NEBENAN" ist eine Figur, ein halber Satz nicht mehr.
 _SPRECHER_MAX = 30
@@ -2116,7 +2125,7 @@ def sprecher_der_zeile(zeile: str, bekannte: set[str] | None = None) -> str | No
         return None
     if any(z in name for z in _SPRECHER_VERBOTEN):
         return None
-    if name.split()[0].upper() in _KEINE_SPRECHER:
+    if name.split()[0].upper() in _KEINE_SPRECHER | _KEINE_SPRECHER_EN:
         return None
     if name != name.upper() and name.upper() not in (bekannte or set()):
         return None

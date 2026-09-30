@@ -47,6 +47,14 @@ _UEBERSCHRIFT = re.compile(
 #: Die Pflichtzeile je Abschnitt -- sie wird ``szene.was_passiert``.
 _ZUSAMMENFASSUNG = re.compile(r"^\s*Zusammenfassung\s*:\s*(.+)$", re.IGNORECASE)
 
+#: Dasselbe auf Englisch (Karte A1, K5): ``SECTION 1: …``/``PART 1: …`` und
+#: ``Summary: …``. Beide werden probiert, deutsch zuerst.
+_UEBERSCHRIFT_EN = re.compile(
+    r"^\s*(?:#{1,4}\s*)?(?:(?:ABSCHNITT|SECTION|PART)\s*)?(\d{1,2})[.):]\s*(.+?)\s*$",
+    re.IGNORECASE,
+)
+_ZUSAMMENFASSUNG_EN = re.compile(r"^\s*Summary\s*:\s*(.+)$", re.IGNORECASE)
+
 ANWEISUNG = """Du schreibst die Kurzgeschichte eines Theaterstuecks.
 
 Unten stehen das Setting, die Figuren mit ihrem Sprachstil und die
@@ -122,14 +130,15 @@ def zerlege(text: str) -> list[tuple[str, str, str]]:
     Ueberschrift allein ist keine Szene."""
     abschnitte: list[tuple[str, str, list[str]]] = []
     for zeile in (text or "").splitlines():
-        treffer = _UEBERSCHRIFT.match(zeile)
+        treffer = _UEBERSCHRIFT.match(zeile) or _UEBERSCHRIFT_EN.match(zeile)
         if treffer is not None and len(treffer.group(2)) <= 80:
             abschnitte.append((treffer.group(2).strip(" .:—-"), "", []))
             continue
         if not abschnitte:
             continue
         titel, fassung, koerper = abschnitte[-1]
-        zusammen = _ZUSAMMENFASSUNG.match(zeile)
+        zusammen = (_ZUSAMMENFASSUNG.match(zeile)
+                    or _ZUSAMMENFASSUNG_EN.match(zeile))
         if zusammen is not None and not fassung:
             abschnitte[-1] = (titel, zusammen.group(1).strip(), koerper)
             continue

@@ -925,6 +925,8 @@ _AUFGABE_MITTE = "Task of this scene (scene {nummer} of {gesamt}): It carries on
 _AUFGABE_LETZTE = "Task of this scene (it is the LAST): It delivers what the story promised -- the ending as the group set it (open, sad, reconciled: it's in the setting/the story). Every character who wanted something in the play gets a last image here. Nothing new is opened."
 NEU_HINWEIS = "There was already a version of this scene; the group rejected it. Write a DIFFERENT scene from the same details: different opening, different structure, different images, different title. Reuse nothing from the old version -- you don't know it."
 BISHER_KOPF = "Previous text of this scene, to be revised:"
+TEXT_AUFTRAG_SCHREIBEN = "Write scene {nummer}."
+TEXT_AUFTRAG_NEU = "Rewrite scene {nummer}. {notiz}"
 VORLAGE_KOPF = "This scene already exists as a story. Translate it into the form \"{form}\": the same events, the same order, the same characters, the same ending. Invent nothing that contradicts the story, and leave out nothing that happens in it. What the story tells is now acted.\n\nThe story of this scene:"
 _FORM_RUECKFALL = "Dialogue"
 _VERWORFEN_KOPF = "The group rejected this, it doesn't come back:\n"
@@ -1242,6 +1244,7 @@ _KEIN_BEFUNDTEXT = "(no finding text)"
 TEXT_BEFUND = "Scene {szene}: {text}"
 TEXT_BEFUND_OHNE_SZENE = "{text}"
 TEXT_AUFTRAG_KNOPF = "Revise scene {nummer} like this"
+TEXT_SZENENAUFTRAG = "Rewrite scene {nummer}. {notiz}"
 _DRAMATURGIE = "Dramaturgy"
 
 ["dramaturgie.fanout".A10_BESCHRIFTUNG]
@@ -1275,6 +1278,13 @@ _TEXT_SPRECHANTEIL = "{name} speaks {anzahl} of {gesamt} words in the whole play
 _TEXT_FOKUS = "Scene {nummer}: {ohne} of {gesamt} characters are a side plot -- not about the conflict of {traeger}, not an introduction, subplot or description of the place."
 _TEXT_FOKUS_LAENGSTER = " The longest begins with „{anfang}…\"."
 _UND = " and "
+
+["dramaturgie.mechanik"._FORM_BESCHRIFTUNG]
+dialog = "dialogue"
+monolog = "monologue"
+chor = "chorus"
+lied = "song"
+rap = "rap"
 
 ["web_schreiben"]
 LEER = "(empty)"

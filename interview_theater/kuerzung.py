@@ -45,6 +45,9 @@ log = logging.getLogger(__name__)
 #: 3 und 4" oder "drei" liefern None, wie zuvor.
 _MUSTER_NUMMER = re.compile(r"^\s*(?:szene\s*)?(\d+)\s*$", re.IGNORECASE)
 
+#: Dasselbe auf Englisch (Karte A1): ein englisches Modell schreibt "Scene 3".
+_MUSTER_NUMMER_EN = re.compile(r"^\s*(?:scene\s*)?(\d+)\s*$", re.IGNORECASE)
+
 #: Das Kuerzungsziel in Prozent. EINE Stelle: Notiz und Knopfbeschriftung
 #: lesen von hier (Analyse C4: "Kuerzer (25 %)").
 PROZENT = 25
@@ -110,10 +113,11 @@ def nummer_aus_wert(wert: str | None) -> int | None:
     (gross/klein -- der Erkenner liefert manchmal "Szene 3" statt der
     blossen Zahl). "Szene drei" und "Szene 3 und 4" sind keine Nummer, und
     ein geratener Bezug schriebe die falsche Szene neu."""
-    treffer = _MUSTER_NUMMER.match(wert or "")
-    if treffer is None:
-        return None
-    return int(treffer.group(1))
+    for muster in (_MUSTER_NUMMER, _MUSTER_NUMMER_EN):
+        treffer = muster.match(wert or "")
+        if treffer:
+            return int(treffer.group(1))
+    return None
 
 
 def _abschnitte_mit_prosa(conn, chat_id: int) -> int:
@@ -161,9 +165,8 @@ def starte(conn, tg, klm, e, chat_id: int,
         # ``BISHER_MARKER``: im Prosalauf (Phase 6) ist ``volltext`` leer --
         # ohne den Marker saehe das Modell die Prosa dieser Szene nicht und
         # schriebe sie neu, statt sie zu kuerzen.
-        auftrag = (
-            f"Schreib Szene {nummer} neu. {notiz_fuer_szene()} "
-            f"{szene_modul.BISHER_MARKER}"
+        auftrag = szene_modul.T.TEXT_AUFTRAG_NEU.format(
+            nummer=nummer, notiz=f"{notiz_fuer_szene()} {szene_modul.BISHER_MARKER}"
         )
         if szene_modul.starte(conn, tg, klm, e, chat_id, auftrag) is None:
             return T.TEXT_KEIN_LAUF, False

@@ -4514,7 +4514,7 @@ Test: `tests/test_sprache_parser.py`.
 | `dramaturgie/mechanik.py` `KOLLEKTIV` (103), `_STRUKTUR` (108), `_MARKER` (119) | englische Zusaetze (`ALL`, `BOTH`, `CHOIR`, `GROUP`, `EVERYONE`; `scene`, `title`, `summary`, `place`, `time`, `cast`, `act`, `prologue`, `epilogue`; `verse`, `interlude`), Vereinigung |
 | `dramaturgie/mechanik.py` Tschechow-/Motiv-Heuristik (542–578, 821–859) | **aus** bei `sprache.code() != "de"` (Annahme A7): `tschechow_kandidaten` liefert `[]`, `_motive` `set()` |
 
-- [ ] **Schritt 1: Tests** (anhaengen, deutsche Sollwerte gemessen):
+- [x] **Schritt 1: Tests** (anhaengen, deutsche Sollwerte gemessen):
 
 ```python
 from interview_theater import erkenner, kuerzung, kurzgeschichte, repo, stueckpruefung, szene, szenenfolge, vorspann, web
@@ -4650,8 +4650,8 @@ def test_tschechow_ist_im_englischen_aus(englisch):
   deutsche Verhalten — die Ende-Zeile gehoert zur Geschichte. Den genauen
   Sollwert vorher mit der deutschen Zeile `"Sie treffen sich.\nEnde: Sie
   gehen."` → `('Sie treffen sich.\nEnde: Sie gehen.', [])` abgleichen.)
-- [ ] **Schritt 2:** rot (die englischen Faelle; deutsche gruen).
-- [ ] **Schritt 3:** umsetzen, Muster K5 („beide probieren, deutsch
+- [x] **Schritt 2:** rot (die englischen Faelle; deutsche gruen).
+- [x] **Schritt 3:** umsetzen, Muster K5 („beide probieren, deutsch
   zuerst"). Beispiel `kuerzung.py`:
 
 ```python
@@ -4670,18 +4670,34 @@ def nummer_aus_wert(wert: str | None) -> int | None:
 
   (Die bestehende Funktion am Code lesen und nur die Schleife ergaenzen —
   weitere Pruefungen darin bleiben.)
-- [ ] **Schritt 4:** gruen: `tests/test_sprache_parser.py` plus die
+- [x] **Schritt 4:** gruen: `tests/test_sprache_parser.py` plus die
   Modultests der Tabelle (`tests/test_szene*.py tests/test_kuerzung.py
   tests/test_teil4_kurzgeschichte.py tests/test_szenenfolge.py
   tests/test_geschichte.py tests/test_stueckpruefung.py tests/test_web*.py
   tests/test_erkenner.py tests/test_repo.py tests/test_vorspann*.py
   tests/test_dramaturgie*.py tests/test_ablauf.py`) und
   `tests/test_sprache_bitgleich.py` (keine deutsche Konstante veraendert).
-- [ ] **Schritt 5: Mutationsnachweis:** in `szene.zerlege` die
+- [x] **Schritt 5: Mutationsnachweis:** in `szene.zerlege` die
   englischen Alternativen streichen →
   `test_szenenkopf_englisch_auch_unter_deutschem_profil` rot; in
   `mechanik._motive` die Sprachabfrage entfernen → `test_tschechow_ist_im_englischen_aus` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Modellausgabe zweisprachig lesen: Szenenkopf, Nummern, Formen, Figurenzahl, Denkspur (A1)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Modellausgabe zweisprachig lesen: Szenenkopf, Nummern, Formen, Figurenzahl, Denkspur (A1)"`.
+
+  **Abweichungen bei der Umsetzung** (Bericht `task-23-report.md`):
+  `test_ende_zeile_englisch` erwartet "…\nEnde: They leave." (deutsches
+  Profil) bzw. "…\nEnding: …" (englisch), weil die Ende-Zeile ueber
+  `T._GESCHICHTE_MIT_ENDE` neu gesetzt wird — das Brief-Soll "…\nEnd: …"
+  ist so nicht erreichbar, das inhaltliche Soll (keine Szene) gilt.
+  `FELD_ALIASE_EN["summary"]` zeigt auf `kurzbeschreibung` (es gibt keine
+  Spalte `kurz`). `_DENKSPUR_MARKER_EN` ohne "you should " (normale
+  Ratschlagsform). `web._KEINE_SPRECHER_EN` zusaetzlich "DONE" (nur das
+  erste Wort wird geprueft). `szenenfolge`: englischer Durchgang nur mit
+  Anker "scene" und nur, wenn kein "Szene N" dasteht. Dazu die offenen
+  Punkte (a)–(g) aus den Reviews: interne Auftragszeilen ueber
+  `szene.T.TEXT_AUFTRAG_SCHREIBEN`/`TEXT_AUFTRAG_NEU` und
+  `fanout.T.TEXT_SZENENAUFTRAG`, `szenenfolge.ist_ende_zeile`,
+  `mechanik.KOLLEKTIVE`, `fanout._schwere` englisch,
+  `mechanik._FORM_BESCHRIFTUNG`.
 
 ---
 

@@ -80,6 +80,19 @@ FRAGEN: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Sprechbarkeit", ("sprechbarkeit", "sprache", "sprechen")),
 )
 
+#: Dieselben Stichwoerter auf Englisch (Karte A1, K5): der englische Prompt
+#: nennt "Tension arc", "Characters", ... Schluessel sind die deutschen
+#: Fragenamen aus ``FRAGEN`` (Speicherschluessel). ``frage_fuer`` probiert
+#: erst die deutschen, dann diese -- deutsches Verhalten bleibt gleich.
+_STICHWOERTER_EN: dict[str, tuple[str, ...]] = {
+    "Spannungsbogen": ("tension arc", "arc"),
+    "Figuren": ("characters", "character"),
+    "Spannung": ("suspense", "tension"),
+    "Nachvollziehbarkeit": ("plausibility", "logic", "motivation"),
+    "Anfang und Ende": ("beginning", "ending", "exposition"),
+    "Sprechbarkeit": ("speakability", "spoken", "language"),
+}
+
 #: Die Markerzeilen des Antwortformats.
 _MARKER_BEFUND = "BEFUND:"
 _MARKER_BEWERTUNG = "BEWERTUNG:"
@@ -169,6 +182,11 @@ def frage_fuer(text: str) -> str | None:
             return name
     for name, stichwoerter in FRAGEN:
         if any(s in gefaltet for s in stichwoerter):
+            return name
+    # Englisch erst nach allen deutschen Wegen, mit Wortanfang: "arc" soll
+    # nicht in "search" treffen (Wortgrenzen-Lehre aus Aufgabe 22).
+    for name, stichwoerter in _STICHWOERTER_EN.items():
+        if any(re.search(r"\b" + re.escape(s), gefaltet) for s in stichwoerter):
             return name
     return None
 

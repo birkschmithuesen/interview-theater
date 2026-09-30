@@ -1092,6 +1092,13 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         # 3290d70), egal ob vor dem ersten Anker ein Satz steht.
         inline = szenenfolge.szenen_der_richtung(wert)
         if not inline:
+            formen = szenenfolge.formabfolge(wert)
+            if formen:
+                return _uebernimm_formwahl(conn, tg, chat_id, wert, formen)
+            # Erst nach der Formwahl: eine Formabfolge mit Luecke ("Szene 1:
+            # Chor …, Szene 3: Rap …") ist eine Formwahl und keine
+            # unvollstaendige Szenenliste -- sonst stuenden zwei Vorfaelle
+            # fuer einen Druck da.
             luecken = szenenfolge.nummern_unvollstaendig(wert)
             if luecken:
                 repo.merke_vorfall(
@@ -1101,9 +1108,6 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
                         nummern=", ".join(str(n) for n in luecken)
                     ),
                 )
-            formen = szenenfolge.formabfolge(wert)
-            if formen:
-                return _uebernimm_formwahl(conn, tg, chat_id, wert, formen)
     # Eine Richtung ist eine Zeile "Titel — Bogen, Ende, Konflikt": sie ist
     # die Geschichte, nicht ihr erster Satz.
     geschichte = wert.strip() if not zeilen else geschichte
@@ -1128,35 +1132,17 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     # Eine Formabfolge kommt hier nie an: sie ist oben in
     # ``_uebernimm_formwahl`` abgezweigt (Praezedenz von 3290d70, und dort
     # bleibt sie -- sie sichert genau das, was die Gruppe gedrueckt hat).
-    if not zeilen:
-        if inline:
-            zeilen = [(titel, "", [], form, "") for _n, titel, form in inline]
-            nummern = szenenfolge.lege_inline_an(conn, chat_id, inline)
-            repo.schreibe_journal(
-                conn, chat_id, "entschieden",
-                szenenfolge.JOURNAL_INLINE.format(
-                    liste="; ".join(
-                        f"{n}. {t}" for n, t, _f in inline
-                    )
-                ),
-                quelle="knopf",
-            )
-            tg.sende(
-                chat_id,
-                _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=len(nummern))
-                + "\n" + geschichte,
-            )
-            if modus.strip() == "anders":
-                repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
-                tg.sende(chat_id, _TEXT_ANDERS)
-                return "Gespeichert, was soll anders sein?"
-            phasenknopf = _phasenknopf(conn, chat_id)
-            if phasenknopf is not None:
-                _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE,
-                            [phasenknopf])
-            else:
-                tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
-            return f"Geschichte mit {len(nummern)} Szenen uebernommen"
+    if not zeilen and inline:
+        nummern = szenenfolge.lege_inline_an(conn, chat_id, inline)
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            szenenfolge.JOURNAL_INLINE.format(
+                liste="; ".join(f"{n}. {t}" for n, t, _f in inline)
+            ),
+            quelle="knopf",
+        )
+        return _nach_szenen_gespeichert(conn, tg, chat_id, geschichte, modus,
+                                        len(nummern))
     if zeilen:
         nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
         repo.schreibe_journal(
@@ -1165,24 +1151,33 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
             + "; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen)),
             quelle="knopf",
         )
-        tg.sende(
-            chat_id,
-            _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=len(nummern))
-            + "\n" + geschichte,
-        )
-        if modus.strip() == "anders":
-            repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
-            tg.sende(chat_id, _TEXT_ANDERS)
-            return "Gespeichert, was soll anders sein?"
-        phasenknopf = _phasenknopf(conn, chat_id)
-        if phasenknopf is not None:
-            _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
-        else:
-            tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
-        return f"Geschichte mit {len(nummern)} Szenen uebernommen"
+        return _nach_szenen_gespeichert(conn, tg, chat_id, geschichte, modus,
+                                        len(nummern))
     tg.sende(chat_id, _TEXT_RICHTUNG_GESPEICHERT + "\n" + geschichte)
     szenenfolge.starte_geschichte_szenen(conn, tg, klm, e, chat_id)
     return "Richtung uebernommen"
+
+
+def _nach_szenen_gespeichert(conn, tg, chat_id: int, geschichte: str,
+                             modus: str, anzahl: int) -> str:
+    """Der gemeinsame Schluss von ``_speichere_geschichte``, wenn mit der
+    Geschichte auch Szenen angelegt wurden -- aus einem alten Block mit
+    Szenenzeilen oder aus der gewaehlten Richtung selbst (C9). Bestaetigung,
+    bei "anders" die Rueckfrage, sonst die Frage nach dem naechsten Schritt."""
+    tg.sende(
+        chat_id,
+        _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=anzahl) + "\n" + geschichte,
+    )
+    if modus.strip() == "anders":
+        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
+        tg.sende(chat_id, _TEXT_ANDERS)
+        return "Gespeichert, was soll anders sein?"
+    phasenknopf = _phasenknopf(conn, chat_id)
+    if phasenknopf is not None:
+        _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
+    else:
+        tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
+    return f"Geschichte mit {anzahl} Szenen uebernommen"
 
 
 def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:

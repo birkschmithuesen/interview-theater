@@ -688,3 +688,17 @@ def test_ein_zu_langer_titel_ist_fliesstext():
         "Szene 2: nie wieder zurueckkommen will, obwohl Mira ihn ruft und die "
         "ganze Nacht am Kanal auf ihn wartet und wartet."
     ) == []
+
+
+def test_eine_formwahl_mit_luecke_hinterlaesst_nur_den_formwahl_vorfall(
+    erfunden, tg, einst,
+):
+    """Eine Formabfolge mit Luecke ist eine Formwahl, keine unvollstaendige
+    Szenenliste: EIN Vorfall (``geschichte_war_formwahl``), nicht zwei."""
+    conn = erfunden
+    _druecke_richtung(
+        conn, tg, einst, "Szene 1: Chor mit Dance, Szene 3: Rap eskaliert",
+    )
+    vorfaelle = _vorfaelle(conn)
+    assert "geschichte_war_formwahl" in vorfaelle
+    assert szenenfolge.VORFALL_RICHTUNG_UNVOLLSTAENDIG not in vorfaelle

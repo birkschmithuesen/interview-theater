@@ -2013,7 +2013,7 @@ KANAL_WEB = "web"
 def baue_kanal(conn, e, klient)    # liefert Telegram oder WebKanal
 ```
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_kanal_wahl.py`:
 
@@ -2155,14 +2155,14 @@ def test_schleife_ist_nicht_angefasst_worden():
     assert "kanal" not in quelle
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_kanal_wahl.py -q -p no:cacheprovider
 ```
 Erwartet: FAIL — `AttributeError: module 'interview_theater.einstellungen' has no attribute 'KANAL_TELEGRAM'`.
 
-- [ ] **Schritt 3: `einstellungen.py`**
+- [x] **Schritt 3: `einstellungen.py`**
 
 ```python
 #: Welcher Kanal den Bot bedient (30.09.2026, Karte Padua A2).
@@ -2264,7 +2264,7 @@ def laden() -> Einstellungen:
     )
 ```
 
-- [ ] **Schritt 4: `bot.py` — die Weiche in `main`, `schleife` unberuehrt**
+- [x] **Schritt 4: `bot.py` — die Weiche in `main`, `schleife` unberuehrt**
 
 Neue Funktion oberhalb von `main`:
 
@@ -2307,7 +2307,7 @@ stehen — `WebKanal.setze_befehle` ist ein No-Op, und `sende_wiederkehr_begrues
 ueberspringt eine Gruppe ohne Nachrichten von selbst (`repo.letzte_nachricht_zeit` gibt
 `None`).
 
-- [ ] **Schritt 5: Lauf, alles gruen**
+- [x] **Schritt 5: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_kanal_wahl.py -q -p no:cacheprovider
@@ -2324,7 +2324,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2840 passed, 1 skipped`.
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add interview_theater/einstellungen.py interview_theater/bot.py tests/test_kanal_wahl.py

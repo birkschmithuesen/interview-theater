@@ -46,7 +46,7 @@ beispiele = ["bus stop", "piazza", "café", "station"]   # ANNAHME (Platzhalter 
 
 [konflikt]
 erlaubt = "family, expectations, belonging, language, future"   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
-ausgeschlossen = "No glorification of violence."                 # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+ausgeschlossen = "No glorification of violence"                  # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
 
 [projekt]
 kurzbeschreibung = "a piece of theatre about the lives of people in this city; the people we interview are experts on life here, and their personal stories become visible on stage"   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)

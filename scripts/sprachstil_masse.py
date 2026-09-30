@@ -59,6 +59,15 @@ _SATZENDE = re.compile(r"(?<=[.!?])\s+")
 _KLAMMER = re.compile(r"\([^()]*\)")
 
 
+def normalisiere(text: str) -> str:
+    """"ß" -> "ss" (und "ẞ" -> "SS"): das Modell schreibt "weißt du",
+    "gewissermaßen", die Marker in `MARKER` stehen in ASCII-Umschrift. Ohne
+    diesen Schritt faende der Zaehler die Fuellwoerter nie. Wirkt in
+    `marker_anteil`, `marker_treffer`, `wortschatz`, `marker_naechste_figur`
+    und `marker_in_kopie` -- ein Aufrufer muss nicht selbst daran denken."""
+    return (text or "").replace("ß", "ss").replace("ẞ", "SS")
+
+
 def _woerter_in(text: str) -> list[str]:
     """Die Woerter eines Textes, roh (nicht kleingeschrieben)."""
     return _WORT.findall(text or "")
@@ -176,7 +185,7 @@ def wortschatz(reden: list[str]) -> set[str]:
     Satzzeichen und ohne Mehrfachzaehlung."""
     ergebnis: set[str] = set()
     for rede in reden or []:
-        ergebnis.update(w.lower() for w in _woerter_in(rede))
+        ergebnis.update(w.lower() for w in _woerter_in(normalisiere(rede)))
     return ergebnis
 
 
@@ -191,22 +200,89 @@ def jaccard(a: set, b: set) -> float:
     return len((a or set()) & (b or set())) / len(vereinigung)
 
 
+def _marker_funde(text: str, marker: list[str]) -> list[re.Match]:
+    """Alle Fundstellen der Marker in `text` (schon normalisiert)."""
+    funde: list[re.Match] = []
+    for eintrag in marker or []:
+        muster = re.compile(r"\b" + re.escape(eintrag) + r"\b", re.IGNORECASE)
+        funde.extend(muster.finditer(text))
+    return funde
+
+
+def marker_treffer(text: str, marker: list[str]) -> int:
+    """Absolute Zahl der Markertreffer in `text` (normalisiert, case-
+    insensitiv, ganze Woerter -- dieselbe Regel wie `marker_anteil`)."""
+    return len(_marker_funde(normalisiere(text), marker))
+
+
 def marker_anteil(reden: list[str], marker: list[str]) -> float:
     """Treffer aus `marker` je 100 Woerter in `reden`.
 
     Jeder Marker zaehlt als ganzes Wort (Wortgrenzen, `\\b`), auch wenn er
     aus mehreren Woertern besteht ("weisst du" ist EIN Treffer). Case-
-    insensitiv. Ohne ein einziges Wort in `reden` ist das Ergebnis 0.0,
-    nicht eine Division durch null."""
-    text = " ".join(reden or [])
+    insensitiv, "ß" vorher zu "ss" (`normalisiere`). Ohne ein einziges Wort
+    in `reden` ist das Ergebnis 0.0, nicht eine Division durch null."""
+    text = normalisiere(" ".join(reden or []))
     gesamt = len(_woerter_in(text))
     if gesamt == 0:
         return 0.0
-    treffer = 0
-    for eintrag in marker or []:
-        muster = re.compile(r"\b" + re.escape(eintrag) + r"\b", re.IGNORECASE)
-        treffer += len(muster.findall(text))
-    return 100 * treffer / gesamt
+    return 100 * len(_marker_funde(text, marker)) / gesamt
+
+
+def marker_naechste_figur(text: str, namen) -> dict[str, dict[str, int]]:
+    """Markertreffer (alle Stile aus `MARKER`) im ganzen Text, je Figur
+    gezaehlt nach dem naechststehenden Namen im selben Absatz -- davor oder
+    danach, der kleinere Abstand gewinnt; ohne Namen im Absatz unter
+    ``"(keine)"``. Absolute Zahlen.
+
+    Die Zweitmessung neben `direkte_rede`: die Prosa-Regel "direkte Rede
+    nur sparsam" laesst ein Modell einen Stil oft in indirekter Rede oder im
+    Erzaehlerbericht zeigen. Solche Treffer stehen in keinem Zitat, aber
+    neben dem Namen der Figur, deren Stil sie tragen. Namenssuche wie in
+    `direkte_rede` (`_namen_muster`: ganze Woerter, Genitiv-s, gross/klein
+    egal)."""
+    namen_klein = _namen_klein(namen)
+    muster = _namen_muster(namen_klein)
+    ergebnis = {n: {s: 0 for s in MARKER} for n in list(namen_klein.values()) + ["(keine)"]}
+    for absatz in re.split(r"\n\s*\n", normalisiere(text)):
+        funde = ([(t.start(), t.end(), namen_klein[t.group(1).lower()])
+                  for t in muster.finditer(absatz)] if muster is not None else [])
+        for stil, liste in MARKER.items():
+            for t in _marker_funde(absatz, liste):
+                if not funde:
+                    ergebnis["(keine)"][stil] += 1
+                    continue
+
+                def abstand(n, t=t):
+                    return (t.start() - n[1]) if n[1] <= t.start() else (n[0] - t.end())
+
+                ergebnis[min(funde, key=abstand)[2]][stil] += 1
+    return ergebnis
+
+
+def _ngramme(woerter: list[str], laenge: int) -> set[tuple[str, ...]]:
+    return {tuple(woerter[i:i + laenge]) for i in range(len(woerter) - laenge + 1)}
+
+
+def marker_in_kopie(text: str, beispiel: str, marker: list[str], laenge: int = 4) -> dict[str, int]:
+    """Wie viele Markertreffer in `text` stehen in einem Satz, der mit dem
+    Beispielsatz `beispiel` eine Folge von `laenge` Woertern teilt?
+
+    Das Mass fuer den Abschreib-Vorbehalt: ein Treffer in so einem Satz ist
+    (wahrscheinlich) aus dem Beispielsatz des Stils uebernommen, ein Treffer
+    ausserhalb steht in einem neuen Satz. Woerter normalisiert und klein,
+    Saetze wie in `saetze`. Rueckgabe ``{"treffer": alle, "in_kopie": davon
+    in einem solchen Satz}``."""
+    vorlage = _ngramme([w.lower() for w in _woerter_in(normalisiere(beispiel))], laenge)
+    treffer = in_kopie = 0
+    for satz in saetze([normalisiere(text)]):
+        anzahl = len(_marker_funde(satz, marker))
+        if not anzahl:
+            continue
+        treffer += anzahl
+        if _ngramme([w.lower() for w in _woerter_in(satz)], laenge) & vorlage:
+            in_kopie += anzahl
+    return {"treffer": treffer, "in_kopie": in_kopie}
 
 
 #: Marker je Stil, wortgleich aus dem Plan (Task 2) -- KNAPP hat dort keine

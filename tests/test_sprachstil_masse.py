@@ -202,3 +202,63 @@ def test_marker_schachtel_enthaelt_die_genannten_woerter():
 def test_marker_fuell_enthaelt_die_genannten_woerter():
     for wort in ("halt", "irgendwie", "sozusagen", "also"):
         assert wort in [w.lower() for w in m.MARKER["FUELL"]]
+
+
+# --- Normalisierung (ss) -----------------------------------------------------
+
+
+def test_normalisiere_macht_aus_eszett_ss():
+    assert m.normalisiere("Weißt du, gewissermaßen. GROẞ") == "Weisst du, gewissermassen. GROSS"
+
+
+def test_marker_anteil_findet_fuellwoerter_mit_eszett():
+    """Das Modell schreibt "weißt du", die Markerliste "weisst du" -- ohne
+    Normalisierung im Mass selbst faende der Zaehler den Marker nie."""
+    ergebnis = m.marker_anteil(["Also, weißt du."], m.MARKER["FUELL"])
+
+    assert ergebnis == 100 * 2 / 3
+
+
+def test_wortschatz_normalisiert_eszett():
+    assert m.wortschatz(["Weißt du"]) == {"weisst", "du"}
+
+
+# --- marker_naechste_figur ---------------------------------------------------
+
+
+def test_marker_naechste_figur_nimmt_den_naeheren_namen():
+    text = "Meryem sitzt am Tisch. Ferzan sagt, sie sei halt muede."
+    ergebnis = m.marker_naechste_figur(text, ["Meryem", "Ferzan"])
+
+    assert ergebnis["Ferzan"]["FUELL"] == 1
+    assert ergebnis["Meryem"]["FUELL"] == 0
+    assert ergebnis["(keine)"]["FUELL"] == 0
+
+
+def test_marker_naechste_figur_name_unabhaengig_von_gross_klein():
+    ergebnis = m.marker_naechste_figur("FERZAN: das ist halt so.", ["Ferzan"])
+
+    assert ergebnis["Ferzan"]["FUELL"] == 1
+
+
+def test_marker_naechste_figur_ohne_namen_im_absatz():
+    text = "Ferzan steht auf.\n\nDas ist halt so."
+    ergebnis = m.marker_naechste_figur(text, ["Ferzan"])
+
+    assert ergebnis["(keine)"]["FUELL"] == 1
+    assert ergebnis["Ferzan"]["FUELL"] == 0
+
+
+# --- Abschreiben -------------------------------------------------------------
+
+
+def test_marker_in_kopie_zaehlt_nur_saetze_mit_vier_gleichen_woertern():
+    beispiel = "Also, weisst du, der Koffer ist halt irgendwie zu."
+    text = ("Also, weißt du, der Koffer ist halt noch zu. "
+            "Sie ist halt muede. "
+            "Der Koffer ist rot, also gut.")
+    ergebnis = m.marker_in_kopie(text, beispiel, m.MARKER["FUELL"])
+
+    # Satz 1 teilt "also weisst du der" -> 3 Treffer (also, weisst du, halt);
+    # Satz 2 und 3 teilen keine Viererfolge -> 2 Treffer, nicht kopiert.
+    assert ergebnis == {"treffer": 5, "in_kopie": 3}

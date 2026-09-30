@@ -3813,7 +3813,7 @@ Do you want that? Say yes or no. If you say no, I'll write the scene in Switzerl
 (Der Satz „We compared them this morning" steht so im Deutschen — Birk
 entscheidet in Karte P, ob er fuer Padua stimmt; A1 uebersetzt treu.)
 
-- [ ] **Schritt 1: Tests** (neu `tests/test_szene_sprache.py`):
+- [x] **Schritt 1: Tests** (neu `tests/test_szene_sprache.py`):
 
 ```python
 """Szenenweg auf Englisch, Einwilligung inhaltlich gleich (E9)."""
@@ -3861,23 +3861,23 @@ def test_chatblock_des_szenenlaufs_englisch(englisch):
   vergleicht whitespace-normalisiert. Stimmen die deutschen Kernwoerter im
   Parametersatz nicht zeichengenau mit szene.py:132–144 ueberein, den
   **Parametersatz** an den Code anpassen, nie den Code.)
-- [ ] **Schritt 2:** rot; `UMGESTELLT |= {"szene", "szenenfolge",
+- [x] **Schritt 2:** rot; `UMGESTELLT |= {"szene", "szenenfolge",
   "kurzgeschichte", "schaerfung", "sprachprofil", "sprachstil",
   "kernzitate", "stueckpruefung", "dramaturgie.beleg",
   "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben"}` → Arbeitsliste.
-- [ ] **Schritt 3:** umstellen. Mit dieser Aufgabe wird auch
+- [x] **Schritt 3:** umstellen. Mit dieser Aufgabe wird auch
   `knoepfe/stationen.py:194` (`szene_modul._TEXT_ANGEBOT_USA`) zu
   `szene_modul.T._TEXT_ANGEBOT_USA`, und `befehle.py:716/718` verweisen auf
   `szene.T._TEXT_USA_JA/_NEIN` (Aufgabe 14). `scripts/pruefe_profil.py`
   liest `szenenfolge.ANWEISUNG_*` jetzt ueber `szenenfolge.T`.
   `scripts/prompt_schnappschuss.py:111` (`szenenfolge.ANWEISUNG_FELDER`) →
   `szenenfolge.T.ANWEISUNG_FELDER`.
-- [ ] **Schritt 4:** gruen: `tests/test_szene*.py tests/test_szenenfolge.py tests/test_teil4_kurzgeschichte.py tests/test_schaerfung.py tests/test_sprachprofil.py tests/test_sprachstil.py tests/test_kernzitate.py tests/test_stueckpruefung.py tests/test_dramaturgie*.py tests/test_web_schreiben.py tests/test_sprache_texte.py tests/test_sprache_bitgleich.py tests/test_profil_bitgleich.py tests/test_prompt_audit.py`;
+- [x] **Schritt 4:** gruen: `tests/test_szene*.py tests/test_szenenfolge.py tests/test_teil4_kurzgeschichte.py tests/test_schaerfung.py tests/test_sprachprofil.py tests/test_sprachstil.py tests/test_kernzitate.py tests/test_stueckpruefung.py tests/test_dramaturgie*.py tests/test_web_schreiben.py tests/test_sprache_texte.py tests/test_sprache_bitgleich.py tests/test_profil_bitgleich.py tests/test_prompt_audit.py`;
   `$PY -m scripts.pruefe_sprache --schluessel szene,szenenfolge,kurzgeschichte,schaerfung,sprachprofil,sprachstil,kernzitate,stueckpruefung,dramaturgie.beleg,dramaturgie.fanout,dramaturgie.mechanik,web_schreiben` → `0 Treffer`.
-- [ ] **Schritt 5: Mutationsnachweis:** im englischen `_TEXT_ANGEBOT_USA`
+- [x] **Schritt 5: Mutationsnachweis:** im englischen `_TEXT_ANGEBOT_USA`
   „no names from this chat" streichen →
   `test_einwilligung_traegt_dieselben_kernaussagen` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Szenenweg, US-Einwilligung und Pruefung ueber T (A1, E9)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Szenenweg, US-Einwilligung und Pruefung ueber T (A1, E9)"`.
 
 ---
 

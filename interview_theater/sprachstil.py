@@ -113,13 +113,13 @@ def stilmaterial(conn, chat_id: int) -> str:
         for f in repo.figuren(conn, chat_id)
         if f["quelle_aufnahme_id"] is not None
     }
-    zeilen = ["Sprechweisen aus den Interviews:"]
+    zeilen = [T._STIL_KOPF]
     for aufnahme_id, zitate in je_interview.items():
         name = kontext.interviewbezeichnung(conn, chat_id, aufnahme_id)
         zeilen.append(f"- {name}")
         profil = profile.get(aufnahme_id, "")
         if profil:
-            zeilen.append(f"    Sprachduktus: {profil}")
+            zeilen.append(T._ZEILE_SPRACHDUKTUS.format(profil=profil))
         for zitat in zitate:
             zeilen.append(f'    "{zitat}"')
     return "\n".join(zeilen)
@@ -131,17 +131,20 @@ def baue_nutzertext(conn, chat_id: int, name: str) -> str:
     from interview_theater import szenenfolge
 
     teile = [szenenfolge._erfundenes(conn, chat_id), stilmaterial(conn, chat_id)]
-    teile.append(
-        "Euer Auftrag:\n"
-        f"Schlag zwei bis drei Sprechweisen fuer {name} vor."
-    )
+    teile.append(T._AUFTRAG.format(name=name))
     return "\n\n".join(t for t in teile if t)
+
+
+#: Die Koepfe des Nutzertexts (W3).
+_STIL_KOPF = "Sprechweisen aus den Interviews:"
+_ZEILE_SPRACHDUKTUS = "    Sprachduktus: {profil}"
+_AUFTRAG = "Euer Auftrag:\nSchlag zwei bis drei Sprechweisen fuer {name} vor."
 
 
 def systemanweisung(name: str) -> str:
     """Die Anweisung plus dem Phasenfokus aus ``prompts/phasen/4.md`` --
     derselbe Aufbau wie in ``szenenfolge``."""
-    teile = [ANWEISUNG.format(name=name)]
+    teile = [T.ANWEISUNG.format(name=name)]
     phase = anweisungen.hole_optional("phasen/4")
     if phase and phase.strip():
         teile.append(phase.strip())
@@ -157,12 +160,12 @@ def starte(conn, tg, klm, e, chat_id: int, name: str):
         log.error("Sprachstil ohne Sprachmodell, chat_id=%s", chat_id)
         return None
     if not stilmaterial(conn, chat_id):
-        tg.sende(chat_id, _TEXT_KEIN_MATERIAL)
+        tg.sende(chat_id, T._TEXT_KEIN_MATERIAL)
         return None
     sperre = _sperre_fuer(chat_id)
     if not sperre.acquire(blocking=False):
         return None
-    tg.sende(chat_id, _TEXT_LAEUFT.format(name=name))
+    tg.sende(chat_id, T._TEXT_LAEUFT.format(name=name))
     system = systemanweisung(name)
     nutzer = baue_nutzertext(conn, chat_id, name)
 
@@ -187,7 +190,7 @@ def starte(conn, tg, klm, e, chat_id: int, name: str):
                     conn, chat_id, getattr(e, "bot_name", None),
                     "sprachstil_fehlgeschlagen", "Stil-Aufruf gescheitert",
                 )
-                tg.sende(chat_id, _TEXT_FEHLER)
+                tg.sende(chat_id, T._TEXT_FEHLER)
             except Exception:
                 log.exception("Fehlermeldung zum Stil-Lauf fehlgeschlagen")
         finally:
@@ -227,3 +230,7 @@ def zerlege(wert: str) -> list[tuple[str, str, str, int | None]]:
                 nummer = int(treffer.group(1))
         ergebnis.append((titel, zitat, beispiel, nummer))
     return ergebnis
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

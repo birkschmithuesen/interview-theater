@@ -367,8 +367,12 @@ def zerlege_geschichte(wert: str) -> tuple[str, list[tuple[str, str, list[str], 
     if rest and _ENDE_PRAEFIX.match(rest[0]):
         ende = _ENDE_PRAEFIX.sub("", rest[0]).strip()
         rest = rest[1:]
-    geschichte = bogen if not ende else f"{bogen}\nEnde: {ende}"
+    geschichte = bogen if not ende else T._GESCHICHTE_MIT_ENDE.format(bogen=bogen, ende=ende)
     return geschichte, zerlege("\n".join(rest))
+
+
+#: Wie Bogen und Ende in ``arbeitsstand.geschichte`` zusammenstehen.
+_GESCHICHTE_MIT_ENDE = "{bogen}\nEnde: {ende}"
 
 
 #: Die fuenf Formen, wortgleich mit ``szene.FORMEN`` -- hier als Literal,
@@ -622,10 +626,12 @@ def vorstellung(conn, zeile, chat_id: int | None = None) -> str:
     from interview_theater import szene as szene_modul
 
     nummer = zeile["nummer"]
-    kopf = f"Szene {nummer}" if nummer is not None else "Szene"
+    kopf = szene_modul._szenenkopf(nummer)
     if zeile["titel"]:
         kopf += f": {zeile['titel']}"
     fehlende, _ = szene_modul.fehlendes(conn, zeile)
+    feldnamen = szene_modul.T.FELDNAMEN
+    noch_offen = T._NOCH_OFFEN
     zeilen = [kopf]
     # Die FORM steht in Zeile 2, direkt unter dem Titel (05.09.2026 abends,
     # Birk): sie ist seit dem Wegfall der Formatfrage die eine Entscheidung,
@@ -633,16 +639,16 @@ def vorstellung(conn, zeile, chat_id: int | None = None) -> str:
     # den uebrigen Feldern waere sie eine Angabe unter acht.
     form = (zeile["form"] or "").strip()
     zeilen.append(
-        f"{szene_modul.FELDNAMEN['form']}: {form or 'noch offen'}"
+        f"{feldnamen['form']}: {form or noch_offen}"
     )
     # Der Pruef-Vermerk steht direkt darunter: er ist der Grund, aus dem diese
     # Szene ueberhaupt wieder vorgestellt wird (05.09.2026, Aenderung an einer
     # frueheren Szene).
     if chat_id is not None and zu_pruefen(conn, chat_id, nummer):
-        zeilen.append(TEXT_ZU_PRUEFEN)
+        zeilen.append(T.TEXT_ZU_PRUEFEN)
     for feld in ("ort", "zeit", "anlass", "figuren", "was_passiert",
                  "was_anders", "ton"):
-        name = szene_modul.FELDNAMEN[feld]
+        name = feldnamen[feld]
         if feld == "figuren":
             namen = [f["name"] for f in repo.szene_figuren(conn, zeile["id"])]
             wert = ", ".join(namen)
@@ -651,25 +657,32 @@ def vorstellung(conn, zeile, chat_id: int | None = None) -> str:
         if wert:
             zeilen.append(f"{name}: {wert}")
         elif feld in fehlende:
-            zeilen.append(f"{name}: noch offen")
+            zeilen.append(f"{name}: {noch_offen}")
     ausserdem = [f for f in fehlende if f in szene_modul.ARBEITSSTAND_PFLICHTFELDER]
     if ausserdem:
         zeilen.append(
-            "Es fehlt ausserdem: "
-            + ", ".join(szene_modul.FELDNAMEN[f] for f in ausserdem)
+            T._ES_FEHLT_AUSSERDEM
+            + ", ".join(feldnamen[f] for f in ausserdem)
         )
     # Die Frage steht ausdrücklich da (Birk, 05.09. abends): die Gruppe soll
     # nicht raten, was der Knopf "Passt, schreiben" tut, und nie einen
     # Slash-Befehl brauchen. Fehlt noch etwas, sagt der Knopf trotzdem zu --
     # er schlaegt die Luecken dann zuerst vor (szenenfolge, Feldvorschlag).
     if fehlende:
-        zeilen.append(
-            f"\nSoll ich Szene {nummer} jetzt schreiben? Was noch offen ist, "
-            "schlage ich vorher vor."
-        )
+        zeilen.append(T._FRAGE_SCHREIBEN_OFFEN.format(nummer=nummer))
     else:
-        zeilen.append(f"\nSoll ich Szene {nummer} jetzt schreiben?")
+        zeilen.append(T._FRAGE_SCHREIBEN.format(nummer=nummer))
     return "\n".join(zeilen)
+
+
+#: Die Bausteine der Szenenvorstellung.
+_NOCH_OFFEN = "noch offen"
+_ES_FEHLT_AUSSERDEM = "Es fehlt ausserdem: "
+_FRAGE_SCHREIBEN_OFFEN = (
+    "\nSoll ich Szene {nummer} jetzt schreiben? Was noch offen ist, "
+    "schlage ich vorher vor."
+)
+_FRAGE_SCHREIBEN = "\nSoll ich Szene {nummer} jetzt schreiben?"
 
 
 def ist_fertig(zeile) -> bool:
@@ -715,7 +728,7 @@ def markiere_spaetere(conn, chat_id: int, nummer: int) -> list[int]:
         repo.setze_szene_fertig(conn, szene["id"], False)
         repo.schreibe_journal(
             conn, chat_id, "offen",
-            PRUEFVERMERK.format(nummer=szene["nummer"], geaendert=nummer),
+            T.PRUEFVERMERK.format(nummer=szene["nummer"], geaendert=nummer),
             quelle="knopf",
         )
         betroffen.append(szene["nummer"])
@@ -731,19 +744,28 @@ def zu_pruefen(conn, chat_id: int, nummer: int | None) -> bool:
     Vermerk zurueckzunehmen."""
     if nummer is None:
         return False
-    anfang = _PRUEFVERMERK_ANFANG.format(nummer=nummer)
+    anfaenge = _pruefvermerk_anfaenge(nummer)
     return any(
-        (e["text"] or "").startswith(anfang) for e in repo.journal(conn, chat_id)
+        (e["text"] or "").startswith(anfaenge) for e in repo.journal(conn, chat_id)
     )
+
+
+def _pruefvermerk_anfaenge(nummer: int) -> tuple[str, ...]:
+    """Der Anfang eines Pruef-Vermerks in beiden Fassungen (Rundreise-Marker,
+    Karte A1): ein Vermerk, der vor einem Profilwechsel geschrieben wurde,
+    muss danach noch gefunden und zurueckgenommen werden."""
+    deutsch = _PRUEFVERMERK_ANFANG.format(nummer=nummer)
+    aktuell = T._PRUEFVERMERK_ANFANG.format(nummer=nummer)
+    return (deutsch,) if aktuell == deutsch else (deutsch, aktuell)
 
 
 def nimm_pruefvermerk(conn, chat_id: int, nummer: int) -> None:
     """Nimmt die Pruef-Vermerke zu dieser Szene zurueck ("So lassen" oder eine
     neue Fassung). Weich wie alles hier (N3): der Eintrag bleibt in der
     Datenbank, er zaehlt nur nicht mehr."""
-    anfang = _PRUEFVERMERK_ANFANG.format(nummer=nummer)
-    while repo.entferne_journal(conn, chat_id, anfang) is not None:
-        pass
+    for anfang in _pruefvermerk_anfaenge(nummer):
+        while repo.entferne_journal(conn, chat_id, anfang) is not None:
+            pass
 
 
 def uebersicht(conn, chat_id: int) -> str:
@@ -752,17 +774,19 @@ def uebersicht(conn, chat_id: int) -> str:
     Drei Zustaende, in der Sprache der Gruppe: **fertig** (abgenommen),
     **geschrieben** (Text da, noch nicht abgenommen), **offen** (nur geplant).
     """
+    from interview_theater import szene as szene_modul
+
     zeilen = []
     for s in repo.hole_szenen(conn, chat_id):
-        kopf = f"Szene {s['nummer']}" if s["nummer"] is not None else "Szene"
+        kopf = szene_modul._szenenkopf(s["nummer"])
         if s["titel"]:
             kopf += f": {s['titel']}"
         if ist_fertig(s):
-            stand = "fertig"
+            stand = T._STAND_FERTIG
         elif (s["volltext"] or "").strip():
-            stand = "geschrieben"
+            stand = T._STAND_GESCHRIEBEN
         else:
-            stand = "offen"
+            stand = T._STAND_OFFEN
         zeilen.append(f"{kopf} — {stand}")
         # Die Zusammenfassung als eine eingerueckte Zeile darunter
         # (06.09.2026): die Uebersicht sagte bis dahin nur, DASS eine Szene
@@ -774,8 +798,16 @@ def uebersicht(conn, chat_id: int) -> str:
         if fassung:
             zeilen.append(f"  {' '.join(fassung.split())}")
     if not zeilen:
-        return "Es gibt noch keine Szenen."
-    return "Euer Durchlauf:\n" + "\n".join(zeilen)
+        return T._TEXT_KEINE_SZENEN
+    return T._DURCHLAUF_KOPF + "\n".join(zeilen)
+
+
+#: Die Woerter der Durchlauf-Uebersicht.
+_STAND_FERTIG = "fertig"
+_STAND_GESCHRIEBEN = "geschrieben"
+_STAND_OFFEN = "offen"
+_TEXT_KEINE_SZENEN = "Es gibt noch keine Szenen."
+_DURCHLAUF_KOPF = "Euer Durchlauf:\n"
 
 
 def textbuch(conn, chat_id: int) -> str:
@@ -789,24 +821,31 @@ def textbuch(conn, chat_id: int) -> str:
     verlaesst den Chat als Datei und wird von Leuten gelesen, die beim
     Workshop nicht dabei waren -- ohne Besetzungsliste sind die Namen darin
     nur Namen. Deterministisch aus dem Arbeitsstand, kein Modellaufruf."""
+    from interview_theater import szene as szene_modul
     from interview_theater import vorspann
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
-    teile = ["# Textbuch"]
+    teile = [T._TEXTBUCH_TITEL]
     kopf_block = vorspann.als_markdown(vorspann.aus_datenbank(conn, chat_id))
     if kopf_block:
         teile.append(kopf_block)
     if stand and (stand["kernthema"] or "").strip():
-        teile.append(f"Kernthema: {stand['kernthema'].strip()}")
+        teile.append(T._ZEILE_KERNTHEMA.format(kernthema=stand["kernthema"].strip()))
     for s in repo.hole_szenen(conn, chat_id):
-        kopf = f"## Szene {s['nummer']}" if s["nummer"] is not None else "## Szene"
+        kopf = "## " + szene_modul._szenenkopf(s["nummer"])
         if s["titel"]:
             kopf += f": {s['titel']}"
         teile.append(kopf)
         teile.append(vorstellung(conn, s))
         volltext = (s["volltext"] or "").strip()
-        teile.append(volltext if volltext else "(noch nicht geschrieben)")
+        teile.append(volltext if volltext else T._NOCH_NICHT_GESCHRIEBEN)
     return "\n\n".join(teile)
+
+
+#: Die Bausteine des Textbuchs.
+_TEXTBUCH_TITEL = "# Textbuch"
+_ZEILE_KERNTHEMA = "Kernthema: {kernthema}"
+_NOCH_NICHT_GESCHRIEBEN = "(noch nicht geschrieben)"
 
 
 def dateiname(chat_id: int) -> str:
@@ -870,20 +909,22 @@ def _erfundenes(conn, chat_id: int) -> str:
     (die haengen an Interviews). Das ist der Kontext-Filter dieser Phase, im
     Code und nicht nur im Prompt: ein Modell, das die Interviews sieht,
     erfindet nichts mehr, es referiert."""
+    from interview_theater import szene as szene_modul
+
     stand = repo.hole_arbeitsstand(conn, chat_id)
     zeilen: list[str] = []
     if stand:
         if (stand["begriffe"] or "").strip():
-            zeilen.append(f"Begriffe der Gruppe: {stand['begriffe'].strip()}")
+            zeilen.append(T._ZEILE_BEGRIFFE.format(begriffe=stand["begriffe"].strip()))
         if (stand["fragen"] or "").strip():
-            zeilen.append("Fragen der Gruppe:\n" + stand["fragen"].strip())
+            zeilen.append(T._FRAGEN_KOPF + stand["fragen"].strip())
         if (stand["rahmen"] or "").strip():
-            zeilen.append(f"Setting: {stand['rahmen'].strip()}")
+            zeilen.append(T._ZEILE_SETTING.format(rahmen=stand["rahmen"].strip()))
         if "geschichte" in stand.keys() and (stand["geschichte"] or "").strip():
-            zeilen.append("Bisherige Geschichte:\n" + stand["geschichte"].strip())
+            zeilen.append(T._GESCHICHTE_KOPF + stand["geschichte"].strip())
     figuren = repo.figuren(conn, chat_id)
     if figuren:
-        block = ["Figuren:"]
+        block = [T._FIGUREN_KOPF]
         for figur in figuren:
             kopf = f"- {figur['name']}"
             if figur["beschreibung"]:
@@ -892,9 +933,9 @@ def _erfundenes(conn, chat_id: int) -> str:
         zeilen.append("\n".join(block))
     szenen = repo.hole_szenen(conn, chat_id)
     if szenen:
-        block = ["Bisherige Szenenfolge:"]
+        block = [T._SZENENFOLGE_KOPF]
         for s in szenen:
-            teile = [f"Szene {s['nummer']}"]
+            teile = [szene_modul.T._SZENE_MIT_NUMMER.format(nummer=s["nummer"])]
             if s["titel"]:
                 teile.append(s["titel"])
             if s["was_passiert"]:
@@ -902,6 +943,15 @@ def _erfundenes(conn, chat_id: int) -> str:
             block.append(" — ".join(teile))
         zeilen.append("\n".join(block))
     return "\n\n".join(zeilen)
+
+
+#: Die Koepfe des Erfundenen (W3: Nutzertext in der Sprache des Profils).
+_ZEILE_BEGRIFFE = "Begriffe der Gruppe: {begriffe}"
+_FRAGEN_KOPF = "Fragen der Gruppe:\n"
+_ZEILE_SETTING = "Setting: {rahmen}"
+_GESCHICHTE_KOPF = "Bisherige Geschichte:\n"
+_FIGUREN_KOPF = "Figuren:"
+_SZENENFOLGE_KOPF = "Bisherige Szenenfolge:"
 
 
 def systemanweisung(anzahl: int) -> str:
@@ -918,7 +968,7 @@ def systemanweisung(anzahl: int) -> str:
     **Erst fuellen, dann formatieren.** ``str.format`` macht aus ``{{x}}``
     ein wortwoertliches ``{x}`` -- in der anderen Reihenfolge stuende der
     Platzhaltername im Prompt statt seines Werts."""
-    teile = [anweisungen.fuelle(ANWEISUNG_FOLGE).format(anzahl=anzahl)]
+    teile = [anweisungen.fuelle(T.ANWEISUNG_FOLGE).format(anzahl=anzahl)]
     phase = anweisungen.hole_optional("phasen/6")
     if phase and phase.strip():
         teile.append(phase.strip())
@@ -932,9 +982,9 @@ def systemanweisung_geschichte(anzahl: int | None = None) -> str:
     ``anzahl`` ist eine Bitte, keine Vorgabe: wie viele Szenen es werden,
     ergibt sich aus der Geschichte -- \"Anzahl aendern\" reicht sie herein,
     wenn die Gruppe eine nennt."""
-    teile = [anweisungen.fuelle(ANWEISUNG_GESCHICHTE)]
+    teile = [anweisungen.fuelle(T.ANWEISUNG_GESCHICHTE)]
     if anzahl:
-        teile.append(f"Die Gruppe moechte {anzahl} Szenen.")
+        teile.append(T._WUNSCH_ANZAHL.format(anzahl=anzahl))
     phase = anweisungen.hole_optional("phasen/4")
     if phase and phase.strip():
         teile.append(phase.strip())
@@ -944,10 +994,7 @@ def systemanweisung_geschichte(anzahl: int | None = None) -> str:
 def baue_nutzertext_geschichte(conn, chat_id: int, wunsch: str | None = None) -> str:
     """Das Erfundene, dann der Auftrag -- **ohne Material** (``_erfundenes``)."""
     teile = [_erfundenes(conn, chat_id)]
-    auftrag = (
-        "Euer Auftrag:\nSchlag die Geschichte im Groben vor: was passiert, "
-        "wie es endet, welche Szenen."
-    )
+    auftrag = T._AUFTRAG_GESCHICHTE
     if wunsch and wunsch.strip():
         auftrag += f"\n{wunsch.strip()}"
     teile.append(auftrag)
@@ -958,12 +1005,23 @@ def baue_nutzertext(conn, chat_id: int, anzahl: int, wunsch: str | None = None) 
     """Material, dann der Auftrag -- was am Ende steht, wiegt am schwersten
     (SPEC § 6.1), deshalb der Wunsch der Gruppe zuletzt."""
     teile = [_material(conn, chat_id)]
-    auftrag = f"Euer Auftrag:\nSchlag {anzahl} Szenen vor."
+    auftrag = T._AUFTRAG_FOLGE.format(anzahl=anzahl)
     if wunsch and wunsch.strip():
         auftrag += f"\n{wunsch.strip()}"
     teile.append(auftrag)
     return "\n\n".join(t for t in teile if t)
 
+
+#: Der Wunsch der Gruppe nach einer Szenenzahl, an die Anweisung gehaengt.
+_WUNSCH_ANZAHL = "Die Gruppe moechte {anzahl} Szenen."
+
+#: Die Auftraege am Ende der Nutzertexte.
+_AUFTRAG_GESCHICHTE = (
+    "Euer Auftrag:\nSchlag die Geschichte im Groben vor: was passiert, "
+    "wie es endet, welche Szenen."
+)
+_AUFTRAG_FOLGE = "Euer Auftrag:\nSchlag {anzahl} Szenen vor."
+_AUFTRAG_FELDER = "Euer Auftrag:\nSchlag die fehlenden Angaben fuer Szene {nummer} vor."
 
 _TEXT_LAEUFT = "Ich schlage euch eine Szenenfolge vor, einen Moment."
 _TEXT_BESETZT = "Ich denke gerade schon ueber die Szenenfolge nach, gleich."
@@ -1021,7 +1079,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
             )
         except Exception:
             log.exception("Vorfall nicht schreibbar, chat_id=%s", chat_id)
-        _sende(conn, tg, e, chat_id, _TEXT_FEHLER)
+        _sende(conn, tg, e, chat_id, T._TEXT_FEHLER)
     finally:
         zeilen.stoppe()
         vorschlagssperre.gib_frei(chat_id)
@@ -1042,7 +1100,7 @@ def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
     if not vorschlagssperre.nimm_oder_merke(
         chat_id, ART, lambda: starte(conn, tg, klm, e, chat_id, anzahl, wunsch),
     ):
-        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
+        _sende(conn, tg, e, chat_id, T._TEXT_GEMERKT)
         return None
     # Alles ab hier bis einschliesslich ``thread.start()`` steht unter
     # derselben Wache: wirft ``_sende``, ``systemanweisung`` oder
@@ -1051,7 +1109,7 @@ def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
     # weiteren Vorschlaege wuerden nur noch gemerkt, nie mehr genommen
     # (30.09.2026, Sperr-Leck-Fund).
     try:
-        _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
+        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT)
 
         def _fertig(antwort: str) -> None:
             from interview_theater import knoepfe
@@ -1085,12 +1143,12 @@ def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
         chat_id, ART_GESCHICHTE,
         lambda: starte_geschichte(conn, tg, klm, e, chat_id, anzahl, wunsch),
     ):
-        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
+        _sende(conn, tg, e, chat_id, T._TEXT_GEMERKT)
         return None
     # Sperr-Leck-Fund (30.09.2026): siehe ``starte`` -- alles bis
     # ``thread.start()`` steht unter derselben Wache.
     try:
-        _sende(conn, tg, e, chat_id, _TEXT_GESCHICHTE_LAEUFT)
+        _sende(conn, tg, e, chat_id, T._TEXT_GESCHICHTE_LAEUFT)
 
         def _fertig(antwort: str) -> None:
             from interview_theater import knoepfe
@@ -1115,7 +1173,7 @@ def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
 def systemanweisung_geschichte_szenen() -> str:
     """Anweisung fuer die Szenenfolge NACH der gewaehlten Richtung
     (06.09.2026, Birk 11:42) plus der Phasenfokus aus ``prompts/phasen/4.md``."""
-    teile = [anweisungen.fuelle(ANWEISUNG_GESCHICHTE_SZENEN)]
+    teile = [anweisungen.fuelle(T.ANWEISUNG_GESCHICHTE_SZENEN)]
     phase = anweisungen.hole_optional("phasen/4")
     if phase and phase.strip():
         teile.append(phase.strip())
@@ -1137,12 +1195,12 @@ def starte_geschichte_szenen(conn, tg, klm, e, chat_id: int,
         chat_id, ART,
         lambda: starte_geschichte_szenen(conn, tg, klm, e, chat_id, anzahl, wunsch),
     ):
-        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
+        _sende(conn, tg, e, chat_id, T._TEXT_GEMERKT)
         return None
     # Sperr-Leck-Fund (30.09.2026): siehe ``starte`` -- alles bis
     # ``thread.start()`` steht unter derselben Wache.
     try:
-        _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
+        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT)
 
         def _fertig(antwort: str) -> None:
             from interview_theater import knoepfe
@@ -1187,18 +1245,18 @@ def starte_feldvorschlag(conn, tg, klm, e, chat_id: int, ziel) -> threading.Thre
         chat_id, ART_FELDER,
         lambda: starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel),
     ):
-        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
+        _sende(conn, tg, e, chat_id, T._TEXT_GEMERKT)
         return None
     # Sperr-Leck-Fund (30.09.2026): siehe ``starte`` -- alles bis
     # ``thread.start()`` steht unter derselben Wache.
     try:
-        _sende(conn, tg, e, chat_id, _TEXT_FELDER_LAEUFT)
-        system = ANWEISUNG_FELDER.format(felder=", ".join(fehlende))
+        _sende(conn, tg, e, chat_id, T._TEXT_FELDER_LAEUFT)
+        system = T.ANWEISUNG_FELDER.format(felder=", ".join(fehlende))
         nutzer = "\n\n".join(
             t for t in (
                 _material(conn, chat_id),
                 szene_modul._diese_szene_text(conn, ziel),
-                f"Euer Auftrag:\nSchlag die fehlenden Angaben fuer Szene {nummer} vor.",
+                T._AUFTRAG_FELDER.format(nummer=nummer),
             ) if t
         )
 
@@ -1217,3 +1275,7 @@ def starte_feldvorschlag(conn, tg, klm, e, chat_id: int, ziel) -> threading.Thre
         vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

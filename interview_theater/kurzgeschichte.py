@@ -91,6 +91,8 @@ _TEXT_FEHLER = (
 )
 _TEXT_FERTIG = "Eure Geschichte in {anzahl} Abschnitten:"
 JOURNAL = "Szenenfolge aus der Kurzgeschichte: {anzahl} Abschnitte"
+#: Der Titel eines Abschnitts, der ohne eigene Ueberschrift kam.
+_ABSCHNITT_N = "Abschnitt {nummer}"
 
 _sperren: dict[int, threading.Lock] = {}
 _sperren_schutz = threading.Lock()
@@ -163,7 +165,7 @@ def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
 
     zeilen = [
         {
-            "titel": titel or f"Abschnitt {nummer}",
+            "titel": titel or T._ABSCHNITT_N.format(nummer=nummer),
             "was_passiert": fassung,
             "kurzbeschreibung": fassung,
             "zusammenfassung": fassung,
@@ -188,7 +190,7 @@ def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
         )
     nummern = list(bericht["nummern"])
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", JOURNAL.format(anzahl=len(nummern)),
+        conn, chat_id, "entschieden", T.JOURNAL.format(anzahl=len(nummern)),
         quelle="szene",
     )
     return nummern
@@ -197,7 +199,7 @@ def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
 def systemanweisung() -> str:
     """Die Anweisung plus dem Prosa-Regelblock -- heiss nachgeladen wie
     jeder Prompt."""
-    teile = [ANWEISUNG]
+    teile = [T.ANWEISUNG]
     prosa = anweisungen.hole_optional("formen/prosa")
     if prosa and prosa.strip():
         teile.append(prosa.strip())
@@ -229,11 +231,17 @@ def vorlage_text(conn, chat_id: int) -> str:
         prosa = szene_modul.prosa_von(s)
         if not prosa:
             continue
-        titel = (s["titel"] or "").strip() or f"Abschnitt {s['nummer']}"
+        titel = (s["titel"] or "").strip() or T._ABSCHNITT_N.format(nummer=s["nummer"])
         abschnitte.append(f"{s['nummer']}. {titel}\n\n{prosa}")
     if not abschnitte:
         return ""
-    return UEBERSCHRIFT_VORLAGE + "\n\n" + "\n\n".join(abschnitte)
+    return T.UEBERSCHRIFT_VORLAGE + "\n\n" + "\n\n".join(abschnitte)
+
+
+#: Die Koepfe des Nutzertexts (W3).
+_STILE_KOPF = "So sprechen die Figuren:\n"
+_AUFTRAG = "Euer Auftrag:\nSchreib die Geschichte am Stueck."
+_ZEILE_REGIE = "\nDie Gruppe sagt dazu: {regie}"
 
 
 def baue_nutzertext(
@@ -255,12 +263,12 @@ def baue_nutzertext(
         if (f["sprachstil"] or "").strip()
     ]
     if stile:
-        teile.append("So sprechen die Figuren:\n" + "\n".join(stile))
+        teile.append(T._STILE_KOPF + "\n".join(stile))
     if vorlage:
         teile.append(vorlage_text(conn, chat_id))
-    auftrag = "Euer Auftrag:\nSchreib die Geschichte am Stueck."
+    auftrag = T._AUFTRAG
     if regie and regie.strip():
-        auftrag += f"\nDie Gruppe sagt dazu: {regie.strip()}"
+        auftrag += T._ZEILE_REGIE.format(regie=regie.strip())
     teile.append(auftrag)
     return "\n\n".join(t for t in teile if t)
 
@@ -279,11 +287,11 @@ def starte(
         return None
     sperre = _sperre_fuer(chat_id)
     if not sperre.acquire(blocking=False):
-        tg.sende(chat_id, _TEXT_BESETZT)
+        tg.sende(chat_id, T._TEXT_BESETZT)
         return None
     from interview_theater import szene as szene_modul
 
-    szene_modul._sende_und_merke(conn, tg, e, chat_id, _TEXT_LAEUFT)
+    szene_modul._sende_und_merke(conn, tg, e, chat_id, T._TEXT_LAEUFT)
 
     def _lauf() -> None:
         from interview_theater import arbeitszeilen, szene_claude
@@ -311,7 +319,7 @@ def starte(
             nummern = lege_szenen_an(conn, chat_id, abschnitte)
             zeilen.stoppe()
             szene_modul._sende_und_merke(
-                conn, tg, e, chat_id, _TEXT_FERTIG.format(anzahl=len(nummern)),
+                conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
             )
             from interview_theater import knoepfe
 
@@ -323,7 +331,7 @@ def starte(
                     conn, chat_id, getattr(e, "bot_name", None),
                     "kurzgeschichte_fehlgeschlagen", "Lauf gescheitert",
                 )
-                szene_modul._sende_und_merke(conn, tg, e, chat_id, _TEXT_FEHLER)
+                szene_modul._sende_und_merke(conn, tg, e, chat_id, T._TEXT_FEHLER)
             except Exception:
                 log.exception("Fehlermeldung zur Kurzgeschichte fehlgeschlagen")
         finally:
@@ -337,3 +345,7 @@ def starte(
         sperre.release()
         raise
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

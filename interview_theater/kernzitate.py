@@ -100,11 +100,11 @@ def baue_nutzertext(kernthema: str, kernfrage: str, eintraege: list[dict]) -> st
     Oeffentlich wie ``verdichter.baue_nutzertext``, damit ein Pruefskript
     denselben Text bauen kann wie der Betrieb. Jede Zeile traegt ihre Nummer
     vorn -- sie ist der einzige Weg, auf einen Eintrag zu zeigen."""
-    zeilen = [f"Kernthema: {(kernthema or '').strip()}"]
+    zeilen = [T._ZEILE_KERNTHEMA.format(kernthema=(kernthema or "").strip())]
     if (kernfrage or "").strip():
-        zeilen.append("Kernfrage:\n" + kernfrage.strip())
+        zeilen.append(T._KERNFRAGE_KOPF + kernfrage.strip())
     zeilen.append("")
-    zeilen.append("Material (nur hieraus waehlen, nach Nummer):")
+    zeilen.append(T._MATERIAL_KOPF)
     # Die Zusammenfassung gehoert dem Interview, nicht der Zeile: elf geprueft
     # Themen desselben Interviews schrieben sie elfmal (Audit-Befund M1,
     # 06.09.2026 -- 7.700 Zeichen Dublette in einem 9.000-Zeichen-Prompt).
@@ -114,16 +114,24 @@ def baue_nutzertext(kernthema: str, kernfrage: str, eintraege: list[dict]) -> st
         if eintrag["interview"] != letztes_interview:
             letztes_interview = eintrag["interview"]
             if eintrag["zusammenfassung"]:
-                zeilen.append(
-                    f"\n{eintrag['interview']} -- worum es darin geht: "
-                    f"{eintrag['zusammenfassung']}"
-                )
-        zeilen.append(
-            f"[{eintrag['nummer']}] {eintrag['interview']} | "
-            f"Thema: {eintrag['thema']} | "
-            f'Zitat: "{eintrag["zitat"]}"'
-        )
+                zeilen.append(T._ZEILE_WORUM.format(
+                    interview=eintrag["interview"],
+                    zusammenfassung=eintrag["zusammenfassung"],
+                ))
+        zeilen.append(T._ZEILE_EINTRAG.format(
+            nummer=eintrag["nummer"], interview=eintrag["interview"],
+            thema=eintrag["thema"], zitat=eintrag["zitat"],
+        ))
     return "\n".join(zeilen)
+
+
+#: Die Koepfe und Zeilen des Nutzertexts (W3) -- dieselbe Materialliste wie
+#: in ``schaerfung.baue_nutzertext``.
+_ZEILE_KERNTHEMA = "Kernthema: {kernthema}"
+_KERNFRAGE_KOPF = "Kernfrage:\n"
+_MATERIAL_KOPF = "Material (nur hieraus waehlen, nach Nummer):"
+_ZEILE_WORUM = "\n{interview} -- worum es darin geht: {zusammenfassung}"
+_ZEILE_EINTRAG = '[{nummer}] {interview} | Thema: {thema} | Zitat: "{zitat}"'
 
 
 def _eintraege(conn, chat_id: int) -> list[dict]:
@@ -157,10 +165,15 @@ def _interviewliste(namen: list[str]) -> str:
         if kurz and kurz not in nummern:
             nummern.append(kurz)
     if not nummern:
-        return "den Interviews"
+        return T._DEN_INTERVIEWS
     if len(nummern) == 1:
         return f"Interview {nummern[0]}"
-    return "Interview " + ", ".join(nummern[:-1]) + f" und {nummern[-1]}"
+    return "Interview " + ", ".join(nummern[:-1]) + T._UND + nummern[-1]
+
+
+#: Die Bausteine der Interviewliste in der Meldung.
+_DEN_INTERVIEWS = "den Interviews"
+_UND = " und "
 
 
 def waehle(klm, conn, e, chat_id: int) -> str:
@@ -173,7 +186,7 @@ def waehle(klm, conn, e, chat_id: int) -> str:
     if not eintraege:
         repo.ersetze_kernzitate(conn, chat_id, [])
         repo.markiere_themen_zum_kernthema(conn, chat_id, [])
-        return MELDUNG_LEER
+        return T.MELDUNG_LEER
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
     kernthema = (stand["kernthema"] if stand else "") or ""
@@ -243,18 +256,22 @@ def waehle(klm, conn, e, chat_id: int) -> str:
 
     if not gewaehlt:
         repo.schreibe_journal(
-            conn, chat_id, "entschieden",
-            "Kernzitate: keine Stelle passt zum Kernthema", quelle="kernzitate",
+            conn, chat_id, "entschieden", T._JOURNAL_LEER, quelle="kernzitate",
         )
-        return MELDUNG_LEER
+        return T.MELDUNG_LEER
 
     liste = _interviewliste(interviews)
     repo.schreibe_journal(
         conn, chat_id, "entschieden",
-        f"Kernzitate: {len(gewaehlt)} ausgewaehlt aus {liste}",
+        T._JOURNAL_AUSGEWAEHLT.format(anzahl=len(gewaehlt), liste=liste),
         quelle="kernzitate",
     )
-    return MELDUNG.format(anzahl=len(gewaehlt), interviews=liste)
+    return T.MELDUNG.format(anzahl=len(gewaehlt), interviews=liste)
+
+
+#: Die Journalzeilen der Auswahl.
+_JOURNAL_LEER = "Kernzitate: keine Stelle passt zum Kernthema"
+_JOURNAL_AUSGEWAEHLT = "Kernzitate: {anzahl} ausgewaehlt aus {liste}"
 
 
 def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
@@ -304,3 +321,7 @@ def starte(conn, tg, klm, e, chat_id: int, nachbereitung=None):
     )
     thread.start()
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

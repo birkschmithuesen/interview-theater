@@ -1019,7 +1019,7 @@ def _altbestand_html(stand: dict) -> str:
     (dieselbe Regel wie beim Hauptkonflikt)."""
     zeilen = [
         f"<dt>{label}</dt><dd>{_t(stand.get(feld))}</dd>"
-        for feld, label in web_schreiben.NUR_ANZEIGE.items()
+        for feld, label in web_schreiben.T.NUR_ANZEIGE.items()
         if (stand.get(feld) or "").strip()
     ]
     return "".join(zeilen)
@@ -1448,7 +1448,7 @@ def _szene_html(
             + _dropdown(
                 "szene_stil",
                 [
-                    (slug, web_schreiben.STIL_BESCHRIFTUNG.get(slug, slug))
+                    (slug, web_schreiben.T.STIL_BESCHRIFTUNG.get(slug, slug))
                     for slug in stile_liste
                 ],
                 jetziger_stil,
@@ -1460,7 +1460,7 @@ def _szene_html(
                 f"<dt>{label}</dt><dd>"
                 + _textfeld(f"szene_{feld}", s.get(feld), s["id"], zeilen=2)
                 + "</dd>"
-                for feld, label in web_schreiben.SZENENFELDER.items()
+                for feld, label in web_schreiben.T.SZENENFELDER.items()
                 if feld not in ("titel", "form", "stil")
             )
         )

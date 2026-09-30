@@ -314,7 +314,7 @@ def _figurenvorstellung(conn, chat_id: int, figur, ohne_beleg: bool = False) -> 
             from interview_theater import sprachprofil
 
             zeilen.append(
-                sprachprofil._TEXT_KEIN_ZITAT.format(name=figur["name"])
+                sprachprofil.T._TEXT_KEIN_ZITAT.format(name=figur["name"])
             )
         else:
             zeilen.append(T._TEXT_DUKTUS_FEHLT)

@@ -472,7 +472,7 @@ def zeige_stueckpruefung(
     zeilen = repo.stueckpruefungen(conn, chat_id, runde=runde)
     if not zeilen:
         return 0
-    tg.sende(chat_id, pruefung_modul.MELDUNG_KOPF.format(runde=runde))
+    tg.sende(chat_id, pruefung_modul.T.MELDUNG_KOPF.format(runde=runde))
     verschickt = 0
     for zeile in zeilen:
         leiste = []
@@ -598,12 +598,12 @@ def zeige_dramaturgie(conn, tg, chat_id: int, runde: int | None = None) -> int:
         return 0
     zeilen = repo.dramaturgie_befunde(conn, chat_id, runde=runde)
     if not zeilen:
-        tg.sende(chat_id, fanout.MELDUNG_OHNE_BEFUND)
+        tg.sende(chat_id, fanout.T.MELDUNG_OHNE_BEFUND)
         return 0
     figuren = [f["name"] for f in repo.figuren(conn, chat_id)]
     auftraege = {a["befund_id"]: a for a in fanout.auftraege(zeilen, figuren)}
 
-    tg.sende(chat_id, fanout.MELDUNG_KOPF.format(runde=runde))
+    tg.sende(chat_id, fanout.T.MELDUNG_KOPF.format(runde=runde))
     verschickt = 0
     for zeile in zeilen:
         text = fanout.befundzeile(zeile)
@@ -613,7 +613,7 @@ def zeige_dramaturgie(conn, tg, chat_id: int, runde: int | None = None) -> int:
             continue
         leiste = [
             (
-                fanout.TEXT_AUFTRAG_KNOPF.format(nummer=zeile["szene"]),
+                fanout.T.TEXT_AUFTRAG_KNOPF.format(nummer=zeile["szene"]),
                 _daten(
                     repo.lege_knopf_an(
                         conn, chat_id, ART_DRAMATURGIE_SZENE, str(zeile["id"])
@@ -1115,7 +1115,7 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         nummern = szenenfolge.lege_inline_an(conn, chat_id, inline)
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
-            szenenfolge.JOURNAL_INLINE.format(
+            szenenfolge.T.JOURNAL_INLINE.format(
                 liste="; ".join(f"{n}. {t}" for n, t, _f in inline)
             ),
             quelle="knopf",

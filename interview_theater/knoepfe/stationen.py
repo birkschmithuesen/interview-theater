@@ -181,7 +181,7 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
                 from interview_theater import szene as szene_modul
 
                 repo.merke_szene_usa_angeboten(conn, chat_id)
-                tg.sende(chat_id, szene_modul._TEXT_ANGEBOT_USA)
+                tg.sende(chat_id, szene_modul.T._TEXT_ANGEBOT_USA)
                 biete_szene_usa(conn, tg, chat_id)
             else:
                 # Die Frage ist beantwortet (oder es gibt kein US-Modell):

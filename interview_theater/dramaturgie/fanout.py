@@ -257,9 +257,9 @@ def waehle_richter(e, conn=None, chat_id: int | None = None) -> Richter:
             else szene_claude.MODELL_VORGABE
         )
     if not gewuenscht:
-        raise RichterFehler(MELDUNG_GLEICHES_MODELL.format(modell=schreiber or "?"))
+        raise RichterFehler(T.MELDUNG_GLEICHES_MODELL.format(modell=schreiber or "?"))
     if gewuenscht.strip().casefold() == (schreiber or "").strip().casefold():
-        raise RichterFehler(MELDUNG_GLEICHES_MODELL.format(modell=schreiber))
+        raise RichterFehler(T.MELDUNG_GLEICHES_MODELL.format(modell=schreiber))
     weg = "claude" if gewuenscht.lower().startswith("claude") else "infomaniak"
     if weg == "claude" and not usa_erlaubt(conn, chat_id):
         # **Der Judge liest den Szenentext**, und der Claude-Weg geht ueber
@@ -267,7 +267,7 @@ def waehle_richter(e, conn=None, chat_id: int | None = None) -> Richter:
         # braucht (``szene_claude.ist_aktiv``), braucht deshalb auch die
         # Pruefung -- sonst ginge auf dem Umweg ueber den Richter in die USA,
         # was die Gruppe fuer das Schreiben ausdruecklich abgelehnt hat.
-        raise RichterFehler(MELDUNG_OHNE_USA.format(modell=gewuenscht))
+        raise RichterFehler(T.MELDUNG_OHNE_USA.format(modell=gewuenscht))
     return Richter(weg, gewuenscht)
 
 
@@ -508,7 +508,7 @@ def material_synopsen(conn, chat_id: int) -> str:
     for s in repo.hole_szenen(conn, chat_id):
         if s["nummer"] is None:
             continue
-        kopf = f"Szene {s['nummer']}"
+        kopf = T._SZENE_MIT_NUMMER.format(nummer=s["nummer"])
         if (s["titel"] or "").strip():
             kopf += f": {s['titel'].strip()}"
         if (s["form"] or "").strip():
@@ -539,7 +539,7 @@ def _synopse(s) -> str:
             continue
         if wert:
             return wert[:SYNOPSE_ZEICHEN]
-    return OHNE_SYNOPSE
+    return T.OHNE_SYNOPSE
 
 
 def material_kandidaten(kandidaten) -> str:
@@ -550,7 +550,7 @@ def material_kandidaten(kandidaten) -> str:
     erfundenen Zitat waehlen."""
     zeilen = []
     for k in kandidaten:
-        zeile = f"Szene {k.szene} - \"{k.wort}\" ({k.anzahl}-mal)"
+        zeile = T._ZEILE_KANDIDAT.format(szene=k.szene, wort=k.wort, anzahl=k.anzahl)
         if k.satz:
             zeile += f": {k.satz}"
         zeilen.append(zeile)
@@ -590,7 +590,7 @@ def frage_b1(conn, e, klm, chat_id: int, richter: Richter, szene,
         return None
     nummer = szene["nummer"]
     nutzer = umschliesse(
-        "szene", material, f"Das ist Szene {nummer} des Stuecks."
+        "szene", material, T._KOPF_SZENE.format(nummer=nummer)
     )
     antwort, stand = _stelle(
         conn, e, klm, chat_id, richter, "b1", nutzer, material, f"b1 Szene {nummer}",
@@ -622,9 +622,8 @@ def frage_a9(conn, e, klm, chat_id: int, richter: Richter, szene,
     if not material or not (hauptkonflikt or "").strip():
         return None
     nummer = szene["nummer"]
-    kopf = (
-        f"Das ist Szene {nummer} des Stuecks.\n\n"
-        f"Der Hauptkonflikt des Stuecks: {hauptkonflikt.strip()}"
+    kopf = T._KOPF_SZENE.format(nummer=nummer) + T._KOPF_HAUPTKONFLIKT.format(
+        hauptkonflikt=hauptkonflikt.strip()
     )
     nutzer = umschliesse("szene", material, kopf)
     antwort, stand = _stelle(
@@ -695,7 +694,7 @@ def material_festlegungen(szene, felder=None) -> str:
         except (IndexError, KeyError):
             continue
         if wert:
-            zeilen.append(f"- {A10_BESCHRIFTUNG[feld]} ({feld}): {wert}")
+            zeilen.append(f"- {T.A10_BESCHRIFTUNG[feld]} ({feld}): {wert}")
     return "\n".join(zeilen)
 
 
@@ -723,9 +722,8 @@ def frage_a10(conn, e, klm, chat_id: int, richter: Richter, szene,
     if not material or not festlegungen:
         return None
     nummer = szene["nummer"]
-    kopf = (
-        f"Das ist Szene {nummer} des Stuecks.\n\n"
-        f"Die Gruppe hat fuer diese Szene festgelegt:\n{festlegungen}"
+    kopf = T._KOPF_SZENE.format(nummer=nummer) + T._KOPF_FESTLEGUNGEN.format(
+        festlegungen=festlegungen
     )
     nutzer = umschliesse("szene", material, kopf)
     antwort, stand = _stelle(
@@ -801,7 +799,7 @@ def material_vorgaben(conn, chat_id: int) -> str:
         except (IndexError, KeyError):
             continue
         if wert:
-            zeilen.append(f"- {A11_BESCHRIFTUNG[feld]} ({feld}): {wert}")
+            zeilen.append(f"- {T.A11_BESCHRIFTUNG[feld]} ({feld}): {wert}")
     return "\n".join(zeilen)
 
 
@@ -835,10 +833,7 @@ def frage_a11(conn, e, klm, chat_id: int, richter: Richter,
             chat_id, ", ".join(str(n) for n in luecken),
         )
         return None
-    kopf = (
-        "Das ist die Szenenfolge des Stuecks als Kurzfassungen.\n\n"
-        f"Die Gruppe hat fuer das ganze Stueck vorgegeben:\n{vorgaben}"
-    )
+    kopf = T._KOPF_SYNOPSEN + T._KOPF_VORGABEN.format(vorgaben=vorgaben)
     nutzer = umschliesse("synopsen", material, kopf)
     antwort, stand = _stelle(
         conn, e, klm, chat_id, richter, "a11", nutzer, material, "a11",
@@ -883,6 +878,27 @@ def stueckparameterkorrektur(befund) -> tuple[str, str] | None:
 #: genau die Stelle, an der die Sperre beim naechsten Umformulieren aufhoert
 #: zu greifen.
 OHNE_SYNOPSE = "(noch nichts geschrieben)"
+
+#: Die Kopfzeilen und Materialzeilen der Judge-Nutzertexte (W3: in der
+#: Sprache des Profils, damit der Richter in ihr antwortet).
+_SZENE_MIT_NUMMER = "Szene {nummer}"
+_ZEILE_KANDIDAT = 'Szene {szene} - "{wort}" ({anzahl}-mal)'
+_KOPF_SZENE = "Das ist Szene {nummer} des Stuecks."
+_KOPF_HAUPTKONFLIKT = "\n\nDer Hauptkonflikt des Stuecks: {hauptkonflikt}"
+_KOPF_FESTLEGUNGEN = "\n\nDie Gruppe hat fuer diese Szene festgelegt:\n{festlegungen}"
+_KOPF_SYNOPSEN = "Das ist die Szenenfolge des Stuecks als Kurzfassungen."
+_KOPF_VORGABEN = "\n\nDie Gruppe hat fuer das ganze Stueck vorgegeben:\n{vorgaben}"
+_KOPF_GESCHICHTE = "\nDie Gruppe hat sich die Geschichte so vorgenommen:\n{geschichte}"
+_KOPF_KANDIDATEN = "Das ist die maschinelle Kandidatenliste zu diesem Stueck."
+_KOPF_REPLIKEN = (
+    "Das sind die Repliken von Szene {nummer}, ohne Namen. "
+    "In dieser Szene sprechen: {figuren}."
+)
+
+#: Der Kopf einer Szene in der Synopsen-Kette, in beiden Sprachen -- die
+#: Kette kann vor einem Profilwechsel gebaut sein (Rundreise, Karte A1).
+_SYNOPSE_KOPF = re.compile(r"^Szene (\d+)")
+_SYNOPSE_KOPF_EN = re.compile(r"^Scene (\d+)")
 
 #: Wie viele Szenen hoechstens ohne Kurzfassung dastehen duerfen, damit A2
 #: noch laeuft. Null: die Frage lautet, ob Szene n kausal an eine fruehere
@@ -930,15 +946,17 @@ def synopsen_fehlen(material: str) -> list[int]:
     """
     luecken: list[int] = []
     nummer: int | None = None
+    leer = {OHNE_SYNOPSE, T.OHNE_SYNOPSE}
     for zeile in (material or "").splitlines():
-        treffer = re.match(r"^Szene (\d+)", zeile.strip())
+        treffer = (_SYNOPSE_KOPF.match(zeile.strip())
+                   or _SYNOPSE_KOPF_EN.match(zeile.strip()))
         if treffer is not None:
             nummer = int(treffer.group(1))
             continue
         if nummer is None:
             continue
         text = zeile.strip()
-        if text == OHNE_SYNOPSE or len(text.split()) < SYNOPSE_MINDEST_WOERTER:
+        if text in leer or len(text.split()) < SYNOPSE_MINDEST_WOERTER:
             luecken.append(nummer)
         nummer = None
     return luecken
@@ -959,7 +977,7 @@ def frage_a2(conn, e, klm, chat_id: int, richter: Richter,
         )
         return None
     stand_zeile = repo.hole_arbeitsstand(conn, chat_id)
-    kopf = "Das ist die Szenenfolge des Stuecks als Kurzfassungen."
+    kopf = T._KOPF_SYNOPSEN
     geschichte = ""
     if stand_zeile is not None:
         try:
@@ -967,7 +985,7 @@ def frage_a2(conn, e, klm, chat_id: int, richter: Richter,
         except (IndexError, KeyError):
             geschichte = ""
     if geschichte:
-        kopf += f"\nDie Gruppe hat sich die Geschichte so vorgenommen:\n{geschichte}"
+        kopf += T._KOPF_GESCHICHTE.format(geschichte=geschichte)
     nutzer = umschliesse("synopsen", material, kopf)
     antwort, stand = _stelle(
         conn, e, klm, chat_id, richter, "a2", nutzer, material, "a2 Kausalkette",
@@ -988,10 +1006,7 @@ def frage_a6(conn, e, klm, chat_id: int, richter: Richter, kandidaten,
     if not kandidaten:
         return None
     material = material_kandidaten(kandidaten)
-    nutzer = umschliesse(
-        "kandidaten", material,
-        "Das ist die maschinelle Kandidatenliste zu diesem Stueck.",
-    )
+    nutzer = umschliesse("kandidaten", material, T._KOPF_KANDIDATEN)
     antwort, stand = _stelle(
         conn, e, klm, chat_id, richter, "a6", nutzer, material, "a6 Tschechow",
     )
@@ -1013,10 +1028,7 @@ def frage_c1(conn, e, klm, chat_id: int, richter: Richter, nummer: int,
         return None
 
     material = material_repliken(echte)
-    kopf = (
-        f"Das sind die Repliken von Szene {nummer}, ohne Namen. "
-        "In dieser Szene sprechen: " + ", ".join(figuren) + "."
-    )
+    kopf = T._KOPF_REPLIKEN.format(nummer=nummer, figuren=", ".join(figuren))
     nutzer = umschliesse("repliken", material, kopf)
     system = prompt("c1")
     zuordnung: dict[int, str] = {}
@@ -1066,17 +1078,27 @@ def frage_c1(conn, e, klm, chat_id: int, richter: Richter, nummer: int,
     # Laiengruppe ein Befund, an dem eine ganze Szene haengt. Score 1 wird in
     # ``_befund_aus`` ohnehin zum ``verdacht``.
     antwort["schwere"] = "hoch"
-    antwort["befund"] = (
-        f"Von {len(echte)} Repliken in Szene {nummer} liessen sich {richtig} "
-        "der richtigen Figur zuordnen, als die Namen weg waren."
+    antwort["befund"] = T._C1_BEFUND.format(
+        repliken=len(echte), nummer=nummer, richtig=richtig,
     )
-    antwort["vorschlag"] = (
-        f"Szene {nummer}: {paar[0]} und {paar[1]} klingen austauschbar. Gib "
-        f"{paar[0]} ein eigenes Sprachmerkmal - kuerzere Saetze, ein "
-        "Fuellwort, ein Abbruch - und schreib ihre Repliken in Szene "
-        f"{nummer} damit neu."
+    antwort["vorschlag"] = T._C1_VORSCHLAG.format(
+        nummer=nummer, erste=paar[0], zweite=paar[1],
     )
     return _befund_aus("c1", antwort, stand, szene=nummer, figur=paar[0])
+
+
+#: Befund und Umbauvorschlag der Blind-Attribution -- im Code gebaut, nicht
+#: vom Modell (siehe ``frage_c1``).
+_C1_BEFUND = (
+    "Von {repliken} Repliken in Szene {nummer} liessen sich {richtig} "
+    "der richtigen Figur zuordnen, als die Namen weg waren."
+)
+_C1_VORSCHLAG = (
+    "Szene {nummer}: {erste} und {zweite} klingen austauschbar. Gib "
+    "{erste} ein eigenes Sprachmerkmal - kuerzere Saetze, ein "
+    "Fuellwort, ein Abbruch - und schreib ihre Repliken in Szene "
+    "{nummer} damit neu."
+)
 
 
 def _verwechseltes_paar(repliken, zuordnung) -> tuple[str, str] | None:
@@ -1140,10 +1162,10 @@ def _befund_aus(schluessel: str, antwort: dict, stand, szene=None,
     Vorschlag: er geht in die Liste und ins Log, nie an den Schreib-LLM."""
     score = antwort.get("score")
     if not stand.geprueft or antwort.get("unsicher"):
-        text = antwort.get("befund") or "Der Judge fand keinen Beleg im Text."
+        text = antwort.get("befund") or T._KEIN_BELEG
         return {
             "pruefung": schluessel, "quelle": "judge", "schwere": "hinweis",
-            "text": f"{text} (Belegzitat nicht bestaetigt - Bewertung verworfen.)",
+            "text": T._ZUSATZ_UNSICHER.format(text=text),
             "szene": szene, "figur": figur, "beleg": None, "beleg_geprueft": 0,
             "vorschlag": None, "prompt_version": version(schluessel),
         }
@@ -1156,7 +1178,7 @@ def _befund_aus(schluessel: str, antwort: dict, stand, szene=None,
     return {
         "pruefung": schluessel, "quelle": "judge",
         "schwere": schwere,
-        "text": antwort.get("befund") or "(kein Befundtext)",
+        "text": antwort.get("befund") or T._KEIN_BEFUNDTEXT,
         "szene": szene, "figur": figur,
         "beleg": stand.beleg, "beleg_geprueft": 1,
         "vorschlag": antwort.get("vorschlag"),
@@ -1196,7 +1218,7 @@ def pruefe(conn, e, klm, chat_id: int, richter: Richter | None = None,
     der Judge-Befunde sind mehr wert als gar nichts."""
     lage = mechanik.lies(conn, chat_id)
     if not lage.nummern:
-        raise DramaturgieFehler(MELDUNG_OHNE_SZENEN)
+        raise DramaturgieFehler(T.MELDUNG_OHNE_SZENEN)
 
     ergebnis = Ergebnis(richter=richter or waehle_richter(e, conn, chat_id))
     ergebnis.befunde = [b.als_dict() for b in mechanik.pruefe_alles(conn, chat_id, lage)]
@@ -1272,6 +1294,13 @@ def pruefe(conn, e, klm, chat_id: int, richter: Richter | None = None,
         conn, chat_id, ergebnis.bewertungen, runde=ergebnis.runde
     )
     return ergebnis
+
+
+#: Die Texte eines Judge-Befunds, wenn das Modell selbst keinen lieferte
+#: oder der Beleg nicht bestaetigt ist.
+_KEIN_BELEG = "Der Judge fand keinen Beleg im Text."
+_ZUSATZ_UNSICHER = "{text} (Belegzitat nicht bestaetigt - Bewertung verworfen.)"
+_KEIN_BEFUNDTEXT = "(kein Befundtext)"
 
 
 def _versuch(conn, e, chat_id, marke, funktion):
@@ -1391,6 +1420,8 @@ def _feld(zeile, name):
 TEXT_BEFUND = "Szene {szene}: {text}"
 TEXT_BEFUND_OHNE_SZENE = "{text}"
 TEXT_AUFTRAG_KNOPF = "Szene {nummer} so ueberarbeiten"
+#: Was vor der Regie-Notiz steht, wenn der Befund keine Pruefung nennt.
+_DRAMATURGIE = "Dramaturgie"
 
 
 def befundzeile(zeile) -> str:
@@ -1403,8 +1434,8 @@ def befundzeile(zeile) -> str:
     text = (_feld(zeile, "text") or "").strip()
     szene = _feld(zeile, "szene")
     if szene is None:
-        return TEXT_BEFUND_OHNE_SZENE.format(text=text)
-    return TEXT_BEFUND.format(szene=szene, text=text)
+        return T.TEXT_BEFUND_OHNE_SZENE.format(text=text)
+    return T.TEXT_BEFUND.format(szene=szene, text=text)
 
 
 def regienotiz(zeile) -> str:
@@ -1419,7 +1450,7 @@ def regienotiz(zeile) -> str:
     vorschlag = (
         (_feld(zeile, "vorschlag") or _feld(zeile, "anweisung") or "").strip()
     )
-    pruefung = _feld(zeile, "pruefung") or "Dramaturgie"
+    pruefung = _feld(zeile, "pruefung") or T._DRAMATURGIE
     return f"{pruefung}: {vorschlag}" if vorschlag else str(
         (_feld(zeile, "text") or "").strip() or pruefung
     )
@@ -1468,7 +1499,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
             )
         except Exception:
             log.exception("Vorfall zur Dramaturgie nicht schreibbar")
-        _sende(conn, tg, e, chat_id, MELDUNG_FEHLGESCHLAGEN)
+        _sende(conn, tg, e, chat_id, T.MELDUNG_FEHLGESCHLAGEN)
     else:
         try:
             knoepfe.zeige_dramaturgie(conn, tg, chat_id, runde)
@@ -1505,3 +1536,7 @@ def starte(conn, tg, klm, e, chat_id: int, nachbereitung=None):
     )
     thread.start()
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

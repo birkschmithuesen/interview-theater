@@ -763,7 +763,7 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
         repo.setze_szene_usa(conn, chat_id, ja)
         # Wortgleich mit knoepfe._TEXT_USA_JA/_NEIN (und szene._TEXT_USA_*):
         # auf die Knopftexte verweisen statt eine weitere Kopie anzulegen.
-        tg.sende(chat_id, knoepfe.T._TEXT_USA_JA if ja else knoepfe.T._TEXT_USA_NEIN)
+        tg.sende(chat_id, szene.T._TEXT_USA_JA if ja else szene.T._TEXT_USA_NEIN)
         return
     # "/szene usa" ohne Antwort: die beiden Knoepfe statt einer Syntaxzeile.
     # Genau hier ist die Sprachnavigation am 05.09.2026 gescheitert -- die

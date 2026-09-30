@@ -267,7 +267,7 @@ def _szenen(szenen: list) -> list[dict]:
                 szene=nummer,
             ))
         fehlend = [
-            szene_modul.FELDNAMEN.get(feld, feld)
+            szene_modul.T.FELDNAMEN.get(feld, feld)
             for feld in szene_modul.PFLICHTFELDER
             if feld != "form" and not _besetzt(s, feld)
         ]

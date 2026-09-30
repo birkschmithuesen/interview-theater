@@ -33,6 +33,9 @@ UMGESTELLT: set[str] = {
     "befehle", "bot", "leitfaden", "phasentexte", "fehlstellen", "phasen",
     "aufnahme", "ablauf", "erkenner", "kontext", "journal", "verdichter",
     "kuerzung", "vorspann", "sprecher", "stile", "arbeitszeilen",
+    "szene", "szenenfolge", "kurzgeschichte", "schaerfung", "sprachprofil",
+    "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
+    "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -58,6 +61,14 @@ BLEIBT_DEUTSCH = {
     "stile._NACH_SLUG": (
         "Aufgabe 15: nur Mitgliedschaftspruefung der Slugs (Protokoll); die "
         "Anzeige liest stile._eintrag zur Aufrufzeit aus T.STILE"
+    ),
+    # Aufgabe 16
+    "dramaturgie.beleg.GRUND_ZU_KURZ": "Log-Grund (Belegstand.grund), nur im Log",
+    "dramaturgie.beleg.GRUND_FEHLT": "Log-Grund (Belegstand.grund), nur im Log",
+    "dramaturgie.beleg.GRUND_NICHT_GEFUNDEN": "Log-Grund (Belegstand.grund), nur im Log",
+    "dramaturgie.fanout.TEXT_SZENENAUFTRAG": (
+        "Interner Auftrag an szene.starte (\"Schreib Szene N neu. ...\"); der "
+        "Szenennummer-Parser liest bis Aufgabe 23 nur Deutsch"
     ),
 }
 
@@ -90,6 +101,16 @@ NACKT_ERLAUBT = {
         "Journal-Marker aus einer Zeit vor einem Profilwechsel -- dafuer "
         "muss sie die deutsche Konstante UND das aktuelle T.JOURNAL_GEZEIGT "
         "vergleichen, sonst schickt ein Profilwechsel den Leitfaden doppelt.",
+    "szene._SZENE_MIT_NUMMER":
+        "Aufgabe 16: szene._regienotizen sucht Journalzeilen zu einer Szene "
+        "mit beiden Markern (\"Szene N\" und T-Fassung) -- Rundreise ueber "
+        "einen Profilwechsel.",
+    "szenenfolge._PRUEFVERMERK_ANFANG":
+        "Aufgabe 16: zu_pruefen/nimm_pruefvermerk finden Pruef-Vermerke in "
+        "beiden Fassungen (Rundreise-Marker).",
+    "dramaturgie.fanout.OHNE_SYNOPSE":
+        "Aufgabe 16: synopsen_fehlen erkennt den Platzhalter in beiden "
+        "Fassungen (Rundreise-Marker).",
 }
 
 #: Deutsche Inline-Literale, die bleiben duerfen: Vorfall-Details
@@ -132,6 +153,17 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail kontext_gekuerzt (repo.merke_vorfall)",
     ("kontext", "Nutzertext nach vollstaendiger Kuerzung "):
         "Vorfall-Detail kontext_kuerzung_erfolglos (repo.merke_vorfall)",
+    # Aufgabe 16: Vorfall-Details und ein Regex-Muster.
+    ("szene", "Chat auf {} Nachrichten"):
+        "Vorfall-Detail szene_prompt_gekuerzt (repo.merke_vorfall)",
+    ("szene", "Sprachprofil auf {} Zitate je Figur"):
+        "Vorfall-Detail szene_prompt_gekuerzt (repo.merke_vorfall)",
+    ("szene", ", Systemanweisung {} Token schon abgezog"):
+        "Vorfall-Detail szene_prompt_gekuerzt (repo.merke_vorfall)",
+    ("szene", " -- REICHT IMMER NOCH NICHT"):
+        "Vorfall-Detail szene_prompt_gekuerzt (repo.merke_vorfall)",
+    ("dramaturgie.mechanik", "\\b[A-ZÄÖÜ][a-zäöüß]{%d,}\\b"):
+        "Regex-Muster fuer Eigennamen (Parser), kein Text",
 }
 
 _STOPP = re.compile(

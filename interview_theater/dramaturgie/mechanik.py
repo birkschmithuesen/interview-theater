@@ -398,9 +398,9 @@ def namensstabilitaet(lage: Szenenlage) -> list[Befund]:
             gesehen.add((replik.label, figur))
             befunde.append(Befund(
                 "namensstabilitaet", "hart",
-                f"In Szene {nummer} spricht „{replik.label}“ - im "
-                f"Figurenverzeichnis steht „{figur}“. Einer von "
-                "beiden Namen ist falsch geschrieben.",
+                T._TEXT_NAMENSDRIFT.format(
+                    nummer=nummer, label=replik.label, figur=figur,
+                ),
                 szene=nummer, figur=figur,
             ))
     return befunde
@@ -423,8 +423,7 @@ def geisterfiguren(lage: Szenenlage) -> list[Befund]:
             gesehen.add(schluessel)
             befunde.append(Befund(
                 "geisterfigur", "hart",
-                f"In Szene {nummer} spricht „{replik.label}“ - "
-                "diese Figur gibt es in eurem Figurenverzeichnis nicht.",
+                T._TEXT_GEISTERFIGUR.format(nummer=nummer, label=replik.label),
                 szene=nummer, figur=replik.label,
             ))
 
@@ -442,8 +441,7 @@ def geisterfiguren(lage: Szenenlage) -> list[Befund]:
             continue
         befunde.append(Befund(
             "figur_ohne_auftritt", "hinweis",
-            f"„{name}“ steht im Figurenverzeichnis, spricht aber in "
-            "keiner Szene und wird in keiner erwaehnt.",
+            T._TEXT_OHNE_AUFTRITT.format(name=name),
             figur=name,
         ))
     return befunde
@@ -479,8 +477,7 @@ def besetzungsabgleich(lage: Szenenlage) -> list[Befund]:
             if _schluessel(name) not in sprecher:
                 befunde.append(Befund(
                     "besetzung_stumm", "verdacht",
-                    f"{name} steht in der Besetzung von Szene {nummer}, "
-                    "spricht dort aber keine Zeile.",
+                    T._TEXT_BESETZUNG_STUMM.format(name=name, nummer=nummer),
                     szene=nummer, figur=name,
                 ))
         geplant = {_schluessel(n) for n in besetzung}
@@ -494,8 +491,7 @@ def besetzungsabgleich(lage: Szenenlage) -> list[Befund]:
                 continue  # das meldet geisterfiguren
             befunde.append(Befund(
                 "besetzung_fremd", "verdacht",
-                f"{label} spricht in Szene {nummer}, steht dort aber nicht in "
-                "der Besetzung.",
+                T._TEXT_BESETZUNG_FREMD.format(label=label, nummer=nummer),
                 szene=nummer, figur=label,
             ))
     return befunde
@@ -527,9 +523,7 @@ def erstauftritt_register(lage: Szenenlage) -> list[Befund]:
             continue
         befunde.append(Befund(
             "erstauftritt", "verdacht",
-            f"{name} wird schon in Szene {frueher[0]} beim Namen genannt, "
-            f"spricht aber erst in Szene {erste} zum ersten Mal - prueft, ob "
-            "dort erklaert ist, woher man sie kennt.",
+            T._TEXT_ERSTAUFTRITT.format(name=name, frueher=frueher[0], erste=erste),
             szene=frueher[0], figur=name,
         ))
     return befunde
@@ -639,8 +633,7 @@ def tschechow_befunde(lage: Szenenlage) -> list[Befund]:
     return [
         Befund(
             "tschechow", "hinweis",
-            f"„{k.wort}“ kommt in Szene {k.szene} {k.anzahl}-mal vor "
-            "und danach in keiner Szene mehr.",
+            T._TEXT_TSCHECHOW.format(wort=k.wort, szene=k.szene, anzahl=k.anzahl),
             szene=k.szene,
         )
         for k in tschechow_kandidaten(lage)
@@ -703,21 +696,19 @@ def formverteilung(lage: Szenenlage, phase: int | None = None) -> list[Befund]:
     if klassen.get(erste) in _ERSTE_VERBOTEN:
         befunde.append(Befund(
             "form_regel", "hart",
-            f"Szene {erste} ist ein {lage.formen[erste]}. Die erste Szene "
-            "soll nie ein Monolog oder ein Lied sein - sie muss zeigen, wer "
-            "da ist und worum es geht.",
+            T._TEXT_ERSTE_FORM.format(erste=erste, form=lage.formen[erste]),
             szene=erste,
         ))
 
     nicht_dialog = [n for n in mit_form if klassen[n] != "dialog"]
     erlaubt = max(1, len(mit_form) // 3)
     if len(nicht_dialog) > erlaubt:
-        namen = ", ".join(f"Szene {n}" for n in nicht_dialog)
+        namen = ", ".join(T._SZENE_N.format(nummer=n) for n in nicht_dialog)
         befunde.append(Befund(
             "form_regel", "hinweis",
-            f"Von {len(mit_form)} Szenen mit gewaehlter Form sind "
-            f"{len(nicht_dialog)} keine Dialogszene ({namen}). Die Regel im "
-            "Szenen-Prompt ist hoechstens eine Nicht-Dialog-Szene je drei.",
+            T._TEXT_FORMREGEL.format(
+                mit_form=len(mit_form), nicht_dialog=len(nicht_dialog), namen=namen,
+            ),
         ))
 
     lauf: list[int] = []
@@ -734,11 +725,10 @@ def formverteilung(lage: Szenenlage, phase: int | None = None) -> list[Befund]:
 
 
 def _klumpung(lauf: list[int]) -> Befund:
-    namen = ", ".join(f"Szene {n}" for n in lauf)
+    namen = ", ".join(T._SZENE_N.format(nummer=n) for n in lauf)
     return Befund(
         "formverteilung", "hinweis",
-        f"{namen} sind hintereinander keine Dialogszenen. Drei Nicht-Dialog-"
-        "Szenen am Stueck halten die Handlung an.",
+        T._TEXT_FORMVERTEILUNG.format(namen=namen),
         szene=lauf[0],
     )
 
@@ -773,8 +763,7 @@ def sprechanteile(lage: Szenenlage) -> list[Befund]:
             continue
         befunde.append(Befund(
             "sprechanteil", "hart",
-            f"{name} spricht im ganzen Stueck {anzahl} von {gesamt} Woertern. "
-            "Das ist zu wenig fuer eine Rolle, die jemand spielen soll.",
+            T._TEXT_SPRECHANTEIL.format(name=name, anzahl=anzahl, gesamt=gesamt),
             figur=name,
         ))
     return befunde
@@ -975,13 +964,13 @@ def fokus(lage: Szenenlage, hauptkonflikt: str = "") -> list[Befund]:
         anteil = ohne / gesamt
         if anteil < FOKUS_SCHWELLE:
             continue
-        text = (f"Szene {nummer}: {ohne} von {gesamt} Zeichen sind "
-                f"Nebenschauplatz -- weder am Konflikt von "
-                f"{' und '.join(traeger)}, noch Einfuehrung, Seitenstrang "
-                f"oder Ortsbeschreibung.")
+        text = T._TEXT_FOKUS.format(
+            nummer=nummer, ohne=ohne, gesamt=gesamt,
+            traeger=T._UND.join(traeger),
+        )
         if len(laengster) >= FOKUS_ABSATZ_MIN:
             anfang = " ".join(laengster.split())[:70]
-            text += f" Der laengste beginnt mit „{anfang}…\"."
+            text += T._TEXT_FOKUS_LAENGSTER.format(anfang=anfang)
         befunde.append(Befund(
             pruefung="fokus", schwere="hinweis", text=text, szene=nummer))
     return befunde
@@ -1057,3 +1046,64 @@ def pruefe_alles(conn, chat_id: int, lage: Szenenlage | None = None) -> list[Bef
         b.pruefung,
     ))
     return befunde
+
+
+#: Die Befundsaetze an die Gruppe (Karte A1: ueber ``T`` gelesen). Sie stehen
+#: im Chat und auf der Gruppenseite; die Pruefungen selbst sind Code.
+_TEXT_NAMENSDRIFT = (
+    "In Szene {nummer} spricht „{label}“ - im Figurenverzeichnis steht "
+    "„{figur}“. Einer von beiden Namen ist falsch geschrieben."
+)
+_TEXT_GEISTERFIGUR = (
+    "In Szene {nummer} spricht „{label}“ - diese Figur gibt es in eurem "
+    "Figurenverzeichnis nicht."
+)
+_TEXT_OHNE_AUFTRITT = (
+    "„{name}“ steht im Figurenverzeichnis, spricht aber in keiner Szene und "
+    "wird in keiner erwaehnt."
+)
+_TEXT_BESETZUNG_STUMM = (
+    "{name} steht in der Besetzung von Szene {nummer}, spricht dort aber "
+    "keine Zeile."
+)
+_TEXT_BESETZUNG_FREMD = (
+    "{label} spricht in Szene {nummer}, steht dort aber nicht in der Besetzung."
+)
+_TEXT_ERSTAUFTRITT = (
+    "{name} wird schon in Szene {frueher} beim Namen genannt, spricht aber "
+    "erst in Szene {erste} zum ersten Mal - prueft, ob dort erklaert ist, "
+    "woher man sie kennt."
+)
+_TEXT_TSCHECHOW = (
+    "„{wort}“ kommt in Szene {szene} {anzahl}-mal vor und danach in keiner "
+    "Szene mehr."
+)
+_TEXT_ERSTE_FORM = (
+    "Szene {erste} ist ein {form}. Die erste Szene soll nie ein Monolog oder "
+    "ein Lied sein - sie muss zeigen, wer da ist und worum es geht."
+)
+_SZENE_N = "Szene {nummer}"
+_TEXT_FORMREGEL = (
+    "Von {mit_form} Szenen mit gewaehlter Form sind {nicht_dialog} keine "
+    "Dialogszene ({namen}). Die Regel im Szenen-Prompt ist hoechstens eine "
+    "Nicht-Dialog-Szene je drei."
+)
+_TEXT_FORMVERTEILUNG = (
+    "{namen} sind hintereinander keine Dialogszenen. Drei Nicht-Dialog-"
+    "Szenen am Stueck halten die Handlung an."
+)
+_TEXT_SPRECHANTEIL = (
+    "{name} spricht im ganzen Stueck {anzahl} von {gesamt} Woertern. Das ist "
+    "zu wenig fuer eine Rolle, die jemand spielen soll."
+)
+_TEXT_FOKUS = (
+    "Szene {nummer}: {ohne} von {gesamt} Zeichen sind Nebenschauplatz -- "
+    "weder am Konflikt von {traeger}, noch Einfuehrung, Seitenstrang oder "
+    "Ortsbeschreibung."
+)
+_TEXT_FOKUS_LAENGSTER = " Der laengste beginnt mit „{anfang}…\"."
+_UND = " und "
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

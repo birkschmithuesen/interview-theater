@@ -96,7 +96,7 @@ def teile() -> list[tuple[str, str]]:
                         szenenfolge.systemanweisung_geschichte(anzahl)))
     stuecke.append(("szenenfolge.systemanweisung_geschichte_szenen",
                     szenenfolge.systemanweisung_geschichte_szenen()))
-    stuecke.append(("szenenfolge.ANWEISUNG_FELDER", szenenfolge.ANWEISUNG_FELDER))
+    stuecke.append(("szenenfolge.ANWEISUNG_FELDER", szenenfolge.T.ANWEISUNG_FELDER))
 
     stuecke.append(("szene.FORMEN", repr(tuple(szene.FORMEN))))
     stuecke.append(("szene.FORM_STICHWOERTER", repr(

@@ -867,3 +867,455 @@ _BESCHREIBUNG_LETZTE = "{artikel} last {art}"
 _ART_LANG = "long recording"
 _ART_KURZ = "short recording"
 _JOURNAL_PHASE_DURCH_AUFNAHME = "by starting a recording"
+
+["szene"]
+_TEXT_ANGEKUENDIGT = "I'm writing out the scene, that takes a minute."
+_TEXT_BESETZT = "I'm still writing a scene, one moment."
+_TEXT_ERST_FRUEHERE = "Scene {nummer} comes after scene {vorher} - I'll write that one first."
+_TEXT_FEHLER = "The scene didn't work out. Say it again and I'll try once more."
+_TEXT_SZENENTEXT = "Scene {nummer}: {titel}\n\n{volltext}"
+_TEXT_WARNUNG_USA = "Note: the scene text is written by a model from Anthropic (USA). For that, your progress, the characters with their quotes and the scene details now go to a server in the USA -- no audio recordings, no complete interviews, no names from this chat. Everything else stays in Switzerland."
+_TEXT_ANGEBOT_USA = """\
+Before I write the first scene, a decision for you.\n\n\
+Until now everything ran in Switzerland: your recordings, the interviews, \
+everything with names. That stays that way.\n\n\
+For the scene text there is a better model - from Anthropic, in the USA. \
+We compared them this morning: it writes much better stage texts. If you \
+choose it, your core theme, the characters with their quotes and the scene \
+details go to a server in the USA - that is, what will be on stage anyway. \
+No recordings, no complete interviews, no names from this chat.\n\n\
+Do you want that? Say yes or no. If you say no, I'll write the scene in \
+Switzerland - that works too, the text will be simpler."""
+_TEXT_USA_JA = """\
+Good, scenes will come from the US model from now on. I'll mention it \
+again before every scene."""
+_TEXT_USA_NEIN = "Understood, everything stays in Switzerland. I won't ask again."
+_TEXT_USA_ERINNERUNG = "The scene comes as soon as you've answered the question above: US model, yes or no? Tap one of the two buttons."
+_TEXT_USA_KEINE_ANTWORT = "You didn't answer the question about the US model - so I'm writing the scene in Switzerland. If you want it differently after all, tell me."
+_UND = " and "
+_SZENE_MIT_NUMMER = "Scene {nummer}"
+_SZENE_OHNE_NUMMER = "Scene"
+_DIE_SZENE = "the scene"
+_TEXT_FEHLENDE_FELDER = "For {kopf} we still need: {felder}."
+_TEXT_OHNE_PROFIL_EINE = "And {namen} has no speech profile yet - which interview do they speak from?"
+_TEXT_OHNE_PROFIL_MEHRERE = "And {namen} have no speech profile yet - which interviews do they speak from?"
+_TEXT_NEUE_FIGUR_EINE = "{namen} appears for the first time in scene {nummer} - where were they before?"
+_TEXT_NEUE_FIGUR_MEHRERE = "{namen} appear for the first time in scene {nummer} - where were they before?"
+_RAHMEN_BLOCK = "The story / the setting of the play -- this is the group's brief, every scene is part of it and has to fit it:\n{rahmen}"
+_BOGEN_BLOCK = "Arc and ending:\n{geschichte}"
+_KERNFRAGE_KOPF = "Core question:\n"
+_ZEILE_HAUPTKONFLIKT = "Main conflict: {hauptkonflikt}"
+KERNPAKET_KOPF = "The passages that belong to the core theme (filtered by the core theme, with interview number). They are the basis - you deliberately don't see any other material here:"
+FIGUREN_KOPF = "This is how each character speaks (from their interview, word for word -- copy this way of speaking):"
+FIGUREN_KOPF_OHNE_STIMME = "The characters (who they are, what they want). Their way of speaking isn't backed by interviews yet -- give each character their own distinct way of talking (sentence length, pace, favourite words), and keep it up:"
+CONTINUITY_KOPF = "What has happened so far:"
+CONTINUITY_ANSCHLUSS = "This has already been written and stands. Continue from it: characters, motifs, movement patterns, key lines and tone carry on; repeat nothing word for word, except as a deliberate echo."
+CONTINUITY_VOLLTEXT_KOPF = "Scene {nummer} - full text:"
+CONTINUITY_FASSUNG_KOPF = "Scene {nummer} - summary (not the wording):"
+_JOURNAL_ANDERS = "Scene {nummer}: {text}"
+_JOURNAL_GESCHRIEBEN = "Scene {nummer} written: {titel}"
+_TEXT_CONTINUITY_GEKUERZT = "(Beginning shortened, here is the end of the scene:)"
+_TEXT_KEINE_ANGABEN = "(no details for this scene)"
+_KENNZEICHNUNG_KURZ = "Scene {nummern} as a summary"
+_KENNZEICHNUNG_GANZ = "Scene {nummern} in full wording"
+_KENNZEICHNUNG_ANSCHLUSS = " Continue from scene {nummer}."
+DIESE_SZENE_KOPF = "This is the scene you are to write. The details are binding -- replace nothing, invent nothing that contradicts them:"
+_AUFGABE_ERSTE = "Task of this scene (it is the FIRST -- exposition): When it's over, the audience knows without explanation (1) who the characters are, (2) how they relate to each other, (3) why they are here in this place, (4) what it's about -- the conflict is opened, not resolved. All four must appear in the text, shown through action and speech, not through explaining sentences. A scene 1 that only shows a mood is not a scene 1."
+_AUFGABE_MITTE = "Task of this scene (scene {nummer} of {gesamt}): It carries on what was opened in the earlier scenes -- the conflict sharpens or turns; at the end the situation is different from the beginning (\"What's different\"). It must not explain again anything the audience already knows, and it has to give the audience a reason to wait for the next scene."
+_AUFGABE_LETZTE = "Task of this scene (it is the LAST): It delivers what the story promised -- the ending as the group set it (open, sad, reconciled: it's in the setting/the story). Every character who wanted something in the play gets a last image here. Nothing new is opened."
+NEU_HINWEIS = "There was already a version of this scene; the group rejected it. Write a DIFFERENT scene from the same details: different opening, different structure, different images, different title. Reuse nothing from the old version -- you don't know it."
+BISHER_KOPF = "Previous text of this scene, to be revised:"
+VORLAGE_KOPF = "This scene already exists as a story. Translate it into the form \"{form}\": the same events, the same order, the same characters, the same ending. Invent nothing that contradicts the story, and leave out nothing that happens in it. What the story tells is now acted.\n\nThe story of this scene:"
+_FORM_RUECKFALL = "Dialogue"
+_VERWORFEN_KOPF = "The group rejected this, it doesn't come back:\n"
+CHAT_KOPF = "What the group said about it most recently:"
+CHAT_ANSCHLUSS = "The chat below is the group's fresh intention. If it contradicts the saved details, the chat wins -- and you say in the summary line what you did differently because of it. Don't repeat what the group criticised about an earlier version."
+CHAT_REGIE_KOPF = "The group's notes on this scene:"
+_SPRECHER_DU = "You"
+_SPRECHER_GRUPPE = "Group"
+_AUFTRAG_KOPF = "Your task:\n"
+
+["szene".FELDNAMEN]
+form = "Form"
+ort = "Place"
+zeit = "Time"
+anlass = "Occasion"
+figuren = "Who"
+was_passiert = "What happens"
+was_anders = "What's different"
+kernsaetze = "Key lines"
+ton = "Tone"
+titel = "Title"
+kurzbeschreibung = "Short"
+rahmen = "the setting: place, time and occasion of the evening (phase 4)"
+
+["szenenfolge"]
+ANWEISUNG_FOLGE = """You are planning the scene sequence of a theatre group's play with them.
+
+Suggest exactly {anzahl} scenes. Answer in EXACTLY this form, without an
+introduction and without an afterword:
+
+VORSCHLAG SZENENFOLGE:
+Title — one sentence about what happens — Character, Character — Form
+Title — one sentence about what happens — Character, Character — Form
+
+One line per scene, {anzahl} lines. Only use characters listed in the
+progress below. Think in situations: place, people involved, what changes.
+A scene without change is a conversation, not theatre -- a scene without
+conflict, on the other hand, is fine.
+
+**The form is mandatory** and stands as the fourth column of every line. There
+are exactly {{formen_anzahl}}: {{formen_liste}}. Choose it from the material,
+not out of habit -- **not every scene is a {{form_vorgabe_anzeige}}**. Where a quote
+sings, there's a song; where a list pounds, a rap; where someone stays
+alone, a monologue; where many say the same thing, a chorus. A sequence made
+only of dialogues is a mistake.
+
+Then one sentence and an open question to the group, two lines at most."""
+ANWEISUNG_GESCHICHTE = """You are developing the rough story of a theatre group's play with them.
+
+The group has invented the setting and the characters themselves. Now it's
+about the arc: what happens, how it ends, what the fight is about.
+
+**You suggest EXACTLY THREE DIRECTIONS** -- three different ways the same
+world becomes a story. Per direction a short, bold title, followed by two to
+three sentences: the arc, the ending and the core conflict.
+
+**NO scene sequence in this step.** No scene titles, no forms, no numbers --
+the scenes only come once the group has chosen a direction and the ending
+is settled.
+
+**You invent freely here** -- from the group's terms and questions, from the
+setting and the characters. Interviews, summaries and quotes are
+deliberately not available to you; they only come in at the next stage and
+sharpen what you invent now.
+
+Answer in EXACTLY this form, without an introduction and without an afterword:
+
+VORSCHLAG GESCHICHTE:
+Title of the first direction — arc, ending and core conflict in two to three sentences
+Title of the second direction — arc, ending and core conflict in two to three sentences
+Title of the third direction — arc, ending and core conflict in two to three sentences
+
+Exactly three lines, one direction each, titles under 25 characters. Only
+use characters listed below.
+
+Then one sentence and an open question to the group, two lines at most."""
+ANWEISUNG_GESCHICHTE_SZENEN = """You are developing the scene sequence of a theatre group's play with them.
+
+The group has chosen a direction; the arc and the ending are below. From
+that you now suggest the scenes.
+
+Answer in EXACTLY this form, without an introduction and without an afterword:
+
+VORSCHLAG SZENENFOLGE:
+Title — one sentence about what happens — Character, Character — Form — why this form
+Title — one sentence about what happens — Character, Character — Form — why this form
+
+Only use characters listed below.
+
+**You SUGGEST the form, you don't decide it.** It stands as the fourth
+column, its reason as the fifth, and both are mandatory -- the group
+confirms the form later, scene by scene, with a button.
+
+There are exactly {{formen_anzahl}}: {{formen_liste}}. **{{form_vorgabe_anzeige}} is the
+normal case.** Monologue, song and rap only when the scene demands it: a
+character alone with themselves, a feeling that grows bigger when sung, anger
+that needs rhythm. At most ONE non-{{form_vorgabe_anzeige}} scene per three scenes, and
+scene 1 is never a monologue or a song -- the exposition needs an encounter.
+
+Then one sentence and an open question to the group, two lines at most."""
+ANWEISUNG_FELDER = """You are planning a single scene with a theatre group.
+
+For the scene below, details are still missing: {felder}.
+
+Suggest them -- from the material below, not freely invented.
+Answer in EXACTLY this form, without an introduction and without an afterword:
+
+VORSCHLAG SZENE:
+field: value
+field: value
+
+One line per field, only the missing fields, the field names exactly as in
+the list above. Then one sentence and an open question to the group, two
+lines at most."""
+_GESCHICHTE_MIT_ENDE = "{bogen}\nEnding: {ende}"
+JOURNAL_INLINE = "Scenes from the chosen direction: {liste}"
+_NOCH_OFFEN = "still open"
+_ES_FEHLT_AUSSERDEM = "Also missing: "
+_FRAGE_SCHREIBEN_OFFEN = "\nShall I write scene {nummer} now? I'll suggest whatever is still open first."
+_FRAGE_SCHREIBEN = "\nShall I write scene {nummer} now?"
+PRUEFVERMERK = "Scene {nummer} needs checking after a change to scene {geaendert}"
+_PRUEFVERMERK_ANFANG = "Scene {nummer} needs checking after a change to scene "
+TEXT_ZU_PRUEFEN = "An earlier scene was changed - rewrite this one?"
+_STAND_FERTIG = "done"
+_STAND_GESCHRIEBEN = "written"
+_STAND_OFFEN = "open"
+_TEXT_KEINE_SZENEN = "There are no scenes yet."
+_DURCHLAUF_KOPF = "Your run-through:\n"
+_TEXTBUCH_TITEL = "# Script"
+_ZEILE_KERNTHEMA = "Core theme: {kernthema}"
+_NOCH_NICHT_GESCHRIEBEN = "(not written yet)"
+_ZEILE_BEGRIFFE = "The group's terms: {begriffe}"
+_FRAGEN_KOPF = "The group's questions:\n"
+_ZEILE_SETTING = "Setting: {rahmen}"
+_GESCHICHTE_KOPF = "Story so far:\n"
+_FIGUREN_KOPF = "Characters:"
+_SZENENFOLGE_KOPF = "Scene sequence so far:"
+_WUNSCH_ANZAHL = "The group would like {anzahl} scenes."
+_AUFTRAG_GESCHICHTE = "Your task:\nSuggest the rough story: what happens, how it ends, which scenes."
+_AUFTRAG_FOLGE = "Your task:\nSuggest {anzahl} scenes."
+_AUFTRAG_FELDER = "Your task:\nSuggest the missing details for scene {nummer}."
+_TEXT_LAEUFT = "I'm suggesting a scene sequence, one moment."
+_TEXT_BESETZT = "I'm already thinking about the scene sequence, one moment."
+_TEXT_GEMERKT = "I'm still thinking about something else. As soon as I'm done with that, I'll carry on with the scene sequence."
+_TEXT_FEHLER = "The scene sequence didn't work out. Say it again and I'll try once more."
+_TEXT_FELDER_LAEUFT = "I'm suggesting the missing details, one moment."
+_TEXT_GESCHICHTE_LAEUFT = "I'm suggesting a story, one moment."
+
+["kurzgeschichte"]
+ANWEISUNG = """You are writing the short story of a theatre play.
+
+Below are the setting, the characters with their speech style and the story
+the group has agreed on. From these you write ONE coherent short story -- no
+list of scenes, no stage text, no screenplay.
+
+**You choose the number of sections yourself.** Three to seven is typical;
+what matters is what the story needs, not a number. A scene sequence from
+the planning is a suggestion, not a requirement: if it fits, use it; if it
+doesn't, do better.
+
+1,500 to 3,500 words in total.
+
+Every section begins with a heading and a mandatory line:
+
+```
+1. Title of the section
+ZUSAMMENFASSUNG: one sentence about what happens in this section
+
+<the section as narrative prose>
+
+2. Title of the next section
+ZUSAMMENFASSUNG: one sentence
+...
+```
+
+The line `ZUSAMMENFASSUNG:` is **mandatory** and keeps exactly this label --
+the planning of the scene is later built from it. Without it the section is
+dropped.
+
+The rules for the text itself are below (prose rule block). No comment
+before or after, no moral at the end, no intermediate titles apart from the
+section headings."""
+_TEXT_LAEUFT = "I'm writing your story in one go now. That takes a few minutes."
+_TEXT_BESETZT = "I'm already writing, one moment."
+_TEXT_FEHLER = "The story didn't work out. Say it again and I'll try once more."
+_TEXT_FERTIG = "Your story in {anzahl} sections:"
+JOURNAL = "Scene sequence from the short story: {anzahl} sections"
+_ABSCHNITT_N = "Section {nummer}"
+UEBERSCHRIFT_VORLAGE = "The previous version you are revising (section by section):"
+_STILE_KOPF = "This is how the characters speak:\n"
+_AUFTRAG = "Your task:\nWrite the story in one go."
+_ZEILE_REGIE = "\nThe group says about it: {regie}"
+
+["schaerfung"]
+MELDUNG = "I've assigned {anzahl} passages from your interviews to your scenes and characters. I'll go through them with you."
+MELDUNG_LEER = "No passage from the interviews fits your story - it stays the way you invented it."
+MELDUNG_OHNE_MATERIAL = "There are no analysed interviews yet that I could sharpen against."
+TEXT_GEMERKT = "I'm still thinking about something else. As soon as I'm done with that, I'll lay your material next to your story."
+_ZEILE_SETTING = "Setting: {rahmen}"
+_GESCHICHTE_KOPF = "Story:\n"
+_FIGUREN_KOPF = "Characters (write the names exactly like this):"
+_SZENEN_KOPF = "Scenes (use the number):"
+_ZEILE_FORM = "Form: {form}"
+_MATERIAL_KOPF = "Material (choose only from here, by number):"
+_ZEILE_WORUM = "\n{interview} -- what it's about: {zusammenfassung}"
+_ZEILE_EINTRAG = '[{nummer}] {interview} | Theme: {thema} | Quote: "{zitat}"'
+_JOURNAL_RUNDE = "Sharpening round {runde}: {anzahl} passages assigned"
+_ZEILE_VORSCHLAG = "\n  Suggestion: {begruendung}"
+_STELLE = "Passage"
+_UEBERSCHRIFT = "{kopf} — what fits from the interviews"
+_FRAGE_SZENE = "\nShould this go into the scene?"
+_FRAGE_FIGUR = "\nShould this go with this character?"
+
+["sprachprofil"]
+MELDUNG = "Speech profile for {name} from {quelle}: {kurz}"
+_TEXT_KEIN_TRANSKRIPT = "I have no transcript for {quelle} - without it I can't hear how {name} speaks."
+_TEXT_KEIN_ZITAT = "I couldn't back up a single sentence word for word for {name}. Name another interview and I'll try with that."
+_DEM_INTERVIEW = "the interview"
+_JOURNAL = "Speech profile for {name} from {quelle}"
+_KURZ_STEHT = "done"
+
+["sprachstil"]
+ANWEISUNG = """You are suggesting to a theatre group HOW one of their characters speaks.
+
+The character is called {name}. Below are ways of speaking from the group's
+interviews, each with a word-for-word quote.
+
+Suggest two to three styles, one per line, in EXACTLY this form, without an
+introduction and without an afterword:
+
+VORSCHLAG STIL:
+Short title — "the word-for-word quote" — example sentence of how {name} would talk about the play's core conflict in this style — Interview N
+Short title — "the word-for-word quote" — example sentence — Interview N
+
+Four columns per line, separated by dashes:
+
+1. **Title** under 25 characters -- it will later be on a button.
+2. **The quote** letter for letter from the list below. Don't invent one, don't
+   smooth one, don't add ellipses. A quote that isn't there word for word is
+   thrown out.
+3. **The example sentence** is yours: ONE sentence of how {name} would talk
+   about the play's core conflict in this style. It shows the style on the
+   group's story, not on the interview.
+4. **Interview N** -- the number the style comes from, written exactly like
+   this.
+
+Then one sentence and an open question, two lines at most."""
+_TEXT_LAEUFT = "I'm listening for how {name} could speak …"
+_TEXT_FEHLER = "The style suggestions didn't work out. Say it again."
+_TEXT_KEIN_MATERIAL = "For the speech style I need interviews with checked quotes - there aren't any yet."
+_STIL_KOPF = "Ways of speaking from the interviews:"
+_ZEILE_SPRACHDUKTUS = "    Way of speaking: {profil}"
+_AUFTRAG = "Your task:\nSuggest two to three ways of speaking for {name}."
+
+["kernzitate"]
+MELDUNG = "I've chosen {anzahl} passages from {interviews} as the basis for the characters."
+MELDUNG_LEER = "No quote fits the core theme - the characters will then come from the core theme alone."
+_ZEILE_KERNTHEMA = "Core theme: {kernthema}"
+_KERNFRAGE_KOPF = "Core question:\n"
+_MATERIAL_KOPF = "Material (choose only from here, by number):"
+_ZEILE_WORUM = "\n{interview} -- what it's about: {zusammenfassung}"
+_ZEILE_EINTRAG = '[{nummer}] {interview} | Theme: {thema} | Quote: "{zitat}"'
+_DEN_INTERVIEWS = "the interviews"
+_UND = " and "
+_JOURNAL_LEER = "Core quotes: no passage fits the core theme"
+_JOURNAL_AUSGEWAEHLT = "Core quotes: {anzahl} chosen from {liste}"
+
+["stueckpruefung"]
+MELDUNG_OHNE_SZENEN = "I can't read the play as a whole yet - no scene has been written."
+MELDUNG_ZU_LANG = "Your script is longer than I can read in one go ({zeichen} characters). I won't shorten any of it - let me know, and we'll look at the scenes one by one."
+MELDUNG_FEHLGESCHLAGEN = "The check didn't work. You can try again in a moment."
+MELDUNG_LEER = "I read the play, but I'm not getting a usable result back. Try again."
+MELDUNG_KOPF = "I read your play as a whole - round {runde}:"
+TEXT_BEFUND = "{frage} {bewertung}/5 - {begruendung}"
+TEXT_BEFUND_OHNE_NOTE = "{frage} - {begruendung}"
+TEXT_VORSCHLAG = "Suggestion: {vorschlag}"
+TEXT_VORSCHLAG_SZENE = "Suggestion: scene {nummer} - {vorschlag}"
+_KEINE_BEGRUENDUNG = "no reason given."
+_JOURNAL_RUNDE = "Play check round {runde}: {anzahl} findings"
+
+["stueckpruefung".FRAGE_BESCHRIFTUNG]
+Spannungsbogen = "Arc"
+Figuren = "Characters"
+Spannung = "Tension"
+Nachvollziehbarkeit = "Plausibility"
+"Anfang und Ende" = "Beginning and ending"
+Sprechbarkeit = "Speakability"
+
+["dramaturgie.beleg"]
+HINWEIS = "Your quote did not appear word for word in the text. Take one continuous piece of the material between the markers, copied letter for letter, at least 15 characters long. If you don't join anything together and don't change anything, the check will find it."
+
+["dramaturgie.fanout"]
+MELDUNG_OHNE_SZENEN = "I can't check the dramaturgy yet - no scene has been written."
+MELDUNG_GLEICHES_MODELL = "I won't check with the same model that wrote the scenes ({modell}) - a model that grades its own text likes it. Set IT_JUDGE_MODELL to a different model, then the check will run."
+MELDUNG_OHNE_USA = "For the check I would have to send your scenes to the US model ({modell}), and you haven't agreed to that. Either you agree to the transfer, or the operator sets IT_JUDGE_MODELL to a Swiss model that didn't write your scenes."
+MELDUNG_FEHLGESCHLAGEN = "The dramaturgy check didn't work. You can try again in a moment."
+MELDUNG_KOPF = "I went through your scenes one by one - round {runde}:"
+MELDUNG_OHNE_BEFUND = "I went through your scenes one by one and found nothing I need to report to you."
+OHNE_SYNOPSE = "(nothing written yet)"
+_SZENE_MIT_NUMMER = "Scene {nummer}"
+_ZEILE_KANDIDAT = 'Scene {szene} - "{wort}" ({anzahl} times)'
+_KOPF_SZENE = "This is scene {nummer} of the play."
+_KOPF_HAUPTKONFLIKT = "\n\nThe main conflict of the play: {hauptkonflikt}"
+_KOPF_FESTLEGUNGEN = "\n\nThe group has set for this scene:\n{festlegungen}"
+_KOPF_SYNOPSEN = "This is the scene sequence of the play as short summaries."
+_KOPF_VORGABEN = "\n\nThe group has set for the whole play:\n{vorgaben}"
+_KOPF_GESCHICHTE = "\nThe group planned the story like this:\n{geschichte}"
+_KOPF_KANDIDATEN = "This is the machine-generated candidate list for this play."
+_KOPF_REPLIKEN = "These are the lines of scene {nummer}, without names. Speaking in this scene: {figuren}."
+_C1_BEFUND = "Of {repliken} lines in scene {nummer}, {richtig} could be matched to the right character once the names were gone."
+_C1_VORSCHLAG = "Scene {nummer}: {erste} and {zweite} sound interchangeable. Give {erste} a speech feature of their own - shorter sentences, a filler word, a break-off - and rewrite their lines in scene {nummer} with it."
+_KEIN_BELEG = "The judge found no supporting quote in the text."
+_ZUSATZ_UNSICHER = "{text} (Supporting quote not confirmed - rating discarded.)"
+_KEIN_BEFUNDTEXT = "(no finding text)"
+TEXT_BEFUND = "Scene {szene}: {text}"
+TEXT_BEFUND_OHNE_SZENE = "{text}"
+TEXT_AUFTRAG_KNOPF = "Revise scene {nummer} like this"
+_DRAMATURGIE = "Dramaturgy"
+
+["dramaturgie.fanout".A10_BESCHRIFTUNG]
+form = "Form"
+ort = "Place"
+zeit = "Time"
+anlass = "Occasion"
+was_passiert = "What happens"
+kernsaetze = "Key lines"
+ton = "Tone"
+
+["dramaturgie.fanout".A11_BESCHRIFTUNG]
+format = "Format"
+rahmen = "Setting (place and time)"
+figuren_anzahl = "Number of characters"
+geschichte = "Planned scene sequence"
+
+["dramaturgie.mechanik"]
+_TEXT_NAMENSDRIFT = "In scene {nummer}, „{label}“ speaks - the character list says „{figur}“. One of the two names is misspelled."
+_TEXT_GEISTERFIGUR = "In scene {nummer}, „{label}“ speaks - there is no such character in your character list."
+_TEXT_OHNE_AUFTRITT = "„{name}“ is in the character list, but speaks in no scene and is mentioned in none."
+_TEXT_BESETZUNG_STUMM = "{name} is in the cast of scene {nummer}, but doesn't speak a line there."
+_TEXT_BESETZUNG_FREMD = "{label} speaks in scene {nummer}, but isn't in the cast there."
+_TEXT_ERSTAUFTRITT = "{name} is already named in scene {frueher}, but only speaks for the first time in scene {erste} - check whether it's explained there how people know them."
+_TEXT_TSCHECHOW = "„{wort}“ appears {anzahl} times in scene {szene} and in no scene after that."
+_TEXT_ERSTE_FORM = "Scene {erste} is a {form}. The first scene should never be a monologue or a song - it has to show who is there and what it's about."
+_SZENE_N = "Scene {nummer}"
+_TEXT_FORMREGEL = "Of {mit_form} scenes with a chosen form, {nicht_dialog} are not dialogue scenes ({namen}). The rule in the scene prompt is at most one non-dialogue scene per three."
+_TEXT_FORMVERTEILUNG = "{namen} are non-dialogue scenes in a row. Three non-dialogue scenes in a row stop the action."
+_TEXT_SPRECHANTEIL = "{name} speaks {anzahl} of {gesamt} words in the whole play. That's too little for a part someone is supposed to play."
+_TEXT_FOKUS = "Scene {nummer}: {ohne} of {gesamt} characters are a side plot -- not about the conflict of {traeger}, not an introduction, subplot or description of the place."
+_TEXT_FOKUS_LAENGSTER = " The longest begins with „{anfang}…\"."
+_UND = " and "
+
+["web_schreiben"]
+LEER = "(empty)"
+JOURNAL_GEAENDERT = "{label} changed via the group page: {alt} → {neu}"
+JOURNAL_SPRACHPROFIL = "Speech profile needed again: {name} now speaks from {quelle}."
+JOURNAL_FIGUR_ENTFERNT = "Character {name} removed via the group page"
+JOURNAL_FIGUR_ANGELEGT = "Character {name} added via the group page"
+JOURNAL_FESTLEGUNG_ENTFERNT = "Agreement {text} removed via the group page"
+_KEINEM_INTERVIEW = "no interview"
+_LABEL_FIGUR = "Character {name} · {feld}"
+_LABEL_INTERVIEW = "Interview"
+_LABEL_BESETZUNG = "Cast"
+_SZENE_MIT_NUMMER = "Scene {nummer}"
+_SZENE_OHNE_NUMMER = "Scene"
+
+["web_schreiben".STIL_BESCHRIFTUNG]
+schlagabtausch = "Sharp back-and-forth (Schatten — Morpheuz x Monet192)"
+litanei = "Litany (Lovesong — Adele)"
+herkules = "Herkules measure (Herkules.exe — ArtesMobiles)"
+
+["web_schreiben".ARBEITSSTANDFELDER]
+rahmen = "Setting"
+geschichte = "Story"
+
+["web_schreiben".NUR_ANZEIGE]
+kernthema = "Core theme"
+kernthema_richtung = "Core theme direction"
+kernfrage = "Core question"
+hauptkonflikt = "Main conflict"
+
+["web_schreiben".SZENENFELDER]
+titel = "Title"
+form = "Form"
+stil = "Style"
+ort = "Place"
+zeit = "Time"
+anlass = "Occasion"
+was_passiert = "What happens"
+was_anders = "What's different"
+ton = "Tone"
+
+["web_schreiben".FIGURENFELDER]
+name = "Name"
+beschreibung = "Description"

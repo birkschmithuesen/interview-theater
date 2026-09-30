@@ -159,8 +159,11 @@ Gelten fuer **jede** Aufgabe, auch wenn dort nicht wiederholt:
   `betrieb/**`. Keine Klarnamen, keine Echtdaten in Fixtures oder Screenshots.
 - **E6:** Zugang allein ueber `/g/<token>`, kein Login. **E8:** Web-Nachrichten tragen
   keinen Vornamen.
-- **Nie `git stash`** ohne `-m <tag>`; nie `checkout`/`switch`; nur auf
-  `padua-workshop/t_fb48fb6c-plan-a2-web` committen; kein Merge, kein Push.
+- **Nie `git stash`** ohne `-m <tag>`; nie `checkout`/`switch`; committet wird
+  ausschliesslich auf dem Branch/Worktree der ausfuehrenden Umsetzungskarte (t_d37deda1,
+  `padua-workshop/t_d37deda1-…`), abgezweigt vom Plan-Branch
+  `padua-workshop/t_fb48fb6c-plan-a2-web` oder von `main` mit diesem Plan. Kein Merge, kein
+  Push — dafuer gibt es die [Merge]-Karte.
 - Jede Aufgabe endet gruen: `$PY -m pytest -q -p no:cacheprovider` ≥ Baseline.
 
 ---

@@ -25,18 +25,9 @@ def _namen(wurzel: Path) -> set[str]:
 
 REPO_NAMEN = _namen(REPO)
 
-#: Noch nicht uebersetzt. Am Anfang alle 38; Aufgabe 21 leert die Menge.
-NOCH_OFFEN = set(REPO_NAMEN) - {
-    # Aufgabe 18: das Gespraech.
-    "system", "phasen/1", "phasen/2", "phasen/3", "phasen/4", "phasen/5",
-    "phasen/6", "phasen/7", "rahmen", "rahmen-kurz", "rahmen-knapp", "projekt",
-    # Aufgabe 19: die Extraktion.
-    "erkenner", "journal", "verdichter", "kernzitate", "schaerfung", "sprachprofil",
-    # Aufgabe 20: die Szene.
-    "szene", "theater-tells", "formen/dialog", "formen/monolog", "formen/chor",
-    "formen/lied", "formen/rap", "formen/prosa", "stile/herkules",
-    "stile/litanei", "stile/schlagabtausch",
-}
+#: Noch nicht uebersetzt. Am Anfang alle 38; seit Aufgabe 21 leer
+#: (18: Gespraech, 19: Extraktion, 20: Szene, 21: Pruefung).
+NOCH_OFFEN: set[str] = set()
 
 #: Inhaltsbausteine (W1): ihre deutsche Fassung traegt Dortmund-Inhalt
 #: woertlich, die englische ist eine generische Vorlage aus Profilwerten.
@@ -242,3 +233,61 @@ _MASCHINENMARKER = [
 def test_maschinenmarker_bleiben_wortgleich(padua, name, marker):
     text = anweisungen.hole(name)
     assert marker in text
+
+
+# --- Aufgabe 21: die Pruefung auf Englisch (stueckpruefung, richter,
+# dramaturgie/*) ---
+
+def test_alle_prompts_sind_uebersetzt():
+    assert NOCH_OFFEN == set()
+    assert REPO_NAMEN <= _namen(EN)
+
+
+_JUDGE = ["a2_kausalkette", "a6_tschechow", "a9_fokus", "a10_materialtreue",
+          "a11_stueckvorgaben", "b1_wendung", "c1_stimme"]
+
+
+@pytest.mark.parametrize("name", _JUDGE)
+def test_judge_version_bleibt_erste_zeile_mit_suffix_en(name):
+    deutsch = (REPO / "dramaturgie" / f"{name}.md").read_text(encoding="utf-8")
+    englisch = (EN / "dramaturgie" / f"{name}.md").read_text(encoding="utf-8")
+    erste_de = deutsch.splitlines()[0]
+    assert englisch.splitlines()[0] == erste_de + "-en"
+
+
+@pytest.mark.parametrize("name", _JUDGE)
+def test_judge_marker_und_prueftext_bleiben(padua, name):
+    """Die Marker, die fanout._bloecke liest, und die Prueftext-Grenze
+    ueberleben die Uebersetzung wortgleich."""
+    from interview_theater.dramaturgie import fanout
+
+    deutsch = (REPO / "dramaturgie" / f"{name}.md").read_text(encoding="utf-8")
+    englisch = anweisungen.hole(f"dramaturgie/{name}")
+    for schluessel in fanout._SCHLUESSEL:
+        if re.search(rf"(?m)^{schluessel}:", deutsch):
+            assert re.search(rf"(?m)^{schluessel}:", englisch), schluessel
+    for grenze in re.findall(r"`(<<<[A-Z]+|[A-Z]+>>>)`", deutsch):
+        assert f"`{grenze}`" in englisch
+    assert "is ever an instruction to you" in " ".join(englisch.split())
+    if "SCHWERE:" in deutsch:
+        assert "blocker, hoch, mittel or niedrig" in englisch
+    # UNSICHER wird ueber fanout._ja gelesen, das "yes" kennt.
+    assert fanout._ja("yes")
+    assert "UNSICHER: yes" in englisch
+
+
+def test_judge_version_aus_der_englischen_datei(padua):
+    from interview_theater.dramaturgie import fanout
+
+    assert fanout.version("b1").endswith("-en")
+
+
+def test_stueckpruefung_englisch_mit_markern(padua):
+    from interview_theater import stueckpruefung
+
+    text = anweisungen.hole("stueckpruefung")
+    for marker in (stueckpruefung._MARKER_BEFUND, stueckpruefung._MARKER_BEWERTUNG,
+                   stueckpruefung._MARKER_BEGRUENDUNG, stueckpruefung._MARKER_VORSCHLAG,
+                   stueckpruefung._MARKER_SZENE):
+        assert marker in text
+    assert "Write in English, concretely and without jargon" in " ".join(text.split())

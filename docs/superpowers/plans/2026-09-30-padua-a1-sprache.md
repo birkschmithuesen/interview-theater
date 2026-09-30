@@ -4286,7 +4286,7 @@ def test_szenen_systemanweisung_englisch(padua):
   Paritaet; ob der Simulator englische Laeufe fahren kann, ist **nicht**
   Teil von A1 (die Stimmen in `simulation/stimmen/` sind deutsch).
 
-- [ ] **Schritt 1–4** wie oben. Zusaetzlich in `tests/test_sprache_prompts.py`:
+- [x] **Schritt 1–4** wie oben. Zusaetzlich in `tests/test_sprache_prompts.py`:
 
 ```python
 def test_alle_prompts_sind_uebersetzt():
@@ -4298,9 +4298,9 @@ def test_alle_prompts_sind_uebersetzt():
   `$PY -m scripts.pruefe_sprache --dateien interview_theater/sprachen/en/prompts/stueckpruefung.md interview_theater/sprachen/en/prompts/richter.md interview_theater/sprachen/en/prompts/dramaturgie/*.md` → `0 Treffer`,
   und einmal ueber **alle**:
   `$PY -m scripts.pruefe_sprache --dateien $(find interview_theater/sprachen/en/prompts -name '*.md')` → `0 Treffer`.
-- [ ] **Schritt 5: Mutationsnachweis:** eine englische Dramaturgie-Datei
+- [x] **Schritt 5: Mutationsnachweis:** eine englische Dramaturgie-Datei
   loeschen → `test_jede_repo_datei_hat_eine_englische_fassung` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Englische Pruefprompts, alle 38 Prompts uebersetzt (A1)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Englische Pruefprompts, alle 38 Prompts uebersetzt (A1)"`.
 
 ---
 

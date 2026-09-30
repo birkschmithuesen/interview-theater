@@ -5867,6 +5867,16 @@ bleiben. Der deutsche Prompt und der deutsche Korpus sind unveraendert.
   5 auf reine Fragen umgeschrieben: en-n02, en-n05, en-n19, en-n20, en-n25;
   neu: en-e32 positiv, en-n27 bis en-n32 Frage/Kritik/Lob).
   `MIN_EN_NEGATIV` (24) unveraendert erreicht.
+- [x] Nachbesserung nach Review: Phasenliste und phase_setzen-Few-Shot auf
+  die Padua-Phasen (4 Setting, Characters & Story · 5 Sharpening · 6 Scenes
+  as Story · 7 Polish; Setting/Konflikt/Format/Kernthema/Story -> 4, wert
+  als Ziffer), en-e23 mit Sollwert "4"; die 24 Arten fortlaufend 1-24
+  nummeriert (Querverweise nachgezogen). Befehle in Frageform nur noch fuer
+  Aufnahme (`interview_starten`) und Mitlesen (`wortlaut_an`), wie im
+  deutschen Bestand -- fuer alle anderen Arten, besonders `szene_kuerzen`,
+  `szene_schreiben`, `entfernen`, bleibt eine Frage eine Frage (neuer
+  Negativfall en-n33 "can you make scene 3 shorter?"). Stand danach: 597
+  Zeilen (24 384 Zeichen), Few-Shots 18, Korpus 72 Faelle, negativ 31.
 
 ---
 

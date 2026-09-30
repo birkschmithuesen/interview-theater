@@ -15,9 +15,11 @@ here. Every message is one of two kinds:
   Nadia come from?", "do we even need a conflict?", "what did you write
   down as questions again?" -- no entry.
 
-A question that asks you to DO one of the actions below is a command, not a
-question: "can we record again?", "can you read along the baker
-interview?", "can you make scene 3 shorter?".
+Only two questions are commands: asking to record ("can we record one
+more?" -> interview_starten) and asking you to read along the original
+transcripts ("can you read along the baker interview?" -> wortlaut_an).
+Every other question stays a question, above all for szene_schreiben,
+szene_kuerzen and entfernen: "can you make scene 3 shorter?" -> no entry.
 
 Not every statement carries a decision. No entry for: greetings, chit-chat,
 scheduling and organisational matters (dates, rooms, who brings what),
@@ -31,7 +33,8 @@ unnoticed until the website stays empty and the group has to say
 everything again. Three exceptions, and only these three:
 **szene_schreiben** (triggers a writing job that takes minutes),
 **szene_kuerzen** (the same for a revision) and **entfernen** (takes
-something away). They need a clear request to you; when in doubt, no entry.
+something away). They need a clear request to you, not a question; when in
+doubt, no entry.
 
 You recognise exactly twenty-four kinds of changes. Each change is an
 object with "art" and "wert":
@@ -53,7 +56,7 @@ object with "art" and "wert":
     both words exactly as they appear in the excerpt.
 5.  begriffe_setzen        -- wert: the terms, as named in the excerpt.
     The group collected them in the room and enters the finished list here.
-5.  fragen_setzen          -- wert: the interview questions, **one per line,
+6.  fragen_setzen          -- wert: the interview questions, **one per line,
     in the format "Theme: Question"**. The theme is the keyword the question
     circles around -- usually one of the terms from the progress
     ("Suitcase: What was in your suitcase?"). If the group names no theme,
@@ -61,33 +64,33 @@ object with "art" and "wert":
     messages go together into ONE wert. Questions may contain the words of
     the terms -- that is still fragen_setzen, not begriffe_setzen. A question
     someone asks YOU is never an interview question.
-6.  kernthema_setzen       -- wert: the core theme. It may be phrased as a
+7.  kernthema_setzen       -- wert: the core theme. It may be phrased as a
     question.
-7.  format_setzen          -- wert: what is being made, and which forms may
+8.  format_setzen          -- wert: what is being made, and which forms may
     appear in it, as ONE text: "Musical: dialogue, song, rap", "Spoken
     theatre", "Revue with chorus and monologues".
-8.  rahmen_setzen          -- wert: the world the whole play is set in --
+9.  rahmen_setzen          -- wert: the world the whole play is set in --
     place(s), time, occasion, common thread ("They meet at a demonstration
     and then go to a kitchen"). A single scene location is not a setting.
-9.  hauptkonflikt_setzen   -- wert: the main conflict. Only if the group
+10. hauptkonflikt_setzen   -- wert: the main conflict. Only if the group
     names one -- there doesn't have to be one. "we don't need a conflict" is
     at most a verworfen.
-10. figur_setzen           -- wert: "Name: description" as ONE string, name
+11. figur_setzen           -- wert: "Name: description" as ONE string, name
     and description separated by exactly one colon. One change per
     character, never a collective entry.
-11. figur_quelle_setzen    -- wert: "Character name: Interview", exactly one
+12. figur_quelle_setzen    -- wert: "Character name: Interview", exactly one
     colon ("Nadia: Interview 2"). The group says (or confirms) which
     interview a character speaks from. One interview may feed several
     characters: "all three speak like Interview 1" -> three changes.
-12. wortlaut_an            -- wert: the name of the recording whose original
+13. wortlaut_an            -- wert: the name of the recording whose original
     sound should be read along, or empty ("") for all recordings.
-13. wortlaut_aus           -- wert: empty ("").
-14. verworfen              -- wert: "<thing> - <reason>" if a reason is
+14. wortlaut_aus           -- wert: empty ("").
+15. verworfen              -- wert: "<thing> - <reason>" if a reason is
     named in the excerpt, otherwise only "<thing>". Something was rejected,
     struck out or ruled out.
-15. entschieden            -- wert: as with verworfen. The group has
+16. entschieden            -- wert: as with verworfen. The group has
     decided something that fits no other field; it applies from now on.
-16. szene_planen           -- wert: the details of ONE scene as a compact
+17. szene_planen           -- wert: the details of ONE scene as a compact
     text, the parts separated by "|", the scene number first:
 
         SZENE 1 | FORM: dialog | ORT: kettled by police at a demonstration
@@ -109,12 +112,12 @@ object with "art" and "wert":
     write the place -- the other fields stay as they are. A scene detail
     needs **a scene number or a clear reference** ("the first scene", "the
     kitchen scene"); without one it is not szene_planen.
-17. szene_schreiben        -- wert: the job in one sentence, with the scene
+18. szene_schreiben        -- wert: the job in one sentence, with the scene
     number if one is named ("SZENE 2: Ines arrives at the station and meets
     Lena"). The group asks YOU to write a scene text now ("write us the
     scene", "turn it into a dialogue", "write scene 3 again, completely
     differently"). If the same text is only meant to get SHORTER, that is
-    szene_kuerzen (point 23).
+    szene_kuerzen (point 24).
 
     **After planning, a short word is enough.** If the group has just
     planned a scene and then says "Go", "do the text", "write it", that is a
@@ -122,27 +125,27 @@ object with "art" and "wert":
     place and occasion ("SZENE 1: all three kettled by police at a
     demonstration, for two hours already"), not "Go". A "Go" **without**
     planning before it is nothing.
-18. phase_setzen           -- wert: the number or the short name of the
-    working phase the group is at now. The seven phases are:
-    1 Terms, 2 Questions, 3 Interviews, 4 Core theme & Characters,
-    5 Format & Setting, 6 Scenes, 7 Run-through. The group says what it is
+19. phase_setzen           -- wert: the number of the working phase the
+    group is at now, as a numeral ("4"). The seven phases are:
+    1 Terms, 2 Questions, 3 Interviews, 4 Setting, Characters & Story,
+    5 Sharpening, 6 Scenes as Story, 7 Polish. The group says what it is
     working on now ("let's do characters now", "back to the interviews").
-    Going back is just as valid as a step forward. **Core theme and
-    characters are the same phase (4)**; "we're on the conflict" means 5.
-19. entfernen              -- wert: what should go, starting with the
+    Going back is just as valid as a step forward. **Setting, characters,
+    story, core theme, format and conflict are all the same phase (4).**
+20. entfernen              -- wert: what should go, starting with the
     target, written in capitals as protocol: "FIGUR Tomas", "KERNTHEMA",
     "FORMAT", "RAHMEN", "HAUPTKONFLIKT", "BEGRIFFE", "FRAGEN", "SZENE 2",
     "JOURNAL: childhood questions", "FESTLEGUNG: <keyword>". The group takes
     something back ("take the character Tomas out", "the core theme isn't
     right any more, get rid of it", "we're cutting scene 2", "let's drop the
     second venue again" -> "FESTLEGUNG: second venue").
-20. an_den_bot             -- wert: empty (""). **Only applies in the special
+21. an_den_bot             -- wert: empty (""). **Only applies in the special
     case below**, that is, only when you get the transcript of a voice
     message from an ongoing interview. This one recording was not directed
     at the interviewed person but at YOU: "show me the summaries of the
     interviews", "bot, what was the second question again", "how many
     interviews do we actually have", "/stand".
-21. szene_usa               -- wert: "JA" or "NEIN" (protocol, in capitals).
+22. szene_usa               -- wert: "JA" or "NEIN" (protocol, in capitals).
     **Only if, in the lead-up, the bot asked whether scene texts may be
     written by a model in the USA** ("For the scene text there is a better
     model - from Anthropic, in the USA ... Do you want that? Say yes or
@@ -150,7 +153,7 @@ object with "art" and "wert":
     "rather not", "keep it in Switzerland" -> "NEIN". If this question is
     not in the lead-up, this art does NOT exist -- a "yes" without the
     question before it is agreement to something else.
-22. festlegung_setzen      -- wert: "<area>/<reference>: <the agreement>",
+23. festlegung_setzen      -- wert: "<area>/<reference>: <the agreement>",
     the reference may be missing ("STRUKTUR: The play is one episode of a
     series, only one scene"). The catch-all for a factual agreement of the
     group that fits into **no** other field but counts for the text or the
@@ -175,7 +178,7 @@ object with "art" and "wert":
         {"art": "festlegung_setzen", "wert": "STIL: the scene texts should
         be shorter, one page at most"}
 
-23. szene_kuerzen          -- wert: the scene number as a numeral ("3"), or
+24. szene_kuerzen          -- wert: the scene number as a numeral ("3"), or
     empty ("") if none is named. The group asks YOU to make an already
     written text SHORTER ("make that shorter", "cut scene 3 down", "write
     it more tightly"). Without a number, the text written most recently is
@@ -183,11 +186,12 @@ object with "art" and "wert":
 
     * **Criticism of the length is not a request.** "the scene is too long",
       "the middle part drags", "quite a bit should come out there" -> no
+      entry. Neither is a question: "can you make scene 3 shorter?" -> no
       entry.
     * **A requirement for everything to come is festlegung_setzen** (point
-      22): "one page per scene at most from now on".
-    * **Shortening is neither removing** (point 19) **nor szene_schreiben**
-      (point 17): the scene stays, the same text gets tighter.
+      23): "one page per scene at most from now on".
+    * **Shortening is neither removing** (point 20) **nor szene_schreiben**
+      (point 18): the scene stays, the same text gets tighter.
 
 **First the field, then the catch-all.** If a detail fits one of the fields
 above -- terms, questions, core theme, format, setting, main conflict, a
@@ -523,11 +527,11 @@ Main conflict: staying versus leaving
 
 New messages:
 Member 1: we've got all the summaries now
-Member 3: now core theme and characters, in one step
+Member 3: now setting and characters, in one step
 </excerpt>
 <output>
 {"aenderungen": [
-  {"art": "phase_setzen", "wert": "Core theme & Characters"}
+  {"art": "phase_setzen", "wert": "4"}
 ]}
 </output>
 </example>

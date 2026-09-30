@@ -256,6 +256,33 @@ def test_erkenner_en_chat_ist_nur_befehl_oder_frage(padua):
     # Frage und Kritik bleiben ohne Eintrag.
     assert "can you suggest a character" in text
     assert "criticism without a request" in text.lower()
+    # Nachbesserung: nur Aufnahme und Mitlesen sind Befehle in Frageform,
+    # sonst bleibt eine Frage eine Frage (szene_kuerzen & Co.).
+    assert "A question that asks you to DO one of the actions" not in text
+    assert "can you make scene 3 shorter?\" -> no entry" in text
+
+
+def test_erkenner_en_nennt_die_padua_phasen(padua):
+    """Nachbesserung: die Phasenliste im englischen Erkenner ist die aus
+    phasen.PHASEN, nicht die alte Liste (Format & Setting, Run-through)."""
+    from interview_theater import phasen
+
+    text = " ".join(anweisungen.hole("erkenner").split())
+    for nummer, name, _satz in phasen.PHASEN:
+        assert f"{nummer} {name}" in text, (nummer, name)
+    for alt in ("Core theme & Characters", "Format & Setting", "Run-through",
+                "means 5"):
+        assert alt not in text, alt
+
+
+def test_erkenner_en_zaehlt_seine_arten_richtig(padua):
+    """Nachbesserung: 'twenty-four kinds' und 24 fortlaufende Nummern."""
+    import re
+
+    roh = anweisungen.hole("erkenner")
+    nummern = [int(n) for n in re.findall(r"(?m)^(\d+)\.\s+[a-z_]+\s+--", roh)]
+    assert nummern == list(range(1, 25))
+    assert "exactly twenty-four kinds" in roh
 
 
 # --- Aufgabe 20: die Szene auf Englisch (szene, theater-tells, formen/*,

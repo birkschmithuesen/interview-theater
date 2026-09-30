@@ -124,14 +124,19 @@ object with "art" and "wert":
     job -- but put the wert together from the planning, with scene number,
     place and occasion ("SZENE 1: all three kettled by police at a
     demonstration, for two hours already"), not "Go". A "Go" **without**
-    planning before it is nothing.
+    planning before it is nothing. The command is the write job and ONLY
+    that: the scene details it is built from go into its wert, never also
+    into a szene_planen -- even if the planning is in the same excerpt.
 19. phase_setzen           -- wert: the number of the working phase the
     group is at now, as a numeral ("4"). The seven phases are:
     1 Terms, 2 Questions, 3 Interviews, 4 Setting, Characters & Story,
-    5 Sharpening, 6 Scenes as Story, 7 Polish. The group says what it is
-    working on now ("let's do characters now", "back to the interviews").
-    Going back is just as valid as a step forward. **Setting, characters,
-    story, core theme, format and conflict are all the same phase (4).**
+    5 Sharpening, 6 Scenes as Story, 7 Polish. The group commands a move
+    to a phase ("let's do characters now", "back to the interviews", "next
+    phase"). Going back is just as valid as a step forward. **Setting,
+    characters, story, core theme, format and conflict are all the same
+    phase (4).** Delivering the content of a phase is not a move: "ok
+    characters" followed by the characters themselves is only figur_setzen,
+    no phase_setzen.
 20. entfernen              -- wert: what should go, starting with the
     target, written in capitals as protocol: "FIGUR Tomas", "KERNTHEMA",
     "FORMAT", "RAHMEN", "HAUPTKONFLIKT", "BEGRIFFE", "FRAGEN", "SZENE 2",
@@ -243,9 +248,11 @@ Boundary "an_den_bot": it is about who is addressed, not about the question
 mark. **An interview question is directed at the interviewed person** --
 "what's your favourite dish", "tell me about the day you packed", "and how
 did it go on?" are interview material and not addressed to you, even if
-they are in the imperative. Directed at you is something only YOU can
-answer: a question about the saved state, a command, a request for
-something you are supposed to do right now.
+they are in the imperative. "show me the photo you mentioned" asks the
+interviewed person for something from their life -- material too. Directed
+at you is only what calls you ("bot, ...") or asks for the saved state of
+the workshop (summaries, interviews, questions, progress) or for a bot
+command.
 
 **When in doubt, material** (the one place where the guiding rule above
 does not apply): a part wrongly branched off takes its content away from
@@ -508,9 +515,9 @@ Character Tomas: films everything
 Scene 1 - kettled by police
 
 New messages:
-You: Then scene 1: kettled by police at the demonstration, Lena, Nadia and
-Tomas, kettled for two hours. Spoken.
-Member 1: sì, perfetto -- do the text for scene 1. Go!
+Member 2: so scene 1: kettled by police at the demonstration, Lena, Nadia
+and Tomas, kettled for two hours. Spoken.
+Member 1: sì, perfetto -- write it. Go!
 </excerpt>
 <output>
 {"aenderungen": [

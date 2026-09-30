@@ -5889,7 +5889,7 @@ bleiben. Der deutsche Prompt und der deutsche Korpus sind unveraendert.
 und Fall-ids, **keine** Modellantworten — die Berichte unter
 `korpus/berichte/` bleiben gitignored).
 
-- [ ] **Schritt 1: Laufen lassen** (Env laden, **nie ausgeben**; `IT_DB`
+- [x] **Schritt 1: Laufen lassen** (Env laden, **nie ausgeben**; `IT_DB`
   verwirft `pruefe_prompts` ohnehin, scripts/pruefe_prompts.py:903–906):
 
 ```bash
@@ -5898,7 +5898,7 @@ $PY -m scripts.pruefe_prompts erkenner --bericht               2>&1 | tee /tmp/a
 $PY -m scripts.pruefe_prompts erkenner --sprache en --bericht  2>&1 | tee /tmp/a1-korpus-en.txt
 ```
 
-- [ ] **Schritt 2: Zahlen herausziehen** — aus den beiden Berichten
+- [x] **Schritt 2: Zahlen herausziehen** — aus den beiden Berichten
   (`korpus/berichte/<datum>-erkenner.md`, `…-erkenner-en.md`, Abschnitt
   der Summe von `baue_summe`, scripts/pruefe_prompts.py:734): Faelle,
   Treffer, Falsch-Positive (FP), Falsch-Negative, FN in Zustimmungsfaellen
@@ -5906,7 +5906,7 @@ $PY -m scripts.pruefe_prompts erkenner --sprache en --bericht  2>&1 | tee /tmp/a
   (`kosten_chf`, :695). Die Kosten stehen in der Summe; wer sie aus der
   Wegwerf-DB will: der Lauf loescht sie am Ende (TemporaryDirectory) — die
   Summe im Bericht **ist** die Kostenquelle.
-- [ ] **Schritt 3: Bericht schreiben** — `docs/sprache-a1-korpuslauf-<datum>.md`:
+- [x] **Schritt 3: Bericht schreiben** — `docs/sprache-a1-korpuslauf-<datum>.md`:
 
 ```markdown
 # Erkenner-Korpuslauf Deutsch und Englisch (Karte A1, <datum>)
@@ -5936,12 +5936,12 @@ Commit: <git rev-parse --short HEAD>
   (A9) — Folgearbeit: englische Korpora `korpus/en/{journal,verdichter,sprachprofil}.jsonl`.
 ```
 
-- [ ] **Schritt 4: Wenn Deutsch FP > 0:** das ist **kein** A1-Befund, solange
+- [x] **Schritt 4: Wenn Deutsch FP > 0:** das ist **kein** A1-Befund, solange
   `interview_theater/prompts/erkenner.md` unveraendert ist
   (`git diff d8deb6c -- interview_theater/prompts/erkenner.md` leer) —
   Modellstreuung; als solche im Bericht benennen und den Lauf fuer die
   betroffenen ids mit `--nur <ids> --wiederholungen 3` wiederholen.
-- [ ] **Schritt 5: Wenn Englisch FP > 0:** **kein stilles Weitermachen.**
+- [x] **Schritt 5: Wenn Englisch FP > 0:** **kein stilles Weitermachen.**
   Befund mit ids in den Bericht, dann **hoechstens zwei** Iterationsrunden
   am englischen Erkenner-Prompt
   (`interview_theater/sprachen/en/prompts/erkenner.md`): je Runde die
@@ -5956,7 +5956,7 @@ Commit: <git rev-parse --short HEAD>
   alle Negativfaelle nachlaufen lassen (`--sprache en --nur <ids>`). Nach
   der zweiten Runde steht, was steht — als Befund, und Birk entscheidet vor
   Padua.
-- [ ] **Schritt 6: Commit** (Bericht und ggf. Prompt):
+- [x] **Schritt 6: Commit** (Bericht und ggf. Prompt):
 
 ```bash
 git add docs/sprache-a1-korpuslauf-*.md interview_theater/sprachen/en/prompts/erkenner.md

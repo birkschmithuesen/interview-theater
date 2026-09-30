@@ -1,6 +1,52 @@
+import getpass
+import os
+import tempfile
+from pathlib import Path
+
 import httpx
 import pytest
 from interview_theater import db, einstellungen, repo
+
+
+def _prozess_lebt(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def pytest_configure(config):
+    """Verwaiste tmp_path-Sperren entfernen, damit pytest selbst aufraeumt.
+
+    pytest legt je Lauf pytest-of-<user>/pytest-N/.lock (Inhalt: PID) an und
+    entfernt sie erst am Prozessende. Wird ein Lauf hart beendet (Timeout des
+    aufrufenden Terminals), bleibt die Sperre liegen, und pytest haelt das
+    Verzeichnis 3 Tage lang fuer belegt (LOCK_TIMEOUT) -- je Suite ~330 MB,
+    die sich stapeln. Hier werden nur Sperren entfernt, deren PID nicht mehr
+    lebt; das Loeschen selbst (alles ausser den letzten 3 Laeufen) macht
+    danach pytest am Sitzungsende wie vorgesehen.
+    """
+    if config.option.basetemp:
+        return
+    wurzel = Path(os.environ.get("PYTEST_DEBUG_TEMPROOT") or tempfile.gettempdir())
+    wurzel = wurzel.resolve() / f"pytest-of-{getpass.getuser()}"
+    if not wurzel.is_dir():
+        return
+    for sperre in wurzel.glob("pytest-*/.lock"):
+        if sperre.parent.is_symlink():
+            continue
+        try:
+            pid = int(sperre.read_text().strip())
+        except (OSError, ValueError):
+            continue
+        if not _prozess_lebt(pid):
+            try:
+                sperre.unlink()
+            except OSError:
+                pass
 
 
 @pytest.fixture

@@ -1,0 +1,13 @@
+--- prosa-A.txt
++++ prosa-B.txt
+@@ -309,10 +309,5 @@
+ Szene 2 — Der Zug — Ferzan zaehlt am Fahrplan die Tage, Meryem haelt sie nicht auf.
+ Szene 3 — Die Samen — Aynur findet Meryems Tomatensamen, die drei pflanzen sie in einen Kasten.
+ 
+-So sprechen die Figuren:
+-- Meryem: Kurz und abgehackt: Egal. Koffer bleibt zu. Weiter.
+-- Ferzan: Verschachtelt, gelehrt: Wobei man insofern, als das Zurueckgehen de facto gar keine Option ist, prinzipiell sagen muesste, dass der Koffer per se gewissermassen quasi schon ausgepackt ist.
+-- Aynur: Mit Fuellwoertern: Also, weisst du, der Koffer ist halt irgendwie, also sozusagen, der Koffer ist halt noch zu, weisst du.
+-
+ Euer Auftrag:
+ Schreib die Geschichte am Stueck.

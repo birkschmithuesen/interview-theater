@@ -2691,7 +2691,7 @@ git commit -m "Whisper: Sprache als Parameter, auto ohne language-Feld, erkannte
   `repo.stt_sprache(conn, chat_id) -> str | None`,
   `aufnahme.whisper_sprache(conn, chat_id) -> str` (Gruppenwert vor Profilwert).
 
-- [ ] **Schritt 1: Tests schreiben** — `tests/test_stt_sprache.py`:
+- [x] **Schritt 1: Tests schreiben** — `tests/test_stt_sprache.py`:
 
 ```python
 """Welche Sprache Whisper hoert: der Gruppenwert vor dem Profilwert (D2)."""
@@ -2763,12 +2763,12 @@ def test_die_aufnahme_reicht_die_sprache_an_whisper(conn, einst, tmp_path, monke
     assert gesehen == ["auto"]
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_stt_sprache.py`
 Expected: FAIL — `AttributeError: module 'interview_theater.repo' has no attribute 'stt_sprache'`.
 
-- [ ] **Schritt 3: Umsetzen**
+- [x] **Schritt 3: Umsetzen**
 
 `db.py`, in `CREATE TABLE IF NOT EXISTS gruppe` nach `web_token TEXT`
 (Komma an `web_token` nicht vergessen):
@@ -2821,17 +2821,17 @@ und Zeile 510:
                                  sprache=whisper_sprache(conn, chat_id))
 ```
 
-- [ ] **Schritt 4: Gruen sehen**
+- [x] **Schritt 4: Gruen sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_stt_sprache.py tests/test_aufnahme.py tests/test_db.py`
 Expected: alle gruen.
 
-- [ ] **Schritt 5: Mutationsnachweis**
+- [x] **Schritt 5: Mutationsnachweis**
 
 `return repo.stt_sprache(conn, chat_id) or sprache.whisper_vorgabe()` →
 `return sprache.whisper_vorgabe()` → `test_gruppenwert_schlaegt_profil` rot.
 
-- [ ] **Schritt 6: SUITE, Commit**
+- [x] **Schritt 6: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider

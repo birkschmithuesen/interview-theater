@@ -2965,6 +2965,24 @@ def setze_wortlaut_modus(conn: sqlite3.Connection, chat_id: int, wert: str | Non
 
 
 @_gesperrt
+def setze_stt_sprache(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
+    """Die Whisper-Sprache dieser Gruppe (Karte A1, D2): 'auto', ein
+    ISO-639-1-Code oder None (= wieder der Profilwert). Gesetzt ueber den
+    Knopf in Phase 3 oder /sprache."""
+    conn.execute("UPDATE gruppe SET stt_sprache = ? WHERE chat_id = ?", (wert, chat_id))
+    conn.commit()
+
+
+@_gesperrt
+def stt_sprache(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Der Gruppenwert oder None -- None heisst: der Profilwert gilt."""
+    g = hole_gruppe(conn, chat_id)
+    if g is None or "stt_sprache" not in g.keys():
+        return None
+    return g["stt_sprache"] or None
+
+
+@_gesperrt
 def unjournalisierte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Nachrichten seit dem Journal-Wasserzeichen letzte_journalisierte_message_id
     (interview_theater/journal.py) -- der Kandidatenpool, aus dem der

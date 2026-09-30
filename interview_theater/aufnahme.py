@@ -62,7 +62,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from interview_theater import phasen, repo, stt, verdichter
+from interview_theater import phasen, repo, sprache, stt, verdichter
 
 log = logging.getLogger(__name__)
 
@@ -472,6 +472,14 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
         _interview_abschliessen(conn, tg, klm, e, row)
 
 
+def whisper_sprache(conn, chat_id: int) -> str:
+    """Welche Sprache Whisper fuer diese Gruppe hoeren soll (Karte A1, D2):
+    der Gruppenwert (``gruppe.stt_sprache``, per Knopf oder /sprache
+    gesetzt) vor dem Profilwert (``sprache.whisper``). ``"auto"`` heisst:
+    Whisper erkennt selbst."""
+    return repo.stt_sprache(conn, chat_id) or sprache.whisper_vorgabe()
+
+
 def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
     """Ruft stt.transkribiere auf, waehrenddessen die Tippanzeige laeuft (ab
     TIPPANZEIGE_AB_S, fuer jede Klasse). Die Zwischenmeldung ("Ich hoer noch
@@ -507,7 +515,8 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
     timer_meldung.start()
 
     try:
-        return stt.transkribiere(e, klient, pfad, budget)
+        return stt.transkribiere(e, klient, pfad, budget,
+                                 sprache=whisper_sprache(conn, chat_id))
     except Exception as fehler:
         _melde_transkriptionsfehler(conn, tg, e, row, fehler)
         return None

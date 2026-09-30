@@ -36,7 +36,11 @@ CREATE TABLE IF NOT EXISTS gruppe (
   -- (NACHTRAG-weboberflaeche-und-sprache.md N1-B): kein Login, wer die URL
   -- hat, sieht die Gruppe. Erzeugt der Bot (repo.stelle_web_token_sicher),
   -- weil der Webserver die Datenbank read-only oeffnet.
-  web_token                       TEXT
+  web_token                       TEXT,
+  -- Whisper-Sprache dieser Gruppe (Karte A1): NULL = Profilwert
+  -- (sprache.whisper), sonst 'auto' oder ein ISO-639-1-Code. Additiv
+  -- nachgeruestet ueber _migriere_fehlende_spalten.
+  stt_sprache                     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (

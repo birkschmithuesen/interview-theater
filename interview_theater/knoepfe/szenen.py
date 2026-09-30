@@ -77,10 +77,17 @@ def biete_szenenform(conn, tg, chat_id: int, nummer: int, text: str | None = Non
         if grund:
             zusatz = "\n\n" + grund
 
+    # Die Beschriftung ist der Anzeigename aus dem Profil (Padua "Chorus",
+    # Dortmund "Chor" -- dort gleich ``form.capitalize()``, also
+    # zeichengleich zum Stand davor); der Knopfwert bleibt der
+    # Datenbankwert. Gefunden vom Render-Pruefer (Aufgabe 30).
+    from interview_theater import workshop
+
+    anzeige = dict(zip(workshop.formen(), workshop.form_anzeige()))
     knoepfe = [
         (
-            form.capitalize() + (T.TEXT_FORM_VORSCHLAG_ZUSATZ if form == vorschlag_form
-                                 else ""),
+            anzeige.get(form, form.capitalize())
+            + (T.TEXT_FORM_VORSCHLAG_ZUSATZ if form == vorschlag_form else ""),
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENENFORM, f"{nummer}:{form}")),
         )
         for form in reihenfolge

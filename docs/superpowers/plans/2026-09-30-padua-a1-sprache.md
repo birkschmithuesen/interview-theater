@@ -5572,7 +5572,7 @@ Zahlwort-Hinweis, kein Rahmen-Hinweis). Dortmund: `dortmund-2026: in Ordnung`.
 - `pruefe_profil(profil: str, nur: set[str] | None = None) -> list[Treffer]`.
 - CLI: `python -m scripts.pruefe_sprache <profil> [--quelle a,b,…]`.
 
-- [ ] **Schritt 1: Tests** (anhaengen):
+- [x] **Schritt 1: Tests** (anhaengen):
 
 ```python
 import pytest
@@ -5612,8 +5612,8 @@ def test_cli_exit_codes():
     assert pruefe_sprache.main(["dortmund-2026", "--quelle", "texte"]) == 1
 ```
 
-- [ ] **Schritt 2: Rot sehen** — `AttributeError: … has no attribute 'quellen'`.
-- [ ] **Schritt 3: Umsetzen** — in `scripts/pruefe_sprache.py`:
+- [x] **Schritt 2: Rot sehen** — `AttributeError: … has no attribute 'quellen'`.
+- [x] **Schritt 3: Umsetzen** — in `scripts/pruefe_sprache.py`:
 
 ```python
 import contextlib
@@ -5827,7 +5827,7 @@ def pruefe_profil(profil: str, nur: set[str] | None = None) -> list[Treffer]:
     (Signatur aufnahme.py:418) — das gehoert hinein, damit die
     Verdichtungsnachricht (Quelle c) und der Verdichter-Prompt (c2)
     mitgeprueft werden.
-- [ ] **Schritt 4: Gruen und Abnahme**
+- [x] **Schritt 4: Gruen und Abnahme**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider tests/test_pruefe_sprache.py
@@ -5837,11 +5837,11 @@ $PY -m scripts.pruefe_sprache dortmund-2026 | tail -1 ; echo "exit=$?"
 Expected: gruen; Padua `0 Treffer`, `exit=0`; Dortmund `<N> Treffer` mit
 N > 0, `exit=1`. Die Zahl N in den Commit-Text schreiben.
 
-- [ ] **Schritt 5: Mutationsnachweis:** in `texte.toml` einen englischen
+- [x] **Schritt 5: Mutationsnachweis:** in `texte.toml` einen englischen
   Knopftext auf Deutsch zuruecksetzen (`_TEXT_SPEICHERN_KNOPF = "Ja, speichern"`)
   → `test_padua_ist_frei_von_deutsch` rot mit Quelle `texte` **und**
   `durchlauf | knopf`. Zuruecksetzen.
-- [ ] **Schritt 6:** SUITE; Commit `"Sprachpruefer: Prompts, Tabelle, Probedurchlauf, Modellprompts, Gruppenseite (A1, D10)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Sprachpruefer: Prompts, Tabelle, Probedurchlauf, Modellprompts, Gruppenseite (A1, D10)"`.
 
 ---
 

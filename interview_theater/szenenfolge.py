@@ -196,6 +196,18 @@ Eine Zeile je Feld, nur die fehlenden Felder, die Feldnamen genau so wie in
 der Aufzaehlung oben. Danach ein Satz und eine offene Frage an die Gruppe,
 hoechstens zwei Zeilen."""
 
+#: Wie ein fehlendes Pflichtfeld (``szene.PFLICHTFELDER``) in
+#: ``ANWEISUNG_FELDER`` heisst. Deutsch: der Feldname selbst. Die englische
+#: Tabelle nennt die Aliase aus ``szene.FELD_ALIASE_EN`` (Aufgabe 30: der
+#: Render-Pruefer fand "figuren" in einem englischen Prompt) -- das Modell
+#: schreibt sie zurueck, und ``szene.feldname`` liest beide Sprachen.
+FELD_IM_PROMPT = {
+    "form": "form",
+    "ort": "ort",
+    "figuren": "figuren",
+    "was_passiert": "was_passiert",
+}
+
 
 class SzenenfolgeFehler(Exception):
     """Der Vorschlags-Aufruf lieferte nichts Verwertbares."""
@@ -1337,7 +1349,8 @@ def starte_feldvorschlag(conn, tg, klm, e, chat_id: int, ziel) -> threading.Thre
     # ``thread.start()`` steht unter derselben Wache.
     try:
         _sende(conn, tg, e, chat_id, T._TEXT_FELDER_LAEUFT)
-        system = T.ANWEISUNG_FELDER.format(felder=", ".join(fehlende))
+        system = T.ANWEISUNG_FELDER.format(
+            felder=", ".join(T.FELD_IM_PROMPT.get(f, f) for f in fehlende))
         nutzer = "\n\n".join(
             t for t in (
                 _material(conn, chat_id),

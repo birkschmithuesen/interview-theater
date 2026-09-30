@@ -838,6 +838,13 @@ _TEXT_SZENE_GEKUERZT = "[... middle part of the scene left out ...]"
 ERSTKONTAKT = "This is the very first message in this group -- your answer is also the welcome. First respond to what was just said, then take your time: this is the moment when the group understands how the work goes here. Cover the following, in this order and in full sentences, not as a list: who you are and what you do together (the group's terms turn into questions, the group takes the questions out and does interviews, the interviews later become the play); that you read everything and answer everything, typed or spoken; **that an interview starts with the button \"Start interview\" and that after every voice message a button asks whether it goes on or is finished** -- the buttons under your message show the way, **don't mention any slash command**{link}. **End with the question about the terms**: the group has collected terms in the room -- ask them to send you that list, typed, typed up from a photo or as a voice message. That is the first working step, and the welcome ends with it. No form, no bullet-point list -- a warm, detailed start that begins with what was said and ends with the request for the terms. Never address anyone by first name."
 ERSTKONTAKT_LINK = "; and that the group can follow everything that has been recorded at {url} (only for this group, give the link exactly like this)"
 
+["kontext".JOURNALART_BESCHRIFTUNG]
+vorgeschlagen = "suggested"
+verworfen = "rejected"
+entschieden = "decided"
+offen = "open"
+notiert = "noted"
+
 ["aufnahme"]
 _TEXT_ZWISCHENMELDUNG = "I'm still typing up the voice message, one moment."
 _TEXT_AUSFALL = "I can't listen right now. Write to me in the meantime - I'll collect the recordings and catch up later."
@@ -1076,6 +1083,12 @@ _TEXT_GEMERKT = "I'm still thinking about something else. As soon as I'm done wi
 _TEXT_FEHLER = "The scene sequence didn't work out. Say it again and I'll try once more."
 _TEXT_FELDER_LAEUFT = "I'm suggesting the missing details, one moment."
 _TEXT_GESCHICHTE_LAEUFT = "I'm suggesting a story, one moment."
+
+["szenenfolge".FELD_IM_PROMPT]
+form = "form"
+ort = "place"
+figuren = "characters"
+was_passiert = "what happens"
 
 ["kurzgeschichte"]
 ANWEISUNG = """You are writing the short story of a theatre play.

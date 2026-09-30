@@ -73,10 +73,9 @@ checked mechanically. If you find no such passage, you write
 - With `text`: `VORSCHLAG:` is an instruction, at most two sentences, with
   scene number.
 - With `parameter`: `VORSCHLAG:` names **the field and its new value**, in
-  the form `<field>: <new value>`. Allowed fields are exactly the four names
-  in brackets behind the requirements in the brief: `format`, `rahmen`,
-  `figuren_anzahl` and the one behind the planned scene sequence. Write the
-  field name exactly as it stands in the brackets -- a program reads it.
+  the form `<field>: <new value>`. Allowed fields: `format`, `rahmen`,
+  `figuren_anzahl`, `geschichte`. Write the field name exactly as it stands
+  here -- a program reads it.
 
 If everything is delivered (score 2), `VORSCHLAG:` stays empty.
 

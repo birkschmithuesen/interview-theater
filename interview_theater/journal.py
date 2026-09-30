@@ -192,7 +192,7 @@ def _bisheriges_journal_text(conn, chat_id: int) -> str:
     eintraege = repo.journal(conn, chat_id)[-LETZTE_JOURNALEINTRAEGE:]
     if not eintraege:
         return ""
-    zeilen = [f"- [{e['art']}] {e['text']}" for e in eintraege]
+    zeilen = [kontext.journalzeile(e) for e in eintraege]
     return T._BISHERIGES_JOURNAL_KOPF + "\n".join(zeilen)
 
 

@@ -249,6 +249,20 @@ _ZEILE_FIGUR = "Figur {name}{beschreibung}"
 _ARBEITSSTAND_KOPF = "Arbeitsstand:\n"
 _TEXT_AKTUELLE_SZENE = "Aktuelle Szene ({szene}):\n{volltext}"
 _JOURNAL_KOPF = "Journal:\n"
+
+#: Wie die Art eines Journaleintrags (``journal.art``, ein Datenbankwert) in
+#: einer Journalzeile des Nutzertexts steht. Deutsch: der Wert selbst
+#: (``- [notiert] …``, zeichengleich zum Stand vor Aufgabe 30); die englische
+#: Tabelle uebersetzt ihn wie ``web.JOURNALART_BESCHRIFTUNG`` -- sonst stand
+#: im englischen Gespraechs- und Journal-Prompt "[notiert]" (Render-Pruefer,
+#: Quelle c2). Unbekannte Arten bleiben roh.
+JOURNALART_BESCHRIFTUNG = {
+    "vorgeschlagen": "vorgeschlagen",
+    "verworfen": "verworfen",
+    "entschieden": "entschieden",
+    "offen": "offen",
+    "notiert": "notiert",
+}
 _AUSLOESER_KOPF = "Aktuell:\n"
 
 
@@ -916,8 +930,15 @@ def _baue_journal(conn, chat_id: int) -> str:
         gesehen.add(schluessel)
         behalten.append(e)
     behalten = list(reversed(behalten))[-JOURNAL_EINTRAEGE:]
-    zeilen = [f"- [{e['art']}] {e['text']}" for e in behalten]
+    zeilen = [journalzeile(e) for e in behalten]
     return T._JOURNAL_KOPF + "\n".join(zeilen)
+
+
+def journalzeile(eintrag) -> str:
+    """Eine Journalzeile im Nutzertext: ``- [<Art>] <Text>`` -- die eine
+    Stelle fuer Gespraechs-Prompt und Journal-Extraktor."""
+    art = T.JOURNALART_BESCHRIFTUNG.get(eintrag["art"], eintrag["art"])
+    return f"- [{art}] {eintrag['text']}"
 
 
 #: Obergrenze fuer den Nachrichtenpool, aus dem das Fenster gebaut wird --

@@ -1053,6 +1053,27 @@ _SYSTEMANFAENGE = (
     "Entfernt:",
 )
 
+#: Dieselben Systemzeilen in ihrer englischen Fassung (Karte A1, Aufgabe 24)
+#: -- je ein Anfang eines Eintrags aus ``sprachen/en/texte.toml``; ein Test
+#: haelt die Rundreise fest. Gelesen wird die Vereinigung beider Tabellen:
+#: der Bot erkennt seine eigenen Zeilen, gleich in welcher Sprache sie
+#: stehen. "Aufnahme laeuft." hat kein Gegenstueck -- der deutsche Text
+#: existiert im Code nicht mehr, der Eintrag oben ist ein Altbestand fuer
+#: alte Chatverlaeufe. "Withdrawn:" ist der Anfang von
+#: ``erkenner._JOURNAL_ZURUECK``.
+_SYSTEMANFAENGE_EN = (
+    "I'm back.",
+    "Noted:",
+    "Recording stopped.",
+    "Ready -",
+    "Note: the scene text",
+    "I'm writing out the scene",
+    "I'm still writing",
+    "I'm analysing the open interviews",
+    "Removed:",
+    "Withdrawn:",
+)
+
 
 def _ist_systemzeile(n) -> bool:
     """Ist diese Bot-Nachricht eine Systemmeldung und kein Gespraechsbeitrag?
@@ -1062,7 +1083,8 @@ def _ist_systemzeile(n) -> bool:
     if not n["ist_bot"]:
         return False
     text = (n["text"] or "").lstrip()
-    return any(text.startswith(anfang) for anfang in _SYSTEMANFAENGE)
+    return any(text.startswith(anfang)
+               for anfang in _SYSTEMANFAENGE + _SYSTEMANFAENGE_EN)
 
 
 def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:

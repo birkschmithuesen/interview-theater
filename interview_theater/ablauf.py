@@ -613,6 +613,24 @@ _SYSTEMZEILEN = (
 )
 _SYSTEMZEILE = re.compile("|".join(_SYSTEMZEILEN), re.IGNORECASE)
 
+#: Dieselben Zeilen auf Englisch (Karte A1, Aufgabe 24) -- die Wendungen,
+#: die ``sprachen/en/prompts/system.md`` unter "What you do NOT say"
+#: verbietet ("Starting now", "I'm writing out the scene", US-Server,
+#: US-Modell, Switzerland), angepasst an ``szene._TEXT_ANGEKUENDIGT`` in
+#: ``sprachen/en/texte.toml``. Enger als das Deutsche, weil "us" im
+#: Englischen ein Pronomen ist: US steht nur **grossgeschrieben**
+#: (``(?-i:...)``), sonst traefe "Tell us ... Switzerland". "Starting now"
+#: gilt nur am Satzanfang -- "we could try starting now" ist ein Vorschlag.
+_SYSTEMZEILEN_EN = (
+    r"(?:^|[.!?]\s+)starting\s+now\b",
+    r"\bwriting\s+out\s+(?:the|your)\s+scene\b",
+    r"\bwriting\s+(?:the|your)\s+scene\s+(?:now|out)\b",
+    r"\b(?-i:US)[- ]?servers?\b",
+    r"\b(?-i:US)[- ]?model\b.*\?",
+    r"\bswitzerland\b.*\b(?-i:USA?)\b|\b(?-i:USA?)\b.*\bswitzerland\b",
+)
+_SYSTEMZEILE_EN = re.compile("|".join(_SYSTEMZEILEN_EN), re.IGNORECASE)
+
 
 def ist_erfundene_systemzeile(text: str | None) -> bool:
     """Sieht diese Gespraechsantwort aus wie eine Systemzeile des
@@ -620,8 +638,11 @@ def ist_erfundene_systemzeile(text: str | None) -> bool:
 
     Reiner Musterabgleich, kein Modellaufruf. Der Aufrufer prueft
     zusaetzlich, ob wirklich ein Lauf laeuft -- steht einer, ist die Zeile
-    echt und geht durch."""
-    return _SYSTEMZEILE.search((text or "").strip()) is not None
+    echt und geht durch. Modellausgabe, deshalb beide Sprachen (K5),
+    Deutsch zuerst."""
+    roh = (text or "").strip()
+    return any(muster.search(roh) is not None
+               for muster in (_SYSTEMZEILE, _SYSTEMZEILE_EN))
 
 
 def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,

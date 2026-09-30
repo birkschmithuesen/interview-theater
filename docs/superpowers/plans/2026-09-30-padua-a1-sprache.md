@@ -4715,7 +4715,7 @@ Systemzeilen des Gespraechs-Bots gehen durch.
 | `szene._regienotizen` (1630/1641) | Marke `"Szene {nummer}"` **oder** `"Scene {nummer}"` |
 | `dramaturgie/fanout.synopsen_fehlen` (907/934) | `^(Szene|Scene) (\d+)` — die Synopsen baut der Code selbst, ueber `T` |
 
-- [ ] **Schritt 1: Tests** (anhaengen):
+- [x] **Schritt 1: Tests** (anhaengen):
 
 ```python
 from interview_theater import kontext
@@ -4749,12 +4749,20 @@ def test_erfundene_englische_systemzeile():
   (`"I'm writing the scene now."` muss zum englischen
   `szene._TEXT_ANGEKUENDIGT` passen — den Testsatz an den in Aufgabe 16
   gewaehlten Wortlaut angleichen.)
-- [ ] **Schritt 2–4:** rot, umsetzen, gruen
+- [x] **Schritt 2–4:** rot, umsetzen, gruen
   (`tests/test_sprache_parser.py tests/test_kontext.py tests/test_ablauf.py tests/test_szenenfolge.py tests/test_szene*.py tests/test_dramaturgie*.py tests/test_sprache_bitgleich.py`).
-- [ ] **Schritt 5: Mutationsnachweis:** den englischen Eintrag
+- [x] **Schritt 5: Mutationsnachweis:** den englischen Eintrag
   `bot._TEXT_WIEDERKEHR` in `texte.toml` umformulieren (`"Back again. …"`) →
   `test_jeder_englische_systemanfang_steht_in_der_tabelle` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Eigene Systemzeilen auch auf Englisch wiedererkennen (A1)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Eigene Systemzeilen auch auf Englisch wiedererkennen (A1)"`.
+  *(Umgesetzt: `_SYSTEMANFAENGE_EN` mit den tatsaechlichen Anfaengen aus
+  `texte.toml` — "Note: the scene text" klein, "Recording stopped.", dazu
+  "Withdrawn:"; "Aufnahme laeuft." ohne englisches Gegenstueck, weil der
+  deutsche Text im Code nicht mehr existiert. `_SYSTEMZEILEN_EN` enger als
+  im Brief: "starting now" nur am Satzanfang, US nur grossgeschrieben
+  (`(?-i:US)`), weil "us" im Englischen ein Pronomen ist. `zu_pruefen`,
+  `_regienotizen`, `synopsen_fehlen` waren seit Aufgabe 16 zweisprachig —
+  nur Test fuer `_regienotizen` ergaenzt.)*
 
 ---
 

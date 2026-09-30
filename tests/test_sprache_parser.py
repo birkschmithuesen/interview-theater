@@ -727,3 +727,99 @@ def test_kuerzungsauftrag_englisch(conn, englisch, monkeypatch):
     assert gerufen and gerufen[0].startswith("Rewrite scene 2. ")
     assert szene_modul.nummer_aus_auftrag(gerufen[0]) == 2
     assert szene_modul.BISHER_MARKER in gerufen[0]
+
+
+# --- Systemzeilen und Rundreisen (Aufgabe 24) ------------------------------
+
+from interview_theater import kontext  # noqa: E402
+from interview_theater import repo  # noqa: E402
+
+
+def test_jeder_englische_systemanfang_steht_in_der_tabelle():
+    """Rundreise: der Anfang muss zu einem englischen Text passen, sonst
+    erkennt der Code seine eigene Zeile nicht wieder."""
+    sprache.vergiss()
+    werte = []
+    for eintraege in sprache.tabelle("en").values():
+        for wert in eintraege.values():
+            if isinstance(wert, str):
+                werte.append(wert.lstrip())
+    for anfang in kontext._SYSTEMANFAENGE_EN:
+        assert any(w.startswith(anfang) for w in werte), anfang
+
+
+def test_deutsche_systemanfaenge_wie_vorher():
+    assert kontext._SYSTEMANFAENGE == (
+        "Bin wieder da.", "Notiert:", "Aufnahme laeuft.", "Aufnahme beendet.",
+        "Bereit -", "Hinweis: Den Szenentext", "Ich schreibe die Szene aus",
+        "Ich schreibe gerade noch", "Ich werte die offenen Interviews aus",
+        "Entfernt:",
+    )
+
+
+def test_englische_notiert_zeile_faellt_aus_dem_fenster():
+    assert kontext._ist_systemzeile({"ist_bot": 1, "text": "Noted:\n- Terms: love"})
+    assert kontext._ist_systemzeile({"ist_bot": 1, "text": "Notiert:\n- Begriffe: Liebe"})
+    assert not kontext._ist_systemzeile({"ist_bot": 0, "text": "Noted: we agree"})
+
+
+@pytest.mark.parametrize("text", [
+    "Removed: character Peter.", "Withdrawn: the ending at the pier",
+    "I'm back. We're at Terms.", "Recording stopped.",
+    "Ready - send your voice messages.", "I'm writing out the scene, that takes a minute.",
+    "I'm still writing a scene, one moment.", "I'm analysing the open interviews.",
+    "Note: the scene text is written by a model from Anthropic (USA).",
+])
+def test_englische_systemzeilen_fallen_aus_dem_fenster(text):
+    assert kontext._ist_systemzeile({"ist_bot": 1, "text": text})
+
+
+@pytest.mark.parametrize("text", [
+    "I'm glad you like the ending.", "Noted, but what about scene 2?",
+    "Ready when you are: who is the third character?",
+    "Recording is a good idea for the second interview.",
+])
+def test_normale_englische_bot_antwort_ist_keine_systemzeile(text):
+    assert not kontext._ist_systemzeile({"ist_bot": 1, "text": text})
+
+
+@pytest.mark.parametrize("text", [
+    "I'm writing out the scene, that takes a minute.",
+    "I'm writing out the scene now.",
+    "I'm writing the scene now.",
+    "Starting now. The story is coming.",
+    "Great. Starting now!",
+    "Your data goes to a US server for the scene text.",
+    "Should I use the US model?",
+    "Recordings stay in Switzerland, only the scene details go to the US.",
+])
+def test_erfundene_englische_systemzeile(text):
+    assert ablauf.ist_erfundene_systemzeile(text), text
+
+
+def test_erfundene_deutsche_systemzeile_wie_vorher():
+    assert ablauf.ist_erfundene_systemzeile("Ich schreibe die Szene jetzt aus.")
+    assert ablauf.ist_erfundene_systemzeile("Start frei!")
+    assert ablauf.ist_erfundene_systemzeile("Das geht an einen US-Server.")
+    assert not ablauf.ist_erfundene_systemzeile("Mir gefaellt, wie die Szene endet.")
+
+
+@pytest.mark.parametrize("text", [
+    "I like how the scene ends.",
+    "Tell us what happens next.",
+    "Let us think about Switzerland as a setting.",
+    "We could try starting now with the second scene.",
+    "Show us model answers for the first question?",
+    "Are you writing the scene yourselves, or should the button do it?",
+    "Once you have the story, the button writes it out.",
+])
+def test_normale_englische_antwort_ist_keine_erfundene_systemzeile(text):
+    assert not ablauf.ist_erfundene_systemzeile(text), text
+
+
+def test_regienotizen_finden_beide_sprachen(conn, englisch):
+    repo.schreibe_journal(conn, 1, "entschieden", "Szene 2: ohne den Bruder", quelle="test")
+    repo.schreibe_journal(conn, 1, "entschieden", "Scene 2: at night", quelle="test")
+    repo.schreibe_journal(conn, 1, "entschieden", "Scene 4: elsewhere", quelle="test")
+    notizen = szene_modul._regienotizen(conn, 1, 2)
+    assert notizen == ["- Szene 2: ohne den Bruder", "- Scene 2: at night"]

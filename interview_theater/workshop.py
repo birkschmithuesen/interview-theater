@@ -87,6 +87,13 @@ PFLICHTFELDER = (
     "zielgruppe.beschreibung",
 )
 
+#: Die Sprachen, fuer die es Chat- und Prompttexte gibt (Karte A1,
+#: 30.09.2026). Deutsch steht im Code, jede weitere unter
+#: ``interview_theater/sprachen/<code>/``. Ein Profil mit einer anderen
+#: Sprache weist ``scripts/pruefe_profil.py`` ab: es liefe sonst halb
+#: deutsch, ohne dass es jemand merkt.
+SPRACHEN = ("de", "en")
+
 
 class ProfilFehler(RuntimeError):
     """Ein Profil fehlt, ist unlesbar oder unvollstaendig.
@@ -120,6 +127,18 @@ VORGABE_WERTE: dict[str, Any] = {
         "code": "de",
         # Wie die Gruppe angesprochen wird. Deutsch "ihr", italienisch "voi".
         "anrede": "ihr",
+        # Was Whisper erkennen soll: ein ISO-639-1-Code ("de", "it") oder
+        # "auto" -- dann schickt stt.py gar keine Sprache mit und Whisper
+        # erkennt sie selbst (Karte A1, Birk E5). Eine Gruppe kann den Wert
+        # fuer sich umstellen (gruppe.stt_sprache, /sprache, Knopf in Phase 3).
+        "whisper": "de",
+    },
+    "datenschutz": {
+        # E8 (Birk, 29.09.2026): ersetzt die Vornamen im Gespraechsverlauf
+        # durch "Mitglied 1", "Mitglied 2" ..., bevor sie in einen Prompt
+        # gehen -- ein Modell kann keinen Namen verwenden, den es nie sieht.
+        # Aus in Dortmund: dort war der Name im Verlauf gewollt.
+        "pseudonyme": False,
     },
     "zielgruppe": {
         # Der Satz, der sechsmal wortgleich in den Prompts steht.

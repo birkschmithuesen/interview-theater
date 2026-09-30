@@ -966,7 +966,7 @@ git commit -m "Massstab vor der Sprachumstellung: Prompt- und Text-Schnappschuss
   `False`). `pruefe_profil.pruefe()` meldet FEHLER bei `code` ausserhalb
   `SPRACHEN` und bei `whisper` weder `"auto"` noch `[a-z]{2}`.
 
-- [ ] **Schritt 1: Tests schreiben**
+- [x] **Schritt 1: Tests schreiben**
 
 In `tests/test_workshop.py` anhaengen:
 
@@ -1052,13 +1052,13 @@ def test_padua_traegt_seine_eigene_sprache_und_orte():
         "fermata", "piazza", "bar", "stazione")
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_workshop.py tests/test_pruefe_profil.py tests/test_profile_geruest.py`
 Expected: FAIL — `AttributeError: module 'interview_theater.workshop' has no attribute 'SPRACHEN'`,
 `assert None == 'de'`, `KeyError: 'five'`, `assert 'it' == 'en'`.
 
-- [ ] **Schritt 3: Umsetzen**
+- [x] **Schritt 3: Umsetzen**
 
 `interview_theater/workshop.py` — nach `PFLICHTFELDER`:
 
@@ -1160,7 +1160,7 @@ und oben `import re` ergaenzen. Den Docstring-Punkt 4 ("nur fuer
 deutschsprachige Profile pruefbar") auf "fuer deutsche und englische
 Zahlwoerter" aendern.
 
-- [ ] **Schritt 4: Gruen sehen**
+- [x] **Schritt 4: Gruen sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_workshop.py tests/test_pruefe_profil.py tests/test_profile_geruest.py tests/test_sprache_bitgleich.py`
 Expected: alle gruen. `test_dortmund_traegt_dieselben_werte_wie_die_vorgabe`
@@ -1172,7 +1172,7 @@ $PY -m scripts.pruefe_profil dortmund-2026
 ```
 Expected: `dortmund-2026: in Ordnung`.
 
-- [ ] **Schritt 5: Mutationsnachweis**
+- [x] **Schritt 5: Mutationsnachweis**
 
 `whisper = "de"` aus `workshop/dortmund-2026/profil.toml` loeschen → **gruen**
 (Vorgabe fuellt) — also stattdessen `whisper = "it"` setzen →
@@ -1181,7 +1181,7 @@ Expected: `dortmund-2026: in Ordnung`.
 `test_sprache_und_whisper_werden_geprueft[…whisper = "english"…]` rot.
 Zuruecksetzen.
 
-- [ ] **Schritt 6: SUITE, Commit**
+- [x] **Schritt 6: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider

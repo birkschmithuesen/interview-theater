@@ -148,3 +148,48 @@ def test_ein_fehlendes_profil_liefert_rueckgabewert_eins(tmp_path, monkeypatch, 
 def test_dortmund_liefert_rueckgabewert_null(capsys):
     assert pruefe_profil.pruefe_namen("dortmund-2026") == 0
     assert "in Ordnung" in capsys.readouterr().out
+
+
+def _sprachprofil(tmp_path, monkeypatch, sprache_toml: str):
+    """Ein Profil mit eigenem ``[sprache]``-Block (Karte A1). Eigener Name
+    neben ``_profil`` oben, das einen anderen Aufbau (``prompts/``,
+    ``IT_WORKSHOP``) hat und von den uebrigen Tests genutzt wird."""
+    verz = tmp_path / "sprachtest"
+    verz.mkdir()
+    (verz / "profil.toml").write_text(
+        'beschreibung = "Test"\n'
+        f"[sprache]\n{sprache_toml}\n"
+        '[zielgruppe]\nbeschreibung = "junge Frauen zwischen 15 und 18 Jahren"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(workshop.BASIS_VARIABLE, str(tmp_path))
+    workshop.vergiss()
+    return "sprachtest"
+
+
+@pytest.mark.parametrize("zeilen, fehler", [
+    ('code = "it"\nanrede = "voi"', "sprache.code"),
+    ('code = "en"\nanrede = "you"\nwhisper = "english"', "sprache.whisper"),
+    ('code = "en"\nanrede = "you"\nwhisper = "EN"', "sprache.whisper"),
+])
+def test_sprache_und_whisper_werden_geprueft(tmp_path, monkeypatch, capsys, zeilen, fehler):
+    name = _sprachprofil(tmp_path, monkeypatch, zeilen)
+    assert pruefe_profil.pruefe_namen(name) == 1
+    assert fehler in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("zeilen", [
+    'code = "en"\nanrede = "you"\nwhisper = "auto"',
+    'code = "en"\nanrede = "you"\nwhisper = "it"',
+    'code = "de"\nanrede = "ihr"',
+])
+def test_gueltige_sprachangaben_laufen_durch(tmp_path, monkeypatch, capsys, zeilen):
+    name = _sprachprofil(tmp_path, monkeypatch, zeilen)
+    pruefe_profil.pruefe_namen(name)
+    ausgabe = capsys.readouterr().out
+    assert "sprache.code" not in ausgabe and "sprache.whisper" not in ausgabe
+
+
+def test_englisches_zahlwort_wird_geprueft():
+    assert pruefe_profil.ZAHLWOERTER["five"] == 5
+    assert pruefe_profil.ZAHLWOERTER["fuenf"] == 5

@@ -75,9 +75,14 @@ def test_dortmund_ist_kein_geruest():
 
 
 def test_padua_traegt_seine_eigene_sprache_und_orte():
+    """Birks Entscheidung vom 29.09.2026: Padua laeuft auf Englisch, die
+    Interviewsprache erkennt Whisper selbst (E5), und kein Prompt sieht einen
+    Vornamen (E8)."""
     profil = workshop.lade("padua-2026")
-    assert profil.wert("sprache.code") == "it"
-    assert profil.wert("sprache.anrede") == "voi"
+    assert profil.wert("sprache.code") == "en"
+    assert profil.wert("sprache.anrede") == "you"
+    assert profil.wert("sprache.whisper") == "auto"
+    assert profil.wert("datenschutz.pseudonyme") is True
     assert tuple(profil.wert("orte.beispiele")) == (
         "fermata", "piazza", "bar", "stazione")
 

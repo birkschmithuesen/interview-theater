@@ -25,8 +25,8 @@ Was geprueft wird:
    Phasenanweisung und eine Einleitung.
 3. **Jeder Platzhalter loest sich auf** -- in jeder Prompt-Datei des Repos,
    in jeder des Profils und in den Prompt-Konstanten, die im Code stehen.
-4. Das Zahlwort der Formen passt zu ihrer Anzahl (nur fuer deutschsprachige
-   Profile pruefbar).
+4. Das Zahlwort der Formen passt zu ihrer Anzahl (fuer deutsche und
+   englische Zahlwoerter).
 5. Der Rahmenblock nennt die Zielgruppe aus ``profil.toml``. Die kurzen
    Rahmenfassungen tragen den Wortlaut ausgeschrieben (dort faellt der
    Zeilenumbruch mitten in den Satz), und genau deshalb koennen sie von
@@ -39,6 +39,7 @@ Was geprueft wird:
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -51,6 +52,9 @@ from interview_theater import anweisungen, knoepfe, szenenfolge, workshop
 ZAHLWOERTER = {
     "eine": 1, "zwei": 2, "drei": 3, "vier": 4, "fuenf": 5, "sechs": 6,
     "sieben": 7, "acht": 8, "neun": 9, "zehn": 10, "elf": 11, "zwoelf": 12,
+    # Englisch seit Karte A1 (Padua): "exactly five: ..."
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
 }
 
 #: Mindestbesetzung eines eigenen Erkenner-Korpus -- dieselben Zahlen wie in
@@ -125,6 +129,20 @@ def pruefe(profil: workshop.Profil) -> Bericht:
             "damit nicht startbereit."
             + (f" Leere Pflichtfelder: {', '.join(fehlend)}." if fehlend else "")
             + " Wer es fertig macht, fuellt die Felder und streicht die Zeile."
+        )
+
+    # --- Sprache (Karte A1) ----------------------------------------------
+    code = (profil.wert("sprache.code") or "").strip()
+    if code not in workshop.SPRACHEN:
+        bericht.fehlt(
+            f"sprache.code={code!r} ist nicht gebaut. Moeglich: "
+            f"{', '.join(workshop.SPRACHEN)}."
+        )
+    whisper = (profil.wert("sprache.whisper") or "").strip()
+    if not re.fullmatch(r"auto|[a-z]{2}", whisper):
+        bericht.fehlt(
+            f"sprache.whisper={whisper!r} ist weder 'auto' noch ein "
+            f"zweistelliger Sprachcode in Kleinbuchstaben (ISO 639-1, z. B. 'it')."
         )
 
     # --- Formen: Katalog und Regelbloecke --------------------------------

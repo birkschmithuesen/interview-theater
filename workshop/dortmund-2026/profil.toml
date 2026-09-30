@@ -21,6 +21,12 @@ beschreibung = "Zweitaegiger Theaterworkshop mit einem Migrantinnenverein in Dor
 code = "de"
 # Wie die Gruppe angesprochen wird. Deutsch "ihr", italienisch "voi".
 anrede = "ihr"
+# Was Whisper erkennen soll: ISO-639-1 ("de") oder "auto".
+whisper = "de"
+
+[datenschutz]
+# Vornamen im Verlauf durch "Mitglied 1, 2, ..." ersetzen (E8, Padua).
+pseudonyme = false
 
 [zielgruppe]
 # Der Satz, der wortgleich in mehreren Prompts steht.

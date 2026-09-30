@@ -27,6 +27,7 @@ Threads ``zaehle_aufnahmen`` aufruft -- mit einem einfachen ``Lock`` wuerde
 sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 """
 
+import json
 import re
 import secrets
 import sqlite3
@@ -3140,3 +3141,135 @@ def beanspruche_knopf(conn: sqlite3.Connection, knopf_id: int) -> bool:
     )
     conn.commit()
     return cur.rowcount == 1
+
+
+# --- Ruecknahme eines Erkennerlaufs (Karte U, 01.10.2026) ------------------
+
+
+@_gesperrt
+def offene_knoepfe_der_nachricht(
+    conn: sqlite3.Connection, chat_id: int, message_id: int,
+    art: str | None = None,
+) -> list[sqlite3.Row]:
+    """Die noch ungedrueckten Knoepfe EINER Nachricht, juengste zuerst.
+
+    Gebraucht fuer zwei Dinge (Karte U): eine ueberholte Leisten-Nachricht auf
+    ihren Undo-Knopf zu reduzieren, statt ihre Tastatur ganz abzunehmen -- und
+    nach einer wirksamen Ruecknahme die Grundleisten-Knoepfe genau dieser
+    Nachricht verfallen zu lassen, damit "Ja, speichern" den gerade
+    zurueckgenommenen Wert nicht wieder schreibt (der Wert steckt im Knopf)."""
+    wenn_art = " AND art = ?" if art else ""
+    werte = [chat_id, message_id] + ([art] if art else [])
+    return conn.execute(
+        "SELECT * FROM knopf WHERE chat_id = ? AND message_id = ? "
+        f"AND benutzt_am IS NULL{wenn_art} ORDER BY id DESC",
+        werte,
+    ).fetchall()
+
+
+@_gesperrt
+def schnappschuss(
+    conn: sqlite3.Connection, chat_id: int,
+    plan: dict[str, tuple[tuple[str, ...], tuple[str, ...]]],
+) -> dict[str, dict[str, dict]]:
+    """Der Stand der verfolgten Tabellen dieser Gruppe, Zeile fuer Zeile.
+
+    ``plan`` kommt aus ``ruecknahme.plan`` -- Tabelle -> (Schluesselspalten,
+    verglichene Spalten). Der Plan wird uebergeben und nicht hier gebaut: die
+    Entscheidung, WAS verfolgt wird, ist Fachlogik (``ruecknahme.py``), und
+    diese Datei liest nicht nach oben.
+
+    Weich entfernte Zeilen kommen MIT (kein ``entfernt_am IS NULL``): sonst
+    saehe der Diff eine im Lauf weich entfernte Figur als verschwunden und
+    fuegte sie beim Undo neu ein, statt ``entfernt_am`` zurueckzunehmen.
+
+    Ergebnis: ``{Tabelle: {Schluessel-JSON: {Spalte: Wert}}}``. Der Schluessel
+    ist ``json.dumps(..., sort_keys=True)``, damit er bei einem
+    zusammengesetzten Schluessel (``szene_figur``) stabil bleibt."""
+    fertig: dict[str, dict[str, dict]] = {}
+    for tabelle, (schluesselspalten, spalten) in plan.items():
+        namen = list(dict.fromkeys(list(schluesselspalten) + list(spalten)))
+        auswahl = ", ".join(namen)
+        zeilen = conn.execute(
+            f"SELECT {auswahl} FROM {tabelle} WHERE chat_id = ?", (chat_id,)
+        ).fetchall()
+        fertig[tabelle] = {
+            json.dumps({k: zeile[k] for k in schluesselspalten}, sort_keys=True):
+                {k: zeile[k] for k in spalten}
+            for zeile in zeilen
+        }
+    return fertig
+
+
+@_gesperrt
+def lege_erkenner_lauf_an(
+    conn: sqlite3.Connection, chat_id: int, meldung: str,
+    schritte: list[dict],
+) -> int | None:
+    """Speichert die Ruecknahme-Schritte eines Erkennerlaufs und liefert die
+    Lauf-id -- oder ``None``, wenn es nichts anzulegen gab.
+
+    ``None`` bei leeren Schritten (ein Knopf ohne Wirkung waere schlimmer als
+    keiner) und bei leerer Meldung (eine Ruecknahme, die nicht sagen kann, WAS
+    sie zurueckgenommen hat, ist keine). Alles in EINER Transaktion: ein Lauf
+    mit halben Schritten wuerde beim Undo den Stand halb wiederherstellen."""
+    if not schritte or not (meldung or "").strip():
+        return None
+    jetzt = _jetzt()
+    cur = conn.execute(
+        "INSERT INTO erkenner_lauf (chat_id, meldung, erstellt_am) VALUES (?, ?, ?)",
+        (chat_id, meldung, jetzt),
+    )
+    lauf_id = cur.lastrowid
+    conn.executemany(
+        "INSERT INTO erkenner_lauf_schritt "
+        "(chat_id, lauf_id, tabelle, schluessel, art, vorher, nachher, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                chat_id, lauf_id, s["tabelle"],
+                json.dumps(s["schluessel"], sort_keys=True), s["art"],
+                None if s["vorher"] is None else json.dumps(s["vorher"], sort_keys=True),
+                None if s["nachher"] is None else json.dumps(s["nachher"], sort_keys=True),
+                jetzt,
+            )
+            for s in schritte
+        ],
+    )
+    conn.commit()
+    return lauf_id
+
+
+@_gesperrt
+def merke_erkenner_lauf_nachricht(
+    conn: sqlite3.Connection, lauf_id: int, message_id: int
+) -> None:
+    """Haelt fest, unter welcher Nachricht der Undo-Knopf dieses Laufs haengt
+    -- gebraucht, um nach der Ruecknahme genau ihre Grundleiste verfallen zu
+    lassen."""
+    conn.execute(
+        "UPDATE erkenner_lauf SET message_id = ? WHERE id = ?",
+        (message_id, lauf_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hole_erkenner_lauf(conn: sqlite3.Connection, lauf_id: int) -> sqlite3.Row | None:
+    """Der Lauf zu einer id, egal ob schon zurueckgenommen -- der Aufrufer muss
+    den Unterschied kennen, um einen zweiten Druck freundlich zu beantworten
+    (dieselbe Ueberlegung wie bei ``hole_knopf``)."""
+    return conn.execute(
+        "SELECT * FROM erkenner_lauf WHERE id = ?", (lauf_id,)
+    ).fetchone()
+
+
+@_gesperrt
+def erkenner_lauf_schritte(
+    conn: sqlite3.Connection, lauf_id: int
+) -> list[sqlite3.Row]:
+    """Die Schritte eines Laufs in Anlegereihenfolge."""
+    return conn.execute(
+        "SELECT * FROM erkenner_lauf_schritt WHERE lauf_id = ? ORDER BY id ASC",
+        (lauf_id,),
+    ).fetchall()

@@ -1038,7 +1038,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
   - `erkenner_lauf_schritte(conn, lauf_id) -> list[sqlite3.Row]`
   - `offene_knoepfe_der_nachricht(conn, chat_id, message_id, art=None) -> list[sqlite3.Row]`
 
-- [ ] **Schritt 1: Die fehlschlagenden Tests schreiben**
+- [x] **Schritt 1: Die fehlschlagenden Tests schreiben**
 
 An `tests/test_ruecknahme_repo.py` anhaengen:
 
@@ -1159,12 +1159,12 @@ def test_offene_knoepfe_der_nachricht(conn):
     assert repo.offene_knoepfe_der_nachricht(conn, 1, 500, "undo") == []
 ```
 
-- [ ] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
+- [x] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
 
 Run: `$PY -m pytest tests/test_ruecknahme_repo.py -q -p no:cacheprovider`
 Erwartet: FAIL -- `AttributeError: module 'interview_theater.repo' has no attribute 'schnappschuss'`
 
-- [ ] **Schritt 3: Die Funktionen schreiben**
+- [x] **Schritt 3: Die Funktionen schreiben**
 
 In `interview_theater/repo.py`, hinter `beanspruche_knopf` (Ende des
 Knopf-Abschnitts), ein neuer Abschnitt:
@@ -1306,17 +1306,17 @@ def erkenner_lauf_schritte(
 Pruefen mit `grep -n "^import json" interview_theater/repo.py`; fehlt die
 Zeile, in den Importblock einfuegen.
 
-- [ ] **Schritt 4: Tests laufen lassen, gruen sehen**
+- [x] **Schritt 4: Tests laufen lassen, gruen sehen**
 
 Run: `$PY -m pytest tests/test_ruecknahme_repo.py -q -p no:cacheprovider`
 Erwartet: `12 passed`
 
-- [ ] **Schritt 5: Die ganze Suite**
+- [x] **Schritt 5: Die ganze Suite**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `4377 passed, 1 skipped`
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add interview_theater/repo.py tests/test_ruecknahme_repo.py

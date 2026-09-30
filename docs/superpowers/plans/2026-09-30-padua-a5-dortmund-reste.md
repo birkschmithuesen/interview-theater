@@ -2954,7 +2954,7 @@ und „Prompt geaendert?" jeweils zweimal) — **jede Aenderung gilt fuer die
 erste Fundstelle**, und wo unten „beide" steht, fuer beide. Fundstellen mit
 `grep -n` bestimmen, nicht mit Zeilennummern aus diesem Plan.
 
-- [ ] **Schritt 1: Zwei Zeilen in die Modultabelle**
+- [x] **Schritt 1: Zwei Zeilen in die Modultabelle**
 
 In der Tabelle „Module unter `interview_theater/`" (erste Fundstelle von
 `| Modul | Zuständigkeit |`), alphabetisch bei den Nachbarn:
@@ -2964,7 +2964,7 @@ In der Tabelle „Module unter `interview_theater/`" (erste Fundstelle von
 | `vorschlagssperre.py` | Die EINE Sperre je `chat_id`, die Schaerfung und die vier `szenenfolge.starte*` voneinander trennt (30.09.2026, C7), plus einen Merkplatz je Auftragsart: wer sie nicht bekommt, wird **gemerkt** und laeuft nach der Freigabe automatisch. Reines `threading`, **kein** Projektimport — deshalb von beiden Seiten importierbar. Grenze: der Merkplatz lebt im Prozess, ein Neustart verliert ihn |
 ```
 
-- [ ] **Schritt 2: Die Schichten der Modulkarte**
+- [x] **Schritt 2: Die Schichten der Modulkarte**
 
 Im Abschnitt „Modulkarte", Tabelle der vier Schichten:
 
@@ -2979,7 +2979,7 @@ Und in der Tabelle „Wo man anfaengt, je nach Frage" eine Zeile:
 | Warum wartet ein Vorschlag? | `vorschlagssperre.nimm` → `merke` → `gib_frei` |
 ```
 
-- [ ] **Schritt 3: „Was bewusst mehrfach existiert" praezisieren**
+- [x] **Schritt 3: „Was bewusst mehrfach existiert" praezisieren**
 
 Der Punkt lautet heute:
 
@@ -3005,7 +3005,7 @@ Er wird zu:
   `acquire(timeout=…)` auf das Ende eines Laufs warten können.
 ```
 
-- [ ] **Schritt 4: Vier Absätze in „Bindende Entwurfsentscheidungen"**
+- [x] **Schritt 4: Vier Absätze in „Bindende Entwurfsentscheidungen"**
 
 Am Ende des Abschnitts, nach dem Absatz über das Eingabe-Budget des
 Szenenlaufs, als **ein** neuer Aufzählungspunkt mit vier Teilen:
@@ -3075,7 +3075,7 @@ Szenenlaufs, als **ein** neuer Aufzählungspunkt mit vier Teilen:
      hat.
 ```
 
-- [ ] **Schritt 5: Die Korpuszahlen im Abschnitt „Prompt geändert?"**
+- [x] **Schritt 5: Die Korpuszahlen im Abschnitt „Prompt geändert?"**
 
 Der Absatz nennt heute „121 Absichtserkenner-Fälle (davon 45
 Negativfälle; … 10 mit `zustimmung: true`)". **Diese Zahlen sind schon vor
@@ -3100,7 +3100,7 @@ n20, n27 und fl04, und `tests/test_korpus.py::test_erkenner_haelt_die_laengengre
 hält deren Sollwerte fest.
 ```
 
-- [ ] **Schritt 6: Prüfen, dass die Doku-Tests halten**
+- [x] **Schritt 6: Prüfen, dass die Doku-Tests halten**
 
 `tests/test_anweisungen.py` prüft Prompt-Dateien, nicht AGENTS.md; es gibt
 keinen Test auf diese Datei. Trotzdem die Suite laufen lassen, weil AGENTS.md
@@ -3112,7 +3112,7 @@ python3.11 -m pytest -q -p no:cacheprovider
 ```
 Erwartet: `kein Test haengt an AGENTS.md` und `2741 passed, 1 skipped`.
 
-- [ ] **Schritt 7: Commit**
+- [x] **Schritt 7: Commit**
 
 ```bash
 git add AGENTS.md

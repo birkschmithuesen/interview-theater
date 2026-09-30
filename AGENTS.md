@@ -646,13 +646,30 @@ es jemand im Chat merkt.
      „25 Prozent kürzer" über einen Text, den es nie sah; ohne `vorlage`
      bleibt der Nutzertext zeichengleich zum bisherigen Weg. Der Prosalauf
      hat dabei **keine eigene Eingabebudget-Prüfung** (wie schon vorher
-     nicht), und die späteren Szenen bekommen den Prüf-Vermerk nur, wenn ein
-     Lauf wirklich gestartet wurde (`kuerzung.hat_gestartet`).
+     nicht). Beim Kürzen **einer Szene in Phase 6** ist `volltext` leer; der
+     Auftrag trägt deshalb `szene.BISHER_MARKER`, und nur mit ihm steht die
+     bestehende Prosa der Szene als „Bisheriger Text" im Nutzertext
+     (`szene._diese_szene_text(..., bisher_prosa=True)`) — jeder Lauf ohne
+     Marker bleibt zeichengleich. `kuerzung.starte` liefert
+     `(quittung, gestartet)`, `gestartet` aus dem Rückgabewert des
+     Schreibwegs (Thread oder `None`), nicht aus dem Wortlaut der Quittung;
+     und `kuerzung.starte` setzt selbst den Prüf-Vermerk für spätere Szenen
+     (`knoepfe._melde_spaetere`), nur mit Lauf — damit gilt er für Knopf und
+     Erkenner gleich.
   2. **Die Erkenner-Art `szene_kuerzen`** macht „mach das kürzer" im Chat zum
      selben Weg. Sie hat **keinen Schreibpfad** (wie `szene_schreiben`) und
      wird erst in `laufe()` ausgewertet (`erkenner._starte_kuerzung`),
      höchstens **eine je Lauf**. Leerer `wert` heißt „die ganze
      Kurzgeschichte" — eine geratene Nummer schriebe die falsche Szene neu.
+     **Aber nur, solange Geschichten entstehen:** ab der Phase der
+     Theatertexte (`szene.schreibt_prosa` falsch, heute ab 7) startet der
+     Erkenner-Weg ohne Nummer **keinen** Lauf über die ganze Geschichte,
+     sondern fragt in einem Satz nach der Szene
+     (`kuerzung.TEXT_WELCHE_SZENE`). Das ist eine **vorläufige
+     Voreinstellung, die Entscheidung liegt bei Birk**; der Knopf „Kürzer"
+     unter der Kurzgeschichte ist davon nicht betroffen, und
+     `prompts/erkenner.md` (Punkt 23, „der ganze Text, der zuletzt entstanden
+     ist") blieb unverändert, damit kein neuer Korpuslauf fällig wird.
      Auf **„im Zweifel kein Eintrag"** kalibriert, wie `szene_schreiben` und
      `entfernen`: Kritik an der Länge („zu lang, was meint ihr", Korpusfall
      n20) feuert nicht, eine dauerhafte Längenvorgabe („höchstens eine Seite
@@ -695,7 +712,9 @@ es jemand im Chat merkt.
      Anker, Nummern zusammenhängend ab 1, Form nur am Stückende, Titel bis
      `TITEL_MAX` = 80 Zeichen); Lücken oder Doppelungen in der Nummerierung
      hinterlassen den Vorfall `richtung_szenen_unvollstaendig`, statt still
-     zu verwerfen. **Review-Fix (`c9af872`):** der Inline-Weg gilt darüber
+     zu verwerfen — aber nur, wenn die Zeile keine Formwahl ist: eine
+     Formabfolge mit Lücke geht in `_uebernimm_formwahl` und hinterlässt
+     allein `geschichte_war_formwahl`. **Review-Fix (`c9af872`):** der Inline-Weg gilt darüber
      hinaus nur, wenn kein Titel mit einem Formwort beginnt und jede Form,
      die `formabfolge` in der Zeile findet, genau als Anhang eines dieser
      Titel steht (`szenenfolge.szenen_der_richtung`) — sonst bleibt es beim

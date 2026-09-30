@@ -10,8 +10,9 @@ Modelle laufen.
 Was es nicht misst, ist der Zusammenhang: ob eine Gruppe mit diesem Bot in
 einem halben Tag von einer Begriffsliste zu einem Szenentext kommt, ob
 Zustimmungen ankommen, ob der Bot behauptet, etwas notiert zu haben, das
-nirgends steht. Genau das faehrt dieses Skript ab -- neun Schritte, drei
-simulierte Teilnehmerinnen, fuenf Interviews, danach ein Richter.
+nirgends steht. Genau das faehrt dieses Skript ab -- alle Schritte des
+gewaehlten Skripts (``--skript``), drei simulierte Teilnehmerinnen, fuenf
+Interviews, danach ein Richter.
 
 Aufruf::
 
@@ -20,6 +21,7 @@ Aufruf::
     $PY -m scripts.simulation --set 1 --seed 7 --bericht
     $PY -m scripts.simulation --mix 1,2,3 --seed 3
     $PY -m scripts.simulation --set 1 --seed 1 --ohne-szene --bericht
+    $PY -m scripts.simulation --set 1 --seed 1 --skript tag2 --ohne-szene --bericht
     $PY -m scripts.simulation --alle          # drei Laeufe, Sets 1-3
 
 **Zwei Modelle.** Der Bot laeuft ueber Infomaniak (``interview_theater/llm.py``,
@@ -59,8 +61,8 @@ import httpx
 from interview_theater import db, einstellungen, kontext, llm
 from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN, PREISE_STAND
 from simulation import (
-    bericht, birk, claude, kennzahlen, lauf, material, richter, skript, stoerung,
-    tag1,
+    bericht, birk, claude, kennzahlen, lauf, material, mutation, richter, skript,
+    stoerung, tag1,
 )
 from simulation.attrappe import TelegramAttrappe
 
@@ -139,23 +141,31 @@ def ist_tag1(args) -> bool:
     """Ob dieser Lauf eines der Sets aus dem echten Tag 1 faehrt.
 
     Sie unterscheiden sich in vier Dingen von allen anderen: eine Stimme
-    statt drei, das Skript der acht Phasen (``skript.SCHRITTE_TAG2``), eine
+    statt drei, das Skript der sieben Phasen (``skript.SCHRITTE_TAG2``), eine
     Begriffs- und Fragenrichtung aus dem echten Tag -- und ein
     Referenzblock, der aus Aggregaten besteht statt aus einem Chatverlauf."""
     return args.set in tag1.SETS
 
 
 def mischungsname(args) -> str:
-    """Wie der Lauf in Dateinamen und Verlauf heisst."""
+    """Wie der Lauf in Dateinamen und Verlauf heisst.
+
+    Die Mutation gehoert dazu: zwei Laeufe mit demselben Set und demselben
+    Seed, einer mutiert, wuerden sonst dieselbe Berichtsdatei ueberschreiben
+    -- und im Verlauf staenden zwei Zeilen, die niemand auseinanderhalten
+    kann."""
     if ist_birk(args):
-        return birk.NAME
-    if ist_tag1(args):
-        return args.set
-    if args.set:
-        return f"set{args.set}"
-    if args.mix:
-        return "mix" + "-".join(str(n) for n in args.mix)
-    return "alle15"
+        name = birk.NAME
+    elif ist_tag1(args):
+        name = args.set
+    elif args.set:
+        name = f"set{args.set}"
+    elif args.mix:
+        name = "mix" + "-".join(str(n) for n in args.mix)
+    else:
+        name = "alle15"
+    zusatz = getattr(args, "mutation", None)
+    return f"{name}-{zusatz}" if zusatz else name
 
 
 def _mix(text: str | None) -> list[int] | None:
@@ -182,6 +192,18 @@ def baue_argumente(argv=None) -> argparse.Namespace:
                    help="macht Auswahl, Besetzung und Reihenfolge reproduzierbar")
     p.add_argument("--ohne-szene", action="store_true",
                    help="den Szenen-Schritt auslassen (spart den Reasoning-Lauf)")
+    p.add_argument("--skript", choices=("auto", "schritte", "tag2", "birk"),
+                   default="auto",
+                   help="welche Schrittliste gefahren wird. 'auto' (Vorgabe) "
+                        "waehlt wie bisher nach dem Set; 'tag2' faehrt das "
+                        "Skript der heutigen Phasen (skript.SCHRITTE_TAG2) "
+                        "auch fuer die erfundenen Sets 1-3 -- nur damit sind "
+                        "Setting, Festlegungen, Geschichte und Schaerfung "
+                        "ueberhaupt im Lauf")
+    p.add_argument("--mutation", choices=mutation.ARTEN,
+                   help="einen belegten Fehler fuer diesen Lauf wieder "
+                        "einbauen (simulation/mutation.py) -- nur zum "
+                        "Gegenpruefen der Kennzahlen, nie im Betrieb")
     p.add_argument("--bericht", nargs="?", const="", default=None,
                    help="Markdown-Bericht schreiben; ohne Pfad nach "
                         "simulation/berichte/<datum>-<mischung>-<seed>.md. "
@@ -226,7 +248,20 @@ def baue_argumente(argv=None) -> argparse.Namespace:
 
 
 def _schritte(args):
-    if ist_tag1(args):
+    """Welche Schrittliste dieser Lauf faehrt.
+
+    ``--skript`` schlaegt die Herkunft aus dem Set. Vorgabe bleibt ``auto``,
+    also genau das bisherige Verhalten -- ein alter Aufruf soll nach diesem
+    Schalter dieselbe Liste fahren wie vorher, sonst waeren die
+    Verlaufszeilen von damals nicht mehr vergleichbar."""
+    gewaehlt = getattr(args, "skript", "auto")
+    if gewaehlt == "tag2":
+        grund = skript.SCHRITTE_TAG2
+    elif gewaehlt == "schritte":
+        grund = skript.SCHRITTE
+    elif gewaehlt == "birk":
+        grund = skript.SCHRITTE_BIRK
+    elif ist_tag1(args):
         grund = skript.SCHRITTE_TAG2
     elif ist_birk(args):
         grund = skript.SCHRITTE_BIRK
@@ -318,6 +353,9 @@ def einen_lauf(args, e, klient, mischung: str, sim=None, ordner=None) -> dict:
     schritte = _schritte(args)
 
     with contextlib.ExitStack() as stapel:
+        # Vor allem anderen: die Mutation muss stehen, bevor irgendein
+        # Produktivmodul aufgerufen wird.
+        stapel.enter_context(mutation.aktiv(getattr(args, "mutation", None)))
         if ordner is None:
             ordner = stapel.enter_context(wegwerf_umgebung())
         if getattr(args, "echte_db", None):
@@ -387,6 +425,7 @@ def einen_lauf(args, e, klient, mischung: str, sim=None, ordner=None) -> dict:
             "sim_modell": sim.modell,
             "preise_stand": PREISE_STAND,
             "referenz": aufbau["referenz"],
+            "mutation": getattr(args, "mutation", None) or "",
         }
         # Transkript und Verlaufszeile entstehen immer: das eine ist die
         # Datei, in die man schaut, wenn eine Zahl ueberrascht, das andere
@@ -398,6 +437,9 @@ def einen_lauf(args, e, klient, mischung: str, sim=None, ordner=None) -> dict:
             bericht_datei=args.bericht is not None,
             ziel=args.bericht or None,
         )
+        if kopfdaten["mutation"]:
+            print(f"!! MUTATION AKTIV: {kopfdaten['mutation']}", flush=True)
+            print(f"   {mutation.BESCHREIBUNG[kopfdaten['mutation']]}", flush=True)
         print()
         print(bericht.baue(ergebnis, zahlen, schritte, kopfdaten))
         print(f"Transkript: {pfade['lauf']}")
@@ -497,8 +539,11 @@ def _parallel(laeufe, e, klient, ordner) -> None:
         finally:
             sim.schliesse()
 
-    threads = [threading.Thread(target=einer, args=(einzeln,))
-               for einzeln in laeufe]
+    # Der Name ist die Kennung, an der ``lauf.warte_auf_hintergrund`` die
+    # Lauf-Threads der Nachbarn erkennt und NICHT auf sie wartet.
+    threads = [threading.Thread(target=einer, args=(einzeln,),
+                                name=f"{lauf.LAUF_THREAD_PRAEFIX}-{n}")
+               for n, einzeln in enumerate(laeufe, 1)]
     for t in threads:
         t.start()
     for t in threads:

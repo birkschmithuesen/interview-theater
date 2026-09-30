@@ -53,13 +53,21 @@ def test_ein_skript_ohne_phasenschritte_ordnet_nichts_zu():
     assert set(zuordnung.values()) == {phasen.ERSTE}
 
 
-def test_titelphasen_findet_den_widerspruch_von_phase_mitte():
-    """``Schritt("phase_mitte", "Phase 5", ...)`` bei
-    ``skript.PHASE_MITTE == 4`` -- der Titel nennt eine andere Phase als die
-    Pruefung."""
+def test_titelphasen_findet_einen_widerspruch():
+    """Der Befund vom 30.09.2026 war ``Schritt("phase_mitte", "Phase 5", ...)``
+    bei ``skript.PHASE_MITTE == 4`` -- der Titel nannte eine andere Phase als
+    die Pruefung. Seit Aufgabe 7 ist der Titel nachgezogen; der Mechanismus
+    wird deshalb an einem gebauten Schritt geprueft."""
+    falsch = skript.Schritt("x", "Phase 5: irgendwas", "ziel", lambda *a: True)
+    zeile = abdeckung.titelphasen([falsch])[0]
+    assert zeile["titel_phase"] == 5
+    assert zeile["zugeordnet"] == phasen.ERSTE
+    assert zeile["stimmt"] is False
+
+
+def test_der_titel_von_phase_mitte_nennt_heute_phase_mitte():
     zeilen = {z["schluessel"]: z for z in abdeckung.titelphasen(skript.SCHRITTE)}
-    assert zeilen["phase_mitte"]["titel_phase"] == 5
-    assert zeilen["phase_mitte"]["stimmt"] is False
+    assert zeilen["phase_mitte"]["titel_phase"] == skript.PHASE_MITTE
 
 
 def test_phasentabelle_nennt_pruefung_und_pflichtfeld(leer):

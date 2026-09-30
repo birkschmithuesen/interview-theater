@@ -142,8 +142,11 @@ BEHAUPTUNGEN: tuple[tuple[str, str, object], ...] = (
     ("simulation/README.md", "acht Phasen", lambda: len(phasen.PHASEN) == 8),
     ("simulation/skript.py", "acht Phasen", lambda: len(phasen.PHASEN) == 8),
     ("simulation/skript.py", '"Phase 5"', lambda: skript.PHASE_MITTE == 5),
+    # ``getattr`` statt Attributzugriff: seit Aufgabe 7 gibt es die Konstante
+    # nicht mehr, und eine Pruefung, die dann wirft, riss den ganzen Zensus mit.
     ("simulation/skript.py", "PHASE_SZENENTEXTE",
-     lambda: phasen.kurzname(skript.PHASE_SZENENTEXTE).startswith("Szenentexte")),
+     lambda: getattr(skript, "PHASE_SZENENTEXTE", None) is not None
+     and phasen.kurzname(skript.PHASE_SZENENTEXTE).startswith("Szenentexte")),
     ("simulation/kennzahlen.py", "Pflichtfeld der Phase 5",
      lambda: skript.PHASE_MITTE == 5),
 )

@@ -53,6 +53,67 @@ CHAT_TITEL = "Simulationsgruppe"
 #: gestern loeste ueberhaupt keine Zuege aus.
 SEKUNDEN_JE_NACHRICHT = 5
 
+#: Wie lange ein Zug hoechstens auf die Hintergrundlaeufe wartet, die er
+#: gestartet hat. 300 s, weil die gemessenen Laeufe darunter liegen: die
+#: Szenenfolge brauchte am 06.09.2026 110 s, die Kurzgeschichte 150 s
+#: (docs/analyse-phase5-chaos-2026-09-06.md § 0). Ein haengender Lauf haelt
+#: den Simulator damit hoechstens fuenf Minuten auf; danach geht es weiter,
+#: und der fehlende Zielzustand steht als gescheiterter Schritt im Bericht.
+HINTERGRUND_S = 300.0
+
+#: Namenspraefix der Threads, in denen ``scripts.simulation._parallel`` je
+#: einen ganzen Lauf faehrt. Auf die wird nie gewartet: ein Lauf, der am
+#: Zugende auf den Hauptthread des Nachbarlaufs wartete, stuende jedes Mal
+#: ``HINTERGRUND_S`` still.
+LAUF_THREAD_PRAEFIX = "simulation-lauf"
+
+
+def warte_auf_hintergrund(vorher: frozenset, grenze_s: float = HINTERGRUND_S) -> int:
+    """Wartet auf die Threads, die seit ``vorher`` dazugekommen sind.
+
+    **Warum das noetig ist.** ``einfaedig()`` macht vier Stellen synchron, an
+    denen der Betrieb einen Thread startet -- ``szenenfolge.starte_geschichte_szenen``,
+    ``schaerfung.starte``, ``sprachstil.starte`` und ``kurzgeschichte.starte``
+    sind nicht darunter. Ihre Wirkung landete deshalb zu einem beliebigen
+    Zeitpunkt in der Datenbank, unter Umstaenden erst nach ``conn.close()`` am
+    Ende des Laufs -- und der Zielzustand des naechsten Schritts wurde gegen
+    eine Datenbank geprueft, in der noch nichts stand.
+
+    **Warum nicht vier weitere Ersatzfunktionen.** Jede von ihnen traegt ihre
+    eigene Sperr- und Merklogik (``vorschlagssperre.nimm_oder_merke``, und ein
+    Sperr-Leck darin ist am 30.09.2026 eigens repariert worden). Sie
+    nachzubauen hiesse, dieselbe Logik zweimal zu haben -- hier wird statt
+    dessen **abgewartet**, und das erfasst jeden kuenftigen Hintergrundlauf
+    mit.
+
+    **Nur die neuen Threads.** Bei ``--parallel`` faehrt jeder Lauf in einem
+    eigenen Thread; auf den anderen zu warten waere ein Deadlock mit Ansage.
+    Deshalb die Momentaufnahme vom Zuganfang -- und Lauf-Threads
+    (``LAUF_THREAD_PRAEFIX``) zaehlen nie mit, auch wenn der Nachbarlauf erst
+    nach dieser Momentaufnahme startet.
+
+    Liefert, auf wie viele Threads gewartet wurde -- fuer den Test, nicht fuer
+    den Bericht."""
+    ende = time.monotonic() + grenze_s
+    abgewartet = 0
+    ich = threading.current_thread()
+    while True:
+        neu = [
+            t for t in threading.enumerate()
+            if t not in vorher and t is not ich and t.is_alive()
+            and not t.name.startswith(LAUF_THREAD_PRAEFIX)
+        ]
+        if not neu:
+            return abgewartet
+        uebrig = ende - time.monotonic()
+        if uebrig <= 0:
+            log.warning("Hintergrundlauf nach %.0f s nicht fertig: %s",
+                        grenze_s, [t.name for t in neu])
+            return abgewartet
+        neu[0].join(timeout=uebrig)
+        abgewartet += 1
+
+
 #: Alternativname fuer die Transkriptkorrektur in Schritt 8 ("X heisst Y").
 ERSATZNAME = "Rukiye"
 
@@ -390,6 +451,9 @@ class Lauf:
         self._beitrag_nummer = 0
         self._zeit = datetime.now(timezone.utc) - timedelta(seconds=60)
         self._schritt = self.schrittliste[0].schluessel if self.schrittliste else "-"
+        #: Die Threads, die es beim Beginn des laufenden Zuges schon gab --
+        #: alles, was danach dazukommt, ist ein Hintergrundlauf dieses Zuges.
+        self._threads_vorher: frozenset = frozenset(threading.enumerate())
 
     # -- Grundoperationen ---------------------------------------------------
 
@@ -412,6 +476,7 @@ class Lauf:
         ]
 
     def _zug(self, marke: str = "", notiz: str = "", art: str = "gespraech") -> Zug:
+        self._threads_vorher = frozenset(threading.enumerate())
         zug = Zug(schritt=self._schritt, marke=marke, notiz=notiz, art=art)
         if self.stoerung is not None:
             self.stoerung.neuer_zug()
@@ -428,6 +493,7 @@ class Lauf:
         aufploppt, und damit die Zahl, die eine Teilnehmerin erlebt. Kam gar
         keine Antwort, bleibt sie ``None`` -- eine Null waere hier die
         Behauptung, es sei schnell gegangen."""
+        warte_auf_hintergrund(self._threads_vorher)
         zug.bot = self.tg.texte(ab_gesendet)
         zug.kontext = self.kontexte[ab_kontext:]
         zug.datenlage = kennzahlen.datenlage(self.conn, CHAT_ID)
@@ -557,6 +623,25 @@ class Lauf:
             log.exception("Knopfdruck in der Simulation fehlgeschlagen")
             zug.notiz += " (fehlgeschlagen)"
         self._schliesse_zug(zug, vorher, ab_kontext, start)
+
+    @contextlib.contextmanager
+    def _ereignis_um(self, notiz: str, marke: str = ""):
+        """Wie ``_ereignis``, aber der Zug wird VOR der Handlung geoeffnet und
+        erst danach geschlossen.
+
+        Fuer Handlungen des Simulators, die selbst Bot-Code rufen (Knopfdruck,
+        Notausgang): nur so steht ein dort gestarteter Hintergrund-Thread
+        NICHT schon in der Momentaufnahme des Zuges und wird am Zugende
+        abgewartet -- und die Bot-Nachrichten der Handlung fallen in diesen
+        Zug statt in den naechsten."""
+        vorher = len(self.tg.gesendet)
+        ab_kontext = len(self.kontexte)
+        start = self.tg.jetzt()
+        zug = self._zug(marke=marke, notiz=notiz)
+        try:
+            yield zug
+        finally:
+            self._schliesse_zug(zug, vorher, ab_kontext, start)
 
     def _ereignis(self, notiz: str, marke: str = "") -> Zug:
         """Ein Zug ohne Stimme: was der Simulator selbst getan hat (Import
@@ -751,16 +836,18 @@ class Lauf:
             for beschriftung, daten in angebot["knoepfe"]:
                 if beschriftung != knoepfe_modul._TEXT_AUFNAHME_STARTEN:
                     continue
-                knoepfe_modul.behandle(
-                    self.conn, self.tg, self.klm, self.e,
-                    {
-                        "callback_query_id": "sim",
-                        "data": daten,
-                        "chat_id": CHAT_ID,
-                        "message_id": angebot["message_id"],
-                    },
-                )
-                self._ereignis("Knopf \"Interview starten\" gedrueckt", marke="knopf")
+                with self._ereignis_um(
+                    "Knopf \"Interview starten\" gedrueckt", marke="knopf"
+                ):
+                    knoepfe_modul.behandle(
+                        self.conn, self.tg, self.klm, self.e,
+                        {
+                            "callback_query_id": "sim",
+                            "data": daten,
+                            "chat_id": CHAT_ID,
+                            "message_id": angebot["message_id"],
+                        },
+                    )
                 return
 
     def _importiere(self, text: str, name: str, an: int | None = None) -> int:
@@ -799,19 +886,19 @@ class Lauf:
         if aufnahme_id is None:
             self._ereignis(f"Notausgang: {interview.name} hat kein Material bekommen.")
             return
-        repo.setze_interviewmodus(self.conn, CHAT_ID, None)
-        row = repo.hole_aufnahme(self.conn, aufnahme_id)
-        if row is not None and row["status"] == "laeuft":
-            repo.setze_interview_beendet(self.conn, aufnahme_id)
-            aufnahme.schliesse_ab(self.conn, self.tg, self.klm, self.e, aufnahme_id)
-        else:
-            aufnahme.verarbeite(
-                self.conn, self.tg, self.klm, self.e, None, aufnahme_id
-            )
-        self._ereignis(
+        with self._ereignis_um(
             f"Notausgang: der Bot hat das Ende von {interview.name} nicht "
             "mitbekommen, die Simulation hat es selbst abgeschlossen."
-        )
+        ):
+            repo.setze_interviewmodus(self.conn, CHAT_ID, None)
+            row = repo.hole_aufnahme(self.conn, aufnahme_id)
+            if row is not None and row["status"] == "laeuft":
+                repo.setze_interview_beendet(self.conn, aufnahme_id)
+                aufnahme.schliesse_ab(self.conn, self.tg, self.klm, self.e, aufnahme_id)
+            else:
+                aufnahme.verarbeite(
+                    self.conn, self.tg, self.klm, self.e, None, aufnahme_id
+                )
 
     def _fahre_szene(self, schritt, merker: dict) -> bool:
         """Planen lassen, dann die Szene beauftragen.
@@ -967,12 +1054,17 @@ class Lauf:
             "richtiger_name": ERSATZNAME,
             "figur_weg": figuren[-1] if figuren else "die dritte Figur",
             "figuren_vorher": len(figuren),
+            "festlegungsproben": skript.festlegungsproben_text(),
         }
 
     def fahre(self) -> Ergebnis:
         """Faehrt alle Schritte. Ein gescheiterter Schritt haelt den Lauf
         nicht auf -- er wird vermerkt und der naechste beginnt."""
         start = time.monotonic()
+        # Alles, was danach an Threads entsteht, gehoert zu diesem Lauf --
+        # das Abwarten am Ende faengt auch, was ausserhalb eines Zuges
+        # gestartet wurde (etwa aus einer Zielzustand-Pruefung).
+        threads_beim_start = frozenset(threading.enumerate())
         repo.sichere_gruppe(self.conn, CHAT_ID, self.e.bot_name, CHAT_TITEL)
         with einfaedig(), kontext_protokoll(self.kontexte):
             for nummer, schritt in enumerate(self.schrittliste, 1):
@@ -991,6 +1083,9 @@ class Lauf:
                 if self.pause and nummer == PAUSE_NACH_SCHRITT:
                     print("  -> Pause: eine Nacht", flush=True)
                     self._lege_pause_ein()
+            # Vor Kennzahlen, Richter und conn.close(): kein Hintergrundlauf
+            # dieses Laufs darf erst danach in die Datenbank schreiben.
+            warte_auf_hintergrund(threads_beim_start)
         self.ergebnis.dauer_s = time.monotonic() - start
         return self.ergebnis
 

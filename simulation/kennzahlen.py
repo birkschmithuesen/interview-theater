@@ -757,10 +757,10 @@ def _figuren_inkl_entfernt(conn, chat_id: int) -> int:
 
 def arbeitsstand_vollstaendig(conn, chat_id: int) -> dict[str, int]:
     """Je Feld 0/1: Begriffe, Fragen, Kernthema, drei Figuren, das
-    Pflichtfeld der Phase 5 (heute ``format``).
+    Pflichtfeld der Phase ``skript.PHASE_MITTE`` (heute ``geschichte``).
 
     Das letzte kommt aus ``skript.pflichtfeld_fuer_phase`` und damit aus dem
-    Schema -- nach einem Umbau der Phase 5 misst diese Funktion das neue Feld,
+    Schema -- nach einem Umbau dieser Phase misst diese Funktion das neue Feld,
     ohne dass jemand sie nachzieht. Nur das Pflichtfeld: ``rahmen`` darf leer
     bleiben, und eine Kennzahl, die es mitzaehlt, meldete einen Lauf als
     unvollstaendig, dem nichts fehlt."""

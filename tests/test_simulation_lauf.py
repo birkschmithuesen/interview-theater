@@ -507,3 +507,160 @@ def test_die_verlaufszeile_traegt_die_mutation():
     kopf_ohne = {**kopf}
     kopf_ohne.pop("mutation")
     assert bericht.verlaufszeile(_zahlen_mit(), _Ergebnis(), kopf_ohne)["mutation"] == ""
+
+
+# --- Hintergrundlaeufe abwarten (30.09.2026) -------------------------------
+#
+# lauf.einfaedig() macht szene.starte und drei Geschwister synchron -- nicht
+# aber szenenfolge.starte_geschichte_szenen, schaerfung.starte,
+# sprachstil.starte, kurzgeschichte.starte. Deren Wirkung landete zu einem
+# beliebigen Zeitpunkt in der Datenbank, unter Umstaenden nach conn.close().
+
+import threading
+import time
+
+
+def test_warte_auf_hintergrund_wartet_auf_neue_threads():
+    gemerkt = []
+
+    def arbeite():
+        time.sleep(0.05)
+        gemerkt.append("da")
+
+    vorher = frozenset(threading.enumerate())
+    threading.Thread(target=arbeite, daemon=True).start()
+    abgewartet = lauf.warte_auf_hintergrund(vorher, grenze_s=5.0)
+    assert gemerkt == ["da"]
+    assert abgewartet == 1
+
+
+def test_warte_auf_hintergrund_ignoriert_alte_threads():
+    """Bei ``--parallel`` laufen zwei Laeufe in Threads. Der eine darf nicht
+    auf den anderen warten -- gewartet wird nur auf Threads, die es beim
+    Beginn dieses Zuges noch nicht gab."""
+    halt = threading.Event()
+    alt = threading.Thread(target=halt.wait, daemon=True)
+    alt.start()
+    try:
+        vorher = frozenset(threading.enumerate())
+        assert alt in vorher
+        start = time.monotonic()
+        assert lauf.warte_auf_hintergrund(vorher, grenze_s=5.0) == 0
+        assert time.monotonic() - start < 1.0
+    finally:
+        halt.set()
+
+
+def test_warte_auf_hintergrund_gibt_nach_der_grenze_auf():
+    """Ein haengender Lauf darf den Simulator nicht festhalten: nach der
+    Grenze geht es weiter, und der Bericht zeigt am fehlenden Zielzustand,
+    dass etwas nicht fertig wurde."""
+    halt = threading.Event()
+    vorher = frozenset(threading.enumerate())
+    threading.Thread(target=halt.wait, daemon=True).start()
+    try:
+        start = time.monotonic()
+        lauf.warte_auf_hintergrund(vorher, grenze_s=0.2)
+        assert time.monotonic() - start < 2.0
+    finally:
+        halt.set()
+
+
+def test_der_lauf_merkt_sich_die_threads_beim_zuganfang(conn, einst):
+    """``_zug`` legt die Momentaufnahme an, ``_schliesse_zug`` wartet -- damit
+    die Nachrichten des Hintergrundlaufs noch in DIESEN Zug fallen und nicht
+    in den naechsten."""
+    from simulation.attrappe import TelegramAttrappe
+
+    durchlauf = lauf.Lauf(
+        conn, TelegramAttrappe(), None, einst, None,
+        gezogene=[], seed=1, schritte=[],
+    )
+    zug = durchlauf._zug()
+    assert isinstance(durchlauf._threads_vorher, frozenset)
+    assert threading.current_thread() in durchlauf._threads_vorher
+    assert zug is durchlauf.ergebnis.zuege[-1]
+
+
+# --- Review-Befunde zu Aufgabe 7: Handlungen des Simulators ---------------
+#
+# _druecke_interview_starten und _notausgang rufen selbst Bot-Code. Ein dort
+# gestarteter Thread stand frueher schon in der Momentaufnahme des Zuges und
+# wurde nie abgewartet.
+
+
+def _starte_nachzuegler(gemerkt, text="da"):
+    def arbeite():
+        time.sleep(0.05)
+        gemerkt.append(text)
+
+    threading.Thread(target=arbeite, daemon=True).start()
+
+
+def _leerer_lauf(conn, einst, schritte=()):
+    from simulation.attrappe import TelegramAttrappe
+
+    return lauf.Lauf(
+        conn, TelegramAttrappe(), None, einst, None,
+        gezogene=[], seed=1, schritte=list(schritte),
+    )
+
+
+def test_der_knopfdruck_wartet_auf_seinen_hintergrundlauf(conn, einst, monkeypatch):
+    from interview_theater import knoepfe as knoepfe_modul
+
+    gemerkt = []
+    monkeypatch.setattr(knoepfe_modul, "behandle",
+                        lambda *a, **k: _starte_nachzuegler(gemerkt))
+    durchlauf = _leerer_lauf(conn, einst)
+    repo.sichere_gruppe(conn, lauf.CHAT_ID, einst.bot_name, lauf.CHAT_TITEL)
+    durchlauf.tg.knoepfe.append({
+        "message_id": 7,
+        "knoepfe": [(knoepfe_modul._TEXT_AUFNAHME_STARTEN, "k:1")],
+    })
+    durchlauf._druecke_interview_starten()
+    assert gemerkt == ["da"]
+    assert durchlauf.ergebnis.zuege[-1].marke == "knopf"
+
+
+def test_der_notausgang_wartet_auf_seinen_hintergrundlauf(conn, einst, monkeypatch):
+    from types import SimpleNamespace
+
+    gemerkt = []
+    monkeypatch.setattr(repo, "setze_interviewmodus", lambda *a, **k: None)
+    monkeypatch.setattr(repo, "hole_aufnahme", lambda *a, **k: {"status": "fertig"})
+    monkeypatch.setattr(aufnahme, "verarbeite",
+                        lambda *a, **k: _starte_nachzuegler(gemerkt))
+    durchlauf = _leerer_lauf(conn, einst)
+    durchlauf._notausgang(1, SimpleNamespace(name="Interview X"))
+    assert gemerkt == ["da"]
+    assert durchlauf.ergebnis.notausgaenge == 1
+    assert "Notausgang" in durchlauf.ergebnis.zuege[-1].notiz
+
+
+def test_fahre_wartet_am_ende_auf_alles_seit_laufbeginn(conn, einst):
+    """Ein Thread, der ausserhalb jedes Zuges entsteht (hier aus der
+    Zielzustand-Pruefung), wird vor Kennzahlen und conn.close() abgewartet."""
+    gemerkt = []
+
+    def fertig(_conn, _chat_id, _merker):
+        _starte_nachzuegler(gemerkt)
+        return True
+
+    schritt = skript.Schritt("probe", "Probe", "nichts", fertig)
+    durchlauf = _leerer_lauf(conn, einst, [schritt])
+    durchlauf.fahre()
+    assert gemerkt == ["da"]
+
+
+def test_lauf_threads_des_nachbarn_werden_nie_abgewartet():
+    halt = threading.Event()
+    vorher = frozenset(threading.enumerate())
+    threading.Thread(target=halt.wait, daemon=True,
+                     name=f"{lauf.LAUF_THREAD_PRAEFIX}-2").start()
+    try:
+        start = time.monotonic()
+        assert lauf.warte_auf_hintergrund(vorher, grenze_s=5.0) == 0
+        assert time.monotonic() - start < 1.0
+    finally:
+        halt.set()

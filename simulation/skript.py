@@ -1,26 +1,33 @@
 """Der Ablauf, den die simulierten Teilnehmerinnen *wollen*.
 
-Neun Schritte, jeder mit einem **Ziel** (was die Stimmen anstreben, nicht
-was sie woertlich sagen) und einem **Zielzustand in der Datenbank** (woran
-der Lauf merkt, dass der Schritt durch ist). Ist der Zielzustand nach
-``MAX_NACHRICHTEN`` Stimm-Nachrichten nicht erreicht, gilt der Schritt als
-**gescheitert**, wird so vermerkt, und der Lauf geht trotzdem weiter -- ein
-Workshop bleibt auch nicht stehen, weil der Bot etwas nicht mitbekommen hat.
+Je Schritt ein **Ziel** (was die Stimmen anstreben, nicht was sie woertlich
+sagen) und ein **Zielzustand in der Datenbank** (woran der Lauf merkt, dass
+der Schritt durch ist). Ist der Zielzustand nach ``MAX_NACHRICHTEN``
+Stimm-Nachrichten nicht erreicht, gilt der Schritt als **gescheitert**, wird
+so vermerkt, und der Lauf geht trotzdem weiter -- ein Workshop bleibt auch
+nicht stehen, weil der Bot etwas nicht mitbekommen hat.
+
+**Drei Skriptlisten, keine ist die eine.** ``SCHRITTE`` ist die Messlatte der
+Laeufe vom 05.09.2026 und bleibt deshalb unveraendert -- sie steuert die
+Phasen NICHT an (kein ``art='phase'``-Schritt) und kennt eine Station
+'Kernthema', die es seit dem 06.09. nicht mehr gibt. ``SCHRITTE_TAG2`` ist
+das Skript der heutigen **sieben** Phasen aus ``phasen.PHASEN``.
+``SCHRITTE_BIRK`` faehrt echtes Material. Welche gefahren wird, entscheidet
+``scripts.simulation._schritte`` (Schalter ``--skript``).
 
 **Datengetrieben, nicht hart codiert.** Die Phasen kommen aus
 ``phasen.PHASEN``, die Arbeitsstandfelder aus ``PRAGMA
-table_info(arbeitsstand)``. Welches Feld zu Phase 5 gehoert, wird aus ihrem
-Kurznamen abgeleitet (``felder_fuer_phase``): heisst sie seit dem 05.09.2026
-'Rahmen', ist es ``rahmen``; hiesse sie wieder
-'Hauptkonflikt', waere es die Spalte ``hauptkonflikt``. Findet sich gar keine
-Spalte, faellt die Pruefung auf 'die Gruppe steht in dieser Phase' zurueck --
-lieber eine schwaechere Aussage als eine falsche.
+table_info(arbeitsstand)``. Welches Feld zu einer Phase gehoert, wird aus
+ihrem Kurznamen abgeleitet (``felder_fuer_phase``): heisst Phase 4 seit dem
+06.09.2026 'Setting, Figuren & Geschichte', ist es ``geschichte``; hiesse sie
+wieder 'Hauptkonflikt', waere es die Spalte ``hauptkonflikt``. Findet sich gar
+keine Spalte, faellt die Pruefung auf 'die Gruppe steht in dieser Phase'
+zurueck -- lieber eine schwaechere Aussage als eine falsche.
 
 **Pflicht ist das erste Feld** (``pflichtfeld_fuer_phase``). Ein Kurzname
-nennt zuerst die Entscheidung, die die naechste Phase traegt: ohne
-``format`` weiss niemand, ob die naechste Szene ein Dialog oder ein Rap wird,
-``rahmen`` darf leer bleiben -- genau so haelt es ``phasen.voraussetzungen``
-fuer den Schritt von 5 nach 6.
+nennt zuerst die Entscheidung, die die naechste Phase traegt: bei 'Setting,
+Figuren & Geschichte' ist das ``geschichte`` -- ohne sie gibt es keine
+Szenenfolge --, waehrend ``rahmen`` fuer sich genommen leer bleiben darf.
 """
 
 from __future__ import annotations
@@ -150,10 +157,11 @@ def pflichtfeld_fuer_phase(conn, nummer: int) -> str:
     ``felder_fuer_phase``, oder ein leerer String.
 
     Ein Kurzname nennt zuerst die Entscheidung, die die naechste Phase traegt:
-    bei 'Rahmen' ist das ``rahmen`` (ohne Rahmen weiss niemand, worin die
-    naechste Szene ein Dialog oder ein Rap wird), waehrend ``rahmen`` leer
-    bleiben darf -- dieselbe Gewichtung wie in ``phasen.voraussetzungen`` fuer
-    den Schritt von 5 nach 6. Bei einem einwortigen Kurznamen
+    bei 'Setting, Figuren & Geschichte' ist das ``geschichte`` (ohne
+    Geschichte gibt es keine Szenenfolge), waehrend ``rahmen`` fuer sich
+    genommen leer bleiben darf -- dieselbe Gewichtung wie in
+    ``phasen.voraussetzungen`` fuer den Schritt von 4 nach 5. Bei einem
+    einwortigen Kurznamen
     ('Hauptkonflikt') ist es das einzige Feld, und die Unterscheidung faellt
     nicht auf."""
     felder = felder_fuer_phase(conn, nummer)
@@ -239,7 +247,7 @@ def _fertig_figuren(conn, chat_id, merker):
 
 
 def _fertig_phase_mitte(conn, chat_id, merker):
-    """Das Pflichtfeld der Phase 4 -- heute ``rahmen`` -- oder, wenn das
+    """Das Pflichtfeld der Phase 4 -- heute ``geschichte`` -- oder, wenn das
     Schema keines hergibt, dass die Gruppe ueberhaupt dort angekommen ist.
 
     Nicht **alle** Felder der Phase: ``rahmen`` darf leer bleiben, und ein
@@ -319,7 +327,10 @@ ZITAT_ZIELE = (
 )
 
 
-#: Die neun Schritte in der Reihenfolge, in der sie gefahren werden.
+#: Die Schritte in der Reihenfolge, in der sie gefahren werden. **Nicht
+#: anfassen** -- diese Liste ist die Messlatte der Laeufe vom 05.09.2026, und
+#: der Vergleich ueber ``verlauf.jsonl`` ist der einzige Grund, aus dem die
+#: Datei im Repository liegt. Fuer die heutigen Phasen: ``SCHRITTE_TAG2``.
 SCHRITTE: tuple[Schritt, ...] = (
     Schritt(
         "begriffe",
@@ -367,7 +378,7 @@ SCHRITTE: tuple[Schritt, ...] = (
     ),
     Schritt(
         "phase_mitte",
-        "Phase 5",
+        f"Phase {PHASE_MITTE}",
         "Ihr seid jetzt bei '{phase_mitte}' und wollt die Geschichte im "
         "Groben festlegen: was passiert, wie es endet, in welchen Szenen. "
         "Lasst euch vom Bot einen Vorschlag machen und stimmt ihm zu, damit "
@@ -572,7 +583,7 @@ SCHRITTE_BIRK: tuple[Schritt, ...] = (
 
 
 # ---------------------------------------------------------------------------
-# Das Skript der acht Phasen (06.09.2026) -- ``--set tag1-*`` und ``--set regie``
+# Das Skript der sieben Phasen -- ``--skript tag2`` und alle ``--set tag1-*``
 # ---------------------------------------------------------------------------
 #
 # Warum ein zweites Skript und nicht ein umgebautes erstes: ``SCHRITTE`` und
@@ -581,9 +592,9 @@ SCHRITTE_BIRK: tuple[Schritt, ...] = (
 # ueber die Laeufe hinweg ist der einzige Grund, aus dem ``verlauf.jsonl``
 # ueberhaupt im Repository liegt. Das neue Skript steht daneben.
 #
-# Der Ablauf folgt den acht Phasen aus ``phasen.PHASEN``. Die Phasennummern
-# stehen als Konstanten, nicht als Zahlen im Text: eine neunte Phase soll
-# dieses Skript nicht mitreissen.
+# Der Ablauf folgt den Phasen aus ``phasen.PHASEN``. Die Phasennummern stehen
+# als Konstanten, nicht als Zahlen im Text: eine achte Phase soll dieses
+# Skript nicht mitreissen.
 
 PHASE_BEGRIFFE = 1
 PHASE_FRAGEN = 2
@@ -592,9 +603,13 @@ PHASE_INTERVIEWS = 3
 PHASE_SETTING = 4
 PHASE_GESCHICHTE = PHASE_SETTING
 PHASE_SCHAERFUNG = 5
-PHASE_SZENENTEXTE = 6
-PHASE_STUECKPRUEFUNG = 7
-PHASE_DURCHLAUF = PHASE_STUECKPRUEFUNG
+#: Phase 6 heisst seit dem 06.09.2026 abends "Szenen als Geschichte" (Prosa),
+#: Phase 7 "Feinschliff" (Form je Szene, Uebersetzung, Stueckpruefung). Die
+#: alten Namen nach den Stationen "Szenentexte" und "Durchlauf" (Stand
+#: 05.09.) sind weg, damit niemand aus dem Namen auf die falsche Station
+#: schliesst.
+PHASE_PROSA = 6
+PHASE_FEINSCHLIFF = 7
 
 
 def _fertig_eroeffnung(conn, chat_id, merker):
@@ -620,6 +635,23 @@ def _fertig_setting(conn, chat_id, merker):
         and _stand_gesetzt(conn, chat_id, "figuren_fixiert_am")
         and bool(repo.figuren(conn, chat_id))
     )
+
+
+def _fertig_festlegungen(conn, chat_id, merker):
+    """Alle Pruefsaetze liegen **dauerhaft** -- in einem Arbeitsstandfeld, an
+    einer Figur, an einer Szene oder in der Auffangtabelle ``festlegung``.
+
+    Das Journal zaehlt nicht mit: es wird in ``kontext._baue_journal`` auf acht
+    Zeilen gekappt, und ein verdraengter Eintrag kommt nie zurueck -- genau der
+    Verlust aus ``docs/analyse-phase4-datenverlust-2026-09-06.md`` § 2.7.
+
+    Der Import steht in der Funktion, weil ``kennzahlen`` dieses Modul auf
+    Modulebene importiert; oben waere das ein Zyklus. Dieselbe Bauart wie
+    ueberall im Repo."""
+    from simulation import kennzahlen
+
+    lage = kennzahlen.festlegungslage(conn, chat_id)
+    return lage["festlegungsproben_erhalten"] == lage["festlegungsproben"]
 
 
 def _fertig_geschichte(conn, chat_id, merker):
@@ -713,6 +745,16 @@ SCHRITTE_TAG2: tuple[Schritt, ...] = (
         max_nachrichten=10,
     ),
     Schritt(
+        "festlegungen",
+        "Phase 4: was in kein Feld passt (dieselbe Station)",
+        "Ihr legt jetzt drei Sachen fest, die in keinen der Bot-Kaesten "
+        "passen. Sagt sie ihm in eigenen Worten, eine nach der anderen, und "
+        "vergewissert euch, dass er sie festgehalten hat:\n"
+        "{festlegungsproben}",
+        _fertig_festlegungen,
+        max_nachrichten=6,
+    ),
+    Schritt(
         "geschichte",
         "Phase 4: die Geschichte im Groben (dieselbe Station)",
         "Was passiert, wie endet es, in welchen Szenen? Lasst euch einen "
@@ -731,7 +773,7 @@ SCHRITTE_TAG2: tuple[Schritt, ...] = (
         _fertig_schaerfung,
         max_nachrichten=6,
     ),
-    _phasenschritt(PHASE_SZENENTEXTE),
+    _phasenschritt(PHASE_PROSA),
     Schritt(
         "szene1",
         "Phase 6: Szene 1 -- Form bestaetigen, dann schreiben",
@@ -752,7 +794,7 @@ SCHRITTE_TAG2: tuple[Schritt, ...] = (
         art="zitate",
         max_nachrichten=len(ZITAT_ZIELE),
     ),
-    _phasenschritt(PHASE_STUECKPRUEFUNG),
+    _phasenschritt(PHASE_FEINSCHLIFF),
     Schritt(
         "stand",
         "/stand",

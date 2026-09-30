@@ -527,7 +527,7 @@ def _wirkung_sprechanteile(conn, d: Druck) -> str:
             )
         ),
     )
-    return sprecher.UEBERSCHRIFT
+    return sprecher.T.UEBERSCHRIFT
 
 
 def _wirkung_fassungen(conn, d: Druck) -> str:
@@ -992,7 +992,7 @@ def _wirkung_ohne_knopf_ja(conn, d: Druck) -> str:
     biete_interview_ohne_knopf_weiter(
         conn, d.tg, d.chat_id,
         T._TEXT_INTERVIEW_STEHT.format(
-            name=name, weiter=aufnahme._TEXT_INTERVIEW_OHNE_KNOPF_WEITER
+            name=name, weiter=aufnahme.T._TEXT_INTERVIEW_OHNE_KNOPF_WEITER
         ),
         kopf_id,
     )
@@ -1010,7 +1010,7 @@ def _wirkung_ohne_knopf_nein(conn, d: Druck) -> str:
     if not aufnahme.nimm_als_beitrag(conn, d.tg, d.klm, d.e, d.chat_id, kennung):
         d.tg.sende(d.chat_id, T._TEXT_OHNE_KNOPF_UNBEKANNT)
         return T._TEXT_OHNE_KNOPF_UNBEKANNT
-    d.tg.sende(d.chat_id, aufnahme._TEXT_INTERVIEW_OHNE_KNOPF_NEIN)
+    d.tg.sende(d.chat_id, aufnahme.T._TEXT_INTERVIEW_OHNE_KNOPF_NEIN)
     return T._ANTWORT_ALS_BEITRAG
 
 

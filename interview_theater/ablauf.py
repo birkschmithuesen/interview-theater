@@ -132,9 +132,7 @@ def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str) -> str:
         return kern
     zweite = klm.schema(
         chat_id, system,
-        f"{koerper}\n\nDeine letzte Antwort war dein Selbstgespraech, nicht die "
-        "Nachricht an die Gruppe. Schreib NUR die Nachricht: was du der Gruppe "
-        "sagst, in ihren Worten, unter 500 Zeichen.",
+        f"{koerper}\n\n{T._TEXT_DENKSPUR_ERMAHNUNG}",
         SCHEMA, "gespraech",
     )["antwort"]
     if ist_denkspur(zweite):
@@ -149,6 +147,13 @@ def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str) -> str:
 #: schickte Birks Nachricht 1:1 zurueck, mit "Birk:" davor, und sonst nichts).
 #: Sie sagt nicht nur, was falsch war, sondern was stattdessen kommen soll --
 #: ein blosses "nicht zitieren" laesst offen, was der Bot dann tun soll.
+#: Dasselbe fuer den zweiten Anlauf nach einer Denkspur (``_ohne_denkspur``).
+_TEXT_DENKSPUR_ERMAHNUNG = (
+    "Deine letzte Antwort war dein Selbstgespraech, nicht die "
+    "Nachricht an die Gruppe. Schreib NUR die Nachricht: was du der Gruppe "
+    "sagst, in ihren Worten, unter 500 Zeichen."
+)
+
 _TEXT_ECHO_ERMAHNUNG = (
     "Deine letzte Antwort war ein Zitat der Gruppe. Zitiere nicht - antworte "
     "mit einem eigenen Impuls: eine Einschaetzung, ein Vorschlag oder eine "
@@ -491,7 +496,7 @@ def _tippanzeige(tg, chat_id: int):
             if not hinweis_gesendet and vergangen >= HINWEIS_NACH:
                 hinweis_gesendet = True
                 try:
-                    tg.sende(chat_id, _TEXT_HINWEIS)
+                    tg.sende(chat_id, T._TEXT_HINWEIS)
                 except Exception:
                     log.exception("Hinweis-Zeile fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -553,7 +558,7 @@ def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
     )
     try:
         zweite = klm.schema(
-            chat_id, system, f"{koerper}\n\n{_TEXT_ECHO_ERMAHNUNG}", SCHEMA, "gespraech"
+            chat_id, system, f"{koerper}\n\n{T._TEXT_ECHO_ERMAHNUNG}", SCHEMA, "gespraech"
         )["antwort"]
     except Exception:
         log.exception("Zweiter Anlauf nach Echo fehlgeschlagen, chat_id=%s", chat_id)
@@ -740,7 +745,7 @@ def _melde_fehler(conn, tg, e, chat_id: int, versand_erfolgreich: bool) -> None:
             from interview_theater import bot as _bot
             _bot.erstkontakt(conn, tg, e, chat_id)
         else:
-            tg.sende(chat_id, _TEXT_FEHLER)
+            tg.sende(chat_id, T._TEXT_FEHLER)
     except Exception:
         log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -1016,7 +1021,7 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         with arbeitet_sichtbar(tg, chat_id, arbeitszeile, arbeitsart):
             phase = phasen.aktuelle(conn, chat_id)
             koerper = kontext.baue(conn, chat_id, [], e)
-            koerper = f"{koerper}\n\n{_AUFTRAG_KOPF}\n{anweisung}"
+            koerper = f"{koerper}\n\n{T._AUFTRAG_KOPF}\n{anweisung}"
             system = kontext.system(e.bot_name, phase)
             ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
             if isinstance(ergebnis, str):
@@ -1035,7 +1040,7 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
                 conn, chat_id, getattr(e, "bot_name", None),
                 "auftragszug_fehlgeschlagen", "Knopf-Auftrag am Modell gescheitert",
             )
-            tg.sende(chat_id, _TEXT_FEHLER)
+            tg.sende(chat_id, T._TEXT_FEHLER)
         except Exception:
             log.exception("Fehlermeldung zum Auftragszug fehlgeschlagen")
         return
@@ -1075,3 +1080,8 @@ def starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
     )
     thread.start()
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

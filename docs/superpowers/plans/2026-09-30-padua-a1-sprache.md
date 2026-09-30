@@ -3728,7 +3728,7 @@ Abschnittsnamen), `sprecher` (2 + Inline sprecher.py:223), `stile`
   — dort wird es datengetrieben gelesen, **also nichts anpassen**, nur
   pruefen: `grep -rn "Notiert" simulation/*.py`.
 
-- [ ] **Schritt 1: Tests** (in `tests/test_chat_sprache.py` anhaengen):
+- [x] **Schritt 1: Tests** (in `tests/test_chat_sprache.py` anhaengen):
 
 ```python
 from interview_theater import aufnahme, erkenner, kontext, stile
@@ -3751,23 +3751,23 @@ def test_stile_zeigen_englisch_aber_gleiche_slugs(padua):
     assert [s["slug"] for s in stile.T.STILE] == [s["slug"] for s in stile.STILE]
 ```
 
-- [ ] **Schritt 2:** rot, dann `UMGESTELLT |= {"aufnahme", "ablauf",
+- [x] **Schritt 2:** rot, dann `UMGESTELLT |= {"aufnahme", "ablauf",
   "erkenner", "kontext", "journal", "verdichter", "kuerzung", "vorspann",
   "sprecher", "stile", "arbeitszeilen"}` → Arbeitsliste.
-- [ ] **Schritt 3:** umstellen. Englische Kernwerte:
+- [x] **Schritt 3:** umstellen. Englische Kernwerte:
   `"Notiert:\n"` → `"Noted:\n"`; `_SPRECHER_BOT` → `"You"`;
   `aufnahme._TEXT_VERDICHTUNG_KOPF = "{name} is done. What I hear in it:"`;
   `aufnahme._TEXT_TEIL_ECHO = "{name}, part {nummer}:\n{transkript}"`;
   `kontext.ERSTKONTAKT` — die Anweisung an das Modell, die Begruessung zu
   schreiben: auf Englisch, **mit** dem Satz „Never address anyone by first
   name." am Ende (E8, siehe Aufgabe 18) und mit `{link}` an derselben Stelle.
-- [ ] **Schritt 4:** gruen: die betroffenen Modul-Tests
+- [x] **Schritt 4:** gruen: die betroffenen Modul-Tests
   (`tests/test_aufnahme.py tests/test_ablauf.py tests/test_erkenner.py tests/test_kontext.py tests/test_journal.py tests/test_verdichter.py tests/test_kuerzung.py tests/test_vorspann*.py tests/test_sprecher.py tests/test_teil4_stile.py`)
   plus `tests/test_chat_sprache.py tests/test_sprache_texte.py tests/test_sprache_bitgleich.py tests/test_profil_bitgleich.py tests/test_prompt_audit.py`;
   `$PY -m scripts.pruefe_sprache --schluessel aufnahme,ablauf,erkenner,kontext,journal,verdichter,kuerzung,vorspann,sprecher,stile,arbeitszeilen` → `0 Treffer`.
-- [ ] **Schritt 5: Mutationsnachweis:** `sprecherzeile` wieder mit `"Du"`
+- [x] **Schritt 5: Mutationsnachweis:** `sprecherzeile` wieder mit `"Du"`
   als Literal → `test_bot_heisst_im_verlauf_you` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Aufnahme, Gespraech, Erkenner-Meldung und Prompt-Koepfe ueber T (A1)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Aufnahme, Gespraech, Erkenner-Meldung und Prompt-Koepfe ueber T (A1)"`.
 
 ---
 

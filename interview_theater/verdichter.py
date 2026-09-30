@@ -95,7 +95,7 @@ def baue_nutzertext(transkript: str, fragen: str | None = None) -> str:
     if not (fragen or "").strip():
         return transkript
     return (
-        f"{_FRAGEN_KOPF}\n{fragen.strip()}\n\n{_TRANSKRIPT_KOPF}\n{transkript}"
+        f"{T._FRAGEN_KOPF}\n{fragen.strip()}\n\n{T._TRANSKRIPT_KOPF}\n{transkript}"
     )
 
 
@@ -135,7 +135,7 @@ def verdichte(klm, conn, e, aufnahme_id: int) -> int:
     if any(not (v.get("beleg_zitat") and zitat.pruefe(v["beleg_zitat"], transkript))
            for v in ergebnis.get("kernthemen", [])):
         zweiter = klm.schema(
-            chat_id, prompt() + _NACHTRAG_WOERTLICH,
+            chat_id, prompt() + T._NACHTRAG_WOERTLICH,
             baue_nutzertext(transkript, fragen), SCHEMA, "verdichter",
         )
         def _bestanden(r):
@@ -208,3 +208,8 @@ def ordne_begriffe_zu(
         conn, chat_id, verdichtung_id, treffer, aufnahme_id=aufnahme_id
     )
     return treffer
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

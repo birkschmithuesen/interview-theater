@@ -31,6 +31,8 @@ UMGESTELLT: set[str] = {
     "knoepfe.interviews", "knoepfe.stationen", "knoepfe.figuren",
     "knoepfe.szenen", "knoepfe.wirkung",
     "befehle", "bot", "leitfaden", "phasentexte", "fehlstellen", "phasen",
+    "aufnahme", "ablauf", "erkenner", "kontext", "journal", "verdichter",
+    "kuerzung", "vorspann", "sprecher", "stile", "arbeitszeilen",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -53,6 +55,10 @@ BLEIBT_DEUTSCH = {
     "dramaturgie.schleife.GRUENDE": "Betreiberausgabe (--schleife)",
     "dramaturgie.schleife.MELDUNG_OHNE_GESCHICHTENWEG": "Betreiberausgabe (--schleife)",
     "szenenfolge.DETAIL_RICHTUNG_UNVOLLSTAENDIG": "Vorfall-Detail, Dashboard des Teams",
+    "stile._NACH_SLUG": (
+        "Aufgabe 15: nur Mitgliedschaftspruefung der Slugs (Protokoll); die "
+        "Anzeige liest stile._eintrag zur Aufrufzeit aus T.STILE"
+    ),
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit
@@ -99,6 +105,33 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
     # kommt in Aufgabe 22 als ``_ZAHLWOERTER_EN``.
     ("knoepfe.figuren", "fünf"): "Parser-Wortliste _zahl_aus (Aufgabe 22)",
     ("knoepfe.figuren", "zwölf"): "Parser-Wortliste _zahl_aus (Aufgabe 22)",
+    # Aufgabe 15: Vorfall-Details (repo.merke_vorfall, Dashboard des Teams).
+    ("ablauf", "kein Kern, zweiter Anlauf"):
+        "Vorfall-Detail denkspur_verworfen (repo.merke_vorfall)",
+    ("ablauf", "auch der zweite Anlauf war Selbstgesprae"):
+        "Vorfall-Detail denkspur_wiederholt (repo.merke_vorfall)",
+    ("ablauf", "Antwort war ein Zitat der Gruppe, zweite"):
+        "Vorfall-Detail echo_verworfen (repo.merke_vorfall)",
+    ("ablauf", "Auch der zweite Anlauf war ein Zitat -- "):
+        "Vorfall-Detail echo_wiederholt (repo.merke_vorfall)",
+    ("ablauf", "Modellantwort stand zu ueber {} % schon "):
+        "Vorfall-Detail wiederholung_verworfen (repo.merke_vorfall)",
+    ("ablauf", "Antwort klang wie eine Systemzeile des S"):
+        "Vorfall-Detail gespraech_systemzeile_erfunden (repo.merke_vorfall)",
+    ("ablauf", "Bot-Antwort in 'nachricht' mitzuschreibe"):
+        "Vorfall-Detail gespraechszug_fehlgeschlagen (repo.merke_vorfall)",
+    ("aufnahme", "Aufnahme {} ({}) wartet auf Ja/Nein"):
+        "Vorfall-Detail interview_ohne_knopf_offen (repo.merke_vorfall)",
+    ("erkenner", "Ein Geschichte-Text sollte in den Rahmen"):
+        "Vorfall-Detail rahmen_war_geschichte (repo.merke_vorfall)",
+    ("erkenner", "Eine Festlegung wiederholte ein gesetzte"):
+        "Vorfall-Detail festlegung_stand_schon_im_feld (repo.merke_vorfall)",
+    ("erkenner", "Aenderung art={} konnte nicht angewendet"):
+        "Vorfall-Detail erkenner_anwenden_fehler (repo.merke_vorfall)",
+    ("kontext", "Nutzertext von {} auf {} Zeichen gekuerz"):
+        "Vorfall-Detail kontext_gekuerzt (repo.merke_vorfall)",
+    ("kontext", "Nutzertext nach vollstaendiger Kuerzung "):
+        "Vorfall-Detail kontext_kuerzung_erfolglos (repo.merke_vorfall)",
 }
 
 _STOPP = re.compile(

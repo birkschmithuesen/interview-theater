@@ -174,6 +174,12 @@ def berechne_verdraengten_abschnitt(nachrichten: list) -> list:
     return verdraengt
 
 
+#: Die zwei Koepfe des Nutzertexts (W3: ein englischer Systemprompt mit
+#: deutschem Nutzertext liesse das Modell deutsch antworten).
+_BISHERIGES_JOURNAL_KOPF = "Bisheriges Journal:\n"
+_AUSSCHNITT_KOPF = "Ausschnitt:\n"
+
+
 def _bisheriges_journal_text(conn, chat_id: int) -> str:
     """Formatiert die letzten LETZTE_JOURNALEINTRAEGE Eintraege -- nicht das
     ganze Journal (Tokenkosten und Kontaminationsrisiko, siehe
@@ -184,12 +190,12 @@ def _bisheriges_journal_text(conn, chat_id: int) -> str:
     if not eintraege:
         return ""
     zeilen = [f"- [{e['art']}] {e['text']}" for e in eintraege]
-    return "Bisheriges Journal:\n" + "\n".join(zeilen)
+    return T._BISHERIGES_JOURNAL_KOPF + "\n".join(zeilen)
 
 
 def _ausschnitt_text(verdraengt) -> str:
     zeilen = [kontext.sprecherzeile(n) for n in verdraengt]
-    return "Ausschnitt:\n" + "\n".join(zeilen)
+    return T._AUSSCHNITT_KOPF + "\n".join(zeilen)
 
 
 def _baue_nutzertext(conn, chat_id: int, verdraengt) -> str:
@@ -296,3 +302,8 @@ def laufe(klm, conn, e, chat_id: int) -> None:
             "journal_nachlauf_fehler",
             "Journal-Extraktor-Nachlauf fehlgeschlagen",
         )
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

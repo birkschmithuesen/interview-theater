@@ -53,3 +53,32 @@ def test_dortmund_unveraendert(conn, einst):
     tg = TelegramAttrappe()
     befehle.behandle(conn, tg, einst, 1, "/hilfe", None)
     assert tg.texte()[-1] == befehle._TEXT_HILFE
+
+
+from interview_theater import aufnahme, erkenner, kontext, stile  # noqa: E402,F401
+
+
+def test_notiert_zeile_auf_englisch(padua):
+    meldung = erkenner.baue_meldung([{"art": "begriffe_setzen", "wert": "love, anger"}])
+    assert meldung.startswith("Noted:")
+
+
+def test_bot_heisst_im_verlauf_you(padua):
+    assert kontext.sprecherzeile({"ist_bot": 1, "absender": "x", "text": "hi", "typ": "text"}) == "You: hi"
+
+
+def test_bot_heisst_im_verlauf_weiter_du():
+    assert kontext.sprecherzeile({"ist_bot": 1, "absender": "x", "text": "hi", "typ": "text"}) == "Du: hi"
+
+
+def test_stile_zeigen_englisch_aber_gleiche_slugs(padua):
+    assert [s["slug"] for s in stile.T.STILE] == [s["slug"] for s in stile.STILE]
+
+
+def test_vorlauf_ueberspringt_auch_englische_notiert_zeilen(conn):
+    """Rundreise: repo.letzte_bot_nachricht_vor filtert die Meldung des
+    Erkenners heraus -- in Padua beginnt sie mit "Noted:" statt "Notiert:"."""
+    repo.sichere_gruppe(conn, 1, "bot", "g")
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", "Suggestion: Mira.", "2026-09-05T04:00:00+00:00")
+    repo.merke_nachricht(conn, 1, 11, "Bot", 1, "text", "Noted:\nTerms: x", "2026-09-05T04:00:01+00:00")
+    assert repo.letzte_bot_nachricht_vor(conn, 1, 12)["message_id"] == 10

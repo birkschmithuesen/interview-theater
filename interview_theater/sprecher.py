@@ -219,23 +219,24 @@ def hinweis(figur: dict, szenen_gesamt: int) -> str:
 
     Sachlich formuliert, ohne Wertung: die Zahl steht da, die Entscheidung
     gehoert der Gruppe. ("Zeynep spricht in 1 von 4 Szenen, 2 % der Worte.")"""
-    return (
-        f"{figur['name']} spricht in {figur['szenen']} von {szenen_gesamt} "
-        f"Szenen, {_prozent(figur['anteil'])} der Worte."
+    return T._TEXT_HINWEIS_LEISE.format(
+        name=figur["name"], szenen=figur["szenen"], gesamt=szenen_gesamt,
+        anteil=_prozent(figur["anteil"]),
     )
 
 
 def _prozent(wert: float) -> str:
-    """"2 %" statt "2.0 %" -- und mit Komma, die Seite ist auf Deutsch."""
+    """"2 %" statt "2.0 %" -- und mit dem Dezimalzeichen der Sprache
+    (deutsch ein Komma)."""
     text = f"{wert:.1f}".rstrip("0").rstrip(".")
-    return f"{text.replace('.', ',') or '0'} %"
+    return f"{text.replace('.', T._DEZIMALZEICHEN) or '0'} %"
 
 
 def zeile(figur: dict) -> str:
     """Eine Figurenzeile fuer den Chat: Name, Anteil, Repliken, Szenen."""
-    return (
-        f"{figur['name']}: {_prozent(figur['anteil'])}, "
-        f"{figur['repliken']} Repliken, {figur['szenen']} Szenen"
+    return T._TEXT_FIGURENZEILE.format(
+        name=figur["name"], anteil=_prozent(figur["anteil"]),
+        repliken=figur["repliken"], szenen=figur["szenen"],
     )
 
 
@@ -249,6 +250,13 @@ TEXT_LEER = (
     "Szenentexte mit Sprecherzeilen."
 )
 
+#: Die Zeilen von ``text``/``hinweis``/``zeile`` und das Dezimalzeichen der
+#: Prozentangabe.
+_TEXT_KOPF_ZEILE = "{ueberschrift} ueber {szenen} Szenen:"
+_TEXT_FIGURENZEILE = "{name}: {anteil}, {repliken} Repliken, {szenen} Szenen"
+_TEXT_HINWEIS_LEISE = "{name} spricht in {szenen} von {gesamt} Szenen, {anteil} der Worte."
+_DEZIMALZEICHEN = ","
+
 
 def text(daten: dict) -> str:
     """Die ganze Auswertung als Chattext (ASCII, wie jede Bot-Nachricht).
@@ -256,11 +264,16 @@ def text(daten: dict) -> str:
     Deterministisch aus ``anteile`` -- kein Modellaufruf, beliebig oft
     abrufbar."""
     if not daten.get("szenen"):
-        return TEXT_LEER
-    zeilen = [f"{UEBERSCHRIFT} ueber {daten['szenen']} Szenen:"]
+        return T.TEXT_LEER
+    zeilen = [T._TEXT_KOPF_ZEILE.format(ueberschrift=T.UEBERSCHRIFT, szenen=daten["szenen"])]
     zeilen.extend(zeile(f) for f in daten["figuren"])
     leise = [f for f in daten["figuren"] if f["anteil"] < SCHWELLE_ANTEIL]
     if leise:
         zeilen.append("")
         zeilen.extend(hinweis(f, daten["szenen"]) for f in leise)
     return "\n".join(zeilen)
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

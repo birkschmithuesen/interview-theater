@@ -162,7 +162,7 @@ def main() -> None:
         ("richtungen", "Schlag drei grobe Richtungen fuer das Kernthema vor."),
     ):
         koerper = kontext.baue(conn, chat_id, [], e)
-        koerper = f"{koerper}\n\n{ablauf._AUFTRAG_KOPF}\n{anweisung}"
+        koerper = f"{koerper}\n\n{ablauf.T._AUFTRAG_KOPF}\n{anweisung}"
         zeilen.append(_schreibe(
             ziel, f"03-auftragszug-{kurz}", kontext.system(e.bot_name, phase), koerper,
             f"ablauf.auftragszug, Anweisung: {anweisung!r}",
@@ -258,7 +258,7 @@ def main() -> None:
             + ", ".join(fehlend or ["ort", "zeit", "figuren"])
         )
         koerper = kontext.baue(conn, chat_id, [], e)
-        koerper = f"{koerper}\n\n{ablauf._AUFTRAG_KOPF}\n{anweisung}"
+        koerper = f"{koerper}\n\n{ablauf.T._AUFTRAG_KOPF}\n{anweisung}"
         zeilen.append(_schreibe(
             ziel, "14-feldvorschlag", kontext.system(e.bot_name, phase), koerper,
             "Auftragszug 'Feld vorschlagen' (knoepfe -> ablauf.starte_auftrag)",

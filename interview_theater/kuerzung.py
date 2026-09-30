@@ -93,13 +93,13 @@ TEXT_WELCHE_SZENE = "Welche Szene soll kuerzer werden? Sagt mir die Nummer."
 
 def notiz_fuer_szene() -> str:
     """Die Regie-Notiz fuer eine einzelne Szene."""
-    return TEXT_NOTIZ_SZENE.format(prozent=PROZENT)
+    return T.TEXT_NOTIZ_SZENE.format(prozent=PROZENT)
 
 
 def notiz_fuer_prosa(anzahl: int) -> str:
     """Die Regie-Notiz fuer die ganze Kurzgeschichte, gebunden an ``anzahl``
     Abschnitte."""
-    return TEXT_NOTIZ_PROSA.format(prozent=PROZENT, anzahl=anzahl)
+    return T.TEXT_NOTIZ_PROSA.format(prozent=PROZENT, anzahl=anzahl)
 
 
 def nummer_aus_wert(wert: str | None) -> int | None:
@@ -156,8 +156,8 @@ def starte(conn, tg, klm, e, chat_id: int,
 
     if nummer is not None:
         if not _hat_text(conn, chat_id, nummer):
-            tg.sende(chat_id, TEXT_NICHTS_ZU_KUERZEN)
-            return TEXT_NICHTS_ZU_KUERZEN, False
+            tg.sende(chat_id, T.TEXT_NICHTS_ZU_KUERZEN)
+            return T.TEXT_NICHTS_ZU_KUERZEN, False
         # ``BISHER_MARKER``: im Prosalauf (Phase 6) ist ``volltext`` leer --
         # ohne den Marker saehe das Modell die Prosa dieser Szene nicht und
         # schriebe sie neu, statt sie zu kuerzen.
@@ -166,22 +166,27 @@ def starte(conn, tg, klm, e, chat_id: int,
             f"{szene_modul.BISHER_MARKER}"
         )
         if szene_modul.starte(conn, tg, klm, e, chat_id, auftrag) is None:
-            return TEXT_KEIN_LAUF, False
+            return T.TEXT_KEIN_LAUF, False
         # Spaeter Import: knoepfe ist die Oberflaeche und liest selbst von
         # hier -- ein Modulkopf-Import waere ein Zyklus.
         from interview_theater.knoepfe import szenen as knoepfe_szenen
 
         knoepfe_szenen._melde_spaetere(conn, tg, chat_id, nummer)
-        return TEXT_SZENE_GESTARTET.format(nummer=nummer), True
+        return T.TEXT_SZENE_GESTARTET.format(nummer=nummer), True
 
     anzahl = _abschnitte_mit_prosa(conn, chat_id)
     if not anzahl:
-        tg.sende(chat_id, TEXT_NICHTS_ZU_KUERZEN)
-        return TEXT_NICHTS_ZU_KUERZEN, False
+        tg.sende(chat_id, T.TEXT_NICHTS_ZU_KUERZEN)
+        return T.TEXT_NICHTS_ZU_KUERZEN, False
     # ``vorlage=True``: die bestehende Prosa steht im Prompt -- sonst schriebe
     # das Modell "25 Prozent kuerzer" ueber einen Text, den es nie sah.
     if kurzgeschichte.starte(
         conn, tg, klm, e, chat_id, notiz_fuer_prosa(anzahl), vorlage=True,
     ) is None:
-        return TEXT_KEIN_LAUF, False
-    return TEXT_GESCHICHTE_GESTARTET, True
+        return T.TEXT_KEIN_LAUF, False
+    return T.TEXT_GESCHICHTE_GESTARTET, True
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

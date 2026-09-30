@@ -731,7 +731,7 @@ def _sprechanteile_html(daten: dict | None) -> str:
         for f in leise
     )
     return (
-        f"<h2>{html.escape(sprecher.UEBERSCHRIFT)}</h2>"
+        f"<h2>{html.escape(sprecher.T.UEBERSCHRIFT)}</h2>"
         '<table class="anteile"><tr><th>Figur</th><th>Anteil</th>'
         f"<th>Repliken</th><th>Szenen</th></tr>{zeilen}</table>"
         f"{hinweise}"

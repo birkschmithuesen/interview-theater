@@ -126,7 +126,7 @@ def biete_szenenstil(conn, tg, chat_id: int, nummer: int) -> int:
     ]
     leiste.append(
         (
-            stile.TEXT_OHNE,
+            stile.T.TEXT_OHNE,
             _daten(
                 repo.lege_knopf_an(
                     conn, chat_id, ART_SZENENSTIL, f"{nummer}:{stile.OHNE}"

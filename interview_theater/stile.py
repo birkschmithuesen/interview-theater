@@ -98,12 +98,29 @@ VORSCHLAG_GRUND: dict[str, str] = {
     "monolog": "Fuer einen Monolog bleibt es beim Herkules-Mass, unserem eigenen.",
 }
 
+#: Die Teile von ``menuetext``: Kopf, Marke am vorgeschlagenen Stil, ein
+#: Eintrag je Stil und die ausdrueckliche Abwahl am Ende.
+_TEXT_MENUE_KOPF = "Welcher Stil?"
+_TEXT_MARKE_VORSCHLAG = " (Vorschlag)"
+_TEXT_MENUE_EINTRAG = "{nummer}. **{titel}**{marke}\n{satz}\nVorlage: {herkunft}"
+_TEXT_MENUE_OHNE = "{nummer}. **{ohne}**\nEs bleibt bei den Regeln der Form."
+
+#: Beim Import aus ``STILE`` gebaut -- deshalb **nur** fuer die
+#: Mitgliedschaftspruefung (``slug in _NACH_SLUG``): die Slugs sind Protokoll
+#: und in jeder Sprache gleich (Paritaetstest). Die Anzeige (Titel, Satz,
+#: Herkunft) liest ``_eintrag`` zur Aufrufzeit aus ``T.STILE``; die Werte
+#: hier waeren in Padua die deutschen.
 _NACH_SLUG = {s["slug"]: s for s in STILE}
+
+
+def _eintrag(slug: str | None) -> dict[str, str] | None:
+    """Der Stil zu einem Slug in der aktiven Sprache, oder None."""
+    return {s["slug"]: s for s in T.STILE}.get(slug or "")
 
 
 def alle() -> tuple[dict[str, str], ...]:
     """Alle Stile, fuer jede Gruppe dieselben."""
-    return STILE
+    return T.STILE
 
 
 def hole(slug: str | None) -> dict[str, str] | None:
@@ -111,7 +128,7 @@ def hole(slug: str | None) -> dict[str, str] | None:
     schluessel = (slug or "").strip().lower()
     if not schluessel or schluessel == OHNE:
         return None
-    return _NACH_SLUG.get(schluessel)
+    return _eintrag(schluessel)
 
 
 def ist_bekannt(slug: str | None) -> bool:
@@ -125,18 +142,18 @@ def vorschlag_fuer(form: str | None) -> tuple[str | None, str]:
     """``(Slug, Begruendung)`` fuer eine Form -- oder ``(None, "")``, wenn es
     zu dieser Form keinen Vorschlag gibt."""
     schluessel = (form or "").strip().lower()
-    return VORSCHLAG.get(schluessel), VORSCHLAG_GRUND.get(schluessel, "")
+    return VORSCHLAG.get(schluessel), T.VORSCHLAG_GRUND.get(schluessel, "")
 
 
 def beschriftung(slug: str) -> str:
     """Der Titel eines Stils -- fuer Knopf und Dropdown."""
-    eintrag = _NACH_SLUG.get(slug)
+    eintrag = _eintrag(slug)
     return eintrag["titel"] if eintrag else slug
 
 
 def herkunft(slug: str) -> str:
     """Woher das Mass kommt. Leer, wenn der Slug unbekannt ist."""
-    eintrag = _NACH_SLUG.get(slug)
+    eintrag = _eintrag(slug)
     return eintrag["herkunft"] if eintrag else ""
 
 
@@ -148,25 +165,19 @@ def menuetext(vorschlag: str | None = None, grund: str = "") -> str:
     nebeneinander lesen koennen, das ist der Sinn einer Auswahl. Der
     Vorschlag steht ZUERST und traegt "(Vorschlag)" -- sichtbar ein
     Vorschlag, keine Vorentscheidung."""
-    reihenfolge = list(STILE)
-    if vorschlag and vorschlag in _NACH_SLUG:
-        eintrag = _NACH_SLUG[vorschlag]
-        reihenfolge.remove(eintrag)
-        reihenfolge.insert(0, eintrag)
-    zeilen = ["Welcher Stil?"]
+    reihenfolge = reihenfolge_mit_vorschlag(vorschlag)
+    zeilen = [T._TEXT_MENUE_KOPF]
     if grund.strip():
         zeilen.append(grund.strip())
     for nummer, eintrag in enumerate(reihenfolge, start=1):
-        marke = " (Vorschlag)" if eintrag["slug"] == vorschlag else ""
-        zeilen.append(
-            f"{nummer}. **{eintrag['titel']}**{marke}\n"
-            f"{eintrag['satz']}\n"
-            f"Vorlage: {eintrag['herkunft']}"
-        )
-    zeilen.append(
-        f"{len(reihenfolge) + 1}. **{TEXT_OHNE}**\n"
-        "Es bleibt bei den Regeln der Form."
-    )
+        marke = T._TEXT_MARKE_VORSCHLAG if eintrag["slug"] == vorschlag else ""
+        zeilen.append(T._TEXT_MENUE_EINTRAG.format(
+            nummer=nummer, titel=eintrag["titel"], marke=marke,
+            satz=eintrag["satz"], herkunft=eintrag["herkunft"],
+        ))
+    zeilen.append(T._TEXT_MENUE_OHNE.format(
+        nummer=len(reihenfolge) + 1, ohne=T.TEXT_OHNE,
+    ))
     return "\n\n".join(zeilen)
 
 
@@ -174,9 +185,9 @@ def reihenfolge_mit_vorschlag(vorschlag: str | None) -> list[dict[str, str]]:
     """Dieselbe Reihenfolge wie ``menuetext`` -- damit Knopf N und Punkt N
     dasselbe meinen. Getrennte Listen waeren genau der Fehler, den die
     Menue-Knopfregel (AGENTS.md, 06.09.2026 11:05) verhindert."""
-    reihenfolge = list(STILE)
+    reihenfolge = list(T.STILE)
     if vorschlag and vorschlag in _NACH_SLUG:
-        eintrag = _NACH_SLUG[vorschlag]
+        eintrag = next(s for s in reihenfolge if s["slug"] == vorschlag)
         reihenfolge.remove(eintrag)
         reihenfolge.insert(0, eintrag)
     return reihenfolge
@@ -201,3 +212,8 @@ def regelblock(slug: str | None) -> str:
         log.error("Stil-Datei fehlt: stile/%s.md", eintrag["slug"])
         return ""
     return _KOPFKOMMENTAR.sub("", text).strip()
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

@@ -204,6 +204,16 @@ def ist_leer(d: dict) -> bool:
     )
 
 
+#: Die Ueberschriften der Bloecke -- dieselben in Chat, Web und Textbuch.
+#: Singular und Plural der Szenenzahl als ganze Ueberschriften.
+_UEBERSCHRIFT_WO_UND_WANN = "Wo und wann"
+_UEBERSCHRIFT_WORUM = "Worum es geht"
+_UEBERSCHRIFT_FORM = "Form"
+_UEBERSCHRIFT_EINE_SZENE = "{anzahl} Szene"
+_UEBERSCHRIFT_SZENEN = "{anzahl} Szenen"
+_UEBERSCHRIFT_FIGUREN = "Wer vorkommt"
+
+
 def _szenenzeile(s: dict) -> str:
     nummer = "—" if s["nummer"] is None else str(s["nummer"])
     zeile = f"{nummer}. {s['titel']}" if s["titel"] else f"{nummer}."
@@ -218,16 +228,17 @@ def _bloecke(d: dict, fett: bool) -> list[tuple[str, str]]:
     danach nur noch in den Rauten und den Sternchen."""
     bloecke: list[tuple[str, str]] = []
     if d["rahmen"]:
-        bloecke.append(("Wo und wann", d["rahmen"]))
+        bloecke.append((T._UEBERSCHRIFT_WO_UND_WANN, d["rahmen"]))
     if d["hauptkonflikt"]:
-        bloecke.append(("Worum es geht", d["hauptkonflikt"]))
+        bloecke.append((T._UEBERSCHRIFT_WORUM, d["hauptkonflikt"]))
     if d["format"]:
-        bloecke.append(("Form", d["format"]))
+        bloecke.append((T._UEBERSCHRIFT_FORM, d["format"]))
     if d["szenen"]:
         anzahl = len(d["szenen"])
+        kopf = T._UEBERSCHRIFT_EINE_SZENE if anzahl == 1 else T._UEBERSCHRIFT_SZENEN
         bloecke.append(
             (
-                f"{anzahl} Szene" + ("n" if anzahl != 1 else ""),
+                kopf.format(anzahl=anzahl),
                 "\n".join(_szenenzeile(s) for s in d["szenen"]),
             )
         )
@@ -236,7 +247,7 @@ def _bloecke(d: dict, fett: bool) -> list[tuple[str, str]]:
         for f in d["figuren"]:
             name = f"**{f['name']}**" if fett else f["name"]
             zeilen.append(f"{name} — {f['beschreibung']}" if f["beschreibung"] else name)
-        bloecke.append(("Wer vorkommt", "\n".join(zeilen)))
+        bloecke.append((T._UEBERSCHRIFT_FIGUREN, "\n".join(zeilen)))
     return bloecke
 
 
@@ -257,3 +268,8 @@ def als_chattext(d: dict) -> str:
     if not bloecke:
         return ""
     return "\n\n".join(f"{kopf}\n{text}" for kopf, text in bloecke)
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+
+T = sprache.Texte(__name__)

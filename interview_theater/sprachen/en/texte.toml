@@ -645,3 +645,225 @@ _SATZ_SZENE_OHNE_TEXT = "{kopf} has no scene text yet."
 _TEXT_EINE_FIGUR = "A character"
 _TEXT_SZENE_KOPF = "Scene {nummer}"
 _TEXT_EINE_SZENE = "A scene"
+
+["stile"]
+TEXT_OHNE = "No style template"
+STILE = [
+    { slug = "schlagabtausch", titel = "Sharp back-and-forth", satz = "Short lines, hard cuts, a hook that comes back - I-to-you, lots of negation.", herkunft = "Schatten - Morpheuz x Monet192 (YouTube)" },
+    { slug = "litanei", titel = "Litany", satz = "One sentence pattern, again and again, with one word that changes - the build-up lies in the repetition.", herkunft = "Lovesong - Adele (YouTube)" },
+    { slug = "herkules", titel = "Herkules measure", satz = "The measured style of a production by the workshop team: short lines, few stage directions, no further shift in style.", herkunft = "Herkules.exe - ArtesMobiles (own production)" },
+]
+_TEXT_MENUE_KOPF = "Which style?"
+_TEXT_MARKE_VORSCHLAG = " (suggestion)"
+_TEXT_MENUE_EINTRAG = "{nummer}. **{titel}**{marke}\n{satz}\nTemplate: {herkunft}"
+_TEXT_MENUE_OHNE = "{nummer}. **{ohne}**\nThe rules of the form apply."
+
+["stile".VORSCHLAG_GRUND]
+rap = "A rap suits the sharp back-and-forth: short lines, a hook."
+lied = "A song suits the litany: a line that keeps coming back."
+chor = "A chorus lives on repetition - that's what the litany is built for."
+dialog = "For a dialogue, the Herkules measure stays - the workshop team's own."
+monolog = "For a monologue, the Herkules measure stays - the workshop team's own."
+
+["arbeitszeilen"]
+VORGABE = [
+    "🎭 working on your play …",
+    "👟 walking the scene through once on the rehearsal floor …",
+]
+
+["arbeitszeilen".ZEILEN]
+geschichte = [
+    "🎭 laying out three arcs on the rehearsal floor …",
+    "🔁 running the story through once in my head …",
+    "🔚 looking for an ending that still echoes …",
+]
+prosa = [
+    "✍️ writing, crossing out, writing again …",
+    "👟 watching the characters rehearse …",
+    "☕ short break at the edge of the rehearsal floor …",
+    "📐 checking whether the first entrance already pulls you in …",
+]
+schaerfung = [
+    "🔍 searching your interviews for sentences that want to go on stage …",
+    "🧩 matching quotes to the characters …",
+]
+stueckpruefung = [
+    "🎭 standing at the edge of the stage and watching …",
+    "📊 counting where the tension sags …",
+    "🔦 lighting up the transitions between the scenes …",
+]
+feinschliff = [
+    "🎶 listening whether this sounds like rap, song or chorus …",
+    "🥁 looking for the beat under the lines …",
+    "🗣️ speaking the lines out loud once …",
+]
+sensibilitaet = [
+    "🤔 reading the questions again with a stranger's eyes …",
+    "🫶 checking where someone wants to be asked gently …",
+]
+eroeffnung = [
+    "🎤 practising the first sentence in front of the mirror …",
+]
+sprachstil = [
+    "🗣️ listening to how the character sounds once they get going …",
+    "👂 comparing two ways of speaking side by side …",
+]
+
+["sprecher"]
+UEBERSCHRIFT = "Speaking shares"
+TEXT_LEER = "I can't count speaking shares yet - for that I need scene texts with speaker lines."
+_TEXT_KOPF_ZEILE = "{ueberschrift}, scenes counted: {szenen}"
+_TEXT_FIGURENZEILE = "{name}: {anteil}, lines: {repliken}, scenes: {szenen}"
+_TEXT_HINWEIS_LEISE = "{name} speaks in {szenen} of {gesamt} scenes, {anteil} of the words."
+_DEZIMALZEICHEN = "."
+
+["kuerzung"]
+TEXT_NOTIZ_SZENE = "Shorten this scene by about {prozent} percent. Same events, same order, same characters, same ending -- just tighter: less repetition, shorter lines, nothing new added."
+TEXT_NOTIZ_PROSA = "Shorten the story by about {prozent} percent. Keep exactly {anzahl} sections with their titles and in their order, and shorten within the sections -- same events, same ending, nothing new added."
+TEXT_NICHTS_ZU_KUERZEN = "There's no text yet that I could shorten."
+TEXT_KEIN_LAUF = "Not started, see chat"
+TEXT_SZENE_GESTARTET = "Scene {nummer} is getting shorter"
+TEXT_GESCHICHTE_GESTARTET = "The story is getting shorter"
+TEXT_WELCHE_SZENE = "Which scene should get shorter? Tell me the number."
+
+["vorspann"]
+_UEBERSCHRIFT_WO_UND_WANN = "Where and when"
+_UEBERSCHRIFT_WORUM = "What it's about"
+_UEBERSCHRIFT_FORM = "Form"
+_UEBERSCHRIFT_EINE_SZENE = "{anzahl} scene"
+_UEBERSCHRIFT_SZENEN = "{anzahl} scenes"
+_UEBERSCHRIFT_FIGUREN = "Who appears"
+
+["verdichter"]
+_FRAGEN_KOPF = "The group's interview questions:"
+_TRANSKRIPT_KOPF = "The transcript:"
+_NACHTRAG_WOERTLICH = "\n\nIMPORTANT, second attempt: In the first attempt, supporting quotes did not match the transcript word for word. Copy every quote CHARACTER BY CHARACTER from the transcript -- no smoothing, no moved comma, no filler words removed, no spelling corrected. Better a shorter quote that matches exactly than a longer one you touched up."
+
+["journal"]
+_BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"
+_AUSSCHNITT_KOPF = "Excerpt:\n"
+
+["ablauf"]
+_TEXT_HINWEIS = "One moment, I'm thinking."
+_TEXT_FEHLER = "Something is stuck on my end - ask again."
+_TEXT_DENKSPUR_ERMAHNUNG = "Your last answer was you talking to yourself, not the message to the group. Write ONLY the message: what you say to the group, in their words, under 500 characters."
+_TEXT_ECHO_ERMAHNUNG = "Your last answer was a quote from the group. Don't quote - answer with an impulse of your own: an assessment, a suggestion or a follow-up question."
+_AUFTRAG_KOPF = "Your task in exactly this turn:"
+
+["erkenner"]
+_STAND_FIGUR_ZEILE = "Character {name}{beschreibung}"
+_ARBEITSSTAND_KOPF = "Progress:\n"
+_NACHRICHTEN_KOPF = "New messages:\n"
+_VORLAUF_KOPF = "Lead-up (the last bot message before this -- already processed, only so you can see what an agreement refers to):\n"
+_AUFNAHME_KOPF = "A voice message from an ongoing interview, just transcribed:"
+_JOURNAL_ENTFERNT = "Removed: {was}"
+_JOURNAL_ZURUECK = "Withdrawn: {text}"
+_BEZEICHNUNG_JOURNAL = "Journal: {text}"
+_BEZEICHNUNG_FESTLEGUNG = "Agreement: {text}"
+_BEZEICHNUNG_FIGUR = "Character {name}"
+_BEZEICHNUNG_SZENE = "Scene {nummer}"
+_ZEILE_EINE_FIGUR = "one character: {liste}"
+_ZEILE_FIGUREN = "{zahlwort} characters: {liste}"
+_JOURNAL_ZUSAMMENGEFUEHRT = "{alt} became {neu} -- speech style and scene casting moved along."
+_JOURNAL_KORRIGIERT = "Transcript corrected: {text}"
+_NOTIERT_KOPF = "Noted:\n"
+_ZEILE_FESTGEHALTEN = "Agreed{marke}: {text}"
+_ZEILE_KORRIGIERT = "Corrected: {zeile}"
+_ZEILE_ENTFERNT = "Removed: {was}"
+_ZEILE_PHASE = "We're now at {phase}."
+_ZEILE_USA_JA = "Scene texts will come from the US model (Anthropic) from now on. I'll mention it again before every scene."
+_ZEILE_USA_NEIN = "Scene texts stay in Switzerland. I won't ask again."
+
+["erkenner"._STAND_BESCHRIFTUNG]
+begriffe = "Terms"
+fragen = "Questions"
+kernthema = "Core theme"
+rahmen = "Setting"
+hauptkonflikt = "Main conflict"
+
+["erkenner"._FIGUREN_ZAHLWORT]
+2 = "two"
+3 = "three"
+4 = "four"
+5 = "five"
+
+["erkenner"._FELD_BESCHRIFTUNG]
+kernthema = "Core theme"
+format = "Format"
+rahmen = "Setting"
+geschichte = "Story"
+hauptkonflikt = "Main conflict"
+figuren_anzahl = "Number of characters"
+begriffe = "Terms"
+fragen = "Questions"
+
+["kontext"]
+_SPRECHER_BOT = "You"
+_PAUSE_STUNDE = "[Break: {stunden} hour]"
+_PAUSE_STUNDEN = "[Break: {stunden} hours]"
+_ZEILE_KERNTHEMA = "Core theme: {kernthema}"
+_ZEILE_BEGRUENDUNG = " (Reason: {begruendung})"
+_BEZEICHNUNG_AUFNAHME = "Recording {id}"
+_VERDICHTUNGEN_KOPF = "Summaries:\n"
+_ZEILE_VOLLTRANSKRIPT = "--- {name} (full transcript) ---\n{transkript}"
+_VOLLTRANSKRIPTE_KOPF = "Full transcripts:\n"
+_GESCHICHTE_KOPF = "Story:\n"
+_KERNFRAGE_KOPF = "Core question:\n"
+_ZEILE_SETTING_RAHMEN = "Setting: {rahmen}"
+_STELLEN_KOPF = "Matching passages from the interviews (the basis for your work):"
+_KERNZITATE_KOPF = "Core quotes (verbatim, checked):"
+_FIGUREN_KOPF = "Characters:"
+_ZEILE_SPRACHDUKTUS = "    Way of speaking: {profil}"
+_ZEILE_AUS_INTERVIEW = '    From {name}: {thema} -- "{zitat}"'
+_GESCHAERFT_KOPF = "Sharpened against the material, per scene:\n"
+_SZENE_MIT_NUMMER = "Scene {nummer}"
+_SZENE_OHNE_NUMMER = "Scene"
+_ZEILE_AKTUELLE_PHASE = "Current phase: {phase}"
+_ZEILE_BEGRIFFE = "Terms: {wert}"
+_ZEILE_FRAGEN = "Questions: {wert}"
+_ZEILE_RAHMEN = "Setting: {wert}"
+_ZEILE_HAUPTKONFLIKT = "Main conflict: {wert}"
+_ZEILE_FIGUR = "Character {name}{beschreibung}"
+_ARBEITSSTAND_KOPF = "Progress:\n"
+_TEXT_AKTUELLE_SZENE = "Current scene ({szene}):\n{volltext}"
+_JOURNAL_KOPF = "Journal:\n"
+_AUSLOESER_KOPF = "Now:\n"
+KERNPAKET_KOPF = "The core package - this is what you work from. Characters and scenes come from the core theme and this selection, not from the interviews (they are deliberately no longer available to you here word for word):"
+FESTLEGUNGEN_KOPF = "Further agreements of the group (they count like the progress above):"
+_PHASENHINWEIS = "The material would allow phase {bezeichnung}. Ask in the flow of the conversation whether the group wants to go there yet -- one sentence, no announcement (\"Are more interviews coming, or shall we move on?\"). You don't switch yourself; the group's answer does that."
+_FIGURENHINWEIS = "These characters are still missing the interview they speak from: {namen}. If it fits, ONE sentence about it, at most: '<character name> could speak like <interview name> -- does that fit?' No quote, no reasoning, no explanation of what the assignment is for, and nothing repeated that has already been said or noted (the assignment used to be too long-winded). Only character names from the list above and interview names from the summaries. If the group says a character is entirely made up, stop asking about it. One interview may feed several characters."
+_TEXT_SZENE_GEKUERZT = "[... middle part of the scene left out ...]"
+ERSTKONTAKT = "This is the very first message in this group -- your answer is also the welcome. First respond to what was just said, then take your time: this is the moment when the group understands how the work goes here. Cover the following, in this order and in full sentences, not as a list: who you are and what you do together (the group's terms turn into questions, the group takes the questions out and does interviews, the interviews later become the play); that you read everything and answer everything, typed or spoken; **that an interview starts with the button \"Start interview\" and that after every voice message a button asks whether it goes on or is finished** -- the buttons under your message show the way, **don't mention any slash command**{link}. **End with the question about the terms**: the group has collected terms in the room -- ask them to send you that list, typed, typed up from a photo or as a voice message. That is the first working step, and the welcome ends with it. No form, no bullet-point list -- a warm, detailed start that begins with what was said and ends with the request for the terms. Never address anyone by first name."
+ERSTKONTAKT_LINK = "; and that the group can follow everything that has been recorded at {url} (only for this group, give the link exactly like this)"
+
+["aufnahme"]
+_TEXT_ZWISCHENMELDUNG = "I'm still typing up the voice message, one moment."
+_TEXT_AUSFALL = "I can't listen right now. Write to me in the meantime - I'll collect the recordings and catch up later."
+_TEXT_RUECKKEHR = "I can listen again."
+_TEXT_MATERIAL_HINWEIS = "That sounds like material for an interview."
+_TEXT_INTERVIEW_OHNE_KNOPF = "That sounds like an interview ({dauer}). Should I save it as an interview?"
+_TEXT_INTERVIEW_OHNE_KNOPF_WEITER = "Is the interview finished, or are more voice messages coming?"
+_TEXT_INTERVIEW_OHNE_KNOPF_NEIN = "Fine, then I'll take it as a contribution."
+_TEXT_TEIL_ECHO = "{name}, part {nummer}:\n{transkript}"
+_TEXT_INTERVIEW_ABGELEGT = "{name} is recorded and analysed - I'll hold back on it until you have all the interviews together."
+_TEXT_AUSGEWERTET = "{name} analysed: {themen} themes, {zitate} quotes."
+_TEXT_VERDICHTUNG_KOPF = "{name} is done. What I hear in it:"
+_TEXT_VERDICHTUNG_THEMEN = "Core themes:"
+_TEXT_VERDICHTUNG_FRAGE = "Is that right? If not, tell me."
+_TEXT_PHASENFRAGE = "Are more interviews coming, or shall we move on?"
+_TEXT_OHNE_BELEG = "I couldn't back up any theme with a word-for-word quote."
+_TEXT_ZU_KURZ = "{name} was very short ({woerter} words) - I didn't analyse it."
+_TEXT_OHNE_AUFNAHME = "{name} had no recording - I didn't summarise anything."
+_TEXT_LEER_VERWORFEN = "No recording in there - nothing saved."
+_TEXT_DAS_INTERVIEW = "The interview"
+_TEXT_DOWNLOAD_FEHLER = "The recording didn't reach me - please send it again."
+_TEXT_BITTE_NOCHMAL = "I couldn't understand {beschreibung} - please send it again."
+_TEXT_VERDICHTUNG_GESCHEITERT = "I couldn't analyse {beschreibung}. The transcript stays saved, only the summary is missing."
+_ARTIKEL_GROSS = "the"
+_ARTIKEL_KLEIN = "the"
+_BESCHREIBUNG_TEIL = "{artikel} recording of {name}, part {nummer}"
+_BESCHREIBUNG_NAME = "{artikel} recording of {name}"
+_BESCHREIBUNG_LETZTE = "{artikel} last {art}"
+_ART_LANG = "long recording"
+_ART_KURZ = "short recording"
+_JOURNAL_PHASE_DURCH_AUFNAHME = "by starting a recording"

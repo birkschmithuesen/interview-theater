@@ -4237,7 +4237,7 @@ def test_erkenner_behaelt_seine_few_shots(padua):
 - Formnamen im Text **Anzeige**: Dialogue, Monologue, Chorus, Song, Rap;
   **Werte** (`form: chor`) woertlich.
 
-- [ ] **Schritt 1: Test:**
+- [x] **Schritt 1: Test:**
 
 ```python
 def test_szene_englisch_mit_erfundenen_namen(padua):
@@ -4254,11 +4254,11 @@ def test_szenen_systemanweisung_englisch(padua):
         assert pruefe_sprache.deutsche_treffer(form, szene.systemanweisung(form)) == []
 ```
 
-- [ ] **Schritt 2–4** wie oben; `NOCH_OFFEN -= {…11…}`;
+- [x] **Schritt 2–4** wie oben; `NOCH_OFFEN -= {…11…}`;
   `$PY -m scripts.pruefe_sprache --dateien interview_theater/sprachen/en/prompts/{szene,theater-tells}.md interview_theater/sprachen/en/prompts/formen/*.md interview_theater/sprachen/en/prompts/stile/*.md` → `0 Treffer`.
-- [ ] **Schritt 5: Mutationsnachweis:** in `en/prompts/formen/chor.md`
+- [x] **Schritt 5: Mutationsnachweis:** in `en/prompts/formen/chor.md`
   `{{ort_beispiel_1}}` durch ein Wort ersetzen → Paritaetstest rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Englische Szenenprompts, Formen und Stile (A1)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Englische Szenenprompts, Formen und Stile (A1)"`.
 
 ---
 

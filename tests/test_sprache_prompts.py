@@ -32,6 +32,10 @@ NOCH_OFFEN = set(REPO_NAMEN) - {
     "phasen/6", "phasen/7", "rahmen", "rahmen-kurz", "rahmen-knapp", "projekt",
     # Aufgabe 19: die Extraktion.
     "erkenner", "journal", "verdichter", "kernzitate", "schaerfung", "sprachprofil",
+    # Aufgabe 20: die Szene.
+    "szene", "theater-tells", "formen/dialog", "formen/monolog", "formen/chor",
+    "formen/lied", "formen/rap", "formen/prosa", "stile/herkules",
+    "stile/litanei", "stile/schlagabtausch",
 }
 
 #: Inhaltsbausteine (W1): ihre deutsche Fassung traegt Dortmund-Inhalt
@@ -195,3 +199,20 @@ def test_d7_zitate_bleiben_im_original(padua, name):
 def test_erkenner_behaelt_seine_few_shots(padua):
     deutsch = (REPO / "erkenner.md").read_text(encoding="utf-8").count('"aenderungen"')
     assert anweisungen.hole("erkenner").count('"aenderungen"') == deutsch == 21
+
+
+# --- Aufgabe 20: die Szene auf Englisch (szene, theater-tells, formen/*,
+# stile/*) ---
+
+def test_szene_englisch_mit_erfundenen_namen(padua):
+    text = " ".join(anweisungen.hole("szene").split())
+    assert "Characters always carry invented names." in text
+    assert "Write in English" in text or "English." in text
+
+
+def test_szenen_systemanweisung_englisch(padua):
+    from interview_theater import szene
+    from scripts import pruefe_sprache
+
+    for form in ("dialog", "monolog", "chor", "lied", "rap", szene.PROSA):
+        assert pruefe_sprache.deutsche_treffer(form, szene.systemanweisung(form)) == []

@@ -437,3 +437,73 @@ def test_kennzahlen_tabelle_nennt_soll_und_urteil():
 
 def test_kennung_ist_datum_mischung_seed():
     assert bericht.kennung("set1", 7, tag="2026-09-05") == "2026-09-05-set1-7"
+
+
+# --- Die Kennzahlen der Gegenpruefung im Bericht ---------------------------
+
+
+def _zahlen_mit(**extra):
+    """Eine Kennzahlenmenge, die ``kennzahlen_tabelle`` durchlaeuft."""
+    grund = {
+        "festlegungen": 0, "festlegungen_je_bereich": {},
+        "festlegungsproben": 3, "festlegungsproben_erhalten": 3,
+        "festlegungsproben_nur_journal": [], "festlegungsproben_nirgends": [],
+        "szenen_aktiv": 3, "szenen_ersetzt": 0, "szenen_neuaufbauten": 0,
+        "szenen_form_verloren": 0, "szenenfolge_laeufe": 1,
+        "kurzgeschichte_laeufe": 0, "szenenfolge_nach_richtung": 0,
+        "szenen_aus_richtung": True,
+    }
+    grund.update(extra)
+    return grund
+
+
+def test_die_gegenpruefzeilen_stehen_mit_sollwert_da():
+    zeilen = "\n".join(bericht._gegenpruefzeilen(_zahlen_mit()))
+    assert "Festlegungsproben erhalten" in zeilen
+    assert "3/3" in zeilen
+    assert "Szenen neu aufgebaut" in zeilen
+    assert "Szenenfolge-Lauf nach der Richtungswahl" in zeilen
+    assert "**daneben**" not in zeilen
+
+
+def test_ein_verlust_wird_als_daneben_markiert():
+    zeilen = "\n".join(bericht._gegenpruefzeilen(_zahlen_mit(
+        festlegungsproben_erhalten=1,
+        festlegungsproben_nur_journal=["Outsider"],
+        festlegungsproben_nirgends=["hoechstens eine Seite"],
+    )))
+    assert "1/3" in zeilen
+    assert "**daneben**" in zeilen
+
+
+def test_ein_neuaufbau_wird_als_daneben_markiert():
+    zeilen = "\n".join(bericht._gegenpruefzeilen(_zahlen_mit(
+        szenen_neuaufbauten=2, szenen_form_verloren=3,
+        szenenfolge_nach_richtung=1, szenen_aus_richtung=False,
+    )))
+    assert zeilen.count("**daneben**") >= 3
+
+
+def test_eine_alte_verlaufszeile_ohne_die_schluessel_bleibt_lesbar():
+    """Wie bei den Knopfzahlen (06.09.2026): fehlt der Block, steht er nicht
+    da -- ein KeyError im Bericht waere schlimmer als eine fehlende Zeile."""
+    assert bericht._gegenpruefzeilen({"echo": 0}) == []
+
+
+def test_die_verlaufszeile_traegt_die_mutation():
+    class _Ergebnis:
+        urteile = {}
+        szenen = []
+        gezogene = []
+        personen = []
+        szenen_urteil = {}
+
+    kopf = {"kennung": "k", "mischung": "set1", "seed": 1, "git": "abc",
+            "llm_modell": "kimi", "erkenner_modell": "gemma",
+            "sim_modell": "claude-opus-5", "mutation": "festlegung_verloren"}
+    zeile = bericht.verlaufszeile(_zahlen_mit(), _Ergebnis(), kopf)
+    assert zeile["mutation"] == "festlegung_verloren"
+
+    kopf_ohne = {**kopf}
+    kopf_ohne.pop("mutation")
+    assert bericht.verlaufszeile(_zahlen_mit(), _Ergebnis(), kopf_ohne)["mutation"] == ""

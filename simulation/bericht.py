@@ -137,6 +137,7 @@ def kennzahlen_tabelle(zahlen: dict) -> list[str]:
     zeile("Schritte gescheitert", len(zahlen["schritte_gescheitert"]) or "keine", 0,
           not zahlen["schritte_gescheitert"])
     zeilen.extend(_knopfzeilen(zahlen))
+    zeilen.extend(_gegenpruefzeilen(zahlen))
     return zeilen
 
 
@@ -186,6 +187,66 @@ def _knopfzeilen(zahlen: dict) -> list[str]:
           ueberschrieben == 0)
     gekuerzt = zahlen.get("kontext_gekuerzt", 0)
     zeile("Prompts gekuerzt (kontext_gekuerzt)", gekuerzt, 0, gekuerzt == 0)
+    return zeilen
+
+
+def _gegenpruefzeilen(zahlen: dict) -> list[str]:
+    """Die Kennzahlen der Gegenpruefung vom 30.09.2026 als Tabellenzeilen.
+
+    Zwei Fehler, beide belegt, beide bis dahin unsichtbar im Bericht: der
+    Verlust nicht kategorisierbarer Festlegungen
+    (``docs/analyse-phase4-datenverlust-2026-09-06.md``, 22 von 42) und der
+    Neuaufbau der Szenenfolge (``docs/analyse-phase5-chaos-2026-09-06.md``,
+    3 -> 6 -> 6).
+
+    Getrennt aufgebaut wie ``_knopfzeilen``: eine Verlaufszeile von vor dem
+    30.09. hat diese Schluessel nicht, und ein ``KeyError`` mitten im Bericht
+    waere schlimmer als eine fehlende Zeile."""
+    if "festlegungsproben" not in zahlen:
+        return []
+    zeilen = []
+
+    def zeile(name, wert, soll, gut):
+        zeilen.append(f"| {name} | {wert} | {soll} | {_urteil(wert, soll, gut)} |")
+
+    erhalten = zahlen.get("festlegungsproben_erhalten", 0)
+    proben = zahlen.get("festlegungsproben", 0)
+    zeile("Festlegungsproben erhalten", _anteil(erhalten, proben), "alle",
+          bool(proben) and erhalten == proben)
+    nur_journal = zahlen.get("festlegungsproben_nur_journal") or []
+    zeile("davon nur im Journal (faellt nach 8 Zeilen)",
+          f"{len(nur_journal)}" + (f" ({', '.join(nur_journal)})" if nur_journal else ""),
+          0, not nur_journal)
+    nirgends = zahlen.get("festlegungsproben_nirgends") or []
+    zeile("davon nirgends",
+          f"{len(nirgends)}" + (f" ({', '.join(nirgends)})" if nirgends else ""),
+          0, not nirgends)
+    # Rein informativ (wie "Szenen aktiv / Prosalaeufe" unten): null
+    # Eintraege sind ein voellig gueltiger Zustand -- eine Gruppe, die nichts
+    # ausserhalb der bekannten Felder sagt, hat nichts verloren. Beurteilt
+    # wird der Verlust oben ueber die Festlegungsproben, nicht ueber die
+    # rohe Zeilenzahl.
+    zeile("Eintraege in `festlegung`",
+          f"{zahlen.get('festlegungen', 0)} "
+          + (str(zahlen.get("festlegungen_je_bereich") or {}) or ""),
+          "–", True)
+
+    zeile("Szenen neu aufgebaut", zahlen.get("szenen_neuaufbauten", 0), 0,
+          not zahlen.get("szenen_neuaufbauten"))
+    zeile("bestaetigte Formen dabei verloren",
+          zahlen.get("szenen_form_verloren", 0), 0,
+          not zahlen.get("szenen_form_verloren"))
+    zeile("Szenenfolge-Lauf nach der Richtungswahl",
+          zahlen.get("szenenfolge_nach_richtung", 0), 0,
+          not zahlen.get("szenenfolge_nach_richtung"))
+    zeile("Szenen aus der Richtung uebernommen (C9)",
+          "ja" if zahlen.get("szenen_aus_richtung") else "nein",
+          "ja, wenn die Richtung welche nennt",
+          bool(zahlen.get("szenen_aus_richtung")))
+    zeile("Szenen aktiv / Prosalaeufe",
+          f"{zahlen.get('szenen_aktiv', 0)} / "
+          f"{zahlen.get('kurzgeschichte_laeufe', 0)}",
+          "–", True)
     return zeilen
 
 
@@ -879,6 +940,10 @@ def verlaufszeile(zahlen: dict, ergebnis, kopfdaten: dict) -> dict:
         "llm_modell": kopfdaten["llm_modell"],
         "erkenner_modell": kopfdaten["erkenner_modell"],
         "sim_modell": kopfdaten["sim_modell"],
+        # Ohne dieses Feld sind zwei Verlaufszeilen desselben Sets und Seeds
+        # nicht auseinanderzuhalten -- und genau das ist der Vergleich, um den
+        # es in der Gegenpruefung geht.
+        "mutation": kopfdaten.get("mutation") or "",
         "noten_median": statistics.median(noten) if noten else None,
         "noten_summe": sum(noten) if noten else None,
         # ``szene`` ist die zuletzt geschriebene -- die Form, in der

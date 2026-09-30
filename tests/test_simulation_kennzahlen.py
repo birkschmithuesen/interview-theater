@@ -204,3 +204,138 @@ def test_sammle_liefert_alle_schluessel_des_berichts(conn):
         assert schluessel in zahlen
     assert zahlen["notausgaenge"] == 1
     assert zahlen["schritte_gescheitert"] == []
+
+
+# --- Festlegungen: was ueberlebt, was nur im Journal steht, was fehlt -----
+#
+# Die Kennzahl zu docs/analyse-phase4-datenverlust-2026-09-06.md: 22 von 42
+# Festlegungen waren verloren, und das Kriterium der Analyse ist mechanisch --
+# liegt die Angabe in einem Feld, das ein Prompt noch sieht, oder nur in einem
+# journal-Eintrag, der nach acht Zeilen faellt?
+
+from simulation import mutation, skript as skript_modul  # noqa: E402
+
+PROBEN = (
+    ("struktur", "nur eine Szene", "Das Stueck ist nur eine Szene, erste Folge."),
+    ("gruppe", "Outsider", "Es gibt zwei Gruppen: die Coolen und die Outsider."),
+)
+
+
+def test_die_proben_des_skripts_sind_vollstaendig_und_eindeutig():
+    """Jede Probe traegt Bereich, Stichwort und Satz; der Bereich muss ein
+    ``repo.FESTLEGUNG_BEREICHE`` sein, sonst faellt sie beim Schreiben auf
+    'sonstiges' und die Zuordnung im Bericht ist falsch. Und das Stichwort
+    muss im Satz stehen -- sonst sucht die Kennzahl etwas, das die Stimme nie
+    gesagt bekommt."""
+    proben = skript_modul.FESTLEGUNGSPROBEN
+    assert len(proben) >= 3
+    stichworte = [s for _b, s, _t in proben]
+    assert len(set(stichworte)) == len(stichworte)
+    for bereich, stichwort, satz in proben:
+        assert bereich in repo.FESTLEGUNG_BEREICHE
+        assert stichwort.lower() in satz.lower()
+
+
+def test_eine_festlegung_in_der_tabelle_gilt_als_erhalten(conn):
+    for bereich, _stichwort, satz in PROBEN:
+        repo.schreibe_festlegung(conn, 1, bereich, satz)
+    lage = kennzahlen.festlegungslage(conn, 1, PROBEN)
+    assert lage["festlegungen"] == 2
+    assert lage["festlegungen_je_bereich"] == {"gruppe": 1, "struktur": 1}
+    assert lage["festlegungsproben_erhalten"] == 2
+    assert lage["festlegungsproben_nur_journal"] == []
+    assert lage["festlegungsproben_nirgends"] == []
+
+
+def test_ein_arbeitsstandfeld_gilt_genauso(conn):
+    """Die Kennzahl bestraft keine Angabe, die ordentlich in einem Feld
+    gelandet ist -- gefragt ist, ob sie dauerhaft steht, nicht, ob sie in der
+    Auffangtabelle steht."""
+    repo.setze_arbeitsstand(conn, 1, "geschichte",
+                            "Das Stueck ist nur eine Szene, erste Folge.")
+    lage = kennzahlen.festlegungslage(conn, 1, PROBEN)
+    assert lage["festlegungsproben_erhalten"] == 1
+    assert lage["festlegungsproben_nirgends"] == ["Outsider"]
+
+
+def test_eine_figurenbeschreibung_gilt_genauso(conn):
+    repo.setze_figur(conn, 1, "Sara", "gehoert zu den Outsider, redet zurueck")
+    lage = kennzahlen.festlegungslage(conn, 1, PROBEN)
+    assert lage["festlegungsproben_erhalten"] == 1
+    assert "nur eine Szene" in lage["festlegungsproben_nirgends"]
+
+
+def test_nur_im_journal_ist_nicht_erhalten(conn):
+    """Der Kern des Befunds: ``kontext.JOURNAL_EINTRAEGE = 8`` kappt das
+    Journal, ein ``vorgeschlagen``-Eintrag kommt nie zurueck. Die Kennzahl
+    zaehlt ihn deshalb getrennt und nicht als Erfolg."""
+    for _bereich, _stichwort, satz in PROBEN:
+        repo.schreibe_journal(conn, 1, "vorgeschlagen", satz, quelle="erkenner")
+    lage = kennzahlen.festlegungslage(conn, 1, PROBEN)
+    assert lage["festlegungsproben_erhalten"] == 0
+    assert sorted(lage["festlegungsproben_nur_journal"]) == ["Outsider",
+                                                            "nur eine Szene"]
+    assert lage["festlegungsproben_nirgends"] == []
+
+
+def test_ohne_alles_fehlt_jede_probe(conn):
+    lage = kennzahlen.festlegungslage(conn, 1, PROBEN)
+    assert lage["festlegungsproben_erhalten"] == 0
+    assert len(lage["festlegungsproben_nirgends"]) == 2
+
+
+def test_die_kennzahl_schlaegt_unter_der_mutation_an_und_sonst_nicht(conn):
+    """Beide Richtungen in einem Test, weil nur der Unterschied etwas sagt:
+    derselbe Schreibweg, einmal mit und einmal ohne Mutation."""
+    def schreibe():
+        for bereich, _stichwort, satz in PROBEN:
+            geschrieben = repo.schreibe_festlegung(conn, 1, bereich, satz)
+            if geschrieben is None:
+                # So verhielt sich der Bot vor e56a892: der Inhalt blieb
+                # hoechstens als Journalzeile zurueck.
+                repo.schreibe_journal(conn, 1, "vorgeschlagen", satz,
+                                      quelle="erkenner")
+
+    with mutation.aktiv("festlegung_verloren"):
+        schreibe()
+    mutiert = kennzahlen.festlegungslage(conn, 1, PROBEN)
+    assert mutiert["festlegungen"] == 0
+    assert mutiert["festlegungsproben_erhalten"] == 0
+
+    schreibe()
+    heute = kennzahlen.festlegungslage(conn, 1, PROBEN)
+    assert heute["festlegungen"] == 2
+    assert heute["festlegungsproben_erhalten"] == 2
+
+
+def test_festlegungslage_steckt_in_sammle(conn):
+    from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN
+
+    zahlen = kennzahlen.sammle(
+        conn, 1, [], [], ["Jo"], set(), {}, _E(), PREISE_CHF_JE_MIO_TOKEN, 1.0,
+    )
+    for schluessel in ("festlegungen", "festlegungen_je_bereich",
+                       "festlegungsproben", "festlegungsproben_erhalten",
+                       "festlegungsproben_nur_journal",
+                       "festlegungsproben_nirgends"):
+        assert schluessel in zahlen
+    # Ohne Argument nimmt sie die Proben des Skripts, nicht die des Tests.
+    assert zahlen["festlegungsproben"] == len(skript_modul.FESTLEGUNGSPROBEN)
+
+
+def test_in_sammle_zaehlt_festlegungen_die_tabelle_nicht_die_notiert_zeilen(conn):
+    """``nachrichten_je_festlegung`` (ueber ``sammle_knopfzahlen``) schreibt
+    ebenfalls den Schluessel ``festlegungen`` -- dort die Zahl der
+    Notiert-Abschnitte. Laeuft es nach ``festlegungslage``, ueberschreibt es
+    die Tabellenzahl, und unter der Mutation stuende im Bericht eine Zahl
+    groesser null, obwohl ``festlegung`` leer ist."""
+    from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN
+
+    zuege = [zug("figuren", [beitrag("S1", "Passt so.")],
+                 [f"{kennzahlen.NOTIERT}\nFigur: Sara"]) for _ in range(3)]
+    repo.schreibe_festlegung(conn, 1, "gruppe", "Die Outsider halten zusammen.")
+    zahlen = kennzahlen.sammle(
+        conn, 1, zuege, [], ["Jo"], set(), {}, _E(), PREISE_CHF_JE_MIO_TOKEN, 1.0,
+    )
+    assert zahlen["festlegungen"] == 1
+    assert len(zahlen["nachrichten_je_festlegung"]) == 3

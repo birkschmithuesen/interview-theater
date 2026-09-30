@@ -504,6 +504,113 @@ def datenlage_text(lage: dict) -> str:
     ])
 
 
+# ---------------------------------------------------------------------------
+# Festlegungen: was ueberlebt (Analyse Phase 4, 06.09.2026)
+# ---------------------------------------------------------------------------
+#
+# Der Befund, den diese Kennzahl misst: 22 von 42 Festlegungen der Gruppe 1
+# waren verloren -- "kein Feld, oder nur ein journal-Eintrag der Art
+# vorgeschlagen, der nachweislich nicht mehr in den Prompt kommt"
+# (docs/analyse-phase4-datenverlust-2026-09-06.md § 0, § 2.7).
+#
+# Bis zum 30.09.2026 stand im Bericht dazu **nichts**: das Wort "festlegung"
+# kam in dieser Datei nur in ``nachrichten_je_festlegung`` vor, und das zaehlt
+# Nachrichten, nicht Speicherorte.
+
+
+def _dauerhafter_text(conn, chat_id: int) -> str:
+    """Alles, was ein Prompt dauerhaft sieht -- gefaltet, in einem String.
+
+    **Das Journal gehoert ausdruecklich nicht dazu.** Es wird in
+    ``kontext._baue_journal`` auf ``JOURNAL_EINTRAEGE`` = 8 Zeilen gekappt,
+    und es gibt keinen Weg, der einen verdraengten Eintrag zurueckholt. Eine
+    Angabe, die nur dort steht, ist nach acht weiteren Zeilen weg -- genau der
+    Verlust, um den es geht.
+
+    Drin sind: die Arbeitsstandfelder (ohne Schluessel und Buchhaltung), die
+    Auffangtabelle in ihrer Prompt-Form (``repo.festlegungszeile``), Name und
+    Beschreibung jeder Figur und die Planungsfelder jeder Szene. Alle vier
+    gehen datengetrieben in den Gespraechs-Prompt."""
+    teile: list[str] = []
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is not None:
+        for spalte in skript.arbeitsstand_spalten(conn):
+            if spalte in skript._KEINE_FELDER:
+                continue
+            try:
+                teile.append(str(stand[spalte] or ""))
+            except (IndexError, KeyError):
+                continue
+    for eintrag in repo.festlegungen(conn, chat_id):
+        teile.append(repo.festlegungszeile(
+            eintrag["bereich"], eintrag["bezug"], eintrag["text"]
+        ))
+    for figur in repo.figuren(conn, chat_id):
+        teile.append(str(figur["name"] or ""))
+        teile.append(str(figur["beschreibung"] or ""))
+    for szene in repo.hole_szenen(conn, chat_id):
+        for feld in ("titel", "was_passiert", "was_anders", "kernsaetze", "ton",
+                     "anlass"):
+            try:
+                teile.append(str(szene[feld] or ""))
+            except (IndexError, KeyError):
+                continue
+    return _falte(" ".join(teile))
+
+
+def festlegungslage(conn, chat_id: int, proben=None) -> dict:
+    """Wie viele Festlegungen stehen, und wie viele der Pruefsaetze haben
+    ueberlebt.
+
+    Drei Toepfe, dieselbe Einteilung wie in der Analyse: **erhalten** (steht
+    in einem dauerhaften Feld oder in der Auffangtabelle -- OK),
+    **nur_journal** (steht nur in der Chronik, faellt nach acht Zeilen aus dem
+    Prompt -- VERKUERZT bis VERLOREN), **nirgends** (VERLOREN).
+
+    Gesucht wird nach dem **Stichwort** der Probe, nicht nach dem ganzen Satz:
+    eine Gruppe sagt eine Festlegung in ihren Worten, und ein Bot, der sie
+    zusammenfasst, hat sie trotzdem gespeichert. Verglichen wird ueber
+    ``_falte`` -- dieselbe Faltung, mit der diese Datei ueberall vergleicht.
+
+    Der Schluessel ``festlegungen`` ist die Zahl der Zeilen in der Tabelle
+    ``festlegung``. ``nachrichten_je_festlegung`` traegt denselben Namen fuer
+    die Zahl der Notiert-Abschnitte; ``sammle`` haengt diese Kennzahl deshalb
+    **hinter** ``sammle_knopfzahlen`` ein, damit die Tabellenzahl gilt.
+
+    Soll: ``festlegungsproben_erhalten == festlegungsproben``, also
+    ``nur_journal`` und ``nirgends`` beide leer."""
+    proben = skript.FESTLEGUNGSPROBEN if proben is None else proben
+    eintraege = repo.festlegungen(conn, chat_id)
+    je_bereich: dict[str, int] = {}
+    for eintrag in eintraege:
+        bereich = eintrag["bereich"] or "?"
+        je_bereich[bereich] = je_bereich.get(bereich, 0) + 1
+
+    dauerhaft = _dauerhafter_text(conn, chat_id)
+    journaltext = _falte(" ".join(
+        str(e["text"] or "") for e in repo.journal(conn, chat_id)
+    ))
+
+    erhalten, nur_journal, nirgends = [], [], []
+    for _bereich, stichwort, _satz in proben:
+        wort = _falte(stichwort)
+        if wort and wort in dauerhaft:
+            erhalten.append(stichwort)
+        elif wort and wort in journaltext:
+            nur_journal.append(stichwort)
+        else:
+            nirgends.append(stichwort)
+
+    return {
+        "festlegungen": len(eintraege),
+        "festlegungen_je_bereich": dict(sorted(je_bereich.items())),
+        "festlegungsproben": len(proben),
+        "festlegungsproben_erhalten": len(erhalten),
+        "festlegungsproben_nur_journal": nur_journal,
+        "festlegungsproben_nirgends": nirgends,
+    }
+
+
 def kontextlage(zuege: list[Zug]) -> dict:
     """Was wann im Gespraechs-Prompt stand -- die Frage aus N4b.
 
@@ -774,6 +881,10 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
         conn, chat_id, zuege, tg, knopfdruecke or [],
         phasen_proaktiv or [], phasen_selbst or [],
     ))
+    # Hinter sammle_knopfzahlen: dort setzt nachrichten_je_festlegung den
+    # Schluessel "festlegungen" auf die Zahl der Notiert-Abschnitte; hier gilt
+    # die Zahl der Zeilen in der Tabelle festlegung.
+    zahlen.update(festlegungslage(conn, chat_id))
     zahlen.update(kosten(conn, e, preise))
     zahlen["hochrechnung"] = hochrechnung(zahlen["chf_bot"])
     zahlen.update(sim_statistik or {

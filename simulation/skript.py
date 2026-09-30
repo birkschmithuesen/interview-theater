@@ -41,6 +41,40 @@ MAX_NACHRICHTEN = 6
 #: Zahl steht in der Kennzahl ``arbeitsstand_vollstaendig``.
 FIGUREN_SOLL = 3
 
+#: Drei sachliche Festlegungen, die in **kein** Arbeitsstandfeld passen -- die
+#: drei schwersten Verluste der Gruppe 1 vom 06.09.2026 als Pruefsaetze
+#: (``docs/analyse-phase4-datenverlust-2026-09-06.md`` § 0: die vierteilige
+#: Handlungsstruktur, die Gruppenzuordnung, die Laengen-/Strukturvorgabe).
+#:
+#: Je Probe ``(bereich, stichwort, satz)``. Der ``satz`` geht ins Ziel des
+#: Schritts ``festlegungen`` -- die Stimmen sollen ihn sagen; das
+#: ``stichwort`` ist, wonach ``kennzahlen.festlegungslage`` danach in allen
+#: dauerhaften Feldern sucht. Der ``bereich`` muss ein
+#: ``repo.FESTLEGUNG_BEREICHE`` sein, sonst wandert die Zeile auf
+#: 'sonstiges' und die Bereichsspalte im Bericht sagt nichts.
+#:
+#: Bewusst drei und nicht zehn: jede Probe kostet die Gruppe Nachrichten, und
+#: ein Schritt, der zehn Saetze verlangt, misst die Geduld des Simulators und
+#: nicht das Gedaechtnis des Bots.
+FESTLEGUNGSPROBEN: tuple[tuple[str, str, str], ...] = (
+    ("struktur", "erste Folge einer Serie",
+     "Das Stueck ist nur eine Szene -- die erste Folge einer Serie."),
+    ("gruppe", "Outsider",
+     "Die Figuren gehoeren zu zwei Gruppen: den Coolen und den Outsider."),
+    ("stil", "hoechstens eine Seite",
+     "Jeder Szenentext soll hoechstens eine Seite lang sein."),
+)
+
+
+def festlegungsproben_text(proben=None) -> str:
+    """Die Pruefsaetze als Aufzaehlung fuer das Ziel eines Schritts.
+
+    Eine Funktion und keine Konstante, damit ein Aufrufer eigene Proben
+    einsetzen kann (die Tests tun das) und die Formatierung trotzdem an einer
+    Stelle steht."""
+    return "\n".join(f"- {satz}" for _b, _s, satz in
+                     (FESTLEGUNGSPROBEN if proben is None else proben))
+
 #: Die Phase, deren Feld(er) Schritt 6 fuellt. Bewusst die **Nummer** und
 #: nicht der Name: wie sie heisst, liest der Schritt zur Laufzeit aus
 #: ``phasen.PHASEN``.

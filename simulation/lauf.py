@@ -264,7 +264,8 @@ def _sofort_auswertung(conn, tg, klm, e, kopf_id):
     return None
 
 
-def _sofort_auftrag(conn, tg, klm, e, chat_id, anweisung):
+def _sofort_auftrag(conn, tg, klm, e, chat_id, anweisung,
+                    arbeitszeile=None, arbeitsart=None):
     """Ersatz fuer ``ablauf.starte_auftrag``: fuehrt den Auftragszug **im
     aufrufenden Thread** aus.
 
@@ -275,11 +276,20 @@ def _sofort_auftrag(conn, tg, klm, e, chat_id, anweisung):
     naechste Stimme sprach in einen Chat, in dem der Vorschlag noch nicht
     stand, und der Bot lieferte ihn danach ein zweites Mal. Gemessen im
     ersten tag1-Lauf: Eroeffnung und Abschluss zweimal hintereinander, leicht
-    verschieden."""
+    verschieden.
+
+    ``arbeitszeile``/``arbeitsart`` kamen mit Commit 347f28d (06.09.2026) zu
+    ``ablauf.starte_auftrag``/``auftragszug`` dazu; diese Ersatzfunktion hat
+    sie zunaechst nicht angenommen -- ``knoepfe._starte_auftrag`` ruft aber
+    seither jeden Auftrag mit acht Positionsargumenten auf, und jeder Knopf,
+    der einen Auftragszug ausloest (Phasen 2, 4, 5), scheiterte im Simulator
+    mit einem TypeError (gemessen im ersten bezahlten Lauf, 30.09.2026,
+    ``--set 1 --seed 1 --skript tag2``, Abbruch in Phase 2)."""
     if klm is None or not (anweisung or "").strip():
         return None
     try:
-        ablauf.auftragszug(conn, tg, klm, e, chat_id, anweisung)
+        ablauf.auftragszug(conn, tg, klm, e, chat_id, anweisung,
+                           arbeitszeile, arbeitsart)
     except Exception:
         log.exception("Auftragszug in der Simulation fehlgeschlagen")
     # Nicht None: ``knoepfe._starte_auftrag`` liest das Ergebnis als

@@ -9,13 +9,14 @@ Stimm-Nachricht ueber ``bot.verarbeite_update`` und
 dann eine Frage der Modelle, nicht des Codes.
 """
 
+import inspect
 import json
 from datetime import datetime, timezone
 
 import pytest
 
 from interview_theater import (
-    aufnahme, bot, einstellungen, kontext, llm, repo, szene, telegram,
+    ablauf, aufnahme, bot, einstellungen, kontext, llm, repo, szene, telegram,
 )
 from simulation import bericht, claude, lauf, skript
 from simulation.attrappe import TelegramAttrappe
@@ -147,6 +148,70 @@ def test_zwei_gleichzeitige_laeufe_schreiben_in_ihr_eigenes_protokoll():
             assert kontext.baue is not vorher
         assert kontext.baue is not vorher
     assert kontext.baue is vorher
+
+
+#: Die vier Ersatzpaare aus ``einfaedig()``: Original im Betrieb, Ersatz im
+#: Simulator. Dieselbe Reihenfolge wie in ``lauf._ORIGINAL["einfaedig"]``.
+_ERSATZPAARE = [
+    (szene.starte, lauf._sofort_szene),
+    (aufnahme.starte_abschluss, lauf._sofort_abschluss),
+    (aufnahme.starte_auswertung, lauf._sofort_auswertung),
+    (ablauf.starte_auftrag, lauf._sofort_auftrag),
+]
+
+
+@pytest.mark.parametrize(
+    "original, ersatz", _ERSATZPAARE,
+    ids=[e.__name__ for _, e in _ERSATZPAARE],
+)
+def test_ersatzfunktion_nimmt_die_parameter_des_originals_an(original, ersatz):
+    """Jede Ersatzfunktion in ``einfaedig()`` muss die Parameter ihres
+    Originals annehmen -- Namen, Reihenfolge, Defaults. Sonst faellt eine
+    kuenftige Signaturdrift (wie bei ``ablauf.starte_auftrag`` seit
+    Commit 347f28d, 06.09.2026: ``arbeitszeile``/``arbeitsart`` kamen dazu,
+    ``lauf._sofort_auftrag`` reichte sie nicht durch) erst im bezahlten
+    Simulationslauf auf statt in der Suite."""
+    parameter_original = [
+        (p.name, p.default) for p in inspect.signature(original).parameters.values()
+    ]
+    parameter_ersatz = [
+        (p.name, p.default) for p in inspect.signature(ersatz).parameters.values()
+    ]
+    assert parameter_ersatz == parameter_original, (
+        f"{ersatz.__name__} weicht von {original.__qualname__} ab: "
+        f"{parameter_ersatz} != {parameter_original}"
+    )
+
+
+def test_sofort_auftrag_reicht_arbeitszeile_und_arbeitsart_an_auftragszug_durch(
+    monkeypatch,
+):
+    """Der Bug aus dem ersten bezahlten Lauf: ``knoepfe._starte_auftrag``
+    ruft ``ablauf.starte_auftrag`` mit acht Positionsargumenten --
+    ``_sofort_auftrag`` muss ``arbeitszeile`` und ``arbeitsart`` genauso
+    entgegennehmen und an ``ablauf.auftragszug`` weiterreichen wie der
+    Betriebsweg (``ablauf.starte_auftrag`` startet nur einen Thread mit
+    denselben Argumenten)."""
+    aufgezeichnet = {}
+
+    def falscher_auftragszug(conn, tg, klm, e, chat_id, anweisung,
+                             arbeitszeile=None, arbeitsart=None):
+        aufgezeichnet["conn"] = conn
+        aufgezeichnet["chat_id"] = chat_id
+        aufgezeichnet["anweisung"] = anweisung
+        aufgezeichnet["arbeitszeile"] = arbeitszeile
+        aufgezeichnet["arbeitsart"] = arbeitsart
+
+    monkeypatch.setattr(ablauf, "auftragszug", falscher_auftragszug)
+    ergebnis = lauf._sofort_auftrag(
+        "conn", "tg", "klm", "e", 1, "Anweisung fuer den Zug",
+        "Arbeitszeile-Text", "arbeitsart-wert",
+    )
+    assert aufgezeichnet == {
+        "conn": "conn", "chat_id": 1, "anweisung": "Anweisung fuer den Zug",
+        "arbeitszeile": "Arbeitszeile-Text", "arbeitsart": "arbeitsart-wert",
+    }
+    assert ergebnis is lauf._AUFTRAG_GELAUFEN
 
 
 # --- Abschnitt und Protokoll ---------------------------------------------

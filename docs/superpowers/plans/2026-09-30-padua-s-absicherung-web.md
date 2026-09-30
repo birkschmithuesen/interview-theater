@@ -109,7 +109,7 @@ Aufgabe 0.
 | A-17 | `einstellungen.Einstellungen` traegt die A2-Felder `kanal`, `web_chat_id`, `web_segment_ms` | A2-Plan Z. 2006-2010 | `grep -n "kanal\|web_chat_id\|web_segment_ms" interview_theater/einstellungen.py` |
 | A-18 | `sprache.Texte(__name__)` und `interview_theater/sprachen/en/texte.toml` | A1 | `grep -n "class Texte" interview_theater/sprache.py && ls interview_theater/sprachen/en/texte.toml` |
 | A-19 | **Claude-Proxy-Aufrufe zaehlen nicht gegen den 5-CHF-Deckel** (Abo). *Birk bestaetigt, dass Claude-Proxy-Aufrufe nicht gegen den 5-CHF-Deckel zaehlen.* | Entscheidung E-S1 des Architekten | keine — steht als **eine** Konstante `kosten.CLAUDE_CHF_JE_AUFRUF = 0.0` (Aufgabe 6), damit sie umstellbar ist |
-| A-20 | **Whisper kostet 0,006 CHF je Minute Audio.** Quelle: `~/hermes-shared/hermes-knowledge/infomaniak-modelle.md` § 6.4 — **ausserhalb des Repos und in diesem Planlauf nicht gelesen** (Zugriff blockiert). | Angabe des Architekten | keine — steht als Konstante mit Datum (Aufgabe 7); Nachmessen kostet Geld (Aufgabe 11) |
+| A-20 | **Whisper kostet 0,006 CHF je Minute Audio.** Quelle: `~/hermes-shared/hermes-knowledge/infomaniak-modelle.md` § 1.2 (Tabelle „Weitere Modalitaeten\": `whisper` (V3) · 0,006 · CHF/Minute Audio) und § 6.4 („Grenze: 25 MB. Preis 0,006 CHF/Minute\"). **Architekt-Korrektur 30.09.2026:** der Planlauf konnte die Datei nicht lesen, der Architekt hat beide Stellen selbst gelesen — der Wert ist damit belegt abgeschrieben, aber weiterhin **Listenpreis, nicht Rechnung**; die Datei liegt ausserhalb des Repos (Stand der Datei: 05.09.2026). | Architekt, selbst gelesen | keine — steht als Konstante mit Datum (Aufgabe 7); ob die Rechnung dem Listenpreis folgt, misst nur Aufgabe 11 (kostet Geld) |
 | A-21 | **Die Preistabelle hat Stand 04.09.2026** und ist seither nicht nachgezogen. | `scripts/pruefe_prompts.py:97` | `grep -n "04.09.2026" scripts/pruefe_prompts.py` |
 
 **Keine Annahmen** (selbst gemessen auf `d8deb6c`, Datei:Zeile steht jeweils dabei):
@@ -5412,7 +5412,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 | Angriff | Test | Datei |
 |---|---|---|
-| falsches Token → 404 | `test_unbekanntes_token_ist_404` (A2) + `test_der_alte_link_ist_sofort_404` | `tests/test_web_token_rotation.py` |
+| falsches Token → 404 | `test_unbekanntes_token_ist_404` (aus A2, **eigene Datei der A2-Umsetzung**, nicht `test_web_token_rotation.py`) + `test_der_alte_link_ist_sofort_404` (`tests/test_web_token_rotation.py`) | siehe Spalte Test |
 | rotiertes Token → alt 404, neu 200, alter Nonce 403 | `test_der_alte_link_ist_sofort_404`, `test_der_alte_nonce_gilt_am_neuen_token_nicht` | `tests/test_web_token_rotation.py` |
 | Upload ueber Grenze → 413, nichts auf Platte/in DB | `test_upload_ueber_der_grenze_ist_413_und_nichts_bleibt` | `tests/test_web_chat_upload.py` |
 | falscher Typ → 415 | `test_html_als_audio_deklariert_ist_415` | `tests/test_web_chat_upload.py` |

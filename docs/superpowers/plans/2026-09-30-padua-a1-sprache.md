@@ -3510,7 +3510,7 @@ fasst davon nur die mit Funktionswort (`"Wir hoeren zu"`), nicht
 - Modify: `interview_theater/knoepfe/wirkung.py`, `knoepfe/texte.py`, `texte.toml`
 - Test: `tests/test_knoepfe_sprache.py`, `tests/test_sprache_texte.py`
 
-- [ ] **Schritt 1: Test schreiben** (in `tests/test_knoepfe_sprache.py`):
+- [x] **Schritt 1: Test schreiben** (in `tests/test_knoepfe_sprache.py`):
 
 ```python
 import ast
@@ -3533,9 +3533,9 @@ def test_kein_handler_gibt_ein_textliteral_zurueck():
     assert literal == []
 ```
 
-- [ ] **Schritt 2: Rot sehen** — `$PY -m pytest -q -p no:cacheprovider tests/test_knoepfe_sprache.py::test_kein_handler_gibt_ein_textliteral_zurueck`
+- [x] **Schritt 2: Rot sehen** — `$PY -m pytest -q -p no:cacheprovider tests/test_knoepfe_sprache.py::test_kein_handler_gibt_ein_textliteral_zurueck`
   → FAIL mit 70 Eintraegen (`_wirkung_geschichte_schreiben:135`, …).
-- [ ] **Schritt 3: Umsetzen.** Je **verschiedenem** Literal eine Konstante in
+- [x] **Schritt 3: Umsetzen.** Je **verschiedenem** Literal eine Konstante in
   `texte.py`, Praefix `_ANTWORT_` (die Knopfantwort ist eine eigene
   Textsorte: ein bis vier Woerter), mit Platzhaltern statt f-String:
 
@@ -3562,13 +3562,13 @@ _ANTWORT_UEBERNOMMEN = "Uebernommen: {was}"
   `T._JOURNAL_USA_JA` / `T._JOURNAL_USA_NEIN` — **die Logik
   `ja = str(d.knopf["wert"]).strip().lower() == "ja"` (Zeile 1251) bleibt
   unveraendert** (interner Wert, kein Text; AGENTS.md-Fallstrick `bool`).
-- [ ] **Schritt 4:** `UMGESTELLT |= {"knoepfe.wirkung"}`; restliche
+- [x] **Schritt 4:** `UMGESTELLT |= {"knoepfe.wirkung"}`; restliche
   Verwendungen umstellen (fuenf Schritte). Gruen:
   `$PY -m pytest -q -p no:cacheprovider tests/test_knoepfe*.py tests/test_sprache_texte.py tests/test_sprache_bitgleich.py tests/test_interview_ohne_knopf.py tests/test_kuerzung.py`;
   `$PY -m scripts.pruefe_sprache --schluessel knoepfe.texte` → `0 Treffer`.
-- [ ] **Schritt 5: Mutationsnachweis:** in `_wirkung_geschichte_passt` wieder
+- [x] **Schritt 5: Mutationsnachweis:** in `_wirkung_geschichte_passt` wieder
   `return "Passt"` → `test_kein_handler_gibt_ein_textliteral_zurueck` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Knopf-Wirkungen und ihre Einblendungen ueber T (A1)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Knopf-Wirkungen und ihre Einblendungen ueber T (A1)"`.
 
 ---
 

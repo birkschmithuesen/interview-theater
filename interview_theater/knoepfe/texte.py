@@ -976,6 +976,99 @@ _JOURNAL_GESCHICHTE_MIT_SZENEN = "Geschichte mit {anzahl} Szenen uebernommen"
 _TEXT_SCHLAGE_ANGABEN_VOR = "Ich schlage die fehlenden Angaben vor"
 _TEXT_SZENE_LAEUFT_QUITTUNG = "Szene {nummer} laeuft"
 
+#: Was nach einem Druck kurz eingeblendet wird (answerCallbackQuery,
+#: Karte A1 aus Literalen gebildet). Ein bis vier Woerter. Die Rueckgaben
+#: der Handler in ``wirkung.py`` (Aufgabe 13); wo derselbe Wortlaut schon
+#: als Quittung aus ``figuren``/``szenen`` in der Tabelle steht
+#: (``_TEXT_SZENE_KOPF``, ``_TEXT_SZENE_EINTRAG``, ``_TEXT_RICHTUNG_QUITTUNG``,
+#: ``_TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG``), liest der Handler jene.
+_ANTWORT_LAEUFT_SCHON = "Laeuft schon"
+_ANTWORT_GESCHICHTE_LAEUFT = "Geschichte laeuft"
+_ANTWORT_PASST = "Passt"
+_ANTWORT_WAS_ANDERS = "Was soll anders sein?"
+_ANTWORT_SZENE_GESCHAERFT = "Szene {nummer} geschaerft"
+_ANTWORT_FIGUR_GESCHAERFT = "{name} geschaerft"
+_ANTWORT_UEBERNOMMEN = "Uebernommen: {was}"
+_ANTWORT_NOCH_EINE_RUNDE = "Noch eine Runde"
+_ANTWORT_WIE_VIELE = "Wie viele?"
+_ANTWORT_SZENEN_ANZAHL = "{anzahl} Szenen"
+_ANTWORT_REIHENFOLGE = "Sagt mir die Reihenfolge"
+_ANTWORT_WELCHE_FORM = "Welche Form?"
+_ANTWORT_SZENE_RAUS = "Szene {nummer} raus"
+_ANTWORT_SZENE_STEHT = "Szene {nummer} steht"
+_ANTWORT_WAS_ANDERS_WERDEN = "Was soll anders werden?"
+_ANTWORT_SZENE_BLEIBT = "Szene {nummer} bleibt"
+_ANTWORT_LETZTE = "Das war die letzte"
+_ANTWORT_SZENE_UEBERARBEITET = "Szene {nummer} wird ueberarbeitet"
+_ANTWORT_BLEIBT = "Bleibt"
+_ANTWORT_SZENEN_EINZELN = "Ich sehe die Szenen einzeln durch"
+_ANTWORT_NOCH_EINMAL = "Ich lese noch einmal"
+_ANTWORT_TEXTBUCH = "Textbuch"
+_ANTWORT_ERZAEHLT = "Erzaehlt"
+_ANTWORT_ANDERE_VOR = "Ich schlage andere vor"
+_ANTWORT_LEITFADEN = "Leitfaden"
+_ANTWORT_FIGUREN_ANZAHL = "{anzahl} Figuren"
+_ANTWORT_ZAHL = "Sagt mir die Zahl"
+_ANTWORT_WELCHER_NAME = "Welchen Namen?"
+_ANTWORT_NAMEN_VORSCHLAGEN = "Namen vorschlagen"
+_ANTWORT_INTERVIEW_GEWECHSELT = "Interview gewechselt"
+_ANTWORT_DUKTUS_VORSCHLAEGE = "Duktus-Vorschlaege"
+_ANTWORT_DUKTUS_UEBERNOMMEN = "Duktus uebernommen"
+_ANTWORT_STIL_UEBERNOMMEN = "Stil uebernommen"
+_ANTWORT_ZUGEORDNET = "Zugeordnet: {anzahl}"
+_ANTWORT_ENTFERNT = "Entfernt"
+_ANTWORT_WIR_HOEREN_ZU = "Wir hoeren zu"
+_ANTWORT_ICH_SCHLAGE_VOR = "Ich schlage vor"
+_ANTWORT_HOERE_WEITER_ZU = "Ich hoere weiter zu"
+_ANTWORT_INTERVIEW_BEENDET = "Interview beendet"
+_ANTWORT_ANGELEGT = "{name} angelegt"
+_ANTWORT_ALS_BEITRAG = "Als Beitrag genommen"
+_ANTWORT_KERNTHEMA = "Kernthema uebernommen"
+_ANTWORT_AUFNAHME_UMGESCHALTET = "Aufnahme umgeschaltet"
+_ANTWORT_PHASE = "Phase {nummer}"
+_ANTWORT_AUSWERTUNG_LAEUFT = "Auswertung laeuft"
+_ANTWORT_AUSWERTUNG = "Auswertung"
+_ANTWORT_ZUSAMMENFASSUNG = "Zusammenfassung"
+_ANTWORT_TRANSKRIPT = "Transkript"
+_ANTWORT_STAND = "Stand"
+_ANTWORT_HILFE = "Hilfe"
+#: ``{stil}`` ist der Slug des Stils oder ``_TEXT_STIL_OHNE_WORT``.
+_ANTWORT_SZENE_STIL = "Szene {nummer}: Stil {stil}"
+_ANTWORT_USA_JA = "US-Modell: ja"
+_ANTWORT_USA_NEIN = "Bleibt in der Schweiz"
+
+#: Die uebrigen frueheren Inline-Literale aus ``wirkung.py`` (Aufgabe 13):
+#: Journalzeilen (gehen ueber ``kontext._baue_journal`` in den Prompt),
+#: Chatzeilen und eine Knopfbeschriftung.
+_JOURNAL_SZENE_ABGENOMMEN = "Szene {nummer} abgenommen: {titel}"
+_JOURNAL_RICHTUNG = "Richtung: {richtung}"
+_TEXT_FIGUR_NR_KNOPF = "Figur {nr}: {name}"
+_JOURNAL_SPRACHSTIL = "Sprachstil {name}: {stil}"
+_JOURNAL_ZUFALL_ZUGEORDNET = (
+    "Interviews zufaellig zugeordnet: {figuren} Figuren auf "
+    "{interviews} Interviews"
+)
+_JOURNAL_FIGUR_ENTFERNT = "Figur entfernt: {name}"
+_TEXT_FIGUR_RAUS = "{name} ist raus."
+#: Rueckfall fuer einen Interviewnamen am Satzanfang (vgl.
+#: ``_TEXT_DAS_INTERVIEW`` mitten im Satz).
+_TEXT_DAS_INTERVIEW_ANFANG = "Das Interview"
+#: ``{weiter}`` ist ``aufnahme._TEXT_INTERVIEW_OHNE_KNOPF_WEITER``.
+_TEXT_INTERVIEW_STEHT = "{name} steht. {weiter}"
+_JOURNAL_KERNTHEMA = "Kernthema: {kernthema}"
+_TEXT_KERNTHEMA_NOTIERT = "Kernthema notiert: {kernthema}"
+_TEXT_ICH_WERTE_AUS = "Ich werte {name} aus."
+_TEXT_IM_WORTLAUT = "{name}, im Wortlaut:\n{text}"
+_TEXT_SZENE_STIL_GESETZT = "Szene {nummer}, Stil: {stil} (Vorlage: {herkunft})."
+_TEXT_SZENE_OHNE_STIL = "Szene {nummer}: ohne Stilvorlage, es bleibt bei der Form."
+_JOURNAL_SZENE_STIL = "Szene {nummer} Stil: {stil}"
+#: Das Wort fuer "kein Stil" in Journal und Einblendung.
+_TEXT_STIL_OHNE_WORT = "ohne"
+#: Die Journalzeile der USA-Einwilligung. Die Entscheidung selbst faellt am
+#: internen Knopfwert ``"ja"`` (``_wirkung_szene_usa``), nie an diesem Text.
+_JOURNAL_USA_JA = "US-Modell fuer Szenentexte: ja"
+_JOURNAL_USA_NEIN = "US-Modell fuer Szenentexte: nein"
+
 
 #: Was "Schlag du vor" je Phase vom Modell verlangt -- die Anweisung, die
 #: ``ablauf.starte_auftrag`` an den Koerper haengt. Je Phase eine, weil in

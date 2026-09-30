@@ -29,7 +29,7 @@ PAKET = pathlib.Path(sprache.__file__).resolve().parent
 UMGESTELLT: set[str] = {
     "anweisungen", "knoepfe.texte", "knoepfe.basis", "knoepfe.fragen",
     "knoepfe.interviews", "knoepfe.stationen", "knoepfe.figuren",
-    "knoepfe.szenen",
+    "knoepfe.szenen", "knoepfe.wirkung",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.

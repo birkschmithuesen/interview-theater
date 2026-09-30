@@ -123,3 +123,61 @@ def test_szenenfolge_und_szenentext_folgen_dem_profil(
                        volltext="MIRA: Da bin ich.")
     assert knoepfe.zeige_szenentext(conn, tg, 2, 1) == quittung
     assert tg.texte[-1].startswith(kopf + "\n\n")
+
+
+@pytest.mark.parametrize("profil, einblendung, journal", [
+    (None, "Bleibt in der Schweiz", "US-Modell fuer Szenentexte: nein"),
+    ("padua-2026", "Stays in Switzerland", "US model for scene texts: no"),
+])
+def test_usa_nein_einblendung_und_journal_folgen_dem_profil(
+        monkeypatch, conn, profil, einblendung, journal):
+    """Aufgabe 13: Einblendung (answerCallbackQuery) und Journalzeile der
+    USA-Einwilligung laufen ueber T -- die Entscheidung faellt weiter am
+    internen Knopfwert "nein" und bleibt in beiden Sprachen ein Nein."""
+    if profil:
+        monkeypatch.setenv(workshop.VARIABLE, profil)
+        workshop.vergiss()
+    tg = TelegramAttrappe()
+    knopf_id = repo.lege_knopf_an(conn, 1, knoepfe.ART_SZENE_USA, "nein")
+    druck = {"callback_query_id": "q1", "data": knoepfe._daten(knopf_id),
+             "chat_id": 1, "chat_titel": "Testgruppe", "message_id": 7}
+    assert knoepfe.behandle(conn, tg, None, None, druck)
+    assert tg.beantwortet[-1] == ("q1", einblendung)
+    assert repo.szene_usa_stand(conn, 1) == "nein"
+    assert journal in [z["text"] for z in repo.journal(conn, 1)]
+
+
+@pytest.mark.parametrize("profil, einblendung", [
+    (None, "Passt"), ("padua-2026", "Good"),
+])
+def test_einblendung_passt_folgt_dem_profil(monkeypatch, conn, profil, einblendung):
+    """Aufgabe 13: ``_wirkung_figur_passt`` liefert die Einblendung aus der
+    Tabelle -- Deutsch zeichengleich wie vorher."""
+    if profil:
+        monkeypatch.setenv(workshop.VARIABLE, profil)
+        workshop.vergiss()
+    tg = TelegramAttrappe()
+    knopf_id = repo.lege_knopf_an(conn, 1, knoepfe.ART_FIGUR_PASST, "Niemand")
+    druck = {"callback_query_id": "q2", "data": knoepfe._daten(knopf_id),
+             "chat_id": 1, "chat_titel": "Testgruppe", "message_id": 8}
+    assert knoepfe.behandle(conn, tg, None, None, druck)
+    assert tg.beantwortet[-1] == ("q2", einblendung)
+
+
+def test_kein_handler_gibt_ein_textliteral_zurueck():
+    """Die Einblendung nach einem Druck ist Nutzertext (Karte A1): sie kommt
+    aus der Tabelle, nie als Literal aus dem Handler."""
+    import ast
+    import inspect
+
+    from interview_theater.knoepfe import wirkung
+
+    baum = ast.parse(inspect.getsource(wirkung))
+    literal = []
+    for funktion in ast.walk(baum):
+        if isinstance(funktion, ast.FunctionDef) and funktion.name.startswith("_wirkung_"):
+            for k in ast.walk(funktion):
+                if isinstance(k, ast.Return) and isinstance(k.value, (ast.Constant, ast.JoinedStr)):
+                    if not (isinstance(k.value, ast.Constant) and not isinstance(k.value.value, str)):
+                        literal.append(f"{funktion.name}:{k.lineno}")
+    assert literal == []

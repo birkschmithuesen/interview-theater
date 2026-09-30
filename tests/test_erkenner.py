@@ -179,6 +179,9 @@ def test_arten_enthaelt_alle_werte():
         "geschichte_setzen",
         "hauptkonflikt_setzen", "figur_setzen", "wortlaut_an", "wortlaut_aus",
         "verworfen", "entschieden", "szene_schreiben", "phase_setzen",
+        # 30.09.: "mach das kuerzer" -- eine Ueberarbeitung desselben Textes,
+        # nicht ein neuer (docs/analyse-phase5-chaos-2026-09-06.md C10).
+        "szene_kuerzen",
         "entfernen", "an_den_bot",
         # N5 (05.09.): Korrekturen am Transkript wirken -- statt behauptet
         # zu werden.
@@ -871,6 +874,98 @@ def test_ohne_erkannten_auftrag_laeuft_keine_szene(conn, einst, monkeypatch):
     erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
 
     assert repo.hole_gruppe(conn, 1)["letzte_extrahierte_message_id"] == 1
+
+
+# ---------------------------------------------------------------------------
+# szene_kuerzen (30.09.2026, C10): eine Kuerzung ist keine Planung
+# ---------------------------------------------------------------------------
+
+
+def test_szene_kuerzen_ist_im_schema_enum():
+    enum = erkenner.SCHEMA["properties"]["aenderungen"]["items"]["properties"]["art"]["enum"]
+    assert "szene_kuerzen" in enum
+
+
+def test_szene_kuerzen_veraendert_den_arbeitsstand_nicht(conn, einst):
+    """Wie ``szene_schreiben``: kein Schreibpfad, keine Notiert-Zeile. Der
+    Lauf meldet sich selbst."""
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "szene_kuerzen", "wert": "2"}]
+    )
+
+    assert wirkliche == []
+    assert repo.hole_arbeitsstand(conn, 1) is None
+    assert erkenner.baue_meldung([{"art": "szene_kuerzen", "wert": "2"}]) is None
+
+
+def test_szene_kuerzen_gilt_nicht_aus_einer_aufnahme():
+    """Was eine interviewte Person ueber Laenge sagt, ist Material und nie
+    ein Auftrag der Gruppe (N1). ``ARTEN_IN_AUFNAHME`` bleibt bei drei."""
+    assert "szene_kuerzen" not in erkenner.ARTEN_IN_AUFNAHME
+    assert len(erkenner.ARTEN_IN_AUFNAHME) == 3
+
+
+def test_laufe_stoesst_die_kuerzung_mit_nummer_an(conn, einst, monkeypatch):
+    from interview_theater import kuerzung
+
+    gesehen = []
+    monkeypatch.setattr(
+        kuerzung, "starte",
+        lambda conn, tg, klm, e, chat_id, nummer=None: gesehen.append(
+            (chat_id, nummer)
+        ),
+    )
+    _nachricht(conn, 1, 1, "szene 2 ist zu lang, mach sie kuerzer")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "szene_kuerzen", "wert": "2"},
+    ]})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    assert gesehen == [(1, 2)]
+
+
+def test_laufe_stoesst_die_kuerzung_ohne_nummer_an(conn, einst, monkeypatch):
+    """Nach einer Kurzgeschichte gibt es keine Szenennummer -- dann ist die
+    ganze Geschichte gemeint (``kuerzung.starte`` ohne Nummer)."""
+    from interview_theater import kuerzung
+
+    gesehen = []
+    monkeypatch.setattr(
+        kuerzung, "starte",
+        lambda conn, tg, klm, e, chat_id, nummer=None: gesehen.append(
+            (chat_id, nummer)
+        ),
+    )
+    _nachricht(conn, 1, 1, "kuerz die geschichte mal ein")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "szene_kuerzen", "wert": ""},
+    ]})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    assert gesehen == [(1, None)]
+
+
+def test_laufe_kuerzt_hoechstens_einmal_je_lauf(conn, einst, monkeypatch):
+    """Wie bei ``szene_schreiben``: die zweite liefe in die Sperre des
+    Szenenlaufs und ergaebe nur eine Nachricht fuer nichts."""
+    from interview_theater import kuerzung
+
+    gesehen = []
+    monkeypatch.setattr(
+        kuerzung, "starte",
+        lambda conn, tg, klm, e, chat_id, nummer=None: gesehen.append(nummer),
+    )
+    _nachricht(conn, 1, 1, "kuerz szene 2 und szene 3")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "szene_kuerzen", "wert": "2"},
+        {"art": "szene_kuerzen", "wert": "3"},
+    ]})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    assert gesehen == [2]
 
 
 # ---------------------------------------------------------------------------

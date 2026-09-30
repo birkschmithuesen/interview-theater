@@ -1820,7 +1820,7 @@ dokumentierte Weg, nicht eine Abkuerzung.
 
 ### Schritte
 
-- [ ] **Schritt 1: Die fehlschlagenden Tests schreiben**
+- [x] **Schritt 1: Die fehlschlagenden Tests schreiben**
 
 1a — `tests/test_erkenner.py:163-193`, in `test_arten_enthaelt_alle_werte`
 das Set ergaenzen (bei `szene_schreiben`):
@@ -1947,7 +1947,7 @@ def test_laufe_kuerzt_hoechstens_einmal_je_lauf(conn, einst, monkeypatch):
 OHNE_KORPUSFAELLE = {"geschichte_setzen", "szene_kuerzen"}
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_erkenner.py tests/test_korpus.py
@@ -1962,7 +1962,7 @@ Erwartet: rot in `test_arten_enthaelt_alle_werte`
 `test_szene_kuerzen_veraendert_den_arbeitsstand_nicht` sind schon gruen — das
 ist richtig so, sie halten Eigenschaften fest, die nicht kaputtgehen duerfen.
 
-- [ ] **Schritt 3: `ARTEN` erweitern**
+- [x] **Schritt 3: `ARTEN` erweitern**
 
 `interview_theater/erkenner.py`, in `ARTEN` direkt nach `"szene_schreiben"`
 (`:112`):
@@ -1985,7 +1985,7 @@ ist richtig so, sie halten Eigenschaften fest, die nicht kaputtgehen duerfen.
     "szene_kuerzen",
 ```
 
-- [ ] **Schritt 4: Kein Schreibpfad**
+- [x] **Schritt 4: Kein Schreibpfad**
 
 `interview_theater/erkenner.py`, in `_wende_eine_an` direkt nach dem
 `szene_schreiben`-Zweig (`:1246`):
@@ -2003,7 +2003,7 @@ der Woerterbuecher `einzeln`/`mehrfach` und bleibt damit still — richtig, denn
 der Lauf meldet sich selbst (`szene._TEXT_ANGEKUENDIGT` bzw.
 `kurzgeschichte._TEXT_LAEUFT`).
 
-- [ ] **Schritt 5: Den Anstoss in `laufe`**
+- [x] **Schritt 5: Den Anstoss in `laufe`**
 
 `interview_theater/erkenner.py`, hinter `_starte_szene` (`:1605`):
 
@@ -2046,7 +2046,7 @@ und in `laufe` direkt hinter dem `_starte_szene`-Aufruf (`:1782`):
         _starte_kuerzung(klm, tg, conn, e, chat_id, aenderungen)
 ```
 
-- [ ] **Schritt 6: Gruen sehen**
+- [x] **Schritt 6: Gruen sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_erkenner.py tests/test_korpus.py tests/test_kuerzung.py
@@ -2058,7 +2058,7 @@ python3.11 -m pytest -q -p no:cacheprovider
 ```
 Erwartet: `2732 passed, 1 skipped` (2726 + 6).
 
-- [ ] **Schritt 7: Mutationsnachweis**
+- [x] **Schritt 7: Mutationsnachweis**
 
 Den Aufruf `_starte_kuerzung(klm, tg, conn, e, chat_id, aenderungen)` in
 `laufe` wieder entfernen →
@@ -2077,7 +2077,7 @@ Schleife ersetzen (also alle starten) →
 
 Beides zuruecknehmen, erneut gruen sehen.
 
-- [ ] **Schritt 8: Commit**
+- [x] **Schritt 8: Commit**
 
 ```bash
 git add interview_theater/erkenner.py tests/test_erkenner.py tests/test_korpus.py

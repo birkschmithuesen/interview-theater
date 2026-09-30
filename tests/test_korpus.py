@@ -224,7 +224,11 @@ def test_erkenner_mindestanzahl(erkenner_faelle):
 #: Prompt zu aendern, hiesse: garantierte Falsch-Negative im naechsten Lauf.
 #: **Wer erkenner.md um diese Art erweitert, nimmt sie hier heraus und legt
 #: zwei Korpusfaelle an.**
-OHNE_KORPUSFAELLE = {"geschichte_setzen"}
+#:
+#: ``szene_kuerzen`` steht hier nur fuer EINEN Commit (30.09.2026): der Code
+#: kommt zuerst, damit die Verdrahtung getestet ist, Prompt und Korpus im
+#: naechsten Schritt -- dann verschwindet die Art hier wieder.
+OHNE_KORPUSFAELLE = {"geschichte_setzen", "szene_kuerzen"}
 
 
 def test_erkenner_jede_art_mindestens_zweimal(erkenner_faelle):

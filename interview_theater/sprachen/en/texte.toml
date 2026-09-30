@@ -243,7 +243,7 @@ _TEXT_PHASE_WEITER = "On to {phase}?"
 _TEXT_PHASE_NOCH_NICHT_KNOPF = "Change something first"
 _TEXT_NOCH_NICHT = "Good, we'll stay here."
 _TEXT_WEITER_ZU_KNOPF = "On to {phase}"
-_TEXT_ALLES_NOETIGE = "Everything needed"
+_TEXT_ALLES_NOETIGE = "All the essentials"
 ANWEISUNGEN."1" = """\
 Suggest a list of terms to the group and attach it as a block \
 'VORSCHLAG BEGRIFFE:'."""

@@ -1292,16 +1292,22 @@ def _continuity_bloecke(conn, chat_id: int, nummer: int | None) -> list[dict]:
     return bausteine
 
 
-def _prosa_von(szene) -> str:
+def prosa_von(szene) -> str:
     """Die Prosafassung einer Szene -- oder "", wenn die Spalte in einer
     alten Datenbank noch fehlt.
 
     Die Migration ist additiv und laeuft beim Start; ein Leser darf daran
-    trotzdem nicht scheitern (dieselbe Haltung wie ``phasen.feld``)."""
+    trotzdem nicht scheitern (dieselbe Haltung wie ``phasen.feld``).
+    Oeffentlich seit 30.09.2026: ``kuerzung`` und ``kurzgeschichte`` lesen
+    die Prosa ueber dieselbe Stelle."""
     try:
         return (szene["prosa"] or "").strip()
     except (IndexError, KeyError):
         return ""
+
+
+#: Der alte, modulinterne Name -- die Aufrufer in diesem Modul bleiben.
+_prosa_von = prosa_von
 
 
 def _continuity_kennzeichnung(bausteine: list[dict], voll: set[int]) -> str:
@@ -1459,6 +1465,17 @@ NEU_HINWEIS = (
 )
 
 
+#: Steht dieser Marker im Auftrag, geht im **Prosalauf** (Phase 6) die
+#: bestehende Prosa der Szene als bisheriger Text mit (30.09.2026, Kuerzen).
+#: Dort ist ``volltext`` leer, und ohne den Marker saehe das Modell den Text
+#: nicht, den es kuerzen soll -- ein Neuschrieb statt einer Kuerzung. Ein
+#: Marker und kein Automatismus: jeder andere Lauf behaelt seinen Nutzertext
+#: zeichengleich (Schnappschuss ``tests/test_profil_bitgleich.py``). Wie
+#: ``NEU_MARKER`` wird er aus dem Auftrag entfernt.
+BISHER_MARKER = "[BISHER]"
+BISHER_KOPF = "Bisheriger Text dieser Szene, er soll ueberarbeitet werden:"
+
+
 #: Der Kopf ueber der Prosafassung im Feinschliff-Prompt (Phase 7,
 #: 06.09.2026, 10:30). Die Geschichte ist dort **bindende Vorlage**: was
 #: entsteht, ist eine Uebersetzung in eine Form, keine neue Szene.
@@ -1472,7 +1489,8 @@ VORLAGE_KOPF = (
 )
 
 
-def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False) -> str:
+def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False,
+                      bisher_prosa: bool = False) -> str:
     """Block 6: alle Felder der zu schreibenden Szene, und bei einer
     Ueberarbeitung ihr bisheriger Text.
 
@@ -1483,7 +1501,11 @@ def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False) -> s
     ``vorlage`` ist der Feinschliff (Phase 7): dann traegt der Block die
     **Prosafassung** als bindende Vorlage. Das ist der eine Fall, in dem ein
     fremder Text ausdruecklich abgeschrieben werden soll -- er ist das, was
-    die Gruppe abgenommen hat."""
+    die Gruppe abgenommen hat.
+
+    ``bisher_prosa`` (``BISHER_MARKER``) ist die Ueberarbeitung im
+    Prosalauf: dann steht die bestehende Prosa als bisheriger Text da, weil
+    ``volltext`` dort leer ist."""
     if ziel is None:
         return ""
     kopf = f"Szene {ziel['nummer']}" if ziel["nummer"] is not None else "Szene"
@@ -1495,8 +1517,12 @@ def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False) -> s
         zeilen.append(_prosa_von(ziel))
     if ziel["volltext"] and not neu:
         zeilen.append("")
-        zeilen.append("Bisheriger Text dieser Szene, er soll ueberarbeitet werden:")
+        zeilen.append(BISHER_KOPF)
         zeilen.append(ziel["volltext"])
+    elif bisher_prosa and not vorlage and not neu and _prosa_von(ziel):
+        zeilen.append("")
+        zeilen.append(BISHER_KOPF)
+        zeilen.append(_prosa_von(ziel))
     elif ziel["volltext"] and neu:
         zeilen.append("")
         zeilen.append(NEU_HINWEIS)
@@ -1762,8 +1788,11 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
             "diese_szene": _diese_szene_text(
                 conn, ziel, neu=NEU_MARKER in (auftrag or ""),
                 vorlage=not schreibt_prosa(conn, chat_id),
+                bisher_prosa=BISHER_MARKER in (auftrag or ""),
             ),
-            "auftrag": f"Euer Auftrag:\n{auftrag.replace(NEU_MARKER, '').strip()}",
+            "auftrag": "Euer Auftrag:\n" + (
+                auftrag.replace(NEU_MARKER, "").replace(BISHER_MARKER, "").strip()
+            ),
         }
 
     budget = nutzer_budget(

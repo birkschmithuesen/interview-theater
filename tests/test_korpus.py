@@ -308,6 +308,55 @@ def test_erkenner_traegt_die_auffangart(erkenner_faelle):
     assert len(negativ) >= MIN_NEGATIV_FESTLEGUNG, f"nur {len(negativ)} Negativfaelle"
 
 
+#: ``szene_kuerzen`` (30.09.2026, C10) ist auf "im Zweifel kein Eintrag"
+#: kalibriert wie ``szene_schreiben``: sie loest einen minutenlangen,
+#: bezahlten Lauf aus. Also mehr Negativ- als Positivfaelle -- und die
+#: Negativen sind die wichtigeren, weil die Abgrenzung nicht an einem Wort
+#: haengt ("kuerzer" steht in beiden), sondern daran, ob eine Aufforderung
+#: dasteht.
+PRAEFIX_KUERZEN = "sk0"
+MIN_POSITIV_KUERZEN = 2
+MIN_NEGATIV_KUERZEN = 3
+
+
+def test_erkenner_traegt_szene_kuerzen(erkenner_faelle):
+    positiv = [
+        f for f in erkenner_faelle
+        if any(a["art"] == "szene_kuerzen" for a in f["erwartet"])
+    ]
+    negativ = [
+        f for f in erkenner_faelle
+        if not f["erwartet"] and f["id"].startswith(PRAEFIX_KUERZEN)
+    ]
+    assert len(positiv) >= MIN_POSITIV_KUERZEN, f"nur {len(positiv)} Positivfaelle"
+    assert len(negativ) >= MIN_NEGATIV_KUERZEN, f"nur {len(negativ)} Negativfaelle"
+
+
+#: Die drei Faelle, die schon vor ``szene_kuerzen`` an der Grenze lagen und
+#: ihr Sollverhalten behalten MUESSEN. Sie sind der eigentliche Nachweis der
+#: Kalibrierung: n20 und n27 sind Kritik ohne Aufforderung, fl04 ist eine
+#: Vorgabe fuer alles Kommende und kein vorhandener Text.
+GRENZFAELLE_LAENGE = {
+    "n20-szene-besprechen-kein-auftrag": [],
+    "n27-entfernen-szene-kuerzen": [],
+    "fl04-festlegung-stil-laenge": ["festlegung_setzen"],
+}
+
+
+def test_erkenner_haelt_die_laengengrenzfaelle(erkenner_faelle):
+    """Die neue art darf die drei Faelle nicht an sich ziehen.
+
+    ``szene_kuerzen`` lebt genau in ihrer Nachbarschaft: "zu lang", "da
+    muesste einiges raus", "hoechstens eine Seite ab jetzt". Verschiebt sich
+    einer von ihnen, ist die Abgrenzung im Prompt zu weit geraten."""
+    nach_id = {f["id"]: f for f in erkenner_faelle}
+    for fall_id, arten in GRENZFAELLE_LAENGE.items():
+        assert fall_id in nach_id, f"Grenzfall {fall_id} fehlt im Korpus"
+        assert [a["art"] for a in nach_id[fall_id]["erwartet"]] == arten, (
+            f"{fall_id}: Sollwert verschoben"
+        )
+
+
 def test_erkenner_grenzt_die_auffangart_gegen_die_felder_ab(erkenner_faelle):
     """Der teuerste Fehler der neuen art waere nicht ein fehlender Eintrag,
     sondern ein doppelter: eine Angabe, die ein Feld hat, landet zusaetzlich

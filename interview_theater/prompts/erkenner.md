@@ -11,11 +11,12 @@ spaet ist: die Website bleibt leer, der Bot weiss nichts davon, und die
 Gruppe muss alles noch einmal sagen. Oefter aendern ist besser als nie
 festlegen.
 
-Zwei Ausnahmen, und nur diese beiden: **szene_schreiben** (loest einen
-minutenlangen Schreibauftrag aus) und **entfernen** (nimmt etwas weg). Dort
-gilt weiterhin: im Zweifel kein Eintrag.
+Drei Ausnahmen, und nur diese drei: **szene_schreiben** (loest einen
+minutenlangen Schreibauftrag aus), **szene_kuerzen** (dasselbe fuer eine
+Ueberarbeitung) und **entfernen** (nimmt etwas weg). Dort gilt weiterhin: im
+Zweifel kein Eintrag.
 
-Du erkennst genau dreiundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
+Du erkennst genau vierundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
 Objekt mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
@@ -108,7 +109,8 @@ Objekt mit "art" und "wert":
     Szenennummer, wenn eine genannt wird ("Szene 2: Maria kommt am Bahnhof
     an und trifft Elif"). Die Gruppe fordert DICH auf, jetzt einen
     Szenentext zu schreiben ("schreib uns die Szene", "mach daraus einen
-    Dialog", "schreib Szene 3 nochmal, aber kuerzer").
+    Dialog", "schreib Szene 3 nochmal, ganz anders"). Soll derselbe Text
+    bloss KUERZER werden, ist das szene_kuerzen (Punkt 23).
 
     **Nach einer Planung genuegt ein kurzes Wort.** Hat die Gruppe gerade
     eine Szene besprochen -- Ort, wer dabei ist, was passiert -- und sagt
@@ -177,6 +179,29 @@ Objekt mit "art" und "wert":
         erste Folge einer Serie"}
         {"art": "festlegung_setzen", "wert": "stil: die Szenentexte sollen
         kuerzer sein, hoechstens eine Seite"}
+
+23. szene_kuerzen          -- wert: die Szenennummer als Zahl ("3"), oder
+    leer (""), wenn keine genannt ist. Die Gruppe fordert DICH auf, einen
+    schon geschriebenen Text KUERZER zu machen ("mach das kuerzer", "kuerz
+    Szene 3 ein", "schreib es knapper", "das muss kuerzer werden"). Steht
+    keine Nummer da, ist der ganze Text gemeint, der zuletzt entstanden ist
+    -- schreib dann den leeren wert, rate keine Nummer.
+
+    **Im Zweifel kein Eintrag**, wie bei szene_schreiben: es kostet die
+    Gruppe Minuten Wartezeit und einen bezahlten Lauf.
+
+    Abgrenzung nach drei Seiten:
+
+    * **Kritik an der Laenge ist noch keine Aufforderung.** "die Szene ist
+      mir zu lang, was meint ihr", "der Mittelteil zieht sich", "da muesste
+      einiges raus" -- das ist ein Gespraech ueber den Text, kein Auftrag.
+      Erst "mach es kuerzer", "kuerz das", "schreib es knapper" ist einer.
+    * **Eine Vorgabe fuer alles Kommende ist festlegung_setzen** (Punkt 22),
+      nicht szene_kuerzen: "hoechstens eine Seite pro Szene ab jetzt" sagt
+      nichts ueber einen vorhandenen Text, sondern ueber alle kuenftigen.
+    * **Kuerzen ist kein Entfernen** (Punkt 19): die Szene bleibt, nur ihr
+      Text wird knapper. Und es ist kein szene_schreiben (Punkt 17): dort
+      entsteht ein ANDERER Text, hier derselbe in kuerzer.
 
 Abgrenzung "festlegung_setzen": **zuerst das Feld, dann die Auffangart.**
 Passt die Angabe in eines der Felder oben -- Begriffe, Fragen, Kernthema,

@@ -42,8 +42,10 @@ Module unter `interview_theater/`:
 | `schaerfung.py` | Phase 5: legt die geprüften `verdichtung_thema`-Einträge per Schema-Aufruf (gemma, Thread) auf Szenen und Figuren, prüft die Zitate mit `zitat.pruefe` und schreibt in die Tabelle `schaerfung` (additiv, mit `runde`) |
 | `stueckpruefung.py` | Phase 7: der Stück-Judge über das ganze Textbuch — je Befund eine Frage mit Szenenbezug, Tabelle `stueckpruefung`, eigener Thread |
 | `kernzitate.py` | Die Auswahl der Belegzitate zum Kernthema (`waehle`), rückwärtskompatible Basis der Schärfung — dieselbe Prüf- und Speicherlogik |
+| `kuerzung.py` | Kürzen als eigener Weg (30.09.2026, C4/C10): die feste Regie-Notiz (25 %), die Zielwahl (Szenennummer → `szene.starte`, keine → `kurzgeschichte.starte`) und `nummer_aus_wert`. **Kein eigener Modellaufruf** — beide Wege geben an ihren vorhandenen Thread ab, und beide hängen ihre Fassung an (`szenenfassung`). Eine Kürzung erzeugt **nie** eine neue Szenenfolge |
 | `leitfaden.py` | Baut aus Eröffnung, den gewählten Fragen mit ihren weichen Fassungen und dem Abschluss **deterministisch** den Gesprächsleitfaden (`baue`, `aus_feldern`) — kein Modellaufruf, dieselbe Funktion für Chat und Gruppenseite |
 | `vorschlag.py` | Die Markerzeilen im Antworttext (`VORSCHLAG BEGRIFFE:` und Verwandte): lesen, in Blöcke zerlegen, aus dem Chattext entfernen. Die Schnittstelle zwischen Prompt und Knopfleiste |
+| `vorschlagssperre.py` | Die EINE Sperre je `chat_id`, die Schärfung und die vier `szenenfolge.starte*` voneinander trennt (30.09.2026, C7), plus einen Merkplatz je Auftragsart: wer sie nicht bekommt, wird **gemerkt** und läuft nach der Freigabe automatisch. Reines `threading`, **kein** Projektimport — deshalb von beiden Seiten importierbar. Grenze: der Merkplatz lebt im Prozess, ein Neustart verliert ihn |
 | `szene_claude.py` | Der zweite Anbieterpfad für den Szenenlauf: Anthropic-Messages-Format über den lokalen Proxy, nur nach Einwilligung der Gruppe (`ist_aktiv`) |
 | `web_schreiben.py` | Die Schreibpfade der Gruppenseite — ruft **ausschließlich** `repo`-Funktionen, kein eigenes SQL. `FELDER` ist die vollständige Liste des Änderbaren, `FUEHRT_DER_CHAT` und `NUR_ANZEIGE` das Gegenteil |
 | `verdichter.py` | Verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten — an der Frageliste der Gruppe entlang, wenn es eine gibt (N3) |
@@ -100,8 +102,8 @@ Versehen).
 | Schicht | Module |
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
-| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` |
+| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` |
 
 **Wo man anfängt, je nach Frage:**
@@ -114,6 +116,7 @@ Versehen).
 | Was schreibt der Erkenner? | `erkenner.laufe` → `wende_an` → `baue_meldung` |
 | Wie entsteht ein Szenentext? | `szene.starte` → `baue_nutzertext` → `schreibe` |
 | Wann darf die Gruppe weiter? | `phasen.voraussetzungen` (die einzige Stelle) |
+| Warum wartet ein Vorschlag? | `vorschlagssperre.nimm_oder_merke` → `merke` → `gib_frei` |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -142,9 +145,17 @@ es jemand im Chat merkt.
 - `kontext.schaetze` (Zeichen ÷ 3) **und** `szene.schaetze_token` (÷ 1,9).
   Der zweite Wert ist an einem echten Szenen-Prompt gemessen; deutscher
   Prosatext tokenisiert schlechter als die Faustregel.
-- Ein Sperren-Register je Nebenläufigkeit (`ablauf`, `szene`, `szenenfolge`).
-  Gleicher Code, verschiedene Sperren — eine gemeinsame Sperre würde den
-  Gesprächszug am Szenenlauf hängen lassen.
+- Ein Sperren-Register je Nebenläufigkeit (`ablauf`, `szene`,
+  `kurzgeschichte`, `sprachstil`). Gleicher Code, verschiedene Sperren — eine
+  gemeinsame Sperre würde den Gesprächszug am Szenenlauf hängen lassen. **Die
+  eine Ausnahme** (30.09.2026, C7): `szenenfolge` und `schaerfung` teilen
+  seither eine Sperre, und sie liegt deshalb in einem eigenen Modul
+  (`vorschlagssperre.py`) statt in einem der beiden. Der Grund ist gemessen:
+  am 06.09. lagen Schärfungsvorschlag und Szenenfolge-Vorschlag im selben
+  Chatfenster, und die Gruppe wusste nicht, auf welche Frage sie antwortet.
+  Ausgeweitet werden darf sie nicht — `szenenfolge._sperre_fuer` bleibt als
+  Name bestehen und delegiert dorthin, damit Tests weiter über
+  `acquire(timeout=…)` auf das Ende eines Laufs warten können.
 
 ## Bindende Entwurfsentscheidungen
 
@@ -610,6 +621,118 @@ es jemand im Chat merkt.
   ist ein Fehler (`szene_abgeschnitten`), kein Text; `_pruefe_budget` warnt ab
   90 % der tatsächlichen Token.
 
+- **Kürzen ist eine Überarbeitung, keine neue Szenenfolge** (30.09.2026,
+  Maßnahmen C4/C7/C9/C10 aus `docs/analyse-phase5-chaos-2026-09-06.md`; der
+  Plan dazu: `docs/superpowers/plans/2026-09-30-padua-a5-dortmund-reste.md`).
+  Vier Dinge, die eine Wurzel haben — am 06.09. bat die Gruppe um eine
+  Kürzung, und weil es dafür keinen Weg gab, wurde daraus ein Neuaufbau:
+  aus drei Szenen wurden sechs und eine Stunde später noch einmal sechs.
+  1. **Der Knopf „Kürzer (25 %)"** steht an genau zwei Orten — unter der
+     fertigen Kurzgeschichte (`knoepfe.zeige_kurzgeschichte`, Phase 6) und
+     unter einem frisch geschriebenen Szenentext
+     (`knoepfe.biete_nach_szenentext`, Phase 7). **Nicht** unter „Szene N
+     ansehen": dort liest man, dort gehört „Frühere Fassungen" hin. Er wirkt
+     wie „Passt, aber anders", nur ohne Rückfrage: die Regie-Notiz steht fest
+     (`kuerzung.notiz_fuer_szene`, `notiz_fuer_prosa`), der Prozentwert an
+     **einer** Stelle (`kuerzung.PROZENT`). Mit Szenennummer läuft
+     `szene.starte`, ohne läuft `kurzgeschichte.starte` — die Phase entscheidet
+     sich dabei von selbst, weil `szene.schreibt_prosa` ohnehin nach `prosa`
+     oder `volltext` verzweigt. **Die Prosa-Notiz nennt die Abschnittszahl
+     ausdrücklich**, weil `kurzgeschichte.ANWEISUNG` dem Modell die Zahl
+     freistellt und der Abgleich ergänzend ist: ohne den Satz blieben zwei
+     Abschnitte mit ihrem alten, langen Text stehen. Beim Kürzen der ganzen
+     Geschichte geht die bisherige Prosa **als Vorlage** in den Prosalauf
+     (`kurzgeschichte.starte(..., vorlage=True)`) — sonst schriebe das Modell
+     „25 Prozent kürzer" über einen Text, den es nie sah; ohne `vorlage`
+     bleibt der Nutzertext zeichengleich zum bisherigen Weg. Der Prosalauf
+     hat dabei **keine eigene Eingabebudget-Prüfung** (wie schon vorher
+     nicht). Beim Kürzen **einer Szene in Phase 6** ist `volltext` leer; der
+     Auftrag trägt deshalb `szene.BISHER_MARKER`, und nur mit ihm steht die
+     bestehende Prosa der Szene als „Bisheriger Text" im Nutzertext
+     (`szene._diese_szene_text(..., bisher_prosa=True)`) — jeder Lauf ohne
+     Marker bleibt zeichengleich. `kuerzung.starte` liefert
+     `(quittung, gestartet)`, `gestartet` aus dem Rückgabewert des
+     Schreibwegs (Thread oder `None`), nicht aus dem Wortlaut der Quittung;
+     und `kuerzung.starte` setzt selbst den Prüf-Vermerk für spätere Szenen
+     (`knoepfe._melde_spaetere`), nur mit Lauf — damit gilt er für Knopf und
+     Erkenner gleich.
+  2. **Die Erkenner-Art `szene_kuerzen`** macht „mach das kürzer" im Chat zum
+     selben Weg. Sie hat **keinen Schreibpfad** (wie `szene_schreiben`) und
+     wird erst in `laufe()` ausgewertet (`erkenner._starte_kuerzung`),
+     höchstens **eine je Lauf**. Leerer `wert` heißt „die ganze
+     Kurzgeschichte" — eine geratene Nummer schriebe die falsche Szene neu.
+     **Aber nur, solange Geschichten entstehen:** ab der Phase der
+     Theatertexte (`szene.schreibt_prosa` falsch, heute ab 7) startet der
+     Erkenner-Weg ohne Nummer **keinen** Lauf über die ganze Geschichte,
+     sondern fragt in einem Satz nach der Szene
+     (`kuerzung.TEXT_WELCHE_SZENE`). Das ist eine **vorläufige
+     Voreinstellung, die Entscheidung liegt bei Birk**; der Knopf „Kürzer"
+     unter der Kurzgeschichte ist davon nicht betroffen, und
+     `prompts/erkenner.md` (Punkt 23, „der ganze Text, der zuletzt entstanden
+     ist") blieb unverändert, damit kein neuer Korpuslauf fällig wird.
+     Auf **„im Zweifel kein Eintrag"** kalibriert, wie `szene_schreiben` und
+     `entfernen`: Kritik an der Länge („zu lang, was meint ihr", Korpusfall
+     n20) feuert nicht, eine dauerhafte Längenvorgabe („höchstens eine Seite
+     ab jetzt", fl04) bleibt `festlegung_setzen`, und aus einer **Aufnahme**
+     gilt sie nie (`ARTEN_IN_AUFNAHME` bleibt bei drei). Korpus: `sk01`/`sk02`
+     positiv, `sk03`–`sk05` negativ, plus
+     `tests/test_korpus.py::test_erkenner_haelt_die_laengengrenzfaelle`, der
+     n20/n27/fl04 auf ihrem Sollwert festhält. **Der Erkenner-Korpuslauf
+     gegen das echte Modell steht aus** (Birk, kostet Geld) — wie beim
+     bestehenden Hinweis zu `festlegung_setzen` oben.
+  3. **Schärfung und Szenenfolge laufen nie gleichzeitig**
+     (`vorschlagssperre.py`, `nimm_oder_merke`). Wer die Sperre nicht bekommt,
+     wird **gemerkt** und läuft nach der Freigabe automatisch — nicht
+     abgewiesen. Das ist der Unterschied zum alten `szenenfolge._TEXT_BESETZT`,
+     das den Auftrag verlor; die Konstante bleibt als Nutzertext stehen, hat
+     aber keinen Aufrufer mehr. **Nehmen und Merken sind EIN atomarer Schritt**
+     (`nimm_oder_merke`, Race-Fund): ein `nimm` gefolgt von einem separaten
+     `merke` hätte ein Fenster offen gelassen, in dem ein gleichzeitiges
+     `gib_frei` einen noch leeren Merkplatz leert und den kurz danach
+     gemerkten Auftrag nie nachholt — `gib_frei` poppt den Merkplatz und gibt
+     die Sperre unter demselben Schutz frei, `nimm_oder_merke` nimmt die
+     Sperre oder legt den Auftrag unter demselben Schutz ab. Alle fünf
+     Aufrufer (`schaerfung.starte`, die vier `szenenfolge.starte*`) nutzen
+     `nimm_oder_merke` und geben die Sperre bei einer Exception vor dem
+     Thread-Start selbst wieder frei. `schaerfung.starte` liefert dafür
+     `GEMERKT` statt `None` — `None` heißt „es gab nichts anzustoßen", und
+     `knoepfe.starte_schaerfung` spielt darauf die vorhandene Lage aus; die
+     Zeile „Schärfung läuft, einen Moment" schickt der Knopf-Handler nur,
+     wenn `vorschlagssperre.laeuft` beim Anstoßen noch `False` war — sonst
+     schickt `schaerfung.starte` selbst `TEXT_GEMERKT`, und ein vorab
+     gesendetes „gleich" wäre eine zweite, widersprüchliche Zeile im selben
+     Chatfenster.
+  4. **Die Richtungswahl speichert ihre Szenen mit**
+     (`szenenfolge.szenen_in_zeile`, `szenen_der_richtung`, `lege_inline_an`).
+     Ein Richtungs-Knopf trägt immer genau **eine** Zeile, und
+     `zerlege_geschichte` liest Szenen erst ab Zeile 3 — nennt die Richtung
+     ihre Szenen also im Satz („… Szene 1: Ankunft am Steg. Szene 2: …"),
+     gingen Titel und Form verloren, und der Folge-Lauf erfand sie eine
+     Minute später neu. `szenen_in_zeile` erkennt eng (mindestens zwei
+     Anker, Nummern zusammenhängend ab 1, Form nur am Stückende, Titel bis
+     `TITEL_MAX` = 80 Zeichen); Lücken oder Doppelungen in der Nummerierung
+     hinterlassen den Vorfall `richtung_szenen_unvollstaendig`, statt still
+     zu verwerfen — aber nur, wenn die Zeile keine Formwahl ist: eine
+     Formabfolge mit Lücke geht in `_uebernimm_formwahl` und hinterlässt
+     allein `geschichte_war_formwahl`. **Review-Fix (`c9af872`):** der Inline-Weg gilt darüber
+     hinaus nur, wenn kein Titel mit einem Formwort beginnt und jede Form,
+     die `formabfolge` in der Zeile findet, genau als Anhang eines dieser
+     Titel steht (`szenenfolge.szenen_der_richtung`) — sonst bleibt es beim
+     bisherigen `_uebernimm_formwahl`, das eine reine Formabfolge ohne
+     eigene Titel sichert. Trifft der Inline-Weg zu, geht die Form in
+     `szene.form` und nicht in `form_vorschlag` — die Gruppe hat gedrückt —,
+     und `lege_inline_an` setzt dabei **nur eine leere** `form` (eine per
+     Knopf schon bestätigte Form einer bestehenden Szene bleibt stehen, da
+     `repo.setze_szenenfeld` `GESCHUETZTE_SZENENFELDER` nicht von sich aus
+     beachtet). **Danach läuft kein `starte_geschichte_szenen` mehr:**
+     `titel` steht nicht in `repo.GESCHUETZTE_SZENENFELDER`, ein frischer
+     Vorschlag würde die Titel der Gruppe überschreiben und kostet gemessene
+     110 s.
+     **Eine bekannte Grenze, gemessen:** `if not alter_block: zeilen = []` in
+     `knoepfe._speichere_geschichte` verwirft heute **nichts** (auf dem
+     Menü-Weg ist der `wert` immer einzeilig) und bleibt für den
+     `alter_block`-Weg stehen.
+
 ## Die Dramaturgie-Prüfung
 
 Seit dem 06.09.2026, `interview_theater/dramaturgie/`. Sie steht **neben**
@@ -1074,15 +1197,26 @@ nicht.
 
 Die fünf Prompts werden heiß nachgeladen, also ändert sie jemand **während**
 des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
-den Blindflug: 121 Absichtserkenner-Fälle (davon 45 Negativfälle; darunter
-welche aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1 —,
-und 10 mit `zustimmung: true` markiert, N7; Stand 05.09.2026 nach dem
-Szenen-Umbau, alle `art`-Werte mindestens zweimal, `szene_planen` mit
-Szenenbezug), 22 Journal-Abschnitte (davon 11 leere), 7 erfundene
-Interviewtranskripte — darunter einer, dessen Sollwert **null** Kernthemen
-sind (der Live-Fall aus dem Probelauf, N2) — und 5 Sprachprofil-Fälle (T3,
-eine je Sprechweise: kurze Sätze mit Selbstkorrektur, Code-Switching,
-„man"-Distanz, Reihungen, Rückfragen), alle mit Sollwert.
+den Blindflug: 150 Absichtserkenner-Fälle (davon 53 Negativfälle; darunter
+11 aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1 —, und
+20 mit `zustimmung: true` markiert, N7; Stand 30.09.2026, alle `art`-Werte
+mindestens zweimal, `szene_planen` mit Szenenbezug), 22 Journal-Abschnitte
+(davon 11 leere), 7 erfundene Interviewtranskripte — darunter einer, dessen
+Sollwert **null** Kernthemen sind (der Live-Fall aus dem Probelauf, N2) —
+und 5 Sprachprofil-Fälle (T3, eine je Sprechweise: kurze Sätze mit
+Selbstkorrektur, Code-Switching, „man"-Distanz, Reihungen, Rückfragen), alle
+mit Sollwert.
+
+(Stand 30.09.2026 nachgemessen — die Zahlen davor waren seit dem 05.09. nicht
+mitgewachsen. Wer Fälle ergänzt, zählt mit
+`python3.11 -c "import json; f=[json.loads(l) for l in open('korpus/erkenner.jsonl') if l.strip()]; print(len(f), sum(1 for x in f if not x['erwartet']))"`
+nach, statt zu schätzen.)
+
+Seit dem 30.09.2026 dazu `szene_kuerzen` mit `sk01`/`sk02` (positiv, beide
+`zustimmung: true`) und `sk03`–`sk05` (negativ) — die Art liegt direkt neben
+n20, n27 und fl04, und
+`tests/test_korpus.py::test_erkenner_haelt_die_laengengrenzfaelle` hält deren
+Sollwerte fest.
 
 ```
 set -a; . ./betrieb/gruppe1.env; set +a
@@ -2008,15 +2142,26 @@ Neustart von `interview-theater-web.service`; die Bots brauchen einen nur, weil
 
 Die fünf Prompts werden heiß nachgeladen, also ändert sie jemand **während**
 des Workshops. Der Regressionskorpus unter `korpus/` ist das Gegenmittel gegen
-den Blindflug: 121 Absichtserkenner-Fälle (davon 45 Negativfälle; darunter
-welche aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1 —,
-und 10 mit `zustimmung: true` markiert, N7; Stand 05.09.2026 nach dem
-Szenen-Umbau, alle `art`-Werte mindestens zweimal, `szene_planen` mit
-Szenenbezug), 22 Journal-Abschnitte (davon 11 leere), 7 erfundene
-Interviewtranskripte — darunter einer, dessen Sollwert **null** Kernthemen
-sind (der Live-Fall aus dem Probelauf, N2) — und 5 Sprachprofil-Fälle (T3,
-eine je Sprechweise: kurze Sätze mit Selbstkorrektur, Code-Switching,
-„man"-Distanz, Reihungen, Rückfragen), alle mit Sollwert.
+den Blindflug: 150 Absichtserkenner-Fälle (davon 53 Negativfälle; darunter
+11 aus einer laufenden Aufnahme — `aufnahme` statt `nachrichten`, N1 —, und
+20 mit `zustimmung: true` markiert, N7; Stand 30.09.2026, alle `art`-Werte
+mindestens zweimal, `szene_planen` mit Szenenbezug), 22 Journal-Abschnitte
+(davon 11 leere), 7 erfundene Interviewtranskripte — darunter einer, dessen
+Sollwert **null** Kernthemen sind (der Live-Fall aus dem Probelauf, N2) —
+und 5 Sprachprofil-Fälle (T3, eine je Sprechweise: kurze Sätze mit
+Selbstkorrektur, Code-Switching, „man"-Distanz, Reihungen, Rückfragen), alle
+mit Sollwert.
+
+(Stand 30.09.2026 nachgemessen — die Zahlen davor waren seit dem 05.09. nicht
+mitgewachsen. Wer Fälle ergänzt, zählt mit
+`python3.11 -c "import json; f=[json.loads(l) for l in open('korpus/erkenner.jsonl') if l.strip()]; print(len(f), sum(1 for x in f if not x['erwartet']))"`
+nach, statt zu schätzen.)
+
+Seit dem 30.09.2026 dazu `szene_kuerzen` mit `sk01`/`sk02` (positiv, beide
+`zustimmung: true`) und `sk03`–`sk05` (negativ) — die Art liegt direkt neben
+n20, n27 und fl04, und
+`tests/test_korpus.py::test_erkenner_haelt_die_laengengrenzfaelle` hält deren
+Sollwerte fest.
 
 ```
 set -a; . ./betrieb/gruppe1.env; set +a

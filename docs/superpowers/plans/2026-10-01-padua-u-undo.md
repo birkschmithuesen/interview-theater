@@ -32,8 +32,21 @@ $PY -m pytest -q -p no:cacheprovider
 
 `PY=/home/birk/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/bin/python3`.
 Das `.venv` im Hauptbaum wird **nicht** verwendet. **Jede Aufgabe endet mit
-mindestens 4350 bestandenen Tests und 0 Fehlern**; neue Tests kommen dazu, es
-geht keiner weg.
+mindestens der Baseline bestandenen Tests und 0 Fehlern**; neue Tests kommen
+dazu, es geht keiner weg.
+
+**Nachtrag Architekt (01.10.2026, nach dem Plan-Lauf):** 4350 ist auf der
+Basis `A1 + A3` gemessen (dieser Worktree: `8eb52d7` = A1-Branch + `f66f68b`).
+A1 liegt inzwischen in main (`04e57dd`), aber **ohne** den A3-Merge
+`f66f68b` -- `git merge-base --is-ancestor f66f68b origin/main` schlaegt fehl,
+22 Dateien Simulation/A3 fehlen dort. Deshalb gilt fuer die Umsetzung: **Vor
+Aufgabe 1 die Baseline im Umsetzungs-Worktree selbst messen**
+(`$PY -m pytest -q -p no:cacheprovider`, letzte Zeile notieren). Diese Zahl
+ersetzt ueberall im Plan die 4350; die in den Aufgaben genannten Zielzahlen
+(`4354`, `4456` ...) verschieben sich um dieselbe Differenz. Kein Test, den
+dieser Plan anlegt oder anfasst, haengt an A3-Dateien (geprueft:
+`git diff --name-only 8eb52d7 origin/main -- interview_theater/` zeigt nur
+`sprachen/en/prompts/erkenner.md`, das der Plan nicht anfasst).
 
 ### Voraussetzung: A1 liegt in main
 

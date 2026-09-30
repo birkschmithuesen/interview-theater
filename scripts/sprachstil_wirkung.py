@@ -39,23 +39,35 @@ FUELL), passend zu ``sprachstil_masse.MARKER``:
          ``not schreibt_prosa(...)``, in Phase 7 also True: die Prosa steht
          als bindende Vorlage im Prompt.
 
-Unterbefehle: ``pfad`` (Prompts erzeugen, Diffs schreiben, kein Netz).
-``lauf`` und ``auswertung`` kommen in Task 3/4 dazu.
+Unterbefehle: ``pfad`` (Prompts erzeugen, Diffs schreiben, kein Netz),
+``lauf`` (echte Aufrufe ueber ``szene_claude.prosa``, seriell, ein JSON je
+Lauf unter ``laeufe/``; vorhandene erfolgreiche Laeufe werden
+uebersprungen, fehlgeschlagene am Ende einmal wiederholt). Der Szenenweg
+nimmt als Vorlage den ersten Abschnitt (``kurzgeschichte.zerlege``) des
+Prosa-Laufs mit derselben Variante und Nummer -- also erst ``--pfad prosa``.
+``auswertung`` kommt in Task 4 dazu. **Kein Test, laeuft nie automatisch.**
 
 Aufruf:
     python -m scripts.sprachstil_wirkung pfad [--ausgabe DIR]
+    python -m scripts.sprachstil_wirkung lauf --pfad prosa|szene [--n 3]
+        [--variante A] [--lauf 1]
 """
 from __future__ import annotations
 
 import argparse
 import difflib
+import hashlib
+import json
 import re
 import sys
 import tempfile
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from interview_theater import aufnahme, db, kurzgeschichte, repo, szene
+import httpx
+
+from interview_theater import aufnahme, db, kurzgeschichte, repo, szene, szene_claude
 
 WURZEL = Path(__file__).resolve().parent.parent
 INTERVIEWS = WURZEL / "simulation" / "interviews" / "set1"
@@ -364,12 +376,126 @@ def befehl_pfad(a) -> int:
     return 0
 
 
+#: Varianten je Weg: der indirekte Szenenweg vergleicht nur mit/ohne Stil.
+LAUF_VARIANTEN = {"prosa": ("A", "B", "C"), "szene": ("A", "B")}
+
+
+def _sha(system: str, nutzer: str) -> str:
+    return hashlib.sha256((system + "\n\x00\n" + nutzer).encode("utf-8")).hexdigest()
+
+
+def _lade(pfad: Path) -> dict | None:
+    try:
+        return json.loads(pfad.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _vorlage_aus_prosa(laeufe: Path, variante: str, i: int) -> tuple[str | None, str]:
+    """Erster Abschnitt der Prosa aus Lauf i dieser Variante -- oder (None,
+    Grund), wenn der Prosa-Lauf fehlt oder nicht zerlegbar ist."""
+    quelle = _lade(laeufe / f"prosa-{variante}-{i}.json")
+    if not quelle or quelle.get("status") != "ok":
+        return None, f"prosa-{variante}-{i} fehlt oder fehlgeschlagen"
+    abschnitte = kurzgeschichte.zerlege(quelle.get("text") or "")
+    if not abschnitte:
+        return None, f"prosa-{variante}-{i} nicht zerlegbar"
+    return abschnitte[0][2], abschnitte[0][0]
+
+
+def _ein_lauf(weg: str, variante: str, i: int, laeufe: Path, e, klient) -> dict:
+    """Ein echter Aufruf ueber ``szene_claude.prosa``; liefert den JSON-Satz.
+    Fehler werden als ``status`` festgehalten, nicht geworfen."""
+    satz: dict = {
+        "weg": weg, "variante": variante, "lauf": i, "modell": e.szene_modell,
+        "url": e.szene_url, "stile": dict(zip((f[0] for f in FIGUREN),
+                                                VARIANTEN[variante])),
+        "zeitpunkt": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    }
+    with tempfile.TemporaryDirectory() as ordner:
+        phase = 6 if weg == "prosa" else 7
+        conn = baue_db(Path(ordner) / f"{weg}-{variante}-{i}.db", variante, phase, e)
+        try:
+            if weg == "prosa":
+                system, nutzer = prosa_prompt(conn)
+                art, timeout = kurzgeschichte.ART, kurzgeschichte.TIMEOUT_S
+            else:
+                vorlage, titel = _vorlage_aus_prosa(laeufe, variante, i)
+                if vorlage is None:
+                    satz.update(status="fehler", fehler=titel, text="", zeichen=0)
+                    return satz
+                setze_vorlage(conn, vorlage)
+                satz.update(vorlage=vorlage, vorlage_titel=titel,
+                            vorlage_quelle=f"prosa-{variante}-{i}.json")
+                system, nutzer = szene_prompt(conn, e)
+                art, timeout = szene.ART, szene.TIMEOUT_S
+            satz.update(prompt_sha256=_sha(system, nutzer),
+                        system_zeichen=len(system), nutzer_zeichen=len(nutzer))
+            start = time.monotonic()
+            try:
+                text = szene_claude.prosa(conn, e, klient, CHAT_ID, system, nutzer,
+                                          art, timeout)
+                satz.update(status="ok", text=text, zeichen=len(text))
+            except Exception as fehler:  # noqa: BLE001 -- protokollieren, weiter
+                satz.update(status="fehler", fehler=f"{type(fehler).__name__}: {fehler}",
+                            text="", zeichen=0)
+            satz["dauer_s"] = round(time.monotonic() - start, 1)
+            aufruf = conn.execute(
+                "SELECT tatsaechliche_token, antwort_token, finish_reason FROM aufruf "
+                "ORDER BY id DESC LIMIT 1").fetchone()
+            if aufruf is not None:
+                satz.update(eingabe_token=aufruf[0], ausgabe_token=aufruf[1],
+                            stop_reason=aufruf[2])
+        finally:
+            conn.close()
+    return satz
+
+
+def befehl_lauf(a) -> int:
+    laeufe = Path(a.ausgabe) / "laeufe"
+    laeufe.mkdir(parents=True, exist_ok=True)
+    e = einstellungen_szene(modell=a.modell)
+    varianten = [v for v in LAUF_VARIANTEN[a.pfad] if not a.variante or v in a.variante]
+    auftraege = [(v, i) for v in varianten for i in range(1, a.n + 1)
+                 if not a.lauf or i in a.lauf]
+    fehlgeschlagen: list[tuple[str, int]] = []
+    with httpx.Client(timeout=kurzgeschichte.TIMEOUT_S) as klient:
+        for durchgang in (1, 2):
+            liste = auftraege if durchgang == 1 else fehlgeschlagen
+            fehlgeschlagen = []
+            for variante, i in liste:
+                ziel = laeufe / f"{a.pfad}-{variante}-{i}.json"
+                alt = _lade(ziel)
+                if alt and (alt.get("status") == "ok" or durchgang == 1 and alt.get("versuche", 1) >= 2):
+                    print(f"{ziel.name}: vorhanden ({alt.get('status')}), uebersprungen")
+                    continue
+                print(f"{ziel.name}: laeuft ...", flush=True)
+                satz = _ein_lauf(a.pfad, variante, i, laeufe, e, klient)
+                satz["versuche"] = (alt or {}).get("versuche", 0) + 1
+                ziel.write_text(json.dumps(satz, ensure_ascii=False, indent=2) + "\n")
+                print(f"{ziel.name}: {satz['status']} {satz.get('dauer_s', 0)} s, "
+                      f"{satz['zeichen']} Zeichen {satz.get('fehler', '')}", flush=True)
+                if satz["status"] != "ok":
+                    fehlgeschlagen.append((variante, i))
+            if not fehlgeschlagen:
+                break
+    return 1 if fehlgeschlagen else 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     unter = ap.add_subparsers(dest="befehl", required=True)
     p = unter.add_parser("pfad", help="echte Prompts je Variante erzeugen und diffen (kein Netz)")
     p.add_argument("--ausgabe", default=str(AUSGABE))
     p.set_defaults(fn=befehl_pfad)
+    p = unter.add_parser("lauf", help="echte Laeufe gegen das Szenenmodell (seriell, kostet Abo-Zeit)")
+    p.add_argument("--pfad", choices=sorted(LAUF_VARIANTEN), required=True)
+    p.add_argument("--n", type=int, default=3)
+    p.add_argument("--variante", action="append", help="nur diese Variante(n), mehrfach")
+    p.add_argument("--lauf", type=int, action="append", help="nur diese Laufnummer(n), mehrfach")
+    p.add_argument("--modell", default=SZENE_MODELL)
+    p.add_argument("--ausgabe", default=str(AUSGABE))
+    p.set_defaults(fn=befehl_lauf)
     a = ap.parse_args(argv)
     return a.fn(a)
 

@@ -5298,7 +5298,7 @@ def test_bericht_traegt_die_sprache(tmp_path):
 `phasentexte.toml`, `formen.toml`, `LIESMICH.md`;
 `tests/test_profile_geruest.py:64–68, 85–95`.
 
-- [ ] **Schritt 1: Tests anpassen** (`tests/test_profile_geruest.py`, oben
+- [x] **Schritt 1: Tests anpassen** (`tests/test_profile_geruest.py`, oben
   `import re` ergaenzen):
 
 ```python
@@ -5335,9 +5335,9 @@ def test_padua_phasen_und_formen_englisch():
 
   und `test_die_pruefung_weist_ein_geruest_ab` behaelt seine Zusicherung
   (Exit 1, „Geruest" in der Ausgabe).
-- [ ] **Schritt 2: Rot sehen** — `$PY -m pytest -q -p no:cacheprovider tests/test_profile_geruest.py`
+- [x] **Schritt 2: Rot sehen** — `$PY -m pytest -q -p no:cacheprovider tests/test_profile_geruest.py`
   → `test_padua_phasen_und_formen_englisch` rot (`['Begriffe', …]`).
-- [ ] **Schritt 3: Dateien schreiben**
+- [x] **Schritt 3: Dateien schreiben**
 
 `workshop/padua-2026/profil.toml` (Kopfkommentar anpassen: „A1 hat Sprache,
 Phasen und Formen gesetzt; die Inhaltsfelder sind Platzhalter, Karte P
@@ -5532,7 +5532,7 @@ die Whisper-Sprache → A2); der alte Satz „Kein Satz hier drin ist von einem
 Agenten geschrieben worden" faellt weg, weil er nicht mehr stimmt — mit
 Verweis auf Birks Entscheidung vom 29.09.2026.
 
-- [ ] **Schritt 4: Gruen und erwartete Ausgabe**
+- [x] **Schritt 4: Gruen und erwartete Ausgabe**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider tests/test_profile_geruest.py tests/test_workshop.py tests/test_phasen_profil.py tests/test_formen_katalog.py
@@ -5551,10 +5551,10 @@ padua-2026: 1 Fehler
 (keine „Leere Pflichtfelder", kein Platzhalter ohne Wert, kein
 Zahlwort-Hinweis, kein Rahmen-Hinweis). Dortmund: `dortmund-2026: in Ordnung`.
 
-- [ ] **Schritt 5: Mutationsnachweis:** `anzahl_wort = "four"` →
+- [x] **Schritt 5: Mutationsnachweis:** `anzahl_wort = "four"` →
   `pruefe_profil padua-2026` meldet zusaetzlich den Zahlwort-FEHLER.
   Zuruecksetzen.
-- [ ] **Schritt 6:** SUITE; Commit `"Padua englisch: Sprache, Phasen, Einleitungen, Formen, Platzhalter fuer Karte P (A1, D9)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Padua englisch: Sprache, Phasen, Einleitungen, Formen, Platzhalter fuer Karte P (A1, D9)"`.
 
 ---
 

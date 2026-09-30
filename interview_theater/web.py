@@ -541,8 +541,10 @@ SZENENFELD_BESCHRIFTUNG = {
 #: **Eine zweite Liste neben ``workshop.form_anzeige``**: die Schluessel sind
 #: die fuenf Formen der Vorgabe. Ein Profil mit einer anderen Formenliste
 #: zieht hier nicht nach -- eine unbekannte Form bleibt als Rohwert stehen
-#: (``_form_anzeige``). Offener Punkt fuer Aufgabe 29/32: diese Tabelle aus
-#: dem Profil speisen oder durch ``workshop.form_anzeige`` ersetzen.
+#: (``_form_anzeige``). Fuer Padua haelt
+#: ``tests/test_web_sprache.py::test_web_formnamen_passen_zum_profil`` beide
+#: Listen gleich (Aufgabe 29); offen fuer Aufgabe 32: diese Tabelle aus dem
+#: Profil speisen oder durch ``workshop.form_anzeige`` ersetzen.
 FORM_BESCHRIFTUNG = {
     "dialog": "dialog",
     "monolog": "monolog",

@@ -1,75 +1,71 @@
-# Workshop-Profil `padua-2026` — Gerüst
+# Workshop-Profil `padua-2026` — Gerüst mit englischer Methode
 
-**Stand 06.09.2026: die Struktur steht, die Inhalte fehlen.** Solange in
-`profil.toml` die Zeile `geruest = true` steht, startet kein Bot mit diesem
-Profil (`bot.main` bricht ab, `scripts/pruefe_profil.py padua-2026` meldet
-es). Das ist Absicht: ein halb ausgefülltes Profil ist am Workshoptag
-teurer als gar keins.
+**Stand 30.09.2026.** Die Methode steht (Sprache, Phasen, Formen, Einleitungen),
+der Inhalt ist Platzhalter. Solange in `profil.toml` die Zeile
+`geruest = true` steht, startet kein Bot mit diesem Profil (`bot.main` bricht
+ab, `scripts/pruefe_profil.py padua-2026` meldet es mit genau einem Fehler).
+Die Zeile streicht **Karte P**, wenn der Inhalt aus Birks Vault drinsteht.
 
-Angelegt hat es der Umbau vom 06.09.2026, damit man an einem zweiten
-Einsatzort sieht, wo was hingehört — nicht als Vorwegnahme des Inhalts.
-**Kein Satz hier drin ist von einem Agenten geschrieben worden, und das soll
-so bleiben:** ein italienischer Prompt ist ein eigener Text, keine
-Übersetzung der deutschen Fassung (Teil C der Analyse).
+Der frühere Satz „Kein Satz hier drin ist von einem Agenten geschrieben
+worden" gilt nicht mehr und steht deshalb nicht mehr da: Birk hat am
+29.09.2026 entschieden, dass Padua auf **Englisch** läuft, und die englischen
+Texte dieses Profils (Phasennamen, Einleitungen, Formnamen) sowie die
+Platzhalterwerte hat Karte A1 geschrieben. Birk nimmt sie in Karte P am
+vollständigen Prompt-Dump ab (Annahme A8 des Plans).
 
-## Was dieses Profil eigenständig macht
+## Was dieses Profil eigenständig macht (gesetzt von A1)
 
-Bisher nur zweierlei:
+- **Sprache `en`**, Anrede `you` (`[sprache]`). Chat, Knöpfe, Gruppenseite
+  und alle Prompts laufen englisch; die englischen Prompts und Texte liegen
+  **nicht hier**, sondern in der Sprachschicht
+  `interview_theater/sprachen/en/` (`texte.toml`, `prompts/**.md`). Dort liegen
+  auch die englischen Rahmen-Vorlagen (`rahmen.md`, `rahmen-kurz.md`,
+  `rahmen-knapp.md`, `projekt.md`), die nur Profil-Platzhalter benutzen —
+  deshalb hat dieses Profil kein `prompts/`-Verzeichnis (W1).
+- **Whisper `auto`**: die Interviewsprache erkennt Whisper selbst; in Phase 3
+  steht ein Knopf zum Umstellen, dazu `/sprache`. **Unbestätigt:** Annahme A1
+  (Infomaniak-Whisper erkennt die Sprache, wenn das Feld `language` fehlt) ist
+  nicht gemessen — der Rauchtest aus Aufgabe 9 ist offen geblieben, weil die
+  Testaufnahmen fehlten. Fällt die Annahme, existiert der Rückweg schon: die
+  Gruppe stellt per Knopf in Phase 3 oder mit `/sprache` eine feste Sprache
+  ein, und das Profil kann `whisper = "en"` (oder `"it"`) setzen.
+- **Pseudonyme** (`[datenschutz] pseudonyme = true`, E8): kein Prompt sieht
+  einen Vornamen, dort stehen „Member 1, 2, …".
+- **Englische Phasen** (`phasen.toml`): dieselben sieben Stationen wie in
+  Dortmund — Terms, Questions, Interviews, Setting, Characters & Story,
+  Sharpening, Scenes as Story, Polish —, mit englischen Stichwörtern. Phase 4
+  kennt auch „core theme", „format", „setting", „story", weil der englische
+  Erkenner-Prompt noch die alte Phasenliste nennt.
+- **Englische Einleitungen** (`phasentexte.toml`), je zwei bis vier Sätze,
+  unter 700 Zeichen.
+- **Englische Formen** (`formen.toml`): Dialogue, Monologue, Chorus, Song,
+  Rap — die Datenbankwerte bleiben `dialog`, `monolog`, `chor`, `lied`, `rap`.
+- **Englische Beispielorte** (`orte.beispiele`): bus stop, piazza, café,
+  station. Sie stehen in englischen Prompt-Sätzen; die italienischen Wörter
+  des alten Gerüsts (`fermata`, `stazione`) wären dort Fremdkörper gewesen.
 
-- `sprache.code = "it"` und `sprache.anrede = "voi"`
-- `orte.beispiele` — die Beispielorte, die in Prompts als Beispiel stehen
-  (`fermata`, `piazza`, `bar`, `stazione`). Sprache und Ort sind zwei
-  getrennte Felder: ein italienisches Profil könnte auch deutsche
-  Beispielorte haben, und umgekehrt.
+## Was Karte P ersetzt
 
-Alles andere ist leer und fällt damit auf das eingebaute Vorgabeprofil
-zurück — also auf Dortmund, auf Deutsch. Das ist der Grund, warum
-`geruest = true` dasteht.
+- **Jede Zeile in `profil.toml` mit dem Marker `ANNAHME (Platzhalter A1`** —
+  Beschreibung, Zielgruppe, Träger, Orte, Ausschlüsse, Aufführungsort,
+  Konfliktrahmen, Projektbeschreibung, Beispielorte.
+  `tests/test_profile_geruest.py` zählt die neun Inhaltszeilen und prüft den
+  Marker in jeder.
+- **Die Rahmen-Vorlagen**, falls die generische englische Fassung aus der
+  Sprachschicht nicht reicht: dann als Profildateien unter
+  `workshop/padua-2026/prompts/` (und der Test oben, der das Verzeichnis
+  ausschließt, wird mit angepasst).
+- **Die Prüfung am Prompt-Dump**: Birk liest die gerenderten englischen
+  Prompts einmal ganz und nimmt Wortlaut und Idiomatik ab.
+- Danach die Zeile `geruest = true` streichen.
 
-## Was noch fehlt, in der Reihenfolge des Aufwands
+## Was offen bleibt
 
-1. **`profil.toml` ausfüllen** — Zielgruppe, Orte, Auführungsort, Konflikt,
-   Projektbeschreibung. Ein Nachmittag, wenn die Eckdaten des Workshops
-   feststehen.
-2. **Die Rahmenblöcke** — `prompts/rahmen.md`, `prompts/rahmen-kurz.md`,
-   `prompts/rahmen-knapp.md`. Vorlage: die drei gleichnamigen Dateien unter
-   `workshop/dortmund-2026/prompts/`. Neu schreiben, nicht übersetzen.
-3. **`formen.toml`** und je Form ein Regelblock unter
-   `prompts/formen/<name>.md`. Padua darf andere Formen haben als Dortmund
-   (Commedia? Coro?); die Zahl ist nirgends festgeschrieben.
-4. **`phasen.toml` und `phasentexte.toml`** — vermutlich nur die Namen und
-   Stichwörter neu, nicht die Zahl der Stationen: der Ablauf ist die
-   Methode, nicht der Einsatzort.
-5. **Die Prompt-Sätze auf Italienisch** — `prompts/system.md`,
-   `prompts/szene.md`, `prompts/phasen/*.md` als Dateiersatz. Schätzung aus
-   Teil C der Analyse: 1–2 Personentage.
-6. **Der Erkenner-Korpus** — `korpus/erkenner.jsonl` mit rund 70
-   italienischen Fällen, davon mindestens 28 Negativfälle. Der teure
-   Posten (2–3 Tage) und der einzige, der sich **nicht** übersetzen lässt:
-   die gemessene Zusicherung „0 Falsch-Positive" gilt für diese Sätze in
-   dieser Sprache. `scripts/pruefe_profil.py padua-2026` prüft die
-   Mindestzahlen, sobald ein eigener Korpus da ist — vorher prüft es
-   nichts, damit ein halbfertiges Padua den Dortmunder Betrieb nicht
-   blockiert.
-
-## Was das Profil **nicht** kann, weil es im Kern noch fehlt
-
-Das ist der ehrliche Teil. Diese Dinge liegen am 06.09.2026 noch fest im
-Code und wären für einen italienischen Workshop zu bauen:
-
-- **Die Whisper-Sprache** (`stt.py`, `"language": "de"`) liest
-  `sprache.code` noch nicht. Ein Parameter, eine halbe Stunde — aber sie
-  ist noch nicht gemacht.
-- **Die Chat-Texte**: rund 111 `_TEXT_*`-Konstanten in `knoepfe.py`, dazu
-  `befehle.py`, `leitfaden.py`, `phasen.MELDUNG`. Sie sind deutsch und
-  stehen im Code. Das ist Schritt 7 der Analyse (`texte.yaml`) und
-  ausdrücklich noch nicht gebaut; `knoepfe.py` wurde zur selben Zeit
-  anderweitig umgebaut, und ein gleichzeitiger Eingriff in dieselben
-  Konstanten hätte einen Merge-Konflikt erzeugt, den niemand auflösen will.
-- **Die Auftragsmuster** (`ablauf.py`) und die **Anti-Nachplapper-Wortlisten**
-  in den Tests sind deutsche Regex bzw. deutsche Namen.
-- **Die Simulations-Personas** (`simulation/stimmen/*.md`) schreiben
-  deutsch.
-
-Solange das offen ist, wäre ein italienischer Workshop halb deutsch. Deshalb
-`geruest = true`.
+- **Journal-, Verdichter- und Sprachprofil-Korpus auf Englisch** — nur der
+  Erkenner hat einen englischen Korpus (`korpus/en/`, D8); die übrigen
+  Prompts laufen in Padua ungemessen.
+- **Simulations-Personas** (`simulation/stimmen/*.md`) schreiben deutsch.
+- **Englische Befehlsaliase** (`/help`, `/status`) — Annahme A4, nicht Teil
+  von A1.
+- **Ein Web-Feld für die Whisper-Sprache** — gehört zu A2.
+- **Der Whisper-Rauchtest** (Aufgabe 9, siehe oben).

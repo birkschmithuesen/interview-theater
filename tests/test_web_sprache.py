@@ -7,25 +7,11 @@ from scripts import pruefe_sprache
 from tests.fixture_sprache import baue_englische_gruppe
 
 
-#: Die Phasennamen kommen aus dem Profil (``workshop/padua-2026/phasen.toml``),
-#: und die schreibt erst Aufgabe 29 -- bis dahin traegt Padua die sieben
-#: deutschen Stationen der Vorgabe, und die Gruppenseite zeigt "6 · Szenen als
-#: Geschichte". Solange das so ist, stellt der Test die Namen, die Aufgabe 29
-#: vorsieht; danach greift die Weiche nicht mehr und das Profil gilt selbst.
-PHASEN_AUFGABE_29 = (
-    (1, "Terms", ""), (2, "Questions", ""), (3, "Interviews", ""),
-    (4, "Setting, Characters & Story", ""), (5, "Sharpening", ""),
-    (6, "Scenes as Story", ""), (7, "Polish", ""),
-)
-
-
 @pytest.fixture
 def padua(monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
     workshop.vergiss()
     sprache.vergiss()
-    if workshop.phasenliste()[0][1] == "Begriffe":
-        monkeypatch.setattr(workshop, "phasenliste", lambda profil=None: PHASEN_AUFGABE_29)
     yield
     workshop.vergiss()
     sprache.vergiss()
@@ -133,6 +119,16 @@ def test_formwerte_englisch_beschriftet_datenbankwert_bleibt(padua):
     html = web._dropdown("szene_form", paare, "lied")
     assert '<option value="lied" selected>Song</option>' in html
     assert '<option value="monolog">Monologue</option>' in html
+
+
+def test_web_formnamen_passen_zum_profil(padua):
+    """Review A1 (d): ``web.FORM_BESCHRIFTUNG`` ist eine zweite Formnamen-Liste
+    neben ``workshop.form_anzeige``. Fuer Padua muessen beide dasselbe sagen --
+    die Seite schreibt klein im Fliesstext, gross im Dropdown."""
+    formen = workshop.formen()
+    anzeige = workshop.form_anzeige()
+    assert [web._form_anzeige(f).capitalize() for f in formen] == list(anzeige)
+    assert [web._form_anzeige(f) for f in formen] == [a.lower() for a in anzeige]
 
 
 def test_formwerte_in_dortmund_wie_bisher():

@@ -206,7 +206,7 @@ haelt, und dagegen hilft Code, kein weiterer Satz im Prompt.
 
 ### Schritte
 
-- [ ] **Schritt 1: Den fehlschlagenden Test schreiben**
+- [x] **Schritt 1: Den fehlschlagenden Test schreiben**
 
 Datei `tests/test_vorschlagssperre.py`:
 
@@ -328,7 +328,7 @@ def test_freigabe_ohne_sperre_ist_kein_fehler():
     assert vorschlagssperre.laeuft(99) is False
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_vorschlagssperre.py
@@ -336,7 +336,7 @@ python3.11 -m pytest -q -p no:cacheprovider tests/test_vorschlagssperre.py
 Erwartet: Sammelfehler, `ModuleNotFoundError: No module named
 'interview_theater.vorschlagssperre'` (bzw. `ImportError` beim Sammeln).
 
-- [ ] **Schritt 3: Das Modul schreiben**
+- [x] **Schritt 3: Das Modul schreiben**
 
 Datei `interview_theater/vorschlagssperre.py`:
 
@@ -479,7 +479,7 @@ def vergiss(chat_id: int) -> None:
         _gemerkt.pop(chat_id, None)
 ```
 
-- [ ] **Schritt 4: Gruen sehen**
+- [x] **Schritt 4: Gruen sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_vorschlagssperre.py
@@ -493,7 +493,7 @@ python3.11 -m pytest -q -p no:cacheprovider
 ```
 Erwartet: `2710 passed, 1 skipped` (2702 + 8).
 
-- [ ] **Schritt 5: Mutationsnachweis**
+- [x] **Schritt 5: Mutationsnachweis**
 
 In `gib_frei` die beiden Zeilen
 ```python
@@ -514,7 +514,7 @@ Erwartet: **rot** in
 `test_die_sperre_ist_bei_der_freigabe_schon_frei`.
 Danach die Aenderung zurueckdrehen und erneut gruen sehen.
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add interview_theater/vorschlagssperre.py tests/test_vorschlagssperre.py

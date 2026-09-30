@@ -6,3 +6,6 @@
 # ({name}, {{name}}, %s) muessen dieselben sein wie im Deutschen --
 # tests/test_sprache_texte.py prueft das. Die Texte sind Uebersetzungen;
 # Birk nimmt sie in Karte P am Prompt-Dump ab.
+
+["anweisungen"]
+UEBERSCHRIFT = "\n\nAdditional instruction for this workshop:\n\n"

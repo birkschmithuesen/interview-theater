@@ -1840,7 +1840,7 @@ git commit -m "sprache.py: Textzugriff zur Aufrufzeit, englische Tabelle, Stoppw
   `tests/test_sprache_prompts.NOCH_OFFEN: set[str]` — die Uebersetzungsaufgaben
   18–21 nehmen dort Namen heraus.
 
-- [ ] **Schritt 1: Tests schreiben** — `tests/test_sprache_prompts.py`:
+- [x] **Schritt 1: Tests schreiben** — `tests/test_sprache_prompts.py`:
 
 ```python
 """Jede Repo-Prompt-Datei hat eine englische Fassung mit gleicher Struktur (D4).
@@ -1989,13 +1989,13 @@ def test_ueberschrift_des_regiezettels_ueber_die_tabelle(monkeypatch):
     assert "Additional instruction" in anweisungen.T.UEBERSCHRIFT
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprache_prompts.py`
 Expected: FAIL — `AttributeError: module 'interview_theater.anweisungen' has no attribute 'sprach_verzeichnis'`
 (bzw. `… has no attribute 'T'`) und `assert ' or ' in 'Dialog, Monolog, Chor, Lied oder Rap'`.
 
-- [ ] **Schritt 3: Umsetzen**
+- [x] **Schritt 3: Umsetzen**
 
 `interview_theater/anweisungen.py` nach `_VERZEICHNIS = …` (Zeile 71):
 
@@ -2105,20 +2105,20 @@ UEBERSCHRIFT = "\n\nAdditional instruction for this workshop:\n\n"
 
 `interview_theater/sprachen/en/prompts/.gitkeep` leer anlegen.
 
-- [ ] **Schritt 4: Gruen sehen**
+- [x] **Schritt 4: Gruen sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprache_prompts.py tests/test_anweisungen.py tests/test_anweisungen_profil.py tests/test_profil_bitgleich.py tests/test_sprache_bitgleich.py`
 Expected: alle gruen; in `test_sprache_prompts.py` 34 + 4 Faelle `skipped`
 („noch nicht uebersetzt").
 
-- [ ] **Schritt 5: Mutationsnachweis**
+- [x] **Schritt 5: Mutationsnachweis**
 
 In `sprach_verzeichnis` die Deutsch-Abfrage entfernen → nichts wird rot,
 **solange** `sprachen/de/` fehlt — deshalb die zweite Mutation: in `_roh` die
 Reihenfolge Profil/Sprachschicht tauschen → `test_profil_schlaegt_sprachschicht`
 rot. `_ODER` auf nur `{"de": " oder "}` → `test_formenliste_oder_je_sprache` rot.
 
-- [ ] **Schritt 6: SUITE, Commit**
+- [x] **Schritt 6: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider

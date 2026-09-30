@@ -796,6 +796,11 @@ def form_vorgabe(profil: Profil | None = None) -> str:
     return profil.formen.get("vorgabe", "")
 
 
+#: Wie eine Auswahl im Fliesstext verbunden wird ("Lied oder Rap"). Hier und
+#: nicht in sprache.py, weil sprache.py dieses Modul importiert (Karte A1).
+_ODER = {"de": " oder ", "en": " or "}
+
+
 def platzhalter(profil: Profil | None = None) -> dict[str, str]:
     """Die Werte, die ``{{...}}`` in einem Prompt fuellen.
 
@@ -845,7 +850,8 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
         # "Dialog, Monolog, Chor, Lied oder Rap" -- fuer die Stellen, an
         # denen der Satz eine Auswahl beschreibt und kein Verzeichnis.
         "formen_liste_oder": (
-            " oder ".join([", ".join(anzeige[:-1]), anzeige[-1]])
+            _ODER.get(str(profil.wert("sprache.code", "de")), " oder ").join(
+                [", ".join(anzeige[:-1]), anzeige[-1]])
             if len(anzeige) > 1 else "".join(anzeige)
         ),
         "form_vorgabe": form_vorgabe(profil),

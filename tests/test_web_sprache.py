@@ -138,3 +138,79 @@ def test_formwerte_englisch_beschriftet_datenbankwert_bleibt(padua):
 def test_formwerte_in_dortmund_wie_bisher():
     assert web._form_anzeige("monolog") == "monolog"
     assert web._form_anzeige("monolog").capitalize() == "Monolog"
+
+
+# --- Nachbesserung Aufgabe 17: Festlegungsbereiche, Pruefkennungen, Zitat ---
+
+from interview_theater import repo  # noqa: E402
+from interview_theater.dramaturgie import fanout  # noqa: E402
+
+
+def _festlegungen():
+    return {"festlegungen": [
+        {"id": i, "bereich": b, "bezug": "Nadia" if b == "figur" else None,
+         "text": "x"}
+        for i, b in enumerate(repo.FESTLEGUNG_BEREICHE, 1)
+    ]}
+
+
+def _befunde():
+    return {"runde": 1, "befunde": [
+        {"pruefung": p, "szene": None, "schwere": "hinweis", "text": "x"}
+        for p in fanout.EBENEN
+    ]}
+
+
+def test_festlegungsbereiche_decken_das_protokoll():
+    assert set(web.FESTLEGUNG_BEREICH_BESCHRIFTUNG) == set(repo.FESTLEGUNG_BEREICHE)
+    assert all(k == v for k, v in web.FESTLEGUNG_BEREICH_BESCHRIFTUNG.items())
+
+
+def test_pruefkennungen_decken_alle_pruefungen():
+    """``fanout.EBENEN`` kennt jede Kennung, die in ``dramaturgie_befund``
+    landen kann (Judge-Fragen und mechanische Pruefungen)."""
+    assert set(fanout.PROMPTS) <= set(fanout.EBENEN)
+    assert set(web.PRUEFUNG_BESCHRIFTUNG) == set(fanout.EBENEN)
+    assert all(k == v for k, v in web.PRUEFUNG_BESCHRIFTUNG.items())
+
+
+def test_festlegungen_in_padua_englisch(padua):
+    html = web._festlegungen_html(_festlegungen(), None)
+    assert '<span class="marke">character · Nadia</span>' in html
+    assert '<span class="marke">structure</span>' in html
+    assert '<span class="marke">other</span>' in html
+    treffer = pruefe_sprache.deutsche_treffer("festlegungen", pruefe_sprache.nur_text(html))
+    assert treffer == []
+
+
+def test_festlegungen_in_dortmund_roh():
+    html = web._festlegungen_html(_festlegungen(), None)
+    for bereich in repo.FESTLEGUNG_BEREICHE:
+        marke = "figur · Nadia" if bereich == "figur" else bereich
+        assert f'<span class="marke">{marke}</span>' in html
+
+
+def test_pruefkennungen_in_padua_englisch(padua):
+    html = web._dramaturgie_html(_befunde())
+    assert '<span class="marke">consistent names</span>' in html
+    assert '<span class="marke">focus</span>' in html
+    assert "namensstabilitaet" not in html and "sprechanteil" not in html
+    treffer = pruefe_sprache.deutsche_treffer("dramaturgie", pruefe_sprache.nur_text(html))
+    assert treffer == []
+
+
+def test_pruefkennungen_in_dortmund_roh():
+    html = web._dramaturgie_html(_befunde())
+    for p in fanout.EBENEN:
+        assert f'<span class="marke">{p}</span>' in html
+
+
+def test_leeres_zitat_zeigt_strich():
+    assert web._zitat("") == "„—“"
+    assert web._zitat(None) == "„—“"
+
+
+def test_textzugriff_heisst_wie_das_modul():
+    """Auch unter ``python -m interview_theater.web`` (``__main__``) muss
+    ``T`` in der Tabelle ``["web"]`` nachschlagen."""
+    assert web.T._modul == "interview_theater.web"

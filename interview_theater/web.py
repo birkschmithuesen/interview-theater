@@ -537,6 +537,12 @@ SZENENFELD_BESCHRIFTUNG = {
 #: (Protokoll, ``szene.form``), der Wert die Anzeige -- deutsch der Wert
 #: selbst, damit Dortmund zeigt, was es immer zeigte. Das Dropdown setzt ihn
 #: mit ``capitalize()`` (wie ``knoepfe.biete_szenenform``).
+#:
+#: **Eine zweite Liste neben ``workshop.form_anzeige``**: die Schluessel sind
+#: die fuenf Formen der Vorgabe. Ein Profil mit einer anderen Formenliste
+#: zieht hier nicht nach -- eine unbekannte Form bleibt als Rohwert stehen
+#: (``_form_anzeige``). Offener Punkt fuer Aufgabe 29/32: diese Tabelle aus
+#: dem Profil speisen oder durch ``workshop.form_anzeige`` ersetzen.
 FORM_BESCHRIFTUNG = {
     "dialog": "dialog",
     "monolog": "monolog",
@@ -553,6 +559,45 @@ JOURNALART_BESCHRIFTUNG = {
     "entschieden": "entschieden",
     "offen": "offen",
     "notiert": "notiert",
+}
+
+#: Wie der Bereich einer Festlegung als Marke heisst -- Schluessel ist der
+#: Datenbankwert (``repo.FESTLEGUNG_BEREICHE``, Protokoll), deutsch der Wert
+#: selbst (K4). ``web`` importiert ``repo`` nicht; ein Test haelt die
+#: Schluessel deckungsgleich.
+FESTLEGUNG_BEREICH_BESCHRIFTUNG = {
+    "figur": "figur",
+    "gruppe": "gruppe",
+    "ort": "ort",
+    "struktur": "struktur",
+    "form": "form",
+    "stil": "stil",
+    "sonstiges": "sonstiges",
+}
+
+#: Wie eine Pruefkennung der Dramaturgie-Pruefung als Marke heisst --
+#: Schluessel ist ``dramaturgie_befund.pruefung`` (die Judge-Fragen aus
+#: ``fanout.PROMPTS`` und die mechanischen Pruefungen aus ``mechanik``, alle
+#: in ``fanout.EBENEN``), deutsch der Wert selbst (K4).
+PRUEFUNG_BESCHRIFTUNG = {
+    "a2": "a2",
+    "a6": "a6",
+    "a9": "a9",
+    "a10": "a10",
+    "a11": "a11",
+    "b1": "b1",
+    "c1": "c1",
+    "namensstabilitaet": "namensstabilitaet",
+    "geisterfigur": "geisterfigur",
+    "erstauftritt": "erstauftritt",
+    "figur_ohne_auftritt": "figur_ohne_auftritt",
+    "fokus": "fokus",
+    "besetzung_stumm": "besetzung_stumm",
+    "besetzung_fremd": "besetzung_fremd",
+    "formverteilung": "formverteilung",
+    "form_regel": "form_regel",
+    "tschechow": "tschechow",
+    "sprechanteil": "sprechanteil",
 }
 
 TEXT_SPEICHERN = "Speichern"
@@ -948,7 +993,7 @@ def _sprechweise(quelle) -> str:
 def _zitat(satz) -> str:
     """Ein woertliches Zitat in den Anfuehrungszeichen der Seitensprache --
     der Satz selbst bleibt, wie er ist (D7: Zitate werden nie uebersetzt)."""
-    return T._ZITAT.format(zitat=_t(satz, ""))
+    return T._ZITAT.format(zitat=_t(satz))
 
 
 def _form_anzeige(wert) -> str:
@@ -1107,7 +1152,8 @@ def _dramaturgie_html(daten: dict) -> str:
     zeilen = []
     for b in befunde:
         schwere = (b.get("schwere") or "").lower()
-        marke = b.get("pruefung") or ""
+        pruefung = b.get("pruefung") or ""
+        marke = T.PRUEFUNG_BESCHRIFTUNG.get(pruefung, pruefung)
         if b.get("szene") is not None:
             marke = f"{T._TEXT_SZENE_NR.format(nummer=b['szene'])} · {marke}"
         vorschlag = (b.get("vorschlag") or "").strip()
@@ -1189,7 +1235,8 @@ def _festlegungen_html(daten: dict, nonce_wert: str | None) -> str:
         return f'<p class="leer">{html.escape(T._TEXT_KEINE_FESTLEGUNGEN)}</p>'
     stuecke = []
     for z in zeilen:
-        marke = z["bereich"] + (f" · {z['bezug']}" if z.get("bezug") else "")
+        bereich = T.FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(z["bereich"], z["bereich"])
+        marke = bereich + (f" · {z['bezug']}" if z.get("bezug") else "")
         knopf = (
             _rahmen("", "festlegung_entfernen", z["id"], knopf=T.TEXT_ENTFERNEN)
             if nonce_wert

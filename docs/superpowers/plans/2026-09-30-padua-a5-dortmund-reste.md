@@ -3140,7 +3140,7 @@ EOF
 geblieben ist (`git status` muss sauber sein); wird hier doch noch etwas
 korrigiert, geht das in einen eigenen Commit.
 
-- [ ] **Schritt 1: Die ganze Suite**
+- [x] **Schritt 1: Die ganze Suite**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider
@@ -3154,7 +3154,7 @@ nicht anpassen. **Die Zahl ist ein Hinweis, das Ergebnis ist „0 failures, 0
 errors"**: wer einen Test zusaetzlich schreibt, weil er beim Umsetzen eine
 Luecke findet, soll ihn nicht wegen dieser Zeile weglassen.
 
-- [ ] **Schritt 2: Das Profil**
+- [x] **Schritt 2: Das Profil**
 
 ```bash
 python3.11 -m scripts.pruefe_profil dortmund-2026
@@ -3168,7 +3168,7 @@ Erwartet: alles `passed`. Das ist der zweite, strengere Nachweis: mit
 `IT_WORKSHOP=dortmund-2026` und ohne Variable entstehen zeichengleiche
 Prompts, und der nachgezogene Massstab stimmt.
 
-- [ ] **Schritt 3: Die Knopf-Zusagen am Quelltext**
+- [x] **Schritt 3: Die Knopf-Zusagen am Quelltext**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_knoepfe_struktur.py -v
@@ -3179,7 +3179,7 @@ Handler), `test_kein_handler_ruft_das_sprachmodell[_wirkung_szene_kuerzen]`
 und `…[_wirkung_geschichte_kuerzen]` (Zusage 2),
 `test_wirke_wird_nur_aus_behandle_gerufen` (Zusage 3).
 
-- [ ] **Schritt 4: Keine Echtdaten angefasst**
+- [x] **Schritt 4: Keine Echtdaten angefasst**
 
 ```bash
 git status --porcelain
@@ -3190,7 +3190,7 @@ Sitzungsdateien `.cc-*` / `.superpowers-brief-*`, die nicht ins Repo gehoeren
 und nicht committet werden), und
 `keine Betriebsdaten im Commit`.
 
-- [ ] **Schritt 5: Branch und Historie**
+- [x] **Schritt 5: Branch und Historie**
 
 ```bash
 git branch --show-current
@@ -3199,7 +3199,7 @@ git log --oneline origin/main..HEAD
 Erwartet: `padua-workshop/t_4489e2ad-plan-a5-dortmund-reste` und **sieben**
 Commits (A1 bis A7) plus der Plan-Commit. Kein Merge, kein Push.
 
-- [ ] **Schritt 6: Was offen bleibt, benennen**
+- [x] **Schritt 6: Was offen bleibt, benennen**
 
 In der Abschlussmeldung an Birk ausdruecklich aufzaehlen:
 

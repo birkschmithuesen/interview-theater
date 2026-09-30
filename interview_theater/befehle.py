@@ -59,8 +59,14 @@ _ENTFERNEN_JE_SPRACHE = {
     "de": _ENTFERNEN_WOERTER,
     "en": _ENTFERNEN_WOERTER | _ENTFERNEN_WOERTER_EN,
 }
+#: Nachbesserung (Review Commit 15d70a8, Befund 4, mit dem Interpreter
+#: gemessen): der Praefix kannte nur "scene", der Slash-Befehl heisst aber
+#: weiter "/szene" (Annahme A4) -- "/szene szene 2 remove" fiel bis zum
+#: Schreibauftrag durch, weil das Praefixwort "szene" nicht erkannt wurde.
+#: Jetzt akzeptiert der Praefix beide Schreibweisen.
+_SZENE_PRAEFIX_EN = r"(?:s(?:z|c)ene\s*)?"
 _SZENE_ENTFERNEN_EN = re.compile(
-    r"^(?:scene\s*)?(\d{1,3})\s+(?:"
+    r"^" + _SZENE_PRAEFIX_EN + r"(\d{1,3})\s+(?:"
     + "|".join(sorted(_ENTFERNEN_JE_SPRACHE["en"])) + r")\.?$",
     re.IGNORECASE,
 )
@@ -85,7 +91,12 @@ _SZENE_USA_LEER = re.compile(r"^usa\.?$", re.IGNORECASE)
 #: Sonderform faengt ``_SZENE_FELD`` den Text nicht (es verlangt einen Wert),
 #: und der Rest liefe als Szenen-SCHREIBauftrag ins Sprachmodell.
 _SZENE_FORM_LEER = re.compile(r"^(?:szene\s*)?(\d{1,3})\s+form\.?$", re.IGNORECASE)
-_SZENE_FORM_LEER_EN = re.compile(r"^(?:scene\s*)?(\d{1,3})\s+form\.?$", re.IGNORECASE)
+#: Nachbesserung (Review Commit 15d70a8, Befund 4, derselbe Praefix-Fund wie
+#: bei ``_SZENE_ENTFERNEN_EN``): "szene" war hier ebenso wenig erkannt wie
+#: dort, mit dem Interpreter nachgemessen.
+_SZENE_FORM_LEER_EN = re.compile(
+    r"^" + _SZENE_PRAEFIX_EN + r"(\d{1,3})\s+form\.?$", re.IGNORECASE
+)
 
 #: "/szene 2 ort Polizeikessel" -- Nummer, ein bekannter Feldname, der Wert.
 #: Der Korrekturweg zu den Szenenfeldern (05.09.2026), neben der Erkenner-art
@@ -97,8 +108,11 @@ _SZENE_FELD = re.compile(
 )
 #: Dieselben zwei Muster fuer eine englischsprachige Gruppe ("/szene scene 2
 #: ort ..."). Der Feldname selbst laeuft weiter ueber ``szene.feldname``.
+#: Nachbesserung (Review Commit 15d70a8, Befund 4): Praefix akzeptiert jetzt
+#: "szene" oder "scene", siehe ``_SZENE_PRAEFIX_EN``.
 _SZENE_FELD_EN = re.compile(
-    r"^(?:scene\s*)?(\d{1,3})\s+(\w+)\s+(.+)$", re.IGNORECASE | re.DOTALL
+    r"^" + _SZENE_PRAEFIX_EN + r"(\d{1,3})\s+(\w+)\s+(.+)$",
+    re.IGNORECASE | re.DOTALL,
 )
 
 

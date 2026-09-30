@@ -29,6 +29,13 @@ def test_auftrag_deutsch_wie_vorher(text, soll):
     ("write the scene", True), ("rewrite", True), ("start the interview", True),
     ("let's do an interview", True), ("interview done", True),
     ("I think the interview was good but long", False),
+    # Nachbesserung (Review Commit 15d70a8, Befund 2/3): "go" traf
+    # "How did the interview go?" ueber interview\b.{0,20}\b(start|begin|go)\b,
+    # und "re-?write" war unverankert und traf "I would rewrite the ending"
+    # mitten im Satz -- beides gemessen mit dem Interpreter, siehe
+    # task-22-report.md Nachbesserung.
+    ("How did the interview go?", False), ("The interview will go well", False),
+    ("I would rewrite the ending", False),
 ])
 def test_auftrag_englisch(englisch, text, soll):
     assert ablauf.ist_auftrag(text) is soll
@@ -43,6 +50,12 @@ def test_szenentext_deutsch_wie_vorher(text, soll):
 
 @pytest.mark.parametrize("text, soll", [
     ("show us scene 2", 2), ("read scene 3", 3), ("in scene 2 he should leave", None),
+    # Nachbesserung (Review Commit 15d70a8, Befund 1): ohne Wortgrenzen traf
+    # "read" den Substring in "already" und "what does" jede Frage --
+    # gemessen: "Scene 2 is already finished" -> 2, "what does she want in
+    # scene 3" -> 3. Siehe task-22-report.md Nachbesserung.
+    ("Scene 2 is already finished", None),
+    ("what does she want in scene 3", None),
 ])
 def test_szenentext_englisch(englisch, text, soll):
     assert ablauf.szenentext_gewuenscht(text) == soll
@@ -255,3 +268,46 @@ def test_szene_feld_deutsch_wie_vorher(conn, einst):
     _befehl(conn, einst, "/szene szene 2 ort Hafen")
     szene = repo.hole_szenen(conn, 1)[0]
     assert (szene["nummer"], szene["ort"]) == (2, "Hafen")
+
+
+# --- Nachbesserung (Review Commit 15d70a8, Befund 4) ---------------------
+#
+# ``_SZENE_ENTFERNEN_EN``/``_SZENE_FELD_EN`` kannten als Praefix nur
+# ``scene`` -- der Slash-Befehl selbst heisst aber weiterhin ``/szene``
+# (Annahme A4), und eine englischsprachige Gruppe, die diesen Namen beim
+# Tippen wiederholt ("/szene szene 2 remove"), fiel bis zum Schreibauftrag
+# durch: weder Entfernung noch Feld griffen, das Modell haette "szene 2
+# remove" als Szenentext-Auftrag bekommen. Gemessen mit dem Interpreter
+# (``_SZENE_ENTFERNEN_EN.match("szene 2 remove")`` -> ``None``, mit
+# ``scene`` statt ``szene`` -> Treffer). Fix: Praefix akzeptiert jetzt
+# ``szene`` ODER ``scene`` (``(?:s(?:z|c)ene\s*)?``).
+
+def test_szene_entfernen_englisch_mit_szene_praefix(conn, einst, englisch):
+    from interview_theater import repo
+
+    repo.lege_szene_an(conn, 1, 2, "Farewell", "Peter leaves", "PETER: Gone.")
+
+    _befehl(conn, einst, "/szene szene 2 remove")
+
+    assert repo.hole_szenen(conn, 1) == []
+
+
+def test_szene_feld_englisch_mit_szene_praefix(conn, einst, englisch):
+    from interview_theater import repo
+
+    _befehl(conn, einst, "/szene szene 2 ort Harbour")
+    szene = repo.hole_szenen(conn, 1)[0]
+    assert (szene["nummer"], szene["ort"]) == (2, "Harbour")
+
+
+def test_szene_form_leer_englisch_mit_szene_praefix(conn, einst, englisch, monkeypatch):
+    """Derselbe Praefix-Fund wie oben, hier fuer den dritten Ort mit
+    identischem Muster (``_SZENE_FORM_LEER_EN``) -- am Code entdeckt, nicht
+    im Befund benannt, aber derselbe Fehler."""
+    from interview_theater import knoepfe
+
+    gerufen = []
+    monkeypatch.setattr(knoepfe, "biete_szenenform",
+                        lambda conn, tg, chat_id, nummer: gerufen.append(nummer))
+    _befehl(conn, einst, "/szene szene 3 form")
+    assert gerufen == [3]

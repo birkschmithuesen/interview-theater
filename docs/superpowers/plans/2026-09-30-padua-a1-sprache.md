@@ -4328,6 +4328,26 @@ gelesen (Brief: „Profil waehlt"). Muster nach K5: deutsche Konstante bleibt,
 | `knoepfe/figuren._zahl_aus` Wortliste (118) | `eine … zwoelf` | `_ZAHLWOERTER_EN = {"one": 1, …, "twelve": 12}` (als Modulkonstante, die deutsche Liste bleibt im Funktionsrumpf wie sie ist) |
 | `begriffe._UMLAUTE`/`_ENDUNGEN` (48/60) | deutsche Stammbildung | `_ENDUNGEN_EN = ("ings", "ing", "ies", "es", "s", "ed")`; `stamm` waehlt je Sprache, Umlautfaltung nur fuer Deutsch |
 
+**Nachbesserung (Review Commit 15d70a8, alle vier Befunde mit dem
+Interpreter nachgemessen, siehe `task-22-report.md`):** die woertlich aus
+dem Plan-Brief uebernommenen Muster in Zeile 1 und Zeile 2 waren fehlerhaft.
+`_SZENENTEXT_WOERTER_EN` bekam Wortgrenzen (`\bshow\b|\bread\b|\blook at\b|
+\btext\b|\bwording\b`) und verlor `what does` -- ohne Wortgrenzen traf
+`read` den Substring in "already", `show` den in "shower", und `what does`
+allein jede Frage. `_AUFTRAGSFORMEN_EN` verlor `go` aus
+`interview\b.{0,20}\b(start|begin|go)\b` (traf harmlose Saetze wie "How did
+the interview go?"/"The interview will go well") und `re-?write` ist jetzt
+am Satzanfang verankert (`^\s*(please\s+)?re-?write\b`, traf sonst "I would
+rewrite the ending" mitten im Satz). In Zeile 6 (`_SZENE_FORM_LEER`/
+`_SZENE_FELD`) und in Zeile 3 (`_SZENE_ENTFERNEN_EN`) akzeptiert der Praefix
+jetzt `szene` ODER `scene` (`_SZENE_PRAEFIX_EN = r"(?:s(?:z|c)ene\s*)?"`,
+befehle.py) statt nur `scene` -- der Slash-Befehl heisst weiter `/szene`
+(Annahme A4), und "/szene szene 2 remove" fiel vorher bis zum
+Schreibauftrag durch. Dieselbe Praefix-Korrektur wurde zusaetzlich auf
+`_SZENE_FORM_LEER_EN` angewendet (identisches Muster, nicht im Befund
+benannt, aber derselbe Fehler, ebenfalls mit dem Interpreter bestaetigt).
+Tests: `tests/test_sprache_parser.py`.
+
 - [x] **Schritt 1: Tests** — `tests/test_sprache_parser.py`:
 
 ```python

@@ -1577,7 +1577,7 @@ AUSGANG_VERZ = "web-ausgang"
 def eingangspfad(audio_verz: str, chat_id: int, post_id: int, endung: str) -> Path
 ```
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_kanal_audio.py`:
 
@@ -1809,14 +1809,14 @@ def test_sende_datei_saeubert_den_dateinamen(conn, kanal):
     assert ".." not in pfad.parts
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_kanal_audio.py -q -p no:cacheprovider
 ```
 Erwartet: FAIL — `KeyError: 'endung'` bzw. `NotImplementedError: Aufgabe 3`.
 
-- [ ] **Schritt 3: `telegram.py` — der additive Schluessel**
+- [x] **Schritt 3: `telegram.py` — der additive Schluessel**
 
 Im Rueckgabe-Dict von `lies_nachricht` (heute Zeile 449–459) hinter `"dauer"` einfuegen:
 
@@ -1834,7 +1834,7 @@ Im Rueckgabe-Dict von `lies_nachricht` (heute Zeile 449–459) hinter `"dauer"` 
 Im Docstring von `lies_nachricht` einen Satz ergaenzen, dass `endung` optional ist und nur
 der Web-Kanal sie setzt.
 
-- [ ] **Schritt 4: `aufnahme.py` — die Endung des Zielpfads**
+- [x] **Schritt 4: `aufnahme.py` — die Endung des Zielpfads**
 
 Bei den Modulkonstanten (neben `HINWEIS_AB_S`) einfuegen:
 
@@ -1869,7 +1869,7 @@ Telegram-Betrieb bekommen `audio`-Nachrichten (m4a, mp3) und Dokumente heute ein
 `lies_nachricht` koennte die Endung aus `mime_type`/`file_name` ableiten. Nicht Teil dieser
 Karte, weil es den Telegram-Pfad aendert (E1).
 
-- [ ] **Schritt 5: `web_kanal.py` — die beiden Methoden**
+- [x] **Schritt 5: `web_kanal.py` — die beiden Methoden**
 
 Bei den Modulkonstanten:
 
@@ -1957,7 +1957,7 @@ def setze_web_datei(conn, post_id: int, pfad: str) -> None:
 
 `Path.is_relative_to` gibt es seit Python 3.9 — das Projekt laeuft auf 3.11.
 
-- [ ] **Schritt 6: Lauf, alles gruen**
+- [x] **Schritt 6: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_kanal_audio.py -q -p no:cacheprovider
@@ -1977,7 +1977,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2828 passed, 1 skipped`.
 
-- [ ] **Schritt 7: Commit**
+- [x] **Schritt 7: Commit**
 
 ```bash
 git add interview_theater/telegram.py interview_theater/aufnahme.py \

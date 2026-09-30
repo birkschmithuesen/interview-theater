@@ -55,6 +55,21 @@ POLL_SCHRITT_S = 0.25
 #: Praefix der ``file_id`` einer im Browser aufgenommenen Datei.
 _VERWEIS = "web:"
 
+#: Wo die im Browser aufgenommenen Segmente landen, bevor
+#: ``aufnahme.empfange`` sie an ihren Platz kopiert -- ein Unterverzeichnis
+#: je Gruppe unterhalb von ``IT_AUDIO``, damit der Loeschweg
+#: (``scripts/loeschen.py`` entfernt das Audioverzeichnis einer Gruppe) sie
+#: ohne Zutun mitnimmt.
+EINGANG_VERZ = "web-eingang"
+
+#: Wo Dateien liegen, die der Bot verschickt (Textbuch-Export).
+AUSGANG_VERZ = "web-ausgang"
+
+
+def eingangspfad(audio_verz: str, chat_id: int, post_id: int, endung: str) -> Path:
+    """Wohin ein hochgeladenes Segment gehoert."""
+    return Path(audio_verz) / str(chat_id) / EINGANG_VERZ / f"{post_id}{endung}"
+
 
 def datei_verweis(post_id: int, endung: str) -> str:
     """Die ``file_id`` einer hochgeladenen Aufnahme: ``"web:<id><endung>"``.
@@ -232,8 +247,24 @@ class WebKanal:
         )
 
     def sende_datei(self, chat_id: int, dateiname: str, inhalt, beschreibung: str = "") -> int:
-        """Wird in Aufgabe 3 ausgefuellt."""
-        raise NotImplementedError("Aufgabe 3")
+        """Eine Datei (Telegram: ``sendDocument``) -- gebraucht fuer den
+        Textbuch-Export in Phase 7.
+
+        Im Browser wird daraus eine Zeile mit einem Herunterladen-Link; die
+        Datei liegt unter ``IT_AUDIO/<chat_id>/web-ausgang/`` und wird von
+        ``web_chat`` ausgeliefert (Aufgabe 6). Der Name wird gesaeubert: er
+        kommt heute aus dem Code, aber aus ihm entsteht ein Pfad."""
+        daten = inhalt.encode("utf-8") if isinstance(inhalt, str) else inhalt
+        sauber = Path(str(dateiname)).name or "datei"
+        post_id = repo.lege_web_post_an(
+            self._conn, chat_id, repo.RICHTUNG_AUS, repo.WEB_TYP_DATEI,
+            text=beschreibung or None, dateiname=sauber,
+        )
+        ziel = self._audio / str(chat_id) / AUSGANG_VERZ / f"{post_id}-{sauber}"
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        ziel.write_bytes(daten)
+        repo.setze_web_datei(self._conn, post_id, str(ziel))
+        return post_id
 
     def beantworte_knopf(self, callback_query_id: str, text: str = "") -> None:
         """Das Gegenstueck zu ``answerCallbackQuery``: der Text wird an den
@@ -300,5 +331,30 @@ class WebKanal:
         repo.setze_web_tippt(self._conn, chat_id, bis.isoformat(timespec="seconds"))
 
     def lade_datei(self, file_id: str, ziel) -> None:
-        """Wird in Aufgabe 3 ausgefuellt."""
-        raise NotImplementedError("Aufgabe 3")
+        """Kopiert ein hochgeladenes Segment an seinen Platz.
+
+        Das Gegenstueck zu ``Telegram.lade_datei`` (getFile + Download). Jede
+        Ausnahme ist hier der richtige Ausgang: ``aufnahme._lade_mit_wiederholung``
+        faengt sie, wiederholt mit ``stt.WARTEZEITEN`` und meldet danach der
+        Gruppe, sie moege es nochmal schicken. Stillschweigend eine leere
+        Datei anzulegen waere der falsche -- daraus wuerde ein Interview mit
+        erfundenem Inhalt (gemessen 05.09.2026, N2)."""
+        gelesen = lies_verweis(file_id)
+        if gelesen is None:
+            raise ValueError(f"kein Web-Dateiverweis: {file_id!r}")
+        post_id, _endung = gelesen
+        zeile = repo.hole_web_post(self._conn, post_id)
+        if zeile is None or not zeile["datei"]:
+            raise FileNotFoundError(f"Web-Aufnahme {post_id} ist nicht hinterlegt")
+
+        wurzel = self._audio.resolve()
+        quelle = Path(zeile["datei"]).resolve()
+        if not quelle.is_relative_to(wurzel):
+            # Die Spalte wird vom Webserver geschrieben. Ein Pfad ausserhalb
+            # von IT_AUDIO wuerde jede lesbare Datei des Servers in ein
+            # Transkript verwandeln.
+            raise ValueError(f"Web-Aufnahme {post_id} liegt ausserhalb von {wurzel}")
+
+        ziel = Path(ziel)
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        ziel.write_bytes(quelle.read_bytes())

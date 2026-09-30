@@ -3285,6 +3285,15 @@ def loesche_web_posts(conn, chat_id: int, message_ids: list) -> int:
 
 
 @_gesperrt
+def setze_web_datei(conn, post_id: int, pfad: str) -> None:
+    """Haelt fest, wo die Datei zu einer ``web_post``-Zeile liegt. Getrennt
+    vom Anlegen, weil der Pfad die id enthaelt: erst die Zeile, dann der
+    Name, dann der Verweis."""
+    conn.execute("UPDATE web_post SET datei = ? WHERE id = ?", (pfad, post_id))
+    conn.commit()
+
+
+@_gesperrt
 def setze_web_antwort(conn, post_id: int, text: str) -> None:
     """Der Text aus ``answerCallbackQuery`` zu einem Knopfdruck. Der Browser
     holt ihn beim naechsten Zustands-Poll ab -- in Telegram ist das die

@@ -170,6 +170,16 @@ Gelten fuer **jede** Aufgabe, auch wenn dort nicht wiederholt:
 Was beim Planen **nicht** geprueft werden konnte — je mit dem Kommando, das es klaert. Wer
 eine Aufgabe anfaengt, in der eine Annahme steckt, fuehrt das Kommando **zuerst** aus.
 
+**GEKLAERT durch den Architekten (30.09.2026, gemessen auf `d8deb6c` mit `hasattr`):**
+`repo.hole_phase` (repo.py:1675) **existiert**, `repo.hole_aufnahme` **existiert**,
+`phasen.aktuelle` **existiert**, `web_daten._phase` existiert **nicht**. Folge fuer die
+Umsetzung: in Aufgabe 12 bleibt `repo.hole_phase(c, CHAT)` stehen (Hinweis 1 dort ist damit
+erledigt); in Aufgabe 6 (`web_chatzustand`) wird die Phase **nicht** ueber `_phase` gelesen,
+sondern wie die bestehende Leseseite ueber `_feld(zeile, "phase")` aus `arbeitsstand`
+(web_daten.py:107) — keine neue Hilfsfunktion, kein `repo`-Import in `web_daten`.
+ANNAHME 2 ist ebenfalls geklaert: `sqlite3.sqlite_version` = **3.53.1** (≥ 3.35, `DROP COLUMN`
+geht). Die Pruefkommandos unten bleiben als Nachweis stehen.
+
 **ANNAHME 1 (Aufgaben 6, 12, 13):** Die Namen der Lesefunktionen, die die Tests benutzen,
 stimmen. Geprueft am Code sind `repo.hole_gruppe`, `repo.hole_arbeitsstand`,
 `repo.ist_interviewmodus_an`, `repo.setze_interviewmodus`, `repo.setze_arbeitsstand`,
@@ -3041,10 +3051,14 @@ def web_chatzustand(conn, token: str, nach: int = 0) -> dict | None:
     ).fetchone()
     nachrichten = web_chatverlauf(conn, chat_id, nach)
     letzte = nachrichten[-1]["id"] if nachrichten else nach
+    # Phase wie web_daten.py:107 -- repo-frei, fehlende Spalte = None.
+    stand = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
     return {
         "chat_id": chat_id,
         "titel": gruppe["titel"] if gruppe else None,
-        "phase": _phase(conn, chat_id),
+        "phase": _feld(stand, "phase"),
         "interviewmodus": bool(gruppe and gruppe["interviewmodus_seit"]),
         "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
         "nachrichten": nachrichten,
@@ -3090,8 +3104,8 @@ def web_ausgangsdatei(conn, chat_id: int, post_id: int) -> dict | None:
     return {"pfad": zeile["datei"], "dateiname": zeile["dateiname"] or "datei"}
 ```
 
-`_phase` gibt es in `web_daten` schon (sonst: `repo`-frei aus `arbeitsstand`/`gruppe` lesen,
-wie die bestehende Dashboard-Abfrage). `json`, `datetime`, `timezone` im Modulkopf pruefen
+`_phase` gibt es in `web_daten` **nicht** (gemessen, siehe „Annahmen"): die Phase aus der
+`arbeitsstand`-Zeile ueber `_feld(zeile, "phase")` lesen wie web_daten.py:107, `repo`-frei. `json`, `datetime`, `timezone` im Modulkopf pruefen
 und ergaenzen.
 
 - [ ] **Schritt 4: `web_chat.py` — Filter, HTML, GET-Handler**

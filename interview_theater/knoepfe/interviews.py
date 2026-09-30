@@ -20,15 +20,7 @@ from interview_theater.knoepfe.texte import (
     ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
     ART_OHNE_KNOPF_WEITER, ART_STAND, ART_STT_SPRACHE, ART_TEIL_FERTIG,
     ART_TEIL_WEITER, ART_TRANSKRIPT, ART_ZUSAMMENFASSUNG, PHASE_INTERVIEWS,
-    STT_KNOEPFE, T,
-    _TEXT_AUFNAHME_BEENDEN, _TEXT_AUFNAHME_STARTEN, _TEXT_AUSWERTEN_ALLE_KNOPF,
-    _TEXT_AUSWERTEN_ALLE_LAEUFT, _TEXT_AUSWERTEN_ALLE_NICHTS,
-    _TEXT_AUSWERTEN_UNMOEGLICH, _TEXT_HILFE_KNOPF,
-    _TEXT_NAECHSTE_AUFNAHME_KNOPF, _TEXT_OHNE_KNOPF_FERTIG_KNOPF,
-    _TEXT_OHNE_KNOPF_JA_KNOPF, _TEXT_OHNE_KNOPF_NEIN_KNOPF,
-    _TEXT_OHNE_KNOPF_WEITER_KNOPF, _TEXT_STAND_KNOPF, _TEXT_TEIL_FERTIG_KNOPF,
-    _TEXT_TEIL_WEITER_KNOPF, _TEXT_TRANSKRIPT_KNOPF,
-    _TEXT_TROTZDEM_AUSWERTEN_KNOPF, _TEXT_ZUSAMMENFASSUNG_KNOPF, log,
+    STT_KNOEPFE, T, log,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _nimm_alte_leiste_ab, _phasenknopf, _sende_knoepfe,
@@ -82,7 +74,7 @@ def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True) -> int
     if not knopf:
         return tg.sende(chat_id, text)
     laeuft = repo.ist_interviewmodus_an(conn, chat_id)
-    beschriftung = _TEXT_AUFNAHME_BEENDEN if laeuft else _TEXT_AUFNAHME_STARTEN
+    beschriftung = T._TEXT_AUFNAHME_BEENDEN if laeuft else T._TEXT_AUFNAHME_STARTEN
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)
     return _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
 
@@ -111,11 +103,11 @@ def biete_nach_teil(conn, tg, chat_id: int, text: str) -> int:
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_TEIL_FERTIG)
     leiste = [
         (
-            _TEXT_TEIL_WEITER_KNOPF,
+            T._TEXT_TEIL_WEITER_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEIL_WEITER, None)),
         ),
         (
-            _TEXT_TEIL_FERTIG_KNOPF,
+            T._TEXT_TEIL_FERTIG_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TEIL_FERTIG, None)),
         ),
     ]
@@ -152,11 +144,11 @@ def biete_interview_ohne_knopf(
     wert = str(aufnahme_id)
     leiste = [
         (
-            _TEXT_OHNE_KNOPF_JA_KNOPF,
+            T._TEXT_OHNE_KNOPF_JA_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_OHNE_KNOPF_JA, wert)),
         ),
         (
-            _TEXT_OHNE_KNOPF_NEIN_KNOPF,
+            T._TEXT_OHNE_KNOPF_NEIN_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_OHNE_KNOPF_NEIN, wert)),
         ),
     ]
@@ -178,11 +170,11 @@ def biete_interview_ohne_knopf_weiter(conn, tg, chat_id: int, text: str, kopf_id
     wert = str(kopf_id)
     leiste = [
         (
-            _TEXT_OHNE_KNOPF_FERTIG_KNOPF,
+            T._TEXT_OHNE_KNOPF_FERTIG_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_OHNE_KNOPF_FERTIG, wert)),
         ),
         (
-            _TEXT_OHNE_KNOPF_WEITER_KNOPF,
+            T._TEXT_OHNE_KNOPF_WEITER_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_OHNE_KNOPF_WEITER, wert)),
         ),
     ]
@@ -213,7 +205,7 @@ def _auswerten_alle_knopf(conn, chat_id: int, ausser: int | None = None) -> tupl
     if not offen:
         return None
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_AUSWERTEN_ALLE, None)
-    return (_TEXT_AUSWERTEN_ALLE_KNOPF, _daten(knopf_id))
+    return (T._TEXT_AUSWERTEN_ALLE_KNOPF, _daten(knopf_id))
 
 
 def _aufnahme_anbieten(conn, chat_id: int, nur_phase_3: bool = False) -> bool:
@@ -258,7 +250,7 @@ def _interviewknoepfe(conn, chat_id: int, kopf_id: int) -> list[tuple[str, str]]
     auswerten")."""
     if repo.verdichtung_zu_aufnahme(conn, kopf_id) is not None:
         erster = (
-            _TEXT_ZUSAMMENFASSUNG_KNOPF,
+            T._TEXT_ZUSAMMENFASSUNG_KNOPF,
             _daten(
                 repo.lege_knopf_an(conn, chat_id, ART_ZUSAMMENFASSUNG, str(kopf_id))
             ),
@@ -267,13 +259,13 @@ def _interviewknoepfe(conn, chat_id: int, kopf_id: int) -> list[tuple[str, str]]
         # Unter der Mindestlaenge: hier gibt es nichts zu zeigen, nur
         # etwas zu erzwingen.
         erster = (
-            _TEXT_TROTZDEM_AUSWERTEN_KNOPF,
+            T._TEXT_TROTZDEM_AUSWERTEN_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_AUSWERTEN, str(kopf_id))),
         )
     return [
         erster,
         (
-            _TEXT_TRANSKRIPT_KNOPF,
+            T._TEXT_TRANSKRIPT_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_TRANSKRIPT, str(kopf_id))),
         ),
     ]
@@ -326,9 +318,9 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
     if _aufnahme_anbieten(conn, chat_id, nur_phase_3=True):
         knoepfe.append(
             (
-                _TEXT_NAECHSTE_AUFNAHME_KNOPF
+                T._TEXT_NAECHSTE_AUFNAHME_KNOPF
                 if not repo.ist_interviewmodus_an(conn, chat_id)
-                else _TEXT_AUFNAHME_BEENDEN,
+                else T._TEXT_AUFNAHME_BEENDEN,
                 _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
             )
         )
@@ -379,8 +371,8 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
     if _aufnahme_anbieten(conn, chat_id):
         knoepfe.append(
             (
-                _TEXT_AUFNAHME_STARTEN if not repo.ist_interviewmodus_an(conn, chat_id)
-                else _TEXT_AUFNAHME_BEENDEN,
+                T._TEXT_AUFNAHME_STARTEN if not repo.ist_interviewmodus_an(conn, chat_id)
+                else T._TEXT_AUFNAHME_BEENDEN,
                 _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
             )
         )
@@ -393,11 +385,11 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
             knoepfe.append(leitfadenknopf)
     knoepfe += [
         (
-            _TEXT_STAND_KNOPF,
+            T._TEXT_STAND_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_STAND, None)),
         ),
         (
-            _TEXT_HILFE_KNOPF,
+            T._TEXT_HILFE_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_HILFE, None)),
         ),
     ]
@@ -430,15 +422,15 @@ def _werte_alle_aus(conn, tg, klm, e, chat_id: int) -> str:
 
     offen = aufnahme.unausgewertete_interviews(conn, chat_id)
     if not offen:
-        tg.sende(chat_id, _TEXT_AUSWERTEN_ALLE_NICHTS)
-        return _TEXT_AUSWERTEN_ALLE_NICHTS
+        tg.sende(chat_id, T._TEXT_AUSWERTEN_ALLE_NICHTS)
+        return T._TEXT_AUSWERTEN_ALLE_NICHTS
     if klm is None:
         log.error("Auswerten-alle ohne Sprachmodell, chat_id=%s", chat_id)
-        tg.sende(chat_id, _TEXT_AUSWERTEN_UNMOEGLICH)
-        return _TEXT_AUSWERTEN_UNMOEGLICH
+        tg.sende(chat_id, T._TEXT_AUSWERTEN_UNMOEGLICH)
+        return T._TEXT_AUSWERTEN_UNMOEGLICH
 
     ids = [kopf["id"] for kopf in offen]
-    tg.sende(chat_id, _TEXT_AUSWERTEN_ALLE_LAEUFT)
+    tg.sende(chat_id, T._TEXT_AUSWERTEN_ALLE_LAEUFT)
 
     def _lauf() -> None:
         for kopf_id in ids:
@@ -448,4 +440,4 @@ def _werte_alle_aus(conn, tg, klm, e, chat_id: int) -> str:
                 log.exception("Auswertung fehlgeschlagen, aufnahme_id=%s", kopf_id)
 
     threading.Thread(target=_lauf, daemon=True).start()
-    return _TEXT_AUSWERTEN_ALLE_LAEUFT
+    return T._TEXT_AUSWERTEN_ALLE_LAEUFT

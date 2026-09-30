@@ -32,6 +32,8 @@ _NOTIERT.rahmen = "Setting"
 _NOTIERT.geschichte = "Story"
 _NOTIERT.einleitungen = "Lead-ins"
 _NOTIERT.fragen_weich = "Questions in softer wording"
+_TEXT_NOTIERT_ZEILE = "Noted:\n{feld}: {wert}"
+_TEXT_FELD_UEBERNOMMEN = "{feld} saved"
 _TEXT_KERNTHEMA_FRAGE = "Which core theme shall we take? Tap one - or tell me a different one."
 _TEXT_KERNTHEMA_KEINE = """\
 I don't have any suggestions yet - they come from the analysed \
@@ -163,6 +165,8 @@ _TEXT_FRAGEN_EIGENE = "Write your question or questions - I'll add them to the s
 _TEXT_FRAGEN_KEINE_AUSWAHL = "I don't know this selection any more."
 _TEXT_FRAGEN_UEBERNOMMEN = "Noted, your {anzahl} questions:"
 _TEXT_FRAGEN_NOTIERT = "Noted: questions {nummern}:"
+_TEXT_FRAGEN_QUITTUNG = "Questions saved"
+_JOURNAL_FRAGEN = "Questions: {wert}"
 TEXT_PRUEFUNG_LAEUFT = """\
 I'm going through the questions once more: which ones need a lead-in \
 sentence before you ask them to a stranger?"""
@@ -170,6 +174,8 @@ _TEXT_LEITFADEN_KNOPF = "Show interview guide"
 _TEXT_MENUE_ANDERS_KNOPF = "Something else"
 TEXT_ARBEIT_SENSIBILITAET = "🤔 I'm quickly going through the questions and softening the sensitive ones …"
 TEXT_ARBEIT_EROEFFNUNG = "✍️ Now the framing for the interview: how you start and how you finish …"
+_JOURNAL_EROEFFNUNG_FESTGELEGT = "Opening and closing agreed"
+_TEXT_EROEFFNUNG_QUITTUNG = "Opening saved"
 _TEXT_PRUEFUNG_LAEUFT = "I'm now reading your play once from start to finish. That takes a moment."
 _TEXT_PRUEFUNG_SZENE_KNOPF = "Revise scene {nummer}"
 _TEXT_PRUEFUNG_LASSEN_KNOPF = "Leave it"
@@ -236,6 +242,8 @@ _ERLEDIGT_FUER."7" = "All scene texts"
 _TEXT_PHASE_WEITER = "On to {phase}?"
 _TEXT_PHASE_NOCH_NICHT_KNOPF = "Change something first"
 _TEXT_NOCH_NICHT = "Good, we'll stay here."
+_TEXT_WEITER_ZU_KNOPF = "On to {phase}"
+_TEXT_ALLES_NOETIGE = "Everything needed"
 ANWEISUNGEN."1" = """\
 Suggest a list of terms to the group and attach it as a block \
 'VORSCHLAG BEGRIFFE:'."""

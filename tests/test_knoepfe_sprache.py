@@ -59,3 +59,28 @@ def test_eroeffnung_speichert_den_englischen_abschluss(conn):
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand["interview_eroeffnung"] == "Hi, we are from the theatre project."
     assert stand["interview_abschluss"] == "Thank you for your time."
+
+
+def _beschriftungen(tg):
+    return [text for _, _, leiste in tg.knoepfe for text, _daten in leiste]
+
+
+@pytest.mark.parametrize("profil, weiter, notiert, quittung", [
+    (None, "Weiter zu ", "Notiert:\nSetting: Ein Bahnhof", "Setting uebernommen"),
+    ("padua-2026", "On to ", "Noted:\nSetting: Ein Bahnhof", "Setting saved"),
+])
+def test_phasenknopf_und_notiert_zeile_folgen_dem_profil(
+        monkeypatch, conn, profil, weiter, notiert, quittung):
+    """Aufgabe 11: die frueheren Inline-Literale in ``basis`` (Phasenknopf,
+    Notiert-Zeile, Knopf-Quittung) laufen ueber T -- Deutsch zeichengleich
+    wie vorher, Englisch unter Padua."""
+    if profil:
+        monkeypatch.setenv(workshop.VARIABLE, profil)
+        workshop.vergiss()
+    tg = TelegramAttrappe()
+    knoepfe.biete_phase(conn, tg, 1, "Text", 2)
+    assert _beschriftungen(tg)[0].startswith(weiter)
+
+    antwort = knoepfe._speichere(conn, tg, 1, "rahmen|Ein Bahnhof", weiterfrage=False)
+    assert notiert in tg.texte
+    assert antwort == quittung

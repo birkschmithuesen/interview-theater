@@ -16,9 +16,7 @@ from interview_theater import phasen, repo
 
 from interview_theater.knoepfe.texte import (
     ART_NOCH_NICHT, ART_PHASE, PHASE_INTERVIEWS, PHASE_SCHAERFUNG,
-    PHASE_STUECKPRUEFUNG, PHASE_SZENEN, _ERLEDIGT_FUER,
-    _TEXT_KURZGESCHICHTE_BEREIT, _TEXT_PHASE_ANGEBOT, _TEXT_PHASE_NOCH_NICHT_KNOPF, _TEXT_PHASE_WEITER,
-    _TEXT_PROAKTIV,
+    PHASE_STUECKPRUEFUNG, PHASE_SZENEN, T,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _sende_knoepfe,
@@ -58,8 +56,8 @@ def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
     weiter_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(stufe))
     noch_nicht_id = repo.lege_knopf_an(conn, chat_id, ART_NOCH_NICHT, str(stufe))
     leiste = [
-        (f"Weiter zu {phasen.knopfbezeichnung(stufe)}", _daten(weiter_id)),
-        (_TEXT_PHASE_NOCH_NICHT_KNOPF, _daten(noch_nicht_id)),
+        (T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.knopfbezeichnung(stufe)), _daten(weiter_id)),
+        (T._TEXT_PHASE_NOCH_NICHT_KNOPF, _daten(noch_nicht_id)),
     ]
     text = _abschlusstext(conn, chat_id, stufe)
     message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
@@ -79,10 +77,10 @@ def _abschlusstext(conn, chat_id: int, stufe: int) -> str:
     from interview_theater import phasentexte
 
     jetzige = phasen.aktuelle(conn, chat_id)
-    frage = _TEXT_PHASE_WEITER.format(phase=phasen.knopfbezeichnung(stufe))
+    frage = T._TEXT_PHASE_WEITER.format(phase=phasen.knopfbezeichnung(stufe))
     if jetzige >= stufe:
-        return _TEXT_PHASE_ANGEBOT.format(
-            erledigt=_ERLEDIGT_FUER.get(stufe, "Alles Noetige"),
+        return T._TEXT_PHASE_ANGEBOT.format(
+            erledigt=T._ERLEDIGT_FUER.get(stufe, T._TEXT_ALLES_NOETIGE),
             phase=phasen.knopfbezeichnung(stufe),
         )
     return f"{phasentexte.abschluss(conn, chat_id, jetzige)}\n\n{frage}"
@@ -102,10 +100,10 @@ def biete_proaktiv(conn, tg, chat_id: int, phase: int, vorspann: str | None = No
     Deterministischer Systemtext, kein Modellaufruf. ``vorspann`` ist die
     Eintrittsnachricht der Phase (``phasentexte.eintritt``): Kopfzeile,
     Einleitung, Checkliste -- in DERSELBEN Nachricht wie die Frage."""
-    message_id = tg.sende(chat_id, _mit_vorspann(vorspann, _TEXT_PROAKTIV))
+    message_id = tg.sende(chat_id, _mit_vorspann(vorspann, T._TEXT_PROAKTIV))
     repo.merke_nachricht(
         conn, chat_id, message_id, None, 1, "text",
-        _mit_vorspann(vorspann, _TEXT_PROAKTIV), repo._jetzt(),
+        _mit_vorspann(vorspann, T._TEXT_PROAKTIV), repo._jetzt(),
     )
 
 
@@ -188,4 +186,4 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
             else:
                 # Die Frage ist beantwortet (oder es gibt kein US-Modell):
                 # dann steht hier gleich der Knopf, aus dem der Lauf startet.
-                biete_kurzgeschichte(conn, tg, chat_id, _TEXT_KURZGESCHICHTE_BEREIT)
+                biete_kurzgeschichte(conn, tg, chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)

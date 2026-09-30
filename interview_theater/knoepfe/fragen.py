@@ -14,13 +14,8 @@ import re
 from interview_theater import anweisungen, repo
 
 from interview_theater.knoepfe.texte import (
-    ANWEISUNG_EINLEITUNGEN, ANWEISUNG_EROEFFNUNG, ART_FRAGEN_ANDERE,
-    ART_FRAGEN_EIGENE, ART_FRAGEN_UEBERNEHMEN, ART_FRAGE_WAHL, ART_LEITFADEN,
-    FRAGEN_ZUR_WAHL, KNOPF_LAENGE, TEXT_ARBEIT_EROEFFNUNG,
-    TEXT_ARBEIT_SENSIBILITAET, TEXT_PRUEFUNG_LAEUFT, _HAKEN,
-    _TEXT_FRAGEN_ANDERE_KNOPF, _TEXT_FRAGEN_EIGENE_KNOPF,
-    _TEXT_FRAGEN_KEINE_AUSWAHL, _TEXT_FRAGEN_NOTIERT, _TEXT_FRAGEN_UEBERNOMMEN,
-    _TEXT_FRAGEN_WAHL, _TEXT_LEITFADEN_KNOPF,
+    ART_FRAGEN_ANDERE, ART_FRAGEN_EIGENE, ART_FRAGEN_UEBERNEHMEN,
+    ART_FRAGE_WAHL, ART_LEITFADEN, FRAGEN_ZUR_WAHL, KNOPF_LAENGE, _HAKEN, T,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _nimm_alte_leiste_ab, _starte_auftrag, offene_art,
@@ -79,11 +74,11 @@ def _fragenleiste(conn, chat_id: int) -> list[tuple[str, str]]:
     werden sie nicht mehr."""
     return [
         (
-            _TEXT_FRAGEN_EIGENE_KNOPF,
+            T._TEXT_FRAGEN_EIGENE_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_EIGENE, None)),
         ),
         (
-            _TEXT_FRAGEN_ANDERE_KNOPF,
+            T._TEXT_FRAGEN_ANDERE_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_ANDERE, None)),
         ),
     ]
@@ -131,7 +126,7 @@ def biete_fragenauswahl(conn, tg, chat_id: int, wert: str, text: str | None = No
     repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", wert)
     vorspann = (text or "").strip()
     nachricht = "\n\n".join(
-        teil for teil in (vorspann, fragenliste(conn, chat_id), _TEXT_FRAGEN_WAHL)
+        teil for teil in (vorspann, fragenliste(conn, chat_id), T._TEXT_FRAGEN_WAHL)
         if teil
     )
     # 06.09.2026 11:45 (Birk, live): KEINE Knoepfe unter der Fragenliste --
@@ -209,7 +204,7 @@ def nimm_fragennummern(conn, tg, klm, e, chat_id: int, text: str) -> bool:
     # FRAGEN_ANZAHL bleibt nur als Richtwert fuer den Prompt.
     ausgewaehlt = [fragen[n - 1] for n in nummern if n <= len(fragen)]
     if not ausgewaehlt:
-        tg.sende(chat_id, _TEXT_FRAGEN_KEINE_AUSWAHL)
+        tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
         return True
     return _uebernimm_fragen(
         conn, tg, klm, e, chat_id, ausgewaehlt, nummern=nummern,
@@ -234,12 +229,12 @@ def _uebernimm_fragen(conn, tg, klm, e, chat_id: int, ausgewaehlt: list[str],
                 ART_FRAGEN_EIGENE):
         _nimm_alte_leiste_ab(conn, tg, chat_id, art)
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", f"Fragen: {wert}", quelle="knopf",
+        conn, chat_id, "entschieden", T._JOURNAL_FRAGEN.format(wert=wert), quelle="knopf",
     )
     kopf = (
-        _TEXT_FRAGEN_NOTIERT.format(nummern=", ".join(str(n) for n in nummern))
+        T._TEXT_FRAGEN_NOTIERT.format(nummern=", ".join(str(n) for n in nummern))
         if nummern
-        else _TEXT_FRAGEN_UEBERNOMMEN.format(anzahl=len(ausgewaehlt))
+        else T._TEXT_FRAGEN_UEBERNOMMEN.format(anzahl=len(ausgewaehlt))
     )
     tg.sende(
         chat_id,
@@ -248,7 +243,7 @@ def _uebernimm_fragen(conn, tg, klm, e, chat_id: int, ausgewaehlt: list[str],
         ),
     )
     starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id)
-    return "Fragen uebernommen"
+    return T._TEXT_FRAGEN_QUITTUNG
 
 
 def starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id: int) -> bool:
@@ -272,10 +267,10 @@ def starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id: int) -> bool:
     fragen = (stand["fragen"] if stand else "") or ""
     if not fragen.strip():
         return False
-    tg.sende(chat_id, TEXT_PRUEFUNG_LAEUFT)
+    tg.sende(chat_id, T.TEXT_PRUEFUNG_LAEUFT)
     return _starte_auftrag(
-        conn, tg, klm, e, chat_id, ANWEISUNG_EINLEITUNGEN.format(fragen=fragen),
-        arbeitszeile=TEXT_ARBEIT_SENSIBILITAET, arbeitsart="sensibilitaet",
+        conn, tg, klm, e, chat_id, T.ANWEISUNG_EINLEITUNGEN.format(fragen=fragen),
+        arbeitszeile=T.TEXT_ARBEIT_SENSIBILITAET, arbeitsart="sensibilitaet",
     )
 
 
@@ -289,8 +284,8 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
     fragen = (stand["fragen"] if stand else "") or ""
     return _starte_auftrag(
         conn, tg, klm, e, chat_id,
-        anweisungen.fuelle(ANWEISUNG_EROEFFNUNG).format(fragen=fragen),
-        arbeitszeile=TEXT_ARBEIT_EROEFFNUNG, arbeitsart="eroeffnung",
+        anweisungen.fuelle(T.ANWEISUNG_EROEFFNUNG).format(fragen=fragen),
+        arbeitszeile=T.TEXT_ARBEIT_EROEFFNUNG, arbeitsart="eroeffnung",
     )
 
 
@@ -333,7 +328,7 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None) -> str:
     )
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
     repo.schreibe_journal(
-        conn, chat_id, "entschieden", "Eroeffnung und Abschluss festgelegt",
+        conn, chat_id, "entschieden", T._JOURNAL_EROEFFNUNG_FESTGELEGT,
         quelle="knopf",
     )
     # Und jetzt steht der Leitfaden -- die Gruppe soll ihn sehen, ohne
@@ -355,7 +350,7 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None) -> str:
     from interview_theater.knoepfe.stationen import biete_phase_proaktiv
 
     biete_phase_proaktiv(conn, tg, chat_id)
-    return "Eroeffnung uebernommen"
+    return T._TEXT_EROEFFNUNG_QUITTUNG
 
 
 def _leitfaden_knopf(conn, chat_id: int) -> tuple[str, str] | None:
@@ -365,6 +360,6 @@ def _leitfaden_knopf(conn, chat_id: int) -> tuple[str, str] | None:
     if not leitfaden.steht(conn, chat_id):
         return None
     return (
-        _TEXT_LEITFADEN_KNOPF,
+        T._TEXT_LEITFADEN_KNOPF,
         _daten(repo.lege_knopf_an(conn, chat_id, ART_LEITFADEN, None)),
     )

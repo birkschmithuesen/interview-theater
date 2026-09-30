@@ -306,6 +306,10 @@ _NOTIERT = {
     # Leiste, dieselbe Notiert-Zeile -- nur ein anderes Feld.
     "fragen_weich": "Fragen in weicher Fassung",
 }
+#: Die Notiert-Zeile selbst und die Knopf-Quittung dazu (``basis._speichere``;
+#: Karte A1, Aufgabe 11: vorher Inline-Literale).
+_TEXT_NOTIERT_ZEILE = "Notiert:\n{feld}: {wert}"
+_TEXT_FELD_UEBERNOMMEN = "{feld} uebernommen"
 
 #: Wo eine Art landet, wenn das Arbeitsstand-Feld anders heisst als der
 #: Vorschlagsmarker. Eine Tabelle statt eines ``if`` in ``_speichere``: der
@@ -650,6 +654,9 @@ _TEXT_FRAGEN_UEBERNOMMEN = "Notiert, eure {anzahl} Fragen:"
 #: Dasselbe, wenn die Gruppe die Nummern GESAGT hat (06.09.2026): die
 #: Nummern stehen mit drin, damit sie sieht, was der Bot verstanden hat.
 _TEXT_FRAGEN_NOTIERT = "Notiert: Fragen {nummern}:"
+#: Knopf-Quittung und Journalzeile zum Uebernehmen (``fragen._uebernimm_fragen``).
+_TEXT_FRAGEN_QUITTUNG = "Fragen uebernommen"
+_JOURNAL_FRAGEN = "Fragen: {wert}"
 #: Was der Bot sagt, waehrend die Sensibilitaetspruefung im Thread laeuft.
 #: Sie ist kein Selbstzweck und wird deshalb begruendet: die Gruppe soll
 #: wissen, warum der Bot nach dem Speichern noch etwas tut.
@@ -696,6 +703,10 @@ _ERSTER_ALS_WERT: dict[str, str] = {}
 #: stehen bleibt, liest sich wie eine haengende Aufgabe.
 TEXT_ARBEIT_SENSIBILITAET = "🤔 Ich sehe die Fragen kurz durch und formuliere heikle weicher …"
 TEXT_ARBEIT_EROEFFNUNG = "✍️ Jetzt die Einleitung fuers Interview: wie ihr anfangt und aufhoert …"
+#: Journalzeile und Knopf-Quittung, wenn Eroeffnung und Abschluss stehen
+#: (``fragen._speichere_eroeffnung``).
+_JOURNAL_EROEFFNUNG_FESTGELEGT = "Eroeffnung und Abschluss festgelegt"
+_TEXT_EROEFFNUNG_QUITTUNG = "Eroeffnung uebernommen"
 
 
 # --- Phase 7 · Schaerfung des Stuecks (06.09.2026) ------------------------
@@ -924,6 +935,11 @@ _TEXT_PHASE_WEITER = "Weiter zu {phase}?"
 #: schon. Die art (``ART_NOCH_NICHT``) und ihre Wirkung bleiben.
 _TEXT_PHASE_NOCH_NICHT_KNOPF = "Noch etwas aendern"
 _TEXT_NOCH_NICHT = "Gut, wir bleiben hier."
+#: Die Beschriftung des Phasenknopfs (``basis.biete_phase``,
+#: ``basis._phasenknopf``, ``stationen.biete_phase_proaktiv``).
+_TEXT_WEITER_ZU_KNOPF = "Weiter zu {phase}"
+#: Rueckfall fuer ``_ERLEDIGT_FUER`` -- im Aufruf, nicht in einer Signatur (K1).
+_TEXT_ALLES_NOETIGE = "Alles Noetige"
 
 
 #: Was "Schlag du vor" je Phase vom Modell verlangt -- die Anweisung, die

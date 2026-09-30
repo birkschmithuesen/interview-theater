@@ -3408,7 +3408,7 @@ Heuristik nicht fasst, findet
 `grep -nE "(sende|_sende_knoepfe|_sende_menue|beantworte)\([^)]*\"[A-Z]" interview_theater/knoepfe/{basis,fragen,interviews,stationen}.py`
 — jedes deutsche davon wird ebenfalls eine Konstante.
 
-- [ ] **Schritt 1: `UMGESTELLT` ergaenzen, rot sehen**
+- [x] **Schritt 1: `UMGESTELLT` ergaenzen, rot sehen**
 
 `UMGESTELLT |= {"knoepfe.basis", "knoepfe.fragen", "knoepfe.interviews", "knoepfe.stationen"}`
 
@@ -3417,7 +3417,7 @@ Expected: FAIL in `test_keine_nackte_verwendung[knoepfe.basis]` usw. mit der
 Liste der Zeilen, und `test_keine_deutschen_inline_texte[...]` mit den
 Literalen oben. **Diese Ausgabe ist die Arbeitsliste.**
 
-- [ ] **Schritt 2: Umstellen** nach den fuenf Schritten am Ende von
+- [x] **Schritt 2: Umstellen** nach den fuenf Schritten am Ende von
   Aufgabe 5. Beispiel `stationen.py:94–97` vorher/nachher:
 
 ```python
@@ -3440,7 +3440,7 @@ Literalen oben. **Diese Ausgabe ist die Arbeitsliste.**
   und die Importliste `from interview_theater.knoepfe.texte import (ART_NOCH_NICHT,
   ART_PHASE, PHASE_INTERVIEWS, …, T)` ohne die `_TEXT_*`-Namen.
 
-- [ ] **Schritt 3: Gruen sehen und nachweisen**
+- [x] **Schritt 3: Gruen sehen und nachweisen**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider tests/test_sprache_texte.py tests/test_sprache_bitgleich.py \
@@ -3450,11 +3450,11 @@ $PY -m scripts.pruefe_sprache --schluessel knoepfe.texte
 Expected: alle gruen, `0 Treffer`. `test_texte_*_wie_vor_a1` gruen heisst:
 kein deutscher Wert hat sich geaendert.
 
-- [ ] **Schritt 4: Mutationsnachweis** — in `stationen.py` eine Stelle
+- [x] **Schritt 4: Mutationsnachweis** — in `stationen.py` eine Stelle
   zurueck auf `_TEXT_PHASE_WEITER` (und den Namen wieder importieren) →
   `test_keine_nackte_verwendung[knoepfe.stationen]` rot.
 
-- [ ] **Schritt 5: SUITE, Commit**
+- [x] **Schritt 5: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider

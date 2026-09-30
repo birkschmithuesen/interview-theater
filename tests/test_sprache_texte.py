@@ -26,7 +26,10 @@ from interview_theater import sprache
 PAKET = pathlib.Path(sprache.__file__).resolve().parent
 
 #: Module (Kurzname), deren Texte ueber T laufen. Waechst je Aufgabe.
-UMGESTELLT: set[str] = {"anweisungen", "knoepfe.texte"}
+UMGESTELLT: set[str] = {
+    "anweisungen", "knoepfe.texte", "knoepfe.basis", "knoepfe.fragen",
+    "knoepfe.interviews", "knoepfe.stationen",
+}
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
 ALLE_MODULE = {
@@ -64,7 +67,10 @@ PARSER = {
 #: Deutsche Inline-Literale, die bleiben duerfen: Vorfall-Details
 #: (repo.merke_vorfall, Dashboard des Teams). Schluessel: Modul und die
 #: ersten 40 Zeichen des Literals, wie ``_inline_texte`` sie liefert.
-INLINE_ERLAUBT: dict[tuple[str, str], str] = {}
+INLINE_ERLAUBT: dict[tuple[str, str], str] = {
+    ("knoepfe.basis", "'{}' steht bereits und wurde durch einen"):
+        "Vorfall-Detail ueberschreiben_verhindert (repo.merke_vorfall)",
+}
 
 _STOPP = re.compile(
     r"\b(und|nicht|ist|ihr|euch|wir|ich|mit|fuer|für|auf|eine|noch|schon|"

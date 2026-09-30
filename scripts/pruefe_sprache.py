@@ -112,6 +112,13 @@ _FORMWERTE = frozenset({"dialog", "monolog", "chor", "lied", "rap"})
 #:   "nein", "n", "no"        -- ``befehle._SZENE_USA``/``_SZENE_USA_LEER``
 #:                                (``/szene usa ja|nein``)
 #:   "auto"                   -- ``befehle._SPRACHWERT`` (``/sprache auto``)
+#:   "off", "setting",
+#:   "remove", "delete",
+#:   "drop", "out"            -- die englischen Argumentwoerter aus Aufgabe 22
+#:                                (``befehle._AUS``, ``_STUECK_SYNONYME_EN``,
+#:                                ``_ENTFERNEN_WOERTER_EN``, ``_FESTLEGUNG_WEG_EN``);
+#:                                geschlossen mitgefuehrt, damit ein englischer
+#:                                Text sie als Befehlssyntax nennen darf
 #: Dazu die fuenf Formwerte (oben) und die Festlegungsbereiche aus
 #: ``repo.FESTLEGUNG_BEREICHE`` -- importiert statt dupliziert, damit ein
 #: neuer Bereich den Pruefer nicht stillschweigend uebergeht.
@@ -121,6 +128,7 @@ ARGUMENTWOERTER = frozenset({
     "ort", "zeit", "anlass", "figuren", "form",
     "usa", "ja", "j", "yes", "nein", "n", "no",
     "auto",
+    "off", "setting", "remove", "delete", "drop", "out",
 }) | _FORMWERTE | frozenset(FESTLEGUNG_BEREICHE)
 
 #: Laengstes Wort zuerst, damit z. B. "figuren" vor "figur" probiert wird

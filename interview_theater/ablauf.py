@@ -311,6 +311,25 @@ _AUFTRAGSFORMEN = (
 
 _AUFTRAG = re.compile("|".join(_AUFTRAGSFORMEN), re.IGNORECASE)
 
+#: Dieselben Auftragsformen fuer eine englischsprachige Gruppe (Karte A1,
+#: Aufgabe 22). Gewaehlt wird je Sprache des Profils, nicht vereinigt: was
+#: die Gruppe tippt, ist in ihrer Sprache -- die deutsche Liste bleibt
+#: dadurch fuer Dortmund zeichengleich wirksam.
+_AUFTRAGSFORMEN_EN = (
+    r"re-?write",
+    r"(write|make)\s*(me\s*|us\s*)?(the\s*)?scene\b",
+    r"^\s*(again|once more)\s*$",
+    r"^\s*(keep|continue)\s*writing\s*$",
+    r"^\s*write\s*it\s*out\s*$",
+    r"(start|begin)\s*(the\s*|an?\s*)?interview",
+    r"^\s*(start|stop|end)\s*(the\s*)?recording\s*$",
+    r"interview\b.{0,20}\b(start|begin|go)\b",
+    r"\b(start|begin|let'?s\s+do)\b.{0,20}\binterview\b",
+    r"(end|finish|stop)\s*(the\s*)?interview\b|interview\s*(done|finished|over)\b",
+)
+
+_AUFTRAG_EN = re.compile("|".join(_AUFTRAGSFORMEN_EN), re.IGNORECASE)
+
 #: Laengere Nachrichten sind keine reinen Auftraege mehr, sondern tragen
 #: Inhalt -- "Schreib Szene 1. Stell immer nur eine Frage auf einmal." ist
 #: beides, und die Regieanweisung darin darf nicht verlorengehen. 60 Zeichen
@@ -339,6 +358,10 @@ _SZENENTEXT_WOERTER = re.compile(
     r"was steht|zeigen",
     re.IGNORECASE,
 )
+#: Englische Fassung derselben zwei Bedingungen (Aufgabe 22), je Sprache
+#: gewaehlt.
+_SZENENTEXT_NUMMER_EN = re.compile(r"scene\s*(?:no\.?\s*|number\s*)?(\d{1,3})", re.I)
+_SZENENTEXT_WOERTER_EN = re.compile(r"show|read|look at|\btext\b|wording|what does", re.I)
 
 
 def szenentext_gewuenscht(text: str | None) -> int | None:
@@ -348,19 +371,24 @@ def szenentext_gewuenscht(text: str | None) -> int | None:
     roh = (text or "").strip()
     if not roh:
         return None
-    treffer = _SZENENTEXT_NUMMER.search(roh)
-    if treffer is None or _SZENENTEXT_WOERTER.search(roh) is None:
+    nummer = sprache.je_sprache({"de": _SZENENTEXT_NUMMER, "en": _SZENENTEXT_NUMMER_EN})
+    woerter = sprache.je_sprache({"de": _SZENENTEXT_WOERTER, "en": _SZENENTEXT_WOERTER_EN})
+    treffer = nummer.search(roh)
+    if treffer is None or woerter.search(roh) is None:
         return None
     return int(treffer.group(1))
 
 
 def ist_auftrag(text: str | None) -> bool:
     """Ist diese Nachricht nichts als ein Auftrag, den ein anderer Weg
-    ausfuehrt? Dann schweigt der Gespraechs-Bot (06.09.2026)."""
+    ausfuehrt? Dann schweigt der Gespraechs-Bot (06.09.2026). Die Muster
+    kommen aus der Sprache des Profils (Karte A1): eine englische Gruppe
+    schreibt 'write the scene'."""
     roh = (text or "").strip()
     if not roh or len(roh) > AUFTRAG_HOECHSTLAENGE:
         return False
-    return _AUFTRAG.search(roh) is not None
+    muster = sprache.je_sprache({"de": _AUFTRAG, "en": _AUFTRAG_EN})
+    return muster.search(roh) is not None
 
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit

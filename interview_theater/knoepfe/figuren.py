@@ -16,7 +16,7 @@ eine Druck statt zwoelf Modellaufrufen.
 import random
 import re
 
-from interview_theater import phasen, repo
+from interview_theater import phasen, repo, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_EIGENE, ART_FIGUREN_ANZAHL, ART_FIGUREN_ANZAHL_FREI,
@@ -96,6 +96,15 @@ def nimm_figurenanzahl_erwartung(chat_id: int) -> bool:
     return True
 
 
+#: Ausgeschriebene Zahlen fuer eine englischsprachige Gruppe (Karte A1,
+#: Aufgabe 22). Die deutsche Liste bleibt, wie sie war, im Rumpf von
+#: ``_zahl_aus``; gewaehlt wird je Sprache.
+_ZAHLWOERTER_EN = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
+
+
 def _zahl_aus(text: str) -> int | None:
     """Die erste Zahl in einer Nachricht, wenn sie im erlaubten Bereich liegt.
 
@@ -111,6 +120,7 @@ def _zahl_aus(text: str) -> int | None:
             "fuenf": 5, "fünf": 5, "sechs": 6, "sieben": 7, "acht": 8,
             "neun": 9, "zehn": 10, "elf": 11, "zwoelf": 12, "zwölf": 12,
         }
+        worte = sprache.je_sprache({"de": worte, "en": _ZAHLWOERTER_EN})
         gefunden = [
             wert for wort, wert in worte.items()
             if re.search(rf"\b{wort}\b", (text or "").lower())

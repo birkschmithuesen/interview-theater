@@ -4328,7 +4328,7 @@ gelesen (Brief: „Profil waehlt"). Muster nach K5: deutsche Konstante bleibt,
 | `knoepfe/figuren._zahl_aus` Wortliste (118) | `eine … zwoelf` | `_ZAHLWOERTER_EN = {"one": 1, …, "twelve": 12}` (als Modulkonstante, die deutsche Liste bleibt im Funktionsrumpf wie sie ist) |
 | `begriffe._UMLAUTE`/`_ENDUNGEN` (48/60) | deutsche Stammbildung | `_ENDUNGEN_EN = ("ings", "ing", "ies", "es", "s", "ed")`; `stamm` waehlt je Sprache, Umlautfaltung nur fuer Deutsch |
 
-- [ ] **Schritt 1: Tests** — `tests/test_sprache_parser.py`:
+- [x] **Schritt 1: Tests** — `tests/test_sprache_parser.py`:
 
 ```python
 """Parser zweisprachig (D5): Englisch wird erkannt, Deutsch bleibt, wie es war.
@@ -4424,12 +4424,12 @@ def test_befehl_entfernen_englisch(conn, einst, englisch):
     assert all(f["name"] != "Nadia" for f in repo.figuren(conn, 1))
 ```
 
-- [ ] **Schritt 2:** rot: die `…_englisch`-Tests scheitern (Sollwerte aus
+- [x] **Schritt 2:** rot: die `…_englisch`-Tests scheitern (Sollwerte aus
   der Messung: `write the scene` → heute `False`, `show us scene 2` → `None`,
   `the first and the third` → `[]`, `three` → `None`,
   `friendships` → `False`); die `…_wie_vorher`-Tests sind **gruen** und
   bleiben es.
-- [ ] **Schritt 3:** umsetzen nach K5. Beispiel `ablauf.py`:
+- [x] **Schritt 3:** umsetzen nach K5. Beispiel `ablauf.py`:
 
 ```python
 _AUFTRAG_EN = re.compile("|".join(_AUFTRAGSFORMEN_EN), re.IGNORECASE)
@@ -4450,10 +4450,10 @@ def ist_auftrag(text: str | None) -> bool:
   `repo.setze_figur`/`repo.figuren` — Namen am Code pruefen
   (`grep -n "^def setze_figur\|^def figuren" interview_theater/repo.py`);
   heisst der Getter anders, den Test anpassen, nicht den Code.
-- [ ] **Schritt 4:** gruen: `tests/test_sprache_parser.py tests/test_ablauf.py tests/test_befehle.py tests/test_knoepfe*.py tests/test_begriffe.py tests/test_sprache_bitgleich.py`.
-- [ ] **Schritt 5: Mutationsnachweis:** in `ist_auftrag` `_AUFTRAG_EN` durch
+- [x] **Schritt 4:** gruen: `tests/test_sprache_parser.py tests/test_ablauf.py tests/test_befehle.py tests/test_knoepfe*.py tests/test_begriffe.py tests/test_sprache_bitgleich.py`.
+- [x] **Schritt 5: Mutationsnachweis:** in `ist_auftrag` `_AUFTRAG_EN` durch
   `_AUFTRAG` ersetzen → `test_auftrag_englisch` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Gruppentext-Muster je Sprache: Auftraege, Szenentext, Nummern, Zahlen, Befehle (A1)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Gruppentext-Muster je Sprache: Auftraege, Szenentext, Nummern, Zahlen, Befehle (A1)"`.
 
 ---
 

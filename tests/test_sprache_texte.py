@@ -88,6 +88,8 @@ PARSER = {
     "ablauf._DENKSPUR_MARKER", "ablauf._DENKSPUR_EINDEUTIG",
     "ablauf._AUFTRAGSFORMEN", "ablauf._SYSTEMZEILEN",
     "befehle._ENTFERNEN_WOERTER", "kontext._SYSTEMANFAENGE",
+    # Aufgabe 22: Auswahltabellen je Sprache fuer Befehlsargumente (K5).
+    "befehle._ENTFERNEN_JE_SPRACHE", "befehle._AUS",
     "szene._ANDERS_NICHTS", "dramaturgie.mechanik._STRUKTUR",
     "dramaturgie.mechanik._TSCHECHOW_STOPP", "dramaturgie.mechanik._STRANG_STOPP",
     "vorspann.SCHAERFUNGSFORMELN", "stueckpruefung.FRAGEN",
@@ -133,7 +135,7 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail geschichte_war_formwahl (repo.merke_vorfall)",
     # Zahlwoerter in ``figuren._zahl_aus``: Parser fuer Gruppentext (D5),
     # die deutsche Liste bleibt im Funktionsrumpf; das englische Gegenstueck
-    # kommt in Aufgabe 22 als ``_ZAHLWOERTER_EN``.
+    # steht seit Aufgabe 22 als Modulkonstante ``_ZAHLWOERTER_EN`` daneben.
     ("knoepfe.figuren", "fünf"): "Parser-Wortliste _zahl_aus (Aufgabe 22)",
     ("knoepfe.figuren", "zwölf"): "Parser-Wortliste _zahl_aus (Aufgabe 22)",
     # Aufgabe 15: Vorfall-Details (repo.merke_vorfall, Dashboard des Teams).

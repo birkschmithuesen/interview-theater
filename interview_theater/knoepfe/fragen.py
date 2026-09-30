@@ -11,7 +11,7 @@ Nummern im Text (``lies_fragennummern``).
 
 import re
 
-from interview_theater import anweisungen, repo
+from interview_theater import anweisungen, repo, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_FRAGEN_ANDERE, ART_FRAGEN_EIGENE, ART_FRAGEN_UEBERNEHMEN,
@@ -145,6 +145,13 @@ _ORDINALWOERTER = {
     "zehnte": 10,
 }
 
+#: Dieselben Ordinalwoerter fuer eine englischsprachige Gruppe ("the second,
+#: fifth and ninth"), je Sprache gewaehlt (Karte A1, Aufgabe 22).
+_ORDINALWOERTER_EN = {
+    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+    "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+}
+
 
 def lies_fragennummern(text: str) -> list[int]:
     """Die genannten Fragennummern aus einem Satz, in der Reihenfolge des
@@ -163,6 +170,7 @@ def lies_fragennummern(text: str) -> list[int]:
         .replace("ß", "ss")
     )
     gefunden: list[int] = []
+    ordinalwoerter = sprache.je_sprache({"de": _ORDINALWOERTER, "en": _ORDINALWOERTER_EN})
 
     def merke(nummer: int) -> None:
         if 1 <= nummer <= FRAGEN_ZUR_WAHL and nummer not in gefunden:
@@ -172,8 +180,8 @@ def lies_fragennummern(text: str) -> list[int]:
         stueck = treffer.group()
         if stueck.isdigit():
             merke(int(stueck))
-        elif stueck in _ORDINALWOERTER:
-            merke(_ORDINALWOERTER[stueck])
+        elif stueck in ordinalwoerter:
+            merke(ordinalwoerter[stueck])
     return gefunden
 
 

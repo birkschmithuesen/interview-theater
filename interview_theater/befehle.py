@@ -49,6 +49,25 @@ _SZENE_ENTFERNEN = re.compile(
     re.IGNORECASE,
 )
 
+#: Die Befehlsargumente einer englischsprachigen Gruppe (Karte A1,
+#: Aufgabe 22). Gewaehlt wird je Sprache; die englische Wahl nimmt die
+#: deutschen Argumentwoerter **mit**, weil sie nach Annahme A4 Teil der
+#: Befehlssyntax bleiben und die englische Hilfe sie nennt
+#: ("/figur <name> entfernen", "/festlegung weg <search word>").
+_ENTFERNEN_WOERTER_EN = {"remove", "delete", "drop", "out"}
+_ENTFERNEN_JE_SPRACHE = {
+    "de": _ENTFERNEN_WOERTER,
+    "en": _ENTFERNEN_WOERTER | _ENTFERNEN_WOERTER_EN,
+}
+_SZENE_ENTFERNEN_EN = re.compile(
+    r"^(?:scene\s*)?(\d{1,3})\s+(?:"
+    + "|".join(sorted(_ENTFERNEN_JE_SPRACHE["en"])) + r")\.?$",
+    re.IGNORECASE,
+)
+
+#: Das Argument, das ein Feld wieder leert ("/kernthema aus").
+_AUS = {"de": ("aus",), "en": ("off", "aus")}
+
 #: "/szene usa ja" bzw. "/szene usa nein" -- die Antwort auf das
 #: Einwilligungs-Angebot fuer das US-Modell, deterministisch statt ueber den
 #: Erkenner. Eng gefasst: nur genau dieses eine Wortpaar, damit ein
@@ -66,6 +85,7 @@ _SZENE_USA_LEER = re.compile(r"^usa\.?$", re.IGNORECASE)
 #: Sonderform faengt ``_SZENE_FELD`` den Text nicht (es verlangt einen Wert),
 #: und der Rest liefe als Szenen-SCHREIBauftrag ins Sprachmodell.
 _SZENE_FORM_LEER = re.compile(r"^(?:szene\s*)?(\d{1,3})\s+form\.?$", re.IGNORECASE)
+_SZENE_FORM_LEER_EN = re.compile(r"^(?:scene\s*)?(\d{1,3})\s+form\.?$", re.IGNORECASE)
 
 #: "/szene 2 ort Polizeikessel" -- Nummer, ein bekannter Feldname, der Wert.
 #: Der Korrekturweg zu den Szenenfeldern (05.09.2026), neben der Erkenner-art
@@ -75,6 +95,16 @@ _SZENE_FORM_LEER = re.compile(r"^(?:szene\s*)?(\d{1,3})\s+form\.?$", re.IGNORECA
 _SZENE_FELD = re.compile(
     r"^(?:szene\s*)?(\d{1,3})\s+(\w+)\s+(.+)$", re.IGNORECASE | re.DOTALL
 )
+#: Dieselben zwei Muster fuer eine englischsprachige Gruppe ("/szene scene 2
+#: ort ..."). Der Feldname selbst laeuft weiter ueber ``szene.feldname``.
+_SZENE_FELD_EN = re.compile(
+    r"^(?:scene\s*)?(\d{1,3})\s+(\w+)\s+(.+)$", re.IGNORECASE | re.DOTALL
+)
+
+
+def _ist_aus(wert: str) -> bool:
+    """Ist ``wert`` das Leer-Argument der Sprache ("aus", englisch "off")?"""
+    return wert.lower() in sprache.je_sprache(_AUS)
 
 log = logging.getLogger(__name__)
 
@@ -375,6 +405,7 @@ def _befehl_stueck(conn, tg, chat_id: int, rest: str) -> None:
     felder = T._STUECK_FELDER
     feld, _, wert = rest.partition(" ")
     feld = feld.strip().lower()
+    feld = sprache.je_sprache({"de": {}, "en": _STUECK_SYNONYME_EN}).get(feld, feld)
     wert = wert.strip()
 
     if not feld:
@@ -399,7 +430,7 @@ def _befehl_stueck(conn, tg, chat_id: int, rest: str) -> None:
                 bezeichnung=bezeichnung, feld=feld, beispiel=beispiel),
         )
         return
-    if wert.lower() == "aus":
+    if _ist_aus(wert):
         entfernt = erkenner.entferne(conn, chat_id, feld, quelle="befehl")
         tg.sende(chat_id, _melde_entfernt(
             entfernt, T._TEXT_STUECK_NICHT_GESETZT.format(bezeichnung=bezeichnung)))
@@ -414,6 +445,10 @@ _BEISPIEL_ARBEITSSTAND = {
     "format": "Sprechtheater: Dialog und Chor",
     "rahmen": "Ein Wartezimmer, an einem Nachmittag",
 }
+
+#: "/stueck setting <text>" -- das englische Wort fuer das Feld ``rahmen``
+#: (Aufgabe 22). Nach aussen heisst ``rahmen`` ohnehin "Setting".
+_STUECK_SYNONYME_EN = {"setting": "rahmen"}
 
 
 def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
@@ -432,7 +467,7 @@ def _befehl_kernthema(conn, tg, chat_id: int, rest: str) -> None:
         if not knoepfe.biete_kernthema(conn, tg, chat_id):
             tg.sende(chat_id, T._TEXT_KERNTHEMA_LEER)
         return
-    if rest.lower() == "aus":
+    if _ist_aus(rest):
         entfernt = erkenner.entferne(conn, chat_id, "kernthema", quelle="befehl")
         tg.sende(chat_id, _melde_entfernt(entfernt, T._TEXT_KERNTHEMA_NICHT_GESETZT))
         return
@@ -461,7 +496,8 @@ def _befehl_figur(conn, tg, chat_id: int, rest: str) -> None:
     dasselbe waere genau die Doppelung, die die Befehlsliste am ersten
     Workshoptag von fuenfzehn auf sechs gebracht hat."""
     name, _, schlusswort = rest.rpartition(" ")
-    if schlusswort.lower().strip(".") not in _ENTFERNEN_WOERTER or not name.strip():
+    woerter = sprache.je_sprache(_ENTFERNEN_JE_SPRACHE)
+    if schlusswort.lower().strip(".") not in woerter or not name.strip():
         tg.sende(chat_id, T._TEXT_FIGUR_HILFE)
         return
     entfernt = erkenner.entferne(
@@ -488,6 +524,9 @@ _TEXT_FESTLEGUNG_UNBEKANNT = "Dazu habe ich nichts festgehalten."
 #: "weg" als erstes Wort nimmt zurueck. Eng gefasst und nur dieses eine Wort:
 #: "/festlegung wegstrecke: ..." soll eine Festlegung SETZEN.
 _FESTLEGUNG_WEG = re.compile(r"^weg\s+(.+)$", re.IGNORECASE | re.DOTALL)
+#: Englisch "remove"; "weg" gilt dort weiter (A4, die englische Hilfe nennt
+#: "/festlegung weg <search word>").
+_FESTLEGUNG_WEG_EN = re.compile(r"^remove\s+(.+)$", re.IGNORECASE | re.DOTALL)
 
 
 def _befehl_festlegung(conn, tg, chat_id: int, rest: str) -> None:
@@ -522,7 +561,10 @@ def _befehl_festlegung(conn, tg, chat_id: int, rest: str) -> None:
         tg.sende(chat_id, f"{kopf}\n\n{T._TEXT_FESTLEGUNG_HILFE}")
         return
 
-    weg = _FESTLEGUNG_WEG.match(rest)
+    weg = next(filter(None, (
+        muster.match(rest) for muster in sprache.je_sprache(
+            {"de": (_FESTLEGUNG_WEG,), "en": (_FESTLEGUNG_WEG_EN, _FESTLEGUNG_WEG)})
+    )), None)
     if weg:
         # Ueber ``erkenner.entferne`` und nicht direkt ueber ``repo``: es gibt
         # fuer beide Wege -- gesprochen und getippt -- nur eine Wahrheit, und
@@ -685,7 +727,7 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
 
 
 def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:
-    if rest.lower() == "aus":
+    if _ist_aus(rest):
         repo.setze_wortlaut_modus(conn, chat_id, None)
         tg.sende(chat_id, T._TEXT_WORTLAUT_AUS)
         return
@@ -719,7 +761,7 @@ def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:
     Die Abgrenzung ist eng: der zweite Token muss ein bekannter Feldname sein
     (``szene.FELD_ALIASE``). Alles andere ist ein Schreibauftrag -- "/szene 2
     nochmal, aber kuerzer" darf nicht als Feld 'nochmal' enden."""
-    treffer = _SZENE_FELD.match(rest)
+    treffer = sprache.je_sprache({"de": _SZENE_FELD, "en": _SZENE_FELD_EN}).match(rest)
     if treffer is None:
         return False
     feld = szene.feldname(treffer.group(2))
@@ -775,13 +817,15 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     # "/szene 2 form" ohne Wert: die sechs Formknoepfe. Muss VOR
     # _setze_szenenfeld stehen, sonst faellt der Text durch bis zum
     # Schreibauftrag.
-    form_leer = _SZENE_FORM_LEER.match(rest)
+    form_leer = sprache.je_sprache(
+        {"de": _SZENE_FORM_LEER, "en": _SZENE_FORM_LEER_EN}).match(rest)
     if form_leer:
         knoepfe.biete_szenenform(conn, tg, chat_id, int(form_leer.group(1)))
         return
     if _setze_szenenfeld(conn, tg, chat_id, rest):
         return
-    entfernung = _SZENE_ENTFERNEN.match(rest)
+    entfernung = sprache.je_sprache(
+        {"de": _SZENE_ENTFERNEN, "en": _SZENE_ENTFERNEN_EN}).match(rest)
     if entfernung:
         nummer = entfernung.group(1)
         entfernt = erkenner.entferne(conn, chat_id, f"szene {nummer}", quelle="befehl")

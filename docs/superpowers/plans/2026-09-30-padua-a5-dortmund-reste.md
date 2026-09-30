@@ -2144,7 +2144,7 @@ anderen Text.
 
 ### Schritte
 
-- [ ] **Schritt 1: Die fehlschlagenden Korpus-Tests schreiben**
+- [x] **Schritt 1: Die fehlschlagenden Korpus-Tests schreiben**
 
 1a — `tests/test_korpus.py:227` wieder auf den Stand von vor Aufgabe 4
 bringen (Kommentar zu `szene_kuerzen` entfernen):
@@ -2205,7 +2205,7 @@ def test_erkenner_haelt_die_laengengrenzfaelle(erkenner_faelle):
         )
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_korpus.py
@@ -2216,7 +2216,7 @@ Erwartet: rot in `test_erkenner_jede_art_mindestens_zweimal`
 `test_erkenner_haelt_die_laengengrenzfaelle` ist bereits gruen — sie haelt
 den heutigen Stand fest, damit er nicht in Schritt 4 mitwandert.
 
-- [ ] **Schritt 3: Den Prompt lehren**
+- [x] **Schritt 3: Den Prompt lehren**
 
 3a — `interview_theater/prompts/erkenner.md:14-18`: aus zwei Ausnahmen werden
 drei, und die Zahl im Kopf wandert mit.
@@ -2299,7 +2299,7 @@ und fuegt davor ein):
       entsteht ein ANDERER Text, hier derselbe in kuerzer.
 ```
 
-- [ ] **Schritt 4: Die fuenf Korpusfaelle**
+- [x] **Schritt 4: Die fuenf Korpusfaelle**
 
 An `korpus/erkenner.jsonl` **anhaengen** — je Fall eine Zeile, keine
 Leerzeile, echte Umlaute wie im Rest der Datei. Alle Namen frei erfunden und
@@ -2317,7 +2317,7 @@ Die drei bestehenden Grenzfaelle **bleiben unveraendert**: `n20` und `n27`
 mit leerem `erwartet`, `fl04` mit `festlegung_setzen`. Genau das haelt
 `test_erkenner_haelt_die_laengengrenzfaelle` fest.
 
-- [ ] **Schritt 5: Den Massstab nachziehen (die zwei Dateien von Hand)**
+- [x] **Schritt 5: Den Massstab nachziehen (die zwei Dateien von Hand)**
 
 5a — die neue Pruefsumme ermitteln:
 
@@ -2377,7 +2377,7 @@ gelesen — `tests/test_profil_bitgleich.py:133-136` liest nur den Rumpf
 zwischen den Markierungen (`\d+` im Muster). Nachzupruefen, indem der Test
 nach dem Lauf gruen ist; ist er es nicht, ist die Zahl anders zu bilden.
 
-- [ ] **Schritt 6: Gruen sehen**
+- [x] **Schritt 6: Gruen sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_korpus.py tests/test_profil_bitgleich.py tests/test_anweisungen.py tests/test_erkenner.py
@@ -2394,7 +2394,7 @@ python3.11 -m scripts.pruefe_profil dortmund-2026
 ```
 Erwartet: Exit 0.
 
-- [ ] **Schritt 7: Mutationsnachweis**
+- [x] **Schritt 7: Mutationsnachweis**
 
 1. Punkt 23 aus `interview_theater/prompts/erkenner.md` wieder entfernen →
    `python3.11 -m pytest -q -p no:cacheprovider tests/test_profil_bitgleich.py`
@@ -2449,7 +2449,7 @@ Umsetzer keinen Zugang, bleibt dieser Schritt offen und wird im Commit und in
 der Abschlussmeldung als offen benannt** — die uebrigen Teile der Karte
 haengen nicht daran.
 
-- [ ] **Schritt 9: Commit**
+- [x] **Schritt 9: Commit**
 
 ```bash
 git add interview_theater/prompts/erkenner.md korpus/erkenner.jsonl \

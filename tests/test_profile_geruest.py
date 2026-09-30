@@ -83,6 +83,23 @@ def test_padua_markiert_jede_unbelegte_angabe():
             "erlaubt"} <= felder, felder
 
 
+def test_padua_haengt_seine_verhaltensanweisung_an_jeden_gespraechsprompt(monkeypatch):
+    """Karte P: die Profil-Anweisung steht in jeder Phase hinter der
+    Phasenanweisung -- und nur unter Padua, nie unter Dortmund."""
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    anweisung = anweisungen.hole(anweisungen.PROFIL_ANWEISUNG).strip()
+    assert "VORSCHLAG" not in anweisung, "die Abnahme-Marke gehoert nur in den Dump"
+    for phase in range(1, 8):
+        assert anweisungen.system("padua1", phase).endswith(anweisung), phase
+    monkeypatch.setenv(workshop.VARIABLE, "dortmund-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    assert anweisung not in anweisungen.system("gruppe1", 1)
+    assert not (WURZEL / "dortmund-2026" / "prompts" / "anweisung.md").exists()
+
+
 def test_padua_phasen_und_formen_englisch():
     profil = workshop.lade("padua-2026")
     assert [n for _, n, _ in workshop.phasenliste(profil)] == [

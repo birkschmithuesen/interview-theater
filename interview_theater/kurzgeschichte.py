@@ -207,9 +207,45 @@ def systemanweisung() -> str:
     return "\n\n".join(teile)
 
 
-def baue_nutzertext(conn, chat_id: int, regie: str | None = None) -> str:
+#: Die Ueberschrift des Blocks mit der bestehenden Fassung (30.09.2026,
+#: Kuerzen). Nur gesetzt, wenn ``vorlage`` an ist: ein Auftrag "25 Prozent
+#: kuerzer" ueber einen Text, den das Modell nie sah, ist ein Neuschrieb.
+UEBERSCHRIFT_VORLAGE = (
+    "Die bisherige Fassung, die ihr ueberarbeitet (Abschnitt fuer Abschnitt):"
+)
+
+
+def vorlage_text(conn, chat_id: int) -> str:
+    """Die bestehenden Abschnitte mit Prosa -- Ueberschrift und Text, in der
+    Reihenfolge der Szenennummern -- als ein Block, oder "", wenn es keine
+    gibt. Reine Leseabfrage."""
+    from interview_theater import szene as szene_modul
+
+    abschnitte = []
+    szenen = sorted(
+        repo.hole_szenen(conn, chat_id), key=lambda s: s["nummer"] or 0
+    )
+    for s in szenen:
+        prosa = szene_modul.prosa_von(s)
+        if not prosa:
+            continue
+        titel = (s["titel"] or "").strip() or f"Abschnitt {s['nummer']}"
+        abschnitte.append(f"{s['nummer']}. {titel}\n\n{prosa}")
+    if not abschnitte:
+        return ""
+    return UEBERSCHRIFT_VORLAGE + "\n\n" + "\n\n".join(abschnitte)
+
+
+def baue_nutzertext(
+    conn, chat_id: int, regie: str | None = None, vorlage: bool = False,
+) -> str:
     """Setting, Figuren mit Sprachstil, Geschichte, Szenenfolge als
-    Anregung -- und eine Regie-Notiz, wenn die Gruppe eine hatte."""
+    Anregung -- und eine Regie-Notiz, wenn die Gruppe eine hatte.
+
+    ``vorlage`` an (Kuerzen): die bestehende Fassung steht als eigener Block
+    vor dem Auftrag. Ohne ``vorlage`` bleibt der Nutzertext zeichengleich
+    wie vorher. Eine Eingabe-Budgetpruefung gibt es in diesem Lauf nicht --
+    der Block ist hoechstens die eine Geschichte (1.500 bis 3.500 Woerter)."""
     from interview_theater import szenenfolge
 
     teile = [szenenfolge._erfundenes(conn, chat_id)]
@@ -220,6 +256,8 @@ def baue_nutzertext(conn, chat_id: int, regie: str | None = None) -> str:
     ]
     if stile:
         teile.append("So sprechen die Figuren:\n" + "\n".join(stile))
+    if vorlage:
+        teile.append(vorlage_text(conn, chat_id))
     auftrag = "Euer Auftrag:\nSchreib die Geschichte am Stueck."
     if regie and regie.strip():
         auftrag += f"\nDie Gruppe sagt dazu: {regie.strip()}"
@@ -227,9 +265,15 @@ def baue_nutzertext(conn, chat_id: int, regie: str | None = None) -> str:
     return "\n\n".join(t for t in teile if t)
 
 
-def starte(conn, tg, klm, e, chat_id: int, regie: str | None = None):
+def starte(
+    conn, tg, klm, e, chat_id: int, regie: str | None = None,
+    vorlage: bool = False,
+):
     """Kuendigt an und gibt den Lauf an einen eigenen Thread ab
-    (Zusage 2: kein Modellaufruf im Knopf-Handler)."""
+    (Zusage 2: kein Modellaufruf im Knopf-Handler).
+
+    ``vorlage`` reicht an ``baue_nutzertext`` durch: das Kuerzen braucht die
+    bestehende Fassung im Prompt."""
     if klm is None:
         log.error("Kurzgeschichte ohne Sprachmodell, chat_id=%s", chat_id)
         return None
@@ -247,7 +291,7 @@ def starte(conn, tg, klm, e, chat_id: int, regie: str | None = None):
         zeilen = arbeitszeilen.sichtbar(tg, chat_id, "prosa")
         try:
             system = systemanweisung()
-            nutzer = baue_nutzertext(conn, chat_id, regie)
+            nutzer = baue_nutzertext(conn, chat_id, regie, vorlage=vorlage)
             if szene_claude.ist_aktiv(e, conn, chat_id):
                 import httpx
 

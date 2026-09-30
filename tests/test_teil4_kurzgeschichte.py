@@ -234,14 +234,15 @@ def test_ein_lauf_legt_genau_die_abschnitte_als_szenen_an(conn, tg, einst, anzah
     verbunden = "\n".join(tg.texte)
     assert "Abschnitt Nummer 1" in verbunden
     assert f"Abschnitt Nummer {anzahl}" in verbunden
-    # Genau EINE Leiste mit den drei Wegen -- nicht je Abschnitt eine.
+    # Genau EINE Leiste mit den vier Wegen (seit 30.09.2026 mit "Kuerzer",
+    # C4) -- nicht je Abschnitt eine.
     leisten = [
         leiste for _, _, leiste in tg.knoepfe
         if any("Passt" in b[0] for b in leiste)
     ]
     assert len(leisten) == 1
     beschriftungen = [b[0] for b in leisten[0]]
-    assert len(beschriftungen) == 3
+    assert len(beschriftungen) == 4
 
 
 def test_zweiter_lauf_waehrend_des_ersten_wird_abgewiesen(conn, tg, einst):

@@ -478,6 +478,12 @@ _TEXT_SZENE_UNBEKANNT = "Diese Szene kenne ich nicht mehr."
 TEXT_PASST_KNOPF = "Passt"
 TEXT_NEU_KNOPF = "Neu schreiben"
 TEXT_NAECHSTE_KNOPF = "Naechste Szene"
+#: "Kuerzer" unter einem Szenentext und unter der Kurzgeschichte
+#: (30.09.2026, Massnahme C4). Der Prozentwert steht in
+#: ``kuerzung.PROZENT`` und wird am Aufrufort eingesetzt -- zwei Zahlen waeren
+#: zwei Wahrheiten.
+ART_SZENE_KUERZEN = "szene_kuerzen"
+TEXT_KUERZEN_KNOPF = "Kuerzer ({prozent} %)"
 _TEXT_PASST = "Szene {nummer} steht."
 _TEXT_SZENE_ANDERS_FRAGE = (
     "Was soll anders werden? Sagt es mir, dann schreibe ich sie neu."
@@ -707,6 +713,10 @@ ART_GESCHICHTE_SCHREIBEN = "geschichte_schreiben"
 ART_GESCHICHTE_PASST = "geschichte_passt"
 ART_GESCHICHTE_ANDERS = "geschichte_anders"
 ART_GESCHICHTE_NEU = "geschichte_neu"
+#: "Kuerzer" unter der ganzen Kurzgeschichte -- dieselbe Beschriftung
+#: (``TEXT_KUERZEN_KNOPF``), anderer Weg: ein Prosalauf ueber alle
+#: Abschnitte statt ein Szenenlauf.
+ART_GESCHICHTE_KUERZEN = "geschichte_kuerzen"
 
 TEXT_GESCHICHTE_SCHREIBEN_KNOPF = "Geschichte schreiben"
 _TEXT_GESCHICHTE_PASST_KNOPF = "Passt so"

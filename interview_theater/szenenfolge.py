@@ -28,7 +28,7 @@ import logging
 import re
 import threading
 
-from interview_theater import anweisungen, repo, workshop
+from interview_theater import anweisungen, repo, vorschlagssperre, workshop
 
 log = logging.getLogger(__name__)
 
@@ -201,20 +201,17 @@ class SzenenfolgeFehler(Exception):
     """Der Vorschlags-Aufruf lieferte nichts Verwertbares."""
 
 
-# Eine Sperre je chat_id, wie in ``szene.py`` und ``ablauf.py``: zwei
-# gleichzeitige Vorschlaege derselben Gruppe waeren zwei Listen im Chat, und
-# die Gruppe wuesste nicht, welche gilt.
-_sperren: dict[int, threading.Lock] = {}
-_sperren_schutz = threading.Lock()
-
-
+# Die Sperre liegt seit dem 30.09.2026 in ``vorschlagssperre.py`` und ist
+# dieselbe wie die der Schaerfung (Massnahme C7): zwei gleichzeitige
+# Vorschlaege derselben Gruppe waren zwei Fragen in einem Chatfenster, und
+# die Gruppe wusste nicht, auf welche sie antwortet. Nur die
+# Vorschlagslaeufe teilen sie -- Szenenlauf, Prosalauf und Gespraechszug
+# haben weiterhin ihr eigenes Register.
 def _sperre_fuer(chat_id: int) -> threading.Lock:
-    with _sperren_schutz:
-        sperre = _sperren.get(chat_id)
-        if sperre is None:
-            sperre = threading.Lock()
-            _sperren[chat_id] = sperre
-        return sperre
+    """Die gemeinsame Vorschlagssperre. Name und Rueckgabe bleiben, damit
+    Tests weiter ueber ``acquire(timeout=…)`` auf das Ende eines Laufs warten
+    koennen (tests/test_szenenfolge.py, tests/test_geschichte.py)."""
+    return vorschlagssperre.sperre_fuer(chat_id)
 
 
 # ---------------------------------------------------------------------------
@@ -444,6 +441,174 @@ def formabfolge(text: str) -> dict[int, str] | None:
         if form not in reihe:
             reihe.append(form)
     return {nummer: form for nummer, form in enumerate(reihe, start=1)}
+
+
+#: "Szene 3:" oder "Szene 3 -" mitten in einem Satz -- der Anker, an dem eine
+#: Richtungszeile ihre eigenen Szenen benennt.
+_SZENE_ANKER = re.compile(r"\bszene\s*(\d{1,2})\s*[:\-–—]\s*", re.IGNORECASE)
+
+#: Eine Form am ENDE eines Szenenstuecks, mit oder ohne Klammern
+#: ("Ankunft am Steg (Dialog)", "Ankunft — Dialog"). Absichtlich nur am Ende:
+#: "Der Chor am Morgen" ist ein Titel und keine Formangabe -- gemessen am
+#: 30.09.2026 an genau diesem Fall.
+_FORM_ANHANG = re.compile(
+    r"[\(\[]?\s*(" + "|".join(_FORMEN) + r")\s*[\)\]]?[\s.;,]*$", re.IGNORECASE
+)
+
+#: Der Journaleintrag, wenn die gewaehlte Richtung ihre Szenen mitbrachte.
+JOURNAL_INLINE = "Szenen aus der gewaehlten Richtung: {liste}"
+
+
+#: Laengster Titel, den eine Richtungszeile fuer eine Szene tragen darf.
+#: Laenger ist Fliesstext ("... weil er in Szene 2: nie wieder ..."), kein
+#: Titel -- dann gilt die ganze Zeile als ohne Szenen.
+TITEL_MAX = 80
+
+#: Vorfall, wenn eine Richtung Szenen nennt, deren Nummern Luecken oder
+#: Doppelungen haben ("Szene 1 … Szene 2 … Szene 4") -- sie werden dann NICHT
+#: uebernommen, und der Folge-Lauf schlaegt neu vor.
+VORFALL_RICHTUNG_UNVOLLSTAENDIG = "richtung_szenen_unvollstaendig"
+DETAIL_RICHTUNG_UNVOLLSTAENDIG = (
+    "Richtung nennt Szenen mit Luecken oder Doppelungen in der Nummerierung: {nummern}"
+)
+
+
+def _szenenstuecke(zeile: str) -> tuple[list[tuple[int, str, str]], bool]:
+    """Alle Anker einer Zeile mit nicht-leerem Titel, ungeprueft:
+    ``([(nummer, titel, form)], zu_lang)``. ``zu_lang`` ist wahr, sobald ein
+    Titel ueber ``TITEL_MAX`` liegt."""
+    roh = " ".join((zeile or "").split())
+    anker = list(_SZENE_ANKER.finditer(roh))
+    stuecke: list[tuple[int, str, str]] = []
+    zu_lang = False
+    for stelle, treffer in enumerate(anker):
+        ende = anker[stelle + 1].start() if stelle + 1 < len(anker) else len(roh)
+        stueck = roh[treffer.end():ende].strip()
+        form = ""
+        anhang = _FORM_ANHANG.search(stueck)
+        if anhang is not None:
+            form = anhang.group(1).lower()
+            stueck = stueck[:anhang.start()]
+        titel = stueck.strip(" .;,()[]–—-/|").strip()
+        if not titel:
+            continue
+        if len(titel) > TITEL_MAX:
+            zu_lang = True
+        stuecke.append((int(treffer.group(1)), titel, form))
+    return stuecke, zu_lang
+
+
+def szenen_in_zeile(zeile: str) -> list[tuple[int, str, str]]:
+    """Die Szenen, die EINE Richtungszeile innerhalb ihres Satzes benennt:
+    ``[(nummer, titel, form)]``. ``form`` ist "", wenn keine dasteht.
+
+    **Der Anlass** (30.09.2026, Massnahme C9 aus
+    ``docs/analyse-phase5-chaos-2026-09-06.md``): ein Richtungs-Knopf traegt
+    immer genau EINE Zeile (``knoepfe.sende_geschichte`` baut je Zeile einen
+    Knopf), und ``zerlege_geschichte`` findet in einer einzelnen Zeile nie
+    Szenen -- sie liest sie ab Zeile 3. Nennt die Richtung ihre Szenen also
+    im Satz, gingen Titel und Form verloren, und der Folge-Lauf danach
+    erfand sie neu.
+
+    **Eng erkannt, aus derselben Ueberlegung wie ``formabfolge``:**
+
+    * mindestens **zwei** Anker -- eine einzelne Nennung ("und in Szene 1
+      sehen wir das schon") ist ein Satz und keine Liste;
+    * je Anker ein nicht-leerer Titel, **hoechstens ``TITEL_MAX`` Zeichen**
+      -- laenger ist Fliesstext, und dann gilt die ganze Zeile nicht;
+    * die Nummern muessen **zusammenhaengend ab 1** laufen.
+      ``repo.gleiche_szenenfolge_ab`` nummeriert nach Position in der Liste
+      (``repo.py:2350``) -- aus "Szene 2" und "Szene 4" wuerden sonst die
+      Szenen 1 und 2, und eine falsche Zuordnung ist schlimmer als keine.
+
+    Die Form wird nur am **Ende** eines Stuecks gelesen (``_FORM_ANHANG``):
+    "Der Chor am Morgen" ist ein Titel, "Ankunft am Steg (Dialog)" eine
+    Formangabe."""
+    ergebnis, zu_lang = _szenenstuecke(zeile)
+    if zu_lang or len(ergebnis) < 2:
+        return []
+    if [n for n, _, _ in ergebnis] != list(range(1, len(ergebnis) + 1)):
+        return []
+    return ergebnis
+
+
+def nummern_unvollstaendig(zeile: str) -> list[int] | None:
+    """Nennt die Zeile mindestens zwei Szenen mit Titel, deren Nummern NICHT
+    zusammenhaengend ab 1 laufen (Luecke oder Doppelung)? Dann die Nummern,
+    sonst ``None``. Nur fuer den Vorfall: ``szenen_in_zeile`` verwirft
+    solche Zeilen, und das soll nicht still geschehen."""
+    stuecke, zu_lang = _szenenstuecke(zeile)
+    if zu_lang or len(stuecke) < 2:
+        return None
+    nummern = [n for n, _, _ in stuecke]
+    if nummern == list(range(1, len(nummern) + 1)):
+        return None
+    return nummern
+
+
+def _ist_formtitel(titel: str) -> bool:
+    """Beginnt der "Titel" mit einem Formwort ("Chor mit Dance", "Rap
+    eskaliert"), ist er eine Formangabe mit Zusatz und kein Titel."""
+    return _FORMWORT.match(titel) is not None
+
+
+def szenen_der_richtung(zeile: str) -> list[tuple[int, str, str]]:
+    """Die Szenen einer Richtungszeile, **wenn** sie wirklich eine Richtung
+    mit eigenen Szenen ist -- sonst ``[]``, und der Aufrufer bleibt beim
+    bisherigen Weg (``formabfolge`` → Formwahl, oder Folge-Lauf).
+
+    Gegen die Formwahl aus ``3290d70`` abgegrenzt, nicht davor gesetzt:
+
+    * ``szenen_in_zeile`` liefert mindestens zwei Szenen;
+    * **kein** Titel beginnt mit einem Formwort -- "Szene 1: Chor mit
+      Dance. Szene 2: Dialog mit Einschueben." ist eine Formwahl mit
+      Zusaetzen, keine Szenenfolge;
+    * jede Form, die ``formabfolge`` in der Zeile findet, steht genau als
+      Anhang am Titel derselben Szene. Findet ``formabfolge`` Formen, die
+      keine Anhaenge echter Titel sind, gewinnt die Formwahl -- sie sichert
+      das, was die Gruppe gedrueckt hat."""
+    inline = szenen_in_zeile(zeile)
+    if not inline:
+        return []
+    if any(_ist_formtitel(titel) for _n, titel, _f in inline):
+        return []
+    formen = formabfolge(zeile)
+    if formen:
+        anhaenge = {n: form for n, _t, form in inline if form}
+        if anhaenge != formen:
+            return []
+    return inline
+
+
+def lege_inline_an(
+    conn, chat_id: int, szenen: list[tuple[int, str, str]]
+) -> list[int]:
+    """Legt die Szenen einer Richtungszeile an und liefert die Nummern.
+
+    Ueber ``lege_an`` und damit ueber ``repo.gleiche_szenenfolge_ab`` --
+    abgleichend, nie ersetzend: eine bestehende Szene 1 behaelt ihren Text,
+    ihre Form und ihre Besetzung.
+
+    **Die Form geht in ``szene.form``, nicht in ``form_vorschlag``.** Die
+    Regel aus ``3290d70`` haelt den Vorschlag eines MODELLS aus dem Feld
+    heraus, nicht die Wahl der Gruppe -- und hier hat sie gedrueckt
+    (dieselbe Begruendung wie in ``knoepfe._uebernimm_formwahl``). Nennt die
+    Zeile keine Form, bleibt ``form`` leer und die Frage steht spaeter Szene
+    fuer Szene (``knoepfe.biete_szenenform``).
+
+    **Nur eine leere Form wird gesetzt.** ``repo.setze_szenenfeld`` kennt
+    ``GESCHUETZTE_SZENENFELDER`` nicht; eine per Knopf schon bestaetigte Form
+    einer bestehenden Szene bleibt deshalb hier eigens stehen."""
+    zeilen = [(titel, "", [], "", "") for _nummer, titel, _form in szenen]
+    nummern = lege_an(conn, chat_id, zeilen)
+    nach_nummer = {s["nummer"]: s for s in repo.hole_szenen(conn, chat_id)}
+    for nummer, _titel, form in szenen:
+        if not form:
+            continue
+        szene = nach_nummer.get(nummer)
+        if szene is not None and not (szene["form"] or "").strip():
+            repo.setze_szenenfeld(conn, szene["id"], "form", form)
+    return nummern
 
 
 def vorstellung(conn, zeile, chat_id: int | None = None) -> str:
@@ -802,6 +967,14 @@ def baue_nutzertext(conn, chat_id: int, anzahl: int, wunsch: str | None = None) 
 
 _TEXT_LAEUFT = "Ich schlage euch eine Szenenfolge vor, einen Moment."
 _TEXT_BESETZT = "Ich denke gerade schon ueber die Szenenfolge nach, gleich."
+#: Wenn ein ANDERER Vorschlagslauf die gemeinsame Sperre haelt (30.09.2026,
+#: C7). Anders als ``_TEXT_BESETZT`` ist das keine Abfuhr: der Auftrag ist
+#: gemerkt und laeuft, sobald der andere fertig ist
+#: (``vorschlagssperre.merke``).
+_TEXT_GEMERKT = (
+    "Ich denke noch ueber etwas anderes nach. Sobald ich damit fertig bin, "
+    "mache ich mit der Szenenfolge weiter."
+)
 _TEXT_FEHLER = (
     "Die Szenenfolge ist mir nicht gelungen. Sagt es nochmal, dann versuche "
     "ich es neu."
@@ -819,10 +992,12 @@ def _sende(conn, tg, e, chat_id: int, text: str) -> None:
 
 
 def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
-          sperre: threading.Lock, nachbereitung) -> None:
+          nachbereitung) -> None:
     """Der Thread-Rumpf: Modell fragen, Antwort mit Leiste ausspielen, Sperre
-    in JEDEM Fall freigeben -- bliebe sie liegen, koennte die Gruppe fuer den
-    Rest des Workshops keinen Vorschlag mehr bekommen (wie ``szene._lauf``).
+    in JEDEM Fall freigeben -- und dabei nachholen, was waehrenddessen
+    gemerkt wurde (``vorschlagssperre.gib_frei``). Bliebe sie liegen, koennte
+    die Gruppe fuer den Rest des Workshops keinen Vorschlag mehr bekommen
+    (wie ``szene._lauf``).
 
     Waehrenddessen laufen die Arbeitszeilen (06.09.2026, Birk 11:15): je
     Auftragsart eine eigene Liste, alle 15 s eine neue Zeile, am Ende
@@ -849,7 +1024,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
         _sende(conn, tg, e, chat_id, _TEXT_FEHLER)
     finally:
         zeilen.stoppe()
-        sperre.release()
+        vorschlagssperre.gib_frei(chat_id)
 
 
 def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
@@ -864,27 +1039,34 @@ def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
         log.error("Szenenfolge ohne Sprachmodell, chat_id=%s", chat_id)
         return None
     anzahl = int(anzahl or ANZAHL_VORGABE)
-    sperre = _sperre_fuer(chat_id)
-    if not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART, lambda: starte(conn, tg, klm, e, chat_id, anzahl, wunsch),
+    ):
+        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
         return None
-    _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
-
-    def _fertig(antwort: str) -> None:
-        from interview_theater import knoepfe
-
-        knoepfe.sende_szenenfolge(conn, tg, chat_id, antwort)
-
-    thread = threading.Thread(
-        target=_lauf,
-        args=(conn, tg, klm, e, chat_id, systemanweisung(anzahl),
-              baue_nutzertext(conn, chat_id, anzahl, wunsch), ART, sperre, _fertig),
-        daemon=True,
-    )
+    # Alles ab hier bis einschliesslich ``thread.start()`` steht unter
+    # derselben Wache: wirft ``_sende``, ``systemanweisung`` oder
+    # ``baue_nutzertext`` (z. B. ein kaputtes Profil, eine DB-Ausnahme),
+    # bliebe die Sperre sonst fuer die Prozesslaufzeit belegt -- alle
+    # weiteren Vorschlaege wuerden nur noch gemerkt, nie mehr genommen
+    # (30.09.2026, Sperr-Leck-Fund).
     try:
+        _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
+
+        def _fertig(antwort: str) -> None:
+            from interview_theater import knoepfe
+
+            knoepfe.sende_szenenfolge(conn, tg, chat_id, antwort)
+
+        thread = threading.Thread(
+            target=_lauf,
+            args=(conn, tg, klm, e, chat_id, systemanweisung(anzahl),
+                  baue_nutzertext(conn, chat_id, anzahl, wunsch), ART, _fertig),
+            daemon=True,
+        )
         thread.start()
-    except Exception:
-        sperre.release()
+    except BaseException:
+        vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
 
@@ -899,28 +1081,32 @@ def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
     if klm is None:
         log.error("Geschichte ohne Sprachmodell, chat_id=%s", chat_id)
         return None
-    sperre = _sperre_fuer(chat_id)
-    if not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART_GESCHICHTE,
+        lambda: starte_geschichte(conn, tg, klm, e, chat_id, anzahl, wunsch),
+    ):
+        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
         return None
-    _sende(conn, tg, e, chat_id, _TEXT_GESCHICHTE_LAEUFT)
-
-    def _fertig(antwort: str) -> None:
-        from interview_theater import knoepfe
-
-        knoepfe.sende_geschichte(conn, tg, chat_id, antwort)
-
-    thread = threading.Thread(
-        target=_lauf,
-        args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte(anzahl),
-              baue_nutzertext_geschichte(conn, chat_id, wunsch),
-              ART_GESCHICHTE, sperre, _fertig),
-        daemon=True,
-    )
+    # Sperr-Leck-Fund (30.09.2026): siehe ``starte`` -- alles bis
+    # ``thread.start()`` steht unter derselben Wache.
     try:
+        _sende(conn, tg, e, chat_id, _TEXT_GESCHICHTE_LAEUFT)
+
+        def _fertig(antwort: str) -> None:
+            from interview_theater import knoepfe
+
+            knoepfe.sende_geschichte(conn, tg, chat_id, antwort)
+
+        thread = threading.Thread(
+            target=_lauf,
+            args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte(anzahl),
+                  baue_nutzertext_geschichte(conn, chat_id, wunsch),
+                  ART_GESCHICHTE, _fertig),
+            daemon=True,
+        )
         thread.start()
-    except Exception:
-        sperre.release()
+    except BaseException:
+        vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
 
@@ -947,28 +1133,32 @@ def starte_geschichte_szenen(conn, tg, klm, e, chat_id: int,
     if klm is None:
         log.error("Szenenfolge ohne Sprachmodell, chat_id=%s", chat_id)
         return None
-    sperre = _sperre_fuer(chat_id)
-    if not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART,
+        lambda: starte_geschichte_szenen(conn, tg, klm, e, chat_id, anzahl, wunsch),
+    ):
+        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
         return None
-    _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
-
-    def _fertig(antwort: str) -> None:
-        from interview_theater import knoepfe
-
-        knoepfe.sende_szenenfolge(conn, tg, chat_id, antwort)
-
-    thread = threading.Thread(
-        target=_lauf,
-        args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte_szenen(),
-              baue_nutzertext_geschichte(conn, chat_id, wunsch), ART,
-              sperre, _fertig),
-        daemon=True,
-    )
+    # Sperr-Leck-Fund (30.09.2026): siehe ``starte`` -- alles bis
+    # ``thread.start()`` steht unter derselben Wache.
     try:
+        _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
+
+        def _fertig(antwort: str) -> None:
+            from interview_theater import knoepfe
+
+            knoepfe.sende_szenenfolge(conn, tg, chat_id, antwort)
+
+        thread = threading.Thread(
+            target=_lauf,
+            args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte_szenen(),
+                  baue_nutzertext_geschichte(conn, chat_id, wunsch), ART,
+                  _fertig),
+            daemon=True,
+        )
         thread.start()
-    except Exception:
-        sperre.release()
+    except BaseException:
+        vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
 
@@ -993,33 +1183,37 @@ def starte_feldvorschlag(conn, tg, klm, e, chat_id: int, ziel) -> threading.Thre
     if not fehlende:
         return None
     nummer = ziel["nummer"]
-    sperre = _sperre_fuer(chat_id)
-    if not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART_FELDER,
+        lambda: starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel),
+    ):
+        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
         return None
-    _sende(conn, tg, e, chat_id, _TEXT_FELDER_LAEUFT)
-    system = ANWEISUNG_FELDER.format(felder=", ".join(fehlende))
-    nutzer = "\n\n".join(
-        t for t in (
-            _material(conn, chat_id),
-            szene_modul._diese_szene_text(conn, ziel),
-            f"Euer Auftrag:\nSchlag die fehlenden Angaben fuer Szene {nummer} vor.",
-        ) if t
-    )
-
-    def _fertig(antwort: str) -> None:
-        from interview_theater import knoepfe
-
-        knoepfe.sende_szenenfelder(conn, tg, chat_id, nummer, antwort)
-
-    thread = threading.Thread(
-        target=_lauf,
-        args=(conn, tg, klm, e, chat_id, system, nutzer, ART_FELDER, sperre, _fertig),
-        daemon=True,
-    )
+    # Sperr-Leck-Fund (30.09.2026): siehe ``starte`` -- alles bis
+    # ``thread.start()`` steht unter derselben Wache.
     try:
+        _sende(conn, tg, e, chat_id, _TEXT_FELDER_LAEUFT)
+        system = ANWEISUNG_FELDER.format(felder=", ".join(fehlende))
+        nutzer = "\n\n".join(
+            t for t in (
+                _material(conn, chat_id),
+                szene_modul._diese_szene_text(conn, ziel),
+                f"Euer Auftrag:\nSchlag die fehlenden Angaben fuer Szene {nummer} vor.",
+            ) if t
+        )
+
+        def _fertig(antwort: str) -> None:
+            from interview_theater import knoepfe
+
+            knoepfe.sende_szenenfelder(conn, tg, chat_id, nummer, antwort)
+
+        thread = threading.Thread(
+            target=_lauf,
+            args=(conn, tg, klm, e, chat_id, system, nutzer, ART_FELDER, _fertig),
+            daemon=True,
+        )
         thread.start()
-    except Exception:
-        sperre.release()
+    except BaseException:
+        vorschlagssperre.gib_frei(chat_id)
         raise
     return thread

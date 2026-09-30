@@ -20,14 +20,15 @@ from interview_theater import repo
 from interview_theater.knoepfe.texte import (
     ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN, ART_DRAMATURGIE_SZENE,
     ART_DURCHLAUF_SZENE, ART_EIGENE, ART_FASSUNGEN, ART_GESCHICHTE_ANDERS,
-    ART_GESCHICHTE_NEU,
+    ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
     ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE,
     ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SZENENFELDER_SPEICHERN,
     ART_SZENENFOLGE_ANZAHL, ART_SZENENFOLGE_REIHENFOLGE,
     ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM, ART_SZENENSTIL,
-    ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_NAECHSTE, ART_SZENE_NEU,
+    ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN, ART_SZENE_NAECHSTE,
+    ART_SZENE_NEU,
     ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
     ART_SPRECHANTEILE, ART_TEXTBUCH,
@@ -35,6 +36,7 @@ from interview_theater.knoepfe.texte import (
     TEXT_DRAMATURGIE_KNOPF,
     TEXT_DURCHLAUF_SZENE_KNOPF, TEXT_EIGENE_IDEE_KNOPF, TEXT_FASSUNGEN_KNOPF,
     TEXT_FORM_VORSCHLAG_ZUSATZ, TEXT_GESCHICHTE_SCHREIBEN_KNOPF,
+    TEXT_KUERZEN_KNOPF,
     TEXT_NAECHSTE_KNOPF, TEXT_NEU_KNOPF, TEXT_PASST_KNOPF,
     TEXT_REIHENFOLGE_KNOPF, TEXT_SCHAERFUNG_RUNDE_KNOPF, TEXT_SPRECHANTEILE_KNOPF,
     TEXT_SZENE_FORM_KNOPF,
@@ -427,13 +429,23 @@ def starte_schaerfung(conn, tg, klm, e, chat_id: int) -> None:
 
     Kein Modellaufruf hier: ``schaerfung.starte`` gibt sofort ab (Zusage 2).
     Ohne Sprachmodell (Tests) bleibt der Weg trotzdem offen -- dann wird
-    gezeigt, was schon zugeordnet ist."""
+    gezeigt, was schon zugeordnet ist.
+
+    **``_TEXT_SCHAERFUNG_LAEUFT`` nur, wenn die Sperre wirklich frei war**
+    (30.09.2026, widerspruechliche Meldungen): haelt ein anderer
+    Vorschlagslauf die gemeinsame Sperre, schickt ``schaerfung.starte``
+    selbst ``TEXT_GEMERKT`` -- ein vorab gesendetes \"gleich\" waere dann eine
+    zweite, sich widersprechende Zeile im selben Chatfenster. Kein
+    Modellaufruf: ``vorschlagssperre.laeuft`` ist eine reine Abfrage."""
     from interview_theater import schaerfung as schaerfung_modul
+    from interview_theater import vorschlagssperre
 
     def _danach() -> None:
         biete_schaerfung(conn, tg, chat_id)
 
-    tg.sende(chat_id, _TEXT_SCHAERFUNG_LAEUFT)
+    frei = not vorschlagssperre.laeuft(chat_id)
+    if frei:
+        tg.sende(chat_id, _TEXT_SCHAERFUNG_LAEUFT)
     if schaerfung_modul.starte(conn, tg, klm, e, chat_id, nachbereitung=_danach) is None:
         biete_schaerfung(conn, tg, chat_id)
 
@@ -751,8 +763,8 @@ def biete_szene(conn, tg, chat_id: int, zeile) -> int:
 
 
 def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int:
-    """Die vier Knoepfe unter einem frisch geschriebenen Szenentext: "Passt" ·
-    "Passt, aber anders" · "Neu schreiben" · "Naechste Szene".
+    """Die fuenf Knoepfe unter einem frisch geschriebenen Szenentext: "Passt" ·
+    "Passt, aber anders" · "Kuerzer" · "Neu schreiben" · "Naechste Szene".
 
     Der Anlass (Birk, 05.09.2026): der Szenentext stand im Chat, und danach
     passierte nichts -- die Gruppe wusste nicht, ob sie zustimmen, aendern
@@ -761,9 +773,16 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
     (``repo.setze_szene_fertig``) und nicht bloss das Vorhandensein eines
     Textes.
 
+    **"Kuerzer" ist der fuenfte** (30.09.2026, C4): bis dahin gab es keinen
+    Kuerzungspfad, und eine Kuerzungsbitte im Chat wurde als neue
+    Szenenplanung wirksam. Er wirkt wie "Passt, aber anders", nur mit einer
+    festen Regie-Notiz statt einer Rueckfrage (``kuerzung.notiz_fuer_szene``).
+
     Ist es die letzte Szene und sind alle fertig, steht statt "Naechste
     Szene" der Weg weiter: "Weiter zu Durchlauf" -- ohne Nummer, wie jeder
     Phasenknopf hier."""
+    from interview_theater import kuerzung as kuerzung_modul
+
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
     leiste = [
         (
@@ -773,6 +792,10 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
         (
             TEXT_ANDERS_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_ANDERS, str(nummer))),
+        ),
+        (
+            TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_KUERZEN, str(nummer))),
         ),
         (
             TEXT_NEU_KNOPF,
@@ -1029,7 +1052,13 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
 
     Der alte Weg bleibt begehbar: liefert ein Modell noch einen Block MIT
     Szenenzeilen (der Prompt-Umbau aendert einen laufenden Zug nicht
-    rueckwirkend), werden sie wie bisher angelegt."""
+    rueckwirkend), werden sie wie bisher angelegt.
+
+    **Nennt die gewaehlte Richtung ihre Szenen selbst**, werden sie
+    mitgespeichert und der Folge-Lauf entfaellt (30.09.2026, C9,
+    ``szenenfolge.szenen_in_zeile``). Vorher war das der stille Verlust: die
+    Zeile stand vollstaendig im Arbeitsstand, aber Titel und Form wurden
+    eine Minute spaeter vom naechsten Vorschlag ueberschrieben."""
     from interview_theater import szenenfolge
 
     modus, _, wert = roh.partition(TRENNER)
@@ -1052,10 +1081,33 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     # 113 Zeichen Formwahl statt der 665 Zeichen langen, vierteiligen
     # Handlung. Spiegelbildlich zu ``erkenner._ist_geschichte``, das
     # denselben Fehler in der anderen Richtung abfaengt.
+    inline: list = []
     if not zeilen:
-        formen = szenenfolge.formabfolge(wert)
-        if formen:
-            return _uebernimm_formwahl(conn, tg, chat_id, wert, formen)
+        # **Nennt die Richtung ihre Szenen selbst** (C9), geht das vor die
+        # Formwahl -- aber nur, wenn die Szenen echte Titel tragen und jede
+        # Form, die ``formabfolge`` findet, ein Anhang genau dieser Titel ist
+        # (``szenenfolge.szenen_der_richtung``). Eine Menuezeile wie
+        # "Chor-Dialog-Rap — Szene 1: Chor, …" oder "Szene 1: Chor mit
+        # Dance. …" bleibt damit bei ``_uebernimm_formwahl`` (Praezedenz von
+        # 3290d70), egal ob vor dem ersten Anker ein Satz steht.
+        inline = szenenfolge.szenen_der_richtung(wert)
+        if not inline:
+            formen = szenenfolge.formabfolge(wert)
+            if formen:
+                return _uebernimm_formwahl(conn, tg, chat_id, wert, formen)
+            # Erst nach der Formwahl: eine Formabfolge mit Luecke ("Szene 1:
+            # Chor …, Szene 3: Rap …") ist eine Formwahl und keine
+            # unvollstaendige Szenenliste -- sonst stuenden zwei Vorfaelle
+            # fuer einen Druck da.
+            luecken = szenenfolge.nummern_unvollstaendig(wert)
+            if luecken:
+                repo.merke_vorfall(
+                    conn, chat_id, None,
+                    szenenfolge.VORFALL_RICHTUNG_UNVOLLSTAENDIG,
+                    szenenfolge.DETAIL_RICHTUNG_UNVOLLSTAENDIG.format(
+                        nummern=", ".join(str(n) for n in luecken)
+                    ),
+                )
     # Eine Richtung ist eine Zeile "Titel — Bogen, Ende, Konflikt": sie ist
     # die Geschichte, nicht ihr erster Satz.
     geschichte = wert.strip() if not zeilen else geschichte
@@ -1064,6 +1116,33 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         conn, chat_id, "entschieden", f"Geschichte: {geschichte}", quelle="knopf",
     )
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+    # **Nennt die Richtung ihre Szenen selbst, werden sie mitgespeichert**
+    # (30.09.2026, Massnahme C9). Ein Richtungs-Knopf traegt immer genau EINE
+    # Zeile; ``zerlege_geschichte`` liest Szenen erst ab Zeile 3 und findet
+    # darin nie welche. Eine Richtung wie "… Szene 1: Ankunft am Steg.
+    # Szene 2: Das Gestaendnis." verlor deshalb Titel und Form, und der
+    # Folge-Lauf danach erfand sie neu.
+    #
+    # Danach laeuft KEIN ``starte_geschichte_szenen``: ``titel`` steht nicht
+    # in ``repo.GESCHUETZTE_SZENENFELDER``, ein frischer Vorschlag wuerde die
+    # Titel der Gruppe also ueberschreiben -- und er kostet gemessene 110 s.
+    # Ein spaeter ausdruecklich bestellter Vorschlag ("Anzahl aendern") darf
+    # umbenennen; das ist dann eine Bestellung.
+    #
+    # Eine Formabfolge kommt hier nie an: sie ist oben in
+    # ``_uebernimm_formwahl`` abgezweigt (Praezedenz von 3290d70, und dort
+    # bleibt sie -- sie sichert genau das, was die Gruppe gedrueckt hat).
+    if not zeilen and inline:
+        nummern = szenenfolge.lege_inline_an(conn, chat_id, inline)
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            szenenfolge.JOURNAL_INLINE.format(
+                liste="; ".join(f"{n}. {t}" for n, t, _f in inline)
+            ),
+            quelle="knopf",
+        )
+        return _nach_szenen_gespeichert(conn, tg, chat_id, geschichte, modus,
+                                        len(nummern))
     if zeilen:
         nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
         repo.schreibe_journal(
@@ -1072,24 +1151,33 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
             + "; ".join(f"{n}. {z[0]}" for n, z in zip(nummern, zeilen)),
             quelle="knopf",
         )
-        tg.sende(
-            chat_id,
-            _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=len(nummern))
-            + "\n" + geschichte,
-        )
-        if modus.strip() == "anders":
-            repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
-            tg.sende(chat_id, _TEXT_ANDERS)
-            return "Gespeichert, was soll anders sein?"
-        phasenknopf = _phasenknopf(conn, chat_id)
-        if phasenknopf is not None:
-            _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
-        else:
-            tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
-        return f"Geschichte mit {len(nummern)} Szenen uebernommen"
+        return _nach_szenen_gespeichert(conn, tg, chat_id, geschichte, modus,
+                                        len(nummern))
     tg.sende(chat_id, _TEXT_RICHTUNG_GESPEICHERT + "\n" + geschichte)
     szenenfolge.starte_geschichte_szenen(conn, tg, klm, e, chat_id)
     return "Richtung uebernommen"
+
+
+def _nach_szenen_gespeichert(conn, tg, chat_id: int, geschichte: str,
+                             modus: str, anzahl: int) -> str:
+    """Der gemeinsame Schluss von ``_speichere_geschichte``, wenn mit der
+    Geschichte auch Szenen angelegt wurden -- aus einem alten Block mit
+    Szenenzeilen oder aus der gewaehlten Richtung selbst (C9). Bestaetigung,
+    bei "anders" die Rueckfrage, sonst die Frage nach dem naechsten Schritt."""
+    tg.sende(
+        chat_id,
+        _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=anzahl) + "\n" + geschichte,
+    )
+    if modus.strip() == "anders":
+        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
+        tg.sende(chat_id, _TEXT_ANDERS)
+        return "Gespeichert, was soll anders sein?"
+    phasenknopf = _phasenknopf(conn, chat_id)
+    if phasenknopf is not None:
+        _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
+    else:
+        tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
+    return f"Geschichte mit {anzahl} Szenen uebernommen"
 
 
 def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
@@ -1226,7 +1314,12 @@ def zeige_kurzgeschichte(conn, tg, chat_id: int) -> None:
     Geschichte, sondern die Antwort auf die Frage, die eine Gruppe mit
     dreizehn Figuren beim ersten Absatz hat -- wer ist wer. Deterministisch,
     ohne Modellaufruf, als eigene Nachricht: er soll ueber der Geschichte
-    stehen bleiben, wenn die weiterscrollt."""
+    stehen bleiben, wenn die weiterscrollt.
+
+    Seit dem 30.09.2026 sind es vier Wege: passt / anders / **kuerzer** /
+    ganz neu -- "kuerzer" ist der eine, der nichts erfragt, sondern eine
+    feste Notiz mitnimmt."""
+    from interview_theater import kuerzung as kuerzung_modul
     from interview_theater import telegram as telegram_modul, vorspann
 
     kopfzeilen = vorspann.als_chattext(vorspann.aus_datenbank(conn, chat_id))
@@ -1246,6 +1339,8 @@ def zeige_kurzgeschichte(conn, tg, chat_id: int) -> None:
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_PASST, None))),
         (_TEXT_GESCHICHTE_ANDERS_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_ANDERS, None))),
+        (TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_KUERZEN, None))),
         (_TEXT_GESCHICHTE_NEU_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_NEU, None))),
     ]

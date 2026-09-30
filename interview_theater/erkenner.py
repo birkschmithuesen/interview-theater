@@ -110,6 +110,21 @@ ARTEN = (
     # Deshalb hat sie in _wende_eine_an bewusst keinen Schreibpfad und wird
     # erst in laufe() ausgewertet.
     "szene_schreiben",
+    # Seit 30.09.2026 (Massnahme C10 aus
+    # docs/analyse-phase5-chaos-2026-09-06.md): "mach das kuerzer". Wie
+    # ``szene_schreiben`` ohne Schreibpfad -- sie stoesst eine Handlung an
+    # (interview_theater/kuerzung.py) -- aber mit einem anderen Ziel: derselbe
+    # Text wird KUERZER, er wird nicht neu.
+    #
+    # Der gemessene Anlass: am 06.09. gab es diesen Weg nicht, die
+    # Kuerzungsbitte lief in den Gespraechszug, das Gespraechsmodell
+    # antwortete mit einer neuen Szenenliste, und der Erkenner las sie als
+    # ``szene_planen``. Aus drei Szenen wurden sechs.
+    #
+    # ``wert``: die Szenennummer als Zahl, oder leer -- dann ist die ganze
+    # Kurzgeschichte gemeint. Auf "im Zweifel kein Eintrag" kalibriert wie
+    # ``szene_schreiben``: es kostet einen minutenlangen, bezahlten Lauf.
+    "szene_kuerzen",
     # Seit 05.09.2026 frueh (Birk): die Antwort der Gruppe auf das Angebot,
     # Szenentexte von einem US-Modell schreiben zu lassen. wert "ja" oder
     # "nein". Gilt nur, wenn der Bot das Angebot gestellt hat (die Frage
@@ -1244,6 +1259,11 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         # klm, die wende_an() bewusst nicht bekommt (es schreibt nur in die
         # Datenbank und schickt nie etwas).
         return None
+    if art == "szene_kuerzen":
+        # Kein Schreibpfad, aus demselben Grund wie szene_schreiben: eine
+        # Kuerzung ist kein Arbeitsstandfeld, sondern ein Lauf. Den stoesst
+        # laufe() an (dort gibt es tg und klm).
+        return None
     # Unbekannte art sollte erkenne() bereits herausgefiltert haben; bei
     # direktem Aufruf von wende_an() (z. B. in Tests) einfach ignorieren
     # statt zu krachen.
@@ -1605,6 +1625,55 @@ def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict], wirkl
     szene.starte(conn, tg, klm, e, chat_id, auftrag)
 
 
+def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
+                     aenderungen: list[dict]) -> None:
+    """Stoesst die Kuerzung an, wenn der Erkenner eine erkannt hat (art
+    ``szene_kuerzen``, interview_theater/kuerzung.py).
+
+    Nicht in ``wende_an``, aus demselben Grund wie ``_starte_szene``: dort
+    wird nur in die Datenbank geschrieben, hier faellt eine Nachricht in die
+    Gruppe an und ein minutenlanger Modellaufruf. ``kuerzung.starte`` gibt ihn
+    sofort an einen eigenen Thread ab.
+
+    **Hoechstens EINE je Lauf**, wie beim Schreibauftrag: die zweite liefe in
+    die Sperre je chat_id und ergaebe nur ein 'ich schreibe gerade noch'.
+
+    Ein leerer ``wert`` ist kein Fehler, sondern die Aussage "die ganze
+    Geschichte": nach einem Prosalauf gibt es keine Szenennummer zu nennen.
+
+    **Aber nur, solange Geschichten geschrieben werden** (30.09.2026,
+    vorlaeufige Voreinstellung, Entscheidung bei Birk): ab der Phase, in der
+    Theatertexte entstehen (``szene.schreibt_prosa`` falsch), liest die
+    Gruppe einen Theatertext -- ein Lauf ueber die ganze Kurzgeschichte waere
+    teuer und am Gemeinten vorbei. Dort gibt es ohne Nummer keinen Lauf,
+    sondern eine Rueckfrage in einem Satz (``kuerzung.TEXT_WELCHE_SZENE``).
+    Der Knopf "Kuerzer" unter der Kurzgeschichte ist davon nicht betroffen:
+    er meint die Geschichte ausdruecklich.
+
+    Den Pruef-Vermerk fuer spaetere Szenen setzt ``kuerzung.starte`` selbst,
+    wie auf dem Knopfweg."""
+    from interview_theater import kuerzung, szene  # spaeter Import, haelt den Modulkopf frei
+
+    treffer = next(
+        (a for a in aenderungen if a.get("art") == "szene_kuerzen"), None
+    )
+    if treffer is None:
+        return
+    nummer = kuerzung.nummer_aus_wert(treffer.get("wert"))
+    try:
+        if nummer is None and not szene.schreibt_prosa(conn, chat_id):
+            message_id = tg.sende(chat_id, kuerzung.TEXT_WELCHE_SZENE)
+            # Wie die Notiert-Meldung (siehe unten in ``laufe``): ohne diesen
+            # Eintrag sehen Erkenner und Gespraechsbot die Rueckfrage im
+            # naechsten Fenster nicht, wenn die Gruppe nur mit einer Zahl
+            # antwortet.
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, kuerzung.TEXT_WELCHE_SZENE)
+            return
+        kuerzung.starte(conn, tg, klm, e, chat_id, nummer)
+    except Exception:
+        log.exception("Kuerzung konnte nicht gestartet werden, chat_id=%s", chat_id)
+
+
 def _starte_sprachprofil(klm, tg, conn, e, chat_id: int, wirkliche: list[dict]) -> None:
     """Stoesst je bestaetigter Interview-Zuordnung einen Sprachprofil-Aufruf
     an (art ``figur_quelle_setzen``, interview_theater/sprachprofil.py).
@@ -1780,6 +1849,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.
         _starte_szene(klm, tg, conn, e, chat_id, aenderungen, wirkliche)
+        # Und dieselbe Bauart fuer die Kuerzung (30.09.2026, C10): aus den
+        # erkannten Aenderungen, weil sie wie ``szene_schreiben`` nichts in
+        # den Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.
+        _starte_kuerzung(klm, tg, conn, e, chat_id, aenderungen)
         text = baue_meldung(wirkliche)
         if text is None:
             _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)

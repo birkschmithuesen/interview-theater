@@ -32,7 +32,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from interview_theater import anweisungen, repo, zitat
+from interview_theater import anweisungen, repo, vorschlagssperre, zitat
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +71,18 @@ MELDUNG_LEER = (
 MELDUNG_OHNE_MATERIAL = (
     "Es gibt noch keine ausgewerteten Interviews, an denen ich schaerfen "
     "koennte."
+)
+
+#: Was ``starte`` liefert, wenn ein anderer Vorschlagslauf die gemeinsame
+#: Sperre haelt (30.09.2026, C7). Bewusst NICHT ``None``: ``None`` heisst
+#: "es gab nichts anzustossen", und ``knoepfe.starte_schaerfung`` spielt
+#: darauf die vorhandene Lage aus. Gemerkt heisst "kommt noch".
+GEMERKT = "gemerkt"
+
+#: Die Wartemeldung. Sie sagt, was passiert -- nicht, dass nichts passiert.
+TEXT_GEMERKT = (
+    "Ich denke noch ueber etwas anderes nach. Sobald ich damit fertig bin, "
+    "lege ich euer Material neben eure Geschichte."
 )
 
 
@@ -248,52 +260,87 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
 
     Ein Fehlschlag bleibt fuer die Gruppe **nicht** still: sie wartet gerade
     darauf (SPEC § 11.1). Die Nachbereitung laeuft in jedem Fall -- der Weg
-    durch die Phase darf an einem Mapping-Lauf nicht haengenbleiben."""
+    durch die Phase darf an einem Mapping-Lauf nicht haengenbleiben.
+
+    **Die gemeinsame Vorschlagssperre wird zuletzt freigegeben** (30.09.2026,
+    C7): erst wenn auch die Nachbereitung durch ist, steht die Gruppe nicht
+    mehr mitten in einer Frage -- ein Szenenfolge-Vorschlag, der sich
+    dazwischen legt, war der gemessene Fehler."""
     anzahl = 0
     from interview_theater import arbeitszeilen
 
-    zeilen = arbeitszeilen.sichtbar(tg, chat_id, "schaerfung")
     try:
-        anzahl, _ = mappe(klm, conn, e, chat_id)
-        meldung = MELDUNG.format(anzahl=anzahl) if anzahl else MELDUNG_LEER
-    except Exception:
-        log.exception("Schaerfung fehlgeschlagen, chat_id=%s", chat_id)
+        zeilen = arbeitszeilen.sichtbar(tg, chat_id, "schaerfung")
         try:
-            repo.merke_vorfall(
-                conn, chat_id, getattr(e, "bot_name", None),
-                "schaerfung_fehlgeschlagen", "Schaerfung fehlgeschlagen",
-            )
+            anzahl, _ = mappe(klm, conn, e, chat_id)
+            meldung = MELDUNG.format(anzahl=anzahl) if anzahl else MELDUNG_LEER
         except Exception:
-            log.exception("Vorfall zur Schaerfung nicht schreibbar")
-        meldung = None
+            log.exception("Schaerfung fehlgeschlagen, chat_id=%s", chat_id)
+            try:
+                repo.merke_vorfall(
+                    conn, chat_id, getattr(e, "bot_name", None),
+                    "schaerfung_fehlgeschlagen", "Schaerfung fehlgeschlagen",
+                )
+            except Exception:
+                log.exception("Vorfall zur Schaerfung nicht schreibbar")
+            meldung = None
+        finally:
+            zeilen.stoppe()
+        if meldung:
+            try:
+                message_id = tg.sende(chat_id, meldung)
+                repo.merke_bot_zeile(conn, chat_id, message_id, e, meldung)
+            except Exception:
+                log.exception(
+                    "Schaerfungs-Meldung fehlgeschlagen, chat_id=%s", chat_id
+                )
+        if nachbereitung is not None:
+            try:
+                nachbereitung()
+            except Exception:
+                log.exception(
+                    "Nachbereitung der Schaerfung gescheitert, chat_id=%s", chat_id
+                )
     finally:
-        zeilen.stoppe()
-    if meldung:
-        try:
-            message_id = tg.sende(chat_id, meldung)
-            repo.merke_bot_zeile(conn, chat_id, message_id, e, meldung)
-        except Exception:
-            log.exception("Schaerfungs-Meldung fehlgeschlagen, chat_id=%s", chat_id)
-    if nachbereitung is not None:
-        try:
-            nachbereitung()
-        except Exception:
-            log.exception("Nachbereitung der Schaerfung gescheitert, chat_id=%s", chat_id)
+        vorschlagssperre.gib_frei(chat_id)
 
 
 def starte(conn, tg, klm, e, chat_id: int, nachbereitung=None):
     """Gibt das Mapping an einen eigenen Thread ab -- dasselbe Muster wie
     ``kernzitate.starte`` und ``sprachprofil.starte`` (Zusage 2).
 
-    Liefert den Thread (fuer Tests) oder None, wenn es nichts anzustossen
-    gab."""
+    Liefert den Thread, ``GEMERKT``, wenn ein anderer Vorschlagslauf gerade
+    die gemeinsame Sperre haelt (der Auftrag laeuft dann automatisch nach),
+    oder ``None``, wenn es nichts anzustossen gab.
+
+    **Die Sperre ist dieselbe wie die der Szenenfolge** (30.09.2026, C7,
+    ``vorschlagssperre.py``). Bis dahin hatte dieser Lauf gar keine, und der
+    Phaseneintritt legte seine Vorschlaege zeitgleich ueber einen laufenden
+    Szenenfolge-Vorschlag."""
     if klm is None:
         log.error("Schaerfung ohne Sprachmodell, chat_id=%s", chat_id)
         return None
-    thread = threading.Thread(
-        target=_lauf, args=(conn, tg, klm, e, chat_id, nachbereitung), daemon=True,
-    )
-    thread.start()
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART, lambda: starte(conn, tg, klm, e, chat_id, nachbereitung),
+    ):
+        try:
+            message_id = tg.sende(chat_id, TEXT_GEMERKT)
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, TEXT_GEMERKT)
+        except Exception:
+            log.exception("Wartemeldung der Schaerfung fehlgeschlagen, chat_id=%s",
+                          chat_id)
+        return GEMERKT
+    # Sperr-Leck-Fund (30.09.2026): auch der Thread-Aufbau selbst steht unter
+    # der Wache -- eine Ausnahme beim Anlegen des ``Thread``-Objekts darf die
+    # Sperre nicht fuer die Prozesslaufzeit belegt lassen.
+    try:
+        thread = threading.Thread(
+            target=_lauf, args=(conn, tg, klm, e, chat_id, nachbereitung), daemon=True,
+        )
+        thread.start()
+    except BaseException:
+        vorschlagssperre.gib_frei(chat_id)
+        raise
     return thread
 
 

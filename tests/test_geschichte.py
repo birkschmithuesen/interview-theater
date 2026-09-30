@@ -13,9 +13,21 @@ Kein Netzzugriff: Telegram und Sprachmodell sind Attrappen.
 
 import pytest
 
-from interview_theater import knoepfe, phasen, repo, szenenfolge
+from interview_theater import knoepfe, phasen, repo, szenenfolge, vorschlagssperre
 
 from test_szenenfolge import TelegramAttrappe
+
+
+@pytest.fixture(autouse=True)
+def freie_vorschlagssperre():
+    """Einige Tests hier loesen ``szenenfolge.starte_geschichte``/
+    ``starte_geschichte_szenen`` wirklich aus (ueber ``knoepfe._wirke``/
+    ``behandle``, chat_id=1) statt sie wegzupatchen -- kein Zustand aus
+    einem frueheren Test soll die gemeinsame Vorschlagssperre besetzt
+    lassen (wie ``tests/test_szenenfolge.py``)."""
+    vorschlagssperre.vergiss(1)
+    yield
+    vorschlagssperre.vergiss(1)
 
 
 GESCHICHTE = """Ich schlage euch das vor.
@@ -425,3 +437,268 @@ def test_ohne_offene_art_bleibt_die_meldung_nackt(erfunden, tg, einst):
 
     assert tg.knoepfe == []
     assert any("bleiben gegen gehen" in t for _, t in tg.gesendet)
+
+
+# --- Die Szenen INNERHALB einer Richtungszeile (30.09.2026, C9) -----------
+#
+# Die Praemissenpruefung zu dieser Massnahme steht in
+# docs/superpowers/plans/2026-09-30-padua-a5-dortmund-reste.md: die Zeile
+# ``if not alter_block: zeilen = []`` verwirft heute nichts (auf dem
+# Menue-Weg ist der wert immer einzeilig). Was wirklich verlorengeht, sind
+# Szenen, die eine Richtung INNERHALB ihrer Zeile nennt.
+
+RICHTUNG_MIT_SZENEN = (
+    "Nacht am Kanal — Mira stellt sich, Pal gesteht, am Ende bleiben beide. "
+    "Szene 1: Ankunft am Steg. Szene 2: Das Gestaendnis. "
+    "Szene 3: Der Morgen danach."
+)
+RICHTUNG_MIT_SZENEN_UND_FORMEN = (
+    "Nacht am Kanal — Mira stellt sich, Pal gesteht. "
+    "Szene 1: Ankunft am Steg (Dialog). Szene 2: Das Gestaendnis (Monolog)."
+)
+
+
+def test_szenen_in_zeile_liest_titel_und_form():
+    assert szenenfolge.szenen_in_zeile(RICHTUNG_MIT_SZENEN) == [
+        (1, "Ankunft am Steg", ""),
+        (2, "Das Gestaendnis", ""),
+        (3, "Der Morgen danach", ""),
+    ]
+    assert szenenfolge.szenen_in_zeile(RICHTUNG_MIT_SZENEN_UND_FORMEN) == [
+        (1, "Ankunft am Steg", "dialog"),
+        (2, "Das Gestaendnis", "monolog"),
+    ]
+    # Mutationsnachweis (Schritt 6.3): ein ungebundener Formname wuerde
+    # "Der Chor am Morgen" auf "Der am Morgen" verstuemmeln -- die Form wird
+    # nur am ENDE eines Stuecks gelesen.
+    assert szenenfolge.szenen_in_zeile(
+        "Bogen. Szene 1: Ankunft (Dialog). Szene 2: Der Chor am Morgen (Chor)."
+    ) == [(1, "Ankunft", "dialog"), (2, "Der Chor am Morgen", "chor")]
+
+
+def test_szenen_in_zeile_erkennt_eng():
+    """Eine Handlung bleibt eine Handlung: eine einzelne Szenennennung, eine
+    Formenkette ohne Titel und eine Zeile ohne Szenen ergeben nichts.
+
+    Die Fehlerrichtung ist bewusst gewaehlt -- eine nicht erkannte
+    Szenennennung kostet, was sie heute kostet; eine faelschlich erkannte
+    kostet die Handlung."""
+    assert szenenfolge.szenen_in_zeile("Nur eine: Szene 1: Ankunft am Steg.") == []
+    assert szenenfolge.szenen_in_zeile("Chor-Dialog-Rap ueber drei Szenen") == []
+    assert szenenfolge.szenen_in_zeile(
+        "Ein Bogen ohne Szenen: Mira geht, Pal bleibt, am Ende regnet es."
+    ) == []
+    assert szenenfolge.szenen_in_zeile("") == []
+
+
+def test_szenen_in_zeile_verlangt_zusammenhaengende_nummern_ab_eins():
+    """``repo.gleiche_szenenfolge_ab`` nummeriert nach Position in der Liste
+    (repo.py:2350). "Szene 2" und "Szene 4" wuerden daraus 1 und 2 -- falsche
+    Zuordnung ist schlimmer als keine."""
+    assert szenenfolge.szenen_in_zeile(
+        "Ein Bogen. Szene 2: Ankunft. Szene 4: Abschied."
+    ) == []
+
+
+def test_richtungswahl_speichert_die_szenen_der_zeile_mit(erfunden, tg, einst):
+    """Der Kern von C9: nach dem Druck stehen Geschichte UND Szenen da.
+
+    Und: kein zweiter, teurer Folge-Lauf -- ``titel`` ist nicht geschuetzt,
+    ein frischer Vorschlag wuerde die Titel der Gruppe ueberschreiben."""
+    conn = erfunden
+    klm = LLMAttrappe("")
+    knoepfe._wirke(
+        conn, tg, klm, einst,
+        {"art": knoepfe.ART_GESCHICHTE_SPEICHERN,
+         "wert": f"weiter{knoepfe.TRENNER}{RICHTUNG_MIT_SZENEN}"},
+        1,
+    )
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert "Nacht am Kanal" in stand["geschichte"]
+    assert "Szene 1" in stand["geschichte"]  # die ganze Zeile IST die Richtung
+
+    titel = [(s["nummer"], s["titel"]) for s in repo.hole_szenen(conn, 1)]
+    assert titel == [
+        (1, "Ankunft am Steg"), (2, "Das Gestaendnis"), (3, "Der Morgen danach")
+    ]
+    assert klm.aufrufe == 0, "kein zweiter Folge-Lauf nach der Uebernahme"
+
+
+def test_die_form_aus_der_zeile_ist_gesetzt_nicht_vorgeschlagen(erfunden, tg, einst):
+    """Die Regel aus 3290d70: der Vorschlag eines MODELLS bleibt aus
+    ``szene.form`` heraus -- die Wahl der GRUPPE nicht, und hier hat sie
+    gedrueckt. Ohne Form in der Zeile bleibt ``form`` leer."""
+    conn = erfunden
+    knoepfe._wirke(
+        conn, tg, LLMAttrappe(""), einst,
+        {"art": knoepfe.ART_GESCHICHTE_SPEICHERN,
+         "wert": f"weiter{knoepfe.TRENNER}{RICHTUNG_MIT_SZENEN_UND_FORMEN}"},
+        1,
+    )
+    formen = {s["nummer"]: (s["form"] or "") for s in repo.hole_szenen(conn, 1)}
+    assert formen == {1: "dialog", 2: "monolog"}
+
+
+def test_eine_richtung_ohne_szenen_startet_weiter_den_folge_lauf(erfunden, tg, einst):
+    """Der Regelfall bleibt, wie er ist: eine Richtung ohne Szenen fuehrt in
+    ``starte_geschichte_szenen``."""
+    conn = erfunden
+    klm = LLMAttrappe(
+        "VORSCHLAG SZENENFOLGE:\nAm Steg — sie treffen sich — Mira — Dialog"
+    )
+    knoepfe._wirke(
+        conn, tg, klm, einst,
+        {"art": knoepfe.ART_GESCHICHTE_SPEICHERN,
+         "wert": f"weiter{knoepfe.TRENNER}Nacht am Kanal — Mira stellt sich, "
+                 "Pal gesteht, am Ende bleiben beide."},
+        1,
+    )
+    szenenfolge._sperre_fuer(1).acquire(timeout=10)
+    szenenfolge._sperre_fuer(1).release()
+    assert klm.aufrufe == 1
+    assert klm.gesehen["art"] == szenenfolge.ART
+
+
+def test_eine_reine_formabfolge_bleibt_die_formwahl(erfunden, tg, einst):
+    """Die Praezedenz von 3290d70 bleibt: eine Zeile, die NUR eine Formwahl
+    ueber Szenen beschreibt, geht weiter in ``_uebernimm_formwahl`` -- die
+    Geschichte bleibt dort leer, und das ist die gemessene Entscheidung
+    (docs/analyse-phase4-datenverlust-2026-09-06.md § 2.1)."""
+    conn = erfunden
+    knoepfe._wirke(
+        conn, tg, LLMAttrappe(""), einst,
+        {"art": knoepfe.ART_GESCHICHTE_SPEICHERN,
+         "wert": f"weiter{knoepfe.TRENNER}Szene 1: Chor mit Dance. "
+                 "Szene 2: Dialog mit Einschueben. Szene 3: Rap eskaliert."},
+        1,
+    )
+    zeile = conn.execute(
+        "SELECT art FROM vorfall WHERE chat_id = 1 ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    assert zeile is not None and zeile["art"] == "geschichte_war_formwahl"
+
+
+# --- Fix-Runde zu C9: die Formwahl bleibt vorn ---------------------------
+#
+# Die erste Fassung unterschied Formwahl und Richtung nur daran, ob vor dem
+# ersten "Szene N" ein Satz steht. Die drei Zeilen unten haben einen und sind
+# trotzdem Formwahlen -- die Wahl ging verloren.
+
+FORMWAHL_MIT_KETTE = "Chor-Dialog-Rap — Szene 1: Chor, Szene 2: Dialog, Szene 3: Rap"
+FORMWAHL_MIT_ZUSAETZEN = (
+    "Drei Formen: Szene 1: Chor mit Dance. Szene 2: Dialog mit Einschueben. "
+    "Szene 3: Rap eskaliert."
+)
+FORMWAHL_NACH_BOGEN = "Bogen. Szene 1: Ankunft — Dialog. Szene 2: Rap"
+
+
+def _druecke_richtung(conn, tg, einst, zeile):
+    knoepfe._wirke(
+        conn, tg, LLMAttrappe(""), einst,
+        {"art": knoepfe.ART_GESCHICHTE_SPEICHERN,
+         "wert": f"weiter{knoepfe.TRENNER}{zeile}"},
+        1,
+    )
+
+
+def _vorfaelle(conn):
+    return [z["art"] for z in conn.execute(
+        "SELECT art FROM vorfall WHERE chat_id = 1 ORDER BY id"
+    )]
+
+
+@pytest.mark.parametrize("zeile, erwartet", [
+    (FORMWAHL_MIT_KETTE, [(1, "chor"), (2, "dialog"), (3, "rap")]),
+    (FORMWAHL_MIT_ZUSAETZEN, [(1, "chor"), (2, "dialog"), (3, "rap")]),
+    (FORMWAHL_NACH_BOGEN, [(1, "dialog"), (2, "rap")]),
+])
+def test_eine_formwahl_mit_vorspann_bleibt_die_formwahl(
+    erfunden, tg, einst, zeile, erwartet
+):
+    conn = erfunden
+    nummern_vorher = {s["nummer"] for s in repo.hole_szenen(conn, 1)}
+    _druecke_richtung(conn, tg, einst, zeile)
+
+    assert "geschichte_war_formwahl" in _vorfaelle(conn)
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not stand["geschichte"], "Menuezeile nicht als Geschichte"
+    # Keine Formwahl verloren: szene.form oder Festlegung (Bestandsweg).
+    formen = {s["nummer"]: (s["form"] or "") for s in repo.hole_szenen(conn, 1)}
+    festgelegt = " ".join(z["text"] for z in repo.festlegungen(conn, 1))
+    for nummer, form in erwartet:
+        assert formen.get(nummer) == form or f"Szene {nummer}: {form}" in festgelegt
+    # Und keine Szenen mit Titeln wie "Chor mit Dance".
+    assert {s["nummer"] for s in repo.hole_szenen(conn, 1)} == nummern_vorher
+
+
+def test_szenen_der_richtung_grenzt_die_formwahl_ab():
+    assert szenenfolge.szenen_der_richtung(FORMWAHL_MIT_KETTE) == []
+    assert szenenfolge.szenen_der_richtung(FORMWAHL_MIT_ZUSAETZEN) == []
+    assert szenenfolge.szenen_der_richtung(FORMWAHL_NACH_BOGEN) == []
+    assert szenenfolge.szenen_der_richtung(RICHTUNG_MIT_SZENEN_UND_FORMEN) == [
+        (1, "Ankunft am Steg", "dialog"), (2, "Das Gestaendnis", "monolog"),
+    ]
+    assert len(szenenfolge.szenen_der_richtung(RICHTUNG_MIT_SZENEN)) == 3
+
+
+def test_eine_bestaetigte_form_bleibt_stehen(erfunden, tg, einst):
+    """``lege_inline_an`` setzt nur eine LEERE Form: was die Gruppe per Knopf
+    bestaetigt hat, ueberschreibt eine spaeter gewaehlte Richtung nicht."""
+    conn = erfunden
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szenenfeld(conn, szene_id, "form", "rap")
+    _druecke_richtung(conn, tg, einst, RICHTUNG_MIT_SZENEN_UND_FORMEN)
+    formen = {s["nummer"]: (s["form"] or "") for s in repo.hole_szenen(conn, 1)}
+    assert formen[1] == "rap"
+    assert formen[2] == "monolog"
+
+
+@pytest.mark.parametrize("zeile", [
+    "Ein Bogen. Szene 1: Ankunft. Szene 2: Streit. Szene 4: Abschied.",
+    "Ein Bogen. Szene 1: Ankunft. Szene 1: Streit.",
+])
+def test_luecken_in_der_nummerierung_hinterlassen_einen_vorfall(
+    erfunden, tg, einst, zeile
+):
+    conn = erfunden
+    _druecke_richtung(conn, tg, einst, zeile)
+    szenenfolge._sperre_fuer(1).acquire(timeout=10)
+    szenenfolge._sperre_fuer(1).release()
+    assert szenenfolge.VORFALL_RICHTUNG_UNVOLLSTAENDIG in _vorfaelle(conn)
+
+
+def test_eine_lueckenlose_richtung_hinterlaesst_keinen_vorfall(erfunden, tg, einst):
+    conn = erfunden
+    _druecke_richtung(conn, tg, einst, RICHTUNG_MIT_SZENEN)
+    assert szenenfolge.VORFALL_RICHTUNG_UNVOLLSTAENDIG not in _vorfaelle(conn)
+
+
+def test_ein_zu_langer_titel_ist_fliesstext():
+    lang = "x" * (szenenfolge.TITEL_MAX + 1)
+    assert szenenfolge.szenen_in_zeile(
+        f"Bogen. Szene 1: Ankunft. Szene 2: {lang}."
+    ) == []
+    genau = "y" * szenenfolge.TITEL_MAX
+    assert szenenfolge.szenen_in_zeile(
+        f"Bogen. Szene 1: Ankunft. Szene 2: {genau}."
+    ) == [(1, "Ankunft", ""), (2, genau, "")]
+    assert szenenfolge.szenen_in_zeile(
+        "Pal wartet am Steg. Szene 1: Ankunft. Und dann kommt es so, weil er in "
+        "Szene 2: nie wieder zurueckkommen will, obwohl Mira ihn ruft und die "
+        "ganze Nacht am Kanal auf ihn wartet und wartet."
+    ) == []
+
+
+def test_eine_formwahl_mit_luecke_hinterlaesst_nur_den_formwahl_vorfall(
+    erfunden, tg, einst,
+):
+    """Eine Formabfolge mit Luecke ist eine Formwahl, keine unvollstaendige
+    Szenenliste: EIN Vorfall (``geschichte_war_formwahl``), nicht zwei."""
+    conn = erfunden
+    _druecke_richtung(
+        conn, tg, einst, "Szene 1: Chor mit Dance, Szene 3: Rap eskaliert",
+    )
+    vorfaelle = _vorfaelle(conn)
+    assert "geschichte_war_formwahl" in vorfaelle
+    assert szenenfolge.VORFALL_RICHTUNG_UNVOLLSTAENDIG not in vorfaelle

@@ -5253,7 +5253,7 @@ Dateinamen. `--sprache en` erlaubt **nur** `erkenner` (sonst
 `IT_WORKSHOP` auf `--workshop` bzw. `padua-2026`, ruft `workshop.vergiss()`
 und bricht ab, wenn `sprache.code() != "en"`.
 
-- [ ] **Schritt 1: Tests** (anhaengen):
+- [x] **Schritt 1: Tests** (anhaengen):
 
 ```python
 import pytest
@@ -5284,11 +5284,11 @@ def test_bericht_traegt_die_sprache(tmp_path):
   (`test_sprache_en_nur_fuer_den_erkenner` muss **vor** `einstellungen.laden()`
   abbrechen — die Pruefung steht deshalb in `main` direkt nach
   `baue_argumente`, ohne Netz, ohne Env.)
-- [ ] **Schritt 2–4:** rot (`TypeError: … unexpected keyword 'sprache'`),
+- [x] **Schritt 2–4:** rot (`TypeError: … unexpected keyword 'sprache'`),
   umsetzen, gruen: `$PY -m pytest -q -p no:cacheprovider tests/test_pruefe_prompts.py`.
-- [ ] **Schritt 5: Mutationsnachweis:** in `lade_korpus` den Sprachpfad
+- [x] **Schritt 5: Mutationsnachweis:** in `lade_korpus` den Sprachpfad
   ignorieren → `test_sprache_en_liest_den_englischen_korpus` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"pruefe_prompts: --sprache en fuer den englischen Erkenner-Korpus (A1)"`.
+- [x] **Schritt 6:** SUITE; Commit `"pruefe_prompts: --sprache en fuer den englischen Erkenner-Korpus (A1)"`.
 
 ---
 

@@ -71,7 +71,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import httpx
 
 from interview_theater import (
-    db, einstellungen, erkenner, journal, llm, repo, sprachprofil, verdichter, zitat,
+    db, einstellungen, erkenner, journal, llm, repo, sprache, sprachprofil, verdichter,
+    workshop, zitat,
 )
 
 #: Wo die Korpusdateien liegen.
@@ -404,15 +405,16 @@ def zaehle_verdichter(bewertung: dict) -> tuple[int, int, int]:
 # Korpus laden
 # ---------------------------------------------------------------------------
 
-def lade_korpus(name: str, nur: list[str] | None = None) -> list[dict]:
-    """Liest ``korpus/<name>.jsonl``. ``nur`` filtert auf ids, in der
-    Reihenfolge der Datei (nicht in der Reihenfolge der Angabe).
+def lade_korpus(name: str, nur: list[str] | None = None, sprache: str = "de") -> list[dict]:
+    """Liest ``korpus/<name>.jsonl`` (``sprache="de"``, die Vorgabe) oder
+    ``korpus/en/<name>.jsonl`` (``sprache="en"``, D8). ``nur`` filtert auf
+    ids, in der Reihenfolge der Datei (nicht in der Reihenfolge der Angabe).
 
     Unbekannte ids meldet hier bewusst niemand: bei ``alle`` liegt jede id nur
     in genau einem der drei Korpora, ein Filter auf die anderen beiden waere
     also immer 'unbekannt'. Die Kontrolle macht ``main`` einmal ueber alle
     geladenen Korpora zusammen."""
-    pfad = KORPUS / f"{name}.jsonl"
+    pfad = KORPUS / sprache / f"{name}.jsonl" if sprache != "de" else KORPUS / f"{name}.jsonl"
     faelle = []
     for zeilennummer, zeile in enumerate(pfad.read_text(encoding="utf-8").splitlines(), 1):
         if not zeile.strip():
@@ -865,13 +867,15 @@ def modell_fuer(prompt: str, e, ueberschreibung: str | None) -> str:
     return e.llm_modell if prompt == "verdichter" else e.erkenner_modell
 
 
-def berichtspfad(angabe: str | None, prompts: list[str]) -> Path:
+def berichtspfad(angabe: str | None, prompts: list[str], sprache: str = "de") -> Path:
     """``--bericht`` ohne Pfad schreibt nach
-    ``korpus/berichte/<datum>-<prompt>.md``."""
+    ``korpus/berichte/<datum>-<prompt>.md``, bei ``sprache="en"`` mit
+    ``-en``-Anhang vor der Endung (D8)."""
     if angabe:
         return Path(angabe)
     name = prompts[0] if len(prompts) == 1 else "alle"
-    return BERICHTE / f"{date.today().isoformat()}-{name}.md"
+    anhang = "-en" if sprache != "de" else ""
+    return BERICHTE / f"{date.today().isoformat()}-{name}{anhang}.md"
 
 
 def baue_argumente(argv=None) -> argparse.Namespace:
@@ -888,6 +892,11 @@ def baue_argumente(argv=None) -> argparse.Namespace:
     p.add_argument("--bericht", nargs="?", const="", default=None,
                    help="Markdown-Bericht schreiben; ohne Pfad nach "
                         "korpus/berichte/<datum>-<prompt>.md")
+    p.add_argument("--sprache", choices=("de", "en"), default="de",
+                   help="englischer Erkenner-Korpus (D8); gibt es nur fuer "
+                        "den Erkenner, haengt IT_WORKSHOP auf padua-2026 "
+                        "bzw. --workshop ein")
+    p.add_argument("--workshop", help="Profilname statt padua-2026 fuer --sprache en")
     return p.parse_args(argv)
 
 
@@ -898,6 +907,21 @@ def main(argv=None) -> int:
     if args.wiederholungen < 1:
         raise SystemExit("--wiederholungen muss mindestens 1 sein")
 
+    if args.sprache == "en":
+        if prompts != ["erkenner"]:
+            raise SystemExit(
+                "--sprache en gibt es nur fuer den Erkenner (D8) -- "
+                "Journal, Verdichter und Sprachprofil haben keinen "
+                "englischen Korpus."
+            )
+        os.environ[workshop.VARIABLE] = args.workshop or "padua-2026"
+        workshop.vergiss()
+        if sprache.code() != "en":
+            raise SystemExit(
+                f"IT_WORKSHOP={os.environ[workshop.VARIABLE]!r} ergibt "
+                f"sprache.code()={sprache.code()!r}, nicht 'en'."
+            )
+
     e = einstellungen.laden()
     with tempfile.TemporaryDirectory(prefix="interview_theater-korpus-") as verzeichnis:
         # IT_DB wird ausdruecklich verworfen: aufruf- und vorfall-Zeilen
@@ -907,7 +931,7 @@ def main(argv=None) -> int:
         conn = db.verbinde(db_pfad)
         db.initialisiere(conn)
 
-        korpora = {p: lade_korpus(p, nur) for p in prompts}
+        korpora = {p: lade_korpus(p, nur, sprache=args.sprache) for p in prompts}
         if nur:
             gefunden = {f["id"] for faelle in korpora.values() for f in faelle}
             unbekannt = set(nur) - gefunden
@@ -949,7 +973,7 @@ def main(argv=None) -> int:
         print(text)
 
         if args.bericht is not None:
-            pfad = berichtspfad(args.bericht, prompts)
+            pfad = berichtspfad(args.bericht, prompts, sprache=args.sprache)
             pfad.parent.mkdir(parents=True, exist_ok=True)
             pfad.write_text(text + "\n", encoding="utf-8")
             print(f"\nBericht: {pfad}")

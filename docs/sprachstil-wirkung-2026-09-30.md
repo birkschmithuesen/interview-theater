@@ -7,9 +7,9 @@
 
 | Weg | Urteil | Tragende Zahl (A = mit Stil, B = ohne, n = 3 je Variante) |
 |---|---|---|
-| (1) Prosa, Phase 6 (Kurzgeschichte) | **wirkt** | Gesamttext-Marker SCHACHTEL 0,36 [0,32-0,40] vs. 0,00 [0,00-0,00], FUELL 0,89 [0,69-1,20] vs. 0,01 [0,00-0,04] je 100 Woerter; in C wandert das Markerprofil mit dem Stil zur anderen Figur |
+| (1) Prosa, Phase 6 (Kurzgeschichte) | **wirkt** (ueberwiegend als Uebernahme des Beispiel-Wortschatzes in neue Saetze, selten als Zitat) | Gesamttext-Marker SCHACHTEL 0,36 [0,32-0,40] vs. 0,00 [0,00-0,00], FUELL 0,89 [0,69-1,20] vs. 0,01 [0,00-0,04] je 100 Woerter; in C wandert das Markerprofil mit dem Stil zur anderen Figur |
 | (2) Einzelszene direkt, Phase 7 (Feinschliff) | **wirkt nicht** (per Konstruktion) | System- und Nutzertext A/B/C byte-identisch, `diff-szene-A-B.diff` und `diff-szene-A-C.diff` sind 0 Byte |
-| (3) Einzelszene indirekt ueber die Prosa-Vorlage | **wirkt kaum** | einzelne Markerwoerter kommen durch (Meryem KNAPP 1,02 [0,57-1,64] vs. 0,00; Aynur FUELL 5,31 [0,00-8,23] vs. 0,00), SCHACHTEL verschwindet ganz (0,00 in A und B), Satzlaengen je Figur unveraendert |
+| (3) Einzelszene indirekt ueber die Prosa-Vorlage | **wirkt kaum** | nach dem Kriterium kommt allein Meryems KNAPP durch (1,02 [0,57-1,64] vs. 0,00 -- ein bis zwei "Egal" je Lauf); Aynur FUELL 5,31 [0,00-8,23] vs. 0,00 ueberlappt, 6 der 19 FUELL-Treffer in A sind eine aus der Vorlage kopierte Zeile; SCHACHTEL verschwindet ganz (0,00 in A und B), Satzlaengen je Figur unveraendert |
 
 Diese Karte misst nur. **Kein Produktcode in `interview_theater/` wurde
 geaendert** (E2: "misst nur, streicht nichts").
@@ -99,7 +99,8 @@ die Laeufe kosten je Aufruf nichts. Seriell, nie parallel.
 - Szene (indirekt): A und B je n = 3 (6 Laeufe, 76-86 s). Vorlage fuer
   `szene-<V>-<i>` ist der erste Abschnitt (`kurzgeschichte.zerlege`) aus
   `prosa-<V>-<i>` -- also eine Prosa, die selbst mit bzw. ohne Stil entstanden
-  ist.
+  ist. C entfaellt im Szenenweg: der Prompt ist A/B/C byte-gleich (Weg 2),
+  C haette nur die Prosa-Rotation wiederholt.
 - Zusammen rund 22 Minuten Modellzeit. Rohtexte:
   [`sprachstil-wirkung-2026-09-30/laeufe/`](sprachstil-wirkung-2026-09-30/laeufe/).
 
@@ -121,8 +122,14 @@ die Laeufe kosten je Aufruf nichts. Seriell, nie parallel.
   **naechststehenden Figurennamen im Absatz** zugerechnet (absolute Zahl je
   Lauf). Grund: das Modell zeigt einen Stil oft in indirekter Rede ("Sie
   fragt lang, mit Nebensaetzen ... insofern ..."), die in keinem Zitat steht.
-- Vor dem Zaehlen wird "ß" zu "ss" -- das Modell schreibt "weißt du", die
-  Markerliste "weisst du".
+- Vor dem Zaehlen wird "ß" zu "ss" (`sprachstil_masse.normalisiere`, wirkt
+  in jedem Mass) -- das Modell schreibt "weißt du", die Markerliste "weisst du".
+- Im Theatertext zaehlen die Gesamttext-Masse ohne Regieklammern -- "(Sie
+  schreibt weiter.)" ist keine Rede.
+- Abschreib-Zaehlung (`sprachstil_masse.marker_in_kopie`): wie viele
+  Markertreffer stehen in einem Satz, der mit dem Beispielsatz des Stils eine
+  Folge von vier Woertern teilt? Summen je Variante in `auswertung.json`,
+  Schluessel `summen`.
 
 **Kriterium:** Ein Effekt zaehlt, wenn der Abstand A gegen B groesser ist als
 die Spannweite innerhalb der Varianten (Bereiche ueberlappen nicht), und wenn
@@ -147,8 +154,9 @@ Mittelwert [min-max], die Standardabweichung steht in `auswertung.json`.
 
 SCHACHTEL und FUELL: die Bereiche liegen weit auseinander -- in B kommen die
 Woerter praktisch nie vor, in A und C in jedem Lauf. Der Effekt haelt auch
-ab Abschnitt 2 an; es ist also nicht nur der Beispielsatz, der einmal in
-Szene 1 abgeschrieben wird. KNAPP ("egal", "weiter") ist schwach: zwei
+ab Abschnitt 2 an, sitzt also nicht nur im ersten Abschnitt. Ob er
+Abschreiben ist, zaehlt Abschnitt 6 nach: ueberwiegend nicht -- wohl aber
+Uebernahme des Beispiel-Wortschatzes. KNAPP ("egal", "weiter") ist schwach: zwei
 Allerweltswoerter, die Bereiche beruehren sich fast (A min 0,10 / B max 0,09).
 Die Satzlaenge des Gesamttexts bewegt sich nicht messbar -- sie ist
 Erzaehlerprosa, die Figurenrede ist darin ein kleiner Anteil.
@@ -159,14 +167,22 @@ Markeranteil des jeweils erwarteten Stils in der **zugeordneten direkten
 Rede** der Figur (je 100 Woerter). "A-Stil" = der Stil, den die Figur in A
 traegt, "C-Stil" = der in C.
 
-| Figur | Rolle | Stil | A | B | C | folgt dem Stil? |
-|---|---|---|---|---|---|---|
-| Meryem | A-Stil | KNAPP | **12,89** [10,00-16,67] | 0,00 | 0,00 | ja: nur in A |
-| Meryem | C-Stil | SCHACHTEL | 0,00 | 0,00 | 0,00 | nicht messbar (s. u.) |
-| Ferzan | A-Stil | SCHACHTEL | 1,54 [0,00-4,62] | 0,00 | 0,00 | schwach |
-| Ferzan | C-Stil | FUELL | 0,68 [0,00-2,04] | 0,59 [0,00-1,79] | **12,28** [0,00-36,84] | ja, streut stark |
-| Aynur | A-Stil | FUELL | **20,36** [0,00-35,00] | 0,00 | 0,00 | ja, streut stark |
-| Aynur | C-Stil | KNAPP | 0,00 | 0,00 | **37,30** [28,57-50,00] | ja: nur in C |
+| Figur | Rolle | Stil | A | B | C | folgt dem Stil? | zugeordnete Woerter je Lauf A / B / C |
+|---|---|---|---|---|---|---|---|
+| Meryem | A-Stil | KNAPP | **12,89** [10,00-16,67] | 0,00 | 0,00 | ja: nur in A | 10-25 / 0-44 / 0-17 |
+| Meryem | C-Stil | SCHACHTEL | 0,00 | 0,00 | 0,00 | nicht messbar (s. u.) | 10-25 / 0-44 / 0-17 |
+| Ferzan | A-Stil | SCHACHTEL | 1,54 [0,00-4,62] | 0,00 | 0,00 | schwach | 0-98 / 10-56 / 1-19 |
+| Ferzan | C-Stil | FUELL | 0,68 [0,00-2,04] | 0,59 [0,00-1,79] | **12,28** [0,00-36,84] | ja, streut stark | 0-98 / 10-56 / 1-19 |
+| Aynur | A-Stil | FUELL | **20,36** [0,00-35,00] | 0,00 | 0,00 | ja, streut stark | 0-23 / 3-10 / 2-7 |
+| Aynur | C-Stil | KNAPP | 0,00 | 0,00 | **37,30** [28,57-50,00] | ja: nur in C | 0-23 / 3-10 / 2-7 |
+
+Die Anteile beruhen auf sehr wenig Rede: Aynur in C hat je Lauf 2-7
+zugeordnete Woerter (37,30 = 1-2 Treffer je Lauf), Ferzan in C 1-19 (die
+0,00 in C-2 steht auf einem einzigen Wort). Die 0,00 bei Aynur/A
+(prosa-A-1) ist ein Zuordnungsfehler -- Aynur hat dort 0 zugeordnete Woerter,
+ihre Fuellwort-Saetze landen ohne Namen oder bei Meryem ("Sie schaut zu
+Meryem" steht direkt nach dem Zitat; Meryem FUELL 20,00 in diesem Lauf). Die
+Tabelle zeigt die Richtung, nicht die Groesse des Effekts.
 
 Dasselbe ueber die **Markertreffer neben dem Namen** (inkl. indirekter
 Rede, absolute Treffer je Lauf):
@@ -180,10 +196,14 @@ Rede, absolute Treffer je Lauf):
 | Aynur | A-Stil | FUELL | **4,33** [0-7] | 0,00 | 1,00 [0-3] |
 | Aynur | C-Stil | KNAPP | 0,33 [0-1] | 0,33 [0-1] | **2,00** [2-2] |
 
-Fuenf von sechs Zeilen haben ihr Maximum in der Variante, in der die Figur
-genau diesen Stil traegt; die sechste (Ferzan SCHACHTEL) sinkt in C, bleibt
-aber ueber B -- in C steht Meryems verschachtelte Rede oft im selben Absatz
-wie Ferzans Name. Das Profil folgt dem **Stil**, nicht der Figur.
+Alle sechs Zeilen haben ihr Maximum in der Variante, in der die Figur genau
+diesen Stil traegt. In der Gegenvariante bleibt ein Rest (am deutlichsten
+Ferzan SCHACHTEL in C: 2,00 -- Meryems verschachtelte Rede steht oft im
+selben Absatz wie Ferzans Name; ebenso wandern FUELL-Treffer zu Meryem: 7 in
+A, 11 in C, Summe ueber drei Laeufe). Ohne Namen im Absatz bleiben FUELL 35
+von 57 (A) bzw. 43 von 74 (C), SCHACHTEL 9 von 23 (A) Treffern; die Tabelle
+deckt also nur einen Teil der Treffer ab. Das Profil folgt dem **Stil**, nicht
+der Figur.
 
 **Der verschachtelte Stil erscheint kaum als direkte Rede.** Die Figur mit
 SCHACHTEL verliert Zitate: Meryem hat in A im Mittel 6,0 zugeordnete Reden,
@@ -216,9 +236,10 @@ Woerter; Zuordnungsquote in allen sechs Laeufen 1,00.
 | Meryem: KNAPP in ihrer Rede | 1,02 [0,57-1,64] | 0,00 [0,00-0,00] |
 | Ferzan: SCHACHTEL in ihrer Rede | 0,00 [0,00-0,00] | 0,00 [0,00-0,00] |
 | Aynur: FUELL in ihrer Rede | 5,31 [0,00-8,23] | 0,00 [0,00-0,00] |
-| Gesamttext KNAPP | 0,51 [0,24-0,69] | 0,14 [0,00-0,23] |
-| Gesamttext SCHACHTEL | 0,00 | 0,00 |
-| Gesamttext FUELL | 0,74 [0,20-1,20] | 0,11 [0,00-0,23] |
+| Gesamttext ohne Regieklammern: KNAPP | 0,47 [0,32-0,68] | 0,20 [0,00-0,30] |
+| Gesamttext ohne Regieklammern: SCHACHTEL | 0,00 | 0,00 |
+| Gesamttext ohne Regieklammern: FUELL | 1,03 [0,28-1,69] | 0,15 [0,00-0,30] |
+| Treffer absolut, Summe ueber 3 Laeufe: KNAPP / FUELL | 9 / 19 | 4 / 3 |
 | Satzlaenge Meryem | 4,3 [3,8-5,1] | 4,3 [4,2-4,5] |
 | Satzlaenge Ferzan | 3,7 [3,1-4,2] | 3,5 [3,0-3,9] |
 | Satzlaenge Aynur | 2,8 [2,2-3,1] | 2,4 [2,2-2,6] |
@@ -231,7 +252,19 @@ szene-A-3 gar nicht (0,00). SCHACHTEL verschwindet ganz: die Fremdwoerter
 lange Rede wird zu Selbstkorrekturen mit kurdischen Einsprengseln -- das ist
 ihr **Sprachprofil**, das im Szenen-Prompt steht und offenbar staerker wiegt.
 Satzlaenge und Wortschatz-Aehnlichkeit unterscheiden sich nicht ueber die
-Streuung hinaus. Daher: **wirkt kaum**.
+Streuung hinaus.
+
+Nach dem Kriterium aus Abschnitt 2 kommt allein Meryems KNAPP durch -- ein
+bis zwei "Egal" je Lauf (2 / 1 / 2); das ist das "kaum". Der Gesamttext-KNAPP
+trennt ebenfalls (0,47 [0,32-0,68] gegen 0,20 [0,00-0,30]), aber aus
+demselben Grund: Ferzans "egal" steht in A und B gleich oft (0,55 gegen 0,50
+in ihrer Rede). Gesamttext-FUELL ueberlappt knapp (A min 0,28, B max 0,30),
+und 6 der 19 FUELL-Treffer in A stehen in einer einzigen, aus der
+Prosa-Vorlage kopierten Zeile in szene-A-1 (Satz mit einer Viererfolge aus dem
+Beispielsatz). Die Zahlen gelten ohne Regieklammern; mit ihnen zaehlte
+"(Sie schreibt weiter.)" als KNAPP-Treffer (in szene-A-3 standen 4 der
+damals 7 Treffer in Regieklammern).
+Daher: **wirkt kaum**.
 
 ---
 
@@ -319,9 +352,23 @@ Sprachprofil.
   erfundenen Stiltexten abgeleitet; ein Modell, das den Stil ohne diese Woerter
   trifft, wird unterschaetzt, ein Modell, das den Beispielsatz abschreibt,
   ueberschaetzt. Beides kommt vor (Beispiel 2: fast woertliche Uebernahme;
-  Beispiel 3: Struktur ohne Wort). "Koffer bleibt zu" steht als Satz nur in
-  einem von neun Prosa-Laeufen; der Effekt haelt ab Abschnitt 2 (Tabelle 3.1),
-  ist also nicht nur Abschreiben.
+  Beispiel 3: Struktur ohne Wort). Nachgezaehlt (Treffer in einem Satz, der
+  mit dem Beispielsatz des Stils eine Folge von vier Woertern teilt):
+  SCHACHTEL 0 von 23 (A) bzw. 0 von 26 (C) Treffern, FUELL 6 von 57 bzw. 7
+  von 74, KNAPP 0 von 10 bzw. 0 von 13; in der Szene (Weg 3) FUELL 6 von 19,
+  alle aus einer Zeile in szene-A-1. "Koffer bleibt zu" steht in einem von
+  neun Prosa-Laeufen. Der Effekt ist also ueberwiegend kein Abschreiben ganzer
+  Saetze -- wohl aber die Uebernahme des **Wortschatzes** des Beispielsatzes
+  (bei FUELL oft als Formel "Also, weisst du …"). Gemessen ist damit "das
+  Modell uebernimmt die Stilwoerter in neue Saetze", nicht ein vom Beispiel
+  unabhaengiger Sprechstil.
+- **Die KNAPP-Markerliste ist duenn.** "egal" und "weiter" sind
+  Alltagswoerter; "weiter" ist auch in Erzaehlprosa haeufig ("isst weiter")
+  und blaeht KNAPP in allen Varianten gleich auf: alle drei KNAPP-Treffer der
+  Prosa in B sind "weiter", in A und C sind es 14 von 23 Treffern. Im
+  Theatertext sagt Ferzan auch ohne Stil "egal" (alle vier B-Treffer). Die Liste ist
+  bewusst nicht nachtraeglich geaendert; KNAPP-Urteile sind entsprechend
+  vorsichtig.
 - **Ein fester Arbeitsstand**, drei extreme, erfundene Stile. Echte Stile aus
   Interviews sind leiser; der Effekt dort ist eher kleiner.
 - **Interviews sind importiert, aber der Prosa-Weg sieht kein Material**
@@ -346,9 +393,12 @@ Diese Karte aendert nichts. Was die Zahlen tragen:
   nehmen -- das ist eine Produktentscheidung, keine Folgerung dieser Messung,
   und gehoert vorher gegen das Sprachprofil abgewogen (zwei Stimmangaben je
   Figur koennen sich widersprechen).
-- Der Beispielsatz des Stils wird teils woertlich uebernommen (samt seinem
-  Inhalt, hier: dem Koffer). Stilbeispiele sollten deshalb inhaltlich neutral
-  oder zur Geschichte passend sein.
+- Der Beispielsatz des Stils wird selten woertlich uebernommen (FUELL 6 von
+  57 bzw. 7 von 74 Treffern, "Koffer bleibt zu" in einem von neun Laeufen),
+  sein **Wortschatz** dagegen durchgehend -- und wo er woertlich kommt, samt
+  seinem Inhalt (hier: dem Koffer). Stilbeispiele sollten deshalb inhaltlich
+  neutral oder zur Geschichte passend sein, und ein Stil wirkt nur so breit
+  wie die Woerter, die sein Beispiel vorgibt.
 
 ---
 

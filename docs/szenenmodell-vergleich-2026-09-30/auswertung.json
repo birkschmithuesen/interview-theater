@@ -1,0 +1,115 @@
+{
+  "erzeugt_von": "python -m scripts.szenenmodell_vergleich tabelle",
+  "modelle": [
+    "claude-opus-5",
+    "claude-opus-5-5"
+  ],
+  "laeufe": [
+    {
+      "modell": "claude-opus-5",
+      "lauf": 1,
+      "status": "ok",
+      "zeichen": 5837,
+      "dauer_s": 156.0,
+      "eingabe_token": 17837,
+      "ausgabe_token": 11165,
+      "stop_reason": "end_turn",
+      "sprecherzeilen": 76,
+      "zusammenfassung_vorhanden": true,
+      "anders_gemacht_vorhanden": false
+    },
+    {
+      "modell": "claude-opus-5",
+      "lauf": 2,
+      "status": "ok",
+      "zeichen": 5813,
+      "dauer_s": 132.1,
+      "eingabe_token": 17837,
+      "ausgabe_token": 9548,
+      "stop_reason": "end_turn",
+      "sprecherzeilen": 81,
+      "zusammenfassung_vorhanden": true,
+      "anders_gemacht_vorhanden": false
+    },
+    {
+      "modell": "claude-opus-5",
+      "lauf": 3,
+      "status": "ok",
+      "zeichen": 4777,
+      "dauer_s": 157.5,
+      "eingabe_token": 17837,
+      "ausgabe_token": 12059,
+      "stop_reason": "end_turn",
+      "sprecherzeilen": 65,
+      "zusammenfassung_vorhanden": true,
+      "anders_gemacht_vorhanden": false
+    },
+    {
+      "modell": "claude-opus-5-5",
+      "lauf": 1,
+      "status": "ok",
+      "zeichen": 5418,
+      "dauer_s": 85.1,
+      "eingabe_token": 17839,
+      "ausgabe_token": 8559,
+      "stop_reason": "end_turn",
+      "sprecherzeilen": 86,
+      "zusammenfassung_vorhanden": true,
+      "anders_gemacht_vorhanden": false
+    },
+    {
+      "modell": "claude-opus-5-5",
+      "lauf": 2,
+      "status": "ok",
+      "zeichen": 6137,
+      "dauer_s": 95.5,
+      "eingabe_token": 17839,
+      "ausgabe_token": 9267,
+      "stop_reason": "end_turn",
+      "sprecherzeilen": 105,
+      "zusammenfassung_vorhanden": true,
+      "anders_gemacht_vorhanden": false
+    },
+    {
+      "modell": "claude-opus-5-5",
+      "lauf": 3,
+      "status": "ok",
+      "zeichen": 6612,
+      "dauer_s": 113.1,
+      "eingabe_token": 17839,
+      "ausgabe_token": 11203,
+      "stop_reason": "end_turn",
+      "sprecherzeilen": 114,
+      "zusammenfassung_vorhanden": true,
+      "anders_gemacht_vorhanden": false
+    }
+  ],
+  "je_modell": {
+    "claude-opus-5": {
+      "n": 3,
+      "zeichen": {
+        "mittel": 5475.7,
+        "min": 4777,
+        "max": 5837
+      },
+      "sekunden": {
+        "mittel": 148.5,
+        "min": 132.1,
+        "max": 157.5
+      }
+    },
+    "claude-opus-5-5": {
+      "n": 3,
+      "zeichen": {
+        "mittel": 6055.7,
+        "min": 5418,
+        "max": 6612
+      },
+      "sekunden": {
+        "mittel": 97.9,
+        "min": 85.1,
+        "max": 113.1
+      }
+    }
+  }
+}

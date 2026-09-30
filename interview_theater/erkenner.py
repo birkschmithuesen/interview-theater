@@ -686,7 +686,9 @@ def _wende_figur_quelle_an(conn, chat_id: int, wert: str) -> dict | None:
     repo.setze_figur_quelle(conn, figur["id"], kopf["id"])
     return {
         "art": "figur_quelle_setzen",
-        "wert": f"{figur['name']}: {kopf['name'] or 'Interview'}",
+        # E8: die Notiert-Zeile kommt als Bot-Zeile zurueck in die Fenster
+        # von Erkenner und Journal -- in Padua deshalb "Interview N".
+        "wert": f"{figur['name']}: {aufnahme.anzeigename(conn, kopf, 'Interview')}",
         "figur_id": figur["id"],
     }
 
@@ -1261,8 +1263,13 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
         from interview_theater import aufnahme  # spaeter Import
 
         kopf = aufnahme.finde_interview(conn, chat_id, rest) if rest else None
+        # E8: die Bezeichnung VOR dem Entfernen bilden -- danach zaehlt die
+        # Nummer das entfernte Interview nicht mehr mit. Sie geht ins Journal
+        # (jeder Gespraechs-Prompt) und in die Bot-Zeile.
+        anzeige = (aufnahme.anzeigename(conn, kopf, "Interview")
+                   if kopf and sprache.pseudonyme() else None)
         name = repo.entferne_aufnahme(conn, chat_id, kopf["id"]) if kopf else None
-        bezeichnung = name if name else None
+        bezeichnung = (anzeige or name) if name else None
     else:  # szene
         treffer = _SZENENNUMMER.search(rest or "")
         nummer = repo.entferne_szene(conn, chat_id, int(treffer.group(1))) if treffer else None

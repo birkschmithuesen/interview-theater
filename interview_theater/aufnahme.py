@@ -1352,6 +1352,12 @@ def finde_interview(conn, chat_id: int, bezeichnung: str = ""):
     treffer = re.search(r"\d{1,4}", bezeichnung)
     if treffer:
         gesucht = f"Interview {int(treffer.group(0))}"
+        if sprache.pseudonyme():
+            # E8: gezeigt (und im Prompt genannt) wird "Interview N" nach
+            # Position -- genau das meint die Gruppe und der Erkenner, nicht
+            # ein gespeicherter Name, der nach einem Entfernen verrutscht ist.
+            return next((a for a in vorhandene
+                         if anzeigename(conn, a, "") == gesucht), None)
         return next((a for a in vorhandene if (a["name"] or "") == gesucht), None)
     gesucht = bezeichnung.lower()
     return next((a for a in vorhandene if gesucht in (a["name"] or "").lower()), None)

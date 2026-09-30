@@ -759,9 +759,13 @@ def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:
         repo.setze_wortlaut_modus(conn, chat_id, "*")
         tg.sende(chat_id, T._TEXT_WORTLAUT_ALLE)
         return
+    # Nur gegen das, was der Bot zeigt: ohne Pseudonyme ist das der
+    # gespeicherte Name; mit Pseudonymen (E8) "Interview N" -- ein
+    # gespeicherter Name "Interview 3" traefe sonst nach einem entfernten
+    # Interview eine andere Aufnahme als die gezeigte.
     treffer = next(
         ((name, anzeige) for name, anzeige in _aufnahmen_mit_anzeige(conn, chat_id)
-         if rest.lower() in (name.lower(), anzeige.lower())),
+         if rest.lower() == anzeige.lower()),
         None,
     )
     if treffer is None:

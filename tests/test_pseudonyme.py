@@ -92,3 +92,75 @@ def test_dortmund_behaelt_die_vornamen(conn, einst):
     assert kontext.pseudonyme(conn, 1) is None
     zeile = [a for a in repo.transkripte(conn, 1) if a["klasse"] == "lang"][0]
     assert aufnahme.anzeigename(conn, zeile, "Das Interview") == AUFNAHMENAME
+
+
+# --- Nachbesserung Aufgabe 25 ------------------------------------------------
+
+
+def test_figur_quelle_nennt_die_nummer_in_der_notiert_zeile(conn, padua):
+    """Die Notiert-Zeile ist eine Bot-Nachricht und kommt als Zeile in die
+    Fenster des Erkenners und des Journal-Extraktors zurueck."""
+    baue_englische_gruppe(conn)
+    angewendet = erkenner._wende_eine_an(conn, 1, "figur_quelle_setzen", "Nadia: Interview 1")
+    assert angewendet["wert"] == "Nadia: Interview 1"
+    meldung = erkenner.baue_meldung([angewendet]) or ""
+    assert AUFNAHMENAME not in meldung
+
+
+def test_figur_quelle_dortmund_wie_vorher(conn):
+    baue_englische_gruppe(conn)
+    angewendet = erkenner._wende_eine_an(conn, 1, "figur_quelle_setzen", "Nadia: " + AUFNAHMENAME)
+    assert angewendet["wert"] == "Nadia: " + AUFNAHMENAME
+
+
+def _journaltexte(conn):
+    return [z[0] for z in conn.execute("SELECT text FROM journal WHERE chat_id = 1")]
+
+
+def test_entferntes_interview_ohne_aufnahmenamen_im_journal(conn, padua):
+    baue_englische_gruppe(conn)
+    angewendet = erkenner._wende_eine_an(conn, 1, "entfernen", "interview 1")
+    assert angewendet["wert"] == "Interview 1"
+    texte = _journaltexte(conn)
+    assert "Removed: Interview 1" in texte
+    assert not [t for t in texte if AUFNAHMENAME in t]
+
+
+def test_entferntes_interview_dortmund_wie_vorher(conn):
+    baue_englische_gruppe(conn)
+    angewendet = erkenner._wende_eine_an(conn, 1, "entfernen", "interview " + AUFNAHMENAME)
+    assert angewendet["wert"] == AUFNAHMENAME
+    assert "Entfernt: " + AUFNAHMENAME in _journaltexte(conn)
+
+
+def _lange_aufnahme(conn, sekunden, name):
+    aufnahme_id = repo.lege_aufnahme_an(conn, 1, sekunden, "lang", "sprache", status="fertig")
+    repo.setze_transkript(conn, aufnahme_id, "A story about the harbour, " + name)
+    repo.setze_aufnahme_name(conn, aufnahme_id, name)
+    return aufnahme_id
+
+
+def test_wortlaut_trifft_nur_die_gezeigte_nummer(conn, einst, padua):
+    """Nach einem entfernten Interview heisst eine Aufnahme gespeichert
+    "Interview 3", gezeigt aber "Interview 2". "/wortlaut Interview 3" meint
+    das, was der Bot als "Interview 3" zeigt -- nicht den gespeicherten Namen
+    einer anderen Aufnahme, sonst liest der Prompt das falsche Material mit."""
+    from interview_theater import befehle
+
+    baue_englische_gruppe(conn)
+    weg = _lange_aufnahme(conn, 20, "Interview 2")
+    _lange_aufnahme(conn, 30, "Interview 3")
+    gemeint = _lange_aufnahme(conn, 40, "Interview 4")
+    repo.entferne_aufnahme(conn, 1, weg)
+    assert aufnahme.anzeigename(conn, repo.hole_aufnahme(conn, gemeint), "") == "Interview 3"
+    befehle.behandle(conn, _Tg(), einst, 1, "/wortlaut Interview 3", "Giulia")
+    assert repo.hole_gruppe(conn, 1)["wortlaut_modus"] == "Interview 4"
+
+
+def test_journal_nutzertext_ohne_vornamen(conn, padua):
+    baue_englische_gruppe(conn)
+    zeilen = repo.unjournalisierte(conn, 1)
+    assert zeilen
+    text = journal._baue_nutzertext(conn, 1, zeilen)
+    assert _ohne_namen(text) == []
+    assert "Member 1:" in text

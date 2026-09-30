@@ -1292,16 +1292,22 @@ def _continuity_bloecke(conn, chat_id: int, nummer: int | None) -> list[dict]:
     return bausteine
 
 
-def _prosa_von(szene) -> str:
+def prosa_von(szene) -> str:
     """Die Prosafassung einer Szene -- oder "", wenn die Spalte in einer
     alten Datenbank noch fehlt.
 
     Die Migration ist additiv und laeuft beim Start; ein Leser darf daran
-    trotzdem nicht scheitern (dieselbe Haltung wie ``phasen.feld``)."""
+    trotzdem nicht scheitern (dieselbe Haltung wie ``phasen.feld``).
+    Oeffentlich seit 30.09.2026: ``kuerzung`` und ``kurzgeschichte`` lesen
+    die Prosa ueber dieselbe Stelle."""
     try:
         return (szene["prosa"] or "").strip()
     except (IndexError, KeyError):
         return ""
+
+
+#: Der alte, modulinterne Name -- die Aufrufer in diesem Modul bleiben.
+_prosa_von = prosa_von
 
 
 def _continuity_kennzeichnung(bausteine: list[dict], voll: set[int]) -> str:

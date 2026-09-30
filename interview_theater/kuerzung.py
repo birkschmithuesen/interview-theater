@@ -65,6 +65,26 @@ TEXT_NOTIZ_PROSA = (
 #: stille Abfuhr: die Gruppe hat gerade gedrueckt.
 TEXT_NICHTS_ZU_KUERZEN = "Da ist noch kein Text, den ich kuerzen koennte."
 
+#: Die Knopfquittung, wenn der Schreibweg selbst abgelehnt hat (laeuft schon,
+#: Pflichtfeld fehlt, USA-Frage offen). In all diesen Faellen hat
+#: ``szene.starte`` bzw. ``kurzgeschichte.starte`` den Grund schon in den
+#: Chat geschrieben -- die Quittung verweist nur darauf, statt einen Grund
+#: zu raten ("Laeuft schon" war bei einer Sperre falsch).
+TEXT_KEIN_LAUF = "Nicht gestartet, siehe Chat"
+
+#: Die Quittungen bei angestossenem Lauf.
+TEXT_SZENE_GESTARTET = "Szene {nummer} wird kuerzer"
+TEXT_GESCHICHTE_GESTARTET = "Die Geschichte wird kuerzer"
+
+#: Quittungen, hinter denen KEIN Lauf steht -- dort darf der Handler auch
+#: keine spaeteren Szenen zur Pruefung markieren (``hat_gestartet``).
+_OHNE_LAUF = frozenset({TEXT_NICHTS_ZU_KUERZEN, TEXT_KEIN_LAUF})
+
+
+def hat_gestartet(meldung: str) -> bool:
+    """Steht hinter dieser Quittung von ``starte`` ein angestossener Lauf?"""
+    return meldung not in _OHNE_LAUF
+
 
 def notiz_fuer_szene() -> str:
     """Die Regie-Notiz fuer eine einzelne Szene."""
@@ -94,7 +114,7 @@ def _abschnitte_mit_prosa(conn, chat_id: int) -> int:
     from interview_theater import repo, szene as szene_modul
 
     return sum(
-        1 for s in repo.hole_szenen(conn, chat_id) if szene_modul._prosa_von(s)
+        1 for s in repo.hole_szenen(conn, chat_id) if szene_modul.prosa_von(s)
     )
 
 
@@ -104,7 +124,7 @@ def _hat_text(conn, chat_id: int, nummer: int) -> bool:
     for s in repo.hole_szenen(conn, chat_id):
         if s["nummer"] != nummer:
             continue
-        return bool((s["volltext"] or "").strip() or szene_modul._prosa_von(s))
+        return bool((s["volltext"] or "").strip() or szene_modul.prosa_von(s))
     return False
 
 
@@ -115,7 +135,9 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int | None = None) -> str:
     Kurzgeschichte. **Kein Modellaufruf hier**: beide Wege geben an einen
     eigenen Thread ab (Zusage 2).
 
-    Gibt es nichts zu kuerzen, gibt es keinen Lauf, sondern einen Satz."""
+    Gibt es nichts zu kuerzen, gibt es keinen Lauf, sondern einen Satz.
+    Ob ein Lauf angestossen wurde, sagt ``hat_gestartet`` ueber die
+    Quittung."""
     from interview_theater import kurzgeschichte, szene as szene_modul
 
     if nummer is not None:
@@ -124,15 +146,17 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int | None = None) -> str:
             return TEXT_NICHTS_ZU_KUERZEN
         auftrag = f"Schreib Szene {nummer} neu. {notiz_fuer_szene()}"
         if szene_modul.starte(conn, tg, klm, e, chat_id, auftrag) is None:
-            return "Laeuft schon"
-        return f"Szene {nummer} wird kuerzer"
+            return TEXT_KEIN_LAUF
+        return TEXT_SZENE_GESTARTET.format(nummer=nummer)
 
     anzahl = _abschnitte_mit_prosa(conn, chat_id)
     if not anzahl:
         tg.sende(chat_id, TEXT_NICHTS_ZU_KUERZEN)
         return TEXT_NICHTS_ZU_KUERZEN
+    # ``vorlage=True``: die bestehende Prosa steht im Prompt -- sonst schriebe
+    # das Modell "25 Prozent kuerzer" ueber einen Text, den es nie sah.
     if kurzgeschichte.starte(
-        conn, tg, klm, e, chat_id, notiz_fuer_prosa(anzahl)
+        conn, tg, klm, e, chat_id, notiz_fuer_prosa(anzahl), vorlage=True,
     ) is None:
-        return "Laeuft schon"
-    return "Die Geschichte wird kuerzer"
+        return TEXT_KEIN_LAUF
+    return TEXT_GESCHICHTE_GESTARTET

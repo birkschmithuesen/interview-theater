@@ -392,7 +392,10 @@ def _wirkung_szene_kuerzen(conn, d: Druck) -> str:
         d.tg.sende(d.chat_id, _TEXT_SZENE_UNBEKANNT)
         return _TEXT_SZENE_UNBEKANNT
     meldung = kuerzung.starte(conn, d.tg, d.klm, d.e, d.chat_id, nummer)
-    _melde_spaetere(conn, d.tg, d.chat_id, nummer)
+    # Nur wenn wirklich gekuerzt wird: ohne Lauf aendert sich an Szene
+    # ``nummer`` nichts, und die spaeteren brauchen keinen Pruef-Vermerk.
+    if kuerzung.hat_gestartet(meldung):
+        _melde_spaetere(conn, d.tg, d.chat_id, nummer)
     return meldung
 
 

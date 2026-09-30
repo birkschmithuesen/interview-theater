@@ -194,7 +194,7 @@ def test_kuerzen_ohne_nummer_nennt_die_abschnittszahl(prosa6, tg, einst):
     conn = prosa6
     gemerkt = {}
 
-    def attrappe(c, t, k, ein, chat_id, regie=None):
+    def attrappe(c, t, k, ein, chat_id, regie=None, vorlage=False):
         gemerkt["regie"] = regie
         return object()
 
@@ -225,3 +225,115 @@ def test_kuerzen_ist_kein_modellaufruf_im_handler():
     ganzen Pakets."""
     assert knoepfe.ART_SZENE_KUERZEN in knoepfe._WIRKUNGEN
     assert knoepfe.ART_GESCHICHTE_KUERZEN in knoepfe._WIRKUNGEN
+
+
+# --- Fix 30.09.2026: Vorlage im Prompt, Pruef-Vermerk nur mit Lauf --------
+
+
+KURZGESCHICHTE_ANTWORT = (
+    "1. Ankunft\nZusammenfassung: Sie kommen an.\n\nKurz.\n\n"
+    "2. Das Gestaendnis\nZusammenfassung: Sie gesteht.\n\nKurz.\n\n"
+    "3. Der Morgen\nZusammenfassung: Es wird hell.\n\nKurz.\n"
+)
+
+
+def test_kuerzen_der_geschichte_zeigt_dem_modell_die_bestehende_prosa(
+    prosa6, tg, einst,
+):
+    """Am ECHTEN Nutzertext, der an das Sprachmodell geht: wer "25 Prozent
+    kuerzer" bestellt, muss den Text mitschicken -- sonst schreibt das Modell
+    eine neue Geschichte, statt die bestehende zu kuerzen."""
+    import interview_theater.kurzgeschichte as kurzgeschichte_modul
+
+    klm = LLMAttrappe(antwort=KURZGESCHICHTE_ANTWORT)
+    meldung = kuerzung.starte(prosa6, tg, klm, einst, 1)
+    assert kuerzung.hat_gestartet(meldung)
+    assert kurzgeschichte_modul._sperre_fuer(1).acquire(timeout=20)
+    kurzgeschichte_modul._sperre_fuer(1).release()
+    assert klm.aufrufe, "kein Prosalauf angestossen"
+    nutzer = klm.aufrufe[0]["nutzer"]
+    assert kurzgeschichte_modul.UEBERSCHRIFT_VORLAGE in nutzer
+    for titel in ("Ankunft", "Das Gestaendnis", "Der Morgen"):
+        assert f"{titel}: ein langer Abschnitt, sehr lang, viel zu lang." in nutzer
+    # Reihenfolge der Abschnitte bleibt, und die Vorlage steht vor dem Auftrag.
+    assert (
+        nutzer.index("Ankunft:") < nutzer.index("Das Gestaendnis:")
+        < nutzer.index("Der Morgen:") < nutzer.index("Euer Auftrag:")
+    )
+
+
+def test_ohne_vorlage_bleibt_der_prosa_nutzertext_ohne_bestehende_fassung(prosa6):
+    """Der normale Prosalauf ("Geschichte schreiben", "Etwas aendern") bekommt
+    den Block nicht -- sein Nutzertext bleibt, wie er war."""
+    import interview_theater.kurzgeschichte as kurzgeschichte_modul
+
+    nutzer = kurzgeschichte_modul.baue_nutzertext(prosa6, 1, "eine Notiz")
+    assert kurzgeschichte_modul.UEBERSCHRIFT_VORLAGE not in nutzer
+    assert "viel zu lang" not in nutzer
+
+
+def _szene2_mit_text(conn):
+    szene_id = repo.stelle_szene_sicher(conn, 1, 2)
+    repo.setze_szenenfeld(conn, szene_id, "titel", "Danach")
+    repo.aktualisiere_szene(
+        conn, szene_id, "Danach", "Sie gehen.", "MIRA: Geh.", "Mira geht.",
+    )
+
+
+def _druecke_kuerzen(conn, tg, einst):
+    knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1\n\nMIRA: …")
+    daten = dict(tg.knoepfe[-1][2])[
+        knoepfe.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung.PROZENT)
+    ]
+    return knoepfe.behandle(conn, tg, LLMAttrappe(), einst, _druck(daten))
+
+
+def _pruefvermerke(conn):
+    from interview_theater import szenenfolge
+
+    anfang = szenenfolge.PRUEFVERMERK.format(nummer=2, geaendert=1)
+    return [j for j in repo.journal(conn, 1) if anfang in (j["text"] or "")]
+
+
+def test_ohne_lauf_bekommen_spaetere_szenen_keinen_pruefvermerk(szene7, tg, einst):
+    """Wird gar nicht gekuerzt (hier: es laeuft schon ein Szenenlauf), hat
+    sich an Szene 1 nichts geaendert -- Szene 2 darf keinen Vermerk bekommen,
+    und die Gruppe keine Zeile, dass sie noch einmal hinsehen muss."""
+    conn = szene7
+    _szene2_mit_text(conn)
+    sperre = szene._sperre_fuer(1)
+    assert sperre.acquire(blocking=False)
+    try:
+        assert _druecke_kuerzen(conn, tg, einst) is True
+    finally:
+        sperre.release()
+    assert not any("Weil sich Szene 1" in t for t in tg.texte)
+    assert _pruefvermerke(conn) == []
+
+
+def test_mit_lauf_bekommen_spaetere_szenen_ihren_pruefvermerk(szene7, tg, einst):
+    """Gegenprobe: laeuft die Kuerzung, stehen Vermerk und Hinweis da."""
+    conn = szene7
+    _szene2_mit_text(conn)
+    assert _druecke_kuerzen(conn, tg, einst) is True
+    assert szene._sperre_fuer(1).acquire(timeout=20)
+    szene._sperre_fuer(1).release()
+    assert any("Weil sich Szene 1" in t for t in tg.texte)
+    assert _pruefvermerke(conn)
+
+
+def test_abgelehnter_lauf_quittiert_neutral_statt_laeuft_schon(
+    szene7, tg, einst, monkeypatch,
+):
+    """Eine Sperre (``szene.sperrtext``: es fehlt etwas) ist kein laufender
+    Lauf. ``szene.starte`` sagt den Grund selbst im Chat -- die Quittung
+    verweist nur darauf."""
+    conn = szene7
+    monkeypatch.setattr(szene, "sperrtext", lambda c, z: "Es fehlt der Ort.")
+    klm = LLMAttrappe()
+    meldung = kuerzung.starte(conn, tg, klm, einst, 1, 1)
+    assert meldung == kuerzung.TEXT_KEIN_LAUF
+    assert not kuerzung.hat_gestartet(meldung)
+    assert "Laeuft" not in meldung
+    assert "Es fehlt der Ort." in tg.texte  # der Grund, von szene.starte
+    assert klm.aufrufe == []

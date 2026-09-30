@@ -1082,8 +1082,14 @@ python -m interview_theater.bot
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
 
+`scripts/simulation_abdeckung.py` erzeugt die Abdeckungstabelle der
+Simulation aus dem Code (Phasen aus `phasen.PHASEN`, Schritte aus den drei
+`skript`-Listen, Pruefung aus `schritt.fertig.__name__`) und prueft jede
+Behauptung der Simulations-Doku dagegen — kein Modell, kein Netz, keine
+Kosten.
+
 **Simulation** (`simulation/`, `scripts/simulation.py`, Stand 06.09.2026 nachts):
-simulierte Gruppen spielen den Bot durch alle **acht Phasen** — mit Inline-Knöpfen
+simulierte Gruppen spielen den Bot durch alle **Phasen** — mit Inline-Knöpfen
 (`attrappe` merkt die Leisten, die Stimme drückt per Knopftext oder schreibt
 frei) und dem Schrittplan `skript.SCHRITTE_TAG2`. Stimmen: drei erfundene Sets
 plus **PII-freie Personas aus Tag 1** (`simulation/tag1.py`,
@@ -1267,9 +1273,13 @@ einem Szenentext kommt, ob Zustimmungen ankommen, ob der Bot behauptet, etwas
 notiert zu haben, das nirgends steht. Genau dafür gibt es
 `scripts/simulation.py` (Details in [simulation/README.md](simulation/README.md)).
 
-Drei simulierte Teilnehmerinnen arbeiten sich durch neun Schritte: Begriffe,
-Fragen, fünf Interviews, Kernthema, Figuren, Phase 5, eine Szene, eine
-Korrektur, `/stand`. Gefahren wird **derselbe Codepfad wie im Betrieb**
+Simulierte Teilnehmerinnen arbeiten sich durch die Schritte einer
+Skriptliste. `skript.SCHRITTE` ist der Ablauf vom 05.09.2026 und die
+Messlatte der damaligen Verlaufszeilen (zehn Schritte, keine Phasenwechsel);
+`skript.SCHRITTE_TAG2` faehrt die heutigen **sieben** Phasen, und seit dem
+30.09.2026 waehlt der Schalter `--skript tag2` es auch fuer die erfundenen
+Sets 1–3 — vorher war es an `--set tag1-*` gebunden, und damit fuhr kein
+erfundenes Set die Phasen 4 bis 7 ueberhaupt an. Gefahren wird **derselbe Codepfad wie im Betrieb**
 (`bot.verarbeite_update`, `bot._zug_und_erkenner`), nur mit einer
 Telegram-Attrappe statt Netz und einer Wegwerf-Datenbank statt `IT_DB`. Der
 Umweg über Telegram ist gar nicht möglich: Telegram liefert Bot-Nachrichten
@@ -1329,6 +1339,24 @@ Verteilung, die Prompts über `ZIEL`, die mit Kürzung — und bei den fünf
 schwächsten Antworten urteilt der Richter am Block-Umriss, ob dem Bot
 Information gefehlt hat, die in der DB stand. Dazu ein Skript-Schritt
 **Zitatabfragen** mit der mechanischen Kennzahl `zitat_erfunden` (Soll 0).
+
+Dazu seit dem 30.09.2026 die zwei Kennzahlen der Gegenpruefung, beide
+mechanisch: **`festlegungsproben_erhalten`** (Soll: alle — von drei
+Pruefsaetzen, die in kein Arbeitsstandfeld passen, muss jeder dauerhaft
+liegen; das Journal zaehlt dabei **nicht**, es wird auf acht Zeilen gekappt)
+und **`szenenfolge_nach_richtung`** (Soll 0 — nach einer gedrueckten
+Geschichte-Richtung darf kein frischer Szenenfolge-Vorschlag laufen, er
+ueberschreibt die Titel der Gruppe und kostet 110 s; in den Laeufen vom
+30.09.2026 konnte sie noch nie anschlagen, weil die Richtungswahl in keinem
+Lauf erreicht wurde). Beide sind entstanden, weil die Simulation die zwei
+belegten Dortmunder Fehler vom 06.09.2026 vorher nicht benennen konnte; was
+sie heute findet und was nicht, steht in
+`docs/simulation-gegenpruefung-2026-09-30.md`.
+`simulation/mutation.py` baut sie auf Knopfdruck wieder ein
+(`--mutation`) — per Monkey-Patch aus `simulation/` heraus, kein
+Produktivcode und keine Weiche darin; `tests/test_simulation_mutation.py`
+haelt fest, dass die Mutation den Fehler wirklich erzeugt, und muss vor jedem
+bezahlten Lauf gruen sein.
 
 **Kein Test, läuft nie automatisch, kostet Geld** — wie `pruefe_prompts.py`
 und `rauchtest.py`, nur eine Größenordnung mehr: ein voller Lauf sind einige
@@ -1936,6 +1964,12 @@ python -m interview_theater.bot
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
 
+`scripts/simulation_abdeckung.py` erzeugt die Abdeckungstabelle der
+Simulation aus dem Code (Phasen aus `phasen.PHASEN`, Schritte aus den drei
+`skript`-Listen, Pruefung aus `schritt.fertig.__name__`) und prueft jede
+Behauptung der Simulations-Doku dagegen — kein Modell, kein Netz, keine
+Kosten.
+
 **Simulation** (`simulation/`, `scripts/simulation.py`, Stand 06.09.2026 nachts):
 simulierte Gruppen spielen den Bot durch **alle Phasen** — mit Inline-Knöpfen
 (`attrappe` merkt die Leisten, die Stimme drückt per Knopftext oder schreibt
@@ -2212,9 +2246,13 @@ einem Szenentext kommt, ob Zustimmungen ankommen, ob der Bot behauptet, etwas
 notiert zu haben, das nirgends steht. Genau dafür gibt es
 `scripts/simulation.py` (Details in [simulation/README.md](simulation/README.md)).
 
-Drei simulierte Teilnehmerinnen arbeiten sich durch neun Schritte: Begriffe,
-Fragen, fünf Interviews, Kernthema, Figuren, Phase 5, eine Szene, eine
-Korrektur, `/stand`. Gefahren wird **derselbe Codepfad wie im Betrieb**
+Simulierte Teilnehmerinnen arbeiten sich durch die Schritte einer
+Skriptliste. `skript.SCHRITTE` ist der Ablauf vom 05.09.2026 und die
+Messlatte der damaligen Verlaufszeilen (zehn Schritte, keine Phasenwechsel);
+`skript.SCHRITTE_TAG2` faehrt die heutigen **sieben** Phasen, und seit dem
+30.09.2026 waehlt der Schalter `--skript tag2` es auch fuer die erfundenen
+Sets 1–3 — vorher war es an `--set tag1-*` gebunden, und damit fuhr kein
+erfundenes Set die Phasen 4 bis 7 ueberhaupt an. Gefahren wird **derselbe Codepfad wie im Betrieb**
 (`bot.verarbeite_update`, `bot._zug_und_erkenner`), nur mit einer
 Telegram-Attrappe statt Netz und einer Wegwerf-Datenbank statt `IT_DB`. Der
 Umweg über Telegram ist gar nicht möglich: Telegram liefert Bot-Nachrichten
@@ -2274,6 +2312,24 @@ Verteilung, die Prompts über `ZIEL`, die mit Kürzung — und bei den fünf
 schwächsten Antworten urteilt der Richter am Block-Umriss, ob dem Bot
 Information gefehlt hat, die in der DB stand. Dazu ein Skript-Schritt
 **Zitatabfragen** mit der mechanischen Kennzahl `zitat_erfunden` (Soll 0).
+
+Dazu seit dem 30.09.2026 die zwei Kennzahlen der Gegenpruefung, beide
+mechanisch: **`festlegungsproben_erhalten`** (Soll: alle — von drei
+Pruefsaetzen, die in kein Arbeitsstandfeld passen, muss jeder dauerhaft
+liegen; das Journal zaehlt dabei **nicht**, es wird auf acht Zeilen gekappt)
+und **`szenenfolge_nach_richtung`** (Soll 0 — nach einer gedrueckten
+Geschichte-Richtung darf kein frischer Szenenfolge-Vorschlag laufen, er
+ueberschreibt die Titel der Gruppe und kostet 110 s; in den Laeufen vom
+30.09.2026 konnte sie noch nie anschlagen, weil die Richtungswahl in keinem
+Lauf erreicht wurde). Beide sind entstanden, weil die Simulation die zwei
+belegten Dortmunder Fehler vom 06.09.2026 vorher nicht benennen konnte; was
+sie heute findet und was nicht, steht in
+`docs/simulation-gegenpruefung-2026-09-30.md`.
+`simulation/mutation.py` baut sie auf Knopfdruck wieder ein
+(`--mutation`) — per Monkey-Patch aus `simulation/` heraus, kein
+Produktivcode und keine Weiche darin; `tests/test_simulation_mutation.py`
+haelt fest, dass die Mutation den Fehler wirklich erzeugt, und muss vor jedem
+bezahlten Lauf gruen sein.
 
 **Kein Test, läuft nie automatisch, kostet Geld** — wie `pruefe_prompts.py`
 und `rauchtest.py`, nur eine Größenordnung mehr: ein voller Lauf sind einige

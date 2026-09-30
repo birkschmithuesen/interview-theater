@@ -3618,7 +3618,7 @@ Inline-Saetze (fehlstellen.py:106–251, jeder eine Konstante `_SATZ_…`).
 - `/hilfe` nennt Befehle (das darf es, K6); die Befehlsnamen bleiben
   (Annahme A4), die Erklaerung wird englisch.
 
-- [ ] **Schritt 1: Test schreiben** — `tests/test_chat_sprache.py`:
+- [x] **Schritt 1: Test schreiben** — `tests/test_chat_sprache.py`:
 
 ```python
 """Begruessung, Hilfe, Stand und Phasenrahmen auf Englisch (Karte A1)."""
@@ -3665,11 +3665,11 @@ def test_dortmund_unveraendert(conn, einst):
     assert tg.texte()[-1] == befehle._TEXT_HILFE
 ```
 
-- [ ] **Schritt 2:** rot: `$PY -m pytest -q -p no:cacheprovider tests/test_chat_sprache.py`
+- [x] **Schritt 2:** rot: `$PY -m pytest -q -p no:cacheprovider tests/test_chat_sprache.py`
   → `AssertionError` (Deutsch statt Englisch). `UMGESTELLT |= {"befehle",
   "bot", "leitfaden", "phasentexte", "fehlstellen", "phasen"}` →
   `tests/test_sprache_texte.py` rot mit der Arbeitsliste.
-- [ ] **Schritt 3:** umstellen (fuenf Schritte). Englische Kernsaetze:
+- [x] **Schritt 3:** umstellen (fuenf Schritte). Englische Kernsaetze:
   `_TEXT_HILFE` beginnt `"Just write or speak - I read everything and answer.\n\nHOW TO DO AN INTERVIEW:\n1. Tap \"Start interview\"\n…"`
   (die Aufzaehlungsstruktur 1.–4. und die Befehlszeilen bleiben);
   `_ZEILE_CHECKLISTE = "What it takes: {liste}"`;
@@ -3679,13 +3679,13 @@ def test_dortmund_unveraendert(conn, einst):
   `UEBERSCHRIFT_ABSCHLUSS = "How to finish:"`,
   `TEXT_LEER = "I don't have an interview guide yet - for that I need your questions first."`;
   `bot._TEXT_WIEDERKEHR = "I'm back. We're at {phase}."`.
-- [ ] **Schritt 4:** gruen:
+- [x] **Schritt 4:** gruen:
   `$PY -m pytest -q -p no:cacheprovider tests/test_chat_sprache.py tests/test_sprache_texte.py tests/test_sprache_bitgleich.py tests/test_profil_bitgleich.py tests/test_befehle.py tests/test_bot.py tests/test_leitfaden.py tests/test_phasentexte.py tests/test_fehlstellen.py`;
   `$PY -m scripts.pruefe_sprache --schluessel befehle,bot,leitfaden,phasentexte,fehlstellen,phasen` → `0 Treffer`.
-- [ ] **Schritt 5: Mutationsnachweis:** `_TEXT_HILFE` in `_befehl_hilfe`
+- [x] **Schritt 5: Mutationsnachweis:** `_TEXT_HILFE` in `_befehl_hilfe`
   wieder nackt → `test_keine_nackte_verwendung[befehle]` rot **und**
   `test_hilfe_auf_englisch` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Chat-Geruest auf Englisch: Befehle, Begruessung, Leitfaden, Phasenrahmen (A1)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Chat-Geruest auf Englisch: Befehle, Begruessung, Leitfaden, Phasenrahmen (A1)"`.
 
 ---
 

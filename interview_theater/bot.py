@@ -229,17 +229,17 @@ def erstkontakt(conn, tg, e, chat_id: int) -> None:
     # Begruessung, dass jetzt die Begriffsliste aus dem Plenum kommt, und
     # nicht, wie man eine Aufnahme startet (05.09.2026).
     if phasen.aktuelle(conn, chat_id) >= knoepfe.PHASE_INTERVIEWS:
-        vorlage = _TEXT_ERSTKONTAKT
+        vorlage = T._TEXT_ERSTKONTAKT
     elif repo.hat_gruppennachricht(conn, chat_id):
         # Die Gruppe ist mit ihrer Liste vorangegangen -- dann ist "schickt
         # mir die Liste" eine Aufforderung zu etwas, das gerade passiert ist.
-        vorlage = _TEXT_ERSTKONTAKT_BEGRIFFE_DA
+        vorlage = T._TEXT_ERSTKONTAKT_BEGRIFFE_DA
     else:
-        vorlage = _TEXT_ERSTKONTAKT_BEGRIFFE
+        vorlage = T._TEXT_ERSTKONTAKT_BEGRIFFE
     text = vorlage.format(bot_name=e.bot_name)
     url = stelle_link_sicher(conn, e, chat_id)
     if url:
-        text += _TEXT_GRUPPENSEITE.format(url=url)
+        text += T._TEXT_GRUPPENSEITE.format(url=url)
     try:
         message_id = knoepfe.biete_einstieg(conn, tg, chat_id, text)
         repo.merke_nachricht(
@@ -276,7 +276,7 @@ def sende_wiederkehr_begruessungen(conn, tg, e, jetzt) -> None:
             letzte = repo.letzte_nachricht_zeit(conn, gruppe["chat_id"])
             if letzte is None or not begruessung_faellig(letzte, jetzt):
                 continue
-            text = _TEXT_WIEDERKEHR.format(
+            text = T._TEXT_WIEDERKEHR.format(
                 phase=phasen.bezeichnung(phasen.aktuelle(conn, gruppe["chat_id"]))
             )
             message_id = knoepfe.biete_einstieg(conn, tg, gruppe["chat_id"], text)
@@ -500,7 +500,7 @@ def main() -> None:
     # ohne die Befehle im Menue funktioniert der Bot trotzdem, sie muessten
     # nur von Hand getippt werden.
     try:
-        tg.setze_befehle(befehle.BEFEHLE_LISTE)
+        tg.setze_befehle(befehle.T.BEFEHLE_LISTE)
     except Exception:
         log.exception("setMyCommands fehlgeschlagen")
 
@@ -529,6 +529,10 @@ def main() -> None:
     finally:
         stop.set()
         pool.shutdown(wait=False)
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)
 
 
 if __name__ == "__main__":

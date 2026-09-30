@@ -77,9 +77,14 @@ _UMLAUT = re.compile(r"[äöüÄÖÜß]")
 #: Was vor dem Pruefen herausgenommen wird: Platzhalter, snake_case-Namen
 #: (Erkenner-Arten, JSON-Schluessel, Feldnamen), Woerter nur aus
 #: Grossbuchstaben (Protokoll-Marker wie VORSCHLAG FRAGENAUSWAHL:, BEFUND:),
-#: URLs und Dateipfade.
+#: URLs und Dateipfade. Dazu die Syntax eines Slash-Befehls (Annahme A4:
+#: Befehlsnamen und Argumentwoerter bleiben deutsch, ``/hilfe`` darf sie
+#: nennen): der Name samt direkt folgender kleingeschriebener Argumente,
+#: ``a|b``-Alternativen und ``<…>``/``[…]``-Platzhalter. Grenze, bewusst: ein
+#: kleingeschriebenes Wort direkt hinter einem Befehl gilt als Argument.
 _AUSSEN_VOR = re.compile(
-    r"\{\{[a-z0-9_]+\}\}|\{[A-Za-z0-9_!:>< .]*\}"
+    r"(?<![\w/])/[a-z]+(?:[ ]+(?:<[^<>\n]*>|\[[^\[\]\n]*\]|[a-z]+(?:\|[a-z]+)*)(?![\w]))*"
+    r"|\{\{[a-z0-9_]+\}\}|\{[A-Za-z0-9_!:>< .]*\}"
     r"|\b[a-z]+(?:_[a-z0-9]+)+\b"
     r"|\b[A-ZÄÖÜ]{2,}(?:[ _][A-ZÄÖÜ]{2,})*\b"
     r"|https?://\S+|\b[\w./-]+\.(?:md|toml|py|txt|json|jsonl)\b"

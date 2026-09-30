@@ -30,6 +30,7 @@ UMGESTELLT: set[str] = {
     "anweisungen", "knoepfe.texte", "knoepfe.basis", "knoepfe.fragen",
     "knoepfe.interviews", "knoepfe.stationen", "knoepfe.figuren",
     "knoepfe.szenen", "knoepfe.wirkung",
+    "befehle", "bot", "leitfaden", "phasentexte", "fehlstellen", "phasen",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -63,6 +64,13 @@ PARSER = {
     "szene._ANDERS_NICHTS", "dramaturgie.mechanik._STRUKTUR",
     "dramaturgie.mechanik._TSCHECHOW_STOPP", "dramaturgie.mechanik._STRANG_STOPP",
     "vorspann.SCHAERFUNGSFORMELN", "stueckpruefung.FRAGEN",
+}
+
+#: Strukturen mit Funktionen (K4): uebersetzt werden sie ueber eine
+#: Beschriftungstabelle im selben Modul, nicht selbst. Schluessel: die
+#: Struktur, Wert: der Name ihrer Beschriftungstabelle.
+BESCHRIFTET = {
+    "phasentexte.PARAMETER": "phasentexte.PARAMETER_BESCHRIFTUNG",
 }
 
 #: Deutsche Inline-Literale, die bleiben duerfen: Vorfall-Details
@@ -317,6 +325,8 @@ def test_keine_unuebersetzte_konstante(modul):
         schluessel = f"{modul}.{name}"
         if name in tabelle.get(modul, {}) or schluessel in BLEIBT_DEUTSCH or schluessel in PARSER:
             continue
+        if schluessel in BESCHRIFTET:
+            continue
         if name.startswith("ART_") or name.endswith("_EN"):
             continue
         wert = _wert_aus_quelltext(modul, name, knoten)
@@ -425,6 +435,34 @@ def test_keine_deutschen_inline_texte(modul):
              for zeile, text in _inline_texte(BAEUME[modul])
              if (modul, text[:40]) not in INLINE_ERLAUBT]
     assert offen == []
+
+
+@pytest.mark.parametrize("struktur, beschriftung", sorted(BESCHRIFTET.items()))
+def test_beschriftungstabelle_deckt_jedes_wort_der_struktur(struktur, beschriftung):
+    """K4: jedes sichtbare Wort einer Struktur mit Funktionen steht in ihrer
+    Beschriftungstabelle -- deutsch als Identitaet, englisch in der
+    Texttabelle. Ein neues Wort in der Struktur ohne Eintrag bliebe in Padua
+    stumm deutsch."""
+    import importlib
+
+    def woerter(wert):
+        if isinstance(wert, str):
+            yield wert
+        elif isinstance(wert, dict):
+            for v in wert.values():
+                yield from woerter(v)
+        elif isinstance(wert, (list, tuple)):
+            for v in wert:
+                yield from woerter(v)
+
+    modul, name = struktur.rsplit(".", 1)
+    m = importlib.import_module(f"interview_theater.{modul}")
+    tabelle = getattr(m, beschriftung.rsplit(".", 1)[1])
+    fehlend = sorted(set(woerter(getattr(m, name))) - set(tabelle))
+    assert fehlend == []
+    assert all(k == v for k, v in tabelle.items())
+    englisch = _tabelle()[modul][beschriftung.rsplit(".", 1)[1]]
+    assert set(englisch) == set(tabelle)
 
 
 def test_umgestellt_ist_teilmenge_von_alle_module():

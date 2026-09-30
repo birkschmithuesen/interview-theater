@@ -127,7 +127,8 @@ def teile() -> list[tuple[str, str]]:
 
     for feld in ("TEXT_KOPF", "UEBERSCHRIFT_EROEFFNUNG", "UEBERSCHRIFT_FRAGEN",
                  "UEBERSCHRIFT_ABSCHLUSS", "TEXT_LEER"):
-        stuecke.append((f"leitfaden.{feld}", getattr(leitfaden, feld)))
+        # Ueber den Sprachzugriff (Karte A1): im Deutschen dasselbe Objekt.
+        stuecke.append((f"leitfaden.{feld}", getattr(leitfaden.T, feld)))
 
     # Die Auftrags-Anweisungen der Knoepfe: Prompt-Text, der im Code steht
     # (ein Knopf schickt ihn ueber ablauf.starte_auftrag an das Modell).

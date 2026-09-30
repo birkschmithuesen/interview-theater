@@ -1549,7 +1549,7 @@ def _interviewmodus_texte() -> dict[str, str]:
     # Ablauf-Erklaerung vor dem Start -- der Knopf darunter schaltet ein.
     return {
         "interview_starten": knoepfe.TEXT_ABLAUF,
-        "interview_beenden": befehle._TEXT_INTERVIEW_AUS,
+        "interview_beenden": befehle.T._TEXT_INTERVIEW_AUS,
     }
 
 

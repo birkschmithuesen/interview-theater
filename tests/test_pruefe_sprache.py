@@ -37,6 +37,19 @@ def test_protokoll_token_sind_erlaubt():
     assert _woerter(text) == []
 
 
+def test_slash_befehle_samt_argumentsyntax_sind_protokoll():
+    """Annahme A4: die Befehlsnamen und ihre Argumentwoerter bleiben deutsch
+    (``/hilfe`` darf sie nennen, K6). Ausgenommen ist nur die Befehlssyntax
+    selbst -- der Satz drumherum wird weiter geprueft."""
+    text = ("/stand - shows what I've kept so far\n"
+            "/szene <number> ort|zeit|anlass|figuren <text> - place\n"
+            "/figur <name> entfernen. /festlegung weg <search word>.\n"
+            "/phase [number|name] - shows the phase")
+    assert _woerter(text) == []
+    assert _woerter("/stand zeigt euch den Stand") != []
+    assert _woerter("Type /hilfe, und fertig.") == ["und", "fertig"]
+
+
 def test_treffer_nennt_quelle_und_ausschnitt():
     treffer = pruefe_sprache.deutsche_treffer("prompt system", "Please write und so.")
     assert treffer[0].quelle == "prompt system"

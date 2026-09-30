@@ -50,6 +50,34 @@ UEBERSCHRIFT = "Was noch fehlt"
 #: Material, die der Umbau vom 05.09.2026 vermeidet.
 PHASE_SPRACHPROFIL = 5
 
+#: Die Saetze des Registers (Karte A1: vorher Literale in den Funktionen,
+#: zeichengleich). Je Satz ein Eintrag in sprachen/en/texte.toml.
+_SATZ_BEGRIFFE = "Die Begriffsliste aus dem Plenum steht noch nicht."
+_SATZ_FRAGEN = "Es sind noch keine Interviewfragen ausgewaehlt."
+_SATZ_FRAGEN_UNGEPRUEFT = "Die Fragen sind noch nicht auf heikle Stellen geprueft."
+_SATZ_EROEFFNUNG = "Im Leitfaden fehlt die Eroeffnung - womit ihr das Gespraech anfangt."
+_SATZ_ABSCHLUSS = "Im Leitfaden fehlt der Abschluss - womit ihr das Gespraech beendet."
+_SATZ_KEIN_INTERVIEW = "Noch kein Interview ist ausgewertet."
+_SATZ_INTERVIEW_OFFEN = "{name} ist aufgenommen, aber noch nicht ausgewertet."
+_SATZ_SETTING = "Das Setting steht noch nicht - Ort, Zeit, Anlass."
+_SATZ_GESCHICHTE = "Die Geschichte steht noch nicht - was passiert, wie es ausgeht."
+_SATZ_FIGUREN_OFFEN = "Die Figurenliste ist noch nicht abgenommen."
+_SATZ_KEINE_FIGUREN = "Es gibt noch keine Figuren."
+_SATZ_FIGUR_OHNE_BESCHREIBUNG = "{name} hat noch keine Beschreibung."
+_SATZ_FIGUR_OHNE_INTERVIEW = (
+    "Fuer {name} ist noch kein Interview zugeordnet - aus welchem spricht sie?"
+)
+_SATZ_FIGUR_OHNE_SPRACHPROFIL = "{name} hat noch kein Sprachprofil."
+_SATZ_KEINE_SZENEN = "Es gibt noch keine Szenen."
+_SATZ_SZENE_NICHT_ERZAEHLT = "{kopf} ist noch nicht erzaehlt."
+_SATZ_SZENE_OHNE_FORM = "Fuer {kopf} ist noch keine Form bestaetigt."
+_SATZ_SZENE_FELDER = "Fuer {kopf} fehlt noch: {felder}."
+_SATZ_SZENE_OHNE_TEXT = "{kopf} hat noch keinen Szenentext."
+#: Ersatznamen, wenn Figur oder Szene keinen Namen/keine Nummer hat.
+_TEXT_EINE_FIGUR = "Eine Figur"
+_TEXT_SZENE_KOPF = "Szene {nummer}"
+_TEXT_EINE_SZENE = "Eine Szene"
+
 
 def _wert(quelle, name: str):
     """Ein Feld aus einem Dict oder einer ``sqlite3.Row``; ``None``, wenn es
@@ -103,27 +131,27 @@ def _begriffe_und_fragen(stand) -> list[dict]:
     offen = []
     if not _text(stand, "begriffe"):
         offen.append(_eintrag(
-            "begriffe", "Die Begriffsliste aus dem Plenum steht noch nicht.", 1,
+            "begriffe", T._SATZ_BEGRIFFE, 1,
         ))
     if not _text(stand, "fragen"):
         offen.append(_eintrag(
-            "fragen", "Es sind noch keine Interviewfragen ausgewaehlt.", 2,
+            "fragen", T._SATZ_FRAGEN, 2,
         ))
         return offen
     if not (_gesetzt(stand, "fragen_weich") or _gesetzt(stand, "frage_einleitungen")):
         offen.append(_eintrag(
-            "fragen", "Die Fragen sind noch nicht auf heikle Stellen geprueft.", 2,
+            "fragen", T._SATZ_FRAGEN_UNGEPRUEFT, 2,
         ))
     if not _text(stand, "interview_eroeffnung"):
         offen.append(_eintrag(
             "leitfaden",
-            "Im Leitfaden fehlt die Eroeffnung - womit ihr das Gespraech anfangt.",
+            T._SATZ_EROEFFNUNG,
             2,
         ))
     if not _text(stand, "interview_abschluss"):
         offen.append(_eintrag(
             "leitfaden",
-            "Im Leitfaden fehlt der Abschluss - womit ihr das Gespraech beendet.",
+            T._SATZ_ABSCHLUSS,
             2,
         ))
     return offen
@@ -138,11 +166,11 @@ def _interviews(hat_verdichtung: bool, offene: list[str]) -> list[dict]:
     das Handy hielt (Birk, 05.09.2026)."""
     offen = []
     if not hat_verdichtung:
-        offen.append(_eintrag("interviews", "Noch kein Interview ist ausgewertet.", 3))
+        offen.append(_eintrag("interviews", T._SATZ_KEIN_INTERVIEW, 3))
     for name in offene:
         offen.append(_eintrag(
             "interviews",
-            f"{name} ist aufgenommen, aber noch nicht ausgewertet.",
+            T._SATZ_INTERVIEW_OFFEN.format(name=name),
             3,
         ))
     return offen
@@ -155,17 +183,17 @@ def _arbeitsstand(stand) -> list[dict]:
     offen = []
     if not _text(stand, "rahmen"):
         offen.append(_eintrag(
-            "setting", "Das Setting steht noch nicht - Ort, Zeit, Anlass.", 4,
+            "setting", T._SATZ_SETTING, 4,
         ))
     if not _text(stand, "geschichte"):
         offen.append(_eintrag(
             "geschichte",
-            "Die Geschichte steht noch nicht - was passiert, wie es ausgeht.",
+            T._SATZ_GESCHICHTE,
             4,
         ))
     if not _text(stand, "figuren_fixiert_am"):
         offen.append(_eintrag(
-            "figuren", "Die Figurenliste ist noch nicht abgenommen.", 4,
+            "figuren", T._SATZ_FIGUREN_OFFEN, 4,
         ))
     return offen
 
@@ -177,29 +205,29 @@ def _figuren(figuren: list, phase: int) -> list[dict]:
     kein Rueckstand, sondern noch nicht dran."""
     offen = []
     if not figuren:
-        return [_eintrag("figuren", "Es gibt noch keine Figuren.", 4)]
+        return [_eintrag("figuren", T._SATZ_KEINE_FIGUREN, 4)]
     for f in figuren:
-        name = _wert(f, "name") or "Eine Figur"
+        name = _wert(f, "name") or T._TEXT_EINE_FIGUR
         if not _text(f, "beschreibung"):
             offen.append(_eintrag(
-                "figuren", f"{name} hat noch keine Beschreibung.", 4, figur=name,
+                "figuren", T._SATZ_FIGUR_OHNE_BESCHREIBUNG.format(name=name), 4,
+                figur=name,
             ))
     if phase < PHASE_SPRACHPROFIL:
         return offen
     for f in figuren:
-        name = _wert(f, "name") or "Eine Figur"
+        name = _wert(f, "name") or T._TEXT_EINE_FIGUR
         if _wert(f, "quelle_aufnahme_id") is None:
             offen.append(_eintrag(
                 "figuren",
-                f"Fuer {name} ist noch kein Interview zugeordnet - aus welchem "
-                "spricht sie?",
+                T._SATZ_FIGUR_OHNE_INTERVIEW.format(name=name),
                 PHASE_SPRACHPROFIL,
                 figur=name,
             ))
         elif not _text(f, "sprachprofil"):
             offen.append(_eintrag(
                 "figuren",
-                f"{name} hat noch kein Sprachprofil.",
+                T._SATZ_FIGUR_OHNE_SPRACHPROFIL.format(name=name),
                 PHASE_SPRACHPROFIL,
                 figur=name,
             ))
@@ -221,19 +249,21 @@ def _szenen(szenen: list) -> list[dict]:
     from interview_theater import szene as szene_modul
 
     if not szenen:
-        return [_eintrag("szenen", "Es gibt noch keine Szenen.", 4)]
+        return [_eintrag("szenen", T._SATZ_KEINE_SZENEN, 4)]
     offen = []
     for s in szenen:
         nummer = _wert(s, "nummer")
-        kopf = f"Szene {nummer}" if nummer is not None else "Eine Szene"
+        kopf = (T._TEXT_SZENE_KOPF.format(nummer=nummer) if nummer is not None
+                else T._TEXT_EINE_SZENE)
         if not _text(s, "prosa") and not _text(s, "volltext"):
             offen.append(_eintrag(
-                "szenen", f"{kopf} ist noch nicht erzaehlt.", 6, szene=nummer,
+                "szenen", T._SATZ_SZENE_NICHT_ERZAEHLT.format(kopf=kopf), 6,
+                szene=nummer,
             ))
             continue
         if not _text(s, "form"):
             offen.append(_eintrag(
-                "szenen", f"Fuer {kopf} ist noch keine Form bestaetigt.", 7,
+                "szenen", T._SATZ_SZENE_OHNE_FORM.format(kopf=kopf), 7,
                 szene=nummer,
             ))
         fehlend = [
@@ -243,12 +273,14 @@ def _szenen(szenen: list) -> list[dict]:
         ]
         if fehlend:
             offen.append(_eintrag(
-                "szenen", f"Fuer {kopf} fehlt noch: {', '.join(fehlend)}.", 7,
+                "szenen",
+                T._SATZ_SZENE_FELDER.format(kopf=kopf, felder=", ".join(fehlend)), 7,
                 szene=nummer,
             ))
         if not _text(s, "volltext"):
             offen.append(_eintrag(
-                "szenen", f"{kopf} hat noch keinen Szenentext.", 7, szene=nummer,
+                "szenen", T._SATZ_SZENE_OHNE_TEXT.format(kopf=kopf), 7,
+                szene=nummer,
             ))
     return offen
 
@@ -346,3 +378,7 @@ def zeilen(conn, chat_id: int, hoechstens: int = HOECHSTENS) -> list[str]:
     ``/stand`` haengt sie unter den Stand. Leere Liste heisst: gar nichts
     schreiben, auch keine Ueberschrift."""
     return [f"- {e['text']}" for e in register(conn, chat_id, hoechstens)]
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

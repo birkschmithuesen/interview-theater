@@ -164,23 +164,23 @@ def aus_feldern(felder: dict) -> str:
     """
     teil = bausteine(felder)
     if teil is None:
-        return TEXT_LEER
+        return T.TEXT_LEER
 
     teile: list[str] = []
     if teil["eroeffnung"]:
-        teile.append(f"{UEBERSCHRIFT_EROEFFNUNG}\n{teil['eroeffnung']}")
+        teile.append(f"{T.UEBERSCHRIFT_EROEFFNUNG}\n{teil['eroeffnung']}")
 
-    zeilen = [UEBERSCHRIFT_FRAGEN]
+    zeilen = [T.UEBERSCHRIFT_FRAGEN]
     for frage in teil["fragen"]:
         zeilen.append(f"{frage['nummer']}. {frage['text']}")
         if frage["kern"]:
-            zeilen.append(_KERN_ZEILE.format(text=frage["kern"]))
+            zeilen.append(T._KERN_ZEILE.format(text=frage["kern"]))
         elif frage["einleitung"]:
-            zeilen.append(_EINLEITUNG_ZEILE.format(text=frage["einleitung"]))
+            zeilen.append(T._EINLEITUNG_ZEILE.format(text=frage["einleitung"]))
     teile.append("\n".join(zeilen))
 
     if teil["abschluss"]:
-        teile.append(f"{UEBERSCHRIFT_ABSCHLUSS}\n{teil['abschluss']}")
+        teile.append(f"{T.UEBERSCHRIFT_ABSCHLUSS}\n{teil['abschluss']}")
     return "\n\n".join(teile)
 
 
@@ -256,13 +256,13 @@ def sende(conn, tg, chat_id: int, mit_kopf: bool = True, e=None) -> int | None:
     bleibt unveraendert.
     """
     text = baue(conn, chat_id)
-    if text == TEXT_LEER:
-        return tg.sende(chat_id, TEXT_LEER)
+    if text == T.TEXT_LEER:
+        return tg.sende(chat_id, T.TEXT_LEER)
     if mit_kopf:
-        text = f"{TEXT_KOPF}\n\n{text}"
+        text = f"{T.TEXT_KOPF}\n\n{text}"
     url = weblink(conn, chat_id, e)
     if url:
-        text = f"{text}\n\n{TEXT_WEBLINK.format(url=url)}"
+        text = f"{text}\n\n{T.TEXT_WEBLINK.format(url=url)}"
     return tg.sende(chat_id, text)
 
 
@@ -284,7 +284,7 @@ def sende_einmal(conn, tg, chat_id: int, e=None) -> int | None:
         return None
     message_id = sende(conn, tg, chat_id, e=e)
     repo.schreibe_journal(
-        conn, chat_id, "notiert", JOURNAL_GEZEIGT, quelle="leitfaden",
+        conn, chat_id, "notiert", T.JOURNAL_GEZEIGT, quelle="leitfaden",
     )
     return message_id
 
@@ -295,6 +295,10 @@ JOURNAL_GEZEIGT = "Leitfaden gezeigt"
 
 def _schon_gezeigt(conn, chat_id: int) -> bool:
     return any(
-        (eintrag["text"] or "") == JOURNAL_GEZEIGT
+        (eintrag["text"] or "") == T.JOURNAL_GEZEIGT
         for eintrag in repo.journal(conn, chat_id)
     )
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

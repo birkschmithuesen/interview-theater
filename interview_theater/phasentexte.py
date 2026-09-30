@@ -142,6 +142,16 @@ _KOPF_ABSCHLUSS = "✅ Phase {bezeichnung} abgeschlossen"
 _ERLEDIGT = "✅"
 _OFFEN = "⬜"
 
+#: Die Werte der Parameterleser, die vorher als Literale in den Funktionen
+#: standen (Karte A1) -- zeichengleich.
+_TEXT_GEPRUEFT_KEINE_NOETIG = "geprueft, keine noetig"
+_TEXT_AUSGEWERTET = "{anzahl} ausgewertet"
+_TEXT_ZUORDNUNG_EINE = "{anzahl} Stelle aus den Interviews zugeordnet (Runde {runde})"
+_TEXT_ZUORDNUNGEN = "{anzahl} Stellen aus den Interviews zugeordnet (Runde {runde})"
+_TEXT_ZUSAMMENFASSUNG_ZEILE = "Szene {nummer}: {text}"
+_TEXT_RUNDE = "Runde {runde}"
+_TEXT_RUNDE_SCHNITT = "Runde {runde}, Schnitt {schnitt:.1f} von 5"
+
 
 def _kuerze(wert: str, grenze: int = WERT_GRENZE) -> str:
     """Kuerzt einen Wert auf ``grenze`` Zeichen, mit Auslassungszeichen.
@@ -210,7 +220,7 @@ def _einleitungen_geprueft(conn, chat_id: int) -> str:
         roh = hole("frage_einleitungen")
     if roh is None:
         return ""
-    return _einzeilig(roh) or "geprueft, keine noetig"
+    return _einzeilig(roh) or T._TEXT_GEPRUEFT_KEINE_NOETIG
 
 
 def _interviews(conn, chat_id: int) -> str:
@@ -220,7 +230,7 @@ def _interviews(conn, chat_id: int) -> str:
 
 def _auswertungen(conn, chat_id: int) -> str:
     anzahl = len(repo.verdichtungen(conn, chat_id))
-    return f"{anzahl} ausgewertet" if anzahl else ""
+    return T._TEXT_AUSGEWERTET.format(anzahl=anzahl) if anzahl else ""
 
 
 def _figuren(conn, chat_id: int) -> str:
@@ -253,8 +263,8 @@ def _zuordnungen(conn, chat_id: int) -> str:
     if not anzahl:
         return ""
     runde = repo.letzte_schaerfungsrunde(conn, chat_id)
-    stellen = "Stelle" if anzahl == 1 else "Stellen"
-    return f"{anzahl} {stellen} aus den Interviews zugeordnet (Runde {runde})"
+    vorlage = T._TEXT_ZUORDNUNG_EINE if anzahl == 1 else T._TEXT_ZUORDNUNGEN
+    return vorlage.format(anzahl=anzahl, runde=runde)
 
 
 def _geschriebene_szenen(conn, chat_id: int) -> str:
@@ -287,7 +297,8 @@ def zusammenfassungszeilen(conn, chat_id: int) -> list[str]:
         text = _szenenfeld(s, "zusammenfassung")
         if not text or s["nummer"] is None:
             continue
-        zeilen.append(f"Szene {s['nummer']}: {_kuerze(text, 300)}")
+        zeilen.append(T._TEXT_ZUSAMMENFASSUNG_ZEILE.format(
+            nummer=s["nummer"], text=_kuerze(text, 300)))
     return zeilen
 
 
@@ -305,8 +316,8 @@ def _stueckpruefung(conn, chat_id: int) -> str:
     zeilen = repo.stueckpruefungen(conn, chat_id, runde=runde)
     schnitt = stueckpruefung.durchschnitt(zeilen)
     if schnitt is None:
-        return f"Runde {runde}"
-    return f"Runde {runde}, Schnitt {schnitt:.1f} von 5"
+        return T._TEXT_RUNDE.format(runde=runde)
+    return T._TEXT_RUNDE_SCHNITT.format(runde=runde, schnitt=schnitt)
 
 
 #: Je Phase: welche Parameter sie setzt, in der Reihenfolge der Arbeit.
@@ -363,6 +374,27 @@ PARAMETER: dict[int, tuple[tuple[str, Callable[..., str], str], ...]] = {
     ),
 }
 
+#: Die sichtbaren Woerter aus PARAMETER -- deutsch auf sich selbst
+#: abgebildet; die englische Fassung steht in sprachen/en/texte.toml (K4).
+#: ``PARAMETER`` enthaelt Funktionen und passt nicht in TOML; die Namen
+#: bleiben dort als Schluessel stehen (``parameterzeilen`` liefert sie
+#: unveraendert), uebersetzt wird erst bei der Anzeige.
+PARAMETER_BESCHRIFTUNG = {
+    "Begriffe": "Begriffe", "noch keine": "noch keine", "Fragen": "Fragen",
+    "Einleitungen": "Einleitungen", "noch nicht geprueft": "noch nicht geprueft",
+    "Eroeffnung": "Eroeffnung", "noch offen": "noch offen",
+    "Abschluss": "Abschluss", "Interviews": "Interviews",
+    "Auswertungen": "Auswertungen", "Setting": "Setting",
+    "Figuren": "Figuren", "Geschichte": "Geschichte",
+    "Szenenfolge": "Szenenfolge", "Zuordnungen": "Zuordnungen",
+    "Szenentexte": "Szenentexte", "Stueckpruefung": "Stueckpruefung",
+}
+
+
+def _beschriftung(wort: str) -> str:
+    """Ein Wort aus ``PARAMETER`` in der Sprache des Profils."""
+    return T.PARAMETER_BESCHRIFTUNG.get(wort, wort)
+
 
 def parameterzeilen(conn, chat_id: int, phase: int) -> list[tuple[str, str]]:
     """Die Parameter einer Phase als ``(Name, Wert)`` -- Wert leer, solange
@@ -382,7 +414,8 @@ def standzeilen(conn, chat_id: int, phase: int) -> list[str]:
     Ersatztext, wenn nichts dasteht -- die Form, die ``/stand`` braucht."""
     leertexte = {name: leer for name, _, leer in PARAMETER.get(phase, ())}
     return [
-        f"{name}: {wert or leertexte.get(name, 'noch offen')}"
+        f"{_beschriftung(name)}: "
+        f"{wert or _beschriftung(leertexte.get(name, 'noch offen'))}"
         for name, wert in parameterzeilen(conn, chat_id, phase)
     ]
 
@@ -392,7 +425,7 @@ def checkliste(conn, chat_id: int, phase: int) -> str:
     geraten. Tritt eine Gruppe in eine Phase ein, in der schon etwas steht
     (Rueckkehr aus einer hoeheren Phase), steht dort ``✅``."""
     teile = [
-        f"{_ERLEDIGT if wert else _OFFEN} {name}"
+        f"{_ERLEDIGT if wert else _OFFEN} {_beschriftung(name)}"
         for name, wert in parameterzeilen(conn, chat_id, phase)
     ]
     return "  ".join(teile)
@@ -411,18 +444,18 @@ def eintritt(conn, chat_id: int, phase: int) -> str:
     Ohne Knoepfe -- die haengt der Aufrufer darunter
     (``knoepfe.eintritt_in_phase``): welche Knoepfe zum Einstieg gehoeren,
     weiss ``knoepfe`` und nicht dieses Modul."""
-    kopf = _KOPF_EINTRITT.format(
+    kopf = T._KOPF_EINTRITT.format(
         nummer=phase, gesamt=workshop.phase_letzte(),
         name=phasen.kurzname(phase),
     )
     zeilen = [kopf]
     einleitung = _einleitung(conn, chat_id, phase)
     if einleitung:
-        zeilen.append(ZEILE_ANGEBOT)
+        zeilen.append(T.ZEILE_ANGEBOT)
         zeilen.append(einleitung)
     liste = checkliste(conn, chat_id, phase)
     if liste:
-        zeilen.append(_ZEILE_CHECKLISTE.format(liste=liste))
+        zeilen.append(T._ZEILE_CHECKLISTE.format(liste=liste))
     return "\n\n".join(zeilen)
 
 
@@ -433,8 +466,12 @@ def abschluss(conn, chat_id: int, phase: int) -> str:
     Was leer geblieben ist, steht **nicht** da: die Nachricht kommt in dem
     Moment, in dem die naechste Phase moeglich wurde -- eine Zeile "noch
     offen" darin waere ein Widerspruch in sich."""
-    zeilen = [_KOPF_ABSCHLUSS.format(bezeichnung=phasen.bezeichnung(phase))]
+    zeilen = [T._KOPF_ABSCHLUSS.format(bezeichnung=phasen.bezeichnung(phase))]
     for name, wert in parameterzeilen(conn, chat_id, phase):
         if wert:
-            zeilen.append(f"{name}: {wert}")
+            zeilen.append(f"{_beschriftung(name)}: {wert}")
     return "\n".join(zeilen)
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

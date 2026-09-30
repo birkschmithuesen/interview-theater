@@ -668,7 +668,7 @@ def _leitfaden_html(arbeitsstand: dict, token: str | None = None) -> str:
     from interview_theater import leitfaden
 
     text = leitfaden.aus_feldern(arbeitsstand)
-    if text == leitfaden.TEXT_LEER:
+    if text == leitfaden.T.TEXT_LEER:
         return ""
     return (
         "<dt>Leitfaden</dt><dd>"

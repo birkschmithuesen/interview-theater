@@ -734,6 +734,13 @@ _UEBERSCHRIFT_EINE_SZENE = "{anzahl} scene"
 _UEBERSCHRIFT_SZENEN = "{anzahl} scenes"
 _UEBERSCHRIFT_FIGUREN = "Who appears"
 
+["vorspann".FORM_BESCHRIFTUNG]
+dialog = "dialogue"
+monolog = "monologue"
+chor = "chorus"
+lied = "song"
+rap = "rap"
+
 ["verdichter"]
 _FRAGEN_KOPF = "The group's interview questions:"
 _TRANSKRIPT_KOPF = "The transcript:"

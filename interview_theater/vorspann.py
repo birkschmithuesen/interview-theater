@@ -234,11 +234,37 @@ _UEBERSCHRIFT_SZENEN = "{anzahl} Szenen"
 _UEBERSCHRIFT_FIGUREN = "Wer vorkommt"
 
 
+#: Wie eine Form in einer ANZEIGE heisst (Vorspann, Szenenvorstellung,
+#: Planungszeile, Phasenstand, Einblendungen). Der Schluessel ist der
+#: Datenbankwert (``szene.form``, Protokoll), der Wert die Anzeige --
+#: deutsch der Wert selbst (K4), damit Dortmund zeigt, was es immer zeigte
+#: (Nachbesserung zu Aufgabe 30: unter Padua stand "Form: lied" im Chat und
+#: "1. Last bus (chor)" im Textbuch). Hier und nicht in ``szene``, weil
+#: dieses Modul keine Datenbank kennt und ``web_daten`` es importieren darf.
+FORM_BESCHRIFTUNG = {
+    "dialog": "dialog",
+    "monolog": "monolog",
+    "chor": "chor",
+    "lied": "lied",
+    "rap": "rap",
+}
+
+
+def form_anzeige(wert) -> str:
+    """Der Anzeigename eines Formwerts. Unbekannte Werte -- und jeder Wert,
+    dessen Anzeige der Schluessel selbst ist (deutsch: alle) -- bleiben
+    zeichengleich stehen, auch mit Grossbuchstaben oder Leerzeichen."""
+    roh = wert if isinstance(wert, str) else ("" if wert is None else str(wert))
+    schluessel = roh.strip().lower()
+    anzeige = T.FORM_BESCHRIFTUNG.get(schluessel)
+    return roh if anzeige is None or anzeige == schluessel else anzeige
+
+
 def _szenenzeile(s: dict) -> str:
     nummer = "—" if s["nummer"] is None else str(s["nummer"])
     zeile = f"{nummer}. {s['titel']}" if s["titel"] else f"{nummer}."
     if s["form"]:
-        zeile += f" ({s['form']})"
+        zeile += f" ({form_anzeige(s['form'])})"
     return zeile
 
 

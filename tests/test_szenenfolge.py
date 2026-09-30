@@ -12,7 +12,7 @@ Kein Netzzugriff: Telegram ist eine Attrappe, das Sprachmodell ebenso.
 import pytest
 
 from interview_theater import (
-    knoepfe, phasen, repo, szene, szenenfolge, vorschlagssperre,
+    knoepfe, kuerzung, phasen, repo, szene, szenenfolge, vorschlagssperre,
 )
 
 
@@ -479,12 +479,15 @@ def test_passt_schreiben_startet_den_szenenlauf_wenn_nichts_fehlt(conn, einst, t
 # --- Nach dem Szenentext --------------------------------------------------
 
 
-def test_unter_dem_szenentext_stehen_die_vier_knoepfe(conn, tg):
+def test_unter_dem_szenentext_stehen_die_fuenf_knoepfe(conn, tg):
+    """Seit dem 30.09.2026 (C4) steht "Kuerzer" zwischen "Passt, aber anders"
+    und "Neu schreiben"."""
     knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1: Am Bahnhof\n\nMARIA: Da.")
 
     assert tg.beschriftungen == [
         knoepfe.TEXT_PASST_KNOPF,
         knoepfe.TEXT_ANDERS_KNOPF,
+        knoepfe.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung.PROZENT),
         knoepfe.TEXT_NEU_KNOPF,
         knoepfe.TEXT_NAECHSTE_KNOPF,
     ]

@@ -20,14 +20,15 @@ from interview_theater import repo
 from interview_theater.knoepfe.texte import (
     ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN, ART_DRAMATURGIE_SZENE,
     ART_DURCHLAUF_SZENE, ART_EIGENE, ART_FASSUNGEN, ART_GESCHICHTE_ANDERS,
-    ART_GESCHICHTE_NEU,
+    ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
     ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE,
     ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SZENENFELDER_SPEICHERN,
     ART_SZENENFOLGE_ANZAHL, ART_SZENENFOLGE_REIHENFOLGE,
     ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM, ART_SZENENSTIL,
-    ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_NAECHSTE, ART_SZENE_NEU,
+    ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN, ART_SZENE_NAECHSTE,
+    ART_SZENE_NEU,
     ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
     ART_SPRECHANTEILE, ART_TEXTBUCH,
@@ -35,6 +36,7 @@ from interview_theater.knoepfe.texte import (
     TEXT_DRAMATURGIE_KNOPF,
     TEXT_DURCHLAUF_SZENE_KNOPF, TEXT_EIGENE_IDEE_KNOPF, TEXT_FASSUNGEN_KNOPF,
     TEXT_FORM_VORSCHLAG_ZUSATZ, TEXT_GESCHICHTE_SCHREIBEN_KNOPF,
+    TEXT_KUERZEN_KNOPF,
     TEXT_NAECHSTE_KNOPF, TEXT_NEU_KNOPF, TEXT_PASST_KNOPF,
     TEXT_REIHENFOLGE_KNOPF, TEXT_SCHAERFUNG_RUNDE_KNOPF, TEXT_SPRECHANTEILE_KNOPF,
     TEXT_SZENE_FORM_KNOPF,
@@ -761,8 +763,8 @@ def biete_szene(conn, tg, chat_id: int, zeile) -> int:
 
 
 def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int:
-    """Die vier Knoepfe unter einem frisch geschriebenen Szenentext: "Passt" ·
-    "Passt, aber anders" · "Neu schreiben" · "Naechste Szene".
+    """Die fuenf Knoepfe unter einem frisch geschriebenen Szenentext: "Passt" ·
+    "Passt, aber anders" · "Kuerzer" · "Neu schreiben" · "Naechste Szene".
 
     Der Anlass (Birk, 05.09.2026): der Szenentext stand im Chat, und danach
     passierte nichts -- die Gruppe wusste nicht, ob sie zustimmen, aendern
@@ -771,9 +773,16 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
     (``repo.setze_szene_fertig``) und nicht bloss das Vorhandensein eines
     Textes.
 
+    **"Kuerzer" ist der fuenfte** (30.09.2026, C4): bis dahin gab es keinen
+    Kuerzungspfad, und eine Kuerzungsbitte im Chat wurde als neue
+    Szenenplanung wirksam. Er wirkt wie "Passt, aber anders", nur mit einer
+    festen Regie-Notiz statt einer Rueckfrage (``kuerzung.notiz_fuer_szene``).
+
     Ist es die letzte Szene und sind alle fertig, steht statt "Naechste
     Szene" der Weg weiter: "Weiter zu Durchlauf" -- ohne Nummer, wie jeder
     Phasenknopf hier."""
+    from interview_theater import kuerzung as kuerzung_modul
+
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
     leiste = [
         (
@@ -783,6 +792,10 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
         (
             TEXT_ANDERS_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_ANDERS, str(nummer))),
+        ),
+        (
+            TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_KUERZEN, str(nummer))),
         ),
         (
             TEXT_NEU_KNOPF,
@@ -1236,7 +1249,12 @@ def zeige_kurzgeschichte(conn, tg, chat_id: int) -> None:
     Geschichte, sondern die Antwort auf die Frage, die eine Gruppe mit
     dreizehn Figuren beim ersten Absatz hat -- wer ist wer. Deterministisch,
     ohne Modellaufruf, als eigene Nachricht: er soll ueber der Geschichte
-    stehen bleiben, wenn die weiterscrollt."""
+    stehen bleiben, wenn die weiterscrollt.
+
+    Seit dem 30.09.2026 sind es vier Wege: passt / anders / **kuerzer** /
+    ganz neu -- "kuerzer" ist der eine, der nichts erfragt, sondern eine
+    feste Notiz mitnimmt."""
+    from interview_theater import kuerzung as kuerzung_modul
     from interview_theater import telegram as telegram_modul, vorspann
 
     kopfzeilen = vorspann.als_chattext(vorspann.aus_datenbank(conn, chat_id))
@@ -1256,6 +1274,8 @@ def zeige_kurzgeschichte(conn, tg, chat_id: int) -> None:
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_PASST, None))),
         (_TEXT_GESCHICHTE_ANDERS_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_ANDERS, None))),
+        (TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_KUERZEN, None))),
         (_TEXT_GESCHICHTE_NEU_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_GESCHICHTE_NEU, None))),
     ]

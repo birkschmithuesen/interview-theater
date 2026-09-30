@@ -27,7 +27,8 @@ from interview_theater.knoepfe.texte import (
     ART_FIGUR_INTERVIEW_MENU, ART_FIGUR_NAME, ART_FIGUR_NAME_MENU,
     ART_FIGUR_PASST, ART_FIGUR_STIL, ART_FIGUR_STIL_FREI, ART_FRAGEN_ANDERE,
     ART_FRAGEN_EIGENE, ART_FRAGEN_UEBERNEHMEN, ART_FRAGE_WAHL,
-    ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_NEU, ART_GESCHICHTE_PASST,
+    ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
+    ART_GESCHICHTE_PASST,
     ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN, ART_HILFE,
     ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT, ART_OHNE_KNOPF_FERTIG,
     ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN, ART_OHNE_KNOPF_WEITER, ART_PHASE,
@@ -37,7 +38,8 @@ from interview_theater.knoepfe.texte import (
     ART_SCHLAG_VOR, ART_SPEICHERN, ART_STAND, ART_SZENENFELDER_SPEICHERN,
     ART_SZENENFOLGE_ANZAHL, ART_SZENENFOLGE_ANZAHL_WERT,
     ART_SZENENFOLGE_REIHENFOLGE, ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM,
-    ART_SZENENSTIL, ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_NAECHSTE,
+    ART_SZENENSTIL, ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN,
+    ART_SZENE_NAECHSTE,
     ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
     ART_SZENE_ZEIGEN, ART_TEIL_FERTIG, ART_TEIL_WEITER, ART_TEXTBUCH,
@@ -148,6 +150,19 @@ def _wirkung_geschichte_anders(conn, d: Druck) -> str:
     erwarte_geschichte_notiz(d.chat_id)
     d.tg.sende(d.chat_id, _TEXT_GESCHICHTE_ANDERS)
     return "Was soll anders sein?"
+
+
+def _wirkung_geschichte_kuerzen(conn, d: Druck) -> str:
+    """"Kuerzer" unter der ganzen Kurzgeschichte (30.09.2026, C4).
+
+    Anders als "Etwas aendern" fragt es nichts: die Notiz steht fest
+    (``kuerzung.notiz_fuer_prosa``), und der Lauf startet sofort. Kein
+    Modellaufruf hier -- ``kuerzung.starte`` gibt an einen Thread ab
+    (Zusage 2)."""
+    from interview_theater import kuerzung
+
+    _geschichte_notiz_erwartet.discard(d.chat_id)
+    return kuerzung.starte(conn, d.tg, d.klm, d.e, d.chat_id)
 
 
 def _wirkung_geschichte_neu(conn, d: Druck) -> str:
@@ -360,6 +375,25 @@ def _wirkung_szene_anders(conn, d: Druck) -> str:
     d.tg.sende(d.chat_id, _TEXT_SZENE_ANDERS_FRAGE)
     _melde_spaetere(conn, d.tg, d.chat_id, nummer)
     return "Was soll anders werden?"
+
+
+def _wirkung_szene_kuerzen(conn, d: Druck) -> str:
+    """"Kuerzer" unter EINEM Szenentext (30.09.2026, C4).
+
+    Derselbe Ueberarbeitungspfad wie "Passt, aber anders", nur ohne
+    Rueckfrage: die Notiz steht fest. Spaetere geschriebene Szenen bekommen
+    ihren Pruef-Vermerk wie bei jeder Aenderung (``_melde_spaetere``) -- eine
+    kuerzere Szene 2 aendert, was Szene 3 voraussetzen darf. Kein
+    Modellaufruf hier (Zusage 2)."""
+    from interview_theater import kuerzung
+
+    nummer = kuerzung.nummer_aus_wert(d.wert)
+    if nummer is None:
+        d.tg.sende(d.chat_id, _TEXT_SZENE_UNBEKANNT)
+        return _TEXT_SZENE_UNBEKANNT
+    meldung = kuerzung.starte(conn, d.tg, d.klm, d.e, d.chat_id, nummer)
+    _melde_spaetere(conn, d.tg, d.chat_id, nummer)
+    return meldung
 
 
 def _wirkung_szene_neu(conn, d: Druck) -> str:
@@ -1256,6 +1290,7 @@ _WIRKUNGEN = {
     ART_GESCHICHTE_SCHREIBEN: _wirkung_geschichte_schreiben,
     ART_GESCHICHTE_PASST: _wirkung_geschichte_passt,
     ART_GESCHICHTE_ANDERS: _wirkung_geschichte_anders,
+    ART_GESCHICHTE_KUERZEN: _wirkung_geschichte_kuerzen,
     ART_GESCHICHTE_NEU: _wirkung_geschichte_neu,
     ART_GESCHICHTE_SPEICHERN: _wirkung_geschichte_speichern,
     ART_SCHAERFUNG_SZENE: _wirkung_schaerfung_szene,
@@ -1274,6 +1309,7 @@ _WIRKUNGEN = {
     ART_SZENENFELDER_SPEICHERN: _wirkung_szenenfelder_speichern,
     ART_SZENE_PASST: _wirkung_szene_passt,
     ART_SZENE_ANDERS: _wirkung_szene_anders,
+    ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
     ART_SZENE_NEU: _wirkung_szene_neu,
     ART_SZENE_SO_LASSEN: _wirkung_szene_so_lassen,
     ART_SZENE_NAECHSTE: _wirkung_szene_naechste,

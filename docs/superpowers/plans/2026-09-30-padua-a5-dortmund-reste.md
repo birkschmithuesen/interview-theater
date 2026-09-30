@@ -1196,7 +1196,7 @@ Leseansicht ist ein Fehlgriff-Risiko ohne Gegenwert.
 
 ### Schritte
 
-- [ ] **Schritt 1: Den fehlschlagenden Test schreiben**
+- [x] **Schritt 1: Den fehlschlagenden Test schreiben**
 
 Datei `tests/test_kuerzung.py`:
 
@@ -1430,7 +1430,7 @@ def test_kuerzen_ist_kein_modellaufruf_im_handler():
     assert knoepfe.ART_GESCHICHTE_KUERZEN in knoepfe._WIRKUNGEN
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_kuerzung.py
@@ -1438,7 +1438,7 @@ python3.11 -m pytest -q -p no:cacheprovider tests/test_kuerzung.py
 Erwartet: Sammelfehler `ModuleNotFoundError: No module named
 'interview_theater.kuerzung'`.
 
-- [ ] **Schritt 3: `interview_theater/kuerzung.py` anlegen**
+- [x] **Schritt 3: `interview_theater/kuerzung.py` anlegen**
 
 ```python
 """Kuerzen als eigener Weg (30.09.2026, Massnahme C4).
@@ -1581,7 +1581,7 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int | None = None) -> str:
     return "Die Geschichte wird kuerzer"
 ```
 
-- [ ] **Schritt 4: Die zwei Knopfarten und die Beschriftung anlegen**
+- [x] **Schritt 4: Die zwei Knopfarten und die Beschriftung anlegen**
 
 In `interview_theater/knoepfe/texte.py`, direkt nach
 `TEXT_NAECHSTE_KNOPF = "Naechste Szene"` (`:480`):
@@ -1604,7 +1604,7 @@ und nach `ART_GESCHICHTE_NEU = "geschichte_neu"` (`:709`):
 ART_GESCHICHTE_KUERZEN = "geschichte_kuerzen"
 ```
 
-- [ ] **Schritt 5: Die Knoepfe in die zwei Leisten haengen**
+- [x] **Schritt 5: Die Knoepfe in die zwei Leisten haengen**
 
 5a — `interview_theater/knoepfe/szenen.py`: `ART_GESCHICHTE_KUERZEN`,
 `ART_SZENE_KUERZEN` und `TEXT_KUERZEN_KNOPF` in den Import aus
@@ -1656,7 +1656,7 @@ Der Docstring bekommt einen Satz: „Seit dem 30.09.2026 sind es vier Wege:
 passt / anders / **kuerzer** / ganz neu — ‚kuerzer' ist der eine, der nichts
 erfragt, sondern eine feste Notiz mitnimmt."
 
-- [ ] **Schritt 6: Die zwei Handler und die Tabelle**
+- [x] **Schritt 6: Die zwei Handler und die Tabelle**
 
 In `interview_theater/knoepfe/wirkung.py`, hinter
 `_wirkung_geschichte_anders` (`:150`):
@@ -1712,7 +1712,7 @@ In `_WIRKUNGEN` (`:1254ff`) zwei Zeilen, bei ihren Geschwistern:
 Die Importliste aus `knoepfe.texte` am Modulkopf (`:28-45`) um
 `ART_GESCHICHTE_KUERZEN`, `ART_SZENE_KUERZEN` ergaenzen.
 
-- [ ] **Schritt 7: Re-Export**
+- [x] **Schritt 7: Re-Export**
 
 In `interview_theater/knoepfe/__init__.py` in die Importliste aus
 `knoepfe.texte` (alphabetisch) aufnehmen: `ART_GESCHICHTE_KUERZEN`,
@@ -1720,7 +1720,7 @@ In `interview_theater/knoepfe/__init__.py` in die Importliste aus
 `test_jede_knopfart_hat_genau_einen_handler` die neuen Arten gar nicht sehen
 (es liest `dir(knoepfe)`), und die Tests koennten sie nicht ansprechen.
 
-- [ ] **Schritt 8: Gruen sehen**
+- [x] **Schritt 8: Gruen sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_kuerzung.py tests/test_knoepfe_struktur.py
@@ -1736,7 +1736,7 @@ ist ueber `HANDLERNAMEN` parametrisiert und bekommt mit jedem neuen Handler
 einen Fall (`_wirkung_szene_kuerzen`, `_wirkung_geschichte_kuerzen`). Wer die
 Zahl nachrechnet, rechnet diese zwei mit.
 
-- [ ] **Schritt 9: Mutationsnachweis (drei Stellen)**
+- [x] **Schritt 9: Mutationsnachweis (drei Stellen)**
 
 1. In `_WIRKUNGEN` die Zeile `ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,`
    entfernen →
@@ -1753,7 +1753,7 @@ Zahl nachrechnet, rechnet diese zwei mit.
 
 Alle drei zuruecknehmen, erneut gruen sehen.
 
-- [ ] **Schritt 10: Commit**
+- [x] **Schritt 10: Commit**
 
 ```bash
 git add interview_theater/kuerzung.py interview_theater/knoepfe/texte.py \

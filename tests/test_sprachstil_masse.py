@@ -47,6 +47,25 @@ def test_direkte_rede_zitat_ohne_namen_wird_none():
     assert ergebnis[None] == ["Wer weiss das schon."]
 
 
+def test_direkte_rede_genitiv_name_wird_zugeordnet():
+    """Ein Name in Genitivform ("Meryems") zaehlt noch als Namensfund --
+    der Wortgrenzenvergleich darf das angehaengte "s" nicht ablehnen."""
+    text = 'Meryems Stimme klingt hart. „Wir gehen jetzt.“'
+    ergebnis = m.direkte_rede(text, NAMEN)
+
+    assert ergebnis["Meryem"] == ["Wir gehen jetzt."]
+
+
+def test_direkte_rede_gemischte_anfuehrungszeichen_werden_erfasst():
+    """Ein oeffnendes „ darf mit “, ” oder dem ASCII " geschlossen werden --
+    sonst faellt das Zitat aus allen vier Erfassungsbloecken heraus und
+    verschwindet still, statt der Figur zugeordnet zu werden."""
+    text = 'Meryem sagt: „Ich gehe jetzt." Sie dreht sich um.'
+    ergebnis = m.direkte_rede(text, NAMEN)
+
+    assert ergebnis["Meryem"] == ["Ich gehe jetzt."]
+
+
 def test_direkte_rede_erkennt_alle_vier_anfuehrungsstile():
     text = (
         '„Eins“, sagt Meryem. '

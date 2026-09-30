@@ -34,8 +34,14 @@ from interview_theater import sprecher
 #: englisch/ASCII ('"…"'), und Guillemets in beiden Richtungen ("»…«",
 #: "«…»"). Je ein Erfassungsblock, nicht verschachtelt -- direkte Rede in
 #: Prosa hat keine Anfuehrungszeichen im Anfuehrungszeichen.
+#:
+#: Der erste Block (deutsch oeffnend) laesst als Schlusszeichen zusaetzlich
+#: "”" und den ASCII-Apostroph '"' zu: ein LLM-Text mischt beim Tippen von
+#: „…“ gelegentlich die Schreibmaschinen-Variante hinein ("„Ich gehe
+#: jetzt." statt „Ich gehe jetzt.“) -- ohne diese Toleranz faellt das
+#: Zitat aus allen vier Bloecken heraus und verschwindet still.
 _ANFUEHRUNG = re.compile(
-    "„([^“]*)“"
+    "„([^“”\"]*)[“”\"]"
     '|"([^"]*)"'
     "|»([^«]*)«"
     "|«([^»]*)»"
@@ -64,11 +70,17 @@ def _namen_klein(namen) -> dict[str, str]:
 
 
 def _namen_muster(namen_klein: dict[str, str]) -> re.Pattern | None:
-    """Ein Muster, das jeden Namen als ganzes Wort findet -- oder None."""
+    """Ein Muster, das jeden Namen als ganzes Wort findet -- oder None.
+
+    Ein angehaengtes "s" (Genitiv: "Meryems Stimme") zaehlt mit, ohne die
+    Wortgrenzenpruefung aufzugeben: das "s" steht ausserhalb der
+    Gruppe, `group(1)` bleibt der reine Name und ist damit direkt in
+    `namen_klein` nachschlagbar.
+    """
     if not namen_klein:
         return None
     woerter = sorted(namen_klein, key=len, reverse=True)
-    return re.compile(r"\b(" + "|".join(re.escape(n) for n in woerter) + r")\b", re.IGNORECASE)
+    return re.compile(r"\b(" + "|".join(re.escape(n) for n in woerter) + r")s?\b", re.IGNORECASE)
 
 
 def direkte_rede(text: str, namen) -> dict[str | None, list[str]]:

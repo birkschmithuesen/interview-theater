@@ -107,8 +107,10 @@ Daraus folgt die Reihenfolge dieses Plans: erst die Abdeckung erheben
 
 ## Global Constraints
 
-- **Branch:** ausschliesslich `padua-workshop/t_a4ae02fa-plan-a3-simulation`.
-  Kein `merge`, kein `push`, kein `checkout`/`switch`, kein zweiter
+- **Branch:** ausschliesslich der Branch/Worktree der ausfuehrenden
+  Umsetzungskarte (abgezweigt vom Plan-Branch
+  `padua-workshop/t_a4ae02fa-plan-a3-simulation` oder von `main` mit diesem
+  Plan). Kein `merge`, kein `push`, kein `checkout`/`switch`, kein zweiter
   Arbeitsbaum.
 - **Sprache:** Deutsch, ASCII-Umschrift (`ue`/`oe`/`ae`/`ss`) in Code,
   Docstrings, Kommentaren und Commit-Messages. In `docs/*.md` sind Umlaute
@@ -194,7 +196,10 @@ Zahl** die Messlatte; im Bericht steht dann beides.
 
 Der Richter und die Stimmen laufen ueber `IT_SIM_URL` (Vorgabe
 `http://127.0.0.1:28764/v1/messages`, `simulation/README.md:39`). **Diese
-Annahme konnte beim Planen nicht geprueft werden.**
+Annahme konnte beim Planen nicht geprueft werden.** Nachtrag Architekt
+(30.09.2026): der Port 28764 antwortet (HTTP 404 auf `GET /`), ein Prozess
+lauscht also; ob `POST /v1/messages` mit `claude-opus-5` durchgeht, ist damit
+nicht belegt — der Schritt bleibt Pflicht.
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' -m 5 \

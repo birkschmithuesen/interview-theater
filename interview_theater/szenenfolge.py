@@ -443,6 +443,98 @@ def formabfolge(text: str) -> dict[int, str] | None:
     return {nummer: form for nummer, form in enumerate(reihe, start=1)}
 
 
+#: "Szene 3:" oder "Szene 3 -" mitten in einem Satz -- der Anker, an dem eine
+#: Richtungszeile ihre eigenen Szenen benennt.
+_SZENE_ANKER = re.compile(r"\bszene\s*(\d{1,2})\s*[:\-–—]\s*", re.IGNORECASE)
+
+#: Eine Form am ENDE eines Szenenstuecks, mit oder ohne Klammern
+#: ("Ankunft am Steg (Dialog)", "Ankunft — Dialog"). Absichtlich nur am Ende:
+#: "Der Chor am Morgen" ist ein Titel und keine Formangabe -- gemessen am
+#: 30.09.2026 an genau diesem Fall.
+_FORM_ANHANG = re.compile(
+    r"[\(\[]?\s*(" + "|".join(_FORMEN) + r")\s*[\)\]]?[\s.;,]*$", re.IGNORECASE
+)
+
+#: Der Journaleintrag, wenn die gewaehlte Richtung ihre Szenen mitbrachte.
+JOURNAL_INLINE = "Szenen aus der gewaehlten Richtung: {liste}"
+
+
+def szenen_in_zeile(zeile: str) -> list[tuple[int, str, str]]:
+    """Die Szenen, die EINE Richtungszeile innerhalb ihres Satzes benennt:
+    ``[(nummer, titel, form)]``. ``form`` ist "", wenn keine dasteht.
+
+    **Der Anlass** (30.09.2026, Massnahme C9 aus
+    ``docs/analyse-phase5-chaos-2026-09-06.md``): ein Richtungs-Knopf traegt
+    immer genau EINE Zeile (``knoepfe.sende_geschichte`` baut je Zeile einen
+    Knopf), und ``zerlege_geschichte`` findet in einer einzelnen Zeile nie
+    Szenen -- sie liest sie ab Zeile 3. Nennt die Richtung ihre Szenen also
+    im Satz, gingen Titel und Form verloren, und der Folge-Lauf danach
+    erfand sie neu.
+
+    **Eng erkannt, aus derselben Ueberlegung wie ``formabfolge``:**
+
+    * mindestens **zwei** Anker -- eine einzelne Nennung ("und in Szene 1
+      sehen wir das schon") ist ein Satz und keine Liste;
+    * je Anker ein nicht-leerer Titel;
+    * die Nummern muessen **zusammenhaengend ab 1** laufen.
+      ``repo.gleiche_szenenfolge_ab`` nummeriert nach Position in der Liste
+      (``repo.py:2350``) -- aus "Szene 2" und "Szene 4" wuerden sonst die
+      Szenen 1 und 2, und eine falsche Zuordnung ist schlimmer als keine.
+
+    Die Form wird nur am **Ende** eines Stuecks gelesen (``_FORM_ANHANG``):
+    "Der Chor am Morgen" ist ein Titel, "Ankunft am Steg (Dialog)" eine
+    Formangabe."""
+    roh = " ".join((zeile or "").split())
+    anker = list(_SZENE_ANKER.finditer(roh))
+    if len(anker) < 2:
+        return []
+    ergebnis: list[tuple[int, str, str]] = []
+    for stelle, treffer in enumerate(anker):
+        ende = anker[stelle + 1].start() if stelle + 1 < len(anker) else len(roh)
+        stueck = roh[treffer.end():ende].strip()
+        form = ""
+        anhang = _FORM_ANHANG.search(stueck)
+        if anhang is not None:
+            form = anhang.group(1).lower()
+            stueck = stueck[:anhang.start()]
+        titel = stueck.strip(" .;,()[]–—-/|").strip()
+        if not titel:
+            continue
+        ergebnis.append((int(treffer.group(1)), titel, form))
+    if len(ergebnis) < 2:
+        return []
+    if [n for n, _, _ in ergebnis] != list(range(1, len(ergebnis) + 1)):
+        return []
+    return ergebnis
+
+
+def lege_inline_an(
+    conn, chat_id: int, szenen: list[tuple[int, str, str]]
+) -> list[int]:
+    """Legt die Szenen einer Richtungszeile an und liefert die Nummern.
+
+    Ueber ``lege_an`` und damit ueber ``repo.gleiche_szenenfolge_ab`` --
+    abgleichend, nie ersetzend: eine bestehende Szene 1 behaelt ihren Text,
+    ihre Form und ihre Besetzung.
+
+    **Die Form geht in ``szene.form``, nicht in ``form_vorschlag``.** Die
+    Regel aus ``3290d70`` haelt den Vorschlag eines MODELLS aus dem Feld
+    heraus, nicht die Wahl der Gruppe -- und hier hat sie gedrueckt
+    (dieselbe Begruendung wie in ``knoepfe._uebernimm_formwahl``). Nennt die
+    Zeile keine Form, bleibt ``form`` leer und die Frage steht spaeter Szene
+    fuer Szene (``knoepfe.biete_szenenform``)."""
+    zeilen = [(titel, "", [], "", "") for _nummer, titel, _form in szenen]
+    nummern = lege_an(conn, chat_id, zeilen)
+    nach_nummer = {s["nummer"]: s["id"] for s in repo.hole_szenen(conn, chat_id)}
+    for nummer, _titel, form in szenen:
+        if not form:
+            continue
+        szene_id = nach_nummer.get(nummer)
+        if szene_id is not None:
+            repo.setze_szenenfeld(conn, szene_id, "form", form)
+    return nummern
+
+
 def vorstellung(conn, zeile, chat_id: int | None = None) -> str:
     """Eine Szene, wie sie der Gruppe vorgestellt wird: alle Felder
     untereinander, fehlende Pflichtfelder als \"noch offen\" markiert.

@@ -1052,7 +1052,13 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
 
     Der alte Weg bleibt begehbar: liefert ein Modell noch einen Block MIT
     Szenenzeilen (der Prompt-Umbau aendert einen laufenden Zug nicht
-    rueckwirkend), werden sie wie bisher angelegt."""
+    rueckwirkend), werden sie wie bisher angelegt.
+
+    **Nennt die gewaehlte Richtung ihre Szenen selbst**, werden sie
+    mitgespeichert und der Folge-Lauf entfaellt (30.09.2026, C9,
+    ``szenenfolge.szenen_in_zeile``). Vorher war das der stille Verlust: die
+    Zeile stand vollstaendig im Arbeitsstand, aber Titel und Form wurden
+    eine Minute spaeter vom naechsten Vorschlag ueberschrieben."""
     from interview_theater import szenenfolge
 
     modus, _, wert = roh.partition(TRENNER)
@@ -1076,7 +1082,21 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     # Handlung. Spiegelbildlich zu ``erkenner._ist_geschichte``, das
     # denselben Fehler in der anderen Richtung abfaengt.
     if not zeilen:
-        formen = szenenfolge.formabfolge(wert)
+        # **Eine Richtung MIT inline benannten Szenen hat einen Bogen VOR dem
+        # ersten Anker** -- eine reine Formabfolge ("Szene 1: Chor mit Dance.
+        # Szene 2: …") beginnt dagegen direkt mit "Szene 1", ohne Satz davor.
+        # Ohne diese Unterscheidung faengt ``formabfolge`` auch eine Richtung
+        # wie "Nacht am Kanal … Szene 1: Ankunft am Steg (Dialog). Szene 2:
+        # …" ab (zwei Formen, an "Szene N" gebunden) und die Handlung ginge
+        # verloren -- genau der Rest-Fall aus der Praemissenpruefung
+        # (Nebenbefund 3), den C9 mit ``szenenfolge.szenen_in_zeile`` weiter
+        # unten behandelt. Eine reine Formabfolge ohne Vorspann bleibt
+        # unveraendert bei ``_uebernimm_formwahl`` (Praezedenz von 3290d70).
+        erster_anker = szenenfolge._SZENE_ANKER.search(wert or "")
+        hat_vorspann = bool(
+            erster_anker and (wert or "")[:erster_anker.start()].strip()
+        )
+        formen = None if hat_vorspann else szenenfolge.formabfolge(wert)
         if formen:
             return _uebernimm_formwahl(conn, tg, chat_id, wert, formen)
     # Eine Richtung ist eine Zeile "Titel — Bogen, Ende, Konflikt": sie ist
@@ -1087,6 +1107,52 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         conn, chat_id, "entschieden", f"Geschichte: {geschichte}", quelle="knopf",
     )
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+    # **Nennt die Richtung ihre Szenen selbst, werden sie mitgespeichert**
+    # (30.09.2026, Massnahme C9). Ein Richtungs-Knopf traegt immer genau EINE
+    # Zeile; ``zerlege_geschichte`` liest Szenen erst ab Zeile 3 und findet
+    # darin nie welche. Eine Richtung wie "… Szene 1: Ankunft am Steg.
+    # Szene 2: Das Gestaendnis." verlor deshalb Titel und Form, und der
+    # Folge-Lauf danach erfand sie neu.
+    #
+    # Danach laeuft KEIN ``starte_geschichte_szenen``: ``titel`` steht nicht
+    # in ``repo.GESCHUETZTE_SZENENFELDER``, ein frischer Vorschlag wuerde die
+    # Titel der Gruppe also ueberschreiben -- und er kostet gemessene 110 s.
+    # Ein spaeter ausdruecklich bestellter Vorschlag ("Anzahl aendern") darf
+    # umbenennen; das ist dann eine Bestellung.
+    #
+    # Eine reine Formabfolge kommt hier nie an: sie ist oben in
+    # ``_uebernimm_formwahl`` abgezweigt (Praezedenz von 3290d70, und dort
+    # bleibt sie -- sie sichert genau das, was die Gruppe gedrueckt hat).
+    if not zeilen:
+        inline = szenenfolge.szenen_in_zeile(wert)
+        if inline:
+            zeilen = [(titel, "", [], form, "") for _n, titel, form in inline]
+            nummern = szenenfolge.lege_inline_an(conn, chat_id, inline)
+            repo.schreibe_journal(
+                conn, chat_id, "entschieden",
+                szenenfolge.JOURNAL_INLINE.format(
+                    liste="; ".join(
+                        f"{n}. {t}" for n, t, _f in inline
+                    )
+                ),
+                quelle="knopf",
+            )
+            tg.sende(
+                chat_id,
+                _TEXT_GESCHICHTE_GESPEICHERT.format(anzahl=len(nummern))
+                + "\n" + geschichte,
+            )
+            if modus.strip() == "anders":
+                repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
+                tg.sende(chat_id, _TEXT_ANDERS)
+                return "Gespeichert, was soll anders sein?"
+            phasenknopf = _phasenknopf(conn, chat_id)
+            if phasenknopf is not None:
+                _mit_leiste(conn, tg, chat_id, _TEXT_NACH_SPEICHERN_FRAGE,
+                            [phasenknopf])
+            else:
+                tg.sende(chat_id, _TEXT_NACH_SPEICHERN_FRAGE)
+            return f"Geschichte mit {len(nummern)} Szenen uebernommen"
     if zeilen:
         nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
         repo.schreibe_journal(

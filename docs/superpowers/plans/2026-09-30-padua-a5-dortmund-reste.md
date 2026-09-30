@@ -2544,7 +2544,7 @@ Folge-Vorschlag), und ein `vorfall` haelt es fest.
 
 ### Schritte
 
-- [ ] **Schritt 1: Die fehlschlagenden Tests schreiben**
+- [x] **Schritt 1: Die fehlschlagenden Tests schreiben**
 
 An `tests/test_geschichte.py` anhaengen:
 
@@ -2683,7 +2683,7 @@ def test_eine_reine_formabfolge_bleibt_die_formwahl(erfunden, tg, einst):
     assert zeile is not None and zeile["art"] == "geschichte_war_formwahl"
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_geschichte.py
@@ -2696,7 +2696,7 @@ no attribute 'szenen_in_zeile'` in den ersten drei Tests und
 `test_eine_reine_formabfolge_bleibt_die_formwahl` sind bereits gruen — sie
 halten fest, was in Schritt 3/4 **nicht** kaputtgehen darf.
 
-- [ ] **Schritt 3: Den Zerleger in `szenenfolge.py`**
+- [x] **Schritt 3: Den Zerleger in `szenenfolge.py`**
 
 Direkt hinter `formabfolge` (`interview_theater/szenenfolge.py:446`):
 
@@ -2799,7 +2799,7 @@ def lege_inline_an(
 > **bestaetigte** Form setzt die Schleife danach nur dort, wo die Zeile
 > wirklich eine nennt.
 
-- [ ] **Schritt 4: Die Uebernahme in `_speichere_geschichte`**
+- [x] **Schritt 4: Die Uebernahme in `_speichere_geschichte`**
 
 `interview_theater/knoepfe/szenen.py`, in `_speichere_geschichte` zwischen
 dem Speichern der Geschichte (`:1066`, `setze_arbeitsstand … aenderung_offen`)
@@ -2871,7 +2871,7 @@ Der Docstring von `_speichere_geschichte` bekommt einen dritten Absatz:
 > `szenenfolge.zerlege`. Wer sie stoerend findet, darf sie weglassen; dann
 > aendert sich am Verhalten nichts.
 
-- [ ] **Schritt 5: Gruen sehen**
+- [x] **Schritt 5: Gruen sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_geschichte.py tests/test_szenenfolge.py tests/test_knoepfe.py
@@ -2883,7 +2883,7 @@ python3.11 -m pytest -q -p no:cacheprovider
 ```
 Erwartet: `2741 passed, 1 skipped` (2734 + 7).
 
-- [ ] **Schritt 6: Mutationsnachweis**
+- [x] **Schritt 6: Mutationsnachweis**
 
 1. Den ganzen `if not zeilen: inline = …`-Block aus `_speichere_geschichte`
    entfernen →
@@ -2909,7 +2909,7 @@ Erwartet: `2741 passed, 1 skipped` (2734 + 7).
 
 Alle drei zuruecknehmen, erneut gruen sehen.
 
-- [ ] **Schritt 7: Commit**
+- [x] **Schritt 7: Commit**
 
 ```bash
 git add interview_theater/szenenfolge.py interview_theater/knoepfe/szenen.py \

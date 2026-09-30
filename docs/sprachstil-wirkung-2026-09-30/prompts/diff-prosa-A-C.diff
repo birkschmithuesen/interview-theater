@@ -1,0 +1,15 @@
+--- prosa-A.txt
++++ prosa-C.txt
+@@ -310,9 +310,9 @@
+ Szene 3 — Die Samen — Aynur findet Meryems Tomatensamen, die drei pflanzen sie in einen Kasten.
+ 
+ So sprechen die Figuren:
+-- Meryem: Kurz und abgehackt: Egal. Koffer bleibt zu. Weiter.
+-- Ferzan: Verschachtelt, gelehrt: Wobei man insofern, als das Zurueckgehen de facto gar keine Option ist, prinzipiell sagen muesste, dass der Koffer per se gewissermassen quasi schon ausgepackt ist.
+-- Aynur: Mit Fuellwoertern: Also, weisst du, der Koffer ist halt irgendwie, also sozusagen, der Koffer ist halt noch zu, weisst du.
++- Meryem: Verschachtelt, gelehrt: Wobei man insofern, als das Zurueckgehen de facto gar keine Option ist, prinzipiell sagen muesste, dass der Koffer per se gewissermassen quasi schon ausgepackt ist.
++- Ferzan: Mit Fuellwoertern: Also, weisst du, der Koffer ist halt irgendwie, also sozusagen, der Koffer ist halt noch zu, weisst du.
++- Aynur: Kurz und abgehackt: Egal. Koffer bleibt zu. Weiter.
+ 
+ Euer Auftrag:
+ Schreib die Geschichte am Stueck.

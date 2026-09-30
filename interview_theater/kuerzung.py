@@ -76,14 +76,13 @@ TEXT_KEIN_LAUF = "Nicht gestartet, siehe Chat"
 TEXT_SZENE_GESTARTET = "Szene {nummer} wird kuerzer"
 TEXT_GESCHICHTE_GESTARTET = "Die Geschichte wird kuerzer"
 
-#: Quittungen, hinter denen KEIN Lauf steht -- dort darf der Handler auch
-#: keine spaeteren Szenen zur Pruefung markieren (``hat_gestartet``).
-_OHNE_LAUF = frozenset({TEXT_NICHTS_ZU_KUERZEN, TEXT_KEIN_LAUF})
-
-
-def hat_gestartet(meldung: str) -> bool:
-    """Steht hinter dieser Quittung von ``starte`` ein angestossener Lauf?"""
-    return meldung not in _OHNE_LAUF
+#: Die Rueckfrage auf dem Erkenner-Weg, wenn ab dem Feinschliff (die Phase,
+#: in der Theatertexte statt Geschichten entstehen, ``szene.schreibt_prosa``
+#: ist falsch) keine Szenennummer genannt wurde. Dort liest die Gruppe einen
+#: Theatertext, und ein Lauf ueber die ganze Kurzgeschichte waere teuer und
+#: am Gemeinten vorbei. **Vorlaeufige Voreinstellung** (30.09.2026) -- die
+#: endgueltige Entscheidung trifft Birk.
+TEXT_WELCHE_SZENE = "Welche Szene soll kuerzer werden? Sagt mir die Nummer."
 
 
 def notiz_fuer_szene() -> str:
@@ -128,35 +127,53 @@ def _hat_text(conn, chat_id: int, nummer: int) -> bool:
     return False
 
 
-def starte(conn, tg, klm, e, chat_id: int, nummer: int | None = None) -> str:
-    """Stoesst die Kuerzung an und liefert die Zeile fuer die Knopfquittung.
+def starte(conn, tg, klm, e, chat_id: int,
+           nummer: int | None = None) -> tuple[str, bool]:
+    """Stoesst die Kuerzung an und liefert ``(quittung, gestartet)``.
 
     ``nummer`` gesetzt -> diese eine Szene; ``nummer`` None -> die ganze
     Kurzgeschichte. **Kein Modellaufruf hier**: beide Wege geben an einen
     eigenen Thread ab (Zusage 2).
 
     Gibt es nichts zu kuerzen, gibt es keinen Lauf, sondern einen Satz.
-    Ob ein Lauf angestossen wurde, sagt ``hat_gestartet`` ueber die
-    Quittung."""
+    ``gestartet`` kommt aus dem Rueckgabewert des Schreibwegs (Thread oder
+    None), nicht aus dem Wortlaut der Quittung.
+
+    **Der Pruef-Vermerk haengt hier, nicht am Aufrufer** (30.09.2026): wird
+    eine Szene gekuerzt, bekommen die spaeteren geschriebenen Szenen ihren
+    Vermerk (``knoepfe._melde_spaetere``) -- eine kuerzere Szene 2 aendert,
+    was Szene 3 voraussetzen darf. So gilt das fuer Knopf und Erkenner
+    gleich, und nur, wenn wirklich ein Lauf gestartet ist."""
     from interview_theater import kurzgeschichte, szene as szene_modul
 
     if nummer is not None:
         if not _hat_text(conn, chat_id, nummer):
             tg.sende(chat_id, TEXT_NICHTS_ZU_KUERZEN)
-            return TEXT_NICHTS_ZU_KUERZEN
-        auftrag = f"Schreib Szene {nummer} neu. {notiz_fuer_szene()}"
+            return TEXT_NICHTS_ZU_KUERZEN, False
+        # ``BISHER_MARKER``: im Prosalauf (Phase 6) ist ``volltext`` leer --
+        # ohne den Marker saehe das Modell die Prosa dieser Szene nicht und
+        # schriebe sie neu, statt sie zu kuerzen.
+        auftrag = (
+            f"Schreib Szene {nummer} neu. {notiz_fuer_szene()} "
+            f"{szene_modul.BISHER_MARKER}"
+        )
         if szene_modul.starte(conn, tg, klm, e, chat_id, auftrag) is None:
-            return TEXT_KEIN_LAUF
-        return TEXT_SZENE_GESTARTET.format(nummer=nummer)
+            return TEXT_KEIN_LAUF, False
+        # Spaeter Import: knoepfe ist die Oberflaeche und liest selbst von
+        # hier -- ein Modulkopf-Import waere ein Zyklus.
+        from interview_theater.knoepfe import szenen as knoepfe_szenen
+
+        knoepfe_szenen._melde_spaetere(conn, tg, chat_id, nummer)
+        return TEXT_SZENE_GESTARTET.format(nummer=nummer), True
 
     anzahl = _abschnitte_mit_prosa(conn, chat_id)
     if not anzahl:
         tg.sende(chat_id, TEXT_NICHTS_ZU_KUERZEN)
-        return TEXT_NICHTS_ZU_KUERZEN
+        return TEXT_NICHTS_ZU_KUERZEN, False
     # ``vorlage=True``: die bestehende Prosa steht im Prompt -- sonst schriebe
     # das Modell "25 Prozent kuerzer" ueber einen Text, den es nie sah.
     if kurzgeschichte.starte(
         conn, tg, klm, e, chat_id, notiz_fuer_prosa(anzahl), vorlage=True,
     ) is None:
-        return TEXT_KEIN_LAUF
-    return TEXT_GESCHICHTE_GESTARTET
+        return TEXT_KEIN_LAUF, False
+    return TEXT_GESCHICHTE_GESTARTET, True

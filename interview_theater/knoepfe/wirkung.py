@@ -162,7 +162,8 @@ def _wirkung_geschichte_kuerzen(conn, d: Druck) -> str:
     from interview_theater import kuerzung
 
     _geschichte_notiz_erwartet.discard(d.chat_id)
-    return kuerzung.starte(conn, d.tg, d.klm, d.e, d.chat_id)
+    meldung, _gestartet = kuerzung.starte(conn, d.tg, d.klm, d.e, d.chat_id)
+    return meldung
 
 
 def _wirkung_geschichte_neu(conn, d: Druck) -> str:
@@ -382,8 +383,9 @@ def _wirkung_szene_kuerzen(conn, d: Druck) -> str:
 
     Derselbe Ueberarbeitungspfad wie "Passt, aber anders", nur ohne
     Rueckfrage: die Notiz steht fest. Spaetere geschriebene Szenen bekommen
-    ihren Pruef-Vermerk wie bei jeder Aenderung (``_melde_spaetere``) -- eine
-    kuerzere Szene 2 aendert, was Szene 3 voraussetzen darf. Kein
+    ihren Pruef-Vermerk wie bei jeder Aenderung -- das setzt
+    ``kuerzung.starte`` selbst, nur mit Lauf und fuer Knopf und Erkenner
+    gleich (``_melde_spaetere``). Kein
     Modellaufruf hier (Zusage 2)."""
     from interview_theater import kuerzung
 
@@ -391,11 +393,9 @@ def _wirkung_szene_kuerzen(conn, d: Druck) -> str:
     if nummer is None:
         d.tg.sende(d.chat_id, _TEXT_SZENE_UNBEKANNT)
         return _TEXT_SZENE_UNBEKANNT
-    meldung = kuerzung.starte(conn, d.tg, d.klm, d.e, d.chat_id, nummer)
-    # Nur wenn wirklich gekuerzt wird: ohne Lauf aendert sich an Szene
-    # ``nummer`` nichts, und die spaeteren brauchen keinen Pruef-Vermerk.
-    if kuerzung.hat_gestartet(meldung):
-        _melde_spaetere(conn, d.tg, d.chat_id, nummer)
+    meldung, _gestartet = kuerzung.starte(
+        conn, d.tg, d.klm, d.e, d.chat_id, nummer,
+    )
     return meldung
 
 

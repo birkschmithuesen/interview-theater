@@ -213,8 +213,9 @@ def test_ohne_text_gibt_es_keinen_lauf(conn, tg, einst):
     """Kein bezahlter Lauf auf nichts -- und eine Zeile, die sagt warum."""
     klm = LLMAttrappe()
     phasen.setze(conn, 1, 6, "test")
-    meldung = kuerzung.starte(conn, tg, klm, einst, 1)
+    meldung, gestartet = kuerzung.starte(conn, tg, klm, einst, 1)
     assert meldung == kuerzung.TEXT_NICHTS_ZU_KUERZEN
+    assert gestartet is False
     assert kuerzung.TEXT_NICHTS_ZU_KUERZEN in tg.texte
     assert klm.aufrufe == []
 
@@ -246,8 +247,9 @@ def test_kuerzen_der_geschichte_zeigt_dem_modell_die_bestehende_prosa(
     import interview_theater.kurzgeschichte as kurzgeschichte_modul
 
     klm = LLMAttrappe(antwort=KURZGESCHICHTE_ANTWORT)
-    meldung = kuerzung.starte(prosa6, tg, klm, einst, 1)
-    assert kuerzung.hat_gestartet(meldung)
+    meldung, gestartet = kuerzung.starte(prosa6, tg, klm, einst, 1)
+    assert gestartet is True
+    assert meldung == kuerzung.TEXT_GESCHICHTE_GESTARTET
     assert kurzgeschichte_modul._sperre_fuer(1).acquire(timeout=20)
     kurzgeschichte_modul._sperre_fuer(1).release()
     assert klm.aufrufe, "kein Prosalauf angestossen"
@@ -331,9 +333,111 @@ def test_abgelehnter_lauf_quittiert_neutral_statt_laeuft_schon(
     conn = szene7
     monkeypatch.setattr(szene, "sperrtext", lambda c, z: "Es fehlt der Ort.")
     klm = LLMAttrappe()
-    meldung = kuerzung.starte(conn, tg, klm, einst, 1, 1)
+    meldung, gestartet = kuerzung.starte(conn, tg, klm, einst, 1, 1)
     assert meldung == kuerzung.TEXT_KEIN_LAUF
-    assert not kuerzung.hat_gestartet(meldung)
+    assert gestartet is False
     assert "Laeuft" not in meldung
     assert "Es fehlt der Ort." in tg.texte  # der Grund, von szene.starte
     assert klm.aufrufe == []
+
+
+# --- Finale Fix-Runde 30.09.2026 ------------------------------------------
+
+
+def _warte_auf_szenenlauf():
+    assert szene._sperre_fuer(1).acquire(timeout=20)
+    szene._sperre_fuer(1).release()
+
+
+def test_kuerzen_einer_szene_in_phase_6_zeigt_dem_modell_ihre_prosa(
+    prosa6, tg, einst,
+):
+    """Am ECHTEN Nutzertext: in Phase 6 ist ``volltext`` leer, die Szene
+    steht als Prosa da. Ohne diese Prosa im Prompt schriebe das Modell
+    Szene 2 neu, statt sie zu kuerzen."""
+    # Die Sperre vor dem Lauf will Format und Besetzung sehen.
+    repo.setze_arbeitsstand(prosa6, 1, "format", "Sprechtheater")
+    szene_id = repo.hole_szenen(prosa6, 1)[1]["id"]
+    repo.setze_szenenfeld(prosa6, szene_id, "was_passiert", "Sie gesteht.")
+    repo.setze_szene_figuren(prosa6, 1, szene_id, [repo.figuren(prosa6, 1)[0]["id"]])
+    klm = LLMAttrappe()
+    meldung, gestartet = kuerzung.starte(prosa6, tg, klm, einst, 1, 2)
+    assert gestartet is True
+    assert meldung == kuerzung.TEXT_SZENE_GESTARTET.format(nummer=2)
+    _warte_auf_szenenlauf()
+    assert klm.aufrufe, "kein Szenenlauf angestossen"
+    nutzer = klm.aufrufe[0]["nutzer"]
+    assert (
+        szene.BISHER_KOPF
+        + "\nDas Gestaendnis: ein langer Abschnitt, sehr lang, viel zu lang."
+    ) in nutzer
+    # Der Marker selbst geht nicht an das Modell.
+    assert szene.BISHER_MARKER not in nutzer
+    assert str(kuerzung.PROZENT) in nutzer
+
+
+def test_ohne_marker_bleibt_der_phase6_nutzertext_ohne_bisherigen_text(prosa6):
+    """Gegenprobe: jeder andere Lauf in Phase 6 behaelt seinen Nutzertext."""
+    ziel = szene.ziel_fuer(prosa6, 1, "Schreib Szene 2 neu.")
+    nutzer = szene.baue_nutzertext(prosa6, 1, "Schreib Szene 2 neu.", ziel)
+    assert szene.BISHER_KOPF not in nutzer
+
+
+def test_erkenner_kuerzung_markiert_spaetere_szenen(szene7, tg, einst):
+    """Der Erkenner-Weg setzt denselben Pruef-Vermerk wie der Knopf -- die
+    Stelle ist ``kuerzung.starte``, nicht ein Duplikat im Erkenner."""
+    from interview_theater import erkenner
+
+    conn = szene7
+    _szene2_mit_text(conn)
+    erkenner._starte_kuerzung(
+        LLMAttrappe(), tg, conn, einst, 1,
+        [{"art": "szene_kuerzen", "wert": "1"}],
+    )
+    _warte_auf_szenenlauf()
+    assert any("Weil sich Szene 1" in t for t in tg.texte)
+    assert _pruefvermerke(conn)
+
+
+def test_erkenner_ohne_nummer_im_feinschliff_fragt_nach_der_szene(
+    szene7, tg, einst, monkeypatch,
+):
+    """Vorlaeufige Voreinstellung: ab der Phase der Theatertexte startet der
+    Erkenner-Weg ohne Nummer KEINEN Lauf ueber die ganze Geschichte."""
+    from interview_theater import erkenner, kurzgeschichte
+
+    gestartet = []
+    monkeypatch.setattr(
+        kurzgeschichte, "starte", lambda *a, **k: gestartet.append(a) or object(),
+    )
+    monkeypatch.setattr(
+        szene, "starte", lambda *a, **k: gestartet.append(a) or object(),
+    )
+    erkenner._starte_kuerzung(
+        LLMAttrappe(), tg, szene7, einst, 1,
+        [{"art": "szene_kuerzen", "wert": ""}],
+    )
+    assert gestartet == []
+    assert kuerzung.TEXT_WELCHE_SZENE in tg.texte
+
+
+def test_erkenner_ohne_nummer_in_phase_6_kuerzt_die_geschichte(
+    prosa6, tg, einst, monkeypatch,
+):
+    from interview_theater import erkenner, kurzgeschichte
+
+    gemerkt = {}
+
+    def attrappe(c, t, k, ein, chat_id, regie=None, vorlage=False):
+        gemerkt["regie"] = regie
+        gemerkt["vorlage"] = vorlage
+        return object()
+
+    monkeypatch.setattr(kurzgeschichte, "starte", attrappe)
+    erkenner._starte_kuerzung(
+        LLMAttrappe(), tg, prosa6, einst, 1,
+        [{"art": "szene_kuerzen", "wert": ""}],
+    )
+    assert gemerkt["vorlage"] is True
+    assert "3" in gemerkt["regie"]
+    assert kuerzung.TEXT_WELCHE_SZENE not in tg.texte

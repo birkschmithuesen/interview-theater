@@ -1639,8 +1639,20 @@ def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
     die Sperre je chat_id und ergaebe nur ein 'ich schreibe gerade noch'.
 
     Ein leerer ``wert`` ist kein Fehler, sondern die Aussage "die ganze
-    Geschichte": nach einem Prosalauf gibt es keine Szenennummer zu nennen."""
-    from interview_theater import kuerzung  # spaeter Import, haelt den Modulkopf frei
+    Geschichte": nach einem Prosalauf gibt es keine Szenennummer zu nennen.
+
+    **Aber nur, solange Geschichten geschrieben werden** (30.09.2026,
+    vorlaeufige Voreinstellung, Entscheidung bei Birk): ab der Phase, in der
+    Theatertexte entstehen (``szene.schreibt_prosa`` falsch), liest die
+    Gruppe einen Theatertext -- ein Lauf ueber die ganze Kurzgeschichte waere
+    teuer und am Gemeinten vorbei. Dort gibt es ohne Nummer keinen Lauf,
+    sondern eine Rueckfrage in einem Satz (``kuerzung.TEXT_WELCHE_SZENE``).
+    Der Knopf "Kuerzer" unter der Kurzgeschichte ist davon nicht betroffen:
+    er meint die Geschichte ausdruecklich.
+
+    Den Pruef-Vermerk fuer spaetere Szenen setzt ``kuerzung.starte`` selbst,
+    wie auf dem Knopfweg."""
+    from interview_theater import kuerzung, szene  # spaeter Import, haelt den Modulkopf frei
 
     treffer = next(
         (a for a in aenderungen if a.get("art") == "szene_kuerzen"), None
@@ -1649,6 +1661,9 @@ def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
         return
     nummer = kuerzung.nummer_aus_wert(treffer.get("wert"))
     try:
+        if nummer is None and not szene.schreibt_prosa(conn, chat_id):
+            tg.sende(chat_id, kuerzung.TEXT_WELCHE_SZENE)
+            return
         kuerzung.starte(conn, tg, klm, e, chat_id, nummer)
     except Exception:
         log.exception("Kuerzung konnte nicht gestartet werden, chat_id=%s", chat_id)

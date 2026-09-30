@@ -37,6 +37,15 @@ Auf `17eb5b0` (Basis dieses Arbeitsbaums), mit
 0 errors, 0 failures. **Diese Zahl ist die Messlatte** — nach jeder Aufgabe
 muessen es mindestens 2702 bestandene Tests sein, plus die neuen.
 
+**Bekannt flakig auf der Basis** (Architekt-Pruefung, 30.09.2026, zweiter
+Volllauf auf `17eb5b0`): `1 failed, 2701 passed, 1 skipped` — rot war
+`tests/test_aufnahme.py::test_fertig_in_der_sprachnachricht_beendet_das_interview`.
+Einzeln dreimal und im Modul (`58 passed`) gruen. Faellt genau dieser Test im
+Volllauf, ist das kein Befund dieser Karte: einzeln nachfahren
+(`python3.11 -m pytest -q -p no:cacheprovider tests/test_aufnahme.py`); erst
+wenn er auch dort rot ist, gehoert er zur Umsetzung. Nicht reparieren, nicht
+ueberspringen — eigene Karte.
+
 **Zum Interpreter:** `$(ls -d ~/.local/share/uv/python/cpython-3.11*/bin/python3 | head -1)`
 war in dieser Sitzung nicht aufrufbar (Sandbox-Regel), `.venv/bin/python`
 ebenfalls nicht. Was funktioniert hat und in allen Kommandos unten steht:

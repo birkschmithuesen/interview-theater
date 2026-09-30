@@ -612,7 +612,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
   - `verweise() -> tuple[tuple[str, str, str], ...]` -- (Tabelle, Spalte,
     Zieltabelle)
 
-- [ ] **Schritt 1: Den fehlschlagenden Test schreiben**
+- [x] **Schritt 1: Den fehlschlagenden Test schreiben**
 
 `tests/test_ruecknahme.py`:
 
@@ -781,12 +781,12 @@ def test_ruecknahme_traegt_keinen_nutzertext():
     ]
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag sehen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag sehen**
 
 Run: `$PY -m pytest tests/test_ruecknahme.py -q -p no:cacheprovider`
 Erwartet: FAIL -- `ModuleNotFoundError: No module named 'interview_theater.ruecknahme'`
 
-- [ ] **Schritt 3: Das Modul schreiben**
+- [x] **Schritt 3: Das Modul schreiben**
 
 `interview_theater/ruecknahme.py`:
 
@@ -1000,17 +1000,17 @@ def verweise() -> tuple[tuple[str, str, str], ...]:
     )
 ```
 
-- [ ] **Schritt 4: Test laufen lassen, gruen sehen**
+- [x] **Schritt 4: Test laufen lassen, gruen sehen**
 
 Run: `$PY -m pytest tests/test_ruecknahme.py -q -p no:cacheprovider`
 Erwartet: `15 passed`
 
-- [ ] **Schritt 5: Die ganze Suite**
+- [x] **Schritt 5: Die ganze Suite**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `4369 passed, 1 skipped`
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add interview_theater/ruecknahme.py tests/test_ruecknahme.py

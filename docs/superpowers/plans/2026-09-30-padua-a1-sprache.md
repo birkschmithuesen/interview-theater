@@ -2542,7 +2542,7 @@ immer dieselben fuenf Schritte:
   `scripts/rauchtest.py` und jeden Altaufrufer beim heutigen Verhalten.
   `stt.py` liest **keine** Datenbank (Dienste-Schicht, D2).
 
-- [ ] **Schritt 1: Tests schreiben** (in `tests/test_stt.py` anhaengen; nutzt
+- [x] **Schritt 1: Tests schreiben** (in `tests/test_stt.py` anhaengen; nutzt
   `_klient` und die Fixture `einst` aus der Datei bzw. `conftest.py`):
 
 ```python
@@ -2602,14 +2602,14 @@ def test_erkannte_sprache_steht_im_log(einst, tmp_path, monkeypatch, caplog):
     assert "italian" in caplog.text
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_stt.py`
 Expected: FAIL — `TypeError: transkribiere() got an unexpected keyword argument 'sprache'`
 (drei Tests), `test_ohne_angabe_bleibt_es_bei_deutsch` **gruen** (haelt das
 alte Verhalten fest).
 
-- [ ] **Schritt 3: Umsetzen** (`interview_theater/stt.py`)
+- [x] **Schritt 3: Umsetzen** (`interview_theater/stt.py`)
 
 Kopf: `import logging` ergaenzen, nach den Importen
 `log = logging.getLogger(__name__)` und
@@ -2655,17 +2655,17 @@ def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float,
 und im Rumpf `batch_id = absenden(e, klient, pfad, rest, sprache=sprache)`.
 Docstring um einen Satz zu `sprache` ergaenzen.
 
-- [ ] **Schritt 4: Gruen sehen**
+- [x] **Schritt 4: Gruen sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_stt.py tests/test_aufnahme.py`
 Expected: alle gruen.
 
-- [ ] **Schritt 5: Mutationsnachweis**
+- [x] **Schritt 5: Mutationsnachweis**
 
 `if sprache and sprache != AUTO:` → `if sprache:` →
 `test_auto_schickt_kein_language_feld` rot. Zuruecksetzen.
 
-- [ ] **Schritt 6: SUITE, Commit**
+- [x] **Schritt 6: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider

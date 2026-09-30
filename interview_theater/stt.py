@@ -29,11 +29,18 @@ Abweichungen von der Vorlage:
 from __future__ import annotations
 
 import json
+import logging
 import mimetypes
 import time
 from pathlib import Path
 
 import httpx
+
+log = logging.getLogger(__name__)
+
+#: Whisper erkennt die Sprache selbst (Karte A1, Birk E5): das Feld
+#: ``language`` wird dann gar nicht gesendet.
+AUTO = "auto"
 
 #: Sekunden zwischen zwei Nachfragen beim Pollen. Gemessen (03.09.2026): der
 #: Overhead liegt bei wenigen Sekunden, haeufiger fragen bringt nichts.
@@ -96,7 +103,8 @@ class STTFehler(Exception):
     """
 
 
-def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
+def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float,
+             *, sprache: str | None = "de") -> str:
     """Laedt die Datei hoch und liefert die batch_id. Wiederholt bei 5xx/
     Transportfehler (WARTEZEITEN), analog interview_theater.llm.
 
@@ -104,6 +112,11 @@ def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
     Zeitbudget pro Versuch: ohne diese Frist wuerde ein Server, der nie
     antwortet, bis zu ``gesamtversuche * budget_s`` plus die Wartezeiten
     dazwischen verbrauchen -- ein Vielfaches der Zusage an den Aufrufer.
+
+    ``sprache`` ist die Sprache der Aufnahme (ISO 639-1) oder ``AUTO``/None --
+    dann fehlt das Feld ``language``, und Whisper erkennt selbst. Der
+    Aufrufer ermittelt sie (``aufnahme.whisper_sprache``); dieses Modul liest
+    keine Datenbank.
     """
     if pfad.stat().st_size > MAX_UPLOAD_BYTES:
         raise STTFehler(f"{pfad.name} ist groesser als 25 MB")
@@ -114,6 +127,12 @@ def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
 
     letzter_fehler: Exception | None = None
     gesamtversuche = len(WARTEZEITEN) + 1
+    # Reihenfolge wie vor A1 (model, language, response_format), damit der
+    # Upload fuer Deutsch byte-gleich bleibt.
+    daten = {"model": "whisper"}
+    if sprache and sprache != AUTO:
+        daten["language"] = sprache
+    daten["response_format"] = "verbose_json"
     for versuch in range(gesamtversuche):
         rest = frist - time.monotonic()
         if rest <= 0:
@@ -124,11 +143,7 @@ def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
                     url,
                     headers=headers,
                     files={"file": (pfad.name, datei, mime_typ(pfad))},
-                    data={
-                        "model": "whisper",
-                        "language": "de",
-                        "response_format": "verbose_json",
-                    },
+                    data=daten,
                     timeout=max(1.0, rest),
                 )
             antwort.raise_for_status()
@@ -217,16 +232,23 @@ def abholen(e, klient: httpx.Client, batch_id: str, budget_s: float) -> str:
         except json.JSONDecodeError as fehler:
             raise STTFehler(f"Ergebnis von {batch_id} ist kein gueltiges JSON: {fehler}") from fehler
 
-    return str((daten or {}).get("text") or "").strip()
+    ergebnis = daten or {}
+    if ergebnis.get("language"):
+        log.info("Whisper erkannte Sprache %s (Auftrag %s)", ergebnis["language"], batch_id)
+    return str(ergebnis.get("text") or "").strip()
 
 
-def transkribiere(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
+def transkribiere(e, klient: httpx.Client, pfad: Path, budget_s: float,
+                   *, sprache: str | None = "de") -> str:
     """Absenden und Abholen verbunden, mit hartem Gesamtbudget ueber beides.
 
     Genau ein sofortiger Wiederholungsversuch mit neuem Upload, wenn der
     erste Anlauf scheitert -- kein Schleifen im heissen Pfad. Ein leeres
     Transkript ist ein Fehler, kein gueltiges Ergebnis: Stille darf nicht als
     Aeusserung im Verlauf landen.
+
+    ``sprache`` wird unveraendert an ``absenden`` durchgereicht (ISO 639-1
+    oder ``AUTO``/None fuer Spracherkennung durch Whisper selbst).
     """
     frist = time.monotonic() + budget_s
     letzter_fehler: STTFehler | None = None
@@ -239,7 +261,7 @@ def transkribiere(e, klient: httpx.Client, pfad: Path, budget_s: float) -> str:
             )
             break
         try:
-            batch_id = absenden(e, klient, pfad, rest)
+            batch_id = absenden(e, klient, pfad, rest, sprache=sprache)
             rest_abholen = frist - time.monotonic()
             if rest_abholen <= 0:
                 raise STTFehler("kein Zeitbudget mehr fuer das Abholen")

@@ -5150,7 +5150,7 @@ bzw. `aufnahme`, `erwartet`, `notiz`, optional `vorlauf`, `zustimmung`).
 {"id": "en-a02-aufnahme-material", "arbeitsstand": {}, "aufnahme": "and then my father said, show me your hands, and I showed him", "erwartet": [], "notiz": "Negativ: Imperativ im Interviewinhalt ist keine Frage an den Bot."}
 ```
 
-- [ ] **Schritt 1: Tests** (in `tests/test_korpus.py` anhaengen; nutzt
+- [x] **Schritt 1: Tests** (in `tests/test_korpus.py` anhaengen; nutzt
   `ist_aufnahmefall`, `texte_von`, `erkenner` aus der Datei):
 
 ```python
@@ -5221,8 +5221,8 @@ def test_deutscher_korpus_unveraendert_gezaehlt(erkenner_faelle):
 
   (Die deutschen Zahlen 150/53 sind gemessen:
   `python3.11 -c "import json; …"` aus AGENTS.md, „Prompt geaendert?".)
-- [ ] **Schritt 2:** rot: `FileNotFoundError: …/korpus/en/erkenner.jsonl`.
-- [ ] **Schritt 3:** Korpus schreiben. Vorgehen: fuer jede der 24 Arten
+- [x] **Schritt 2:** rot: `FileNotFoundError: …/korpus/en/erkenner.jsonl`.
+- [x] **Schritt 3:** Korpus schreiben. Vorgehen: fuer jede der 24 Arten
   mindestens einen Positivfall (wo der deutsche Korpus einen gemessenen
   Grenzfall hat — n20/n27/fl04 bei `szene_kuerzen`, e18 bei `verworfen` —
   einen englischen Gegenfall dazu); 24+ Negativfaelle aus den Mustern des
@@ -5231,10 +5231,10 @@ def test_deutscher_korpus_unveraendert_gezaehlt(erkenner_faelle):
   italienischen Einsprengsel in Zustimmungsfaellen. Keine Uebersetzung
   Satz fuer Satz: die Faelle muessen klingen, wie eine englisch schreibende
   Gruppe schreibt.
-- [ ] **Schritt 4:** gruen: `$PY -m pytest -q -p no:cacheprovider tests/test_korpus.py`.
-- [ ] **Schritt 5: Mutationsnachweis:** den einzigen `wortlaut_aus`-Fall
+- [x] **Schritt 4:** gruen: `$PY -m pytest -q -p no:cacheprovider tests/test_korpus.py`.
+- [x] **Schritt 5: Mutationsnachweis:** den einzigen `wortlaut_aus`-Fall
   loeschen → `test_en_jede_deutsch_belegte_art_positiv` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Englischer Erkenner-Korpus: 60+ Faelle, alle Arten, italienische Einsprengsel (A1, D8)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Englischer Erkenner-Korpus: 60+ Faelle, alle Arten, italienische Einsprengsel (A1, D8)"`.
 
 ---
 

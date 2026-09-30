@@ -5845,6 +5845,31 @@ N > 0, `exit=1`. Die Zahl N in den Commit-Text schreiben.
 
 ---
 
+## Zusatzaufgabe (Birk 30.09.): Englischer Erkenner vereinfacht
+
+Eingeschoben vor Aufgabe 31. Neue Grundannahme fuer den **englischen**
+Erkenner: im Chat wird nicht laut nachgedacht -- jede Nachricht ist entweder
+Aussage/Befehl/Entscheidung (-> Aktion) oder Frage an den Bot (-> nichts).
+Regeln und Few-Shots, die Nachdenken/Spekulation von einer Entscheidung
+trennten, sind raus; Frage vs. Entscheidung, Zustimmung zu einem konkreten
+Vorschlag, Kritik ohne Aufforderung, Lob ohne Vorschlag, die Vorsicht bei
+`szene_schreiben`/`szene_kuerzen`/`entfernen` und der Aufnahme-Sonderfall
+bleiben. Der deutsche Prompt und der deutsche Korpus sind unveraendert.
+
+- [x] `interview_theater/sprachen/en/prompts/erkenner.md`: 793 -> 593 Zeilen
+  (34 456 -> 24 139 Zeichen), Few-Shots (`"aenderungen"`) 21 -> 18.
+- [x] `tests/test_sprache_prompts.py`: `STRUKTUR_AUSNAHMEN = {"erkenner":
+  "Birk 30.09.: Chat = nur Befehle/Fragen"}` (Struktur-/Few-Shot-Paritaet
+  ausgesetzt, Platzhalter-Paritaet bleibt), `FEW_SHOTS_ERKENNER_EN = 18`,
+  neuer Protokoll-Token-Test und Grundannahme-Test.
+- [x] `korpus/en/erkenner.jsonl`: 69 -> 71 Faelle, negativ 29 -> 30
+  (5 Nachdenk-Faelle entfernt: en-n06, en-n07, en-n14, en-n15, en-n17;
+  5 auf reine Fragen umgeschrieben: en-n02, en-n05, en-n19, en-n20, en-n25;
+  neu: en-e32 positiv, en-n27 bis en-n32 Frage/Kritik/Lob).
+  `MIN_EN_NEGATIV` (24) unveraendert erreicht.
+
+---
+
 ## Aufgabe 31 (manuell, kostenpflichtig — freigegeben): Korpuslauf deutsch und englisch (D12)
 
 **Kein Test, laeuft nie automatisch, kostet wenige CHF bei Infomaniak

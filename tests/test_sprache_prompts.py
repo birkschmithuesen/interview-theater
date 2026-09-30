@@ -35,6 +35,13 @@ INHALTSBAUSTEINE = {"rahmen", "rahmen-kurz", "rahmen-knapp", "projekt"}
 
 _PLATZ = re.compile(r"\{\{([a-z][a-z0-9_]*)\}\}")
 
+#: Prompts, deren englische Fassung bewusst KEINE Strukturkopie der
+#: deutschen ist (Ueberschriften, Zaeune, Few-Shot-Zahl). Platzhalter-Paritaet
+#: und Protokoll-Token bleiben auch fuer sie geprueft. Name -> Begruendung.
+STRUKTUR_AUSNAHMEN: dict[str, str] = {
+    "erkenner": "Birk 30.09.: Chat = nur Befehle/Fragen",
+}
+
 
 def _struktur(text: str) -> tuple[int, int, int]:
     """Ueberschriften, Code-Zaeune, JSON-Beispielzeilen -- was eine
@@ -77,7 +84,15 @@ def test_gleiche_platzhalter_und_struktur(name):
     deutsch = (REPO / f"{name}.md").read_text(encoding="utf-8")
     englisch = en.read_text(encoding="utf-8")
     assert set(_PLATZ.findall(englisch)) == set(_PLATZ.findall(deutsch))
+    if name in STRUKTUR_AUSNAHMEN:
+        return
     assert _struktur(englisch) == _struktur(deutsch)
+
+
+def test_struktur_ausnahmen_sind_begruendet_und_bekannt():
+    for name, grund in STRUKTUR_AUSNAHMEN.items():
+        assert name in REPO_NAMEN, name
+        assert grund.strip(), name
 
 
 @pytest.mark.parametrize("name", sorted(INHALTSBAUSTEINE))
@@ -187,9 +202,60 @@ def test_d7_zitate_bleiben_im_original(padua, name):
     assert "never translate them" in text
 
 
+#: Few-Shots (JSON-Ausgabezeilen mit "aenderungen") im englischen Erkenner
+#: seit der Vereinfachung (Birk 30.09.: Chat = nur Befehle/Fragen) -- vorher
+#: 21 wie im Deutschen.
+FEW_SHOTS_ERKENNER_EN = 18
+
+
 def test_erkenner_behaelt_seine_few_shots(padua):
     deutsch = (REPO / "erkenner.md").read_text(encoding="utf-8").count('"aenderungen"')
-    assert anweisungen.hole("erkenner").count('"aenderungen"') == deutsch == 21
+    assert deutsch == 21, "der deutsche Erkenner bleibt unveraendert (Dortmund)"
+    assert "erkenner" in STRUKTUR_AUSNAHMEN
+    assert anweisungen.hole("erkenner").count('"aenderungen"') == FEW_SHOTS_ERKENNER_EN
+
+
+#: Woerter, die der Code aus der Erkenner-Ausgabe liest -- sie bleiben im
+#: englischen Prompt woertlich (Protokoll), auch nach der Vereinfachung.
+_ERKENNER_PROTOKOLL = [
+    '"aenderungen"', '"art"', '"wert"',
+    "SZENE", "FORM", "ORT", "ZEIT", "ANLASS", "FIGUREN", "WAS_PASSIERT",
+    "WAS_ANDERS", "KERNSAETZE", "TON", "TITEL",
+    "FIGUR", "KERNTHEMA", "FORMAT", "RAHMEN", "HAUPTKONFLIKT", "BEGRIFFE",
+    "FRAGEN", "JOURNAL:", "FESTLEGUNG:", '"JA"', '"NEIN"',
+]
+
+
+def test_erkenner_en_behaelt_die_protokoll_token(padua):
+    from interview_theater import erkenner, repo
+
+    englisch = anweisungen.hole("erkenner")
+    deutsch = (REPO / "erkenner.md").read_text(encoding="utf-8")
+    for token in _ERKENNER_PROTOKOLL:
+        # Der deutsche Prompt schreibt sie klein, der englische gross -- der
+        # Parser liest beides; entscheidend ist, dass keines verloren geht.
+        assert token.lower() in deutsch.lower(), token
+        assert token in englisch, token
+    for bereich in repo.FESTLEGUNG_BEREICHE:
+        assert f"**{bereich.upper()}**" in englisch, bereich
+    # Jede Art, die der deutsche Prompt nennt, nennt auch der englische.
+    for art in erkenner.ARTEN:
+        if art in deutsch:
+            assert art in englisch, art
+
+
+def test_erkenner_en_chat_ist_nur_befehl_oder_frage(padua):
+    """Birk 30.09.: in diesem Chat wird nicht laut nachgedacht. Die
+    Grundannahme steht im Prompt, die Nachdenk-Faelle sind weg."""
+    text = " ".join(anweisungen.hole("erkenner").split())
+    assert "Nobody thinks out loud in this chat." in text
+    for weg in ("maybe it'll turn into a musical", "a thought is not an assignment",
+                "is a suggestion (the journal records it)", "at some point we need a scene",
+                "we'll have to think about it later"):
+        assert weg.lower() not in text.lower(), weg
+    # Frage und Kritik bleiben ohne Eintrag.
+    assert "can you suggest a character" in text
+    assert "criticism without a request" in text.lower()
 
 
 # --- Aufgabe 20: die Szene auf Englisch (szene, theater-tells, formen/*,

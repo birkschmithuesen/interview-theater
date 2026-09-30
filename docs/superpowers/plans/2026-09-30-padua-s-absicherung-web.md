@@ -5252,14 +5252,29 @@ ein Vorschlag fuer den Admin und steht in keiner Datei dieses Repositories** —
 er passt zu den Werten oben und muesste mitgezogen werden, wenn die sich
 aendern.
 
+**Architekt-Korrektur 30.09.2026** (drei Fehler im ersten Entwurf, selbst geprueft):
+(1) `limit_req_zone` kennt nur `r/s` und `r/m` — `rate=200r/h` laesst `nginx -t`
+scheitern. Audio je IP deshalb 10r/m: ein laufendes Interview schickt alle 45 s ein
+Segment (1,33/min), sechs Gruppen hinter einer IP ≈ 8/min.
+(2) Der Webdienst laeuft **nicht** auf herkules, sondern auf dem vServer, im Betrieb
+gebunden an `IT_WEB_BIND=100.75.24.33:8010` (Tailnet, AGENTS.md „Weboberflaeche\");
+`127.0.0.1` auf herkules waere der falsche Rechner. ANNAHME: herkules erreicht den
+vServer ueber diese Tailnet-Adresse und die bestehende `location /theatersoap/` dort
+nutzt sie schon — der Admin gleicht `proxy_pass` mit der vorhandenen Konfiguration ab,
+statt diesen Block blind einzusetzen.
+(3) Im Workshop sitzen alle Gruppen haeufig hinter **einer** IP (Raum-WLAN). Eine
+IP-Zone mit 30r/m laege dann **unter** der Summe der App-Grenzen (4 Gruppen × 20/min),
+und nginx saehe vor der App ab — genau das, was der Hinweis unten vermeiden will.
+Deshalb 120r/m je IP (= 6 Gruppen × 20/min).
+
 ```nginx
 # http { } -- einmal, ausserhalb des server-Blocks
-limit_req_zone  $binary_remote_addr  zone=theatersoap_post:10m  rate=30r/m;
-limit_req_zone  $binary_remote_addr  zone=theatersoap_audio:10m rate=200r/h;
+limit_req_zone  $binary_remote_addr  zone=theatersoap_post:10m  rate=120r/m;
+limit_req_zone  $binary_remote_addr  zone=theatersoap_audio:10m rate=10r/m;
 limit_conn_zone $binary_remote_addr  zone=theatersoap_conn:10m;
 
 location /theatersoap/ {
-    proxy_pass http://127.0.0.1:8010/theatersoap/;
+    proxy_pass http://100.75.24.33:8010/theatersoap/;
 
     # Etwas ueber der App-Grenze (8 MiB je Segment): nginx soll die
     # Verbindung kappen, bevor die App liest -- aber nicht frueher als sie,
@@ -5271,13 +5286,13 @@ location /theatersoap/ {
 }
 
 location ~ ^/theatersoap/g/[^/]+/chat/audio$ {
-    proxy_pass http://127.0.0.1:8010;
+    proxy_pass http://100.75.24.33:8010;
     limit_req  zone=theatersoap_audio burst=20 nodelay;
     client_max_body_size 10m;
 }
 
 location ~ ^/theatersoap/g/[^/]+/chat/(senden|knopf|interview)$ {
-    proxy_pass http://127.0.0.1:8010;
+    proxy_pass http://100.75.24.33:8010;
     limit_req  zone=theatersoap_post burst=10 nodelay;
 }
 ```

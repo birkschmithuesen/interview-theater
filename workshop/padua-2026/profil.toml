@@ -1,18 +1,30 @@
-# Workshop-Profil Padua 2026 -- GERUEST.
+# Workshop-Profil Padua 2026
 #
-# A1 hat Sprache, Phasen und Formen gesetzt; die Inhaltsfelder sind
-# Platzhalter, Karte P ersetzt sie aus Birks Vault. `geruest = true`
-# streicht Karte P.
+# Eingehaengt mit IT_WORKSHOP=padua-2026 in betrieb/<gruppe>.env.
 #
-# Jede Inhaltszeile traegt den Marker "ANNAHME (Platzhalter A1" --
-# tests/test_profile_geruest.py zaehlt sie. Die Rahmen-Vorlagen, in die diese
-# Werte eingesetzt werden, liegen in der Sprachschicht
-# (interview_theater/sprachen/en/prompts/rahmen*.md, projekt.md), nicht hier.
+# Karte A1 hat Sprache, Phasen und Formen gesetzt; den Inhalt hat Karte P
+# (01.10.2026) aus zwei Vault-Dateien gefuellt -- und nur aus diesen:
 #
-# Solange die naechste Zeile dasteht, startet kein Bot mit diesem Profil.
-geruest = true
+#   V1 = projekte/padua-workshop/padua-workshop.md
+#   V2 = projekte/padua-workshop/notes/inscribe-padua-todo.md
+#
+# Belegte Zeilen nennen ihre Quelle ("# V1: ..."). Jede Angabe, die dort
+# NICHT woertlich oder eindeutig steht, traegt den Kommentar
+# "# ANNAHME (unbelegt): ..." -- Birk nimmt sie am Prompt-Dump ab
+# (docs/prompt-audit/2026-09-30-padua/BEFUND.md).
+#
+# Die Rahmen-Vorlagen, in die diese Werte eingesetzt werden, liegen in der
+# Sprachschicht (interview_theater/sprachen/en/prompts/rahmen*.md,
+# projekt.md). Der Satz davor lautet dort "The group are {{zielgruppe}}
+# ({{zielgruppe_traeger}})." bzw. "Where it is shown: {{auffuehrungsort}}."
+# -- die Werte sind deshalb Satzglieder, keine ganzen Saetze.
+#
+# Das Szenenmodell (E9: claude-opus-5-5) ist KEIN Profilfeld, sondern
+# Betrieb: IT_SZENE_ANBIETER / IT_SZENE_MODELL in betrieb/<gruppe>.env,
+# siehe LIESMICH.md.
 
-beschreibung = "Theatre workshop in Padua, October 2026."   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+# V1 Kopf + Eckdaten, V2 "Start Montag 05.10.2026".
+beschreibung = "Five-day workshop for third-year acting students at the academy of the National Theatre of the Veneto Region (Teatro Verdi, Padova), starting Monday 5 October 2026."
 
 [sprache]
 # Prompt- und Chatsprache (Birk, 29.09.2026: Padua laeuft auf Englisch).
@@ -29,24 +41,29 @@ whisper = "auto"
 pseudonyme = true
 
 [zielgruppe]
-beschreibung = "young people taking part in this workshop"   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
-# Der Traegerkontext in Klammern im Rahmenblock -- gesetzt, damit dort keine
-# leere Klammer "()" steht.
-traeger = "the workshop partner in Padua"                      # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+# V1: "14 Studierende, ein 3. Jahrgang", "auf digital/hybrid performance
+# vorbereitet und bewusst dramaturgisch/regie-orientiert"; V1 To-do:
+# "Studierende sind volljaehrig". Ein genaues Alter steht nirgends und
+# steht deshalb auch hier nicht.
+beschreibung = "adult third-year acting students, prepared for digital and hybrid performance and oriented towards dramaturgy and directing"
+# V1: Akademie des National Theatre of the Veneto Region, Teatro Verdi, Padova.
+traeger = "academy of the National Theatre of the Veneto Region, Teatro Verdi, Padova"
 
 [orte]
-beschreibung = "everyday, age-appropriate places from the group's own world -- the group decides which (no example places from these instructions)."   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
-ausgeschlossen = ["club", "disco", "alcohol", "nightlife", "drugs"]   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
-auffuehrung = "in a public space or a large hall"                     # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+beschreibung = "places from everyday life in Padua and Venice, where the people the group interviewed live and work -- which ones, the group decides (no example places from these instructions)."   # ANNAHME (unbelegt): V1 belegt nur, dass die Interviews in Padua/Venedig stattfinden; dass das Stueck dort spielt, ist abgeleitet -- die Geschichten sind ausdruecklich fiktiv (V1 "NICHT dokumentarisches Theater")
+ausgeschlossen = ["the real home or workplace of an interviewed person, recognisable by name or address"]   # ANNAHME (unbelegt): Dortmunds Liste (Club, Disko, Alkohol ...) war Jugendschutz fuer 15-18-Jaehrige und passt nicht auf Erwachsene; ersetzt durch einen Schutz der Befragten, abgeleitet aus V1 "fiktiv, NICHT dokumentarisch" und E8 (V2) -- Birk entscheidet, ob hier etwas anderes oder gar nichts stehen soll
+auffuehrung = "at the public showcase on the last day of the workshop, 10-15 minutes per group, in front of AI-generated projected backgrounds, at Teatro Verdi, Padova"   # ANNAHME (unbelegt): Werkschau Tag 5, 10-15 Min je Gruppe, KI-Hintergruende stehen in V1; der Ort der Werkschau nicht (V1 offene Punkte: "Publikum & Zugang klaeren") -- "at Teatro Verdi" ist aus dem Workshop-Ort geschlossen
 # Orte, die in den Prompts als BEISPIEL vorkommen -- nicht die Orte des
-# Stuecks. Englisch, weil sie in englischen Prompt-Saetzen stehen ("maybe
-# they meet at the bus stop"); ein italienisches Wort dort waere ein
-# Fremdkoerper (Review A1).
-beispiele = ["bus stop", "piazza", "café", "station"]   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+# Stuecks. Englisch, weil sie in englischen Prompt-Saetzen stehen.
+beispiele = ["bus stop", "piazza", "café", "station"]   # ANNAHME (unbelegt): Wahl von Karte A1, nicht aus dem Vault; stehen nur in Beispielsaetzen der Prompts
 
 [konflikt]
-erlaubt = "family, expectations, belonging, language, future"   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
-ausgeschlossen = "No glorification of violence"                  # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+erlaubt = "whatever the interviews bring up; the group sets the theme and its framing itself"   # ANNAHME (unbelegt): V1 nennt keinen Konfliktrahmen fuer die Buehne (V1 offene Punkte: "Interview-Thema / Framing mit den Studierenden setzen"); creative ownership, environmental cost, digitale Souveraenitaet sind die Reflexionsebene des Workshops, kein Stoff des Stuecks -- deshalb bewusst nicht hier
+ausgeschlossen = "No glorification of violence; no interviewed person recognisable by name"   # ANNAHME (unbelegt): erster Teil aus Dortmund uebernommen, zweiter aus V1 "fiktiv, NICHT dokumentarisch" abgeleitet
 
 [projekt]
-kurzbeschreibung = "a piece of theatre about the lives of people in this city; the people we interview are experts on life here, and their personal stories become visible on stage"   # ANNAHME (Platzhalter A1, Karte P ersetzt aus dem Vault)
+# V1: Titel "From Real Voices to New Fictions", "fiktive Geschichten auf
+# Basis realer Interviews ... NICHT dokumentarisches Theater", "Interviews
+# mit echten Menschen in Padua/Venedig -- echte Stimmen als Rohmaterial",
+# "oeffentliche Werkschau". Steht im Eroeffnungstext der Interviewer.
+kurzbeschreibung = "short fictional plays based on interviews with real people in Padua and Venice - the voices we collect are raw material for new stories, not a documentary, and the plays are shown at a public showcase at the end of the workshop"

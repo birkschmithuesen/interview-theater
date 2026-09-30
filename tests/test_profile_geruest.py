@@ -63,26 +63,24 @@ def test_jedes_profil_erzeugt_vollstaendige_prompts(name, monkeypatch):
         assert "{{" not in anweisungen.hole(prompt), (name, prompt)
 
 
-def test_padua_ist_ein_geruest():
-    """Karte P entfernt die Zeile -- bis dahin startet kein Bot damit."""
+def test_padua_ist_kein_geruest_mehr():
+    """Karte P hat den Inhalt aus dem Vault gefuellt und die Zeile gestrichen."""
     profil = workshop.lade("padua-2026")
-    assert profil.geruest()
+    assert not profil.geruest()
+    assert profil.fehlende_pflichtfelder() == []
 
 
-def test_padua_traegt_nur_platzhalter_fuer_den_inhalt():
-    """A1 setzt die Methode (Sprache, Phasen, Formen), Karte P den Inhalt aus
-    Birks Vault. Jede Inhaltszeile traegt deshalb den Marker."""
+def test_padua_markiert_jede_unbelegte_angabe():
+    """Karte P: was nicht woertlich oder eindeutig aus dem Vault stammt, traegt
+    den Kommentar "ANNAHME (unbelegt)" -- kein Platzhalter von A1 bleibt stehen."""
     verz = WURZEL / "padua-2026"
-    assert not (verz / "prompts").exists(), "Rahmen-Vorlagen liegen in der Sprachschicht (W1)"
     assert not (verz / "korpus").exists(), "der englische Korpus liegt unter korpus/en/ (D8)"
     text = (verz / "profil.toml").read_text(encoding="utf-8")
-    inhalt = [z for z in text.splitlines() if re.match(
-        r"^(beschreibung|traeger|ausgeschlossen|auffuehrung|erlaubt|kurzbeschreibung)\s*=", z.strip())]
-    # beschreibung (oben), zielgruppe.beschreibung, traeger, orte.beschreibung,
-    # orte.ausgeschlossen, auffuehrung, konflikt.erlaubt,
-    # konflikt.ausgeschlossen, projekt.kurzbeschreibung
-    assert len(inhalt) == 9
-    assert all("ANNAHME (Platzhalter A1" in z for z in inhalt), inhalt
+    assert "Platzhalter A1" not in text
+    annahmen = [z for z in text.splitlines() if "# ANNAHME (unbelegt):" in z]
+    felder = {z.split("=", 1)[0].strip() for z in annahmen}
+    assert {"beschreibung", "ausgeschlossen", "auffuehrung", "beispiele",
+            "erlaubt"} <= felder, felder
 
 
 def test_padua_phasen_und_formen_englisch():
@@ -150,10 +148,10 @@ def test_padua_traegt_seine_eigene_sprache_und_orte():
         "bus stop", "piazza", "café", "station")
 
 
-def test_die_pruefung_weist_ein_geruest_ab(capsys):
-    """Der Gate-Weg: scripts/betrieb-start.sh laesst damit keinen Bot los."""
-    assert pruefe_profil.pruefe_namen("padua-2026") == 1
-    assert "Geruest" in capsys.readouterr().out
+def test_die_pruefung_laesst_padua_durch(capsys):
+    """Karte P: pruefe_profil padua-2026 ist gruen."""
+    assert pruefe_profil.pruefe_namen("padua-2026") == 0
+    assert "in Ordnung" in capsys.readouterr().out
 
 
 def test_die_pruefung_laesst_dortmund_durch(capsys):

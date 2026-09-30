@@ -1,17 +1,36 @@
-# Workshop-Profil `padua-2026` — Gerüst mit englischer Methode
+# Workshop-Profil `padua-2026` — englisch, Inhalt aus dem Vault (Karte P)
 
-**Stand 30.09.2026.** Die Methode steht (Sprache, Phasen, Formen, Einleitungen),
-der Inhalt ist Platzhalter. Solange in `profil.toml` die Zeile
-`geruest = true` steht, startet kein Bot mit diesem Profil (`bot.main` bricht
-ab, `scripts/pruefe_profil.py padua-2026` meldet es mit genau einem Fehler).
-Die Zeile streicht **Karte P**, wenn der Inhalt aus Birks Vault drinsteht.
+**Stand 01.10.2026.** Methode (Sprache, Phasen, Formen, Einleitungen) von
+Karte A1, Inhalt von **Karte P** aus genau zwei Vault-Dateien
+(`projekte/padua-workshop/padua-workshop.md`, `notes/inscribe-padua-todo.md`).
+Die Zeile `geruest = true` ist gestrichen; `python -m scripts.pruefe_profil
+padua-2026` meldet „in Ordnung".
 
-Der frühere Satz „Kein Satz hier drin ist von einem Agenten geschrieben
-worden" gilt nicht mehr und steht deshalb nicht mehr da: Birk hat am
-29.09.2026 entschieden, dass Padua auf **Englisch** läuft, und die englischen
-Texte dieses Profils (Phasennamen, Einleitungen, Formnamen) sowie die
-Platzhalterwerte hat Karte A1 geschrieben. Birk nimmt sie in Karte P am
-vollständigen Prompt-Dump ab (Annahme A8 des Plans).
+**Jede Angabe, die nicht wörtlich oder eindeutig im Vault steht, trägt in
+`profil.toml` den Kommentar `# ANNAHME (unbelegt): …`** — mit dem Grund. Birk
+nimmt sie am Prompt-Dump ab: `docs/prompt-audit/2026-09-30-padua/BEFUND.md`.
+Markiert sind heute: die Spielorte (Padua/Venedig ist nur als Interviewort
+belegt), die ausgeschlossenen Orte (Dortmunds Jugendschutz-Liste ersetzt durch
+einen Schutz der Befragten), der Ort der Werkschau, die Beispielorte (A1), der
+Konfliktrahmen (im Vault offen) und die Konflikt-Ausschlüsse.
+
+**Das Szenenmodell ist kein Profilfeld.** E9 (Szenen über
+`claude-opus-5-5`, USA-Einwilligung bleibt) wird im Betrieb gesetzt, je
+Gruppe in `betrieb/<gruppe>.env`:
+
+```
+IT_SZENE_ANBIETER=claude
+IT_SZENE_MODELL=claude-opus-5-5
+```
+
+Ohne diese Zeilen gilt die Vorgabe aus `interview_theater/einstellungen.py`
+(`IT_SZENE_ANBIETER=infomaniak`, `IT_SZENE_MODELL=claude-opus-5`).
+
+**Die Profil-Anweisung** (`prompts/anweisung.md`, Karte P): eine knappe
+Verhaltensanweisung an den Gesprächs-Bot (Rolle, Ton, Grenzen, Frageweise),
+die `anweisungen.system()` zwischen Phasenanweisung und Regie-Zettel hängt.
+Nur Padua hat sie — Dortmund bleibt bitgleich. Begründung und Vorher/Nachher
+in `BEFUND.md`. Sie ist ein **Vorschlag zur Abnahme**.
 
 ## Was dieses Profil eigenständig macht (gesetzt von A1)
 
@@ -21,7 +40,8 @@ vollständigen Prompt-Dump ab (Annahme A8 des Plans).
   `interview_theater/sprachen/en/` (`texte.toml`, `prompts/**.md`). Dort liegen
   auch die englischen Rahmen-Vorlagen (`rahmen.md`, `rahmen-kurz.md`,
   `rahmen-knapp.md`, `projekt.md`), die nur Profil-Platzhalter benutzen —
-  deshalb hat dieses Profil kein `prompts/`-Verzeichnis (W1).
+  deshalb liegt im `prompts/`-Verzeichnis dieses Profils nur die
+  Profil-Anweisung `anweisung.md` (Karte P), keine Rahmen-Vorlage (W1).
 - **Whisper `auto`**: die Interviewsprache erkennt Whisper selbst; in Phase 3
   steht ein Knopf zum Umstellen, dazu `/sprache`. **Unbestätigt:** Annahme A1
   (Infomaniak-Whisper erkennt die Sprache, wenn das Feld `language` fehlt) ist
@@ -43,21 +63,6 @@ vollständigen Prompt-Dump ab (Annahme A8 des Plans).
 - **Englische Beispielorte** (`orte.beispiele`): bus stop, piazza, café,
   station. Sie stehen in englischen Prompt-Sätzen; die italienischen Wörter
   des alten Gerüsts (`fermata`, `stazione`) wären dort Fremdkörper gewesen.
-
-## Was Karte P ersetzt
-
-- **Jede Zeile in `profil.toml` mit dem Marker `ANNAHME (Platzhalter A1`** —
-  Beschreibung, Zielgruppe, Träger, Orte, Ausschlüsse, Aufführungsort,
-  Konfliktrahmen, Projektbeschreibung, Beispielorte.
-  `tests/test_profile_geruest.py` zählt die neun Inhaltszeilen und prüft den
-  Marker in jeder.
-- **Die Rahmen-Vorlagen**, falls die generische englische Fassung aus der
-  Sprachschicht nicht reicht: dann als Profildateien unter
-  `workshop/padua-2026/prompts/` (und der Test oben, der das Verzeichnis
-  ausschließt, wird mit angepasst).
-- **Die Prüfung am Prompt-Dump**: Birk liest die gerenderten englischen
-  Prompts einmal ganz und nimmt Wortlaut und Idiomatik ab.
-- Danach die Zeile `geruest = true` streichen.
 
 ## Was offen bleibt
 

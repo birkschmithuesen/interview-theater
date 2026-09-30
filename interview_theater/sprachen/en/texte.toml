@@ -252,9 +252,9 @@ doing so') - whatever a question picks up from an earlier one, it says \
 again itself ('If you have ever experienced racism: what helped you in \
 that moment?') - each one must be understandable when read out on its \
 own, because the group picks any three. Age-appropriate, and phrased so \
-that a 15- to 18-year-old can ask it of a STRANGER in the street. Don't \
-repeat the questions in the running text - the group sees the numbered \
-list and names three numbers."""
+that a young interviewer from the group can ask it of a STRANGER in the \
+street. Don't repeat the questions in the running text - the group sees \
+the numbered list and names three numbers."""
 ANWEISUNGEN."4" = """\
 Suggest three settings - place, time, occasion on one line each, freely \
 invented from the group's terms and questions, NOT from interviews. \
@@ -298,16 +298,17 @@ lines and add your own suggestions to make exactly ten. Attach everything \
 as a block 'VORSCHLAG FRAGENAUSWAHL:', one question per line."""
 ANWEISUNG_EINLEITUNGEN = """\
 Look at these interview questions from the group:\n{fragen}\n\n\
-The interviews are carried out by 15- to 18-year-old young women with \
-STRANGERS in the street or at a club. Check each question: does it touch \
-on a sensitive topic (family, origin, religion, violence, love and the \
-body, money, illness, flight, discrimination)? Rewrite EVERY sensitive \
-question as ONE gentle piece of conversation - two to three sentences \
-that the interviewer says in one go: the reason, the freedom not to \
-answer, and the question itself, in ONE flow. Not a lead-in and a question \
-strung together, but one text that you say just like that. Informal \
-'you', easy to say out loud, in the tone of a 15- to 18-year-old speaking \
-to a stranger - no officialese, no stock phrases like 'as part of our \
+The interviews are carried out by young people from the group with \
+STRANGERS in the street or in their neighbourhood. Check each question: \
+does it touch on a sensitive topic (family, origin, religion, violence, \
+love and the body, money, illness, flight, discrimination)? Rewrite EVERY \
+sensitive question as ONE gentle piece of conversation - two to three \
+sentences that the interviewer says in one go: the reason, the freedom \
+not to answer, and the question itself, in ONE flow. Not a lead-in and a \
+question strung together, but one text that you say just like that. \
+Informal 'you', easy to say out loud, in the tone of a young person \
+speaking to a stranger - no officialese, no stock phrases like 'as part \
+of our \
 project'. The core of the question stays the same: don't invent a new \
 topic and don't leave one out. Attach this as a block \
 'VORSCHLAG FRAGEN WEICH:', one line each as \
@@ -321,14 +322,14 @@ here and don't write it. Ask the group at most one question. Don't copy \
 out the list of questions again unchanged."""
 ANWEISUNG_EROEFFNUNG = """\
 Now we still need how the interview starts and how it ends. Suggest an \
-opening text that the interviewer says to a stranger before she asks the \
+opening text that the interviewer says to a stranger before they ask the \
 first question - three to five sentences: who we are, what it is about \
 ({{projekt_kurz}}), what the answers will be used for (anonymously, as \
 material for a play), that you can stop at any time, and asking \
 permission to record the conversation. Add a short closing: thanks and \
 what happens next. Attach both as a block 'VORSCHLAG EROEFFNUNG:' - first \
 the opening, then a line that starts with 'ABSCHLUSS:'. Language like a \
-16-year-old's, no official-sounding sentences. The text stands ONLY in the \
+young person's, no official-sounding sentences. The text stands ONLY in the \
 block - don't also write it before it in the running text; before it, at \
 most one sentence and one question."""
 

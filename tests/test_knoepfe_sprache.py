@@ -3,7 +3,9 @@ Englisch ueber knoepfe.T.X (D3)."""
 
 import pytest
 
-from interview_theater import knoepfe, sprache, workshop
+from interview_theater import knoepfe, repo, sprache, workshop
+
+from test_knoepfe import TelegramAttrappe
 
 
 @pytest.fixture(autouse=True)
@@ -40,4 +42,20 @@ def test_englischer_eroeffnungsauftrag_nennt_das_abschluss_token(monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
     workshop.vergiss()
     assert "'ABSCHLUSS:'" in knoepfe.T.ANWEISUNG_EROEFFNUNG
-    assert "ABSCHLUSS".lower().startswith("abschluss")
+
+
+def test_eroeffnung_speichert_den_englischen_abschluss(conn):
+    """Nachbesserung (Review zu Commit 50572f6): keine Tautologie mehr,
+    sondern der echte Parser (``fragen._speichere_eroeffnung``, um Zeile
+    297) mit einer Antwort im Format, das der englische Auftrag erzeugt --
+    'ABSCHLUSS:' als woertliches Protokoll-Token (K6). Gepruft wird, dass
+    Eroeffnung und Abschluss tatsaechlich getrennt im Arbeitsstand landen,
+    nicht nur, dass der String im Prompt vorkommt."""
+    tg = TelegramAttrappe()
+    wert = "Hi, we are from the theatre project.\nABSCHLUSS: Thank you for your time."
+
+    knoepfe._speichere_eroeffnung(conn, tg, 1, wert)
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["interview_eroeffnung"] == "Hi, we are from the theatre project."
+    assert stand["interview_abschluss"] == "Thank you for your time."

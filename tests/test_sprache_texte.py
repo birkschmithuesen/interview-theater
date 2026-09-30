@@ -73,6 +73,19 @@ BESCHRIFTET = {
     "phasentexte.PARAMETER": "phasentexte.PARAMETER_BESCHRIFTUNG",
 }
 
+#: Registrierte Konstanten, die eine Funktion bewusst NACKT (nicht ueber
+#: ``T.``) liest -- mit Grund, wie ``BLEIBT_DEUTSCH``. Regel 4 fängt den
+#: Fall ab, in dem ein Text am ``T``-Zugriff vorbeigeht und untranslated an
+#: die Gruppe geht; hier geht nichts an die Gruppe -- die deutsche Fassung
+#: dient als zweiter, sprachunabhaengiger Vergleichswert.
+NACKT_ERLAUBT = {
+    "leitfaden.JOURNAL_GEZEIGT":
+        "Nachbesserung Aufgabe 14: leitfaden._schon_gezeigt erkennt einen "
+        "Journal-Marker aus einer Zeit vor einem Profilwechsel -- dafuer "
+        "muss sie die deutsche Konstante UND das aktuelle T.JOURNAL_GEZEIGT "
+        "vergleichen, sonst schickt ein Profilwechsel den Leitfaden doppelt.",
+}
+
 #: Deutsche Inline-Literale, die bleiben duerfen: Vorfall-Details
 #: (repo.merke_vorfall, Dashboard des Teams). Schluessel: Modul und die
 #: ersten 40 Zeichen des Literals, wie ``_inline_texte`` sie liefert.
@@ -253,7 +266,8 @@ def test_keine_nackte_verwendung(modul):
         for k in ast.walk(funktion):
             if isinstance(k, ast.Name) and isinstance(k.ctx, ast.Load):
                 herkunft = modul if k.id in KONSTANTEN[modul] else aliase.get(k.id)
-                if herkunft and (herkunft, k.id) in registriert:
+                if (herkunft and (herkunft, k.id) in registriert
+                        and f"{herkunft}.{k.id}" not in NACKT_ERLAUBT):
                     nackt.add(f"{modul}:{k.lineno} {k.id}")
     assert sorted(nackt) == []
 

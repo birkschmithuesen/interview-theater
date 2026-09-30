@@ -2,7 +2,7 @@
 
 import pytest
 
-from interview_theater import befehle, bot, leitfaden, phasentexte, sprache, workshop
+from interview_theater import befehle, bot, leitfaden, phasentexte, repo, sprache, workshop
 from simulation.attrappe import TelegramAttrappe
 
 
@@ -34,6 +34,19 @@ def test_eintrittskopf_auf_englisch(conn, padua):
 
 def test_leitfaden_leer_auf_englisch(conn, padua):
     assert leitfaden.T.TEXT_LEER.startswith("I don't have an interview guide yet")
+
+
+def test_leitfaden_schon_gezeigt_erkennt_beide_sprachfassungen(conn, padua):
+    """Nachbesserung Aufgabe 14: ein Journaleintrag unter dem deutschen
+    Marker (etwa aus einer Zeit vor dem Profilwechsel) muss den Leitfaden
+    unter Englisch weiterhin als 'schon gezeigt' erkennen -- sonst schickt
+    ein Profilwechsel ihn ein zweites Mal."""
+    chat_id = 1
+    assert leitfaden.T.JOURNAL_GEZEIGT != leitfaden.JOURNAL_GEZEIGT
+    repo.schreibe_journal(
+        conn, chat_id, "notiert", leitfaden.JOURNAL_GEZEIGT, quelle="leitfaden",
+    )
+    assert leitfaden._schon_gezeigt(conn, chat_id) is True
 
 
 def test_dortmund_unveraendert(conn, einst):

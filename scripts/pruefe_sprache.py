@@ -31,6 +31,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from interview_theater.repo import FESTLEGUNG_BEREICHE
+
 #: Deutsche Funktionswoerter (Brief D10) plus einige, die in Knopftexten
 #: tragen. Keins davon ist ein englisches oder italienisches Wort.
 STOPPWOERTER = frozenset({
@@ -74,16 +76,72 @@ ERLAUBT = frozenset({
 
 _WORT = re.compile(r"[A-Za-zÄÖÜäöüß]+")
 _UMLAUT = re.compile(r"[äöüÄÖÜß]")
+
+#: Formwerte einer Szene (szene.FORMEN, Review Aufgabe 14: "die Formwerte
+#: dialog/monolog/chor/lied/rap"). Hier als eigene, statische Kopie und
+#: nicht ueber ``szene.FORMEN`` importiert: dieser Wert haengt am aktiven
+#: Workshop-Profil (PEP 562, Modul-``__getattr__``), der Pruefer laeuft aber
+#: profil-unabhaengig und baut die Regex einmal beim Import.
+_FORMWERTE = frozenset({"dialog", "monolog", "chor", "lied", "rap"})
+
+#: Argumentwoerter, die im Text direkt hinter einem Slash-Befehl als Teil
+#: der Befehlssyntax gelten (Annahme A4: Befehlsnamen und Argumentwoerter
+#: bleiben deutsch, ``/hilfe`` darf sie nennen) und deshalb NICHT als
+#: deutscher Flusstext gezaehlt werden. Bewusst eine GESCHLOSSENE Menge
+#: (Review zu Aufgabe 14): das fruehere Muster liess JEDES kleingeschriebene
+#: Wort hinter einem Befehl als Argument durchgehen und verschluckte damit
+#: ganze Saetze -- gemessen: "Tippt /aufnahme und dann sprecht ihr los."
+#: und "/hilfe zeigt dir alles, was geht" ergaben 0 Treffer statt "ihr"
+#: bzw. "dir". Jedes Wort unten ist am Code von ``befehle.py`` ermittelt,
+#: nicht geraten:
+#:   "aus"                    -- ``rest.lower() == "aus"`` in
+#:                                _befehl_stueck/_befehl_kernthema/
+#:                                _befehl_wortlaut
+#:   "rahmen", "format"       -- Schluessel von ``befehle._STUECK_FELDER``
+#:   "entfernen", "entferne",
+#:   "loeschen", "löschen",
+#:   "weg", "raus"            -- ``befehle._ENTFERNEN_WOERTER``
+#:                                (``/figur <name> entfernen``,
+#:                                ``/festlegung weg <suchwort>``)
+#:   "ort", "zeit", "anlass",
+#:   "figuren", "form"        -- Szenenfelder aus ``szene.FELD_ALIASE``, ueber
+#:                                ``befehle._setze_szenenfeld`` geparst
+#:                                (``/szene <n> ort|zeit|anlass|figuren
+#:                                <text>``, ``/szene <n> form <...>``)
+#:   "usa", "ja", "j", "yes",
+#:   "nein", "n", "no"        -- ``befehle._SZENE_USA``/``_SZENE_USA_LEER``
+#:                                (``/szene usa ja|nein``)
+#:   "auto"                   -- ``befehle._SPRACHWERT`` (``/sprache auto``)
+#: Dazu die fuenf Formwerte (oben) und die Festlegungsbereiche aus
+#: ``repo.FESTLEGUNG_BEREICHE`` -- importiert statt dupliziert, damit ein
+#: neuer Bereich den Pruefer nicht stillschweigend uebergeht.
+ARGUMENTWOERTER = frozenset({
+    "aus", "rahmen", "format",
+    "entfernen", "entferne", "loeschen", "löschen", "weg", "raus",
+    "ort", "zeit", "anlass", "figuren", "form",
+    "usa", "ja", "j", "yes", "nein", "n", "no",
+    "auto",
+}) | _FORMWERTE | frozenset(FESTLEGUNG_BEREICHE)
+
+#: Laengstes Wort zuerst, damit z. B. "figuren" vor "figur" probiert wird
+#: (nur fuer Lesbarkeit/Effizienz -- die Regex-Engine backtrackt ohnehin
+#: ueber die Alternation, siehe Wortgrenzen-Lookahead unten).
+_ARGWORT = "|".join(re.escape(w) for w in sorted(ARGUMENTWOERTER, key=len, reverse=True))
+
 #: Was vor dem Pruefen herausgenommen wird: Platzhalter, snake_case-Namen
 #: (Erkenner-Arten, JSON-Schluessel, Feldnamen), Woerter nur aus
 #: Grossbuchstaben (Protokoll-Marker wie VORSCHLAG FRAGENAUSWAHL:, BEFUND:),
 #: URLs und Dateipfade. Dazu die Syntax eines Slash-Befehls (Annahme A4:
 #: Befehlsnamen und Argumentwoerter bleiben deutsch, ``/hilfe`` darf sie
-#: nennen): der Name samt direkt folgender kleingeschriebener Argumente,
-#: ``a|b``-Alternativen und ``<…>``/``[…]``-Platzhalter. Grenze, bewusst: ein
-#: kleingeschriebenes Wort direkt hinter einem Befehl gilt als Argument.
+#: nennen): der Name samt direkt folgender Argumente aus ``ARGUMENTWOERTER``,
+#: ``a|b``-Alternativen daraus und ``<…>``/``[…]``-Platzhalter (deren Inhalt
+#: bleibt ungeprueft -- er ist per Definition Beispieltext, kein Flusstext).
+#: Grenze, bewusst: nur ein Wort aus der geschlossenen Menge direkt hinter
+#: einem Befehl gilt als Argument, kein beliebiges kleingeschriebenes Wort
+#: (Review Aufgabe 14) -- sonst verschluckt die Regex den ganzen Satz danach.
 _AUSSEN_VOR = re.compile(
-    r"(?<![\w/])/[a-z]+(?:[ ]+(?:<[^<>\n]*>|\[[^\[\]\n]*\]|[a-z]+(?:\|[a-z]+)*)(?![\w]))*"
+    r"(?<![\w/])/[a-z]+(?:[ ]+(?:<[^<>\n]*>|\[[^\[\]\n]*\]|"
+    rf"(?:{_ARGWORT})(?:\|(?:{_ARGWORT}))*)(?![\w]))*"
     r"|\{\{[a-z0-9_]+\}\}|\{[A-Za-z0-9_!:>< .]*\}"
     r"|\b[a-z]+(?:_[a-z0-9]+)+\b"
     r"|\b[A-ZÄÖÜ]{2,}(?:[ _][A-ZÄÖÜ]{2,})*\b"

@@ -294,8 +294,15 @@ JOURNAL_GEZEIGT = "Leitfaden gezeigt"
 
 
 def _schon_gezeigt(conn, chat_id: int) -> bool:
+    """Nachbesserung Aufgabe 14: beide Fassungen des Markers akzeptieren --
+    die deutsche Konstante ``JOURNAL_GEZEIGT`` UND den aktuell aktiven
+    ``T.JOURNAL_GEZEIGT``. Ein Eintrag kann unter einem anderen Sprachprofil
+    geschrieben worden sein als dem gerade aktiven (der Eintrag steht fest,
+    das Profil eines Prozesses kann wechseln); ohne beide Fassungen wuerde
+    ein Profilwechsel den Leitfaden ein zweites Mal schicken."""
+    marker = {JOURNAL_GEZEIGT, T.JOURNAL_GEZEIGT}
     return any(
-        (eintrag["text"] or "") == T.JOURNAL_GEZEIGT
+        (eintrag["text"] or "") in marker
         for eintrag in repo.journal(conn, chat_id)
     )
 

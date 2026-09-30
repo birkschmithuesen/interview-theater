@@ -50,6 +50,17 @@ def test_slash_befehle_samt_argumentsyntax_sind_protokoll():
     assert _woerter("Type /hilfe, und fertig.") == ["und", "fertig"]
 
 
+def test_argumentwoerter_hinter_befehl_sind_eine_geschlossene_menge():
+    """Nachbesserung Aufgabe 14: das fruehere Muster liess JEDES
+    kleingeschriebene Wort hinter einem Befehl als Argument durchgehen und
+    verschluckte damit ganze Saetze (0 Treffer statt "ihr"/"dir"). Nur
+    Woerter aus ``ARGUMENTWOERTER`` (am Code von ``befehle.py`` ermittelt)
+    bleiben als Befehlssyntax ungeprueft."""
+    assert "ihr" in _woerter("Tippt /aufnahme und dann sprecht ihr los.")
+    assert "euch" in _woerter("/hilfe zeigt euch alles")
+    assert "dir" in _woerter("/hilfe zeigt dir alles, was geht")
+
+
 def test_treffer_nennt_quelle_und_ausschnitt():
     treffer = pruefe_sprache.deutsche_treffer("prompt system", "Please write und so.")
     assert treffer[0].quelle == "prompt system"

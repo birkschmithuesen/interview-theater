@@ -1244,7 +1244,6 @@ _KEIN_BEFUNDTEXT = "(no finding text)"
 TEXT_BEFUND = "Scene {szene}: {text}"
 TEXT_BEFUND_OHNE_SZENE = "{text}"
 TEXT_AUFTRAG_KNOPF = "Revise scene {nummer} like this"
-TEXT_SZENENAUFTRAG = "Rewrite scene {nummer}. {notiz}"
 _DRAMATURGIE = "Dramaturgy"
 
 ["dramaturgie.fanout".A10_BESCHRIFTUNG]

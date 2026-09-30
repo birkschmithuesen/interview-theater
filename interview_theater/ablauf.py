@@ -92,16 +92,30 @@ _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
 #: sollst" ist es die normale englische Ratschlagsform an eine Gruppe
 #: ("you should ask her about ..."), zusammen mit einem zweiten weichen
 #: Marker waere eine echte Antwort als Denkspur verworfen worden.
+#: Nachbesserung (Review Commit fbc47e9, Befund 1): vier weitere Marker
+#: waren so allgemein formuliert, dass sie normale Antworten trafen --
+#: gemessen: "Perfect. That is a strong ending. I suggest a title: The
+#: Pier." (zwei weiche Treffer aus "perfect. that is" + "i suggest a ");
+#: "Good idea. I should mention that scene 2 still has no place. I suggest
+#: a park at night." (aus "i should " + "i suggest a "); "Nice. The group
+#: wants a sad ending, so I suggest a final image at the station." (aus
+#: "the group wants" + "i suggest a "); "Your turn is next: tell me who the
+#: third character is." (allein aus dem eindeutigen "your turn is"). "i
+#: suggest a " und das weiche "i should " sind deshalb ganz raus -- ein
+#: Vorschlag oder ein Ratschlag ist eine normale Antwort an eine Gruppe,
+#: kein Selbstgespraech --, "perfect. that is" und "your turn is" wurden auf
+#: den vollen Denkspur-Wortlaut verengt, so spezifisch wie ihre deutschen
+#: Vorbilder ("perfekt. das ist [ein Angebot]", "dein zug ist [leer]").
 _DENKSPUR_MARKER_EN = (
-    "i should:", "i should ", "the group wants", "what is in the material",
-    "possible core themes:", "i suggest a ", "perfect. that is",
+    "i should:", "the group wants", "what is in the material",
+    "possible core themes:", "perfect. that is an offer",
     "the rule says", "the recogniser sets", "no markdown",
-    "under 500 characters", "phrase it as an offer", "your turn is",
+    "under 500 characters", "phrase it as an offer", "your turn is empty",
     "system line", "system announcement", "the system instruction",
     "one sentence of encouragement",
 )
 _DENKSPUR_EINDEUTIG_EN = ("i should:", "what is in the material", "the recogniser sets",
-                          "no markdown", "under 500 characters", "your turn is",
+                          "no markdown", "under 500 characters", "your turn is empty",
                           "system line", "system announcement", "the system instruction")
 
 #: Womit ein geretteter Antwortabsatz anfangen darf -- deutsch und englisch.
@@ -123,14 +137,22 @@ def ist_denkspur(text: str) -> bool:
 def _denkspur_kern(text: str) -> str | None:
     """Versucht, aus einer Denkspur den eigentlichen Antwortabsatz zu
     retten: der letzte Absatz ohne Marker, der wie eine Nachricht an die
-    Gruppe beginnt und 40-700 Zeichen lang ist. Sonst None."""
+    Gruppe beginnt und 40-700 Zeichen lang ist. Sonst None.
+
+    Nachbesserung (Review Commit fbc47e9, Befund 2): welche Anfaenge als
+    "das klingt nach einer Nachricht an die Gruppe" gelten, war bisher immer
+    die Vereinigung aus Deutsch und Englisch -- eine kleine Verhaltensaenderung
+    auch fuer Dortmund, das nie englisch antwortet. Jetzt gilt je aktivem
+    Profil genau eine Liste (``sprache.je_sprache``), fuer ``code() == "de"``
+    also wortgleich wie vor der Karte A1."""
+    anfaenge = sprache.je_sprache({"de": _KERN_ANFAENGE, "en": _KERN_ANFAENGE_EN})
     absaetze = [a.strip() for a in text.split("\n\n") if a.strip()]
     for a in reversed(absaetze):
         al = a.lower()
         if any(m in al for m in _DENKSPUR_MARKER + _DENKSPUR_MARKER_EN):
             continue
         erstes = a.split()[0].rstrip(",.:") if a.split() else ""
-        if erstes in _KERN_ANFAENGE + _KERN_ANFAENGE_EN or a.startswith('"'):
+        if erstes in anfaenge or a.startswith('"'):
             if 40 <= len(a) <= 700:
                 return a
     return None

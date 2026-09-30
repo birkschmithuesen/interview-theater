@@ -1465,18 +1465,20 @@ def regienotiz(zeile) -> str:
     )
 
 
-#: Der Auftragstext, mit dem eine Ueberarbeitung in den Schreibpfad geht.
-#: Er steht hier und nicht in ``knoepfe.py``, weil ihn seit dem 07.09.2026
-#: zwei Wege benutzen: der Knopf "Szene N so ueberarbeiten" und die Schleife
-#: (``dramaturgie.schleife``). Zwei Wortlaute waeren zwei Prompts -- und ein
-#: Unterschied, den niemand bemerkt, weil beide funktionieren.
-TEXT_SZENENAUFTRAG = "Schreib Szene {nummer} neu. {notiz}"
-
-
 def szenenauftrag(zeile) -> str:
     """Der fertige Auftragstext fuer ``szene.schreibe`` -- aus einem Befund
-    (Knopfweg) oder einem Auftrag (Schleifenweg)."""
-    return T.TEXT_SZENENAUFTRAG.format(
+    (Knopfweg) oder einem Auftrag (Schleifenweg).
+
+    Bis zur Nachbesserung von Aufgabe 23 (Review-Befund 3) stand hier eine
+    eigene Konstante ``TEXT_SZENENAUFTRAG``, wortgleich zu
+    ``szene.TEXT_AUFTRAG_NEU`` -- zwei Stellen mit demselben Wortlaut, von
+    denen eine irgendwann die andere nicht mehr mitbekommen haette. Jetzt
+    wird an die eine Quelle delegiert (lokaler Import, wie ueberall im Repo
+    gegen den Zyklus -- ``szene`` heisst hier ueberall sonst die einzelne
+    Szenenzeile, nicht das Modul)."""
+    from interview_theater import szene
+
+    return szene.T.TEXT_AUFTRAG_NEU.format(
         nummer=_feld(zeile, "szene"), notiz=regienotiz(zeile)
     )
 

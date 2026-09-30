@@ -566,11 +566,35 @@ def test_denkspur_beide():
         "You should ask her about her childhood. I should add: take your time.")
 
 
-def test_denkspur_kern_englisch():
+@pytest.mark.parametrize("text", [
+    # Nachbesserung (Review Commit fbc47e9, Befund 1): vier am Interpreter
+    # gemessene Faelle, in denen normale Antworten als Denkspur verworfen
+    # wurden -- siehe task-23-report.md Nachbesserung.
+    "Perfect. That is a strong ending. I suggest a title: The Pier.",
+    "Good idea. I should mention that scene 2 still has no place. "
+    "I suggest a park at night.",
+    "Nice. The group wants a sad ending, so I suggest a final image at the station.",
+    "Your turn is next: tell me who the third character is.",
+])
+def test_denkspur_englisch_keine_falsch_positiven(text):
+    assert not ablauf.ist_denkspur(text), text
+
+
+def test_denkspur_kern_englisch(englisch):
     text = ("I should: keep it short. The group wants a scene.\n\n"
             "Your scene is ready to go - tell me which moment you want to start with, "
             "and I will write it.")
     assert ablauf._denkspur_kern(text).startswith("Your scene is ready")
+
+
+def test_denkspur_kern_bleibt_deutsch_fuer_dortmund():
+    """Nachbesserung (Review-Befund 2): ohne aktives Profil (code() == "de")
+    rettet _denkspur_kern nur einen deutsch beginnenden Absatz -- ein
+    englisch beginnender Absatz bleibt unverwertet, genau wie vor Karte A1."""
+    text = ("I should: keep it short. The group wants a scene.\n\n"
+            "Your scene is ready to go - tell me which moment you want to start with, "
+            "and I will write it.")
+    assert ablauf._denkspur_kern(text) is None
 
 
 def test_tschechow_ist_im_englischen_aus(englisch):
@@ -670,7 +694,9 @@ def test_auftragszeilen_deutsch_wie_vorher():
     assert szene_modul.T.TEXT_AUFTRAG_SCHREIBEN.format(nummer=2) == "Schreib Szene 2."
     assert szene_modul.T.TEXT_AUFTRAG_NEU.format(nummer=2, notiz="Kuerzer.") == (
         "Schreib Szene 2 neu. Kuerzer.")
-    assert fanout.T.TEXT_SZENENAUFTRAG.format(nummer=3, notiz="X") == "Schreib Szene 3 neu. X"
+    # Nachbesserung (Review-Befund 3): fanout.T.TEXT_SZENENAUFTRAG gibt es
+    # nicht mehr -- fanout.szenenauftrag delegiert an szene.T.TEXT_AUFTRAG_NEU.
+    assert fanout.szenenauftrag({"szene": 3, "text": "X"}) == "Schreib Szene 3 neu. X"
 
 
 def test_auftragszeilen_englisch_und_lesbar(englisch):
@@ -679,7 +705,7 @@ def test_auftragszeilen_englisch_und_lesbar(englisch):
     schreiben = szene_modul.T.TEXT_AUFTRAG_SCHREIBEN.format(nummer=2)
     neu = szene_modul.T.TEXT_AUFTRAG_NEU.format(
         nummer=4, notiz="Shorter. " + szene_modul.BISHER_MARKER)
-    pruefung = fanout.T.TEXT_SZENENAUFTRAG.format(nummer=3, notiz="More conflict.")
+    pruefung = fanout.szenenauftrag({"szene": 3, "text": "More conflict."})
     assert (schreiben, neu.split(".")[0], pruefung) == (
         "Write scene 2.", "Rewrite scene 4", "Rewrite scene 3. More conflict.")
     # Der Parser liest die Nummer, der Marker bleibt Protokoll.

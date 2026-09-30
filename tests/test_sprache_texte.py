@@ -68,7 +68,9 @@ BLEIBT_DEUTSCH = {
     "dramaturgie.beleg.GRUND_NICHT_GEFUNDEN": "Log-Grund (Belegstand.grund), nur im Log",
     # Aufgabe 23: dramaturgie.fanout.TEXT_SZENENAUFTRAG steht nicht mehr
     # hier -- der Szenennummer-Parser liest jetzt beide Sprachen, der
-    # Auftrag geht ueber T.
+    # Auftrag geht ueber T. Nachbesserung (Review-Befund 3): die Konstante
+    # gibt es seitdem gar nicht mehr, fanout.szenenauftrag delegiert an
+    # szene.T.TEXT_AUFTRAG_NEU (wortgleich, eine Quelle statt zwei).
     # Aufgabe 17: Skript und Stil der Webseiten -- deutsch sind nur die
     # Kommentare darin. Die Meldungen des Speicherns liest _BEARBEITEN_JS aus
     # data-Attributen (#meldungen, web._JS_*), nicht aus dem Skript.

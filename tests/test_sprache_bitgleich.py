@@ -52,6 +52,14 @@ GEAENDERT: dict[str, str] = {
         "stehen dieselben vier Woerter wie vorher neben dem Feld -- geaendert "
         "hat sich nur der Weg, nicht der Text (tests/test_web_sprache.py)."
     ),
+    "dramaturgie.fanout.TEXT_SZENENAUFTRAG": (
+        "Nachbesserung Aufgabe 23 (Review-Befund 3): die Konstante ist ganz "
+        "weg, wortgleich mit szene.TEXT_AUFTRAG_NEU war sie eine zweite "
+        "Stelle fuer denselben Wortlaut. dramaturgie.fanout.szenenauftrag "
+        "delegiert seitdem an szene.T.TEXT_AUFTRAG_NEU -- fuer Dortmund "
+        "aendert sich am ausgehenden Text nichts, nur die Quelle ist jetzt "
+        "eine statt zwei (tests/test_sprache_parser.py)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

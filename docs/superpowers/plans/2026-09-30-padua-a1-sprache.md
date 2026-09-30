@@ -3172,7 +3172,7 @@ davon ab, nur die Annahme bleibt unbestaetigt.
 - Modify: `scripts/rauchtest.py` (`teste_whisper` bekommt `sprache`,
   `main` liest `--whisper <wert>`; Vorgabe `de` = heutiges Verhalten)
 
-- [ ] **Schritt 1:** `scripts/rauchtest.py` — `teste_whisper(einst, klient,
+- [x] **Schritt 1:** `scripts/rauchtest.py` — `teste_whisper(einst, klient,
   audio_pfad, sprache="de")` ruft `stt.transkribiere(…, 90.0, sprache=sprache)`
   und druckt zusaetzlich `print(f"Whisper-Sprache: {sprache}")`. In `main`:
   `--whisper <wert>` aus `sys.argv` herausnehmen (wie `--voll` in
@@ -3196,6 +3196,8 @@ grep -h "Whisper erkannte\|Transkript\|Dauer" /tmp/a1-rauch-*.txt
 `.worktrees/t_…` heraus; vorher mit `ls ../../betrieb/gruppe1.env` pruefen,
 nicht mit `cat`.)
 
+  offen: Testaufnahmen (A3) lagen am 30.09.2026 nicht vor.
+
 - [ ] **Schritt 3: Befund notieren** — in `docs/sprache-a1-korpuslauf-<datum>.md`
   (legt Aufgabe 31 an; hier vorab erzeugen, falls noetig) einen Abschnitt
   „Whisper-Rauchtest" mit: Transkript in der Originalsprache ja/nein (ohne
@@ -3203,13 +3205,19 @@ nicht mit `cat`.)
   nur „italienisch, 23 Woerter, korrekt"), Dauer je Lauf, ob `Whisper erkannte
   Sprache …` im Log stand (A1: Feld `language` vorhanden?), ob ohne
   `language` ein HTTP-Fehler kam (A2).
+
+  offen: Testaufnahmen (A3) lagen am 30.09.2026 nicht vor.
+
 - [ ] **Schritt 4: Wenn A1 faellt** (italienische Aufnahme mit `auto` wird
   englisch oder deutsch transkribiert): Befund stehen lassen, **Padua-Vorgabe
   in Aufgabe 29 auf `whisper = "it"` setzen** statt `auto`, und im
   LIESMICH festhalten, dass eine englischsprachige Interviewrunde per Knopf
   „English" umstellt. Birk informieren. Faellt nur das Log-Feld (A1 zweiter
   Teil), ist das kein Befund fuer den Betrieb.
-- [ ] **Schritt 5: Commit** (nur das Skript; Aufnahmen und Ausgaben bleiben in
+
+  offen: Testaufnahmen (A3) lagen am 30.09.2026 nicht vor.
+
+- [x] **Schritt 5: Commit** (nur das Skript; Aufnahmen und Ausgaben bleiben in
   `/tmp`):
 
 ```bash

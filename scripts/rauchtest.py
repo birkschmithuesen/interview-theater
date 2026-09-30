@@ -12,7 +12,9 @@ Antwort und rechnet den Divisor aus, der Zeichen auf Token abbilden wuerde.
 
 Aufruf:
     python -m scripts.rauchtest                 # nur das Sprachmodell
-    python -m scripts.rauchtest ./beispiel.ogg   # zusaetzlich Whisper
+    python -m scripts.rauchtest ./beispiel.ogg   # zusaetzlich Whisper (Vorgabe: de)
+    python -m scripts.rauchtest ./beispiel.ogg --whisper auto   # Whisper erkennt die Sprache selbst
+    python -m scripts.rauchtest ./beispiel.ogg --whisper it     # Whisper erzwingt Italienisch
 """
 
 import sys
@@ -103,16 +105,24 @@ def teste_sprachmodell(einst, klient, conn) -> None:
         print("Kein Divisor berechenbar -- Antwort enthielt keine usage.prompt_tokens.")
 
 
-def teste_whisper(einst, klient, audio_pfad: Path) -> None:
+def teste_whisper(einst, klient, audio_pfad: Path, sprache: str = "de") -> None:
     print("--- Whisper (zweistufig) ---")
     start = time.monotonic()
-    text = stt.transkribiere(einst, klient, audio_pfad, 90.0)
+    text = stt.transkribiere(einst, klient, audio_pfad, 90.0, sprache=sprache)
     dauer_s = time.monotonic() - start
     print(f"Transkript: {text!r}")
     print(f"Dauer: {dauer_s:.2f}s")
+    print(f"Whisper-Sprache: {sprache}")
 
 
 def main() -> None:
+    argumente = list(sys.argv[1:])
+    whisper_sprache = "de"
+    if "--whisper" in argumente:
+        index = argumente.index("--whisper")
+        whisper_sprache = argumente[index + 1]
+        del argumente[index:index + 2]
+
     einst = einstellungen.laden()
     conn = db.verbinde(einst.db_pfad)
     db.initialisiere(conn)
@@ -120,9 +130,9 @@ def main() -> None:
     with httpx.Client() as klient:
         teste_sprachmodell(einst, klient, conn)
 
-        if len(sys.argv) > 1:
+        if argumente:
             print()
-            teste_whisper(einst, klient, Path(sys.argv[1]))
+            teste_whisper(einst, klient, Path(argumente[0]), sprache=whisper_sprache)
         else:
             print()
             print("(kein Audiopfad angegeben -- Whisper wird uebersprungen)")

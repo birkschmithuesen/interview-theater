@@ -4107,7 +4107,7 @@ these instructions.
   „Write in English, in short, natural sentences …" und direkt danach der
   E8-Absatz).
 
-- [ ] **Schritt 1: Tests** (in `tests/test_sprache_prompts.py`):
+- [x] **Schritt 1: Tests** (in `tests/test_sprache_prompts.py`):
 
 ```python
 @pytest.fixture
@@ -4140,10 +4140,10 @@ def test_padua_systemanweisung_ohne_offenen_platzhalter(padua):
         assert "{{" not in anweisungen.system("gruppe1", phase)
 ```
 
-- [ ] **Schritt 2:** rot: `test_e8_…` → `AssertionError` (deutscher Prompt).
-- [ ] **Schritt 3:** die 12 Dateien schreiben; `NOCH_OFFEN -= {"system",
+- [x] **Schritt 2:** rot: `test_e8_…` → `AssertionError` (deutscher Prompt).
+- [x] **Schritt 3:** die 12 Dateien schreiben; `NOCH_OFFEN -= {"system",
   "phasen/1", …, "phasen/7", "rahmen", "rahmen-kurz", "rahmen-knapp", "projekt"}`.
-- [ ] **Schritt 4: Gruen und Nachweis**
+- [x] **Schritt 4: Gruen und Nachweis**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider tests/test_sprache_prompts.py tests/test_anweisungen.py \
@@ -4156,9 +4156,9 @@ $PY -m scripts.pruefe_profil padua-2026
 Expected: gruen; `0 Treffer`; `pruefe_profil` meldet nur das Geruest (Text
 siehe Aufgabe 29), keinen Platzhalter.
 
-- [ ] **Schritt 5: Mutationsnachweis:** in `en/prompts/phasen/4.md`
+- [x] **Schritt 5: Mutationsnachweis:** in `en/prompts/phasen/4.md`
   `{{rahmen_kurz}}` loeschen → `test_gleiche_platzhalter_und_struktur[phasen/4]` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Englische Gespraechsprompts: system, Phasen, Rahmen-Vorlagen (A1, E8)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Englische Gespraechsprompts: system, Phasen, Rahmen-Vorlagen (A1, E8)"`.
 
 ---
 

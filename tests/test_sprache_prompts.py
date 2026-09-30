@@ -26,7 +26,11 @@ def _namen(wurzel: Path) -> set[str]:
 REPO_NAMEN = _namen(REPO)
 
 #: Noch nicht uebersetzt. Am Anfang alle 38; Aufgabe 21 leert die Menge.
-NOCH_OFFEN = set(REPO_NAMEN)
+NOCH_OFFEN = set(REPO_NAMEN) - {
+    # Aufgabe 18: das Gespraech.
+    "system", "phasen/1", "phasen/2", "phasen/3", "phasen/4", "phasen/5",
+    "phasen/6", "phasen/7", "rahmen", "rahmen-kurz", "rahmen-knapp", "projekt",
+}
 
 #: Inhaltsbausteine (W1): ihre deutsche Fassung traegt Dortmund-Inhalt
 #: woertlich, die englische ist eine generische Vorlage aus Profilwerten.
@@ -142,3 +146,35 @@ def test_ueberschrift_des_regiezettels_ueber_die_tabelle(monkeypatch):
     assert anweisungen.T.UEBERSCHRIFT == anweisungen.UEBERSCHRIFT
     monkeypatch.setattr(sprache, "code", lambda: "en")
     assert "Additional instruction" in anweisungen.T.UEBERSCHRIFT
+
+
+# --- Aufgabe 18: das Gespraech auf Englisch (system, phasen/1-7, Rahmen) ---
+
+@pytest.fixture
+def padua(monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+
+
+def test_e8_steht_im_englischen_gespraechsprompt(padua):
+    text = " ".join(anweisungen.hole("system").split())
+    assert "Never address anyone by their first name." in text
+    assert "Characters always carry invented names." in text
+
+
+@pytest.mark.parametrize("nummer", range(1, 8))
+def test_englische_phasen_sind_fokus_kein_kaefig(padua, nummer):
+    text = " ".join(anweisungen.hole(f"phasen/{nummer}").split())
+    assert "What you don't start on your own:" in text
+    assert "the phase is your focus, not its limit" in text
+
+
+@pytest.mark.parametrize("nummer", range(1, 8))
+def test_englische_phasen_bewerben_keinen_befehl(padua, nummer):
+    assert not re.search(r"(?<![\w/])/[a-z]{3,}", anweisungen.hole(f"phasen/{nummer}"))
+
+
+def test_padua_systemanweisung_ohne_offenen_platzhalter(padua):
+    for phase in range(1, 8):
+        assert "{{" not in anweisungen.system("gruppe1", phase)

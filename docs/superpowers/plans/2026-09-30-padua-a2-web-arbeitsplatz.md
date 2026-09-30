@@ -317,7 +317,7 @@ def naechste_web_chat_id(conn) -> int
 `ensure_ascii=False`); `None` heisst „keine Leiste". Die Serialisierung gehoert in die
 Ablageschicht, damit kein Aufrufer die Form kennen muss.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_post.py`:
 
@@ -475,14 +475,14 @@ def test_migration_ruestet_web_post_in_einer_alten_datenbank_nach(tmp_path):
     assert repo.hole_gruppe(neu, CHAT)["kanal"] == "telegram"
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_post.py -q -p no:cacheprovider
 ```
 Erwartet: FAIL — `AttributeError: module 'interview_theater.repo' has no attribute 'RICHTUNG_EIN'`.
 
-- [ ] **Schritt 3: Schema in `db.py`**
+- [x] **Schritt 3: Schema in `db.py`**
 
 In `SCHEMA` **nach** der `knopf`-Tabelle einfuegen. Die Form (`CREATE TABLE IF NOT EXISTS
 <name> (` … `\n);`) ist Pflicht: `db._tabellenspalten_aus_schema` liest sie per Regex, und
@@ -544,14 +544,14 @@ Komma setzen):
 **`SCHEMA_VERSION` bleibt bei 3.** Die Migration ist rein additiv und braucht keinen
 `user_version`-Schritt — wie `_migriere_erste_szenenfassung`.
 
-- [ ] **Schritt 4: Lauf, der Loeschweg-Test muss durch sein**
+- [x] **Schritt 4: Lauf, der Loeschweg-Test muss durch sein**
 
 ```
 $PY -m pytest tests/test_web_post.py -q -p no:cacheprovider -k loeschweg
 ```
 Erwartet: `1 passed`.
 
-- [ ] **Schritt 5: `repo.py` — die Funktionen**
+- [x] **Schritt 5: `repo.py` — die Funktionen**
 
 Am Dateiende anhaengen. `import json` im Modulkopf ergaenzen, falls noch nicht vorhanden.
 
@@ -735,7 +735,7 @@ def naechste_web_chat_id(conn) -> int:
     return WEB_CHAT_ID_BASIS if hoechste is None else int(hoechste) + 1
 ```
 
-- [ ] **Schritt 6: Lauf, alles gruen**
+- [x] **Schritt 6: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_post.py -q -p no:cacheprovider
@@ -747,7 +747,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: `2783 passed, 1 skipped`.
 
-- [ ] **Schritt 7: Commit**
+- [x] **Schritt 7: Commit**
 
 ```bash
 git add interview_theater/db.py interview_theater/repo.py tests/test_web_post.py

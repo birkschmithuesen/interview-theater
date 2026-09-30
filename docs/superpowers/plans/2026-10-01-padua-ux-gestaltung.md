@@ -29,6 +29,13 @@ Playwright 1.61.0 aus dem Wegwerf-venv.
 In **diesem** Worktree (`padua-workshop/t_5ad6ac77-plan-ux-gestaltung`, Basis
 `origin/main` = `f66f68b`) selbst gemessen:
 
+> Nachtrag Architekt (01.10.2026): der Branch wurde danach auf `origin/main` = `04e57dd`
+> (Merge A1) umgesetzt; beide Commits beruehren nur `docs/`. Auf diesem Stand ist A1 da
+> (`workshop/padua-2026/profil.toml` Zeile 19: `code = "en"` — ANNAHME 8 ist damit
+> erfuellt), `interview_theater/web_chat.py` und `web_vereint.py` fehlen aber noch:
+> W und A2 sind nicht gemergt. Die Zahl unten ist deshalb **nicht** die Baseline der
+> Umsetzung — Aufgabe 1 misst sie neu, und ohne W/A2 bricht Aufgabe 1 wie vorgesehen ab.
+
 ```
 /home/birk/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/bin/python3 \
   -m pytest -q -p no:cacheprovider

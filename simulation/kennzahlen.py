@@ -611,6 +611,108 @@ def festlegungslage(conn, chat_id: int, proben=None) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Szenen: bleibt die Folge stehen? (Analyse Phase 5, 06.09.2026)
+# ---------------------------------------------------------------------------
+#
+# Der Befund: drei geplante Szenen mit festgelegter Form, danach sechs mit
+# anderen Titeln und anderen Formen, eine Stunde spaeter noch einmal sechs
+# (docs/analyse-phase5-chaos-2026-09-06.md § 4).
+#
+# Der Fehler hat seit dem 06.09.2026 **zwei Gestalten**, und diese Kennzahl
+# misst beide. Alt: ``szenenfolge.lege_an`` entfernte bestehende Szenen weich
+# -- sichtbar an ``szene.entfernt_am``. Neu: ``repo.gleiche_szenenfolge_ab``
+# entfernt nichts mehr, aber ``titel`` steht nicht in
+# ``repo.GESCHUETZTE_SZENENFELDER`` -- ein frischer Vorschlag nach der
+# Richtungswahl schreibt die Titel der Gruppe trotzdem um, und das kostet
+# gemessene 110 s. Sichtbar ist das nur an einem ``aufruf`` mit
+# ``art='szenenfolge'`` NACH dem Druck.
+
+#: Woran die Richtungswahl in der Datenbank haengt: ``_speichere_geschichte``
+#: schreibt diese Journalzeile (knoepfe/szenen.py), bevor irgendetwas anderes
+#: passiert. Kein zweites Vokabular -- der Praefix steht dort im f-String.
+_JOURNAL_RICHTUNG = "Geschichte:"
+
+
+def szenenlage(conn, chat_id: int) -> dict:
+    """Wie oft die Szenenfolge neu aufgebaut wurde -- und ob nach der
+    Richtungswahl noch ein Vorschlagslauf kam.
+
+    Sollwerte: ``szenen_neuaufbauten`` 0, ``szenen_form_verloren`` 0,
+    ``szenenfolge_nach_richtung`` 0. Der Prosalauf (``kurzgeschichte``) steht
+    getrennt daneben: er ersetzt in Phase 6 bestimmungsgemaess, und eine
+    Kennzahl, die ihn mitzaehlt, meldete einen Lauf als kaputt, der genau das
+    getan hat, was die Phase verlangt.
+
+    ``szenen_aus_richtung`` ist die Gegenprobe zum Inline-Weg aus C9
+    (``szenenfolge.JOURNAL_INLINE``): stimmt sie und ist
+    ``szenenfolge_nach_richtung`` null, hat die Richtungswahl ihre Szenen
+    mitgenommen.
+
+    Keiner der Schluessel kommt sonst in ``sammle`` vor (``formlage`` liefert
+    ``szenen_gesamt`` -- nur die aktiven Zeilen --, ``datenlage`` mit
+    ``szenen`` steht gar nicht in ``sammle``); die Reihenfolge des Einhaengens
+    ist deshalb gleichgueltig."""
+    from interview_theater import szenenfolge
+
+    zeilen = conn.execute(
+        "SELECT form, entfernt_am FROM szene WHERE chat_id = ?", (chat_id,)
+    ).fetchall()
+    entfernt = [z for z in zeilen if z["entfernt_am"]]
+
+    laeufe = {
+        z["art"]: z["n"]
+        for z in conn.execute(
+            "SELECT art, count(*) AS n FROM aufruf WHERE chat_id = ? "
+            "AND art IN ('szenenfolge', 'kurzgeschichte') GROUP BY art",
+            (chat_id,),
+        )
+    }
+
+    # Der **erste** Druck auf eine Richtung ist der Stichtag: alles danach
+    # haette die Titel der Gruppe schon vorgefunden.
+    richtung = conn.execute(
+        "SELECT erstellt_am FROM journal WHERE chat_id = ? "
+        "AND entfernt_am IS NULL AND text LIKE ? ORDER BY id ASC LIMIT 1",
+        (chat_id, _JOURNAL_RICHTUNG + "%"),
+    ).fetchone()
+    nach_richtung = 0
+    if richtung is not None:
+        # Strikt ``>``: ein Gleichstand zaehlt NICHT. ``erstellt_am`` ist
+        # sekundengenau, und der Ur-Vorschlag (``szenenfolge.starte``, dieselbe
+        # ``art``) kann in derselben Sekunde enden, in der die Richtung
+        # gedrueckt wird -- mit ``>=`` stuende er als Befund da. Ein Folge-Lauf
+        # nach dem Druck kostet dagegen Modellzeit (gemessen rund 110 s) und
+        # liegt im echten Lauf immer strikt spaeter. Uebrig bleibt ein
+        # Falsch-Negativ bei Attrappen in derselben Sekunde; das loesen die
+        # Tests mit festen Zeiten.
+        nach_richtung = conn.execute(
+            "SELECT count(*) FROM aufruf WHERE chat_id = ? AND art = ? "
+            "AND erstellt_am > ?",
+            (chat_id, szenenfolge.ART, richtung["erstellt_am"]),
+        ).fetchone()[0]
+
+    inline_praefix = szenenfolge.JOURNAL_INLINE.split("{")[0]
+    aus_richtung = conn.execute(
+        "SELECT count(*) FROM journal WHERE chat_id = ? "
+        "AND entfernt_am IS NULL AND text LIKE ?",
+        (chat_id, inline_praefix + "%"),
+    ).fetchone()[0] > 0
+
+    return {
+        "szenen_aktiv": len(zeilen) - len(entfernt),
+        "szenen_ersetzt": len(entfernt),
+        "szenen_neuaufbauten": len({z["entfernt_am"] for z in entfernt}),
+        "szenen_form_verloren": sum(
+            1 for z in entfernt if (z["form"] or "").strip()
+        ),
+        "szenenfolge_laeufe": laeufe.get("szenenfolge", 0),
+        "kurzgeschichte_laeufe": laeufe.get("kurzgeschichte", 0),
+        "szenenfolge_nach_richtung": nach_richtung,
+        "szenen_aus_richtung": aus_richtung,
+    }
+
+
 def kontextlage(zuege: list[Zug]) -> dict:
     """Was wann im Gespraechs-Prompt stand -- die Frage aus N4b.
 
@@ -885,6 +987,7 @@ def sammle(conn, chat_id: int, zuege: list[Zug], gezogene, namen, markiert,
     # Schluessel "festlegungen" auf die Zahl der Notiert-Abschnitte; hier gilt
     # die Zahl der Zeilen in der Tabelle festlegung.
     zahlen.update(festlegungslage(conn, chat_id))
+    zahlen.update(szenenlage(conn, chat_id))
     zahlen.update(kosten(conn, e, preise))
     zahlen["hochrechnung"] = hochrechnung(zahlen["chf_bot"])
     zahlen.update(sim_statistik or {

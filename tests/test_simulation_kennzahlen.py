@@ -339,3 +339,235 @@ def test_in_sammle_zaehlt_festlegungen_die_tabelle_nicht_die_notiert_zeilen(conn
     )
     assert zahlen["festlegungen"] == 1
     assert len(zahlen["nachrichten_je_festlegung"]) == 3
+
+
+# --- Szenen: bleibt die Folge stehen? (Analyse Phase 5, 06.09.2026) -------
+#
+# Der Befund: aus drei geplanten Szenen mit festgelegter Form wurden sechs,
+# und eine Stunde spaeter noch einmal sechs. Ausgeloest vom Regelweg der
+# Richtungswahl, die am Ende immer starte_geschichte_szenen rief.
+
+
+def _szene_mit_form(conn, nummer, form="", entfernt=None):
+    """Eine Szenenzeile von Hand -- der Simulator soll hier nichts modellieren
+    muessen."""
+    szene_id = repo.stelle_szene_sicher(conn, 1, nummer)
+    if form:
+        repo.setze_szenenfeld(conn, szene_id, "form", form)
+    if entfernt:
+        conn.execute("UPDATE szene SET entfernt_am = ? WHERE id = ?",
+                     (entfernt, szene_id))
+        conn.commit()
+    return szene_id
+
+
+def _datiere_letzte(conn, tabelle, zeit):
+    """Setzt ``erstellt_am`` der juengsten Zeile. ``repo._jetzt`` ist
+    sekundengenau; ohne feste Zeiten faellt ein Journal- und ein Aufrufeintrag
+    im Test in dieselbe Sekunde, und die Reihenfolge waere Zufall."""
+    conn.execute(
+        f"UPDATE {tabelle} SET erstellt_am = ? "
+        f"WHERE id = (SELECT max(id) FROM {tabelle})",
+        (zeit,),
+    )
+    conn.commit()
+
+
+def test_eine_stehende_folge_hat_keine_neuaufbauten(conn):
+    for nummer in (1, 2, 3):
+        _szene_mit_form(conn, nummer, "dialog")
+    lage = kennzahlen.szenenlage(conn, 1)
+    assert lage["szenen_aktiv"] == 3
+    assert lage["szenen_ersetzt"] == 0
+    assert lage["szenen_neuaufbauten"] == 0
+    assert lage["szenen_form_verloren"] == 0
+
+
+def test_zwei_neuaufbauten_werden_an_den_zeitpunkten_gezaehlt(conn):
+    """Der Live-Fall: ids 1-3 entfernt um 13:54:37, ids 4-9 um 14:09:35 --
+    zwei Zeitpunkte, zwei Neuaufbauten, auch wenn neun Zeilen betroffen sind."""
+    for nummer in (1, 2, 3):
+        _szene_mit_form(conn, nummer, "chor", entfernt="2026-09-06T13:54:37")
+    for nummer in (4, 5, 6):
+        _szene_mit_form(conn, nummer, "", entfernt="2026-09-06T14:09:35")
+    for nummer in (7, 8):
+        _szene_mit_form(conn, nummer)
+    lage = kennzahlen.szenenlage(conn, 1)
+    assert lage["szenen_ersetzt"] == 6
+    assert lage["szenen_neuaufbauten"] == 2
+    assert lage["szenen_form_verloren"] == 3, "nur die mit bestaetigter Form"
+    assert lage["szenen_aktiv"] == 2
+
+
+def test_ein_szenenfolge_lauf_nach_der_richtungswahl_ist_ein_befund(conn):
+    """Genau das, was C9 abgeschafft hat: die Gruppe hat eine Richtung
+    gedrueckt, und danach erfindet ein Lauf Titel und Form neu."""
+    repo.schreibe_journal(conn, 1, "entschieden",
+                          "Geschichte: Nacht am Kanal — Szene 1: Ankunft",
+                          quelle="knopf")
+    _datiere_letzte(conn, "journal", "2026-09-06T13:50:00+00:00")
+    repo.merke_aufruf(conn, 1, "szenenfolge", "A", 0, 10, 10, "stop", 1, 1)
+    _datiere_letzte(conn, "aufruf", "2026-09-06T13:51:50+00:00")
+    lage = kennzahlen.szenenlage(conn, 1)
+    assert lage["szenenfolge_laeufe"] == 1
+    assert lage["szenenfolge_nach_richtung"] == 1
+    assert lage["szenen_aus_richtung"] is False
+
+
+def test_ein_lauf_in_derselben_sekunde_wie_der_druck_zaehlt_nicht(conn):
+    """``erstellt_am`` ist sekundengenau; ein Gleichstand ist nicht
+    'danach'. Ein echter Folge-Lauf kostet Modellzeit und liegt strikt
+    spaeter -- in derselben Sekunde kann nur der Ur-Vorschlag liegen."""
+    repo.schreibe_journal(conn, 1, "entschieden", "Geschichte: Nacht am Kanal",
+                          quelle="knopf")
+    _datiere_letzte(conn, "journal", "2026-09-06T13:50:00+00:00")
+    repo.merke_aufruf(conn, 1, "szenenfolge", "A", 0, 10, 10, "stop", 1, 1)
+    _datiere_letzte(conn, "aufruf", "2026-09-06T13:50:00+00:00")
+    assert kennzahlen.szenenlage(conn, 1)["szenenfolge_nach_richtung"] == 0
+
+
+def test_der_ur_vorschlag_in_derselben_sekunde_ist_kein_befund(conn):
+    """Der Review-Fall: ``szenenfolge.starte`` liefert den Vorschlag, die
+    Gruppe drueckt sofort eine Richtung -- beide Zeilen tragen dieselbe
+    Sekunde. Das ist der legitime Vorschlag, kein Neuaufbau."""
+    repo.merke_aufruf(conn, 1, "szenenfolge", "A", 0, 10, 10, "stop", 1, 1)
+    _datiere_letzte(conn, "aufruf", "2026-09-06T13:50:00+00:00")
+    repo.schreibe_journal(conn, 1, "entschieden", "Geschichte: Nacht am Kanal",
+                          quelle="knopf")
+    _datiere_letzte(conn, "journal", "2026-09-06T13:50:00+00:00")
+    lage = kennzahlen.szenenlage(conn, 1)
+    assert lage["szenenfolge_laeufe"] == 1
+    assert lage["szenenfolge_nach_richtung"] == 0
+
+
+def test_ein_lauf_vor_der_richtungswahl_zaehlt_nicht(conn):
+    """Der Vorschlag, aus dem die Richtungen ueberhaupt entstanden sind, ist
+    kein Befund -- gezaehlt wird nur, was NACH dem Druck kommt."""
+    repo.merke_aufruf(conn, 1, "szenenfolge", "A", 0, 10, 10, "stop", 1, 1)
+    _datiere_letzte(conn, "aufruf", "2026-09-06T13:48:10+00:00")
+    repo.schreibe_journal(conn, 1, "entschieden", "Geschichte: Nacht am Kanal",
+                          quelle="knopf")
+    _datiere_letzte(conn, "journal", "2026-09-06T13:50:00+00:00")
+    lage = kennzahlen.szenenlage(conn, 1)
+    assert lage["szenenfolge_laeufe"] == 1
+    assert lage["szenenfolge_nach_richtung"] == 0
+
+
+def test_der_inline_weg_wird_erkannt(conn):
+    from interview_theater import szenenfolge
+
+    repo.schreibe_journal(conn, 1, "entschieden", "Geschichte: Nacht am Kanal",
+                          quelle="knopf")
+    repo.schreibe_journal(
+        conn, 1, "entschieden",
+        szenenfolge.JOURNAL_INLINE.format(liste="1. Ankunft; 2. Gestaendnis"),
+        quelle="knopf",
+    )
+    lage = kennzahlen.szenenlage(conn, 1)
+    assert lage["szenen_aus_richtung"] is True
+    assert lage["szenenfolge_nach_richtung"] == 0
+
+
+def test_ohne_richtungswahl_bleibt_die_zahl_null(conn):
+    repo.merke_aufruf(conn, 1, "szenenfolge", "A", 0, 10, 10, "stop", 1, 1)
+    lage = kennzahlen.szenenlage(conn, 1)
+    assert lage["szenenfolge_nach_richtung"] == 0
+    assert lage["szenen_aus_richtung"] is False
+
+
+def test_der_prosalauf_wird_getrennt_gezaehlt(conn):
+    """``kurzgeschichte`` ersetzt in Phase 6 bestimmungsgemaess -- die Zahl
+    steht daneben, damit ein Neuaufbau nicht falsch zugeordnet wird."""
+    repo.merke_aufruf(conn, 1, "kurzgeschichte", "A", 0, 10, 10, "stop", 1, 1)
+    lage = kennzahlen.szenenlage(conn, 1)
+    assert lage["kurzgeschichte_laeufe"] == 1
+    assert lage["szenenfolge_laeufe"] == 0
+
+
+def test_szenenlage_steckt_in_sammle(conn):
+    from scripts.pruefe_prompts import PREISE_CHF_JE_MIO_TOKEN
+
+    zahlen = kennzahlen.sammle(
+        conn, 1, [], [], ["Jo"], set(), {}, _E(), PREISE_CHF_JE_MIO_TOKEN, 1.0,
+    )
+    for schluessel in ("szenen_aktiv", "szenen_ersetzt", "szenen_neuaufbauten",
+                       "szenen_form_verloren", "szenenfolge_laeufe",
+                       "kurzgeschichte_laeufe", "szenenfolge_nach_richtung",
+                       "szenen_aus_richtung"):
+        assert schluessel in zahlen
+
+
+def test_szenenlage_schlaegt_unter_der_mutation_an_und_sonst_nicht(
+        conn, einst, monkeypatch):
+    """Beide Richtungen am echten Knopfweg, ohne Netz: heute nimmt die
+    Richtungswahl ihre Szenen mit (Inline-Weg, kein Folge-Lauf), unter
+    ``richtung_ohne_szenen`` kommt danach ein ``szenenfolge``-Lauf. Die
+    Attrappe protokolliert ihren Aufruf wie ``llm.LLM.prosa`` es tut --
+    sonst stuende der Lauf nicht in ``aufruf``, und die Kennzahl saehe ihn
+    so wenig wie im Betrieb ohne diese Zeile.
+
+    ``repo._jetzt`` laeuft hier als fortlaufende Uhr (eine Sekunde je
+    Aufruf): die Attrappe antwortet sofort, und ohne sie fielen Druck und
+    Folge-Lauf in dieselbe Sekunde -- ein Gleichstand zaehlt bewusst nicht.
+    Im Betrieb liegt die Modellzeit dazwischen."""
+    import itertools
+    from datetime import datetime, timedelta, timezone
+
+    from interview_theater import knoepfe, phasen, szenenfolge, vorschlagssperre
+
+    start = datetime(2026, 9, 6, 13, 0, tzinfo=timezone.utc)
+    takt = itertools.count()
+    monkeypatch.setattr(
+        repo, "_jetzt",
+        lambda: (start + timedelta(seconds=next(takt))).isoformat(
+            timespec="seconds"),
+    )
+    from simulation import mutation
+    from test_szenenfolge import TelegramAttrappe
+
+    class ProtokollierendeAttrappe:
+        def __init__(self, c):
+            self.c = c
+
+        def prosa(self, chat_id, system, nutzer, art, max_tokens=None,
+                  timeout=None):
+            repo.merke_aufruf(self.c, chat_id, art, "A", 0, 10, 10, "stop", 1, 1)
+            return ("VORSCHLAG SZENENFOLGE:\n"
+                    "Am Steg — sie treffen sich — Mira — Dialog\n"
+                    "Im Flur — sie streiten — Mira, Pal — Dialog")
+
+    richtung = ("Nacht am Kanal — Mira stellt sich, Pal gesteht. "
+                "Szene 1: Ankunft am Steg. Szene 2: Das Gestaendnis.")
+
+    def lage_nach_druck(c, mutiert):
+        repo.setze_arbeitsstand(c, 1, "begriffe", "Koffer, Bahnhof, Winter")
+        repo.setze_arbeitsstand(c, 1, "rahmen", "Ein Treppenhaus, nachts")
+        repo.setze_figur(c, 1, "Mira", "will gefragt werden")
+        repo.setze_figur(c, 1, "Pal", "haelt an seiner Route fest")
+        repo.setze_arbeitsstand(c, 1, "figuren_fixiert_am", "2026-09-05T23:00:00")
+        phasen.setze(c, 1, 4, "test")
+        vorschlagssperre.vergiss(1)
+        with mutation.aktiv("richtung_ohne_szenen" if mutiert else None):
+            knoepfe._wirke(
+                c, TelegramAttrappe(), ProtokollierendeAttrappe(c), einst,
+                {"art": knoepfe.ART_GESCHICHTE_SPEICHERN,
+                 "wert": f"weiter{knoepfe.TRENNER}{richtung}"},
+                1,
+            )
+            assert szenenfolge._sperre_fuer(1).acquire(timeout=10)
+            szenenfolge._sperre_fuer(1).release()
+        vorschlagssperre.vergiss(1)
+        return kennzahlen.szenenlage(c, 1)
+
+    heute = lage_nach_druck(conn, mutiert=False)
+    assert heute["szenenfolge_nach_richtung"] == 0
+    assert heute["szenen_aus_richtung"] is True
+
+    from interview_theater import db
+
+    zweite = db.verbinde(str(einst.db_pfad) + ".mutiert")
+    db.initialisiere(zweite)
+    repo.sichere_gruppe(zweite, 1, "gruppe1", "Testgruppe")
+    mutiert = lage_nach_druck(zweite, mutiert=True)
+    assert mutiert["szenenfolge_nach_richtung"] == 1
+    assert mutiert["szenen_aus_richtung"] is False

@@ -65,9 +65,9 @@ and choice of words from the template are off limits.
    speaks the fixed line, the other fills the variable slot. That way
    the litany stays without becoming monotonous.
    > Own example:
-   > CHOR: When I'm standing here, I'm back to being —
+   > CHORUS: When I'm standing here, I'm back to being —
    > CHARACTER A: small.
-   > CHOR: When I'm standing here, I'm back to being —
+   > CHORUS: When I'm standing here, I'm back to being —
    > CHARACTER B: loud.
 
 9. **Concrete words in the variable slot.** What changes has to be

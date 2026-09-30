@@ -216,3 +216,29 @@ def test_szenen_systemanweisung_englisch(padua):
 
     for form in ("dialog", "monolog", "chor", "lied", "rap", szene.PROSA):
         assert pruefe_sprache.deutsche_treffer(form, szene.systemanweisung(form)) == []
+
+
+#: Nachbesserung zu Aufgabe 20 (Review): die maschinenlesbaren Marker
+#: muessen in der englischen Fassung wortgleich zum Deutschen ueberleben --
+#: sie werden von szene.py/dramaturgie/mechanik.py ueber genau diesen
+#: Wortlaut geparst, keine Uebersetzung darf sie veraendern.
+_MASCHINENMARKER = [
+    ("szene", "TITEL:"),
+    ("szene", "KURZ:"),
+    ("szene", "ZUSAMMENFASSUNG:"),
+    ("szene", "ANDERS GEMACHT:"),
+    ("formen/prosa", "TITEL:"),
+    ("formen/prosa", "KURZ:"),
+    ("formen/prosa", "ZUSAMMENFASSUNG:"),
+    ("formen/prosa", "ANDERS GEMACHT:"),
+    ("formen/lied", "STROPHE ("),
+    ("formen/lied", "REFRAIN"),
+    ("formen/rap", "HOOK"),
+    ("formen/chor", "CHORUS:"),
+]
+
+
+@pytest.mark.parametrize("name,marker", _MASCHINENMARKER)
+def test_maschinenmarker_bleiben_wortgleich(padua, name, marker):
+    text = anweisungen.hole(name)
+    assert marker in text

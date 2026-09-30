@@ -14,11 +14,11 @@ a character (or several) says once what they would never say in a
 conversation -- and may talk longer than usual for it.
 
 1. **A song has one thought, not three.** What is in the verse
-   is not continued in the chorus but drawn together.
+   is not continued in the refrain but drawn together.
 2. **Concrete, not general.** "The suitcase has been on top of the wardrobe
    for thirty years" carries; "home is a feeling" doesn't. Take the
    objects, numbers and places from the details of the scene.
-3. **The chorus repeats word for word.** Same lines, same number of
+3. **The refrain repeats word for word.** Same lines, same number of
    syllables. At most the last word of the last repetition is varied,
    and only if something turns with it.
 4. **Short lines, even.** Four to eight syllables. Whoever reads it aloud
@@ -30,10 +30,10 @@ conversation -- and may talk longer than usual for it.
    language mixing from the speech profile belong in it.
 7. **No comment from outside.** The character sings the song, not a
    narrator about her. No "she thought back then".
-8. **Three verses and two choruses at most.** Anything beyond that is a
+8. **Three verses and two refrains at most.** Anything beyond that is a
    second song.
 9. **At the end something is different.** A song, too, delivers the movement
-   of the scene: the last chorus comes after something that wasn't true before.
+   of the scene: the last refrain comes after something that wasn't true before.
 10. **Stage directions stay brief and playable** -- who stands where, what is
     in their hand. No music instructions ("melancholy, in a minor key").
 

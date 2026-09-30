@@ -25,15 +25,15 @@ can: say something that belongs to no one alone.
 
 ## Output form
 
-`CHOR:` for the shared lines -- exactly this label, it is read by machine --,
-the character's name for single voices. Stage directions in brackets, brief:
+`CHORUS:` for the shared lines, the character's name for single voices.
+Stage directions in brackets, brief:
 
 ```
 ({{ort_beispiel_1}}, early evening.)
 
-CHOR: We've been waiting here for two hours.
+CHORUS: We've been waiting here for two hours.
 <CHARACTER A>: I've got no signal.
-CHOR: We've been waiting here for two hours.
+CHORUS: We've been waiting here for two hours.
 ```
 
 ## Special case: chorus against chorus (battle)

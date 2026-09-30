@@ -563,7 +563,7 @@ EOF
 
 ### Schritte
 
-- [ ] **Schritt 1: Den fehlschlagenden Test schreiben**
+- [x] **Schritt 1: Den fehlschlagenden Test schreiben**
 
 Datei `tests/test_vorschlagskollision.py`:
 
@@ -751,7 +751,7 @@ def test_die_sperre_haelt_den_szenenlauf_nicht_auf(lage, tg, einst):
     schaerfung_thread.join(timeout=10)
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_vorschlagskollision.py
@@ -760,7 +760,7 @@ Erwartet: rot. Konkret `AttributeError: module 'interview_theater.schaerfung'
 has no attribute 'GEMERKT'` beim ersten Test; im zweiten laeuft die
 Schaerfung parallel und `klm.gleichzeitig_max == 2`.
 
-- [ ] **Schritt 3: `szenenfolge.py` auf die gemeinsame Sperre umstellen**
+- [x] **Schritt 3: `szenenfolge.py` auf die gemeinsame Sperre umstellen**
 
 3a — das Register ersetzen. `interview_theater/szenenfolge.py:204-217`
 
@@ -931,7 +931,7 @@ Dasselbe Muster in `starte_geschichte` (`args=… ART_GESCHICHTE, _fertig`),
 **Nutzertext, den eine Uebersetzung braucht** — und die naechste
 Nebenlaeufigkeit, die kein Merken erlaubt, greift sie wieder auf).
 
-- [ ] **Schritt 4: `schaerfung.py` an dieselbe Sperre haengen**
+- [x] **Schritt 4: `schaerfung.py` an dieselbe Sperre haengen**
 
 4a — Import, `interview_theater/schaerfung.py:35`:
 
@@ -1056,7 +1056,7 @@ def starte(conn, tg, klm, e, chat_id: int, nachbereitung=None):
 String und damit nicht `None`, der Zweig bleibt also aus. Genau deshalb ist
 der Rueckgabewert ein Sentinel und nicht `None`.
 
-- [ ] **Schritt 5: Gruen sehen**
+- [x] **Schritt 5: Gruen sehen**
 
 ```bash
 python3.11 -m pytest -q -p no:cacheprovider tests/test_vorschlagskollision.py tests/test_szenenfolge.py tests/test_geschichte.py tests/test_schaerfung.py
@@ -1068,7 +1068,7 @@ python3.11 -m pytest -q -p no:cacheprovider
 ```
 Erwartet: `2713 passed, 1 skipped` (2710 + 3).
 
-- [ ] **Schritt 6: Mutationsnachweis**
+- [x] **Schritt 6: Mutationsnachweis**
 
 In `schaerfung.starte` die Wache
 
@@ -1096,7 +1096,7 @@ der Verlust, den `_TEXT_BESETZT` heute verursacht).
 
 Beide Aenderungen zurueckdrehen, erneut gruen sehen.
 
-- [ ] **Schritt 7: Commit**
+- [x] **Schritt 7: Commit**
 
 ```bash
 git add interview_theater/szenenfolge.py interview_theater/schaerfung.py \

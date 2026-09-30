@@ -45,6 +45,12 @@ class TelegramAttrappe:
     def entferne_knoepfe(self, chat_id, message_id):
         self.entfernt.append((chat_id, message_id))
 
+    @property
+    def texte(self):
+        """Nur die Texte, ohne chat_id -- fuer Tests, die andere Module
+        importieren (z. B. ``tests/test_vorschlagskollision.py``)."""
+        return [t for _, t in self.gesendet]
+
 
 @pytest.fixture
 def tg():

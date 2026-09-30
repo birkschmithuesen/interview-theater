@@ -11,7 +11,9 @@ Kein Netzzugriff: Telegram ist eine Attrappe, das Sprachmodell ebenso.
 
 import pytest
 
-from interview_theater import knoepfe, phasen, repo, szene, szenenfolge
+from interview_theater import (
+    knoepfe, phasen, repo, szene, szenenfolge, vorschlagssperre,
+)
 
 
 class TelegramAttrappe:
@@ -80,11 +82,11 @@ def tg():
 
 @pytest.fixture(autouse=True)
 def freie_sperren():
-    szenenfolge._sperren.clear()
+    vorschlagssperre.vergiss(1)
     szenenfolge._regienotiz_erwartet.clear()
     szene._sperren.clear()
     yield
-    szenenfolge._sperren.clear()
+    vorschlagssperre.vergiss(1)
     szenenfolge._regienotiz_erwartet.clear()
     szene._sperren.clear()
 

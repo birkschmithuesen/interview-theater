@@ -28,7 +28,7 @@ import logging
 import re
 import threading
 
-from interview_theater import anweisungen, repo, workshop
+from interview_theater import anweisungen, repo, vorschlagssperre, workshop
 
 log = logging.getLogger(__name__)
 
@@ -201,20 +201,17 @@ class SzenenfolgeFehler(Exception):
     """Der Vorschlags-Aufruf lieferte nichts Verwertbares."""
 
 
-# Eine Sperre je chat_id, wie in ``szene.py`` und ``ablauf.py``: zwei
-# gleichzeitige Vorschlaege derselben Gruppe waeren zwei Listen im Chat, und
-# die Gruppe wuesste nicht, welche gilt.
-_sperren: dict[int, threading.Lock] = {}
-_sperren_schutz = threading.Lock()
-
-
+# Die Sperre liegt seit dem 30.09.2026 in ``vorschlagssperre.py`` und ist
+# dieselbe wie die der Schaerfung (Massnahme C7): zwei gleichzeitige
+# Vorschlaege derselben Gruppe waren zwei Fragen in einem Chatfenster, und
+# die Gruppe wusste nicht, auf welche sie antwortet. Nur die
+# Vorschlagslaeufe teilen sie -- Szenenlauf, Prosalauf und Gespraechszug
+# haben weiterhin ihr eigenes Register.
 def _sperre_fuer(chat_id: int) -> threading.Lock:
-    with _sperren_schutz:
-        sperre = _sperren.get(chat_id)
-        if sperre is None:
-            sperre = threading.Lock()
-            _sperren[chat_id] = sperre
-        return sperre
+    """Die gemeinsame Vorschlagssperre. Name und Rueckgabe bleiben, damit
+    Tests weiter ueber ``acquire(timeout=…)`` auf das Ende eines Laufs warten
+    koennen (tests/test_szenenfolge.py, tests/test_geschichte.py)."""
+    return vorschlagssperre.sperre_fuer(chat_id)
 
 
 # ---------------------------------------------------------------------------
@@ -802,6 +799,14 @@ def baue_nutzertext(conn, chat_id: int, anzahl: int, wunsch: str | None = None) 
 
 _TEXT_LAEUFT = "Ich schlage euch eine Szenenfolge vor, einen Moment."
 _TEXT_BESETZT = "Ich denke gerade schon ueber die Szenenfolge nach, gleich."
+#: Wenn ein ANDERER Vorschlagslauf die gemeinsame Sperre haelt (30.09.2026,
+#: C7). Anders als ``_TEXT_BESETZT`` ist das keine Abfuhr: der Auftrag ist
+#: gemerkt und laeuft, sobald der andere fertig ist
+#: (``vorschlagssperre.merke``).
+_TEXT_GEMERKT = (
+    "Ich denke noch ueber etwas anderes nach. Sobald ich damit fertig bin, "
+    "mache ich mit der Szenenfolge weiter."
+)
 _TEXT_FEHLER = (
     "Die Szenenfolge ist mir nicht gelungen. Sagt es nochmal, dann versuche "
     "ich es neu."
@@ -819,10 +824,12 @@ def _sende(conn, tg, e, chat_id: int, text: str) -> None:
 
 
 def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
-          sperre: threading.Lock, nachbereitung) -> None:
+          nachbereitung) -> None:
     """Der Thread-Rumpf: Modell fragen, Antwort mit Leiste ausspielen, Sperre
-    in JEDEM Fall freigeben -- bliebe sie liegen, koennte die Gruppe fuer den
-    Rest des Workshops keinen Vorschlag mehr bekommen (wie ``szene._lauf``).
+    in JEDEM Fall freigeben -- und dabei nachholen, was waehrenddessen
+    gemerkt wurde (``vorschlagssperre.gib_frei``). Bliebe sie liegen, koennte
+    die Gruppe fuer den Rest des Workshops keinen Vorschlag mehr bekommen
+    (wie ``szene._lauf``).
 
     Waehrenddessen laufen die Arbeitszeilen (06.09.2026, Birk 11:15): je
     Auftragsart eine eigene Liste, alle 15 s eine neue Zeile, am Ende
@@ -849,7 +856,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
         _sende(conn, tg, e, chat_id, _TEXT_FEHLER)
     finally:
         zeilen.stoppe()
-        sperre.release()
+        vorschlagssperre.gib_frei(chat_id)
 
 
 def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
@@ -864,9 +871,12 @@ def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
         log.error("Szenenfolge ohne Sprachmodell, chat_id=%s", chat_id)
         return None
     anzahl = int(anzahl or ANZAHL_VORGABE)
-    sperre = _sperre_fuer(chat_id)
-    if not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+    if not vorschlagssperre.nimm(chat_id):
+        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
+        vorschlagssperre.merke(
+            chat_id, ART,
+            lambda: starte(conn, tg, klm, e, chat_id, anzahl, wunsch),
+        )
         return None
     _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
 
@@ -878,13 +888,13 @@ def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
     thread = threading.Thread(
         target=_lauf,
         args=(conn, tg, klm, e, chat_id, systemanweisung(anzahl),
-              baue_nutzertext(conn, chat_id, anzahl, wunsch), ART, sperre, _fertig),
+              baue_nutzertext(conn, chat_id, anzahl, wunsch), ART, _fertig),
         daemon=True,
     )
     try:
         thread.start()
     except Exception:
-        sperre.release()
+        vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
 
@@ -899,9 +909,12 @@ def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
     if klm is None:
         log.error("Geschichte ohne Sprachmodell, chat_id=%s", chat_id)
         return None
-    sperre = _sperre_fuer(chat_id)
-    if not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+    if not vorschlagssperre.nimm(chat_id):
+        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
+        vorschlagssperre.merke(
+            chat_id, ART_GESCHICHTE,
+            lambda: starte_geschichte(conn, tg, klm, e, chat_id, anzahl, wunsch),
+        )
         return None
     _sende(conn, tg, e, chat_id, _TEXT_GESCHICHTE_LAEUFT)
 
@@ -914,13 +927,13 @@ def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
         target=_lauf,
         args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte(anzahl),
               baue_nutzertext_geschichte(conn, chat_id, wunsch),
-              ART_GESCHICHTE, sperre, _fertig),
+              ART_GESCHICHTE, _fertig),
         daemon=True,
     )
     try:
         thread.start()
     except Exception:
-        sperre.release()
+        vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
 
@@ -947,9 +960,14 @@ def starte_geschichte_szenen(conn, tg, klm, e, chat_id: int,
     if klm is None:
         log.error("Szenenfolge ohne Sprachmodell, chat_id=%s", chat_id)
         return None
-    sperre = _sperre_fuer(chat_id)
-    if not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+    if not vorschlagssperre.nimm(chat_id):
+        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
+        vorschlagssperre.merke(
+            chat_id, ART,
+            lambda: starte_geschichte_szenen(
+                conn, tg, klm, e, chat_id, anzahl, wunsch
+            ),
+        )
         return None
     _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
 
@@ -962,13 +980,13 @@ def starte_geschichte_szenen(conn, tg, klm, e, chat_id: int,
         target=_lauf,
         args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte_szenen(),
               baue_nutzertext_geschichte(conn, chat_id, wunsch), ART,
-              sperre, _fertig),
+              _fertig),
         daemon=True,
     )
     try:
         thread.start()
     except Exception:
-        sperre.release()
+        vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
 
@@ -993,9 +1011,12 @@ def starte_feldvorschlag(conn, tg, klm, e, chat_id: int, ziel) -> threading.Thre
     if not fehlende:
         return None
     nummer = ziel["nummer"]
-    sperre = _sperre_fuer(chat_id)
-    if not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, _TEXT_BESETZT)
+    if not vorschlagssperre.nimm(chat_id):
+        _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
+        vorschlagssperre.merke(
+            chat_id, ART_FELDER,
+            lambda: starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel),
+        )
         return None
     _sende(conn, tg, e, chat_id, _TEXT_FELDER_LAEUFT)
     system = ANWEISUNG_FELDER.format(felder=", ".join(fehlende))
@@ -1014,12 +1035,12 @@ def starte_feldvorschlag(conn, tg, klm, e, chat_id: int, ziel) -> threading.Thre
 
     thread = threading.Thread(
         target=_lauf,
-        args=(conn, tg, klm, e, chat_id, system, nutzer, ART_FELDER, sperre, _fertig),
+        args=(conn, tg, klm, e, chat_id, system, nutzer, ART_FELDER, _fertig),
         daemon=True,
     )
     try:
         thread.start()
     except Exception:
-        sperre.release()
+        vorschlagssperre.gib_frei(chat_id)
         raise
     return thread

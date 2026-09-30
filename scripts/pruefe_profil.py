@@ -113,6 +113,10 @@ def _prompt_texte() -> dict[str, str]:
                 continue
             wert = getattr(modul, feld)
             if isinstance(wert, str):
+                # Ueber den Sprachzugriff (Karte A1), wo das Modul schon
+                # einen hat: unter einem englischen Profil wird der
+                # englische Auftrag auf Platzhalter geprueft.
+                wert = getattr(getattr(modul, "T", modul), feld)
                 texte[f"{modul.__name__.split('.')[-1]}.{feld}"] = wert
     return texte
 

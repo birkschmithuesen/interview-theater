@@ -11,11 +11,326 @@
 UEBERSCHRIFT = "\n\nAdditional instruction for this workshop:\n\n"
 
 ["knoepfe.texte"]
+# Knopfbeschriftungen, Systemzeilen und die Auftragsvorlagen (ANWEISUNG*)
+# in Definitionsreihenfolge (K2). Die ANWEISUNG*-Texte sind Prompt: die
+# Protokoll-Token (VORSCHLAG ...:) stehen woertlich und gross da (K6).
+_TEXT_EIGENE_KNOPF = "Something else"
+_TEXT_ANDERS_KNOPF = "No, change it again"
+_TEXT_SPEICHERN_KNOPF = "Yes, save"
+_TEXT_ANDERS = "Saved. What should be different?"
+_TEXT_EIGENE = "Tell me - I'll work it in."
+_TEXT_NACH_SPEICHERN_FRAGE = "Do you want to add anything before we move on?"
+_TEXT_AUSWERTEN_ALLE_KNOPF = "Analyse all"
+_TEXT_AUSWERTEN_ALLE_LAEUFT = "I'm analysing the open interviews."
+_TEXT_AUSWERTEN_ALLE_NICHTS = "There's nothing left open."
+_TEXT_WEITER_FRAGE = "Shall we move on?"
+_NOTIERT.begriffe = "Terms"
+_NOTIERT.fragen = "Questions"
+_NOTIERT.kernthema = "Core theme"
+_NOTIERT.kernfrage = "Core question"
+_NOTIERT.rahmen = "Setting"
+_NOTIERT.geschichte = "Story"
+_NOTIERT.einleitungen = "Lead-ins"
+_NOTIERT.fragen_weich = "Questions in softer wording"
+_TEXT_KERNTHEMA_FRAGE = "Which core theme shall we take? Tap one - or tell me a different one."
+_TEXT_KERNTHEMA_KEINE = """\
+I don't have any suggestions yet - they come from the analysed \
+interviews. You can also just tell me the core theme."""
+_TEXT_SCHON_BENUTZT = "I've already taken that on."
+_TEXT_UNBEKANNT = "I don't know this button any more."
+_TEXT_AUFNAHME_STARTEN = "Start interview"
+_TEXT_AUFNAHME_BEENDEN = "End interview"
+_TEXT_TEIL_WEITER_KNOPF = "Interview continues"
+_TEXT_TEIL_FERTIG_KNOPF = "Interview is finished"
+_TEXT_TEIL_WEITER = "Good, I'm still listening."
+_TEXT_TEIL_SCHON_AUS = "The recording isn't running any more."
+_TEXT_OHNE_KNOPF_JA_KNOPF = "Yes, as an interview"
+_TEXT_OHNE_KNOPF_NEIN_KNOPF = "No, it was a contribution"
+_TEXT_OHNE_KNOPF_FERTIG_KNOPF = "Done, analyse it"
+_TEXT_OHNE_KNOPF_WEITER_KNOPF = "There's more to come"
+_TEXT_OHNE_KNOPF_WEITER = "Good, I'm still listening."
+_TEXT_OHNE_KNOPF_UNBEKANNT = "I don't know this recording any more."
+TEXT_ABLAUF = """\
+This is how an interview works: tap "Start interview". Then send the \
+voice message or voice messages of your interviewee - after each one you \
+get the typed-out text and tell me with a button whether the interview \
+continues or is finished. For the next person, tap "Start interview" \
+again."""
+_TEXT_AUSWERTEN_KNOPF = "Analyse"
+_TEXT_TROTZDEM_AUSWERTEN_KNOPF = "Analyse anyway"
+_TEXT_ZUSAMMENFASSUNG_KNOPF = "Show summary"
+_TEXT_TRANSKRIPT_KNOPF = "Show transcript"
+_TEXT_KEIN_TRANSKRIPT = "I don't have the wording for this interview."
+_TEXT_NAECHSTE_AUFNAHME_KNOPF = "Next interview"
+_TEXT_STAND_KNOPF = "Where we are"
+_TEXT_HILFE_KNOPF = "Help"
+_TEXT_AUSWERTEN_UNBEKANNT = "I don't know this interview any more."
+_TEXT_AUSWERTEN_UNMOEGLICH = "I can't analyse right now."
+_TEXT_SZENENFORM_FRAGE = "Which form should scene {nummer} have?"
+TEXT_FORM_VORSCHLAG_ZUSATZ = " (suggested)"
+_TEXT_USA_FRAGE_KNOEPFE = "Tap what should apply:"
+_TEXT_USA_JA_KNOPF = "Yes, US model"
+_TEXT_USA_NEIN_KNOPF = "No, Switzerland"
+_TEXT_USA_JA = """\
+Good, scenes will come from the US model from now on. I'll mention it \
+again before every scene."""
+_TEXT_USA_NEIN = "Understood, everything stays in Switzerland. I won't ask again."
 _TEXT_STT_SPRACHE_FRAGE = "Which language are your interviews in? With \"Auto\" I work it out myself."
 _TEXT_STT_SPRACHE_GESETZT = "Interview language from now on: {sprache}."
 _TEXT_STT_SPRACHE_AUTO = "automatic (I detect it myself)"
 _TEXT_STT_SPRACHE_KURZ = "Language set"
 _JOURNAL_STT_SPRACHE = "Interview language for Whisper: {sprache}"
+TEXT_WEITER_KNOPF = "Yes, save"
+TEXT_ANDERS_KNOPF = "No, change it again"
+TEXT_EIGENE_IDEE_KNOPF = "Something else"
+_TEXT_EIGENE_IDEE = "Tell me - I'll work it in."
+TEXT_ANZAHL_KNOPF = "Change the number"
+TEXT_REIHENFOLGE_KNOPF = "Change the order"
+_TEXT_ANZAHL_FRAGE = "How many scenes should there be?"
+_TEXT_REIHENFOLGE_FRAGE = "Tell me what the order should be - I'll work it in."
+_TEXT_FOLGE_GESPEICHERT = "Noted, {anzahl} scenes:"
+_TEXT_FOLGE_LEER = "I couldn't read any scenes from the suggestion. Just tell me what they are."
+TEXT_SZENE_SCHREIBEN_KNOPF = "Yes, write it"
+TEXT_SZENE_PLANEN_KNOPF = "Plan it differently"
+TEXT_SZENE_FORM_KNOPF = "Change form"
+TEXT_SZENE_UEBERSPRINGEN_KNOPF = "Skip"
+_TEXT_SZENE_PLANEN_FRAGE = "What should be different about this scene?"
+_TEXT_SZENE_UEBERSPRUNGEN = "Scene {nummer} is out."
+_TEXT_SZENE_UNBEKANNT = "I don't know this scene any more."
+TEXT_PASST_KNOPF = "Looks good"
+TEXT_NEU_KNOPF = "Rewrite"
+TEXT_NAECHSTE_KNOPF = "Next scene"
+TEXT_KUERZEN_KNOPF = "Shorter ({prozent} %)"
+_TEXT_PASST = "Scene {nummer} is done."
+_TEXT_SZENE_ANDERS_FRAGE = "What should change? Tell me, and I'll rewrite it."
+_TEXT_KEINE_NAECHSTE = "That was the last scene. Do you want to go through the whole thing?"
+TEXT_SZENE_SO_LASSEN_KNOPF = "Leave it"
+_TEXT_SZENE_SO_GELASSEN = "Good, scene {nummer} stays as it is."
+_TEXT_SPAETERE_GEPRUEFT = """\
+Because scene {nummer} has changed, I'll look at {spaetere} again with \
+you - I haven't rewritten anything."""
+TEXT_DURCHLAUF_SZENE_KNOPF = "View scene {nummer}"
+TEXT_TEXTBUCH_KNOPF = "Script as a file"
+TEXT_SPRECHANTEILE_KNOPF = "Who speaks how much"
+TEXT_FASSUNGEN_KNOPF = "Earlier versions"
+_TEXT_FASSUNGEN_KOPF = "Earlier versions of scene {nummer}:"
+_TEXT_FASSUNG_KOPF = "--- Version {nummer} ({zeit}){anders} ---"
+_TEXT_KEINE_FASSUNGEN = "There's only the one version of scene {nummer}."
+_TEXT_TEXTBUCH_BESCHREIBUNG = "Your script - all scenes in one file."
+_TEXT_PROBENANSICHT = """\
+\n\nFor reading in rehearsal (highlight roles, make it bigger, \
+print it): {url}"""
+_TEXT_TEXTBUCH_FEHLER = "The file didn't go through. I can also send you the scenes one by one."
+_TEXT_SZENE_OHNE_TEXT = "Scene {nummer} hasn't been written yet."
+_TEXT_GESCHICHTE_GESPEICHERT = "Noted, your story in {anzahl} scenes:"
+_TEXT_RICHTUNG_GESPEICHERT = "Noted, your story:"
+_TEXT_GESCHICHTE_LEER = "I couldn't read a story from the suggestion. Just tell it to me."
+_TEXT_NUR_FORMWAHL = """\
+I've noted the form for each scene. I'm still missing the plot: what \
+happens, and how does it end?"""
+TEXT_DRAMATURGIE_KNOPF = "Check the dramaturgy"
+_TEXT_DRAMATURGIE_LAEUFT = """\
+I'm now looking at each scene on its own - turning point, connection, \
+voices, loose threads. That takes a few minutes."""
+_TEXT_DRAMATURGIE_LASSEN_KNOPF = "Leave it"
+_TEXT_DRAMATURGIE_LASSEN = "Good, that stays as it is."
+_TEXT_DRAMATURGIE_UNBEKANNT = "I can't find this finding any more."
+_TEXT_DRAMATURGIE_UEBERHOLT = """\
+As soon as the scene has been rewritten, this finding is out of date. If \
+you like, I'll check again afterwards."""
+TEXT_SCHAERFUNG_RUNDE_KNOPF = "One more round"
+_TEXT_SCHAERFUNG_ALLE_KNOPF = "Take these"
+_TEXT_SCHAERFUNG_KEINE_KNOPF = "None of them"
+_TEXT_SCHAERFUNG_STELLE_UNBEKANNT = "I can't find this passage any more."
+_TEXT_SCHAERFUNG_STELLE_UEBERNOMMEN = "Taken on: {ziel}."
+_TEXT_SCHAERFUNG_VERWORFEN = "Good, I'll leave that out."
+_TEXT_SCHAERFUNG_LAEUFT = "I'm putting your story next to the interviews and looking for what fits."
+_TEXT_SCHAERFUNG_UEBERNOMMEN = "Taken on: {anzahl} passages."
+_TEXT_SCHAERFUNG_NICHTS = "There's nothing open on that right now."
+_TEXT_SCHAERFUNG_DURCH = """\
+That was everything I could match. Do you want another round, or shall \
+we move on to the scene texts?"""
+_TEXT_FRAGEN_UEBERNEHMEN_KNOPF = "Take these 3"
+_TEXT_FRAGEN_ANDERE_KNOPF = "Other questions"
+_TEXT_FRAGEN_EIGENE_KNOPF = "Own idea"
+_TEXT_FRAGEN_WAHL = """\
+Pick the questions you think fit and tell me the numbers - typed or as a \
+voice message. If you want to change a question or ask your own, just say \
+so: you're the bosses."""
+_TEXT_FRAGEN_NICHT_DREI = "Pick exactly 3."
+_TEXT_FRAGEN_NUMMERN_FALSCH = "Exactly 3 numbers, please."
+_TEXT_FRAGEN_EIGENE = "Write your question or questions - I'll add them to the selection."
+_TEXT_FRAGEN_KEINE_AUSWAHL = "I don't know this selection any more."
+_TEXT_FRAGEN_UEBERNOMMEN = "Noted, your {anzahl} questions:"
+_TEXT_FRAGEN_NOTIERT = "Noted: questions {nummern}:"
+TEXT_PRUEFUNG_LAEUFT = """\
+I'm going through the questions once more: which ones need a lead-in \
+sentence before you ask them to a stranger?"""
+_TEXT_LEITFADEN_KNOPF = "Show interview guide"
+_TEXT_MENUE_ANDERS_KNOPF = "Something else"
+TEXT_ARBEIT_SENSIBILITAET = "🤔 I'm quickly going through the questions and softening the sensitive ones …"
+TEXT_ARBEIT_EROEFFNUNG = "✍️ Now the framing for the interview: how you start and how you finish …"
+_TEXT_PRUEFUNG_LAEUFT = "I'm now reading your play once from start to finish. That takes a moment."
+_TEXT_PRUEFUNG_SZENE_KNOPF = "Revise scene {nummer}"
+_TEXT_PRUEFUNG_LASSEN_KNOPF = "Leave it"
+_TEXT_PRUEFUNG_RUNDE_KNOPF = "One more check"
+_TEXT_PRUEFUNG_LASSEN = "Good, that stays as it is."
+_TEXT_PRUEFUNG_UNBEKANNT = "I can't find this finding any more."
+_TEXT_PRUEFUNG_UEBERHOLT = """\
+As soon as the scene has been rewritten, my check from earlier is out of \
+date. If you like, I'll read the whole play again."""
+TEXT_GESCHICHTE_SCHREIBEN_KNOPF = "Write the story"
+_TEXT_GESCHICHTE_PASST_KNOPF = "Looks good"
+_TEXT_GESCHICHTE_ANDERS_KNOPF = "Change something"
+_TEXT_GESCHICHTE_NEU_KNOPF = "Rewrite from scratch"
+_TEXT_GESCHICHTE_ANDERS = "Tell me what should change - I'll take it into the next run."
+_TEXT_GESCHICHTE_PASST = "Good. Then we carry on section by section in Polish."
+_TEXT_KURZGESCHICHTE_BEREIT = """\
+I can now write your story in one go - from the setting, the characters \
+and your direction. Let me know when."""
+_TEXT_SCHON_GESETZT = "That's already in place."
+_TEXT_FIGUREN_ANZAHL_KNOPF = "Change the number"
+_TEXT_FIGUREN_NAMEN_KNOPF = "Change names"
+_TEXT_FIGUREN_ANZAHL_FRAGE = "How many characters should there be?"
+_TEXT_FIGUREN_NAMEN_FRAGE = "Which name do you want to change?"
+_TEXT_FIGUREN_ANZAHL_ERSTFRAGE = "How many characters should the play have?"
+_TEXT_FIGUREN_ANZAHL_FREI_KNOPF = "Other number"
+_TEXT_FIGUREN_ANZAHL_FREI_FRAGE = "Tell me the number - I'll then suggest exactly that many characters."
+_TEXT_FIGURENZAHL_UNKLAR = "I didn't read that as a number. Tell me a number between 1 and 12."
+_TEXT_FIGUR_PASST_KNOPF = "Looks good"
+_TEXT_FIGUR_INTERVIEW_KNOPF = "Different interview"
+_TEXT_FIGUR_DUKTUS_KNOPF = "Different speech style"
+_TEXT_FIGUR_ENTFERNEN_KNOPF = "Remove"
+_TEXT_FIGUR_INTERVIEW_FRAGE = "Which interview does {name} speak from?"
+_TEXT_FIGUREN_FIXIERT = "The characters are set."
+_TEXT_ZUR_GESCHICHTE = """\
+The characters are set - now the story, in broad strokes.\n\n\
+What should happen, and how should it end?"""
+_TEXT_FIGUREN_KEINE = "There are no characters left. Tell me who you want instead."
+_TEXT_DUKTUS_FEHLT = "Speech style: being worked out right now."
+_TEXT_DUKTUS_OHNE_QUELLE = "Speech style: none yet - the interview for it is missing."
+_TEXT_ZITATE_VORSPANN = "This is how they talk, for example:"
+_TEXT_DUKTUS_LAEUFT = "I'm listening to {quelle} right now to capture how {name} speaks …"
+_TEXT_FIGUREN_ZUFALL_KNOPF = "Assign at random"
+_TEXT_FIGUREN_ZUFALL_OHNE_INTERVIEW = "For that I need at least one interview."
+_TEXT_FIGUREN_ZUFALL_NICHTS_OFFEN = "Every character already has an interview. You can change each one individually."
+_TEXT_FIGUREN_ZUFALL_FERTIG = """\
+Assigned: {figuren} characters to {interviews} interviews. You can change \
+each one individually."""
+_TEXT_STIL_FRAGE = "How does {name} speak?"
+_TEXT_STIL_EIGENER_KNOPF = "Own style"
+_TEXT_STIL_EIGENER = "Tell me how they speak - I'll work it in."
+_TEXT_STIL_GESPEICHERT = "Noted, this is how {name} speaks."
+_TEXT_KEIN_INTERVIEW = "There's no interview yet for this character to speak from."
+_TEXT_PROAKTIV = "Before I suggest anything: do you have ideas of your own?"
+_TEXT_WIR_ZUERST_KNOPF = "Yes, us first"
+_TEXT_SCHLAG_VOR_KNOPF = "You suggest"
+_TEXT_WIR_ZUERST = "Good - I'm listening."
+_TEXT_PHASE_ANGEBOT = "{erledigt} are in place. On to {phase}?"
+_ERLEDIGT_FUER."2" = "Your terms"
+_ERLEDIGT_FUER."3" = "Your questions"
+_ERLEDIGT_FUER."4" = "The interviews are analysed and"
+_ERLEDIGT_FUER."5" = "Setting, characters and story"
+_ERLEDIGT_FUER."6" = "Story and scene sequence"
+_ERLEDIGT_FUER."7" = "All scene texts"
+_TEXT_PHASE_WEITER = "On to {phase}?"
+_TEXT_PHASE_NOCH_NICHT_KNOPF = "Change something first"
+_TEXT_NOCH_NICHT = "Good, we'll stay here."
+ANWEISUNGEN."1" = """\
+Suggest a list of terms to the group and attach it as a block \
+'VORSCHLAG BEGRIFFE:'."""
+ANWEISUNGEN."2" = """\
+Suggest interview questions for the group to choose from: EXACTLY FIVE per \
+core term of the group, ordered by term (first all five for the first \
+term, then the five for the second, and so on). Attach them as a block \
+'VORSCHLAG FRAGENAUSWAHL:', one question per line in the format \
+'Term: Question', without numbering. EVERY question stands on its own in \
+its SENTENCE STRUCTURE: in content they may follow on from each other, but \
+no question may point back to something earlier in its wording (no 'and \
+then?', no 'in that moment', no 'of that', no 'this person', no 'while \
+doing so') - whatever a question picks up from an earlier one, it says \
+again itself ('If you have ever experienced racism: what helped you in \
+that moment?') - each one must be understandable when read out on its \
+own, because the group picks any three. Age-appropriate, and phrased so \
+that a 15- to 18-year-old can ask it of a STRANGER in the street. Don't \
+repeat the questions in the running text - the group sees the numbered \
+list and names three numbers."""
+ANWEISUNGEN."4" = """\
+Suggest three settings - place, time, occasion on one line each, freely \
+invented from the group's terms and questions, NOT from interviews. \
+Attach them as a block 'VORSCHLAG RAHMEN:', one suggestion per line."""
+_ANWEISUNG_ALLGEMEIN = """\
+Suggest the next step of this phase to the group - concrete, drawn from \
+the material, and finish with an open question."""
+ANWEISUNG_KERNTHEMA = """\
+The group has chosen the direction '{richtung}'. Suggest three to four \
+concrete wordings of a core theme for it, each one with a link to the \
+material. Attach them as a block 'VORSCHLAG KERNTHEMA:', one wording per \
+line."""
+ANWEISUNG_KERNFRAGE = """\
+The group's core theme is '{kernthema}'. Sharpen it into ONE dramatic \
+question. Attach it as a block 'VORSCHLAG KERNFRAGE:', with exactly these \
+three lines: 'Question: What happens if ...', 'Opposition: <two wants that \
+collide>', 'Stakes: <what is at stake>'. No choice, no second suggestion - \
+one question."""
+ANWEISUNG_FIGURENZAHL = """\
+Suggest a list of characters with exactly {anzahl} characters - **freely \
+invented**, from the group's terms and questions and the setting. NOT from \
+the interviews: they come in later and sharpen what you invent now. Which \
+{anzahl} characters does this setting need? Each one wants something. \
+Attach the list as a block 'VORSCHLAG FIGUREN:', one character per line \
+in the form 'Name - one sentence'."""
+ANWEISUNG_NAMEN = """\
+Suggest three names for this character: {zeile}. Attach them as a block \
+'VORSCHLAG NAMEN:', one name per line, nothing else."""
+ANWEISUNG_DUKTUS = """\
+Suggest two to three alternative descriptions of how {name} speaks - one \
+line each, concrete (sentence length, filler words, pace). Attach them as \
+a block 'VORSCHLAG DUKTUS:', one description per line."""
+ANWEISUNG_FRAGEN_ANDERE = """\
+Suggest exactly ten OTHER interview questions. We have already had these, \
+take none of them again and don't reword any of them:\n{alte}\n\
+Attach the new ones as a block 'VORSCHLAG FRAGENAUSWAHL:', one question per \
+line, exactly ten lines. Don't repeat them in the running text."""
+ANWEISUNG_FRAGEN_EIGENE = """\
+The group has named questions of its own. Take them unchanged as the first \
+lines and add your own suggestions to make exactly ten. Attach everything \
+as a block 'VORSCHLAG FRAGENAUSWAHL:', one question per line."""
+ANWEISUNG_EINLEITUNGEN = """\
+Look at these interview questions from the group:\n{fragen}\n\n\
+The interviews are carried out by 15- to 18-year-old young women with \
+STRANGERS in the street or at a club. Check each question: does it touch \
+on a sensitive topic (family, origin, religion, violence, love and the \
+body, money, illness, flight, discrimination)? Rewrite EVERY sensitive \
+question as ONE gentle piece of conversation - two to three sentences \
+that the interviewer says in one go: the reason, the freedom not to \
+answer, and the question itself, in ONE flow. Not a lead-in and a question \
+strung together, but one text that you say just like that. Informal \
+'you', easy to say out loud, in the tone of a 15- to 18-year-old speaking \
+to a stranger - no officialese, no stock phrases like 'as part of our \
+project'. The core of the question stays the same: don't invent a new \
+topic and don't leave one out. Attach this as a block \
+'VORSCHLAG FRAGEN WEICH:', one line each as \
+'<question number> — <softer version>' - only for the sensitive questions, \
+the others stay as they are. If no question is sensitive, write exactly \
+this one line in the block: 'None of the questions needs a special \
+lead-in.' In the text before it, say in ONE sentence which questions you \
+have worded more softly - call it 'softer wording', NOT 'lead-in': the \
+opening of the interview only comes in the next message, don't announce it \
+here and don't write it. Ask the group at most one question. Don't copy \
+out the list of questions again unchanged."""
+ANWEISUNG_EROEFFNUNG = """\
+Now we still need how the interview starts and how it ends. Suggest an \
+opening text that the interviewer says to a stranger before she asks the \
+first question - three to five sentences: who we are, what it is about \
+({{projekt_kurz}}), what the answers will be used for (anonymously, as \
+material for a play), that you can stop at any time, and asking \
+permission to record the conversation. Add a short closing: thanks and \
+what happens next. Attach both as a block 'VORSCHLAG EROEFFNUNG:' - first \
+the opening, then a line that starts with 'ABSCHLUSS:'. Language like a \
+16-year-old's, no official-sounding sentences. The text stands ONLY in the \
+block - don't also write it before it in the running text; before it, at \
+most one sentence and one question."""
 
 ["befehle"]
 _TEXT_SPRACHE_STAND = "Interview language: {sprache}."

@@ -29,7 +29,10 @@ DORTMUND = "dortmund-2026"
 
 #: Abschnitte, die A1 absichtlich an einen anderen Ort legt: alt -> neu.
 #: Der Wert muss am neuen Ort zeichengleich sein.
-VERSCHOBEN: dict[str, str] = {}
+VERSCHOBEN: dict[str, str] = {
+    # Aufgabe 10 (K1): alle Texte des Knopf-Pakets stehen in knoepfe/texte.py.
+    "knoepfe.stationen._ERLEDIGT_FUER": "knoepfe.texte._ERLEDIGT_FUER",
+}
 
 #: Abschnitte, deren Wert A1 absichtlich aendert -- mit Grund. Jede Zeile
 #: hier ist eine Verhaltensaenderung fuer Dortmund.

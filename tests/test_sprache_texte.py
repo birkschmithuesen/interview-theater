@@ -26,7 +26,7 @@ from interview_theater import sprache
 PAKET = pathlib.Path(sprache.__file__).resolve().parent
 
 #: Module (Kurzname), deren Texte ueber T laufen. Waechst je Aufgabe.
-UMGESTELLT: set[str] = {"anweisungen"}
+UMGESTELLT: set[str] = {"anweisungen", "knoepfe.texte"}
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
 ALLE_MODULE = {

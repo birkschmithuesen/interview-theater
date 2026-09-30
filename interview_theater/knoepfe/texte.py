@@ -904,6 +904,17 @@ _TEXT_WIR_ZUERST = "Gut - ich hoere zu."
 #: Fliesstext. Gemessen am Testabend: neun angebotene Phasenknoepfe, null
 #: Druecke; sie hingen alle unter langen Texten.
 _TEXT_PHASE_ANGEBOT = "{erledigt} steht. Weiter zu {phase}?"
+#: Was je Zielphase erledigt ist -- der halbe Satz vor "Weiter zu ...".
+#: Kurz und konkret, damit die Gruppe sieht, WORAUF sich das Angebot stuetzt,
+#: ohne dass der Bot den Arbeitsstand nacherzaehlt.
+_ERLEDIGT_FUER = {
+    2: "Eure Begriffe",
+    3: "Eure Fragen",
+    4: "Die Interviews sind ausgewertet und",
+    5: "Setting, Figuren und Geschichte",
+    6: "Geschichte und Szenenfolge",
+    7: "Alle Szenentexte",
+}
 #: Die Frage unter der Abschlussnachricht (06.09.2026): die Parameter stehen
 #: darueber, hier steht nur noch, wohin es geht.
 _TEXT_PHASE_WEITER = "Weiter zu {phase}?"

@@ -3285,7 +3285,7 @@ Aufgabe 23, Zeile `knoepfe/fragen.py:317/322`), dieselben Profil-Platzhalter
 (`{{projekt_kurz}}`), und die E8-Regel wird **nicht** hier, sondern im
 Systemprompt verankert.
 
-- [ ] **Schritt 1: Test schreiben** — `tests/test_knoepfe_sprache.py`:
+- [x] **Schritt 1: Test schreiben** — `tests/test_knoepfe_sprache.py`:
 
 ```python
 """Die Knopftabelle: Deutsch unveraendert ueber knoepfe.X und knoepfe.T.X,
@@ -3322,13 +3322,13 @@ def test_padua_liest_englisch(monkeypatch):
     assert "VORSCHLAG EROEFFNUNG:" in knoepfe.T.ANWEISUNG_EROEFFNUNG
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_knoepfe_sprache.py`
 Expected: FAIL — `assert 'Ja, speichern' == 'Yes, save'` (Eintrag fehlt, es
 bleibt Deutsch).
 
-- [ ] **Schritt 3: Umsetzen**
+- [x] **Schritt 3: Umsetzen**
 
 1. `_ERLEDIGT_FUER` samt Kommentar aus `stationen.py:32–42` **wortgleich**
    nach `texte.py` (Abschnitt Phasenrahmen, nahe `_TEXT_PHASE_ANGEBOT`)
@@ -3353,7 +3353,7 @@ bleibt Deutsch).
    `getattr(getattr(modul, "T", modul), feld)`).
 4. `UMGESTELLT` in `tests/test_sprache_texte.py` um `"knoepfe.texte"` ergaenzen.
 
-- [ ] **Schritt 4: Gruen sehen und Uebersetzung nachweisen**
+- [x] **Schritt 4: Gruen sehen und Uebersetzung nachweisen**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider tests/test_knoepfe_sprache.py tests/test_sprache_texte.py \
@@ -3362,14 +3362,14 @@ $PY -m scripts.pruefe_sprache --schluessel knoepfe.texte
 ```
 Expected: alle gruen; `0 Treffer`.
 
-- [ ] **Schritt 5: Mutationsnachweis**
+- [x] **Schritt 5: Mutationsnachweis**
 
 Einen englischen Eintrag mit `{phase}` (`_TEXT_PHASE_WEITER`) auf `"On to it?"`
 aendern → `test_platzhalter_und_form_gleich[knoepfe.texte-_TEXT_PHASE_WEITER]`
 rot. In einem englischen Eintrag ein deutsches Wort lassen (`"Yes, speichern"`)
 → `pruefe_sprache --schluessel knoepfe.texte` Exit 1. Zuruecksetzen.
 
-- [ ] **Schritt 6: SUITE, Commit**
+- [x] **Schritt 6: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider

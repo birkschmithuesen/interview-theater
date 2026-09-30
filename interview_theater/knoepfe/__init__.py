@@ -162,6 +162,8 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     ART_STT_SPRACHE, STT_KNOEPFE, T, _JOURNAL_STT_SPRACHE,
     _TEXT_STT_SPRACHE_AUTO, _TEXT_STT_SPRACHE_FRAGE,
     _TEXT_STT_SPRACHE_GESETZT, _TEXT_STT_SPRACHE_KURZ,
+    # Karte A1, Aufgabe 10: aus stationen hierher gewandert (K1)
+    _ERLEDIGT_FUER,
 )
 
 #: callback_data, Grundleiste, Speicherweg, Auftragsabgabe
@@ -225,7 +227,7 @@ from interview_theater.knoepfe.interviews import (  # noqa: F401
 
 #: der Phasenrahmen im Chat
 from interview_theater.knoepfe.stationen import (  # noqa: F401
-    _ERLEDIGT_FUER, _abschlusstext, _mit_vorspann, biete_phase_proaktiv,
+    _abschlusstext, _mit_vorspann, biete_phase_proaktiv,
     biete_proaktiv, eintritt_in_phase,
 )
 

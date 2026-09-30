@@ -135,7 +135,9 @@ def teile() -> list[tuple[str, str]]:
     for feld in sorted(f for f in dir(knoepfe) if f.startswith("ANWEISUNG_")):
         wert = getattr(knoepfe, feld)
         if isinstance(wert, str):
-            stuecke.append((f"knoepfe.{feld}", anweisungen.fuelle(wert)))
+            # Ueber den Sprachzugriff (Karte A1): im Deutschen dasselbe
+            # Objekt, unter einem englischen Profil der englische Auftrag.
+            stuecke.append((f"knoepfe.{feld}", anweisungen.fuelle(getattr(knoepfe.T, feld))))
 
     return stuecke
 

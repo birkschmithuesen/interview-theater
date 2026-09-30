@@ -16,8 +16,8 @@ from interview_theater import phasen, repo
 
 from interview_theater.knoepfe.texte import (
     ART_NOCH_NICHT, ART_PHASE, PHASE_INTERVIEWS, PHASE_SCHAERFUNG,
-    PHASE_STUECKPRUEFUNG, PHASE_SZENEN, _TEXT_KURZGESCHICHTE_BEREIT,
-    _TEXT_PHASE_ANGEBOT, _TEXT_PHASE_NOCH_NICHT_KNOPF, _TEXT_PHASE_WEITER,
+    PHASE_STUECKPRUEFUNG, PHASE_SZENEN, _ERLEDIGT_FUER,
+    _TEXT_KURZGESCHICHTE_BEREIT, _TEXT_PHASE_ANGEBOT, _TEXT_PHASE_NOCH_NICHT_KNOPF, _TEXT_PHASE_WEITER,
     _TEXT_PROAKTIV,
 )
 from interview_theater.knoepfe.basis import (
@@ -28,19 +28,6 @@ from interview_theater.knoepfe.szenen import (
     biete_durchlauf, biete_kurzgeschichte, biete_szene_usa, starte_schaerfung,
     starte_stueckpruefung,
 )
-
-
-#: Was je Zielphase erledigt ist -- der halbe Satz vor "Weiter zu ...".
-#: Kurz und konkret, damit die Gruppe sieht, WORAUF sich das Angebot stuetzt,
-#: ohne dass der Bot den Arbeitsstand nacherzaehlt.
-_ERLEDIGT_FUER = {
-    2: "Eure Begriffe",
-    3: "Eure Fragen",
-    4: "Die Interviews sind ausgewertet und",
-    5: "Setting, Figuren und Geschichte",
-    6: "Geschichte und Szenenfolge",
-    7: "Alle Szenentexte",
-}
 
 
 def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:

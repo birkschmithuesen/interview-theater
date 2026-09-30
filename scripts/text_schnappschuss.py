@@ -95,8 +95,14 @@ def _zugewiesene_namen(modul) -> list[str]:
 
 
 def wert(modul, name: str):
-    """Der Wert, wie ihn der Code zur Laufzeit sieht. Aufgabe 3 leitet ihn
-    ueber ``sprache.text``, sobald das Modul einen Zugriff ``T`` hat."""
+    """Der Wert, wie ihn der Code zur Laufzeit sieht: hat das Modul einen
+    Textzugriff ``T`` (Karte A1), dann ueber ``sprache.text`` -- so prueft
+    der Bitgleichheits-Test auch, dass der Zugriff im Deutschen dasselbe
+    liefert wie die Konstante."""
+    from interview_theater import sprache
+
+    if isinstance(getattr(modul, "T", None), sprache.Texte):
+        return sprache.text(modul.__name__, name)
     return getattr(modul, name)
 
 

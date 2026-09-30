@@ -1,0 +1,8 @@
+# Die englische Texttabelle (Karte A1, 30.09.2026).
+#
+# Je definierendem Modul eine Tabelle (Modulname ohne "interview_theater.",
+# in Anfuehrungszeichen), darin der Name der deutschen Konstante. Gelesen
+# wird ueber interview_theater/sprache.py (T._TEXT_X). Platzhalter
+# ({name}, {{name}}, %s) muessen dieselben sein wie im Deutschen --
+# tests/test_sprache_texte.py prueft das. Die Texte sind Uebersetzungen;
+# Birk nimmt sie in Karte P am Prompt-Dump ab.

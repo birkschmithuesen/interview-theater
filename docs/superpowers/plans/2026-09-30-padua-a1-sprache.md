@@ -1222,7 +1222,7 @@ git commit -m "Profil: sprache.whisper und datenschutz.pseudonyme, Padua auf Eng
   `pruefe_dateien(pfade: list[Path]) -> list[Treffer]`,
   `pruefe_schluessel(module: list[str]) -> list[Treffer]`, `main(argv=None) -> int`.
 
-- [ ] **Schritt 1: Tests schreiben** — `tests/test_sprache.py`:
+- [x] **Schritt 1: Tests schreiben** — `tests/test_sprache.py`:
 
 ```python
 """Der Sprachzugriff: Deutsch ist die Konstante selbst, Englisch die Tabelle."""
@@ -1409,13 +1409,13 @@ def test_dateien_modus(tmp_path):
     assert pruefe_sprache.main(["--dateien", str(schlecht)]) == 1
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprache.py tests/test_pruefe_sprache.py`
 Expected: FAIL — `ImportError: cannot import name 'sprache' from 'interview_theater'`
 und `ModuleNotFoundError: No module named 'scripts.pruefe_sprache'`.
 
-- [ ] **Schritt 3: `interview_theater/sprache.py`**
+- [x] **Schritt 3: `interview_theater/sprache.py`**
 
 ```python
 """Die Sprache eines Workshops: Chat- und Promptsprache, Whisper-Vorgabe,
@@ -1596,7 +1596,7 @@ def platzhalter(text: str) -> frozenset[str]:
 # Birk nimmt sie in Karte P am Prompt-Dump ab.
 ```
 
-- [ ] **Schritt 4: `scripts/pruefe_sprache.py` (Kern)**
+- [x] **Schritt 4: `scripts/pruefe_sprache.py` (Kern)**
 
 ```python
 """Findet deutsche Saetze in allem, was ein Profil erzeugt (Karte A1, D10).
@@ -1777,7 +1777,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Schritt 5: `text_schnappschuss.wert` ueber die Sprache leiten**
+- [x] **Schritt 5: `text_schnappschuss.wert` ueber die Sprache leiten**
 
 ```python
 def wert(modul, name: str):
@@ -1792,12 +1792,12 @@ def wert(modul, name: str):
     return getattr(modul, name)
 ```
 
-- [ ] **Schritt 6: Gruen sehen**
+- [x] **Schritt 6: Gruen sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprache.py tests/test_pruefe_sprache.py tests/test_sprache_bitgleich.py`
 Expected: alle gruen.
 
-- [ ] **Schritt 7: Mutationsnachweis**
+- [x] **Schritt 7: Mutationsnachweis**
 
 - In `sprache.text` die Zeile `if sprachcode == DEUTSCH: return deutsch`
   entfernen → `test_deutsch_ist_die_konstante_selbst` rot (`is`-Vergleich
@@ -1808,7 +1808,7 @@ Expected: alle gruen.
   `test_ui_woerter_schlagen_an_auch_ohne_funktionswort` rot.
 Jeweils zuruecksetzen.
 
-- [ ] **Schritt 8: SUITE, Commit**
+- [x] **Schritt 8: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider

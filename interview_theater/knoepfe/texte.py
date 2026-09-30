@@ -941,6 +941,41 @@ _TEXT_WEITER_ZU_KNOPF = "Weiter zu {phase}"
 #: Rueckfall fuer ``_ERLEDIGT_FUER`` -- im Aufruf, nicht in einer Signatur (K1).
 _TEXT_ALLES_NOETIGE = "Alles Noetige"
 
+#: Die frueheren Inline-Literale aus ``figuren.py`` (Aufgabe 12, A1):
+#: Knopf-Quittungen (answerCallbackQuery), Journalzeilen, Chatzeilen.
+_TEXT_NAME_GEAENDERT_QUITTUNG = "Name geaendert"
+_JOURNAL_FIGURENANZAHL = "Figurenanzahl: {anzahl}"
+_JOURNAL_FIGUREN = "Figuren: {namen}"
+#: Kopf vor der Figurenzeile aus ``erkenner._figuren_zeile``.
+_TEXT_NOTIERT_KOPF = "Notiert:\n"
+_TEXT_FIGUREN_QUITTUNG = "Figuren uebernommen"
+_TEXT_SPRACHDUKTUS_ZEILE = "Sprachduktus: {profil}"
+#: Rueckfall fuer ``{quelle}`` in ``_TEXT_DUKTUS_LAEUFT``.
+_TEXT_DAS_INTERVIEW = "das Interview"
+_JOURNAL_FIGURENLISTE_STEHT = "Figurenliste steht"
+_TEXT_INTERVIEW_WAEHLEN_QUITTUNG = "Interview waehlen"
+
+#: Die frueheren Inline-Literale aus ``szenen.py`` (Aufgabe 12, A1).
+#: ``_TEXT_SZENE_KOPF`` ist Kopf eines Szenentexts, Knopf-Quittung und
+#: Listeneintrag im Hinweis auf spaetere Szenen.
+_TEXT_SZENE_KOPF = "Szene {nummer}"
+#: Eine Szene mit Angabe dahinter: Form je Szene (Journal, Festlegung) und
+#: die Quittung nach einem Feldvorschlag.
+_TEXT_SZENE_EINTRAG = "Szene {nummer}: {was}"
+_JOURNAL_SZENENFOLGE = "Szenenfolge: {liste}"
+_TEXT_SZENEN_UEBERNOMMEN_QUITTUNG = "{anzahl} Szenen uebernommen"
+_TEXT_FESTLEGUNG_FORMEN = "Form je Szene — {liste}"
+_JOURNAL_FORM_JE_SZENE = "Form je Szene: {liste}"
+_TEXT_FORMWAHL_QUITTUNG = "Formwahl uebernommen, Geschichte fehlt noch"
+_JOURNAL_GESCHICHTE = "Geschichte: {geschichte}"
+_TEXT_RICHTUNG_QUITTUNG = "Richtung uebernommen"
+_TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG = "Gespeichert, was soll anders sein?"
+#: Name aus dem Plan; der Text ist die Knopf-Quittung von
+#: ``szenen._nach_szenen_gespeichert``, keine Journalzeile.
+_JOURNAL_GESCHICHTE_MIT_SZENEN = "Geschichte mit {anzahl} Szenen uebernommen"
+_TEXT_SCHLAGE_ANGABEN_VOR = "Ich schlage die fehlenden Angaben vor"
+_TEXT_SZENE_LAEUFT_QUITTUNG = "Szene {nummer} laeuft"
+
 
 #: Was "Schlag du vor" je Phase vom Modell verlangt -- die Anweisung, die
 #: ``ablauf.starte_auftrag`` an den Koerper haengt. Je Phase eine, weil in

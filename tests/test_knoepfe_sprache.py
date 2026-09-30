@@ -84,3 +84,42 @@ def test_phasenknopf_und_notiert_zeile_folgen_dem_profil(
     antwort = knoepfe._speichere(conn, tg, 1, "rahmen|Ein Bahnhof", weiterfrage=False)
     assert notiert in tg.texte
     assert antwort == quittung
+
+
+@pytest.mark.parametrize("profil, notiert, quittung, journal", [
+    (None, "Notiert:\n", "Figuren uebernommen", "Figuren: Mira"),
+    ("padua-2026", "Noted:\n", "Characters saved", "Characters: Mira"),
+])
+def test_figurenliste_quittung_und_journal_folgen_dem_profil(
+        monkeypatch, conn, profil, notiert, quittung, journal):
+    """Aufgabe 12: ``figuren._uebernimm_figurenliste`` -- Notiert-Kopf,
+    Knopf-Quittung und Journalzeile laufen ueber T; Deutsch zeichengleich."""
+    if profil:
+        monkeypatch.setenv(workshop.VARIABLE, profil)
+        workshop.vergiss()
+    tg = TelegramAttrappe()
+    antwort = knoepfe._uebernimm_figurenliste(conn, tg, 1, "Mira — hat einen Plan")
+    assert antwort == quittung
+    assert any(t.startswith(notiert) for t in tg.texte)
+    assert journal in [z["text"] for z in repo.journal(conn, 1)]
+
+
+@pytest.mark.parametrize("profil, kopf, journal, quittung", [
+    (None, "Szene 1: Ankunft", "Szenenfolge: 1. Ankunft", "Szene 1"),
+    ("padua-2026", "Scene 1: Ankunft", "Scene sequence: 1. Ankunft", "Scene 1"),
+])
+def test_szenenfolge_und_szenentext_folgen_dem_profil(
+        monkeypatch, conn, profil, kopf, journal, quittung):
+    """Aufgabe 12: ``szenen._speichere_szenenfolge`` (Journalzeile) und
+    ``szenen.zeige_szenentext`` (Kopf der Szene, Knopf-Quittung) laufen
+    ueber T; Deutsch zeichengleich wie vorher."""
+    if profil:
+        monkeypatch.setenv(workshop.VARIABLE, profil)
+        workshop.vergiss()
+    tg = TelegramAttrappe()
+    knoepfe._speichere_szenenfolge(conn, tg, None, None, 1, "weiter|Ankunft — sie kommt an")
+    assert journal in [z["text"] for z in repo.journal(conn, 1)]
+    repo.lege_szene_an(conn, 2, nummer=1, titel="Ankunft", kurzbeschreibung=None,
+                       volltext="MIRA: Da bin ich.")
+    assert knoepfe.zeige_szenentext(conn, tg, 2, 1) == quittung
+    assert tg.texte[-1].startswith(kopf + "\n\n")

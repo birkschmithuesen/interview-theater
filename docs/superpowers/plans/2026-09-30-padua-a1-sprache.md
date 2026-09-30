@@ -3484,15 +3484,15 @@ Zusaetzlich: `probenansicht_zeile` (szenen.py) und `biete_szene_usa`
 — der Waechter meldet die Stelle erst, wenn `szene._TEXT_ANGEBOT_USA` in
 der Tabelle steht; Aufgabe 16 stellt sie um).
 
-- [ ] **Schritt 1:** `UMGESTELLT |= {"knoepfe.figuren", "knoepfe.szenen"}`,
+- [x] **Schritt 1:** `UMGESTELLT |= {"knoepfe.figuren", "knoepfe.szenen"}`,
   `$PY -m pytest -q -p no:cacheprovider tests/test_sprache_texte.py` → rot mit Arbeitsliste.
-- [ ] **Schritt 2:** umstellen (fuenf Schritte, Aufgabe 5).
-- [ ] **Schritt 3:** gruen:
+- [x] **Schritt 2:** umstellen (fuenf Schritte, Aufgabe 5).
+- [x] **Schritt 3:** gruen:
   `$PY -m pytest -q -p no:cacheprovider tests/test_sprache_texte.py tests/test_sprache_bitgleich.py tests/test_knoepfe*.py tests/test_geschichte.py tests/test_kuerzung.py`,
   `$PY -m scripts.pruefe_sprache --schluessel knoepfe.texte` → `0 Treffer`.
-- [ ] **Schritt 4: Mutationsnachweis:** eine `T.`-Stelle in `szenen.py`
+- [x] **Schritt 4: Mutationsnachweis:** eine `T.`-Stelle in `szenen.py`
   zuruecknehmen → `test_keine_nackte_verwendung[knoepfe.szenen]` rot.
-- [ ] **Schritt 5:** SUITE; Commit
+- [x] **Schritt 5:** SUITE; Commit
   `"Knoepfe Figuren und Szenen ueber T (A1)"`.
 
 ---

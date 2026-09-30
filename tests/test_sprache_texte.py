@@ -28,7 +28,8 @@ PAKET = pathlib.Path(sprache.__file__).resolve().parent
 #: Module (Kurzname), deren Texte ueber T laufen. Waechst je Aufgabe.
 UMGESTELLT: set[str] = {
     "anweisungen", "knoepfe.texte", "knoepfe.basis", "knoepfe.fragen",
-    "knoepfe.interviews", "knoepfe.stationen",
+    "knoepfe.interviews", "knoepfe.stationen", "knoepfe.figuren",
+    "knoepfe.szenen",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -70,6 +71,13 @@ PARSER = {
 INLINE_ERLAUBT: dict[tuple[str, str], str] = {
     ("knoepfe.basis", "'{}' steht bereits und wurde durch einen"):
         "Vorfall-Detail ueberschreiben_verhindert (repo.merke_vorfall)",
+    ("knoepfe.szenen", "Eine Formwahl sollte als Geschichte gesp"):
+        "Vorfall-Detail geschichte_war_formwahl (repo.merke_vorfall)",
+    # Zahlwoerter in ``figuren._zahl_aus``: Parser fuer Gruppentext (D5),
+    # die deutsche Liste bleibt im Funktionsrumpf; das englische Gegenstueck
+    # kommt in Aufgabe 22 als ``_ZAHLWOERTER_EN``.
+    ("knoepfe.figuren", "fünf"): "Parser-Wortliste _zahl_aus (Aufgabe 22)",
+    ("knoepfe.figuren", "zwölf"): "Parser-Wortliste _zahl_aus (Aufgabe 22)",
 }
 
 _STOPP = re.compile(

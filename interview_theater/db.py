@@ -693,6 +693,62 @@ CREATE TABLE IF NOT EXISTS knopf (
 );
 CREATE INDEX IF NOT EXISTS idx_knopf_chat ON knopf(chat_id, id);
 
+-- Die Ruecknahme eines Erkennerlaufs (Karte U, 01.10.2026).
+--
+-- Der Anlass (Birk, 30.09.2026): Korpus und Simulation bilden die echte
+-- Chatrealitaet der Studierenden nur begrenzt ab, und ein falsch
+-- gespeicherter Wert darf deshalb nicht STILL bleiben. Unter jeder
+-- "Notiert:"-Meldung steht seitdem ein Undo-Knopf, und was er
+-- wiederherstellt, liegt hier -- **nicht** als Nachbau je Erkenner-Art
+-- (das waere eine zweite Wahrheit neben erkenner._wende_*_an), sondern als
+-- DIFFERENZ zweier Schnappschuesse um ``erkenner.wende_an`` herum
+-- (interview_theater/ruecknahme.py).
+--
+-- ``meldung`` sind die Zeilen der Notiert-Meldung ohne Kopf -- dieselbe
+-- Quelle wie die Meldung selbst (erkenner.undo_zeilen), damit "Rueckgaengig
+-- gemacht:" nicht anders klingt als "Notiert:". ``message_id`` ist die
+-- Nachricht, unter der der Knopf haengt: nach einer wirksamen Ruecknahme
+-- werden ihre Grundleisten-Knoepfe verfallen gelassen, sonst schriebe
+-- "Ja, speichern" den gerade zurueckgenommenen Wert wieder (der Wert steckt
+-- im Knopf). ``zurueckgenommen_am`` ist die zweite Idempotenz-Sperre neben
+-- ``knopf.benutzt_am`` -- bedingtes UPDATE in derselben Transaktion wie die
+-- Ruecknahme, SQLite entscheidet.
+CREATE TABLE IF NOT EXISTS erkenner_lauf (
+  id                  INTEGER PRIMARY KEY,
+  chat_id             INTEGER NOT NULL,
+  meldung             TEXT,
+  message_id          INTEGER,
+  erstellt_am         TEXT NOT NULL,
+  zurueckgenommen_am  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_erkenner_lauf_chat ON erkenner_lauf(chat_id, id);
+
+-- Ein Schritt der Ruecknahme: eine Zeile einer verfolgten Tabelle.
+--
+-- ``schluessel`` ist das JSON-Objekt der Primaerschluesselspalten
+-- (sort_keys, weil ``szene_figur`` einen zusammengesetzten hat),
+-- ``vorher``/``nachher`` die JSON-Objekte der verglichenen Spalten.
+-- ``art``: ``geaendert`` (beide da), ``angelegt`` (nur nachher -- die
+-- Ruecknahme entfernt weich, N3) oder ``geloescht`` (nur vorher -- die
+-- Ruecknahme fuegt wieder ein; im Betrieb nur bei ``szene_figur``,
+-- repo.setze_szene_figuren loescht dort hart).
+--
+-- ``nachher`` ist zugleich die "Seitdem geaendert"-Probe: stimmt der
+-- aktuelle Wert nicht mehr damit, wird NICHTS geaendert.
+CREATE TABLE IF NOT EXISTS erkenner_lauf_schritt (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  lauf_id      INTEGER NOT NULL,
+  tabelle      TEXT NOT NULL,
+  schluessel   TEXT NOT NULL,
+  art          TEXT NOT NULL,           -- geaendert|angelegt|geloescht
+  vorher       TEXT,
+  nachher      TEXT,
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_erkenner_lauf_schritt_lauf
+  ON erkenner_lauf_schritt(lauf_id);
+
 -- Was das Dashboard rot färbt
 CREATE TABLE IF NOT EXISTS vorfall (
   id           INTEGER PRIMARY KEY,
@@ -742,6 +798,9 @@ TABELLEN_MIT_CHAT_ID = (
     "journal",
     "festlegung",
     "knopf",
+    # Karte U (01.10.2026): die Ruecknahme eines Erkennerlaufs.
+    "erkenner_lauf",
+    "erkenner_lauf_schritt",
     "vorfall",
     "aufruf",
 )

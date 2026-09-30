@@ -402,7 +402,7 @@ Zusaetzliche mutationsfeste Waechter:
 - Liefert: die Tabellen `erkenner_lauf` und `erkenner_lauf_schritt`, beide mit
   `chat_id`, beide in `db.TABELLEN_MIT_CHAT_ID`.
 
-- [ ] **Schritt 1: Den fehlschlagenden Test schreiben**
+- [x] **Schritt 1: Den fehlschlagenden Test schreiben**
 
 `tests/test_ruecknahme_repo.py`:
 
@@ -488,12 +488,12 @@ def test_eine_altdatenbank_ohne_die_tabellen_laeuft_durch(tmp_path):
     assert db.SCHEMA_VERSION == 3, "keine Erhoehung: es wird nichts umgedeutet"
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag sehen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag sehen**
 
 Run: `$PY -m pytest tests/test_ruecknahme_repo.py -q -p no:cacheprovider`
 Erwartet: FAIL -- `assert {'erkenner_lauf', 'erkenner_lauf_schritt'} <= vorhandene`
 
-- [ ] **Schritt 3: Schema ergaenzen**
+- [x] **Schritt 3: Schema ergaenzen**
 
 In `interview_theater/db.py`, in `SCHEMA` nach dem `CREATE INDEX ... idx_knopf_chat`
 und vor `CREATE TABLE IF NOT EXISTS vorfall`:
@@ -564,18 +564,18 @@ Und in `TABELLEN_MIT_CHAT_ID`, hinter `"knopf",`:
     "erkenner_lauf_schritt",
 ```
 
-- [ ] **Schritt 4: Test laufen lassen, gruen sehen**
+- [x] **Schritt 4: Test laufen lassen, gruen sehen**
 
 Run: `$PY -m pytest tests/test_ruecknahme_repo.py tests/test_db.py -q -p no:cacheprovider`
 Erwartet: `4 passed` in der neuen Datei, `tests/test_db.py` unveraendert gruen
 (keine Zeile `F`).
 
-- [ ] **Schritt 5: Die ganze Suite**
+- [x] **Schritt 5: Die ganze Suite**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `4354 passed, 1 skipped` (4350 + 4 neue)
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add interview_theater/db.py tests/test_ruecknahme_repo.py

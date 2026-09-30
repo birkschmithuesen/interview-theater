@@ -177,6 +177,20 @@ def deutsche_treffer(quelle: str, text: str) -> list[Treffer]:
     return treffer
 
 
+_SKRIPT_STIL = re.compile(r"<(script|style)\b[^>]*>.*?</\1\s*>", re.S | re.I)
+_TAG = re.compile(r"<[^>]+>")
+
+
+def nur_text(html: str) -> str:
+    """Der lesbare Text einer HTML-Seite: ohne ``<script>``/``<style>``, ohne
+    Tags, Entitaeten dekodiert -- geprueft wird, was man liest, nicht CSS
+    und JavaScript (Aufgabe 17)."""
+    import html as html_modul
+
+    ohne = _SKRIPT_STIL.sub(" ", html or "")
+    return html_modul.unescape(_TAG.sub(" ", ohne))
+
+
 def pruefe_dateien(pfade: list[Path]) -> list[Treffer]:
     treffer = []
     for pfad in pfade:

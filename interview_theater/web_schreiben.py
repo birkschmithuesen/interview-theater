@@ -192,6 +192,16 @@ _LABEL_BESETZUNG = "Besetzung"
 _SZENE_MIT_NUMMER = "Szene {nummer}"
 _SZENE_OHNE_NUMMER = "Szene"
 
+#: Die Fehlermeldungen (``Fehler``) -- ``web.py`` zeigt sie der Gruppe als
+#: HTTP 400 neben dem Feld, deshalb in der Sprache des Profils.
+_FEHLER_FIGUR_FEHLT = "Figur nicht gefunden."
+_FEHLER_SZENE_FEHLT = "Szene nicht gefunden."
+_FEHLER_NAME_FEHLT = "Eine Figur braucht einen Namen."
+_FEHLER_INTERVIEW_FEHLT = "Interview nicht gefunden."
+_FEHLER_FIGUR_DOPPELT = "„{name}“ gibt es schon."
+_FEHLER_FESTLEGUNG_FEHLT = "Festlegung nicht gefunden."
+_FEHLER_PARAMETER = "Unbekannter Parameter: {feld}"
+
 
 class Fehler(Exception):
     """Ein Wert, den die Gruppenseite nicht schreiben darf oder kann.
@@ -262,9 +272,9 @@ def _figur(conn, chat_id: int, figur_id):
     try:
         zeile = repo.hole_figur_nach_id(conn, int(figur_id))
     except (TypeError, ValueError):
-        raise Fehler("Figur nicht gefunden.") from None
+        raise Fehler(T._FEHLER_FIGUR_FEHLT) from None
     if zeile is None or zeile["chat_id"] != chat_id or zeile["entfernt_am"]:
-        raise Fehler("Figur nicht gefunden.")
+        raise Fehler(T._FEHLER_FIGUR_FEHLT)
     return zeile
 
 
@@ -274,9 +284,9 @@ def _szene(conn, chat_id: int, szene_id):
     try:
         zeile = repo.hole_szene(conn, int(szene_id))
     except (TypeError, ValueError):
-        raise Fehler("Szene nicht gefunden.") from None
+        raise Fehler(T._FEHLER_SZENE_FEHLT) from None
     if zeile is None or zeile["chat_id"] != chat_id or zeile["entfernt_am"]:
-        raise Fehler("Szene nicht gefunden.")
+        raise Fehler(T._FEHLER_SZENE_FEHLT)
     return zeile
 
 
@@ -322,7 +332,7 @@ def _setze_figurenfeld(feld: str, label: str):
         zeile = _figur(conn, chat_id, ziel)
         neu = _text(wert)
         if feld == "name" and not neu:
-            raise Fehler("Eine Figur braucht einen Namen.")
+            raise Fehler(T._FEHLER_NAME_FEHLT)
         alt = zeile[feld] or ""
         repo.setze_figur_feld(conn, zeile["id"], feld, neu)
         beschriftung = T.FIGURENFELDER.get(feld, label)
@@ -356,11 +366,11 @@ def _setze_figur_quelle(conn, chat_id: int, wert, ziel) -> str:
     zeile = _figur(conn, chat_id, ziel)
     text = _text(wert)
     if text and not text.isdigit():
-        raise Fehler("Interview nicht gefunden.")
+        raise Fehler(T._FEHLER_INTERVIEW_FEHLT)
     neue_id = int(text) if text else None
     erlaubte = {a["id"] for a in _interviews(conn, chat_id)}
     if neue_id is not None and neue_id not in erlaubte:
-        raise Fehler("Interview nicht gefunden.")
+        raise Fehler(T._FEHLER_INTERVIEW_FEHLT)
 
     alt_id = zeile["quelle_aufnahme_id"]
     if alt_id == neue_id:
@@ -407,9 +417,9 @@ def _lege_figur_an(conn, chat_id: int, wert, ziel) -> str:
     ``repo.setze_figur``, denselben Weg wie der Erkenner."""
     name = _text(wert)
     if not name:
-        raise Fehler("Eine Figur braucht einen Namen.")
+        raise Fehler(T._FEHLER_NAME_FEHLT)
     if repo.hole_figur(conn, chat_id, name) is not None:
-        raise Fehler(f"„{name}“ gibt es schon.")
+        raise Fehler(T._FEHLER_FIGUR_DOPPELT.format(name=name))
     repo.setze_figur(conn, chat_id, name, "")
     repo.schreibe_journal(
         conn,
@@ -437,7 +447,7 @@ def _entferne_festlegung(conn, chat_id: int, wert, ziel) -> str:
     geschrieben ist."""
     zeile = repo.entferne_festlegung_nach_id(conn, chat_id, ziel)
     if zeile is None:
-        raise Fehler("Festlegung nicht gefunden.")
+        raise Fehler(T._FEHLER_FESTLEGUNG_FEHLT)
     repo.schreibe_journal(
         conn,
         chat_id,
@@ -529,7 +539,7 @@ def wende_an(conn, chat_id: int, feld: str, wert, ziel=None) -> dict:
     aus einem Formular, also von aussen."""
     handler = FELDER.get(feld)
     if handler is None:
-        raise Fehler(f"Unbekannter Parameter: {feld}")
+        raise Fehler(T._FEHLER_PARAMETER.format(feld=feld))
     neu = handler(conn, chat_id, wert, ziel)
     return {"ok": True, "feld": feld, "wert": neu, "id": ziel}
 

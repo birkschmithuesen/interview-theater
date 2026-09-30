@@ -44,6 +44,14 @@ GEAENDERT: dict[str, str] = {
         "Dortmund: /sprache antwortet jetzt statt mit "
         "\"Diesen Befehl kenne ich nicht.\"."
     ),
+    "web._BEARBEITEN_JS": (
+        "Aufgabe 17: das Skript der Gruppenseite traegt keine Meldungen mehr "
+        "(\"Wirklich entfernen?\", \"speichert …\", \"gespeichert\", \"ging "
+        "nicht\"), es liest sie aus data-Attributen von #meldungen, die "
+        "web._bearbeiten_html aus web._JS_* (ueber T) setzt. Fuer Dortmund "
+        "stehen dieselben vier Woerter wie vorher neben dem Feld -- geaendert "
+        "hat sich nur der Weg, nicht der Text (tests/test_web_sprache.py)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

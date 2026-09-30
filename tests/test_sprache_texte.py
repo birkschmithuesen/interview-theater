@@ -35,7 +35,7 @@ UMGESTELLT: set[str] = {
     "kuerzung", "vorspann", "sprecher", "stile", "arbeitszeilen",
     "szene", "szenenfolge", "kurzgeschichte", "schaerfung", "sprachprofil",
     "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
-    "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben",
+    "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben", "web",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -70,6 +70,16 @@ BLEIBT_DEUTSCH = {
         "Interner Auftrag an szene.starte (\"Schreib Szene N neu. ...\"); der "
         "Szenennummer-Parser liest bis Aufgabe 23 nur Deutsch"
     ),
+    # Aufgabe 17: Skript und Stil der Webseiten -- deutsch sind nur die
+    # Kommentare darin. Die Meldungen des Speicherns liest _BEARBEITEN_JS aus
+    # data-Attributen (#meldungen, web._JS_*), nicht aus dem Skript.
+    "web._SCROLL_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
+    "web._BEARBEITEN_JS": "JavaScript, nur Kommentare deutsch; Meldungen aus data-Attributen",
+    "web._TEXTBUCH_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
+    "web._CSS_DASHBOARD": "CSS, nur Kommentare deutsch",
+    "web._CSS_GRUPPE": "CSS, nur Kommentare deutsch",
+    "web._CSS_LEITFADEN": "CSS, nur Kommentare deutsch",
+    "web._CSS_TEXTBUCH": "CSS, nur Kommentare deutsch",
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit
@@ -164,6 +174,14 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail szene_prompt_gekuerzt (repo.merke_vorfall)",
     ("dramaturgie.mechanik", "\\b[A-ZÄÖÜ][a-zäöüß]{%d,}\\b"):
         "Regex-Muster fuer Eigennamen (Parser), kein Text",
+    # Aufgabe 17: das Team-Dashboard (web.dashboard_html) bleibt deutsch --
+    # projiziert, fuer das Team, Karte A2/UX fasst es an.
+    ("web", '<p class="leer">heute noch keine Modella'): "Dashboard, Team",
+    ("web", '<p class="leer">Noch keine Gruppe hat ge'): "Dashboard, Team",
+    ("web", "— keine Gruppe —"): "Dashboard, Team",
+    ("web", '<h1>Arbeitsstand aller Gruppen <span cla'): "Dashboard, Team",
+    ("web", "interview-theater-web hoert auf http://{"):
+        "Startzeile des Dienstes (stdout, betrieb/web.log), Betreiberausgabe",
 }
 
 _STOPP = re.compile(
@@ -546,3 +564,9 @@ def test_beschriftungstabelle_deckt_jedes_wort_der_struktur(struktur, beschriftu
 
 def test_umgestellt_ist_teilmenge_von_alle_module():
     assert UMGESTELLT <= ALLE_MODULE
+
+
+def test_alle_module_sind_umgestellt():
+    """Aufgabe 17: ab jetzt gilt der Waechter fuer das ganze Paket -- jedes
+    Modul mit Nutzertexten liest ueber ``T``."""
+    assert UMGESTELLT == ALLE_MODULE

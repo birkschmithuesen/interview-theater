@@ -3908,7 +3908,7 @@ Das **Orakel** fuer Vollstaendigkeit ist der Render-Test unten: er rendert
 die drei Seiten fuer eine englische Fixture-Gruppe und laesst
 `pruefe_sprache.deutsche_treffer` darueber laufen.
 
-- [ ] **Schritt 1: Test schreiben** — `tests/test_web_sprache.py`:
+- [x] **Schritt 1: Test schreiben** — `tests/test_web_sprache.py`:
 
 ```python
 """Gruppenseite, Probenansicht, Leitfaden-Seite ohne deutsches Wort (D10d)."""
@@ -3982,18 +3982,18 @@ def test_lang_attribut(tmp_path, padua):
     `gruppe_nach_token(conn, token)` (:1066) und
     `leitfaden_nach_token(conn, token)` (:1206) sind die bestehenden
     Lesezugriffe — derselbe Weg wie im Server (web.py:2652–2657).
-- [ ] **Schritt 2:** rot: `$PY -m pytest -q -p no:cacheprovider tests/test_web_sprache.py`
+- [x] **Schritt 2:** rot: `$PY -m pytest -q -p no:cacheprovider tests/test_web_sprache.py`
   → `test_padua_seiten_ohne_deutsch` listet jeden deutschen Rest (das ist die
   Arbeitsliste), `test_lang_attribut` rot.
-- [ ] **Schritt 3:** umstellen (fuenf Schritte), bis die Liste leer ist.
+- [x] **Schritt 3:** umstellen (fuenf Schritte), bis die Liste leer ist.
   `_SCROLL_JS`/`_BEARBEITEN_JS` enthalten Kommentare, keine Nutzertexte
   (`nur_text` entfernt `<script>`); pruefen, ob sie Meldungen an den Nutzer
   enthalten (`alert(`, `textContent =`) — wenn ja, ueber ein `data-`-Attribut
   aus `T` einspeisen.
-- [ ] **Schritt 4:** gruen: `tests/test_web*.py tests/test_sprache_texte.py tests/test_sprache_bitgleich.py`.
-- [ ] **Schritt 5: Mutationsnachweis:** in `gruppe_html` eine Ueberschrift
+- [x] **Schritt 4:** gruen: `tests/test_web*.py tests/test_sprache_texte.py tests/test_sprache_bitgleich.py`.
+- [x] **Schritt 5: Mutationsnachweis:** in `gruppe_html` eine Ueberschrift
   zurueck auf das deutsche Literal → `test_padua_seiten_ohne_deutsch` rot.
-- [ ] **Schritt 6:** SUITE; `test_umgestellt_ist_teilmenge_von_alle_module`
+- [x] **Schritt 6:** SUITE; `test_umgestellt_ist_teilmenge_von_alle_module`
   und zusaetzlich einmal von Hand `assert UMGESTELLT == ALLE_MODULE` (in
   den Test aufnehmen: `test_alle_module_sind_umgestellt`) — ab jetzt gilt
   der Waechter fuer das ganze Paket. Commit

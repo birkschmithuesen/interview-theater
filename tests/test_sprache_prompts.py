@@ -30,6 +30,8 @@ NOCH_OFFEN = set(REPO_NAMEN) - {
     # Aufgabe 18: das Gespraech.
     "system", "phasen/1", "phasen/2", "phasen/3", "phasen/4", "phasen/5",
     "phasen/6", "phasen/7", "rahmen", "rahmen-kurz", "rahmen-knapp", "projekt",
+    # Aufgabe 19: die Extraktion.
+    "erkenner", "journal", "verdichter", "kernzitate", "schaerfung", "sprachprofil",
 }
 
 #: Inhaltsbausteine (W1): ihre deutsche Fassung traegt Dortmund-Inhalt
@@ -178,3 +180,18 @@ def test_englische_phasen_bewerben_keinen_befehl(padua, nummer):
 def test_padua_systemanweisung_ohne_offenen_platzhalter(padua):
     for phase in range(1, 8):
         assert "{{" not in anweisungen.system("gruppe1", phase)
+
+
+# --- Aufgabe 19: die Extraktion auf Englisch (erkenner, journal, verdichter,
+# kernzitate, schaerfung, sprachprofil) ---
+
+@pytest.mark.parametrize("name", ["verdichter", "kernzitate", "schaerfung", "sprachprofil"])
+def test_d7_zitate_bleiben_im_original(padua, name):
+    text = " ".join(anweisungen.hole(name).split())
+    assert "Supporting quotes stay word for word in the language of the transcript" in text
+    assert "never translate them" in text
+
+
+def test_erkenner_behaelt_seine_few_shots(padua):
+    deutsch = (REPO / "erkenner.md").read_text(encoding="utf-8").count('"aenderungen"')
+    assert anweisungen.hole("erkenner").count('"aenderungen"') == deutsch == 21

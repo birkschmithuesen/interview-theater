@@ -4186,7 +4186,7 @@ Original), `journal.md`, `verdichter.md`, `kernzitate.md`, `schaerfung.md`,
 - Absendernamen in den Few-Shots erscheinen schon als **„Member 1:"**,
   **„Member 2:"** — so sieht das Modell den Verlauf in Padua (Aufgabe 25).
 
-- [ ] **Schritt 1: Test** (in `tests/test_sprache_prompts.py`):
+- [x] **Schritt 1: Test** (in `tests/test_sprache_prompts.py`):
 
 ```python
 @pytest.mark.parametrize("name", ["verdichter", "kernzitate", "schaerfung", "sprachprofil"])
@@ -4201,14 +4201,14 @@ def test_erkenner_behaelt_seine_few_shots(padua):
     assert anweisungen.hole("erkenner").count('"aenderungen"') == deutsch == 21
 ```
 
-- [ ] **Schritt 2:** rot; **Schritt 3:** schreiben, `NOCH_OFFEN -= {…6…}`.
-- [ ] **Schritt 4:** gruen wie Aufgabe 18 (Test-Dateien plus
+- [x] **Schritt 2:** rot; **Schritt 3:** schreiben, `NOCH_OFFEN -= {…6…}`.
+- [x] **Schritt 4:** gruen wie Aufgabe 18 (Test-Dateien plus
   `tests/test_erkenner.py tests/test_journal.py tests/test_verdichter.py tests/test_korpus.py`);
   `$PY -m scripts.pruefe_sprache --dateien interview_theater/sprachen/en/prompts/{erkenner,journal,verdichter,kernzitate,schaerfung,sprachprofil}.md` → `0 Treffer`.
-- [ ] **Schritt 5: Mutationsnachweis:** einen Few-Shot im englischen
+- [x] **Schritt 5: Mutationsnachweis:** einen Few-Shot im englischen
   Erkenner loeschen → `test_gleiche_platzhalter_und_struktur[erkenner]`
   und `test_erkenner_behaelt_seine_few_shots` rot.
-- [ ] **Schritt 6:** SUITE; Commit `"Englische Extraktionsprompts, Zitate im Original (A1, D7)"`.
+- [x] **Schritt 6:** SUITE; Commit `"Englische Extraktionsprompts, Zitate im Original (A1, D7)"`.
 
 ---
 

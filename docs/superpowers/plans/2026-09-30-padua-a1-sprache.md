@@ -5080,7 +5080,7 @@ haelt es fest.
 
 **Files:** Test: `tests/test_zitat.py` (anhaengen).
 
-- [ ] **Schritt 1: Tests**
+- [x] **Schritt 1: Tests**
 
 ```python
 import pytest
@@ -5105,13 +5105,13 @@ def test_zitate_bleiben_im_original(zitat_, transkript, soll):
     assert zitat.pruefe(zitat_, transkript) is soll
 ```
 
-- [ ] **Schritt 2:** `$PY -m pytest -q -p no:cacheprovider tests/test_zitat.py`
+- [x] **Schritt 2:** `$PY -m pytest -q -p no:cacheprovider tests/test_zitat.py`
   → **gruen beim ersten Lauf** (gemessene Erwartung: der Code traegt das
   schon). Rotsehen ersetzt der Mutationsnachweis.
-- [ ] **Schritt 3: Mutationsnachweis:** in `zitat._ERSETZUNGEN` den Eintrag
+- [x] **Schritt 3: Mutationsnachweis:** in `zitat._ERSETZUNGEN` den Eintrag
   `"’": "'"` entfernen → `test_zitate_bleiben_im_original[l'ho detto…]` rot.
   Zuruecksetzen (`git checkout interview_theater/zitat.py`).
-- [ ] **Schritt 4:** SUITE; Commit `"Zitatpruefung: Italienisch, Kyrillisch, Arabisch im Original, Uebersetzung kein Beleg (A1, D7)"`.
+- [x] **Schritt 4:** SUITE; Commit `"Zitatpruefung: Italienisch, Kyrillisch, Arabisch im Original, Uebersetzung kein Beleg (A1, D7)"`.
 
 ---
 

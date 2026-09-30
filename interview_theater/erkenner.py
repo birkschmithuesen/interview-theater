@@ -265,11 +265,13 @@ _VORLAUF_KOPF = (
 )
 
 
-def _nachrichten_text(nachrichten, vorlauf=None) -> str:
-    zeilen = [kontext.sprecherzeile(n) for n in nachrichten]
+def _nachrichten_text(nachrichten, vorlauf=None, namen=None) -> str:
+    """``namen``: Pseudonyme aus ``kontext.pseudonyme`` (E8), ``None`` =
+    Vornamen wie bisher."""
+    zeilen = [kontext.sprecherzeile(n, namen) for n in nachrichten]
     text = T._NACHRICHTEN_KOPF + "\n".join(zeilen)
     if vorlauf is not None:
-        text = T._VORLAUF_KOPF + kontext.sprecherzeile(vorlauf) + "\n\n" + text
+        text = T._VORLAUF_KOPF + kontext.sprecherzeile(vorlauf, namen) + "\n\n" + text
     return text
 
 
@@ -278,7 +280,11 @@ def _baue_nutzertext(conn, chat_id: int, nachrichten, vorlauf=None) -> str:
     die neuen Nachrichten seit dem Wasserzeichen -- nicht das Journal, nicht
     die Transkripte (SPEC § 4.3). Seit 05.09. mit Vorlauf (letzte
     Bot-Nachricht vor dem Fenster), siehe ``erkenne``."""
-    bloecke = [b for b in (_arbeitsstand_text(conn, chat_id), _nachrichten_text(nachrichten, vorlauf)) if b]
+    namen = kontext.pseudonyme(
+        conn, chat_id, list(nachrichten) + ([vorlauf] if vorlauf is not None else [])
+    )
+    bloecke = [b for b in (_arbeitsstand_text(conn, chat_id),
+                           _nachrichten_text(nachrichten, vorlauf, namen)) if b]
     return "\n\n".join(bloecke)
 
 

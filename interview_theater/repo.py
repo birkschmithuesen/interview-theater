@@ -345,6 +345,21 @@ def letzte_nachrichten(conn: sqlite3.Connection, chat_id: int, anzahl: int = 200
 
 
 @_gesperrt
+def absender_in_reihenfolge(conn: sqlite3.Connection, chat_id: int) -> list[str]:
+    """Die Absendernamen der Gruppe (ohne Bot) in der Reihenfolge ihres
+    ersten Auftretens -- die Grundlage stabiler Pseudonyme (E8, Karte A1).
+    ``telegram_user`` wird nie geschrieben (db.py:45), also bleibt der
+    Vorname der einzige Schluessel."""
+    zeilen = conn.execute(
+        "SELECT absender, MIN(gesendet_am) AS zuerst FROM nachricht "
+        "WHERE chat_id = ? AND ist_bot = 0 AND absender IS NOT NULL AND absender != '' "
+        "GROUP BY absender ORDER BY zuerst, absender",
+        (chat_id,),
+    ).fetchall()
+    return [z["absender"] for z in zeilen]
+
+
+@_gesperrt
 def hole_update_id(conn: sqlite3.Connection, bot_name: str) -> int:
     """Liefert die zuletzt verarbeitete getUpdates-Position, 0 wenn unbekannt."""
     row = conn.execute(

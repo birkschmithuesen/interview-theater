@@ -990,7 +990,8 @@ def _wirkung_ohne_knopf_ja(conn, d: Druck) -> str:
         return T._TEXT_OHNE_KNOPF_UNBEKANNT
     kopf_id = aufnahme.nimm_als_interview(conn, d.tg, d.chat_id, kennung)
     kopf = repo.hole_aufnahme(conn, kopf_id) if kopf_id else None
-    name = (kopf["name"] if kopf else None) or T._TEXT_DAS_INTERVIEW_ANFANG
+    name = (aufnahme.anzeigename(conn, kopf, T._TEXT_DAS_INTERVIEW_ANFANG)
+            if kopf else T._TEXT_DAS_INTERVIEW_ANFANG)
     biete_interview_ohne_knopf_weiter(
         conn, d.tg, d.chat_id,
         T._TEXT_INTERVIEW_STEHT.format(
@@ -1120,7 +1121,7 @@ def _wirkung_auswerten(conn, d: Druck) -> str:
     if kopf is None:
         d.tg.sende(d.chat_id, T._TEXT_AUSWERTEN_UNBEKANNT)
         return T._TEXT_AUSWERTEN_UNBEKANNT
-    name = kopf["name"] or T._TEXT_DAS_INTERVIEW_ANFANG
+    name = aufnahme.anzeigename(conn, kopf, T._TEXT_DAS_INTERVIEW_ANFANG)
     if aufnahme.zeige_verdichtung(conn, d.tg, d.e, kopf_id):
         return T._ANTWORT_AUSWERTUNG
     if d.klm is None:
@@ -1157,7 +1158,9 @@ def _wirkung_transkript(conn, d: Druck) -> str:
     if not text:
         d.tg.sende(d.chat_id, T._TEXT_KEIN_TRANSKRIPT)
         return T._TEXT_KEIN_TRANSKRIPT
-    name = (kopf["name"] if kopf else None) or T._TEXT_DAS_INTERVIEW_ANFANG
+    from interview_theater import aufnahme
+
+    name = aufnahme.anzeigename(conn, kopf, T._TEXT_DAS_INTERVIEW_ANFANG)
     for stueck in telegram_modul.teile_text(
         T._TEXT_IM_WORTLAUT.format(name=name, text=text)
     ):

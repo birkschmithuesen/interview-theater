@@ -216,6 +216,11 @@ _REIHENFOLGE = (
 #: ``_SPRECHER_BOT``: so heisst der Bot im Verlauf (``sprecherzeile``) -- das
 #: Modell liest seine eigenen frueheren Aeusserungen in der zweiten Person.
 _SPRECHER_BOT = "Du"
+#: Wie ein Mitglied der Gruppe im Prompt heisst, wenn das Profil Pseudonyme
+#: verlangt (E8, Karte A1). In Dortmund nie benutzt -- die deutsche Tabelle
+#: braucht trotzdem einen Wert.
+_PSEUDONYM = "Mitglied {nummer}"
+_PSEUDONYM_UNBEKANNT = "Mitglied"
 _PAUSE_STUNDE = "[Pause: {stunden} Stunde]"
 _PAUSE_STUNDEN = "[Pause: {stunden} Stunden]"
 _ZEILE_KERNTHEMA = "Kernthema: {kernthema}"
@@ -267,7 +272,29 @@ def schaetze(text: str) -> int:
     return len(text) // _ZEICHEN_JE_TOKEN
 
 
-def sprecherzeile(n) -> str:
+def pseudonyme(conn, chat_id: int, zeilen=()) -> dict[str, str] | None:
+    """{Vorname: "Member N"} nach erstem Auftreten, oder None, wenn das
+    Profil keine Pseudonyme verlangt (dann bleibt alles, wie es war).
+    ``zeilen`` ergaenzt Namen, die (noch) nicht in der Datenbank stehen --
+    der Korpuslauf fuettert den Erkenner mit Zeilen ohne DB (pruefe_prompts).
+
+    "Ein Modell kann keinen Namen verwenden, den es nie sieht" (E8): die
+    Regel steht im Prompt, dieser Schalter sorgt dafuer, dass der Code gar
+    keinen Vornamen hineinlegt. Stabil ist die Nummer, weil sie aus der
+    Reihenfolge des ersten Auftretens kommt (``repo.absender_in_reihenfolge``)
+    -- wer als Erste geschrieben hat, bleibt "Member 1", auch wenn sie
+    laengst aus dem Fenster gefallen ist."""
+    if not sprache.pseudonyme():
+        return None
+    namen = list(repo.absender_in_reihenfolge(conn, chat_id))
+    for n in zeilen:
+        absender = n["absender"]
+        if not n["ist_bot"] and absender and absender not in namen:
+            namen.append(absender)
+    return {name: T._PSEUDONYM.format(nummer=i) for i, name in enumerate(namen, start=1)}
+
+
+def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
     """Formatiert eine ``nachricht``-Zeile als ``"Sprecher: Text"``.
 
     Bot-Nachrichten erscheinen als Sprecher ``Du`` (``_SPRECHER_BOT``,
@@ -280,8 +307,17 @@ def sprecherzeile(n) -> str:
     Nachrichten ohne Text (Sprache ohne Transkript, Foto, Sticker, ...)
     erscheinen als ``"Name: (typ)"`` statt als leere Zeile -- die Gruppe hat
     etwas geschickt, und das Modell soll das wissen.
+
+    ``namen`` (E8, Karte A1): steht dort ein Mapping (``pseudonyme()``),
+    ersetzt es den Vornamen; ein Name, der darin fehlt, wird nie
+    durchgereicht, sondern heisst "Member". ``None`` ist das alte Verhalten.
     """
-    sprecher = T._SPRECHER_BOT if n["ist_bot"] else n["absender"]
+    if n["ist_bot"]:
+        sprecher = T._SPRECHER_BOT
+    elif namen is None:
+        sprecher = n["absender"]
+    else:
+        sprecher = namen.get(n["absender"], T._PSEUDONYM_UNBEKANNT)
     text = n["text"]
     if text:
         return f"{sprecher}: {text}"
@@ -374,7 +410,11 @@ def _baue_transkripte(conn, chat_id: int) -> str:
             continue
         transkript = repo.zusammengefuegtes_transkript(conn, a["id"])
         if transkript:
-            zeilen.append(T._ZEILE_VOLLTRANSKRIPT.format(name=a["name"], transkript=transkript))
+            # E8: in einem Profil mit Pseudonymen nie der Aufnahmename (oft
+            # ein Klarname), sondern die Nummer wie bei den Verdichtungen.
+            anzeige = (interviewbezeichnung(conn, chat_id, a["id"])
+                       if sprache.pseudonyme() else a["name"])
+            zeilen.append(T._ZEILE_VOLLTRANSKRIPT.format(name=anzeige, transkript=transkript))
     if not zeilen:
         return ""
     return T._VOLLTRANSKRIPTE_KOPF + "\n\n".join(zeilen)
@@ -973,7 +1013,7 @@ def fenster_grenzen() -> dict:
     }
 
 
-def waehle_fenster(nachrichten: list, bezug=None) -> list:
+def waehle_fenster(nachrichten: list, bezug=None, namen: dict[str, str] | None = None) -> list:
     """Waehlt aus einer chronologisch aufsteigenden Liste die Nachrichten,
     die ins Fenster gehoeren -- **die eine Auswahlregel**, die sowohl der
     Promptbau als auch die Verdraengungsrechnung benutzt.
@@ -993,6 +1033,9 @@ def waehle_fenster(nachrichten: list, bezug=None) -> list:
     Nachrichten (die Verdraengungsrechnung arbeitet auf Rohdicts aus Tests
     ohne Zeitfeld) entfaellt Schritt 3 stillschweigend -- Zeichen- und
     Nachrichtengrenze tragen dann allein.
+
+    ``namen`` (E8): dieselben Pseudonyme wie im Prompt, damit das Fenster
+    genau an der Stelle schneidet, an der es misst.
     """
     if not nachrichten:
         return []
@@ -1001,10 +1044,10 @@ def waehle_fenster(nachrichten: list, bezug=None) -> list:
     kandidaten = nachrichten[-grenzen["nachrichten"]:]
 
     # Schritt 2: von hinten auffuellen. Die juengste ist gesetzt.
-    kumuliert = len(sprecherzeile(kandidaten[-1]))
+    kumuliert = len(sprecherzeile(kandidaten[-1], namen))
     beginnt_bei = len(kandidaten) - 1
     for index in range(len(kandidaten) - 2, -1, -1):
-        groesse = len(sprecherzeile(kandidaten[index])) + 1  # +1 Zeilenumbruch
+        groesse = len(sprecherzeile(kandidaten[index], namen)) + 1  # +1 Zeilenumbruch
         if kumuliert + groesse > grenzen["zeichen"]:
             break
         kumuliert += groesse
@@ -1087,7 +1130,7 @@ def _ist_systemzeile(n) -> bool:
                for anfang in _SYSTEMANFAENGE + _SYSTEMANFAENGE_EN)
 
 
-def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
+def _baue_fenster_eintraege(conn, chat_id: int, ausloeser, namen=None) -> list[str]:
     """Liefert die Eintraege des kurzen Fensters (Nachrichtenzeilen und
     Pausenmarkierungen), **aeltester zuerst** -- nach den Grenzen aus
     ``fenster_grenzen()`` (primaer ``FENSTER_ZEICHEN``, Obergrenze
@@ -1115,7 +1158,12 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
 
     Jeder Listeneintrag bleibt eine atomare Einheit (eine Pausenzeile oder
     eine einzelne Nachricht) -- Grundlage dafuer, dass die Kuerzung in
-    ``baue()`` ganze Nachrichten abschneiden kann."""
+    ``baue()`` ganze Nachrichten abschneiden kann.
+
+    ``namen``: die Pseudonyme aus ``baue()`` (E8); fehlen sie, holt die
+    Funktion sie selbst -- die Messskripte rufen sie ohne."""
+    if namen is None:
+        namen = pseudonyme(conn, chat_id, ausloeser)
     ausloeser_ids = {n["message_id"] for n in ausloeser}
     roh = [
         n for n in repo.letzte_nachrichten(conn, chat_id, anzahl=_FENSTER_POOL)
@@ -1125,7 +1173,7 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
     roh.sort(key=lambda n: n["gesendet_am"])
 
     bezug = _bezugszeit(ausloeser)
-    kandidaten = waehle_fenster(roh, bezug)
+    kandidaten = waehle_fenster(roh, bezug, namen)
 
     eintraege = []
     vorherige_zeit = None
@@ -1134,7 +1182,7 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser) -> list[str]:
             pause = _pausenzeile(vorherige_zeit, n["gesendet_am"])
             if pause:
                 eintraege.append(pause)
-        eintraege.append(sprecherzeile(n))
+        eintraege.append(sprecherzeile(n, namen))
         vorherige_zeit = n["gesendet_am"]
     # **Die Pause VOR dem Ausloeser** (06.09.2026, Auftrag 2). Der haeufigste
     # Fall einer langen Pause ist gerade der, in dem die erste Nachricht
@@ -1161,12 +1209,12 @@ def _bezugszeit(ausloeser):
     return max(zeiten) if zeiten else None
 
 
-def _baue_ausloeser(ausloeser) -> str:
+def _baue_ausloeser(ausloeser, namen: dict[str, str] | None = None) -> str:
     """Die ausloesende(n) Nachricht(en) -- ueberlebt jede Kuerzung (§ 7.2),
     darum von der Kuerzungslogik in baue() nie angefasst."""
     if not ausloeser:
         return ""
-    zeilen = [sprecherzeile(n) for n in ausloeser]
+    zeilen = [sprecherzeile(n, namen) for n in ausloeser]
     return T._AUSLOESER_KOPF + "\n".join(zeilen)
 
 
@@ -1295,7 +1343,7 @@ def _systemgroesse(conn, chat_id: int, e) -> int:
 
 
 def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
-             fenster_eintraege: list) -> dict:
+             fenster_eintraege: list, namen: dict[str, str] | None = None) -> dict:
     """Die Bloecke des Nutzertexts, in ihrer Reihenfolge -- datengetrieben:
     jeder Block bleibt leer, solange seine Daten leer sind (SPEC § 6.1)."""
     # Der Kontext-Filter je Phase (05.09.2026 abends): bis zur Kernfrage
@@ -1327,7 +1375,7 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         "szene": _baue_szene(conn, chat_id),
         "journal": _baue_journal(conn, chat_id),
         "fenster": "\n".join(fenster_eintraege),
-        "ausloeser": _baue_ausloeser(ausloeser),
+        "ausloeser": _baue_ausloeser(ausloeser, namen),
     }
 
 
@@ -1494,8 +1542,10 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     Kernpaket, Hinweise und Ausloeser sind von der Kuerzung grundsaetzlich
     ausgenommen; es gibt keinen Zustand, in dem der Bot wegen des Budgets
     nicht antworten koennte."""
-    fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser)
-    bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege)
+    # E8: die Pseudonyme einmal je Prompt, fuer Fenster UND Ausloeser.
+    namen = pseudonyme(conn, chat_id, ausloeser)
+    fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser, namen)
+    bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege, namen)
     # Einmal gemessen, zweimal gebraucht: in der Kuerzung (Gesamtgrenze) und
     # im Umriss (Auftrag 4, Befund C.1).
     system_zeichen = _systemgroesse(conn, chat_id, e)

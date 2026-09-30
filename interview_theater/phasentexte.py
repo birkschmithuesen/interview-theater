@@ -224,7 +224,12 @@ def _einleitungen_geprueft(conn, chat_id: int) -> str:
 
 
 def _interviews(conn, chat_id: int) -> str:
-    namen = [a["name"] for a in repo.transkripte(conn, chat_id) if a["name"]]
+    # E8: mit Pseudonymen "Interview N" statt Aufnahmename -- der Text geht
+    # als Bot-Nachricht zurueck in jedes Fenster.
+    from interview_theater import aufnahme
+
+    namen = [aufnahme.anzeigename(conn, a, a["name"])
+             for a in repo.transkripte(conn, chat_id) if a["name"]]
     return TRENNER.join(namen)
 
 

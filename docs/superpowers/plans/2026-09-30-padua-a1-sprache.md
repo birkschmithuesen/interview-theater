@@ -4804,7 +4804,7 @@ Vorname und kein Aufnahmename im Prompt steht — sobald das Profil
   `tests.fixture_sprache.ABSENDER = ("Giulia", "Tomasz", "Amara")`,
   `AUFNAHMENAME = "Rosa"`, `baue_englische_gruppe(conn) -> str` (Token).
 
-- [ ] **Schritt 1: Fixture pruefen** — `tests/fixture_sprache.py` (in
+- [x] **Schritt 1: Fixture pruefen** — `tests/fixture_sprache.py` (in
   Aufgabe 17 angelegt; steht sie noch nicht da, jetzt so anlegen):
 
 ```python
@@ -4878,7 +4878,7 @@ def baue_englische_gruppe(conn, chat_id: int = 1) -> str:
   selbst in den Text schreibt, ist Inhalt der Gruppe — das regelt der
   Prompt (E8-Satz), nicht der Code.)
 
-- [ ] **Schritt 2: Tests** — `tests/test_pseudonyme.py`:
+- [x] **Schritt 2: Tests** — `tests/test_pseudonyme.py`:
 
 ```python
 """E8: in Padua sieht kein Prompt einen Vornamen oder Aufnahmenamen (D6)."""
@@ -4949,13 +4949,13 @@ def test_dortmund_behaelt_die_vornamen(conn, einst):
     assert aufnahme.anzeigename(conn, zeile, "Das Interview") == AUFNAHMENAME
 ```
 
-- [ ] **Schritt 3: Rot sehen**
+- [x] **Schritt 3: Rot sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_pseudonyme.py`
 Expected: FAIL — `AttributeError: … has no attribute 'pseudonyme'`, dann
 `assert ['Giulia', 'Tomasz', 'Amara'] == []`.
 
-- [ ] **Schritt 4: Umsetzen**
+- [x] **Schritt 4: Umsetzen**
 
 `repo.py` (bei den Nachrichten-Lesern, nach `letzte_nachrichten` :321):
 
@@ -5055,18 +5055,18 @@ def anzeigename(conn, row, ersatz: str) -> str:
   **Nicht** anfassen: `aufnahme.finde_interview` (1308–1313) — das liest,
   was die Gruppe tippt.
 
-- [ ] **Schritt 5: Gruen sehen**
+- [x] **Schritt 5: Gruen sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_pseudonyme.py tests/test_kontext.py tests/test_erkenner.py tests/test_journal.py tests/test_aufnahme.py tests/test_prompt_audit.py tests/test_kontext_recall.py tests/test_sprache_bitgleich.py tests/test_profil_bitgleich.py`
 Expected: alle gruen.
 
-- [ ] **Schritt 6: Mutationsnachweis:** in `sprecherzeile`
+- [x] **Schritt 6: Mutationsnachweis:** in `sprecherzeile`
   `namen.get(n["absender"], T._PSEUDONYM_UNBEKANNT)` →
   `namen.get(n["absender"], n["absender"])` und in `pseudonyme` `Amara`
   vergessen lassen (`namen = namen[:2]`) → `test_gespraechsprompt_ohne_namen`
   rot mit `['Amara']`. Zuruecksetzen.
 
-- [ ] **Schritt 7:** SUITE; Commit `"E8: Pseudonyme statt Vornamen, Interviewnummer statt Aufnahmename im Prompt (A1)"`.
+- [x] **Schritt 7:** SUITE; Commit `"E8: Pseudonyme statt Vornamen, Interviewnummer statt Aufnahmename im Prompt (A1)"`.
 
 ---
 

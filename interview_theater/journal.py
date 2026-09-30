@@ -132,7 +132,7 @@ SCHEMA = {
 }
 
 
-def berechne_verdraengten_abschnitt(nachrichten: list) -> list:
+def berechne_verdraengten_abschnitt(nachrichten: list, namen=None) -> list:
     """Liefert genau den Abschnitt, der aus dem kurzen Fenster gefallen ist
     -- oder eine leere Liste, wenn entweder noch nichts verdraengt wurde oder
     der verdraengte Teil kleiner als ``SCHWELLE_VERDRAENGUNG`` ist.
@@ -156,11 +156,14 @@ def berechne_verdraengten_abschnitt(nachrichten: list) -> list:
     ungefiltert (wie ``repo.unjournalisierte`` sie liefert) -- typischerweise
     alles seit dem Journal-Wasserzeichen. Diese Funktion beruehrt weder die
     Datenbank noch ein Sprachmodell und laesst sich deshalb ohne beides
-    testen."""
+    testen.
+
+    ``namen``: dieselben Pseudonyme wie im Gespraechs-Prompt (E8, Karte A1)
+    -- sonst maesse die Verdraengung an einem anderen Text als das Fenster."""
     if not nachrichten:
         return []
 
-    im_fenster = kontext.waehle_fenster(nachrichten)
+    im_fenster = kontext.waehle_fenster(nachrichten, namen=namen)
     # Identitaet, nicht Gleichheit: zwei Nachrichten koennen denselben Text
     # tragen (ein "ja" ist haeufig), und ``sqlite3.Row`` ist nicht hashbar.
     im_fenster_ids = {id(n) for n in im_fenster}
@@ -168,7 +171,7 @@ def berechne_verdraengten_abschnitt(nachrichten: list) -> list:
     if not verdraengt:
         return []
 
-    text = "\n".join(kontext.sprecherzeile(n) for n in verdraengt)
+    text = "\n".join(kontext.sprecherzeile(n, namen) for n in verdraengt)
     if kontext.schaetze(text) <= SCHWELLE_VERDRAENGUNG:
         return []
     return verdraengt
@@ -193,8 +196,8 @@ def _bisheriges_journal_text(conn, chat_id: int) -> str:
     return T._BISHERIGES_JOURNAL_KOPF + "\n".join(zeilen)
 
 
-def _ausschnitt_text(verdraengt) -> str:
-    zeilen = [kontext.sprecherzeile(n) for n in verdraengt]
+def _ausschnitt_text(verdraengt, namen=None) -> str:
+    zeilen = [kontext.sprecherzeile(n, namen) for n in verdraengt]
     return T._AUSSCHNITT_KOPF + "\n".join(zeilen)
 
 
@@ -202,7 +205,9 @@ def _baue_nutzertext(conn, chat_id: int, verdraengt) -> str:
     """Baut den Nutzertext des Extraktoraufrufs: die letzten Journaleintraege
     (Dedup-Referenz) plus GENAU der verdraengte Abschnitt -- nie das ganze
     Gespraech, nie das ganze Journal."""
-    bloecke = [b for b in (_bisheriges_journal_text(conn, chat_id), _ausschnitt_text(verdraengt)) if b]
+    namen = kontext.pseudonyme(conn, chat_id, verdraengt)
+    bloecke = [b for b in (_bisheriges_journal_text(conn, chat_id),
+                           _ausschnitt_text(verdraengt, namen)) if b]
     return "\n\n".join(bloecke)
 
 
@@ -225,7 +230,9 @@ def extrahiere(klm, conn, e, chat_id: int) -> list[dict]:
     if not nachrichten:
         return []
 
-    verdraengt = berechne_verdraengten_abschnitt(nachrichten)
+    verdraengt = berechne_verdraengten_abschnitt(
+        nachrichten, kontext.pseudonyme(conn, chat_id, nachrichten)
+    )
     if not verdraengt:
         # Noch nichts (Genuegendes) aus dem Fenster gefallen -- das
         # Wasserzeichen bleibt stehen, der naechste Zug prueft erneut mit

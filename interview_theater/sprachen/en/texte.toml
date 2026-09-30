@@ -799,6 +799,8 @@ fragen = "Questions"
 
 ["kontext"]
 _SPRECHER_BOT = "You"
+_PSEUDONYM = "Member {nummer}"
+_PSEUDONYM_UNBEKANNT = "Member"
 _PAUSE_STUNDE = "[Break: {stunden} hour]"
 _PAUSE_STUNDEN = "[Break: {stunden} hours]"
 _ZEILE_KERNTHEMA = "Core theme: {kernthema}"

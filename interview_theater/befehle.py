@@ -281,8 +281,17 @@ def _namen_der_aufnahmen(conn, chat_id: int) -> list[str]:
     return [a["name"] for a in repo.transkripte(conn, chat_id) if a["name"]]
 
 
+def _aufnahmen_mit_anzeige(conn, chat_id: int) -> list[tuple[str, str]]:
+    """(gespeicherter Name, Anzeigename) je benannter Aufnahme. Ohne
+    Pseudonyme sind beide gleich; mit Pseudonymen (E8) zeigt der Bot
+    "Interview N" und nimmt beides an -- was er zeigt, muss die Gruppe auch
+    tippen koennen."""
+    return [(a["name"], aufnahme.anzeigename(conn, a, a["name"]))
+            for a in repo.transkripte(conn, chat_id) if a["name"]]
+
+
 def _wortlaut_liste(conn, chat_id: int) -> str:
-    namen = _namen_der_aufnahmen(conn, chat_id)
+    namen = [anzeige for _, anzeige in _aufnahmen_mit_anzeige(conn, chat_id)]
     if not namen:
         return T._TEXT_KEINE_AUFNAHMEN
     return T._TEXT_NAME_UNBEKANNT.format(namen=", ".join(namen))
@@ -380,14 +389,15 @@ def _befehl_auswerten(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     starte_auswertung``) -- kein Befehl ruft synchron ein Modell."""
     kopf = aufnahme.finde_interview(conn, chat_id, rest)
     if kopf is None:
-        namen = [a["name"] for a in aufnahme.interviews(conn, chat_id) if a["name"]]
+        namen = [aufnahme.anzeigename(conn, a, a["name"])
+                 for a in aufnahme.interviews(conn, chat_id) if a["name"]]
         tg.sende(
             chat_id,
             T._TEXT_KEINE_AUFNAHMEN if not namen
             else T._TEXT_INTERVIEW_UNBEKANNT.format(namen=", ".join(namen)),
         )
         return
-    name = kopf["name"] or knoepfe.T._TEXT_DAS_INTERVIEW_ANFANG
+    name = aufnahme.anzeigename(conn, kopf, knoepfe.T._TEXT_DAS_INTERVIEW_ANFANG)
     if aufnahme.zeige_verdichtung(conn, tg, e, kopf["id"]):
         # Schon verdichtet: die vorhandene Auswertung wird ausgespielt, nicht
         # ein zweites Mal erzeugt (05.09.2026). Vorher stand hier nur "ist
@@ -749,15 +759,18 @@ def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:
         repo.setze_wortlaut_modus(conn, chat_id, "*")
         tg.sende(chat_id, T._TEXT_WORTLAUT_ALLE)
         return
-    vorhanden = _namen_der_aufnahmen(conn, chat_id)
-    treffer = next((n for n in vorhanden if n.lower() == rest.lower()), None)
+    treffer = next(
+        ((name, anzeige) for name, anzeige in _aufnahmen_mit_anzeige(conn, chat_id)
+         if rest.lower() in (name.lower(), anzeige.lower())),
+        None,
+    )
     if treffer is None:
         # Unbekannter Name: die vorhandenen aufzaehlen statt zu raten
         # (teil-b.md Aufgabe 6).
         tg.sende(chat_id, _wortlaut_liste(conn, chat_id))
         return
-    repo.setze_wortlaut_modus(conn, chat_id, treffer)
-    tg.sende(chat_id, T._TEXT_WORTLAUT_AN.format(name=treffer))
+    repo.setze_wortlaut_modus(conn, chat_id, treffer[0])
+    tg.sende(chat_id, T._TEXT_WORTLAUT_AN.format(name=treffer[1]))
 
 
 def _befehl_hilfe(tg, e, chat_id: int) -> None:

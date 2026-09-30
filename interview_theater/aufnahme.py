@@ -552,6 +552,19 @@ def _ist_ersatzname(name: str | None) -> bool:
     return bool(name) and re.fullmatch(r"Interview \d+", name) is not None
 
 
+def anzeigename(conn, row, ersatz: str) -> str:
+    """Wie eine Aufnahme in einem Bot-Text heisst (E8, Karte A1): in einem
+    Profil mit Pseudonymen immer "Interview N" -- ein Aufnahmename ist oft
+    ein Klarname ("das war Marias Interview") oder der Telegram-Name dessen,
+    der das Handy hielt, und Bot-Texte kommen als "Du:"-Zeilen zurueck in
+    jedes Fenster. Sonst wie bisher: der Name oder ``ersatz``."""
+    if sprache.pseudonyme():
+        from interview_theater import kontext
+
+        return kontext.interviewbezeichnung(conn, row["chat_id"], row["id"]) or ersatz
+    return row["name"] or ersatz
+
+
 def _aufnahme_beschreibung(conn, row, gross: bool) -> str:
     """Beschreibt eine Aufnahme in einer Nutzernachricht. Ein automatisch
     vergebener Ersatzname wie 'Interview 1' wirkt in einer Chatnachricht
@@ -565,11 +578,13 @@ def _aufnahme_beschreibung(conn, row, gross: bool) -> str:
     artikel = T._ARTIKEL_GROSS if gross else T._ARTIKEL_KLEIN
     if row["teil_von"]:
         kopf = repo.hole_aufnahme(conn, row["teil_von"])
-        name = (kopf["name"] if kopf else None) or "Interview"
+        name = anzeigename(conn, kopf, "Interview") if kopf else "Interview"
         return T._BESCHREIBUNG_TEIL.format(
             artikel=artikel, name=name, nummer=repo.teil_nummer(conn, row["id"]),
         )
-    name = row["name"]
+    # E8: mit Pseudonymen ist das immer "Interview N" -- ein Ersatzname, also
+    # die Klassenbeschreibung wie ohne echten Namen.
+    name = anzeigename(conn, row, "")
     if name and not _ist_ersatzname(name):
         return T._BESCHREIBUNG_NAME.format(artikel=artikel, name=name)
     art = T._ART_LANG if row["klasse"] == "lang" else T._ART_KURZ
@@ -929,7 +944,7 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
 
     kopf = repo.hole_aufnahme(conn, row["teil_von"])
     text = T._TEXT_TEIL_ECHO.format(
-        name=(kopf["name"] if kopf else None) or "Interview",
+        name=anzeigename(conn, kopf, "Interview") if kopf else "Interview",
         nummer=repo.teil_nummer(conn, row["id"]),
         transkript=row["transkript"],
     )
@@ -1051,7 +1066,7 @@ def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
     _sende_nach_interview(
         conn, tg, e, row["chat_id"],
         T._TEXT_ZU_KURZ.format(
-            name=row["name"] or T._TEXT_DAS_INTERVIEW,
+            name=anzeigename(conn, row, T._TEXT_DAS_INTERVIEW),
             woerter=woerter,
         ),
         row["id"],
@@ -1078,7 +1093,7 @@ def zeige_verdichtung(conn, tg, e, kopf_id: int) -> bool:
     if verdichtung is None:
         return False
     kopf = repo.hole_aufnahme(conn, kopf_id)
-    name = (kopf["name"] if kopf else None) or T._TEXT_DAS_INTERVIEW
+    name = anzeigename(conn, kopf, T._TEXT_DAS_INTERVIEW) if kopf else T._TEXT_DAS_INTERVIEW
     _sende_und_merke(
         conn, tg, e, verdichtung["chat_id"],
         _verdichtungstext(conn, name, verdichtung["id"]),
@@ -1129,7 +1144,7 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> N
     # das Material ist gesichert, steht auf der Gruppenseite und ist ueber
     # ``/auswerten`` jederzeit abrufbar. ``erzwungen`` kommt genau von dort --
     # dann WILL die Gruppe den Text sehen und bekommt ihn.
-    name = row["name"] or T._TEXT_DAS_INTERVIEW
+    name = anzeigename(conn, row, T._TEXT_DAS_INTERVIEW)
     if not erzwungen:
         # Seit dem 06.09.2026 (Birk 09:55) sagt der Bot, WAS herausgekommen
         # ist -- eine Zeile mit der Zaehlung, nicht die Verdichtung selbst.
@@ -1199,7 +1214,7 @@ def schliesse_ab(conn, tg, klm, e, kopf_id: int) -> bool:
     if repo.hat_offene_teile(conn, kopf_id):
         return False
 
-    name = kopf["name"] or T._TEXT_DAS_INTERVIEW
+    name = anzeigename(conn, kopf, T._TEXT_DAS_INTERVIEW)
     transkript = repo.zusammengefuegtes_transkript(conn, kopf_id)
     if not transkript.strip():
         if not repo.hole_teile(conn, kopf_id):
@@ -1357,7 +1372,7 @@ def _auswerten(conn, tg, klm, e, kopf_id: int) -> None:
         if not transkript.strip():
             _sende_und_merke(
                 conn, tg, e, row["chat_id"],
-                T._TEXT_OHNE_AUFNAHME.format(name=row["name"] or T._TEXT_DAS_INTERVIEW),
+                T._TEXT_OHNE_AUFNAHME.format(name=anzeigename(conn, row, T._TEXT_DAS_INTERVIEW)),
             )
             return
         repo.setze_transkript(conn, kopf_id, transkript)

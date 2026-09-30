@@ -11,6 +11,11 @@ def frisch(monkeypatch):
     workshop.vergiss()
     yield
     workshop.vergiss()
+    # Der Phaseneintritt liest Prompts; ein gefuellter Cache waere fuer den
+    # Text-Waechter (tests/test_sprache_texte.py) eine deutsche Konstante.
+    from interview_theater import anweisungen, sprache
+    anweisungen._CACHE.clear()
+    sprache.vergiss()
 
 
 def test_neue_spalte_ist_zuerst_leer(conn):
@@ -65,3 +70,73 @@ def test_die_aufnahme_reicht_die_sprache_an_whisper(conn, einst, tmp_path, monke
              "audio_pfad": str(tmp_path / "a.ogg")}
     assert aufnahme._transkribiere_mit_meldung(conn, TG(), einst, None, zeile) == "Ciao."
     assert gesehen == ["auto"]
+
+
+# --- Umstellen pro Gruppe: /sprache und drei Knoepfe in Phase 3 (Aufgabe 8) ---
+
+from interview_theater import befehle, knoepfe, sprache  # noqa: E402
+from simulation.attrappe import TelegramAttrappe  # noqa: E402
+
+
+def _padua(monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+
+
+def _druecke(conn, tg, einst, beschriftung):
+    knopf = next(k for k in tg.offene_knoepfe() if k["beschriftung"] == beschriftung)
+    knoepfe.behandle(conn, tg, None, einst, {
+        "callback_query_id": "q", "data": knopf["daten"],
+        "chat_id": 1, "message_id": knopf["message_id"]})
+
+
+def test_phase_3_bietet_in_padua_die_drei_sprachknoepfe(conn, einst, monkeypatch):
+    _padua(monkeypatch)
+    tg = TelegramAttrappe()
+    knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, knoepfe.PHASE_INTERVIEWS)
+    beschriftungen = [k["beschriftung"] for k in tg.offene_knoepfe()]
+    assert {"Auto", "English", "Italiano"} <= set(beschriftungen)
+
+
+def test_dortmund_sieht_die_sprachknoepfe_nie(conn, einst):
+    tg = TelegramAttrappe()
+    knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, 3)
+    assert "Italiano" not in [k["beschriftung"] for k in tg.offene_knoepfe()]
+
+
+def test_knopf_setzt_die_gruppensprache_und_wirkt_nur_einmal(conn, einst, monkeypatch):
+    _padua(monkeypatch)
+    tg = TelegramAttrappe()
+    knoepfe.biete_stt_sprache(conn, tg, 1)
+    _druecke(conn, tg, einst, "Italiano")
+    assert repo.stt_sprache(conn, 1) == "it"
+    assert "Italiano" in tg.texte()[-1]
+    # Zweiter Druck auf "English" derselben Leiste wirkt (andere Knopf-id),
+    # ein zweiter Druck auf denselben Knopf nicht.
+    knopf = next(k for k in tg.knoepfe[-1]["knoepfe"] if k[0] == "Italiano")
+    vorher = len(tg.gesendet)
+    knoepfe.behandle(conn, tg, None, einst, {
+        "callback_query_id": "q2", "data": knopf[1], "chat_id": 1, "message_id": 1})
+    assert len(tg.gesendet) == vorher
+
+
+def test_befehl_sprache_zeigt_und_setzt(conn, einst):
+    tg = TelegramAttrappe()
+    assert befehle.behandle(conn, tg, einst, 1, "/sprache", None)
+    assert "Deutsch" in tg.texte()[-1]
+    befehle.behandle(conn, tg, einst, 1, "/sprache auto", None)
+    assert repo.stt_sprache(conn, 1) == "auto"
+    befehle.behandle(conn, tg, einst, 1, "/sprache klingonisch", None)
+    assert repo.stt_sprache(conn, 1) == "auto"
+
+
+def test_befehl_sprache_steht_nicht_im_menue():
+    assert "sprache" not in {b["command"] for b in befehle.BEFEHLE_LISTE}
+
+
+def test_englische_texte_des_sprachwegs(conn, einst, monkeypatch):
+    _padua(monkeypatch)
+    tg = TelegramAttrappe()
+    befehle.behandle(conn, tg, einst, 1, "/sprache", None)
+    assert tg.texte()[-1] == "Interview language: automatic (I detect it myself)."

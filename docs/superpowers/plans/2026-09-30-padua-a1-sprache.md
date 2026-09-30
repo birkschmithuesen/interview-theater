@@ -2872,7 +2872,7 @@ sie in `UMGESTELLT` stehen — Test 1–3 gelten aber schon fuer die neuen
   rausgingen), Befehl `/sprache [auto|<xx>]` (versteckt, **nicht** in
   `BEFEHLE_LISTE`).
 
-- [ ] **Schritt 1: Tests schreiben** (in `tests/test_stt_sprache.py` anhaengen):
+- [x] **Schritt 1: Tests schreiben** (in `tests/test_stt_sprache.py` anhaengen):
 
 ```python
 from interview_theater import befehle, knoepfe, sprache
@@ -2943,13 +2943,13 @@ def test_englische_texte_des_sprachwegs(conn, einst, monkeypatch):
     assert tg.texte()[-1] == "Interview language: automatic (I detect it myself)."
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_stt_sprache.py`
 Expected: FAIL — `AttributeError: module 'interview_theater.knoepfe' has no attribute 'biete_stt_sprache'`,
 `/sprache` beantwortet mit „Diesen Befehl kenne ich nicht."
 
-- [ ] **Schritt 3: Umsetzen**
+- [x] **Schritt 3: Umsetzen**
 
 `knoepfe/texte.py` — neben den anderen `ART_*` (nach `ART_SZENE_USA`, Z. 49):
 
@@ -3133,19 +3133,19 @@ _JOURNAL_SPRACHE = "Interview language for Whisper: {sprache}"
 ergaenzt — **eine** Tabelle je Modul, nicht zwei gleichnamige: TOML weist
 eine doppelte Tabelle ab.)
 
-- [ ] **Schritt 4: Gruen sehen**
+- [x] **Schritt 4: Gruen sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_stt_sprache.py tests/test_knoepfe_struktur.py tests/test_befehle.py tests/test_sprache_texte.py tests/test_sprache_bitgleich.py`
 Expected: alle gruen; `test_jede_knopfart_hat_genau_einen_handler` kennt
 `ART_STT_SPRACHE`. `$PY -m scripts.pruefe_sprache --schluessel knoepfe.texte,befehle` → `0 Treffer`.
 
-- [ ] **Schritt 5: Mutationsnachweis**
+- [x] **Schritt 5: Mutationsnachweis**
 
 In `biete_stt_sprache` die Profilabfrage entfernen →
 `test_dortmund_sieht_die_sprachknoepfe_nie` rot. `_WIRKUNGEN`-Eintrag
 streichen → `test_jede_knopfart_hat_genau_einen_handler` rot.
 
-- [ ] **Schritt 6: SUITE, Commit**
+- [x] **Schritt 6: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider

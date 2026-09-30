@@ -33,7 +33,13 @@ VERSCHOBEN: dict[str, str] = {}
 
 #: Abschnitte, deren Wert A1 absichtlich aendert -- mit Grund. Jede Zeile
 #: hier ist eine Verhaltensaenderung fuer Dortmund.
-GEAENDERT: dict[str, str] = {}
+GEAENDERT: dict[str, str] = {
+    "befehle._BEKANNTE_BEFEHLE": (
+        "Aufgabe 8: der versteckte Befehl /sprache kommt dazu (Whisper-"
+        "Sprache je Gruppe). Kein bestehender Befehl aendert sich, und er "
+        "steht nicht in BEFEHLE_LISTE."
+    ),
+}
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")
 

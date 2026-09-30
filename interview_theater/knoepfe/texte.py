@@ -47,6 +47,9 @@ ART_SZENENFORM = "szenenform"
 ART_SZENENSTIL = "szenenstil"
 #: Einwilligung ins US-Modell -- dasselbe Ziel wie ``/szene usa ja|nein``.
 ART_SZENE_USA = "szene_usa"
+#: Die Interviewsprache fuer Whisper (Karte A1, D2) -- nur in Profilen mit
+#: sprache.whisper = "auto" (Padua), beim Eintritt in Phase 3.
+ART_STT_SPRACHE = "stt_sprache"
 #: Ein Interview jetzt auswerten -- dasselbe Ziel wie ``/auswerten <N>``. Der
 #: ``wert`` traegt die ``aufnahme_id`` des Interview-Kopfes, damit der Druck
 #: auch dann noch das gemeinte Interview trifft, wenn inzwischen ein weiteres
@@ -434,6 +437,17 @@ _TEXT_USA_JA = (
     "Szene nochmal."
 )
 _TEXT_USA_NEIN = "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder."
+#: Die drei Knoepfe: fest benannt, Sprachnamen in ihrer eigenen Sprache --
+#: nicht uebersetzt, wer Italienisch spricht, sucht "Italiano".
+STT_KNOEPFE = (("auto", "Auto"), ("en", "English"), ("it", "Italiano"))
+_TEXT_STT_SPRACHE_FRAGE = (
+    "In welcher Sprache fuehrt ihr eure Interviews? Mit \"Auto\" hoere ich "
+    "selbst heraus, welche es ist."
+)
+_TEXT_STT_SPRACHE_GESETZT = "Interviewsprache ab jetzt: {sprache}."
+_TEXT_STT_SPRACHE_AUTO = "automatisch (ich erkenne sie selbst)"
+_TEXT_STT_SPRACHE_KURZ = "Sprache gesetzt"
+_JOURNAL_STT_SPRACHE = "Interviewsprache fuer Whisper: {sprache}"
 
 # --- Wortlaut der Phase-6/7-Knoepfe ---------------------------------------
 #
@@ -1044,3 +1058,7 @@ ANWEISUNG_EROEFFNUNG = (
     "steht NUR im Block - schreib ihn nicht zusaetzlich davor in den "
     "Fliesstext; davor hoechstens ein Satz und eine Frage."
 )
+
+from interview_theater import sprache  # noqa: E402  (unten: kein Zyklus beim Import)
+
+T = sprache.Texte(__name__)

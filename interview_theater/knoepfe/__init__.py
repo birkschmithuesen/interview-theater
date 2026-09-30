@@ -159,6 +159,9 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     _TEXT_WEITER_FRAGE, _TEXT_WIR_ZUERST, _TEXT_WIR_ZUERST_KNOPF,
     _TEXT_ZITATE_VORSPANN, _TEXT_ZUR_GESCHICHTE, _TEXT_ZUSAMMENFASSUNG_KNOPF,
     log,
+    ART_STT_SPRACHE, STT_KNOEPFE, T, _JOURNAL_STT_SPRACHE,
+    _TEXT_STT_SPRACHE_AUTO, _TEXT_STT_SPRACHE_FRAGE,
+    _TEXT_STT_SPRACHE_GESETZT, _TEXT_STT_SPRACHE_KURZ,
 )
 
 #: callback_data, Grundleiste, Speicherweg, Auftragsabgabe
@@ -217,7 +220,7 @@ from interview_theater.knoepfe.interviews import (  # noqa: F401
     _aufnahme_anbieten, _auswerten_alle_knopf, _interviewknoepfe,
     _werte_alle_aus, biete_aufnahme, biete_einstieg,
     biete_interview_ohne_knopf, biete_interview_ohne_knopf_weiter,
-    biete_nach_aufnahme, biete_nach_teil,
+    biete_nach_aufnahme, biete_nach_teil, biete_stt_sprache,
 )
 
 #: der Phasenrahmen im Chat
@@ -261,4 +264,5 @@ from interview_theater.knoepfe.wirkung import (  # noqa: F401
     _wirkung_fassungen, _wirkung_sprechanteile,
     _wirkung_teil_weiter, _wirkung_textbuch, _wirkung_transkript,
     _wirkung_wir_zuerst, _wirkung_zusammenfassung, behandle,
+    _wirkung_stt_sprache,
 )

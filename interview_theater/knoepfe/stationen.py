@@ -23,6 +23,7 @@ from interview_theater.knoepfe.texte import (
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _sende_knoepfe,
 )
+from interview_theater.knoepfe.interviews import biete_stt_sprache
 from interview_theater.knoepfe.szenen import (
     biete_durchlauf, biete_kurzgeschichte, biete_szene_usa, starte_schaerfung,
     starte_stueckpruefung,
@@ -158,6 +159,10 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
 
         biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
         leitfaden.sende_einmal(conn, tg, chat_id, e=e)
+        # Die Interviewsprache (Karte A1): nur, wo das Profil sie offen
+        # laesst. Nach dem Leitfaden, weil er die erste Frage ist, die sich
+        # die Gruppe vor dem Losgehen stellt.
+        biete_stt_sprache(conn, tg, chat_id)
     elif nummer == PHASE_STUECKPRUEFUNG:
         # Die Schaerfung des Stuecks (06.09.2026, Birk): das komplette
         # Textbuch geht EINMAL beim Eintritt an den Stueck-Judge, im Thread

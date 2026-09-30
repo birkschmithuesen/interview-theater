@@ -13,7 +13,7 @@ Pakets am Quelltext prueft statt am Verhalten.
 
 from typing import NamedTuple
 
-from interview_theater import phasen, repo
+from interview_theater import phasen, repo, sprache
 
 from interview_theater.knoepfe.texte import (
     ANWEISUNGEN, ANWEISUNG_DUKTUS, ANWEISUNG_FRAGEN_ANDERE,
@@ -42,6 +42,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_NAECHSTE,
     ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
+    ART_STT_SPRACHE, STT_KNOEPFE, T,
     ART_SZENE_ZEIGEN, ART_TEIL_FERTIG, ART_TEIL_WEITER, ART_TEXTBUCH,
     ART_TRANSKRIPT, ART_WIR_ZUERST, ART_ZUSAMMENFASSUNG, PHASE_SETTING,
     PHASE_SZENEN, TRENNER, _ANWEISUNG_ALLGEMEIN, _KETTE, _NOTIERT,
@@ -1283,6 +1284,22 @@ def _wirkung_szene_usa(conn, d: Druck) -> str:
     return "US-Modell: ja" if ja else "Bleibt in der Schweiz"
 
 
+def _wirkung_stt_sprache(conn, d: Druck) -> str:
+    """Die Interviewsprache fuer Whisper (Karte A1, D2). Kein Modellaufruf:
+    nur ein Feld in ``gruppe`` und eine Journalzeile."""
+    wert = d.wert.strip().lower()
+    if wert not in {w for w, _ in STT_KNOEPFE}:
+        return _TEXT_UNBEKANNT
+    repo.setze_stt_sprache(conn, d.chat_id, wert)
+    repo.schreibe_journal(
+        conn, d.chat_id, "entschieden",
+        T._JOURNAL_STT_SPRACHE.format(sprache=wert), quelle="knopf")
+    anzeige = (T._TEXT_STT_SPRACHE_AUTO if wert == sprache.AUTO
+               else sprache.SPRACHNAMEN.get(wert, wert))
+    d.tg.sende(d.chat_id, T._TEXT_STT_SPRACHE_GESETZT.format(sprache=anzeige))
+    return T._TEXT_STT_SPRACHE_KURZ
+
+
 #: Die Dispatch-Tabelle: art -> Handler. Sie ersetzt die frueheren
 #: if/elif-Kaskaden in ``_wirke`` und ``_wirke_phase6`` (06.09.2026) und ist
 #: zugleich die Liste, an der sich die drei Zusagen aus dem Moduldocstring
@@ -1372,6 +1389,7 @@ _WIRKUNGEN = {
     ART_SZENENFORM: _wirkung_szenenform,
     ART_SZENENSTIL: _wirkung_szenenstil,
     ART_SZENE_USA: _wirkung_szene_usa,
+    ART_STT_SPRACHE: _wirkung_stt_sprache,
 }
 
 

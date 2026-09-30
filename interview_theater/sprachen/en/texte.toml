@@ -9,3 +9,17 @@
 
 ["anweisungen"]
 UEBERSCHRIFT = "\n\nAdditional instruction for this workshop:\n\n"
+
+["knoepfe.texte"]
+_TEXT_STT_SPRACHE_FRAGE = "Which language are your interviews in? With \"Auto\" I work it out myself."
+_TEXT_STT_SPRACHE_GESETZT = "Interview language from now on: {sprache}."
+_TEXT_STT_SPRACHE_AUTO = "automatic (I detect it myself)"
+_TEXT_STT_SPRACHE_KURZ = "Language set"
+_JOURNAL_STT_SPRACHE = "Interview language for Whisper: {sprache}"
+
+["befehle"]
+_TEXT_SPRACHE_STAND = "Interview language: {sprache}."
+_TEXT_SPRACHE_GESETZT = "Interview language from now on: {sprache}."
+_TEXT_SPRACHE_UNBEKANNT = "I don't know that one. Use auto or a language code like it, en, de."
+_TEXT_SPRACHE_AUTO = "automatic (I detect it myself)"
+_JOURNAL_SPRACHE = "Interview language for Whisper: {sprache}"

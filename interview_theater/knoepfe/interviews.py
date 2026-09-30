@@ -13,13 +13,14 @@ gibt es nichts aufzunehmen. Ausdrueckliches Aufnehmen bleibt in jeder Phase
 moeglich; eingeschraenkt ist nur das Angebot.
 """
 
-from interview_theater import phasen, repo
+from interview_theater import phasen, repo, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_AUFNAHME, ART_AUSWERTEN, ART_AUSWERTEN_ALLE, ART_HILFE,
     ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
-    ART_OHNE_KNOPF_WEITER, ART_STAND, ART_TEIL_FERTIG, ART_TEIL_WEITER,
-    ART_TRANSKRIPT, ART_ZUSAMMENFASSUNG, PHASE_INTERVIEWS,
+    ART_OHNE_KNOPF_WEITER, ART_STAND, ART_STT_SPRACHE, ART_TEIL_FERTIG,
+    ART_TEIL_WEITER, ART_TRANSKRIPT, ART_ZUSAMMENFASSUNG, PHASE_INTERVIEWS,
+    STT_KNOEPFE, T,
     _TEXT_AUFNAHME_BEENDEN, _TEXT_AUFNAHME_STARTEN, _TEXT_AUSWERTEN_ALLE_KNOPF,
     _TEXT_AUSWERTEN_ALLE_LAEUFT, _TEXT_AUSWERTEN_ALLE_NICHTS,
     _TEXT_AUSWERTEN_UNMOEGLICH, _TEXT_HILFE_KNOPF,
@@ -35,6 +36,24 @@ from interview_theater.knoepfe.basis import (
 from interview_theater.knoepfe.fragen import (
     _leitfaden_knopf,
 )
+
+
+def biete_stt_sprache(conn, tg, chat_id: int) -> bool:
+    """Drei Knoepfe fuer die Interviewsprache (Karte A1, D2): Auto, English,
+    Italiano. Eine feste, benannte Auswahl -- genau der Fall, fuer den es
+    Knoepfe gibt. Nur, wenn das Profil Whisper selbst erkennen laesst
+    (``sprache.whisper = "auto"``); Dortmund sieht sie nie.
+
+    Kein Modellaufruf (Zusage 2). Liefert True, wenn die Leiste rausging."""
+    if sprache.whisper_vorgabe() != sprache.AUTO:
+        return False
+    leiste = [
+        (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, ART_STT_SPRACHE, wert)))
+        for wert, beschriftung in STT_KNOEPFE
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, T._TEXT_STT_SPRACHE_FRAGE, leiste)
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
+    return True
 
 
 def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True) -> int:

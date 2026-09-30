@@ -35,7 +35,7 @@ import logging
 import re
 
 from interview_theater import (
-    aufnahme, erkenner, knoepfe, leitfaden, phasen, repo, szene,
+    aufnahme, erkenner, knoepfe, leitfaden, phasen, repo, sprache, szene,
 )
 
 #: Woerter, die einen Befehl zu einer Entfernung machen (NACHTRAG N3).
@@ -105,6 +105,17 @@ _TEXT_FIGUR_HILFE = (
 )
 _TEXT_PHASE_UNBEKANNT = "Diese Phase kenne ich nicht. Ich habe diese sieben:"
 _TEXT_KEINE_AUFNAHMEN = "Es gibt noch keine Aufnahmen."
+#: /sprache (Karte A1, D2) -- versteckt, wie /leitfaden: der Weg ist der
+#: Knopf in Phase 3, der Befehl der Notausgang und die Anzeige.
+_TEXT_SPRACHE_STAND = "Interviewsprache: {sprache}."
+_TEXT_SPRACHE_GESETZT = "Interviewsprache ab jetzt: {sprache}."
+_TEXT_SPRACHE_UNBEKANNT = (
+    "Das kenne ich nicht. Moeglich sind auto oder ein Sprachkuerzel wie "
+    "it, en, de."
+)
+_TEXT_SPRACHE_AUTO = "automatisch (ich erkenne sie selbst)"
+_JOURNAL_SPRACHE = "Interviewsprache fuer Whisper: {sprache}"
+_SPRACHWERT = re.compile(r"^(auto|[a-z]{2})$")
 _TEXT_SZENE_LEER = (
     "Schreibt den Auftrag hinter den Befehl, zum Beispiel: "
     "/szene Szene 2: Maria kommt am Bahnhof an und trifft Elif"
@@ -749,6 +760,28 @@ def _befehl_szene(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     szene.starte(conn, tg, klm, e, chat_id, rest)
 
 
+def _befehl_sprache(conn, tg, chat_id: int, rest: str) -> None:
+    """``/sprache`` zeigt, ``/sprache auto|it|en|…`` setzt die Whisper-Sprache
+    dieser Gruppe (Karte A1). Kein Modellaufruf."""
+
+    def anzeige(wert: str) -> str:
+        return (T._TEXT_SPRACHE_AUTO if wert == sprache.AUTO
+                else sprache.SPRACHNAMEN.get(wert, wert))
+
+    wert = rest.strip().lower()
+    if not wert:
+        tg.sende(chat_id, T._TEXT_SPRACHE_STAND.format(
+            sprache=anzeige(aufnahme.whisper_sprache(conn, chat_id))))
+        return
+    if not _SPRACHWERT.match(wert):
+        tg.sende(chat_id, T._TEXT_SPRACHE_UNBEKANNT)
+        return
+    repo.setze_stt_sprache(conn, chat_id, wert)
+    repo.schreibe_journal(conn, chat_id, "entschieden",
+                          T._JOURNAL_SPRACHE.format(sprache=wert), quelle="befehl")
+    tg.sende(chat_id, T._TEXT_SPRACHE_GESETZT.format(sprache=anzeige(wert)))
+
+
 #: Die erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
 #: Slash-Text (z. B. "/irgendwas") freundlich beantwortet statt zu krachen.
 #: ``/aufnahme`` ist seit 05.09.2026 der beworbene Weg; ``/interview`` und
@@ -764,6 +797,9 @@ _BEKANNTE_BEFEHLE = {
     # Erkenner-art ``festlegung_setzen``, dieser Befehl die Rueckfallebene
     # fuer den Fall, dass das Erkenner-Modell ausfaellt.
     "/festlegung",
+    # Versteckt (Karte A1): die Whisper-Sprache dieser Gruppe zeigen oder
+    # umstellen. Der Weg ist der Knopf in Phase 3.
+    "/sprache",
 }
 
 
@@ -825,4 +861,9 @@ def behandle(
         _befehl_leitfaden(conn, tg, chat_id, e)
     elif befehl == "/festlegung":
         _befehl_festlegung(conn, tg, chat_id, rest)
+    elif befehl == "/sprache":
+        _befehl_sprache(conn, tg, chat_id, rest)
     return True
+
+
+T = sprache.Texte(__name__)

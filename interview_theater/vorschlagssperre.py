@@ -78,6 +78,33 @@ def laeuft(chat_id: int) -> bool:
     return sperre_fuer(chat_id).locked()
 
 
+def nimm_oder_merke(chat_id: int, art: str, auftrag: Callable[[], None]) -> bool:
+    """Nimmt die Sperre; gelingt das nicht, merkt sie den Auftrag ATOMAR mit.
+
+    **Warum es das braucht** (30.09.2026, Race-Fund): ``nimm`` gefolgt von
+    ``_sende(...)`` (Telegram, langsam) und erst danach ``merke`` hatte ein
+    Fenster dazwischen. Endete der laufende Lauf genau in diesem Fenster,
+    leerte ``gib_frei`` einen noch leeren Merkplatz, und der erst danach
+    gemerkte Auftrag wurde nie nachgeholt. Hier liegen Versuch und Merken
+    unter demselben ``_schutz`` wie ``gib_frei`` -- entweder die Sperre wird
+    genommen, oder der Auftrag steht auf dem Merkplatz, BEVOR ein
+    gleichzeitiges ``gib_frei`` ihn dort haette verpassen koennen.
+
+    True: du hast die Sperre, gib sie mit ``gib_frei`` zurueck. False: der
+    Auftrag ist gemerkt und laeuft automatisch nach -- schick die
+    Wartemeldung selbst, ERST NACH diesem Aufruf (sonst kommt sie vor einem
+    Auftrag an, der es nie auf den Merkplatz geschafft hat)."""
+    with _schutz:
+        sperre = _sperren.get(chat_id)
+        if sperre is None:
+            sperre = threading.Lock()
+            _sperren[chat_id] = sperre
+        if sperre.acquire(blocking=False):
+            return True
+        _gemerkt.setdefault(chat_id, {})[art] = auftrag
+        return False
+
+
 def merke(chat_id: int, art: str, auftrag: Callable[[], None]) -> bool:
     """Legt einen Auftrag auf den Merkplatz dieser Art. Liefert True.
 
@@ -97,10 +124,22 @@ def gemerkte_arten(chat_id: int) -> list[str]:
 def gib_frei(chat_id: int) -> None:
     """Gibt die Sperre zurueck und holt nach, was gemerkt wurde.
 
+    **Merkplatz-Leerung UND Freigabe geschehen gemeinsam unter** ``_schutz``
+    (30.09.2026, Race-Fund) -- sonst koennte ein ``nimm_oder_merke`` genau
+    zwischen \"Merkplatz geleert\" und \"Sperre frei\" einen Auftrag ablegen,
+    den niemand mehr abholt. Weil ``nimm_oder_merke`` denselben ``_schutz``
+    nimmt, ist entweder der Merkplatz schon geleert, bevor ein neuer Auftrag
+    dort ankommt, oder der neue Auftrag steht schon da, wenn hier geleert
+    wird -- nie dazwischen.
+
     **Erst freigeben, dann nachholen** -- der gemerkte Auftrag nimmt die
     Sperre selbst wieder (er laeuft ueber dieselbe ``starte``-Funktion wie
     beim ersten Versuch). In der anderen Reihenfolge bekaeme er nur die
-    Wartemeldung, die er gerade abarbeitet.
+    Wartemeldung, die er gerade abarbeitet. Das eigentliche Ausfuehren der
+    nachgeholten Auftraege liegt bewusst AUSSERHALB von ``_schutz``: ein
+    Auftrag kann seinerseits ``nimm_oder_merke``/``gib_frei`` aufrufen (er
+    laeuft ja ueber ``starte``), und das wuerde denselben Lock doppelt
+    verlangen.
 
     Robust gegen den Fall, dass niemand genommen hat: ``finally``-Zweige
     geben in JEDEM Fall frei (wie ``szenenfolge._lauf``), und ein
@@ -109,11 +148,11 @@ def gib_frei(chat_id: int) -> None:
     with _schutz:
         sperre = _sperren.get(chat_id)
         nachzuholen = list(_gemerkt.pop(chat_id, {}).items())
-    if sperre is not None and sperre.locked():
-        try:
-            sperre.release()
-        except RuntimeError:  # pragma: no cover -- Verteidigung, kein Weg
-            log.exception("Vorschlagssperre war schon frei, chat_id=%s", chat_id)
+        if sperre is not None and sperre.locked():
+            try:
+                sperre.release()
+            except RuntimeError:  # pragma: no cover -- Verteidigung, kein Weg
+                log.exception("Vorschlagssperre war schon frei, chat_id=%s", chat_id)
     for art, auftrag in nachzuholen:
         log.info("Gemerkten Vorschlagslauf nachgeholt, chat_id=%s, art=%s",
                  chat_id, art)

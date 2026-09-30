@@ -13,9 +13,21 @@ Kein Netzzugriff: Telegram und Sprachmodell sind Attrappen.
 
 import pytest
 
-from interview_theater import knoepfe, phasen, repo, szenenfolge
+from interview_theater import knoepfe, phasen, repo, szenenfolge, vorschlagssperre
 
 from test_szenenfolge import TelegramAttrappe
+
+
+@pytest.fixture(autouse=True)
+def freie_vorschlagssperre():
+    """Einige Tests hier loesen ``szenenfolge.starte_geschichte``/
+    ``starte_geschichte_szenen`` wirklich aus (ueber ``knoepfe._wirke``/
+    ``behandle``, chat_id=1) statt sie wegzupatchen -- kein Zustand aus
+    einem frueheren Test soll die gemeinsame Vorschlagssperre besetzt
+    lassen (wie ``tests/test_szenenfolge.py``)."""
+    vorschlagssperre.vergiss(1)
+    yield
+    vorschlagssperre.vergiss(1)
 
 
 GESCHICHTE = """Ich schlage euch das vor.

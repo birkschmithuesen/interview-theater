@@ -320,24 +320,25 @@ def starte(conn, tg, klm, e, chat_id: int, nachbereitung=None):
     if klm is None:
         log.error("Schaerfung ohne Sprachmodell, chat_id=%s", chat_id)
         return None
-    if not vorschlagssperre.nimm(chat_id):
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART, lambda: starte(conn, tg, klm, e, chat_id, nachbereitung),
+    ):
         try:
             message_id = tg.sende(chat_id, TEXT_GEMERKT)
             repo.merke_bot_zeile(conn, chat_id, message_id, e, TEXT_GEMERKT)
         except Exception:
             log.exception("Wartemeldung der Schaerfung fehlgeschlagen, chat_id=%s",
                           chat_id)
-        vorschlagssperre.merke(
-            chat_id, ART,
-            lambda: starte(conn, tg, klm, e, chat_id, nachbereitung),
-        )
         return GEMERKT
-    thread = threading.Thread(
-        target=_lauf, args=(conn, tg, klm, e, chat_id, nachbereitung), daemon=True,
-    )
+    # Sperr-Leck-Fund (30.09.2026): auch der Thread-Aufbau selbst steht unter
+    # der Wache -- eine Ausnahme beim Anlegen des ``Thread``-Objekts darf die
+    # Sperre nicht fuer die Prozesslaufzeit belegt lassen.
     try:
+        thread = threading.Thread(
+            target=_lauf, args=(conn, tg, klm, e, chat_id, nachbereitung), daemon=True,
+        )
         thread.start()
-    except Exception:
+    except BaseException:
         vorschlagssperre.gib_frei(chat_id)
         raise
     return thread

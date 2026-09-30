@@ -871,29 +871,33 @@ def starte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
         log.error("Szenenfolge ohne Sprachmodell, chat_id=%s", chat_id)
         return None
     anzahl = int(anzahl or ANZAHL_VORGABE)
-    if not vorschlagssperre.nimm(chat_id):
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART, lambda: starte(conn, tg, klm, e, chat_id, anzahl, wunsch),
+    ):
         _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
-        vorschlagssperre.merke(
-            chat_id, ART,
-            lambda: starte(conn, tg, klm, e, chat_id, anzahl, wunsch),
-        )
         return None
-    _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
-
-    def _fertig(antwort: str) -> None:
-        from interview_theater import knoepfe
-
-        knoepfe.sende_szenenfolge(conn, tg, chat_id, antwort)
-
-    thread = threading.Thread(
-        target=_lauf,
-        args=(conn, tg, klm, e, chat_id, systemanweisung(anzahl),
-              baue_nutzertext(conn, chat_id, anzahl, wunsch), ART, _fertig),
-        daemon=True,
-    )
+    # Alles ab hier bis einschliesslich ``thread.start()`` steht unter
+    # derselben Wache: wirft ``_sende``, ``systemanweisung`` oder
+    # ``baue_nutzertext`` (z. B. ein kaputtes Profil, eine DB-Ausnahme),
+    # bliebe die Sperre sonst fuer die Prozesslaufzeit belegt -- alle
+    # weiteren Vorschlaege wuerden nur noch gemerkt, nie mehr genommen
+    # (30.09.2026, Sperr-Leck-Fund).
     try:
+        _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
+
+        def _fertig(antwort: str) -> None:
+            from interview_theater import knoepfe
+
+            knoepfe.sende_szenenfolge(conn, tg, chat_id, antwort)
+
+        thread = threading.Thread(
+            target=_lauf,
+            args=(conn, tg, klm, e, chat_id, systemanweisung(anzahl),
+                  baue_nutzertext(conn, chat_id, anzahl, wunsch), ART, _fertig),
+            daemon=True,
+        )
         thread.start()
-    except Exception:
+    except BaseException:
         vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
@@ -909,30 +913,31 @@ def starte_geschichte(conn, tg, klm, e, chat_id: int, anzahl: int | None = None,
     if klm is None:
         log.error("Geschichte ohne Sprachmodell, chat_id=%s", chat_id)
         return None
-    if not vorschlagssperre.nimm(chat_id):
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART_GESCHICHTE,
+        lambda: starte_geschichte(conn, tg, klm, e, chat_id, anzahl, wunsch),
+    ):
         _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
-        vorschlagssperre.merke(
-            chat_id, ART_GESCHICHTE,
-            lambda: starte_geschichte(conn, tg, klm, e, chat_id, anzahl, wunsch),
-        )
         return None
-    _sende(conn, tg, e, chat_id, _TEXT_GESCHICHTE_LAEUFT)
-
-    def _fertig(antwort: str) -> None:
-        from interview_theater import knoepfe
-
-        knoepfe.sende_geschichte(conn, tg, chat_id, antwort)
-
-    thread = threading.Thread(
-        target=_lauf,
-        args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte(anzahl),
-              baue_nutzertext_geschichte(conn, chat_id, wunsch),
-              ART_GESCHICHTE, _fertig),
-        daemon=True,
-    )
+    # Sperr-Leck-Fund (30.09.2026): siehe ``starte`` -- alles bis
+    # ``thread.start()`` steht unter derselben Wache.
     try:
+        _sende(conn, tg, e, chat_id, _TEXT_GESCHICHTE_LAEUFT)
+
+        def _fertig(antwort: str) -> None:
+            from interview_theater import knoepfe
+
+            knoepfe.sende_geschichte(conn, tg, chat_id, antwort)
+
+        thread = threading.Thread(
+            target=_lauf,
+            args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte(anzahl),
+                  baue_nutzertext_geschichte(conn, chat_id, wunsch),
+                  ART_GESCHICHTE, _fertig),
+            daemon=True,
+        )
         thread.start()
-    except Exception:
+    except BaseException:
         vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
@@ -960,32 +965,31 @@ def starte_geschichte_szenen(conn, tg, klm, e, chat_id: int,
     if klm is None:
         log.error("Szenenfolge ohne Sprachmodell, chat_id=%s", chat_id)
         return None
-    if not vorschlagssperre.nimm(chat_id):
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART,
+        lambda: starte_geschichte_szenen(conn, tg, klm, e, chat_id, anzahl, wunsch),
+    ):
         _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
-        vorschlagssperre.merke(
-            chat_id, ART,
-            lambda: starte_geschichte_szenen(
-                conn, tg, klm, e, chat_id, anzahl, wunsch
-            ),
-        )
         return None
-    _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
-
-    def _fertig(antwort: str) -> None:
-        from interview_theater import knoepfe
-
-        knoepfe.sende_szenenfolge(conn, tg, chat_id, antwort)
-
-    thread = threading.Thread(
-        target=_lauf,
-        args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte_szenen(),
-              baue_nutzertext_geschichte(conn, chat_id, wunsch), ART,
-              _fertig),
-        daemon=True,
-    )
+    # Sperr-Leck-Fund (30.09.2026): siehe ``starte`` -- alles bis
+    # ``thread.start()`` steht unter derselben Wache.
     try:
+        _sende(conn, tg, e, chat_id, _TEXT_LAEUFT)
+
+        def _fertig(antwort: str) -> None:
+            from interview_theater import knoepfe
+
+            knoepfe.sende_szenenfolge(conn, tg, chat_id, antwort)
+
+        thread = threading.Thread(
+            target=_lauf,
+            args=(conn, tg, klm, e, chat_id, systemanweisung_geschichte_szenen(),
+                  baue_nutzertext_geschichte(conn, chat_id, wunsch), ART,
+                  _fertig),
+            daemon=True,
+        )
         thread.start()
-    except Exception:
+    except BaseException:
         vorschlagssperre.gib_frei(chat_id)
         raise
     return thread
@@ -1011,36 +1015,37 @@ def starte_feldvorschlag(conn, tg, klm, e, chat_id: int, ziel) -> threading.Thre
     if not fehlende:
         return None
     nummer = ziel["nummer"]
-    if not vorschlagssperre.nimm(chat_id):
+    if not vorschlagssperre.nimm_oder_merke(
+        chat_id, ART_FELDER,
+        lambda: starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel),
+    ):
         _sende(conn, tg, e, chat_id, _TEXT_GEMERKT)
-        vorschlagssperre.merke(
-            chat_id, ART_FELDER,
-            lambda: starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel),
-        )
         return None
-    _sende(conn, tg, e, chat_id, _TEXT_FELDER_LAEUFT)
-    system = ANWEISUNG_FELDER.format(felder=", ".join(fehlende))
-    nutzer = "\n\n".join(
-        t for t in (
-            _material(conn, chat_id),
-            szene_modul._diese_szene_text(conn, ziel),
-            f"Euer Auftrag:\nSchlag die fehlenden Angaben fuer Szene {nummer} vor.",
-        ) if t
-    )
-
-    def _fertig(antwort: str) -> None:
-        from interview_theater import knoepfe
-
-        knoepfe.sende_szenenfelder(conn, tg, chat_id, nummer, antwort)
-
-    thread = threading.Thread(
-        target=_lauf,
-        args=(conn, tg, klm, e, chat_id, system, nutzer, ART_FELDER, _fertig),
-        daemon=True,
-    )
+    # Sperr-Leck-Fund (30.09.2026): siehe ``starte`` -- alles bis
+    # ``thread.start()`` steht unter derselben Wache.
     try:
+        _sende(conn, tg, e, chat_id, _TEXT_FELDER_LAEUFT)
+        system = ANWEISUNG_FELDER.format(felder=", ".join(fehlende))
+        nutzer = "\n\n".join(
+            t for t in (
+                _material(conn, chat_id),
+                szene_modul._diese_szene_text(conn, ziel),
+                f"Euer Auftrag:\nSchlag die fehlenden Angaben fuer Szene {nummer} vor.",
+            ) if t
+        )
+
+        def _fertig(antwort: str) -> None:
+            from interview_theater import knoepfe
+
+            knoepfe.sende_szenenfelder(conn, tg, chat_id, nummer, antwort)
+
+        thread = threading.Thread(
+            target=_lauf,
+            args=(conn, tg, klm, e, chat_id, system, nutzer, ART_FELDER, _fertig),
+            daemon=True,
+        )
         thread.start()
-    except Exception:
+    except BaseException:
         vorschlagssperre.gib_frei(chat_id)
         raise
     return thread

@@ -179,3 +179,57 @@ def test_die_sperre_haelt_den_szenenlauf_nicht_auf(lage, tg, einst):
     assert vorschlagssperre.laeuft(1) is True
     klm.haltestelle.set()
     schaerfung_thread.join(timeout=10)
+
+
+# --- Sperr-Leck: ein Fehler VOR thread.start() darf die Sperre nicht --------
+# --- fuer die Prozesslaufzeit belegen (30.09.2026) --------------------------
+#
+# Vorher lagen Prompt-/Nutzertextbau (``systemanweisung*``, ``baue_nutzertext*``,
+# ``ANWEISUNG_FELDER.format``, Thread-Konstruktion) NACH einem erfolgreichen
+# ``nimm()``, aber VOR dem ``try``, der bis dahin nur ``thread.start()``
+# umschloss. Warf einer dieser Aufrufe, blieb die Sperre fuer die
+# Prozesslaufzeit belegt: jeder weitere Vorschlagslauf dieser Gruppe (und mit
+# der GEMEINSAMEN Sperre auch der jeweils andere Modultyp) landete nur noch
+# auf dem Merkplatz, nie mehr im Modell.
+
+
+def test_ein_fehler_vor_thread_start_gibt_die_sperre_bei_szenenfolge_frei(
+    conn, tg, einst, monkeypatch
+):
+    """``starte_geschichte_szenen`` wertet ``baue_nutzertext_geschichte`` als
+    Thread-Argument aus, also NACH dem ``nimm`` -- genau die Stelle des
+    Sperr-Lecks. Mit dem Fix steht das in ``try: ... except BaseException:
+    vorschlagssperre.gib_frei(chat_id); raise``, die Sperre ist danach frei."""
+
+    def kaputt(*a, **k):
+        raise RuntimeError("Nutzertext kaputt")
+
+    monkeypatch.setattr(szenenfolge, "baue_nutzertext_geschichte", kaputt)
+
+    with pytest.raises(RuntimeError):
+        szenenfolge.starte_geschichte_szenen(conn, tg, object(), einst, 1)
+
+    assert vorschlagssperre.laeuft(1) is False
+    # Und die Gruppe ist nicht dauerhaft blockiert: ein zweiter Versuch (ohne
+    # die Mutation) bekommt die Sperre wieder.
+    assert vorschlagssperre.nimm(1) is True
+    vorschlagssperre.gib_frei(1)
+
+
+def test_ein_fehler_vor_thread_start_gibt_die_sperre_bei_schaerfung_frei(
+    conn, tg, einst, monkeypatch
+):
+    """Dieselbe Wache gilt in ``schaerfung.starte``: auch der Thread-Aufbau
+    selbst steht dort jetzt unter dem ``try``, nicht nur ``thread.start()``."""
+
+    def kaputter_thread(*a, **k):
+        raise RuntimeError("Thread-Bau kaputt")
+
+    monkeypatch.setattr(schaerfung.threading, "Thread", kaputter_thread)
+
+    with pytest.raises(RuntimeError):
+        schaerfung.starte(conn, tg, object(), einst, 1)
+
+    assert vorschlagssperre.laeuft(1) is False
+    assert vorschlagssperre.nimm(1) is True
+    vorschlagssperre.gib_frei(1)

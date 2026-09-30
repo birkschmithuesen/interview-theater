@@ -16,7 +16,7 @@ Kein Netzzugriff: das Sprachmodell ist eine Attrappe.
 
 import pytest
 
-from interview_theater import knoepfe, phasen, repo, schaerfung
+from interview_theater import knoepfe, phasen, repo, schaerfung, vorschlagssperre
 
 from test_knoepfe import TelegramAttrappe
 
@@ -24,6 +24,17 @@ from test_knoepfe import TelegramAttrappe
 @pytest.fixture
 def tg():
     return TelegramAttrappe()
+
+
+@pytest.fixture(autouse=True)
+def freie_vorschlagssperre():
+    """Kein Zustand aus einem frueheren Test -- die Sperre lebt im Modul und
+    alle Tests hier verwenden ``chat_id=1``. Die meisten Tests patchen
+    ``schaerfung.starte`` weg und beruehren sie ohnehin nicht, aber
+    defensiv wie ``tests/test_szenenfolge.py``."""
+    vorschlagssperre.vergiss(1)
+    yield
+    vorschlagssperre.vergiss(1)
 
 
 class KLMAttrappe:

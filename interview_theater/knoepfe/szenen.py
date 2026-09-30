@@ -427,13 +427,23 @@ def starte_schaerfung(conn, tg, klm, e, chat_id: int) -> None:
 
     Kein Modellaufruf hier: ``schaerfung.starte`` gibt sofort ab (Zusage 2).
     Ohne Sprachmodell (Tests) bleibt der Weg trotzdem offen -- dann wird
-    gezeigt, was schon zugeordnet ist."""
+    gezeigt, was schon zugeordnet ist.
+
+    **``_TEXT_SCHAERFUNG_LAEUFT`` nur, wenn die Sperre wirklich frei war**
+    (30.09.2026, widerspruechliche Meldungen): haelt ein anderer
+    Vorschlagslauf die gemeinsame Sperre, schickt ``schaerfung.starte``
+    selbst ``TEXT_GEMERKT`` -- ein vorab gesendetes \"gleich\" waere dann eine
+    zweite, sich widersprechende Zeile im selben Chatfenster. Kein
+    Modellaufruf: ``vorschlagssperre.laeuft`` ist eine reine Abfrage."""
     from interview_theater import schaerfung as schaerfung_modul
+    from interview_theater import vorschlagssperre
 
     def _danach() -> None:
         biete_schaerfung(conn, tg, chat_id)
 
-    tg.sende(chat_id, _TEXT_SCHAERFUNG_LAEUFT)
+    frei = not vorschlagssperre.laeuft(chat_id)
+    if frei:
+        tg.sende(chat_id, _TEXT_SCHAERFUNG_LAEUFT)
     if schaerfung_modul.starte(conn, tg, klm, e, chat_id, nachbereitung=_danach) is None:
         biete_schaerfung(conn, tg, chat_id)
 

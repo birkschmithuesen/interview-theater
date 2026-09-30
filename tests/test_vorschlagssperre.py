@@ -113,3 +113,50 @@ def test_freigabe_ohne_sperre_ist_kein_fehler():
     vorschlagssperre.vergiss(99)
     vorschlagssperre.gib_frei(99)
     assert vorschlagssperre.laeuft(99) is False
+
+
+# --- nimm_oder_merke (30.09.2026, Race-Fund) --------------------------------
+#
+# ``nimm`` gefolgt von einer langsamen Aktion (Telegram-Sendung) und erst
+# danach ``merke`` hatte ein Fenster: endete der laufende Lauf genau
+# dazwischen, leerte ``gib_frei`` einen noch leeren Merkplatz, und der spaeter
+# gemerkte Auftrag ging verloren. ``nimm_oder_merke`` schliesst das Fenster,
+# weil Versuch und Merken denselben ``_schutz`` nehmen wie ``gib_frei``.
+
+
+def test_nimm_oder_merke_liefert_true_wenn_die_sperre_frei_ist():
+    vorschlagssperre.vergiss(1)
+    assert vorschlagssperre.nimm_oder_merke(1, "schaerfung", lambda: None) is True
+    assert vorschlagssperre.laeuft(1) is True
+    # Kein Auftrag auf dem Merkplatz -- die Sperre wurde genommen, nicht
+    # gemerkt.
+    assert vorschlagssperre.gemerkte_arten(1) == []
+    vorschlagssperre.gib_frei(1)
+
+
+def test_nimm_oder_merke_merkt_den_auftrag_wenn_die_sperre_besetzt_ist():
+    vorschlagssperre.vergiss(1)
+    gelaufen = []
+    assert vorschlagssperre.nimm(1) is True
+
+    ergebnis = vorschlagssperre.nimm_oder_merke(
+        1, "schaerfung", lambda: gelaufen.append("s")
+    )
+
+    assert ergebnis is False
+    assert vorschlagssperre.gemerkte_arten(1) == ["schaerfung"]
+    assert gelaufen == []
+    vorschlagssperre.gib_frei(1)
+
+
+def test_nimm_oder_merke_laeuft_nach_der_freigabe_genau_einmal():
+    vorschlagssperre.vergiss(1)
+    gelaufen = []
+    vorschlagssperre.nimm(1)
+    vorschlagssperre.nimm_oder_merke(1, "schaerfung", lambda: gelaufen.append("s"))
+
+    vorschlagssperre.gib_frei(1)
+    assert gelaufen == ["s"]
+    # Eine zweite Freigabe holt ihn nicht noch einmal hervor.
+    vorschlagssperre.gib_frei(1)
+    assert gelaufen == ["s"]

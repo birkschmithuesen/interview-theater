@@ -799,7 +799,7 @@ def lies_verweis(file_id: str) -> tuple[int, str] | None   # Aufgabe 3
 Existenz und die Signatur, nicht die Wirkung; so bleibt Aufgabe 2 klein und der Naht-Test
 steht schon da, wenn die Audio-Arbeit beginnt.
 
-- [ ] **Schritt 1: Den Naht-Test schreiben**
+- [x] **Schritt 1: Den Naht-Test schreiben**
 
 `tests/test_web_kanal_naht.py`:
 
@@ -969,7 +969,7 @@ Zeilennummer 453. Verschiebt sich `telegram.py` durch Aufgabe 3, ist die Erwartu
 nachzuziehen — der Test soll die **Zahl der Stellen** festhalten, nicht die Zeile. Falls das
 zu sproede wirkt: auf `len(treffer) == 1 and treffer[0].startswith("telegram.py:")` lockern.
 
-- [ ] **Schritt 2: Den Verhaltenstest schreiben**
+- [x] **Schritt 2: Den Verhaltenstest schreiben**
 
 `tests/test_web_kanal.py`:
 
@@ -1199,14 +1199,14 @@ def test_hole_updates_kommt_zurueck_sobald_etwas_eintrifft(conn, kanal):
     assert time.monotonic() - begonnen < 5.0
 ```
 
-- [ ] **Schritt 3: Beide Laeufe muessen scheitern**
+- [x] **Schritt 3: Beide Laeufe muessen scheitern**
 
 ```
 $PY -m pytest tests/test_web_kanal.py tests/test_web_kanal_naht.py -q -p no:cacheprovider
 ```
 Erwartet: `ModuleNotFoundError: No module named 'interview_theater.web_kanal'` (Collection-Fehler in beiden Dateien).
 
-- [ ] **Schritt 4: `interview_theater/web_kanal.py` schreiben**
+- [x] **Schritt 4: `interview_theater/web_kanal.py` schreiben**
 
 ```python
 """Der Web-Kanal: derselbe Bot, nur ohne Telegram (30.09.2026, Karte Padua A2).
@@ -1519,7 +1519,7 @@ class WebKanal:
 `json` ist im Kopf aufgefuehrt, aber hier noch nicht gebraucht — entweder Zeile weglassen
 oder (empfohlen) erst in Aufgabe 3 aufnehmen, damit `ruff`/Lint nicht meckert.
 
-- [ ] **Schritt 5: Lauf, alles gruen**
+- [x] **Schritt 5: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_kanal.py tests/test_web_kanal_naht.py -q -p no:cacheprovider
@@ -1531,7 +1531,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2809 passed, 1 skipped`.
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add interview_theater/web_kanal.py tests/test_web_kanal.py tests/test_web_kanal_naht.py

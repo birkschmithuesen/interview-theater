@@ -36,8 +36,14 @@ eigenen Thread ab. Deshalb darf ein Knopf-Handler diese Funktion rufen.
 from __future__ import annotations
 
 import logging
+import re
 
 log = logging.getLogger(__name__)
+
+#: Eine fuehrende "Szene"-Vorsilbe (gross/klein, beliebig viele Leerzeichen),
+#: gefolgt von genau einer Zahl -- oder die blosse Zahl. Eng gehalten: "Szene
+#: 3 und 4" oder "drei" liefern None, wie zuvor.
+_MUSTER_NUMMER = re.compile(r"^\s*(?:szene\s*)?(\d+)\s*$", re.IGNORECASE)
 
 #: Das Kuerzungsziel in Prozent. EINE Stelle: Notiz und Knopfbeschriftung
 #: lesen von hier (Analyse C4: "Kuerzer (25 %)").
@@ -100,12 +106,14 @@ def nummer_aus_wert(wert: str | None) -> int | None:
     """Die Szenennummer aus dem ``wert`` einer Knopfzeile bzw. aus dem Wert
     des Erkenners -- oder None.
 
-    Absichtlich streng: nur eine Zahl. "Szene drei" ist keine Nummer, und ein
-    geratener Bezug schriebe die falsche Szene neu."""
-    roh = (wert or "").strip()
-    if not roh.isdigit():
+    Absichtlich streng: nur eine Zahl, optional mit fuehrendem "Szene"
+    (gross/klein -- der Erkenner liefert manchmal "Szene 3" statt der
+    blossen Zahl). "Szene drei" und "Szene 3 und 4" sind keine Nummer, und
+    ein geratener Bezug schriebe die falsche Szene neu."""
+    treffer = _MUSTER_NUMMER.match(wert or "")
+    if treffer is None:
         return None
-    return int(roh)
+    return int(treffer.group(1))
 
 
 def _abschnitte_mit_prosa(conn, chat_id: int) -> int:

@@ -77,6 +77,20 @@ def test_nummer_aus_wert_liest_nur_zahlen():
     assert kuerzung.nummer_aus_wert("Szene drei") is None
 
 
+def test_nummer_aus_wert_liest_auch_die_szenen_vorsilbe():
+    """Der Erkenner liefert manchmal 'Szene 3' statt der blossen Zahl --
+    sonst fragt der Code nach bzw. kuerzt in Phase 6 die ganze Geschichte,
+    obwohl die Gruppe eine Nummer genannt hat. Eng gehalten: genau eine
+    fuehrende 'Szene'-Vorsilbe, gross oder klein, sonst None."""
+    assert kuerzung.nummer_aus_wert("Szene 3") == 3
+    assert kuerzung.nummer_aus_wert("szene 3") == 3
+    assert kuerzung.nummer_aus_wert("Szene  3") == 3
+    assert kuerzung.nummer_aus_wert("3") == 3
+    assert kuerzung.nummer_aus_wert("") is None
+    assert kuerzung.nummer_aus_wert("drei") is None
+    assert kuerzung.nummer_aus_wert("Szene 3 und 4") is None
+
+
 # --- Phase 7: eine Szene --------------------------------------------------
 
 

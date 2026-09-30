@@ -968,6 +968,29 @@ def test_laufe_kuerzt_hoechstens_einmal_je_lauf(conn, einst, monkeypatch):
     assert gesehen == [2]
 
 
+def test_rueckfrage_ohne_nummer_wird_als_bot_zeile_gespeichert(conn, einst):
+    """Die Rueckfrage ``kuerzung.TEXT_WELCHE_SZENE`` muss wie die
+    Notiert-Meldung per ``repo.merke_bot_zeile`` in die Nachrichtentabelle --
+    sonst sehen Erkenner und Gespraechsbot sie im naechsten Fenster nicht,
+    antwortet die Gruppe nur mit einer Zahl."""
+    from interview_theater import kuerzung
+
+    repo.setze_phase(conn, 1, 7)  # Feinschliff: szene.schreibt_prosa() ist falsch
+    _nachricht(conn, 1, 1, "kuerz das mal")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "szene_kuerzen", "wert": ""},
+    ]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert tg.gesendet == [(1, kuerzung.TEXT_WELCHE_SZENE)]
+    zeilen = repo.letzte_nachrichten(conn, 1)
+    assert any(
+        z["ist_bot"] and z["text"] == kuerzung.TEXT_WELCHE_SZENE for z in zeilen
+    )
+
+
 # ---------------------------------------------------------------------------
 # phase_setzen (Brief A2/A3): die Gruppe sagt, woran sie arbeitet
 # ---------------------------------------------------------------------------

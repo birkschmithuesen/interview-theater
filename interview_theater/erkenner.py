@@ -1662,7 +1662,12 @@ def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
     nummer = kuerzung.nummer_aus_wert(treffer.get("wert"))
     try:
         if nummer is None and not szene.schreibt_prosa(conn, chat_id):
-            tg.sende(chat_id, kuerzung.TEXT_WELCHE_SZENE)
+            message_id = tg.sende(chat_id, kuerzung.TEXT_WELCHE_SZENE)
+            # Wie die Notiert-Meldung (siehe unten in ``laufe``): ohne diesen
+            # Eintrag sehen Erkenner und Gespraechsbot die Rueckfrage im
+            # naechsten Fenster nicht, wenn die Gruppe nur mit einer Zahl
+            # antwortet.
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, kuerzung.TEXT_WELCHE_SZENE)
             return
         kuerzung.starte(conn, tg, klm, e, chat_id, nummer)
     except Exception:

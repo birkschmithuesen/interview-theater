@@ -37,7 +37,9 @@ GEAENDERT: dict[str, str] = {
     "befehle._BEKANNTE_BEFEHLE": (
         "Aufgabe 8: der versteckte Befehl /sprache kommt dazu (Whisper-"
         "Sprache je Gruppe). Kein bestehender Befehl aendert sich, und er "
-        "steht nicht in BEFEHLE_LISTE."
+        "steht nicht in BEFEHLE_LISTE. Gewollte Verhaltensaenderung fuer "
+        "Dortmund: /sprache antwortet jetzt statt mit "
+        "\"Diesen Befehl kenne ich nicht.\"."
     ),
 }
 

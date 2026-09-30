@@ -246,25 +246,112 @@ def _sieht_deutsch_aus(wert) -> bool:
     return False
 
 
+#: Wachposten: die Zuweisung ist ein leerer Behaelter (Laufzeitzustand wie
+#: ``anweisungen._CACHE``), kein Text -- wird von ``test_keine_unuebersetzte_
+#: konstante`` uebersprungen, statt seinen (durch andere Tests veraenderten)
+#: Laufzeitwert zu bewerten.
+_LAUFZEIT = object()
+
+_LEERE_BEHAELTER_AUFRUFE = {"dict", "set", "list", "tuple"}
+
+
+def _ist_leerer_behaelter(wertknoten) -> bool:
+    """True fuer eine Zuweisung wie ``{}``/``[]``/``set()``/``dict()`` --
+    ein Behaelter, der zur Laufzeit befuellt wird und keinen Text traegt."""
+    if isinstance(wertknoten, ast.Dict):
+        return not wertknoten.keys
+    if isinstance(wertknoten, (ast.List, ast.Set, ast.Tuple)):
+        return not wertknoten.elts
+    if (isinstance(wertknoten, ast.Call) and isinstance(wertknoten.func, ast.Name)
+            and wertknoten.func.id in _LEERE_BEHAELTER_AUFRUFE
+            and not wertknoten.args and not wertknoten.keywords):
+        return True
+    return False
+
+
+def _wert_aus_quelltext(modul: str, name: str, knoten):
+    """Der Wert einer Modul-Konstante, bevorzugt aus dem Quelltext gelesen.
+
+    Ein leerer Behaelter ist Laufzeitzustand (``_CACHE``, ``_GEMELDET``) und
+    wird gar nicht bewertet (Rueckgabe ``_LAUFZEIT``) -- sein tatsaechlicher
+    Inhalt haengt von der Testreihenfolge ab, nicht vom Quelltext. Ein
+    literaler Wert (String, Zahl, Dict/Liste aus Literalen, ...) kommt per
+    ``ast.literal_eval`` direkt aus der Zuweisung. Nur eine abgeleitete,
+    nicht-literale Konstante (``re.compile(...)``, ``Pfad / "..."``, ein
+    Klassenaufruf) faellt auf ``getattr`` am importierten Modul zurueck --
+    wie vor dieser Aenderung.
+    """
+    wertknoten = knoten.value
+    if wertknoten is None:
+        wertknoten = ast.Constant(value=None)
+    if _ist_leerer_behaelter(wertknoten):
+        return _LAUFZEIT
+    try:
+        return ast.literal_eval(wertknoten)
+    except (ValueError, SyntaxError, TypeError):
+        import importlib
+
+        m = importlib.import_module(f"interview_theater.{modul}")
+        return getattr(m, name, None)
+
+
 @pytest.mark.parametrize("modul", sorted(UMGESTELLT))
 def test_keine_unuebersetzte_konstante(modul):
-    import importlib
-
     tabelle = _tabelle()
-    m = importlib.import_module(f"interview_theater.{modul}")
     offen = []
-    for name in KONSTANTEN[modul]:
+    for name, knoten in KONSTANTEN[modul].items():
         schluessel = f"{modul}.{name}"
         if name in tabelle.get(modul, {}) or schluessel in BLEIBT_DEUTSCH or schluessel in PARSER:
             continue
         if name.startswith("ART_") or name.endswith("_EN"):
             continue
-        wert = getattr(m, name, None)
+        wert = _wert_aus_quelltext(modul, name, knoten)
+        if wert is _LAUFZEIT:
+            continue
         if isinstance(wert, re.Pattern):
             continue
         if _sieht_deutsch_aus(wert) or (_TEXTNAME.search(name) and isinstance(wert, str) and wert.strip()):
             offen.append(schluessel)
     assert offen == []
+
+
+def test_konstanten_menge_ohne_laufzeitzustand_unveraendert():
+    """Regressionsanker fuer die Nachbesserung (Review-Befund): die neue
+    Bewertung aus dem Quelltext darf keine bisher geprueften echten
+    Textkonstanten aus der Pruefung nehmen -- nur die beiden Laufzeit-
+    Behaelter ``_CACHE`` und ``_GEMELDET`` fallen weg, die vorher als
+    Nebeneffekt der Testreihenfolge geprueft wurden."""
+    tabelle = _tabelle()
+    modul = "anweisungen"
+
+    def _vorher_geprueft(name) -> bool:
+        schluessel = f"{modul}.{name}"
+        if name in tabelle.get(modul, {}) or schluessel in BLEIBT_DEUTSCH or schluessel in PARSER:
+            return False
+        if name.startswith("ART_") or name.endswith("_EN"):
+            return False
+        return True
+
+    vorher = {n for n in KONSTANTEN[modul] if _vorher_geprueft(n)}
+    nachher = {n for n in vorher if _wert_aus_quelltext(modul, n, KONSTANTEN[modul][n]) is not _LAUFZEIT}
+    assert vorher - nachher == {"_CACHE", "_GEMELDET"}
+
+
+def test_gefuellter_cache_faellt_dem_waechter_nicht_zum_opfer():
+    """Reproduziert den Review-Befund direkt: ``anweisungen._CACHE`` mit
+    einem echten deutschen Prompt gefuellt (wie es ``anweisungen.hole()``
+    im Betrieb tut, und wie es in der vollen Suite je nach Reihenfolge vor
+    diesem Test passiert) -- der Waechter bleibt gruen, weil er den Cache
+    gar nicht mehr bewertet, statt auf eine leere Datenbank zu hoffen."""
+    from interview_theater import anweisungen
+
+    anweisungen._CACHE.clear()
+    try:
+        anweisungen.hole("system")
+        assert anweisungen._CACHE, "hole() muesste den Cache fuellen"
+        test_keine_unuebersetzte_konstante("anweisungen")
+    finally:
+        anweisungen._CACHE.clear()
 
 
 def _inline_texte(baum) -> list[tuple[int, str]]:

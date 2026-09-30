@@ -11,11 +11,6 @@ def frisch(monkeypatch):
     workshop.vergiss()
     yield
     workshop.vergiss()
-    # Der Phaseneintritt liest Prompts; ein gefuellter Cache waere fuer den
-    # Text-Waechter (tests/test_sprache_texte.py) eine deutsche Konstante.
-    from interview_theater import anweisungen, sprache
-    anweisungen._CACHE.clear()
-    sprache.vergiss()
 
 
 def test_neue_spalte_ist_zuerst_leer(conn):

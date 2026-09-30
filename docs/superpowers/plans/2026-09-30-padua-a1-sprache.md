@@ -648,7 +648,7 @@ Abschnitt der beiden Massstaebe veraendern, ausser ueber `VERSCHOBEN` /
 - Produces: `tests/test_sprache_bitgleich.VERSCHOBEN: dict[str, str]`,
   `GEAENDERT: dict[str, str]` — spaetere Aufgaben tragen dort ein.
 
-- [ ] **Schritt 1: Den Test schreiben** — `tests/test_sprache_bitgleich.py`:
+- [x] **Schritt 1: Den Test schreiben** — `tests/test_sprache_bitgleich.py`:
 
 ```python
 """Dortmund bleibt bitgleich -- auch durch die Sprachumstellung (Karte A1).
@@ -764,13 +764,13 @@ def test_jede_ausnahme_hat_einen_grund():
         assert alt != neu, alt
 ```
 
-- [ ] **Schritt 2: Rot sehen**
+- [x] **Schritt 2: Rot sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprache_bitgleich.py`
 Expected: FAIL — `ModuleNotFoundError: No module named 'scripts.text_schnappschuss'`
 (Sammelfehler), danach `FileNotFoundError` fuer die beiden Massstabsdateien.
 
-- [ ] **Schritt 3: `scripts/text_schnappschuss.py` schreiben**
+- [x] **Schritt 3: `scripts/text_schnappschuss.py` schreiben**
 
 ```python
 """Ein Schnappschuss aller Modul-Konstanten, aus denen ein Nutzer- oder
@@ -906,7 +906,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Schritt 4: Die beiden Massstaebe ablegen und gegenpruefen**
+- [x] **Schritt 4: Die beiden Massstaebe ablegen und gegenpruefen**
 
 ```bash
 $PY -m scripts.prompt_schnappschuss docs/prompt-audit/schnappschuss-vor-sprache-a1.txt
@@ -924,19 +924,19 @@ mit derselben Logik auf `d8deb6c`; weicht die Zahl ab, weil zwischen Plan und
 Umsetzung ein Commit Konstanten hinzugefuegt hat, gilt die gemessene Zahl —
 im Commit-Text nennen).
 
-- [ ] **Schritt 5: Gruen sehen**
+- [x] **Schritt 5: Gruen sehen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprache_bitgleich.py tests/test_profil_bitgleich.py`
 Expected: `6 passed` plus die bestehenden von `test_profil_bitgleich.py`, 0 failed.
 
-- [ ] **Schritt 6: Mutationsnachweis**
+- [x] **Schritt 6: Mutationsnachweis**
 
 In `interview_theater/knoepfe/texte.py:324` `_TEXT_SCHON_BENUTZT` um einen
 Punkt kuerzen → `test_texte_ohne_variable_wie_vor_a1` rot mit
 `knoepfe.texte._TEXT_SCHON_BENUTZT` in der Meldung. Zuruecksetzen
 (`git checkout interview_theater/knoepfe/texte.py`).
 
-- [ ] **Schritt 7: SUITE, Commit**
+- [x] **Schritt 7: SUITE, Commit**
 
 ```bash
 $PY -m pytest -q -p no:cacheprovider      # erwartet: 2774 passed, 1 skipped

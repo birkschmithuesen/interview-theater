@@ -22,7 +22,8 @@
       "also"
     ]
   },
-  "normalisierung": "ß -> ss vor dem Zaehlen; Prosa ohne Ueberschrift/Zusammenfassung (kurzgeschichte.zerlege), Szene ab der Zeile 'SZENE <n>'",
+  "normalisierung": "ß -> ss vor dem Zaehlen (sprachstil_masse.normalisiere); Prosa ohne Ueberschrift/Zusammenfassung (kurzgeschichte.zerlege), Szene ab der Zeile 'SZENE <n>', Gesamttext-Masse der Szene ohne Regieklammern",
+  "abschreiben": "Treffer der Stilmarker in einem Satz, der mit dem Beispielsatz des Stils eine Folge von vier Woertern teilt (sprachstil_masse.marker_in_kopie)",
   "einheit_marker": "Treffer je 100 Woerter",
   "laeufe": [
     {
@@ -42,6 +43,11 @@
         "KNAPP": 0.183,
         "SCHACHTEL": 0.32,
         "FUELL": 0.686
+      },
+      "gesamt_treffer": {
+        "KNAPP": 4,
+        "SCHACHTEL": 7,
+        "FUELL": 15
       },
       "gesamt_satzlaenge": 12.22,
       "figuren": {
@@ -83,6 +89,21 @@
         "Meryem-Ferzan": 0.0,
         "Meryem-Aynur": 0.0,
         "Ferzan-Aynur": 0.0
+      },
+      "abschreiben": {
+        "KNAPP": {
+          "treffer": 4,
+          "in_kopie": 0
+        },
+        "SCHACHTEL": {
+          "treffer": 7,
+          "in_kopie": 0
+        },
+        "FUELL": {
+          "treffer": 15,
+          "in_kopie": 6
+        },
+        "koffer_bleibt_zu": 1
       },
       "marker_naechste_figur": {
         "Meryem": {
@@ -136,6 +157,11 @@
         "SCHACHTEL": 0.347,
         "FUELL": 0.78
       },
+      "gesamt_treffer": {
+        "KNAPP": 4,
+        "SCHACHTEL": 8,
+        "FUELL": 18
+      },
       "gesamt_satzlaenge": 12.54,
       "figuren": {
         "Meryem": {
@@ -176,6 +202,21 @@
         "Meryem-Ferzan": 0.0,
         "Meryem-Aynur": 0.136,
         "Ferzan-Aynur": 0.047
+      },
+      "abschreiben": {
+        "KNAPP": {
+          "treffer": 4,
+          "in_kopie": 0
+        },
+        "SCHACHTEL": {
+          "treffer": 8,
+          "in_kopie": 0
+        },
+        "FUELL": {
+          "treffer": 18,
+          "in_kopie": 0
+        },
+        "koffer_bleibt_zu": 0
       },
       "marker_naechste_figur": {
         "Meryem": {
@@ -229,6 +270,11 @@
         "SCHACHTEL": 0.401,
         "FUELL": 1.204
       },
+      "gesamt_treffer": {
+        "KNAPP": 2,
+        "SCHACHTEL": 8,
+        "FUELL": 24
+      },
       "gesamt_satzlaenge": 13.65,
       "figuren": {
         "Meryem": {
@@ -269,6 +315,21 @@
         "Meryem-Ferzan": 0.024,
         "Meryem-Aynur": 0.042,
         "Ferzan-Aynur": 0.046
+      },
+      "abschreiben": {
+        "KNAPP": {
+          "treffer": 2,
+          "in_kopie": 0
+        },
+        "SCHACHTEL": {
+          "treffer": 8,
+          "in_kopie": 0
+        },
+        "FUELL": {
+          "treffer": 24,
+          "in_kopie": 0
+        },
+        "koffer_bleibt_zu": 0
       },
       "marker_naechste_figur": {
         "Meryem": {
@@ -322,6 +383,11 @@
         "SCHACHTEL": 0.0,
         "FUELL": 0.0
       },
+      "gesamt_treffer": {
+        "KNAPP": 2,
+        "SCHACHTEL": 0,
+        "FUELL": 0
+      },
       "gesamt_satzlaenge": 12.83,
       "figuren": {
         "Meryem": {
@@ -362,6 +428,9 @@
         "Meryem-Ferzan": 0.0,
         "Meryem-Aynur": 0.0,
         "Ferzan-Aynur": 0.0
+      },
+      "abschreiben": {
+        "koffer_bleibt_zu": 0
       },
       "marker_naechste_figur": {
         "Meryem": {
@@ -415,6 +484,11 @@
         "SCHACHTEL": 0.0,
         "FUELL": 0.0
       },
+      "gesamt_treffer": {
+        "KNAPP": 1,
+        "SCHACHTEL": 0,
+        "FUELL": 0
+      },
       "gesamt_satzlaenge": 12.03,
       "figuren": {
         "Meryem": {
@@ -455,6 +529,9 @@
         "Meryem-Ferzan": 0.085,
         "Meryem-Aynur": 0.025,
         "Ferzan-Aynur": 0.045
+      },
+      "abschreiben": {
+        "koffer_bleibt_zu": 0
       },
       "marker_naechste_figur": {
         "Meryem": {
@@ -508,6 +585,11 @@
         "SCHACHTEL": 0.0,
         "FUELL": 0.042
       },
+      "gesamt_treffer": {
+        "KNAPP": 0,
+        "SCHACHTEL": 0,
+        "FUELL": 1
+      },
       "gesamt_satzlaenge": 11.61,
       "figuren": {
         "Meryem": {
@@ -548,6 +630,9 @@
         "Meryem-Ferzan": 0.062,
         "Meryem-Aynur": 0.025,
         "Ferzan-Aynur": 0.021
+      },
+      "abschreiben": {
+        "koffer_bleibt_zu": 0
       },
       "marker_naechste_figur": {
         "Meryem": {
@@ -601,6 +686,11 @@
         "SCHACHTEL": 0.285,
         "FUELL": 1.33
       },
+      "gesamt_treffer": {
+        "KNAPP": 4,
+        "SCHACHTEL": 6,
+        "FUELL": 28
+      },
       "gesamt_satzlaenge": 11.76,
       "figuren": {
         "Meryem": {
@@ -641,6 +731,21 @@
         "Meryem-Ferzan": 0.0,
         "Meryem-Aynur": 0.0,
         "Ferzan-Aynur": 0.067
+      },
+      "abschreiben": {
+        "SCHACHTEL": {
+          "treffer": 6,
+          "in_kopie": 0
+        },
+        "FUELL": {
+          "treffer": 28,
+          "in_kopie": 5
+        },
+        "KNAPP": {
+          "treffer": 4,
+          "in_kopie": 0
+        },
+        "koffer_bleibt_zu": 0
       },
       "marker_naechste_figur": {
         "Meryem": {
@@ -694,6 +799,11 @@
         "SCHACHTEL": 0.393,
         "FUELL": 0.787
       },
+      "gesamt_treffer": {
+        "KNAPP": 6,
+        "SCHACHTEL": 8,
+        "FUELL": 16
+      },
       "gesamt_satzlaenge": 14.96,
       "figuren": {
         "Meryem": {
@@ -734,6 +844,21 @@
         "Meryem-Ferzan": 0.0,
         "Meryem-Aynur": 0.0,
         "Ferzan-Aynur": 0.0
+      },
+      "abschreiben": {
+        "SCHACHTEL": {
+          "treffer": 8,
+          "in_kopie": 0
+        },
+        "FUELL": {
+          "treffer": 16,
+          "in_kopie": 2
+        },
+        "KNAPP": {
+          "treffer": 6,
+          "in_kopie": 0
+        },
+        "koffer_bleibt_zu": 0
       },
       "marker_naechste_figur": {
         "Meryem": {
@@ -787,6 +912,11 @@
         "SCHACHTEL": 0.609,
         "FUELL": 1.522
       },
+      "gesamt_treffer": {
+        "KNAPP": 3,
+        "SCHACHTEL": 12,
+        "FUELL": 30
+      },
       "gesamt_satzlaenge": 15.4,
       "figuren": {
         "Meryem": {
@@ -827,6 +957,21 @@
         "Meryem-Ferzan": 0.286,
         "Meryem-Aynur": 0.0,
         "Ferzan-Aynur": 0.053
+      },
+      "abschreiben": {
+        "SCHACHTEL": {
+          "treffer": 12,
+          "in_kopie": 0
+        },
+        "FUELL": {
+          "treffer": 30,
+          "in_kopie": 0
+        },
+        "KNAPP": {
+          "treffer": 3,
+          "in_kopie": 0
+        },
+        "koffer_bleibt_zu": 0
       },
       "marker_naechste_figur": {
         "Meryem": {
@@ -871,16 +1016,21 @@
         "Ferzan": "SCHACHTEL",
         "Aynur": "FUELL"
       },
-      "woerter_gesamt": 836,
+      "woerter_gesamt": 591,
       "reden_gesamt": 70,
       "reden_zugeordnet": 70,
       "zuordnungsquote": 1.0,
       "gesamt_marker": {
-        "KNAPP": 0.598,
+        "KNAPP": 0.677,
         "SCHACHTEL": 0.0,
-        "FUELL": 1.196
+        "FUELL": 1.692
       },
-      "gesamt_satzlaenge": 5.77,
+      "gesamt_treffer": {
+        "KNAPP": 4,
+        "SCHACHTEL": 0,
+        "FUELL": 10
+      },
+      "gesamt_satzlaenge": 4.8,
       "figuren": {
         "Meryem": {
           "reden": 26,
@@ -921,6 +1071,21 @@
         "Meryem-Aynur": 0.2,
         "Ferzan-Aynur": 0.211
       },
+      "abschreiben": {
+        "KNAPP": {
+          "treffer": 4,
+          "in_kopie": 0
+        },
+        "SCHACHTEL": {
+          "treffer": 0,
+          "in_kopie": 0
+        },
+        "FUELL": {
+          "treffer": 10,
+          "in_kopie": 6
+        },
+        "koffer_bleibt_zu": 1
+      },
       "vorlage_marker": {
         "KNAPP": 0.167,
         "SCHACHTEL": 0.334,
@@ -936,16 +1101,21 @@
         "Ferzan": "SCHACHTEL",
         "Aynur": "FUELL"
       },
-      "woerter_gesamt": 841,
+      "woerter_gesamt": 629,
       "reden_gesamt": 76,
       "reden_zugeordnet": 76,
       "zuordnungsquote": 1.0,
       "gesamt_marker": {
-        "KNAPP": 0.238,
+        "KNAPP": 0.318,
         "SCHACHTEL": 0.0,
-        "FUELL": 0.832
+        "FUELL": 1.113
       },
-      "gesamt_satzlaenge": 5.22,
+      "gesamt_treffer": {
+        "KNAPP": 2,
+        "SCHACHTEL": 0,
+        "FUELL": 7
+      },
+      "gesamt_satzlaenge": 4.25,
       "figuren": {
         "Meryem": {
           "reden": 31,
@@ -986,6 +1156,21 @@
         "Meryem-Aynur": 0.149,
         "Ferzan-Aynur": 0.105
       },
+      "abschreiben": {
+        "KNAPP": {
+          "treffer": 2,
+          "in_kopie": 0
+        },
+        "SCHACHTEL": {
+          "treffer": 0,
+          "in_kopie": 0
+        },
+        "FUELL": {
+          "treffer": 7,
+          "in_kopie": 0
+        },
+        "koffer_bleibt_zu": 0
+      },
       "vorlage_marker": {
         "KNAPP": 0.0,
         "SCHACHTEL": 0.303,
@@ -1001,16 +1186,21 @@
         "Ferzan": "SCHACHTEL",
         "Aynur": "FUELL"
       },
-      "woerter_gesamt": 1012,
+      "woerter_gesamt": 707,
       "reden_gesamt": 98,
       "reden_zugeordnet": 98,
       "zuordnungsquote": 1.0,
       "gesamt_marker": {
-        "KNAPP": 0.692,
+        "KNAPP": 0.424,
         "SCHACHTEL": 0.0,
-        "FUELL": 0.198
+        "FUELL": 0.283
       },
-      "gesamt_satzlaenge": 6.02,
+      "gesamt_treffer": {
+        "KNAPP": 3,
+        "SCHACHTEL": 0,
+        "FUELL": 2
+      },
+      "gesamt_satzlaenge": 5.05,
       "figuren": {
         "Meryem": {
           "reden": 37,
@@ -1051,6 +1241,21 @@
         "Meryem-Aynur": 0.181,
         "Ferzan-Aynur": 0.252
       },
+      "abschreiben": {
+        "KNAPP": {
+          "treffer": 3,
+          "in_kopie": 0
+        },
+        "SCHACHTEL": {
+          "treffer": 0,
+          "in_kopie": 0
+        },
+        "FUELL": {
+          "treffer": 2,
+          "in_kopie": 0
+        },
+        "koffer_bleibt_zu": 0
+      },
       "vorlage_marker": {
         "KNAPP": 0.2,
         "SCHACHTEL": 0.601,
@@ -1066,7 +1271,7 @@
         "Ferzan": null,
         "Aynur": null
       },
-      "woerter_gesamt": 838,
+      "woerter_gesamt": 626,
       "reden_gesamt": 75,
       "reden_zugeordnet": 75,
       "zuordnungsquote": 1.0,
@@ -1075,7 +1280,12 @@
         "SCHACHTEL": 0.0,
         "FUELL": 0.0
       },
-      "gesamt_satzlaenge": 5.59,
+      "gesamt_treffer": {
+        "KNAPP": 0,
+        "SCHACHTEL": 0,
+        "FUELL": 0
+      },
+      "gesamt_satzlaenge": 4.71,
       "figuren": {
         "Meryem": {
           "reden": 25,
@@ -1116,6 +1326,9 @@
         "Meryem-Aynur": 0.189,
         "Ferzan-Aynur": 0.166
       },
+      "abschreiben": {
+        "koffer_bleibt_zu": 0
+      },
       "vorlage_marker": {
         "KNAPP": 0.0,
         "SCHACHTEL": 0.0,
@@ -1131,16 +1344,21 @@
         "Ferzan": null,
         "Aynur": null
       },
-      "woerter_gesamt": 971,
+      "woerter_gesamt": 672,
       "reden_gesamt": 94,
       "reden_zugeordnet": 94,
       "zuordnungsquote": 1.0,
       "gesamt_marker": {
-        "KNAPP": 0.206,
+        "KNAPP": 0.298,
         "SCHACHTEL": 0.0,
-        "FUELL": 0.103
+        "FUELL": 0.149
       },
-      "gesamt_satzlaenge": 5.16,
+      "gesamt_treffer": {
+        "KNAPP": 2,
+        "SCHACHTEL": 0,
+        "FUELL": 1
+      },
+      "gesamt_satzlaenge": 4.1,
       "figuren": {
         "Meryem": {
           "reden": 33,
@@ -1181,6 +1399,9 @@
         "Meryem-Aynur": 0.163,
         "Ferzan-Aynur": 0.16
       },
+      "abschreiben": {
+        "koffer_bleibt_zu": 0
+      },
       "vorlage_marker": {
         "KNAPP": 0.0,
         "SCHACHTEL": 0.0,
@@ -1196,16 +1417,21 @@
         "Ferzan": null,
         "Aynur": null
       },
-      "woerter_gesamt": 882,
+      "woerter_gesamt": 657,
       "reden_gesamt": 83,
       "reden_zugeordnet": 83,
       "zuordnungsquote": 1.0,
       "gesamt_marker": {
-        "KNAPP": 0.227,
+        "KNAPP": 0.304,
         "SCHACHTEL": 0.0,
-        "FUELL": 0.227
+        "FUELL": 0.304
       },
-      "gesamt_satzlaenge": 5.44,
+      "gesamt_treffer": {
+        "KNAPP": 2,
+        "SCHACHTEL": 0,
+        "FUELL": 2
+      },
+      "gesamt_satzlaenge": 4.53,
       "figuren": {
         "Meryem": {
           "reden": 29,
@@ -1246,6 +1472,9 @@
         "Meryem-Aynur": 0.131,
         "Ferzan-Aynur": 0.109
       },
+      "abschreiben": {
+        "koffer_bleibt_zu": 0
+      },
       "vorlage_marker": {
         "KNAPP": 0.0,
         "SCHACHTEL": 0.0,
@@ -1262,6 +1491,55 @@
           "sd": 0.0,
           "min": 3,
           "max": 3
+        },
+        "abschreiben.FUELL.in_kopie": {
+          "n": 3,
+          "mittel": 2,
+          "sd": 3.464,
+          "min": 0,
+          "max": 6
+        },
+        "abschreiben.FUELL.treffer": {
+          "n": 3,
+          "mittel": 19,
+          "sd": 4.583,
+          "min": 15,
+          "max": 24
+        },
+        "abschreiben.KNAPP.in_kopie": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "abschreiben.KNAPP.treffer": {
+          "n": 3,
+          "mittel": 3.333,
+          "sd": 1.155,
+          "min": 2,
+          "max": 4
+        },
+        "abschreiben.SCHACHTEL.in_kopie": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "abschreiben.SCHACHTEL.treffer": {
+          "n": 3,
+          "mittel": 7.667,
+          "sd": 0.577,
+          "min": 7,
+          "max": 8
+        },
+        "abschreiben.koffer_bleibt_zu": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
         },
         "figuren.Aynur.marker.FUELL": {
           "n": 3,
@@ -1437,6 +1715,27 @@
           "sd": 0.75,
           "min": 12.22,
           "max": 13.65
+        },
+        "gesamt_treffer.FUELL": {
+          "n": 3,
+          "mittel": 19,
+          "sd": 4.583,
+          "min": 15,
+          "max": 24
+        },
+        "gesamt_treffer.KNAPP": {
+          "n": 3,
+          "mittel": 3.333,
+          "sd": 1.155,
+          "min": 2,
+          "max": 4
+        },
+        "gesamt_treffer.SCHACHTEL": {
+          "n": 3,
+          "mittel": 7.667,
+          "sd": 0.577,
+          "min": 7,
+          "max": 8
         },
         "jaccard.Ferzan-Aynur": {
           "n": 3,
@@ -1622,6 +1921,13 @@
           "min": 3,
           "max": 3
         },
+        "abschreiben.koffer_bleibt_zu": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
         "figuren.Aynur.marker.FUELL": {
           "n": 3,
           "mittel": 0.0,
@@ -1796,6 +2102,27 @@
           "sd": 0.62,
           "min": 11.61,
           "max": 12.83
+        },
+        "gesamt_treffer.FUELL": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "gesamt_treffer.KNAPP": {
+          "n": 3,
+          "mittel": 1,
+          "sd": 1.0,
+          "min": 0,
+          "max": 2
+        },
+        "gesamt_treffer.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
         },
         "jaccard.Ferzan-Aynur": {
           "n": 3,
@@ -1981,6 +2308,55 @@
           "min": 3,
           "max": 3
         },
+        "abschreiben.FUELL.in_kopie": {
+          "n": 3,
+          "mittel": 2.333,
+          "sd": 2.517,
+          "min": 0,
+          "max": 5
+        },
+        "abschreiben.FUELL.treffer": {
+          "n": 3,
+          "mittel": 24.667,
+          "sd": 7.572,
+          "min": 16,
+          "max": 30
+        },
+        "abschreiben.KNAPP.in_kopie": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "abschreiben.KNAPP.treffer": {
+          "n": 3,
+          "mittel": 4.333,
+          "sd": 1.528,
+          "min": 3,
+          "max": 6
+        },
+        "abschreiben.SCHACHTEL.in_kopie": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "abschreiben.SCHACHTEL.treffer": {
+          "n": 3,
+          "mittel": 8.667,
+          "sd": 3.055,
+          "min": 6,
+          "max": 12
+        },
+        "abschreiben.koffer_bleibt_zu": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
         "figuren.Aynur.marker.FUELL": {
           "n": 3,
           "mittel": 0.0,
@@ -2155,6 +2531,27 @@
           "sd": 1.987,
           "min": 11.76,
           "max": 15.4
+        },
+        "gesamt_treffer.FUELL": {
+          "n": 3,
+          "mittel": 24.667,
+          "sd": 7.572,
+          "min": 16,
+          "max": 30
+        },
+        "gesamt_treffer.KNAPP": {
+          "n": 3,
+          "mittel": 4.333,
+          "sd": 1.528,
+          "min": 3,
+          "max": 6
+        },
+        "gesamt_treffer.SCHACHTEL": {
+          "n": 3,
+          "mittel": 8.667,
+          "sd": 3.055,
+          "min": 6,
+          "max": 12
         },
         "jaccard.Ferzan-Aynur": {
           "n": 3,
@@ -2335,6 +2732,55 @@
     },
     "szene": {
       "A": {
+        "abschreiben.FUELL.in_kopie": {
+          "n": 3,
+          "mittel": 2,
+          "sd": 3.464,
+          "min": 0,
+          "max": 6
+        },
+        "abschreiben.FUELL.treffer": {
+          "n": 3,
+          "mittel": 6.333,
+          "sd": 4.041,
+          "min": 2,
+          "max": 10
+        },
+        "abschreiben.KNAPP.in_kopie": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "abschreiben.KNAPP.treffer": {
+          "n": 3,
+          "mittel": 3,
+          "sd": 1.0,
+          "min": 2,
+          "max": 4
+        },
+        "abschreiben.SCHACHTEL.in_kopie": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "abschreiben.SCHACHTEL.treffer": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "abschreiben.koffer_bleibt_zu": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
         "figuren.Aynur.marker.FUELL": {
           "n": 3,
           "mittel": 5.309,
@@ -2484,17 +2930,17 @@
         },
         "gesamt_marker.FUELL": {
           "n": 3,
-          "mittel": 0.742,
-          "sd": 0.505,
-          "min": 0.198,
-          "max": 1.196
+          "mittel": 1.029,
+          "sd": 0.708,
+          "min": 0.283,
+          "max": 1.692
         },
         "gesamt_marker.KNAPP": {
           "n": 3,
-          "mittel": 0.509,
-          "sd": 0.24,
-          "min": 0.238,
-          "max": 0.692
+          "mittel": 0.473,
+          "sd": 0.184,
+          "min": 0.318,
+          "max": 0.677
         },
         "gesamt_marker.SCHACHTEL": {
           "n": 3,
@@ -2505,10 +2951,31 @@
         },
         "gesamt_satzlaenge": {
           "n": 3,
-          "mittel": 5.67,
+          "mittel": 4.7,
           "sd": 0.409,
-          "min": 5.22,
-          "max": 6.02
+          "min": 4.25,
+          "max": 5.05
+        },
+        "gesamt_treffer.FUELL": {
+          "n": 3,
+          "mittel": 6.333,
+          "sd": 4.041,
+          "min": 2,
+          "max": 10
+        },
+        "gesamt_treffer.KNAPP": {
+          "n": 3,
+          "mittel": 3,
+          "sd": 1.0,
+          "min": 2,
+          "max": 4
+        },
+        "gesamt_treffer.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
         },
         "jaccard.Ferzan-Aynur": {
           "n": 3,
@@ -2568,10 +3035,10 @@
         },
         "woerter_gesamt": {
           "n": 3,
-          "mittel": 896.333,
-          "sd": 100.201,
-          "min": 836,
-          "max": 1012
+          "mittel": 642.333,
+          "sd": 59.138,
+          "min": 591,
+          "max": 707
         },
         "zuordnungsquote": {
           "n": 3,
@@ -2582,6 +3049,13 @@
         }
       },
       "B": {
+        "abschreiben.koffer_bleibt_zu": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
         "figuren.Aynur.marker.FUELL": {
           "n": 3,
           "mittel": 0.0,
@@ -2731,17 +3205,17 @@
         },
         "gesamt_marker.FUELL": {
           "n": 3,
-          "mittel": 0.11,
-          "sd": 0.114,
+          "mittel": 0.151,
+          "sd": 0.152,
           "min": 0.0,
-          "max": 0.227
+          "max": 0.304
         },
         "gesamt_marker.KNAPP": {
           "n": 3,
-          "mittel": 0.144,
-          "sd": 0.125,
+          "mittel": 0.201,
+          "sd": 0.174,
           "min": 0.0,
-          "max": 0.227
+          "max": 0.304
         },
         "gesamt_marker.SCHACHTEL": {
           "n": 3,
@@ -2752,10 +3226,31 @@
         },
         "gesamt_satzlaenge": {
           "n": 3,
-          "mittel": 5.397,
-          "sd": 0.218,
-          "min": 5.16,
-          "max": 5.59
+          "mittel": 4.447,
+          "sd": 0.313,
+          "min": 4.1,
+          "max": 4.71
+        },
+        "gesamt_treffer.FUELL": {
+          "n": 3,
+          "mittel": 1,
+          "sd": 1.0,
+          "min": 0,
+          "max": 2
+        },
+        "gesamt_treffer.KNAPP": {
+          "n": 3,
+          "mittel": 1.333,
+          "sd": 1.155,
+          "min": 0,
+          "max": 2
+        },
+        "gesamt_treffer.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
         },
         "jaccard.Ferzan-Aynur": {
           "n": 3,
@@ -2815,10 +3310,10 @@
         },
         "woerter_gesamt": {
           "n": 3,
-          "mittel": 897,
-          "sd": 67.757,
-          "min": 838,
-          "max": 971
+          "mittel": 651.667,
+          "sd": 23.459,
+          "min": 626,
+          "max": 672
         },
         "zuordnungsquote": {
           "n": 3,
@@ -2827,6 +3322,167 @@
           "min": 1.0,
           "max": 1.0
         }
+      }
+    }
+  },
+  "summen": {
+    "prosa": {
+      "A": {
+        "laeufe": 3,
+        "gesamt_treffer": {
+          "KNAPP": 10,
+          "SCHACHTEL": 23,
+          "FUELL": 57
+        },
+        "abschreiben": {
+          "KNAPP": {
+            "treffer": 10,
+            "in_kopie": 0
+          },
+          "SCHACHTEL": {
+            "treffer": 23,
+            "in_kopie": 0
+          },
+          "FUELL": {
+            "treffer": 57,
+            "in_kopie": 6
+          }
+        },
+        "laeufe_mit_koffer_bleibt_zu": 1,
+        "naechste_figur": {
+          "Meryem": {
+            "KNAPP": 8,
+            "SCHACHTEL": 4,
+            "FUELL": 7
+          },
+          "Ferzan": {
+            "KNAPP": 0,
+            "SCHACHTEL": 10,
+            "FUELL": 2
+          },
+          "Aynur": {
+            "KNAPP": 1,
+            "SCHACHTEL": 0,
+            "FUELL": 13
+          },
+          "(keine)": {
+            "KNAPP": 1,
+            "SCHACHTEL": 9,
+            "FUELL": 35
+          }
+        }
+      },
+      "B": {
+        "laeufe": 3,
+        "gesamt_treffer": {
+          "KNAPP": 3,
+          "SCHACHTEL": 0,
+          "FUELL": 1
+        },
+        "abschreiben": {},
+        "laeufe_mit_koffer_bleibt_zu": 0,
+        "naechste_figur": {
+          "Meryem": {
+            "KNAPP": 1,
+            "SCHACHTEL": 0,
+            "FUELL": 0
+          },
+          "Ferzan": {
+            "KNAPP": 1,
+            "SCHACHTEL": 0,
+            "FUELL": 1
+          },
+          "Aynur": {
+            "KNAPP": 1,
+            "SCHACHTEL": 0,
+            "FUELL": 0
+          },
+          "(keine)": {
+            "KNAPP": 0,
+            "SCHACHTEL": 0,
+            "FUELL": 0
+          }
+        }
+      },
+      "C": {
+        "laeufe": 3,
+        "gesamt_treffer": {
+          "KNAPP": 13,
+          "SCHACHTEL": 26,
+          "FUELL": 74
+        },
+        "abschreiben": {
+          "SCHACHTEL": {
+            "treffer": 26,
+            "in_kopie": 0
+          },
+          "FUELL": {
+            "treffer": 74,
+            "in_kopie": 7
+          },
+          "KNAPP": {
+            "treffer": 13,
+            "in_kopie": 0
+          }
+        },
+        "laeufe_mit_koffer_bleibt_zu": 0,
+        "naechste_figur": {
+          "Meryem": {
+            "KNAPP": 3,
+            "SCHACHTEL": 19,
+            "FUELL": 11
+          },
+          "Ferzan": {
+            "KNAPP": 3,
+            "SCHACHTEL": 6,
+            "FUELL": 17
+          },
+          "Aynur": {
+            "KNAPP": 6,
+            "SCHACHTEL": 0,
+            "FUELL": 3
+          },
+          "(keine)": {
+            "KNAPP": 1,
+            "SCHACHTEL": 1,
+            "FUELL": 43
+          }
+        }
+      }
+    },
+    "szene": {
+      "A": {
+        "laeufe": 3,
+        "gesamt_treffer": {
+          "KNAPP": 9,
+          "SCHACHTEL": 0,
+          "FUELL": 19
+        },
+        "abschreiben": {
+          "KNAPP": {
+            "treffer": 9,
+            "in_kopie": 0
+          },
+          "SCHACHTEL": {
+            "treffer": 0,
+            "in_kopie": 0
+          },
+          "FUELL": {
+            "treffer": 19,
+            "in_kopie": 6
+          }
+        },
+        "laeufe_mit_koffer_bleibt_zu": 1
+      },
+      "B": {
+        "laeufe": 3,
+        "gesamt_treffer": {
+          "KNAPP": 4,
+          "SCHACHTEL": 0,
+          "FUELL": 3
+        },
+        "abschreiben": {},
+        "laeufe_mit_koffer_bleibt_zu": 0
       }
     }
   },
@@ -2842,6 +3498,29 @@
           "sd": 3.421,
           "min": 10.0,
           "max": 16.667
+        },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 15.667,
+            "sd": 8.145,
+            "min": 10,
+            "max": 25
+          },
+          "B": {
+            "n": 3,
+            "mittel": 25.667,
+            "sd": 22.898,
+            "min": 0,
+            "max": 44
+          },
+          "C": {
+            "n": 3,
+            "mittel": 5.667,
+            "sd": 9.815,
+            "min": 0,
+            "max": 17
+          }
         },
         "B": {
           "n": 3,
@@ -2868,6 +3547,29 @@
           "sd": 0.0,
           "min": 0.0,
           "max": 0.0
+        },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 15.667,
+            "sd": 8.145,
+            "min": 10,
+            "max": 25
+          },
+          "B": {
+            "n": 3,
+            "mittel": 25.667,
+            "sd": 22.898,
+            "min": 0,
+            "max": 44
+          },
+          "C": {
+            "n": 3,
+            "mittel": 5.667,
+            "sd": 9.815,
+            "min": 0,
+            "max": 17
+          }
         },
         "B": {
           "n": 3,
@@ -2895,6 +3597,29 @@
           "min": 0.0,
           "max": 4.615
         },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 54.333,
+            "sd": 49.863,
+            "min": 0,
+            "max": 98
+          },
+          "B": {
+            "n": 3,
+            "mittel": 37.667,
+            "sd": 24.379,
+            "min": 10,
+            "max": 56
+          },
+          "C": {
+            "n": 3,
+            "mittel": 10.333,
+            "sd": 9.018,
+            "min": 1,
+            "max": 19
+          }
+        },
         "B": {
           "n": 3,
           "mittel": 0.0,
@@ -2920,6 +3645,29 @@
           "sd": 1.178,
           "min": 0.0,
           "max": 2.041
+        },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 54.333,
+            "sd": 49.863,
+            "min": 0,
+            "max": 98
+          },
+          "B": {
+            "n": 3,
+            "mittel": 37.667,
+            "sd": 24.379,
+            "min": 10,
+            "max": 56
+          },
+          "C": {
+            "n": 3,
+            "mittel": 10.333,
+            "sd": 9.018,
+            "min": 1,
+            "max": 19
+          }
         },
         "B": {
           "n": 3,
@@ -2947,6 +3695,29 @@
           "min": 0.0,
           "max": 35.0
         },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 14.333,
+            "sd": 12.503,
+            "min": 0,
+            "max": 23
+          },
+          "B": {
+            "n": 3,
+            "mittel": 6,
+            "sd": 3.606,
+            "min": 3,
+            "max": 10
+          },
+          "C": {
+            "n": 3,
+            "mittel": 5,
+            "sd": 2.646,
+            "min": 2,
+            "max": 7
+          }
+        },
         "B": {
           "n": 3,
           "mittel": 0.0,
@@ -2972,6 +3743,29 @@
           "sd": 0.0,
           "min": 0.0,
           "max": 0.0
+        },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 14.333,
+            "sd": 12.503,
+            "min": 0,
+            "max": 23
+          },
+          "B": {
+            "n": 3,
+            "mittel": 6,
+            "sd": 3.606,
+            "min": 3,
+            "max": 10
+          },
+          "C": {
+            "n": 3,
+            "mittel": 5,
+            "sd": 2.646,
+            "min": 2,
+            "max": 7
+          }
         },
         "B": {
           "n": 3,
@@ -3001,6 +3795,22 @@
           "min": 0.575,
           "max": 1.639
         },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 176.333,
+            "sd": 55.537,
+            "min": 122,
+            "max": 233
+          },
+          "B": {
+            "n": 3,
+            "mittel": 178.333,
+            "sd": 16.773,
+            "min": 159,
+            "max": 189
+          }
+        },
         "B": {
           "n": 3,
           "mittel": 0.0,
@@ -3020,6 +3830,22 @@
           "min": 0.0,
           "max": 0.0
         },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 176.333,
+            "sd": 55.537,
+            "min": 122,
+            "max": 233
+          },
+          "B": {
+            "n": 3,
+            "mittel": 178.333,
+            "sd": 16.773,
+            "min": 159,
+            "max": 189
+          }
+        },
         "B": {
           "n": 3,
           "mittel": 0.0,
@@ -3038,6 +3864,22 @@
           "sd": 0.0,
           "min": 0.0,
           "max": 0.0
+        },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 245.333,
+            "sd": 59.769,
+            "min": 179,
+            "max": 295
+          },
+          "B": {
+            "n": 3,
+            "mittel": 254.333,
+            "sd": 21.079,
+            "min": 230,
+            "max": 267
+          }
         },
         "B": {
           "n": 3,
@@ -3058,6 +3900,22 @@
           "min": 0.0,
           "max": 1.145
         },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 245.333,
+            "sd": 59.769,
+            "min": 179,
+            "max": 295
+          },
+          "B": {
+            "n": 3,
+            "mittel": 254.333,
+            "sd": 21.079,
+            "min": 230,
+            "max": 267
+          }
+        },
         "B": {
           "n": 3,
           "mittel": 0.251,
@@ -3077,6 +3935,22 @@
           "min": 0.0,
           "max": 8.235
         },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 80,
+            "sd": 38.743,
+            "min": 39,
+            "max": 116
+          },
+          "B": {
+            "n": 3,
+            "mittel": 66,
+            "sd": 7.55,
+            "min": 59,
+            "max": 74
+          }
+        },
         "B": {
           "n": 3,
           "mittel": 0.0,
@@ -3095,6 +3969,22 @@
           "sd": 0.0,
           "min": 0.0,
           "max": 0.0
+        },
+        "woerter": {
+          "A": {
+            "n": 3,
+            "mittel": 80,
+            "sd": 38.743,
+            "min": 39,
+            "max": 116
+          },
+          "B": {
+            "n": 3,
+            "mittel": 66,
+            "sd": 7.55,
+            "min": 59,
+            "max": 74
+          }
         },
         "B": {
           "n": 3,

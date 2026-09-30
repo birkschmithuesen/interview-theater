@@ -62,6 +62,7 @@ import difflib
 import hashlib
 import json
 import re
+import statistics
 import sys
 import tempfile
 import time
@@ -71,6 +72,7 @@ from types import SimpleNamespace
 import httpx
 
 from interview_theater import aufnahme, db, kurzgeschichte, repo, szene, szene_claude
+from scripts import sprachstil_masse as masse
 
 WURZEL = Path(__file__).resolve().parent.parent
 INTERVIEWS = WURZEL / "simulation" / "interviews" / "set1"
@@ -498,13 +500,6 @@ NAMEN = [f[0] for f in FIGUREN]
 _SZENENKOPF = re.compile(r"^SZENE\s+\d", re.M)
 
 
-def _normalisiere(text: str) -> str:
-    """"ß" -> "ss": das Modell schreibt "weißt du", "gewissermaßen", die
-    Marker in ``sprachstil_masse.MARKER`` stehen in ASCII-Umschrift. Ohne
-    diesen Schritt faende der Zaehler die Fuellwoerter nie."""
-    return (text or "").replace("ß", "ss").replace("ẞ", "SS")
-
-
 def _textkoerper(weg: str, text: str) -> str:
     """Der Teil des Rohtexts, der Erzaehlung bzw. Szene ist -- ohne die
     Pflichtzeilen (Zusammenfassung, Kopf), die der Bot selbst abtrennt."""
@@ -518,8 +513,6 @@ def _reden(weg: str, koerper: str) -> dict:
     """Reden je Figur (Schluessel = Name aus NAMEN) plus ``None`` fuer alles
     nicht Zuordenbare (Prosa: kein Name in Reichweite; Szene: andere
     Sprecherkoepfe wie CHOR)."""
-    from scripts import sprachstil_masse as masse
-
     roh = (masse.direkte_rede(koerper, NAMEN) if weg == "prosa"
            else masse.sprecherzeilen(koerper, NAMEN))
     klein = {n.lower(): n for n in NAMEN}
@@ -531,43 +524,30 @@ def _reden(weg: str, koerper: str) -> dict:
 
 
 def _marker(reden: list[str]) -> dict[str, float]:
-    from scripts import sprachstil_masse as masse
     return {s: round(masse.marker_anteil(reden, m), 3) for s, m in masse.MARKER.items()}
 
 
-def marker_naechste_figur(koerper: str) -> dict[str, dict[str, int]]:
-    """Markertreffer im ganzen Prosatext, je Figur gezaehlt nach dem
-    naechststehenden Namen im selben Absatz (davor oder danach, der kleinere
-    Abstand gewinnt; ohne Namen im Absatz: ``"(keine)"``).
+def _beispielsatz(stil: str) -> str:
+    """Der Beispielsatz eines Stils (was in ``STILE`` hinter dem Titel steht)."""
+    return STILE[stil].split(": ", 1)[1]
 
-    Die Zweitmessung neben ``direkte_rede``: die Prosa-Regel "direkte Rede
-    nur sparsam" laesst das Modell einen Stil oft in indirekter Rede oder
-    im Erzaehlerbericht zeigen ("Sie fragt lang, mit Nebensaetzen, ...
-    insofern ..."). Solche Treffer stehen in keinem Zitat, aber neben dem
-    Namen der Figur, deren Stil sie tragen. Absolute Zahlen je Lauf."""
-    from scripts import sprachstil_masse as masse
 
-    namen_muster = re.compile(r"\b(" + "|".join(NAMEN) + r")s?\b")
-    ergebnis = {n: {s: 0 for s in masse.MARKER} for n in NAMEN + ["(keine)"]}
-    for absatz in re.split(r"\n\s*\n", koerper):
-        namen = [(t.start(), t.end(), t.group(1)) for t in namen_muster.finditer(absatz)]
-        for stil, liste in masse.MARKER.items():
-            for eintrag in liste:
-                for t in re.finditer(r"\b" + re.escape(eintrag) + r"\b", absatz, re.IGNORECASE):
-                    if not namen:
-                        ergebnis["(keine)"][stil] += 1
-                        continue
-                    abstand = lambda n: (t.start() - n[1]) if n[1] <= t.start() else (n[0] - t.end())  # noqa: E731
-                    ergebnis[min(namen, key=abstand)[2]][stil] += 1
-    return ergebnis
+def _abschreiben(variante: str, text: str) -> dict:
+    """Je Stil der Variante: alle Treffer seiner Marker im Text und davon die
+    in einem Satz, der mit seinem Beispielsatz eine Folge von vier Woertern
+    teilt (``masse.marker_in_kopie``). Dazu, wie oft der KNAPP-Satz "Koffer
+    bleibt zu" woertlich dasteht (drei Woerter, faellt durch das Vierer-
+    Raster)."""
+    aus: dict = {s: masse.marker_in_kopie(text, _beispielsatz(s), masse.MARKER[s])
+                 for s in VARIANTEN[variante] if s}
+    aus["koffer_bleibt_zu"] = len(re.findall(r"\bkoffer bleibt zu\b", text, re.IGNORECASE))
+    return aus
 
 
 def miss_lauf(satz: dict) -> dict:
     """Alle Masse eines Laufs (ein JSON aus ``laeufe/``)."""
-    from scripts import sprachstil_masse as masse
-
     weg = satz["weg"]
-    koerper = _normalisiere(_textkoerper(weg, satz.get("text") or ""))
+    koerper = masse.normalisiere(_textkoerper(weg, satz.get("text") or ""))
     reden = _reden(weg, koerper)
     zugeordnet = sum(len(reden[n]) for n in NAMEN)
     alle = zugeordnet + len(reden[None])
@@ -576,7 +556,7 @@ def miss_lauf(satz: dict) -> dict:
         liste = reden[n]
         figuren[n] = {
             "reden": len(liste),
-            "woerter": sum(len(re.findall(r"[\w'’]+", r)) for r in liste),
+            "woerter": sum(len(masse._WORT.findall(r)) for r in liste),
             "saetze": len(masse.saetze(liste)),
             "satzlaenge": round(masse.mittlere_satzlaenge(liste), 2),
             "marker": _marker(liste),
@@ -584,26 +564,31 @@ def miss_lauf(satz: dict) -> dict:
     schaetze = {n: masse.wortschatz(reden[n]) for n in NAMEN}
     jaccard = {f"{a}-{b}": round(masse.jaccard(schaetze[a], schaetze[b]), 3)
                for i, a in enumerate(NAMEN) for b in NAMEN[i + 1:]}
+    # Gesamttext-Masse: im Theatertext ohne Regieklammern -- "(isst weiter)"
+    # ist keine Rede und blaeht sonst KNAPP ("weiter") auf.
+    gesamt = masse._KLAMMER.sub(" ", koerper) if weg == "szene" else koerper
     ergebnis = {
         "weg": weg, "variante": satz["variante"], "lauf": satz["lauf"],
         "stile": satz.get("stile"),
-        "woerter_gesamt": len(re.findall(r"[\w'’]+", koerper)),
+        "woerter_gesamt": len(masse._WORT.findall(gesamt)),
         "reden_gesamt": alle, "reden_zugeordnet": zugeordnet,
         "zuordnungsquote": round(zugeordnet / alle, 3) if alle else 0.0,
-        "gesamt_marker": _marker([koerper]),
-        "gesamt_satzlaenge": round(masse.mittlere_satzlaenge([koerper]), 2),
+        "gesamt_marker": _marker([gesamt]),
+        "gesamt_treffer": {s: masse.marker_treffer(gesamt, m) for s, m in masse.MARKER.items()},
+        "gesamt_satzlaenge": round(masse.mittlere_satzlaenge([gesamt]), 2),
         "figuren": figuren, "jaccard": jaccard,
+        "abschreiben": _abschreiben(satz["variante"], gesamt),
     }
     if weg == "prosa":
-        ergebnis["marker_naechste_figur"] = marker_naechste_figur(koerper)
+        ergebnis["marker_naechste_figur"] = masse.marker_naechste_figur(koerper, NAMEN)
         # Haelt der Stil ueber die Geschichte, oder steht er nur im ersten
         # Abschnitt (wo der Beispielsatz des Stils am ehesten woertlich landet)?
-        abschnitte = [_normalisiere(p) for _t, _z, p in kurzgeschichte.zerlege(satz.get("text") or "")]
+        abschnitte = [masse.normalisiere(p) for _t, _z, p in kurzgeschichte.zerlege(satz.get("text") or "")]
         ergebnis["abschnitte"] = len(abschnitte)
         ergebnis["marker_abschnitt_1"] = _marker(abschnitte[:1])
         ergebnis["marker_ab_abschnitt_2"] = _marker([" ".join(abschnitte[1:])])
     if weg == "szene":
-        ergebnis["vorlage_marker"] = _marker([_normalisiere(satz.get("vorlage") or "")])
+        ergebnis["vorlage_marker"] = _marker([masse.normalisiere(satz.get("vorlage") or "")])
     return ergebnis
 
 
@@ -611,7 +596,6 @@ def _stat(werte: list[float]) -> dict:
     """Mittelwert, Standardabweichung (Stichprobe), min, max -- bei n=3 ist
     die Spannweite die ehrlichere Zahl, sd steht nur der Vollstaendigkeit
     halber daneben."""
-    import statistics
     if not werte:
         return {"n": 0}
     return {
@@ -666,8 +650,41 @@ def stil_folgt(agg: dict, weg: str, mass: str = "figuren.{n}.marker.{stil}") -> 
                 st = agg.get(weg, {}).get(v, {}).get(mass.format(n=n, stil=stil))
                 if st:
                     zeile[v] = st
+                # Der Nenner: zugeordnete Woerter der Figur je Lauf -- bei
+                # 2-7 Woertern ist ein Anteil von 37 % ein einziger Treffer.
+                w = agg.get(weg, {}).get(v, {}).get(f"figuren.{n}.woerter")
+                if w and mass.startswith("figuren."):
+                    zeile.setdefault("woerter", {})[v] = w
             zeilen.append(zeile)
     return zeilen
+
+
+def summen(messungen: list[dict]) -> dict:
+    """Absolute Summen ueber die Laeufe je Weg und Variante: Markertreffer im
+    Gesamttext, die Treffer neben dem Namen (Prosa, inkl. ``"(keine)"``) und
+    die Abschreib-Zaehlung. Die Grundlage fuer "x von y Treffern" im Bericht."""
+    aus: dict = {}
+    for m in messungen:
+        ziel = aus.setdefault(m["weg"], {}).setdefault(
+            m["variante"], {"laeufe": 0, "gesamt_treffer": {}, "abschreiben": {},
+                            "laeufe_mit_koffer_bleibt_zu": 0})
+        ziel["laeufe"] += 1
+        for s, k in m["gesamt_treffer"].items():
+            ziel["gesamt_treffer"][s] = ziel["gesamt_treffer"].get(s, 0) + k
+        for s, wert in m["abschreiben"].items():
+            if s == "koffer_bleibt_zu":
+                ziel["laeufe_mit_koffer_bleibt_zu"] += 1 if wert else 0
+                continue
+            z = ziel["abschreiben"].setdefault(s, {"treffer": 0, "in_kopie": 0})
+            z["treffer"] += wert["treffer"]
+            z["in_kopie"] += wert["in_kopie"]
+        if "marker_naechste_figur" in m:
+            nf = ziel.setdefault("naechste_figur", {})
+            for n, je_stil in m["marker_naechste_figur"].items():
+                for s, k in je_stil.items():
+                    nf.setdefault(n, {}).setdefault(s, 0)
+                    nf[n][s] += k
+    return aus
 
 
 def _fmt(st: dict | None) -> str:
@@ -691,11 +708,14 @@ def _tabelle_markdown(agg: dict, messungen: list[dict]) -> str:
                  f"{g['KNAPP']:.2f} | {g['SCHACHTEL']:.2f} | {g['FUELL']:.2f} |")
     for weg in sorted(agg):
         z.append(f"\n## {weg}: folgt der Markeranteil dem Stil? (je 100 Woerter, Mittel [min-max])\n")
-        z.append("| Figur | Rolle | Stil | A | B | C |")
-        z.append("|---|---|---|---|---|---|")
+        z.append("| Figur | Rolle | Stil | A | B | C | Woerter A / B / C |")
+        z.append("|---|---|---|---|---|---|---|")
         for zeile in stil_folgt(agg, weg):
+            w = zeile.get("woerter", {})
+            nenner = " / ".join(_fmt(w.get(v)) for v in ("A", "B", "C"))
             z.append(f"| {zeile['figur']} | {zeile['rolle']} | {zeile['stil']} | "
-                     f"{_fmt(zeile.get('A'))} | {_fmt(zeile.get('B'))} | {_fmt(zeile.get('C'))} |")
+                     f"{_fmt(zeile.get('A'))} | {_fmt(zeile.get('B'))} | {_fmt(zeile.get('C'))} | "
+                     f"{nenner} |")
         if weg == "prosa":
             z.append("\n## prosa: Markertreffer neben dem Namen (absolut je Lauf, Mittel [min-max])\n")
             z.append("| Figur | Rolle | Stil | A | B | C |")
@@ -733,15 +753,18 @@ def befehl_auswertung(a) -> int:
         messungen.append(miss_lauf(satz))
     messungen.sort(key=lambda m: (m["weg"], m["variante"], m["lauf"]))
     agg = aggregiere(messungen)
-    from scripts import sprachstil_masse as masse
     daten = {
         "erzeugt_von": "python -m scripts.sprachstil_wirkung auswertung",
         "marker": masse.MARKER,
-        "normalisierung": "ß -> ss vor dem Zaehlen; Prosa ohne Ueberschrift/Zusammenfassung "
-                          "(kurzgeschichte.zerlege), Szene ab der Zeile 'SZENE <n>'",
+        "normalisierung": "ß -> ss vor dem Zaehlen (sprachstil_masse.normalisiere); Prosa ohne "
+                          "Ueberschrift/Zusammenfassung (kurzgeschichte.zerlege), Szene ab der "
+                          "Zeile 'SZENE <n>', Gesamttext-Masse der Szene ohne Regieklammern",
+        "abschreiben": "Treffer der Stilmarker in einem Satz, der mit dem Beispielsatz des "
+                       "Stils eine Folge von vier Woertern teilt (sprachstil_masse.marker_in_kopie)",
         "einheit_marker": "Treffer je 100 Woerter",
         "laeufe": messungen,
         "varianten": agg,
+        "summen": summen(messungen),
         "stil_folgt": {weg: stil_folgt(agg, weg) for weg in agg},
         "stil_folgt_naechste_figur": {
             "prosa": stil_folgt(agg, "prosa", "marker_naechste_figur.{n}.{stil}")},

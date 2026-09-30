@@ -577,3 +577,114 @@ def test_eine_reine_formabfolge_bleibt_die_formwahl(erfunden, tg, einst):
         "SELECT art FROM vorfall WHERE chat_id = 1 ORDER BY id DESC LIMIT 1"
     ).fetchone()
     assert zeile is not None and zeile["art"] == "geschichte_war_formwahl"
+
+
+# --- Fix-Runde zu C9: die Formwahl bleibt vorn ---------------------------
+#
+# Die erste Fassung unterschied Formwahl und Richtung nur daran, ob vor dem
+# ersten "Szene N" ein Satz steht. Die drei Zeilen unten haben einen und sind
+# trotzdem Formwahlen -- die Wahl ging verloren.
+
+FORMWAHL_MIT_KETTE = "Chor-Dialog-Rap — Szene 1: Chor, Szene 2: Dialog, Szene 3: Rap"
+FORMWAHL_MIT_ZUSAETZEN = (
+    "Drei Formen: Szene 1: Chor mit Dance. Szene 2: Dialog mit Einschueben. "
+    "Szene 3: Rap eskaliert."
+)
+FORMWAHL_NACH_BOGEN = "Bogen. Szene 1: Ankunft — Dialog. Szene 2: Rap"
+
+
+def _druecke_richtung(conn, tg, einst, zeile):
+    knoepfe._wirke(
+        conn, tg, LLMAttrappe(""), einst,
+        {"art": knoepfe.ART_GESCHICHTE_SPEICHERN,
+         "wert": f"weiter{knoepfe.TRENNER}{zeile}"},
+        1,
+    )
+
+
+def _vorfaelle(conn):
+    return [z["art"] for z in conn.execute(
+        "SELECT art FROM vorfall WHERE chat_id = 1 ORDER BY id"
+    )]
+
+
+@pytest.mark.parametrize("zeile, erwartet", [
+    (FORMWAHL_MIT_KETTE, [(1, "chor"), (2, "dialog"), (3, "rap")]),
+    (FORMWAHL_MIT_ZUSAETZEN, [(1, "chor"), (2, "dialog"), (3, "rap")]),
+    (FORMWAHL_NACH_BOGEN, [(1, "dialog"), (2, "rap")]),
+])
+def test_eine_formwahl_mit_vorspann_bleibt_die_formwahl(
+    erfunden, tg, einst, zeile, erwartet
+):
+    conn = erfunden
+    nummern_vorher = {s["nummer"] for s in repo.hole_szenen(conn, 1)}
+    _druecke_richtung(conn, tg, einst, zeile)
+
+    assert "geschichte_war_formwahl" in _vorfaelle(conn)
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not stand["geschichte"], "Menuezeile nicht als Geschichte"
+    # Keine Formwahl verloren: szene.form oder Festlegung (Bestandsweg).
+    formen = {s["nummer"]: (s["form"] or "") for s in repo.hole_szenen(conn, 1)}
+    festgelegt = " ".join(z["text"] for z in repo.festlegungen(conn, 1))
+    for nummer, form in erwartet:
+        assert formen.get(nummer) == form or f"Szene {nummer}: {form}" in festgelegt
+    # Und keine Szenen mit Titeln wie "Chor mit Dance".
+    assert {s["nummer"] for s in repo.hole_szenen(conn, 1)} == nummern_vorher
+
+
+def test_szenen_der_richtung_grenzt_die_formwahl_ab():
+    assert szenenfolge.szenen_der_richtung(FORMWAHL_MIT_KETTE) == []
+    assert szenenfolge.szenen_der_richtung(FORMWAHL_MIT_ZUSAETZEN) == []
+    assert szenenfolge.szenen_der_richtung(FORMWAHL_NACH_BOGEN) == []
+    assert szenenfolge.szenen_der_richtung(RICHTUNG_MIT_SZENEN_UND_FORMEN) == [
+        (1, "Ankunft am Steg", "dialog"), (2, "Das Gestaendnis", "monolog"),
+    ]
+    assert len(szenenfolge.szenen_der_richtung(RICHTUNG_MIT_SZENEN)) == 3
+
+
+def test_eine_bestaetigte_form_bleibt_stehen(erfunden, tg, einst):
+    """``lege_inline_an`` setzt nur eine LEERE Form: was die Gruppe per Knopf
+    bestaetigt hat, ueberschreibt eine spaeter gewaehlte Richtung nicht."""
+    conn = erfunden
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szenenfeld(conn, szene_id, "form", "rap")
+    _druecke_richtung(conn, tg, einst, RICHTUNG_MIT_SZENEN_UND_FORMEN)
+    formen = {s["nummer"]: (s["form"] or "") for s in repo.hole_szenen(conn, 1)}
+    assert formen[1] == "rap"
+    assert formen[2] == "monolog"
+
+
+@pytest.mark.parametrize("zeile", [
+    "Ein Bogen. Szene 1: Ankunft. Szene 2: Streit. Szene 4: Abschied.",
+    "Ein Bogen. Szene 1: Ankunft. Szene 1: Streit.",
+])
+def test_luecken_in_der_nummerierung_hinterlassen_einen_vorfall(
+    erfunden, tg, einst, zeile
+):
+    conn = erfunden
+    _druecke_richtung(conn, tg, einst, zeile)
+    szenenfolge._sperre_fuer(1).acquire(timeout=10)
+    szenenfolge._sperre_fuer(1).release()
+    assert szenenfolge.VORFALL_RICHTUNG_UNVOLLSTAENDIG in _vorfaelle(conn)
+
+
+def test_eine_lueckenlose_richtung_hinterlaesst_keinen_vorfall(erfunden, tg, einst):
+    conn = erfunden
+    _druecke_richtung(conn, tg, einst, RICHTUNG_MIT_SZENEN)
+    assert szenenfolge.VORFALL_RICHTUNG_UNVOLLSTAENDIG not in _vorfaelle(conn)
+
+
+def test_ein_zu_langer_titel_ist_fliesstext():
+    lang = "x" * (szenenfolge.TITEL_MAX + 1)
+    assert szenenfolge.szenen_in_zeile(
+        f"Bogen. Szene 1: Ankunft. Szene 2: {lang}."
+    ) == []
+    genau = "y" * szenenfolge.TITEL_MAX
+    assert szenenfolge.szenen_in_zeile(
+        f"Bogen. Szene 1: Ankunft. Szene 2: {genau}."
+    ) == [(1, "Ankunft", ""), (2, genau, "")]
+    assert szenenfolge.szenen_in_zeile(
+        "Pal wartet am Steg. Szene 1: Ankunft. Und dann kommt es so, weil er in "
+        "Szene 2: nie wieder zurueckkommen will, obwohl Mira ihn ruft und die "
+        "ganze Nacht am Kanal auf ihn wartet und wartet."
+    ) == []

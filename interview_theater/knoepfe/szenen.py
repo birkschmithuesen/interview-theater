@@ -1081,24 +1081,29 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     # 113 Zeichen Formwahl statt der 665 Zeichen langen, vierteiligen
     # Handlung. Spiegelbildlich zu ``erkenner._ist_geschichte``, das
     # denselben Fehler in der anderen Richtung abfaengt.
+    inline: list = []
     if not zeilen:
-        # **Eine Richtung MIT inline benannten Szenen hat einen Bogen VOR dem
-        # ersten Anker** -- eine reine Formabfolge ("Szene 1: Chor mit Dance.
-        # Szene 2: …") beginnt dagegen direkt mit "Szene 1", ohne Satz davor.
-        # Ohne diese Unterscheidung faengt ``formabfolge`` auch eine Richtung
-        # wie "Nacht am Kanal … Szene 1: Ankunft am Steg (Dialog). Szene 2:
-        # …" ab (zwei Formen, an "Szene N" gebunden) und die Handlung ginge
-        # verloren -- genau der Rest-Fall aus der Praemissenpruefung
-        # (Nebenbefund 3), den C9 mit ``szenenfolge.szenen_in_zeile`` weiter
-        # unten behandelt. Eine reine Formabfolge ohne Vorspann bleibt
-        # unveraendert bei ``_uebernimm_formwahl`` (Praezedenz von 3290d70).
-        erster_anker = szenenfolge._SZENE_ANKER.search(wert or "")
-        hat_vorspann = bool(
-            erster_anker and (wert or "")[:erster_anker.start()].strip()
-        )
-        formen = None if hat_vorspann else szenenfolge.formabfolge(wert)
-        if formen:
-            return _uebernimm_formwahl(conn, tg, chat_id, wert, formen)
+        # **Nennt die Richtung ihre Szenen selbst** (C9), geht das vor die
+        # Formwahl -- aber nur, wenn die Szenen echte Titel tragen und jede
+        # Form, die ``formabfolge`` findet, ein Anhang genau dieser Titel ist
+        # (``szenenfolge.szenen_der_richtung``). Eine Menuezeile wie
+        # "Chor-Dialog-Rap — Szene 1: Chor, …" oder "Szene 1: Chor mit
+        # Dance. …" bleibt damit bei ``_uebernimm_formwahl`` (Praezedenz von
+        # 3290d70), egal ob vor dem ersten Anker ein Satz steht.
+        inline = szenenfolge.szenen_der_richtung(wert)
+        if not inline:
+            luecken = szenenfolge.nummern_unvollstaendig(wert)
+            if luecken:
+                repo.merke_vorfall(
+                    conn, chat_id, None,
+                    szenenfolge.VORFALL_RICHTUNG_UNVOLLSTAENDIG,
+                    szenenfolge.DETAIL_RICHTUNG_UNVOLLSTAENDIG.format(
+                        nummern=", ".join(str(n) for n in luecken)
+                    ),
+                )
+            formen = szenenfolge.formabfolge(wert)
+            if formen:
+                return _uebernimm_formwahl(conn, tg, chat_id, wert, formen)
     # Eine Richtung ist eine Zeile "Titel — Bogen, Ende, Konflikt": sie ist
     # die Geschichte, nicht ihr erster Satz.
     geschichte = wert.strip() if not zeilen else geschichte
@@ -1120,11 +1125,10 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     # Ein spaeter ausdruecklich bestellter Vorschlag ("Anzahl aendern") darf
     # umbenennen; das ist dann eine Bestellung.
     #
-    # Eine reine Formabfolge kommt hier nie an: sie ist oben in
+    # Eine Formabfolge kommt hier nie an: sie ist oben in
     # ``_uebernimm_formwahl`` abgezweigt (Praezedenz von 3290d70, und dort
     # bleibt sie -- sie sichert genau das, was die Gruppe gedrueckt hat).
     if not zeilen:
-        inline = szenenfolge.szenen_in_zeile(wert)
         if inline:
             zeilen = [(titel, "", [], form, "") for _n, titel, form in inline]
             nummern = szenenfolge.lege_inline_an(conn, chat_id, inline)

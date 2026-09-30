@@ -459,6 +459,45 @@ _FORM_ANHANG = re.compile(
 JOURNAL_INLINE = "Szenen aus der gewaehlten Richtung: {liste}"
 
 
+#: Laengster Titel, den eine Richtungszeile fuer eine Szene tragen darf.
+#: Laenger ist Fliesstext ("... weil er in Szene 2: nie wieder ..."), kein
+#: Titel -- dann gilt die ganze Zeile als ohne Szenen.
+TITEL_MAX = 80
+
+#: Vorfall, wenn eine Richtung Szenen nennt, deren Nummern Luecken oder
+#: Doppelungen haben ("Szene 1 … Szene 2 … Szene 4") -- sie werden dann NICHT
+#: uebernommen, und der Folge-Lauf schlaegt neu vor.
+VORFALL_RICHTUNG_UNVOLLSTAENDIG = "richtung_szenen_unvollstaendig"
+DETAIL_RICHTUNG_UNVOLLSTAENDIG = (
+    "Richtung nennt Szenen mit Luecken oder Doppelungen in der Nummerierung: {nummern}"
+)
+
+
+def _szenenstuecke(zeile: str) -> tuple[list[tuple[int, str, str]], bool]:
+    """Alle Anker einer Zeile mit nicht-leerem Titel, ungeprueft:
+    ``([(nummer, titel, form)], zu_lang)``. ``zu_lang`` ist wahr, sobald ein
+    Titel ueber ``TITEL_MAX`` liegt."""
+    roh = " ".join((zeile or "").split())
+    anker = list(_SZENE_ANKER.finditer(roh))
+    stuecke: list[tuple[int, str, str]] = []
+    zu_lang = False
+    for stelle, treffer in enumerate(anker):
+        ende = anker[stelle + 1].start() if stelle + 1 < len(anker) else len(roh)
+        stueck = roh[treffer.end():ende].strip()
+        form = ""
+        anhang = _FORM_ANHANG.search(stueck)
+        if anhang is not None:
+            form = anhang.group(1).lower()
+            stueck = stueck[:anhang.start()]
+        titel = stueck.strip(" .;,()[]–—-/|").strip()
+        if not titel:
+            continue
+        if len(titel) > TITEL_MAX:
+            zu_lang = True
+        stuecke.append((int(treffer.group(1)), titel, form))
+    return stuecke, zu_lang
+
+
 def szenen_in_zeile(zeile: str) -> list[tuple[int, str, str]]:
     """Die Szenen, die EINE Richtungszeile innerhalb ihres Satzes benennt:
     ``[(nummer, titel, form)]``. ``form`` ist "", wenn keine dasteht.
@@ -475,7 +514,8 @@ def szenen_in_zeile(zeile: str) -> list[tuple[int, str, str]]:
 
     * mindestens **zwei** Anker -- eine einzelne Nennung ("und in Szene 1
       sehen wir das schon") ist ein Satz und keine Liste;
-    * je Anker ein nicht-leerer Titel;
+    * je Anker ein nicht-leerer Titel, **hoechstens ``TITEL_MAX`` Zeichen**
+      -- laenger ist Fliesstext, und dann gilt die ganze Zeile nicht;
     * die Nummern muessen **zusammenhaengend ab 1** laufen.
       ``repo.gleiche_szenenfolge_ab`` nummeriert nach Position in der Liste
       (``repo.py:2350``) -- aus "Szene 2" und "Szene 4" wuerden sonst die
@@ -484,28 +524,60 @@ def szenen_in_zeile(zeile: str) -> list[tuple[int, str, str]]:
     Die Form wird nur am **Ende** eines Stuecks gelesen (``_FORM_ANHANG``):
     "Der Chor am Morgen" ist ein Titel, "Ankunft am Steg (Dialog)" eine
     Formangabe."""
-    roh = " ".join((zeile or "").split())
-    anker = list(_SZENE_ANKER.finditer(roh))
-    if len(anker) < 2:
-        return []
-    ergebnis: list[tuple[int, str, str]] = []
-    for stelle, treffer in enumerate(anker):
-        ende = anker[stelle + 1].start() if stelle + 1 < len(anker) else len(roh)
-        stueck = roh[treffer.end():ende].strip()
-        form = ""
-        anhang = _FORM_ANHANG.search(stueck)
-        if anhang is not None:
-            form = anhang.group(1).lower()
-            stueck = stueck[:anhang.start()]
-        titel = stueck.strip(" .;,()[]–—-/|").strip()
-        if not titel:
-            continue
-        ergebnis.append((int(treffer.group(1)), titel, form))
-    if len(ergebnis) < 2:
+    ergebnis, zu_lang = _szenenstuecke(zeile)
+    if zu_lang or len(ergebnis) < 2:
         return []
     if [n for n, _, _ in ergebnis] != list(range(1, len(ergebnis) + 1)):
         return []
     return ergebnis
+
+
+def nummern_unvollstaendig(zeile: str) -> list[int] | None:
+    """Nennt die Zeile mindestens zwei Szenen mit Titel, deren Nummern NICHT
+    zusammenhaengend ab 1 laufen (Luecke oder Doppelung)? Dann die Nummern,
+    sonst ``None``. Nur fuer den Vorfall: ``szenen_in_zeile`` verwirft
+    solche Zeilen, und das soll nicht still geschehen."""
+    stuecke, zu_lang = _szenenstuecke(zeile)
+    if zu_lang or len(stuecke) < 2:
+        return None
+    nummern = [n for n, _, _ in stuecke]
+    if nummern == list(range(1, len(nummern) + 1)):
+        return None
+    return nummern
+
+
+def _ist_formtitel(titel: str) -> bool:
+    """Beginnt der "Titel" mit einem Formwort ("Chor mit Dance", "Rap
+    eskaliert"), ist er eine Formangabe mit Zusatz und kein Titel."""
+    return _FORMWORT.match(titel) is not None
+
+
+def szenen_der_richtung(zeile: str) -> list[tuple[int, str, str]]:
+    """Die Szenen einer Richtungszeile, **wenn** sie wirklich eine Richtung
+    mit eigenen Szenen ist -- sonst ``[]``, und der Aufrufer bleibt beim
+    bisherigen Weg (``formabfolge`` → Formwahl, oder Folge-Lauf).
+
+    Gegen die Formwahl aus ``3290d70`` abgegrenzt, nicht davor gesetzt:
+
+    * ``szenen_in_zeile`` liefert mindestens zwei Szenen;
+    * **kein** Titel beginnt mit einem Formwort -- "Szene 1: Chor mit
+      Dance. Szene 2: Dialog mit Einschueben." ist eine Formwahl mit
+      Zusaetzen, keine Szenenfolge;
+    * jede Form, die ``formabfolge`` in der Zeile findet, steht genau als
+      Anhang am Titel derselben Szene. Findet ``formabfolge`` Formen, die
+      keine Anhaenge echter Titel sind, gewinnt die Formwahl -- sie sichert
+      das, was die Gruppe gedrueckt hat."""
+    inline = szenen_in_zeile(zeile)
+    if not inline:
+        return []
+    if any(_ist_formtitel(titel) for _n, titel, _f in inline):
+        return []
+    formen = formabfolge(zeile)
+    if formen:
+        anhaenge = {n: form for n, _t, form in inline if form}
+        if anhaenge != formen:
+            return []
+    return inline
 
 
 def lege_inline_an(
@@ -522,16 +594,20 @@ def lege_inline_an(
     heraus, nicht die Wahl der Gruppe -- und hier hat sie gedrueckt
     (dieselbe Begruendung wie in ``knoepfe._uebernimm_formwahl``). Nennt die
     Zeile keine Form, bleibt ``form`` leer und die Frage steht spaeter Szene
-    fuer Szene (``knoepfe.biete_szenenform``)."""
+    fuer Szene (``knoepfe.biete_szenenform``).
+
+    **Nur eine leere Form wird gesetzt.** ``repo.setze_szenenfeld`` kennt
+    ``GESCHUETZTE_SZENENFELDER`` nicht; eine per Knopf schon bestaetigte Form
+    einer bestehenden Szene bleibt deshalb hier eigens stehen."""
     zeilen = [(titel, "", [], "", "") for _nummer, titel, _form in szenen]
     nummern = lege_an(conn, chat_id, zeilen)
-    nach_nummer = {s["nummer"]: s["id"] for s in repo.hole_szenen(conn, chat_id)}
+    nach_nummer = {s["nummer"]: s for s in repo.hole_szenen(conn, chat_id)}
     for nummer, _titel, form in szenen:
         if not form:
             continue
-        szene_id = nach_nummer.get(nummer)
-        if szene_id is not None:
-            repo.setze_szenenfeld(conn, szene_id, "form", form)
+        szene = nach_nummer.get(nummer)
+        if szene is not None and not (szene["form"] or "").strip():
+            repo.setze_szenenfeld(conn, szene["id"], "form", form)
     return nummern
 
 

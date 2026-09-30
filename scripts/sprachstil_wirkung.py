@@ -45,12 +45,15 @@ Lauf unter ``laeufe/``; vorhandene erfolgreiche Laeufe werden
 uebersprungen, fehlgeschlagene am Ende einmal wiederholt). Der Szenenweg
 nimmt als Vorlage den ersten Abschnitt (``kurzgeschichte.zerlege``) des
 Prosa-Laufs mit derselben Variante und Nummer -- also erst ``--pfad prosa``.
-``auswertung`` kommt in Task 4 dazu. **Kein Test, laeuft nie automatisch.**
+``auswertung`` (kein Netz) misst alle erfolgreichen Laeufe mit
+``scripts/sprachstil_masse.py`` und schreibt ``auswertung.json`` plus eine
+Markdown-Tabelle auf stdout. **Kein Test, laeuft nie automatisch.**
 
 Aufruf:
     python -m scripts.sprachstil_wirkung pfad [--ausgabe DIR]
     python -m scripts.sprachstil_wirkung lauf --pfad prosa|szene [--n 3]
         [--variante A] [--lauf 1]
+    python -m scripts.sprachstil_wirkung auswertung [--ausgabe DIR]
 """
 from __future__ import annotations
 
@@ -482,6 +485,273 @@ def befehl_lauf(a) -> int:
     return 1 if fehlgeschlagen else 0
 
 
+# ---------------------------------------------------------------------------
+# Auswertung (Task 4) -- rein mechanisch, kein Netz, kein Modellaufruf
+# ---------------------------------------------------------------------------
+
+#: Die Figurennamen, in der Reihenfolge von FIGUREN.
+NAMEN = [f[0] for f in FIGUREN]
+
+#: Ab dieser Zeile beginnt im Theatertext der eigentliche Szenentext; alles
+#: davor ist der Kopf (TITEL/KURZ/ZUSAMMENFASSUNG/ANDERS GEMACHT), der sonst
+#: als Sprecher "ANDERS GEMACHT" mitgezaehlt wuerde.
+_SZENENKOPF = re.compile(r"^SZENE\s+\d", re.M)
+
+
+def _normalisiere(text: str) -> str:
+    """"ß" -> "ss": das Modell schreibt "weißt du", "gewissermaßen", die
+    Marker in ``sprachstil_masse.MARKER`` stehen in ASCII-Umschrift. Ohne
+    diesen Schritt faende der Zaehler die Fuellwoerter nie."""
+    return (text or "").replace("ß", "ss").replace("ẞ", "SS")
+
+
+def _textkoerper(weg: str, text: str) -> str:
+    """Der Teil des Rohtexts, der Erzaehlung bzw. Szene ist -- ohne die
+    Pflichtzeilen (Zusammenfassung, Kopf), die der Bot selbst abtrennt."""
+    if weg == "prosa":
+        return "\n\n".join(p for _t, _z, p in kurzgeschichte.zerlege(text))
+    treffer = _SZENENKOPF.search(text)
+    return text[treffer.start():] if treffer else text
+
+
+def _reden(weg: str, koerper: str) -> dict:
+    """Reden je Figur (Schluessel = Name aus NAMEN) plus ``None`` fuer alles
+    nicht Zuordenbare (Prosa: kein Name in Reichweite; Szene: andere
+    Sprecherkoepfe wie CHOR)."""
+    from scripts import sprachstil_masse as masse
+
+    roh = (masse.direkte_rede(koerper, NAMEN) if weg == "prosa"
+           else masse.sprecherzeilen(koerper, NAMEN))
+    klein = {n.lower(): n for n in NAMEN}
+    ergebnis: dict = {n: [] for n in NAMEN}
+    ergebnis[None] = []
+    for name, liste in roh.items():
+        ergebnis[klein.get((name or "").lower())].extend(liste)
+    return ergebnis
+
+
+def _marker(reden: list[str]) -> dict[str, float]:
+    from scripts import sprachstil_masse as masse
+    return {s: round(masse.marker_anteil(reden, m), 3) for s, m in masse.MARKER.items()}
+
+
+def marker_naechste_figur(koerper: str) -> dict[str, dict[str, int]]:
+    """Markertreffer im ganzen Prosatext, je Figur gezaehlt nach dem
+    naechststehenden Namen im selben Absatz (davor oder danach, der kleinere
+    Abstand gewinnt; ohne Namen im Absatz: ``"(keine)"``).
+
+    Die Zweitmessung neben ``direkte_rede``: die Prosa-Regel "direkte Rede
+    nur sparsam" laesst das Modell einen Stil oft in indirekter Rede oder
+    im Erzaehlerbericht zeigen ("Sie fragt lang, mit Nebensaetzen, ...
+    insofern ..."). Solche Treffer stehen in keinem Zitat, aber neben dem
+    Namen der Figur, deren Stil sie tragen. Absolute Zahlen je Lauf."""
+    from scripts import sprachstil_masse as masse
+
+    namen_muster = re.compile(r"\b(" + "|".join(NAMEN) + r")s?\b")
+    ergebnis = {n: {s: 0 for s in masse.MARKER} for n in NAMEN + ["(keine)"]}
+    for absatz in re.split(r"\n\s*\n", koerper):
+        namen = [(t.start(), t.end(), t.group(1)) for t in namen_muster.finditer(absatz)]
+        for stil, liste in masse.MARKER.items():
+            for eintrag in liste:
+                for t in re.finditer(r"\b" + re.escape(eintrag) + r"\b", absatz, re.IGNORECASE):
+                    if not namen:
+                        ergebnis["(keine)"][stil] += 1
+                        continue
+                    abstand = lambda n: (t.start() - n[1]) if n[1] <= t.start() else (n[0] - t.end())  # noqa: E731
+                    ergebnis[min(namen, key=abstand)[2]][stil] += 1
+    return ergebnis
+
+
+def miss_lauf(satz: dict) -> dict:
+    """Alle Masse eines Laufs (ein JSON aus ``laeufe/``)."""
+    from scripts import sprachstil_masse as masse
+
+    weg = satz["weg"]
+    koerper = _normalisiere(_textkoerper(weg, satz.get("text") or ""))
+    reden = _reden(weg, koerper)
+    zugeordnet = sum(len(reden[n]) for n in NAMEN)
+    alle = zugeordnet + len(reden[None])
+    figuren = {}
+    for n in NAMEN:
+        liste = reden[n]
+        figuren[n] = {
+            "reden": len(liste),
+            "woerter": sum(len(re.findall(r"[\w'’]+", r)) for r in liste),
+            "saetze": len(masse.saetze(liste)),
+            "satzlaenge": round(masse.mittlere_satzlaenge(liste), 2),
+            "marker": _marker(liste),
+        }
+    schaetze = {n: masse.wortschatz(reden[n]) for n in NAMEN}
+    jaccard = {f"{a}-{b}": round(masse.jaccard(schaetze[a], schaetze[b]), 3)
+               for i, a in enumerate(NAMEN) for b in NAMEN[i + 1:]}
+    ergebnis = {
+        "weg": weg, "variante": satz["variante"], "lauf": satz["lauf"],
+        "stile": satz.get("stile"),
+        "woerter_gesamt": len(re.findall(r"[\w'’]+", koerper)),
+        "reden_gesamt": alle, "reden_zugeordnet": zugeordnet,
+        "zuordnungsquote": round(zugeordnet / alle, 3) if alle else 0.0,
+        "gesamt_marker": _marker([koerper]),
+        "gesamt_satzlaenge": round(masse.mittlere_satzlaenge([koerper]), 2),
+        "figuren": figuren, "jaccard": jaccard,
+    }
+    if weg == "prosa":
+        ergebnis["marker_naechste_figur"] = marker_naechste_figur(koerper)
+        # Haelt der Stil ueber die Geschichte, oder steht er nur im ersten
+        # Abschnitt (wo der Beispielsatz des Stils am ehesten woertlich landet)?
+        abschnitte = [_normalisiere(p) for _t, _z, p in kurzgeschichte.zerlege(satz.get("text") or "")]
+        ergebnis["abschnitte"] = len(abschnitte)
+        ergebnis["marker_abschnitt_1"] = _marker(abschnitte[:1])
+        ergebnis["marker_ab_abschnitt_2"] = _marker([" ".join(abschnitte[1:])])
+    if weg == "szene":
+        ergebnis["vorlage_marker"] = _marker([_normalisiere(satz.get("vorlage") or "")])
+    return ergebnis
+
+
+def _stat(werte: list[float]) -> dict:
+    """Mittelwert, Standardabweichung (Stichprobe), min, max -- bei n=3 ist
+    die Spannweite die ehrlichere Zahl, sd steht nur der Vollstaendigkeit
+    halber daneben."""
+    import statistics
+    if not werte:
+        return {"n": 0}
+    return {
+        "n": len(werte), "mittel": round(statistics.mean(werte), 3),
+        "sd": round(statistics.stdev(werte), 3) if len(werte) > 1 else 0.0,
+        "min": round(min(werte), 3), "max": round(max(werte), 3),
+    }
+
+
+def _flach(d: dict, praefix: str = "") -> dict[str, float]:
+    """Verschachtelte Zahlen als ``a.b.c`` -> Wert (fuer die Aggregation)."""
+    aus: dict[str, float] = {}
+    for k, v in d.items():
+        schluessel = f"{praefix}{k}"
+        if isinstance(v, dict):
+            aus.update(_flach(v, schluessel + "."))
+        elif isinstance(v, (int, float)) and not isinstance(v, bool):
+            aus[schluessel] = v
+    return aus
+
+
+_NICHT_AGGREGIERT = ("lauf",)
+
+
+def aggregiere(messungen: list[dict]) -> dict:
+    """Je Weg und Variante: Statistik jeder Zahl ueber die Laeufe."""
+    gruppen: dict[tuple[str, str], list[dict]] = {}
+    for m in messungen:
+        gruppen.setdefault((m["weg"], m["variante"]), []).append(m)
+    aus: dict = {}
+    for (weg, variante), liste in sorted(gruppen.items()):
+        flach = [_flach({k: v for k, v in m.items() if k not in _NICHT_AGGREGIERT})
+                 for m in liste]
+        schluessel = sorted(set().union(*flach))
+        aus.setdefault(weg, {})[variante] = {
+            s: _stat([f[s] for f in flach if s in f]) for s in schluessel}
+    return aus
+
+
+def stil_folgt(agg: dict, weg: str, mass: str = "figuren.{n}.marker.{stil}") -> list[dict]:
+    """Die Kernpruefung "folgt dem Stil, nicht der Figur": je Figur und je
+    der beiden Stile, die sie in A bzw. C traegt, das Mass dieses Stils bei
+    ihr -- in A, B und (falls gelaufen) C. Vorgabe: Markeranteil in ihrer
+    zugeordneten Rede; ``"marker_naechste_figur.{n}.{stil}"`` zaehlt die
+    Treffer neben ihrem Namen (inkl. indirekter Rede)."""
+    zeilen = []
+    for idx, n in enumerate(NAMEN):
+        for rolle, variante in (("A-Stil", "A"), ("C-Stil", "C")):
+            stil = VARIANTEN[variante][idx]
+            zeile = {"figur": n, "rolle": rolle, "stil": stil}
+            for v in ("A", "B", "C"):
+                st = agg.get(weg, {}).get(v, {}).get(mass.format(n=n, stil=stil))
+                if st:
+                    zeile[v] = st
+            zeilen.append(zeile)
+    return zeilen
+
+
+def _fmt(st: dict | None) -> str:
+    if not st or not st.get("n"):
+        return "--"
+    return f"{st['mittel']:.2f} [{st['min']:.2f}-{st['max']:.2f}]"
+
+
+def _tabelle_markdown(agg: dict, messungen: list[dict]) -> str:
+    z: list[str] = []
+    z.append("## Je Lauf\n")
+    z.append("| Lauf | Reden zugeordnet/gesamt | Quote | Satzl. " +
+             " | ".join(NAMEN) + " | Gesamt KNAPP | SCHACHTEL | FUELL |")
+    z.append("|---|---|---|" + "---|" * len(NAMEN) + "---|---|---|")
+    for m in messungen:
+        sl = " | ".join(f"{m['figuren'][n]['satzlaenge']:.1f} ({m['figuren'][n]['reden']})"
+                        for n in NAMEN)
+        g = m["gesamt_marker"]
+        z.append(f"| {m['weg']}-{m['variante']}-{m['lauf']} | {m['reden_zugeordnet']}/"
+                 f"{m['reden_gesamt']} | {m['zuordnungsquote']:.2f} | {sl} | "
+                 f"{g['KNAPP']:.2f} | {g['SCHACHTEL']:.2f} | {g['FUELL']:.2f} |")
+    for weg in sorted(agg):
+        z.append(f"\n## {weg}: folgt der Markeranteil dem Stil? (je 100 Woerter, Mittel [min-max])\n")
+        z.append("| Figur | Rolle | Stil | A | B | C |")
+        z.append("|---|---|---|---|---|---|")
+        for zeile in stil_folgt(agg, weg):
+            z.append(f"| {zeile['figur']} | {zeile['rolle']} | {zeile['stil']} | "
+                     f"{_fmt(zeile.get('A'))} | {_fmt(zeile.get('B'))} | {_fmt(zeile.get('C'))} |")
+        if weg == "prosa":
+            z.append("\n## prosa: Markertreffer neben dem Namen (absolut je Lauf, Mittel [min-max])\n")
+            z.append("| Figur | Rolle | Stil | A | B | C |")
+            z.append("|---|---|---|---|---|---|")
+            for zeile in stil_folgt(agg, weg, "marker_naechste_figur.{n}.{stil}"):
+                z.append(f"| {zeile['figur']} | {zeile['rolle']} | {zeile['stil']} | "
+                         f"{_fmt(zeile.get('A'))} | {_fmt(zeile.get('B'))} | {_fmt(zeile.get('C'))} |")
+        z.append(f"\n## {weg}: Satzlaenge je Figur und Gesamttext-Marker\n")
+        z.append("| Mass | A | B | C |")
+        z.append("|---|---|---|---|")
+        schluessel = ([f"figuren.{n}.satzlaenge" for n in NAMEN]
+                      + [f"figuren.{n}.reden" for n in NAMEN]
+                      + ["zuordnungsquote"]
+                      + [f"gesamt_marker.{s}" for s in ("KNAPP", "SCHACHTEL", "FUELL")]
+                      + ["gesamt_satzlaenge"]
+                      + ([f"marker_ab_abschnitt_2.{s}" for s in ("KNAPP", "SCHACHTEL", "FUELL")]
+                         if weg == "prosa" else [])
+                      + [f"jaccard.{a}-{b}" for i, a in enumerate(NAMEN) for b in NAMEN[i + 1:]])
+        if weg == "szene":
+            schluessel += [f"vorlage_marker.{s}" for s in ("KNAPP", "SCHACHTEL", "FUELL")]
+        for s in schluessel:
+            z.append(f"| {s} | " + " | ".join(_fmt(agg[weg].get(v, {}).get(s))
+                                              for v in ("A", "B", "C")) + " |")
+    return "\n".join(z) + "\n"
+
+
+def befehl_auswertung(a) -> int:
+    ausgabe = Path(a.ausgabe)
+    messungen = []
+    for pfad in sorted((ausgabe / "laeufe").glob("*.json")):
+        satz = _lade(pfad)
+        if not satz or satz.get("status") != "ok":
+            print(f"{pfad.name}: uebersprungen (kein erfolgreicher Lauf)", file=sys.stderr)
+            continue
+        messungen.append(miss_lauf(satz))
+    messungen.sort(key=lambda m: (m["weg"], m["variante"], m["lauf"]))
+    agg = aggregiere(messungen)
+    from scripts import sprachstil_masse as masse
+    daten = {
+        "erzeugt_von": "python -m scripts.sprachstil_wirkung auswertung",
+        "marker": masse.MARKER,
+        "normalisierung": "ß -> ss vor dem Zaehlen; Prosa ohne Ueberschrift/Zusammenfassung "
+                          "(kurzgeschichte.zerlege), Szene ab der Zeile 'SZENE <n>'",
+        "einheit_marker": "Treffer je 100 Woerter",
+        "laeufe": messungen,
+        "varianten": agg,
+        "stil_folgt": {weg: stil_folgt(agg, weg) for weg in agg},
+        "stil_folgt_naechste_figur": {
+            "prosa": stil_folgt(agg, "prosa", "marker_naechste_figur.{n}.{stil}")},
+    }
+    (ausgabe / "auswertung.json").write_text(
+        json.dumps(daten, ensure_ascii=False, indent=2) + "\n")
+    print(_tabelle_markdown(agg, messungen))
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     unter = ap.add_subparsers(dest="befehl", required=True)
@@ -496,6 +766,9 @@ def main(argv=None) -> int:
     p.add_argument("--modell", default=SZENE_MODELL)
     p.add_argument("--ausgabe", default=str(AUSGABE))
     p.set_defaults(fn=befehl_lauf)
+    p = unter.add_parser("auswertung", help="Masse ueber alle Laeufe, auswertung.json + Tabelle (kein Netz)")
+    p.add_argument("--ausgabe", default=str(AUSGABE))
+    p.set_defaults(fn=befehl_auswertung)
     a = ap.parse_args(argv)
     return a.fn(a)
 

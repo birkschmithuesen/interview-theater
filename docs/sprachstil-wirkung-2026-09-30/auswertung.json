@@ -1,0 +1,3269 @@
+{
+  "erzeugt_von": "python -m scripts.sprachstil_wirkung auswertung",
+  "marker": {
+    "KNAPP": [
+      "egal",
+      "weiter"
+    ],
+    "SCHACHTEL": [
+      "wobei",
+      "insofern",
+      "gewissermassen",
+      "quasi",
+      "de facto",
+      "per se",
+      "prinzipiell"
+    ],
+    "FUELL": [
+      "halt",
+      "irgendwie",
+      "weisst du",
+      "sozusagen",
+      "also"
+    ]
+  },
+  "normalisierung": "ß -> ss vor dem Zaehlen; Prosa ohne Ueberschrift/Zusammenfassung (kurzgeschichte.zerlege), Szene ab der Zeile 'SZENE <n>'",
+  "einheit_marker": "Treffer je 100 Woerter",
+  "laeufe": [
+    {
+      "weg": "prosa",
+      "variante": "A",
+      "lauf": 1,
+      "stile": {
+        "Meryem": "KNAPP",
+        "Ferzan": "SCHACHTEL",
+        "Aynur": "FUELL"
+      },
+      "woerter_gesamt": 2188,
+      "reden_gesamt": 9,
+      "reden_zugeordnet": 7,
+      "zuordnungsquote": 0.778,
+      "gesamt_marker": {
+        "KNAPP": 0.183,
+        "SCHACHTEL": 0.32,
+        "FUELL": 0.686
+      },
+      "gesamt_satzlaenge": 12.22,
+      "figuren": {
+        "Meryem": {
+          "reden": 7,
+          "woerter": 25,
+          "saetze": 7,
+          "satzlaenge": 3.57,
+          "marker": {
+            "KNAPP": 12.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 20.0
+          }
+        },
+        "Ferzan": {
+          "reden": 0,
+          "woerter": 0,
+          "saetze": 0,
+          "satzlaenge": 0.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Aynur": {
+          "reden": 0,
+          "woerter": 0,
+          "saetze": 0,
+          "satzlaenge": 0.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.0,
+        "Meryem-Aynur": 0.0,
+        "Ferzan-Aynur": 0.0
+      },
+      "marker_naechste_figur": {
+        "Meryem": {
+          "KNAPP": 4,
+          "SCHACHTEL": 2,
+          "FUELL": 5
+        },
+        "Ferzan": {
+          "KNAPP": 0,
+          "SCHACHTEL": 5,
+          "FUELL": 0
+        },
+        "Aynur": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "(keine)": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 10
+        }
+      },
+      "abschnitte": 3,
+      "marker_abschnitt_1": {
+        "KNAPP": 0.167,
+        "SCHACHTEL": 0.334,
+        "FUELL": 1.003
+      },
+      "marker_ab_abschnitt_2": {
+        "KNAPP": 0.189,
+        "SCHACHTEL": 0.314,
+        "FUELL": 0.566
+      }
+    },
+    {
+      "weg": "prosa",
+      "variante": "A",
+      "lauf": 2,
+      "stile": {
+        "Meryem": "KNAPP",
+        "Ferzan": "SCHACHTEL",
+        "Aynur": "FUELL"
+      },
+      "woerter_gesamt": 2307,
+      "reden_gesamt": 19,
+      "reden_zugeordnet": 11,
+      "zuordnungsquote": 0.579,
+      "gesamt_marker": {
+        "KNAPP": 0.173,
+        "SCHACHTEL": 0.347,
+        "FUELL": 0.78
+      },
+      "gesamt_satzlaenge": 12.54,
+      "figuren": {
+        "Meryem": {
+          "reden": 6,
+          "woerter": 12,
+          "saetze": 7,
+          "satzlaenge": 1.71,
+          "marker": {
+            "KNAPP": 16.667,
+            "SCHACHTEL": 0.0,
+            "FUELL": 8.333
+          }
+        },
+        "Ferzan": {
+          "reden": 3,
+          "woerter": 65,
+          "saetze": 3,
+          "satzlaenge": 21.67,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 4.615,
+            "FUELL": 0.0
+          }
+        },
+        "Aynur": {
+          "reden": 2,
+          "woerter": 20,
+          "saetze": 3,
+          "satzlaenge": 6.67,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 35.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.0,
+        "Meryem-Aynur": 0.136,
+        "Ferzan-Aynur": 0.047
+      },
+      "marker_naechste_figur": {
+        "Meryem": {
+          "KNAPP": 3,
+          "SCHACHTEL": 2,
+          "FUELL": 2
+        },
+        "Ferzan": {
+          "KNAPP": 0,
+          "SCHACHTEL": 5,
+          "FUELL": 0
+        },
+        "Aynur": {
+          "KNAPP": 1,
+          "SCHACHTEL": 0,
+          "FUELL": 7
+        },
+        "(keine)": {
+          "KNAPP": 0,
+          "SCHACHTEL": 1,
+          "FUELL": 9
+        }
+      },
+      "abschnitte": 3,
+      "marker_abschnitt_1": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.303,
+        "FUELL": 1.059
+      },
+      "marker_ab_abschnitt_2": {
+        "KNAPP": 0.243,
+        "SCHACHTEL": 0.365,
+        "FUELL": 0.668
+      }
+    },
+    {
+      "weg": "prosa",
+      "variante": "A",
+      "lauf": 3,
+      "stile": {
+        "Meryem": "KNAPP",
+        "Ferzan": "SCHACHTEL",
+        "Aynur": "FUELL"
+      },
+      "woerter_gesamt": 1993,
+      "reden_gesamt": 33,
+      "reden_zugeordnet": 17,
+      "zuordnungsquote": 0.515,
+      "gesamt_marker": {
+        "KNAPP": 0.1,
+        "SCHACHTEL": 0.401,
+        "FUELL": 1.204
+      },
+      "gesamt_satzlaenge": 13.65,
+      "figuren": {
+        "Meryem": {
+          "reden": 5,
+          "woerter": 10,
+          "saetze": 5,
+          "satzlaenge": 2.0,
+          "marker": {
+            "KNAPP": 10.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Ferzan": {
+          "reden": 9,
+          "woerter": 98,
+          "saetze": 11,
+          "satzlaenge": 8.91,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 2.041
+          }
+        },
+        "Aynur": {
+          "reden": 3,
+          "woerter": 23,
+          "saetze": 3,
+          "satzlaenge": 7.67,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 26.087
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.024,
+        "Meryem-Aynur": 0.042,
+        "Ferzan-Aynur": 0.046
+      },
+      "marker_naechste_figur": {
+        "Meryem": {
+          "KNAPP": 1,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "Ferzan": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 2
+        },
+        "Aynur": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 6
+        },
+        "(keine)": {
+          "KNAPP": 1,
+          "SCHACHTEL": 8,
+          "FUELL": 16
+        }
+      },
+      "abschnitte": 3,
+      "marker_abschnitt_1": {
+        "KNAPP": 0.2,
+        "SCHACHTEL": 0.601,
+        "FUELL": 1.202
+      },
+      "marker_ab_abschnitt_2": {
+        "KNAPP": 0.067,
+        "SCHACHTEL": 0.335,
+        "FUELL": 1.205
+      }
+    },
+    {
+      "weg": "prosa",
+      "variante": "B",
+      "lauf": 1,
+      "stile": {
+        "Meryem": null,
+        "Ferzan": null,
+        "Aynur": null
+      },
+      "woerter_gesamt": 2194,
+      "reden_gesamt": 8,
+      "reden_zugeordnet": 7,
+      "zuordnungsquote": 0.875,
+      "gesamt_marker": {
+        "KNAPP": 0.091,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      },
+      "gesamt_satzlaenge": 12.83,
+      "figuren": {
+        "Meryem": {
+          "reden": 0,
+          "woerter": 0,
+          "saetze": 0,
+          "satzlaenge": 0.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Ferzan": {
+          "reden": 5,
+          "woerter": 10,
+          "saetze": 6,
+          "satzlaenge": 1.67,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Aynur": {
+          "reden": 2,
+          "woerter": 3,
+          "saetze": 2,
+          "satzlaenge": 1.5,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.0,
+        "Meryem-Aynur": 0.0,
+        "Ferzan-Aynur": 0.0
+      },
+      "marker_naechste_figur": {
+        "Meryem": {
+          "KNAPP": 1,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "Ferzan": {
+          "KNAPP": 1,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "Aynur": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "(keine)": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        }
+      },
+      "abschnitte": 3,
+      "marker_abschnitt_1": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      },
+      "marker_ab_abschnitt_2": {
+        "KNAPP": 0.121,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      }
+    },
+    {
+      "weg": "prosa",
+      "variante": "B",
+      "lauf": 2,
+      "stile": {
+        "Meryem": null,
+        "Ferzan": null,
+        "Aynur": null
+      },
+      "woerter_gesamt": 2190,
+      "reden_gesamt": 39,
+      "reden_zugeordnet": 20,
+      "zuordnungsquote": 0.513,
+      "gesamt_marker": {
+        "KNAPP": 0.046,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      },
+      "gesamt_satzlaenge": 12.03,
+      "figuren": {
+        "Meryem": {
+          "reden": 8,
+          "woerter": 44,
+          "saetze": 11,
+          "satzlaenge": 4.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Ferzan": {
+          "reden": 10,
+          "woerter": 47,
+          "saetze": 11,
+          "satzlaenge": 4.27,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Aynur": {
+          "reden": 2,
+          "woerter": 5,
+          "saetze": 2,
+          "satzlaenge": 2.5,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.085,
+        "Meryem-Aynur": 0.025,
+        "Ferzan-Aynur": 0.045
+      },
+      "marker_naechste_figur": {
+        "Meryem": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "Ferzan": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "Aynur": {
+          "KNAPP": 1,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "(keine)": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        }
+      },
+      "abschnitte": 3,
+      "marker_abschnitt_1": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      },
+      "marker_ab_abschnitt_2": {
+        "KNAPP": 0.064,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      }
+    },
+    {
+      "weg": "prosa",
+      "variante": "B",
+      "lauf": 3,
+      "stile": {
+        "Meryem": null,
+        "Ferzan": null,
+        "Aynur": null
+      },
+      "woerter_gesamt": 2380,
+      "reden_gesamt": 39,
+      "reden_zugeordnet": 23,
+      "zuordnungsquote": 0.59,
+      "gesamt_marker": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.042
+      },
+      "gesamt_satzlaenge": 11.61,
+      "figuren": {
+        "Meryem": {
+          "reden": 8,
+          "woerter": 33,
+          "saetze": 12,
+          "satzlaenge": 2.75,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Ferzan": {
+          "reden": 11,
+          "woerter": 56,
+          "saetze": 14,
+          "satzlaenge": 4.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 1.786
+          }
+        },
+        "Aynur": {
+          "reden": 4,
+          "woerter": 10,
+          "saetze": 5,
+          "satzlaenge": 2.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.062,
+        "Meryem-Aynur": 0.025,
+        "Ferzan-Aynur": 0.021
+      },
+      "marker_naechste_figur": {
+        "Meryem": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "Ferzan": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 1
+        },
+        "Aynur": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "(keine)": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        }
+      },
+      "abschnitte": 3,
+      "marker_abschnitt_1": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      },
+      "marker_ab_abschnitt_2": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.057
+      }
+    },
+    {
+      "weg": "prosa",
+      "variante": "C",
+      "lauf": 1,
+      "stile": {
+        "Meryem": "SCHACHTEL",
+        "Ferzan": "FUELL",
+        "Aynur": "KNAPP"
+      },
+      "woerter_gesamt": 2105,
+      "reden_gesamt": 17,
+      "reden_zugeordnet": 7,
+      "zuordnungsquote": 0.412,
+      "gesamt_marker": {
+        "KNAPP": 0.19,
+        "SCHACHTEL": 0.285,
+        "FUELL": 1.33
+      },
+      "gesamt_satzlaenge": 11.76,
+      "figuren": {
+        "Meryem": {
+          "reden": 0,
+          "woerter": 0,
+          "saetze": 0,
+          "satzlaenge": 0.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Ferzan": {
+          "reden": 3,
+          "woerter": 11,
+          "saetze": 3,
+          "satzlaenge": 3.67,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Aynur": {
+          "reden": 4,
+          "woerter": 6,
+          "saetze": 4,
+          "satzlaenge": 1.5,
+          "marker": {
+            "KNAPP": 33.333,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.0,
+        "Meryem-Aynur": 0.0,
+        "Ferzan-Aynur": 0.067
+      },
+      "marker_naechste_figur": {
+        "Meryem": {
+          "KNAPP": 1,
+          "SCHACHTEL": 2,
+          "FUELL": 7
+        },
+        "Ferzan": {
+          "KNAPP": 1,
+          "SCHACHTEL": 3,
+          "FUELL": 10
+        },
+        "Aynur": {
+          "KNAPP": 2,
+          "SCHACHTEL": 0,
+          "FUELL": 3
+        },
+        "(keine)": {
+          "KNAPP": 0,
+          "SCHACHTEL": 1,
+          "FUELL": 8
+        }
+      },
+      "abschnitte": 3,
+      "marker_abschnitt_1": {
+        "KNAPP": 0.369,
+        "SCHACHTEL": 0.738,
+        "FUELL": 1.476
+      },
+      "marker_ab_abschnitt_2": {
+        "KNAPP": 0.128,
+        "SCHACHTEL": 0.128,
+        "FUELL": 1.28
+      }
+    },
+    {
+      "weg": "prosa",
+      "variante": "C",
+      "lauf": 2,
+      "stile": {
+        "Meryem": "SCHACHTEL",
+        "Ferzan": "FUELL",
+        "Aynur": "KNAPP"
+      },
+      "woerter_gesamt": 2034,
+      "reden_gesamt": 11,
+      "reden_zugeordnet": 3,
+      "zuordnungsquote": 0.273,
+      "gesamt_marker": {
+        "KNAPP": 0.295,
+        "SCHACHTEL": 0.393,
+        "FUELL": 0.787
+      },
+      "gesamt_satzlaenge": 14.96,
+      "figuren": {
+        "Meryem": {
+          "reden": 0,
+          "woerter": 0,
+          "saetze": 0,
+          "satzlaenge": 0.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Ferzan": {
+          "reden": 1,
+          "woerter": 1,
+          "saetze": 1,
+          "satzlaenge": 1.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Aynur": {
+          "reden": 2,
+          "woerter": 2,
+          "saetze": 2,
+          "satzlaenge": 1.0,
+          "marker": {
+            "KNAPP": 50.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.0,
+        "Meryem-Aynur": 0.0,
+        "Ferzan-Aynur": 0.0
+      },
+      "marker_naechste_figur": {
+        "Meryem": {
+          "KNAPP": 2,
+          "SCHACHTEL": 5,
+          "FUELL": 0
+        },
+        "Ferzan": {
+          "KNAPP": 1,
+          "SCHACHTEL": 3,
+          "FUELL": 0
+        },
+        "Aynur": {
+          "KNAPP": 2,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "(keine)": {
+          "KNAPP": 1,
+          "SCHACHTEL": 0,
+          "FUELL": 16
+        }
+      },
+      "abschnitte": 3,
+      "marker_abschnitt_1": {
+        "KNAPP": 0.383,
+        "SCHACHTEL": 0.958,
+        "FUELL": 0.766
+      },
+      "marker_ab_abschnitt_2": {
+        "KNAPP": 0.265,
+        "SCHACHTEL": 0.198,
+        "FUELL": 0.794
+      }
+    },
+    {
+      "weg": "prosa",
+      "variante": "C",
+      "lauf": 3,
+      "stile": {
+        "Meryem": "SCHACHTEL",
+        "Ferzan": "FUELL",
+        "Aynur": "KNAPP"
+      },
+      "woerter_gesamt": 1971,
+      "reden_gesamt": 19,
+      "reden_zugeordnet": 13,
+      "zuordnungsquote": 0.684,
+      "gesamt_marker": {
+        "KNAPP": 0.152,
+        "SCHACHTEL": 0.609,
+        "FUELL": 1.522
+      },
+      "gesamt_satzlaenge": 15.4,
+      "figuren": {
+        "Meryem": {
+          "reden": 1,
+          "woerter": 17,
+          "saetze": 1,
+          "satzlaenge": 17.0,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 23.529
+          }
+        },
+        "Ferzan": {
+          "reden": 6,
+          "woerter": 19,
+          "saetze": 6,
+          "satzlaenge": 3.17,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 36.842
+          }
+        },
+        "Aynur": {
+          "reden": 6,
+          "woerter": 7,
+          "saetze": 6,
+          "satzlaenge": 1.17,
+          "marker": {
+            "KNAPP": 28.571,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.286,
+        "Meryem-Aynur": 0.0,
+        "Ferzan-Aynur": 0.053
+      },
+      "marker_naechste_figur": {
+        "Meryem": {
+          "KNAPP": 0,
+          "SCHACHTEL": 12,
+          "FUELL": 4
+        },
+        "Ferzan": {
+          "KNAPP": 1,
+          "SCHACHTEL": 0,
+          "FUELL": 7
+        },
+        "Aynur": {
+          "KNAPP": 2,
+          "SCHACHTEL": 0,
+          "FUELL": 0
+        },
+        "(keine)": {
+          "KNAPP": 0,
+          "SCHACHTEL": 0,
+          "FUELL": 19
+        }
+      },
+      "abschnitte": 3,
+      "marker_abschnitt_1": {
+        "KNAPP": 0.174,
+        "SCHACHTEL": 0.694,
+        "FUELL": 1.042
+      },
+      "marker_ab_abschnitt_2": {
+        "KNAPP": 0.143,
+        "SCHACHTEL": 0.573,
+        "FUELL": 1.72
+      }
+    },
+    {
+      "weg": "szene",
+      "variante": "A",
+      "lauf": 1,
+      "stile": {
+        "Meryem": "KNAPP",
+        "Ferzan": "SCHACHTEL",
+        "Aynur": "FUELL"
+      },
+      "woerter_gesamt": 836,
+      "reden_gesamt": 70,
+      "reden_zugeordnet": 70,
+      "zuordnungsquote": 1.0,
+      "gesamt_marker": {
+        "KNAPP": 0.598,
+        "SCHACHTEL": 0.0,
+        "FUELL": 1.196
+      },
+      "gesamt_satzlaenge": 5.77,
+      "figuren": {
+        "Meryem": {
+          "reden": 26,
+          "woerter": 122,
+          "saetze": 31,
+          "satzlaenge": 3.94,
+          "marker": {
+            "KNAPP": 1.639,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Ferzan": {
+          "reden": 30,
+          "woerter": 262,
+          "saetze": 63,
+          "satzlaenge": 4.16,
+          "marker": {
+            "KNAPP": 0.763,
+            "SCHACHTEL": 0.0,
+            "FUELL": 1.145
+          }
+        },
+        "Aynur": {
+          "reden": 14,
+          "woerter": 85,
+          "saetze": 28,
+          "satzlaenge": 3.04,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 8.235
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.304,
+        "Meryem-Aynur": 0.2,
+        "Ferzan-Aynur": 0.211
+      },
+      "vorlage_marker": {
+        "KNAPP": 0.167,
+        "SCHACHTEL": 0.334,
+        "FUELL": 1.003
+      }
+    },
+    {
+      "weg": "szene",
+      "variante": "A",
+      "lauf": 2,
+      "stile": {
+        "Meryem": "KNAPP",
+        "Ferzan": "SCHACHTEL",
+        "Aynur": "FUELL"
+      },
+      "woerter_gesamt": 841,
+      "reden_gesamt": 76,
+      "reden_zugeordnet": 76,
+      "zuordnungsquote": 1.0,
+      "gesamt_marker": {
+        "KNAPP": 0.238,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.832
+      },
+      "gesamt_satzlaenge": 5.22,
+      "figuren": {
+        "Meryem": {
+          "reden": 31,
+          "woerter": 174,
+          "saetze": 46,
+          "satzlaenge": 3.78,
+          "marker": {
+            "KNAPP": 0.575,
+            "SCHACHTEL": 0.0,
+            "FUELL": 1.724
+          }
+        },
+        "Ferzan": {
+          "reden": 35,
+          "woerter": 295,
+          "saetze": 79,
+          "satzlaenge": 3.73,
+          "marker": {
+            "KNAPP": 0.339,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.339
+          }
+        },
+        "Aynur": {
+          "reden": 10,
+          "woerter": 39,
+          "saetze": 18,
+          "satzlaenge": 2.17,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 7.692
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.236,
+        "Meryem-Aynur": 0.149,
+        "Ferzan-Aynur": 0.105
+      },
+      "vorlage_marker": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.303,
+        "FUELL": 1.059
+      }
+    },
+    {
+      "weg": "szene",
+      "variante": "A",
+      "lauf": 3,
+      "stile": {
+        "Meryem": "KNAPP",
+        "Ferzan": "SCHACHTEL",
+        "Aynur": "FUELL"
+      },
+      "woerter_gesamt": 1012,
+      "reden_gesamt": 98,
+      "reden_zugeordnet": 98,
+      "zuordnungsquote": 1.0,
+      "gesamt_marker": {
+        "KNAPP": 0.692,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.198
+      },
+      "gesamt_satzlaenge": 6.02,
+      "figuren": {
+        "Meryem": {
+          "reden": 37,
+          "woerter": 233,
+          "saetze": 46,
+          "satzlaenge": 5.07,
+          "marker": {
+            "KNAPP": 0.858,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.858
+          }
+        },
+        "Ferzan": {
+          "reden": 39,
+          "woerter": 179,
+          "saetze": 58,
+          "satzlaenge": 3.09,
+          "marker": {
+            "KNAPP": 0.559,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Aynur": {
+          "reden": 22,
+          "woerter": 116,
+          "saetze": 37,
+          "satzlaenge": 3.14,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.247,
+        "Meryem-Aynur": 0.181,
+        "Ferzan-Aynur": 0.252
+      },
+      "vorlage_marker": {
+        "KNAPP": 0.2,
+        "SCHACHTEL": 0.601,
+        "FUELL": 1.202
+      }
+    },
+    {
+      "weg": "szene",
+      "variante": "B",
+      "lauf": 1,
+      "stile": {
+        "Meryem": null,
+        "Ferzan": null,
+        "Aynur": null
+      },
+      "woerter_gesamt": 838,
+      "reden_gesamt": 75,
+      "reden_zugeordnet": 75,
+      "zuordnungsquote": 1.0,
+      "gesamt_marker": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      },
+      "gesamt_satzlaenge": 5.59,
+      "figuren": {
+        "Meryem": {
+          "reden": 25,
+          "woerter": 159,
+          "saetze": 38,
+          "satzlaenge": 4.18,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Ferzan": {
+          "reden": 33,
+          "woerter": 230,
+          "saetze": 62,
+          "satzlaenge": 3.71,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Aynur": {
+          "reden": 17,
+          "woerter": 74,
+          "saetze": 29,
+          "satzlaenge": 2.55,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.239,
+        "Meryem-Aynur": 0.189,
+        "Ferzan-Aynur": 0.166
+      },
+      "vorlage_marker": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      }
+    },
+    {
+      "weg": "szene",
+      "variante": "B",
+      "lauf": 2,
+      "stile": {
+        "Meryem": null,
+        "Ferzan": null,
+        "Aynur": null
+      },
+      "woerter_gesamt": 971,
+      "reden_gesamt": 94,
+      "reden_zugeordnet": 94,
+      "zuordnungsquote": 1.0,
+      "gesamt_marker": {
+        "KNAPP": 0.206,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.103
+      },
+      "gesamt_satzlaenge": 5.16,
+      "figuren": {
+        "Meryem": {
+          "reden": 33,
+          "woerter": 187,
+          "saetze": 42,
+          "satzlaenge": 4.45,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.535
+          }
+        },
+        "Ferzan": {
+          "reden": 45,
+          "woerter": 267,
+          "saetze": 90,
+          "satzlaenge": 2.97,
+          "marker": {
+            "KNAPP": 0.749,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Aynur": {
+          "reden": 16,
+          "woerter": 59,
+          "saetze": 27,
+          "satzlaenge": 2.19,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.22,
+        "Meryem-Aynur": 0.163,
+        "Ferzan-Aynur": 0.16
+      },
+      "vorlage_marker": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      }
+    },
+    {
+      "weg": "szene",
+      "variante": "B",
+      "lauf": 3,
+      "stile": {
+        "Meryem": null,
+        "Ferzan": null,
+        "Aynur": null
+      },
+      "woerter_gesamt": 882,
+      "reden_gesamt": 83,
+      "reden_zugeordnet": 83,
+      "zuordnungsquote": 1.0,
+      "gesamt_marker": {
+        "KNAPP": 0.227,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.227
+      },
+      "gesamt_satzlaenge": 5.44,
+      "figuren": {
+        "Meryem": {
+          "reden": 29,
+          "woerter": 189,
+          "saetze": 44,
+          "satzlaenge": 4.3,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        },
+        "Ferzan": {
+          "reden": 40,
+          "woerter": 266,
+          "saetze": 69,
+          "satzlaenge": 3.86,
+          "marker": {
+            "KNAPP": 0.752,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.752
+          }
+        },
+        "Aynur": {
+          "reden": 14,
+          "woerter": 65,
+          "saetze": 27,
+          "satzlaenge": 2.41,
+          "marker": {
+            "KNAPP": 0.0,
+            "SCHACHTEL": 0.0,
+            "FUELL": 0.0
+          }
+        }
+      },
+      "jaccard": {
+        "Meryem-Ferzan": 0.21,
+        "Meryem-Aynur": 0.131,
+        "Ferzan-Aynur": 0.109
+      },
+      "vorlage_marker": {
+        "KNAPP": 0.0,
+        "SCHACHTEL": 0.0,
+        "FUELL": 0.0
+      }
+    }
+  ],
+  "varianten": {
+    "prosa": {
+      "A": {
+        "abschnitte": {
+          "n": 3,
+          "mittel": 3,
+          "sd": 0.0,
+          "min": 3,
+          "max": 3
+        },
+        "figuren.Aynur.marker.FUELL": {
+          "n": 3,
+          "mittel": 20.362,
+          "sd": 18.189,
+          "min": 0.0,
+          "max": 35.0
+        },
+        "figuren.Aynur.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.reden": {
+          "n": 3,
+          "mittel": 1.667,
+          "sd": 1.528,
+          "min": 0,
+          "max": 3
+        },
+        "figuren.Aynur.saetze": {
+          "n": 3,
+          "mittel": 2,
+          "sd": 1.732,
+          "min": 0,
+          "max": 3
+        },
+        "figuren.Aynur.satzlaenge": {
+          "n": 3,
+          "mittel": 4.78,
+          "sd": 4.17,
+          "min": 0.0,
+          "max": 7.67
+        },
+        "figuren.Aynur.woerter": {
+          "n": 3,
+          "mittel": 14.333,
+          "sd": 12.503,
+          "min": 0,
+          "max": 23
+        },
+        "figuren.Ferzan.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.68,
+          "sd": 1.178,
+          "min": 0.0,
+          "max": 2.041
+        },
+        "figuren.Ferzan.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Ferzan.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 1.538,
+          "sd": 2.664,
+          "min": 0.0,
+          "max": 4.615
+        },
+        "figuren.Ferzan.reden": {
+          "n": 3,
+          "mittel": 4,
+          "sd": 4.583,
+          "min": 0,
+          "max": 9
+        },
+        "figuren.Ferzan.saetze": {
+          "n": 3,
+          "mittel": 4.667,
+          "sd": 5.686,
+          "min": 0,
+          "max": 11
+        },
+        "figuren.Ferzan.satzlaenge": {
+          "n": 3,
+          "mittel": 10.193,
+          "sd": 10.892,
+          "min": 0.0,
+          "max": 21.67
+        },
+        "figuren.Ferzan.woerter": {
+          "n": 3,
+          "mittel": 54.333,
+          "sd": 49.863,
+          "min": 0,
+          "max": 98
+        },
+        "figuren.Meryem.marker.FUELL": {
+          "n": 3,
+          "mittel": 9.444,
+          "sd": 10.046,
+          "min": 0.0,
+          "max": 20.0
+        },
+        "figuren.Meryem.marker.KNAPP": {
+          "n": 3,
+          "mittel": 12.889,
+          "sd": 3.421,
+          "min": 10.0,
+          "max": 16.667
+        },
+        "figuren.Meryem.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Meryem.reden": {
+          "n": 3,
+          "mittel": 6,
+          "sd": 1.0,
+          "min": 5,
+          "max": 7
+        },
+        "figuren.Meryem.saetze": {
+          "n": 3,
+          "mittel": 6.333,
+          "sd": 1.155,
+          "min": 5,
+          "max": 7
+        },
+        "figuren.Meryem.satzlaenge": {
+          "n": 3,
+          "mittel": 2.427,
+          "sd": 1.001,
+          "min": 1.71,
+          "max": 3.57
+        },
+        "figuren.Meryem.woerter": {
+          "n": 3,
+          "mittel": 15.667,
+          "sd": 8.145,
+          "min": 10,
+          "max": 25
+        },
+        "gesamt_marker.FUELL": {
+          "n": 3,
+          "mittel": 0.89,
+          "sd": 0.276,
+          "min": 0.686,
+          "max": 1.204
+        },
+        "gesamt_marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.152,
+          "sd": 0.045,
+          "min": 0.1,
+          "max": 0.183
+        },
+        "gesamt_marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.356,
+          "sd": 0.041,
+          "min": 0.32,
+          "max": 0.401
+        },
+        "gesamt_satzlaenge": {
+          "n": 3,
+          "mittel": 12.803,
+          "sd": 0.75,
+          "min": 12.22,
+          "max": 13.65
+        },
+        "jaccard.Ferzan-Aynur": {
+          "n": 3,
+          "mittel": 0.031,
+          "sd": 0.027,
+          "min": 0.0,
+          "max": 0.047
+        },
+        "jaccard.Meryem-Aynur": {
+          "n": 3,
+          "mittel": 0.059,
+          "sd": 0.07,
+          "min": 0.0,
+          "max": 0.136
+        },
+        "jaccard.Meryem-Ferzan": {
+          "n": 3,
+          "mittel": 0.008,
+          "sd": 0.014,
+          "min": 0.0,
+          "max": 0.024
+        },
+        "marker_ab_abschnitt_2.FUELL": {
+          "n": 3,
+          "mittel": 0.813,
+          "sd": 0.343,
+          "min": 0.566,
+          "max": 1.205
+        },
+        "marker_ab_abschnitt_2.KNAPP": {
+          "n": 3,
+          "mittel": 0.166,
+          "sd": 0.09,
+          "min": 0.067,
+          "max": 0.243
+        },
+        "marker_ab_abschnitt_2.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.338,
+          "sd": 0.026,
+          "min": 0.314,
+          "max": 0.365
+        },
+        "marker_abschnitt_1.FUELL": {
+          "n": 3,
+          "mittel": 1.088,
+          "sd": 0.103,
+          "min": 1.003,
+          "max": 1.202
+        },
+        "marker_abschnitt_1.KNAPP": {
+          "n": 3,
+          "mittel": 0.122,
+          "sd": 0.107,
+          "min": 0.0,
+          "max": 0.2
+        },
+        "marker_abschnitt_1.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.413,
+          "sd": 0.164,
+          "min": 0.303,
+          "max": 0.601
+        },
+        "marker_naechste_figur.(keine).FUELL": {
+          "n": 3,
+          "mittel": 11.667,
+          "sd": 3.786,
+          "min": 9,
+          "max": 16
+        },
+        "marker_naechste_figur.(keine).KNAPP": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "marker_naechste_figur.(keine).SCHACHTEL": {
+          "n": 3,
+          "mittel": 3,
+          "sd": 4.359,
+          "min": 0,
+          "max": 8
+        },
+        "marker_naechste_figur.Aynur.FUELL": {
+          "n": 3,
+          "mittel": 4.333,
+          "sd": 3.786,
+          "min": 0,
+          "max": 7
+        },
+        "marker_naechste_figur.Aynur.KNAPP": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "marker_naechste_figur.Aynur.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.Ferzan.FUELL": {
+          "n": 3,
+          "mittel": 0.667,
+          "sd": 1.155,
+          "min": 0,
+          "max": 2
+        },
+        "marker_naechste_figur.Ferzan.KNAPP": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.Ferzan.SCHACHTEL": {
+          "n": 3,
+          "mittel": 3.333,
+          "sd": 2.887,
+          "min": 0,
+          "max": 5
+        },
+        "marker_naechste_figur.Meryem.FUELL": {
+          "n": 3,
+          "mittel": 2.333,
+          "sd": 2.517,
+          "min": 0,
+          "max": 5
+        },
+        "marker_naechste_figur.Meryem.KNAPP": {
+          "n": 3,
+          "mittel": 2.667,
+          "sd": 1.528,
+          "min": 1,
+          "max": 4
+        },
+        "marker_naechste_figur.Meryem.SCHACHTEL": {
+          "n": 3,
+          "mittel": 1.333,
+          "sd": 1.155,
+          "min": 0,
+          "max": 2
+        },
+        "reden_gesamt": {
+          "n": 3,
+          "mittel": 20.333,
+          "sd": 12.055,
+          "min": 9,
+          "max": 33
+        },
+        "reden_zugeordnet": {
+          "n": 3,
+          "mittel": 11.667,
+          "sd": 5.033,
+          "min": 7,
+          "max": 17
+        },
+        "woerter_gesamt": {
+          "n": 3,
+          "mittel": 2162.667,
+          "sd": 158.525,
+          "min": 1993,
+          "max": 2307
+        },
+        "zuordnungsquote": {
+          "n": 3,
+          "mittel": 0.624,
+          "sd": 0.137,
+          "min": 0.515,
+          "max": 0.778
+        }
+      },
+      "B": {
+        "abschnitte": {
+          "n": 3,
+          "mittel": 3,
+          "sd": 0.0,
+          "min": 3,
+          "max": 3
+        },
+        "figuren.Aynur.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.reden": {
+          "n": 3,
+          "mittel": 2.667,
+          "sd": 1.155,
+          "min": 2,
+          "max": 4
+        },
+        "figuren.Aynur.saetze": {
+          "n": 3,
+          "mittel": 3,
+          "sd": 1.732,
+          "min": 2,
+          "max": 5
+        },
+        "figuren.Aynur.satzlaenge": {
+          "n": 3,
+          "mittel": 2.0,
+          "sd": 0.5,
+          "min": 1.5,
+          "max": 2.5
+        },
+        "figuren.Aynur.woerter": {
+          "n": 3,
+          "mittel": 6,
+          "sd": 3.606,
+          "min": 3,
+          "max": 10
+        },
+        "figuren.Ferzan.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.595,
+          "sd": 1.031,
+          "min": 0.0,
+          "max": 1.786
+        },
+        "figuren.Ferzan.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Ferzan.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Ferzan.reden": {
+          "n": 3,
+          "mittel": 8.667,
+          "sd": 3.215,
+          "min": 5,
+          "max": 11
+        },
+        "figuren.Ferzan.saetze": {
+          "n": 3,
+          "mittel": 10.333,
+          "sd": 4.041,
+          "min": 6,
+          "max": 14
+        },
+        "figuren.Ferzan.satzlaenge": {
+          "n": 3,
+          "mittel": 3.313,
+          "sd": 1.43,
+          "min": 1.67,
+          "max": 4.27
+        },
+        "figuren.Ferzan.woerter": {
+          "n": 3,
+          "mittel": 37.667,
+          "sd": 24.379,
+          "min": 10,
+          "max": 56
+        },
+        "figuren.Meryem.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Meryem.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Meryem.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Meryem.reden": {
+          "n": 3,
+          "mittel": 5.333,
+          "sd": 4.619,
+          "min": 0,
+          "max": 8
+        },
+        "figuren.Meryem.saetze": {
+          "n": 3,
+          "mittel": 7.667,
+          "sd": 6.658,
+          "min": 0,
+          "max": 12
+        },
+        "figuren.Meryem.satzlaenge": {
+          "n": 3,
+          "mittel": 2.25,
+          "sd": 2.046,
+          "min": 0.0,
+          "max": 4.0
+        },
+        "figuren.Meryem.woerter": {
+          "n": 3,
+          "mittel": 25.667,
+          "sd": 22.898,
+          "min": 0,
+          "max": 44
+        },
+        "gesamt_marker.FUELL": {
+          "n": 3,
+          "mittel": 0.014,
+          "sd": 0.024,
+          "min": 0.0,
+          "max": 0.042
+        },
+        "gesamt_marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.046,
+          "sd": 0.046,
+          "min": 0.0,
+          "max": 0.091
+        },
+        "gesamt_marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "gesamt_satzlaenge": {
+          "n": 3,
+          "mittel": 12.157,
+          "sd": 0.62,
+          "min": 11.61,
+          "max": 12.83
+        },
+        "jaccard.Ferzan-Aynur": {
+          "n": 3,
+          "mittel": 0.022,
+          "sd": 0.023,
+          "min": 0.0,
+          "max": 0.045
+        },
+        "jaccard.Meryem-Aynur": {
+          "n": 3,
+          "mittel": 0.017,
+          "sd": 0.014,
+          "min": 0.0,
+          "max": 0.025
+        },
+        "jaccard.Meryem-Ferzan": {
+          "n": 3,
+          "mittel": 0.049,
+          "sd": 0.044,
+          "min": 0.0,
+          "max": 0.085
+        },
+        "marker_ab_abschnitt_2.FUELL": {
+          "n": 3,
+          "mittel": 0.019,
+          "sd": 0.033,
+          "min": 0.0,
+          "max": 0.057
+        },
+        "marker_ab_abschnitt_2.KNAPP": {
+          "n": 3,
+          "mittel": 0.062,
+          "sd": 0.061,
+          "min": 0.0,
+          "max": 0.121
+        },
+        "marker_ab_abschnitt_2.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "marker_abschnitt_1.FUELL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "marker_abschnitt_1.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "marker_abschnitt_1.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "marker_naechste_figur.(keine).FUELL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.(keine).KNAPP": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.(keine).SCHACHTEL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.Aynur.FUELL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.Aynur.KNAPP": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "marker_naechste_figur.Aynur.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.Ferzan.FUELL": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "marker_naechste_figur.Ferzan.KNAPP": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "marker_naechste_figur.Ferzan.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.Meryem.FUELL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.Meryem.KNAPP": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "marker_naechste_figur.Meryem.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "reden_gesamt": {
+          "n": 3,
+          "mittel": 28.667,
+          "sd": 17.898,
+          "min": 8,
+          "max": 39
+        },
+        "reden_zugeordnet": {
+          "n": 3,
+          "mittel": 16.667,
+          "sd": 8.505,
+          "min": 7,
+          "max": 23
+        },
+        "woerter_gesamt": {
+          "n": 3,
+          "mittel": 2254.667,
+          "sd": 108.56,
+          "min": 2190,
+          "max": 2380
+        },
+        "zuordnungsquote": {
+          "n": 3,
+          "mittel": 0.659,
+          "sd": 0.191,
+          "min": 0.513,
+          "max": 0.875
+        }
+      },
+      "C": {
+        "abschnitte": {
+          "n": 3,
+          "mittel": 3,
+          "sd": 0.0,
+          "min": 3,
+          "max": 3
+        },
+        "figuren.Aynur.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.marker.KNAPP": {
+          "n": 3,
+          "mittel": 37.301,
+          "sd": 11.252,
+          "min": 28.571,
+          "max": 50.0
+        },
+        "figuren.Aynur.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.reden": {
+          "n": 3,
+          "mittel": 4,
+          "sd": 2.0,
+          "min": 2,
+          "max": 6
+        },
+        "figuren.Aynur.saetze": {
+          "n": 3,
+          "mittel": 4,
+          "sd": 2.0,
+          "min": 2,
+          "max": 6
+        },
+        "figuren.Aynur.satzlaenge": {
+          "n": 3,
+          "mittel": 1.223,
+          "sd": 0.254,
+          "min": 1.0,
+          "max": 1.5
+        },
+        "figuren.Aynur.woerter": {
+          "n": 3,
+          "mittel": 5,
+          "sd": 2.646,
+          "min": 2,
+          "max": 7
+        },
+        "figuren.Ferzan.marker.FUELL": {
+          "n": 3,
+          "mittel": 12.281,
+          "sd": 21.271,
+          "min": 0.0,
+          "max": 36.842
+        },
+        "figuren.Ferzan.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Ferzan.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Ferzan.reden": {
+          "n": 3,
+          "mittel": 3.333,
+          "sd": 2.517,
+          "min": 1,
+          "max": 6
+        },
+        "figuren.Ferzan.saetze": {
+          "n": 3,
+          "mittel": 3.333,
+          "sd": 2.517,
+          "min": 1,
+          "max": 6
+        },
+        "figuren.Ferzan.satzlaenge": {
+          "n": 3,
+          "mittel": 2.613,
+          "sd": 1.419,
+          "min": 1.0,
+          "max": 3.67
+        },
+        "figuren.Ferzan.woerter": {
+          "n": 3,
+          "mittel": 10.333,
+          "sd": 9.018,
+          "min": 1,
+          "max": 19
+        },
+        "figuren.Meryem.marker.FUELL": {
+          "n": 3,
+          "mittel": 7.843,
+          "sd": 13.584,
+          "min": 0.0,
+          "max": 23.529
+        },
+        "figuren.Meryem.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Meryem.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Meryem.reden": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "figuren.Meryem.saetze": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "figuren.Meryem.satzlaenge": {
+          "n": 3,
+          "mittel": 5.667,
+          "sd": 9.815,
+          "min": 0.0,
+          "max": 17.0
+        },
+        "figuren.Meryem.woerter": {
+          "n": 3,
+          "mittel": 5.667,
+          "sd": 9.815,
+          "min": 0,
+          "max": 17
+        },
+        "gesamt_marker.FUELL": {
+          "n": 3,
+          "mittel": 1.213,
+          "sd": 0.381,
+          "min": 0.787,
+          "max": 1.522
+        },
+        "gesamt_marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.212,
+          "sd": 0.074,
+          "min": 0.152,
+          "max": 0.295
+        },
+        "gesamt_marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.429,
+          "sd": 0.165,
+          "min": 0.285,
+          "max": 0.609
+        },
+        "gesamt_satzlaenge": {
+          "n": 3,
+          "mittel": 14.04,
+          "sd": 1.987,
+          "min": 11.76,
+          "max": 15.4
+        },
+        "jaccard.Ferzan-Aynur": {
+          "n": 3,
+          "mittel": 0.04,
+          "sd": 0.035,
+          "min": 0.0,
+          "max": 0.067
+        },
+        "jaccard.Meryem-Aynur": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "jaccard.Meryem-Ferzan": {
+          "n": 3,
+          "mittel": 0.095,
+          "sd": 0.165,
+          "min": 0.0,
+          "max": 0.286
+        },
+        "marker_ab_abschnitt_2.FUELL": {
+          "n": 3,
+          "mittel": 1.265,
+          "sd": 0.463,
+          "min": 0.794,
+          "max": 1.72
+        },
+        "marker_ab_abschnitt_2.KNAPP": {
+          "n": 3,
+          "mittel": 0.179,
+          "sd": 0.075,
+          "min": 0.128,
+          "max": 0.265
+        },
+        "marker_ab_abschnitt_2.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.3,
+          "sd": 0.239,
+          "min": 0.128,
+          "max": 0.573
+        },
+        "marker_abschnitt_1.FUELL": {
+          "n": 3,
+          "mittel": 1.095,
+          "sd": 0.358,
+          "min": 0.766,
+          "max": 1.476
+        },
+        "marker_abschnitt_1.KNAPP": {
+          "n": 3,
+          "mittel": 0.309,
+          "sd": 0.117,
+          "min": 0.174,
+          "max": 0.383
+        },
+        "marker_abschnitt_1.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.797,
+          "sd": 0.141,
+          "min": 0.694,
+          "max": 0.958
+        },
+        "marker_naechste_figur.(keine).FUELL": {
+          "n": 3,
+          "mittel": 14.333,
+          "sd": 5.686,
+          "min": 8,
+          "max": 19
+        },
+        "marker_naechste_figur.(keine).KNAPP": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "marker_naechste_figur.(keine).SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "marker_naechste_figur.Aynur.FUELL": {
+          "n": 3,
+          "mittel": 1,
+          "sd": 1.732,
+          "min": 0,
+          "max": 3
+        },
+        "marker_naechste_figur.Aynur.KNAPP": {
+          "n": 3,
+          "mittel": 2,
+          "sd": 0.0,
+          "min": 2,
+          "max": 2
+        },
+        "marker_naechste_figur.Aynur.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "marker_naechste_figur.Ferzan.FUELL": {
+          "n": 3,
+          "mittel": 5.667,
+          "sd": 5.132,
+          "min": 0,
+          "max": 10
+        },
+        "marker_naechste_figur.Ferzan.KNAPP": {
+          "n": 3,
+          "mittel": 1,
+          "sd": 0.0,
+          "min": 1,
+          "max": 1
+        },
+        "marker_naechste_figur.Ferzan.SCHACHTEL": {
+          "n": 3,
+          "mittel": 2,
+          "sd": 1.732,
+          "min": 0,
+          "max": 3
+        },
+        "marker_naechste_figur.Meryem.FUELL": {
+          "n": 3,
+          "mittel": 3.667,
+          "sd": 3.512,
+          "min": 0,
+          "max": 7
+        },
+        "marker_naechste_figur.Meryem.KNAPP": {
+          "n": 3,
+          "mittel": 1,
+          "sd": 1.0,
+          "min": 0,
+          "max": 2
+        },
+        "marker_naechste_figur.Meryem.SCHACHTEL": {
+          "n": 3,
+          "mittel": 6.333,
+          "sd": 5.132,
+          "min": 2,
+          "max": 12
+        },
+        "reden_gesamt": {
+          "n": 3,
+          "mittel": 15.667,
+          "sd": 4.163,
+          "min": 11,
+          "max": 19
+        },
+        "reden_zugeordnet": {
+          "n": 3,
+          "mittel": 7.667,
+          "sd": 5.033,
+          "min": 3,
+          "max": 13
+        },
+        "woerter_gesamt": {
+          "n": 3,
+          "mittel": 2036.667,
+          "sd": 67.04,
+          "min": 1971,
+          "max": 2105
+        },
+        "zuordnungsquote": {
+          "n": 3,
+          "mittel": 0.456,
+          "sd": 0.209,
+          "min": 0.273,
+          "max": 0.684
+        }
+      }
+    },
+    "szene": {
+      "A": {
+        "figuren.Aynur.marker.FUELL": {
+          "n": 3,
+          "mittel": 5.309,
+          "sd": 4.606,
+          "min": 0.0,
+          "max": 8.235
+        },
+        "figuren.Aynur.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.reden": {
+          "n": 3,
+          "mittel": 15.333,
+          "sd": 6.11,
+          "min": 10,
+          "max": 22
+        },
+        "figuren.Aynur.saetze": {
+          "n": 3,
+          "mittel": 27.667,
+          "sd": 9.504,
+          "min": 18,
+          "max": 37
+        },
+        "figuren.Aynur.satzlaenge": {
+          "n": 3,
+          "mittel": 2.783,
+          "sd": 0.534,
+          "min": 2.17,
+          "max": 3.14
+        },
+        "figuren.Aynur.woerter": {
+          "n": 3,
+          "mittel": 80,
+          "sd": 38.743,
+          "min": 39,
+          "max": 116
+        },
+        "figuren.Ferzan.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.495,
+          "sd": 0.588,
+          "min": 0.0,
+          "max": 1.145
+        },
+        "figuren.Ferzan.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.554,
+          "sd": 0.212,
+          "min": 0.339,
+          "max": 0.763
+        },
+        "figuren.Ferzan.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Ferzan.reden": {
+          "n": 3,
+          "mittel": 34.667,
+          "sd": 4.509,
+          "min": 30,
+          "max": 39
+        },
+        "figuren.Ferzan.saetze": {
+          "n": 3,
+          "mittel": 66.667,
+          "sd": 10.97,
+          "min": 58,
+          "max": 79
+        },
+        "figuren.Ferzan.satzlaenge": {
+          "n": 3,
+          "mittel": 3.66,
+          "sd": 0.538,
+          "min": 3.09,
+          "max": 4.16
+        },
+        "figuren.Ferzan.woerter": {
+          "n": 3,
+          "mittel": 245.333,
+          "sd": 59.769,
+          "min": 179,
+          "max": 295
+        },
+        "figuren.Meryem.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.861,
+          "sd": 0.862,
+          "min": 0.0,
+          "max": 1.724
+        },
+        "figuren.Meryem.marker.KNAPP": {
+          "n": 3,
+          "mittel": 1.024,
+          "sd": 0.551,
+          "min": 0.575,
+          "max": 1.639
+        },
+        "figuren.Meryem.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Meryem.reden": {
+          "n": 3,
+          "mittel": 31.333,
+          "sd": 5.508,
+          "min": 26,
+          "max": 37
+        },
+        "figuren.Meryem.saetze": {
+          "n": 3,
+          "mittel": 41,
+          "sd": 8.66,
+          "min": 31,
+          "max": 46
+        },
+        "figuren.Meryem.satzlaenge": {
+          "n": 3,
+          "mittel": 4.263,
+          "sd": 0.703,
+          "min": 3.78,
+          "max": 5.07
+        },
+        "figuren.Meryem.woerter": {
+          "n": 3,
+          "mittel": 176.333,
+          "sd": 55.537,
+          "min": 122,
+          "max": 233
+        },
+        "gesamt_marker.FUELL": {
+          "n": 3,
+          "mittel": 0.742,
+          "sd": 0.505,
+          "min": 0.198,
+          "max": 1.196
+        },
+        "gesamt_marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.509,
+          "sd": 0.24,
+          "min": 0.238,
+          "max": 0.692
+        },
+        "gesamt_marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "gesamt_satzlaenge": {
+          "n": 3,
+          "mittel": 5.67,
+          "sd": 0.409,
+          "min": 5.22,
+          "max": 6.02
+        },
+        "jaccard.Ferzan-Aynur": {
+          "n": 3,
+          "mittel": 0.189,
+          "sd": 0.076,
+          "min": 0.105,
+          "max": 0.252
+        },
+        "jaccard.Meryem-Aynur": {
+          "n": 3,
+          "mittel": 0.177,
+          "sd": 0.026,
+          "min": 0.149,
+          "max": 0.2
+        },
+        "jaccard.Meryem-Ferzan": {
+          "n": 3,
+          "mittel": 0.262,
+          "sd": 0.037,
+          "min": 0.236,
+          "max": 0.304
+        },
+        "reden_gesamt": {
+          "n": 3,
+          "mittel": 81.333,
+          "sd": 14.742,
+          "min": 70,
+          "max": 98
+        },
+        "reden_zugeordnet": {
+          "n": 3,
+          "mittel": 81.333,
+          "sd": 14.742,
+          "min": 70,
+          "max": 98
+        },
+        "vorlage_marker.FUELL": {
+          "n": 3,
+          "mittel": 1.088,
+          "sd": 0.103,
+          "min": 1.003,
+          "max": 1.202
+        },
+        "vorlage_marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.122,
+          "sd": 0.107,
+          "min": 0.0,
+          "max": 0.2
+        },
+        "vorlage_marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.413,
+          "sd": 0.164,
+          "min": 0.303,
+          "max": 0.601
+        },
+        "woerter_gesamt": {
+          "n": 3,
+          "mittel": 896.333,
+          "sd": 100.201,
+          "min": 836,
+          "max": 1012
+        },
+        "zuordnungsquote": {
+          "n": 3,
+          "mittel": 1.0,
+          "sd": 0.0,
+          "min": 1.0,
+          "max": 1.0
+        }
+      },
+      "B": {
+        "figuren.Aynur.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Aynur.reden": {
+          "n": 3,
+          "mittel": 15.667,
+          "sd": 1.528,
+          "min": 14,
+          "max": 17
+        },
+        "figuren.Aynur.saetze": {
+          "n": 3,
+          "mittel": 27.667,
+          "sd": 1.155,
+          "min": 27,
+          "max": 29
+        },
+        "figuren.Aynur.satzlaenge": {
+          "n": 3,
+          "mittel": 2.383,
+          "sd": 0.181,
+          "min": 2.19,
+          "max": 2.55
+        },
+        "figuren.Aynur.woerter": {
+          "n": 3,
+          "mittel": 66,
+          "sd": 7.55,
+          "min": 59,
+          "max": 74
+        },
+        "figuren.Ferzan.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.251,
+          "sd": 0.434,
+          "min": 0.0,
+          "max": 0.752
+        },
+        "figuren.Ferzan.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.5,
+          "sd": 0.433,
+          "min": 0.0,
+          "max": 0.752
+        },
+        "figuren.Ferzan.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Ferzan.reden": {
+          "n": 3,
+          "mittel": 39.333,
+          "sd": 6.028,
+          "min": 33,
+          "max": 45
+        },
+        "figuren.Ferzan.saetze": {
+          "n": 3,
+          "mittel": 73.667,
+          "sd": 14.572,
+          "min": 62,
+          "max": 90
+        },
+        "figuren.Ferzan.satzlaenge": {
+          "n": 3,
+          "mittel": 3.513,
+          "sd": 0.476,
+          "min": 2.97,
+          "max": 3.86
+        },
+        "figuren.Ferzan.woerter": {
+          "n": 3,
+          "mittel": 254.333,
+          "sd": 21.079,
+          "min": 230,
+          "max": 267
+        },
+        "figuren.Meryem.marker.FUELL": {
+          "n": 3,
+          "mittel": 0.178,
+          "sd": 0.309,
+          "min": 0.0,
+          "max": 0.535
+        },
+        "figuren.Meryem.marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Meryem.marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "figuren.Meryem.reden": {
+          "n": 3,
+          "mittel": 29,
+          "sd": 4.0,
+          "min": 25,
+          "max": 33
+        },
+        "figuren.Meryem.saetze": {
+          "n": 3,
+          "mittel": 41.333,
+          "sd": 3.055,
+          "min": 38,
+          "max": 44
+        },
+        "figuren.Meryem.satzlaenge": {
+          "n": 3,
+          "mittel": 4.31,
+          "sd": 0.135,
+          "min": 4.18,
+          "max": 4.45
+        },
+        "figuren.Meryem.woerter": {
+          "n": 3,
+          "mittel": 178.333,
+          "sd": 16.773,
+          "min": 159,
+          "max": 189
+        },
+        "gesamt_marker.FUELL": {
+          "n": 3,
+          "mittel": 0.11,
+          "sd": 0.114,
+          "min": 0.0,
+          "max": 0.227
+        },
+        "gesamt_marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.144,
+          "sd": 0.125,
+          "min": 0.0,
+          "max": 0.227
+        },
+        "gesamt_marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "gesamt_satzlaenge": {
+          "n": 3,
+          "mittel": 5.397,
+          "sd": 0.218,
+          "min": 5.16,
+          "max": 5.59
+        },
+        "jaccard.Ferzan-Aynur": {
+          "n": 3,
+          "mittel": 0.145,
+          "sd": 0.031,
+          "min": 0.109,
+          "max": 0.166
+        },
+        "jaccard.Meryem-Aynur": {
+          "n": 3,
+          "mittel": 0.161,
+          "sd": 0.029,
+          "min": 0.131,
+          "max": 0.189
+        },
+        "jaccard.Meryem-Ferzan": {
+          "n": 3,
+          "mittel": 0.223,
+          "sd": 0.015,
+          "min": 0.21,
+          "max": 0.239
+        },
+        "reden_gesamt": {
+          "n": 3,
+          "mittel": 84,
+          "sd": 9.539,
+          "min": 75,
+          "max": 94
+        },
+        "reden_zugeordnet": {
+          "n": 3,
+          "mittel": 84,
+          "sd": 9.539,
+          "min": 75,
+          "max": 94
+        },
+        "vorlage_marker.FUELL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "vorlage_marker.KNAPP": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "vorlage_marker.SCHACHTEL": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "woerter_gesamt": {
+          "n": 3,
+          "mittel": 897,
+          "sd": 67.757,
+          "min": 838,
+          "max": 971
+        },
+        "zuordnungsquote": {
+          "n": 3,
+          "mittel": 1.0,
+          "sd": 0.0,
+          "min": 1.0,
+          "max": 1.0
+        }
+      }
+    }
+  },
+  "stil_folgt": {
+    "prosa": [
+      {
+        "figur": "Meryem",
+        "rolle": "A-Stil",
+        "stil": "KNAPP",
+        "A": {
+          "n": 3,
+          "mittel": 12.889,
+          "sd": 3.421,
+          "min": 10.0,
+          "max": 16.667
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "C": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      {
+        "figur": "Meryem",
+        "rolle": "C-Stil",
+        "stil": "SCHACHTEL",
+        "A": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "C": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      {
+        "figur": "Ferzan",
+        "rolle": "A-Stil",
+        "stil": "SCHACHTEL",
+        "A": {
+          "n": 3,
+          "mittel": 1.538,
+          "sd": 2.664,
+          "min": 0.0,
+          "max": 4.615
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "C": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      {
+        "figur": "Ferzan",
+        "rolle": "C-Stil",
+        "stil": "FUELL",
+        "A": {
+          "n": 3,
+          "mittel": 0.68,
+          "sd": 1.178,
+          "min": 0.0,
+          "max": 2.041
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.595,
+          "sd": 1.031,
+          "min": 0.0,
+          "max": 1.786
+        },
+        "C": {
+          "n": 3,
+          "mittel": 12.281,
+          "sd": 21.271,
+          "min": 0.0,
+          "max": 36.842
+        }
+      },
+      {
+        "figur": "Aynur",
+        "rolle": "A-Stil",
+        "stil": "FUELL",
+        "A": {
+          "n": 3,
+          "mittel": 20.362,
+          "sd": 18.189,
+          "min": 0.0,
+          "max": 35.0
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "C": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      {
+        "figur": "Aynur",
+        "rolle": "C-Stil",
+        "stil": "KNAPP",
+        "A": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "C": {
+          "n": 3,
+          "mittel": 37.301,
+          "sd": 11.252,
+          "min": 28.571,
+          "max": 50.0
+        }
+      }
+    ],
+    "szene": [
+      {
+        "figur": "Meryem",
+        "rolle": "A-Stil",
+        "stil": "KNAPP",
+        "A": {
+          "n": 3,
+          "mittel": 1.024,
+          "sd": 0.551,
+          "min": 0.575,
+          "max": 1.639
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      {
+        "figur": "Meryem",
+        "rolle": "C-Stil",
+        "stil": "SCHACHTEL",
+        "A": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      {
+        "figur": "Ferzan",
+        "rolle": "A-Stil",
+        "stil": "SCHACHTEL",
+        "A": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      {
+        "figur": "Ferzan",
+        "rolle": "C-Stil",
+        "stil": "FUELL",
+        "A": {
+          "n": 3,
+          "mittel": 0.495,
+          "sd": 0.588,
+          "min": 0.0,
+          "max": 1.145
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.251,
+          "sd": 0.434,
+          "min": 0.0,
+          "max": 0.752
+        }
+      },
+      {
+        "figur": "Aynur",
+        "rolle": "A-Stil",
+        "stil": "FUELL",
+        "A": {
+          "n": 3,
+          "mittel": 5.309,
+          "sd": 4.606,
+          "min": 0.0,
+          "max": 8.235
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      {
+        "figur": "Aynur",
+        "rolle": "C-Stil",
+        "stil": "KNAPP",
+        "A": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.0,
+          "sd": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      }
+    ]
+  },
+  "stil_folgt_naechste_figur": {
+    "prosa": [
+      {
+        "figur": "Meryem",
+        "rolle": "A-Stil",
+        "stil": "KNAPP",
+        "A": {
+          "n": 3,
+          "mittel": 2.667,
+          "sd": 1.528,
+          "min": 1,
+          "max": 4
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "C": {
+          "n": 3,
+          "mittel": 1,
+          "sd": 1.0,
+          "min": 0,
+          "max": 2
+        }
+      },
+      {
+        "figur": "Meryem",
+        "rolle": "C-Stil",
+        "stil": "SCHACHTEL",
+        "A": {
+          "n": 3,
+          "mittel": 1.333,
+          "sd": 1.155,
+          "min": 0,
+          "max": 2
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "C": {
+          "n": 3,
+          "mittel": 6.333,
+          "sd": 5.132,
+          "min": 2,
+          "max": 12
+        }
+      },
+      {
+        "figur": "Ferzan",
+        "rolle": "A-Stil",
+        "stil": "SCHACHTEL",
+        "A": {
+          "n": 3,
+          "mittel": 3.333,
+          "sd": 2.887,
+          "min": 0,
+          "max": 5
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "C": {
+          "n": 3,
+          "mittel": 2,
+          "sd": 1.732,
+          "min": 0,
+          "max": 3
+        }
+      },
+      {
+        "figur": "Ferzan",
+        "rolle": "C-Stil",
+        "stil": "FUELL",
+        "A": {
+          "n": 3,
+          "mittel": 0.667,
+          "sd": 1.155,
+          "min": 0,
+          "max": 2
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "C": {
+          "n": 3,
+          "mittel": 5.667,
+          "sd": 5.132,
+          "min": 0,
+          "max": 10
+        }
+      },
+      {
+        "figur": "Aynur",
+        "rolle": "A-Stil",
+        "stil": "FUELL",
+        "A": {
+          "n": 3,
+          "mittel": 4.333,
+          "sd": 3.786,
+          "min": 0,
+          "max": 7
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0,
+          "sd": 0.0,
+          "min": 0,
+          "max": 0
+        },
+        "C": {
+          "n": 3,
+          "mittel": 1,
+          "sd": 1.732,
+          "min": 0,
+          "max": 3
+        }
+      },
+      {
+        "figur": "Aynur",
+        "rolle": "C-Stil",
+        "stil": "KNAPP",
+        "A": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "B": {
+          "n": 3,
+          "mittel": 0.333,
+          "sd": 0.577,
+          "min": 0,
+          "max": 1
+        },
+        "C": {
+          "n": 3,
+          "mittel": 2,
+          "sd": 0.0,
+          "min": 2,
+          "max": 2
+        }
+      }
+    ]
+  }
+}

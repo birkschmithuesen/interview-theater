@@ -65,6 +65,77 @@ EINGANG_VERZ = "web-eingang"
 #: Wo Dateien liegen, die der Bot verschickt (Textbuch-Export).
 AUSGANG_VERZ = "web-ausgang"
 
+#: Was der Browser liefern darf, und mit welcher Endung es abgelegt wird.
+#:
+#: **Content-Type -> ENDUNG und nicht Content-Type -> ja/nein**, und das ist
+#: Falle 3: ``stt.mime_typ()`` leitet den MIME-Typ, den Whisper sieht, aus der
+#: Dateiendung ab. Ein WebM als ``.ogg`` abgelegt wird von Infomaniak mit
+#: einer ``batch_id`` quittiert -- kein HTTP-Fehler -- und bleibt danach
+#: dauerhaft auf 'pending': 89,7 s statt 2,0 s, im Betrieb nur als "haengt"
+#: sichtbar.
+#:
+#: Chrome und Firefox liefern ``audio/webm;codecs=opus``, Safari
+#: ``audio/mp4``. ``audio/ogg`` und ``audio/mpeg`` stehen daneben, weil ein
+#: Browser sie waehlen darf und beide bei Whisper unstrittig sind.
+#:
+#: **Die eine Stelle** (Abschlussreview C1): der Webserver nimmt danach an
+#: (``web_chat.MIME_ERLAUBT`` ist dieselbe Tabelle), und ``hole_updates``
+#: leitet daraus die Endung im Update ab -- aus der Spalte ``mime``, nicht
+#: aus dem Dateipfad, der beim Lesen noch fehlen kann.
+MIME_ERLAUBT = {
+    "audio/webm": ".webm",
+    "audio/ogg": ".ogg",
+    "audio/mp4": ".m4a",
+    "audio/mpeg": ".mp3",
+}
+
+#: Wie lange eine Sprachzeile ohne ``datei`` zurueckgehalten wird
+#: (Abschlussreview C1). Der Webserver legt erst die Zeile an, schreibt dann
+#: die Datei und setzt erst danach den Verweis -- dazwischen liegen
+#: Millisekunden. Ist die Datei nach dieser Frist immer noch nicht da (der
+#: Webserver ist dazwischen abgestuerzt), geht die Zeile trotzdem raus:
+#: ``lade_datei`` wirft, und ``aufnahme`` bittet die Gruppe, es nochmal zu
+#: schicken. Ewig zu warten hiesse, dass alles dahinter mit wartet.
+DATEI_FRIST_S = 30
+
+#: Wie lange ein Befehl, ein Knopfdruck oder ein Text auf fruehere Segmente
+#: wartet (Abschlussreview I1). Ein Segment ist "angekommen", sobald
+#: ``aufnahme.empfange`` seine ``aufnahme``-Zeile angelegt hat, oder
+#: endgueltig gescheitert, sobald dort der Vorfall ``download_fehlgeschlagen``
+#: steht. Beides dauert bei einer lokalen Datei Millisekunden, mit allen
+#: Wiederholungen (``stt.WARTEZEITEN``) gut fuenf Sekunden. Die Frist faengt
+#: den Fall ab, in dem keines von beiden je kommt (eine Ausnahme vor
+#: ``empfange``): danach wird ausgeliefert und geloggt.
+ANKUNFT_FRIST_S = 60
+
+#: Wie weit zurueck ueberhaupt nach unterwegs gebliebenen Segmenten gesucht
+#: wird. Aelteres ist laengst geloggt und haelt nichts mehr auf.
+_NACHSCHAU_S = 600
+
+
+def endung_fuer_mime(mime) -> str | None:
+    """Die Endung zu einem MIME-Typ, oder None.
+
+    Parameter werden abgeschnitten (``audio/webm;codecs=opus``), gross und
+    klein ist gleich. Eine **Allowlist**: was in ``MIME_ERLAUBT`` nicht
+    steht, kommt nicht an."""
+    if not isinstance(mime, str) or not mime.strip():
+        return None
+    haupt = mime.split(";", 1)[0].strip().lower()
+    return MIME_ERLAUBT.get(haupt)
+
+
+def _alter_s(iso, jetzt: datetime) -> float:
+    """Sekunden seit ``iso``; ein unlesbarer Zeitpunkt gilt als alt -- er
+    soll nichts aufhalten."""
+    try:
+        damals = datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return float("inf")
+    if damals.tzinfo is None:
+        damals = damals.replace(tzinfo=timezone.utc)
+    return (jetzt - damals).total_seconds()
+
 
 def eingangspfad(audio_verz: str, chat_id: int, post_id: int, endung: str) -> Path:
     """Wohin ein hochgeladenes Segment gehoert."""
@@ -134,16 +205,88 @@ class WebKanal:
 
         Gewartet wird **zwischen** den Abfragen und nie mit einer gehaltenen
         Sperre: jeder ``repo``-Aufruf nimmt den modulweiten ``RLock`` und
-        gibt ihn wieder her, sonst haenge der Webserver an unserem Schlaf."""
+        gibt ihn wieder her, sonst haenge der Webserver an unserem Schlaf.
+
+        **Geliefert wird immer ein lueckenloses Praefix** (Abschlussreview C1,
+        I1): ``bot.schleife`` rueckt den Offset je Update vor, eine
+        zurueckgehaltene Zeile mit etwas Spaeterem dahinter waere danach fuer
+        immer uebersprungen. Zurueckgehalten wird an zwei Stellen, beide mit
+        Frist (``_lieferbar``)."""
         frist = time.monotonic() + max(0.0, float(timeout))
         while True:
             zeilen = repo.web_eingang(self._conn, self._chat_id, max(0, int(offset)))
+            zeilen = self._lieferbar(zeilen)
             if zeilen:
                 titel = self._titel()
                 return [self._update(zeile, titel) for zeile in zeilen]
             if time.monotonic() >= frist:
                 return []
             time.sleep(min(self._schritt, max(0.0, frist - time.monotonic())))
+
+    def _lieferbar(self, zeilen) -> list:
+        """Der Teil des Eingangs, der jetzt schon zum Bot darf -- von vorn bis
+        zur ersten Zeile, die warten muss.
+
+        1. **Eine Sprachzeile ohne ``datei``** (C1): der Webserver schreibt
+           gerade die Datei. Wer jetzt liest, faende keinen Pfad.
+        2. **Alles andere hinter einem Segment, das beim Bot noch nicht
+           angekommen ist** (I1): ``bot.schleife`` gibt Segmente und Befehle
+           in denselben Pool (``bot.POOL_GROESSE`` Faeden). Ohne Wartepunkt
+           kann /fertig das letzte Segment ueberholen -- ``aufnahme.klasse_fuer``
+           liest den Modus erst bei der Verarbeitung, und
+           ``repo.hat_offene_teile`` sieht nur Zeilen, die es schon gibt; das
+           Segment wuerde ein Gespraechsbeitrag statt des letzten Teils. Das
+           gilt fuer jeden Nicht-Segment-Post (Text, Knopf, Befehl): auch
+           "Aufnahme beenden" als Knopf und ein "fertig" im Text beenden den
+           Modus. Segmente untereinander warten nicht -- sie lesen denselben
+           Modus.
+
+        Nur hier und nur im Web-Kanal: Telegram liefert seine Updates selbst,
+        ``bot.schleife`` und ``aufnahme`` bleiben unveraendert (E1)."""
+        jetzt = datetime.now(timezone.utc)
+        bereit = []
+        segment_im_stapel = False
+        for zeile in zeilen:
+            if zeile["typ"] == repo.WEB_TYP_SPRACHE:
+                if not zeile["datei"]:
+                    alter = _alter_s(zeile["erstellt_am"], jetzt)
+                    if alter < DATEI_FRIST_S:
+                        break
+                    log.warning(
+                        "Web-Aufnahme %s hat nach %.0f s noch keine Datei -- "
+                        "geht trotzdem an den Bot (chat_id=%s)",
+                        zeile["id"], alter, self._chat_id,
+                    )
+                segment_im_stapel = True
+                bereit.append(zeile)
+                continue
+            if segment_im_stapel:
+                # Ein Segment in DIESEM Stapel ist per Definition noch nicht
+                # beim Bot -- der naechste Poll fragt nach.
+                break
+            if not self._segmente_angekommen(zeile, jetzt):
+                break
+            bereit.append(zeile)
+        return bereit
+
+    def _segmente_angekommen(self, zeile, jetzt: datetime) -> bool:
+        """Sind alle Segmente vor ``zeile`` beim Bot angekommen (oder
+        endgueltig gescheitert, oder ueber der Frist)?"""
+        seit = (jetzt - timedelta(seconds=_NACHSCHAU_S)).isoformat(timespec="seconds")
+        unterwegs = repo.web_segmente_unterwegs(
+            self._conn, self._chat_id, int(zeile["id"]), seit,
+        )
+        if not unterwegs:
+            return True
+        if any(_alter_s(u["erstellt_am"], jetzt) < ANKUNFT_FRIST_S for u in unterwegs):
+            return False
+        log.warning(
+            "Web-Post %s wartet nicht laenger auf Segment(e) %s -- ohne "
+            "aufnahme-Zeile und ohne Vorfall nach %s s (chat_id=%s)",
+            zeile["id"], ", ".join(str(u["id"]) for u in unterwegs),
+            ANKUNFT_FRIST_S, self._chat_id,
+        )
+        return True
 
     def _titel(self) -> str | None:
         """Der Gruppentitel aus der Datenbank.
@@ -184,7 +327,14 @@ class WebKanal:
             "date": self._unix(zeile["erstellt_am"]),
         }
         if zeile["typ"] == repo.WEB_TYP_SPRACHE:
-            endung = Path(zeile["datei"] or "").suffix or ".ogg"
+            # Aus der Spalte mime (C1) -- sie steht schon beim Anlegen der
+            # Zeile, der Pfad erst danach. Der Pfad und ".ogg" sind nur noch
+            # der Rueckfall fuer eine Zeile ohne bekannten Typ.
+            endung = (
+                endung_fuer_mime(zeile["mime"])
+                or Path(zeile["datei"] or "").suffix
+                or ".ogg"
+            )
             nachricht["voice"] = {
                 "file_id": datei_verweis(post_id, endung),
                 "duration": zeile["dauer"],
@@ -346,6 +496,10 @@ class WebKanal:
         zeile = repo.hole_web_post(self._conn, post_id)
         if zeile is None or not zeile["datei"]:
             raise FileNotFoundError(f"Web-Aufnahme {post_id} ist nicht hinterlegt")
+        if int(zeile["chat_id"]) != self._chat_id:
+            # Die ids sind eine Folge ueber alle Gruppen: ein Verweis auf eine
+            # fremde Zeile waere fremdes Material im eigenen Transkript (M4).
+            raise ValueError(f"Web-Aufnahme {post_id} gehoert nicht zu dieser Gruppe")
 
         wurzel = self._audio.resolve()
         quelle = Path(zeile["datei"]).resolve()

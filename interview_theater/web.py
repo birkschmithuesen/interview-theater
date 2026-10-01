@@ -879,8 +879,12 @@ def _leitfaden_link(token: str | None) -> str:
 _TEXT_CHAT_LINK = "Chat mit dem Bot"
 
 
-def _chat_link(token: str | None) -> str:
-    if not token:
+def _chat_link(token: str | None, kanal: str | None = None) -> str:
+    """Nur fuer eine Gruppe im Web-Kanal (Abschlussreview I3). Der Plan
+    (Aufgabe 6) sah den Link fuer jede Gruppe vor; E1 geht vor: eine
+    Telegram-Gruppe hat keinen Bot, der den Web-Eingang liest, und was sie
+    dort schriebe, ginge still verloren."""
+    if not token or kanal != "web":
         return ""
     from interview_theater import web_chat
 
@@ -2048,7 +2052,7 @@ def gruppe_html(
         _CSS_GRUPPE,
         f"<h1>{_t(titel)}</h1>\n"
         f"{probenansicht}"
-        f"{_chat_link(token)}"
+        f"{_chat_link(token, daten.get('kanal'))}"
         f"{kopf}"
         f"<h2>{_t(T._UEBERSCHRIFT_ARBEITSSTAND)}</h2>"
         f"{stand}\n"
@@ -3048,6 +3052,17 @@ def main() -> None:
     print(
         f"interview-theater-web hoert auf http://{bind}{praefix or '/'} "
         f"(Datenbank {db_pfad}, read-only)",
+        flush=True,
+    )
+    # Abschlussreview I5: Uploads landen unter IT_AUDIO, und der Web-Bot
+    # verweigert jeden Pfad ausserhalb SEINES IT_AUDIO. Steht hier ein anderes
+    # Verzeichnis als in betrieb/<gruppe>.env, ist das die Ursache.
+    from pathlib import Path
+
+    from interview_theater import web_chat
+
+    print(
+        f"interview-theater-web IT_AUDIO={Path(web_chat._audio_verz()).resolve()}",
         flush=True,
     )
     server.serve_forever()

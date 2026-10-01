@@ -713,8 +713,16 @@ CREATE INDEX IF NOT EXISTS idx_knopf_chat ON knopf(chat_id, id);
 -- Die Tippanzeige steht NICHT hier, sondern in gruppe.web_tippt_bis:
 -- arbeitszeilen.TIPP_S = 4,0 s heisst bei einem vierminuetigen Szenenlauf 60
 -- Aufrufe, und eine Tippanzeige ist keine Nachricht.
+--
+-- AUTOINCREMENT (Abschlussreview I2): ohne es vergaebe SQLite nach dem
+-- Loeschweg einer Gruppe (loesche_gruppe nimmt ihre Zeilen) die frei
+-- gewordenen hoechsten ids erneut -- und eine neue Zeile laege unter dem
+-- Offset eines Bots, der die alte schon gesehen hat. Eine schon angelegte
+-- Tabelle aendert CREATE TABLE IF NOT EXISTS nicht; das betrifft nur
+-- Entwicklungs-DBs dieser Karte (die Tabelle ist neu), und
+-- repo.hoechste_web_post_id faellt dort auf MAX(id) zurueck.
 CREATE TABLE IF NOT EXISTS web_post (
-  id                INTEGER PRIMARY KEY,        -- = message_id = update_id
+  id                INTEGER PRIMARY KEY AUTOINCREMENT, -- = message_id = update_id
   chat_id           INTEGER NOT NULL,
   richtung          TEXT NOT NULL,              -- 'ein' (Browser) | 'aus' (Bot)
   -- 'ein': text|sprache|knopf|befehl -- 'aus': text|datei

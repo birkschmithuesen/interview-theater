@@ -3225,6 +3225,61 @@ def web_eingang(conn, chat_id: int, ab_update_id: int, grenze: int = 50) -> list
     ).fetchall()
 
 
+#: Der Vorfall, mit dem ``aufnahme.empfange`` einen endgueltig gescheiterten
+#: Download festhaelt, und der Anfang seines ``detail`` -- das Kennzeichen,
+#: an dem ``web_segmente_unterwegs`` ein Segment als "erledigt, ohne
+#: Aufnahme" erkennt. Der Wortlaut steht in ``aufnahme.empfange``; ein Test
+#: (tests/test_web_abschluss_fixes.py) erzeugt den Vorfall ueber genau
+#: diesen Weg und bricht, wenn beide auseinanderlaufen.
+_VORFALL_DOWNLOAD = "download_fehlgeschlagen"
+_VORFALL_DOWNLOAD_DETAIL = "Sprachnachricht message_id="
+
+
+@_gesperrt
+def web_segmente_unterwegs(conn, chat_id: int, vor_id: int, seit: str) -> list:
+    """Die Segmente (``sprache``-Posts) dieser Gruppe vor ``vor_id`` und ab
+    ``seit``, die beim Bot noch nicht angekommen sind (Abschlussreview I1).
+
+    "Angekommen" heisst: ``aufnahme.empfange`` hat die ``aufnahme``-Zeile
+    angelegt (``message_id`` = Post-id), oder der Download ist endgueltig
+    gescheitert -- dann gibt es bewusst keine Zeile, aber den Vorfall
+    ``download_fehlgeschlagen`` mit der message_id im ``detail``. Liefert
+    ``id`` und ``erstellt_am``; die Frist rechnet ``web_kanal``."""
+    return conn.execute(
+        "SELECT p.id, p.erstellt_am FROM web_post p "
+        "WHERE p.chat_id = ? AND p.richtung = ? AND p.typ = ? AND p.id < ? "
+        "AND p.geloescht_am IS NULL AND p.erstellt_am >= ? "
+        "AND NOT EXISTS (SELECT 1 FROM aufnahme a "
+        "  WHERE a.chat_id = p.chat_id AND a.message_id = p.id) "
+        "AND NOT EXISTS (SELECT 1 FROM vorfall v "
+        "  WHERE v.chat_id = p.chat_id AND v.art = ? "
+        "  AND v.detail LIKE ? || p.id || ':%') "
+        "ORDER BY p.id ASC",
+        (chat_id, RICHTUNG_EIN, WEB_TYP_SPRACHE, vor_id, seit,
+         _VORFALL_DOWNLOAD, _VORFALL_DOWNLOAD_DETAIL),
+    ).fetchall()
+
+
+@_gesperrt
+def hoechste_web_post_id(conn) -> int:
+    """Die hoechste je vergebene ``web_post.id`` (Abschlussreview I2), 0 bei
+    leerer Tabelle.
+
+    Aus ``sqlite_sequence``, weil die Tabelle ``AUTOINCREMENT`` traegt: der
+    Wert sinkt nie, auch wenn der Loeschweg die hoechsten Zeilen nimmt.
+    ``MAX(id)`` steht daneben als Rueckfall fuer eine Entwicklungs-DB, deren
+    Tabelle noch ohne ``AUTOINCREMENT`` angelegt wurde (dort gibt es keine
+    Zeile in ``sqlite_sequence``)."""
+    hoechste = conn.execute("SELECT COALESCE(MAX(id), 0) FROM web_post").fetchone()[0]
+    try:
+        folge = conn.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'web_post'"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        folge = None  # noch keine einzige AUTOINCREMENT-Tabelle beschrieben
+    return max(int(hoechste), int(folge[0]) if folge else 0)
+
+
 @_gesperrt
 def hole_web_post(conn, post_id: int):
     """Eine Zeile, egal welcher Richtung und ob geloescht -- der Aufrufer muss

@@ -257,6 +257,13 @@ def klasse_fuer(conn, chat_id: int) -> str:
 NACHZUEGLER_FENSTER_S = 600
 
 
+def _ist_web_gruppe(conn, chat_id: int) -> bool:
+    """Arbeitet diese Gruppe im Browser (``gruppe.kanal = 'web'``)? Ohne
+    Gruppenzeile: nein -- dann gilt der Telegram-Weg wie bisher."""
+    gruppe = repo.hole_gruppe(conn, chat_id)
+    return gruppe is not None and "kanal" in gruppe.keys() and gruppe["kanal"] == "web"
+
+
 def stelle_interview_sicher(conn, chat_id: int) -> int:
     """Liefert den laufenden Interview-Kopf dieser Gruppe und legt ihn beim
     ersten Bedarf an (§ 10.6). Liefert dessen ``aufnahme_id``.
@@ -277,6 +284,13 @@ def stelle_interview_sicher(conn, chat_id: int) -> int:
     if kopf is not None:
         return kopf["id"]
     kopf_id = repo.lege_interview_an(conn, chat_id)
+    if _ist_web_gruppe(conn, chat_id):
+        # Im Web gibt es keine Nachzuegler (Abschlussreview I4): eine
+        # PTT-Nachricht ist dort ausdruecklich "an den Bot", und der Browser
+        # schickt Interview-Segmente erst, wenn der Modus gemeldet ist
+        # (web_chat, Warteschlange "bereit"). Einsammeln hiesse, Zurufe an den
+        # Bot ins Transkript zu ziehen. Telegram bleibt unveraendert (E1).
+        return kopf_id
     try:
         grenze = datetime.now(timezone.utc) - timedelta(seconds=NACHZUEGLER_FENSTER_S)
         eingesammelt = repo.ziehe_in_interview(

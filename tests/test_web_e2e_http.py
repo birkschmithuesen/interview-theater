@@ -188,6 +188,10 @@ class _HaltbarerKanal(web_kanal.WebKanal):
 @pytest.fixture
 def lauf(tmp_path, monkeypatch):
     """Webserver und Bot-Schleife, beide im Thread, auf einer Wegwerf-DB."""
+    # T12: welche Faeden es vor dem Lauf schon gab -- alles, was danach
+    # dazukommt (der Abschluss-Faden aus aufnahme.starte_abschluss, Szenen-
+    # und Auftragsfaeden), wird vor bot_conn.close() abgewartet.
+    vorher = set(threading.enumerate())
     pfad = str(tmp_path / "t.db")
     audio = tmp_path / "audio"
     monkeypatch.setenv("IT_AUDIO", str(audio))
@@ -235,6 +239,12 @@ def lauf(tmp_path, monkeypatch):
     dienst.shutdown()
     dienst.server_close()
     web_faden.join(timeout=GEDULD_S)
+    # T12: die Faeden, die der Bot selbst gestartet hat (starte_abschluss
+    # u. a.), laufen sonst noch gegen eine geschlossene Verbindung.
+    frist = time.monotonic() + GEDULD_S
+    for faden in set(threading.enumerate()) - vorher:
+        if faden is not threading.current_thread():
+            faden.join(timeout=max(0.0, frist - time.monotonic()))
     stt.close()
     bot_conn.close()
     assert not bot_faden.is_alive(), "bot.schleife ist nicht beendet"
@@ -435,6 +445,33 @@ def test_von_phase_eins_bis_zum_ersten_interview_nur_ueber_http(lauf):
         conn.close()
     # Verdichtet wird EINMAL je Interview, nicht je Teil (§ 10.6).
     assert klm.verdichtet == 1
+
+
+def test_fertig_direkt_hinter_zwei_segmenten_verliert_keines(lauf):
+    """Abschlussreview I1, ueber den echten Weg: zwei Segmente und sofort
+    danach "Interview aus" -- OHNE auf die Transkripte zu warten. Beide
+    Segmente muessen Teile DESSELBEN Interviews werden; keines darf als
+    Gespraechsbeitrag ('kurz') danebenliegen."""
+    basis, token, pfad, klm = lauf
+    _post(basis, token, "interview", {"an": True})
+    _warte_auf(pfad, lambda c: repo.ist_interviewmodus_an(c, CHAT), "Modus an")
+
+    for nummer in (1, 2):
+        _lade_segment(basis, token, nummer)
+    _post(basis, token, "interview", {"an": False})
+
+    _warte_auf(pfad, lambda c: klm.verdichtet >= 1, "Verdichtung")
+    conn = db.verbinde(pfad)
+    try:
+        # Ohne den Kopf ('lang'): nur, was aus einem Segment entstand.
+        segmente = conn.execute(
+            "SELECT klasse, teil_von FROM aufnahme WHERE chat_id = ? "
+            "AND audio_pfad IS NOT NULL ORDER BY id", (CHAT,),
+        ).fetchall()
+        assert [z["klasse"] for z in segmente] == ["teil", "teil"]
+        assert len({z["teil_von"] for z in segmente}) == 1
+    finally:
+        conn.close()
 
 
 def test_kein_telegram_im_ganzen_lauf(lauf):

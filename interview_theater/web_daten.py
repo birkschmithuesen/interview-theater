@@ -1064,6 +1064,28 @@ def chat_id_nach_token(conn: sqlite3.Connection, token: str | None) -> int | Non
     return zeile["chat_id"] if zeile else None
 
 
+def web_chat_id_nach_token(conn: sqlite3.Connection, token: str | None) -> int | None:
+    """Die ``chat_id`` zu einem Web-Token -- aber NUR fuer eine Gruppe im
+    Web-Kanal (``gruppe.kanal = 'web'``), sonst None (Abschlussreview I3).
+
+    Die Chatansicht (``/g/<token>/chat``) gibt es nur dort: eine
+    Telegram-Gruppe hat keinen Bot, der ``web_post`` liest -- was sie im
+    Browser schriebe, laege ungelesen in der Tabelle, und niemand saehe es.
+    Gruppenseite, Probenansicht und Leitfaden bleiben fuer jede Gruppe
+    (``chat_id_nach_token``). Eine fehlende Spalte ``kanal`` (Bot noch nicht
+    migriert) heisst: keine Web-Gruppe."""
+    if not token:
+        return None
+    try:
+        zeile = conn.execute(
+            "SELECT chat_id FROM gruppe WHERE web_token = ? AND kanal = 'web'",
+            (token,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return zeile["chat_id"] if zeile else None
+
+
 def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | None:
     """Die Leseansicht einer Gruppe, adressiert ueber ihr Web-Token.
 
@@ -1106,6 +1128,9 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # nginx das Praefix durchreicht.
         "web_token": token,
         "bot_name": zeile["bot_name"],
+        # Der Kanal (Abschlussreview I3): nur eine Web-Gruppe bekommt den
+        # Link in die Chatansicht. Fehlt die Spalte noch, ist es Telegram.
+        "kanal": _feld(zeile, "kanal") or "telegram",
         "interviewmodus_seit": zeile["interviewmodus_seit"],
         "arbeitsstand": stand,
         # Was die Gruppe festgelegt hat und wofuer es kein Feld gibt
@@ -1433,8 +1458,10 @@ def web_chatzustand(conn, token: str, nach: int = 0,
 
     ``seit`` ist der Aenderungsstand des letzten Polls
     (``web_chataenderungen``); ``geaendert`` traegt, was sich an schon
-    gelieferten Zeilen getan hat, ``aenderung`` den neuen Stand."""
-    chat_id = chat_id_nach_token(conn, token)
+    gelieferten Zeilen getan hat, ``aenderung`` den neuen Stand.
+
+    Nur fuer Web-Gruppen (``web_chat_id_nach_token``, Abschlussreview I3)."""
+    chat_id = web_chat_id_nach_token(conn, token)
     if chat_id is None:
         return None
     gruppe = conn.execute(

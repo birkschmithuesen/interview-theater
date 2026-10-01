@@ -37,24 +37,12 @@ CHAT_PFAD = "chat"
 #: laesst sich ein Workshop nicht von einem Kanal in den anderen retten.
 MAX_TEXT_ZEICHEN = 4000
 
-#: Was der Browser liefern darf, und mit welcher Endung es abgelegt wird.
-#:
-#: **Content-Type -> ENDUNG und nicht Content-Type -> ja/nein**, und das ist
-#: Falle 3: ``stt.mime_typ()`` leitet den MIME-Typ, den Whisper sieht, aus der
-#: Dateiendung ab. Ein WebM als ``.ogg`` abgelegt wird von Infomaniak mit
-#: einer ``batch_id`` quittiert -- kein HTTP-Fehler -- und bleibt danach
-#: dauerhaft auf 'pending': 89,7 s statt 2,0 s, im Betrieb nur als "haengt"
-#: sichtbar.
-#:
-#: Chrome und Firefox liefern ``audio/webm;codecs=opus``, Safari
-#: ``audio/mp4``. ``audio/ogg`` und ``audio/mpeg`` stehen daneben, weil ein
-#: Browser sie waehlen darf und beide bei Whisper unstrittig sind.
-MIME_ERLAUBT = {
-    "audio/webm": ".webm",
-    "audio/ogg": ".ogg",
-    "audio/mp4": ".m4a",
-    "audio/mpeg": ".mp3",
-}
+#: Was der Browser liefern darf, und mit welcher Endung es abgelegt wird --
+#: DIESELBE Tabelle wie im Bot (``web_kanal.MIME_ERLAUBT``, dort auch die
+#: Begruendung, Falle 3). Sie steht dort und nicht hier, weil ``hole_updates``
+#: die Endung aus der Spalte ``mime`` ableitet (Abschlussreview C1), und der
+#: Bot-Prozess importiert den Webserver nicht.
+MIME_ERLAUBT = web_kanal.MIME_ERLAUBT
 
 #: Wie gross ein einzelnes Segment sein darf.
 #:
@@ -1475,12 +1463,14 @@ def schreibend(db_pfad: str):
 
 
 def _gruppe_oder_404(handler, db_pfad: str, token: str) -> int | None:
-    """Die chat_id zum Token, oder 404 und None."""
+    """Die chat_id zum Token, oder 404 und None -- auch fuer eine Gruppe, die
+    nicht im Web-Kanal arbeitet (Abschlussreview I3): dort liest kein Bot
+    ``web_post``, und was hier ankaeme, verschwaende still."""
     from interview_theater import web
 
     conn = web_daten.oeffne_lesend(db_pfad)
     try:
-        chat_id = web_daten.chat_id_nach_token(conn, token)
+        chat_id = web_daten.web_chat_id_nach_token(conn, token)
     finally:
         conn.close()
     if chat_id is None:
@@ -1565,10 +1555,7 @@ def endung_fuer(content_type) -> str | None:
     Parameter werden abgeschnitten (``audio/webm;codecs=opus``), gross und
     klein ist gleich. Eine **Allowlist** und keine Ablehnliste: was hier nicht
     steht, kommt nicht an."""
-    if not isinstance(content_type, str) or not content_type.strip():
-        return None
-    haupt = content_type.split(";", 1)[0].strip().lower()
-    return MIME_ERLAUBT.get(haupt)
+    return web_kanal.endung_fuer_mime(content_type)
 
 
 def haupttyp(handler) -> str:
@@ -1631,9 +1618,11 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     im 413-Zweig, nur jetzt bei 415/403/400 -- ``urllib`` schreibt den ganzen
     Koerper in einem Zug, ohne auf eine Zwischenantwort zu warten. Geschrieben
     wird erst die Zeile, dann die Datei (der Pfad enthaelt die id), und erst
-    danach der Verweis; scheitert die Datei, bleibt eine Zeile ohne ``datei``
-    stehen und ``lade_datei`` wirft -- ``aufnahme`` bittet die Gruppe dann,
-    es nochmal zu schicken."""
+    danach der Verweis; bis dahin haelt ``WebKanal.hole_updates`` die Zeile
+    zurueck (Abschlussreview C1). Scheitert die Datei, bleibt eine Zeile ohne
+    ``datei`` stehen, geht nach ``web_kanal.DATEI_FRIST_S`` trotzdem an den
+    Bot, und ``lade_datei`` wirft -- ``aufnahme`` bittet die Gruppe dann, es
+    nochmal zu schicken."""
     from interview_theater import web
 
     try:
@@ -1688,9 +1677,15 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
             dauer=dauer, mime=haupttyp(handler),
         )
-        ziel = web_kanal.eingangspfad(_audio_verz(), chat_id, message_id, endung)
+        # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
+        # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.
+        ziel = web_kanal.eingangspfad(
+            _audio_verz(), chat_id, message_id, endung,
+        ).resolve()
         ziel.parent.mkdir(parents=True, exist_ok=True)
         ziel.write_bytes(koerper)
+        # Erst jetzt der Verweis: bis dahin haelt WebKanal.hole_updates die
+        # Zeile zurueck (C1), statt den Bot einen leeren Pfad lesen zu lassen.
         repo.setze_web_datei(conn, message_id, str(ziel))
     _angenommen(handler, {"message_id": message_id})
 
@@ -1862,7 +1857,7 @@ def _sende_datei(handler, db_pfad: str, token: str, roh_id: str) -> None:
         return
     conn = web_daten.oeffne_lesend(db_pfad)
     try:
-        chat_id = web_daten.chat_id_nach_token(conn, token)
+        chat_id = web_daten.web_chat_id_nach_token(conn, token)
         datei = (
             web_daten.web_ausgangsdatei(conn, chat_id, int(roh_id))
             if chat_id is not None else None

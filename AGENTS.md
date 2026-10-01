@@ -2225,7 +2225,46 @@ einer laufenden Aufnahme risse das Recorder, Timer und Warteschlange mit.
 Jeder Chat-Pfad mit Schrägstrich am Ende (`/chat/`) ist 404, und das JS baut
 alle Wege absolut aus `location.pathname` — sonst zeigten die relativen
 Verweise ins Leere, und `IT_WEB_PREFIX` bleibt dabei erhalten. Die Gruppenseite
-verlinkt den Chat („Chat mit dem Bot").
+verlinkt den Chat („Chat mit dem Bot") — **nur bei `gruppe.kanal = 'web'`**,
+und alle Wege unter `/chat` (GET und POST) sind für jede andere Gruppe 404
+(`web_daten.web_chat_id_nach_token`, Abschlussreview I3). Der Plan
+(Aufgabe 6) schrieb den Link für jede Gruppe vor; **E1 geht vor**: eine
+Telegram-Gruppe hat keinen Bot, der `web_post` liest, und was sie im Browser
+schriebe, ginge still verloren. Gruppenseite, Probenansicht und Leitfaden
+bleiben für alle Gruppen.
+
+**Der Eingang wird als lückenloses Präfix geliefert** (Abschlussreview C1,
+I1, `WebKanal._lieferbar`). `bot.schleife` rückt den Offset je Update vor —
+eine zurückgehaltene Zeile mit etwas Späterem dahinter wäre danach für immer
+übersprungen. Zurückgehalten wird an zwei Stellen, beide mit Frist und Log:
+(1) eine **Sprachzeile ohne `datei`** — der Webserver legt erst die Zeile an,
+schreibt dann die Datei und setzt danach den Verweis (`DATEI_FRIST_S` = 30);
+(2) **jeder Nicht-Segment-Post** (Text, Knopf, Befehl) hinter einem Segment,
+das beim Bot noch nicht angekommen ist — angekommen heißt: es gibt die
+`aufnahme`-Zeile mit dieser `message_id`, oder `aufnahme.empfange` hat den
+Vorfall `download_fehlgeschlagen` geschrieben (`repo.web_segmente_unterwegs`,
+`ANKUNFT_FRIST_S` = 60). Ohne (2) lief /fertig im Pool (`bot.POOL_GROESSE`)
+parallel zum letzten Segment und konnte es überholen: `aufnahme.klasse_fuer`
+liest den Modus erst bei der Verarbeitung, das Segment wurde ein
+Gesprächsbeitrag. Die Endung im Update kommt aus der Spalte `mime`
+(`web_kanal.MIME_ERLAUBT`, die eine Tabelle, die auch der Webserver nimmt).
+Telegram ist davon nicht berührt — es liefert seine Updates selbst.
+
+**Keine Nachzügler im Web** (Abschlussreview I4): `aufnahme.stelle_interview_sicher`
+sammelt beim Anlegen eines Kopfes die `kurz`-Aufnahmen der letzten zehn
+Minuten nur bei `kanal != 'web'` ein. Im Browser ist eine PTT-Nachricht
+ausdrücklich „an den Bot", und Segmente gehen erst raus, wenn der Poll den
+Modus meldet. Telegram bitgleich (Test).
+
+**Der Offset hängt am `bot_name`, nicht am Kanal** (Abschlussreview I2). Ein
+Bot, der vorher Telegram fuhr, bringt eine getUpdates-Position um 10^8 mit
+und hörte im Web nie etwas. `scripts/web_gruppe.py` setzt den Offset deshalb
+auf 0, und `bot.baue_kanal` setzt ihn im Web-Kanal laut geloggt zurück, wenn
+er hinter `repo.hoechste_web_post_id` liegt (bereits Gesehenes fängt die
+Duplikatprüfung). `web_post.id` trägt `AUTOINCREMENT`, damit der Löschweg
+einer Gruppe keine ids zur Wiedervergabe freigibt; eine schon angelegte
+Entwicklungs-DB behält ihre Tabelle (`CREATE TABLE IF NOT EXISTS`),
+`hoechste_web_post_id` fällt dort auf `MAX(id)` zurück.
 
 **Bot-Ausgaben tragen Telegram-HTML** (`parse_mode="HTML"`, u. a.
 `vorschlag.menuetext`). `web_chat.sichere_html` maskiert deshalb **alles** und
@@ -2314,7 +2353,8 @@ Idempotenz-Kennung); PTT nimmt erst nach `getUserMedia` auf, der Anfang kann
 fehlen.
 
 **Die Endung entscheidet über den MIME-Typ** (Falle 3, und hier war die eine
-Stelle, die dafür angefasst werden musste): `web_chat.MIME_ERLAUBT` ist eine
+Stelle, die dafür angefasst werden musste): `web_kanal.MIME_ERLAUBT`
+(= `web_chat.MIME_ERLAUBT`, eine Tabelle an einer Stelle) ist eine
 Allowlist **Content-Type → Endung** (`audio/webm` → `.webm`, `audio/mp4` →
 `.m4a` für Safari, dazu `audio/ogg` und `audio/mpeg`), die Datei landet mit
 dieser Endung unter `IT_AUDIO/<chat_id>/web-eingang/`, und
@@ -2336,7 +2376,10 @@ an den Browser weiter — in der Env eines Bots wirkt er auf den Browser
 nicht) und `IT_AUDIO` (der Webserver legt die Uploads dort ab, und
 `WebKanal.lade_datei` verweigert jeden Pfad außerhalb des **eigenen**
 `IT_AUDIO` — Web-Unit und Web-Bots müssen aufs selbe Verzeichnis zeigen;
-beide laufen im Repo-Verzeichnis, Vorgabe `audio`).
+beide laufen im Repo-Verzeichnis, Vorgabe `audio`). Die Web-Unit setzt
+`IT_AUDIO` deshalb ausdrücklich (`docs/interview-theater-web.service`), der
+Webserver speichert den Upload-Pfad **absolut** und nennt das Verzeichnis
+beim Start in `betrieb/web.log` (Abschlussreview I5).
 
 **Abnahme:** `tests/test_web_e2e_http.py` fährt eine Gruppe per HTTP von
 Phase 1 bis zum ersten Interview (`bot.schleife` mit `WebKanal` und ein echter
@@ -2600,12 +2643,9 @@ Die Übergaben der Karte Padua A2 (Web-Kanal, 30.09.2026) — was sie bewusst
   (Fragenauswahl per Nummer im Text). Der nächste Toggle bringt sie zurück.
 - **Kein Dashboard-Blick auf den Kanal.** `gruppe.kanal` steht in der
   Datenbank, aber nicht in `web_daten.dashboard`.
-- **Der Chat-Link steht auch bei Telegram-Gruppen.** Die Gruppenseite
-  verlinkt „Chat mit dem Bot" für jede Gruppe mit Token, und
-  `/g/<token>/chat` nimmt auch dort Nachrichten und Uploads an — aber ein
-  Telegram-Bot liest `web_post` nicht, sie bleiben unbeantwortet liegen. Eine
-  Sperre auf `gruppe.kanal` fehlt; bis dahin den Link einer Telegram-Gruppe
-  nicht als Arbeitsplatz ausgeben.
+- ~~Der Chat-Link steht auch bei Telegram-Gruppen.~~ Seit dem
+  Abschlussreview (I3) behoben: Link nur bei `gruppe.kanal = 'web'`, alle
+  Wege unter `/chat` sonst 404 (siehe „Der Web-Kanal").
 
 Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
 „Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit

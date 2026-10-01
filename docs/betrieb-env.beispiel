@@ -112,4 +112,6 @@ IT_KANAL=telegram
 # Der Webserver legt Uploads unter IT_AUDIO/<chat_id>/web-eingang/ ab, der
 # Web-Bot holt sie dort ab und verweigert jeden Pfad ausserhalb SEINES
 # IT_AUDIO. Web-Unit und Web-Bots muessen deshalb auf dasselbe Verzeichnis
-# zeigen (beide Units laufen im Repo-Verzeichnis, Vorgabe ./audio).
+# zeigen (beide Units laufen im Repo-Verzeichnis, Vorgabe ./audio). Die
+# Web-Unit setzt IT_AUDIO ausdruecklich (docs/interview-theater-web.service),
+# speichert den Pfad absolut und nennt das Verzeichnis beim Start im Log.

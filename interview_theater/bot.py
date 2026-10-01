@@ -485,6 +485,21 @@ def baue_kanal(conn, e: Einstellungen, klient):
             f"IT_WEB_CHAT_ID={e.web_chat_id} kennt die Datenbank nicht. "
             f"Anlegen mit: python -m scripts.web_gruppe anlegen {e.bot_name}"
         )
+    # Der Offset haengt am bot_name (bot_zustand), nicht am Kanal. Ein Bot,
+    # der vorher Telegram fuhr, bringt eine getUpdates-Position um 10^8 mit
+    # -- im Web hoerte er damit nie etwas (Abschlussreview I2). Laut, weil
+    # ein stilles Zuruecksetzen genau der Fall ist, der spaeter niemandem
+    # auffaellt. Bereits Gesehenes faellt beim erneuten Lesen auf die
+    # Duplikatpruefung (merke_nachricht) und die Knopf-Sperre.
+    offset = repo.hole_update_id(conn, e.bot_name)
+    hoechste = repo.hoechste_web_post_id(conn)
+    if offset > hoechste:
+        log.warning(
+            "Offset von %s (%s) liegt hinter dem Web-Eingang (hoechste id %s) "
+            "-- vermutlich von Telegram. Zurueckgesetzt auf 0.",
+            e.bot_name, offset, hoechste,
+        )
+        repo.setze_update_id(conn, e.bot_name, 0)
     log.info("Kanal: Web (chat_id=%s)", e.web_chat_id)
     return WebKanal(conn, e.web_chat_id, e.audio_verz)
 

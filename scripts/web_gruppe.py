@@ -42,6 +42,12 @@ def lege_an(conn, bot_name: str, titel: str, basis_url: str) -> dict:
     chat_id = repo.naechste_web_chat_id(conn)
     repo.sichere_gruppe(conn, chat_id, bot_name, titel)
     repo.setze_gruppe_kanal(conn, chat_id, "web")
+    # Der Offset haengt am bot_name, nicht an der Gruppe (bot_zustand). Fuhr
+    # dieser Bot vorher Telegram, steht dort eine getUpdates-Position um
+    # 10^8 -- und der Web-Eingang (ids ab 1) laege fuer immer darunter
+    # (Abschlussreview I2). bot.baue_kanal faengt denselben Fall beim Start
+    # noch einmal ab, falls jemand die Gruppe anders angelegt hat.
+    repo.setze_update_id(conn, bot_name, 0)
     token = repo.stelle_web_token_sicher(conn, chat_id)
     basis = (basis_url or "").rstrip("/")
     return {

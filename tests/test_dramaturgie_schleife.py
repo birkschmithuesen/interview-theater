@@ -357,9 +357,17 @@ def test_in_der_prosaphase_geht_ein_lauf_ueber_die_ganze_geschichte(stueck, eins
     assert schleife.schreibweg(stueck, 1) is schleife._schreibe_die_geschichte
 
 
-def test_ohne_geschichtenweg_gibt_es_keinen_modellaufruf(stueck, einst, tg):
+def test_ohne_geschichtenweg_gibt_es_keinen_modellaufruf(
+    stueck, einst, tg, monkeypatch
+):
     """Kein stiller Rueckfall auf den phasenfremden Pfad: der laeuft ohne
-    Fehler durch und liefert gemessen schwaechere Texte."""
+    Fehler durch und liefert gemessen schwaechere Texte.
+
+    Seit Karte R (30.09.2026, Aufgabe 7) GIBT es ``kurzgeschichte.schreibe``
+    -- der fehlende Weg wird deshalb mit einem Modul ohne die Funktion
+    nachgestellt, statt sich auf den alten Stand des Repos zu verlassen."""
+    ohne_weg = types.ModuleType(schleife.GESCHICHTE_MODUL)
+    monkeypatch.setitem(sys.modules, schleife.GESCHICHTE_MODUL, ohne_weg)
     repo.setze_phase(stueck, 1, 6)
 
     with pytest.raises(schleife.SchreibwegFehlt):

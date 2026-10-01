@@ -179,3 +179,100 @@ def test_der_schnappschuss_deckt_die_prosa_systemanweisung_ab():
     from scripts import prompt_schnappschuss
     namen = {name for name, _ in prompt_schnappschuss.teile()}
     assert "kurzgeschichte.systemanweisung()" in namen
+
+
+# --- Der synchrone Einstieg (Aufgabe 7) -----------------------------------
+
+from test_knoepfe import TelegramAttrappe  # noqa: E402
+
+
+@pytest.fixture
+def tg():
+    return TelegramAttrappe()
+
+
+class ProsaAttrappe:
+    """Liefert eine Kurzgeschichte und merkt jeden Aufruf samt ``art``."""
+
+    ANTWORT = (
+        "## 1. Ankunft\nZusammenfassung: Sie kommt an.\n\nText eins.\n\n"
+        "## 2. Streit\nZusammenfassung: Es kracht.\n\nText zwei.\n"
+    )
+
+    def __init__(self, antwort=None):
+        self.antwort = antwort or self.ANTWORT
+        self.aufrufe = []
+
+    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None):
+        self.aufrufe.append({"system": system, "nutzer": nutzer, "art": art})
+        return self.antwort
+
+
+@pytest.fixture
+def prosa_bereit(conn, monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Am Kanal, nachts")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.\nEnde: offen")
+    for nummer in (1, 2):
+        repo.stelle_szene_sicher(conn, 1, nummer)
+    return conn
+
+
+def test_hole_text_ruft_nur_das_modell(prosa_bereit, einst):
+    """Kein Speichern, keine Chatnachricht -- der Nachpass muss erst pruefen
+    duerfen, bevor etwas in der Datenbank steht."""
+    klm = ProsaAttrappe()
+    vorher = [dict(s) for s in repo.hole_szenen(prosa_bereit, 1)]
+    text = kurzgeschichte.hole_text(prosa_bereit, klm, einst, 1)
+    assert "Ankunft" in text
+    assert len(klm.aufrufe) == 1
+    nachher = [dict(s) for s in repo.hole_szenen(prosa_bereit, 1)]
+    assert [s["prosa"] for s in nachher] == [s["prosa"] for s in vorher]
+
+
+def test_hole_text_gibt_die_art_weiter(prosa_bereit, einst):
+    """Eigene ``art``-Werte machen die Nachpass-Laeufe in der Tabelle
+    ``aufruf`` getrennt zaehlbar -- so wie ``dramaturgie_b1`` es vormacht."""
+    klm = ProsaAttrappe()
+    kurzgeschichte.hole_text(prosa_bereit, klm, einst, 1, art="kurzgeschichte_nachpass")
+    assert klm.aufrufe[0]["art"] == "kurzgeschichte_nachpass"
+
+
+def test_hole_text_legt_das_budget_in_den_nutzertext(prosa_bereit, einst):
+    klm = ProsaAttrappe()
+    eintraege = kurzgeschichte.budget_eintraege(prosa_bereit, 1)
+    kurzgeschichte.hole_text(prosa_bereit, klm, einst, 1, eintraege=eintraege)
+    assert laengen.T.BLOCK_KOPF_PROSA in klm.aufrufe[0]["nutzer"]
+    assert laengen.gesamtzeile([b for _n, _f, b in eintraege]) in \
+        klm.aufrufe[0]["system"]
+
+
+def test_schreibe_speichert_und_meldet(prosa_bereit, einst, tg):
+    klm = ProsaAttrappe()
+    nummern = kurzgeschichte.schreibe(prosa_bereit, tg, klm, einst, 1)
+    assert nummern == [1, 2]
+    prosa = {s["nummer"]: (s["prosa"] or "") for s in repo.hole_szenen(prosa_bereit, 1)}
+    assert "Text eins" in prosa[1] and "Text zwei" in prosa[2]
+
+
+def test_schreibe_haengt_die_journalzeile_mit_seed_an(prosa_bereit, einst, tg):
+    """Reproduzierbar heisst nachrechenbar: Seed, Muster, Budgets stehen in
+    EINER angehaengten Journalzeile."""
+    klm = ProsaAttrappe()
+    kurzgeschichte.schreibe(prosa_bereit, tg, klm, einst, 1)
+    texte = [j["text"] for j in prosa_bereit.execute(
+        "SELECT text FROM journal WHERE chat_id = 1").fetchall()]
+    assert any("seed 1" in t or "Seed 1" in t for t in texte), texte
+
+
+def test_starte_verhaelt_sich_wie_vorher(prosa_bereit, einst, tg):
+    """Die Zerlegung darf am aeusseren Weg nichts aendern: ein Thread, eine
+    Sperre, dieselbe Meldung."""
+    klm = ProsaAttrappe()
+    thread = kurzgeschichte.starte(prosa_bereit, tg, klm, einst, 1)
+    assert thread is not None
+    thread.join(timeout=20)
+    assert kurzgeschichte.laeuft(1) is False
+    fertig = kurzgeschichte.T._TEXT_FERTIG.format(anzahl=2)
+    assert any(fertig in t for t in tg.texte), tg.texte

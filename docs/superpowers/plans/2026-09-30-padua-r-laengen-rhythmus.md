@@ -2222,7 +2222,7 @@ Deshalb zwei Funktionen statt einer.
     (Modellaufruf, zerlegen, speichern, Chat -- synchron, **ohne** Sperre)
   - `kurzgeschichte.starte(...)` unveraendert in Signatur und Verhalten.
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- an
+- [x] **Schritt 1: Den failenden Test schreiben** -- an
 `tests/test_laengen_prosa.py` anhaengen
 
 ```python
@@ -2311,12 +2311,12 @@ TelegramAttrappe`). `nachrichten_texte()` steht dort ggf. anders -- die
 vorhandene Zugriffsform aus `tests/test_kuerzung.py` uebernehmen, statt eine
 neue zu erfinden (`grep -n "def " tests/test_knoepfe.py | head -30`).
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_prosa.py -k hole_text`
 Erwartet: FAIL, `AttributeError: ... has no attribute 'hole_text'`.
 
-- [ ] **Schritt 3: `hole_text` und `schreibe` aus `_lauf` herausziehen**
+- [x] **Schritt 3: `hole_text` und `schreibe` aus `_lauf` herausziehen**
 
 `starte` in `interview_theater/kurzgeschichte.py` bleibt in Signatur und
 Verhalten; nur der Rumpf von `_lauf` wandert in die beiden neuen Funktionen.
@@ -2426,7 +2426,7 @@ wenige Millisekunden laenger. Wer das nicht will, gibt `schreibe` ein
 optionales `zeilen=None` mit und stoppt es dort vor der Meldung -- der Test
 `test_starte_verhaelt_sich_wie_vorher` deckt beide Varianten.
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_prosa.py tests/test_kuerzung.py`
 Erwartet: `passed`, kein `failed`. `tests/test_kuerzung.py` ist hier der
@@ -2435,7 +2435,7 @@ eigentliche Waechter: es fuhr den Prosa-Weg schon vorher ueber `starte`.
 Run: `$PY -m pytest -q -p no:cacheprovider -k "kurzgeschichte or prosa"`
 Erwartet: `passed`, kein `failed`.
 
-- [ ] **Schritt 5: Suite und Commit**
+- [x] **Schritt 5: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

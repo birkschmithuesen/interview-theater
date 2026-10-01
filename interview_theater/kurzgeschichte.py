@@ -353,6 +353,86 @@ def baue_nutzertext(
     return "\n\n".join(t for t in teile if t)
 
 
+def _faktor(conn, chat_id: int) -> float:
+    """Die Uebersteuerung der Budgets fuer diese Gruppe. 1,0 = keine.
+
+    Aufgabe 9 (Karte R) liest hier den gespeicherten Faktor aus dem
+    Arbeitsstand; bis dahin gilt 1,0."""
+    return 1.0  # Aufgabe 9
+
+
+def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
+              vorlage: bool = False,
+              eintraege: Sequence[tuple[int, str, int]] | None = None,
+              art: str = ART) -> str:
+    """**Nur** der Modellaufruf -- Prompt bauen, fragen, Antwort liefern.
+
+    Kein Speichern, keine Chatnachricht, keine Sperre. Herausgezogen am
+    30.09.2026 (Karte R), weil der Nachpass die Antwort **pruefen** muss,
+    bevor sie in der Datenbank steht: hat sie eine andere Abschnittszahl oder
+    fehlt ein Belegzitat, wird sie verworfen und die alte Fassung bleibt.
+
+    ``art`` landet in der Tabelle ``aufruf`` und macht Nachpass-Laeufe
+    getrennt zaehlbar."""
+    from interview_theater import szene_claude
+
+    system = systemanweisung([b for _n, _f, b in (eintraege or [])] or None)
+    nutzer = baue_nutzertext(conn, chat_id, regie, vorlage=vorlage,
+                             eintraege=eintraege)
+    if szene_claude.ist_aktiv(e, conn, chat_id):
+        import httpx
+
+        return szene_claude.prosa(
+            conn, e,
+            getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
+            chat_id, system, nutzer, art, timeout=TIMEOUT_S,
+        )
+    return klm.prosa(chat_id, system, nutzer, art,
+                     max_tokens=MAX_TOKENS, timeout=TIMEOUT_S)
+
+
+def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
+             vorlage: bool = False, art: str = ART, zeilen=None) -> list[int]:
+    """Der ganze Lauf, **synchron und ohne Sperre**: Modell fragen, zerlegen,
+    Szenen anlegen, in den Chat melden. Liefert die Nummern der Abschnitte.
+
+    Wie ``szene.schreibe`` verhaelt es sich zu ``starte``: die Sperre haelt
+    der Aufrufer (``_lauf``), Fehler fliegen heraus. Wer es direkt ruft
+    (Tests, der Nachpass), kuemmert sich selbst darum.
+
+    ``zeilen`` ist die sichtbare Arbeitszeile des Aufrufers; sie wird wie
+    bisher **vor** der Fertig-Meldung gestoppt."""
+    eintraege = budget_eintraege(conn, chat_id, faktor=_faktor(conn, chat_id))
+    antwort = hole_text(conn, klm, e, chat_id, regie, vorlage, eintraege, art)
+    abschnitte = zerlege(antwort or "")
+    if not abschnitte:
+        raise ValueError("Kurzgeschichte ohne erkennbare Abschnitte")
+    nummern = lege_szenen_an(conn, chat_id, abschnitte)
+    if eintraege:
+        # Der Wuerfel ist reproduzierbar (Seed = chat_id), aber niemand soll
+        # ihn nachrechnen muessen, um zu verstehen, warum Abschnitt 2 laenger
+        # sein durfte. Angehaengt, nie geaendert.
+        from interview_theater import laengen
+
+        repo.schreibe_journal(
+            conn, chat_id, laengen.JOURNAL_ART,
+            laengen.journalzeile(
+                seed=chat_id, muster=laengen.muster_fuer(chat_id),
+                faktor=_faktor(conn, chat_id), eintraege=eintraege,
+            ),
+            quelle=laengen.JOURNAL_QUELLE,
+        )
+    from interview_theater import knoepfe, szene as szene_modul
+
+    if zeilen is not None:
+        zeilen.stoppe()
+    szene_modul._sende_und_merke(
+        conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
+    )
+    knoepfe.zeige_kurzgeschichte(conn, tg, chat_id)
+    return nummern
+
+
 def starte(
     conn, tg, klm, e, chat_id: int, regie: str | None = None,
     vorlage: bool = False,
@@ -374,36 +454,12 @@ def starte(
     szene_modul._sende_und_merke(conn, tg, e, chat_id, T._TEXT_LAEUFT)
 
     def _lauf() -> None:
-        from interview_theater import arbeitszeilen, szene_claude
+        from interview_theater import arbeitszeilen
 
         zeilen = arbeitszeilen.sichtbar(tg, chat_id, "prosa")
         try:
-            system = systemanweisung()
-            nutzer = baue_nutzertext(conn, chat_id, regie, vorlage=vorlage)
-            if szene_claude.ist_aktiv(e, conn, chat_id):
-                import httpx
-
-                antwort = szene_claude.prosa(
-                    conn, e,
-                    getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
-                    chat_id, system, nutzer, ART, timeout=TIMEOUT_S,
-                )
-            else:
-                antwort = klm.prosa(
-                    chat_id, system, nutzer, ART,
-                    max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
-                )
-            abschnitte = zerlege(antwort or "")
-            if not abschnitte:
-                raise ValueError("Kurzgeschichte ohne erkennbare Abschnitte")
-            nummern = lege_szenen_an(conn, chat_id, abschnitte)
-            zeilen.stoppe()
-            szene_modul._sende_und_merke(
-                conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
-            )
-            from interview_theater import knoepfe
-
-            knoepfe.zeige_kurzgeschichte(conn, tg, chat_id)
+            schreibe(conn, tg, klm, e, chat_id, regie, vorlage=vorlage,
+                     zeilen=zeilen)
         except Exception:
             log.exception("Kurzgeschichte fehlgeschlagen, chat_id=%s", chat_id)
             try:

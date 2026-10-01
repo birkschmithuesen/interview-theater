@@ -122,6 +122,7 @@ _TEXT_FEHLER_LEER = "Da steht nichts."
 _TEXT_FEHLER_LANG = "Das ist zu lang für eine Nachricht."
 _TEXT_FEHLER_VERALTET = "Die Seite ist veraltet — bitte einmal neu laden."
 _TEXT_FEHLER_ANFRAGE = "Ungültige Anfrage."
+_TEXT_FEHLER_KNOPF = "Diesen Knopf kenne ich hier nicht mehr — bitte neu laden."
 
 #: Die Seite ist gross gesetzt: sie liegt auf einem Telefon in einem
 #: Probenraum, und die Gruppe liest im Stehen.
@@ -372,11 +373,70 @@ def _senden(handler, db_pfad: str, token: str, chat_id: int,
     _angenommen(handler, {"message_id": message_id})
 
 
+def knopf_erlaubt(leiste, daten) -> bool:
+    """Steht ``daten`` in dieser Leiste?
+
+    **Die eine Pruefung des Knopfwegs.** Geprueft wird gegen die Leiste aus
+    ``web_post`` und NICHT gegen ``knopf.message_id``: die ist nur gesetzt,
+    wenn ein Aufrufer ``repo.merke_knopf_nachricht`` ruft, und das tun 22 von
+    47 Sendestellen -- ``knoepfe.biete_einstieg`` zum Beispiel nicht. Eine
+    Pruefung dagegen wuerde die Einstiegsknoepfe abweisen. Die Leiste in
+    ``web_post`` schreibt ``WebKanal.sende_mit_knoepfen`` selbst; sie IST per
+    Konstruktion, was gerade haengt.
+
+    Ohne diese Pruefung waere jeder Knopf jeder Gruppe per ``curl``
+    drueckbar, sobald jemand einen Link hat -- und die ``k:<id>`` sind
+    fortlaufende Zahlen."""
+    if not leiste or not isinstance(daten, str) or not daten:
+        return False
+    return any(daten == eintrag[1] for eintrag in leiste)
+
+
+def _knopf(handler, db_pfad: str, token: str, chat_id: int,
+          schluessel: bytes) -> None:
+    """Ein Knopfdruck der Gruppe.
+
+    Der Server stellt **nur** fest, dass der Knopf hier steht, und legt dann
+    ein ``callback_query``-Update an. Die Wirkung macht ``knoepfe.behandle``
+    im Bot-Prozess -- unveraendert, samt der Idempotenz-Sperre im ``repo``
+    (Zusage 3: der zweite Druck wird beantwortet, wirkt aber nicht). Es gibt
+    hier keinen zweiten Knopf-Handler und keinen Modellaufruf (Zusage 2)."""
+    daten = _koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    roh_id = daten.get("message_id")
+    if not isinstance(roh_id, int) or isinstance(roh_id, bool) or roh_id < 1:
+        handler._fehler(400, _TEXT_FEHLER_ANFRAGE)
+        return
+    wert = daten.get("data")
+
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        leiste = web_daten.web_leiste(conn, chat_id, roh_id)
+    finally:
+        conn.close()
+    if not knopf_erlaubt(leiste, wert):
+        handler.log_error(
+            "Knopfdruck abgewiesen: chat_id=%s message_id=%s leiste=%s",
+            chat_id, roh_id, "fehlt" if leiste is None else len(leiste),
+        )
+        handler._fehler(400, _TEXT_FEHLER_KNOPF)
+        return
+
+    with schreibend(db_pfad) as schreiber:
+        post_id = repo.lege_web_post_an(
+            schreiber, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_KNOPF,
+            daten=wert, bezug_message_id=roh_id,
+        )
+    _angenommen(handler, {"post_id": post_id})
+
+
 #: Die Tabelle der POST-Wege. Eine Tabelle statt einer if-Kette: ein neuer Weg
 #: ist eine Zeile, und ``beantworte_post`` prueft Pfad, Token und Nonce fuer
 #: alle gleich.
 _POSTWEGE = {
     "senden": _senden,
+    "knopf": _knopf,
 }
 
 

@@ -1426,6 +1426,27 @@ def _web_antworten(conn, chat_id: int) -> dict:
     return {str(int(z["id"])): z["antwort"] for z in zeilen}
 
 
+def web_leiste(conn, chat_id: int, message_id: int) -> list | None:
+    """Die Leiste, die gerade unter dieser Nachricht in DIESER Gruppe haengt --
+    oder None, wenn es die Nachricht nicht gibt.
+
+    Unterschied zwischen ``None`` und ``[]``: die Nachricht gibt es nicht
+    gegen die Nachricht hat keine Knoepfe (mehr). Der Aufrufer antwortet auf
+    beides mit 400, aber im Log soll der Unterschied stehen.
+
+    ``chat_id`` in der Bedingung: dieselbe Datenbank traegt alle Gruppen des
+    Workshops, und ein weitergegebener Link darf nie in fremde Daten
+    schreiben (dieselbe Regel wie ``knoepfe.behandle``)."""
+    zeile = conn.execute(
+        "SELECT knoepfe FROM web_post WHERE id = ? AND chat_id = ? "
+        "AND richtung = 'aus' AND geloescht_am IS NULL",
+        (message_id, chat_id),
+    ).fetchone()
+    if zeile is None:
+        return None
+    return _web_knoepfe(zeile["knoepfe"])
+
+
 def web_ausgangsdatei(conn, chat_id: int, post_id: int) -> dict | None:
     """Die Datei zu einer ``sende_datei``-Zeile (Textbuch-Export) -- Pfad und
     Name, oder None. Der Pfad bleibt serverseitig; die Route liefert den

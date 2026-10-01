@@ -3955,7 +3955,7 @@ aber 47× — `knoepfe.biete_einstieg` (`knoepfe/interviews.py:343-383`) setzt
 Leiste in `web_post.knoepfe` schreibt `WebKanal.sende_mit_knoepfen` selbst — sie **ist** per
 Konstruktion „was gerade haengt".
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_chat_knopf.py`:
 
@@ -4189,14 +4189,14 @@ def test_kein_neuer_knopf_handler_im_web():
     assert "from interview_theater.knoepfe" not in quelle
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_chat_knopf.py -q -p no:cacheprovider
 ```
 Erwartet: FAIL — `AttributeError: module 'interview_theater.web_chat' has no attribute 'knopf_erlaubt'`.
 
-- [ ] **Schritt 3: `web_daten.web_leiste`**
+- [x] **Schritt 3: `web_daten.web_leiste`**
 
 ```python
 def web_leiste(conn, chat_id: int, message_id: int) -> list | None:
@@ -4220,7 +4220,7 @@ def web_leiste(conn, chat_id: int, message_id: int) -> list | None:
     return _web_knoepfe(zeile["knoepfe"])
 ```
 
-- [ ] **Schritt 4: `web_chat.py` — Pruefung und Handler**
+- [x] **Schritt 4: `web_chat.py` — Pruefung und Handler**
 
 ```python
 _TEXT_FEHLER_KNOPF = "Diesen Knopf kenne ich hier nicht mehr — bitte neu laden."
@@ -4287,7 +4287,7 @@ def _knopf(handler, db_pfad: str, token: str, chat_id: int,
 
 `_POSTWEGE` um `"knopf": _knopf` ergaenzen.
 
-- [ ] **Schritt 5: Lauf, alles gruen**
+- [x] **Schritt 5: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_chat_knopf.py -q -p no:cacheprovider
@@ -4299,7 +4299,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2908 passed, 1 skipped`.
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add interview_theater/web_chat.py interview_theater/web_daten.py \

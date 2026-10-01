@@ -987,6 +987,16 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
     # konnte -- ist der Kopf bereits beendet ("fertig" wurde schon gesagt),
     # wird der Abschluss hier sofort erneut versucht statt auf den
     # Nachhol-Arbeiter zu warten.
+    #
+    # Der Kopf wird HIER frisch gelesen, nicht der Schnappschuss von oben
+    # wiederverwendet: zwischen beiden liegen Echo, Status und Erkenner, und
+    # genau in diesem Fenster trifft "fertig" ein. Weil der Status dieses
+    # Teils schon VOR diesem Lesen committet ist, bleibt kein Fenster: setzt
+    # "fertig" beendet_am vor diesem Lesen, sehen wir es hier; setzt es
+    # danach, sieht schliesse_ab() auf seinem eigenen Weg diesen Teil bereits
+    # als 'fertig'. None (Kopf hart geloescht, scripts/loeschen.py) heisst:
+    # nichts mehr abzuschliessen.
+    kopf = repo.hole_aufnahme(conn, row["teil_von"])
     if kopf is not None and kopf["beendet_am"] and kopf["status"] == "laeuft":
         try:
             schliesse_ab(conn, tg, klm, e, kopf["id"])

@@ -235,3 +235,52 @@ def test_send_error_gibt_keine_erklaerung_preis(aufbau):
     assert "Error code explanation" not in koerper
     assert "Unsupported method" not in koerper
     assert web.TEXT_500 in koerper or koerper.strip() == ""
+
+
+def test_501_hinterlaesst_eine_logzeile_ohne_angreifertext(aufbau, monkeypatch):
+    """``send_error`` wurde ueberschrieben, damit die Standardvorlage keine
+    ``message``/``explain`` mehr in den Koerper setzt (siehe Test oben) --
+    dabei ist die Logzeile verloren gegangen, die die Standardbibliothek in
+    ``send_error`` selbst erzeugt (``self.log_error("code %d, message %s",
+    ...)``). Genau dieser Sondierungsverkehr (501 bei unbekannter Methode,
+    400 bei kaputter Anfragezeile, 414 bei zu langer URI) ist das, was diese
+    Karte abwehren soll -- ohne Logzeile sieht niemand ihn mehr.
+
+    Beobachtet wird ``log_error`` und nicht ``log_message``: der normale
+    Zugriffslog (``log_request`` -> ``log_message``, laeuft bei JEDER
+    Antwort und enthaelt die rohe Anfragezeile samt Methode) ist nicht Teil
+    dieser Haertung und soll weiterhin die Anfragezeile tragen. ``log_error``
+    dagegen ruft nur, wer explizit etwas als Fehler meldet -- hier muss das
+    ``send_error`` selbst tun, mit dem Code, aber ohne den von der
+    Standardbibliothek gereichten ``message``-Text (der den Methodennamen
+    des Angreifers enthaelt: ``"Unsupported method ('BREW')"``)."""
+    basis, _token, _pfad = aufbau
+    aufrufe = []
+    monkeypatch.setattr(
+        web._Basishandler, "log_error",
+        lambda self, format, *args: aufrufe.append(format % args),
+    )
+    status, _kopf = _rohanfrage(basis, b"BREW / HTTP/1.1\r\n\r\n")
+    assert status == 501
+    assert aufrufe, "send_error muss log_error aufrufen, sonst fehlt die Logzeile"
+    text = " ".join(aufrufe)
+    assert "501" in text
+    for verbotenes in ("BREW", "Unsupported method"):
+        assert verbotenes not in text, (verbotenes, text)
+
+
+# -- 5. Die 404-Seite traegt denselben Nonce wie ihre CSP-Kopfzeile ------
+
+
+def test_404_seite_traegt_den_csp_nonce_am_style_tag(aufbau):
+    """``nicht_gefunden_html`` hat ein eigenes literales ``<style>`` (nicht
+    aus ``_seite``) -- es muss denselben Nonce tragen wie die
+    Content-Security-Policy-Kopfzeile derselben Antwort, sonst blockiert die
+    eigene Richtlinie die Formatierung der eigenen Fehlerseite."""
+    basis, _token, _pfad = aufbau
+    status, kopf, text = _hole(basis + "/nixda")
+    assert status == 404
+    csp = kopf.get("Content-Security-Policy") or ""
+    marke = csp.split("'nonce-", 1)[1].split("'", 1)[0]
+    assert len(marke) >= 16
+    assert f'<style nonce="{marke}">' in text

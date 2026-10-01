@@ -3091,7 +3091,17 @@ class _Basishandler(BaseHTTPRequestHandler):
         """Die Fehlerseite der Standardbibliothek setzt ``%(message)s`` und
         ``%(explain)s`` in den Koerper (``DEFAULT_ERROR_MESSAGE``). Beide
         kommen aus der Anfrage oder aus dem Innenleben des Servers -- also
-        weder das eine noch das andere nach aussen."""
+        weder das eine noch das andere nach aussen.
+
+        Die Standardbibliothek loggt an dieser Stelle selbst
+        (``self.log_error("code %d, message %s", code, message)``) -- das
+        geht mit der Ueberschreibung verloren, und genau das waere falsch:
+        ohne Logzeile sieht niemand mehr den Sondierungsverkehr (501 bei
+        unbekannter Methode, 400 bei kaputter Anfragezeile, 414 bei zu
+        langer URI), den diese Haertung gerade abwehrt. Geloggt wird deshalb
+        weiterhin, aber nur der Code -- ``message``/``explain`` sind
+        angreiferseitiger Text und gehoeren nicht ins Log."""
+        self.log_error("code %d", code)
         self.send_response(code)
         roh = _html_500().encode("utf-8")
         self.send_header("Content-Type", "text/html; charset=utf-8")

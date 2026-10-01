@@ -2970,11 +2970,14 @@ def _leitfaden_daten(db_pfad: str, token: str) -> dict | None:
 def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> None:
     """Ein geaenderter Parameter der Gruppenseite.
 
-    Die Reihenfolge der Pruefungen ist Absicht: **Pfad, Token, Nonce, Wert** --
-    erst 404, dann 403, dann 400. Ein unbekanntes Token bekommt dieselbe 404
-    wie beim GET (die Seite verraet ohnehin schon, ob es sie gibt); der Nonce
-    wird erst danach geprueft, weil er an das Token gebunden ist und fuer ein
-    Token, das es nicht gibt, gar nicht gueltig sein kann.
+    Die Reihenfolge der Pruefungen ist Absicht: **Pfad, Herkunft, Token, Nonce, Wert** --
+    erst 404, dann 403, dann 404 (Token), dann 403 (Nonce), dann 400. Die
+    Herkunftspruefung sitzt VOR der Token-Extraktion: sie braucht nur die
+    Kopfzeilen, und ein Angriff ueber einen Browser traegt die Merkmale (E-S9).
+    Ein unbekanntes Token bekommt dieselbe 404 wie beim GET (die Seite
+    verraet ohnehin schon, ob es sie gibt); der Nonce wird erst danach
+    geprueft, weil er an das Token gebunden ist und fuer ein Token, das es
+    nicht gibt, gar nicht gueltig sein kann.
 
     **Das Dashboard ist nicht dabei.** ``/`` nimmt kein POST an: es haengt am
     Beamer und ist projiziert, dort soll niemand im Vorbeigehen etwas

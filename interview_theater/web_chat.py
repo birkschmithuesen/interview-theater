@@ -1531,12 +1531,16 @@ _TOEPFE = {
 def beantworte_post(handler, db_pfad: str, token: str, unterpfad: str,
                     schluessel: bytes) -> None:
     """Alles, was der Browser schickt. Reihenfolge der Pruefungen:
-    **Pfad, Token, Nonce, Wert** -- erst 404, dann 403, dann 400.
+    **Pfad, Token, Rate-Limit, Handler** -- erst 404, dann 429, dann die
+    Pruefungen des Handlers (Nonce, Wert).
 
     **Das Rate-Limit steht VOR dem Handler** (Aufgabe 3) und damit vor jeder
     Wirkung: eine abgewiesene Nachricht darf weder in ``web_post`` landen
-    noch eine Datei auf die Platte legen. Es braucht die ``chat_id`` und
-    steht deshalb erst nach ``_gruppe_oder_404``."""
+    noch eine Datei auf die Platte legen. Das Limit braucht die ``chat_id`` und
+    steht deshalb erst nach der Token-Pruefung (``_gruppe_oder_404``). Dass es
+    auch vor dem Nonce zaehlt, ist Absicht: wer das Token hat, bekommt ueber
+    die Seite ohnehin einen gueltigen Nonce -- die Reihenfolge gibt also
+    keinen zusaetzlichen Hebel, und das Limit steht an genau einer Stelle."""
     from interview_theater import web
 
     if unterpfad not in _POSTWEGE:

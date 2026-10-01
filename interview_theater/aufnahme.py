@@ -977,7 +977,7 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
     )
     _sende_teil_echo(conn, tg, e, chat_id, text)
     repo.setze_status(conn, row["id"], "fertig")
-    _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen)
+    angestossen = _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen)
 
     # Race (Padua A2, gemessen): "fertig" kann eintreffen, waehrend dieser
     # Teil noch bei Whisper haengt -- schliesse_ab() fand den Kopf dann noch
@@ -996,8 +996,21 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
     # danach, sieht schliesse_ab() auf seinem eigenen Weg diesen Teil bereits
     # als 'fertig'. None (Kopf hart geloescht, scripts/loeschen.py) heisst:
     # nichts mehr abzuschliessen.
+    #
+    # Hat der Erkenner "fertig" in DIESEM Teil gehoert, hat er den Abschluss
+    # gerade selbst angestossen (``starte_abschluss``, eigener Thread) und
+    # dabei beendet_am gesetzt -- die Nachpruefung saehe genau das und riefe
+    # schliesse_ab ein zweites Mal. Der Thread startet erst NACH dem 'fertig'
+    # dieses Teils, er findet also keinen offenen Teil von hier mehr; ein
+    # zweiter Aufruf haette nichts zu retten. Gilt nur fuer denselben Kopf
+    # und nur, wenn der Thread wirklich gestartet ist (sonst None).
     kopf = repo.hole_aufnahme(conn, row["teil_von"])
-    if kopf is not None and kopf["beendet_am"] and kopf["status"] == "laeuft":
+    if (
+        kopf is not None
+        and kopf["id"] != angestossen
+        and kopf["beendet_am"]
+        and kopf["status"] == "laeuft"
+    ):
         try:
             schliesse_ab(conn, tg, klm, e, kopf["id"])
         except Exception:
@@ -1038,20 +1051,24 @@ def _sende_teil_echo(conn, tg, e, chat_id: int, text: str) -> None:
         log.exception("Teil-Echo mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
 
 
-def _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen) -> None:
+def _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen) -> int | None:
     """Ruft ``erkenner.wende_aus_aufnahme_an`` und faengt jeden Fehler ab.
 
     Ein Fehlschlag hier darf den Teil nicht mitreissen: sein Transkript steht
     laengst in der Datenbank und im Chat, und der Nachhol-Arbeiter greift ein
-    liegengebliebenes Interview beim naechsten Durchlauf ohnehin auf."""
+    liegengebliebenes Interview beim naechsten Durchlauf ohnehin auf.
+
+    Liefert die id des Interviews, dessen Abschluss dabei angestossen wurde,
+    sonst None (auch bei einem Fehler)."""
     from interview_theater import erkenner  # spaeter Import, haelt den Modulkopf frei
 
     try:
-        erkenner.wende_aus_aufnahme_an(klm, tg, conn, e, chat_id, aenderungen)
+        return erkenner.wende_aus_aufnahme_an(klm, tg, conn, e, chat_id, aenderungen)
     except Exception:
         log.exception(
             "Anwenden einer Absicht aus einem Teil fehlgeschlagen, id=%s", row["id"]
         )
+        return None
 
 
 def _verdichtungstext(conn, name: str, verdichtung_id: int) -> str:

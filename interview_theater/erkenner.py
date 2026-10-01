@@ -431,7 +431,7 @@ def erkenne_in_aufnahme(klm, conn, e, chat_id: int, transkript: str) -> list[dic
     return aenderungen[:MAX_AENDERUNGEN]
 
 
-def wende_aus_aufnahme_an(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> None:
+def wende_aus_aufnahme_an(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> int | None:
     """Wendet an, was ``erkenne_in_aufnahme`` gefunden hat -- derselbe Weg
     wie am Ende von ``laufe()``: schreiben, den Moduswechsel bestaetigen, das
     beendete Interview zusammenfuegen und verdichten lassen.
@@ -444,12 +444,16 @@ def wende_aus_aufnahme_an(klm, tg, conn, e, chat_id: int, aenderungen: list[dict
 
     Die Aenderungsmeldung (``baue_meldung``) faellt hier weg: die beiden
     erlaubten Arten sind darin ohnehin still, und die Bestaetigung "Aufnahme
-    beendet." samt Verdichtung ist die Rueckmeldung, die zaehlt."""
+    beendet." samt Verdichtung ist die Rueckmeldung, die zaehlt.
+
+    Liefert die ``aufnahme_id`` des Interviews, dessen Abschluss hier
+    angestossen wurde, sonst None -- damit ``aufnahme._teil_abschliessen``
+    denselben Abschluss nicht ein zweites Mal ruft."""
     if not aenderungen:
-        return
+        return None
     wirkliche = wende_an(conn, e, chat_id, aenderungen)
     _melde_interviewmodus(tg, conn, e, chat_id, wirkliche)
-    _schliesse_interview_ab(klm, tg, conn, e, wirkliche)
+    return _schliesse_interview_ab(klm, tg, conn, e, wirkliche)
 
 
 #: art -> Arbeitsstand-Feld fuer die Aenderungsarten, die ein einzelnes
@@ -1821,7 +1825,7 @@ def _starte_sprachprofil(klm, tg, conn, e, chat_id: int, wirkliche: list[dict]) 
         log.exception("Sprachprofil konnte nicht gestartet werden, chat_id=%s", chat_id)
 
 
-def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> None:
+def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> int | None:
     """Stoesst nach einem erkannten "fertig" das Zusammenfuegen und die eine
     Verdichtung des Interviews an (§ 10.6, ``aufnahme.starte_abschluss``).
 
@@ -1833,7 +1837,10 @@ def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> None:
 
     Ein Fehlschlag hier darf die Meldung nicht mitreissen: der Modus ist schon
     aus, und der Nachhol-Arbeiter greift ein liegengebliebenes Interview beim
-    naechsten Durchlauf ohnehin auf."""
+    naechsten Durchlauf ohnehin auf.
+
+    Liefert die ``aufnahme_id``, wenn der Abschluss-Thread wirklich
+    gestartet ist, sonst None."""
     from interview_theater import aufnahme  # spaeter Import, haelt den Modulkopf frei
 
     kopf_id = next(
@@ -1845,11 +1852,13 @@ def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> None:
         None,
     )
     if kopf_id is None:
-        return
+        return None
     try:
         aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
     except Exception:
         log.exception("Interviewabschluss konnte nicht gestartet werden, id=%s", kopf_id)
+        return None
+    return kopf_id
 
 
 #: Erkenner-Art -> (Ping-Pong-Art der Knopfleiste, Phase, in der sie traegt).

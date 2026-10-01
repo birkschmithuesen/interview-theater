@@ -192,6 +192,15 @@ Arbeitsstandfelder aus `PRAGMA table_info(arbeitsstand)`, das Wort
 Phasen, Feldern und Formulierungen ueberleben, ohne dass jemand ihn
 nachzieht.
 
+## Das Padua-Profil und der Laengen-Rhythmus (Karte R)
+
+Der Simulator sieht das Padua-Profil **nur** ueber `IT_WORKSHOP=padua-2026`
+in der Umgebung -- er hat dafuer keinen eigenen Schalter, und erst mit dem
+Profil laufen Laengenbudget und Nachpass ueberhaupt. Er erreicht die
+Prosa-Phase, aber **nicht** Phase 7 und **nicht** den Kuerzungsweg; den
+Nachweis dafuer liefert kostenlos `scripts/laengen_probe.py` (Befund:
+`docs/padua-r-laengen-2026-09-30/BEFUND.md`).
+
 ## Die Interviews erweitern
 
 Eine Datei je Interview, Kopf zwischen zwei `---`-Zeilen:

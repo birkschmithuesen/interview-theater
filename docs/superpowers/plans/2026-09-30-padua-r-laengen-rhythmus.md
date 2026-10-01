@@ -6507,7 +6507,7 @@ Mensch anfaengt. Drei neue Module, eine neue Spalte, ein neuer Profilabschnitt
 und zwei neue `art`-Werte, die nirgends stehen, sind genau der Zustand, gegen
 den das Dokument geschrieben ist.
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_doku_laengen.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_doku_laengen.py`
 
 ```python
 """Die Doku nennt, was diese Karte gebaut hat (30.09.2026, Karte R).
@@ -6576,12 +6576,12 @@ def test_der_befund_ist_verlinkt():
     assert "padua-r-laengen-2026-09-30" in AGENTS
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_doku_laengen.py`
 Erwartet: FAIL, `assert 'laengen.py' in ...`.
 
-- [ ] **Schritt 3: `AGENTS.md` ergaenzen**
+- [x] **Schritt 3: `AGENTS.md` ergaenzen**
 
 **(a) Drei Zeilen in die Modultabelle**, alphabetisch an ihren Platz:
 
@@ -6696,20 +6696,20 @@ Text):
 **keinen** Korpuslauf und **keinen** Neustart des Webdienstes braucht, aber
 einen Neustart des Bots (die TOML wird nur beim Start gelesen).
 
-- [ ] **Schritt 4: `workshop/padua-2026/LIESMICH.md` ergaenzen**
+- [x] **Schritt 4: `workshop/padua-2026/LIESMICH.md` ergaenzen**
 
 Ein Abschnitt, der sagt: wo die Rahmenwerte stehen, dass sie Vorschlaege sind,
 woran sie geeicht werden (Verweis auf den Befund), dass der Faktor 0,25 die
 Instagram-Entscheidung ist, und dass `[laengen] aktiv = false` das Verhalten
 von vor dieser Karte wiederherstellt.
 
-- [ ] **Schritt 5: `simulation/README.md` ergaenzen**
+- [x] **Schritt 5: `simulation/README.md` ergaenzen**
 
 Zwei Saetze: dass der Simulator das Padua-Profil **nur** ueber `IT_WORKSHOP`
 sieht (er hat keinen eigenen Schalter), und dass er Phase 7 und den
 Kuerzungsweg nicht erreicht -- dafuer gibt es `scripts/laengen_probe.py`.
 
-- [ ] **Schritt 6: Tests laufen lassen**
+- [x] **Schritt 6: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_doku_laengen.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -6719,7 +6719,7 @@ Erwartet: `passed` -- dort haengt der Test, der prueft, dass keine
 Phasenanweisung einen Slash-Befehl bewirbt; die Doku faellt nicht darunter,
 aber ein versehentlicher Eingriff in eine Prompt-Datei schon.
 
-- [ ] **Schritt 7: Suite und Commit**
+- [x] **Schritt 7: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

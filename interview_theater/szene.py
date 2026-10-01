@@ -1052,10 +1052,16 @@ FIGUREN_KOPF_OHNE_STIMME = (
     "aus Interviews belegt -- gib jeder Figur eine eigene, unterscheidbare "
     "Art zu reden (Satzlaenge, Tempo, Lieblingswoerter), und halte sie durch:"
 )
+#: Der gewaehlte Sprachstil einer Figur (Padua M1, 02.10.2026). Eine
+#: **Beschriftung**, nie in Anfuehrungszeichen: ein Stil ist kein Belegzitat
+#: (Audit-Befund S4), und ``_figuren_mit_wenig_zitaten`` zaehlt genau die
+#: Zeilen, die mit ``  "`` anfangen.
+ZEILE_SPRACHSTIL = "  Sprachstil (von der Gruppe gewaehlt): {stil}"
 
 
 def _figuren_text(conn, chat_id: int) -> str:
-    """Block 3: je Figur Beschreibung, Sprachprofil und woertliche Zitate.
+    """Block 3: je Figur Beschreibung, Sprachprofil, gewaehlter Sprachstil
+    und woertliche Zitate.
 
     **Das ist der Ersatz fuer die Volltranskripte.** Bis zum 05.09.2026 gingen
     alle Interviews im Wortlaut mit, und das Modell sollte daraus selbst
@@ -1081,6 +1087,14 @@ def _figuren_text(conn, chat_id: int) -> str:
             zeilen[0] += f" -- {figur['beschreibung']}"
         if figur["sprachprofil"]:
             zeilen.append(figur["sprachprofil"].strip())
+        # Padua M1 (02.10.2026): der in Phase 4 per Knopf gewaehlte Stil --
+        # vor den Zitaten, damit der Zitatblock je Figur zusammenhaengend
+        # bleibt (``_figuren_mit_wenig_zitaten`` zaehlt aufeinanderfolgende
+        # Zitatzeilen). Er setzt ``mit_zitat`` NICHT: ein Stil ist die Wahl
+        # der Gruppe, kein Satz aus einem Interview.
+        stil = (figur["sprachstil"] or "").strip()
+        if stil:
+            zeilen.append(T.ZEILE_SPRACHSTIL.format(stil=stil))
         for satz in (figur["zitate"] or "").split(repo.ZITAT_TRENNER):
             if satz.strip():
                 zeilen.append(f'  "{satz.strip()}"')

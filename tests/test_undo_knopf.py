@@ -242,6 +242,14 @@ def test_der_handler_meldet_seitdem_geaendert_und_aendert_nichts(conn, tg, einst
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Von Hand"
     assert knoepfe.T._TEXT_UNDO_GEAENDERT in tg.texte
     assert not any("Rueckgaengig gemacht:" in t for t in tg.texte)
+    # Review-Fix Aufgabe 6: auch die GEAENDERT-Zeile wird als Bot-Zeile
+    # gemerkt, damit der Gespraechs-Bot im naechsten Zug sieht, dass das
+    # Undo abgelehnt wurde -- wie die Erfolgszeile (H).
+    zeilen = [
+        z["text"] for z in conn.execute(
+            "SELECT text FROM nachricht WHERE chat_id = 1 AND ist_bot = 1")
+    ]
+    assert knoepfe.T._TEXT_UNDO_GEAENDERT in zeilen
 
 
 def test_die_undo_zeile_wird_als_bot_zeile_mitgeschrieben(conn, tg, einst):
@@ -307,3 +315,60 @@ def test_ein_undo_aus_einer_fremden_gruppe_wirkt_nicht(conn, tg, einst):
     knoepfe.behandle(conn, tg, None, einst, _druck(daten, chat_id=2))
 
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
+
+
+# --- Review-Fix Aufgabe 6 ---------------------------------------------------
+
+
+def test_ein_knopf_mit_lauf_aus_fremder_gruppe_erreicht_den_handler_nicht(
+    conn, tg, einst,
+):
+    """Anders als oben (``behandle`` faengt die fremde ``chat_id`` schon am
+    Knopf selbst ab): hier gehoert der KNOPF zu Gruppe 2, aber sein ``wert``
+    zeigt auf einen Lauf aus Gruppe 1 -- genau die Pruefung
+    ``lauf["chat_id"] != d.chat_id`` im Handler selbst, nicht die in
+    ``behandle``."""
+    repo.sichere_gruppe(conn, 2, "gruppe2", "Andere")
+    lauf_id = _lauf_mit_kernthema(conn, alt="Alt")
+    knopf_id = repo.lege_knopf_an(conn, 2, knoepfe.ART_UNDO, str(lauf_id))
+
+    knoepfe.behandle(
+        conn, tg, None, einst, _druck(knoepfe._daten(knopf_id), chat_id=2),
+    )
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
+
+
+def test_eine_ausnahme_beim_zuruecknehmen_bekommt_eine_antwort_und_einen_vorfall(
+    conn, tg, einst, monkeypatch,
+):
+    """Praezedenz ``_wirkung_textbuch``: der Knopf ist schon beansprucht
+    (``beanspruche_knopf``), bevor ``repo.nimm_erkenner_lauf_zurueck`` laeuft
+    -- scheitert der Aufruf (z.B. 'database is locked', vier Bots und das Web
+    teilen dieselbe Datei), darf die Gruppe nicht ohne Antwort dastehen und
+    ein zweiter Druck darf nicht die falsche Erfolgsmeldung
+    '_TEXT_SCHON_BENUTZT' liefern, waehrend der Wert unveraendert steht."""
+    lauf_id = _lauf_mit_kernthema(conn, alt="Alt")
+
+    def kaputt(*args, **kwargs):
+        raise RuntimeError("database is locked (simuliert)")
+
+    monkeypatch.setattr(repo, "nimm_erkenner_lauf_zurueck", kaputt)
+
+    ergebnis = _druecke_undo(conn, tg, einst, lauf_id)
+
+    assert ergebnis is True
+    assert tg.beantwortet, "answerCallbackQuery kommt auch im Fehlerfall"
+    assert knoepfe.T._TEXT_UNDO_FEHLER in tg.texte
+    zeilen = [
+        z["text"] for z in conn.execute(
+            "SELECT text FROM nachricht WHERE chat_id = 1 AND ist_bot = 1")
+    ]
+    assert knoepfe.T._TEXT_UNDO_FEHLER in zeilen, "als Bot-Zeile gemerkt"
+    vorfaelle = conn.execute(
+        "SELECT art FROM vorfall WHERE chat_id = 1 AND art = 'undo_fehlgeschlagen'"
+    ).fetchall()
+    assert len(vorfaelle) == 1
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen", (
+        "unveraendert -- nichts wurde zurueckgenommen"
+    )

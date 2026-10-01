@@ -344,6 +344,15 @@ _TEXT_UNDO_ERLEDIGT = "Rueckgaengig gemacht:\n{zeilen}"
 #: Ein betroffenes Feld hat sich seit dem Lauf erneut geaendert: NICHTS wird
 #: angefasst, und die Gruppe erfaehrt, wo sie stattdessen hingehen kann.
 _TEXT_UNDO_GEAENDERT = "Seitdem geaendert -- bitte im Arbeitsstand korrigieren."
+#: ``repo.nimm_erkenner_lauf_zurueck`` hat eine Ausnahme geworfen (Review-Fix
+#: Aufgabe 6, z.B. "database is locked" beim Stempel-UPDATE -- vier Bots und
+#: das Web teilen dieselbe Datei). Die Transaktion ist intern vollstaendig
+#: zurueckgerollt (``except BaseException: conn.rollback(); raise`` in
+#: ``repo.py``), nichts wurde zurueckgenommen -- und die Gruppe soll das
+#: hoeren, statt gegen eine stumme Tastatur zu tippen.
+_TEXT_UNDO_FEHLER = (
+    "Das konnte ich nicht zuruecknehmen -- bitte im Arbeitsstand korrigieren."
+)
 #: Die kurzen Zeilen fuer answerCallbackQuery.
 _ANTWORT_UNDO = "Zurueckgenommen."
 _ANTWORT_UNDO_GEAENDERT = "Seitdem geaendert."

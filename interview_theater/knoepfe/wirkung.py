@@ -1322,13 +1322,21 @@ def _wirkung_undo(conn, d: Druck) -> str:
     weggetippt hat. Die Tastatur selbst nimmt ``behandle`` ab, wie bei jedem
     Knopf.
 
-    Kein eigenes try/except um ``repo.nimm_erkenner_lauf_zurueck``: eine
-    Ausnahme aus der Anwende-Phase rollt dort schon vollstaendig zurueck
-    (``except BaseException: conn.rollback(); raise``) und laeuft dann in
-    denselben Faenger wie jeder andere Knopf-Handler
-    (``bot._bearbeite_knopfdruck``, ``log.exception`` -- kein Vorfall, keine
-    Chatzeile, siehe deren Docstring). Ein eigener zweiter Faenger hier wuerde
-    die Ruecknahme als einzige Knopfart anders behandeln als alle uebrigen."""
+    **Ein lokaler Faenger um genau den einen Aufruf** (Review-Fix,
+    Praezedenz ``_wirkung_textbuch``): der generische Faenger in
+    ``bot._bearbeite_knopfdruck`` reicht hier nicht. Der Knopf ist zu diesem
+    Zeitpunkt schon ueber ``beanspruche_knopf`` verbraucht -- wirft
+    ``repo.nimm_erkenner_lauf_zurueck`` (etwa ``sqlite3.OperationalError``
+    "database is locked" beim Stempel-UPDATE, vier Bots und das Web teilen
+    dieselbe Datei), bekaeme die Gruppe ohne diesen Faenger gar keine Antwort,
+    die Tastatur bliebe haengen, und ein zweiter Druck liefe in
+    ``repo.beanspruche_knopf`` ins Leere und antwortete
+    ``_TEXT_SCHON_BENUTZT`` ("Das habe ich schon uebernommen.") -- fuer ein
+    gescheitertes Undo eine falsche Erfolgsmeldung, obwohl der Wert
+    unveraendert steht. Die Transaktion selbst ist in jedem Fall sauber: sie
+    rollt bei einer Ausnahme vollstaendig zurueck
+    (``except BaseException: conn.rollback(); raise`` in
+    ``repo.nimm_erkenner_lauf_zurueck``)."""
     if not d.wert.strip().isdigit():
         return T._TEXT_UNBEKANNT
     lauf_id = int(d.wert.strip())
@@ -1336,12 +1344,31 @@ def _wirkung_undo(conn, d: Druck) -> str:
     if lauf is None or lauf["chat_id"] != d.chat_id:
         return T._TEXT_UNBEKANNT
 
-    stand = repo.nimm_erkenner_lauf_zurueck(
-        conn, lauf_id, ruecknahme.verweise(),
-        ruecknahme.WEICH, ruecknahme.HART, ruecknahme.GELEERT,
-    )
+    try:
+        stand = repo.nimm_erkenner_lauf_zurueck(
+            conn, lauf_id, ruecknahme.verweise(),
+            ruecknahme.WEICH, ruecknahme.HART, ruecknahme.GELEERT,
+        )
+    except Exception:
+        log.exception(
+            "Ruecknahme fehlgeschlagen, lauf_id=%s, chat_id=%s",
+            lauf_id, d.chat_id,
+        )
+        repo.merke_vorfall(
+            conn, d.chat_id, getattr(d.e, "bot_name", None),
+            "undo_fehlgeschlagen",
+            f"nimm_erkenner_lauf_zurueck(lauf_id={lauf_id}) hat eine "
+            "Ausnahme geworfen -- die Transaktion ist intern zurueckgerollt, "
+            "zurueckgenommen wurde nichts.",
+        )
+        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_FEHLER)
+        repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, T._TEXT_UNDO_FEHLER)
+        return T._TEXT_UNDO_FEHLER
     if stand == repo.ZURUECK_GEAENDERT:
-        d.tg.sende(d.chat_id, T._TEXT_UNDO_GEAENDERT)
+        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_GEAENDERT)
+        repo.merke_bot_zeile(
+            conn, d.chat_id, message_id, d.e, T._TEXT_UNDO_GEAENDERT
+        )
         return T._ANTWORT_UNDO_GEAENDERT
     if stand != repo.ZURUECK_OK:
         return T._TEXT_SCHON_BENUTZT

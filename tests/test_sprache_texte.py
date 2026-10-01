@@ -136,6 +136,9 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail ueberschreiben_verhindert (repo.merke_vorfall)",
     ("knoepfe.szenen", "Eine Formwahl sollte als Geschichte gesp"):
         "Vorfall-Detail geschichte_war_formwahl (repo.merke_vorfall)",
+    # Review-Fix Aufgabe 6 (Karte U): Vorfall-Detail undo_fehlgeschlagen.
+    ("knoepfe.wirkung", "nimm_erkenner_lauf_zurueck(lauf_id={}) h"):
+        "Vorfall-Detail undo_fehlgeschlagen (repo.merke_vorfall)",
     # Zahlwoerter in ``figuren._zahl_aus``: Parser fuer Gruppentext (D5),
     # die deutsche Liste bleibt im Funktionsrumpf; das englische Gegenstueck
     # steht seit Aufgabe 22 als Modulkonstante ``_ZAHLWOERTER_EN`` daneben.

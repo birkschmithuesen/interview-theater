@@ -816,6 +816,34 @@ CREATE TABLE IF NOT EXISTS web_post (
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);
 
+-- Der laufende Text eines Modellaufrufs (30.09.2026, Karte W): eine Zeile je
+-- laufendem Aufruf, deren ``text`` waechst, waehrend das Modell schreibt.
+--
+-- Warum ueber die Datenbank und nicht direkt: das Modell wird im BOT-Prozess
+-- gerufen, der Browser haengt am WEB-Prozess (read-only, eigene Verbindung).
+-- Die beiden teilen die SQLite-Datei und sonst nichts -- ein Kanal zwischen
+-- ihnen ist eine Tabelle.
+--
+-- ``text`` ist der SICHTBARE Teiltext (strom.sichtbar): VORSCHLAG-Markerzeilen
+-- stehen hier nie drin, auch nicht halb getippt.
+--
+-- Eine abgebrochene Zeile BLEIBT stehen, mit ihrem Teiltext: sie ist nie eine
+-- Nachricht geworden (kein halber Text in ``nachricht``, ``web_post`` oder
+-- ``journal``), aber der Betreiber soll nachlesen koennen, was im Chat kurz
+-- zu sehen war.
+CREATE TABLE IF NOT EXISTS web_strom (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  art             TEXT NOT NULL,            -- 'gespraech' | 'szene' | 'prosa'
+  text            TEXT NOT NULL DEFAULT '',
+  zustand         TEXT NOT NULL,            -- 'laeuft' | 'fertig' | 'abgebrochen'
+  post_id         INTEGER,                  -- web_post.id der fertigen Nachricht
+  begonnen_am     TEXT NOT NULL,
+  aktualisiert_am TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_web_strom_lage
+  ON web_strom(chat_id, id);
+
 -- Was das Dashboard rot färbt
 CREATE TABLE IF NOT EXISTS vorfall (
   id           INTEGER PRIMARY KEY,
@@ -869,6 +897,7 @@ TABELLEN_MIT_CHAT_ID = (
     "erkenner_lauf",
     "erkenner_lauf_schritt",
     "web_post",
+    "web_strom",
     "vorfall",
     "aufruf",
 )

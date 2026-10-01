@@ -3721,3 +3721,68 @@ def naechste_web_chat_id(conn) -> int:
         "SELECT MAX(chat_id) FROM gruppe WHERE chat_id >= ?", (WEB_CHAT_ID_BASIS,)
     ).fetchone()[0]
     return WEB_CHAT_ID_BASIS if hoechste is None else int(hoechste) + 1
+
+
+# --- Der laufende Text (30.09.2026, Karte W) -------------------------------
+
+STROM_LAEUFT = "laeuft"
+STROM_FERTIG = "fertig"
+STROM_ABGEBROCHEN = "abgebrochen"
+
+
+@_gesperrt
+def beginne_strom(conn, chat_id: int, art: str) -> int:
+    """Legt die Zeile fuer einen laufenden Aufruf an und liefert ihre id."""
+    jetzt = _jetzt()
+    zeiger = conn.execute(
+        "INSERT INTO web_strom (chat_id, art, text, zustand, begonnen_am, "
+        "aktualisiert_am) VALUES (?, ?, '', ?, ?, ?)",
+        (chat_id, art, STROM_LAEUFT, jetzt, jetzt),
+    )
+    conn.commit()
+    return zeiger.lastrowid
+
+
+@_gesperrt
+def schreibe_strom(conn, strom_id: int, text: str) -> None:
+    """Der bisherige sichtbare Text. Wird gedrosselt gerufen
+    (``strom.INTERVALL_S``), nicht je Zeichen."""
+    conn.execute(
+        "UPDATE web_strom SET text = ?, aktualisiert_am = ? WHERE id = ?",
+        (text, _jetzt(), strom_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def beende_strom(conn, strom_id: int, zustand: str,
+                 post_id: int | None = None) -> None:
+    """Schliesst die Zeile ab. ``post_id`` ist die ``web_post``-Zeile der
+    fertigen Nachricht -- daran erkennt die Ansicht, welche vorlaeufige Blase
+    sie durch welche Nachricht ersetzt."""
+    conn.execute(
+        "UPDATE web_strom SET zustand = ?, post_id = ?, aktualisiert_am = ? "
+        "WHERE id = ?",
+        (zustand, post_id, _jetzt(), strom_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hole_strom(conn, strom_id: int):
+    return conn.execute(
+        "SELECT * FROM web_strom WHERE id = ?", (strom_id,)
+    ).fetchone()
+
+
+@_gesperrt
+def laufende_stroeme(conn, chat_id: int) -> list:
+    """Die noch offenen Zeilen dieser Gruppe, aelteste zuerst.
+
+    Die Roadmap liest sie fuer den Zustand 'laeuft' -- und nur sie: ein
+    Szenenlauf-Lock lebt im Bot-Prozess und ist fuer den Webserver
+    unsichtbar."""
+    return conn.execute(
+        "SELECT * FROM web_strom WHERE chat_id = ? AND zustand = ? ORDER BY id ASC",
+        (chat_id, STROM_LAEUFT),
+    ).fetchall()

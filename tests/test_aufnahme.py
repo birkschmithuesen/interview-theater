@@ -729,6 +729,53 @@ def test_fertig_in_der_sprachnachricht_beendet_das_interview(conn, einst, tg):
     assert any("Interview 1 ausgewertet:" in t for t in gesendet)
 
 
+def test_schliesse_ab_gleichzeitig_verdichtet_nur_einmal(conn, einst, tg, monkeypatch):
+    """Fall A, zweite Verteidigungslinie: rufen zwei Wege ``schliesse_ab``
+    fuer dasselbe Interview gleichzeitig (/fertig-Thread und die
+    Nachpruefung des letzten Teils), darf nur einer zusammenfuegen und
+    verdichten. Die Verzoegerung haelt beide hinter der Statuspruefung fest,
+    solange es keine Sperre je Kopf gibt."""
+    klm = LLMAttrappe()
+    kopf_id = interview_an(conn, tg, einst)
+    for i, text in enumerate([TEIL_A, TEIL_B]):
+        aid = aufnahme.empfange(
+            conn, tg, einst, sprachnachricht(dauer=30, message_id=580 + i)
+        )
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(text), aid)
+    aufnahme.beende_interview(conn, 1)
+
+    original = repo.zusammengefuegtes_transkript
+    schranke = threading.Barrier(2, timeout=1.0)
+    reihe = []
+
+    def langsam(*args, **kw):
+        # Ohne Sperre stehen hier beide hinter der Statuspruefung; der zweite
+        # laeuft erst weiter, wenn der erste laengst verdichtet hat. Mit
+        # Sperre kommt nur einer hierher, die Schranke laeuft ins Leere.
+        try:
+            schranke.wait()
+        except threading.BrokenBarrierError:
+            pass
+        reihe.append(1)
+        if len(reihe) == 2:
+            time.sleep(0.5)
+        return original(*args, **kw)
+
+    monkeypatch.setattr(repo, "zusammengefuegtes_transkript", langsam)
+    threads = [
+        threading.Thread(target=aufnahme.schliesse_ab, args=(conn, tg, klm, einst, kopf_id))
+        for _ in range(2)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(5)
+
+    assert klm.aufrufe == 1, "genau ein Verdichteraufruf"
+    assert len(repo.verdichtungen(conn, 1)) == 1
+    assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
+
+
 def test_erkenner_darf_aus_interviewinhalt_nichts_anderes_schreiben(conn, einst, tg):
     """N1, die Grenze: der Lauf ueber ein Teil-Transkript kennt nur
     ``interview_beenden`` und ``interview_benennen``. Was die interviewte

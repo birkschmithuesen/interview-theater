@@ -1261,7 +1261,37 @@ def schliesse_ab(conn, tg, klm, e, kopf_id: int) -> bool:
 
     Ohne eine einzige Sprachnachricht gibt es eine Zeile und **keinen
     Modellaufruf**: eine Verdichtung von nichts hat im Probelauf zwei leere
-    Zusammenfassungen erzeugt ("Material extrem kurz")."""
+    Zusammenfassungen erzeugt ("Material extrem kurz").
+
+    Laeuft je Kopf hoechstens einmal gleichzeitig (``_abschluss_sperre``):
+    zwei Wege -- der Abschluss-Thread von "fertig" und die Nachpruefung des
+    letzten Teils in ``_teil_abschliessen`` -- koennen sonst beide hinter der
+    Statuspruefung stehen und doppelt verdichten. Die Sperre **wartet** statt
+    abzuweisen: wer als zweiter kommt, liest danach frisch und findet den Kopf
+    entweder abgeschlossen (nichts zu tun) oder -- hat der erste wegen eines
+    offenen Teils aufgegeben -- ohne offenen Teil und schliesst selbst ab.
+    Ein Abweisen verloere genau diesen zweiten Fall an den Nachhol-Arbeiter."""
+    with _abschluss_sperre(kopf_id):
+        return _schliesse_ab(conn, tg, klm, e, kopf_id)
+
+
+#: Eine Sperre je Interview-Kopf fuer ``schliesse_ab``. Nicht
+#: ``_in_bearbeitung``: das weist ab, statt zu warten, und ``schliesse_ab``
+#: ruft darunter selbst ``verarbeite`` fuer denselben Kopf. Ueber
+#: Prozessgrenzen braucht es keine: ein Interview gehoert einer Gruppe, und
+#: eine Gruppe hat genau einen Bot-Prozess (Falle 7). Die Eintraege bleiben
+#: stehen -- einer je Interview, eine Handvoll je Workshop. ``RLock``, damit
+#: ein Aufruf aus demselben Thread heraus nicht an sich selbst haengt.
+_abschluss_sperren: dict[int, threading.RLock] = {}
+_abschluss_sperren_lock = threading.Lock()
+
+
+def _abschluss_sperre(kopf_id: int):
+    with _abschluss_sperren_lock:
+        return _abschluss_sperren.setdefault(kopf_id, threading.RLock())
+
+
+def _schliesse_ab(conn, tg, klm, e, kopf_id: int) -> bool:
     kopf = repo.hole_aufnahme(conn, kopf_id)
     if kopf is None or kopf["status"] != "laeuft":
         return True  # schon abgeschlossen (oder nie ein Kopf) -- nichts zu tun

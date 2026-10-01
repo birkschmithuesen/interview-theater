@@ -109,3 +109,34 @@ hoechstens zehn Zeilen.)
 
 (Fuellt Aufgabe 21/22 aus der Tabelle `aufruf`, getrennt nach `art`:
 `szene`, `kurzgeschichte`, `szene_nachpass`, `kurzgeschichte_nachpass`.)
+
+## 7. Mutationsnachweis
+
+Gefahren am 01.10.2026 (Aufgabe 19), kostenlos. Je Regel eine Mutation am
+Quelltext, danach jeder genannte Test **einzeln**, danach `git checkout` der
+Datei. Vor jeder Mutation liefen die genannten Tests gruen; nach jeder war
+die Datei wieder sauber (`git diff --quiet HEAD`), und `git status
+--porcelain` war am Ende leer bis auf die `.cc-*`-Dateien des Laufs.
+
+| # | Regel | Mutation | Rot | Gruen geblieben (und warum das kein Loch ist) |
+|---|---|---|---|---|
+| 1 | Der Wuerfel ist nie flach | `workshop.VORGABE_WERTE["laengen"]["muster"]`: alle vier Eintraege `["mittel","mittel","mittel"]` | ✅ `test_laengen.py::test_jedes_muster_traegt_mindestens_zwei_verschiedene_stufen`, ✅ `test_laengen_budget.py::test_kein_muster_der_vorgabe_ist_flach` | `test_laengen_budget.py::test_eine_folge_aus_einer_form_ist_nicht_flach` -- **zu Recht**: `laengen.muster_liste` wirft flache Muster heraus und faellt auf `MUSTER_RUECKFALL` zurueck. Die Regel haelt also auch unter der Mutation, nur ein zweites Netz faengt sie |
+| 2 | Dasselbe Seed liefert dasselbe Muster | `muster_fuer`: `random.randrange(len(liste))` | ✅ `test_dasselbe_seed_liefert_dasselbe_muster`, ✅ `test_dasselbe_seed_liefert_dasselbe_budget` | -- |
+| 3 | Das Muster wird zyklisch gelesen | `stufe_fuer`: `min(n - 1, len(muster) - 1)` | ✅ `test_das_muster_wird_zyklisch_gelesen` | -- |
+| 4 | Faktor 0,25 | `_aus_stufe`: `* float(faktor)` gestrichen | ✅ `test_der_faktor_verkuerzt_alle_budgets`, ✅ `test_laengen_faktor.py::test_der_faktor_wirkt_auf_das_naechste_budget` | -- |
+| 5 | Die 130-%-Schwelle | `zu_lang`: `* nachzaehl_schwelle(profil)` gestrichen | ✅ `test_zu_lang_greift_erst_ab_der_schwelle` | -- |
+| 6 | Genau EIN Lauf | `nachpass.nach_szene`: im Zweig "nach dem Nachpass noch zu lang" ein zweites `szene_modul.schreibe(...)` | ✅ `test_nachpass.py::test_zwei_zu_lange_ergebnisse_ergeben_trotzdem_einen_lauf` | `test_laengen_aus.py::test_padua_haengt_genau_einen_lauf_an` -- **zu Recht**: dort ist die zweite Antwort der Attrappe kurz, der Zweig wird nie betreten. Der erste Test faehrt genau diesen Zweig |
+| 7 | Der Grenzwert des Zaehlers | `sprachpass.ueberschreitungen`: `>=` -> `>` und Grenzwert-Vergleich `> 1000` (meldet nie) | ✅ `test_sprachpass_notiz.py::test_ab_der_grenze_wird_gemeldet`, ✅ `test_nachpass.py::test_nur_sprache_ohne_laenge_laeuft_auch` | -- |
+| 8 | Der Zitatschutz | `nach_szene`: `if verloren:` -> `if False:` | ✅ `test_ein_veraendertes_zitat_verwirft_den_lauf` | -- |
+| 9 | Der Zitatschutz auch in Phase 6 | `nach_geschichte`: `if verloren:` -> `if False:` | ✅ `test_nachpass_prosa.py::test_ein_verlorenes_zitat_wird_verworfen` | -- |
+| 10 | Die Abschnittszahl-Wache | `nach_geschichte`: `if len(abschnitte) != anzahl:` -> `if False:` | ✅ `test_eine_andere_abschnittszahl_wird_verworfen`, ✅ `test_bei_verwerfen_wird_nichts_geschrieben` | -- |
+| 11 | Dortmund ist aus | `VORGABE_WERTE["laengen"]["aktiv"]`: `True` | ✅ `test_laengen.py::test_die_vorgabe_hat_den_schalter_aus`, ✅ `test_laengen_aus.py::test_ein_szenenlauf_bleibt_ein_aufruf`, ✅ `::test_kein_laengenblock_im_prompt` | -- |
+| 12 | Dortmunds Prosa-Prompt bleibt zeichengleich | `kurzgeschichte.ZEILE_GESAMTLAENGE`: `1.500` -> `1.400` | ✅ `test_laengen_prosa.py::test_die_ersetzbare_zeile_steht_wirklich_in_der_anweisung` | `test_ohne_budget_ist_die_systemanweisung_zeichengleich` -- **zu Recht**: `ANWEISUNG` traegt die Zeile woertlich, die Mutation trifft nur die Konstante, mit der ersetzt wird. Dortmunds Text bleibt also tatsaechlich zeichengleich (der SHA stimmt); kaputt ist die Ersetzung fuer Padua, und genau die meldet der andere Test |
+| 13 | Die deutsche Negativliste bleibt unberuehrt | `prompts/theater-tells.md`: ein Buchstabe gross | ✅ `test_sprachpass_prompt.py::test_die_deutsche_liste_bleibt_unberuehrt`, ✅ `test_profil_bitgleich.py` (2 rot) | -- |
+| 14 | Der Laengenblock wird nie gekuerzt | `szene._REIHENFOLGE`: `"laenge"` gestrichen | ✅ `test_laengen_szene.py::test_der_laengenblock_steht_direkt_hinter_der_aufgabe`, ✅ `::test_mit_profil_steht_das_budget_im_nutzertext` | -- |
+| 15 | Kein Modellaufruf im Befund | `nachpass.befund`: Zeile `klm = None` | ✅ `test_nachpass.py::test_der_befund_ruft_kein_modell` | -- |
+
+**Ergebnis:** jede der 15 Regeln ist von mindestens einem Test bewacht, der
+unter ihrer Mutation rot wird. Drei der im Plan genannten Tests blieben
+gruen; bei allen dreien ist das das richtige Verhalten (Spalte rechts), kein
+fehlender Waechter -- deshalb kam kein Test dazu.

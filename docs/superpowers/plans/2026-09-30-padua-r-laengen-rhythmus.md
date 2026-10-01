@@ -6458,14 +6458,14 @@ git status --porcelain     # leer (ausser .cc-*)
 | 14 | **Der Laengenblock wird nie gekuerzt** | `interview_theater/szene.py`, `_REIHENFOLGE`: `"laenge"` streichen | `tests/test_laengen_szene.py::test_der_laengenblock_steht_direkt_hinter_der_aufgabe` **und** `::test_mit_profil_steht_das_budget_im_nutzertext` |
 | 15 | **Kein Modellaufruf im Befund** | `interview_theater/nachpass.py`, `befund`: eine Zeile `klm = None` einfuegen | `tests/test_nachpass.py::test_der_befund_ruft_kein_modell` |
 
-- [ ] **Schritt 1: Die Tabelle abarbeiten**
+- [x] **Schritt 1: Die Tabelle abarbeiten**
 
 Fuer **jede** der 15 Zeilen die vier Schritte oben. Wird ein genannter Test
 **nicht** rot, ist das ein Befund und keine Formalie: die Regel ist dann nicht
 bewacht. Dann wird ein Test ergaenzt, der sie bewacht -- und die Mutation
 danach erneut gefahren.
 
-- [ ] **Schritt 2: Der Arbeitsbaum ist sauber**
+- [x] **Schritt 2: Der Arbeitsbaum ist sauber**
 
 Run: `git status --porcelain`
 Erwartet: leer (bzw. nur `.cc-*`). **Keine** Mutation darf stehenbleiben.
@@ -6473,14 +6473,14 @@ Erwartet: leer (bzw. nur `.cc-*`). **Keine** Mutation darf stehenbleiben.
 Run: `git diff --stat HEAD`
 Erwartet: keine Ausgabe.
 
-- [ ] **Schritt 3: Suite**
+- [x] **Schritt 3: Suite**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist **genau** der Stand nach
 Aufgabe 18 -- diese Aufgabe legt keinen Test an, sie nimmt nur
 Mutationen und wieder zurueck.
 
-- [ ] **Schritt 4: Das Ergebnis in den Befund eintragen und committen**
+- [x] **Schritt 4: Das Ergebnis in den Befund eintragen und committen**
 
 An `docs/padua-r-laengen-2026-09-30/BEFUND.md` einen Abschnitt
 "7. Mutationsnachweis" mit der Tabelle oben und je Zeile einem Haken bzw. dem

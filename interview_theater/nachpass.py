@@ -234,3 +234,156 @@ def _vorfall(conn, chat_id: int, e, art: str, text: str) -> None:
         repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None), art, text)
     except Exception:
         log.exception("Vorfall %s nicht schreibbar", art)
+
+
+#: Der Lauf hat eine andere Abschnittszahl geliefert und wurde verworfen.
+#: Eigener Vorfall, weil er etwas anderes heisst als ein verlorenes Zitat:
+#: hier hat das Modell die Struktur geaendert, nicht den Wortlaut.
+VORFALL_ABSCHNITTSZAHL = "nachpass_abschnittszahl"
+
+
+def befund_prosa(conn, chat_id: int) -> dict:
+    """Was an der ganzen Kurzgeschichte zu beanstanden ist -- **reine
+    Leseabfrage**.
+
+    ``eintraege`` sind ``(nummer, form, budget, woerter)`` je Abschnitt,
+    ``zu_lang`` ist wahr, sobald **ein** Abschnitt ueber der Schwelle liegt
+    (einer reicht: der Lauf geht ohnehin ueber alle), und ``gemeldet`` sind die
+    Sprachmuster ueber dem Grenzwert, gezaehlt am **ganzen** Text -- ein
+    Fazitsatz gehoert zum Schluss der Geschichte, nicht zum Schluss jedes
+    Abschnitts."""
+    from interview_theater import (
+        kurzgeschichte, laengen, repo, sprachpass, szene as szene_modul,
+    )
+
+    leer = {"eintraege": [], "zu_lang": False, "zahlen": {}, "gemeldet": []}
+    if not laengen.aktiv():
+        return leer
+    budgets = kurzgeschichte.budget_eintraege(
+        conn, chat_id, faktor=kurzgeschichte._faktor(conn, chat_id))
+    if not budgets:
+        return leer
+    texte = {}
+    for s in repo.hole_szenen(conn, chat_id):
+        if not s["entfernt_am"] and s["nummer"] is not None:
+            texte[s["nummer"]] = szene_modul.prosa_von(s)
+    eintraege = [
+        (n, f, b, laengen.zaehle_woerter(texte.get(n, "")))
+        for n, f, b in budgets
+    ]
+    ganz = "\n\n".join(texte[n] for n, _f, _b, _w in eintraege if texte.get(n))
+    zahlen: dict = {}
+    gemeldet: list[str] = []
+    if laengen.sprachpass_aktiv() and ganz:
+        zahlen = sprachpass.zaehle(ganz)
+        gemeldet = sprachpass.ueberschreitungen(zahlen, sprachpass.grenzwerte())
+    return {
+        "eintraege": eintraege,
+        # Einer reicht: der Lauf geht ohnehin ueber die ganze Geschichte.
+        "zu_lang": any(laengen.zu_lang(w, b) for _n, _f, b, w in eintraege),
+        "zahlen": zahlen,
+        "gemeldet": gemeldet,
+    }
+
+
+def nach_geschichte(conn, tg, klm, e, chat_id: int) -> str | None:
+    """Der Nachpass fuer die ganze Kurzgeschichte (Phase 6). Liefert die
+    Notiz, mit der gelaufen wurde -- oder ``None``.
+
+    **Ein Lauf fuer alle Abschnitte.** Einer je Abschnitt waere bei sechs
+    Abschnitten sechs Laeufe; so ist es +1 fuer sechs Szenen.
+
+    **Geprueft wird VOR dem Speichern.** ``kurzgeschichte.hole_text`` liefert
+    die Antwort, ohne etwas zu schreiben -- damit koennen zwei Dinge die
+    Fassung noch verhindern: eine geaenderte Abschnittszahl (der Abgleich in
+    ``lege_szenen_an`` ist **ergaenzend**, also behielten vorhandene
+    Abschnitte ihren alten, langen Text -- genau der Fall, gegen den
+    ``kuerzung.notiz_fuer_prosa`` geschrieben wurde) und ein verlorenes
+    Belegzitat. Deshalb braucht dieser Weg keinen Rueckweg: es steht nichts
+    da, was zurueckzunehmen waere."""
+    from interview_theater import (
+        kuerzung, kurzgeschichte, laengen, repo, sprachpass,
+        szene as szene_modul,
+    )
+
+    if not laengen.aktiv():
+        return None
+    stand = befund_prosa(conn, chat_id)
+    if not stand["eintraege"]:
+        return None
+    anzahl = len(stand["eintraege"])
+    teile = []
+    if stand["zu_lang"]:
+        # Wortgleich die Notiz des Kuerzen-Wegs -- der Prozentwert steht an
+        # einer Stelle (``kuerzung.PROZENT``), und sie bindet die
+        # Abschnittszahl schon mit.
+        teile.append(kuerzung.notiz_fuer_prosa(anzahl))
+    sprachlich = sprachpass.notiz(stand["gemeldet"])
+    if sprachlich:
+        teile.append(sprachlich)
+    if not teile:
+        return None
+    notiz = "\n\n".join(teile)
+
+    alte_texte = {}
+    for s in repo.hole_szenen(conn, chat_id):
+        if not s["entfernt_am"] and s["nummer"] is not None:
+            alte_texte[s["nummer"]] = szene_modul.prosa_von(s)
+    zitate = sprachpass.gepruefte_zitate(conn, chat_id)
+    budgets = [(n, f, b) for n, f, b, _w in stand["eintraege"]]
+
+    try:
+        # ``vorlage=True``: ohne die bestehende Fassung im Prompt schriebe das
+        # Modell "kuerzer" ueber einen Text, den es nie sah -- dieselbe
+        # Begruendung wie in ``kuerzung.starte``.
+        antwort = kurzgeschichte.hole_text(
+            conn, klm, e, chat_id, notiz, vorlage=True, eintraege=budgets,
+            art=ART_PROSA,
+        )
+        abschnitte = kurzgeschichte.zerlege(antwort or "")
+    except Exception:
+        log.exception("Prosa-Nachpass fehlgeschlagen, chat_id=%s", chat_id)
+        _vorfall(conn, chat_id, e, VORFALL_FEHLER,
+                 "Prosa-Nachpass gescheitert, alte Fassung bleibt")
+        return None
+
+    if len(abschnitte) != anzahl:
+        _vorfall(
+            conn, chat_id, e, VORFALL_ABSCHNITTSZAHL,
+            f"Prosa-Nachpass verworfen: {len(abschnitte)} statt {anzahl} "
+            "Abschnitte -- nichts gespeichert, alte Fassung bleibt",
+        )
+        return notiz
+
+    neu_ganz = "\n\n".join(prosa for _t, _z, prosa in abschnitte)
+    alt_ganz = "\n\n".join(alte_texte[n] for n in sorted(alte_texte)
+                           if alte_texte[n])
+    verloren = sprachpass.verlorene(alt_ganz, neu_ganz, zitate)
+    if verloren:
+        _vorfall(
+            conn, chat_id, e, VORFALL_VERWORFEN,
+            f"Prosa-Nachpass verworfen: {len(verloren)} geprueftes "
+            "Belegzitat/e waere(n) verlorengegangen -- nichts gespeichert",
+        )
+        return notiz
+
+    kurzgeschichte.lege_szenen_an(conn, chat_id, abschnitte)
+    nachher = {n: laengen.zaehle_woerter(p)
+               for n, (_t, _z, p) in enumerate(abschnitte, start=1)}
+    _vorfall(
+        conn, chat_id, e, VORFALL_GELAUFEN,
+        "Prosa-Nachpass: "
+        + "; ".join(
+            f"Abschnitt {n} {w} -> {nachher.get(n, 0)} Woerter (Budget {b})"
+            for n, _f, b, w in stand["eintraege"]
+        )
+        + f"; Sprachmuster {', '.join(stand['gemeldet']) or 'keine'}",
+    )
+    if any(laengen.zu_lang(nachher.get(n, 0), b)
+           for n, _f, b, _w in stand["eintraege"]):
+        _vorfall(
+            conn, chat_id, e, VORFALL_IMMER_NOCH,
+            "Prosa-Nachpass: mindestens ein Abschnitt liegt weiter ueber dem "
+            "Budget -- kein zweiter Lauf",
+        )
+    return notiz

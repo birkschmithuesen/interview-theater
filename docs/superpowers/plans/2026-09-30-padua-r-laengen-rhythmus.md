@@ -5027,7 +5027,7 @@ selben Ergebnis, jeder an der Form seines Schreibwegs.
     `(nummer, form, budget, woerter)`)
   - `nachpass.nach_geschichte(conn, tg, klm, e, chat_id) -> str | None`
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_nachpass_prosa.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_nachpass_prosa.py`
 
 ```python
 """Der EINE Nachpass fuer die ganze Kurzgeschichte (30.09.2026, Karte R).
@@ -5245,12 +5245,12 @@ def test_ein_gescheiterter_lauf_laesst_alles_stehen(prosa6, tg, einst):
     assert [(s["nummer"], s["prosa"]) for s in repo.hole_szenen(prosa6, 1)] == vorher
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_nachpass_prosa.py`
 Erwartet: FAIL, `AttributeError: ... has no attribute 'befund_prosa'`.
 
-- [ ] **Schritt 3: An `interview_theater/nachpass.py` anhaengen**
+- [x] **Schritt 3: An `interview_theater/nachpass.py` anhaengen**
 
 ```python
 #: Der Lauf hat eine andere Abschnittszahl geliefert und wurde verworfen.
@@ -5406,12 +5406,12 @@ def nach_geschichte(conn, tg, klm, e, chat_id: int) -> str | None:
     return notiz
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_nachpass_prosa.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
 
-- [ ] **Schritt 5: Suite und Commit**
+- [x] **Schritt 5: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

@@ -174,3 +174,27 @@ def test_die_pruefung_laesst_padua_durch(capsys):
 def test_die_pruefung_laesst_dortmund_durch(capsys):
     assert pruefe_profil.pruefe_namen("dortmund-2026") == 0
     assert "in Ordnung" in capsys.readouterr().out
+
+
+def test_die_pruefung_sieht_die_englische_schicht(monkeypatch):
+    """Karte P-Fix: unter einem englischen Profil prueft pruefe_profil die
+    **wirksame** Prompt-Ebene.
+
+    Bis dahin las ``_prompt_texte`` nur Repo und Profil. Unter
+    ``sprache.code = "en"`` gilt fuer jede Datei mit englischer Fassung aber
+    diese (``anweisungen._roh``): die deutsche wurde gegen Platzhalter
+    geprueft, die sie nie einsetzt, und die englische gar nicht."""
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    texte = pruefe_profil._prompt_texte()
+    dateien = [s for s in texte if s.startswith(("prompts/", "sprache/", "profil/"))]
+    namen = [s.split("/", 1)[1] for s in dateien]
+    assert "system.md" in namen
+    # Genau EINE Ebene je Dateiname -- sonst prueft der Pruefer eine Datei,
+    # die unter diesem Profil niemand liest.
+    assert len(namen) == len(set(namen)), sorted(
+        n for n in namen if namen.count(n) > 1)
+    system = next(t for s, t in texte.items() if s.endswith("/system.md"))
+    assert "<place>" in system, "die englische Fassung, nicht die deutsche"
+    assert "{{ort_beispiel" not in system

@@ -875,6 +875,18 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
         "konflikt_ausgeschlossen": _liste(profil.wert("konflikt.ausgeschlossen", "")),
         "projekt_kurz": _liste(profil.wert("projekt.kurzbeschreibung", "")),
     }
+    # Der Konfliktrahmen in seinen zwei Satzformen (01.10.2026, Karte P-Fix,
+    # Birks Punkt 5). Ein Profil darf ``konflikt.erlaubt`` leer lassen; dann
+    # soll in der Vorlage kein Satzzeichen verwaisen -- aus "conflict may be
+    # serious -- {{konflikt_erlaubt}}." wird sonst "conflict may be serious
+    # -- ." und aus "({{konflikt_erlaubt}})" ein leeres Klammerpaar.
+    # Gerechnet wird HIER und nicht in der Markdown-Vorlage: eine Vorlage
+    # kennt keine Bedingung, und zwei Vorlagen je Fall waeren zwei
+    # Wahrheiten. Die Form steht im Namen -- Strich fuer den langen
+    # Rahmenblock, Klammer fuer den kurzen.
+    erlaubt = werte["konflikt_erlaubt"].strip()
+    werte["konflikt_erlaubt_strich"] = f" -- {erlaubt}" if erlaubt else ""
+    werte["konflikt_erlaubt_klammer"] = f" ({erlaubt})" if erlaubt else ""
     # Die Beispielorte einzeln ({{ort_beispiel_1}} ...) und als Aufzaehlung.
     # Einzeln, weil ein Prompt sie an verschiedenen Stellen und in
     # verschiedenen Rollen braucht: einmal als Ort, an dem sich zwei

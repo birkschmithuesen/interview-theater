@@ -206,6 +206,11 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 #ptt[data-haelt="1"][data-weg="1"] { background: #6b6b6b; }
 .fehler { font-size: .9rem; color: #a8201a; text-align: center; }
 .fehler[hidden] { display: none; }
+.angehalten { display: flex; flex-direction: column; gap: .35rem; font-size: .92rem;
+              border: 1px solid #a8201a; border-radius: .7rem; padding: .5rem .6rem; }
+.angehalten[hidden], .angehalten button[hidden] { display: none; }
+.angehalten button { font: inherit; min-height: 2.9rem; border-radius: .7rem;
+                     border: 1px solid #1f6f5c; background: #fff; color: #17181b; }
 .pegel { height: .45rem; border-radius: .3rem; background: #e0ddd6; overflow: hidden; }
 .pegel span { display: block; height: 100%; width: 0; background: #a8201a; }
 .uhr { font-variant-numeric: tabular-nums; font-size: 1.3rem; text-align: center; }
@@ -250,6 +255,19 @@ _TEXT_FEHLER_NETZ = "Keine Verbindung — das ist nicht angekommen."
 _TEXT_FEHLER_MIKRO = "Ohne Mikrofon geht das nicht — bitte den Zugriff erlauben."
 _TEXT_VERLASSEN = "Es wird noch aufgenommen oder hochgeladen."
 _TEXT_UHR = "● {zeit}"
+#: Re-Review H: der Interviewmodus ist serverseitig zu Ende, waehrend dieses
+#: Telefon noch aufnahm oder Segmente offen hatte. Ohne Modus waere ein
+#: Segment (45 s, also unter ``aufnahme.HINWEIS_AB_S``) ein
+#: Gespraechsbeitrag -- Gespraechszug, Erkenner und Journal ueber
+#: Interviewmaterial. Deshalb wird nichts still nachgeschickt, die Gruppe
+#: entscheidet.
+_TEXT_MODUS_WEG = (
+    "Das Interview wurde beendet, die Aufnahme ist gestoppt. "
+    "{n} Stück(e) sind noch nicht angekommen."
+)
+_TEXT_MODUS_WEG_LEER = "Das Interview wurde beendet, die Aufnahme ist gestoppt."
+_TEXT_REST_NACHREICHEN = "Rest als Interview nachreichen"
+_TEXT_REST_VERWERFEN = "Rest verwerfen"
 
 #: Die Texte, die das JavaScript selbst setzt. Sie stehen als Konstanten in
 #: diesem Modul (dieselben, die der Server fuer seine Seite benutzt) und
@@ -268,6 +286,8 @@ _JS_TEXTE = {
     "fehler_mikro": _TEXT_FEHLER_MIKRO,
     "verlassen": _TEXT_VERLASSEN,
     "uhr": _TEXT_UHR,
+    "modus_weg": _TEXT_MODUS_WEG,
+    "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
 }
 
 
@@ -315,6 +335,10 @@ _CHAT_JS = """
   var tipptFeld = document.getElementById('tippt');
   var interviewKnopf = document.getElementById('interview');
   var pttKnopf = document.getElementById('ptt');
+  var angehaltenFeld = document.getElementById('angehalten');
+  var angehaltenText = document.getElementById('angehalten-text');
+  var nachreichenKnopf = document.getElementById('nachreichen');
+  var verwerfenKnopf = document.getElementById('verwerfen');
   var SEGMENT_MS = parseInt(fuss.dataset.segmentMs, 10) || 45000;
 
   // Alle Wege absolut zum Verzeichnis der Gruppe, aus dem Pfad, den der
@@ -335,7 +359,8 @@ _CHAT_JS = """
     nachholTakt: null,
     uhrTakt: null,
     fehlerTakt: null,
-    ptt: null           // der laufende PTT-Druck, je Druck ein eigenes Objekt
+    ptt: null,          // der laufende PTT-Druck, je Druck ein eigenes Objekt
+    angehalten: []      // Aufnahmen, deren Modus ohne dieses Telefon endete (Re-Review H)
   };
 
   function nonce() {
@@ -472,6 +497,12 @@ _CHAT_JS = """
     if (neu.length) { nachUnten(); }
     if (tipptFeld) { tipptFeld.textContent = daten.tippt ? TEXT.tippt : ''; }
     zustand.servermodus = !!daten.interviewmodus;
+    // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
+    // vorn in der Schlange steht.
+    if (zustand.aufnahme && zustand.aufnahme.angemeldet && zustand.servermodus) {
+      zustand.aufnahme.bestaetigt = true;
+    }
+    if (!zustand.servermodus) { pruefeModusende(); }
     var w = zustand.wechsel;
     if (w && w.gesendet && zustand.servermodus === w.ziel) { zustand.wechsel = null; }
     zeigeModus();
@@ -624,12 +655,18 @@ _CHAT_JS = """
   // Telefon (der Erkenner hoert "fertig" im Teil-Transkript, ein zweites
   // Telefon beendet), gehen die restlichen Segmente trotzdem raus -- sonst
   // stuende eines ewig vorn in der Schlange und alles dahinter mit ihm.
+  //
+  // Re-Review H: ein Segment geht NIE ohne Modus raus. Ohne Modus waere es
+  // fuer den Bot eine 'kurz'-Aufnahme (aufnahme.klasse_fuer) und damit
+  // ein Gespraechsbeitrag. Dass ein Segment deshalb nicht ewig vorn steht,
+  // regelt pruefeModusende(): endet der Modus nach der Bestaetigung, wird
+  // die Aufnahme angehalten und aus der Schlange genommen.
   function bereit(auftrag) {
     var sitzung = auftrag.sitzung;
     if (auftrag.art === 'audio' && sitzung) {
-      if (!sitzung.angemeldet) { return false; }
-      if (!sitzung.bestaetigt && zustand.servermodus) { sitzung.bestaetigt = true; }
-      return sitzung.bestaetigt;
+      if (!sitzung.angemeldet || sitzung.angehalten) { return false; }
+      if (zustand.servermodus) { sitzung.bestaetigt = true; }
+      return zustand.servermodus;
     }
     return true;
   }
@@ -637,6 +674,10 @@ _CHAT_JS = """
   // /fertig einer Aufnahme, deren Modus der Bot schon beendet hat, ist
   // ueberholt: nicht senden, den Stopp-Wechsel aber sauber aufloesen, damit
   // der Knopf wieder bedienbar ist.
+  //
+  // Bewusst NUR mit Sperrklinke: "angemeldet" allein hiesse, /interview ist
+  // angenommen, aber vielleicht vom Bot noch nicht verarbeitet -- ein dann
+  // verworfenes /fertig liesse den Modus spaeter dauerhaft an.
   function ueberholt(auftrag) {
     return auftrag.art === 'befehl' && auftrag.an === false &&
            auftrag.sitzung && auftrag.sitzung.bestaetigt && !zustand.servermodus;
@@ -812,7 +853,10 @@ _CHAT_JS = """
         var naechster = sitzung.fertige[sitzung.einzureihen];
         delete sitzung.fertige[sitzung.einzureihen];
         sitzung.einzureihen += 1;
-        if (naechster && !sitzung.verworfen) { reiheEin(naechster); }
+        if (naechster && !sitzung.verworfen) {
+          if (sitzung.angehalten) { sitzung.geparkt.push(naechster); }
+          else { reiheEin(naechster); }
+        }
       }
       pruefeEnde(sitzung);
     };
@@ -828,8 +872,117 @@ _CHAT_JS = """
         sitzung.verworfen) { return; }
     sitzung.fertigEingereiht = true;
     gibFrei(sitzung);
+    if (sitzung.angehalten) { zeigeAngehalten(); return; }   // kein /fertig
     reiheEin({ art: 'befehl', an: false, sitzung: sitzung,
                wechsel: sitzung.wechselAus });
+  }
+
+  // -- Modusende ohne dieses Telefon (Re-Review H) ------------------------
+  //
+  // Konservativer Rueckfallweg, die Entscheidung liegt bei Birk: endet der
+  // Interviewmodus serverseitig, waehrend eine bestaetigte Aufnahme dieses
+  // Telefons noch laeuft oder Segmente offen hat, stoppt das Telefon selbst,
+  // haelt den Rest an und fragt: nachreichen oder verwerfen.
+
+  function pruefeModusende() {
+    var betroffen = [];
+    if (zustand.aufnahme && zustand.aufnahme.bestaetigt) {
+      betroffen.push(zustand.aufnahme);
+    }
+    zustand.warteschlange.forEach(function (a, i) {
+      if (a.art !== 'audio' || !a.sitzung || !a.sitzung.bestaetigt) { return; }
+      if (i === 0 && zustand.laeuft) { return; }   // schon unterwegs
+      if (betroffen.indexOf(a.sitzung) < 0) { betroffen.push(a.sitzung); }
+    });
+    betroffen.forEach(halteAn);
+  }
+
+  function halteAn(sitzung) {
+    if (sitzung.angehalten || sitzung.verworfen) { return; }
+    sitzung.angehalten = true;
+    if (zustand.angehalten.indexOf(sitzung) < 0) { zustand.angehalten.push(sitzung); }
+    if (zustand.aufnahme === sitzung) {
+      zustand.aufnahme = null;
+      anzeigeAus();
+      sitzung.beendet = true;
+      if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+      var letzter = sitzung.recorder;
+      sitzung.recorder = null;
+      // Sein onstop parkt das letzte Segment und gibt das Mikrofon frei.
+      if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
+      else { pruefeEnde(sitzung); }
+    }
+    // Was noch nicht unterwegs ist, kommt aus der Schlange: Segmente werden
+    // geparkt, das /fertig dieser Aufnahme entfaellt.
+    zustand.warteschlange = zustand.warteschlange.filter(function (a, i) {
+      if (a.sitzung !== sitzung || (i === 0 && zustand.laeuft)) { return true; }
+      if (a.art === 'audio') { sitzung.geparkt.push(a); }
+      return false;
+    });
+    if (sitzung.wechselAus && zustand.wechsel === sitzung.wechselAus) {
+      zustand.wechsel = null;
+    }
+    zeigeWarteschlange();
+    zeigeAngehalten();
+    zeigeModus();
+  }
+
+  function geparkteZahl() {
+    return zustand.angehalten.reduce(function (n, s) { return n + s.geparkt.length; }, 0);
+  }
+
+  function zeigeAngehalten() {
+    if (!angehaltenFeld) { return; }
+    if (!zustand.angehalten.length) { angehaltenFeld.hidden = true; return; }
+    var n = geparkteZahl();
+    var nochOffen = zustand.angehalten.some(function (s) { return s.offen > 0; });
+    if (!n && !nochOffen) {
+      // Nichts liegt mehr hier: nur sagen, was passiert ist.
+      zustand.angehalten = [];
+      angehaltenFeld.hidden = true;
+      meldeFehler(TEXT.modus_weg_leer);
+      return;
+    }
+    angehaltenText.textContent = n ? TEXT.modus_weg.replace('{n}', n)
+                                   : TEXT.modus_weg_leer;
+    nachreichenKnopf.hidden = !n;
+    verwerfenKnopf.hidden = !n;
+    angehaltenFeld.hidden = false;
+  }
+
+  // Ueber denselben Weg wie der Umschalter: /interview, die Segmente,
+  // /fertig -- der Reihe nach durch die Schlange, mit eigener Sperrklinke.
+  function reicheNach() {
+    if (zustand.wechsel || zustand.aufnahme) { return; }   // erst das Laufende
+    if (zustand.angehalten.some(function (s) { return s.offen > 0; })) { return; }
+    var rest = [];
+    zustand.angehalten.forEach(function (s) {
+      rest = rest.concat(s.geparkt);
+      s.geparkt = [];
+    });
+    zustand.angehalten = [];
+    zeigeAngehalten();
+    if (!rest.length) { return; }
+    var w = { ziel: false, gesendet: false };
+    var nach = {
+      strom: null, recorder: null, kontext: null, pegelTakt: null,
+      segmentTakt: null, offen: 0, gestartet: true, beendet: true,
+      angemeldet: false, bestaetigt: false, verworfen: false,
+      angehalten: false, geparkt: [], fertigEingereiht: true,
+      naechsteNr: 0, einzureihen: 0, fertige: {}, wechselAus: w
+    };
+    zustand.wechsel = w;   // bis der Bot /fertig verarbeitet hat, kein neuer Start
+    reiheEin({ art: 'befehl', an: true, sitzung: nach });
+    rest.forEach(function (a) { a.sitzung = nach; reiheEin(a); });
+    reiheEin({ art: 'befehl', an: false, sitzung: nach, wechsel: w });
+    zeigeModus();
+  }
+
+  function verwirfRest() {
+    zustand.angehalten.forEach(function (s) { s.geparkt = []; });
+    zustand.angehalten = [];
+    zeigeAngehalten();
+    zeigeModus();
   }
 
   function pegelAn(sitzung) {
@@ -913,6 +1066,7 @@ _CHAT_JS = """
       strom: null, recorder: null, kontext: null, pegelTakt: null,
       segmentTakt: null, offen: 0, gestartet: false, beendet: false,
       angemeldet: false, bestaetigt: false, verworfen: false,
+      angehalten: false, geparkt: [],
       fertigEingereiht: false, naechsteNr: 0, einzureihen: 0, fertige: {},
       wechselAus: null
     };
@@ -1009,6 +1163,9 @@ _CHAT_JS = """
     }
     zeigeModus();
   }
+
+  if (nachreichenKnopf) { nachreichenKnopf.addEventListener('click', reicheNach); }
+  if (verwerfenKnopf) { verwerfenKnopf.addEventListener('click', verwirfRest); }
 
   interviewKnopf.addEventListener('click', function () {
     if (interviewKnopf.disabled) { return; }
@@ -1113,7 +1270,7 @@ _CHAT_JS = """
   // ist: ein geschlossener Tab verliert, was noch nicht angekommen ist.
   window.addEventListener('beforeunload', function (ev) {
     if (!zustand.aufnahme && !zustand.ptt && !zustand.laeuft &&
-        !zustand.warteschlange.length) { return; }
+        !zustand.warteschlange.length && !geparkteZahl()) { return; }
     ev.preventDefault();
     ev.returnValue = TEXT.verlassen;
     return TEXT.verlassen;
@@ -1208,6 +1365,13 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f'  <div class="pegel" id="pegel" hidden><span></span></div>\n'
         f'  <div class="warteschlange" id="warteschlange"></div>\n'
         f'  <div class="fehler" id="fehler" role="alert" hidden></div>\n'
+        f'  <div class="angehalten" id="angehalten" role="alert" hidden>\n'
+        f'    <p id="angehalten-text"></p>\n'
+        f'    <button type="button" id="nachreichen">'
+        f'{html.escape(_TEXT_REST_NACHREICHEN)}</button>\n'
+        f'    <button type="button" id="verwerfen">'
+        f'{html.escape(_TEXT_REST_VERWERFEN)}</button>\n'
+        f'  </div>\n'
         f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}">'
         f'{html.escape(_TEXT_INTERVIEW_AUS if modus else _TEXT_INTERVIEW_AN)}'
         f'</button>\n'

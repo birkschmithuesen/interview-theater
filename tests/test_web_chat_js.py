@@ -232,18 +232,54 @@ def test_das_js_ist_syntaktisch_gueltig(tmp_path):
     assert ergebnis.returncode == 0, ergebnis.stderr
 
 
-def test_nur_das_erste_segment_wartet_auf_den_modus():
-    """Re-Review A: eine Sperrklinke je Aufnahme. Hat der Poll den Modus
-    einmal gemeldet, gehen die Segmente raus, auch wenn er danach endet --
-    und ein ueberholtes /fertig wird nicht gesendet, der Wechsel loest sich."""
+def test_kein_segment_geht_ohne_modus_raus():
+    """Re-Review H: ohne Modus waere ein Segment (45 s, unter
+    ``aufnahme.HINWEIS_AB_S``) fuer den Bot ein Gespraechsbeitrag
+    (``aufnahme.klasse_fuer`` -> 'kurz'). Also prueft ``bereit`` den Modus
+    bei JEDEM Segment -- und ein ueberholtes /fertig wird nicht gesendet."""
     js = web_chat._CHAT_JS
     bereit = js[js.index("function bereit"):js.index("function ueberholt")]
     assert "sitzung.bestaetigt = true" in bereit
-    assert "return sitzung.bestaetigt;" in bereit
-    assert "zustand.servermodus;" not in bereit.split("bestaetigt = true")[1]
+    assert "return zustand.servermodus;" in bereit
+    assert "sitzung.angehalten" in bereit
     ab = js[js.index("function arbeiteAb"):js.index("function erledigt")]
     assert "ueberholt(auftrag)" in ab
     assert "zustand.wechsel = null" in ab
+
+
+def test_modusende_haelt_die_aufnahme_an_statt_still_weiterzuschicken():
+    """Re-Review H: endet der Modus bei einer bestaetigten Aufnahme, stoppt
+    das Telefon selbst, parkt den Rest und fragt -- nachreichen oder
+    verwerfen. Kein /fertig fuer eine angehaltene Aufnahme."""
+    js = web_chat._CHAT_JS
+    nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
+    assert "pruefeModusende()" in nimm
+    halte = js[js.index("function halteAn"):js.index("function geparkteZahl")]
+    assert "letzter.stop()" in halte
+    assert "sitzung.geparkt.push(a)" in halte
+    assert "zustand.wechsel = null" in halte
+    ende = js[js.index("function pruefeEnde"):js.index("function pruefeModusende")]
+    assert ende.index("sitzung.angehalten") < ende.index("reiheEin(")
+    nach = js[js.index("function reicheNach"):js.index("function verwirfRest")]
+    # derselbe Weg wie der Umschalter: /interview, Segmente, /fertig
+    assert nach.index("an: true") < nach.index("rest.forEach") < nach.index("an: false")
+    assert "geparkteZahl()" in js[js.index("beforeunload"):]
+
+
+def test_der_hinweis_mit_zwei_knoepfen_steht_in_der_seite(seite):
+    for kennung in ("angehalten", "angehalten-text", "nachreichen", "verwerfen"):
+        assert f'id="{kennung}"' in seite, kennung
+    assert web_chat._TEXT_REST_NACHREICHEN in seite
+    assert web_chat._TEXT_REST_VERWERFEN in seite
+    assert web_chat._JS_TEXTE["modus_weg"] == web_chat._TEXT_MODUS_WEG
+
+
+def test_die_sperrklinke_rastet_im_poll_ein():
+    """Re-Review I: auch ohne Segment vorn in der Schlange."""
+    js = web_chat._CHAT_JS
+    nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
+    assert "zustand.aufnahme.bestaetigt = true" in nimm
+    assert nimm.index("bestaetigt = true") < nimm.index("pruefeModusende()")
 
 
 def test_segmente_werden_nach_ihrer_nummer_eingereiht():

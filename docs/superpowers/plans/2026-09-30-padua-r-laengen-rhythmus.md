@@ -5908,7 +5908,7 @@ einen einzigen Modellaufruf: die Vergleichszahlen stehen teils im Repo
 nebeneinanderstellt -- und der Test, der die Rahmenwerte des Profils an dieser
 Tabelle festhaelt.
 
-- [ ] **Schritt 1: Die im Repo nachrechenbaren Zahlen holen**
+- [x] **Schritt 1: Die im Repo nachrechenbaren Zahlen holen**
 
 ```bash
 grep -n "700\|1400\|1500\|12.300\|12300" interview_theater/prompts/formen/dialog.md
@@ -5920,7 +5920,7 @@ rund 12.300 Woerter fuer neun Szenen; `analyse.md` nennt den Replikenmedian.
 Die tatsaechlich gefundenen Zahlen in die Tabelle unten eintragen -- **nicht**
 die hier vermuteten.
 
-- [ ] **Schritt 2: `docs/padua-r-laengen-2026-09-30/BEFUND.md` anlegen**
+- [x] **Schritt 2: `docs/padua-r-laengen-2026-09-30/BEFUND.md` anlegen**
 
 ```markdown
 # Befund: Laengen-Rhythmus je Szene und Sprachpass (Karte R)
@@ -5997,7 +5997,7 @@ hoechstens zehn Zeilen.)
 `szene`, `kurzgeschichte`, `szene_nachpass`, `kurzgeschichte_nachpass`.)
 ```
 
-- [ ] **Schritt 3: Den Test schreiben, der die Tabelle und das Profil
+- [x] **Schritt 3: Den Test schreiben, der die Tabelle und das Profil
 aneinanderhaelt** -- `tests/test_laengen_eichung.py`
 
 ```python
@@ -6070,7 +6070,7 @@ def test_der_grenzwert_liegt_ueber_dem_gemessenen_anker():
     assert sprachpass.grenzwerte()["gedankenstriche"] > 0.45 * 2
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_eichung.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -6079,7 +6079,7 @@ Schlaegt `test_jeder_rahmen_des_profils_steht_im_befund` fehl, wird **der
 Befund** nachgezogen, nicht der Test gelockert: das Dokument soll sagen, was
 der Betrieb tut.
 
-- [ ] **Schritt 5: Suite und Commit**
+- [x] **Schritt 5: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

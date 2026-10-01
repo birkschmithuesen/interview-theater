@@ -60,6 +60,14 @@ GEAENDERT: dict[str, str] = {
         "aendert sich am ausgehenden Text nichts, nur die Quelle ist jetzt "
         "eine statt zwei (tests/test_sprache_parser.py)."
     ),
+    "szene._REIHENFOLGE": (
+        "Karte R, Aufgabe 8 (30.09.2026): der Blockname \"laenge\" steht "
+        "direkt hinter \"aufgabe\". Kein Nutzertext, sondern die Reihenfolge "
+        "der Bloecke. Fuer Dortmund bleibt der Block leer (laengen.aktiv = "
+        "false) und faellt in _zusammen ersatzlos weg -- der Nutzertext ist "
+        "zeichengleich (tests/test_laengen_szene.py, "
+        "tests/test_profil_bitgleich.py)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

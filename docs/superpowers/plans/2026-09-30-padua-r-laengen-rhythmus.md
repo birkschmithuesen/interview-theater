@@ -2464,7 +2464,7 @@ git commit -m "Kurzgeschichte: hole_text und schreibe synchron herausgezogen, ar
     (damit es im nie gekuerzten Teil steht, wie Rahmen, Aufgabe, Angaben und
     Auftrag).
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_szene.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_szene.py`
 
 ```python
 """Phase 7: das Budget im Szenen-Prompt (30.09.2026, Karte R).
@@ -2607,13 +2607,13 @@ def test_starte_gibt_die_art_durch(szene7, tg, einst):
     assert klm.aufrufe and klm.aufrufe[0]["art"] == "szene_nachpass"
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_szene.py`
 Erwartet: FAIL, `ValueError: 'laenge' is not in list` in
 `test_der_laengenblock_steht_direkt_hinter_der_aufgabe`.
 
-- [ ] **Schritt 3: `budget_fuer_szene` anlegen**
+- [x] **Schritt 3: `budget_fuer_szene` anlegen**
 
 In `interview_theater/szene.py`, neben `_aufgabe_text`:
 
@@ -2650,7 +2650,7 @@ def _laenge_text(conn, chat_id: int, ziel) -> str:
 `laengen.faktor_aus_stand` kommt aus Aufgabe 9. **Bis dahin** steht dort
 `faktor=1.0`; Aufgabe 9 tauscht es.
 
-- [ ] **Schritt 4: Den Block einhaengen**
+- [x] **Schritt 4: Den Block einhaengen**
 
 In `interview_theater/szene.py`:
 
@@ -2674,7 +2674,7 @@ Im Docstring von `baue_nutzertext` die Blockliste um "die Laenge dieser
 Szene" ergaenzen und in der Aufzaehlung "Nie gekuerzt werden ..." das Wort
 `Laenge` aufnehmen.
 
-- [ ] **Schritt 5: `art` durchreichen**
+- [x] **Schritt 5: `art` durchreichen**
 
 Drei Signaturen, jede mit Vorgabewert -- **kein** bestehender Aufrufer aendert
 sich:
@@ -2711,7 +2711,7 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str,
     )
 ```
 
-- [ ] **Schritt 6: Tests laufen lassen**
+- [x] **Schritt 6: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_szene.py`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -2720,7 +2720,7 @@ Run: `$PY -m pytest -q -p no:cacheprovider tests/test_szene.py tests/test_kuerzu
 Erwartet: `passed`, kein `failed`. Diese vier sind die Waechter: sie fahren
 `szene.schreibe`/`starte` und messen den Nutzertext.
 
-- [ ] **Schritt 7: Suite und Commit**
+- [x] **Schritt 7: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

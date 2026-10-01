@@ -213,6 +213,78 @@ def pruefe(profil: workshop.Profil) -> Bericht:
                 f"Satz faellt -- pruef, ob beide dasselbe sagen."
             )
 
+    # --- Laengen-Rhythmus (30.09.2026, Karte R) ---------------------------
+    # Steht der Schalter aus, wird keine dieser Zahlen gelesen; dann sind
+    # auch Fehler darin harmlos und werden nur gemerkt. Steht er an, ist eine
+    # kaputte Zahl ein Startfehler -- Fehlerbild am Workshoptag ist die
+    # teuerste Waehrung.
+    laengen_an = bool(profil.wert("laengen.aktiv", False))
+    melde = bericht.fehlt if laengen_an else bericht.merke
+    stufen = ("schlag", "kurz", "mittel", "lang")
+    gewicht = {"schlag": 0.0, "kurz": 0.2, "mittel": 0.5, "lang": 1.0}
+
+    faktor = profil.wert("laengen.kurz_faktor", 0.25)
+    if not isinstance(faktor, (int, float)) or not 0 < float(faktor) <= 1:
+        melde(f"laengen.kurz_faktor muss zwischen 0 und 1 liegen, ist {faktor!r}")
+    schwelle = profil.wert("laengen.nachzaehl_schwelle", 1.3)
+    if not isinstance(schwelle, (int, float)) or float(schwelle) < 1.0:
+        melde(
+            "laengen.nachzaehl_schwelle muss >= 1.0 sein (1.3 = ab 130 % des "
+            f"Budgets), ist {schwelle!r}"
+        )
+    unten = profil.wert("laengen.vorgabe_min", 0)
+    oben = profil.wert("laengen.vorgabe_max", 0)
+    if not (isinstance(unten, int) and isinstance(oben, int) and 0 < unten < oben):
+        melde(f"laengen.vorgabe_min/max muss 0 < min < max sein, ist {unten!r}/{oben!r}")
+
+    for eintrag in profil.wert("laengen.muster", ()) or ():
+        unbekannt = [s for s in eintrag if s not in stufen]
+        if unbekannt:
+            melde(
+                f"laengen.muster {list(eintrag)}: unbekannte Stufe(n) "
+                f"{unbekannt} -- erlaubt sind {list(stufen)}"
+            )
+            continue
+        if len(set(eintrag)) < 2:
+            melde(f"laengen.muster {list(eintrag)} ist flach -- mindestens "
+                  "zwei verschiedene Stufen")
+        else:
+            werte = [gewicht[s] for s in eintrag]
+            if min(werte) > 0.2 or max(werte) < 1.0:
+                melde(
+                    f"laengen.muster {list(eintrag)} spreizt nicht: es braucht "
+                    "eine Stufe 'kurz' oder 'schlag' UND eine Stufe 'lang'"
+                )
+
+    formnamen = {f["name"] for f in (profil.formen or {}).get("form", ())}
+    rahmen = profil.wert("laengen.rahmen", {}) or {}
+    for name, paar in rahmen.items():
+        if name not in formnamen:
+            melde(
+                f"laengen.rahmen: '{name}' ist keine Form dieses Profils "
+                f"(formen.toml kennt {sorted(formnamen)}) -- der Rahmen "
+                "wuerde nie gelesen"
+            )
+        if len(paar) != 2 or not (0 < paar[0] < paar[1]):
+            melde(f"laengen.rahmen['{name}'] muss [min, max] mit 0 < min < max "
+                  f"sein, ist {list(paar)}")
+    if laengen_an:
+        for name in sorted(formnamen - set(rahmen)):
+            bericht.merke(
+                f"Form '{name}' hat keinen eigenen Laengenrahmen -- sie nimmt "
+                f"laengen.vorgabe_min/max ({unten}-{oben} Woerter)"
+            )
+
+    # --- Sprachpass -------------------------------------------------------
+    pass_an = bool(profil.wert("sprachpass.aktiv", False))
+    melde_pass = bericht.fehlt if pass_an else bericht.merke
+    for schluessel in ("gedankenstriche_je_1000", "nicht_sondern_je_1000",
+                       "adjektiv_dreier_je_1000", "fazitsatz_je_text"):
+        wert = profil.wert(f"sprachpass.{schluessel}")
+        if not isinstance(wert, (int, float)) or float(wert) < 0:
+            melde_pass(f"sprachpass.{schluessel} muss eine Zahl >= 0 sein, "
+                       f"ist {wert!r}")
+
     # --- Eigener Korpus --------------------------------------------------
     if profil.verzeichnis is not None:
         _pruefe_korpus(profil.verzeichnis / "korpus", bericht)

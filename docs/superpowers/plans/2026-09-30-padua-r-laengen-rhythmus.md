@@ -355,7 +355,7 @@ faellt erst in Aufgabe 6 auf.
 
 **Files:** keine. Nur Kommandos.
 
-- [ ] **Schritt 1: Alle Annahmen der Tabelle oben ausfuehren**
+- [x] **Schritt 1: Alle Annahmen der Tabelle oben ausfuehren**
 
 ```bash
 PY=/home/birk/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/bin/python3
@@ -383,18 +383,18 @@ Padua-Profils.
 melden ("Karte R blockiert: A1 bzw. P nicht gemergt, Kommando X liefert Y").
 Faellt nur A5, weiter -- Aufgabe 6 hat dafuer eine zweite Variante.
 
-- [ ] **Schritt 2: Basislinie bestaetigen**
+- [x] **Schritt 2: Basislinie bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768). Die Zahl notieren; sie ist der
 Massstab fuer jede weitere Aufgabe.
 
-- [ ] **Schritt 3: Dortmund laedt (Birk E3)**
+- [x] **Schritt 3: Dortmund laedt (Birk E3)**
 
 Run: `$PY -m scripts.pruefe_profil dortmund-2026`
 Erwartet: Exit 0.
 
-- [ ] **Schritt 4: Die Formnamen des Padua-Profils in diesen Plan eintragen**
+- [x] **Schritt 4: Die Formnamen des Padua-Profils in diesen Plan eintragen**
 
 Die Ausgabe von A7 nennt die tatsaechlichen Formnamen. Weichen sie von
 `dialog/monolog/chor/lied/rap` ab, werden in **Aufgabe 1** die Schluessel
@@ -402,7 +402,7 @@ unter `[laengen.rahmen]` entsprechend benannt -- die Zahlen bleiben
 (Chor-artig 80-200, Rap-artig 120-250, Dialog-artig 200-450, Monolog-artig
 150-350). Das ist eine Umbenennung, keine Entscheidung.
 
-- [ ] **Schritt 5: Kein Commit.** Diese Aufgabe aendert keine Datei.
+- [x] **Schritt 5: Kein Commit.** Diese Aufgabe aendert keine Datei.
 
 Run: `git status --porcelain`
 Erwartet: leer (bzw. nur die vom Harness angelegten `.cc-*`-Dateien).
@@ -434,7 +434,7 @@ Erwartet: leer (bzw. nur die vom Harness angelegten `.cc-*`-Dateien).
   `[laengen.rahmen]`-Schluessel, der keine Form des Profils ist (A8), und eine
   Form ohne eigenen Rahmen (nur als Hinweis, nicht als Fehler).
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen.py`
 
 ```python
 """Laengen-Rhythmus je Szene (30.09.2026, Karte R) -- Teil 1: das Profil.
@@ -524,14 +524,14 @@ def test_padua_traegt_die_rahmen_der_karte(monkeypatch):
         assert 0 < paar[0] < paar[1], (name, paar)
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen.py`
 Erwartet: FAIL, `assert None is False` in
 `test_die_vorgabe_hat_den_schalter_aus` (der Pfad `laengen.aktiv` fehlt und
 `wert()` liefert `None`).
 
-- [ ] **Schritt 3: `VORGABE_WERTE` erweitern**
+- [x] **Schritt 3: `VORGABE_WERTE` erweitern**
 
 In `interview_theater/workshop.py`, **am Ende** des Dicts `VORGABE_WERTE`
 (hinter dem bisher letzten Abschnitt, vor der schliessenden Klammer):
@@ -581,7 +581,7 @@ In `interview_theater/workshop.py`, **am Ende** des Dicts `VORGABE_WERTE`
     },
 ```
 
-- [ ] **Schritt 4: Padua-Profil fuellen**
+- [x] **Schritt 4: Padua-Profil fuellen**
 
 An das Ende von `workshop/padua-2026/profil.toml`:
 
@@ -646,7 +646,7 @@ Schluessel unter `[laengen.rahmen]` umbenannt -- die Zahlen bleiben den
 Formarten zugeordnet (chorisch 80-200, rapartig 120-250, dialogisch 200-450,
 monologisch 150-350).
 
-- [ ] **Schritt 5: `scripts/pruefe_profil.py` erweitern**
+- [x] **Schritt 5: `scripts/pruefe_profil.py` erweitern**
 
 In `pruefe(profil)`, hinter den vorhandenen Pruefungen. `Bericht.fehlt(text)`
 meldet einen Fehler, `Bericht.merke(text)` einen Hinweis (die vorhandenen
@@ -726,7 +726,7 @@ Methoden, `scripts/pruefe_profil.py:76`/`:79`).
                        f"ist {wert!r}")
 ```
 
-- [ ] **Schritt 6: Tests laufen lassen**
+- [x] **Schritt 6: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen.py`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -741,7 +741,7 @@ Erwartet: Exit 0, und in der Ausgabe kein `laengen.`-Fehler.
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_profil_bitgleich.py tests/test_workshop.py tests/profile/`
 Erwartet: `passed`, kein `failed`.
 
-- [ ] **Schritt 7: Suite und Commit**
+- [x] **Schritt 7: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

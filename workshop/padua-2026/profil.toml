@@ -67,3 +67,57 @@ ausgeschlossen = "No glorification of violence; no interviewed person recognisab
 # mit echten Menschen in Padua/Venedig -- echte Stimmen als Rohmaterial",
 # "oeffentliche Werkschau". Steht im Eroeffnungstext der Interviewer.
 kurzbeschreibung = "short fictional plays based on interviews with real people in Padua and Venice - the voices we collect are raw material for new stories, not a documentary, and the plays are shown at a public showcase at the end of the workshop"
+
+# --- Laengen-Rhythmus je Szene (30.09.2026, Karte R) ----------------------
+#
+# Der Code waehlt je Szene ein Wortbudget aus einem Rhythmus-Muster, damit
+# nicht alle Szenen gleich lang werden. Alle Zahlen hier sind VORSCHLAEGE
+# und UNGEMESSEN -- sie stammen aus der Kartenbeschreibung, nicht aus einer
+# Messung an einem fertigen Stueck.
+#
+# Zum Vergleich, was gemessen ist:
+#   * Herkules.exe (prompts/formen/dialog.md): 700-1500 Woerter je Szene,
+#     Median 1400, neun Szenen rund 12.300 Woerter.
+#   * Dortmund Textbuch v2 (06.09.2026, Phase-6-Prosa): 825 / 802 / 603
+#     Woerter -- flach, alle im gleichen Bereich. Genau dagegen ist der
+#     Rhythmus gebaut.
+# Die Werte unten liegen damit bei etwa einem VIERTEL des Herkules-Masses.
+# Ob das der Normalfall ist oder schon die "Instagram"-Laenge, entscheidet
+# Birk -- siehe OFFENE FRAGE 1 im Plan. Geaendert wird hier, nicht im Code.
+[laengen]
+aktiv = true
+# "Kuerzer/Instagram": Faktor auf ALLE Budgets. 0,25 auf die Werte unten
+# ergibt Dialog 50-110 Woerter je Szene.
+kurz_faktor = 0.25
+# Ab 130 % des Budgets haengt der Code GENAU EINEN Kuerzungslauf an.
+nachzaehl_schwelle = 1.3
+# Rueckfall fuer eine Form ohne eigenen Rahmen.
+vorgabe_min = 200
+vorgabe_max = 450
+
+# Woerter je Szene, Formname -> [min, max]. Die Formnamen muessen zu
+# formen.toml passen -- scripts/pruefe_profil.py meldet jeden Rahmen ohne
+# Form und jede Form ohne Rahmen.
+[laengen.rahmen]
+dialog  = [200, 450]   # Vorschlag, ungemessen
+monolog = [150, 350]   # Vorschlag, ungemessen -- die Karte nennt Monolog nicht
+chor    = [80, 200]    # Vorschlag, ungemessen
+lied    = [80, 200]    # Vorschlag, ungemessen
+rap     = [120, 250]   # Vorschlag, ungemessen
+
+# --- Der letzte Sprachpass ------------------------------------------------
+#
+# Vier Muster, mechanisch gezaehlt, ohne Modell. Ueberschreitet eines seinen
+# Grenzwert, haengt derselbe EINE Lauf, der auch kuerzt, eine
+# Ueberarbeitungs-Notiz an. Grenzwerte je 1.000 Woerter -- ausser dem
+# Fazitsatz, der je Text zaehlt.
+#
+# Anker aus der Messung: Dortmund v2 hatte EINEN Gedankenstrich in 2.230
+# Woertern (0,45 je 1.000). 6,0 ist also reichlich Luft und trifft nur die
+# Inflation, nicht den einzelnen Strich.
+[sprachpass]
+aktiv = true
+gedankenstriche_je_1000 = 6.0
+nicht_sondern_je_1000 = 2.0
+adjektiv_dreier_je_1000 = 2.0
+fazitsatz_je_text = 1

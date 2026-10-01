@@ -605,6 +605,46 @@ def _knopf(handler, db_pfad: str, token: str, chat_id: int,
     _angenommen(handler, {"post_id": post_id})
 
 
+#: Die zwei Befehle, die der Umschalter schickt. Woertlich die aus
+#: ``befehle._BEKANNTE_BEFEHLE``: der Weg in den Interviewmodus ist
+#: deterministisch und existiert schon (``befehle._befehl_interview`` /
+#: ``_befehl_fertig``), und die Klasse einer Aufnahme haengt NUR am Modus
+#: (``aufnahme.klasse_fuer``). Eine zweite Moduslogik hier waere eine zweite
+#: Wahrheit -- und die eine, die dann irgendwann falsch ist.
+BEFEHL_INTERVIEW_AN = "/interview"
+BEFEHL_INTERVIEW_AUS = "/fertig"
+
+
+def _interview(handler, db_pfad: str, token: str, chat_id: int,
+               schluessel: bytes) -> None:
+    """Der Interview-Umschalter (Birk, 30.09.2026, Punkt 1).
+
+    Schickt ``/interview`` bzw. ``/fertig`` als Eingang. Der Bot faengt den
+    Slash-Text in ``befehle.behandle`` ab, **bevor** ein Kontext gebaut oder
+    ein Modell gerufen wird -- derselbe Weg wie bei einem getippten Befehl.
+
+    In der Chatansicht bleibt die Zeile verborgen (``typ='befehl'``):
+    Slash-Befehle werden nicht beworben (AGENTS.md), der Knopf steht schon da.
+
+    ``an`` muss ein echter boolescher Wert sein. Der Fallstrick daneben ist
+    dokumentiert: ``repo.setze_szene_usa`` nimmt einen bool, und ein
+    nicht-leerer String ist wahr -- ein ``"nein"`` endete dort als
+    Zustimmung. Hier wird deshalb nicht geraten."""
+    daten = _koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    an = daten.get("an")
+    if not isinstance(an, bool):
+        handler._fehler(400, _TEXT_FEHLER_ANFRAGE)
+        return
+    with schreibend(db_pfad) as conn:
+        message_id = repo.lege_web_post_an(
+            conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
+            text=BEFEHL_INTERVIEW_AN if an else BEFEHL_INTERVIEW_AUS,
+        )
+    _angenommen(handler, {"message_id": message_id})
+
+
 #: Die Tabelle der POST-Wege. Eine Tabelle statt einer if-Kette: ein neuer Weg
 #: ist eine Zeile, und ``beantworte_post`` prueft Pfad, Token und Nonce fuer
 #: alle gleich.
@@ -612,6 +652,7 @@ _POSTWEGE = {
     "senden": _senden,
     "knopf": _knopf,
     "audio": _audio,
+    "interview": _interview,
 }
 
 

@@ -4757,7 +4757,7 @@ Der Post landet als `typ='befehl'` in `web_post` — im Update ist es eine gewoe
 Textnachricht (`befehle.behandle` faengt sie ab wie einen getippten Befehl), in der
 Chatansicht ist die Zeile verborgen: Slash-Befehle werden nicht beworben.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_chat_interview.py`:
 
@@ -4916,14 +4916,14 @@ def test_kein_modellaufruf_und_keine_zweite_moduslogik():
     assert "import stt" not in quelle
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_chat_interview.py -q -p no:cacheprovider
 ```
 Erwartet: FAIL — 404 fuer den Unterpfad `interview`.
 
-- [ ] **Schritt 3: `web_chat.py` — der Umschalter**
+- [x] **Schritt 3: `web_chat.py` — der Umschalter**
 
 ```python
 #: Die zwei Befehle, die der Umschalter schickt. Woertlich die aus
@@ -4973,7 +4973,7 @@ behandelt — das `else` im bestehenden Code trifft ihn schon, weil nur `WEB_TYP
 `WEB_TYP_SPRACHE` eigene Zweige haben. Im Test `test_der_bot_liest_daraus_eine_gewoehnliche_textnachricht`
 wird das festgehalten.
 
-- [ ] **Schritt 4: Lauf, alles gruen**
+- [x] **Schritt 4: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_chat_interview.py -q -p no:cacheprovider
@@ -4985,7 +4985,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2951 passed, 1 skipped`.
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add interview_theater/web_chat.py tests/test_web_chat_interview.py

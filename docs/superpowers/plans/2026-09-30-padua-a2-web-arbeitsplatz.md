@@ -6231,7 +6231,7 @@ Datei sich per `pytest.importorskip("playwright.sync_api")` — das bleibt so.
 Chromium mit `--use-fake-ui-for-media-stream --use-fake-device-for-media-stream`: damit gibt
 es ein Mikrofon ohne Rueckfrage, und `getUserMedia` liefert einen synthetischen Ton.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/e2e/test_web_chat_e2e.py`:
 
@@ -6521,7 +6521,7 @@ def test_handy_screenshot(seite):
     assert SCHUSS.stat().st_size > 5000
 ```
 
-- [ ] **Schritt 2: Lauf**
+- [x] **Schritt 2: Lauf**
 
 ```
 /mnt/HC_Volume_106183673/venvs/it-webtest/bin/python -m pytest \
@@ -6535,7 +6535,7 @@ Erwartet: `9 passed`. **Wenn nicht:**
   `pointerId: 1` — steht der Wert im `dispatchEvent` anders, greift
   `releasePointerCapture` nicht.
 
-- [ ] **Schritt 3: Die normale Suite bleibt unberuehrt**
+- [x] **Schritt 3: Die normale Suite bleibt unberuehrt**
 
 ```
 $PY -m pytest -q -p no:cacheprovider
@@ -6543,7 +6543,7 @@ $PY -m pytest -q -p no:cacheprovider
 Erwartet: ≥ `2966 passed, **2 skipped**` — die zweite uebersprungene Datei ist die neue
 e2e-Datei. **Das ist die einzige Stelle im ganzen Plan, an der die skipped-Zahl waechst.**
 
-- [ ] **Schritt 4: `tests/e2e/README.md` ergaenzen**
+- [x] **Schritt 4: `tests/e2e/README.md` ergaenzen**
 
 Einen Abschnitt hinter dem zur Probenansicht:
 
@@ -6574,7 +6574,7 @@ Adresse `127.0.0.1:8021` — neben dem Edit-Lauf, damit beide nebeneinander
 laufen können.
 ```
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add tests/e2e/test_web_chat_e2e.py tests/e2e/README.md \

@@ -319,6 +319,15 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Feld und nicht Teil der Eroeffnung, weil er im Leitfaden GANZ UNTEN
   -- steht (``leitfaden.baue``) -- ein Text, zwei Orte.
   interview_abschluss    TEXT,
+  -- Der Laengen-Faktor der Gruppe (30.09.2026, Karte R). Gesetzt, wenn die
+  -- Gruppe "Kuerzer" fuer das GANZE Stueck gedrueckt oder eine Laenge
+  -- ausdruecklich genannt hat ("Instagram-Kuerze", Dortmund 06.09.2026):
+  -- ein Faktor auf jedes kuenftige Wortbudget, 0,25 heisst ein Viertel.
+  -- TEXT wie figuren_anzahl, damit derselbe eine Schreibweg
+  -- (repo.setze_arbeitsstand) genuegt und "nicht gesetzt" NULL bleibt.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten; ohne aktives
+  -- Workshop-Profil liest die Spalte niemand.
+  laengen_faktor         TEXT,
   geaendert_am           TEXT
 );
 

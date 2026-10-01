@@ -1567,9 +1567,10 @@ def budget_fuer_szene(conn, chat_id: int, ziel) -> int:
 
     if ziel is None or not laengen.aktiv():
         return 0
+    stand = repo.hole_arbeitsstand(conn, chat_id)
     return laengen.budget_fuer(
         ziel["nummer"], laengen.form_der_szene(ziel), seed=chat_id,
-        faktor=1.0,  # Aufgabe 9: der gespeicherte Faktor der Gruppe
+        faktor=laengen.faktor_aus_stand(stand),
     )
 
 

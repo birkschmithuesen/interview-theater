@@ -435,6 +435,46 @@ def journalzeile(seed: int, muster: Sequence[str], faktor: float,
     )
 
 
+#: Die Arbeitsstand-Spalte, in der der Faktor steht. EINE Stelle, damit
+#: ``repo``, ``kuerzung`` und die Leser denselben Namen meinen.
+FELD_FAKTOR = "laengen_faktor"
+
+
+def faktor_aus_stand(stand: Any) -> float:
+    """Der Laengen-Faktor dieser Gruppe -- 1,0, solange keiner gesetzt ist.
+
+    Nachsichtig wie alle Leser dieses Moduls: was keine Zahl in ``(0, 1]``
+    ist, gilt als "keiner". 0 oder negativ waere eine Szene ohne Woerter,
+    ueber 1 waere eine Verlaengerung -- beides ist keine Uebersteuerung,
+    sondern ein Fehler, und ein Fehler darf keinen bezahlten Lauf
+    verunstalten."""
+    if stand is None:
+        return 1.0
+    try:
+        roh = (stand[FELD_FAKTOR] or "").strip()
+    except (KeyError, IndexError, TypeError):
+        return 1.0
+    if not roh:
+        return 1.0
+    try:
+        wert = float(roh)
+    except ValueError:
+        log.warning("%s ist keine Zahl (%r) -- nehme 1.0", FELD_FAKTOR, roh)
+        return 1.0
+    if not 0 < wert <= 1:
+        log.warning("%s ausserhalb (0, 1] (%r) -- nehme 1.0", FELD_FAKTOR, wert)
+        return 1.0
+    return wert
+
+
+def setze_faktor(conn, chat_id: int, faktor: float) -> None:
+    """Schreibt den Faktor -- ueber ``repo.setze_arbeitsstand`` und kein
+    eigenes SQL (die Regel des Repos: SQL nur in ``repo`` und ``db``)."""
+    from interview_theater import repo
+
+    repo.setze_arbeitsstand(conn, chat_id, FELD_FAKTOR, f"{float(faktor):g}")
+
+
 # Der Textzugriff steht am Modulende, nach allen Konstanten (A1-Konvention
 # K1): Deutsch ist die Konstante selbst, Englisch kommt aus
 # ``sprachen/en/texte.toml`` unter ``["laengen"]``. Gelesen wird ausschliesslich

@@ -354,11 +354,12 @@ def baue_nutzertext(
 
 
 def _faktor(conn, chat_id: int) -> float:
-    """Die Uebersteuerung der Budgets fuer diese Gruppe. 1,0 = keine.
+    """Der Laengen-Faktor der Gruppe, oder 1,0. Eine Zeile, aber an zwei
+    Stellen gebraucht (Nutzertext und Journalzeile) -- und zweimal gelesen
+    waeren zwei Wahrheiten."""
+    from interview_theater import laengen
 
-    Aufgabe 9 (Karte R) liest hier den gespeicherten Faktor aus dem
-    Arbeitsstand; bis dahin gilt 1,0."""
-    return 1.0  # Aufgabe 9
+    return laengen.faktor_aus_stand(repo.hole_arbeitsstand(conn, chat_id))
 
 
 def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,

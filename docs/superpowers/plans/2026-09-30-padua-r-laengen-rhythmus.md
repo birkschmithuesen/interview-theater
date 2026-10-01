@@ -2768,7 +2768,7 @@ git commit -m "Phase 7: Laengenblock im nie gekuerzten Teil, art als Parameter (
     `laengen.kurz_faktor()` -- **nur bei aktivem Profil und nur, wenn ein Lauf
     wirklich gestartet ist**.
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_faktor.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_faktor.py`
 
 ```python
 """Die Uebersteuerung: "Kuerzer/Instagram" als dauerhafter Faktor
@@ -2935,12 +2935,12 @@ mit einer von Hand angelegten Alt-Tabelle gebaut (`CREATE TABLE arbeitsstand
 `db.initialisiere`) -- die Aussage bleibt dieselbe. Erst pruefen:
 `$PY -c "import sqlite3; print(sqlite3.sqlite_version)"`.
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_faktor.py`
 Erwartet: FAIL, `AttributeError: ... has no attribute 'FELD_FAKTOR'`.
 
-- [ ] **Schritt 3: Die Spalte anlegen**
+- [x] **Schritt 3: Die Spalte anlegen**
 
 In `interview_theater/db.py`, in `CREATE TABLE IF NOT EXISTS arbeitsstand`,
 **vor** der schliessenden Klammer:
@@ -2965,7 +2965,7 @@ In `interview_theater/repo.py`, an `_ARBEITSSTAND_FELDER`:
     "laengen_faktor",
 ```
 
-- [ ] **Schritt 4: Lesen und Schreiben in `laengen.py`**
+- [x] **Schritt 4: Lesen und Schreiben in `laengen.py`**
 
 An `interview_theater/laengen.py` anhaengen:
 
@@ -3010,7 +3010,7 @@ def setze_faktor(conn, chat_id: int, faktor: float) -> None:
     repo.setze_arbeitsstand(conn, chat_id, FELD_FAKTOR, f"{float(faktor):g}")
 ```
 
-- [ ] **Schritt 5: `kuerzung.starte` anschliessen**
+- [x] **Schritt 5: `kuerzung.starte` anschliessen**
 
 In `interview_theater/kuerzung.py`, **im `nummer is None`-Zweig, nach dem
 erfolgreich angestossenen Lauf** (also unmittelbar vor
@@ -3044,7 +3044,7 @@ schreiben und dann zu kuerzen, was einen Lauf kostet. Das "Kuerzer" unter
 EINER Szene tut das bewusst nicht.
 ```
 
-- [ ] **Schritt 6: Die `1.0`-Platzhalter tauschen**
+- [x] **Schritt 6: Die `1.0`-Platzhalter tauschen**
 
 In `interview_theater/szene.py` (`budget_fuer_szene`) und
 `interview_theater/kurzgeschichte.py` (`schreibe`, Hilfsfunktion `_faktor`)
@@ -3069,7 +3069,7 @@ Kontrollsuche, dass kein Platzhalter stehenblieb:
 Run: `grep -n "Aufgabe 9" interview_theater/*.py`
 Erwartet: keine Ausgabe.
 
-- [ ] **Schritt 7: Tests laufen lassen**
+- [x] **Schritt 7: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_faktor.py`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -3078,7 +3078,7 @@ Run: `$PY -m pytest -q -p no:cacheprovider tests/test_db.py tests/test_repo.py t
 Erwartet: `passed`, kein `failed`. Die letzten drei sind die Waechter gegen
 Nebenwirkungen einer neuen Arbeitsstand-Spalte.
 
-- [ ] **Schritt 8: Suite und Commit**
+- [x] **Schritt 8: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

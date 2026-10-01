@@ -2406,7 +2406,17 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
         if art == ART:
             from interview_theater import nachpass
 
-            nachpass.nach_szene(conn, tg, klm, e, chat_id, nummer)
+            # Eigenes ``try`` (Schlussreview I1): die Szene ist hier schon
+            # gespeichert und verschickt. Reisst der Nachpass, ist das ein
+            # Vorfall und keine "fehlgeschlagen"-Zeile an die Gruppe -- er ist
+            # eine Zugabe, auf die niemand wartet (SPEC § 11.1).
+            try:
+                nachpass.nach_szene(conn, tg, klm, e, chat_id, nummer)
+            except Exception:
+                log.exception("Nachpass gescheitert, chat_id=%s, Szene %s",
+                              chat_id, nummer)
+                nachpass._vorfall(conn, chat_id, e, nachpass.VORFALL_FEHLER,
+                                  f"Szene {nummer}: Nachpass gescheitert")
     except Exception:
         log.exception("Szenen-Aufruf fehlgeschlagen, chat_id=%s", chat_id)
         try:

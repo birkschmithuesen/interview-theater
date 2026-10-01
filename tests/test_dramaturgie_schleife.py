@@ -384,7 +384,7 @@ def test_die_prosaphase_nimmt_einen_lauf_fuer_alle_auftraege(
     laeufe = []
     attrappe = types.ModuleType(schleife.GESCHICHTE_MODUL)
     attrappe.schreibe = (
-        lambda conn, tg_, klm, e_, chat_id, regie: laeufe.append(regie)
+        lambda conn, tg_, klm, e_, chat_id, regie, **_k: laeufe.append(regie)
     )
     monkeypatch.setitem(sys.modules, schleife.GESCHICHTE_MODUL, attrappe)
     repo.setze_phase(stueck, 1, 6)
@@ -401,6 +401,33 @@ def test_die_prosaphase_nimmt_einen_lauf_fuer_alle_auftraege(
     assert "Szene 1: Lass Mira den Koffer oeffnen." in laeufe[0]
     assert "Szene 2: Gib Jonas ein eigenes Fuellwort." in laeufe[0]
     assert nummern == [1, 2]
+
+
+def test_die_prosaphase_ueberarbeitet_mit_vorlage_und_unter_der_sperre(
+    stueck, einst, tg, monkeypatch
+):
+    """Schlussreview I2 (01.10.2026): seit es ``kurzgeschichte.schreibe``
+    gibt, laeuft dieser Weg wirklich. Die Schleife UEBERARBEITET -- also
+    sieht das Modell die bestehende Geschichte (``vorlage=True``, wie beim
+    Kuerzen), sonst schriebe es eine neue und die Bilanz verglieche zwei
+    verschiedene Texte. Und es haelt die Sperre der Kurzgeschichte, wie
+    ``_schreibe_je_szene`` die der Szene haelt."""
+    from interview_theater import kurzgeschichte
+    gesehen = []
+
+    def schreibe(conn, tg_, klm, e_, chat_id, regie, **k):
+        gesehen.append((k.get("vorlage"),
+                        kurzgeschichte._sperre_fuer(chat_id).locked()))
+
+    monkeypatch.setattr(kurzgeschichte, "schreibe", schreibe)
+    repo.setze_phase(stueck, 1, 6)
+
+    schleife._schreibe_die_geschichte(
+        stueck, tg, None, einst, 1, [{"szene": 1, "anweisung": "x"}]
+    )
+
+    assert gesehen == [(True, True)]
+    assert kurzgeschichte._sperre_fuer(1).locked() is False
 
 
 def test_der_auftragstext_ist_derselbe_wie_am_knopf():

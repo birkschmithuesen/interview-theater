@@ -473,7 +473,15 @@ def starte(
             # braucht er nicht. Ohne aktives Profil ein No-Op.
             from interview_theater import nachpass
 
-            nachpass.nach_geschichte(conn, tg, klm, e, chat_id)
+            # Eigenes ``try`` wie in ``szene._lauf`` (Schlussreview I1): die
+            # Geschichte steht schon -- ein reissender Nachpass ist ein
+            # Vorfall, keine Fehlerzeile an die Gruppe.
+            try:
+                nachpass.nach_geschichte(conn, tg, klm, e, chat_id)
+            except Exception:
+                log.exception("Prosa-Nachpass gescheitert, chat_id=%s", chat_id)
+                nachpass._vorfall(conn, chat_id, e, nachpass.VORFALL_FEHLER,
+                                  "Prosa-Nachpass gescheitert")
         except Exception:
             log.exception("Kurzgeschichte fehlgeschlagen, chat_id=%s", chat_id)
             try:

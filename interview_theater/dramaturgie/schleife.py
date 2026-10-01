@@ -191,7 +191,22 @@ def _schreibe_die_geschichte(conn, tg, klm, e, chat_id: int, auftraege) -> list[
     funktion = getattr(modul, GESCHICHTE_FUNKTION, None)
     if not callable(funktion):
         raise SchreibwegFehlt(MELDUNG_OHNE_GESCHICHTENWEG)
-    funktion(conn, tg, klm, e, chat_id, _regie_fuer_die_geschichte(auftraege))
+    # Ueberarbeiten heisst: das Modell sieht die bestehende Geschichte
+    # (``vorlage=True``, wie beim Kuerzen) -- ohne sie schriebe es eine neue,
+    # und die Bilanz verglieche zwei verschiedene Texte. Und die Sperre der
+    # Kurzgeschichte, wie ``_schreibe_je_szene`` die der Szene nimmt:
+    # ``schreibe`` selbst ist ausdruecklich ohne Sperre (Schlussreview I2,
+    # 01.10.2026 -- seit Karte R gibt es den Weg wirklich).
+    sperre_fuer = getattr(modul, "_sperre_fuer", None)
+    sperre = sperre_fuer(chat_id) if callable(sperre_fuer) else None
+    if sperre is not None:
+        sperre.acquire()
+    try:
+        funktion(conn, tg, klm, e, chat_id,
+                 _regie_fuer_die_geschichte(auftraege), vorlage=True)
+    finally:
+        if sperre is not None:
+            sperre.release()
     return sorted({a["szene"] for a in auftraege if a.get("szene") is not None})
 
 

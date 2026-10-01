@@ -5773,7 +5773,7 @@ wurde und warum** — und den Audio-Teil (11–13) als eigenen Test fahren, der 
 Knopf „Weiter zu …" erreicht oder in Phase 1 startet (`/interview` ist in jeder Phase
 erlaubt, `aufnahme.stelle_phase_interviews_sicher` zieht die Phase mit).
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_e2e_http.py`:
 
@@ -6168,14 +6168,14 @@ Zeile loeschen, der Test wartet nur auf eine Bot-Antwort.
    haengen geblieben — nicht die Geduld erhoehen, sondern nachsehen, welcher `_warte_auf`
    nicht durchkommt.
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_e2e_http.py -q -p no:cacheprovider
 ```
 Erwartet: FAIL an der ersten Bedingung, die noch nicht traegt.
 
-- [ ] **Schritt 3: Zum Laufen bringen**
+- [x] **Schritt 3: Zum Laufen bringen**
 
 Hier wird **kein Produktionscode** neu geschrieben — alles steht aus den Aufgaben 1–11. Was
 hier haengt, ist ein Fehler in einer der vorigen Aufgaben oder eine falsche Annahme im Test.
@@ -6191,7 +6191,7 @@ Die Reihenfolge beim Suchen:
 4. Bleibt ein Transkript leer? Dann greift `stt.mime_typ` daneben: die Endung der abgelegten
    Datei pruefen (muss `.webm` sein, Aufgabe 3).
 
-- [ ] **Schritt 4: Lauf, alles gruen**
+- [x] **Schritt 4: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_e2e_http.py -q -p no:cacheprovider
@@ -6203,7 +6203,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2966 passed, 1 skipped`.
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add tests/test_web_e2e_http.py

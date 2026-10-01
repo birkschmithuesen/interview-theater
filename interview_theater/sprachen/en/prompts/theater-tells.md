@@ -176,3 +176,32 @@ dramaturgy replaced a first version with a better one.
   waiting time grows.
   Variation gives away the arranger. The identical repetition makes the
   waiting itself unbearable.
+
+The following four are machine tells in the narrow sense: they are counted,
+not judged (interview_theater/sprachpass.py). Each one was measured in a real
+group text on 06.09.2026 and removed by hand afterwards.
+
+**31. The dash instead of a decision.**
+- Bad: She waited—and waited—and waited.
+- Better: She waited. (Pause) She waited.
+  A dash joins what a full stop would separate. On stage the pause does that
+  work, and it does it better. One dash in two thousand words is nothing; six
+  in a thousand is a habit.
+
+**32. "not X but Y".**
+- Bad: It was not a home but a waiting room.
+- Better: A waiting room. With a kettle.
+  The negation carries the thing it denies into the sentence and keeps it
+  there. Say the second half and drop the first.
+
+**33. Three adjectives in a row.**
+- Bad: She was tired, angry, and alone.
+- Better: She had not taken her coat off.
+  Three words for one state is one word three times. An action shows it; a
+  list only sorts it.
+
+**34. The closing line that says what it was about.**
+- Bad: Maybe home is just where you stop explaining.
+- Better: NADIA: Are you turning the light off? / INES: I'm still sitting.
+  The last line is the one the audience takes home. If it names the theme, it
+  takes the theme instead of the scene.

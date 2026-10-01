@@ -5708,7 +5708,7 @@ gefehlt hat.
 **Die Beispiele sind erfunden** -- kein Satz aus einem echten Interview, kein
 Klarname (die Namen sind die erfundenen der englischen Datei).
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_sprachpass_prompt.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_sprachpass_prompt.py`
 
 ```python
 """Die englische Negativliste traegt die vier Muster des Sprachpasses
@@ -5819,13 +5819,13 @@ $PY -c "import hashlib,pathlib; print(hashlib.sha256(pathlib.Path('interview_the
 Erwartet: `ce75dd90397aca82440c77f0c9638cab6e69f168317a276b77f9483129904d6d`
 (179 Zeilen, 30 Eintraege).
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprachpass_prompt.py`
 Erwartet: FAIL in `test_die_englische_liste_nennt_jedes_muster[dash]` --
 `assert 'dash' in ...`.
 
-- [ ] **Schritt 3: Die vier Eintraege anhaengen**
+- [x] **Schritt 3: Die vier Eintraege anhaengen**
 
 An das **Ende** von `interview_theater/sprachen/en/prompts/theater-tells.md`.
 `N` ist die naechste freie Nummer (die englische Datei hat nach A1 Aufgabe 20
@@ -5867,7 +5867,7 @@ Zwei Zusagen dieser Datei bleiben: **nur Negativbeispiele** (jeder Eintrag hat
 sein `Bad:`/`Better:`-Paar), und **kein echter Satz und kein Klarname** --
 die Namen sind die erfundenen der Datei.
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprachpass_prompt.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -5881,7 +5881,7 @@ und JSON-Zeilen -- vier fette Eintraege veraendern keinen dieser drei Werte,
 der Test bleibt gruen. Faellt er doch, ist die **Struktur** der Ergaenzung das
 Problem (eine `#`-Ueberschrift oder ein Code-Zaun darin) und nicht der Test.
 
-- [ ] **Schritt 5: Suite und Commit**
+- [x] **Schritt 5: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

@@ -4435,7 +4435,7 @@ er geschrieben haette, findet es auf der Gruppenseite.
   - `nachpass.nach_szene(conn, tg, klm, e, chat_id, nummer) -> str | None`
     (die Notiz, mit der gelaufen wurde -- oder `None`, wenn nichts lief)
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_nachpass.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_nachpass.py`
 
 ```python
 """Der EINE Ueberarbeitungslauf nach einem Szenentext (30.09.2026, Karte R).
@@ -4728,12 +4728,12 @@ existieren dagegen (selbst geprueft: `repo.py:2501` und `:2529`).
 `tg.nachrichten` vor dem Schreiben an `tests/test_knoepfe.TelegramAttrappe`
 abgleichen (`grep -n "self\." tests/test_knoepfe.py | head -20`).
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_nachpass.py`
 Erwartet: FAIL, `ModuleNotFoundError: No module named 'interview_theater.nachpass'`.
 
-- [ ] **Schritt 3: `interview_theater/nachpass.py` anlegen**
+- [x] **Schritt 3: `interview_theater/nachpass.py` anlegen**
 
 ```python
 """Der EINE Ueberarbeitungslauf am Ende eines Schreibvorgangs (30.09.2026,
@@ -4970,12 +4970,12 @@ def _vorfall(conn, chat_id: int, e, art: str, text: str) -> None:
         log.exception("Vorfall %s nicht schreibbar", art)
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_nachpass.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
 
-- [ ] **Schritt 5: Suite und Commit**
+- [x] **Schritt 5: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

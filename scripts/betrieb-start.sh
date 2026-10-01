@@ -9,6 +9,10 @@ gruppe="${1:?Aufruf: betrieb-start.sh <gruppe>}"
 env_datei="betrieb/${gruppe}.env"
 [ -f "$env_datei" ] || { echo "fehlt: $env_datei" >&2; exit 2; }
 set -a; . "./$env_datei"; set +a
+# Ein Web-Bot (Karte Padua A2) startet mit DERSELBEN Unit und diesem Skript --
+# er unterscheidet sich allein durch IT_KANAL=web und IT_WEB_CHAT_ID in der
+# Env-Datei. IT_BOT_TOKEN ist dort nicht Pflicht. Also keine Weiche hier:
+# die steht in bot.baue_kanal, an genau einer Stelle.
 
 if [ -x .venv/bin/python ]; then
   python=.venv/bin/python

@@ -1,11 +1,18 @@
 # Simulation
 
 Ein kompletter Workshop, gefahren gegen den echten Bot-Code und die echten
-Modelle. Drei simulierte Teilnehmerinnen arbeiten sich durch neun Schritte --
-Begriffe, Fragen, fuenf Interviews, Kernthema, Figuren, Phase 5 (Format &
-Rahmen), eine Szene,
-eine Korrektur, `/stand` --, danach bewertet ein Richter den Verlauf nach
-einer festen Metrik.
+Modelle. Simulierte Teilnehmerinnen arbeiten sich durch die Schritte einer
+Skriptliste (`simulation/skript.py`), danach bewertet ein Richter den Verlauf
+nach einer festen Metrik.
+
+**Drei Skriptlisten, und keine ist die eine.** `SCHRITTE` ist der Ablauf vom
+05.09.2026 und die Messlatte der damaligen Laeufe: zehn Schritte, ohne
+Phasenwechsel, mit einer Station 'Kernthema', die es seit dem 06.09. nicht
+mehr gibt. `SCHRITTE_TAG2` faehrt die heutigen **sieben** Phasen aus
+`phasen.PHASEN` — Begriffe · Fragen · Interviews · Setting, Figuren &
+Geschichte · Schaerfung · Szenen als Geschichte · Feinschliff.
+`SCHRITTE_BIRK` faehrt echtes Material. Der Schalter `--skript` waehlt;
+`auto` (Vorgabe) waehlt wie bisher nach dem Set.
 
 ```
 set -a; . ./betrieb/gruppe1.env; set +a
@@ -15,6 +22,9 @@ $PY -m scripts.simulation --mix 1,2,3 --seed 3
 $PY -m scripts.simulation --set 1 --seed 1 --ohne-szene    # ohne Reasoning-Lauf
 $PY -m scripts.simulation --set birk --bericht             # echtes Material, ~10 min
 $PY -m scripts.simulation --alle                           # Sets 1-3 und birk
+$PY -m scripts.simulation --set 1 --seed 1 --skript tag2 --ohne-szene --bericht
+$PY -m scripts.simulation --set 1 --seed 1 --skript tag2 --ohne-szene \
+    --mutation festlegung_verloren        # Gegenpruefung, siehe unten
 ```
 
 **Kostet Geld, laeuft nie automatisch** -- wie `scripts/pruefe_prompts.py`.
@@ -63,7 +73,7 @@ langsamer machen.
 |---|---|
 | `scripts/simulation.py` | Aufruf, Wegwerf-DB, 429-Pause, Bericht |
 | `lauf.py` | der Durchlauf: Updates bauen, Zug fahren, Interviews importieren |
-| `skript.py` | die neun Schritte: Ziel und Zielzustand je Schritt |
+| `skript.py` | die Schrittlisten: Ziel und Zielzustand je Schritt |
 | `claude.py` | der Klient der Simulationsseite (Opus am lokalen Proxy) |
 | `stimmen.py` + `stimmen/*.md` | drei Personen (Guelten, Dilan, Halyna) und Birk |
 | `tag1.py` + `stimmen/tag1-*.md`, `stimmen/regie.md` | die vier Sets aus dem echten Tag 1 -- **PII-frei abgeleitet** |
@@ -192,6 +202,15 @@ Arbeitsstandfelder aus `PRAGMA table_info(arbeitsstand)`, das Wort
 Phasen, Feldern und Formulierungen ueberleben, ohne dass jemand ihn
 nachzieht.
 
+## Das Padua-Profil und der Laengen-Rhythmus (Karte R)
+
+Der Simulator sieht das Padua-Profil **nur** ueber `IT_WORKSHOP=padua-2026`
+in der Umgebung -- er hat dafuer keinen eigenen Schalter, und erst mit dem
+Profil laufen Laengenbudget und Nachpass ueberhaupt. Er erreicht die
+Prosa-Phase, aber **nicht** Phase 7 und **nicht** den Kuerzungsweg; den
+Nachweis dafuer liefert kostenlos `scripts/laengen_probe.py` (Befund:
+`docs/padua-r-laengen-2026-09-30/BEFUND.md`).
+
 ## Die Interviews erweitern
 
 Eine Datei je Interview, Kopf zwischen zwei `---`-Zeilen:
@@ -240,10 +259,18 @@ $PY -m scripts.simulation --set regie --bericht
 
 Vier Stimmen, abgeleitet aus dem, was am 05./06.09. wirklich passiert ist:
 drei Gruppen Sechzehnjaehriger und die Testgruppe (Regie). Sie fahren das
-Skript der **acht Phasen** (`skript.SCHRITTE_TAG2`), nicht das der neun
-Schritte -- und sie **druecken Knoepfe**: jede Stimme sieht je Zug die
-antippbaren Knopftexte und entscheidet, ob sie `KNOPF: <Text>` antwortet
-oder frei schreibt.
+Skript der **sieben Phasen** (`skript.SCHRITTE_TAG2`), nicht das der zehn
+Schritte von `skript.SCHRITTE` -- und sie **druecken Knoepfe**: jede Stimme
+sieht je Zug die antippbaren Knopftexte und entscheidet, ob sie
+`KNOPF: <Text>` antwortet oder frei schreibt.
+
+**Vergleichbarkeit ab dem 30.09.2026.** tag1-Laeufe fahren seitdem ebenfalls
+den Schritt `festlegungen` (Phase 4, drei Pruefsaetze) und sind deshalb mit
+aelteren tag1-Zeilen in `berichte/verlauf.jsonl` nicht direkt vergleichbar.
+Ausserdem steht im Schluessel `festlegungen` ab jetzt die Zahl der Zeilen in
+der Tabelle `festlegung`; in alten Zeilen ist es die Zahl der
+Notiert-Abschnitte -- die bleibt als `len(nachrichten_je_festlegung)`
+erhalten.
 
 | Set | Begriffe der echten Gruppe | Antwortstil |
 |---|---|---|
@@ -288,3 +315,24 @@ bestaetigt statt gesetzt, Rahmen/Geschichte mehrfach geschrieben,
 `kontext_gekuerzt`. Dazu ein viertes Szenenkriterium beim Richter:
 `exposition_erfuellt` -- nur bei Szene 1 eine echte Frage (wer, wie
 zueinander, warum hier, worum).
+
+## Gegenpruefung: faengt sie einen echten Fehler?
+
+`simulation/mutation.py` baut einen der zwei belegten Dortmunder Fehler vom
+06.09.2026 fuer die Dauer eines Laufs wieder ein — per Monkey-Patch aus
+`simulation/` heraus, wie `lauf.einfaedig()` und `stoerung.py`. Kein
+Produktivcode wird dafuer angefasst, und es gibt keine Weiche, die im Betrieb
+umlegbar waere.
+
+| `--mutation` | Der Fehler | Kennzahl, die anschlagen muss |
+|---|---|---|
+| `festlegung_verloren` | Es gibt kein Fach fuer eine Festlegung, die in kein Feld passt (Zustand vor `e56a892`). 22 von 42 Festlegungen gingen so verloren. | `festlegungsproben_erhalten` < `festlegungsproben` |
+| `richtung_ohne_szenen` | Die gewaehlte Geschichte-Richtung verliert ihre Szenen, danach laeuft ein frischer Szenenfolge-Vorschlag (Zustand vor `3ae76ab`/`c9af872`). Aus 3 Szenen wurden 6. | `szenenfolge_nach_richtung` > 0 |
+
+**Vor jedem bezahlten Mutationslauf** muss
+`tests/test_simulation_mutation.py` gruen sein: er weist ohne Netz nach, dass
+die Mutation den Fehler wirklich wieder erzeugt. Greift sie nicht, misst der
+Lauf nichts und kostet trotzdem.
+
+Das Ergebnis der ersten Gegenpruefung:
+`docs/simulation-gegenpruefung-2026-09-30.md`.

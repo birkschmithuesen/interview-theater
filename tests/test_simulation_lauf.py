@@ -9,13 +9,14 @@ Stimm-Nachricht ueber ``bot.verarbeite_update`` und
 dann eine Frage der Modelle, nicht des Codes.
 """
 
+import inspect
 import json
 from datetime import datetime, timezone
 
 import pytest
 
 from interview_theater import (
-    aufnahme, bot, einstellungen, kontext, llm, repo, szene, telegram,
+    ablauf, aufnahme, bot, einstellungen, kontext, llm, repo, szene, telegram,
 )
 from simulation import bericht, claude, lauf, skript
 from simulation.attrappe import TelegramAttrappe
@@ -147,6 +148,70 @@ def test_zwei_gleichzeitige_laeufe_schreiben_in_ihr_eigenes_protokoll():
             assert kontext.baue is not vorher
         assert kontext.baue is not vorher
     assert kontext.baue is vorher
+
+
+#: Die vier Ersatzpaare aus ``einfaedig()``: Original im Betrieb, Ersatz im
+#: Simulator. Dieselbe Reihenfolge wie in ``lauf._ORIGINAL["einfaedig"]``.
+_ERSATZPAARE = [
+    (szene.starte, lauf._sofort_szene),
+    (aufnahme.starte_abschluss, lauf._sofort_abschluss),
+    (aufnahme.starte_auswertung, lauf._sofort_auswertung),
+    (ablauf.starte_auftrag, lauf._sofort_auftrag),
+]
+
+
+@pytest.mark.parametrize(
+    "original, ersatz", _ERSATZPAARE,
+    ids=[e.__name__ for _, e in _ERSATZPAARE],
+)
+def test_ersatzfunktion_nimmt_die_parameter_des_originals_an(original, ersatz):
+    """Jede Ersatzfunktion in ``einfaedig()`` muss die Parameter ihres
+    Originals annehmen -- Namen, Reihenfolge, Defaults. Sonst faellt eine
+    kuenftige Signaturdrift (wie bei ``ablauf.starte_auftrag`` seit
+    Commit 347f28d, 06.09.2026: ``arbeitszeile``/``arbeitsart`` kamen dazu,
+    ``lauf._sofort_auftrag`` reichte sie nicht durch) erst im bezahlten
+    Simulationslauf auf statt in der Suite."""
+    parameter_original = [
+        (p.name, p.default) for p in inspect.signature(original).parameters.values()
+    ]
+    parameter_ersatz = [
+        (p.name, p.default) for p in inspect.signature(ersatz).parameters.values()
+    ]
+    assert parameter_ersatz == parameter_original, (
+        f"{ersatz.__name__} weicht von {original.__qualname__} ab: "
+        f"{parameter_ersatz} != {parameter_original}"
+    )
+
+
+def test_sofort_auftrag_reicht_arbeitszeile_und_arbeitsart_an_auftragszug_durch(
+    monkeypatch,
+):
+    """Der Bug aus dem ersten bezahlten Lauf: ``knoepfe._starte_auftrag``
+    ruft ``ablauf.starte_auftrag`` mit acht Positionsargumenten --
+    ``_sofort_auftrag`` muss ``arbeitszeile`` und ``arbeitsart`` genauso
+    entgegennehmen und an ``ablauf.auftragszug`` weiterreichen wie der
+    Betriebsweg (``ablauf.starte_auftrag`` startet nur einen Thread mit
+    denselben Argumenten)."""
+    aufgezeichnet = {}
+
+    def falscher_auftragszug(conn, tg, klm, e, chat_id, anweisung,
+                             arbeitszeile=None, arbeitsart=None):
+        aufgezeichnet["conn"] = conn
+        aufgezeichnet["chat_id"] = chat_id
+        aufgezeichnet["anweisung"] = anweisung
+        aufgezeichnet["arbeitszeile"] = arbeitszeile
+        aufgezeichnet["arbeitsart"] = arbeitsart
+
+    monkeypatch.setattr(ablauf, "auftragszug", falscher_auftragszug)
+    ergebnis = lauf._sofort_auftrag(
+        "conn", "tg", "klm", "e", 1, "Anweisung fuer den Zug",
+        "Arbeitszeile-Text", "arbeitsart-wert",
+    )
+    assert aufgezeichnet == {
+        "conn": "conn", "chat_id": 1, "anweisung": "Anweisung fuer den Zug",
+        "arbeitszeile": "Arbeitszeile-Text", "arbeitsart": "arbeitsart-wert",
+    }
+    assert ergebnis is lauf._AUFTRAG_GELAUFEN
 
 
 # --- Abschnitt und Protokoll ---------------------------------------------
@@ -437,3 +502,230 @@ def test_kennzahlen_tabelle_nennt_soll_und_urteil():
 
 def test_kennung_ist_datum_mischung_seed():
     assert bericht.kennung("set1", 7, tag="2026-09-05") == "2026-09-05-set1-7"
+
+
+# --- Die Kennzahlen der Gegenpruefung im Bericht ---------------------------
+
+
+def _zahlen_mit(**extra):
+    """Eine Kennzahlenmenge, die ``kennzahlen_tabelle`` durchlaeuft."""
+    grund = {
+        "festlegungen": 0, "festlegungen_je_bereich": {},
+        "festlegungsproben": 3, "festlegungsproben_erhalten": 3,
+        "festlegungsproben_nur_journal": [], "festlegungsproben_nirgends": [],
+        "szenen_aktiv": 3, "szenen_ersetzt": 0, "szenen_neuaufbauten": 0,
+        "szenen_form_verloren": 0, "szenenfolge_laeufe": 1,
+        "kurzgeschichte_laeufe": 0, "szenenfolge_nach_richtung": 0,
+        "szenen_aus_richtung": True,
+    }
+    grund.update(extra)
+    return grund
+
+
+def test_die_gegenpruefzeilen_stehen_mit_sollwert_da():
+    zeilen = "\n".join(bericht._gegenpruefzeilen(_zahlen_mit()))
+    assert "Festlegungsproben erhalten" in zeilen
+    assert "3/3" in zeilen
+    assert "Szenen neu aufgebaut" in zeilen
+    assert "Szenenfolge-Lauf nach der Richtungswahl" in zeilen
+    assert "**daneben**" not in zeilen
+
+
+def test_ein_verlust_wird_als_daneben_markiert():
+    zeilen = "\n".join(bericht._gegenpruefzeilen(_zahlen_mit(
+        festlegungsproben_erhalten=1,
+        festlegungsproben_nur_journal=["Outsider"],
+        festlegungsproben_nirgends=["hoechstens eine Seite"],
+    )))
+    assert "1/3" in zeilen
+    assert "**daneben**" in zeilen
+
+
+def test_ein_neuaufbau_wird_als_daneben_markiert():
+    zeilen = "\n".join(bericht._gegenpruefzeilen(_zahlen_mit(
+        szenen_neuaufbauten=2, szenen_form_verloren=3,
+        szenenfolge_nach_richtung=1, szenen_aus_richtung=False,
+    )))
+    assert zeilen.count("**daneben**") >= 3
+
+
+def test_eine_alte_verlaufszeile_ohne_die_schluessel_bleibt_lesbar():
+    """Wie bei den Knopfzahlen (06.09.2026): fehlt der Block, steht er nicht
+    da -- ein KeyError im Bericht waere schlimmer als eine fehlende Zeile."""
+    assert bericht._gegenpruefzeilen({"echo": 0}) == []
+
+
+def test_die_verlaufszeile_traegt_die_mutation():
+    class _Ergebnis:
+        urteile = {}
+        szenen = []
+        gezogene = []
+        personen = []
+        szenen_urteil = {}
+
+    kopf = {"kennung": "k", "mischung": "set1", "seed": 1, "git": "abc",
+            "llm_modell": "kimi", "erkenner_modell": "gemma",
+            "sim_modell": "claude-opus-5", "mutation": "festlegung_verloren"}
+    zeile = bericht.verlaufszeile(_zahlen_mit(), _Ergebnis(), kopf)
+    assert zeile["mutation"] == "festlegung_verloren"
+
+    kopf_ohne = {**kopf}
+    kopf_ohne.pop("mutation")
+    assert bericht.verlaufszeile(_zahlen_mit(), _Ergebnis(), kopf_ohne)["mutation"] == ""
+
+
+# --- Hintergrundlaeufe abwarten (30.09.2026) -------------------------------
+#
+# lauf.einfaedig() macht szene.starte und drei Geschwister synchron -- nicht
+# aber szenenfolge.starte_geschichte_szenen, schaerfung.starte,
+# sprachstil.starte, kurzgeschichte.starte. Deren Wirkung landete zu einem
+# beliebigen Zeitpunkt in der Datenbank, unter Umstaenden nach conn.close().
+
+import threading
+import time
+
+
+def test_warte_auf_hintergrund_wartet_auf_neue_threads():
+    gemerkt = []
+
+    def arbeite():
+        time.sleep(0.05)
+        gemerkt.append("da")
+
+    vorher = frozenset(threading.enumerate())
+    threading.Thread(target=arbeite, daemon=True).start()
+    abgewartet = lauf.warte_auf_hintergrund(vorher, grenze_s=5.0)
+    assert gemerkt == ["da"]
+    assert abgewartet == 1
+
+
+def test_warte_auf_hintergrund_ignoriert_alte_threads():
+    """Bei ``--parallel`` laufen zwei Laeufe in Threads. Der eine darf nicht
+    auf den anderen warten -- gewartet wird nur auf Threads, die es beim
+    Beginn dieses Zuges noch nicht gab."""
+    halt = threading.Event()
+    alt = threading.Thread(target=halt.wait, daemon=True)
+    alt.start()
+    try:
+        vorher = frozenset(threading.enumerate())
+        assert alt in vorher
+        start = time.monotonic()
+        assert lauf.warte_auf_hintergrund(vorher, grenze_s=5.0) == 0
+        assert time.monotonic() - start < 1.0
+    finally:
+        halt.set()
+
+
+def test_warte_auf_hintergrund_gibt_nach_der_grenze_auf():
+    """Ein haengender Lauf darf den Simulator nicht festhalten: nach der
+    Grenze geht es weiter, und der Bericht zeigt am fehlenden Zielzustand,
+    dass etwas nicht fertig wurde."""
+    halt = threading.Event()
+    vorher = frozenset(threading.enumerate())
+    threading.Thread(target=halt.wait, daemon=True).start()
+    try:
+        start = time.monotonic()
+        lauf.warte_auf_hintergrund(vorher, grenze_s=0.2)
+        assert time.monotonic() - start < 2.0
+    finally:
+        halt.set()
+
+
+def test_der_lauf_merkt_sich_die_threads_beim_zuganfang(conn, einst):
+    """``_zug`` legt die Momentaufnahme an, ``_schliesse_zug`` wartet -- damit
+    die Nachrichten des Hintergrundlaufs noch in DIESEN Zug fallen und nicht
+    in den naechsten."""
+    from simulation.attrappe import TelegramAttrappe
+
+    durchlauf = lauf.Lauf(
+        conn, TelegramAttrappe(), None, einst, None,
+        gezogene=[], seed=1, schritte=[],
+    )
+    zug = durchlauf._zug()
+    assert isinstance(durchlauf._threads_vorher, frozenset)
+    assert threading.current_thread() in durchlauf._threads_vorher
+    assert zug is durchlauf.ergebnis.zuege[-1]
+
+
+# --- Review-Befunde zu Aufgabe 7: Handlungen des Simulators ---------------
+#
+# _druecke_interview_starten und _notausgang rufen selbst Bot-Code. Ein dort
+# gestarteter Thread stand frueher schon in der Momentaufnahme des Zuges und
+# wurde nie abgewartet.
+
+
+def _starte_nachzuegler(gemerkt, text="da"):
+    def arbeite():
+        time.sleep(0.05)
+        gemerkt.append(text)
+
+    threading.Thread(target=arbeite, daemon=True).start()
+
+
+def _leerer_lauf(conn, einst, schritte=()):
+    from simulation.attrappe import TelegramAttrappe
+
+    return lauf.Lauf(
+        conn, TelegramAttrappe(), None, einst, None,
+        gezogene=[], seed=1, schritte=list(schritte),
+    )
+
+
+def test_der_knopfdruck_wartet_auf_seinen_hintergrundlauf(conn, einst, monkeypatch):
+    from interview_theater import knoepfe as knoepfe_modul
+
+    gemerkt = []
+    monkeypatch.setattr(knoepfe_modul, "behandle",
+                        lambda *a, **k: _starte_nachzuegler(gemerkt))
+    durchlauf = _leerer_lauf(conn, einst)
+    repo.sichere_gruppe(conn, lauf.CHAT_ID, einst.bot_name, lauf.CHAT_TITEL)
+    durchlauf.tg.knoepfe.append({
+        "message_id": 7,
+        "knoepfe": [(knoepfe_modul._TEXT_AUFNAHME_STARTEN, "k:1")],
+    })
+    durchlauf._druecke_interview_starten()
+    assert gemerkt == ["da"]
+    assert durchlauf.ergebnis.zuege[-1].marke == "knopf"
+
+
+def test_der_notausgang_wartet_auf_seinen_hintergrundlauf(conn, einst, monkeypatch):
+    from types import SimpleNamespace
+
+    gemerkt = []
+    monkeypatch.setattr(repo, "setze_interviewmodus", lambda *a, **k: None)
+    monkeypatch.setattr(repo, "hole_aufnahme", lambda *a, **k: {"status": "fertig"})
+    monkeypatch.setattr(aufnahme, "verarbeite",
+                        lambda *a, **k: _starte_nachzuegler(gemerkt))
+    durchlauf = _leerer_lauf(conn, einst)
+    durchlauf._notausgang(1, SimpleNamespace(name="Interview X"))
+    assert gemerkt == ["da"]
+    assert durchlauf.ergebnis.notausgaenge == 1
+    assert "Notausgang" in durchlauf.ergebnis.zuege[-1].notiz
+
+
+def test_fahre_wartet_am_ende_auf_alles_seit_laufbeginn(conn, einst):
+    """Ein Thread, der ausserhalb jedes Zuges entsteht (hier aus der
+    Zielzustand-Pruefung), wird vor Kennzahlen und conn.close() abgewartet."""
+    gemerkt = []
+
+    def fertig(_conn, _chat_id, _merker):
+        _starte_nachzuegler(gemerkt)
+        return True
+
+    schritt = skript.Schritt("probe", "Probe", "nichts", fertig)
+    durchlauf = _leerer_lauf(conn, einst, [schritt])
+    durchlauf.fahre()
+    assert gemerkt == ["da"]
+
+
+def test_lauf_threads_des_nachbarn_werden_nie_abgewartet():
+    halt = threading.Event()
+    vorher = frozenset(threading.enumerate())
+    threading.Thread(target=halt.wait, daemon=True,
+                     name=f"{lauf.LAUF_THREAD_PRAEFIX}-2").start()
+    try:
+        start = time.monotonic()
+        assert lauf.warte_auf_hintergrund(vorher, grenze_s=5.0) == 0
+        assert time.monotonic() - start < 1.0
+    finally:
+        halt.set()

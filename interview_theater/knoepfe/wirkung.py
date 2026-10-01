@@ -13,7 +13,7 @@ Pakets am Quelltext prueft statt am Verhalten.
 
 from typing import NamedTuple
 
-from interview_theater import phasen, repo, sprache
+from interview_theater import phasen, repo, ruecknahme, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_AUFNAHME, ART_AUSWERTEN, ART_AUSWERTEN_ALLE,
@@ -40,7 +40,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
     ART_STT_SPRACHE, STT_KNOEPFE, T, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
-    ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_WIR_ZUERST,
+    ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_UNDO, ART_WIR_ZUERST,
     ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_SZENEN, TRENNER, _KETTE, log,
 )
 from interview_theater.knoepfe.basis import (
@@ -1301,6 +1301,95 @@ def _wirkung_stt_sprache(conn, d: Druck) -> str:
     return T._TEXT_STT_SPRACHE_KURZ
 
 
+def _wirkung_undo(conn, d: Druck) -> str:
+    """Nimmt einen ganzen Erkennerlauf zurueck (Karte U, 01.10.2026).
+
+    Eine Meldung, eine Ruecknahme -- keine Einzelauswahl. **Kein
+    Modellaufruf** (Zusage 2): die Schritte liegen seit dem Lauf in
+    ``erkenner_lauf_schritt``, und was hier passiert, ist ein
+    ``UPDATE``/``DELETE`` je Schritt in EINER Transaktion
+    (``repo.nimm_erkenner_lauf_zurueck``).
+
+    Drei Ausgaenge: zurueckgenommen (die Zeilen der Meldung gehen als
+    "Rueckgaengig gemacht:" zurueck in den Chat und ins Journal), seitdem
+    geaendert (nichts passiert, die Gruppe erfaehrt, wo sie stattdessen
+    hingeht) und schon zurueckgenommen (zweiter Druck -- beantwortet, wirkt
+    nicht; die Sperre steht doppelt, hier und in ``behandle``).
+
+    Nach der wirksamen Ruecknahme werden die **Grundleisten-Knoepfe derselben
+    Nachricht verfallen gelassen**: der Wert steckt im Knopf, und "Ja,
+    speichern" schriebe sonst genau den Wert wieder, den die Gruppe gerade
+    weggetippt hat. Die Tastatur selbst nimmt ``behandle`` ab, wie bei jedem
+    Knopf.
+
+    **Ein lokaler Faenger um genau den einen Aufruf** (Review-Fix,
+    Praezedenz ``_wirkung_textbuch``): der generische Faenger in
+    ``bot._bearbeite_knopfdruck`` reicht hier nicht. Der Knopf ist zu diesem
+    Zeitpunkt schon ueber ``beanspruche_knopf`` verbraucht -- wirft
+    ``repo.nimm_erkenner_lauf_zurueck`` (etwa ``sqlite3.OperationalError``
+    "database is locked" beim Stempel-UPDATE, vier Bots und das Web teilen
+    dieselbe Datei), bekaeme die Gruppe ohne diesen Faenger gar keine Antwort,
+    die Tastatur bliebe haengen, und ein zweiter Druck liefe in
+    ``repo.beanspruche_knopf`` ins Leere und antwortete
+    ``_TEXT_SCHON_BENUTZT`` ("Das habe ich schon uebernommen.") -- fuer ein
+    gescheitertes Undo eine falsche Erfolgsmeldung, obwohl der Wert
+    unveraendert steht. Die Transaktion selbst ist in jedem Fall sauber: sie
+    rollt bei einer Ausnahme vollstaendig zurueck
+    (``except BaseException: conn.rollback(); raise`` in
+    ``repo.nimm_erkenner_lauf_zurueck``)."""
+    if not d.wert.strip().isdigit():
+        return T._TEXT_UNBEKANNT
+    lauf_id = int(d.wert.strip())
+    lauf = repo.hole_erkenner_lauf(conn, lauf_id)
+    if lauf is None or lauf["chat_id"] != d.chat_id:
+        return T._TEXT_UNBEKANNT
+
+    try:
+        stand = repo.nimm_erkenner_lauf_zurueck(
+            conn, lauf_id, ruecknahme.verweise(),
+            ruecknahme.WEICH, ruecknahme.HART, ruecknahme.GELEERT,
+        )
+    except Exception:
+        log.exception(
+            "Ruecknahme fehlgeschlagen, lauf_id=%s, chat_id=%s",
+            lauf_id, d.chat_id,
+        )
+        repo.merke_vorfall(
+            conn, d.chat_id, getattr(d.e, "bot_name", None),
+            "undo_fehlgeschlagen",
+            f"nimm_erkenner_lauf_zurueck(lauf_id={lauf_id}) hat eine "
+            "Ausnahme geworfen -- die Transaktion ist intern zurueckgerollt, "
+            "zurueckgenommen wurde nichts.",
+        )
+        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_FEHLER)
+        repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, T._TEXT_UNDO_FEHLER)
+        return T._TEXT_UNDO_FEHLER
+    if stand == repo.ZURUECK_GEAENDERT:
+        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_GEAENDERT)
+        repo.merke_bot_zeile(
+            conn, d.chat_id, message_id, d.e, T._TEXT_UNDO_GEAENDERT
+        )
+        return T._ANTWORT_UNDO_GEAENDERT
+    if stand != repo.ZURUECK_OK:
+        return T._TEXT_SCHON_BENUTZT
+
+    if lauf["message_id"]:
+        repo.verfallen_lassen(conn, [
+            k["id"] for k in repo.offene_knoepfe_der_nachricht(
+                conn, d.chat_id, lauf["message_id"])
+        ])
+    zeilen = lauf["meldung"] or ""
+    repo.schreibe_journal(
+        conn, d.chat_id, "entschieden",
+        T._JOURNAL_UNDO.format(zeilen=" / ".join(zeilen.splitlines())),
+        quelle="undo",
+    )
+    text = T._TEXT_UNDO_ERLEDIGT.format(zeilen=zeilen)
+    message_id = d.tg.sende(d.chat_id, text)
+    repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, text)
+    return T._ANTWORT_UNDO
+
+
 #: Die Dispatch-Tabelle: art -> Handler. Sie ersetzt die frueheren
 #: if/elif-Kaskaden in ``_wirke`` und ``_wirke_phase6`` (06.09.2026) und ist
 #: zugleich die Liste, an der sich die drei Zusagen aus dem Moduldocstring
@@ -1391,6 +1480,7 @@ _WIRKUNGEN = {
     ART_SZENENSTIL: _wirkung_szenenstil,
     ART_SZENE_USA: _wirkung_szene_usa,
     ART_STT_SPRACHE: _wirkung_stt_sprache,
+    ART_UNDO: _wirkung_undo,
 }
 
 

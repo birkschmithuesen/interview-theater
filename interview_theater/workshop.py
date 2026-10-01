@@ -183,6 +183,48 @@ VORGABE_WERTE: dict[str, Any] = {
         "erlaubt": "Familie, Erwartungen, Zugehoerigkeit, Sprache, Zukunft",
         "ausgeschlossen": "Keine Gewaltverherrlichung",
     },
+    # Laengen-Rhythmus je Szene (30.09.2026, Karte R). **aktiv = False** ist
+    # die Zusage an Dortmund: ohne Variable und mit
+    # IT_WORKSHOP=dortmund-2026 aendert sich kein Zeichen an einem Prompt,
+    # und keine dieser Zahlen wird gelesen. Wer den Schalter umlegt, aendert
+    # das Verhalten seines Profils -- nicht das des Repos.
+    "laengen": {
+        "aktiv": False,
+        # Was "Kuerzer/Instagram" auf alle Budgets legt (Karte: 0,25).
+        "kurz_faktor": 0.25,
+        # Ab welchem Anteil des Budgets EIN Kuerzungslauf angehaengt wird.
+        "nachzaehl_schwelle": 1.3,
+        # Rueckfall fuer eine Form, die unter ``rahmen`` nicht steht.
+        "vorgabe_min": 200,
+        "vorgabe_max": 450,
+        # Woerter je Szene, Formname -> [min, max]. Leer heisst: jede Form
+        # nimmt vorgabe_min/vorgabe_max. Die Werte gehoeren ins Profil, weil
+        # sie von Ort, Altersgruppe und Spieldauer abhaengen.
+        "rahmen": {},
+        # Die Rhythmus-Muster. Der Code waehlt eines je Gruppe und liest es
+        # zyklisch ueber die Szenennummern -- ``kurz-lang-kurz`` heisst also
+        # auch bei sieben Szenen kurz, lang, kurz, kurz, lang, kurz, kurz.
+        # Jedes Muster traegt mindestens zwei VERSCHIEDENE Stufen: eine
+        # Liste aus einer Stufe koennte gar nichts anderes als flach werden.
+        "muster": [
+            ["kurz", "lang", "kurz"],
+            ["lang", "kurz", "schlag"],
+            ["kurz", "kurz", "lang"],
+            ["mittel", "lang", "schlag"],
+        ],
+    },
+    # Der letzte Sprachpass (30.09.2026, Karte R). Vier mechanisch gezaehlte
+    # Muster, Grenzwerte je 1.000 Woerter -- ausser dem Fazitsatz, der
+    # positionell gezaehlt wird (nur in den letzten Saetzen) und deshalb je
+    # TEXT zaehlt. Die Einheit steht im Schluesselnamen, damit sie niemand
+    # raten muss.
+    "sprachpass": {
+        "aktiv": False,
+        "gedankenstriche_je_1000": 6.0,
+        "nicht_sondern_je_1000": 2.0,
+        "adjektiv_dreier_je_1000": 2.0,
+        "fazitsatz_je_text": 1,
+    },
 }
 
 

@@ -720,13 +720,120 @@ def test_fertig_in_der_sprachnachricht_beendet_das_interview(conn, einst, tg):
         "der fuenfte Teil bleibt Teil des Interviews"
     )
     assert texte[-1] in repo.zusammengefuegtes_transkript(conn, kopf_id)
-    assert _warte_bis(lambda: repo.verdichtungen(conn, 1)), "die Verdichtung kommt"
+    # Gewartet wird auf den LETZTEN Schritt des Abschluss-Threads, die Zeile
+    # "ausgewertet" -- nicht auf die Verdichtung: die speichert
+    # verdichter.verdichte, und erst danach setzt _verdichte den Status auf
+    # 'fertig' und schickt die Zeile. Wer auf die Verdichtung wartet, prueft
+    # Status und Chat mitten im Thread (gemessen: 15 von 300 Laeufen).
+    assert _warte_bis(
+        lambda: any("Interview 1 ausgewertet:" in t for _, t in list(tg.gesendet))
+    ), "die Verdichtung kommt"
     assert len(repo.verdichtungen(conn, 1)) == 1, "genau eine Verdichtung"
     assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
 
     gesendet = [t for _, t in tg.gesendet]
     assert any(t.startswith("Aufnahme beendet.") for t in gesendet)
     assert any("Interview 1 ausgewertet:" in t for t in gesendet)
+
+
+def test_fertig_im_letzten_teil_ruft_schliesse_ab_genau_einmal(conn, einst, tg, monkeypatch):
+    """Race nach 3906fb8 (Fall B): erkennt der Erkenner "fertig" im
+    Transkript DIESES Teils, stoesst er den Abschluss im eigenen Thread an --
+    und die Nachpruefung in ``_teil_abschliessen`` sah danach beendet_am und
+    rief ``schliesse_ab`` ein zweites Mal, synchron. Die Verzoegerung im
+    Ersatz macht das Fenster deterministisch auf: der Thread hat den Status
+    noch nicht umgesetzt, wenn der Hauptthread nachprueft."""
+    original = aufnahme.schliesse_ab
+    aufrufe = []
+
+    def langsam(*args, **kw):
+        aufrufe.append(threading.current_thread().name)
+        time.sleep(0.2)
+        return original(*args, **kw)
+
+    monkeypatch.setattr(aufnahme, "schliesse_ab", langsam)
+    klm = LLMAttrappe(erkenner_antwort=_fertig_wenn_gesagt)
+    interview_an(conn, tg, einst)
+    for i, text in enumerate([TEIL_A, TEIL_B + " So, das Interview ist fertig."]):
+        aid = aufnahme.empfange(
+            conn, tg, einst, sprachnachricht(dauer=30, message_id=560 + i)
+        )
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(text), aid)
+
+    assert _warte_bis(lambda: repo.verdichtungen(conn, 1)), "die Verdichtung kommt"
+    time.sleep(0.4)
+    assert len(aufrufe) == 1, aufrufe
+    assert len(repo.verdichtungen(conn, 1)) == 1
+
+
+def test_externes_fertig_waehrend_der_letzte_teil_laeuft_schliesst_ab(conn, einst, tg):
+    """Fall A (63e3487/3906fb8), gegen den Fix fuer Fall B abgesichert:
+    "fertig" kommt von aussen, waehrend der letzte Teil noch nicht fertig
+    ist. Der Abschluss-Thread findet ihn offen und gibt auf; die
+    Nachpruefung dieses Teils -- dessen Erkenner NICHTS angestossen hat --
+    muss den Abschluss selbst holen, ohne auf den Nachhol-Arbeiter zu
+    warten."""
+    klm = LLMAttrappe()
+    kopf_id = interview_an(conn, tg, einst)
+    aid_a = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=30, message_id=590))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(TEIL_A), aid_a)
+    aid_b = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=30, message_id=591))
+
+    aufnahme.beende_interview(conn, 1)
+    assert aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id) is False, (
+        "Teil B ist noch offen"
+    )
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(TEIL_B), aid_b)
+
+    assert len(repo.verdichtungen(conn, 1)) == 1, "synchron, ohne Nachhol-Lauf"
+    assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
+
+
+def test_schliesse_ab_gleichzeitig_verdichtet_nur_einmal(conn, einst, tg, monkeypatch):
+    """Fall A, zweite Verteidigungslinie: rufen zwei Wege ``schliesse_ab``
+    fuer dasselbe Interview gleichzeitig (/fertig-Thread und die
+    Nachpruefung des letzten Teils), darf nur einer zusammenfuegen und
+    verdichten. Die Verzoegerung haelt beide hinter der Statuspruefung fest,
+    solange es keine Sperre je Kopf gibt."""
+    klm = LLMAttrappe()
+    kopf_id = interview_an(conn, tg, einst)
+    for i, text in enumerate([TEIL_A, TEIL_B]):
+        aid = aufnahme.empfange(
+            conn, tg, einst, sprachnachricht(dauer=30, message_id=580 + i)
+        )
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(text), aid)
+    aufnahme.beende_interview(conn, 1)
+
+    original = repo.zusammengefuegtes_transkript
+    schranke = threading.Barrier(2, timeout=1.0)
+    reihe = []
+
+    def langsam(*args, **kw):
+        # Ohne Sperre stehen hier beide hinter der Statuspruefung; der zweite
+        # laeuft erst weiter, wenn der erste laengst verdichtet hat. Mit
+        # Sperre kommt nur einer hierher, die Schranke laeuft ins Leere.
+        try:
+            schranke.wait()
+        except threading.BrokenBarrierError:
+            pass
+        reihe.append(1)
+        if len(reihe) == 2:
+            time.sleep(0.5)
+        return original(*args, **kw)
+
+    monkeypatch.setattr(repo, "zusammengefuegtes_transkript", langsam)
+    threads = [
+        threading.Thread(target=aufnahme.schliesse_ab, args=(conn, tg, klm, einst, kopf_id))
+        for _ in range(2)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(5)
+
+    assert klm.aufrufe == 1, "genau ein Verdichteraufruf"
+    assert len(repo.verdichtungen(conn, 1)) == 1
+    assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
 
 
 def test_erkenner_darf_aus_interviewinhalt_nichts_anderes_schreiben(conn, einst, tg):

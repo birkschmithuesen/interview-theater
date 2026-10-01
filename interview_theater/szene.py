@@ -1554,6 +1554,40 @@ def _aufgabe_text(conn, chat_id: int, ziel) -> str:
     return T._AUFGABE_MITTE.format(nummer=nummer, gesamt=gesamt)
 
 
+def budget_fuer_szene(conn, chat_id: int, ziel) -> int:
+    """Das Wortbudget dieser Szene, oder 0, wenn dieses Profil keine waehlt.
+
+    Die Form kommt aus ``laengen.form_der_szene``: bestaetigt vor
+    vorgeschlagen vor Profilvorgabe. Der Seed ist die ``chat_id``, das Muster
+    wird zyklisch ueber die Szenennummer gelesen -- eine spaeter eingefuegte
+    Szene verschiebt deshalb kein Budget einer frueheren.
+
+    Reine Leseabfrage, kein Modellaufruf."""
+    from interview_theater import laengen
+
+    if ziel is None or not laengen.aktiv():
+        return 0
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    budget = laengen.budget_fuer(
+        ziel["nummer"], laengen.form_der_szene(ziel), seed=chat_id,
+        faktor=laengen.faktor_aus_stand(stand),
+    )
+    # Erst der Faktor (im Wuerfel), dann der Deckel: eine ausdrueckliche
+    # Ansage der Gruppe ist eine Obergrenze und keine Zielzahl.
+    return laengen.budget_mit_ansage(
+        budget, laengen.woerter_aus_festlegungen(repo.festlegungen(conn, chat_id)),
+    )
+
+
+def _laenge_text(conn, chat_id: int, ziel) -> str:
+    """Block: die Laenge dieser Szene. Leer, solange kein Profil sie waehlt --
+    dann faellt er in ``_zusammen`` ersatzlos weg und der Nutzertext bleibt
+    zeichengleich."""
+    from interview_theater import laengen
+
+    return laengen.block_szene(budget_fuer_szene(conn, chat_id, ziel))
+
+
 #: Steht dieser Marker im Auftrag, ist es ein Neuschreiben: die alte Fassung
 #: geht NICHT als Vorlage mit (06.09.2026, "Neu schreiben" lieferte zweimal
 #: denselben Text). Der Marker selbst wird aus dem Auftrag entfernt.
@@ -1824,8 +1858,11 @@ def _chat_text(conn, chat_id: int, ziel, nummer: int | None,
 #: Szene und zuletzt der Auftrag. Das Ende des Prompts wiegt am schwersten
 #: (SPEC § 6.1) -- dort stehen die Angaben, die bindend sind, und der Auftrag.
 _REIHENFOLGE = (
-    "format_rahmen", "aufgabe", "thema", "kernpaket", "figuren", "continuity",
-    "verworfen", "chat", "diese_szene", "auftrag",
+    # "laenge" steht direkt hinter "aufgabe" und damit im nie gekuerzten
+    # Teil (30.09.2026, Karte R): eine Laengenvorgabe, die die
+    # Kuerzungsleiter wegwerfen darf, ist keine.
+    "format_rahmen", "aufgabe", "laenge", "thema", "kernpaket", "figuren",
+    "continuity", "verworfen", "chat", "diese_szene", "auftrag",
 )
 
 
@@ -1865,6 +1902,7 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
     (Birk, 05.09.2026) und **unter einem harten Token-Deckel** (06.09.2026).
 
     Bloecke in dieser Reihenfolge: Format & Rahmen; die Aufgabe dieser Szene;
+    die Laenge dieser Szene (nur mit aktivem Laengenprofil, Karte R);
     Kernthema; das Kernpaket; die Figuren mit Sprachprofil und woertlichen
     Zitaten; die frueheren Szenen (Continuity); was die Gruppe verworfen hat;
     der frische Chat; die Felder DIESER Szene; der Auftrag.
@@ -1884,8 +1922,8 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
     3. **Kernpaket-Begruendungen** (die Zitate bleiben).
     4. **Sprachprofil-Zitate** auf drei je Figur.
 
-    Nie gekuerzt werden Rahmen/Geschichte, die Aufgabe, die Angaben dieser
-    Szene und der Auftrag: das ist genau das, was die Gruppe entschieden hat,
+    Nie gekuerzt werden Rahmen/Geschichte, die Aufgabe, die Laenge, die
+    Angaben dieser Szene und der Auftrag: das ist genau das, was die Gruppe entschieden hat,
     und ein Modell, dem es fehlt, erfindet es (gemessen 05.09.2026 -- Szene in
     einer Kueche statt im Polizeikessel).
 
@@ -1913,6 +1951,7 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
             "verworfen": _verworfen_text(conn, chat_id),
             "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl),
             "aufgabe": _aufgabe_text(conn, chat_id, ziel),
+            "laenge": _laenge_text(conn, chat_id, ziel),
             "diese_szene": _diese_szene_text(
                 conn, ziel, neu=NEU_MARKER in (auftrag or ""),
                 vorlage=not schreibt_prosa(conn, chat_id),
@@ -2182,14 +2221,20 @@ def _pruefe_budget(conn, chat_id: int, ueber_claude: bool) -> None:
         log.info("Szenen-Prompt: %d von %d Token (%.0f %%)", echt, budget, anteil * 100)
 
 
-def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
+def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
+             art: str = ART) -> int:
     """Der eigentliche Szenen-Aufruf: Prompt bauen, Modell fragen, Szene
     speichern, Journal schreiben, Vorschau in die Gruppe schicken. Liefert
     die Nummer der geschriebenen Szene.
 
     Laeuft im Thread aus ``starte()``; wer sie direkt aufruft (Tests, ein
     kuenftiger Stapellauf), bekommt sie synchron und muss sich selbst um die
-    Sperre kuemmern. Fehler fliegen heraus -- ``_lauf()`` faengt sie."""
+    Sperre kuemmern. Fehler fliegen heraus -- ``_lauf()`` faengt sie.
+
+    ``art`` (30.09.2026, Karte R) landet in der Tabelle ``aufruf``. Der
+    Nachpass setzt ``szene_nachpass``, damit sich seine Laeufe getrennt zaehlen
+    lassen -- wie ``dramaturgie_b1`` es vormacht. Ohne Angabe bleibt es
+    ``ART``."""
     ziel = ziel_fuer(conn, chat_id, auftrag)
     nummer = ziel["nummer"]
 
@@ -2212,12 +2257,12 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str) -> int:
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
             chat_id, system,
-            nutzer, ART, timeout=TIMEOUT_S,
+            nutzer, art, timeout=TIMEOUT_S,
         )
     else:
         antwort = klm.prosa(
             chat_id, system,
-            nutzer, ART, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
+            nutzer, art, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
         )
     _pruefe_budget(conn, chat_id, ueber_claude)
 
@@ -2332,15 +2377,46 @@ def _sende_szenentext(conn, tg, e, chat_id: int, nummer: int, titel: str,
 ARBEITSART = "prosa"
 
 
-def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str, sperre: threading.Lock) -> None:
+def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
+          sperre: threading.Lock, art: str = ART) -> None:
     """Der Thread-Rumpf: ``schreibe()`` mit Fehlerbehandlung und garantierter
     Freigabe der Sperre. Bliebe sie bei einem Fehlschlag liegen, koennte die
-    Gruppe fuer den Rest des Workshops keine Szene mehr schreiben lassen."""
+    Gruppe fuer den Rest des Workshops keine Szene mehr schreiben lassen.
+
+    **Und, seit dem 30.09.2026 (Karte R), der Nachpass**: nachzaehlen und
+    Sprachmuster pruefen, und wenn etwas dran ist, GENAU EINEN
+    Ueberarbeitungslauf anhaengen. Er steht hier und nicht in ``schreibe``,
+    weil er ``schreibe`` selbst ruft -- in ``schreibe`` waere es eine
+    Rekursion. Er steht im ``try`` und nicht im ``finally``, weil es nach
+    einem gescheiterten Lauf keinen Text gibt, ueber den nachzuzaehlen waere.
+    Und er steht **vor** der Freigabe der Sperre, damit ihm kein zweiter
+    Szenenlauf derselben Gruppe dazwischenkommt.
+
+    Ein Nachpass auf einem Nachpass gibt es nicht: der ruft ``schreibe``
+    direkt und kommt hier nie vorbei."""
     from interview_theater import arbeitszeilen
 
     zeilen = arbeitszeilen.sichtbar(tg, chat_id, ARBEITSART)
     try:
-        schreibe(conn, tg, klm, e, chat_id, auftrag)
+        nummer = schreibe(conn, tg, klm, e, chat_id, auftrag, art=art)
+        # ``art == ART``: der Nachpass nur nach einem GEWOEHNLICHEN Lauf. Er
+        # selbst ruft ``schreibe`` direkt und kommt hier nie vorbei -- die
+        # Bedingung ist die zweite Wache gegen eine Schleife, kein Ersatz
+        # fuer die erste. Ohne aktives Profil ist ``nach_szene`` ein No-Op.
+        if art == ART:
+            from interview_theater import nachpass
+
+            # Eigenes ``try`` (Schlussreview I1): die Szene ist hier schon
+            # gespeichert und verschickt. Reisst der Nachpass, ist das ein
+            # Vorfall und keine "fehlgeschlagen"-Zeile an die Gruppe -- er ist
+            # eine Zugabe, auf die niemand wartet (SPEC § 11.1).
+            try:
+                nachpass.nach_szene(conn, tg, klm, e, chat_id, nummer)
+            except Exception:
+                log.exception("Nachpass gescheitert, chat_id=%s, Szene %s",
+                              chat_id, nummer)
+                nachpass._vorfall(conn, chat_id, e, nachpass.VORFALL_FEHLER,
+                                  f"Szene {nummer}: Nachpass gescheitert")
     except Exception:
         log.exception("Szenen-Aufruf fehlgeschlagen, chat_id=%s", chat_id)
         try:
@@ -2358,7 +2434,8 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str, sperre: threading.Lock) 
         sperre.release()
 
 
-def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | None:
+def starte(conn, tg, klm, e, chat_id: int, auftrag: str,
+           art: str = ART) -> threading.Thread | None:
     """Prueft, kuendigt an und gibt den Aufruf an einen eigenen Thread ab.
 
     Liefert den gestarteten Thread, oder None, wenn nichts angestossen wurde
@@ -2447,7 +2524,8 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str) -> threading.Thread | N
     if hinweis:
         _sende_und_merke(conn, tg, e, chat_id, hinweis)
     thread = threading.Thread(
-        target=_lauf, args=(conn, tg, klm, e, chat_id, auftrag, sperre), daemon=True,
+        target=_lauf, args=(conn, tg, klm, e, chat_id, auftrag, sperre, art),
+        daemon=True,
     )
     try:
         thread.start()

@@ -64,6 +64,27 @@ in `BEFUND.md`. Sie ist ein **Vorschlag zur Abnahme**.
   station. Sie stehen in englischen Prompt-Sätzen; die italienischen Wörter
   des alten Gerüsts (`fermata`, `stazione`) wären dort Fremdkörper gewesen.
 
+## Laengen-Rhythmus und Sprachpass (Karte R, 30.09.2026)
+
+- **Wo die Zahlen stehen:** in `profil.toml` unter `[laengen]` (Schalter,
+  `kurz_faktor`, `nachzaehl_schwelle`, Rueckfall `vorgabe_min`/`vorgabe_max`),
+  `[laengen.rahmen]` (Woerter je Szene und Form: Dialog 200-450, Monolog
+  150-350, Chor/Lied 80-200, Rap 120-250) und `[sprachpass]` (vier
+  Grenzwerte). Aenderbar ohne Code; wirksam nach einem Neustart des Bots, weil
+  die TOML nur beim Start gelesen wird.
+- **Die Rahmenwerte sind ein Vorschlag und ungemessen.** Woran sie zu eichen
+  sind -- Herkules.exe, Dortmund Textbuch v1/v2 -- steht in
+  `docs/padua-r-laengen-2026-09-30/BEFUND.md`, Abschnitt 1. Sie liegen schon
+  bei etwa einem Viertel des Herkules-Masses; ob das der Normalfall oder
+  bereits die kurze Fassung ist, entscheidet Birk.
+- **`kurz_faktor = 0.25` ist die Instagram-Entscheidung:** "Kuerzer (25 %)"
+  unter der ganzen Geschichte legt diesen Faktor dauerhaft auf alle
+  Budgets (`arbeitsstand.laengen_faktor`), auch auf Szenen, die es noch nicht
+  gibt.
+- **Zurueck zum Verhalten von vorher:** `[laengen] aktiv = false` (und
+  `[sprachpass] aktiv = false`) -- dann gibt es weder ein Budget im Prompt
+  noch einen Nachpass, genau wie in Dortmund.
+
 ## Was offen bleibt
 
 - **Journal-, Verdichter- und Sprachprofil-Korpus auf Englisch** — nur der

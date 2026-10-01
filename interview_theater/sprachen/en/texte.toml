@@ -40,6 +40,14 @@ I don't have any suggestions yet - they come from the analysed \
 interviews. You can also just tell me the core theme."""
 _TEXT_SCHON_BENUTZT = "I've already taken that on."
 _TEXT_UNBEKANNT = "I don't know this button any more."
+# Karte U: der Undo-Knopf unter jeder Notiert-Meldung.
+_TEXT_UNDO_KNOPF = "Undo"
+_TEXT_UNDO_ERLEDIGT = "Undone:\n{zeilen}"
+_TEXT_UNDO_GEAENDERT = "Changed since - please fix it in the work status"
+_TEXT_UNDO_FEHLER = "I couldn't undo that - please fix it in the work status."
+_ANTWORT_UNDO = "Undone."
+_ANTWORT_UNDO_GEAENDERT = "Changed since."
+_JOURNAL_UNDO = "Withdrawn: {zeilen}"
 _TEXT_AUFNAHME_STARTEN = "Start interview"
 _TEXT_AUFNAHME_BEENDEN = "End interview"
 _TEXT_TEIL_WEITER_KNOPF = "Interview continues"
@@ -1098,6 +1106,7 @@ figuren = "characters"
 was_passiert = "what happens"
 
 ["kurzgeschichte"]
+ZEILE_GESAMTLAENGE = "1,500 to 3,500 words in total."
 ANWEISUNG = """You are writing the short story of a theatre play.
 
 Below are the setting, the characters with their speech style and the story
@@ -1456,6 +1465,7 @@ _PROBE_PLANUNG = [["was_passiert", "What happens"], ["was_anders", "What's diffe
 TEXT_UNGESCHRIEBEN = "Not written yet."
 TEXT_LEITFADEN_LEER = "The interview guide is created in phase 2."
 TEXT_LEITFADEN_ZURUECK = "← back to where we are"
+_TEXT_CHAT_LINK = "Chat with the bot"
 
 ["web".ARBEITSSTAND_BESCHRIFTUNG]
 phase = "Phase"
@@ -1522,3 +1532,24 @@ formverteilung = "spread of forms"
 form_regel = "form rule"
 tschechow = "Chekhov candidate"
 sprechanteil = "speaking share"
+
+["laengen"]
+BLOCK_KOPF_SZENE = "How long this scene should be:"
+BLOCK_KOPF_PROSA = "How long the sections should be:"
+ZEILE_ABSCHNITT = "- Section {nummer} ({form}): about {budget} words"
+ZEILE_SZENE = "About {budget} words. Clearly shorter is fine, longer is not."
+ZEILE_GESAMT = "About {gesamt} words in total."
+SATZ_BINDUNG = "Exactly {anzahl} sections, in this order, with these lengths."
+SATZ_VORRANG = "These lengths apply. Any other length given in the rules below is overridden."
+SATZ_RHYTHMUS = "The lengths differ on purpose. Sections of equal length take the rhythm out of the play."
+JOURNAL_ZEILE = "Lengths rolled (seed {seed}, pattern {muster}, factor {faktor}): {budgets}"
+
+["sprachpass"]
+NOTIZ_KOPF = "Revise the language of the text. Same events, same order, same characters, same ending -- change only how it reads:"
+NOTIZ_ZITATE = "Verbatim quotes from the interviews stay word for word, including the breaks, repetitions and filler words in them. They are the information, not the mistake."
+
+["sprachpass".NOTIZ]
+gedankenstriche = "Fewer dashes. Where one stands, a full stop, a comma or nothing at all usually works."
+nicht_sondern = "No sentences of the form \"not X but Y\". Say Y straight away."
+adjektiv_dreier = "No chains of three adjectives. One is enough, or an image instead of all three."
+fazitsatz = "No conclusion and no moral at the end. The last line does not say what it was about."

@@ -1,4 +1,4 @@
-"""Ein vollstaendiger Durchlauf ohne Netz -- alle neun Schritte, mit Szene.
+"""Ein vollstaendiger Durchlauf ohne Netz -- alle Schritte, mit Szene.
 
 Der Mini-Lauf in ``test_simulation_lauf.py`` prueft die Verdrahtung bis in
 den Bericht. Hier geht es um die drei Schritte, die mehr tun als reden: die
@@ -180,7 +180,7 @@ def _verlauf(durchlauf) -> dict:
     return json.loads(zeilen[0])
 
 
-def test_alle_neun_schritte_erreichen_ihren_zielzustand(durchlauf):
+def test_alle_schritte_erreichen_ihren_zielzustand(durchlauf):
     assert sim.main(["--set", "1", "--seed", "1"]) == 0
     daten = _verlauf(durchlauf)
     assert daten["schritte_gescheitert"] == []

@@ -36,6 +36,7 @@ UMGESTELLT: set[str] = {
     "szene", "szenenfolge", "kurzgeschichte", "schaerfung", "sprachprofil",
     "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
     "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben", "web",
+    "laengen", "sprachpass",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -48,7 +49,7 @@ ALLE_MODULE = {
     "kontext", "kuerzung", "kurzgeschichte", "leitfaden", "phasen",
     "phasentexte", "schaerfung", "sprachprofil", "sprachstil", "sprecher",
     "stile", "stueckpruefung", "szene", "szenenfolge", "verdichter",
-    "vorspann", "web", "web_schreiben",
+    "vorspann", "web", "web_schreiben", "laengen", "sprachpass",
 }
 
 #: Bleibt deutsch, mit Grund (nie im Chat, nie im Prompt einer Gruppe).
@@ -77,6 +78,10 @@ BLEIBT_DEUTSCH = {
     "web._SCROLL_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web._BEARBEITEN_JS": "JavaScript, nur Kommentare deutsch; Meldungen aus data-Attributen",
     "web._TEXTBUCH_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
+    # Karte R, Aufgabe 5: Protokollwerte der Journalzeile, gelesen von
+    # kontext und Weboberflaeche -- kein Nutzertext.
+    "laengen.JOURNAL_ART": "Protokoll (journal.art), kein Nutzertext",
+    "laengen.JOURNAL_QUELLE": "Protokoll (journal.quelle), kein Nutzertext",
     "web._CSS_DASHBOARD": "CSS, nur Kommentare deutsch",
     "web._CSS_GRUPPE": "CSS, nur Kommentare deutsch",
     "web._CSS_LEITFADEN": "CSS, nur Kommentare deutsch",
@@ -136,6 +141,15 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail ueberschreiben_verhindert (repo.merke_vorfall)",
     ("knoepfe.szenen", "Eine Formwahl sollte als Geschichte gesp"):
         "Vorfall-Detail geschichte_war_formwahl (repo.merke_vorfall)",
+    # Review-Fix Aufgabe 6 (Karte U): Vorfall-Detail undo_fehlgeschlagen.
+    ("knoepfe.wirkung", "nimm_erkenner_lauf_zurueck(lauf_id={}) h"):
+        "Vorfall-Detail undo_fehlgeschlagen (repo.merke_vorfall)",
+    # Review-Fix Aufgabe 7 (Karte U): Vorfall-Details undo_nicht_angelegt,
+    # ueber ``erkenner._merke_undo_vorfall`` an repo.merke_vorfall.
+    ("erkenner", "Schnappschuss vor dem Anwenden fehlgesch"):
+        "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
+    ("erkenner", "Schnappschuss nach dem Anwenden fehlgesc"):
+        "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
     # Zahlwoerter in ``figuren._zahl_aus``: Parser fuer Gruppentext (D5),
     # die deutsche Liste bleibt im Funktionsrumpf; das englische Gegenstueck
     # steht seit Aufgabe 22 als Modulkonstante ``_ZAHLWOERTER_EN`` daneben.

@@ -27,6 +27,7 @@ Threads ``zaehle_aufnahmen`` aufruft -- mit einem einfachen ``Lock`` wuerde
 sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 """
 
+import json
 import re
 import secrets
 import sqlite3
@@ -1647,6 +1648,9 @@ _ARBEITSSTAND_FELDER = (
     # Fragen und die angetippten Nummern. Zustand in der Datenbank, nicht in
     # der Tastatur -- siehe ``db.SCHEMA``.
     "fragen_auswahl", "fragen_gewaehlt",
+    # Der Laengen-Faktor (30.09.2026, Karte R): derselbe eine Schreibweg wie
+    # alles andere im Arbeitsstand.
+    "laengen_faktor",
 )
 
 
@@ -3140,3 +3144,580 @@ def beanspruche_knopf(conn: sqlite3.Connection, knopf_id: int) -> bool:
     )
     conn.commit()
     return cur.rowcount == 1
+
+
+# --- Ruecknahme eines Erkennerlaufs (Karte U, 01.10.2026) ------------------
+
+
+@_gesperrt
+def offene_knoepfe_der_nachricht(
+    conn: sqlite3.Connection, chat_id: int, message_id: int,
+    art: str | None = None,
+) -> list[sqlite3.Row]:
+    """Die noch ungedrueckten Knoepfe EINER Nachricht, juengste zuerst.
+
+    Gebraucht fuer zwei Dinge (Karte U): eine ueberholte Leisten-Nachricht auf
+    ihren Undo-Knopf zu reduzieren, statt ihre Tastatur ganz abzunehmen -- und
+    nach einer wirksamen Ruecknahme die Grundleisten-Knoepfe genau dieser
+    Nachricht verfallen zu lassen, damit "Ja, speichern" den gerade
+    zurueckgenommenen Wert nicht wieder schreibt (der Wert steckt im Knopf)."""
+    wenn_art = " AND art = ?" if art else ""
+    werte = [chat_id, message_id] + ([art] if art else [])
+    return conn.execute(
+        "SELECT * FROM knopf WHERE chat_id = ? AND message_id = ? "
+        f"AND benutzt_am IS NULL{wenn_art} ORDER BY id DESC",
+        werte,
+    ).fetchall()
+
+
+@_gesperrt
+def schnappschuss(
+    conn: sqlite3.Connection, chat_id: int,
+    plan: dict[str, tuple[tuple[str, ...], tuple[str, ...]]],
+) -> dict[str, dict[str, dict]]:
+    """Der Stand der verfolgten Tabellen dieser Gruppe, Zeile fuer Zeile.
+
+    ``plan`` kommt aus ``ruecknahme.plan`` -- Tabelle -> (Schluesselspalten,
+    verglichene Spalten). Der Plan wird uebergeben und nicht hier gebaut: die
+    Entscheidung, WAS verfolgt wird, ist Fachlogik (``ruecknahme.py``), und
+    diese Datei liest nicht nach oben.
+
+    Weich entfernte Zeilen kommen MIT (kein ``entfernt_am IS NULL``): sonst
+    saehe der Diff eine im Lauf weich entfernte Figur als verschwunden und
+    fuegte sie beim Undo neu ein, statt ``entfernt_am`` zurueckzunehmen.
+
+    Ergebnis: ``{Tabelle: {Schluessel-JSON: {Spalte: Wert}}}``. Der Schluessel
+    ist ``json.dumps(..., sort_keys=True)``, damit er bei einem
+    zusammengesetzten Schluessel (``szene_figur``) stabil bleibt."""
+    fertig: dict[str, dict[str, dict]] = {}
+    for tabelle, (schluesselspalten, spalten) in plan.items():
+        namen = list(dict.fromkeys(list(schluesselspalten) + list(spalten)))
+        auswahl = ", ".join(namen)
+        zeilen = conn.execute(
+            f"SELECT {auswahl} FROM {tabelle} WHERE chat_id = ?", (chat_id,)
+        ).fetchall()
+        fertig[tabelle] = {
+            json.dumps({k: zeile[k] for k in schluesselspalten}, sort_keys=True):
+                {k: zeile[k] for k in spalten}
+            for zeile in zeilen
+        }
+    return fertig
+
+
+@_gesperrt
+def lege_erkenner_lauf_an(
+    conn: sqlite3.Connection, chat_id: int, meldung: str,
+    schritte: list[dict],
+) -> int | None:
+    """Speichert die Ruecknahme-Schritte eines Erkennerlaufs und liefert die
+    Lauf-id -- oder ``None``, wenn es nichts anzulegen gab.
+
+    ``None`` bei leeren Schritten (ein Knopf ohne Wirkung waere schlimmer als
+    keiner) und bei leerer Meldung (eine Ruecknahme, die nicht sagen kann, WAS
+    sie zurueckgenommen hat, ist keine). Alles in EINER Transaktion: ein Lauf
+    mit halben Schritten wuerde beim Undo den Stand halb wiederherstellen."""
+    if not schritte or not (meldung or "").strip():
+        return None
+    jetzt = _jetzt()
+    cur = conn.execute(
+        "INSERT INTO erkenner_lauf (chat_id, meldung, erstellt_am) VALUES (?, ?, ?)",
+        (chat_id, meldung, jetzt),
+    )
+    lauf_id = cur.lastrowid
+    conn.executemany(
+        "INSERT INTO erkenner_lauf_schritt "
+        "(chat_id, lauf_id, tabelle, schluessel, art, vorher, nachher, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                chat_id, lauf_id, s["tabelle"],
+                json.dumps(s["schluessel"], sort_keys=True), s["art"],
+                None if s["vorher"] is None else json.dumps(s["vorher"], sort_keys=True),
+                None if s["nachher"] is None else json.dumps(s["nachher"], sort_keys=True),
+                jetzt,
+            )
+            for s in schritte
+        ],
+    )
+    conn.commit()
+    return lauf_id
+
+
+@_gesperrt
+def merke_erkenner_lauf_nachricht(
+    conn: sqlite3.Connection, lauf_id: int, message_id: int
+) -> None:
+    """Haelt fest, unter welcher Nachricht der Undo-Knopf dieses Laufs haengt
+    -- gebraucht, um nach der Ruecknahme genau ihre Grundleiste verfallen zu
+    lassen."""
+    conn.execute(
+        "UPDATE erkenner_lauf SET message_id = ? WHERE id = ?",
+        (message_id, lauf_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hole_erkenner_lauf(conn: sqlite3.Connection, lauf_id: int) -> sqlite3.Row | None:
+    """Der Lauf zu einer id, egal ob schon zurueckgenommen -- der Aufrufer muss
+    den Unterschied kennen, um einen zweiten Druck freundlich zu beantworten
+    (dieselbe Ueberlegung wie bei ``hole_knopf``)."""
+    return conn.execute(
+        "SELECT * FROM erkenner_lauf WHERE id = ?", (lauf_id,)
+    ).fetchone()
+
+
+@_gesperrt
+def erkenner_lauf_schritte(
+    conn: sqlite3.Connection, lauf_id: int
+) -> list[sqlite3.Row]:
+    """Die Schritte eines Laufs in Anlegereihenfolge."""
+    return conn.execute(
+        "SELECT * FROM erkenner_lauf_schritt WHERE lauf_id = ? ORDER BY id ASC",
+        (lauf_id,),
+    ).fetchall()
+
+
+#: Die Ergebnisse von ``nimm_erkenner_lauf_zurueck``. Drei und nicht ein bool:
+#: "seitdem geaendert" und "schon zurueckgenommen" sind fuer die Gruppe zwei
+#: verschiedene Saetze.
+ZURUECK_OK = "ok"
+ZURUECK_GEAENDERT = "geaendert"
+ZURUECK_SCHON = "schon"
+
+
+def _zeile_jetzt(conn, tabelle, schluessel, spalten):
+    """Die verglichenen Spalten einer Zeile, oder None wenn sie fehlt."""
+    bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+    auswahl = ", ".join(spalten) if spalten else "1"
+    zeile = conn.execute(
+        f"SELECT {auswahl} FROM {tabelle} WHERE {bedingung}",
+        list(schluessel.values()),
+    ).fetchone()
+    return None if zeile is None else {k: zeile[k] for k in spalten}
+
+
+def _hat_fremden_verweis(conn, verweise, tabelle, zeilen_id, eigene) -> bool:
+    """Zeigt jetzt eine Zeile auf diese figur/szene, die nicht im Lauf
+    entstanden ist? Dann waere die Ruecknahme eine Waisenfabrik.
+
+    ``rowid AS rowid`` und nicht nacktes ``rowid``: jede dieser Tabellen hat
+    ``id INTEGER PRIMARY KEY``, und SQLite benennt die Ergebnisspalte dann
+    nach dem Spaltennamen des Alias (``id``), nicht nach ``rowid`` -- ohne das
+    ``AS`` wirft ``zeile["rowid"]`` einen ``IndexError`` (am echten Schema
+    gemessen, nicht im Brief vorgesehen)."""
+    for quelle, spalte, ziel in verweise:
+        if ziel != tabelle:
+            continue
+        for zeile in conn.execute(
+            f"SELECT rowid AS rowid FROM {quelle} WHERE {spalte} = ?", (zeilen_id,)
+        ):
+            if (quelle, zeile["rowid"]) not in eigene:
+                return True
+    return False
+
+
+@_gesperrt
+def nimm_erkenner_lauf_zurueck(
+    conn: sqlite3.Connection, lauf_id: int,
+    verweise: tuple[tuple[str, str, str], ...],
+    weich: tuple[str, ...], hart: tuple[str, ...], geleert: tuple[str, ...],
+) -> str:
+    """Nimmt einen ganzen Erkennerlauf zurueck -- **alles oder nichts**, in
+    EINER Transaktion unter ``_LOCK``.
+
+    Erst wird JEDER Schritt geprueft (steht der Wert noch so, wie ihn der Lauf
+    hinterlassen hat? haengt an einer neu angelegten Figur/Szene inzwischen
+    etwas Fremdes?), und nur wenn alle durchkommen, wird angewendet. Ein
+    halber Rueckschritt waere schlimmer als keiner: die Gruppe saehe einen
+    Stand, den es nie gegeben hat.
+
+    Die Idempotenz haengt an zwei Dingen: ``beanspruche_knopf`` beim Druck
+    (``knoepfe.behandle``) und dem bedingten UPDATE hier -- wer die Zeile
+    nicht bekommt, wirkt nicht. Das zweite ist noetig, weil die Ruecknahme
+    auch ohne Knopf aufrufbar ist (Web-Kanal, Aufgabe 10) und weil zwei
+    Knoepfe auf denselben Lauf zeigen koennen (Undo auf einer reduzierten
+    aelteren Leiste).
+
+    ``verweise``/``weich``/``hart``/``geleert`` kommen aus ``ruecknahme`` und
+    werden uebergeben: die Entscheidung, WAS wie zurueckgenommen wird, ist
+    Fachlogik, und diese Datei liest nicht nach oben."""
+    lauf = conn.execute(
+        "SELECT * FROM erkenner_lauf WHERE id = ?", (lauf_id,)
+    ).fetchone()
+    if lauf is None or lauf["zurueckgenommen_am"] is not None:
+        return ZURUECK_SCHON
+
+    schritte = conn.execute(
+        "SELECT * FROM erkenner_lauf_schritt WHERE lauf_id = ? ORDER BY id ASC",
+        (lauf_id,),
+    ).fetchall()
+    if not schritte:
+        return ZURUECK_SCHON
+
+    # Die Zeilen, die dieser Lauf selbst angelegt hat -- sie duerfen beim
+    # Waisen-Test nicht als fremder Verweis zaehlen. ``rowid AS rowid``:
+    # siehe Kommentar in ``_hat_fremden_verweis``, gilt hier genauso fuer
+    # ``arbeitsstand`` (chat_id), ``figur``/``szene``/``festlegung`` (id).
+    eigene = set()
+    for s in schritte:
+        if s["art"] != "angelegt":
+            continue
+        schluessel = json.loads(s["schluessel"])
+        bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+        for zeile in conn.execute(
+            f"SELECT rowid AS rowid FROM {s['tabelle']} WHERE {bedingung}",
+            list(schluessel.values()),
+        ):
+            eigene.add((s["tabelle"], zeile["rowid"]))
+
+    # 1. Pruefen -- jeder Schritt, bevor einer wirkt.
+    for s in schritte:
+        schluessel = json.loads(s["schluessel"])
+        nachher = json.loads(s["nachher"]) if s["nachher"] else None
+        jetzt = _zeile_jetzt(
+            conn, s["tabelle"], schluessel,
+            list(nachher or json.loads(s["vorher"])),
+        )
+        if s["art"] == "geloescht":
+            if jetzt is not None:
+                return ZURUECK_GEAENDERT
+            continue
+        if jetzt is None:
+            return ZURUECK_GEAENDERT
+        for spalte, wert in nachher.items():
+            if json.loads(json.dumps(jetzt.get(spalte))) != \
+                    json.loads(json.dumps(wert)):
+                return ZURUECK_GEAENDERT
+        if s["art"] == "angelegt" and s["tabelle"] in weich:
+            zeilen_id = schluessel.get("id")
+            if zeilen_id is not None and _hat_fremden_verweis(
+                conn, verweise, s["tabelle"], zeilen_id, eigene
+            ):
+                return ZURUECK_GEAENDERT
+
+    # 2. Stempeln und 3. Anwenden stehen ab hier in EINEM try/except: ohne es
+    # bliebe ein Statement, das in der Anwende-Phase scheitert (etwa ein
+    # ``vorher``-JSON mit einer Spalte, die es in der Tabelle nicht mehr
+    # gibt -- ``sqlite3.OperationalError``), als halb offene Transaktion auf
+    # der GETEILTEN Verbindung liegen, und der naechste ``conn.commit()``
+    # irgendeiner anderen ``repo``-Funktion wuerde Stempel und Teilschritte
+    # festschreiben. ``except BaseException`` statt ``Exception``, weil auch
+    # ein ``KeyboardInterrupt``/SystemExit mitten im Anwenden nicht die
+    # Haelfte stehen lassen darf.
+    try:
+        # 2. Stempeln -- bedingt, in derselben Transaktion. Wer die Zeile
+        #    nicht bekommt, wirkt nicht.
+        cur = conn.execute(
+            "UPDATE erkenner_lauf SET zurueckgenommen_am = ? "
+            "WHERE id = ? AND zurueckgenommen_am IS NULL",
+            (_jetzt(), lauf_id),
+        )
+        if cur.rowcount != 1:
+            conn.rollback()
+            return ZURUECK_SCHON
+
+        # 3. Anwenden.
+        for s in schritte:
+            tabelle = s["tabelle"]
+            schluessel = json.loads(s["schluessel"])
+            bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+            werte = list(schluessel.values())
+            if s["art"] == "geaendert":
+                vorher = json.loads(s["vorher"])
+                satz = ", ".join(f"{k} = ?" for k in vorher)
+                conn.execute(
+                    f"UPDATE {tabelle} SET {satz} WHERE {bedingung}",
+                    list(vorher.values()) + werte,
+                )
+            elif s["art"] == "angelegt":
+                if tabelle in weich:
+                    conn.execute(
+                        f"UPDATE {tabelle} SET entfernt_am = ? WHERE {bedingung}",
+                        [_jetzt()] + werte,
+                    )
+                elif tabelle in geleert:
+                    spalten = list(json.loads(s["nachher"]))
+                    satz = ", ".join(f"{k} = NULL" for k in spalten)
+                    conn.execute(
+                        f"UPDATE {tabelle} SET {satz} WHERE {bedingung}", werte
+                    )
+                elif tabelle in hart:
+                    conn.execute(f"DELETE FROM {tabelle} WHERE {bedingung}", werte)
+                else:
+                    # Eine VERFOLGT-Tabelle ohne Eintrag in weich/geleert/hart
+                    # ist ein Programmierfehler -- still uebersprungen wuerde
+                    # sie ZURUECK_OK melden, ohne dass etwas zurueckgenommen
+                    # wurde. Das try/except oben rollt den Stempel mit zurueck.
+                    raise ValueError(
+                        f"Tabelle {tabelle!r} ist weder in weich, geleert "
+                        "noch hart gelistet -- 'angelegt' kann nicht "
+                        "zurueckgenommen werden."
+                    )
+            else:  # geloescht -- wieder einfuegen
+                zeile = dict(json.loads(s["vorher"]))
+                zeile.update(schluessel)
+                zeile.setdefault("chat_id", lauf["chat_id"])
+                namen = ", ".join(zeile)
+                fragen = ", ".join("?" for _ in zeile)
+                conn.execute(
+                    f"INSERT OR IGNORE INTO {tabelle} ({namen}) VALUES ({fragen})",
+                    list(zeile.values()),
+                )
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    return ZURUECK_OK
+
+
+# --- Der Web-Kanal (30.09.2026, Karte Padua A2) ----------------------------
+
+#: Die beiden Richtungen in ``web_post``.
+RICHTUNG_EIN = "ein"
+RICHTUNG_AUS = "aus"
+
+#: Die Typen. ``befehl`` geht als Slash-Text in den Bot und bleibt in der
+#: Chatansicht verborgen -- Slash-Befehle werden nicht beworben (AGENTS.md).
+WEB_TYP_TEXT = "text"
+WEB_TYP_SPRACHE = "sprache"
+WEB_TYP_KNOPF = "knopf"
+WEB_TYP_BEFEHL = "befehl"
+WEB_TYP_DATEI = "datei"
+
+#: Ab hier liegen die synthetischen chat_ids der Web-Gruppen. Positiv und weit
+#: oberhalb aller Telegram-Bereiche (Gruppen sind dort negativ, Nutzer-ids
+#: liegen unter 10^10): eine Web-chat_id kann so nie mit einer echten
+#: kollidieren. Geprueft am 30.09.2026: im ganzen Repo leitet keine Stelle aus
+#: dem Vorzeichen einer chat_id etwas ab.
+WEB_CHAT_ID_BASIS = 7_000_000_000_000
+
+
+def web_knoepfe(zeile) -> list[list[str]]:
+    """Die Leiste einer ``web_post``-Zeile als Liste ``[beschriftung, daten]``.
+
+    Reine Funktion ohne Datenbankzugriff, damit der Bot-Prozess und die
+    read-only Leseseite dieselbe Deutung benutzen: die Form des JSON soll an
+    genau einer Stelle stehen. Kaputtes JSON gibt eine leere Liste und keinen
+    Fehler -- eine Nachricht ohne Knoepfe ist besser als eine Seite, die nicht
+    laedt."""
+    if zeile is None:
+        return []
+    roh = zeile["knoepfe"] if "knoepfe" in zeile.keys() else None
+    if not roh:
+        return []
+    try:
+        gelesen = json.loads(roh)
+    except (TypeError, ValueError):
+        return []
+    return [list(eintrag) for eintrag in gelesen if len(eintrag) == 2]
+
+
+@_gesperrt
+def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
+                     text=None, knoepfe=None, daten=None,
+                     bezug_message_id=None, dauer=None,
+                     datei=None, mime=None, dateiname=None) -> int:
+    """Legt eine Zeile in ``web_post`` an und liefert ihre id.
+
+    Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
+    beide Richtungen (siehe Tabellenkommentar in db.py)."""
+    cur = conn.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
+        "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            chat_id, richtung, typ, text,
+            json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
+            if knoepfe else None,
+            daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
+        ),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+@_gesperrt
+def web_eingang(conn, chat_id: int, ab_update_id: int, grenze: int = 50) -> list:
+    """Die eingehenden Posts ab ``ab_update_id``, aelteste zuerst.
+
+    Das Gegenstueck zu ``telegram.Telegram.hole_updates``: ``bot.schleife``
+    rechnet ``offset = hole_update_id() + 1`` und erwartet alles ab dort.
+    ``grenze`` deckelt einen Stapel, damit ein Browser, der nach einer
+    Netztrennung zehn Segmente nachschiebt, die Schleife nicht blockiert --
+    der Rest kommt im naechsten Durchlauf."""
+    return conn.execute(
+        "SELECT * FROM web_post WHERE chat_id = ? AND richtung = ? AND id >= ? "
+        "AND geloescht_am IS NULL ORDER BY id ASC LIMIT ?",
+        (chat_id, RICHTUNG_EIN, ab_update_id, grenze),
+    ).fetchall()
+
+
+#: Der Vorfall, mit dem ``aufnahme.empfange`` einen endgueltig gescheiterten
+#: Download festhaelt, und der Anfang seines ``detail`` -- das Kennzeichen,
+#: an dem ``web_segmente_unterwegs`` ein Segment als "erledigt, ohne
+#: Aufnahme" erkennt. Der Wortlaut steht in ``aufnahme.empfange``; ein Test
+#: (tests/test_web_abschluss_fixes.py) erzeugt den Vorfall ueber genau
+#: diesen Weg und bricht, wenn beide auseinanderlaufen.
+_VORFALL_DOWNLOAD = "download_fehlgeschlagen"
+_VORFALL_DOWNLOAD_DETAIL = "Sprachnachricht message_id="
+
+
+@_gesperrt
+def web_segmente_unterwegs(conn, chat_id: int, vor_id: int, seit: str) -> list:
+    """Die Segmente (``sprache``-Posts) dieser Gruppe vor ``vor_id`` und ab
+    ``seit``, die beim Bot noch nicht angekommen sind (Abschlussreview I1).
+
+    "Angekommen" heisst: ``aufnahme.empfange`` hat die ``aufnahme``-Zeile
+    angelegt (``message_id`` = Post-id), oder der Download ist endgueltig
+    gescheitert -- dann gibt es bewusst keine Zeile, aber den Vorfall
+    ``download_fehlgeschlagen`` mit der message_id im ``detail``. Liefert
+    ``id`` und ``erstellt_am``; die Frist rechnet ``web_kanal``."""
+    return conn.execute(
+        "SELECT p.id, p.erstellt_am FROM web_post p "
+        "WHERE p.chat_id = ? AND p.richtung = ? AND p.typ = ? AND p.id < ? "
+        "AND p.geloescht_am IS NULL AND p.erstellt_am >= ? "
+        "AND NOT EXISTS (SELECT 1 FROM aufnahme a "
+        "  WHERE a.chat_id = p.chat_id AND a.message_id = p.id) "
+        "AND NOT EXISTS (SELECT 1 FROM vorfall v "
+        "  WHERE v.chat_id = p.chat_id AND v.art = ? "
+        "  AND v.detail LIKE ? || p.id || ':%') "
+        "ORDER BY p.id ASC",
+        (chat_id, RICHTUNG_EIN, WEB_TYP_SPRACHE, vor_id, seit,
+         _VORFALL_DOWNLOAD, _VORFALL_DOWNLOAD_DETAIL),
+    ).fetchall()
+
+
+@_gesperrt
+def hoechste_web_post_id(conn) -> int:
+    """Die hoechste je vergebene ``web_post.id`` (Abschlussreview I2), 0 bei
+    leerer Tabelle.
+
+    Aus ``sqlite_sequence``, weil die Tabelle ``AUTOINCREMENT`` traegt: der
+    Wert sinkt nie, auch wenn der Loeschweg die hoechsten Zeilen nimmt.
+    ``MAX(id)`` steht daneben als Rueckfall fuer eine Entwicklungs-DB, deren
+    Tabelle noch ohne ``AUTOINCREMENT`` angelegt wurde (dort gibt es keine
+    Zeile in ``sqlite_sequence``)."""
+    hoechste = conn.execute("SELECT COALESCE(MAX(id), 0) FROM web_post").fetchone()[0]
+    try:
+        folge = conn.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'web_post'"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        folge = None  # noch keine einzige AUTOINCREMENT-Tabelle beschrieben
+    return max(int(hoechste), int(folge[0]) if folge else 0)
+
+
+@_gesperrt
+def hole_web_post(conn, post_id: int):
+    """Eine Zeile, egal welcher Richtung und ob geloescht -- der Aufrufer muss
+    den Unterschied kennen (wie bei ``hole_knopf``)."""
+    return conn.execute("SELECT * FROM web_post WHERE id = ?", (post_id,)).fetchone()
+
+
+#: Der naechste Wert von ``web_post.aenderung`` -- als Unterabfrage IM
+#: UPDATE, nicht vorher gelesen: die Anweisung haelt die Schreibsperre der
+#: Datenbank, also kann zwischen Lesen und Schreiben kein anderer Prozess
+#: (Bot, Webserver) denselben Wert vergeben. Ueber die ganze Tabelle und
+#: nicht je Gruppe, damit die Folge auch prozessuebergreifend nur steigt.
+_NAECHSTE_WEB_AENDERUNG = "(SELECT COALESCE(MAX(aenderung), 0) + 1 FROM web_post)"
+
+
+@_gesperrt
+def aendere_web_text(conn, chat_id: int, message_id: int, text: str) -> bool:
+    """Tauscht den Text einer ausgehenden Nachricht (``aendere_text``).
+
+    ``chat_id`` steht in der Bedingung und nicht nur in der Signatur:
+    dieselbe Datenbank traegt alle Gruppen des Workshops."""
+    cur = conn.execute(
+        f"UPDATE web_post SET text = ?, aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+        "WHERE id = ? AND chat_id = ? AND richtung = ? AND geloescht_am IS NULL",
+        (text, message_id, chat_id, RICHTUNG_AUS),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+@_gesperrt
+def setze_web_knoepfe(conn, chat_id: int, message_id: int, knoepfe) -> bool:
+    """Tauscht die Leiste unter einer ausgehenden Nachricht aus; ``None``
+    nimmt sie weg (``entferne_knoepfe`` / ``aktualisiere_knoepfe``)."""
+    cur = conn.execute(
+        f"UPDATE web_post SET knoepfe = ?, aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+        "WHERE id = ? AND chat_id = ? AND richtung = ? AND geloescht_am IS NULL",
+        (
+            json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
+            if knoepfe else None,
+            message_id, chat_id, RICHTUNG_AUS,
+        ),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+@_gesperrt
+def loesche_web_posts(conn, chat_id: int, message_ids: list) -> int:
+    """Nimmt Nachrichten aus der Ansicht (``loesche_nachrichten``) -- weich,
+    mit ``geloescht_am``, wie alles Entfernte in diesem Projekt. Liefert die
+    Zahl der wirklich betroffenen Zeilen (hoechstens 100, wie Telegram)."""
+    if not message_ids:
+        return 0
+    jetzt = _jetzt()
+    getroffen = 0
+    for message_id in message_ids[:100]:
+        cur = conn.execute(
+            "UPDATE web_post SET geloescht_am = ?, "
+            f"aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+            "WHERE id = ? AND chat_id = ? AND geloescht_am IS NULL",
+            (jetzt, message_id, chat_id),
+        )
+        getroffen += cur.rowcount
+    conn.commit()
+    return getroffen
+
+
+@_gesperrt
+def setze_web_datei(conn, post_id: int, pfad: str) -> None:
+    """Haelt fest, wo die Datei zu einer ``web_post``-Zeile liegt. Getrennt
+    vom Anlegen, weil der Pfad die id enthaelt: erst die Zeile, dann der
+    Name, dann der Verweis."""
+    conn.execute("UPDATE web_post SET datei = ? WHERE id = ?", (pfad, post_id))
+    conn.commit()
+
+
+@_gesperrt
+def setze_web_antwort(conn, post_id: int, text: str) -> None:
+    """Der Text aus ``answerCallbackQuery`` zu einem Knopfdruck. Der Browser
+    holt ihn beim naechsten Zustands-Poll ab -- in Telegram ist das die
+    kleine Blase ueber dem Knopf."""
+    conn.execute(
+        "UPDATE web_post SET antwort = ? WHERE id = ? AND typ = ?",
+        (text, post_id, WEB_TYP_KNOPF),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_web_tippt(conn, chat_id: int, bis_iso) -> None:
+    """Bis wann die Tippanzeige gilt. Eine Spalte statt einer Zeile je
+    Aufruf: ``arbeitszeilen`` ruft ``tippt`` alle vier Sekunden."""
+    conn.execute(
+        "UPDATE gruppe SET web_tippt_bis = ? WHERE chat_id = ?", (bis_iso, chat_id)
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_gruppe_kanal(conn, chat_id: int, kanal: str) -> None:
+    """'telegram' oder 'web'. Gesetzt von ``scripts/web_gruppe.py``."""
+    conn.execute("UPDATE gruppe SET kanal = ? WHERE chat_id = ?", (kanal, chat_id))
+    conn.commit()
+
+
+@_gesperrt
+def naechste_web_chat_id(conn) -> int:
+    """Die naechste freie synthetische chat_id fuer eine Web-Gruppe."""
+    hoechste = conn.execute(
+        "SELECT MAX(chat_id) FROM gruppe WHERE chat_id >= ?", (WEB_CHAT_ID_BASIS,)
+    ).fetchone()[0]
+    return WEB_CHAT_ID_BASIS if hoechste is None else int(hoechste) + 1

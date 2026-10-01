@@ -59,7 +59,12 @@ beispiele = ["bus stop", "piazza", "café", "station"]   # ANNAHME (unbelegt): W
 
 [konflikt]
 erlaubt = "whatever the interviews bring up; the group sets the theme and its framing itself"   # ANNAHME (unbelegt): V1 nennt keinen Konfliktrahmen fuer die Buehne (V1 offene Punkte: "Interview-Thema / Framing mit den Studierenden setzen"); creative ownership, environmental cost, digitale Souveraenitaet sind die Reflexionsebene des Workshops, kein Stoff des Stuecks -- deshalb bewusst nicht hier
-ausgeschlossen = "No glorification of violence; no interviewed person recognisable by name"   # ANNAHME (unbelegt): erster Teil aus Dortmund uebernommen, zweiter aus V1 "fiktiv, NICHT dokumentarisch" abgeleitet
+# Birk 01.10.2026 (Punkt 6): nur der Schutz der Befragten. "No glorification
+# of violence" ist Dortmunds Jugendschutz und faellt weg -- hier sitzen
+# Erwachsene, und was auf die Buehne darf, ist ihre kuenstlerische
+# Entscheidung. Grossgeschrieben, weil die Vorlagen den Wert an einen
+# Satzanfang setzen ("{{konflikt_ausgeschlossen}}.").
+ausgeschlossen = "No interviewed person recognisable by name or address"
 
 [projekt]
 # V1: Titel "From Real Voices to New Fictions", "fiktive Geschichten auf

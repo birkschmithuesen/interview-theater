@@ -36,6 +36,7 @@ UMGESTELLT: set[str] = {
     "szene", "szenenfolge", "kurzgeschichte", "schaerfung", "sprachprofil",
     "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
     "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben", "web",
+    "laengen",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -48,7 +49,7 @@ ALLE_MODULE = {
     "kontext", "kuerzung", "kurzgeschichte", "leitfaden", "phasen",
     "phasentexte", "schaerfung", "sprachprofil", "sprachstil", "sprecher",
     "stile", "stueckpruefung", "szene", "szenenfolge", "verdichter",
-    "vorspann", "web", "web_schreiben",
+    "vorspann", "web", "web_schreiben", "laengen",
 }
 
 #: Bleibt deutsch, mit Grund (nie im Chat, nie im Prompt einer Gruppe).
@@ -77,6 +78,10 @@ BLEIBT_DEUTSCH = {
     "web._SCROLL_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web._BEARBEITEN_JS": "JavaScript, nur Kommentare deutsch; Meldungen aus data-Attributen",
     "web._TEXTBUCH_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
+    # Karte R, Aufgabe 5: Protokollwerte der Journalzeile, gelesen von
+    # kontext und Weboberflaeche -- kein Nutzertext.
+    "laengen.JOURNAL_ART": "Protokoll (journal.art), kein Nutzertext",
+    "laengen.JOURNAL_QUELLE": "Protokoll (journal.quelle), kein Nutzertext",
     "web._CSS_DASHBOARD": "CSS, nur Kommentare deutsch",
     "web._CSS_GRUPPE": "CSS, nur Kommentare deutsch",
     "web._CSS_LEITFADEN": "CSS, nur Kommentare deutsch",

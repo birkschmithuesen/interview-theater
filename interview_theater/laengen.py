@@ -327,3 +327,119 @@ def zu_lang(woerter: int, budget: int,
     if int(budget) <= 0:
         return False
     return int(woerter) >= int(budget) * nachzaehl_schwelle(profil)
+
+
+# ---------------------------------------------------------------------------
+# Die Prompt-Bausteine
+#
+# Sie sind Text und kein Modellaufruf: derselbe Stand liefert denselben Block.
+# Ein leerer Block faellt beim Zusammenbau ersatzlos weg -- datengetrieben wie
+# ``kontext.baue`` --, und genau daran haengt die Zusage an Dortmund: ohne
+# Budget bleibt jeder Nutzertext zeichengleich.
+# ---------------------------------------------------------------------------
+
+#: Der Kopf des Budget-Blocks im Szenen-Prompt (Phase 7, eine Szene).
+BLOCK_KOPF_SZENE = "Die Laenge dieser Szene:"
+
+#: Der Kopf im Prosa-Prompt (Phase 6, die ganze Geschichte).
+BLOCK_KOPF_PROSA = "Die Laenge der Abschnitte:"
+
+#: Eine Zeile je Abschnitt. Die Form steht mit, weil sie erklaert, warum
+#: dieser Abschnitt kuerzer sein darf als der naechste.
+ZEILE_ABSCHNITT = "- Abschnitt {nummer} ({form}): etwa {budget} Woerter"
+
+#: Die Laenge EINER Szene.
+ZEILE_SZENE = "Etwa {budget} Woerter. Deutlich kuerzer ist gut, laenger nicht."
+
+#: Die Summe. Sie tritt an die Stelle der festen Zeile "Insgesamt 1.500 bis
+#: 3.500 Woerter" aus ``kurzgeschichte.ANWEISUNG``.
+ZEILE_GESAMT = "Insgesamt etwa {gesamt} Woerter."
+
+#: Die Bindung der Abschnittszahl. Ohne sie hat eine Liste von Budgets je
+#: Abschnitt keinen Adressaten: ``kurzgeschichte.ANWEISUNG`` stellt dem
+#: Modell die Zahl ausdruecklich frei, und ``formen/prosa.md`` erklaert eine
+#: vorhandene Szenenfolge fuer verbindlich -- zwei Saetze, die sich
+#: widersprechen. Dieser bindet, wie ``kuerzung.notiz_fuer_prosa`` es schon
+#: tut.
+SATZ_BINDUNG = ("Genau {anzahl} Abschnitte, in dieser Reihenfolge, mit diesen "
+                "Laengen.")
+
+#: Der Vorrang. Die Formen-Regelbloecke und ``formen/prosa.md`` nennen eigene
+#: Laengen; steht eine Zahl an zwei Stellen, muss eine von beiden
+#: ausdruecklich die gueltige sein -- sonst ergaenzt das Modell selbst
+#: (Prompt-Audit 06.09.2026).
+SATZ_VORRANG = ("Diese Laengen gelten. Andere Laengenangaben in den Regeln "
+                "unten sind damit ueberschrieben.")
+
+#: Der Rhythmus als Satz. Er sagt, dass die Ungleichheit Absicht ist -- ohne
+#: ihn glaettet ein Modell sie weg, weil Gleichmass wie Sorgfalt aussieht.
+SATZ_RHYTHMUS = ("Die Laengen sind absichtlich verschieden. Gleich lange "
+                 "Abschnitte nehmen dem Stueck den Rhythmus.")
+
+#: Journal: Art und Quelle. Angehaengt, nie geaendert (AGENTS.md).
+JOURNAL_ART = "entschieden"
+JOURNAL_QUELLE = "szene"
+JOURNAL_ZEILE = ("Laengen gewuerfelt (Seed {seed}, Muster {muster}, Faktor "
+                 "{faktor}): {budgets}")
+
+
+def block_szene(budget: int) -> str:
+    """Der Budget-Block fuer EINE Szene, oder "" ohne Budget."""
+    if int(budget) <= 0:
+        return ""
+    return "\n".join([
+        T.BLOCK_KOPF_SZENE,
+        T.ZEILE_SZENE.format(budget=int(budget)),
+        T.SATZ_VORRANG,
+    ])
+
+
+def block_prosa(eintraege: Sequence[tuple[int, str, int]]) -> str:
+    """Der Budget-Block fuer die ganze Geschichte, oder "" ohne Abschnitte.
+
+    ``eintraege`` sind ``(nummer, form, budget)`` in der Reihenfolge der
+    Abschnitte."""
+    brauchbar = [(int(n), str(f or ""), int(b)) for n, f, b in eintraege
+                 if int(b) > 0]
+    if not brauchbar:
+        return ""
+    zeilen = [T.BLOCK_KOPF_PROSA]
+    zeilen += [T.ZEILE_ABSCHNITT.format(nummer=n, form=f, budget=b)
+               for n, f, b in brauchbar]
+    zeilen.append(T.ZEILE_GESAMT.format(gesamt=sum(b for _, _, b in brauchbar)))
+    zeilen.append(T.SATZ_BINDUNG.format(anzahl=len(brauchbar)))
+    zeilen.append(T.SATZ_RHYTHMUS)
+    zeilen.append(T.SATZ_VORRANG)
+    return "\n".join(zeilen)
+
+
+def gesamtzeile(werte: Sequence[int]) -> str:
+    """Die eine Zeile, die in ``kurzgeschichte.ANWEISUNG`` an die Stelle von
+    ``ZEILE_GESAMTLAENGE`` tritt."""
+    return T.ZEILE_GESAMT.format(gesamt=sum(int(w) for w in werte))
+
+
+def journalzeile(seed: int, muster: Sequence[str], faktor: float,
+                 eintraege: Sequence[tuple[int, str, int]]) -> str:
+    """Seed, Muster, Faktor und Budgets als EINE Journalzeile.
+
+    Der Seed ist die ``chat_id`` und muss nirgends gespeichert werden -- diese
+    Zeile ist trotzdem noetig, damit ein Mensch nachrechnen kann, warum Szene
+    2 laenger sein durfte als Szene 1. Das Journal wird nur angehaengt, also
+    steht hier eine Zeile je Lauf und nie eine Korrektur."""
+    return T.JOURNAL_ZEILE.format(
+        seed=int(seed),
+        muster="-".join(muster),
+        faktor=f"{float(faktor):g}",
+        budgets=", ".join(f"{int(n)}:{int(b)}" for n, _f, b in eintraege),
+    )
+
+
+# Der Textzugriff steht am Modulende, nach allen Konstanten (A1-Konvention
+# K1): Deutsch ist die Konstante selbst, Englisch kommt aus
+# ``sprachen/en/texte.toml`` unter ``["laengen"]``. Gelesen wird ausschliesslich
+# zur Aufrufzeit -- nie in einem Default-Argument und nie in einer
+# Modulkonstante.
+from interview_theater import sprache  # noqa: E402
+
+T = sprache.Texte(__name__)

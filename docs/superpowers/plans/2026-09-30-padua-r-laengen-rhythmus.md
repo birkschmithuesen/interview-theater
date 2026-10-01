@@ -1537,7 +1537,7 @@ git commit -m "laengen.py: Budget je Szene, Faktor, Rundung, Nachzaehl-Schwelle 
   englischen Fassungen stehen in
   `interview_theater/sprachen/en/texte.toml` unter `["laengen"]`.
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_prompt.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_prompt.py`
 
 ```python
 """Die Prompt-Bausteine des Laengen-Rhythmus (30.09.2026, Karte R).
@@ -1628,12 +1628,12 @@ def test_die_texte_laufen_ueber_T():
     assert laengen.T.SATZ_VORRANG == laengen.SATZ_VORRANG
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_prompt.py`
 Erwartet: FAIL, `AttributeError: ... has no attribute 'block_szene'`.
 
-- [ ] **Schritt 3: An `interview_theater/laengen.py` anhaengen**
+- [x] **Schritt 3: An `interview_theater/laengen.py` anhaengen**
 
 ```python
 # ---------------------------------------------------------------------------
@@ -1752,7 +1752,7 @@ from interview_theater import sprache  # noqa: E402
 T = sprache.Texte(__name__)
 ```
 
-- [ ] **Schritt 4: Die englischen Fassungen eintragen**
+- [x] **Schritt 4: Die englischen Fassungen eintragen**
 
 An `interview_theater/sprachen/en/texte.toml` anhaengen (A1-Konvention K2:
 Tabelle je definierendem Modul, Modulname in Anfuehrungszeichen, Schluessel in
@@ -1777,7 +1777,7 @@ Hinweis: `JOURNAL_ART` und `JOURNAL_QUELLE` sind **Protokoll**
 Weboberflaeche lesen sie) und bleiben woertlich `entschieden`/`szene` -- sie
 stehen deshalb **nicht** in der Tabelle.
 
-- [ ] **Schritt 5: Tests laufen lassen**
+- [x] **Schritt 5: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_prompt.py`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -1785,7 +1785,7 @@ Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in 
 Run: `$PY -m scripts.pruefe_sprache --schluessel laengen`
 Erwartet: `0 Treffer`, Exit 0.
 
-- [ ] **Schritt 6: Suite und Commit**
+- [x] **Schritt 6: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

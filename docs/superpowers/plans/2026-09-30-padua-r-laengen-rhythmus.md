@@ -5445,7 +5445,7 @@ git commit -m "nachpass.py: ein Lauf fuer die ganze Geschichte, geprueft vor dem
   zweiter Szenenlauf derselben Gruppe dazwischenkommen. Die Sperre haelt das
   schon -- man muss sie nur nicht vorher loslassen.
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_aus.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_aus.py`
 
 ```python
 """Die Zusage an Dortmund: der ganze Pfad ist ein No-Op (30.09.2026, Karte R).
@@ -5587,14 +5587,14 @@ def test_ein_gescheiterter_szenenlauf_loest_keinen_nachpass_aus(szene7, tg, eins
     assert klm.aufrufe == [szene.ART]
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_aus.py -k padua`
 Erwartet: FAIL, `assert ['szene'] == ['szene', 'szene_nachpass']` -- der
 Nachpass ist noch nicht verdrahtet. Die Dortmund-Tests sind an diesem Punkt
 schon gruen; das ist richtig, sie sind der Waechter.
 
-- [ ] **Schritt 3: `szene._lauf` verdrahten**
+- [x] **Schritt 3: `szene._lauf` verdrahten**
 
 ```python
 def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
@@ -5636,7 +5636,7 @@ Schleife -- und heute ruft der Nachpass `schreibe` ohnehin direkt, also ist die
 Bedingung eine zweite Wache und kein Ersatz fuer die erste. Ein Kommentar im
 Code sagt das.
 
-- [ ] **Schritt 4: `kurzgeschichte._lauf` verdrahten**
+- [x] **Schritt 4: `kurzgeschichte._lauf` verdrahten**
 
 ```python
     def _lauf() -> None:
@@ -5663,7 +5663,7 @@ Der Prosa-Nachpass geht ueber `kurzgeschichte.hole_text` und nie ueber
 `schreibe`, kommt hier also nie wieder vorbei -- eine `art`-Wache wie in
 `szene._lauf` braucht er nicht. Ein Kommentar sagt das.
 
-- [ ] **Schritt 5: Tests laufen lassen**
+- [x] **Schritt 5: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_aus.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -5671,7 +5671,7 @@ Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_szene.py tests/test_kuerzung.py tests/test_knoepfe.py tests/test_dramaturgie_schleife.py tests/test_profil_bitgleich.py tests/profile/`
 Erwartet: `passed`, kein `failed`.
 
-- [ ] **Schritt 6: Suite und Commit**
+- [x] **Schritt 6: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

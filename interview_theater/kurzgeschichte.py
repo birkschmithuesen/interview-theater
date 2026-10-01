@@ -464,6 +464,16 @@ def starte(
         try:
             schreibe(conn, tg, klm, e, chat_id, regie, vorlage=vorlage,
                      zeilen=zeilen)
+            # Der Nachpass (30.09.2026, Karte R): EIN Lauf fuer alle
+            # Abschnitte, im selben Thread und unter derselben Sperre. Im
+            # ``try``, weil es nach einem gescheiterten Lauf keine Geschichte
+            # gibt, ueber die nachzuzaehlen waere. Er geht ueber
+            # ``hole_text`` und nie ueber ``schreibe``, kommt hier also nie
+            # wieder vorbei -- eine ``art``-Wache wie in ``szene._lauf``
+            # braucht er nicht. Ohne aktives Profil ein No-Op.
+            from interview_theater import nachpass
+
+            nachpass.nach_geschichte(conn, tg, klm, e, chat_id)
         except Exception:
             log.exception("Kurzgeschichte fehlgeschlagen, chat_id=%s", chat_id)
             try:

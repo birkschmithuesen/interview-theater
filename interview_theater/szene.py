@@ -2381,12 +2381,32 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
           sperre: threading.Lock, art: str = ART) -> None:
     """Der Thread-Rumpf: ``schreibe()`` mit Fehlerbehandlung und garantierter
     Freigabe der Sperre. Bliebe sie bei einem Fehlschlag liegen, koennte die
-    Gruppe fuer den Rest des Workshops keine Szene mehr schreiben lassen."""
+    Gruppe fuer den Rest des Workshops keine Szene mehr schreiben lassen.
+
+    **Und, seit dem 30.09.2026 (Karte R), der Nachpass**: nachzaehlen und
+    Sprachmuster pruefen, und wenn etwas dran ist, GENAU EINEN
+    Ueberarbeitungslauf anhaengen. Er steht hier und nicht in ``schreibe``,
+    weil er ``schreibe`` selbst ruft -- in ``schreibe`` waere es eine
+    Rekursion. Er steht im ``try`` und nicht im ``finally``, weil es nach
+    einem gescheiterten Lauf keinen Text gibt, ueber den nachzuzaehlen waere.
+    Und er steht **vor** der Freigabe der Sperre, damit ihm kein zweiter
+    Szenenlauf derselben Gruppe dazwischenkommt.
+
+    Ein Nachpass auf einem Nachpass gibt es nicht: der ruft ``schreibe``
+    direkt und kommt hier nie vorbei."""
     from interview_theater import arbeitszeilen
 
     zeilen = arbeitszeilen.sichtbar(tg, chat_id, ARBEITSART)
     try:
-        schreibe(conn, tg, klm, e, chat_id, auftrag, art=art)
+        nummer = schreibe(conn, tg, klm, e, chat_id, auftrag, art=art)
+        # ``art == ART``: der Nachpass nur nach einem GEWOEHNLICHEN Lauf. Er
+        # selbst ruft ``schreibe`` direkt und kommt hier nie vorbei -- die
+        # Bedingung ist die zweite Wache gegen eine Schleife, kein Ersatz
+        # fuer die erste. Ohne aktives Profil ist ``nach_szene`` ein No-Op.
+        if art == ART:
+            from interview_theater import nachpass
+
+            nachpass.nach_szene(conn, tg, klm, e, chat_id, nummer)
     except Exception:
         log.exception("Szenen-Aufruf fehlgeschlagen, chat_id=%s", chat_id)
         try:

@@ -1737,7 +1737,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
   - `knoepfe.sende_notiert_mit_leiste(conn, tg, chat_id, text, art, wert, zusatz=())`
     -- neuer letzter Parameter, Vorgabe leer (jeder bestehende Aufruf bleibt gueltig)
 
-- [ ] **Schritt 1: Die fehlschlagenden Tests schreiben**
+- [x] **Schritt 1: Die fehlschlagenden Tests schreiben**
 
 `tests/test_undo_knopf.py`:
 
@@ -1940,12 +1940,12 @@ def test_die_speicher_knoepfe_der_alten_leiste_wirken_nicht_mehr(conn):
     assert [k["art"] for k in offen] == [knoepfe.ART_UNDO]
 ```
 
-- [ ] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
+- [x] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
 
 Run: `$PY -m pytest tests/test_undo_knopf.py -q -p no:cacheprovider`
 Erwartet: FAIL -- `AttributeError: module 'interview_theater.knoepfe' has no attribute 'undo_leiste'`
 
-- [ ] **Schritt 3: `knoepfe/texte.py` ergaenzen**
+- [x] **Schritt 3: `knoepfe/texte.py` ergaenzen**
 
 Bei den ART-Konstanten (hinter `ART_STT_SPRACHE = "stt_sprache"`, ~Zeile 52):
 
@@ -1974,7 +1974,7 @@ _ANTWORT_UNDO = "Zurueckgenommen."
 _ANTWORT_UNDO_GEAENDERT = "Seitdem geaendert."
 ```
 
-- [ ] **Schritt 4: `sprachen/en/texte.toml` ergaenzen**
+- [x] **Schritt 4: `sprachen/en/texte.toml` ergaenzen**
 
 Im Abschnitt `["knoepfe.texte"]`, hinter `_TEXT_UNBEKANNT` (in
 Definitionsreihenfolge, K2):
@@ -1988,7 +1988,7 @@ _ANTWORT_UNDO = "Undone."
 _ANTWORT_UNDO_GEAENDERT = "Changed since."
 ```
 
-- [ ] **Schritt 5: `knoepfe/basis.py` ergaenzen**
+- [x] **Schritt 5: `knoepfe/basis.py` ergaenzen**
 
 `ART_UNDO` in den Import aus `knoepfe.texte` aufnehmen. Dann
 `_nimm_alte_leiste_ab` ersetzen und zwei Funktionen ergaenzen:
@@ -2111,13 +2111,13 @@ def sende_notiert_nur_undo(conn, tg, chat_id: int, text: str, lauf_id: int) -> i
     return message_id
 ```
 
-- [ ] **Schritt 6: `knoepfe/__init__.py` ergaenzen**
+- [x] **Schritt 6: `knoepfe/__init__.py` ergaenzen**
 
 `ART_UNDO` in den Re-Export aus `knoepfe.texte` (alphabetisch bei den
 `ART_*`), und `sende_notiert_nur_undo`, `undo_leiste`, `_reduziere_auf_undo`
 in den Re-Export aus `knoepfe.basis`.
 
-- [ ] **Schritt 7: Tests laufen lassen, gruen sehen**
+- [x] **Schritt 7: Tests laufen lassen, gruen sehen**
 
 Run: `$PY -m pytest tests/test_undo_knopf.py tests/test_sprache_texte.py tests/test_sprache_bitgleich.py tests/test_profil_bitgleich.py -q -p no:cacheprovider`
 
@@ -2132,7 +2132,7 @@ erwartet:
 Run: `$PY -m pytest tests/test_knoepfe_struktur.py -q -p no:cacheprovider`
 Erwartet: FAIL -- `assert ohne_handler == []` mit `['undo']`
 
-- [ ] **Schritt 8: Commit**
+- [x] **Schritt 8: Commit**
 
 Diese Aufgabe endet mit einem bekannten roten Test, und nur mit diesem einen.
 Der Commit haelt das fest:

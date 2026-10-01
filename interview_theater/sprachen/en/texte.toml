@@ -40,6 +40,12 @@ I don't have any suggestions yet - they come from the analysed \
 interviews. You can also just tell me the core theme."""
 _TEXT_SCHON_BENUTZT = "I've already taken that on."
 _TEXT_UNBEKANNT = "I don't know this button any more."
+# Karte U: der Undo-Knopf unter jeder Notiert-Meldung.
+_TEXT_UNDO_KNOPF = "Undo"
+_TEXT_UNDO_ERLEDIGT = "Undone:\n{zeilen}"
+_TEXT_UNDO_GEAENDERT = "Changed since - please fix it in the work status"
+_ANTWORT_UNDO = "Undone."
+_ANTWORT_UNDO_GEAENDERT = "Changed since."
 _TEXT_AUFNAHME_STARTEN = "Start interview"
 _TEXT_AUFNAHME_BEENDEN = "End interview"
 _TEXT_TEIL_WEITER_KNOPF = "Interview continues"

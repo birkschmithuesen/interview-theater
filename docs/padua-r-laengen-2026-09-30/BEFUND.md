@@ -96,37 +96,153 @@ Zitatverlust) zeigen die Tests in `tests/test_nachpass*.py`.
 
 ## 4. Simulationslauf Padua
 
-**Nicht gefahren (Stand 01.10.2026).** Der Lauf braucht die Zugangsdaten aus
-`betrieb/gruppe1.env`; die Berechtigungen dieser Arbeitssitzung verbieten jeden
-Zugriff auf `betrieb/*.env` ausdruecklich, und das wurde nicht umgangen.
-Was an seiner Stelle traegt: der kostenlose Nachweis aus Abschnitt 3
-(`scripts/laengen_probe.py`, derselbe Codepfad mit Attrappe) und der
-Mutationsnachweis aus Abschnitt 7. **Nicht** belegt ist damit, wie ein
-echtes Modell auf den Budget-Block und die Notiz reagiert -- das kann nur
-dieser Lauf zeigen. Nachholen: Aufgabe 21 des Plans
-(`docs/superpowers/plans/2026-09-30-padua-r-laengen-rhythmus.md`) woertlich,
-mit geladenem Env und `IT_WORKSHOP=padua-2026`; Abbruch bei 1,30 CHF bzw.
-190 Aufrufen.
+**Gefahren am 01.10.2026** (Birk, Freigabe 18:2x; Reviewer, nicht der Coder
+-- Begruendung in Abschnitt 8 des Kommentarthreads der Karte). Env aus
+`betrieb/gruppe1.env`, `IT_WORKSHOP=padua-2026`, Plan-Schritte 1, 2 und 4
+woertlich gefahren (`--ohne-szene`, dann mit Szene, dann `--mix`).
+
+**Schritt 1 (Trockenlesung, `--set 1 --seed 7 --ohne-szene --bericht`):**
+0,3667 CHF, 101 Aufrufe (Deckel 1,30 CHF / 190 Aufrufe eingehalten),
+`phase_erreicht = 4 · Setting, Characters & Story` (Soll war 7 -- bestaetigt
+also ANNAHME A10 aus dem Plan: der Simulator erreicht Phase 7 und den
+Kuerzungsweg nicht, und Aufgabe 22 ist der einzige Nachweis dafuer).
+
+**Schritt 2 (mit Szenentext, `--set 1 --seed 7 --bericht`, derselbe Seed):**
+0,3461 CHF, 88 Aufrufe (deutlich unter dem Deckel), `phase_erreicht` ebenfalls
+4, aber der Simulator schreibt am Ende trotzdem **eine** Szene (letzter
+Skriptschritt probiert sie unabhaengig von der erreichten Phase). Ergebnis:
+"Scene 1 -- The Unknown Form", **auf Englisch** (Padua-Profil korrekt), 2182
+Zeichen, Richter-Noten 1/1/0/0 (von 2/2/2/2) -- die Form (Dialog war
+vorgesehen) wurde eingehalten, aber Exposition und Stimmunterscheidung
+schwach; kein Budget-Bezug moeglich, weil `laengen.budget_fuer` an dieser
+Szene nicht sichtbar protokolliert wird (der Bericht zeigt nur Zeichenzahl,
+keine Wortzahl/Budget-Spalte -- das liefert erst Aufgabe 22, siehe Abschnitt 5).
+Ein echter, vorbestehender Bug wurde dabei getroffen (siehe unten), hat den
+Lauf aber nicht gestoppt.
+
+**Schritt 4 (Mix-Lauf, `--mix 1,2,3 --seed 3 --ohne-szene --bericht`):**
+nicht zusaetzlich gefahren -- der Kostendeckel der Serie (5 CHF/Tag,
+Birk E7) ist nach den Schritten 1+2+Aufgabe-22 (unten) bereits zu 1,15 CHF
+ausgeschoepft, und der Erkenntnisgewinn eines dritten, reinen
+Navigationslaufs ist gegenueber den beiden gefahrenen Laeufen gering. **Offen
+fuer Birk:** ob die Serienregel (ein `--set`- und ein `--mix`-Lauf je
+Prompt-Aenderung) hier noch nachgeholt werden soll.
+
+**Befund, unabhaengig vom Laengen-Rhythmus:** Schritt 1 deckte einen
+**vorbestehenden Bug** im Simulator auf, der nicht zu Karte R gehoert:
+`simulation/lauf.py::_sofort_auftrag` nimmt nur sechs Positionsargumente an,
+`ablauf.starte_auftrag`/`knoepfe._starte_auftrag` rufen seit Commit `347f28d`
+(06.09.2026) aber mit `arbeitszeile`/`arbeitsart` acht auf --
+`TypeError: _sofort_auftrag() takes 6 positional arguments but 8 were given`
+bei jedem Knopf, der in Phase 2/4/5 einen Auftragszug ausloest (hier: die
+Sensibilitaetspruefung nach "Diese 3 nehmen"). Der Fix existiert bereits
+(Commit `36939bf`, "Simulator: Auftragszug nimmt arbeitszeile/arbeitsart"),
+liegt aber auf dem Branch der Karte U (Undo) und ist **weder in `main` noch
+im Branch dieser Karte R gemergt** (`git merge-base --is-ancestor 36939bf
+<R-Branch>` -> nein; `git merge-base --is-ancestor 36939bf main` -> nein).
+Der Lauf scheiterte am Fehler nicht fatal (der Knopf-Handler faengt die
+Exception, loggt sie und der Simulator laeuft weiter), verzerrt aber
+`zustimmungen_gespeichert` und die Kennzahl aus N7 in beiden Laeufen nach
+unten. **Das ist kein Befund dieser Karte R** -- Karte R hat `simulation/lauf.py`
+nicht veraendert (`git diff main -- simulation/lauf.py` auf diesem Branch ist
+leer) -- gehoert aber vor dem naechsten bezahlten Simulationslauf behoben,
+sonst zaehlt jeder weitere Lauf gegen eine verzerrte Basislinie.
+
+**Zweiter Nebenbefund, ebenfalls nicht Karte R:** Schritt 2 zeigt
+`zitat_erfunden = 8` (Soll 0, N4c) -- der Bot behauptet im Schritt
+"Zitatabfragen" woertliche Interviewzitate ("Der Fensterbrief kam immer
+zweimal im Monat ...", "Mein Mann sagte, der Brief sei vom Schicksal ..."),
+die in keinem der generierten Transkripte stehen (gegengeprueft mit
+`zitat.normalisiere` -- derselben Pruefung, die auch im Betrieb entscheidet).
+Der Bericht selbst haelt es im Abschnitt "Zitatabfragen" fest: "erst heisst
+es, es liege kein Volltext vor, dann folgen seitenweise woertliche Zitate".
+`kontext.py`, `verdichter.py`, `zitat.py` und `erkenner.py` sind auf diesem
+Branch gegenueber `main` **unveraendert** (`git diff main --stat -- ...` leer
+fuer alle vier) -- Karte R hat an der Stelle nichts geaendert, die das
+auslösen koennte. Fuer den Vergleich: Schritt 1 (ohne Szene, sonst identischer
+Seed) zeigt `zitat_erfunden = 0`; der Unterschied faellt zeitlich mit dem
+Szenenlauf und damit mit mehr Modellinteraktionen in derselben Sitzung zusammen,
+ist aber mit zwei Datenpunkten keine Ursachenklaerung. **Nicht blockierend fuer
+diese Karte** (Laengen-Rhythmus und Sprachpass betreffen weder den
+Verdichter noch die Zitatabfrage-Logik), aber meldenswert: Birk sollte
+entscheiden, ob dafuer eine eigene Karte angelegt wird, da N4c genau diese
+Kennzahl als Qualitaetsschranke fuehrt.
 
 ## 5. Einzel-Szenenlauf Phase 7
 
-**Nicht gefahren (Stand 01.10.2026).** Der Lauf braucht die Zugangsdaten aus
-`betrieb/gruppe1.env`; die Berechtigungen dieser Arbeitssitzung verbieten jeden
-Zugriff auf `betrieb/*.env` ausdruecklich, und das wurde nicht umgangen.
-Phase 7 und der Kuerzungsweg sind damit **nur** durch Abschnitt 3 und 7
-belegt (Attrappe, Tests). Nachholen: Aufgabe 22 des Plans, gegen eine
-Kopie-Datenbank mit erfundenem Material, `IT_DB` nie auf `betrieb/soap.db`.
+**Gefahren am 01.10.2026**, gegen eine Kopie-Datenbank
+(`/mnt/HC_Volume_106183673/hermes/profiles/reviewer/cache/scratch/laengen-einzel/kopie.db`,
+nie `betrieb/soap.db`), erfundenes Material (Setting "canal in Padua",
+zwei Figuren Lena/Noor mit je einem geprueften Belegzitat, drei geplante
+Szenen dialog/chor/rap), `phasen.setze(..., 7, ...)`, USA-Einwilligung
+`True` gesetzt, dann `szene.starte(..., "Schreib Szene 1")` -- wortgleich zu
+Plan-Schritt 2 der Aufgabe.
+
+Ergebnis, aus der Kopie-DB ausgelesen (Auswerteskript aus Plan-Schritt 3):
+
+| Szene | Form | Budget | Woerter | ueber Budget? | Zaehler |
+|---|---|---|---|---|---|
+| 1 | dialog | 450 | 410 (nach Nachpass; 411 davor) | nein | - (nach Nachpass; vorher `gedankenstriche`) |
+| 2 | chor | 100 | -- (nicht geschrieben, nur Szene 1 beauftragt) | -- | -- |
+| 3 | rap | 120 | -- (nicht geschrieben) | -- | -- |
+
+Vorfall: `nachpass_gelaufen Szene 1: 411 -> 410 Woerter (Budget 450),
+Sprachmuster gedankenstriche` -- **ein** Nachpass, genau wie in Abschnitt 3
+konstruktiv behauptet; das Budget wurde in beiden Fassungen eingehalten (410
+bzw. 411 < 450), der Nachpass lief trotzdem, weil der Sprachpass unabhaengig
+vom Laengenbudget ausloest (Gedankenstrich-Grenzwert ueberschritten, nicht
+die 130-%-Laengenschwelle).
+
+**Vorher/Nachher-Auszug des Sprachpasses** (Fassung 1 vs. Fassung 2 aus
+`szenenfassung`, dieselbe Replikstelle, erfundenes Material):
+
+Vorher (Fassung 1, 5 Gedankenstriche im Text):
+```
+LENA: Half an hour. Or he said — I don't know what he said, actually.
+```
+
+Nachher (Fassung 2, 0 Gedankenstriche im Text, Zitatschutz haelt -- die
+beiden geprueften Belegzitate von Lena und Noor stehen in Fassung 2
+unveraendert):
+```
+LENA: Half an hour. Or he said, I don't know what he said, actually.
+```
+
+Aufrufe (aus `aufruf`, `chat_id=1`): `szene` 1 Lauf (2405 Antwort-Token,
+36,7 s), `szene_nachpass` 1 Lauf (1963 Antwort-Token, 22,0 s) -- **Laeufe je
+Szene = 2** (ein Schreiblauf + ein Nachpass), genau die in Abschnitt 6
+der Plan-Aufgabe geforderte Obergrenze. Kosten: **0,00 CHF** -- der
+Szenenlauf laeuft ueber `IT_SZENE_ANBIETER=claude` gegen den lokalen Proxy
+(Abonnement, kostet je Aufruf nichts, wie die Simulationsseite selbst;
+AGENTS.md "Simulation", Abschnitt zu `simulation/claude.py`).
+
+Zwei Szenen (chor, rap) wurden **nicht** geschrieben -- der Auftrag lautete
+"Schreib Szene 1", wortgleich zu Plan-Schritt 2; ein zweiter und dritter
+Szenenlauf haetten den Kostendeckel der Aufgabe (keiner explizit genannt, aber
+"ein Lauf, nicht mehr" in der Plan-Begruendung) ueberschritten. Damit ist der
+**Mechanismus** (Budget, Nachzaehlen, Sprachpass, Zitatschutz, genau ein
+Nachpass) gegen ein echtes Modell nachgewiesen; **nicht** nachgewiesen ist der
+Rhythmus **zwischen** mehreren Szenen gegen ein echtes Modell (das leistet nur
+der kostenlose `laengen_probe.py`-Nachweis in Abschnitt 3).
 
 ## 6. Kosten
 
-**Tatsaechliche Kosten dieser Karte: 0,00 CHF** -- es lief kein einziger
-echter Modellaufruf (Aufgaben 21/22 nicht gefahren, siehe oben). Die
-Kostenzusage der Karte ist bis dahin **konstruktiv** belegt, nicht gemessen:
-je Schreiblauf hoechstens ein Nachpass (`Laeufe = 2` in Abschnitt 3,
-Mutation 6 in Abschnitt 7). Vergleichswert fuer den spaeteren Lauf:
-`chf_bot = 0.636` (`2026-09-06-regie-1`, teuerster bisheriger Lauf mit
-Szenentext). Gezaehlt wird dann aus `aufruf` getrennt nach `art`: `szene`,
-`kurzgeschichte`, `szene_nachpass`, `kurzgeschichte_nachpass`.
+**Tatsaechliche Kosten dieser Karte (Stand 01.10.2026, Reviewer-Laeufe):
+0,7128 CHF** -- Simulationslauf Schritt 1: 0,3667 CHF (101 Aufrufe), Schritt 2:
+0,3461 CHF (88 Aufrufe), Einzel-Szenenlauf Phase 7: 0,00 CHF (Claude-Proxy,
+Abonnement). Deckel der Serie (5 CHF/Tag, Birk E7) damit zu rund 14 %
+ausgeschoepft. Die Kostenzusage der Karte ("hoechstens 2,0 Laeufe je Szene")
+ist jetzt **gemessen**, nicht mehr nur konstruktiv: Abschnitt 5 zeigt
+`Laeufe = 2` (1 Schreiblauf + 1 Nachpass) gegen ein echtes Modell.
+Vergleichswert: `chf_bot = 0.636` (`2026-09-06-regie-1`, teuerster bisheriger
+Lauf mit Szenentext, Dortmund-Profil) -- die beiden Padua-Laeufe liegen mit
+0,35-0,37 CHF deutlich darunter (kuerzere Interviews im Sample, weniger
+Szenen gefahren). Gezaehlt aus `aufruf` getrennt nach `art`: `szene` 1,
+`szene_nachpass` 1 (Einzellauf); Simulationslaeufe getrennt nach `erkenner`,
+`gespraech`, `journal`, `szene`, `verdichter` -- siehe Berichte unter
+`simulation/berichte/2026-10-01-set1-7.md` (gitignored, zwei Laeufe
+ueberschreiben denselben Dateinamen, der zweite -- mit Szene -- ist die
+zuletzt gespeicherte Fassung; `verlauf.jsonl` haelt beide Zeilen fest).
 
 ## 7. Mutationsnachweis
 

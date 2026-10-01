@@ -200,7 +200,7 @@ def _text_der_szene(szene) -> str:
         return ""
 
 
-def _sofort_szene(conn, tg, klm, e, chat_id, auftrag):
+def _sofort_szene(conn, tg, klm, e, chat_id, auftrag, art="szene"):
     """Ersatz fuer ``szene.starte``: schreibt die Szene **im aufrufenden
     Thread**.
 
@@ -243,7 +243,7 @@ def _sofort_szene(conn, tg, klm, e, chat_id, auftrag):
     if szene_claude.ist_aktiv(e, conn, chat_id):
         tg.sende(chat_id, szene._TEXT_WARNUNG_USA)
     try:
-        szene.schreibe(conn, tg, klm, e, chat_id, auftrag)
+        szene.schreibe(conn, tg, klm, e, chat_id, auftrag, art=art)
     except Exception:
         log.exception("Szenen-Aufruf in der Simulation fehlgeschlagen")
         repo.merke_vorfall(

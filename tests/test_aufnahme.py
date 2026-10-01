@@ -720,7 +720,14 @@ def test_fertig_in_der_sprachnachricht_beendet_das_interview(conn, einst, tg):
         "der fuenfte Teil bleibt Teil des Interviews"
     )
     assert texte[-1] in repo.zusammengefuegtes_transkript(conn, kopf_id)
-    assert _warte_bis(lambda: repo.verdichtungen(conn, 1)), "die Verdichtung kommt"
+    # Gewartet wird auf den LETZTEN Schritt des Abschluss-Threads, die Zeile
+    # "ausgewertet" -- nicht auf die Verdichtung: die speichert
+    # verdichter.verdichte, und erst danach setzt _verdichte den Status auf
+    # 'fertig' und schickt die Zeile. Wer auf die Verdichtung wartet, prueft
+    # Status und Chat mitten im Thread (gemessen: 15 von 300 Laeufen).
+    assert _warte_bis(
+        lambda: any("Interview 1 ausgewertet:" in t for _, t in list(tg.gesendet))
+    ), "die Verdichtung kommt"
     assert len(repo.verdichtungen(conn, 1)) == 1, "genau eine Verdichtung"
     assert repo.hole_aufnahme(conn, kopf_id)["status"] == "fertig"
 

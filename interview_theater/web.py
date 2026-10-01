@@ -873,6 +873,23 @@ def _leitfaden_link(token: str | None) -> str:
     )
 
 
+#: Der Weg vom Lesen ins Arbeiten (30.09.2026): auf der Gruppenseite steht,
+#: was entschieden ist -- im Chat entscheidet man. Relativ verlinkt, wie der
+#: Leitfaden.
+_TEXT_CHAT_LINK = "Chat mit dem Bot"
+
+
+def _chat_link(token: str | None) -> str:
+    if not token:
+        return ""
+    from interview_theater import web_chat
+
+    return (
+        f'<p><a href="{html.escape(token)}/{web_chat.CHAT_PFAD}">'
+        f"{html.escape(T._TEXT_CHAT_LINK)}</a></p>"
+    )
+
+
 def leitfaden_pfad() -> str:
     """``leitfaden`` -- der Pfad steht in ``leitfaden.WEB_PFAD``, damit
     Routing und Link nicht auseinanderlaufen."""
@@ -2031,6 +2048,7 @@ def gruppe_html(
         _CSS_GRUPPE,
         f"<h1>{_t(titel)}</h1>\n"
         f"{probenansicht}"
+        f"{_chat_link(token)}"
         f"{kopf}"
         f"<h2>{_t(T._UEBERSCHRIFT_ARBEITSSTAND)}</h2>"
         f"{stand}\n"
@@ -2706,6 +2724,20 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
         daten["token"] = token
         handler._antworte(200, leitfaden_html(daten))
         return
+    # Der Chat im Browser (30.09.2026, Karte Padua A2). Nur die Weiche steht
+    # hier -- HTML, CSS, JS und Handler liegen in web_chat.py, damit diese
+    # Datei nicht weiter waechst. Der Import steht in der Funktion, wie bei
+    # ``leitfaden`` und ``szenenfolge``: web_chat importiert seinerseits
+    # ``web`` (fuer ``_seite``), und das waere im Modulkopf ein Zyklus.
+    from interview_theater import web_chat
+
+    if unterpfad == web_chat.CHAT_PFAD or unterpfad.startswith(web_chat.CHAT_PFAD + "/"):
+        web_chat.beantworte_get(
+            handler, db_pfad, token,
+            unterpfad[len(web_chat.CHAT_PFAD):].strip("/"),
+            praefix, schluessel, query,
+        )
+        return
     if unterpfad not in ("", "textbuch"):
         handler._antworte(404, nicht_gefunden_html())
         return
@@ -2787,7 +2819,22 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
     if not pfad.startswith("/g/"):
         handler._antworte(404, nicht_gefunden_html())
         return
-    token = pfad[len("/g/"):].strip("/")
+    from interview_theater import web_chat
+
+    rest = pfad[len("/g/"):].strip("/")
+    token, _, unterpfad = rest.partition("/")
+    if unterpfad == web_chat.CHAT_PFAD or unterpfad.startswith(web_chat.CHAT_PFAD + "/"):
+        web_chat.beantworte_post(
+            handler, db_pfad, token,
+            unterpfad[len(web_chat.CHAT_PFAD):].strip("/"),
+            schluessel,
+        )
+        return
+    if unterpfad:
+        # Vorher wurde daraus ein Token mit Schraegstrich darin und damit
+        # ebenfalls 404 -- jetzt ausdruecklich.
+        handler._antworte(404, nicht_gefunden_html())
+        return
     try:
         daten = handler._koerper()
     except ValueError as fehler:

@@ -19,6 +19,7 @@ Alle Werte kommen so heraus, wie sie in der Datenbank stehen (Zeitstempel als
 ISO-8601-Text in UTC); Formatierung und Maskierung sind Sache von web.py.
 """
 
+import json
 import sqlite3
 import statistics
 from datetime import datetime, timedelta, timezone
@@ -1312,3 +1313,128 @@ def dramaturgie(conn: sqlite3.Connection, chat_id: int) -> dict:
             for z in zeilen if z["runde"] == runde
         ],
     }
+
+
+# --- Der Web-Chat (30.09.2026, Karte Padua A2) -----------------------------
+
+#: Wie viele Nachrichten die Chatansicht hoechstens auf einmal traegt. Ein
+#: Workshoptag sind einige hundert; mehr als das braucht niemand auf einem
+#: Telefon, und der Poll holt ohnehin nur das Neue (``nach``).
+CHAT_GRENZE = 200
+
+#: Was NICHT im Chat steht: der Umschalter-Druck, der als Slash-Text in den
+#: Bot geht. Slash-Befehle werden nicht beworben (AGENTS.md) -- beworben wird
+#: der Knopf, und der steht schon da.
+_CHAT_VERBORGEN = ("befehl",)
+
+
+def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE) -> list:
+    """Der Chatverlauf einer Web-Gruppe ab ``nach`` (exklusiv), aelteste zuerst.
+
+    Geliefert wird genau das, was die Ansicht braucht -- **und der Dateipfad
+    ist nicht dabei.** Er ist eine Serverinnerei, und die Seite ist ohne Login
+    erreichbar (dieselbe Grenze wie 'kein Volltranskript auf der
+    Gruppenseite')."""
+    zeilen = conn.execute(
+        "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am "
+        "FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
+        f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
+        "AND typ != 'knopf' "
+        "ORDER BY id ASC LIMIT ?",
+        (chat_id, nach, *_CHAT_VERBORGEN, grenze),
+    ).fetchall()
+    return [
+        {
+            "id": int(z["id"]),
+            "von": "bot" if z["richtung"] == "aus" else "gruppe",
+            "typ": z["typ"],
+            "text": z["text"],
+            "knoepfe": _web_knoepfe(z["knoepfe"]),
+            "dauer": z["dauer"],
+            "dateiname": z["dateiname"],
+            "zeit": z["erstellt_am"],
+        }
+        for z in zeilen
+    ]
+
+
+def _web_knoepfe(roh) -> list:
+    """Dieselbe Deutung wie ``repo.web_knoepfe`` -- hier eigens, weil
+    ``web_daten`` bewusst nicht von ``repo`` abhaengt (der Webserver soll
+    keinen Schreibpfad importieren, siehe Moduldocstring)."""
+    if not roh:
+        return []
+    try:
+        gelesen = json.loads(roh)
+    except (TypeError, ValueError):
+        return []
+    return [list(eintrag) for eintrag in gelesen if len(eintrag) == 2]
+
+
+def web_chatzustand(conn, token: str, nach: int = 0) -> dict | None:
+    """Alles, was der Browser bei einem Poll braucht -- oder None bei
+    unbekanntem Token.
+
+    Ein Aufruf statt vier: der Browser fragt alle zwei Sekunden, und vier
+    Anfragen je Takt waeren bei drei Gruppen mit je zwei Telefonen
+    sechsunddreissig Anfragen in der Minute fuer dieselbe Antwort."""
+    chat_id = chat_id_nach_token(conn, token)
+    if chat_id is None:
+        return None
+    gruppe = conn.execute(
+        "SELECT titel, interviewmodus_seit, web_tippt_bis FROM gruppe WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    nachrichten = web_chatverlauf(conn, chat_id, nach)
+    letzte = nachrichten[-1]["id"] if nachrichten else nach
+    # Phase wie web_daten.py:107 -- repo-frei, fehlende Spalte = None.
+    stand = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    return {
+        "chat_id": chat_id,
+        "titel": gruppe["titel"] if gruppe else None,
+        "phase": _feld(stand, "phase"),
+        "interviewmodus": bool(gruppe and gruppe["interviewmodus_seit"]),
+        "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
+        "nachrichten": nachrichten,
+        "letzte": letzte,
+        "antworten": _web_antworten(conn, chat_id),
+        "segment_ms": None,   # setzt der HTML-Bau, nicht der Poll
+    }
+
+
+def _tippt_noch(bis_iso) -> bool:
+    """Gilt die Tippanzeige noch? ``WebKanal.tippt`` setzt sie auf
+    ``jetzt + TIPPT_GUELTIG_S``; ist der Zeitpunkt vorbei, schreibt gerade
+    niemand mehr (und ein abgebrochener Lauf laesst sie nicht stehen)."""
+    zeitpunkt = lies_zeitstempel(bis_iso)
+    if zeitpunkt is None:
+        return False
+    return zeitpunkt > datetime.now(timezone.utc)
+
+
+def _web_antworten(conn, chat_id: int) -> dict:
+    """Die ``answerCallbackQuery``-Texte der letzten Knopfdruecke, nach
+    Druck-id. In Telegram ist das die kleine Blase ueber dem Knopf; im
+    Browser zeigt sie die Seite kurz unter der Leiste an."""
+    zeilen = conn.execute(
+        "SELECT id, antwort FROM web_post WHERE chat_id = ? AND typ = 'knopf' "
+        "AND antwort IS NOT NULL ORDER BY id DESC LIMIT 5",
+        (chat_id,),
+    ).fetchall()
+    return {str(int(z["id"])): z["antwort"] for z in zeilen}
+
+
+def web_ausgangsdatei(conn, chat_id: int, post_id: int) -> dict | None:
+    """Die Datei zu einer ``sende_datei``-Zeile (Textbuch-Export) -- Pfad und
+    Name, oder None. Der Pfad bleibt serverseitig; die Route liefert den
+    Inhalt aus, nicht den Ort."""
+    zeile = conn.execute(
+        "SELECT datei, dateiname FROM web_post WHERE id = ? AND chat_id = ? "
+        "AND typ = 'datei' AND geloescht_am IS NULL",
+        (post_id, chat_id),
+    ).fetchone()
+    if zeile is None or not zeile["datei"]:
+        return None
+    return {"pfad": zeile["datei"], "dateiname": zeile["dateiname"] or "datei"}

@@ -2654,7 +2654,7 @@ Leitfaden-Link. Der Parameter steht trotzdem da, wortgleich zu `gruppe_html` und
 `textbuch_html`: dieselbe Signatur fuer alle drei Seiten. Meckert ein Linter, `# noqa: ARG001`
 daran schreiben, nicht den Parameter entfernen.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_chat.py`:
 
@@ -2969,14 +2969,14 @@ def test_der_chat_pfad_ist_in_skript_und_modul_derselbe():
     assert web_gruppe.CHAT_PFAD == web_chat.CHAT_PFAD
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_chat.py -q -p no:cacheprovider
 ```
 Erwartet: `ModuleNotFoundError: No module named 'interview_theater.web_chat'`.
 
-- [ ] **Schritt 3: `web_daten.py` — die drei Lesefunktionen**
+- [x] **Schritt 3: `web_daten.py` — die drei Lesefunktionen**
 
 Am Dateiende anhaengen. Read-only, reine Funktionen, `conn` rein und Dicts raus — wie der
 Rest des Moduls.
@@ -3111,7 +3111,7 @@ def web_ausgangsdatei(conn, chat_id: int, post_id: int) -> dict | None:
 `arbeitsstand`-Zeile ueber `_feld(zeile, "phase")` lesen wie web_daten.py:107, `repo`-frei. `json`, `datetime`, `timezone` im Modulkopf pruefen
 und ergaenzen.
 
-- [ ] **Schritt 4: `web_chat.py` — Filter, HTML, GET-Handler**
+- [x] **Schritt 4: `web_chat.py` — Filter, HTML, GET-Handler**
 
 ```python
 """Der Chat im Browser (30.09.2026, Karte Padua A2).
@@ -3449,7 +3449,7 @@ def _segment_ms() -> int:
 
 Importe ergaenzen: `json`, `os`, `from pathlib import Path`.
 
-- [ ] **Schritt 5: `web.py` — die Routing-Zeilen**
+- [x] **Schritt 5: `web.py` — die Routing-Zeilen**
 
 In `_beantworte_gruppenseite`, **vor** `if unterpfad not in ("", "textbuch"):`:
 
@@ -3527,7 +3527,7 @@ def _chat_link(token: str | None) -> str:
 
 und im Koerper von `gruppe_html` neben `_leitfaden_link(token)` einhaengen.
 
-- [ ] **Schritt 6: Lauf, alles gruen**
+- [x] **Schritt 6: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_chat.py -q -p no:cacheprovider
@@ -3548,7 +3548,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2881 passed, 1 skipped`.
 
-- [ ] **Schritt 7: Commit**
+- [x] **Schritt 7: Commit**
 
 ```bash
 git add interview_theater/web_chat.py interview_theater/web_daten.py \

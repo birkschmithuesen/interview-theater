@@ -55,6 +55,32 @@ MAX_TOKENS = 32_000
 #: _sende_mit_wiederholung. Macht bis zu vier Versuche insgesamt.
 WARTEZEITEN = (0.7, 1.5, 3.0)
 
+#: Ist Streaming bei diesem Anbieter ueberhaupt moeglich? Eine
+#: PROZESSflagge, kein Dauerversuch (Plan Karte W, Abweichung 2): hat der
+#: Anbieter ``stream: true`` einmal abgelehnt oder keine ``usage`` geliefert,
+#: geht jeder weitere Aufruf dieses Prozesses sofort blockierend -- sonst
+#: zahlte jede Antwort den Fehlversuch mit, und E7 (Kostendeckel) stuende
+#: dauerhaft auf geschaetzten Zahlen.
+_STROM_AUS = False
+
+
+def strom_moeglich() -> bool:
+    return not _STROM_AUS
+
+
+def vergiss_strom() -> None:
+    """Nur fuer Tests: die Prozessflagge zuruecknehmen."""
+    global _STROM_AUS
+    _STROM_AUS = False
+
+
+class _StromNichtVerfuegbar(Exception):
+    """Der Anbieter hat den Stream abgelehnt -- BEVOR ein Stueck kam."""
+
+
+class _StromAbbruch(Exception):
+    """Der Stream ist mitten drin abgerissen -- NACH dem ersten Stueck."""
+
 
 class LLMFehler(Exception):
     """Fehler beim Zugriff auf das Sprachmodell.
@@ -175,6 +201,8 @@ class LLM:
         art: str,
         modell: str | None = None,
         temperature: float | None = None,
+        bei_teil=None,
+        teil_feld: str = "antwort",
     ) -> dict:
         """Erzwingt ein JSON-Schema (Modus A) und liefert das geparste
         Ergebnis.
@@ -189,6 +217,13 @@ class LLM:
         ``temperature``-Feld. Grundlage dafuer, dass unterschiedliche
         Aufrufe (Gespraech, Absichtserkenner) unterschiedliche Modelle und
         Temperaturen waehlen koennen (SPEC § 4.3a).
+
+        ``bei_teil`` (30.09.2026, Karte W): eine Senke, die den bisherigen
+        Text bekommt, waehrend er entsteht. **Sie bekommt nicht das rohe
+        JSON**, sondern den mit ``strom.wert_aus_praefix`` dekodierten Wert von
+        ``teil_feld`` -- der Gespraechszug laeuft ueber dieses Schema, und was
+        die Gruppe sehen soll, ist der Satz und nicht die Verpackung.
+        Ohne ``bei_teil`` ist der Anfragekoerper zeichengleich wie vorher.
         """
         koerper = self._anfrage(
             chat_id=chat_id,
@@ -202,6 +237,8 @@ class LLM:
             },
             modell=modell,
             temperature=temperature,
+            bei_teil=bei_teil,
+            teil_feld=teil_feld,
         )
         text = self._text_aus(koerper)
         return lies_json(text)
@@ -214,6 +251,7 @@ class LLM:
         art: str,
         max_tokens: int | None = None,
         timeout: float | None = None,
+        bei_teil=None,
     ) -> str:
         """Freier Text mit aktivem Reasoning (Modus B).
 
@@ -229,7 +267,10 @@ class LLM:
         Szenen-Aufruf (interview_theater/szene.py) setzt beide hoch, weil aktives
         Reasoning das Ausgabebudget vor dem eigentlichen Inhalt verbraucht
         (``max_tokens >= 12.000``) und die Latenz um Faktor 7-23 steigt (der
-        30-Sekunden-Client-Timeout aus bot.main reicht dafuer nicht)."""
+        30-Sekunden-Client-Timeout aus bot.main reicht dafuer nicht).
+
+        ``bei_teil`` bekommt hier den rohen, bisherigen Text -- anders als bei
+        ``schema`` gibt es kein Feld, das dekodiert werden muesste."""
         koerper = self._anfrage(
             chat_id=chat_id,
             system=system,
@@ -240,6 +281,7 @@ class LLM:
             response_format=None,
             max_tokens=max_tokens,
             timeout=timeout,
+            bei_teil=bei_teil,
         )
         return self._text_aus(koerper).strip()
 
@@ -263,6 +305,8 @@ class LLM:
         temperature: float | None = None,
         max_tokens: int | None = None,
         timeout: float | None = None,
+        bei_teil=None,
+        teil_feld: str | None = None,
     ) -> dict:
         """Baut den Request, schickt ihn (mit Wiederholung bei 5xx/Timeout)
         und protokolliert den Aufruf -- im ``finally``, damit auch
@@ -273,7 +317,10 @@ class LLM:
         kennen das Feld nicht und lehnen es sonst ab). ``max_tokens`` faellt
         ohne Angabe auf MAX_TOKENS zurueck, ``timeout`` auf den des
         httpx.Client -- beide werden nur von Aufrufen mit aktivem Reasoning
-        heraufgesetzt (siehe ``prosa``)."""
+        heraufgesetzt (siehe ``prosa``).
+
+        ``bei_teil``/``teil_feld`` (30.09.2026, Karte W): ohne ``bei_teil``
+        bleibt der Anfragekoerper zeichengleich wie vor dieser Karte (E1)."""
         body = self._baue_body(
             system=system, nutzer=nutzer, response_format=response_format,
             reasoning_effort=reasoning_effort, modell=modell,
@@ -293,8 +340,9 @@ class LLM:
         erfolg = 0
         start = time.monotonic()
         try:
-            koerper = self._sende_mit_wiederholung(
-                body, chat_id=chat_id, art=art, timeout=timeout
+            koerper = self._hole(
+                body, chat_id=chat_id, art=art, timeout=timeout,
+                bei_teil=bei_teil, teil_feld=teil_feld,
             )
             try:
                 auswahl = koerper["choices"][0]
@@ -325,6 +373,121 @@ class LLM:
                 dauer_ms,
                 erfolg,
             )
+
+    def _hole(self, body: dict, *, chat_id, art, timeout, bei_teil, teil_feld) -> dict:
+        """Ein Anbieteraufruf -- streamend, wenn eine Senke da ist, sonst wie
+        immer. Liefert in **beiden** Faellen denselben Koerper, damit alles
+        danach (``_text_aus``, ``lies_json``, die Buchung im ``finally`` von
+        ``_anfrage``) unveraendert weiterlaeuft."""
+        if bei_teil is None or not strom_moeglich():
+            return self._sende_mit_wiederholung(body, chat_id=chat_id, art=art,
+                                                timeout=timeout)
+        strom_body = dict(body)
+        strom_body["stream"] = True
+        strom_body["stream_options"] = {"include_usage": True}
+        try:
+            koerper = self._sende_strom(strom_body, timeout=timeout,
+                                        bei_teil=bei_teil, teil_feld=teil_feld)
+        except _StromNichtVerfuegbar as fehler:
+            self._melde_strom_aus(chat_id, art, f"abgelehnt: {fehler}")
+            return self._sende_mit_wiederholung(body, chat_id=chat_id, art=art,
+                                                timeout=timeout)
+        except _StromAbbruch as fehler:
+            # Entscheidung E: KEIN halber Text wird zur Nachricht. Die
+            # vorlaeufige Blase verschwindet, und genau EIN blockierender
+            # Versuch holt die vollstaendige Antwort.
+            abbruch = getattr(bei_teil, "abbruch", None)
+            if callable(abbruch):
+                abbruch()
+            log.warning("Stream abgerissen (art=%s): %s -- ein Versuch ohne Stream",
+                        art, type(fehler).__name__)
+            return self._sende_mit_wiederholung(body, chat_id=chat_id, art=art,
+                                                timeout=timeout)
+        if not (koerper.get("usage") or {}).get("prompt_tokens"):
+            self._melde_strom_aus(chat_id, art, "keine usage im Stream")
+        return koerper
+
+    def _melde_strom_aus(self, chat_id: int | None, art: str, grund: str) -> None:
+        """Einmal je Prozess: Vorfall und Flagge."""
+        global _STROM_AUS
+        if _STROM_AUS:
+            return
+        _STROM_AUS = True
+        try:
+            repo.merke_vorfall(
+                self._conn, chat_id, getattr(self._e, "bot_name", None),
+                "strom_nicht_verfuegbar",
+                f"Streaming abgeschaltet fuer diesen Prozess ({grund}, art={art})",
+            )
+        except Exception:  # noqa: BLE001 -- ein Vorfall reisst keinen Zug mit
+            log.exception("Vorfall strom_nicht_verfuegbar nicht geschrieben")
+
+    def _sende_strom(self, body: dict, *, timeout, bei_teil, teil_feld) -> dict:
+        """Ein Aufruf mit ``stream: true``; baut aus den Stuecken denselben
+        Koerper, den der blockierende Weg liefert.
+
+        Keine Wiederholung hier: ein abgerissener Stream wird EINMAL ohne
+        Stream wiederholt (``_hole``), und den Anbieter mehrfach streamen zu
+        lassen hiesse, denselben Text mehrfach zu bezahlen."""
+        from interview_theater import strom as strom_modul
+
+        zusatz = {} if timeout is None else {"timeout": timeout}
+        roh: list[str] = []
+        finish = None
+        nutzung: dict = {}
+        erstes_stueck = False
+        try:
+            with self._klient.stream(
+                "POST", self._e.llm_url, headers=self._headers(), json=body, **zusatz
+            ) as antwort:
+                if antwort.status_code >= 400:
+                    raise _StromNichtVerfuegbar(f"HTTP {antwort.status_code}")
+                for zeile in antwort.iter_lines():
+                    zeile = zeile.strip()
+                    if not zeile.startswith("data:"):
+                        continue
+                    nutzlast = zeile[len("data:"):].strip()
+                    if nutzlast == "[DONE]":
+                        break
+                    try:
+                        stueck = json.loads(nutzlast)
+                    except json.JSONDecodeError as fehler:
+                        if erstes_stueck:
+                            raise _StromAbbruch("unlesbares Stueck") from fehler
+                        raise _StromNichtVerfuegbar("unlesbare Antwort") from fehler
+                    if stueck.get("usage"):
+                        nutzung = stueck["usage"]
+                    for wahl in stueck.get("choices") or []:
+                        if wahl.get("finish_reason"):
+                            finish = wahl["finish_reason"]
+                        # ``reasoning_content`` wird bewusst NICHT gelesen:
+                        # die Denkspur ist nie fuer die Gruppe.
+                        teil = (wahl.get("delta") or {}).get("content")
+                        if not teil:
+                            continue
+                        erstes_stueck = True
+                        roh.append(teil)
+                        ganz = "".join(roh)
+                        bei_teil(
+                            strom_modul.wert_aus_praefix(ganz, teil_feld)
+                            if teil_feld else ganz
+                        )
+        except (_StromNichtVerfuegbar, _StromAbbruch):
+            raise
+        except httpx.HTTPStatusError as fehler:
+            raise _StromNichtVerfuegbar(
+                f"HTTP {fehler.response.status_code}") from fehler
+        except httpx.TransportError as fehler:
+            if erstes_stueck:
+                raise _StromAbbruch(type(fehler).__name__) from fehler
+            raise _StromNichtVerfuegbar(type(fehler).__name__) from fehler
+        if not erstes_stueck:
+            raise _StromNichtVerfuegbar("kein einziges Stueck")
+        return {
+            "choices": [{"message": {"content": "".join(roh)},
+                         "finish_reason": finish}],
+            "usage": nutzung,
+        }
 
     def _baue_body(
         self,

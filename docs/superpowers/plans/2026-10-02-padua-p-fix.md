@@ -38,6 +38,11 @@ Modellaufruf -- auch der Prompt-Dump ist reine Textmontage
   `tests/test_simulation_lauf.py::test_ersatzfunktion_nimmt_die_parameter_des_originals_an[_sofort_szene]`
   (`_sofort_szene` fehlt der Parameter `art='szene'`). **Soll nach dieser
   Karte: `1 failed, >=5008 passed` -- derselbe eine Fehlschlag, kein neuer.**
+  **Nachtrag Architekt (02.10.2026):** `origin/main` steht inzwischen auf
+  `1e6bd0d` ("Simulation: _sofort_szene reicht art durch") und behebt genau
+  diesen Fehlschlag. Basiert der Umsetzungs-Branch auf `1e6bd0d` oder
+  spaeter, ist das Soll **`0 failed`** -- dann die Baseline vor Task 1 im
+  eigenen Worktree neu messen und diese Zahl als Vorher-Wert nehmen.
   Die Suite laeuft rund 7 Minuten; **nicht in den Hintergrund schicken**,
   sondern abwarten.
 - **Sprache:** Bezeichner, Kommentare, Doku und Commit-Botschaften deutsch mit
@@ -2389,6 +2394,8 @@ $PY -m pytest -q -p no:cacheprovider
 Erwartet: `1 failed, >=5008 passed, 2 skipped` -- und der eine Fehlschlag ist
 derselbe wie vor der Karte:
 `tests/test_simulation_lauf.py::test_ersatzfunktion_nimmt_die_parameter_des_originals_an[_sofort_szene]`.
+(Auf Basis `1e6bd0d` oder spaeter: `0 failed`, siehe Nachtrag in
+"Global Constraints".)
 **Jeder andere Fehlschlag ist ein Befund dieser Karte und muss behoben
 werden, nicht weggedrueckt.** Die Zahl `passed` darf gewachsen sein (neue
 Tests aus Task 1, 2, 4, 5, 7).

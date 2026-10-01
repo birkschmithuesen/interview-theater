@@ -474,22 +474,30 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     Geheimnis ueber die Seite hinaus, und das Token steht ohnehin schon im
     Pfad und damit in jeder Logzeile.
 
-    Reihenfolge der Pruefungen: **Typ, Groesse, Dauer, Nonce, dann lesen** --
-    die Kopfzeilen kosten nichts, der Koerper kostet Speicher. Geschrieben
+    Reihenfolge der Pruefungen: **``Content-Length`` lesen, Typ (415),
+    Groesse (400/413), Nonce (403), Dauer (400), dann erst der Koerper** --
+    die Kopfzeilen kosten nichts, der Koerper kostet Speicher. Jeder
+    ablehnende Zweig verwirft zuerst den angekuendigten Koerper
+    (``_verwerfe_koerper``), bevor er antwortet: sonst sieht der Client bei
+    einer grossen ``Content-Length`` denselben Verbindungsabbruch wie frueher
+    im 413-Zweig, nur jetzt bei 415/403/400 -- ``urllib`` schreibt den ganzen
+    Koerper in einem Zug, ohne auf eine Zwischenantwort zu warten. Geschrieben
     wird erst die Zeile, dann die Datei (der Pfad enthaelt die id), und erst
     danach der Verweis; scheitert die Datei, bleibt eine Zeile ohne ``datei``
     stehen und ``lade_datei`` wirft -- ``aufnahme`` bittet die Gruppe dann,
     es nochmal zu schicken."""
     from interview_theater import web
 
-    endung = endung_fuer(handler.headers.get("Content-Type"))
-    if endung is None:
-        handler._fehler(415, _TEXT_FEHLER_TYP)
-        return
     try:
         laenge = int(handler.headers.get("Content-Length") or 0)
     except ValueError:
         handler._fehler(400, _TEXT_FEHLER_ANFRAGE)
+        return
+
+    endung = endung_fuer(handler.headers.get("Content-Type"))
+    if endung is None:
+        _verwerfe_koerper(handler, laenge)
+        handler._fehler(415, _TEXT_FEHLER_TYP)
         return
     if laenge <= 0:
         handler._fehler(400, _TEXT_FEHLER_LEER_AUDIO)
@@ -501,10 +509,24 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
 
     felder = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
     if not web.nonce_gueltig(schluessel, token, (felder.get("nonce") or [""])[0]):
+        _verwerfe_koerper(handler, laenge)
         handler._fehler(403, _TEXT_FEHLER_VERALTET)
         return
     roh_dauer = (felder.get("dauer") or [""])[0]
-    if not roh_dauer.isdigit() or not 0 < int(roh_dauer) <= MAX_DAUER_S:
+    #: Nur ASCII-Ziffern, und hoechstens 10 Stellen, BEVOR ``int()`` sie sieht:
+    #: ein Unicode-Ziffernzeichen wie "²" (U+00B2) erfuellt ``isdigit()``,
+    #: aber nicht ``isascii()`` -- ohne die Pruefung wirft ``int("²")`` ein
+    #: nicht abgefangenes ``ValueError``. Und seit Python 3.11 hat ``int()``
+    #: eine Umwandlungsgrenze fuer sehr lange Ziffernfolgen
+    #: (``sys.set_int_max_str_digits``, Vorgabe 4300) -- die Laengengrenze
+    #: haelt eine vom Client frei waehlbare Ziffernfolge weit darunter, statt
+    #: sich auf die eingebaute Grenze zu verlassen.
+    gueltig_ziffern = (
+        roh_dauer.isascii() and roh_dauer.isdigit() and len(roh_dauer) <= 10
+    )
+    dauer = int(roh_dauer) if gueltig_ziffern else None
+    if dauer is None or not 0 < dauer <= MAX_DAUER_S:
+        _verwerfe_koerper(handler, laenge)
         handler._fehler(400, _TEXT_FEHLER_DAUER)
         return
 
@@ -516,7 +538,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     with schreibend(db_pfad) as conn:
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
-            dauer=int(roh_dauer), mime=haupttyp(handler),
+            dauer=dauer, mime=haupttyp(handler),
         )
         ziel = web_kanal.eingangspfad(_audio_verz(), chat_id, message_id, endung)
         ziel.parent.mkdir(parents=True, exist_ok=True)

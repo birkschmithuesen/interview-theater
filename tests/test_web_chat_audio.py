@@ -175,7 +175,14 @@ def test_unbekanntes_token_gibt_404(aufbau):
     assert fehler.value.code == 404
 
 
-@pytest.mark.parametrize("dauer", ["", "abc", "-3", "99999999"])
+@pytest.mark.parametrize("dauer", [
+    "", "abc", "-3", "99999999",
+    "%C2%B2",  # "²" (U+00B2) -- isdigit()==True, aber kein ASCII;
+               # int("²") wirft sonst ein nicht abgefangenes ValueError.
+    "9" * 50,  # sehr lange Ziffernfolge -- ohne Laengengrenze liefe eine
+               # noch laengere Folge in Python 3.11s int()-Umwandlungsgrenze
+               # (ValueError, ``sys.set_int_max_str_digits``).
+])
 def test_kaputte_dauer_gibt_400(aufbau, dauer):
     """Die Dauer kommt vom Client und geht in ``aufnahme`` -- sie entscheidet
     unter anderem ueber ``HINWEIS_AB_S`` (60 s: eine lange Sprachnachricht
@@ -185,6 +192,50 @@ def test_kaputte_dauer_gibt_400(aufbau, dauer):
     with pytest.raises(urllib.error.HTTPError) as fehler:
         _lade(basis, token, WEBM, dauer=dauer)
     assert fehler.value.code == 400
+
+
+# -- der Koerper wird in jedem ablehnenden Zweig verworfen -----------------
+
+
+def test_ungueltiger_nonce_mit_grossem_koerper_gibt_403(aufbau):
+    """Vor dem Fix wurde der angekuendigte Koerper nur im 413-Zweig
+    verworfen -- 415, 403 und 400 antworteten, ohne ihn zu lesen, und
+    ``urllib`` (``Connection: close``, Koerper in einem Zug geschrieben)
+    sah dabei denselben Verbindungsabbruch wie frueher bei 413. Ein grosser
+    Koerper mit ungueltigem Nonce muss trotzdem die 403-Antwort ankommen
+    lassen, nicht einen ``Broken pipe``."""
+    basis, token, pfad, audio = aufbau
+    gross = b"\x00" * (web_chat.MAX_AUDIO_BYTES - 1)
+    with pytest.raises(urllib.error.HTTPError) as fehler:
+        _lade(basis, token, gross, nonce="0.deadbeef")
+    assert fehler.value.code == 403
+    conn = db.verbinde(pfad)
+    assert conn.execute("SELECT COUNT(*) FROM web_post").fetchone()[0] == 0
+    assert list(audio.rglob("*.webm")) == []
+
+
+def test_fremder_typ_mit_grossem_koerper_gibt_415(aufbau):
+    """Dieselbe Falle wie oben, diesmal am Typ-Zweig."""
+    basis, token, pfad, audio = aufbau
+    gross = b"\x00" * (web_chat.MAX_AUDIO_BYTES - 1)
+    with pytest.raises(urllib.error.HTTPError) as fehler:
+        _lade(basis, token, gross, typ="text/html")
+    assert fehler.value.code == 415
+    conn = db.verbinde(pfad)
+    assert conn.execute("SELECT COUNT(*) FROM web_post").fetchone()[0] == 0
+    assert list(audio.rglob("*.webm")) == []
+
+
+def test_kaputte_dauer_mit_grossem_koerper_gibt_400(aufbau):
+    """Dieselbe Falle wie oben, diesmal am Dauer-Zweig."""
+    basis, token, pfad, audio = aufbau
+    gross = b"\x00" * (web_chat.MAX_AUDIO_BYTES - 1)
+    with pytest.raises(urllib.error.HTTPError) as fehler:
+        _lade(basis, token, gross, dauer="abc")
+    assert fehler.value.code == 400
+    conn = db.verbinde(pfad)
+    assert conn.execute("SELECT COUNT(*) FROM web_post").fetchone()[0] == 0
+    assert list(audio.rglob("*.webm")) == []
 
 
 def test_zwei_segmente_bekommen_zwei_dateien(aufbau):

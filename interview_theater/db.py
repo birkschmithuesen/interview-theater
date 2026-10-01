@@ -731,7 +731,14 @@ CREATE TABLE IF NOT EXISTS web_post (
   mime              TEXT,
   dateiname         TEXT,                       -- 'datei': Name fuer den Download
   geloescht_am      TEXT,                       -- loesche_nachrichten, weich
-  erstellt_am       TEXT NOT NULL
+  erstellt_am       TEXT NOT NULL,
+  -- Aenderungszaehler: jede Aenderung an einer schon geschriebenen Zeile
+  -- (aendere_text, Leiste tauschen/entfernen, loeschen) setzt ihn auf
+  -- MAX+1 ueber die ganze Tabelle. Ein Zaehler und keine Uhrzeit: SQLite
+  -- serialisiert die Schreiber, der Wert steigt also in Commit-Reihenfolge,
+  -- und der Poll der Chatansicht ("alles nach N") verpasst nichts. NULL =
+  -- nie geaendert (neue Zeilen holt der Poll ueber die id).
+  aenderung         INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);

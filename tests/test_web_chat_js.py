@@ -92,8 +92,20 @@ def test_pointercancel_und_setpointercapture_stehen_im_js():
 def test_kein_schieben_zum_sperren(seite):
     """Birk, verbindlich: ZWEI getrennte Knoepfe, KEIN Schieben-zum-Sperren.
     Ein Test, der eine Entscheidung festhaelt, die sonst niemand mehr kennt."""
-    for verboten in ("slideToLock", "sperren", "lock", "swipe"):
-        assert verboten.lower() not in web_chat._CHAT_JS.lower(), verboten
+    # Auf Wortgrenzen: ein Teilstring "lock" traefe auch "block" und "clock"
+    # (Review-Befund 13).
+    for muster in (r"\bslide\w*", r"\bswipe\w*", r"\block\w*", r"\w*Lock\b",
+                   r"\bsperren\b"):
+        assert not re.search(muster, web_chat._CHAT_JS, re.IGNORECASE), muster
+
+
+def test_der_schieben_test_trifft_keine_harmlosen_woerter():
+    """Gegenprobe zum Test darueber: "block", "clock" und "Blockade" sind
+    keine Sperr-Geste."""
+    harmlos = "display: block; var clock = 1; // Blockade"
+    for muster in (r"\bslide\w*", r"\bswipe\w*", r"\block\w*", r"\bsperren\b"):
+        assert not re.search(muster, harmlos, re.IGNORECASE), muster
+    assert re.search(r"\block\w*", "slideToLock lockScreen", re.IGNORECASE)
 
 
 def test_das_js_startet_einen_eigenen_recorder_je_segment():
@@ -127,6 +139,97 @@ def test_die_polltakte_stehen_als_konstanten():
     fertig = web_chat._js()
     assert f"var POLL_MS = {web_chat.POLL_MS};" in fertig
     assert f"var POLL_MS_HINTERGRUND = {web_chat.POLL_MS_HINTERGRUND};" in fertig
+
+
+def test_ui_texte_stehen_nicht_als_literal_im_js():
+    """Review-Befund 9: jeder Satz, den das JS setzt, kommt aus einer
+    ``_TEXT_*``-Konstante -- als JSON-Objekt ueber den Platzhalter."""
+    for name, wert in web_chat._JS_TEXTE.items():
+        assert wert not in web_chat._CHAT_JS, name
+    for wort in ("Interview aufnehmen", "Aufnahme beenden", "schreibt …",
+                 "Sprachnachricht", "hochgeladen", "Keine Verbindung"):
+        assert wort not in web_chat._CHAT_JS, wort
+    fertig = web_chat._js()
+    assert "__TEXTE__" not in fertig
+    texte = re.search(r"var TEXT = (\{.*?\});\n", fertig).group(1)
+    import json
+    assert json.loads(texte) == web_chat._JS_TEXTE
+
+
+def test_im_fertigen_js_bleibt_kein_platzhalter_stehen():
+    assert not re.search(r"__[A-Z_]+__", web_chat._js())
+
+
+def test_uploads_haben_keine_hoechstzahl_an_versuchen():
+    """Review-Befund 3: ein Segment wird bei Netzfehler oder 5xx nie
+    verworfen. Es gibt keine Versuchsgrenze mehr, nur einen gedeckelten
+    Abstand -- und das ``online``-Ereignis loest sofort einen Versuch aus."""
+    assert not hasattr(web_chat, "UPLOAD_VERSUCHE")
+    assert "UPLOAD_VERSUCHE" not in web_chat._CHAT_JS
+    assert "'online'" in web_chat._CHAT_JS
+    assert f"var UPLOAD_WARTEN_MS = [{', '.join(map(str, web_chat.UPLOAD_WARTEN_MS))}];" \
+        in web_chat._js()
+
+
+def test_fertig_wartet_auf_das_stop_ereignis():
+    """Review-Befund 1: das letzte Segment kommt im ``onstop`` -- ``/fertig``
+    wird erst dort (``pruefeEnde``) eingereiht, nie direkt nach ``stop()``."""
+    js = web_chat._CHAT_JS
+    assert "r.onstop" in js
+    assert "pruefeEnde(sitzung)" in js
+    beende = js[js.index("function beendeInterview"):js.index("interviewKnopf.addEventListener")]
+    assert "an: false" in beende   # nur der Weg ohne eigene Aufnahme
+    assert "fetch(" not in beende
+
+
+def test_der_poll_setzt_den_nonce_und_wiederholt_bei_403():
+    js = web_chat._CHAT_JS
+    assert "daten.nonce" in js
+    assert "r.status === 403" in js
+
+
+def test_beforeunload_warnt_waehrend_aufnahme_und_upload():
+    assert "beforeunload" in web_chat._CHAT_JS
+
+
+def test_ptt_hat_die_beruehrungsregeln_im_css(seite):
+    for regel in ("touch-action: none", "user-select: none",
+                  "-webkit-user-select: none", "-webkit-touch-callout: none",
+                  '#ptt[data-haelt="1"]'):
+        assert regel in seite, regel
+
+
+def test_die_wege_sind_absolut_zum_gruppenverzeichnis():
+    """Review-Befund 12: kein relativer ``fetch('chat/...')`` mehr."""
+    assert not re.search(r"fetch\(\s*'chat/", web_chat._CHAT_JS)
+    assert "location.pathname" in web_chat._CHAT_JS
+
+
+def test_die_seite_traegt_den_modus_schon_beim_laden(tmp_path, monkeypatch):
+    """Review-Befund 11: im Interviewmodus steht der Stopp-Knopf schon im
+    HTML da, und PTT ist ausgeblendet -- nicht erst nach dem ersten Poll."""
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": True, "titel": None}
+    seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
+    assert f'data-laeuft="1">{web_chat._TEXT_INTERVIEW_AUS}</button>' in seite
+    assert '<button type="button" id="ptt" hidden' in seite
+    aus = web_chat.chat_html(dict(daten, interviewmodus=False), "1.x", "tok", "", 45000)
+    assert '<button type="button" id="ptt" title=' in aus
+
+
+def test_das_js_ist_syntaktisch_gueltig(tmp_path):
+    """Wenn ``node`` da ist: ``node --check`` ueber das fertige Skript."""
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node nicht installiert")
+    datei = tmp_path / "chat.js"
+    datei.write_text(web_chat._js(), encoding="utf-8")
+    ergebnis = subprocess.run([node, "--check", str(datei)],
+                              capture_output=True, text=True, timeout=30)
+    assert ergebnis.returncode == 0, ergebnis.stderr
 
 
 def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():

@@ -196,6 +196,16 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 #interview[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
 #ptt[hidden], #interview[hidden] { display: none; }
+#interview:disabled { opacity: .55; }
+/* PTT wird gehalten: kein Scrollen, kein Markieren, kein Kontextmenue unter
+   dem Finger -- sonst bricht das Telefon den Druck ab oder blendet eine Lupe
+   ein. */
+#ptt { touch-action: none; user-select: none; -webkit-user-select: none;
+       -webkit-touch-callout: none; }
+#ptt[data-haelt="1"] { background: #a8201a; transform: scale(1.08); }
+#ptt[data-haelt="1"][data-weg="1"] { background: #6b6b6b; }
+.fehler { font-size: .9rem; color: #a8201a; text-align: center; }
+.fehler[hidden] { display: none; }
 .pegel { height: .45rem; border-radius: .3rem; background: #e0ddd6; overflow: hidden; }
 .pegel span { display: block; height: 100%; width: 0; background: #a8201a; }
 .uhr { font-variant-numeric: tabular-nums; font-size: 1.3rem; text-align: center; }
@@ -222,26 +232,76 @@ POLL_MS_HINTERGRUND = 10000
 #: Chat legen -- und keinen Gespraechszug ausloesen.
 PTT_MIN_MS = 500
 
-#: Wie oft ein fehlgeschlagener Upload wiederholt wird, und mit welchen
-#: Wartezeiten (Sekunden). Dieselbe Haltung wie ``stt.WARTEZEITEN``: ein
-#: Netzaussetzer im Probenraum darf ein Segment nicht kosten.
-UPLOAD_VERSUCHE = 4
+#: Wartezeiten zwischen zwei Versuchen eines Uploads (Millisekunden), der
+#: letzte Wert ist der Deckel. **Ohne Hoechstzahl an Versuchen**
+#: (Review-Befund 3): bei Netzfehler oder 5xx wird wiederholt, bis es
+#: klappt -- ein Netzaussetzer im Probenraum darf ein Segment nicht kosten,
+#: und ein verworfenes Segment ist ein Loch mitten im Interview. Zusaetzlich
+#: loest das ``online``-Ereignis des Browsers sofort einen Versuch aus.
+#: Verworfen wird nur, was der Server endgueltig ablehnt (4xx), und das
+#: sichtbar.
 UPLOAD_WARTEN_MS = (1000, 3000, 8000)
+
+_TEXT_WARTE_EINS = "Ein Stück wird hochgeladen …"
+_TEXT_WARTE_MEHR = "{n} Stücke werden hochgeladen …"
+_TEXT_WARTE_MODUS = "Aufnahme läuft — {n} Stück(e) warten, bis der Bot das Interview angelegt hat."
+_TEXT_WARTE_NETZ = "Keine Verbindung — {n} offen, ich versuche es weiter …"
+_TEXT_FEHLER_NETZ = "Keine Verbindung — das ist nicht angekommen."
+_TEXT_FEHLER_MIKRO = "Ohne Mikrofon geht das nicht — bitte den Zugriff erlauben."
+_TEXT_VERLASSEN = "Es wird noch aufgenommen oder hochgeladen."
+_TEXT_UHR = "● {zeit}"
+
+#: Die Texte, die das JavaScript selbst setzt. Sie stehen als Konstanten in
+#: diesem Modul (dieselben, die der Server fuer seine Seite benutzt) und
+#: kommen als EIN JSON-Objekt ins Skript -- kein UI-Satz als Literal im JS.
+_JS_TEXTE = {
+    "tippt": _TEXT_TIPPT,
+    "sprache": _TEXT_SPRACHE,
+    "datei": _TEXT_DATEI,
+    "interview_an": _TEXT_INTERVIEW_AN,
+    "interview_aus": _TEXT_INTERVIEW_AUS,
+    "warte_eins": _TEXT_WARTE_EINS,
+    "warte_mehr": _TEXT_WARTE_MEHR,
+    "warte_modus": _TEXT_WARTE_MODUS,
+    "warte_netz": _TEXT_WARTE_NETZ,
+    "fehler_netz": _TEXT_FEHLER_NETZ,
+    "fehler_mikro": _TEXT_FEHLER_MIKRO,
+    "verlassen": _TEXT_VERLASSEN,
+    "uhr": _TEXT_UHR,
+}
 
 
 #: Das Chat-JavaScript. Vanilla, kein Build, kein Framework -- wie die
 #: bestehende Seite (``_BEARBEITEN_JS``). Faellt es aus, bleibt der Verlauf
 #: lesbar (serverseitig gerendert); nur Senden und Aufnehmen gehen nicht.
 #:
-#: Die Zahlen kommen als Platzhalter herein, damit sie an genau einer Stelle
-#: stehen: in den Python-Konstanten darueber.
+#: Die Zahlen und Texte kommen als Platzhalter herein, damit sie an genau
+#: einer Stelle stehen: in den Python-Konstanten darueber.
+#:
+#: **Testbarkeit (Aufgabe 13):** ``navigator.mediaDevices.getUserMedia`` und
+#: ``window.MediaRecorder`` werden erst beim Gebrauch nachgeschlagen, nie beim
+#: Laden gemerkt -- ein Browsertest ersetzt beide per ``add_init_script``.
+#: Die Segmentlaenge steht in ``data-segment-ms`` (``IT_WEB_SEGMENT_MS``).
+#:
+#: **Zwei Zustaende fuer den Interviewmodus** (Review-Befund 4): ``servermodus``
+#: ist, was der Poll meldet; ``aufnahme`` und ``wechsel`` sind, was dieses
+#: Telefon gerade tut. Solange ein Wechsel unterwegs ist, schaltet der Poll
+#: weder den Knopf noch PTT um -- sonst saehe ein zweiter Tipp waehrend der
+#: Bot ``/interview`` noch nicht verarbeitet hat "aus" und startete einen
+#: zweiten Recorder.
+#:
+#: **Eine Warteschlange fuer Befehle UND Segmente:** ``/interview``, alle
+#: Segmente und ``/fertig`` laufen nacheinander durch dieselbe Schlange. Damit
+#: ist die Reihenfolge, die der Bot sieht, die Reihenfolge, in der hier
+#: aufgenommen wurde -- ``/fertig`` geht erst raus, wenn alle Segmente davor
+#: angekommen sind (Review-Befund 1).
 _CHAT_JS = """
 (function () {
   var POLL_MS = __POLL_MS__;
   var POLL_MS_HINTERGRUND = __POLL_MS_HINTERGRUND__;
   var PTT_MIN_MS = __PTT_MIN_MS__;
-  var UPLOAD_VERSUCHE = __UPLOAD_VERSUCHE__;
   var UPLOAD_WARTEN_MS = __UPLOAD_WARTEN_MS__;
+  var TEXT = __TEXTE__;
 
   var verlauf = document.getElementById('verlauf');
   var fuss = document.getElementById('fuss');
@@ -251,29 +311,58 @@ _CHAT_JS = """
   var pegelFeld = document.getElementById('pegel');
   var pegelBalken = pegelFeld ? pegelFeld.querySelector('span') : null;
   var warteFeld = document.getElementById('warteschlange');
+  var fehlerFeld = document.getElementById('fehler');
   var tipptFeld = document.getElementById('tippt');
   var interviewKnopf = document.getElementById('interview');
   var pttKnopf = document.getElementById('ptt');
   var SEGMENT_MS = parseInt(fuss.dataset.segmentMs, 10) || 45000;
 
+  // Alle Wege absolut zum Verzeichnis der Gruppe, aus dem Pfad, den der
+  // Browser sieht (mit oder ohne IT_WEB_PREFIX). Relative Wege zeigten unter
+  // einer Adresse mit Schraegstrich am Ende ins Leere (Review-Befund 12).
+  var BASIS = location.pathname.replace(/\\/+$/, '').replace(/\\/chat$/, '') + '/';
+  function weg(pfad) { return BASIS + pfad; }
+
   var zustand = {
     letzte: parseInt(verlauf.dataset.letzte, 10) || 0,
-    interview: fuss.dataset.interview === '1',
-    warteschlange: [],
-    laeuft: false,        // sendet gerade ein Upload?
-    recorder: null,
-    strom: null,
-    beginn: 0,
+    aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
+    servermodus: fuss.dataset.interview === '1',
+    aufnahme: null,     // die laufende Interview-Aufnahme dieses Telefons
+    wechsel: null,      // {ziel, gesendet}: ein Moduswechsel, den der Poll noch nicht zeigt
+    warteschlange: [],  // Befehle und Segmente, der Reihe nach
+    laeuft: false,      // ist der erste Auftrag gerade unterwegs?
+    netzFehler: 0,      // Fehlversuche in Folge (Backoff)
+    nachholTakt: null,
     uhrTakt: null,
-    pegelTakt: null,
-    segmentTakt: null,
-    pttVon: 0,
-    pttAbgebrochen: false
+    fehlerTakt: null,
+    ptt: null           // der laufende PTT-Druck, je Druck ein eigenes Objekt
   };
 
   function nonce() {
     var feld = document.getElementById('nonce');
     return feld ? feld.value : '';
+  }
+
+  function entferne(element) {
+    if (element && element.parentNode) { element.parentNode.removeChild(element); }
+  }
+
+  function meldeFehler(satz) {
+    if (!fehlerFeld) { return; }
+    fehlerFeld.textContent = satz || TEXT.fehler_netz;
+    fehlerFeld.hidden = false;
+    if (zustand.fehlerTakt) { clearTimeout(zustand.fehlerTakt); }
+    zustand.fehlerTakt = setTimeout(function () {
+      fehlerFeld.hidden = true;
+      fehlerFeld.textContent = '';
+    }, 8000);
+  }
+
+  // Der Server schickt bei 4xx einen Satz als Klartext (_TEXT_FEHLER_*).
+  function fehlerAus(r) {
+    return r.text().then(function (satz) {
+      meldeFehler((satz || '').trim() || TEXT.fehler_netz);
+    }, function () { meldeFehler(TEXT.fehler_netz); });
   }
 
   // -- Verlauf -------------------------------------------------------------
@@ -284,38 +373,78 @@ _CHAT_JS = """
     return hilf.innerHTML;
   }
 
-  function blase(n) {
-    var huelle = document.createElement('div');
+  function minuten(s) {
+    return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+  }
+
+  function inhaltVon(n) {
     // Der Server hat schon gefiltert (sichere_html) -- ein Filter im Browser
     // laege auf der Seite, die er schuetzen soll.
-    var inhalt = n.html;
     if (n.typ === 'sprache') {
-      var s = n.dauer || 0;
-      inhalt = escape('Sprachnachricht (' + Math.floor(s / 60) + ':' +
-                      ('0' + (s % 60)).slice(-2) + ')');
-    } else if (n.typ === 'datei') {
-      inhalt = '<a href="chat/datei/' + n.id + '">' +
-               escape(n.dateiname || 'Datei') + '</a>';
+      return escape(TEXT.sprache.replace('{dauer}', minuten(n.dauer || 0)));
     }
-    huelle.className = 'blase ' + n.von + ' ' + n.typ;
-    huelle.dataset.id = n.id;
-    huelle.innerHTML = inhalt;
-    verlauf.appendChild(huelle);
+    if (n.typ === 'datei') {
+      var link = '<a href="' + weg('chat/datei/' + n.id) + '">' +
+                 escape(TEXT.datei.replace('{name}', n.dateiname || 'datei')) +
+                 '</a>';
+      return n.html ? n.html + '<br>' + link : link;
+    }
+    return n.html || '';
+  }
 
-    if (n.knoepfe && n.knoepfe.length) {
-      var leiste = document.createElement('div');
-      leiste.className = 'leiste';
-      leiste.dataset.message = n.id;
-      n.knoepfe.forEach(function (paar) {
-        var knopf = document.createElement('button');
-        knopf.type = 'button';
-        knopf.textContent = paar[0];
-        knopf.dataset.message = n.id;
-        knopf.dataset.daten = paar[1];
-        leiste.appendChild(knopf);
-      });
-      verlauf.appendChild(leiste);
-    }
+  function klasseVon(n) {
+    return (n.typ === 'sprache' || n.typ === 'datei') ? n.typ : 'text';
+  }
+
+  function baueLeiste(n) {
+    if (!n.knoepfe || !n.knoepfe.length) { return null; }
+    var leiste = document.createElement('div');
+    leiste.className = 'leiste';
+    leiste.dataset.message = n.id;
+    n.knoepfe.forEach(function (paar) {
+      var knopf = document.createElement('button');
+      knopf.type = 'button';
+      knopf.textContent = paar[0];
+      knopf.dataset.message = n.id;
+      knopf.dataset.daten = paar[1];
+      leiste.appendChild(knopf);
+    });
+    return leiste;
+  }
+
+  function blaseZu(id) {
+    return verlauf.querySelector('.blase[data-id="' + id + '"]');
+  }
+
+  function leisteZu(id) {
+    return verlauf.querySelector('.leiste[data-message="' + id + '"]');
+  }
+
+  function blase(n) {
+    if (blaseZu(n.id)) { ersetze(n); return; }   // nie doppelt
+    entferne(verlauf.querySelector('p.leer'));
+    var huelle = document.createElement('div');
+    huelle.className = 'blase ' + n.von + ' ' + klasseVon(n);
+    huelle.dataset.id = n.id;
+    huelle.innerHTML = inhaltVon(n);
+    verlauf.appendChild(huelle);
+    var leiste = baueLeiste(n);
+    if (leiste) { verlauf.appendChild(leiste); }
+  }
+
+  // Review-Befund 10: aendere_text, entferne_knoepfe und loesche_nachrichten
+  // treffen Zeilen, die schon dastehen -- die Arbeitszeile wechselt, eine
+  // ueberholte Leiste verschwindet, eine geloeschte Nachricht auch.
+  function ersetze(n) {
+    var huelle = blaseZu(n.id);
+    var alte = leisteZu(n.id);
+    if (n.geloescht) { entferne(huelle); entferne(alte); return; }
+    if (!huelle) { return; }
+    huelle.innerHTML = inhaltVon(n);
+    var neue = baueLeiste(n);
+    if (alte && neue) { alte.parentNode.replaceChild(neue, alte); }
+    else if (alte) { entferne(alte); }
+    else if (neue) { huelle.parentNode.insertBefore(neue, huelle.nextSibling); }
   }
 
   function nachUnten() {
@@ -323,17 +452,31 @@ _CHAT_JS = """
   }
 
   function nimmZustand(daten) {
-    (daten.nachrichten || []).forEach(blase);
-    if (daten.nachrichten && daten.nachrichten.length) {
+    // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
+    // zwei Stunden -- der Poll bringt den laufenden mit.
+    if (daten.nonce) {
+      var feld = document.getElementById('nonce');
+      if (feld) { feld.value = daten.nonce; }
+    }
+    var neu = daten.nachrichten || [];
+    neu.forEach(blase);
+    if (neu.length) {
       zustand.letzte = daten.letzte;
       verlauf.dataset.letzte = daten.letzte;
-      // Eine Leiste, deren Nachricht ueberholt ist, nimmt der Server weg
-      // (entferne_knoepfe) -- hier wird nur ergaenzt, nie geraten.
-      nachUnten();
     }
-    if (tipptFeld) { tipptFeld.textContent = daten.tippt ? 'schreibt …' : ''; }
-    setzeInterview(!!daten.interviewmodus);
+    (daten.geaendert || []).forEach(ersetze);
+    if (typeof daten.aenderung === 'number') {
+      zustand.aenderung = daten.aenderung;
+      verlauf.dataset.aenderung = daten.aenderung;
+    }
+    if (neu.length) { nachUnten(); }
+    if (tipptFeld) { tipptFeld.textContent = daten.tippt ? TEXT.tippt : ''; }
+    zustand.servermodus = !!daten.interviewmodus;
+    var w = zustand.wechsel;
+    if (w && w.gesendet && zustand.servermodus === w.ziel) { zustand.wechsel = null; }
+    zeigeModus();
     zeigeAntworten(daten.antworten || {});
+    arbeiteAb();   // ein wartendes Segment darf jetzt vielleicht raus
   }
 
   function zeigeAntworten(antworten) {
@@ -347,11 +490,22 @@ _CHAT_JS = """
     });
   }
 
+  // Immer nur ein Poll unterwegs: zwei Antworten in vertauschter Reihenfolge
+  // setzten sonst einen aelteren Stand ueber einen neueren.
+  var holt = null;
+  var nochmalHolen = false;
   function hole() {
-    return fetch('chat/zustand?nach=' + zustand.letzte, { cache: 'no-store' })
+    if (holt) { nochmalHolen = true; return holt; }
+    holt = fetch(weg('chat/zustand?nach=' + zustand.letzte +
+                     '&seit=' + zustand.aenderung), { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) { if (d) { nimmZustand(d); } })
-      .catch(function () { /* Netz weg: der naechste Takt versucht es wieder */ });
+      .catch(function () { /* Netz weg: der naechste Takt versucht es wieder */ })
+      .then(function () {
+        holt = null;
+        if (nochmalHolen) { nochmalHolen = false; return hole(); }
+      });
+    return holt;
   }
 
   var pollTakt = null;
@@ -366,18 +520,51 @@ _CHAT_JS = """
   });
   planePoll();
 
+  // -- POST mit Nonce ------------------------------------------------------
+  //
+  // Ein 403 heisst fast immer "Nonce abgelaufen": einmal den Zustand holen
+  // (er bringt den aktuellen Nonce mit), dann genau ein zweiter Versuch.
+
+  function postJson(pfad, nutzlast, zweiter) {
+    nutzlast.nonce = nonce();
+    return fetch(weg(pfad), {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(nutzlast)
+    }).then(function (r) {
+      if (r.status === 403 && !zweiter) {
+        return hole().then(function () { return postJson(pfad, nutzlast, true); });
+      }
+      return r;
+    });
+  }
+
+  function postAudio(auftrag, zweiter) {
+    return fetch(weg('chat/audio?nonce=' + encodeURIComponent(nonce()) +
+                     '&dauer=' + auftrag.dauer), {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': auftrag.blob.type || 'audio/webm' },
+      body: auftrag.blob
+    }).then(function (r) {
+      if (r.status === 403 && !zweiter) {
+        return hole().then(function () { return postAudio(auftrag, true); });
+      }
+      return r;
+    });
+  }
+
   // -- Senden --------------------------------------------------------------
 
   function sendeText() {
     var text = (eingabe.value || '').trim();
     if (!text) { return; }
     eingabe.value = '';
-    fetch('chat/senden', {
-      method: 'POST', cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nonce: nonce(), text: text })
-    }).then(function () { hole(); })
-      .catch(function () { eingabe.value = text; });
+    function zurueck() { if (!eingabe.value) { eingabe.value = text; } }
+    postJson('chat/senden', { text: text }).then(function (r) {
+      if (r.ok) { hole(); return; }
+      zurueck();
+      return fehlerAus(r);
+    }).catch(function () { zurueck(); meldeFehler(TEXT.fehler_netz); });
   }
 
   document.getElementById('senden').addEventListener('click', sendeText);
@@ -387,6 +574,12 @@ _CHAT_JS = """
 
   // -- Knoepfe -------------------------------------------------------------
 
+  function schalteLeiste(leiste, aus) {
+    if (!leiste) { return; }
+    Array.prototype.forEach.call(leiste.querySelectorAll('button'),
+      function (b) { b.disabled = aus; });
+  }
+
   document.addEventListener('click', function (ev) {
     var knopf = ev.target.closest ? ev.target.closest('.leiste button') : null;
     if (!knopf) { return; }
@@ -394,37 +587,26 @@ _CHAT_JS = """
     // idempotent nicht mehr, aber ein Knopf, der weiter klickbar
     // dasteht, laedt dazu ein.
     var leiste = knopf.closest('.leiste');
-    if (leiste) {
-      Array.prototype.forEach.call(leiste.querySelectorAll('button'),
-        function (b) { b.disabled = true; });
-    }
-    fetch('chat/knopf', {
-      method: 'POST', cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nonce: nonce(),
-        message_id: parseInt(knopf.dataset.message, 10),
-        data: knopf.dataset.daten
-      })
+    schalteLeiste(leiste, true);
+    postJson('chat/knopf', {
+      message_id: parseInt(knopf.dataset.message, 10),
+      data: knopf.dataset.daten
     }).then(function (r) {
-      if (!r.ok && leiste) {
-        Array.prototype.forEach.call(leiste.querySelectorAll('button'),
-          function (b) { b.disabled = false; });
-      }
+      if (r.ok) { hole(); return; }
+      schalteLeiste(leiste, false);
       hole();
+      return fehlerAus(r);
     }).catch(function () {
-      if (leiste) {
-        Array.prototype.forEach.call(leiste.querySelectorAll('button'),
-          function (b) { b.disabled = false; });
-      }
+      schalteLeiste(leiste, false);
+      meldeFehler(TEXT.fehler_netz);
     });
   });
 
-  // -- Upload-Warteschlange ------------------------------------------------
+  // -- Warteschlange -------------------------------------------------------
   //
-  // Sequentiell mit Wiederholung: ein Netzaussetzer im Probenraum darf ein
-  // Segment nicht kosten. Und sequentiell, damit die Segmente in der
-  // Reihenfolge ankommen, in der gesprochen wurde.
+  // Streng der Reihe nach, ein Auftrag zur Zeit: /interview, die Segmente,
+  // /fertig und PTT-Aufnahmen. Ein Auftrag bleibt vorn stehen, bis der
+  // Server ihn angenommen (2xx) oder endgueltig abgelehnt (4xx) hat.
 
   function reiheEin(auftrag) {
     zustand.warteschlange.push(auftrag);
@@ -432,237 +614,453 @@ _CHAT_JS = """
     arbeiteAb();
   }
 
+  // Der Wettlauf (Entscheidung I): ein Segment darf erst raus, wenn
+  // /interview dieser Aufnahme angenommen ist UND der Poll den Modus meldet.
+  // Sonst macht aufnahme.klasse_fuer daraus eine kurz-Aufnahme statt eines
+  // Interview-Teils.
+  function bereit(auftrag) {
+    if (auftrag.art === 'audio' && auftrag.sitzung) {
+      return auftrag.sitzung.angemeldet && zustand.servermodus;
+    }
+    return true;
+  }
+
   function zeigeWarteschlange() {
     if (!warteFeld) { return; }
-    var offen = zustand.warteschlange.length + (zustand.laeuft ? 1 : 0);
-    warteFeld.textContent = offen
-      ? (offen === 1 ? 'ein Stück wird hochgeladen …'
-                     : offen + ' Stücke werden hochgeladen …')
-      : '';
+    var offen = zustand.warteschlange.length;
+    var stuecke = zustand.warteschlange.filter(function (a) {
+      return a.art === 'audio';
+    }).length;
+    var satz = '';
+    if (offen && zustand.netzFehler) {
+      satz = TEXT.warte_netz.replace('{n}', offen);
+    } else if (stuecke && !bereit(zustand.warteschlange[0])) {
+      satz = TEXT.warte_modus.replace('{n}', stuecke);
+    } else if (stuecke) {
+      satz = stuecke === 1 ? TEXT.warte_eins
+                           : TEXT.warte_mehr.replace('{n}', stuecke);
+    }
+    warteFeld.textContent = satz;
   }
+
+  function planeNachholen(ms) {
+    if (zustand.nachholTakt) { return; }
+    zustand.nachholTakt = setTimeout(function () {
+      zustand.nachholTakt = null;
+      arbeiteAb();
+    }, ms);
+  }
+
+  // Review-Befund 3: Netzfehler und 5xx werden ohne Hoechstzahl wiederholt,
+  // mit gedeckeltem Abstand. Ist das Netz wieder da, sofort.
+  window.addEventListener('online', function () {
+    if (zustand.nachholTakt) {
+      clearTimeout(zustand.nachholTakt);
+      zustand.nachholTakt = null;
+    }
+    arbeiteAb();
+    hole();
+  });
 
   function arbeiteAb() {
-    if (zustand.laeuft || !zustand.warteschlange.length) { return; }
-    var auftrag = zustand.warteschlange[0];
-    // Der Wettlauf: das erste Segment darf erst raus, wenn der Bot den
-    // Interviewmodus wirklich an hat. Sonst macht aufnahme.klasse_fuer
-    // daraus eine kurz-Aufnahme statt eines Interview-Teils.
-    if (auftrag.brauchtInterview && !zustand.interview) {
-      setTimeout(arbeiteAb, 500);
+    if (zustand.laeuft || zustand.nachholTakt || !zustand.warteschlange.length) {
       return;
     }
+    var auftrag = zustand.warteschlange[0];
+    if (!bereit(auftrag)) { zeigeWarteschlange(); return; }   // der Poll ruft wieder
     zustand.laeuft = true;
     zeigeWarteschlange();
-    schicke(auftrag, 0);
-  }
-
-  function schicke(auftrag, versuch) {
-    fetch('chat/audio?nonce=' + encodeURIComponent(nonce()) +
-          '&dauer=' + auftrag.dauer, {
-      method: 'POST', cache: 'no-store',
-      headers: { 'Content-Type': auftrag.blob.type || 'audio/webm' },
-      body: auftrag.blob
-    }).then(function (r) {
-      if (!r.ok && r.status >= 500 && versuch + 1 < UPLOAD_VERSUCHE) {
+    var anfrage = auftrag.art === 'befehl'
+      ? postJson('chat/interview', { an: auftrag.an })
+      : postAudio(auftrag);
+    anfrage.then(function (r) {
+      if (r.ok) {
+        zustand.netzFehler = 0;
+        erledigt(auftrag, true);
+        return;
+      }
+      if (r.status >= 500 || r.status === 408 || r.status === 429) {
         throw new Error('nochmal');
       }
-      fertig(auftrag);
+      // Endgueltig abgelehnt: verwerfen -- aber sichtbar.
+      zustand.netzFehler = 0;
+      return fehlerAus(r).then(function () { erledigt(auftrag, false); });
     }).catch(function () {
-      if (versuch + 1 >= UPLOAD_VERSUCHE) { fertig(auftrag); return; }
-      setTimeout(function () { schicke(auftrag, versuch + 1); },
-                 UPLOAD_WARTEN_MS[Math.min(versuch, UPLOAD_WARTEN_MS.length - 1)]);
+      zustand.laeuft = false;
+      zustand.netzFehler += 1;
+      zeigeWarteschlange();
+      planeNachholen(UPLOAD_WARTEN_MS[Math.min(zustand.netzFehler - 1,
+                                               UPLOAD_WARTEN_MS.length - 1)]);
     });
   }
 
-  function fertig(auftrag) {
+  function erledigt(auftrag, angenommen) {
     zustand.warteschlange.shift();
     zustand.laeuft = false;
+    if (auftrag.art === 'befehl') {
+      var w = auftrag.wechsel;
+      if (w) {
+        if (angenommen) { w.gesendet = true; }
+        else if (zustand.wechsel === w) { zustand.wechsel = null; }
+      }
+      if (auftrag.an && auftrag.sitzung) {
+        if (angenommen) { auftrag.sitzung.angemeldet = true; }
+        else { brichAb(auftrag.sitzung); }
+      }
+    }
     zeigeWarteschlange();
-    if (auftrag.danach) { auftrag.danach(); }
+    zeigeModus();
     hole();
     arbeiteAb();
   }
 
-  function leer() {
-    return !zustand.warteschlange.length && !zustand.laeuft;
+  // Nimmt die noch nicht gesendeten Auftraege einer Aufnahme heraus. Der
+  // gerade laufende bleibt stehen -- sein Ergebnis raeumt erledigt() ab.
+  function entferneAuftraege(sitzung) {
+    zustand.warteschlange = zustand.warteschlange.filter(function (a, i) {
+      return a.sitzung !== sitzung || (i === 0 && zustand.laeuft);
+    });
+    zeigeWarteschlange();
   }
 
-  // -- Aufnahme ------------------------------------------------------------
+  // -- Mikrofon ------------------------------------------------------------
 
-  function strom() {
-    if (zustand.strom) { return Promise.resolve(zustand.strom); }
-    return navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(function (s) { zustand.strom = s; return s; });
+  function holeStrom() {
+    return new Promise(function (ja, nein) {
+      var geraete = navigator.mediaDevices;
+      if (!geraete || !geraete.getUserMedia || !window.MediaRecorder) {
+        nein(new Error('kein Mikrofon'));
+        return;
+      }
+      geraete.getUserMedia({ audio: true }).then(ja, nein);
+    });
   }
 
-  function neuerRecorder(s) {
-    // Ein eigener Recorder je Segment -- KEINE Zeitscheibe
-    // (start(timeslice)): deren Stuecke sind einzeln nicht dekodierbar, nur
-    // das erste traegt den Container-Kopf. Whisper bekaeme ab dem zweiten
-    // Segment Bytes ohne Kopf.
-    var r = new MediaRecorder(s);
+  // Review-Befund 8: Spuren stoppen (sonst bleibt die Mikrofonanzeige des
+  // Telefons an), Pegel-Takt und AudioContext schliessen.
+  function gibFrei(halter) {
+    if (halter.pegelTakt) { clearInterval(halter.pegelTakt); halter.pegelTakt = null; }
+    if (halter.kontext) {
+      try { halter.kontext.close(); } catch (e) { /* schon zu */ }
+      halter.kontext = null;
+    }
+    if (halter.strom) {
+      halter.strom.getTracks().forEach(function (t) { t.stop(); });
+      halter.strom = null;
+    }
+  }
+
+  // -- Interview-Aufnahme --------------------------------------------------
+
+  function neuesSegment(sitzung) {
+    // Ein eigener Recorder je Segment -- KEINE Zeitscheibe: deren Stuecke
+    // sind einzeln nicht dekodierbar, nur das erste traegt den
+    // Container-Kopf. Whisper bekaeme ab dem zweiten Segment Bytes ohne Kopf.
+    var r = new MediaRecorder(sitzung.strom);
+    var teile = [];
     var von = Date.now();
+    sitzung.offen += 1;
     r.ondataavailable = function (ev) {
-      if (!ev.data || !ev.data.size) { return; }
-      var dauer = Math.max(1, Math.round((Date.now() - von) / 1000));
-      reiheEin({ blob: ev.data, dauer: dauer, brauchtInterview: true });
+      if (ev.data && ev.data.size) { teile.push(ev.data); }
+    };
+    // Erst das stop-Ereignis sagt, dass alle Daten da sind
+    // (ondataavailable kommt nach stop() asynchron).
+    r.onstop = function () {
+      sitzung.offen -= 1;
+      if (teile.length && !sitzung.verworfen) {   // leere Stuecke nie
+        reiheEin({
+          art: 'audio', sitzung: sitzung,
+          blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
+          dauer: Math.max(1, Math.round((Date.now() - von) / 1000))
+        });
+      }
+      pruefeEnde(sitzung);
     };
     r.start();
     return r;
   }
 
-  function pegelAn(s) {
-    if (!pegelBalken || !window.AudioContext) { return; }
-    var kontext = new AudioContext();
-    var messer = kontext.createAnalyser();
-    messer.fftSize = 256;
-    kontext.createMediaStreamSource(s).connect(messer);
-    var werte = new Uint8Array(messer.frequencyBinCount);
-    zustand.pegelTakt = setInterval(function () {
-      messer.getByteFrequencyData(werte);
-      var summe = 0;
-      for (var i = 0; i < werte.length; i++) { summe += werte[i]; }
-      pegelBalken.style.width =
-        Math.min(100, (summe / werte.length) * 2.2) + '%';
-    }, 120);
+  // Review-Befund 1: /fertig erst, wenn der letzte Recorder sein
+  // stop-Ereignis hatte -- dann ist das letzte Segment eingereiht, und weil
+  // die Schlange der Reihe nach arbeitet, geht /fertig erst nach ihm raus.
+  function pruefeEnde(sitzung) {
+    if (!sitzung.beendet || sitzung.offen > 0 || sitzung.fertigEingereiht ||
+        sitzung.verworfen) { return; }
+    sitzung.fertigEingereiht = true;
+    gibFrei(sitzung);
+    reiheEin({ art: 'befehl', an: false, sitzung: sitzung,
+               wechsel: sitzung.wechselAus });
+  }
+
+  function pegelAn(sitzung) {
+    var Kontext = window.AudioContext || window.webkitAudioContext;
+    if (!pegelBalken || !Kontext) { return; }
+    try {
+      var kontext = new Kontext();
+      sitzung.kontext = kontext;
+      if (kontext.state === 'suspended' && kontext.resume) { kontext.resume(); }
+      var messer = kontext.createAnalyser();
+      messer.fftSize = 256;
+      kontext.createMediaStreamSource(sitzung.strom).connect(messer);
+      var werte = new Uint8Array(messer.frequencyBinCount);
+      sitzung.pegelTakt = setInterval(function () {
+        messer.getByteFrequencyData(werte);
+        var summe = 0;
+        for (var i = 0; i < werte.length; i++) { summe += werte[i]; }
+        pegelBalken.style.width =
+          Math.min(100, (summe / werte.length) * 2.2) + '%';
+      }, 120);
+    } catch (e) { /* ohne Pegel geht es auch */ }
   }
 
   function uhrAn() {
-    zustand.beginn = Date.now();
+    var beginn = Date.now();
     uhrFeld.hidden = false;
     pegelFeld.hidden = false;
+    uhrFeld.textContent = TEXT.uhr.replace('{zeit}', minuten(0));
     zustand.uhrTakt = setInterval(function () {
-      var s = Math.floor((Date.now() - zustand.beginn) / 1000);
-      uhrFeld.textContent = '● ' + Math.floor(s / 60) + ':' +
-                            ('0' + (s % 60)).slice(-2);
+      var s = Math.floor((Date.now() - beginn) / 1000);
+      uhrFeld.textContent = TEXT.uhr.replace('{zeit}', minuten(s));
     }, 500);
   }
 
   function anzeigeAus() {
-    [zustand.uhrTakt, zustand.pegelTakt, zustand.segmentTakt]
-      .forEach(function (t) { if (t) { clearInterval(t); } });
-    zustand.uhrTakt = zustand.pegelTakt = zustand.segmentTakt = null;
+    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
     uhrFeld.hidden = true;
     pegelFeld.hidden = true;
     if (pegelBalken) { pegelBalken.style.width = '0'; }
   }
 
-  function setzeInterview(an) {
-    zustand.interview = an;
+  function modusAn() {
+    if (zustand.wechsel) { return zustand.wechsel.ziel; }
+    return !!zustand.aufnahme || zustand.servermodus;
+  }
+
+  function zeigeModus() {
+    var an = modusAn();
     fuss.dataset.interview = an ? '1' : '0';
     interviewKnopf.dataset.laeuft = an ? '1' : '0';
-    interviewKnopf.textContent = an ? 'Aufnahme beenden' : 'Interview aufnehmen';
+    interviewKnopf.textContent = an ? TEXT.interview_aus : TEXT.interview_an;
+    // Ein Stopp ist unterwegs: bis der Bot ihn bestaetigt, kein neuer Start.
+    interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel);
     // Waehrend eine Interview-Aufnahme laeuft, ist PTT ausgeblendet
     // (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine Bedienung.
-    if (pttKnopf) { pttKnopf.hidden = an; }
+    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel; }
   }
 
   function starteInterview() {
-    strom().then(function (s) {
+    // Review-Befund 4: nie zwei Recorder, nie ein Start mitten im Wechsel.
+    if (zustand.aufnahme || zustand.wechsel) { return; }
+    var sitzung = {
+      strom: null, recorder: null, kontext: null, pegelTakt: null,
+      segmentTakt: null, offen: 0, gestartet: false, beendet: false,
+      angemeldet: false, verworfen: false, fertigEingereiht: false,
+      wechselAus: null
+    };
+    var wechsel = { ziel: true, gesendet: false };
+    zustand.aufnahme = sitzung;
+    zustand.wechsel = wechsel;
+    zeigeModus();
+    holeStrom().then(function (strom) {
+      sitzung.strom = strom;
+      if (sitzung.beendet) { gibFrei(sitzung); return; }   // vorher gestoppt
       // Die Aufnahme laeuft SOFORT -- sonst verliert man die ersten Worte.
-      // Der Upload wartet in der Warteschlange, bis der Modus wirklich an
-      // ist (arbeiteAb).
-      zustand.recorder = neuerRecorder(s);
+      // Die Segmente warten in der Schlange hinter /interview (bereit()).
+      sitzung.recorder = neuesSegment(sitzung);
+      sitzung.gestartet = true;
+      reiheEin({ art: 'befehl', an: true, sitzung: sitzung, wechsel: wechsel });
       uhrAn();
-      pegelAn(s);
-      zustand.segmentTakt = setInterval(function () {
-        if (!zustand.recorder) { return; }
-        zustand.recorder.stop();            // liefert ondataavailable
-        zustand.recorder = neuerRecorder(s);
+      pegelAn(sitzung);
+      sitzung.segmentTakt = setInterval(function () {
+        if (!sitzung.recorder) { return; }
+        var alt = sitzung.recorder;
+        alt.stop();                      // liefert sein Segment im onstop
+        sitzung.recorder = neuesSegment(sitzung);
       }, SEGMENT_MS);
-      setzeInterview(true);
-      return fetch('chat/interview', {
-        method: 'POST', cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nonce: nonce(), an: true })
-      });
-    }).then(hole).catch(function () {
-      setzeInterview(false);
+    }).catch(function () {
+      // Review-Befund 8: ein halb gestarteter Recorder wird gestoppt und das
+      // Mikrofon freigegeben.
+      sitzung.verworfen = true;
+      sitzung.beendet = true;
+      if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
+      if (sitzung.recorder && sitzung.recorder.state !== 'inactive') {
+        try { sitzung.recorder.stop(); } catch (e) { /* schon aus */ }
+      }
+      sitzung.recorder = null;
+      gibFrei(sitzung);
+      entferneAuftraege(sitzung);
+      if (zustand.aufnahme === sitzung) { zustand.aufnahme = null; }
+      if (zustand.wechsel === wechsel) { zustand.wechsel = null; }
       anzeigeAus();
+      zeigeModus();
+      meldeFehler(TEXT.fehler_mikro);
     });
   }
 
+  // Der Bot hat /interview endgueltig abgelehnt: die Aufnahme haette keinen
+  // Ort. Aufhoeren, Mikrofon frei, nichts davon hochladen.
+  function brichAb(sitzung) {
+    sitzung.verworfen = true;
+    sitzung.beendet = true;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
+    if (sitzung.recorder && sitzung.recorder.state !== 'inactive') {
+      try { sitzung.recorder.stop(); } catch (e) { /* schon aus */ }
+    }
+    sitzung.recorder = null;
+    gibFrei(sitzung);
+    entferneAuftraege(sitzung);
+    if (zustand.aufnahme === sitzung) { zustand.aufnahme = null; anzeigeAus(); }
+    // Ein Stopp dieser Aufnahme, der jetzt nie mehr gesendet wird, darf den
+    // Knopf nicht dauerhaft ausgrauen.
+    if (sitzung.wechselAus && zustand.wechsel === sitzung.wechselAus) {
+      zustand.wechsel = null;
+    }
+  }
+
   function beendeInterview() {
-    var laufend = zustand.recorder;
-    zustand.recorder = null;
+    if (zustand.wechsel && !zustand.wechsel.ziel) { return; }   // schon unterwegs
+    var sitzung = zustand.aufnahme;
+    zustand.aufnahme = null;
     anzeigeAus();
-    if (laufend && laufend.state !== 'inactive') { laufend.stop(); }
-    setzeInterview(false);
-    // /fertig erst, wenn ALLE Uploads durch sind -- sonst verdichtet der Bot
-    // ein Interview, dem das letzte Segment fehlt.
-    (function warte(versuche) {
-      if (!leer() && versuche > 0) {
-        setTimeout(function () { warte(versuche - 1); }, 500);
-        return;
-      }
-      fetch('chat/interview', {
-        method: 'POST', cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nonce: nonce(), an: false })
-      }).then(hole);
-    })(240);
+    if (sitzung && !sitzung.gestartet) {
+      // Das Mikrofon war noch nicht da: nichts aufgenommen, nichts angemeldet.
+      sitzung.beendet = true;
+      zustand.wechsel = null;
+      zeigeModus();
+      return;
+    }
+    var wechsel = { ziel: false, gesendet: false };
+    zustand.wechsel = wechsel;
+    if (!sitzung) {
+      // Der Modus ist an, aber dieses Telefon nimmt nicht auf (neu geladen):
+      // nur den Modus schliessen.
+      reiheEin({ art: 'befehl', an: false, wechsel: wechsel });
+      zeigeModus();
+      return;
+    }
+    sitzung.beendet = true;
+    sitzung.wechselAus = wechsel;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    var letzter = sitzung.recorder;
+    sitzung.recorder = null;
+    if (letzter && letzter.state !== 'inactive') {
+      letzter.stop();          // sein onstop reiht das letzte Segment ein
+    } else {
+      pruefeEnde(sitzung);
+    }
+    zeigeModus();
   }
 
   interviewKnopf.addEventListener('click', function () {
-    if (zustand.interview) { beendeInterview(); } else { starteInterview(); }
+    if (interviewKnopf.disabled) { return; }
+    if (modusAn()) { beendeInterview(); } else { starteInterview(); }
   });
 
   // -- Push-to-Talk --------------------------------------------------------
   //
   // Halten = sprechen, loslassen = senden, Klasse 'kurz' (der Modus wird
-  // NICHT geschaltet). Pointer Events mit setPointerCapture, damit ein
-  // Finger, der vom Knopf rutscht, weiter erkannt wird -- und pointercancel
-  // sendet NICHTS.
+  // NICHT geschaltet). Pointer Events mit setPointerCapture; pointercancel,
+  // ein verlorener Zeiger oder ein Loslassen ausserhalb des Knopfs sendet
+  // NICHTS, ebenso ein Druck unter PTT_MIN_MS.
 
   if (pttKnopf) {
-    var pttRecorder = null;
+    var ausserhalb = function (ev) {
+      var k = pttKnopf.getBoundingClientRect();
+      return ev.clientX < k.left || ev.clientX > k.right ||
+             ev.clientY < k.top || ev.clientY > k.bottom;
+    };
 
     pttKnopf.addEventListener('pointerdown', function (ev) {
-      if (zustand.interview) { return; }
+      if (modusAn() || zustand.wechsel || zustand.ptt) { return; }
+      if (ev.button !== undefined && ev.button > 0) { return; }
       ev.preventDefault();
-      pttKnopf.setPointerCapture(ev.pointerId);
-      zustand.pttVon = Date.now();
-      zustand.pttAbgebrochen = false;
-      pttKnopf.dataset.haelt = '1';
-      strom().then(function (s) {
-        if (zustand.pttAbgebrochen) { return; }
-        pttRecorder = new MediaRecorder(s);
-        pttRecorder.ondataavailable = function (e) {
-          var dauer = Math.round((Date.now() - zustand.pttVon) / 1000);
-          // Zu kurz oder abgebrochen: NICHTS senden. Ein versehentlicher
-          // Tipper soll keine leere Aufnahme in den Chat legen.
-          if (zustand.pttAbgebrochen ||
-              Date.now() - zustand.pttVon < PTT_MIN_MS ||
-              !e.data || !e.data.size) { return; }
-          reiheEin({ blob: e.data, dauer: Math.max(1, dauer),
-                     brauchtInterview: false });
-        };
-        pttRecorder.start();
-      }).catch(function () { zustand.pttAbgebrochen = true; });
-    });
-
-    function pttEnde(abbrechen) {
-      return function (ev) {
-        if (pttKnopf.dataset.haelt !== '1') { return; }
-        pttKnopf.dataset.haelt = '0';
-        if (abbrechen) { zustand.pttAbgebrochen = true; }
-        try { pttKnopf.releasePointerCapture(ev.pointerId); } catch (e) {}
-        if (pttRecorder && pttRecorder.state !== 'inactive') {
-          pttRecorder.stop();
-        }
-        pttRecorder = null;
+      try { pttKnopf.setPointerCapture(ev.pointerId); } catch (e) { /* egal */ }
+      // Review-Befund 6: jeder Druck traegt seinen eigenen Zustand -- ein
+      // spaeterer Druck ueberschreibt nichts, was ein frueherer noch liest.
+      var druck = {
+        pointerId: ev.pointerId, von: Date.now(), dauerMs: 0,
+        gehalten: true, abgebrochen: false, recorder: null, strom: null,
+        teile: []
       };
-    }
-
-    pttKnopf.addEventListener('pointerup', pttEnde(false));
-    pttKnopf.addEventListener('pointercancel', pttEnde(true));
-    // Wegziehen: mit setPointerCapture bleibt der Knopf das Ziel, aber ein
-    // Kontextmenue oder ein Systemdialog kann den Zeiger entfuehren.
-    pttKnopf.addEventListener('lostpointercapture', function (ev) {
-      if (pttKnopf.dataset.haelt === '1') { pttEnde(true)(ev); }
+      zustand.ptt = druck;
+      pttKnopf.dataset.haelt = '1';
+      pttKnopf.dataset.weg = '0';
+      holeStrom().then(function (strom) {
+        druck.strom = strom;
+        // Review-Befund 5: losgelassen, bevor das Mikrofon da war -- dann
+        // gar nicht erst aufnehmen, und das Mikrofon sofort wieder zu.
+        if (!druck.gehalten) { gibFrei(druck); return; }
+        var r = new MediaRecorder(strom);
+        druck.recorder = r;
+        r.ondataavailable = function (e) {
+          if (e.data && e.data.size) { druck.teile.push(e.data); }
+        };
+        r.onstop = function () {
+          gibFrei(druck);
+          if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS ||
+              !druck.teile.length) { return; }
+          reiheEin({
+            art: 'audio', sitzung: null,
+            blob: new Blob(druck.teile,
+                           { type: druck.teile[0].type || r.mimeType || 'audio/webm' }),
+            dauer: Math.max(1, Math.round(druck.dauerMs / 1000))
+          });
+        };
+        r.start();
+      }).catch(function () {
+        druck.abgebrochen = true;
+        gibFrei(druck);
+        if (zustand.ptt === druck) {
+          zustand.ptt = null;
+          pttKnopf.dataset.haelt = '0';
+        }
+        meldeFehler(TEXT.fehler_mikro);
+      });
     });
+
+    var lasseLos = function (ev, abbrechen) {
+      var druck = zustand.ptt;
+      if (!druck || ev.pointerId !== druck.pointerId) { return; }
+      zustand.ptt = null;
+      pttKnopf.dataset.haelt = '0';
+      pttKnopf.dataset.weg = '0';
+      druck.gehalten = false;
+      // Die Haltezeit, nicht die Zeit bis das Mikrofon da war.
+      druck.dauerMs = Date.now() - druck.von;
+      // Review-Befund 7: mit setPointerCapture kommt auch ein Loslassen
+      // NEBEN dem Knopf hier an -- weggezogen heisst abgebrochen.
+      if (abbrechen || ausserhalb(ev)) { druck.abgebrochen = true; }
+      try { pttKnopf.releasePointerCapture(ev.pointerId); } catch (e) { /* egal */ }
+      if (druck.recorder && druck.recorder.state !== 'inactive') {
+        druck.recorder.stop();
+      }
+    };
+
+    pttKnopf.addEventListener('pointerup', function (ev) { lasseLos(ev, false); });
+    pttKnopf.addEventListener('pointercancel', function (ev) { lasseLos(ev, true); });
+    // Ein Systemdialog oder Kontextmenue kann den Zeiger entfuehren; nach
+    // einem normalen pointerup ist zustand.ptt schon leer und das hier wirkt
+    // nicht mehr.
+    pttKnopf.addEventListener('lostpointercapture', function (ev) { lasseLos(ev, true); });
+    pttKnopf.addEventListener('pointermove', function (ev) {
+      var druck = zustand.ptt;
+      if (!druck || ev.pointerId !== druck.pointerId) { return; }
+      pttKnopf.dataset.weg = ausserhalb(ev) ? '1' : '0';
+    });
+    pttKnopf.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
   }
 
+  // Nicht weg, solange etwas aufgenommen wird oder die Schlange nicht leer
+  // ist: ein geschlossener Tab verliert, was noch nicht angekommen ist.
+  window.addEventListener('beforeunload', function (ev) {
+    if (!zustand.aufnahme && !zustand.ptt && !zustand.laeuft &&
+        !zustand.warteschlange.length) { return; }
+    ev.preventDefault();
+    ev.returnValue = TEXT.verlassen;
+    return TEXT.verlassen;
+  });
+
+  zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
   nachUnten();
   hole();
 })();
@@ -670,17 +1068,19 @@ _CHAT_JS = """
 
 
 def _js() -> str:
-    """``_CHAT_JS`` mit den Zahlen aus den Modulkonstanten.
+    """``_CHAT_JS`` mit den Zahlen und Texten aus den Modulkonstanten.
 
     Platzhalter und keine f-String-Interpolation: das Skript ist voll mit
-    geschweiften Klammern."""
+    geschweiften Klammern. Die Texte gehen als JSON hinein; ``</`` wird
+    maskiert, damit kein Text das ``<script>`` beenden kann."""
+    texte = json.dumps(_JS_TEXTE, ensure_ascii=True).replace("</", "<\\/")
     return (
         _CHAT_JS
         .replace("__POLL_MS__", str(POLL_MS))
         .replace("__POLL_MS_HINTERGRUND__", str(POLL_MS_HINTERGRUND))
         .replace("__PTT_MIN_MS__", str(PTT_MIN_MS))
-        .replace("__UPLOAD_VERSUCHE__", str(UPLOAD_VERSUCHE))
         .replace("__UPLOAD_WARTEN_MS__", json.dumps(list(UPLOAD_WARTEN_MS)))
+        .replace("__TEXTE__", texte)
     )
 
 
@@ -728,6 +1128,7 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
     gezielt, per Poll (``_CHAT_JS``), und nur der Verlauf."""
     from interview_theater import web   # spaeter Import: web importiert web_chat
 
+    modus = bool(daten["interviewmodus"])
     blasen = "\n".join(_blase_html(n) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(_TEXT_LEER)}</p>'
@@ -737,21 +1138,24 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f'<p><a href="{html.escape(token)}">'
         f"{html.escape(_TEXT_ZUR_GRUPPENSEITE)}</a></p>\n"
         f'<noscript><p class="leer">{html.escape(_TEXT_OHNE_JS)}</p></noscript>\n'
-        f'<div class="verlauf" id="verlauf" data-letzte="{daten["letzte"]}">\n'
+        f'<div class="verlauf" id="verlauf" data-letzte="{daten["letzte"]}" '
+        f'data-aenderung="{int(daten.get("aenderung") or 0)}">\n'
         f"{blasen}\n</div>\n"
         f'<div class="tippt" id="tippt"></div>\n'
         f'<input type="hidden" id="nonce" value="{html.escape(nonce_wert, quote=True)}">\n'
         f'<div class="fuss" id="fuss" data-segment-ms="{int(segment_ms)}"\n'
-        f'     data-interview="{1 if daten["interviewmodus"] else 0}">\n'
+        f'     data-interview="{1 if modus else 0}">\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
         f'  <div class="pegel" id="pegel" hidden><span></span></div>\n'
         f'  <div class="warteschlange" id="warteschlange"></div>\n'
-        f'  <button type="button" id="interview">'
-        f'{html.escape(_TEXT_INTERVIEW_AN)}</button>\n'
+        f'  <div class="fehler" id="fehler" role="alert" hidden></div>\n'
+        f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}">'
+        f'{html.escape(_TEXT_INTERVIEW_AUS if modus else _TEXT_INTERVIEW_AN)}'
+        f'</button>\n'
         f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '
         f'placeholder="{html.escape(_TEXT_EINGABE, quote=True)}">\n'
-        f'    <button type="button" id="ptt" title="'
+        f'    <button type="button" id="ptt"{" hidden" if modus else ""} title="'
         f'{html.escape(_TEXT_PTT, quote=True)}">🎤</button>\n'
         f'    <button type="button" id="senden">'
         f'{html.escape(_TEXT_SENDEN)}</button>\n'
@@ -771,11 +1175,18 @@ def beantworte_get(handler, db_pfad: str, token: str, unterpfad: str,
     ``web._beantworte_gruppenseite``."""
     from interview_theater import web
 
+    # Mit Schraegstrich am Ende (``/chat/``) zeigten die relativen Verweise
+    # der Seite -- der Link zur Gruppenseite, die Dateien -- ins Leere
+    # (Review-Befund 12). ``unterpfad`` kommt schon ohne Schraegstrich an,
+    # deshalb der Blick auf den rohen Pfad.
+    if urllib.parse.urlsplit(handler.path).path.endswith("/"):
+        handler._antworte(404, web.nicht_gefunden_html())
+        return
     if unterpfad == "":
         _sende_seite(handler, db_pfad, token, praefix, schluessel)
         return
     if unterpfad == "zustand":
-        _sende_zustand(handler, db_pfad, token, query)
+        _sende_zustand(handler, db_pfad, token, query, schluessel)
         return
     if unterpfad.startswith("datei/"):
         _sende_datei(handler, db_pfad, token, unterpfad[len("datei/"):])
@@ -1127,10 +1538,11 @@ _POSTWEGE = {
 }
 
 
-def _zustand(db_pfad: str, token: str, nach: int = 0) -> dict | None:
+def _zustand(db_pfad: str, token: str, nach: int = 0,
+             seit: int | None = None) -> dict | None:
     conn = web_daten.oeffne_lesend(db_pfad)
     try:
-        return web_daten.web_chatzustand(conn, token, nach)
+        return web_daten.web_chatzustand(conn, token, nach, seit)
     finally:
         conn.close()
 
@@ -1150,19 +1562,26 @@ def _sende_seite(handler, db_pfad: str, token: str, praefix: str,
     )
 
 
-def _sende_zustand(handler, db_pfad: str, token: str, query: str) -> None:
+def _sende_zustand(handler, db_pfad: str, token: str, query: str,
+                   schluessel: bytes) -> None:
     from interview_theater import web
 
-    daten = _zustand(db_pfad, token, _nach(query))
+    daten = _zustand(db_pfad, token, _nach(query), _zahl(query, "seit"))
     if daten is None:
         handler._antworte(404, web.nicht_gefunden_html())
         return
     # Der Verlauf enthaelt HTML aus Bot-Ausgaben -- er wird HIER gefiltert,
     # nicht im Browser: ein Filter im JavaScript liegt auf der Seite, die er
     # schuetzen soll.
-    for nachricht in daten["nachrichten"]:
+    for nachricht in daten["nachrichten"] + daten["geaendert"]:
         nachricht["html"] = sichere_html(nachricht["text"])
     daten["segment_ms"] = _segment_ms()
+    # Die Chatseite laedt nie neu, ein Nonce gilt aber hoechstens zwei
+    # Stunden (``web.NONCE_FENSTER``): der Poll bringt den laufenden mit, und
+    # das JS setzt ihn ins Feld (Review-Befund 2). Kein neues Geheimnis nach
+    # aussen -- dieselbe Antwort geht nur an dieselbe Seite, und eine fremde
+    # Seite kann sie ohne CORS-Freigabe nicht lesen.
+    daten["nonce"] = web.nonce(schluessel, token)
     handler._antworte(
         200, json.dumps(daten, ensure_ascii=False),
         "application/json; charset=utf-8",
@@ -1202,12 +1621,21 @@ def _nach(query: str) -> int:
     """``?nach=<id>`` -- alles, was keine Zahl ist, gilt als 0. Ein
     Tippfehler in der Adresszeile soll keine 500 geben (wie
     ``web.fassungswahl``)."""
+    return _zahl(query, "nach") or 0
+
+
+def _zahl(query: str, name: str) -> int | None:
+    """Ein Zahlenparameter aus der Query, oder None. Nur ASCII-Ziffern und
+    hoechstens 18 Stellen (dieselbe Vorsicht wie bei ``dauer`` in
+    ``_audio``)."""
     try:
         werte = urllib.parse.parse_qs(query or "")
     except ValueError:
-        return 0
-    roh = (werte.get("nach") or ["0"])[0]
-    return int(roh) if roh.isdigit() else 0
+        return None
+    roh = (werte.get(name) or [""])[0]
+    if roh.isascii() and roh.isdigit() and len(roh) <= 18:
+        return int(roh)
+    return None
 
 
 def _segment_ms() -> int:

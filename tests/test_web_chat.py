@@ -306,3 +306,135 @@ def test_der_chat_pfad_ist_in_skript_und_modul_derselbe():
     from scripts import web_gruppe
 
     assert web_gruppe.CHAT_PFAD == web_chat.CHAT_PFAD
+
+
+# -- Aenderungen und Loeschungen im Poll (Review-Befund 10) -----------------
+
+
+def _lies_zustand(pfad, token, nach=0, seit=None):
+    lesend = web_daten.oeffne_lesend(pfad)
+    try:
+        return web_daten.web_chatzustand(lesend, token, nach, seit)
+    finally:
+        lesend.close()
+
+
+def test_aenderungszaehler_steigt_mit_jeder_aenderung(datenbank):
+    """Ein Zaehler und keine Uhrzeit: SQLite serialisiert die Schreiber, der
+    Wert ist deshalb in Commit-Reihenfolge aufsteigend -- ein Poll, der
+    'alles nach N' fragt, verpasst nichts, was nach seinem Lesen kommt."""
+    pfad, _token = datenbank
+    conn = db.verbinde(pfad)
+    a = repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+                              text="eins", knoepfe=[("Ja", "k:1")])
+    b = repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+                              text="zwei")
+    assert repo.hole_web_post(conn, a)["aenderung"] is None
+    repo.aendere_web_text(conn, CHAT, a, "eins neu")
+    erste = repo.hole_web_post(conn, a)["aenderung"]
+    repo.setze_web_knoepfe(conn, CHAT, a, None)
+    zweite = repo.hole_web_post(conn, a)["aenderung"]
+    repo.loesche_web_posts(conn, CHAT, [b])
+    dritte = repo.hole_web_post(conn, b)["aenderung"]
+    conn.close()
+    assert 0 < erste < zweite < dritte
+
+
+def test_zustand_liefert_geaenderte_und_geloeschte_zeilen(datenbank):
+    """``WebKanal.aendere_text``/``entferne_knoepfe``/``loesche_nachrichten``
+    aendern Zeilen, die der Browser schon hat. Ohne diese Liste bliebe die
+    Arbeitszeile stehen und eine ueberholte Leiste klickbar."""
+    pfad, token = datenbank
+    conn = db.verbinde(pfad)
+    arbeit = repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+                                   text="Ich schreibe ...")
+    leiste = repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+                                   text="Welche?", knoepfe=[("A", "k:1")])
+    conn.close()
+
+    vorher = _lies_zustand(pfad, token)
+    assert vorher["geaendert"] == []
+    stand = vorher["aenderung"]
+    letzte = vorher["letzte"]
+
+    conn = db.verbinde(pfad)
+    repo.aendere_web_text(conn, CHAT, leiste, "Welche <b>jetzt</b>?")
+    repo.setze_web_knoepfe(conn, CHAT, leiste, None)
+    repo.loesche_web_posts(conn, CHAT, [arbeit])
+    conn.close()
+
+    danach = _lies_zustand(pfad, token, letzte, stand)
+    nach_id = {z["id"]: z for z in danach["geaendert"]}
+    assert set(nach_id) == {arbeit, leiste}
+    assert nach_id[arbeit]["geloescht"] is True
+    assert nach_id[leiste]["geloescht"] is False
+    assert nach_id[leiste]["text"] == "Welche <b>jetzt</b>?"
+    assert nach_id[leiste]["knoepfe"] == []
+    assert danach["aenderung"] > stand
+    assert danach["nachrichten"] == []
+
+    # Wer den neuen Stand mitschickt, bekommt nichts doppelt.
+    ruhig = _lies_zustand(pfad, token, letzte, danach["aenderung"])
+    assert ruhig["geaendert"] == []
+    assert ruhig["aenderung"] == danach["aenderung"]
+
+
+def test_geaenderte_zeilen_fremder_gruppen_kommen_nicht_mit(datenbank):
+    pfad, token = datenbank
+    andere = CHAT + 1
+    conn = db.verbinde(pfad)
+    repo.sichere_gruppe(conn, andere, "gruppe2", "Andere")
+    fremd = repo.lege_web_post_an(conn, andere, repo.RICHTUNG_AUS,
+                                  repo.WEB_TYP_TEXT, text="fremd")
+    repo.aendere_web_text(conn, andere, fremd, "fremd neu")
+    conn.close()
+    assert _lies_zustand(pfad, token, 0, 0)["geaendert"] == []
+
+
+def test_der_poll_liefert_den_aktuellen_nonce_und_gefiltertes_html(server):
+    """Review-Befund 2: die Chatseite laedt nie neu, ein Nonce gilt hoechstens
+    zwei Stunden. Der Poll bringt deshalb den laufenden mit."""
+    basis, token, pfad = server
+    conn = db.verbinde(pfad)
+    zeile = repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+                                  text="alt")
+    conn.close()
+    _status, text = _hole(f"{basis}/g/{token}/chat/zustand?nach=0")
+    zustand = json.loads(text)
+    assert web.nonce_gueltig(b"x" * 32, token, zustand["nonce"])
+    assert zustand["nonce"] == web.nonce(b"x" * 32, token)
+
+    conn = db.verbinde(pfad)
+    repo.aendere_web_text(conn, CHAT, zeile, "<script>x</script><b>neu</b>")
+    conn.close()
+    stand = zustand["aenderung"]
+    _status, text = _hole(
+        f"{basis}/g/{token}/chat/zustand?nach={zeile}&seit={stand}"
+    )
+    geaendert = json.loads(text)["geaendert"]
+    assert [z["id"] for z in geaendert] == [zeile]
+    assert "<script>" not in geaendert[0]["html"]
+    assert "<b>neu</b>" in geaendert[0]["html"]
+
+
+def test_die_seite_traegt_den_aenderungsstand(server):
+    basis, token, pfad = server
+    conn = db.verbinde(pfad)
+    zeile = repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+                                  text="a")
+    repo.aendere_web_text(conn, CHAT, zeile, "b")
+    stand = repo.hole_web_post(conn, zeile)["aenderung"]
+    conn.close()
+    _status, text = _hole(f"{basis}/g/{token}/chat")
+    assert f'data-aenderung="{stand}"' in text
+
+
+def test_chat_mit_schraegstrich_ist_404(server):
+    """Review-Befund 12: unter ``/chat/`` zeigten die relativen Pfade der
+    Seite (``chat/zustand``, der Link zur Gruppenseite) ins Leere."""
+    basis, token, _pfad = server
+    for pfad in (f"/g/{token}/chat/", f"/theatersoap/g/{token}/chat/",
+                 f"/g/{token}/chat/zustand/"):
+        with pytest.raises(urllib.error.HTTPError) as fehler:
+            _hole(basis + pfad)
+        assert fehler.value.code == 404, pfad

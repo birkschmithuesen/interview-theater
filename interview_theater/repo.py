@@ -3232,6 +3232,14 @@ def hole_web_post(conn, post_id: int):
     return conn.execute("SELECT * FROM web_post WHERE id = ?", (post_id,)).fetchone()
 
 
+#: Der naechste Wert von ``web_post.aenderung`` -- als Unterabfrage IM
+#: UPDATE, nicht vorher gelesen: die Anweisung haelt die Schreibsperre der
+#: Datenbank, also kann zwischen Lesen und Schreiben kein anderer Prozess
+#: (Bot, Webserver) denselben Wert vergeben. Ueber die ganze Tabelle und
+#: nicht je Gruppe, damit die Folge auch prozessuebergreifend nur steigt.
+_NAECHSTE_WEB_AENDERUNG = "(SELECT COALESCE(MAX(aenderung), 0) + 1 FROM web_post)"
+
+
 @_gesperrt
 def aendere_web_text(conn, chat_id: int, message_id: int, text: str) -> bool:
     """Tauscht den Text einer ausgehenden Nachricht (``aendere_text``).
@@ -3239,8 +3247,8 @@ def aendere_web_text(conn, chat_id: int, message_id: int, text: str) -> bool:
     ``chat_id`` steht in der Bedingung und nicht nur in der Signatur:
     dieselbe Datenbank traegt alle Gruppen des Workshops."""
     cur = conn.execute(
-        "UPDATE web_post SET text = ? WHERE id = ? AND chat_id = ? "
-        "AND richtung = ? AND geloescht_am IS NULL",
+        f"UPDATE web_post SET text = ?, aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+        "WHERE id = ? AND chat_id = ? AND richtung = ? AND geloescht_am IS NULL",
         (text, message_id, chat_id, RICHTUNG_AUS),
     )
     conn.commit()
@@ -3252,8 +3260,8 @@ def setze_web_knoepfe(conn, chat_id: int, message_id: int, knoepfe) -> bool:
     """Tauscht die Leiste unter einer ausgehenden Nachricht aus; ``None``
     nimmt sie weg (``entferne_knoepfe`` / ``aktualisiere_knoepfe``)."""
     cur = conn.execute(
-        "UPDATE web_post SET knoepfe = ? WHERE id = ? AND chat_id = ? "
-        "AND richtung = ? AND geloescht_am IS NULL",
+        f"UPDATE web_post SET knoepfe = ?, aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+        "WHERE id = ? AND chat_id = ? AND richtung = ? AND geloescht_am IS NULL",
         (
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
@@ -3275,8 +3283,9 @@ def loesche_web_posts(conn, chat_id: int, message_ids: list) -> int:
     getroffen = 0
     for message_id in message_ids[:100]:
         cur = conn.execute(
-            "UPDATE web_post SET geloescht_am = ? WHERE id = ? AND chat_id = ? "
-            "AND geloescht_am IS NULL",
+            "UPDATE web_post SET geloescht_am = ?, "
+            f"aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+            "WHERE id = ? AND chat_id = ? AND geloescht_am IS NULL",
             (jetzt, message_id, chat_id),
         )
         getroffen += cur.rowcount

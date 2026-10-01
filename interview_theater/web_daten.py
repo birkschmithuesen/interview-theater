@@ -1371,13 +1371,69 @@ def _web_knoepfe(roh) -> list:
     return [list(eintrag) for eintrag in gelesen if len(eintrag) == 2]
 
 
-def web_chatzustand(conn, token: str, nach: int = 0) -> dict | None:
+def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int]:
+    """Was sich an schon gelieferten Zeilen geaendert hat -- ``(zeilen, stand)``.
+
+    ``WebKanal.aendere_text`` (die wechselnden Arbeitszeilen),
+    ``entferne_knoepfe`` und ``loesche_nachrichten`` aendern Zeilen, deren id
+    der Browser laengst hat; der Poll ueber ``nach`` saehe das nie. Jede
+    solche Aenderung setzt ``web_post.aenderung`` (``repo``), und hier wird
+    gefragt: alles mit einem Zaehler ueber ``seit``.
+
+    ``stand`` ist der Wert, den der Browser beim naechsten Poll als ``seit``
+    mitschickt. Er kommt aus DERSELBEN Abfrage wie die Zeilen: jede spaetere
+    Aenderung bekommt einen hoeheren Wert, also geht nichts verloren. Ohne
+    ``seit`` (Seitenaufbau) gibt es keine Zeilen, nur den Stand -- die Seite
+    zeigt ohnehin schon den aktuellen Text.
+
+    Eine Datenbank ohne die Spalte (der Webserver migriert nichts) liefert
+    ``([], 0)`` statt eines Fehlers."""
+    try:
+        if seit is None:
+            zeile = conn.execute(
+                "SELECT COALESCE(MAX(aenderung), 0) AS stand FROM web_post "
+                "WHERE chat_id = ?",
+                (chat_id,),
+            ).fetchone()
+            return [], int(zeile["stand"])
+        zeilen = conn.execute(
+            "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, "
+            "geloescht_am, aenderung FROM web_post "
+            "WHERE chat_id = ? AND aenderung > ? "
+            f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
+            "AND typ != 'knopf' ORDER BY aenderung ASC LIMIT ?",
+            (chat_id, seit, *_CHAT_VERBORGEN, CHAT_GRENZE),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return [], 0
+    stand = max([seit, *(int(z["aenderung"]) for z in zeilen)])
+    return [
+        {
+            "id": int(z["id"]),
+            "von": "bot" if z["richtung"] == "aus" else "gruppe",
+            "typ": z["typ"],
+            "text": z["text"],
+            "knoepfe": _web_knoepfe(z["knoepfe"]),
+            "dauer": z["dauer"],
+            "dateiname": z["dateiname"],
+            "geloescht": z["geloescht_am"] is not None,
+        }
+        for z in zeilen
+    ], stand
+
+
+def web_chatzustand(conn, token: str, nach: int = 0,
+                    seit: int | None = None) -> dict | None:
     """Alles, was der Browser bei einem Poll braucht -- oder None bei
     unbekanntem Token.
 
     Ein Aufruf statt vier: der Browser fragt alle zwei Sekunden, und vier
     Anfragen je Takt waeren bei drei Gruppen mit je zwei Telefonen
-    sechsunddreissig Anfragen in der Minute fuer dieselbe Antwort."""
+    sechsunddreissig Anfragen in der Minute fuer dieselbe Antwort.
+
+    ``seit`` ist der Aenderungsstand des letzten Polls
+    (``web_chataenderungen``); ``geaendert`` traegt, was sich an schon
+    gelieferten Zeilen getan hat, ``aenderung`` den neuen Stand."""
     chat_id = chat_id_nach_token(conn, token)
     if chat_id is None:
         return None
@@ -1387,6 +1443,7 @@ def web_chatzustand(conn, token: str, nach: int = 0) -> dict | None:
     ).fetchone()
     nachrichten = web_chatverlauf(conn, chat_id, nach)
     letzte = nachrichten[-1]["id"] if nachrichten else nach
+    geaendert, stand_aenderung = web_chataenderungen(conn, chat_id, seit)
     # Phase wie web_daten.py:107 -- repo-frei, fehlende Spalte = None.
     stand = conn.execute(
         "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
@@ -1400,6 +1457,8 @@ def web_chatzustand(conn, token: str, nach: int = 0) -> dict | None:
         "nachrichten": nachrichten,
         "letzte": letzte,
         "antworten": _web_antworten(conn, chat_id),
+        "geaendert": geaendert,
+        "aenderung": stand_aenderung,
         "segment_ms": None,   # setzt der HTML-Bau, nicht der Poll
     }
 

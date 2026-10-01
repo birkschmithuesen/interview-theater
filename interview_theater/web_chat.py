@@ -20,14 +20,22 @@ import html
 import json
 import os
 import re
+import sqlite3
 import urllib.parse
+from contextlib import contextmanager
 from pathlib import Path
 
-from interview_theater import web_daten
+from interview_theater import db, repo, web_daten
 
 #: Der Unterpfad unter ``/g/<token>/``. Steht wortgleich in
 #: ``scripts/web_gruppe.CHAT_PFAD`` (Test).
 CHAT_PFAD = "chat"
+
+#: Wie lang eine Nachricht aus dem Browser hoechstens ist. Dieselbe Zahl wie
+#: ``telegram.NACHRICHT_GRENZE``: eine Gruppe, die im Browser arbeitet, soll
+#: nicht mehr schreiben koennen, als der Telegram-Weg tragen wuerde -- sonst
+#: laesst sich ein Workshop nicht von einem Kanal in den anderen retten.
+MAX_TEXT_ZEICHEN = 4000
 
 #: Die Telegram-Teilmenge ohne Attribute. ``a`` steht nicht dabei, weil es
 #: eins hat und eigens behandelt wird.
@@ -109,6 +117,11 @@ _TEXT_OHNE_JS = (
     "Fuer Chat und Aufnahme braucht diese Seite JavaScript. "
     "Die Gruppenseite und das Textbuch funktionieren auch ohne."
 )
+
+_TEXT_FEHLER_LEER = "Da steht nichts."
+_TEXT_FEHLER_LANG = "Das ist zu lang für eine Nachricht."
+_TEXT_FEHLER_VERALTET = "Die Seite ist veraltet — bitte einmal neu laden."
+_TEXT_FEHLER_ANFRAGE = "Ungültige Anfrage."
 
 #: Die Seite ist gross gesetzt: sie liegt auf einem Telefon in einem
 #: Probenraum, und die Gruppe liest im Stehen.
@@ -260,12 +273,111 @@ def beantworte_get(handler, db_pfad: str, token: str, unterpfad: str,
     handler._antworte(404, web.nicht_gefunden_html())
 
 
-def beantworte_post(handler, db_pfad: str, token: str, unterpfad: str,
-                    schluessel: bytes) -> None:
-    """Wird in den Aufgaben 7-10 gefuellt."""
+@contextmanager
+def schreibend(db_pfad: str):
+    """Eine schreibende Verbindung je Anfrage -- ``db.verbinde`` und nicht
+    ``web_daten.oeffne_lesend``, wie im POST-Handler der Gruppenseite. WAL und
+    ``busy_timeout`` (5 s) tragen das Nebeneinander mit den Bot-Prozessen; der
+    modulweite ``repo._LOCK`` ist prozesslokal und richtet dagegen nichts aus
+    (dieselbe Annahme wie ``scripts/begruessen.py``)."""
+    conn = db.verbinde(db_pfad)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def _gruppe_oder_404(handler, db_pfad: str, token: str) -> int | None:
+    """Die chat_id zum Token, oder 404 und None."""
     from interview_theater import web
 
-    handler._antworte(404, web.nicht_gefunden_html())
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        chat_id = web_daten.chat_id_nach_token(conn, token)
+    finally:
+        conn.close()
+    if chat_id is None:
+        handler._antworte(404, web.nicht_gefunden_html())
+    return chat_id
+
+
+def _koerper_oder_400(handler, token: str, schluessel: bytes) -> dict | None:
+    """JSON-Rumpf und Nonce in einem Griff. Reihenfolge wie in
+    ``web._beantworte_post``: der Nonce kommt nach dem Token."""
+    from interview_theater import web
+
+    try:
+        daten = handler._koerper()
+    except ValueError as fehler:
+        handler._fehler(400, str(fehler))
+        return None
+    if not web.nonce_gueltig(schluessel, token, daten.get("nonce")):
+        handler._fehler(403, _TEXT_FEHLER_VERALTET)
+        return None
+    return daten
+
+
+def _angenommen(handler, nutzlast: dict) -> None:
+    """**202, nicht 200:** der Bot hat noch nicht geantwortet, die Nachricht
+    liegt im Eingang. Der Browser schaltet daraufhin auf einen schnellen Poll,
+    statt auf eine Antwort in dieser Anfrage zu warten -- ein Gespraechszug
+    dauert Sekunden, und eine HTTP-Verbindung so lange offen zu halten waere
+    ein Thread je Nachricht."""
+    handler._antworte(
+        202, json.dumps(nutzlast, ensure_ascii=False),
+        "application/json; charset=utf-8",
+    )
+
+
+def beantworte_post(handler, db_pfad: str, token: str, unterpfad: str,
+                    schluessel: bytes) -> None:
+    """Alles, was der Browser schickt. Reihenfolge der Pruefungen:
+    **Pfad, Token, Nonce, Wert** -- erst 404, dann 403, dann 400."""
+    from interview_theater import web
+
+    if unterpfad not in _POSTWEGE:
+        handler._antworte(404, web.nicht_gefunden_html())
+        return
+    chat_id = _gruppe_oder_404(handler, db_pfad, token)
+    if chat_id is None:
+        return
+    try:
+        _POSTWEGE[unterpfad](handler, db_pfad, token, chat_id, schluessel)
+    except sqlite3.Error as fehler:
+        handler.log_error("Datenbankfehler im Web-Chat: %s", fehler)
+        handler._fehler(500, "Die Datenbank ist gerade nicht beschreibbar.")
+
+
+def _senden(handler, db_pfad: str, token: str, chat_id: int,
+            schluessel: bytes) -> None:
+    """Eine Textnachricht der Gruppe.
+
+    Der Text wird **nicht** gefiltert: gefiltert wird beim Lesen
+    (``sichere_html``). Der Bot soll den Wortlaut sehen -- ein ``<`` in einer
+    Nachricht ist ein Zeichen, keine Absicht."""
+    daten = _koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    text = str(daten.get("text") or "").strip()
+    if not text:
+        handler._fehler(400, _TEXT_FEHLER_LEER)
+        return
+    if len(text) > MAX_TEXT_ZEICHEN:
+        handler._fehler(400, _TEXT_FEHLER_LANG)
+        return
+    with schreibend(db_pfad) as conn:
+        message_id = repo.lege_web_post_an(
+            conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_TEXT, text=text,
+        )
+    _angenommen(handler, {"message_id": message_id})
+
+
+#: Die Tabelle der POST-Wege. Eine Tabelle statt einer if-Kette: ein neuer Weg
+#: ist eine Zeile, und ``beantworte_post`` prueft Pfad, Token und Nonce fuer
+#: alle gleich.
+_POSTWEGE = {
+    "senden": _senden,
+}
 
 
 def _zustand(db_pfad: str, token: str, nach: int = 0) -> dict | None:

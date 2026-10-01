@@ -3580,7 +3580,7 @@ def schreibend(db_pfad: str)   # Kontextmanager um db.verbinde
 `{"message_id": N}`. 202 und nicht 200: der Bot hat noch nicht geantwortet, die Nachricht
 liegt im Eingang.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_chat_senden.py`:
 
@@ -3767,14 +3767,14 @@ def test_kein_absendername_liegt_im_eingang(aufbau):
     assert "absender" not in zeile.keys()
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_chat_senden.py -q -p no:cacheprovider
 ```
 Erwartet: FAIL — die ersten Tests bekommen 404 vom Rumpf aus Aufgabe 6.
 
-- [ ] **Schritt 3: `web_chat.py` — der POST-Weg**
+- [x] **Schritt 3: `web_chat.py` — der POST-Weg**
 
 ```python
 #: Wie lang eine Nachricht aus dem Browser hoechstens ist. Dieselbe Zahl wie
@@ -3903,7 +3903,7 @@ Importe ergaenzen: `sqlite3`, `from contextlib import contextmanager`,
 liegen unter ihm in der Schichtung). `web` bleibt ein lokaler Import in den Funktionen —
 `web` importiert `web_chat`.
 
-- [ ] **Schritt 4: Lauf, alles gruen**
+- [x] **Schritt 4: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_chat_senden.py -q -p no:cacheprovider
@@ -3915,7 +3915,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2895 passed, 1 skipped`.
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add interview_theater/web_chat.py tests/test_web_chat_senden.py

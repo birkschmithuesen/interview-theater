@@ -454,7 +454,7 @@ Die Zahl notieren (sie liegt ueber 2768, weil A1 und A2 eigene Tests mitbringen)
 in den Plan eintragen**, hinter „Baseline dieses Branches:". Jede weitere Aufgabe misst
 gegen diese Zahl.
 
-Baseline dieses Branches: __________ passed, 1 skipped.
+Baseline dieses Branches: 5032 passed, 1 failed (bekannt, siehe oben), 2 skipped.
 
 - [ ] **Schritt 4: Commit**
 

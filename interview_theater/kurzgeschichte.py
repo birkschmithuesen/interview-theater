@@ -312,6 +312,9 @@ def budget_eintraege(conn, chat_id: int,
     nummern = [s["nummer"] or i + 1 for i, s in enumerate(szenen)]
     formen = [laengen.form_der_szene(s) for s in szenen]
     werte = laengen.budgets(formen, nummern=nummern, seed=chat_id, faktor=faktor)
+    # Eine ausdrueckliche Laengenansage der Gruppe deckelt -- nach dem Faktor.
+    ansage = laengen.woerter_aus_festlegungen(repo.festlegungen(conn, chat_id))
+    werte = [laengen.budget_mit_ansage(w, ansage) for w in werte]
     return list(zip(nummern, formen, werte))
 
 

@@ -1568,9 +1568,14 @@ def budget_fuer_szene(conn, chat_id: int, ziel) -> int:
     if ziel is None or not laengen.aktiv():
         return 0
     stand = repo.hole_arbeitsstand(conn, chat_id)
-    return laengen.budget_fuer(
+    budget = laengen.budget_fuer(
         ziel["nummer"], laengen.form_der_szene(ziel), seed=chat_id,
         faktor=laengen.faktor_aus_stand(stand),
+    )
+    # Erst der Faktor (im Wuerfel), dann der Deckel: eine ausdrueckliche
+    # Ansage der Gruppe ist eine Obergrenze und keine Zielzahl.
+    return laengen.budget_mit_ansage(
+        budget, laengen.woerter_aus_festlegungen(repo.festlegungen(conn, chat_id)),
     )
 
 

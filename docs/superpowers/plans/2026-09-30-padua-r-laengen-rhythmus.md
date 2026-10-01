@@ -3122,7 +3122,7 @@ liest. Das ist ein deterministischer Regexschritt, kein Modellaufruf.
   - `laengen.woerter_aus_festlegungen(zeilen) -> int | None`
   - `laengen.budget_mit_ansage(budget: int, ansage: int | None) -> int`
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_ansage.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_ansage.py`
 
 ```python
 """Eine ausdrueckliche Laengenansage der Gruppe schlaegt den Wuerfel
@@ -3272,12 +3272,12 @@ def test_ohne_aktives_profil_wird_keine_ansage_gelesen(conn, monkeypatch):
     assert kurzgeschichte.budget_eintraege(conn, 1) == []
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_ansage.py`
 Erwartet: FAIL, `AttributeError: ... has no attribute 'WOERTER_JE_SEITE'`.
 
-- [ ] **Schritt 3: Die Ansage lesen**
+- [x] **Schritt 3: Die Ansage lesen**
 
 An `interview_theater/laengen.py` anhaengen:
 
@@ -3406,7 +3406,7 @@ def budget_mit_ansage(budget: int, ansage: int | None) -> int:
 
 `Iterable` steht schon im `typing`-Import des Moduls (Aufgabe 2).
 
-- [ ] **Schritt 4: Die beiden Budget-Wege anschliessen**
+- [x] **Schritt 4: Die beiden Budget-Wege anschliessen**
 
 In `interview_theater/szene.py`, `budget_fuer_szene`:
 
@@ -3431,7 +3431,7 @@ In `interview_theater/kurzgeschichte.py`, `budget_eintraege`, hinter
     werte = [laengen.budget_mit_ansage(w, ansage) for w in werte]
 ```
 
-- [ ] **Schritt 5: Tests laufen lassen**
+- [x] **Schritt 5: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_ansage.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -3445,7 +3445,7 @@ Run: `$PY -m pytest -q -p no:cacheprovider tests/test_festlegung.py tests/test_f
 Erwartet: `passed`, kein `failed` -- der Beweis, dass **keine** Erkenner-Art
 dazugekommen ist und der Korpus unberuehrt bleibt.
 
-- [ ] **Schritt 6: Suite und Commit**
+- [x] **Schritt 6: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

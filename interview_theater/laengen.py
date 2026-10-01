@@ -475,6 +475,128 @@ def setze_faktor(conn, chat_id: int, faktor: float) -> None:
     repo.setze_arbeitsstand(conn, chat_id, FELD_FAKTOR, f"{float(faktor):g}")
 
 
+#: Der Bereich, in dem eine Laengenansage der Gruppe landet.
+#: ``repo.FESTLEGUNG_BEREICHE`` nennt ihn woertlich "Stil- und
+#: Laengenvorgaben fuer Texte", und ``prompts/erkenner.md`` Punkt 23 weist
+#: "hoechstens eine Seite pro Szene ab jetzt" ausdruecklich dorthin
+#: (Korpusfall fl04). Deshalb **keine** neue Erkenner-Art: der Weg ist
+#: gebaut, gemessen und kostet keinen weiteren Korpuslauf.
+BEREICH_ANSAGE = "stil"
+
+#: Wie viele Woerter eine "Seite" ist. Eine Zahl, damit "hoechstens eine
+#: Seite" ueberhaupt eine Zahl werden kann -- eine Manuskriptseite mit
+#: doppeltem Zeilenabstand traegt rund 250 Woerter.
+WOERTER_JE_SEITE = 250
+
+#: Zahlwoerter, die in einer Seitenangabe vorkommen. Nur bis fuenf: "zwoelf
+#: Seiten pro Szene" ist keine Kuerzungsansage mehr.
+_ZAHLWOERTER = {
+    "eine": 1, "einer": 1, "one": 1, "a": 1, "zwei": 2, "two": 2,
+    "drei": 3, "three": 3, "vier": 4, "four": 4, "fuenf": 5, "five": 5,
+}
+
+#: "hoechstens 120 Woerter [je|pro] Szene". Eng: die Einheit muss ein Wort
+#: sein, und der Bezug muss die Szene (bzw. der Abschnitt) sein -- sonst
+#: laese "das Interview hoechstens 20 Minuten" wie eine Szenenlaenge.
+_ANSAGE_WOERTER = re.compile(
+    r"\b(?:hoechstens|höchstens|maximal|max\.?|nicht mehr als|at most|no more "
+    r"than|maximum(?: of)?|up to)\s+(\d{2,4})\s*"
+    r"(?:woerter|wörter|words)\b[^.;]{0,20}?"
+    r"\b(?:szene|szenen|scene|scenes|abschnitt|abschnitte|section|sections)\b",
+    re.IGNORECASE,
+)
+
+#: Dieselbe Form mit "Seite" statt "Woerter", Zahl oder Zahlwort.
+_ANSAGE_SEITEN = re.compile(
+    r"\b(?:hoechstens|höchstens|maximal|max\.?|nicht mehr als|at most|no more "
+    r"than|maximum(?: of)?|up to)?\s*"
+    r"(\d{1,2}|eine|einer|zwei|drei|vier|fuenf|one|a|two|three|four|five)\s*"
+    r"(?:seite|seiten|page|pages)\b[^.;]{0,20}?"
+    r"\b(?:szene|szenen|scene|scenes|abschnitt|abschnitte|section|sections)\b",
+    re.IGNORECASE,
+)
+
+#: Und die umgekehrte Wortstellung ("jede Szene hoechstens eine Seite").
+_ANSAGE_UMGEKEHRT = re.compile(
+    r"\b(?:szene|szenen|scene|scenes|abschnitt|abschnitte|section|sections)\b"
+    r"[^.;]{0,30}?"
+    r"(?:hoechstens|höchstens|maximal|max\.?|at most|no more than|up to)\s+"
+    r"(\d{1,4}|eine|einer|zwei|drei|vier|fuenf|one|a|two|three|four|five)\s*"
+    r"(seite|seiten|page|pages|woerter|wörter|words)\b",
+    re.IGNORECASE,
+)
+
+
+def _zahl_oder_wort(roh: str) -> int | None:
+    roh = (roh or "").strip().lower()
+    if roh.isdigit():
+        return int(roh)
+    return _ZAHLWOERTER.get(roh)
+
+
+def _ansage_einer_zeile(text: str) -> int | None:
+    """Die Wortzahl aus EINER Festlegungszeile, oder None.
+
+    Auf **"im Zweifel keine Ansage"** kalibriert, wie ``szene_schreiben`` und
+    ``entfernen`` beim Erkenner: eine falsch gelesene Zahl zwingt jede Szene
+    des Stuecks auf eine erfundene Laenge, eine uebersehene Bitte wiederholt
+    die Gruppe."""
+    treffer = _ANSAGE_WOERTER.search(text or "")
+    if treffer is not None:
+        return int(treffer.group(1))
+    treffer = _ANSAGE_SEITEN.search(text or "")
+    if treffer is not None:
+        seiten = _zahl_oder_wort(treffer.group(1))
+        if seiten and 1 <= seiten <= 5:
+            return seiten * WOERTER_JE_SEITE
+    treffer = _ANSAGE_UMGEKEHRT.search(text or "")
+    if treffer is not None:
+        zahl = _zahl_oder_wort(treffer.group(1))
+        einheit = treffer.group(2).lower()
+        if not zahl:
+            return None
+        if einheit.startswith(("seite", "page")):
+            return zahl * WOERTER_JE_SEITE if 1 <= zahl <= 5 else None
+        return zahl if zahl >= 10 else None
+    return None
+
+
+def woerter_aus_festlegungen(zeilen: Iterable[Any] | None) -> int | None:
+    """Die ausdrueckliche Laengenansage der Gruppe, oder None.
+
+    Gelesen werden nur Zeilen im Bereich ``BEREICH_ANSAGE``. **Die juengste
+    gewinnt**: ``repo.festlegungen`` liefert aelteste zuerst, und eine
+    Festlegung ist ein Zustand -- sagt die Gruppe zweimal etwas, gilt das
+    Letzte.
+
+    Kein Modellaufruf, reine Regexarbeit."""
+    ergebnis: int | None = None
+    for zeile in zeilen or ():
+        try:
+            bereich = (zeile["bereich"] or "").strip().lower()
+            text = zeile["text"] or ""
+        except (KeyError, IndexError, TypeError):
+            continue
+        if bereich != BEREICH_ANSAGE:
+            continue
+        wert = _ansage_einer_zeile(text)
+        if wert is not None:
+            ergebnis = wert
+    return ergebnis
+
+
+def budget_mit_ansage(budget: int, ansage: int | None) -> int:
+    """Die Ansage **deckelt** das gewuerfelte Budget.
+
+    "Hoechstens" heisst hoechstens: der Wuerfel darf darunter bleiben -- das
+    ist der Rhythmus, und den soll eine Obergrenze nicht platt machen --, aber
+    nie darueber. Andernfalls waere eine ausdrueckliche Bitte der Gruppe
+    weniger wert als ein Muster aus einer TOML-Datei."""
+    if ansage is None:
+        return int(budget)
+    return max(min(int(budget), int(ansage)), MINDEST_WOERTER)
+
+
 # Der Textzugriff steht am Modulende, nach allen Konstanten (A1-Konvention
 # K1): Deutsch ist die Konstante selbst, Englisch kommt aus
 # ``sprachen/en/texte.toml`` unter ``["laengen"]``. Gelesen wird ausschliesslich

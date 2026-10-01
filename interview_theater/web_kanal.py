@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from interview_theater import repo
+from interview_theater import strom as strom_modul
 from interview_theater.telegram import CALLBACK_DATA_GRENZE
 
 log = logging.getLogger(__name__)
@@ -193,6 +194,7 @@ class WebKanal:
         self._chat_id = int(chat_id)
         self._audio = Path(audio_verz)
         self._schritt = schritt_s
+        self._stroeme: dict[int, strom_modul.Senke] = {}
 
     # -- Eingang -----------------------------------------------------------
 
@@ -512,3 +514,42 @@ class WebKanal:
         ziel = Path(ziel)
         ziel.parent.mkdir(parents=True, exist_ok=True)
         ziel.write_bytes(quelle.read_bytes())
+
+    # --- Der laufende Text (30.09.2026, Karte W) ---------------------------
+
+    def strom(self, chat_id: int, art: str):
+        """Eine Senke fuer diesen Zug: was das Modell schreibt, geht gedrosselt
+        in ``web_strom`` und von dort per SSE in den Browser.
+
+        Der Kanal merkt sich die Senke je ``chat_id``, damit ``ablauf.antworte``
+        sie nach dem Versand ueber ``strom.schliesse(tg, chat_id, message_id)``
+        abschliessen kann -- ohne sie durch ``_erfrage_antwort`` und zwei
+        Nachfassfunktionen durchzureichen (``ablauf.py`` ist Hotspot mehrerer
+        Karten).
+
+        ``telegram.Telegram`` hat diese Methode **nicht**: dort gibt es nichts
+        zu streamen, und E1 sagt, dass der Telegram-Weg unveraendert bleibt."""
+        vorher = self._stroeme.pop(chat_id, None)
+        if vorher is not None:
+            vorher.abbruch()
+        senke = strom_modul.Senke(
+            lambda: repo.beginne_strom(self._conn, chat_id, art),
+            lambda sid, text: repo.schreibe_strom(self._conn, sid, text),
+            lambda sid, zustand, post_id: repo.beende_strom(
+                self._conn, sid, zustand, post_id),
+        )
+        self._stroeme[chat_id] = senke
+        return senke
+
+    def strom_abschluss(self, chat_id: int, post_id: int | None = None,
+                        abgebrochen: bool = False) -> None:
+        """Schliesst die Senke dieses Zuges ab. Ohne laufenden Strom passiert
+        nichts -- der Aufrufer weiss nicht, ob es einen gab, und soll es auch
+        nicht wissen muessen."""
+        senke = self._stroeme.pop(chat_id, None)
+        if senke is None:
+            return
+        if abgebrochen:
+            senke.abbruch()
+        else:
+            senke.fertig(post_id)

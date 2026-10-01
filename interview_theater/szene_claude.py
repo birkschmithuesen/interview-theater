@@ -49,6 +49,173 @@ class ClaudeFehler(Exception):
     pass
 
 
+#: Wie in ``llm.py``: eine Prozessflagge, kein Dauerversuch.
+_STROM_AUS = False
+
+
+class _StromNichtVerfuegbar(Exception):
+    """Der Proxy/Anbieter kann oder will ueberhaupt nicht streamen -- BEVOR
+    ein Stueck kam. Setzt die Prozessflagge ``_STROM_AUS`` dauerhaft."""
+
+
+class _StromVoruebergehend(Exception):
+    """Ein VORUEBERGEHENDER Fehler (408, 429, 5xx, 529 "overloaded",
+    Transport-/Dekodierfehler) -- BEVOR ein Stueck kam (wie in ``llm.py``,
+    Fix Runde 1, Punkt 3). Infomaniak UND der Claude-Proxy koennen mit
+    429/5xx drosseln; ein einzelner Drosselimpuls darf nicht jede weitere
+    Szene dieses Prozesses auf Nichtstreaming umschalten. Setzt die
+    Prozessflagge NICHT."""
+
+
+class _StromAbbruch(Exception):
+    """Der Stream ist mitten drin abgerissen -- NACH dem ersten Stueck. Setzt
+    die Prozessflagge nie: ein Abbruch sagt nichts darueber, ob der naechste
+    Stream gelingt."""
+
+
+def _abgeschaltet() -> bool:
+    return _STROM_AUS
+
+
+def vergiss_strom() -> None:
+    """Nur fuer Tests."""
+    global _STROM_AUS
+    _STROM_AUS = False
+
+
+def _melde_strom_aus(conn, e, chat_id, grund: str) -> None:
+    global _STROM_AUS
+    if _STROM_AUS:
+        return
+    _STROM_AUS = True
+    try:
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "strom_nicht_verfuegbar",
+            f"Claude-Proxy ohne Stream ({grund})",
+        )
+    except Exception:  # noqa: BLE001
+        log.exception("Vorfall strom_nicht_verfuegbar nicht geschrieben")
+
+
+def _blockierend(klient, url, headers, koerper, timeout) -> dict:
+    antwort = klient.post(url, headers=headers, json=koerper, timeout=timeout)
+    antwort.raise_for_status()
+    return antwort.json()
+
+
+#: HTTP-Stati, die als vorruebergehend gelten (Drosselung/Ueberlast) --
+#: 529 ist Anthropics eigener "overloaded"-Code, zusaetzlich zu den
+#: ueblichen 408/429/5xx aus ``llm.py``.
+_HTTP_VORUEBERGEHEND = (408, 429, 529)
+
+
+def _stream(klient, url, headers, koerper, timeout, bei_teil) -> dict:
+    """Ein Aufruf mit ``stream: true`` im Anthropic-Messages-Format; baut aus
+    den Ereignissen denselben Koerper, den der blockierende Weg liefert.
+
+    Gelesen werden ``message_start`` (input_tokens), ``content_block_delta``
+    mit ``delta.type == "text_delta"``, ``message_delta`` (stop_reason,
+    output_tokens) und ``message_stop``. Ein ``thinking_delta`` wird
+    **nicht** weitergegeben -- die Denkspur ist nie fuer die Gruppe.
+
+    Review-Lehren aus Aufgabe 5 (``llm.py``), hier von Anfang an eingebaut:
+    ein sauberes Verbindungsende OHNE ``message_stop``/``stop_reason`` nach
+    dem ersten Stueck ist ein Abbruch, kein Erfolg (sonst kaeme ein
+    abgeschnittener Satz als vollstaendige Szene durch); eine werfende
+    ``bei_teil``-Senke stoppt nur die Anzeige, nicht das Sammeln; ein
+    voruebergehender Fehler (408/429/5xx/529, Transport-/Dekodierfehler) VOR
+    dem ersten Stueck schaltet die Prozessflagge nicht ab -- nur ein
+    Fehler, der zeigt, dass der Proxy ueberhaupt nicht streamen kann oder
+    will, tut das."""
+    import json as _json
+
+    strom_koerper = dict(koerper)
+    strom_koerper["stream"] = True
+    roh: list[str] = []
+    nutzung: dict = {}
+    stop = None
+    erstes_stueck = False
+    fertig_gesehen = False
+    sende_an_senke = True
+    try:
+        with klient.stream("POST", url, headers=headers, json=strom_koerper,
+                           timeout=timeout) as antwort:
+            if antwort.status_code >= 400:
+                if antwort.status_code in _HTTP_VORUEBERGEHEND or antwort.status_code >= 500:
+                    raise _StromVoruebergehend(f"HTTP {antwort.status_code}")
+                raise _StromNichtVerfuegbar(f"HTTP {antwort.status_code}")
+            for zeile in antwort.iter_lines():
+                zeile = zeile.strip()
+                if not zeile.startswith("data:"):
+                    continue
+                try:
+                    ereignis = _json.loads(zeile[len("data:"):].strip())
+                except ValueError as fehler:
+                    if erstes_stueck:
+                        raise _StromAbbruch("unlesbares Ereignis") from fehler
+                    raise _StromNichtVerfuegbar("unlesbare Antwort") from fehler
+                typ = ereignis.get("type")
+                if typ == "message_start":
+                    nutzung.update(
+                        (ereignis.get("message") or {}).get("usage") or {})
+                elif typ == "content_block_delta":
+                    delta = ereignis.get("delta") or {}
+                    if delta.get("type") != "text_delta":
+                        # thinking_delta und andere Deltatypen gehen nie an
+                        # die Gruppe (Denkspur) -- nur text_delta zaehlt.
+                        continue
+                    erstes_stueck = True
+                    roh.append(delta.get("text") or "")
+                    if sende_an_senke:
+                        try:
+                            bei_teil("".join(roh))
+                        except Exception:  # noqa: BLE001 -- eine werfende
+                            # Anzeige (z. B. gesperrte DB) darf die Antwort
+                            # nicht kosten. Nur die Anzeige stoppt, das
+                            # Sammeln laeuft weiter.
+                            log.exception(
+                                "bei_teil-Senke (Claude) fehlgeschlagen -- "
+                                "Anzeige gestoppt, der Text wird trotzdem "
+                                "weiter gesammelt"
+                            )
+                            sende_an_senke = False
+                elif typ == "message_delta":
+                    delta_stop = (ereignis.get("delta") or {}).get("stop_reason")
+                    if delta_stop:
+                        stop = delta_stop
+                        fertig_gesehen = True
+                    nutzung.update(ereignis.get("usage") or {})
+                elif typ == "message_stop":
+                    fertig_gesehen = True
+    except (_StromNichtVerfuegbar, _StromVoruebergehend, _StromAbbruch):
+        raise
+    except httpx.HTTPStatusError as fehler:
+        status = fehler.response.status_code
+        if status in _HTTP_VORUEBERGEHEND or status >= 500:
+            raise _StromVoruebergehend(f"HTTP {status}") from fehler
+        raise _StromNichtVerfuegbar(f"HTTP {status}") from fehler
+    except (httpx.TransportError, httpx.DecodingError, httpx.StreamError) as fehler:
+        # httpx.DecodingError und httpx.StreamError sind keine
+        # httpx.TransportError (eigene Hierarchien), muessen aber genauso
+        # behandelt werden -- vor dem ersten Stueck ein voruebergehender
+        # Rueckfall, danach ein Abbruch (wie in llm.py, Fix Runde 1, Punkt 5).
+        if erstes_stueck:
+            raise _StromAbbruch(type(fehler).__name__) from fehler
+        raise _StromVoruebergehend(type(fehler).__name__) from fehler
+    if erstes_stueck and not fertig_gesehen:
+        # Die Verbindung endete sauber, aber ohne Abschlusssignal -- das ist
+        # ein Abbruch, kein Erfolg (sonst kaeme ein abgeschnittener Satz als
+        # vollstaendige Szene durch).
+        raise _StromAbbruch("Verbindung endete ohne message_stop/stop_reason")
+    if not erstes_stueck:
+        raise _StromNichtVerfuegbar("kein einziges Stueck")
+    return {
+        "content": [{"type": "text", "text": "".join(roh)}],
+        "usage": nutzung,
+        "stop_reason": stop,
+    }
+
+
 def ist_aktiv(e, conn=None, chat_id: int | None = None) -> bool:
     """True, wenn diese Szene ueber Claude laufen soll: der Betreiber hat es
     erlaubt (IT_SZENE_ANBIETER=claude) UND die Gruppe hat zugestimmt
@@ -87,9 +254,16 @@ def wartet_auf_antwort(e, conn, chat_id: int) -> bool:
 
 
 def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
-          nutzer: str, art: str, timeout: float) -> str:
+          nutzer: str, art: str, timeout: float, bei_teil=None) -> str:
     """Ein Aufruf, ein Text. Bucht in ``aufruf`` mit modus 'C' (Claude), damit
-    Dashboard und Kostenrechnung den Weg sehen -- mit 0 CHF, weil Abo."""
+    Dashboard und Kostenrechnung den Weg sehen -- mit 0 CHF, weil Abo.
+
+    ``bei_teil`` (Karte W, Aufgabe 6): eine Senke, die den bisherigen Text
+    bekommt, waehrend er entsteht -- Anthropic-SSE statt dem
+    chat/completions-Format aus ``llm.py``, aber dieselbe Zusage: ohne
+    ``bei_teil`` ist der Anfragekoerper zeichengleich wie vor dieser Karte
+    (E1), und mit ihr hinterlaesst ein gestreamter Lauf dieselbe
+    ``aufruf``-Zeile wie ein blockierender."""
     url = getattr(e, "szene_url", None) or URL_VORGABE
     modell = getattr(e, "szene_modell", None) or MODELL_VORGABE
     koerper = {
@@ -103,9 +277,26 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     letzter: Exception | None = None
     for versuch in range(len(WARTEZEITEN) + 1):
         try:
-            antwort = klient.post(url, headers=headers, json=koerper, timeout=timeout)
-            antwort.raise_for_status()
-            daten = antwort.json()
+            if bei_teil is not None and not _abgeschaltet():
+                try:
+                    daten = _stream(klient, url, headers, koerper, timeout, bei_teil)
+                except _StromNichtVerfuegbar as fehler:
+                    _melde_strom_aus(conn, e, chat_id, str(fehler))
+                    daten = _blockierend(klient, url, headers, koerper, timeout)
+                except _StromVoruebergehend as fehler:
+                    log.info(
+                        "Claude-Stream voruebergehend nicht verfuegbar "
+                        "(art=%s): %s -- dieser Zug laeuft blockierend, "
+                        "Flagge bleibt an", art, fehler,
+                    )
+                    daten = _blockierend(klient, url, headers, koerper, timeout)
+                except _StromAbbruch:
+                    abbruch = getattr(bei_teil, "abbruch", None)
+                    if callable(abbruch):
+                        abbruch()
+                    daten = _blockierend(klient, url, headers, koerper, timeout)
+            else:
+                daten = _blockierend(klient, url, headers, koerper, timeout)
             teile = [b.get("text") or "" for b in (daten.get("content") or [])
                      if isinstance(b, dict) and b.get("type") == "text"]
             text = "\n".join(teile).strip()

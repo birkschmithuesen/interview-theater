@@ -463,6 +463,47 @@ def schleife(
         beim_start = False
 
 
+def baue_kanal(conn, e: Einstellungen, klient):
+    """Der Kanal dieses Prozesses: Telegram (Vorgabe) oder der Web-Kanal.
+
+    **Die eine Stelle, an der der Kanal gewaehlt wird.** ``schleife`` weiss
+    nichts davon -- sie ruft ``tg.hole_updates`` und reicht das Objekt weiter,
+    und genau das ist die Naht, an der der ganze Web-Arbeitsplatz haengt
+    (``tests/test_web_kanal_naht.py``).
+
+    Im Web-Kanal wird die Gruppe vorher geprueft: ein Prozess, der auf eine
+    chat_id hoert, die es nicht gibt, laeuft ohne Fehlermeldung und antwortet
+    nie -- das sieht aus wie ein haengender Bot, und die Ursache steht
+    nirgends."""
+    if e.kanal != einstellungen.KANAL_WEB:
+        return Telegram(e.bot_token, klient)
+
+    from interview_theater.web_kanal import WebKanal
+
+    if repo.hole_gruppe(conn, e.web_chat_id) is None:
+        raise RuntimeError(
+            f"IT_WEB_CHAT_ID={e.web_chat_id} kennt die Datenbank nicht. "
+            f"Anlegen mit: python -m scripts.web_gruppe anlegen {e.bot_name}"
+        )
+    # Der Offset haengt am bot_name (bot_zustand), nicht am Kanal. Ein Bot,
+    # der vorher Telegram fuhr, bringt eine getUpdates-Position um 10^8 mit
+    # -- im Web hoerte er damit nie etwas (Abschlussreview I2). Laut, weil
+    # ein stilles Zuruecksetzen genau der Fall ist, der spaeter niemandem
+    # auffaellt. Bereits Gesehenes faellt beim erneuten Lesen auf die
+    # Duplikatpruefung (merke_nachricht) und die Knopf-Sperre.
+    offset = repo.hole_update_id(conn, e.bot_name)
+    hoechste = repo.hoechste_web_post_id(conn)
+    if offset > hoechste:
+        log.warning(
+            "Offset von %s (%s) liegt hinter dem Web-Eingang (hoechste id %s) "
+            "-- vermutlich von Telegram. Zurueckgesetzt auf 0.",
+            e.bot_name, offset, hoechste,
+        )
+        repo.setze_update_id(conn, e.bot_name, 0)
+    log.info("Kanal: Web (chat_id=%s)", e.web_chat_id)
+    return WebKanal(conn, e.web_chat_id, e.audio_verz)
+
+
 def main() -> None:
     """Liest die Einstellungen, oeffnet die Datenbank und startet die Schleife.
 
@@ -492,7 +533,7 @@ def main() -> None:
     db.initialisiere(conn)
 
     klient = httpx.Client(timeout=30.0)
-    tg = Telegram(e.bot_token, klient)
+    tg = baue_kanal(conn, e, klient)
     klm = LLM(e, klient, conn)
 
     # Aufgabe 6: einmal beim Start, damit die Befehle im Telegram-Menue

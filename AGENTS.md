@@ -69,6 +69,8 @@ Module unter `interview_theater/`:
 | `vorspann.py` | Der Vorspann vor dem Text (07.09.2026): Wo und wann · Worum es geht · Form · die Szenen · Wer vorkommt. Deterministisch aus `arbeitsstand.*`, `szene.titel`/`form` und `figur.name`/`beschreibung` — **kein Modellaufruf**. `daten()` nimmt Dicts und kennt keine Datenbank (deshalb darf `web_daten` es importieren), `aus_datenbank()` ist die `repo`-Abkürzung, `als_markdown()`/`als_chattext()` die zwei Darstellungen |
 | `web.py` | Weboberfläche: Routing, HTML und CSS für Dashboard und Gruppenseiten, `http.server`, nur Standardbibliothek |
 | `web_daten.py` | Die Lesezugriffe dazu — read-only geöffnete Verbindung, reine Funktionen, `conn` rein, Dicts raus |
+| `web_kanal.py` | Der Web-Kanal (30.09.2026): `WebKanal` ersetzt `telegram.Telegram`, wenn `IT_KANAL=web`. Liest Browser-Ereignisse aus der Tabelle `web_post` als Telegram-förmige Updates und schreibt die Antworten dorthin zurück — `bot.schleife` bleibt unverändert, `knoepfe/` wird nicht angefasst. Kein SQL (alles über `repo`), kein Modell |
+| `web_chat.py` | Die Chatansicht im Browser (30.09.2026): HTML, CSS, Vanilla-JS und alle Handler unter `/g/<token>/chat`. `web.py` bekommt nur die Routing-Zeilen. Trägt den serverseitigen HTML-Filter (`sichere_html`), die Knopfprüfung gegen die hängende Leiste (`knopf_erlaubt`), den Audio-Upload, die zwei Aufnahme-Wege und die sequentielle Warteschlange im JS. Kein SQL, kein Modell |
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
@@ -84,7 +86,9 @@ Kopie-Datenbank (siehe „Die Dramaturgie-Prüfung").
 je Gruppe die URL ihrer Gruppenseite aus, `scripts/figuren_aufraeumen.py`
 führt in Bestandsdaten Platzhalterfiguren mit ihren Nachbenennungen zusammen
 (`--trocken`, läuft **nie** automatisch — es verändert Arbeitsergebnisse
-einer Gruppe).
+einer Gruppe). `scripts/web_gruppe.py anlegen <bot_name>` legt eine Gruppe
+für den Web-Kanal an und gibt Link, chat_id und die zwei Env-Zeilen aus
+(siehe „Der Web-Kanal").
 
 `web_daten.py` ist die einzige Ausnahme von „SQL nur in `repo.py` und
 `db.py`". Grund: die Weboberfläche liest mit einer eigenen, read-only
@@ -108,9 +112,9 @@ Versehen).
 | Schicht | Module |
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
-| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` |
+| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` |
 | **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` |
-| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` |
+| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` |
 
 **Wo man anfängt, je nach Frage:**
 
@@ -126,6 +130,8 @@ Versehen).
 | Wie nehme ich einen Erkennerlauf zurueck? | `knoepfe.wirkung._wirkung_undo` → `repo.nimm_erkenner_lauf_zurueck`; was erfasst wird: `ruecknahme.VERFOLGT` |
 | Warum ist die Szene so lang? | `laengen.budget_fuer` -> `muster_fuer` -> `stufe_fuer` |
 | Warum lief die Szene zweimal? | `nachpass.nach_szene` -> `befund` -> `_notiz` |
+| Warum sieht der Browser nichts? | `web_kanal.hole_updates` → `repo.web_eingang` → `bot.schleife` |
+| Was passiert bei einem Klick im Web-Chat? | `web_chat.beantworte_post` → `_POSTWEGE` → Eingang (`web_post`) → `knoepfe.behandle` |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -1924,6 +1930,17 @@ Nachmittag noch einmal.
    Telegram liefert Audio als `voice` (ogg/opus), `audio` (m4a, mp3) und als
    Dokument.
 
+   **Der Web-Kanal hängt an derselben Falle** (30.09.2026): `aufnahme.empfange`
+   verdrahtete die Endung fest (`f"{message_id}.ogg"`), und ein WebM aus dem
+   Browser hätte damit `audio/ogg` bekommen. Seitdem trägt
+   `telegram.lies_nachricht` den optionalen Schlüssel `endung`, und
+   `aufnahme.ENDUNG_VORGABE` ist nur noch der Rückfall. **Bekannte Grenze, nicht
+   behoben:** auch im Telegram-Betrieb bekommt eine `audio`-Nachricht (m4a, mp3)
+   oder ein Dokument heute einen `.ogg`-Pfad — derselbe Fehler eine Etage weiter,
+   und er war schon vor dieser Karte da. `lies_nachricht` könnte die Endung aus
+   `mime_type`/`file_name` ableiten; das ändert den Telegram-Pfad und wurde
+   deshalb hier nicht angefasst.
+
 4. **`reasoning_effort` ist binär, und das Feld wegzulassen schaltet
    Reasoning AN.** `"none"` schaltet aus, jeder andere Wert — auch das Fehlen
    des Feldes — schaltet an. Es gibt keine stille Voreinstellung „aus"
@@ -1984,7 +2001,8 @@ Nachmittag noch einmal.
    (beide würden dieselbe `bot_zustand`-Zeile und dasselbe
    getUpdates-Offset verwenden), nie zwei Bots in dieselbe Telegram-Gruppe
    einladen (beide würden dort antworten — sofort sichtbar, aber
-   vermeidbar).
+   vermeidbar). Im Web-Kanal entsprechend: nie zwei Bot-Prozesse mit
+   derselben `IT_WEB_CHAT_ID` — beide läsen dieselben `web_post`-Zeilen.
 
 8. **Infomaniak drosselt Parallelität mit 429/5xx, nicht mit einer sauberen
    Warteschlange.** Betrifft im Betrieb kaum den Bot selbst (Aufrufe je
@@ -2169,7 +2187,10 @@ Routen: `/` (Team-Dashboard, projiziert, alle Gruppen), `/g/<token>`
 (Leseansicht einer Gruppe, Handy), `/g/<token>/textbuch` (Probenansicht,
 siehe unten) samt `/g/<token>/textbuch.md` und `.txt`,
 `/g/<token>/leitfaden` (der Gesprächsleitfaden groß und druckbar, rein
-lesend, ohne Nachladen — siehe „Der Leitfaden hat eine eigene Seite") und
+lesend, ohne Nachladen — siehe „Der Leitfaden hat eine eigene Seite"),
+`/g/<token>/chat` (die Chatansicht des Web-Kanals samt `chat/zustand`,
+`chat/datei/<id>` und den POST-Wegen `chat/senden`, `chat/knopf`,
+`chat/audio`, `chat/interview` — siehe „Der Web-Kanal") und
 `/gesund` (Health-Check, antwortet ohne Datenbankzugriff). Jede Route greift
 auch mit vorangestelltem `IT_WEB_PREFIX`, weil erst die nginx-Konfiguration
 entscheidet, ob das Präfix beim Server ankommt. Was hinter `/g/<token>/`
@@ -2311,6 +2332,257 @@ offene Eingabefeld mit); aus demselben Grund lädt die Seite gar nicht erst
 nach, solange der Fokus in einem Feld steht oder eines ungespeichert geändert
 ist. Ein Neustart der Unit `interview-theater-web.service` ist nötig, die Bots
 nicht.
+
+### Der Web-Kanal: derselbe Bot ohne Telegram (30.09.2026, Karte Padua A2)
+
+**Die Idee in einem Satz:** der Webserver ist für den Bot das, was Telegrams
+Server heute ist — er nimmt Browser-Ereignisse an und legt sie als
+Telegram-förmige Updates in die Tabelle `web_post`; ein normaler Bot-Prozess
+liest sie mit `web_kanal.WebKanal` statt mit `telegram.Telegram`. Gewählt
+wird der Kanal an genau einer Stelle, `bot.baue_kanal`.
+
+**Was dadurch NICHT passiert ist:** `knoepfe/` (rund 4.500 Zeilen) wurde nicht
+angefasst, `bot.schleife` nicht geändert, und der Telegram-Weg ist
+unverändert funktionsfähig (E1: Telegram bleibt Plan B). Ohne `IT_KANAL`
+verhält sich alles wie vorher — `tests/test_kanal_wahl.py` hält das fest.
+Ein Tippfehler in `IT_KANAL` fällt **nicht** still auf Telegram zurück, der
+Start bricht ab (`einstellungen.laden`).
+
+**Warum die Naht trägt, ist gemessen und nicht geraten.** Die ganze
+Kanalfläche sind zwölf Methoden, und `interview_theater/` ruft sie
+ausnahmslos über das durchgereichte `tg`-Objekt (kein `httpx` gegen
+`api.telegram.org`, `from.first_name` an genau einer Stelle,
+`telegram.lies_nachricht`). `simulation/attrappe.py` beweist es seit dem
+06.09.2026 empirisch: sie ersetzt `Telegram` und fährt einen ganzen Workshop
+durch. `tests/test_web_kanal_naht.py` liest das Paket per AST und hält es am
+Quelltext fest — **wer eine dreizehnte Kanalmethode benutzt, merkt es dort**,
+nicht im Betrieb.
+
+**EINE message_id-Folge für Gruppe UND Bot.** `web_post.id` ist zugleich
+`message_id` und `update_id`. Das ist kein Detail: der Bot merkt sich seinen
+Stand als `gruppe.letzte_beantwortete_message_id` und liest danach nur, was
+größer ist. Zählten Gruppe und Bot in getrennten Folgen, läge jede
+Gruppennachricht ab dem zweiten Zug unter dem Wasserzeichen — der Bot
+beantwortete sie nie (gemessen in `simulation.attrappe.naechste_message_id`).
+Telegram vergibt seine ids ebenfalls fortlaufend je Chat, über alle Absender.
+
+**Die Tippanzeige ist keine Nachricht** und steht deshalb in
+`gruppe.web_tippt_bis`, acht Sekunden gültig (`web_kanal.TIPPT_GUELTIG_S` = 8):
+`arbeitszeilen.TIPP_S` ist 4,0 s, und ein vierminütiger Szenenlauf gäbe 60
+Zeilen, die je eine `message_id` aus der gemeinsamen Folge verbrauchen.
+
+**Web-Gruppen haben positive, synthetische chat_ids** ab
+`repo.WEB_CHAT_ID_BASIS` (7 000 000 000 000) — weit oberhalb aller
+Telegram-Bereiche, und im ganzen Repo leitet keine Stelle aus dem Vorzeichen
+einer chat_id etwas ab (Test). Angelegt werden sie mit
+`python -m scripts.web_gruppe anlegen <bot_name>` (Datei
+`scripts/web_gruppe.py`); das Skript gibt den Link, die chat_id und die zwei
+Env-Zeilen aus und **liest nie `betrieb/`**. Der Webserver könnte es nicht:
+er öffnet die Datenbank read-only. `gruppe.kanal` hält fest, welcher Kanal
+eine Gruppe bedient. Eine `IT_WEB_CHAT_ID`, die die Datenbank nicht kennt,
+bricht den Start ab — ein Bot, der auf eine nicht vorhandene Gruppe hört,
+sähe sonst aus wie ein hängender.
+
+**E8 im Web:** Nachrichten tragen keinen Vornamen. `nachricht.absender` trägt
+das Rollenwort `web_kanal.ABSENDER` (`"Gruppe"`) — nicht `None`, weil
+`kontext.sprecherzeile` sonst wörtlich `"None:"` in jeden Gesprächs-Prompt
+schriebe.
+
+**Drei Dinge, die der Web-Kanal anders macht als Telegram** (alle drei
+absichtlich):
+1. **Kein Teilen bei 4.000 Zeichen.** Der Browser hat keine Längengrenze, und
+   ein Text, der in vier Stücke zerfällt, macht aus einer Bot-Antwort vier
+   Blasen, unter deren letzter dann die Knöpfe hängen.
+2. **`setze_befehle` ist ein No-Op.** Im Browser gibt es kein Slash-Menü, und
+   Slash-Befehle werden nicht beworben — beworben wird der Knopf.
+3. **`loesche_nachrichten` löscht weich** (`web_post.geloescht_am`), wie alles
+   Entfernte in diesem Projekt.
+
+**Die Chatansicht** (`/g/<token>/chat`, Modul `web_chat.py`, Handy zuerst,
+390×844) ist rein Vanilla-JS, ohne Build, ohne WebSocket, ohne Cookie, ohne
+localStorage: sie pollt `chat/zustand?nach=<id>&seit=<aenderung>` alle zwei
+Sekunden (sichtbar, `POLL_MS`) bzw. alle zehn (Hintergrund), und nie zwei
+Polls gleichzeitig. `nach` holt neue Zeilen, `seit` holt **geänderte** —
+`aendere_text`, `entferne_knoepfe` und `loesche_nachrichten` zählen die
+additive Spalte `web_post.aenderung` hoch (ein Zähler, keine Uhrzeit: SQLite
+serialisiert die Schreiber, also ist er monoton in Commit-Reihenfolge), und
+die Blase wird ohne Neuladen ersetzt oder entfernt. Der Poll liefert außerdem
+den aktuellen Formular-Nonce; ein POST mit 403 holt ihn einmal nach und
+versucht es erneut. **Kein sanftes Nachladen** wie auf der Gruppenseite —
+`web._seite(..., nachladen=False)`: das tauscht den `<body>` aus, und mitten in
+einer laufenden Aufnahme risse das Recorder, Timer und Warteschlange mit.
+Jeder Chat-Pfad mit Schrägstrich am Ende (`/chat/`) ist 404, und das JS baut
+alle Wege absolut aus `location.pathname` — sonst zeigten die relativen
+Verweise ins Leere, und `IT_WEB_PREFIX` bleibt dabei erhalten. Die Gruppenseite
+verlinkt den Chat („Chat mit dem Bot") — **nur bei `gruppe.kanal = 'web'`**,
+und alle Wege unter `/chat` (GET und POST) sind für jede andere Gruppe 404
+(`web_daten.web_chat_id_nach_token`, Abschlussreview I3). Der Plan
+(Aufgabe 6) schrieb den Link für jede Gruppe vor; **E1 geht vor**: eine
+Telegram-Gruppe hat keinen Bot, der `web_post` liest, und was sie im Browser
+schriebe, ginge still verloren. Gruppenseite, Probenansicht und Leitfaden
+bleiben für alle Gruppen.
+
+**Der Eingang wird als lückenloses Präfix geliefert** (Abschlussreview C1,
+I1, `WebKanal._lieferbar`). `bot.schleife` rückt den Offset je Update vor —
+eine zurückgehaltene Zeile mit etwas Späterem dahinter wäre danach für immer
+übersprungen. Zurückgehalten wird an zwei Stellen, beide mit Frist und Log:
+(1) eine **Sprachzeile ohne `datei`** — der Webserver legt erst die Zeile an,
+schreibt dann die Datei und setzt danach den Verweis (`DATEI_FRIST_S` = 30);
+(2) **jeder Nicht-Segment-Post** (Text, Knopf, Befehl) hinter einem Segment,
+das beim Bot noch nicht angekommen ist — angekommen heißt: es gibt die
+`aufnahme`-Zeile mit dieser `message_id`, oder `aufnahme.empfange` hat den
+Vorfall `download_fehlgeschlagen` geschrieben (`repo.web_segmente_unterwegs`,
+`ANKUNFT_FRIST_S` = 60). Ohne (2) lief /fertig im Pool (`bot.POOL_GROESSE`)
+parallel zum letzten Segment und konnte es überholen: `aufnahme.klasse_fuer`
+liest den Modus erst bei der Verarbeitung, das Segment wurde ein
+Gesprächsbeitrag. Die Endung im Update kommt aus der Spalte `mime`
+(`web_kanal.MIME_ERLAUBT`, die eine Tabelle, die auch der Webserver nimmt).
+Telegram ist davon nicht berührt — es liefert seine Updates selbst.
+
+**Keine Nachzügler im Web** (Abschlussreview I4): `aufnahme.stelle_interview_sicher`
+sammelt beim Anlegen eines Kopfes die `kurz`-Aufnahmen der letzten zehn
+Minuten nur bei `kanal != 'web'` ein. Im Browser ist eine PTT-Nachricht
+ausdrücklich „an den Bot", und Segmente gehen erst raus, wenn der Poll den
+Modus meldet. Telegram bitgleich (Test).
+
+**Der Offset hängt am `bot_name`, nicht am Kanal** (Abschlussreview I2). Ein
+Bot, der vorher Telegram fuhr, bringt eine getUpdates-Position um 10^8 mit
+und hörte im Web nie etwas. `scripts/web_gruppe.py` setzt den Offset deshalb
+auf 0, und `bot.baue_kanal` setzt ihn im Web-Kanal laut geloggt zurück, wenn
+er hinter `repo.hoechste_web_post_id` liegt (bereits Gesehenes fängt die
+Duplikatprüfung). `web_post.id` trägt `AUTOINCREMENT`, damit der Löschweg
+einer Gruppe keine ids zur Wiedervergabe freigibt; eine schon angelegte
+Entwicklungs-DB behält ihre Tabelle (`CREATE TABLE IF NOT EXISTS`),
+`hoechste_web_post_id` fällt dort auf `MAX(id)` zurück.
+
+**Bot-Ausgaben tragen Telegram-HTML** (`parse_mode="HTML"`, u. a.
+`vorschlag.menuetext`). `web_chat.sichere_html` maskiert deshalb **alles** und
+lässt dann eine geschlossene Liste wieder zu — `b i u s code pre blockquote`
+und `a` mit `http`/`https`. In dieser Richtung, nicht in der anderen: ein
+Filter, der `<script>` entfernt, ist eine Liste von Dingen, an die jemand
+gedacht hat. Gefiltert wird **serverseitig** (auch im Poll); ein Filter im
+JavaScript läge auf der Seite, die er schützen soll.
+
+**Ein Knopfdruck wird gegen die hängende Leiste geprüft**
+(`web_chat.knopf_erlaubt`), nicht gegen `knopf.message_id`: die ist nur
+gesetzt, wenn ein Aufrufer `repo.merke_knopf_nachricht` ruft, und das tut nur
+ein Teil der Sendestellen — `knoepfe.biete_einstieg` zum Beispiel nicht.
+Geprüft wird gegen `web_post.knoepfe`, das `WebKanal.sende_mit_knoepfen`
+selbst schreibt; es **ist** per Konstruktion, was gerade hängt. Steht `data`
+dort nicht, gibt es 400 und **keinen Eingang** — sonst wäre jeder Knopf jeder
+Gruppe per `curl` drückbar, sobald jemand einen Link hat, und die `k:<id>`
+sind fortlaufende Zahlen. Die Wirkung macht danach `knoepfe.behandle` im
+Bot-Prozess, unverändert: **kein zweiter Knopf-Handler**, und die Idempotenz
+bleibt `repo.beanspruche_knopf` (Zusage 3).
+
+**Audio im Browser sind ZWEI getrennte Knöpfe** (Birk, 30.09.2026,
+verbindlich — **kein** Schieben-zum-Sperren, ein Test sucht das Wort im JS):
+
+1. **Interview-Aufnahme**, ein Umschalter: einmal tippen = läuft, erneut
+   tippen = Stopp, mit Timer, Pegel (`AnalyserNode`) und großem Stopp-Knopf.
+   Er schaltet den Interviewmodus über die vorhandenen Befehlswege
+   `/interview` und `/fertig` (POST `chat/interview`) — **keine zweite
+   Moduslogik**, denn die Klasse einer Aufnahme hängt allein am Modus
+   (`aufnahme.klasse_fuer`). Hochgeladen wird in **Segmenten von 45 Sekunden**
+   (`IT_WEB_SEGMENT_MS`, Vorgabe `einstellungen.VORGABE_SEGMENT_MS`): Netz weg
+   oder Tab zu verliert höchstens das letzte Segment, nie das ganze Interview.
+   **Jedes Segment ist ein eigener MediaRecorder-Lauf** (`stop()` +
+   `start()`), nicht eine Zeitscheibe: `start(timeslice)`-Stücke sind einzeln
+   nicht dekodierbar, nur das erste trägt den Container-Kopf.
+2. **Push-to-Talk** für Sprachnavigation, neben dem Textfeld: halten =
+   sprechen, loslassen = senden, Klasse `kurz` (der Modus wird nicht
+   geschaltet). Pointer Events mit `setPointerCapture`, je Druck ein eigenes
+   Objekt; **unter 500 ms Haltezeit (`web_chat.PTT_MIN_MS`) wird verworfen**,
+   und `pointercancel`, `lostpointercapture` oder Loslassen außerhalb des
+   Knopfs senden **nichts**. Wird losgelassen, bevor `getUserMedia` das
+   Mikrofon liefert, startet gar kein Recorder. Während eine
+   Interview-Aufnahme läuft, ist PTT ausgeblendet, und ein Interviewstart
+   verwirft einen gerade gehaltenen PTT-Druck — zwei Mikrofone gleichzeitig
+   sind keine Bedienung.
+
+**Die Warteschlange im JS ist der Kern der Audio-Seite** (Aufgabe 11 samt drei
+Review-Runden). **Eine** sequentielle Schlange für Befehle (`/interview`,
+`/fertig`) **und** Audio (Segmente, PTT): die Reihenfolge beim Bot ist die
+Reihenfolge der Aufnahme. Ein Auftrag bleibt vorn, bis er 2xx bekommt;
+Netzfehler, 5xx, 408, 429 und 403 werden **ohne Höchstzahl** wiederholt
+(Abstand `UPLOAD_WARTEN_MS` = 1/3/8 s, das `online`-Ereignis löst sofort aus),
+nur ein endgültiges 4xx verwirft — sichtbar, mit dem Servertext in `#fehler`.
+Segmente tragen eine laufende Nummer und werden strikt in dieser Reihenfolge
+eingereiht, auch wenn ein späteres `onstop` früher feuert. Daran hängen vier
+Regeln:
+- **Sofort aufnehmen, später hochladen.** Die Aufnahme startet sofort (sonst
+  fehlen die ersten Worte), das erste Segment wartet aber, bis `/interview`
+  dieser Aufnahme angenommen ist **und** der Poll einmal `interviewmodus`
+  meldet — sonst machte `aufnahme.klasse_fuer` daraus eine `kurz`-Aufnahme.
+  Danach rastet eine **Sperrklinke je Aufnahme** ein (`sitzung.bestaetigt`).
+  Läuft der Bot gar nicht, warten Segmente und `/fertig` sichtbar
+  (`_TEXT_WARTE_MODUS`) — ohne Bot gibt es keinen Ort für sie.
+- **`/fertig` erst nach dem letzten Segment.** Es wird erst eingereiht, wenn
+  der letzte Recorder sein `onstop` hatte — sonst verdichtet der Bot ein
+  Interview, dem das letzte Segment fehlt. Ist der Servermodus schon aus
+  (anderes Telefon, Erkenner), wird es nicht mehr gesendet.
+- **Modusende hält an, statt still nachzuschicken.** Endet der Interviewmodus
+  serverseitig, während dieses Telefon noch aufnimmt oder Segmente offen hat,
+  stoppt die Aufnahme, die offenen Segmente werden **geparkt** (auch eines,
+  dessen Upload erst danach scheitert), und die Gruppe entscheidet:
+  „Rest als Interview nachreichen" (`/interview`, die Segmente, `/fertig` —
+  nur, solange kein anderes Interview läuft, `_TEXT_NACHREICHEN_SPAETER`) oder
+  „Rest verwerfen". Ohne Modus wäre ein 45-s-Segment ein Gesprächsbeitrag,
+  und Gesprächszug, Erkenner und Journal liefen über Interviewmaterial.
+  **Vorläufige Voreinstellung, die Entscheidung liegt bei Birk.**
+- **Das Mikrofon wird freigegeben** (Tracks gestoppt, `AudioContext.close()`)
+  nach jedem Interview-Ende, jedem PTT-Druck und in jedem Fehlerzweig; und
+  `beforeunload` warnt bei laufender Aufnahme, gehaltenem PTT, voller Schlange
+  oder geparkten Segmenten.
+Der Leer-Schutz ist der vorhandene (`aufnahme._TEXT_LEER_VERWORFEN`). **Zwei
+bekannte Grenzen, bewusst offen:** `fetch` hat kein Timeout (ein hängender
+Upload hält die Schlange, bis der Browser aufgibt), und eine Wiederholung nach
+Netzfehler kann einen schon angekommenen Upload doppelt anlegen (keine
+Idempotenz-Kennung); PTT nimmt erst nach `getUserMedia` auf, der Anfang kann
+fehlen.
+
+**Die Endung entscheidet über den MIME-Typ** (Falle 3, und hier war die eine
+Stelle, die dafür angefasst werden musste): `web_kanal.MIME_ERLAUBT`
+(= `web_chat.MIME_ERLAUBT`, eine Tabelle an einer Stelle) ist eine
+Allowlist **Content-Type → Endung** (`audio/webm` → `.webm`, `audio/mp4` →
+`.m4a` für Safari, dazu `audio/ogg` und `audio/mpeg`), die Datei landet mit
+dieser Endung unter `IT_AUDIO/<chat_id>/web-eingang/`, und
+`telegram.lies_nachricht` trägt sie als neuen, optionalen Schlüssel `endung`
+weiter, den `aufnahme.empfange` in den Zielpfad setzt. Ohne das bekäme ein
+WebM den Pfad `<message_id>.ogg` und damit `audio/ogg`. Telegram nennt keine
+Endung; dort bleibt es bei `aufnahme.ENDUNG_VORGABE` (`.ogg`), bitgleich wie
+vorher. Größengrenze je Segment: **8 MiB** (`MAX_AUDIO_BYTES`) — gerechnet
+aus Opus 32 kbit/s ≈ 180 KiB je 45 s mit zwanzigfacher Luft, und klar unter
+`stt.MAX_UPLOAD_BYTES` (25 MiB).
+
+**Betrieb:** dieselbe Unit-Vorlage, dasselbe `scripts/betrieb-start.sh`,
+derselbe Profil-Check — ein Web-Bot unterscheidet sich allein durch
+`IT_KANAL=web` und `IT_WEB_CHAT_ID` in `betrieb/<gruppe>.env`.
+`IT_BOT_TOKEN` ist dort nicht Pflicht. **Zwei Variablen gehören dagegen
+(auch) in die Web-Unit**, weil der Webserver keine `Einstellungen` lädt und
+selbst aus seiner Umgebung liest: `IT_WEB_SEGMENT_MS` (die Seite gibt den Wert
+an den Browser weiter — in der Env eines Bots wirkt er auf den Browser
+nicht) und `IT_AUDIO` (der Webserver legt die Uploads dort ab, und
+`WebKanal.lade_datei` verweigert jeden Pfad außerhalb des **eigenen**
+`IT_AUDIO` — Web-Unit und Web-Bots müssen aufs selbe Verzeichnis zeigen;
+beide laufen im Repo-Verzeichnis, Vorgabe `audio`). Die Web-Unit setzt
+`IT_AUDIO` deshalb ausdrücklich (`docs/interview-theater-web.service`), der
+Webserver speichert den Upload-Pfad **absolut** und nennt das Verzeichnis
+beim Start in `betrieb/web.log` (Abschlussreview I5).
+
+**Abnahme:** `tests/test_web_e2e_http.py` fährt eine Gruppe per HTTP von
+Phase 1 bis zum ersten Interview (`bot.schleife` mit `WebKanal` und ein echter
+Webserver; Attrappen nur für Sprachmodell und Whisper). `tests/e2e/test_web_chat_e2e.py` (Playwright, 29 Tests,
+Fakes für `getUserMedia`/`MediaRecorder`) prüft im Browser Segmente,
+PTT-Abbruch, Warteschlange, Modusende und das Handy-Bild; der Screenshot
+`docs/web-chat/handy-2026-09-30.png` wird nur mit
+`IT_SCHUSS_AKTUALISIEREN=1` überschrieben. Ohne Playwright wird die Datei
+übersprungen.
+
+**Was bewusst fehlt** (siehe „Was bewusst fehlt" unten): ein QR-Code zum
+Link, die englischen UI-Texte, die Härtung (Rate-Limit, Nonce in der Query)
+und die Kennzeichnung des Transkript-Echos — die Härtung macht die Karte
+„Absicherung Web".
 
 ### Fassungen umschalten (07.09.2026)
 
@@ -2542,6 +2814,49 @@ Netz.
   fertig ist. Geblieben ist die Frage (`phasen.moegliche_naechste` /
   `offenes_angebot`): erlaubt die Materiallage eine höhere Phase, bietet der
   Bot sie im Fluss an, gesetzt wird sie nur von der Gruppe.
+
+Die Übergaben der Karte Padua A2 (Web-Kanal, 30.09.2026) — was sie bewusst
+**nicht** erledigt, jeweils mit Grund:
+
+- **Ein QR-Code zum Gruppenlink.** `scripts/web_gruppe.py` gibt die URL aus,
+  keinen Code — dafür bräuchte es eine Abhängigkeit (`qrcode`, `segno`), und
+  das Projekt hat auf der Webseite bewusst nur die Standardbibliothek. Wer ihn
+  will, entscheidet vorher, welche Abhängigkeit er sich leistet.
+- **Englische UI-Texte der Chatansicht.** Die neuen Texte stehen als
+  modulweite `_TEXT_*`-Konstanten in `web_chat.py` — genau die Form, die der
+  Mechanismus aus Karte A1 (`T = sprache.Texte(__name__)`) später übersetzt.
+  Übersetzt sind sie noch nicht; das ist eine Übergabe an A1, nicht eine
+  Lücke dieser Karte.
+- **Härtung der Weboberfläche** („Absicherung Web"). Es gibt kein
+  Rate-Limit: wer den Link hat, kann so viele Nachrichten und Uploads
+  schicken, wie er will, und jeder Upload kostet bis zu 8 MiB Speicher und
+  einen bezahlten Whisper-Aufruf; heute begrenzen nur `MAX_AUDIO_BYTES` und
+  `MAX_TEXT_ZEICHEN` das **einzelne** Ereignis. Das Token in der URL ist
+  weiterhin das einzige Geheimnis (E6), und der Nonce steht bei Audio in der
+  Query und damit in der Serverlogzeile (`web._Basishandler.log_message`) —
+  neu ist das nicht, das Token steht dort ebenfalls.
+- **Das Transkript-Echo ist im Web eine gewöhnliche Blase.** In Telegram
+  steht es als `typ='transkript'` in `nachricht` und fällt damit aus allen
+  drei Fenstern; im Chat sieht es aus wie jede andere Bot-Nachricht, weil es
+  über `tg.sende` läuft. Fachlich ist das richtig (es IST die Bestätigung),
+  optisch fehlt die Kennzeichnung „das ist dein abgetippter Text, keine
+  Antwort des Bots". Übergabe an „Absicherung Web".
+- **Die Endung im Telegram-Pfad** (siehe Falle 3): `audio`-Nachrichten und
+  Dokumente bekommen in Telegram weiterhin einen `.ogg`-Pfad. Nicht
+  angefasst, weil es den Telegram-Pfad ändert (E1).
+- **Der Simulator kennt den Web-Kanal nicht.** `simulation/` fährt weiter
+  über `TelegramAttrappe` und `bot.verarbeite_update` direkt. Das ist in
+  Ordnung (sie misst Prompts und Navigation, nicht den Kanal), aber ein Lauf
+  über `WebKanal` wäre der ehrlichere Test des Web-Wegs — `hole_updates` ist
+  die eine Methode, die die Simulation nicht berührt.
+- **`WebKanal.aktualisiere_knoepfe` hat keinen Aufrufer.** Implementiert und
+  getestet, aber `interview_theater/` ruft sie seit dem 06.09.2026 nicht
+  (Fragenauswahl per Nummer im Text). Der nächste Toggle bringt sie zurück.
+- **Kein Dashboard-Blick auf den Kanal.** `gruppe.kanal` steht in der
+  Datenbank, aber nicht in `web_daten.dashboard`.
+- ~~Der Chat-Link steht auch bei Telegram-Gruppen.~~ Seit dem
+  Abschlussreview (I3) behoben: Link nur bei `gruppe.kanal = 'web'`, alle
+  Wege unter `/chat` sonst 404 (siehe „Der Web-Kanal").
 
 Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
 „Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit

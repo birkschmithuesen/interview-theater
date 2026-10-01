@@ -19,6 +19,7 @@ Alle Werte kommen so heraus, wie sie in der Datenbank stehen (Zeitstempel als
 ISO-8601-Text in UTC); Formatierung und Maskierung sind Sache von web.py.
 """
 
+import json
 import sqlite3
 import statistics
 from datetime import datetime, timedelta, timezone
@@ -1063,6 +1064,28 @@ def chat_id_nach_token(conn: sqlite3.Connection, token: str | None) -> int | Non
     return zeile["chat_id"] if zeile else None
 
 
+def web_chat_id_nach_token(conn: sqlite3.Connection, token: str | None) -> int | None:
+    """Die ``chat_id`` zu einem Web-Token -- aber NUR fuer eine Gruppe im
+    Web-Kanal (``gruppe.kanal = 'web'``), sonst None (Abschlussreview I3).
+
+    Die Chatansicht (``/g/<token>/chat``) gibt es nur dort: eine
+    Telegram-Gruppe hat keinen Bot, der ``web_post`` liest -- was sie im
+    Browser schriebe, laege ungelesen in der Tabelle, und niemand saehe es.
+    Gruppenseite, Probenansicht und Leitfaden bleiben fuer jede Gruppe
+    (``chat_id_nach_token``). Eine fehlende Spalte ``kanal`` (Bot noch nicht
+    migriert) heisst: keine Web-Gruppe."""
+    if not token:
+        return None
+    try:
+        zeile = conn.execute(
+            "SELECT chat_id FROM gruppe WHERE web_token = ? AND kanal = 'web'",
+            (token,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return zeile["chat_id"] if zeile else None
+
+
 def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | None:
     """Die Leseansicht einer Gruppe, adressiert ueber ihr Web-Token.
 
@@ -1105,6 +1128,9 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # nginx das Praefix durchreicht.
         "web_token": token,
         "bot_name": zeile["bot_name"],
+        # Der Kanal (Abschlussreview I3): nur eine Web-Gruppe bekommt den
+        # Link in die Chatansicht. Fehlt die Spalte noch, ist es Telegram.
+        "kanal": _feld(zeile, "kanal") or "telegram",
         "interviewmodus_seit": zeile["interviewmodus_seit"],
         "arbeitsstand": stand,
         # Was die Gruppe festgelegt hat und wofuer es kein Feld gibt
@@ -1312,3 +1338,213 @@ def dramaturgie(conn: sqlite3.Connection, chat_id: int) -> dict:
             for z in zeilen if z["runde"] == runde
         ],
     }
+
+
+# --- Der Web-Chat (30.09.2026, Karte Padua A2) -----------------------------
+
+#: Wie viele Nachrichten die Chatansicht hoechstens auf einmal traegt. Ein
+#: Workshoptag sind einige hundert; mehr als das braucht niemand auf einem
+#: Telefon, und der Poll holt ohnehin nur das Neue (``nach``).
+CHAT_GRENZE = 200
+
+#: Was NICHT im Chat steht: der Umschalter-Druck, der als Slash-Text in den
+#: Bot geht. Slash-Befehle werden nicht beworben (AGENTS.md) -- beworben wird
+#: der Knopf, und der steht schon da.
+_CHAT_VERBORGEN = ("befehl",)
+
+
+def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE) -> list:
+    """Der Chatverlauf einer Web-Gruppe ab ``nach`` (exklusiv), aelteste zuerst.
+
+    Geliefert wird genau das, was die Ansicht braucht -- **und der Dateipfad
+    ist nicht dabei.** Er ist eine Serverinnerei, und die Seite ist ohne Login
+    erreichbar (dieselbe Grenze wie 'kein Volltranskript auf der
+    Gruppenseite')."""
+    zeilen = conn.execute(
+        "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am "
+        "FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
+        f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
+        "AND typ != 'knopf' "
+        "ORDER BY id ASC LIMIT ?",
+        (chat_id, nach, *_CHAT_VERBORGEN, grenze),
+    ).fetchall()
+    return [
+        {
+            "id": int(z["id"]),
+            "von": "bot" if z["richtung"] == "aus" else "gruppe",
+            "typ": z["typ"],
+            "text": z["text"],
+            "knoepfe": _web_knoepfe(z["knoepfe"]),
+            "dauer": z["dauer"],
+            "dateiname": z["dateiname"],
+            "zeit": z["erstellt_am"],
+        }
+        for z in zeilen
+    ]
+
+
+def _web_knoepfe(roh) -> list:
+    """Dieselbe Deutung wie ``repo.web_knoepfe`` -- hier eigens, weil
+    ``web_daten`` bewusst nicht von ``repo`` abhaengt (der Webserver soll
+    keinen Schreibpfad importieren, siehe Moduldocstring)."""
+    if not roh:
+        return []
+    try:
+        gelesen = json.loads(roh)
+    except (TypeError, ValueError):
+        return []
+    return [list(eintrag) for eintrag in gelesen if len(eintrag) == 2]
+
+
+def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int]:
+    """Was sich an schon gelieferten Zeilen geaendert hat -- ``(zeilen, stand)``.
+
+    ``WebKanal.aendere_text`` (die wechselnden Arbeitszeilen),
+    ``entferne_knoepfe`` und ``loesche_nachrichten`` aendern Zeilen, deren id
+    der Browser laengst hat; der Poll ueber ``nach`` saehe das nie. Jede
+    solche Aenderung setzt ``web_post.aenderung`` (``repo``), und hier wird
+    gefragt: alles mit einem Zaehler ueber ``seit``.
+
+    ``stand`` ist der Wert, den der Browser beim naechsten Poll als ``seit``
+    mitschickt. Er kommt aus DERSELBEN Abfrage wie die Zeilen: jede spaetere
+    Aenderung bekommt einen hoeheren Wert, also geht nichts verloren. Ohne
+    ``seit`` (Seitenaufbau) gibt es keine Zeilen, nur den Stand -- die Seite
+    zeigt ohnehin schon den aktuellen Text.
+
+    Eine Datenbank ohne die Spalte (der Webserver migriert nichts) liefert
+    ``([], 0)`` statt eines Fehlers."""
+    try:
+        if seit is None:
+            zeile = conn.execute(
+                "SELECT COALESCE(MAX(aenderung), 0) AS stand FROM web_post "
+                "WHERE chat_id = ?",
+                (chat_id,),
+            ).fetchone()
+            return [], int(zeile["stand"])
+        zeilen = conn.execute(
+            "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, "
+            "geloescht_am, aenderung FROM web_post "
+            "WHERE chat_id = ? AND aenderung > ? "
+            f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
+            "AND typ != 'knopf' ORDER BY aenderung ASC LIMIT ?",
+            (chat_id, seit, *_CHAT_VERBORGEN, CHAT_GRENZE),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return [], 0
+    stand = max([seit, *(int(z["aenderung"]) for z in zeilen)])
+    return [
+        {
+            "id": int(z["id"]),
+            "von": "bot" if z["richtung"] == "aus" else "gruppe",
+            "typ": z["typ"],
+            "text": z["text"],
+            "knoepfe": _web_knoepfe(z["knoepfe"]),
+            "dauer": z["dauer"],
+            "dateiname": z["dateiname"],
+            "geloescht": z["geloescht_am"] is not None,
+        }
+        for z in zeilen
+    ], stand
+
+
+def web_chatzustand(conn, token: str, nach: int = 0,
+                    seit: int | None = None) -> dict | None:
+    """Alles, was der Browser bei einem Poll braucht -- oder None bei
+    unbekanntem Token.
+
+    Ein Aufruf statt vier: der Browser fragt alle zwei Sekunden, und vier
+    Anfragen je Takt waeren bei drei Gruppen mit je zwei Telefonen
+    sechsunddreissig Anfragen in der Minute fuer dieselbe Antwort.
+
+    ``seit`` ist der Aenderungsstand des letzten Polls
+    (``web_chataenderungen``); ``geaendert`` traegt, was sich an schon
+    gelieferten Zeilen getan hat, ``aenderung`` den neuen Stand.
+
+    Nur fuer Web-Gruppen (``web_chat_id_nach_token``, Abschlussreview I3)."""
+    chat_id = web_chat_id_nach_token(conn, token)
+    if chat_id is None:
+        return None
+    gruppe = conn.execute(
+        "SELECT titel, interviewmodus_seit, web_tippt_bis FROM gruppe WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    # Der Aenderungsstand VOR dem Verlauf (Re-Review G): eine Aenderung
+    # zwischen den beiden Abfragen steht dann entweder schon im Verlauf oder
+    # kommt beim naechsten Poll -- verloren geht sie nicht.
+    geaendert, stand_aenderung = web_chataenderungen(conn, chat_id, seit)
+    nachrichten = web_chatverlauf(conn, chat_id, nach)
+    letzte = nachrichten[-1]["id"] if nachrichten else nach
+    # Phase wie web_daten.py:107 -- repo-frei, fehlende Spalte = None.
+    stand = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    return {
+        "chat_id": chat_id,
+        "titel": gruppe["titel"] if gruppe else None,
+        "phase": _feld(stand, "phase"),
+        "interviewmodus": bool(gruppe and gruppe["interviewmodus_seit"]),
+        "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
+        "nachrichten": nachrichten,
+        "letzte": letzte,
+        "antworten": _web_antworten(conn, chat_id),
+        "geaendert": geaendert,
+        "aenderung": stand_aenderung,
+        "segment_ms": None,   # setzt der HTML-Bau, nicht der Poll
+    }
+
+
+def _tippt_noch(bis_iso) -> bool:
+    """Gilt die Tippanzeige noch? ``WebKanal.tippt`` setzt sie auf
+    ``jetzt + TIPPT_GUELTIG_S``; ist der Zeitpunkt vorbei, schreibt gerade
+    niemand mehr (und ein abgebrochener Lauf laesst sie nicht stehen)."""
+    zeitpunkt = lies_zeitstempel(bis_iso)
+    if zeitpunkt is None:
+        return False
+    return zeitpunkt > datetime.now(timezone.utc)
+
+
+def _web_antworten(conn, chat_id: int) -> dict:
+    """Die ``answerCallbackQuery``-Texte der letzten Knopfdruecke, nach
+    Druck-id. In Telegram ist das die kleine Blase ueber dem Knopf; im
+    Browser zeigt sie die Seite kurz unter der Leiste an."""
+    zeilen = conn.execute(
+        "SELECT id, antwort FROM web_post WHERE chat_id = ? AND typ = 'knopf' "
+        "AND antwort IS NOT NULL ORDER BY id DESC LIMIT 5",
+        (chat_id,),
+    ).fetchall()
+    return {str(int(z["id"])): z["antwort"] for z in zeilen}
+
+
+def web_leiste(conn, chat_id: int, message_id: int) -> list | None:
+    """Die Leiste, die gerade unter dieser Nachricht in DIESER Gruppe haengt --
+    oder None, wenn es die Nachricht nicht gibt.
+
+    Unterschied zwischen ``None`` und ``[]``: die Nachricht gibt es nicht
+    gegen die Nachricht hat keine Knoepfe (mehr). Der Aufrufer antwortet auf
+    beides mit 400, aber im Log soll der Unterschied stehen.
+
+    ``chat_id`` in der Bedingung: dieselbe Datenbank traegt alle Gruppen des
+    Workshops, und ein weitergegebener Link darf nie in fremde Daten
+    schreiben (dieselbe Regel wie ``knoepfe.behandle``)."""
+    zeile = conn.execute(
+        "SELECT knoepfe FROM web_post WHERE id = ? AND chat_id = ? "
+        "AND richtung = 'aus' AND geloescht_am IS NULL",
+        (message_id, chat_id),
+    ).fetchone()
+    if zeile is None:
+        return None
+    return _web_knoepfe(zeile["knoepfe"])
+
+
+def web_ausgangsdatei(conn, chat_id: int, post_id: int) -> dict | None:
+    """Die Datei zu einer ``sende_datei``-Zeile (Textbuch-Export) -- Pfad und
+    Name, oder None. Der Pfad bleibt serverseitig; die Route liefert den
+    Inhalt aus, nicht den Ort."""
+    zeile = conn.execute(
+        "SELECT datei, dateiname FROM web_post WHERE id = ? AND chat_id = ? "
+        "AND typ = 'datei' AND geloescht_am IS NULL",
+        (post_id, chat_id),
+    ).fetchone()
+    if zeile is None or not zeile["datei"]:
+        return None
+    return {"pfad": zeile["datei"], "dateiname": zeile["dateiname"] or "datei"}

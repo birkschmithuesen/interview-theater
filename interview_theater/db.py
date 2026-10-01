@@ -40,7 +40,13 @@ CREATE TABLE IF NOT EXISTS gruppe (
   -- Whisper-Sprache dieser Gruppe (Karte A1): NULL = Profilwert
   -- (sprache.whisper), sonst 'auto' oder ein ISO-639-1-Code. Additiv
   -- nachgeruestet ueber _migriere_fehlende_spalten.
-  stt_sprache                     TEXT
+  stt_sprache                     TEXT,
+  -- Welcher Kanal diese Gruppe bedient (30.09.2026): 'telegram' (Vorgabe) oder
+  -- 'web'. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  kanal                           TEXT NOT NULL DEFAULT 'telegram',
+  -- Bis wann die Tippanzeige im Web gilt (ISO 8601). Eine Spalte statt einer
+  -- Zeile je Aufruf, siehe den Kommentar an web_post.
+  web_tippt_bis                   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (
@@ -758,6 +764,58 @@ CREATE TABLE IF NOT EXISTS erkenner_lauf_schritt (
 CREATE INDEX IF NOT EXISTS idx_erkenner_lauf_schritt_lauf
   ON erkenner_lauf_schritt(lauf_id);
 
+-- Der Web-Kanal (30.09.2026, Karte Padua A2): der Webserver ist fuer den Bot
+-- das, was Telegrams Server heute ist. Browser-Ereignisse liegen hier als
+-- Eingang ('ein'), Bot-Ausgaben als Ausgang ('aus').
+--
+-- EINE Tabelle fuer beide Richtungen, und das ist der Kern: ``id`` ist
+-- zugleich die ``message_id`` und die ``update_id``. Zaehlten Gruppe und Bot
+-- in getrennten Folgen, laege jede Gruppennachricht ab dem zweiten Zug unter
+-- dem Wasserzeichen ``gruppe.letzte_beantwortete_message_id``, und der Bot
+-- beantwortete sie nie (gemessen in simulation/attrappe.naechste_message_id).
+-- Telegram vergibt die ids ebenfalls fortlaufend je Chat, ueber alle Absender.
+--
+-- Die Tippanzeige steht NICHT hier, sondern in gruppe.web_tippt_bis:
+-- arbeitszeilen.TIPP_S = 4,0 s heisst bei einem vierminuetigen Szenenlauf 60
+-- Aufrufe, und eine Tippanzeige ist keine Nachricht.
+--
+-- AUTOINCREMENT (Abschlussreview I2): ohne es vergaebe SQLite nach dem
+-- Loeschweg einer Gruppe (loesche_gruppe nimmt ihre Zeilen) die frei
+-- gewordenen hoechsten ids erneut -- und eine neue Zeile laege unter dem
+-- Offset eines Bots, der die alte schon gesehen hat. Eine schon angelegte
+-- Tabelle aendert CREATE TABLE IF NOT EXISTS nicht; das betrifft nur
+-- Entwicklungs-DBs dieser Karte (die Tabelle ist neu), und
+-- repo.hoechste_web_post_id faellt dort auf MAX(id) zurueck.
+CREATE TABLE IF NOT EXISTS web_post (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT, -- = message_id = update_id
+  chat_id           INTEGER NOT NULL,
+  richtung          TEXT NOT NULL,              -- 'ein' (Browser) | 'aus' (Bot)
+  -- 'ein': text|sprache|knopf|befehl -- 'aus': text|datei
+  -- 'befehl' ist ein Umschalter-Druck, der als Slash-Text in den Bot geht und
+  -- in der Chatansicht verborgen bleibt: Slash-Befehle werden nicht beworben.
+  typ               TEXT NOT NULL,
+  text              TEXT,
+  knoepfe           TEXT,                       -- JSON [[beschriftung, daten], ...]
+  daten             TEXT,                       -- 'knopf': die callback_data
+  bezug_message_id  INTEGER,                    -- 'knopf': unter welcher Nachricht
+  antwort           TEXT,                       -- 'knopf': answerCallbackQuery-Text
+  dauer             INTEGER,                    -- 'sprache': Sekunden vom Client
+  datei             TEXT,                       -- 'sprache'/'datei': Pfad
+  mime              TEXT,
+  dateiname         TEXT,                       -- 'datei': Name fuer den Download
+  geloescht_am      TEXT,                       -- loesche_nachrichten, weich
+  erstellt_am       TEXT NOT NULL,
+  -- Aenderungszaehler: jede Aenderung an einer schon geschriebenen Zeile
+  -- (aendere_text, Leiste tauschen/entfernen, loeschen) setzt ihn auf
+  -- MAX+1 ueber die ganze Tabelle. Ein Zaehler und keine Uhrzeit: SQLite
+  -- serialisiert die Schreiber, der Wert steigt also in Commit-Reihenfolge,
+  -- und der Poll der Chatansicht ("alles nach N") verpasst nichts. NULL =
+  -- nie geaendert (neue Zeilen holt der Poll ueber die id).
+  aenderung         INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_web_post_eingang
+  ON web_post(chat_id, richtung, id);
+
 -- Was das Dashboard rot färbt
 CREATE TABLE IF NOT EXISTS vorfall (
   id           INTEGER PRIMARY KEY,
@@ -810,6 +868,7 @@ TABELLEN_MIT_CHAT_ID = (
     # Karte U (01.10.2026): die Ruecknahme eines Erkennerlaufs.
     "erkenner_lauf",
     "erkenner_lauf_schritt",
+    "web_post",
     "vorfall",
     "aufruf",
 )

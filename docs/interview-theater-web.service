@@ -9,6 +9,13 @@ WorkingDirectory=%h/projekte/interview-theater
 # Gruppe eine Instanz startet. Der Server liest die Datenbank read-only und
 # braucht deshalb keine betrieb/<gruppe>.env, nur den Pfad.
 Environment=IT_DB=betrieb/soap.db
+# Web-Kanal: Uploads aus dem Browser landen unter IT_AUDIO/<chat_id>/web-eingang/,
+# der Web-Bot holt sie dort ab und verweigert jeden Pfad ausserhalb SEINES
+# IT_AUDIO. Deshalb ausdruecklich gesetzt und GLEICHER WERT wie in den
+# betrieb/<gruppe>.env der Bots (Vorgabe dort: ./audio, relativ zum
+# WorkingDirectory). Der Server speichert den Pfad absolut und nennt das
+# Verzeichnis beim Start in betrieb/web.log.
+Environment=IT_AUDIO=%h/projekte/interview-theater/audio
 # Tailnet-Adresse, nie 0.0.0.0: die Gruppenseiten haben kein Login. nginx auf
 # herkules gibt https://lab.artesmobiles.art/theatersoap/ hierher weiter.
 Environment=IT_WEB_BIND=100.75.24.33:8010

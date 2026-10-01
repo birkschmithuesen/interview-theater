@@ -3469,3 +3469,255 @@ def nimm_erkenner_lauf_zurueck(
         conn.rollback()
         raise
     return ZURUECK_OK
+
+
+# --- Der Web-Kanal (30.09.2026, Karte Padua A2) ----------------------------
+
+#: Die beiden Richtungen in ``web_post``.
+RICHTUNG_EIN = "ein"
+RICHTUNG_AUS = "aus"
+
+#: Die Typen. ``befehl`` geht als Slash-Text in den Bot und bleibt in der
+#: Chatansicht verborgen -- Slash-Befehle werden nicht beworben (AGENTS.md).
+WEB_TYP_TEXT = "text"
+WEB_TYP_SPRACHE = "sprache"
+WEB_TYP_KNOPF = "knopf"
+WEB_TYP_BEFEHL = "befehl"
+WEB_TYP_DATEI = "datei"
+
+#: Ab hier liegen die synthetischen chat_ids der Web-Gruppen. Positiv und weit
+#: oberhalb aller Telegram-Bereiche (Gruppen sind dort negativ, Nutzer-ids
+#: liegen unter 10^10): eine Web-chat_id kann so nie mit einer echten
+#: kollidieren. Geprueft am 30.09.2026: im ganzen Repo leitet keine Stelle aus
+#: dem Vorzeichen einer chat_id etwas ab.
+WEB_CHAT_ID_BASIS = 7_000_000_000_000
+
+
+def web_knoepfe(zeile) -> list[list[str]]:
+    """Die Leiste einer ``web_post``-Zeile als Liste ``[beschriftung, daten]``.
+
+    Reine Funktion ohne Datenbankzugriff, damit der Bot-Prozess und die
+    read-only Leseseite dieselbe Deutung benutzen: die Form des JSON soll an
+    genau einer Stelle stehen. Kaputtes JSON gibt eine leere Liste und keinen
+    Fehler -- eine Nachricht ohne Knoepfe ist besser als eine Seite, die nicht
+    laedt."""
+    if zeile is None:
+        return []
+    roh = zeile["knoepfe"] if "knoepfe" in zeile.keys() else None
+    if not roh:
+        return []
+    try:
+        gelesen = json.loads(roh)
+    except (TypeError, ValueError):
+        return []
+    return [list(eintrag) for eintrag in gelesen if len(eintrag) == 2]
+
+
+@_gesperrt
+def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
+                     text=None, knoepfe=None, daten=None,
+                     bezug_message_id=None, dauer=None,
+                     datei=None, mime=None, dateiname=None) -> int:
+    """Legt eine Zeile in ``web_post`` an und liefert ihre id.
+
+    Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
+    beide Richtungen (siehe Tabellenkommentar in db.py)."""
+    cur = conn.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
+        "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            chat_id, richtung, typ, text,
+            json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
+            if knoepfe else None,
+            daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
+        ),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+@_gesperrt
+def web_eingang(conn, chat_id: int, ab_update_id: int, grenze: int = 50) -> list:
+    """Die eingehenden Posts ab ``ab_update_id``, aelteste zuerst.
+
+    Das Gegenstueck zu ``telegram.Telegram.hole_updates``: ``bot.schleife``
+    rechnet ``offset = hole_update_id() + 1`` und erwartet alles ab dort.
+    ``grenze`` deckelt einen Stapel, damit ein Browser, der nach einer
+    Netztrennung zehn Segmente nachschiebt, die Schleife nicht blockiert --
+    der Rest kommt im naechsten Durchlauf."""
+    return conn.execute(
+        "SELECT * FROM web_post WHERE chat_id = ? AND richtung = ? AND id >= ? "
+        "AND geloescht_am IS NULL ORDER BY id ASC LIMIT ?",
+        (chat_id, RICHTUNG_EIN, ab_update_id, grenze),
+    ).fetchall()
+
+
+#: Der Vorfall, mit dem ``aufnahme.empfange`` einen endgueltig gescheiterten
+#: Download festhaelt, und der Anfang seines ``detail`` -- das Kennzeichen,
+#: an dem ``web_segmente_unterwegs`` ein Segment als "erledigt, ohne
+#: Aufnahme" erkennt. Der Wortlaut steht in ``aufnahme.empfange``; ein Test
+#: (tests/test_web_abschluss_fixes.py) erzeugt den Vorfall ueber genau
+#: diesen Weg und bricht, wenn beide auseinanderlaufen.
+_VORFALL_DOWNLOAD = "download_fehlgeschlagen"
+_VORFALL_DOWNLOAD_DETAIL = "Sprachnachricht message_id="
+
+
+@_gesperrt
+def web_segmente_unterwegs(conn, chat_id: int, vor_id: int, seit: str) -> list:
+    """Die Segmente (``sprache``-Posts) dieser Gruppe vor ``vor_id`` und ab
+    ``seit``, die beim Bot noch nicht angekommen sind (Abschlussreview I1).
+
+    "Angekommen" heisst: ``aufnahme.empfange`` hat die ``aufnahme``-Zeile
+    angelegt (``message_id`` = Post-id), oder der Download ist endgueltig
+    gescheitert -- dann gibt es bewusst keine Zeile, aber den Vorfall
+    ``download_fehlgeschlagen`` mit der message_id im ``detail``. Liefert
+    ``id`` und ``erstellt_am``; die Frist rechnet ``web_kanal``."""
+    return conn.execute(
+        "SELECT p.id, p.erstellt_am FROM web_post p "
+        "WHERE p.chat_id = ? AND p.richtung = ? AND p.typ = ? AND p.id < ? "
+        "AND p.geloescht_am IS NULL AND p.erstellt_am >= ? "
+        "AND NOT EXISTS (SELECT 1 FROM aufnahme a "
+        "  WHERE a.chat_id = p.chat_id AND a.message_id = p.id) "
+        "AND NOT EXISTS (SELECT 1 FROM vorfall v "
+        "  WHERE v.chat_id = p.chat_id AND v.art = ? "
+        "  AND v.detail LIKE ? || p.id || ':%') "
+        "ORDER BY p.id ASC",
+        (chat_id, RICHTUNG_EIN, WEB_TYP_SPRACHE, vor_id, seit,
+         _VORFALL_DOWNLOAD, _VORFALL_DOWNLOAD_DETAIL),
+    ).fetchall()
+
+
+@_gesperrt
+def hoechste_web_post_id(conn) -> int:
+    """Die hoechste je vergebene ``web_post.id`` (Abschlussreview I2), 0 bei
+    leerer Tabelle.
+
+    Aus ``sqlite_sequence``, weil die Tabelle ``AUTOINCREMENT`` traegt: der
+    Wert sinkt nie, auch wenn der Loeschweg die hoechsten Zeilen nimmt.
+    ``MAX(id)`` steht daneben als Rueckfall fuer eine Entwicklungs-DB, deren
+    Tabelle noch ohne ``AUTOINCREMENT`` angelegt wurde (dort gibt es keine
+    Zeile in ``sqlite_sequence``)."""
+    hoechste = conn.execute("SELECT COALESCE(MAX(id), 0) FROM web_post").fetchone()[0]
+    try:
+        folge = conn.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'web_post'"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        folge = None  # noch keine einzige AUTOINCREMENT-Tabelle beschrieben
+    return max(int(hoechste), int(folge[0]) if folge else 0)
+
+
+@_gesperrt
+def hole_web_post(conn, post_id: int):
+    """Eine Zeile, egal welcher Richtung und ob geloescht -- der Aufrufer muss
+    den Unterschied kennen (wie bei ``hole_knopf``)."""
+    return conn.execute("SELECT * FROM web_post WHERE id = ?", (post_id,)).fetchone()
+
+
+#: Der naechste Wert von ``web_post.aenderung`` -- als Unterabfrage IM
+#: UPDATE, nicht vorher gelesen: die Anweisung haelt die Schreibsperre der
+#: Datenbank, also kann zwischen Lesen und Schreiben kein anderer Prozess
+#: (Bot, Webserver) denselben Wert vergeben. Ueber die ganze Tabelle und
+#: nicht je Gruppe, damit die Folge auch prozessuebergreifend nur steigt.
+_NAECHSTE_WEB_AENDERUNG = "(SELECT COALESCE(MAX(aenderung), 0) + 1 FROM web_post)"
+
+
+@_gesperrt
+def aendere_web_text(conn, chat_id: int, message_id: int, text: str) -> bool:
+    """Tauscht den Text einer ausgehenden Nachricht (``aendere_text``).
+
+    ``chat_id`` steht in der Bedingung und nicht nur in der Signatur:
+    dieselbe Datenbank traegt alle Gruppen des Workshops."""
+    cur = conn.execute(
+        f"UPDATE web_post SET text = ?, aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+        "WHERE id = ? AND chat_id = ? AND richtung = ? AND geloescht_am IS NULL",
+        (text, message_id, chat_id, RICHTUNG_AUS),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+@_gesperrt
+def setze_web_knoepfe(conn, chat_id: int, message_id: int, knoepfe) -> bool:
+    """Tauscht die Leiste unter einer ausgehenden Nachricht aus; ``None``
+    nimmt sie weg (``entferne_knoepfe`` / ``aktualisiere_knoepfe``)."""
+    cur = conn.execute(
+        f"UPDATE web_post SET knoepfe = ?, aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+        "WHERE id = ? AND chat_id = ? AND richtung = ? AND geloescht_am IS NULL",
+        (
+            json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
+            if knoepfe else None,
+            message_id, chat_id, RICHTUNG_AUS,
+        ),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+@_gesperrt
+def loesche_web_posts(conn, chat_id: int, message_ids: list) -> int:
+    """Nimmt Nachrichten aus der Ansicht (``loesche_nachrichten``) -- weich,
+    mit ``geloescht_am``, wie alles Entfernte in diesem Projekt. Liefert die
+    Zahl der wirklich betroffenen Zeilen (hoechstens 100, wie Telegram)."""
+    if not message_ids:
+        return 0
+    jetzt = _jetzt()
+    getroffen = 0
+    for message_id in message_ids[:100]:
+        cur = conn.execute(
+            "UPDATE web_post SET geloescht_am = ?, "
+            f"aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+            "WHERE id = ? AND chat_id = ? AND geloescht_am IS NULL",
+            (jetzt, message_id, chat_id),
+        )
+        getroffen += cur.rowcount
+    conn.commit()
+    return getroffen
+
+
+@_gesperrt
+def setze_web_datei(conn, post_id: int, pfad: str) -> None:
+    """Haelt fest, wo die Datei zu einer ``web_post``-Zeile liegt. Getrennt
+    vom Anlegen, weil der Pfad die id enthaelt: erst die Zeile, dann der
+    Name, dann der Verweis."""
+    conn.execute("UPDATE web_post SET datei = ? WHERE id = ?", (pfad, post_id))
+    conn.commit()
+
+
+@_gesperrt
+def setze_web_antwort(conn, post_id: int, text: str) -> None:
+    """Der Text aus ``answerCallbackQuery`` zu einem Knopfdruck. Der Browser
+    holt ihn beim naechsten Zustands-Poll ab -- in Telegram ist das die
+    kleine Blase ueber dem Knopf."""
+    conn.execute(
+        "UPDATE web_post SET antwort = ? WHERE id = ? AND typ = ?",
+        (text, post_id, WEB_TYP_KNOPF),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_web_tippt(conn, chat_id: int, bis_iso) -> None:
+    """Bis wann die Tippanzeige gilt. Eine Spalte statt einer Zeile je
+    Aufruf: ``arbeitszeilen`` ruft ``tippt`` alle vier Sekunden."""
+    conn.execute(
+        "UPDATE gruppe SET web_tippt_bis = ? WHERE chat_id = ?", (bis_iso, chat_id)
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_gruppe_kanal(conn, chat_id: int, kanal: str) -> None:
+    """'telegram' oder 'web'. Gesetzt von ``scripts/web_gruppe.py``."""
+    conn.execute("UPDATE gruppe SET kanal = ? WHERE chat_id = ?", (kanal, chat_id))
+    conn.commit()
+
+
+@_gesperrt
+def naechste_web_chat_id(conn) -> int:
+    """Die naechste freie synthetische chat_id fuer eine Web-Gruppe."""
+    hoechste = conn.execute(
+        "SELECT MAX(chat_id) FROM gruppe WHERE chat_id >= ?", (WEB_CHAT_ID_BASIS,)
+    ).fetchone()[0]
+    return WEB_CHAT_ID_BASIS if hoechste is None else int(hoechste) + 1

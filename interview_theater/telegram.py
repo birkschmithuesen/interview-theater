@@ -439,7 +439,12 @@ def _bestimme_file_id(nachricht: dict, typ: str) -> str | None:
 def lies_nachricht(update: dict) -> dict[str, Any] | None:
     """Normalisiert ein Telegram-Update auf die feste Schluesselmenge, mit der
     der Rest des Bots arbeitet. Liefert None, wenn das Update keine (auch keine
-    editierte) Nachricht enthaelt."""
+    editierte) Nachricht enthaelt.
+
+    ``endung`` ist additiv und bei einem echten Telegram-Update immer
+    ``None`` -- Telegram nennt keine Dateiendung, ``aufnahme.empfange`` legt
+    dort wie bisher eine ``.ogg`` an. Nur der Web-Kanal setzt sie (30.09.2026,
+    Karte Padua A2)."""
     nachricht = update.get("message") or update.get("edited_message")
     if nachricht is None:
         return None
@@ -456,6 +461,13 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         "file_id": _bestimme_file_id(nachricht, typ),
         "dauer": _sprachquelle(nachricht).get("duration"),
         "gesendet_am": _iso(nachricht["date"]),
+        # Die Dateiendung, wenn die Quelle eine nennt (30.09.2026, Web-Kanal).
+        # Telegram nennt keine -- dort bleibt der Wert None und
+        # ``aufnahme.empfange`` legt wie bisher eine ``.ogg`` ab. Der
+        # Web-Kanal setzt ihn, weil ``stt.mime_typ()`` den MIME-Typ aus der
+        # ENDUNG ableitet (Falle 3): ein WebM als ``.ogg`` abgelegt laesst den
+        # Whisper-Auftrag dauerhaft auf 'pending' stehen.
+        "endung": _sprachquelle(nachricht).get("endung"),
     }
 
 

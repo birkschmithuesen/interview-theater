@@ -6600,7 +6600,7 @@ Workshop-Profil und startet `interview_theater.bot.main`. Ein Web-Bot unterschei
 allein durch zwei Zeilen in der Env-Datei — dieselbe Unit, dasselbe Skript, derselbe
 Profil-Check. Genau das ist Entscheidung M, und es ist ein Nachweis, kein Umbau.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_betrieb_doku.py`:
 
@@ -6680,7 +6680,7 @@ def test_die_unit_vorlage_erwaehnt_den_web_kanal():
     assert "IT_KANAL" in _lies("docs/interview-theater@.service")
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_betrieb_doku.py -q -p no:cacheprovider
@@ -6690,7 +6690,7 @@ Erwartet: FAIL — die Variablen fehlen im Beispiel, `AGENTS.md` kennt die Modul
 `IT_MODELL_ERKENNER` — das ist der in `AGENTS.md` dokumentierte Altstand. Mit aufnehmen, es
 kostet eine Zeile und schliesst eine bekannte Luecke.
 
-- [ ] **Schritt 3: `docs/betrieb-env.beispiel`**
+- [x] **Schritt 3: `docs/betrieb-env.beispiel`**
 
 Anhaengen:
 
@@ -6718,7 +6718,7 @@ IT_WEB_SEGMENT_MS=45000
 IT_MODELL_ERKENNER=google/gemma-4-31B-it
 ```
 
-- [ ] **Schritt 4: `AGENTS.md`**
+- [x] **Schritt 4: `AGENTS.md`**
 
 **(a)** Drei Zeilen in die Modultabelle (alphabetisch bei den Nachbarn einsortieren):
 
@@ -6917,7 +6917,7 @@ englischen UI-Texte, und die Haertung (Rate-Limit) — die macht die Karte
    deshalb hier nicht angefasst.
 ```
 
-- [ ] **Schritt 5: `scripts/betrieb-start.sh` und die Unit-Vorlage**
+- [x] **Schritt 5: `scripts/betrieb-start.sh` und die Unit-Vorlage**
 
 In `betrieb-start.sh` hinter dem Laden der Env-Datei **nur einen Kommentar**:
 
@@ -6935,14 +6935,14 @@ In `docs/interview-theater@.service` einen Kommentar im Kopf:
 # steht in betrieb/<gruppe>.env (IT_KANAL, IT_WEB_CHAT_ID), nicht hier.
 ```
 
-- [ ] **Schritt 6: Lauf, alles gruen**
+- [x] **Schritt 6: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_betrieb_doku.py -q -p no:cacheprovider
 ```
 Erwartet: `8 passed`.
 
-- [ ] **Schritt 7: Der Abschluss-Nachweis**
+- [x] **Schritt 7: Der Abschluss-Nachweis**
 
 Alle drei, und alle drei muessen stimmen:
 
@@ -6972,7 +6972,7 @@ $PY -m scripts.pruefe_profil --vorgabe
 ```
 Erwartet: ebenfalls gruen (das eingebaute Vorgabeprofil).
 
-- [ ] **Schritt 8: Commit**
+- [x] **Schritt 8: Commit**
 
 ```bash
 git add AGENTS.md docs/betrieb-env.beispiel scripts/betrieb-start.sh \

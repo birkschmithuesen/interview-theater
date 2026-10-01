@@ -86,3 +86,30 @@ IT_SZENE_ANBIETER=claude
 # Wo die Profile liegen. Nur setzen, wenn das Verzeichnis nicht neben dem
 # Paket steht (Tests tun das).
 # IT_WORKSHOP_BASIS=
+
+# --- Der Kanal (30.09.2026, Karte Padua A2) --------------------------------
+# Womit diese Gruppe arbeitet: 'telegram' (Vorgabe) oder 'web'.
+# Ohne die Variable ist alles wie vorher -- Telegram bleibt Plan B. Ein
+# Tippfehler faellt NICHT still auf Telegram zurueck, der Start bricht ab.
+IT_KANAL=telegram
+
+# Nur im Web-Kanal: die eine Gruppe, die dieser Prozess bedient. Anlegen mit
+#   IT_DB=... IT_WEB_URL=... python -m scripts.web_gruppe anlegen <bot_name>
+# Das Skript gibt die chat_id, den Link fuer die Gruppe und die zwei
+# Env-Zeilen (IT_KANAL=web, IT_WEB_CHAT_ID=...) aus. IT_BOT_TOKEN ist im
+# Web-Kanal nicht noetig. Eine chat_id, die die Datenbank nicht kennt,
+# bricht den Start ab (bot.baue_kanal).
+# IT_WEB_CHAT_ID=7000000000001
+
+# Wie lang ein Aufnahmesegment im Browser ist (Millisekunden, Vorgabe 45000).
+# Jedes Segment ist ein eigener MediaRecorder-Lauf und damit eine
+# vollstaendige Datei -- Netz weg oder Tab zu verliert hoechstens dieses eine
+# Segment. ACHTUNG: an den Browser gibt den Wert der WEBSERVER weiter
+# (web_chat._segment_ms liest ihn aus SEINER Umgebung) -- wer ihn aendern
+# will, setzt ihn in der Env der Web-Unit. Nur im Test verkuerzt (tests/e2e).
+# IT_WEB_SEGMENT_MS=45000
+#
+# Der Webserver legt Uploads unter IT_AUDIO/<chat_id>/web-eingang/ ab, der
+# Web-Bot holt sie dort ab und verweigert jeden Pfad ausserhalb SEINES
+# IT_AUDIO. Web-Unit und Web-Bots muessen deshalb auf dasselbe Verzeichnis
+# zeigen (beide Units laufen im Repo-Verzeichnis, Vorgabe ./audio).

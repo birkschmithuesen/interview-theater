@@ -7007,7 +7007,7 @@ nur als „haengt" sichtbar.
 eine Entscheidung mit einer neuen Abhaengigkeit, und die trifft Birk. Der Befund wird
 geschrieben, die Karte endet.
 
-- [ ] **Schritt 1: Die Beispieldateien im Browser aufnehmen**
+- [x] **Schritt 1: Die Beispieldateien im Browser aufnehmen**
 
 Den Browserlauf aus Aufgabe 13 einmal von Hand fahren und die abgelegten Segmente
 mitnehmen — sie liegen unter `/tmp/it-webchat-audio/<chat_id>/web-eingang/`. Das sind
@@ -7029,7 +7029,7 @@ Reihenfolge:
    ausdruecklich „mp4/AAC ungeprueft, kein Safari erreichbar" — und nicht ein Ergebnis aus
    einer nachgebauten Datei.
 
-- [ ] **Schritt 2: Gegen den echten Dienst pruefen**
+- [x] **Schritt 2: Gegen den echten Dienst pruefen**
 
 ```
 set -a; . ./betrieb/gruppe1.env; set +a
@@ -7049,7 +7049,7 @@ Falls `rauchtest.py` den Pfad nicht als Argument nimmt: es tut es
 (`python -m scripts.rauchtest [pfad-zu-audio.ogg]`, AGENTS.md). Nimmt es nur `.ogg` an, die
 Endungspruefung dort weiten — **nicht** die Datei umbenennen, das waere genau Falle 3.
 
-- [ ] **Schritt 3: Den Befund schreiben**
+- [x] **Schritt 3: Den Befund schreiben**
 
 `docs/web-chat/whisper-browserformate-2026-09-30.md`:
 
@@ -7086,7 +7086,7 @@ nicht eines, das der Anbieter transkribiert.
 Letztere waere genau Falle 3 noch einmal.
 ```
 
-- [ ] **Schritt 4: Commit**
+- [x] **Schritt 4: Commit**
 
 ```bash
 git add docs/web-chat/whisper-browserformate-2026-09-30.md scripts/rauchtest.py

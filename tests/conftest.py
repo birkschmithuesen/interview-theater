@@ -5,7 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from interview_theater import db, einstellungen, repo
+from interview_theater import db, einstellungen, repo, web_grenze
 
 
 def _prozess_lebt(pid: int) -> bool:
@@ -47,6 +47,21 @@ def pytest_configure(config):
                 sperre.unlink()
             except OSError:
                 pass
+
+
+@pytest.fixture(autouse=True)
+def _web_grenze_leer():
+    """Rate-Limit-Zaehler sind Prozessspeicher (``web_grenze.py``), nicht an
+    eine Datenbank gebunden. Viele Web-Chat-Tests teilen dieselbe
+    ``CHAT``-Konstante (7_000_000_000_001) ueber mehrere Testdateien hinweg --
+    ohne diesen Reset summierten sich ihre POSTs innerhalb EINES Testlaufs
+    zu einem 429, das nichts mit dem jeweiligen Test zu tun hat (gemessen:
+    ``test_web_chat_senden.py`` schlug nach einem vollen Lauf der anderen
+    ``test_web_chat_*``-Dateien fehl). Global statt je Testdatei, damit kein
+    bestehendes Testfile dafuer angefasst werden muss."""
+    web_grenze.vergiss()
+    yield
+    web_grenze.vergiss()
 
 
 @pytest.fixture

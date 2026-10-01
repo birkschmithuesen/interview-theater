@@ -18,6 +18,7 @@ wieder zulassen** -- nicht "das Gefaehrliche entfernen".
 
 import html
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -25,7 +26,9 @@ import urllib.parse
 from contextlib import contextmanager
 from pathlib import Path
 
-from interview_theater import db, repo, web_daten, web_kanal
+from interview_theater import db, repo, web_daten, web_grenze, web_kanal
+
+log = logging.getLogger(__name__)
 
 #: Der Unterpfad unter ``/g/<token>/``. Steht wortgleich in
 #: ``scripts/web_gruppe.CHAT_PFAD`` (Test).
@@ -149,6 +152,11 @@ _TEXT_FEHLER_TYP = "Dieses Audioformat kann ich nicht annehmen."
 _TEXT_FEHLER_GROSS = "Die Aufnahme ist zu groß — bitte in kürzeren Stücken."
 _TEXT_FEHLER_LEER_AUDIO = "Die Aufnahme ist leer angekommen."
 _TEXT_FEHLER_DAUER = "Ungültige Aufnahmedauer."
+
+#: Rate-Limit (Karte Padua S, Aufgabe 3): "zu viel auf einmal", kein
+#: technischer Begriff ("Rate-Limit") -- die Gruppe soll lesen, dass es
+#: gleich weitergeht, nicht, dass sie etwas falsch gemacht hat.
+_TEXT_ZU_SCHNELL = "Das war zu viel auf einmal — einen Moment, dann wieder."
 
 #: Die Seite ist gross gesetzt: sie liegt auf einem Telefon in einem
 #: Probenraum, und die Gruppe liest im Stehen.
@@ -1506,10 +1514,29 @@ def _angenommen(handler, nutzlast: dict) -> None:
     )
 
 
+#: Welcher POST-Weg in welchen Topf zaehlt (Karte Padua S, Aufgabe 3).
+#: Senden, Knopf und Umschalter teilen sich einen: alle drei loesen einen
+#: Bot-Zug mit einem bezahlten Modellaufruf aus, und zwei Toepfe liessen
+#: jemanden abwechseln und die Rate verdoppeln. Audio hat einen eigenen --
+#: ein Upload kostet Platte und einen bezahlten Whisper-Aufruf, eine andere
+#: Ressource.
+_TOEPFE = {
+    "senden": web_grenze.TOPF_NACHRICHT,
+    "knopf": web_grenze.TOPF_NACHRICHT,
+    "interview": web_grenze.TOPF_NACHRICHT,
+    "audio": web_grenze.TOPF_UPLOAD,
+}
+
+
 def beantworte_post(handler, db_pfad: str, token: str, unterpfad: str,
                     schluessel: bytes) -> None:
     """Alles, was der Browser schickt. Reihenfolge der Pruefungen:
-    **Pfad, Token, Nonce, Wert** -- erst 404, dann 403, dann 400."""
+    **Pfad, Token, Nonce, Wert** -- erst 404, dann 403, dann 400.
+
+    **Das Rate-Limit steht VOR dem Handler** (Aufgabe 3) und damit vor jeder
+    Wirkung: eine abgewiesene Nachricht darf weder in ``web_post`` landen
+    noch eine Datei auf die Platte legen. Es braucht die ``chat_id`` und
+    steht deshalb erst nach ``_gruppe_oder_404``."""
     from interview_theater import web
 
     if unterpfad not in _POSTWEGE:
@@ -1518,11 +1545,42 @@ def beantworte_post(handler, db_pfad: str, token: str, unterpfad: str,
     chat_id = _gruppe_oder_404(handler, db_pfad, token)
     if chat_id is None:
         return
+    warte = web_grenze.pruefe(_TOEPFE[unterpfad], chat_id)
+    if warte:
+        _zu_schnell(handler, db_pfad, chat_id, warte)
+        return
     try:
         _POSTWEGE[unterpfad](handler, db_pfad, token, chat_id, schluessel)
     except sqlite3.Error as fehler:
         handler.log_error("Datenbankfehler im Web-Chat: %s", fehler)
         handler._fehler(500, "Die Datenbank ist gerade nicht beschreibbar.")
+
+
+def _zu_schnell(handler, db_pfad: str, chat_id: int, warte: int) -> None:
+    """429 mit ``Retry-After`` und einem Satz.
+
+    Der Vorfall geht **einmal je Fenster** in die Datenbank, nicht je
+    Anfrage: eine Flut von fuenfzig schriebe sonst dreissig Zeilen und
+    faerbte das Dashboard rot, ohne mehr zu sagen als eine. Gemerkt wird an
+    der Sperre selbst (ein Zaehler-Topf mit Fenstergroesse 1), damit dafuer
+    keine zweite Buchhaltung noetig ist."""
+    handler.send_response(429)
+    handler.send_header("Content-Type", "text/plain; charset=utf-8")
+    roh = _TEXT_ZU_SCHNELL.encode("utf-8")
+    handler.send_header("Content-Length", str(len(roh)))
+    handler.send_header("Retry-After", str(warte))
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+    handler.wfile.write(roh)
+    if web_grenze.pruefe(web_grenze.TOPF_VORFALL, chat_id) == 0:
+        try:
+            with schreibend(db_pfad) as conn:
+                repo.merke_vorfall(
+                    conn, chat_id, None, "web_rate_limit",
+                    f"Rate-Limit gegriffen, {warte}s bis zum naechsten Platz",
+                )
+        except Exception:  # noqa: BLE001 -- ein Vorfall darf die Absage nie mitreissen
+            log.exception("Vorfall zum Rate-Limit nicht geschrieben, chat_id=%s", chat_id)
 
 
 def _senden(handler, db_pfad: str, token: str, chat_id: int,

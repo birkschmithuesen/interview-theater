@@ -979,6 +979,23 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
     repo.setze_status(conn, row["id"], "fertig")
     _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen)
 
+    # Race (Padua A2, gemessen): "fertig" kann eintreffen, waehrend dieser
+    # Teil noch bei Whisper haengt -- schliesse_ab() fand den Kopf dann noch
+    # offen (hat_offene_teile) und gab auf, ohne sich selbst zu wiederholen.
+    # Bis zum naechsten Nachhol-Lauf (NACHHOL_INTERVALL_S = 60 s) blieb die
+    # Verdichtung aus. Dieser Teil ist jetzt der letzte, der fertig werden
+    # konnte -- ist der Kopf bereits beendet ("fertig" wurde schon gesagt),
+    # wird der Abschluss hier sofort erneut versucht statt auf den
+    # Nachhol-Arbeiter zu warten.
+    if kopf is not None and kopf["beendet_am"] and kopf["status"] == "laeuft":
+        try:
+            schliesse_ab(conn, tg, klm, e, kopf["id"])
+        except Exception:
+            log.exception(
+                "Interviewabschluss nach letztem Teil fehlgeschlagen, kopf_id=%s",
+                kopf["id"],
+            )
+
 
 def _sende_teil_echo(conn, tg, e, chat_id: int, text: str) -> None:
     """Schickt das Teil-Transkript MIT der Leiste "Interview geht weiter" ·

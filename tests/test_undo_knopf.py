@@ -538,3 +538,130 @@ def test_nach_undo_liest_der_erkenner_die_alte_nachricht_nicht_erneut(
 
     vorlauf = repo.letzte_bot_nachricht_vor(conn, 1, 10_000)
     assert (vorlauf["text"] or "").startswith("Rueckgaengig gemacht:")
+
+
+# --- Review-Fix Aufgabe 7 ---------------------------------------------------
+
+
+def test_eine_fremde_aenderung_nach_wende_an_ist_kein_schritt_des_laufs(
+        conn, tg, einst, monkeypatch):
+    """Befund 1: zwischen ``wende_an`` und dem Senden laufen Telegram-Sends
+    und Thread-Starts -- in diesen Sekunden schreibt z.B. ein Knopfdruck der
+    Hauptschleife in den Arbeitsstand. Das ist die Entscheidung der Gruppe,
+    nicht dieses Laufs: sie darf nicht als Schritt erscheinen und muss das
+    Undo ueberleben.
+
+    Mutation, die diesen Test rot macht: den Nachher-Schnappschuss wieder erst
+    beim Anlegen des Laufs nehmen (nach ``_melde_interviewmodus``)."""
+    phasen.setze(conn, 1, 3, "test")
+    echt = erkenner._melde_interviewmodus
+
+    def mit_fremdem_druck(tg_, conn_, e_, chat_id, wirkliche):
+        repo.setze_arbeitsstand(conn_, chat_id, "begriffe", "Von der Gruppe")
+        return echt(tg_, conn_, e_, chat_id, wirkliche)
+
+    monkeypatch.setattr(erkenner, "_melde_interviewmodus", mit_fremdem_druck)
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    lauf_id = conn.execute("SELECT id FROM erkenner_lauf").fetchone()[0]
+    schritte = conn.execute(
+        "SELECT coalesce(vorher, '') || coalesce(nachher, '') AS t "
+        "FROM erkenner_lauf_schritt WHERE lauf_id = ?", (lauf_id,)
+    ).fetchall()
+    assert schritte, "der Kernthema-Schritt ist da"
+    assert not any("Von der Gruppe" in z["t"] for z in schritte)
+
+    _druecke_undo(conn, tg, einst, lauf_id, message_id=778, query_id="q10")
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["kernthema"] is None
+    assert stand["begriffe"] == "Von der Gruppe"
+
+
+def test_ein_ausgefallener_vorher_schnappschuss_hinterlaesst_einen_vorfall(
+        conn, tg, einst, monkeypatch):
+    """Befund 2 (Plan G): kein Knopf, aber ein Vorfall fuers Dashboard -- und
+    die Meldung geht trotzdem raus."""
+    phasen.setze(conn, 1, 3, "test")
+
+    def kaputt(*_a, **_kw):
+        raise RuntimeError("Datenbank zickt")
+
+    monkeypatch.setattr(repo, "schnappschuss", kaputt)
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    assert any(t.startswith("Notiert:") for t in tg.texte)
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
+    assert conn.execute("SELECT count(*) FROM erkenner_lauf").fetchone()[0] == 0
+    arten = [
+        z["art"] for z in conn.execute("SELECT art FROM vorfall WHERE chat_id = 1")
+    ]
+    assert arten.count("undo_nicht_angelegt") == 1
+
+
+def test_ein_kaputter_vorfall_reisst_die_meldung_nicht_mit(
+        conn, tg, einst, monkeypatch):
+    """Befund 3a: scheitert das Anlegen UND der Vorfall (busy DB), geht die
+    Notiert-Meldung trotzdem raus."""
+    phasen.setze(conn, 1, 3, "test")
+
+    def kaputt(*_a, **_kw):
+        raise RuntimeError("database is locked (simuliert)")
+
+    monkeypatch.setattr(repo, "lege_erkenner_lauf_an", kaputt)
+    monkeypatch.setattr(repo, "merke_vorfall", kaputt)
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    assert any(t.startswith("Notiert:") for t in tg.texte)
+
+
+def test_ein_kaputtes_merken_der_nachricht_laesst_den_rest_laufen(
+        conn, tg, einst, monkeypatch):
+    """Befund 3b: wirft ``merke_erkenner_lauf_nachricht`` nach dem Senden,
+    laufen Bot-Zeile, Phaseneintritt und Phasenangebot trotzdem."""
+    phasen.setze(conn, 1, 3, "test")
+    angeboten = []
+
+    def kaputt(*_a, **_kw):
+        raise RuntimeError("database is locked (simuliert)")
+
+    monkeypatch.setattr(repo, "merke_erkenner_lauf_nachricht", kaputt)
+    monkeypatch.setattr(
+        erkenner, "_biete_phase_an", lambda *a, **kw: angeboten.append(a))
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    assert any(t.startswith("Notiert:") for t in tg.texte)
+    assert angeboten, "das Phasenangebot laeuft trotzdem"
+
+
+def test_genau_eine_undo_knopfzeile_je_meldung(conn, tg, einst):
+    """Befund 4: ohne Grundleiste entstand eine nie gezeigte zweite
+    ART_UNDO-Zeile -- verwaist und offen."""
+    phasen.setze(conn, 1, 3, "test")
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    zeilen = conn.execute(
+        "SELECT message_id FROM knopf WHERE chat_id = 1 AND art = ?",
+        (knoepfe.ART_UNDO,),
+    ).fetchall()
+    assert len(zeilen) == 1
+    assert zeilen[0]["message_id"] == tg.knoepfe[-1][3]
+
+
+def test_ein_kaputter_undo_knopf_kostet_nicht_die_grundleiste(
+        conn, tg, einst, monkeypatch):
+    """Befund 5: ``undo_leiste`` hat ihr eigenes try -- wirft sie, bleibt die
+    Grundleiste stehen."""
+    phasen.setze(conn, 1, 4, "test")
+
+    def kaputt(*_a, **_kw):
+        raise RuntimeError("Datenbank zickt")
+
+    monkeypatch.setattr(knoepfe, "undo_leiste", kaputt)
+    _laufe(conn, tg, einst, [{"art": "rahmen_setzen", "wert": "Bahnhof, abends"}])
+
+    _, text, leiste, _ = tg.knoepfe[-1]
+    assert text.startswith("Notiert:")
+    assert [b for b, _ in leiste] == [
+        knoepfe.T._TEXT_SPEICHERN_KNOPF,
+        knoepfe.T._TEXT_ANDERS_KNOPF,
+    ]

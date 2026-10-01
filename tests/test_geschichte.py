@@ -422,9 +422,11 @@ def test_die_notiert_meldung_traegt_die_grundleiste(erfunden, tg, einst):
     ]
 
 
-def test_ohne_offene_art_bleibt_die_meldung_nackt(erfunden, tg, einst):
-    """Kein Knopf um des Knopfes willen: was in dieser Phase nicht offen ist,
-    bekommt auch keine Leiste."""
+def test_ohne_offene_art_bleibt_die_meldung_ohne_grundleiste(erfunden, tg, einst):
+    """Keine Grundleiste um der Grundleiste willen: was in dieser Phase nicht
+    offen ist, bekommt kein "Ja, speichern"/"Nein, nochmal aendern". Seit
+    Karte U steht dort nur der Undo-Knopf (bis dahin hiess der Test
+    ``..._bleibt_die_meldung_nackt``)."""
     from interview_theater import erkenner
 
     repo.merke_nachricht(

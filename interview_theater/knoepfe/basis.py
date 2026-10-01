@@ -651,15 +651,22 @@ def undo_leiste(conn, chat_id: int, lauf_id: int | None) -> list[tuple[str, str]
     return [(T._TEXT_UNDO_KNOPF, _daten(knopf_id))]
 
 
-def sende_notiert_nur_undo(conn, tg, chat_id: int, text: str, lauf_id: int) -> int:
+def sende_notiert_nur_undo(conn, tg, chat_id: int, text: str, lauf_id: int,
+                           leiste=None) -> int:
     """Die "Notiert:"-Meldung mit dem Undo-Knopf als einziger Zeile -- der Weg
     fuer alle Phasen, in denen keine Grundleiste darunter gehoert.
 
     Aus ``tg.sende`` wird damit ``_sende_knoepfe``: dieselbe Mitschrift in
     ``nachricht`` wie bei jeder anderen Knopfnachricht (06.09.2026, Birk
     12:05), und ``merke_knopf_nachricht`` haelt fest, unter welcher Nachricht
-    der Knopf haengt."""
-    leiste = undo_leiste(conn, chat_id, lauf_id)
+    der Knopf haengt.
+
+    ``leiste`` reicht eine schon gebaute ``undo_leiste`` durch (Review-Fix
+    Aufgabe 7): hat der Aufrufer die Knopfzeile bereits angelegt, entstuende
+    hier sonst eine zweite, nie gezeigte -- eine verwaiste, offene Undo-Zeile
+    je Meldung."""
+    if leiste is None:
+        leiste = undo_leiste(conn, chat_id, lauf_id)
     message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id

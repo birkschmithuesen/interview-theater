@@ -1666,32 +1666,90 @@ def undo_zeilen(wirkliche_aenderungen: list[dict]) -> list[str]:
     return _meldungszeilen(_sammle_meldbares(behalten))
 
 
-def _lege_ruecknahme_an(conn, e, chat_id: int, plan: dict, vorher: dict | None,
-                        wirkliche: list[dict]) -> int | None:
+def _merke_undo_vorfall(conn, e, chat_id: int, text: str) -> None:
+    """Der Vorfall ``undo_nicht_angelegt`` -- selbst abgesichert: ist die
+    Datenbank gerade belegt, scheitert auch dieser Schreibzugriff, und dann
+    darf er die Notiert-Meldung nicht mitreissen (Review-Fix Aufgabe 7)."""
+    try:
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "undo_nicht_angelegt", text,
+        )
+    except Exception:
+        log.exception("Vorfall undo_nicht_angelegt nicht geschrieben, chat_id=%s", chat_id)
+
+
+def _wende_an_mit_schnappschuss(conn, e, chat_id: int, aenderungen: list[dict]
+                                ) -> tuple[list[dict], dict | None, dict | None]:
+    """``wende_an`` zwischen zwei Schnappschuessen der verfolgten Tabellen --
+    Grundlage des Undo-Knopfs (Karte U). Liefert ``(wirkliche, vorher,
+    nachher)``; ``vorher``/``nachher`` sind ``None``, wenn ein Schnappschuss
+    ausgefallen ist (dann gibt es keinen Knopf, aber einen Vorfall).
+
+    **Beide Schnappschuesse liegen direkt um ``wende_an`` und unter
+    ``repo._LOCK``** (Review-Fix Aufgabe 7). Vorher entstand der zweite erst
+    beim Anlegen des Laufs, nach Telegram-Sends und Thread-Starts -- was in
+    diesen Sekunden ein Knopfdruck der Hauptschleife oder ein Szenenfolge-
+    Thread schrieb, landete als Schritt DIESES Laufs im Diff, und das Undo
+    haette die Entscheidung der Gruppe still zurueckgedreht. Der Lock ist ein
+    ``RLock``, die ``repo``-Aufrufe darin nehmen ihn erneut; ``wende_an``
+    schreibt nur in die Datenbank (kein Telegram, kein Modell, kein Warten
+    auf einen anderen Thread), haelt ihn also nur Millisekunden. Andere
+    Prozesse (Web, die anderen Bots) sperrt er nicht -- die schreiben aber in
+    ihre eigene Gruppe bzw. sind durch SQLite serialisiert.
+
+    Hier und nicht in ``wende_an``: ``wende_aus_aufnahme_an`` schickt keine
+    Meldung und bekommt deshalb auch kein Undo, und die Signatur von
+    ``wende_an`` bleibt, was sie ist."""
+    with repo._LOCK:
+        try:
+            plan = ruecknahme.plan(a.get("art") for a in aenderungen)
+            vorher = repo.schnappschuss(conn, chat_id, plan)
+        except Exception:
+            log.exception("Schnappschuss vor dem Anwenden fehlgeschlagen, "
+                          "chat_id=%s", chat_id)
+            _merke_undo_vorfall(conn, e, chat_id,
+                                "Schnappschuss vor dem Anwenden fehlgeschlagen")
+            plan = vorher = None
+        wirkliche = wende_an(conn, e, chat_id, aenderungen)
+        nachher = None
+        if vorher is not None:
+            try:
+                nachher = repo.schnappschuss(conn, chat_id, plan)
+            except Exception:
+                log.exception("Schnappschuss nach dem Anwenden fehlgeschlagen, "
+                              "chat_id=%s", chat_id)
+                _merke_undo_vorfall(conn, e, chat_id,
+                                    "Schnappschuss nach dem Anwenden fehlgeschlagen")
+    return wirkliche, vorher, nachher
+
+
+def _lege_ruecknahme_an(conn, e, chat_id: int, vorher: dict | None,
+                        nachher: dict | None, wirkliche: list[dict]) -> int | None:
     """Schreibt die Ruecknahme-Schritte dieses Laufs und liefert die Lauf-id,
     oder ``None``, wenn es keinen Knopf geben soll.
 
-    Kein Knopf gibt es in drei Faellen: der Schnappschuss davor ist
-    ausgefallen, der Diff ist leer (nur Phase, nur USA -- beides nicht
-    verfolgt), oder es gibt keine Zeile, die die Ruecknahme benennen koennte.
+    Kein Knopf gibt es in drei Faellen: ein Schnappschuss ist ausgefallen
+    (der Vorfall steht dann schon), der Diff ist leer (nur Phase, nur USA --
+    beides nicht verfolgt), oder es gibt keine Zeile, die die Ruecknahme
+    benennen koennte.
+
+    Die Schnappschuesse kommen fertig herein (``_wende_an_mit_schnappschuss``)
+    -- hier wird keiner genommen, weil zwischen ``wende_an`` und diesem
+    Aufruf schon fremde Schreibzugriffe liegen koennen.
 
     **Ein Fehlschlag hier reisst die Meldung nicht mit** -- dieselbe Haltung wie
     bei der Grundleiste in ``_sende_meldung``: der Wert ist wichtiger als seine
     Knoepfe. Fuers Dashboard bleibt ein Vorfall stehen."""
-    if vorher is None:
+    if vorher is None or nachher is None:
         return None
     try:
-        nachher = repo.schnappschuss(conn, chat_id, plan)
         return repo.lege_erkenner_lauf_an(
             conn, chat_id, "\n".join(undo_zeilen(wirkliche)),
             ruecknahme.schritte(vorher, nachher),
         )
     except Exception:
         log.exception("Ruecknahme konnte nicht angelegt werden, chat_id=%s", chat_id)
-        repo.merke_vorfall(
-            conn, chat_id, getattr(e, "bot_name", None), "undo_nicht_angelegt",
-            "Notiert-Meldung ohne Undo-Knopf verschickt",
-        )
+        _merke_undo_vorfall(conn, e, chat_id, "Notiert-Meldung ohne Undo-Knopf verschickt")
         return None
 
 
@@ -1937,12 +1995,20 @@ def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict],
     ruhige Zeile (mobil gilt ein Hauptknopf je Bildschirm), und ohne
     Grundleiste als einzige. Deshalb wird aus ``tg.sende`` dort
     ``knoepfe.sende_notiert_nur_undo`` -- derselbe Sendeweg wie jede andere
-    Knopfnachricht, samt Mitschrift in ``nachricht``."""
+    Knopfnachricht, samt Mitschrift in ``nachricht``.
+
+    Die Undo-Knopfzeile wird **genau einmal** angelegt und an beide Wege
+    durchgereicht -- sonst bliebe je Meldung eine zweite, nie gezeigte Zeile
+    offen liegen. Und sie hat ihr **eigenes** try: scheitert sie, steht die
+    Grundleiste trotzdem da (Review-Fix Aufgabe 7)."""
     from interview_theater import knoepfe
 
     zusatz = []
     try:
         zusatz = knoepfe.undo_leiste(conn, chat_id, lauf_id)
+    except Exception:
+        log.exception("Undo-Knopf nicht angelegt, chat_id=%s", chat_id)
+    try:
         phase = phasen.aktuelle(conn, chat_id)
         for aenderung in wirkliche:
             eintrag = _LEISTENARTEN.get(aenderung.get("art"))
@@ -1959,7 +2025,8 @@ def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict],
         log.exception("Leiste unter der Notiert-Meldung fehlgeschlagen, chat_id=%s", chat_id)
     if zusatz:
         try:
-            return knoepfe.sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
+            return knoepfe.sende_notiert_nur_undo(
+                conn, tg, chat_id, text, lauf_id, leiste=zusatz)
         except Exception:
             log.exception("Undo-Knopf unter der Notiert-Meldung fehlgeschlagen, "
                           "chat_id=%s", chat_id)
@@ -2009,18 +2076,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         aenderungen = erkenne(klm, conn, e, chat_id)
         if not aenderungen:
             return
-        # Der Stand VOR dem Anwenden -- Grundlage des Undo-Knopfs (Karte U).
-        # Hier und nicht in ``wende_an``: ``wende_aus_aufnahme_an`` schickt
-        # keine Meldung und bekommt deshalb auch kein Undo, und die Signatur
-        # von ``wende_an`` bleibt, was sie ist.
-        plan = ruecknahme.plan(a.get("art") for a in aenderungen)
-        try:
-            vorher = repo.schnappschuss(conn, chat_id, plan)
-        except Exception:
-            log.exception("Schnappschuss vor dem Anwenden fehlgeschlagen, "
-                          "chat_id=%s", chat_id)
-            vorher = None
-        wirkliche = wende_an(conn, e, chat_id, aenderungen)
+        # Der Stand VOR und NACH dem Anwenden, direkt um ``wende_an`` und
+        # unter ``repo._LOCK`` -- Grundlage des Undo-Knopfs (Karte U).
+        wirkliche, vorher, nachher = _wende_an_mit_schnappschuss(
+            conn, e, chat_id, aenderungen)
         # Punkt 6 der Nacht-Simulation, zwei Wege zurueck zum Angebot:
         #
         # 1. Die Gruppe BITTET darum ("weiter", "naechste Phase", "fertig
@@ -2066,12 +2125,19 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)
             _biete_phase_an(conn, tg, chat_id)
             return
-        lauf_id = _lege_ruecknahme_an(conn, e, chat_id, plan, vorher, wirkliche)
+        lauf_id = _lege_ruecknahme_an(conn, e, chat_id, vorher, nachher, wirkliche)
         message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche, lauf_id)
         if lauf_id is not None:
             # Unter welcher Nachricht der Knopf haengt -- gebraucht, um nach
             # der Ruecknahme genau ihre Grundleiste verfallen zu lassen.
-            repo.merke_erkenner_lauf_nachricht(conn, lauf_id, message_id)
+            # Weich: scheitert es (busy DB), wirkt der Knopf trotzdem, nur
+            # die Grundleiste verfaellt dann nicht -- und Bot-Zeile,
+            # Phaseneintritt und Phasenangebot duerfen nicht mit ausfallen.
+            try:
+                repo.merke_erkenner_lauf_nachricht(conn, lauf_id, message_id)
+            except Exception:
+                log.exception("Nachricht zum Erkennerlauf nicht gemerkt, "
+                              "chat_id=%s, lauf_id=%s", chat_id, lauf_id)
         # Wie ablauf.antworte: die gesendete Meldung wird als Bot-Nachricht
         # mitgeschrieben, damit sie im naechsten Verlaufsfenster steht.
         repo.merke_bot_zeile(conn, chat_id, message_id, e, text)

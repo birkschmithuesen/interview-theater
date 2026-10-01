@@ -274,6 +274,48 @@ def test_der_hinweis_mit_zwei_knoepfen_steht_in_der_seite(seite):
     assert web_chat._JS_TEXTE["modus_weg"] == web_chat._TEXT_MODUS_WEG
 
 
+def test_ein_gescheiterter_upload_einer_angehaltenen_aufnahme_wird_geparkt():
+    """Re-Review zu a615327: war ein Segment beim Modusende schon unterwegs,
+    laesst ``halteAn`` es stehen. Scheitert der Upload, steht es vorn mit
+    ``laeuft = false`` -- ``bereit`` sagt fuer immer nein, und ``halteAn``
+    bricht am ``angehalten`` ab. ``arbeiteAb`` parkt es deshalb VOR
+    ``bereit``, vorn in ``geparkt`` (es ist aelter als alles dort), und
+    zeigt den Hinweis wieder."""
+    js = web_chat._CHAT_JS
+    ab = js[js.index("function arbeiteAb"):js.index("function erledigt")]
+    assert "parkeKopf(auftrag)" in ab
+    assert ab.index("parkeKopf(auftrag)") < ab.index("bereit(auftrag)")
+    parke = js[js.index("function parkeKopf"):js.index("function arbeiteAb")]
+    assert "zustand.warteschlange.shift()" in parke
+    assert "sitzung.geparkt.unshift(auftrag)" in parke
+    assert "zustand.angehalten.push(sitzung)" in parke
+    assert "zeigeAngehalten()" in parke
+    assert "restVerworfen" in parke   # verworfen bleibt verworfen
+    # Solange es unterwegs ist, gilt die Aufnahme als noch offen: kein
+    # Nachreichen, das sich vor das unterwegs befindliche Segment draengt.
+    assert "unterwegs(s)" in js[js.index("function zeigeAngehalten"):
+                                js.index("function reicheNach")]
+    nach = js[js.index("function reicheNach"):js.index("function verwirfRest")]
+    assert "unterwegs(s)" in nach
+    assert "zeigeAngehalten()" in js[js.index("function erledigt"):
+                                     js.index("function entferneAuftraege")]
+
+
+def test_nachreichen_nur_ohne_laufenden_servermodus():
+    """Re-Review: hat ein anderes Telefon den Modus wieder angeschaltet,
+    schloesse das abschliessende /fertig dessen Interview."""
+    js = web_chat._CHAT_JS
+    nach = js[js.index("function reicheNach"):js.index("function verwirfRest")]
+    assert "zustand.servermodus" in nach
+    assert nach.index("zustand.servermodus") < nach.index("an: true")
+    zeige = js[js.index("function zeigeAngehalten"):js.index("function reicheNach")]
+    assert "zustand.servermodus" in zeige
+    assert "TEXT.nachreichen_spaeter" in zeige
+    assert web_chat._JS_TEXTE["nachreichen_spaeter"] == web_chat._TEXT_NACHREICHEN_SPAETER
+    nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
+    assert "zeigeAngehalten()" in nimm
+
+
 def test_die_sperrklinke_rastet_im_poll_ein():
     """Re-Review I: auch ohne Segment vorn in der Schlange."""
     js = web_chat._CHAT_JS

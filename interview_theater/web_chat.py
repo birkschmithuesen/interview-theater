@@ -268,6 +268,11 @@ _TEXT_MODUS_WEG = (
 _TEXT_MODUS_WEG_LEER = "Das Interview wurde beendet, die Aufnahme ist gestoppt."
 _TEXT_REST_NACHREICHEN = "Rest als Interview nachreichen"
 _TEXT_REST_VERWERFEN = "Rest verwerfen"
+#: Ein anderes Telefon hat inzwischen ein Interview gestartet: das
+#: abschliessende /fertig des Nachreichens wuerde es beenden.
+_TEXT_NACHREICHEN_SPAETER = (
+    "Gerade läuft ein anderes Interview — nachreichen geht, sobald es beendet ist."
+)
 
 #: Die Texte, die das JavaScript selbst setzt. Sie stehen als Konstanten in
 #: diesem Modul (dieselben, die der Server fuer seine Seite benutzt) und
@@ -288,6 +293,7 @@ _JS_TEXTE = {
     "uhr": _TEXT_UHR,
     "modus_weg": _TEXT_MODUS_WEG,
     "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
+    "nachreichen_spaeter": _TEXT_NACHREICHEN_SPAETER,
 }
 
 
@@ -503,6 +509,7 @@ _CHAT_JS = """
       zustand.aufnahme.bestaetigt = true;
     }
     if (!zustand.servermodus) { pruefeModusende(); }
+    zeigeAngehalten();   // Nachreichen geht nur ohne laufendes Interview
     var w = zustand.wechsel;
     if (w && w.gesendet && zustand.servermodus === w.ziel) { zustand.wechsel = null; }
     zeigeModus();
@@ -720,11 +727,32 @@ _CHAT_JS = """
     hole();
   });
 
+  // Re-Review zu a615327: war ein Segment beim Modusende schon unterwegs,
+  // liess halteAn es vorn stehen. Ist es danach nicht angekommen (Netz, 5xx,
+  // 403), stuende es mit laeuft = false fuer immer vorn -- bereit() sagt
+  // wegen 'angehalten' nein, und alles dahinter (PTT, ein neues /interview,
+  // ein Nachreichen) haenge mit. Es wird deshalb jetzt geparkt, und zwar
+  // VORN: es ist aelter als alles, was halteAn schon geparkt hat.
+  function parkeKopf(auftrag) {
+    var sitzung = auftrag.sitzung;
+    if (auftrag.art !== 'audio' || !sitzung || !sitzung.angehalten) { return false; }
+    zustand.warteschlange.shift();
+    if (!sitzung.restVerworfen) {   // "Rest verwerfen" gilt auch fuer dieses
+      sitzung.geparkt.unshift(auftrag);
+      if (zustand.angehalten.indexOf(sitzung) < 0) { zustand.angehalten.push(sitzung); }
+    }
+    zeigeWarteschlange();
+    zeigeAngehalten();
+    zeigeModus();
+    return true;
+  }
+
   function arbeiteAb() {
     if (zustand.laeuft || zustand.nachholTakt || !zustand.warteschlange.length) {
       return;
     }
     var auftrag = zustand.warteschlange[0];
+    if (parkeKopf(auftrag)) { arbeiteAb(); return; }
     if (!bereit(auftrag)) { zeigeWarteschlange(); return; }   // der Poll ruft wieder
     if (ueberholt(auftrag)) {
       zustand.warteschlange.shift();
@@ -778,6 +806,7 @@ _CHAT_JS = """
       }
     }
     zeigeWarteschlange();
+    zeigeAngehalten();   // ein unterwegs gewesenes Segment ist jetzt erledigt
     zeigeModus();
     hole();
     arbeiteAb();
@@ -931,21 +960,30 @@ _CHAT_JS = """
     return zustand.angehalten.reduce(function (n, s) { return n + s.geparkt.length; }, 0);
   }
 
+  // Steht ein Segment dieser Aufnahme gerade im Upload?
+  function unterwegs(sitzung) {
+    var kopf = zustand.warteschlange[0];
+    return !!(zustand.laeuft && kopf && kopf.sitzung === sitzung);
+  }
+
   function zeigeAngehalten() {
     if (!angehaltenFeld) { return; }
     if (!zustand.angehalten.length) { angehaltenFeld.hidden = true; return; }
     var n = geparkteZahl();
-    var nochOffen = zustand.angehalten.some(function (s) { return s.offen > 0; });
-    if (!n && !nochOffen) {
+    var offen = zustand.angehalten.some(function (s) { return s.offen > 0 || unterwegs(s); });
+    if (!n && !offen) {
       // Nichts liegt mehr hier: nur sagen, was passiert ist.
       zustand.angehalten = [];
       angehaltenFeld.hidden = true;
       meldeFehler(TEXT.modus_weg_leer);
       return;
     }
-    angehaltenText.textContent = n ? TEXT.modus_weg.replace('{n}', n)
-                                   : TEXT.modus_weg_leer;
-    nachreichenKnopf.hidden = !n;
+    var satz = n ? TEXT.modus_weg.replace('{n}', n) : TEXT.modus_weg_leer;
+    // Laeuft inzwischen ein anderes Interview (zweites Telefon), schloesse
+    // das /fertig des Nachreichens dessen Interview. Erst wenn es aus ist.
+    if (n && zustand.servermodus) { satz += ' ' + TEXT.nachreichen_spaeter; }
+    angehaltenText.textContent = satz;
+    nachreichenKnopf.hidden = !n || zustand.servermodus;
     verwerfenKnopf.hidden = !n;
     angehaltenFeld.hidden = false;
   }
@@ -954,7 +992,10 @@ _CHAT_JS = """
   // /fertig -- der Reihe nach durch die Schlange, mit eigener Sperrklinke.
   function reicheNach() {
     if (zustand.wechsel || zustand.aufnahme) { return; }   // erst das Laufende
-    if (zustand.angehalten.some(function (s) { return s.offen > 0; })) { return; }
+    if (zustand.servermodus) { zeigeAngehalten(); return; }   // fremdes Interview
+    if (zustand.angehalten.some(function (s) { return s.offen > 0 || unterwegs(s); })) {
+      return;   // ein Segment ist noch im Recorder oder im Upload
+    }
     var rest = [];
     zustand.angehalten.forEach(function (s) {
       rest = rest.concat(s.geparkt);
@@ -979,7 +1020,9 @@ _CHAT_JS = """
   }
 
   function verwirfRest() {
-    zustand.angehalten.forEach(function (s) { s.geparkt = []; });
+    // restVerworfen: ein Segment, das gerade unterwegs ist und danach
+    // scheitert, wird von parkeKopf nicht wieder hervorgeholt.
+    zustand.angehalten.forEach(function (s) { s.geparkt = []; s.restVerworfen = true; });
     zustand.angehalten = [];
     zeigeAngehalten();
     zeigeModus();

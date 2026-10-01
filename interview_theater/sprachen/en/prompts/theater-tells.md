@@ -61,7 +61,7 @@ On stage it gets in an actress's way.
 **11. Narrative prose in the scene text.**
 - Bad: It is a cold morning. Nadia thinks back to the years in
   which she ...
-- Better: (station concourse, early) -- and the rest is in the lines or
+- Better: (<place>, early) -- and the rest is in the lines or
   nowhere.
 
 **12. The tidy monologue.**

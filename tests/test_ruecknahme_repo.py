@@ -5,6 +5,7 @@ Kein Netz, kein Modell -- die Schicht darunter ist SQLite.
 """
 
 import json
+import sqlite3
 
 import pytest
 
@@ -378,3 +379,66 @@ def test_ruecknahme_leert_eine_neue_arbeitsstandzeile_statt_sie_zu_loeschen(conn
 
 def test_ruecknahme_eines_unbekannten_laufs_ist_kein_fehler(conn):
     assert _nimm_zurueck(conn, 999) == repo.ZURUECK_SCHON
+
+
+def test_ruecknahme_rollt_bei_einem_fehler_in_der_anwende_phase_alles_zurueck(conn):
+    """Review-Fix (Aufgabe 4): ab dem Stempeln bis zum commit lag kein
+    try/except -- scheiterte ein Statement in der Anwende-Phase, blieben der
+    Stempel und ein halb angewendeter Schritt als offene Transaktion auf der
+    GETEILTEN Verbindung liegen, und der naechste ``conn.commit()`` (egal von
+    wem) haette sie festgeschrieben.
+
+    Ausgeloest wird der Fehler hier genau wie im Review beschrieben: das
+    gespeicherte ``vorher``-JSON eines Schritts bekommt nachtraeglich eine
+    Spalte, die es in der Zieltabelle gar nicht gibt -- das macht das
+    ``UPDATE arbeitsstand SET ...`` in der Anwende-Phase zu einem
+    ``sqlite3.OperationalError``.
+
+    Mutation, die diesen Test rot macht: das try/except um Stempeln+Anwenden
+    weglassen (bzw. ohne ``conn.rollback()`` im except)."""
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+    lauf_id = _lauf_um(
+        conn, ("kernthema_setzen",),
+        lambda: repo.setze_arbeitsstand(conn, 1, "kernthema", "Neu"),
+    )
+    conn.execute(
+        "UPDATE erkenner_lauf_schritt SET vorher = ? WHERE lauf_id = ?",
+        (json.dumps({"keine_solche_spalte": "Alt"}), lauf_id),
+    )
+    conn.commit()
+
+    with pytest.raises(sqlite3.OperationalError):
+        _nimm_zurueck(conn, lauf_id)
+
+    # Genau der Moment aus dem Review: irgendein anderer commit auf derselben
+    # Verbindung, danach muss alles so stehen, als waere nichts passiert.
+    conn.commit()
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Neu"
+    assert repo.hole_erkenner_lauf(conn, lauf_id)["zurueckgenommen_am"] is None
+
+
+def test_ruecknahme_eines_angelegt_schritts_in_unbekannter_tabelle_ist_ein_fehler(conn):
+    """Ein ``angelegt``-Schritt in einer Tabelle, die weder in ``weich``,
+    ``geleert`` noch ``hart`` steht, wurde bisher still uebersprungen und
+    meldete trotzdem ``ZURUECK_OK`` -- ohne dass irgendetwas zurueckgenommen
+    wurde. Das ist ein Programmierfehler (eine neue VERFOLGT-Tabelle ohne
+    Eintrag in einer der drei Listen) und muss als solcher auffallen.
+
+    Mutation, die diesen Test rot macht: den ``else``-Zweig durch stilles
+    Nichtstun ersetzen."""
+    lauf_id = _lauf_um(
+        conn, ("kernthema_setzen",),
+        lambda: repo.setze_arbeitsstand(conn, 1, "kernthema", "Neu"),
+    )
+
+    with pytest.raises(ValueError):
+        repo.nimm_erkenner_lauf_zurueck(
+            conn, lauf_id, ruecknahme.verweise(), weich=(), hart=(), geleert=(),
+        )
+
+    conn.commit()
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Neu", (
+        "dank des try/except aus der vorigen Aufgabe wird auch dieser Fehler "
+        "zurueckgerollt -- kein halber Stempel"
+    )
+    assert repo.hole_erkenner_lauf(conn, lauf_id)["zurueckgenommen_am"] is None

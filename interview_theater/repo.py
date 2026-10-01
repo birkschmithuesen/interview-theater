@@ -3393,51 +3393,76 @@ def nimm_erkenner_lauf_zurueck(
             ):
                 return ZURUECK_GEAENDERT
 
-    # 2. Stempeln -- bedingt, in derselben Transaktion. Wer die Zeile nicht
-    #    bekommt, wirkt nicht.
-    cur = conn.execute(
-        "UPDATE erkenner_lauf SET zurueckgenommen_am = ? "
-        "WHERE id = ? AND zurueckgenommen_am IS NULL",
-        (_jetzt(), lauf_id),
-    )
-    if cur.rowcount != 1:
-        conn.rollback()
-        return ZURUECK_SCHON
+    # 2. Stempeln und 3. Anwenden stehen ab hier in EINEM try/except: ohne es
+    # bliebe ein Statement, das in der Anwende-Phase scheitert (etwa ein
+    # ``vorher``-JSON mit einer Spalte, die es in der Tabelle nicht mehr
+    # gibt -- ``sqlite3.OperationalError``), als halb offene Transaktion auf
+    # der GETEILTEN Verbindung liegen, und der naechste ``conn.commit()``
+    # irgendeiner anderen ``repo``-Funktion wuerde Stempel und Teilschritte
+    # festschreiben. ``except BaseException`` statt ``Exception``, weil auch
+    # ein ``KeyboardInterrupt``/SystemExit mitten im Anwenden nicht die
+    # Haelfte stehen lassen darf.
+    try:
+        # 2. Stempeln -- bedingt, in derselben Transaktion. Wer die Zeile
+        #    nicht bekommt, wirkt nicht.
+        cur = conn.execute(
+            "UPDATE erkenner_lauf SET zurueckgenommen_am = ? "
+            "WHERE id = ? AND zurueckgenommen_am IS NULL",
+            (_jetzt(), lauf_id),
+        )
+        if cur.rowcount != 1:
+            conn.rollback()
+            return ZURUECK_SCHON
 
-    # 3. Anwenden.
-    for s in schritte:
-        tabelle = s["tabelle"]
-        schluessel = json.loads(s["schluessel"])
-        bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
-        werte = list(schluessel.values())
-        if s["art"] == "geaendert":
-            vorher = json.loads(s["vorher"])
-            satz = ", ".join(f"{k} = ?" for k in vorher)
-            conn.execute(
-                f"UPDATE {tabelle} SET {satz} WHERE {bedingung}",
-                list(vorher.values()) + werte,
-            )
-        elif s["art"] == "angelegt":
-            if tabelle in weich:
+        # 3. Anwenden.
+        for s in schritte:
+            tabelle = s["tabelle"]
+            schluessel = json.loads(s["schluessel"])
+            bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+            werte = list(schluessel.values())
+            if s["art"] == "geaendert":
+                vorher = json.loads(s["vorher"])
+                satz = ", ".join(f"{k} = ?" for k in vorher)
                 conn.execute(
-                    f"UPDATE {tabelle} SET entfernt_am = ? WHERE {bedingung}",
-                    [_jetzt()] + werte,
+                    f"UPDATE {tabelle} SET {satz} WHERE {bedingung}",
+                    list(vorher.values()) + werte,
                 )
-            elif tabelle in geleert:
-                spalten = list(json.loads(s["nachher"]))
-                satz = ", ".join(f"{k} = NULL" for k in spalten)
-                conn.execute(f"UPDATE {tabelle} SET {satz} WHERE {bedingung}", werte)
-            elif tabelle in hart:
-                conn.execute(f"DELETE FROM {tabelle} WHERE {bedingung}", werte)
-        else:  # geloescht -- wieder einfuegen
-            zeile = dict(json.loads(s["vorher"]))
-            zeile.update(schluessel)
-            zeile.setdefault("chat_id", lauf["chat_id"])
-            namen = ", ".join(zeile)
-            fragen = ", ".join("?" for _ in zeile)
-            conn.execute(
-                f"INSERT OR IGNORE INTO {tabelle} ({namen}) VALUES ({fragen})",
-                list(zeile.values()),
-            )
-    conn.commit()
+            elif s["art"] == "angelegt":
+                if tabelle in weich:
+                    conn.execute(
+                        f"UPDATE {tabelle} SET entfernt_am = ? WHERE {bedingung}",
+                        [_jetzt()] + werte,
+                    )
+                elif tabelle in geleert:
+                    spalten = list(json.loads(s["nachher"]))
+                    satz = ", ".join(f"{k} = NULL" for k in spalten)
+                    conn.execute(
+                        f"UPDATE {tabelle} SET {satz} WHERE {bedingung}", werte
+                    )
+                elif tabelle in hart:
+                    conn.execute(f"DELETE FROM {tabelle} WHERE {bedingung}", werte)
+                else:
+                    # Eine VERFOLGT-Tabelle ohne Eintrag in weich/geleert/hart
+                    # ist ein Programmierfehler -- still uebersprungen wuerde
+                    # sie ZURUECK_OK melden, ohne dass etwas zurueckgenommen
+                    # wurde. Das try/except oben rollt den Stempel mit zurueck.
+                    raise ValueError(
+                        f"Tabelle {tabelle!r} ist weder in weich, geleert "
+                        "noch hart gelistet -- 'angelegt' kann nicht "
+                        "zurueckgenommen werden."
+                    )
+            else:  # geloescht -- wieder einfuegen
+                zeile = dict(json.loads(s["vorher"]))
+                zeile.update(schluessel)
+                zeile.setdefault("chat_id", lauf["chat_id"])
+                namen = ", ".join(zeile)
+                fragen = ", ".join("?" for _ in zeile)
+                conn.execute(
+                    f"INSERT OR IGNORE INTO {tabelle} ({namen}) VALUES ({fragen})",
+                    list(zeile.values()),
+                )
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
     return ZURUECK_OK

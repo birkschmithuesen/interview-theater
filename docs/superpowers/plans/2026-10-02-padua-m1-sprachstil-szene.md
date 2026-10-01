@@ -709,10 +709,13 @@ Erwartet: `11 passed`.
 1. Im Stil-Block `mit_stil = True` **ersetzen** durch `mit_zitat = True`
    (genau der Fehler, gegen den Anforderung 2 schuetzt).
 2. `$PY -m pytest -q -p no:cacheprovider tests/test_szene_sprachstil.py`
-   -- erwartet: **3 failed, 8 passed**. Rot:
+   -- erwartet: **2 failed, 9 passed**. Rot:
    `test_stil_allein_setzt_nicht_den_woertlich_kopf`,
-   `test_kopf_mit_stil_behauptet_nicht_mehr_fehlenden_beleg`,
    `test_ein_stil_unter_mehreren_figuren_reicht_fuer_den_kopf`.
+   (Architekten-Korrektur nach Gegenlesen: `test_kopf_mit_stil_behauptet_nicht_mehr_fehlenden_beleg`
+   bleibt hier **gruen** -- mit erzwungenem `mit_zitat` wird `FIGUREN_KOPF`
+   gewaehlt, `FIGUREN_KOPF_OHNE_STIMME` fehlt also trotzdem. Er faengt
+   Mutation B, nicht A. Steht hier eine andere Zahl, nachsehen.)
 3. Zurueck auf `mit_stil = True`.
 4. Nochmal laufen -- erwartet: `11 passed`.
 
@@ -720,7 +723,8 @@ Erwartet: `11 passed`.
 
 1. Die `if/elif/else`-Kopfwahl ersetzen durch die alte Zeile
    `kopf = T.FIGUREN_KOPF if mit_zitat else T.FIGUREN_KOPF_OHNE_STIMME`.
-2. Laufen -- erwartet: **3 failed, 8 passed** (dieselben drei; diesmal
+2. Laufen -- erwartet: **3 failed, 8 passed** (die beiden aus Probe A plus
+   `test_kopf_mit_stil_behauptet_nicht_mehr_fehlenden_beleg`; diesmal
    scheitern sie an `FIGUREN_KOPF_MIT_STIL in text` bzw. an
    `"noch nicht aus Interviews belegt" not in text`).
 3. Die `if/elif/else`-Fassung zurueck.
@@ -853,7 +857,9 @@ aus Aufgabe 1 Schritt 4 und Aufgabe 2 Schritt 4 wirklich dastehen.
    `ZEILE_SPRACHSTIL = "  Speech style (chosen by the group): {stil}"`
    in der Tabelle `["szene"]` auskommentieren (`#` davor).
 2. `$PY -m pytest -q -p no:cacheprovider tests/test_szene_sprachstil.py tests/test_sprache_texte.py`
-   -- erwartet: `test_englische_stilzeile_steht_im_prompt` **rot** (der
+   -- erwartet **mindestens** diese drei rot (weitere Waechter der
+   Sprachschicht, etwa `test_keine_unuebersetzte_konstante[szene]`, duerfen
+   mit rot werden): `test_englische_stilzeile_steht_im_prompt` **rot** (der
    Rueckfall liefert den deutschen Text, also scheitert
    `"Speech style (chosen by the group)" in text`),
    `test_beide_fassungen_tragen_denselben_platzhalter` **rot** (`KeyError`),

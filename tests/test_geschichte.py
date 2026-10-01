@@ -415,8 +415,10 @@ def test_die_notiert_meldung_traegt_die_grundleiste(erfunden, tg, einst):
 
     assert repo.hole_arbeitsstand(erfunden, 1)["geschichte"] == "Zwei verlieren sich."
     assert "Geschichte: Zwei verlieren sich." in tg.knoepfe[-1][1]
+    # Seit Karte U (01.10.2026) steht der Undo-Knopf als ruhige letzte Zeile
+    # unter der Grundleiste -- die Grundleiste selbst ist unveraendert.
     assert tg.beschriftungen == [
-        "Ja, speichern", "Nein, nochmal aendern",
+        "Ja, speichern", "Nein, nochmal aendern", "Rueckgaengig",
     ]
 
 
@@ -435,7 +437,12 @@ def test_ohne_offene_art_bleibt_die_meldung_nackt(erfunden, tg, einst):
 
     erkenner.laufe(klm, tg, erfunden, einst, 1)
 
-    assert tg.knoepfe == []
+    # Keine Grundleiste -- aber seit Karte U (01.10.2026) der Undo-Knopf als
+    # einzige Zeile: jeder gespeicherte Wert muss mit einem Tipp
+    # zuruecknehmbar sein, auch ohne offene Ping-Pong-Art.
+    assert [[b for b, _ in leiste] for _, _, leiste in tg.knoepfe] == [
+        ["Rueckgaengig"],
+    ]
     assert any("bleiben gegen gehen" in t for _, t in tg.gesendet)
 
 

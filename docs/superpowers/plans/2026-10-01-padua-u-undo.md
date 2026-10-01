@@ -2412,7 +2412,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
   - `erkenner._sende_meldung(conn, tg, chat_id, text, wirkliche, lauf_id=None) -> int`
     -- neuer letzter Parameter, Vorgabe `None`
 
-- [ ] **Schritt 1: Die fehlschlagenden Tests schreiben**
+- [x] **Schritt 1: Die fehlschlagenden Tests schreiben**
 
 An `tests/test_undo_knopf.py` anhaengen:
 
@@ -2583,12 +2583,12 @@ def test_nach_undo_liest_der_erkenner_die_alte_nachricht_nicht_erneut(
     assert (vorlauf["text"] or "").startswith("Rueckgaengig gemacht:")
 ```
 
-- [ ] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
+- [x] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
 
 Run: `$PY -m pytest tests/test_undo_knopf.py -q -p no:cacheprovider`
 Erwartet: FAIL -- `AssertionError: kein Undo-Knopf in []`
 
-- [ ] **Schritt 3: `erkenner.py` ergaenzen**
+- [x] **Schritt 3: `erkenner.py` ergaenzen**
 
 `ruecknahme` in den Modulkopf-Import (`from interview_theater import ...`).
 Dann hinter `_meldungszeilen` (~Zeile 1644):
@@ -2718,7 +2718,7 @@ und hinter `if _steht_schon_da(...)`-Block, vor `message_id = _sende_meldung(...
             repo.merke_erkenner_lauf_nachricht(conn, lauf_id, message_id)
 ```
 
-- [ ] **Schritt 4: Die Attrappe in `tests/test_erkenner.py` ergaenzen**
+- [x] **Schritt 4: Die Attrappe in `tests/test_erkenner.py` ergaenzen**
 
 An `TelegramAttrappe` (Zeile ~593) eine Methode anhaengen, damit die Reduktion
 einer aelteren Leiste beobachtbar ist statt in `_reduziere_auf_undo`
@@ -2733,14 +2733,14 @@ geschluckt zu werden:
 
 und `self.aktualisiert = []` in `__init__`.
 
-- [ ] **Schritt 5: Tests laufen lassen, gruen sehen**
+- [x] **Schritt 5: Tests laufen lassen, gruen sehen**
 
 Run: `$PY -m pytest tests/test_erkenner.py tests/test_undo_knopf.py -q -p no:cacheprovider`
 Erwartet: `tests/test_erkenner.py` vollstaendig gruen (Befund G.2: die
 Attrappe delegiert `sende_mit_knoepfen` an `sende`, die Textzusagen bleiben
 wahr), `tests/test_undo_knopf.py` `25 passed`.
 
-- [ ] **Schritt 6: Die ganze Suite**
+- [x] **Schritt 6: Die ganze Suite**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `4412 passed, 1 skipped`
@@ -2751,7 +2751,7 @@ geprueft** (`tg.gesendet` bleibt die Quelle, weil jede Attrappe
 `sende_mit_knoepfen` an `sende` delegiert); angepasst wird nur die Erwartung
 "keine Tastatur", und zwar mit einem Satz im Test, warum jetzt eine da ist.
 
-- [ ] **Schritt 7: Commit**
+- [x] **Schritt 7: Commit**
 
 ```bash
 git add interview_theater/erkenner.py tests/test_erkenner.py tests/test_undo_knopf.py

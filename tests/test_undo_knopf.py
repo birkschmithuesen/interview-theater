@@ -372,3 +372,169 @@ def test_eine_ausnahme_beim_zuruecknehmen_bekommt_eine_antwort_und_einen_vorfall
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen", (
         "unveraendert -- nichts wurde zurueckgenommen"
     )
+
+
+# --- Aufgabe 7: der Knopf steht unter jeder Notiert-Meldung ---------------
+
+
+class LLMAttrappe:
+    def __init__(self, antwort):
+        self._antwort = antwort
+
+    def schema(self, chat_id, system, nutzer, schema, art, modell=None,
+               temperature=None):
+        return self._antwort
+
+
+def _nachricht(conn, text, message_id=1):
+    repo.merke_nachricht(
+        conn, 1, message_id, "Mert", 0, "text", text, repo._jetzt())
+
+
+def _laufe(conn, tg, einst, aenderungen, text="wir haben was entschieden",
+           message_id=1):
+    _nachricht(conn, text, message_id)
+    erkenner.laufe(
+        LLMAttrappe({"aenderungen": aenderungen}), tg, conn, einst, 1)
+
+
+def _undo_daten(tg):
+    """Die callback_data des Undo-Knopfs unter der letzten Knopfnachricht."""
+    for _, _, leiste, _ in reversed(tg.knoepfe):
+        for beschriftung, daten in leiste:
+            if beschriftung == knoepfe.T._TEXT_UNDO_KNOPF:
+                return daten
+    raise AssertionError(f"kein Undo-Knopf in {tg.knoepfe!r}")
+
+
+def test_undo_steht_unter_der_notiert_meldung_ohne_grundleiste(conn, tg, einst):
+    """Phase 3: keine Ping-Pong-Art offen, also keine Grundleiste -- der
+    Undo-Knopf steht trotzdem da, als einzige Zeile."""
+    phasen.setze(conn, 1, 3, "test")
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    chat_id, text, leiste, _ = tg.knoepfe[-1]
+    assert text.startswith("Notiert:")
+    assert [b for b, _ in leiste] == [knoepfe.T._TEXT_UNDO_KNOPF]
+
+
+def test_undo_steht_unter_der_grundleiste_wenn_es_eine_gibt(conn, tg, einst):
+    """Phase 4, Setting offen: die bestehende Grundleiste bleibt, Undo kommt
+    als ruhiger Nebenknopf darunter (Karte U Punkt 5)."""
+    phasen.setze(conn, 1, 4, "test")
+    _laufe(conn, tg, einst, [{"art": "rahmen_setzen", "wert": "Bahnhof, abends"}])
+
+    _, text, leiste, _ = tg.knoepfe[-1]
+    assert text.startswith("Notiert:")
+    assert [b for b, _ in leiste] == [
+        knoepfe.T._TEXT_SPEICHERN_KNOPF,
+        knoepfe.T._TEXT_ANDERS_KNOPF,
+        knoepfe.T._TEXT_UNDO_KNOPF,
+    ]
+
+
+def test_der_meldungstext_bleibt_zeichengleich(conn, tg, einst):
+    """Der Knopf kommt dazu, der Text nicht: ``baue_meldung`` ist unveraendert
+    die eine Quelle."""
+    phasen.setze(conn, 1, 3, "test")
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    assert tg.knoepfe[-1][1] == erkenner.baue_meldung(
+        [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+
+def test_kein_lauf_ohne_schritte_und_ohne_zeilen(conn, tg, einst):
+    """Eine Meldung, die nur die Phase nennt, bekommt keinen Knopf: es gibt
+    nichts zurueckzunehmen (``phase`` und ``gruppe`` sind nicht verfolgt).
+
+    Mutation, die diesen Test rot macht: den Lauf auch bei leerem Diff anlegen
+    -- ein Knopf ohne Wirkung."""
+    phasen.setze(conn, 1, 1, "test")
+    _laufe(conn, tg, einst, [{"art": "phase_setzen", "wert": "2"}])
+
+    assert any(t.startswith("Notiert:") for t in tg.texte), "die Meldung kommt"
+    assert not any(
+        b == knoepfe.T._TEXT_UNDO_KNOPF
+        for _, _, leiste, _ in tg.knoepfe for b, _ in leiste
+    )
+    assert conn.execute("SELECT count(*) FROM erkenner_lauf").fetchone()[0] == 0
+
+
+def test_eine_wiederholte_meldung_bekommt_keinen_lauf(conn, tg, einst):
+    """``_steht_schon_da``: die Meldung geht nicht raus, also entsteht auch
+    kein Knopf und kein Lauf-Datensatz."""
+    phasen.setze(conn, 1, 3, "test")
+    repo.merke_nachricht(
+        conn, 1, 50, "Bot", 1, "text", "Notiert:\nKernthema: Ankommen",
+        repo._jetzt())
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}],
+           message_id=51)
+
+    assert conn.execute("SELECT count(*) FROM erkenner_lauf").fetchone()[0] == 0
+
+
+def test_ein_fehlschlag_beim_anlegen_schickt_die_meldung_trotzdem(
+        conn, tg, einst, monkeypatch):
+    """"Der Wert ist wichtiger als seine Knoepfe" -- wie ``_sende_meldung``
+    es heute schon fuer die Grundleiste haelt. Mit Vorfall fuers Dashboard."""
+    phasen.setze(conn, 1, 3, "test")
+
+    def kaputt(*_a, **_kw):
+        raise RuntimeError("Datenbank zickt")
+
+    monkeypatch.setattr(repo, "lege_erkenner_lauf_an", kaputt)
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    assert any(t.startswith("Notiert:") for t in tg.texte)
+    arten = [
+        z["art"] for z in conn.execute("SELECT art FROM vorfall WHERE chat_id = 1")
+    ]
+    assert "undo_nicht_angelegt" in arten
+
+
+def test_undo_zeilen_nennen_die_phase_und_die_usa_zeile_nicht(conn):
+    """Nur die zurueckgenommenen Zeilen. Die Phase steht in der Meldung, aber
+    nicht in "Rueckgaengig gemacht:" -- und die USA-Zeile ebenso nicht
+    (offener Punkt fuer Birk)."""
+    zeilen = erkenner.undo_zeilen([
+        {"art": "kernthema_setzen", "wert": "Ankommen"},
+        {"art": "phase_setzen", "wert": "2"},
+        {"art": "szene_usa", "wert": "ja"},
+    ])
+    assert zeilen == ["Kernthema: Ankommen"]
+
+
+def test_undo_zeilen_nennen_die_figurenanzahl_aus_einem_stillen_entschieden(conn):
+    """``entschieden`` ist in der Meldung still, setzt aber nebenbei
+    ``arbeitsstand.figuren_anzahl`` -- und diese Spalte ist verfolgt, also
+    gehoert die Zeile in die Ruecknahme (Abweichung E.1)."""
+    zeilen = erkenner.undo_zeilen([
+        {"art": "entschieden", "wert": "Wir nehmen vier Figuren.",
+         "figuren_anzahl": 4},
+    ])
+    assert zeilen == ["Anzahl Figuren: 4"]
+
+
+def test_nach_undo_liest_der_erkenner_die_alte_nachricht_nicht_erneut(
+        conn, tg, einst):
+    """Befund H, am Code geprueft: ``erkenne`` rueckt das Wasserzeichen vor
+    (``repo.setze_extrahiert_bis``), ``repo.unextrahierte`` liefert nur
+    Nachrichten darueber. Die Nachricht, aus der der falsche Wert kam, kommt
+    nie wieder -- der Erkenner setzt ihn also nicht von sich aus erneut.
+
+    Und die Undo-Zeile ist als Vorlauf brauchbar: ``letzte_bot_nachricht_vor``
+    schliesst nur "Notiert:"/"Noted:" aus."""
+    phasen.setze(conn, 1, 3, "test")
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Ankommen"}],
+           text="das Kernthema ist Ankommen", message_id=1)
+    lauf_id = conn.execute("SELECT id FROM erkenner_lauf").fetchone()[0]
+    _druecke_undo(conn, tg, einst, lauf_id, message_id=777, query_id="q9")
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] is None
+
+    # Der naechste Lauf sieht die alte Nachricht nicht mehr.
+    offen = [z["message_id"] for z in repo.unextrahierte(conn, 1)]
+    assert 1 not in offen
+
+    vorlauf = repo.letzte_bot_nachricht_vor(conn, 1, 10_000)
+    assert (vorlauf["text"] or "").startswith("Rueckgaengig gemacht:")

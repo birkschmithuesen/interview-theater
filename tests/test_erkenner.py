@@ -599,6 +599,7 @@ class TelegramAttrappe:
         #: Inline-Tastatur -- seit dem 05.09.2026 nimmt auch der Erkenner-Pfad
         #: diesen Weg (``_melde_interviewmodus``).
         self.mit_knoepfen = []
+        self.aktualisiert = []
         self._letzte_message_id = 9000
         self._fehler = fehler
 
@@ -613,6 +614,11 @@ class TelegramAttrappe:
         message_id = self.sende(chat_id, text)
         self.mit_knoepfen.append((chat_id, text, list(knoepfe_)))
         return message_id
+
+    def aktualisiere_knoepfe(self, chat_id, message_id, knoepfe_):
+        """Seit Karte U: eine aeltere Leisten-Nachricht wird auf ihren
+        Undo-Knopf reduziert statt abgenommen."""
+        self.aktualisiert.append((chat_id, message_id, list(knoepfe_)))
 
 
 def test_laufe_ohne_neue_nachrichten_sendet_nichts(conn, einst):

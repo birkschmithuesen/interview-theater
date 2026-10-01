@@ -209,8 +209,479 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 }
 """
 
-#: Wird in Aufgabe 11 gefuellt.
-_CHAT_JS = ""
+#: Polltakt der Chatansicht (Millisekunden). Zwei Sekunden, solange der Tab
+#: sichtbar ist -- schnell genug, dass eine Antwort nicht "haengt" wirkt, und
+#: langsam genug, dass drei Gruppen mit je zwei Telefonen den stdlib-Server
+#: nicht beschaeftigen. Im Hintergrund seltener (ein Telefon in der Tasche
+#: muss nichts abholen).
+POLL_MS = 2000
+POLL_MS_HINTERGRUND = 10000
+
+#: Kuerzer gedrueckt = nichts gesendet (Birk, 30.09.2026, Punkt 2). Ein
+#: versehentlicher Tipper auf das Mikrofon soll keine leere Aufnahme in den
+#: Chat legen -- und keinen Gespraechszug ausloesen.
+PTT_MIN_MS = 500
+
+#: Wie oft ein fehlgeschlagener Upload wiederholt wird, und mit welchen
+#: Wartezeiten (Sekunden). Dieselbe Haltung wie ``stt.WARTEZEITEN``: ein
+#: Netzaussetzer im Probenraum darf ein Segment nicht kosten.
+UPLOAD_VERSUCHE = 4
+UPLOAD_WARTEN_MS = (1000, 3000, 8000)
+
+
+#: Das Chat-JavaScript. Vanilla, kein Build, kein Framework -- wie die
+#: bestehende Seite (``_BEARBEITEN_JS``). Faellt es aus, bleibt der Verlauf
+#: lesbar (serverseitig gerendert); nur Senden und Aufnehmen gehen nicht.
+#:
+#: Die Zahlen kommen als Platzhalter herein, damit sie an genau einer Stelle
+#: stehen: in den Python-Konstanten darueber.
+_CHAT_JS = """
+(function () {
+  var POLL_MS = __POLL_MS__;
+  var POLL_MS_HINTERGRUND = __POLL_MS_HINTERGRUND__;
+  var PTT_MIN_MS = __PTT_MIN_MS__;
+  var UPLOAD_VERSUCHE = __UPLOAD_VERSUCHE__;
+  var UPLOAD_WARTEN_MS = __UPLOAD_WARTEN_MS__;
+
+  var verlauf = document.getElementById('verlauf');
+  var fuss = document.getElementById('fuss');
+  if (!verlauf || !fuss) { return; }
+  var eingabe = document.getElementById('eingabe');
+  var uhrFeld = document.getElementById('uhr');
+  var pegelFeld = document.getElementById('pegel');
+  var pegelBalken = pegelFeld ? pegelFeld.querySelector('span') : null;
+  var warteFeld = document.getElementById('warteschlange');
+  var tipptFeld = document.getElementById('tippt');
+  var interviewKnopf = document.getElementById('interview');
+  var pttKnopf = document.getElementById('ptt');
+  var SEGMENT_MS = parseInt(fuss.dataset.segmentMs, 10) || 45000;
+
+  var zustand = {
+    letzte: parseInt(verlauf.dataset.letzte, 10) || 0,
+    interview: fuss.dataset.interview === '1',
+    warteschlange: [],
+    laeuft: false,        // sendet gerade ein Upload?
+    recorder: null,
+    strom: null,
+    beginn: 0,
+    uhrTakt: null,
+    pegelTakt: null,
+    segmentTakt: null,
+    pttVon: 0,
+    pttAbgebrochen: false
+  };
+
+  function nonce() {
+    var feld = document.getElementById('nonce');
+    return feld ? feld.value : '';
+  }
+
+  // -- Verlauf -------------------------------------------------------------
+
+  function escape(text) {
+    var hilf = document.createElement('div');
+    hilf.textContent = text == null ? '' : String(text);
+    return hilf.innerHTML;
+  }
+
+  function blase(n) {
+    var huelle = document.createElement('div');
+    // Der Server hat schon gefiltert (sichere_html) -- ein Filter im Browser
+    // laege auf der Seite, die er schuetzen soll.
+    var inhalt = n.html;
+    if (n.typ === 'sprache') {
+      var s = n.dauer || 0;
+      inhalt = escape('Sprachnachricht (' + Math.floor(s / 60) + ':' +
+                      ('0' + (s % 60)).slice(-2) + ')');
+    } else if (n.typ === 'datei') {
+      inhalt = '<a href="chat/datei/' + n.id + '">' +
+               escape(n.dateiname || 'Datei') + '</a>';
+    }
+    huelle.className = 'blase ' + n.von + ' ' + n.typ;
+    huelle.dataset.id = n.id;
+    huelle.innerHTML = inhalt;
+    verlauf.appendChild(huelle);
+
+    if (n.knoepfe && n.knoepfe.length) {
+      var leiste = document.createElement('div');
+      leiste.className = 'leiste';
+      leiste.dataset.message = n.id;
+      n.knoepfe.forEach(function (paar) {
+        var knopf = document.createElement('button');
+        knopf.type = 'button';
+        knopf.textContent = paar[0];
+        knopf.dataset.message = n.id;
+        knopf.dataset.daten = paar[1];
+        leiste.appendChild(knopf);
+      });
+      verlauf.appendChild(leiste);
+    }
+  }
+
+  function nachUnten() {
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  function nimmZustand(daten) {
+    (daten.nachrichten || []).forEach(blase);
+    if (daten.nachrichten && daten.nachrichten.length) {
+      zustand.letzte = daten.letzte;
+      verlauf.dataset.letzte = daten.letzte;
+      // Eine Leiste, deren Nachricht ueberholt ist, nimmt der Server weg
+      // (entferne_knoepfe) -- hier wird nur ergaenzt, nie geraten.
+      nachUnten();
+    }
+    if (tipptFeld) { tipptFeld.textContent = daten.tippt ? 'schreibt …' : ''; }
+    setzeInterview(!!daten.interviewmodus);
+    zeigeAntworten(daten.antworten || {});
+  }
+
+  function zeigeAntworten(antworten) {
+    Object.keys(antworten).forEach(function (id) {
+      if (document.querySelector('.quittung[data-druck="' + id + '"]')) { return; }
+      var zeile = document.createElement('div');
+      zeile.className = 'quittung';
+      zeile.dataset.druck = id;
+      zeile.textContent = antworten[id];
+      verlauf.appendChild(zeile);
+    });
+  }
+
+  function hole() {
+    return fetch('chat/zustand?nach=' + zustand.letzte, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) { nimmZustand(d); } })
+      .catch(function () { /* Netz weg: der naechste Takt versucht es wieder */ });
+  }
+
+  var pollTakt = null;
+  function planePoll() {
+    if (pollTakt) { clearInterval(pollTakt); }
+    var takt = document.hidden ? POLL_MS_HINTERGRUND : POLL_MS;
+    pollTakt = setInterval(hole, takt);
+  }
+  document.addEventListener('visibilitychange', function () {
+    planePoll();
+    if (!document.hidden) { hole(); }
+  });
+  planePoll();
+
+  // -- Senden --------------------------------------------------------------
+
+  function sendeText() {
+    var text = (eingabe.value || '').trim();
+    if (!text) { return; }
+    eingabe.value = '';
+    fetch('chat/senden', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nonce: nonce(), text: text })
+    }).then(function () { hole(); })
+      .catch(function () { eingabe.value = text; });
+  }
+
+  document.getElementById('senden').addEventListener('click', sendeText);
+  eingabe.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); sendeText(); }
+  });
+
+  // -- Knoepfe -------------------------------------------------------------
+
+  document.addEventListener('click', function (ev) {
+    var knopf = ev.target.closest ? ev.target.closest('.leiste button') : null;
+    if (!knopf) { return; }
+    // Alle Knoepfe der Leiste aus: der zweite Druck wirkt serverseitig
+    // idempotent nicht mehr, aber ein Knopf, der weiter klickbar
+    // dasteht, laedt dazu ein.
+    var leiste = knopf.closest('.leiste');
+    if (leiste) {
+      Array.prototype.forEach.call(leiste.querySelectorAll('button'),
+        function (b) { b.disabled = true; });
+    }
+    fetch('chat/knopf', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nonce: nonce(),
+        message_id: parseInt(knopf.dataset.message, 10),
+        data: knopf.dataset.daten
+      })
+    }).then(function (r) {
+      if (!r.ok && leiste) {
+        Array.prototype.forEach.call(leiste.querySelectorAll('button'),
+          function (b) { b.disabled = false; });
+      }
+      hole();
+    }).catch(function () {
+      if (leiste) {
+        Array.prototype.forEach.call(leiste.querySelectorAll('button'),
+          function (b) { b.disabled = false; });
+      }
+    });
+  });
+
+  // -- Upload-Warteschlange ------------------------------------------------
+  //
+  // Sequentiell mit Wiederholung: ein Netzaussetzer im Probenraum darf ein
+  // Segment nicht kosten. Und sequentiell, damit die Segmente in der
+  // Reihenfolge ankommen, in der gesprochen wurde.
+
+  function reiheEin(auftrag) {
+    zustand.warteschlange.push(auftrag);
+    zeigeWarteschlange();
+    arbeiteAb();
+  }
+
+  function zeigeWarteschlange() {
+    if (!warteFeld) { return; }
+    var offen = zustand.warteschlange.length + (zustand.laeuft ? 1 : 0);
+    warteFeld.textContent = offen
+      ? (offen === 1 ? 'ein Stück wird hochgeladen …'
+                     : offen + ' Stücke werden hochgeladen …')
+      : '';
+  }
+
+  function arbeiteAb() {
+    if (zustand.laeuft || !zustand.warteschlange.length) { return; }
+    var auftrag = zustand.warteschlange[0];
+    // Der Wettlauf: das erste Segment darf erst raus, wenn der Bot den
+    // Interviewmodus wirklich an hat. Sonst macht aufnahme.klasse_fuer
+    // daraus eine kurz-Aufnahme statt eines Interview-Teils.
+    if (auftrag.brauchtInterview && !zustand.interview) {
+      setTimeout(arbeiteAb, 500);
+      return;
+    }
+    zustand.laeuft = true;
+    zeigeWarteschlange();
+    schicke(auftrag, 0);
+  }
+
+  function schicke(auftrag, versuch) {
+    fetch('chat/audio?nonce=' + encodeURIComponent(nonce()) +
+          '&dauer=' + auftrag.dauer, {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': auftrag.blob.type || 'audio/webm' },
+      body: auftrag.blob
+    }).then(function (r) {
+      if (!r.ok && r.status >= 500 && versuch + 1 < UPLOAD_VERSUCHE) {
+        throw new Error('nochmal');
+      }
+      fertig(auftrag);
+    }).catch(function () {
+      if (versuch + 1 >= UPLOAD_VERSUCHE) { fertig(auftrag); return; }
+      setTimeout(function () { schicke(auftrag, versuch + 1); },
+                 UPLOAD_WARTEN_MS[Math.min(versuch, UPLOAD_WARTEN_MS.length - 1)]);
+    });
+  }
+
+  function fertig(auftrag) {
+    zustand.warteschlange.shift();
+    zustand.laeuft = false;
+    zeigeWarteschlange();
+    if (auftrag.danach) { auftrag.danach(); }
+    hole();
+    arbeiteAb();
+  }
+
+  function leer() {
+    return !zustand.warteschlange.length && !zustand.laeuft;
+  }
+
+  // -- Aufnahme ------------------------------------------------------------
+
+  function strom() {
+    if (zustand.strom) { return Promise.resolve(zustand.strom); }
+    return navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(function (s) { zustand.strom = s; return s; });
+  }
+
+  function neuerRecorder(s) {
+    // Ein eigener Recorder je Segment -- KEINE Zeitscheibe
+    // (start(timeslice)): deren Stuecke sind einzeln nicht dekodierbar, nur
+    // das erste traegt den Container-Kopf. Whisper bekaeme ab dem zweiten
+    // Segment Bytes ohne Kopf.
+    var r = new MediaRecorder(s);
+    var von = Date.now();
+    r.ondataavailable = function (ev) {
+      if (!ev.data || !ev.data.size) { return; }
+      var dauer = Math.max(1, Math.round((Date.now() - von) / 1000));
+      reiheEin({ blob: ev.data, dauer: dauer, brauchtInterview: true });
+    };
+    r.start();
+    return r;
+  }
+
+  function pegelAn(s) {
+    if (!pegelBalken || !window.AudioContext) { return; }
+    var kontext = new AudioContext();
+    var messer = kontext.createAnalyser();
+    messer.fftSize = 256;
+    kontext.createMediaStreamSource(s).connect(messer);
+    var werte = new Uint8Array(messer.frequencyBinCount);
+    zustand.pegelTakt = setInterval(function () {
+      messer.getByteFrequencyData(werte);
+      var summe = 0;
+      for (var i = 0; i < werte.length; i++) { summe += werte[i]; }
+      pegelBalken.style.width =
+        Math.min(100, (summe / werte.length) * 2.2) + '%';
+    }, 120);
+  }
+
+  function uhrAn() {
+    zustand.beginn = Date.now();
+    uhrFeld.hidden = false;
+    pegelFeld.hidden = false;
+    zustand.uhrTakt = setInterval(function () {
+      var s = Math.floor((Date.now() - zustand.beginn) / 1000);
+      uhrFeld.textContent = '● ' + Math.floor(s / 60) + ':' +
+                            ('0' + (s % 60)).slice(-2);
+    }, 500);
+  }
+
+  function anzeigeAus() {
+    [zustand.uhrTakt, zustand.pegelTakt, zustand.segmentTakt]
+      .forEach(function (t) { if (t) { clearInterval(t); } });
+    zustand.uhrTakt = zustand.pegelTakt = zustand.segmentTakt = null;
+    uhrFeld.hidden = true;
+    pegelFeld.hidden = true;
+    if (pegelBalken) { pegelBalken.style.width = '0'; }
+  }
+
+  function setzeInterview(an) {
+    zustand.interview = an;
+    fuss.dataset.interview = an ? '1' : '0';
+    interviewKnopf.dataset.laeuft = an ? '1' : '0';
+    interviewKnopf.textContent = an ? 'Aufnahme beenden' : 'Interview aufnehmen';
+    // Waehrend eine Interview-Aufnahme laeuft, ist PTT ausgeblendet
+    // (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine Bedienung.
+    if (pttKnopf) { pttKnopf.hidden = an; }
+  }
+
+  function starteInterview() {
+    strom().then(function (s) {
+      // Die Aufnahme laeuft SOFORT -- sonst verliert man die ersten Worte.
+      // Der Upload wartet in der Warteschlange, bis der Modus wirklich an
+      // ist (arbeiteAb).
+      zustand.recorder = neuerRecorder(s);
+      uhrAn();
+      pegelAn(s);
+      zustand.segmentTakt = setInterval(function () {
+        if (!zustand.recorder) { return; }
+        zustand.recorder.stop();            // liefert ondataavailable
+        zustand.recorder = neuerRecorder(s);
+      }, SEGMENT_MS);
+      setzeInterview(true);
+      return fetch('chat/interview', {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nonce: nonce(), an: true })
+      });
+    }).then(hole).catch(function () {
+      setzeInterview(false);
+      anzeigeAus();
+    });
+  }
+
+  function beendeInterview() {
+    var laufend = zustand.recorder;
+    zustand.recorder = null;
+    anzeigeAus();
+    if (laufend && laufend.state !== 'inactive') { laufend.stop(); }
+    setzeInterview(false);
+    // /fertig erst, wenn ALLE Uploads durch sind -- sonst verdichtet der Bot
+    // ein Interview, dem das letzte Segment fehlt.
+    (function warte(versuche) {
+      if (!leer() && versuche > 0) {
+        setTimeout(function () { warte(versuche - 1); }, 500);
+        return;
+      }
+      fetch('chat/interview', {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nonce: nonce(), an: false })
+      }).then(hole);
+    })(240);
+  }
+
+  interviewKnopf.addEventListener('click', function () {
+    if (zustand.interview) { beendeInterview(); } else { starteInterview(); }
+  });
+
+  // -- Push-to-Talk --------------------------------------------------------
+  //
+  // Halten = sprechen, loslassen = senden, Klasse 'kurz' (der Modus wird
+  // NICHT geschaltet). Pointer Events mit setPointerCapture, damit ein
+  // Finger, der vom Knopf rutscht, weiter erkannt wird -- und pointercancel
+  // sendet NICHTS.
+
+  if (pttKnopf) {
+    var pttRecorder = null;
+
+    pttKnopf.addEventListener('pointerdown', function (ev) {
+      if (zustand.interview) { return; }
+      ev.preventDefault();
+      pttKnopf.setPointerCapture(ev.pointerId);
+      zustand.pttVon = Date.now();
+      zustand.pttAbgebrochen = false;
+      pttKnopf.dataset.haelt = '1';
+      strom().then(function (s) {
+        if (zustand.pttAbgebrochen) { return; }
+        pttRecorder = new MediaRecorder(s);
+        pttRecorder.ondataavailable = function (e) {
+          var dauer = Math.round((Date.now() - zustand.pttVon) / 1000);
+          // Zu kurz oder abgebrochen: NICHTS senden. Ein versehentlicher
+          // Tipper soll keine leere Aufnahme in den Chat legen.
+          if (zustand.pttAbgebrochen ||
+              Date.now() - zustand.pttVon < PTT_MIN_MS ||
+              !e.data || !e.data.size) { return; }
+          reiheEin({ blob: e.data, dauer: Math.max(1, dauer),
+                     brauchtInterview: false });
+        };
+        pttRecorder.start();
+      }).catch(function () { zustand.pttAbgebrochen = true; });
+    });
+
+    function pttEnde(abbrechen) {
+      return function (ev) {
+        if (pttKnopf.dataset.haelt !== '1') { return; }
+        pttKnopf.dataset.haelt = '0';
+        if (abbrechen) { zustand.pttAbgebrochen = true; }
+        try { pttKnopf.releasePointerCapture(ev.pointerId); } catch (e) {}
+        if (pttRecorder && pttRecorder.state !== 'inactive') {
+          pttRecorder.stop();
+        }
+        pttRecorder = null;
+      };
+    }
+
+    pttKnopf.addEventListener('pointerup', pttEnde(false));
+    pttKnopf.addEventListener('pointercancel', pttEnde(true));
+    // Wegziehen: mit setPointerCapture bleibt der Knopf das Ziel, aber ein
+    // Kontextmenue oder ein Systemdialog kann den Zeiger entfuehren.
+    pttKnopf.addEventListener('lostpointercapture', function (ev) {
+      if (pttKnopf.dataset.haelt === '1') { pttEnde(true)(ev); }
+    });
+  }
+
+  nachUnten();
+  hole();
+})();
+"""
+
+
+def _js() -> str:
+    """``_CHAT_JS`` mit den Zahlen aus den Modulkonstanten.
+
+    Platzhalter und keine f-String-Interpolation: das Skript ist voll mit
+    geschweiften Klammern."""
+    return (
+        _CHAT_JS
+        .replace("__POLL_MS__", str(POLL_MS))
+        .replace("__POLL_MS_HINTERGRUND__", str(POLL_MS_HINTERGRUND))
+        .replace("__PTT_MIN_MS__", str(PTT_MIN_MS))
+        .replace("__UPLOAD_VERSUCHE__", str(UPLOAD_VERSUCHE))
+        .replace("__UPLOAD_WARTEN_MS__", json.dumps(list(UPLOAD_WARTEN_MS)))
+    )
 
 
 def _blase_html(n: dict) -> str:
@@ -289,7 +760,7 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
     )
     return web._seite(
         daten.get("titel") or _TEXT_TITEL, _CSS_CHAT, koerper,
-        nachladen=False, skript=_CHAT_JS,
+        nachladen=False, skript=_js(),
     )
 
 

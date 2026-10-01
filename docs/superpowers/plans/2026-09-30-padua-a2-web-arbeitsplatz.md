@@ -5031,7 +5031,7 @@ vor dem `/interview` an, und `aufnahme.klasse_fuer` machte daraus eine `kurz`-Au
 eines Interview-Teils. Beim Stopp umgekehrt: erst alle Uploads bestaetigt, dann `/fertig` —
 sonst verdichtet der Bot ein Interview, dem das letzte Segment fehlt.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_chat_js.py`:
 
@@ -5189,14 +5189,14 @@ def test_die_ptt_mindestdauer_kommt_aus_einer_konstante(seite):
     assert "__PTT_MIN_MS__" in web_chat._CHAT_JS
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_chat_js.py -q -p no:cacheprovider
 ```
 Erwartet: FAIL — `_CHAT_JS` ist leer, `PTT_MIN_MS` fehlt.
 
-- [ ] **Schritt 3: `web_chat.py` — Konstanten und `_CHAT_JS`**
+- [x] **Schritt 3: `web_chat.py` — Konstanten und `_CHAT_JS`**
 
 Konstanten:
 
@@ -5702,7 +5702,7 @@ def test_die_polltakte_stehen_als_konstanten():
 Und `test_das_js_ruft_nur_endpunkte_die_es_gibt` / `test_das_js_nennt_jeden_postweg` laufen
 weiter gegen `_CHAT_JS` — die Pfade stehen dort woertlich.
 
-- [ ] **Schritt 4: Lauf, alles gruen**
+- [x] **Schritt 4: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_chat_js.py -q -p no:cacheprovider
@@ -5714,7 +5714,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2963 passed, 1 skipped`.
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add interview_theater/web_chat.py tests/test_web_chat_js.py

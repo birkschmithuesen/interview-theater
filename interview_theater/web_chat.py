@@ -566,10 +566,10 @@ _CHAT_JS = """
   }
 
   function postAudio(auftrag, zweiter) {
-    return fetch(weg('chat/audio?nonce=' + encodeURIComponent(nonce()) +
-                     '&dauer=' + auftrag.dauer), {
+    return fetch(weg('chat/audio?dauer=' + auftrag.dauer), {
       method: 'POST', cache: 'no-store',
-      headers: { 'Content-Type': auftrag.blob.type || 'audio/webm' },
+      headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
+                 'X-Nonce': nonce() },
       body: auftrag.blob
     }).then(function (r) {
       if (r.status === 403 && !zweiter) {
@@ -1645,7 +1645,12 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         return
 
     felder = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
-    if not web.nonce_gueltig(schluessel, token, (felder.get("nonce") or [""])[0]):
+    # Der Nonce steht seit dem 30.09.2026 in einer Kopfzeile statt in der
+    # Query (E-S9): eine Query landet in der Serverlogzeile, eine Kopfzeile
+    # nicht. Die Query bleibt als Rueckfall, damit ein Telefon mit altem,
+    # gecachtem JavaScript den Tag noch zu Ende bringt.
+    kennung = handler.headers.get(web.NONCE_KOPFZEILE) or (felder.get("nonce") or [""])[0]
+    if not web.nonce_gueltig(schluessel, token, kennung):
         _verwerfe_koerper(handler, laenge)
         handler._fehler(403, _TEXT_FEHLER_VERALTET)
         return

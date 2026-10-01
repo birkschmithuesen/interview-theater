@@ -119,6 +119,69 @@ CSP_VORLAGE = (
 #: darauf wartet").
 TEXT_500 = "Da ist bei uns etwas schiefgegangen."
 
+#: 403-Text fuer eine Anfrage, die von woanders kommt. Ein Satz, kein
+#: Hinweis darauf, WAS nicht gepasst hat -- wer das Formular vor sich hat,
+#: sieht diesen Text nie.
+TEXT_FREMDE_HERKUNFT = "Diese Anfrage kommt nicht von dieser Seite."
+
+#: Wo der Formular-Nonce beim Audio-Upload steht (E-S9). In der Query stand
+#: er in der Serverlogzeile -- und der ist die eine Stelle, an der ein
+#: CSRF-Merkmal garantiert aufgeschrieben wird.
+NONCE_KOPFZEILE = "X-Nonce"
+
+
+def eigene_herkunft(handler) -> bool:
+    """Kommt diese Anfrage von unserer eigenen Seite?
+
+    **Zwei Merkmale, beide optional, beide streng, wenn sie da sind:**
+
+    * ``Sec-Fetch-Site`` -- jeder Browser ab 2020 schickt ihn.
+      ``cross-site`` heisst ausdruecklich "von woanders" und faellt auch bei
+      ``Origin: null`` (sandboxed iframe), wo der Vergleich unten nichts
+      sagen kann.
+    * ``Origin`` -- verglichen gegen den ``Host``-Header. Nicht gegen
+      ``IT_WEB_URL``: hinter nginx kommt beim Server der interne Host an, und
+      eine Konfiguration, die im Betrieb nicht passt, waere ein 403 auf
+      alles.
+
+    **Fehlen beide, ist die Antwort True** und der Nonce entscheidet wie
+    bisher. ``curl`` schickt keinen Origin, und das Reviewer-Drehbuch faehrt
+    mit ``curl``; ein 403 darauf machte die Pruefung unmoeglich. Das kostet
+    nichts: ein Angriff ueber einen Browser TRAEGT die Kopfzeilen, und ein
+    Angreifer, der sie weglassen kann, hat ohnehin keinen fremden Browser
+    dazwischen -- er braucht dann aber Token und Nonce, und das ist die
+    Schicht, die es schon gab."""
+    if (handler.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site":
+        return False
+    herkunft = (handler.headers.get("Origin") or "").strip()
+    if not herkunft:
+        return True
+    wirt = (handler.headers.get("Host") or "").strip()
+    if not wirt:
+        return False
+    eigene = urllib.parse.urlsplit(herkunft).netloc.lower()
+    return bool(eigene) and eigene == wirt.lower()
+
+
+def maskiere_token(pfad: str) -> str:
+    """Der Anfragepfad fuer die Logzeile: Token auf vier Zeichen, Query weg.
+
+    Vier Zeichen bleiben stehen, damit man zwei Gruppen im Log
+    auseinanderhalten kann -- das ist der ganze Zweck, den das Token dort je
+    hatte. Die Query faellt komplett: beim Audio-Upload stand der
+    Formular-Nonce darin (A2-Uebergabe Punkt 3), und die Logzeile ist die
+    eine Stelle, an der ein CSRF-Merkmal garantiert aufgeschrieben wird."""
+    ohne_query = pfad.split("?", 1)[0]
+    stelle = ohne_query.find("/g/")
+    if stelle < 0:
+        return ohne_query
+    kopf = ohne_query[: stelle + len("/g/")]
+    rest = ohne_query[stelle + len("/g/"):]
+    token, trenner, schwanz = rest.partition("/")
+    if len(token) <= 4:
+        return ohne_query
+    return f"{kopf}{token[:4]}...{trenner}{schwanz}"
+
 
 def _html_500() -> str:
     """Die 500-Seite, in der aktiven Sprache aufgebaut (wie
@@ -2922,6 +2985,9 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
     if not pfad.startswith("/g/"):
         handler._antworte(404, nicht_gefunden_html())
         return
+    if not eigene_herkunft(handler):
+        handler._fehler(403, T.TEXT_FREMDE_HERKUNFT)
+        return
     from interview_theater import web_chat
 
     rest = pfad[len("/g/"):].strip("/")
@@ -3127,10 +3193,19 @@ class _Basishandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args) -> None:
         """Eine Zeile je Anfrage nach stdout (systemd haengt das an
         betrieb/web.log). Ohne Uhrzeit-Klammern der Vorlage, dafuer mit
-        ISO-Zeit -- damit die Zeilen zu denen des Bots passen."""
+        ISO-Zeit -- damit die Zeilen zu denen des Bots passen.
+
+        **Das Token wird maskiert und die Query weggeworfen** (30.09.2026):
+        es ist das einzige Geheimnis der Gruppenseite, und beim Audio-Upload
+        stand der Formular-Nonce in der Query. Ein Log ist das, was man
+        weiterschickt, wenn etwas nicht geht."""
+        zeile = format % args
+        for stueck in zeile.split(" "):
+            if "/g/" in stueck or "?" in stueck:
+                zeile = zeile.replace(stueck, maskiere_token(stueck))
         print(
             f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} web "
-            f"{self.address_string()} {format % args}",
+            f"{self.address_string()} {zeile}",
             flush=True,
         )
 

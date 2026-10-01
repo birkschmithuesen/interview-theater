@@ -124,3 +124,26 @@ durch diese Karte verursacht.
 
 - 4cc026e Browserlauf: Segmente, PTT-Abbruch, Warteschlange, Modusende und der Handy-Screenshot
 - (folgt) Plan-Kaestchen Aufgabe 13 + Report
+
+
+# Fix-Report Aufgabe 13 (Review: Changes requested)
+
+1. IMPORTANT PTT < 0,5 s: der Test drueckt jetzt von Hand, waermt vorher
+   getUserMedia auf, wartet (hoechstens 400 ms) auf `__t.starts == 1` und
+   laesst bei insgesamt ~0,3 s los (Assertion <= 0,45 s). Damit laeuft
+   wirklich die Sperre `druck.dauerMs < PTT_MIN_MS` und nicht der B5-Weg.
+   Mutationsgegenprobe (Sperre entfernt): `1 failed`; wiederhergestellt:
+   `1 passed`, `interview_theater/` unveraendert.
+2. MINOR Screenshot: jeder Lauf schreibt nach
+   `/tmp/it-webchat-shots/handy-2026-09-30.png`; nach
+   `docs/web-chat/handy-2026-09-30.png` nur mit `IT_SCHUSS_AKTUALISIEREN=1`.
+   README angepasst. Arbeitsbaum nach zwei Laeufen sauber.
+3. MINOR Port: `_freier_port()` laesst das Betriebssystem einen freien Port
+   vergeben (statt fest 8021); README angepasst.
+4. MINOR README: Zeile, dass die PTT-Druecke als Maus-Zeiger (`page.mouse`,
+   pointerId 1) laufen und ein echter Touch-Zeiger nicht abgedeckt ist.
+
+Befehle und Endzeilen:
+- `python3 .superpowers/sdd/run.py sh 'bash /tmp/mutation_t13b.sh'` -> mit Mutation `1 failed, 28 deselected`, ohne `1 passed, 28 deselected`
+- `python3 .superpowers/sdd/run.py WEBPY -m pytest tests/e2e/test_web_chat_e2e.py -q -p no:cacheprovider` -> `29 passed in 95.72s`; zweiter Lauf `29 passed in 91.13s`
+- `python3 .superpowers/sdd/run.py PY -m pytest -q -p no:cacheprovider` -> `4513 passed, 2 skipped in 273.11s`

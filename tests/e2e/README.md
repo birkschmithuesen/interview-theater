@@ -41,12 +41,19 @@ Die Segmentlänge ist im Lauf auf `SEGMENT_MS = 1200` verkürzt (im Betrieb
 Segmente prüft, über eineinhalb Minuten. Der Server bekommt sie über
 `IT_WEB_SEGMENT_MS`.
 
-Der Handy-Screenshot (390×844) landet in `docs/web-chat/handy-2026-09-30.png`
-und ist **committet** (anders als die Schüsse in `/tmp`): er zeigt nur
-erfundene Fixture-Daten und ist das Artefakt, das Birk ansieht.
+Der Handy-Screenshot (390×844) landet bei jedem Lauf in
+`/tmp/it-webchat-shots/handy-2026-09-30.png`. Die committete Fassung in
+`docs/web-chat/handy-2026-09-30.png` (nur erfundene Fixture-Daten, das
+Artefakt, das Birk ansieht) wird nur mit `IT_SCHUSS_AKTUALISIEREN=1`
+überschrieben — sonst wäre der Arbeitsbaum nach jedem Lauf schmutzig.
+
+Die Druckversuche auf Push-to-Talk laufen als **Maus-Zeiger**
+(`page.mouse`, `pointerId` 1); ein echter Touch-Zeiger selbst ist nicht
+abgedeckt.
 
 Wegwerf-Datenbank: `/tmp/it-webchat.db`, Audio unter `/tmp/it-webchat-audio`,
-Serverlog `/tmp/it-webchat-server.log`, Adresse `127.0.0.1:8021` — neben dem
+Serverlog `/tmp/it-webchat-server.log`, Adresse `127.0.0.1:<freier Port>` (vom
+Betriebssystem vergeben, damit kein Altserver antwortet) — neben dem
 Edit-Lauf, damit beide nebeneinander laufen können. Der Lauf dauert rund
 100 Sekunden.
 

@@ -31,6 +31,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -54,7 +55,18 @@ from interview_theater import db, repo, web_chat, web_kanal  # noqa: E402
 DB_PFAD = "/tmp/it-webchat.db"
 AUDIO = "/tmp/it-webchat-audio"
 SERVERLOG = "/tmp/it-webchat-server.log"
-BIND = "127.0.0.1:8021"
+
+
+def _freier_port() -> int:
+    """Ein freier Port, vom Betriebssystem vergeben. Ein fester Port liesse
+    einen Altserver aus einem abgebrochenen Lauf ``/gesund`` beantworten --
+    der Test liefe dann gegen dessen Datenbank."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+BIND = f"127.0.0.1:{_freier_port()}"
 BASIS = f"http://{BIND}"
 PRAEFIX = "/theatersoap"
 CHAT = 7_000_000_000_001
@@ -66,6 +78,11 @@ SEGMENT_MS = 1200
 #: Wohin der Handy-Screenshot geht. Committet, weil Birk ihn ansieht -- und
 #: er zeigt ausschliesslich erfundene Fixture-Daten.
 SCHUSS = WURZEL / "docs" / "web-chat" / "handy-2026-09-30.png"
+
+#: Jeder Lauf schreibt den Schuss hierhin; ins Repository (``SCHUSS``) nur
+#: mit ``IT_SCHUSS_AKTUALISIEREN=1`` -- sonst waere der Arbeitsbaum nach
+#: jedem Lauf schmutzig.
+SCHUSS_TMP = Path("/tmp/it-webchat-shots/handy-2026-09-30.png")
 
 #: iPhone-13-Groesse. Mobile zuerst.
 HANDY = {"width": 390, "height": 844}
@@ -460,9 +477,12 @@ def test_handy_screenshot(seite):
     expect(seite.locator("#interview")).to_be_visible()
     expect(seite.locator("#ptt")).to_be_visible()
     seite.wait_for_timeout(300)
-    SCHUSS.parent.mkdir(parents=True, exist_ok=True)
-    seite.screenshot(path=str(SCHUSS), full_page=False)
-    assert SCHUSS.stat().st_size > 5000
+    SCHUSS_TMP.parent.mkdir(parents=True, exist_ok=True)
+    seite.screenshot(path=str(SCHUSS_TMP), full_page=False)
+    assert SCHUSS_TMP.stat().st_size > 5000
+    if os.environ.get("IT_SCHUSS_AKTUALISIEREN") == "1":
+        SCHUSS.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(SCHUSS_TMP, SCHUSS)
 
 
 def test_knopf_klicken_legt_einen_druck_an(seite):
@@ -496,8 +516,21 @@ def test_aenderungen_des_bots_kommen_ohne_neuladen_an(seite):
 # -- Push-to-Talk ----------------------------------------------------------------
 
 def test_ptt_unter_einer_halben_sekunde_sendet_nichts(seite):
+    """Der Recorder laeuft wirklich, bevor losgelassen wird -- sonst griffe
+    der Weg "losgelassen vor getUserMedia" (B5), und die Sperre
+    ``druck.dauerMs < PTT_MIN_MS`` liefe nie."""
     vorher = _zaehle_sprachnachrichten()
-    _halte_ptt(seite, 150)
+    # Mikrofon aufwaermen: der erste getUserMedia eines Kontexts ist langsam.
+    seite.evaluate("""navigator.mediaDevices.getUserMedia({audio: true}).then(
+      function (s) { s.getTracks().forEach(function (t) { t.stop(); }); })""")
+    seite.locator("#ptt").hover()
+    beginn = time.time()
+    seite.mouse.down()
+    assert _warte(seite, lambda: _t(seite, "starts") == 1, ms=400, schritt=20)
+    gehalten = time.time() - beginn
+    seite.wait_for_timeout(max(0, int((0.3 - gehalten) * 1000)))
+    seite.mouse.up()
+    assert time.time() - beginn <= 0.45     # deutlich unter PTT_MIN_MS
     seite.wait_for_timeout(2500)
     assert _zaehle_sprachnachrichten() == vorher
     assert _form(_posts(seite)) == []

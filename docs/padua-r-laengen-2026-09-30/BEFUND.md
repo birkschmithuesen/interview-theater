@@ -53,7 +53,46 @@ Code aenderbar.
 
 ## 3. Was die Zaehler an erfundenem Material finden
 
-(Fuellt Aufgabe 18 mit der Ausgabe von `scripts/laengen_probe.py`.)
+Gefahren am 01.10.2026 mit `uv run python -m scripts.laengen_probe --markdown`
+(dazu `--formen dialog,dialog,dialog,dialog` und `--faktor 0.25`). Es war eine
+**Attrappe** statt eines Modells, die Datenbank eine Wegwerf-Datei -- der Lauf
+hat **nichts gekostet**. Seed ist die `chat_id` 1 der Probe.
+
+Jede Form einmal, Faktor 1:
+
+| Szene | Form | Budget | Woerter vorher | Woerter nachher | Zaehler vorher | Zaehler nachher | Laeufe |
+|---|---|---|---|---|---|---|---|
+| 1 | dialog | 450 | 730 | 8 | geda=3 | - | 2 (szene,szene_nachpass) |
+| 2 | chor | 100 | 729 | 8 | nich=1 | - | 2 (szene,szene_nachpass) |
+| 3 | rap | 120 | 726 | 8 | adje=1 | - | 2 (szene,szene_nachpass) |
+| 4 | lied | 200 | 728 | 8 | fazi=1 | - | 2 (szene,szene_nachpass) |
+| 5 | monolog | 190 | 730 | 8 | geda=3 | - | 2 (szene,szene_nachpass) |
+
+Viermal dieselbe Form -- der Rhythmus ist nicht flach (450 / 250 / 200 / 450):
+
+| Szene | Form | Budget | Woerter vorher | Woerter nachher | Zaehler vorher | Zaehler nachher | Laeufe |
+|---|---|---|---|---|---|---|---|
+| 1 | dialog | 450 | 730 | 8 | geda=3 | - | 2 (szene,szene_nachpass) |
+| 2 | dialog | 250 | 729 | 8 | nich=1 | - | 2 (szene,szene_nachpass) |
+| 3 | dialog | 200 | 726 | 8 | adje=1 | - | 2 (szene,szene_nachpass) |
+| 4 | dialog | 450 | 728 | 8 | fazi=1 | - | 2 (szene,szene_nachpass) |
+
+Faktor 0,25 ("Kuerzer/Instagram") -- dieselben Formen, rund ein Viertel:
+
+| Szene | Form | Budget | Woerter vorher | Woerter nachher | Zaehler vorher | Zaehler nachher | Laeufe |
+|---|---|---|---|---|---|---|---|
+| 1 | dialog | 110 | 730 | 8 | geda=3 | - | 2 (szene,szene_nachpass) |
+| 2 | chor | 30 | 729 | 8 | nich=1 | - | 2 (szene,szene_nachpass) |
+| 3 | rap | 30 | 726 | 8 | adje=1 | - | 2 (szene,szene_nachpass) |
+| 4 | lied | 50 | 728 | 8 | fazi=1 | - | 2 (szene,szene_nachpass) |
+| 5 | monolog | 50 | 730 | 8 | geda=3 | - | 2 (szene,szene_nachpass) |
+
+Lesart: jede Szene bekommt **genau einen** Nachpass (`Laeufe = 2`), jedes der
+vier Sprachmuster loest ihn aus, und nach dem Nachpass findet kein Zaehler
+mehr etwas. "Woerter vorher" zaehlt die rohe Modellantwort samt Kopfzeilen,
+"Woerter nachher" den gespeicherten Volltext -- die Attrappe antwortet im
+Nachpass absichtlich kurz und sauber; den Fehlschlagfall (zu lang,
+Zitatverlust) zeigen die Tests in `tests/test_nachpass*.py`.
 
 ## 4. Simulationslauf Padua
 

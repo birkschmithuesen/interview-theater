@@ -6117,7 +6117,7 @@ Berichtswerkzeug, so wie `scripts/dramaturgie_pruefen.py --nur-mechanik`.
 - Das Skript legt eine **Wegwerf-Datenbank** an (`tempfile`), nie `IT_DB` --
   wie `scripts/pruefe_prompts.py`.
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_probe.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_probe.py`
 
 ```python
 """Der kostenlose Ersatznachweis (30.09.2026, Karte R).
@@ -6185,12 +6185,12 @@ def test_es_gibt_keinen_echten_modellaufruf():
     assert "IT_LLM_URL" not in quelle
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_probe.py`
 Erwartet: FAIL, `ModuleNotFoundError: No module named 'scripts.laengen_probe'`.
 
-- [ ] **Schritt 3: `scripts/laengen_probe.py` anlegen**
+- [x] **Schritt 3: `scripts/laengen_probe.py` anlegen**
 
 ```python
 """Der kostenlose Nachweis fuer Laengen-Budget und Sprachpass (30.09.2026,
@@ -6384,7 +6384,7 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen und das Skript fahren**
+- [x] **Schritt 4: Tests laufen lassen und das Skript fahren**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_probe.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -6401,13 +6401,13 @@ sichtbare Beweis, dass der Rhythmus nicht flach ist.
 Run: `$PY -m scripts.laengen_probe --faktor 0.25 --markdown`
 Erwartet: dieselben Formen mit deutlich kleineren Budgets.
 
-- [ ] **Schritt 5: Die Ausgabe in den Befund eintragen**
+- [x] **Schritt 5: Die Ausgabe in den Befund eintragen**
 
 Abschnitt 3 von `docs/padua-r-laengen-2026-09-30/BEFUND.md` mit der
 tatsaechlichen Ausgabe fuellen, darunter zwei Saetze: das verwendete Kommando
 und der Hinweis, dass es eine Attrappe war und nichts gekostet hat.
 
-- [ ] **Schritt 6: Suite und Commit**
+- [x] **Schritt 6: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

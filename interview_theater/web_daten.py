@@ -1441,9 +1441,12 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         "SELECT titel, interviewmodus_seit, web_tippt_bis FROM gruppe WHERE chat_id = ?",
         (chat_id,),
     ).fetchone()
+    # Der Aenderungsstand VOR dem Verlauf (Re-Review G): eine Aenderung
+    # zwischen den beiden Abfragen steht dann entweder schon im Verlauf oder
+    # kommt beim naechsten Poll -- verloren geht sie nicht.
+    geaendert, stand_aenderung = web_chataenderungen(conn, chat_id, seit)
     nachrichten = web_chatverlauf(conn, chat_id, nach)
     letzte = nachrichten[-1]["id"] if nachrichten else nach
-    geaendert, stand_aenderung = web_chataenderungen(conn, chat_id, seit)
     # Phase wie web_daten.py:107 -- repo-frei, fehlende Spalte = None.
     stand = conn.execute(
         "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)

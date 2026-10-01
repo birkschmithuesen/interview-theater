@@ -618,11 +618,28 @@ _CHAT_JS = """
   // /interview dieser Aufnahme angenommen ist UND der Poll den Modus meldet.
   // Sonst macht aufnahme.klasse_fuer daraus eine kurz-Aufnahme statt eines
   // Interview-Teils.
+  //
+  // Eine Sperrklinke je Aufnahme (Re-Review A): nur bis der Poll den Modus
+  // EINMAL gemeldet hat, wird gewartet. Endet der Modus danach ohne dieses
+  // Telefon (der Erkenner hoert "fertig" im Teil-Transkript, ein zweites
+  // Telefon beendet), gehen die restlichen Segmente trotzdem raus -- sonst
+  // stuende eines ewig vorn in der Schlange und alles dahinter mit ihm.
   function bereit(auftrag) {
-    if (auftrag.art === 'audio' && auftrag.sitzung) {
-      return auftrag.sitzung.angemeldet && zustand.servermodus;
+    var sitzung = auftrag.sitzung;
+    if (auftrag.art === 'audio' && sitzung) {
+      if (!sitzung.angemeldet) { return false; }
+      if (!sitzung.bestaetigt && zustand.servermodus) { sitzung.bestaetigt = true; }
+      return sitzung.bestaetigt;
     }
     return true;
+  }
+
+  // /fertig einer Aufnahme, deren Modus der Bot schon beendet hat, ist
+  // ueberholt: nicht senden, den Stopp-Wechsel aber sauber aufloesen, damit
+  // der Knopf wieder bedienbar ist.
+  function ueberholt(auftrag) {
+    return auftrag.art === 'befehl' && auftrag.an === false &&
+           auftrag.sitzung && auftrag.sitzung.bestaetigt && !zustand.servermodus;
   }
 
   function zeigeWarteschlange() {
@@ -668,6 +685,14 @@ _CHAT_JS = """
     }
     var auftrag = zustand.warteschlange[0];
     if (!bereit(auftrag)) { zeigeWarteschlange(); return; }   // der Poll ruft wieder
+    if (ueberholt(auftrag)) {
+      zustand.warteschlange.shift();
+      if (auftrag.wechsel && zustand.wechsel === auftrag.wechsel) { zustand.wechsel = null; }
+      zeigeWarteschlange();
+      zeigeModus();
+      arbeiteAb();
+      return;
+    }
     zustand.laeuft = true;
     zeigeWarteschlange();
     var anfrage = auftrag.art === 'befehl'
@@ -679,7 +704,10 @@ _CHAT_JS = """
         erledigt(auftrag, true);
         return;
       }
-      if (r.status >= 500 || r.status === 408 || r.status === 429) {
+      // 403 auch nach dem Nonce-Poll: wie ein Netzfehler behandeln (Re-Review
+      // C) -- der naechste Versuch holt erneut den Zustand und damit den Nonce.
+      if (r.status >= 500 || r.status === 403 || r.status === 408 ||
+          r.status === 429) {
         throw new Error('nochmal');
       }
       // Endgueltig abgelehnt: verwerfen -- aber sichtbar.
@@ -759,6 +787,8 @@ _CHAT_JS = """
     var r = new MediaRecorder(sitzung.strom);
     var teile = [];
     var von = Date.now();
+    var nr = sitzung.naechsteNr;
+    sitzung.naechsteNr += 1;
     sitzung.offen += 1;
     r.ondataavailable = function (ev) {
       if (ev.data && ev.data.size) { teile.push(ev.data); }
@@ -767,12 +797,22 @@ _CHAT_JS = """
     // (ondataavailable kommt nach stop() asynchron).
     r.onstop = function () {
       sitzung.offen -= 1;
+      var auftrag = null;
       if (teile.length && !sitzung.verworfen) {   // leere Stuecke nie
-        reiheEin({
+        auftrag = {
           art: 'audio', sitzung: sitzung,
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
           dauer: Math.max(1, Math.round((Date.now() - von) / 1000))
-        });
+        };
+      }
+      // Re-Review B: zwei onstop koennen sich ueberholen (Stopp mitten im
+      // Segmentwechsel). Eingereiht wird nach der laufenden Nummer.
+      sitzung.fertige[nr] = auftrag;
+      while (sitzung.fertige.hasOwnProperty(sitzung.einzureihen)) {
+        var naechster = sitzung.fertige[sitzung.einzureihen];
+        delete sitzung.fertige[sitzung.einzureihen];
+        sitzung.einzureihen += 1;
+        if (naechster && !sitzung.verworfen) { reiheEin(naechster); }
       }
       pruefeEnde(sitzung);
     };
@@ -848,13 +888,32 @@ _CHAT_JS = """
     if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel; }
   }
 
+  function verwirfPtt() {
+    var druck = zustand.ptt;
+    if (!druck) { return; }
+    zustand.ptt = null;
+    druck.gehalten = false;
+    druck.abgebrochen = true;
+    if (pttKnopf) {
+      pttKnopf.dataset.haelt = '0';
+      try { pttKnopf.releasePointerCapture(druck.pointerId); } catch (e) { /* egal */ }
+    }
+    if (druck.recorder && druck.recorder.state !== 'inactive') {
+      druck.recorder.stop();   // sein onstop gibt das Mikrofon frei
+    }
+  }
+
   function starteInterview() {
     // Review-Befund 4: nie zwei Recorder, nie ein Start mitten im Wechsel.
     if (zustand.aufnahme || zustand.wechsel) { return; }
+    // Re-Review F: ein gehaltener PTT-Druck (zweiter Finger) wird verworfen,
+    // sonst liefen zwei Recorder.
+    if (zustand.ptt) { verwirfPtt(); }
     var sitzung = {
       strom: null, recorder: null, kontext: null, pegelTakt: null,
       segmentTakt: null, offen: 0, gestartet: false, beendet: false,
-      angemeldet: false, verworfen: false, fertigEingereiht: false,
+      angemeldet: false, bestaetigt: false, verworfen: false,
+      fertigEingereiht: false, naechsteNr: 0, einzureihen: 0, fertige: {},
       wechselAus: null
     };
     var wechsel = { ziel: true, gesendet: false };

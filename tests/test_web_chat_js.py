@@ -232,6 +232,51 @@ def test_das_js_ist_syntaktisch_gueltig(tmp_path):
     assert ergebnis.returncode == 0, ergebnis.stderr
 
 
+def test_nur_das_erste_segment_wartet_auf_den_modus():
+    """Re-Review A: eine Sperrklinke je Aufnahme. Hat der Poll den Modus
+    einmal gemeldet, gehen die Segmente raus, auch wenn er danach endet --
+    und ein ueberholtes /fertig wird nicht gesendet, der Wechsel loest sich."""
+    js = web_chat._CHAT_JS
+    bereit = js[js.index("function bereit"):js.index("function ueberholt")]
+    assert "sitzung.bestaetigt = true" in bereit
+    assert "return sitzung.bestaetigt;" in bereit
+    assert "zustand.servermodus;" not in bereit.split("bestaetigt = true")[1]
+    ab = js[js.index("function arbeiteAb"):js.index("function erledigt")]
+    assert "ueberholt(auftrag)" in ab
+    assert "zustand.wechsel = null" in ab
+
+
+def test_segmente_werden_nach_ihrer_nummer_eingereiht():
+    """Re-Review B: zwei onstop koennen sich ueberholen."""
+    js = web_chat._CHAT_JS
+    assert "sitzung.naechsteNr" in js
+    assert "sitzung.einzureihen" in js
+
+
+def test_403_in_der_schlange_wird_nachgeholt_nicht_verworfen():
+    """Re-Review C."""
+    ab = web_chat._CHAT_JS[web_chat._CHAT_JS.index("function arbeiteAb"):]
+    assert "r.status === 403" in ab.split("throw new Error('nochmal')")[0]
+
+
+def test_interviewstart_verwirft_einen_gehaltenen_ptt_druck():
+    """Re-Review F: zwei Finger, zwei Recorder."""
+    js = web_chat._CHAT_JS
+    start = js[js.index("function starteInterview"):js.index("function brichAb")]
+    assert "verwirfPtt()" in start
+
+
+def test_der_aenderungsstand_wird_vor_dem_verlauf_gelesen():
+    """Re-Review G: sonst faellt eine Aenderung zwischen beiden Abfragen
+    durch -- sie stuende weder im Verlauf noch ueber dem Stand."""
+    import inspect
+
+    from interview_theater import web_daten
+
+    quelle = inspect.getsource(web_daten.web_chatzustand)
+    assert quelle.index("web_chataenderungen(") < quelle.index("web_chatverlauf(")
+
+
 def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
     """E6: der Zustand steht im DOM und in der URL, nirgends sonst -- damit
     ein Link teilbar bleibt und ein zweites Telefon dieselbe Gruppe sieht."""

@@ -157,7 +157,11 @@ def test_die_seite_laedt_nicht_nach(basis, token):
 
     assert "<script" not in koerper
     assert 'http-equiv="refresh"' not in koerper
-    assert "nonce" not in koerper
+    # Kein Formular-Nonce (CSRF): die Seite nimmt kein POST an. Das Wort
+    # "nonce" allein steht seit Padua S trotzdem im HTML -- der CSP-Nonce
+    # (web.csp_nonce) haengt an JEDEM literalen <style>-Tag, auch an diesem
+    # hier, sonst blockte die Inhaltsrichtlinie die eingebettete CSS-Regel.
+    assert 'id="nonce"' not in koerper
 
 
 def test_der_server_schreibt_dabei_nicht(basis, db_pfad, token):

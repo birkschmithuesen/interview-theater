@@ -81,7 +81,7 @@ class _StromNichtVerfuegbar(Exception):
 
 
 class _StromVoruebergehend(Exception):
-    """Ein VORUEBERGEHENDER Fehler (429, 5xx, Transport-/Dekodierfehler) --
+    """Ein VORUEBERGEHENDER Fehler (408, 429, 5xx, Transport-/Dekodierfehler) --
     BEVOR ein Stueck kam (Fix Runde 1, Punkt 3). Infomaniak drosselt mit
     429/5xx statt mit einer sauberen Warteschlange (AGENTS.md Falle 8); ein
     einzelner Drosselimpuls darf nicht jede weitere Antwort dieses Prozesses
@@ -403,7 +403,7 @@ class LLM:
                                         bei_teil=bei_teil, teil_feld=teil_feld,
                                         art=art)
         except _StromVoruebergehend as fehler:
-            # Fix Runde 1, Punkt 3: ein einzelner Drosselimpuls (429/5xx,
+            # Fix Runde 1, Punkt 3: ein einzelner Drosselimpuls (408/429/5xx,
             # Transport-/Dekodierfehler vor dem ersten Stueck) schaltet das
             # Streaming NICHT fuer den Prozess ab -- nur dieser eine Zug
             # laeuft blockierend weiter, die Flagge bleibt unberuehrt.
@@ -479,7 +479,7 @@ class LLM:
                 "POST", self._e.llm_url, headers=self._headers(), json=body, **zusatz
             ) as antwort:
                 if antwort.status_code >= 400:
-                    if antwort.status_code == 429 or antwort.status_code >= 500:
+                    if antwort.status_code in (408, 429) or antwort.status_code >= 500:
                         raise _StromVoruebergehend(f"HTTP {antwort.status_code}")
                     raise _StromNichtVerfuegbar(f"HTTP {antwort.status_code}")
                 for zeile in antwort.iter_lines():
@@ -537,7 +537,7 @@ class LLM:
             raise
         except httpx.HTTPStatusError as fehler:
             status = fehler.response.status_code
-            if status == 429 or status >= 500:
+            if status in (408, 429) or status >= 500:
                 raise _StromVoruebergehend(f"HTTP {status}") from fehler
             raise _StromNichtVerfuegbar(f"HTTP {status}") from fehler
         except (httpx.TransportError, httpx.DecodingError, httpx.StreamError) as fehler:

@@ -285,10 +285,21 @@ def test_stream_ohne_abschlusssignal_gilt_als_abbruch(conn):
             "usage": {"prompt_tokens": 1, "completion_tokens": 1},
         })
 
+    abbrueche = []
+
+    class Senke:
+        def __call__(self, text):
+            pass
+
+        def abbruch(self):
+            abbrueche.append(True)
+
     klm = llm.LLM(Einstellungen(), _klient(handler), conn)
-    text = klm.prosa(CHAT, "s", "n", "szene", bei_teil=lambda t: None)
+    text = klm.prosa(CHAT, "s", "n", "szene", bei_teil=Senke())
     assert text == "Es war einmal ganz"
     assert versuche == [True, False]
+    assert abbrueche == [True]          # die vorlaeufige Blase verschwindet
+    assert llm.strom_moeglich() is True  # ein Abbruch setzt die Flagge nie
     zeile = _aufrufzeile(conn)
     assert zeile["finish_reason"] == "stop" and zeile["erfolg"] == 1
     # Fix Runde 1, Punkt 6: nur der Nachversuch wird gebucht, der
@@ -319,7 +330,7 @@ def test_eine_werfende_senke_bricht_den_zug_nicht_ab(conn):
     assert _aufrufzeile(conn)["erfolg"] == 1
 
 
-@pytest.mark.parametrize("status", [429, 503])
+@pytest.mark.parametrize("status", [408, 429, 500, 503])
 def test_transiente_fehler_setzen_die_flagge_nicht(conn, status):
     """Fix Runde 1, Punkt 3: Infomaniak drosselt mit 429/5xx statt mit einer
     Warteschlange (AGENTS.md Falle 8) -- ein einzelner Drosselimpuls darf
@@ -334,6 +345,71 @@ def test_transiente_fehler_setzen_die_flagge_nicht(conn, status):
                           bei_teil=lambda t: None)
     assert ergebnis == {"antwort": "Hallo ihr"}
     assert llm.strom_moeglich() is True
+
+
+def test_transportfehler_vor_dem_ersten_stueck_faellt_zurueck_ohne_flagge(conn):
+    """Fix Runde 1, Punkt 3: ein Verbindungsfehler vor dem ersten Stueck ist
+    voruebergehend -- stiller Rueckfall, keine Prozessflagge, kein Vorfall."""
+    def handler(anfrage):
+        if json.loads(anfrage.content).get("stream"):
+            raise httpx.ConnectError("weg", request=anfrage)
+        return httpx.Response(200, json=_FERTIG)
+
+    klm = llm.LLM(Einstellungen(), _klient(handler), conn)
+    ergebnis = klm.schema(CHAT, "s", "n", {"type": "object"}, "gespraech",
+                          bei_teil=lambda t: None)
+    assert ergebnis == {"antwort": "Hallo ihr"}
+    assert llm.strom_moeglich() is True
+    arten = [z["art"] for z in conn.execute("SELECT art FROM vorfall").fetchall()]
+    assert "strom_nicht_verfuegbar" not in arten
+
+
+class _ReisstNachEinemStueck(httpx.SyncByteStream):
+    """Liefert ein gueltiges Stueck, dann wirft das Lesen ``fehler``."""
+
+    def __init__(self, fehler):
+        self._fehler = fehler
+
+    def __iter__(self):
+        yield b'data: {"choices":[{"delta":{"content":"Hal"}}]}\n\n'
+        raise self._fehler
+
+
+@pytest.mark.parametrize("fehler", [
+    httpx.DecodingError("kaputt"),
+    httpx.StreamClosed(),
+    httpx.ReadError("weg"),
+])
+def test_lesefehler_nach_dem_ersten_stueck_ist_ein_abbruch(conn, fehler):
+    """Fix Runde 1, Punkt 5: Dekodier-/Stream-/Transportfehler NACH dem ersten
+    Stueck sind ein Abbruch -- Blase weg, EIN blockierender Versuch, keine
+    Flagge."""
+    versuche = []
+
+    def handler(anfrage):
+        body = json.loads(anfrage.content)
+        versuche.append(bool(body.get("stream")))
+        if body.get("stream"):
+            return httpx.Response(200, stream=_ReisstNachEinemStueck(fehler))
+        return httpx.Response(200, json=_FERTIG)
+
+    abbrueche = []
+
+    class Senke:
+        def __call__(self, text):
+            pass
+
+        def abbruch(self):
+            abbrueche.append(True)
+
+    klm = llm.LLM(Einstellungen(), _klient(handler), conn)
+    ergebnis = klm.schema(CHAT, "s", "n", {"type": "object"}, "gespraech",
+                          bei_teil=Senke())
+    assert ergebnis == {"antwort": "Hallo ihr"}
+    assert versuche == [True, False]
+    assert abbrueche == [True]
+    assert llm.strom_moeglich() is True
+    assert conn.execute("SELECT COUNT(*) FROM aufruf").fetchone()[0] == 1
 
 
 def test_decoding_fehler_vor_dem_ersten_stueck_faellt_zurueck_ohne_flagge(conn):

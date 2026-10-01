@@ -1,3 +1,5 @@
+# Dieselbe Vorlage fuer Telegram- und Web-Bots (Karte Padua A2): der Kanal
+# steht in betrieb/<gruppe>.env (IT_KANAL, IT_WEB_CHAT_ID), nicht hier.
 [Unit]
 Description=Interview-Theater Bot (%i)
 After=network-online.target

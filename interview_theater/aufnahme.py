@@ -94,6 +94,11 @@ MINDEST_WOERTER = 40
 #: eigene Nachricht und keine Rueckfrage.
 HINWEIS_AB_S = 60
 
+#: Endung des Zielpfads einer heruntergeladenen Aufnahme, wenn die Quelle
+#: keine nennt. Telegram nennt keine -- der Web-Kanal nennt sie, weil
+#: ``stt.mime_typ()`` den MIME-Typ aus der Endung ableitet (Falle 3).
+ENDUNG_VORGABE = ".ogg"
+
 #: Wortlaut aus SPEC § 10.4/§ 11.1, ohne Umlaute wie der uebrige Quelltext.
 #: 05.09.2026 praezisiert (Birk: "worauf bezieht sich das? macht kein sinn in
 #: dem kontext gerade"): "Ich hoer noch zu" klang wie eine Antwort auf das
@@ -252,6 +257,13 @@ def klasse_fuer(conn, chat_id: int) -> str:
 NACHZUEGLER_FENSTER_S = 600
 
 
+def _ist_web_gruppe(conn, chat_id: int) -> bool:
+    """Arbeitet diese Gruppe im Browser (``gruppe.kanal = 'web'``)? Ohne
+    Gruppenzeile: nein -- dann gilt der Telegram-Weg wie bisher."""
+    gruppe = repo.hole_gruppe(conn, chat_id)
+    return gruppe is not None and "kanal" in gruppe.keys() and gruppe["kanal"] == "web"
+
+
 def stelle_interview_sicher(conn, chat_id: int) -> int:
     """Liefert den laufenden Interview-Kopf dieser Gruppe und legt ihn beim
     ersten Bedarf an (§ 10.6). Liefert dessen ``aufnahme_id``.
@@ -272,6 +284,13 @@ def stelle_interview_sicher(conn, chat_id: int) -> int:
     if kopf is not None:
         return kopf["id"]
     kopf_id = repo.lege_interview_an(conn, chat_id)
+    if _ist_web_gruppe(conn, chat_id):
+        # Im Web gibt es keine Nachzuegler (Abschlussreview I4): eine
+        # PTT-Nachricht ist dort ausdruecklich "an den Bot", und der Browser
+        # schickt Interview-Segmente erst, wenn der Modus gemeldet ist
+        # (web_chat, Warteschlange "bereit"). Einsammeln hiesse, Zurufe an den
+        # Bot ins Transkript zu ziehen. Telegram bleibt unveraendert (E1).
+        return kopf_id
     try:
         grenze = datetime.now(timezone.utc) - timedelta(seconds=NACHZUEGLER_FENSTER_S)
         eingesammelt = repo.ziehe_in_interview(
@@ -394,7 +413,12 @@ def empfange(conn, tg, e, n: dict) -> int | None:
     Wiederholung endgueltig scheiterte. In diesem Fall entsteht bewusst
     **keine** ``aufnahme``-Zeile (es gibt kein Audio, das der Nachhol-Arbeiter
     je nachholen koennte) -- dafuer aber ein Vorfall und eine Bitte an die
-    Gruppe, es nochmal zu schicken, damit nichts spurlos verschwindet."""
+    Gruppe, es nochmal zu schicken, damit nichts spurlos verschwindet.
+
+    ``n["endung"]`` (optional) bestimmt die Endung des Zielpfads. Sie ist der
+    einzige Weg, auf dem ``stt.mime_typ()`` den richtigen MIME-Typ bekommt
+    (Falle 3); ohne sie bleibt es bei ``ENDUNG_VORGABE``, wie im
+    Telegram-Betrieb."""
     chat_id = n["chat_id"]
     message_id = n["message_id"]
     klasse = klasse_fuer(conn, chat_id)
@@ -405,7 +429,10 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         n.get("gesendet_am") or repo._jetzt(), 1,
     )
 
-    ziel = Path(e.audio_verz) / str(chat_id) / f"{message_id}.ogg"
+    ziel = (
+        Path(e.audio_verz) / str(chat_id)
+        / f"{message_id}{n.get('endung') or ENDUNG_VORGABE}"
+    )
     fehler = _lade_mit_wiederholung(tg, n["file_id"], ziel)
     if fehler is not None:
         repo.merke_vorfall(

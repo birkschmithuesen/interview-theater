@@ -1456,6 +1456,7 @@ _PROBE_PLANUNG = [["was_passiert", "What happens"], ["was_anders", "What's diffe
 TEXT_UNGESCHRIEBEN = "Not written yet."
 TEXT_LEITFADEN_LEER = "The interview guide is created in phase 2."
 TEXT_LEITFADEN_ZURUECK = "← back to where we are"
+_TEXT_CHAT_LINK = "Chat with the bot"
 
 ["web".ARBEITSSTAND_BESCHRIFTUNG]
 phase = "Phase"

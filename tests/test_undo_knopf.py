@@ -194,3 +194,116 @@ def test_die_speicher_knoepfe_der_alten_leiste_wirken_nicht_mehr(conn):
 
     offen = repo.offene_knoepfe_der_nachricht(conn, 1, erste)
     assert [k["art"] for k in offen] == [knoepfe.ART_UNDO]
+
+
+# --- Aufgabe 6: der Handler ----------------------------------------------
+
+
+def _lauf_mit_kernthema(conn, alt=None, neu="Ankommen"):
+    """Ein gespeicherter Lauf, der ``kernthema`` von ``alt`` auf ``neu``
+    gesetzt hat -- ohne den Erkenner, damit der Handler allein geprueft wird."""
+    if alt is not None:
+        repo.setze_arbeitsstand(conn, 1, "kernthema", alt)
+    plan = ruecknahme.plan(["kernthema_setzen"])
+    vorher = repo.schnappschuss(conn, 1, plan)
+    repo.setze_arbeitsstand(conn, 1, "kernthema", neu)
+    nachher = repo.schnappschuss(conn, 1, plan)
+    return repo.lege_erkenner_lauf_an(
+        conn, 1, f"Kernthema: {neu}", ruecknahme.schritte(vorher, nachher)
+    )
+
+
+def _druecke_undo(conn, tg, einst, lauf_id, message_id=777, query_id="q1"):
+    daten = knoepfe.undo_leiste(conn, 1, lauf_id)[0][1]
+    repo.merke_knopf_nachricht(
+        conn, [int(daten[len(knoepfe.PRAEFIX):])], message_id)
+    repo.merke_erkenner_lauf_nachricht(conn, lauf_id, message_id)
+    return knoepfe.behandle(
+        conn, tg, None, einst, _druck(daten, message_id=message_id,
+                                      query_id=query_id))
+
+
+def test_der_handler_stellt_den_alten_wert_wieder_her(conn, tg, einst):
+    lauf_id = _lauf_mit_kernthema(conn, alt="Alt")
+
+    assert _druecke_undo(conn, tg, einst, lauf_id) is True
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Alt"
+    assert any("Rueckgaengig gemacht:" in t for t in tg.texte)
+    assert any("Kernthema: Ankommen" in t for t in tg.texte)
+
+
+def test_der_handler_meldet_seitdem_geaendert_und_aendert_nichts(conn, tg, einst):
+    lauf_id = _lauf_mit_kernthema(conn, alt="Alt")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Von Hand")
+
+    _druecke_undo(conn, tg, einst, lauf_id)
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Von Hand"
+    assert knoepfe.T._TEXT_UNDO_GEAENDERT in tg.texte
+    assert not any("Rueckgaengig gemacht:" in t for t in tg.texte)
+
+
+def test_die_undo_zeile_wird_als_bot_zeile_mitgeschrieben(conn, tg, einst):
+    """Damit das Gespraechsmodell im naechsten Zug sieht, dass zurueckgenommen
+    wurde -- und nicht behauptet, der Wert stehe (H)."""
+    lauf_id = _lauf_mit_kernthema(conn, alt="Alt")
+
+    _druecke_undo(conn, tg, einst, lauf_id)
+
+    zeilen = [
+        z["text"] for z in conn.execute(
+            "SELECT text FROM nachricht WHERE chat_id = 1 AND ist_bot = 1")
+    ]
+    assert any((t or "").startswith("Rueckgaengig gemacht:") for t in zeilen)
+
+
+def test_undo_verfallen_laesst_die_grundleiste(conn, tg, einst):
+    """Sonst schriebe "Ja, speichern" den gerade zurueckgenommenen Wert wieder
+    -- der Wert steckt im Knopf, nicht im Text (basis.speicherleiste).
+
+    Mutation, die diesen Test rot macht: ``repo.verfallen_lassen`` im Handler
+    weglassen."""
+    lauf_id = _lauf_mit_kernthema(conn, alt="Alt")
+    speichern = repo.lege_knopf_an(
+        conn, 1, knoepfe.ART_SPEICHERN, "kernthema|Ankommen")
+    repo.merke_knopf_nachricht(conn, [speichern], 777)
+
+    _druecke_undo(conn, tg, einst, lauf_id, message_id=777)
+
+    assert repo.beanspruche_knopf(conn, speichern) is False, "schon verfallen"
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Alt"
+
+
+def test_die_ruecknahme_haengt_eine_journalzeile_an(conn, tg, einst):
+    """Das Journal wird nur angehaengt (AGENTS.md): die Zeilen des Laufs
+    bleiben stehen, die Ruecknahme kommt daneben -- mit ``quelle 'undo'``,
+    damit der Weg nachvollziehbar bleibt."""
+    lauf_id = _lauf_mit_kernthema(conn, alt="Alt")
+    vorher = len(repo.journal(conn, 1))
+
+    _druecke_undo(conn, tg, einst, lauf_id)
+
+    eintraege = repo.journal(conn, 1)
+    assert len(eintraege) == vorher + 1
+    neu = eintraege[-1]
+    assert neu["quelle"] == "undo"
+    assert "Kernthema: Ankommen" in neu["text"]
+
+
+def test_ein_unbekannter_lauf_ist_kein_absturz(conn, tg, einst):
+    knopf_id = repo.lege_knopf_an(conn, 1, knoepfe.ART_UNDO, "999")
+    assert knoepfe.behandle(
+        conn, tg, None, einst, _druck(knoepfe._daten(knopf_id))) is True
+    assert tg.beantwortet, "answerCallbackQuery kommt immer"
+
+
+def test_ein_undo_aus_einer_fremden_gruppe_wirkt_nicht(conn, tg, einst):
+    """Dieselbe Datenbank traegt alle Gruppen des Workshops."""
+    repo.sichere_gruppe(conn, 2, "gruppe2", "Andere")
+    lauf_id = _lauf_mit_kernthema(conn, alt="Alt")
+    daten = knoepfe.undo_leiste(conn, 1, lauf_id)[0][1]
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten, chat_id=2))
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"

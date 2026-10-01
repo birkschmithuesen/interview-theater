@@ -2170,7 +2170,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Liefert: `_wirkung_undo(conn, d: Druck) -> str`, Eintrag
   `ART_UNDO: _wirkung_undo` in `_WIRKUNGEN`
 
-- [ ] **Schritt 1: Die fehlschlagenden Tests schreiben**
+- [x] **Schritt 1: Die fehlschlagenden Tests schreiben**
 
 An `tests/test_undo_knopf.py` anhaengen:
 
@@ -2288,13 +2288,13 @@ def test_ein_undo_aus_einer_fremden_gruppe_wirkt_nicht(conn, tg, einst):
     assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
 ```
 
-- [ ] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
+- [x] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
 
 Run: `$PY -m pytest tests/test_undo_knopf.py -q -p no:cacheprovider`
 Erwartet: FAIL -- der Druck landet bei `_TEXT_UNBEKANNT`, `kernthema` bleibt
 `"Ankommen"`.
 
-- [ ] **Schritt 3: Den Handler schreiben**
+- [x] **Schritt 3: Den Handler schreiben**
 
 In `interview_theater/knoepfe/wirkung.py`: `ART_UNDO` in den Import aus
 `knoepfe.texte`, `ruecknahme` in den Import aus `interview_theater` (neben
@@ -2373,19 +2373,19 @@ Und in `_WIRKUNGEN`, hinter `ART_STT_SPRACHE: _wirkung_stt_sprache,`:
     ART_UNDO: _wirkung_undo,
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen, gruen sehen**
+- [x] **Schritt 4: Tests laufen lassen, gruen sehen**
 
 Run: `$PY -m pytest tests/test_undo_knopf.py tests/test_knoepfe_struktur.py tests/test_sprache_texte.py -q -p no:cacheprovider`
 Erwartet: alles `passed`; `test_jede_knopfart_hat_genau_einen_handler` ist
 wieder gruen, `test_kein_handler_ruft_das_sprachmodell[_wirkung_undo]` ist
 neu und gruen.
 
-- [ ] **Schritt 5: Die ganze Suite**
+- [x] **Schritt 5: Die ganze Suite**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `4403 passed, 1 skipped` -- **0 failed**.
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add interview_theater/knoepfe/wirkung.py interview_theater/knoepfe/texte.py \

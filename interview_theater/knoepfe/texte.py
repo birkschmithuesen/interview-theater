@@ -347,6 +347,9 @@ _TEXT_UNDO_GEAENDERT = "Seitdem geaendert -- bitte im Arbeitsstand korrigieren."
 #: Die kurzen Zeilen fuer answerCallbackQuery.
 _ANTWORT_UNDO = "Zurueckgenommen."
 _ANTWORT_UNDO_GEAENDERT = "Seitdem geaendert."
+#: Die Journalzeile der Ruecknahme -- das Journal wird nur angehaengt, die
+#: Zeilen des Laufs bleiben stehen (AGENTS.md).
+_JOURNAL_UNDO = "Zurueckgenommen: {zeilen}"
 #: Die Knopfbeschriftungen heissen seit 05.09.2026 "Interview", nicht
 #: "Aufnahme" (Birk, Live-Lauf Gruppe 3): "Aufnahme klingt, als liefe ein
 #: Mikrofon -- es sind Sprachnachrichten." Der Modus, die Klassen und die

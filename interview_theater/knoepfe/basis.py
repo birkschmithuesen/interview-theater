@@ -17,7 +17,7 @@ sonst waere die Schicht keine.
 from interview_theater import phasen, repo
 
 from interview_theater.knoepfe.texte import (
-    ART_ANDERS, ART_EIGENE, ART_KERNTHEMA, ART_PHASE, ART_SPEICHERN,
+    ART_ANDERS, ART_EIGENE, ART_KERNTHEMA, ART_PHASE, ART_SPEICHERN, ART_UNDO,
     MAX_AUSWAHL, MAX_VORSCHLAEGE, MENUE_KNOPF_LAENGE, PRAEFIX, TRENNER,
     _AUSWAHLMARKER, _FELD_FUER, T, log,
 )
@@ -160,6 +160,26 @@ def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste, **kw) -> int:
     return message_id
 
 
+def _reduziere_auf_undo(tg, chat_id, message_id, undo) -> None:
+    """Laesst von einer ueberholten Leisten-Nachricht **nur den Undo-Knopf**
+    stehen (Karte U), statt die Tastatur ganz abzunehmen.
+
+    Der Grund: der Undo-Knopf dieser Nachricht ist der einzige Weg, ihren Wert
+    zurueckzunehmen -- er darf nicht verschwinden, nur weil eine neue Leiste
+    kommt. Die Speicher-Knoepfe daneben muessen weg (der Wert steckt im Knopf,
+    und ein Druck auf die alte Leiste speicherte den ueberholten Vorschlag).
+
+    Fehlschlaege werden geschluckt wie in ``_entferne_tastatur``: die Knoepfe
+    sind in der Datenbank schon verfallen, die Tastatur zeigt es nur an."""
+    try:
+        tg.aktualisiere_knoepfe(
+            chat_id, message_id,
+            [(T._TEXT_UNDO_KNOPF, _daten(k["id"])) for k in undo],
+        )
+    except Exception:
+        log.warning("Leiste auf Undo reduzieren fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def _nimm_alte_leiste_ab(conn, tg, chat_id: int, art: str) -> None:
     """Nimmt die Tastatur einer aelteren, ungedrueckten Speicher-Leiste
     derselben Art ab, bevor eine neue kommt.
@@ -170,13 +190,37 @@ def _nimm_alte_leiste_ab(conn, tg, chat_id: int, art: str) -> None:
     stiller Fehler, gegen die die Knoepfe angetreten sind. Die alten
     Knopfzeilen werden zusaetzlich als benutzt gestempelt
     (``repo.verfallen_lassen``), damit sie auch dann nicht mehr wirken, wenn
-    die App die Tastatur noch einen Moment zeigt."""
+    die App die Tastatur noch einen Moment zeigt.
+
+    **Traegt die Nachricht einen unbenutzten Undo-Knopf** (Karte U), wird ihre
+    Tastatur auf ihn allein reduziert statt ganz abgenommen: er ist der einzige
+    Weg, den Wert dieser Meldung zurueckzunehmen.
+
+    Verfallen gelassen werden dabei **alle** Nicht-Undo-Knoepfe dieser
+    Nachrichten, nicht nur die der uebergebenen ``art``. Zwei Gruende: eine
+    ueberholte Leisten-Nachricht soll keinen einzigen lebenden Speicher-Knopf
+    behalten, und ``sende_notiert_mit_leiste`` ruft diese Funktion dreimal
+    hintereinander -- ohne das liefe der zweite und dritte Aufruf in ein
+    ``editMessageReplyMarkup`` mit unveraenderter Tastatur, und Telegram
+    antwortet darauf mit 400."""
     alte = repo.offene_knoepfe(conn, chat_id, art)
     if not alte:
         return
-    repo.verfallen_lassen(conn, [k["id"] for k in alte])
-    for message_id in dict.fromkeys(k["message_id"] for k in alte):
-        _entferne_tastatur(tg, chat_id, message_id)
+    nachrichten = list(dict.fromkeys(k["message_id"] for k in alte))
+    offen = [
+        k for message_id in nachrichten
+        for k in repo.offene_knoepfe_der_nachricht(conn, chat_id, message_id)
+    ]
+    repo.verfallen_lassen(conn, [k["id"] for k in offen if k["art"] != ART_UNDO])
+    for message_id in nachrichten:
+        undo = [
+            k for k in offen
+            if k["message_id"] == message_id and k["art"] == ART_UNDO
+        ]
+        if undo:
+            _reduziere_auf_undo(tg, chat_id, message_id, undo)
+        else:
+            _entferne_tastatur(tg, chat_id, message_id)
 
 
 def speicherleiste(conn, chat_id: int, art: str, wert: str) -> list[tuple[str, str]]:
@@ -565,7 +609,7 @@ def offene_art(conn, chat_id: int) -> str | None:
 
 
 def sende_notiert_mit_leiste(conn, tg, chat_id: int, text: str, art: str,
-                             wert: str) -> tuple[int, bool]:
+                             wert: str, zusatz=()) -> tuple[int, bool]:
     """Die \"Notiert:\"-Meldung des Erkenners MIT der Grundleiste darunter.
 
     Der Anlass (Birk, Live-Befund Testgruppe 05.09.2026, 23:37): der
@@ -577,15 +621,57 @@ def sende_notiert_mit_leiste(conn, tg, chat_id: int, text: str, art: str,
     \"Gefaellt uns, weiter\" fixiert, \"Eigene Idee\" macht den Weg frei.
 
     Die alte Leiste wird abgenommen (``_nimm_alte_leiste_ab``), damit nicht
-    zwei im Chat stehen und die aeltere den ueberholten Wert speichert."""
+    zwei im Chat stehen und die aeltere den ueberholten Wert speichert.
+
+    ``zusatz`` haengt weitere Knopfzeilen UNTER die Grundleiste -- gebraucht
+    fuer den Undo-Knopf (Karte U), der als ruhiger Nebenknopf zuletzt steht.
+    Vorgabe leer, damit jeder bestehende Aufruf unveraendert gueltig bleibt."""
     for alte in (ART_SPEICHERN, ART_ANDERS, ART_EIGENE):
         _nimm_alte_leiste_ab(conn, tg, chat_id, alte)
-    leiste = speicherleiste(conn, chat_id, art, wert)
+    leiste = speicherleiste(conn, chat_id, art, wert) + list(zusatz)
     message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
     )
     return message_id, True
+
+
+def undo_leiste(conn, chat_id: int, lauf_id: int | None) -> list[tuple[str, str]]:
+    """Der EINE ruhige Undo-Knopf zu einem Erkennerlauf -- oder eine leere
+    Leiste, wenn es keinen Lauf gibt (Karte U, 01.10.2026).
+
+    Eine Meldung, eine Ruecknahme: der Knopf traegt die ``erkenner_lauf.id``
+    im ``wert`` der Knopfzeile, nie in ``callback_data`` (Zusage 1). Eine
+    Einzelauswahl ("nur das Kernthema, nicht die Figur") gibt es bewusst
+    nicht -- sie waere eine Liste dort, wo die Gruppe einen Fehler wegtippen
+    will."""
+    if lauf_id is None:
+        return []
+    knopf_id = repo.lege_knopf_an(conn, chat_id, ART_UNDO, str(lauf_id))
+    return [(T._TEXT_UNDO_KNOPF, _daten(knopf_id))]
+
+
+def sende_notiert_nur_undo(conn, tg, chat_id: int, text: str, lauf_id: int,
+                           leiste=None) -> int:
+    """Die "Notiert:"-Meldung mit dem Undo-Knopf als einziger Zeile -- der Weg
+    fuer alle Phasen, in denen keine Grundleiste darunter gehoert.
+
+    Aus ``tg.sende`` wird damit ``_sende_knoepfe``: dieselbe Mitschrift in
+    ``nachricht`` wie bei jeder anderen Knopfnachricht (06.09.2026, Birk
+    12:05), und ``merke_knopf_nachricht`` haelt fest, unter welcher Nachricht
+    der Knopf haengt.
+
+    ``leiste`` reicht eine schon gebaute ``undo_leiste`` durch (Review-Fix
+    Aufgabe 7): hat der Aufrufer die Knopfzeile bereits angelegt, entstuende
+    hier sonst eine zweite, nie gezeigte -- eine verwaiste, offene Undo-Zeile
+    je Meldung."""
+    if leiste is None:
+        leiste = undo_leiste(conn, chat_id, lauf_id)
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
+    )
+    return message_id
 
 
 # --- Phase 6 · Szenen: Angebote -------------------------------------------

@@ -27,6 +27,7 @@ Threads ``zaehle_aufnahmen`` aufruft -- mit einem einfachen ``Lock`` wuerde
 sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 """
 
+import json
 import re
 import secrets
 import sqlite3
@@ -3140,3 +3141,328 @@ def beanspruche_knopf(conn: sqlite3.Connection, knopf_id: int) -> bool:
     )
     conn.commit()
     return cur.rowcount == 1
+
+
+# --- Ruecknahme eines Erkennerlaufs (Karte U, 01.10.2026) ------------------
+
+
+@_gesperrt
+def offene_knoepfe_der_nachricht(
+    conn: sqlite3.Connection, chat_id: int, message_id: int,
+    art: str | None = None,
+) -> list[sqlite3.Row]:
+    """Die noch ungedrueckten Knoepfe EINER Nachricht, juengste zuerst.
+
+    Gebraucht fuer zwei Dinge (Karte U): eine ueberholte Leisten-Nachricht auf
+    ihren Undo-Knopf zu reduzieren, statt ihre Tastatur ganz abzunehmen -- und
+    nach einer wirksamen Ruecknahme die Grundleisten-Knoepfe genau dieser
+    Nachricht verfallen zu lassen, damit "Ja, speichern" den gerade
+    zurueckgenommenen Wert nicht wieder schreibt (der Wert steckt im Knopf)."""
+    wenn_art = " AND art = ?" if art else ""
+    werte = [chat_id, message_id] + ([art] if art else [])
+    return conn.execute(
+        "SELECT * FROM knopf WHERE chat_id = ? AND message_id = ? "
+        f"AND benutzt_am IS NULL{wenn_art} ORDER BY id DESC",
+        werte,
+    ).fetchall()
+
+
+@_gesperrt
+def schnappschuss(
+    conn: sqlite3.Connection, chat_id: int,
+    plan: dict[str, tuple[tuple[str, ...], tuple[str, ...]]],
+) -> dict[str, dict[str, dict]]:
+    """Der Stand der verfolgten Tabellen dieser Gruppe, Zeile fuer Zeile.
+
+    ``plan`` kommt aus ``ruecknahme.plan`` -- Tabelle -> (Schluesselspalten,
+    verglichene Spalten). Der Plan wird uebergeben und nicht hier gebaut: die
+    Entscheidung, WAS verfolgt wird, ist Fachlogik (``ruecknahme.py``), und
+    diese Datei liest nicht nach oben.
+
+    Weich entfernte Zeilen kommen MIT (kein ``entfernt_am IS NULL``): sonst
+    saehe der Diff eine im Lauf weich entfernte Figur als verschwunden und
+    fuegte sie beim Undo neu ein, statt ``entfernt_am`` zurueckzunehmen.
+
+    Ergebnis: ``{Tabelle: {Schluessel-JSON: {Spalte: Wert}}}``. Der Schluessel
+    ist ``json.dumps(..., sort_keys=True)``, damit er bei einem
+    zusammengesetzten Schluessel (``szene_figur``) stabil bleibt."""
+    fertig: dict[str, dict[str, dict]] = {}
+    for tabelle, (schluesselspalten, spalten) in plan.items():
+        namen = list(dict.fromkeys(list(schluesselspalten) + list(spalten)))
+        auswahl = ", ".join(namen)
+        zeilen = conn.execute(
+            f"SELECT {auswahl} FROM {tabelle} WHERE chat_id = ?", (chat_id,)
+        ).fetchall()
+        fertig[tabelle] = {
+            json.dumps({k: zeile[k] for k in schluesselspalten}, sort_keys=True):
+                {k: zeile[k] for k in spalten}
+            for zeile in zeilen
+        }
+    return fertig
+
+
+@_gesperrt
+def lege_erkenner_lauf_an(
+    conn: sqlite3.Connection, chat_id: int, meldung: str,
+    schritte: list[dict],
+) -> int | None:
+    """Speichert die Ruecknahme-Schritte eines Erkennerlaufs und liefert die
+    Lauf-id -- oder ``None``, wenn es nichts anzulegen gab.
+
+    ``None`` bei leeren Schritten (ein Knopf ohne Wirkung waere schlimmer als
+    keiner) und bei leerer Meldung (eine Ruecknahme, die nicht sagen kann, WAS
+    sie zurueckgenommen hat, ist keine). Alles in EINER Transaktion: ein Lauf
+    mit halben Schritten wuerde beim Undo den Stand halb wiederherstellen."""
+    if not schritte or not (meldung or "").strip():
+        return None
+    jetzt = _jetzt()
+    cur = conn.execute(
+        "INSERT INTO erkenner_lauf (chat_id, meldung, erstellt_am) VALUES (?, ?, ?)",
+        (chat_id, meldung, jetzt),
+    )
+    lauf_id = cur.lastrowid
+    conn.executemany(
+        "INSERT INTO erkenner_lauf_schritt "
+        "(chat_id, lauf_id, tabelle, schluessel, art, vorher, nachher, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                chat_id, lauf_id, s["tabelle"],
+                json.dumps(s["schluessel"], sort_keys=True), s["art"],
+                None if s["vorher"] is None else json.dumps(s["vorher"], sort_keys=True),
+                None if s["nachher"] is None else json.dumps(s["nachher"], sort_keys=True),
+                jetzt,
+            )
+            for s in schritte
+        ],
+    )
+    conn.commit()
+    return lauf_id
+
+
+@_gesperrt
+def merke_erkenner_lauf_nachricht(
+    conn: sqlite3.Connection, lauf_id: int, message_id: int
+) -> None:
+    """Haelt fest, unter welcher Nachricht der Undo-Knopf dieses Laufs haengt
+    -- gebraucht, um nach der Ruecknahme genau ihre Grundleiste verfallen zu
+    lassen."""
+    conn.execute(
+        "UPDATE erkenner_lauf SET message_id = ? WHERE id = ?",
+        (message_id, lauf_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hole_erkenner_lauf(conn: sqlite3.Connection, lauf_id: int) -> sqlite3.Row | None:
+    """Der Lauf zu einer id, egal ob schon zurueckgenommen -- der Aufrufer muss
+    den Unterschied kennen, um einen zweiten Druck freundlich zu beantworten
+    (dieselbe Ueberlegung wie bei ``hole_knopf``)."""
+    return conn.execute(
+        "SELECT * FROM erkenner_lauf WHERE id = ?", (lauf_id,)
+    ).fetchone()
+
+
+@_gesperrt
+def erkenner_lauf_schritte(
+    conn: sqlite3.Connection, lauf_id: int
+) -> list[sqlite3.Row]:
+    """Die Schritte eines Laufs in Anlegereihenfolge."""
+    return conn.execute(
+        "SELECT * FROM erkenner_lauf_schritt WHERE lauf_id = ? ORDER BY id ASC",
+        (lauf_id,),
+    ).fetchall()
+
+
+#: Die Ergebnisse von ``nimm_erkenner_lauf_zurueck``. Drei und nicht ein bool:
+#: "seitdem geaendert" und "schon zurueckgenommen" sind fuer die Gruppe zwei
+#: verschiedene Saetze.
+ZURUECK_OK = "ok"
+ZURUECK_GEAENDERT = "geaendert"
+ZURUECK_SCHON = "schon"
+
+
+def _zeile_jetzt(conn, tabelle, schluessel, spalten):
+    """Die verglichenen Spalten einer Zeile, oder None wenn sie fehlt."""
+    bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+    auswahl = ", ".join(spalten) if spalten else "1"
+    zeile = conn.execute(
+        f"SELECT {auswahl} FROM {tabelle} WHERE {bedingung}",
+        list(schluessel.values()),
+    ).fetchone()
+    return None if zeile is None else {k: zeile[k] for k in spalten}
+
+
+def _hat_fremden_verweis(conn, verweise, tabelle, zeilen_id, eigene) -> bool:
+    """Zeigt jetzt eine Zeile auf diese figur/szene, die nicht im Lauf
+    entstanden ist? Dann waere die Ruecknahme eine Waisenfabrik.
+
+    ``rowid AS rowid`` und nicht nacktes ``rowid``: jede dieser Tabellen hat
+    ``id INTEGER PRIMARY KEY``, und SQLite benennt die Ergebnisspalte dann
+    nach dem Spaltennamen des Alias (``id``), nicht nach ``rowid`` -- ohne das
+    ``AS`` wirft ``zeile["rowid"]`` einen ``IndexError`` (am echten Schema
+    gemessen, nicht im Brief vorgesehen)."""
+    for quelle, spalte, ziel in verweise:
+        if ziel != tabelle:
+            continue
+        for zeile in conn.execute(
+            f"SELECT rowid AS rowid FROM {quelle} WHERE {spalte} = ?", (zeilen_id,)
+        ):
+            if (quelle, zeile["rowid"]) not in eigene:
+                return True
+    return False
+
+
+@_gesperrt
+def nimm_erkenner_lauf_zurueck(
+    conn: sqlite3.Connection, lauf_id: int,
+    verweise: tuple[tuple[str, str, str], ...],
+    weich: tuple[str, ...], hart: tuple[str, ...], geleert: tuple[str, ...],
+) -> str:
+    """Nimmt einen ganzen Erkennerlauf zurueck -- **alles oder nichts**, in
+    EINER Transaktion unter ``_LOCK``.
+
+    Erst wird JEDER Schritt geprueft (steht der Wert noch so, wie ihn der Lauf
+    hinterlassen hat? haengt an einer neu angelegten Figur/Szene inzwischen
+    etwas Fremdes?), und nur wenn alle durchkommen, wird angewendet. Ein
+    halber Rueckschritt waere schlimmer als keiner: die Gruppe saehe einen
+    Stand, den es nie gegeben hat.
+
+    Die Idempotenz haengt an zwei Dingen: ``beanspruche_knopf`` beim Druck
+    (``knoepfe.behandle``) und dem bedingten UPDATE hier -- wer die Zeile
+    nicht bekommt, wirkt nicht. Das zweite ist noetig, weil die Ruecknahme
+    auch ohne Knopf aufrufbar ist (Web-Kanal, Aufgabe 10) und weil zwei
+    Knoepfe auf denselben Lauf zeigen koennen (Undo auf einer reduzierten
+    aelteren Leiste).
+
+    ``verweise``/``weich``/``hart``/``geleert`` kommen aus ``ruecknahme`` und
+    werden uebergeben: die Entscheidung, WAS wie zurueckgenommen wird, ist
+    Fachlogik, und diese Datei liest nicht nach oben."""
+    lauf = conn.execute(
+        "SELECT * FROM erkenner_lauf WHERE id = ?", (lauf_id,)
+    ).fetchone()
+    if lauf is None or lauf["zurueckgenommen_am"] is not None:
+        return ZURUECK_SCHON
+
+    schritte = conn.execute(
+        "SELECT * FROM erkenner_lauf_schritt WHERE lauf_id = ? ORDER BY id ASC",
+        (lauf_id,),
+    ).fetchall()
+    if not schritte:
+        return ZURUECK_SCHON
+
+    # Die Zeilen, die dieser Lauf selbst angelegt hat -- sie duerfen beim
+    # Waisen-Test nicht als fremder Verweis zaehlen. ``rowid AS rowid``:
+    # siehe Kommentar in ``_hat_fremden_verweis``, gilt hier genauso fuer
+    # ``arbeitsstand`` (chat_id), ``figur``/``szene``/``festlegung`` (id).
+    eigene = set()
+    for s in schritte:
+        if s["art"] != "angelegt":
+            continue
+        schluessel = json.loads(s["schluessel"])
+        bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+        for zeile in conn.execute(
+            f"SELECT rowid AS rowid FROM {s['tabelle']} WHERE {bedingung}",
+            list(schluessel.values()),
+        ):
+            eigene.add((s["tabelle"], zeile["rowid"]))
+
+    # 1. Pruefen -- jeder Schritt, bevor einer wirkt.
+    for s in schritte:
+        schluessel = json.loads(s["schluessel"])
+        nachher = json.loads(s["nachher"]) if s["nachher"] else None
+        jetzt = _zeile_jetzt(
+            conn, s["tabelle"], schluessel,
+            list(nachher or json.loads(s["vorher"])),
+        )
+        if s["art"] == "geloescht":
+            if jetzt is not None:
+                return ZURUECK_GEAENDERT
+            continue
+        if jetzt is None:
+            return ZURUECK_GEAENDERT
+        for spalte, wert in nachher.items():
+            if json.loads(json.dumps(jetzt.get(spalte))) != \
+                    json.loads(json.dumps(wert)):
+                return ZURUECK_GEAENDERT
+        if s["art"] == "angelegt" and s["tabelle"] in weich:
+            zeilen_id = schluessel.get("id")
+            if zeilen_id is not None and _hat_fremden_verweis(
+                conn, verweise, s["tabelle"], zeilen_id, eigene
+            ):
+                return ZURUECK_GEAENDERT
+
+    # 2. Stempeln und 3. Anwenden stehen ab hier in EINEM try/except: ohne es
+    # bliebe ein Statement, das in der Anwende-Phase scheitert (etwa ein
+    # ``vorher``-JSON mit einer Spalte, die es in der Tabelle nicht mehr
+    # gibt -- ``sqlite3.OperationalError``), als halb offene Transaktion auf
+    # der GETEILTEN Verbindung liegen, und der naechste ``conn.commit()``
+    # irgendeiner anderen ``repo``-Funktion wuerde Stempel und Teilschritte
+    # festschreiben. ``except BaseException`` statt ``Exception``, weil auch
+    # ein ``KeyboardInterrupt``/SystemExit mitten im Anwenden nicht die
+    # Haelfte stehen lassen darf.
+    try:
+        # 2. Stempeln -- bedingt, in derselben Transaktion. Wer die Zeile
+        #    nicht bekommt, wirkt nicht.
+        cur = conn.execute(
+            "UPDATE erkenner_lauf SET zurueckgenommen_am = ? "
+            "WHERE id = ? AND zurueckgenommen_am IS NULL",
+            (_jetzt(), lauf_id),
+        )
+        if cur.rowcount != 1:
+            conn.rollback()
+            return ZURUECK_SCHON
+
+        # 3. Anwenden.
+        for s in schritte:
+            tabelle = s["tabelle"]
+            schluessel = json.loads(s["schluessel"])
+            bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+            werte = list(schluessel.values())
+            if s["art"] == "geaendert":
+                vorher = json.loads(s["vorher"])
+                satz = ", ".join(f"{k} = ?" for k in vorher)
+                conn.execute(
+                    f"UPDATE {tabelle} SET {satz} WHERE {bedingung}",
+                    list(vorher.values()) + werte,
+                )
+            elif s["art"] == "angelegt":
+                if tabelle in weich:
+                    conn.execute(
+                        f"UPDATE {tabelle} SET entfernt_am = ? WHERE {bedingung}",
+                        [_jetzt()] + werte,
+                    )
+                elif tabelle in geleert:
+                    spalten = list(json.loads(s["nachher"]))
+                    satz = ", ".join(f"{k} = NULL" for k in spalten)
+                    conn.execute(
+                        f"UPDATE {tabelle} SET {satz} WHERE {bedingung}", werte
+                    )
+                elif tabelle in hart:
+                    conn.execute(f"DELETE FROM {tabelle} WHERE {bedingung}", werte)
+                else:
+                    # Eine VERFOLGT-Tabelle ohne Eintrag in weich/geleert/hart
+                    # ist ein Programmierfehler -- still uebersprungen wuerde
+                    # sie ZURUECK_OK melden, ohne dass etwas zurueckgenommen
+                    # wurde. Das try/except oben rollt den Stempel mit zurueck.
+                    raise ValueError(
+                        f"Tabelle {tabelle!r} ist weder in weich, geleert "
+                        "noch hart gelistet -- 'angelegt' kann nicht "
+                        "zurueckgenommen werden."
+                    )
+            else:  # geloescht -- wieder einfuegen
+                zeile = dict(json.loads(s["vorher"]))
+                zeile.update(schluessel)
+                zeile.setdefault("chat_id", lauf["chat_id"])
+                namen = ", ".join(zeile)
+                fragen = ", ".join("?" for _ in zeile)
+                conn.execute(
+                    f"INSERT OR IGNORE INTO {tabelle} ({namen}) VALUES ({fragen})",
+                    list(zeile.values()),
+                )
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    return ZURUECK_OK

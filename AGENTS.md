@@ -43,6 +43,7 @@ Module unter `interview_theater/`:
 | `stueckpruefung.py` | Phase 7: der Stück-Judge über das ganze Textbuch — je Befund eine Frage mit Szenenbezug, Tabelle `stueckpruefung`, eigener Thread |
 | `kernzitate.py` | Die Auswahl der Belegzitate zum Kernthema (`waehle`), rückwärtskompatible Basis der Schärfung — dieselbe Prüf- und Speicherlogik |
 | `kuerzung.py` | Kürzen als eigener Weg (30.09.2026, C4/C10): die feste Regie-Notiz (25 %), die Zielwahl (Szenennummer → `szene.starte`, keine → `kurzgeschichte.starte`) und `nummer_aus_wert`. **Kein eigener Modellaufruf** — beide Wege geben an ihren vorhandenen Thread ab, und beide hängen ihre Fassung an (`szenenfassung`). Eine Kürzung erzeugt **nie** eine neue Szenenfolge |
+| `ruecknahme.py` | Die Ruecknahme eines Erkennerlaufs (01.10.2026, Karte U): welche Tabellen und Spalten verfolgt werden (`VERFOLGT`, `MATERIAL`, `AUSSEN`) und wie aus zwei Schnappschuessen um `wende_an` die Ruecknahme-Schritte werden (`schritte`). **Reine Funktionen, kein SQL, kein Nutzertext** -- alles SQL steht in `repo.py`, die Wortlaute in `knoepfe/texte.py`. `db` wird nur fuer die Spaltenliste gelesen (`_tabellenspalten_aus_schema`), damit eine neue Spalte automatisch mitverfolgt wird |
 | `leitfaden.py` | Baut aus Eröffnung, den gewählten Fragen mit ihren weichen Fassungen und dem Abschluss **deterministisch** den Gesprächsleitfaden (`baue`, `aus_feldern`) — kein Modellaufruf, dieselbe Funktion für Chat und Gruppenseite |
 | `vorschlag.py` | Die Markerzeilen im Antworttext (`VORSCHLAG BEGRIFFE:` und Verwandte): lesen, in Blöcke zerlegen, aus dem Chattext entfernen. Die Schnittstelle zwischen Prompt und Knopfleiste |
 | `vorschlagssperre.py` | Die EINE Sperre je `chat_id`, die Schärfung und die vier `szenenfolge.starte*` voneinander trennt (30.09.2026, C7), plus einen Merkplatz je Auftragsart: wer sie nicht bekommt, wird **gemerkt** und läuft nach der Freigabe automatisch. Reines `threading`, **kein** Projektimport — deshalb von beiden Seiten importierbar. Grenze: der Merkplatz lebt im Prozess, ein Neustart verliert ihn |
@@ -105,7 +106,7 @@ Versehen).
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
 | **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` |
 
 **Wo man anfängt, je nach Frage:**
@@ -119,6 +120,7 @@ Versehen).
 | Wie entsteht ein Szenentext? | `szene.starte` → `baue_nutzertext` → `schreibe` |
 | Wann darf die Gruppe weiter? | `phasen.voraussetzungen` (die einzige Stelle) |
 | Warum wartet ein Vorschlag? | `vorschlagssperre.nimm_oder_merke` → `merke` → `gib_frei` |
+| Wie nehme ich einen Erkennerlauf zurueck? | `knoepfe.wirkung._wirkung_undo` → `repo.nimm_erkenner_lauf_zurueck`; was erfasst wird: `ruecknahme.VERFOLGT` |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -734,6 +736,61 @@ es jemand im Chat merkt.
      `knoepfe._speichere_geschichte` verwirft heute **nichts** (auf dem
      Menü-Weg ist der `wert` immer einzeilig) und bleibt für den
      `alter_block`-Weg stehen.
+- **Ein Erkennerlauf ist mit einem Tipp zuruecknehmbar** (01.10.2026, Karte U,
+  Birk 30.09.: "Die Tests vor dem Workshop bilden die echte Chatrealitaet der
+  Studierenden nur begrenzt ab. Ein falsch gespeicherter Wert darf deshalb
+  nicht STILL bleiben"). Unter **jeder** "Notiert:"-Meldung steht ein ruhiger
+  Knopf "Rueckgaengig" (Padua: "Undo") als letzte Zeile der Tastatur -- die
+  bestehende Grundleiste bleibt darueber, mobil gilt ein Hauptknopf je
+  Bildschirm. Sieben Saetze, die zusammengehoeren:
+  1. **Erfasst wird per DIFF, nicht per Nachbau je Art.** `erkenner.laufe`
+     nimmt vor und nach `wende_an` einen Schnappschuss der verfolgten Tabellen
+     (`ruecknahme.plan`, `repo.schnappschuss`); die Differenz sind die
+     Schritte. Jede `_wende_*_an`-Funktion nachzubilden waere eine zweite
+     Wahrheit, die beim naechsten Umbau still ausschert --
+     `repo.fuehre_figur_zusammen` beruehrt drei Tabellen auf einmal,
+     `korrigiere_transkripte` vier. Ein parametrisierter Test faehrt jede
+     undo-faehige Art gegen die Spaetstand-Fixture und vergleicht den Dump
+     (`tests/test_ruecknahme_rundreise.py`); ein zweiter prueft, dass jede von
+     `wende_an` geschriebene Spalte verfolgt ist oder mit Grund in
+     `AUSSEN_VOR` steht.
+  2. **Eine Meldung, eine Ruecknahme** -- keine Einzelauswahl. Der Knopf traegt
+     die `erkenner_lauf.id` im `wert` der Knopfzeile, `callback_data` bleibt
+     `k:<id>` (Zusage 1), kein Modellaufruf im Handler (Zusage 2), idempotent
+     doppelt: `repo.beanspruche_knopf` **und** ein bedingtes
+     `UPDATE erkenner_lauf ... WHERE zurueckgenommen_am IS NULL` in derselben
+     Transaktion (Zusage 3).
+  3. **Weich statt hart** (N3): eine im Lauf angelegte Figur, Szene oder
+     Festlegung bekommt `entfernt_am`; eine reine Verknuepfungszeile
+     (`szene_figur`) wird geloescht, eine im Lauf geloeschte wieder
+     eingefuegt; eine im Lauf entstandene `arbeitsstand`-Zeile wird
+     **geleert**, nicht geloescht (sie traegt die Phasen-Buchhaltung).
+     "Figur weg" heisst: kein Leser in `repo`/`web_daten` sieht sie mehr.
+  4. **Alles oder nichts.** Stimmt EIN betroffener Wert nicht mehr mit dem
+     Stand nach dem Lauf ueberein, oder zeigt inzwischen etwas Fremdes auf
+     eine neu angelegte Figur/Szene (`ruecknahme.verweise()`, aus `db.SCHEMA`
+     hergeleitet), wird **nichts** geaendert und die Gruppe bekommt einen Satz
+     ("Seitdem geaendert -- bitte im Arbeitsstand korrigieren."). Ein halber
+     Rueckschritt waere schlimmer als keiner.
+  5. **Das Journal bleibt stehen** (nur-anhaengend): die Zeilen des Laufs
+     werden nicht angefasst, die Ruecknahme haengt eine neue an
+     (`quelle 'undo'`). Die Antwortzeile geht ausserdem als Bot-Zeile in
+     `nachricht`, damit der Gespraechs-Bot im naechsten Zug nicht behauptet,
+     der Wert stehe.
+  6. **Kein Undo fuer die Phase und fuer die USA-Einwilligung.** Beide fallen
+     automatisch heraus, weil `gruppe` und die Phasenspalten nicht verfolgt
+     werden; ihre Zeilen stehen in der Meldung, aber nicht in "Rueckgaengig
+     gemacht:". Die Einwilligung ist eine Datenschutzentscheidung mit eigenen
+     zwei Knoepfen -- **offener Punkt fuer Birk**, nicht fuer diese Karte.
+  7. **Nur die Erkenner-Meldung bekommt Undo.** Die Notiert-Zeilen aus
+     Knopfdruecken (`knoepfe.basis._speichere`) und die Gruppenseite sind
+     bewusste Handlungen der Gruppe an einem fixen Wert; dort hat sich keine
+     Schicht geirrt, die man zurueckdrehen muesste. Nach einem wirksamen Undo
+     werden die Grundleisten-Knoepfe derselben Nachricht verfallen gelassen,
+     sonst schriebe "Ja, speichern" den gerade zurueckgenommenen Wert wieder
+     (der Wert steckt im Knopf). Und eine ueberholte Leisten-Nachricht wird auf
+     ihren Undo-Knopf **reduziert** statt ganz abgenommen: er ist der einzige
+     Weg, ihren Wert zurueckzunehmen.
 
 ## Die Dramaturgie-Prüfung
 
@@ -1084,8 +1141,14 @@ python -m interview_theater.bot
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
 
+`scripts/simulation_abdeckung.py` erzeugt die Abdeckungstabelle der
+Simulation aus dem Code (Phasen aus `phasen.PHASEN`, Schritte aus den drei
+`skript`-Listen, Pruefung aus `schritt.fertig.__name__`) und prueft jede
+Behauptung der Simulations-Doku dagegen — kein Modell, kein Netz, keine
+Kosten.
+
 **Simulation** (`simulation/`, `scripts/simulation.py`, Stand 06.09.2026 nachts):
-simulierte Gruppen spielen den Bot durch alle **acht Phasen** — mit Inline-Knöpfen
+simulierte Gruppen spielen den Bot durch alle **Phasen** — mit Inline-Knöpfen
 (`attrappe` merkt die Leisten, die Stimme drückt per Knopftext oder schreibt
 frei) und dem Schrittplan `skript.SCHRITTE_TAG2`. Stimmen: drei erfundene Sets
 plus **PII-freie Personas aus Tag 1** (`simulation/tag1.py`,
@@ -1269,9 +1332,13 @@ einem Szenentext kommt, ob Zustimmungen ankommen, ob der Bot behauptet, etwas
 notiert zu haben, das nirgends steht. Genau dafür gibt es
 `scripts/simulation.py` (Details in [simulation/README.md](simulation/README.md)).
 
-Drei simulierte Teilnehmerinnen arbeiten sich durch neun Schritte: Begriffe,
-Fragen, fünf Interviews, Kernthema, Figuren, Phase 5, eine Szene, eine
-Korrektur, `/stand`. Gefahren wird **derselbe Codepfad wie im Betrieb**
+Simulierte Teilnehmerinnen arbeiten sich durch die Schritte einer
+Skriptliste. `skript.SCHRITTE` ist der Ablauf vom 05.09.2026 und die
+Messlatte der damaligen Verlaufszeilen (zehn Schritte, keine Phasenwechsel);
+`skript.SCHRITTE_TAG2` faehrt die heutigen **sieben** Phasen, und seit dem
+30.09.2026 waehlt der Schalter `--skript tag2` es auch fuer die erfundenen
+Sets 1–3 — vorher war es an `--set tag1-*` gebunden, und damit fuhr kein
+erfundenes Set die Phasen 4 bis 7 ueberhaupt an. Gefahren wird **derselbe Codepfad wie im Betrieb**
 (`bot.verarbeite_update`, `bot._zug_und_erkenner`), nur mit einer
 Telegram-Attrappe statt Netz und einer Wegwerf-Datenbank statt `IT_DB`. Der
 Umweg über Telegram ist gar nicht möglich: Telegram liefert Bot-Nachrichten
@@ -1331,6 +1398,24 @@ Verteilung, die Prompts über `ZIEL`, die mit Kürzung — und bei den fünf
 schwächsten Antworten urteilt der Richter am Block-Umriss, ob dem Bot
 Information gefehlt hat, die in der DB stand. Dazu ein Skript-Schritt
 **Zitatabfragen** mit der mechanischen Kennzahl `zitat_erfunden` (Soll 0).
+
+Dazu seit dem 30.09.2026 die zwei Kennzahlen der Gegenpruefung, beide
+mechanisch: **`festlegungsproben_erhalten`** (Soll: alle — von drei
+Pruefsaetzen, die in kein Arbeitsstandfeld passen, muss jeder dauerhaft
+liegen; das Journal zaehlt dabei **nicht**, es wird auf acht Zeilen gekappt)
+und **`szenenfolge_nach_richtung`** (Soll 0 — nach einer gedrueckten
+Geschichte-Richtung darf kein frischer Szenenfolge-Vorschlag laufen, er
+ueberschreibt die Titel der Gruppe und kostet 110 s; in den Laeufen vom
+30.09.2026 konnte sie noch nie anschlagen, weil die Richtungswahl in keinem
+Lauf erreicht wurde). Beide sind entstanden, weil die Simulation die zwei
+belegten Dortmunder Fehler vom 06.09.2026 vorher nicht benennen konnte; was
+sie heute findet und was nicht, steht in
+`docs/simulation-gegenpruefung-2026-09-30.md`.
+`simulation/mutation.py` baut sie auf Knopfdruck wieder ein
+(`--mutation`) — per Monkey-Patch aus `simulation/` heraus, kein
+Produktivcode und keine Weiche darin; `tests/test_simulation_mutation.py`
+haelt fest, dass die Mutation den Fehler wirklich erzeugt, und muss vor jedem
+bezahlten Lauf gruen sein.
 
 **Kein Test, läuft nie automatisch, kostet Geld** — wie `pruefe_prompts.py`
 und `rauchtest.py`, nur eine Größenordnung mehr: ein voller Lauf sind einige
@@ -1938,6 +2023,12 @@ python -m interview_theater.bot
   Datenbankzeilen einer Gruppe und ihr Audioverzeichnis, fragt vorher
   interaktiv nach Bestätigung. Es gibt bewusst keinen Löschbefehl im Chat.
 
+`scripts/simulation_abdeckung.py` erzeugt die Abdeckungstabelle der
+Simulation aus dem Code (Phasen aus `phasen.PHASEN`, Schritte aus den drei
+`skript`-Listen, Pruefung aus `schritt.fertig.__name__`) und prueft jede
+Behauptung der Simulations-Doku dagegen — kein Modell, kein Netz, keine
+Kosten.
+
 **Simulation** (`simulation/`, `scripts/simulation.py`, Stand 06.09.2026 nachts):
 simulierte Gruppen spielen den Bot durch **alle Phasen** — mit Inline-Knöpfen
 (`attrappe` merkt die Leisten, die Stimme drückt per Knopftext oder schreibt
@@ -2214,9 +2305,13 @@ einem Szenentext kommt, ob Zustimmungen ankommen, ob der Bot behauptet, etwas
 notiert zu haben, das nirgends steht. Genau dafür gibt es
 `scripts/simulation.py` (Details in [simulation/README.md](simulation/README.md)).
 
-Drei simulierte Teilnehmerinnen arbeiten sich durch neun Schritte: Begriffe,
-Fragen, fünf Interviews, Kernthema, Figuren, Phase 5, eine Szene, eine
-Korrektur, `/stand`. Gefahren wird **derselbe Codepfad wie im Betrieb**
+Simulierte Teilnehmerinnen arbeiten sich durch die Schritte einer
+Skriptliste. `skript.SCHRITTE` ist der Ablauf vom 05.09.2026 und die
+Messlatte der damaligen Verlaufszeilen (zehn Schritte, keine Phasenwechsel);
+`skript.SCHRITTE_TAG2` faehrt die heutigen **sieben** Phasen, und seit dem
+30.09.2026 waehlt der Schalter `--skript tag2` es auch fuer die erfundenen
+Sets 1–3 — vorher war es an `--set tag1-*` gebunden, und damit fuhr kein
+erfundenes Set die Phasen 4 bis 7 ueberhaupt an. Gefahren wird **derselbe Codepfad wie im Betrieb**
 (`bot.verarbeite_update`, `bot._zug_und_erkenner`), nur mit einer
 Telegram-Attrappe statt Netz und einer Wegwerf-Datenbank statt `IT_DB`. Der
 Umweg über Telegram ist gar nicht möglich: Telegram liefert Bot-Nachrichten
@@ -2276,6 +2371,24 @@ Verteilung, die Prompts über `ZIEL`, die mit Kürzung — und bei den fünf
 schwächsten Antworten urteilt der Richter am Block-Umriss, ob dem Bot
 Information gefehlt hat, die in der DB stand. Dazu ein Skript-Schritt
 **Zitatabfragen** mit der mechanischen Kennzahl `zitat_erfunden` (Soll 0).
+
+Dazu seit dem 30.09.2026 die zwei Kennzahlen der Gegenpruefung, beide
+mechanisch: **`festlegungsproben_erhalten`** (Soll: alle — von drei
+Pruefsaetzen, die in kein Arbeitsstandfeld passen, muss jeder dauerhaft
+liegen; das Journal zaehlt dabei **nicht**, es wird auf acht Zeilen gekappt)
+und **`szenenfolge_nach_richtung`** (Soll 0 — nach einer gedrueckten
+Geschichte-Richtung darf kein frischer Szenenfolge-Vorschlag laufen, er
+ueberschreibt die Titel der Gruppe und kostet 110 s; in den Laeufen vom
+30.09.2026 konnte sie noch nie anschlagen, weil die Richtungswahl in keinem
+Lauf erreicht wurde). Beide sind entstanden, weil die Simulation die zwei
+belegten Dortmunder Fehler vom 06.09.2026 vorher nicht benennen konnte; was
+sie heute findet und was nicht, steht in
+`docs/simulation-gegenpruefung-2026-09-30.md`.
+`simulation/mutation.py` baut sie auf Knopfdruck wieder ein
+(`--mutation`) — per Monkey-Patch aus `simulation/` heraus, kein
+Produktivcode und keine Weiche darin; `tests/test_simulation_mutation.py`
+haelt fest, dass die Mutation den Fehler wirklich erzeugt, und muss vor jedem
+bezahlten Lauf gruen sein.
 
 **Kein Test, läuft nie automatisch, kostet Geld** — wie `pruefe_prompts.py`
 und `rauchtest.py`, nur eine Größenordnung mehr: ein voller Lauf sind einige

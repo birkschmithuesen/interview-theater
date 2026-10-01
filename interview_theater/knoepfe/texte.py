@@ -50,6 +50,10 @@ ART_SZENE_USA = "szene_usa"
 #: Die Interviewsprache fuer Whisper (Karte A1, D2) -- nur in Profilen mit
 #: sprache.whisper = "auto" (Padua), beim Eintritt in Phase 3.
 ART_STT_SPRACHE = "stt_sprache"
+#: Der Undo-Knopf unter einer "Notiert:"-Meldung des Erkenners (Karte U,
+#: 01.10.2026). ``wert`` ist die ``erkenner_lauf.id`` -- eine Meldung, eine
+#: Ruecknahme, keine Einzelauswahl.
+ART_UNDO = "undo"
 #: Ein Interview jetzt auswerten -- dasselbe Ziel wie ``/auswerten <N>``. Der
 #: ``wert`` traegt die ``aufnahme_id`` des Interview-Kopfes, damit der Druck
 #: auch dann noch das gemeinte Interview trifft, wenn inzwischen ein weiteres
@@ -330,6 +334,31 @@ _TEXT_KERNTHEMA_KEINE = (
 )
 _TEXT_SCHON_BENUTZT = "Das habe ich schon uebernommen."
 _TEXT_UNBEKANNT = "Diesen Knopf kenne ich nicht mehr."
+#: Der Undo-Knopf (Karte U). Ruhig: kein Emoji, ein Wort, letzte Zeile der
+#: Tastatur -- mobil gilt ein Hauptknopf je Bildschirm, und Undo ist
+#: Nebenknopf. ASCII-Umschrift wie jede Beschriftung in dieser Datei.
+_TEXT_UNDO_KNOPF = "Rueckgaengig"
+#: Was zurueckgenommen wurde -- dieselben Zeilen wie in der Meldung
+#: (erkenner.undo_zeilen), keine zweite Formulierung.
+_TEXT_UNDO_ERLEDIGT = "Rueckgaengig gemacht:\n{zeilen}"
+#: Ein betroffenes Feld hat sich seit dem Lauf erneut geaendert: NICHTS wird
+#: angefasst, und die Gruppe erfaehrt, wo sie stattdessen hingehen kann.
+_TEXT_UNDO_GEAENDERT = "Seitdem geaendert -- bitte im Arbeitsstand korrigieren."
+#: ``repo.nimm_erkenner_lauf_zurueck`` hat eine Ausnahme geworfen (Review-Fix
+#: Aufgabe 6, z.B. "database is locked" beim Stempel-UPDATE -- vier Bots und
+#: das Web teilen dieselbe Datei). Die Transaktion ist intern vollstaendig
+#: zurueckgerollt (``except BaseException: conn.rollback(); raise`` in
+#: ``repo.py``), nichts wurde zurueckgenommen -- und die Gruppe soll das
+#: hoeren, statt gegen eine stumme Tastatur zu tippen.
+_TEXT_UNDO_FEHLER = (
+    "Das konnte ich nicht zuruecknehmen -- bitte im Arbeitsstand korrigieren."
+)
+#: Die kurzen Zeilen fuer answerCallbackQuery.
+_ANTWORT_UNDO = "Zurueckgenommen."
+_ANTWORT_UNDO_GEAENDERT = "Seitdem geaendert."
+#: Die Journalzeile der Ruecknahme -- das Journal wird nur angehaengt, die
+#: Zeilen des Laufs bleiben stehen (AGENTS.md).
+_JOURNAL_UNDO = "Zurueckgenommen: {zeilen}"
 #: Die Knopfbeschriftungen heissen seit 05.09.2026 "Interview", nicht
 #: "Aufnahme" (Birk, Live-Lauf Gruppe 3): "Aufnahme klingt, als liefe ein
 #: Mikrofon -- es sind Sprachnachrichten." Der Modus, die Klassen und die

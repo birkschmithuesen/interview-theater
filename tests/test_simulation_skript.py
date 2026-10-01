@@ -174,3 +174,102 @@ def test_ziel_text_fuellt_die_platzhalter():
     })
     assert "Meryem" in text and "Rukiye" in text and "Ayla" in text
     assert "{" not in text
+
+
+# --- Der heutige Phasenstand (30.09.2026) ---------------------------------
+
+
+def test_das_tag2_skript_faehrt_jede_phase_genau_einmal_an():
+    """Sieben Phasen, sechs Phasenschritte (in die erste kommt niemand per
+    Knopf). Eine achte Phase soll dieses Skript nicht mitreissen -- deshalb
+    gegen ``phasen.PHASEN`` geprueft und nicht gegen eine Zahl."""
+    nummern = [s.phase_nummer for s in skript.SCHRITTE_TAG2 if s.art == "phase"]
+    assert nummern == [n for n, _k, _b in phasen.PHASEN][1:]
+
+
+def test_die_konstanten_heissen_wie_die_phasen_heute():
+    assert phasen.kurzname(skript.PHASE_SCHAERFUNG).startswith("Schaerfung")
+    assert skript.PHASE_SETTING == skript.PHASE_GESCHICHTE
+    assert phasen.kurzname(skript.PHASE_SETTING) == phasen.kurzname(4)
+    # Die frueheren Namen "Szenentexte"/"Durchlauf" gibt es nicht mehr.
+    assert not hasattr(skript, "PHASE_SZENENTEXTE")
+    assert not hasattr(skript, "PHASE_DURCHLAUF")
+    assert phasen.kurzname(skript.PHASE_PROSA) == phasen.kurzname(6)
+    assert phasen.kurzname(skript.PHASE_FEINSCHLIFF) == phasen.kurzname(7)
+
+
+def test_der_titel_von_phase_mitte_nennt_seine_eigene_phase():
+    """``Schritt("phase_mitte", "Phase 5", ...)`` bei ``PHASE_MITTE == 4`` war
+    der Befund vom 30.09.2026 -- der Titel steht im Lauf-Protokoll und im
+    Bericht, und wer dort "Phase 5" liest, glaubt, Phase 5 sei gemessen."""
+    titel = skript.schritt_fuer("phase_mitte").titel
+    assert str(skript.PHASE_MITTE) in titel
+    assert "Phase 5" not in titel
+
+
+def test_der_festlegungsschritt_liegt_zwischen_setting_und_geschichte():
+    schluessel = [s.schluessel for s in skript.SCHRITTE_TAG2]
+    assert schluessel.index("setting") < schluessel.index("festlegungen")
+    assert schluessel.index("festlegungen") < schluessel.index("geschichte")
+
+
+def test_das_ziel_des_festlegungsschritts_nennt_alle_pruefsaetze():
+    schritt = skript.schritt_fuer("festlegungen", skript.SCHRITTE_TAG2)
+    ziel = schritt.ziel_text({
+        "festlegungsproben": skript.festlegungsproben_text(),
+    })
+    for _bereich, _stichwort, satz in skript.FESTLEGUNGSPROBEN:
+        assert satz in ziel
+
+
+def test_der_festlegungsschritt_ist_erst_fertig_wenn_alles_dauerhaft_liegt(conn):
+    from interview_theater import repo
+
+    schritt = skript.schritt_fuer("festlegungen", skript.SCHRITTE_TAG2)
+    assert schritt.fertig(conn, 1, {}) is False
+    for bereich, _stichwort, satz in skript.FESTLEGUNGSPROBEN:
+        repo.schreibe_festlegung(conn, 1, bereich, satz)
+    assert schritt.fertig(conn, 1, {}) is True
+
+
+def test_der_merker_liefert_die_pruefsaetze(conn, einst):
+    """``ziel_text`` faellt mit ``KeyError`` aus, wenn der Platzhalter fehlt --
+    und zwar mitten im Lauf, nach dem ersten bezahlten Modellaufruf."""
+    from simulation import lauf as lauf_modul
+    from simulation.attrappe import TelegramAttrappe
+
+    durchlauf = lauf_modul.Lauf(
+        conn, TelegramAttrappe(), None, einst, None,
+        gezogene=[], seed=1, schritte=[],
+    )
+    merker = durchlauf._merker()
+    assert "festlegungsproben" in merker
+    for schritt in skript.SCHRITTE_TAG2:
+        schritt.ziel_text(merker)   # darf nicht werfen
+
+
+def test_skript_schalter_waehlt_die_liste():
+    from scripts import simulation as sim
+
+    args = sim.baue_argumente(["--set", "1"])
+    assert sim._schritte(args) is skript.SCHRITTE
+    args = sim.baue_argumente(["--set", "1", "--skript", "tag2"])
+    assert sim._schritte(args) is skript.SCHRITTE_TAG2
+    args = sim.baue_argumente(["--set", "1", "--skript", "tag2", "--ohne-szene"])
+    assert all(s.art != "szene" for s in sim._schritte(args))
+
+
+def test_mutation_geht_in_den_mischungsnamen():
+    from scripts import simulation as sim
+
+    args = sim.baue_argumente(["--set", "1"])
+    assert sim.mischungsname(args) == "set1"
+    args = sim.baue_argumente(["--set", "1", "--mutation", "festlegung_verloren"])
+    assert sim.mischungsname(args) == "set1-festlegung_verloren"
+
+
+def test_eine_unbekannte_mutation_wird_vom_parser_abgelehnt():
+    from scripts import simulation as sim
+
+    with pytest.raises(SystemExit):
+        sim.baue_argumente(["--set", "1", "--mutation", "gibtsnicht"])

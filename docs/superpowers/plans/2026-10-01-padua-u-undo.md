@@ -1343,7 +1343,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
     `ZURUECK_SCHON = "schon"`
   - `nimm_erkenner_lauf_zurueck(conn, lauf_id, verweise, weich, hart, geleert) -> str`
 
-- [ ] **Schritt 1: Die fehlschlagenden Tests schreiben**
+- [x] **Schritt 1: Die fehlschlagenden Tests schreiben**
 
 An `tests/test_ruecknahme_repo.py` anhaengen:
 
@@ -1529,12 +1529,12 @@ def test_ruecknahme_eines_unbekannten_laufs_ist_kein_fehler(conn):
     assert _nimm_zurueck(conn, 999) == repo.ZURUECK_SCHON
 ```
 
-- [ ] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
+- [x] **Schritt 2: Tests laufen lassen, Fehlschlag sehen**
 
 Run: `$PY -m pytest tests/test_ruecknahme_repo.py -q -p no:cacheprovider`
 Erwartet: FAIL -- `AttributeError: module 'interview_theater.repo' has no attribute 'nimm_erkenner_lauf_zurueck'`
 
-- [ ] **Schritt 3: Die Funktion schreiben**
+- [x] **Schritt 3: Die Funktion schreiben**
 
 In `interview_theater/repo.py`, hinter `erkenner_lauf_schritte`:
 
@@ -1699,17 +1699,17 @@ def nimm_erkenner_lauf_zurueck(
     return ZURUECK_OK
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen, gruen sehen**
+- [x] **Schritt 4: Tests laufen lassen, gruen sehen**
 
 Run: `$PY -m pytest tests/test_ruecknahme_repo.py -q -p no:cacheprovider`
 Erwartet: `23 passed`
 
-- [ ] **Schritt 5: Die ganze Suite**
+- [x] **Schritt 5: Die ganze Suite**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `4388 passed, 1 skipped`
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add interview_theater/repo.py tests/test_ruecknahme_repo.py

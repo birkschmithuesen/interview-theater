@@ -3273,3 +3273,171 @@ def erkenner_lauf_schritte(
         "SELECT * FROM erkenner_lauf_schritt WHERE lauf_id = ? ORDER BY id ASC",
         (lauf_id,),
     ).fetchall()
+
+
+#: Die Ergebnisse von ``nimm_erkenner_lauf_zurueck``. Drei und nicht ein bool:
+#: "seitdem geaendert" und "schon zurueckgenommen" sind fuer die Gruppe zwei
+#: verschiedene Saetze.
+ZURUECK_OK = "ok"
+ZURUECK_GEAENDERT = "geaendert"
+ZURUECK_SCHON = "schon"
+
+
+def _zeile_jetzt(conn, tabelle, schluessel, spalten):
+    """Die verglichenen Spalten einer Zeile, oder None wenn sie fehlt."""
+    bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+    auswahl = ", ".join(spalten) if spalten else "1"
+    zeile = conn.execute(
+        f"SELECT {auswahl} FROM {tabelle} WHERE {bedingung}",
+        list(schluessel.values()),
+    ).fetchone()
+    return None if zeile is None else {k: zeile[k] for k in spalten}
+
+
+def _hat_fremden_verweis(conn, verweise, tabelle, zeilen_id, eigene) -> bool:
+    """Zeigt jetzt eine Zeile auf diese figur/szene, die nicht im Lauf
+    entstanden ist? Dann waere die Ruecknahme eine Waisenfabrik.
+
+    ``rowid AS rowid`` und nicht nacktes ``rowid``: jede dieser Tabellen hat
+    ``id INTEGER PRIMARY KEY``, und SQLite benennt die Ergebnisspalte dann
+    nach dem Spaltennamen des Alias (``id``), nicht nach ``rowid`` -- ohne das
+    ``AS`` wirft ``zeile["rowid"]`` einen ``IndexError`` (am echten Schema
+    gemessen, nicht im Brief vorgesehen)."""
+    for quelle, spalte, ziel in verweise:
+        if ziel != tabelle:
+            continue
+        for zeile in conn.execute(
+            f"SELECT rowid AS rowid FROM {quelle} WHERE {spalte} = ?", (zeilen_id,)
+        ):
+            if (quelle, zeile["rowid"]) not in eigene:
+                return True
+    return False
+
+
+@_gesperrt
+def nimm_erkenner_lauf_zurueck(
+    conn: sqlite3.Connection, lauf_id: int,
+    verweise: tuple[tuple[str, str, str], ...],
+    weich: tuple[str, ...], hart: tuple[str, ...], geleert: tuple[str, ...],
+) -> str:
+    """Nimmt einen ganzen Erkennerlauf zurueck -- **alles oder nichts**, in
+    EINER Transaktion unter ``_LOCK``.
+
+    Erst wird JEDER Schritt geprueft (steht der Wert noch so, wie ihn der Lauf
+    hinterlassen hat? haengt an einer neu angelegten Figur/Szene inzwischen
+    etwas Fremdes?), und nur wenn alle durchkommen, wird angewendet. Ein
+    halber Rueckschritt waere schlimmer als keiner: die Gruppe saehe einen
+    Stand, den es nie gegeben hat.
+
+    Die Idempotenz haengt an zwei Dingen: ``beanspruche_knopf`` beim Druck
+    (``knoepfe.behandle``) und dem bedingten UPDATE hier -- wer die Zeile
+    nicht bekommt, wirkt nicht. Das zweite ist noetig, weil die Ruecknahme
+    auch ohne Knopf aufrufbar ist (Web-Kanal, Aufgabe 10) und weil zwei
+    Knoepfe auf denselben Lauf zeigen koennen (Undo auf einer reduzierten
+    aelteren Leiste).
+
+    ``verweise``/``weich``/``hart``/``geleert`` kommen aus ``ruecknahme`` und
+    werden uebergeben: die Entscheidung, WAS wie zurueckgenommen wird, ist
+    Fachlogik, und diese Datei liest nicht nach oben."""
+    lauf = conn.execute(
+        "SELECT * FROM erkenner_lauf WHERE id = ?", (lauf_id,)
+    ).fetchone()
+    if lauf is None or lauf["zurueckgenommen_am"] is not None:
+        return ZURUECK_SCHON
+
+    schritte = conn.execute(
+        "SELECT * FROM erkenner_lauf_schritt WHERE lauf_id = ? ORDER BY id ASC",
+        (lauf_id,),
+    ).fetchall()
+    if not schritte:
+        return ZURUECK_SCHON
+
+    # Die Zeilen, die dieser Lauf selbst angelegt hat -- sie duerfen beim
+    # Waisen-Test nicht als fremder Verweis zaehlen. ``rowid AS rowid``:
+    # siehe Kommentar in ``_hat_fremden_verweis``, gilt hier genauso fuer
+    # ``arbeitsstand`` (chat_id), ``figur``/``szene``/``festlegung`` (id).
+    eigene = set()
+    for s in schritte:
+        if s["art"] != "angelegt":
+            continue
+        schluessel = json.loads(s["schluessel"])
+        bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+        for zeile in conn.execute(
+            f"SELECT rowid AS rowid FROM {s['tabelle']} WHERE {bedingung}",
+            list(schluessel.values()),
+        ):
+            eigene.add((s["tabelle"], zeile["rowid"]))
+
+    # 1. Pruefen -- jeder Schritt, bevor einer wirkt.
+    for s in schritte:
+        schluessel = json.loads(s["schluessel"])
+        nachher = json.loads(s["nachher"]) if s["nachher"] else None
+        jetzt = _zeile_jetzt(
+            conn, s["tabelle"], schluessel,
+            list(nachher or json.loads(s["vorher"])),
+        )
+        if s["art"] == "geloescht":
+            if jetzt is not None:
+                return ZURUECK_GEAENDERT
+            continue
+        if jetzt is None:
+            return ZURUECK_GEAENDERT
+        for spalte, wert in nachher.items():
+            if json.loads(json.dumps(jetzt.get(spalte))) != \
+                    json.loads(json.dumps(wert)):
+                return ZURUECK_GEAENDERT
+        if s["art"] == "angelegt" and s["tabelle"] in weich:
+            zeilen_id = schluessel.get("id")
+            if zeilen_id is not None and _hat_fremden_verweis(
+                conn, verweise, s["tabelle"], zeilen_id, eigene
+            ):
+                return ZURUECK_GEAENDERT
+
+    # 2. Stempeln -- bedingt, in derselben Transaktion. Wer die Zeile nicht
+    #    bekommt, wirkt nicht.
+    cur = conn.execute(
+        "UPDATE erkenner_lauf SET zurueckgenommen_am = ? "
+        "WHERE id = ? AND zurueckgenommen_am IS NULL",
+        (_jetzt(), lauf_id),
+    )
+    if cur.rowcount != 1:
+        conn.rollback()
+        return ZURUECK_SCHON
+
+    # 3. Anwenden.
+    for s in schritte:
+        tabelle = s["tabelle"]
+        schluessel = json.loads(s["schluessel"])
+        bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+        werte = list(schluessel.values())
+        if s["art"] == "geaendert":
+            vorher = json.loads(s["vorher"])
+            satz = ", ".join(f"{k} = ?" for k in vorher)
+            conn.execute(
+                f"UPDATE {tabelle} SET {satz} WHERE {bedingung}",
+                list(vorher.values()) + werte,
+            )
+        elif s["art"] == "angelegt":
+            if tabelle in weich:
+                conn.execute(
+                    f"UPDATE {tabelle} SET entfernt_am = ? WHERE {bedingung}",
+                    [_jetzt()] + werte,
+                )
+            elif tabelle in geleert:
+                spalten = list(json.loads(s["nachher"]))
+                satz = ", ".join(f"{k} = NULL" for k in spalten)
+                conn.execute(f"UPDATE {tabelle} SET {satz} WHERE {bedingung}", werte)
+            elif tabelle in hart:
+                conn.execute(f"DELETE FROM {tabelle} WHERE {bedingung}", werte)
+        else:  # geloescht -- wieder einfuegen
+            zeile = dict(json.loads(s["vorher"]))
+            zeile.update(schluessel)
+            zeile.setdefault("chat_id", lauf["chat_id"])
+            namen = ", ".join(zeile)
+            fragen = ", ".join("?" for _ in zeile)
+            conn.execute(
+                f"INSERT OR IGNORE INTO {tabelle} ({namen}) VALUES ({fragen})",
+                list(zeile.values()),
+            )
+    conn.commit()
+    return ZURUECK_OK

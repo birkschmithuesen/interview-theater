@@ -197,3 +197,184 @@ def test_offene_knoepfe_der_nachricht(conn):
 
     repo.verfallen_lassen(conn, [b])
     assert repo.offene_knoepfe_der_nachricht(conn, 1, 500, "undo") == []
+
+
+def _nimm_zurueck(conn, lauf_id):
+    return repo.nimm_erkenner_lauf_zurueck(
+        conn, lauf_id, ruecknahme.verweise(),
+        ruecknahme.WEICH, ruecknahme.HART, ruecknahme.GELEERT,
+    )
+
+
+def _lauf_um(conn, arten, tat):
+    """Nimmt den Schnappschuss um ``tat`` herum und legt den Lauf an -- genau
+    der Ablauf, den ``erkenner.laufe`` in Aufgabe 7 fahren wird."""
+    vorher = repo.schnappschuss(conn, 1, ruecknahme.plan(arten))
+    tat()
+    nachher = repo.schnappschuss(conn, 1, ruecknahme.plan(arten))
+    return repo.lege_erkenner_lauf_an(
+        conn, 1, "Probe",
+        ruecknahme.schritte(vorher, nachher),
+    )
+
+
+def test_ruecknahme_stellt_ein_feld_wieder_her(conn):
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+    lauf_id = _lauf_um(
+        conn, ("kernthema_setzen",),
+        lambda: repo.setze_arbeitsstand(conn, 1, "kernthema", "Neu"),
+    )
+
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_OK
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Alt"
+
+
+def test_ruecknahme_wirkt_nur_einmal(conn):
+    """Die zweite Idempotenz-Sperre neben ``beanspruche_knopf``: ein bedingtes
+    UPDATE in derselben Transaktion. Zwei direkte Aufrufe -- der zweite aendert
+    nichts.
+
+    Mutation, die diesen Test rot macht: ``AND zurueckgenommen_am IS NULL``
+    im UPDATE weglassen."""
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+    lauf_id = _lauf_um(
+        conn, ("kernthema_setzen",),
+        lambda: repo.setze_arbeitsstand(conn, 1, "kernthema", "Neu"),
+    )
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_OK
+
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Spaeter")
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_SCHON
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Spaeter"
+
+
+def test_ruecknahme_verweigert_wenn_der_wert_seitdem_anders_ist(conn):
+    lauf_id = _lauf_um(
+        conn, ("kernthema_setzen",),
+        lambda: repo.setze_arbeitsstand(conn, 1, "kernthema", "Neu"),
+    )
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Von Hand")
+
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_GEAENDERT
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Von Hand"
+    assert repo.hole_erkenner_lauf(conn, lauf_id)["zurueckgenommen_am"] is None
+
+
+def test_ruecknahme_ist_alles_oder_nichts(conn):
+    """Zwei Schritte, einer davon seitdem geaendert: NICHTS wird angefasst.
+
+    Mutation, die diesen Test rot macht: je Schritt einzeln pruefen und
+    committen statt erst alle pruefen, dann alle anwenden."""
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+
+    def tat():
+        repo.setze_arbeitsstand(conn, 1, "kernthema", "Neu")
+        repo.setze_arbeitsstand(conn, 1, "rahmen", "Bahnhof")
+
+    lauf_id = _lauf_um(conn, ("kernthema_setzen", "rahmen_setzen"), tat)
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Schulhof")
+
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_GEAENDERT
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["kernthema"] == "Neu", "kein halber Rueckschritt"
+    assert stand["rahmen"] == "Schulhof"
+
+
+def test_ruecknahme_entfernt_eine_neue_figur_weich(conn):
+    """N3: weich entfernen, nicht loeschen -- und geprueft wird ueber den
+    LESER, nicht ueber rohes SQL.
+
+    Mutation: ``entfernt_am`` nicht setzen -- ``repo.figuren`` liefert die
+    Figur weiter."""
+    lauf_id = _lauf_um(
+        conn, ("figur_setzen",),
+        lambda: repo.setze_figur(conn, 1, "Mira", "laut"),
+    )
+
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_OK
+    assert [f["name"] for f in repo.figuren(conn, 1)] == []
+    assert conn.execute("SELECT count(*) FROM figur").fetchone()[0] == 1, (
+        "die Zeile bleibt stehen -- weich, nicht hart"
+    )
+
+
+def test_ruecknahme_nimmt_ein_weiches_entfernen_zurueck(conn):
+    repo.setze_figur(conn, 1, "Mira", "laut")
+    lauf_id = _lauf_um(
+        conn, ("figur_setzen",),
+        lambda: repo.entferne_figur(conn, 1, "Mira"),
+    )
+
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_OK
+    assert [f["name"] for f in repo.figuren(conn, 1)] == ["Mira"]
+
+
+def test_ruecknahme_loescht_eine_neue_verknuepfung_hart(conn):
+    """``szene_figur`` hat kein ``entfernt_am`` -- eine im Lauf entstandene
+    Verknuepfung wird geloescht, genau wie ``setze_szene_figuren`` es tut."""
+    repo.setze_figur(conn, 1, "Mira", "laut")
+    figur_id = repo.hole_figur(conn, 1, "Mira")["id"]
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    lauf_id = _lauf_um(
+        conn, ("szene_planen",),
+        lambda: repo.setze_szene_figuren(conn, 1, szene_id, [figur_id]),
+    )
+
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_OK
+    assert repo.szene_figuren(conn, szene_id) == []
+
+
+def test_ruecknahme_fuegt_eine_hart_geloeschte_verknuepfung_wieder_ein(conn):
+    repo.setze_figur(conn, 1, "Mira", "laut")
+    repo.setze_figur(conn, 1, "Pola", "still")
+    mira = repo.hole_figur(conn, 1, "Mira")["id"]
+    pola = repo.hole_figur(conn, 1, "Pola")["id"]
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szene_figuren(conn, 1, szene_id, [mira, pola])
+
+    lauf_id = _lauf_um(
+        conn, ("szene_planen",),
+        lambda: repo.setze_szene_figuren(conn, 1, szene_id, [mira]),
+    )
+
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_OK
+    assert {f["id"] for f in repo.szene_figuren(conn, szene_id)} == {mira, pola}
+
+
+def test_ruecknahme_verweigert_bei_einer_waise(conn):
+    """Zeigt jetzt etwas auf die im Lauf neu angelegte Figur, das nicht im
+    Lauf entstanden ist, wird NICHTS geaendert -- sonst blieben Waisen in
+    ``szene_figur``/``schaerfung``/``szenenfassung`` stehen.
+
+    Mutation: die Waisen-Probe weglassen."""
+    lauf_id = _lauf_um(
+        conn, ("figur_setzen",),
+        lambda: repo.setze_figur(conn, 1, "Mira", "laut"),
+    )
+    figur_id = repo.hole_figur(conn, 1, "Mira")["id"]
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    # NACH dem Lauf besetzt: die Gruppe hat die Figur inzwischen eingebaut.
+    repo.setze_szene_figuren(conn, 1, szene_id, [figur_id])
+
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_GEAENDERT
+    assert [f["name"] for f in repo.figuren(conn, 1)] == ["Mira"]
+
+
+def test_ruecknahme_leert_eine_neue_arbeitsstandzeile_statt_sie_zu_loeschen(conn):
+    """``arbeitsstand`` hat genau eine Zeile je Gruppe und kein
+    ``entfernt_am`` -- sie zu loeschen hiesse, die Phasen-Buchhaltung
+    mitzureissen."""
+    assert repo.hole_arbeitsstand(conn, 1) is None
+    lauf_id = _lauf_um(
+        conn, ("kernthema_setzen",),
+        lambda: repo.setze_arbeitsstand(conn, 1, "kernthema", "Neu"),
+    )
+
+    assert _nimm_zurueck(conn, lauf_id) == repo.ZURUECK_OK
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand is not None, "die Zeile bleibt"
+    assert stand["kernthema"] is None
+
+
+def test_ruecknahme_eines_unbekannten_laufs_ist_kein_fehler(conn):
+    assert _nimm_zurueck(conn, 999) == repo.ZURUECK_SCHON

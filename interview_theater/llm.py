@@ -75,11 +75,24 @@ def vergiss_strom() -> None:
 
 
 class _StromNichtVerfuegbar(Exception):
-    """Der Anbieter hat den Stream abgelehnt -- BEVOR ein Stueck kam."""
+    """Der Anbieter hat den Stream DAUERHAFT abgelehnt (unbekannter
+    Parameter, kaputte Antwort) -- BEVOR ein Stueck kam. Setzt die
+    Prozessflagge ``_STROM_AUS``: dieser Anbieter kann kein Streaming."""
+
+
+class _StromVoruebergehend(Exception):
+    """Ein VORUEBERGEHENDER Fehler (429, 5xx, Transport-/Dekodierfehler) --
+    BEVOR ein Stueck kam (Fix Runde 1, Punkt 3). Infomaniak drosselt mit
+    429/5xx statt mit einer sauberen Warteschlange (AGENTS.md Falle 8); ein
+    einzelner Drosselimpuls darf nicht jede weitere Antwort dieses Prozesses
+    auf Nichtstreaming umschalten. Setzt die Prozessflagge NICHT -- nur
+    dieser eine Zug laeuft blockierend weiter."""
 
 
 class _StromAbbruch(Exception):
-    """Der Stream ist mitten drin abgerissen -- NACH dem ersten Stueck."""
+    """Der Stream ist mitten drin abgerissen -- NACH dem ersten Stueck. Setzt
+    die Prozessflagge nie: ein Abbruch sagt nichts darueber, ob der naechste
+    Stream gelingt."""
 
 
 class LLMFehler(Exception):
@@ -387,7 +400,18 @@ class LLM:
         strom_body["stream_options"] = {"include_usage": True}
         try:
             koerper = self._sende_strom(strom_body, timeout=timeout,
-                                        bei_teil=bei_teil, teil_feld=teil_feld)
+                                        bei_teil=bei_teil, teil_feld=teil_feld,
+                                        art=art)
+        except _StromVoruebergehend as fehler:
+            # Fix Runde 1, Punkt 3: ein einzelner Drosselimpuls (429/5xx,
+            # Transport-/Dekodierfehler vor dem ersten Stueck) schaltet das
+            # Streaming NICHT fuer den Prozess ab -- nur dieser eine Zug
+            # laeuft blockierend weiter, die Flagge bleibt unberuehrt.
+            log.info("Stream voruebergehend nicht verfuegbar (art=%s): %s -- "
+                     "dieser Zug laeuft blockierend, Flagge bleibt an",
+                     art, fehler)
+            return self._sende_mit_wiederholung(body, chat_id=chat_id, art=art,
+                                                timeout=timeout)
         except _StromNichtVerfuegbar as fehler:
             self._melde_strom_aus(chat_id, art, f"abgelehnt: {fehler}")
             return self._sende_mit_wiederholung(body, chat_id=chat_id, art=art,
@@ -395,7 +419,10 @@ class LLM:
         except _StromAbbruch as fehler:
             # Entscheidung E: KEIN halber Text wird zur Nachricht. Die
             # vorlaeufige Blase verschwindet, und genau EIN blockierender
-            # Versuch holt die vollstaendige Antwort.
+            # Versuch holt die vollstaendige Antwort. Fix Runde 1, Punkt 6:
+            # der abgerissene Stream selbst wird NICHT gebucht -- nur dieser
+            # Nachversuch hinterlaesst die eine ``aufruf``-Zeile, geschrieben
+            # im ``finally`` von ``_anfrage`` nach dessen Rueckgabe.
             abbruch = getattr(bei_teil, "abbruch", None)
             if callable(abbruch):
                 abbruch()
@@ -422,25 +449,38 @@ class LLM:
         except Exception:  # noqa: BLE001 -- ein Vorfall reisst keinen Zug mit
             log.exception("Vorfall strom_nicht_verfuegbar nicht geschrieben")
 
-    def _sende_strom(self, body: dict, *, timeout, bei_teil, teil_feld) -> dict:
+    def _sende_strom(self, body: dict, *, timeout, bei_teil, teil_feld, art: str) -> dict:
         """Ein Aufruf mit ``stream: true``; baut aus den Stuecken denselben
         Koerper, den der blockierende Weg liefert.
 
         Keine Wiederholung hier: ein abgerissener Stream wird EINMAL ohne
         Stream wiederholt (``_hole``), und den Anbieter mehrfach streamen zu
-        lassen hiesse, denselben Text mehrfach zu bezahlen."""
+        lassen hiesse, denselben Text mehrfach zu bezahlen.
+
+        ``jemals_stueck`` ist wahr, sobald irgendein Delta ankam -- Inhalt
+        ODER Denkspur (Fix Runde 1, Punkt 4: eine reine Denkspur-Antwort ist
+        kein leerer Stream). ``fertig_gesehen`` ist wahr, sobald ein
+        ``finish_reason`` oder ``[DONE]`` ankam. Ein sauberes Verbindungsende
+        OHNE ``fertig_gesehen`` ist ein Abbruch (Fix Runde 1, Punkt 1,
+        KRITISCH): sonst kaeme ein abgeschnittener Satz als vollstaendige
+        Antwort durch."""
         from interview_theater import strom as strom_modul
 
         zusatz = {} if timeout is None else {"timeout": timeout}
         roh: list[str] = []
+        denkspur_roh: list[str] = []
         finish = None
         nutzung: dict = {}
-        erstes_stueck = False
+        jemals_stueck = False
+        fertig_gesehen = False
+        sende_an_senke = True
         try:
             with self._klient.stream(
                 "POST", self._e.llm_url, headers=self._headers(), json=body, **zusatz
             ) as antwort:
                 if antwort.status_code >= 400:
+                    if antwort.status_code == 429 or antwort.status_code >= 500:
+                        raise _StromVoruebergehend(f"HTTP {antwort.status_code}")
                     raise _StromNichtVerfuegbar(f"HTTP {antwort.status_code}")
                 for zeile in antwort.iter_lines():
                     zeile = zeile.strip()
@@ -448,11 +488,12 @@ class LLM:
                         continue
                     nutzlast = zeile[len("data:"):].strip()
                     if nutzlast == "[DONE]":
+                        fertig_gesehen = True
                         break
                     try:
                         stueck = json.loads(nutzlast)
                     except json.JSONDecodeError as fehler:
-                        if erstes_stueck:
+                        if jemals_stueck:
                             raise _StromAbbruch("unlesbares Stueck") from fehler
                         raise _StromNichtVerfuegbar("unlesbare Antwort") from fehler
                     if stueck.get("usage"):
@@ -460,32 +501,72 @@ class LLM:
                     for wahl in stueck.get("choices") or []:
                         if wahl.get("finish_reason"):
                             finish = wahl["finish_reason"]
-                        # ``reasoning_content`` wird bewusst NICHT gelesen:
-                        # die Denkspur ist nie fuer die Gruppe.
-                        teil = (wahl.get("delta") or {}).get("content")
+                            fertig_gesehen = True
+                        delta = wahl.get("delta") or {}
+                        teil = delta.get("content")
+                        # ``reasoning_content`` geht NIEMALS an ``bei_teil``:
+                        # die Denkspur ist nie fuer die Gruppe (Entscheidung
+                        # C). Gesammelt wird sie trotzdem (Fix Runde 1,
+                        # Punkt 4) -- siehe Rueckgabe unten.
+                        denkspur = delta.get("reasoning_content")
+                        if denkspur:
+                            jemals_stueck = True
+                            denkspur_roh.append(denkspur)
                         if not teil:
                             continue
-                        erstes_stueck = True
+                        jemals_stueck = True
                         roh.append(teil)
+                        if not sende_an_senke:
+                            continue
                         ganz = "".join(roh)
-                        bei_teil(
-                            strom_modul.wert_aus_praefix(ganz, teil_feld)
-                            if teil_feld else ganz
-                        )
-        except (_StromNichtVerfuegbar, _StromAbbruch):
+                        wert = (strom_modul.wert_aus_praefix(ganz, teil_feld)
+                                if teil_feld else ganz)
+                        try:
+                            bei_teil(wert)
+                        except Exception:  # noqa: BLE001 -- Fix Runde 1, Punkt 2:
+                            # eine werfende Anzeige (z. B. gesperrte DB) darf
+                            # die Antwort nicht kosten. Nur die Anzeige
+                            # stoppt, das Sammeln laeuft weiter.
+                            log.exception(
+                                "bei_teil-Senke fehlgeschlagen (art=%s) -- "
+                                "Anzeige gestoppt, der Text wird trotzdem "
+                                "weiter gesammelt", art,
+                            )
+                            sende_an_senke = False
+        except (_StromNichtVerfuegbar, _StromVoruebergehend, _StromAbbruch):
             raise
         except httpx.HTTPStatusError as fehler:
-            raise _StromNichtVerfuegbar(
-                f"HTTP {fehler.response.status_code}") from fehler
-        except httpx.TransportError as fehler:
-            if erstes_stueck:
+            status = fehler.response.status_code
+            if status == 429 or status >= 500:
+                raise _StromVoruebergehend(f"HTTP {status}") from fehler
+            raise _StromNichtVerfuegbar(f"HTTP {status}") from fehler
+        except (httpx.TransportError, httpx.DecodingError, httpx.StreamError) as fehler:
+            # Fix Runde 1, Punkt 5 (MINOR): ``httpx.DecodingError`` und
+            # ``httpx.StreamError`` sind KEINE ``httpx.TransportError`` (eigene
+            # Hierarchien), muessen aber genauso behandelt werden -- vor dem
+            # ersten Stueck ein (voruebergehender) Rueckfall, danach ein
+            # Abbruch.
+            if jemals_stueck:
                 raise _StromAbbruch(type(fehler).__name__) from fehler
-            raise _StromNichtVerfuegbar(type(fehler).__name__) from fehler
-        if not erstes_stueck:
+            raise _StromVoruebergehend(type(fehler).__name__) from fehler
+
+        if jemals_stueck and not fertig_gesehen:
+            # Fix Runde 1, Punkt 1 (KRITISCH): die Verbindung endete sauber,
+            # aber ohne Abschlusssignal -- das ist ein Abbruch, kein Erfolg.
+            raise _StromAbbruch("Verbindung endete ohne finish_reason/[DONE]")
+        if not jemals_stueck:
             raise _StromNichtVerfuegbar("kein einziges Stueck")
+
+        # Fix Runde 1, Punkt 4: kam die Antwort nur als Denkspur
+        # (Fehlerbild 2 im Moduldocstring), baut der Stream-Pfad dieselbe
+        # Form wie der blockierende Weg -- ``inhalt_aus`` kennt den Rueckfall
+        # auf ``message.reasoning`` bereits und braucht keinen zweiten,
+        # bezahlten Versuch.
+        geroh = "".join(roh)
+        nachricht = ({"content": geroh} if geroh
+                     else {"reasoning": "".join(denkspur_roh)})
         return {
-            "choices": [{"message": {"content": "".join(roh)},
-                         "finish_reason": finish}],
+            "choices": [{"message": nachricht, "finish_reason": finish}],
             "usage": nutzung,
         }
 

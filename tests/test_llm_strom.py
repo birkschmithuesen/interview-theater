@@ -255,6 +255,144 @@ def test_nach_einem_fehlschlag_streamt_der_prozess_nicht_mehr(conn):
     assert teile == []
 
 
+# -- Fix Runde 1 -------------------------------------------------------------
+#
+# Vier Befunde aus der Review von Aufgabe 5, reproduziert von /tmp/t5probe.py:
+# ein sauberes Verbindungsende ohne Abschlusssignal wurde als volle Antwort
+# durchgereicht, eine werfende Senke riss den ganzen Zug mit, ein einzelner
+# 429/5xx schaltete das Streaming dauerhaft fuer den Prozess ab, und eine
+# reine Denkspur-Antwort loeste einen zweiten, bezahlten Versuch aus.
+
+
+def test_stream_ohne_abschlusssignal_gilt_als_abbruch(conn):
+    """Fix Runde 1, Punkt 1 (KRITISCH): ein sauberes Verbindungsende OHNE
+    finish_reason und ohne [DONE] ist ein Abbruch, kein Erfolg -- sonst
+    kommt ein abgeschnittener Satz als vollstaendige Antwort durch."""
+    versuche = []
+
+    def handler(anfrage):
+        body = json.loads(anfrage.content)
+        versuche.append(bool(body.get("stream")))
+        if body.get("stream"):
+            # Ein Stueck, dann schliesst die Verbindung sauber -- kein
+            # finish_reason, kein [DONE].
+            return httpx.Response(
+                200, content=b'data: {"choices":[{"delta":{"content":"Es war "}}]}\n\n'
+            )
+        return httpx.Response(200, json={
+            "choices": [{"message": {"content": "Es war einmal ganz"},
+                         "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+        })
+
+    klm = llm.LLM(Einstellungen(), _klient(handler), conn)
+    text = klm.prosa(CHAT, "s", "n", "szene", bei_teil=lambda t: None)
+    assert text == "Es war einmal ganz"
+    assert versuche == [True, False]
+    zeile = _aufrufzeile(conn)
+    assert zeile["finish_reason"] == "stop" and zeile["erfolg"] == 1
+    # Fix Runde 1, Punkt 6: nur der Nachversuch wird gebucht, der
+    # abgerissene Stream zahlt nichts.
+    assert conn.execute("SELECT COUNT(*) FROM aufruf").fetchone()[0] == 1
+
+
+def test_eine_werfende_senke_bricht_den_zug_nicht_ab(conn):
+    """Fix Runde 1, Punkt 2: eine Anzeige, die wirft (z. B. eine gesperrte
+    Datenbank), darf die Antwort nicht kosten -- nur die Anzeige stoppt,
+    der Text wird weiter gesammelt und normal zurueckgegeben."""
+    aufrufe = []
+
+    def bad(text):
+        aufrufe.append(text)
+        raise RuntimeError("db locked")
+
+    inhalt = ("data: " + json.dumps(
+        {"choices": [{"delta": {"content": '{"antwort": "Hi"}'},
+                      "finish_reason": "stop"}]}
+    ) + "\n\ndata: [DONE]\n\n").encode("utf-8")
+    klm = llm.LLM(Einstellungen(),
+                  _klient(lambda a: httpx.Response(200, content=inhalt)), conn)
+    ergebnis = klm.schema(CHAT, "s", "n", {"type": "object"}, "gespraech",
+                          bei_teil=bad)
+    assert ergebnis == {"antwort": "Hi"}
+    assert len(aufrufe) == 1    # die Senke wurde versucht, aber nicht erneut
+    assert _aufrufzeile(conn)["erfolg"] == 1
+
+
+@pytest.mark.parametrize("status", [429, 503])
+def test_transiente_fehler_setzen_die_flagge_nicht(conn, status):
+    """Fix Runde 1, Punkt 3: Infomaniak drosselt mit 429/5xx statt mit einer
+    Warteschlange (AGENTS.md Falle 8) -- ein einzelner Drosselimpuls darf
+    nicht jede weitere Antwort des Prozesses auf Nichtstreaming umschalten."""
+    def handler(anfrage):
+        if json.loads(anfrage.content).get("stream"):
+            return httpx.Response(status)
+        return httpx.Response(200, json=_FERTIG)
+
+    klm = llm.LLM(Einstellungen(), _klient(handler), conn)
+    ergebnis = klm.schema(CHAT, "s", "n", {"type": "object"}, "gespraech",
+                          bei_teil=lambda t: None)
+    assert ergebnis == {"antwort": "Hallo ihr"}
+    assert llm.strom_moeglich() is True
+
+
+def test_decoding_fehler_vor_dem_ersten_stueck_faellt_zurueck_ohne_flagge(conn):
+    """Fix Runde 1, Punkt 5 (MINOR): httpx.DecodingError ist keine
+    httpx.TransportError, muss aber genauso behandelt werden -- vor dem
+    ersten Stueck ein stiller, flaggenloser Rueckfall."""
+    def handler(anfrage):
+        if json.loads(anfrage.content).get("stream"):
+            # Deklariert gzip, liefert aber keins -- httpx wirft beim Lesen
+            # ``DecodingError``.
+            return httpx.Response(200, headers={"content-encoding": "gzip"},
+                                  content=b"keine-gzip-daten")
+        return httpx.Response(200, json=_FERTIG)
+
+    klm = llm.LLM(Einstellungen(), _klient(handler), conn)
+    ergebnis = klm.schema(CHAT, "s", "n", {"type": "object"}, "gespraech",
+                          bei_teil=lambda t: None)
+    assert ergebnis == {"antwort": "Hallo ihr"}
+    assert llm.strom_moeglich() is True
+
+
+def _sse_reasoning(stuecke, finish="stop"):
+    """Wie ``_sse``, aber die Stuecke laufen als ``reasoning_content``."""
+    zeilen = []
+    for stueck in stuecke:
+        zeilen.append("data: " + json.dumps(
+            {"choices": [{"delta": {"reasoning_content": stueck}, "finish_reason": None}]}
+        ))
+    zeilen.append("data: " + json.dumps(
+        {"choices": [{"delta": {}, "finish_reason": finish}]}
+    ))
+    zeilen.append("data: " + json.dumps(
+        {"choices": [], "usage": {"prompt_tokens": 1, "completion_tokens": 1}}
+    ))
+    zeilen.append("data: [DONE]")
+    return ("\n\n".join(zeilen) + "\n\n").encode("utf-8")
+
+
+def test_reine_denkspur_baut_dieselbe_form_wie_blockierend(conn):
+    """Fix Runde 1, Punkt 4: landet die ganze Antwort nur als Denkspur
+    (Fehlerbild 2 im Moduldocstring), verhaelt sich der Stream-Pfad wie der
+    blockierende -- ``inhalt_aus`` findet ``message.reasoning`` -- statt
+    einen zweiten, bezahlten Versuch auszuloesen."""
+    teile = []
+    klm = llm.LLM(
+        Einstellungen(),
+        _klient(lambda a: httpx.Response(
+            200, content=_sse_reasoning(['{"antw', 'ort": "Hi"}'])
+        )),
+        conn,
+    )
+    ergebnis = klm.schema(CHAT, "s", "n", {"type": "object"}, "gespraech",
+                          bei_teil=teile.append)
+    assert ergebnis == {"antwort": "Hi"}
+    assert teile == []    # niemals Denkspur an die Senke (Entscheidung C)
+    assert llm.strom_moeglich() is True
+    assert conn.execute("SELECT COUNT(*) FROM aufruf").fetchone()[0] == 1
+
+
 def test_ohne_usage_wird_nicht_zweimal_bezahlt(conn):
     """Abweichung 2 im Plan-Kopf: eine fehlende usage merkt man erst am ENDE.
     Den Aufruf zu wiederholen kostete eine zweite Generierung und zeigte der

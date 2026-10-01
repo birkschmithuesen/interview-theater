@@ -3498,7 +3498,7 @@ Einheit steht im Schluesselnamen (`gedankenstriche_je_1000`,
   - `sprachpass.rohzahlen(text: str, code=None) -> dict[str, int]`
     (die unskalierten Treffer -- fuer den Befund)
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_sprachpass.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_sprachpass.py`
 
 ```python
 """Der letzte Sprachpass: vier mechanisch gezaehlte Muster (30.09.2026, Karte R).
@@ -3706,12 +3706,12 @@ def test_die_sprache_kommt_aus_dem_profil(monkeypatch):
     assert sprachpass.rohzahlen("It was not a home but a room.")["nicht_sondern"] >= 1
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprachpass.py`
 Erwartet: FAIL, `ModuleNotFoundError: No module named 'interview_theater.sprachpass'`.
 
-- [ ] **Schritt 3: `interview_theater/sprachpass.py` anlegen**
+- [x] **Schritt 3: `interview_theater/sprachpass.py` anlegen**
 
 ```python
 """Der letzte Sprachpass: vier mechanisch gezaehlte Muster (30.09.2026, Karte R).
@@ -3925,7 +3925,7 @@ Aufrufzeit** gelesen, der Modulimport steht am Ende (A1-Konvention). Faellt
 `flake8`/`ruff` darueber, bleibt `# noqa: E402` stehen -- so machen es alle
 Module nach A1.
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprachpass.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -3935,7 +3935,7 @@ Testfall geloescht. Schlaegt ein **Positivfall** nicht an, wird das Muster
 erweitert und dabei jeder Negativfall erneut gefahren: die Negativfaelle sind
 die Zusage, nicht die Positivfaelle.
 
-- [ ] **Schritt 5: Suite und Commit**
+- [x] **Schritt 5: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

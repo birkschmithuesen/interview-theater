@@ -174,3 +174,72 @@ def test_ein_stil_unter_mehreren_figuren_reicht_fuer_den_kopf(conn, einst):
 
     assert szene.FIGUREN_KOPF_MIT_STIL in text
     assert szene.FIGUREN_KOPF_OHNE_STIMME not in text
+
+
+# ---------------------------------------------------------------------------
+# Englisch (Padua): dieselbe Regel, die Woerter aus der Sprachschicht
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def englisch(monkeypatch):
+    """Dasselbe Muster wie ``tests/test_szene_sprache.py``: nicht das Profil
+    umschalten, sondern die eine Funktion, die die Sprache liefert -- der
+    Cache wird davor und danach vergessen."""
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    sprache.vergiss()
+    yield
+    sprache.vergiss()
+
+
+def test_englische_stilzeile_steht_im_prompt(conn, einst, englisch):
+    figur_id = _figur(conn, zitate=["Ich hatte nur einen Koffer."])
+    repo.setze_figur_sprachstil(conn, figur_id, STIL)
+
+    text = szene.baue_nutzertext(conn, 1, "Scene 1")
+
+    assert szene.T.ZEILE_SPRACHSTIL.format(stil=STIL) in text
+    assert "Speech style (chosen by the group)" in text
+    assert _schild(szene.ZEILE_SPRACHSTIL) not in text
+
+
+def test_englischer_kopf_mit_stil_statt_woertlich(conn, einst, englisch):
+    figur_id = _figur(conn, zitate=())
+    repo.setze_figur_sprachstil(conn, figur_id, STIL)
+
+    text = szene.baue_nutzertext(conn, 1, "Scene 1")
+
+    assert szene.T.FIGUREN_KOPF_MIT_STIL in text
+    assert szene.T.FIGUREN_KOPF not in text
+
+
+def test_englischer_kopf_sagt_nicht_mehr_unbelegt(conn, einst, englisch):
+    """Widerspruch c9 am englischen Wortlaut (``texte.toml``, heute Zeile
+    934): "Their way of speaking isn't backed by interviews yet"."""
+    figur_id = _figur(conn, zitate=())
+    repo.setze_figur_sprachstil(conn, figur_id, STIL)
+
+    text = szene.baue_nutzertext(conn, 1, "Scene 1")
+
+    assert szene.T.FIGUREN_KOPF_OHNE_STIMME not in text
+    assert "isn't backed by interviews yet" not in text
+
+
+def test_englisch_ohne_stil_und_ohne_zitat_bleibt_der_alte_kopf(conn, einst, englisch):
+    _figur(conn, zitate=())
+
+    text = szene.baue_nutzertext(conn, 1, "Scene 1")
+
+    assert szene.T.FIGUREN_KOPF_OHNE_STIMME in text
+    assert szene.T.FIGUREN_KOPF_MIT_STIL not in text
+
+
+def test_beide_fassungen_tragen_denselben_platzhalter():
+    """Die Zusicherung aus ``tests/test_sprache_texte.py``, hier noch einmal
+    als lesbarer Satz: wer den deutschen Wortlaut aendert und den englischen
+    vergisst, merkt es an beiden Stellen."""
+    assert "{stil}" in szene.ZEILE_SPRACHSTIL
+    assert sprache.platzhalter(szene.ZEILE_SPRACHSTIL) == sprache.platzhalter(
+        sprache.tabelle("en")["szene"]["ZEILE_SPRACHSTIL"])
+    assert sprache.platzhalter(szene.FIGUREN_KOPF_MIT_STIL) == sprache.platzhalter(
+        sprache.tabelle("en")["szene"]["FIGUREN_KOPF_MIT_STIL"])

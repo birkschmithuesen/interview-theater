@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+from typing import Sequence
 
 from interview_theater import anweisungen, repo
 
@@ -54,6 +55,19 @@ _UEBERSCHRIFT_EN = re.compile(
     re.IGNORECASE,
 )
 _ZUSAMMENFASSUNG_EN = re.compile(r"^\s*Summary\s*:\s*(.+)$", re.IGNORECASE)
+
+#: Die eine Zeile in ``ANWEISUNG``, die ein Laengenbudget ersetzt
+#: (30.09.2026, Karte R). Sie steht als eigener Absatz und kommt genau
+#: einmal vor -- ein Test haelt beides fest, denn eine Ersetzung, die ins
+#: Leere greift, waere ein stiller Durchfall: der Prompt behielte die feste
+#: Zahl, das Budget stuende daneben, und das Modell muesste raten.
+#:
+#: **Sie bleibt zeichengleich.** Ohne Budget ist ``systemanweisung()`` genau
+#: der Text, der vor dieser Karte entstand (gemessen: 12.785 Zeichen,
+#: sha256 704119e3...). ``ANWEISUNG`` bleibt deshalb woertlich unveraendert
+#: (sie traegt geschweifte Klammern, ``format`` scheidet aus) --
+#: ``systemanweisung`` ersetzt die Zeile per ``str.replace``.
+ZEILE_GESAMTLAENGE = "Insgesamt 1.500 bis 3.500 Woerter."
 
 ANWEISUNG = """Du schreibst die Kurzgeschichte eines Theaterstuecks.
 
@@ -205,10 +219,27 @@ def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
     return nummern
 
 
-def systemanweisung() -> str:
-    """Die Anweisung plus dem Prosa-Regelblock -- heiss nachgeladen wie
-    jeder Prompt."""
-    teile = [T.ANWEISUNG]
+def systemanweisung(budgets: Sequence[int] | None = None) -> str:
+    """Die Anweisung plus dem Prosa-Regelblock -- heiss nachgeladen wie jeder
+    Prompt.
+
+    ``budgets`` (30.09.2026, Karte R) sind die Wortbudgets der Abschnitte.
+    Sind sie da, tritt ihre **Summe** an die Stelle der festen Zeile
+    ``ZEILE_GESAMTLAENGE``; die Liste je Abschnitt steht im **Nutzertext**,
+    weil sie je Gruppe verschieden ist. Ein Fakt hat genau eine Stelle im
+    Prompt (Prompt-Audit 06.09.2026) -- deshalb wird die feste Zeile
+    **ersetzt** und nicht ergaenzt.
+
+    Ohne ``budgets`` ist der Text **zeichengleich** zu dem Stand vor dieser
+    Karte (gemessen: 12.785 Zeichen). Daran haengt die Zusage an Dortmund."""
+    anweisung = T.ANWEISUNG
+    if budgets:
+        from interview_theater import laengen
+
+        anweisung = anweisung.replace(
+            T.ZEILE_GESAMTLAENGE, laengen.gesamtzeile(budgets),
+        )
+    teile = [anweisung]
     prosa = anweisungen.hole_optional("formen/prosa")
     if prosa and prosa.strip():
         teile.append(prosa.strip())
@@ -253,8 +284,40 @@ _AUFTRAG = "Euer Auftrag:\nSchreib die Geschichte am Stueck."
 _ZEILE_REGIE = "\nDie Gruppe sagt dazu: {regie}"
 
 
+def budget_eintraege(conn, chat_id: int,
+                     faktor: float = 1.0) -> list[tuple[int, str, int]]:
+    """Je Abschnitt ``(nummer, form, budget)`` -- oder ``[]``, wenn dieses
+    Profil keine Budgets waehlt.
+
+    **Die Zahl der Abschnitte steht hier schon fest**: Phase 6 ist erst
+    erreichbar, wenn mindestens eine Szene angelegt ist
+    (``phasen.voraussetzungen``), und ``prompts/formen/prosa.md`` erklaert
+    eine vorhandene Szenenfolge fuer verbindlich. Die **Form** kommt aus
+    ``laengen.form_der_szene``: bestaetigt (``szene.form``) vor
+    vorgeschlagen (``form_vorschlag``) vor Profilvorgabe. Gelesen, nicht
+    geschrieben -- ``szene.form`` bleibt unberuehrt, sie bestaetigt allein
+    die Gruppe.
+
+    Reine Leseabfrage, kein Modellaufruf."""
+    from interview_theater import laengen
+
+    if not laengen.aktiv():
+        return []
+    szenen = sorted(
+        (s for s in repo.hole_szenen(conn, chat_id) if not s["entfernt_am"]),
+        key=lambda s: s["nummer"] or 0,
+    )
+    if not szenen:
+        return []
+    nummern = [s["nummer"] or i + 1 for i, s in enumerate(szenen)]
+    formen = [laengen.form_der_szene(s) for s in szenen]
+    werte = laengen.budgets(formen, nummern=nummern, seed=chat_id, faktor=faktor)
+    return list(zip(nummern, formen, werte))
+
+
 def baue_nutzertext(
     conn, chat_id: int, regie: str | None = None, vorlage: bool = False,
+    eintraege: Sequence[tuple[int, str, int]] | None = None,
 ) -> str:
     """Setting, Figuren mit Sprachstil, Geschichte, Szenenfolge als
     Anregung -- und eine Regie-Notiz, wenn die Gruppe eine hatte.
@@ -262,8 +325,14 @@ def baue_nutzertext(
     ``vorlage`` an (Kuerzen): die bestehende Fassung steht als eigener Block
     vor dem Auftrag. Ohne ``vorlage`` bleibt der Nutzertext zeichengleich
     wie vorher. Eine Eingabe-Budgetpruefung gibt es in diesem Lauf nicht --
-    der Block ist hoechstens die eine Geschichte (1.500 bis 3.500 Woerter)."""
-    from interview_theater import szenenfolge
+    der Block ist hoechstens die eine Geschichte (1.500 bis 3.500 Woerter).
+
+    ``eintraege`` (30.09.2026, Karte R) sind die Wortbudgets je Abschnitt.
+    Ohne sie -- und mit einer leeren Liste -- bleibt der Nutzertext
+    **zeichengleich** wie vorher; der Block faellt ersatzlos weg,
+    datengetrieben wie in ``kontext.baue``. Er steht **vor** dem Auftrag,
+    nahe am Ende: das Ende des Prompts wiegt am schwersten (SPEC § 6.1)."""
+    from interview_theater import laengen, szenenfolge
 
     teile = [szenenfolge._erfundenes(conn, chat_id)]
     stile = [
@@ -275,6 +344,8 @@ def baue_nutzertext(
         teile.append(T._STILE_KOPF + "\n".join(stile))
     if vorlage:
         teile.append(vorlage_text(conn, chat_id))
+    if eintraege:
+        teile.append(laengen.block_prosa(eintraege))
     auftrag = T._AUFTRAG
     if regie and regie.strip():
         auftrag += T._ZEILE_REGIE.format(regie=regie.strip())

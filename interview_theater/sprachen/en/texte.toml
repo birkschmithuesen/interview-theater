@@ -1098,6 +1098,7 @@ figuren = "characters"
 was_passiert = "what happens"
 
 ["kurzgeschichte"]
+ZEILE_GESAMTLAENGE = "1,500 to 3,500 words in total."
 ANWEISUNG = """You are writing the short story of a theatre play.
 
 Below are the setting, the characters with their speech style and the story

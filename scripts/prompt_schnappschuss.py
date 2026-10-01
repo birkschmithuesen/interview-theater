@@ -41,8 +41,8 @@ import sys
 from pathlib import Path
 
 from interview_theater import (
-    anweisungen, knoepfe, leitfaden, phasen, phasentexte, stile, szene,
-    szenenfolge, web_schreiben, workshop,
+    anweisungen, knoepfe, kurzgeschichte, leitfaden, phasen, phasentexte,
+    stile, szene, szenenfolge, web_schreiben, workshop,
 )
 
 #: Der Bot-Name, mit dem die Systemanweisung gebaut wird. Fest, damit der
@@ -97,6 +97,14 @@ def teile() -> list[tuple[str, str]]:
     stuecke.append(("szenenfolge.systemanweisung_geschichte_szenen",
                     szenenfolge.systemanweisung_geschichte_szenen()))
     stuecke.append(("szenenfolge.ANWEISUNG_FELDER", szenenfolge.T.ANWEISUNG_FELDER))
+
+    # Die Prosa-Systemanweisung (Phase 6). Sie stand bis zum 30.09.2026 nicht
+    # im Schnappschuss -- also pruefte der Bitgleichheits-Test daran vorbei,
+    # obwohl sie ``formen/prosa.md`` und ``theater-tells`` einsammelt und damit
+    # profilabhaengig ist. **Ohne Argument**, also in genau der Form, die
+    # Dortmund bekommt.
+    stuecke.append(("kurzgeschichte.systemanweisung()",
+                    kurzgeschichte.systemanweisung()))
 
     stuecke.append(("szene.FORMEN", repr(tuple(szene.FORMEN))))
     stuecke.append(("szene.FORM_STICHWOERTER", repr(

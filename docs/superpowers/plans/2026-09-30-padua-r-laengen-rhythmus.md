@@ -1829,7 +1829,7 @@ Code unten steht in der `T`-Variante; ohne `T` wird `T.` gestrichen. Beide
 Varianten brauchen `test_die_ersetzbare_zeile_steht_wirklich_in_der_anweisung`
 -- eine Ersetzung, die ins Leere greift, ist ein stiller Durchfall.
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_prosa.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_prosa.py`
 
 ```python
 """Phase 6: das Budget im Prosa-Prompt (30.09.2026, Karte R).
@@ -1995,7 +1995,7 @@ def test_der_schnappschuss_deckt_die_prosa_systemanweisung_ab():
     assert "kurzgeschichte.systemanweisung()" in namen
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_prosa.py`
 Erwartet: FAIL. Zuerst
@@ -2003,7 +2003,7 @@ Erwartet: FAIL. Zuerst
 `test_ohne_budget_ist_die_systemanweisung_zeichengleich` ist an diesem Punkt
 schon **gruen** -- richtig so: es ist der Waechter, nicht das Ziel.
 
-- [ ] **Schritt 3: `ANWEISUNG` um die ersetzbare Zeile herum aufbauen**
+- [x] **Schritt 3: `ANWEISUNG` um die ersetzbare Zeile herum aufbauen**
 
 In `interview_theater/kurzgeschichte.py`, **vor** `ANWEISUNG`:
 
@@ -2035,7 +2035,7 @@ sichere Variante ohne `format`: `ANWEISUNG` bleibt woertlich unveraendert,
 und `systemanweisung` ersetzt die Zeile per `str.replace`. Der Test aus
 Schritt 1 prueft, dass sie genau einmal vorkommt.
 
-- [ ] **Schritt 4: `systemanweisung` ein Budget geben**
+- [x] **Schritt 4: `systemanweisung` ein Budget geben**
 
 `systemanweisung()` in `interview_theater/kurzgeschichte.py` ersetzen:
 
@@ -2078,7 +2078,7 @@ gewaehlte Form; in `laengen.py` steht `from typing import ... Sequence`).
 **Ohne `T`** (Annahme A5 faellt) lauten die beiden Zugriffe `ANWEISUNG` und
 `ZEILE_GESAMTLAENGE`.
 
-- [ ] **Schritt 5: `budget_eintraege` und der Nutzertext-Block**
+- [x] **Schritt 5: `budget_eintraege` und der Nutzertext-Block**
 
 An `interview_theater/kurzgeschichte.py` anhaengen bzw. `baue_nutzertext`
 erweitern:
@@ -2151,7 +2151,7 @@ def baue_nutzertext(
     return "\n\n".join(t for t in teile if t)
 ```
 
-- [ ] **Schritt 6: Den Schnappschuss-Waechter nachziehen**
+- [x] **Schritt 6: Den Schnappschuss-Waechter nachziehen**
 
 In `scripts/prompt_schnappschuss.py`, in `teile()` hinter dem
 `szenenfolge`-Block:
@@ -2175,7 +2175,7 @@ neue Abschnitt wird also ab jetzt zwischen "ohne Variable" und
 "`IT_WORKSHOP=dortmund-2026`" verglichen (`test_dortmund_und_keine_variable_sind_identisch`),
 und der sha aus Schritt 1 haelt ihn gegen `d8deb6c`.
 
-- [ ] **Schritt 7: Tests laufen lassen**
+- [x] **Schritt 7: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_prosa.py`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -2183,7 +2183,7 @@ Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_profil_bitgleich.py tests/test_kuerzung.py tests/profile/`
 Erwartet: `passed`, kein `failed`.
 
-- [ ] **Schritt 8: Suite und Commit**
+- [x] **Schritt 8: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

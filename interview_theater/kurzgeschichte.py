@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+from typing import Sequence
 
 from interview_theater import anweisungen, repo
 
@@ -54,6 +55,19 @@ _UEBERSCHRIFT_EN = re.compile(
     re.IGNORECASE,
 )
 _ZUSAMMENFASSUNG_EN = re.compile(r"^\s*Summary\s*:\s*(.+)$", re.IGNORECASE)
+
+#: Die eine Zeile in ``ANWEISUNG``, die ein Laengenbudget ersetzt
+#: (30.09.2026, Karte R). Sie steht als eigener Absatz und kommt genau
+#: einmal vor -- ein Test haelt beides fest, denn eine Ersetzung, die ins
+#: Leere greift, waere ein stiller Durchfall: der Prompt behielte die feste
+#: Zahl, das Budget stuende daneben, und das Modell muesste raten.
+#:
+#: **Sie bleibt zeichengleich.** Ohne Budget ist ``systemanweisung()`` genau
+#: der Text, der vor dieser Karte entstand (gemessen: 12.785 Zeichen,
+#: sha256 704119e3...). ``ANWEISUNG`` bleibt deshalb woertlich unveraendert
+#: (sie traegt geschweifte Klammern, ``format`` scheidet aus) --
+#: ``systemanweisung`` ersetzt die Zeile per ``str.replace``.
+ZEILE_GESAMTLAENGE = "Insgesamt 1.500 bis 3.500 Woerter."
 
 ANWEISUNG = """Du schreibst die Kurzgeschichte eines Theaterstuecks.
 
@@ -205,10 +219,27 @@ def lege_szenen_an(conn, chat_id: int, abschnitte) -> list[int]:
     return nummern
 
 
-def systemanweisung() -> str:
-    """Die Anweisung plus dem Prosa-Regelblock -- heiss nachgeladen wie
-    jeder Prompt."""
-    teile = [T.ANWEISUNG]
+def systemanweisung(budgets: Sequence[int] | None = None) -> str:
+    """Die Anweisung plus dem Prosa-Regelblock -- heiss nachgeladen wie jeder
+    Prompt.
+
+    ``budgets`` (30.09.2026, Karte R) sind die Wortbudgets der Abschnitte.
+    Sind sie da, tritt ihre **Summe** an die Stelle der festen Zeile
+    ``ZEILE_GESAMTLAENGE``; die Liste je Abschnitt steht im **Nutzertext**,
+    weil sie je Gruppe verschieden ist. Ein Fakt hat genau eine Stelle im
+    Prompt (Prompt-Audit 06.09.2026) -- deshalb wird die feste Zeile
+    **ersetzt** und nicht ergaenzt.
+
+    Ohne ``budgets`` ist der Text **zeichengleich** zu dem Stand vor dieser
+    Karte (gemessen: 12.785 Zeichen). Daran haengt die Zusage an Dortmund."""
+    anweisung = T.ANWEISUNG
+    if budgets:
+        from interview_theater import laengen
+
+        anweisung = anweisung.replace(
+            T.ZEILE_GESAMTLAENGE, laengen.gesamtzeile(budgets),
+        )
+    teile = [anweisung]
     prosa = anweisungen.hole_optional("formen/prosa")
     if prosa and prosa.strip():
         teile.append(prosa.strip())
@@ -253,8 +284,43 @@ _AUFTRAG = "Euer Auftrag:\nSchreib die Geschichte am Stueck."
 _ZEILE_REGIE = "\nDie Gruppe sagt dazu: {regie}"
 
 
+def budget_eintraege(conn, chat_id: int,
+                     faktor: float = 1.0) -> list[tuple[int, str, int]]:
+    """Je Abschnitt ``(nummer, form, budget)`` -- oder ``[]``, wenn dieses
+    Profil keine Budgets waehlt.
+
+    **Die Zahl der Abschnitte steht hier schon fest**: Phase 6 ist erst
+    erreichbar, wenn mindestens eine Szene angelegt ist
+    (``phasen.voraussetzungen``), und ``prompts/formen/prosa.md`` erklaert
+    eine vorhandene Szenenfolge fuer verbindlich. Die **Form** kommt aus
+    ``laengen.form_der_szene``: bestaetigt (``szene.form``) vor
+    vorgeschlagen (``form_vorschlag``) vor Profilvorgabe. Gelesen, nicht
+    geschrieben -- ``szene.form`` bleibt unberuehrt, sie bestaetigt allein
+    die Gruppe.
+
+    Reine Leseabfrage, kein Modellaufruf."""
+    from interview_theater import laengen
+
+    if not laengen.aktiv():
+        return []
+    szenen = sorted(
+        (s for s in repo.hole_szenen(conn, chat_id) if not s["entfernt_am"]),
+        key=lambda s: s["nummer"] or 0,
+    )
+    if not szenen:
+        return []
+    nummern = [s["nummer"] or i + 1 for i, s in enumerate(szenen)]
+    formen = [laengen.form_der_szene(s) for s in szenen]
+    werte = laengen.budgets(formen, nummern=nummern, seed=chat_id, faktor=faktor)
+    # Eine ausdrueckliche Laengenansage der Gruppe deckelt -- nach dem Faktor.
+    ansage = laengen.woerter_aus_festlegungen(repo.festlegungen(conn, chat_id))
+    werte = [laengen.budget_mit_ansage(w, ansage) for w in werte]
+    return list(zip(nummern, formen, werte))
+
+
 def baue_nutzertext(
     conn, chat_id: int, regie: str | None = None, vorlage: bool = False,
+    eintraege: Sequence[tuple[int, str, int]] | None = None,
 ) -> str:
     """Setting, Figuren mit Sprachstil, Geschichte, Szenenfolge als
     Anregung -- und eine Regie-Notiz, wenn die Gruppe eine hatte.
@@ -262,8 +328,14 @@ def baue_nutzertext(
     ``vorlage`` an (Kuerzen): die bestehende Fassung steht als eigener Block
     vor dem Auftrag. Ohne ``vorlage`` bleibt der Nutzertext zeichengleich
     wie vorher. Eine Eingabe-Budgetpruefung gibt es in diesem Lauf nicht --
-    der Block ist hoechstens die eine Geschichte (1.500 bis 3.500 Woerter)."""
-    from interview_theater import szenenfolge
+    der Block ist hoechstens die eine Geschichte (1.500 bis 3.500 Woerter).
+
+    ``eintraege`` (30.09.2026, Karte R) sind die Wortbudgets je Abschnitt.
+    Ohne sie -- und mit einer leeren Liste -- bleibt der Nutzertext
+    **zeichengleich** wie vorher; der Block faellt ersatzlos weg,
+    datengetrieben wie in ``kontext.baue``. Er steht **vor** dem Auftrag,
+    nahe am Ende: das Ende des Prompts wiegt am schwersten (SPEC § 6.1)."""
+    from interview_theater import laengen, szenenfolge
 
     teile = [szenenfolge._erfundenes(conn, chat_id)]
     stile = [
@@ -275,11 +347,94 @@ def baue_nutzertext(
         teile.append(T._STILE_KOPF + "\n".join(stile))
     if vorlage:
         teile.append(vorlage_text(conn, chat_id))
+    if eintraege:
+        teile.append(laengen.block_prosa(eintraege))
     auftrag = T._AUFTRAG
     if regie and regie.strip():
         auftrag += T._ZEILE_REGIE.format(regie=regie.strip())
     teile.append(auftrag)
     return "\n\n".join(t for t in teile if t)
+
+
+def _faktor(conn, chat_id: int) -> float:
+    """Der Laengen-Faktor der Gruppe, oder 1,0. Eine Zeile, aber an zwei
+    Stellen gebraucht (Nutzertext und Journalzeile) -- und zweimal gelesen
+    waeren zwei Wahrheiten."""
+    from interview_theater import laengen
+
+    return laengen.faktor_aus_stand(repo.hole_arbeitsstand(conn, chat_id))
+
+
+def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
+              vorlage: bool = False,
+              eintraege: Sequence[tuple[int, str, int]] | None = None,
+              art: str = ART) -> str:
+    """**Nur** der Modellaufruf -- Prompt bauen, fragen, Antwort liefern.
+
+    Kein Speichern, keine Chatnachricht, keine Sperre. Herausgezogen am
+    30.09.2026 (Karte R), weil der Nachpass die Antwort **pruefen** muss,
+    bevor sie in der Datenbank steht: hat sie eine andere Abschnittszahl oder
+    fehlt ein Belegzitat, wird sie verworfen und die alte Fassung bleibt.
+
+    ``art`` landet in der Tabelle ``aufruf`` und macht Nachpass-Laeufe
+    getrennt zaehlbar."""
+    from interview_theater import szene_claude
+
+    system = systemanweisung([b for _n, _f, b in (eintraege or [])] or None)
+    nutzer = baue_nutzertext(conn, chat_id, regie, vorlage=vorlage,
+                             eintraege=eintraege)
+    if szene_claude.ist_aktiv(e, conn, chat_id):
+        import httpx
+
+        return szene_claude.prosa(
+            conn, e,
+            getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
+            chat_id, system, nutzer, art, timeout=TIMEOUT_S,
+        )
+    return klm.prosa(chat_id, system, nutzer, art,
+                     max_tokens=MAX_TOKENS, timeout=TIMEOUT_S)
+
+
+def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
+             vorlage: bool = False, art: str = ART, zeilen=None) -> list[int]:
+    """Der ganze Lauf, **synchron und ohne Sperre**: Modell fragen, zerlegen,
+    Szenen anlegen, in den Chat melden. Liefert die Nummern der Abschnitte.
+
+    Wie ``szene.schreibe`` verhaelt es sich zu ``starte``: die Sperre haelt
+    der Aufrufer (``_lauf``), Fehler fliegen heraus. Wer es direkt ruft
+    (Tests, der Nachpass), kuemmert sich selbst darum.
+
+    ``zeilen`` ist die sichtbare Arbeitszeile des Aufrufers; sie wird wie
+    bisher **vor** der Fertig-Meldung gestoppt."""
+    eintraege = budget_eintraege(conn, chat_id, faktor=_faktor(conn, chat_id))
+    antwort = hole_text(conn, klm, e, chat_id, regie, vorlage, eintraege, art)
+    abschnitte = zerlege(antwort or "")
+    if not abschnitte:
+        raise ValueError("Kurzgeschichte ohne erkennbare Abschnitte")
+    nummern = lege_szenen_an(conn, chat_id, abschnitte)
+    if eintraege:
+        # Der Wuerfel ist reproduzierbar (Seed = chat_id), aber niemand soll
+        # ihn nachrechnen muessen, um zu verstehen, warum Abschnitt 2 laenger
+        # sein durfte. Angehaengt, nie geaendert.
+        from interview_theater import laengen
+
+        repo.schreibe_journal(
+            conn, chat_id, laengen.JOURNAL_ART,
+            laengen.journalzeile(
+                seed=chat_id, muster=laengen.muster_fuer(chat_id),
+                faktor=_faktor(conn, chat_id), eintraege=eintraege,
+            ),
+            quelle=laengen.JOURNAL_QUELLE,
+        )
+    from interview_theater import knoepfe, szene as szene_modul
+
+    if zeilen is not None:
+        zeilen.stoppe()
+    szene_modul._sende_und_merke(
+        conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
+    )
+    knoepfe.zeige_kurzgeschichte(conn, tg, chat_id)
+    return nummern
 
 
 def starte(
@@ -303,36 +458,30 @@ def starte(
     szene_modul._sende_und_merke(conn, tg, e, chat_id, T._TEXT_LAEUFT)
 
     def _lauf() -> None:
-        from interview_theater import arbeitszeilen, szene_claude
+        from interview_theater import arbeitszeilen
 
         zeilen = arbeitszeilen.sichtbar(tg, chat_id, "prosa")
         try:
-            system = systemanweisung()
-            nutzer = baue_nutzertext(conn, chat_id, regie, vorlage=vorlage)
-            if szene_claude.ist_aktiv(e, conn, chat_id):
-                import httpx
+            schreibe(conn, tg, klm, e, chat_id, regie, vorlage=vorlage,
+                     zeilen=zeilen)
+            # Der Nachpass (30.09.2026, Karte R): EIN Lauf fuer alle
+            # Abschnitte, im selben Thread und unter derselben Sperre. Im
+            # ``try``, weil es nach einem gescheiterten Lauf keine Geschichte
+            # gibt, ueber die nachzuzaehlen waere. Er geht ueber
+            # ``hole_text`` und nie ueber ``schreibe``, kommt hier also nie
+            # wieder vorbei -- eine ``art``-Wache wie in ``szene._lauf``
+            # braucht er nicht. Ohne aktives Profil ein No-Op.
+            from interview_theater import nachpass
 
-                antwort = szene_claude.prosa(
-                    conn, e,
-                    getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
-                    chat_id, system, nutzer, ART, timeout=TIMEOUT_S,
-                )
-            else:
-                antwort = klm.prosa(
-                    chat_id, system, nutzer, ART,
-                    max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
-                )
-            abschnitte = zerlege(antwort or "")
-            if not abschnitte:
-                raise ValueError("Kurzgeschichte ohne erkennbare Abschnitte")
-            nummern = lege_szenen_an(conn, chat_id, abschnitte)
-            zeilen.stoppe()
-            szene_modul._sende_und_merke(
-                conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
-            )
-            from interview_theater import knoepfe
-
-            knoepfe.zeige_kurzgeschichte(conn, tg, chat_id)
+            # Eigenes ``try`` wie in ``szene._lauf`` (Schlussreview I1): die
+            # Geschichte steht schon -- ein reissender Nachpass ist ein
+            # Vorfall, keine Fehlerzeile an die Gruppe.
+            try:
+                nachpass.nach_geschichte(conn, tg, klm, e, chat_id)
+            except Exception:
+                log.exception("Prosa-Nachpass gescheitert, chat_id=%s", chat_id)
+                nachpass._vorfall(conn, chat_id, e, nachpass.VORFALL_FEHLER,
+                                  "Prosa-Nachpass gescheitert")
         except Exception:
             log.exception("Kurzgeschichte fehlgeschlagen, chat_id=%s", chat_id)
             try:

@@ -1648,6 +1648,9 @@ _ARBEITSSTAND_FELDER = (
     # Fragen und die angetippten Nummern. Zustand in der Datenbank, nicht in
     # der Tastatur -- siehe ``db.SCHEMA``.
     "fragen_auswahl", "fragen_gewaehlt",
+    # Der Laengen-Faktor (30.09.2026, Karte R): derselbe eine Schreibweg wie
+    # alles andere im Arbeitsstand.
+    "laengen_faktor",
 )
 
 

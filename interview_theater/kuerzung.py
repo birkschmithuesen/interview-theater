@@ -31,6 +31,13 @@ die Zahl, die dasteht.
 
 **Kein Modellaufruf hier** (Zusage 2): beide Wege geben sofort an einen
 eigenen Thread ab. Deshalb darf ein Knopf-Handler diese Funktion rufen.
+
+**Was hier seit dem 30.09.2026 zusaetzlich passiert** (Karte R, nur bei
+aktivem Laengen-Profil): das "Kuerzer" unter der GANZEN Geschichte merkt
+seinen Faktor im Arbeitsstand (``laengen.setze_faktor``). Damit werden auch
+die Szenen, die es noch nicht gibt, kuerzer **geplant** -- statt sie erst zu
+schreiben und dann zu kuerzen, was einen Lauf kostet. Das "Kuerzer" unter
+EINER Szene tut das bewusst nicht.
 """
 
 from __future__ import annotations
@@ -187,6 +194,19 @@ def starte(conn, tg, klm, e, chat_id: int,
         conn, tg, klm, e, chat_id, notiz_fuer_prosa(anzahl), vorlage=True,
     ) is None:
         return T.TEXT_KEIN_LAUF, False
+    # "Kuerzer" unter der GANZEN Geschichte ist die Entscheidung ueber das
+    # ganze Stueck -- die Instagram-Kuerze vom 06.09.2026. Sie wird als
+    # dauerhafter Faktor gemerkt, damit auch die Szenen, die es noch nicht
+    # gibt, kuerzer GEPLANT werden und nicht erst nachtraeglich gekuerzt.
+    #
+    # Nur hier und nicht im Szenen-Zweig: eine Entscheidung ueber eine Szene
+    # ist keine ueber alle (OFFENE FRAGE 3). Und nur bei aktivem Profil --
+    # ohne es kennt niemand den Wert, und Dortmund bleibt, was es war. Und
+    # nur mit Lauf: gibt es nichts zu kuerzen, gibt es keine Entscheidung.
+    from interview_theater import laengen
+
+    if laengen.aktiv():
+        laengen.setze_faktor(conn, chat_id, laengen.kurz_faktor())
     return T.TEXT_GESCHICHTE_GESTARTET, True
 
 

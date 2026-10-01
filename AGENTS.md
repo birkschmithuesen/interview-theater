@@ -44,6 +44,9 @@ Module unter `interview_theater/`:
 | `kernzitate.py` | Die Auswahl der Belegzitate zum Kernthema (`waehle`), rückwärtskompatible Basis der Schärfung — dieselbe Prüf- und Speicherlogik |
 | `kuerzung.py` | Kürzen als eigener Weg (30.09.2026, C4/C10): die feste Regie-Notiz (25 %), die Zielwahl (Szenennummer → `szene.starte`, keine → `kurzgeschichte.starte`) und `nummer_aus_wert`. **Kein eigener Modellaufruf** — beide Wege geben an ihren vorhandenen Thread ab, und beide hängen ihre Fassung an (`szenenfassung`). Eine Kürzung erzeugt **nie** eine neue Szenenfolge |
 | `ruecknahme.py` | Die Ruecknahme eines Erkennerlaufs (01.10.2026, Karte U): welche Tabellen und Spalten verfolgt werden (`VERFOLGT`, `MATERIAL`, `AUSSEN`) und wie aus zwei Schnappschuessen um `wende_an` die Ruecknahme-Schritte werden (`schritte`). **Reine Funktionen, kein SQL, kein Nutzertext** -- alles SQL steht in `repo.py`, die Wortlaute in `knoepfe/texte.py`. `db` wird nur fuer die Spaltenliste gelesen (`_tabellenspalten_aus_schema`), damit eine neue Spalte automatisch mitverfolgt wird |
+| `laengen.py` | Laengen-Rhythmus je Szene (30.09.2026, Karte R): der eine Wortzaehler (`zaehle_woerter`), der Rahmen je Form aus dem Profil, die Rhythmus-Muster, das Budget je Szene, der Faktor und die Prompt-Bausteine. **Kein Modellaufruf, keine Datenbank** (ausser `setze_faktor`, das ueber `repo` geht). Ohne `[laengen] aktiv = true` im Profil liest es niemand |
+| `sprachpass.py` | Der letzte Sprachpass (30.09.2026, Karte R): vier Regex-Zaehler (Gedankenstriche, "not X but Y", Adjektiv-Dreierketten, Fazitsatz), Grenzwerte aus dem Profil, die Regie-Notiz und der **Zitatschutz** ueber `zitat.pruefe`. **Kein Modellaufruf**; `gepruefte_zitate` ist die einzige Funktion mit Datenbankzugriff |
+| `nachpass.py` | Der EINE Ueberarbeitungslauf am Ende eines Schreibvorgangs (30.09.2026, Karte R): `nach_szene` (Phase 7) und `nach_geschichte` (Phase 6). Laeuft **im Thread und unter der Sperre** des Schreibwegs, deshalb `szene.schreibe`/`kurzgeschichte.hole_text` und nie `starte`. Eigene `art`-Werte (`szene_nachpass`, `kurzgeschichte_nachpass`) |
 | `leitfaden.py` | Baut aus Eröffnung, den gewählten Fragen mit ihren weichen Fassungen und dem Abschluss **deterministisch** den Gesprächsleitfaden (`baue`, `aus_feldern`) — kein Modellaufruf, dieselbe Funktion für Chat und Gruppenseite |
 | `vorschlag.py` | Die Markerzeilen im Antworttext (`VORSCHLAG BEGRIFFE:` und Verwandte): lesen, in Blöcke zerlegen, aus dem Chattext entfernen. Die Schnittstelle zwischen Prompt und Knopfleiste |
 | `vorschlagssperre.py` | Die EINE Sperre je `chat_id`, die Schärfung und die vier `szenenfolge.starte*` voneinander trennt (30.09.2026, C7), plus einen Merkplatz je Auftragsart: wer sie nicht bekommt, wird **gemerkt** und läuft nach der Freigabe automatisch. Reines `threading`, **kein** Projektimport — deshalb von beiden Seiten importierbar. Grenze: der Merkplatz lebt im Prozess, ein Neustart verliert ihn |
@@ -106,7 +109,7 @@ Versehen).
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
 | **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` |
 
 **Wo man anfängt, je nach Frage:**
@@ -121,6 +124,8 @@ Versehen).
 | Wann darf die Gruppe weiter? | `phasen.voraussetzungen` (die einzige Stelle) |
 | Warum wartet ein Vorschlag? | `vorschlagssperre.nimm_oder_merke` → `merke` → `gib_frei` |
 | Wie nehme ich einen Erkennerlauf zurueck? | `knoepfe.wirkung._wirkung_undo` → `repo.nimm_erkenner_lauf_zurueck`; was erfasst wird: `ruecknahme.VERFOLGT` |
+| Warum ist die Szene so lang? | `laengen.budget_fuer` -> `muster_fuer` -> `stufe_fuer` |
+| Warum lief die Szene zweimal? | `nachpass.nach_szene` -> `befund` -> `_notiz` |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -792,6 +797,93 @@ es jemand im Chat merkt.
      ihren Undo-Knopf **reduziert** statt ganz abgenommen: er ist der einzige
      Weg, ihren Wert zurueckzunehmen.
 
+- **Die Laenge einer Szene waehlt der Code, nicht das Modell -- und nach dem
+  Schreiben wird genau EINMAL nachgearbeitet** (30.09.2026, Karte R,
+  `laengen.py` + `sprachpass.py` + `nachpass.py`, Befund
+  `docs/padua-r-laengen-2026-09-30/BEFUND.md`). Der Anlass ist gemessen: am
+  06.09.2026 hat Birk den Gruppentext vor dem Versand von Hand nachbearbeitet,
+  zweimal in Richtungen, die eine Maschine haette gehen koennen. Erstens die
+  Laenge -- das Textbuch v2 dieses Tages hatte 825 / 802 / 603 Woerter in drei
+  **verschiedenen** Formen, also praktisch eine Laenge, weil
+  `kurzgeschichte.ANWEISUNG` eine Gesamtlaenge nennt und sonst nichts. Zweitens
+  die Sprache: Gedankenstrich-Inflation, "nicht X, sondern Y",
+  Adjektiv-Trippel, Fazitsatz -- Muster, die `prompts/theater-tells.md`
+  praeventiv verbietet und die trotzdem dastanden.
+  Seitdem, **nur bei aktivem Profil** (`[laengen] aktiv = false` im Vorgabeprofil
+  und in Dortmund): der Code wuerfelt je Gruppe ein **Rhythmus-Muster**
+  (`kurz-lang-kurz`, `lang-kurz-schlag`, ...) und liest es **zyklisch** ueber
+  die Szenennummern -- zyklisch und nicht ueber die Gesamtzahl verteilt, weil
+  eine spaeter eingefuegte Szene sonst das Budget einer frueheren verschiebt
+  und das Nachzaehlen gegen eine andere Zahl rechnet als der Lauf. Der Seed
+  **ist die `chat_id`**: kein `random`, kein gespeicherter Wert, und trotzdem
+  bekommt dieselbe Gruppe immer dasselbe Muster. Eine Journalzeile
+  (`laengen.journalzeile`) haelt Seed, Muster, Faktor und Budgets fest, damit
+  ein Mensch es nachrechnen kann.
+  Das Budget geht **je Szene** in den nie gekuerzten Teil des Szenen-Prompts
+  (`szene._REIHENFOLGE`, `"laenge"` direkt hinter `"aufgabe"` -- eine Laenge,
+  die die Kuerzungsleiter wegwerfen darf, ist keine) und **als Liste plus
+  Summe** in den Prosa-Prompt; dort **ersetzt** die Summe die feste Zeile
+  `kurzgeschichte.ZEILE_GESAMTLAENGE`, statt sie zu ergaenzen (ein Fakt hat
+  genau eine Stelle im Prompt). **In Phase 6 greift ein Budget je Form
+  sehr wohl**, obwohl `szene.form` dort meist NULL ist: die Szenenfolge steht
+  beim Eintritt fest (`phasen.voraussetzungen`), `formen/prosa.md` erklaert sie
+  fuer verbindlich, und `laengen.form_der_szene` liest **bestaetigt vor
+  vorgeschlagen vor Profilvorgabe**. Gelesen, nicht geschrieben: `szene.form`
+  bestaetigt weiter allein die Gruppe.
+  **Die Gruppe uebersteuert auf zwei Wegen, beide vorhanden.** "Kuerzer (25 %)"
+  unter der **ganzen** Geschichte merkt seinen Faktor dauerhaft
+  (`arbeitsstand.laengen_faktor`, additiv ueber `db._migriere_fehlende_spalten`,
+  gesetzt in `kuerzung.starte`) -- damit werden auch die Szenen, die es noch
+  nicht gibt, kuerzer **geplant** statt erst geschrieben und dann gekuerzt.
+  "Kuerzer" unter **einer** Szene tut das bewusst nicht: eine Entscheidung
+  ueber eine Szene ist keine ueber alle. Und eine ausdrueckliche Laengenansage
+  ("hoechstens eine Seite pro Szene ab jetzt") **deckelt** das Budget --
+  gelesen aus `festlegung` im Bereich `stil` (`laengen.woerter_aus_festlegungen`),
+  wohin `prompts/erkenner.md` Punkt 23 sie ausdruecklich weist (Korpusfall
+  `fl04`). **Keine neue Erkenner-Art**, also kein weiterer bezahlter
+  Korpuslauf.
+  **Nachgearbeitet wird genau einmal, und das ist gebaut, nicht abgesprochen.**
+  `nachpass.nach_szene` bzw. `nach_geschichte` laeuft am Ende von
+  `szene._lauf` bzw. `kurzgeschichte._lauf` -- **im schon laufenden Thread und
+  unter dessen Sperre**, deshalb `szene.schreibe`/`kurzgeschichte.hole_text`
+  und nie `starte` (die Sperre liegt). Nachzaehlen (ab
+  `nachzaehl_schwelle` = 130 % des Budgets) und Sprachpass ergeben **eine**
+  Regie-Notiz und **einen** Lauf -- waeren es zwei Wege, waeren es bis zu zwei
+  Laeufe je Szene. Bleibt das Ergebnis ueber dem Budget, gibt es einen
+  **Vorfall** (`nachpass_reicht_nicht`) und **keinen zweiten Lauf**: ein
+  Modell, das zweimal zu lang schreibt, schreibt es beim dritten Mal auch
+  (dieselbe Begruendung wie bei `ablauf.echo_wiederholt`). In Phase 6 ist es
+  **ein** Lauf fuer **alle** Abschnitte.
+  **Der Zitatschutz ist die wichtigste einzelne Massnahme dieses Pfades.** Ein
+  Ueberarbeitungslauf, der einen woertlichen Interviewsatz glattzieht, nimmt
+  der Gruppe genau das, was sie selbst gesammelt hat (`theater-tells` Nr. 21,
+  25, 28). Geprueft wird mit `zitat.pruefe` -- **keine zweite, strengere
+  Normalisierung**, dieselbe Funktion wie bei Verdichter, Kernzitaten,
+  Sprachprofil, Schaerfung und Dramaturgie. Geht ein Zitat verloren, wird das
+  Ergebnis **verworfen**: in Phase 7 wird die alte Fassung zurueckgeschrieben
+  (`repo.aktualisiere_szene`; die Fassungszeile des Laufs bleibt in
+  `szenenfassung` stehen -- nur anhaengen, nie loeschen), in Phase 6 wird gar
+  nichts gespeichert, weil `kurzgeschichte.hole_text` die Antwort vor dem
+  Speichern liefert. Dort haengt an derselben Stelle die zweite Wache: eine
+  **geaenderte Abschnittszahl** wird verworfen, weil `lege_szenen_an`
+  ergaenzend abgleicht und zwei Abschnitte sonst ihren alten, langen Text
+  behielten.
+  **Die Gruppe erfaehrt von all dem nichts.** Der Nachpass ist eine Zugabe:
+  sie hat ihren Text, sie wartet nicht darauf, sie kann nichts tun. Ein
+  gescheiterter Nachpass ist deshalb unsichtbar und bekommt einen Vorfall
+  (SPEC § 11.1). Kosten und Aufrufe landen in `aufruf` mit eigener `art`
+  (`szene_nachpass`, `kurzgeschichte_nachpass`) -- wie bei `dramaturgie_b1`,
+  damit Dashboard und Kostenzeile den Weg getrennt sehen.
+  **Bekannte Grenzen:** die Rahmenwerte in `[laengen.rahmen]` sind
+  **Vorschlaege und ungemessen** (Chor/Lied 80-200, Rap 120-250, Dialog
+  200-450, Monolog 150-350) und liegen bereits bei etwa einem Viertel des
+  Herkules-Masses -- ob sie der Normalfall oder schon die Instagram-Laenge
+  sind, entscheidet Birk (Befund Abschnitt 1). `zitat.pruefe` glaettet
+  Whitespace und typografische Anfuehrungszeichen, ein Zitat bleibt also
+  woertlich und nicht byte-genau erhalten. Und `scripts/laengen_probe.py` ist
+  der **kostenlose** Nachweis dieses Pfades: die Simulation erreicht Phase 7
+  und den Kuerzungsweg nicht.
+
 ## Die Dramaturgie-Prüfung
 
 Seit dem 06.09.2026, `interview_theater/dramaturgie/`. Sie steht **neben**
@@ -1323,6 +1415,12 @@ Wegwerf-Datenbank, nie in `IT_DB`.
 Berichte landen in `korpus/berichte/` und sind **gitignored**: sie enthalten
 vollständige Modellantworten. Der Korpus selbst ist frei erfunden und gehört
 ins Repository.
+
+**Die Zahlen des Laengen-Rhythmus und des Sprachpasses sind kein Prompt.**
+Sie stehen in `workshop/padua-2026/profil.toml` (`[laengen]`,
+`[laengen.rahmen]`, `[sprachpass]`). Eine Aenderung dort braucht **keinen**
+Korpuslauf und **keinen** Neustart des Webdienstes, aber einen Neustart des
+Bots: die TOML wird nur beim Start gelesen (siehe "Workshop-Profil").
 
 ### Simulation: ein ganzer Workshop gegen die echten Modelle
 

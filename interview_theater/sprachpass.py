@@ -210,3 +210,180 @@ def zaehle(text: str | None, code: str | None = None) -> dict[str, float]:
 # ``je_sprache`` gebraucht -- die Nutzertexte dieses Pfads stehen in
 # ``nachpass.py``.
 from interview_theater import sprache  # noqa: E402
+
+
+#: Die Vorgabe-Grenzwerte, falls ein Profil einen nicht nennt. Gleichlautend
+#: mit ``workshop.VORGABE_WERTE["sprachpass"]`` -- die Wiederholung ist hier
+#: Absicht: der Leser dieses Moduls soll die Zahl sehen, ohne die TOML zu
+#: oeffnen, und ein Test haelt beide Seiten aneinander.
+GRENZEN_VORGABE: dict[str, float] = {
+    "gedankenstriche": 6.0,
+    "nicht_sondern": 2.0,
+    "adjektiv_dreier": 2.0,
+    "fazitsatz": 1,
+}
+
+#: Der Profil-Schluessel je Zaehler. Die Einheit steht im Namen, damit
+#: niemand sie raten muss.
+SCHLUESSEL: dict[str, str] = {
+    "gedankenstriche": "gedankenstriche_je_1000",
+    "nicht_sondern": "nicht_sondern_je_1000",
+    "adjektiv_dreier": "adjektiv_dreier_je_1000",
+    "fazitsatz": "fazitsatz_je_text",
+}
+
+#: Der Kopf der Regie-Notiz. **Eine Ueberarbeitung, kein Neuschrieb** -- wie
+#: "Passt, aber anders": derselbe Text, dieselben Ereignisse, dieselbe
+#: Reihenfolge.
+NOTIZ_KOPF = ("Ueberarbeite den Text sprachlich. Dieselben Ereignisse, "
+              "dieselbe Reihenfolge, dieselben Figuren, dasselbe Ende -- "
+              "geaendert wird nur, wie es dasteht:")
+
+#: Der Satz, der die Zitate schuetzt. Er steht **immer** in der Notiz, egal
+#: welches Muster gemeldet wurde: das Modell soll es sagen bekommen, und der
+#: Code prueft es danach nach (``verlorene``). Der Satz allein waere eine
+#: Bitte, die Pruefung allein eine Ueberraschung.
+NOTIZ_ZITATE = ("Woertliche Zitate aus den Interviews bleiben Wort fuer Wort "
+                "stehen -- auch die Brueche, Wiederholungen und Fuellwoerter "
+                "darin. Sie sind die Information, nicht der Fehler.")
+
+#: Je Zaehler ein Satz, der sagt, was zu tun ist. Keine Zahl darin: das
+#: Modell soll nicht zaehlen, sondern schreiben.
+NOTIZ: dict[str, str] = {
+    "gedankenstriche": ("Weniger Gedankenstriche. Wo einer steht, geht meist "
+                        "ein Punkt, ein Komma oder gar kein Zeichen."),
+    "nicht_sondern": ("Keine Saetze der Form \"nicht X, sondern Y\". Sag "
+                      "gleich Y."),
+    "adjektiv_dreier": ("Keine Dreierketten aus Eigenschaftswoertern. Eines "
+                        "genuegt, oder ein Bild statt aller drei."),
+    "fazitsatz": ("Kein Fazit und keine Moral am Schluss. Der letzte Satz "
+                  "sagt nicht, worum es ging."),
+}
+
+
+def grenzwerte(profil: Any = None) -> dict[str, float]:
+    """Die Grenzwerte dieses Profils, je Zaehler.
+
+    Nachsichtig wie alle Leser dieses Pfades: was keine Zahl ist, wird die
+    Vorgabe. ``scripts/pruefe_profil.py`` hat es vorher beanstandet."""
+    from interview_theater import workshop
+
+    p = profil or workshop.aktiv()
+    ergebnis: dict[str, float] = {}
+    for name in NAMEN:
+        wert = p.wert(f"sprachpass.{SCHLUESSEL[name]}", GRENZEN_VORGABE[name])
+        if isinstance(wert, bool) or not isinstance(wert, (int, float)):
+            log.warning("sprachpass.%s ist keine Zahl (%r)", SCHLUESSEL[name], wert)
+            wert = GRENZEN_VORGABE[name]
+        ergebnis[name] = wert
+    return ergebnis
+
+
+def ueberschreitungen(zahlen: dict[str, float],
+                      grenzen: dict[str, float]) -> list[str]:
+    """Welche Zaehler ihren Grenzwert erreichen -- **in der Reihenfolge von
+    ``NAMEN``**.
+
+    Erreichen, nicht ueberschreiten: der Grenzwert ist die Zahl, ab der es
+    auffaellt. Die feste Reihenfolge ist keine Kosmetik -- eine Notiz mit
+    wechselnder Reihenfolge waere im Prompt zwei verschiedene Auftraege fuer
+    denselben Befund.
+
+    **Ein Grenzwert 0 schaltet den Zaehler ab.** Sonst erreichte jeder Text
+    ihn, und jede Szene kostete einen Nachpass-Lauf."""
+    return [name for name in NAMEN
+            if float(zahlen.get(name, 0)) >= float(grenzen.get(name, 0))
+            and float(grenzen.get(name, 0)) > 0]
+
+
+def notiz(namen: Sequence[str]) -> str:
+    """Die Regie-Notiz aus den gemeldeten Zaehlern, oder "".
+
+    Sie geht ueber denselben Weg wie "Passt, aber anders" in den Auftrag: der
+    Text wird **ueberarbeitet**, nicht neu geschrieben. Deshalb kommt hier
+    kein ``szene.NEU_MARKER`` vor -- der wuerde die alte Fassung aus dem
+    Prompt nehmen und einen zweiten Text erzeugen statt denselben besser."""
+    gemeldet = [n for n in NAMEN if n in set(namen)]
+    if not gemeldet:
+        return ""
+    zeilen = [T.NOTIZ_KOPF]
+    zeilen += [f"- {T.NOTIZ[n]}" for n in gemeldet]
+    zeilen.append(T.NOTIZ_ZITATE)
+    return "\n".join(zeilen)
+
+
+def gepruefte_zitate(conn, chat_id: int) -> list[str]:
+    """Alle woertlichen Zitate dieser Gruppe, die eine Pruefung bestanden
+    haben.
+
+    Zwei Quellen, und nur zwei: die Verdichtungsthemen mit
+    ``zitat_geprueft = 1`` (``repo.gepruefte_themen``) und die
+    Sprachprofil-Zitate der Figuren (``figur.zitate`` -- ohne ein einziges
+    belegtes Zitat wird dort gar nichts gespeichert). Die Schaerfungen
+    (``repo.schaerfungen``) liefern denselben ``beleg_zitat`` und sind damit
+    eine Teilmenge der ersten Quelle, kein dritter Ort.
+
+    ``figur.zitate`` ist EIN Feld, die Zitate darin stehen mit
+    ``repo.ZITAT_TRENNER`` dazwischen (``repo.setze_sprachprofil``) --
+    getrennt wird hier so wie an jeder anderen Lesestelle (``szene``,
+    ``knoepfe``, ``web_daten``).
+
+    **Ungeprueftes zaehlt nicht.** Ein unbelegtes Zitat zu schuetzen hiesse,
+    eine Erfindung festzuschreiben -- genau das, was ``zitat.py`` seit N2
+    verhindert.
+
+    Reine Leseabfrage; die einzige Funktion dieses Moduls, die die Datenbank
+    anfasst."""
+    from interview_theater import repo
+
+    zitate: list[str] = []
+    for thema in repo.gepruefte_themen(conn, chat_id):
+        text = (thema["beleg_zitat"] or "").strip()
+        if text:
+            zitate.append(text)
+    for figur in repo.figuren(conn, chat_id):
+        for teil in (figur["zitate"] or "").split(repo.ZITAT_TRENNER):
+            text = teil.strip()
+            if text:
+                zitate.append(text)
+    # Reihenfolge erhalten, Dubletten weg -- dasselbe Zitat zweimal zu
+    # pruefen kostet nichts, aber es stuende zweimal im Vorfall.
+    gesehen: set[str] = set()
+    eindeutig = []
+    for text in zitate:
+        if text not in gesehen:
+            gesehen.add(text)
+            eindeutig.append(text)
+    return eindeutig
+
+
+def enthaltene(text: str | None, zitate: Iterable[str]) -> list[str]:
+    """Welche dieser Zitate im Text stehen -- geprueft mit ``zitat.pruefe``.
+
+    **Keine zweite Normalisierung.** ``zitat.pruefe`` glaettet
+    Whitespace-Folgen und typografische Anfuehrungszeichen und sonst nichts;
+    es ist dieselbe Funktion, an der jedes Belegzitat in Verdichter,
+    Kernzitaten, Sprachprofil, Schaerfung und Dramaturgie haengt. Eine
+    strengere Vergleichsform hier waere ein zweiter Massstab fuer denselben
+    Begriff."""
+    from interview_theater import zitat as zitat_modul
+
+    return [z for z in zitate if zitat_modul.pruefe(z, text or "")]
+
+
+def verlorene(alt: str | None, neu: str | None,
+              zitate: Iterable[str]) -> list[str]:
+    """Welche Zitate **vorher** im Text standen und **nachher** nicht mehr.
+
+    Nur was vorher dastand: ein Zitat, das die Szene nie enthielt, kann sie
+    nicht verlieren, und es einzufordern hiesse, dem Modell einen Satz
+    aufzuzwingen, den die Gruppe hier nicht wollte."""
+    liste = list(zitate)
+    vorher = set(enthaltene(alt, liste))
+    nachher = set(enthaltene(neu, liste))
+    return [z for z in liste if z in vorher and z not in nachher]
+
+
+# Der Textzugriff (A1-Konvention K1) -- **am Modulende**, nach allen
+# Konstanten.
+T = sprache.Texte(__name__)

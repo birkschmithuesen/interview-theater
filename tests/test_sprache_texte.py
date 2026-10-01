@@ -36,7 +36,7 @@ UMGESTELLT: set[str] = {
     "szene", "szenenfolge", "kurzgeschichte", "schaerfung", "sprachprofil",
     "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
     "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben", "web",
-    "laengen",
+    "laengen", "sprachpass",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -49,7 +49,7 @@ ALLE_MODULE = {
     "kontext", "kuerzung", "kurzgeschichte", "leitfaden", "phasen",
     "phasentexte", "schaerfung", "sprachprofil", "sprachstil", "sprecher",
     "stile", "stueckpruefung", "szene", "szenenfolge", "verdichter",
-    "vorspann", "web", "web_schreiben", "laengen",
+    "vorspann", "web", "web_schreiben", "laengen", "sprachpass",
 }
 
 #: Bleibt deutsch, mit Grund (nie im Chat, nie im Prompt einer Gruppe).

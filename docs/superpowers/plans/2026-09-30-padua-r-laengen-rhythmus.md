@@ -3980,7 +3980,7 @@ zusaetzliches Leerzeichen.
   - `sprachpass.enthaltene(text, zitate) -> list[str]`
   - `sprachpass.verlorene(alt, neu, zitate) -> list[str]`
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_sprachpass_notiz.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_sprachpass_notiz.py`
 
 ```python
 """Grenzwerte, Notiz und Zitatschutz (30.09.2026, Karte R).
@@ -4161,12 +4161,12 @@ def test_ein_veraendertes_zitat_faellt_auf():
         ["also ich, ja, ich weiss nicht"]
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprachpass_notiz.py`
 Erwartet: FAIL, `AttributeError: ... has no attribute 'grenzwerte'`.
 
-- [ ] **Schritt 3: An `interview_theater/sprachpass.py` anhaengen**
+- [x] **Schritt 3: An `interview_theater/sprachpass.py` anhaengen**
 
 ```python
 #: Die Vorgabe-Grenzwerte, falls ein Profil einen nicht nennt. Gleichlautend
@@ -4338,7 +4338,7 @@ def verlorene(alt: str | None, neu: str | None,
 T = sprache.Texte(__name__)
 ```
 
-- [ ] **Schritt 4: Die englischen Fassungen eintragen**
+- [x] **Schritt 4: Die englischen Fassungen eintragen**
 
 An `interview_theater/sprachen/en/texte.toml` (A1-Konvention K2/K3 -- die
 Platzhaltermengen sind hier leer, also ist nur der Wortlaut zu uebersetzen):
@@ -4355,7 +4355,7 @@ adjektiv_dreier = "No chains of three adjectives. One is enough, or an image ins
 fazitsatz = "No conclusion and no moral at the end. The last line does not say what it was about."
 ```
 
-- [ ] **Schritt 5: Tests laufen lassen**
+- [x] **Schritt 5: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_sprachpass_notiz.py -v`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
@@ -4377,7 +4377,7 @@ def test_die_vorgabe_im_modul_und_im_profil_sagen_dasselbe():
         assert workshop.VORGABE.wert(f"sprachpass.{schluessel}") == wert, name
 ```
 
-- [ ] **Schritt 6: Suite und Commit**
+- [x] **Schritt 6: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

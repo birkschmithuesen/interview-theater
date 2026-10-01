@@ -25,7 +25,7 @@ import urllib.parse
 from contextlib import contextmanager
 from pathlib import Path
 
-from interview_theater import db, repo, web_daten
+from interview_theater import db, repo, web_daten, web_kanal
 
 #: Der Unterpfad unter ``/g/<token>/``. Steht wortgleich in
 #: ``scripts/web_gruppe.CHAT_PFAD`` (Test).
@@ -36,6 +36,40 @@ CHAT_PFAD = "chat"
 #: nicht mehr schreiben koennen, als der Telegram-Weg tragen wuerde -- sonst
 #: laesst sich ein Workshop nicht von einem Kanal in den anderen retten.
 MAX_TEXT_ZEICHEN = 4000
+
+#: Was der Browser liefern darf, und mit welcher Endung es abgelegt wird.
+#:
+#: **Content-Type -> ENDUNG und nicht Content-Type -> ja/nein**, und das ist
+#: Falle 3: ``stt.mime_typ()`` leitet den MIME-Typ, den Whisper sieht, aus der
+#: Dateiendung ab. Ein WebM als ``.ogg`` abgelegt wird von Infomaniak mit
+#: einer ``batch_id`` quittiert -- kein HTTP-Fehler -- und bleibt danach
+#: dauerhaft auf 'pending': 89,7 s statt 2,0 s, im Betrieb nur als "haengt"
+#: sichtbar.
+#:
+#: Chrome und Firefox liefern ``audio/webm;codecs=opus``, Safari
+#: ``audio/mp4``. ``audio/ogg`` und ``audio/mpeg`` stehen daneben, weil ein
+#: Browser sie waehlen darf und beide bei Whisper unstrittig sind.
+MIME_ERLAUBT = {
+    "audio/webm": ".webm",
+    "audio/ogg": ".ogg",
+    "audio/mp4": ".m4a",
+    "audio/mpeg": ".mp3",
+}
+
+#: Wie gross ein einzelnes Segment sein darf.
+#:
+#: Gerechnet, nicht geraten: Opus bei 32 kbit/s ergibt fuer 45 s rund
+#: 180 KiB, Safaris mp4/AAC bei 64 kbit/s rund 360 KiB. 8 MiB sind gut
+#: zwanzigfache Luft fuer einen Browser, der eine hohe Bitrate waehlt -- und
+#: sie liegen klar unter ``stt.MAX_UPLOAD_BYTES`` (25 MiB): eine Datei, die
+#: Whisper ohnehin ablehnen wuerde, soll gar nicht erst ankommen.
+MAX_AUDIO_BYTES = 8 * 1024 * 1024
+
+#: Obergrenze der vom Client gemeldeten Dauer (eine Stunde). Die Dauer
+#: entscheidet mit ueber ``aufnahme.HINWEIS_AB_S`` (60 s: eine lange
+#: Sprachnachricht ohne Interviewmodus wird gefragt, nicht gedeutet) -- eine
+#: geratene Dauer waere dort eine geratene Entscheidung.
+MAX_DAUER_S = 3600
 
 #: Die Telegram-Teilmenge ohne Attribute. ``a`` steht nicht dabei, weil es
 #: eins hat und eigens behandelt wird.
@@ -123,6 +157,10 @@ _TEXT_FEHLER_LANG = "Das ist zu lang für eine Nachricht."
 _TEXT_FEHLER_VERALTET = "Die Seite ist veraltet — bitte einmal neu laden."
 _TEXT_FEHLER_ANFRAGE = "Ungültige Anfrage."
 _TEXT_FEHLER_KNOPF = "Diesen Knopf kenne ich hier nicht mehr — bitte neu laden."
+_TEXT_FEHLER_TYP = "Dieses Audioformat kann ich nicht annehmen."
+_TEXT_FEHLER_GROSS = "Die Aufnahme ist zu groß — bitte in kürzeren Stücken."
+_TEXT_FEHLER_LEER_AUDIO = "Die Aufnahme ist leer angekommen."
+_TEXT_FEHLER_DAUER = "Ungültige Aufnahmedauer."
 
 #: Die Seite ist gross gesetzt: sie liegt auf einem Telefon in einem
 #: Probenraum, und die Gruppe liest im Stehen.
@@ -373,6 +411,120 @@ def _senden(handler, db_pfad: str, token: str, chat_id: int,
     _angenommen(handler, {"message_id": message_id})
 
 
+def endung_fuer(content_type) -> str | None:
+    """Die Endung zu einem Content-Type, oder None.
+
+    Parameter werden abgeschnitten (``audio/webm;codecs=opus``), gross und
+    klein ist gleich. Eine **Allowlist** und keine Ablehnliste: was hier nicht
+    steht, kommt nicht an."""
+    if not isinstance(content_type, str) or not content_type.strip():
+        return None
+    haupt = content_type.split(";", 1)[0].strip().lower()
+    return MIME_ERLAUBT.get(haupt)
+
+
+def haupttyp(handler) -> str:
+    """Der Haupt-MIME-Typ der Anfrage, fuer die Spalte ``mime`` -- ohne
+    Parameter (``audio/webm;codecs=opus`` -> ``audio/webm``)."""
+    roh = handler.headers.get("Content-Type") or ""
+    return roh.split(";", 1)[0].strip().lower()
+
+
+def _audio_verz() -> str:
+    """``IT_AUDIO`` wie ``einstellungen._VORGABEWERTE`` -- der Webserver laedt
+    keine ``Einstellungen`` (er braucht weder LLM- noch STT-Variablen), liest
+    aber dieselbe Variable mit demselben Vorgabewert."""
+    return os.environ.get("IT_AUDIO") or "audio"
+
+
+#: Wie viel wir beim Verwerfen eines zu grossen Koerpers hoechstens lesen.
+#: Das Doppelte von ``MAX_AUDIO_BYTES`` reicht fuer jeden ehrlichen Client,
+#: der die Grenze nur knapp verfehlt hat -- einer, der um ein Vielfaches
+#: mehr ankuendigt, bekommt den Verbindungsabbruch bewusst.
+_VERWERF_GRENZE = MAX_AUDIO_BYTES * 2
+_VERWERF_STUECK = 64 * 1024
+
+
+def _verwerfe_koerper(handler, laenge: int) -> None:
+    """Liest einen abgelehnten Koerper vollstaendig weg, statt ihn liegen zu
+    lassen.
+
+    Ohne das fuehrt eine Ablehnung VOR dem Lesen (``Content-Length`` zu
+    gross) bei HTTP/1.1 zu einem Verbindungsabbruch, waehrend der Client noch
+    sendet: ``urllib`` schreibt den ganzen Koerper in einem Zug, ohne auf
+    eine Zwischenantwort zu warten, und saehe statt der 413-Antwort einen
+    ``Broken pipe``. Verworfen wird in Stuecken, damit kein zu grosser
+    Koerper komplett im Speicher landet."""
+    uebrig = min(max(0, laenge), _VERWERF_GRENZE)
+    while uebrig > 0:
+        stueck = handler.rfile.read(min(uebrig, _VERWERF_STUECK))
+        if not stueck:
+            return
+        uebrig -= len(stueck)
+
+
+def _audio(handler, db_pfad: str, token: str, chat_id: int,
+           schluessel: bytes) -> None:
+    """Ein Aufnahmesegment aus dem Browser.
+
+    **Roher Koerper, kein multipart:** die Standardbibliothek hat keinen
+    Multipart-Parser, den man verantworten will (``cgi.FieldStorage`` ist in
+    Python 3.13 entfernt), und MediaRecorder liefert genau einen Blob. Der
+    Nonce steht deshalb in der Query -- er ist ein CSRF-Merkmal, kein
+    Geheimnis ueber die Seite hinaus, und das Token steht ohnehin schon im
+    Pfad und damit in jeder Logzeile.
+
+    Reihenfolge der Pruefungen: **Typ, Groesse, Dauer, Nonce, dann lesen** --
+    die Kopfzeilen kosten nichts, der Koerper kostet Speicher. Geschrieben
+    wird erst die Zeile, dann die Datei (der Pfad enthaelt die id), und erst
+    danach der Verweis; scheitert die Datei, bleibt eine Zeile ohne ``datei``
+    stehen und ``lade_datei`` wirft -- ``aufnahme`` bittet die Gruppe dann,
+    es nochmal zu schicken."""
+    from interview_theater import web
+
+    endung = endung_fuer(handler.headers.get("Content-Type"))
+    if endung is None:
+        handler._fehler(415, _TEXT_FEHLER_TYP)
+        return
+    try:
+        laenge = int(handler.headers.get("Content-Length") or 0)
+    except ValueError:
+        handler._fehler(400, _TEXT_FEHLER_ANFRAGE)
+        return
+    if laenge <= 0:
+        handler._fehler(400, _TEXT_FEHLER_LEER_AUDIO)
+        return
+    if laenge > MAX_AUDIO_BYTES:
+        _verwerfe_koerper(handler, laenge)
+        handler._fehler(413, _TEXT_FEHLER_GROSS)
+        return
+
+    felder = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
+    if not web.nonce_gueltig(schluessel, token, (felder.get("nonce") or [""])[0]):
+        handler._fehler(403, _TEXT_FEHLER_VERALTET)
+        return
+    roh_dauer = (felder.get("dauer") or [""])[0]
+    if not roh_dauer.isdigit() or not 0 < int(roh_dauer) <= MAX_DAUER_S:
+        handler._fehler(400, _TEXT_FEHLER_DAUER)
+        return
+
+    koerper = handler.rfile.read(laenge)
+    if len(koerper) != laenge:
+        handler._fehler(400, _TEXT_FEHLER_LEER_AUDIO)
+        return
+
+    with schreibend(db_pfad) as conn:
+        message_id = repo.lege_web_post_an(
+            conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+            dauer=int(roh_dauer), mime=haupttyp(handler),
+        )
+        ziel = web_kanal.eingangspfad(_audio_verz(), chat_id, message_id, endung)
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        ziel.write_bytes(koerper)
+        repo.setze_web_datei(conn, message_id, str(ziel))
+    _angenommen(handler, {"message_id": message_id})
+
+
 def knopf_erlaubt(leiste, daten) -> bool:
     """Steht ``daten`` in dieser Leiste?
 
@@ -437,6 +589,7 @@ def _knopf(handler, db_pfad: str, token: str, chat_id: int,
 _POSTWEGE = {
     "senden": _senden,
     "knopf": _knopf,
+    "audio": _audio,
 }
 
 

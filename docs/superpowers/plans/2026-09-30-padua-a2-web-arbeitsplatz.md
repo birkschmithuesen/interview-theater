@@ -4342,7 +4342,7 @@ mp4/AAC bei 64 kbit/s ≈ 360 KiB. **8 MiB** sind gut zwanzigfache Luft fuer ein
 der eine hohe Bitrate waehlt, und bleiben klar unter `stt.MAX_UPLOAD_BYTES` (25 MiB) — eine
 Datei, die Whisper ohnehin ablehnen wuerde, soll gar nicht erst ankommen.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_chat_audio.py`:
 
@@ -4571,14 +4571,14 @@ def test_das_json_post_limit_gilt_fuer_audio_nicht(aufbau):
     assert _lade(basis, token, gross)[0] == 202
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_chat_audio.py -q -p no:cacheprovider
 ```
 Erwartet: FAIL — `AttributeError: … has no attribute 'endung_fuer'`.
 
-- [ ] **Schritt 3: `web_chat.py` — Allowlist und Handler**
+- [x] **Schritt 3: `web_chat.py` — Allowlist und Handler**
 
 ```python
 #: Was der Browser liefern darf, und mit welcher Endung es abgelegt wird.
@@ -4715,7 +4715,7 @@ im Modulkopf.
 `EINGANG_VERZ` — beides reine Pfadlogik ohne Datenbank. Das ist gewollt: der Ort einer Datei
 soll an genau einer Stelle stehen, damit `lade_datei` und der Upload nie auseinanderlaufen.
 
-- [ ] **Schritt 4: Lauf, alles gruen**
+- [x] **Schritt 4: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_chat_audio.py -q -p no:cacheprovider
@@ -4727,7 +4727,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2939 passed, 1 skipped`.
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add interview_theater/web_chat.py tests/test_web_chat_audio.py

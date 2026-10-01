@@ -770,7 +770,7 @@ git commit -m "Laengen-Rhythmus: Profilschalter [laengen] und [sprachpass], aus 
   - `laengen.form_der_szene(szene) -> str`
   - `laengen.MINDEST_WOERTER = 20`
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- an `tests/test_laengen.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- an `tests/test_laengen.py`
 anhaengen
 
 ```python
@@ -848,12 +848,12 @@ def test_die_form_einer_szene_bestaetigt_schlaegt_vorschlag():
     assert laengen.form_der_szene({}) == workshop.form_vorgabe()
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen.py`
 Erwartet: FAIL, `ModuleNotFoundError: No module named 'interview_theater.laengen'`.
 
-- [ ] **Schritt 3: `interview_theater/laengen.py` anlegen**
+- [x] **Schritt 3: `interview_theater/laengen.py` anlegen**
 
 ```python
 """Laengen-Rhythmus je Szene (30.09.2026, Karte R).
@@ -1040,12 +1040,12 @@ def form_der_szene(szene: Any) -> str:
     return feld("form") or feld("form_vorschlag") or workshop.form_vorgabe()
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen.py`
 Erwartet: alle Tests der Datei gruen, `failed = 0` (die Zahl der Tests steht in der Datei -- sie hier vorherzusagen waere geraten).
 
-- [ ] **Schritt 5: Suite und Commit**
+- [x] **Schritt 5: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

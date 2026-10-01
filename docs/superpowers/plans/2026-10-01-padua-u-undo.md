@@ -3055,7 +3055,7 @@ Dump wieder vergleichen.
 - Verbraucht: `fixture_spaetstand.baue_spaetstand`, `erkenner.wende_an`,
   `repo.schnappschuss`, `ruecknahme.*`, `repo.nimm_erkenner_lauf_zurueck`
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_ruecknahme_rundreise.py`:
 
@@ -3406,7 +3406,7 @@ def test_die_faelle_decken_jede_undo_faehige_art_ab():
     }, f"ohne Fall: {sorted(fehlend)}"
 ```
 
-- [ ] **Schritt 2: Laufen lassen, Faelle nachziehen**
+- [x] **Schritt 2: Laufen lassen, Faelle nachziehen**
 
 Run: `$PY -m pytest tests/test_ruecknahme_rundreise.py -q -p no:cacheprovider`
 Erwartet: `31 passed` (15 Faelle x 2 + 1)
@@ -3419,12 +3419,12 @@ ist das ein **echter Befund**: entweder die Spalte gehoert nach
 `ruecknahme.VERFOLGT`/`MATERIAL`, oder sie gehoert mit Grund nach
 `AUSSEN_VOR`. Beides ist eine Entscheidung und wird hingeschrieben.
 
-- [ ] **Schritt 3: Die ganze Suite**
+- [x] **Schritt 3: Die ganze Suite**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `4456 passed, 1 skipped`
 
-- [ ] **Schritt 4: Commit**
+- [x] **Schritt 4: Commit**
 
 ```bash
 git add tests/test_ruecknahme_rundreise.py

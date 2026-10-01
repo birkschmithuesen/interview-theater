@@ -2770,7 +2770,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 Diese Aufgabe schreibt nur Tests. Geht einer rot, ist das ein Befund in den
 Aufgaben 1-7 und wird dort behoben, nicht hier umgeschrieben.
 
-- [ ] **Schritt 1: Die sieben Abnahmepunkte schreiben**
+- [x] **Schritt 1: Die sieben Abnahmepunkte schreiben**
 
 An `tests/test_undo_knopf.py` anhaengen:
 
@@ -3004,7 +3004,7 @@ def test_journal_bleibt_stehen_und_bekommt_eine_zeile(conn, tg, einst):
     assert any(t.startswith("Zurueckgenommen:") for t in nachher)
 ```
 
-- [ ] **Schritt 2: Laufen lassen**
+- [x] **Schritt 2: Laufen lassen**
 
 Run: `$PY -m pytest tests/test_undo_knopf.py -q -p no:cacheprovider`
 Erwartet: `38 passed`
@@ -3023,12 +3023,12 @@ Der `wert` von `szene_planen` folgt der Form aus `szene.zerlege_planung`
 `_wende_szene_planen_an` `None` und der Test schlaegt sofort mit "kein
 Undo-Knopf" fehl -- das ist die Rueckmeldung, die ihn korrigiert.
 
-- [ ] **Schritt 3: Die ganze Suite**
+- [x] **Schritt 3: Die ganze Suite**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `4425 passed, 1 skipped`
 
-- [ ] **Schritt 4: Commit**
+- [x] **Schritt 4: Commit**
 
 ```bash
 git add tests/test_undo_knopf.py

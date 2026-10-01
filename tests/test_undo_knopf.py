@@ -665,3 +665,232 @@ def test_ein_kaputter_undo_knopf_kostet_nicht_die_grundleiste(
         knoepfe.T._TEXT_SPEICHERN_KNOPF,
         knoepfe.T._TEXT_ANDERS_KNOPF,
     ]
+
+
+# --- Aufgabe 8: die sieben Abnahmepunkte der Karte ------------------------
+
+
+def _laufe_und_undo(conn, tg, einst, aenderungen, message_id=1):
+    """Ein ganzer Erkennerlauf und der Druck auf seinen Undo-Knopf -- der Weg,
+    den die Gruppe im Chat geht."""
+    _laufe(conn, tg, einst, aenderungen, message_id=message_id)
+    daten = _undo_daten(tg)
+    knopf_id = int(daten[len(knoepfe.PRAEFIX):])
+    message = repo.hole_knopf(conn, knopf_id)["message_id"]
+    return knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(daten, message_id=message, query_id=f"q{knopf_id}"))
+
+
+# 1. Kernthema gesetzt -> Undo -> Kernthema wie vorher (auch "leer").
+
+def test_undo_stellt_das_kernthema_wieder_her(conn, tg, einst):
+    phasen.setze(conn, 1, 3, "test")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Zusammenhalten")
+
+    _laufe_und_undo(conn, tg, einst,
+                    [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Zusammenhalten"
+
+
+def test_undo_stellt_ein_leeres_feld_wieder_her(conn, tg, einst):
+    """"Wie vorher" heisst auch "leer" -- der haeufigste Fall: der erste,
+    falsche Wert ueberhaupt."""
+    phasen.setze(conn, 1, 3, "test")
+
+    _laufe_und_undo(conn, tg, einst,
+                    [{"art": "kernthema_setzen", "wert": "Ankommen"}])
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand is None or stand["kernthema"] is None
+
+
+# 2. Figur neu angelegt -> Undo -> Figur weg, keine Waisen.
+
+def test_undo_nimmt_eine_neue_figur_weich_zurueck(conn, tg, einst):
+    """Geprueft ueber den LESER (``repo.figuren``), nicht ueber rohes SQL:
+    "Figur weg" heisst, dass kein Leser sie mehr sieht (N3).
+
+    Mutation: ``entfernt_am`` nicht setzen -- die Figur bleibt in der Liste."""
+    phasen.setze(conn, 1, 4, "test")
+
+    _laufe_und_undo(conn, tg, einst,
+                    [{"art": "figur_setzen", "wert": "Mira: laesst nicht locker"}])
+
+    assert [f["name"] for f in repo.figuren(conn, 1)] == []
+
+
+def test_undo_laesst_keine_waisen_in_szene_figur(conn, tg, einst):
+    """Eine im selben Lauf entstandene Besetzung geht mit zurueck -- sonst
+    zeigte ``szene_figur`` auf eine Figur, die es nicht mehr gibt.
+
+    Mutation: den ``szene_figur``-Schritt ueberspringen."""
+    phasen.setze(conn, 1, 4, "test")
+    repo.setze_figur(conn, 1, "Pola", "still")
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szene_figuren(conn, 1, szene_id, [repo.hole_figur(conn, 1, "Pola")["id"]])
+
+    _laufe_und_undo(conn, tg, einst, [
+        {"art": "figur_setzen", "wert": "Mira: laesst nichts gefallen"},
+        {"art": "szene_planen", "wert": "Szene 1 | figuren: Pola, Mira"},
+    ])
+
+    assert [f["name"] for f in repo.figuren(conn, 1)] == ["Pola"]
+    assert [f["name"] for f in repo.szene_figuren(conn, szene_id)] == ["Pola"]
+    # Und roh nachgezaehlt: keine Zeile zeigt auf eine entfernte Figur.
+    waisen = conn.execute(
+        "SELECT count(*) FROM szene_figur sf "
+        "JOIN figur f ON f.id = sf.figur_id WHERE f.entfernt_am IS NOT NULL"
+    ).fetchone()[0]
+    assert waisen == 0
+
+
+# 3. Szene geplant -> Undo -> Szene weg.
+
+def test_undo_nimmt_eine_geplante_szene_zurueck(conn, tg, einst):
+    """Mutation: ``"szene"`` aus ``ruecknahme.WEICH`` entfernen."""
+    phasen.setze(conn, 1, 4, "test")
+
+    _laufe_und_undo(conn, tg, einst, [
+        {"art": "szene_planen", "wert": "Szene 1 | ort: Bahnsteig | was_passiert: Warten"},
+    ])
+
+    assert repo.hole_szenen(conn, 1) == []
+
+
+# 4. Zwei Aenderungen in einer Meldung -> ein Undo nimmt beide zurueck.
+
+def test_ein_undo_nimmt_beide_aenderungen_der_meldung_zurueck(conn, tg, einst):
+    """Eine Meldung, eine Ruecknahme -- keine Einzelauswahl.
+
+    Mutation: in ``erkenner_lauf_schritte`` ein ``LIMIT 1`` einbauen."""
+    phasen.setze(conn, 1, 3, "test")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+    repo.setze_arbeitsstand(conn, 1, "hauptkonflikt", "Alter Konflikt")
+
+    _laufe_und_undo(conn, tg, einst, [
+        {"art": "kernthema_setzen", "wert": "Neu"},
+        {"art": "hauptkonflikt_setzen", "wert": "Neuer Konflikt"},
+    ])
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert (stand["kernthema"], stand["hauptkonflikt"]) == ("Alt", "Alter Konflikt")
+    assert "Kernthema: Neu" in tg.texte[-1]
+    assert "Hauptkonflikt: Neuer Konflikt" in tg.texte[-1]
+
+
+# 5. Feld nach dem Lauf erneut geaendert -> Undo aendert nichts, meldet es.
+
+def test_undo_aendert_nichts_wenn_das_feld_seitdem_anders_ist(conn, tg, einst):
+    """Mutation: die Wertpruefung in ``nimm_erkenner_lauf_zurueck`` weglassen
+    -- dann ueberschriebe das Undo den Wert von Hand."""
+    phasen.setze(conn, 1, 3, "test")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Neu"}])
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Von Hand gesetzt")
+
+    daten = _undo_daten(tg)
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Von Hand gesetzt"
+    assert knoepfe.T._TEXT_UNDO_GEAENDERT in tg.texte
+
+
+# 6. Doppeltipp -> einmal gewirkt.
+
+def test_doppeltipp_wirkt_einmal(conn, tg, einst):
+    """Die Sperre steht doppelt: ``beanspruche_knopf`` in ``behandle`` und das
+    bedingte UPDATE auf ``erkenner_lauf``.
+
+    Mutation: ``AND zurueckgenommen_am IS NULL`` weglassen."""
+    phasen.setze(conn, 1, 3, "test")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Neu"}])
+    daten = _undo_daten(tg)
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten, query_id="q1"))
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Danach")
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten, query_id="q2"))
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Danach"
+    assert len([t for t in tg.texte if t.startswith("Rueckgaengig gemacht:")]) == 1
+    assert len(tg.beantwortet) == 2, "beide Druecke bekommen eine Antwort"
+
+
+# 7. Dortmund deutsch, Padua englisch -- Verhalten gleich.
+
+def test_undo_wirkt_in_padua_genauso(conn, tg, einst, padua):
+    """Dasselbe Verhalten, englische Texte. ``_laufe`` faehrt denselben
+    Codepfad; nur die Beschriftung und die Zeilen sind englisch."""
+    phasen.setze(conn, 1, 3, "test")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Belonging")
+    _laufe(conn, tg, einst, [{"art": "kernthema_setzen", "wert": "Arriving"}])
+
+    beschriftungen = [b for _, _, leiste, _ in tg.knoepfe for b, _ in leiste]
+    assert "Undo" in beschriftungen
+    daten = next(
+        d for _, _, leiste, _ in tg.knoepfe for b, d in leiste if b == "Undo")
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Belonging"
+    assert any(t.startswith("Undone:") for t in tg.texte)
+
+
+# --- Die Waechter daneben -------------------------------------------------
+
+
+def test_phase_bleibt_nach_undo(conn, tg, einst):
+    """Kein Undo fuer die Phase (Karte): sie setzt allein die Gruppe.
+
+    Mutation: ``phase`` aus ``ruecknahme.AUSSEN["arbeitsstand"]`` entfernen."""
+    phasen.setze(conn, 1, 1, "test")
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+
+    _laufe_und_undo(conn, tg, einst, [
+        {"art": "kernthema_setzen", "wert": "Neu"},
+        {"art": "phase_setzen", "wert": "2"},
+    ])
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Alt"
+    assert phasen.aktuelle(conn, 1) == 2, "die Phase bleibt, wo die Gruppe sie hinstellte"
+
+
+def test_usa_bleibt_nach_undo(conn, tg, einst):
+    """Die US-Einwilligung ist eine Datenschutzentscheidung mit eigenen zwei
+    Knoepfen -- offener Punkt fuer Birk, nicht diese Karte.
+
+    Mutation: ``gruppe`` in ``ruecknahme.VERFOLGT`` aufnehmen."""
+    phasen.setze(conn, 1, 6, "test")
+    repo.merke_szene_usa_angeboten(conn, 1)
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+
+    _laufe_und_undo(conn, tg, einst, [
+        {"art": "kernthema_setzen", "wert": "Neu"},
+        {"art": "szene_usa", "wert": "ja"},
+    ])
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Alt"
+    assert repo.szene_usa_stand(conn, 1) != "offen", "die Einwilligung steht weiter"
+
+
+def test_journal_bleibt_stehen_und_bekommt_eine_zeile(conn, tg, einst):
+    """Das Journal wird nur angehaengt (AGENTS.md): die Zeilen des Laufs
+    bleiben, die Ruecknahme kommt daneben.
+
+    Mutation: ``journal`` in ``VERFOLGT`` aufnehmen (dann verschwaende das Undo
+    die Chronik) oder die Ruecknahme-Journalzeile weglassen."""
+    phasen.setze(conn, 1, 3, "test")
+    _laufe(conn, tg, einst, [
+        {"art": "kernthema_setzen", "wert": "Neu"},
+        {"art": "entschieden", "wert": "Wir bleiben bei vier Figuren."},
+    ])
+    vorher = [z["text"] for z in repo.journal(conn, 1)]
+    assert any("vier Figuren" in t for t in vorher)
+
+    daten = _undo_daten(tg)
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+
+    nachher = [z["text"] for z in repo.journal(conn, 1)]
+    assert all(t in nachher for t in vorher), "keine Zeile verschwindet"
+    assert any(t.startswith("Zurueckgenommen:") for t in nachher)

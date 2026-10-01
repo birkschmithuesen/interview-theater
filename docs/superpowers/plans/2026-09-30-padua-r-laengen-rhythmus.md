@@ -1343,7 +1343,7 @@ git commit -m "laengen.py: Rhythmus-Muster je Gruppe, zyklisch gelesen, nie flac
   - `laengen.budgets(formen: Sequence[str | None], nummern: Sequence[int | None], seed: int, faktor=1.0, profil=None) -> list[int]`
   - `laengen.zu_lang(woerter: int, budget: int, profil=None) -> bool`
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- an
+- [x] **Schritt 1: Den failenden Test schreiben** -- an
 `tests/test_laengen_budget.py` anhaengen
 
 ```python
@@ -1421,12 +1421,12 @@ def test_zu_lang_greift_erst_ab_der_schwelle():
     assert laengen.zu_lang(400, 0) is False
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_budget.py -k budget`
 Erwartet: FAIL, `AttributeError: ... has no attribute 'budget_fuer'`.
 
-- [ ] **Schritt 3: An `interview_theater/laengen.py` anhaengen**
+- [x] **Schritt 3: An `interview_theater/laengen.py` anhaengen**
 
 ```python
 def _aus_stufe(stufe: str, unten: int, oben: int, faktor: float) -> int:
@@ -1483,13 +1483,13 @@ def zu_lang(woerter: int, budget: int,
     return int(woerter) >= int(budget) * nachzaehl_schwelle(profil)
 ```
 
-- [ ] **Schritt 4: Das `xfail` aus Aufgabe 3 entfernen**
+- [x] **Schritt 4: Das `xfail` aus Aufgabe 3 entfernen**
 
 In `tests/test_laengen_budget.py` die Zeile
 `@pytest.mark.xfail(reason="Aufgabe 4")` ueber
 `test_jedes_muster_spreizt_in_jeder_form_ueber_die_mindestgrenze` loeschen.
 
-- [ ] **Schritt 5: Tests laufen lassen**
+- [x] **Schritt 5: Tests laufen lassen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_budget.py -v`
 Erwartet: `21 passed`, kein `xfail`, kein `xpass`.
@@ -1504,7 +1504,7 @@ traegt. Kontrollrechnung fuer Chor (80-200), der schmalste Rahmen:
 `lang = 200`; `200/100 = 2.0 >= 1.5`. Fuer Dialog (200-450): `schlag = 200`,
 `kurz = 250`, `mittel = 320`, `lang = 450`; `450/250 = 1.8 >= 1.5`.
 
-- [ ] **Schritt 6: Suite und Commit**
+- [x] **Schritt 6: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, und `passed` ist um die in dieser Aufgabe hinzugekommenen Tests gewachsen (Basislinie 2768).

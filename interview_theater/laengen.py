@@ -273,3 +273,57 @@ def spreizung(werte: Sequence[int]) -> float:
     if len(zahlen) < 2:
         return 1.0
     return max(zahlen) / min(zahlen)
+
+
+def _aus_stufe(stufe: str, unten: int, oben: int, faktor: float) -> int:
+    """Eine Stufe im Rahmen ``(unten, oben)`` zu einer Wortzahl.
+
+    Linear zwischen Minimum (Gewicht 0,0) und Maximum (1,0), dann mit
+    ``faktor`` skaliert, auf ``RUNDUNG`` gerundet und nie unter
+    ``MINDEST_WOERTER``. Die Rundung steht **nach** dem Faktor: sonst waere
+    "ein Viertel von einer runden Zahl" wieder keine runde Zahl."""
+    gewicht = STUFEN.get(stufe, STUFEN["mittel"])
+    roh = (unten + gewicht * (oben - unten)) * float(faktor)
+    gerundet = int(round(roh / RUNDUNG) * RUNDUNG)
+    return max(gerundet, MINDEST_WOERTER)
+
+
+def budget_fuer(nummer: int | None, form: str | None, seed: int,
+                faktor: float = 1.0,
+                profil: workshop.Profil | None = None) -> int:
+    """Das Wortbudget EINER Szene.
+
+    ``form`` ist die Form, die ``form_der_szene`` geliefert hat; ``seed`` die
+    ``chat_id``; ``faktor`` die Uebersteuerung (1,0 = keine). Deckungsgleich
+    mit dem entsprechenden Eintrag aus ``budgets`` -- ein Test haelt das fest,
+    denn zwei Wege zu einer Zahl, die auseinanderlaufen, planen gegen ein
+    anderes Budget als sie pruefen."""
+    unten, oben = rahmen_fuer(form, profil)
+    return _aus_stufe(stufe_fuer(nummer, muster_fuer(seed, profil)),
+                      unten, oben, faktor)
+
+
+def budgets(formen: Sequence[str | None], nummern: Sequence[int | None],
+            seed: int, faktor: float = 1.0,
+            profil: workshop.Profil | None = None) -> list[int]:
+    """Die Budgets einer ganzen Szenenfolge, in der Reihenfolge von
+    ``formen``/``nummern``.
+
+    Die beiden Listen gehoeren paarweise zusammen; ist ``nummern`` kuerzer,
+    wird ab dort durchgezaehlt (eine Szene ohne Nummer ist die naechste)."""
+    ergebnis: list[int] = []
+    for i, form in enumerate(formen):
+        nummer = nummern[i] if i < len(nummern) else i + 1
+        ergebnis.append(budget_fuer(nummer, form, seed, faktor, profil))
+    return ergebnis
+
+
+def zu_lang(woerter: int, budget: int,
+            profil: workshop.Profil | None = None) -> bool:
+    """Ist dieser Text ueber der Nachzaehl-Schwelle?
+
+    Kein Budget (0 oder negativ) heisst **keine** Beanstandung: wo nichts
+    geplant war, ist nichts ueberschritten."""
+    if int(budget) <= 0:
+        return False
+    return int(woerter) >= int(budget) * nachzaehl_schwelle(profil)

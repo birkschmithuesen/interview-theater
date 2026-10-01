@@ -86,7 +86,6 @@ def test_die_spreizung_ist_eine_zahl():
     assert laengen.spreizung([0, 200]) == 1.0   # keine Division durch Null
 
 
-@pytest.mark.xfail(reason="Aufgabe 4")
 @pytest.mark.parametrize("form", ["dialog", "monolog", "chor", "lied", "rap"])
 def test_jedes_muster_spreizt_in_jeder_form_ueber_die_mindestgrenze(form):
     """Die Mindestspreizung ist gegen JEDEN Rahmen des Profils geprueft, nicht
@@ -102,3 +101,77 @@ def test_jedes_muster_spreizt_in_jeder_form_ueber_die_mindestgrenze(form):
         unten, oben = laengen.rahmen_fuer(form)
         roh = [laengen._aus_stufe(s, unten, oben, 1.0) for s in muster]
         assert laengen.spreizung(roh) >= laengen.SPREIZUNG_MIN, (form, muster, roh)
+
+
+# --- Die Budgets ----------------------------------------------------------
+
+
+def test_das_budget_liegt_im_rahmen_der_form():
+    for nummer in range(1, 7):
+        wert = laengen.budget_fuer(nummer, "chor", seed=1)
+        assert 80 <= wert <= 200, (nummer, wert)
+
+
+def test_das_budget_ist_auf_zehn_gerundet():
+    """"247 Woerter" gibt eine Genauigkeit vor, die es nicht gibt."""
+    for nummer in range(1, 7):
+        for form in ("dialog", "chor", "rap"):
+            assert laengen.budget_fuer(nummer, form, seed=3) % 10 == 0
+
+
+def test_dasselbe_seed_liefert_dasselbe_budget():
+    a = laengen.budgets(["dialog"] * 5, nummern=[1, 2, 3, 4, 5], seed=99)
+    b = laengen.budgets(["dialog"] * 5, nummern=[1, 2, 3, 4, 5], seed=99)
+    assert a == b
+
+
+def test_budgets_und_budget_fuer_sagen_dasselbe():
+    """Zwei Wege zu einer Zahl muessen dieselbe Zahl liefern -- sonst plant
+    der Prompt gegen ein anderes Budget als der Nachzaehler prueft."""
+    formen = ["dialog", "chor", "rap", "dialog"]
+    nummern = [1, 2, 3, 4]
+    liste = laengen.budgets(formen, nummern=nummern, seed=7)
+    einzeln = [laengen.budget_fuer(n, f, seed=7)
+               for n, f in zip(nummern, formen)]
+    assert liste == einzeln
+
+
+def test_eine_folge_aus_einer_form_ist_nicht_flach():
+    """Der eigentliche Zweck: vier Dialogszenen duerfen nicht vier gleiche
+    Zahlen sein."""
+    werte = laengen.budgets(["dialog"] * 4, nummern=[1, 2, 3, 4], seed=5)
+    assert len(set(werte)) >= 2, werte
+    assert laengen.spreizung(werte) >= laengen.SPREIZUNG_MIN, werte
+
+
+def test_der_faktor_verkuerzt_alle_budgets():
+    """"Instagram": ein Viertel, auf jedes Budget."""
+    voll = laengen.budgets(["dialog"] * 3, nummern=[1, 2, 3], seed=2)
+    kurz = laengen.budgets(["dialog"] * 3, nummern=[1, 2, 3], seed=2, faktor=0.25)
+    assert len(voll) == len(kurz) == 3
+    for a, b in zip(voll, kurz):
+        assert b < a
+        # Gerundet auf 10, also nicht exakt ein Viertel -- aber nah dran.
+        assert abs(b - a * 0.25) <= laengen.RUNDUNG
+
+
+def test_der_faktor_unterschreitet_nie_die_mindestlaenge():
+    """0,25 auf den kleinsten Rahmen (Chor 80) ergaebe 20; ein kleinerer
+    Faktor duerfte nicht auf 0 fallen -- eine Szene mit null Woertern ist
+    keine."""
+    werte = laengen.budgets(["chor"] * 3, nummern=[1, 2, 3], seed=1, faktor=0.05)
+    assert min(werte) >= laengen.MINDEST_WOERTER, werte
+
+
+def test_ohne_szenen_gibt_es_keine_budgets():
+    assert laengen.budgets([], nummern=[], seed=1) == []
+
+
+def test_zu_lang_greift_erst_ab_der_schwelle():
+    """130 % des Budgets, an EINER Stelle konfiguriert."""
+    assert laengen.zu_lang(100, 100) is False
+    assert laengen.zu_lang(129, 100) is False
+    assert laengen.zu_lang(130, 100) is True
+    assert laengen.zu_lang(400, 100) is True
+    # Kein Budget heisst keine Beanstandung.
+    assert laengen.zu_lang(400, 0) is False

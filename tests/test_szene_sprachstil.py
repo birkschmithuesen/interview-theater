@@ -102,3 +102,75 @@ def test_ohne_sprachstil_bleibt_der_prompt_wie_vorher(conn, einst):
 
     assert _schild(szene.ZEILE_SPRACHSTIL) not in text
     assert szene.FIGUREN_KOPF in text
+
+
+# ---------------------------------------------------------------------------
+# Die Drei-Kopf-Regel: der Kopf verspricht nur, was darunter steht
+# ---------------------------------------------------------------------------
+
+
+def test_stil_allein_setzt_nicht_den_woertlich_kopf(conn, einst):
+    """Audit-Befund S4, in die neue Lage uebertragen: nur **echte Zitate**
+    rechtfertigen "aus ihrem Interview, woertlich". Ein Stil ist die Wahl der
+    Gruppe -- stuende der woertlich-Kopf darueber, erfaende das Modell die
+    Interviewstellen dazu, die es nicht sieht."""
+    figur_id = _figur(conn, zitate=())
+    repo.setze_figur_sprachstil(conn, figur_id, STIL)
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
+
+    assert szene.FIGUREN_KOPF not in text
+    assert szene.FIGUREN_KOPF_MIT_STIL in text
+
+
+def test_kopf_mit_stil_behauptet_nicht_mehr_fehlenden_beleg(conn, einst):
+    """Widerspruch c9 aus ``docs/prompt-audit/2026-09-30-padua/BEFUND.md``:
+    "Sprechweise ist noch nicht aus Interviews belegt" stand im Prompt,
+    obwohl jede Figur einen von der Gruppe gewaehlten Stil hatte."""
+    figur_id = _figur(conn, zitate=())
+    repo.setze_figur_sprachstil(conn, figur_id, STIL)
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
+
+    assert szene.FIGUREN_KOPF_OHNE_STIMME not in text
+    assert "noch nicht aus Interviews belegt" not in text
+    assert szene.ZEILE_SPRACHSTIL.format(stil=STIL) in text
+
+
+def test_ein_zitat_schlaegt_den_stil_beim_kopf(conn, einst):
+    """Reihenfolge der drei Koepfe: Zitat vor Stil. Wer ein Zitat hat, hat
+    die staerkste Vorlage -- und der Stil steht trotzdem darunter."""
+    figur_id = _figur(conn, zitate=["Ich hatte nur einen Koffer."])
+    repo.setze_figur_sprachstil(conn, figur_id, STIL)
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
+
+    assert szene.FIGUREN_KOPF in text
+    assert szene.FIGUREN_KOPF_MIT_STIL not in text
+    assert szene.ZEILE_SPRACHSTIL.format(stil=STIL) in text
+
+
+def test_ohne_stil_und_ohne_zitat_bleibt_der_alte_kopf_zeichengleich(conn, einst):
+    """Die dritte Lage ist unveraendert -- und sie muss es sein, sonst
+    aenderte sich der Prompt einer Gruppe, die nie einen Stil gewaehlt hat."""
+    _figur(conn, zitate=())
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
+
+    assert szene.FIGUREN_KOPF_OHNE_STIMME in text
+    assert szene.FIGUREN_KOPF_MIT_STIL not in text
+    assert szene.FIGUREN_KOPF not in text
+
+
+def test_ein_stil_unter_mehreren_figuren_reicht_fuer_den_kopf(conn, einst):
+    """Der Kopf gilt fuer den ganzen Block: eine Figur mit Stil genuegt, und
+    der Kopf sagt deshalb ausdruecklich, was fuer die uebrigen gilt."""
+    mit = _figur(conn, "Maria", zitate=())
+    _figur(conn, "Elif", beschreibung="Nachbarin", profil="Lange Saetze.",
+           zitate=())
+    repo.setze_figur_sprachstil(conn, mit, STIL)
+
+    text = szene.baue_nutzertext(conn, 1, "Szene 1: Ankunft")
+
+    assert szene.FIGUREN_KOPF_MIT_STIL in text
+    assert szene.FIGUREN_KOPF_OHNE_STIMME not in text

@@ -2355,7 +2355,7 @@ Aufruf: `$PY -m scripts.web_gruppe anlegen <bot_name> [--titel "Gruppe A"]`. Lie
 (Pflicht) und `IT_WEB_URL` (optional, fuer den Link). **Liest keine Datei unter `betrieb/`**
 und gibt keinen Bot-Token aus.
 
-- [ ] **Schritt 1: Den Test schreiben**
+- [x] **Schritt 1: Den Test schreiben**
 
 `tests/test_web_gruppe_skript.py`:
 
@@ -2460,14 +2460,14 @@ def test_main_kennt_nur_anlegen(capsys, monkeypatch, tmp_path):
     assert "anlegen" in capsys.readouterr().err
 ```
 
-- [ ] **Schritt 2: Lauf, er muss scheitern**
+- [x] **Schritt 2: Lauf, er muss scheitern**
 
 ```
 $PY -m pytest tests/test_web_gruppe_skript.py -q -p no:cacheprovider
 ```
 Erwartet: `ModuleNotFoundError: No module named 'scripts.web_gruppe'`.
 
-- [ ] **Schritt 3: `scripts/web_gruppe.py` schreiben**
+- [x] **Schritt 3: `scripts/web_gruppe.py` schreiben**
 
 ```python
 """Eine Web-Gruppe anlegen (30.09.2026, Karte Padua A2).
@@ -2597,7 +2597,7 @@ def test_main_kennt_nur_anlegen(capsys, monkeypatch, tmp_path):
     assert "anlegen" in capsys.readouterr().err
 ```
 
-- [ ] **Schritt 4: Lauf, alles gruen**
+- [x] **Schritt 4: Lauf, alles gruen**
 
 ```
 $PY -m pytest tests/test_web_gruppe_skript.py -q -p no:cacheprovider
@@ -2609,7 +2609,7 @@ $PY -m pytest -q -p no:cacheprovider
 ```
 Erwartet: ≥ `2850 passed, 1 skipped`.
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add scripts/web_gruppe.py tests/test_web_gruppe_skript.py

@@ -96,19 +96,37 @@ Zitatverlust) zeigen die Tests in `tests/test_nachpass*.py`.
 
 ## 4. Simulationslauf Padua
 
-(Fuellt Aufgabe 21. Tabelle: Szene | Form | Budget | Wortzahl erster Lauf |
-nach Kuerzung | Sprachpass-Zaehler vorher/nachher; dazu Kosten und Laeufe je
-Szene.)
+**Nicht gefahren (Stand 01.10.2026).** Der Lauf braucht die Zugangsdaten aus
+`betrieb/gruppe1.env`; die Berechtigungen dieser Arbeitssitzung verbieten jeden
+Zugriff auf `betrieb/*.env` ausdruecklich, und das wurde nicht umgangen.
+Was an seiner Stelle traegt: der kostenlose Nachweis aus Abschnitt 3
+(`scripts/laengen_probe.py`, derselbe Codepfad mit Attrappe) und der
+Mutationsnachweis aus Abschnitt 7. **Nicht** belegt ist damit, wie ein
+echtes Modell auf den Budget-Block und die Notiz reagiert -- das kann nur
+dieser Lauf zeigen. Nachholen: Aufgabe 21 des Plans
+(`docs/superpowers/plans/2026-09-30-padua-r-laengen-rhythmus.md`) woertlich,
+mit geladenem Env und `IT_WORKSHOP=padua-2026`; Abbruch bei 1,30 CHF bzw.
+190 Aufrufen.
 
 ## 5. Einzel-Szenenlauf Phase 7
 
-(Fuellt Aufgabe 22. Derselbe Tabellenkopf, plus ein Vorher/Nachher-Auszug von
-hoechstens zehn Zeilen.)
+**Nicht gefahren (Stand 01.10.2026).** Der Lauf braucht die Zugangsdaten aus
+`betrieb/gruppe1.env`; die Berechtigungen dieser Arbeitssitzung verbieten jeden
+Zugriff auf `betrieb/*.env` ausdruecklich, und das wurde nicht umgangen.
+Phase 7 und der Kuerzungsweg sind damit **nur** durch Abschnitt 3 und 7
+belegt (Attrappe, Tests). Nachholen: Aufgabe 22 des Plans, gegen eine
+Kopie-Datenbank mit erfundenem Material, `IT_DB` nie auf `betrieb/soap.db`.
 
 ## 6. Kosten
 
-(Fuellt Aufgabe 21/22 aus der Tabelle `aufruf`, getrennt nach `art`:
-`szene`, `kurzgeschichte`, `szene_nachpass`, `kurzgeschichte_nachpass`.)
+**Tatsaechliche Kosten dieser Karte: 0,00 CHF** -- es lief kein einziger
+echter Modellaufruf (Aufgaben 21/22 nicht gefahren, siehe oben). Die
+Kostenzusage der Karte ist bis dahin **konstruktiv** belegt, nicht gemessen:
+je Schreiblauf hoechstens ein Nachpass (`Laeufe = 2` in Abschnitt 3,
+Mutation 6 in Abschnitt 7). Vergleichswert fuer den spaeteren Lauf:
+`chf_bot = 0.636` (`2026-09-06-regie-1`, teuerster bisheriger Lauf mit
+Szenentext). Gezaehlt wird dann aus `aufruf` getrennt nach `art`: `szene`,
+`kurzgeschichte`, `szene_nachpass`, `kurzgeschichte_nachpass`.
 
 ## 7. Mutationsnachweis
 
@@ -140,3 +158,37 @@ die Datei wieder sauber (`git diff --quiet HEAD`), und `git status
 unter ihrer Mutation rot wird. Drei der im Plan genannten Tests blieben
 gruen; bei allen dreien ist das das richtige Verhalten (Spalte rechts), kein
 fehlender Waechter -- deshalb kam kein Test dazu.
+
+## 8. Offen aus der Schlussreview (01.10.2026)
+
+Behoben auf diesem Branch: ein reissender Nachpass meldete der Gruppe
+"fehlgeschlagen" ueber einen schon gespeicherten Text (jetzt nur Vorfall
+`nachpass_fehlgeschlagen`), und die Dramaturgie-Schleife schrieb in Phase 6
+ohne die bestehende Geschichte und ohne Sperre (jetzt `vorlage=True` unter
+`kurzgeschichte._sperre_fuer`).
+
+**Offen, Entscheidung bei Birk** (nichts davon aendert Dortmund):
+
+1. **Phase 6: Chat und Datenbank laufen auseinander.** Die Gruppe bekommt
+   die lange Fassung in den Chat, danach ersetzt der Nachpass die Prosa still
+   in der Datenbank. Die Review haelt das fuer den wichtigsten Punkt vor dem
+   ersten Padua-Einsatz (Vorschlag: Geschichte erst nach dem Nachpass
+   zeigen, oder danach noch einmal).
+2. **Phase 7: ein verworfener Nachpass steht trotzdem im Chat.** Er geht
+   ueber `szene.schreibe`, also mit Knopfleiste und Journalzeile
+   "geschrieben", auch wenn er danach wegen Zitatverlust zurueckgerollt wird.
+3. **`kurz_faktor = 0.25` heisst "ein Viertel behalten", der Knopf
+   "Kuerzer (25 %)" heisst "um ein Viertel kuerzen".** In Padua loest damit
+   fast jeder Druck auf "Kuerzer" unter der ganzen Geschichte einen zweiten
+   bezahlten Lauf (den Nachpass) aus; dazu kommt ein kleines Zeitfenster, in
+   dem der laufende Kuerzungslauf den Faktor schon liest (er wird erst nach
+   `kurzgeschichte.starte` gesetzt). Gehoert zu OFFENER FRAGE 1/3.
+4. **In Phase 7 bekommt auch ein ausdruecklich bestellter Lauf** ("Kuerzer"
+   unter einer Szene, "Szene N so ueberarbeiten") einen Nachpass -- folgerichtig
+   ("ein Nachpass je Schreiblauf"), aber ein zweiter bezahlter Lauf direkt
+   nach einem bestellten.
+5. Kleinere: `sprachpass.aktiv = true` bei `laengen.aktiv = false` bewirkt
+   nichts und `pruefe_profil` warnt nicht; `pruefe_profil` stuerzt bei einem
+   Rahmen ohne Liste (`dialog = 200`) ab statt zu melden; der Vorfalltext in
+   `nach_geschichte` nummeriert bei Luecken in den Szenennummern falsch (nur
+   Protokoll, keine Daten).

@@ -180,3 +180,96 @@ def form_der_szene(szene: Any) -> str:
             return ""
 
     return feld("form") or feld("form_vorschlag") or workshop.form_vorgabe()
+
+
+#: Die Mindestspreizung innerhalb einer Form: das groesste Budget geteilt
+#: durch das kleinste. Je Form gerechnet, weil die Form die Laenge dominiert
+#: -- eine lange Chorszene (200) darf kuerzer sein als eine kurze
+#: Dialogszene (250), ohne dass der Rhythmus verlorengegangen waere.
+SPREIZUNG_MIN = 1.5
+
+#: Das Muster, das gilt, wenn das Profil keines nennt. Gleichlautend mit dem
+#: ersten Eintrag der Vorgabe, damit ein Profil ohne ``muster`` nicht flach
+#: wird.
+MUSTER_RUECKFALL: tuple[str, ...] = ("kurz", "lang", "kurz")
+
+
+def muster_liste(profil: workshop.Profil | None = None) -> tuple[tuple[str, ...], ...]:
+    """Die brauchbaren Muster des Profils.
+
+    Nachsichtig wie ``rahmen_fuer``: ein Eintrag mit einer unbekannten Stufe
+    oder mit weniger als zwei verschiedenen Stufen fliegt hier heraus statt
+    einen Lauf mitzunehmen -- ``scripts/pruefe_profil.py`` hat ihn vorher
+    beanstandet. Bleibt nichts uebrig, gilt ``MUSTER_RUECKFALL``: ein Profil
+    ohne brauchbares Muster soll kurze und lange Szenen bekommen und nicht
+    lauter mittlere."""
+    roh = _werte(profil).get("muster") or ()
+    gut: list[tuple[str, ...]] = []
+    for eintrag in roh:
+        try:
+            stufen = tuple(str(s).strip().lower() for s in eintrag)
+        except TypeError:
+            log.warning("laengen.muster: %r ist keine Liste", eintrag)
+            continue
+        if len(stufen) < 2 or any(s not in STUFEN for s in stufen):
+            log.warning("laengen.muster: %r unbrauchbar -- uebersprungen", eintrag)
+            continue
+        if len(set(stufen)) < 2:
+            log.warning("laengen.muster: %r ist flach -- uebersprungen", eintrag)
+            continue
+        gut.append(stufen)
+    return tuple(gut) or (MUSTER_RUECKFALL,)
+
+
+def muster_fuer(seed: int,
+                profil: workshop.Profil | None = None) -> tuple[str, ...]:
+    """Das Rhythmus-Muster dieser Gruppe.
+
+    ``seed`` ist die ``chat_id``. Kein ``random``, kein gespeicherter Wert:
+    derselbe Chat bekommt immer dasselbe Muster, und niemand muss es
+    aufbewahren. Telegram-Gruppen haben **negative** ids -- ``abs()`` steht
+    hier, damit der Index unabhaengig von der Vorzeichen-Konvention von ``%``
+    lesbar bleibt."""
+    liste = muster_liste(profil)
+    return liste[abs(int(seed)) % len(liste)]
+
+
+def stufe_fuer(nummer: int | None, muster: Sequence[str]) -> str:
+    """Die Stufe der Szene ``nummer`` in diesem Muster -- **zyklisch**.
+
+    Zyklisch und nicht ueber die Gesamtzahl verteilt: sonst verschoebe eine
+    nachtraeglich eingefuegte Szene 6 das Budget von Szene 1, und das
+    Nachzaehlen rechnete gegen eine andere Zahl als der Lauf. ``nummer``
+    ``None`` oder 0 gilt als erste Szene -- ``szene.nummer`` darf NULL sein,
+    und eine Ausnahme waere ein Lauf ohne Budget."""
+    if not muster:
+        muster = MUSTER_RUECKFALL
+    n = int(nummer or 1)
+    if n < 1:
+        n = 1
+    return muster[(n - 1) % len(muster)]
+
+
+def stufen(nummern: Sequence[int | None], seed: int,
+           profil: workshop.Profil | None = None) -> list[str]:
+    """Die Stufen einer ganzen Szenenfolge, in deren Reihenfolge."""
+    muster = muster_fuer(seed, profil)
+    return [stufe_fuer(n, muster) for n in nummern]
+
+
+def ist_flach(werte: Sequence[str]) -> bool:
+    """Bekommen alle Szenen dieselbe Stufe?
+
+    Eine einzelne Szene ist immer flach -- ein Rhythmus braucht zwei. Das ist
+    keine Beanstandung, sondern die Wahrheit: bei einer Szene gibt es keinen
+    Rhythmus, und der Test dazu verlangt ihn nicht."""
+    return len(set(werte)) <= 1
+
+
+def spreizung(werte: Sequence[int]) -> float:
+    """Groesstes durch kleinstes Budget -- 1,0, wenn es nichts zu vergleichen
+    gibt oder ein Wert 0 ist (keine Division durch Null)."""
+    zahlen = [int(w) for w in werte if int(w) > 0]
+    if len(zahlen) < 2:
+        return 1.0
+    return max(zahlen) / min(zahlen)

@@ -1091,7 +1091,7 @@ git commit -m "laengen.py: der eine Wortzaehler und der Rahmen je Form (R)"
   legitim kuerzer als eine kurze Dialogszene (250), und eine Spreizung ueber
   verschiedene Formen hinweg waere keine Aussage ueber den Rhythmus.
 
-- [ ] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_budget.py`
+- [x] **Schritt 1: Den failenden Test schreiben** -- `tests/test_laengen_budget.py`
 
 ```python
 """Der Rhythmus-Wuerfel und die Budgets (30.09.2026, Karte R).
@@ -1199,12 +1199,12 @@ def test_jedes_muster_spreizt_in_jeder_form_ueber_die_mindestgrenze(form):
         assert laengen.spreizung(roh) >= laengen.SPREIZUNG_MIN, (form, muster, roh)
 ```
 
-- [ ] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
+- [x] **Schritt 2: Test laufen lassen, Fehlschlag bestaetigen**
 
 Run: `$PY -m pytest -q -p no:cacheprovider tests/test_laengen_budget.py`
 Erwartet: FAIL, `AttributeError: module 'interview_theater.laengen' has no attribute 'muster_fuer'`.
 
-- [ ] **Schritt 3: An `interview_theater/laengen.py` anhaengen**
+- [x] **Schritt 3: An `interview_theater/laengen.py` anhaengen**
 
 ```python
 #: Die Mindestspreizung innerhalb einer Form: das groesste Budget geteilt
@@ -1300,7 +1300,7 @@ def spreizung(werte: Sequence[int]) -> float:
     return max(zahlen) / min(zahlen)
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 Die Tests brauchen `laengen.budgets` und `laengen._aus_stufe` aus Aufgabe 4 --
 deshalb laufen hier zunaechst nur die Muster- und Spreizungstests.
@@ -1315,7 +1315,7 @@ macht es gruen. Wer die Aufgabe getrennt abschliessen will, markiert diesen
 einen Test bis dahin mit `@pytest.mark.xfail(reason="Aufgabe 4")` und nimmt
 die Markierung dort wieder heraus.
 
-- [ ] **Schritt 5: Suite und Commit**
+- [x] **Schritt 5: Suite und Commit**
 
 Run: `$PY -m pytest -q -p no:cacheprovider`
 Erwartet: `failed` = 0, `passed` >= Basislinie (2768) + die in dieser Aufgabe hinzugekommenen Tests; der `xfail` aus Schritt 4 erscheint als `xfailed`, nicht als `failed`.

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from interview_theater import anweisungen, erkenner, kontext, phasen
+from interview_theater import anweisungen, erkenner, kontext, phasen, workshop
 
 
 @pytest.fixture
@@ -131,6 +131,32 @@ def test_jede_phasenanweisung_sagt_dass_die_phase_kein_kaefig_ist(betrieb):
         assert "Was du nicht von dir aus anfaengst:" in text, nummer
         assert "die Phase ist dein Fokus, nicht ihre Grenze" in text, nummer
         assert "Der Erkenner setzt die Phase dann nach." in text, nummer
+
+
+def test_phase1_ordnet_nicht_und_fragt_nicht_ins_leere(betrieb):
+    """Padua Hotfix Befund 4 (02.10.2026, Live-Fall web_post 10): der Bot
+    sortierte die Begriffsliste ungefragt ("Zwei stehen fuer mich nah
+    beieinander") und haengte eine Frage an, die die direkt folgende
+    Speicherleiste nie beantwortete. Die Zeile "Ordne, was zusammengehoert"
+    ist gestrichen, die neue Regel verbietet Sortieren, Kommentieren,
+    Assoziationen und eine Frage am Ende -- die Speicherknoepfe sind die
+    einzige Frage. Deutsch (Repo-Original)."""
+    text = " ".join(anweisungen.hole("phasen/1").split())
+    assert "Ordne, was zusammengehoert" not in text
+    assert "keine Frage am Ende" in text
+
+
+def test_phase1_englisch_ordnet_nicht_und_fragt_nicht_ins_leere(monkeypatch):
+    """Dasselbe wie oben, englische Sprachschicht (``sprachen/en/``) --
+    Befund 4 betrifft beide Sprachen parallel."""
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    text = " ".join(anweisungen.hole("phasen/1").split())
+    assert "Sort what belongs together" not in text
+    assert "no question at the end" in text
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
 
 
 def test_phase_wird_zwischen_basis_und_zusatz_gehaengt(betrieb):

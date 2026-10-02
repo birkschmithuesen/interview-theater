@@ -198,7 +198,212 @@ _CSS_VEREINT = """
                border: 1px solid #c9c4b8; background: #fff; }
 .tabs button[aria-selected="true"] { font-weight: 600; border-width: 2px; }
 .panel[hidden] { display: none; }
+.blase.vorlaeufig { opacity: .85; white-space: pre-wrap; }
+.blase.vorlaeufig::after { content: '▍'; animation: blinken 1s steps(2) infinite; }
+.blase.vorlaeufig.fertig::after { content: none; }
+@keyframes blinken { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  /* Der Text erscheint trotzdem stueckweise -- das ist Information, keine
+     Animation. Nur der Cursor hoert auf zu blinken. */
+  .blase.vorlaeufig::after { animation: none; }
+}
 """
+
+#: Hoechstens ein Verbindungsaufbau zum Strom je drei Sekunden -- derselbe
+#: Abstand, den EventSource von sich aus nimmt, aber nur, solange es einen
+#: Anlass gibt (Tippanzeige, neue Blase, laufende Zeile).
+STROM_OEFFNEN_MIN_MS = 3000
+
+#: Der Rueckfall-Takt: einmal je halbe Minute wird nachgesehen, ob etwas
+#: laeuft, auch ohne Anlass (ein Lauf, der ohne Tippanzeige beginnt).
+#: Ein solcher Blick kostet eine Anfrage, die sofort endet.
+STROM_NACHSEHEN_MS = 30000
+
+#: Wie lange eine fertige Blase hoechstens auf ihre Nachricht wartet. Kommt
+#: sie nicht (geloescht, Poll haengt), faellt die Blase trotzdem weg -- die
+#: Wahrheit ist der Poll, nicht der Strom.
+STROM_WARTEN_MAX_MS = 60000
+
+_STROM_JS = """
+(function () {
+  // Der laufende Text (Karte W). EventSource statt Poll: es geht um
+  // Teiltexte im Zehntelsekunden-Takt, und dafuer waere ein Poll je Delta
+  // das falsche Werkzeug. Faellt EventSource aus (altes Geraet, puffernder
+  // Proxy), passiert hier gar nichts -- der Nachrichten-Poll aus Karte A2
+  // liefert die fertige Antwort wie bisher.
+  if (!window.EventSource) { return; }
+  var verlauf = document.getElementById('verlauf');
+  if (!verlauf) { return; }
+  var BASIS = '__BASIS__';
+  var OEFFNEN_MIN_MS = __OEFFNEN_MIN_MS__;
+  var NACHSEHEN_MS = __NACHSEHEN_MS__;
+  var WARTEN_MAX_MS = __WARTEN_MAX_MS__;
+
+  // Je Stromzeile EINE Blase: pro Gruppe koennen mehrere Zeilen zugleich
+  // laufen (ein Gespraechszug neben einem Szenenlauf). Schluessel ist die
+  // id der Zeile (daten.id), nie eine globale Variable.
+  var blasen = {};     // strom-id -> {el, wartetAuf, frist}
+  var laufend = {};    // strom-id -> true, solange der Server 'laeuft' meldet
+  var erledigt = {};   // strom-id -> true: ihr Ende ist schon verarbeitet
+  var hoechste = 0;    // die hoechste je gesehene strom-id
+  var quelle = null;
+  var zuletzt = 0;     // Zeitpunkt des letzten Verbindungsaufbaus
+  var geplant = null;
+
+  var weg = function (id) {
+    var b = blasen[id];
+    if (!b) { return; }
+    if (b.frist) { clearTimeout(b.frist); }
+    if (b.el.parentNode) { b.el.parentNode.removeChild(b.el); }
+    delete blasen[id];
+  };
+  var untenDran = function () {
+    // Nur mitscrollen, wenn der Chat vorn ist und man schon unten war --
+    // sonst zoege der Strom das Arbeitsstand-Panel mit oder risse eine
+    // Leserin aus dem Verlauf weiter oben.
+    if (verlauf.offsetParent === null) { return false; }
+    return window.innerHeight + window.scrollY >= document.body.scrollHeight - 120;
+  };
+  var zeige = function (id, text) {
+    var unten = untenDran();
+    var b = blasen[id];
+    if (!b) {
+      var leer = verlauf.querySelector('p.leer');
+      if (leer && leer.parentNode) { leer.parentNode.removeChild(leer); }
+      var el = document.createElement('div');
+      el.className = 'blase bot text vorlaeufig';
+      el.dataset.strom = id;
+      verlauf.appendChild(el);
+      b = blasen[id] = { el: el, wartetAuf: null, frist: null };
+    }
+    // textContent, nicht das HTML-Feld: der Teiltext ist roher Modelltext,
+    // und gefiltert wird serverseitig (web_chat.sichere_html) -- erst die
+    // FERTIGE Nachricht geht durch den Filter.
+    b.el.textContent = text;
+    if (unten) { window.scrollTo(0, document.body.scrollHeight); }
+  };
+  // Steht die Nachricht, auf die eine fertige Blase wartet, im Verlauf, faellt
+  // die Blase weg -- vorher nicht, sonst blitzt eine Luecke auf.
+  var pruefe = function () {
+    Object.keys(blasen).forEach(function (id) {
+      var ziel = blasen[id].wartetAuf;
+      if (ziel && verlauf.querySelector('.blase[data-id="' + ziel + '"]')) { weg(id); }
+    });
+  };
+
+  var ereignis = function (ev) {
+    var daten;
+    try { daten = JSON.parse(ev.data); } catch (e) { return; }
+    if (!daten || typeof daten.id !== 'number') { return; }
+    if (daten.id > hoechste) { hoechste = daten.id; }
+    // ``nach=`` liefert fertige Zeilen unter Umstaenden erneut -- ein
+    // zweites Ende legt keine Blase mehr an.
+    if (erledigt[daten.id]) { return; }
+    if (daten.zustand === 'laeuft') {
+      laufend[daten.id] = true;
+      // Eine leere Blase zeigt nichts, was die Tippanzeige nicht schon sagt.
+      if (daten.text) { zeige(daten.id, daten.text); }
+      return;
+    }
+    erledigt[daten.id] = true;
+    delete laufend[daten.id];
+    if (daten.zustand === 'fertig' && daten.post_id && blasen[daten.id]) {
+      // Die Blase bleibt stehen, bis der Poll die richtige Nachricht gebracht
+      // hat (post_id = data-id ihrer Blase).
+      if (daten.text) { zeige(daten.id, daten.text); }
+      var b = blasen[daten.id];
+      b.wartetAuf = daten.post_id;
+      b.el.classList.add('fertig');
+      var id = daten.id;
+      b.frist = setTimeout(function () { weg(id); }, WARTEN_MAX_MS);
+      pruefe();
+      return;
+    }
+    // 'abgebrochen' (oder fertig ohne Nachricht): ersatzlos weg, kein halber
+    // Text bleibt stehen. Eine Zeile, die nie eine Blase hatte, bekommt
+    // auch jetzt keine -- ihre Nachricht bringt der Poll.
+    weg(daten.id);
+  };
+
+  var schliesse = function () {
+    if (quelle) { quelle.close(); quelle = null; }
+  };
+  var oeffne = function () {
+    if (quelle) { return; }
+    var warte = zuletzt + OEFFNEN_MIN_MS - Date.now();
+    if (warte > 0) {
+      if (!geplant) {
+        geplant = setTimeout(function () { geplant = null; oeffne(); }, warte);
+      }
+      return;
+    }
+    zuletzt = Date.now();
+    // Ab der aeltesten Zeile, die hier noch laeuft -- sonst erfuehre die
+    // Ansicht das Ende einer Zeile nie, die waehrend einer Luecke endete.
+    // Sonst ab der naechsten unbekannten: Altes kommt nicht noch einmal.
+    var offen = Object.keys(laufend).map(Number);
+    var nach = offen.length ? Math.min.apply(null, offen)
+                            : (hoechste ? hoechste + 1 : 0);
+    var bekam = false;
+    quelle = new EventSource(BASIS + 'chat/__STROM__' + (nach ? '?nach=' + nach : ''));
+    quelle.onmessage = function (ev) { bekam = true; ereignis(ev); };
+    quelle.onerror = function () {
+      // Der Server schliesst den Strom, sobald nichts mehr laeuft (und
+      // spaetestens nach fuenf Minuten). EventSource verbaende sich dann von
+      // selbst alle ~3 s neu -- fuer immer. Also zu, und nur dann neu, wenn
+      // hier noch eine Zeile laeuft (Netzluecke, Fuenf-Minuten-Grenze).
+      schliesse();
+      if (!bekam) {
+        // Eine frische Verbindung schickt jede Zeile ab ``nach`` mindestens
+        // einmal. Kam nichts, gibt es die Zeilen nicht mehr (oder das Netz
+        // ist weg): nicht weiter darauf warten -- die fertige Nachricht
+        // bringt der Poll, und ohne diese Bremse liefe hier ein Neuaufbau
+        // alle drei Sekunden ohne Ende.
+        Object.keys(laufend).forEach(function (id) { weg(id); });
+        laufend = {};
+      }
+      if (Object.keys(laufend).length) { oeffne(); }
+    };
+  };
+
+  // Wann der Strom (wieder) aufgeht: der A2-Poll ist der Anlass. Er haengt
+  // neue Blasen an und schreibt die Tippanzeige -- beides sieht ein
+  // MutationObserver, ohne dass ``web_chat`` etwas davon wissen muss.
+  // Die eigene, vorlaeufige Blase zaehlt dabei nicht.
+  new MutationObserver(function (aenderungen) {
+    pruefe();
+    var neu = aenderungen.some(function (a) {
+      return Array.prototype.some.call(a.addedNodes, function (n) {
+        return n.nodeType === 1 && !n.classList.contains('vorlaeufig');
+      });
+    });
+    if (neu) { oeffne(); }
+  }).observe(verlauf, { childList: true });
+  var tippt = document.getElementById('tippt');
+  if (tippt) {
+    new MutationObserver(function () {
+      if (tippt.textContent) { oeffne(); }
+    }).observe(tippt, { childList: true, characterData: true, subtree: true });
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { oeffne(); }
+  });
+  setInterval(function () { if (!document.hidden) { oeffne(); } }, NACHSEHEN_MS);
+  oeffne();
+})();
+"""
+
+
+def _strom_js(basis: str) -> str:
+    """``_STROM_JS`` mit Basis, Pfad und Takten -- dieselbe
+    Platzhalter-Bauart wie ``_VEREINT_JS``."""
+    return (
+        _STROM_JS.replace("__BASIS__", basis)
+        .replace("__STROM__", STROM_PFAD)
+        .replace("__OEFFNEN_MIN_MS__", str(STROM_OEFFNEN_MIN_MS))
+        .replace("__NACHSEHEN_MS__", str(STROM_NACHSEHEN_MS))
+        .replace("__WARTEN_MAX_MS__", str(STROM_WARTEN_MAX_MS))
+    )
 
 _VEREINT_JS = """
 (function () {
@@ -703,6 +908,9 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     )
     if chat_vorhanden:
         skript += web_chat._js()
+        # Der Strom nur mit Chat: fuer eine Gruppe ohne Web-Kanal ist
+        # ``/chat/*`` 404, ein EventSource liefe dort ins Leere.
+        skript += _strom_js(f"{token}/")
     return web._seite(
         f"{titel} — interview-theater", css, "\n".join(koerper),
         bearbeitbar=True, nachladen=False, skript=skript,

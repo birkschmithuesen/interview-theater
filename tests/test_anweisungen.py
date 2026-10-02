@@ -119,6 +119,22 @@ def test_phasenprompts_liegen_als_unterpfad(betrieb):
         assert len(text.splitlines()) >= 8, nummer
 
 
+def test_die_ueberschrift_nennt_den_heutigen_kurznamen(betrieb):
+    """Flow-Audit (02.10.2026): die Ueberschrift ``## Aktuelle Phase: N ·
+    <Name>`` ist die erste Zeile, die das Modell von seiner eigenen Phase
+    sieht -- und 6.md/7.md nannten nach der letzten Umnummerierung
+    (06.09.2026 abends, 6->5/7->6/8->7) noch ihre alten Namen
+    ("Szenentexte", "Schaerfung") statt der heutigen
+    ("Szenen als Geschichte", "Feinschliff"). Der Fehler war unbemerkt,
+    weil kein Test die Ueberschrift je gegen ``phasen.PHASEN`` hielt."""
+    for nummer, kurzname, _ in phasen.PHASEN:
+        erste_zeile = anweisungen.hole(f"phasen/{nummer}").splitlines()[0]
+        vorgabe = f"## Aktuelle Phase: {nummer} · {kurzname}"
+        # Ein laengerer Titel ("Schaerfung am Material" statt "Schaerfung")
+        # ist eine Ausschmueckung, kein Fehler -- geprueft wird das Praefix.
+        assert erste_zeile.startswith(vorgabe), (nummer, erste_zeile)
+
+
 def test_jede_phasenanweisung_sagt_dass_die_phase_kein_kaefig_ist(betrieb):
     """Der feste Schlusssatz aus Birks Korrektur vom 05.09.2026: die Gruppe
     bittet, der Bot tut es -- auch wenn es laut Phase erst spaeter dran

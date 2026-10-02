@@ -249,3 +249,82 @@ def test_ein_werfender_stromabschluss_kostet_nicht_die_antwort(aufbau, monkeypat
         "SELECT COUNT(*) FROM vorfall WHERE chat_id = ? AND art = ?",
         (CHAT, "gespraechszug_fehlgeschlagen"),
     ).fetchone()[0] == 0
+
+
+# -- Nach-Review, Befund 2: ein werfendes ``bei_teil`` im Echo-Fallback ----
+# kostet nicht die schon feststehende erste Antwort -------------------------
+
+
+def test_bei_teil_wirft_im_echo_fallback_kostet_nicht_die_antwort(aufbau, monkeypatch):
+    """``_ohne_echo`` haelt die erste Antwort fuer ein Zitat, startet einen
+    zweiten Anlauf, und der zweite Anlauf scheitert selbst -- dann ruft der
+    ``except``-Zweig ``bei_teil(antwort)`` DIREKT, um den Strom auf die
+    erste (gueltige) Antwort zurueckzusetzen. Das ist ein Schreibvorgang wie
+    jeder andere Senken-Aufruf ('database is locked' moeglich) und war bisher
+    nicht abgesichert: er riss den ganzen Zug mit, obwohl die erste Antwort
+    schon fertig war. Jetzt gilt derselbe Grundsatz wie beim Streaming selbst
+    (``llm._sende_strom``): eine werfende Anzeige kostet nicht die Antwort."""
+    conn, tg = aufbau
+    monkeypatch.setattr(ablauf, "ist_echo", lambda *a, **k: True)
+
+    class ErsterAnlaufDannKaputterZweiter:
+        """Der erste Aufruf liefert normal gestreamt die Antwort; der zweite
+        (der Ermahnungs-Anlauf aus ``_ohne_echo``) scheitert, BEVOR er ein
+        einziges Stueck schickt -- das loest den ``except``-Zweig aus."""
+
+        def __init__(self):
+            self.aufrufe = 0
+
+        def schema(self, *a, bei_teil=None, **kw):
+            self.aufrufe += 1
+            if self.aufrufe == 1:
+                text = "Womit fangen wir an?"
+                if bei_teil is not None:
+                    gesehen = ""
+                    for zeichen in text:
+                        gesehen += zeichen
+                        bei_teil(gesehen)
+                return {"antwort": text}
+            raise RuntimeError("Anbieter weg")
+
+    # ``neu()`` (-> ``abbruch()``) setzt die Senke zurueck; der direkte
+    # Nachtrag ``bei_teil(antwort)`` im Fallback faengt deshalb wieder bei
+    # ``repo.beginne_strom`` an. Dessen ZWEITER Aufruf im Zug ist genau
+    # dieser Nachtrag -- der erste gehoert zur normalen ersten Antwort.
+    echt = repo.beginne_strom
+    zaehler = {"n": 0}
+
+    def kaputt_ab_zweitem_mal(conn_, chat_id_, art_):
+        zaehler["n"] += 1
+        if zaehler["n"] >= 2:
+            raise RuntimeError("database is locked")
+        return echt(conn_, chat_id_, art_)
+
+    monkeypatch.setattr(repo, "beginne_strom", kaputt_ab_zweitem_mal)
+
+    offen, _ = _nachricht(conn)
+    ablauf.antworte(conn, tg, ErsterAnlaufDannKaputterZweiter(), Einstellungen(),
+                    CHAT, offen)
+
+    # Die erste Antwort steht trotzdem in der Gruppe ...
+    antworten = [
+        p for p in conn.execute(
+            "SELECT text FROM web_post WHERE chat_id = ? AND richtung = ?",
+            (CHAT, repo.RICHTUNG_AUS),
+        ).fetchall()
+        if p["text"] == "Womit fangen wir an?"
+    ]
+    assert antworten
+    # ... und NICHT zusaetzlich die Fehlerzeile.
+    fehlerzeilen = [
+        p for p in conn.execute(
+            "SELECT text FROM web_post WHERE chat_id = ? AND richtung = ?",
+            (CHAT, repo.RICHTUNG_AUS),
+        ).fetchall()
+        if p["text"] == ablauf.T._TEXT_FEHLER
+    ]
+    assert not fehlerzeilen
+    assert conn.execute(
+        "SELECT COUNT(*) FROM vorfall WHERE chat_id = ? AND art = ?",
+        (CHAT, "gespraechszug_fehlgeschlagen"),
+    ).fetchone()[0] == 0

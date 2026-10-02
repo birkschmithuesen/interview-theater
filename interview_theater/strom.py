@@ -239,8 +239,18 @@ class Senke:
         if self._id is None:
             return
         strom_id = self._id
+        # Zwei getrennte ``try``, nicht eines (Nach-Review, Befund 1): mit
+        # einem gemeinsamen Block liess ein scheiterndes ``_spuele()`` (z. B.
+        # "database is locked" beim Nachtragen des letzten Standes) den
+        # Abschluss ganz ausfallen -- die Zeile blieb bis zum
+        # Verwaist-Timeout auf "laeuft" stehen. Jetzt bleibt der Abschluss
+        # auch dann sicher, wenn nur das Spuelen scheitert.
         try:
             self._spuele()
+        except Exception:  # noqa: BLE001 -- ein scheiterndes Nachtragen darf
+            # den Abschluss nicht verhindern.
+            log.exception("Letzter Stromstand liess sich nicht nachtragen, id=%s", strom_id)
+        try:
             self._beende(strom_id, "fertig", post_id)
         except Exception:  # noqa: BLE001 -- wie in ``abbruch()``: eine
             # werfende Senke darf nicht die schon fertige Antwort kosten.

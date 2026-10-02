@@ -258,6 +258,47 @@ def test_ein_werfender_abschluss_wird_geloggt(aufbau_werfend, caplog):
     assert "database is locked" in caplog.text
 
 
+@pytest.fixture
+def aufbau_spuelen_wirft():
+    """Wie ``aufbau``, nur dass das SCHREIBEN wirft, sobald ``_spuele`` den
+    letzten offenen Stand nachtraegt -- der erste, direkte Schreibvorgang
+    beim Anlegen gelingt noch. So entsteht die Lage aus Befund 1: der
+    Abschluss selbst (``beende``) soll trotzdem laufen."""
+    uhr = Uhr()
+    geschrieben: list[tuple[int, str]] = []
+    beendet: list[tuple[int, str, int | None]] = []
+    zaehler = {"n": 0}
+
+    def beginne() -> int:
+        zaehler["n"] += 1
+        return zaehler["n"]
+
+    def schreibe(sid, text):
+        geschrieben.append((sid, text))
+        if len(geschrieben) > 1:
+            raise RuntimeError("database is locked")
+
+    senke = strom.Senke(
+        beginne, schreibe,
+        lambda sid, zustand, post_id: beendet.append((sid, zustand, post_id)),
+        uhr=uhr,
+    )
+    return senke, uhr, geschrieben, beendet
+
+
+def test_beende_laeuft_auch_wenn_nur_das_spuelen_scheitert(aufbau_spuelen_wirft):
+    """Befund 1 der Nach-Review: ``_spuele()`` und ``_beende()`` teilten sich
+    ein ``try`` -- scheiterte das Nachtragen des letzten Standes (z. B.
+    'database is locked'), lief ``_beende`` nie, und die Zeile blieb bis zum
+    Verwaist-Timeout auf 'laeuft' stehen. Jetzt bekommt jeder Schritt sein
+    eigenes ``try``, der Abschluss laeuft also auch dann."""
+    senke, _uhr, _geschrieben, beendet = aufbau_spuelen_wirft
+    senke("Hallo")
+    senke("Hallo ihr alle")           # innerhalb des Takts -- bleibt offen
+    senke.fertig(post_id=42)          # das Spuelen wirft, der Abschluss nicht
+    assert beendet == [(1, "fertig", 42)]
+
+
 # -- die drei Kanal-Helfer --------------------------------------------------
 
 

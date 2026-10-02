@@ -692,7 +692,19 @@ def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
             neu = getattr(bei_teil, "neu", None)
             if callable(neu):
                 neu()
-            bei_teil(antwort)
+            # Derselbe Grundsatz wie in der Streaming-Schleife
+            # (``llm._sende_strom``, Fix Runde 1, Punkt 2): ``bei_teil`` ist
+            # ein Schreibvorgang (z. B. "database is locked") und darf nicht
+            # weiter nach oben reichen -- die erste Antwort steht fest, eine
+            # werfende Anzeige darf sie nicht mehr kosten.
+            try:
+                bei_teil(antwort)
+            except Exception:  # noqa: BLE001 -- eine werfende Anzeige darf
+                # die schon feststehende erste Antwort nicht kosten.
+                log.exception(
+                    "bei_teil-Nachtrag nach gescheitertem Echo-Anlauf "
+                    "fehlgeschlagen, chat_id=%s", chat_id,
+                )
         return antwort
     if ist_echo(zweite, offen):
         repo.merke_vorfall(

@@ -16,7 +16,6 @@ import json
 import re
 import shutil
 import subprocess
-import tempfile
 
 import pytest
 
@@ -86,10 +85,12 @@ def test_das_skript_der_vereinten_seite_ist_gueltiges_javascript(tmp_path, padua
     if node is None:
         pytest.skip("kein node auf PATH")
     skript = _skript(_baue_seite(tmp_path))
-    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as datei:
-        datei.write(skript)
-        js_pfad = datei.name
-    lauf = subprocess.run([node, "--check", js_pfad], capture_output=True, text=True)
+    # ``tmp_path`` statt ``tempfile.NamedTemporaryFile(delete=False)``: die
+    # Datei liegt im ohnehin von pytest aufgeraeumten Testverzeichnis, statt
+    # dauerhaft im System-Temp liegen zu bleiben (Nach-Review, Befund 3).
+    js_pfad = tmp_path / "skript-en.js"
+    js_pfad.write_text(skript)
+    lauf = subprocess.run([node, "--check", str(js_pfad)], capture_output=True, text=True)
     assert lauf.returncode == 0, lauf.stderr
 
 
@@ -123,8 +124,7 @@ def test_das_deutsche_skript_bleibt_ebenfalls_gueltiges_javascript(tmp_path):
     )
     skript = _skript(html)
     node = shutil.which("node")
-    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as datei:
-        datei.write(skript)
-        js_pfad = datei.name
-    lauf = subprocess.run([node, "--check", js_pfad], capture_output=True, text=True)
+    js_pfad = tmp_path / "skript-de.js"
+    js_pfad.write_text(skript)
+    lauf = subprocess.run([node, "--check", str(js_pfad)], capture_output=True, text=True)
     assert lauf.returncode == 0, lauf.stderr

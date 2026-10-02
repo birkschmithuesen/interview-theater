@@ -333,6 +333,15 @@ es jemand im Chat merkt.
   fremden. Ohne Schärfungen fällt der Code auf die alte, globale
   Kernzitat-Auswahl zurück: eine Gruppe, die den Umbau nicht mitgemacht hat,
   verliert nichts.
+- **Der Szenen-Prompt liest auch den gewählten Sprachstil** (02.10.2026,
+  Padua M1): `szene._figuren_text` setzt `figur.sprachstil` als eigene Zeile
+  (`ZEILE_SPRACHSTIL`, nie in Anführungszeichen — ein Stil ist kein
+  Belegzitat) neben `sprachprofil` und die Zitate; den Kopf von Block 3
+  wählen seitdem **drei** Lagen: ein echtes Zitat → `FIGUREN_KOPF`
+  („wörtlich"), sonst ein nicht-leerer Stil → `FIGUREN_KOPF_MIT_STIL`
+  (die Gruppe hat gewählt), sonst `FIGUREN_KOPF_OHNE_STIMME` (unverändert).
+  Vorher war der Einzelszenen-Prompt mit und ohne Stil byte-identisch
+  (`docs/sprachstil-wirkung-2026-09-30.md`, Weg 2).
 - **Die Form je Szene ist ein Vorschlag, keine Vorentscheidung** (Birk,
   06.09.2026 00:30: „Die Form Monolog habe ich niemals eingegeben und aktiv
   bestätigt. Die Form muss mit mehr Bedacht gewählt werden und vom User

@@ -29,7 +29,7 @@ can: say something that belongs to no one alone.
 Stage directions in brackets, brief:
 
 ```
-({{ort_beispiel_1}}, early evening.)
+(<place>, early evening.)
 
 CHORUS: We've been waiting here for two hours.
 <CHARACTER A>: I've got no signal.

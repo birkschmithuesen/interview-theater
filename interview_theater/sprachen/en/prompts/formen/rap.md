@@ -46,7 +46,7 @@ in the scene text, and the group would have read it out). The marker `HOOK`
 stays exactly as written -- it is read by machine:
 
 ```
-({{ort_beispiel_4}}, for two hours now.)
+(<place>, for two hours now.)
 
 <CHARACTER A>
 Two hours here and not a metre free

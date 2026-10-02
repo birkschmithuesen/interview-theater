@@ -1165,6 +1165,88 @@ def entferne_schaerfung(conn: sqlite3.Connection, schaerfung_id: int) -> None:
     conn.commit()
 
 
+# --- Phasen-Debrief (Karte phasen-debrief) --------------------------------
+
+
+@_gesperrt
+def merke_phasen_debrief(
+    conn: sqlite3.Connection, chat_id: int, phase: int, text: str, modell: str,
+) -> None:
+    """Legt den Debrief einer verlassenen Phase an oder ersetzt ihn.
+
+    Upsert ueber ``(chat_id, phase)``: verlaesst die Gruppe dieselbe Phase
+    ein zweites Mal (zurueck und wieder vor), ist der alte Text veraltet --
+    ``text``, ``erstellt_am`` und ``modell`` werden ersetzt. ``geloescht``
+    wird dabei auf 0 zurueckgesetzt: ein frischer Debrief ist wieder
+    sichtbar, auch wenn eine fruehere Fassung fuer diese Phase per
+    ``entferne_phasen_debrief`` durchgestrichen worden war."""
+    conn.execute(
+        """
+        INSERT INTO phasen_debrief (chat_id, phase, text, erstellt_am, modell)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(chat_id, phase) DO UPDATE SET
+            text = excluded.text,
+            erstellt_am = excluded.erstellt_am,
+            modell = excluded.modell,
+            geloescht = 0
+        """,
+        (chat_id, phase, text, _jetzt(), modell),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def phasen_debriefs(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Die geltenden Debriefs einer Gruppe, nach Phase sortiert."""
+    return conn.execute(
+        "SELECT * FROM phasen_debrief WHERE chat_id = ? AND geloescht = 0 "
+        "ORDER BY phase ASC",
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def entferne_phasen_debrief(conn: sqlite3.Connection, chat_id: int, phase: int) -> None:
+    """Blendet den Debrief einer Phase weich aus (wie ueberall: streichen,
+    nicht loeschen)."""
+    conn.execute(
+        "UPDATE phasen_debrief SET geloescht = 1 WHERE chat_id = ? AND phase = ?",
+        (chat_id, phase),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def nachrichten_zwischen(
+    conn: sqlite3.Connection, chat_id: int, von: str, bis: str,
+) -> list[sqlite3.Row]:
+    """Alle Nachrichten (Gruppe UND Bot) im Zeitfenster ``[von, bis]``, ohne
+    Transkript-Echos (wie ``letzte_nachrichten``), chronologisch -- die
+    Grundlage, aus der ein Debrief seinen Text zieht."""
+    return conn.execute(
+        f"""
+        SELECT n.* FROM nachricht n
+        WHERE n.chat_id = ?
+          AND {_OHNE_TRANSKRIPT_ECHO}
+          AND n.gesendet_am >= ? AND n.gesendet_am <= ?
+        ORDER BY n.message_id ASC
+        """,
+        (chat_id, von, bis),
+    ).fetchall()
+
+
+@_gesperrt
+def erste_nachricht_am(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Der fruehste ``gesendet_am``-Zeitstempel der Gruppe, oder ``None``
+    ohne jede Nachricht -- die untere Grenze fuer den Debrief der ersten
+    Phase, die kein vorheriges Phasenende hat."""
+    zeile = conn.execute(
+        "SELECT MIN(gesendet_am) AS m FROM nachricht WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    return zeile["m"] if zeile else None
+
+
 # --- Stueckpruefung (Phase 7, 06.09.2026) ---------------------------------
 
 

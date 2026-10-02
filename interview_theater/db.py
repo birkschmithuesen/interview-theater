@@ -625,6 +625,23 @@ CREATE TABLE IF NOT EXISTS schaerfung (
 );
 CREATE INDEX IF NOT EXISTS idx_schaerfung_chat ON schaerfung(chat_id, id);
 
+-- Der Phasen-Debrief (Karte phasen-debrief): ein kurzer, automatisch
+-- geschriebener Rueckblick, sobald die Gruppe eine Phase verlaesst.
+--
+-- geloescht statt entfernt_am: Vorgabe aus der Spezifikation dieser Karte,
+-- bewusste Abweichung von der sonstigen entfernt_am-Konvention.
+CREATE TABLE IF NOT EXISTS phasen_debrief (
+  id          INTEGER PRIMARY KEY,
+  chat_id     INTEGER NOT NULL,
+  phase       INTEGER NOT NULL,
+  text        TEXT NOT NULL,
+  erstellt_am TEXT NOT NULL,
+  modell      TEXT,
+  geloescht   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (chat_id, phase)
+);
+CREATE INDEX IF NOT EXISTS idx_phasen_debrief_chat ON phasen_debrief(chat_id, phase);
+
 -- Die Pruefung des GANZEN Stuecks (Phase 7, 06.09.2026). Je Runde und Frage
 -- eine Zeile: Bewertung 1-5, zwei Saetze Begruendung, EIN Vorschlag, und die
 -- Szene, auf die er zeigt (NULL, wenn er keine nennt). Additiv wie alles
@@ -1032,6 +1049,7 @@ TABELLEN_MIT_CHAT_ID = (
     "szene_figur",
     "szenenfassung",
     "schaerfung",
+    "phasen_debrief",
     "stueckpruefung",
     "dramaturgie_befund",
     "dramaturgie_bewertung",

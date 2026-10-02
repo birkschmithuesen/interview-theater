@@ -321,9 +321,11 @@ _VEREINT_JS = """
         phase.removeAttribute('data-sicher');
         phase.textContent = phase.dataset.beschriftung;
         if (r && r.ok) {
-          // Die Roadmap sofort nachladen, statt bis zu __NACHLADEN_MS__ ms
-          // auf den naechsten Takt zu warten (Review-Befund 2) -- der Kopf
-          // und die aktive Phase sollen nicht auf dem alten Stand bleiben.
+          // Ein sofortiger Versuch -- er zeigt die neue Phase aber NICHT
+          // zuverlaessig: der POST legt hier nur den Eingang ab, der Bot
+          // verarbeitet ihn erst danach (eigener Prozess, eigener Takt).
+          // Massgeblich bleibt der naechste periodische Takt unten
+          // (hoechstens __NACHLADEN_MS__ ms), der dieselbe Funktion ruft.
           ladeRoadmap();
           setze('chat');   // die Eintrittsnachricht kommt im Chat an
           return;
@@ -393,10 +395,17 @@ _VEREINT_JS = """
   // Sichtbarkeits- und Bearbeitet-Sperren -- die Roadmap hat keine
   // Eingabefelder.
   var roadmapLaeuft = false;
+  // Wie ``panelLetzter``: beim ersten Blick aus der schon
+  // browser-serialisierten Live-DOM gesetzt, NICHT erst aus der ersten
+  // Antwort -- sonst waere die erste Antwort nie gleich (``null``) und
+  // ``ladeRoadmap`` tauschte beim allerersten Takt immer, auch ohne
+  // Aenderung (Fix-Runde 2, Review-Befund 1 Teil 2).
   var roadmapLetzter = null;
   function ladeRoadmap() {
     var aktuell = document.getElementById('roadmap');
-    if (!aktuell || roadmapLaeuft || document.hidden) { return; }
+    if (!aktuell) { return; }
+    if (roadmapLetzter === null) { roadmapLetzter = aktuell.outerHTML; }
+    if (roadmapLaeuft || document.hidden) { return; }
     // Steht ein Knopf gerade mitten im Request (disabled), wuerde ein
     // Austausch jetzt seine laufende Antwort auf einen verwaisten Knoten
     // treffen lassen -- harmlos (die Antwort wirkt dann einfach nicht mehr
@@ -415,7 +424,14 @@ _VEREINT_JS = """
         if (!neu || neu === roadmapLetzter) { return; }
         var ziel = document.getElementById('roadmap');
         if (!ziel) { return; }
-        var zustand = offene(ziel);
+        // ``ziel`` IST das <details> -- anders als beim Stand-Panel gibt es
+        // hier keine verschachtelten <details>, deren offener Zustand sich
+        // per Summary-Text wiederfinden liesse (``offene()`` passt hier
+        // nicht: sie sucht nur unter Nachkommen, nie am Element selbst).
+        // Stattdessen direkt die eigene ``open``-Eigenschaft sichern und
+        // zuruecksetzen (Fix-Runde 2, Review-Befund 1 Teil 1) -- sonst
+        // klappt die aufgeklappte Liste bei jedem Takt lautlos wieder zu.
+        var warOffen = ziel.open;
         // Ein gerade "bewaffneter" Knopf (zweiter Klick wechselt die Phase)
         // ueberlebt den Austausch -- sonst entwaffnet ein Nachladen
         // mitten in der Rueckfrage lautlos, und der naechste Klick trifft
@@ -426,9 +442,7 @@ _VEREINT_JS = """
         roadmapLetzter = neu;
         var neues = document.getElementById('roadmap');
         if (!neues) { return; }
-        neues.querySelectorAll('details > summary').forEach(function (el) {
-          if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
-        });
+        neues.open = warOffen;
         if (bewaffneteNummer) {
           var wiederKnopf = neues.querySelector(
             '.phase-knopf[data-phase="' + bewaffneteNummer + '"]');
@@ -701,13 +715,18 @@ def _roadmap_html(db_pfad: str, token: str) -> str | None:
 
     ``klickbar`` haengt wie auf der ganzen Seite am Web-Kanal
     (``beantworte_seite``): eine Telegram-Gruppe bekommt auch beim
-    Nachladen keine toten Knoepfe."""
+    Nachladen keine toten Knoepfe. Geprueft wird mit
+    ``web_chat_id_nach_token`` -- der leichten Abfrage, die nur die
+    chat_id zum Token mit ``kanal = 'web'`` holt -- und nicht mit
+    ``web_chatzustand`` (Fix-Runde 2, Review-Befund 3): der baut den
+    ganzen Chat-Poll (Verlauf, Aenderungen, Antworten) zusammen, den
+    dieser Ausschnitt gar nicht braucht."""
     conn = web_daten.oeffne_lesend(db_pfad)
     try:
         daten = web_daten.gruppe_nach_token(conn, token)
         if daten is None:
             return None
-        chat_vorhanden = web_daten.web_chatzustand(conn, token) is not None
+        chat_vorhanden = web_daten.web_chat_id_nach_token(conn, token) is not None
         roadmapdaten = web_daten.roadmap(conn, daten["chat_id"])
     finally:
         conn.close()

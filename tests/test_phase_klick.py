@@ -416,3 +416,74 @@ def test_das_js_laedt_die_roadmap_im_selben_takt():
     assert "BASIS_TEIL + 'roadmap'" in js
     takt = js[js.index("setInterval(function () {"):]
     assert "ladeRoadmap();" in takt[:takt.index("__NACHLADEN_MS__")]
+
+
+# -- Fix-Runde 2 (Re-Review f5be2dd) ------------------------------------------
+#
+# Wichtig: ``ladeRoadmap`` klappte das aufgeklappte ``<details id="roadmap">``
+# bei jedem Takt lautlos wieder zu (``offene()`` sucht nur unter
+# Nachkommen, nie am Element selbst) UND tauschte beim allerersten Takt
+# immer, weil ``roadmapLetzter`` mit ``null`` startete statt aus der
+# Live-DOM geseedet zu sein (wie ``panelLetzter``). Dazu zwei Minima:
+# ``_roadmap_html`` nutzt jetzt die leichte Abfrage, und der Kommentar beim
+# sofortigen Nachladen behauptet nicht mehr, die neue Phase stuende dort
+# schon sicher.
+
+
+def _ladeRoadmap_quelltext() -> str:
+    """Nur der Funktionskoerper von ``ladeRoadmap`` -- bis zum naechsten
+    ``setInterval``, dem einzigen danach."""
+    js = web_vereint._VEREINT_JS
+    start = js.index("function ladeRoadmap() {")
+    ende = js.index("setInterval(function () {", start)
+    return js[start:ende]
+
+
+def test_roadmap_letzter_wird_aus_der_live_dom_geseedet():
+    """Wie ``panelLetzter``: aus der schon browser-serialisierten Live-DOM,
+    nicht aus ``null``, sonst tauscht der erste Takt immer -- auch ohne
+    Aenderung, und dabei mit verlorenem ``open``."""
+    quelle = _ladeRoadmap_quelltext()
+    assert "roadmapLetzter === null" in quelle
+    assert "roadmapLetzter = aktuell.outerHTML" in quelle
+    # Geseedet wird VOR dem Lauf-/Sichtbarkeits-Gate -- wie beim Stand-Panel
+    # (``panelLetzter``), sonst bliebe die Seedung aus, solange der Tab im
+    # Hintergrund ist.
+    assert quelle.index("roadmapLetzter === null") < quelle.index("roadmapLaeuft || document.hidden")
+
+
+def test_der_offene_zustand_der_leiste_selbst_bleibt_erhalten():
+    """Die Roadmap hat kein verschachteltes ``<details>`` -- ``ziel`` IST
+    das Element, dessen ``open`` beim Austausch sonst verloren ginge
+    (``offene()`` findet nur Nachkommen, nie das Element selbst)."""
+    quelle = _ladeRoadmap_quelltext()
+    assert "var warOffen = ziel.open;" in quelle
+    assert "neues.open = warOffen;" in quelle
+    # Die alte, hier unpassende Technik -- ein tatsaechlicher AUFRUF von
+    # ``offene(...)`` -- darf in dieser Funktion nicht mehr vorkommen (der
+    # Name selbst taucht im erklaerenden Kommentar weiterhin auf).
+    assert "offene(ziel)" not in quelle
+    assert re.search(r"offene\([a-zA-Z]", quelle) is None
+
+
+def test_roadmap_html_nutzt_die_leichte_kanalpruefung():
+    """Review-Befund 3 (Minimum): ``web_chat_id_nach_token`` statt des
+    ganzen Chat-Polls (``web_chatzustand``), den dieser Ausschnitt nicht
+    braucht."""
+    import inspect
+
+    quelle = inspect.getsource(web_vereint._roadmap_html)
+    assert "web_chat_id_nach_token" in quelle
+    # Der tatsaechliche AUFRUF ist weg -- der Name darf im Docstring
+    # weiterhin erklaeren, wovon umgestellt wurde.
+    assert "web_chatzustand(conn, token)" not in quelle
+
+
+def test_der_sofortige_nachlade_kommentar_behauptet_nichts_falsches():
+    """Review-Befund 3 (Minimum): der POST legt nur den Eingang ab, der Bot
+    verarbeitet ihn erst danach -- der Kommentar darf nicht so lesen, als
+    stuende die neue Phase nach ``ladeRoadmap()`` schon sicher da."""
+    js = web_vereint._VEREINT_JS
+    ausschnitt = js[js.index("if (r && r.ok) {"):js.index("ladeRoadmap();")]
+    assert "NICHT" in ausschnitt
+    assert "zuverlaessig" in ausschnitt

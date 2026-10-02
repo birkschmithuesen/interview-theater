@@ -338,7 +338,13 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
         except Exception:
             log.exception("Vorfall zur Stueckpruefung nicht schreibbar")
         zeilen.stoppe()
-        _sende(conn, tg, e, chat_id, T.MELDUNG_FEHLGESCHLAGEN)
+        # Tagesdeckel (Karte Padua S): ein erneuter Versuch schlaegt am
+        # Deckel genauso fehl -- die Gruppe bekommt die Pausenmeldung statt
+        # "versucht es gleich noch einmal".
+        from interview_theater import kosten
+
+        if not kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
+            _sende(conn, tg, e, chat_id, T.MELDUNG_FEHLGESCHLAGEN)
     else:
         zeilen.stoppe()
         try:

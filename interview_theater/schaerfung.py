@@ -294,6 +294,13 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
                 )
             except Exception:
                 log.exception("Vorfall zur Schaerfung nicht schreibbar")
+            # Tagesdeckel (Karte Padua S): die Gruppe wartet schon auf
+            # "Schaerfung laeuft, einen Moment" -- bei Deckel bekommt sie
+            # wenigstens die Pausenmeldung statt gar nichts. Ohne Deckel
+            # bleibt es beim bisherigen stillen Fehlschlag.
+            from interview_theater import kosten
+
+            kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id)
             meldung = None
         finally:
             zeilen.stoppe()

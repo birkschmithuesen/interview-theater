@@ -186,14 +186,17 @@ def starte(conn, tg, klm, e, chat_id: int, name: str):
         except Exception:
             log.exception("Sprachstil-Aufruf fehlgeschlagen, chat_id=%s", chat_id)
             try:
-                repo.merke_vorfall(
-                    conn, chat_id, getattr(e, "bot_name", None),
-                    "sprachstil_fehlgeschlagen", "Stil-Aufruf gescheitert",
-                )
-                # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile.
+                # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile -- und
+                # zuerst geprueft, damit bei Deckel nicht zusaetzlich ein
+                # "sprachstil_fehlgeschlagen"-Vorfall fuer denselben Lauf
+                # entsteht.
                 from interview_theater import kosten
 
                 if not kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
+                    repo.merke_vorfall(
+                        conn, chat_id, getattr(e, "bot_name", None),
+                        "sprachstil_fehlgeschlagen", "Stil-Aufruf gescheitert",
+                    )
                     tg.sende(chat_id, T._TEXT_FEHLER)
             except Exception:
                 log.exception("Fehlermeldung zum Stil-Lauf fehlgeschlagen")

@@ -521,3 +521,122 @@ def test_der_web_schreibpfad_laeuft_weiter(conn, tmp_path):
     _buche(conn, 5.0)
     web_schreiben.wende_an(conn, CHAT, "rahmen", "Ein Hinterhof im Regen", None)
     assert repo.hole_arbeitsstand(conn, CHAT)["rahmen"] == "Ein Hinterhof im Regen"
+
+
+# -- Hintergrundlaeufe: Pause statt Fehlermeldung (Fix-Runde 1) -----------
+#
+# Drei Stellen meldeten bei Tagesdeckel irrefuehrend: die Stueckpruefung und
+# die Dramaturgie-Pruefung mit derselben "versucht es gleich noch einmal"-
+# Zeile wie bei einem gewoehnlichen Fehler -- am Deckel scheitert aber JEDER
+# weitere Versuch genauso. Die Schaerfung meldete gar nichts, obwohl die
+# Gruppe gerade auf "Schaerfung laeuft, einen Moment" wartet.
+
+
+def _stueck_mit_volltext(conn):
+    """Eine Szene mit Volltext -- der Mindeststand, den
+    ``stueckpruefung.pruefe`` braucht, um bis zum Modellaufruf zu kommen."""
+    eins = repo.lege_szene_an(conn, CHAT, 1, "Am Kiosk", "sie treffen sich", None)
+    repo.setze_szenenfeld(conn, eins, "form", "Dialog")
+    repo.aktualisiere_szene(conn, eins, "Am Kiosk", "sie treffen sich", "A: Da bist du.")
+
+
+def test_stueckpruefung_meldet_pause_statt_nochmal_versuchen(conn, tmp_path):
+    """Vorher: bei Tagesdeckel kam dieselbe Zeile wie bei jedem anderen
+    Fehler ("versucht es gleich noch einmal"), obwohl ein erneuter Versuch
+    am Deckel garantiert genauso scheitert."""
+    from interview_theater import stueckpruefung
+
+    _stueck_mit_volltext(conn)
+    _buche(conn, 5.0)
+    tg = TelegramAttrappe()
+    zaehler = Zaehler()
+    klm = llm.LLM(_e(tmp_path), zaehler, conn)
+
+    stueckpruefung._lauf(conn, tg, klm, _e(tmp_path), CHAT)
+
+    # Die erste Zeile ist die Tippanzeige der Arbeitszeilen (nicht Teil
+    # dieses Befunds) -- entscheidend ist, DASS die Pausenmeldung kommt und
+    # NICHT die "versucht es gleich noch einmal"-Zeile.
+    assert kosten.T._TEXT_PAUSE in tg.gesendet, tg.gesendet
+    assert stueckpruefung.T.MELDUNG_FEHLGESCHLAGEN not in tg.gesendet, tg.gesendet
+    assert zaehler.aufrufe == 0
+
+
+def _dramaturgie_stueck(conn):
+    """Eine Szene mit zwei erkennbaren Sprechern -- der Mindeststand, den
+    ``mechanik.lies`` braucht, damit ``fanout.pruefe`` ueberhaupt ein
+    Modell fragt."""
+    repo.setze_figur(conn, CHAT, "Mira", "Mira ist erfunden.")
+    repo.setze_figur(conn, CHAT, "Jonas", "Jonas ist erfunden.")
+    szene_id = repo.stelle_szene_sicher(conn, CHAT, 1)
+    repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
+    repo.setze_szenenfeld(conn, szene_id, "titel", "Szene 1")
+    conn.execute(
+        "UPDATE szene SET volltext = ? WHERE id = ?",
+        (
+            "MIRA: Der Koffer steht seit gestern hier.\n"
+            "JONAS: Und?\n"
+            "MIRA: Und niemand holt ihn.\n"
+            "JONAS: Dann nehme ich ihn mit.\n",
+            szene_id,
+        ),
+    )
+    ids = [repo.hole_figur(conn, CHAT, n)["id"] for n in ("Mira", "Jonas")]
+    repo.setze_szene_figuren(conn, CHAT, szene_id, ids)
+    conn.commit()
+
+
+def test_dramaturgie_meldet_pause_statt_nochmal_versuchen(conn, tmp_path, monkeypatch):
+    """Dieselbe Falle wie bei der Stueckpruefung, nur mit bis zu 18
+    Modellaufrufen je Lauf: ohne den Schutz in ``fanout._versuch`` haette
+    jeder einzelne denselben Vorfall geschrieben, und am Ende waere
+    trotzdem keine Pausenmeldung dabei herausgekommen."""
+    from interview_theater.dramaturgie import fanout
+
+    monkeypatch.setenv(fanout.ENV_MODELL, "mistralai/Mistral-Small-4-119B-2603")
+    _dramaturgie_stueck(conn)
+    _buche(conn, 5.0)
+    tg = TelegramAttrappe()
+    zaehler = Zaehler()
+    klm = llm.LLM(_e(tmp_path), zaehler, conn)
+
+    fanout._lauf(conn, tg, klm, _e(tmp_path), CHAT)
+
+    assert tg.gesendet == [kosten.T._TEXT_PAUSE], tg.gesendet
+    assert zaehler.aufrufe == 0
+    arten = [z["art"] for z in conn.execute("SELECT art FROM vorfall")]
+    assert "dramaturgie_aufruf_fehlgeschlagen" not in arten, arten
+
+
+def _interview_mit_thema(conn):
+    kopf_id = repo.lege_interview_an(conn, CHAT)
+    repo.setze_aufnahme_name(conn, kopf_id, "A")
+    zitat_text = "Ich habe zwanzig Jahre genaeht und keiner hat gefragt."
+    repo.setze_transkript(conn, kopf_id, zitat_text)
+    repo.setze_status(conn, kopf_id, "fertig")
+    repo.setze_interview_beendet(conn, kopf_id)
+    repo.speichere_verdichtung(conn, CHAT, kopf_id, "Eine Zusammenfassung.", [
+        {"thema": "Arbeit ohne Anerkennung", "beleg_zitat": zitat_text,
+         "zitat_geprueft": 1},
+    ])
+
+
+def test_schaerfung_meldet_die_pause_statt_zu_schweigen(conn, tmp_path):
+    """Vorher: die Gruppe bekam 'Schaerfung laeuft, einen Moment' und bei
+    einem Fehlschlag danach GAR NICHTS mehr -- auch nicht am Tagesdeckel.
+    Jetzt bekommt sie wenigstens die Pausenmeldung."""
+    from interview_theater import schaerfung
+
+    _interview_mit_thema(conn)
+    _buche(conn, 5.0)
+    tg = TelegramAttrappe()
+    zaehler = Zaehler()
+    klm = llm.LLM(_e(tmp_path), zaehler, conn)
+
+    schaerfung._lauf(conn, tg, klm, _e(tmp_path), CHAT)
+
+    # Die erste Zeile ist die Tippanzeige der Arbeitszeilen (nicht Teil
+    # dieses Befunds) -- entscheidend ist, DASS die Pausenmeldung kommt und
+    # nicht, wie vorher, gar keine Meldung.
+    assert kosten.T._TEXT_PAUSE in tg.gesendet, tg.gesendet
+    assert zaehler.aufrufe == 0

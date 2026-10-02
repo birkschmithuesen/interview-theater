@@ -4,9 +4,8 @@ Dieser Befund loest die sieben offenen Restspannungen aus
 `docs/prompt-audit/2026-10-01-padua-fix/BEFUND.md` (Abschnitt „Bekannte
 Restspannungen") ab. Grundlage: **Birks Entscheidung vom 02.10.2026** zur
 Abschnittszahl und die **Code-Wahrheit** fuer alles uebrige. Zeilennummern
-sind die des Stands nach Commit `20cb9e4` (nachgemessen; einzelne Stellen
-koennen durch spaetere Commits auf diesem Zweig um wenige Zeilen verschoben
-sein -- per `grep -n` nachgemessen, nicht aus dem Plan uebernommen).
+sind auf diesem Zweig per `grep -n` nachgemessen, nicht aus dem Plan
+uebernommen.
 
 ## Wie die Dumps entstehen
 
@@ -32,8 +31,10 @@ Je Zeile, woher die Differenz kommt:
   „(variants of the same idea, …)" aus `en/phasen/1.md` heraus. Nutzer
   unveraendert (393 = 393): Phase 1 liest keinen der geaenderten Bloecke.
 - **02**: System kuerzer (31 584 -> 31 396) -- Restspannungen 1, 7 und 8
-  nehmen Saetze aus `en/phasen/6.md` und `en/system.md`. Nutzer
-  unveraendert (2 416 = 2 416): `kontext.KERNPAKET_KOPF` (Restspannung 4)
+  nehmen Saetze aus `en/phasen/6.md` (alle vier Diff-Hunks dieses Dumps
+  liegen dort, gemessen; `en/system.md` ist auf diesem Zweig unveraendert
+  und hier nicht beteiligt). Nutzer unveraendert (2 416 = 2 416):
+  `kontext.KERNPAKET_KOPF` (Restspannung 4)
   sagte englisch schon vorher „story" statt „core theme" (seit c8) -- die
   Aenderung dieser Karte betrifft dort nur die deutsche Fassung, die
   dieser Dump nicht liest.
@@ -48,18 +49,22 @@ Je Zeile, woher die Differenz kommt:
   (`laengen.block_prosa`). Die Zusicherung fuer den echten Pfad sind die
   Tests aus Task 7/8 (`tests/test_laengen_prosa.py`,
   `tests/test_nachpass_prosa.py`), nicht dieser Dump.
-- **04**: System kuerzer (13 094 -> 13 051) -- Task 5/6 kuerzen
-  `szene.systemanweisung('prosa')`/`ANWEISUNG` auf dieselbe neue Regel.
+- **04**: System kuerzer (13 094 -> 13 051) -- der einzige System-Hunk
+  dieses Dumps liegt in `en/formen/prosa.md` (Task 5, Commit `75846b6`,
+  dieselbe neue Bindungsregel wie in Teil A); `kurzgeschichte.ANWEISUNG`
+  ist am Einzelszenen-Prompt nicht beteiligt (der liest `szene.py`, nicht
+  `kurzgeschichte.py`) und wird hier nicht zitiert.
   **Nutzer laenger, abweichend von der erwarteten Richtung** (2 702 -> 3 002,
   +300 Zeichen) -- und das ist **keine Wirkung dieser Karte**: der Diff
-  zeigt drei neue Zeilen „Speech style (chosen by the group): …" aus
-  `szene.FIGUREN_KOPF_OHNE_STIMME`. Die Sprachstil-Anzeige im Szenen-Prompt
-  stammt aus Padua M1 (Commits `20d5b0a`/`eb5949e`, „szene: sprachstil im
-  Szenen-Prompt" / „drei Koepfe fuer Block 3") und ist bereits vor dieser
-  Karte auf `main` gelandet -- aber **nach** dem alten Dump vom 01.10.2026
-  (`4280f51`). Der Altdump zeigt den Code-Stand vor M1, der Neudump den
-  Stand danach; die Differenz gehoert zu M1, nicht zu P2-Fix. Festgehalten
-  bereits in `.superpowers/sdd/task-13-report.md` (Dump-04-Abweichung).
+  zeigt, dass der Figuren-Block-Kopf von `szene.FIGUREN_KOPF_OHNE_STIMME`
+  (`en/texte.toml:936`) auf `szene.FIGUREN_KOPF_MIT_STIL` (`:938`) wechselt
+  und drei Zeilen `szene.ZEILE_SPRACHSTIL` (`:937`, „Speech style (chosen
+  by the group): …") dazukommen. Alle drei Konstanten stammen aus Padua M1
+  (Commits `20d5b0a`/`eb5949e`, „szene: sprachstil im Szenen-Prompt" / „drei
+  Koepfe fuer Block 3") und sind bereits vor dieser Karte auf `main`
+  gelandet -- aber **nach** dem alten Dump vom 01.10.2026 (`4280f51`). Der
+  Altdump zeigt den Code-Stand vor M1, der Neudump den Stand danach; die
+  Differenz gehoert zu M1, nicht zu P2-Fix.
 
 ## Teil A -- Birks Entscheidung vom 02.10.2026
 
@@ -83,8 +88,8 @@ Je Zeile, woher die Differenz kommt:
 `workshop/padua-2026/phasentexte.toml:49-56` ("One section per scene you
 planned, in that order.") ist hier bewusst nicht aufgefuehrt -- diese
 Aenderung existiert nicht. Task 11 (die englische Phase-6-Chat-Einleitung
-nachzuziehen) wurde laut `overrides.md` **gedroppt** (out of scope,
-Architekten-Review). Die Datei sagt nach wie vor „The story decides how
+nachzuziehen) wurde im Architekten-Review gestrichen (Auftrag Birk,
+02.10.2026) und ist damit out of scope. Die Datei sagt nach wie vor „The story decides how
 many sections it gets." (`workshop/padua-2026/phasentexte.toml:51-52`,
 gemessen) -- siehe Teil F, Punkt 2.
 
@@ -237,8 +242,8 @@ $ python3.11 -m pytest -q -p no:cacheprovider tests/test_laengen_prosa.py tests/
    (gemessen: „The story decides how many sections it gets."). Das ist die
    englische Entsprechung derselben Zeile -- **unveraendert**, weil Task 11
    dieser Karte (die englische Phase-6-Chat-Einleitung an Birks
-   Entscheidung anzugleichen) laut `overrides.md` **gedroppt** wurde (out
-   of scope, Architekten-Review). Beide Fassungen sagen damit weiterhin das
+   Entscheidung anzugleichen) im Architekten-Review gestrichen wurde
+   (Auftrag Birk, 02.10.2026) und damit out of scope ist. Beide Fassungen sagen damit weiterhin das
    Gegenteil von Teil A dieses Befunds, solange niemand sie aendert.
    Folgekarte, fuer beide Sprachen gemeinsam.
 3. **`interview_theater/prompts/phasen/6.md` (deutsch) bleibt unangetastet.**

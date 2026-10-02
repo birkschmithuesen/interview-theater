@@ -600,7 +600,9 @@ _CHAT_JS = """
   }
 
   function postAudio(auftrag, zweiter) {
-    return fetch(weg('chat/audio?dauer=' + auftrag.dauer), {
+    var weg_ = 'chat/audio?dauer=' + auftrag.dauer;
+    if (auftrag.grund) { weg_ += '&grund=' + auftrag.grund; }
+    return fetch(weg(weg_), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
                  'X-Nonce': nonce() },
@@ -890,11 +892,27 @@ _CHAT_JS = """
     r.onstop = function () {
       sitzung.offen -= 1;
       var auftrag = null;
-      if (teile.length && !sitzung.verworfen) {   // leere Stuecke nie
+      // VAD-Entscheid, ob dieses Segment ueberhaupt in die Schlange geht.
+      // r._grund/r._redeMs werden von schneideSegment() (Schnitt) oder von
+      // pausiereInterview()/beendeInterview() (Flush) VOR stop() gesetzt;
+      // ohne VAD (Rueckfall auf den festen Takt) bleiben beide undefined,
+      // dann gilt wie vor dieser Karte: jedes nicht-leere Stueck geht raus.
+      var redeMs = r._redeMs;
+      var grund = r._grund || null;
+      var genug = redeMs == null || (
+        grund === 'ende' ? redeMs > 0 : redeMs >= (sitzung.vadMinSpeechMs || 0)
+      );
+      // grund === 'cap' mit redeMs < MIN_SPEECH_MS: der harte Zeitdeckel hat
+      // ein fast stummes Segment erzwungen. "In das naechste Segment
+      // getragen" (wie beim Pausen-Fall) ist hier technisch nicht moeglich
+      // -- der Recorder musste schon stoppen -- also wird es verworfen statt
+      // gesendet. Seltener Randfall, siehe .brainstorm-vad-report.md.
+      if (teile.length && !sitzung.verworfen && genug) {   // leere Stuecke nie
         auftrag = {
           art: 'audio', sitzung: sitzung,
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
-          dauer: Math.max(1, Math.round((Date.now() - von) / 1000))
+          dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
+          grund: grund
         };
       }
       // Re-Review B: zwei onstop koennen sich ueberholen (Stopp mitten im
@@ -1050,6 +1068,23 @@ _CHAT_JS = """
     zeigeModus();
   }
 
+  // Pausen-Schnitt (VAD, 02.10.2026): derselbe AnalyserNode wie der Pegel
+  // liefert zusaetzlich getFloatTimeDomainData() fuer eine RMS-Schaetzung.
+  // Schneidet sitzung.recorder NIE direkt -- das macht schneideSegment(),
+  // das den Nachfolge-Recorder gleich mitanlegt, damit zwischen zwei
+  // Segmenten keine Luecke entsteht.
+  function schneideSegment(sitzung, grund) {
+    var alt = sitzung.recorder;
+    if (!alt) { return; }
+    alt._grund = grund;
+    alt._redeMs = sitzung.vadSpeechMs;
+    if (alt.state !== 'inactive') { alt.stop(); }   // liefert sein Segment im onstop
+    sitzung.recorder = neuesSegment(sitzung);
+    sitzung.vadSegmentStart = Date.now();
+    sitzung.vadSpeechMs = 0;
+    sitzung.vadLetzteRede = sitzung.vadSegmentStart;
+  }
+
   function pegelAn(sitzung) {
     var Kontext = window.AudioContext || window.webkitAudioContext;
     if (!pegelBalken || !Kontext) { return; }
@@ -1060,15 +1095,62 @@ _CHAT_JS = """
       var messer = kontext.createAnalyser();
       messer.fftSize = 256;
       kontext.createMediaStreamSource(sitzung.strom).connect(messer);
-      var werte = new Uint8Array(messer.frequencyBinCount);
+      var frequenzWerte = new Uint8Array(messer.frequencyBinCount);
+      var zeitWerte = new Float32Array(messer.fftSize);
+      var PAUSE_MS = parseInt(fuss.dataset.vadPauseMs, 10) || 2500;
+      var MAX_MS = parseInt(fuss.dataset.vadMaxMs, 10) || 90000;
+      var MIN_SPEECH_MS = parseInt(fuss.dataset.vadMinSpeechMs, 10) || 500;
+      var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
+      var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
+      var BODEN_FENSTER = Math.ceil(5000 / 120);
+      sitzung.vadMinSpeechMs = MIN_SPEECH_MS;
+      sitzung.vadAktiv = true;
+      sitzung.vadBoden = [];
       sitzung.pegelTakt = setInterval(function () {
-        messer.getByteFrequencyData(werte);
+        messer.getByteFrequencyData(frequenzWerte);
         var summe = 0;
-        for (var i = 0; i < werte.length; i++) { summe += werte[i]; }
+        for (var i = 0; i < frequenzWerte.length; i++) { summe += frequenzWerte[i]; }
         pegelBalken.style.width =
-          Math.min(100, (summe / werte.length) * 2.2) + '%';
+          Math.min(100, (summe / frequenzWerte.length) * 2.2) + '%';
+
+        messer.getFloatTimeDomainData(zeitWerte);
+        var quadratsumme = 0;
+        for (var j = 0; j < zeitWerte.length; j++) {
+          quadratsumme += zeitWerte[j] * zeitWerte[j];
+        }
+        var rms = Math.sqrt(quadratsumme / zeitWerte.length);
+        sitzung.vadBoden.push(rms);
+        if (sitzung.vadBoden.length > BODEN_FENSTER) { sitzung.vadBoden.shift(); }
+        // Niedriges Perzentil der letzten ~5 s als Rauschboden -- GESETZT,
+        // NICHT GEMESSEN (anders als PAUSE_MS/MAX_MS/MIN_SPEECH_MS/
+        // RMS_SCHWELLE, die aus CoThinker stammen): Browser-Mikros in einem
+        // lauten Probenraum sind nicht CoThinkers Aufbau.
+        var sortiert = sitzung.vadBoden.slice().sort(function (a, b) { return a - b; });
+        var boden = sortiert[Math.floor(sortiert.length * 0.1)] || 0;
+        var schwelle = Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
+        var jetzt = Date.now();
+        if (rms > schwelle) {
+          sitzung.vadSpeechMs += 120;
+          sitzung.vadLetzteRede = jetzt;
+        }
+        if (!sitzung.recorder) { return; }
+        var kappe = (jetzt - sitzung.vadSegmentStart) >= MAX_MS;
+        var pause = (jetzt - sitzung.vadLetzteRede) >= PAUSE_MS;
+        if (kappe) {
+          // Hart: schneidet IMMER, auch ohne Pause und auch mit zu wenig
+          // Rede (der seltene Fall landet in onstop() ohne Upload -- siehe
+          // dortigen Kommentar).
+          schneideSegment(sitzung, 'cap');
+        } else if (pause && sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
+          schneideSegment(sitzung, 'pause');
+        }
+        // pause && vadSpeechMs < MIN_SPEECH_MS: kein Schnitt -- die Stille
+        // wird Teil desselben, weiterlaufenden Segments ("in das naechste
+        // Segment getragen", ohne Audio-Bytes ueber zwei MediaRecorder-
+        // Instanzen hinweg zusammenfuegen zu muessen, was keine einzelne
+        // dekodierbare Datei mehr ergaebe).
       }, 120);
-    } catch (e) { /* ohne Pegel geht es auch */ }
+    } catch (e) { /* ohne Pegel geht es auch -- dann der feste Takt (Rueckfall unten) */ }
   }
 
   // Die erfasste Aufnahmedauer einer Sitzung: angesammelte Zeit vor der
@@ -1179,15 +1261,23 @@ _CHAT_JS = """
     }
     sitzung.legStart = Date.now();
     sitzung.recorder = neuesSegment(sitzung);
+    sitzung.vadSegmentStart = Date.now();
+    sitzung.vadSpeechMs = 0;
+    sitzung.vadLetzteRede = sitzung.vadSegmentStart;
     sitzung.gestartet = true;
-    sitzung.segmentTakt = setInterval(function () {
-      if (!sitzung.recorder) { return; }
-      var alt = sitzung.recorder;
-      alt.stop();                      // liefert sein Segment im onstop
-      sitzung.recorder = neuesSegment(sitzung);
-    }, SEGMENT_MS);
     uhrAn(sitzung);
     pegelAn(sitzung);
+    if (!sitzung.vadAktiv) {
+      // Rueckfall ohne AnalyserNode (aelterer Browser, kein AudioContext):
+      // wie vor dieser Karte eine feste Segmentlaenge -- sonst gaebe es nie
+      // einen Schnitt, und die Aufnahme liefe bis Beenden in einem Stueck.
+      sitzung.segmentTakt = setInterval(function () {
+        if (!sitzung.recorder) { return; }
+        var alt = sitzung.recorder;
+        alt.stop();                      // liefert sein Segment im onstop
+        sitzung.recorder = neuesSegment(sitzung);
+      }, SEGMENT_MS);
+    }
   }
 
   function starteInterview() {
@@ -1305,6 +1395,7 @@ _CHAT_JS = """
     if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
     var letzter = sitzung.recorder;
     sitzung.recorder = null;
+    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
     if (letzter && letzter.state !== 'inactive') {
       letzter.stop();          // sein onstop reiht das letzte Segment ein
     } else {
@@ -1354,6 +1445,9 @@ _CHAT_JS = """
     // Wie starteInterview()/brichAb() bei einem Fehler: stop(), dann sofort
     // das Mikrofon los -- sein onstop hat die Daten bis hierhin schon im
     // ondataavailable gesammelt und reiht das Stueck ganz normal ein.
+    // grund 'ende': ein manueller Flush haelt sich NICHT an MIN_SPEECH_MS --
+    // "bei Pause/Beenden gesendet, wenn ueberhaupt Rede drin ist".
+    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
     if (alt && alt.state !== 'inactive') { alt.stop(); }
     gibFrei(sitzung);
     if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }

@@ -93,6 +93,75 @@ def test_die_vad_attribute_stehen_am_fuss(seite):
     assert 'data-vad-floor-faktor="2.5"' in seite
 
 
+def test_vad_ersetzt_den_festen_takt_mit_rueckfall():
+    js = web_chat._CHAT_JS
+    assert "sitzung.segmentTakt = setInterval" in js   # Rueckfall bleibt
+    assert "if (!sitzung.vadAktiv)" in js              # ... aber nur ohne VAD
+    assert "function schneideSegment" in js
+    assert "getFloatTimeDomainData" in js
+
+
+def test_vad_liest_alle_fuenf_werte_aus_dem_fuss():
+    js = web_chat._CHAT_JS
+    for attribut in ("vadPauseMs", "vadMaxMs", "vadMinSpeechMs", "vadRms",
+                     "vadFloorFaktor"):
+        assert f"fuss.dataset.{attribut}" in js, attribut
+
+
+def test_kappe_schneidet_immer_pause_nur_mit_genug_rede():
+    js = web_chat._CHAT_JS
+    takt = js[js.index("sitzung.pegelTakt = setInterval"):]
+    takt = takt[:takt.index("}, 120)")]
+    assert "schneideSegment(sitzung, 'cap')" in takt
+    assert "schneideSegment(sitzung, 'pause')" in takt
+    assert "sitzung.vadSpeechMs >= MIN_SPEECH_MS" in takt
+
+
+def test_manuelle_schnitte_tragen_den_grund_ende():
+    js = web_chat._CHAT_JS
+    assert js.count("_grund = 'ende'") == 2  # pausiereInterview + beendeInterview
+
+
+def test_der_grund_ende_wird_nur_mit_aktivem_vad_gesetzt():
+    """Ohne AnalyserNode (Rueckfall auf den festen Takt) bleibt vadSpeechMs
+    bei 0 -- ohne diese Wache wuerde Pause/Beenden das letzte Stueck NIE mehr
+    hochladen, weil 'ende' ohne VAD faelschlich redeMs=0 saehe statt null."""
+    js = web_chat._CHAT_JS
+    assert "letzter && sitzung.vadAktiv) { letzter._grund = 'ende'" in js
+    assert "alt && sitzung.vadAktiv) { alt._grund = 'ende'" in js
+
+
+def test_onstop_laesst_zu_kurze_kappen_schnitte_weg():
+    js = web_chat._CHAT_JS
+    onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
+    assert "genug" in onstop
+    assert "redeMs > 0" in onstop
+
+
+def test_postaudio_haengt_den_grund_an():
+    js = web_chat._CHAT_JS
+    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    assert "auftrag.grund" in ausschnitt
+
+
+def test_schneidesegment_legt_sofort_einen_nachfolger_an():
+    """Zwischen zwei Segmenten darf keine Luecke entstehen -- der neue
+    Recorder steht schon, bevor der alte onstop gefeuert hat."""
+    js = web_chat._CHAT_JS
+    fn = js[js.index("function schneideSegment"):js.index("function pegelAn")]
+    vor_stop = fn.index("alt.stop()")
+    nach_stop = fn.index("sitzung.recorder = neuesSegment(sitzung)")
+    assert vor_stop < nach_stop
+
+
+def test_das_js_startet_weiterhin_einen_eigenen_recorder_je_segment():
+    """VAD darf den Aufbau aus Re-Review B nicht aufbrechen: KEINE
+    Zeitscheibe, jedes Segment bleibt eine eigenstaendige, komplette Datei."""
+    js = web_chat._CHAT_JS
+    assert re.search(r"\.start\(\s*\)", js)
+    assert not re.search(r"\.start\([a-zA-Z0-9_.]+\)", js)
+
+
 def test_der_nonce_steht_im_body_und_nicht_daran(seite):
     """Dieselbe Entscheidung wie auf der Gruppenseite (``web.nonce``):
     abgeleitet, nicht gewuerfelt, und IM body -- sonst reisst ein

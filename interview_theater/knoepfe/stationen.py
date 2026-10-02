@@ -85,17 +85,73 @@ def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
         return False
     if _speicherleiste_offen(conn, chat_id):
         return False
+    _sende_abschluss(conn, tg, chat_id, stufe, _abschlusstext(conn, chat_id, stufe))
+    return True
+
+
+def _sende_abschluss(conn, tg, chat_id: int, stufe: int, text: str,
+                     korrektur_art: str | None = None, zusatz=()) -> int:
+    """Verschickt die Abschlussnachricht mit "Weiter zu Phase N · Titel" und
+    dem Korrekturknopf -- und merkt das Angebot (``merke_angebot``).
+
+    Der Korrekturknopf ist immer ``ART_NOCH_NICHT`` ("Noch etwas aendern");
+    nennt ``korrektur_art`` das Feld, das gerade gespeichert wurde, heisst er
+    danach ("Begriffe aendern" / "Change terms", ``_TEXT_AENDERN_KNOPF_FUER``).
+    ``zusatz`` haengt weitere Zeilen darunter -- den Undo-Knopf eines
+    Erkennerlaufs (Karte U)."""
     phasen.merke_angebot(conn, chat_id, stufe)
     weiter_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(stufe))
     noch_nicht_id = repo.lege_knopf_an(conn, chat_id, ART_NOCH_NICHT, str(stufe))
+    korrektur = T._TEXT_AENDERN_KNOPF_FUER.get(
+        korrektur_art or "", T._TEXT_PHASE_NOCH_NICHT_KNOPF)
     leiste = [
         (T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.bezeichnung(stufe)), _daten(weiter_id)),
-        (T._TEXT_PHASE_NOCH_NICHT_KNOPF, _daten(noch_nicht_id)),
-    ]
-    text = _abschlusstext(conn, chat_id, stufe)
+        (korrektur, _daten(noch_nicht_id)),
+    ] + list(zusatz)
     message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
-    return True
+    return message_id
+
+
+def sende_abschluss_statt_meldung(conn, tg, chat_id: int, art: str, meldung: str,
+                                  nur_dieses_feld: bool = True,
+                                  zusatz=()) -> tuple[int, str] | None:
+    """EINE Nachricht statt zwei, wenn ein Speichern die Phase sofort
+    abschliessbar macht (Padua Hotfix B5, Birk 02.10.2026).
+
+    Der Live-Fall (Web-Kanal, Phase 1): der Erkenner speicherte die
+    Begriffsliste und schickte "Noted: Terms ..." mit "Yes, save · No, change
+    it again · Undo" -- und SOFORT danach "Phase 1 complete ... On to
+    Questions?" mit zwei eigenen Knoepfen. Zwei Auswahlen hintereinander,
+    die erste davon ueberholt, bevor jemand sie lesen konnte.
+
+    Die eine Regel, fuer Erkenner (``erkenner._sende_meldung``) und Knopf
+    (``basis._speichere``) gleich: ist nach dem Speichern ein Phasenangebot
+    faellig (``phasen.offenes_angebot`` -- dieselbe Bedingung, unter der
+    ``biete_phase_proaktiv`` gleich danach feuern wuerde), entfaellt die
+    Notiert-/Speicherleiste. Die Abschlussnachricht traegt den Inhalt -- sie
+    listet die Parameter der Phase (``phasentexte.abschluss``) -- und die
+    Knoepfe: "Weiter zu Phase N · Titel", der Korrekturknopf
+    ("<Feld> aendern", Wirkung ``ART_NOCH_NICHT``: das Angebot ist
+    abgelehnt, und die naechste gespeicherte Aenderung holt genau diese eine
+    Nachricht zurueck, ``phasen.erneuere_nach_aenderung``) und ``zusatz``
+    (der Undo-Knopf -- er bleibt, Karte U).
+
+    Die Notiert-Zeile ``meldung`` steht trotzdem oben, wenn die
+    Abschlussnachricht sie nicht ersetzt: ``nur_dieses_feld`` falsch (der
+    Lauf hat mehr geschrieben als dieses eine Feld) oder die Gruppe steht
+    schon ueber der Zielstufe (dann gibt es nur das kurze Angebot ohne
+    Werteliste, ``_abschlusstext``).
+
+    Liefert ``(message_id, text)`` oder ``None``, wenn kein Angebot faellig
+    ist -- dann bleibt alles beim bisherigen Weg. Kein Modellaufruf."""
+    stufe = phasen.offenes_angebot(conn, chat_id)
+    if stufe is None:
+        return None
+    text = _abschlusstext(conn, chat_id, stufe)
+    if not nur_dieses_feld or phasen.aktuelle(conn, chat_id) >= stufe:
+        text = f"{meldung}\n\n{text}"
+    return _sende_abschluss(conn, tg, chat_id, stufe, text, art, zusatz), text
 
 
 def _abschlusstext(conn, chat_id: int, stufe: int) -> str:

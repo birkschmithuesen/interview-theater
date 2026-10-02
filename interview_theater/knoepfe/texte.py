@@ -970,6 +970,18 @@ _TEXT_PHASE_WEITER = "Weiter zu Phase {phase}?"
 #: allen Werten ist "Noch nicht" keine Antwort mehr -- "Noch etwas aendern"
 #: schon. Die art (``ART_NOCH_NICHT``) und ihre Wirkung bleiben.
 _TEXT_PHASE_NOCH_NICHT_KNOPF = "Noch etwas aendern"
+#: Derselbe Knopf (``ART_NOCH_NICHT``), wenn die Abschlussnachricht die
+#: Speicherleiste ersetzt (Padua Hotfix B5, 02.10.2026,
+#: ``stationen.sende_abschluss_statt_meldung``): dann heisst er nach dem Feld,
+#: das gerade gespeichert wurde. Schluessel = Leistenart
+#: (``erkenner._LEISTENARTEN``, ``basis.speicherleiste``); fehlt eine Art,
+#: bleibt es bei "Noch etwas aendern".
+_TEXT_AENDERN_KNOPF_FUER = {
+    "begriffe": "Begriffe aendern",
+    "fragen": "Fragen aendern",
+    "rahmen": "Setting aendern",
+    "geschichte": "Geschichte aendern",
+}
 _TEXT_NOCH_NICHT = "Gut, wir bleiben hier."
 #: Die Beschriftung des Phasenknopfs (``basis.biete_phase``,
 #: ``basis._phasenknopf``, ``stationen.biete_phase_proaktiv``). ``{phase}``

@@ -135,7 +135,8 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     _TEXT_OHNE_KNOPF_FERTIG_KNOPF, _TEXT_OHNE_KNOPF_JA_KNOPF,
     _TEXT_OHNE_KNOPF_NEIN_KNOPF, _TEXT_OHNE_KNOPF_UNBEKANNT,
     _TEXT_OHNE_KNOPF_WEITER, _TEXT_OHNE_KNOPF_WEITER_KNOPF, _TEXT_PASST,
-    _TEXT_PHASE_ANGEBOT, _TEXT_PHASE_NOCH_NICHT_KNOPF, _TEXT_PHASE_WEITER,
+    _TEXT_AENDERN_KNOPF_FUER, _TEXT_PHASE_ANGEBOT, _TEXT_PHASE_NOCH_NICHT_KNOPF,
+    _TEXT_PHASE_WEITER,
     _TEXT_PROAKTIV, _TEXT_PROBENANSICHT, _TEXT_PRUEFUNG_LAEUFT,
     _TEXT_PRUEFUNG_LASSEN, _TEXT_PRUEFUNG_LASSEN_KNOPF,
     _TEXT_PRUEFUNG_RUNDE_KNOPF, _TEXT_PRUEFUNG_SZENE_KNOPF,
@@ -228,8 +229,8 @@ from interview_theater.knoepfe.interviews import (  # noqa: F401
 
 #: der Phasenrahmen im Chat
 from interview_theater.knoepfe.stationen import (  # noqa: F401
-    _abschlusstext, _mit_vorspann, biete_phase_proaktiv,
-    biete_proaktiv, eintritt_in_phase,
+    _abschlusstext, _mit_vorspann, _sende_abschluss, biete_phase_proaktiv,
+    biete_proaktiv, eintritt_in_phase, sende_abschluss_statt_meldung,
 )
 
 #: die Dispatch-Tabelle und ihre Handler

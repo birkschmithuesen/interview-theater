@@ -699,14 +699,44 @@ def test_upload_400_wird_verworfen_und_gemeldet(seite):
 
 def test_der_umschalter_erzeugt_mindestens_zwei_segmente(seite):
     """Birks Abnahme: Umschalter an/aus erzeugt ein Interview mit >= 2
-    Segmenten. Die Segmentlaenge ist im Test auf SEGMENT_MS verkuerzt."""
+    Segmenten. Die Segmentlaenge ist im Test auf SEGMENT_MS verkuerzt.
+
+    Traegt seit dem Drei-Zustands-Regler (02.10.2026, Padua) auch dessen
+    Pause/Weiter-Zyklus mit -- ABSICHTLICH im selben Testlauf statt in einem
+    eigenen: Pause und Weiter senden nie ein ``/chat/interview``-POST, ein
+    zusaetzlicher eigenstaendiger Start/Stopp-Test wuerde dagegen den
+    geteilten Ein-Minuten-Topf dieses Endpunkts (``web_grenze.TOPF_NACHRICHT``,
+    20/min je chat_id, mit /senden und /knopf geteilt) belasten, den dieser
+    Testblock schon fast ausschoepft -- gemessen: zwei zusaetzliche
+    Start/Stopp-Zyklen liessen ``test_anderes_interview_laeuft_nachreichen_
+    wartet`` zwei Tests spaeter mit 429 statt 202 laufen."""
     vorher = _zaehle_sprachnachrichten()
     befehle = _zaehle("befehl")
     _starte_interview(seite)
     expect(seite.locator("#uhr")).to_be_visible()
+    assert _warte(seite, lambda: _t(seite, "starts") >= 1)
+
+    # -- Pause/Weiter mitten in der Aufnahme (Drei-Zustands-Regler) --------
+    starts_vor_pause = _t(seite, "starts")
+    posts_vor_pause = len(_posts(seite))
+    seite.click("#interview-pause")
+    expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "1")
+    expect(seite.locator("#interview-pause")).to_have_text("▶ Weiter")
+    seite.wait_for_timeout(1200)
+    # Kein /fertig und kein neues /interview waehrend der Pause -- der Modus
+    # bleibt serverseitig an.
+    assert _form(_posts(seite)[posts_vor_pause:]) in ([], ["audio"])
+    assert _modus_an()
+    seite.click("#interview-pause")   # Weiter
+    expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "0")
+    expect(seite.locator("#interview-pause")).to_have_text("⏸ Pause")
+    assert _warte(seite, lambda: _t(seite, "starts") > starts_vor_pause, ms=10000)
+    # Weiter haengt an DIESELBE Sitzung an -- kein zweites "an" im Verlauf.
+    assert "an" not in _form(_posts(seite)[posts_vor_pause:])
+
     # Zwei Segmentgrenzen ueberschreiten, plus Luft fuer den Upload.
     seite.wait_for_timeout(SEGMENT_MS * 2 + 1500)
-    seite.click("#interview")
+    seite.click("#interview-beenden")
     assert _warte(seite, lambda: _zaehle("befehl") >= befehle + 2, ms=15000)
     assert _zaehle_sprachnachrichten() >= vorher + 2
     expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "0")
@@ -724,7 +754,7 @@ def test_stopp_mitten_im_segment_fertig_kommt_zuletzt(seite):
     assert _warte(seite, lambda: _t(seite, "starts") >= 2)
     seite.wait_for_timeout(300)
     seite.evaluate("window.__t.stopVerzoegerungAlle = 1500")
-    seite.click("#interview")
+    seite.click("#interview-beenden")
     expect(seite.locator("#interview")).to_be_disabled()   # Stopp unterwegs
     assert _warte(seite, lambda: "aus" in _form(_posts(seite)), ms=15000)
     starts = _t(seite, "starts")
@@ -747,7 +777,7 @@ def test_segmente_bleiben_in_aufnahmereihenfolge(seite):
     _starte_interview(seite)
     assert _warte(seite, lambda: _t(seite, "starts") >= 2)
     seite.wait_for_timeout(400)
-    seite.click("#interview")
+    seite.click("#interview-beenden")
     assert _warte(seite, lambda: "aus" in _form(_posts(seite)), ms=15000)
     groessen = seite.evaluate("window.__t.groessen")
     audio = [p["groesse"] for p in _posts(seite) if p["pfad"] == "audio"]
@@ -757,20 +787,20 @@ def test_segmente_bleiben_in_aufnahmereihenfolge(seite):
 
 def test_segmente_warten_bis_der_bot_den_modus_meldet(seite, bot):
     """Entscheidung I / A' / B4: solange der Poll keinen Modus meldet, geht
-    kein Segment raus, der Knopf bleibt auf 'Aufnahme beenden', es laeuft
-    genau ein Recorder zur Zeit. Laeuft der Bot an, kommt alles nach."""
+    kein Segment raus, der Knopf zeigt 'Interview laeuft', es laeuft genau
+    ein Recorder zur Zeit. Laeuft der Bot an, kommt alles nach."""
     bot.aktiv = False
     vorher = _zaehle_sprachnachrichten()
     _starte_interview(seite)
     seite.wait_for_timeout(SEGMENT_MS + 2500)   # mindestens ein Segment fertig, Polls mit "aus"
     expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "1")
-    expect(seite.locator("#interview")).to_have_text(web_chat._TEXT_INTERVIEW_AUS)
+    expect(seite.locator("#interview")).to_contain_text("läuft")
     expect(seite.locator("#warteschlange")).to_contain_text("warten, bis der Bot")
     assert _form(_posts(seite)) == ["an"]
     assert _zaehle_sprachnachrichten() == vorher
     bot.aktiv = True
     assert _warte(seite, lambda: _zaehle_sprachnachrichten() > vorher, ms=10000)
-    seite.click("#interview")
+    seite.click("#interview-beenden")
     assert _warte(seite, lambda: not _modus_an() and "aus" in _form(_posts(seite)),
                   ms=15000)
     expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "0")
@@ -781,7 +811,7 @@ def test_waehrend_der_aufnahme_ist_ptt_weg(seite):
     seite.click("#interview")
     expect(seite.locator("#ptt")).to_be_hidden()
     seite.wait_for_timeout(2500)
-    seite.click("#interview")
+    seite.click("#interview-beenden")
     expect(seite.locator("#ptt")).to_be_visible()
 
 
@@ -794,7 +824,7 @@ def test_gehaltener_ptt_wird_beim_interviewstart_verworfen(seite):
     seite.evaluate("document.getElementById('interview').click()")
     seite.mouse.up()
     seite.wait_for_timeout(SEGMENT_MS + 2000)
-    seite.click("#interview")
+    seite.click("#interview-beenden")
     assert _warte(seite, lambda: "aus" in _form(_posts(seite)), ms=15000)
     folge = _form(_posts(seite))
     assert folge[0] == "an", folge          # kein PTT-Audio vor dem Interview
@@ -802,15 +832,36 @@ def test_gehaltener_ptt_wird_beim_interviewstart_verworfen(seite):
 
 
 def test_seite_im_interviewmodus_geladen(oeffne):
-    """B11: Modus beim Laden an -> Stopp-Knopf, kein PTT; der Stopp schickt
-    nur /fertig (dieses Telefon nimmt nicht auf)."""
+    """B11: Modus beim Laden an -> Pause-Darstellung (kein lokaler Recorder
+    auf diesem frisch geladenen Telefon, Punkt 5), kein PTT.
+
+    Traegt seit dem Drei-Zustands-Regler (02.10.2026, Padua) auch Punkt 5
+    mit: 'Weiter' startet hier einen NEUEN lokalen Recorder, OHNE ein
+    zweites ``/chat/interview`` zu senden -- der Server weiss schon, dass
+    der Modus an ist. Absichtlich im selben Test wie das abschliessende
+    Beenden statt in einem eigenen: Weiter sendet nie ein POST, nur Beenden
+    tut es (unveraendert ein POST wie zuvor) -- ein zusaetzlicher
+    eigenstaendiger Test wuerde den geteilten Ein-Minuten-Topf von
+    ``/chat/interview`` (``web_grenze.TOPF_NACHRICHT``, 20/min je chat_id)
+    unnoetig weiter belasten, den dieser Testblock schon fast ausschoepft."""
     setze_modus(True)
     seite = oeffne()
     expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "1")
+    expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "1")
+    expect(seite.locator("#interview-pause")).to_have_text("▶ Weiter")
     expect(seite.locator("#ptt")).to_be_hidden()
-    seite.click("#interview")
+    befehle_vorher = _zaehle("befehl")
+
+    seite.click("#interview-pause")   # Weiter, aus der Pause-nach-Neuladen-Lage
+    assert _warte(seite, lambda: _t(seite, "starts") >= 1)
+    expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "0")
+    expect(seite.locator("#interview-pause")).to_have_text("⏸ Pause")
+    seite.wait_for_timeout(300)
+    assert _zaehle("befehl") == befehle_vorher   # kein zweites /interview
+
+    seite.click("#interview-beenden")
     assert _warte(seite, lambda: not _modus_an(), ms=10000)
-    assert _form(_posts(seite)) == ["aus"]
+    assert "aus" in _form(_posts(seite))
     expect(seite.locator("#ptt")).to_be_visible()
     expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "0")
 

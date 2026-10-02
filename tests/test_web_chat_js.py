@@ -207,14 +207,26 @@ def test_die_wege_sind_absolut_zum_gruppenverzeichnis():
 
 def test_die_seite_traegt_den_modus_schon_beim_laden(tmp_path, monkeypatch):
     """Review-Befund 11: im Interviewmodus steht der Stopp-Knopf schon im
-    HTML da, und PTT ist ausgeblendet -- nicht erst nach dem ersten Poll."""
+    HTML da, und PTT ist ausgeblendet -- nicht erst nach dem ersten Poll.
+
+    Erweitert (Drei-Zustands-Regler, 02.10.2026): ``data-pausiert`` steht
+    ebenfalls schon beim ersten Rendern da -- ein frisch geladenes Dokument
+    hat nie eine lokale Sitzung, also ist ein ``modus=true`` beim Laden
+    immer die Pause-Darstellung (Punkt 5 des Reglers)."""
     daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
              "interviewmodus": True, "titel": None}
     seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
-    assert f'data-laeuft="1">{web_chat._TEXT_INTERVIEW_AUS}</button>' in seite
+    assert (f'data-laeuft="1" data-pausiert="1">{web_chat._TEXT_INTERVIEW_AUS}'
+            f'</button>') in seite
     assert '<button type="button" id="ptt" hidden' in seite
+    assert 'id="interview-aktionen"' in seite and 'id="interview-aktionen" hidden' not in seite
+    assert f'id="interview-pause">{web_chat._TEXT_INTERVIEW_WEITER}</button>' in seite
+    assert f'id="interview-beenden">{web_chat._TEXT_INTERVIEW_ENDEN}</button>' in seite
     aus = web_chat.chat_html(dict(daten, interviewmodus=False), "1.x", "tok", "", 45000)
     assert '<button type="button" id="ptt" title=' in aus
+    assert 'data-laeuft="0" data-pausiert="0">' in aus
+    assert 'id="interview-aktionen" hidden' in aus
+    assert f'id="interview-pause">{web_chat._TEXT_INTERVIEW_PAUSE}</button>' in aus
 
 
 def test_das_js_ist_syntaktisch_gueltig(tmp_path):
@@ -353,6 +365,102 @@ def test_der_aenderungsstand_wird_vor_dem_verlauf_gelesen():
 
     quelle = inspect.getsource(web_daten.web_chatzustand)
     assert quelle.index("web_chataenderungen(") < quelle.index("web_chatverlauf(")
+
+
+# -- Drei-Zustands-Regler: Laeuft/Pause/Beenden (02.10.2026, Padua) --------
+
+def test_die_drei_knoepfe_stehen_im_markup(seite):
+    for kennung in ("interview-aktionen", "interview-pause", "interview-beenden"):
+        assert f'id="{kennung}"' in seite, kennung
+
+
+def test_der_grosse_knopf_ist_waehrend_laeuft_pause_nur_eine_anzeige():
+    """Punkt 2/3: ein Druck auf #interview waehrend Laeuft oder Pause tut
+    NICHTS mehr -- Beenden laeuft nur noch ueber #interview-beenden."""
+    js = web_chat._CHAT_JS
+    start = js.index("interviewKnopf.addEventListener")
+    ende = js.index("});", start) + 3
+    klick = js[start:ende]
+    assert "modusAn()" in klick
+    assert "beendeInterview" not in klick
+    assert "starteInterview()" in klick
+
+
+def test_pausieren_sendet_kein_fertig_und_keinen_befehl():
+    """Punkt 4: Pause stoppt nur den lokalen Recorder -- der Interviewmodus
+    bleibt serverseitig an, es geht kein ``/fertig`` (und ueberhaupt kein
+    Befehl) heraus."""
+    js = web_chat._CHAT_JS
+    pause = js[js.index("function pausiereInterview"):
+                js.index("function fortsetzeInterview")]
+    assert "an: false" not in pause
+    assert "reiheEin(" not in pause
+    assert "art: 'befehl'" not in pause
+    assert "alt.stop()" in pause          # das letzte Stueck geht trotzdem raus
+    assert "gibFrei(sitzung)" in pause    # Mikrofon los waehrend der Pause
+
+
+def test_fortsetzen_haengt_an_dieselbe_sitzung_ohne_neues_interview():
+    """Punkt 4/5: Weiter haengt an dieselbe (oder, nach einem Neuladen, eine
+    frisch angelegte, aber schon ``angemeldet``e) Sitzung an -- nie ein
+    zweites ``{art:'befehl', an:true}``."""
+    js = web_chat._CHAT_JS
+    fortsetzen = js[js.index("function fortsetzeInterview"):
+                     js.index("if (nachreichenKnopf)")]
+    assert "neuesSegment(sitzung)" in fortsetzen
+    assert "angemeldet: true" in fortsetzen
+    assert "bestaetigt: true" in fortsetzen
+    assert "art: 'befehl'" not in fortsetzen   # kein /interview, nirgends
+    assert "sitzung.pausiert = false" in fortsetzen
+    assert "sitzung.legStart = Date.now()" in fortsetzen
+
+
+def test_ptt_bleibt_waehrend_pause_versteckt():
+    """Punkt 6: ``zeigeModus`` blendet PTT bei JEDEM 'Modus an' aus, Pause
+    eingeschlossen -- keine zweite Bedingung dafuer."""
+    js = web_chat._CHAT_JS
+    zeige = js[js.index("function zeigeModus"):js.index("function verwirfPtt")]
+    assert "pttKnopf.hidden = an" in zeige
+    assert "var pausiert = an &&" in zeige
+
+
+def test_beenden_hat_keinen_bestaetigungsdialog():
+    """Punkt 7: kein ``confirm()``/Modal vor dem Beenden."""
+    assert "confirm(" not in web_chat._CHAT_JS
+
+
+def test_interview_beenden_knopf_ruft_dieselbe_funktion_wie_bisher():
+    """Beenden dupliziert die Stop-Logik nicht neu -- Druck auf
+    #interview-beenden ruft exakt ``beendeInterview`` (dieselbe Funktion wie
+    beim alten Umschalter), die ``pruefeEnde``/``onstop`` unveraendert
+    weiterverwendet."""
+    js = web_chat._CHAT_JS
+    assert "interviewBeendenKnopf.addEventListener('click', beendeInterview);" in js
+
+
+def test_pause_weiter_knopf_wechselt_auf_die_richtige_funktion():
+    js = web_chat._CHAT_JS
+    wiring = js[js.index("if (interviewPauseKnopf)"):
+                js.index("if (interviewBeendenKnopf)")]
+    assert "pausiereInterview(sitzung)" in wiring
+    assert "fortsetzeInterview(sitzung)" in wiring
+    assert "fortsetzeInterview(null)" in wiring
+    assert "zustand.servermodus" in wiring
+
+
+def test_formatiereuhr_zaehlt_erfasstems_plus_laufende_spanne():
+    js = web_chat._CHAT_JS
+    formel = js[js.index("function formatiereUhr"):js.index("function uhrAn")]
+    assert "sitzung.erfassteMs" in formel
+    assert "sitzung.legStart" in formel
+    assert "sitzung.pausiert" in formel
+
+
+def test_keine_zweite_parallele_merkvariable_fuer_pause():
+    """Design-Vorgabe: 'pausiert' haengt an der Sitzung, nicht an einem
+    zweiten Feld von ``zustand`` -- ``zustand.pausiert`` darf es nicht
+    geben."""
+    assert "zustand.pausiert" not in web_chat._CHAT_JS
 
 
 def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():

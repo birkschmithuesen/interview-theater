@@ -135,8 +135,19 @@ _TEXT_TIPPT = "schreibt …"
 _TEXT_SPRACHE = "Sprachnachricht ({dauer})"
 _TEXT_DATEI = "Datei: {name}"
 _TEXT_ZUR_GRUPPENSEITE = "Zur Gruppenseite"
-_TEXT_INTERVIEW_AN = "Interview aufnehmen"
+_TEXT_INTERVIEW_AN = "🎙 Interview aufnehmen"
 _TEXT_INTERVIEW_AUS = "Aufnahme beenden"
+#: Die drei neuen Knoepfe des Drei-Zustands-Reglers (02.10.2026, Padua):
+#: Pause haelt den Recorder an, OHNE den Interviewmodus serverseitig zu
+#: beenden -- "Weiter" haengt an dieselbe Sitzung an, "Beenden" ist der
+#: einzige Weg, der noch /fertig schickt.
+_TEXT_INTERVIEW_PAUSE = "⏸ Pause"
+_TEXT_INTERVIEW_WEITER = "▶ Weiter"
+_TEXT_INTERVIEW_ENDEN = "■ Beenden"
+#: Vorlagen mit ``{zeit}`` wie ``_TEXT_UHR`` -- der grosse Knopf zeigt die
+#: erfasste Aufnahmedauer selbst an, nicht nur das separate ``#uhr``-Feld.
+_TEXT_INTERVIEW_LAEUFT = "● Interview läuft · {zeit}"
+_TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
 _TEXT_PTT = "Halten und sprechen"
 _TEXT_OHNE_JS = (
     "Fuer Chat und Aufnahme braucht diese Seite JavaScript. "
@@ -191,6 +202,13 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
              border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff; }
 #interview[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
+#interview[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
+                                                 border-color: #8a8a8a; }
+.interview-aktionen { display: flex; gap: .5rem; margin-top: .4rem; }
+.interview-aktionen[hidden] { display: none; }
+.interview-aktionen button { flex: 1; min-height: 2.6rem; border-radius: .6rem;
+                             font: inherit; border: 1px solid #1f6f5c;
+                             background: #fff; color: #17181b; }
 #ptt[hidden], #interview[hidden] { display: none; }
 #interview:disabled { opacity: .55; }
 /* PTT wird gehalten: kein Scrollen, kein Markieren, kein Kontextmenue unter
@@ -217,6 +235,7 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
   .fuss { background: #14161a; border-color: #2c313a; }
   .zeile input { background: #1d2026; color: #e7e9ec; border-color: #2c313a; }
   .leiste button { background: #1d2026; color: #e7e9ec; }
+  .interview-aktionen button { background: #1d2026; color: #e7e9ec; }
 }
 """
 
@@ -279,6 +298,10 @@ _JS_TEXTE = {
     "datei": _TEXT_DATEI,
     "interview_an": _TEXT_INTERVIEW_AN,
     "interview_aus": _TEXT_INTERVIEW_AUS,
+    "interview_pause": _TEXT_INTERVIEW_PAUSE,
+    "interview_weiter": _TEXT_INTERVIEW_WEITER,
+    "interview_laeuft": _TEXT_INTERVIEW_LAEUFT,
+    "interview_pausiert": _TEXT_INTERVIEW_PAUSIERT,
     "warte_eins": _TEXT_WARTE_EINS,
     "warte_mehr": _TEXT_WARTE_MEHR,
     "warte_modus": _TEXT_WARTE_MODUS,
@@ -336,6 +359,9 @@ _CHAT_JS = """
   var fehlerFeld = document.getElementById('fehler');
   var tipptFeld = document.getElementById('tippt');
   var interviewKnopf = document.getElementById('interview');
+  var interviewAktionenFeld = document.getElementById('interview-aktionen');
+  var interviewPauseKnopf = document.getElementById('interview-pause');
+  var interviewBeendenKnopf = document.getElementById('interview-beenden');
   var pttKnopf = document.getElementById('ptt');
   var angehaltenFeld = document.getElementById('angehalten');
   var angehaltenText = document.getElementById('angehalten-text');
@@ -1045,14 +1071,28 @@ _CHAT_JS = """
     } catch (e) { /* ohne Pegel geht es auch */ }
   }
 
-  function uhrAn() {
-    var beginn = Date.now();
+  // Die erfasste Aufnahmedauer einer Sitzung: angesammelte Zeit vor der
+  // letzten Pause (sitzung.erfassteMs) plus, solange nicht pausiert, die
+  // laufende Spanne seit sitzung.legStart. Pause friert sie ein, Weiter
+  // setzt legStart neu -- kein zweiter Zaehler, der von erfassteMs abweichen
+  // koennte.
+  function formatiereUhr(sitzung) {
+    if (!sitzung) { return minuten(0); }
+    var ms = sitzung.erfassteMs +
+      ((!sitzung.pausiert && sitzung.legStart) ? Date.now() - sitzung.legStart : 0);
+    return minuten(Math.floor(ms / 1000));
+  }
+
+  // Dieselbe Funktion fuer Start UND Weiter (Wiederaufnahme): beide zeigen
+  // #uhr wieder an und starten den Ticktakt neu, nur die Sitzung bringt die
+  // schon erfasste Zeit mit.
+  function uhrAn(sitzung) {
     uhrFeld.hidden = false;
     pegelFeld.hidden = false;
-    uhrFeld.textContent = TEXT.uhr.replace('{zeit}', minuten(0));
+    uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung));
+    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); }
     zustand.uhrTakt = setInterval(function () {
-      var s = Math.floor((Date.now() - beginn) / 1000);
-      uhrFeld.textContent = TEXT.uhr.replace('{zeit}', minuten(s));
+      uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung));
     }, 500);
   }
 
@@ -1068,15 +1108,38 @@ _CHAT_JS = """
     return !!zustand.aufnahme || zustand.servermodus;
   }
 
+  // Drei Zustaende, eine Funktion (Design-Vorgabe: keine zweite, parallele
+  // Merkvariable neben zustand.aufnahme): Leerlauf (an=false), Laeuft
+  // (an=true, nicht pausiert) und Pause (an=true, pausiert) -- "pausiert"
+  // gilt auch, wenn dieses Telefon ueberhaupt keine lokale Sitzung hat, der
+  // Server den Modus aber schon meldet (Neuladen waehrend ein anderes
+  // Telefon aufnimmt oder pausiert hat, Punkt 5): es gibt nichts, das HIER
+  // liefe, also ist es fuer dieses Telefon eine Pause, keine Aufnahme.
   function zeigeModus() {
     var an = modusAn();
+    var sitzung = zustand.aufnahme;
+    var pausiert = an && (!sitzung || sitzung.pausiert);
     fuss.dataset.interview = an ? '1' : '0';
     interviewKnopf.dataset.laeuft = an ? '1' : '0';
-    interviewKnopf.textContent = an ? TEXT.interview_aus : TEXT.interview_an;
+    interviewKnopf.dataset.pausiert = pausiert ? '1' : '0';
+    if (!an) {
+      interviewKnopf.textContent = TEXT.interview_an;
+    } else if (pausiert) {
+      interviewKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
+    } else {
+      interviewKnopf.textContent = TEXT.interview_laeuft.replace('{zeit}', formatiereUhr(sitzung));
+    }
     // Ein Stopp ist unterwegs: bis der Bot ihn bestaetigt, kein neuer Start.
     interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel);
-    // Waehrend eine Interview-Aufnahme laeuft, ist PTT ausgeblendet
-    // (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine Bedienung.
+    // Der grosse Knopf ist waehrend Laeuft/Pause nur noch eine Anzeige --
+    // Pause/Weiter und Beenden stehen in der eigenen Leiste darunter.
+    if (interviewAktionenFeld) { interviewAktionenFeld.hidden = !an; }
+    if (interviewPauseKnopf) {
+      interviewPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
+    }
+    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ist PTT
+    // ausgeblendet (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine
+    // Bedienung, und eine Pause ist weiterhin "Modus an".
     if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel; }
   }
 
@@ -1107,7 +1170,13 @@ _CHAT_JS = """
       angemeldet: false, bestaetigt: false, verworfen: false,
       angehalten: false, geparkt: [],
       fertigEingereiht: false, naechsteNr: 0, einzureihen: 0, fertige: {},
-      wechselAus: null
+      wechselAus: null,
+      // Drei-Zustands-Regler (Pause/Weiter): erfassteMs ist die Dauer vor
+      // der letzten Pause, legStart der Beginn der laufenden Spanne,
+      // fortsetzend die Sperrklinke waehrend "Weiter" auf das Mikrofon
+      // wartet (verhindert einen zweiten Recorder bei einem hastigen
+      // Doppeldruck, siehe fortsetzeInterview).
+      pausiert: false, erfassteMs: 0, legStart: null, fortsetzend: false
     };
     var wechsel = { ziel: true, gesendet: false };
     zustand.aufnahme = sitzung;
@@ -1118,10 +1187,11 @@ _CHAT_JS = """
       if (sitzung.beendet) { gibFrei(sitzung); return; }   // vorher gestoppt
       // Die Aufnahme laeuft SOFORT -- sonst verliert man die ersten Worte.
       // Die Segmente warten in der Schlange hinter /interview (bereit()).
+      sitzung.legStart = Date.now();
       sitzung.recorder = neuesSegment(sitzung);
       sitzung.gestartet = true;
       reiheEin({ art: 'befehl', an: true, sitzung: sitzung, wechsel: wechsel });
-      uhrAn();
+      uhrAn(sitzung);
       pegelAn(sitzung);
       sitzung.segmentTakt = setInterval(function () {
         if (!sitzung.recorder) { return; }
@@ -1203,12 +1273,121 @@ _CHAT_JS = """
     zeigeModus();
   }
 
+  // -- Pause / Weiter (Drei-Zustands-Regler, 02.10.2026, Padua) ------------
+  //
+  // "Pause" schickt NIE ein /fertig -- der Interviewmodus bleibt
+  // serverseitig an, nur der Recorder dieses Telefons stoppt. Das letzte
+  // Stueck geht trotzdem den normalen Weg (onstop -> fertige{}/einzureihen
+  // -> reiheEin), unveraendert. "Weiter" haengt an GENAU dieselbe Sitzung
+  // an (dieselbe naechsteNr-Folge) -- es gibt deshalb nie ein zweites
+  // /interview fuer dasselbe Interview. zustand.aufnahme bleibt dabei die
+  // ganze Zeit nicht-null; pausiert ist eine Eigenschaft der Sitzung
+  // (sitzung.pausiert), keine zweite, parallele Merkvariable.
+
+  function pausiereInterview(sitzungArg) {
+    var sitzung = sitzungArg || zustand.aufnahme;
+    if (!sitzung || sitzung.pausiert || sitzung.verworfen || sitzung.beendet) { return; }
+    // Nur ein echt UNTERWEGS befindlicher Stopp blockiert -- die lingernde
+    // Bestaetigung des eigenen Starts (wechsel.ziel === true, noch nicht
+    // vom Poll bestaetigt) darf eine Pause nicht verhindern: der Recorder
+    // laeuft schon, dieselbe Regel wie in beendeInterview().
+    if (zustand.wechsel && !zustand.wechsel.ziel) { return; }
+    sitzung.erfassteMs += Date.now() - sitzung.legStart;
+    sitzung.legStart = null;
+    sitzung.pausiert = true;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    var alt = sitzung.recorder;
+    sitzung.recorder = null;
+    // Wie starteInterview()/brichAb() bei einem Fehler: stop(), dann sofort
+    // das Mikrofon los -- sein onstop hat die Daten bis hierhin schon im
+    // ondataavailable gesammelt und reiht das Stueck ganz normal ein.
+    if (alt && alt.state !== 'inactive') { alt.stop(); }
+    gibFrei(sitzung);
+    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
+    if (uhrFeld) { uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung)); }
+    zeigeModus();
+  }
+
+  function fortsetzeInterview(sitzungArg) {
+    var sitzung = sitzungArg;
+    if (sitzung) {
+      // Dieselbe grosszuegigere Regel wie in pausiereInterview(): nur ein
+      // unterwegs befindlicher Stopp blockiert, nicht die lingernde
+      // Start-Bestaetigung.
+      if ((zustand.wechsel && !zustand.wechsel.ziel) || !sitzung.pausiert ||
+          sitzung.verworfen || sitzung.beendet || sitzung.fortsetzend) { return; }
+    } else {
+      // Neu geladen, waehrend der Server den Modus schon meldet (Punkt 5):
+      // keine lokale Sitzung, also auch kein zweites /interview -- der Bot
+      // weiss es schon. naechsteNr startet bei 0, haengt aber an DASSELBE
+      // serverseitige Interview an.
+      if (zustand.aufnahme || zustand.wechsel || !zustand.servermodus) { return; }
+      sitzung = {
+        strom: null, recorder: null, kontext: null, pegelTakt: null,
+        segmentTakt: null, offen: 0, gestartet: false, beendet: false,
+        angemeldet: true, bestaetigt: true, verworfen: false,
+        angehalten: false, geparkt: [],
+        fertigEingereiht: false, naechsteNr: 0, einzureihen: 0, fertige: {},
+        wechselAus: null, pausiert: true, erfassteMs: 0, legStart: null,
+        fortsetzend: false
+      };
+      zustand.aufnahme = sitzung;   // synchron, wie starteInterview()
+    }
+    // Re-Review F, auch beim Wiederaufnehmen: ein gehaltener PTT-Druck wird
+    // verworfen, sonst liefen zwei Recorder.
+    if (zustand.ptt) { verwirfPtt(); }
+    sitzung.fortsetzend = true;   // Sperrklinke: kein zweiter Recorder bei Doppeldruck
+    zeigeModus();
+    holeStrom().then(function (strom) {
+      sitzung.fortsetzend = false;
+      if (sitzung.beendet || sitzung.verworfen) {
+        strom.getTracks().forEach(function (t) { t.stop(); });
+        return;
+      }
+      sitzung.strom = strom;
+      sitzung.legStart = Date.now();
+      sitzung.pausiert = false;
+      sitzung.gestartet = true;
+      sitzung.recorder = neuesSegment(sitzung);
+      sitzung.segmentTakt = setInterval(function () {
+        if (!sitzung.recorder) { return; }
+        var alt = sitzung.recorder;
+        alt.stop();                      // liefert sein Segment im onstop
+        sitzung.recorder = neuesSegment(sitzung);
+      }, SEGMENT_MS);
+      uhrAn(sitzung);
+      pegelAn(sitzung);
+      zeigeModus();
+    }).catch(function () {
+      sitzung.fortsetzend = false;
+      zeigeModus();
+      meldeFehler(TEXT.fehler_mikro);
+    });
+  }
+
   if (nachreichenKnopf) { nachreichenKnopf.addEventListener('click', reicheNach); }
   if (verwerfenKnopf) { verwerfenKnopf.addEventListener('click', verwirfRest); }
 
+  if (interviewPauseKnopf) {
+    interviewPauseKnopf.addEventListener('click', function () {
+      var sitzung = zustand.aufnahme;
+      if (sitzung) {
+        if (sitzung.pausiert) { fortsetzeInterview(sitzung); } else { pausiereInterview(sitzung); }
+      } else if (zustand.servermodus) {
+        fortsetzeInterview(null);
+      }
+    });
+  }
+  if (interviewBeendenKnopf) {
+    interviewBeendenKnopf.addEventListener('click', beendeInterview);
+  }
+
+  // Der grosse Knopf ist nur noch im Leerlauf ein Schalter -- waehrend
+  // Laeuft/Pause ist er eine Anzeige, Beenden passiert ausschliesslich ueber
+  // #interview-beenden.
   interviewKnopf.addEventListener('click', function () {
-    if (interviewKnopf.disabled) { return; }
-    if (modusAn()) { beendeInterview(); } else { starteInterview(); }
+    if (interviewKnopf.disabled || modusAn()) { return; }
+    starteInterview();
   });
 
   // -- Push-to-Talk --------------------------------------------------------
@@ -1411,9 +1590,18 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f'    <button type="button" id="verwerfen">'
         f'{html.escape(_TEXT_REST_VERWERFEN)}</button>\n'
         f'  </div>\n'
-        f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}">'
+        f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
+        f'data-pausiert="{1 if modus else 0}">'
         f'{html.escape(_TEXT_INTERVIEW_AUS if modus else _TEXT_INTERVIEW_AN)}'
         f'</button>\n'
+        f'  <div class="interview-aktionen" id="interview-aktionen"'
+        f'{"" if modus else " hidden"}>\n'
+        f'    <button type="button" id="interview-pause">'
+        f'{html.escape(_TEXT_INTERVIEW_WEITER if modus else _TEXT_INTERVIEW_PAUSE)}'
+        f'</button>\n'
+        f'    <button type="button" id="interview-beenden">'
+        f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+        f'  </div>\n'
         f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '
         f'placeholder="{html.escape(_TEXT_EINGABE, quote=True)}">\n'

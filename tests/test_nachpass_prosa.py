@@ -112,12 +112,16 @@ def test_ein_lauf_fuer_alle_abschnitte(prosa6, tg, einst):
     assert klm.aufrufe[0]["art"] == nachpass.ART_PROSA
 
 
-def test_die_notiz_bindet_die_abschnittszahl(prosa6, tg, einst):
-    """``kuerzung.notiz_fuer_prosa`` bindet sie schon -- hier dieselbe
-    Formulierung und keine zweite."""
+def test_die_abschnittszahl_steht_genau_einmal_im_nutzertext(prosa6, tg, einst):
+    """Die Notiz ist wortgleich die des Kuerzen-Wegs und nennt KEINE Zahl;
+    gebunden wird sie allein im Budget-Block (``laengen.SATZ_BINDUNG``) --
+    ein Fakt hat genau eine Stelle im Prompt (Abschlussreview P2-Fix)."""
     klm = LLMAttrappe(KURZ)
     notiz = nachpass.nach_geschichte(prosa6, tg, klm, einst, 1)
-    assert kuerzung.notiz_fuer_prosa(2) in notiz
+    assert kuerzung.notiz_fuer_prosa() in notiz
+    nutzer = klm.aufrufe[0]["nutzer"]
+    assert nutzer.count(laengen.T.SATZ_BINDUNG.format(anzahl=2)) == 1
+    assert kurzgeschichte.T._ZEILE_ABSCHNITTE.format(anzahl=2) not in nutzer
 
 
 def test_die_notiz_traegt_laenge_und_sprache(prosa6, tg, einst):
@@ -133,7 +137,7 @@ def test_die_notiz_traegt_laenge_und_sprache(prosa6, tg, einst):
     )
     klm = LLMAttrappe(KURZ)
     notiz = nachpass.nach_geschichte(prosa6, tg, klm, einst, 1)
-    assert kuerzung.notiz_fuer_prosa(2) in notiz
+    assert kuerzung.notiz_fuer_prosa() in notiz
     assert sprachpass.T.NOTIZ_KOPF in notiz          # Padua: englisch
     assert len(klm.aufrufe) == 1
 
@@ -268,7 +272,7 @@ def test_ein_reiner_sprachpass_lauf_traegt_die_abschnittszahl(
     klm = LLMAttrappe(KURZ)
     notiz = nachpass.nach_geschichte(prosa6_nur_sprache, tg, klm, einst, 1)
     assert notiz, "ein Sprachbefund ergibt eine Notiz"
-    assert kuerzung.notiz_fuer_prosa(2) not in notiz, "kein Kuerzungsteil"
+    assert kuerzung.notiz_fuer_prosa() not in notiz, "kein Kuerzungsteil"
     assert len(klm.aufrufe) == 1
     nutzer = klm.aufrufe[0]["nutzer"]
     assert laengen.T.SATZ_BINDUNG.format(anzahl=2) in nutzer

@@ -21,13 +21,18 @@ genau die zwei Laeufe, die es dafuer schon gibt:
   bei "Etwas aendern". ``lege_szenen_an`` gleicht ab statt zu ersetzen
   (``repo.gleiche_szenenfolge_ab``) und haengt je Abschnitt eine Fassung an.
 
-**Warum die Prosa-Notiz die Abschnittszahl nennt.** Weil der Abgleich
+**Warum die Prosa-Notiz KEINE Abschnittszahl nennt** (02.10.2026, Karte
+P2-Fix, Abschlussreview). Die Zahl muss gebunden sein, weil der Abgleich
 **ergaenzend** ist (``repo.gleiche_szenenfolge_ab``): kaeme eine kuerzere
-Geschichte mit vier statt sechs Abschnitten zurueck, blieben zwei
-Abschnitte mit ihrem alten, langen Text stehen. Die Notiz bindet deshalb auf
-die Zahl, die dasteht. Seit dem 02.10.2026 (Karte P2-Fix) bindet der Auftrag
-sie ohnehin, sobald eine Szenenfolge steht -- die Notiz sagt es im **selben
-Satz** wie das Kuerzungsziel und bleibt deshalb, wie sie ist.
+Geschichte mit vier statt sechs Abschnitten zurueck, blieben zwei Abschnitte
+mit ihrem alten, langen Text stehen. Gebunden wird sie aber an genau EINER
+Stelle im Nutzertext: im Auftrag (``kurzgeschichte._ZEILE_ABSCHNITTE``, die
+Zahl der geplanten Szenen) oder, bei aktivem Laengen-Profil, im Budget-Block
+(``laengen.SATZ_BINDUNG``) -- nie beide. Bis zu diesem Tag nannte die Notiz
+die Zahl zusaetzlich, und zwar gezaehlt an den Szenen MIT Prosa: bei sechs
+geplanten und vier geschriebenen Szenen standen "genau 4" und "genau 6" im
+selben Prompt. Die Notiz sagt deshalb nur noch, dass die Abschnitte mit
+Titeln und Reihenfolge bleiben und innerhalb gekuerzt wird.
 
 **Kein Modellaufruf hier** (Zusage 2): beide Wege geben sofort an einen
 eigenen Thread ab. Deshalb darf ein Knopf-Handler diese Funktion rufen.
@@ -68,10 +73,11 @@ TEXT_NOTIZ_SZENE = (
     "weniger Wiederholung, kuerzere Repliken, nichts Neues dazu."
 )
 
-#: Dieselbe Notiz fuer die ganze Kurzgeschichte, plus die Bindung an die
-#: Abschnittszahl (siehe Moduldocstring).
+#: Dieselbe Notiz fuer die ganze Kurzgeschichte. Sie nennt KEINE
+#: Abschnittszahl -- die bindet der Auftrag bzw. der Budget-Block, genau
+#: einmal (siehe Moduldocstring).
 TEXT_NOTIZ_PROSA = (
-    "Kuerze die Geschichte um etwa {prozent} Prozent. Behalte genau {anzahl} "
+    "Kuerze die Geschichte um etwa {prozent} Prozent. Behalte die "
     "Abschnitte mit ihren Titeln und in ihrer Reihenfolge und kuerze "
     "innerhalb der Abschnitte -- dieselben Ereignisse, dasselbe Ende, nichts "
     "Neues dazu."
@@ -106,10 +112,10 @@ def notiz_fuer_szene() -> str:
     return T.TEXT_NOTIZ_SZENE.format(prozent=PROZENT)
 
 
-def notiz_fuer_prosa(anzahl: int) -> str:
-    """Die Regie-Notiz fuer die ganze Kurzgeschichte, gebunden an ``anzahl``
-    Abschnitte."""
-    return T.TEXT_NOTIZ_PROSA.format(prozent=PROZENT, anzahl=anzahl)
+def notiz_fuer_prosa() -> str:
+    """Die Regie-Notiz fuer die ganze Kurzgeschichte. Ohne Abschnittszahl:
+    die steht genau einmal im Nutzertext, und nicht hier."""
+    return T.TEXT_NOTIZ_PROSA.format(prozent=PROZENT)
 
 
 def nummer_aus_wert(wert: str | None) -> int | None:
@@ -128,7 +134,9 @@ def nummer_aus_wert(wert: str | None) -> int | None:
 
 
 def _abschnitte_mit_prosa(conn, chat_id: int) -> int:
-    """Wie viele Szenen tragen eine Prosafassung? Reine Leseabfrage."""
+    """Wie viele Szenen tragen eine Prosafassung? Reine Leseabfrage --
+    nur noch die Wache "gibt es ueberhaupt etwas zu kuerzen", die Zahl geht
+    nicht mehr in die Notiz."""
     from interview_theater import repo, szene as szene_modul
 
     return sum(
@@ -184,14 +192,13 @@ def starte(conn, tg, klm, e, chat_id: int,
         knoepfe_szenen._melde_spaetere(conn, tg, chat_id, nummer)
         return T.TEXT_SZENE_GESTARTET.format(nummer=nummer), True
 
-    anzahl = _abschnitte_mit_prosa(conn, chat_id)
-    if not anzahl:
+    if not _abschnitte_mit_prosa(conn, chat_id):
         tg.sende(chat_id, T.TEXT_NICHTS_ZU_KUERZEN)
         return T.TEXT_NICHTS_ZU_KUERZEN, False
     # ``vorlage=True``: die bestehende Prosa steht im Prompt -- sonst schriebe
     # das Modell "25 Prozent kuerzer" ueber einen Text, den es nie sah.
     if kurzgeschichte.starte(
-        conn, tg, klm, e, chat_id, notiz_fuer_prosa(anzahl), vorlage=True,
+        conn, tg, klm, e, chat_id, notiz_fuer_prosa(), vorlage=True,
     ) is None:
         return T.TEXT_KEIN_LAUF, False
     # "Kuerzer" unter der GANZEN Geschichte ist die Entscheidung ueber das

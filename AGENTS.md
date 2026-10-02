@@ -665,10 +665,18 @@ es jemand im Chat merkt.
      **einer** Stelle (`kuerzung.PROZENT`). Mit Szenennummer läuft
      `szene.starte`, ohne läuft `kurzgeschichte.starte` — die Phase entscheidet
      sich dabei von selbst, weil `szene.schreibt_prosa` ohnehin nach `prosa`
-     oder `volltext` verzweigt. **Die Prosa-Notiz nennt die Abschnittszahl
-     ausdrücklich**, weil `kurzgeschichte.ANWEISUNG` dem Modell die Zahl
-     freistellt und der Abgleich ergänzend ist: ohne den Satz blieben zwei
-     Abschnitte mit ihrem alten, langen Text stehen. Beim Kürzen der ganzen
+     oder `volltext` verzweigt. **Die Prosa-Notiz nennt keine
+     Abschnittszahl** (seit dem Abschlussreview der Karte P2-Fix,
+     02.10.2026): gebunden ist die Zahl, weil der Abgleich ergänzend ist und
+     sonst zwei Abschnitte mit ihrem alten, langen Text stehen blieben — aber
+     genau einmal, im Auftrag (`kurzgeschichte._ZEILE_ABSCHNITTE`, die Zahl
+     der geplanten Szenen) oder bei aktivem Längen-Profil im Budget-Block
+     (`laengen.SATZ_BINDUNG`). Vorher zählte die Notiz die Szenen **mit**
+     Prosa, und bei sechs geplanten und vier geschriebenen standen „genau 4"
+     und „genau 6" im selben Prompt
+     (`tests/test_kuerzung.py::test_kuerzen_bindet_die_abschnittszahl_genau_einmal*`).
+     Die Notiz sagt nur noch, dass die Abschnitte mit Titeln und Reihenfolge
+     bleiben und innerhalb gekürzt wird. Beim Kürzen der ganzen
      Geschichte geht die bisherige Prosa **als Vorlage** in den Prosalauf
      (`kurzgeschichte.starte(..., vorlage=True)`) — sonst schriebe das Modell
      „25 Prozent kürzer" über einen Text, den es nie sah; ohne `vorlage`

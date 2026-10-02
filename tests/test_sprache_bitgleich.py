@@ -113,6 +113,16 @@ GEAENDERT: dict[str, str] = {
         "widerspruchsfrei. Die ersetzbare Laengenzeile ist unberuehrt "
         "(tests/test_laengen_prosa.py)."
     ),
+    "kuerzung.TEXT_NOTIZ_PROSA": (
+        "Karte P2-Fix, Abschlussreview (02.10.2026): die Kuerzungsnotiz nennt "
+        "keine Abschnittszahl mehr (\"Behalte genau {anzahl} Abschnitte\" -> "
+        "\"Behalte die Abschnitte\"). Sie zaehlte die Szenen MIT Prosa, der "
+        "Auftrag (kurzgeschichte._ZEILE_ABSCHNITTE) die GEPLANTEN -- bei "
+        "sechs geplanten und vier geschriebenen standen zwei Zahlen in einem "
+        "Prompt. Gewollte Verhaltensaenderung fuer Dortmund: die Zahl steht "
+        "genau einmal im Nutzertext, im Auftrag "
+        "(tests/test_kuerzung.py::test_kuerzen_bindet_die_abschnittszahl_genau_einmal)."
+    ),
     "prompt system": _GRUND_STATION_4,
     "anweisungen.system(phase=None)": _GRUND_STATION_4,
     "anweisungen.system(phase=1)": _GRUND_STATION_4,

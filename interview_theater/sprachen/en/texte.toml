@@ -727,7 +727,7 @@ _DEZIMALZEICHEN = "."
 
 ["kuerzung"]
 TEXT_NOTIZ_SZENE = "Shorten this scene by about {prozent} percent. Same events, same order, same characters, same ending -- just tighter: less repetition, shorter lines, nothing new added."
-TEXT_NOTIZ_PROSA = "Shorten the story by about {prozent} percent. Keep exactly {anzahl} sections with their titles and in their order, and shorten within the sections -- same events, same ending, nothing new added."
+TEXT_NOTIZ_PROSA = "Shorten the story by about {prozent} percent. Keep the sections with their titles and in their order, and shorten within the sections -- same events, same ending, nothing new added."
 TEXT_NICHTS_ZU_KUERZEN = "There's no text yet that I could shorten."
 TEXT_KEIN_LAUF = "Not started, see chat"
 TEXT_SZENE_GESTARTET = "Scene {nummer} is getting shorter"

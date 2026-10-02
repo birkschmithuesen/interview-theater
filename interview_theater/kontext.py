@@ -468,7 +468,10 @@ def _baue_kernpaket(conn, chat_id: int) -> str:
     Transkripten tritt.
 
     Datengetrieben wie alles: jeder Teil faellt weg, solange seine Daten leer
-    sind, und ohne Kernthema gibt es gar keinen Block."""
+    sind, und erst wenn ALLE leer sind, gibt es gar keinen Block. Das
+    Kernthema ist dabei kein Schalter mehr: die Geschichte
+    (``arbeitsstand.geschichte``) steht vorn und traegt den Block allein,
+    ebenso Setting, Themen, Kernzitate, Figuren oder Schaerfungen."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
     if not stand:
         return ""

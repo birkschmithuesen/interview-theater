@@ -12,6 +12,8 @@ Fassung wird ANGEHAENGT, und die Szenenfolge bleibt, wie sie ist.
 Kein Netz: Telegram und Sprachmodell sind Attrappen.
 """
 
+import re
+
 import pytest
 
 from interview_theater import knoepfe, kuerzung, phasen, repo, szene
@@ -59,14 +61,14 @@ def test_die_notiz_nennt_das_kuerzungsziel():
     assert "25" in knoepfe.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung.PROZENT)
 
 
-def test_die_prosa_notiz_bindet_die_abschnittszahl():
-    """``kurzgeschichte.ANWEISUNG`` stellt dem Modell die Abschnittszahl frei
-    (kurzgeschichte.py:57-60). Ohne diesen Satz waere eine kuerzere Geschichte
-    mit weniger Abschnitten ein plausibles Ergebnis -- und zwei Abschnitte
-    behielten ihren alten, langen Text."""
-    notiz = kuerzung.notiz_fuer_prosa(6)
-    assert "6" in notiz
+def test_die_prosa_notiz_nennt_ziel_aber_keine_zahl():
+    """Das Kuerzungsziel steht darin, die Abschnittszahl nicht: die bindet
+    der Auftrag bzw. der Budget-Block, genau einmal (Abschlussreview
+    P2-Fix). Die Abschnitte bleiben -- mit Titeln, in ihrer Reihenfolge."""
+    notiz = kuerzung.notiz_fuer_prosa()
     assert "25" in notiz
+    assert "Abschnitte" in notiz
+    assert not re.search(r"\d", notiz.replace("25", ""))
 
 
 def test_nummer_aus_wert_liest_nur_zahlen():
@@ -203,8 +205,9 @@ def test_der_kuerzen_knopf_steht_unter_der_kurzgeschichte(prosa6, tg):
     assert knoepfe.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung.PROZENT) in beschriftungen
 
 
-def test_kuerzen_ohne_nummer_nennt_die_abschnittszahl(prosa6, tg, einst):
-    """Drei Abschnitte -> die Notiz bindet auf drei."""
+def test_die_kuerzungsnotiz_nennt_keine_abschnittszahl(prosa6, tg, einst):
+    """Die Notiz traegt das Kuerzungsziel, aber KEINE Zahl: die bindet der
+    Auftrag bzw. der Budget-Block, genau einmal (Abschlussreview P2-Fix)."""
     conn = prosa6
     gemerkt = {}
 
@@ -219,8 +222,93 @@ def test_kuerzen_ohne_nummer_nennt_die_abschnittszahl(prosa6, tg, einst):
         kuerzung.starte(conn, tg, LLMAttrappe(), einst, 1)
     finally:
         kurzgeschichte_modul.starte = echt
-    assert "3" in gemerkt["regie"]
+    assert gemerkt["regie"] == kuerzung.notiz_fuer_prosa()
     assert str(kuerzung.PROZENT) in gemerkt["regie"]
+    assert not _ZAHL_BINDUNG.findall(gemerkt["regie"])
+
+
+# --- Die Abschnittszahl steht genau EINMAL im Prompt ----------------------
+#
+# Abschlussreview P2-Fix (02.10.2026): die Notiz nannte die Zahl der Szenen
+# MIT Prosa, der Auftrag die Zahl der GEPLANTEN Szenen -- bei sechs geplanten
+# und vier geschriebenen standen "genau 4" und "genau 6" im selben Prompt.
+# Gemessen am ECHTEN Nutzertext, der an das Sprachmodell geht.
+
+#: Jede bindende Nennung einer Abschnittszahl, deutsch oder englisch: der
+#: Auftrag (``kurzgeschichte._ZEILE_ABSCHNITTE``), der Budget-Block
+#: (``laengen.SATZ_BINDUNG``) und -- frueher -- die Kuerzungsnotiz.
+_ZAHL_BINDUNG = re.compile(
+    r"(?:genau|exactly)\s+(\d+)\s+(?:Abschnitte|sections)", re.IGNORECASE)
+
+SECHS_ABSCHNITTE = "".join(
+    f"{n}. Teil {n}\nZusammenfassung: Es passiert {n}.\n\nKurz.\n\n"
+    for n in range(1, 7)
+)
+
+
+@pytest.fixture
+def vier_von_sechs(conn):
+    """Phase 6, sechs geplante Szenen, nur vier davon mit Prosa."""
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Am Kanal, nachts")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.\nEnde: offen")
+    repo.setze_figur(conn, 1, "Mira", "will gefragt werden")
+    for nummer in range(1, 7):
+        titel = f"Teil {nummer}"
+        szene_id = repo.stelle_szene_sicher(conn, 1, nummer)
+        repo.setze_szenenfeld(conn, szene_id, "titel", titel)
+        repo.aktualisiere_szene(
+            conn, szene_id, titel, None, None, f"{titel} passiert.",
+            prosa=(f"{titel}: ein langer Abschnitt, sehr lang." * 5
+                   if nummer <= 4 else None),
+        )
+    phasen.setze(conn, 1, 6, "test")
+    return conn
+
+
+def _kuerze_ganz_und_hole_nutzertext(conn, tg, einst):
+    import interview_theater.kurzgeschichte as kurzgeschichte_modul
+
+    klm = LLMAttrappe(antwort=SECHS_ABSCHNITTE)
+    _meldung, gestartet = kuerzung.starte(conn, tg, klm, einst, 1)
+    assert gestartet is True
+    assert kurzgeschichte_modul._sperre_fuer(1).acquire(timeout=20)
+    kurzgeschichte_modul._sperre_fuer(1).release()
+    assert klm.aufrufe, "kein Prosalauf angestossen"
+    return klm.aufrufe[0]["nutzer"]
+
+
+def test_kuerzen_bindet_die_abschnittszahl_genau_einmal(vier_von_sechs, tg, einst):
+    """Ohne Laengen-Profil: die Zahl steht nur im Auftrag, und sie ist die
+    der GEPLANTEN Szenen (6), nicht die der geschriebenen (4)."""
+    import interview_theater.kurzgeschichte as kurzgeschichte_modul
+
+    nutzer = _kuerze_ganz_und_hole_nutzertext(vier_von_sechs, tg, einst)
+    assert kuerzung.notiz_fuer_prosa() in nutzer
+    assert _ZAHL_BINDUNG.findall(nutzer) == ["6"]
+    assert kurzgeschichte_modul.T._ZEILE_ABSCHNITTE.format(anzahl=6) in nutzer
+
+
+def test_kuerzen_bindet_die_abschnittszahl_genau_einmal_mit_laengenprofil(
+    vier_von_sechs, tg, einst, monkeypatch,
+):
+    """Padua (Laengen-Profil aktiv): die Zahl steht nur im Budget-Block
+    (``laengen.SATZ_BINDUNG``), der Auftrag laesst seine Zeile weg."""
+    import interview_theater.kurzgeschichte as kurzgeschichte_modul
+    from interview_theater import laengen, workshop
+
+    monkeypatch.delenv(workshop.BASIS_VARIABLE, raising=False)
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    try:
+        assert laengen.aktiv()
+        nutzer = _kuerze_ganz_und_hole_nutzertext(vier_von_sechs, tg, einst)
+        assert kuerzung.notiz_fuer_prosa() in nutzer
+        assert _ZAHL_BINDUNG.findall(nutzer) == ["6"]
+        assert laengen.T.SATZ_BINDUNG.format(anzahl=6) in nutzer
+        assert kurzgeschichte_modul.T._ZEILE_ABSCHNITTE.format(anzahl=6) \
+            not in nutzer
+    finally:
+        workshop.vergiss()
 
 
 def test_ohne_text_gibt_es_keinen_lauf(conn, tg, einst):
@@ -453,5 +541,5 @@ def test_erkenner_ohne_nummer_in_phase_6_kuerzt_die_geschichte(
         [{"art": "szene_kuerzen", "wert": ""}],
     )
     assert gemerkt["vorlage"] is True
-    assert "3" in gemerkt["regie"]
+    assert gemerkt["regie"] == kuerzung.notiz_fuer_prosa()
     assert kuerzung.TEXT_WELCHE_SZENE not in tg.texte

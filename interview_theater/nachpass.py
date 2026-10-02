@@ -297,8 +297,8 @@ def nach_geschichte(conn, tg, klm, e, chat_id: int) -> str | None:
     die Antwort, ohne etwas zu schreiben -- damit koennen zwei Dinge die
     Fassung noch verhindern: eine geaenderte Abschnittszahl (der Abgleich in
     ``lege_szenen_an`` ist **ergaenzend**, also behielten vorhandene
-    Abschnitte ihren alten, langen Text -- genau der Fall, gegen den
-    ``kuerzung.notiz_fuer_prosa`` geschrieben wurde) und ein verlorenes
+    Abschnitte ihren alten, langen Text -- genau der Fall, gegen den die
+    gebundene Abschnittszahl im Nutzertext steht) und ein verlorenes
     Belegzitat. Deshalb braucht dieser Weg keinen Rueckweg: es steht nichts
     da, was zurueckzunehmen waere.
 
@@ -306,9 +306,9 @@ def nach_geschichte(conn, tg, klm, e, chat_id: int) -> str | None:
     Restspannung 5): dieser Lauf uebergibt immer ``eintraege``, also traegt
     ``laengen.block_prosa`` die Zahl im Nutzertext
     (``laengen.SATZ_BINDUNG``) -- auch dann, wenn nur der Sprachpass
-    ausgeloest hat und die Regie-Notiz sie nicht nennt. Die Notiz braucht
-    sie deshalb nicht zweimal zu sagen; ``kuerzung.notiz_fuer_prosa`` tut es
-    im selben Satz wie das Kuerzungsziel, und sonst tut es der Auftrag. Ohne
+    ausgeloest hat. Die Regie-Notiz nennt sie nie --
+    ``kuerzung.notiz_fuer_prosa`` traegt seit dem Abschlussreview keine Zahl
+    mehr, ein Fakt hat genau eine Stelle im Prompt. Ohne
     diese Bindung wuerde die Pruefung unten still verwerfen, was sie selbst
     nicht bestellt hat (Vorfall ``nachpass_abschnittszahl``, die Gruppe
     merkt nichts). Test:
@@ -328,9 +328,9 @@ def nach_geschichte(conn, tg, klm, e, chat_id: int) -> str | None:
     teile = []
     if stand["zu_lang"]:
         # Wortgleich die Notiz des Kuerzen-Wegs -- der Prozentwert steht an
-        # einer Stelle (``kuerzung.PROZENT``), und sie bindet die
-        # Abschnittszahl schon mit.
-        teile.append(kuerzung.notiz_fuer_prosa(anzahl))
+        # einer Stelle (``kuerzung.PROZENT``). Die Abschnittszahl bindet
+        # ``laengen.SATZ_BINDUNG`` im Budget-Block, nicht die Notiz.
+        teile.append(kuerzung.notiz_fuer_prosa())
     sprachlich = sprachpass.notiz(stand["gemeldet"])
     if sprachlich:
         teile.append(sprachlich)

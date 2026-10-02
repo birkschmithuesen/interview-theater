@@ -59,9 +59,12 @@ Je Zeile, woher die Differenz kommt:
   zeigt, dass der Figuren-Block-Kopf von `szene.FIGUREN_KOPF_OHNE_STIMME`
   (`en/texte.toml:936`) auf `szene.FIGUREN_KOPF_MIT_STIL` (`:938`) wechselt
   und drei Zeilen `szene.ZEILE_SPRACHSTIL` (`:937`, „Speech style (chosen
-  by the group): …") dazukommen. Alle drei Konstanten stammen aus Padua M1
-  (Commits `20d5b0a`/`eb5949e`, „szene: sprachstil im Szenen-Prompt" / „drei
-  Koepfe fuer Block 3") und sind bereits vor dieser Karte auf `main`
+  by the group): …") dazukommen. Aus Padua M1 stammen
+  `szene.FIGUREN_KOPF_MIT_STIL` und `szene.ZEILE_SPRACHSTIL` samt der
+  Kopfauswahl, die zwischen den drei Koepfen waehlt (Commits
+  `20d5b0a`/`eb5949e`, „szene: sprachstil im Szenen-Prompt" / „drei
+  Koepfe fuer Block 3"); `szene.FIGUREN_KOPF_OHNE_STIMME` ist aelter
+  (`d59832a`). M1 ist bereits vor dieser Karte auf `main`
   gelandet -- aber **nach** dem alten Dump vom 01.10.2026 (`4280f51`). Der
   Altdump zeigt den Code-Stand vor M1, der Neudump den Stand danach; die
   Differenz gehoert zu M1, nicht zu P2-Fix.
@@ -83,6 +86,12 @@ Je Zeile, woher die Differenz kommt:
 -- im Budget-Block, wenn es einen gibt, sonst im Auftrag. Test:
 `tests/test_laengen_prosa.py::test_die_zahl_steht_genau_einmal_im_prompt`
 (gemessen: `1 passed, 2 skipped, 5210 deselected`).
+Auf dem Kuerzungsweg gilt das erst seit dem Abschlussreview: bis dahin nannte
+`kuerzung.TEXT_NOTIZ_PROSA` die Zahl zusaetzlich (gezaehlt an den Szenen
+**mit** Prosa, bei sechs geplanten und vier geschriebenen also „genau 4"
+neben „genau 6"); die Notiz traegt jetzt keine Zahl mehr
+(`tests/test_kuerzung.py::test_kuerzen_bindet_die_abschnittszahl_genau_einmal`
+und `..._mit_laengenprofil`, am echten Nutzertext).
 
 **Entfaellt gegenueber der Planvorlage:** die Zeile zu
 `workshop/padua-2026/phasentexte.toml:49-56` ("One section per scene you
@@ -230,6 +239,11 @@ $ python3.11 -m pytest -q -p no:cacheprovider tests/test_laengen_prosa.py tests/
    Folgekarte waere entweder ein Vorfall plus eine Zeile an die Gruppe,
    oder ein weiches Loeschen der ueberzaehligen prosalosen Szenen -- das
    zweite ist eine Entscheidung mit Datenwirkung und gehoert Birk.
+   Dazu eine Grenze derselben Stelle: `abschnittszahl` zaehlt Szenen, nicht
+   ihre Nummern -- hat die Nummerierung nach einem weichen Loeschen eine
+   Luecke (etwa 1, 2, 4), verlangt der Auftrag drei Abschnitte,
+   `lege_szenen_an` schreibt sie nach 1-3, und Szene 4 bleibt ohne Prosa.
+   Kein Code dafuer in dieser Karte.
 2. **Die Phase-6-Einleitung im Chat sagt in beiden Sprachen weiter, dass
    die Geschichte die Abschnittszahl entscheidet** -- nicht nur Deutsch.
    Deutsch: `workshop.VORGABE_PHASENTEXTE["6"]`

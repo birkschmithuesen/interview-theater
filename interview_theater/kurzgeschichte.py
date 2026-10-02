@@ -20,9 +20,10 @@ prosalose Szenen -- und Phase 7 verlangt Prosa fuer jede geplante Szene
 
 **Danach werden die Abschnitte zu Szenen** -- Nummer, Titel, Prosa,
 ``was_passiert`` aus der Pflichtzeile "Zusammenfassung", Ort aus dem
-Setting. Die bestehende Szenenfolge wird dabei ersetzt (weich, wie in
-``szenenfolge.lege_an``), und das Journal haelt fest, dass sie aus der
-Kurzgeschichte stammt.
+Setting. Die bestehende Szenenfolge wird dabei **abgeglichen, nicht
+ersetzt** (``repo.gleiche_szenenfolge_ab``: gleiche Nummer -> aktualisieren,
+fehlende -> ergaenzen, ueberzaehlige -> stehen lassen), und das Journal haelt
+fest, dass sie aus der Kurzgeschichte stammt.
 
 Der Feinschliff (Phase 7) arbeitet danach je Abschnitt wie je Szene: Form
 waehlen, uebersetzen.

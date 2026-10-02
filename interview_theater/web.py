@@ -893,6 +893,14 @@ _STUECKKARTE_GESCHICHTE = "Geschichte"
 _STUECKKARTE_SZENENANZAHL = "Anzahl Szenen"
 _TEXT_STUECKKARTE_OFFEN = "offen"
 _UEBERSCHRIFT_FESTLEGUNGEN = "Weitere Festlegungen"
+#: Die Phasen-Debriefs (Karte phasen-debrief) -- direkt hinter den
+#: Festlegungen, wie im Prompt (``kontext._REIHENFOLGE``: "festlegungen",
+#: "debrief"). ``TEXT_STREICHEN`` ist die Schwester von ``TEXT_ENTFERNEN``:
+#: die Spezifikation dieser Karte nennt den Loeschweg bewusst "streichen"
+#: (``geloescht`` statt ``entfernt_am``), nicht "entfernen".
+_UEBERSCHRIFT_DEBRIEF = "So arbeitet ihr"
+_TEXT_DEBRIEF_PHASE = "Phase {phase}"
+TEXT_STREICHEN = "Streichen"
 _UEBERSCHRIFT_SZENEN = "Szenen"
 _UEBERSCHRIFT_INTERVIEWS = "Aus den Interviews"
 _UEBERSCHRIFT_WEG = "Der Weg dahin"
@@ -1547,6 +1555,46 @@ def _festlegungen_html(daten: dict, nonce_wert: str | None) -> str:
             )
         )
     return "".join(stuecke)
+
+
+def _phasen_debrief_html(daten: dict, nonce_wert: str | None) -> str:
+    """Die gespeicherten Phasen-Debriefs -- oder gar nichts (Karte
+    phasen-debrief).
+
+    **Nur, wenn es welche gibt**, inklusive eigener Ueberschrift -- wie
+    ``_sprechanteile_html``/``_dramaturgie_html``, anders als
+    ``_festlegungen_html`` (das seine Ueberschrift in ``gruppe_koerper``
+    bekommt und bei Leere einen Satz zeigt): ein automatisch geschriebener
+    Rueckblick, von dem es noch keinen gibt, ist kein Satz wert.
+
+    Mit ``nonce_wert`` bekommt jede Karte einen Streichen-Knopf
+    (``phasen_debrief_streichen``) -- Pflicht wie bei den Festlegungen, aus
+    demselben Grund: ein veralteter Debrief, den niemand abraeumen kann,
+    waere der immer gleiche Fehler. ``ziel`` traegt die **Phase**, nicht
+    eine id -- ``phasen_debrief`` hat keine, die hier stabil waere, und
+    ``UNIQUE (chat_id, phase)`` macht die Phase zum eindeutigen Schluessel.
+    Angelegt wird hier nichts; ein Debrief entsteht automatisch beim
+    Phasenwechsel (``phasen_debrief.py``)."""
+    zeilen = daten.get("phasen_debriefs") or []
+    if not zeilen:
+        return ""
+    karten = []
+    for z in zeilen:
+        knopf = (
+            _rahmen(
+                "", "phasen_debrief_streichen", z["phase"], knopf=T.TEXT_STREICHEN
+            )
+            if nonce_wert
+            else ""
+        )
+        karten.append(
+            '<div class="debrief"><h3>{titel}</h3><p>{text}</p>{knopf}</div>'.format(
+                titel=_t(T._TEXT_DEBRIEF_PHASE.format(phase=z["phase"])),
+                text=_t(z["text"]),
+                knopf=knopf,
+            )
+        )
+    return f"<h2>{_t(T._UEBERSCHRIFT_DEBRIEF)}</h2>" + "".join(karten)
 
 
 def _altbestand_html(stand: dict) -> str:
@@ -2609,6 +2657,10 @@ def gruppe_koerper(
         # liest, soll da stehen, wo das Modell es auch liest.
         f"<h2>{_t(T._UEBERSCHRIFT_FESTLEGUNGEN)}</h2>"
         f"{_festlegungen_html(daten, nonce_wert)}\n"
+        # Die Phasen-Debriefs (Karte phasen-debrief) -- direkt dahinter, wie
+        # im Prompt (kontext._REIHENFOLGE). Eigene Ueberschrift nur, wenn es
+        # welche gibt (siehe _phasen_debrief_html).
+        f"{_phasen_debrief_html(daten, nonce_wert)}\n"
         f"<h2>{_t(T._UEBERSCHRIFT_SZENEN)}</h2>{uebersicht}{szenen}\n"
         # Die Sprechanteile stehen unter den Szenen: sie sind eine Zählung
         # über genau diese Texte (06.09.2026). Ohne zählbare Szene fehlt der

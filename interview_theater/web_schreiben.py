@@ -185,6 +185,7 @@ JOURNAL_SPRACHPROFIL = "Sprachprofil neu nötig: {name} spricht jetzt aus {quell
 JOURNAL_FIGUR_ENTFERNT = "Figur {name} entfernt über die Gruppenseite"
 JOURNAL_FIGUR_ANGELEGT = "Figur {name} angelegt über die Gruppenseite"
 JOURNAL_FESTLEGUNG_ENTFERNT = "Festlegung {text} entfernt über die Gruppenseite"
+JOURNAL_PHASEN_DEBRIEF_GESTRICHEN = "Debrief Phase {phase} gestrichen über die Gruppenseite"
 _KEINEM_INTERVIEW = "keinem Interview"
 _LABEL_FIGUR = "Figur {name} · {feld}"
 _LABEL_INTERVIEW = "Interview"
@@ -200,6 +201,7 @@ _FEHLER_NAME_FEHLT = "Eine Figur braucht einen Namen."
 _FEHLER_INTERVIEW_FEHLT = "Interview nicht gefunden."
 _FEHLER_FIGUR_DOPPELT = "„{name}“ gibt es schon."
 _FEHLER_FESTLEGUNG_FEHLT = "Festlegung nicht gefunden."
+_FEHLER_PHASEN_DEBRIEF_FEHLT = "Debrief nicht gefunden."
 _FEHLER_PARAMETER = "Unbekannter Parameter: {feld}"
 
 
@@ -468,6 +470,40 @@ def _entferne_festlegung(conn, chat_id: int, wert, ziel) -> str:
     return ""
 
 
+def _entferne_phasen_debrief(conn, chat_id: int, wert, ziel) -> str:
+    """Streicht den Debrief einer Phase -- **weich** (Karte phasen-debrief:
+    ``geloescht = 1`` in ``phasen_debrief``, die bewusste Abweichung dieser
+    Karte von der sonstigen ``entfernt_am``-Konvention).
+
+    Wie bei ``_entferne_festlegung`` traegt ``ziel`` den Schluessel (hier:
+    die Phase, nicht eine id -- ``phasen_debrief`` hat ``UNIQUE (chat_id,
+    phase)``), ``wert`` bleibt leer: der Knopf hat kein Eingabefeld.
+
+    **Existenz wird vorher geprueft**, genau wie dort: ``repo.
+    entferne_phasen_debrief`` meldet selbst nicht, ob eine Zeile traf, und
+    ein Knopf fuer eine laengst gestrichene oder nie vorhandene Phase soll
+    einen Fehler bekommen statt eines stillen No-Ops.
+
+    **Angelegt wird hier nichts.** Ein Debrief entsteht automatisch beim
+    Phasenwechsel (``phasen_debrief.py``); die Seite raeumt nur auf."""
+    try:
+        phase = int(ziel)
+    except (TypeError, ValueError):
+        raise Fehler(T._FEHLER_PHASEN_DEBRIEF_FEHLT) from None
+    vorhandene = {z["phase"] for z in repo.phasen_debriefs(conn, chat_id)}
+    if phase not in vorhandene:
+        raise Fehler(T._FEHLER_PHASEN_DEBRIEF_FEHLT)
+    repo.entferne_phasen_debrief(conn, chat_id, phase)
+    repo.schreibe_journal(
+        conn,
+        chat_id,
+        "entschieden",
+        T.JOURNAL_PHASEN_DEBRIEF_GESTRICHEN.format(phase=phase),
+        quelle=QUELLE,
+    )
+    return ""
+
+
 def _setze_szenenfeld(feld: str, label: str):
     """Ein Planungsfeld einer Szene, ueber ``repo.setze_szenenfeld`` -- das
     ruehrt nie mehr als dieses eine Feld an (die Regel, an der die additive
@@ -529,6 +565,9 @@ FELDER = {
     "figur_neu": _lege_figur_an,
     # Nur entfernen, nicht anlegen (siehe dort).
     "festlegung_entfernen": _entferne_festlegung,
+    # Nur streichen, nicht anlegen -- ein Debrief entsteht automatisch beim
+    # Phasenwechsel (phasen_debrief.py), nie ueber die Gruppenseite.
+    "phasen_debrief_streichen": _entferne_phasen_debrief,
     **{
         f"szene_{feld}": _setze_szenenfeld(feld, label)
         for feld, label in SZENENFELDER.items()

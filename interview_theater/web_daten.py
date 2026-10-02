@@ -944,6 +944,33 @@ def _festlegungen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     ]
 
 
+def _phasen_debriefs(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die geltenden Phasen-Debriefs, nach Phase sortiert (Karte
+    phasen-debrief) -- das read-only Gegenstueck zu ``repo.phasen_debriefs``.
+
+    **Ohne id**, anders als bei den Festlegungen: der Loeschknopf auf der
+    Gruppenseite zielt auf die Phase (``phasen_debrief`` hat ``UNIQUE
+    (chat_id, phase)``), nicht auf eine Zeilen-id.
+
+    ``geloescht`` statt ``entfernt_am`` ist die bewusste Abweichung der
+    Spezifikation dieser Karte von der sonstigen Loeschkonvention (siehe
+    ``db.py``). Fehlt die Tabelle noch (Datenbank aus der Zeit davor), ist
+    das Ergebnis leer statt ein Fehler: der Webserver migriert nichts, er
+    liest read-only."""
+    try:
+        zeilen = conn.execute(
+            "SELECT phase, text, erstellt_am FROM phasen_debrief "
+            "WHERE chat_id = ? AND geloescht = 0 ORDER BY phase ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [
+        {"phase": z["phase"], "text": z["text"], "erstellt_am": z["erstellt_am"]}
+        for z in zeilen
+    ]
+
+
 #: Woher die Dropdowns auf der Gruppenseite ihre Vorschlaege nehmen: aus der
 #: Tabelle ``knopf``, also aus genau dem, was der Bot der Gruppe im Chat schon
 #: einmal zur Auswahl gestellt hat (``knoepfe._AUSWAHLMARKER``). Das ist die
@@ -1138,6 +1165,10 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # <details> wie das Journal: sichtbar war das Journal auch, und
         # gewirkt hat es trotzdem nicht.
         "festlegungen": _festlegungen(conn, chat_id),
+        # Die Phasen-Debriefs (Karte phasen-debrief): ein kurzer, automatisch
+        # geschriebener Rueckblick je verlassener Phase. Direkt hinter den
+        # Festlegungen, wie im Prompt (``kontext._REIHENFOLGE``).
+        "phasen_debriefs": _phasen_debriefs(conn, chat_id),
         # Der Vorspann (07.09.2026): dieselben Werte wie im Chat und im
         # Textbuch, aus derselben Funktion -- ``vorspann.daten`` nimmt Dicts
         # und kennt keine Datenbank, deshalb darf ``web_daten`` es rufen,

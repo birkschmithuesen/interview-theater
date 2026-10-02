@@ -104,13 +104,21 @@ def kosten_oder_teuerster(conn, chat_id, bot_name, modell,
     gerechnet und ein Vorfall vermerkt. Mit 0 zu buchen hiesse, dass der
     naechste Modellwechsel den Deckel aushebelt, ohne dass es jemand merkt;
     zu teuer zu buchen kostet hoechstens eine fruehe Pause, und die faellt
-    sofort auf."""
+    sofort auf.
+
+    Der Vorfall steht **einmal je Gruppe und Tag** (wie beim Deckel,
+    ``tagesbeginn_utc``): gebucht wird jeder Aufruf, vermerkt nur der erste --
+    sonst schriebe jeder Gespraechszug mit dem neuen Modell eine Zeile."""
     wert = kosten_chf(modell or "", eingabe_token, ausgabe_token)
     if wert is not None:
         return wert
     eingabe, ausgabe = teuerster_preis()
     wert = ((eingabe_token or 0) * eingabe + (ausgabe_token or 0) * ausgabe) / 1_000_000
     try:
+        if repo.gab_es_vorfall_seit(
+            conn, chat_id, "kosten_modell_unbekannt", tagesbeginn_utc(zeitzone())
+        ):
+            return wert
         repo.merke_vorfall(
             conn, chat_id, bot_name, "kosten_modell_unbekannt",
             f"Kein Preis fuer {modell!r} (Tabelle Stand {PREISE_STAND}) -- "

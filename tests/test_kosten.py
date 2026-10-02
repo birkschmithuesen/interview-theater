@@ -71,6 +71,22 @@ def test_unbekanntes_modell_wird_teuerst_gerechnet_und_vermerkt(conn):
     assert "gibtsnicht/modell-9" in zeilen[0]["detail"]
 
 
+def test_unbekanntes_modell_vermerkt_nur_einmal_am_tag_bucht_aber_jedes_mal(conn):
+    """Ein Vorfall je Gruppe und Tag, wie beim Deckel: sonst schriebe jeder
+    Gespraechszug mit dem neuen Modell eine Zeile und faerbte das Dashboard
+    rot, ohne mehr zu sagen als die erste."""
+    eingabe, ausgabe = kosten.teuerster_preis()
+    for _ in range(3):
+        wert = kosten.kosten_oder_teuerster(
+            conn, CHAT, "gruppe1", "gibtsnicht/modell-9", 1_000_000, 1_000_000
+        )
+        assert wert == pytest.approx(eingabe + ausgabe)
+    assert conn.execute(
+        "SELECT COUNT(*) AS n FROM vorfall WHERE chat_id = ? "
+        "AND art = 'kosten_modell_unbekannt'", (CHAT,)
+    ).fetchone()["n"] == 1
+
+
 def test_bekanntes_modell_erzeugt_keinen_vorfall(conn):
     kosten.kosten_oder_teuerster(conn, CHAT, "gruppe1", "google/gemma-4-31B-it", 10, 10)
     assert conn.execute(

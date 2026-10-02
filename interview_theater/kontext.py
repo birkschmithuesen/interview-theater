@@ -315,12 +315,21 @@ def pseudonyme(conn, chat_id: int, zeilen=()) -> dict[str, str] | None:
     return {name: T._PSEUDONYM.format(nummer=i) for i, name in enumerate(namen, start=1)}
 
 
-#: Nachrichtentypen (Telegram-Rohwerte aus ``telegram.lies_nachricht``, siehe
+#: Nachrichtentypen (Telegram-Rohwerte aus ``telegram._bestimme_typ``, siehe
 #: ``db.py``), die das Sprachmodell nicht sehen kann -- es bekommt nur Text
 #: (Padua Hotfix Befund 2, 02.10.2026: "das Modell kann in dieser Konfig
 #: keine Bilder sehen, entsprechend soll es das auch nicht anbieten"). Feste
 #: Telegram-Typnamen, keine Nutzertexte -- deshalb nicht ueber ``T``.
-_TYPEN_NICHT_SICHTBAR = frozenset({"foto", "sticker", "sonstiges"})
+#: ``"dokument"`` (Review-Nachbesserung Befund 2): jeder Datei-Upload ohne
+#: Bildunterschrift (PDF, Word, ein beliebiger Anhang) lief sonst weiterhin
+#: als "(dokument)" durch -- derselbe Fehler wie bei "foto", nur ueber den
+#: anderen Telegram-Nachrichtentyp. ``"sprache"`` bleibt bewusst aussen vor:
+#: eine Sprachnachricht bekommt binnen Sekunden ihr Transkript, "dokument"
+#: dagegen nie (Whisper transkribiert keine PDFs). Der Web-Kanal
+#: (``web_kanal.py``) erzeugt nie "foto"/"sticker"/"dokument" -- er kennt nur
+#: Text, Knopf, Befehl und "sprache" (Segment/PTT); diese Typen sind reiner
+#: Telegram-Weg.
+_TYPEN_NICHT_SICHTBAR = frozenset({"foto", "sticker", "sonstiges", "dokument"})
 
 
 def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
@@ -336,8 +345,8 @@ def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
     Nachrichten ohne Text (Sprache ohne Transkript, ...) erscheinen als
     ``"Name: (typ)"`` statt als leere Zeile -- die Gruppe hat etwas
     geschickt, und das Modell soll das wissen. Ein Typ aus
-    ``_TYPEN_NICHT_SICHTBAR`` (Bildanhang, Sticker, sonstiger Anhang)
-    bekommt stattdessen den lokalisierten Hinweis
+    ``_TYPEN_NICHT_SICHTBAR`` (Bildanhang, Sticker, Dokument-Upload,
+    sonstiger Anhang) bekommt stattdessen den lokalisierten Hinweis
     ``_HINWEIS_NICHT_SICHTBAR`` ("Datei -- fuer mich nicht sichtbar" /
     "file -- not visible to you"): das reine Text-Modell bekommt solche
     Anhaenge nie, und der blosse Telegram-Typname waere sowohl unuebersetzt

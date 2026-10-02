@@ -1975,6 +1975,26 @@ def buehnenkarten(
 
 
 @_gesperrt
+def stueckkarte_felder(conn: sqlite3.Connection, chat_id: int) -> list[tuple[str, str | None]]:
+    """Die drei festen Felder der Stueckkarte (Setting, Figuren, Geschichte,
+    Phase 4) mit ihrem aktuellen Wert oder ``None``, wenn noch offen.
+
+    Gemeinsame Datenquelle fuer die Buehnenkarte (``buehnenkarte.py``, als
+    Kontext fuer den Modellaufruf) und den Buehne-Tab der Gruppenseite
+    (``web.py``, als ✓/offen-Streifen) -- ein Fakt hat eine Stelle."""
+    stand = conn.execute(
+        "SELECT rahmen, geschichte FROM arbeitsstand WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    namen = [f["name"] for f in figuren(conn, chat_id)]
+    return [
+        ("Setting", (stand["rahmen"] if stand else None) or None),
+        ("Figuren", ", ".join(namen) if namen else None),
+        ("Geschichte", (stand["geschichte"] if stand else None) or None),
+    ]
+
+
+@_gesperrt
 def figuren(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle noch vorhandenen Figuren einer Gruppe, in Entstehungsreihenfolge
     (Aufgabe 9). Weich geloeschte Figuren (``entfernt_am`` gesetzt, N3)

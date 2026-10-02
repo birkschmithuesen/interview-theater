@@ -94,7 +94,7 @@ def test_padua_traegt_birks_abgenommene_werte():
     profil = workshop.lade("padua-2026")
     orte = profil.wert("orte.beschreibung")
     assert "Venice" not in orte and "Venedig" not in orte
-    assert "the group decides" in orte or "the group" in orte
+    assert "the group decides" in orte
     auffuehrung = profil.wert("orte.auffuehrung")
     assert "Teatro Verdi" not in auffuehrung
     assert "projected backgrounds" not in auffuehrung

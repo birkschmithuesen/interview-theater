@@ -37,7 +37,8 @@ interview.
 **Every scene has a form** -- exactly one of {{formen_anzahl}}: Dialogue, Monologue, Chorus,
 Song or Rap. It is already in the scene sequence suggestion, visible in the
 scene introduction and can be changed with a button. A scene without a form
-is not written.
+is not written as a theatre text; in phase 6 it is first told as a story,
+without a form.
 
 **There doesn't always have to be a conflict.** Not every scene needs one
 -- it can be a song, a chorus or a harmonious scene. A continuous main

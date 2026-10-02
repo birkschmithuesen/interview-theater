@@ -1686,6 +1686,9 @@ _ARBEITSSTAND_FELDER = (
     # Der Laengen-Faktor (30.09.2026, Karte R): derselbe eine Schreibweg wie
     # alles andere im Arbeitsstand.
     "laengen_faktor",
+    # Die Anzahl Szenen (Padua-Brainstorming-Umbau, 02.10.2026): ein fixes
+    # Feld von Phase 4, das die Gruppe selbst setzt.
+    "szenen_anzahl",
 )
 
 
@@ -2691,19 +2694,33 @@ FESTLEGUNG_BEREICHE = (
 FESTLEGUNG_QUELLEN = ("erkenner", "befehl", "web")
 
 
-def normiere_bereich(bereich) -> str:
-    """Einen genannten Bereich auf ``FESTLEGUNG_BEREICHE`` abbilden.
+#: Ein freier Bereichstitel wird hier gekappt -- er ist ein Titel, kein Text.
+FESTLEGUNG_BEREICH_HOECHSTLAENGE = 40
 
-    Tolerant, weil die Werte aus einem Sprachmodell kommen: getrimmt,
-    kleingeschrieben, Mehrzahl abgeschnitten ("figuren" -> "figur"). Was
-    danach nicht passt, wird ``sonstiges``."""
-    wort = (bereich or "").strip().lower().strip(":")
-    if wort in FESTLEGUNG_BEREICHE:
-        return wort
-    if wort.endswith("en") and wort[:-2] in FESTLEGUNG_BEREICHE:
-        return wort[:-2]
-    if wort.endswith("n") and wort[:-1] in FESTLEGUNG_BEREICHE:
-        return wort[:-1]
+
+def normiere_bereich(bereich) -> str:
+    """Einen genannten Bereich auf ``FESTLEGUNG_BEREICHE`` abbilden, wenn er
+    passt -- sonst bleibt er als FREIER TITEL stehen (Padua-Brainstorming-
+    Umbau, 02.10.2026: "unlimited, free titles").
+
+    Tolerant bei den bekannten Bereichen, weil die Werte aus einem
+    Sprachmodell kommen: getrimmt, kleingeschrieben, Mehrzahl abgeschnitten
+    ("figuren" -> "figur"). Ein Wort, das zu keinem bekannten Bereich passt,
+    wird NICHT mehr nach ``sonstiges`` kollabiert -- es ist der Titel, unter
+    dem die Gruppe die Festlegung im Chat und auf der Gruppenseite
+    wiederfindet (``_festlegungen_html``/``web.FESTLEGUNG_BEREICH_BESCHRIFTUNG``
+    fallen fuer unbekannte Woerter ohnehin schon auf den Rohwert zurueck).
+    Nur ein wirklich leerer Bereich wird weiterhin ``sonstiges``."""
+    wort = (bereich or "").strip().strip(":")
+    lower = wort.lower()
+    if lower in FESTLEGUNG_BEREICHE:
+        return lower
+    if lower.endswith("en") and lower[:-2] in FESTLEGUNG_BEREICHE:
+        return lower[:-2]
+    if lower.endswith("n") and lower[:-1] in FESTLEGUNG_BEREICHE:
+        return lower[:-1]
+    if wort:
+        return wort[:FESTLEGUNG_BEREICH_HOECHSTLAENGE]
     return "sonstiges"
 
 

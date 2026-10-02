@@ -156,6 +156,90 @@ GEAENDERT: dict[str, str] = {
         "zeichengleich (tests/test_laengen_szene.py, "
         "tests/test_profil_bitgleich.py)."
     ),
+    # Padua-Brainstorming-Umbau, Phase 4 (02.10.2026, .phase4-brainstorm-brief.md):
+    # die neue Erkenner-Art ``szenenanzahl_setzen`` (Anzahl Szenen ist ein
+    # fixes Feld, das die Gruppe selbst setzt) und die Entfernung der
+    # Rahmen->Figurenanzahl-Kette. Sechs Stellen aendern sich zusammen:
+    "erkenner.ARTEN": (
+        "Neue Art szenenanzahl_setzen (Punkt 24 in erkenner.md) -- die "
+        "Anzahl Szenen ist seit dem Phase-4-Umbau ein eigenes "
+        "Arbeitsstandfeld, das die Gruppe selbst nennt."
+    ),
+    "erkenner.SCHEMA": (
+        "Folgt aus ARTEN: das JSON-Schema des Erkenneraufrufs listet jede "
+        "bekannte Art im Enum, szenenanzahl_setzen kommt dazu."
+    ),
+    "erkenner._LEISTENARTEN": (
+        "rahmen_setzen/geschichte_setzen sind heraus: Phase 4 zeigt unter "
+        "jeder automatisch gespeicherten Festlegung nur noch den EINEN "
+        "Rueckgaengig-Knopf (📌-Zeile, siehe erkenner._ZEILE_FESTGELEGT), "
+        "keine Ping-Pong-Grundleiste mehr."
+    ),
+    "knoepfe.texte._KETTE": (
+        "\"rahmen\" ist kein Kettenglied mehr: die Figurenanzahl-Frage kommt "
+        "nach dem Setting nicht mehr automatisch (freies Brainstorming ohne "
+        "feste Reihenfolge). kernthema/kernfrage bleiben rueckwaertskompatibel."
+    ),
+    "szenenfolge.ANWEISUNG_GESCHICHTE_SZENEN": (
+        "Keine Form/Begruendung-Spalte mehr in der Szenenfolge, die Phase 4 "
+        "vorschlaegt -- die Form einer Szene entscheidet die Gruppe erst im "
+        "Feinschliff (Phase 7), nicht beim Erfinden der Geschichte."
+    ),
+    "prompt erkenner": (
+        "Punkt 22 (festlegung_setzen) erlaubt jetzt einen freien, kurzen "
+        "Bereichstitel statt alles Unbekannte unter \"sonstiges\" zu "
+        "sammeln, und der neue Punkt 24 (szenenanzahl_setzen) kommt dazu; "
+        "die Abgrenzungsabsaetze wurden entsprechend angepasst."
+    ),
+    "szenenfolge.systemanweisung_geschichte_szenen": (
+        "Folgt aus ANWEISUNG_GESCHICHTE_SZENEN: keine Form/Begruendung-"
+        "Spalte mehr in der phase-4-Szenenfolge."
+    ),
+    "prompt phasen/4": (
+        "Volle Neufassung (Padua-Brainstorming-Umbau, 02.10.2026): freie "
+        "Reihenfolge statt fester Kette (Setting -> Figuren -> Geschichte), "
+        "Vorschlaege nur auf Anfrage oder im Stillstand statt als feste "
+        "Eroeffnungsfrage, keine Form/Begruendung mehr in der Szenenfolge, "
+        "die Anzahl Szenen als eigenes Feld, ein Hinweis auf die "
+        "automatische Festlegung und den Phasenabschluss-Vorschlag."
+    ),
+    "anweisungen.system(phase=4)": (
+        "Folgt aus der Neufassung von phasen/4.md (siehe oben) -- die "
+        "Basisanweisung haengt den Phasentext unveraendert an."
+    ),
+    "szenenfolge.systemanweisung_geschichte(3)": (
+        "Folgt aus phasen/4.md: die zusammengesetzte Systemanweisung fuer "
+        "den Richtungs-Vorschlag haengt den neuen Phasentext an."
+    ),
+    "szenenfolge.systemanweisung_geschichte(4)": (
+        "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
+    ),
+    "szenenfolge.systemanweisung_geschichte(5)": (
+        "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
+    ),
+    "szenenfolge.systemanweisung_geschichte(6)": (
+        "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
+    ),
+    "prompt phasen/6": (
+        "Folgt aus dem Phase-4-Umbau (02.10.2026): Phase 4 entscheidet keine "
+        "Form je Szene mehr, also behauptet Phase 6 nicht mehr \"die Form je "
+        "Szene steht schon\" -- sie wird erst im Feinschliff entschieden."
+    ),
+    "anweisungen.system(phase=6)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(3)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(4)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(5)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(6)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

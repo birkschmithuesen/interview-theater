@@ -328,6 +328,27 @@ def test_fuenf_braucht_setting_figuren_und_die_geschichte(conn):
     assert phasen.voraussetzungen(conn, 1)[5] is True, "eine Figur genuegt"
 
 
+def test_szenen_anzahl_alleine_erlaubt_fuenf_und_sechs_auch_ohne_szenenfolge(conn):
+    """Padua-Brainstorming-Umbau (02.10.2026): die Szenenfolge mit Titeln ist
+    seitdem ein Werkzeug auf Anfrage, keine Pflicht -- hat die Gruppe nur die
+    ANZAHL Szenen genannt, reicht das fuer das Angebot "Weiter zu
+    Schaerfung"/"Szenen als Geschichte" genauso wie eine echte Szenenzeile.
+    Phase 7 (Feinschliff) bleibt davon unberuehrt: sie braucht weiterhin
+    wirkliche Szenen mit Text (siehe Tests weiter unten)."""
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Eine Nacht im Treppenhaus")
+    repo.setze_figur(conn, 1, "Maria", "Naeherin")
+    repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.")
+    assert phasen.voraussetzungen(conn, 1)[5] is False, "noch keine Szenenangabe"
+    assert phasen.voraussetzungen(conn, 1)[7] is False
+
+    repo.setze_arbeitsstand(conn, 1, "szenen_anzahl", "5")
+
+    assert phasen.voraussetzungen(conn, 1)[5] is True
+    assert phasen.voraussetzungen(conn, 1)[6] is True
+    assert phasen.voraussetzungen(conn, 1)[7] is False, "keine echten Szenen"
+
+
 def test_fixierte_liste_ohne_setting_erlaubt_fuenf_nicht(conn):
     repo.setze_figur(conn, 1, "Maria", "Naeherin")
     repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", "2026-09-05T20:00:00")

@@ -358,6 +358,13 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- muessten, waeren sie ein Feld -- vor dem ersten Durchgehen ist
   -- ``fragen_aktuell`` noch leer.
   fragen_warte_auf       TEXT,
+  -- Die Anzahl Szenen (Padua-Brainstorming-Umbau, 02.10.2026): ein fixes
+  -- Feld von Phase 4, das die GRUPPE setzt -- der Bot fragt danach, wenn es
+  -- beim Abschliessen fehlt, schlaegt selbst aber nie eine Zahl vor
+  -- (``erkenner._wende_szenenanzahl_an``, art ``szenenanzahl_setzen``).
+  -- TEXT wie ``figuren_anzahl``, additiv nachgeruestet ueber
+  -- _migriere_fehlende_spalten.
+  szenen_anzahl          TEXT,
   geaendert_am           TEXT
 );
 

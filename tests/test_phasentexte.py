@@ -327,3 +327,36 @@ def test_phase_1_steigt_mit_dem_erstkontakt_einstieg_ein(conn, einst, tg, monkey
     assert auftraege[0] == kontext.einstieg_begriffe(conn, 1, einst)
     assert "Schliesse mit der Frage nach den Begriffen" in auftraege[0]
     assert "allererste" not in auftraege[0]
+
+
+def test_phase_4_steigt_mit_einer_modellgeschriebenen_anweisung_ein(
+    conn, einst, tg, monkeypatch
+):
+    """Padua-Brainstorming-Umbau (02.10.2026): derselbe Mechanismus wie bei
+    Phase 1 -- kein fester Text mit Kopfzeile und Checkliste, sondern ein
+    Gespraechszug mit einer Anweisung, die das Modell in eigenen Worten
+    beantwortet. Gilt gleich fuer Erst- und Wiedereintritt."""
+    from interview_theater import ablauf, kontext
+
+    auftraege = []
+    monkeypatch.setattr(
+        ablauf, "starte_auftrag",
+        lambda conn, tg, klm, e, chat_id, anweisung, *a: auftraege.append(anweisung) or object(),
+    )
+    knoepfe.eintritt_in_phase(conn, tg, object(), einst, 1, 4)
+
+    assert tg.gesendet == []
+    assert len(auftraege) == 1
+    assert auftraege[0] == kontext.einstieg_setting(conn, 1, einst)
+    assert "Arbeitsstand" in auftraege[0]
+    assert "wie viele Szenen" in auftraege[0]
+    assert "Interviews hier bewusst nicht benutzt" in auftraege[0]
+
+
+def test_phase_4_ohne_modell_bleibt_der_deterministische_rahmen(conn, einst, tg):
+    """Ohne ``klm`` (Tests, Skripte, ein Programmierfehler) bleibt der feste
+    Rahmen -- derselbe Rueckfall wie bei Phase 1."""
+    knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, 4)
+
+    assert tg.gesendet
+    assert tg.gesendet[0][1].startswith("▶️ Phase 4 von 7")

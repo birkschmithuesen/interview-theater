@@ -60,15 +60,14 @@ BEGRIFFE = (
     "Gut, ich habe eure drei Begriffe.\n\n"
     "VORSCHLAG BEGRIFFE:\nAnkommen\nArbeit\nNacht"
 )
+#: Seit dem Umbau auf "Fragen einzeln" (02.10.2026) traegt der EINE
+#: Vorschlag die Sensibilitaetspruefung mit -- beide Bloecke in einer
+#: Antwort, wie der neue Prompt es verlangt.
 FRAGEN = (
-    "Drei Fragen, die dazu passen:\n\n"
-    "VORSCHLAG FRAGEN:\n"
-    "Was war in deinem Koffer?\n"
-    "Wer hat auf dich gewartet?\n"
-    "Wann ist eine Stadt deine geworden?"
-)
-FRAGEN_WEICH = (
-    "Eine Frage habe ich weicher formuliert.\n\n"
+    "Hier sind Fragen dazu.\n\n"
+    "VORSCHLAG FRAGENAUSWAHL:\n"
+    "Ankommen: Was war in deinem Koffer?\n"
+    "Ankommen: Wer hat auf dich gewartet?\n\n"
     "VORSCHLAG FRAGEN WEICH:\n"
     "2 — Du musst nichts sagen, was zu nah ist. Ich frage trotzdem: "
     "war jemand da, als du angekommen bist?"
@@ -94,8 +93,7 @@ class LLMAttrappe:
     Teilstrings sind die Anweisungstexte aus ``knoepfe/texte.py``, woertlich."""
 
     REGELN = (
-        # Die Auftragszuege der Fragenkette (knoepfe/texte.ANWEISUNG_*).
-        ("Sieh dir diese Interviewfragen der Gruppe an", FRAGEN_WEICH),
+        # Der Auftragszug nach den Fragen (knoepfe/texte.ANWEISUNG_EROEFFNUNG).
         ("womit das Interview anfaengt und aufhoert", EROEFFNUNG),
         # Die Beitraege der Gruppe.
         ("Unsere Begriffe", BEGRIFFE),
@@ -112,11 +110,11 @@ class LLMAttrappe:
         # der JUENGSTE Treffer im Nutzertext: im Gespraechs-Prompt steht der
         # ganze Verlauf, und "Unsere Begriffe" stuende sonst auch dann noch
         # darin, wenn die Gruppe laengst nach Fragen fragt.
-        for merkmal, antwort in self.REGELN[:2]:
+        for merkmal, antwort in self.REGELN[:1]:
             if merkmal in nutzer:
                 return antwort
         bester, stelle = "Erzaehlt weiter.", -1
-        for merkmal, antwort in self.REGELN[2:]:
+        for merkmal, antwort in self.REGELN[1:]:
             pos = nutzer.rfind(merkmal)
             if pos > stelle:
                 bester, stelle = antwort, pos
@@ -368,17 +366,18 @@ def test_von_phase_eins_bis_zum_ersten_interview_nur_ueber_http(lauf):
     hing = _druecke(basis, token, speichern)
     assert "Ankommen" in _warte_auf(pfad, _feld("begriffe"), "begriffe gesetzt")
 
-    # (2) Phase 2: Fragen, weiche Fassungen, Eroeffnung -- drei Stufen,
-    # jede mit derselben Grundleiste (knoepfe.offene_art).
-    # Seit 02.10.2026: "Ja, speichern" geht direkt in die naechste Phase.
+    # (2) Phase 2: der Vorschlag (mit Sensibilitaetspruefung im selben Zug),
+    # der Ueberblick mit Richtungsfrage, dann Frage fuer Frage, dann
+    # Eroeffnung. Seit 02.10.2026: "Ja, speichern" geht direkt in die
+    # naechste Phase.
     _warte_auf(pfad, _phase(2), "Phase 2")
 
     _post(basis, token, "senden", {"text": "Macht uns drei Fragen dazu."})
-    hing = _druecke(basis, token, speichern, nach=hing)
+    hing = _druecke(basis, token, "Ja, einzeln durchgehen", nach=hing)
+    # Zwei vorgeschlagene Fragen (siehe FRAGEN oben) -- beide annehmen.
+    hing = _druecke(basis, token, "Annehmen", nach=hing)
+    hing = _druecke(basis, token, "Annehmen", nach=hing)
     _warte_auf(pfad, _feld("fragen"), "fragen gesetzt")
-
-    # Die Sensibilitaetspruefung laeuft von selbst an (im Thread).
-    hing = _druecke(basis, token, speichern, nach=hing)
     _warte_auf(pfad, _feld("fragen_weich"), "fragen_weich gesetzt")
 
     # Eroeffnung und Abschluss: EIN Block, ZWEI Felder

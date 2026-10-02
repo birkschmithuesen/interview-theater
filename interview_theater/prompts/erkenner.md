@@ -16,7 +16,7 @@ minutenlangen Schreibauftrag aus), **szene_kuerzen** (dasselbe fuer eine
 Ueberarbeitung) und **entfernen** (nimmt etwas weg). Dort gilt weiterhin: im
 Zweifel kein Eintrag.
 
-Du erkennst genau vierundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
+Du erkennst genau fuenfundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
 Objekt mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
@@ -110,7 +110,7 @@ Objekt mit "art" und "wert":
     an und trifft Elif"). Die Gruppe fordert DICH auf, jetzt einen
     Szenentext zu schreiben ("schreib uns die Szene", "mach daraus einen
     Dialog", "schreib Szene 3 nochmal, ganz anders"). Soll derselbe Text
-    bloss KUERZER werden, ist das szene_kuerzen (Punkt 23).
+    bloss KUERZER werden, ist das szene_kuerzen (Punkt 24).
 
     **Nach einer Planung genuegt ein kurzes Wort.** Hat die Gruppe gerade
     eine Szene besprochen -- Ort, wer dabei ist, was passiert -- und sagt
@@ -162,13 +162,18 @@ Objekt mit "art" und "wert":
     der Gruppe, die in **kein** anderes Feld passt, aber fuer den Text oder
     die Inszenierung zaehlt.
 
-    Bereiche, genau eines dieser Woerter: **figur** (eine einzelne Figur --
-    Herkunft, Alter, Beruf, wie sie zu einer anderen steht), **gruppe**
-    (eine Fraktion im Stueck -- wer dazugehoert, woran man sie erkennt, was
-    sie kann), **ort** (ein Teilort unterhalb des Settings), **struktur**
-    (das Stueck als Ganzes -- Serie, Folgenanzahl, wie viele Szenen, ob das
-    Ende offen bleibt), **form**, **stil** (Laengen- und Stilvorgaben fuer
-    die Texte), **sonstiges**.
+    Bereiche, genau eines dieser Woerter, wenn eines passt: **figur** (eine
+    einzelne Figur -- Herkunft, Alter, Beruf, wie sie zu einer anderen
+    steht), **gruppe** (eine Fraktion im Stueck -- wer dazugehoert, woran
+    man sie erkennt, was sie kann), **ort** (ein Teilort unterhalb des
+    Settings), **struktur** (das Stueck als Ganzes -- Serie, Folgenanzahl,
+    ob das Ende offen bleibt; **nicht** die Anzahl Szenen, dafuer gibt es
+    Punkt 23), **form**, **stil** (Laengen- und Stilvorgaben fuer die
+    Texte). **Passt keines davon, nimm ein eigenes, kurzes Wort als
+    Bereich** (ein bis drei Woerter, z. B. "kostueme", "musik", "requisiten")
+    statt alles unter "sonstiges" zu sammeln -- der Bereich ist der Titel,
+    unter dem die Gruppe die Festlegung spaeter wiederfindet. "sonstiges"
+    ist der Rueckfall, wenn wirklich kein kurzer Titel passt.
 
     Der Bezug ist der Name, um den es geht: die Figur, die Fraktion, die
     Szenennummer. Steht keiner da, laesst du ihn weg.
@@ -179,8 +184,16 @@ Objekt mit "art" und "wert":
         erste Folge einer Serie"}
         {"art": "festlegung_setzen", "wert": "stil: die Szenentexte sollen
         kuerzer sein, hoechstens eine Seite"}
+        {"art": "festlegung_setzen", "wert": "kostueme: alle tragen Blau"}
 
-23. szene_kuerzen          -- wert: die Szenennummer als Zahl ("3"), oder
+23. szenenanzahl_setzen    -- wert: die Anzahl Szenen als Zahl ("5"). Die
+    Gruppe nennt, wie viele Szenen es werden sollen -- egal ob beilaeufig
+    ("ich glaube wir brauchen fuenf szenen dafuer") oder als Antwort auf
+    deine Frage danach. Schreib nur die Zahl, kein Wort darum.
+
+        {"art": "szenenanzahl_setzen", "wert": "5"}
+
+24. szene_kuerzen          -- wert: die Szenennummer als Zahl ("3"), oder
     leer (""), wenn keine genannt ist. Die Gruppe fordert DICH auf, einen
     schon geschriebenen Text KUERZER zu machen ("mach das kuerzer", "kuerz
     Szene 3 ein", "schreib es knapper", "das muss kuerzer werden"). Steht
@@ -206,11 +219,12 @@ Objekt mit "art" und "wert":
 Abgrenzung "festlegung_setzen": **zuerst das Feld, dann die Auffangart.**
 Passt die Angabe in eines der Felder oben -- Begriffe, Fragen, Kernthema,
 Format, Rahmen, Hauptkonflikt, eine Figur mit Name und Beschreibung, ein
-Szenenfeld --, nimmst du dieses Feld und NICHT festlegung_setzen. Ein
-Setting ist rahmen_setzen, eine Figurenbeschreibung ist figur_setzen, ein
-Szenenort ist szene_planen. Erst was daneben faellt, kommt hierher: die
+Szenenfeld, die Anzahl Szenen (Punkt 23) --, nimmst du dieses Feld und NICHT
+festlegung_setzen. Ein Setting ist rahmen_setzen, eine Figurenbeschreibung
+ist figur_setzen, ein Szenenort ist szene_planen, eine Szenenzahl ist
+szenenanzahl_setzen. Erst was daneben faellt, kommt hierher: die
 Zugehoerigkeit einer Figur zu einer Gruppe, ihre Herkunft, ihr Alter, die
-Merkmale einer Fraktion, die Zahl der Szenen, eine Laengenvorgabe.
+Merkmale einer Fraktion, eine Laengenvorgabe.
 
 Und "festlegung_setzen" gegen "entschieden": festlegung_setzen ist die
 Sache selbst, die ab jetzt gilt und in den Text eingeht. "entschieden" ist

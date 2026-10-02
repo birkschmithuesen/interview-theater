@@ -16,7 +16,7 @@ from interview_theater import phasen, repo
 
 from interview_theater.knoepfe.texte import (
     ART_NOCH_NICHT, ART_PHASE, ART_SPEICHERN, PHASE_INTERVIEWS, PHASE_SCHAERFUNG,
-    PHASE_STUECKPRUEFUNG, PHASE_SZENEN, T,
+    PHASE_SETTING, PHASE_STUECKPRUEFUNG, PHASE_SZENEN, T,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _sende_knoepfe, _starte_auftrag,
@@ -45,6 +45,19 @@ def uebergang_nach_speichern(conn, tg, klm, e, chat_id: int) -> bool:
         tg.sende(chat_id, phasen.meldung(nummer))
     eintritt_in_phase(conn, tg, klm, e, chat_id, nummer)
     return True
+
+
+def schliesse_interviews_ab(conn, tg, klm, e, chat_id: int) -> bool:
+    """Phase 4, wenn die Materiallage es hergibt (alle Interviews verdichtet)
+    -- sonst False, ohne etwas zu senden. Teilt sich zwischen dem Knopf
+    "Interviews fertig" (``_wirkung_interviews_fertig``) und dem
+    Auto-Uebergang nach der letzten Verdichtung im Web-Kanal
+    (``aufnahme._interview_abschliessen``), damit beide Wege dieselbe eine
+    Nachrichtenfolge erzeugen (02.10.2026)."""
+    if uebergang_nach_speichern(conn, tg, klm, e, chat_id):
+        tg.sende(chat_id, T._TEXT_ARBEITSSTAND_HINWEIS)
+        return True
+    return False
 
 
 def _speicherleiste_offen(conn, chat_id: int) -> bool:
@@ -202,6 +215,34 @@ def _mit_vorspann(vorspann: str | None, text: str) -> str:
     return f"{vorspann}\n\n{text}" if vorspann else text
 
 
+def _sende_karte(tg, chat_id: int, nummer: int) -> None:
+    """Die Telefon-Organisationskarte dieser Phase, VOR der Eintrittsnachricht
+    (UX-Knoepfe-Karte, Abschnitt 5): wie die Telefone fuer diese Phase liegen
+    sollen, als Bild mit einem Satz dazu -- bei JEDEM Eintritt, auch einem
+    Wiedereintritt aus einer spaeteren Phase.
+
+    Deterministisch, kein Modellaufruf: das Bild liegt fertig unter
+    ``interview_theater/static/handys/`` (``scripts/handy_karten.py``), der
+    Satz kommt aus derselben Tabelle (``interview_theater.handykarten``).
+
+    Still bei fehlender Karte (keine Datei generiert, unbekannte Phasennummer)
+    und bei einem Kanal ohne ``sende_bild`` -- die Telegram-Attrappen in
+    Tests und Simulation (``simulation/attrappe.py``, ``tests/test_ablauf.py``)
+    bilden sie nicht nach, und ein zweiter Mechanismus nur fuer sie lohnt
+    nicht (dieselbe Abwaegung wie bei ``sende_datei`` dort)."""
+    from interview_theater import handykarten
+
+    datei = handykarten.pfad(nummer)
+    satz = handykarten.satz(nummer)
+    if datei is None or satz is None or not hasattr(tg, "sende_bild"):
+        return
+    try:
+        inhalt = datei.read_bytes()
+    except OSError:
+        return
+    tg.sende_bild(chat_id, datei.name, inhalt, satz)
+
+
 def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
     """Was beim Eintritt in eine Phase passiert -- fuer ALLE sieben gleich
     aufgebaut (06.09.2026, Birk).
@@ -223,6 +264,7 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
     hergekommen ist."""
     from interview_theater import phasentexte
 
+    _sende_karte(tg, chat_id, nummer)
     if nummer == PHASE_BEGRIFFE and klm is not None:
         # **Derselbe Einstieg wie beim Erstkontakt** (02.10.2026, Birk,
         # Padua): keine Kopfzeile, kein fester Satz -- der erste Impuls kommt
@@ -233,6 +275,18 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
 
         if _starte_auftrag(
             conn, tg, klm, e, chat_id, kontext.einstieg_begriffe(conn, chat_id, e),
+        ):
+            return
+    if nummer == PHASE_SETTING and klm is not None:
+        # Padua-Brainstorming-Umbau (02.10.2026): derselbe Mechanismus wie
+        # oben fuer Phase 1 -- kein fester Text, eine Anweisung, das Modell
+        # schreibt den Einstieg selbst. Gilt fuer Erst- UND Wiedereintritt
+        # (``kontext.einstieg_setting``). Ohne Modell bleibt der
+        # deterministische Rahmen (Tests, Skripte).
+        from interview_theater import kontext
+
+        if _starte_auftrag(
+            conn, tg, klm, e, chat_id, kontext.einstieg_setting(conn, chat_id, e),
         ):
             return
     kopf = phasentexte.eintritt(conn, chat_id, nummer)

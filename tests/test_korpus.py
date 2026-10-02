@@ -713,7 +713,10 @@ def test_en_keine_namen_aus_dem_projektumfeld(en_faelle):
 
 
 def test_deutscher_korpus_unveraendert_gezaehlt(erkenner_faelle):
-    """D8: der deutsche Korpus bleibt, wie er ist (150 Faelle, 53 negativ,
-    gemessen 30.09.2026) -- seine FP=0-Zusage haengt an genau diesen Faellen."""
-    assert len(erkenner_faelle) == 150
-    assert sum(1 for f in erkenner_faelle if not f["erwartet"]) == 53
+    """D8: der deutsche Korpus bleibt, wie er ist (153 Faelle, 54 negativ,
+    gemessen 02.10.2026 -- davor 150/53 am 30.09.2026) -- seine FP=0-Zusage
+    haengt an genau diesen Faellen. Drei Faelle (sa01-sa03) kamen beim
+    Padua-Brainstorming-Umbau dazu: die neue Art ``szenenanzahl_setzen``
+    braucht wie jede andere mindestens zwei Positiv- und einen Negativfall."""
+    assert len(erkenner_faelle) == 153
+    assert sum(1 for f in erkenner_faelle if not f["erwartet"]) == 54

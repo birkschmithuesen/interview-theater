@@ -393,6 +393,11 @@ PARAMETER_BESCHRIFTUNG = {
     "Figuren": "Figuren", "Geschichte": "Geschichte",
     "Szenenfolge": "Szenenfolge", "Zuordnungen": "Zuordnungen",
     "Szenentexte": "Szenentexte", "Stueckpruefung": "Stueckpruefung",
+    # Nicht aus PARAMETER, sondern aus ``roadmap._GATE`` (UX-Knoepfe
+    # Abschnitt 4): die Voraussetzung von Phase 4, die keine Aufgabe einer
+    # Phase ist, sondern der zweite Teil ihrer Voraussetzung
+    # (``phasen.voraussetzungen[4]``, "keine offene Auswertung mehr").
+    "Offene Auswertungen": "Offene Auswertungen",
 }
 
 

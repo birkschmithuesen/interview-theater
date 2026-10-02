@@ -397,12 +397,16 @@ class _ErkennerAttrappe:
         return {"aenderungen": self.aenderungen}
 
 
-def test_die_notiert_meldung_traegt_die_grundleiste(erfunden, tg, einst):
-    """Live-Befund 05.09.2026 23:37: der Erkenner-Nachlauf laeuft NACH der
-    Gespraechsantwort. Speicherte er einen Ping-Pong-Wert, hing die
-    Grundleiste unter der Antwort davor -- unter einem Text, der den Wert noch
-    gar nicht kannte -- und die Nachricht mit dem Wert stand nackt da. Jetzt
-    haengt sie dort, wo der Wert steht."""
+def test_geschichte_setzen_bekommt_die_festgelegt_zeile_und_nur_undo(
+    erfunden, tg, einst
+):
+    """Padua-Brainstorming-Umbau (02.10.2026): Phase 4 speichert automatisch,
+    ohne Ping-Pong-Grundleiste -- die 📌-Zeile steht dort, wo der Wert steht,
+    und darunter genau EIN Knopf (Rueckgaengig). Vorher (bis Karte U) hing
+    hier eine volle Grundleiste ("Ja, speichern"/"Nein, nochmal aendern"),
+    das Verhalten, das der urspruengliche Live-Befund vom 05.09.2026 23:37
+    pruefte: die Knoepfe haengen an der Nachricht, die den Wert kennt, nicht
+    an der Antwort davor."""
     from interview_theater import erkenner
 
     repo.merke_nachricht(
@@ -416,12 +420,8 @@ def test_die_notiert_meldung_traegt_die_grundleiste(erfunden, tg, einst):
     erkenner.laufe(klm, tg, erfunden, einst, 1)
 
     assert repo.hole_arbeitsstand(erfunden, 1)["geschichte"] == "Zwei verlieren sich."
-    assert "Geschichte: Zwei verlieren sich." in tg.knoepfe[-1][1]
-    # Seit Karte U (01.10.2026) steht der Undo-Knopf als ruhige letzte Zeile
-    # unter der Grundleiste -- die Grundleiste selbst ist unveraendert.
-    assert tg.beschriftungen == [
-        "Ja, speichern", "Nein, nochmal aendern", "Rueckgaengig",
-    ]
+    assert "📌 Festgelegt: Geschichte — Zwei verlieren sich." in tg.knoepfe[-1][1]
+    assert tg.beschriftungen == ["Rueckgaengig"]
 
 
 def test_ohne_offene_art_bleibt_die_meldung_ohne_grundleiste(erfunden, tg, einst):

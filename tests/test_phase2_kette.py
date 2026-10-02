@@ -115,16 +115,6 @@ def test_ein_fehlschlag_beim_loeschen_reisst_den_zug_nicht_mit(tg):
         pass  # kein Fehler nach aussen
 
 
-def test_die_sensibilitaetspruefung_traegt_ihre_arbeitszeile(
-    conn, tg, einst, auftraege,
-):
-    _mit_fragen(conn)
-
-    knoepfe.starte_sensibilitaetspruefung(conn, tg, object(), einst, 1)
-
-    assert auftraege[0][1] == knoepfe.TEXT_ARBEIT_SENSIBILITAET
-
-
 def test_der_eroeffnungsauftrag_traegt_seine_arbeitszeile(
     conn, tg, einst, auftraege,
 ):
@@ -136,36 +126,6 @@ def test_der_eroeffnungsauftrag_traegt_seine_arbeitszeile(
 
 
 # --- 2. Die Invariante: nach jedem "Gefaellt uns" folgt eine Aktion --------
-
-
-def test_nach_den_fragen_folgt_die_sensibilitaetspruefung(
-    conn, tg, einst, auftraege,
-):
-    phasen.setze(conn, 1, 2, "befehl")
-    knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1,
-        "Hier sind zehn.\n\nVORSCHLAG FRAGENAUSWAHL:\n"
-        + "\n".join(f"Frage {n}?" for n in range(1, 11)),
-    )
-
-    knoepfe.nimm_fragennummern(conn, tg, None, einst, 1, "2, 5 und 9")
-
-    assert len(auftraege) == 1
-    assert "VORSCHLAG FRAGEN WEICH:" in auftraege[0][0]
-
-
-def test_nach_den_einleitungen_folgt_der_eroeffnungsauftrag(
-    conn, tg, einst, auftraege,
-):
-    _mit_fragen(conn)
-    knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, "VORSCHLAG EINLEITUNGEN:\n1 — Du musst nicht antworten."
-    )
-
-    _druecke(conn, tg, einst, "Ja, speichern")
-
-    assert len(auftraege) == 1
-    assert "VORSCHLAG EROEFFNUNG:" in auftraege[0][0]
 
 
 def _mit_eroeffnungsvorschlag(conn, tg):
@@ -206,14 +166,17 @@ def test_mit_der_eroeffnung_kommt_der_leitfaden_und_sein_knopf(
 
 
 def test_die_kette_endet_nie_stumm(conn, tg, einst, auftraege):
-    """Die Invariante als ein Test ueber die ganze Kette: nach JEDEM
-    "Ja, speichern" in Phase 2 steht entweder ein Auftrag an oder
-    eine Nachricht mit Knoepfen -- nie nichts."""
-    _mit_fragen(conn)
+    """Die Invariante als ein Test ueber die ganze Kette (seit 02.10.2026
+    "Fragen einzeln"): sind alle Fragen entschieden, steht sofort der
+    Eroeffnungsauftrag an -- und nach dessen "Ja, speichern" direkt Phase 3.
+    Nie Stille dazwischen."""
+    phasen.setze(conn, 1, 2, "befehl")
     knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, "VORSCHLAG EINLEITUNGEN:\n1 — Du musst nicht antworten."
+        conn, tg, 1,
+        "Hier eine.\n\nVORSCHLAG FRAGENAUSWAHL:\nHeimat: Frage 1?",
     )
-    _druecke(conn, tg, einst, "Ja, speichern")
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    knoepfe.entscheide(conn, tg, None, einst, 1, 1, "ja")
     assert len(auftraege) == 1, "Schritt 1: Eroeffnungs-Auftrag"
 
     knoepfe.sende_mit_speicherleiste(

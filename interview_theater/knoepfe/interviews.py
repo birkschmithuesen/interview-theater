@@ -17,10 +17,10 @@ from interview_theater import phasen, repo, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_AUFNAHME, ART_AUSWERTEN, ART_AUSWERTEN_ALLE, ART_HILFE,
-    ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
-    ART_OHNE_KNOPF_WEITER, ART_STAND, ART_STT_SPRACHE, ART_TEIL_FERTIG,
-    ART_TEIL_WEITER, ART_TRANSKRIPT, ART_ZUSAMMENFASSUNG, PHASE_INTERVIEWS,
-    STT_KNOEPFE, T, log,
+    ART_INTERVIEWS_FERTIG, ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA,
+    ART_OHNE_KNOPF_NEIN, ART_OHNE_KNOPF_WEITER, ART_STAND, ART_STT_SPRACHE,
+    ART_TEIL_FERTIG, ART_TEIL_WEITER, ART_TRANSKRIPT, ART_ZUSAMMENFASSUNG,
+    PHASE_INTERVIEWS, STT_KNOEPFE, T, log,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _nimm_alte_leiste_ab, _phasenknopf, _sende_knoepfe,
@@ -299,51 +299,83 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
       Auswertung gehen koennen.
 
     Kein Modellaufruf, alles aus der Datenbank -- wie jedes Angebot hier.
-    Liefert die ``message_id`` der Angebotsnachricht."""
+    Liefert die ``message_id`` der Angebotsnachricht.
+
+    Auf dem Web-Kanal entfaellt diese ganze Telegram-Leiste (06.10.2026,
+    Phase 3 Web-UX) -- an ihre Stelle tritt EIN Knopf, "Interviews fertig"
+    (02.10.2026): sobald mindestens ein Interview existiert und die Gruppe
+    noch in Phase 3 steht. Seine Wirkung (``wirkung._wirkung_interviews_fertig``)
+    schliesst direkt nach Phase 4 weiter, wenn alle Interviews verdichtet
+    sind, oder merkt den Wunsch fuers naechste Mal
+    (``arbeitsstand.interviews_fertig_wunsch_seit``). Die Web-Sperre betrifft
+    **nur die Leiste** -- der Merkposten ``phase_angeboten`` wird unten
+    unabhaengig vom Kanal abgeraeumt (Review-Fix: eine fruehere Fassung liess
+    ihn mit einem fruehen ``return`` auf dem Web-Kanal stehen, und das
+    proaktive "Weiter zu Phase N?" waere dort nach dem ersten Angebot nie
+    wieder gekommen)."""
+    from interview_theater import aufnahme as aufnahme_modul  # lokal: Oberflaeche darf Fachlogik lesen
+
+    ist_web = aufnahme_modul.ist_web_gruppe(conn, chat_id)
+
     knoepfe: list[tuple[str, str]] = []
-    if kopf_id is not None:
-        knoepfe.extend(_interviewknoepfe(conn, chat_id, kopf_id))
-    # "Naechste Aufnahme" statt "Aufnahme starten": nach einem beendeten
-    # Interview ist genau das gemeint, und der Wortlaut sagt es. Laeuft wider
-    # Erwarten schon wieder eine Aufnahme (ein Knopf aus einer alten
-    # Nachricht), heisst er wie ueberall "Aufnahme beenden" -- die Wirkung ist
-    # in beiden Faellen der Umschalter aus ``/aufnahme``.
-    #
-    # Seit 05.09.2026 nur noch, wenn die Phase es hergibt
-    # (``_aufnahme_anbieten``): ist die Gruppe waehrend des Interviews schon
-    # auf 4 (Kernthema & Figuren) weitergegangen, ist "Naechste Aufnahme"
-    # kein Angebot mehr, sondern ein Rueckschritt. "Auswerten" und "Weiter zu
-    # Phase N" bleiben davon unberuehrt.
-    if _aufnahme_anbieten(conn, chat_id, nur_phase_3=True):
-        knoepfe.append(
-            (
-                T._TEXT_NAECHSTE_AUFNAHME_KNOPF
-                if not repo.ist_interviewmodus_an(conn, chat_id)
-                else T._TEXT_AUFNAHME_BEENDEN,
-                _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
+    if not ist_web:
+        if kopf_id is not None:
+            knoepfe.extend(_interviewknoepfe(conn, chat_id, kopf_id))
+        # "Naechste Aufnahme" statt "Aufnahme starten": nach einem beendeten
+        # Interview ist genau das gemeint, und der Wortlaut sagt es. Laeuft
+        # wider Erwarten schon wieder eine Aufnahme (ein Knopf aus einer
+        # alten Nachricht), heisst er wie ueberall "Aufnahme beenden" -- die
+        # Wirkung ist in beiden Faellen der Umschalter aus ``/aufnahme``.
+        #
+        # Seit 05.09.2026 nur noch, wenn die Phase es hergibt
+        # (``_aufnahme_anbieten``): ist die Gruppe waehrend des Interviews
+        # schon auf 4 (Kernthema & Figuren) weitergegangen, ist "Naechste
+        # Aufnahme" kein Angebot mehr, sondern ein Rueckschritt. "Auswerten"
+        # und "Weiter zu Phase N" bleiben davon unberuehrt.
+        if _aufnahme_anbieten(conn, chat_id, nur_phase_3=True):
+            knoepfe.append(
+                (
+                    T._TEXT_NAECHSTE_AUFNAHME_KNOPF
+                    if not repo.ist_interviewmodus_an(conn, chat_id)
+                    else T._TEXT_AUFNAHME_BEENDEN,
+                    _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
+                )
             )
-        )
-    # Solange ein beendetes Interview ohne Verdichtung offen ist, gibt
-    # ``phasen.naechste_moegliche`` die 4 nicht her (Phase-4-Sperre) -- an
-    # ihre Stelle tritt der Weg dorthin: alle offenen auswerten.
-    alle = _auswerten_alle_knopf(conn, chat_id, ausser=kopf_id)
-    if alle is not None:
-        knoepfe.append(alle)
-    # Der Leitfaden, solange die Gruppe noch Interviews fuehrt: zwischen zwei
-    # Gespraechen ist genau der Moment, in dem jemand nachsehen will, wie der
-    # Einstieg nochmal ging (06.09.2026).
-    if _aufnahme_anbieten(conn, chat_id, nur_phase_3=True):
-        leitfadenknopf = _leitfaden_knopf(conn, chat_id)
-        if leitfadenknopf is not None:
-            knoepfe.append(leitfadenknopf)
+        # Solange ein beendetes Interview ohne Verdichtung offen ist, gibt
+        # ``phasen.naechste_moegliche`` die 4 nicht her (Phase-4-Sperre) --
+        # an ihre Stelle tritt der Weg dorthin: alle offenen auswerten.
+        alle = _auswerten_alle_knopf(conn, chat_id, ausser=kopf_id)
+        if alle is not None:
+            knoepfe.append(alle)
+        # Der Leitfaden, solange die Gruppe noch Interviews fuehrt: zwischen
+        # zwei Gespraechen ist genau der Moment, in dem jemand nachsehen
+        # will, wie der Einstieg nochmal ging (06.09.2026).
+        if _aufnahme_anbieten(conn, chat_id, nur_phase_3=True):
+            leitfadenknopf = _leitfaden_knopf(conn, chat_id)
+            if leitfadenknopf is not None:
+                knoepfe.append(leitfadenknopf)
     # **Nach JEDER Auswertung kommt das Angebot erneut** (06.09.2026, Birk
     # 10:45). Der Merkposten ``phase_angeboten`` haelt sonst fest, dass die
     # Stufe schon einmal angeboten wurde, und ab dem zweiten Interview stand
     # unter der Auswertung kein Weg mehr nach vorn -- die Gruppe im Raum
     # sah nur noch "Naechstes Interview". Hier wird er deshalb abgeraeumt:
-    # das Angebot haengt an der Auswertung, nicht am Merkposten.
+    # das Angebot haengt an der Auswertung, nicht am Merkposten. Gilt auf
+    # beiden Kanaelen gleich: der Gespraechs-Prompt bietet die naechste
+    # Phase unabhaengig von der hier gezeigten Leiste an.
     if kopf_id is not None and phasen.aktuelle(conn, chat_id) == PHASE_INTERVIEWS:
         phasen.vergiss_angebot(conn, chat_id)
+    if ist_web:
+        # Der eine Web-Knopf (02.10.2026): nur in Phase 3 und nur, wenn es
+        # ueberhaupt schon ein Interview gibt -- vorher gibt es nichts
+        # abzuschliessen. Die alte Leiste bleibt leer (Task 2).
+        if phasen.aktuelle(conn, chat_id) == PHASE_INTERVIEWS and repo.zaehle_interviews(conn, chat_id) > 0:
+            _nimm_alte_leiste_ab(conn, tg, chat_id, ART_INTERVIEWS_FERTIG)
+            knopf_id = repo.lege_knopf_an(conn, chat_id, ART_INTERVIEWS_FERTIG, None)
+            return _sende_knoepfe(
+                conn, tg, chat_id, text,
+                [(T._TEXT_INTERVIEWS_FERTIG_KNOPF, _daten(knopf_id))],
+            )
+        return _sende_knoepfe(conn, tg, chat_id, text, [])
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
         knoepfe.append(phasenknopf)
@@ -400,9 +432,16 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
     else:
         # Kein Phasenknopf, aber offene Auswertungen: dann ist DAS der
         # naechste Schritt (Phase-4-Sperre) -- an derselben Stelle.
-        alle = _auswerten_alle_knopf(conn, chat_id)
-        if alle is not None:
-            knoepfe.insert(1 if _aufnahme_anbieten(conn, chat_id) else 0, alle)
+        #
+        # Auf dem Web-Kanal entfaellt dieser Knopf wie jeder andere alte
+        # Telegram-Interviewknopf (06.10.2026, Phase 3 Web-UX) -- der Handler
+        # (ART_AUSWERTEN_ALLE) bleibt unveraendert, nur das Angebot hier.
+        from interview_theater import aufnahme as aufnahme_modul  # lokal: Oberflaeche darf Fachlogik lesen
+
+        if not aufnahme_modul.ist_web_gruppe(conn, chat_id):
+            alle = _auswerten_alle_knopf(conn, chat_id)
+            if alle is not None:
+                knoepfe.insert(1 if _aufnahme_anbieten(conn, chat_id) else 0, alle)
     return _sende_knoepfe(conn, tg, chat_id, text, knoepfe)
 
 

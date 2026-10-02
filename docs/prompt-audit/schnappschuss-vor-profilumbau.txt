@@ -1,3 +1,4 @@
+36c41d71030446cb9e304ae805a055b57d8c9a8b52b3ec41fd3ada9e1703e24d     2395  prompt buehnenkarte
 374b64c70b4dbd4006a365ed53d3201e06730d49c397d92489a9e2baac8eb2d4     3987  prompt dramaturgie/a10_materialtreue
 c0c9ee603f43c7f29e762e55ed3f73c3698b93e72d8a12a25599c4ef1e8e9bfc     4059  prompt dramaturgie/a11_stueckvorgaben
 7f83b5257e47283fe6a2c85108effb74a1cf3f01efdba3ec0eac37e201a90b9e     2035  prompt dramaturgie/a2_kausalkette
@@ -5,7 +6,7 @@ c0c9ee603f43c7f29e762e55ed3f73c3698b93e72d8a12a25599c4ef1e8e9bfc     4059  promp
 2a24b65a937bfeba10269ae623d3576ed0ec8f7430c49e71d3439ecb86c04a31     4054  prompt dramaturgie/a9_fokus
 7f386591b34b0534a0e68be576424d0a9c81bf9e101240613a613cc8361473bc     2213  prompt dramaturgie/b1_wendung
 3f9017a15037d2069d48a1f32b6063e5b712b5c91a85f209e03fcf35d58777ab     1761  prompt dramaturgie/c1_stimme
-32af6e5d8df3318c287cbe5c924a11a443892bd022e61db96f622e30d231f446    35139  prompt erkenner
+9f5a9dfd736f0c3878ee788d6290d48fc669d505e16d44cb835e862b6f768397    35991  prompt erkenner
 47003f2d2abc0105d93dbec72353356865b63468742e0b524ad10f1792fa4f56     2813  prompt formen/chor
 35f64ce1861341d18bf042abccc82113c94e868b3d0fc46f6086af0c559a04cb     8373  prompt formen/dialog
 7dd96cc8436bd00c7f2249fbb0f3f15a3d5e4f33ae6478e54340b3d22b89fa2f     2685  prompt formen/lied
@@ -15,11 +16,11 @@ da99512c611757548b454615564c0a13f026bd7788b29a112bc29e0b06b276e0     2652  promp
 b5d34e7dae8bf9435972ae4ca5306469953c932b4c5bbf4151c101f62a47d266     5070  prompt journal
 9990b352b3a2247dca6bdfa6b1303b5f84f4335da83896880a25c22f0b81340a     2483  prompt kernzitate
 286467ca51e975db964615dc5497a1a061f4f6c26ded17819adad21678e306dd     2895  prompt phasen/1
-c72c6e5c7bfa493da22a03ee2cf0915c1af17b63f2e5ea9abfd130a397cae307    10201  prompt phasen/2
-1e0000468f4a9f56376e5cdcd00386e93e9b7fa0fdc9ffd88d1a00c94c9c5250     4123  prompt phasen/3
-d7376a4b84ac9b4c66a4667ad35aa53087668202fc335efe5a4be973dae150ac     9589  prompt phasen/4
+8b779be971534cb98b863f9a91b14c7b72df879c7a61794591bd4a10e4332102    10395  prompt phasen/2
+44490aad580a6d86cce12a6ee0b0d98b7ad041f7d5bed1aea7d72bb6a0e3c4e1     3928  prompt phasen/3
+f815a4ace7538eb83f0cbd6ab506fc1896ef8b9f175a05058ea695d07ff92ed0     8510  prompt phasen/4
 510e420f9c88c930182b11f72004d6f1958a646f14e16ea3fbf7015917923afd     3408  prompt phasen/5
-38558524c0bac37a200abd3135cee9afe078cf2710dcbf0af56341902eeca496     6539  prompt phasen/6
+8efae3e495451d6fd82c6a61d7726ea86ecf8b478339e703c5a94ee0c04d1420     6572  prompt phasen/6
 6737ef7cd2257a6a2120f64fa700e6968a663b177b04b6162caf38dc258d2e90     5914  prompt phasen/7
 0f05413d8eb5f519b736cc4f7b7757c94a5dfe5bce24171a360e10488d2c73b2      641  prompt projekt
 656db44e318699ad3990a97a846151c78a63513abddf0166e37d2c46fa5f6d46     1264  prompt rahmen
@@ -38,11 +39,11 @@ ce75dd90397aca82440c77f0c9638cab6e69f168317a276b77f9483129904d6d     7764  promp
 882f7fc2e425ab79a27c141f70e5551d9c2357b233cb8d7184e7e2f8d417458a     3259  prompt verdichter
 84bc8ec5874117e9c85c44cb67e4cfc2b8908b9b60646a6ceccfbf828063e2bc    23974  anweisungen.system(phase=None)
 0bdd3a81328bf9afae2702319a289a93852dbacd42eb85f85263735b39a53065    26870  anweisungen.system(phase=1)
-2e55a5de453e5b89a9d01e7fd0c42f117b74bba3471091119a7ba9ec701ac901    34176  anweisungen.system(phase=2)
-df77e210ee15fa981f44ded94a62284d7b703d070a5728ddfcdd71773b734aba    28098  anweisungen.system(phase=3)
-2073d7bf10e9e46b98e0dca32d1f0f7bced7effc2dd401f8edb608f63ec95398    33564  anweisungen.system(phase=4)
+33d5b8fbf0b7893840b49762ff8da91e0c19871bc62e7eedac9a70985db3f858    34370  anweisungen.system(phase=2)
+eddad03d0b85c7e9451e51ed8d76b032c3ef00e3e2f8f3f47fa730b2254f3e02    27903  anweisungen.system(phase=3)
+b295860febb9cec8147e4a8ef5e7b5001ddf52f66978d62285caee1b4900e267    32485  anweisungen.system(phase=4)
 e8b012e3a2adf86fdd08d8b81359f59b82ca410a462b86deddc5c966016ea548    27383  anweisungen.system(phase=5)
-c348f87b7e75bd65ad8a6df00bded4ec3c9cbe12a444566cba34954999a26a0d    30514  anweisungen.system(phase=6)
+1acf23bedc458a6faa1268fdd620b537ddb18fdfd6506cfa56315b99c6526340    30547  anweisungen.system(phase=6)
 5de3ad229a7d39847a4b51cdaa306ba632ec6baf4ee031958a8e92363279b75e    29889  anweisungen.system(phase=7)
 f5b24852955b52ea13352293fb24a3a080ccfdb31609ff24384de1087439029c    11618  szene.systemanweisung(prosa)
 f5b24852955b52ea13352293fb24a3a080ccfdb31609ff24384de1087439029c    11618  szene.systemanweisung(prosa, schlagabtausch)
@@ -68,15 +69,15 @@ b3fb91cd6205a78f187d9e9acce29e5386e8dbd0c0c13ff44c651f37a0929353    30909  szene
 ecde60030603d98576381c2e1fa7e6bb5cc29b4e459b8d1db71969055538bdad    31322  szene.systemanweisung(rap, schlagabtausch)
 b4bee5f332d0b2deeaf20100c731c436b7304dc00e153fd8fe5a4ab06d9f99b4    30876  szene.systemanweisung(rap, litanei)
 9f0ba9e0e22750357953ecf20a7b5301e1286614c51e73891fd81afb48f10187    26213  szene.systemanweisung(rap, herkules)
-ff4161b9a25ebabbaa33b285129a5e74dc2a3f7836b9a4d55900547627f37256     7551  szenenfolge.systemanweisung(3)
-fe6ab5c12830213ab905b04902ff064a83298403d01a6e6e9e1fe6070f86856e    11070  szenenfolge.systemanweisung_geschichte(3)
-39cfddcc2d2ff5f4c10cbdee33a877f0a769a48c54a1e24e3db51dcbbf71253d     7551  szenenfolge.systemanweisung(4)
-3ba6178b59cf95e4eba0743f55e1979238af02f7a1ca16fc03966d873a466b42    11070  szenenfolge.systemanweisung_geschichte(4)
-e68b051b3d0ca066d9132d4f4accf3589cc2045dab403612370df4cd8a0a6a15     7551  szenenfolge.systemanweisung(5)
-90fc58da74ea24b458115b0c4e0bec7f6506ddfb9fe38cede6e43ebdc9d5d414    11070  szenenfolge.systemanweisung_geschichte(5)
-a74ae53ad26b175c2a43531ee89ad63a72b32d7f293a78e14bacd066d1b5bf51     7551  szenenfolge.systemanweisung(6)
-9d7e2e1fe4f9a1c1cb4d0f9a9d63cf91aeeb6fe7a5426d06a84ffd6cd26334f9    11070  szenenfolge.systemanweisung_geschichte(6)
-611e3c6f6cabd036947f76edb902617a83069b2ac72088181dc690d18ef285c6    10708  szenenfolge.systemanweisung_geschichte_szenen
+726a981aba9b7047d3fa19cfa91304e92c320dd56bfede6542692f59adc7947f     7584  szenenfolge.systemanweisung(3)
+e7e0d3731b3a1d34095299e447688caedc2d84d9842f7feedd3cca2a68a733cf     9991  szenenfolge.systemanweisung_geschichte(3)
+51ed894b3a53b5dd7b595b89bb1b70a758788d28ab44b18190c9ce55f75348dd     7584  szenenfolge.systemanweisung(4)
+9d46366eef7d9f75f8336de90c6031557f4b183a2f6dcf8d53c4fbbba3a64d45     9991  szenenfolge.systemanweisung_geschichte(4)
+bbe30e224a1048b8ceb06d29ecda7c3f495f9c170b32ce344ebb42692e93cdc9     7584  szenenfolge.systemanweisung(5)
+917e6da255ee8fdbbc156be274fec826661f0c393845974b1f99b124d39e7a12     9991  szenenfolge.systemanweisung_geschichte(5)
+27e90a47772bb1bee572611fb7e5fba359652a458923419142d4a1c0303218ae     7584  szenenfolge.systemanweisung(6)
+d5de6044f2ff4e12307c55fac05ce3563ec6af8face87071aafc7ff760f5ac0a     9991  szenenfolge.systemanweisung_geschichte(6)
+95fe38c40c5c3a45920d49811b4ea7e12ba0867ac99edb56dc91241dde48be53     9133  szenenfolge.systemanweisung_geschichte_szenen
 62e464646be9bbf7d3b8f4222f62e35b0e26e1cb814d5532d7f15f0bbea00724      465  szenenfolge.ANWEISUNG_FELDER
 81d5b2384e332d77ad32e48938eb8e54603a46b3f7f098fb0ffdb57a08e1412d    12839  kurzgeschichte.systemanweisung()
 bdf970f5b8ac9e5dc1da4d7dbf639d525f9ce6cbe483db943a6f5dfc7fc4a6bb       44  szene.FORMEN
@@ -112,11 +113,11 @@ c594f19140c9a6432ec8776e974db2ce9d17394821194c113c36dbc4e752b23e      523  phase
 4a35aa6b48eb699299167fc94d88745fda5b173efaa620362625552dd0ba7db3       17  leitfaden.UEBERSCHRIFT_ABSCHLUSS
 63ebe0dd851b606687484d2ca0bf69962c1b60d9e27994fd969cba6c8fde39d7       76  leitfaden.TEXT_LEER
 236cfbcfaec883465a9ec74794bf864d673b2cd632ce0c72b109387c27425132      211  knoepfe.ANWEISUNG_DUKTUS
-09dc8aa932d42190a7d2c81731c16ccfb352e0e0a3b88a979f4cd4ca6b90a5f5     1505  knoepfe.ANWEISUNG_EINLEITUNGEN
 75ac3ccc5a962d7a00dac7ec61081fe035c923aad846550bb2550439b4fb56f1     1051  knoepfe.ANWEISUNG_EROEFFNUNG
 d4a6ddb4db6998d75a797ad59b8b4718b7b056aa27e816098e20b0ff0eb799b9      394  knoepfe.ANWEISUNG_FIGURENZAHL
-c70f071b23084fcc38b2fabeada48a406101c4255427e491bff083fbaa9d51ba      268  knoepfe.ANWEISUNG_FRAGEN_ANDERE
+8f9c3e8cd1472e09bbafc4cb6f5323fbe5fdf016943bc4d279e85cc8ea1c9ef4      937  knoepfe.ANWEISUNG_FRAGEN_ANDERE
 e9f7b3e60a5704a7fe5e9700f8c5a926622fffb9537178dc553f9a34a1faf890      207  knoepfe.ANWEISUNG_FRAGEN_EIGENE
+f483fa3dd2b600423abb53baf25a42aaf6601194a10553654c5dc0dd127ae04c      865  knoepfe.ANWEISUNG_FRAGE_SCHAERFEN
 8123dc843068f32f2e4bcf0ecd75d2ba50fa6ee026c051536f39f15a53b03e38      336  knoepfe.ANWEISUNG_KERNFRAGE
 9881aa753732de802a7534ff200d6e9a3c61ed52e2e4f898bcffa286f8946f3b      220  knoepfe.ANWEISUNG_KERNTHEMA
 14a47b35cf8302d050cc83203d725acd3f6c5f3b0d0eee9b129d427d1d1e9d26      127  knoepfe.ANWEISUNG_NAMEN

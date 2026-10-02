@@ -24,10 +24,12 @@ from interview_theater.knoepfe.texte import (
     ART_FIGUR_DUKTUS_MENU, ART_FIGUR_ENTFERNEN, ART_FIGUR_INTERVIEW,
     ART_FIGUR_INTERVIEW_MENU, ART_FIGUR_NAME, ART_FIGUR_NAME_MENU,
     ART_FIGUR_PASST, ART_FIGUR_STIL, ART_FIGUR_STIL_FREI, ART_FRAGEN_ANDERE,
-    ART_FRAGEN_EIGENE, ART_FRAGEN_UEBERNEHMEN, ART_FRAGE_WAHL,
+    ART_FRAGEN_EIGENE, ART_FRAGEN_EINZELN, ART_FRAGEN_UEBERNEHMEN,
+    ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
+    ART_FRAGE_WAHL,
     ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
-    ART_HILFE, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
+    ART_HILFE, ART_INTERVIEWS_FERTIG, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
     ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
     ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
     ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
@@ -48,8 +50,8 @@ from interview_theater.knoepfe.basis import (
     _speichere, _starte_auftrag, offene_art,
 )
 from interview_theater.knoepfe.fragen import (
-    _auswahlfragen, _speichere_eroeffnung, starte_eroeffnung,
-    starte_sensibilitaetspruefung,
+    _speichere_eroeffnung, entscheide, frage_waehlt_schaerfen,
+    frage_warten_auf_richtung, starte_durchgehen, starte_eroeffnung,
 )
 from interview_theater.knoepfe.figuren import (
     _biete_interviews, _entwurfszeilen, _ersetze_namen, _interviewkoepfe,
@@ -540,10 +542,16 @@ def _wirkung_fassungen(conn, d: Druck) -> str:
 
 
 def _wirkung_speichern(conn, d: Druck) -> str:
-    """"Gefaellt uns, weiter". Vier Wege, je nach der Art im ``wert``: die
-    Eroeffnung geht in ZWEI Felder, die Einleitungen tragen die Kette weiter,
-    Kernthema/Kernfrage haben ihre eigene Kette, alles andere ist der
-    Regelfall."""
+    """"Gefaellt uns, weiter". Drei Wege, je nach der Art im ``wert``: die
+    Eroeffnung geht in ZWEI Felder, Kernthema/Kernfrage haben ihre eigene
+    Kette, alles andere ist der Regelfall.
+
+    Die Fragen selbst laufen seit dem 02.10.2026 nicht mehr hierueber --
+    ``fragen`` wird ausschliesslich am Ende der Frage-fuer-Frage-Stufe
+    gesetzt (``knoepfe.fragen._schliesse_fragen_ab``); ein "Gefaellt uns,
+    weiter" mit ``gespeicherte_art == "fragen"`` kann deshalb nur noch aus
+    einer alten, vor dem Umbau verschickten Nachricht kommen und faellt in
+    den Regelfall (``_speichere`` kennt die Art weiterhin)."""
     roh = d.wert
     gespeicherte_art = roh.partition(TRENNER)[0].strip()
     if gespeicherte_art == "eroeffnung":
@@ -553,8 +561,6 @@ def _wirkung_speichern(conn, d: Druck) -> str:
         return _speichere_eroeffnung(
             conn, d.tg, d.chat_id, roh.partition(TRENNER)[2], e=d.e, klm=d.klm,
         )
-    if gespeicherte_art in ("einleitungen", "fragen_weich"):
-        return _speichere_einleitungen(conn, d, roh)
     if gespeicherte_art in _KETTE:
         return _speichere_kettenglied(conn, d, roh, gespeicherte_art)
     # "Gefaellt uns, weiter" ueberschreibt nie still, was schon steht
@@ -570,29 +576,6 @@ def _wirkung_speichern(conn, d: Druck) -> str:
         # Ebene 1 ist abgenommen -- ab hier geht es Figur fuer Figur
         # weiter (Ebene 2), ohne dass jemand etwas antippen muss.
         stelle_figur_vor(conn, d.tg, d.klm, d.e, d.chat_id)
-    if gespeicherte_art == "fragen" and meldung != T._TEXT_UNBEKANNT:
-        # Der Rueckfallweg (06.09.2026): die Gruppe hat die Fragen selbst
-        # diktiert und ueber die Grundleiste abgenommen, statt sie aus
-        # den zehn zu waehlen. Die Sensibilitaetspruefung laeuft
-        # trotzdem -- sie haengt an den FRAGEN, nicht daran, wie sie
-        # entstanden sind.
-        starte_sensibilitaetspruefung(conn, d.tg, d.klm, d.e, d.chat_id)
-    return meldung
-
-
-def _speichere_einleitungen(conn, d: Druck, roh: str) -> str:
-    """Die Einleitungen sind abgenommen -- ohne Zwischenfrage weiter zum
-    Eroeffnungstext: die Gruppe soll die Verfeinerung als einen Weg erleben,
-    nicht als drei Aufgaben.
-
-    Seit dem 06.09.2026, 10:18 laeuft dieselbe Stufe unter ``fragen_weich``
-    (die weiche Fassung ersetzt die Einleitung). Beide Arten gehen denselben
-    Weg -- eine Gruppe, die den alten Vorschlag noch offen hatte, kann ihn
-    trotzdem abnehmen."""
-    meldung = _speichere(conn, d.tg, d.chat_id, roh, weiterfrage=False)
-    if meldung != T._TEXT_UNBEKANNT:
-        repo.setze_arbeitsstand(conn, d.chat_id, "aenderung_offen", None)
-        starte_eroeffnung(conn, d.tg, d.klm, d.e, d.chat_id)
     return meldung
 
 
@@ -665,23 +648,39 @@ def _wirkung_frage_wahl(conn, d: Druck) -> str:
 
 
 def _wirkung_fragen_andere(conn, d: Druck) -> str:
-    alte = _auswahlfragen(conn, d.chat_id)
-    _starte_auftrag(
-        conn, d.tg, d.klm, d.e, d.chat_id,
-        T.ANWEISUNG_FRAGEN_ANDERE.format(
-            alte="\n".join(f"- {f}" for f in alte)
-        ),
-    )
-    return T._ANTWORT_ANDERE_VOR
+    """"Andere Richtung" unter dem Fragenueberblick (02.10.2026): fragt
+    deterministisch nach der Richtung, statt sofort neu vorzuschlagen -- die
+    naechste freie Nachricht loest den Auftrag aus
+    (``fragen.nimm_offene_frage_text``, aufgerufen aus ``ablauf.py``)."""
+    frage_warten_auf_richtung(conn, d.tg, d.chat_id)
+    return T._TEXT_FRAGEN_RICHTUNG_GEFRAGT
 
 
 def _wirkung_fragen_eigene(conn, d: Druck) -> str:
-    """Speichert nichts: die naechste Nachricht der Gruppe sind ihre eigenen
-    Fragen, und der naechste Zug baut daraus die Auswahl neu (``offene_art``
-    liest den Merkposten)."""
-    repo.setze_arbeitsstand(conn, d.chat_id, "aenderung_offen", "fragen")
+    """**Stillgelegt seit 02.10.2026** (die alte Fragenauswahl ist durch den
+    Ueberblick mit Richtungsfrage ersetzt): ein Druck aus einer alten
+    Nachricht bekommt eine Antwort statt still zu verpuffen, speichert aber
+    nichts mehr."""
     d.tg.sende(d.chat_id, T._TEXT_FRAGEN_EIGENE)
     return T._ANTWORT_ERZAEHLT
+
+
+def _wirkung_fragen_einzeln(conn, d: Druck) -> str:
+    """"Ja, einzeln durchgehen" -- zeigt die erste Frage."""
+    starte_durchgehen(conn, d.tg, d.chat_id)
+    return T._TEXT_FRAGE_ENTSCHIEDEN
+
+
+def _wirkung_frage_annehmen(conn, d: Druck) -> str:
+    return entscheide(conn, d.tg, d.klm, d.e, d.chat_id, int(d.wert), "ja")
+
+
+def _wirkung_frage_verwerfen(conn, d: Druck) -> str:
+    return entscheide(conn, d.tg, d.klm, d.e, d.chat_id, int(d.wert), "nein")
+
+
+def _wirkung_frage_schaerfen(conn, d: Druck) -> str:
+    return frage_waehlt_schaerfen(conn, d.tg, d.chat_id, int(d.wert))
 
 
 def _wirkung_leitfaden(conn, d: Druck) -> str:
@@ -975,6 +974,34 @@ def _wirkung_teil_fertig(conn, d: Druck) -> str:
         return T._TEXT_TEIL_SCHON_AUS
     befehle._befehl_aufnahme(conn, d.tg, d.klm, d.e, d.chat_id)
     return T._ANTWORT_INTERVIEW_BEENDET
+
+
+def _wirkung_interviews_fertig(conn, d: Druck) -> str:
+    """Der eine Web-Knopf nach einem Interview (Phase 3 Web-UX, 02.10.2026):
+    springt direkt nach Phase 4, wenn die Materiallage es hergibt, oder
+    merkt den Wunsch fuer den Auto-Uebergang nach der letzten Verdichtung
+    (``aufnahme._interview_abschliessen``). Kein Modellaufruf hier (Zusage
+    2): ``schliesse_interviews_ab`` ruft ``eintritt_in_phase`` direkt, wie
+    ``_wirkung_phase`` es seit laengerem tut -- was die Phase 4 dabei braucht,
+    ist deterministisch (``phasentexte.eintritt`` + ``biete_proaktiv``)."""
+    from interview_theater import aufnahme
+    from interview_theater.knoepfe.stationen import schliesse_interviews_ab
+
+    if aufnahme.unausgewertete_interviews(conn, d.chat_id):
+        repo.setze_arbeitsstand(
+            conn, d.chat_id, "interviews_fertig_wunsch_seit", repo._jetzt(),
+        )
+        offen = len(aufnahme.unausgewertete_interviews(conn, d.chat_id))
+        d.tg.sende(d.chat_id, T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=offen))
+        return T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=offen)
+    if schliesse_interviews_ab(conn, d.tg, d.klm, d.e, d.chat_id):
+        return T._TEXT_ARBEITSSTAND_HINWEIS
+    # Sollte wegen phasen.voraussetzungen[4] nicht vorkommen, wenn
+    # unausgewertete_interviews() oben schon leer war -- defensiv trotzdem
+    # wie "noch offen" behandeln statt zu schweigen.
+    repo.setze_arbeitsstand(conn, d.chat_id, "interviews_fertig_wunsch_seit", repo._jetzt())
+    d.tg.sende(d.chat_id, T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=0))
+    return T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=0)
 
 
 # --- Die vier Knoepfe rund um die lange Sprachnachricht --------------------
@@ -1383,11 +1410,11 @@ def _wirkung_undo(conn, d: Druck) -> str:
             "Ausnahme geworfen -- die Transaktion ist intern zurueckgerollt, "
             "zurueckgenommen wurde nichts.",
         )
-        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_FEHLER)
+        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_FEHLER, system=True)
         repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, T._TEXT_UNDO_FEHLER)
         return T._TEXT_UNDO_FEHLER
     if stand == repo.ZURUECK_GEAENDERT:
-        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_GEAENDERT)
+        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_GEAENDERT, system=True)
         repo.merke_bot_zeile(
             conn, d.chat_id, message_id, d.e, T._TEXT_UNDO_GEAENDERT
         )
@@ -1407,7 +1434,7 @@ def _wirkung_undo(conn, d: Druck) -> str:
         quelle="undo",
     )
     text = T._TEXT_UNDO_ERLEDIGT.format(zeilen=zeilen)
-    message_id = d.tg.sende(d.chat_id, text)
+    message_id = d.tg.sende(d.chat_id, text, system=True)
     repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, text)
     return T._ANTWORT_UNDO
 
@@ -1462,6 +1489,10 @@ _WIRKUNGEN = {
     ART_FRAGEN_UEBERNEHMEN: _wirkung_frage_wahl,
     ART_FRAGEN_ANDERE: _wirkung_fragen_andere,
     ART_FRAGEN_EIGENE: _wirkung_fragen_eigene,
+    ART_FRAGEN_EINZELN: _wirkung_fragen_einzeln,
+    ART_FRAGE_ANNEHMEN: _wirkung_frage_annehmen,
+    ART_FRAGE_VERWERFEN: _wirkung_frage_verwerfen,
+    ART_FRAGE_SCHAERFEN: _wirkung_frage_schaerfen,
     ART_LEITFADEN: _wirkung_leitfaden,
     ART_RICHTUNG: _wirkung_richtung,
     ART_FIGUREN_ANZAHL_MENU: _wirkung_figuren_anzahl_menu,
@@ -1485,6 +1516,7 @@ _WIRKUNGEN = {
     ART_AUSWERTEN_ALLE: _wirkung_auswerten_alle,
     ART_TEIL_WEITER: _wirkung_teil_weiter,
     ART_TEIL_FERTIG: _wirkung_teil_fertig,
+    ART_INTERVIEWS_FERTIG: _wirkung_interviews_fertig,
     ART_OHNE_KNOPF_JA: _wirkung_ohne_knopf_ja,
     ART_OHNE_KNOPF_NEIN: _wirkung_ohne_knopf_nein,
     ART_OHNE_KNOPF_WEITER: _wirkung_ohne_knopf_weiter,

@@ -419,10 +419,14 @@ def test_undo_steht_unter_der_notiert_meldung_ohne_grundleiste(conn, tg, einst):
 
 
 def test_undo_steht_unter_der_grundleiste_wenn_es_eine_gibt(conn, tg, einst):
-    """Phase 4, Setting offen: die bestehende Grundleiste bleibt, Undo kommt
-    als ruhiger Nebenknopf darunter (Karte U Punkt 5)."""
-    phasen.setze(conn, 1, 4, "test")
-    _laufe(conn, tg, einst, [{"art": "rahmen_setzen", "wert": "Bahnhof, abends"}])
+    """Phase 2, Fragen offen: die bestehende Grundleiste bleibt, Undo kommt
+    als ruhiger Nebenknopf darunter (Karte U Punkt 5). Phase 4 traegt seit
+    dem Padua-Brainstorming-Umbau (02.10.2026) keine Grundleiste mehr unter
+    ``rahmen_setzen``/``geschichte_setzen`` -- siehe
+    ``test_undo_steht_unter_der_notiert_meldung_ohne_grundleiste``, das
+    heute genau diesen Fall fuer Phase 4 mitabdeckt."""
+    phasen.setze(conn, 1, 2, "test")
+    _laufe(conn, tg, einst, [{"art": "fragen_setzen", "wert": "Was war dein erster Job?"}])
 
     _, text, leiste, _ = tg.knoepfe[-1]
     assert text.startswith("Notiert:")
@@ -651,13 +655,13 @@ def test_ein_kaputter_undo_knopf_kostet_nicht_die_grundleiste(
         conn, tg, einst, monkeypatch):
     """Befund 5: ``undo_leiste`` hat ihr eigenes try -- wirft sie, bleibt die
     Grundleiste stehen."""
-    phasen.setze(conn, 1, 4, "test")
+    phasen.setze(conn, 1, 2, "test")
 
     def kaputt(*_a, **_kw):
         raise RuntimeError("Datenbank zickt")
 
     monkeypatch.setattr(knoepfe, "undo_leiste", kaputt)
-    _laufe(conn, tg, einst, [{"art": "rahmen_setzen", "wert": "Bahnhof, abends"}])
+    _laufe(conn, tg, einst, [{"art": "fragen_setzen", "wert": "Was war dein erster Job?"}])
 
     _, text, leiste, _ = tg.knoepfe[-1]
     assert text.startswith("Notiert:")

@@ -197,6 +197,27 @@ def test_hole_updates_liefert_eine_sprachnachricht(conn, kanal):
     assert gedeutet["file_id"] == web_kanal.datei_verweis(post_id, ".webm")
 
 
+def test_hole_updates_traegt_schnittgrund_und_brainstorm_durch(conn, kanal):
+    repo.lege_web_post_an(
+        conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=12, datei="7000000000001/web-eingang/2.webm", mime="audio/webm",
+        schnittgrund="pause", brainstorm=True,
+    )
+    gedeutet = telegram.lies_nachricht(kanal.hole_updates(0, timeout=0)[0])
+    assert gedeutet["schnittgrund"] == "pause"
+    assert gedeutet["brainstorm"] is True
+
+
+def test_hole_updates_ohne_schnittgrund_und_brainstorm_liefert_vorgaben(conn, kanal):
+    repo.lege_web_post_an(
+        conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=12, datei="7000000000001/web-eingang/3.webm", mime="audio/webm",
+    )
+    gedeutet = telegram.lies_nachricht(kanal.hole_updates(0, timeout=0)[0])
+    assert gedeutet["schnittgrund"] is None
+    assert gedeutet["brainstorm"] is False
+
+
 def test_hole_updates_uebergeht_ausgehende_posts(conn, kanal):
     kanal.sende(CHAT, "Bot spricht")
     assert kanal.hole_updates(0, timeout=0) == []
@@ -221,3 +242,45 @@ def test_hole_updates_kommt_zurueck_sobald_etwas_eintrifft(conn, kanal):
     updates = kanal.hole_updates(0, timeout=10)
     assert len(updates) == 1
     assert time.monotonic() - begonnen < 5.0
+
+
+# --- UX-Knoepfe-Karte, Abschnitt 3: Speicherquittungen als Systemzeile ----
+
+
+def test_sende_mit_system_schreibt_den_eigenen_typ(conn, kanal):
+    """Eine Speicherquittung (``system=True``) bekommt ``WEB_TYP_SYSTEM``
+    statt ``WEB_TYP_TEXT`` -- reine Anzeige-Unterscheidung fuer die
+    Chatansicht, kein zweiter Inhalt."""
+    message_id = kanal.sende(CHAT, "Notiert: Setting: Treppenhaus", system=True)
+
+    assert repo.hole_web_post(conn, message_id)["typ"] == repo.WEB_TYP_SYSTEM
+
+
+def test_sende_ohne_system_bleibt_beim_text_typ(conn, kanal):
+    message_id = kanal.sende(CHAT, "Normale Antwort")
+
+    assert repo.hole_web_post(conn, message_id)["typ"] == repo.WEB_TYP_TEXT
+
+
+def test_sende_mit_knoepfen_und_system_schreibt_den_eigenen_typ(conn, kanal):
+    leiste = [("Rueckgaengig", "k:1")]
+    message_id = kanal.sende_mit_knoepfen(
+        CHAT, "Notiert: Setting: Treppenhaus", leiste, system=True,
+    )
+
+    assert repo.hole_web_post(conn, message_id)["typ"] == repo.WEB_TYP_SYSTEM
+
+
+def test_sende_bild_schreibt_dateiname_und_satz(conn, kanal):
+    """UX-Knoepfe-Karte, Abschnitt 5: anders als ``sende_datei`` wird die
+    Datei nicht je Gruppe abgelegt -- sie liegt schon unter
+    ``interview_theater/static/handys/``, der Kanal merkt sich nur den
+    Dateinamen."""
+    message_id = kanal.sende_bild(
+        CHAT, "phase-4.png", b"\x89PNG...", "Eins hoert zu, eins steht aufgestellt.",
+    )
+
+    zeile = repo.hole_web_post(conn, message_id)
+    assert zeile["typ"] == repo.WEB_TYP_SYSTEM
+    assert zeile["bild"] == "phase-4.png"
+    assert zeile["text"] == "Eins hoert zu, eins steht aufgestellt."

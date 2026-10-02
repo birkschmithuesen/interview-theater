@@ -164,7 +164,7 @@ class Telegram:
             return antwort.json()["result"]["message_id"]
 
     def sende(self, chat_id: int, text: str, parse_mode: str | None = None,
-              klartext: str | None = None) -> int:
+              klartext: str | None = None, system: bool = False) -> int:
         """Schickt eine Textnachricht. Liefert die message_id der gesendeten Nachricht.
 
         Telegram nimmt hoechstens 4096 Zeichen je Nachricht (Bot-API,
@@ -177,7 +177,14 @@ class Telegram:
         ``parse_mode`` (``"HTML"``) und ``klartext`` gehoeren zusammen: der
         erste formatiert, der zweite ist dieselbe Nachricht ohne Auszeichnung
         fuer den Rueckfall bei HTTP 400 (``_post_nachricht``). Ohne
-        ``parse_mode`` bleibt alles wie vorher -- reiner Text."""
+        ``parse_mode`` bleibt alles wie vorher -- reiner Text.
+
+        ``system`` ist ein No-Op (UX-Knoepfe-Karte, Abschnitt 3): Telegram
+        kennt keine eigene Darstellung fuer eine Speicherquittung, nur die
+        Chatansicht des Web-Kanals stellt sie gedaempft dar
+        (``web_kanal.WebKanal.sende``). Das Argument steht hier nur, damit
+        ``tg.sende(..., system=True)`` an beiden Kanaelen gleich aussieht --
+        kein Aufrufer muss nach Kanal unterscheiden."""
         stuecke = teile_text(text)
         roh = teile_text(klartext) if klartext is not None else stuecke
         letzte = 0
@@ -193,6 +200,7 @@ class Telegram:
     def sende_mit_knoepfen(
         self, chat_id: int, text: str, knoepfe: list[tuple[str, str]],
         parse_mode: str | None = None, klartext: str | None = None,
+        system: bool = False,
     ) -> int:
         """Wie ``sende``, nur mit einer Inline-Tastatur darunter: je Eintrag
         ``(beschriftung, callback_data)`` eine Zeile, untereinander.
@@ -257,6 +265,26 @@ class Telegram:
                 self._url("sendDocument"),
                 data=felder,
                 files={"document": (dateiname, daten, "text/markdown")},
+            )
+            antwort.raise_for_status()
+            return antwort.json()["result"]["message_id"]
+
+    def sende_bild(self, chat_id: int, dateiname: str, inhalt: bytes,
+                   beschreibung: str = "") -> int:
+        """Schickt ein Bild (sendPhoto) -- die Telefon-Organisationskarten
+        je Phase (UX-Knoepfe-Karte, Abschnitt 5).
+
+        Wie ``sende_datei``: Telegram begrenzt die Bildunterschrift auf
+        1024 Zeichen, laengere wuerde HTTP 400 bringen und das Bild nie
+        ankommen lassen."""
+        felder = {"chat_id": str(chat_id)}
+        if beschreibung:
+            felder["caption"] = beschreibung[:1024]
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("sendPhoto"),
+                data=felder,
+                files={"photo": (dateiname, inhalt, "image/png")},
             )
             antwort.raise_for_status()
             return antwort.json()["result"]["message_id"]
@@ -468,6 +496,11 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         # ENDUNG ableitet (Falle 3): ein WebM als ``.ogg`` abgelegt laesst den
         # Whisper-Auftrag dauerhaft auf 'pending' stehen.
         "endung": _sprachquelle(nachricht).get("endung"),
+        # Pausen-Schnitt (VAD) und Brainstorm-Flag (02.10.2026) -- additiv wie
+        # ``endung``, bei einem echten Telegram-Update immer None/False. Nur
+        # der Web-Kanal setzt sie.
+        "schnittgrund": _sprachquelle(nachricht).get("schnittgrund"),
+        "brainstorm": _sprachquelle(nachricht).get("brainstorm", False),
     }
 
 

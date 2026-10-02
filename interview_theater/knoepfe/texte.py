@@ -140,32 +140,57 @@ ART_OHNE_KNOPF_NEIN = "ohne_knopf_nein"
 #: lassen. Der ``wert`` traegt die Kopf-id.
 ART_OHNE_KNOPF_FERTIG = "ohne_knopf_fertig"
 ART_OHNE_KNOPF_WEITER = "ohne_knopf_weiter"
+#: Der eine Web-Knopf nach einem Interview (Phase 3 Web-UX, 02.10.2026):
+#: ersetzt auf dem Web-Kanal die ganze Telegram-Leiste aus
+#: ``biete_nach_aufnahme``. Kein ``wert`` -- die Wirkung liest den Chat.
+ART_INTERVIEWS_FERTIG = "interviews_fertig"
 
-# --- Phase 2 · Fragen als Mehrfachauswahl und der Leitfaden (06.09.2026) ---
+# --- Phase 2 · Fragen einzeln durchgehen und der Leitfaden ----------------
 #
-# Birk, 06.09.2026: die Fragen-Erarbeitung wird Multiple-Choice. Der Bot
-# schlaegt ZEHN Fragen vor, die Gruppe tippt genau DREI an. Der Grund ist
-# derselbe wie ueberall hier: eine Liste im Fliesstext, zu der die Gruppe
-# "die erste und die dritte" sagt, ist fuer den Erkenner nicht aufloesbar --
-# ein Knopf traegt die Auswahl selbst.
+# Birk, 06.09.2026: die Fragen-Erarbeitung wird Multiple-Choice -- das war
+# der erste Umbau (Vorschlag, Auswahl per Nummer, Sensibilitaetspruefung als
+# eigener Schritt danach).
 #
-# Danach die Verfeinerungsebene: Sensibilitaetspruefung mit Einleitungen,
-# Eroeffnung und Abschluss, daraus der Leitfaden (``leitfaden.py``).
+# Padua, 02.10.2026: zweiter Umbau. Der Vorschlag traegt die
+# Sensibilitaetspruefung jetzt selbst (im selben Modellzug), und die Auswahl
+# laeuft nicht mehr ueber gesagte Nummern, sondern **Frage fuer Frage**: eine
+# Nachricht je Frage, drei Knoepfe (Annehmen, Verwerfen, Schaerfen). Die
+# Nummernwahl (``lies_fragennummern``) und die zugehoerigen Knoepfe
+# (``ART_FRAGE_WAHL``, ``ART_FRAGEN_UEBERNEHMEN``, ``ART_FRAGEN_EIGENE``)
+# sind damit Geschichte -- ihre Arten und Handler bleiben im Code, damit ein
+# Druck aus einer alten, schon verschickten Nachricht nicht ins Leere laeuft
+# (AGENTS.md, Fehlerhaltung), angeboten werden sie nicht mehr.
+#
+# Daraus der Leitfaden (``leitfaden.py``), unveraendert.
 
-#: Eine der zehn zur Wahl stehenden Fragen -- ``wert`` ist ihre NUMMER
-#: (1-10), nicht der Text: der steht in ``arbeitsstand.fragen_auswahl``, und
-#: ein Druck togglet nur, er speichert nichts.
+#: Eine der zur Wahl stehenden Fragen -- ``wert`` ist ihre NUMMER, nicht der
+#: Text: der steht in ``arbeitsstand.fragen_auswahl``, und ein Druck togglet
+#: nur, er speichert nichts. **Stillgelegt seit 02.10.2026**, siehe oben.
 ART_FRAGE_WAHL = "frage_wahl"
 #: "Diese 3 nehmen" -- die angetippten Fragen werden zur Frageliste.
+#: **Stillgelegt seit 02.10.2026.**
 ART_FRAGEN_UEBERNEHMEN = "fragen_uebernehmen"
-#: "Andere zehn" -- ein neuer Gespraechszug mit der Anweisung, zehn ANDERE
-#: Fragen vorzuschlagen (die bisherigen stehen namentlich im Auftrag).
+#: "Andere Richtung" unter dem Fragenueberblick (02.10.2026): der Bot fragt
+#: deterministisch nach der gewuenschten Richtung, die naechste freie
+#: Nachricht der Gruppe loest einen neuen Vorschlag aus
+#: (``fragen.nimm_offene_frage_text``). Bis 02.10.2026 hiess der Knopf
+#: "Andere Fragen" und rief sofort einen neuen Vorschlag ohne Richtungsfrage
+#: auf -- derselbe ``ART_*``, neues Verhalten, siehe ``_wirkung_fragen_andere``.
 ART_FRAGEN_ANDERE = "fragen_andere"
-#: "Eigene Idee" in der Fragenauswahl -- die naechste Nachricht der Gruppe
-#: sind eigene Fragen; sie werden ergaenzt und die Auswahl kommt neu.
+#: "Eigene Idee" in der alten Fragenauswahl. **Stillgelegt seit 02.10.2026**
+#: (ersetzt durch "Andere Richtung" mit anschliessender freier Nachricht).
 ART_FRAGEN_EIGENE = "fragen_eigene"
 #: "Leitfaden zeigen" -- deterministisch aus der Datenbank, kein Modell.
 ART_LEITFADEN = "leitfaden"
+#: "Ja, einzeln durchgehen" unter dem Fragenueberblick (02.10.2026): startet
+#: die Frage-fuer-Frage-Stufe bei Frage 1.
+ART_FRAGEN_EINZELN = "fragen_einzeln"
+#: Die drei Knoepfe unter EINER vorgelegten Frage (02.10.2026). ``wert`` ist
+#: in allen dreien die Fragennummer (1-basiert, Position in
+#: ``fragen_auswahl``) -- nie der Text, der steht in der Tabelle ``knopf``.
+ART_FRAGE_ANNEHMEN = "frage_annehmen"
+ART_FRAGE_VERWERFEN = "frage_verwerfen"
+ART_FRAGE_SCHAERFEN = "frage_schaerfen"
 
 # --- Phase 6 · Szenen (05.09.2026) ----------------------------------------
 #
@@ -389,6 +414,20 @@ _TEXT_OHNE_KNOPF_WEITER = "Gut, ich hoere weiter zu."
 #: Die Aufnahme, um die es ging, ist inzwischen weg (geloescht, in ein
 #: anderes Interview gezogen). Der Knopf bleibt trotzdem beantwortet.
 _TEXT_OHNE_KNOPF_UNBEKANNT = "Diese Aufnahme kenne ich nicht mehr."
+
+#: Der eine Web-Knopf nach einem Interview (Phase 3 Web-UX, 02.10.2026).
+_TEXT_INTERVIEWS_FERTIG_KNOPF = "Interviews fertig"
+#: Gedrueckt, aber noch mindestens ein Interview ohne Verdichtung offen --
+#: der Wunsch wird gemerkt (``arbeitsstand.interviews_fertig_wunsch_seit``)
+#: und schliesst automatisch nach der letzten Verdichtung weiter.
+_TEXT_INTERVIEWS_NOCH_OFFEN = (
+    "{anzahl} Interview(s) werden noch ausgewertet - es geht automatisch "
+    "weiter, sobald sie fertig sind."
+)
+#: Steht unter der Abschlussnachricht, wenn ``schliesse_interviews_ab`` einen
+#: Phasenwechsel ausgeloest hat: die Verdichtungen selbst stehen nicht mehr
+#: im Chat (Phase 3 Web-UX), sondern im Tab Arbeitsstand der Gruppenseite.
+_TEXT_ARBEITSSTAND_HINWEIS = "Die Auswertung aller Interviews findet ihr im Tab Arbeitsstand."
 
 #: Die Ablauf-Erklaerung vor dem Start (05.09.2026, Birk nach Gruppe 3,
 #: 16:36). Der Anlass: die Gruppe sagte "wir wollen ein Interview machen",
@@ -630,71 +669,79 @@ _TEXT_SCHAERFUNG_DURCH = (
 )
 
 
-# --- Phase 2 · Fragen als Mehrfachauswahl, Leitfaden (06.09.2026) ---------
+# --- Phase 2 · Fragen einzeln durchgehen, Leitfaden -----------------------
+#
+# Padua, 02.10.2026: der Vorschlag traegt die Sensibilitaetspruefung im selben
+# Modellzug (keine Vorgabe mehr, wie viele Fragen es je Begriff sein muessen
+# -- "No hard count anywhere", die Gruppe nimmt, was passt), danach einen
+# Ueberblick mit einer Richtungsfrage, danach die Fragen einzeln.
 
-#: Wie viele Fragen zur Wahl stehen und wie viele es am Ende sind. Zehn ist
-#: eine Auswahl, aus der man waehlen kann, ohne zu lesen wie in einem
-#: Fragebogen; drei ist, womit eine 15-Jaehrige eine fremde Person auf der
-#: Strasse anspricht, ohne dass es ein Verhoer wird (Birk, 06.09.2026).
-#: "Andere Zahl" gibt es hier bewusst NICHT -- die Zahl ist eine Vorgabe des
-#: Stuecks, keine Entscheidung der Gruppe.
-#: 06.09.2026 11:40 (Birk, live): fuenf Fragen JE BEGRIFF, nicht zehn insgesamt.
-#: Obergrenze fuer den Nummern-Parser = 5 x hoechstens 8 Begriffe.
+#: Wie viele Fragen der Bot je Begriff VORSCHLAEGT -- eine Vorgabe fuer den
+#: Vorschlag, keine fuer die Auswahl: die Gruppe nimmt an, verwirft oder
+#: schaerft jede Frage einzeln, in beliebiger Zahl.
 FRAGEN_JE_BEGRIFF = 5
-FRAGEN_ZUR_WAHL = 40
-FRAGEN_ANZAHL = 3
 
-#: Wie lang eine Frage auf einem Knopf sein darf. Telegram schneidet laengere
-#: Beschriftungen auf dem Telefon selbst ab, und zwar ohne Hinweis -- besser
-#: eine sichtbare Kuerzung als eine unsichtbare. Der volle Text steht im
-#: Chat ueber den Knoepfen und in ``arbeitsstand.fragen_auswahl``.
-KNOPF_LAENGE = 40
-#: Der Haken vor einer gewaehlten Frage. Ein Zeichen, kein zweiter Knopf:
-#: der Zustand muss auf dem Telefon in einem Blick lesbar sein.
-_HAKEN = "✓ "
-
-_TEXT_FRAGEN_UEBERNEHMEN_KNOPF = f"Diese {FRAGEN_ANZAHL} nehmen"
-_TEXT_FRAGEN_ANDERE_KNOPF = "Andere Fragen"
+#: "Ja, einzeln durchgehen" unter dem Ueberblick.
+_TEXT_FRAGEN_EINZELN_KNOPF = "Ja, einzeln durchgehen"
+#: "Andere Richtung" -- bis 02.10.2026 hiess der Knopf "Andere Fragen" und
+#: loeste sofort einen neuen Vorschlag aus; jetzt fragt der Bot zuerst nach
+#: der Richtung (``_TEXT_FRAGEN_RICHTUNG_GEFRAGT``).
+_TEXT_FRAGEN_ANDERE_KNOPF = "Andere Richtung"
+#: "Eigene Idee" in der stillgelegten Fragenauswahl -- nur noch als Text fuer
+#: einen alten, schon verschickten Knopf (``_wirkung_fragen_eigene``).
 _TEXT_FRAGEN_EIGENE_KNOPF = "Eigene Idee"
-#: Die Aufforderung ueber der Auswahl (06.09.2026, 10:05, Birk).
-#:
-#: **Kein Menue mehr.** Die zehn Toggle-Knoepfe funktionierten am Telefon
-#: nicht: "sobald ich auf eine Frage klicke, verschwindet das Menue". Der
-#: Weg ist jetzt der einfachste, den es gibt -- die Fragen stehen
-#: ausgeschrieben und nummeriert im Text, und die Gruppe sagt die Nummern.
-#: Sprechen kann sie ohnehin; ein Knopf, der auf dem Geraet der Gruppe
-#: verschwindet, ist schlechter als gar keiner.
-_TEXT_FRAGEN_WAHL = (
-    "Sucht die Fragen aus, die ihr passend findet, und sagt mir die Nummern - "
-    "getippt oder als Sprachnachricht. Wollt ihr eine Frage aendern oder eigene "
-    "stellen, sagt das einfach: ihr seid die Chefinnen."
+#: Die deterministische Richtungsfrage unter dem Ueberblick (02.10.2026,
+#: Birk): ein Satz, zwei Knoepfe -- kein Modellaufruf, um sie zu stellen.
+_TEXT_FRAGEN_RICHTUNG_FRAGE = (
+    "Gehen die Fragen in die richtige Richtung? Wollen wir sie einzeln "
+    "durchgehen?"
 )
-#: Die Antwort auf "Diese 3 nehmen" bei falscher Anzahl. Sie geht als
-#: answerCallbackQuery raus (das kleine graue Band oben in der App) und
-#: nicht als Nachricht: eine Fehlbedienung soll den Chat nicht zumuellen.
-_TEXT_FRAGEN_NICHT_DREI = f"Waehlt genau {FRAGEN_ANZAHL}."
-#: Dieselbe Regel im Chat, wenn die Gruppe Nummern GESAGT hat: hier ist eine
-#: Zeile richtig, weil die Gruppe auf eine Antwort wartet.
-_TEXT_FRAGEN_NUMMERN_FALSCH = f"Bitte genau {FRAGEN_ANZAHL} Nummern."
+#: Nach "Andere Richtung": die naechste freie Nachricht ist die Antwort
+#: darauf (``fragen.nimm_offene_frage_text``).
+_TEXT_FRAGEN_RICHTUNG_GEFRAGT = "In welche Richtung soll es gehen?"
+#: Die Antwort auf einen Knopf aus einer stillgelegten Nachricht (altes
+#: ``ART_FRAGE_WAHL``/``ART_FRAGEN_UEBERNEHMEN``) -- der Weg wird gesagt,
+#: statt dass der Druck ins Leere laeuft.
+_TEXT_FRAGEN_WAHL = (
+    "Diese Auswahl laeuft nicht mehr ueber Nummern -- antwortet auf die "
+    "Frage, die gerade im Chat steht."
+)
 _TEXT_FRAGEN_EIGENE = (
     "Schreibt eure Frage oder Fragen - ich nehme sie mit in die Auswahl."
 )
+#: Ein Druck auf eine ueberholte Frage (eine neue Auswahlrunde hat
+#: ``fragen_auswahl``/``fragen_entschieden`` schon ersetzt).
 _TEXT_FRAGEN_KEINE_AUSWAHL = "Diese Auswahl kenne ich nicht mehr."
-#: Nach dem Uebernehmen: die drei Fragen stehen, und die Pruefung laeuft an.
-_TEXT_FRAGEN_UEBERNOMMEN = "Notiert, eure {anzahl} Fragen:"
-#: Dasselbe, wenn die Gruppe die Nummern GESAGT hat (06.09.2026): die
-#: Nummern stehen mit drin, damit sie sieht, was der Bot verstanden hat.
-_TEXT_FRAGEN_NOTIERT = "Notiert: Fragen {nummern}:"
-#: Knopf-Quittung und Journalzeile zum Uebernehmen (``fragen._uebernimm_fragen``).
-_TEXT_FRAGEN_QUITTUNG = "Fragen uebernommen"
-_JOURNAL_FRAGEN = "Fragen: {wert}"
-#: Was der Bot sagt, waehrend die Sensibilitaetspruefung im Thread laeuft.
-#: Sie ist kein Selbstzweck und wird deshalb begruendet: die Gruppe soll
-#: wissen, warum der Bot nach dem Speichern noch etwas tut.
-TEXT_PRUEFUNG_LAEUFT = (
-    "Ich sehe die Fragen noch einmal durch: bei welchen braucht ihr einen "
-    "Satz zur Einleitung, bevor ihr sie einer fremden Person stellt?"
+#: Keine einzige Frage angenommen -- der Bot sagt es und schlaegt neue vor,
+#: statt mit einer leeren Frageliste weiterzumachen.
+_TEXT_FRAGEN_KEINE_ANGENOMMEN = (
+    "Keine der Fragen ist angenommen - ich schlage neue vor."
 )
+#: Nach der letzten Entscheidung: die angenommenen Fragen stehen.
+_TEXT_FRAGEN_ABGESCHLOSSEN = "Notiert, eure {anzahl} Fragen:"
+_JOURNAL_FRAGEN = "Fragen: {wert}"
+_TEXT_FRAGEN_QUITTUNG = "Fragen uebernommen"
+
+#: Der Kopf einer einzelnen vorgelegten Frage (02.10.2026): "Frage 3/15 ·
+#: Heimat". Ohne erkennbaren Begriff (Zeile ohne "Begriff: ") faellt die
+#: Kurzform ohne Mittelpunkt zurueck.
+_TEXT_FRAGE_KOPF = "Frage {nummer}/{gesamt} · {begriff}"
+_TEXT_FRAGE_KOPF_OHNE_BEGRIFF = "Frage {nummer}/{gesamt}"
+#: Steht darunter, wenn die Frage sensibel formuliert ist -- die weiche
+#: Fassung samt einem kurzen Hinweis, dass sie sensibel ist.
+_TEXT_FRAGE_WEICH_HINWEIS = (
+    "Weichere Formulierung, weil das Thema sensibel ist:\n{weich}"
+)
+_TEXT_FRAGE_ANNEHMEN_KNOPF = "Annehmen"
+_TEXT_FRAGE_VERWERFEN_KNOPF = "Verwerfen"
+_TEXT_FRAGE_SCHAERFEN_KNOPF = "Schaerfen"
+#: Nach "Schaerfen": die naechste freie Nachricht ist der Aenderungswunsch.
+#: Dieselbe Frage beantwortet auch eine freie Nachricht OHNE Knopfdruck,
+#: solange diese Frage die aktuelle ist (``fragen.nimm_offene_frage_text``).
+_TEXT_FRAGE_WAS_AENDERN = "Was wollt ihr aendern?"
+_TEXT_FRAGE_GESCHAERFT = "Frage ueberarbeitet"
+_TEXT_FRAGE_ENTSCHIEDEN = "Notiert"
+
 _TEXT_LEITFADEN_KNOPF = "Leitfaden zeigen"
 
 
@@ -732,7 +779,6 @@ _ERSTER_ALS_WERT: dict[str, str] = {}
 #: startet (06.09.2026, 10:10, Birk). Sie werden geloescht, sobald die
 #: Antwort da ist (``ablauf.arbeitet_sichtbar``) -- eine Arbeitsmeldung, die
 #: stehen bleibt, liest sich wie eine haengende Aufgabe.
-TEXT_ARBEIT_SENSIBILITAET = "🤔 Ich sehe die Fragen kurz durch und formuliere heikle weicher …"
 TEXT_ARBEIT_EROEFFNUNG = "✍️ Jetzt die Einleitung fuers Interview: wie ihr anfangt und aufhoert …"
 #: Journalzeile und Knopf-Quittung, wenn Eroeffnung und Abschluss stehen
 #: (``fragen._speichere_eroeffnung``).
@@ -845,11 +891,14 @@ _TEXT_FIGURENZAHL_UNKLAR = (
 
 #: Die Arten, nach deren Speichern der naechste Schritt von selbst kommt.
 #: Arten, die den Weg selbst weitertragen (statt der allgemeinen Frage
-#: "Wollt ihr noch etwas hinzufuegen?"). Seit dem Umbau vom 05.09.2026
-#: nachts ist das der **Rahmen**: steht das Setting, kommt sofort die Frage
-#: nach der Figurenanzahl. Kernthema und Kernfrage bleiben rueckwaerts-
-#: kompatibel drin -- angeboten werden sie nicht mehr.
-_KETTE = ("rahmen", "kernthema", "kernfrage")
+#: "Wollt ihr noch etwas hinzufuegen?"). **Rahmen ist seit dem Brainstorming-
+#: Umbau (Padua, 02.10.2026) kein Kettenglied mehr**: Phase 4 ist freies
+#: Brainstorming ohne feste Reihenfolge, die Figurenanzahl-Frage kommt nicht
+#: mehr automatisch aus dem Setting heraus (sie laeuft seitdem ueber den
+#: normalen Speicherweg mit ``uebergang=True``). Kernthema und Kernfrage
+#: bleiben rueckwaertskompatibel drin -- angeboten werden sie nicht mehr,
+#: aber ``/kernthema`` + eine modellgebaute Kernfrage erreichen sie noch.
+_KETTE = ("kernthema", "kernfrage")
 
 
 
@@ -1197,50 +1246,63 @@ ANWEISUNG_DUKTUS = (
 
 # --- Phase 2 · Verfeinerung (06.09.2026) ----------------------------------
 
-#: "Andere zehn": die bisherigen Fragen stehen namentlich im Auftrag, damit
-#: das Modell sie nicht umformuliert wieder vorlegt. Ohne diese Aufzaehlung
-#: kaeme im zweiten Durchgang dieselbe Liste mit anderen Worten -- gemessen
-#: an der Kernthema-Stufe, an der genau das passierte.
-ANWEISUNG_FRAGEN_ANDERE = (
-    "Schlag genau zehn ANDERE Interviewfragen vor. Diese hier hatten wir "
-    "schon, nimm keine davon wieder und formuliere keine davon um:\n{alte}\n"
-    "Haeng die neuen als Block 'VORSCHLAG FRAGENAUSWAHL:' an, eine Frage je "
-    "Zeile, genau zehn Zeilen. Wiederhol sie nicht im Fliesstext."
+#: Die Sensibilitaetspruefung laeuft seit 02.10.2026 IM selben Modellzug wie
+#: der Vorschlag selbst (``prompts/phasen/2.md``), nicht mehr als eigener
+#: Schritt danach -- dieser Satz wird an mehrere ANWEISUNG-Texte angehaengt,
+#: damit er nur einmal formuliert ist.
+_ANWEISUNG_FRAGEN_SENSIBEL = (
+    "Pruef jede Frage: beruehrt sie ein sensibles Thema (Familie, Herkunft, "
+    "Religion, Gewalt, Liebe und Koerper, Geld, Krankheit, Flucht, "
+    "Diskriminierung)? Formuliere jede sensible Frage zusaetzlich zu EINEM "
+    "weichen Gespraechsstueck um - zwei bis drei Saetze, Du-Form, sprechbar, "
+    "im Ton einer 15- bis 18-Jaehrigen, die eine fremde Person anspricht; der "
+    "Kern der Frage bleibt derselbe. Gibt es mindestens eine sensible Frage, "
+    "haeng die weichen Fassungen als Block 'VORSCHLAG FRAGEN WEICH:' an, je "
+    "Zeile '<Nummer> — <weiche Fassung>', nummeriert wie in der Liste "
+    "darueber -- ist keine Frage sensibel, lass diesen Block ganz weg."
 )
+#: "Andere Richtung": die bisherigen Fragen stehen namentlich im Auftrag,
+#: damit das Modell sie nicht umformuliert wieder vorlegt -- ohne diese
+#: Aufzaehlung kaeme im zweiten Durchgang dieselbe Liste mit anderen Worten
+#: (gemessen an der Kernthema-Stufe, an der genau das passierte).
+#: ``{richtung_satz}`` ist vorformatiert und bleibt leer, wenn es keine
+#: ausdrueckliche Richtung gibt (z. B. nach "keine Frage angenommen").
+ANWEISUNG_FRAGEN_ANDERE = (
+    "Schlag neue Interviewfragen vor, fuenf je Begriff, nach Begriffen "
+    "geordnet. Diese hier hatten wir schon, nimm keine davon wieder und "
+    "formuliere keine davon um:\n{alte}\n{richtung_satz}"
+    "Haeng sie als Block 'VORSCHLAG FRAGENAUSWAHL:' an, eine Frage je Zeile "
+    "im Format 'Begriff: Frage'. Wiederhol sie nicht im Fliesstext.\n"
+    + _ANWEISUNG_FRAGEN_SENSIBEL
+)
+#: Wie ``{richtung_satz}`` lautet, wenn die Gruppe eine Richtung genannt hat
+#: (sonst bleibt er ein leerer String).
+_TEXT_FRAGEN_RICHTUNG_SATZ = "Die Gruppe moechte diese Richtung: {richtung}\n"
 #: Die Gruppe hat eigene Fragen diktiert -- sie kommen in die Auswahl, und
-#: der Bot fuellt auf zehn auf, statt sie zu ersetzen.
+#: der Bot fuellt auf, statt sie zu ersetzen. (Bleibt ungenutzt im neuen
+#: Ablauf -- die Richtung geht ueber ``ANWEISUNG_FRAGEN_ANDERE``.)
 ANWEISUNG_FRAGEN_EIGENE = (
     "Die Gruppe hat eigene Fragen genannt. Nimm sie unveraendert als erste "
     "Zeilen und ergaenze sie mit deinen Vorschlaegen auf genau zehn. Haeng "
     "alles als Block 'VORSCHLAG FRAGENAUSWAHL:' an, eine Frage je Zeile."
 )
-#: Die Sensibilitaetspruefung. Der Rahmen steht im Auftrag und nicht nur im
-#: Phasen-Prompt: dieser Zug entscheidet, ob eine 15-Jaehrige vor einer
-#: fremden Person einen Satz zur Hand hat oder nicht.
-ANWEISUNG_EINLEITUNGEN = (
-    "Sieh dir diese Interviewfragen der Gruppe an:\n{fragen}\n\n"
-    "Die Interviews fuehren 15- bis 18-jaehrige Frauen mit FREMDEN Personen "
-    "auf der Strasse oder im Verein. Pruefe jede Frage: beruehrt sie ein "
-    "sensibles Thema (Familie, Herkunft, Religion, Gewalt, Liebe und Koerper, "
-    "Geld, Krankheit, Flucht, Diskriminierung)? Formuliere JEDE sensible "
-    "Frage zu EINEM weichen Gespraechsstueck um - zwei bis drei Saetze, die "
-    "die Interviewerin am Stueck sagt: der Grund, die Freiheit nicht zu "
-    "antworten, und die Frage selbst, in EINEM Fluss. Nicht Einleitung und "
-    "Frage aneinandergehaengt, sondern ein Text, den man so ausspricht. "
-    "Du-Form, sprechbar, im Ton einer 15- bis 18-Jaehrigen, die eine fremde "
-    "Person anspricht - kein Behoerdendeutsch, keine Floskeln wie 'im Rahmen "
-    "unseres Projektes'. Der Kern der Frage bleibt derselbe: erfinde kein "
-    "neues Thema und lass keines weg. Haeng das als Block "
-    "'VORSCHLAG FRAGEN WEICH:' an, je Zeile "
-    "'<Fragennummer> — <weiche Fassung>' - nur fuer die sensiblen Fragen, "
-    "die uebrigen bleiben, wie sie sind. Ist keine Frage sensibel, schreib "
-    "in den Block genau die eine Zeile 'Keine der Fragen braucht eine "
-    "besondere Einleitung.' Sag im Text davor in EINEM Satz, welche Fragen "
-    "du weicher formuliert hast - nenne es 'weichere Formulierung', NICHT "
-    "'Einleitung': die Einleitung des Interviews (Eroeffnung) kommt erst in "
-    "der naechsten Nachricht, kuendige sie hier nicht an und schreib sie "
-    "nicht. Stell hoechstens eine Frage an die Gruppe. Schreib die "
-    "Fragenliste nicht noch einmal unveraendert ab."
+#: Eine einzelne Frage wird auf Wunsch der Gruppe ueberarbeitet
+#: (02.10.2026, "Schaerfen" bzw. eine freie Nachricht waehrend diese Frage
+#: die aktuelle ist). ``{sensibel_hinweis}`` traegt die bisherige weiche
+#: Fassung, wenn es eine gab -- das Modell soll wissen, dass sie beim
+#: Ueberarbeiten erhalten oder bewusst fallengelassen wird.
+ANWEISUNG_FRAGE_SCHAERFEN = (
+    "Die Gruppe moechte diese Interviewfrage {nummer} aendern:\n{frage}\n"
+    "{sensibel_hinweis}"
+    "Das soll sich aendern: {wunsch}\n"
+    "Schreib eine ueberarbeitete Fassung und haeng sie als Block "
+    "'VORSCHLAG FRAGE:' an, genau eine Zeile im Format 'Begriff: Frage'. "
+    + _ANWEISUNG_FRAGEN_SENSIBEL
+)
+#: Traegt die bisherige weiche Fassung in ``ANWEISUNG_FRAGE_SCHAERFEN``, wenn
+#: es eine gab -- sonst bleibt der Platzhalter ein leerer String.
+_TEXT_FRAGE_SCHAERFEN_SENSIBEL_HINWEIS = (
+    "Bisher war sie weich formuliert: {weich}\n"
 )
 #: Eroeffnung und Abschluss in einem Block -- es ist eine Entscheidung.
 #:

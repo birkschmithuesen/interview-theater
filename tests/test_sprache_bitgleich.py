@@ -78,6 +78,94 @@ GEAENDERT: dict[str, str] = {
         "aendert sich am ausgehenden Text nichts, nur die Quelle ist jetzt "
         "eine statt zwei (tests/test_sprache_parser.py)."
     ),
+    "knoepfe.ANWEISUNG_EINLEITUNGEN": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026, Padua): die "
+        "Sensibilitaetspruefung laeuft seit diesem Umbau IM selben "
+        "Modellzug wie der Fragenvorschlag selbst, nicht mehr als eigener "
+        "Schritt danach -- die Konstante ist ganz weg "
+        "(tests/test_phase2_einzeln.py)."
+    ),
+    "knoepfe.texte.ANWEISUNG_EINLEITUNGEN": (
+        "Siehe knoepfe.ANWEISUNG_EINLEITUNGEN oben -- dieselbe Entfernung, "
+        "andere Schnappschuss-Ebene."
+    ),
+    "knoepfe.texte.TEXT_ARBEIT_SENSIBILITAET": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): keine eigene "
+        "Arbeitszeile mehr, weil die Sensibilitaetspruefung keinen eigenen "
+        "Modellzug mehr hat (siehe knoepfe.ANWEISUNG_EINLEITUNGEN)."
+    ),
+    "knoepfe.texte.TEXT_PRUEFUNG_LAEUFT": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): dieselbe Entfernung, "
+        "die Zeile gehoerte zum gestrichenen Sensibilitaetspruefungs-Schritt."
+    ),
+    "knoepfe.texte._HAKEN": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): letzter Rest der "
+        "stillgelegten Toggle-Knopf-Auswahl (06.09.2026), jetzt restlos "
+        "entfernt -- kein Aufrufer mehr."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_NICHT_DREI": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): keine feste Zahl "
+        "mehr (\"No hard count anywhere\") -- die Gruppe entscheidet Frage "
+        "fuer Frage, nicht per Dreierauswahl."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_NOTIERT": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): die Nummernwahl "
+        "entfaellt, die Notiert-Zeile heisst jetzt "
+        "``_TEXT_FRAGEN_ABGESCHLOSSEN``."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_NUMMERN_FALSCH": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): dieselbe Entfernung "
+        "wie ``_TEXT_FRAGEN_NICHT_DREI`` -- keine Nummernwahl mehr."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_UEBERNEHMEN_KNOPF": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): der Knopf \"Diese 3 "
+        "nehmen\" ist Geschichte (``ART_FRAGEN_UEBERNEHMEN`` bleibt als "
+        "stillgelegte Art stehen, nur die Beschriftung ist weg)."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_UEBERNOMMEN": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): dieselbe Entfernung "
+        "wie ``_TEXT_FRAGEN_NOTIERT`` -- die Quittung heisst jetzt "
+        "``_TEXT_FRAGEN_ABGESCHLOSSEN``."
+    ),
+    "prompt phasen/2": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026, Padua): der Vorschlag "
+        "traegt die Sensibilitaetspruefung im selben Modellzug, danach ein "
+        "Ueberblick mit Richtungsfrage statt Nummernwahl, danach Frage fuer "
+        "Frage (tests/test_phase2_einzeln.py)."
+    ),
+    "anweisungen.system(phase=2)": (
+        "Folge aus 'prompt phasen/2' oben -- dieselbe Aenderung in der "
+        "zusammengesetzten Systemanweisung."
+    ),
+    "knoepfe.ANWEISUNG_FRAGEN_ANDERE": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): kein fester Zehner "
+        "mehr (\"No hard count anywhere\"), traegt jetzt die "
+        "Sensibilitaetspruefung mit und nimmt eine optionale Richtung "
+        "entgegen (tests/test_phase2_einzeln.py)."
+    ),
+    "knoepfe.texte.ANWEISUNG_FRAGEN_ANDERE": (
+        "Siehe knoepfe.ANWEISUNG_FRAGEN_ANDERE oben -- dieselbe Aenderung, "
+        "andere Schnappschuss-Ebene."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_ANDERE_KNOPF": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): der Knopf heisst "
+        "jetzt \"Andere Richtung\" statt \"Andere Fragen\" -- er fragt "
+        "seitdem zuerst nach der Richtung, statt sofort neu vorzuschlagen."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_WAHL": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): die Nummernwahl ist "
+        "weg, der Text dient nur noch als Antwort auf einen Druck aus "
+        "einer alten, schon verschickten Nachricht."
+    ),
+    "vorschlag.ARTEN": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): neuer Marker "
+        "'frage' fuer die eine gerade geschaerfte Frage, neben der "
+        "bestehenden Fragenliste 'fragen' (tests/test_phase2_einzeln.py)."
+    ),
+    "vorschlag._ZEILE": (
+        "Siehe vorschlag.ARTEN oben -- derselbe neue Marker in der "
+        "Erkennungs-Regex."
+    ),
     "szene._REIHENFOLGE": (
         "Karte R, Aufgabe 8 (30.09.2026): der Blockname \"laenge\" steht "
         "direkt hinter \"aufgabe\". Kein Nutzertext, sondern die Reihenfolge "
@@ -85,6 +173,109 @@ GEAENDERT: dict[str, str] = {
         "false) und faellt in _zusammen ersatzlos weg -- der Nutzertext ist "
         "zeichengleich (tests/test_laengen_szene.py, "
         "tests/test_profil_bitgleich.py)."
+    ),
+    # Padua-Brainstorming-Umbau, Phase 4 (02.10.2026, .phase4-brainstorm-brief.md):
+    # die neue Erkenner-Art ``szenenanzahl_setzen`` (Anzahl Szenen ist ein
+    # fixes Feld, das die Gruppe selbst setzt) und die Entfernung der
+    # Rahmen->Figurenanzahl-Kette. Sechs Stellen aendern sich zusammen:
+    "erkenner.ARTEN": (
+        "Neue Art szenenanzahl_setzen (Punkt 24 in erkenner.md) -- die "
+        "Anzahl Szenen ist seit dem Phase-4-Umbau ein eigenes "
+        "Arbeitsstandfeld, das die Gruppe selbst nennt."
+    ),
+    "erkenner.SCHEMA": (
+        "Folgt aus ARTEN: das JSON-Schema des Erkenneraufrufs listet jede "
+        "bekannte Art im Enum, szenenanzahl_setzen kommt dazu."
+    ),
+    "erkenner._LEISTENARTEN": (
+        "rahmen_setzen/geschichte_setzen sind heraus: Phase 4 zeigt unter "
+        "jeder automatisch gespeicherten Festlegung nur noch den EINEN "
+        "Rueckgaengig-Knopf (📌-Zeile, siehe erkenner._ZEILE_FESTGELEGT), "
+        "keine Ping-Pong-Grundleiste mehr."
+    ),
+    "knoepfe.texte._KETTE": (
+        "\"rahmen\" ist kein Kettenglied mehr: die Figurenanzahl-Frage kommt "
+        "nach dem Setting nicht mehr automatisch (freies Brainstorming ohne "
+        "feste Reihenfolge). kernthema/kernfrage bleiben rueckwaertskompatibel."
+    ),
+    "szenenfolge.ANWEISUNG_GESCHICHTE_SZENEN": (
+        "Keine Form/Begruendung-Spalte mehr in der Szenenfolge, die Phase 4 "
+        "vorschlaegt -- die Form einer Szene entscheidet die Gruppe erst im "
+        "Feinschliff (Phase 7), nicht beim Erfinden der Geschichte."
+    ),
+    "prompt erkenner": (
+        "Punkt 22 (festlegung_setzen) erlaubt jetzt einen freien, kurzen "
+        "Bereichstitel statt alles Unbekannte unter \"sonstiges\" zu "
+        "sammeln, und der neue Punkt 24 (szenenanzahl_setzen) kommt dazu; "
+        "die Abgrenzungsabsaetze wurden entsprechend angepasst."
+    ),
+    "szenenfolge.systemanweisung_geschichte_szenen": (
+        "Folgt aus ANWEISUNG_GESCHICHTE_SZENEN: keine Form/Begruendung-"
+        "Spalte mehr in der phase-4-Szenenfolge."
+    ),
+    "prompt phasen/4": (
+        "Volle Neufassung (Padua-Brainstorming-Umbau, 02.10.2026): freie "
+        "Reihenfolge statt fester Kette (Setting -> Figuren -> Geschichte), "
+        "Vorschlaege nur auf Anfrage oder im Stillstand statt als feste "
+        "Eroeffnungsfrage, keine Form/Begruendung mehr in der Szenenfolge, "
+        "die Anzahl Szenen als eigenes Feld, ein Hinweis auf die "
+        "automatische Festlegung und den Phasenabschluss-Vorschlag."
+    ),
+    "anweisungen.system(phase=4)": (
+        "Folgt aus der Neufassung von phasen/4.md (siehe oben) -- die "
+        "Basisanweisung haengt den Phasentext unveraendert an. Zusaetzlich "
+        "Karte P2-Fix (Restspannung 4), siehe _GRUND_STATION_4 unten -- "
+        "beide Aenderungen treffen denselben zusammengesetzten Abschnitt."
+    ),
+    "szenenfolge.systemanweisung_geschichte(3)": (
+        "Folgt aus phasen/4.md: die zusammengesetzte Systemanweisung fuer "
+        "den Richtungs-Vorschlag haengt den neuen Phasentext an."
+    ),
+    "szenenfolge.systemanweisung_geschichte(4)": (
+        "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
+    ),
+    "szenenfolge.systemanweisung_geschichte(5)": (
+        "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
+    ),
+    "szenenfolge.systemanweisung_geschichte(6)": (
+        "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
+    ),
+    "prompt phasen/6": (
+        "Folgt aus dem Phase-4-Umbau (02.10.2026): Phase 4 entscheidet keine "
+        "Form je Szene mehr, also behauptet Phase 6 nicht mehr \"die Form je "
+        "Szene steht schon\" -- sie wird erst im Feinschliff entschieden."
+    ),
+    "anweisungen.system(phase=6)": (
+        "Folgt aus phasen/6.md (siehe oben). Zusaetzlich Karte P2-Fix "
+        "(Restspannung 4), siehe _GRUND_STATION_4 unten -- beide "
+        "Aenderungen treffen denselben zusammengesetzten Abschnitt."
+    ),
+    "szenenfolge.systemanweisung(3)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(4)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(5)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(6)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "prompt phasen/3": (
+        "Karte Phase3-Web: Bedienungsanleitung kanal-neutral umformuliert, "
+        "02.10.2026. Die Schritte nennen keinen Telegram-Knopfwortlaut mehr "
+        "(\"Interview starten\" / \"Interview geht weiter\" / \"Interview "
+        "ist fertig\"), sondern das Verhalten (Aufnahme starten / "
+        "aufnehmen / beenden) -- einige dieser Knoepfe werden im Web-Kanal "
+        "seit Aufgabe 2 nicht mehr angeboten."
+    ),
+    "anweisungen.system(phase=3)": (
+        "Karte Phase3-Web, 02.10.2026: Folgewirkung derselben Aenderung an "
+        "prompt phasen/3 -- die zusammengesetzte Systemanweisung bettet den "
+        "Phasentext direkt ein, siehe Begruendung dort. Zusaetzlich Karte "
+        "P2-Fix (Restspannung 4), siehe _GRUND_STATION_4 unten -- beide "
+        "Aenderungen treffen denselben zusammengesetzten Abschnitt."
     ),
     "szene.KERNPAKET_KOPF": (
         "Karte P2-Fix (02.10.2026, Restspannung 2): der Kopf nennt das "
@@ -123,6 +314,9 @@ GEAENDERT: dict[str, str] = {
         "genau einmal im Nutzertext, im Auftrag "
         "(tests/test_kuerzung.py::test_kuerzen_bindet_die_abschnittszahl_genau_einmal)."
     ),
+    # phase=3/4/6 stehen oben, zusammen mit dem jeweils eigenen Grund --
+    # beide Karten (P2-Fix und Padua-Brainstorming-Umbau) treffen denselben
+    # zusammengesetzten Abschnitt, siehe die kombinierten Begruendungen dort.
     # Padua Hotfix Befund 2 (02.10.2026): das Gespraechsmodell (reiner Text)
     # sieht keine Bilder und soll ein Foto deshalb nicht mehr anbieten --
     # zusaetzlich zur Station-4-Umbenennung aus Karte P2-Fix, die denselben

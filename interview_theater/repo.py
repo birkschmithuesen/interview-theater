@@ -334,6 +334,21 @@ def letzte_bot_nachricht_vor(conn: sqlite3.Connection, chat_id: int, message_id:
 
 
 @_gesperrt
+def neueste_nachricht_text(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Der Text der zeitlich juengsten Nachricht der Gruppe (jeder Sender),
+    oder ``None`` ohne Nachrichten. Fuer die "keine zwei gleichen Zeilen
+    hintereinander"-Regel der Buehnenkarten-Meldung (Brainstorm-Modus,
+    02.10.2026) -- dieselbe Idee wie ``gruppe.kostenpause_gemeldet_am``, nur
+    am Chatverlauf statt an einem eigenen Zeitstempel gemessen."""
+    zeile = conn.execute(
+        "SELECT text FROM nachricht WHERE chat_id = ? "
+        "ORDER BY gesendet_am DESC, message_id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    return zeile["text"] if zeile else None
+
+
+@_gesperrt
 def setze_extrahiert_bis(conn: sqlite3.Connection, chat_id: int, message_id: int) -> None:
     """Setzt das Wasserzeichen letzte_extrahierte_message_id. Bewegt sich nie
     rueckwaerts (analog setze_beantwortet_bis) -- ein Absichtserkenner-Lauf,
@@ -463,6 +478,8 @@ def lege_aufnahme_an(
     dauer: int | None = None,
     teil_von: int | None = None,
     status: str = "empfangen",
+    schnittgrund: str | None = None,
+    brainstorm: bool = False,
 ) -> int:
     """Legt eine Aufnahme (Sprache oder Textimport) an.
 
@@ -475,6 +492,10 @@ def lege_aufnahme_an(
     Teil traegt den Namen seines Kopfes, und ein Zuruf ist kein Interview, das
     man beim Namen nennen koennte.
 
+    ``schnittgrund`` (Pausen-Schnitt, 02.10.2026) und ``brainstorm`` (Knopf
+    "Brainstorm mithören", Phase 4) kommen vom Web-Kanal durchgereicht, bei
+    Telegram bleiben beide bei ihrer Vorgabe.
+
     Startstatus 'empfangen', beim Interview-Kopf 'laeuft'; der Aufrufer
     entscheidet ueber weitere Statusuebergaenge."""
     name = f"Interview {zaehle_interviews(conn, chat_id) + 1}" if klasse == "lang" else None
@@ -482,11 +503,12 @@ def lege_aufnahme_an(
         """
         INSERT INTO aufnahme
             (chat_id, message_id, name, klasse, quelle, audio_pfad,
-             dauer_sekunden, status, empfangen_am, teil_von)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             dauer_sekunden, status, empfangen_am, teil_von, schnittgrund,
+             brainstorm)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (chat_id, message_id, name, klasse, quelle, audio_pfad, dauer, status,
-         _jetzt(), teil_von),
+         _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0),
     )
     conn.commit()
     return cur.lastrowid
@@ -1683,11 +1705,24 @@ _ARBEITSSTAND_FELDER = (
     "fragen_weich",
     # Die Mehrfachauswahl der Phase 2 (06.09.2026): die zehn vorgeschlagenen
     # Fragen und die angetippten Nummern. Zustand in der Datenbank, nicht in
-    # der Tastatur -- siehe ``db.SCHEMA``.
+    # der Tastatur -- siehe ``db.SCHEMA``. ``fragen_gewaehlt`` ist seit dem
+    # Umbau auf "Frage fuer Frage" (02.10.2026) unbenutzt (die alte
+    # Toggle-Auswahl); die Spalte bleibt stehen (additive Migration, nie
+    # entfernen).
     "fragen_auswahl", "fragen_gewaehlt",
+    # Phase 2, Frage fuer Frage (02.10.2026, Padua): welche Frage gerade
+    # vorgelegt ist, der Entscheidungsstand je Frage, und worauf die
+    # naechste freie Nachricht deterministisch antwortet.
+    "fragen_aktuell", "fragen_entschieden", "fragen_warte_auf",
     # Der Laengen-Faktor (30.09.2026, Karte R): derselbe eine Schreibweg wie
     # alles andere im Arbeitsstand.
     "laengen_faktor",
+    # Die Anzahl Szenen (Padua-Brainstorming-Umbau, 02.10.2026): ein fixes
+    # Feld von Phase 4, das die Gruppe selbst setzt.
+    "szenen_anzahl",
+    # Merkposten "Interviews fertig" (Web, 02.10.2026): derselbe eine
+    # Schreibweg wie alles andere im Arbeitsstand.
+    "interviews_fertig_wunsch_seit",
 )
 
 
@@ -1843,6 +1878,154 @@ def setze_phase_angeboten(conn: sqlite3.Connection, chat_id: int, nummer: int) -
         (chat_id, nummer, _jetzt()),
     )
     conn.commit()
+
+
+@_gesperrt
+def brainstorm_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Die drei Zahlen, die ``brainstorm.soll_reagieren`` braucht.
+
+    ``unreagierte_zeichen``: Summe der Transkriptlaenge ueber alle noch
+    nicht in einer Buehnenkarte beruecksichtigten Brainstorm-Segmente (id
+    groesser als ``arbeitsstand.brainstorm_markierung_id``, oder alle, wenn
+    es noch keine Karte gab). ``sekunden_seit_letzter_reaktion``: ``None``
+    vor der ersten Karte (das Trigger braucht dann ohnehin keinen Abstand,
+    siehe ``brainstorm.soll_reagieren``, aber ein sehr grosser Wert waere
+    eine erfundene Praezision). ``letzter_schnittgrund``: der Schnittgrund
+    des JUENGSTEN Brainstorm-Segments insgesamt (nicht nur der
+    unreagierten) -- ob die Gruppe GERADE eine Pause gemacht hat, ist
+    unabhaengig davon, wie viele Segmente seit der letzten Karte noch offen
+    sind."""
+    zeile = conn.execute(
+        "SELECT brainstorm_markierung_id, brainstorm_reaktion_am "
+        "FROM arbeitsstand WHERE chat_id = ?", (chat_id,),
+    ).fetchone()
+    markierung_id = zeile["brainstorm_markierung_id"] if zeile else None
+    reaktion_am = zeile["brainstorm_reaktion_am"] if zeile else None
+
+    zeichen = conn.execute(
+        "SELECT COALESCE(SUM(LENGTH(transkript)), 0) FROM aufnahme "
+        "WHERE chat_id = ? AND brainstorm = 1 AND entfernt_am IS NULL "
+        "AND transkript IS NOT NULL AND id > ?",
+        (chat_id, markierung_id or 0),
+    ).fetchone()[0]
+
+    letzter = conn.execute(
+        "SELECT schnittgrund FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL ORDER BY id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    letzter_schnittgrund = letzter["schnittgrund"] if letzter else None
+
+    sekunden_seit_reaktion = None
+    if reaktion_am:
+        sekunden_seit_reaktion = max(
+            0.0,
+            (datetime.now(timezone.utc) - datetime.fromisoformat(reaktion_am))
+            .total_seconds(),
+        )
+
+    return {
+        "unreagierte_zeichen": int(zeichen),
+        "sekunden_seit_letzter_reaktion": sekunden_seit_reaktion,
+        "letzter_schnittgrund": letzter_schnittgrund,
+    }
+
+
+@_gesperrt
+def markiere_brainstorm_reaktion(
+    conn: sqlite3.Connection, chat_id: int, aufnahme_id: int,
+) -> None:
+    """Nach einer erfolgreich erzeugten Buehnenkarte: die Markierung ruecken,
+    die Reaktionszeit setzen. ``aufnahme_id`` ist die hoechste id, die die
+    Karte schon gesehen hat (die juengste zum Erzeugungszeitpunkt bekannte) --
+    nicht einfach MAX(id), falls zwischen Lesen und Schreiben ein neues
+    Segment eintraf: das soll NICHT als "schon gesehen" gelten."""
+    conn.execute(
+        """
+        INSERT INTO arbeitsstand
+            (chat_id, brainstorm_markierung_id, brainstorm_reaktion_am, geaendert_am)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            brainstorm_markierung_id = excluded.brainstorm_markierung_id,
+            brainstorm_reaktion_am = excluded.brainstorm_reaktion_am,
+            geaendert_am = excluded.geaendert_am
+        """,
+        (chat_id, aufnahme_id, _jetzt(), _jetzt()),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hoechste_brainstorm_aufnahme_id(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die hoechste ``aufnahme.id`` eines Brainstorm-Segments dieser Gruppe,
+    oder 0, wenn es noch keins gibt -- fuer ``markiere_brainstorm_reaktion``,
+    damit der Aufrufer die Markierung setzt, OHNE selbst SQL zu schreiben."""
+    zeile = conn.execute(
+        "SELECT MAX(id) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL", (chat_id,),
+    ).fetchone()
+    return int(zeile[0]) if zeile and zeile[0] is not None else 0
+
+
+@_gesperrt
+def brainstorm_transkript(conn: sqlite3.Connection, chat_id: int) -> str:
+    """Der VOLLSTAENDIGE Brainstorm-Mitschnitt von Phase 4, chronologisch
+    aneinandergehaengt -- eigener Kontext fuer die Buehnenkarte, nicht das
+    normale Gespraechsfenster (kontext.FENSTER_ZEICHEN): eine Karte soll den
+    ganzen bisherigen Bogen sehen, nicht nur die letzten Minuten."""
+    zeilen = conn.execute(
+        "SELECT transkript FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL AND transkript IS NOT NULL ORDER BY id ASC",
+        (chat_id,),
+    ).fetchall()
+    return "\n\n".join(zeile["transkript"] for zeile in zeilen if zeile["transkript"])
+
+
+@_gesperrt
+def lege_buehnenkarte_an(
+    conn: sqlite3.Connection, chat_id: int, text: str, modell: str,
+) -> int:
+    """Haengt eine Buehnenkarte an (nur anhaengen, wie journal/szenenfassung
+    -- siehe Tabellenkommentar in db.py)."""
+    cur = conn.execute(
+        "INSERT INTO buehnenkarte (chat_id, text, modell, erstellt_am) "
+        "VALUES (?, ?, ?, ?)",
+        (chat_id, text, modell, _jetzt()),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+@_gesperrt
+def buehnenkarten(
+    conn: sqlite3.Connection, chat_id: int, hoechstens: int = 20,
+) -> list[sqlite3.Row]:
+    """Die juengsten Buehnenkarten, NEUESTE ZUERST (fuer die Buehne-Ansicht:
+    "die neueste Karte oben, aeltere kleiner/ausgegraut darunter")."""
+    return conn.execute(
+        "SELECT * FROM buehnenkarte WHERE chat_id = ? ORDER BY id DESC LIMIT ?",
+        (chat_id, hoechstens),
+    ).fetchall()
+
+
+@_gesperrt
+def stueckkarte_felder(conn: sqlite3.Connection, chat_id: int) -> list[tuple[str, str | None]]:
+    """Die drei festen Felder der Stueckkarte (Setting, Figuren, Geschichte,
+    Phase 4) mit ihrem aktuellen Wert oder ``None``, wenn noch offen.
+
+    Gemeinsame Datenquelle fuer die Buehnenkarte (``buehnenkarte.py``, als
+    Kontext fuer den Modellaufruf) und den Buehne-Tab der Gruppenseite
+    (``web.py``, als ✓/offen-Streifen) -- ein Fakt hat eine Stelle."""
+    stand = conn.execute(
+        "SELECT rahmen, geschichte FROM arbeitsstand WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    namen = [f["name"] for f in figuren(conn, chat_id)]
+    return [
+        ("Setting", (stand["rahmen"] if stand else None) or None),
+        ("Figuren", ", ".join(namen) if namen else None),
+        ("Geschichte", (stand["geschichte"] if stand else None) or None),
+    ]
 
 
 @_gesperrt
@@ -2693,19 +2876,33 @@ FESTLEGUNG_BEREICHE = (
 FESTLEGUNG_QUELLEN = ("erkenner", "befehl", "web")
 
 
-def normiere_bereich(bereich) -> str:
-    """Einen genannten Bereich auf ``FESTLEGUNG_BEREICHE`` abbilden.
+#: Ein freier Bereichstitel wird hier gekappt -- er ist ein Titel, kein Text.
+FESTLEGUNG_BEREICH_HOECHSTLAENGE = 40
 
-    Tolerant, weil die Werte aus einem Sprachmodell kommen: getrimmt,
-    kleingeschrieben, Mehrzahl abgeschnitten ("figuren" -> "figur"). Was
-    danach nicht passt, wird ``sonstiges``."""
-    wort = (bereich or "").strip().lower().strip(":")
-    if wort in FESTLEGUNG_BEREICHE:
-        return wort
-    if wort.endswith("en") and wort[:-2] in FESTLEGUNG_BEREICHE:
-        return wort[:-2]
-    if wort.endswith("n") and wort[:-1] in FESTLEGUNG_BEREICHE:
-        return wort[:-1]
+
+def normiere_bereich(bereich) -> str:
+    """Einen genannten Bereich auf ``FESTLEGUNG_BEREICHE`` abbilden, wenn er
+    passt -- sonst bleibt er als FREIER TITEL stehen (Padua-Brainstorming-
+    Umbau, 02.10.2026: "unlimited, free titles").
+
+    Tolerant bei den bekannten Bereichen, weil die Werte aus einem
+    Sprachmodell kommen: getrimmt, kleingeschrieben, Mehrzahl abgeschnitten
+    ("figuren" -> "figur"). Ein Wort, das zu keinem bekannten Bereich passt,
+    wird NICHT mehr nach ``sonstiges`` kollabiert -- es ist der Titel, unter
+    dem die Gruppe die Festlegung im Chat und auf der Gruppenseite
+    wiederfindet (``_festlegungen_html``/``web.FESTLEGUNG_BEREICH_BESCHRIFTUNG``
+    fallen fuer unbekannte Woerter ohnehin schon auf den Rohwert zurueck).
+    Nur ein wirklich leerer Bereich wird weiterhin ``sonstiges``."""
+    wort = (bereich or "").strip().strip(":")
+    lower = wort.lower()
+    if lower in FESTLEGUNG_BEREICHE:
+        return lower
+    if lower.endswith("en") and lower[:-2] in FESTLEGUNG_BEREICHE:
+        return lower[:-2]
+    if lower.endswith("n") and lower[:-1] in FESTLEGUNG_BEREICHE:
+        return lower[:-1]
+    if wort:
+        return wort[:FESTLEGUNG_BEREICH_HOECHSTLAENGE]
     return "sonstiges"
 
 
@@ -3556,6 +3753,14 @@ WEB_TYP_SPRACHE = "sprache"
 WEB_TYP_KNOPF = "knopf"
 WEB_TYP_BEFEHL = "befehl"
 WEB_TYP_DATEI = "datei"
+#: Eine Speicherquittung (UX-Knoepfe-Karte, Abschnitt 3) -- "Notiert: ..."
+#: und Rueckgaengig-Ergebnisse. Wie ``WEB_TYP_TEXT``, nur mit dem Hinweis an
+#: die Chatansicht, sie gedaempft als Systemzeile statt als Sprechblase zu
+#: zeigen (``web_chat.py``, ``klasseVon``). Fuer ``repo.letzte_nachrichten``
+#: unsichtbar: die Mitschrift in ``nachricht`` (``merke_bot_zeile``) bleibt
+#: bei ``typ='text'``, nur ``web_post.typ`` bekommt den neuen Wert -- das
+#: Gespraechsmodell sieht also exakt denselben Text wie vorher.
+WEB_TYP_SYSTEM = "system"
 
 #: Ab hier liegen die synthetischen chat_ids der Web-Gruppen. Positiv und weit
 #: oberhalb aller Telegram-Bereiche (Gruppen sind dort negativ, Nutzer-ids
@@ -3589,20 +3794,28 @@ def web_knoepfe(zeile) -> list[list[str]]:
 def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      text=None, knoepfe=None, daten=None,
                      bezug_message_id=None, dauer=None,
-                     datei=None, mime=None, dateiname=None) -> int:
+                     datei=None, mime=None, dateiname=None,
+                     schnittgrund=None, brainstorm=False, bild=None) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
-    beide Richtungen (siehe Tabellenkommentar in db.py)."""
+    beide Richtungen (siehe Tabellenkommentar in db.py). ``schnittgrund``/
+    ``brainstorm`` (Pausen-Schnitt, 02.10.2026) sind nur bei
+    ``typ='sprache'`` gesetzt und wandern unveraendert bis in die
+    ``aufnahme``-Zeile (``web_kanal.hole_updates`` -> ``aufnahme.empfange``).
+    ``bild`` (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
+    Telefon-Organisationskarte unter ``interview_theater/static/handys/``."""
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
-        "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
+        "schnittgrund, brainstorm, bild) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
+            schnittgrund, 1 if brainstorm else 0, bild,
         ),
     )
     conn.commit()
@@ -3837,6 +4050,25 @@ def merke_kostenpause(conn: sqlite3.Connection, chat_id: int, nicht_vor_iso: str
           AND (kostenpause_gemeldet_am IS NULL OR kostenpause_gemeldet_am < ?)
         """,
         (jetzt_iso or _jetzt(), chat_id, nicht_vor_iso),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+@_gesperrt
+def beanspruche_abkuerzungen_hinweis(conn: sqlite3.Connection, chat_id: int,
+                                     jetzt_iso: str | None = None) -> bool:
+    """Darf DIESER Aufruf den einmaligen Hinweis "Knoepfe sind Abkuerzungen"
+    zeigen (UX-Knoepfe-Karte, Abschnitt 1)? Liefert True hoechstens einmal je
+    Gruppe -- bedingtes ``UPDATE`` wie ``merke_kostenpause``/
+    ``beanspruche_knopf``, damit zwei gleichzeitige erste Knopfnachrichten
+    (zwei Telefone, derselbe Moment) den Hinweis nicht doppelt schicken."""
+    cursor = conn.execute(
+        """
+        UPDATE gruppe SET abkuerzungen_hinweis_gezeigt_am = ?
+        WHERE chat_id = ? AND abkuerzungen_hinweis_gezeigt_am IS NULL
+        """,
+        (jetzt_iso or _jetzt(), chat_id),
     )
     conn.commit()
     return cursor.rowcount > 0

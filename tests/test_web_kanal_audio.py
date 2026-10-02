@@ -75,6 +75,10 @@ def test_die_schluesselmenge_waechst_um_genau_einen_eintrag():
     assert set(telegram.lies_nachricht(update)) == {
         "chat_id", "chat_titel", "message_id", "absender", "typ", "text",
         "file_id", "dauer", "gesendet_am", "endung",
+        # Brainstorm/VAD (02.10.2026): warum das Stueck geschnitten wurde
+        # (Pause/Deckel/Ende) und ob es Brainstorm-Mitschrift statt Interview
+        # ist -- beide None bei Telegram.
+        "schnittgrund", "brainstorm",
     }
 
 

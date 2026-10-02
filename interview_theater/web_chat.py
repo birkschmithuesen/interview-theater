@@ -39,6 +39,10 @@ T = sprache.Texte(__name__)
 #: ``scripts/web_gruppe.CHAT_PFAD`` (Test).
 CHAT_PFAD = "chat"
 
+#: Wo die Telefon-Organisationskarten liegen (UX-Knoepfe-Karte, Abschnitt 5)
+#: -- wortgleich mit ``web.STATIC_HANDYS_PRAEFIX`` ohne den Schlussschraegstrich.
+STATIC_HANDYS_PFAD = "static/handys"
+
 #: Wie lang eine Nachricht aus dem Browser hoechstens ist. Dieselbe Zahl wie
 #: ``telegram.NACHRICHT_GRENZE``: eine Gruppe, die im Browser arbeitet, soll
 #: nicht mehr schreiben koennen, als der Telegram-Weg tragen wuerde -- sonst
@@ -54,9 +58,11 @@ MIME_ERLAUBT = web_kanal.MIME_ERLAUBT
 
 #: Wie gross ein einzelnes Segment sein darf.
 #:
-#: Gerechnet, nicht geraten: Opus bei 32 kbit/s ergibt fuer 45 s rund
-#: 180 KiB, Safaris mp4/AAC bei 64 kbit/s rund 360 KiB. 8 MiB sind gut
-#: zwanzigfache Luft fuer einen Browser, der eine hohe Bitrate waehlt -- und
+#: Gerechnet, nicht geraten -- seit dem Pausen-Schnitt (VAD, 02.10.2026) auf
+#: den harten Zeitdeckel IT_WEB_VAD_MAX_MS (Vorgabe 90 s), nicht mehr auf die
+#: alte feste Segmentlaenge von 45 s: Opus bei 32 kbit/s ergibt fuer 90 s rund
+#: 360 KiB, Safaris mp4/AAC bei 64 kbit/s rund 720 KiB. 8 MiB sind immer noch
+#: gut zehnfache Luft fuer einen Browser, der eine hohe Bitrate waehlt -- und
 #: sie liegen klar unter ``stt.MAX_UPLOAD_BYTES`` (25 MiB): eine Datei, die
 #: Whisper ohnehin ablehnen wuerde, soll gar nicht erst ankommen.
 MAX_AUDIO_BYTES = 8 * 1024 * 1024
@@ -134,8 +140,35 @@ def sichere_html(text) -> str:
 
 _TEXT_TITEL = "Chat mit dem Theaterbot"
 _TEXT_LEER = "Noch nichts da. Schreibt mir, womit ihr anfangen wollt."
-_TEXT_EINGABE = "Schreiben …"
+#: Der Standard-Platzhalter (UX-Knoepfe-Karte, Abschnitt 1): das Eingabefeld
+#: ist nie gesperrt, auch nicht, solange Knoepfe (Abkuerzungen) offen stehen
+#: -- der Platzhalter soll genau das einladen.
+_TEXT_EINGABE = "Schreibt oder sprecht einfach – oder tippt eine Abkürzung"
+#: Phase 2 mit einer gerade offenen Frage (``arbeitsstand.fragen_aktuell``):
+#: eine freie Nachricht zaehlt dort als Schaerfungswunsch
+#: (``fragen.nimm_offene_frage_text``) -- der Platzhalter sagt das.
+_TEXT_EINGABE_FRAGEN = "Sagt, was an der Frage anders soll …"
+#: Phase 4 (Setting, Figuren & Geschichte): freies Erfinden ohne feste
+#: Reihenfolge, siehe AGENTS.md "Erst erfinden, dann schaerfen".
+_TEXT_EINGABE_SETTING = "Erzählt eure Idee …"
 _TEXT_SENDEN = "Senden"
+#: UX-Knoepfe-Karte, Abschnitt 1: Knoepfe sind Abkuerzungen, keine Pflicht --
+#: das kleine, gedaempfte Label sagt das jedes Mal, wenn eine Chip-Leiste
+#: steht, ohne dass jemand lesen muesste.
+_TEXT_ABKUERZUNG = "Abkürzung:"
+
+#: UX-Knoepfe-Karte, Abschnitt 1: die VIER Texte oben (Platzhalter +
+#: Abkuerzungs-Label) und, dazu, Padua Hotfix B6/B7: Interview-Knopftext,
+#: Sprachnachricht/Transkript-Zeilen -- alle mit einem englischen Gegenstueck
+#: (``sprachen/en/texte.toml``, Abschnitt ``[web_chat]``), nachgeschlagen zur
+#: Aufrufzeit ueber ``T`` (oben, ein ``T`` fuer das ganze Modul, wie bei jedem
+#: ``T``-umgestellten Modul, ``sprache.py``). Der Rest von ``web_chat.py``
+#: ist weiterhin unuebersetzt (AGENTS.md, "Englische UI-Texte der
+#: Chatansicht", Uebergabe an Karte A1) -- insbesondere ``_JS_TEXTE`` bleibt
+#: ein beim Import eingefrorenes Woerterbuch und liest ``_TEXT_ABKUERZUNG``
+#: deshalb bewusst nackt, nicht ueber ``T``: ein Prozess bedient genau eine
+#: Sprache fuer seine ganze Laufzeit, aber ``T`` nachzuschlagen waere hier
+#: nur Attrappe ohne Wirkung.
 _TEXT_TIPPT = "schreibt …"
 _TEXT_SPRACHE = "Sprachnachricht ({dauer})"
 #: Padua Hotfix B7: solange abgetippt wird -- und mit Transkript (das
@@ -143,9 +176,38 @@ _TEXT_SPRACHE = "Sprachnachricht ({dauer})"
 _TEXT_SPRACHE_LAEUFT = "{dauer} · wird abgetippt …"
 _TEXT_SPRACHE_ABGETIPPT = "🎤 {dauer} · {text}"
 _TEXT_DATEI = "Datei: {name}"
+#: Dieselbe Zeile wie ``aufnahme._TEXT_BUEHNE_NEUE_KARTE`` (DE) und ihr
+#: englisches Gegenstueck (``sprachen/en/texte.toml``, ["aufnahme"]) -- als
+#: Literal statt als Import, weil ``aufnahme`` ein Fachlogik-Modul ist und
+#: ``web_chat`` nur erkennen, nicht nachladen muss (UX-Knoepfe-Karte,
+#: Abschnitt 5). Beide Fassungen stehen hier, damit die Erkennung
+#: unabhaengig von der Profilsprache des laufenden Prozesses funktioniert.
+_TEXTE_BUEHNE_NEUE_KARTE = (
+    "Neue Karte im Tab Bühne", "New card in the Stage tab",
+)
 _TEXT_ZUR_GRUPPENSEITE = "Zur Gruppenseite"
+#: Padua Hotfix B6/B7: ohne Emoji und ueber ``T`` nachgeschlagen (EN-Mirror,
+#: ["web_chat"] in sprachen/en/texte.toml) -- der Knopftext ist einer der
+#: wenigen uebersetzten in diesem Modul.
 _TEXT_INTERVIEW_AN = "Interview aufnehmen"
 _TEXT_INTERVIEW_AUS = "Aufnahme beenden"
+#: Die drei neuen Knoepfe des Drei-Zustands-Reglers (02.10.2026, Padua):
+#: Pause haelt den Recorder an, OHNE den Interviewmodus serverseitig zu
+#: beenden -- "Weiter" haengt an dieselbe Sitzung an, "Beenden" ist der
+#: einzige Weg, der noch /fertig schickt.
+_TEXT_INTERVIEW_PAUSE = "⏸ Pause"
+_TEXT_INTERVIEW_WEITER = "▶ Weiter"
+_TEXT_INTERVIEW_ENDEN = "■ Beenden"
+#: Vorlagen mit ``{zeit}`` wie ``_TEXT_UHR`` -- der grosse Knopf zeigt die
+#: erfasste Aufnahmedauer selbst an, nicht nur das separate ``#uhr``-Feld.
+_TEXT_INTERVIEW_LAEUFT = "● Interview läuft · {zeit}"
+_TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
+#: Brainstorm mithören (Phase 4, nur Web, 02.10.2026): derselbe
+#: Drei-Zustands-Regler wie beim Interview (Pause/Weiter/Beenden teilen sich
+#: dieselben Beschriftungen, _TEXT_INTERVIEW_PAUSE usw.), nur der grosse
+#: Knopf und die Laeuft-Zeile sind eigene -- "Brainstorm" ist kein Interview.
+_TEXT_BRAINSTORM_AN = "🎙 Brainstorm mithören"
+_TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit}"
 _TEXT_PTT = "Halten und sprechen"
 _TEXT_OHNE_JS = (
     "Fuer Chat und Aufnahme braucht diese Seite JavaScript. "
@@ -180,12 +242,26 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .blase.gruppe { background: #1f6f5c; color: #fff; align-self: flex-end;
                 border-bottom-right-radius: .2rem; }
 .blase.sprache { font-style: italic; opacity: .85; }
-.leiste { display: flex; flex-direction: column; gap: .35rem; margin: .1rem 0 .3rem;
-          align-self: flex-start; width: 88%; }
-.leiste button { font: inherit; text-align: left; padding: .65rem .8rem;
-                 border-radius: .7rem; border: 1px solid #1f6f5c;
-                 background: #fff; color: #17181b; min-height: 2.9rem; }
+.blase.system { background: transparent; border: none; color: #6b6f76;
+                font-size: .88rem; padding: .25rem .2rem; max-width: 100%; }
+/* UX-Knoepfe-Karte, Abschnitt 5: die Telefon-Organisationskarte je Phase. */
+.karte { max-width: 100%; display: block; border-radius: .5rem; margin-bottom: .35rem; }
+/* UX-Knoepfe-Karte, Abschnitt 1: Knoepfe sind kleine Abkuerzungs-Chips, keine
+   vollbreiten Pflichtknoepfe -- die Hauptlast bleibt beim Eingabefeld. */
+.leiste-label { font-size: .74rem; color: #9a9ea5; margin: .1rem 0 0;
+                align-self: flex-start; }
+.leiste { display: flex; flex-direction: row; flex-wrap: wrap; gap: .4rem;
+          margin: 0 0 .3rem; align-self: flex-start; max-width: 94%; width: auto; }
+.leiste button { font: inherit; font-size: .92rem; text-align: left;
+                 padding: .45rem .85rem; border-radius: 999px;
+                 border: 1px solid #1f6f5c; background: #fff; color: #1f6f5c;
+                 min-height: 2.3rem; }
 .leiste button:disabled { opacity: .45; }
+/* Die Gruppe hat frei geschrieben oder gesprochen, statt einen Chip zu
+   druecken: die Leiste bleibt sichtbar (eine Abkuerzung ist nicht falsch
+   geworden), wird aber gedaempft -- rein optisch, der Server entscheidet
+   weiterhin allein, wann ein Knopf wirklich verfaellt. */
+.leiste.ueberholt button { opacity: .4; border-color: #c9c4b8; color: #8b8f97; }
 .quittung { font-size: .82rem; opacity: .7; align-self: flex-start; }
 .tippt { font-size: .85rem; opacity: .6; height: 1.2em; }
 .fuss { position: fixed; left: 0; right: 0; bottom: 0; background: #fbfaf8;
@@ -200,6 +276,25 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
              border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff; }
 #interview[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
+#interview[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
+                                                 border-color: #8a8a8a; }
+/* Brainstorm mithören (Phase 4, nur Web): derselbe grosse Knopf wie
+   #interview, Interview bleibt daneben erreichbar, aber kleiner/nachrangig
+   (brief: "interview button stays reachable ... smaller/secondary"). */
+#brainstorm { font: inherit; font-weight: 600; min-height: 3.2rem; width: 100%;
+              border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff;
+              margin-bottom: .5rem; }
+#brainstorm[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
+                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
+#brainstorm[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
+                                                  border-color: #8a8a8a; }
+#interview.nebenknopf { font-weight: 400; min-height: 2.4rem; font-size: .9rem;
+                        opacity: .8; }
+.interview-aktionen { display: flex; gap: .5rem; margin-top: .4rem; }
+.interview-aktionen[hidden] { display: none; }
+.interview-aktionen button { flex: 1; min-height: 2.6rem; border-radius: .6rem;
+                             font: inherit; border: 1px solid #1f6f5c;
+                             background: #fff; color: #17181b; }
 #ptt[hidden], #interview[hidden] { display: none; }
 #interview:disabled { opacity: .55; }
 /* PTT wird gehalten: kein Scrollen, kein Markieren, kein Kontextmenue unter
@@ -225,7 +320,9 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
   .blase.bot { background: #1d2026; border-color: #2c313a; }
   .fuss { background: #14161a; border-color: #2c313a; }
   .zeile input { background: #1d2026; color: #e7e9ec; border-color: #2c313a; }
-  .leiste button { background: #1d2026; color: #e7e9ec; }
+  .leiste button { background: #1d2026; color: #6fcfb6; border-color: #2c6a58; }
+  .leiste-label { color: #7d8290; }
+  .interview-aktionen button { background: #1d2026; color: #e7e9ec; }
 }
 """
 
@@ -262,10 +359,14 @@ _TEXT_VERLASSEN = "Es wird noch aufgenommen oder hochgeladen."
 _TEXT_UHR = "● {zeit}"
 #: Re-Review H: der Interviewmodus ist serverseitig zu Ende, waehrend dieses
 #: Telefon noch aufnahm oder Segmente offen hatte. Ohne Modus waere ein
-#: Segment (45 s, also unter ``aufnahme.HINWEIS_AB_S``) ein
-#: Gespraechsbeitrag -- Gespraechszug, Erkenner und Journal ueber
-#: Interviewmaterial. Deshalb wird nichts still nachgeschickt, die Gruppe
-#: entscheidet.
+#: Segment (seit dem Pausen-Schnitt bis zu IT_WEB_VAD_MAX_MS, Vorgabe 90 s --
+#: damit laenger als ``aufnahme.HINWEIS_AB_S``, 60 s) ein Gespraechsbeitrag
+#: -- Gespraechszug, Erkenner und Journal ueber Interviewmaterial. Das
+#: ueberschreiten von HINWEIS_AB_S bleibt hier folgenlos, weil die
+#: "war das ein Interview?"-Rueckfrage auf dem Web-Kanal ohnehin nie laeuft
+#: (``aufnahme.ist_web_gruppe``-Ausnahme) -- die eigentliche Gefahr bleibt
+#: dieselbe wie vorher: Interviewinhalt als Gespraechsbeitrag. Deshalb wird
+#: nichts still nachgeschickt, die Gruppe entscheidet.
 _TEXT_MODUS_WEG = (
     "Das Interview wurde beendet, die Aufnahme ist gestoppt. "
     "{n} Stück(e) sind noch nicht angekommen."
@@ -290,6 +391,12 @@ _JS_TEXTE = {
     "datei": _TEXT_DATEI,
     "interview_an": _TEXT_INTERVIEW_AN,
     "interview_aus": _TEXT_INTERVIEW_AUS,
+    "interview_pause": _TEXT_INTERVIEW_PAUSE,
+    "interview_weiter": _TEXT_INTERVIEW_WEITER,
+    "interview_laeuft": _TEXT_INTERVIEW_LAEUFT,
+    "interview_pausiert": _TEXT_INTERVIEW_PAUSIERT,
+    "brainstorm_an": _TEXT_BRAINSTORM_AN,
+    "brainstorm_laeuft": _TEXT_BRAINSTORM_LAEUFT,
     "warte_eins": _TEXT_WARTE_EINS,
     "warte_mehr": _TEXT_WARTE_MEHR,
     "warte_modus": _TEXT_WARTE_MODUS,
@@ -301,6 +408,7 @@ _JS_TEXTE = {
     "modus_weg": _TEXT_MODUS_WEG,
     "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
     "nachreichen_spaeter": _TEXT_NACHREICHEN_SPAETER,
+    "abkuerzung": _TEXT_ABKUERZUNG,
 }
 
 
@@ -347,7 +455,16 @@ _CHAT_JS = """
   var fehlerFeld = document.getElementById('fehler');
   var tipptFeld = document.getElementById('tippt');
   var interviewKnopf = document.getElementById('interview');
+  var interviewAktionenFeld = document.getElementById('interview-aktionen');
+  var interviewPauseKnopf = document.getElementById('interview-pause');
+  var interviewBeendenKnopf = document.getElementById('interview-beenden');
   var pttKnopf = document.getElementById('ptt');
+  // Brainstorm mithören (Phase 4, nur Web) -- alle vier null ausserhalb
+  // Phase 4 (chat_html() rendert die Elemente dann gar nicht).
+  var brainstormKnopf = document.getElementById('brainstorm');
+  var brainstormAktionenFeld = document.getElementById('brainstorm-aktionen');
+  var brainstormPauseKnopf = document.getElementById('brainstorm-pause');
+  var brainstormBeendenKnopf = document.getElementById('brainstorm-beenden');
   var angehaltenFeld = document.getElementById('angehalten');
   var angehaltenText = document.getElementById('angehalten-text');
   var nachreichenKnopf = document.getElementById('nachreichen');
@@ -421,7 +538,19 @@ _CHAT_JS = """
     return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
   }
 
+  function bildVon(n) {
+    // UX-Knoepfe-Karte, Abschnitt 5: dieselbe URL wie auf der Server-Seite
+    // (web_chat._bild_html) -- ``weg()`` rechnet BASIS schon mit ein.
+    if (!n.bild) { return ''; }
+    return '<img src="' + weg('static/handys/' + n.bild) + '" alt="' +
+           escape(n.text || '') + '" loading="lazy" class="karte">';
+  }
+
   function inhaltVon(n) {
+    return bildVon(n) + textVon(n);
+  }
+
+  function textVon(n) {
     // Der Server hat schon gefiltert (sichere_html) -- ein Filter im Browser
     // laege auf der Seite, die er schuetzen soll.
     if (n.typ === 'sprache') {
@@ -445,7 +574,21 @@ _CHAT_JS = """
   }
 
   function klasseVon(n) {
-    return (n.typ === 'sprache' || n.typ === 'datei') ? n.typ : 'text';
+    if (n.typ === 'sprache' || n.typ === 'datei' || n.typ === 'system') {
+      return n.typ;
+    }
+    return 'text';
+  }
+
+  // UX-Knoepfe-Karte, Abschnitt 1: ein gedaempftes Label VOR der Chip-Leiste
+  // -- "Abkuerzung:" -- damit niemand den Eindruck hat, ein Knopf sei
+  // Pflicht statt Vorschlag.
+  function baueLabel(n) {
+    var label = document.createElement('div');
+    label.className = 'leiste-label';
+    label.dataset.message = n.id;
+    label.textContent = TEXT.abkuerzung;
+    return label;
   }
 
   function baueLeiste(n) {
@@ -464,12 +607,26 @@ _CHAT_JS = """
     return leiste;
   }
 
+  // UX-Knoepfe-Karte, Abschnitt 1: schreibt oder spricht die Gruppe frei,
+  // statt eine Abkuerzung zu druecken, bleibt die zuletzt gezeigte
+  // Chip-Leiste stehen (eine Abkuerzung ist nicht falsch geworden), wird
+  // aber gedaempft -- rein optisch, der Server entscheidet weiterhin allein,
+  // wann ein Knopf wirklich verfaellt.
+  function veralteLetzteLeiste() {
+    var leisten = verlauf.querySelectorAll('.leiste');
+    if (leisten.length) { leisten[leisten.length - 1].classList.add('ueberholt'); }
+  }
+
   function blaseZu(id) {
     return verlauf.querySelector('.blase[data-id="' + id + '"]');
   }
 
   function leisteZu(id) {
     return verlauf.querySelector('.leiste[data-message="' + id + '"]');
+  }
+
+  function labelZu(id) {
+    return verlauf.querySelector('.leiste-label[data-message="' + id + '"]');
   }
 
   function blase(n) {
@@ -481,7 +638,10 @@ _CHAT_JS = """
     huelle.innerHTML = inhaltVon(n);
     verlauf.appendChild(huelle);
     var leiste = baueLeiste(n);
-    if (leiste) { verlauf.appendChild(leiste); }
+    if (leiste) {
+      verlauf.appendChild(baueLabel(n));
+      verlauf.appendChild(leiste);
+    }
   }
 
   // Review-Befund 10: aendere_text, entferne_knoepfe und loesche_nachrichten
@@ -489,14 +649,18 @@ _CHAT_JS = """
   // ueberholte Leiste verschwindet, eine geloeschte Nachricht auch.
   function ersetze(n) {
     var huelle = blaseZu(n.id);
+    var altesLabel = labelZu(n.id);
     var alte = leisteZu(n.id);
-    if (n.geloescht) { entferne(huelle); entferne(alte); return; }
+    if (n.geloescht) { entferne(huelle); entferne(altesLabel); entferne(alte); return; }
     if (!huelle) { return; }
     huelle.innerHTML = inhaltVon(n);
     var neue = baueLeiste(n);
     if (alte && neue) { alte.parentNode.replaceChild(neue, alte); }
-    else if (alte) { entferne(alte); }
-    else if (neue) { huelle.parentNode.insertBefore(neue, huelle.nextSibling); }
+    else if (alte) { entferne(altesLabel); entferne(alte); }
+    else if (neue) {
+      huelle.parentNode.insertBefore(neue, huelle.nextSibling);
+      huelle.parentNode.insertBefore(baueLabel(n), neue);
+    }
   }
 
   function nachUnten() {
@@ -523,6 +687,9 @@ _CHAT_JS = """
     }
     if (neu.length) { nachUnten(); }
     if (tipptFeld) { tipptFeld.textContent = daten.tippt ? TEXT.tippt : ''; }
+    // UX-Knoepfe-Karte, Abschnitt 1: der Platzhalter folgt der Phase, das
+    // Eingabefeld selbst bleibt dabei immer offen und unveraendert bedienbar.
+    if (daten.platzhalter && eingabe) { eingabe.placeholder = daten.platzhalter; }
     zustand.servermodus = !!daten.interviewmodus;
     if (typeof daten.interview_knopf === 'boolean') { zustand.knopfErlaubt = daten.interview_knopf; }
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
@@ -600,7 +767,10 @@ _CHAT_JS = """
   }
 
   function postAudio(auftrag, zweiter) {
-    return fetch(weg(`chat/audio?dauer=${auftrag.dauer}`), {
+    var weg_ = `chat/audio?dauer=${auftrag.dauer}`;
+    if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
+    if (auftrag.sitzung && auftrag.sitzung.art === 'brainstorm') { weg_ += '&brainstorm=1'; }
+    return fetch(weg(weg_), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
                  'X-Nonce': nonce() },
@@ -619,6 +789,7 @@ _CHAT_JS = """
     var text = (eingabe.value || '').trim();
     if (!text) { return; }
     eingabe.value = '';
+    veralteLetzteLeiste();
     function zurueck() { if (!eingabe.value) { eingabe.value = text; } }
     postJson(`chat/senden`, { text: text }).then(function (r) {
       if (r.ok) { hole(); return; }
@@ -693,6 +864,10 @@ _CHAT_JS = """
   function bereit(auftrag) {
     var sitzung = auftrag.sitzung;
     if (auftrag.art === 'audio' && sitzung) {
+      // Brainstorm kennt keinen Modus-Befehl (kein /interview, kein
+      // /fertig) -- ein Segment ist immer eine gewoehnliche 'kurz'-Aufnahme
+      // und geht deshalb sofort raus, wie ein PTT-Druck.
+      if (sitzung.art === 'brainstorm') { return true; }
       if (!sitzung.angemeldet || sitzung.angehalten) { return false; }
       if (zustand.servermodus) { sitzung.bestaetigt = true; }
       return zustand.servermodus;
@@ -890,11 +1065,27 @@ _CHAT_JS = """
     r.onstop = function () {
       sitzung.offen -= 1;
       var auftrag = null;
-      if (teile.length && !sitzung.verworfen) {   // leere Stuecke nie
+      // VAD-Entscheid, ob dieses Segment ueberhaupt in die Schlange geht.
+      // r._grund/r._redeMs werden von schneideSegment() (Schnitt) oder von
+      // pausiereInterview()/beendeInterview() (Flush) VOR stop() gesetzt;
+      // ohne VAD (Rueckfall auf den festen Takt) bleiben beide undefined,
+      // dann gilt wie vor dieser Karte: jedes nicht-leere Stueck geht raus.
+      var redeMs = r._redeMs;
+      var grund = r._grund || null;
+      var genug = redeMs == null || (
+        grund === 'ende' ? redeMs > 0 : redeMs >= (sitzung.vadMinSpeechMs || 0)
+      );
+      // grund === 'cap' mit redeMs < MIN_SPEECH_MS: der harte Zeitdeckel hat
+      // ein fast stummes Segment erzwungen. "In das naechste Segment
+      // getragen" (wie beim Pausen-Fall) ist hier technisch nicht moeglich
+      // -- der Recorder musste schon stoppen -- also wird es verworfen statt
+      // gesendet. Seltener Randfall, siehe .brainstorm-vad-report.md.
+      if (teile.length && !sitzung.verworfen && genug) {   // leere Stuecke nie
         auftrag = {
           art: 'audio', sitzung: sitzung,
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
-          dauer: Math.max(1, Math.round((Date.now() - von) / 1000))
+          dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
+          grund: grund
         };
       }
       // Re-Review B: zwei onstop koennen sich ueberholen (Stopp mitten im
@@ -1050,6 +1241,23 @@ _CHAT_JS = """
     zeigeModus();
   }
 
+  // Pausen-Schnitt (VAD, 02.10.2026): derselbe AnalyserNode wie der Pegel
+  // liefert zusaetzlich getFloatTimeDomainData() fuer eine RMS-Schaetzung.
+  // Schneidet sitzung.recorder NIE direkt -- das macht schneideSegment(),
+  // das den Nachfolge-Recorder gleich mitanlegt, damit zwischen zwei
+  // Segmenten keine Luecke entsteht.
+  function schneideSegment(sitzung, grund) {
+    var alt = sitzung.recorder;
+    if (!alt) { return; }
+    alt._grund = grund;
+    alt._redeMs = sitzung.vadSpeechMs;
+    if (alt.state !== 'inactive') { alt.stop(); }   // liefert sein Segment im onstop
+    sitzung.recorder = neuesSegment(sitzung);
+    sitzung.vadSegmentStart = Date.now();
+    sitzung.vadSpeechMs = 0;
+    sitzung.vadLetzteRede = sitzung.vadSegmentStart;
+  }
+
   function pegelAn(sitzung) {
     var Kontext = window.AudioContext || window.webkitAudioContext;
     if (!pegelBalken || !Kontext) { return; }
@@ -1060,25 +1268,102 @@ _CHAT_JS = """
       var messer = kontext.createAnalyser();
       messer.fftSize = 256;
       kontext.createMediaStreamSource(sitzung.strom).connect(messer);
-      var werte = new Uint8Array(messer.frequencyBinCount);
+      var frequenzWerte = new Uint8Array(messer.frequencyBinCount);
+      var zeitWerte = new Float32Array(messer.fftSize);
+      var PAUSE_MS = parseInt(fuss.dataset.vadPauseMs, 10) || 2500;
+      var MAX_MS = parseInt(fuss.dataset.vadMaxMs, 10) || 90000;
+      var MIN_SPEECH_MS = parseInt(fuss.dataset.vadMinSpeechMs, 10) || 500;
+      var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
+      var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
+      var BODEN_FENSTER = Math.ceil(5000 / 120);
+      // Deckel auf den Rauschboden, nicht aus CoThinker, sondern gegen eine
+      // gemessene Falle gesetzt (siehe Kommentar im Takt unten): ohne ihn
+      // zieht eine durchgehend laute Aufnahme den Boden auf ihre eigene
+      // Lautstaerke und die Pause-Erkennung faellt dauerhaft aus.
+      var BODEN_DECKEL_FAKTOR = 10;
+      sitzung.vadMinSpeechMs = MIN_SPEECH_MS;
+      sitzung.vadAktiv = true;
+      sitzung.vadBoden = [];
       sitzung.pegelTakt = setInterval(function () {
-        messer.getByteFrequencyData(werte);
+        messer.getByteFrequencyData(frequenzWerte);
         var summe = 0;
-        for (var i = 0; i < werte.length; i++) { summe += werte[i]; }
+        for (var i = 0; i < frequenzWerte.length; i++) { summe += frequenzWerte[i]; }
         pegelBalken.style.width =
-          Math.min(100, (summe / werte.length) * 2.2) + '%';
+          Math.min(100, (summe / frequenzWerte.length) * 2.2) + '%';
+
+        messer.getFloatTimeDomainData(zeitWerte);
+        var quadratsumme = 0;
+        for (var j = 0; j < zeitWerte.length; j++) {
+          quadratsumme += zeitWerte[j] * zeitWerte[j];
+        }
+        var rms = Math.sqrt(quadratsumme / zeitWerte.length);
+        sitzung.vadBoden.push(rms);
+        if (sitzung.vadBoden.length > BODEN_FENSTER) { sitzung.vadBoden.shift(); }
+        // Niedriges Perzentil der letzten ~5 s als Rauschboden -- GESETZT,
+        // NICHT GEMESSEN (anders als PAUSE_MS/MAX_MS/MIN_SPEECH_MS/
+        // RMS_SCHWELLE, die aus CoThinker stammen). BODEN_DECKEL_FAKTOR
+        // begrenzt, wie weit der Boden die Schwelle anheben darf: ohne
+        // Deckel zieht eine durchgehend laute Aufnahme den Boden auf ihre
+        // eigene Lautstaerke, und die Schwelle wird unerreichbar (gemessener
+        // Fehler beim ersten Browserlauf: ein konstanter Testton zog sie
+        // exakt auf seinen eigenen Pegel, danach wurde nie wieder "Rede"
+        // erkannt). Mit Deckel bleibt ein echtes, aber maessiges
+        // Raumrauschen weiter erkennbar (die Schwelle darf bis zum Zehnfachen
+        // von RMS_SCHWELLE steigen), eine durchgehend laute Stimme kann sie
+        // aber nicht mehr darueber hinausschieben.
+        var sortiert = sitzung.vadBoden.slice().sort(function (a, b) { return a - b; });
+        var boden = Math.min(
+          sortiert[Math.floor(sortiert.length * 0.1)] || 0,
+          RMS_SCHWELLE * BODEN_DECKEL_FAKTOR
+        );
+        var schwelle = Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
+        var jetzt = Date.now();
+        if (rms > schwelle) {
+          sitzung.vadSpeechMs += 120;
+          sitzung.vadLetzteRede = jetzt;
+        }
+        if (!sitzung.recorder) { return; }
+        var kappe = (jetzt - sitzung.vadSegmentStart) >= MAX_MS;
+        var pause = (jetzt - sitzung.vadLetzteRede) >= PAUSE_MS;
+        if (kappe) {
+          // Hart: schneidet IMMER, auch ohne Pause und auch mit zu wenig
+          // Rede (der seltene Fall landet in onstop() ohne Upload -- siehe
+          // dortigen Kommentar).
+          schneideSegment(sitzung, 'cap');
+        } else if (pause && sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
+          schneideSegment(sitzung, 'pause');
+        }
+        // pause && vadSpeechMs < MIN_SPEECH_MS: kein Schnitt -- die Stille
+        // wird Teil desselben, weiterlaufenden Segments ("in das naechste
+        // Segment getragen", ohne Audio-Bytes ueber zwei MediaRecorder-
+        // Instanzen hinweg zusammenfuegen zu muessen, was keine einzelne
+        // dekodierbare Datei mehr ergaebe).
       }, 120);
-    } catch (e) { /* ohne Pegel geht es auch */ }
+    } catch (e) { /* ohne Pegel geht es auch -- dann der feste Takt (Rueckfall unten) */ }
   }
 
-  function uhrAn() {
-    var beginn = Date.now();
+  // Die erfasste Aufnahmedauer einer Sitzung: angesammelte Zeit vor der
+  // letzten Pause (sitzung.erfassteMs) plus, solange nicht pausiert, die
+  // laufende Spanne seit sitzung.legStart. Pause friert sie ein, Weiter
+  // setzt legStart neu -- kein zweiter Zaehler, der von erfassteMs abweichen
+  // koennte.
+  function formatiereUhr(sitzung) {
+    if (!sitzung) { return minuten(0); }
+    var ms = sitzung.erfassteMs +
+      ((!sitzung.pausiert && sitzung.legStart) ? Date.now() - sitzung.legStart : 0);
+    return minuten(Math.floor(ms / 1000));
+  }
+
+  // Dieselbe Funktion fuer Start UND Weiter (Wiederaufnahme): beide zeigen
+  // #uhr wieder an und starten den Ticktakt neu, nur die Sitzung bringt die
+  // schon erfasste Zeit mit.
+  function uhrAn(sitzung) {
     uhrFeld.hidden = false;
     pegelFeld.hidden = false;
-    uhrFeld.textContent = TEXT.uhr.replace('{zeit}', minuten(0));
+    uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung));
+    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); }
     zustand.uhrTakt = setInterval(function () {
-      var s = Math.floor((Date.now() - beginn) / 1000);
-      uhrFeld.textContent = TEXT.uhr.replace('{zeit}', minuten(s));
+      uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung));
     }, 500);
   }
 
@@ -1094,20 +1379,50 @@ _CHAT_JS = """
     return !!zustand.aufnahme || zustand.servermodus;
   }
 
+  // Drei Zustaende, eine Funktion (Design-Vorgabe: keine zweite, parallele
+  // Merkvariable neben zustand.aufnahme): Leerlauf (an=false), Laeuft
+  // (an=true, nicht pausiert) und Pause (an=true, pausiert) -- "pausiert"
+  // gilt auch, wenn dieses Telefon ueberhaupt keine lokale Sitzung hat, der
+  // Server den Modus aber schon meldet (Neuladen waehrend ein anderes
+  // Telefon aufnimmt oder pausiert hat, Punkt 5): es gibt nichts, das HIER
+  // liefe, also ist es fuer dieses Telefon eine Pause, keine Aufnahme.
   function zeigeModus() {
     var an = modusAn();
+    var sitzung = zustand.aufnahme;
+    var pausiert = an && (!sitzung || sitzung.pausiert);
     fuss.dataset.interview = an ? '1' : '0';
     interviewKnopf.dataset.laeuft = an ? '1' : '0';
-    interviewKnopf.textContent = an ? TEXT.interview_aus : TEXT.interview_an;
+    interviewKnopf.dataset.pausiert = pausiert ? '1' : '0';
+    if (!an) {
+      interviewKnopf.textContent = TEXT.interview_an;
+    } else if (pausiert) {
+      interviewKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
+    } else {
+      interviewKnopf.textContent = TEXT.interview_laeuft.replace('{zeit}', formatiereUhr(sitzung));
+    }
     // Ein Stopp ist unterwegs: bis der Bot ihn bestaetigt, kein neuer Start.
-    interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel);
+    // Laeuft Brainstorm, ist der Interview-Knopf ebenfalls deaktiviert --
+    // zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
+    // Bedienung (dieselbe Regel wie PTT, Phase 4, 02.10.2026).
+    interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || !!zustand.brainstorm;
     // Padua Hotfix B6: ausserhalb von Phase 3 kein Angebot -- nie aber
     // verborgen bei laufender Aufnahme, Wechsel oder voller Schlange.
     interviewKnopf.hidden = !(zustand.knopfErlaubt || an || !!zustand.wechsel ||
                               zustand.warteschlange.length > 0);
-    // Waehrend eine Interview-Aufnahme laeuft, ist PTT ausgeblendet
-    // (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine Bedienung.
-    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel; }
+    // Der grosse Knopf ist waehrend Laeuft/Pause nur noch eine Anzeige --
+    // Pause/Weiter und Beenden stehen in der eigenen Leiste darunter.
+    if (interviewAktionenFeld) { interviewAktionenFeld.hidden = !an; }
+    if (interviewPauseKnopf) {
+      interviewPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
+    }
+    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ist PTT
+    // ausgeblendet (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine
+    // Bedienung, und eine Pause ist weiterhin "Modus an".
+    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || !!zustand.brainstorm; }
+    // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
+    // beiden Funktionen zuerst gerufen wurde (zeigeBrainstormModus() ist ein
+    // No-Op ausserhalb Phase 4, da brainstormKnopf dann null ist).
+    zeigeBrainstormModus();
   }
 
   function verwirfPtt() {
@@ -1125,9 +1440,213 @@ _CHAT_JS = """
     }
   }
 
+  // Beginnt die tatsaechliche Aufzeichnung auf einer Sitzung, deren
+  // Mikrofon gerade bereit wurde: Startzeitpunkt, Recorder, Segment-Takt,
+  // Uhr und Pegel. Gemeinsame Stelle fuer starteInterview() und
+  // fortsetzeInterview() -- und seit dem zweiten Re-Review (Befund: der
+  // Pause-Schutz lag nur in starteInterview()'s .then(), nicht hier, also
+  // NICHT "automatisch fuer beide Aufrufer" wie der alte Kommentar
+  // behauptete) auch die EINZIGE Stelle, die prueft, ob inzwischen
+  // pausiert wurde. Beide Aufrufer setzen sitzung.pausiert selbst auf
+  // false, bevor ihr jeweils eigenes holeStrom() beginnt (starteInterview()
+  // im Sitzungs-Objekt bei der Erstellung, fortsetzeInterview() explizit
+  // kurz vor dem Aufruf) -- sitzung.pausiert === true heisst hier also fuer
+  // BEIDE Aufrufer gleichermassen dasselbe: waehrend des Wartens auf das
+  // Mikrofon kam eine Pause dazwischen, also gar nicht erst anfangen,
+  // Mikrofon sofort wieder frei.
+  function beginneAufnahme(sitzung) {
+    if (sitzung.pausiert) {
+      gibFrei(sitzung);
+      return;
+    }
+    sitzung.legStart = Date.now();
+    sitzung.recorder = neuesSegment(sitzung);
+    sitzung.vadSegmentStart = Date.now();
+    sitzung.vadSpeechMs = 0;
+    sitzung.vadLetzteRede = sitzung.vadSegmentStart;
+    sitzung.gestartet = true;
+    uhrAn(sitzung);
+    pegelAn(sitzung);
+    if (!sitzung.vadAktiv) {
+      // Rueckfall ohne AnalyserNode (aelterer Browser, kein AudioContext):
+      // wie vor dieser Karte eine feste Segmentlaenge -- sonst gaebe es nie
+      // einen Schnitt, und die Aufnahme liefe bis Beenden in einem Stueck.
+      sitzung.segmentTakt = setInterval(function () {
+        if (!sitzung.recorder) { return; }
+        var alt = sitzung.recorder;
+        alt.stop();                      // liefert sein Segment im onstop
+        sitzung.recorder = neuesSegment(sitzung);
+      }, SEGMENT_MS);
+    }
+  }
+
+  // -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ------------------
+  //
+  // Dieselbe Segment-Mechanik wie beim Interview (neuesSegment,
+  // schneideSegment, pegelAn, beginneAufnahme sind bereits generisch ueber
+  // die uebergebene Sitzung) -- aber OHNE Modus-Befehl: ein
+  // Brainstorm-Segment ist serverseitig immer eine gewoehnliche
+  // 'kurz'-Aufnahme, es gibt nichts anzumelden oder zu bestaetigen.
+  // sitzung.art = 'brainstorm' schaltet bereit() auf "immer senden" (siehe
+  // dort); fertigEingereiht bleibt dauerhaft true, damit pruefeEnde() NIE
+  // ein 'befehl' einreiht. Bewusst eigene, kleinere Funktionen statt eines
+  // sitzung.art-Zweigs mitten in starteInterview()/pausiereInterview()/
+  // beendeInterview(): die dort gehaerteten Rennbedingungen (mehrere
+  // "Re-Review"-Runden) sollen fuer den bestehenden, getesteten Weg
+  // unberuehrt bleiben.
+
+  function zeigeBrainstormModus() {
+    if (!brainstormKnopf) { return; }
+    var sitzung = zustand.brainstorm;
+    var an = !!sitzung;
+    var pausiert = an && sitzung.pausiert;
+    brainstormKnopf.dataset.laeuft = an ? '1' : '0';
+    brainstormKnopf.dataset.pausiert = pausiert ? '1' : '0';
+    if (!an) {
+      brainstormKnopf.textContent = TEXT.brainstorm_an;
+    } else if (pausiert) {
+      brainstormKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
+    } else {
+      brainstormKnopf.textContent = TEXT.brainstorm_laeuft.replace('{zeit}', formatiereUhr(sitzung));
+    }
+    // Zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
+    // Bedienung (dieselbe Regel wie PTT vs. Interview). Waehrend ein
+    // Interview-Stopp unterwegs ist (wechsel.ziel === false), ist modusAn()
+    // schon wieder false -- genau wie beim Interview-Knopf selbst
+    // (zeigeModus()) wird deshalb zusaetzlich auf ein laufendes wechsel
+    // geprueft, sonst saehe der Knopf kurz bedienbar aus, obwohl
+    // starteBrainstorm() ihn wegen desselben zustand.wechsel ablehnt.
+    brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;
+    if (brainstormAktionenFeld) { brainstormAktionenFeld.hidden = !an; }
+    if (brainstormPauseKnopf) {
+      brainstormPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
+    }
+    if (interviewKnopf) {
+      interviewKnopf.disabled = an || !!(zustand.wechsel && !zustand.wechsel.ziel);
+    }
+    if (pttKnopf) { pttKnopf.hidden = an || modusAn() || !!zustand.wechsel; }
+  }
+
+  function starteBrainstorm() {
+    if (zustand.brainstorm || modusAn() || zustand.wechsel) { return; }
+    if (zustand.ptt) { verwirfPtt(); }
+    var sitzung = {
+      art: 'brainstorm',
+      strom: null, recorder: null, kontext: null, pegelTakt: null,
+      segmentTakt: null, offen: 0, gestartet: false, beendet: false,
+      verworfen: false, angehalten: false, geparkt: [],
+      fertigEingereiht: true, naechsteNr: 0, einzureihen: 0, fertige: {},
+      pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true,
+      fortsetzend: false
+    };
+    zustand.brainstorm = sitzung;
+    zeigeBrainstormModus();
+    holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
+      sitzung.strom = strom;
+      if (sitzung.beendet) { gibFrei(sitzung); return; }
+      sitzung.gestartet = true;
+      beginneAufnahme(sitzung);
+      zeigeBrainstormModus();
+    }).catch(function () {
+      sitzung.mikroUnterwegs = false;
+      sitzung.verworfen = true;
+      sitzung.beendet = true;
+      if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
+      if (sitzung.recorder && sitzung.recorder.state !== 'inactive') {
+        try { sitzung.recorder.stop(); } catch (e) { /* schon aus */ }
+      }
+      sitzung.recorder = null;
+      gibFrei(sitzung);
+      entferneAuftraege(sitzung);
+      if (zustand.brainstorm === sitzung) { zustand.brainstorm = null; }
+      anzeigeAus();
+      zeigeBrainstormModus();
+      meldeFehler(TEXT.fehler_mikro);
+    });
+  }
+
+  function pausiereBrainstorm() {
+    var sitzung = zustand.brainstorm;
+    if (!sitzung || sitzung.pausiert || sitzung.verworfen || sitzung.beendet) { return; }
+    if (sitzung.mikroUnterwegs) {
+      sitzung.pausiert = true;
+      zeigeBrainstormModus();
+      return;
+    }
+    sitzung.erfassteMs += Date.now() - sitzung.legStart;
+    sitzung.legStart = null;
+    sitzung.pausiert = true;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    var alt = sitzung.recorder;
+    sitzung.recorder = null;
+    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
+    if (alt && alt.state !== 'inactive') { alt.stop(); }
+    gibFrei(sitzung);
+    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
+    if (uhrFeld) { uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung)); }
+    zeigeBrainstormModus();
+  }
+
+  function fortsetzeBrainstorm() {
+    var sitzung = zustand.brainstorm;
+    // Dieselben Waechter wie fortsetzeInterview(): "pausiert" nur einmal
+    // zuruecknehmen, und eine Sperrklinke (fortsetzend) gegen einen
+    // hastigen Doppeldruck, der sonst zwei Recorder auf demselben Mikrofon
+    // startete.
+    if (!sitzung || !sitzung.pausiert || sitzung.verworfen || sitzung.beendet ||
+        sitzung.fortsetzend) { return; }
+    if (sitzung.mikroUnterwegs) { sitzung.pausiert = false; return; }
+    sitzung.pausiert = false;
+    sitzung.fortsetzend = true;
+    sitzung.mikroUnterwegs = true;
+    holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
+      sitzung.fortsetzend = false;
+      if (!zustand.brainstorm || zustand.brainstorm !== sitzung || sitzung.beendet) {
+        strom.getTracks().forEach(function (t) { t.stop(); });
+        return;
+      }
+      sitzung.strom = strom;
+      beginneAufnahme(sitzung);
+      zeigeBrainstormModus();
+    }).catch(function () {
+      sitzung.mikroUnterwegs = false;
+      sitzung.fortsetzend = false;
+      sitzung.pausiert = true;
+      zeigeBrainstormModus();
+      meldeFehler(TEXT.fehler_mikro);
+    });
+    zeigeBrainstormModus();
+  }
+
+  function beendeBrainstorm() {
+    var sitzung = zustand.brainstorm;
+    if (!sitzung) { return; }
+    zustand.brainstorm = null;
+    anzeigeAus();
+    if (!sitzung.gestartet) {
+      sitzung.beendet = true;
+      zeigeBrainstormModus();
+      return;
+    }
+    sitzung.beendet = true;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    var letzter = sitzung.recorder;
+    sitzung.recorder = null;
+    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
+    if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
+    // Anders als beendeInterview(): pruefeEnde() tut bei Brainstorm NIE
+    // etwas (fertigEingereiht bleibt immer true), also wird das Mikrofon
+    // HIER sofort freigegeben -- wie bei pausiereInterview(), nicht erst im
+    // onstop.
+    gibFrei(sitzung);
+    zeigeBrainstormModus();
+  }
+
   function starteInterview() {
     // Review-Befund 4: nie zwei Recorder, nie ein Start mitten im Wechsel.
-    if (zustand.aufnahme || zustand.wechsel) { return; }
+    if (zustand.aufnahme || zustand.wechsel || zustand.brainstorm) { return; }
     // Re-Review F: ein gehaltener PTT-Druck (zweiter Finger) wird verworfen,
     // sonst liefen zwei Recorder.
     if (zustand.ptt) { verwirfPtt(); }
@@ -1137,31 +1656,46 @@ _CHAT_JS = """
       angemeldet: false, bestaetigt: false, verworfen: false,
       angehalten: false, geparkt: [],
       fertigEingereiht: false, naechsteNr: 0, einzureihen: 0, fertige: {},
-      wechselAus: null
+      wechselAus: null,
+      // Drei-Zustands-Regler (Pause/Weiter): erfassteMs ist die Dauer vor
+      // der letzten Pause, legStart der Beginn der laufenden Spanne,
+      // fortsetzend die Sperrklinke waehrend "Weiter" auf das Mikrofon
+      // wartet (verhindert einen zweiten Recorder bei einem hastigen
+      // Doppeldruck, siehe fortsetzeInterview).
+      // mikroUnterwegs: zwischen dem Aufruf von holeStrom() und seinem
+      // Ausgang (Erfolg oder Fehler) -- der Signal, an dem
+      // pausiereInterview()/fortsetzeInterview() ein noch unterwegs
+      // befindliches Mikrofon dieser Sitzung erkennen (Re-Review,
+      // Befund 1), statt gegen das lange-schon-falsche "gestartet".
+      pausiert: false, erfassteMs: 0, legStart: null, fortsetzend: false,
+      mikroUnterwegs: false
     };
     var wechsel = { ziel: true, gesendet: false };
     zustand.aufnahme = sitzung;
     zustand.wechsel = wechsel;
     zeigeModus();
+    sitzung.mikroUnterwegs = true;
     holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
       sitzung.strom = strom;
       if (sitzung.beendet) { gibFrei(sitzung); return; }   // vorher gestoppt
-      // Die Aufnahme laeuft SOFORT -- sonst verliert man die ersten Worte.
-      // Die Segmente warten in der Schlange hinter /interview (bereit()).
-      sitzung.recorder = neuesSegment(sitzung);
+      // Das Mikrofon ist da, also weiss der Bot jetzt, dass der Modus an
+      // ist -- unabhaengig davon, ob gleich aufgenommen wird: /interview
+      // wird genau einmal und immer hier angemeldet.
       sitzung.gestartet = true;
       reiheEin({ art: 'befehl', an: true, sitzung: sitzung, wechsel: wechsel });
-      uhrAn();
-      pegelAn(sitzung);
-      sitzung.segmentTakt = setInterval(function () {
-        if (!sitzung.recorder) { return; }
-        var alt = sitzung.recorder;
-        alt.stop();                      // liefert sein Segment im onstop
-        sitzung.recorder = neuesSegment(sitzung);
-      }, SEGMENT_MS);
+      // Die Aufnahme laeuft SOFORT -- sonst verliert man die ersten Worte.
+      // Die Segmente warten in der Schlange hinter /interview (bereit()).
+      // Kam waehrend des Wartens eine Pause dazwischen (Re-Review, Befund 1;
+      // zweites Re-Review, Befund: der Schutz dafuer lebt zentral in
+      // beginneAufnahme(), nicht hier dupliziert), faengt sie gar nicht erst
+      // an und gibt das Mikrofon selbst wieder frei.
+      beginneAufnahme(sitzung);
+      zeigeModus();
     }).catch(function () {
       // Review-Befund 8: ein halb gestarteter Recorder wird gestoppt und das
       // Mikrofon freigegeben.
+      sitzung.mikroUnterwegs = false;
       sitzung.verworfen = true;
       sitzung.beendet = true;
       if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
@@ -1225,6 +1759,7 @@ _CHAT_JS = """
     if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
     var letzter = sitzung.recorder;
     sitzung.recorder = null;
+    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
     if (letzter && letzter.state !== 'inactive') {
       letzter.stop();          // sein onstop reiht das letzte Segment ein
     } else {
@@ -1233,13 +1768,170 @@ _CHAT_JS = """
     zeigeModus();
   }
 
+  // -- Pause / Weiter (Drei-Zustands-Regler, 02.10.2026, Padua) ------------
+  //
+  // "Pause" schickt NIE ein /fertig -- der Interviewmodus bleibt
+  // serverseitig an, nur der Recorder dieses Telefons stoppt. Das letzte
+  // Stueck geht trotzdem den normalen Weg (onstop -> fertige{}/einzureihen
+  // -> reiheEin), unveraendert. "Weiter" haengt an GENAU dieselbe Sitzung
+  // an (dieselbe naechsteNr-Folge) -- es gibt deshalb nie ein zweites
+  // /interview fuer dasselbe Interview. zustand.aufnahme bleibt dabei die
+  // ganze Zeit nicht-null; pausiert ist eine Eigenschaft der Sitzung
+  // (sitzung.pausiert), keine zweite, parallele Merkvariable.
+
+  function pausiereInterview(sitzungArg) {
+    var sitzung = sitzungArg || zustand.aufnahme;
+    if (!sitzung || sitzung.pausiert || sitzung.verworfen || sitzung.beendet) { return; }
+    // Nur ein echt UNTERWEGS befindlicher Stopp blockiert -- die lingernde
+    // Bestaetigung des eigenen Starts (wechsel.ziel === true, noch nicht
+    // vom Poll bestaetigt) darf eine Pause nicht verhindern: der Recorder
+    // laeuft schon, dieselbe Regel wie in beendeInterview().
+    if (zustand.wechsel && !zustand.wechsel.ziel) { return; }
+    if (sitzung.mikroUnterwegs) {
+      // Re-Review, Befund 1: das Mikrofon dieser Sitzung ist noch unterwegs
+      // (starteInterview() wartet auf holeStrom(), eine vom Menschen
+      // beantwortete Berechtigungsfrage -- das Fenster kann Sekunden
+      // dauern) -- sitzung.legStart ist noch null, das Falten gegen
+      // Date.now() wuerde eine Muellzahl in die Uhr schreiben. Nur merken,
+      // dass Pause gewuenscht ist: starteInterview() sieht das
+      // Flag, sobald das Mikrofon kommt, und faengt dann gar nicht erst an
+      // aufzunehmen (statt den Tipp stillschweigend zu verschlucken).
+      sitzung.pausiert = true;
+      zeigeModus();
+      return;
+    }
+    sitzung.erfassteMs += Date.now() - sitzung.legStart;
+    sitzung.legStart = null;
+    sitzung.pausiert = true;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    var alt = sitzung.recorder;
+    sitzung.recorder = null;
+    // Wie starteInterview()/brichAb() bei einem Fehler: stop(), dann sofort
+    // das Mikrofon los -- sein onstop hat die Daten bis hierhin schon im
+    // ondataavailable gesammelt und reiht das Stueck ganz normal ein.
+    // grund 'ende': ein manueller Flush haelt sich NICHT an MIN_SPEECH_MS --
+    // "bei Pause/Beenden gesendet, wenn ueberhaupt Rede drin ist".
+    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
+    if (alt && alt.state !== 'inactive') { alt.stop(); }
+    gibFrei(sitzung);
+    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
+    if (uhrFeld) { uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung)); }
+    zeigeModus();
+  }
+
+  function fortsetzeInterview(sitzungArg) {
+    var sitzung = sitzungArg;
+    if (sitzung) {
+      // Dieselbe grosszuegigere Regel wie in pausiereInterview(): nur ein
+      // unterwegs befindlicher Stopp blockiert, nicht die lingernde
+      // Start-Bestaetigung.
+      if ((zustand.wechsel && !zustand.wechsel.ziel) || !sitzung.pausiert ||
+          sitzung.verworfen || sitzung.beendet || sitzung.fortsetzend) { return; }
+      if (sitzung.mikroUnterwegs) {
+        // Re-Review, Befund 1 (Kehrseite): starteInterview() wartet selbst
+        // noch auf sein eigenes Mikrofon -- einfach die Pause zuruecknehmen.
+        // Dessen .then() sieht sitzung.pausiert === false und faengt von
+        // sich aus an aufzunehmen; kein zweiter holeStrom()-Aufruf, also
+        // nie zwei Recorder auf derselben Sitzung.
+        sitzung.pausiert = false;
+        zeigeModus();
+        return;
+      }
+    } else {
+      // Neu geladen, waehrend der Server den Modus schon meldet (Punkt 5):
+      // keine lokale Sitzung, also auch kein zweites /interview -- der Bot
+      // weiss es schon. naechsteNr startet bei 0, haengt aber an DASSELBE
+      // serverseitige Interview an.
+      if (zustand.aufnahme || zustand.wechsel || !zustand.servermodus) { return; }
+      sitzung = {
+        strom: null, recorder: null, kontext: null, pegelTakt: null,
+        segmentTakt: null, offen: 0, gestartet: false, beendet: false,
+        angemeldet: true, bestaetigt: true, verworfen: false,
+        angehalten: false, geparkt: [],
+        fertigEingereiht: false, naechsteNr: 0, einzureihen: 0, fertige: {},
+        wechselAus: null, pausiert: true, erfassteMs: 0, legStart: null,
+        fortsetzend: false, mikroUnterwegs: false
+      };
+      zustand.aufnahme = sitzung;   // synchron, wie starteInterview()
+    }
+    // Re-Review F, auch beim Wiederaufnehmen: ein gehaltener PTT-Druck wird
+    // verworfen, sonst liefen zwei Recorder.
+    if (zustand.ptt) { verwirfPtt(); }
+    // Ab hier laeuft das EIGENE holeStrom() dieser Funktion (nicht mehr das
+    // von starteInterview(), das ist der Zweig oben): sitzung.pausiert wird
+    // deshalb schon JETZT auf false gesetzt, nicht erst in beginneAufnahme()
+    // -- spiegelbildlich zu starteInterview(), dessen frisches Sitzungs-
+    // Objekt ebenfalls mit pausiert: false in sein eigenes holeStrom() geht.
+    // Kommt waehrend dieses Wartens eine Pause (pausiereInterview() sieht
+    // dann !sitzung.pausiert, erkennt mikroUnterwegs und merkt sie erneut,
+    // statt no-op zu sein), sieht beginneAufnahme() unten sitzung.pausiert
+    // wieder true und faengt gar nicht erst an -- derselbe Schutz wie bei
+    // starteInterview(), zentral an einer Stelle statt dupliziert.
+    sitzung.pausiert = false;
+    sitzung.fortsetzend = true;   // Sperrklinke: kein zweiter Recorder bei Doppeldruck
+    zeigeModus();
+    sitzung.mikroUnterwegs = true;
+    holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
+      sitzung.fortsetzend = false;
+      if (sitzung.beendet || sitzung.verworfen) {
+        strom.getTracks().forEach(function (t) { t.stop(); });
+        return;
+      }
+      sitzung.strom = strom;
+      // Zentrale Stelle: beginneAufnahme() prueft selbst, ob inzwischen
+      // pausiert wurde.
+      beginneAufnahme(sitzung);
+      zeigeModus();
+    }).catch(function () {
+      sitzung.mikroUnterwegs = false;
+      sitzung.fortsetzend = false;
+      zeigeModus();
+      meldeFehler(TEXT.fehler_mikro);
+    });
+  }
+
   if (nachreichenKnopf) { nachreichenKnopf.addEventListener('click', reicheNach); }
   if (verwerfenKnopf) { verwerfenKnopf.addEventListener('click', verwirfRest); }
 
+  if (interviewPauseKnopf) {
+    interviewPauseKnopf.addEventListener('click', function () {
+      var sitzung = zustand.aufnahme;
+      if (sitzung) {
+        if (sitzung.pausiert) { fortsetzeInterview(sitzung); } else { pausiereInterview(sitzung); }
+      } else if (zustand.servermodus) {
+        fortsetzeInterview(null);
+      }
+    });
+  }
+  if (interviewBeendenKnopf) {
+    interviewBeendenKnopf.addEventListener('click', beendeInterview);
+  }
+
+  // Der grosse Knopf ist nur noch im Leerlauf ein Schalter -- waehrend
+  // Laeuft/Pause ist er eine Anzeige, Beenden passiert ausschliesslich ueber
+  // #interview-beenden.
   interviewKnopf.addEventListener('click', function () {
-    if (interviewKnopf.disabled) { return; }
-    if (modusAn()) { beendeInterview(); } else { starteInterview(); }
+    if (interviewKnopf.disabled || modusAn()) { return; }
+    starteInterview();
   });
+
+  if (brainstormPauseKnopf) {
+    brainstormPauseKnopf.addEventListener('click', function () {
+      var sitzung = zustand.brainstorm;
+      if (!sitzung) { return; }
+      if (sitzung.pausiert) { fortsetzeBrainstorm(); } else { pausiereBrainstorm(); }
+    });
+  }
+  if (brainstormBeendenKnopf) {
+    brainstormBeendenKnopf.addEventListener('click', beendeBrainstorm);
+  }
+  if (brainstormKnopf) {
+    brainstormKnopf.addEventListener('click', function () {
+      if (brainstormKnopf.disabled || zustand.brainstorm) { return; }
+      starteBrainstorm();
+    });
+  }
 
   // -- Push-to-Talk --------------------------------------------------------
   //
@@ -1284,6 +1976,7 @@ _CHAT_JS = """
           gibFrei(druck);
           if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS ||
               !druck.teile.length) { return; }
+          veralteLetzteLeiste();
           reiheEin({
             art: 'audio', sitzung: null,
             blob: new Blob(druck.teile,
@@ -1373,11 +2066,28 @@ def _js() -> str:
     )
 
 
+def _bild_html(n: dict, basis: str) -> str:
+    """Das ``<img>`` einer Telefon-Organisationskarte (UX-Knoepfe-Karte,
+    Abschnitt 5) -- leerer String ohne ``bild``.
+
+    Derselbe ``basis``-Weg wie beim Datei-Link (``static/handys/<name>``
+    statt ``chat/datei/<id>``): auf der vereinten Seite ``"<token>/"``, auf
+    der Chat-Einzelseite leer. ``alt`` ist der Satz der Karte (``n["text"]``)
+    -- dieselbe Information als Bild und fuer Screenreader."""
+    name = n.get("bild")
+    if not name:
+        return ""
+    quelle = f"{basis}{STATIC_HANDYS_PFAD}/{html.escape(name, quote=True)}"
+    alt = html.escape(n["text"] or "", quote=True)
+    return f'<img src="{quelle}" alt="{alt}" loading="lazy" class="karte">'
+
+
 def _blase_html(n: dict, basis: str = "") -> str:
     """Eine Nachricht als Blase, gegebenenfalls mit ihrer Leiste darunter.
 
     ``basis`` ist das Praefix vor ``chat/...`` auf der vereinten Seite
     (Karte W) -- auf der Chat-Einzelseite bleibt es leer."""
+    bild = _bild_html(n, basis)
     if n["typ"] == "sprache":
         minuten, sekunden = divmod(int(n["dauer"] or 0), 60)
         dauer = f"{minuten}:{sekunden:02d}"
@@ -1398,12 +2108,27 @@ def _blase_html(n: dict, basis: str = "") -> str:
         if n["text"]:
             inhalt = sichere_html(n["text"]) + "<br>" + inhalt
         klasse = "datei"
+    elif n["typ"] == "system":
+        # UX-Knoepfe-Karte, Abschnitt 3: eine Speicherquittung ("Notiert: …",
+        # ein Rueckgaengig-Ergebnis) ist keine Aeusserung des Bots, sondern
+        # eine Systemzeile -- gedaempft statt als Sprechblase. Der Inhalt
+        # selbst ist unveraendert derselbe Text.
+        inhalt = sichere_html(n["text"])
+        klasse = "system"
+    elif n["von"] == "bot" and n["text"] in _TEXTE_BUEHNE_NEUE_KARTE:
+        # UX-Knoepfe-Karte, Abschnitt 5 (02.10.2026): dieselbe Zeile wie
+        # ``aufnahme._TEXT_BUEHNE_NEUE_KARTE`` -- hier nur erkannt, um sie
+        # antippbar zu machen (oeffnet den Tab "buehne" auf der vereinten
+        # Seite). Ohne den echten Tab (Chat-Einzelseite, Telegram) ist der
+        # Sprung ins Leere harmlos: nur das URL-Fragment aendert sich.
+        inhalt = f'<a href="#buehne">{html.escape(n["text"])}</a>'
+        klasse = "text"
     else:
         inhalt = sichere_html(n["text"])
         klasse = "text"
 
     teile = [
-        f'<div class="blase {n["von"]} {klasse}" data-id="{n["id"]}">{inhalt}</div>'
+        f'<div class="blase {n["von"]} {klasse}" data-id="{n["id"]}">{bild}{inhalt}</div>'
     ]
     if n["knoepfe"]:
         knoepfe = "".join(
@@ -1412,13 +2137,14 @@ def _blase_html(n: dict, basis: str = "") -> str:
             f"{html.escape(beschriftung)}</button>"
             for beschriftung, daten in n["knoepfe"]
         )
+        teile.append(f'<div class="leiste-label">{html.escape(T._TEXT_ABKUERZUNG)}</div>')
         teile.append(f'<div class="leiste" data-message="{n["id"]}">{knoepfe}</div>')
     return "\n".join(teile)
 
 
 def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
                   basis: str = "", mit_nonce: bool = True,
-                  mit_gruppenlink: bool = True) -> str:
+                  mit_gruppenlink: bool = True, vad: dict | None = None) -> str:
     """Der Rumpf der Chatansicht -- ohne die Klammer aus ``web._seite``.
 
     Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W): dort steht
@@ -1443,8 +2169,16 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     Karte W): dort zeigt der Link auf ``/g/<token>`` -- also auf die Seite,
     auf der er selbst steht. Auf der Chat-Einzelseite (``/g/<token>/chat``)
     bleibt er, weil er dort tatsaechlich woanders hinfuehrt (Vorgabe
-    ``True``)."""
+    ``True``).
+
+    ``vad`` sind die fuenf Pausen-Schnitt-Zahlen (UX-Knoepfe-Karte,
+    Brainstorm-VAD) -- ungesetzt gilt ``_vad_werte()`` (Umgebung), auf jeder
+    Seite gleich, weil sie nicht je Gruppe variieren."""
+    from interview_theater import web   # spaeter Import: web importiert web_chat
+
+    vad = vad if vad is not None else _vad_werte()
     modus = bool(daten["interviewmodus"])
+    phase4 = daten.get("phase") == 4
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(_TEXT_LEER)}</p>'
@@ -1468,6 +2202,11 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'<div class="tippt" id="tippt"></div>\n'
         f"{nonce_feld}"
         f'<div class="fuss" id="fuss" data-segment-ms="{int(segment_ms)}"\n'
+        f'     data-vad-pause-ms="{int(vad["pause_ms"])}" '
+        f'data-vad-max-ms="{int(vad["max_ms"])}" '
+        f'data-vad-min-speech-ms="{int(vad["min_speech_ms"])}"\n'
+        f'     data-vad-rms="{vad["rms"]}" '
+        f'data-vad-floor-faktor="{vad["floor_faktor"]}"\n'
         f'     data-interview="{1 if modus else 0}" '
         f'data-basis="{html.escape(basis, quote=True)}">\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
@@ -1481,13 +2220,40 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'    <button type="button" id="verwerfen">'
         f'{html.escape(_TEXT_REST_VERWERFEN)}</button>\n'
         f'  </div>\n'
-        f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}"'
-        f'{"" if daten.get("interview_knopf", True) else " hidden"}>'
-        f'{html.escape(T._TEXT_INTERVIEW_AUS if modus else T._TEXT_INTERVIEW_AN)}'
-        f'</button>\n'
-        f'  <div class="zeile">\n'
+        + (
+            f'  <button type="button" id="brainstorm" data-laeuft="0" '
+            f'data-pausiert="0">{html.escape(_TEXT_BRAINSTORM_AN)}</button>\n'
+            f'  <div class="interview-aktionen" id="brainstorm-aktionen" hidden>\n'
+            f'    <button type="button" id="brainstorm-pause">'
+            f'{html.escape(_TEXT_INTERVIEW_PAUSE)}</button>\n'
+            f'    <button type="button" id="brainstorm-beenden">'
+            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'  </div>\n'
+            if phase4 else ""
+        )
+        + (
+            f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
+            f'data-pausiert="{1 if modus else 0}"'
+            + (' class="nebenknopf"' if phase4 else "")
+            # Padua Hotfix B6: ausserhalb von Phase 3 (oder bei laufender
+            # Aufnahme) kein Angebot -- dieselbe Bedingung wie das JS-Pendant
+            # ``zustand.knopfErlaubt`` oben.
+            + ('' if daten.get("interview_knopf", True) or modus else ' hidden')
+            + '>'
+            f'{html.escape(T._TEXT_INTERVIEW_AUS if modus else T._TEXT_INTERVIEW_AN)}'
+            f'</button>\n'
+            f'  <div class="interview-aktionen" id="interview-aktionen"'
+            f'{"" if modus else " hidden"}>\n'
+            f'    <button type="button" id="interview-pause">'
+            f'{html.escape(_TEXT_INTERVIEW_WEITER if modus else _TEXT_INTERVIEW_PAUSE)}'
+            f'</button>\n'
+            f'    <button type="button" id="interview-beenden">'
+            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'  </div>\n'
+        )
+        + f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '
-        f'placeholder="{html.escape(_TEXT_EINGABE, quote=True)}">\n'
+        f'placeholder="{html.escape(_platzhalter_fuer(daten.get("phase"), daten.get("fragen_aktuell")), quote=True)}">\n'
         f'    <button type="button" id="ptt"{" hidden" if modus else ""} title="'
         f'{html.escape(_TEXT_PTT, quote=True)}">🎤</button>\n'
         f'    <button type="button" id="senden">'
@@ -1909,6 +2675,15 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         handler._fehler(400, _TEXT_FEHLER_DAUER)
         return
 
+    # Pausen-Schnitt (VAD) und Brainstorm-Flag (02.10.2026): beide optional,
+    # beide vom Client gesetzt (web_chat._CHAT_JS, postAudio). Ein unbekannter
+    # Wert zaehlt wie keiner -- das ist Bookkeeping fuer den Brainstorm-
+    # Trigger, kein Sicherheitsmerkmal, eine falsche Zeichenkette soll den
+    # Upload nicht scheitern lassen.
+    roh_grund = (felder.get("grund") or [""])[0]
+    grund = roh_grund if roh_grund in ("pause", "cap", "ende") else None
+    brainstorm = (felder.get("brainstorm") or [""])[0] == "1"
+
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
         web.schliesse_nach_antwort(handler)
@@ -1926,6 +2701,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
+            schnittgrund=grund, brainstorm=brainstorm,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.
@@ -2058,6 +2834,24 @@ _POSTWEGE = {
 }
 
 
+def _platzhalter_fuer(phase, fragen_aktuell) -> str:
+    """Der Platzhalter-Text zum aktuellen Stand (UX-Knoepfe-Karte,
+    Abschnitt 1) -- reine Funktion, keine Datenbank: ``phase`` und
+    ``fragen_aktuell`` kommen schon roh aus ``web_daten.web_chatzustand``.
+
+    Nur zwei Phasen bekommen einen eigenen Text, beide aus einem konkreten
+    Anlass: Phase 2 mit offener Frage (die Schaerfung ist deterministisch,
+    ``fragen.nimm_offene_frage_text``) und Phase 4 (freies Erfinden ohne
+    Material, AGENTS.md "Erst erfinden, dann schaerfen"). Jede andere Lage
+    bleibt beim Standard -- kein Raten, welcher Text sonst passen wuerde."""
+    phase = str(phase or "").strip()
+    if phase == "2" and (fragen_aktuell or "").strip():
+        return T._TEXT_EINGABE_FRAGEN
+    if phase == "4":
+        return T._TEXT_EINGABE_SETTING
+    return T._TEXT_EINGABE
+
+
 def _zustand(db_pfad: str, token: str, nach: int = 0,
              seit: int | None = None) -> dict | None:
     conn = web_daten.oeffne_lesend(db_pfad)
@@ -2096,6 +2890,9 @@ def _sende_zustand(handler, db_pfad: str, token: str, query: str,
     for nachricht in daten["nachrichten"] + daten["geaendert"]:
         nachricht["html"] = sichere_html(nachricht["text"])
     daten["segment_ms"] = _segment_ms()
+    daten["platzhalter"] = _platzhalter_fuer(
+        daten.get("phase"), daten.get("fragen_aktuell")
+    )
     # Die Chatseite laedt nie neu, ein Nonce gilt aber hoechstens zwei
     # Stunden (``web.NONCE_FENSTER``): der Poll bringt den laufenden mit, und
     # das JS setzt ihn ins Feld (Review-Befund 2). Kein neues Geheimnis nach
@@ -2165,3 +2962,42 @@ def _segment_ms() -> int:
     (``einstellungen.VORGABE_SEGMENT_MS``)."""
     roh = (os.environ.get("IT_WEB_SEGMENT_MS") or "").strip()
     return int(roh) if roh.isdigit() and int(roh) > 0 else 45_000
+
+
+def _umgebungszahl(name: str, vorgabe: float, *, ganzzahl: bool) -> float:
+    """Eine einzelne VAD-Zahl aus der Umgebung, mit stillem Ruckfall auf die
+    Vorgabe bei leerem/ungueltigem/nicht-positivem Wert -- derselbe
+    Nachsichtsgrundsatz wie bei ``_segment_ms``."""
+    roh = (os.environ.get(name) or "").strip()
+    if not roh:
+        return vorgabe
+    try:
+        wert = float(roh)
+    except ValueError:
+        return vorgabe
+    if wert <= 0:
+        return vorgabe
+    return int(wert) if ganzzahl else wert
+
+
+def _vad_werte() -> dict:
+    """Die fuenf Zahlen fuer den Pausen-Schnitt (VAD), einzeln ueberschreibbar.
+
+    Herkunft (Betreiber-Entscheidung 02.10.2026, CoThinker-Projekt):
+    ``pause_ms``/``max_ms`` aus ``gateway/consumer.py --pause 2.5
+    --max-block 90``, ``min_speech_ms`` aus ``stt_server/args.py
+    --vad_min_speech_ms 500`` (Infomaniak-Pfad dort -- das ist auch unser
+    STT-Anbieter), ``rms`` aus ``settings.BUILT_IN_DEFAULTS
+    vad_energy_threshold 0.01`` (RMS reeller Zeitbereichs-Samples, Skala
+    0..1). ``floor_faktor`` ist NICHT aus CoThinker gemessen -- gesetzt,
+    nicht gemessen, als Schutz gegen laute Workshop-Raeume (Browser-Mikros
+    unterscheiden sich von CoThinkers Aufbau)."""
+    return {
+        "pause_ms": _umgebungszahl("IT_WEB_VAD_PAUSE_MS", 2500, ganzzahl=True),
+        "max_ms": _umgebungszahl("IT_WEB_VAD_MAX_MS", 90_000, ganzzahl=True),
+        "min_speech_ms": _umgebungszahl(
+            "IT_WEB_VAD_MIN_SPEECH_MS", 500, ganzzahl=True),
+        "rms": _umgebungszahl("IT_WEB_VAD_RMS", 0.01, ganzzahl=False),
+        "floor_faktor": _umgebungszahl(
+            "IT_WEB_VAD_FLOOR_FACTOR", 2.5, ganzzahl=False),
+    }

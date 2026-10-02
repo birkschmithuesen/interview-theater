@@ -169,14 +169,82 @@ def _zustand(aufgabe: Aufgabe, lage: dict) -> str:
     return "laeuft" if laeuft is not None and laeuft(lage) else "offen"
 
 
+#: Die Voraussetzung je Phase -- dieselbe Quelle wie ``phasen.voraussetzungen``
+#: (UX-Knoepfe-Karte, Abschnitt 4: der Phasensprung in der Web-Leiste braucht
+#: denselben Pruefer, ohne ``repo``), hier als reine Funktionen ueber ``lage``
+#: wie ``AUFGABEN``. Jedes Wort steht in ``phasentexte.PARAMETER_BESCHRIFTUNG``
+#: (dieselben Woerter wie Checkliste und Abschluss, keine zweite
+#: Uebersetzung); Phase 1 hat keinen Eintrag -- dorthin kommt man immer
+#: zurueck. Bewusst EIGENE Pruefer statt ``AUFGABEN``-Wiederverwendung: die
+#: Aufgaben zeigen, was in EINER Phase ansteht (``AUFGABEN[4]["figuren"]``
+#: prueft nur "gibt es welche"), die Voraussetzung der NAECHSTEN Phase ist an
+#: zwei Stellen strenger (Figurenliste abgenommen, keine offene Auswertung
+#: mehr) -- ``phasen.voraussetzungen`` traegt genau diese Strenge.
+_GATE: dict[int, tuple[tuple[str, Callable[[dict], bool]], ...]] = {
+    2: (
+        ("Begriffe", lambda l: bool(_text(l["stand"], "begriffe"))),
+    ),
+    3: (
+        ("Fragen", lambda l: bool(_text(l["stand"], "fragen"))),
+        ("Einleitungen", lambda l: _gesetzt(l["stand"], "fragen_weich")
+         or _gesetzt(l["stand"], "frage_einleitungen")),
+        ("Eroeffnung", lambda l: bool(_text(l["stand"], "interview_eroeffnung"))),
+        ("Abschluss", lambda l: bool(_text(l["stand"], "interview_abschluss"))),
+    ),
+    4: (
+        ("Auswertungen", lambda l: bool(l.get("hat_verdichtung"))),
+        ("Offene Auswertungen", lambda l: not l.get("offene_interviews")),
+    ),
+    5: (
+        ("Setting", lambda l: bool(_text(l["stand"], "rahmen"))),
+        ("Figuren", lambda l: bool(l["figuren"])
+         and bool(_text(l["stand"], "figuren_fixiert_am"))),
+        ("Geschichte", lambda l: bool(_text(l["stand"], "geschichte"))),
+        ("Szenenfolge", lambda l: bool(l["szenen"])),
+    ),
+    6: (
+        ("Geschichte", lambda l: bool(_text(l["stand"], "geschichte"))),
+        ("Szenenfolge", lambda l: bool(l["szenen"])),
+    ),
+    7: (
+        ("Szenentexte", _alle_szenen_stehen),
+    ),
+}
+
+
+def bereit(nummer: int, lage: dict) -> bool:
+    """Darf die Gruppe ohne Hinweis nach Phase ``nummer`` springen?
+
+    Reine Pruefung ueber ``lage`` wie ``AUFGABEN`` -- Phase 1 hat keine
+    Voraussetzung, dorthin kommt man immer zurueck."""
+    return all(check(lage) for _, check in _GATE.get(nummer, ()))
+
+
+def fehlt(nummer: int, lage: dict) -> list[str]:
+    """Die kurzen Namen dessen, was fuer Phase ``nummer`` noch fehlt -- leere
+    Liste, wenn ``bereit`` wahr ist. Dieselben Woerter wie die Checkliste
+    (``phasentexte.beschriftung``), damit niemand zwei Namen fuer dasselbe
+    Feld lernen muss."""
+    return [
+        phasentexte.beschriftung(label)
+        for label, check in _GATE.get(nummer, ())
+        if not check(lage)
+    ]
+
+
 def aus_daten(lage: dict) -> list[dict]:
     """Die sieben Phasen mit ihren Aufgaben -- rein, ohne Datenbank.
 
     ``lage`` traegt: ``stand`` (Arbeitsstand als Dict oder Row), ``figuren``,
     ``szenen``, ``interviews`` (je Dict mit ``zusammenfassung``),
-    ``zuordnungen`` (Anzahl Schaerfungen), ``pruefrunde``, ``phase``,
-    ``interviewmodus``, ``tippt`` und ``strom`` (die ``art`` einer laufenden
-    ``web_strom``-Zeile oder ``None``)."""
+    ``hat_verdichtung`` (mindestens eine Verdichtung -- dasselbe Mass wie
+    ``phasen.voraussetzungen[4]``, unabhaengig davon, was ``interviews``
+    traegt), ``offene_interviews`` (beendete Interviews ohne Verdichtung,
+    ``bool``), ``zuordnungen`` (Anzahl Schaerfungen), ``pruefrunde``,
+    ``phase``, ``interviewmodus``, ``tippt`` und ``strom`` (die ``art`` einer
+    laufenden ``web_strom``-Zeile oder ``None``). ``hat_verdichtung`` und
+    ``offene_interviews`` fehlen durfen: ``bereit``/``fehlt`` lesen sie ueber
+    ``.get`` und werten eine fehlende Angabe als "nicht erfuellt"."""
     jetzige = lage["phase"]
     ergebnis = []
     for nummer, name, _satz in phasen.PHASEN:
@@ -197,6 +265,10 @@ def aus_daten(lage: dict) -> list[dict]:
             "erledigt": sum(1 for a in aufgaben if a["zustand"] == "erledigt"),
             "gesamt": len(aufgaben),
             "aufgaben": aufgaben,
+            # UX-Knoepfe-Karte, Abschnitt 4: darf die Phasenleiste ohne
+            # Hinweis dorthin springen, und wenn nicht, was fehlt.
+            "bereit": bereit(nummer, lage),
+            "fehlt": fehlt(nummer, lage),
         })
     return ergebnis
 
@@ -204,16 +276,18 @@ def aus_daten(lage: dict) -> list[dict]:
 def register(conn, chat_id: int) -> list[dict]:
     """Der Weg des Bots, ueber ``repo``. Kein Modellaufruf, kein
     Schreibvorgang."""
-    from interview_theater import repo
+    from interview_theater import aufnahme, repo
 
+    verdichtungen = repo.verdichtungen(conn, chat_id)
     return aus_daten({
         "stand": repo.hole_arbeitsstand(conn, chat_id),
         "figuren": repo.figuren(conn, chat_id),
         "szenen": repo.hole_szenen(conn, chat_id),
         "interviews": [
-            {"zusammenfassung": v["zusammenfassung"]}
-            for v in repo.verdichtungen(conn, chat_id)
+            {"zusammenfassung": v["zusammenfassung"]} for v in verdichtungen
         ],
+        "hat_verdichtung": bool(verdichtungen),
+        "offene_interviews": bool(aufnahme.unausgewertete_interviews(conn, chat_id)),
         "zuordnungen": len(repo.schaerfungen(conn, chat_id)),
         "pruefrunde": repo.letzte_pruefrunde(conn, chat_id),
         "phase": phasen.aktuelle(conn, chat_id),

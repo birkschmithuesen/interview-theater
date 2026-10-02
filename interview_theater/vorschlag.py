@@ -51,6 +51,12 @@ import re
 #: verarbeiten, nicht zwei.
 ARTEN = (
     "begriffe", "fragen", "kernthema", "kernfrage", "figuren",
+    # Die eine geschaerfte Frage aus der Phase-2-Durchgehen-Stufe
+    # (02.10.2026, Padua, Karte "Fragen einzeln"): ``VORSCHLAG FRAGE:``
+    # traegt genau eine ueberarbeitete Zeile "Begriff: Frage" -- eigener
+    # Marker statt ``fragen``, weil ein ``FRAGE``-Block nicht die ganze
+    # Liste ersetzt, sondern nur die eine gerade offene Frage.
+    "frage",
     "richtungen", "namen", "duktus", "rahmen",
     "szenenfolge", "szene",
     # Phase 5 seit dem Umbau vom 05.09.2026 nachts: der Bogen in Zeile 1,
@@ -95,7 +101,7 @@ _ZEILE = re.compile(
     # ``FRAGEN WEICH`` steht VOR ``FRAGEN``: eine Alternation nimmt die
     # erste passende, und ``FRAGEN`` allein wuerde die weichen Fassungen als
     # neue Frageliste verbuchen.
-    r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN\s+WEICH|FRAGEN|KERNTHEMA|KERNFRAGE"
+    r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN\s+WEICH|FRAGEN|FRAGE|KERNTHEMA|KERNFRAGE"
     r"|FIGUREN|RICHTUNGEN"
     r"|NAMEN|DUKTUS|RAHMEN"
     r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG|STIL)"

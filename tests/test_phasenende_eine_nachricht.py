@@ -125,13 +125,13 @@ def test_knopfweg_phase1_abnahme_geht_direkt_automatisch_weiter(conn, tg, einst)
 
 def test_ohne_faelliges_angebot_bleibt_es_bei_notiert_und_leiste(conn, tg, einst):
     """Gegenprobe: macht das Speichern die Phase NICHT abschliessbar (Phase 4,
-    Setting allein), bleibt der bisherige Weg -- Notiert + Ja/Nein + Undo."""
+    Setting allein), bleibt es bei der Notiert-Zeile ohne Phasenangebot.
+    Seit dem Phase-4-Umbau (02.10.2026, feat/phase4-brainstorm) speichert
+    Phase 4 automatisch -- unter der Zeile steht nur noch Rueckgaengig, kein
+    Ja/Nein (der Hotfix-Test nahm noch die alte Phase 4 an)."""
     phasen.setze(conn, 1, 4, "test")
     _laufe(conn, tg, einst, [{"art": "rahmen_setzen", "wert": "Bahnhof, abends"}])
 
     _, text, leiste, _ = tg.knoepfe[-1]
     assert text.startswith("Notiert:")
-    assert [b for b, _ in leiste] == [
-        knoepfe.T._TEXT_SPEICHERN_KNOPF, knoepfe.T._TEXT_ANDERS_KNOPF,
-        knoepfe.T._TEXT_UNDO_KNOPF,
-    ]
+    assert [b for b, _ in leiste] == [knoepfe.T._TEXT_UNDO_KNOPF]

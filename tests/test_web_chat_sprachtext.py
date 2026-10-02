@@ -104,21 +104,21 @@ def test_kurze_sprachnachricht_bekommt_ihr_transkript_in_die_blase(conn, pfad, e
     assert neu > stand
 
 
-def test_versteckte_lange_sprachnachricht_bleibt_ohne_text(conn, pfad, einst, tg):
-    """Lange Nachricht ohne Interviewmodus: das Transkript ist versteckt
-    (``versteckt=True``) -- auch in der Blase. Sie verliert nur den
-    Platzhalter. Erst "Nein, war ein Beitrag" macht den Text sichtbar."""
+def test_lange_sprachnachricht_im_web_ist_ein_beitrag_mit_text(conn, pfad, einst, tg):
+    """Auf dem Web-Kanal gibt es die Frage \"Ist das ein Interview?\" nicht
+    (Phase-3-Web, e468900: PTT und Aufnahme-Regler sind getrennte Knoepfe --
+    eine lange PTT-Aufnahme ist unzweideutig ein Beitrag). Der Hotfix-Test
+    (B7) nahm hier noch das Telegram-Verhalten an (verstecktes Transkript);
+    im Web bekommt die Blase deshalb ihren Text wie jede kurze Nachricht."""
     post_id, aid = _sprachpost(conn, tg, einst, dauer=186)
     stand = _stand(pfad)
     aufnahme.verarbeite(conn, tg, LLMAttrappe(), einst, stt_attrappe("eine lange Erzaehlung"),
                         aid, zug=_kein_zug)
 
     _, (geaendert, stand2) = _lies(pfad, stand)
-    assert [(z["id"], z["text"], z["abgetippt"]) for z in geaendert] == [(post_id, None, True)]
-
-    aufnahme.nimm_als_beitrag(conn, tg, None, einst, WEB, aid)
-    _, (geaendert, _) = _lies(pfad, stand2)
-    assert [(z["id"], z["text"]) for z in geaendert] == [(post_id, "eine lange Erzaehlung")]
+    assert [(z["id"], z["text"], z["abgetippt"]) for z in geaendert] == [
+        (post_id, "eine lange Erzaehlung", True)
+    ]
 
 
 def test_interview_teil_zeigt_den_text_nicht_doppelt(conn, pfad, einst, tg):

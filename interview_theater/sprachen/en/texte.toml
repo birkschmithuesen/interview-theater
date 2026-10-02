@@ -60,6 +60,9 @@ _TEXT_OHNE_KNOPF_FERTIG_KNOPF = "Done, analyse it"
 _TEXT_OHNE_KNOPF_WEITER_KNOPF = "There's more to come"
 _TEXT_OHNE_KNOPF_WEITER = "Good, I'm still listening."
 _TEXT_OHNE_KNOPF_UNBEKANNT = "I don't know this recording any more."
+_TEXT_INTERVIEWS_FERTIG_KNOPF = "Interviews done"
+_TEXT_INTERVIEWS_NOCH_OFFEN = "{anzahl} interview(s) are still being analysed - it will continue automatically once they're done."
+_TEXT_ARBEITSSTAND_HINWEIS = "You'll find the full analysis in the Where we are tab."
 TEXT_ABLAUF = """\
 This is how an interview works: tap "Start interview". Then send the \
 voice message or voice messages of your interviewee - after each one you \
@@ -160,27 +163,33 @@ _TEXT_SCHAERFUNG_NICHTS = "There's nothing open on that right now."
 _TEXT_SCHAERFUNG_DURCH = """\
 That was everything I could match. Do you want another round, or shall \
 we move on to the scene texts?"""
-_TEXT_FRAGEN_UEBERNEHMEN_KNOPF = "Take these 3"
-_TEXT_FRAGEN_ANDERE_KNOPF = "Other questions"
+_TEXT_FRAGEN_ANDERE_KNOPF = "Other direction"
 _TEXT_FRAGEN_EIGENE_KNOPF = "Own idea"
+_TEXT_FRAGEN_EINZELN_KNOPF = "Yes, go through them"
+_TEXT_FRAGEN_RICHTUNG_FRAGE = "Are the questions going in the right direction? Shall we go through them one by one?"
+_TEXT_FRAGEN_RICHTUNG_GEFRAGT = "Which direction should it go?"
 _TEXT_FRAGEN_WAHL = """\
-Pick the questions you think fit and tell me the numbers - typed or as a \
-voice message. If you want to change a question or ask your own, just say \
-so: you're the bosses."""
-_TEXT_FRAGEN_NICHT_DREI = "Pick exactly 3."
-_TEXT_FRAGEN_NUMMERN_FALSCH = "Exactly 3 numbers, please."
+This selection no longer works by numbers -- answer the question that's \
+currently in the chat."""
 _TEXT_FRAGEN_EIGENE = "Write your question or questions - I'll add them to the selection."
 _TEXT_FRAGEN_KEINE_AUSWAHL = "I don't know this selection any more."
-_TEXT_FRAGEN_UEBERNOMMEN = "Noted, your {anzahl} questions:"
-_TEXT_FRAGEN_NOTIERT = "Noted: questions {nummern}:"
+_TEXT_FRAGEN_KEINE_ANGENOMMEN = "None of the questions was accepted - I'll suggest new ones."
+_TEXT_FRAGEN_ABGESCHLOSSEN = "Noted, your {anzahl} questions:"
 _TEXT_FRAGEN_QUITTUNG = "Questions saved"
 _JOURNAL_FRAGEN = "Questions: {wert}"
-TEXT_PRUEFUNG_LAEUFT = """\
-I'm going through the questions once more: which ones need a lead-in \
-sentence before you ask them to a stranger?"""
+_TEXT_FRAGE_KOPF = "Question {nummer}/{gesamt} · {begriff}"
+_TEXT_FRAGE_KOPF_OHNE_BEGRIFF = "Question {nummer}/{gesamt}"
+_TEXT_FRAGE_WEICH_HINWEIS = """\
+Softer wording, because the topic is sensitive:
+{weich}"""
+_TEXT_FRAGE_ANNEHMEN_KNOPF = "Accept"
+_TEXT_FRAGE_VERWERFEN_KNOPF = "Discard"
+_TEXT_FRAGE_SCHAERFEN_KNOPF = "Sharpen"
+_TEXT_FRAGE_WAS_AENDERN = "What do you want to change?"
+_TEXT_FRAGE_GESCHAERFT = "Question reworked"
+_TEXT_FRAGE_ENTSCHIEDEN = "Noted"
 _TEXT_LEITFADEN_KNOPF = "Show interview guide"
 _TEXT_MENUE_ANDERS_KNOPF = "Something else"
-TEXT_ARBEIT_SENSIBILITAET = "🤔 I'm quickly going through the questions and softening the sensitive ones …"
 TEXT_ARBEIT_EROEFFNUNG = "✍️ Now the framing for the interview: how you start and how you finish …"
 _JOURNAL_EROEFFNUNG_FESTGELEGT = "Opening and closing agreed"
 _TEXT_EROEFFNUNG_QUITTUNG = "Opening saved"
@@ -401,39 +410,54 @@ ANWEISUNG_DUKTUS = """\
 Suggest two to three alternative descriptions of how {name} speaks - one \
 line each, concrete (sentence length, filler words, pace). Attach them as \
 a block 'VORSCHLAG DUKTUS:', one description per line."""
+_ANWEISUNG_FRAGEN_SENSIBEL = """\
+Check each question: does it touch on a sensitive topic (family, origin, \
+religion, violence, love and the body, money, illness, flight, \
+discrimination)? Rewrite every sensitive question additionally into ONE \
+gentle piece of conversation - two to three sentences, informal 'you', \
+easy to say out loud, in the tone of a young person speaking to a \
+stranger; the core of the question stays the same. If there is at least \
+one sensitive question, attach the softer versions as a block \
+'VORSCHLAG FRAGEN WEICH:', one line each as '<number> — <softer version>', \
+numbered as in the list above -- if no question is sensitive, leave this \
+block out entirely."""
 ANWEISUNG_FRAGEN_ANDERE = """\
-Suggest exactly ten OTHER interview questions. We have already had these, \
-take none of them again and don't reword any of them:\n{alte}\n\
-Attach the new ones as a block 'VORSCHLAG FRAGENAUSWAHL:', one question per \
-line, exactly ten lines. Don't repeat them in the running text."""
+Suggest new interview questions, five per term, ordered by term. We have \
+already had these, take none of them again and don't reword any of them:\n\
+{alte}\n{richtung_satz}Attach them as a block 'VORSCHLAG FRAGENAUSWAHL:', \
+one question per line in the format 'Term: Question'. Don't repeat them in \
+the running text.\n\
+Check each question: does it touch on a sensitive topic (family, origin, \
+religion, violence, love and the body, money, illness, flight, \
+discrimination)? Rewrite every sensitive question additionally into ONE \
+gentle piece of conversation - two to three sentences, informal 'you', \
+easy to say out loud, in the tone of a young person speaking to a \
+stranger; the core of the question stays the same. If there is at least \
+one sensitive question, attach the softer versions as a block \
+'VORSCHLAG FRAGEN WEICH:', one line each as '<number> — <softer version>', \
+numbered as in the list above -- if no question is sensitive, leave this \
+block out entirely."""
+_TEXT_FRAGEN_RICHTUNG_SATZ = "The group would like this direction: {richtung}\n"
 ANWEISUNG_FRAGEN_EIGENE = """\
 The group has named questions of its own. Take them unchanged as the first \
 lines and add your own suggestions to make exactly ten. Attach everything \
 as a block 'VORSCHLAG FRAGENAUSWAHL:', one question per line."""
-ANWEISUNG_EINLEITUNGEN = """\
-Look at these interview questions from the group:\n{fragen}\n\n\
-The interviews are carried out by young people from the group with \
-STRANGERS in the street or in their neighbourhood. Check each question: \
-does it touch on a sensitive topic (family, origin, religion, violence, \
-love and the body, money, illness, flight, discrimination)? Rewrite EVERY \
-sensitive question as ONE gentle piece of conversation - two to three \
-sentences that the interviewer says in one go: the reason, the freedom \
-not to answer, and the question itself, in ONE flow. Not a lead-in and a \
-question strung together, but one text that you say just like that. \
-Informal 'you', easy to say out loud, in the tone of a young person \
-speaking to a stranger - no officialese, no stock phrases like 'as part \
-of our \
-project'. The core of the question stays the same: don't invent a new \
-topic and don't leave one out. Attach this as a block \
-'VORSCHLAG FRAGEN WEICH:', one line each as \
-'<question number> — <softer version>' - only for the sensitive questions, \
-the others stay as they are. If no question is sensitive, write exactly \
-this one line in the block: 'None of the questions needs a special \
-lead-in.' In the text before it, say in ONE sentence which questions you \
-have worded more softly - call it 'softer wording', NOT 'lead-in': the \
-opening of the interview only comes in the next message, don't announce it \
-here and don't write it. Ask the group at most one question. Don't copy \
-out the list of questions again unchanged."""
+ANWEISUNG_FRAGE_SCHAERFEN = """\
+The group wants to change interview question {nummer}:\n{frage}\n\
+{sensibel_hinweis}This should change: {wunsch}\n\
+Write a reworked version and attach it as a block 'VORSCHLAG FRAGE:', \
+exactly one line in the format 'Term: Question'. \
+Check each question: does it touch on a sensitive topic (family, origin, \
+religion, violence, love and the body, money, illness, flight, \
+discrimination)? Rewrite every sensitive question additionally into ONE \
+gentle piece of conversation - two to three sentences, informal 'you', \
+easy to say out loud, in the tone of a young person speaking to a \
+stranger; the core of the question stays the same. If there is at least \
+one sensitive question, attach the softer versions as a block \
+'VORSCHLAG FRAGEN WEICH:', one line each as '<number> — <softer version>', \
+numbered as in the list above -- if no question is sensitive, leave this \
+block out entirely."""
+_TEXT_FRAGE_SCHAERFEN_SENSIBEL_HINWEIS = "So far it was worded softly: {weich}\n"
 ANWEISUNG_EROEFFNUNG = """\
 Now we still need how the interview starts and how it ends. Suggest an \
 opening text that the interviewer says to a stranger before they ask the \
@@ -632,6 +656,7 @@ _TEXT_RUNDE_SCHNITT = "Round {runde}, average {schnitt:.1f} of 5"
 "Zuordnungen" = "Assignments"
 "Szenentexte" = "Scene texts"
 "Stueckpruefung" = "Play review"
+"Offene Auswertungen" = "Open analyses"
 
 ["fehlstellen"]
 UEBERSCHRIFT = "What's still missing"
@@ -787,6 +812,7 @@ _JOURNAL_ZUSAMMENGEFUEHRT = "{alt} became {neu} -- speech style and scene castin
 _JOURNAL_KORRIGIERT = "Transcript corrected: {text}"
 _NOTIERT_KOPF = "Noted:\n"
 _ZEILE_FESTGEHALTEN = "Agreed{marke}: {text}"
+_ZEILE_FESTGELEGT = "📌 Agreed: {titel} — {text}"
 _ZEILE_KORRIGIERT = "Corrected: {zeile}"
 _ZEILE_ENTFERNT = "Removed: {was}"
 _ZEILE_PHASE = "We're now at {phase}."
@@ -815,6 +841,7 @@ hauptkonflikt = "Main conflict"
 figuren_anzahl = "Number of characters"
 begriffe = "Terms"
 fragen = "Questions"
+szenen_anzahl = "Number of scenes"
 
 ["kontext"]
 _SPRECHER_BOT = "You"
@@ -861,6 +888,7 @@ ERSTKONTAKT = "{anlass} First respond to what was just said, then take your time
 ERSTKONTAKT_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
 ERSTKONTAKT_LINK = "; and that the group can follow everything that has been recorded at {url} (only for this group, give the link exactly like this)"
+EINSTIEG_SETTING = "The group is entering phase 4 (Setting, Characters & Story) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (sharpening) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Where we are\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
 
 ["kontext".JOURNALART_BESCHRIFTUNG]
 vorgeschlagen = "suggested"
@@ -892,6 +920,7 @@ _TEXT_DAS_INTERVIEW = "The interview"
 _TEXT_DOWNLOAD_FEHLER = "The recording didn't reach me - please send it again."
 _TEXT_BITTE_NOCHMAL = "I couldn't understand {beschreibung} - please send it again."
 _TEXT_VERDICHTUNG_GESCHEITERT = "I couldn't analyse {beschreibung}. The transcript stays saved, only the summary is missing."
+_TEXT_BUEHNE_NEUE_KARTE = "New card in the Stage tab"
 _ARTIKEL_GROSS = "the"
 _ARTIKEL_KLEIN = "the"
 _BESCHREIBUNG_TEIL = "{artikel} recording of {name}, part {nummer}"
@@ -1046,20 +1075,12 @@ that you now suggest the scenes.
 Answer in EXACTLY this form, without an introduction and without an afterword:
 
 VORSCHLAG SZENENFOLGE:
-Title — one sentence about what happens — Character, Character — Form — why this form
-Title — one sentence about what happens — Character, Character — Form — why this form
+Title — one sentence about what happens — Character, Character
+Title — one sentence about what happens — Character, Character
 
-Only use characters listed below.
-
-**You SUGGEST the form, you don't decide it.** It stands as the fourth
-column, its reason as the fifth, and both are mandatory -- the group
-confirms the form later, scene by scene, with a button.
-
-There are exactly {{formen_anzahl}}: {{formen_liste}}. **{{form_vorgabe_anzeige}} is the
-normal case.** Monologue, song and rap only when the scene demands it: a
-character alone with themselves, a feeling that grows bigger when sung, anger
-that needs rhythm. At most ONE non-{{form_vorgabe_anzeige}} scene per three scenes, and
-scene 1 is never a monologue or a song -- the exposition needs an encounter.
+Only use characters listed below. **No form** -- whether a scene becomes a
+dialogue, a monologue, a chorus, a song or a rap is decided by the group
+later, in the final polish, not here.
 
 Then one sentence and an open question to the group, two lines at most."""
 ANWEISUNG_FELDER = """You are planning a single scene with a theatre group.
@@ -1436,6 +1457,12 @@ _TITEL_GRUPPENSEITE = "{titel} — interview-theater"
 _TEXT_PROBENANSICHT_LINK = "📖 Rehearsal view — the whole play in one piece, to read and print"
 _UEBERSCHRIFT_UEBERBLICK = "Overview"
 _UEBERSCHRIFT_ARBEITSSTAND = "Where we are"
+_UEBERSCHRIFT_STUECKKARTE = "Play card"
+_STUECKKARTE_SETTING = "Setting"
+_STUECKKARTE_FIGUREN = "Characters"
+_STUECKKARTE_GESCHICHTE = "Story"
+_STUECKKARTE_SZENENANZAHL = "Number of scenes"
+_TEXT_STUECKKARTE_OFFEN = "open"
 _UEBERSCHRIFT_FESTLEGUNGEN = "Other agreements"
 _UEBERSCHRIFT_SZENEN = "Scenes"
 _UEBERSCHRIFT_INTERVIEWS = "From the interviews"
@@ -1479,6 +1506,8 @@ TEXT_UNGESCHRIEBEN = "Not written yet."
 TEXT_LEITFADEN_LEER = "The interview guide is created in phase 2."
 TEXT_LEITFADEN_ZURUECK = "← back to where we are"
 _TEXT_CHAT_LINK = "Chat with the bot"
+_TEXT_BUEHNE_LEER = "No card yet."
+_TEXT_BUEHNE_OFFEN = "open"
 TEXT_500 = "Something went wrong on our end."
 TEXT_FREMDE_HERKUNFT = "This request didn't come from this page."
 _TITEL_DASHBOARD = "interview_theater — Dashboard"
@@ -1692,6 +1721,13 @@ _TEXT_PAUSE = """Today's budget is used up — I'm pausing until midnight (Itali
 Your work is saved. You can keep recording (I'll listen tomorrow), and your group page stays readable."""
 
 ["web_chat"]
+# UX-Knoepfe-Karte, Abschnitt 1 (02.10.2026): nur die vier Texte, die ueber
+# web_chat.T laufen -- Platzhalter des Eingabefelds und das Abkuerzungs-Label.
+# Der Rest von web_chat.py ist nicht umgestellt (AGENTS.md, Uebergabe an A1).
+_TEXT_EINGABE = "Write or speak freely – or tap a shortcut"
+_TEXT_EINGABE_FRAGEN = "Say what should be different about the question …"
+_TEXT_EINGABE_SETTING = "Tell us your idea …"
+_TEXT_ABKUERZUNG = "Shortcut:"
 # Padua Hotfix B6/B7 (02.10.2026): nur die Texte, die diese Karte anfasst.
 # Der Rest der Chatansicht bleibt vorerst deutsch (offener Punkt, Karte A1).
 _TEXT_INTERVIEW_AN = "Record interview"
@@ -1699,11 +1735,17 @@ _TEXT_INTERVIEW_AUS = "Stop recording"
 _TEXT_SPRACHE = "Voice message ({dauer})"
 _TEXT_SPRACHE_LAEUFT = "{dauer} · transcribing..."
 
+["web_kanal"]
+# UX-Knoepfe-Karte, Abschnitt 1: der einmalige Hinweis, dass Knoepfe
+# Abkuerzungen sind -- gesendet von web_kanal.WebKanal.sende_mit_knoepfen.
+TEXT_ABKUERZUNG_HINWEIS = "Buttons are shortcuts – you can always just write or speak instead."
+
 ["web_vereint"]
 _TEXT_PHASE_UNGUELTIG = "There is no such phase."
 _TEXT_PHASE_UNBESTAETIGT = "Please confirm first."
 _TEXT_PHASE_WECHSELN = "Switch to this phase"
-_TEXT_PHASE_SICHER = "Really switch to {bezeichnung}?"
+_TEXT_PHASE_FEHLT_HINWEIS = "{was} is still missing – go on anyway?"
+_TEXT_PHASE_ABBRECHEN = "No"
 _TEXT_PHASE_FEHLER_NETZ = "No connection - that didn't go through."
 _TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_aufgaben}"
 
@@ -1711,3 +1753,4 @@ _TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_a
 chat = "Chat"
 stand = "Workbench"
 textbuch = "Script"
+buehne = "Stage"

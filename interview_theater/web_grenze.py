@@ -38,11 +38,16 @@ from collections import deque
 NACHRICHTEN_JE_MINUTE = 20
 NACHRICHTEN_FENSTER_S = 60
 
-#: Aufnahmesegmente je Stunde und Gruppe. Gerechnet: A2 schneidet in
-#: Segmente von 45 s, eine volle Stunde Interview sind also 3600/45 = 80
-#: Uploads. 150 laesst Platz fuer Push-to-talk nebenher und liegt trotzdem
-#: weit unter dem, was ein Skript in einer Stunde schafft.
-UPLOADS_JE_STUNDE = 150
+#: Aufnahmesegmente je Stunde und Gruppe. War 150 (3600/45 = 80 Uploads bei
+#: fester Segmentlaenge, mit Luft fuer Push-to-talk nebenher) bis zum
+#: Pausen-Schnitt (VAD, 02.10.2026): die Segmentzahl haengt seitdem von der
+#: Gespraechsdynamik ab, nicht von einem festen Takt. CoThinkers eigene
+#: Messung (.brainstorm-vad-brief.md) zaehlt 2-5 Schnitte je MINUTE in einem
+#: Brainstorm-aehnlichen Gespraech, also bis zu 300 je Stunde im
+#: unruhigsten Fall. 400 haelt dieselbe Grosszuegigkeit (Luft fuer
+#: Push-to-talk nebenher, weit unter dem, was ein Skript in einer Stunde
+#: schafft) bei der neuen, hoeheren Messlatte.
+UPLOADS_JE_STUNDE = 400
 UPLOADS_FENSTER_S = 3600
 
 TOPF_NACHRICHT = "nachricht"

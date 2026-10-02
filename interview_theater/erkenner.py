@@ -153,6 +153,11 @@ ARTEN = (
     # nach acht weiteren Zeilen aus dem Prompt: von 42 Festlegungen einer
     # Gruppe in Phase 4 waren 22 faktisch verloren.
     "festlegung_setzen",
+    # Padua-Brainstorming-Umbau (02.10.2026): die Anzahl Szenen ist ein
+    # eigenes Arbeitsstandfeld (``arbeitsstand.szenen_anzahl``) und ein
+    # fixes Feld von Phase 4 -- die Gruppe nennt die Zahl, der Bot schlaegt
+    # sie nie vor (siehe ``prompts/phasen/4.md``).
+    "szenenanzahl_setzen",
 )
 
 #: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im
@@ -520,6 +525,31 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
         return None
     repo.setze_arbeitsstand(conn, chat_id, feld, wert)
     return {"art": art, "wert": wert}
+
+
+#: Anzahl Szenen: vernuenftige Grenzen fuer einen Workshop-Abend.
+SZENENANZAHL_MIN = 1
+SZENENANZAHL_MAX = 20
+
+
+def _wende_szenenanzahl_an(conn, chat_id: int, wert: str) -> dict | None:
+    """Padua-Brainstorming-Umbau (02.10.2026): die Gruppe nennt die Anzahl
+    Szenen selbst, der Bot schlaegt sie nie vor (``prompts/phasen/4.md``).
+    Gespeichert wird die blanke Zahl als Text, wie jedes andere
+    Arbeitsstandfeld. Steht keine plausible Zahl im Wert, wird nichts
+    geschrieben -- geraten wird nicht."""
+    treffer = re.search(r"\d+", wert or "")
+    if treffer is None:
+        return None
+    zahl = int(treffer.group())
+    if not (SZENENANZAHL_MIN <= zahl <= SZENENANZAHL_MAX):
+        return None
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    aktuell = stand["szenen_anzahl"] if stand else None
+    if aktuell == str(zahl):
+        return None
+    repo.setze_arbeitsstand(conn, chat_id, "szenen_anzahl", str(zahl))
+    return {"art": "szenenanzahl_setzen", "wert": str(zahl)}
 
 
 def _wende_figur_an(conn, chat_id: int, wert: str) -> dict | None:
@@ -1308,6 +1338,8 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return _wende_szene_planen_an(conn, chat_id, wert)
     if art == "festlegung_setzen":
         return _wende_festlegung_an(conn, chat_id, wert)
+    if art == "szenenanzahl_setzen":
+        return _wende_szenenanzahl_an(conn, chat_id, wert)
     if art in ("verworfen", "entschieden"):
         return _wende_journal_an(conn, chat_id, art, wert)
     if art == "wortlaut_an":
@@ -1489,9 +1521,17 @@ def _erneuere_angebot_auf_bitte(conn, chat_id: int, aenderungen: list[dict]) -> 
     return True
 
 
-def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
+def baue_meldung(
+    wirkliche_aenderungen: list[dict], conn=None, chat_id: int | None = None,
+) -> str | None:
     """Baut die eine Meldung je Erkennerlauf (SPEC § 4.3, teil-b.md Aufgabe
     4) -- nicht eine je Aenderung.
+
+    ``conn``/``chat_id`` sind optional (Padua, 02.10.2026): stehen beide zur
+    Verfuegung, bekommen die Zeilen in Phase 4 die 📌-Fassung
+    (``_ZEILE_FESTGELEGT``) statt der sonst ueblichen -- siehe
+    ``_meldungszeilen``. Ohne die beiden (z. B. in bestehenden Tests, die nur
+    die Liste der Aenderungen kennen) bleibt die alte Fassung unveraendert.
 
     Kernthema, Format, Rahmen und Hauptkonflikt bekommen je eine eigene Zeile
     im Wortlaut, Figuren eine zusammenfassende Zeile mit Namen, Begriffe und
@@ -1510,7 +1550,11 @@ def baue_meldung(wirkliche_aenderungen: list[dict]) -> str | None:
     05.09.2026 nur noch aus einer Quelle: der Gruppe (art ``phase_setzen``).
     Den automatischen Sprung des Bots gab es einmal; er ist verworfen, weil
     ein Datenstand keine Absicht ist (interview_theater/phasen.py)."""
-    zeilen = _meldungszeilen(_sammle_meldbares(wirkliche_aenderungen))
+    phase = (
+        phasen.aktuelle(conn, chat_id)
+        if conn is not None and chat_id is not None else None
+    )
+    zeilen = _meldungszeilen(_sammle_meldbares(wirkliche_aenderungen), phase=phase)
     if not zeilen:
         return None
     return T._NOTIERT_KOPF + "\n".join(zeilen)
@@ -1530,6 +1574,7 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
         "kernthema": None, "format": None, "rahmen": None, "geschichte": None,
         "hauptkonflikt": None, "begriffe": None, "fragen": None,
         "phase": None, "usa": None, "figuren_anzahl": None,
+        "szenen_anzahl": None,
         "figuren": [], "geplant": [], "festgehalten": [],
         "korrigiert": [], "entfernt": [],
     }
@@ -1542,6 +1587,7 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
         "hauptkonflikt_setzen": "hauptkonflikt",
         "begriffe_setzen": "begriffe",
         "fragen_setzen": "fragen",
+        "szenenanzahl_setzen": "szenen_anzahl",
     }
     mehrfach = {
         "figur_setzen": "figuren",
@@ -1557,9 +1603,10 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
         elif art in mehrfach:
             gesammelt[mehrfach[art]].append(wert)
         elif art == "festlegung_setzen":
-            gesammelt["festgehalten"].append(
-                (aenderung.get("bezug"), aenderung.get("text", wert))
-            )
+            gesammelt["festgehalten"].append((
+                aenderung.get("bereich"), aenderung.get("bezug"),
+                aenderung.get("text", wert),
+            ))
         elif art == "phase_setzen":
             gesammelt["phase"] = phasen.nummer_fuer(wert)
         # Ein ``entschieden`` bleibt still -- ausser es hat nebenbei die
@@ -1588,10 +1635,22 @@ _FELD_BESCHRIFTUNG = {
     "figuren_anzahl": "Anzahl Figuren",
     "begriffe": "Begriffe",
     "fragen": "Fragen",
+    "szenen_anzahl": "Anzahl Szenen",
 }
 
 #: Die uebrigen Zeilen der Meldung, je mit eigenem Verb.
 _ZEILE_FESTGEHALTEN = "Festgehalten{marke}: {text}"
+#: Padua-Brainstorming-Umbau (02.10.2026): in Phase 4 (Setting, Figuren &
+#: Geschichte) bekommt jede automatisch gespeicherte Festlegung -- und seit
+#: derselben Karte auch Setting, Geschichte und Anzahl Szenen -- diese Zeile
+#: statt der sonst ueblichen ("Festgehalten: ..."/"Setting: ..."). Sie macht
+#: sichtbar, dass hier **nichts** auf eine Bestaetigung wartet: alles, was
+#: gesagt wird, ist sofort festgehalten, und der einzige Weg zurueck ist der
+#: EINE Undo-Knopf unter der Meldung (``knoepfe.undo_leiste`` --
+#: ``rahmen_setzen``/``geschichte_setzen`` sind seit derselben Karte aus
+#: ``_LEISTENARTEN`` entfernt, es gibt also nie eine zusaetzliche
+#: Grundleiste darunter).
+_ZEILE_FESTGELEGT = "📌 Festgelegt: {titel} — {text}"
 _ZEILE_KORRIGIERT = "Korrigiert: {zeile}"
 _ZEILE_ENTFERNT = "Entfernt: {was}"
 _ZEILE_PHASE = "Wir sind jetzt bei {phase}."
@@ -1602,17 +1661,33 @@ _ZEILE_USA_JA = (
 _ZEILE_USA_NEIN = "Szenentexte bleiben in der Schweiz. Ich frage nicht wieder."
 
 
-def _meldungszeilen(g: dict) -> list[str]:
+#: Dieselbe Phasennummer wie ``knoepfe.texte.PHASE_SETTING`` -- hier als
+#: eigene Konstante, weil ``erkenner`` nicht von ``knoepfe`` importiert
+#: (Zyklus: ``knoepfe`` importiert ``erkenner``).
+PHASE_SETTING = 4
+
+#: Felder, die in Phase 4 die 📌-Fassung bekommen (siehe ``_ZEILE_FESTGELEGT``).
+_FESTGELEGT_FELDER = frozenset({"rahmen", "geschichte", "szenen_anzahl"})
+
+
+def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
     """Aus dem Vorgeordneten die Zeilen der Meldung, in fester Reihenfolge."""
     zeilen = []
     beschriftung = T._FELD_BESCHRIFTUNG
+    in_phase4 = phase == PHASE_SETTING
 
     def feld(name: str) -> None:
-        if g[name]:
+        if not g[name]:
+            return
+        if in_phase4 and name in _FESTGELEGT_FELDER:
+            zeilen.append(T._ZEILE_FESTGELEGT.format(
+                titel=beschriftung[name], text=g[name],
+            ))
+        else:
             zeilen.append(f"{beschriftung[name]}: {g[name]}")
 
     for name in ("kernthema", "format", "rahmen", "geschichte",
-                 "hauptkonflikt", "figuren_anzahl"):
+                 "hauptkonflikt", "figuren_anzahl", "szenen_anzahl"):
         feld(name)
     if g["figuren"]:
         zeilen.append(_figuren_zeile(g["figuren"]))
@@ -1626,9 +1701,16 @@ def _meldungszeilen(g: dict) -> list[str]:
     # Bezug in Klammern, wo es einen gibt. Sie MUSS sichtbar sein: sie steht
     # in keinem Feld und auf keiner Checkliste, und die Gruppe braucht sie im
     # Chat, um widersprechen zu koennen ("nimm das wieder raus").
-    for bezug, text in g["festgehalten"]:
-        marke = f" ({bezug})" if bezug else ""
-        zeilen.append(T._ZEILE_FESTGEHALTEN.format(marke=marke, text=text))
+    for bereich, bezug, text in g["festgehalten"]:
+        if in_phase4:
+            titel = (bereich or "sonstiges")
+            titel = titel[:1].upper() + titel[1:]
+            if bezug:
+                titel = f"{titel} · {bezug}"
+            zeilen.append(T._ZEILE_FESTGELEGT.format(titel=titel, text=text))
+        else:
+            marke = f" ({bezug})" if bezug else ""
+            zeilen.append(T._ZEILE_FESTGEHALTEN.format(marke=marke, text=text))
     # Eine Transkriptkorrektur bekommt ihr eigenes Verb (N5): "Korrigiert:
     # gepoekt -> gepogt". Sie ist der Beleg dafuer, dass wirklich etwas
     # passiert ist -- im Probelauf sagte der Bot dreimal "korrigiere ich",
@@ -1725,6 +1807,67 @@ def _wende_an_mit_schnappschuss(conn, e, chat_id: int, aenderungen: list[dict]
                 _merke_undo_vorfall(conn, e, chat_id,
                                     "Schnappschuss nach dem Anwenden fehlgeschlagen")
     return wirkliche, vorher, nachher
+
+
+def lauf_fuer_knopf(conn, e, chat_id: int, text: str, schreibe) -> int | None:
+    """Dieselbe Schnappschuss-Maschine wie ein Erkennerlauf (Karte U), nur
+    ausgeloest durch einen Knopf statt durch ``wende_an`` (UX-Knoepfe-Karte,
+    02.10.2026, Abschnitt 2: "Ja, speichern" / phase-2 Annehmen · Verwerfen
+    bekommen damit denselben Undo-Knopf wie jede automatische
+    Erkenner-Meldung -- keine zweite Ruecknahme-Maschine).
+
+    ``schreibe`` ist ein parameterloser Aufrufer, der die eigentlichen
+    ``repo.setze_*``-Schreibzugriffe ausfuehrt; er laeuft **innerhalb** des
+    Schnappschuss-Fensters, genau wie ``wende_an`` in
+    ``_wende_an_mit_schnappschuss``. ``text`` ist die schon fertige
+    "Notiert:"-Zeile -- hier gibt es keine ``aenderungen``-Liste, aus der
+    sich wie bei ``undo_zeilen`` ein Wortlaut herleiten liesse.
+
+    Liefert die Lauf-id fuer ``knoepfe.basis.undo_leiste``, oder ``None``
+    (kein Diff, oder ein Schnappschuss ist ausgefallen -- dann schreibt
+    ``schreibe`` trotzdem, nur ohne Undo-Knopf)."""
+    plan = ruecknahme.plan(["knopf_speichern"])
+    with repo._LOCK:
+        try:
+            vorher = repo.schnappschuss(conn, chat_id, plan)
+        except Exception:
+            log.exception(
+                "Schnappschuss vor dem Knopf-Speichern fehlgeschlagen, "
+                "chat_id=%s", chat_id,
+            )
+            schreibe()
+            _merke_undo_vorfall(
+                conn, e, chat_id,
+                "Schnappschuss vor dem Knopf-Speichern fehlgeschlagen",
+            )
+            return None
+        schreibe()
+        try:
+            nachher = repo.schnappschuss(conn, chat_id, plan)
+        except Exception:
+            log.exception(
+                "Schnappschuss nach dem Knopf-Speichern fehlgeschlagen, "
+                "chat_id=%s", chat_id,
+            )
+            _merke_undo_vorfall(
+                conn, e, chat_id,
+                "Schnappschuss nach dem Knopf-Speichern fehlgeschlagen",
+            )
+            return None
+    schritte = ruecknahme.schritte(vorher, nachher)
+    if not schritte:
+        return None
+    try:
+        return repo.lege_erkenner_lauf_an(conn, chat_id, text, schritte)
+    except Exception:
+        log.exception(
+            "Ruecknahme (Knopf) konnte nicht angelegt werden, chat_id=%s",
+            chat_id,
+        )
+        _merke_undo_vorfall(
+            conn, e, chat_id, "Notiert-Meldung ohne Undo-Knopf verschickt",
+        )
+        return None
 
 
 def _lege_ruecknahme_an(conn, e, chat_id: int, vorher: dict | None,
@@ -1979,10 +2122,11 @@ def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> int | No
 _LEISTENARTEN = {
     "begriffe_setzen": ("begriffe", 1),
     "fragen_setzen": ("fragen", 2),
-    "rahmen_setzen": ("rahmen", 4),
-    # Die Geschichte gehoert seit dem 06.09.2026 in dieselbe Phase 4 wie
-    # Setting und Figuren -- eine Station, drei Ping-Pong-Ebenen.
-    "geschichte_setzen": ("geschichte", 4),
+    # ``rahmen_setzen``/``geschichte_setzen`` standen hier bis zum
+    # Brainstorming-Umbau (Padua, 02.10.2026): Phase 4 ist jetzt freies
+    # Erfinden, jede Festlegung speichert sofort und bekommt die
+    # 📌-Fassung mit genau einem Rueckgaengig-Knopf (siehe
+    # ``_ZEILE_FESTGELEGT``) statt einer Ping-Pong-Grundleiste darunter.
 }
 
 
@@ -2136,7 +2280,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # erkannten Aenderungen, weil sie wie ``szene_schreiben`` nichts in
         # den Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.
         _starte_kuerzung(klm, tg, conn, e, chat_id, aenderungen)
-        text = baue_meldung(wirkliche)
+        text = baue_meldung(wirkliche, conn, chat_id)
         if text is None:
             _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)
             _biete_phase_an(conn, tg, chat_id)

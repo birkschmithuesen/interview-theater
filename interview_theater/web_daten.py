@@ -1169,7 +1169,46 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # noch keinen Lauf, der Abschnitt bleibt weg. Belegzitate stehen NIE
         # darin, die Gruppenseite ist oeffentlich erreichbar.
         "dramaturgie": dramaturgie(conn, chat_id),
+        # Der Buehne-Tab (Phase 4, nur Web, 02.10.2026) -- read-only wie der
+        # Rest dieser Funktion. Die Karten tragen NIE ein Belegzitat (Phase 4
+        # ist interview-frei), siehe buehnenkarte.py/db.py.
+        "buehnenkarten": buehnenkarten(conn, chat_id),
+        "stueckkarte_felder": stueckkarte_felder(conn, chat_id, figuren, stand),
     }
+
+
+def buehnenkarten(
+    conn: sqlite3.Connection, chat_id: int, hoechstens: int = 10,
+) -> list[sqlite3.Row]:
+    """Das read-only Gegenstueck zu ``repo.buehnenkarten`` (Buehne-Tab der
+    Gruppenseite) -- NEUESTE ZUERST, wie dort. Fehlt die Tabelle noch
+    (Deploy vor Bot-Neustart), ist die Liste leer statt ein Fehler."""
+    try:
+        return conn.execute(
+            "SELECT * FROM buehnenkarte WHERE chat_id = ? ORDER BY id DESC LIMIT ?",
+            (chat_id, hoechstens),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+
+
+def stueckkarte_felder(
+    conn: sqlite3.Connection, chat_id: int,
+    figuren: list[dict] | None = None, arbeitsstand: dict | None = None,
+) -> list[tuple[str, str | None]]:
+    """Dieselben drei festen Felder wie ``repo.stueckkarte_felder``
+    (Setting, Figuren, Geschichte) -- read-only. ``figuren``/``arbeitsstand``
+    duerfen mitgegeben werden, wenn der Aufrufer (``gruppe_nach_token``) sie
+    ohnehin schon gelesen hat: kein zweiter Lesevorgang fuer dieselbe
+    Zeile."""
+    stand = arbeitsstand if arbeitsstand is not None else _arbeitsstand(conn, chat_id)
+    namen_liste = figuren if figuren is not None else _figuren(conn, chat_id)
+    namen = [f["name"] for f in namen_liste]
+    return [
+        ("Setting", stand.get("rahmen") or None),
+        ("Figuren", ", ".join(namen) if namen else None),
+        ("Geschichte", stand.get("geschichte") or None),
+    ]
 
 
 def sprechanteile(conn: sqlite3.Connection, chat_id: int) -> dict:
@@ -1378,7 +1417,7 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
     Gruppenseite')."""
     zeilen = conn.execute(
         "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am, "
-        f"{_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
+        f"bild, {_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
         f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
         "AND typ != 'knopf' "
         "ORDER BY id ASC LIMIT ?",
@@ -1393,6 +1432,7 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
             "knoepfe": _web_knoepfe(z["knoepfe"]),
             "dauer": z["dauer"],
             "dateiname": z["dateiname"],
+            "bild": z["bild"],
             "abgetippt": bool(z["abgetippt"]),
             "zeit": z["erstellt_am"],
         }
@@ -1439,7 +1479,7 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
             ).fetchone()
             return [], int(zeile["stand"])
         zeilen = conn.execute(
-            "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, "
+            "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, bild, "
             f"geloescht_am, aenderung, {_ABGETIPPT} FROM web_post "
             "WHERE chat_id = ? AND aenderung > ? "
             f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
@@ -1458,6 +1498,7 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
             "knoepfe": _web_knoepfe(z["knoepfe"]),
             "dauer": z["dauer"],
             "dateiname": z["dateiname"],
+            "bild": z["bild"],
             "abgetippt": bool(z["abgetippt"]),
             "geloescht": z["geloescht_am"] is not None,
         }
@@ -1503,6 +1544,10 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         "chat_id": chat_id,
         "titel": gruppe["titel"] if gruppe else None,
         "phase": _feld(stand, "phase"),
+        # Fuer den kontextabhaengigen Platzhalter im Eingabefeld
+        # (UX-Knoepfe-Karte, Abschnitt 1) -- der Text selbst steht in
+        # web_chat.py, hier nur der Rohwert, read-only wie der Rest.
+        "fragen_aktuell": _feld(stand, "fragen_aktuell"),
         "interviewmodus": modus,
         # Padua Hotfix B6: der Interview-Knopf der Fussleiste nur in Phase 3
         # oder bei laufender Aufnahme -- dieselbe Regel wie die Telegram-
@@ -1682,11 +1727,17 @@ def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         "SELECT interviewmodus_seit, web_tippt_bis FROM gruppe WHERE chat_id = ?",
         (chat_id,),
     ).fetchone()
+    interviews = _interviews(conn, chat_id)
     return modul.aus_daten({
         "stand": stand,
         "figuren": _figuren(conn, chat_id),
         "szenen": _szenen(conn, chat_id),
-        "interviews": _interviews(conn, chat_id),
+        "interviews": interviews,
+        # Dasselbe Mass wie ``phasen.voraussetzungen[4]`` (``repo.verdichtungen``),
+        # nicht ``bool(interviews)``: diese Liste traegt -- anders als auf dem
+        # Bot-Weg -- auch unverdichtete Interviews (UX-Knoepfe Abschnitt 4).
+        "hat_verdichtung": any(e["zusammenfassung"] for e in interviews),
+        "offene_interviews": bool(_offene_interviews(conn, chat_id)),
         "zuordnungen": sum(
             len(v) for teil in schaerfungen(conn, chat_id).values()
             for v in teil.values()

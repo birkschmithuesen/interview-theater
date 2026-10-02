@@ -45,6 +45,17 @@ def test_gruppe_hat_web_token_spalte(conn):
     assert "web_token" in spalten
 
 
+def test_interviews_fertig_wunsch_spalte_existiert_und_ist_schreibbar(conn):
+    """Der Merkposten fuer den Web-Knopf "Interviews fertig" (02.10.2026):
+    additiv nachgeruestete Spalte im Arbeitsstand, ueber denselben einen
+    Schreibweg wie alles andere dort (repo.setze_arbeitsstand)."""
+    db._migriere_fehlende_spalten(conn)
+    spalten = {z[1] for z in conn.execute("PRAGMA table_info(arbeitsstand)")}
+    assert "interviews_fertig_wunsch_seit" in spalten
+    repo.setze_arbeitsstand(conn, 1, "interviews_fertig_wunsch_seit", "2026-10-02T12:00:00+00:00")
+    assert repo.hole_arbeitsstand(conn, 1)["interviews_fertig_wunsch_seit"] == "2026-10-02T12:00:00+00:00"
+
+
 #: Die 'gruppe'-Tabelle, wie sie vor Aufgabe 5 aussah -- ohne
 #: interviewmodus_seit. Fuer den Migrationstest unten bewusst hier hart
 #: hinterlegt statt aus db.SCHEMA abgeleitet: der Test soll pruefen, dass

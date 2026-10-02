@@ -638,6 +638,34 @@ nav.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }
                    font-size: .95rem; }
 """
 
+#: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026) -- eigene Konstante statt
+#: an ``_CSS_GRUPPE`` angehaengt, damit diese bitgleich bleibt
+#: (tests/test_sprache_bitgleich.py: eine neue Konstante ist kein Befund,
+#: eine geaenderte schon). Seit dem naechsten Integrationsschritt ist
+#: "Buehne" ein echter Tab von Karte W (``web_vereint.seite``, eigenes
+#: ``<section class="panel panel-buehne">``, ueber ``scope_css`` eingehaengt)
+#: statt eines eigenen Umschalters -- hier steht nur noch, wie der Inhalt
+#: DRINNEN aussieht, keine Tab-/Sichtbarkeitsregeln mehr.
+_CSS_BUEHNE = """
+/* Die Stueckkarte: ein fester Streifen ueber den Karten -- Setting, Figuren,
+   Geschichte mit Haken/offen, dazu die freien Festlegungen aus demselben
+   Datentopf wie der Abschnitt "Festlegungen" weiter unten (kein zweiter
+   Lesevorgang, siehe web_daten.stueckkarte_felder). */
+.stueckkarte { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem;
+               padding: .5rem .6rem; background: #f2ede1; border-radius: .5rem; }
+.sk-feld { font-size: .85rem; white-space: nowrap; }
+.sk-haken { opacity: .6; margin-right: .15rem; }
+.sk-frei { font-size: .85rem; opacity: .75; }
+/* Die Karten: neueste oben und gross, aeltere kleiner und ausgegraut
+   darunter (Brief: "large type, the newest card on top"). */
+#buehne-panel .karte { background: #fff; border: 1px solid #e6e1d6;
+                       border-radius: .5rem; padding: .8rem .9rem;
+                       margin: 0 0 .7rem; font-size: 1.08rem;
+                       white-space: pre-wrap; }
+#buehne-panel .karte.alt { font-size: .85rem; opacity: .6; padding: .5rem .7rem; }
+#buehne-panel .karte .zeit { display: block; margin-top: .3rem; }
+"""
+
 
 #: Die Leitfaden-Ansicht (06.09.2026): gross gesetzt, hoher Kontrast, für ein
 #: Telefon in der Hand -- und für ein Blatt Papier. Kein gemeinsames CSS mit
@@ -854,11 +882,26 @@ _TEXT_PROBENANSICHT_LINK = (
 )
 _UEBERSCHRIFT_UEBERBLICK = "Überblick"
 _UEBERSCHRIFT_ARBEITSSTAND = "Arbeitsstand"
+#: Padua-Brainstorming-Umbau (02.10.2026): die Stueckkarte -- die vier
+#: festen Phase-4-Felder mit ✓/„offen", direkt ueber den freien
+#: Festlegungen. ``_STUECKKARTE_*`` sind die Feldnamen, nicht Nutzertext im
+#: engeren Sinn, aber ebenfalls uebersetzt (K3).
+_UEBERSCHRIFT_STUECKKARTE = "Stückkarte"
+_STUECKKARTE_SETTING = "Setting"
+_STUECKKARTE_FIGUREN = "Figuren"
+_STUECKKARTE_GESCHICHTE = "Geschichte"
+_STUECKKARTE_SZENENANZAHL = "Anzahl Szenen"
+_TEXT_STUECKKARTE_OFFEN = "offen"
 _UEBERSCHRIFT_FESTLEGUNGEN = "Weitere Festlegungen"
 _UEBERSCHRIFT_SZENEN = "Szenen"
 _UEBERSCHRIFT_INTERVIEWS = "Aus den Interviews"
 _UEBERSCHRIFT_WEG = "Der Weg dahin"
 _TEXT_JOURNAL = "Journal ({anzahl})"
+#: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
+#: selbst steht seit dem Umzug in Karte Ws Tableiste in
+#: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
+_TEXT_BUEHNE_LEER = "Noch keine Karte."
+_TEXT_BUEHNE_OFFEN = "offen"
 #: Was das Speichern auf der Gruppenseite neben dem Feld meldet. Das
 #: JavaScript liest sie aus ``data-``-Attributen (``_BEARBEITEN_JS``), damit
 #: kein Nutzertext im Skript steht.
@@ -1433,6 +1476,42 @@ def _figur_formular(f: dict, interviews: list[dict]) -> str:
     )
     stuecke.append("</div>")
     return "".join(stuecke)
+
+
+def _stueckkarte_html(daten: dict) -> str:
+    """Die Stueckkarte (Padua-Brainstorming-Umbau, 02.10.2026): die vier
+    festen Felder aus Phase 4 -- Setting, Figuren, Geschichte, Anzahl
+    Szenen -- mit ✓, wenn gesetzt, und ``offen`` sonst. Dieselbe Haltung wie
+    ``phasentexte.checkliste`` im Chat (✅/⬜), hier als lesbarer Web-
+    Abschnitt ohne Emoji, mit dem gesetzten Wert statt nur dem Haeckchen.
+
+    Rein lesend wie der ganze Dashboard-Lesepfad: ``daten`` kommt aus
+    ``web_daten.gruppe_nach_token``, kein SQL hier."""
+    stand = daten.get("arbeitsstand") or {}
+    figuren = daten.get("figuren") or []
+    felder = (
+        (T._STUECKKARTE_SETTING, (stand.get("rahmen") or "").strip()),
+        (
+            T._STUECKKARTE_FIGUREN,
+            ", ".join(f["name"] for f in figuren)
+            if (stand.get("figuren_fixiert_am") or "").strip() and figuren
+            else "",
+        ),
+        (T._STUECKKARTE_GESCHICHTE, (stand.get("geschichte") or "").strip()),
+        (T._STUECKKARTE_SZENENANZAHL, (stand.get("szenen_anzahl") or "").strip()),
+    )
+    zeilen = []
+    for name, wert in felder:
+        if wert:
+            zeilen.append(
+                f'<li class="erledigt">✓ {_t(name)}: {_t(wert)}</li>'
+            )
+        else:
+            zeilen.append(
+                f'<li class="offen">{html.escape(T._TEXT_STUECKKARTE_OFFEN)} '
+                f"· {_t(name)}</li>"
+            )
+    return f'<ul class="stueckkarte">{"".join(zeilen)}</ul>'
 
 
 def _festlegungen_html(daten: dict, nonce_wert: str | None) -> str:
@@ -2388,6 +2467,62 @@ def _interview_html(v: dict) -> str:
     )
 
 
+# --- Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026) ----------------------
+#
+# EIN Render-Zweig, EIN Panel-Element (``#buehne-panel``) -- seit dem Merge
+# von Karte W wandert er unveraendert in deren Tab-Leiste
+# (``web_vereint.seite``, Tab "buehne", nur in Phase 4): diese Funktionen
+# bauen nur noch den Panel-INHALT, die Tab-Mechanik selbst lebt dort.
+
+def _stueckkarte_streifen_html(
+    felder: list[tuple[str, str | None]], festlegungen: list[dict] | None,
+) -> str:
+    """Der feste Streifen ueber den Karten: die drei Stueckkarte-Felder mit
+    Haken/offen, dazu die freien Festlegungen aus demselben Datentopf wie
+    der Abschnitt "Weitere Festlegungen" weiter unten -- kein zweiter
+    Lesevorgang, keine zweite Formatierung."""
+    teile = [
+        '<span class="sk-feld"><span class="sk-haken">{haken}</span>{name}: {wert}</span>'.format(
+            haken="✓" if wert else "○",
+            name=html.escape(name),
+            wert=_t(wert) if wert else _t(T._TEXT_BUEHNE_OFFEN),
+        )
+        for name, wert in felder
+    ]
+    teile.extend(
+        f'<span class="sk-frei">{_t(z["text"])}</span>' for z in (festlegungen or [])
+    )
+    return f'<div class="stueckkarte">{"".join(teile)}</div>'
+
+
+def _buehnenkarte_html(karte: dict, erste: bool) -> str:
+    klasse = "karte" if erste else "karte alt"
+    text = html.escape(karte["text"] or "").replace("\n", "<br>")
+    return (
+        f'<div class="{klasse}">{text}'
+        f'<span class="zeit">{_zeitpunkt(karte["erstellt_am"])}</span></div>'
+    )
+
+
+def _buehne_html(daten: dict) -> str:
+    """Das Panel selbst: Stueckkarte-Streifen, dann die Karten, NEUESTE
+    ZUERST, aeltere kleiner/ausgegraut (Brief: "large type, the newest card
+    on top, older cards smaller/greyed below"). Gerufen von
+    ``web_vereint.seite`` fuer den Tab "buehne" (nur Phase 4) -- die
+    Sichtbarkeit regelt dort das ``hidden``-Attribut des Panels, nicht mehr
+    CSS am ``<body>``."""
+    karten = daten.get("buehnenkarten") or []
+    streifen = _stueckkarte_streifen_html(
+        daten.get("stueckkarte_felder") or [], daten.get("festlegungen")
+    )
+    inhalt = (
+        "".join(_buehnenkarte_html(k, i == 0) for i, k in enumerate(karten))
+        if karten
+        else f'<p class="leer">{_t(T._TEXT_BUEHNE_LEER)}</p>'
+    )
+    return f'<div id="buehne-panel">{streifen}{inhalt}</div>'
+
+
 def gruppe_koerper(
     daten: dict,
     nonce_wert: str | None = None,
@@ -2456,6 +2591,7 @@ def gruppe_koerper(
         f"<h1>{_t(titel)}</h1>\n"
         f"{probenansicht}"
         f"{_chat_link(token, daten.get('kanal'))}"
+        f'<div id="stand-inhalt">\n'
         f"{kopf}"
         f"<h2>{_t(T._UEBERSCHRIFT_ARBEITSSTAND)}</h2>"
         f"{stand}\n"
@@ -2463,6 +2599,11 @@ def gruppe_koerper(
         # dieselbe Datenlage in der anderen Richtung (06.09.2026). Fehlt
         # nichts, fehlt auch der Abschnitt.
         f"{_fehlstellen_html(daten.get('fehlstellen'))}\n"
+        # Die Stueckkarte (02.10.2026) steht direkt ueber den freien
+        # Festlegungen -- zusammen zeigen beide, was feststeht und was
+        # daneben noch gilt.
+        f"<h2>{_t(T._UEBERSCHRIFT_STUECKKARTE)}</h2>"
+        f"{_stueckkarte_html(daten)}\n"
         # Direkt hinter dem Arbeitsstand -- an derselben Stelle wie im
         # Prompt (kontext._REIHENFOLGE): was die Gruppe auf ihrer Seite
         # liest, soll da stehen, wo das Modell es auch liest.
@@ -2477,7 +2618,8 @@ def gruppe_koerper(
         f"<h2>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</h2>{verdichtungen_html}\n"
         f"<h2>{_t(T._UEBERSCHRIFT_WEG)}</h2>"
         f"<details><summary>{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}"
-        f"</summary>{journal}</details>"
+        f"</summary>{journal}</details>\n"
+        f"</div>\n"
     )
 
 
@@ -3162,6 +3304,40 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
         )
 
 
+#: Die Telefon-Organisationskarten (UX-Knoepfe-Karte, Abschnitt 5) liegen
+#: unter ``/g/<token>/static/handys/<name>.png`` -- unter dem Token, damit
+#: ``web_chat.weg()`` (die vorhandene BASIS-Umrechnung fuer die vereinte
+#: Seite und die Chat-Einzelseite) sie ohne eigenen Mechanismus erreicht.
+STATIC_HANDYS_PRAEFIX = "static/handys/"
+
+#: Strikte Positivliste fuer den Dateinamen -- kein Dateisystempfad aus der
+#: URL. Ein ``..`` oder ein Schraegstrich im Namen scheitert schon hier,
+#: bevor ueberhaupt ein Pfad gebaut wird.
+_STATIC_NAME = re.compile(r"^[a-z0-9-]+\.png$")
+
+
+def _sende_static_bild(handler, unterpfad: str) -> None:
+    """Eine Telefon-Organisationskarte unter ``interview_theater/static/handys/``.
+
+    Kein Tokenbezug: der Inhalt ist nicht gruppenspezifisch (erfunden, keine
+    PII) -- dieselben sieben Bilder fuer jede Gruppe. ``unterpfad`` muss
+    GENAU ``static/handys/<name>.png`` sein; alles andere (fehlende Datei,
+    Name ausserhalb der Positivliste) ist 404, nie ein Dateisystemfehler."""
+    from pathlib import Path
+
+    name = unterpfad[len(STATIC_HANDYS_PRAEFIX):]
+    if not _STATIC_NAME.fullmatch(name):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    pfad_auf_platte = Path(__file__).resolve().parent / "static" / "handys" / name
+    try:
+        inhalt = pfad_auf_platte.read_bytes()
+    except OSError:
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    handler._antworte_binaer(200, inhalt, "image/png")
+
+
 def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
                              praefix: str, schluessel: bytes,
                              query: str = "") -> None:
@@ -3176,6 +3352,9 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
 
     rest = pfad[len("/g/"):].strip("/")
     token, _, unterpfad = rest.partition("/")
+    if unterpfad.startswith(STATIC_HANDYS_PRAEFIX):
+        _sende_static_bild(handler, unterpfad)
+        return
     if unterpfad in ("textbuch.md", "textbuch.txt"):
         _sende_textbuch_datei(handler, db_pfad, token, unterpfad)
         return
@@ -3455,6 +3634,22 @@ class _Basishandler(BaseHTTPRequestHandler):
         # sonst zeigt der Beamer eine Viertelstunde alte Zahlen.
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
+        self.wfile.write(roh)
+
+    def _antworte_binaer(self, status: int, inhalt: bytes, typ: str) -> None:
+        """Wie ``_antworte``, nur fuer Bytes statt Text -- die
+        Telefon-Organisationskarten (UX-Knoepfe-Karte, Abschnitt 5).
+        ``inhalt.encode("utf-8")`` in ``_antworte`` wuerde ein PNG
+        zerstoeren."""
+        self.send_response(status)
+        self.send_header("Content-Type", typ)
+        self.send_header("Content-Length", str(len(inhalt)))
+        # Eine Karte aendert sich nur, wenn der Betreiber den Generator neu
+        # laufen laesst -- anders als beim Dashboard darf der Browser sie
+        # lange behalten.
+        self.send_header("Cache-Control", "public, max-age=86400")
+        self.end_headers()
+        self.wfile.write(inhalt)
         self.wfile.write(roh)
 
     def _csp_nonce(self) -> str:

@@ -85,6 +85,8 @@ BLEIBT_DEUTSCH = {
     "laengen.JOURNAL_QUELLE": "Protokoll (journal.quelle), kein Nutzertext",
     "web._CSS_DASHBOARD": "CSS, nur Kommentare deutsch",
     "web._CSS_GRUPPE": "CSS, nur Kommentare deutsch",
+    "web._CSS_BUEHNE": "CSS, nur Kommentare deutsch",
+    "web._TABS_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web._CSS_LEITFADEN": "CSS, nur Kommentare deutsch",
     "web._CSS_TEXTBUCH": "CSS, nur Kommentare deutsch",
     # Aufgabe 15 (Karte W): Skript und Stil der vereinten Seite -- deutsch
@@ -155,6 +157,12 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
     ("erkenner", "Schnappschuss vor dem Anwenden fehlgesch"):
         "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
     ("erkenner", "Schnappschuss nach dem Anwenden fehlgesc"):
+        "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
+    # UX-Knoepfe-Karte, Abschnitt 2: dieselben Vorfall-Details, nur fuer den
+    # Knopf-ausgeloesten Zweig (``erkenner.lauf_fuer_knopf``).
+    ("erkenner", "Schnappschuss vor dem Knopf-Speichern fe"):
+        "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
+    ("erkenner", "Schnappschuss nach dem Knopf-Speichern f"):
         "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
     # Zahlwoerter in ``figuren._zahl_aus``: Parser fuer Gruppentext (D5),
     # die deutsche Liste bleibt im Funktionsrumpf; das englische Gegenstueck

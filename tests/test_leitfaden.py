@@ -74,144 +74,12 @@ def _auswahl(conn, tg, fragen=ZEHN):
     )
 
 
-def _sage(conn, tg, einst, text, klm=None):
-    """Die Gruppe sagt Nummern -- der Weg seit dem 06.09.2026 (10:05)."""
-    return knoepfe.nimm_fragennummern(conn, tg, klm, einst, 1, text)
-
-
-# --- Die Wahl per Nummer (06.09.2026, 10:05) ------------------------------
-
-
-def test_die_zehn_fragen_stehen_ausgeschrieben_im_chat(conn, tg):
-    """**Kein Menue mehr** (Birk, Live-Befund 10:05: "sobald ich auf eine
-    Frage klicke, verschwindet das Menue"). Die Toggle-Knoepfe ersetzten auf
-    dem Telefon die Nachricht, statt sie zu ergaenzen -- ein Bedienelement,
-    das auf dem Geraet der Gruppe verschwindet, ist schlechter als keins.
-
-    Jetzt: alle zehn nummeriert im Text, darunter zwei Knoepfe."""
-    _auswahl(conn, tg)
-
-    text = tg.gesendet[-1][1]
-    assert text.startswith("Hier sind zehn.")
-    for nummer in range(1, 11):
-        assert f"{nummer}. Frage {nummer}?" in text, nummer
-    # 06.09.2026 11:45 (Birk): KEINE Knoepfe unter der Liste -- Auswahl per Text.
-    assert not tg.knoepfe, "keine Knoepfe unter der Fragenliste"
-
-
-def test_eine_lange_frage_wird_nicht_gekuerzt(conn, tg):
-    """Die alte Knopfbeschriftung schnitt bei 40 Zeichen ab. Eine Frage, die
-    eine Sechzehnjaehrige einer fremden Person stellen soll, muss sie ganz
-    lesen koennen, bevor sie sie waehlt."""
-    lang = "Was hast du erlebt, als du zum allerersten Mal ganz allein warst?"
-    _auswahl(conn, tg, fragen=lang + "\n" + ZEHN)
-
-    assert f"1. {lang}" in tg.gesendet[-1][1]
-    assert "…" not in tg.gesendet[-1][1]
-
-
-@pytest.mark.parametrize("gesagt, erwartet", [
-    ("2, 5 und 9", [2, 5, 9]),
-    ("wir nehmen 1 3 7", [1, 3, 7]),
-    ("die zweite, fuenfte, neunte", [2, 5, 9]),
-    ("die zweite, fünfte und neunte", [2, 5, 9]),
-    ("2,5,9", [2, 5, 9]),
-    ("nur die 4", [4]),
-    ("2,5,9,10", [2, 5, 9, 10]),
-    ("Wir haben keine Ahnung.", []),
-    ("wir nehmen 2 und 2 und 5 und 9", [2, 5, 9]),
-    ("nimm 2, 5, 9 und 47", [2, 5, 9]),
-])
-def test_der_nummernparser_liest_ziffern_und_ordinalwoerter(gesagt, erwartet):
-    """Deterministisch, kein Modellaufruf. Ordinalwoerter mit und ohne
-    Umlaut, weil Whisper beides liefert; Zahlen ueber zehn fallen weg (eine
-    47 ist keine Frage); Dubletten zaehlen einmal."""
-    assert knoepfe.lies_fragennummern(gesagt) == erwartet
-
-
-def test_genau_drei_nummern_werden_gespeichert(conn, tg, einst, auftraege):
-    _auswahl(conn, tg)
-
-    assert _sage(conn, tg, einst, "2, 5 und 9") is True
-
-    assert repo.hole_arbeitsstand(conn, 1)["fragen"].splitlines() == [
-        "Frage 2?", "Frage 5?", "Frage 9?",
-    ]
-    assert any(
-        t.startswith("Notiert: Fragen 2, 5, 9:") for _, t in tg.gesendet
-    ), [t for _, t in tg.gesendet]
-    assert any(
-        e["text"].startswith("Fragen:") for e in repo.journal(conn, 1)
-    ), "die Festlegung steht im Journal"
-
-
-@pytest.mark.parametrize("gesagt,erwartet", [
-    ("nur die 4", ["Frage 4?"]),
-    ("2,5,9,10", ["Frage 2?", "Frage 5?", "Frage 9?", "Frage 10?"]),
-    ("1 und 2", ["Frage 1?", "Frage 2?"]),
-])
-def test_die_gruppe_nimmt_so_viele_wie_sie_will(conn, tg, einst, auftraege, gesagt, erwartet):
-    """06.09.2026 12:10 (Birk): keine Vorgabe "genau drei" -- die Gruppe ist
-    Chefin und nimmt eine, zwei oder vier Fragen; gespeichert wird, was sie
-    nennt, und die Pruefung laeuft an."""
-    _auswahl(conn, tg)
-
-    assert _sage(conn, tg, einst, gesagt) is True
-
-    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(erwartet)
-    assert auftraege, "die Pruefung laeuft an"
-
-
-def test_ohne_nummern_greift_der_parser_nicht(conn, tg, einst, auftraege):
-    """"War keine Auswahl" -- die Nachricht geht ihren normalen Weg weiter,
-    der Erkenner liest freie Fragen weiterhin als ``fragen_setzen``."""
-    _auswahl(conn, tg)
-
-    assert _sage(conn, tg, einst, "Wir ueberlegen noch.") is False
-
-    assert (repo.hole_arbeitsstand(conn, 1)["fragen"] or "") == ""
-    assert auftraege == []
-
-
-def test_ohne_offenen_vorschlag_greift_der_parser_nicht(conn, tg, einst):
-    """Sonst wuerde jede Nachricht mit einer Zahl darin eine Frageliste
-    ueberschreiben. Der Parser haengt an ``offene_art`` == "fragen"."""
-    phasen.setze(conn, 1, 2, "befehl")
-    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
-
-    assert _sage(conn, tg, einst, "2, 5 und 9") is False
-
-    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "Was war in deinem Koffer?"
-
-
-def test_die_wahl_loest_die_sensibilitaetspruefung_aus(conn, tg, einst, auftraege):
-    """Der Kern des Auftrags: nach dem Festlegen prueft der Bot automatisch,
-    ohne dass jemand danach fragt -- und ohne Modellaufruf im Handler."""
-    _auswahl(conn, tg)
-
-    _sage(conn, tg, einst, "1, 2, 3")
-
-    assert len(auftraege) == 1
-    # Seit dem 06.09.2026, 10:18: weiche Fassungen statt Einleitungen.
-    assert "VORSCHLAG FRAGEN WEICH:" in auftraege[0]
-    assert "FREMDEN" in auftraege[0]
-    assert "Frage 1?" in auftraege[0], "die Fragen stehen im Auftrag"
-
-
-def test_zwischen_wahl_und_pruefung_kommt_kein_phasenangebot(
-    conn, tg, einst, auftraege,
-):
-    """**Der Live-Befund vom 10:10** (Birk): nach "Notiert: Fragen ..." bot
-    der Bot sofort die naechste Phase an, und ERST DANACH kam die Pruefung.
-    Jetzt haelt ``phasen.voraussetzungen[3]`` die Stufe zurueck, bis
-    Eroeffnung und Abschluss stehen -- es gibt also nichts anzubieten."""
-    _auswahl(conn, tg)
-
-    _sage(conn, tg, einst, "1, 2, 3")
-
-    assert not any(
-        b.startswith("Weiter zu") for _, _, l in tg.knoepfe for b, _ in l
-    ), [t for _, t in tg.gesendet]
+# --- Die stillgelegte Nummernwahl (06.09.2026 -> 02.10.2026) --------------
+#
+# Siehe tests/test_phase2_einzeln.py fuer die heutige Fragenauswahl (Vorschlag
+# mit Sensibilitaetspruefung im selben Zug, Ueberblick mit Richtungsfrage,
+# Frage fuer Frage). Dieser Test bleibt: ein Druck aus einer alten, schon
+# verschickten Nachricht darf nicht ins Leere laufen.
 
 
 def test_die_alten_toggle_knoepfe_sind_stillgelegt(conn, tg, einst, auftraege):
@@ -226,74 +94,12 @@ def test_die_alten_toggle_knoepfe_sind_stillgelegt(conn, tg, einst, auftraege):
     assert (repo.hole_arbeitsstand(conn, 1)["fragen"] or "") == ""
 
 
-def test_diktierte_fragen_loesen_die_pruefung_ebenfalls_aus(conn, tg, einst, auftraege):
-    """Der Rueckfallweg: die Gruppe diktiert die Fragen selbst und nimmt sie
-    ueber die Grundleiste ab -- die Pruefung haengt an den FRAGEN, nicht am
-    Weg dorthin."""
-    phasen.setze(conn, 1, 2, "befehl")
-    knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, "VORSCHLAG FRAGEN:\nWas war in deinem Koffer?"
-    )
-
-    _druecke(conn, tg, einst, "Ja, speichern")
-
-    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "Was war in deinem Koffer?"
-    assert len(auftraege) == 1
-    assert "VORSCHLAG FRAGEN WEICH:" in auftraege[0]
-
-
-# --- Einleitungen und Eroeffnung ------------------------------------------
+# --- Eroeffnung und Abschluss ----------------------------------------------
 
 
 def _mit_fragen(conn, wert="Woher kommst du?\nWas glaubst du?\nWen liebst du?"):
     phasen.setze(conn, 1, 2, "befehl")
     repo.setze_arbeitsstand(conn, 1, "fragen", wert)
-
-
-def test_die_einleitungen_landen_in_ihrer_eigenen_spalte(conn, tg, einst, auftraege):
-    _mit_fragen(conn)
-    knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1,
-        "Zwei sind heikel.\n\nVORSCHLAG EINLEITUNGEN:\n"
-        "1 — Wir fragen nach Herkunft, du musst nicht antworten.\n"
-        "3 — Das ist privat, sag nur, was du magst.",
-    )
-
-    _druecke(conn, tg, einst, "Ja, speichern")
-
-    stand = repo.hole_arbeitsstand(conn, 1)
-    assert "1 — Wir fragen nach Herkunft" in stand["frage_einleitungen"]
-    assert "3 — Das ist privat" in stand["frage_einleitungen"]
-
-
-def test_nach_den_einleitungen_kommt_die_eroeffnung_von_selbst(conn, tg, einst, auftraege):
-    _mit_fragen(conn)
-    knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, "VORSCHLAG EINLEITUNGEN:\n1 — Du musst nicht antworten."
-    )
-
-    _druecke(conn, tg, einst, "Ja, speichern")
-
-    assert len(auftraege) == 1
-    assert "VORSCHLAG EROEFFNUNG:" in auftraege[0]
-
-
-def test_der_leerfall_haelt_nichts_auf(conn, tg, einst, auftraege):
-    """"Keine der Fragen braucht eine besondere Einleitung." ist ein
-    Ergebnis: es wird gespeichert, und der naechste Schritt laeuft an."""
-    _mit_fragen(conn)
-    knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1,
-        "VORSCHLAG EINLEITUNGEN:\nKeine der Fragen braucht eine besondere "
-        "Einleitung.",
-    )
-
-    _druecke(conn, tg, einst, "Ja, speichern")
-
-    stand = repo.hole_arbeitsstand(conn, 1)
-    assert "Keine der Fragen" in stand["frage_einleitungen"]
-    assert leitfaden.einleitungen(stand["frage_einleitungen"]) == {}
-    assert len(auftraege) == 1, "die Eroeffnung kommt trotzdem"
 
 
 def test_eroeffnung_und_abschluss_gehen_in_zwei_felder(conn, tg, einst):

@@ -27,11 +27,22 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from interview_theater import repo
+from interview_theater import repo, sprache
 from interview_theater import strom as strom_modul
 from interview_theater.telegram import CALLBACK_DATA_GRENZE
 
 log = logging.getLogger(__name__)
+
+#: Der einmalige Hinweis "Knoepfe sind Abkuerzungen" (UX-Knoepfe-Karte,
+#: Abschnitt 1) -- gezeigt vor der ersten Knopfnachricht, die eine Gruppe je
+#: im Web-Chat bekommt (repo.beanspruche_abkuerzungen_hinweis). Englisches
+#: Gegenstueck in sprachen/en/texte.toml, Abschnitt [web_kanal].
+TEXT_ABKUERZUNG_HINWEIS = (
+    "Knöpfe sind Abkürzungen – ihr könnt immer auch einfach schreiben "
+    "oder sprechen."
+)
+
+T = sprache.Texte(__name__)
 
 #: Was in ``nachricht.absender`` steht, wenn eine Gruppe im Browser schreibt.
 #:
@@ -347,6 +358,11 @@ class WebKanal:
                 # (Aufgabe 3): aufnahme.empfange braucht die Endung fuer den
                 # Zielpfad, weil stt.mime_typ() daraus den MIME-Typ ableitet.
                 "endung": endung,
+                # Pausen-Schnitt (VAD) und Brainstorm-Flag (02.10.2026):
+                # dieselbe additive Durchreiche wie ``endung``, aus den
+                # gleichnamigen web_post-Spalten.
+                "schnittgrund": zeile["schnittgrund"],
+                "brainstorm": bool(zeile["brainstorm"]),
             }
         else:
             nachricht["text"] = zeile["text"] or ""
@@ -366,7 +382,8 @@ class WebKanal:
 
     # -- Ausgang -----------------------------------------------------------
 
-    def sende(self, chat_id: int, text: str, parse_mode=None, klartext=None) -> int:
+    def sende(self, chat_id: int, text: str, parse_mode=None, klartext=None,
+              system: bool = False) -> int:
         """Eine Textnachricht. Liefert die ``message_id``.
 
         **Nicht geteilt**, anders als in Telegram (``teile_text``, 4000
@@ -377,13 +394,21 @@ class WebKanal:
         ``klartext`` wird verworfen: er ist der Telegram-Rueckfall fuer
         HTTP 400, den es hier nicht gibt. Gespeichert wird die
         HTML-Fassung -- sie traegt mehr Information, und die Chatansicht
-        filtert sie ohnehin serverseitig (Aufgabe 6)."""
+        filtert sie ohnehin serverseitig (Aufgabe 6).
+
+        ``system`` (UX-Knoepfe-Karte, Abschnitt 3): eine Speicherquittung
+        bekommt ``web_post.typ = WEB_TYP_SYSTEM`` statt ``WEB_TYP_TEXT`` --
+        die Chatansicht stellt sie damit als gedaempfte Systemzeile statt
+        als Sprechblase dar. Nur eine Anzeige-Unterscheidung: die Mitschrift
+        in ``nachricht`` (fuer das Gespraechsmodell) ist davon unberuehrt."""
+        typ = repo.WEB_TYP_SYSTEM if system else repo.WEB_TYP_TEXT
         return repo.lege_web_post_an(
-            self._conn, chat_id, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT, text=text,
+            self._conn, chat_id, repo.RICHTUNG_AUS, typ, text=text,
         )
 
     def sende_mit_knoepfen(self, chat_id: int, text: str, knoepfe,
-                           parse_mode=None, klartext=None) -> int:
+                           parse_mode=None, klartext=None,
+                           system: bool = False) -> int:
         """Wie ``sende``, mit einer Leiste darunter -- je Eintrag
         ``(beschriftung, callback_data)``.
 
@@ -392,11 +417,22 @@ class WebKanal:
         haengt. ``web_chat`` prueft einen Knopfdruck dagegen (Aufgabe 8) und
         nicht gegen ``knopf.message_id``: die ist nur gesetzt, wenn ein
         Aufrufer ``repo.merke_knopf_nachricht`` ruft, und das tun 22 von 47
-        Sendestellen (``knoepfe.biete_einstieg`` zum Beispiel nicht)."""
+        Sendestellen (``knoepfe.biete_einstieg`` zum Beispiel nicht).
+
+        ``system`` wie in ``sende`` -- eine Notiert-Meldung mit Undo-Knopf
+        bleibt eine Systemzeile, auch mit Tastatur darunter.
+
+        UX-Knoepfe-Karte, Abschnitt 1: vor der ERSTEN Knopfnachricht, die
+        eine Gruppe je bekommt, geht einmalig eine Systemzeile voraus --
+        "Knoepfe sind Abkuerzungen". ``repo.beanspruche_abkuerzungen_hinweis``
+        entscheidet bedingt (SQLite), kein Modellaufruf, kein zweiter Weg."""
         leiste = list(knoepfe)
         _pruefe_daten(leiste)
+        if repo.beanspruche_abkuerzungen_hinweis(self._conn, chat_id):
+            self.sende(chat_id, T.TEXT_ABKUERZUNG_HINWEIS, system=True)
+        typ = repo.WEB_TYP_SYSTEM if system else repo.WEB_TYP_TEXT
         return repo.lege_web_post_an(
-            self._conn, chat_id, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+            self._conn, chat_id, repo.RICHTUNG_AUS, typ,
             text=text, knoepfe=leiste,
         )
 
@@ -419,6 +455,23 @@ class WebKanal:
         ziel.write_bytes(daten)
         repo.setze_web_datei(self._conn, post_id, str(ziel))
         return post_id
+
+    def sende_bild(self, chat_id: int, dateiname: str, inhalt: bytes,
+                   beschreibung: str = "") -> int:
+        """Eine Telefon-Organisationskarte (Telegram: ``sendPhoto``,
+        UX-Knoepfe-Karte, Abschnitt 5).
+
+        Anders als ``sende_datei``: die Datei wird **nicht** je Gruppe
+        abgelegt, sie liegt schon unter ``interview_theater/static/handys/``
+        und wird von dort ausgeliefert (``web_chat._blase_html`` /
+        ``inhaltVon`` bauen die URL aus ``web_post.bild``). ``inhalt`` bleibt
+        trotzdem Teil der Signatur -- nur so stimmt sie mit
+        ``telegram.Telegram.sende_bild`` ueberein (``test_web_kanal_naht``),
+        und der Aufrufer braucht die Bytes ohnehin fuer den Telegram-Weg."""
+        return repo.lege_web_post_an(
+            self._conn, chat_id, repo.RICHTUNG_AUS, repo.WEB_TYP_SYSTEM,
+            text=beschreibung or None, bild=dateiname,
+        )
 
     def beantworte_knopf(self, callback_query_id: str, text: str = "") -> None:
         """Das Gegenstueck zu ``answerCallbackQuery``: der Text wird an den

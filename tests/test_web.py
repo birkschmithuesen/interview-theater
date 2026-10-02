@@ -248,6 +248,53 @@ def test_arbeitsstand_zeigt_den_rahmen_den_konflikt_nur_wenn_gesetzt():
     assert "Hauptkonflikt" in mit and "bleiben gegen gehen" in mit
 
 
+def test_stueckkarte_zeigt_die_vier_festen_phase4_felder_mit_haekchen_oder_offen():
+    """Padua-Brainstorming-Umbau (02.10.2026): Setting, Figuren, Geschichte
+    und Anzahl Szenen -- gesetzt mit ✓ und Wert, sonst mit ``offen``."""
+    daten = {
+        "arbeitsstand": {
+            "rahmen": "Eine Nacht im Treppenhaus",
+            "figuren_fixiert_am": "2026-10-02T10:00:00",
+            "geschichte": None,
+            "szenen_anzahl": "5",
+        },
+        "figuren": [{"name": "Mira"}, {"name": "Pal"}],
+    }
+
+    seite = web._stueckkarte_html(daten)
+
+    assert "✓ Setting: Eine Nacht im Treppenhaus" in seite
+    assert "✓ Figuren: Mira, Pal" in seite
+    assert "offen · Geschichte" in seite
+    assert "✓ Anzahl Szenen: 5" in seite
+
+
+def test_stueckkarte_figuren_nur_erledigt_wenn_fixiert_und_vorhanden():
+    """Eine Figurenliste ohne Fixierung (``figuren_fixiert_am`` leer) oder
+    ohne Figuren gilt nicht als erledigt, auch wenn die andere Bedingung
+    allein erfuellt waere."""
+    ohne_fixierung = web._stueckkarte_html({
+        "arbeitsstand": {"figuren_fixiert_am": None},
+        "figuren": [{"name": "Mira"}],
+    })
+    assert "offen · Figuren" in ohne_fixierung
+
+    ohne_figuren = web._stueckkarte_html({
+        "arbeitsstand": {"figuren_fixiert_am": "2026-10-02T10:00:00"},
+        "figuren": [],
+    })
+    assert "offen · Figuren" in ohne_figuren
+
+
+def test_stueckkarte_steht_zwischen_arbeitsstand_und_festlegungen(db_pfad, basis, token):
+    _, seite = hole(f"{basis}/g/{token}")
+    assert (
+        seite.index("<h2>Arbeitsstand</h2>")
+        < seite.index("<h2>Stückkarte</h2>")
+        < seite.index("Weitere Festlegungen")
+    )
+
+
 def test_unbekanntes_token_gibt_404_ohne_hinweis(basis):
     with pytest.raises(urllib.error.HTTPError) as fehler:
         hole(f"{basis}/g/falsch")
@@ -419,6 +466,66 @@ def test_fragen_ohne_thema_bleiben_ganz():
 def test_fragen_werden_escaped():
     from interview_theater import web
     assert "<script>" not in web._fragen_html("Thema: <script>x</script>")
+
+
+def test_buehne_tab_fehlt_ausserhalb_phase_4(basis, token):
+    """Phase ist in der Test-DB nicht gesetzt (also nicht 4) -- weder der
+    Umschalter noch das Panel stehen im Markup. Die Huelle ``#stand-inhalt``
+    bleibt unbedingt im Markup (sie ist ohne den Umschalter wirkungslos),
+    nur Umschalter und Panel sind an Phase 4 gebunden.
+
+    Seit dem Merge mit Karte W (``web_vereint``) traegt die Seite IMMER
+    eine eigene Tableiste (Chat/Stand/Textbuch) -- ``class="tabs"`` allein
+    unterscheidet die beiden Mechanismen deshalb nicht mehr, nur noch die
+    Buehne-eigenen Marken (siehe naechster Integrationsschritt: Buehne wird
+    ein echter Tab von Karte W statt dieses verschachtelten Stopgaps)."""
+    koerper = hole(f"{basis}/g/{token}")[1]
+    assert 'data-tab="buehne"' not in koerper
+    assert 'id="buehne-panel"' not in koerper
+
+
+def test_buehne_tab_zeigt_karten_neueste_zuerst_und_stueckkarte(db_pfad, token, basis):
+    conn = db.verbinde(db_pfad)
+    # "Buehne, nur Web": der "chat"-Tab (und damit die Tab-Leiste ueberhaupt
+    # mit "chat" drin) existiert nur fuer eine Gruppe im Web-Kanal -- die
+    # Fixture bleibt sonst auf dem Schema-Vorgabewert (Telegram).
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    repo.setze_phase(conn, 1, 4)
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Ein Klassenzimmer")
+    repo.lege_buehnenkarte_an(conn, 1, "Erste Karte.", "infomaniak")
+    repo.lege_buehnenkarte_an(conn, 1, "Zweite Karte.", "infomaniak")
+    conn.commit()
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+    assert 'class="tabs"' in koerper
+    assert 'data-tab="chat"' in koerper and 'data-tab="buehne"' in koerper
+    assert 'id="buehne-panel"' in koerper
+    assert 'id="stand-inhalt"' in koerper
+    # Neueste zuerst, und newest=gross/alt=klein+ausgegraut (zwei
+    # verschiedene Klassen).
+    assert koerper.index("Zweite Karte.") < koerper.index("Erste Karte.")
+    assert '<div class="karte">Zweite Karte.' in koerper
+    assert '<div class="karte alt">Erste Karte.' in koerper
+    # Stueckkarte: Setting gesetzt (Haken), Figuren/Geschichte offen.
+    assert "Ein Klassenzimmer" in koerper
+    assert web._TEXT_BUEHNE_OFFEN in koerper
+
+
+def test_buehne_tab_ohne_karten_sagt_das(db_pfad, token, basis):
+    conn = db.verbinde(db_pfad)
+    repo.setze_phase(conn, 1, 4)
+    conn.commit()
+    koerper = hole(f"{basis}/g/{token}")[1]
+    assert web._TEXT_BUEHNE_LEER in koerper
+
+
+def test_buehne_zeigt_die_freien_festlegungen(db_pfad, token, basis):
+    conn = db.verbinde(db_pfad)
+    repo.setze_phase(conn, 1, 4)
+    repo.schreibe_festlegung(conn, 1, "stil", "Hoechstens eine Seite je Szene")
+    conn.commit()
+    koerper = hole(f"{basis}/g/{token}")[1]
+    assert "Hoechstens eine Seite je Szene" in koerper
 
 
 def test_dashboard_verlinkt_jede_gruppe_auf_ihre_gruppenseite(tmp_path):

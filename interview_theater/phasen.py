@@ -372,7 +372,17 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
     setting = bool(stand and (stand["rahmen"] or "").strip())
     geschichte = bool(stand and (stand["geschichte"] or "").strip())
     szenen_alle = repo.hole_szenen(conn, chat_id)
-    szenen = bool(szenen_alle)
+    # Padua-Brainstorming-Umbau (02.10.2026): Phase 4 fragt nach der ANZAHL
+    # Szenen, der titelgetragene Vorschlag (VORSCHLAG SZENENFOLGE) ist nur
+    # noch ein Werkzeug auf Anfrage. Ohne diese Zeile wuerde eine Gruppe, die
+    # nur die Zahl genannt hat, nie "Weiter zu Schaerfung" angeboten bekommen
+    # -- obwohl Setting, Figuren, Geschichte UND Anzahl Szenen laut Brief
+    # genau die vier Dinge sind, die den Abschluss der Phase ausmachen.
+    # Phase 7 (``_prosa_oder_volltext`` unten) bleibt davon unberuehrt: dort
+    # zaehlt weiterhin ``szenen_alle``, die echten Zeilen.
+    szenen = bool(szenen_alle) or bool(
+        stand and (stand["szenen_anzahl"] or "").strip()
+    )
 
     def feld(name: str) -> bool:
         return _feld_gesetzt(stand, name)

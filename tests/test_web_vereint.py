@@ -253,6 +253,56 @@ def test_web_gruppe_hat_weiterhin_das_volle_chat_panel(aufbau):
     assert web_vereint.VORGABE_TAB == "chat"
 
 
+# -- der Buehne-Tab (UX-Knoepfe-Karte, Abschnitt 5) ----------------------
+#
+# Seit dem Merge mit feat/brainstorm-vad wandert der dortige Stopgap
+# ("Chat · Buehne", verschachtelt im Stand-Panel) hierher: ein echter,
+# vierter Tab -- aber nur in Phase 4, sonst steht er gar nicht in ``TABS``.
+
+
+def _tabs_liste(text: str) -> str:
+    return text.split("var TABS = ", 1)[1].split(";", 1)[0]
+
+
+def test_buehne_fehlt_ausserhalb_phase_4(aufbau):
+    basis, token, _pfad = aufbau
+    _status, text, _kopf = _hole(f"{basis}/g/{token}")
+    assert 'data-tab="buehne"' not in text
+    assert 'id="tab-buehne"' not in text
+    # Auch im eingebetteten TABS-Array nicht -- ein mitgebrachtes "#buehne"
+    # (alter Link, Tippfehler) faellt in ``lies()`` deshalb automatisch auf
+    # VORGABE zurueck, genau wie "#chat" bei einer Telegram-Gruppe.
+    assert '"buehne"' not in _tabs_liste(text)
+
+
+def test_buehne_wird_ein_echter_tab_in_phase_4(aufbau):
+    basis, token, pfad = aufbau
+    conn = db.verbinde(pfad)
+    repo.setze_phase(conn, CHAT, 4)
+    conn.commit()
+    _status, text, _kopf = _hole(f"{basis}/g/{token}")
+    assert 'data-tab="buehne"' in text
+    assert 'id="tab-buehne"' in text
+    assert 'id="buehne-panel"' in text
+    assert '"buehne"' in _tabs_liste(text)
+    # Vierter Tab, nicht der Starttab: er steht verborgen neben Stand und
+    # Textbuch, der Chat bleibt vorn.
+    assert "hidden" in _panel_tag(text, "buehne")
+    assert web_vereint.T._TEXT_TAB["buehne"] in text
+
+
+def test_buehne_bleibt_auch_fuer_eine_telegram_gruppe_erreichbar(aufbau_telegram):
+    """Die Buehne haengt an der Phase, nicht am Kanal -- anders als der
+    Chat-Tab (der ohne Web-Kanal ganz fehlt, siehe
+    ``test_telegram_gruppe_hat_kein_chat_panel``)."""
+    basis, token, pfad = aufbau_telegram
+    conn = db.verbinde(pfad)
+    repo.setze_phase(conn, CHAT_TELEGRAM, 4)
+    conn.commit()
+    _status, text, _kopf = _hole(f"{basis}/g/{token}")
+    assert 'id="tab-buehne"' in text
+
+
 # -- eine id="nonce" statt zwei -----------------------------------------
 
 # Fix-Runde 1, Befund 2: Chat-Panel und Stand-Panel brachten je ein

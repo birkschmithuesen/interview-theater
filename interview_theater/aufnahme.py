@@ -61,8 +61,9 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from interview_theater import phasen, repo, sprache, stt, verdichter
+from interview_theater import brainstorm, buehnenkarte, phasen, repo, sprache, stt, verdichter
 
 log = logging.getLogger(__name__)
 
@@ -71,8 +72,14 @@ log = logging.getLogger(__name__)
 # kein Lauf ueber 10 s). Nirgends im Code als Zahl wiederholt.
 TIPPANZEIGE_AB_S = 5
 MELDUNG_AB_S = 12
-BUDGET_KURZ_S = 45
 BUDGET_LANG_S = 90
+#: War 45 (eigener, kuerzerer Wert) bis zum Pausen-Schnitt (VAD, 02.10.2026):
+#: ein 'kurz'-Segment (Web, ausserhalb des Interviewmodus) kann seitdem
+#: genauso bis zu IT_WEB_VAD_MAX_MS lang sein wie ein Interview-Teil --
+#: BUDGET_KURZ_S ist ein Transkriptions-ZEITBUDGET (Upload + Whisper + ein
+#: Retry, siehe stt.transkribiere), kein Laengen-Deckel, und 45 s waeren fuer
+#: ein 90-Sekunden-Segment zu knapp bemessen.
+BUDGET_KURZ_S = BUDGET_LANG_S
 NACHHOL_INTERVALL_S = 60
 MAX_VERSUCHE = 5
 
@@ -138,6 +145,11 @@ _TEXT_INTERVIEW_OHNE_KNOPF_WEITER = (
 #: \"Nein, war ein Beitrag\": das Transkript wird sichtbar und der normale
 #: Weg einmal nachgeholt.
 _TEXT_INTERVIEW_OHNE_KNOPF_NEIN = "Gut, dann nehme ich es als Beitrag."
+
+#: Brainstorm-Modus (Phase 4, nur Web, 02.10.2026): hoechstens EINE Zeile je
+#: Karte, OHNE Inhalt (brief: "the chat must not become a long sausage").
+#: Erscheint nicht zweimal hintereinander (repo.neueste_nachricht_text).
+_TEXT_BUEHNE_NEUE_KARTE = "Neue Karte im Tab Bühne"
 
 #: Das Transkript-Echo eines Teils (§ 10.6): woertlich, ohne Kommentar, ohne
 #: Zusammenfassung. Der Kopf sagt, wozu es gehoert -- das ist der ganze
@@ -257,9 +269,15 @@ def klasse_fuer(conn, chat_id: int) -> str:
 NACHZUEGLER_FENSTER_S = 600
 
 
-def _ist_web_gruppe(conn, chat_id: int) -> bool:
+def ist_web_gruppe(conn, chat_id: int) -> bool:
     """Arbeitet diese Gruppe im Browser (``gruppe.kanal = 'web'``)? Ohne
-    Gruppenzeile: nein -- dann gilt der Telegram-Weg wie bisher."""
+    Gruppenzeile: nein -- dann gilt der Telegram-Weg wie bisher.
+
+    Oeffentlich (06.10.2026, Phase 3 Web-UX): der eine geteilte
+    Kanal-Check, den ausser ``stelle_interview_sicher`` hier auch
+    ``knoepfe.interviews`` und ``_kurz_abschliessen``/``_sende_teil_echo``
+    brauchen, um alte Telegram-Knoepfe auf dem Web-Kanal nicht mehr
+    anzubieten (Handler bleiben unveraendert, nur das Angebot aendert sich)."""
     gruppe = repo.hole_gruppe(conn, chat_id)
     return gruppe is not None and "kanal" in gruppe.keys() and gruppe["kanal"] == "web"
 
@@ -277,7 +295,7 @@ def _web_sprachblase(conn, chat_id: int, message_id: int, text: str | None) -> N
     Aenderung, aber noch den alten Status. Ein Fehler hier kostet nur die
     Anzeige, nie die Aufnahme."""
     try:
-        if _ist_web_gruppe(conn, chat_id):
+        if ist_web_gruppe(conn, chat_id):
             repo.setze_web_sprachtext(conn, chat_id, message_id, text)
     except Exception:
         log.exception("Sprachblase im Web-Chat nicht aktualisiert, chat_id=%s", chat_id)
@@ -303,7 +321,7 @@ def stelle_interview_sicher(conn, chat_id: int) -> int:
     if kopf is not None:
         return kopf["id"]
     kopf_id = repo.lege_interview_an(conn, chat_id)
-    if _ist_web_gruppe(conn, chat_id):
+    if ist_web_gruppe(conn, chat_id):
         # Im Web gibt es keine Nachzuegler (Abschlussreview I4): eine
         # PTT-Nachricht ist dort ausdruecklich "an den Bot", und der Browser
         # schickt Interview-Segmente erst, wenn der Modus gemeldet ist
@@ -471,6 +489,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
     return repo.lege_aufnahme_an(
         conn, chat_id, message_id, klasse, "sprache",
         audio_pfad=str(ziel), dauer=n.get("dauer"), teil_von=teil_von,
+        schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
     )
 
 
@@ -778,7 +797,15 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     ein eigener, deterministischer Weg** (Live-Fall Gruppe 1, 13:32): sie
     bekommt keinen beilaeufigen Hinweis mehr an einer Gespraechsantwort,
     sondern gar keine Gespraechsantwort -- stattdessen die Frage, ob es ein
-    Interview war, mit zwei Knoepfen. Siehe ``_frage_interview_ohne_knopf``."""
+    Interview war, mit zwei Knoepfen. Siehe ``_frage_interview_ohne_knopf``.
+
+    **Ein Brainstorm-Segment (``row['brainstorm']``, 02.10.2026) geht einen
+    dritten, ganz eigenen Weg** -- siehe ``_brainstorm_abschliessen``: kein
+    Gespraechsbeitrag, kein Zug, kein Erkenner, keine Interview-Rueckfrage."""
+    if row["brainstorm"]:
+        _brainstorm_abschliessen(conn, tg, klm, e, row)
+        return
+
     from interview_theater import bot  # spaeter Import: vermeidet einen Ladezyklus mit bot.py
 
     aufnahme_id = row["id"]
@@ -799,6 +826,12 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
         jung
         and dauer > HINWEIS_AB_S
         and not repo.ist_interviewmodus_an(conn, chat_id)
+        # Auf dem Web-Kanal sind PTT und der Aufnahme-Regler zwei getrennte
+        # Bedienelemente (06.10.2026, Phase 3 Web-UX) -- eine lange
+        # PTT-Aufnahme ausserhalb des Interviewmodus ist dort unzweideutig
+        # ein Gespraechsbeitrag und darf nie die "Ja, als Interview"/"Nein,
+        # war ein Beitrag"-Frage ausloesen.
+        and not ist_web_gruppe(conn, chat_id)
     )
 
     repo.aktualisiere_transkribierte_nachricht(
@@ -819,6 +852,87 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
             zug(conn, tg, klm, e, chat_id, hinweis=None)
         except Exception:
             log.exception("Gespraechszug nach kurzer Aufnahme fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
+    """Ein Segment des Knopfs "Brainstorm mithören" (Phase 4, nur Web,
+    02.10.2026): bleibt ein stiller Gespraechsbeitrag der Gruppe -- die
+    ``nachricht``-Zeile steht unveraendert, wie ``empfange()`` sie anlegte
+    (``typ='sprache'``, ``text=NULL``, ``unterdrueckt=1``); nur das
+    Transkript in ``aufnahme.transkript`` (schon gesetzt, siehe
+    ``_verarbeite``) ist das Material. **Kein Gespraechszug, kein
+    Absichtserkenner, kein Journal-Extraktor** -- was eine interviewte
+    Person erzaehlt, ist kein Fall dafuer (AGENTS.md), und ein stiller
+    Brainstorm-Gedanke erst recht nicht.
+
+    Danach die EINE Code-Entscheidung (kein Modellaufruf, Zusage 2):
+    reicht es fuer eine Buehnenkarte? ``brainstorm.soll_reagieren`` prueft
+    das rein anhand von Zahlen aus ``repo.brainstorm_stand``.
+
+    ``schnittgrund == 'ende'`` heisst: dieses Segment ist der manuelle Flush
+    von Pause/Beenden (siehe ``_CHAT_JS``, ``pausiereInterview``/
+    ``beendeInterview`` setzen ihn vor ``alt.stop()``) -- genau das Signal,
+    das der Brief mit "OR on Pause/Beenden if >= 150 unreacted chars" meint.
+    Es gibt dafuer keinen eigenen Serveraufruf: die Brainstorm-Sitzung kennt
+    keinen Modus-Befehl, das LETZTE hochgeladene Segment TRAEGT das Ende."""
+    repo.setze_status(conn, row["id"], "fertig")
+
+    ist_abschluss = row["schnittgrund"] == "ende"
+    stand = repo.brainstorm_stand(conn, row["chat_id"])
+    sekunden = stand["sekunden_seit_letzter_reaktion"]
+    soll = brainstorm.soll_reagieren(
+        unreagierte_zeichen=stand["unreagierte_zeichen"],
+        sekunden_seit_letzter_reaktion=sekunden if sekunden is not None else float("inf"),
+        letzter_schnittgrund=stand["letzter_schnittgrund"],
+        ist_abschluss=ist_abschluss,
+    )
+    if soll:
+        _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"])
+
+
+def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
+    """Stoesst einen Buehnenkarten-Lauf in einem eigenen Thread an (Zusage 2:
+    kein Modellaufruf hier selbst). Hoechstens ein Lauf je Gruppe gleichzeitig
+    (``brainstorm.versuche_start``) -- wer die Sperre nicht bekommt, verliert
+    nichts: die unreagierten Zeichen bleiben stehen und zaehlen beim naechsten
+    qualifizierenden Segment einfach weiter mit ("pending text accumulates
+    into the next turn")."""
+    if klm is None:
+        return
+    if not brainstorm.versuche_start(chat_id):
+        return
+    # VOR dem Lauf gelesen: die Markierung soll genau die Segmente abdecken,
+    # die die Karte tatsaechlich gesehen hat -- ein waehrend des Laufs neu
+    # eingetroffenes Segment bleibt UNREAGIERT und zaehlt beim naechsten Mal.
+    markierung_id = repo.hoechste_brainstorm_aufnahme_id(conn, chat_id)
+
+    def _lauf() -> None:
+        try:
+            text, modell = buehnenkarte.erzeuge(conn, e, klm, chat_id)
+            if text:
+                repo.markiere_brainstorm_reaktion(conn, chat_id, markierung_id)
+                repo.lege_buehnenkarte_an(conn, chat_id, text, modell)
+                _melde_neue_karte(conn, tg, e, chat_id)
+            # NICHTS oder ein Fehlschlag: "nothing changes" -- keine
+            # Markierung, keine Karte. Das naechste qualifizierende Segment
+            # sieht denselben (oder einen groesseren) Stand erneut.
+        except Exception:
+            log.exception("Buehnenkarten-Lauf fehlgeschlagen, chat_id=%s", chat_id)
+        finally:
+            brainstorm.beende(chat_id)
+
+    threading.Thread(target=_lauf, daemon=True).start()
+
+
+def _melde_neue_karte(conn, tg, e, chat_id: int) -> None:
+    """Hoechstens EINE Chat-Zeile je Karte, ohne Inhalt -- und gar keine,
+    wenn die neueste Chat-Nachricht schon genau diese Zeile ist (kein
+    Stapeln, brief: "nothing if the previous line is still the newest chat
+    message")."""
+    text = T._TEXT_BUEHNE_NEUE_KARTE
+    if repo.neueste_nachricht_text(conn, chat_id) == text:
+        return
+    _sende_und_merke(conn, tg, e, chat_id, text)
 
 
 def dauer_mmss(sekunden: int) -> str:
@@ -957,6 +1071,33 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") ->
         )
     except Exception:
         log.exception("Nachricht an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def _text_interview_gespeichert_web(conn, row, verdichtung_id: int, e) -> str:
+    """Die Zeile nach einem Interview im Web-Kanal (02.10.2026): ersetzt
+    ``_TEXT_AUSGEWERTET`` dort -- Name, Uhrzeit, Dauer, bis zu drei Themen,
+    ein fester Hinweis auf den (noch nicht zusammengefuehrten) Arbeitsstand-
+    Tab. Keine Gesamtauswertung ueber alle Interviews -- das ist Sache von
+    ``knoepfe.stationen.schliesse_interviews_ab``."""
+    name = anzeigename(conn, row, T._TEXT_DAS_INTERVIEW)
+    zone = getattr(e, "zeitzone", None) or "Europe/Rome"
+    try:
+        ort = ZoneInfo(zone)
+    except Exception:
+        ort = ZoneInfo("Europe/Rome")
+    uhrzeit = datetime.now(ort).strftime("%H:%M")
+    sekunden = sum((teil["dauer_sekunden"] or 0) for teil in repo.hole_teile(conn, row["id"]))
+    minuten = max(1, round(sekunden / 60))
+    zeilen = [f"{name} gespeichert · {uhrzeit} Uhr · {minuten} Min"]
+    themen = [
+        (t["kurz"] or "").strip()
+        for t in repo.themen_zu(conn, verdichtung_id)
+        if (t["kurz"] or "").strip()
+    ][:3]
+    if themen:
+        zeilen.append("Themen: " + " · ".join(themen))
+    zeilen.append("Ganze Auswertung im Tab Arbeitsstand.")
+    return "\n".join(zeilen)
 
 
 def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | None) -> None:
@@ -1124,7 +1265,16 @@ def _sende_teil_echo(conn, tg, e, chat_id: int, text: str) -> None:
     dass Interviewinhalt keine Gruppenabsicht ist.
 
     Faellt die Tastatur aus (Telegram-Fehler), geht das Echo trotzdem raus --
-    das Transkript ist wichtiger als die Knoepfe."""
+    das Transkript ist wichtiger als die Knoepfe.
+
+    Auf dem Web-Kanal (06.10.2026, Phase 3 Web-UX) entfaellt die Leiste ganz:
+    Pause/Weiter/Beenden des eigenen Aufnahme-Reglers deckt ab, was Telegram
+    hier mit zwei Knoepfen anbietet. Das Echo geht unveraendert raus -- derselbe
+    Weg wie der bestehende Fehlerrueckfall unten, nur ohne Fehler."""
+    if ist_web_gruppe(conn, chat_id):
+        _sende_und_merke(conn, tg, e, chat_id, text, typ=repo.TYP_TRANSKRIPT)
+        return
+
     from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
 
     try:
@@ -1312,6 +1462,19 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False,
             _sende_verdichtung_gescheitert(conn, tg, chat_id, row)
         return
     repo.setze_status(conn, aufnahme_id, "fertig")
+    # Der Auto-Uebergang nach dem Web-Knopf "Interviews fertig" (02.10.2026):
+    # lief er auf einem noch offenen Interview auf, steht der Wunsch hier
+    # (``arbeitsstand.interviews_fertig_wunsch_seit``) -- jede weitere
+    # erfolgreiche Verdichtung prueft, ob jetzt die letzte war. Laeuft fuer
+    # BEIDE Pfade (erzwungen und normal): ein erzwungenes ``/auswerten`` auf
+    # dem letzten offenen kurzen Interview ist genau der Fall, der ebenfalls
+    # weiterschalten soll.
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is not None and stand["interviews_fertig_wunsch_seit"] and not unausgewertete_interviews(conn, chat_id):
+        from interview_theater.knoepfe.stationen import schliesse_interviews_ab
+
+        if schliesse_interviews_ab(conn, tg, klm, e, chat_id):
+            repo.setze_arbeitsstand(conn, chat_id, "interviews_fertig_wunsch_seit", None)
     # Seit 05.09.2026 (Birk, Testlauf vor dem Workshop) geht die Verdichtung
     # NICHT mehr von selbst in den Chat: nach einem Interview kommt keine
     # Rueckmeldung und keine Rueckfrage, weil das eine eigene Phase ist --
@@ -1327,19 +1490,23 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False,
         # Der Volltext bleibt hinter "Zusammenfassung zeigen" (Entscheidung
         # vom 05.09.2026: kein ungefragter Verdichtungstext im Chat), das
         # Transkript hinter "Transkript zeigen" -- zum Gegenpruefen.
-        themen = repo.themen_zu(conn, verdichtung_id)
-        _sende_nach_interview(
-            conn, tg, e, chat_id,
-            T._TEXT_AUSGEWERTET.format(
+        #
+        # Seit dem 02.10.2026 (Aufgabe 4) bekommt der Web-Kanal eine eigene
+        # Zeile (Uhrzeit, Dauer, bis zu drei Themen) statt der
+        # Telegram-Zaehlung -- Telegram bleibt bitgleich.
+        if ist_web_gruppe(conn, chat_id):
+            text = _text_interview_gespeichert_web(conn, row, verdichtung_id, e)
+        else:
+            themen = repo.themen_zu(conn, verdichtung_id)
+            text = T._TEXT_AUSGEWERTET.format(
                 name=name,
                 themen=len(themen),
                 zitate=sum(
                     1 for t in themen
                     if t["zitat_geprueft"] == 1 and t["beleg_zitat"]
                 ),
-            ),
-            aufnahme_id,
-        )
+            )
+        _sende_nach_interview(conn, tg, e, chat_id, text, aufnahme_id)
         return
     # Die Verdichtung geht als normale Bot-Nachricht in den Chat: anders als
     # das Transkript-Echo GEHOERT sie ins Gespraechsfenster -- sie ist eine

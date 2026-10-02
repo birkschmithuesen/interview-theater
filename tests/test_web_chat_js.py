@@ -52,6 +52,117 @@ def test_die_segmentlaenge_kommt_aus_der_umgebung(seite):
     assert 'data-segment-ms="1200"' in seite
 
 
+def test_die_vad_werte_haben_vorgaben_ohne_umgebung(monkeypatch):
+    for name in ("IT_WEB_VAD_PAUSE_MS", "IT_WEB_VAD_MAX_MS",
+                 "IT_WEB_VAD_MIN_SPEECH_MS", "IT_WEB_VAD_RMS",
+                 "IT_WEB_VAD_FLOOR_FACTOR"):
+        monkeypatch.delenv(name, raising=False)
+    assert web_chat._vad_werte() == {
+        "pause_ms": 2500, "max_ms": 90_000, "min_speech_ms": 500,
+        "rms": 0.01, "floor_faktor": 2.5,
+    }
+
+
+def test_die_vad_werte_kommen_einzeln_aus_der_umgebung(monkeypatch):
+    monkeypatch.setenv("IT_WEB_VAD_PAUSE_MS", "3000")
+    monkeypatch.setenv("IT_WEB_VAD_MAX_MS", "60000")
+    monkeypatch.setenv("IT_WEB_VAD_MIN_SPEECH_MS", "400")
+    monkeypatch.setenv("IT_WEB_VAD_RMS", "0.02")
+    monkeypatch.setenv("IT_WEB_VAD_FLOOR_FACTOR", "3.0")
+    assert web_chat._vad_werte() == {
+        "pause_ms": 3000, "max_ms": 60000, "min_speech_ms": 400,
+        "rms": 0.02, "floor_faktor": 3.0,
+    }
+
+
+def test_eine_leere_oder_ungueltige_vad_umgebungszahl_faellt_auf_die_vorgabe_zurueck(monkeypatch):
+    monkeypatch.setenv("IT_WEB_VAD_PAUSE_MS", "")
+    monkeypatch.setenv("IT_WEB_VAD_MAX_MS", "nicht-numerisch")
+    monkeypatch.setenv("IT_WEB_VAD_RMS", "-1")
+    werte = web_chat._vad_werte()
+    assert werte["pause_ms"] == 2500
+    assert werte["max_ms"] == 90_000
+    assert werte["rms"] == 0.01
+
+
+def test_die_vad_attribute_stehen_am_fuss(seite):
+    assert 'data-vad-pause-ms="2500"' in seite
+    assert 'data-vad-max-ms="90000"' in seite
+    assert 'data-vad-min-speech-ms="500"' in seite
+    assert 'data-vad-rms="0.01"' in seite
+    assert 'data-vad-floor-faktor="2.5"' in seite
+
+
+def test_vad_ersetzt_den_festen_takt_mit_rueckfall():
+    js = web_chat._CHAT_JS
+    assert "sitzung.segmentTakt = setInterval" in js   # Rueckfall bleibt
+    assert "if (!sitzung.vadAktiv)" in js              # ... aber nur ohne VAD
+    assert "function schneideSegment" in js
+    assert "getFloatTimeDomainData" in js
+
+
+def test_vad_liest_alle_fuenf_werte_aus_dem_fuss():
+    js = web_chat._CHAT_JS
+    for attribut in ("vadPauseMs", "vadMaxMs", "vadMinSpeechMs", "vadRms",
+                     "vadFloorFaktor"):
+        assert f"fuss.dataset.{attribut}" in js, attribut
+
+
+def test_kappe_schneidet_immer_pause_nur_mit_genug_rede():
+    js = web_chat._CHAT_JS
+    takt = js[js.index("sitzung.pegelTakt = setInterval"):]
+    takt = takt[:takt.index("}, 120)")]
+    assert "schneideSegment(sitzung, 'cap')" in takt
+    assert "schneideSegment(sitzung, 'pause')" in takt
+    assert "sitzung.vadSpeechMs >= MIN_SPEECH_MS" in takt
+
+
+def test_manuelle_schnitte_tragen_den_grund_ende():
+    js = web_chat._CHAT_JS
+    # pausiereInterview + beendeInterview + pausiereBrainstorm + beendeBrainstorm
+    assert js.count("_grund = 'ende'") == 4
+
+
+def test_der_grund_ende_wird_nur_mit_aktivem_vad_gesetzt():
+    """Ohne AnalyserNode (Rueckfall auf den festen Takt) bleibt vadSpeechMs
+    bei 0 -- ohne diese Wache wuerde Pause/Beenden das letzte Stueck NIE mehr
+    hochladen, weil 'ende' ohne VAD faelschlich redeMs=0 saehe statt null."""
+    js = web_chat._CHAT_JS
+    assert "letzter && sitzung.vadAktiv) { letzter._grund = 'ende'" in js
+    assert "alt && sitzung.vadAktiv) { alt._grund = 'ende'" in js
+
+
+def test_onstop_laesst_zu_kurze_kappen_schnitte_weg():
+    js = web_chat._CHAT_JS
+    onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
+    assert "genug" in onstop
+    assert "redeMs > 0" in onstop
+
+
+def test_postaudio_haengt_den_grund_an():
+    js = web_chat._CHAT_JS
+    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    assert "auftrag.grund" in ausschnitt
+
+
+def test_schneidesegment_legt_sofort_einen_nachfolger_an():
+    """Zwischen zwei Segmenten darf keine Luecke entstehen -- der neue
+    Recorder steht schon, bevor der alte onstop gefeuert hat."""
+    js = web_chat._CHAT_JS
+    fn = js[js.index("function schneideSegment"):js.index("function pegelAn")]
+    vor_stop = fn.index("alt.stop()")
+    nach_stop = fn.index("sitzung.recorder = neuesSegment(sitzung)")
+    assert vor_stop < nach_stop
+
+
+def test_das_js_startet_weiterhin_einen_eigenen_recorder_je_segment():
+    """VAD darf den Aufbau aus Re-Review B nicht aufbrechen: KEINE
+    Zeitscheibe, jedes Segment bleibt eine eigenstaendige, komplette Datei."""
+    js = web_chat._CHAT_JS
+    assert re.search(r"\.start\(\s*\)", js)
+    assert not re.search(r"\.start\([a-zA-Z0-9_.]+\)", js)
+
+
 def test_der_nonce_steht_im_body_und_nicht_daran(seite):
     """Dieselbe Entscheidung wie auf der Gruppenseite (``web.nonce``):
     abgeleitet, nicht gewuerfelt, und IM body -- sonst reisst ein
@@ -215,14 +326,26 @@ def test_die_wege_sind_absolut_zum_gruppenverzeichnis():
 
 def test_die_seite_traegt_den_modus_schon_beim_laden(tmp_path, monkeypatch):
     """Review-Befund 11: im Interviewmodus steht der Stopp-Knopf schon im
-    HTML da, und PTT ist ausgeblendet -- nicht erst nach dem ersten Poll."""
+    HTML da, und PTT ist ausgeblendet -- nicht erst nach dem ersten Poll.
+
+    Erweitert (Drei-Zustands-Regler, 02.10.2026): ``data-pausiert`` steht
+    ebenfalls schon beim ersten Rendern da -- ein frisch geladenes Dokument
+    hat nie eine lokale Sitzung, also ist ein ``modus=true`` beim Laden
+    immer die Pause-Darstellung (Punkt 5 des Reglers)."""
     daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
              "interviewmodus": True, "titel": None}
     seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
-    assert f'data-laeuft="1">{web_chat._TEXT_INTERVIEW_AUS}</button>' in seite
+    assert (f'data-laeuft="1" data-pausiert="1">{web_chat._TEXT_INTERVIEW_AUS}'
+            f'</button>') in seite
     assert '<button type="button" id="ptt" hidden' in seite
+    assert 'id="interview-aktionen"' in seite and 'id="interview-aktionen" hidden' not in seite
+    assert f'id="interview-pause">{web_chat._TEXT_INTERVIEW_WEITER}</button>' in seite
+    assert f'id="interview-beenden">{web_chat._TEXT_INTERVIEW_ENDEN}</button>' in seite
     aus = web_chat.chat_html(dict(daten, interviewmodus=False), "1.x", "tok", "", 45000)
     assert '<button type="button" id="ptt" title=' in aus
+    assert 'data-laeuft="0" data-pausiert="0">' in aus
+    assert 'id="interview-aktionen" hidden' in aus
+    assert f'id="interview-pause">{web_chat._TEXT_INTERVIEW_PAUSE}</button>' in aus
 
 
 def test_das_js_ist_syntaktisch_gueltig(tmp_path):
@@ -363,9 +486,429 @@ def test_der_aenderungsstand_wird_vor_dem_verlauf_gelesen():
     assert quelle.index("web_chataenderungen(") < quelle.index("web_chatverlauf(")
 
 
+# -- Drei-Zustands-Regler: Laeuft/Pause/Beenden (02.10.2026, Padua) --------
+
+def test_die_drei_knoepfe_stehen_im_markup(seite):
+    for kennung in ("interview-aktionen", "interview-pause", "interview-beenden"):
+        assert f'id="{kennung}"' in seite, kennung
+
+
+def test_der_grosse_knopf_ist_waehrend_laeuft_pause_nur_eine_anzeige():
+    """Punkt 2/3: ein Druck auf #interview waehrend Laeuft oder Pause tut
+    NICHTS mehr -- Beenden laeuft nur noch ueber #interview-beenden."""
+    js = web_chat._CHAT_JS
+    start = js.index("interviewKnopf.addEventListener")
+    ende = js.index("});", start) + 3
+    klick = js[start:ende]
+    assert "modusAn()" in klick
+    assert "beendeInterview" not in klick
+    assert "starteInterview()" in klick
+
+
+def test_pausieren_sendet_kein_fertig_und_keinen_befehl():
+    """Punkt 4: Pause stoppt nur den lokalen Recorder -- der Interviewmodus
+    bleibt serverseitig an, es geht kein ``/fertig`` (und ueberhaupt kein
+    Befehl) heraus."""
+    js = web_chat._CHAT_JS
+    pause = js[js.index("function pausiereInterview"):
+                js.index("function fortsetzeInterview")]
+    assert "an: false" not in pause
+    assert "reiheEin(" not in pause
+    assert "art: 'befehl'" not in pause
+    assert "alt.stop()" in pause          # das letzte Stueck geht trotzdem raus
+    assert "gibFrei(sitzung)" in pause    # Mikrofon los waehrend der Pause
+
+
+def test_fortsetzen_haengt_an_dieselbe_sitzung_ohne_neues_interview():
+    """Punkt 4/5: Weiter haengt an dieselbe (oder, nach einem Neuladen, eine
+    frisch angelegte, aber schon ``angemeldet``e) Sitzung an -- nie ein
+    zweites ``{art:'befehl', an:true}``.
+
+    Seit dem Race-Fix (Re-Review, Befund 1/2) teilen sich starteInterview()
+    und fortsetzeInterview() das tatsaechliche Aufnahme-Beginnen in der
+    Funktion ``beginneAufnahme`` -- hier wird deshalb BEIDES geprueft: dass
+    fortsetzeInterview() dorthin delegiert (statt es zu duplizieren), und
+    dass der gemeinsame Helfer die bisherigen Invarianten weiterhin traegt.
+    """
+    js = web_chat._CHAT_JS
+    fortsetzen = js[js.index("function fortsetzeInterview"):
+                     js.index("if (nachreichenKnopf)")]
+    assert "angemeldet: true" in fortsetzen
+    assert "bestaetigt: true" in fortsetzen
+    assert "art: 'befehl'" not in fortsetzen   # kein /interview, nirgends
+    assert "beginneAufnahme(sitzung)" in fortsetzen
+    assert "neuesSegment(sitzung)" not in fortsetzen   # keine Dopplung mehr
+
+    beginn = js[js.index("function beginneAufnahme"):
+                js.index("function starteInterview")]
+    assert "neuesSegment(sitzung)" in beginn
+    assert "sitzung.legStart = Date.now()" in beginn
+
+
+def test_ptt_bleibt_waehrend_pause_versteckt():
+    """Punkt 6: ``zeigeModus`` blendet PTT bei JEDEM 'Modus an' aus, Pause
+    eingeschlossen -- keine zweite Bedingung dafuer."""
+    js = web_chat._CHAT_JS
+    zeige = js[js.index("function zeigeModus"):js.index("function verwirfPtt")]
+    assert "pttKnopf.hidden = an" in zeige
+    assert "var pausiert = an &&" in zeige
+
+
+def test_beenden_hat_keinen_bestaetigungsdialog():
+    """Punkt 7: kein ``confirm()``/Modal vor dem Beenden."""
+    assert "confirm(" not in web_chat._CHAT_JS
+
+
+def test_interview_beenden_knopf_ruft_dieselbe_funktion_wie_bisher():
+    """Beenden dupliziert die Stop-Logik nicht neu -- Druck auf
+    #interview-beenden ruft exakt ``beendeInterview`` (dieselbe Funktion wie
+    beim alten Umschalter), die ``pruefeEnde``/``onstop`` unveraendert
+    weiterverwendet."""
+    js = web_chat._CHAT_JS
+    assert "interviewBeendenKnopf.addEventListener('click', beendeInterview);" in js
+
+
+def test_pause_weiter_knopf_wechselt_auf_die_richtige_funktion():
+    js = web_chat._CHAT_JS
+    wiring = js[js.index("if (interviewPauseKnopf)"):
+                js.index("if (interviewBeendenKnopf)")]
+    assert "pausiereInterview(sitzung)" in wiring
+    assert "fortsetzeInterview(sitzung)" in wiring
+    assert "fortsetzeInterview(null)" in wiring
+    assert "zustand.servermodus" in wiring
+
+
+def test_formatiereuhr_zaehlt_erfasstems_plus_laufende_spanne():
+    js = web_chat._CHAT_JS
+    formel = js[js.index("function formatiereUhr"):js.index("function uhrAn")]
+    assert "sitzung.erfassteMs" in formel
+    assert "sitzung.legStart" in formel
+    assert "sitzung.pausiert" in formel
+
+
+def test_keine_zweite_parallele_merkvariable_fuer_pause():
+    """Design-Vorgabe: 'pausiert' haengt an der Sitzung, nicht an einem
+    zweiten Feld von ``zustand`` -- ``zustand.pausiert`` darf es nicht
+    geben."""
+    assert "zustand.pausiert" not in web_chat._CHAT_JS
+
+
+def test_pause_vor_dem_mikrofon_verschluckt_den_tipp_nicht():
+    """Fix-Review, Befund 1: Pause, waehrend starteInterview() noch auf
+    holeStrom() wartet (eine vom Menschen beantwortete Berechtigungsfrage --
+    das Fenster kann Sekunden dauern), durfte bisher gegen
+    ``sitzung.legStart === null`` falten (eine Muellzahl in die Uhr) UND den
+    Tipp verschlucken, weil nichts sonst ihn vermerkte. Jetzt gibt es dafuer
+    eine eigene, fruehe Verzweigung -- VOR dem Falten gegen Date.now()."""
+    js = web_chat._CHAT_JS
+    pause = js[js.index("function pausiereInterview"):
+                js.index("function fortsetzeInterview")]
+    vor_falten = pause[:pause.index("sitzung.erfassteMs +=")]
+    assert "sitzung.mikroUnterwegs" in vor_falten
+    assert "sitzung.pausiert = true" in vor_falten
+    assert "zeigeModus()" in vor_falten
+    assert "return" in vor_falten
+
+
+def test_starteinterview_faengt_nicht_an_wenn_zwischenzeitlich_pausiert():
+    """Fix-Review, Befund 1 (Kehrseite): wird waehrend der Mikrofon-Wartezeit
+    pausiert, darf starteInterview()'s eigener .then() nicht trotzdem
+    aufnehmen -- sonst laeuft ein Recorder, waehrend die Anzeige 'Pause'
+    zeigt, und ein folgendes 'Weiter' haette einen zweiten gestartet
+    (Fix-Review, Befund 1, letzter Absatz).
+
+    Zweites Re-Review, Befund: dieser Schutz stand bis dahin als eigene
+    Verzweigung HIER, in starteInterview()'s eigenem .then() -- eine Kopie,
+    die fortsetzeInterview() nicht mitbekam. Jetzt ruft starteInterview()
+    nach der reiheEin()-Anmeldung unbedingt beginneAufnahme() auf und
+    ueberlaesst DIESER die Pruefung (siehe
+    test_pausiert_schutz_lebt_nur_noch_in_beginneaufnahme); hier wird nur
+    noch die Reihenfolge und die Abwesenheit der alten Kopie gehalten."""
+    js = web_chat._CHAT_JS
+    start = js[js.index("function starteInterview"):js.index("function brichAb")]
+    then = start[start.index("holeStrom().then"):start.index(").catch(")]
+    assert "if (sitzung.pausiert)" not in then   # keine eigene Kopie mehr
+    assert then.index("reiheEin(") < then.index("beginneAufnahme(sitzung)")
+
+
+def test_fortsetzen_haengt_sich_nicht_vor_das_laufende_holestrom():
+    """Fix-Review, Befund 1 (Kehrseite): wird 'Weiter' getippt, waehrend
+    starteInterview()'s EIGENE Mikrofonanfrage noch unterwegs ist (z.B. nach
+    einem schnellen Pause-dann-Weiter), darf fortsetzeInterview() keinen
+    ZWEITEN holeStrom()-Aufruf absetzen -- das waeren zwei Recorder auf
+    derselben Sitzung. Es nimmt die Pause nur zurueck und ueberlaesst die
+    Aufnahme dem schon laufenden Aufruf."""
+    js = web_chat._CHAT_JS
+    fortsetzen = js[js.index("function fortsetzeInterview"):
+                     js.index("if (nachreichenKnopf)")]
+    wenn_echt = fortsetzen[fortsetzen.index("if (sitzung) {"):
+                           fortsetzen.index("} else {")]
+    assert "sitzung.mikroUnterwegs" in wenn_echt
+    assert "sitzung.pausiert = false" in wenn_echt
+    assert "return" in wenn_echt
+    # Der eigentliche holeStrom().then(...)-Aufruf kommt NACH diesem
+    # fruehen Ausstieg, und es gibt nur diesen einen in der ganzen Funktion
+    # -- nie einen zweiten, waehrend der erste noch laeuft.
+    assert fortsetzen.index("sitzung.mikroUnterwegs") < \
+        fortsetzen.index("holeStrom().then")
+    assert fortsetzen.count("holeStrom().then") == 1
+
+
+def test_beginneaufnahme_ist_der_einzige_ort_der_die_aufnahme_beginnt():
+    """Fix-Review, Befund 2: die Dopplung, in der ein Schutz (Befund 1) nur
+    in einer der beiden Kopien stand, darf nicht wiederkommen -- es gibt
+    GENAU einen Ort, der legStart/Recorder/Segment-Takt/Uhr/Pegel setzt,
+    und beide Aufrufer delegieren dorthin."""
+    js = web_chat._CHAT_JS
+    assert js.count("function beginneAufnahme") == 1
+    # starteInterview + fortsetzeInterview + starteBrainstorm + fortsetzeBrainstorm
+    assert js.count("beginneAufnahme(sitzung);") == 4
+    # Der Segment-Takt wird nur noch EINMAL im ganzen Skript aufgebaut --
+    # vorher stand dieselbe setInterval(...)-Konstruktion in beiden
+    # Funktionen, und ein Schutz in der einen (Befund 1) galt nicht
+    # automatisch fuer die andere.
+    assert js.count("sitzung.segmentTakt = setInterval(") == 1
+
+
+def test_pausiert_schutz_lebt_nur_noch_in_beginneaufnahme():
+    """Zweites Re-Review (nach dem Fix fuer Befund 2 oben): der durch
+    Befund 1 eingefuehrte Schutz -- eine waehrend des Mikrofon-Wartens
+    zwischenzeitlich gesetzte Pause darf danach nicht doch noch aufnehmen --
+    stand trotz ``beginneAufnahme`` als gemeinsamer Stelle nur in
+    starteInterview()'s eigenem ``.then()``, VOR dem Aufruf von
+    ``beginneAufnahme()`` statt darin. fortsetzeInterview()'s eigener
+    ``.then()``-Rueckgang hatte ueberhaupt keine Kopie davon -- heute
+    unschaedlich, weil ``sitzung.pausiert`` beim Eintritt in diesen Zweig
+    schon lange true ist und nichts es waehrenddessen aendern kann, aber
+    eine stillliegende Luecke, die ein kuenftiger UI-Pfad wieder oeffnen
+    koennte, ohne dass irgendetwas sie faengt.
+
+    Jetzt gibt es GENAU eine Stelle, die prueft: ``beginneAufnahme()``
+    selbst. Beide Aufrufer liefern ihr dasselbe Signal, indem sie
+    ``sitzung.pausiert`` auf false setzen, BEVOR ihr jeweils eigenes
+    ``holeStrom()`` beginnt -- starteInterview() im frischen
+    Sitzungs-Objekt, fortsetzeInterview() mit einer eigenen Zeile kurz vor
+    seinem eigenen ``holeStrom().then(`` --, statt es nur in der einen
+    Kopie zu tun."""
+    js = web_chat._CHAT_JS
+
+    beginn = js[js.index("function beginneAufnahme"):
+                js.index("function starteInterview")]
+    assert beginn.index("if (sitzung.pausiert)") < beginn.index("gibFrei(sitzung)")
+    assert beginn.index("gibFrei(sitzung)") < beginn.index("neuesSegment(sitzung)")
+
+    start = js[js.index("function starteInterview"):js.index("function brichAb")]
+    start_then = start[start.index("holeStrom().then"):start.index(").catch(")]
+    assert "if (sitzung.pausiert)" not in start_then   # keine Kopie hier
+    assert "pausiert: false" in start   # Startzustand im frischen Sitzungs-Objekt
+
+    fortsetzen = js[js.index("function fortsetzeInterview"):
+                     js.index("if (nachreichenKnopf)")]
+    # Der EIGENE holeStrom().then()-Rueckgang dieser Funktion -- nicht die
+    # fruehe "Kehrseite"-Verzweigung weiter oben im ``if (sitzung) {...}``,
+    # die das Mikrofon eines FREMDEN (starteInterview-)Aufrufs betrifft und
+    # von test_fortsetzen_haengt_sich_nicht_vor_das_laufende_holestrom
+    # geprueft wird.
+    eigener_then = fortsetzen[fortsetzen.index("holeStrom().then"):
+                              fortsetzen.index(").catch(")]
+    assert "if (sitzung.pausiert)" not in eigener_then   # keine Kopie hier
+
+    # Symmetrisch zu starteInterview(): pausiert wird explizit auf false
+    # gesetzt, bevor DIESES holeStrom() lostritt -- nicht erst von
+    # beginneAufnahme() selbst (sonst koennte der Aufrufer nie "schon
+    # wieder pausiert" melden).
+    vor_dem_eigenen_holestrom = fortsetzen[
+        fortsetzen.index("Re-Review F, auch beim Wiederaufnehmen"):
+        fortsetzen.index("holeStrom().then")]
+    assert "sitzung.pausiert = false;" in vor_dem_eigenen_holestrom
+    assert vor_dem_eigenen_holestrom.index("sitzung.pausiert = false;") < \
+        vor_dem_eigenen_holestrom.index("sitzung.fortsetzend = true;")
+
+
 def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
     """E6: der Zustand steht im DOM und in der URL, nirgends sonst -- damit
     ein Link teilbar bleibt und ein zweites Telefon dieselbe Gruppe sieht."""
     for verboten in ("document.cookie", "localStorage", "sessionStorage",
                      "WebSocket", "EventSource"):
         assert verboten not in web_chat._CHAT_JS, verboten
+
+
+# -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ---------------------
+
+
+def test_der_brainstorm_knopf_steht_nur_in_phase_4_im_markup():
+    """Ausserhalb Phase 4 rendert ``chat_html`` die vier Brainstorm-Elemente
+    gar nicht -- das JS liest ``document.getElementById('brainstorm')`` als
+    ``null`` und jede Brainstorm-Funktion bleibt ein No-Op (siehe
+    ``zeigeBrainstormModus``)."""
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": False, "titel": None, "phase": 4}
+    seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
+    for kennung in ("brainstorm", "brainstorm-aktionen", "brainstorm-pause",
+                    "brainstorm-beenden"):
+        assert f'id="{kennung}"' in seite, kennung
+    assert web_chat._TEXT_BRAINSTORM_AN in seite
+    # Das Interview bleibt erreichbar, aber als Nebenknopf (brief: "stays
+    # reachable, e.g. smaller/secondary").
+    assert 'id="interview" data-laeuft="0" data-pausiert="0" class="nebenknopf">' in seite
+
+    ohne = web_chat.chat_html(dict(daten, phase=1), "1.x", "tok", "", 45000)
+    for kennung in ("brainstorm", "brainstorm-aktionen", "brainstorm-pause",
+                    "brainstorm-beenden"):
+        assert f'id="{kennung}"' not in ohne, kennung
+    assert 'class="nebenknopf"' not in ohne
+    assert 'id="interview" data-laeuft="0" data-pausiert="0">' in ohne
+
+    fehlt = web_chat.chat_html(dict(daten, phase=None), "1.x", "tok", "", 45000)
+    assert 'id="brainstorm"' not in fehlt
+
+
+def test_zeigebrainstormmodus_ist_ein_no_op_ohne_knopf():
+    """Ausserhalb Phase 4 ist ``brainstormKnopf`` ``null`` -- die Funktion
+    darf dann nichts anfassen, sonst wirft sie auf jeder Nicht-Phase-4-Seite."""
+    js = web_chat._CHAT_JS
+    fn = js[js.index("function zeigeBrainstormModus"):
+            js.index("function starteBrainstorm")]
+    assert "if (!brainstormKnopf) { return; }" in fn
+
+
+def test_brainstorm_segment_geht_immer_sofort_raus():
+    """Brainstorm kennt keinen Modus-Befehl -- ``bereit()`` schickt ein
+    Segment dieser Sitzung immer, ohne auf ``zustand.servermodus`` zu warten
+    (anders als eine Interview-Aufnahme, siehe
+    ``test_kein_segment_geht_ohne_modus_raus``)."""
+    js = web_chat._CHAT_JS
+    bereit = js[js.index("function bereit"):js.index("function ueberholt")]
+    assert "if (sitzung.art === 'brainstorm') { return true; }" in bereit
+
+
+def test_postaudio_haengt_das_brainstorm_flag_an():
+    js = web_chat._CHAT_JS
+    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    assert "sitzung.art === 'brainstorm'" in ausschnitt
+    assert "&brainstorm=1" in ausschnitt
+
+
+def test_brainstorm_und_interview_schliessen_sich_gegenseitig_aus():
+    """Zwei Mikrofone gleichzeitig sind keine Bedienung: ``starteBrainstorm``
+    lehnt waehrend eines Interviews (oder eines laufenden Wechsels) ab,
+    ``starteInterview`` ebenso waehrend eines laufenden Brainstorms, und
+    beide Knoepfe sowie PTT werden entsprechend deaktiviert/versteckt."""
+    js = web_chat._CHAT_JS
+    start_bs = js[js.index("function starteBrainstorm"):
+                  js.index("function pausiereBrainstorm")]
+    assert "if (zustand.brainstorm || modusAn() || zustand.wechsel) { return; }" in start_bs
+
+    start_iv = js[js.index("function starteInterview"):
+                  js.index("function brichAb")]
+    assert "if (zustand.aufnahme || zustand.wechsel || zustand.brainstorm) { return; }" in start_iv
+
+    zeige_bs = js[js.index("function zeigeBrainstormModus"):
+                  js.index("function starteBrainstorm")]
+    assert "interviewKnopf.disabled = an ||" in zeige_bs
+    assert "brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;" in js
+
+    zeige_iv = js[js.index("function zeigeModus"):js.index("function verwirfPtt")]
+    assert "!!zustand.brainstorm" in zeige_iv
+    assert "pttKnopf.hidden = an || !!zustand.wechsel || !!zustand.brainstorm;" in zeige_iv
+    assert "pttKnopf.hidden = an || modusAn() || !!zustand.wechsel;" in zeige_bs
+
+
+def test_fortsetzebrainstorm_hat_dieselbe_sperrklinke_wie_interview():
+    """Re-Review-Befund (dieselbe Klasse wie bei ``fortsetzeInterview``,
+    Befund 1): ``mikroUnterwegs`` muss schon VOR ``holeStrom()`` gesetzt
+    werden, sonst erkennt ein waehrenddessen gedrueckter Pause-Knopf das
+    unterwegs befindliche Mikrofon nicht und rechnet ``erfassteMs`` gegen ein
+    ``legStart`` von ``null`` (NaN). Dazu eine Sperrklinke gegen einen
+    hastigen Doppeldruck auf "Weiter"."""
+    js = web_chat._CHAT_JS
+    fortsetzen = js[js.index("function fortsetzeBrainstorm"):
+                    js.index("function beendeBrainstorm")]
+    assert "sitzung.fortsetzend" in fortsetzen
+    vor_holestrom = fortsetzen[:fortsetzen.index("holeStrom().then")]
+    assert "sitzung.mikroUnterwegs = true;" in vor_holestrom
+    assert "sitzung.fortsetzend = true;" in vor_holestrom
+
+
+def test_brainstorm_pruefeende_tut_nie_etwas():
+    """``fertigEingereiht`` steht von Anfang an auf ``true`` -- die
+    gemeinsame ``pruefeEnde()``-Funktion (Interview-Pfad) reiht fuer eine
+    Brainstorm-Sitzung deshalb nie ein ``'befehl'``-Auftrag ein."""
+    js = web_chat._CHAT_JS
+    start = js[js.index("function starteBrainstorm"):
+               js.index("function pausiereBrainstorm")]
+    assert "fertigEingereiht: true" in start
+
+
+def test_beendebrainstorm_gibt_das_mikrofon_sofort_frei():
+    """Anders als beim Interview (wo ``pruefeEnde()`` im ``onstop`` das
+    Mikrofon freigibt) tut ``pruefeEnde()`` bei Brainstorm nie etwas -- also
+    muss ``beendeBrainstorm`` selbst ``gibFrei`` rufen, nicht erst ueber den
+    Umweg eines Auftrags."""
+    js = web_chat._CHAT_JS
+    beenden = js[js.index("function beendeBrainstorm"):
+                 js.index("function starteInterview")]
+    assert "gibFrei(sitzung);" in beenden
+
+
+def test_brainstorm_knoepfe_sind_verdrahtet():
+    js = web_chat._CHAT_JS
+    assert "brainstormPauseKnopf.addEventListener('click'" in js
+    assert "brainstormBeendenKnopf.addEventListener('click', beendeBrainstorm);" in js
+    assert "brainstormKnopf.addEventListener('click'" in js
+    wiring = js[js.index("if (brainstormPauseKnopf)"):js.index("-- Push-to-Talk")]
+    assert "fortsetzeBrainstorm()" in wiring
+    assert "pausiereBrainstorm()" in wiring
+    assert "starteBrainstorm()" in wiring
+
+
+# -- UX-Knoepfe-Karte, Abschnitt 1: Knoepfe als Abkuerzungen ---------------
+
+
+def test_freies_schreiben_veraltet_die_letzte_leiste():
+    """Wer stattdessen tippt, sieht die zuletzt gezeigte Chip-Leiste
+    weiterhin -- nur gedaempft (Klasse 'ueberholt'), nie entfernt."""
+    js = web_chat._CHAT_JS
+    assert "function veralteLetzteLeiste" in js
+    senden = js[js.index("function sendeText"):js.index("document.getElementById('senden')")]
+    assert "veralteLetzteLeiste()" in senden
+    funktion = js[js.index("function veralteLetzteLeiste"):
+                  js.index("function blaseZu")]
+    assert "classList.add('ueberholt')" in funktion
+
+
+def test_freies_sprechen_per_ptt_veraltet_ebenfalls_die_leiste():
+    """Dieselbe Regel gilt fuer Push-to-Talk, nicht nur fuer Text."""
+    js = web_chat._CHAT_JS
+    start = js.index("if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS")
+    ausschnitt = js[start:start + 400]
+    assert "veralteLetzteLeiste()" in ausschnitt
+
+
+def test_die_chip_leiste_traegt_ein_abkuerzungs_label(seite):
+    """Server und Client bauen dieselbe Reihenfolge: Label, dann Leiste."""
+    js = web_chat._CHAT_JS
+    assert "function baueLabel" in js
+    assert "TEXT.abkuerzung" in js
+    blase = js[js.index("function blase(n)"):js.index("function ersetze(n)")]
+    assert blase.index("baueLabel(n)") < blase.index("appendChild(leiste)")
+
+
+def test_die_chip_leiste_ist_keine_vollbreite_pflichtleiste(seite):
+    """UX-Knoepfe-Karte: kleine Abkuerzungs-Chips nebeneinander, nicht
+    vollbreite Primaerknoepfe untereinander."""
+    assert "flex-direction: row" in seite
+    assert "border-radius: 999px" in seite
+
+
+def test_manuelle_schnitte_tragen_den_grund_ende_fuer_brainstorm_auch():
+    """``pausiereBrainstorm``/``beendeBrainstorm`` flushen wie beim Interview
+    ueber ``_grund = 'ende'`` -- ein manueller Stopp haelt sich nicht an
+    ``MIN_SPEECH_MS``."""
+    js = web_chat._CHAT_JS
+    pause = js[js.index("function pausiereBrainstorm"):
+               js.index("function fortsetzeBrainstorm")]
+    beenden = js[js.index("function beendeBrainstorm"):
+                 js.index("function starteInterview")]
+    assert "_grund = 'ende'" in pause
+    assert "_grund = 'ende'" in beenden

@@ -1399,6 +1399,46 @@ def einstieg_begriffe(conn, chat_id: int, e) -> str:
     return _baue_erstkontakt(conn, chat_id, e, rueckkehr=True)
 
 
+#: Der Einstieg in Phase 4 (Padua-Brainstorming-Umbau, 02.10.2026), nach
+#: demselben Muster wie ``ERSTKONTAKT``: eine Anweisung, kein fester Text --
+#: das Modell schreibt den Einstieg selbst, in seinen eigenen Worten, und
+#: traegt dabei fuenf Dinge, egal ob die Gruppe zum ersten Mal hier ist oder
+#: zurueckkehrt ("kein Grund, warum beim Zurueckspringen der Einstieg anders
+#: sein sollte", dieselbe Haltung wie bei Phase 1).
+EINSTIEG_SETTING = (
+    "Die Gruppe betritt gerade Phase 4 (Setting, Figuren & Geschichte) -- "
+    "egal ob zum ersten Mal oder nach einer anderen Phase zurueck, schreib "
+    "denselben Einstieg. Deine Antwort ist eine normale, in sich "
+    "geschlossene Chat-Nachricht -- keine Ueberschrift, keine Liste mit "
+    "Spiegelstrichen, kein Systemtext. Bring dabei unter, in fliessenden "
+    "Saetzen und in deiner eigenen Formulierung:\n\n"
+    "- Was jetzt dran ist: die Gruppe erfindet ihr Stueck jetzt selbst --\n"
+    "  Setting, Figuren und Geschichte.\n"
+    "- WARUM die Interviews hier bewusst nicht benutzt werden: zuerst die\n"
+    "  eigene Erfindung, das Material schaerft sie erst in der naechsten\n"
+    "  Phase (Schaerfung) -- und erfundene Figuren schuetzen zugleich die,\n"
+    "  die interviewt wurden.\n"
+    "- Die Themenbereiche als EINEN fliessenden Absatz, KEINE Fragenliste:\n"
+    "  wo und wann es spielt und was die Leute zusammenbringt, wer\n"
+    "  vorkommt und was sie wollen, worum es im Konflikt geht, wie es\n"
+    "  ausgeht, und wie viele Szenen es werden sollen.\n"
+    "- Dass alles, was entschieden wird, automatisch gespeichert wird und\n"
+    "  im zweiten Tab \"Arbeitsstand\" sichtbar ist.\n"
+    "- Schliess mit einer Einladung: sie koennen anfangen, wo sie wollen --\n"
+    "  es gibt keine feste Reihenfolge.\n\n"
+    "Keine Checkliste, keine Nummerierung in deiner Antwort selbst -- ein "
+    "zusammenhaengender, einladender Text."
+)
+
+
+def einstieg_setting(conn, chat_id: int, e) -> str:
+    """Die Anweisung fuer den Einstieg in Phase 4 -- Erst- und Wiedereintritt
+    teilen sich dieselbe Anweisung, anders als bei Phase 1 (dort gibt es
+    einen Anlass-Unterschied zur allerersten Nachricht ueberhaupt; Phase 4
+    kennt dieses "allererste Mal" nicht)."""
+    return T.EINSTIEG_SETTING
+
+
 def umrisszeile(stand: dict) -> str:
     """Der Umriss als EINE Logzeile -- Blocknamen mit Token, Gesamt, gekuerzt.
 

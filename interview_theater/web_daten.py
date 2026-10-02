@@ -1352,6 +1352,16 @@ CHAT_GRENZE = 200
 #: der Knopf, und der steht schon da.
 _CHAT_VERBORGEN = ("befehl",)
 
+#: Padua Hotfix B7: ist eine Sprachzeile schon abgetippt? Solange ihre
+#: Aufnahme weder ``fertig`` noch ``fehlgeschlagen`` ist (oder es sie beim Bot
+#: noch gar nicht gibt), zeigt die Blase den Platzhalter. Den Wechsel meldet
+#: ``repo.setze_web_sprachtext`` ueber ``aenderung`` (``aufnahme._web_sprachblase``).
+_ABGETIPPT = (
+    "CASE WHEN typ = 'sprache' THEN EXISTS (SELECT 1 FROM aufnahme a "
+    "WHERE a.chat_id = web_post.chat_id AND a.message_id = web_post.id "
+    "AND a.status IN ('fertig', 'fehlgeschlagen')) END AS abgetippt"
+)
+
 
 def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE) -> list:
     """Der Chatverlauf einer Web-Gruppe ab ``nach`` (exklusiv), aelteste zuerst.
@@ -1361,8 +1371,8 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
     erreichbar (dieselbe Grenze wie 'kein Volltranskript auf der
     Gruppenseite')."""
     zeilen = conn.execute(
-        "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am "
-        "FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
+        "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am, "
+        f"{_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
         f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
         "AND typ != 'knopf' "
         "ORDER BY id ASC LIMIT ?",
@@ -1377,6 +1387,7 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
             "knoepfe": _web_knoepfe(z["knoepfe"]),
             "dauer": z["dauer"],
             "dateiname": z["dateiname"],
+            "abgetippt": bool(z["abgetippt"]),
             "zeit": z["erstellt_am"],
         }
         for z in zeilen
@@ -1423,7 +1434,7 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
             return [], int(zeile["stand"])
         zeilen = conn.execute(
             "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, "
-            "geloescht_am, aenderung FROM web_post "
+            f"geloescht_am, aenderung, {_ABGETIPPT} FROM web_post "
             "WHERE chat_id = ? AND aenderung > ? "
             f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
             "AND typ != 'knopf' ORDER BY aenderung ASC LIMIT ?",
@@ -1441,6 +1452,7 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
             "knoepfe": _web_knoepfe(z["knoepfe"]),
             "dauer": z["dauer"],
             "dateiname": z["dateiname"],
+            "abgetippt": bool(z["abgetippt"]),
             "geloescht": z["geloescht_am"] is not None,
         }
         for z in zeilen

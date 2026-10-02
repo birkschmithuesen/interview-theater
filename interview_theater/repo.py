@@ -3711,6 +3711,26 @@ def aendere_web_text(conn, chat_id: int, message_id: int, text: str) -> bool:
 
 
 @_gesperrt
+def setze_web_sprachtext(conn, chat_id: int, message_id: int, text: str | None) -> bool:
+    """Das Transkript einer eingehenden Sprachzeile in ihre Blase (Padua
+    Hotfix B7, 02.10.2026) -- oder, mit ``text=None``, nur das Zeichen
+    "abgetippt", damit der Browser den Platzhalter ersetzt.
+
+    Dasselbe Muster wie ``aendere_web_text``, nur fuer ``richtung='ein'`` und
+    ``typ='sprache'``: der Zaehler ``aenderung`` steigt, und
+    ``web_daten.web_chataenderungen`` liefert die Zeile beim naechsten Poll
+    neu aus."""
+    cur = conn.execute(
+        f"UPDATE web_post SET text = ?, aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+        "WHERE id = ? AND chat_id = ? AND richtung = ? AND typ = ? "
+        "AND geloescht_am IS NULL",
+        (text, message_id, chat_id, RICHTUNG_EIN, WEB_TYP_SPRACHE),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+@_gesperrt
 def setze_web_knoepfe(conn, chat_id: int, message_id: int, knoepfe) -> bool:
     """Tauscht die Leiste unter einer ausgehenden Nachricht aus; ``None``
     nimmt sie weg (``entferne_knoepfe`` / ``aktualisiere_knoepfe``)."""

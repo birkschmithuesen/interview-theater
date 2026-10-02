@@ -228,6 +228,17 @@ _PSEUDONYM_UNBEKANNT = "Mitglied"
 #: welcher Chatsprache) als auch irrefuehrend, weil es nicht sagt, dass das
 #: Modell den Anhang gar nicht wahrnimmt. Siehe ``_TYPEN_NICHT_SICHTBAR``.
 _HINWEIS_NICHT_SICHTBAR = "Datei -- fuer mich nicht sichtbar"
+#: Padua Hotfix Befund 3 (02.10.2026, Live-Fall web_post 6/8/10): das
+#: englische Profil antwortete auf deutsche Gruppennachrichten auf Deutsch --
+#: "Write in English" in system.md stand nur einmal, ganz am Anfang des
+#: Zuges, und verlor gegen das Recency-Gewicht der zuletzt gelesenen
+#: fremdsprachigen Nachricht. Deutsch bleibt leer (die Gruppe schreibt hier
+#: ohnehin deutsch, eine Erinnerung waere Laerm); die englische Tabelle
+#: traegt den Satz, und ``_baue_ausloeser`` haengt ihn an den Ausloeser-Block
+#: an -- den einen Block, der jede Kuerzung ueberlebt (§ 7.2) und im
+#: normalen Gespraechszug (kein Erstkontakt) der zuletzt gelesene Text vor
+#: der Antwort ist.
+_AUSLOESER_SPRACHREGEL = ""
 _PAUSE_STUNDE = "[Pause: {stunden} Stunde]"
 _PAUSE_STUNDEN = "[Pause: {stunden} Stunden]"
 _ZEILE_KERNTHEMA = "Kernthema: {kernthema}"
@@ -1274,11 +1285,21 @@ def _bezugszeit(ausloeser):
 
 def _baue_ausloeser(ausloeser, namen: dict[str, str] | None = None) -> str:
     """Die ausloesende(n) Nachricht(en) -- ueberlebt jede Kuerzung (§ 7.2),
-    darum von der Kuerzungslogik in baue() nie angefasst."""
+    darum von der Kuerzungslogik in baue() nie angefasst.
+
+    Traegt das aktive Profil eine Sprachregel (``_AUSLOESER_SPRACHREGEL``,
+    nur im englischen Profil belegt, siehe dort), steht sie als letzter
+    Absatz dahinter -- Padua Hotfix Befund 3: eine Erinnerung direkt neben
+    der zuletzt gelesenen Nachricht wiegt mehr als eine am Anfang des
+    Systemprompts."""
     if not ausloeser:
         return ""
     zeilen = [sprecherzeile(n, namen) for n in ausloeser]
-    return T._AUSLOESER_KOPF + "\n".join(zeilen)
+    text = T._AUSLOESER_KOPF + "\n".join(zeilen)
+    regel = T._AUSLOESER_SPRACHREGEL
+    if regel:
+        text += "\n\n" + regel
+    return text
 
 
 def _zusammen(bloecke: dict) -> str:

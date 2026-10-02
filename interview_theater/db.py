@@ -339,6 +339,13 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Additiv nachgeruestet ueber _migriere_fehlende_spalten; ohne aktives
   -- Workshop-Profil liest die Spalte niemand.
   laengen_faktor         TEXT,
+  -- Die Anzahl Szenen (Padua-Brainstorming-Umbau, 02.10.2026): ein fixes
+  -- Feld von Phase 4, das die GRUPPE setzt -- der Bot fragt danach, wenn es
+  -- beim Abschliessen fehlt, schlaegt selbst aber nie eine Zahl vor
+  -- (``erkenner._wende_szenenanzahl_an``, art ``szenenanzahl_setzen``).
+  -- TEXT wie ``figuren_anzahl``, additiv nachgeruestet ueber
+  -- _migriere_fehlende_spalten.
+  szenen_anzahl          TEXT,
   geaendert_am           TEXT
 );
 

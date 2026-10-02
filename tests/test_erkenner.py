@@ -192,6 +192,9 @@ def test_arten_enthaelt_alle_werte():
         # 06.09.: die Auffangart fuer alles, was in kein Feld passt
         # (docs/analyse-phase4-datenverlust-2026-09-06.md).
         "festlegung_setzen",
+        # Padua-Brainstorming-Umbau (02.10.2026): Anzahl Szenen ist ein
+        # fixes Feld der Phase 4, das die Gruppe selbst nennt.
+        "szenenanzahl_setzen",
     }
     assert set(erkenner.ARTEN) == erwartet
 

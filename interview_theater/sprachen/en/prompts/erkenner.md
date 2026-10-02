@@ -164,14 +164,18 @@ object with "art" and "wert":
     group that fits into **no** other field but counts for the text or the
     staging.
 
-    Areas, exactly one of these words, in capitals (they are protocol):
-    **FIGUR** (a single character -- origin, age, job, how they relate to
-    another), **GRUPPE** (a faction in the play -- who belongs to it, how
-    you recognise them, what they can do), **ORT** (a sub-location below
-    the setting), **STRUKTUR** (the play as a whole -- series, number of
-    episodes, how many scenes, whether the ending stays open), **FORM**,
-    **STIL** (length and style requirements for the texts), **SONSTIGES**
-    (anything else).
+    Areas, exactly one of these words, in capitals (they are protocol), if
+    one fits: **FIGUR** (a single character -- origin, age, job, how they
+    relate to another), **GRUPPE** (a faction in the play -- who belongs to
+    it, how you recognise them, what they can do), **ORT** (a sub-location
+    below the setting), **STRUKTUR** (the play as a whole -- series, number
+    of episodes, whether the ending stays open; **not** the number of
+    scenes, that is point 24), **FORM**, **STIL** (length and style
+    requirements for the texts). **If none fits, use a short word of your
+    own as the area** (one to three words, e.g. "COSTUMES", "MUSIC",
+    "PROPS") instead of filing everything under "SONSTIGES" -- the area is
+    the title under which the group finds the agreement again later.
+    "SONSTIGES" is the fallback only when truly no short title fits.
 
     The reference is the name it is about: the character, the faction, the
     scene number. If there is none, leave it out.
@@ -182,8 +186,16 @@ object with "art" and "wert":
         first episode of a series"}
         {"art": "festlegung_setzen", "wert": "STIL: the scene texts should
         be shorter, one page at most"}
+        {"art": "festlegung_setzen", "wert": "COSTUMES: everyone wears blue"}
 
-24. szene_kuerzen          -- wert: the scene number as a numeral ("3"), or
+24. szenenanzahl_setzen    -- wert: the number of scenes as a numeral
+    ("5"). The group names how many scenes there should be -- whether in
+    passing ("i think we need five scenes for this") or as an answer to
+    your question about it. Write only the number, no words around it.
+
+        {"art": "szenenanzahl_setzen", "wert": "5"}
+
+25. szene_kuerzen          -- wert: the scene number as a numeral ("3"), or
     empty ("") if none is named. The group asks YOU to make an already
     written text SHORTER ("make that shorter", "cut scene 3 down", "write
     it more tightly"). Without a number, the text written most recently is
@@ -200,12 +212,13 @@ object with "art" and "wert":
 
 **First the field, then the catch-all.** If a detail fits one of the fields
 above -- terms, questions, core theme, format, setting, main conflict, a
-character with name and description, a scene field --, take that field and
-NOT festlegung_setzen. Only what falls outside goes to festlegung_setzen: a
-character's membership of a group, their origin, their age, the features of
-a faction, the number of scenes, a length requirement. And festlegung_setzen
-is the thing itself, which goes into the text; "entschieden" is a note about
-the work ("we'll carry on tomorrow"). When in doubt festlegung_setzen.
+character with name and description, a scene field, the number of scenes
+(point 24) --, take that field and NOT festlegung_setzen. Only what falls
+outside goes to festlegung_setzen: a character's membership of a group,
+their origin, their age, the features of a faction, a length requirement.
+And festlegung_setzen is the thing itself, which goes into the text;
+"entschieden" is a note about the work ("we'll carry on tomorrow"). When in
+doubt festlegung_setzen.
 
 **Removing only what is there.** entfernen only for something that stands
 in the progress above (a character with this name, the set core theme, a

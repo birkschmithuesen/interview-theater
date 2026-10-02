@@ -151,6 +151,14 @@ Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
 #: Die Szenenfolge NACH der gewaehlten Richtung (06.09.2026, Birk 11:42):
 #: erst wenn Bogen und Ende feststehen, wird daraus eine Folge von Szenen.
 #: Ein eigener Vorschlag mit Ja/Nein, kein Anhaengsel der Richtungswahl.
+#:
+#: Padua-Brainstorming-Umbau (02.10.2026): **keine Form mehr in Phase 4.**
+#: Die vierte/fuenfte Spalte (Formvorschlag, Begruendung) sind aus der
+#: Anweisung entfernt -- Phase 4 ist freies Erfinden, die Form einer Szene
+#: entscheidet sich erst spaeter (Feinschliff, Phase 7, ``biete_szenenform``).
+#: ``zerlege()`` bleibt unveraendert und faellt bei fehlender vierter Spalte
+#: wie immer auf ``workshop.form_vorgabe()`` zurueck -- dieselbe Vorgabe, die
+#: jede Zeile ohne Formspalte schon vorher bekam, keine neue Entscheidung.
 ANWEISUNG_GESCHICHTE_SZENEN = """Du entwickelst mit einer Theatergruppe die Szenenfolge ihres Stuecks.
 
 Die Gruppe hat sich fuer eine Richtung entschieden; Bogen und Ende stehen
@@ -159,20 +167,12 @@ unten. Daraus schlaegst du jetzt die Szenen vor.
 Antworte in GENAU dieser Form, ohne Einleitung und ohne Nachwort:
 
 VORSCHLAG SZENENFOLGE:
-Titel — ein Satz, was passiert — Figur, Figur — Form — warum diese Form
-Titel — ein Satz, was passiert — Figur, Figur — Form — warum diese Form
+Titel — ein Satz, was passiert — Figur, Figur
+Titel — ein Satz, was passiert — Figur, Figur
 
-Nimm nur Figuren, die unten stehen.
-
-**Die Form schlaegst du VOR, du entscheidest sie nicht.** Sie steht als
-vierte Spalte, ihre Begruendung als fuenfte, und beide sind Pflicht -- die
-Gruppe bestaetigt die Form spaeter Szene fuer Szene per Knopf.
-
-Es gibt genau {{formen_anzahl}}: {{formen_liste}}. **{{form_vorgabe_anzeige}} ist der
-Normalfall.** Monolog, Lied und Rap nur, wenn die Szene es verlangt: eine
-Figur allein mit sich, ein Gefuehl, das gesungen groesser wird, Wut, die
-Rhythmus braucht. Hoechstens EINE Nicht-{{form_vorgabe_anzeige}}-Szene je drei Szenen, und
-Szene 1 ist nie Monolog oder Lied -- die Exposition braucht Begegnung.
+Nimm nur Figuren, die unten stehen. **Keine Form** -- ob eine Szene Dialog,
+Monolog, Chor, Lied oder Rap wird, entscheidet die Gruppe erst im
+Feinschliff, nicht hier.
 
 Danach ein Satz und eine offene Frage an die Gruppe, hoechstens zwei Zeilen."""
 

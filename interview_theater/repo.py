@@ -1679,6 +1679,9 @@ _ARBEITSSTAND_FELDER = (
     # Der Laengen-Faktor (30.09.2026, Karte R): derselbe eine Schreibweg wie
     # alles andere im Arbeitsstand.
     "laengen_faktor",
+    # Die Anzahl Szenen (Padua-Brainstorming-Umbau, 02.10.2026): ein fixes
+    # Feld von Phase 4, das die Gruppe selbst setzt.
+    "szenen_anzahl",
 )
 
 

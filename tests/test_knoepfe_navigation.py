@@ -413,22 +413,24 @@ def test_entfernen_loescht_weich_und_geht_zur_naechsten(conn, tg, einst):
 @pytest.mark.parametrize(
     "nummer,text",
     [
-        (2, "Weiter zu Fragen"),
-        (3, "Weiter zu Interviews"),
-        (4, "Weiter zu Setting, Figuren & Geschichte"),
-        (5, "Weiter zu Schaerfung"),
-        (6, "Weiter zu Szenen als Geschichte"),
-        (7, "Weiter zu Feinschliff"),
+        (2, "Weiter zu Phase 2 · Fragen"),
+        (3, "Weiter zu Phase 3 · Interviews"),
+        (4, "Weiter zu Phase 4 · Setting, Figuren & Geschichte"),
+        (5, "Weiter zu Phase 5 · Schaerfung"),
+        (6, "Weiter zu Phase 6 · Szenen als Geschichte"),
+        (7, "Weiter zu Phase 7 · Feinschliff"),
     ],
 )
-def test_phasenknoepfe_heissen_nach_inhalt_nie_nach_nummer(conn, tg, nummer, text):
-    """Eine Gruppe, die zum ersten Mal mit dem Bot arbeitet, kennt die
-    Nummerierung nicht und soll sie nicht lernen muessen."""
+def test_phasenknoepfe_heissen_nach_nummer_und_inhalt(conn, tg, nummer, text):
+    """Bis zum 02.10.2026 hiess der Knopf nur nach Inhalt ("Weiter zu
+    Fragen", 05.09.2026). Seit der Padua-Probe (Birk 02.10.2026) traegt er
+    Nummer UND Titel: "Questions" allein sagte der Gruppe nicht, dass das
+    die naechste PHASE ist."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", nummer)
 
     beschriftung = tg.knoepfe[-1][2][0][0]
     assert beschriftung == text
-    assert not any(z.isdigit() for z in beschriftung)
+    assert beschriftung == f"Weiter zu Phase {phasen.bezeichnung(nummer)}"
 
 
 def test_der_phasenknopf_fragt_zuerst_die_gruppe(conn, tg, einst):
@@ -438,7 +440,7 @@ def test_der_phasenknopf_fragt_zuerst_die_gruppe(conn, tg, einst):
 
     knoepfe.behandle(
         conn, tg, None, einst,
-        _druck(_knopf(tg, "Weiter zu Setting, Figuren & Geschichte")),
+        _druck(_knopf(tg, "Weiter zu Phase 4 · Setting, Figuren & Geschichte")),
     )
 
     # Seit dem 06.09.2026 steht der Phasenrahmen in derselben Nachricht
@@ -483,7 +485,7 @@ def test_der_schritt_nach_phase_fuenf_setzt_kein_format(conn, tg, einst):
     Phasenknopf setzt nichts mehr, er fuehrt nur weiter."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 5)
 
-    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Schaerfung")))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf(tg, "Weiter zu Phase 5 · Schaerfung")))
 
     assert not (repo.hole_arbeitsstand(conn, 1)["format"] or "")
     assert not any("Urban Dance" in t for _, t in tg.gesendet)

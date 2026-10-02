@@ -89,7 +89,7 @@ def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
     weiter_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(stufe))
     noch_nicht_id = repo.lege_knopf_an(conn, chat_id, ART_NOCH_NICHT, str(stufe))
     leiste = [
-        (T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.knopfbezeichnung(stufe)), _daten(weiter_id)),
+        (T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.bezeichnung(stufe)), _daten(weiter_id)),
         (T._TEXT_PHASE_NOCH_NICHT_KNOPF, _daten(noch_nicht_id)),
     ]
     text = _abschlusstext(conn, chat_id, stufe)
@@ -110,11 +110,11 @@ def _abschlusstext(conn, chat_id: int, stufe: int) -> str:
     from interview_theater import phasentexte
 
     jetzige = phasen.aktuelle(conn, chat_id)
-    frage = T._TEXT_PHASE_WEITER.format(phase=phasen.knopfbezeichnung(stufe))
+    frage = T._TEXT_PHASE_WEITER.format(phase=phasen.bezeichnung(stufe))
     if jetzige >= stufe:
         return T._TEXT_PHASE_ANGEBOT.format(
             erledigt=T._ERLEDIGT_FUER.get(stufe, T._TEXT_ALLES_NOETIGE),
-            phase=phasen.knopfbezeichnung(stufe),
+            phase=phasen.bezeichnung(stufe),
         )
     return f"{phasentexte.abschluss(conn, chat_id, jetzige)}\n\n{frage}"
 

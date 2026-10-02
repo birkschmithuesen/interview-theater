@@ -168,6 +168,19 @@ GEAENDERT: dict[str, str] = {
         "Begriffsliste \"als Foto abgetippt\" -- das Gespraechsmodell sieht "
         "ohnehin keine Bilder. Gewollte Verhaltensaenderung fuer Dortmund."
     ),
+    "knoepfe.texte._TEXT_PHASE_ANGEBOT": (
+        "Padua Hotfix Befund 5b (Birk 02.10.2026): die Rueckfrage nennt die "
+        "Phase mit Nummer und Titel (\"Weiter zu Phase 2 · Fragen?\"). "
+        "Gewollt auch fuer Dortmund/Vorgabeprofil."
+    ),
+    "knoepfe.texte._TEXT_PHASE_WEITER": (
+        "Padua Hotfix Befund 5b (Birk 02.10.2026): \"Weiter zu Phase "
+        "{phase}?\", {phase} = phasen.bezeichnung (Nummer + Titel)."
+    ),
+    "knoepfe.texte._TEXT_WEITER_ZU_KNOPF": (
+        "Padua Hotfix Befund 5b (Birk 02.10.2026): der Weiter-Knopf heisst "
+        "\"Weiter zu Phase 2 · Fragen\" statt \"Weiter zu Fragen\"."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

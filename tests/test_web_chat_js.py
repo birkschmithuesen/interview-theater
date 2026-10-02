@@ -423,7 +423,6 @@ def test_fortsetzen_haengt_an_dieselbe_sitzung_ohne_neues_interview():
     beginn = js[js.index("function beginneAufnahme"):
                 js.index("function starteInterview")]
     assert "neuesSegment(sitzung)" in beginn
-    assert "sitzung.pausiert = false" in beginn
     assert "sitzung.legStart = Date.now()" in beginn
 
 
@@ -497,22 +496,20 @@ def test_starteinterview_faengt_nicht_an_wenn_zwischenzeitlich_pausiert():
     pausiert, darf starteInterview()'s eigener .then() nicht trotzdem
     aufnehmen -- sonst laeuft ein Recorder, waehrend die Anzeige 'Pause'
     zeigt, und ein folgendes 'Weiter' haette einen zweiten gestartet
-    (Fix-Review, Befund 1, letzter Absatz)."""
+    (Fix-Review, Befund 1, letzter Absatz).
+
+    Zweites Re-Review, Befund: dieser Schutz stand bis dahin als eigene
+    Verzweigung HIER, in starteInterview()'s eigenem .then() -- eine Kopie,
+    die fortsetzeInterview() nicht mitbekam. Jetzt ruft starteInterview()
+    nach der reiheEin()-Anmeldung unbedingt beginneAufnahme() auf und
+    ueberlaesst DIESER die Pruefung (siehe
+    test_pausiert_schutz_lebt_nur_noch_in_beginneaufnahme); hier wird nur
+    noch die Reihenfolge und die Abwesenheit der alten Kopie gehalten."""
     js = web_chat._CHAT_JS
     start = js[js.index("function starteInterview"):js.index("function brichAb")]
     then = start[start.index("holeStrom().then"):start.index(").catch(")]
-    # Die Pruefung auf eine zwischenzeitliche Pause steht NACH der
-    # reiheEin()-Anmeldung (der Bot muss trotzdem wissen, dass der Modus an
-    # ist) und VOR beginneAufnahme() -- sonst liefen Anmeldung und Aufnahme
-    # unabhaengig voneinander.
-    assert then.index("if (sitzung.pausiert)") < then.index("beginneAufnahme(sitzung)")
-    assert then.index("reiheEin(") < then.index("if (sitzung.pausiert)")
-    # Im Pause-Zweig wird das gerade erst erteilte Mikrofon sofort wieder
-    # frei -- kein Recorder darf dort je entstehen.
-    pause_zweig = then[then.index("if (sitzung.pausiert)"):
-                        then.index("beginneAufnahme(sitzung)")]
-    assert "gibFrei(sitzung)" in pause_zweig
-    assert "neuesSegment" not in pause_zweig
+    assert "if (sitzung.pausiert)" not in then   # keine eigene Kopie mehr
+    assert then.index("reiheEin(") < then.index("beginneAufnahme(sitzung)")
 
 
 def test_fortsetzen_haengt_sich_nicht_vor_das_laufende_holestrom():
@@ -551,6 +548,61 @@ def test_beginneaufnahme_ist_der_einzige_ort_der_die_aufnahme_beginnt():
     # Funktionen, und ein Schutz in der einen (Befund 1) galt nicht
     # automatisch fuer die andere.
     assert js.count("sitzung.segmentTakt = setInterval(") == 1
+
+
+def test_pausiert_schutz_lebt_nur_noch_in_beginneaufnahme():
+    """Zweites Re-Review (nach dem Fix fuer Befund 2 oben): der durch
+    Befund 1 eingefuehrte Schutz -- eine waehrend des Mikrofon-Wartens
+    zwischenzeitlich gesetzte Pause darf danach nicht doch noch aufnehmen --
+    stand trotz ``beginneAufnahme`` als gemeinsamer Stelle nur in
+    starteInterview()'s eigenem ``.then()``, VOR dem Aufruf von
+    ``beginneAufnahme()`` statt darin. fortsetzeInterview()'s eigener
+    ``.then()``-Rueckgang hatte ueberhaupt keine Kopie davon -- heute
+    unschaedlich, weil ``sitzung.pausiert`` beim Eintritt in diesen Zweig
+    schon lange true ist und nichts es waehrenddessen aendern kann, aber
+    eine stillliegende Luecke, die ein kuenftiger UI-Pfad wieder oeffnen
+    koennte, ohne dass irgendetwas sie faengt.
+
+    Jetzt gibt es GENAU eine Stelle, die prueft: ``beginneAufnahme()``
+    selbst. Beide Aufrufer liefern ihr dasselbe Signal, indem sie
+    ``sitzung.pausiert`` auf false setzen, BEVOR ihr jeweils eigenes
+    ``holeStrom()`` beginnt -- starteInterview() im frischen
+    Sitzungs-Objekt, fortsetzeInterview() mit einer eigenen Zeile kurz vor
+    seinem eigenen ``holeStrom().then(`` --, statt es nur in der einen
+    Kopie zu tun."""
+    js = web_chat._CHAT_JS
+
+    beginn = js[js.index("function beginneAufnahme"):
+                js.index("function starteInterview")]
+    assert beginn.index("if (sitzung.pausiert)") < beginn.index("gibFrei(sitzung)")
+    assert beginn.index("gibFrei(sitzung)") < beginn.index("neuesSegment(sitzung)")
+
+    start = js[js.index("function starteInterview"):js.index("function brichAb")]
+    start_then = start[start.index("holeStrom().then"):start.index(").catch(")]
+    assert "if (sitzung.pausiert)" not in start_then   # keine Kopie hier
+    assert "pausiert: false" in start   # Startzustand im frischen Sitzungs-Objekt
+
+    fortsetzen = js[js.index("function fortsetzeInterview"):
+                     js.index("if (nachreichenKnopf)")]
+    # Der EIGENE holeStrom().then()-Rueckgang dieser Funktion -- nicht die
+    # fruehe "Kehrseite"-Verzweigung weiter oben im ``if (sitzung) {...}``,
+    # die das Mikrofon eines FREMDEN (starteInterview-)Aufrufs betrifft und
+    # von test_fortsetzen_haengt_sich_nicht_vor_das_laufende_holestrom
+    # geprueft wird.
+    eigener_then = fortsetzen[fortsetzen.index("holeStrom().then"):
+                              fortsetzen.index(").catch(")]
+    assert "if (sitzung.pausiert)" not in eigener_then   # keine Kopie hier
+
+    # Symmetrisch zu starteInterview(): pausiert wird explizit auf false
+    # gesetzt, bevor DIESES holeStrom() lostritt -- nicht erst von
+    # beginneAufnahme() selbst (sonst koennte der Aufrufer nie "schon
+    # wieder pausiert" melden).
+    vor_dem_eigenen_holestrom = fortsetzen[
+        fortsetzen.index("Re-Review F, auch beim Wiederaufnehmen"):
+        fortsetzen.index("holeStrom().then")]
+    assert "sitzung.pausiert = false;" in vor_dem_eigenen_holestrom
+    assert vor_dem_eigenen_holestrom.index("sitzung.pausiert = false;") < \
+        vor_dem_eigenen_holestrom.index("sitzung.fortsetzend = true;")
 
 
 def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():

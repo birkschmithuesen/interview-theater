@@ -1161,11 +1161,22 @@ _CHAT_JS = """
   // Beginnt die tatsaechliche Aufzeichnung auf einer Sitzung, deren
   // Mikrofon gerade bereit wurde: Startzeitpunkt, Recorder, Segment-Takt,
   // Uhr und Pegel. Gemeinsame Stelle fuer starteInterview() und
-  // fortsetzeInterview() (Re-Review, Befund 2) -- ein hier ergaenzter
-  // Schutz (z.B. gegen eine inzwischen gesetzte Pause) gilt automatisch
-  // fuer beide Aufrufer, statt nur fuer den, an dem er zuerst auffiel.
+  // fortsetzeInterview() -- und seit dem zweiten Re-Review (Befund: der
+  // Pause-Schutz lag nur in starteInterview()'s .then(), nicht hier, also
+  // NICHT "automatisch fuer beide Aufrufer" wie der alte Kommentar
+  // behauptete) auch die EINZIGE Stelle, die prueft, ob inzwischen
+  // pausiert wurde. Beide Aufrufer setzen sitzung.pausiert selbst auf
+  // false, bevor ihr jeweils eigenes holeStrom() beginnt (starteInterview()
+  // im Sitzungs-Objekt bei der Erstellung, fortsetzeInterview() explizit
+  // kurz vor dem Aufruf) -- sitzung.pausiert === true heisst hier also fuer
+  // BEIDE Aufrufer gleichermassen dasselbe: waehrend des Wartens auf das
+  // Mikrofon kam eine Pause dazwischen, also gar nicht erst anfangen,
+  // Mikrofon sofort wieder frei.
   function beginneAufnahme(sitzung) {
-    sitzung.pausiert = false;
+    if (sitzung.pausiert) {
+      gibFrei(sitzung);
+      return;
+    }
     sitzung.legStart = Date.now();
     sitzung.recorder = neuesSegment(sitzung);
     sitzung.gestartet = true;
@@ -1219,21 +1230,14 @@ _CHAT_JS = """
       // wird genau einmal und immer hier angemeldet.
       sitzung.gestartet = true;
       reiheEin({ art: 'befehl', an: true, sitzung: sitzung, wechsel: wechsel });
-      if (sitzung.pausiert) {
-        // Re-Review, Befund 1: Pause kam, waehrend der Browser noch auf die
-        // Mikrofon-Freigabe wartete (die Anfrage haengt am Menschen, das
-        // Fenster kann Sekunden dauern). sitzung.legStart ist noch null --
-        // sofort aufzunehmen wuerde die Pause ignorieren UND einen zweiten
-        // Recorder riskieren, falls gleich darauf "Weiter" kommt. Also: gar
-        // nicht erst anfangen, Mikrofon sofort wieder frei, wie
-        // pausiereInterview() es nach einem echten Stop auch tut.
-        gibFrei(sitzung);
-        zeigeModus();
-        return;
-      }
       // Die Aufnahme laeuft SOFORT -- sonst verliert man die ersten Worte.
       // Die Segmente warten in der Schlange hinter /interview (bereit()).
+      // Kam waehrend des Wartens eine Pause dazwischen (Re-Review, Befund 1;
+      // zweites Re-Review, Befund: der Schutz dafuer lebt zentral in
+      // beginneAufnahme(), nicht hier dupliziert), faengt sie gar nicht erst
+      // an und gibt das Mikrofon selbst wieder frei.
       beginneAufnahme(sitzung);
+      zeigeModus();
     }).catch(function () {
       // Review-Befund 8: ein halb gestarteter Recorder wird gestoppt und das
       // Mikrofon freigegeben.
@@ -1395,6 +1399,17 @@ _CHAT_JS = """
     // Re-Review F, auch beim Wiederaufnehmen: ein gehaltener PTT-Druck wird
     // verworfen, sonst liefen zwei Recorder.
     if (zustand.ptt) { verwirfPtt(); }
+    // Ab hier laeuft das EIGENE holeStrom() dieser Funktion (nicht mehr das
+    // von starteInterview(), das ist der Zweig oben): sitzung.pausiert wird
+    // deshalb schon JETZT auf false gesetzt, nicht erst in beginneAufnahme()
+    // -- spiegelbildlich zu starteInterview(), dessen frisches Sitzungs-
+    // Objekt ebenfalls mit pausiert: false in sein eigenes holeStrom() geht.
+    // Kommt waehrend dieses Wartens eine Pause (pausiereInterview() sieht
+    // dann !sitzung.pausiert, erkennt mikroUnterwegs und merkt sie erneut,
+    // statt no-op zu sein), sieht beginneAufnahme() unten sitzung.pausiert
+    // wieder true und faengt gar nicht erst an -- derselbe Schutz wie bei
+    // starteInterview(), zentral an einer Stelle statt dupliziert.
+    sitzung.pausiert = false;
     sitzung.fortsetzend = true;   // Sperrklinke: kein zweiter Recorder bei Doppeldruck
     zeigeModus();
     sitzung.mikroUnterwegs = true;
@@ -1406,9 +1421,8 @@ _CHAT_JS = """
         return;
       }
       sitzung.strom = strom;
-      // Review-Befund 2: dieselbe Stelle wie in starteInterview() --
-      // ein Schutz dort (z.B. gegen eine inzwischen wieder gesetzte Pause)
-      // gilt damit automatisch auch hier.
+      // Zentrale Stelle: beginneAufnahme() prueft selbst, ob inzwischen
+      // pausiert wurde.
       beginneAufnahme(sitzung);
       zeigeModus();
     }).catch(function () {

@@ -448,3 +448,21 @@ def test_keine_englische_phasenanweisung_engt_die_optionen_ein():
     for pfad in sorted(EN.rglob("phasen/*.md")):
         text = pfad.read_text(encoding="utf-8")
         assert "variants of the same idea" not in text, pfad
+
+
+def test_die_englische_phase_sechs_kennt_kein_textbuch_nach_herkules():
+    """Karte P2-Fix, Restspannung 7 (02.10.2026).
+
+    ``phasen/6.md`` sagte in Zeile 9-13, es entstehe ein Textbuch in
+    Sprechtheater-Form nach dem Herkules-Mass -- gegen :3-5 und :64-67 in
+    derselben Datei, gegen ``formen/prosa.md:27`` ("The Herkules measure
+    doesn't apply here either") und gegen ``kurzgeschichte.ANWEISUNG``
+    ("keine Szenenliste, kein Theatertext, kein Drehbuch"). Theatertext
+    entsteht erst ab Phase 7."""
+    text = (EN / "phasen" / "6.md").read_text(encoding="utf-8")
+    assert "A script is created" not in text
+    assert "Herkules" not in text
+    # Was bleibt: die Inszenierung entscheidet die Probe, und ueber ein
+    # "Format" des Stuecks wird nicht gesprochen.
+    assert "in rehearsal" in text
+    assert '"format"' in text

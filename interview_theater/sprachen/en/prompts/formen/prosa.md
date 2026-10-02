@@ -10,9 +10,9 @@ as narrative prose, the way it would appear in a book: what happens, who
 is there, what is said and felt. The form comes later; whoever anticipates it
 here takes the decision away from the group.
 
-This file is the **whole** instruction for this step. Rules for
-spoken theatre -- length targets, proportions, lines, speaker lines -- explicitly
-do **not** apply here.
+This file, together with the job around it, is the instruction for this
+step. Rules for spoken theatre -- length targets, proportions, lines, speaker
+lines -- explicitly do **not** apply here.
 
 ## The rules
 

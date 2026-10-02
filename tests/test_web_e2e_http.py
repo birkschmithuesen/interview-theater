@@ -378,6 +378,9 @@ def test_von_phase_eins_bis_zum_ersten_interview_nur_ueber_http(lauf):
     hing = _druecke(basis, token, "Annehmen", nach=hing)
     hing = _druecke(basis, token, "Annehmen", nach=hing)
     _warte_auf(pfad, _feld("fragen"), "fragen gesetzt")
+    # Seit 03.10.2026 kommen die weichen Fassungen als EIN Angebot am Ende
+    # aller Fragen (knoepfe/fragen._biete_weiche_fassungen_an).
+    hing = _druecke(basis, token, "Weiche Fassungen", nach=hing)
     _warte_auf(pfad, _feld("fragen_weich"), "fragen_weich gesetzt")
 
     # Eroeffnung und Abschluss: EIN Block, ZWEI Felder

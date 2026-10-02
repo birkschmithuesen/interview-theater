@@ -339,6 +339,15 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Additiv nachgeruestet ueber _migriere_fehlende_spalten; ohne aktives
   -- Workshop-Profil liest die Spalte niemand.
   laengen_faktor         TEXT,
+  -- Merkposten fuer den Knopf "Interviews fertig" im Web-Kanal (Phase 3,
+  -- 02.10.2026): gesetzt (ISO-Zeitstempel), solange die Gruppe "Interviews
+  -- fertig" gedrueckt hat, aber noch mindestens ein beendetes Interview ohne
+  -- Verdichtung offen ist. Die naechste erfolgreich abgeschlossene
+  -- Verdichtung prueft dieses Feld und schliesst automatisch nach Phase 4
+  -- weiter, sobald aufnahme.unausgewertete_interviews() leer ist -- auch
+  -- nach einem Neustart, weil der Wunsch hier und nicht nur im Prozess steht.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  interviews_fertig_wunsch_seit TEXT,
   geaendert_am           TEXT
 );
 

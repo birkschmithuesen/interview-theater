@@ -1679,6 +1679,9 @@ _ARBEITSSTAND_FELDER = (
     # Der Laengen-Faktor (30.09.2026, Karte R): derselbe eine Schreibweg wie
     # alles andere im Arbeitsstand.
     "laengen_faktor",
+    # Merkposten "Interviews fertig" (Web, 02.10.2026): derselbe eine
+    # Schreibweg wie alles andere im Arbeitsstand.
+    "interviews_fertig_wunsch_seit",
 )
 
 

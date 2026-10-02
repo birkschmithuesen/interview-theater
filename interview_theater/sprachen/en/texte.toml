@@ -60,6 +60,9 @@ _TEXT_OHNE_KNOPF_FERTIG_KNOPF = "Done, analyse it"
 _TEXT_OHNE_KNOPF_WEITER_KNOPF = "There's more to come"
 _TEXT_OHNE_KNOPF_WEITER = "Good, I'm still listening."
 _TEXT_OHNE_KNOPF_UNBEKANNT = "I don't know this recording any more."
+_TEXT_INTERVIEWS_FERTIG_KNOPF = "Interviews done"
+_TEXT_INTERVIEWS_NOCH_OFFEN = "{anzahl} interview(s) are still being analysed - it will continue automatically once they're done."
+_TEXT_ARBEITSSTAND_HINWEIS = "You'll find the full analysis in the Where we are tab."
 TEXT_ABLAUF = """\
 This is how an interview works: tap "Start interview". Then send the \
 voice message or voice messages of your interviewee - after each one you \

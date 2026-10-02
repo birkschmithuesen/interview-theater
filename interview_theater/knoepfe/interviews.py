@@ -17,10 +17,10 @@ from interview_theater import phasen, repo, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_AUFNAHME, ART_AUSWERTEN, ART_AUSWERTEN_ALLE, ART_HILFE,
-    ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
-    ART_OHNE_KNOPF_WEITER, ART_STAND, ART_STT_SPRACHE, ART_TEIL_FERTIG,
-    ART_TEIL_WEITER, ART_TRANSKRIPT, ART_ZUSAMMENFASSUNG, PHASE_INTERVIEWS,
-    STT_KNOEPFE, T, log,
+    ART_INTERVIEWS_FERTIG, ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA,
+    ART_OHNE_KNOPF_NEIN, ART_OHNE_KNOPF_WEITER, ART_STAND, ART_STT_SPRACHE,
+    ART_TEIL_FERTIG, ART_TEIL_WEITER, ART_TRANSKRIPT, ART_ZUSAMMENFASSUNG,
+    PHASE_INTERVIEWS, STT_KNOEPFE, T, log,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _nimm_alte_leiste_ab, _phasenknopf, _sende_knoepfe,
@@ -303,15 +303,17 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
     Liefert die ``message_id`` der Angebotsnachricht.
 
     Auf dem Web-Kanal entfaellt diese ganze Telegram-Leiste (06.10.2026,
-    Phase 3 Web-UX) -- nur der Text geht raus. Vorlaeufiger Zwischenstand:
-    eine spaetere Karte ersetzt diesen Zweig durch einen einzigen "Interviews
-    fertig"-Knopf; bis dahin ist eine leere Leiste der richtige Zustand, nicht
-    ein dauerhafter. Die Web-Sperre betrifft **nur die Leiste** -- der
-    Merkposten ``phase_angeboten`` wird unten unabhaengig vom Kanal
-    abgeraeumt (Review-Fix: eine fruehere Fassung liess ihn mit einem
-    fruehen ``return`` auf dem Web-Kanal stehen, und das proaktive
-    "Weiter zu Phase N?" waere dort nach dem ersten Angebot nie wieder
-    gekommen)."""
+    Phase 3 Web-UX) -- an ihre Stelle tritt EIN Knopf, "Interviews fertig"
+    (02.10.2026): sobald mindestens ein Interview existiert und die Gruppe
+    noch in Phase 3 steht. Seine Wirkung (``wirkung._wirkung_interviews_fertig``)
+    schliesst direkt nach Phase 4 weiter, wenn alle Interviews verdichtet
+    sind, oder merkt den Wunsch fuers naechste Mal
+    (``arbeitsstand.interviews_fertig_wunsch_seit``). Die Web-Sperre betrifft
+    **nur die Leiste** -- der Merkposten ``phase_angeboten`` wird unten
+    unabhaengig vom Kanal abgeraeumt (Review-Fix: eine fruehere Fassung liess
+    ihn mit einem fruehen ``return`` auf dem Web-Kanal stehen, und das
+    proaktive "Weiter zu Phase N?" waere dort nach dem ersten Angebot nie
+    wieder gekommen)."""
     from interview_theater import aufnahme as aufnahme_modul  # lokal: Oberflaeche darf Fachlogik lesen
 
     ist_web = aufnahme_modul.ist_web_gruppe(conn, chat_id)
@@ -363,10 +365,21 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
     # Phase unabhaengig von der hier gezeigten Leiste an.
     if kopf_id is not None and phasen.aktuelle(conn, chat_id) == PHASE_INTERVIEWS:
         phasen.vergiss_angebot(conn, chat_id)
-    if not ist_web:
-        phasenknopf = _phasenknopf(conn, chat_id)
-        if phasenknopf is not None:
-            knoepfe.append(phasenknopf)
+    if ist_web:
+        # Der eine Web-Knopf (02.10.2026): nur in Phase 3 und nur, wenn es
+        # ueberhaupt schon ein Interview gibt -- vorher gibt es nichts
+        # abzuschliessen. Die alte Leiste bleibt leer (Task 2).
+        if phasen.aktuelle(conn, chat_id) == PHASE_INTERVIEWS and repo.zaehle_interviews(conn, chat_id) > 0:
+            _nimm_alte_leiste_ab(conn, tg, chat_id, ART_INTERVIEWS_FERTIG)
+            knopf_id = repo.lege_knopf_an(conn, chat_id, ART_INTERVIEWS_FERTIG, None)
+            return _sende_knoepfe(
+                conn, tg, chat_id, text,
+                [(T._TEXT_INTERVIEWS_FERTIG_KNOPF, _daten(knopf_id))],
+            )
+        return _sende_knoepfe(conn, tg, chat_id, text, [])
+    phasenknopf = _phasenknopf(conn, chat_id)
+    if phasenknopf is not None:
+        knoepfe.append(phasenknopf)
     return _sende_knoepfe(conn, tg, chat_id, text, knoepfe)
 
 

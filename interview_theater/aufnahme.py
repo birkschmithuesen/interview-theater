@@ -1303,6 +1303,19 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False,
             _sende_verdichtung_gescheitert(conn, tg, chat_id, row)
         return
     repo.setze_status(conn, aufnahme_id, "fertig")
+    # Der Auto-Uebergang nach dem Web-Knopf "Interviews fertig" (02.10.2026):
+    # lief er auf einem noch offenen Interview auf, steht der Wunsch hier
+    # (``arbeitsstand.interviews_fertig_wunsch_seit``) -- jede weitere
+    # erfolgreiche Verdichtung prueft, ob jetzt die letzte war. Laeuft fuer
+    # BEIDE Pfade (erzwungen und normal): ein erzwungenes ``/auswerten`` auf
+    # dem letzten offenen kurzen Interview ist genau der Fall, der ebenfalls
+    # weiterschalten soll.
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is not None and stand["interviews_fertig_wunsch_seit"] and not unausgewertete_interviews(conn, chat_id):
+        from interview_theater.knoepfe.stationen import schliesse_interviews_ab
+
+        if schliesse_interviews_ab(conn, tg, klm, e, chat_id):
+            repo.setze_arbeitsstand(conn, chat_id, "interviews_fertig_wunsch_seit", None)
     # Seit 05.09.2026 (Birk, Testlauf vor dem Workshop) geht die Verdichtung
     # NICHT mehr von selbst in den Chat: nach einem Interview kommt keine
     # Rueckmeldung und keine Rueckfrage, weil das eine eigene Phase ist --

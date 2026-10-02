@@ -69,7 +69,8 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     ART_FRAGEN_UEBERNEHMEN, ART_FRAGE_WAHL, ART_GESCHICHTE_ANDERS,
     ART_GESCHICHTE_KUERZEN,
     ART_GESCHICHTE_NEU, ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN,
-    ART_GESCHICHTE_SPEICHERN, ART_HILFE, ART_KERNTHEMA, ART_LEITFADEN,
+    ART_GESCHICHTE_SPEICHERN, ART_HILFE, ART_INTERVIEWS_FERTIG, ART_KERNTHEMA,
+    ART_LEITFADEN,
     ART_NOCH_NICHT, ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA,
     ART_OHNE_KNOPF_NEIN, ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_PRUEFUNG_LASSEN,
     ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_RICHTUNG,
@@ -101,6 +102,7 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     TEXT_TEXTBUCH_KNOPF, TEXT_WEITER_KNOPF, TRENNER, _ANWEISUNG_ALLGEMEIN,
     _AUSWAHLMARKER, _ERSTER_ALS_WERT, _FELD_FUER, _HAKEN, _KETTE, _NOTIERT,
     _TEXT_ANDERS, _TEXT_ANDERS_KNOPF, _TEXT_ANZAHL_FRAGE,
+    _TEXT_ARBEITSSTAND_HINWEIS,
     _TEXT_AUFNAHME_BEENDEN, _TEXT_AUFNAHME_STARTEN, _TEXT_AUSWERTEN_ALLE_KNOPF,
     _TEXT_AUSWERTEN_ALLE_LAEUFT, _TEXT_AUSWERTEN_ALLE_NICHTS,
     _TEXT_AUSWERTEN_KNOPF, _TEXT_AUSWERTEN_UNBEKANNT,
@@ -126,7 +128,9 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     _TEXT_DRAMATURGIE_LASSEN_KNOPF, _TEXT_DRAMATURGIE_UEBERHOLT,
     _TEXT_DRAMATURGIE_UNBEKANNT,
     _TEXT_FASSUNGEN_KOPF, _TEXT_FASSUNG_KOPF,
-    _TEXT_GESCHICHTE_PASST_KNOPF, _TEXT_HILFE_KNOPF, _TEXT_KEINE_FASSUNGEN,
+    _TEXT_GESCHICHTE_PASST_KNOPF, _TEXT_HILFE_KNOPF,
+    _TEXT_INTERVIEWS_FERTIG_KNOPF, _TEXT_INTERVIEWS_NOCH_OFFEN,
+    _TEXT_KEINE_FASSUNGEN,
     _TEXT_KEINE_NAECHSTE, _TEXT_NUR_FORMWAHL,
     _TEXT_KEIN_INTERVIEW, _TEXT_KEIN_TRANSKRIPT, _TEXT_KERNTHEMA_FRAGE,
     _TEXT_KERNTHEMA_KEINE, _TEXT_KURZGESCHICHTE_BEREIT, _TEXT_LEITFADEN_KNOPF,
@@ -229,7 +233,7 @@ from interview_theater.knoepfe.interviews import (  # noqa: F401
 #: der Phasenrahmen im Chat
 from interview_theater.knoepfe.stationen import (  # noqa: F401
     _abschlusstext, _mit_vorspann, biete_phase_proaktiv,
-    biete_proaktiv, eintritt_in_phase,
+    biete_proaktiv, eintritt_in_phase, schliesse_interviews_ab,
 )
 
 #: die Dispatch-Tabelle und ihre Handler
@@ -247,7 +251,8 @@ from interview_theater.knoepfe.wirkung import (  # noqa: F401
     _wirkung_fragen_andere, _wirkung_fragen_eigene, _wirkung_geschichte_anders,
     _wirkung_geschichte_neu, _wirkung_geschichte_passt,
     _wirkung_geschichte_schreiben, _wirkung_geschichte_speichern,
-    _wirkung_hilfe, _wirkung_kernthema, _wirkung_leitfaden,
+    _wirkung_hilfe, _wirkung_interviews_fertig, _wirkung_kernthema,
+    _wirkung_leitfaden,
     _wirkung_noch_nicht, _wirkung_ohne_knopf_fertig, _wirkung_ohne_knopf_ja,
     _wirkung_ohne_knopf_nein, _wirkung_ohne_knopf_weiter, _wirkung_phase,
     _wirkung_pruefung_lassen, _wirkung_pruefung_runde, _wirkung_pruefung_szene,

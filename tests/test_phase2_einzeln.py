@@ -487,3 +487,87 @@ def test_der_weiche_block_steht_nicht_als_fliesstext_vor_der_liste(conn, tg):
     assert "Du musst nichts Privates teilen" not in gesendet
     assert gesendet.startswith("Hier sind ein paar Fragen dazu.")
     assert "Heimat" in gesendet
+
+
+# --- 8. Keine doppelte Leiste nach Schaerfen (Fund 02.10.2026) --------------
+
+
+def test_schaerfen_dann_freitext_dann_erkenner_erzeugt_nur_eine_leiste(
+    conn, tg, einst, auftraege,
+):
+    """Regression fuer den vollen Live-Befund (Padua, 02.10.2026, aufnahme
+    66-70, web_post 73/74, chat_id 7000000000000): Birk drueckt "Schaerfen",
+    sagt per Sprache "Die Frage soll so bleiben, wie sie ist", das Modell
+    antwortet im selben Zug mit einer neuen ``VORSCHLAG FRAGE:``-Zeile.
+
+    Vor diesem Fix liefen danach ZWEI unabhaengige Pfade uebereinander:
+    1. ``nimm_offene_frage_text``/``uebernimm_schaerfung`` zeigt die Frage
+       (korrekt) mit Annehmen/Verwerfen/Schaerfen erneut.
+    2. Der naechste Erkenner-Lauf (``erkenner.laufe``) sah dieselbe
+       Nachricht, erkannte sie zusaetzlich als ``fragen_setzen`` und haengte
+       SEINE eigene generische Speicherleiste unter eine zweite,
+       "Notiert:"-Nachricht -- UND ueberschrieb ``arbeitsstand.fragen`` mit
+       nur dieser einen Zeile.
+
+    Nach dem Fix (``erkenner._wende_arbeitsstand_an``, geschuetzt durch
+    ``knoepfe.einzeln_aktiv``): der Erkenner-Lauf darf waehrend "Fragen
+    einzeln durchgehen" kein ``fragen`` schreiben und haengt daher keine
+    zweite Leiste an -- genau eine Knopfzeile bleibt uebrig, und
+    ``arbeitsstand.fragen`` (die GANZE, schon angenommene Liste, nicht die
+    Auswahl) bleibt unangetastet."""
+    from interview_theater import erkenner
+
+    from test_erkenner import LLMAttrappe
+
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    repo.setze_arbeitsstand(conn, 1, "fragen", "alte, schon angenommene Liste")
+
+    # 1. Knopfdruck "Schaerfen".
+    _druecke(conn, tg, einst, "Schaerfen")
+
+    # 2. Freier Sprachwunsch: "Die Frage soll so bleiben, wie sie ist."
+    knoepfe.nimm_offene_frage_text(
+        conn, tg, None, einst, 1, "Die Frage soll so bleiben, wie sie ist.",
+    )
+
+    # 3. Das Modell antwortet im selben Zug mit einer neuen Frage-Zeile --
+    # genau der VORSCHLAG-FRAGE-Block, den uebernimm_schaerfung versteht.
+    # Das ist der EINZIGE Pfad, der die Frage wieder zeigen darf (korrekt:
+    # Annehmen/Verwerfen/Schaerfen) -- die Baseline wird danach genommen.
+    antwort = (
+        "Understood — the original wording stays exactly as it is.\n\n"
+        "VORSCHLAG FRAGE:\nApfel: If you had to pass on one thing about "
+        "apples to someone who doesn't know them, what would it be?"
+    )
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, antwort)
+    anzahl_leisten_vor_erkenner = len(tg.knoepfe)
+    nachricht_id_frage = tg.naechste_message_id - 1
+    repo.merke_nachricht(
+        conn, 1, nachricht_id_frage, "Bot", 1, "text", antwort,
+        "2026-10-02T10:00:00",
+    )
+
+    # 4. Genau DIESER Zug (die eben versandte Bot-Nachricht als "neue"
+    # Nachricht gesehen) laeuft jetzt durch den Erkenner-Nachlauf -- wie live
+    # aufnahme 70, die direkt nach aufnahme 69 (der Gespraechszug) feuerte.
+    klm = LLMAttrappe(antwort={
+        "aenderungen": [{
+            "art": "fragen_setzen",
+            "wert": "Apfel: If you had to pass on one thing about apples "
+                    "to someone who doesn't know them, what would it be?",
+        }],
+    })
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    # Keine zweite Leiste: der Erkenner-Lauf darf hier keine eigene
+    # "Notiert:"-Nachricht mit Grundleiste anhaengen.
+    assert len(tg.knoepfe) == anzahl_leisten_vor_erkenner, (
+        f"zweite Knopfzeile aufgetaucht: {tg.knoepfe[anzahl_leisten_vor_erkenner:]}"
+    )
+    # Und arbeitsstand.fragen (die GANZE angenommene Liste) bleibt
+    # unangetastet -- nicht durch die eine VORSCHLAG-FRAGE-Zeile ersetzt.
+    assert (
+        repo.hole_arbeitsstand(conn, 1)["fragen"]
+        == "alte, schon angenommene Liste"
+    )

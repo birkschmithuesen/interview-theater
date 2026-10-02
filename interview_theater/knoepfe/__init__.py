@@ -196,7 +196,7 @@ from interview_theater.knoepfe.basis import (  # noqa: F401
 from interview_theater.knoepfe.fragen import (  # noqa: F401
     _auswahlfragen, _leitfaden_knopf, _schliesse_fragen_ab,
     _speichere_eroeffnung, _starte_schaerfung, _zeige_frage,
-    biete_fragenauswahl, entscheide, frage_fuer_andere_richtung,
+    biete_fragenauswahl, einzeln_aktiv, entscheide, frage_fuer_andere_richtung,
     frage_waehlt_schaerfen, frage_warten_auf_richtung, fragenliste,
     nimm_offene_frage_text, starte_durchgehen, starte_eroeffnung,
     uebernimm_schaerfung,

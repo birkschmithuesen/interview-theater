@@ -129,6 +129,28 @@ def _aktuelle_offene_nummer(conn, chat_id: int) -> int | None:
     return nummer if not wert else None
 
 
+def einzeln_aktiv(conn, chat_id: int) -> bool:
+    """True, solange die Stufe "Fragen einzeln durchgehen" laeuft --
+    ``fragen_aktuell`` traegt eine Fragennummer (Fund 02.10.2026, Padua-Live,
+    web_post 73/74: aufnahme 70 lief waehrend genau dieser Stufe und
+    ueberschrieb ``arbeitsstand.fragen`` mit der einen gerade geschaerften
+    Zeile).
+
+    ``fragen_aktuell`` bleibt gesetzt vom ersten ``starte_durchgehen`` bis
+    zur letzten Entscheidung -- auch waehrend einer Schaerfung (Knopfdruck,
+    freier Aenderungswunsch, die Modellantwort darauf): genau das Fenster, in
+    dem der Erkenner nicht parallel ``fragen`` schreiben darf
+    (``erkenner._wende_arbeitsstand_an``) und keine zweite, generische
+    Speicherleiste fuer ``fragen`` haengen darf (``erkenner._sende_meldung``)
+    -- die Leiste unter der gerade vorgelegten Frage ist die einzige."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_aktuell"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return False
+    return roh.strip().isdigit()
+
+
 # --- Der Ueberblick ---------------------------------------------------------
 
 

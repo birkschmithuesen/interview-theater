@@ -506,6 +506,24 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
     if not wert:
         return None
     feld = _ARBEITSSTAND_ARTEN[art]
+    if feld == "fragen":
+        # Waehrend die Stufe "Fragen einzeln durchgehen" laeuft (Fund
+        # 02.10.2026, Padua-Live, web_post 73/74, aufnahme 70): der
+        # Erkenner-Lauf, der nach einer Schaerfung (oder irgendeinem
+        # Modellzug waehrend ``fragen_aktuell`` gesetzt ist) anlaeuft, darf
+        # ``fragen`` NICHT schreiben -- fragen.knoepfe._schliesse_fragen_ab
+        # ist die einzige Stelle, die dieses Feld setzt, und sie tut es erst
+        # NACH der letzten Entscheidung. Ein ``fragen_setzen`` aus dem
+        # Erkenner waehrend dieser Stufe wuerde die ganze Liste durch eine
+        # einzelne VORSCHLAG-FRAGE-Zeile ersetzen (genau der Live-Befund).
+        from interview_theater import knoepfe
+
+        if knoepfe.einzeln_aktiv(conn, chat_id):
+            log.info(
+                "fragen_setzen waehrend 'Fragen einzeln durchgehen' "
+                "verworfen, chat_id=%s", chat_id,
+            )
+            return None
     if feld == "rahmen" and _ist_geschichte(wert):
         # **Der Rahmen ist das SETTING, nicht die Handlung** (06.09.2026,
         # Birk 11:42, live gemessen: der Erkenner schrieb einen

@@ -36,9 +36,13 @@ TEIL_PFAD = "teil"
 #: Derselbe Takt wie das sanfte Nachladen der Einzelseite.
 NACHLADEN_MS = web.NEULADEN_SEKUNDEN * 1000
 
-#: Welche Panels sich nachladen lassen. Der Chat NICHT: er hat seinen eigenen
-#: Poll (Karte A2), und das Textbuch aendert sich nicht, waehrend man es liest.
-_TEILE = ("stand",)
+#: Welche Panels/Ausschnitte sich nachladen lassen. Der Chat NICHT: er hat
+#: seinen eigenen Poll (Karte A2), und das Textbuch aendert sich nicht,
+#: waehrend man es liest. ``roadmap`` kam in Fix-Runde 1 dazu (Review-Befund
+#: 2): sie sitzt ausserhalb jedes Panels (immer sichtbar, unabhaengig vom
+#: Tab) und blieb nach einem Phasenklick sonst bis zum vollen Neuladen auf
+#: dem alten Stand.
+_TEILE = ("stand", "roadmap")
 
 #: Die drei Panels. Reihenfolge = Reihenfolge der Tableiste.
 TABS = ("chat", "stand", "textbuch")
@@ -235,6 +239,64 @@ _VEREINT_JS = """
     // riesse Aufnahme, halb getippte Nachricht und laufenden Strom mit.
     location.hash = '#' + [name].concat(teile).join('&');
   };
+  // Fix-Runde 1, Review-Befund 1: ein 403 heisst fast immer "Nonce
+  // abgelaufen" -- einmal auffrischen (ueber den leichten Stand-Ausschnitt,
+  // kein kompletter Chat-Poll noetig), dann genau EIN zweiter Versuch.
+  // Derselbe Grundsatz wie ``web_chat.postJson``, nur ohne dessen Scope.
+  function friskeNonce() {
+    // Ueber DOMParser gelesen, nicht per Textsuche nach dem Attribut: eine
+    // Regex mit dem woertlichen Attributnamen stuende als Text im
+    // ausgelieferten Skript und waere damit ein ZWEITES "id=nonce" auf der
+    // Seite (Review der Fix-Runde, Gegenprobe zu
+    // ``test_nur_eine_nonce_id_in_der_vereinten_seite``).
+    return fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return null; }
+        var quelle = new DOMParser().parseFromString(text, 'text/html')
+          .getElementById('nonce');
+        if (!quelle) { return null; }
+        var feld = document.getElementById('nonce');
+        if (feld) { feld.value = quelle.value; }
+        return quelle.value;
+      })
+      .catch(function () { return null; });
+  }
+  function sendePhase(phase, zweiter) {
+    return fetch(BASIS + 'chat/phase', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nonce: (document.getElementById('nonce') || {}).value || '',
+        nummer: parseInt(phase.dataset.phase, 10),
+        bestaetigt: 1
+      })
+    }).then(function (r) {
+      if (r.status === 403 && !zweiter) {
+        return friskeNonce().then(function () { return sendePhase(phase, true); });
+      }
+      return r;
+    });
+  }
+  var fehlerTakt = null;
+  function zeigeFehler(satz) {
+    var feld = document.getElementById('fehler');
+    if (!feld) { return; }
+    feld.textContent = satz || '__FEHLER_NETZ__';
+    feld.hidden = false;
+    if (fehlerTakt) { clearTimeout(fehlerTakt); }
+    fehlerTakt = setTimeout(function () { feld.hidden = true; feld.textContent = ''; }, 8000);
+  }
+  // Ein neu "bewaffneter" Knopf (zweiter Klick wechselt die Phase)
+  // entwaffnet jeden anderen -- zwei offene Rueckfragen waeren nicht mehr
+  // eindeutig zuzuordnen (Fix-Runde 1, Review-Befund 3).
+  function entwaffneAlle(ausser) {
+    document.querySelectorAll('.phase-knopf[data-sicher="1"]').forEach(function (b) {
+      if (b === ausser) { return; }
+      b.removeAttribute('data-sicher');
+      if (b.dataset.beschriftung) { b.textContent = b.dataset.beschriftung; }
+    });
+  }
   document.addEventListener('click', function (ev) {
     var phase = ev.target.closest ? ev.target.closest('.phase-knopf') : null;
     if (phase) {
@@ -242,6 +304,7 @@ _VEREINT_JS = """
       // Inline-Bestaetigung wie beim Entfernen einer Figur, damit ein
       // Fehlgriff auf dem Telefon keine Phase kostet.
       if (phase.getAttribute('data-sicher') !== '1') {
+        entwaffneAlle(null);
         phase.setAttribute('data-sicher', '1');
         phase.dataset.beschriftung = phase.textContent;
         phase.textContent = '__SICHER__'.replace(
@@ -249,21 +312,37 @@ _VEREINT_JS = """
         return;
       }
       phase.disabled = true;
-      fetch(BASIS + 'chat/phase', {
-        method: 'POST', cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nonce: (document.getElementById('nonce') || {}).value || '',
-          nummer: parseInt(phase.dataset.phase, 10),
-          bestaetigt: 1
-        })
-      }).then(function () {
+      sendePhase(phase).then(function (r) {
+        phase.disabled = false;
+        // Entwaffnen und die Beschriftung zuruecksetzen -- Erfolg, Fehler
+        // und Netzausfall gleich (Fix-Runde 1, Review-Befund 3): ein
+        // Knopf, der nach einem Fehlschlag "Wirklich...?" weiterzeigt,
+        // laedt zum blinden zweiten Klick ein.
+        phase.removeAttribute('data-sicher');
+        phase.textContent = phase.dataset.beschriftung;
+        if (r && r.ok) {
+          // Die Roadmap sofort nachladen, statt bis zu __NACHLADEN_MS__ ms
+          // auf den naechsten Takt zu warten (Review-Befund 2) -- der Kopf
+          // und die aktive Phase sollen nicht auf dem alten Stand bleiben.
+          ladeRoadmap();
+          setze('chat');   // die Eintrittsnachricht kommt im Chat an
+          return;
+        }
+        // Fehlschlag: KEIN Tab-Wechsel, und der Server-Satz steht im
+        // Fehlerfeld (Review-Befund 1) -- derselbe Weg wie beim Senden
+        // einer Chatnachricht (``web_chat.fehlerAus``), nur ohne dessen
+        // Scope.
+        if (r) {
+          r.text().then(function (satz) { zeigeFehler((satz || '').trim()); },
+                       function () { zeigeFehler(''); });
+        } else {
+          zeigeFehler('');
+        }
+      }).catch(function () {
         phase.disabled = false;
         phase.removeAttribute('data-sicher');
         phase.textContent = phase.dataset.beschriftung;
-        setze('chat');   // die Eintrittsnachricht kommt im Chat an
-      }).catch(function () {
-        phase.disabled = false;
+        zeigeFehler('');
       });
       return;
     }
@@ -307,7 +386,68 @@ _VEREINT_JS = """
     });
     return s;
   };
+  // Die Roadmap sitzt AUSSERHALB jedes Panels (immer sichtbar, unabhaengig
+  // vom Tab) -- deshalb ein eigener Ausschnitt statt einer Abhaengigkeit
+  // vom Stand-Panel-Gate (Fix-Runde 1, Review-Befund 2). Sie teilt sich den
+  // Takt mit dem Stand-Panel (derselbe ``setInterval`` unten), nicht dessen
+  // Sichtbarkeits- und Bearbeitet-Sperren -- die Roadmap hat keine
+  // Eingabefelder.
+  var roadmapLaeuft = false;
+  var roadmapLetzter = null;
+  function ladeRoadmap() {
+    var aktuell = document.getElementById('roadmap');
+    if (!aktuell || roadmapLaeuft || document.hidden) { return; }
+    // Steht ein Knopf gerade mitten im Request (disabled), wuerde ein
+    // Austausch jetzt seine laufende Antwort auf einen verwaisten Knoten
+    // treffen lassen -- harmlos (die Antwort wirkt dann einfach nicht mehr
+    // sichtbar), aber unnoetig: der naechste Takt reicht.
+    if (aktuell.querySelector('.phase-knopf:disabled')) { return; }
+    roadmapLaeuft = true;
+    // Keine ``location.search`` hier -- die Roadmap kennt keine Fassungswahl,
+    // anders als das Stand-Panel.
+    fetch(BASIS_TEIL + 'roadmap', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return; }
+        var doc = new DOMParser().parseFromString(text, 'text/html');
+        var frisch = doc.body ? doc.body.firstElementChild : null;
+        var neu = frisch ? frisch.outerHTML : null;
+        if (!neu || neu === roadmapLetzter) { return; }
+        var ziel = document.getElementById('roadmap');
+        if (!ziel) { return; }
+        var zustand = offene(ziel);
+        // Ein gerade "bewaffneter" Knopf (zweiter Klick wechselt die Phase)
+        // ueberlebt den Austausch -- sonst entwaffnet ein Nachladen
+        // mitten in der Rueckfrage lautlos, und der naechste Klick trifft
+        // ins Leere (Review-Befund 2/3 zusammen).
+        var bewaffnet = ziel.querySelector('.phase-knopf[data-sicher="1"]');
+        var bewaffneteNummer = bewaffnet ? bewaffnet.dataset.phase : null;
+        ziel.outerHTML = neu;
+        roadmapLetzter = neu;
+        var neues = document.getElementById('roadmap');
+        if (!neues) { return; }
+        neues.querySelectorAll('details > summary').forEach(function (el) {
+          if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
+        });
+        if (bewaffneteNummer) {
+          var wiederKnopf = neues.querySelector(
+            '.phase-knopf[data-phase="' + bewaffneteNummer + '"]');
+          if (wiederKnopf) {
+            wiederKnopf.setAttribute('data-sicher', '1');
+            wiederKnopf.dataset.beschriftung = wiederKnopf.textContent;
+            wiederKnopf.textContent = '__SICHER__'.replace(
+              '{bezeichnung}', wiederKnopf.dataset.bezeichnung);
+          }
+        }
+      })
+      .catch(function () {})
+      .finally(function () { roadmapLaeuft = false; });
+  }
   setInterval(function () {
+    // Im selben Takt wie das Stand-Panel (Review-Befund 2), aber ohne
+    // dessen Gate: die Roadmap ist immer sichtbar, gleich welcher Tab vorn
+    // ist.
+    ladeRoadmap();
     var panel = document.getElementById('tab-stand');
     if (!panel) { return; }
     if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
@@ -357,6 +497,11 @@ _TEXT_PHASE_UNGUELTIG = "Diese Phase gibt es nicht."
 _TEXT_PHASE_UNBESTAETIGT = "Bitte einmal bestätigen."
 _TEXT_PHASE_WECHSELN = "Zu dieser Phase wechseln"
 _TEXT_PHASE_SICHER = "Wirklich zu {bezeichnung}?"
+#: Fix-Runde 1, Review-Befund 1: der Netzfehler-Satz beim Phasenklick --
+#: wortgleich mit ``web_chat._TEXT_FEHLER_NETZ``, aber als eigene Konstante,
+#: weil die beiden JS-IIFEs keinen Gueltigkeitsbereich teilen und
+#: ``web_vereint`` nicht in ``web_chat`` greift.
+_TEXT_PHASE_FEHLER_NETZ = "Keine Verbindung — das ist nicht angekommen."
 _ZEICHEN = {"erledigt": "✅", "offen": "⬜", "laeuft": "⏳"}
 # Knapp (Test: ``test_die_leiste_steht_auf_der_seite_und_ist_knapp``): die
 # Phasenzahl steht als Bruch da ("1/7"), nicht als "1 von 7" -- zugeklappt
@@ -398,8 +543,7 @@ def phase_post(handler, db_pfad: str, token: str, chat_id: int,
     web_chat._angenommen(handler, {"message_id": message_id})
 
 
-def _leiste_html(roadmapdaten: list[dict], nonce_wert: str,
-                 klickbar: bool = True) -> str:
+def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
     """Die Phasenuebersicht: zugeklappt eine Zeile, aufgeklappt die volle Liste.
 
     **Platzierung** (Kartentext: "an geeigneter Stelle anbringen"): ganz oben,
@@ -420,14 +564,17 @@ def _leiste_html(roadmapdaten: list[dict], nonce_wert: str,
     Seite. Die Uebersicht selbst -- Phase, Fortschritt, Sprungziele -- bleibt
     stehen, nur ohne Knopf und ohne ``data-phase``.
 
-    ``nonce_wert`` wird hier bewusst **nicht** in ein eigenes Feld gelegt: das
-    Stand-Panel traegt das einzige ``id="nonce"`` der Seite (geteilt mit dem
-    Chat), und das haelt der Chat-Poll alle zwei bis zehn Sekunden frisch --
-    auch waehrend die Roadmap zugeklappt oder ein anderer Tab vorn ist (der
-    Poll laeuft unabhaengig vom sichtbaren Panel, nur ``document.hidden``
-    verlangsamt ihn). Ein zweites, eigenes Nonce-Feld liefe dagegen nur beim
-    Laden der Seite frisch und stuende nach einer Stunde (dem Nonce-Fenster)
-    mit einem 403 da, wenn die Gruppe laenger auf einem anderen Tab war."""
+    **Kein eigenes Nonce-Feld** (Fix-Runde 1, Review-Befund 4: der fruehere
+    Parameter ``nonce_wert`` brauchte niemand): das Stand-Panel traegt das
+    einzige ``id="nonce"`` der Seite (geteilt mit dem Chat), und das haelt der
+    Chat-Poll alle zwei bis zehn Sekunden frisch -- unabhaengig vom
+    sichtbaren Panel, nur ``document.hidden`` verlangsamt ihn. Ein zweites,
+    eigenes Nonce-Feld liefe dagegen nur beim Laden der Seite frisch und
+    stuende nach einer Stunde (dem Nonce-Fenster) mit einem 403 da. Scheitert
+    ein Klick trotzdem mit 403 (Chat-Poll noch nicht gelaufen), holt
+    ``friskeNonce()`` im JS einmal ``teil/stand`` und liest den frischen Wert
+    direkt aus der Antwort -- derselbe Fall wie bei ``web_chat.postJson``,
+    nur ohne die ganze Chat-Antwort zu brauchen."""
     if not roadmapdaten:
         return ""
     aktiv = next((p for p in roadmapdaten if p["aktiv"]), roadmapdaten[0])
@@ -507,7 +654,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             chatdaten, nonce_wert, token, segment_ms,
             basis=f"{token}/", mit_nonce=False,
         )
-    koerper = [_leiste_html(roadmapdaten, nonce_wert, klickbar=chat_vorhanden),
+    koerper = [_leiste_html(roadmapdaten, klickbar=chat_vorhanden),
               _tabs_html(vorgabe, tabs)]
     for tab in tabs:
         # ``data-textbuch`` ist die Wurzel, an der ``_TEXTBUCH_JS`` seinen
@@ -537,6 +684,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
         .replace("__NACHLADEN_MS__", str(NACHLADEN_MS))
         .replace("__SICHER__", _TEXT_PHASE_SICHER)
+        .replace("__FEHLER_NETZ__", _TEXT_PHASE_FEHLER_NETZ)
         + web._TEXTBUCH_JS
     )
     if chat_vorhanden:
@@ -547,19 +695,47 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     )
 
 
+def _roadmap_html(db_pfad: str, token: str) -> str | None:
+    """Die Phasenuebersicht frisch gerendert -- fuer ``teil/roadmap``
+    (Fix-Runde 1, Review-Befund 2). ``None``, wenn es die Gruppe nicht gibt.
+
+    ``klickbar`` haengt wie auf der ganzen Seite am Web-Kanal
+    (``beantworte_seite``): eine Telegram-Gruppe bekommt auch beim
+    Nachladen keine toten Knoepfe."""
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        daten = web_daten.gruppe_nach_token(conn, token)
+        if daten is None:
+            return None
+        chat_vorhanden = web_daten.web_chatzustand(conn, token) is not None
+        roadmapdaten = web_daten.roadmap(conn, daten["chat_id"])
+    finally:
+        conn.close()
+    return _leiste_html(roadmapdaten, klickbar=chat_vorhanden)
+
+
 def sende_teil(handler, db_pfad: str, token: str, name: str, praefix: str,
               schluessel: bytes, query: str) -> None:
-    """``GET /g/<token>/teil/stand`` -- nur der Rumpf des Stand-Panels.
+    """``GET /g/<token>/teil/<stand|roadmap>`` -- nur der Rumpf eines
+    Ausschnitts.
 
     Der Ersatz fuer das sanfte Nachladen der Einzelseite: dort tauscht
-    ``web._SCROLL_JS`` den ganzen ``<body>``, hier nur dieses eine Panel.
-    Alles andere -- Chat, Aufnahme, Strom, halb getipptes Feld -- bleibt
-    stehen.
+    ``web._SCROLL_JS`` den ganzen ``<body>``, hier nur dieser eine
+    Ausschnitt. Alles andere -- Chat, Aufnahme, Strom, halb getipptes Feld --
+    bleibt stehen.
 
-    Der frische Nonce kommt mit, wie beim sanften Nachladen: er steht IM
-    Rumpf (``web.nonce``), nicht daran."""
+    ``stand`` traegt den frischen Nonce mit, wie beim sanften Nachladen: er
+    steht IM Rumpf (``web.nonce``), nicht daran. ``roadmap`` (Fix-Runde 1)
+    hat keinen eigenen Nonce -- sie braucht keinen, siehe ``_leiste_html``."""
     if name not in _TEILE:
         handler._antworte(404, web.nicht_gefunden_html())
+        return
+    if name == "roadmap":
+        rumpf = _roadmap_html(db_pfad, token)
+        if rumpf is None:
+            handler._antworte(404, web.nicht_gefunden_html())
+            return
+        handler._antworte(200, rumpf)
         return
     daten = handler._gruppe(token)
     if daten is None:

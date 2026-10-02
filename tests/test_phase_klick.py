@@ -10,6 +10,7 @@ Webserver hat kein ``klm``.
 """
 
 import json
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -281,5 +282,137 @@ def test_die_leiste_ohne_chat_hat_keine_klickbaren_phasen(tmp_path):
     finally:
         dienst.shutdown()
     assert "<details" in text and 'class="roadmap"' in text
-    assert "data-phase=" not in text
+    # Nicht einfach "data-phase=" nicht in text: seit Fix-Runde 1 steht die
+    # gleiche Zeichenkette auch im eingebetteten Skript (CSS-Selektor in
+    # ``ladeRoadmap``), das auf JEDER Seite mitkommt. Massgeblich ist der
+    # Rumpf OHNE das Skript.
+    rumpf = re.sub(r"<script>.*?</script>", "", text, flags=re.S)
+    assert "data-phase=" not in rumpf
     assert "data-ziel-tab=" in text
+
+
+# -- Fix-Runde 1 (Review b7ac5a3) --------------------------------------------
+#
+# 1. Die Antwort des Phasenklicks wird geprueft: ein Fehlschlag zeigt den
+#    Servertext und wechselt NICHT in den Chat-Tab; ein 403 frischt den
+#    Nonce einmal auf und versucht es genau ein zweites Mal.
+# 2. Die Roadmap sitzt ausserhalb des Stand-Panels und blieb nach einem
+#    erfolgreichen Klick auf dem alten Stand -- ein eigener Teil
+#    (``/teil/roadmap``), nachgeladen im selben Takt wie der Stand.
+# 3. Ein neu bewaffneter Phasenknopf entwaffnet jeden anderen; der
+#    Netzfehler-Zweig entwaffnet ebenfalls (Beschriftung zurueck).
+# 4. ``_leiste_html`` verliert den nie gebrauchten ``nonce_wert``.
+
+
+def test_der_roadmap_teil_liefert_die_leiste(server):
+    basis, token, _pfad = server
+    with urllib.request.urlopen(f"{basis}/g/{token}/teil/roadmap", timeout=5) as antwort:
+        status = antwort.status
+        text = antwort.read().decode("utf-8")
+    assert status == 200
+    assert "<details" in text and 'class="roadmap"' in text
+    assert 'data-phase="1"' in text
+    # Kein ganzes Dokument, wie beim Stand-Teil -- nur der Ausschnitt.
+    assert "<!doctype html>" not in text
+
+
+def test_der_roadmap_teil_zeigt_die_aktuelle_phase(server):
+    """Nach einem Phasenwechsel zeigt der naechste Abruf des Ausschnitts die
+    neue Phase -- genau das, was das JS im selben Takt wie das Stand-Panel
+    abholt (Review-Befund 2)."""
+    basis, token, pfad = server
+    conn = db.verbinde(pfad)
+    repo.setze_phase(conn, CHAT, 5)
+    conn.commit()
+    conn.close()
+    with urllib.request.urlopen(f"{basis}/g/{token}/teil/roadmap", timeout=5) as antwort:
+        text = antwort.read().decode("utf-8")
+    assert "5/7" in text
+
+
+def test_der_roadmap_teil_hat_keine_knoepfe_ohne_chat(tmp_path):
+    """Dieselbe Regel wie auf der ganzen Seite: eine Telegram-Gruppe
+    bekommt auch beim Nachladen keine toten Phasenknoepfe."""
+    pfad = str(tmp_path / "telegram_teil.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "gruppe1", "Die Ankommenden")
+    token = repo.stelle_web_token_sicher(conn, CHAT)
+    conn.commit()
+    dienst = web.baue_server(pfad, "127.0.0.1:0", "/theatersoap", schluessel=SCHLUESSEL)
+    threading.Thread(target=dienst.serve_forever, daemon=True).start()
+    try:
+        basis = f"http://127.0.0.1:{dienst.server_address[1]}"
+        with urllib.request.urlopen(f"{basis}/g/{token}/teil/roadmap", timeout=5) as antwort:
+            text = antwort.read().decode("utf-8")
+    finally:
+        dienst.shutdown()
+    assert "<details" in text and 'class="roadmap"' in text
+    assert "data-phase=" not in text
+
+
+def test_der_roadmap_teil_fuer_unbekanntes_token_ist_404(server):
+    basis, _token, _pfad = server
+    with pytest.raises(urllib.error.HTTPError) as fehler:
+        urllib.request.urlopen(f"{basis}/g/nichtda/teil/roadmap", timeout=5)
+    assert fehler.value.code == 404
+
+
+def test_ein_unbekannter_teil_bleibt_404(server):
+    """``roadmap`` kam dazu, ``_TEILE`` ist deshalb kein Freifahrtschein."""
+    basis, token, _pfad = server
+    with pytest.raises(urllib.error.HTTPError) as fehler:
+        urllib.request.urlopen(f"{basis}/g/{token}/teil/textbuch", timeout=5)
+    assert fehler.value.code == 404
+
+
+def test_leiste_html_braucht_keinen_nonce_mehr():
+    """Review-Befund 4: der Parameter war nie gebraucht -- das Stand-Panel
+    traegt das einzige ``id=\"nonce\"`` der Seite."""
+    import inspect
+
+    parameter = list(inspect.signature(web_vereint._leiste_html).parameters)
+    assert "nonce_wert" not in parameter
+    assert parameter == ["roadmapdaten", "klickbar"]
+
+
+def test_das_js_prueft_den_antwortstatus():
+    """Review-Befund 1: vorher wurde die Antwort nie angesehen."""
+    assert "r.ok" in web_vereint._VEREINT_JS
+
+
+def test_das_js_friskt_den_nonce_bei_403():
+    """Review-Befund 1, derselbe Grundsatz wie ``web_chat.postJson``: ein
+    403 heisst fast immer ein abgelaufener Nonce."""
+    js = web_vereint._VEREINT_JS
+    assert "friskeNonce" in js
+    assert "r.status === 403" in js
+
+
+def test_das_js_zeigt_den_fehler_ohne_tabwechsel():
+    """Review-Befund 1: ``setze('chat')`` steht NUR im Erfolgszweig."""
+    js = web_vereint._VEREINT_JS
+    assert "zeigeFehler" in js
+    treffer = re.search(r"if \(r && r\.ok\) \{[^{}]*setze\('chat'\);", js)
+    assert treffer is not None, "setze('chat') sollte im r.ok-Zweig stehen"
+    # Ausserhalb dieses einen Zweigs taucht der Tabwechsel nicht noch
+    # einmal im Phasenklick auf.
+    assert js.count("setze('chat')") == 1
+
+
+def test_das_js_entwaffnet_auf_jedem_ausgang():
+    """Review-Befund 3: Erfolg, Fehlschlag und Netzausfall entwaffnen den
+    Knopf gleich -- keiner bleibt auf "Wirklich...?" stehen."""
+    js = web_vereint._VEREINT_JS
+    assert "entwaffneAlle" in js
+    assert js.count("removeAttribute('data-sicher')") >= 3
+
+
+def test_das_js_laedt_die_roadmap_im_selben_takt():
+    """Review-Befund 2: der neue Teil wird im selben ``setInterval`` wie der
+    Stand abgeholt, nicht an dessen Sichtbarkeits-Gate gehaengt."""
+    js = web_vereint._VEREINT_JS
+    assert "ladeRoadmap" in js
+    assert "BASIS_TEIL + 'roadmap'" in js
+    takt = js[js.index("setInterval(function () {"):]
+    assert "ladeRoadmap();" in takt[:takt.index("__NACHLADEN_MS__")]

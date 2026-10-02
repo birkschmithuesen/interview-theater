@@ -32,18 +32,18 @@ b8740509daaa1cefd80383cb22308754480d979b377fb0072ffa61a6b4d34dcb      512  promp
 22b29c348b84518979e05123c34879913c436a1f876989805455ea13ce20154f     5168  prompt stile/litanei
 0d7a06406a1d176af03ffd6aea9a92afb3f4731c44731be00727107f9e5702b6     5686  prompt stile/schlagabtausch
 6f3d893f2b9efd8ada056e19dc0785660e2c22923e752955e6dc8e3b9aba62ce     2435  prompt stueckpruefung
-84bc8ec5874117e9c85c44cb67e4cfc2b8908b9b60646a6ceccfbf828063e2bc    23974  prompt system
+6784a34ea8a579b9dc7db9c672e3b020eceed1c79148fe3755fc2a6e9a063e43    24902  prompt system
 66ce993059f76a50f3ab8433c9fee69b0eecd901b5ac8212b1334325c2727528    15417  prompt szene
 ce75dd90397aca82440c77f0c9638cab6e69f168317a276b77f9483129904d6d     7764  prompt theater-tells
 882f7fc2e425ab79a27c141f70e5551d9c2357b233cb8d7184e7e2f8d417458a     3259  prompt verdichter
-84bc8ec5874117e9c85c44cb67e4cfc2b8908b9b60646a6ceccfbf828063e2bc    23974  anweisungen.system(phase=None)
-0bdd3a81328bf9afae2702319a289a93852dbacd42eb85f85263735b39a53065    26870  anweisungen.system(phase=1)
-2e55a5de453e5b89a9d01e7fd0c42f117b74bba3471091119a7ba9ec701ac901    34176  anweisungen.system(phase=2)
-df77e210ee15fa981f44ded94a62284d7b703d070a5728ddfcdd71773b734aba    28098  anweisungen.system(phase=3)
-2073d7bf10e9e46b98e0dca32d1f0f7bced7effc2dd401f8edb608f63ec95398    33564  anweisungen.system(phase=4)
-e8b012e3a2adf86fdd08d8b81359f59b82ca410a462b86deddc5c966016ea548    27383  anweisungen.system(phase=5)
-c348f87b7e75bd65ad8a6df00bded4ec3c9cbe12a444566cba34954999a26a0d    30514  anweisungen.system(phase=6)
-5de3ad229a7d39847a4b51cdaa306ba632ec6baf4ee031958a8e92363279b75e    29889  anweisungen.system(phase=7)
+6784a34ea8a579b9dc7db9c672e3b020eceed1c79148fe3755fc2a6e9a063e43    24902  anweisungen.system(phase=None)
+fc8873d3082ff127f2242442cbb922890e30c49f13c4d87b5868520971143bc9    27798  anweisungen.system(phase=1)
+e087a123d635129840c19ff0f5f58beb7b305db79c1dddefec4fa5e2823eb533    35104  anweisungen.system(phase=2)
+7b768a6734bca386ded3db3ced20b7a92efa2602c9a776d5a285455543bae501    29026  anweisungen.system(phase=3)
+16da91c764a7f7a2afa745cf996b6c991e5844a8a8c1121d93ba4834376c4684    34492  anweisungen.system(phase=4)
+525561fcd3f9c47e6385b4fc57df317318eac439d19b5eaa4ca0296140ce4eab    28311  anweisungen.system(phase=5)
+52e38110992d0d4e4b8e93d729a862816e2dec123e01cac4867a2dbc42d2edba    31442  anweisungen.system(phase=6)
+2fe20a819de1634fef759d2ba081e5abf52e66f36a87afa0e5b98525c9f3a89b    30817  anweisungen.system(phase=7)
 f5b24852955b52ea13352293fb24a3a080ccfdb31609ff24384de1087439029c    11618  szene.systemanweisung(prosa)
 f5b24852955b52ea13352293fb24a3a080ccfdb31609ff24384de1087439029c    11618  szene.systemanweisung(prosa, schlagabtausch)
 f5b24852955b52ea13352293fb24a3a080ccfdb31609ff24384de1087439029c    11618  szene.systemanweisung(prosa, litanei)

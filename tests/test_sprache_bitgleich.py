@@ -126,7 +126,10 @@ GEAENDERT: dict[str, str] = {
     # Padua Hotfix Befund 2 (02.10.2026): das Gespraechsmodell (reiner Text)
     # sieht keine Bilder und soll ein Foto deshalb nicht mehr anbieten --
     # zusaetzlich zur Station-4-Umbenennung aus Karte P2-Fix, die denselben
-    # Abschnitt beruehrt.
+    # Abschnitt beruehrt. Dazu (Ankuendigung-ohne-Inhalt-Fix, 02.10.2026):
+    # ein neuer Absatz "Nie auf einer Ankuendigung enden" -- Ergebnis des
+    # Padua-Befunds, dass das Modell einen Vorschlag ankuendigte und seinen
+    # Zug dort beendete, ohne ihn zu liefern (siehe ablauf.py:_ohne_ankuendigung).
     "prompt system": (
         _GRUND_STATION_4 + " Dazu (Padua Hotfix Befund 2): system.md bietet "
         "nicht mehr an, die Begriffsliste \"von einem Foto abgetippt\" zu "

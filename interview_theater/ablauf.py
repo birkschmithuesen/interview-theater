@@ -211,6 +211,17 @@ _TEXT_ECHO_ERMAHNUNG = (
     "Rueckfrage."
 )
 
+#: Die Ermahnung fuer den zweiten Anlauf nach einer Ankuendigung ohne Inhalt
+#: (Padua-Befund 02.10.2026, Nachricht 20: "Here they are, numbered:" und dann
+#: nichts -- das Modell beendete seinen Zug auf der Ankuendigung, die Liste
+#: kam erst drei Nachrichten spaeter). Wie bei Denkspur/Echo sagt sie nicht
+#: nur, was falsch war, sondern was stattdessen zu tun ist.
+_TEXT_ANKUENDIGUNG_ERMAHNUNG = (
+    "Deine letzte Antwort hat etwas angekuendigt, aber nicht geliefert -- sie "
+    "endete auf einem Doppelpunkt ohne das Versprochene danach. Schreib die "
+    "Nachricht neu und liefere den Inhalt JETZT, in dieser einen Nachricht."
+)
+
 #: Ab welchem Anteil einer Ausloeser-Nachricht, den die Antwort woertlich
 #: enthaelt, sie als Echo gilt. 80 % lassen eine Antwort durch, die einen
 #: halben Satz aufgreift ("das mit der Kueche finde ich stark, weil ...") und
@@ -652,6 +663,119 @@ def ist_erfundene_systemzeile(text: str | None) -> bool:
                for muster in (_SYSTEMZEILE, _SYSTEMZEILE_EN))
 
 
+#: Angekuendigte Phrasen, die ohne Doppelpunkt enden und trotzdem nichts
+#: liefern (Padua-Befund 02.10.2026, Nachricht 22/24: "I see the button list
+#: didn't come through. I'll try once more with the block format." --
+#: angekuendigt, nie geliefert, zweimal wortgleich wiederholt). Jedes Muster
+#: ist an das Ende der Antwort verankert (``$``), damit eine echte Antwort,
+#: die zufaellig eine aehnliche Wendung MITTENDRIN benutzt und danach noch
+#: etwas sagt, nicht trifft -- nur wenn die Ankuendigung das letzte ist, was
+#: dasteht, ist sie ein Holzweg.
+_ANKUENDIGUNG_OHNE_DOPPELPUNKT = (
+    r"einen moment,?\s*ich (denke nach|schaue nach)\.?\s*$",
+    r"ich (schlage|werde|gebe euch|liefere euch)[^.\n]*(gleich|gerade|jetzt)[^.\n]*\.\s*$",
+    r"i(?:'| wi)ll try (?:once more|again)[^.\n]*\.\s*$",
+    r"i(?:'m| am) (?:putting together|working on)[^.\n]*\.\s*$",
+)
+_ANKUENDIGUNG_OHNE_DOPPELPUNKT_MUSTER = re.compile(
+    "|".join(_ANKUENDIGUNG_OHNE_DOPPELPUNKT), re.IGNORECASE,
+)
+
+
+def ist_ankuendigung_ohne_inhalt(text: str | None) -> bool:
+    """Endet diese Antwort auf einer Ankuendigung, ohne den versprochenen
+    Inhalt zu liefern?
+
+    Padua-Befund 02.10.2026 (Nachricht 20, Phase 2): nach einem zustimmenden
+    "Yes" kam "Great. I'll build one question per term -- five for each, so
+    you can mix. Here they are, numbered:" -- und dann nichts. Die Liste kam
+    erst drei Nachrichten spaeter, nachdem die Gruppe noch einmal ausdruecklich
+    danach gefragt hatte ("Give suggestions"). Das Muster ist allgemein: ein
+    Gespraechsmodell kuendigt Inhalt an und beendet seinen Zug auf der
+    Ankuendigung, statt ihn im selben Zug zu liefern.
+
+    Zwei Signale, reiner Musterabgleich, kein Modellaufruf:
+
+    1. **Die Antwort endet auf einem Doppelpunkt** (nach Entfernen von
+       Leerraum). Das ist die haerteste und allgemeinste Form -- ein
+       Vorschlagsblock wie ``VORSCHLAG FRAGENAUSWAHL:`` endet NIE so, weil
+       die eigentlichen Zeilen danach folgen; nur eine Ankuendigung ohne
+       Fortsetzung tut das.
+    2. **Eine bekannte Ankuendigungsfloskel ohne Doppelpunkt** steht ganz am
+       Ende der Antwort, als letzter Satz (``_ANKUENDIGUNG_OHNE_DOPPELPUNKT``,
+       DE+EN) -- der Live-Fall aus Nachricht 22/24, zweimal wortgleich
+       wiederholt.
+
+    Eine sehr kurze Antwort (unter 10 Zeichen) wird nicht geprueft: ein
+    blosses ":" oder ein Emoji sind kein Fall dieses Musters."""
+    roh = (text or "").strip()
+    if len(roh) < 10:
+        return False
+    if roh.endswith(":"):
+        return True
+    return _ANKUENDIGUNG_OHNE_DOPPELPUNKT_MUSTER.search(roh) is not None
+
+
+def _ohne_ankuendigung(conn, klm, e, chat_id: int, system: str, koerper: str,
+                       text: str, bei_teil=None) -> str:
+    """Liefert die Antwort -- oder, wenn sie eine Ankuendigung ohne Inhalt
+    war, die eines zweiten Anlaufs mit angehaengter Ermahnung
+    (``_TEXT_ANKUENDIGUNG_ERMAHNUNG``).
+
+    Gleiches Muster wie ``_ohne_echo``/``_ohne_denkspur``: **genau ein**
+    zweiter Aufruf, nie mehr -- ist auch der zweite eine Ankuendigung ohne
+    Inhalt, geht er trotzdem raus (Vorfall ``ankuendigung_wiederholt``). Ein
+    Vorschlagsblock in der Antwort gilt nie als Ankuendigung ohne Inhalt: er
+    traegt den Inhalt schon (``vorschlag.enthaelt_block``), auch wenn der
+    Fliesstext davor auf einem Doppelpunkt endet (etwa ein Doppelpunkt vor
+    einer Aufzaehlung, die als Block kommt statt im Fliesstext)."""
+    if vorschlag.enthaelt_block(text) or not ist_ankuendigung_ohne_inhalt(text):
+        return text
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None), "ankuendigung_ohne_inhalt",
+        f"Antwort endete auf einer Ankuendigung ohne Inhalt ({len(text)} "
+        "Zeichen), zweiter Anlauf mit Ermahnung",
+    )
+    # Der zweite Anlauf ersetzt den ersten -- der Strom beginnt NEU, sonst
+    # klebte die verworfene Ankuendigung sichtbar davor (wie bei Echo/Denkspur).
+    if bei_teil is not None:
+        neu = getattr(bei_teil, "neu", None)
+        if callable(neu):
+            neu()
+    try:
+        zweite = klm.schema(
+            chat_id, system,
+            f"{koerper}\n\n{T._TEXT_ANKUENDIGUNG_ERMAHNUNG}",
+            SCHEMA, "gespraech", bei_teil=bei_teil,
+        )["antwort"]
+    except Exception:
+        log.exception(
+            "Zweiter Anlauf nach Ankuendigung ohne Inhalt fehlgeschlagen, "
+            "chat_id=%s", chat_id,
+        )
+        # Der erste Anlauf gilt -- dieselbe Begruendung wie in _ohne_echo:
+        # eine schwache Antwort ist besser als 'Bei mir hakt gerade etwas'.
+        if bei_teil is not None:
+            neu = getattr(bei_teil, "neu", None)
+            if callable(neu):
+                neu()
+            try:
+                bei_teil(text)
+            except Exception:  # noqa: BLE001 -- wie in _ohne_echo
+                log.exception(
+                    "bei_teil-Nachtrag nach gescheitertem Ankuendigungs-Anlauf "
+                    "fehlgeschlagen, chat_id=%s", chat_id,
+                )
+        return text
+    if not vorschlag.enthaelt_block(zweite) and ist_ankuendigung_ohne_inhalt(zweite):
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "ankuendigung_wiederholt",
+            "Auch der zweite Anlauf endete auf einer Ankuendigung ohne "
+            "Inhalt -- trotzdem gesendet",
+        )
+    return zweite
+
+
 def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
                offen: list, antwort: str, bei_teil=None) -> str:
     """Liefert die Antwort -- oder, wenn sie ein Echo war, die eines zweiten
@@ -1081,6 +1205,8 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
                               bei_teil=senke)
         text = _ohne_echo(conn, klm, e, chat_id, system, koerper, offen, text,
                           bei_teil=senke)
+        text = _ohne_ankuendigung(conn, klm, e, chat_id, system, koerper, text,
+                                  bei_teil=senke)
         if hinweis:
             text = f"{text}\n\n{hinweis}"
     return text

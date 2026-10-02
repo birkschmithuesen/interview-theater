@@ -830,3 +830,109 @@ def test_ueberarbeiteter_vorschlagsblock_ist_keine_wiederholung():
     assert ablauf.ist_wiederholung(neu, vorige), "der grobe Filter schlaegt an - genau das Problem"
     assert vorschlag.enthaelt_block(neu)
     assert not vorschlag.enthaelt_block("Klingt gut, was meint ihr?")
+
+
+# ---------------------------------------------------------------------------
+# Ankuendigung ohne Inhalt (Padua-Befund 02.10.2026, Nachricht 20/22/24): das
+# Modell kuendigt Inhalt an und beendet seinen Zug dort, statt ihn zu liefern.
+# ---------------------------------------------------------------------------
+
+def test_ankuendigung_auf_doppelpunkt_wird_erkannt():
+    from interview_theater import ablauf
+
+    text = (
+        "Great. I'll build one question per term -- five for each, so you "
+        "can mix. Here they are, numbered:"
+    )
+    assert ablauf.ist_ankuendigung_ohne_inhalt(text)
+
+
+def test_deutsche_ankuendigung_auf_doppelpunkt_wird_erkannt():
+    from interview_theater import ablauf
+
+    assert ablauf.ist_ankuendigung_ohne_inhalt(
+        "Klar, ich schlage euch fuenf Fragen je Begriff vor, hier kommen sie:"
+    )
+
+
+def test_englische_ankuendigungsfloskel_ohne_doppelpunkt_wird_erkannt():
+    """Der Live-Fall aus Nachricht 22/24: die Ankuendigung endet nicht auf
+    einem Doppelpunkt, sondern auf einem Punkt -- und liefert trotzdem
+    nichts."""
+    from interview_theater import ablauf
+
+    text = (
+        "I see the button list didn't come through. I'll try once more "
+        "with the block format."
+    )
+    assert ablauf.ist_ankuendigung_ohne_inhalt(text)
+
+
+def test_antwort_mit_vorschlagsblock_ist_keine_ankuendigung_ohne_inhalt():
+    from interview_theater import ablauf
+
+    text = (
+        "Hier die fuenf Fragen je Begriff:\n\nVORSCHLAG FRAGENAUSWAHL:\n"
+        "Heimat: Wann hast du dich zuletzt fremd gefuehlt?"
+    )
+    assert not ablauf.ist_ankuendigung_ohne_inhalt(text), (
+        "endet nicht auf einem Doppelpunkt -- der Block folgt in eigenen Zeilen"
+    )
+
+
+def test_echte_antwort_mit_doppelpunkt_mittendrin_ist_keine_ankuendigung():
+    from interview_theater import ablauf
+
+    text = "Zwei Dinge sind mir wichtig: die Reihenfolge und die Laenge."
+    assert not ablauf.ist_ankuendigung_ohne_inhalt(text)
+
+
+def test_sehr_kurze_antwort_wird_nicht_geprueft():
+    from interview_theater import ablauf
+
+    assert not ablauf.ist_ankuendigung_ohne_inhalt("Okay:")
+
+
+def test_ankuendigung_loest_genau_einen_zweiten_aufruf_mit_ermahnung_aus(conn, einst, tg):
+    from interview_theater import ablauf
+
+    repo.merke_nachricht(conn, 1, 1, "Birk", 0, "text", "Yes", repo._jetzt())
+    klm = KLMNacheinander(
+        "Great. I'll build one question per term. Here they are, numbered:",
+        "Here they are:\n\n1. Was war dein erster Job?\n2. Was fehlt dir daran heute?",
+    )
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(klm.gesehen) == 2, "genau ein zweiter Anlauf"
+    assert ablauf._TEXT_ANKUENDIGUNG_ERMAHNUNG in klm.gesehen[1]
+    assert ablauf._TEXT_ANKUENDIGUNG_ERMAHNUNG not in klm.gesehen[0]
+    assert _vorfallarten(conn) == ["ankuendigung_ohne_inhalt"]
+
+
+def test_ohne_ankuendigung_bleibt_es_bei_einem_aufruf(conn, einst, tg):
+    from interview_theater import ablauf
+
+    repo.merke_nachricht(conn, 1, 1, "Birk", 0, "text", "Yes", repo._jetzt())
+    klm = KLMNacheinander(_EIGENE_ANTWORT)
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(klm.gesehen) == 1
+    assert _vorfallarten(conn) == []
+
+
+def test_auch_die_zweite_ankuendigung_wird_gesendet(conn, einst, tg):
+    """Kein Endlos, wie bei Echo/Denkspur: ein Modell, das zweimal ankuendigt
+    statt zu liefern, kuendigt auch beim dritten Mal an -- und die Gruppe
+    wartet. Der Vorfall haelt es fuers Dashboard fest."""
+    from interview_theater import ablauf
+
+    repo.merke_nachricht(conn, 1, 1, "Birk", 0, "text", "Yes", repo._jetzt())
+    klm = KLMNacheinander("Here they are, numbered:")
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(klm.gesehen) == 2
+    assert tg.gesendet == [(1, "Here they are, numbered:")]
+    assert _vorfallarten(conn) == ["ankuendigung_ohne_inhalt", "ankuendigung_wiederholt"]

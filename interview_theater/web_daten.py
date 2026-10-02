@@ -404,6 +404,10 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
                     f"SELECT count(*) FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT}",
                     (chat_id,),
                 ).fetchone()[0],
+                "phasen_debriefs": conn.execute(
+                    "SELECT count(*) FROM phasen_debrief WHERE chat_id = ? AND geloescht = 0",
+                    (chat_id,),
+                ).fetchone()[0],
                 "szenen_formen": _szenen_nach_form(conn, chat_id),
                 "interview_kurzformen": _interview_kurzformen(conn, chat_id),
                 "letzte_aktivitaet": _letzte_aktivitaet(conn, chat_id),

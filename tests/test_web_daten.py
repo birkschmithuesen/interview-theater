@@ -106,6 +106,30 @@ def test_dashboard_traegt_keinen_nachrichtentext(gefuellt):
     assert "wir haben lange gewartet" not in text
 
 
+def test_dashboard_zaehlt_phasen_debriefs(gefuellt):
+    """Das Dashboard zeigt je Gruppe die Zahl der Phasen-Debriefs."""
+    daten = web_daten.dashboard(gefuellt, jetzt=JETZT)
+    erste = daten["gruppen"][0]
+    assert erste["phasen_debriefs"] == 0, "Noch kein Debrief geschrieben"
+
+    # Eine Phase verlassen -- Debrief erstellen
+    repo.merke_phasen_debrief(gefuellt, 1, 1, "Phase 1 abgeschlossen", "test-modell")
+    daten = web_daten.dashboard(gefuellt, jetzt=JETZT)
+    erste = daten["gruppen"][0]
+    assert erste["phasen_debriefs"] == 1
+
+    # Zweite Phase verlassen
+    repo.merke_phasen_debrief(gefuellt, 1, 2, "Phase 2 abgeschlossen", "test-modell")
+    daten = web_daten.dashboard(gefuellt, jetzt=JETZT)
+    erste = daten["gruppen"][0]
+    assert erste["phasen_debriefs"] == 2
+
+    # Gruppe 2 hat keine Debriefs
+    daten = web_daten.dashboard(gefuellt, jetzt=JETZT)
+    zweite = daten["gruppen"][1]
+    assert zweite["phasen_debriefs"] == 0
+
+
 def test_vorfaelle_nur_aus_den_letzten_zwei_stunden(conn):
     repo.merke_vorfall(conn, 1, "gruppe1", "kuerzung", "Stufe 1 gegriffen", stufe=1)
     conn.execute("UPDATE vorfall SET erstellt_am = ?", (_iso(10),))

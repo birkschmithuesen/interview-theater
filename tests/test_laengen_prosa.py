@@ -276,3 +276,38 @@ def test_starte_verhaelt_sich_wie_vorher(prosa_bereit, einst, tg):
     assert kurzgeschichte.laeuft(1) is False
     fertig = kurzgeschichte.T._TEXT_FERTIG.format(anzahl=2)
     assert any(fertig in t for t in tg.texte), tg.texte
+
+
+# --- Karte P2-Fix: die Abschnittszahl bindet bei vorhandener Szenenfolge ---
+
+
+def test_der_englische_prosablock_bindet_die_abschnittszahl(monkeypatch):
+    """Birk, 02.10.2026: fest, sobald eine Szenenfolge existiert; ohne
+    Szenenfolge waehlt das Modell frei.
+
+    c5 hatte die Regel am 01.10. auf "a suggestion, not a requirement"
+    gedreht -- im selben Dokumentensatz, in dem ``phasen/6.md:44-50``
+    weiterhin "its number and its order count" sagt. Die Entscheidung setzt
+    die alte Regel der Sache nach wieder ein; damit ist ``phasen/6.md``
+    **ohne Aenderung** wieder durchgehend wahr."""
+    from interview_theater import anweisungen, workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    text = " ".join(anweisungen.hole("formen/prosa").split())
+    assert "a suggestion, not a requirement" not in text
+    assert "its number of scenes is binding" in text
+    assert "you choose the number of sections from the story" in text.lower()
+
+
+def test_phase_sechs_bleibt_bei_der_bindenden_folge(monkeypatch):
+    """Die Gegenprobe zur vorigen Zusicherung: die Phasenanweisung sagt es
+    schon, und sie wird dafuer NICHT angefasst."""
+    from interview_theater import anweisungen, workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    text = " ".join(anweisungen.hole("phasen/6").split())
+    assert "its number and its order count" in text

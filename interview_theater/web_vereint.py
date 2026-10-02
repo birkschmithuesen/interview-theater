@@ -41,10 +41,18 @@ NACHLADEN_MS = web.NEULADEN_SEKUNDEN * 1000
 #: waehrend man es liest. ``roadmap`` kam in Fix-Runde 1 dazu (Review-Befund
 #: 2): sie sitzt ausserhalb jedes Panels (immer sichtbar, unabhaengig vom
 #: Tab) und blieb nach einem Phasenklick sonst bis zum vollen Neuladen auf
-#: dem alten Stand.
-_TEILE = ("stand", "roadmap")
+#: dem alten Stand. ``buehne`` kam am 02.10.2026 dazu (Birk, Root-Cause-Fix):
+#: der Tab selbst steht jetzt immer im Dokument (nur ``hidden`` je nach
+#: Phase), und sein Inhalt -- neue Karten aus dem Brainstorm -- soll sich
+#: aktualisieren, WAEHREND er offen ist, nicht erst nach einem Neuladen.
+_TEILE = ("stand", "roadmap", "buehne")
 
-#: Die drei Panels. Reihenfolge = Reihenfolge der Tableiste.
+#: Die drei Panels. Reihenfolge = Reihenfolge der Tableiste. ``buehne`` steht
+#: NICHT fest hier drin (anders als seit 02.10.2026 im gerenderten Markup):
+#: dieselbe Konstante geht als ``__TABS__`` auch ins Hash-Routing des Skripts
+#: (``lies()``/``setze()``), und ein mitgebrachtes ``#buehne`` auf einer
+#: Telegram-Seite (kein Web-Kanal, aber immer ein CoThinker-Tab) soll genauso
+#: funktionieren wie auf der Web-Seite -- ``seite()`` haengt ihn dort fest an.
 TABS = ("chat", "stand", "textbuch")
 
 #: Ohne Fragment steht der Chat vorn: dort wird gearbeitet, die anderen
@@ -481,10 +489,23 @@ _VEREINT_JS = """
   // Der Tab steht als BLOSSES Wort im Fragment (#chat, #stand, #textbuch) --
   // damit ein geteilter Rollenlink dieselbe Form hat wie auf der
   // Probenansicht: #textbuch&figur=Leyla.
+  // CoThinker-Root-Cause-Fix (Birk 02.10.2026): ``buehne`` steht jetzt IMMER
+  // in TABS (das Panel existiert immer im Dokument, nur ``hidden`` je nach
+  // Phase) -- ``lies()`` muss den alten Rueckfall deshalb selbst nachbauen,
+  // nicht mehr ueber ein fehlendes Array-Element: ein mitgebrachtes
+  // ``#buehne`` (alter Link) ausserhalb Phase 4 faellt weiterhin auf
+  // VORGABE zurueck, genau wie zuvor.
+  function istPhase4() {
+    var rm = document.getElementById('roadmap');
+    return !!rm && rm.dataset.aktivePhase === '4';
+  }
   var lies = function () {
     var teile = location.hash.replace(/^#/, '').split('&');
     for (var i = 0; i < teile.length; i++) {
-      if (TABS.indexOf(teile[i]) >= 0) { return teile[i]; }
+      if (TABS.indexOf(teile[i]) >= 0) {
+        if (teile[i] === 'buehne' && !istPhase4()) { continue; }
+        return teile[i];
+      }
     }
     return VORGABE;
   };
@@ -496,6 +517,12 @@ _VEREINT_JS = """
       if (knopf) { knopf.setAttribute('aria-selected', tab === name ? 'true' : 'false'); }
     });
     document.body.dataset.tab = name;
+    // Der unaufdringliche Marker (Birk, Feedback b) gilt nur, solange der
+    // Tab nicht vorn ist -- ein Oeffnen raeumt ihn weg, kein zweiter Weg.
+    if (name === 'buehne') {
+      var buehneKnopf = document.querySelector('.tabs button[data-tab="buehne"]');
+      if (buehneKnopf) { delete buehneKnopf.dataset.neu; }
+    }
   };
   var setze = function (name) {
     var teile = location.hash.replace(/^#/, '').split('&').filter(function (t) {
@@ -768,6 +795,24 @@ _VEREINT_JS = """
     // dessen Gate: die Roadmap ist immer sichtbar, gleich welcher Tab vorn
     // ist.
     ladeRoadmap();
+    // CoThinker-Root-Cause-Fix (Birk 02.10.2026): Tab-Knopf UND Panel
+    // folgen der frisch geladenen Phase -- unabhaengig davon, wie die
+    // Gruppe in Phase 4 eingetreten ist (Chat, Phasenleiste-Klick, "Ja
+    // speichern"). KEIN automatischer Tab-Wechsel beim Erscheinen (Birk:
+    // "no surprise jumps") -- nur beim VERLASSEN von Phase 4, waehrend der
+    // Buehne-Tab gerade vorn ist, faellt die Seite auf VORGABE zurueck,
+    // weil ihr Panel sonst leer verborgen vorn staende.
+    var buehnePanel = document.getElementById('tab-buehne');
+    var buehneKnopf = document.querySelector('.tabs button[data-tab="buehne"]');
+    if (buehnePanel && buehneKnopf) {
+      var p4 = istPhase4();
+      buehneKnopf.hidden = !p4;
+      if (!p4) {
+        buehnePanel.hidden = true;
+        delete buehneKnopf.dataset.neu;
+        if (document.body.dataset.tab === 'buehne') { setze(VORGABE); }
+      }
+    }
     var panel = document.getElementById('tab-stand');
     if (!panel) { return; }
     if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
@@ -798,15 +843,54 @@ _VEREINT_JS = """
       .catch(function () {})
       .finally(function () { laeuft = false; });
   }, __NACHLADEN_MS__);
+  // -- CoThinker-Panel: Live-Aktualisierung + unaufdringlicher Marker ------
+  //
+  // Birk, Feedback b (02.10.2026): der Bot "antwortet" im Brainstorm-Modus
+  // NICHT im Chat -- eine neue Karte zeigt sich nur hier. Offen zeigt sich
+  // eine neue Karte sofort (derselbe Takt wie Stand/Roadmap); geschlossen
+  // reicht ein Punkt am Tab-Knopf (``data-neu``), kein Text, keine Zahl.
+  var buehneLetzter = null;
+  function ladeBuehne() {
+    if (!istPhase4()) { return; }
+    var panel = document.getElementById('tab-buehne');
+    if (!panel) { return; }
+    if (buehneLetzter === null) { buehneLetzter = panel.innerHTML; }
+    fetch(BASIS_TEIL + 'buehne', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (text === null) { return; }
+        var doc = new DOMParser().parseFromString(text, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        if (!neu || neu === buehneLetzter) { return; }
+        buehneLetzter = neu;
+        if (!panel.hidden) {
+          // Offen: sofort ersetzen -- kein Scroll-/Aufklapp-Zustand zu
+          // bewahren, das Panel traegt keine eigenen <details>.
+          panel.innerHTML = neu;
+          return;
+        }
+        // Verborgen: nur der Punkt am Tab-Knopf, kein Inhalt vorab tauschen
+        // (der naechste Oeffnen-Takt holt ohnehin frisch, siehe oben).
+        var knopf = document.querySelector('.tabs button[data-tab="buehne"]');
+        if (knopf) { knopf.dataset.neu = '1'; }
+      })
+      .catch(function () {});
+  }
+  setInterval(ladeBuehne, __NACHLADEN_MS__);
   zeige(lies());
 })();
 """
 
 
-def _tabs_html(aktiv: str, tabs=TABS) -> str:
+def _tabs_html(aktiv: str, tabs=TABS, phase4: bool = True) -> str:
+    """``phase4=False`` haengt ein ``hidden`` an den CoThinker-Knopf, damit
+    die Seite schon beim ersten Rendern (vor jedem Poll-Takt) stimmt --
+    derselbe Zustand, den ``_VEREINT_JS`` danach bei jedem Takt aus
+    ``#roadmap``s ``data-aktive-phase`` neu herstellt."""
     knoepfe = "".join(
         f'<button type="button" role="tab" data-tab="{tab}" '
-        f'aria-selected="{"true" if tab == aktiv else "false"}">'
+        f'aria-selected="{"true" if tab == aktiv else "false"}"'
+        f'{" hidden" if tab == "buehne" and not phase4 else ""}>'
         f"{T._TEXT_TAB[tab]}</button>"
         for tab in tabs
     )
@@ -963,7 +1047,11 @@ def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
             f'<ul class="aufgaben">{aufgaben}</ul></li>'
         )
     return (
-        f'<details class="roadmap" id="roadmap">'
+        # ``data-aktive-phase`` (Birk 02.10.2026, Bühne-Root-Cause-Fix): die
+        # Phase steht hier schon serverseitig fest -- das JS liest sie bei
+        # jedem Roadmap-Takt, um den CoThinker-Tab (Button + Panel) ein-
+        # und auszublenden, OHNE auf ein volles Neuladen zu warten.
+        f'<details class="roadmap" id="roadmap" data-aktive-phase="{aktiv["nummer"]}">'
         f'<summary>{html.escape(kopf)}</summary>'
         f'<ol class="phasen">{"".join(zeilen)}</ol>'
         f'</details>\n'
@@ -994,24 +1082,27 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
 
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
     tabs = TABS if chat_vorhanden else tuple(t for t in TABS if t != "chat")
-    # UX-Knoepfe-Karte, Abschnitt 5 (02.10.2026): der Buehne-Tab aus
-    # feat/brainstorm-vad, jetzt als echter Tab statt des frueheren
-    # verschachtelten "Chat · Buehne"-Umschalters im Stand-Panel. Sichtbar
-    # NUR in Phase 4 -- ausserhalb davon steht der Knopf gar nicht in
-    # ``tabs``, und ``lies()`` in ``_VEREINT_JS`` faellt fuer ein
-    # mitgebrachtes ``#buehne`` (z. B. ein alter Link) automatisch auf
-    # ``VORGABE`` zurueck, weil es dort nicht mehr in ``TABS`` steht --
-    # derselbe Mechanismus wie beim fehlenden "chat"-Tab ohne Web-Kanal.
+    # CoThinker-Root-Cause-Fix (Birk 02.10.2026): der Tab steht JETZT IMMER
+    # im Dokument -- vorher nur bei ``phase4`` serverseitig gerendert, so
+    # dass eine Gruppe, die WAEHREND die Seite offen ist in Phase 4 eintritt
+    # (Chat, Phasenleiste, "Ja speichern"), den Tab nie bekam, bis jemand von
+    # Hand neu laedt (derselbe Fehler umgekehrt beim Verlassen von Phase 4).
+    # Sichtbarkeit kommt jetzt allein aus ``hidden`` (siehe unten) und wird
+    # von ``_VEREINT_JS`` bei jedem Roadmap-Takt aus ``#roadmap``s
+    # ``data-aktive-phase`` neu gesetzt -- kein Tab-Wechsel von Serverseite,
+    # kein Neuladen noetig. Eine Telegram-Gruppe (kein Web-Kanal) bekommt den
+    # Tab ebenso: die Buehne haengt an der Phase, nicht am Kanal (wie bisher).
+    tabs = tabs + ("buehne",)
     phase4 = (daten.get("arbeitsstand") or {}).get("phase") == 4
-    if phase4:
-        tabs = tabs + ("buehne",)
     vorgabe = VORGABE_TAB if chat_vorhanden else "stand"
     panels = {
         "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
         "textbuch": web.textbuch_koerper(daten, token, praefix),
+        # Immer gebaut, nicht nur in Phase 4 (s.o.) -- leer bleibt es nicht
+        # teurer als vorher: ``_buehne_html`` liest nur, was ``daten``
+        # ohnehin schon traegt (``buehnenkarten``/``stueckkarte_felder``).
+        "buehne": web._buehne_html(daten),
     }
-    if phase4:
-        panels["buehne"] = web._buehne_html(daten)
     if chat_vorhanden:
         # ``mit_nonce=False``: das Stand-Panel traegt sein ``id="nonce"``
         # schon (``_bearbeiten_html``), mit demselben Wert -- ein zweites
@@ -1023,13 +1114,21 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             basis=f"{token}/", mit_nonce=False, mit_gruppenlink=False,
         )
     koerper = [_leiste_html(roadmapdaten, klickbar=chat_vorhanden),
-              _tabs_html(vorgabe, tabs)]
+              _tabs_html(vorgabe, tabs, phase4=phase4)]
     for tab in tabs:
         # ``data-textbuch`` ist die Wurzel, an der ``_TEXTBUCH_JS`` seinen
         # Zustand ablegt: im gemeinsamen Dokument darf der Rollenfilter nicht
         # am ``<body>`` haengen, sonst faerbte er auch den Chat.
         zusatz = ' data-textbuch=""' if tab == "textbuch" else ""
-        verborgen = "" if tab == vorgabe else " hidden"
+        # Der Buehne-Tab ist zusaetzlich zur Tab-Logik ausserhalb Phase 4
+        # IMMER verborgen -- ``vorgabe`` zeigt nie auf ihn (er steht nicht in
+        # VORGABE_TAB-Kandidaten), diese zweite Bedingung verhindert nur,
+        # dass ein veralteter ``vorgabe``-Wert (koennte nie "buehne" sein,
+        # aber robust bleibt robust) ihn vorzeitig zeigt.
+        verborgen = (
+            " hidden" if tab == "buehne" and not phase4
+            else "" if tab == vorgabe else " hidden"
+        )
         koerper.append(
             f'<section class="panel panel-{tab}" id="tab-{tab}" role="tabpanel"'
             f'{zusatz}{verborgen}>\n{panels[tab]}\n</section>'
@@ -1038,11 +1137,10 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         _CSS_VEREINT
         + scope_css(web._CSS_GRUPPE, ".panel-stand")
         + scope_css(web._CSS_TEXTBUCH, ".panel-textbuch")
+        + scope_css(web._CSS_BUEHNE, ".panel-buehne")
     )
     if chat_vorhanden:
         css += scope_css(web_chat._CSS_CHAT, ".panel-chat")
-    if phase4:
-        css += scope_css(web._CSS_BUEHNE, ".panel-buehne")
     # web_chat._js() und nicht die rohe Konstante _CHAT_JS: sie traegt
     # unersetzte Platzhalter (__POLL_MS__ usw., siehe web_chat._js()-Docstring)
     # -- nur _js() liefert lauffaehiges Skript (Abweichung vom Plan-Kopf-
@@ -1100,7 +1198,7 @@ def _roadmap_html(db_pfad: str, token: str) -> str | None:
 
 def sende_teil(handler, db_pfad: str, token: str, name: str, praefix: str,
               schluessel: bytes, query: str) -> None:
-    """``GET /g/<token>/teil/<stand|roadmap>`` -- nur der Rumpf eines
+    """``GET /g/<token>/teil/<stand|roadmap|buehne>`` -- nur der Rumpf eines
     Ausschnitts.
 
     Der Ersatz fuer das sanfte Nachladen der Einzelseite: dort tauscht
@@ -1110,7 +1208,8 @@ def sende_teil(handler, db_pfad: str, token: str, name: str, praefix: str,
 
     ``stand`` traegt den frischen Nonce mit, wie beim sanften Nachladen: er
     steht IM Rumpf (``web.nonce``), nicht daran. ``roadmap`` (Fix-Runde 1)
-    hat keinen eigenen Nonce -- sie braucht keinen, siehe ``_leiste_html``."""
+    hat keinen eigenen Nonce -- sie braucht keinen, siehe ``_leiste_html``.
+    ``buehne`` (02.10.2026, Birk) ebenso: reines Lesen, kein Formular."""
     if name not in _TEILE:
         handler._antworte(404, web.nicht_gefunden_html())
         return
@@ -1124,6 +1223,9 @@ def sende_teil(handler, db_pfad: str, token: str, name: str, praefix: str,
     daten = handler._gruppe(token)
     if daten is None:
         handler._antworte(404, web.nicht_gefunden_html())
+        return
+    if name == "buehne":
+        handler._antworte(200, web._buehne_html(daten))
         return
     handler._antworte(200, web.gruppe_koerper(
         daten, web.nonce(schluessel, token), token, praefix,

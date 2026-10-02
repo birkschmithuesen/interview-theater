@@ -932,3 +932,149 @@ def test_sprachregel_ueberlebt_die_kuerzung(conn, einst, englisch):
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     assert prompt.rstrip().endswith(kontext.T._AUSLOESER_SPRACHREGEL)
+
+
+# --- Journalblock: Zeichenbudget, Systemnotizen, Abgelehntes (02.10.2026) ---
+#
+# Auf der einzigen echten Gruppe (chat -5143986099) waren die letzten acht
+# Journalzeilen ausnahmslos Buchhaltung des Szenenlaufs; kein Vorschlag und
+# keine Entscheidung der Gruppe stand mehr im Prompt.
+
+
+def _allgemeine_zeilen(block: str) -> list[str]:
+    """Die Zeilen ueber dem Unterblock "Abgelehnt"."""
+    kopf = kontext.T._JOURNAL_ABGELEHNT_KOPF
+    zeilen = block.splitlines()
+    if kopf in zeilen:
+        zeilen = zeilen[: zeilen.index(kopf)]
+    return [z for z in zeilen if z.startswith("- ")]
+
+
+def test_journalbudget_ist_3000_token_und_kuerzt_aelteste_zuerst(conn):
+    assert kontext.BUDGETS["journal"] == 3000
+    budget = kontext.BUDGETS["journal"] * kontext._ZEICHEN_JE_TOKEN
+    # 200 Zeichen je Eintrag, deutlich mehr als ins Budget passt, aber
+    # weniger als die harte Obergrenze: es kuerzt das Zeichenbudget.
+    anzahl = budget // 200 + 20
+    assert anzahl < kontext.JOURNAL_EINTRAEGE
+    for i in range(anzahl):
+        repo.schreibe_journal(conn, 1, "entschieden",
+                              f"EINTRAG{i:03d} " + "x" * 180, "erkenner")
+    block = kontext._baue_journal(conn, 1)
+    zeilen = _allgemeine_zeilen(block)
+
+    assert len(block) <= budget + len(kontext.T._JOURNAL_KOPF)
+    assert "EINTRAG000" not in block                     # aeltester fehlt
+    assert f"EINTRAG{anzahl - 1:03d}" in block            # juengster steht
+    # Was steht, ist ein lueckenloses juengstes Ende -- in zeitlicher Folge.
+    nummern = [int(z.split("EINTRAG")[1][:3]) for z in zeilen]
+    assert nummern == list(range(anzahl - len(nummern), anzahl))
+
+
+def test_journal_harte_obergrenze_greift_bei_kurzen_zeilen(conn):
+    for i in range(kontext.JOURNAL_EINTRAEGE + 30):
+        repo.schreibe_journal(conn, 1, "entschieden", f"K{i}", "erkenner")
+    zeilen = _allgemeine_zeilen(kontext._baue_journal(conn, 1))
+    assert len(zeilen) == kontext.JOURNAL_EINTRAEGE
+    assert zeilen[-1].endswith(f"K{kontext.JOURNAL_EINTRAEGE + 29}")
+
+
+def test_systemnotizen_fehlen_im_prompt_bleiben_aber_in_der_datenbank(conn):
+    from interview_theater import kurzgeschichte, leitfaden, schaerfung, szene
+    notizen = [
+        ("szene", szene._JOURNAL_GESCHRIEBEN.format(nummer=2, titel="Am Steg")),
+        ("szene", kurzgeschichte.JOURNAL.format(anzahl=3)),
+        ("leitfaden", leitfaden.JOURNAL_GEZEIGT),
+        ("schaerfung", schaerfung._JOURNAL_RUNDE.format(runde=1, anzahl=7)),
+    ]
+    for quelle, text in notizen:
+        repo.schreibe_journal(conn, 1, "entschieden", text, quelle)
+    repo.schreibe_journal(conn, 1, "vorgeschlagen", "Ein zweiter Ort ist die Schule.",
+                          "extraktor")
+
+    block = kontext._baue_journal(conn, 1)
+    in_db = [e["text"] for e in repo.journal(conn, 1)]
+
+    for _quelle, text in notizen:
+        assert text in in_db
+        assert text not in block
+    assert "Ein zweiter Ort ist die Schule." in block
+
+
+def test_systemnotiz_haengt_an_der_quelle_nicht_nur_am_wortlaut(conn):
+    """Derselbe Wortlaut aus einer anderen Quelle ist keine Buchhaltung --
+    etwa eine Betreiberzeile, die zufaellig so klingt."""
+    repo.schreibe_journal(conn, 1, "entschieden", "Szene 2 geschrieben: Am Steg", "regie")
+    assert "Szene 2 geschrieben: Am Steg" in kontext._baue_journal(conn, 1)
+
+
+def test_wunsch_der_gruppe_unter_quelle_szene_bleibt_sichtbar(conn):
+    """``szene._JOURNAL_ANDERS`` steht unter derselben ``quelle='szene'`` wie
+    die Buchhaltung -- und ist der einzige Ort, an dem dieser Wunsch der
+    Gruppe steht (echter Fall, Journal-id 69)."""
+    from interview_theater import szene
+    wunsch = szene._JOURNAL_ANDERS.format(
+        nummer=2, text="Auf Wunsch der Gruppe stark verdichtet")
+    repo.schreibe_journal(conn, 1, "entschieden",
+                          szene._JOURNAL_GESCHRIEBEN.format(nummer=2, titel="Fronten"),
+                          "szene")
+    repo.schreibe_journal(conn, 1, "entschieden", wunsch, "szene")
+    # Auch ein Inhalt, der zufaellig "geschrieben:" enthaelt, ist kein
+    # Fortschrittsvermerk -- die Nummer muss eine Zahl sein.
+    trick = szene._JOURNAL_ANDERS.format(nummer=3, text="Die Gruppe hat geschrieben: kuerzer")
+    repo.schreibe_journal(conn, 1, "entschieden", trick, "szene")
+
+    block = kontext._baue_journal(conn, 1)
+    assert wunsch in block
+    assert trick in block
+    assert "Szene 2 geschrieben: Fronten" not in block
+
+
+def test_abgelehntes_steht_immer_auch_hinter_mehr_als_80_eintraegen(conn):
+    for i in range(3):
+        repo.schreibe_journal(conn, 1, "verworfen", f"ABGELEHNT{i} Kindheitsfragen",
+                              "extraktor")
+    for i in range(100):
+        repo.schreibe_journal(conn, 1, "entschieden", f"E{i:03d} " + "y" * 150, "erkenner")
+    repo.schreibe_journal(conn, 1, "verworfen", "ABGELEHNT3 Kein Monolog am Anfang",
+                          "extraktor")
+
+    block = kontext._baue_journal(conn, 1)
+    kopf = kontext.T._JOURNAL_ABGELEHNT_KOPF
+    assert kopf in block
+    unterblock = block.split(kopf, 1)[1]
+    for i in range(4):
+        assert f"ABGELEHNT{i}" in unterblock
+    # Abgesetzt, nicht eingestreut: keine Ablehnung ueber dem Unterblock.
+    assert "ABGELEHNT" not in block.split(kopf, 1)[0]
+    assert "E000" not in block              # das Budget hat trotzdem gekuerzt
+    assert "E099" in block
+
+
+def test_nur_abgelehntes_ergibt_trotzdem_einen_block(conn):
+    repo.schreibe_journal(conn, 1, "verworfen", "Kindheitsfragen", "erkenner")
+    assert kontext._baue_journal(conn, 1) == (
+        kontext.T._JOURNAL_KOPF + kontext.T._JOURNAL_ABGELEHNT_KOPF + "\n- Kindheitsfragen")
+
+
+def test_nur_systemnotizen_ergeben_keinen_block(conn):
+    repo.schreibe_journal(conn, 1, "notiert", "Leitfaden gezeigt", "leitfaden")
+    assert kontext._baue_journal(conn, 1) == ""
+
+
+def test_notbremse_kuerzt_allgemeines_vor_abgelehntem(conn, einst, monkeypatch):
+    """Die Kuerzung in ``_kuerze_auf_budget`` nimmt die allgemeinen Zeilen
+    von vorn weg -- der Unterblock "Abgelehnt" faellt erst mit dem ganzen
+    Journal."""
+    repo.schreibe_journal(conn, 1, "verworfen", "NIEMALSKINDHEIT", "extraktor")
+    for i in range(30):
+        repo.schreibe_journal(conn, 1, "entschieden", f"ALT{i:02d} " + "z" * 200, "erkenner")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+    voll = kontext.baue(conn, 1, ausloeser, einst)
+    # Grenze so, dass ein Teil des Journals weichen muss, aber nicht alles.
+    monkeypatch.setenv("IT_PROMPT_ZEICHEN", str(len(voll) - 1500))
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+    assert len(prompt) < len(voll)
+    assert "NIEMALSKINDHEIT" in prompt
+    assert kontext.T._JOURNAL_ABGELEHNT_KOPF in prompt
+    assert "ALT00" not in prompt and "ALT29" in prompt

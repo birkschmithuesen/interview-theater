@@ -23,6 +23,8 @@ datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
 
 import logging
 import os
+import re
+import string
 from datetime import datetime, timedelta
 
 from interview_theater import phasen, repo
@@ -95,7 +97,12 @@ BUDGETS = {
     "phasenhinweis": 50,
     "figurenhinweis": 100,
     "szene": 2000,
-    "journal": 1500,
+    # Seit 02.10.2026 das echte Mass des Journalblocks (in Zeichen
+    # umgerechnet, ``_baue_journal``), vorher 1500 und daneben ungelesen,
+    # weil feste 8 Zeilen kappten. 3000 Token ~ 9000 Zeichen ~ 80 Zeilen zu
+    # gemessenen 113 Zeichen -- das ganze Journal der einzigen echten Gruppe
+    # (69 Zeilen, 8237 Zeichen) passte hinein. Abgelehntes zaehlt nicht mit.
+    "journal": 3000,
     "fenster": 8000,
     "ausloeser": 300,
 }
@@ -1036,23 +1043,109 @@ def _baue_szene(conn, chat_id: int, grenze: int | None = None) -> str:
     return T._TEXT_AKTUELLE_SZENE.format(szene=szenenzeile(szene), volltext=volltext)
 
 
-#: Wie viele Journaleintraege in den Prompt gehen -- die letzten N nach
-#: Dedupe (Audit-Befund G3, 06.09.2026). Das Journal ist nur-anhaengend und
-#: waechst ueber zwei Workshoptage auf Dutzende Zeilen; gemessen standen am
-#: 06.09. 15 Zeilen im Prompt, davon "Szene 1 geschrieben: ..." VIERMAL und
-#: vier Figurenzeilen mit demselben "basierend auf Interview 1"-Anhang. Ein
-#: Modell liest vierfache Wiederholung als Betonung -- es hielt die eine
-#: geschriebene Szene fuer vier.
-JOURNAL_EINTRAEGE = 8
+#: **Harte Obergrenze** der allgemeinen Journalzeilen im Prompt -- eine
+#: Sicherung, nicht das Mass. Gemessen wird seit dem 02.10.2026 in Zeichen
+#: (``BUDGETS["journal"] * _ZEICHEN_JE_TOKEN``); diese Zahl greift nur, wenn
+#: das Budget einmal zu gross gesetzt waere. Vorher waren es feste 8 Zeilen
+#: (Audit-Befund G3, 06.09.2026) -- und auf der einzigen echten Gruppe waren
+#: die letzten acht ausnahmslos Buchhaltungszeilen des Szenenlaufs ("Szene 2
+#: geschrieben", "Szenenfolge aus der Kurzgeschichte: 3 Abschnitte"); kein
+#: einziger Vorschlag und keine einzige Entscheidung der Gruppe stand mehr
+#: im Prompt. Abgelehntes (``verworfen``) zaehlt hier nicht mit.
+JOURNAL_EINTRAEGE = 80
+
+#: Die Ueberschrift des Unterblocks mit allem Abgelehnten. Er steht am Ende
+#: des Journalblocks, abgesetzt, und wird nie gekuerzt (ausser die Notbremse
+#: in ``_kuerze_auf_budget`` wirft das ganze Journal weg).
+_JOURNAL_ABGELEHNT_KOPF = "Abgelehnt (gilt weiterhin):"
+
+
+def _vorlage_als_muster(vorlage: str) -> re.Pattern:
+    """Aus einer ``str.format``-Vorlage ein Regex fuer genau ihre Ausgaben.
+
+    Zahlenfelder (``nummer``, ``anzahl``, ``runde``, ``seed``) passen nur auf
+    Ziffern -- sonst passte "Szene {nummer} geschrieben: {titel}" auch auf
+    eine "Szene 2: ... geschrieben: ..."-Zeile mit Inhalt."""
+    teile = []
+    for vorn, feld, _fmt, _conv in string.Formatter().parse(vorlage):
+        teile.append(re.escape(vorn))
+        if feld is None:
+            continue
+        teile.append(r"-?\d+" if feld in ("nummer", "anzahl", "runde", "seed") else r".*")
+    return re.compile("".join(teile), re.DOTALL)
+
+
+def _systemnotiz_muster() -> list[tuple[str, re.Pattern]]:
+    """Die reinen Buchhaltungszeilen des Journals als ``(quelle, Muster)``.
+
+    Entschieden wird je **Vorlage**, nicht je ``quelle``: unter
+    ``quelle='szene'`` stehen neben "Szene 2 geschrieben: <Titel>" auch die
+    Zeilen aus ``szene._JOURNAL_ANDERS`` ("Szene 2: Auf Wunsch der Gruppe
+    stark verdichtet ...") -- das ist der einzige Ort, an dem dieser Wunsch
+    der Gruppe steht, und er bleibt sichtbar. Geprueft wird gegen die
+    deutsche Konstante UND die Fassung der aktiven Sprache, weil ein Journal
+    Zeilen aus der Zeit vor einem Sprachwechsel tragen kann.
+
+    Lokale Importe wie ueberall im Repo, wo ein Zyklus droht (``szene``
+    importiert ``kontext``)."""
+    from interview_theater import (kurzgeschichte, laengen, leitfaden, schaerfung,
+                                   stueckpruefung, szene)
+    vorlagen = [
+        # Fortschritt des Szenenlaufs -- die Szene selbst steht im
+        # Arbeitsstand bzw. im Szenenblock.
+        ("szene", szene, "_JOURNAL_GESCHRIEBEN"),
+        # Zahl der Abschnitte der Kurzgeschichte -- dieselbe Zahl steht als
+        # Szenenfolge im Arbeitsstand.
+        ("szene", kurzgeschichte, "JOURNAL"),
+        # Seed/Muster/Budgets des Laengen-Rhythmus: fuer Menschen zum
+        # Nachrechnen, fuer das Gespraech Rauschen.
+        (laengen.JOURNAL_QUELLE, laengen, "JOURNAL_ZEILE"),
+        ("leitfaden", leitfaden, "JOURNAL_GEZEIGT"),
+        # Zaehler eines Laufs -- das Ergebnis liegt in den Tabellen
+        # ``schaerfung``/``stueckpruefung`` und geht von dort in die Prompts.
+        ("schaerfung", schaerfung, "_JOURNAL_RUNDE"),
+        ("stueckpruefung", stueckpruefung, "_JOURNAL_RUNDE"),
+    ]
+    muster = []
+    for quelle, modul, name in vorlagen:
+        for vorlage in {getattr(modul, name), getattr(modul.T, name)}:
+            muster.append((quelle, _vorlage_als_muster(vorlage)))
+    return muster
+
+
+def _ist_systemnotiz(eintrag, muster=None) -> bool:
+    """True, wenn ein Journaleintrag reine Buchhaltung ist und im
+    Gespraechs-Prompt fehlen darf. In der Datenbank bleibt er stehen
+    (``repo.journal`` liefert ihn weiter) -- versteckt wird nur die Sicht des
+    Modells. Abgelehntes ist nie eine Systemnotiz."""
+    if eintrag["art"] == "verworfen":
+        return False
+    text = (eintrag["text"] or "").strip()
+    quelle = eintrag["quelle"]
+    for q, m in (muster if muster is not None else _systemnotiz_muster()):
+        if q == quelle and m.fullmatch(text):
+            return True
+    return False
 
 
 def _baue_journal(conn, chat_id: int) -> str:
-    """Die letzten JOURNAL_EINTRAEGE Journalzeilen, ohne Dubletten.
+    """Der Journalblock: allgemeine Zeilen im Zeichenbudget, dazu ALLES
+    Abgelehnte in einem eigenen Unterblock.
 
     **Dedupe vor Kuerzung**: erst fliegen textgleiche Eintraege raus (der
-    juengste bleibt, weil er den aktuellen Stand traegt), dann werden die
-    letzten N genommen. Andersherum wuerden acht Dubletten acht Plaetze
-    besetzen und alles Aeltere verdraengen.
+    juengste bleibt, weil er den aktuellen Stand traegt), dann wird
+    gekuerzt. Andersherum wuerden Dubletten Plaetze besetzen und alles
+    Aeltere verdraengen.
+
+    Danach (02.10.2026):
+
+    1. reine Buchhaltungszeilen (``_ist_systemnotiz``) fallen aus der Sicht;
+    2. ``verworfen`` geht vollstaendig in den Unterblock "Abgelehnt" -- ohne
+       Budget und ohne Obergrenze: eine Ablehnung, die aus dem Prompt
+       rutscht, schlaegt der Bot beim naechsten Zug wieder vor;
+    3. der Rest wird vom juengsten her genommen, bis
+       ``BUDGETS["journal"] * _ZEICHEN_JE_TOKEN`` Zeichen erreicht sind
+       (hoechstens ``JOURNAL_EINTRAEGE``), und chronologisch ausgegeben.
 
     Das Journal in der Datenbank bleibt unangetastet -- dort steht die volle
     Geschichte, und ein Journal wird nur angehaengt, nie umgeschrieben
@@ -1062,16 +1155,46 @@ def _baue_journal(conn, chat_id: int) -> str:
         return ""
     # Von hinten durchgehen: der juengste Eintrag eines Textes gewinnt.
     gesehen: set[tuple[str, str]] = set()
-    behalten = []
+    neueste_zuerst = []
     for e in reversed(eintraege):
         schluessel = (e["art"], (e["text"] or "").strip())
         if schluessel in gesehen:
             continue
         gesehen.add(schluessel)
-        behalten.append(e)
-    behalten = list(reversed(behalten))[-JOURNAL_EINTRAEGE:]
-    zeilen = [journalzeile(e) for e in behalten]
-    return T._JOURNAL_KOPF + "\n".join(zeilen)
+        neueste_zuerst.append(e)
+
+    muster = _systemnotiz_muster()
+    abgelehnt = []
+    allgemein = []
+    budget = BUDGETS["journal"] * _ZEICHEN_JE_TOKEN
+    verbraucht = 0
+    voll = False
+    for e in neueste_zuerst:
+        # Kein ``break`` bei vollem Budget: die aelteren Ablehnungen muessen
+        # trotzdem noch eingesammelt werden.
+        if e["art"] == "verworfen":
+            abgelehnt.append(e)
+            continue
+        if voll or _ist_systemnotiz(e, muster):
+            continue
+        zeile = journalzeile(e)
+        if len(allgemein) >= JOURNAL_EINTRAEGE or verbraucht + len(zeile) + 1 > budget:
+            # Juengstes zuerst: was hier nicht mehr passt, ist aelter als
+            # alles schon Genommene -- und alles danach noch aelter.
+            voll = True
+            continue
+        verbraucht += len(zeile) + 1
+        allgemein.append(zeile)
+
+    if not allgemein and not abgelehnt:
+        return ""
+    teile = list(reversed(allgemein))
+    if abgelehnt:
+        if teile:
+            teile.append("")
+        teile.append(T._JOURNAL_ABGELEHNT_KOPF)
+        teile.extend(f"- {(e['text'] or '').strip()}" for e in reversed(abgelehnt))
+    return T._JOURNAL_KOPF + "\n".join(teile)
 
 
 def journalzeile(eintrag) -> str:
@@ -1696,9 +1819,15 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
     if _zu_lang() and bloecke["journal"]:
         journalzeilen = bloecke["journal"].split("\n")
         # Zeile 0 ist die Ueberschrift "Journal:" -- sie bleibt, solange
-        # noch eine Notiz darunter steht.
-        while _zu_lang() and len(journalzeilen) > 2:
+        # noch eine Notiz darunter steht. Gekuerzt werden nur die
+        # allgemeinen Zeilen (aelteste zuerst); der Unterblock "Abgelehnt"
+        # faellt erst mit dem ganzen Journal.
+        kopf_abgelehnt = T._JOURNAL_ABGELEHNT_KOPF
+        while _zu_lang() and len(journalzeilen) > 2 and journalzeilen[1] != kopf_abgelehnt:
             journalzeilen = [journalzeilen[0]] + journalzeilen[2:]
+            if journalzeilen[1] == "":
+                # die Leerzeile vor "Abgelehnt", wenn nichts mehr davor steht
+                journalzeilen = [journalzeilen[0]] + journalzeilen[2:]
             bloecke["journal"] = "\n".join(journalzeilen)
         if _zu_lang():
             bloecke["journal"] = ""

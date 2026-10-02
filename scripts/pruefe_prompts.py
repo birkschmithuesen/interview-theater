@@ -907,6 +907,26 @@ def main(argv=None) -> int:
                 f"IT_WORKSHOP={os.environ[workshop.VARIABLE]!r} ergibt "
                 f"sprache.code()={sprache.code()!r}, nicht 'en'."
             )
+    else:
+        # Symmetrische Pruefung zum obigen "en"-Zweig (02.10.2026, erkenner-fp):
+        # die deutschen Korpora (korpus/*.jsonl) sind nur gegen einen deutschen
+        # Prompt gueltig. Steht in der geladenen Umgebung ein IT_WORKSHOP mit
+        # anderer Chat- und Promptsprache (z. B. padua-2026, "Padua laeuft auf
+        # Englisch"), laedt anweisungen.py den englischen erkenner.md fuer
+        # deutsche Korpusnachrichten -- gemessen am 02.10.2026: fl02/fl03
+        # bekamen dadurch englischen Fliesstext in einem Bereich, der laut
+        # Korpus deutsch sein sollte, und zaehlten als Falsch-Positiv. Ohne
+        # diese Pruefung bleibt der Fehlschlag stumm, weil beide Sprachen
+        # dieselben Bereichswoerter (STRUKTUR, STIL, ...) im Beispiel tragen.
+        if sprache.code() != "de":
+            raise SystemExit(
+                f"IT_WORKSHOP={os.environ.get(workshop.VARIABLE)!r} ergibt "
+                f"sprache.code()={sprache.code()!r}, nicht 'de' -- die "
+                "deutschen Korpora passen nicht zu einem nicht-deutschen "
+                "Prompt. IT_WORKSHOP in der geladenen env-Datei auf ein "
+                "deutschsprachiges Profil setzen oder leeren, oder "
+                "--sprache en mit dem passenden Korpus verwenden."
+            )
 
     e = einstellungen.laden()
     with tempfile.TemporaryDirectory(prefix="interview_theater-korpus-") as verzeichnis:

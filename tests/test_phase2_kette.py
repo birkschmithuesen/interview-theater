@@ -188,13 +188,8 @@ def test_nach_der_eroeffnung_folgt_die_abschlussnachricht(
 
     _druecke(conn, tg, einst, "Ja, speichern")
 
-    letzte = [b for b, _ in tg.knoepfe[-1][2]]
-    assert letzte == [
-        f"Weiter zu {phasen.knopfbezeichnung(3)}", "Noch etwas aendern",
-    ]
-    assert tg.knoepfe[-1][1].endswith(
-        f"Weiter zu {phasen.knopfbezeichnung(3)}?"
-    )
+    # Seit 02.10.2026: direkt in Phase 3, kein Angebot dazwischen.
+    assert phasen.aktuelle(conn, 1) == 3
 
 
 def test_mit_der_eroeffnung_kommt_der_leitfaden_und_sein_knopf(
@@ -225,8 +220,7 @@ def test_die_kette_endet_nie_stumm(conn, tg, einst, auftraege):
         conn, tg, 1,
         "VORSCHLAG EROEFFNUNG:\nHallo, wir sind da.\nAbschluss: Danke dir.",
     )
-    vorher = len(tg.knoepfe)
     _druecke(conn, tg, einst, "Ja, speichern")
 
-    assert len(tg.knoepfe) > vorher, "Schritt 2: das Phasenangebot"
+    assert phasen.aktuelle(conn, 1) == 3, "Schritt 2: direkt in die Interviews"
     assert phasen.voraussetzungen(conn, 1)[3] is True

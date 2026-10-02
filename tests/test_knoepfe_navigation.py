@@ -75,28 +75,33 @@ def test_ein_wert_traegt_die_ja_nein_rueckspiegelung(conn, tg):
     ]
 
 
-def test_gefaellt_uns_weiter_speichert_und_fragt_nach_ergaenzungen(conn, tg, einst):
+def test_ja_speichern_fixiert_und_geht_direkt_in_die_naechste_phase(conn, tg, einst):
+    """02.10.2026 (Birk, Padua): "Ja, speichern" fixiert UND wechselt sofort
+    die Phase -- keine Zwischenfrage, kein "Weiter zu ..."-Angebot."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
 
     _druecke(conn, tg, einst, "Ja, speichern")
 
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat"
-    assert any(
-        "hinzufuegen" in t for _, t in tg.gesendet
-    ), "die Frage nach Ergaenzungen fehlt"
+    assert phasen.aktuelle(conn, 1) == 2
+    assert not any("hinzufuegen" in t for _, t in tg.gesendet)
+    assert not any(
+        b.startswith("Weiter zu") for _, _, leiste in tg.knoepfe for b, _ in leiste
+    )
     assert tg.entfernt, "die Tastatur ist weg"
 
 
 def test_nach_nein_kommt_die_leiste_wieder_und_ueberschreibt(
     conn, tg, einst
 ):
-    """Der Kern des zweiten Knopfes (06.09.2026 neu: "Nein, nochmal
-    aendern"): er speichert NICHT, aber die Gruppe kommt an den Wert wieder
-    heran -- sonst waere die Aenderung eine Sackgasse."""
+    """Der zweite Knopf ("Nein, nochmal aendern") speichert seit dem
+    02.10.2026 VORLAEUFIG, fragt nach -- und die naechste Fassung traegt die
+    Leiste wieder und ueberschreibt."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
     _druecke(conn, tg, einst, "Nein, nochmal aendern")
-    stand = repo.hole_arbeitsstand(conn, 1)
-    assert not (stand and (stand["begriffe"] or "").strip())
+    assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat"
+    assert tg.gesendet[-1][1] == "Vorerst gespeichert. Was soll anders sein?"
+    assert phasen.aktuelle(conn, 1) == 1
 
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit")
     _druecke(conn, tg, einst, "Ja, speichern")

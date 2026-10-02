@@ -15,7 +15,7 @@ unter ihre Nachrichten.
 from interview_theater import phasen, repo
 
 from interview_theater.knoepfe.texte import (
-    ART_NOCH_NICHT, ART_PHASE, PHASE_INTERVIEWS, PHASE_SCHAERFUNG,
+    ART_NOCH_NICHT, ART_PHASE, ART_SPEICHERN, PHASE_INTERVIEWS, PHASE_SCHAERFUNG,
     PHASE_STUECKPRUEFUNG, PHASE_SZENEN, T,
 )
 from interview_theater.knoepfe.basis import (
@@ -29,6 +29,34 @@ from interview_theater.knoepfe.szenen import (
     biete_durchlauf, biete_kurzgeschichte, biete_szene_usa, starte_schaerfung,
     starte_stueckpruefung,
 )
+
+
+def uebergang_nach_speichern(conn, tg, klm, e, chat_id: int) -> bool:
+    """Direkter Phasenwechsel nach "Ja, speichern" (02.10.2026, Birk, Padua):
+    Feld fixiert, dann dieselbe Wirkung wie der Knopf "Weiter zu ..."
+    (``_wirkung_phase``) -- Meldung + Eintritt. Liefert False, wenn die
+    Materiallage noch keine naechste Phase hergibt; dann bleibt alles beim
+    Alten."""
+    nummer = phasen.naechste_moegliche(conn, chat_id)
+    if nummer is None:
+        return False
+    phasen.merke_angebot(conn, chat_id, nummer)
+    if phasen.setze(conn, chat_id, nummer, "knopf"):
+        tg.sende(chat_id, phasen.meldung(nummer))
+    eintritt_in_phase(conn, tg, klm, e, chat_id, nummer)
+    return True
+
+
+def _speicherleiste_offen(conn, chat_id: int) -> bool:
+    """Steht in dieser Phase eine ungedrueckte "Ja, speichern"-Leiste? Dann
+    traegt ihr Ja den Phasenwechsel (``uebergang_nach_speichern``), und ein
+    zweites Angebot "Weiter zu ... / Noch etwas aendern" waere doppelt
+    (02.10.2026, Birk: beide Knoepfe gestrichen)."""
+    seit = repo.hole_phase_gesetzt_am(conn, chat_id) or ""
+    return any(
+        (k["erstellt_am"] or "") >= seit
+        for k in repo.offene_knoepfe(conn, chat_id, ART_SPEICHERN)
+    )
 
 
 def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
@@ -54,6 +82,8 @@ def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
     Deterministisch, kein Modellaufruf (Zusage 2)."""
     stufe = phasen.offenes_angebot(conn, chat_id)
     if stufe is None:
+        return False
+    if _speicherleiste_offen(conn, chat_id):
         return False
     phasen.merke_angebot(conn, chat_id, stufe)
     weiter_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(stufe))

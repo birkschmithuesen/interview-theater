@@ -297,7 +297,7 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
     )
 
 
-def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None) -> str:
+def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None, klm=None) -> str:
     """Zerlegt den Block ``VORSCHLAG EROEFFNUNG:`` in Eroeffnung und
     Abschluss und legt beides ab.
 
@@ -357,9 +357,14 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None) -> str:
     # Abschlussnachricht mit "Weiter zu Interviews". Vorher stand nach dem
     # letzten "Gefaellt uns, weiter" nichts mehr da, und die Gruppe wartete
     # auf einen Schritt, den niemand mehr machte.
-    from interview_theater.knoepfe.stationen import biete_phase_proaktiv
+    # Seit 02.10.2026 (Birk, Padua) direkt in die Interviews -- dieselbe
+    # Regel wie bei jedem "Ja, speichern" (``uebergang_nach_speichern``).
+    from interview_theater.knoepfe.stationen import (
+        biete_phase_proaktiv, uebergang_nach_speichern,
+    )
 
-    biete_phase_proaktiv(conn, tg, chat_id)
+    if not uebergang_nach_speichern(conn, tg, klm, e, chat_id):
+        biete_phase_proaktiv(conn, tg, chat_id)
     return T._TEXT_EROEFFNUNG_QUITTUNG
 
 

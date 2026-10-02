@@ -246,7 +246,15 @@ def speicherleiste(conn, chat_id: int, art: str, wert: str) -> list[tuple[str, s
     speichern = repo.lege_knopf_an(
         conn, chat_id, ART_SPEICHERN, f"{art}{TRENNER}{wert}"
     )
-    nochmal = repo.lege_knopf_an(conn, chat_id, ART_EIGENE, art)
+    # "Nein, nochmal aendern" speichert seit dem 02.10.2026 VORLAEUFIG (Birk,
+    # Padua): ``ART_ANDERS`` mit demselben Wert wie "Ja". Ausnahme Figuren:
+    # die Liste legt Figurenzeilen an, ein zweiter Entwurf liesse die
+    # verworfenen Namen als Dubletten stehen -- dort bleibt "Nein" ohne
+    # Schreiben (``ART_EIGENE``).
+    if art == "figuren":
+        nochmal = repo.lege_knopf_an(conn, chat_id, ART_EIGENE, art)
+    else:
+        nochmal = repo.lege_knopf_an(conn, chat_id, ART_ANDERS, f"{art}{TRENNER}{wert}")
     return [
         (T._TEXT_SPEICHERN_KNOPF, _daten(speichern)),
         (T._TEXT_ANDERS_KNOPF, _daten(nochmal)),
@@ -695,9 +703,11 @@ def grundleiste(conn, chat_id: int, art: str, wert: str) -> list[tuple[str, str]
             T.TEXT_WEITER_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, art, f"weiter{TRENNER}{wert}")),
         ),
+        # Seit 02.10.2026 (Birk, Padua) speichert auch "Nein" -- vorlaeufig,
+        # ueber dieselbe Art mit Modus "anders".
         (
             T.TEXT_ANDERS_KNOPF,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_EIGENE, art)),
+            _daten(repo.lege_knopf_an(conn, chat_id, art, f"anders{TRENNER}{wert}")),
         ),
     ]
 
@@ -741,7 +751,8 @@ def _ist_bestaetigung(conn, chat_id: int, art: str, wert: str) -> bool:
 
 
 def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
-               nur_bestaetigen: bool = False) -> str:
+               nur_bestaetigen: bool = False, uebergang: bool = False,
+               klm=None, e=None) -> str:
     """Schreibt den Wert einer Speicher-Leiste in den Arbeitsstand -- ueber
     **dieselben** ``repo``-Funktionen wie ``erkenner.wende_an``.
 
@@ -800,6 +811,17 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
     # wenn die Materiallage es hergibt, der Weg weiter
     # (``phasen.voraussetzungen``): der Knopf sagt, was jetzt dran ist,
     # statt dass jemand raten muss.
+    #
+    # ``uebergang`` (02.10.2026, Birk, Padua): "Ja, speichern" fixiert UND
+    # geht direkt in die naechste Phase, sobald die Materiallage sie hergibt
+    # -- keine Zwischenfrage, kein "Weiter zu ..."-Angebot. Ausgenommen sind
+    # die Fragen: an ihnen haengt die Kette Sensibilitaet -> Einleitungen ->
+    # Eroeffnung, und erst deren Ja schliesst Phase 2 ab.
+    if weiterfrage and uebergang and art != "fragen":
+        from interview_theater.knoepfe.stationen import uebergang_nach_speichern
+
+        if uebergang_nach_speichern(conn, tg, klm, e, chat_id):
+            return T._TEXT_FELD_UEBERNOMMEN.format(feld=T._NOTIERT[art])
     if weiterfrage:
         phasenknopf = _phasenknopf(conn, chat_id)
         if phasenknopf is not None:

@@ -279,7 +279,9 @@ _TEXT_SPEICHERN_KNOPF = "Ja, speichern"
 #: kein Modellaufruf (Zusage 2). Der erste Halbsatz ist die Quittung, der
 #: zweite die Frage: eine offene Aufforderung ("sagt mir, was anders sein
 #: soll") bekam im Probelauf ein Schulterzucken, die drei Beispiele nicht.
-_TEXT_ANDERS = "Gespeichert. Was soll anders sein?"
+#: Seit 02.10.2026 (Birk, Padua) auch der Text von "Nein, nochmal aendern":
+#: der Vorschlag wird VORLAEUFIG gespeichert.
+_TEXT_ANDERS = "Vorerst gespeichert. Was soll anders sein?"
 #: "Eigene Idee": nichts gespeichert, der naechste Gruppenbeitrag ist der
 #: Vorschlag.
 _TEXT_EIGENE = "Erzaehlt - ich baue es ein."

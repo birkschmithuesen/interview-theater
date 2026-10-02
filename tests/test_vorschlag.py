@@ -203,7 +203,7 @@ def test_figuren_ueber_die_leiste_werden_alle_angelegt(conn, tg, einst):
 # --- "Passt, aber anders" ------------------------------------------------------
 
 
-def test_nein_nochmal_aendern_speichert_nicht(conn, tg, einst):
+def test_nein_nochmal_aendern_speichert_vorlaeufig(conn, tg, einst):
     """05.09.2026 abends, Birk: "Passt, aber anders" ist keine Ablehnung --
     es speichert die aktuelle Fassung (damit ueberhaupt etwas in der DB
     steht) und fragt danach gezielt, was anders werden soll."""
@@ -214,22 +214,8 @@ def test_nein_nochmal_aendern_speichert_nicht(conn, tg, einst):
     )
 
     stand = repo.hole_arbeitsstand(conn, 1)
-    assert not (stand and stand["begriffe"]), "Nein speichert nichts"
-    assert tg.gesendet[-1][1] == "Erzaehlt - ich baue es ein."
-
-
-def test_eigene_idee_speichert_nicht(conn, tg, einst):
-    """Der Gegensatz: "Eigene Idee" schreibt NICHTS, der naechste Beitrag der
-    Gruppe ist der Vorschlag."""
-    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
-
-    knoepfe.behandle(
-        conn, tg, None, einst, _druck(_knopf_daten(tg, "Nein, nochmal aendern"))
-    )
-
-    stand = repo.hole_arbeitsstand(conn, 1)
-    assert not (stand and stand["begriffe"])
-    assert tg.gesendet[-1][1] == "Erzaehlt - ich baue es ein."
+    assert stand["begriffe"] == "Heimat", "Nein speichert vorlaeufig (02.10.2026)"
+    assert tg.gesendet[-1][1] == "Vorerst gespeichert. Was soll anders sein?"
 
 
 def test_nach_nochmal_anders_traegt_die_naechste_antwort_die_leiste_wieder(

@@ -321,7 +321,7 @@ def _wirkung_szenenfelder_speichern(conn, d: Druck) -> str:
     modus, _, rest = d.wert.partition(TRENNER)
     meldung = _speichere_szenenfelder(conn, d.tg, d.chat_id, rest)
     if modus.strip() == "anders":
-        d.tg.sende(d.chat_id, T._TEXT_EIGENE_IDEE)
+        d.tg.sende(d.chat_id, T._TEXT_ANDERS)
     return meldung
 
 
@@ -551,7 +551,7 @@ def _wirkung_speichern(conn, d: Druck) -> str:
         # ZWEI Felder -- deshalb ein eigener Speicherweg statt des
         # Arbeitsstand-Setters (wie bei der Geschichte in Phase 5).
         return _speichere_eroeffnung(
-            conn, d.tg, d.chat_id, roh.partition(TRENNER)[2], e=d.e
+            conn, d.tg, d.chat_id, roh.partition(TRENNER)[2], e=d.e, klm=d.klm,
         )
     if gespeicherte_art in ("einleitungen", "fragen_weich"):
         return _speichere_einleitungen(conn, d, roh)
@@ -560,7 +560,10 @@ def _wirkung_speichern(conn, d: Druck) -> str:
     # "Gefaellt uns, weiter" ueberschreibt nie still, was schon steht
     # (06.09.2026): ist das Feld gesetzt und keine Aenderung offen, ist
     # der Druck eine Bestaetigung (``_ist_bestaetigung``).
-    meldung = _speichere(conn, d.tg, d.chat_id, roh, nur_bestaetigen=True)
+    meldung = _speichere(
+        conn, d.tg, d.chat_id, roh, nur_bestaetigen=True,
+        uebergang=True, klm=d.klm, e=d.e,
+    )
     if gespeicherte_art == "figuren" and meldung not in (
         T._TEXT_UNBEKANNT, T._TEXT_SCHON_GESETZT,
     ):
@@ -608,20 +611,39 @@ def _speichere_kettenglied(conn, d: Druck, roh: str, gespeicherte_art: str) -> s
 
 
 def _wirkung_anders(conn, d: Druck) -> str:
-    """"Passt, aber anders" SPEICHERT ebenfalls (05.09.2026 abends, Birk):
-    damit ueberhaupt etwas in der Datenbank steht, auch wenn die Gruppe danach
-    abbricht. Erst danach die gezielte Frage -- deterministisch, kein
-    Modellaufruf (Zusage 2). Die naechste Bot-Antwort traegt die Leiste wieder,
-    und ein "Gefaellt uns, weiter" darauf ueberschreibt den Wert (Journal: eine
-    zweite Zeile, nichts wird geaendert)."""
+    """"Nein, nochmal aendern" SPEICHERT VORLAEUFIG (02.10.2026, Birk, Padua;
+    die Idee stammt von "Passt, aber anders", 05.09.2026): damit ueberhaupt
+    etwas in der Datenbank steht, auch wenn die Gruppe danach abbricht. Dann
+    die gezielte Frage -- deterministisch, kein Modellaufruf (Zusage 2).
+
+    ``aenderung_offen`` haelt die Leiste fuer die naechste Fassung offen
+    (``offene_art``), ein spaeteres Ja ueberschreibt den vorlaeufigen Wert.
+    Stand schon ein Angebot fuer die naechste Phase, ist es damit abgelehnt
+    (``phasen.lehne_angebot_ab`` -- es kommt nach der naechsten Aenderung
+    wieder). Arten ohne Arbeitsstand-Feld (Eroeffnung) speichern nichts und
+    sagen das auch nicht."""
     roh = d.wert
     gespeicherte_art = roh.partition(TRENNER)[0].strip()
-    if gespeicherte_art in T._NOTIERT or gespeicherte_art == "figuren":
+    if gespeicherte_art in T._NOTIERT:
         _speichere(conn, d.tg, d.chat_id, roh, weiterfrage=False)
-        repo.setze_arbeitsstand(
-            conn, d.chat_id, "aenderung_offen", gespeicherte_art
-        )
-    d.tg.sende(d.chat_id, T._TEXT_ANDERS)
+        text = T._TEXT_ANDERS
+    else:
+        text = T._TEXT_EIGENE
+    repo.setze_arbeitsstand(conn, d.chat_id, "aenderung_offen", gespeicherte_art)
+    gemerkt = repo.hole_phase_angeboten(conn, d.chat_id)
+    if gemerkt is not None and gemerkt > 0:
+        phasen.lehne_angebot_ab(conn, d.chat_id, gemerkt)
+    # Das "Ja" daneben verfaellt: es traegt den alten Wert, und eine offene
+    # Speicher-Leiste haelt sonst das Phasenangebot zurueck.
+    mid = d.knopf["message_id"] if "message_id" in d.knopf.keys() else None
+    if mid is not None:
+        geschwister = [
+            k["id"] for k in repo.offene_knoepfe_der_nachricht(conn, d.chat_id, mid)
+            if k["art"] != ART_UNDO
+        ]
+        if geschwister:
+            repo.verfallen_lassen(conn, geschwister)
+    d.tg.sende(d.chat_id, text)
     return T._TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG
 
 

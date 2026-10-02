@@ -370,7 +370,7 @@ def test_von_phase_eins_bis_zum_ersten_interview_nur_ueber_http(lauf):
 
     # (2) Phase 2: Fragen, weiche Fassungen, Eroeffnung -- drei Stufen,
     # jede mit derselben Grundleiste (knoepfe.offene_art).
-    hing = _druecke(basis, token, "Weiter zu", nach=hing)
+    # Seit 02.10.2026: "Ja, speichern" geht direkt in die naechste Phase.
     _warte_auf(pfad, _phase(2), "Phase 2")
 
     _post(basis, token, "senden", {"text": "Macht uns drei Fragen dazu."})
@@ -388,7 +388,6 @@ def test_von_phase_eins_bis_zum_ersten_interview_nur_ueber_http(lauf):
     _warte_auf(pfad, _feld("interview_abschluss"), "Abschluss gesetzt")
 
     # (3) Phase 3: Interviews
-    _druecke(basis, token, "Weiter zu", nach=hing)
     _warte_auf(pfad, _phase(3), "Phase 3")
 
     # (4) Interview an -- ueber /interview, nicht ueber eine zweite

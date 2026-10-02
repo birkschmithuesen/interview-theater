@@ -967,7 +967,8 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     )
     tg.sende(chat_id, T._TEXT_FOLGE_GESPEICHERT.format(anzahl=len(nummern)))
     if modus.strip() == "anders":
-        tg.sende(chat_id, T._TEXT_EIGENE_IDEE)
+        tg.sende(chat_id, T._TEXT_ANDERS)
+        return T._TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG
     erste = _szene_mit_nummer(conn, chat_id, nummern[0])
     if erste is not None:
         biete_szene(conn, tg, chat_id, erste)
@@ -1128,7 +1129,7 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
             quelle="knopf",
         )
         return _nach_szenen_gespeichert(conn, tg, chat_id, geschichte, modus,
-                                        len(nummern))
+                                        len(nummern), klm=klm, e=e)
     if zeilen:
         nummern = szenenfolge.lege_an(conn, chat_id, zeilen)
         repo.schreibe_journal(
@@ -1139,14 +1140,14 @@ def _speichere_geschichte(conn, tg, klm, e, chat_id: int, roh: str) -> str:
             quelle="knopf",
         )
         return _nach_szenen_gespeichert(conn, tg, chat_id, geschichte, modus,
-                                        len(nummern))
+                                        len(nummern), klm=klm, e=e)
     tg.sende(chat_id, T._TEXT_RICHTUNG_GESPEICHERT + "\n" + geschichte)
     szenenfolge.starte_geschichte_szenen(conn, tg, klm, e, chat_id)
     return T._TEXT_RICHTUNG_QUITTUNG
 
 
 def _nach_szenen_gespeichert(conn, tg, chat_id: int, geschichte: str,
-                             modus: str, anzahl: int) -> str:
+                             modus: str, anzahl: int, klm=None, e=None) -> str:
     """Der gemeinsame Schluss von ``_speichere_geschichte``, wenn mit der
     Geschichte auch Szenen angelegt wurden -- aus einem alten Block mit
     Szenenzeilen oder aus der gewaehlten Richtung selbst (C9). Bestaetigung,
@@ -1159,6 +1160,11 @@ def _nach_szenen_gespeichert(conn, tg, chat_id: int, geschichte: str,
         repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", "geschichte")
         tg.sende(chat_id, T._TEXT_ANDERS)
         return T._TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG
+    # "Ja, speichern" geht direkt weiter (02.10.2026, Birk, Padua).
+    from interview_theater.knoepfe.stationen import uebergang_nach_speichern
+
+    if uebergang_nach_speichern(conn, tg, klm, e, chat_id):
+        return T._JOURNAL_GESCHICHTE_MIT_SZENEN.format(anzahl=anzahl)
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
         _mit_leiste(conn, tg, chat_id, T._TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])

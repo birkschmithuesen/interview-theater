@@ -284,14 +284,14 @@ def test_die_gruppe_darf_gegen_den_vorschlag_entscheiden(conn, einst, tg):
     assert repo.hole_szenen(conn, 1)[0]["form"] == "rap"
 
 
-def test_nein_nochmal_aendern_speichert_nicht(conn, einst, tg):
-    """Neue Knopfregel (06.09.2026, Birk 11:00): "Nein" schreibt nichts."""
+def test_nein_nochmal_aendern_speichert_vorlaeufig(conn, einst, tg):
+    """Seit 02.10.2026 (Birk, Padua): "Nein" speichert vorlaeufig."""
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
 
     _druecke(conn, tg, einst, knoepfe.TEXT_ANDERS_KNOPF)
 
-    assert repo.hole_szenen(conn, 1) == []
-    assert knoepfe._TEXT_EIGENE_IDEE in tg.texte
+    assert len(repo.hole_szenen(conn, 1)) == 3
+    assert knoepfe._TEXT_ANDERS in tg.texte
 
 
 def test_anzahl_aendern_zeigt_die_zahlen_und_ruft_kein_modell(conn, einst, tg):
@@ -716,15 +716,15 @@ def test_phasenknopf_7_zeigt_gleich_die_uebersicht(conn, einst, tg):
 # --- Grundleiste und Idempotenz ------------------------------------------
 
 
-def test_eigene_idee_ruft_kein_modell_und_schreibt_nichts(conn, einst, tg):
+def test_nein_ruft_kein_modell_und_speichert_vorlaeufig(conn, einst, tg):
     klm = LLMAttrappe()
     knoepfe.sende_szenenfolge(conn, tg, 1, VORSCHLAG)
 
     _druecke(conn, tg, einst, knoepfe.TEXT_ANDERS_KNOPF, klm=klm)
 
     assert klm.aufrufe == 0
-    assert repo.hole_szenen(conn, 1) == []
-    assert knoepfe._TEXT_EIGENE_IDEE in tg.texte
+    assert len(repo.hole_szenen(conn, 1)) == 3
+    assert knoepfe._TEXT_ANDERS in tg.texte
 
 
 def test_zweiter_druck_legt_nichts_doppelt_an(conn, einst, tg):

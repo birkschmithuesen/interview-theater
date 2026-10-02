@@ -252,14 +252,15 @@ def test_erst_die_geschichte_gibt_die_schaerfung_frei(erfunden, tg, einst):
     )
 
     assert phasen.voraussetzungen(erfunden, 1)[5] is True
-    # Seit 06.09.2026 13:15 wird die NAECHSTE Stufe angeboten: erst
-    # schaerfen (5), dann die Prosa (6).
-    assert tg.beschriftungen == ["Weiter zu Schaerfung"]
+    # Seit 02.10.2026 (Birk, Padua): "Ja, speichern" geht direkt in die
+    # NAECHSTE Stufe -- die Schaerfung (5), kein Angebot dazwischen.
+    assert phasen.aktuelle(erfunden, 1) == 5
+    assert "Weiter zu Schaerfung" not in tg.beschriftungen
 
 
-def test_nein_nochmal_aendern_speichert_nicht(erfunden, tg, einst):
-    """Neue Regel (06.09.2026, Birk 11:00): "Nein" schreibt nichts und macht
-    den Weg frei."""
+def test_nein_nochmal_aendern_speichert_vorlaeufig(erfunden, tg, einst):
+    """Seit 02.10.2026 (Birk, Padua): "Nein" speichert vorlaeufig und fragt
+    nach -- ohne Phasenwechsel."""
     knoepfe.sende_geschichte(erfunden, tg, 1, GESCHICHTE)
 
     knoepfe.behandle(
@@ -267,7 +268,8 @@ def test_nein_nochmal_aendern_speichert_nicht(erfunden, tg, einst):
     )
 
     stand = repo.hole_arbeitsstand(erfunden, 1)
-    assert not (stand and (stand["geschichte"] or "").strip())
+    assert (stand["geschichte"] or "").strip()
+    assert phasen.aktuelle(erfunden, 1) == 4
 
 
 def test_eine_richtung_wird_gespeichert_und_legt_noch_keine_szenen_an(

@@ -232,13 +232,15 @@ def test_die_befehlsliste_der_basis_bewirbt_nur_existierende_befehle(betrieb):
 def test_keine_beispiel_eigennamen_in_den_prompts():
     """Beispiel-Namen aus Prompts werden nachgeplappert: am 05.09.2026 schlug
     der Bot einer Gruppe \"Polizeikessel\" und die Figur \"Mira\" vor -- beides
-    stand nur in Prompt-Beispielen, nicht im Material. Ausgenommen ist
-    ``erkenner.md``: dort sind die Beispiele gemessene Few-Shots."""
+    stand nur in Prompt-Beispielen, nicht im Material. Ausgenommen sind
+    ``erkenner.md`` (gemessene Few-Shots) und ``phasen_debrief.md`` (fester
+    Wortlaut eines FALSCHE-Antwort-Beispiels, kein Gespraechstext)."""
     verboten = re.compile(r"\b(Kessel|Mira|Pola|Pal|Demo)\b", re.IGNORECASE)
+    ausgenommen = {"erkenner.md", "phasen_debrief.md"}
     wurzel = Path(anweisungen.__file__).parent / "prompts"
     treffer = {}
     for pfad in sorted(wurzel.rglob("*.md")):
-        if pfad.name == "erkenner.md":
+        if pfad.name in ausgenommen:
             continue
         gefunden = verboten.findall(pfad.read_text(encoding="utf-8"))
         if gefunden:

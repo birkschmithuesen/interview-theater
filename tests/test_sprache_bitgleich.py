@@ -77,6 +77,14 @@ GEAENDERT: dict[str, str] = {
         "Ueberschrift im Szenen-Nutzertext, derselbe Block darunter "
         "(tests/test_szene_sprache.py)."
     ),
+    "kontext.KERNPAKET_KOPF": (
+        "Karte P2-Fix (02.10.2026, Restspannung 4): \"kommen aus dem "
+        "Kernthema\" -> \"aus der Geschichte\". _baue_kernpaket setzt "
+        "arbeitsstand.geschichte an den Anfang (kontext.py:472-473), das "
+        "Kernthema nur darunter und nur wenn gesetzt; englisch sagt es seit "
+        "c8 (en/texte.toml:848). Gewollte Verhaltensaenderung fuer Dortmund: "
+        "ein Wort in der Ueberschrift des Blocks (tests/test_kontext.py)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

@@ -439,19 +439,26 @@ def _baue_transkripte(conn, chat_id: int) -> str:
 # **Warum es das gibt.** Bis zu diesem Abend bekam der Figuren-Prompt alle
 # Verdichtungen und alle Transkripte, und ``prompts/phasen/4.md`` verlangte
 # Figuren, "die sich auf Interviewstellen stuetzen". Die Figuren kamen damit
-# aus den Interviews statt aus dem Kernthema, und die Gruppe konnte den Weg
-# Kernthema -> Figuren nicht nachvollziehen (Birk, nach dem Regie-Test).
+# aus den Interviews statt aus dem, was die Gruppe selbst festgelegt hatte,
+# und sie konnte den Weg dorthin nicht nachvollziehen (Birk, nach dem
+# Regie-Test). Damals hiess dieses Festgelegte "Kernthema".
 #
 # Ab den Figuren steht deshalb an der Stelle von Verdichtungen und
-# Transkripten EIN Block: das Kernpaket. Es enthaelt Kernthema, Kernfrage, die
-# ausgewaehlten Kernzitate, die **am Kernthema gefilterten** Verdichtungen
+# Transkripten EIN Block: das Kernpaket. Es enthaelt die **Geschichte**
+# (Bogen und Ende), Kernfrage und Kernthema, solange eine Gruppe eines
+# gesetzt hat, die ausgewaehlten Kernzitate, die gefilterten Verdichtungen
 # (nur die markierten Themen, mit Interview-Nummer), die Figuren mit ihrem
 # Sprachprofil und den Rahmen. Die Verdichtungen fliegen also nicht raus --
 # sie werden gefiltert, genau wie die Zitate.
+#
+# **Die Geschichte ist die Quelle, nicht das Kernthema** (06.09.2026, Umbau
+# der Phasen; englisch seit c8, deutsch seit Karte P2-Fix am 02.10.2026):
+# ``_baue_kernpaket`` setzt ``arbeitsstand.geschichte`` an den Anfang, das
+# Kernthema steht nur darunter und nur, wenn es gesetzt ist.
 
 KERNPAKET_KOPF = (
-    "Das Kernpaket - hieraus arbeitest du. Figuren und Szenen kommen aus dem "
-    "Kernthema und dieser Auswahl, nicht aus den Interviews (die stehen dir "
+    "Das Kernpaket - hieraus arbeitest du. Figuren und Szenen kommen aus der "
+    "Geschichte und dieser Auswahl, nicht aus den Interviews (die stehen dir "
     "hier bewusst nicht mehr im Wortlaut zur Verfuegung):"
 )
 

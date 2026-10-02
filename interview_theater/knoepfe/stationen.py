@@ -16,7 +16,7 @@ from interview_theater import phasen, repo
 
 from interview_theater.knoepfe.texte import (
     ART_NOCH_NICHT, ART_PHASE, ART_SPEICHERN, PHASE_INTERVIEWS, PHASE_SCHAERFUNG,
-    PHASE_STUECKPRUEFUNG, PHASE_SZENEN, T,
+    PHASE_SETTING, PHASE_STUECKPRUEFUNG, PHASE_SZENEN, T,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _sende_knoepfe, _starte_auftrag,
@@ -177,6 +177,18 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
 
         if _starte_auftrag(
             conn, tg, klm, e, chat_id, kontext.einstieg_begriffe(conn, chat_id, e),
+        ):
+            return
+    if nummer == PHASE_SETTING and klm is not None:
+        # Padua-Brainstorming-Umbau (02.10.2026): derselbe Mechanismus wie
+        # oben fuer Phase 1 -- kein fester Text, eine Anweisung, das Modell
+        # schreibt den Einstieg selbst. Gilt fuer Erst- UND Wiedereintritt
+        # (``kontext.einstieg_setting``). Ohne Modell bleibt der
+        # deterministische Rahmen (Tests, Skripte).
+        from interview_theater import kontext
+
+        if _starte_auftrag(
+            conn, tg, klm, e, chat_id, kontext.einstieg_setting(conn, chat_id, e),
         ):
             return
     kopf = phasentexte.eintritt(conn, chat_id, nummer)

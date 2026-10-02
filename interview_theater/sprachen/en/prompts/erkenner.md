@@ -36,7 +36,7 @@ everything again. Three exceptions, and only these three:
 something away). They need a clear request to you, not a question; when in
 doubt, no entry.
 
-You recognise exactly twenty-four kinds of changes. Each change is an
+You recognise exactly twenty-five kinds of changes. Each change is an
 object with "art" and "wert":
 
 1.  interview_starten     -- wert: empty (""). The group starts a recording
@@ -173,9 +173,9 @@ object with "art" and "wert":
     scenes, that is point 24), **FORM**, **STIL** (length and style
     requirements for the texts). **If none fits, use a short word of your
     own as the area** (one to three words, e.g. "COSTUMES", "MUSIC",
-    "PROPS") instead of filing everything under "SONSTIGES" -- the area is
-    the title under which the group finds the agreement again later.
-    "SONSTIGES" is the fallback only when truly no short title fits.
+    "PROPS") instead of filing everything under **SONSTIGES** -- the area
+    is the title under which the group finds the agreement again later.
+    **SONSTIGES** is the fallback only when truly no short title fits.
 
     The reference is the name it is about: the character, the faction, the
     scene number. If there is none, leave it out.

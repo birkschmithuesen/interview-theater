@@ -346,15 +346,15 @@ def test_die_erfindungsphasen_verbieten_das_material_ausdruecklich(betrieb, name
 
 
 @pytest.mark.parametrize("name", ["phasen/4"])
-def test_die_erfindungsphasen_faengt_mit_einer_offenen_frage_an(betrieb, name):
-    """Kein Vorschlag als Eroeffnung: erst die Frage, dann -- auf Bitte --
-    der Vorschlag. Und unter der offenen Frage stehen seit dem 06.09.2026
-    (Birk, 11:10) KEINE Einstiegsknoepfe."""
+def test_die_erfindungsphasen_schlaegt_nur_auf_anfrage_vor(betrieb, name):
+    """Padua-Brainstorming-Umbau (02.10.2026): kein fester Eroeffnungssatz
+    und keine feste Reihenfolge mehr -- aber der Grundsatz bleibt derselbe
+    wie vor dem Umbau, nur verallgemeinert: ein Vorschlag kommt erst auf
+    Bitte oder im Stillstand, nie ungefragt."""
     text = " ".join(anweisungen.hole(name).split())
 
-    assert "Die offene Frage kommt zuerst" in text
-    assert "keine Knoepfe" in text
-    assert "Eigene Idee" not in text
+    assert "Varianten nur auf Anfrage oder im Stillstand" in text
+    assert "KEINE feste" in text
 
 
 @pytest.mark.parametrize("name", ["phasen/4"])
@@ -383,16 +383,16 @@ def test_die_schaerfung_schreibt_die_geschichte_nicht_um(betrieb):
     assert "woertlich" in text
 
 
-def test_die_geschichte_verlangt_bedacht_bei_der_form(betrieb):
-    """Birk, 06.09.2026 00:30: die Form muss mit mehr Bedacht gewaehlt und
-    vom Nutzer bestaetigt werden -- der Prompt schlaegt sie deshalb nur vor,
-    mit Begruendung, und Dialog ist der Normalfall."""
+def test_phase_4_schlaegt_keine_form_mehr_vor(betrieb):
+    """Padua-Brainstorming-Umbau (02.10.2026): die Form je Szene entscheidet
+    die Gruppe erst im Feinschliff (Phase 7) -- Phase 4 schlaegt keine mehr
+    vor und begruendet keine. Ersetzt den frueheren
+    ``test_die_geschichte_verlangt_bedacht_bei_der_form``, der genau das
+    Gegenteil pruefte."""
     text = " ".join(anweisungen.hole("phasen/4").split())
 
-    assert "schlaegst du VOR" in text
-    assert "Dialog ist der Normalfall" in text
-    assert "hoechstens eine Nicht-Dialog-Szene je drei Szenen" in text
-    assert "nie Monolog oder Lied" in text
+    assert "Keine Form je Szene" in text
+    assert "schlaegst du VOR" not in text
 
 
 def test_die_szenentexte_arbeiten_aus_den_schaerfungen(betrieb):

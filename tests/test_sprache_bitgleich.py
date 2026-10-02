@@ -107,6 +107,31 @@ GEAENDERT: dict[str, str] = {
         "Folgt aus ANWEISUNG_GESCHICHTE_SZENEN: keine Form/Begruendung-"
         "Spalte mehr in der phase-4-Szenenfolge."
     ),
+    "prompt phasen/4": (
+        "Volle Neufassung (Padua-Brainstorming-Umbau, 02.10.2026): freie "
+        "Reihenfolge statt fester Kette (Setting -> Figuren -> Geschichte), "
+        "Vorschlaege nur auf Anfrage oder im Stillstand statt als feste "
+        "Eroeffnungsfrage, keine Form/Begruendung mehr in der Szenenfolge, "
+        "die Anzahl Szenen als eigenes Feld, ein Hinweis auf die "
+        "automatische Festlegung und den Phasenabschluss-Vorschlag."
+    ),
+    "anweisungen.system(phase=4)": (
+        "Folgt aus der Neufassung von phasen/4.md (siehe oben) -- die "
+        "Basisanweisung haengt den Phasentext unveraendert an."
+    ),
+    "szenenfolge.systemanweisung_geschichte(3)": (
+        "Folgt aus phasen/4.md: die zusammengesetzte Systemanweisung fuer "
+        "den Richtungs-Vorschlag haengt den neuen Phasentext an."
+    ),
+    "szenenfolge.systemanweisung_geschichte(4)": (
+        "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
+    ),
+    "szenenfolge.systemanweisung_geschichte(5)": (
+        "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
+    ),
+    "szenenfolge.systemanweisung_geschichte(6)": (
+        "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

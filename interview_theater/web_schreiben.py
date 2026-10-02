@@ -307,6 +307,14 @@ def _szenenname(zeile) -> str:
 # (``knoepfe.biete_phase_proaktiv``), und ein zweiter Weg daneben macht aus
 # einem Angebot eine Einstellung. Auf der Gruppenseite steht die Phase weiter
 # ganz oben -- als Anzeige, die alles darunter einordnet.
+#
+# Nachtrag 30.09.2026 (Birk, Karte W): in der Phasenuebersicht der vereinten
+# Seite ist jede Phase klickbar -- "weg von reiner chat navigation,
+# deterministisch ist vorzuziehen". Das macht sie trotzdem NICHT zu einem Feld
+# dieser Seite: der Klick geht ueber den Chat-Weg (``web_vereint.phase_post``
+# legt einen Eingang ab, der Bot fuehrt ihn ueber ``befehle.wechsle_phase``
+# aus, mit Eintrittsnachricht und Einstiegsknoepfen). Ein Eintrag in ``FELDER``
+# waere der zweite Weg, den es hier weiterhin nicht gibt.
 
 
 def _setze_arbeitsstand(feld: str):

@@ -616,6 +616,33 @@ def _befehl_festlegung(conn, tg, chat_id: int, rest: str) -> None:
     )
 
 
+def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
+                  quelle: str = "befehl") -> None:
+    """Die Phase umschalten -- der EINE Weg fuer Befehl und Klick
+    (30.09.2026, Karte W).
+
+    Birk, 30.09.2026: die Phase soll per Klick in der Phasenuebersicht
+    umschaltbar sein, "weg von reiner chat navigation". Das ist kein
+    Widerspruch zu "Die Phase setzt allein die Gruppe" -- ein Klick IST die
+    Gruppe; verworfen bleibt allein der automatische Sprung aus dem
+    Datenstand.
+
+    Damit ein Klick nie in einer anderen Phase landet als ein Befehl, laufen
+    beide hier durch: ``quelle`` ist der einzige Unterschied ('befehl' gegen
+    'web') und steht im Journal.
+
+    Geantwortet wird immer, auch wenn die Phase schon stimmte; ins Journal
+    geht der Eintrag nur bei einer echten Aenderung (``phasen.setze``)."""
+    phasen.setze(conn, chat_id, nummer, quelle)
+    tg.sende(chat_id, phasen.meldung(nummer))
+    # Derselbe Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile,
+    # Einleitung, Checkliste und die Einstiegsknoepfe dieser Phase.
+    try:
+        knoepfe.eintritt_in_phase(conn, tg, klm, e, chat_id, nummer)
+    except Exception:
+        log.exception("Phaseneintritt fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def _befehl_phase(conn, tg, chat_id: int, rest: str, klm=None, e=None) -> None:
     """Der Notausgang fuer die Arbeitsphase (interview_theater/phasen.py) -- neben
     dem Erkenner (art ``phase_setzen``) der zweite, deterministische Weg.
@@ -632,10 +659,8 @@ def _befehl_phase(conn, tg, chat_id: int, rest: str, klm=None, e=None) -> None:
     Liste: der Knopf ist eine Frage, keine Navigation -- zurueck geht
     weiterhin ueber ``/phase 4``.
 
-    Geantwortet wird immer, auch wenn die Phase schon stimmte: auf einen
-    getippten Befehl zu schweigen sieht aus wie ein kaputter Bot. Ins
-    Journal geht der Eintrag trotzdem nur bei einer echten Aenderung
-    (``phasen.setze``)."""
+    Das Umschalten selbst steht seit Karte W in ``wechsle_phase`` -- derselbe
+    Weg, den auch ein Klick in der Web-Uebersicht nimmt (``/phaseklick``)."""
     if not rest:
         text = (
             T._TEXT_WIR_SIND_BEI.format(
@@ -652,15 +677,24 @@ def _befehl_phase(conn, tg, chat_id: int, rest: str, klm=None, e=None) -> None:
     if nummer is None:
         tg.sende(chat_id, f"{T._TEXT_PHASE_UNBEKANNT}\n\n{phasen.liste()}")
         return
-    phasen.setze(conn, chat_id, nummer, "befehl")
-    tg.sende(chat_id, phasen.meldung(nummer))
-    # Derselbe Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile,
-    # Einleitung, Checkliste und die Einstiegsknoepfe dieser Phase. Ein
-    # Befehl darf nicht in einer anderen Phase landen als ein Druck.
-    try:
-        knoepfe.eintritt_in_phase(conn, tg, klm, e, chat_id, nummer)
-    except Exception:
-        log.exception("Phaseneintritt nach /phase fehlgeschlagen, chat_id=%s", chat_id)
+    wechsle_phase(conn, tg, klm, e, chat_id, nummer, quelle="befehl")
+
+
+def _befehl_phaseklick(conn, tg, klm, e, chat_id: int, rest: str) -> None:
+    """Der Klick auf eine Phase in der Web-Uebersicht (30.09.2026, Karte W).
+
+    **Versteckt**: nirgends beworben, nicht im Menue -- er ist kein Befehl
+    zum Tippen, sondern der Weg des Knopfes durch die Naht von Karte A2. Der
+    Webserver kann die Phase nicht selbst setzen (kein ``klm``, und
+    ``eintritt_in_phase`` stoesst Modellarbeit in Threads an); er legt
+    stattdessen einen gewoehnlichen Eingang ab, und der Bot fuehrt ihn aus.
+
+    Genau derselbe Weg wie ``/phase N`` -- nur die Journalquelle ist 'web'."""
+    nummer = phasen.nummer_fuer(rest, jetzige=phasen.aktuelle(conn, chat_id))
+    if nummer is None:
+        log.warning("Phasenklick ohne gueltige Nummer: %r (chat_id=%s)", rest, chat_id)
+        return
+    wechsle_phase(conn, tg, klm, e, chat_id, nummer, quelle="web")
 
 
 def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
@@ -911,6 +945,10 @@ _BEKANNTE_BEFEHLE = {
     # Versteckt (Karte A1): die Whisper-Sprache dieser Gruppe zeigen oder
     # umstellen. Der Weg ist der Knopf in Phase 3.
     "/sprache",
+    # Versteckt (Karte W, 30.09.2026): der Klick auf eine Phase in der
+    # Web-Uebersicht. Kein Befehl zum Tippen -- der Weg des Knopfes durch
+    # die Naht, siehe ``_befehl_phaseklick``.
+    "/phaseklick",
 }
 
 
@@ -974,6 +1012,8 @@ def behandle(
         _befehl_festlegung(conn, tg, chat_id, rest)
     elif befehl == "/sprache":
         _befehl_sprache(conn, tg, chat_id, rest)
+    elif befehl == "/phaseklick":
+        _befehl_phaseklick(conn, tg, klm, e, chat_id, rest)
     return True
 
 

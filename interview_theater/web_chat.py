@@ -1834,6 +1834,14 @@ def _interview(handler, db_pfad: str, token: str, chat_id: int,
     _angenommen(handler, {"message_id": message_id})
 
 
+def _phase(handler, db_pfad: str, token: str, chat_id: int,
+           schluessel: bytes) -> None:
+    """Der Klick auf eine Phase (Karte W). Nur die Weiche steht hier."""
+    from interview_theater import web_vereint
+
+    web_vereint.phase_post(handler, db_pfad, token, chat_id, schluessel)
+
+
 #: Die Tabelle der POST-Wege. Eine Tabelle statt einer if-Kette: ein neuer Weg
 #: ist eine Zeile, und ``beantworte_post`` prueft Pfad, Token und Nonce fuer
 #: alle gleich.
@@ -1842,6 +1850,7 @@ _POSTWEGE = {
     "knopf": _knopf,
     "audio": _audio,
     "interview": _interview,
+    "phase": _phase,
 }
 
 

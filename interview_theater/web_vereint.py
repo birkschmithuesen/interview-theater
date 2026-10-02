@@ -18,6 +18,7 @@ Kein Modellaufruf, kein ``repo``: read-only ueber ``web_daten``, wie der
 Rest der Leseseite.
 """
 
+import html
 import json
 import re
 import time
@@ -235,6 +236,37 @@ _VEREINT_JS = """
     location.hash = '#' + [name].concat(teile).join('&');
   };
   document.addEventListener('click', function (ev) {
+    var phase = ev.target.closest ? ev.target.closest('.phase-knopf') : null;
+    if (phase) {
+      // Kein Sofortsprung: erst die Rueckfrage im Knopf selbst -- dieselbe
+      // Inline-Bestaetigung wie beim Entfernen einer Figur, damit ein
+      // Fehlgriff auf dem Telefon keine Phase kostet.
+      if (phase.getAttribute('data-sicher') !== '1') {
+        phase.setAttribute('data-sicher', '1');
+        phase.dataset.beschriftung = phase.textContent;
+        phase.textContent = '__SICHER__'.replace(
+          '{bezeichnung}', phase.dataset.bezeichnung);
+        return;
+      }
+      phase.disabled = true;
+      fetch(BASIS + 'chat/phase', {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nonce: (document.getElementById('nonce') || {}).value || '',
+          nummer: parseInt(phase.dataset.phase, 10),
+          bestaetigt: 1
+        })
+      }).then(function () {
+        phase.disabled = false;
+        phase.removeAttribute('data-sicher');
+        phase.textContent = phase.dataset.beschriftung;
+        setze('chat');   // die Eintrittsnachricht kommt im Chat an
+      }).catch(function () {
+        phase.disabled = false;
+      });
+      return;
+    }
     var knopf = ev.target.closest ? ev.target.closest('.tabs button') : null;
     if (knopf) { setze(knopf.dataset.tab); return; }
     // Ein Klick auf eine Aufgabe der Roadmap springt zu ihrer Stelle --
@@ -321,9 +353,121 @@ def _tabs_html(aktiv: str, tabs=TABS) -> str:
     return f'<nav class="tabs" role="tablist">{knoepfe}</nav>'
 
 
-def _leiste_html(roadmapdaten, nonce_wert: str) -> str:
-    """Wird in Aufgabe 13 gefuellt."""
-    return ""
+_TEXT_PHASE_UNGUELTIG = "Diese Phase gibt es nicht."
+_TEXT_PHASE_UNBESTAETIGT = "Bitte einmal bestätigen."
+_TEXT_PHASE_WECHSELN = "Zu dieser Phase wechseln"
+_TEXT_PHASE_SICHER = "Wirklich zu {bezeichnung}?"
+_ZEICHEN = {"erledigt": "✅", "offen": "⬜", "laeuft": "⏳"}
+# Knapp (Test: ``test_die_leiste_steht_auf_der_seite_und_ist_knapp``): die
+# Phasenzahl steht als Bruch da ("1/7"), nicht als "1 von 7" -- zugeklappt
+# ist das die EINE Zeile, die die Karte vorsieht.
+_TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_aufgaben}"
+
+
+def phase_post(handler, db_pfad: str, token: str, chat_id: int,
+               schluessel: bytes) -> None:
+    """``POST /g/<token>/chat/phase`` -- ein Klick auf eine Phase.
+
+    Der Webserver **setzt nichts**: er legt den Klick als gewoehnlichen
+    Eingang ab (derselbe ``WEB_TYP_BEFEHL`` wie der Aufnahme-Umschalter aus
+    Karte A2), und der Bot fuehrt ihn ueber ``befehle.wechsle_phase`` aus.
+    Zwei Gruende: der Webserver hat kein ``klm``, und
+    ``knoepfe.eintritt_in_phase`` stoesst Modellarbeit in Threads an.
+
+    Reihenfolge der Pruefungen wie ueberall: Token (im Aufrufer), Nonce,
+    Wert -- erst 403, dann 400. **Ohne ``bestaetigt`` passiert nichts**: ein
+    Fehlgriff auf dem Telefon soll keine Phase kosten."""
+    from interview_theater import phasen, repo, web_chat
+
+    daten = web_chat._koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    if not daten.get("bestaetigt"):
+        handler._fehler(400, _TEXT_PHASE_UNBESTAETIGT)
+        return
+    nummern = {n for n, _name, _satz in phasen.PHASEN}
+    roh = daten.get("nummer")
+    if not isinstance(roh, int) or isinstance(roh, bool) or roh not in nummern:
+        handler._fehler(400, _TEXT_PHASE_UNGUELTIG)
+        return
+    with web_chat.schreibend(db_pfad) as conn:
+        message_id = repo.lege_web_post_an(
+            conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
+            text=f"/phaseklick {roh}",
+        )
+    web_chat._angenommen(handler, {"message_id": message_id})
+
+
+def _leiste_html(roadmapdaten: list[dict], nonce_wert: str,
+                 klickbar: bool = True) -> str:
+    """Die Phasenuebersicht: zugeklappt eine Zeile, aufgeklappt die volle Liste.
+
+    **Platzierung** (Kartentext: "an geeigneter Stelle anbringen"): ganz oben,
+    ueber der Tableiste, und zugeklappt genau **eine** Zeile hoch. Auf einem
+    Telefon (390×844) ist der Chat die Arbeitsflaeche -- eine dauerhaft
+    aufgeklappte Liste mit sieben Phasen und fuenfzehn Aufgaben naehme ein
+    Drittel des Bildschirms fuer etwas, das man dreimal am Tag braucht.
+    ``<details>`` statt eines Schalters, damit es **ohne JavaScript**
+    funktioniert -- dasselbe Element, das die Gruppenseite schon benutzt.
+
+    Ein Klick auf eine **Phase** schaltet um (ueber den Chat-Weg, Aufgabe 13);
+    ein Klick auf eine **Aufgabe** springt nur zu ihrer Stelle (Tab + Feld)
+    und setzt nichts.
+
+    ``klickbar`` ist ``False`` fuer eine Gruppe ohne Web-Kanal (Telegram):
+    dort ist jeder ``/chat/*``-Weg 404 (kein Bot, der ``web_post`` liest,
+    AGENTS.md "Abschlussreview I3"), ein Knopf waere also toter Code auf der
+    Seite. Die Uebersicht selbst -- Phase, Fortschritt, Sprungziele -- bleibt
+    stehen, nur ohne Knopf und ohne ``data-phase``.
+
+    ``nonce_wert`` wird hier bewusst **nicht** in ein eigenes Feld gelegt: das
+    Stand-Panel traegt das einzige ``id="nonce"`` der Seite (geteilt mit dem
+    Chat), und das haelt der Chat-Poll alle zwei bis zehn Sekunden frisch --
+    auch waehrend die Roadmap zugeklappt oder ein anderer Tab vorn ist (der
+    Poll laeuft unabhaengig vom sichtbaren Panel, nur ``document.hidden``
+    verlangsamt ihn). Ein zweites, eigenes Nonce-Feld liefe dagegen nur beim
+    Laden der Seite frisch und stuende nach einer Stunde (dem Nonce-Fenster)
+    mit einem 403 da, wenn die Gruppe laenger auf einem anderen Tab war."""
+    if not roadmapdaten:
+        return ""
+    aktiv = next((p for p in roadmapdaten if p["aktiv"]), roadmapdaten[0])
+    kopf = _TEXT_ROADMAP_KOPF.format(
+        nummer=aktiv["nummer"], gesamt=len(roadmapdaten), name=aktiv["name"],
+        erledigt=aktiv["erledigt"], gesamt_aufgaben=aktiv["gesamt"],
+    )
+    zeilen = []
+    for phase in roadmapdaten:
+        aufgaben = "".join(
+            f'<li class="aufgabe {a["zustand"]}" '
+            f'data-ziel-tab="{a["ziel"]["tab"]}"'
+            + (f' data-ziel-feld="{html.escape(a["ziel"]["feld"], quote=True)}"'
+               if a["ziel"].get("feld") else "")
+            + f'>{_ZEICHEN[a["zustand"]]} {html.escape(a["text"])}</li>'
+            for a in phase["aufgaben"]
+        )
+        if klickbar:
+            phasenkopf = (
+                f'<button type="button" class="phase-knopf" '
+                f'data-phase="{phase["nummer"]}" '
+                f'data-bezeichnung="{html.escape(phase["bezeichnung"], quote=True)}" '
+                f'title="{html.escape(_TEXT_PHASE_WECHSELN, quote=True)}">'
+                f'{html.escape(phase["bezeichnung"])}</button>'
+            )
+        else:
+            phasenkopf = (
+                f'<span class="phase-name">{html.escape(phase["bezeichnung"])}</span>'
+            )
+        zeilen.append(
+            f'<li class="phase{" aktiv" if phase["aktiv"] else ""}">'
+            f'{phasenkopf}'
+            f'<ul class="aufgaben">{aufgaben}</ul></li>'
+        )
+    return (
+        f'<details class="roadmap" id="roadmap">'
+        f'<summary>{html.escape(kopf)}</summary>'
+        f'<ol class="phasen">{"".join(zeilen)}</ol>'
+        f'</details>\n'
+    )
 
 
 def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
@@ -363,7 +507,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             chatdaten, nonce_wert, token, segment_ms,
             basis=f"{token}/", mit_nonce=False,
         )
-    koerper = [_leiste_html(roadmapdaten, nonce_wert), _tabs_html(vorgabe, tabs)]
+    koerper = [_leiste_html(roadmapdaten, nonce_wert, klickbar=chat_vorhanden),
+              _tabs_html(vorgabe, tabs)]
     for tab in tabs:
         # ``data-textbuch`` ist die Wurzel, an der ``_TEXTBUCH_JS`` seinen
         # Zustand ablegt: im gemeinsamen Dokument darf der Rollenfilter nicht
@@ -391,6 +536,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         .replace("__BASIS__", f"{token}/")
         .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
         .replace("__NACHLADEN_MS__", str(NACHLADEN_MS))
+        .replace("__SICHER__", _TEXT_PHASE_SICHER)
         + web._TEXTBUCH_JS
     )
     if chat_vorhanden:

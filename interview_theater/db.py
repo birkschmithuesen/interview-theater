@@ -90,11 +90,15 @@ CREATE TABLE IF NOT EXISTS nachricht (
   telegram_user  INTEGER,
   absender       TEXT,                      -- Vorname oder 'Bot'
   ist_bot        INTEGER NOT NULL DEFAULT 0,
-  -- text|sprache|foto|sticker|sonstiges|transkript
+  -- text|sprache|foto|sticker|sonstiges|transkript|entwicklernotiz
   -- 'transkript' ist das Echo eines Interview-Teils, das der Bot zur
   -- Kontrolle in den Chat schreibt (§ 10.6). Es wird gespeichert wie jede
   -- andere Nachricht, geht aber weder ins Erkenner- noch ins
   -- Gespraechsfenster: Interviewinhalt ist nicht Gruppenabsicht.
+  -- 'entwicklernotiz' (Padua-Befund 02.10.2026): eine Nachricht, die mit
+  -- @robo/@dev beginnt, ist eine Notiz an die Entwicklung, kein
+  -- Gruppenbeitrag -- bleibt gespeichert, geht aber wie 'transkript' in
+  -- kein Fenster und loest keinen Gespraechszug aus (repo.TYP_ENTWICKLERNOTIZ).
   typ            TEXT NOT NULL,
   text           TEXT,
   gesendet_am    TEXT NOT NULL,             -- ISO 8601
@@ -1006,6 +1010,13 @@ CREATE TABLE IF NOT EXISTS aufruf (
   -- eine Preisaenderung soll alte Zeilen nicht ruecktdatieren. NULL heisst
   -- "aus der Zeit davor" und zaehlt als 0.
   kosten_chf             REAL,
+  -- Modellwahl-Karte (02.10.2026): die Anthropic-``usage``-Felder fuer den
+  -- Prompt-Cache (``cache_control`` auf dem System-Block in
+  -- szene_claude.prosa). NULL heisst "kein Claude-Aufruf oder Cache-Feld
+  -- fehlte in der Antwort" -- additiv nachgeruestet ueber
+  -- _migriere_fehlende_spalten.
+  cache_read_token       INTEGER,
+  cache_creation_token   INTEGER,
   erstellt_am            TEXT NOT NULL
 );
 """

@@ -218,3 +218,28 @@ def test_das_js_maskiert_den_text_und_kennt_den_platzhalter():
     assert "TEXT.sprache_text.replace('{dauer}', dauer)" in js
     assert ".replace('{text}', function () { return n.text; })" in js
     assert "n.abgetippt === false ? TEXT.sprache_laeuft : TEXT.sprache" in js
+
+
+def test_brainstorm_segment_zeigt_sein_transkript_im_chat(conn, pfad, einst, tg):
+    """Birk 02.10.2026: im Brainstorm-Modus erscheint nach jedem Pausenschnitt
+    das Transkript in der Chatblase (Feedback fuers Zuhoeren) -- ohne dass der
+    Bot antwortet und ohne dass es in den Gespraechsprompt kommt."""
+    post_id, aid = _sprachpost(conn, tg, einst, dauer=12)
+    conn.execute("UPDATE aufnahme SET brainstorm = 1, schnittgrund = 'pause' WHERE id = ?", (aid,))
+    conn.commit()
+    stand = _stand(pfad)
+    aufgerufen = []
+
+    aufnahme.verarbeite(conn, tg, LLMAttrappe(), einst, stt_attrappe("ein laut gedachter Gedanke"),
+                        aid, zug=lambda *a, **k: aufgerufen.append(1))
+
+    _, (geaendert, _) = _lies(pfad, stand)
+    assert [(z["id"], z["text"], z["abgetippt"]) for z in geaendert] == [
+        (post_id, "ein laut gedachter Gedanke", True)
+    ]
+    assert not aufgerufen, "kein Gespraechszug im Brainstorm"
+    assert not tg.gesendet, "der Bot schreibt nichts in den Chat"
+    zeile = conn.execute(
+        "SELECT unterdrueckt FROM nachricht WHERE chat_id = ? AND message_id = ?", (WEB, post_id),
+    ).fetchone()
+    assert zeile["unterdrueckt"] == 1, "bleibt aus dem Gespraechsprompt"

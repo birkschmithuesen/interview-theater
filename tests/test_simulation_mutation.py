@@ -194,6 +194,14 @@ def test_mutiert_verliert_die_richtung_ihre_szenen_und_startet_den_lauf(
         _druecke_richtung(conn, tg, einst, klm)
         # Der Lauf haengt in einem Thread; auf die Vorschlagssperre warten ist
         # derselbe Weg wie in tests/test_geschichte.py.
+        # Erst auf den Aufruf selbst warten: die Sperre allein reicht nicht,
+        # wenn der Thread sie unter Last noch gar nicht genommen hat (rot
+        # einmal in der vollen Suite, 02.10.2026 -- der Lauf importiert seit
+        # der Modellwahl-Karte szene_claude im Thread).
+        import time
+        frist = time.monotonic() + 10
+        while klm.aufrufe < 1 and time.monotonic() < frist:
+            time.sleep(0.01)
         szenenfolge._sperre_fuer(1).acquire(timeout=10)
         szenenfolge._sperre_fuer(1).release()
 

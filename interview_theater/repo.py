@@ -248,8 +248,22 @@ def merke_bot_zeile(
 #: verdoppelte es Material, das ohnehin als Verdichtung im Prompt steht.
 TYP_TRANSKRIPT = "transkript"
 
-#: Als SQL-Bedingung, damit die drei Fenster-Abfragen nie auseinanderlaufen.
-_OHNE_TRANSKRIPT_ECHO = f"n.typ != '{TYP_TRANSKRIPT}'"
+#: Eine Entwickler-Notiz an das Team, keine Gruppenaeusserung (Padua-Befund
+#: 02.10.2026): eine Nachricht, die mit "@robo" oder "@dev" beginnt, ist ein
+#: Hinweis an die Entwicklung ("@robo: hier kam keine automatosche
+#: Aufzaehlung. Bot wartet auf user"), kein Beitrag der Theatergruppe. Der
+#: Bot hat so eine Notiz einmal live als Chatnachricht beantwortet und eine
+#: erfundene Ursache genannt ("ich sehe, die Knopfliste kam nicht durch"
+#: -- es gab in diesem Pfad gar keine Knoepfe). Wie TYP_TRANSKRIPT: die
+#: Nachricht bleibt gespeichert, geht aber in kein Fenster und loest keinen
+#: Gespraechszug aus (``bot.verarbeite_update``, ``repo.merke_vorfall``
+#: ``entwickler_notiz``).
+TYP_ENTWICKLERNOTIZ = "entwicklernotiz"
+
+#: Als SQL-Bedingung, damit die Fenster-Abfragen nie auseinanderlaufen.
+_OHNE_TRANSKRIPT_ECHO = (
+    f"n.typ NOT IN ('{TYP_TRANSKRIPT}', '{TYP_ENTWICKLERNOTIZ}')"
+)
 
 
 @_gesperrt
@@ -298,8 +312,10 @@ def unextrahierte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     nicht nur das, was einen Gespraechszug ausgeloest haette.
 
     Die einzige Ausnahme sind die Transkript-Echos (``typ='transkript'``,
-    siehe TYP_TRANSKRIPT): was die interviewte Person erzaehlt, ist keine
-    Aenderungsabsicht der Gruppe."""
+    siehe TYP_TRANSKRIPT) und Entwickler-Notizen (``typ='entwicklernotiz'``,
+    siehe TYP_ENTWICKLERNOTIZ): was die interviewte Person erzaehlt, ist keine
+    Aenderungsabsicht der Gruppe, und eine Notiz an die Entwicklung erst
+    recht nicht."""
     return conn.execute(
         f"""
         SELECT n.* FROM nachricht n
@@ -3061,6 +3077,8 @@ def merke_aufruf(
     erfolg: int | None = None,
     modell: str | None = None,
     kosten_chf: float | None = None,
+    cache_read_token: int | None = None,
+    cache_creation_token: int | None = None,
 ) -> None:
     """Protokolliert einen Sprachmodell-Aufruf zur Selbstkorrektur der
     Token-Schaetzung (global-constraints.md § 4) -- und seit dem 30.09.2026
@@ -3069,14 +3087,17 @@ def merke_aufruf(
 
     ``modell`` und ``kosten_chf`` stehen am Ende und haben Vorgabewerte: die
     bestehenden Aufrufer reichen zehn Stellungsargumente herein, und die
-    sollen unveraendert gelten."""
+    sollen unveraendert gelten. ``cache_read_token``/``cache_creation_token``
+    (Modellwahl-Karte, 02.10.2026) sind dieselbe Art Nachtrag: nur
+    ``szene_claude._buche`` setzt sie, aus der Anthropic-``usage`` eines
+    ``cache_control``-Aufrufs."""
     conn.execute(
         """
         INSERT INTO aufruf
             (chat_id, art, modus, geschaetzte_token, tatsaechliche_token,
              antwort_token, finish_reason, dauer_ms, erfolg, modell,
-             kosten_chf, erstellt_am)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             kosten_chf, cache_read_token, cache_creation_token, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             chat_id,
@@ -3090,6 +3111,8 @@ def merke_aufruf(
             erfolg,
             modell,
             kosten_chf,
+            cache_read_token,
+            cache_creation_token,
             _jetzt(),
         ),
     )

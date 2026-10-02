@@ -265,6 +265,24 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
     from interview_theater import phasentexte
 
     _sende_karte(tg, chat_id, nummer)
+    if nummer == PHASE_SETTING:
+        # Modellwahl-Karte (02.10.2026): die Einwilligungsfrage steht jetzt
+        # HIER, beim Uebergang 3 -> 4 -- nicht mehr erst vor der ersten Szene.
+        # Dieselbe Spalte (gruppe.szene_usa_bestaetigt_am), derselbe Knopfweg
+        # (ART_SZENE_USA, biete_szene_usa): eine Antwort hier gilt auch fuer
+        # die Szene, keine zweite Frage in Phase 6 -- der dortige Zweig unten
+        # (PHASE_SZENEN) bleibt als Sicherheitsnetz stehen, greift im
+        # Normalfall aber nicht mehr, weil ``angebot_faellig`` False liefert,
+        # sobald hier einmal gefragt wurde. Die Phase wird NICHT auf die
+        # Antwort verzoegert: der Eintritt geht sofort weiter, bis zur
+        # Antwort laeuft jeder Gespraechszug auf Kimi
+        # (``modellwahl.konversation_ueber_claude``).
+        from interview_theater import szene_claude
+
+        if szene_claude.angebot_faellig(e, conn, chat_id):
+            repo.merke_szene_usa_angeboten(conn, chat_id)
+            tg.sende(chat_id, T._TEXT_ANGEBOT_MODELLWAHL)
+            biete_szene_usa(conn, tg, chat_id)
     if nummer == PHASE_BEGRIFFE and klm is not None:
         # **Derselbe Einstieg wie beim Erstkontakt** (02.10.2026, Birk,
         # Padua): keine Kopfzeile, kein fester Satz -- der erste Impuls kommt

@@ -88,6 +88,20 @@ _TEXT_USA_JA = """\
 Good, scenes will come from the US model from now on. I'll mention it \
 again before every scene."""
 _TEXT_USA_NEIN = "Understood, everything stays in Switzerland. I won't ask again."
+_TEXT_ANGEBOT_MODELLWAHL = """\
+Before we go on, a decision for you.
+
+So far everything has run in Switzerland: your recordings and interviews \
+stay that way -- no exceptions.
+
+For the work from here on (the conversation with me, your progress, your \
+decisions, the brainstorming transcript and the characters) there is a \
+better model -- from Anthropic, in the US. If you take it, that goes to a \
+server there; from phase 5 on that also includes word-for-word interview \
+quotes once you use them for scenes. No audio recordings, no complete \
+interviews, no names from this chat.
+
+Do you want that? If no, everything stays in Switzerland -- that works too."""
 _TEXT_STT_SPRACHE_FRAGE = "Which language are your interviews in? With \"Auto\" I work it out myself."
 _TEXT_STT_SPRACHE_GESETZT = "Interview language from now on: {sprache}."
 _TEXT_STT_SPRACHE_AUTO = "automatic (I detect it myself)"
@@ -792,6 +806,7 @@ _TEXT_HINWEIS = "One moment, I'm thinking."
 _TEXT_FEHLER = "Something is stuck on my end - ask again."
 _TEXT_DENKSPUR_ERMAHNUNG = "Your last answer was you talking to yourself, not the message to the group. Write ONLY the message: what you say to the group, in their words, under 500 characters."
 _TEXT_ECHO_ERMAHNUNG = "Your last answer was a quote from the group. Don't quote - answer with an impulse of your own: an assessment, a suggestion or a follow-up question."
+_TEXT_ANKUENDIGUNG_ERMAHNUNG = "Your last answer announced something but didn't deliver it -- it ended on a colon without the promised content after it. Rewrite the message and deliver the content NOW, in this one message."
 _AUFTRAG_KOPF = "Your task in exactly this turn:"
 
 ["erkenner"]

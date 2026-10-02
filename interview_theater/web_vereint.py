@@ -24,7 +24,7 @@ import re
 import time
 import urllib.parse
 
-from interview_theater import web, web_daten
+from interview_theater import sprache, web, web_daten
 
 #: Der Unterpfad unter ``/g/<token>/chat/``.
 STROM_PFAD = "strom"
@@ -706,7 +706,7 @@ def _tabs_html(aktiv: str, tabs=TABS) -> str:
     knoepfe = "".join(
         f'<button type="button" role="tab" data-tab="{tab}" '
         f'aria-selected="{"true" if tab == aktiv else "false"}">'
-        f"{_TEXT_TAB[tab]}</button>"
+        f"{T._TEXT_TAB[tab]}</button>"
         for tab in tabs
     )
     return f'<nav class="tabs" role="tablist">{knoepfe}</nav>'
@@ -747,12 +747,12 @@ def phase_post(handler, db_pfad: str, token: str, chat_id: int,
     if daten is None:
         return
     if not daten.get("bestaetigt"):
-        handler._fehler(400, _TEXT_PHASE_UNBESTAETIGT)
+        handler._fehler(400, T._TEXT_PHASE_UNBESTAETIGT)
         return
     nummern = {n for n, _name, _satz in phasen.PHASEN}
     roh = daten.get("nummer")
     if not isinstance(roh, int) or isinstance(roh, bool) or roh not in nummern:
-        handler._fehler(400, _TEXT_PHASE_UNGUELTIG)
+        handler._fehler(400, T._TEXT_PHASE_UNGUELTIG)
         return
     with web_chat.schreibend(db_pfad) as conn:
         message_id = repo.lege_web_post_an(
@@ -797,7 +797,7 @@ def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
     if not roadmapdaten:
         return ""
     aktiv = next((p for p in roadmapdaten if p["aktiv"]), roadmapdaten[0])
-    kopf = _TEXT_ROADMAP_KOPF.format(
+    kopf = T._TEXT_ROADMAP_KOPF.format(
         nummer=aktiv["nummer"], gesamt=len(roadmapdaten), name=aktiv["name"],
         erledigt=aktiv["erledigt"], gesamt_aufgaben=aktiv["gesamt"],
     )
@@ -816,7 +816,7 @@ def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
                 f'<button type="button" class="phase-knopf" '
                 f'data-phase="{phase["nummer"]}" '
                 f'data-bezeichnung="{html.escape(phase["bezeichnung"], quote=True)}" '
-                f'title="{html.escape(_TEXT_PHASE_WECHSELN, quote=True)}">'
+                f'title="{html.escape(T._TEXT_PHASE_WECHSELN, quote=True)}">'
                 f'{html.escape(phase["bezeichnung"])}</button>'
             )
         else:
@@ -902,8 +902,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         .replace("__BASIS__", f"{token}/")
         .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
         .replace("__NACHLADEN_MS__", str(NACHLADEN_MS))
-        .replace("__SICHER__", _TEXT_PHASE_SICHER)
-        .replace("__FEHLER_NETZ__", _TEXT_PHASE_FEHLER_NETZ)
+        .replace("__SICHER__", T._TEXT_PHASE_SICHER)
+        .replace("__FEHLER_NETZ__", T._TEXT_PHASE_FEHLER_NETZ)
         + web._TEXTBUCH_JS
     )
     if chat_vorhanden:
@@ -1053,3 +1053,8 @@ def sende_strom(handler, db_pfad: str, token: str, query: str) -> None:
                 return
             letztes_lebenszeichen = time.monotonic()
         time.sleep(STROM_TAKT_S)
+
+
+#: Die Nutzertexte in der Sprache des Profils (Karte A1). Nachgeschlagen wird
+#: zur Aufrufzeit, nie beim Import: ein Web-Prozess bedient mehrere Gruppen.
+T = sprache.Texte(__name__)

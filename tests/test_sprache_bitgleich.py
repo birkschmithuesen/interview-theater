@@ -34,6 +34,24 @@ VERSCHOBEN: dict[str, str] = {
     "knoepfe.stationen._ERLEDIGT_FUER": "knoepfe.texte._ERLEDIGT_FUER",
 }
 
+#: Karte P2-Fix (02.10.2026, Restspannung 4): prompts/system.md nennt den
+#: Hauptkonflikt jetzt als Rahmen-Entscheidung von Station **4** statt 5.
+#: Seit dem Zusammenlegen von 4 und 5 am 06.09.2026 heisst Station 4
+#: "Setting, Figuren & Geschichte" und traegt die Stichwoerter
+#: konflikt/hauptkonflikt (workshop.py:331-342); Station 5 ist die
+#: Schaerfung. Englisch steht die 4 seit c8 (en/prompts/system.md:45), und
+#: dieselbe deutsche Datei nennt sie an drei anderen Stellen schon richtig
+#: (:30, :32, :224). Gewollte Verhaltensaenderung fuer Dortmund: eine Zahl
+#: in einem Satz (tests/test_anweisungen.py). Die Systemanweisung geht in
+#: jede Phase ein, deshalb neun Abschnitte und nicht einer.
+_GRUND_STATION_4 = (
+    "Karte P2-Fix (02.10.2026, Restspannung 4): Hauptkonflikt = "
+    "Rahmen-Entscheidung von Station 4 statt 5, wie englisch seit c8 und wie "
+    "workshop.VORGABE_PHASEN. Die Systemanweisung steckt in jeder Phase, "
+    "daher derselbe Grund fuer alle neun Abschnitte "
+    "(tests/test_anweisungen.py::test_der_hauptkonflikt_gehoert_zu_station_vier)."
+)
+
 #: Abschnitte, deren Wert A1 absichtlich aendert -- mit Grund. Jede Zeile
 #: hier ist eine Verhaltensaenderung fuer Dortmund.
 GEAENDERT: dict[str, str] = {
@@ -85,6 +103,15 @@ GEAENDERT: dict[str, str] = {
         "c8 (en/texte.toml:848). Gewollte Verhaltensaenderung fuer Dortmund: "
         "ein Wort in der Ueberschrift des Blocks (tests/test_kontext.py)."
     ),
+    "prompt system": _GRUND_STATION_4,
+    "anweisungen.system(phase=None)": _GRUND_STATION_4,
+    "anweisungen.system(phase=1)": _GRUND_STATION_4,
+    "anweisungen.system(phase=2)": _GRUND_STATION_4,
+    "anweisungen.system(phase=3)": _GRUND_STATION_4,
+    "anweisungen.system(phase=4)": _GRUND_STATION_4,
+    "anweisungen.system(phase=5)": _GRUND_STATION_4,
+    "anweisungen.system(phase=6)": _GRUND_STATION_4,
+    "anweisungen.system(phase=7)": _GRUND_STATION_4,
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

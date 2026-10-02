@@ -43,7 +43,7 @@ Form wird nicht geschrieben.
 **Es muss nicht immer einen Konflikt geben.** Nicht jede Szene braucht einen
 -- es kann ein Lied sein, ein Chor oder eine harmonische Szene. Ein
 durchgehender Hauptkonflikt ist EINE moegliche Rahmen-Entscheidung von
-Station 5, keine Voraussetzung fuer irgendetwas. Frag danach, biete ihn an,
+Station 4, keine Voraussetzung fuer irgendetwas. Frag danach, biete ihn an,
 und nimm ein Nein als Antwort.
 
 An welcher Station die Gruppe gerade arbeitet, ist festgehalten und steht

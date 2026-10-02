@@ -151,3 +151,9 @@ gedankenstriche_je_1000 = 6.0
 nicht_sondern_je_1000 = 2.0
 adjektiv_dreier_je_1000 = 2.0
 fazitsatz_je_text = 1
+
+# Das Team-Dashboard (02.10.2026): je Gruppe sichtbar bleiben Titel, Bot,
+# Interviewmodus, Arbeitsstand und Ergebnisse; Zahlen, Vorfaelle und
+# Modellaufrufe stehen eingeklappt unter "Log", die Bot-Zuordnung ebenso.
+[web]
+dashboard_log_einklappen = true

@@ -1788,6 +1788,15 @@ def _dashboard_zeit(iso: str | None) -> str:
         return ""
 
 
+def _eingeklappt(summary: str, inhalt: str, einklappen: bool) -> str:
+    """``inhalt`` in einem geschlossenen ``<details>`` mit ``summary`` --
+    oder unveraendert, wenn nicht eingeklappt wird. Nie ``open``: das
+    sanfte Nachladen oeffnet, was jemand aufgeklappt hat, selbst wieder."""
+    if not einklappen:
+        return inhalt
+    return f"<details><summary>{_t(summary)}</summary>{inhalt}</details>"
+
+
 def _szenenzahl(anzahl: int, formen: list) -> str:
     """"3 Szenen: 2 Dialog, 1 Lied" -- die Szenenzahl mit ihren Formen
     (05.09.2026).
@@ -1833,7 +1842,16 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
 
     ``praefix`` baut den Link zur Gruppenseite (Birk 04.09.: je Gruppe ein
     Link) -- relativ zum Server, damit er hinter nginx genauso geht wie
-    direkt auf Port 8010."""
+    direkt auf Port 8010.
+
+    Mit ``[web] dashboard_log_einklappen`` im Profil (Padua) stehen je Karte
+    Zahlen, Vorfaelle und Aufrufe -- und am Ende die Bot-Zuordnung -- in
+    einem geschlossenen ``<details>``: am Beamer zaehlt der Arbeitsstand,
+    der Technikteil ist fuers Team. Ohne den Schalter bleibt die Seite
+    byte-gleich wie zuvor."""
+    from interview_theater import workshop
+
+    einklappen = bool(workshop.aktiv().wert("web.dashboard_log_einklappen", False))
     karten = []
     for g in daten["gruppen"]:
         titel = _t(g["titel"], _t(T._TEXT_GRUPPE.format(chat_id=g["chat_id"])))
@@ -1897,10 +1915,8 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
             f'<span class="bot">{_t(g["bot_name"])} {marke}</span></div>'
             f'{_arbeitsstand_html(g["arbeitsstand"], g["figuren"])}'
             f'{_ergebnisse_html(g.get("interview_kurzformen") or [])}'
-            f"{zahlen}"
-            f"{vorfaelle_html}"
-            f"{aufrufe_html}"
-            "</section>"
+            + _eingeklappt(T._TEXT_LOG, f"{zahlen}{vorfaelle_html}{aufrufe_html}", einklappen)
+            + "</section>"
         )
     gruppen_html = (
         f'<div class="gruppen">{"".join(karten)}</div>'
@@ -1917,11 +1933,15 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
         )
         for z in daten["bot_zuordnung"]
     )
-    zuordnung_html = (
-        f"<h2>{_t(T._UEBERSCHRIFT_BOT_ZUORDNUNG)}</h2>"
+    zuordnung_tabelle = (
         "<table><tr>"
         + "".join(f"<th>{_t(kopf)}</th>" for kopf in T._ZUORDNUNG_KOEPFE)
         + f"</tr>{zuordnung}</table>"
+    )
+    zuordnung_html = (
+        _eingeklappt(T._UEBERSCHRIFT_BOT_ZUORDNUNG, zuordnung_tabelle, True)
+        if einklappen
+        else f"<h2>{_t(T._UEBERSCHRIFT_BOT_ZUORDNUNG)}</h2>{zuordnung_tabelle}"
     )
     stand = _t(T._TEXT_STAND).format(zeit=_t(_dashboard_zeit(daten["stand"]), ""))
     return _seite(

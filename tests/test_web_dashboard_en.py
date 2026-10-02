@@ -8,6 +8,7 @@ Beweisgrundlage dafuer, dass Dortmund kein Zeichen anders sieht.
 
 import pathlib
 import re
+from html.parser import HTMLParser
 
 import pytest
 
@@ -235,6 +236,98 @@ def test_padua_beschriftet_und_unbekanntes_bleibt_roh(padua):
     # Unbekannte Schluessel: roh, kein Fehler.
     for roh in ("unbekannt_x", "voellig_neue_art", "neue_aufrufart", "1 tanz"):
         assert roh in text, roh
+
+
+# --- (b) Padua: der Technikteil ist eingeklappt -------------------------------
+
+
+class _Lage(HTMLParser):
+    """Merkt sich je interessantem Element, ob es in einem ``<details>``
+    steht und ob dieses offen ist."""
+
+    def __init__(self):
+        super().__init__()
+        self.stapel: list[tuple[str, bool]] = []   # (tag, details_offen)
+        self.funde: list[tuple[str, bool | None]] = []
+        self.summaries: list[str] = []
+        self._in_summary = False
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        details = [offen for t, offen in self.stapel if t == "details"]
+        lage = None if not details else any(details)
+        name = tag + ("." + a["class"] if a.get("class") else "")
+        self.funde.append((name, lage))
+        if tag == "summary":
+            self._in_summary = True
+            self.summaries.append("")
+        if tag not in ("br", "meta", "input"):
+            self.stapel.append((tag, "open" in a))
+
+    def handle_endtag(self, tag):
+        if tag == "summary":
+            self._in_summary = False
+        for i in range(len(self.stapel) - 1, -1, -1):
+            if self.stapel[i][0] == tag:
+                del self.stapel[i:]
+                break
+
+    def handle_data(self, data):
+        if self._in_summary:
+            self.summaries[-1] += data
+
+
+def _lage(html: str) -> _Lage:
+    p = _Lage()
+    p.feed(html)
+    return p
+
+
+def _lagen(p: _Lage, name: str) -> list:
+    return [lage for n, lage in p.funde if n == name]
+
+
+def test_padua_technikteil_eingeklappt(padua):
+    html = web.dashboard_html(DATEN)
+    p = _lage(html)
+    # Eingeklappt (in <details>, geschlossen): Zahlenzeile, Vorfaelle,
+    # Aufruftabelle bzw. "keine Aufrufe", und die Bot-Zuordnung.
+    assert _lagen(p, "div.zahlen") == [False, False]
+    assert _lagen(p, "div.vorfaelle") == [False]
+    assert _lagen(p, "p.leer") == [False]               # keine Aufrufe, Karte 2
+    assert all(lage is False for lage in _lagen(p, "table"))
+    assert len(_lagen(p, "table")) == 2                 # Aufrufe + Zuordnung
+    assert "<details open" not in html
+    # Sichtbar bleiben: Arbeitsstand und Ergebnisse.
+    assert _lagen(p, "dl") == [None, None]
+    assert _lagen(p, "ul.ergebnisse") == [None]
+    assert _lagen(p, "span.marke") == [None]
+    assert all(lage is None for lage in _lagen(p, "h2"))
+    # Summary-Texte: uebersetzt, ohne Zahl (das Nachladen oeffnet am Text).
+    assert p.summaries == ["Log", "Log", "Bot assignment"]
+    assert not any(re.search(r"\d", s) for s in p.summaries)
+
+
+def test_padua_leer_ohne_karte(padua):
+    p = _lage(web.dashboard_html(LEER))
+    assert _lagen(p, "p.leer") == [None]                # "No group has written yet."
+    assert p.summaries == ["Bot assignment"]
+
+
+@pytest.mark.parametrize("profil", [None, "dortmund-2026"])
+def test_deutsch_ohne_details(monkeypatch, profil):
+    _profil(monkeypatch, profil)
+    p = _lage(web.dashboard_html(DATEN))      # Skript-Kommentare zaehlen nicht
+    assert not [n for n, _ in p.funde if n.startswith(("details", "summary"))]
+
+
+def test_einklappen_nur_im_profil_gesetzt(monkeypatch):
+    _profil(monkeypatch, None)
+    assert workshop.aktiv().wert("web.dashboard_log_einklappen") is False
+    _profil(monkeypatch, "dortmund-2026")
+    assert workshop.aktiv().wert("web.dashboard_log_einklappen") is False
+    _profil(monkeypatch, "padua-2026")
+    assert workshop.aktiv().wert("web.dashboard_log_einklappen") is True
 
 
 def test_deutsch_unbekanntes_bleibt_roh(monkeypatch):

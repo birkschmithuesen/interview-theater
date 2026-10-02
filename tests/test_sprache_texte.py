@@ -193,12 +193,8 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail szene_prompt_gekuerzt (repo.merke_vorfall)",
     ("dramaturgie.mechanik", "\\b[A-ZÄÖÜ][a-zäöüß]{%d,}\\b"):
         "Regex-Muster fuer Eigennamen (Parser), kein Text",
-    # Aufgabe 17: das Team-Dashboard (web.dashboard_html) bleibt deutsch --
-    # projiziert, fuer das Team, Karte A2/UX fasst es an.
-    ("web", '<p class="leer">heute noch keine Modella'): "Dashboard, Team",
-    ("web", '<p class="leer">Noch keine Gruppe hat ge'): "Dashboard, Team",
-    ("web", "— keine Gruppe —"): "Dashboard, Team",
-    ("web", '<h1>Arbeitsstand aller Gruppen <span cla'): "Dashboard, Team",
+    # Aufgabe 17 liess das Team-Dashboard deutsch; seit Padua (02.10.2026)
+    # laeuft es ueber T -- die vier Ausnahmen dafuer sind entfallen.
     ("web", "interview-theater-web hoert auf http://{"):
         "Startzeile des Dienstes (stdout, betrieb/web.log), Betreiberausgabe",
 }

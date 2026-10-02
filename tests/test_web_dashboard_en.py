@@ -7,6 +7,7 @@ Beweisgrundlage dafuer, dass Dortmund kein Zeichen anders sieht.
 """
 
 import pathlib
+import re
 
 import pytest
 
@@ -151,3 +152,94 @@ def test_deutsch_byte_gleich_wie_vorher(monkeypatch, profil):
 def test_deutsch_leer_byte_gleich_wie_vorher(monkeypatch, profil):
     _profil(monkeypatch, profil)
     assert web.dashboard_html(LEER) == VORHER_LEER.read_text(encoding="utf-8")
+
+
+# --- (a) Padua: kein deutsches Wort im sichtbaren Text ------------------------
+
+#: Was vor der Umstellung auf dem Dashboard stand -- als Wort im lesbaren
+#: Text gesucht (nicht in Klassennamen wie ``zahlen`` oder ``vorfaelle``).
+DEUTSCHE_WOERTER = (
+    "Arbeitsstand aller Gruppen", "Stand", "Bot-Zuordnung", "letzte Aktivität",
+    "Aufruf", "heute", "Fehl", "Modellaufrufe", "Aufnahmen", "keine",
+    "Verdichtungen", "zuletzt", "Interviewmodus", "bot-weit",
+    "Noch keine Gruppe", "Gruppe", "Szenen", "fertig", "laeuft", "empfangen",
+    "transkribiert", "fehlgeschlagen", "wiederholung_verworfen",
+    "transkription_fehlgeschlagen", "erkenner", "gespraech", "offen",
+)
+
+
+def _sichtbar(html: str) -> str:
+    from scripts import pruefe_sprache
+
+    return pruefe_sprache.nur_text(html)
+
+
+def _deutsche_treffer(html: str) -> list[str]:
+    text = _sichtbar(html)
+    return [w for w in DEUTSCHE_WOERTER
+            if re.search(rf"(?<![\w-]){re.escape(w)}(?![\w-])", text)]
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    _profil(monkeypatch, "padua-2026")
+
+
+def test_padua_ohne_deutsche_woerter(padua):
+    assert _deutsche_treffer(web.dashboard_html(DATEN)) == []
+    assert _deutsche_treffer(web.dashboard_html(LEER)) == []
+
+
+def test_padua_ohne_deutsche_signale(padua):
+    """Dieselbe Pruefung wie fuer die Gruppenseite (``pruefe_sprache``)."""
+    from scripts import pruefe_sprache
+
+    treffer = pruefe_sprache.deutsche_treffer("dashboard", _sichtbar(web.dashboard_html(DATEN)))
+    assert [f"{t.wort} | {t.ausschnitt}" for t in treffer] == []
+
+
+def test_positivkontrolle_deutsch_schlaegt_an(monkeypatch):
+    """Ohne sie prueft der Wortfilter womoeglich nichts."""
+    _profil(monkeypatch, None)
+    assert set(_deutsche_treffer(web.dashboard_html(DATEN))) >= {
+        "Arbeitsstand aller Gruppen", "Aufnahmen", "fertig", "wiederholung_verworfen",
+        "Interviewmodus", "bot-weit", "offen",
+    }
+
+
+def test_padua_lang_und_datum(padua):
+    html = web.dashboard_html(DATEN)
+    assert '<html lang="en">' in html
+    assert 'lang="de"' not in html
+    assert not re.search(r"\b\d{2}\.\d{2}\.\d{4}\b", _sichtbar(html))
+    # Eindeutig: Jahr-Monat-Tag, ohne den deutschen Trenner " · ".
+    assert "As of 2026-10-02 12:32</span>" in html
+    assert "Last activity: 2026-10-02 12:30</span>" in html
+    assert "2026-10-02 12:05, bot-wide" in html
+
+
+def test_padua_dezimalpunkt(padua):
+    html = web.dashboard_html(DATEN)
+    assert "<td>5.1 s</td>" in html
+    assert "5,1" not in html
+
+
+def test_padua_beschriftet_und_unbekanntes_bleibt_roh(padua):
+    text = _sichtbar(web.dashboard_html(DATEN))
+    for erwartet in ("received", "done", "running", "transcribed", "failed",
+                     "repetition_discarded", "transcription_failed",
+                     "conversation", "intent detector", "speech-to-text",
+                     "2 dialogue", "1 open", "Interview mode", "Group -1002",
+                     "— no group —", "Bot assignment", "Progress of all groups"):
+        assert erwartet in text, erwartet
+    # Unbekannte Schluessel: roh, kein Fehler.
+    for roh in ("unbekannt_x", "voellig_neue_art", "neue_aufrufart", "1 tanz"):
+        assert roh in text, roh
+
+
+def test_deutsch_unbekanntes_bleibt_roh(monkeypatch):
+    _profil(monkeypatch, None)
+    text = _sichtbar(web.dashboard_html(DATEN))
+    for roh in ("fertig", "unbekannt_x", "voellig_neue_art", "neue_aufrufart",
+                "2 dialog", "1 offen", "1 tanz"):
+        assert roh in text, roh

@@ -469,6 +469,32 @@ def test_reine_denkspur_baut_dieselbe_form_wie_blockierend(conn):
     assert conn.execute("SELECT COUNT(*) FROM aufruf").fetchone()[0] == 1
 
 
+def test_scheiternder_abbruch_hook_verhindert_den_nachversuch_nicht(conn):
+    """Fix Runde 1 (Review von Aufgabe 6, dieselbe Lehre fuer llm.py): ein
+    scheiternder ``bei_teil.abbruch()`` (z. B. ein DB-Schreibfehler beim
+    Entfernen der vorlaeufigen Blase) darf den blockierenden Nachversuch
+    nicht verhindern."""
+    def handler(anfrage):
+        body = json.loads(anfrage.content)
+        if body.get("stream"):
+            return httpx.Response(200, content=(
+                'data: {"choices": [{"delta": {"content": "Hal"}}]}\n\n'
+            ).encode("utf-8") + b"data: {kaputt")
+        return httpx.Response(200, json=_FERTIG)
+
+    class Senke:
+        def __call__(self, text):
+            pass
+
+        def abbruch(self):
+            raise RuntimeError("db locked")
+
+    klm = llm.LLM(Einstellungen(), _klient(handler), conn)
+    ergebnis = klm.schema(CHAT, "sys", "nutz", {"type": "object"}, "gespraech",
+                          bei_teil=Senke())
+    assert ergebnis == {"antwort": "Hallo ihr"}
+
+
 def test_ohne_usage_wird_nicht_zweimal_bezahlt(conn):
     """Abweichung 2 im Plan-Kopf: eine fehlende usage merkt man erst am ENDE.
     Den Aufruf zu wiederholen kostete eine zweite Generierung und zeigte der

@@ -108,6 +108,13 @@ def _blockierend(klient, url, headers, koerper, timeout) -> dict:
 #: ueblichen 408/429/5xx aus ``llm.py``.
 _HTTP_VORUEBERGEHEND = (408, 429, 529)
 
+#: Anthropic schickt Ueberlast/Drosselung nicht nur als HTTP-Status, sondern
+#: auch als eigenes SSE-Ereignis INNERHALB einer HTTP-200-Antwort
+#: (``{"type": "error", "error": {"type": "overloaded_error"}}``, Review-Fund
+#: Aufgabe 6). Diese drei Fehlertypen gelten als voruebergehend; alles andere
+#: (z. B. ``invalid_request_error``) ist ein echtes "das geht so nicht".
+_FEHLERTYPEN_VORUEBERGEHEND = ("overloaded_error", "rate_limit_error", "api_error")
+
 
 def _stream(klient, url, headers, koerper, timeout, bei_teil) -> dict:
     """Ein Aufruf mit ``stream: true`` im Anthropic-Messages-Format; baut aus
@@ -115,8 +122,12 @@ def _stream(klient, url, headers, koerper, timeout, bei_teil) -> dict:
 
     Gelesen werden ``message_start`` (input_tokens), ``content_block_delta``
     mit ``delta.type == "text_delta"``, ``message_delta`` (stop_reason,
-    output_tokens) und ``message_stop``. Ein ``thinking_delta`` wird
-    **nicht** weitergegeben -- die Denkspur ist nie fuer die Gruppe.
+    output_tokens), ``message_stop`` und das SSE-eigene ``error``-Ereignis
+    (Ueberlast/Drosselung INNERHALB einer HTTP-200-Antwort). Ein
+    ``thinking_delta`` wird **nicht** weitergegeben -- die Denkspur ist nie
+    fuer die Gruppe. Mehrere Textbloecke (``index`` im Ereignis) werden
+    getrennt gesammelt und am Ende wie im blockierenden Weg mit ``\\n``
+    verbunden, nicht roh aneinandergeklebt.
 
     Review-Lehren aus Aufgabe 5 (``llm.py``), hier von Anfang an eingebaut:
     ein sauberes Verbindungsende OHNE ``message_stop``/``stop_reason`` nach
@@ -126,12 +137,18 @@ def _stream(klient, url, headers, koerper, timeout, bei_teil) -> dict:
     voruebergehender Fehler (408/429/5xx/529, Transport-/Dekodierfehler) VOR
     dem ersten Stueck schaltet die Prozessflagge nicht ab -- nur ein
     Fehler, der zeigt, dass der Proxy ueberhaupt nicht streamen kann oder
-    will, tut das."""
+    will, tut das.
+
+    Review-Lehren aus der Pruefung von Aufgabe 6: ein ``message_stop``, das
+    ohne jeden ``text_delta`` ankommt (Ablehnung, leere Antwort), ist KEIN
+    "kann nicht streamen" -- der Stream hat sauber geantwortet, nur eben mit
+    leerem Text, und das meldet ``prosa`` ueber seinen gewohnten
+    "keine Textbloecke"-Fehler, nicht ueber die Prozessflagge."""
     import json as _json
 
     strom_koerper = dict(koerper)
     strom_koerper["stream"] = True
-    roh: list[str] = []
+    bloecke: dict[int, list[str]] = {}
     nutzung: dict = {}
     stop = None
     erstes_stueck = False
@@ -165,10 +182,14 @@ def _stream(klient, url, headers, koerper, timeout, bei_teil) -> dict:
                         # die Gruppe (Denkspur) -- nur text_delta zaehlt.
                         continue
                     erstes_stueck = True
-                    roh.append(delta.get("text") or "")
+                    index = ereignis.get("index", 0)
+                    bloecke.setdefault(index, []).append(delta.get("text") or "")
                     if sende_an_senke:
                         try:
-                            bei_teil("".join(roh))
+                            bei_teil("\n".join(
+                                "".join(stuecke)
+                                for _, stuecke in sorted(bloecke.items())
+                            ))
                         except Exception:  # noqa: BLE001 -- eine werfende
                             # Anzeige (z. B. gesperrte DB) darf die Antwort
                             # nicht kosten. Nur die Anzeige stoppt, das
@@ -187,6 +208,20 @@ def _stream(klient, url, headers, koerper, timeout, bei_teil) -> dict:
                     nutzung.update(ereignis.get("usage") or {})
                 elif typ == "message_stop":
                     fertig_gesehen = True
+                elif typ == "error":
+                    # Anthropics eigenes Ueberlast-/Drosselsignal INNERHALB
+                    # einer HTTP-200-Antwort (Review-Fund Aufgabe 6). Nach
+                    # dem ersten Stueck ist es immer ein Abbruch -- davor
+                    # entscheidet der Fehlertyp zwischen "voruebergehend"
+                    # (Drosselung) und "geht grundsaetzlich nicht".
+                    fehlertyp = (ereignis.get("error") or {}).get("type")
+                    if erstes_stueck:
+                        raise _StromAbbruch(
+                            f"error-Ereignis nach dem ersten Stueck: {fehlertyp}"
+                        )
+                    if fehlertyp in _FEHLERTYPEN_VORUEBERGEHEND:
+                        raise _StromVoruebergehend(f"error-Ereignis: {fehlertyp}")
+                    raise _StromNichtVerfuegbar(f"error-Ereignis: {fehlertyp}")
     except (_StromNichtVerfuegbar, _StromVoruebergehend, _StromAbbruch):
         raise
     except httpx.HTTPStatusError as fehler:
@@ -202,18 +237,27 @@ def _stream(klient, url, headers, koerper, timeout, bei_teil) -> dict:
         if erstes_stueck:
             raise _StromAbbruch(type(fehler).__name__) from fehler
         raise _StromVoruebergehend(type(fehler).__name__) from fehler
-    if erstes_stueck and not fertig_gesehen:
+    if fertig_gesehen:
+        # Ein ordentliches Abschlusssignal (message_delta mit stop_reason
+        # oder message_stop) ist ein Erfolg -- AUCH wenn nie ein einziger
+        # text_delta kam (Ablehnung, max_tokens waehrend des Denkens, leere
+        # Antwort). Der Proxy HAT gestreamt; dass der Text leer ist, meldet
+        # ``prosa`` ueber seinen gewohnten "keine Textbloecke"-Fehler, nicht
+        # ueber ein "kann nicht streamen" mit Dauerabschaltung.
+        return {
+            "content": [
+                {"type": "text", "text": "".join(stuecke)}
+                for _, stuecke in sorted(bloecke.items())
+            ],
+            "usage": nutzung,
+            "stop_reason": stop,
+        }
+    if erstes_stueck:
         # Die Verbindung endete sauber, aber ohne Abschlusssignal -- das ist
         # ein Abbruch, kein Erfolg (sonst kaeme ein abgeschnittener Satz als
         # vollstaendige Szene durch).
         raise _StromAbbruch("Verbindung endete ohne message_stop/stop_reason")
-    if not erstes_stueck:
-        raise _StromNichtVerfuegbar("kein einziges Stueck")
-    return {
-        "content": [{"type": "text", "text": "".join(roh)}],
-        "usage": nutzung,
-        "stop_reason": stop,
-    }
+    raise _StromNichtVerfuegbar("kein einziges Stueck")
 
 
 def ist_aktiv(e, conn=None, chat_id: int | None = None) -> bool:
@@ -293,7 +337,15 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
                 except _StromAbbruch:
                     abbruch = getattr(bei_teil, "abbruch", None)
                     if callable(abbruch):
-                        abbruch()
+                        try:
+                            abbruch()
+                        except Exception:  # noqa: BLE001 -- ein scheiternder
+                            # Abbruch-Hook (z. B. ein DB-Schreibfehler beim
+                            # Entfernen der vorlaeufigen Blase) darf den
+                            # blockierenden Nachversuch nicht verhindern.
+                            log.exception(
+                                "bei_teil.abbruch() (Claude) fehlgeschlagen"
+                            )
                     daten = _blockierend(klient, url, headers, koerper, timeout)
             else:
                 daten = _blockierend(klient, url, headers, koerper, timeout)

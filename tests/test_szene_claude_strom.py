@@ -353,3 +353,185 @@ def test_decoding_fehler_vor_dem_ersten_stueck_faellt_zurueck_ohne_flagge(conn):
                               "sys", "nutz", "szene", timeout=5, bei_teil=lambda t: None)
     assert text == "Es war einmal"
     assert szene_claude._abgeschaltet() is False
+
+
+# -- Fix Runde 1 (Review von Aufgabe 6) ---------------------------------------
+#
+# Vier Befunde: eine leere, aber ordentlich beendete Antwort loeste faelschlich
+# einen "kann nicht streamen"-Dauerzustand aus; das Anthropic-eigene
+# ``error``-SSE-Ereignis (HTTP 200!) wurde komplett ignoriert; ein scheiternder
+# ``bei_teil.abbruch()``-Hook riss den ganzen Zug mit; und zwei Textbloecke
+# wurden ohne Trenner zusammengeklebt statt wie im blockierenden Weg mit
+# ``\n`` verbunden.
+
+
+def test_leere_aber_vollstaendig_beendete_antwort_ist_kein_nichtverfuegbar_fall(conn):
+    """Ein komplett leerer Text (kein einziger text_delta -- Ablehnung,
+    max_tokens waehrend des Denkens, leere Antwort), der aber ordentlich mit
+    message_delta/message_stop endet, ist KEIN Beweis dafuer, dass der Proxy
+    nicht streamen kann. Die Flagge bleibt aus, es gibt keinen zweiten,
+    blockierenden Opus-Lauf -- ``prosa`` wirft stattdessen seinen gewohnten
+    Fehler ueber den leeren Text."""
+    versuche = []
+
+    def handler(anfrage):
+        streamt = bool(json.loads(anfrage.content).get("stream"))
+        versuche.append(streamt)
+        if streamt:
+            return httpx.Response(200, content=(
+                b'event: message_start\n'
+                b'data: {"type": "message_start", "message": '
+                b'{"usage": {"input_tokens": 700}}}\n\n'
+                b'event: message_delta\n'
+                b'data: {"type": "message_delta", "delta": '
+                b'{"stop_reason": "end_turn"}, "usage": {"output_tokens": 0}}\n\n'
+                b'event: message_stop\n'
+                b'data: {"type": "message_stop"}\n\n'
+            ))
+        return httpx.Response(200, json=_FERTIG)
+
+    with pytest.raises(szene_claude.ClaudeFehler) as fehler:
+        szene_claude.prosa(conn, Einstellungen(), _klient(handler), CHAT,
+                           "sys", "nutz", "szene", timeout=5, bei_teil=lambda t: None)
+    assert "keine Textbloecke" in str(fehler.value)
+    assert versuche == [True]  # kein blockierender Nachversuch
+    assert szene_claude._abgeschaltet() is False
+    arten = [z["art"] for z in conn.execute("SELECT art FROM vorfall").fetchall()]
+    assert "strom_nicht_verfuegbar" not in arten
+
+
+def test_overload_error_ereignis_vor_dem_ersten_stueck_faellt_still_zurueck(conn):
+    """Anthropic schickt Ueberlast als SSE-Ereignis INNERHALB einer
+    HTTP-200-Antwort (``{"type": "error", "error": {"type":
+    "overloaded_error"}}``) -- das ist voruebergehend wie 429/5xx, kein
+    "kann grundsaetzlich nicht streamen"."""
+    versuche = []
+
+    def handler(anfrage):
+        streamt = bool(json.loads(anfrage.content).get("stream"))
+        versuche.append(streamt)
+        if streamt:
+            return httpx.Response(200, content=(
+                b'event: error\n'
+                b'data: {"type": "error", "error": {"type": "overloaded_error", '
+                b'"message": "Overloaded"}}\n\n'
+            ))
+        return httpx.Response(200, json=_FERTIG)
+
+    text = szene_claude.prosa(conn, Einstellungen(), _klient(handler), CHAT,
+                              "sys", "nutz", "szene", timeout=5, bei_teil=lambda t: None)
+    assert text == "Es war einmal"
+    assert versuche == [True, False]
+    assert szene_claude._abgeschaltet() is False
+    arten = [z["art"] for z in conn.execute("SELECT art FROM vorfall").fetchall()]
+    assert "strom_nicht_verfuegbar" not in arten
+
+
+def test_unbekanntes_error_ereignis_vor_dem_ersten_stueck_schaltet_dauerhaft_ab(conn):
+    """Ein ``error``-Ereignis, dessen Typ nicht zu den bekannten
+    voruebergehenden gehoert (z. B. ``invalid_request_error``), ist ein
+    echtes "das geht so nicht" -- dauerhafte Abschaltung wie bei einem 4xx."""
+    def handler(anfrage):
+        if json.loads(anfrage.content).get("stream"):
+            return httpx.Response(200, content=(
+                b'event: error\n'
+                b'data: {"type": "error", "error": '
+                b'{"type": "invalid_request_error", "message": "kaputt"}}\n\n'
+            ))
+        return httpx.Response(200, json=_FERTIG)
+
+    text = szene_claude.prosa(conn, Einstellungen(), _klient(handler), CHAT,
+                              "sys", "nutz", "szene", timeout=5, bei_teil=lambda t: None)
+    assert text == "Es war einmal"
+    assert szene_claude._abgeschaltet() is True
+    arten = [z["art"] for z in conn.execute("SELECT art FROM vorfall").fetchall()]
+    assert "strom_nicht_verfuegbar" in arten
+
+    teile = []
+    szene_claude.prosa(conn, Einstellungen(),
+                       _klient(lambda a: httpx.Response(200, json=_FERTIG)),
+                       CHAT, "sys", "nutz", "szene", timeout=5, bei_teil=teile.append)
+    assert teile == []  # der zweite Aufruf streamt gar nicht erst
+
+
+def test_error_ereignis_nach_dem_ersten_stueck_ist_ein_abbruch(conn):
+    """Kommt das ``error``-Ereignis erst NACH dem ersten Textstueck, ist es
+    ein Abbruch -- die vorlaeufige Blase verschwindet, EIN blockierender
+    Nachversuch liefert den vollstaendigen Text."""
+    def handler(anfrage):
+        if json.loads(anfrage.content).get("stream"):
+            return httpx.Response(200, content=(
+                b'event: content_block_delta\n'
+                b'data: {"type": "content_block_delta", "delta": '
+                b'{"type": "text_delta", "text": "Es war "}}\n\n'
+                b'event: error\n'
+                b'data: {"type": "error", "error": {"type": "overloaded_error"}}\n\n'
+            ))
+        return httpx.Response(200, json=_FERTIG)
+
+    abbrueche = []
+
+    class Senke:
+        def __call__(self, text):
+            pass
+
+        def abbruch(self):
+            abbrueche.append(True)
+
+    text = szene_claude.prosa(conn, Einstellungen(), _klient(handler), CHAT,
+                              "sys", "nutz", "szene", timeout=5, bei_teil=Senke())
+    assert text == "Es war einmal"
+    assert abbrueche == [True]
+    assert szene_claude._abgeschaltet() is False
+
+
+def test_scheiternder_abbruch_hook_verhindert_den_nachversuch_nicht(conn):
+    """Ein scheiternder ``bei_teil.abbruch()`` (z. B. ein DB-Schreibfehler
+    beim Entfernen der vorlaeufigen Blase) darf den blockierenden
+    Nachversuch nicht verhindern."""
+    def handler(anfrage):
+        if json.loads(anfrage.content).get("stream"):
+            return httpx.Response(200, content=(
+                b'event: content_block_delta\n'
+                b'data: {"type": "content_block_delta", "delta": '
+                b'{"type": "text_delta", "text": "Es war "}}\n\n'
+                b'data: {kaputt'
+            ))
+        return httpx.Response(200, json=_FERTIG)
+
+    class Senke:
+        def __call__(self, text):
+            pass
+
+        def abbruch(self):
+            raise RuntimeError("db locked")
+
+    text = szene_claude.prosa(conn, Einstellungen(), _klient(handler), CHAT,
+                              "sys", "nutz", "szene", timeout=5, bei_teil=Senke())
+    assert text == "Es war einmal"
+
+
+def test_zwei_textbloecke_werden_wie_im_blockierenden_weg_verbunden(conn):
+    """Der blockierende Weg verbindet mehrere Textbloecke mit ``\\n``
+    (``prosa``: ``"\\n".join(teile)``) -- der Stream-Weg muss denselben Text
+    liefern, auch wenn die Bloecke ueber mehrere ``content_block_delta``-
+    Indizes verteilt ankommen, statt sie roh aneinanderzukleben."""
+    inhalt = (
+        'event: content_block_delta\n'
+        'data: {"type": "content_block_delta", "index": 0, "delta": '
+        '{"type": "text_delta", "text": "Erster Block"}}\n\n'
+        'event: content_block_delta\n'
+        'data: {"type": "content_block_delta", "index": 1, "delta": '
+        '{"type": "text_delta", "text": "Zweiter Block"}}\n\n'
+        'event: message_delta\n'
+        'data: {"type": "message_delta", "delta": {"stop_reason": "end_turn"}, '
+        '"usage": {"output_tokens": 5}}\n\n'
+        'event: message_stop\n'
+        'data: {"type": "message_stop"}\n\n'
+    ).encode("utf-8")
+    text = szene_claude.prosa(
+        conn, Einstellungen(),
+        _klient(lambda a: httpx.Response(200, content=inhalt)),
+        CHAT, "sys", "nutz", "szene", timeout=5, bei_teil=lambda t: None,
+    )
+    assert text == "Erster Block\nZweiter Block"

@@ -425,7 +425,15 @@ class LLM:
             # im ``finally`` von ``_anfrage`` nach dessen Rueckgabe.
             abbruch = getattr(bei_teil, "abbruch", None)
             if callable(abbruch):
-                abbruch()
+                try:
+                    abbruch()
+                except Exception:  # noqa: BLE001 -- ein scheiternder
+                    # Abbruch-Hook (z. B. ein DB-Schreibfehler beim Entfernen
+                    # der vorlaeufigen Blase) darf den blockierenden
+                    # Nachversuch nicht verhindern.
+                    log.exception(
+                        "bei_teil.abbruch() fehlgeschlagen (art=%s)", art
+                    )
             log.warning("Stream abgerissen (art=%s): %s -- ein Versuch ohne Stream",
                         art, type(fehler).__name__)
             return self._sende_mit_wiederholung(body, chat_id=chat_id, art=art,

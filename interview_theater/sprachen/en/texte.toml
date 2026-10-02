@@ -160,27 +160,33 @@ _TEXT_SCHAERFUNG_NICHTS = "There's nothing open on that right now."
 _TEXT_SCHAERFUNG_DURCH = """\
 That was everything I could match. Do you want another round, or shall \
 we move on to the scene texts?"""
-_TEXT_FRAGEN_UEBERNEHMEN_KNOPF = "Take these 3"
-_TEXT_FRAGEN_ANDERE_KNOPF = "Other questions"
+_TEXT_FRAGEN_ANDERE_KNOPF = "Other direction"
 _TEXT_FRAGEN_EIGENE_KNOPF = "Own idea"
+_TEXT_FRAGEN_EINZELN_KNOPF = "Yes, go through them"
+_TEXT_FRAGEN_RICHTUNG_FRAGE = "Are the questions going in the right direction? Shall we go through them one by one?"
+_TEXT_FRAGEN_RICHTUNG_GEFRAGT = "Which direction should it go?"
 _TEXT_FRAGEN_WAHL = """\
-Pick the questions you think fit and tell me the numbers - typed or as a \
-voice message. If you want to change a question or ask your own, just say \
-so: you're the bosses."""
-_TEXT_FRAGEN_NICHT_DREI = "Pick exactly 3."
-_TEXT_FRAGEN_NUMMERN_FALSCH = "Exactly 3 numbers, please."
+This selection no longer works by numbers -- answer the question that's \
+currently in the chat."""
 _TEXT_FRAGEN_EIGENE = "Write your question or questions - I'll add them to the selection."
 _TEXT_FRAGEN_KEINE_AUSWAHL = "I don't know this selection any more."
-_TEXT_FRAGEN_UEBERNOMMEN = "Noted, your {anzahl} questions:"
-_TEXT_FRAGEN_NOTIERT = "Noted: questions {nummern}:"
+_TEXT_FRAGEN_KEINE_ANGENOMMEN = "None of the questions was accepted - I'll suggest new ones."
+_TEXT_FRAGEN_ABGESCHLOSSEN = "Noted, your {anzahl} questions:"
 _TEXT_FRAGEN_QUITTUNG = "Questions saved"
 _JOURNAL_FRAGEN = "Questions: {wert}"
-TEXT_PRUEFUNG_LAEUFT = """\
-I'm going through the questions once more: which ones need a lead-in \
-sentence before you ask them to a stranger?"""
+_TEXT_FRAGE_KOPF = "Question {nummer}/{gesamt} · {begriff}"
+_TEXT_FRAGE_KOPF_OHNE_BEGRIFF = "Question {nummer}/{gesamt}"
+_TEXT_FRAGE_WEICH_HINWEIS = """\
+Softer wording, because the topic is sensitive:
+{weich}"""
+_TEXT_FRAGE_ANNEHMEN_KNOPF = "Accept"
+_TEXT_FRAGE_VERWERFEN_KNOPF = "Discard"
+_TEXT_FRAGE_SCHAERFEN_KNOPF = "Sharpen"
+_TEXT_FRAGE_WAS_AENDERN = "What do you want to change?"
+_TEXT_FRAGE_GESCHAERFT = "Question reworked"
+_TEXT_FRAGE_ENTSCHIEDEN = "Noted"
 _TEXT_LEITFADEN_KNOPF = "Show interview guide"
 _TEXT_MENUE_ANDERS_KNOPF = "Something else"
-TEXT_ARBEIT_SENSIBILITAET = "🤔 I'm quickly going through the questions and softening the sensitive ones …"
 TEXT_ARBEIT_EROEFFNUNG = "✍️ Now the framing for the interview: how you start and how you finish …"
 _JOURNAL_EROEFFNUNG_FESTGELEGT = "Opening and closing agreed"
 _TEXT_EROEFFNUNG_QUITTUNG = "Opening saved"
@@ -397,39 +403,54 @@ ANWEISUNG_DUKTUS = """\
 Suggest two to three alternative descriptions of how {name} speaks - one \
 line each, concrete (sentence length, filler words, pace). Attach them as \
 a block 'VORSCHLAG DUKTUS:', one description per line."""
+_ANWEISUNG_FRAGEN_SENSIBEL = """\
+Check each question: does it touch on a sensitive topic (family, origin, \
+religion, violence, love and the body, money, illness, flight, \
+discrimination)? Rewrite every sensitive question additionally into ONE \
+gentle piece of conversation - two to three sentences, informal 'you', \
+easy to say out loud, in the tone of a young person speaking to a \
+stranger; the core of the question stays the same. If there is at least \
+one sensitive question, attach the softer versions as a block \
+'VORSCHLAG FRAGEN WEICH:', one line each as '<number> — <softer version>', \
+numbered as in the list above -- if no question is sensitive, leave this \
+block out entirely."""
 ANWEISUNG_FRAGEN_ANDERE = """\
-Suggest exactly ten OTHER interview questions. We have already had these, \
-take none of them again and don't reword any of them:\n{alte}\n\
-Attach the new ones as a block 'VORSCHLAG FRAGENAUSWAHL:', one question per \
-line, exactly ten lines. Don't repeat them in the running text."""
+Suggest new interview questions, five per term, ordered by term. We have \
+already had these, take none of them again and don't reword any of them:\n\
+{alte}\n{richtung_satz}Attach them as a block 'VORSCHLAG FRAGENAUSWAHL:', \
+one question per line in the format 'Term: Question'. Don't repeat them in \
+the running text.\n\
+Check each question: does it touch on a sensitive topic (family, origin, \
+religion, violence, love and the body, money, illness, flight, \
+discrimination)? Rewrite every sensitive question additionally into ONE \
+gentle piece of conversation - two to three sentences, informal 'you', \
+easy to say out loud, in the tone of a young person speaking to a \
+stranger; the core of the question stays the same. If there is at least \
+one sensitive question, attach the softer versions as a block \
+'VORSCHLAG FRAGEN WEICH:', one line each as '<number> — <softer version>', \
+numbered as in the list above -- if no question is sensitive, leave this \
+block out entirely."""
+_TEXT_FRAGEN_RICHTUNG_SATZ = "The group would like this direction: {richtung}\n"
 ANWEISUNG_FRAGEN_EIGENE = """\
 The group has named questions of its own. Take them unchanged as the first \
 lines and add your own suggestions to make exactly ten. Attach everything \
 as a block 'VORSCHLAG FRAGENAUSWAHL:', one question per line."""
-ANWEISUNG_EINLEITUNGEN = """\
-Look at these interview questions from the group:\n{fragen}\n\n\
-The interviews are carried out by young people from the group with \
-STRANGERS in the street or in their neighbourhood. Check each question: \
-does it touch on a sensitive topic (family, origin, religion, violence, \
-love and the body, money, illness, flight, discrimination)? Rewrite EVERY \
-sensitive question as ONE gentle piece of conversation - two to three \
-sentences that the interviewer says in one go: the reason, the freedom \
-not to answer, and the question itself, in ONE flow. Not a lead-in and a \
-question strung together, but one text that you say just like that. \
-Informal 'you', easy to say out loud, in the tone of a young person \
-speaking to a stranger - no officialese, no stock phrases like 'as part \
-of our \
-project'. The core of the question stays the same: don't invent a new \
-topic and don't leave one out. Attach this as a block \
-'VORSCHLAG FRAGEN WEICH:', one line each as \
-'<question number> — <softer version>' - only for the sensitive questions, \
-the others stay as they are. If no question is sensitive, write exactly \
-this one line in the block: 'None of the questions needs a special \
-lead-in.' In the text before it, say in ONE sentence which questions you \
-have worded more softly - call it 'softer wording', NOT 'lead-in': the \
-opening of the interview only comes in the next message, don't announce it \
-here and don't write it. Ask the group at most one question. Don't copy \
-out the list of questions again unchanged."""
+ANWEISUNG_FRAGE_SCHAERFEN = """\
+The group wants to change interview question {nummer}:\n{frage}\n\
+{sensibel_hinweis}This should change: {wunsch}\n\
+Write a reworked version and attach it as a block 'VORSCHLAG FRAGE:', \
+exactly one line in the format 'Term: Question'. \
+Check each question: does it touch on a sensitive topic (family, origin, \
+religion, violence, love and the body, money, illness, flight, \
+discrimination)? Rewrite every sensitive question additionally into ONE \
+gentle piece of conversation - two to three sentences, informal 'you', \
+easy to say out loud, in the tone of a young person speaking to a \
+stranger; the core of the question stays the same. If there is at least \
+one sensitive question, attach the softer versions as a block \
+'VORSCHLAG FRAGEN WEICH:', one line each as '<number> — <softer version>', \
+numbered as in the list above -- if no question is sensitive, leave this \
+block out entirely."""
+_TEXT_FRAGE_SCHAERFEN_SENSIBEL_HINWEIS = "So far it was worded softly: {weich}\n"
 ANWEISUNG_EROEFFNUNG = """\
 Now we still need how the interview starts and how it ends. Suggest an \
 opening text that the interviewer says to a stranger before they ask the \

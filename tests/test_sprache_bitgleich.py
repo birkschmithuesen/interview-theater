@@ -262,6 +262,16 @@ GEAENDERT: dict[str, str] = {
     "szenenfolge.systemanweisung(6)": (
         "Folgt aus phasen/6.md (siehe oben)."
     ),
+    "prompt phasen/7": (
+        "Flow-Audit (02.10.2026, Klasse A): die Ueberschrift nannte sich "
+        "noch \"Schaerfung\" (Rest der Umnummerierung vom 06.09.2026 "
+        "abends, 7->6->7) statt dem heutigen Kurznamen \"Feinschliff\" -- "
+        "die EN-Fassung war schon korrekt. tests/test_anweisungen.py haelt "
+        "das jetzt gegen phasen.PHASEN fest."
+    ),
+    "anweisungen.system(phase=7)": (
+        "Folgt aus phasen/7.md (siehe oben)."
+    ),
     "prompt phasen/3": (
         "Karte Phase3-Web: Bedienungsanleitung kanal-neutral umformuliert, "
         "02.10.2026. Die Schritte nennen keinen Telegram-Knopfwortlaut mehr "

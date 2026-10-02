@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from interview_theater import db, repo, web, web_chat
+from interview_theater import db, repo, web, web_chat, web_vereint
 
 CHAT = 7_000_000_000_001
 SCHLUESSEL = b"x" * 32
@@ -174,14 +174,22 @@ def test_das_js_ruft_nur_endpunkte_die_es_gibt(seite):
     """Jeder ``fetch``-Pfad im JS muss in ``_POSTWEGE`` oder unter den
     GET-Wegen stehen. Ein Tippfehler waere im Browser ein stilles 404."""
     pfade = set(re.findall(r"chat/([a-z]+)", web_chat._CHAT_JS))
-    erlaubt = set(web_chat._POSTWEGE) | {"zustand", "datei"}
+    erlaubt = set(web_chat._POSTWEGE) | {"zustand", "datei", web_vereint.STROM_PFAD}
     assert pfade <= erlaubt, pfade - erlaubt
 
 
 def test_das_js_nennt_jeden_postweg(seite):
     """Die andere Richtung: ein Endpunkt ohne Aufrufer im JS ist entweder
-    toter Code oder ein vergessener Knopf."""
+    toter Code oder ein vergessener Knopf.
+
+    ``phase`` ist die eine Ausnahme (Karte W, 30.09.2026): die Roadmap mit
+    ihren Phasenknoepfen gibt es nur auf der vereinten Seite, nicht im
+    Chat-Alleingang (``/g/<token>/chat``) -- ihr Aufrufer steht deshalb in
+    ``web_vereint._VEREINT_JS``, nicht in ``web_chat._CHAT_JS``."""
     for weg in web_chat._POSTWEGE:
+        if weg == "phase":
+            assert f"chat/{weg}" in web_vereint._VEREINT_JS, weg
+            continue
         assert f"chat/{weg}" in web_chat._CHAT_JS, weg
 
 

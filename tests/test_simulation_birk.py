@@ -280,7 +280,7 @@ def birk_lauf(material_dir, monkeypatch, tmp_path):
         return {"aenderungen": []}
 
     def falsches_schema(self, chat_id, system, nutzer, schema, art,
-                        modell=None, temperature=None):
+                        modell=None, temperature=None, bei_teil=None):
         if art == "erkenner":
             return erkenner(nutzer)
         if art == "journal":
@@ -292,7 +292,7 @@ def birk_lauf(material_dir, monkeypatch, tmp_path):
         return {"antwort": "Erzaehl mir mehr davon."}
 
     def falsche_prosa(self, chat_id, system, nutzer, art, max_tokens=None,
-                      timeout=None):
+                      timeout=None, bei_teil=None):
         szenen["n"] += 1
         return (f"TITEL: Szene {szenen['n']}\nKURZ: kurz\n\n"
                 "MIRA: Riviera.\nPOLA: Nein.\nPAL: Pfannkuchen.")

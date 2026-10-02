@@ -431,3 +431,66 @@ def test_stueckpruefung_englisch_mit_markern(padua):
                    stueckpruefung._MARKER_SZENE):
         assert marker in text
     assert "Write in English, concretely and without jargon" in " ".join(text.split())
+
+
+def test_keine_englische_phasenanweisung_engt_die_optionen_ein():
+    """Karte P2-Fix, Restspannung 1 (02.10.2026).
+
+    Die Profil-Anweisung von Padua erlaubt ausdruecklich, dass eine der
+    angebotenen Optionen einen ueberraschenden oder gegenlaeufigen Winkel
+    nimmt, solange er aus dem Material waechst
+    (``workshop/padua-2026/prompts/anweisung.md``). Sie steht als LETZTER
+    Block im Prompt (``anweisungen.py:368-370``) und gilt damit gegen jede
+    aeltere Formulierung -- aber ein Satz, der im selben Prompt "Varianten
+    DERSELBEN Idee" verlangt, ist dort ein Widerspruch und kein Fokus. c1 hat
+    ihn in ``system.md`` entfernt; hier sind die sieben Phasendateien.
+
+    Die Winkel-Regel selbst wird NICHT hierher kopiert: ein Fakt hat genau
+    eine Stelle im Prompt (Prompt-Audit 06.09.2026)."""
+    for pfad in sorted(EN.rglob("phasen/*.md")):
+        text = pfad.read_text(encoding="utf-8")
+        assert "variants of the same idea" not in text, pfad
+
+
+def test_die_englische_phase_sechs_kennt_kein_textbuch_nach_herkules():
+    """Karte P2-Fix, Restspannung 7 (02.10.2026).
+
+    ``phasen/6.md`` sagte in Zeile 9-13, es entstehe ein Textbuch in
+    Sprechtheater-Form nach dem Herkules-Mass -- gegen :3-5 und :64-67 in
+    derselben Datei, gegen ``formen/prosa.md:27`` ("The Herkules measure
+    doesn't apply here either") und gegen ``kurzgeschichte.ANWEISUNG``
+    ("keine Szenenliste, kein Theatertext, kein Drehbuch"). Theatertext
+    entsteht erst ab Phase 7."""
+    text = (EN / "phasen" / "6.md").read_text(encoding="utf-8")
+    assert "A script is created" not in text
+    assert "Herkules" not in text
+    # Was bleibt: die Inszenierung entscheidet die Probe, und ueber ein
+    # "Format" des Stuecks wird nicht gesprochen.
+    assert "in rehearsal" in text
+    assert '"format"' in text
+
+
+def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():
+    """Karte P2-Fix, Restspannung 8 (02.10.2026).
+
+    ``phasen/6.md`` beschrieb das Ergebnis und die Knopfleisten von Phase 7
+    ("a text for every scene", "Change form", "Next scene"). Phase 6
+    schreibt EINE Kurzgeschichte in einem Lauf, und unter ihr haengen vier
+    andere Knoepfe (``knoepfe/szenen.py:1324-1334``). Der Szene-fuer-Szene-
+    Ablauf gehoert in ``phasen/7.md``
+    (``knoepfe/szenen.py:749``).
+
+    Die Wortlaute sind die aus dem Code (``en/texte.toml``), nicht aus dem
+    Prompt -- ein Prompt, der einen Knopf anders nennt, als er dasteht,
+    erklaert der Gruppe etwas, das sie nicht sieht."""
+    sechs = (EN / "phasen" / "6.md").read_text(encoding="utf-8")
+    sieben = (EN / "phasen" / "7.md").read_text(encoding="utf-8")
+
+    for knopf in ("Yes, write it", "Plan it differently", "Change form",
+                  "Skip", "Next scene"):
+        assert knopf not in sechs, knopf
+        assert knopf in sieben, knopf
+    # Phase 6 nennt die Knoepfe, die wirklich unter der Geschichte haengen.
+    for knopf in ("Write the story", "Change something",
+                  "Rewrite from scratch"):
+        assert knopf in sechs, knopf

@@ -402,3 +402,18 @@ def test_die_szenentexte_arbeiten_aus_den_schaerfungen(betrieb):
 
     assert "Schaerfungen" in text
     assert "Volltranskripte" in text
+
+
+def test_der_hauptkonflikt_gehoert_zu_station_vier(betrieb):
+    """Karte P2-Fix, Restspannung 4 (02.10.2026).
+
+    Seit dem Zusammenlegen vom 06.09.2026 heisst Station 4 "Setting, Figuren
+    & Geschichte" und traegt die Stichwoerter konflikt/hauptkonflikt
+    (``workshop.py:331-342``); Station 5 ist die Schaerfung und traegt keine
+    Rahmen-Entscheidung. Die englische Fassung sagt es seit c8
+    (``sprachen/en/prompts/system.md:45``), die deutsche nannte weiter
+    Station 5 -- und das gegen drei andere Stellen in derselben Datei."""
+    text = " ".join(anweisungen.hole("system").split())
+
+    assert "Rahmen-Entscheidung von Station 4" in text
+    assert "Rahmen-Entscheidung von Station 5" not in text

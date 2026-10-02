@@ -472,9 +472,15 @@ def test_buehne_tab_fehlt_ausserhalb_phase_4(basis, token):
     """Phase ist in der Test-DB nicht gesetzt (also nicht 4) -- weder der
     Umschalter noch das Panel stehen im Markup. Die Huelle ``#stand-inhalt``
     bleibt unbedingt im Markup (sie ist ohne den Umschalter wirkungslos),
-    nur Umschalter und Panel sind an Phase 4 gebunden."""
+    nur Umschalter und Panel sind an Phase 4 gebunden.
+
+    Seit dem Merge mit Karte W (``web_vereint``) traegt die Seite IMMER
+    eine eigene Tableiste (Chat/Stand/Textbuch) -- ``class="tabs"`` allein
+    unterscheidet die beiden Mechanismen deshalb nicht mehr, nur noch die
+    Buehne-eigenen Marken (siehe naechster Integrationsschritt: Buehne wird
+    ein echter Tab von Karte W statt dieses verschachtelten Stopgaps)."""
     koerper = hole(f"{basis}/g/{token}")[1]
-    assert 'class="tabs"' not in koerper
+    assert 'data-tab="buehne"' not in koerper
     assert 'id="buehne-panel"' not in koerper
 
 

@@ -1003,11 +1003,12 @@ def _zeitpunkt(iso: str | None) -> str:
 
 
 def _sekunden(millisekunden: int | None) -> str:
-    """Millisekunden als Sekunden mit Dezimalkomma -- die Seite ist auf
-    Deutsch, '5.1 s' liest sich dort falsch."""
+    """Millisekunden als Sekunden mit dem Dezimalzeichen der Sprache --
+    deutsch '5,1 s' ('5.1 s' liest sich dort falsch), englisch '5.1 s'.
+    Einziger Aufrufer ist das Team-Dashboard."""
     if millisekunden is None:
         return "—"
-    return f"{millisekunden / 1000:.1f}".replace(".", ",") + " s"
+    return f"{millisekunden / 1000:.1f}".replace(".", T._DEZIMALZEICHEN) + " s"
 
 
 def _dauer(sekunden: int | None) -> str:
@@ -1062,6 +1063,7 @@ def _seite(
     nachladen: bool = True,
     skript: str = "",
     lang: str | None = None,
+    koerper_attribute: str = "",
 ) -> str:
     """Rahmen aller Seiten: ein einziges eingebettetes CSS, keine externe
     Ressource (der Workshopraum haengt an einem Tailnet, nicht am offenen
@@ -1078,7 +1080,12 @@ def _seite(
     dessen das eigene JavaScript der Seite an.
 
     ``lang`` ist die Sprache der Seite -- ohne Angabe die des Profils (Karte
-    A1); das Team-Dashboard gibt ``de`` vor, seine Texte bleiben deutsch."""
+    A1). Seit Padua (02.10.2026) gilt das auch fuer das Team-Dashboard; es
+    gibt keine Sprache mehr vor.
+
+    ``koerper_attribute`` haengt zusaetzliche Attribute an ``<body>`` --
+    bislang nur ``textbuch_html`` (``data-textbuch`` als Wurzel des
+    Rollenfilters, Karte W)."""
     skripte = (
         _SCROLL_JS.replace("__NEULADEN_MS__", str(NEULADEN_SEKUNDEN * 1000))
         if nachladen
@@ -1092,7 +1099,7 @@ def _seite(
         f'<html lang="{html.escape(lang or sprache.code())}"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{html.escape(titel)}</title>\n"
-        f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body>\n"
+        f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body{koerper_attribute}>\n"
         f"{koerper}\n"
         f"<script>{skripte}</script>\n"
         "</body></html>\n"
@@ -1724,16 +1731,208 @@ def _arbeitsstand_html(
     )
 
 
+# --- Team-Dashboard (Padua 02.10.2026: in der Sprache des Profils) ----------
+#
+# Bis Aufgabe 17 blieb das Dashboard fest deutsch. Seit Padua (englisches
+# Profil, Team spricht Englisch) laeuft es ueber dieselbe Texttabelle wie die
+# Gruppenseite. Deutsch bleibt **byte-gleich** -- die Vergleichsdatei
+# ``tests/fixtures/dashboard_de_vorher.html`` ist mit dem Code davor erzeugt.
+
+_TITEL_DASHBOARD = "interview_theater — Dashboard"
+_UEBERSCHRIFT_DASHBOARD = "Arbeitsstand aller Gruppen"
+_TEXT_STAND = "Stand {zeit}"
+_UEBERSCHRIFT_BOT_ZUORDNUNG = "Bot-Zuordnung"
+#: Die Spaltenkoepfe der Bot-Zuordnung: Bot, Gruppe, chat_id, letzte Aktivitaet.
+_ZUORDNUNG_KOEPFE = ("Bot", "Gruppe", "chat_id", "letzte Aktivität")
+#: Die Spaltenkoepfe der Aufruftabelle je Gruppe.
+_AUFRUF_KOEPFE = ("Aufruf", "heute", "Fehl", "Median")
+_TEXT_KEINE_AUFRUFE = "heute noch keine Modellaufrufe"
+_TEXT_AUFNAHMEN = "Aufnahmen — {liste}"
+_TEXT_KEINE = "keine"
+_TEXT_VERDICHTUNGEN = "Verdichtungen: {anzahl}"
+_TEXT_SZENENZAHL = "Szenen: {anzahl}"
+_TEXT_ZULETZT = "zuletzt: {zeit}"
+_TEXT_INTERVIEWMODUS = "Interviewmodus"
+_TEXT_BOT_WEIT = ", bot-weit"
+_TEXT_KEINE_GRUPPE_GESCHRIEBEN = "Noch keine Gruppe hat geschrieben."
+_TEXT_KEINE_GRUPPE = "— keine Gruppe —"
+#: Die Ueberschrift des eingeklappten Technikteils einer Karte (nur mit
+#: ``[web] dashboard_log_einklappen``). Ohne Zahl: das sanfte Nachladen
+#: oeffnet ``<details>`` am Summary-Text wieder (``_SCROLL_JS``).
+_TEXT_LOG = "Log"
+#: Datum und Uhrzeit auf dem Dashboard (strftime). Deutsch mit dem Trenner
+#: " · ", den es immer trug (er stammt aus dem geteilten ``_zeitpunkt``).
+_ZEITFORMAT_DASHBOARD = "%d.%m.%Y %H:%M · "
+#: Das Dezimalzeichen der Mediandauer: deutsch "5,1 s", englisch "5.1 s".
+_DEZIMALZEICHEN = ","
+
+#: Wie ein Aufnahmestatus auf dem Dashboard heisst -- Schluessel ist der
+#: Datenbankwert (``aufnahme.status``, Protokoll), deutsch der Wert selbst
+#: (K4). Ein unbekannter Status bleibt als Rohwert stehen.
+AUFNAHMESTATUS_BESCHRIFTUNG = {
+    "empfangen": "empfangen",
+    "laeuft": "laeuft",
+    "transkribiert": "transkribiert",
+    "fertig": "fertig",
+    "fehlgeschlagen": "fehlgeschlagen",
+}
+
+#: Wie eine Vorfallart auf dem Dashboard heisst -- Schluessel ist
+#: ``vorfall.art`` (``repo.merke_vorfall``), deutsch der Wert selbst (K4).
+#: Eine Art, die hier fehlt, bleibt als Rohwert stehen -- kein Fehler.
+VORFALLART_BESCHRIFTUNG = {
+    "abgeschnitten": "abgeschnitten",
+    "auftragszug_fehlgeschlagen": "auftragszug_fehlgeschlagen",
+    "denkspur_verworfen": "denkspur_verworfen",
+    "denkspur_wiederholt": "denkspur_wiederholt",
+    "download_fehlgeschlagen": "download_fehlgeschlagen",
+    "dramaturgie_aufruf_fehlgeschlagen": "dramaturgie_aufruf_fehlgeschlagen",
+    "dramaturgie_fehlgeschlagen": "dramaturgie_fehlgeschlagen",
+    "dramaturgie_verschlechterung": "dramaturgie_verschlechterung",
+    "echo_verworfen": "echo_verworfen",
+    "echo_wiederholt": "echo_wiederholt",
+    "erkenner_anwenden_fehler": "erkenner_anwenden_fehler",
+    "erkenner_nachlauf_fehler": "erkenner_nachlauf_fehler",
+    "extraktor_fehler": "extraktor_fehler",
+    "fenster_verworfen": "fenster_verworfen",
+    "festlegung_stand_schon_im_feld": "festlegung_stand_schon_im_feld",
+    "geschichte_war_formwahl": "geschichte_war_formwahl",
+    "gespraech_systemzeile_erfunden": "gespraech_systemzeile_erfunden",
+    "gespraechszug_fehlgeschlagen": "gespraechszug_fehlgeschlagen",
+    "http_5xx": "http_5xx",
+    "interview_ohne_knopf_offen": "interview_ohne_knopf_offen",
+    "journal_extraktor_fehler": "journal_extraktor_fehler",
+    "journal_nachlauf_fehler": "journal_nachlauf_fehler",
+    "kernzitate_fehlgeschlagen": "kernzitate_fehlgeschlagen",
+    "kontext_gekuerzt": "kontext_gekuerzt",
+    "kontext_kuerzung_erfolglos": "kontext_kuerzung_erfolglos",
+    "kostendeckel_erreicht": "kostendeckel_erreicht",
+    "kosten_modell_unbekannt": "kosten_modell_unbekannt",
+    "kurzgeschichte_fehlgeschlagen": "kurzgeschichte_fehlgeschlagen",
+    "nachpass_abschnittszahl": "nachpass_abschnittszahl",
+    "nachpass_fehlgeschlagen": "nachpass_fehlgeschlagen",
+    "nachpass_gelaufen": "nachpass_gelaufen",
+    "nachpass_reicht_nicht": "nachpass_reicht_nicht",
+    "nachpass_verworfen_zitat": "nachpass_verworfen_zitat",
+    "rahmen_war_geschichte": "rahmen_war_geschichte",
+    "richtung_szenen_unvollstaendig": "richtung_szenen_unvollstaendig",
+    "schaerfung_fehlgeschlagen": "schaerfung_fehlgeschlagen",
+    "sprachprofil_fehlgeschlagen": "sprachprofil_fehlgeschlagen",
+    "sprachstil_fehlgeschlagen": "sprachstil_fehlgeschlagen",
+    "stueckpruefung_fehlgeschlagen": "stueckpruefung_fehlgeschlagen",
+    "stueckpruefung_zu_lang": "stueckpruefung_zu_lang",
+    "szene_abgeschnitten": "szene_abgeschnitten",
+    "szene_budget_knapp": "szene_budget_knapp",
+    "szene_fehlgeschlagen": "szene_fehlgeschlagen",
+    "szene_ohne_zusammenfassung": "szene_ohne_zusammenfassung",
+    "szene_prompt_gekuerzt": "szene_prompt_gekuerzt",
+    "szenenfolge_fehlgeschlagen": "szenenfolge_fehlgeschlagen",
+    "transkription_fehlgeschlagen": "transkription_fehlgeschlagen",
+    "ueberschreiben_verhindert": "ueberschreiben_verhindert",
+    "undo_fehlgeschlagen": "undo_fehlgeschlagen",
+    "undo_nicht_angelegt": "undo_nicht_angelegt",
+    "verdichtung_fehlgeschlagen": "verdichtung_fehlgeschlagen",
+    "vorschlag_mehrere_arten": "vorschlag_mehrere_arten",
+    "web_rate_limit": "web_rate_limit",
+    "wiederholung_verworfen": "wiederholung_verworfen",
+    "zitat_ungeprueft": "zitat_ungeprueft",
+}
+
+#: Wie eine Aufrufart in der Aufruftabelle heisst -- Schluessel ist
+#: ``aufruf.art`` (``repo.merke_aufruf``), deutsch der Wert selbst (K4).
+AUFRUFART_BESCHRIFTUNG = {
+    "gespraech": "gespraech",
+    "erkenner": "erkenner",
+    "journal": "journal",
+    "verdichter": "verdichter",
+    "stt": "stt",
+    "szene": "szene",
+    "prosa": "prosa",
+    "szene_nachpass": "szene_nachpass",
+    "kurzgeschichte": "kurzgeschichte",
+    "kurzgeschichte_nachpass": "kurzgeschichte_nachpass",
+    "szenenfolge": "szenenfolge",
+    "szenenfelder": "szenenfelder",
+    "geschichte": "geschichte",
+    "schaerfung": "schaerfung",
+    "sprachprofil": "sprachprofil",
+    "sprachstil": "sprachstil",
+    "kernzitate": "kernzitate",
+    "stueckpruefung": "stueckpruefung",
+    "dramaturgie_a2": "dramaturgie_a2",
+    "dramaturgie_a6": "dramaturgie_a6",
+    "dramaturgie_a9": "dramaturgie_a9",
+    "dramaturgie_a10": "dramaturgie_a10",
+    "dramaturgie_a11": "dramaturgie_a11",
+    "dramaturgie_b1": "dramaturgie_b1",
+    "dramaturgie_c1": "dramaturgie_c1",
+}
+
+#: Szenen ohne gesetzte Form zaehlt ``web_daten._szenen_nach_form`` unter
+#: diesem Rohwert -- er steht nicht in ``FORM_BESCHRIFTUNG`` (keine Form,
+#: sondern ein Zustand) und bekommt deshalb hier seine Beschriftung (K4).
+DASHBOARD_FORM_BESCHRIFTUNG = {
+    "offen": "offen",
+}
+
+
+def _beschriftung(tabelle: dict, schluessel) -> str:
+    """Die Anzeige eines Protokollwerts aus einer Beschriftungstabelle --
+    unbekannt bleibt der Rohwert stehen (kein Fehler, kein Strich)."""
+    return tabelle.get(schluessel, schluessel)
+
+
+def _dashboard_zeit(iso: str | None) -> str:
+    """Datum und Uhrzeit fuer das Dashboard, lokale Zeit Europe/Berlin.
+
+    Deutsch zeichengleich mit dem zweiten ``_zeitpunkt`` (dort mit dem
+    Trenner " · " und leer, wenn unbekannt) -- das Format kommt aber aus der
+    Texttabelle, damit Padua ein eindeutiges ``2026-10-02 12:30`` sieht.
+    ``_zeitpunkt`` selbst bleibt unangetastet: die Gruppenseite teilt es."""
+    if not iso:
+        return ""
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=ZoneInfo("UTC"))
+        lokal = t.astimezone(ZoneInfo("Europe/Berlin"))
+        return lokal.strftime(T._ZEITFORMAT_DASHBOARD)
+    except (ValueError, TypeError):
+        return ""
+
+
+def _eingeklappt(summary: str, inhalt: str, einklappen: bool) -> str:
+    """``inhalt`` in einem geschlossenen ``<details>`` mit ``summary`` --
+    oder unveraendert, wenn nicht eingeklappt wird. Nie ``open``: das
+    sanfte Nachladen oeffnet, was jemand aufgeklappt hat, selbst wieder."""
+    if not einklappen:
+        return inhalt
+    return f"<details><summary>{_t(summary)}</summary>{inhalt}</details>"
+
+
 def _szenenzahl(anzahl: int, formen: list) -> str:
     """"3 Szenen: 2 Dialog, 1 Lied" -- die Szenenzahl mit ihren Formen
     (05.09.2026).
 
     Eine blosse Zahl sagt am Beamer wenig; die Formen sagen, was fuer ein
-    Abend gerade entsteht. Ohne Szenen bleibt es bei der Zahl."""
-    kopf = f"Szenen: <b>{anzahl}</b>"
+    Abend gerade entsteht. Ohne Szenen bleibt es bei der Zahl. Die Form
+    kommt roh aus der Datenbank; angezeigt wird ihre Beschriftung
+    (``FORM_BESCHRIFTUNG``, ``DASHBOARD_FORM_BESCHRIFTUNG``), deutsch also
+    der Rohwert wie bisher, eine unbekannte Form ebenfalls roh."""
+    kopf = html.escape(T._TEXT_SZENENZAHL).format(anzahl=f"<b>{anzahl}</b>")
     if not formen:
         return kopf
-    return kopf + " — " + ", ".join(f"{n} {_t(form)}" for form, n in formen)
+    return kopf + " — " + ", ".join(f"{n} {_t(_form_dashboard(form))}" for form, n in formen)
+
+
+def _form_dashboard(form) -> str:
+    """Die Beschriftung einer Form auf dem Dashboard, unbekannt roh."""
+    if form in T.FORM_BESCHRIFTUNG:
+        return T.FORM_BESCHRIFTUNG[form]
+    return _beschriftung(T.DASHBOARD_FORM_BESCHRIFTUNG, form)
 
 
 def _ergebnisse_html(kurzformen: list[dict]) -> str:
@@ -1746,7 +1945,7 @@ def _ergebnisse_html(kurzformen: list[dict]) -> str:
         return ""
     zeilen = "".join(
         '<li><b>{name}</b> {ergebnisse}</li>'.format(
-            name=_t(v["name"], "Interview"),
+            name=_t(v["name"], T._TEXT_INTERVIEW),
             ergebnisse=_t(SUMMARY_TRENNER.join(v["kurzformen"])),
         )
         for v in kurzformen
@@ -1759,23 +1958,33 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
 
     ``praefix`` baut den Link zur Gruppenseite (Birk 04.09.: je Gruppe ein
     Link) -- relativ zum Server, damit er hinter nginx genauso geht wie
-    direkt auf Port 8010."""
+    direkt auf Port 8010.
+
+    Mit ``[web] dashboard_log_einklappen`` im Profil (Padua) stehen je Karte
+    Zahlen, Vorfaelle und Aufrufe -- und am Ende die Bot-Zuordnung -- in
+    einem geschlossenen ``<details>``: am Beamer zaehlt der Arbeitsstand,
+    der Technikteil ist fuers Team. Ohne den Schalter bleibt die Seite
+    byte-gleich wie zuvor."""
+    from interview_theater import workshop
+
+    einklappen = bool(workshop.aktiv().wert("web.dashboard_log_einklappen", False))
     karten = []
     for g in daten["gruppen"]:
-        titel = _t(g["titel"], "Gruppe " + str(g["chat_id"]))
+        titel = _t(g["titel"], _t(T._TEXT_GRUPPE.format(chat_id=g["chat_id"])))
         if g.get("web_token"):
             titel = f'<a href="{praefix}/g/{_t(g["web_token"])}">{titel}</a>'
         marke = (
-            '<span class="marke">Interviewmodus</span>'
+            f'<span class="marke">{_t(T._TEXT_INTERVIEWMODUS)}</span>'
             if g["interviewmodus_seit"]
             else ""
         )
         aufnahmen = ", ".join(
-            f"{_t(status)}: <b>{anzahl}</b>" for status, anzahl in g["aufnahmen"].items()
-        ) or '<span class="leer">keine</span>'
+            f"{_t(_beschriftung(T.AUFNAHMESTATUS_BESCHRIFTUNG, status))}: <b>{anzahl}</b>"
+            for status, anzahl in g["aufnahmen"].items()
+        ) or f'<span class="leer">{_t(T._TEXT_KEINE)}</span>'
         aufrufe = "".join(
             "<tr><td>{art}</td><td>{anzahl}</td><td>{fehl}</td><td>{median}</td></tr>".format(
-                art=_t(a["art"]),
+                art=_t(_beschriftung(T.AUFRUFART_BESCHRIFTUNG, a["art"])),
                 anzahl=a["anzahl"],
                 fehl=a["fehlschlaege"],
                 median=_sekunden(a["median_ms"]),
@@ -1783,23 +1992,38 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
             for a in g["aufrufe"]
         )
         aufrufe_html = (
-            "<table><tr><th>Aufruf</th><th>heute</th><th>Fehl</th><th>Median</th></tr>"
-            f"{aufrufe}</table>"
+            "<table><tr>"
+            + "".join(f"<th>{_t(kopf)}</th>" for kopf in T._AUFRUF_KOEPFE)
+            + f"</tr>{aufrufe}</table>"
             if aufrufe
-            else '<p class="leer">heute noch keine Modellaufrufe</p>'
+            else f'<p class="leer">{_t(T._TEXT_KEINE_AUFRUFE)}</p>'
         )
         vorfaelle = "".join(
             '<div><span class="art">{art}</span> {detail} '
             '<span class="zeit">{zeit}{botweit}</span></div>'.format(
-                art=_t(v["art"]),
+                art=_t(_beschriftung(T.VORFALLART_BESCHRIFTUNG, v["art"])),
                 detail=_t(v["detail"], ""),
-                zeit=_zeitpunkt(v["erstellt_am"]),
-                botweit=", bot-weit" if v["bot_weit"] else "",
+                zeit=_t(_dashboard_zeit(v["erstellt_am"]), ""),
+                botweit=_t(T._TEXT_BOT_WEIT) if v["bot_weit"] else "",
             )
             for v in g["vorfaelle"]
         )
         vorfaelle_html = (
             f'<div class="vorfaelle">{vorfaelle}</div>' if vorfaelle else ""
+        )
+        verdichtungen = _t(T._TEXT_VERDICHTUNGEN).format(
+            anzahl=f"<b>{g['verdichtungen']}</b>"
+        )
+        zuletzt = _t(T._TEXT_ZULETZT).format(
+            zeit=_t(_dashboard_zeit(g["letzte_aktivitaet"]), "")
+        )
+        zahlen = (
+            '<div class="zahlen">'
+            f"<span>{_t(T._TEXT_AUFNAHMEN).format(liste=aufnahmen)}</span>"
+            f"<span>{verdichtungen}</span>"
+            f'<span>{_szenenzahl(g["szenen"], g.get("szenen_formen") or [])}</span>'
+            f"<span>{zuletzt}</span>"
+            "</div>"
         )
         karten.append(
             "<section class=\"karte\">"
@@ -1807,39 +2031,41 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
             f'<span class="bot">{_t(g["bot_name"])} {marke}</span></div>'
             f'{_arbeitsstand_html(g["arbeitsstand"], g["figuren"])}'
             f'{_ergebnisse_html(g.get("interview_kurzformen") or [])}'
-            f'<div class="zahlen"><span>Aufnahmen — {aufnahmen}</span>'
-            f'<span>Verdichtungen: <b>{g["verdichtungen"]}</b></span>'
-            f'<span>{_szenenzahl(g["szenen"], g.get("szenen_formen") or [])}</span>'
-            f'<span>zuletzt: {_zeitpunkt(g["letzte_aktivitaet"])}</span></div>'
-            f"{vorfaelle_html}"
-            f"{aufrufe_html}"
-            "</section>"
+            + _eingeklappt(T._TEXT_LOG, f"{zahlen}{vorfaelle_html}{aufrufe_html}", einklappen)
+            + "</section>"
         )
     gruppen_html = (
         f'<div class="gruppen">{"".join(karten)}</div>'
         if karten
-        else '<p class="leer">Noch keine Gruppe hat geschrieben.</p>'
+        else f'<p class="leer">{_t(T._TEXT_KEINE_GRUPPE_GESCHRIEBEN)}</p>'
     )
 
     zuordnung = "".join(
         "<tr><td>{bot}</td><td>{titel}</td><td>{chat}</td><td>{zeit}</td></tr>".format(
             bot=_t(z["bot_name"]),
-            titel=_t(z["titel"], "— keine Gruppe —"),
+            titel=_t(z["titel"], _t(T._TEXT_KEINE_GRUPPE)),
             chat=_t(z["chat_id"]),
-            zeit=_zeitpunkt(z["letzte_aktivitaet_am"]),
+            zeit=_t(_dashboard_zeit(z["letzte_aktivitaet_am"]), ""),
         )
         for z in daten["bot_zuordnung"]
     )
+    zuordnung_tabelle = (
+        "<table><tr>"
+        + "".join(f"<th>{_t(kopf)}</th>" for kopf in T._ZUORDNUNG_KOEPFE)
+        + f"</tr>{zuordnung}</table>"
+    )
+    zuordnung_html = (
+        _eingeklappt(T._UEBERSCHRIFT_BOT_ZUORDNUNG, zuordnung_tabelle, True)
+        if einklappen
+        else f"<h2>{_t(T._UEBERSCHRIFT_BOT_ZUORDNUNG)}</h2>{zuordnung_tabelle}"
+    )
+    stand = _t(T._TEXT_STAND).format(zeit=_t(_dashboard_zeit(daten["stand"]), ""))
     return _seite(
-        "interview_theater — Dashboard",
+        T._TITEL_DASHBOARD,
         _CSS_DASHBOARD,
-        f'<h1>Arbeitsstand aller Gruppen <span class="stand">Stand '
-        f'{_zeitpunkt(daten["stand"])}</span></h1>\n'
+        f'<h1>{_t(T._UEBERSCHRIFT_DASHBOARD)} <span class="stand">{stand}</span></h1>\n'
         f"{gruppen_html}\n"
-        "<h2>Bot-Zuordnung</h2>"
-        "<table><tr><th>Bot</th><th>Gruppe</th><th>chat_id</th>"
-        f"<th>letzte Aktivität</th></tr>{zuordnung}</table>",
-        lang=sprache.DEUTSCH,
+        f"{zuordnung_html}",
     )
 
 
@@ -2341,29 +2567,19 @@ def _tabs_html() -> str:
     )
 
 
-def gruppe_html(
+def gruppe_koerper(
     daten: dict,
     nonce_wert: str | None = None,
     token: str | None = None,
     praefix: str = VORGABE_PRAEFIX,
     fassungswahl: dict[int, int] | None = None,
 ) -> str:
-    """Die Gruppenseite aus web_daten.gruppe_nach_token().
+    """Der Rumpf der Gruppenseite -- ohne die Klammer aus ``_seite``.
 
-    Ohne ``nonce_wert`` bleibt sie, was sie war: eine Leseansicht. Mit
-    ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
-    Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
-    Feld in der Seite (siehe ``nonce``).
-
-    Mit ``token`` steht oben der Link zur **Probenansicht** (06.09.2026): die
-    Gruppenseite ist die Werkstatt, die Probenansicht das Stueck am Stueck.
-    Ohne Token faellt der Link weg -- die Seite laesst sich weiter ohne ihn
-    rendern (Tests, spaetere Aufrufer).
-
-    ``fassungswahl`` ist ``{szene_id: nummer}`` aus der Query (``?szene=…&
-    fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung
-    angezeigt wird -- sie schreibt nichts und bleibt deshalb in der URL statt
-    in der Datenbank."""
+    Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W): dort steht
+    dieser Rumpf als eines von drei Panels in EINEM Dokument. ``gruppe_html``
+    ruft ihn und haengt die Klammer davor -- die Einzelseite bleibt damit
+    Zeichen fuer Zeichen, was sie war (``tests/test_web_koerper.py``)."""
     fassungen = daten.get("fassungen") or {}
     fassungswahl = fassungswahl or {}
     szenen = "".join(
@@ -2417,13 +2633,12 @@ def gruppe_html(
         kopf = f"<h2>{_t(T._UEBERSCHRIFT_UEBERBLICK)}</h2>{kopf}\n"
     # Der Buehne-Tab (02.10.2026): sichtbar nur in Phase 4 -- ausserhalb
     # davon gibt es weder einen Umschalter noch das Panel im Markup, genau
-    # wie der Brainstorm-Knopf im Chat (web_chat.chat_html).
+    # wie der Brainstorm-Knopf im Chat (web_chat.chat_html). Stopgap bis
+    # Karte W's echte Tab-Leiste ihn aufnimmt (siehe naechster Schritt).
     phase4 = (daten.get("arbeitsstand") or {}).get("phase") == 4
     tabs = _tabs_html() if phase4 else ""
     buehne = _buehne_html(daten) if phase4 else ""
-    return _seite(
-        T._TITEL_GRUPPENSEITE.format(titel=titel),
-        _CSS_GRUPPE + _CSS_BUEHNE,
+    return (
         f"<h1>{_t(titel)}</h1>\n"
         f"{probenansicht}"
         f"{_chat_link(token, daten.get('kanal'))}"
@@ -2457,7 +2672,38 @@ def gruppe_html(
         f"<details><summary>{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}"
         f"</summary>{journal}</details>\n"
         f"</div>\n"
-        f"{buehne}",
+        f"{buehne}"
+    )
+
+
+def gruppe_html(
+    daten: dict,
+    nonce_wert: str | None = None,
+    token: str | None = None,
+    praefix: str = VORGABE_PRAEFIX,
+    fassungswahl: dict[int, int] | None = None,
+) -> str:
+    """Die Gruppenseite aus web_daten.gruppe_nach_token().
+
+    Ohne ``nonce_wert`` bleibt sie, was sie war: eine Leseansicht. Mit
+    ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
+    Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
+    Feld in der Seite (siehe ``nonce``).
+
+    Mit ``token`` steht oben der Link zur **Probenansicht** (06.09.2026): die
+    Gruppenseite ist die Werkstatt, die Probenansicht das Stueck am Stueck.
+    Ohne Token faellt der Link weg -- die Seite laesst sich weiter ohne ihn
+    rendern (Tests, spaetere Aufrufer).
+
+    ``fassungswahl`` ist ``{szene_id: nummer}`` aus der Query (``?szene=…&
+    fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung
+    angezeigt wird -- sie schreibt nichts und bleibt deshalb in der URL statt
+    in der Datenbank."""
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
+    return _seite(
+        T._TITEL_GRUPPENSEITE.format(titel=titel),
+        _CSS_GRUPPE + _CSS_BUEHNE,
+        gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
         bearbeitbar=bool(nonce_wert),
         skript=_TABS_JS,
     )
@@ -2779,6 +3025,10 @@ body[data-schrift="klein"] .text { font-size: 1rem; line-height: 1.45; }
 #: aus, bleibt das ganze Stueck lesbar; nur die Leisten wirken dann nicht.
 _TEXTBUCH_JS = """
 (function () {
+  // Die Wurzel, an der der Zustand haengt. Auf der Probenansicht ist das
+  // der <body> (er traegt selbst data-textbuch); auf der vereinten Seite
+  // (Karte W) das Panel -- sonst faerbte der Rollenfilter auch den Chat.
+  var wurzel = document.querySelector('[data-textbuch]') || document.body;
   var lies = function () {
     var s = {};
     location.hash.replace(/^#/, '').split('&').forEach(function (paar) {
@@ -2793,7 +3043,11 @@ _TEXTBUCH_JS = """
     var s = lies();
     if (wert) { s[name] = wert; } else { delete s[name]; }
     var text = Object.keys(s).map(function (k) {
-      return encodeURIComponent(k) + '=' + encodeURIComponent(s[k]);
+      // Ein Schluessel ohne Wert bleibt ohne Gleichheitszeichen: so
+      // ueberlebt '#textbuch' (der Tab der vereinten Seite) einen Klick auf
+      // den Rollenfilter, statt zu '#textbuch=' zu werden.
+      return s[k] === '' ? encodeURIComponent(k)
+        : encodeURIComponent(k) + '=' + encodeURIComponent(s[k]);
     }).join('&');
     // Ueber location.hash, damit der Zurueck-Knopf des Browsers den
     // vorigen Zustand wiederherstellt -- und damit der Link, den jemand
@@ -2804,30 +3058,30 @@ _TEXTBUCH_JS = """
   var wende_an = function () {
     var s = lies();
     var figur = (s.figur || '').trim();
-    var koerper = document.body;
+    var koerper = wurzel;
     var schluessel = '';
-    document.querySelectorAll('.rolle').forEach(function (knopf) {
+    wurzel.querySelectorAll('.rolle').forEach(function (knopf) {
       var name = knopf.dataset.name || '';
       var passt = figur !== '' && name.toLowerCase() === figur.toLowerCase();
       if (passt) { schluessel = knopf.dataset.figur || ''; }
       knopf.setAttribute('aria-pressed', passt ? 'true' : 'false');
     });
-    var alle = document.querySelector('.rolle[data-figur=""]');
+    var alle = wurzel.querySelector('.rolle[data-figur=""]');
     if (alle && !schluessel) { alle.setAttribute('aria-pressed', 'true'); }
     if (schluessel) { koerper.dataset.figur = schluessel; }
     else { delete koerper.dataset.figur; }
-    document.querySelectorAll('.replik').forEach(function (p) {
+    wurzel.querySelectorAll('.replik').forEach(function (p) {
       p.classList.toggle('aktiv', !!schluessel && p.dataset.figur === schluessel);
     });
     var schrift = s.schrift || 'mittel';
     koerper.dataset.schrift = schrift;
-    document.querySelectorAll('.schrift').forEach(function (knopf) {
+    wurzel.querySelectorAll('.schrift').forEach(function (knopf) {
       knopf.setAttribute(
         'aria-pressed', knopf.dataset.schrift === schrift ? 'true' : 'false');
     });
     var ohne = (s.regie || '') === 'aus';
     koerper.classList.toggle('ohne-regie', ohne);
-    document.querySelectorAll('.regie-schalter').forEach(function (knopf) {
+    wurzel.querySelectorAll('.regie-schalter').forEach(function (knopf) {
       knopf.setAttribute('aria-pressed', ohne ? 'true' : 'false');
     });
   };
@@ -2839,7 +3093,7 @@ _TEXTBUCH_JS = """
     } else if (knopf.classList.contains('schrift')) {
       schreib('schrift', knopf.dataset.schrift || '');
     } else if (knopf.classList.contains('regie-schalter')) {
-      schreib('regie', document.body.classList.contains('ohne-regie') ? '' : 'aus');
+      schreib('regie', wurzel.classList.contains('ohne-regie') ? '' : 'aus');
     }
   });
   window.addEventListener('hashchange', wende_an);
@@ -2848,16 +3102,17 @@ _TEXTBUCH_JS = """
 """
 
 
-def textbuch_html(
+def textbuch_koerper(
     daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
 ) -> str:
-    """Die Probenansicht aus ``web_daten.gruppe_nach_token()``.
+    """Der Rumpf der Probenansicht -- ohne die Klammer aus ``_seite``.
 
-    Enthaelt **ausschliesslich** Szenentexte und Szenenplanung. Kein
-    Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
-    Nachrichtentext -- die Grenze aus AGENTS.md ("Weboberflaeche") gilt hier
-    strenger als auf der Gruppenseite, weil dieser Link im Probenraum
-    herumgereicht wird."""
+    Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W), siehe
+    ``gruppe_koerper``. Enthaelt **ausschliesslich** Szenentexte und
+    Szenenplanung. Kein Interview, kein Journal, kein Belegzitat, keine
+    Verdichtung, kein Nachrichtentext -- die Grenze aus AGENTS.md
+    ("Weboberflaeche") gilt hier strenger als auf der Gruppenseite, weil
+    dieser Link im Probenraum herumgereicht wird."""
     bekannte = {(f["name"] or "").upper() for f in daten["figuren"] if f.get("name")}
     abschnitte = []
     sprecher: list[str] = []
@@ -2892,15 +3147,33 @@ def textbuch_html(
         f"{_t(T._TEXT_REGIE_AUS)}</button></div>"
     )
     kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
-    return _seite(
-        kopfzeile,
-        _CSS_TEXTBUCH,
+    return (
         f"<h1>{_t(kopfzeile)}</h1>\n"
         f"{wege}{leisten}\n"
         f'<article class="stueck">{stueck}</article>\n'
-        f'<p class="hinweis-druck leer">{_t(T._TEXT_DRUCKEN)}</p>',
+        f'<p class="hinweis-druck leer">{_t(T._TEXT_DRUCKEN)}</p>'
+    )
+
+
+def textbuch_html(
+    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
+) -> str:
+    """Die Probenansicht aus ``web_daten.gruppe_nach_token()``.
+
+    Enthaelt **ausschliesslich** Szenentexte und Szenenplanung. Kein
+    Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
+    Nachrichtentext -- die Grenze aus AGENTS.md ("Weboberflaeche") gilt hier
+    strenger als auf der Gruppenseite, weil dieser Link im Probenraum
+    herumgereicht wird."""
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
+    kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
+    return _seite(
+        kopfzeile,
+        _CSS_TEXTBUCH,
+        textbuch_koerper(daten, token, praefix),
         nachladen=False,
         skript=_TEXTBUCH_JS,
+        koerper_attribute=' data-textbuch=""',
     )
 #: Was auf der Leitfaden-Seite steht, solange es keinen gibt. Ruhig und ohne
 #: Fehlerton: die Seite ist richtig, der Leitfaden ist nur noch nicht fertig.
@@ -3112,14 +3385,47 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
         daten["token"] = token
         handler._antworte(200, leitfaden_html(daten))
         return
-    # Der Chat im Browser (30.09.2026, Karte Padua A2). Nur die Weiche steht
-    # hier -- HTML, CSS, JS und Handler liegen in web_chat.py, damit diese
-    # Datei nicht weiter waechst. Der Import steht in der Funktion, wie bei
-    # ``leitfaden`` und ``szenenfolge``: web_chat importiert seinerseits
+    # Der Chat im Browser (30.09.2026, Karte Padua A2) und die vereinte Seite
+    # (30.09.2026, Karte W). Nur die Weiche steht hier -- HTML, CSS, JS und
+    # Handler liegen in web_chat.py bzw. web_vereint.py, damit diese Datei
+    # nicht weiter waechst. Der Import steht in der Funktion, wie bei
+    # ``leitfaden`` und ``szenenfolge``: beide Module importieren ihrerseits
     # ``web`` (fuer ``_seite``), und das waere im Modulkopf ein Zyklus.
-    from interview_theater import web_chat
+    from interview_theater import web_chat, web_vereint
 
-    if unterpfad == web_chat.CHAT_PFAD or unterpfad.startswith(web_chat.CHAT_PFAD + "/"):
+    if unterpfad.startswith(web_vereint.TEIL_PFAD + "/"):
+        web_vereint.sende_teil(
+            handler, db_pfad, token,
+            unterpfad[len(web_vereint.TEIL_PFAD) + 1:], praefix, schluessel, query,
+        )
+        return
+    if unterpfad == web_chat.CHAT_PFAD:
+        # Ein Schraegstrich am Ende (``/chat/``) bleibt 404 wie bisher
+        # (Review-Befund 12, ``web_chat.beantworte_get``): ``rest.strip("/")``
+        # oben hat ihn schon verschluckt, deshalb der Blick auf den rohen Pfad.
+        if urllib.parse.urlsplit(handler.path).path.endswith("/"):
+            handler._antworte(404, nicht_gefunden_html())
+            return
+        # Abschlussreview I3 gilt weiter: eine Telegram-Gruppe hat keinen Bot,
+        # der ``web_post`` liest, und ``/chat`` bleibt dort 404 -- nicht etwa
+        # ein Umweg auf die (fuer jede Gruppe gueltige) vereinte Seite.
+        lesend = web_daten.oeffne_lesend(db_pfad)
+        try:
+            ist_web_gruppe = web_daten.web_chat_id_nach_token(lesend, token) is not None
+        finally:
+            lesend.close()
+        if not ist_web_gruppe:
+            handler._antworte(404, nicht_gefunden_html())
+            return
+        # Die Chatansicht ist in der vereinten Seite aufgegangen (Karte W) --
+        # zwei Chats nebeneinander waeren zwei Zustaende. Gedruckte Links aus
+        # der Zeit von Karte A2 landen im richtigen Tab.
+        handler.send_response(302)
+        handler.send_header("Location", f"{praefix}/g/{token}#{web_vereint.VORGABE_TAB}")
+        handler.send_header("Content-Length", "0")
+        handler.end_headers()
+        return
+    if unterpfad.startswith(web_chat.CHAT_PFAD + "/"):
         web_chat.beantworte_get(
             handler, db_pfad, token,
             unterpfad[len(web_chat.CHAT_PFAD):].strip("/"),
@@ -3129,19 +3435,14 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
     if unterpfad not in ("", "textbuch"):
         handler._antworte(404, nicht_gefunden_html())
         return
-    daten = handler._gruppe(token)
-    if daten is None:
-        handler._antworte(404, nicht_gefunden_html())
-    elif unterpfad == "textbuch":
-        handler._antworte(200, textbuch_html(daten, token, praefix))
-    else:
-        handler._antworte(
-            200,
-            gruppe_html(
-                daten, nonce(schluessel, token), token, praefix,
-                fassungswahl(query),
-            ),
-        )
+    if unterpfad == "textbuch":
+        daten = handler._gruppe(token)
+        if daten is None:
+            handler._antworte(404, nicht_gefunden_html())
+        else:
+            handler._antworte(200, textbuch_html(daten, token, praefix))
+        return
+    web_vereint.beantworte_seite(handler, db_pfad, token, praefix, schluessel, query)
 
 
 def _sende_textbuch_datei(handler, db_pfad: str, token: str, name: str) -> None:

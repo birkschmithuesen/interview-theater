@@ -280,7 +280,10 @@ def schuss(seite, name: str) -> None:
 
 
 def test_die_seite_steht_und_zeigt_die_bedienelemente(seite):
-    expect(seite.locator("h1")).to_have_text("Die Ankommenden")
+    # Die vereinte Seite traegt das Textbuch-Panel (eigenes <h1>) im selben
+    # Dokument, nur verborgen (web_vereint.seite()) -- gemeint ist das
+    # Arbeitsstand-Panel.
+    expect(seite.locator("#tab-stand h1")).to_have_text("Die Ankommenden")
     expect(feld(seite, "rahmen").locator("select.auswahl")).to_be_visible()
     expect(feld(seite, "geschichte").locator("textarea")).to_be_visible()
     expect(feld(seite, "figur_name").first.locator("textarea")).to_be_visible()

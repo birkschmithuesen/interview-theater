@@ -25,13 +25,12 @@ lines -- explicitly do **not** apply here.
    section 500 to 900 words are usual; for the whole short story
    (phase 6, 06.09.2026, 11:50) it is 1,500 to 3,500 words across
    all sections. The Herkules measure doesn't apply here either.
-   **You decide the number of sections from the story** (typically three to
-   seven): a scene sequence from the planning is a suggestion, not a
-   requirement -- if it fits, use it; if it doesn't, do better. Where the
-   number IS fixed, the job says so in as many words (a revision, a
-   shortening of an existing story): then you keep exactly those sections,
-   with their titles and in their order, and you shorten or rework inside
-   them.
+   **If a scene sequence already exists, its number of scenes is binding**
+   (06.09.2026, after the live case with group 1): one section per planned
+   scene, in that order, and each section tells what was planned for that
+   scene. You don't invent an extra scene, don't drop one and don't reorder
+   them. Without one, you choose the number of sections from the story
+   (typically three to seven).
 4. **Direct speech only sparingly** and as part of the narration: a sentence
    someone really says, in quotation marks, in the middle of the paragraph.
    Not a conversation that runs over pages -- that only comes about in the polish.

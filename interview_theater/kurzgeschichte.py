@@ -5,15 +5,25 @@ bestaetigte eine Szene, ein Opus-Lauf schrieb sie als Prosa, dann die
 naechste. Das ergab fuenf Texte, die einander nicht kannten -- jeder Lauf
 sah nur Zusammenfassungen der Vorszenen. Birk hat es umgedreht: **ein**
 Lauf schreibt die ganze Geschichte aus Setting, Figuren (mit ihrem
-Sprachstil) und der gewaehlten Richtung, und **das Modell waehlt die Zahl
-der Abschnitte selbst** (typisch drei bis sieben). Die Szenenfolge aus
-Phase 4 ist dabei Anregung, nicht Vorgabe.
+Sprachstil) und der gewaehlten Richtung.
+
+**Wie viele Abschnitte, entscheidet die Szenenfolge** (Birk, 02.10.2026):
+steht eine, bindet ihre Zahl -- ein Abschnitt je geplanter Szene, in deren
+Reihenfolge. Die Zahl steht dafuer im **Auftrag** (``abschnittszahl``,
+``_ZEILE_ABSCHNITTE``; bei aktivem Laengen-Profil traegt sie der
+Budget-Block, ``laengen.SATZ_BINDUNG`` -- in beiden Faellen genau einmal).
+Steht keine Szenenfolge, waehlt das Modell die Zahl selbst (typisch drei bis
+sieben). Bis zum 02.10.2026 war sie immer frei; das kostete, weil
+``lege_szenen_an`` nur **ergaenzend** abgleicht, bei zu wenigen Abschnitten
+prosalose Szenen -- und Phase 7 verlangt Prosa fuer jede geplante Szene
+(``phasen.voraussetzungen``).
 
 **Danach werden die Abschnitte zu Szenen** -- Nummer, Titel, Prosa,
 ``was_passiert`` aus der Pflichtzeile "Zusammenfassung", Ort aus dem
-Setting. Die bestehende Szenenfolge wird dabei ersetzt (weich, wie in
-``szenenfolge.lege_an``), und das Journal haelt fest, dass sie aus der
-Kurzgeschichte stammt.
+Setting. Die bestehende Szenenfolge wird dabei **abgeglichen, nicht
+ersetzt** (``repo.gleiche_szenenfolge_ab``: gleiche Nummer -> aktualisieren,
+fehlende -> ergaenzen, ueberzaehlige -> stehen lassen), und das Journal haelt
+fest, dass sie aus der Kurzgeschichte stammt.
 
 Der Feinschliff (Phase 7) arbeitet danach je Abschnitt wie je Szene: Form
 waehlen, uebersetzen.
@@ -26,7 +36,7 @@ import re
 import threading
 from typing import Sequence
 
-from interview_theater import anweisungen, repo
+from interview_theater import anweisungen, repo, strom
 
 log = logging.getLogger(__name__)
 
@@ -76,10 +86,11 @@ Geschichte, auf die sich die Gruppe geeinigt hat. Daraus schreibst du EINE
 zusammenhaengende Kurzgeschichte -- keine Szenenliste, kein Theatertext,
 kein Drehbuch.
 
-**Du waehlst die Zahl der Abschnitte selbst.** Typisch sind drei bis sieben;
-entscheidend ist, was die Geschichte braucht, nicht eine Zahl. Eine
-Szenenfolge aus der Planung ist eine Anregung, keine Vorgabe: passt sie,
-nimm sie; passt sie nicht, mach es besser.
+**Nennt der Auftrag eine Abschnittszahl, ist sie verbindlich**: dann steht
+schon eine Szenenfolge, und du schreibst genau so viele Abschnitte, in
+dieser Reihenfolge -- keinen dazu, keinen weg, keinen umgestellt. Nennt er
+keine, waehlst du die Zahl der Abschnitte selbst an der Geschichte (typisch
+drei bis sieben).
 
 Insgesamt 1.500 bis 3.500 Woerter.
 
@@ -281,7 +292,38 @@ def vorlage_text(conn, chat_id: int) -> str:
 #: Die Koepfe des Nutzertexts (W3).
 _STILE_KOPF = "So sprechen die Figuren:\n"
 _AUFTRAG = "Euer Auftrag:\nSchreib die Geschichte am Stueck."
+#: Die bindende Abschnittszahl (02.10.2026, Karte P2-Fix, Birks
+#: Entscheidung). Sie steht im **Auftrag** und nicht in der
+#: Systemanweisung: nur der Nutzertext kennt die Datenlage.
+#:
+#: Eigener Wortlaut, nicht der von ``laengen.SATZ_BINDUNG`` -- der sagt
+#: zusaetzlich "mit diesen Laengen" und gehoert zum Budget-Block. Beide
+#: stehen nie zusammen in einem Prompt (siehe ``baue_nutzertext``).
+_ZEILE_ABSCHNITTE = (
+    "\nSchreib genau {anzahl} Abschnitte -- einen je geplanter Szene, in "
+    "deren Reihenfolge."
+)
 _ZEILE_REGIE = "\nDie Gruppe sagt dazu: {regie}"
+
+
+def abschnittszahl(conn, chat_id: int) -> int:
+    """Wie viele Abschnitte die Geschichte haben MUSS -- die Zahl der
+    geplanten Szenen, oder ``0``.
+
+    **Dieselbe Menge, mit der ``lege_szenen_an`` abgleicht und die
+    ``budget_eintraege`` bemisst**: ``repo.hole_szenen`` filtert
+    ``entfernt_am IS NULL`` selbst (``repo.py:2286-2290``). Zwei verschiedene
+    Zaehlungen waeren zwei Wahrheiten -- die eine im Prompt, die andere beim
+    Speichern.
+
+    ``0`` heisst "keine Szenenfolge": dann waehlt das Modell die Zahl selbst,
+    und im Auftrag steht gar keine Zeile (datengetrieben wie
+    ``kontext.baue``). Das ist nicht nur Theorie -- die Phase setzt allein
+    die Gruppe, und wer mit ``/phase 6`` ohne Szenen dort landet, soll
+    schreiben koennen.
+
+    Reine Leseabfrage, kein Modellaufruf."""
+    return len(repo.hole_szenen(conn, chat_id))
 
 
 def budget_eintraege(conn, chat_id: int,
@@ -322,8 +364,8 @@ def baue_nutzertext(
     conn, chat_id: int, regie: str | None = None, vorlage: bool = False,
     eintraege: Sequence[tuple[int, str, int]] | None = None,
 ) -> str:
-    """Setting, Figuren mit Sprachstil, Geschichte, Szenenfolge als
-    Anregung -- und eine Regie-Notiz, wenn die Gruppe eine hatte.
+    """Setting, Figuren mit Sprachstil, Geschichte, die bestehende
+    Szenenfolge -- und eine Regie-Notiz, wenn die Gruppe eine hatte.
 
     ``vorlage`` an (Kuerzen): die bestehende Fassung steht als eigener Block
     vor dem Auftrag. Ohne ``vorlage`` bleibt der Nutzertext zeichengleich
@@ -334,7 +376,12 @@ def baue_nutzertext(
     Ohne sie -- und mit einer leeren Liste -- bleibt der Nutzertext
     **zeichengleich** wie vorher; der Block faellt ersatzlos weg,
     datengetrieben wie in ``kontext.baue``. Er steht **vor** dem Auftrag,
-    nahe am Ende: das Ende des Prompts wiegt am schwersten (SPEC § 6.1)."""
+    nahe am Ende: das Ende des Prompts wiegt am schwersten (SPEC § 6.1).
+
+    Die **bindende Abschnittszahl** steht im Auftrag, sobald Szenen geplant
+    sind (``abschnittszahl``) -- es sei denn, der Budget-Block traegt sie
+    schon (``laengen.SATZ_BINDUNG``). Ohne geplante Szenen und ohne
+    ``eintraege`` bleibt der Nutzertext **zeichengleich** wie vorher."""
     from interview_theater import laengen, szenenfolge
 
     teile = [szenenfolge._erfundenes(conn, chat_id)]
@@ -350,6 +397,16 @@ def baue_nutzertext(
     if eintraege:
         teile.append(laengen.block_prosa(eintraege))
     auftrag = T._AUFTRAG
+    # Die bindende Abschnittszahl (02.10.2026, Birks Entscheidung) -- aber
+    # nur, wenn der Budget-Block sie nicht schon traegt: ``block_prosa``
+    # haengt ``laengen.SATZ_BINDUNG`` an jede Budget-Liste. Zwei bindende
+    # Saetze in einem Prompt waeren eine Doppelnennung, und bei aktivem
+    # Laengen-Profil traefe das jeden echten Lauf (``schreibe`` holt die
+    # Eintraege immer). Ein Fakt hat genau eine Stelle im Prompt.
+    if not eintraege:
+        anzahl = abschnittszahl(conn, chat_id)
+        if anzahl:
+            auftrag += T._ZEILE_ABSCHNITTE.format(anzahl=anzahl)
     if regie and regie.strip():
         auftrag += T._ZEILE_REGIE.format(regie=regie.strip())
     teile.append(auftrag)
@@ -368,7 +425,7 @@ def _faktor(conn, chat_id: int) -> float:
 def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
               vorlage: bool = False,
               eintraege: Sequence[tuple[int, str, int]] | None = None,
-              art: str = ART) -> str:
+              art: str = ART, bei_teil=None) -> str:
     """**Nur** der Modellaufruf -- Prompt bauen, fragen, Antwort liefern.
 
     Kein Speichern, keine Chatnachricht, keine Sperre. Herausgezogen am
@@ -377,7 +434,9 @@ def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
     fehlt ein Belegzitat, wird sie verworfen und die alte Fassung bleibt.
 
     ``art`` landet in der Tabelle ``aufruf`` und macht Nachpass-Laeufe
-    getrennt zaehlbar."""
+    getrennt zaehlbar. ``bei_teil`` (Karte W, Aufgabe 7): die Senke des
+    aufrufenden Laufs -- der Nachpass ruft ohne sie, er ist eine Zugabe, auf
+    die niemand wartet."""
     from interview_theater import szene_claude
 
     system = systemanweisung([b for _n, _f, b in (eintraege or [])] or None)
@@ -389,14 +448,15 @@ def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
         return szene_claude.prosa(
             conn, e,
             getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
-            chat_id, system, nutzer, art, timeout=TIMEOUT_S,
+            chat_id, system, nutzer, art, timeout=TIMEOUT_S, bei_teil=bei_teil,
         )
     return klm.prosa(chat_id, system, nutzer, art,
-                     max_tokens=MAX_TOKENS, timeout=TIMEOUT_S)
+                     max_tokens=MAX_TOKENS, timeout=TIMEOUT_S, bei_teil=bei_teil)
 
 
 def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
-             vorlage: bool = False, art: str = ART, zeilen=None) -> list[int]:
+             vorlage: bool = False, art: str = ART, zeilen=None,
+             bei_teil=None) -> list[int]:
     """Der ganze Lauf, **synchron und ohne Sperre**: Modell fragen, zerlegen,
     Szenen anlegen, in den Chat melden. Liefert die Nummern der Abschnitte.
 
@@ -407,11 +467,19 @@ def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
     ``zeilen`` ist die sichtbare Arbeitszeile des Aufrufers; sie wird wie
     bisher **vor** der Fertig-Meldung gestoppt."""
     eintraege = budget_eintraege(conn, chat_id, faktor=_faktor(conn, chat_id))
-    antwort = hole_text(conn, klm, e, chat_id, regie, vorlage, eintraege, art)
+    antwort = hole_text(conn, klm, e, chat_id, regie, vorlage, eintraege, art,
+                        bei_teil=bei_teil)
     abschnitte = zerlege(antwort or "")
     if not abschnitte:
         raise ValueError("Kurzgeschichte ohne erkennbare Abschnitte")
     nummern = lege_szenen_an(conn, chat_id, abschnitte)
+    # Kein ``post_id``: die Geschichte geht als eigene Nachrichten raus
+    # (Abschnitt fuer Abschnitt ueber ``knoepfe.zeige_kurzgeschichte``), nicht
+    # als eine. 'fertig' ohne post_id heisst fuer die Ansicht schlicht: die
+    # vorlaeufige Blase darf weg. Ueber die Senke selbst (Fix-Runde 1,
+    # Befund 1) -- ein Gespraechszug daneben bleibt unberuehrt.
+    if bei_teil is not None:
+        strom.schliesse(tg, chat_id, senke=bei_teil)
     if eintraege:
         # Der Wuerfel ist reproduzierbar (Seed = chat_id), aber niemand soll
         # ihn nachrechnen muessen, um zu verstehen, warum Abschnitt 2 laenger
@@ -461,9 +529,14 @@ def starte(
         from interview_theater import arbeitszeilen
 
         zeilen = arbeitszeilen.sichtbar(tg, chat_id, "prosa")
+        # Der laufende Text (Karte W) -- wie beim Szenenlauf haengt dieser
+        # Lauf in einem eigenen Thread, niemand wartet davor, aber im Browser
+        # ist "es passiert etwas" der Unterschied zwischen stiller Wartezeit
+        # und mitlesbarem Text.
+        senke = strom.senke(tg, chat_id, "prosa")
         try:
             schreibe(conn, tg, klm, e, chat_id, regie, vorlage=vorlage,
-                     zeilen=zeilen)
+                     zeilen=zeilen, bei_teil=senke)
             # Der Nachpass (30.09.2026, Karte R): EIN Lauf fuer alle
             # Abschnitte, im selben Thread und unter derselben Sperre. Im
             # ``try``, weil es nach einem gescheiterten Lauf keine Geschichte
@@ -484,6 +557,8 @@ def starte(
                                   "Prosa-Nachpass gescheitert")
         except Exception:
             log.exception("Kurzgeschichte fehlgeschlagen, chat_id=%s", chat_id)
+            if senke is not None:
+                strom.verwirf(tg, chat_id, senke=senke)
             try:
                 # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile -- und
                 # zuerst geprueft, damit bei Deckel nicht zusaetzlich ein

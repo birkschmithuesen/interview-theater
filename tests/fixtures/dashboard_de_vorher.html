@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>interview_theater — Dashboard</title>
+<style>
+ul.fragen { list-style: none; padding: 0; margin: 0; }
+ul.fragen li { margin: .25em 0; }
+pre.leitfaden { white-space: pre-wrap; font-family: inherit; margin: 0; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 1rem 1.2rem 3rem;
+       font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+       line-height: 1.45; }
+h1 { font-size: 1.5rem; margin: 0 0 .8rem; }
+h2 { font-size: 1.15rem; margin: 1.6rem 0 .5rem; }
+h3 { font-size: 1rem; margin: 0 0 .4rem; }
+.stand { font-weight: normal; font-size: .8rem; opacity: .6; }
+.leer { opacity: .45; font-style: italic; }
+dt { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em;
+     opacity: .6; margin-top: .5rem; }
+dd { margin: 0; }
+dl { margin: 0; }
+
+body { background: #14161a; color: #e7e9ec; }
+.gruppen { display: grid; gap: .9rem;
+           grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
+.karte { background: #1d2026; border: 1px solid #2c313a; border-radius: .5rem;
+         padding: .8rem .9rem; }
+.karte h2 { margin: 0; font-size: 1.2rem; }
+.kopf { display: flex; justify-content: space-between; align-items: baseline;
+        gap: .5rem; border-bottom: 1px solid #2c313a; padding-bottom: .4rem;
+        margin-bottom: .3rem; }
+.bot { font-size: .78rem; opacity: .6; }
+.marke { display: inline-block; font-size: .72rem; padding: .1rem .45rem;
+         border-radius: .8rem; background: #2f4858; color: #cfe8ff; }
+.zahlen { display: flex; flex-wrap: wrap; gap: .1rem .9rem; font-size: .85rem;
+          margin-top: .6rem; }
+.zahlen b { font-weight: 600; }
+.vorfaelle { margin-top: .6rem; border-left: 3px solid #e04a4a;
+             background: #2a1a1c; padding: .35rem .5rem; font-size: .82rem; }
+.vorfaelle div { margin: .15rem 0; }
+.vorfaelle .art { color: #ff8f8f; font-weight: 600; }
+.zeit { opacity: .55; font-size: .75rem; }
+table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+th, td { text-align: left; padding: .25rem .6rem .25rem 0;
+         border-bottom: 1px solid #2c313a; }
+th { opacity: .6; font-weight: 600; }
+.figuren li { margin-bottom: .15rem; }
+/* Je Interview eine Zeile mit den Ergebnissen als Kurzform (N6) -- ohne
+   Zitate und ohne Zusammenfassung, das Dashboard haengt am Beamer. */
+.ergebnisse { margin: .5rem 0 0; font-size: .85rem; }
+.ergebnisse li { margin-bottom: .15rem; }
+ul { margin: .2rem 0; padding-left: 1.1rem; }
+</style></head>
+<body>
+<h1>Arbeitsstand aller Gruppen <span class="stand">Stand 02.10.2026 12:32 · </span></h1>
+<div class="gruppen"><section class="karte"><div class="kopf"><h2><a href="/theatersoap/g/tok123">Team Canal</a></h2><span class="bot">padua_bot1 <span class="marke">Interviewmodus</span></span></div><dl><dt>Phase</dt><dd>3 · Interviews</dd><dt>Begriffe</dt><dd>bridge, market, rain</dd><dt>Fragen</dt><dd><ul class="fragen"><li><b>Home</b> Where do you feel at home?</li><li><b>Work</b> What do you do all day?</li></ul></dd><dt>Leitfaden</dt><dd><pre class="leitfaden">So fangt ihr an:
+Hello, we are making a play.
+
+Eure Fragen:
+1. Home: Where do you feel at home?
+2. Work: What do you do all day?
+
+So hoert ihr auf:
+Thank you very much.</pre></dd><dt>Kernthema</dt><dd>belonging<div class="zeit">came up twice</div></dd><dt>Setting</dt><dd>a bridge at night</dd><dt>Geschichte</dt><dd>two friends meet on the bridge</dd><dt>Hauptkonflikt</dt><dd>stay or leave</dd><dt>Figuren</dt><dd><ul class="figuren"><li><b>Mira</b> — a student<div class="zeit">Sprechweise aus Interview 1</div></li><li><b>Luca</b> — ohne Beschreibung</li></ul></dd></dl><ul class="ergebnisse"><li><b>Interview 1</b> fishing at dawn · a lost key</li><li><b>Interview</b> the old bakery</li></ul><div class="zahlen"><span>Aufnahmen — empfangen: <b>1</b>, fehlgeschlagen: <b>1</b>, fertig: <b>3</b>, laeuft: <b>1</b>, transkribiert: <b>2</b>, unbekannt_x: <b>1</b></span><span>Verdichtungen: <b>2</b></span><span>Szenen: <b>4</b> — 2 dialog, 1 offen, 1 tanz</span><span>zuletzt: 02.10.2026 12:30 · </span></div><div class="vorfaelle"><div><span class="art">wiederholung_verworfen</span> detail one <span class="zeit">02.10.2026 12:01 · </span></div><div><span class="art">transkription_fehlgeschlagen</span>  <span class="zeit">02.10.2026 12:05 · , bot-weit</span></div><div><span class="art">voellig_neue_art</span> detail two <span class="zeit"></span></div></div><table><tr><th>Aufruf</th><th>heute</th><th>Fehl</th><th>Median</th></tr><tr><td>erkenner</td><td>7</td><td>0</td><td>0,8 s</td></tr><tr><td>gespraech</td><td>5</td><td>1</td><td>5,1 s</td></tr><tr><td>stt</td><td>2</td><td>0</td><td>—</td></tr><tr><td>neue_aufrufart</td><td>1</td><td>0</td><td>0,1 s</td></tr></table></section><section class="karte"><div class="kopf"><h2>Gruppe -1002</h2><span class="bot">padua_bot2 </span></div><dl><dt>Phase</dt><dd>1 · Begriffe</dd><dt>Begriffe</dt><dd>—</dd><dt>Fragen</dt><dd>—</dd><dt>Kernthema</dt><dd>—</dd><dt>Setting</dt><dd>—</dd><dt>Figuren</dt><dd><span class="leer">noch keine</span></dd></dl><div class="zahlen"><span>Aufnahmen — <span class="leer">keine</span></span><span>Verdichtungen: <b>0</b></span><span>Szenen: <b>0</b></span><span>zuletzt: </span></div><p class="leer">heute noch keine Modellaufrufe</p></section></div>
+<h2>Bot-Zuordnung</h2><table><tr><th>Bot</th><th>Gruppe</th><th>chat_id</th><th>letzte Aktivität</th></tr><tr><td>padua_bot1</td><td>Team Canal</td><td>-1001</td><td>02.10.2026 12:31 · </td></tr><tr><td>padua_bot3</td><td>— keine Gruppe —</td><td>—</td><td></td></tr></table>
+<script>
+(function () {
+  // Sanftes Nachladen (Birk 05.09.: "wenn ich etwas ausklappe, geht es
+  // immer wieder zu, sobald die Seite neu laedt"). Kein meta refresh mehr:
+  // alle NEULADEN Sekunden wird die Seite per fetch geholt; hat sich der
+  // Inhalt nicht geaendert, passiert nichts. Hat er sich geaendert, wird
+  // nur der <body> getauscht -- und vorher gemerkt, welche <details> offen
+  // waren (am summary-Text), danach wieder geoeffnet. Scrollposition
+  // bleibt, weil das Dokument nicht neu geladen wird.
+  var INTERVALL_MS = 10000;
+  var offene = function () {
+    var s = {};
+    document.querySelectorAll('details[open] > summary').forEach(function (el) {
+      s[el.textContent.trim()] = true;
+    });
+    return s;
+  };
+  var stelleHer = function (zustand) {
+    document.querySelectorAll('details > summary').forEach(function (el) {
+      if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
+    });
+  };
+  // Wer gerade tippt, verliert nichts (Brief 05.09. abends): steht der
+  // Fokus in einem Bearbeitungsfeld oder ist eines geaendert und noch nicht
+  // gespeichert, wird gar nicht erst nachgeladen. Sonst tauschte der
+  // Austausch des <body> den halb getippten Satz gegen den alten Stand aus
+  // -- dieselbe Sorte Aerger wie das Zuklappen der <details> vorher.
+  var wirdBearbeitet = function () {
+    var aktiv = document.activeElement;
+    if (aktiv && aktiv.closest && aktiv.closest('.feld')) { return true; }
+    return !!document.querySelector('.feld[data-schmutzig="1"]');
+  };
+  var letzter = document.body.innerHTML;
+  var laeuft = false;
+  setInterval(function () {
+    if (laeuft || document.hidden || wirdBearbeitet()) { return; }
+    laeuft = true;
+    fetch(location.href, { cache: 'no-store', headers: { 'X-Nachladen': '1' } })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (!html) { return; }
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        if (!neu || neu === letzter) { return; }
+        var zustand = offene();
+        var y = window.scrollY;
+        document.body.innerHTML = neu;
+        stelleHer(zustand);
+        window.scrollTo(0, y);
+        letzter = neu;
+      })
+      .catch(function () {})
+      .finally(function () { laeuft = false; });
+  }, INTERVALL_MS);
+})();
+</script>
+</body></html>

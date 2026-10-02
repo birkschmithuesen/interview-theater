@@ -751,7 +751,7 @@ _DEZIMALZEICHEN = "."
 
 ["kuerzung"]
 TEXT_NOTIZ_SZENE = "Shorten this scene by about {prozent} percent. Same events, same order, same characters, same ending -- just tighter: less repetition, shorter lines, nothing new added."
-TEXT_NOTIZ_PROSA = "Shorten the story by about {prozent} percent. Keep exactly {anzahl} sections with their titles and in their order, and shorten within the sections -- same events, same ending, nothing new added."
+TEXT_NOTIZ_PROSA = "Shorten the story by about {prozent} percent. Keep the sections with their titles and in their order, and shorten within the sections -- same events, same ending, nothing new added."
 TEXT_NICHTS_ZU_KUERZEN = "There's no text yet that I could shorten."
 TEXT_KEIN_LAUF = "Not started, see chat"
 TEXT_SZENE_GESTARTET = "Scene {nummer} is getting shorter"
@@ -959,7 +959,7 @@ _RAHMEN_BLOCK = "The story / the setting of the play -- this is the group's brie
 _BOGEN_BLOCK = "Arc and ending:\n{geschichte}"
 _KERNFRAGE_KOPF = "Core question:\n"
 _ZEILE_HAUPTKONFLIKT = "Main conflict: {hauptkonflikt}"
-KERNPAKET_KOPF = "The passages that belong to the core theme (filtered by the core theme, with interview number). They are the basis - you deliberately don't see any other material here:"
+KERNPAKET_KOPF = "The passages from the interviews the group has taken on for this story (with interview number). They are the basis - you deliberately don't see any other material here:"
 FIGUREN_KOPF = "This is how each character speaks (from their interview, word for word -- copy this way of speaking):"
 FIGUREN_KOPF_OHNE_STIMME = "The characters (who they are, what they want). Their way of speaking isn't backed by interviews yet -- give each character their own distinct way of talking (sentence length, pace, favourite words), and keep it up:"
 ZEILE_SPRACHSTIL = "  Speech style (chosen by the group): {stil}"
@@ -1137,10 +1137,11 @@ Below are the setting, the characters with their speech style and the story
 the group has agreed on. From these you write ONE coherent short story -- no
 list of scenes, no stage text, no screenplay.
 
-**You choose the number of sections yourself.** Three to seven is typical;
-what matters is what the story needs, not a number. A scene sequence from
-the planning is a suggestion, not a requirement: if it fits, use it; if it
-doesn't, do better.
+**If the job names a number of sections, that number is binding**: a scene
+sequence is already in place, and you write exactly that many sections, in
+that order -- none added, none dropped, none reordered. If it names none,
+you choose the number of sections yourself, from the story (three to seven
+is typical).
 
 1,500 to 3,500 words in total.
 
@@ -1173,6 +1174,7 @@ _ABSCHNITT_N = "Section {nummer}"
 UEBERSCHRIFT_VORLAGE = "The previous version you are revising (section by section):"
 _STILE_KOPF = "This is how the characters speak:\n"
 _AUFTRAG = "Your task:\nWrite the story in one go."
+_ZEILE_ABSCHNITTE = "\nWrite exactly {anzahl} sections -- one per planned scene, in their order."
 _ZEILE_REGIE = "\nThe group says about it: {regie}"
 
 ["schaerfung"]
@@ -1502,6 +1504,25 @@ _TEXT_BUEHNE_LEER = "No card yet."
 _TEXT_BUEHNE_OFFEN = "open"
 TEXT_500 = "Something went wrong on our end."
 TEXT_FREMDE_HERKUNFT = "This request didn't come from this page."
+_TITEL_DASHBOARD = "interview_theater — Dashboard"
+_UEBERSCHRIFT_DASHBOARD = "Progress of all groups"
+_TEXT_STAND = "As of {zeit}"
+_UEBERSCHRIFT_BOT_ZUORDNUNG = "Bot assignment"
+_ZUORDNUNG_KOEPFE = ["Bot", "Group", "chat_id", "Last activity"]
+_AUFRUF_KOEPFE = ["Call", "Today", "Failed", "Median"]
+_TEXT_KEINE_AUFRUFE = "no model calls yet today"
+_TEXT_AUFNAHMEN = "Recordings — {liste}"
+_TEXT_KEINE = "none"
+_TEXT_VERDICHTUNGEN = "Summaries: {anzahl}"
+_TEXT_SZENENZAHL = "Scenes: {anzahl}"
+_TEXT_ZULETZT = "Last activity: {zeit}"
+_TEXT_INTERVIEWMODUS = "Interview mode"
+_TEXT_BOT_WEIT = ", bot-wide"
+_TEXT_KEINE_GRUPPE_GESCHRIEBEN = "No group has written yet."
+_TEXT_KEINE_GRUPPE = "— no group —"
+_TEXT_LOG = "Log"
+_ZEITFORMAT_DASHBOARD = "%Y-%m-%d %H:%M"
+_DEZIMALZEICHEN = "."
 
 ["web".ARBEITSSTAND_BESCHRIFTUNG]
 phase = "Phase"
@@ -1569,6 +1590,100 @@ form_regel = "form rule"
 tschechow = "Chekhov candidate"
 sprechanteil = "speaking share"
 
+["web".AUFNAHMESTATUS_BESCHRIFTUNG]
+empfangen = "received"
+laeuft = "running"
+transkribiert = "transcribed"
+fertig = "done"
+fehlgeschlagen = "failed"
+
+["web".VORFALLART_BESCHRIFTUNG]
+abgeschnitten = "cut_off"
+auftragszug_fehlgeschlagen = "task_turn_failed"
+denkspur_verworfen = "reasoning_trace_discarded"
+denkspur_wiederholt = "reasoning_trace_repeated"
+download_fehlgeschlagen = "download_failed"
+dramaturgie_aufruf_fehlgeschlagen = "dramaturgy_call_failed"
+dramaturgie_fehlgeschlagen = "dramaturgy_failed"
+dramaturgie_verschlechterung = "dramaturgy_got_worse"
+echo_verworfen = "echo_discarded"
+echo_wiederholt = "echo_repeated"
+erkenner_anwenden_fehler = "detector_apply_error"
+erkenner_nachlauf_fehler = "detector_followup_error"
+extraktor_fehler = "extractor_error"
+fenster_verworfen = "window_discarded"
+festlegung_stand_schon_im_feld = "agreement_already_in_field"
+geschichte_war_formwahl = "story_was_form_choice"
+gespraech_systemzeile_erfunden = "conversation_invented_system_line"
+gespraechszug_fehlgeschlagen = "conversation_turn_failed"
+http_5xx = "http_5xx"
+interview_ohne_knopf_offen = "interview_without_button_pending"
+journal_extraktor_fehler = "journal_extractor_error"
+journal_nachlauf_fehler = "journal_followup_error"
+kernzitate_fehlgeschlagen = "core_quotes_failed"
+kontext_gekuerzt = "context_shortened"
+kontext_kuerzung_erfolglos = "context_shortening_insufficient"
+kostendeckel_erreicht = "cost_cap_reached"
+kosten_modell_unbekannt = "cost_model_unknown"
+kurzgeschichte_fehlgeschlagen = "short_story_failed"
+nachpass_abschnittszahl = "revision_section_count"
+nachpass_fehlgeschlagen = "revision_failed"
+nachpass_gelaufen = "revision_ran"
+nachpass_reicht_nicht = "revision_not_enough"
+nachpass_verworfen_zitat = "revision_discarded_quote"
+rahmen_war_geschichte = "setting_was_story"
+richtung_szenen_unvollstaendig = "direction_scenes_incomplete"
+schaerfung_fehlgeschlagen = "sharpening_failed"
+sprachprofil_fehlgeschlagen = "speech_profile_failed"
+sprachstil_fehlgeschlagen = "speech_style_failed"
+stueckpruefung_fehlgeschlagen = "play_check_failed"
+stueckpruefung_zu_lang = "play_check_too_long"
+szene_abgeschnitten = "scene_cut_off"
+szene_budget_knapp = "scene_budget_tight"
+szene_fehlgeschlagen = "scene_failed"
+szene_ohne_zusammenfassung = "scene_without_summary"
+szene_prompt_gekuerzt = "scene_prompt_shortened"
+szenenfolge_fehlgeschlagen = "scene_sequence_failed"
+transkription_fehlgeschlagen = "transcription_failed"
+ueberschreiben_verhindert = "overwrite_prevented"
+undo_fehlgeschlagen = "undo_failed"
+undo_nicht_angelegt = "undo_not_created"
+verdichtung_fehlgeschlagen = "summary_failed"
+vorschlag_mehrere_arten = "suggestion_several_kinds"
+web_rate_limit = "web_rate_limit"
+wiederholung_verworfen = "repetition_discarded"
+zitat_ungeprueft = "quote_unchecked"
+
+["web".AUFRUFART_BESCHRIFTUNG]
+gespraech = "conversation"
+erkenner = "intent detector"
+journal = "journal"
+verdichter = "summariser"
+stt = "speech-to-text"
+szene = "scene"
+prosa = "prose"
+szene_nachpass = "scene revision"
+kurzgeschichte = "short story"
+kurzgeschichte_nachpass = "short story revision"
+szenenfolge = "scene sequence"
+szenenfelder = "scene fields"
+geschichte = "story"
+schaerfung = "sharpening"
+sprachprofil = "speech profile"
+sprachstil = "speech style"
+kernzitate = "core quotes"
+stueckpruefung = "play check"
+dramaturgie_a2 = "dramaturgy a2"
+dramaturgie_a6 = "dramaturgy a6"
+dramaturgie_a9 = "dramaturgy a9"
+dramaturgie_a10 = "dramaturgy a10"
+dramaturgie_a11 = "dramaturgy a11"
+dramaturgie_b1 = "dramaturgy b1"
+dramaturgie_c1 = "dramaturgy c1"
+
+["web".DASHBOARD_FORM_BESCHRIFTUNG]
+offen = "open"
+
 ["laengen"]
 BLOCK_KOPF_SZENE = "How long this scene should be:"
 BLOCK_KOPF_PROSA = "How long the sections should be:"
@@ -1612,3 +1727,16 @@ _TEXT_ABKUERZUNG = "Shortcut:"
 # UX-Knoepfe-Karte, Abschnitt 1: der einmalige Hinweis, dass Knoepfe
 # Abkuerzungen sind -- gesendet von web_kanal.WebKanal.sende_mit_knoepfen.
 TEXT_ABKUERZUNG_HINWEIS = "Buttons are shortcuts – you can always just write or speak instead."
+
+["web_vereint"]
+_TEXT_PHASE_UNGUELTIG = "There is no such phase."
+_TEXT_PHASE_UNBESTAETIGT = "Please confirm first."
+_TEXT_PHASE_WECHSELN = "Switch to this phase"
+_TEXT_PHASE_SICHER = "Really switch to {bezeichnung}?"
+_TEXT_PHASE_FEHLER_NETZ = "No connection - that didn't go through."
+_TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_aufgaben}"
+
+["web_vereint"._TEXT_TAB]
+chat = "Chat"
+stand = "Workbench"
+textbuch = "Script"

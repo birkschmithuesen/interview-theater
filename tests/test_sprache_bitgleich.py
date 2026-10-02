@@ -34,6 +34,24 @@ VERSCHOBEN: dict[str, str] = {
     "knoepfe.stationen._ERLEDIGT_FUER": "knoepfe.texte._ERLEDIGT_FUER",
 }
 
+#: Karte P2-Fix (02.10.2026, Restspannung 4): prompts/system.md nennt den
+#: Hauptkonflikt jetzt als Rahmen-Entscheidung von Station **4** statt 5.
+#: Seit dem Zusammenlegen von 4 und 5 am 06.09.2026 heisst Station 4
+#: "Setting, Figuren & Geschichte" und traegt die Stichwoerter
+#: konflikt/hauptkonflikt (workshop.py:331-342); Station 5 ist die
+#: Schaerfung. Englisch steht die 4 seit c8 (en/prompts/system.md:45), und
+#: dieselbe deutsche Datei nennt sie an drei anderen Stellen schon richtig
+#: (:30, :32, :224). Gewollte Verhaltensaenderung fuer Dortmund: eine Zahl
+#: in einem Satz (tests/test_anweisungen.py). Die Systemanweisung geht in
+#: jede Phase ein, deshalb neun Abschnitte und nicht einer.
+_GRUND_STATION_4 = (
+    "Karte P2-Fix (02.10.2026, Restspannung 4): Hauptkonflikt = "
+    "Rahmen-Entscheidung von Station 4 statt 5, wie englisch seit c8 und wie "
+    "workshop.VORGABE_PHASEN. Die Systemanweisung steckt in jeder Phase, "
+    "daher derselbe Grund fuer alle neun Abschnitte "
+    "(tests/test_anweisungen.py::test_der_hauptkonflikt_gehoert_zu_station_vier)."
+)
+
 #: Abschnitte, deren Wert A1 absichtlich aendert -- mit Grund. Jede Zeile
 #: hier ist eine Verhaltensaenderung fuer Dortmund.
 GEAENDERT: dict[str, str] = {
@@ -205,7 +223,9 @@ GEAENDERT: dict[str, str] = {
     ),
     "anweisungen.system(phase=4)": (
         "Folgt aus der Neufassung von phasen/4.md (siehe oben) -- die "
-        "Basisanweisung haengt den Phasentext unveraendert an."
+        "Basisanweisung haengt den Phasentext unveraendert an. Zusaetzlich "
+        "Karte P2-Fix (Restspannung 4), siehe _GRUND_STATION_4 unten -- "
+        "beide Aenderungen treffen denselben zusammengesetzten Abschnitt."
     ),
     "szenenfolge.systemanweisung_geschichte(3)": (
         "Folgt aus phasen/4.md: die zusammengesetzte Systemanweisung fuer "
@@ -226,7 +246,9 @@ GEAENDERT: dict[str, str] = {
         "Szene steht schon\" -- sie wird erst im Feinschliff entschieden."
     ),
     "anweisungen.system(phase=6)": (
-        "Folgt aus phasen/6.md (siehe oben)."
+        "Folgt aus phasen/6.md (siehe oben). Zusaetzlich Karte P2-Fix "
+        "(Restspannung 4), siehe _GRUND_STATION_4 unten -- beide "
+        "Aenderungen treffen denselben zusammengesetzten Abschnitt."
     ),
     "szenenfolge.systemanweisung(3)": (
         "Folgt aus phasen/6.md (siehe oben)."
@@ -251,7 +273,66 @@ GEAENDERT: dict[str, str] = {
     "anweisungen.system(phase=3)": (
         "Karte Phase3-Web, 02.10.2026: Folgewirkung derselben Aenderung an "
         "prompt phasen/3 -- die zusammengesetzte Systemanweisung bettet den "
-        "Phasentext direkt ein, siehe Begruendung dort."
+        "Phasentext direkt ein, siehe Begruendung dort. Zusaetzlich Karte "
+        "P2-Fix (Restspannung 4), siehe _GRUND_STATION_4 unten -- beide "
+        "Aenderungen treffen denselben zusammengesetzten Abschnitt."
+    ),
+    "szene.KERNPAKET_KOPF": (
+        "Karte P2-Fix (02.10.2026, Restspannung 2): der Kopf nennt das "
+        "Kernthema nicht mehr. EIN Kopf traegt beide Zweige von "
+        "szene._kernpaket_text (Schaerfungen je Szene; ersatzweise die "
+        "globale Kernzitat-Auswahl), und \"am Kernthema gefiltert\" war fuer "
+        "keinen wahr. Gewollte Verhaltensaenderung fuer Dortmund: eine "
+        "Ueberschrift im Szenen-Nutzertext, derselbe Block darunter "
+        "(tests/test_szene_sprache.py)."
+    ),
+    "kontext.KERNPAKET_KOPF": (
+        "Karte P2-Fix (02.10.2026, Restspannung 4): \"kommen aus dem "
+        "Kernthema\" -> \"aus der Geschichte\". _baue_kernpaket setzt "
+        "arbeitsstand.geschichte an den Anfang (kontext.py:472-473), das "
+        "Kernthema nur darunter und nur wenn gesetzt; englisch sagt es seit "
+        "c8 (en/texte.toml:848). Gewollte Verhaltensaenderung fuer Dortmund: "
+        "ein Wort in der Ueberschrift des Blocks (tests/test_kontext.py)."
+    ),
+    "kurzgeschichte.ANWEISUNG": (
+        "Karte P2-Fix (02.10.2026, c5, Birks Entscheidung): die "
+        "Abschnittszahl ist fest, sobald eine Szenenfolge steht -- die "
+        "Anweisung sagt, dass der Auftrag sie dann nennt, und die freie Wahl "
+        "ist der zweite Fall. Gewollte Verhaltensaenderung fuer Dortmund: "
+        "sie macht prompts/formen/prosa.md:29-34 (\"Steht schon eine "
+        "Szenenfolge, ist sie verbindlich\") zum ersten Mal "
+        "widerspruchsfrei. Die ersetzbare Laengenzeile ist unberuehrt "
+        "(tests/test_laengen_prosa.py)."
+    ),
+    "kuerzung.TEXT_NOTIZ_PROSA": (
+        "Karte P2-Fix, Abschlussreview (02.10.2026): die Kuerzungsnotiz nennt "
+        "keine Abschnittszahl mehr (\"Behalte genau {anzahl} Abschnitte\" -> "
+        "\"Behalte die Abschnitte\"). Sie zaehlte die Szenen MIT Prosa, der "
+        "Auftrag (kurzgeschichte._ZEILE_ABSCHNITTE) die GEPLANTEN -- bei "
+        "sechs geplanten und vier geschriebenen standen zwei Zahlen in einem "
+        "Prompt. Gewollte Verhaltensaenderung fuer Dortmund: die Zahl steht "
+        "genau einmal im Nutzertext, im Auftrag "
+        "(tests/test_kuerzung.py::test_kuerzen_bindet_die_abschnittszahl_genau_einmal)."
+    ),
+    "prompt system": _GRUND_STATION_4,
+    "anweisungen.system(phase=None)": _GRUND_STATION_4,
+    "anweisungen.system(phase=1)": _GRUND_STATION_4,
+    "anweisungen.system(phase=2)": _GRUND_STATION_4,
+    # phase=3/4/6 stehen oben, zusammen mit dem jeweils eigenen Grund --
+    # beide Karten (P2-Fix und Padua-Brainstorming-Umbau) treffen denselben
+    # zusammengesetzten Abschnitt, siehe die kombinierten Begruendungen dort.
+    "anweisungen.system(phase=5)": _GRUND_STATION_4,
+    "anweisungen.system(phase=7)": _GRUND_STATION_4,
+    "web._TEXTBUCH_JS": (
+        "Karte W, Aufgabe 11 (30.09.2026): die vereinte Seite haengt den "
+        "Zustand der Probenansicht nicht mehr an document.body, sondern an "
+        "die Wurzel [data-textbuch] (auf der Einzelseite weiterhin der "
+        "<body>) -- sonst faerbte der Rollenfilter auch den Chat. Dazu "
+        "schreibt schreib() einen leeren Wert jetzt ohne "
+        "Gleichheitszeichen, damit das blosse Tab-Wort im Fragment "
+        "(#textbuch) einen Klick auf den Rollenfilter ueberlebt. Kein "
+        "Nutzertext aendert sich (tests/test_web_vereint.py, "
+        "tests/test_web_textbuch.py)."
     ),
 }
 

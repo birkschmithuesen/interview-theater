@@ -44,7 +44,7 @@ import re
 import threading
 from contextlib import contextmanager
 
-from interview_theater import befehle, knoepfe, kontext, kosten, phasen, repo, vorschlag
+from interview_theater import befehle, knoepfe, kontext, kosten, phasen, repo, strom, vorschlag
 from interview_theater.llm import LLMFehler
 
 log = logging.getLogger(__name__)
@@ -158,7 +158,8 @@ def _denkspur_kern(text: str) -> str | None:
     return None
 
 
-def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str) -> str:
+def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str,
+                   bei_teil=None) -> str:
     """Faengt eine Antwort ab, die das Selbstgespraech des Modells ist statt
     die Nachricht an die Gruppe. Erst Kernabsatz retten, sonst ein zweiter
     Aufruf mit Ermahnung; beides als Vorfall vermerkt. Ist auch der zweite
@@ -174,10 +175,16 @@ def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str) -> str:
     )
     if kern:
         return kern
+    # Der zweite Anlauf ersetzt den ersten -- der Strom beginnt NEU, sonst
+    # klebte die verworfene Antwort sichtbar davor (Karte W, Entscheidung D).
+    if bei_teil is not None:
+        neu = getattr(bei_teil, "neu", None)
+        if callable(neu):
+            neu()
     zweite = klm.schema(
         chat_id, system,
         f"{koerper}\n\n{T._TEXT_DENKSPUR_ERMAHNUNG}",
-        SCHEMA, "gespraech",
+        SCHEMA, "gespraech", bei_teil=bei_teil,
     )["antwort"]
     if ist_denkspur(zweite):
         repo.merke_vorfall(
@@ -646,7 +653,7 @@ def ist_erfundene_systemzeile(text: str | None) -> bool:
 
 
 def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
-               offen: list, antwort: str) -> str:
+               offen: list, antwort: str, bei_teil=None) -> str:
     """Liefert die Antwort -- oder, wenn sie ein Echo war, die eines zweiten
     Anlaufs mit angehaengter Ermahnung (``_TEXT_ECHO_ERMAHNUNG``).
 
@@ -664,12 +671,40 @@ def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
         conn, chat_id, getattr(e, "bot_name", None), "echo_verworfen",
         "Antwort war ein Zitat der Gruppe, zweiter Anlauf mit Ermahnung",
     )
+    # Der zweite Anlauf ersetzt den ersten -- der Strom beginnt NEU, sonst
+    # klebte die verworfene Antwort sichtbar davor (Karte W, Entscheidung D).
+    if bei_teil is not None:
+        neu = getattr(bei_teil, "neu", None)
+        if callable(neu):
+            neu()
     try:
         zweite = klm.schema(
-            chat_id, system, f"{koerper}\n\n{T._TEXT_ECHO_ERMAHNUNG}", SCHEMA, "gespraech"
+            chat_id, system, f"{koerper}\n\n{T._TEXT_ECHO_ERMAHNUNG}", SCHEMA, "gespraech",
+            bei_teil=bei_teil,
         )["antwort"]
     except Exception:
         log.exception("Zweiter Anlauf nach Echo fehlgeschlagen, chat_id=%s", chat_id)
+        # Der erste Anlauf gilt -- dann muss auch die Stromzeile ihn tragen
+        # und nicht den halben Text des gescheiterten zweiten (Fix-Runde 1,
+        # Befund 3): verwerfen und neu beginnen, mit genau dem Text, der
+        # gleich verschickt wird.
+        if bei_teil is not None:
+            neu = getattr(bei_teil, "neu", None)
+            if callable(neu):
+                neu()
+            # Derselbe Grundsatz wie in der Streaming-Schleife
+            # (``llm._sende_strom``, Fix Runde 1, Punkt 2): ``bei_teil`` ist
+            # ein Schreibvorgang (z. B. "database is locked") und darf nicht
+            # weiter nach oben reichen -- die erste Antwort steht fest, eine
+            # werfende Anzeige darf sie nicht mehr kosten.
+            try:
+                bei_teil(antwort)
+            except Exception:  # noqa: BLE001 -- eine werfende Anzeige darf
+                # die schon feststehende erste Antwort nicht kosten.
+                log.exception(
+                    "bei_teil-Nachtrag nach gescheitertem Echo-Anlauf "
+                    "fehlgeschlagen, chat_id=%s", chat_id,
+                )
         return antwort
     if ist_echo(zweite, offen):
         repo.merke_vorfall(
@@ -734,19 +769,30 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         text = _erfrage_antwort(conn, klm, e, chat_id, offen, tg, hinweis)
 
         if _erfundene_systemzeile(conn, e, chat_id, text):
+            strom.verwirf(tg, chat_id)          # die vorlaeufige Blase verschwindet
             versand_erfolgreich = True
             return
 
         if _wiederholt_die_vorige(conn, e, chat_id, text, letzte_message_id):
+            strom.verwirf(tg, chat_id)
             versand_erfolgreich = True
             knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
             return
 
         message_id, text = _sende_mit_leiste(conn, tg, chat_id, text)
+        # Ab hier steht die Antwort in der Gruppe: markiert, BEVOR der Strom
+        # schliesst (Fix-Runde Abschluss, Befund 2) -- ``strom.schliesse``
+        # schluckt einen werfenden Abschluss zwar selbst schon (``strom.py``),
+        # aber ein Fehler dort soll unter keinen Umstaenden mehr als
+        # "versand nicht erfolgreich" gelten: die Blase wird in jedem Fall
+        # geschlossen, durch genau diese Nachricht ersetzt (Zuordnung ueber
+        # ``web_strom.post_id``).
         versand_erfolgreich = True
+        strom.schliesse(tg, chat_id, message_id)
         _nach_dem_senden(conn, tg, e, chat_id, message_id, text)
     except Exception:
         log.exception("Gespraechszug fehlgeschlagen, chat_id=%s", chat_id)
+        strom.verwirf(tg, chat_id)
         _melde_fehler(conn, tg, e, chat_id, versand_erfolgreich)
     finally:
         repo.setze_beantwortet_bis(conn, chat_id, letzte_message_id)
@@ -1015,15 +1061,24 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
         erstkontakt = not repo.hat_bot_nachricht(conn, chat_id)
         koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt)
         system = kontext.system(e.bot_name, phase)
-        ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
+        # Der laufende Text (30.09.2026, Karte W): ``senke`` ist ``None``,
+        # solange der Kanal keinen Strom kann -- der Telegram-Weg bleibt damit
+        # Zeichen fuer Zeichen, wie er war (E1). Abgeschlossen wird sie NICHT
+        # hier, sondern in ``antworte``: erst dort steht fest, ob die Antwort
+        # wirklich verschickt wurde.
+        senke = strom.senke(tg, chat_id, "gespraech")
+        ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech",
+                              bei_teil=senke)
         antwort = _antworttext(ergebnis)
         if not str(antwort).strip():
             raise LLMFehler(
                 "Sprachmodell lieferte keine verwertbare Antwort "
                 f"(Typ {type(ergebnis).__name__})"
             )
-        text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort)
-        text = _ohne_echo(conn, klm, e, chat_id, system, koerper, offen, text)
+        text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort,
+                              bei_teil=senke)
+        text = _ohne_echo(conn, klm, e, chat_id, system, koerper, offen, text,
+                          bei_teil=senke)
         if hinweis:
             text = f"{text}\n\n{hinweis}"
     return text
@@ -1138,7 +1193,9 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
             koerper = kontext.baue(conn, chat_id, [], e)
             koerper = f"{koerper}\n\n{T._AUFTRAG_KOPF}\n{anweisung}"
             system = kontext.system(e.bot_name, phase)
-            ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech")
+            senke = strom.senke(tg, chat_id, "gespraech")
+            ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech",
+                                  bei_teil=senke)
             if isinstance(ergebnis, str):
                 antwort = ergebnis
             elif isinstance(ergebnis, dict):
@@ -1147,9 +1204,11 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
                 antwort = ""
             if not str(antwort).strip():
                 raise LLMFehler("Sprachmodell lieferte keine verwertbare Antwort")
-            text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort)
+            text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort,
+                                  bei_teil=senke)
     except Exception:
         log.exception("Auftragszug fehlgeschlagen, chat_id=%s", chat_id)
+        strom.verwirf(tg, chat_id)
         try:
             # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile.
             if kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
@@ -1169,7 +1228,15 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
     except Exception:
         log.exception("Leiste am Auftragszug fehlgeschlagen, chat_id=%s", chat_id)
         text = vorschlag.ohne_marker(text) or text
-        message_id = tg.sende(chat_id, text)
+        try:
+            message_id = tg.sende(chat_id, text)
+        except Exception:
+            # Auch der Rueckfall ist gescheitert: keine Nachricht, also auch
+            # keine Blase, die auf sie wartet (Fix-Runde 1, Befund 5). Der
+            # Fehler fliegt weiter wie bisher.
+            strom.verwirf(tg, chat_id)
+            raise
+    strom.schliesse(tg, chat_id, message_id)
     try:
         repo.merke_nachricht(
             conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),

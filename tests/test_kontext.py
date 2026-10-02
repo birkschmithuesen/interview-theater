@@ -783,3 +783,24 @@ def test_ueberlange_szene_opfert_nicht_fenster_und_journal(conn, einst):
     assert "JOURNALMARKE" in prompt, "das Journal darf der Szene nicht geopfert werden"
     assert kontext._TEXT_SZENE_GEKUERZT in prompt
     assert len(prompt) <= kontext.zeichengrenze()
+
+
+def test_der_kernpaket_kopf_kommt_aus_der_geschichte(monkeypatch):
+    """Karte P2-Fix, Restspannung 4 (02.10.2026).
+
+    ``_baue_kernpaket`` setzt ``arbeitsstand.geschichte`` an den Anfang
+    (``kontext.py:472-473``); das Kernthema steht nur darunter und nur,
+    solange eine alte Gruppe eines gesetzt hat. Englisch sagt das seit c8
+    (``en/texte.toml:848``), deutsch sagte weiter "aus dem Kernthema" -- zwei
+    Sprachfassungen mit verschiedener Aussage."""
+    from interview_theater import kontext, workshop
+
+    assert "Kernthema" not in kontext.KERNPAKET_KOPF
+    assert "Geschichte" in kontext.KERNPAKET_KOPF
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    try:
+        assert "core theme" not in kontext.T.KERNPAKET_KOPF
+        assert "story" in kontext.T.KERNPAKET_KOPF
+    finally:
+        workshop.vergiss()

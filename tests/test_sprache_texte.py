@@ -36,7 +36,7 @@ UMGESTELLT: set[str] = {
     "szene", "szenenfolge", "kurzgeschichte", "schaerfung", "sprachprofil",
     "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
     "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben", "web",
-    "laengen", "sprachpass",
+    "laengen", "sprachpass", "web_vereint",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -50,6 +50,7 @@ ALLE_MODULE = {
     "phasentexte", "schaerfung", "sprachprofil", "sprachstil", "sprecher",
     "stile", "stueckpruefung", "szene", "szenenfolge", "verdichter",
     "vorspann", "web", "web_schreiben", "laengen", "sprachpass",
+    "web_vereint",
 }
 
 #: Bleibt deutsch, mit Grund (nie im Chat, nie im Prompt einer Gruppe).
@@ -88,6 +89,11 @@ BLEIBT_DEUTSCH = {
     "web._TABS_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web._CSS_LEITFADEN": "CSS, nur Kommentare deutsch",
     "web._CSS_TEXTBUCH": "CSS, nur Kommentare deutsch",
+    # Aufgabe 15 (Karte W): Skript und Stil der vereinten Seite -- deutsch
+    # sind nur die Kommentare darin, kein Nutzertext.
+    "web_vereint._CSS_VEREINT": "CSS, nur Kommentare deutsch",
+    "web_vereint._VEREINT_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
+    "web_vereint._STROM_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit
@@ -201,12 +207,8 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail szene_prompt_gekuerzt (repo.merke_vorfall)",
     ("dramaturgie.mechanik", "\\b[A-ZÄÖÜ][a-zäöüß]{%d,}\\b"):
         "Regex-Muster fuer Eigennamen (Parser), kein Text",
-    # Aufgabe 17: das Team-Dashboard (web.dashboard_html) bleibt deutsch --
-    # projiziert, fuer das Team, Karte A2/UX fasst es an.
-    ("web", '<p class="leer">heute noch keine Modella'): "Dashboard, Team",
-    ("web", '<p class="leer">Noch keine Gruppe hat ge'): "Dashboard, Team",
-    ("web", "— keine Gruppe —"): "Dashboard, Team",
-    ("web", '<h1>Arbeitsstand aller Gruppen <span cla'): "Dashboard, Team",
+    # Aufgabe 17 liess das Team-Dashboard deutsch; seit Padua (02.10.2026)
+    # laeuft es ueber T -- die vier Ausnahmen dafuer sind entfallen.
     ("web", "interview-theater-web hoert auf http://{"):
         "Startzeile des Dienstes (stdout, betrieb/web.log), Betreiberausgabe",
 }

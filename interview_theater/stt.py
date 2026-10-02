@@ -103,6 +103,15 @@ class STTFehler(Exception):
     """
 
 
+class LeeresTranskript(STTFehler):
+    """Whisper hat geantwortet, aber ohne Wortlaut -- Stille oder Rauschen,
+    kein Dienstausfall (Karte Padua Brainstorm, 03.10.2026). Eine eigene
+    Klasse statt eines Vergleichs gegen den Fehlertext: ``aufnahme.py``
+    unterscheidet danach, ob ein Brainstorm-Segment still verworfen werden
+    darf (nichts wurde gesagt) oder ob es sich um einen echten technischen
+    Fehlschlag handelt, der einen Wiederholungsversuch verdient."""
+
+
 def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float,
              *, sprache: str | None = "de") -> str:
     """Laedt die Datei hoch und liefert die batch_id. Wiederholt bei 5xx/
@@ -267,7 +276,7 @@ def transkribiere(e, klient: httpx.Client, pfad: Path, budget_s: float,
                 raise STTFehler("kein Zeitbudget mehr fuer das Abholen")
             text = abholen(e, klient, batch_id, rest_abholen)
             if not text:
-                raise STTFehler("leeres Transkript -- Stille ist kein gueltiges Ergebnis")
+                raise LeeresTranskript("leeres Transkript -- Stille ist kein gueltiges Ergebnis")
             return text
         except STTFehler as fehler:
             letzter_fehler = fehler

@@ -307,16 +307,24 @@ def _starte_schaerfung(conn, tg, klm, e, chat_id: int, nummer: int, wunsch: str)
 
 
 def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
-                         weich_block: str | None) -> str:
+                         weich_block: str | None) -> int:
     """Die Antwort auf eine Schaerfung: ersetzt genau die aktuelle Frage
     (Text und, falls vorhanden, ihre weiche Fassung) und zeigt sie wieder --
-    erst Annehmen oder Verwerfen bringt die naechste."""
+    erst Annehmen oder Verwerfen bringt die naechste.
+
+    Liefert die ``message_id`` der neu gezeigten (oder der Fehler-)Nachricht,
+    NICHT den Quittungstext (Fund 02.10.2026, Padua-Live: ``basis.
+    sende_mit_speicherleiste`` reicht genau diesen Rueckgabewert als
+    ``message_id`` an ``repo.merke_nachricht`` weiter -- ein Text statt einer
+    Zahl landete dort in der Spalte ``message_id``, SQLite sortiert TEXT ueber
+    jedem INTEGER, und ``erkenner.erkenne`` (``max(n[\"message_id\"] ...)``)
+    stolperte seitdem bei JEDEM Lauf dieser Gruppe ueber einen TypeError --
+    der Erkenner blieb fuer die Gruppe fuer immer stumm)."""
     from interview_theater import vorschlag
 
     nummer = _aktuelle_offene_nummer(conn, chat_id)
     if nummer is None:
-        tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
-        return T._TEXT_FRAGEN_KEINE_AUSWAHL
+        return tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
     zeilen = vorschlag.zeilen(frage_block)
     neue_frage = zeilen[0] if zeilen else frage_block.strip()
     if neue_frage:
@@ -328,8 +336,7 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
     else:
         weich.pop(nummer, None)
     _setze_weich(conn, chat_id, weich)
-    _zeige_frage(conn, tg, chat_id, nummer)
-    return T._TEXT_FRAGE_GESCHAERFT
+    return _zeige_frage(conn, tg, chat_id, nummer)
 
 
 def nimm_offene_frage_text(conn, tg, klm, e, chat_id: int, text: str) -> bool:

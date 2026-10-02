@@ -291,6 +291,38 @@ def test_die_ueberarbeitete_frage_ersetzt_nur_diese_eine_zeile(conn, tg):
     assert repo.hole_arbeitsstand(conn, 1)["fragen_aktuell"] == "1"
 
 
+def test_uebernimm_schaerfung_liefert_die_echte_message_id_nicht_den_text(
+    conn, tg,
+):
+    """Fund 02.10.2026, Padua-Live (aufnahme 66-70, web_post 73/74): vor dem
+    Fix lieferte ``uebernimm_schaerfung`` den Quittungstext
+    (``T._TEXT_FRAGE_GESCHAERFT``) statt der ``message_id`` zurueck.
+    ``basis.sende_mit_speicherleiste`` reicht genau diesen Rueckgabewert als
+    ``message_id`` an ``repo.merke_nachricht`` weiter -- in der Live-Datenbank
+    stand danach ein Text in der Spalte ``message_id``, und SQLite sortiert
+    TEXT ueber jedem INTEGER: ``erkenner.erkenne``
+    (``max(n["message_id"] ...)``) scheiterte seitdem bei JEDEM Lauf dieser
+    Gruppe. Diese Zeile muss eine echte, mit der echten Bot-Nachricht
+    uebereinstimmende Zahl sein."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    message_id, leiste = knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG FRAGE:\nHeimat: Wann warst du zuletzt fremd?",
+    )
+
+    assert isinstance(message_id, int)
+    assert message_id == tg.naechste_message_id
+    # repo.merke_nachricht wurde intern schon mit genau dieser message_id
+    # aufgerufen (ueber _zeige_frage) -- ein zweiter Versuch mit derselben
+    # Zahl ist also ein erwarteter Duplikat-Fall (Primaerschluessel), kein
+    # Fehler. Entscheidend ist der Typ: eine Zahl, kein Quittungstext.
+    assert repo.merke_nachricht(
+        conn, 1, message_id + 1, "Bot", 1, "text", "Frage ueberarbeitet",
+        "2026-10-02T10:00:00",
+    ) is True
+
+
 def test_die_ueberarbeitung_kann_die_weiche_fassung_mitbringen(conn, tg):
     _vorschlag_zeigen(conn, tg)
     knoepfe.starte_durchgehen(conn, tg, 1)

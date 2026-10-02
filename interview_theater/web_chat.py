@@ -2060,10 +2060,19 @@ def _js() -> str:
     Platzhalter und keine f-String-Interpolation: das Skript ist voll mit
     geschweiften Klammern. Die Texte gehen als JSON hinein; ``</`` wird
     maskiert, damit kein Text das ``<script>`` beenden kann."""
-    # Padua Hotfix B6/B7: die uebersetzten Texte zur Aufrufzeit (``T``).
-    texte = dict(_JS_TEXTE, interview_an=T._TEXT_INTERVIEW_AN,
-                 interview_aus=T._TEXT_INTERVIEW_AUS, sprache=T._TEXT_SPRACHE,
-                 sprache_laeuft=T._TEXT_SPRACHE_LAEUFT)
+    # Padua Hotfix B6/B7, erweitert Task 4 (Kanban-Karte Buehne/PTT): die
+    # uebersetzten Texte zur Aufrufzeit (``T``).
+    texte = dict(
+        _JS_TEXTE,
+        interview_an=T._TEXT_INTERVIEW_AN, interview_aus=T._TEXT_INTERVIEW_AUS,
+        sprache=T._TEXT_SPRACHE, sprache_laeuft=T._TEXT_SPRACHE_LAEUFT,
+        interview_pause=T._TEXT_INTERVIEW_PAUSE,
+        interview_weiter=T._TEXT_INTERVIEW_WEITER,
+        interview_laeuft=T._TEXT_INTERVIEW_LAEUFT,
+        interview_pausiert=T._TEXT_INTERVIEW_PAUSIERT,
+        brainstorm_an=T._TEXT_BRAINSTORM_AN,
+        brainstorm_laeuft=T._TEXT_BRAINSTORM_LAEUFT,
+    )
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
         _CHAT_JS
@@ -2195,7 +2204,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     brainstorm_erlaubt = daten.get("brainstorm_knopf", True)
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
-        blasen = f'<p class="leer">{html.escape(_TEXT_LEER)}</p>'
+        blasen = f'<p class="leer">{html.escape(T._TEXT_LEER)}</p>'
 
     nonce_feld = (
         f'<input type="hidden" id="nonce" value="{html.escape(nonce_wert, quote=True)}">\n'
@@ -2203,13 +2212,13 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     )
     gruppenlink = (
         f'<p><a href="{html.escape(token)}">'
-        f"{html.escape(_TEXT_ZUR_GRUPPENSEITE)}</a></p>\n"
+        f"{html.escape(T._TEXT_ZUR_GRUPPENSEITE)}</a></p>\n"
         if mit_gruppenlink else ""
     )
     return (
-        f"<h1>{html.escape(daten.get('titel') or _TEXT_TITEL)}</h1>\n"
+        f"<h1>{html.escape(daten.get('titel') or T._TEXT_TITEL)}</h1>\n"
         f"{gruppenlink}"
-        f'<noscript><p class="leer">{html.escape(_TEXT_OHNE_JS)}</p></noscript>\n'
+        f'<noscript><p class="leer">{html.escape(T._TEXT_OHNE_JS)}</p></noscript>\n'
         f'<div class="verlauf" id="verlauf" data-letzte="{daten["letzte"]}" '
         f'data-aenderung="{int(daten.get("aenderung") or 0)}">\n'
         f"{blasen}\n</div>\n"
@@ -2230,20 +2239,20 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'  <div class="angehalten" id="angehalten" role="alert" hidden>\n'
         f'    <p id="angehalten-text"></p>\n'
         f'    <button type="button" id="nachreichen">'
-        f'{html.escape(_TEXT_REST_NACHREICHEN)}</button>\n'
+        f'{html.escape(T._TEXT_REST_NACHREICHEN)}</button>\n'
         f'    <button type="button" id="verwerfen">'
-        f'{html.escape(_TEXT_REST_VERWERFEN)}</button>\n'
+        f'{html.escape(T._TEXT_REST_VERWERFEN)}</button>\n'
         f'  </div>\n'
         + (
             f'  <button type="button" id="brainstorm" data-laeuft="0" '
             f'data-pausiert="0"'
             + ('' if brainstorm_erlaubt else ' hidden')
-            + f'>{html.escape(_TEXT_BRAINSTORM_AN)}</button>\n'
+            + f'>{html.escape(T._TEXT_BRAINSTORM_AN)}</button>\n'
             f'  <div class="interview-aktionen" id="brainstorm-aktionen" hidden>\n'
             f'    <button type="button" id="brainstorm-pause">'
-            f'{html.escape(_TEXT_INTERVIEW_PAUSE)}</button>\n'
+            f'{html.escape(T._TEXT_INTERVIEW_PAUSE)}</button>\n'
             f'    <button type="button" id="brainstorm-beenden">'
-            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
             f'  </div>\n'
         )
         + (
@@ -2260,19 +2269,19 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'  <div class="interview-aktionen" id="interview-aktionen"'
             f'{"" if modus else " hidden"}>\n'
             f'    <button type="button" id="interview-pause">'
-            f'{html.escape(_TEXT_INTERVIEW_WEITER if modus else _TEXT_INTERVIEW_PAUSE)}'
+            f'{html.escape(T._TEXT_INTERVIEW_WEITER if modus else T._TEXT_INTERVIEW_PAUSE)}'
             f'</button>\n'
             f'    <button type="button" id="interview-beenden">'
-            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
             f'  </div>\n'
         )
         + f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '
         f'placeholder="{html.escape(_platzhalter_fuer(daten.get("phase"), daten.get("fragen_aktuell")), quote=True)}">\n'
         f'    <button type="button" id="ptt"{" hidden" if modus else ""} title="'
-        f'{html.escape(_TEXT_PTT, quote=True)}">🎤</button>\n'
+        f'{html.escape(T._TEXT_PTT, quote=True)}">🎤</button>\n'
         f'    <button type="button" id="senden">'
-        f'{html.escape(_TEXT_SENDEN)}</button>\n'
+        f'{html.escape(T._TEXT_SENDEN)}</button>\n'
         f"  </div>\n"
         f"</div>\n"
     )
@@ -2290,7 +2299,7 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
     from interview_theater import web   # spaeter Import: web importiert web_chat
 
     return web._seite(
-        daten.get("titel") or _TEXT_TITEL, _CSS_CHAT,
+        daten.get("titel") or T._TEXT_TITEL, _CSS_CHAT,
         chat_koerper(daten, nonce_wert, token, segment_ms),
         nachladen=False, skript=_js(),
     )

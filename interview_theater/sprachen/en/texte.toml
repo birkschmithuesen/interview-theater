@@ -1734,6 +1734,25 @@ _TEXT_INTERVIEW_AN = "Record interview"
 _TEXT_INTERVIEW_AUS = "Stop recording"
 _TEXT_SPRACHE = "Voice message ({dauer})"
 _TEXT_SPRACHE_LAEUFT = "{dauer} · transcribing..."
+# Task 4 (Kanban-Karte Buehne/PTT, 03.10.2026): die serverseitig gerenderten
+# Texte aus chat_koerper/chat_html und ihre Gegenstuecke im laufenden JS
+# (_js()) -- Brainstorm, PTT, Pause/Weiter/Beenden. Der Rest von web_chat.py
+# bleibt weiterhin deutsch (offener Punkt, Karte A1).
+_TEXT_TITEL = "Chat with the theatre bot"
+_TEXT_LEER = "Nothing here yet. Tell me what you'd like to start with."
+_TEXT_ZUR_GRUPPENSEITE = "To the group page"
+_TEXT_OHNE_JS = "This page needs JavaScript for chat and recording. The group page and the script still work without it."
+_TEXT_SENDEN = "Send"
+_TEXT_REST_NACHREICHEN = "Submit the rest as an interview"
+_TEXT_REST_VERWERFEN = "Discard the rest"
+_TEXT_BRAINSTORM_AN = "🎙 Join the brainstorm"
+_TEXT_BRAINSTORM_LAEUFT = "● Listening · {zeit}"
+_TEXT_INTERVIEW_PAUSE = "⏸ Pause"
+_TEXT_INTERVIEW_WEITER = "▶ Continue"
+_TEXT_INTERVIEW_ENDEN = "■ Stop"
+_TEXT_INTERVIEW_LAEUFT = "● Interview running · {zeit}"
+_TEXT_INTERVIEW_PAUSIERT = "Paused · {zeit}"
+_TEXT_PTT = "Tap and speak"
 
 ["web_kanal"]
 # UX-Knoepfe-Karte, Abschnitt 1: der einmalige Hinweis, dass Knoepfe

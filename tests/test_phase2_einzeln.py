@@ -442,3 +442,16 @@ def test_kein_hartes_drei_oder_fuenf_im_prompt():
     for text in pfad:
         assert "genau zehn" not in text
         assert "genau drei" not in text
+
+
+def test_der_weiche_block_steht_nicht_als_fliesstext_vor_der_liste(conn, tg):
+    """Padua-Test 02.10.2026 (Birk): "die Fragen sollen pro Begriff
+    vorgeschlagen werden, aber es kommen zuerst 5 - 25, dann geht es richtig
+    an". Der weiche Block blieb nach dem Entfernen des Auswahlblocks als
+    nackte Zeilen "2 — ..." im Chattext stehen, VOR der Liste nach Begriffen."""
+    _vorschlag_zeigen(conn, tg)
+
+    gesendet = tg.knoepfe[-1][1]
+    assert "Du musst nichts Privates teilen" not in gesendet
+    assert gesendet.startswith("Hier sind ein paar Fragen dazu.")
+    assert "Heimat" in gesendet

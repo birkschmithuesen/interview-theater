@@ -428,9 +428,7 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
     if "fragenauswahl" in bloecke:
         from interview_theater.knoepfe.fragen import biete_fragenauswahl
 
-        rest = vorschlag.ohne_block(text, "fragenauswahl")
-        if "fragen_weich" in bloecke:
-            rest = vorschlag.ohne_block(rest, "fragen_weich")
+        rest = vorschlag.ohne_block(text, "fragenauswahl", "fragen_weich")
         return biete_fragenauswahl(
             conn, tg, chat_id, bloecke["fragenauswahl"],
             bloecke.get("fragen_weich"), rest or T._TEXT_FRAGEN_RICHTUNG_FRAGE,

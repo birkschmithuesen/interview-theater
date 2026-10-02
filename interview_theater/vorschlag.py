@@ -230,7 +230,7 @@ def ohne_marker(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", zusammen).strip()
 
 
-def ohne_block(text: str, art: str) -> str:
+def ohne_block(text: str, *arten: str) -> str:
     """Der Antworttext ohne den Block dieser Art -- Markerzeile UND Inhalt.
 
     Der Gegensatz zu ``ohne_marker``, und er hat genau einen Anlass
@@ -238,6 +238,11 @@ def ohne_block(text: str, art: str) -> str:
     Fragen stehen dann auf den Knoepfen. Blieben sie zusaetzlich im Text,
     laese die Gruppe dieselben zehn Zeilen zweimal untereinander -- auf einem
     Telefon ist das eine halbe Bildschirmseite Doppelung.
+
+    Mehrere Arten gehen in EINEM Durchgang (``ohne_block(t, "fragenauswahl",
+    "fragen_weich")``): ein zweiter Aufruf faende den zweiten Block nicht
+    mehr, weil der erste alle Markerzeilen streicht -- sein Inhalt bliebe als
+    Fliesstext stehen (Padua-Test 02.10.2026: "5 — ... 7 — ..." vor der Liste).
 
     Ueberall sonst gilt weiter ``ohne_marker``: der Vorschlag ist das,
     worueber die Gruppe entscheidet, und er muss lesbar dastehen.
@@ -247,7 +252,13 @@ def ohne_block(text: str, art: str) -> str:
     i = 0
     while i < len(zeilen):
         treffer = _ZEILE.match(zeilen[i])
-        if treffer is not None and treffer.group(1).lower() == art.lower():
+        # ``FRAGEN WEICH`` heisst im Code ``fragen_weich`` (wie in ``_zerlege``)
+        # -- ohne diese Angleichung blieb der weiche Block im Chattext stehen
+        # und die Gruppe las "5 — ... 7 — ..." vor der eigentlichen Liste
+        # (Padua-Test, 02.10.2026, Birk).
+        if treffer is not None and re.sub(r"\s+", "_", treffer.group(1).lower()) in {
+            a.lower() for a in arten
+        }:
             i += 1
             while i < len(zeilen):
                 if not zeilen[i].strip() or _ZEILE.match(zeilen[i]):

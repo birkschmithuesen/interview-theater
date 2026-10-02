@@ -107,21 +107,20 @@ def test_undo_in_der_einen_nachricht_nimmt_zurueck_und_der_weiterknopf_verfaellt
     assert phasen.aktuelle(conn, 1) == 1
 
 
-def test_knopfweg_phase1_abnahme_ist_genau_eine_nachricht(conn, tg, einst):
-    """Derselbe Fall ueber "Ja, speichern" unter einem Vorschlag: auch hier
-    statt "Notiert" + "Noch etwas hinzufuegen? [Weiter]" nur die
-    Abschlussnachricht -- ohne Undo (Karte U Punkt 7: ein Knopfdruck ist eine
-    bewusste Handlung)."""
+def test_knopfweg_phase1_abnahme_geht_direkt_automatisch_weiter(conn, tg, einst):
+    """KORREKTUR Birk 18:20 (Kommentar 807, ersetzt B5 fuer den Knopfweg):
+    "Ja, speichern" fixiert UND geht DIREKT AUTOMATISCH in die naechste
+    Phase -- keine Abschlussnachricht mit "Weiter zu ..."-Angebot an dieser
+    Stelle (B5 bleibt allein am Erkenner-Pfad, siehe
+    test_erkenner_phase1_abnahme_ist_genau_eine_nachricht oben)."""
     leiste = knoepfe.speicherleiste(conn, 1, "begriffe", "Geld, Bleiben")
     knoepfe.behandle(conn, tg, None, einst, _druck(leiste[0][1], message_id=400))
 
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Geld, Bleiben"
-    assert len(tg.gesendet) == 1, tg.texte
-    _, text, knoepfe_, _ = tg.knoepfe[0]
-    assert [b for b, _ in knoepfe_] == ["Weiter zu Phase 2 · Fragen", "Begriffe aendern"]
-    assert "Geld, Bleiben" in text
-    # biete_phase_proaktiv findet den Merkposten gesetzt und schweigt.
-    assert knoepfe.biete_phase_proaktiv(conn, tg, 1) is False
+    assert phasen.aktuelle(conn, 1) == 2
+    assert not any(
+        b.startswith("Weiter zu") for _, _, leiste, _ in tg.knoepfe for b, _ in leiste
+    )
 
 
 def test_ohne_faelliges_angebot_bleibt_es_bei_notiert_und_leiste(conn, tg, einst):

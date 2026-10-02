@@ -105,24 +105,6 @@ def test_gefaellt_uns_weiter_speichert_und_fragt_nach_ergaenzungen(conn, tg, ein
     assert tg.entfernt, "die Tastatur ist weg"
 
 
-def test_ja_speichern_das_die_phase_abschliesst_ist_eine_nachricht(conn, tg, einst):
-    """Padua Hotfix B5 (02.10.2026): macht das Speichern Phase 1 sofort
-    abschliessbar, kommt statt "Notiert" + "Noch etwas hinzufuegen?
-    [Weiter]" nur die Abschlussnachricht -- mit Weiter und Korrekturknopf."""
-    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
-    vorher = len(tg.gesendet)
-
-    _druecke(conn, tg, einst, "Ja, speichern")
-
-    assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat"
-    neu = [t for _, t in tg.gesendet[vorher:]]
-    assert len(neu) == 1, neu
-    assert [b for b, _ in tg.knoepfe[-1][2]] == [
-        "Weiter zu Phase 2 · Fragen", "Begriffe aendern",
-    ]
-    assert tg.entfernt, "die Tastatur ist weg"
-
-
 def test_nach_nein_kommt_die_leiste_wieder_und_ueberschreibt(
     conn, tg, einst
 ):

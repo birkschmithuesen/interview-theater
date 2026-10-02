@@ -804,29 +804,21 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
         conn, chat_id, "entschieden", f"{T._NOTIERT[art]}: {wert}", quelle="knopf",
     )
     notiert = T._TEXT_NOTIERT_ZEILE.format(feld=T._NOTIERT[art], wert=wert)
-    if weiterfrage:
-        # Padua Hotfix B5 (02.10.2026), dieselbe Regel wie im Erkenner
-        # (``erkenner._sende_meldung``): macht dieses Speichern die Phase
-        # abschliessbar, steht statt "Notiert" + "Noch etwas hinzufuegen?
-        # [Weiter]" und spaeter der Abschlussnachricht EINE Nachricht --
-        # die Abschlussnachricht mit "Weiter zu Phase N · Titel" und
-        # "<Feld> aendern". Kein Undo-Knopf: ein Knopfdruck ist eine
-        # bewusste Handlung (Karte U, Punkt 7).
-        from interview_theater.knoepfe.stationen import sende_abschluss_statt_meldung
-
-        if sende_abschluss_statt_meldung(conn, tg, chat_id, art, notiert) is not None:
-            return T._TEXT_FELD_UEBERNOMMEN.format(feld=T._NOTIERT[art])
     tg.sende(chat_id, notiert)
     # Danach die eine Frage, die den Zwischenraum offenhaelt -- und darunter,
     # wenn die Materiallage es hergibt, der Weg weiter
     # (``phasen.voraussetzungen``): der Knopf sagt, was jetzt dran ist,
     # statt dass jemand raten muss.
     #
-    # ``uebergang`` (02.10.2026, Birk, Padua): "Ja, speichern" fixiert UND
-    # geht direkt in die naechste Phase, sobald die Materiallage sie hergibt
-    # -- keine Zwischenfrage, kein "Weiter zu ..."-Angebot. Ausgenommen sind
-    # die Fragen: an ihnen haengt die Kette Sensibilitaet -> Einleitungen ->
-    # Eroeffnung, und erst deren Ja schliesst Phase 2 ab.
+    # ``uebergang`` (02.10.2026, Birk, Padua; KORREKTUR 18:20, Kommentar 807):
+    # "Ja, speichern" fixiert UND geht DIREKT AUTOMATISCH in die naechste
+    # Phase weiter, sobald die Materiallage sie hergibt -- keine zweite
+    # Auswahl, kein "Weiter zu ..."-Angebot an dieser Stelle (das waere die
+    # Hotfix-Variante aus B5, die hier NICHT gilt -- B5 bleibt allein am
+    # Erkenner-Pfad, ``erkenner._sende_meldung``, wo die Gruppe noch nicht
+    # geklickt hat). Ausgenommen sind die Fragen: an ihnen haengt die Kette
+    # Sensibilitaet -> Einleitungen -> Eroeffnung, und erst deren Ja
+    # schliesst Phase 2 ab.
     if weiterfrage and uebergang and art != "fragen":
         from interview_theater.knoepfe.stationen import uebergang_nach_speichern
 

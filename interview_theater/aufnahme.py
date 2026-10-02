@@ -354,7 +354,8 @@ PHASE_INTERVIEWS = 3
 _JOURNAL_PHASE_DURCH_AUFNAHME = "durch Aufnahmestart"
 
 
-def stelle_phase_interviews_sicher(conn, tg, chat_id: int, quelle: str = "knopf") -> bool:
+def stelle_phase_interviews_sicher(conn, tg, chat_id: int, quelle: str = "knopf",
+                                    klm=None, e=None) -> bool:
     """Setzt die Phase auf 3, wenn die Gruppe ausdruecklich eine Aufnahme
     startet und noch in Phase 1 oder 2 steht (05.09.2026, Live-Fall
     Gruppe 1). Liefert True, wenn dabei etwas geaendert wurde.
@@ -372,12 +373,18 @@ def stelle_phase_interviews_sicher(conn, tg, chat_id: int, quelle: str = "knopf"
     wieder in Phase 3 (``_aufnahme_anbieten`` erlaubt das ausdruecklich).
 
     Der Wechsel wird gemeldet wie jeder andere (``phasen.meldung``) -- er
-    ist hoerbar, nicht still."""
+    ist hoerbar, nicht still.
+
+    ``klm``/``e`` (Karte phasen-debrief): optional, fuer den Phasen-Debrief
+    der Phase, die hier verlassen wird (1 oder 2). Vorgabe ``None`` --
+    keiner der heutigen Aufrufer dieser Funktion hat ein Sprachmodell griffbereit,
+    ``phasen.setze`` dispatcht dann ohne Wirkung."""
     if phasen.aktuelle(conn, chat_id) >= PHASE_INTERVIEWS:
         return False
     if not phasen.setze(
         conn, chat_id, PHASE_INTERVIEWS, quelle,
         notiz=T._JOURNAL_PHASE_DURCH_AUFNAHME,
+        klm=klm, e=e,
     ):
         return False
     try:

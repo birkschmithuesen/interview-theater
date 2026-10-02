@@ -41,7 +41,7 @@ def uebergang_nach_speichern(conn, tg, klm, e, chat_id: int) -> bool:
     if nummer is None:
         return False
     phasen.merke_angebot(conn, chat_id, nummer)
-    if phasen.setze(conn, chat_id, nummer, "knopf"):
+    if phasen.setze(conn, chat_id, nummer, "knopf", klm=klm, e=e):
         tg.sende(chat_id, phasen.meldung(nummer))
     eintritt_in_phase(conn, tg, klm, e, chat_id, nummer)
     return True

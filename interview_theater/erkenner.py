@@ -1121,7 +1121,15 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
     nummer = phasen.nummer_fuer(wert, jetzige=phasen.aktuelle(conn, chat_id))
     if nummer is None:
         return None
-    if not phasen.setze(conn, chat_id, nummer, "erkenner"):
+    # Kein klm/e hier: ``wende_an`` ist bewusst ein modellfreier Schreibpfad
+    # (siehe die Kommentare zu ``szene_schreiben``/``szene_kuerzen`` unten --
+    # "wende_an() bewusst nicht bekommt, es schreibt nur in die Datenbank und
+    # schickt nie etwas"). Diesen Weg fuer den Phasen-Debrief aufzubrechen
+    # haette denselben Vertrag fuer jede andere Aenderungsart mitgebrochen.
+    # Ohne klm liefert ``phasen_debrief.starte`` sofort None -- der
+    # Phasenwechsel selbst ist davon unberuehrt, nur der Debrief dieser
+    # einen Phase bleibt hier aus (Task-3-Bericht, NEEDS_CONTEXT-Notiz).
+    if not phasen.setze(conn, chat_id, nummer, "erkenner", klm=None, e=None):
         return None
     return {"art": "phase_setzen", "wert": str(nummer)}
 

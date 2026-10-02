@@ -1140,7 +1140,7 @@ def _wirkung_noch_nicht(conn, d: Druck) -> str:
 
 def _wirkung_phase(conn, d: Druck) -> str:
     nummer = int(d.knopf["wert"])
-    if phasen.setze(conn, d.chat_id, nummer, "knopf"):
+    if phasen.setze(conn, d.chat_id, nummer, "knopf", klm=d.klm, e=d.e):
         d.tg.sende(d.chat_id, phasen.meldung(nummer))
     # Ein Weg fuer alle acht Phasen (06.09.2026): Eintrittsnachricht mit
     # Kopfzeile, Einleitung und Checkliste, darunter die Einstiegsknoepfe

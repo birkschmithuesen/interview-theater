@@ -633,7 +633,7 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
 
     Geantwortet wird immer, auch wenn die Phase schon stimmte; ins Journal
     geht der Eintrag nur bei einer echten Aenderung (``phasen.setze``)."""
-    phasen.setze(conn, chat_id, nummer, quelle)
+    phasen.setze(conn, chat_id, nummer, quelle, klm=klm, e=e)
     tg.sende(chat_id, phasen.meldung(nummer))
     # Derselbe Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile,
     # Einleitung, Checkliste und die Einstiegsknoepfe dieser Phase.

@@ -4,8 +4,12 @@ A negative list, kept separate from the actual scene prompt so that the
 group can extend it during the workshop without touching the instruction.
 
 Each entry is a pattern that gets in the way **in spoken stage dialogue** --
-not in prose, not in an essay. Some of it would be perfectly fine in a novel.
-On stage it gets in an actress's way.
+that is where the examples come from, and on stage it gets in an actress's
+way. This list also comes with a **prose** job, and there it counts as
+language hygiene: the explained feeling, the moral, the closing conclusion,
+the stock phrases of a language model are just as wrong in a story. Only what
+is about the stage form itself -- speaker lines, stage directions, entry 11 --
+does not apply when the job is prose.
 
 "Bad" is in each case the form a language model falls into by itself.
 "Better" is not the only solution, but one that shows what it's about.
@@ -58,7 +62,7 @@ On stage it gets in an actress's way.
 - Bad: NADIA: (angry) I'm angry!
 - Better: NADIA: (puts the cup down) There.
 
-**11. Narrative prose in the scene text.**
+**11. Narrative prose in a theatre text** (not in a prose job -- there it is the point).
 - Bad: It is a cold morning. Nadia thinks back to the years in
   which she ...
 - Better: (<place>, early) -- and the rest is in the lines or

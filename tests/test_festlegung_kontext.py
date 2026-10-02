@@ -115,7 +115,7 @@ def test_kuerzung_opfert_die_festlegungen_erst_nach_dem_journal(conn, einst, mon
     """Die Kuerzungskaskade: Transkripte, Verlauf, Journal, **Festlegungen**,
     Verdichtungen. Sie sind der vorletzte Kandidat -- klein, stabil und
     genau das, was ohne sie verloren ginge."""
-    monkeypatch.setattr(kontext, "zeichengrenze", lambda: 400)
+    monkeypatch.setattr(kontext, "zeichengrenze", lambda ueber_claude=False: 400)
     for nummer in range(6):
         repo.merke_nachricht(
             conn, 1, nummer + 1, "Sara", 0, "text", "y" * 200,
@@ -133,7 +133,7 @@ def test_kuerzung_opfert_die_festlegungen_erst_nach_dem_journal(conn, einst, mon
 def test_kuerzung_gibt_die_festlegungen_zeilenweise_von_hinten_auf(conn, einst, monkeypatch):
     """Und wenn sie doch drankommen: die juengsten Zeilen zuerst, damit die
     Grundfestlegung als letzte faellt."""
-    monkeypatch.setattr(kontext, "zeichengrenze", lambda: 260)
+    monkeypatch.setattr(kontext, "zeichengrenze", lambda ueber_claude=False: 260)
     repo.merke_nachricht(conn, 1, 1, "Sara", 0, "text", "kurz", "2026-09-06T10:00:00")
     repo.schreibe_festlegung(conn, 1, "struktur", "Nur eine Szene")
     for nummer in range(8):

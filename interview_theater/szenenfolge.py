@@ -1162,9 +1162,25 @@ def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
 
     zeilen = arbeitszeilen.sichtbar(tg, chat_id, art)
     try:
-        antwort = klm.prosa(
-            chat_id, system, nutzer, art, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
-        )
+        # Modellwahl-Karte (02.10.2026): derselbe Schalter+Einwilligung wie
+        # bei Szene und Kurzgeschichte (szene_claude.ist_aktiv) -- die
+        # Szenenfolge ist ohnehin erst ab Phase 4 erreichbar. Kein eigener
+        # Fallback auf Kimi bei einem Proxy-Fehler: der bestehende
+        # except-Zweig unten (Pause/Vorfall) traegt das bereits, wie vor
+        # dieser Karte.
+        from interview_theater import szene_claude
+
+        if szene_claude.ist_aktiv(e, conn, chat_id):
+            import httpx
+
+            antwort = szene_claude.prosa(
+                conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
+                chat_id, system, nutzer, art, timeout=TIMEOUT_S,
+            )
+        else:
+            antwort = klm.prosa(
+                chat_id, system, nutzer, art, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
+            )
         if not (antwort or "").strip():
             raise SzenenfolgeFehler("Antwort des Sprachmodells war leer")
         nachbereitung(antwort)

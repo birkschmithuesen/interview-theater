@@ -25,6 +25,15 @@ zusaetzlich einen Wortlaut, wird dieser gegen das Original geprueft
 **Reasoning aus, gemma, eigener Thread** -- die Aufgabe ist Zuordnung, kein
 Abwaegen, und niemand wartet im Chat darauf (AGENTS.md, Zusage 2: kein
 Modellaufruf in einem Knopf-Handler).
+
+**Modellwahl-Karte (02.10.2026):** ab Phase 4 mit Einwilligung UND
+Betreiberschalter (``szene_claude.ist_aktiv``) laeuft der Lauf stattdessen
+ueber den Claude-Proxy -- die Schaerfung steht in der Betreiber-Entscheidung
+ausdruecklich auf der Opus-Seite ("viel Leistung gefragt"), trotz des
+gemma-Arguments oben (Zuordnung statt Abwaegen). ``modellwahl.aufruf_schema``
+faellt bei einem Proxy-Fehler auf genau diesen einen Lauf zurueck auf gemma
+(Vorfall ``opus_fallback``) -- die Gruppe wartet nicht im Chat, trotzdem soll
+eine Schaerfungsrunde nicht an einem einzelnen Proxy-Ausfall scheitern.
 """
 
 from __future__ import annotations
@@ -32,7 +41,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from interview_theater import anweisungen, repo, vorschlagssperre, zitat
+from interview_theater import anweisungen, modellwahl, repo, szene_claude, vorschlagssperre, zitat
 
 log = logging.getLogger(__name__)
 
@@ -196,9 +205,10 @@ def mappe(klm, conn, e, chat_id: int) -> tuple[int, int]:
         return 0, 0
 
     runde = repo.letzte_schaerfungsrunde(conn, chat_id) + 1
-    ergebnis = klm.schema(
-        chat_id, prompt(), baue_nutzertext(conn, chat_id, eintraege),
-        SCHEMA, ART, modell=e.erkenner_modell,
+    ergebnis = modellwahl.aufruf_schema(
+        conn, klm, e, chat_id, prompt(), baue_nutzertext(conn, chat_id, eintraege),
+        SCHEMA, ART, ueber_claude=szene_claude.ist_aktiv(e, conn, chat_id),
+        modell=e.erkenner_modell,
     )
 
     nach_nummer = {eintrag["nummer"]: eintrag for eintrag in eintraege}

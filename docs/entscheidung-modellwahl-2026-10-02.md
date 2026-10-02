@@ -43,3 +43,56 @@ sind nur die Interviews. Daraus folgt:
   bis zu einer eigenen Messung bei gemma.
 - Kosten-Deckel (`IT_KOSTEN_DECKEL_CHF`) rechnet Abo-Aufrufe heute mit
   API-Preisen — für Opus-über-Abo eigene Regel nötig.
+
+## Umsetzung (02.10.2026, Branch `feat/modellwahl-phase`)
+
+**Neues Modul `interview_theater/modellwahl.py`** trifft die Entscheidung an
+einer Stelle: `konversation_ueber_claude(e, conn, chat_id)` prüft Schalter
+(`IT_SZENE_ANBIETER=claude`, wiederverwendet aus `szene_claude.ist_aktiv`),
+Einwilligung (`gruppe.szene_usa_bestaetigt_am`) und Phase (`phasen.aktuelle
+>= 4`). `aufruf_schema(...)` ist der Schema-Aufruf, der bei `ueber_claude`
+zuerst den Claude-Proxy versucht (`szene_claude.schema`, neu — JSON-Schema
+per Prompt + `llm.lies_json`, da Anthropic kein natives `response_format`
+kennt) und bei einem Fehler (`ClaudeFehler`/`LLMFehler`) auf Kimi zurückfällt
+(Vorfall `opus_fallback`, dieser eine Zug). Eingebaut in `ablauf.py` (alle
+vier `"gespraech"`-Stellen inkl. der beiden Nachfass-Aufrufe nach Denkspur/
+Echo) und `schaerfung.py` (dort ohne Phasenschwelle — die Schärfung ist
+ohnehin erst ab Phase 5 erreichbar).
+
+Szene, Kurzgeschichte, Szenenfolge, Stückprüfung und die Brainstorming-
+Karten (`buehnenkarte.py`) routeten vor dieser Karte bereits über
+`szene_claude.ist_aktiv` — **unverändert**, profitieren aber automatisch vom
+`cache_control`-Zusatz auf dem System-Block in `szene_claude.prosa()` und
+tragen seitdem Cache-Token in `aufruf` (additive Spalten
+`cache_read_token`/`cache_creation_token`). Diese fünf Pfade bekommen
+**keinen** Kimi-Fallback bei einem Proxy-Fehler (unverändert gegenüber vor
+der Karte) — ihr bestehendes Fehlerverhalten (eine Chat-Zeile, kein
+Hängenbleiben) erfüllt "die Gruppe wartet nicht ewig" bereits, ein echter
+Rückfall auf Kimi hätte dort eigene Budget-/Stil-Anpassungen gebraucht, die
+außerhalb dieser Karte liegen. Siehe `.modellwahl-report.md` für die
+vollständige Modul-Tabelle.
+
+**Einwilligung beim Übergang 3→4**: `knoepfe/stationen.py::eintritt_in_phase`
+fragt beim Eintritt in Phase 4 (`_TEXT_ANGEBOT_MODELLWAHL`, DE + EN), über
+denselben Knopfweg wie die bisherige Szenen-Frage (`ART_SZENE_USA`,
+`biete_szene_usa`) und dieselbe Spalte — eine alte Antwort gilt unverändert
+weiter, ein "nein" wird nie wieder gefragt, und der Phaseneintritt selbst
+wartet nicht auf die Antwort. Das bestehende Angebot vor der ersten Szene
+bleibt als wirkungsloses Sicherheitsnetz stehen.
+
+**Kontextbudget**: `kontext.zeichengrenze`/`gesamtgrenze` nehmen einen
+`ueber_claude`-Schalter; mit Einwilligung+Phase≥4 gilt `IT_OPUS_PROMPT_ZEICHEN`
+(Vorgabe 400 000, für Körper **und** Gesamtsumme), sonst unverändert die
+Kimi-Werte.
+
+**Kostendeckel**: `kosten.ist_abo_modus("C")` macht explizit, was vorher nur
+aus zwei Konstanten folgte — ein Claude-Aufruf bucht `kosten_chf = 0`
+(`CLAUDE_CHF_JE_AUFRUF`) und zählt deshalb nicht gegen
+`IT_KOSTEN_DECKEL_CHF`, obwohl er mit vollen Token-Zahlen in `aufruf` steht.
+
+**Nicht umgesetzt / ausgelagert**: das Nutzertext-Caching des append-only
+Brainstorming-Protokolls (eigener `cache_control`-Block *innerhalb* der
+Nutzernachricht) — nur der System-Block cached; der Proxy-`/_health`-Check
+vor dem ersten Versuch (die bestehende Retry-/Fallback-Kette fängt einen
+Ausfall ohnehin ab, nur eine Zug-Runde später); ein echter Lauf gegen den
+produktiven Proxy zur Messung der Cache-Wirkung (siehe offene Annahme oben).

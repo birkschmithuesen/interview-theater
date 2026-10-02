@@ -876,6 +876,12 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     Es gibt dafuer keinen eigenen Serveraufruf: die Brainstorm-Sitzung kennt
     keinen Modus-Befehl, das LETZTE hochgeladene Segment TRAEGT das Ende."""
     repo.setze_status(conn, row["id"], "fertig")
+    # Birk 02.10.2026: "das Transcript im Chat anzeigen als Feedback ist
+    # wichtig. Nach jeder Pause-Detection [...] soll es sich auch im Chat
+    # updaten." Die Blase bekommt ihr Transkript wie jede Sprachnachricht
+    # (B7) -- NUR die Anzeige: die ``nachricht``-Zeile bleibt
+    # ``unterdrueckt``, kein Gespraechszug, kein Erkenner (siehe oben).
+    _web_sprachblase(conn, row["chat_id"], row["message_id"], row["transkript"] or None)
 
     ist_abschluss = row["schnittgrund"] == "ende"
     stand = repo.brainstorm_stand(conn, row["chat_id"])

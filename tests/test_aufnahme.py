@@ -1456,3 +1456,134 @@ def test_startbestaetigung_traegt_keinen_beenden_knopf(conn, einst, tg):
     # Kein "Knopf"-Satz mehr (06.09.2026, Fix e): die Ansage nennt, was
     # zu tun ist, nicht wie die Oberflaeche aussieht.
     assert len(text) < 120, "die Startbestaetigung bleibt kurz"
+
+
+# ---------------------------------------------------------------------------
+# Aufgabe 4 (02.10.2026): die eigene Interview-Zeile auf dem Web-Kanal,
+# ersetzt dort _TEXT_AUSGEWERTET
+# ---------------------------------------------------------------------------
+
+
+def test_web_interview_zeile_mit_drei_themen(conn, einst):
+    kopf_id = repo.lege_interview_an(conn, 1)
+    repo.setze_aufnahme_name(conn, kopf_id, "Interview 2")
+    repo.lege_aufnahme_an(conn, 1, 401, "teil", "sprache", dauer=400, teil_von=kopf_id)
+    repo.lege_aufnahme_an(conn, 1, 402, "teil", "sprache", dauer=320, teil_von=kopf_id)
+    verdichtung_id = repo.speichere_verdichtung(
+        conn, 1, kopf_id, "Zusammenfassung.",
+        [
+            {"thema": "Ankommen", "kurz": "Erstes Thema",
+             "beleg_zitat": "x", "zitat_geprueft": 1},
+            {"thema": "Arbeit", "kurz": "Zweites Thema",
+             "beleg_zitat": "y", "zitat_geprueft": 1},
+            {"thema": "Familie", "kurz": "Drittes Thema",
+             "beleg_zitat": "z", "zitat_geprueft": 1},
+        ],
+    )
+    row = repo.hole_aufnahme(conn, kopf_id)
+
+    text = aufnahme._text_interview_gespeichert_web(conn, row, verdichtung_id, einst)
+
+    zeilen = text.splitlines()
+    assert zeilen[0].startswith("Interview 2 gespeichert · ")
+    assert zeilen[0].endswith(" Uhr · 12 Min"), zeilen[0]
+    assert zeilen[1] == "Themen: Erstes Thema · Zweites Thema · Drittes Thema"
+    assert zeilen[2] == "Ganze Auswertung im Tab Arbeitsstand."
+
+
+def test_web_interview_zeile_ohne_themen_laesst_die_zeile_weg(conn, einst):
+    """Kein einziges Thema mit belegtem Zitat -- derselbe Fall wie
+    ``test_keine_belegte_these_meldet_die_leerstelle`` (N2): die Verdichtung
+    wird mit leerer Themenliste gespeichert. ``repo.speichere_verdichtung``
+    laesst 'kurz' nie leer stehen (es faellt auf 'thema' zurueck), darum ist
+    die leere Liste hier der ehrliche Weg, keine blanke Kurzform zu
+    erzeugen."""
+    kopf_id = repo.lege_interview_an(conn, 1)
+    repo.setze_aufnahme_name(conn, kopf_id, "Interview 1")
+    repo.lege_aufnahme_an(conn, 1, 403, "teil", "sprache", dauer=60, teil_von=kopf_id)
+    verdichtung_id = repo.speichere_verdichtung(
+        conn, 1, kopf_id, "Zusammenfassung ohne Thema.", [],
+    )
+    row = repo.hole_aufnahme(conn, kopf_id)
+
+    text = aufnahme._text_interview_gespeichert_web(conn, row, verdichtung_id, einst)
+
+    assert "Themen:" not in text
+    assert text.splitlines()[-1] == "Ganze Auswertung im Tab Arbeitsstand."
+
+
+def test_web_interview_zeile_dauer_wird_auf_mindestens_eine_minute_gerundet(conn, einst):
+    kopf_id = repo.lege_interview_an(conn, 1)
+    repo.setze_aufnahme_name(conn, kopf_id, "Interview 1")
+    repo.lege_aufnahme_an(conn, 1, 404, "teil", "sprache", dauer=20, teil_von=kopf_id)
+    verdichtung_id = repo.speichere_verdichtung(conn, 1, kopf_id, "Kurz.", [])
+    row = repo.hole_aufnahme(conn, kopf_id)
+
+    text = aufnahme._text_interview_gespeichert_web(conn, row, verdichtung_id, einst)
+
+    assert "· 1 Min" in text.splitlines()[0]
+    assert "· 0 Min" not in text.splitlines()[0]
+
+
+def test_normaler_abschluss_auf_web_sendet_die_neue_zeile(conn, einst, tg, klm):
+    """Die eigentliche Verdrahtung (Schritt 3): ein normal abgeschlossenes
+    Interview auf dem Web-Kanal bekommt die neue Zeile statt
+    ``_TEXT_AUSGEWERTET`` -- Telegram bleibt in
+    ``test_fertig_verdichtet_einmal_und_haelt_sich_im_chat_zurueck``
+    unveraendert bei der alten Zaehlung."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    phasen.setze(conn, 1, 3, "befehl")
+    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=450)
+    tg.gesendet.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    text = next(t for _, t in tg.gesendet if "gespeichert" in t)
+    assert text.startswith("Interview 1 gespeichert · ")
+    assert text.endswith("Ganze Auswertung im Tab Arbeitsstand.")
+    assert not any("ausgewertet:" in t for _, t in tg.gesendet), (
+        "nicht mehr die Telegram-Zaehlung"
+    )
+
+
+def test_zu_kurzes_interview_auf_web_crasht_nicht_und_bekommt_den_knopf(conn, einst, tg, klm):
+    """Der Sonderfall unter ``MINDEST_WOERTER`` bekommt weiterhin
+    ``T._TEXT_ZU_KURZ`` (unveraendert) -- hier wird nur geprueft, dass der
+    Web-Kanal dabei nicht crasht und die neue "Interviews fertig"-Leiste
+    (Aufgabe 3) trotzdem ankommt."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    phasen.setze(conn, 1, 3, "befehl")
+    kopf_id = interview_an(conn, tg, einst)
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=4, message_id=430))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("nur ein kurzer Satz"), aid)
+    tg.gesendet.clear()
+    tg.mit_knoepfen.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    assert tg.mit_knoepfen, "die Leiste wurde trotzdem gesendet"
+    beschriftungen = [b for b, _ in tg.mit_knoepfen[-1][2]]
+    assert beschriftungen == ["Interviews fertig"]
+
+
+def test_interview_ohne_aufnahme_auf_web_crasht_nicht_und_bekommt_den_knopf(conn, einst, tg):
+    """Der Pfad ``T._TEXT_OHNE_AUFNAHME`` in ``_schliesse_ab`` (ein Teil kam
+    an, aber ohne verwertbares Transkript) -- unveraendert, nur auf dem
+    Web-Kanal darf er nicht crashen und soll die Leiste bekommen."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    phasen.setze(conn, 1, 3, "befehl")
+    kopf_id = repo.lege_interview_an(conn, 1)
+    repo.lege_aufnahme_an(
+        conn, 1, 431, "teil", "sprache", dauer=5, teil_von=kopf_id, status="fertig",
+    )
+    tg.gesendet.clear()
+    tg.mit_knoepfen.clear()
+
+    aufnahme.schliesse_ab(conn, tg, None, einst, kopf_id)
+
+    assert any("hatte keine Aufnahme" in t for _, t in tg.gesendet)
+    assert tg.mit_knoepfen, "die Leiste wurde trotzdem gesendet"
+    beschriftungen = [b for b, _ in tg.mit_knoepfen[-1][2]]
+    assert beschriftungen == ["Interviews fertig"]

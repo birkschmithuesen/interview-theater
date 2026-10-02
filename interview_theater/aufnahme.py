@@ -61,6 +61,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from interview_theater import phasen, repo, sprache, stt, verdichter
 
@@ -943,6 +944,33 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") ->
         log.exception("Nachricht an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def _text_interview_gespeichert_web(conn, row, verdichtung_id: int, e) -> str:
+    """Die Zeile nach einem Interview im Web-Kanal (02.10.2026): ersetzt
+    ``_TEXT_AUSGEWERTET`` dort -- Name, Uhrzeit, Dauer, bis zu drei Themen,
+    ein fester Hinweis auf den (noch nicht zusammengefuehrten) Arbeitsstand-
+    Tab. Keine Gesamtauswertung ueber alle Interviews -- das ist Sache von
+    ``knoepfe.stationen.schliesse_interviews_ab``."""
+    name = anzeigename(conn, row, T._TEXT_DAS_INTERVIEW)
+    zone = getattr(e, "zeitzone", None) or "Europe/Rome"
+    try:
+        ort = ZoneInfo(zone)
+    except Exception:
+        ort = ZoneInfo("Europe/Rome")
+    uhrzeit = datetime.now(ort).strftime("%H:%M")
+    sekunden = sum((teil["dauer_sekunden"] or 0) for teil in repo.hole_teile(conn, row["id"]))
+    minuten = max(1, round(sekunden / 60))
+    zeilen = [f"{name} gespeichert · {uhrzeit} Uhr · {minuten} Min"]
+    themen = [
+        (t["kurz"] or "").strip()
+        for t in repo.themen_zu(conn, verdichtung_id)
+        if (t["kurz"] or "").strip()
+    ][:3]
+    if themen:
+        zeilen.append("Themen: " + " · ".join(themen))
+    zeilen.append("Ganze Auswertung im Tab Arbeitsstand.")
+    return "\n".join(zeilen)
+
+
 def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | None) -> None:
     """Schickt die Abschlussnachricht eines Interviews MIT der Knopfleiste
     darunter (05.09.2026) und schreibt sie wie jede Bot-Nachricht mit.
@@ -1331,19 +1359,23 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False,
         # Der Volltext bleibt hinter "Zusammenfassung zeigen" (Entscheidung
         # vom 05.09.2026: kein ungefragter Verdichtungstext im Chat), das
         # Transkript hinter "Transkript zeigen" -- zum Gegenpruefen.
-        themen = repo.themen_zu(conn, verdichtung_id)
-        _sende_nach_interview(
-            conn, tg, e, chat_id,
-            T._TEXT_AUSGEWERTET.format(
+        #
+        # Seit dem 02.10.2026 (Aufgabe 4) bekommt der Web-Kanal eine eigene
+        # Zeile (Uhrzeit, Dauer, bis zu drei Themen) statt der
+        # Telegram-Zaehlung -- Telegram bleibt bitgleich.
+        if ist_web_gruppe(conn, chat_id):
+            text = _text_interview_gespeichert_web(conn, row, verdichtung_id, e)
+        else:
+            themen = repo.themen_zu(conn, verdichtung_id)
+            text = T._TEXT_AUSGEWERTET.format(
                 name=name,
                 themen=len(themen),
                 zitate=sum(
                     1 for t in themen
                     if t["zitat_geprueft"] == 1 and t["beleg_zitat"]
                 ),
-            ),
-            aufnahme_id,
-        )
+            )
+        _sende_nach_interview(conn, tg, e, chat_id, text, aufnahme_id)
         return
     # Die Verdichtung geht als normale Bot-Nachricht in den Chat: anders als
     # das Transkript-Echo GEHOERT sie ins Gespraechsfenster -- sie ist eine

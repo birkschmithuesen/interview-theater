@@ -300,7 +300,20 @@ def nach_geschichte(conn, tg, klm, e, chat_id: int) -> str | None:
     Abschnitte ihren alten, langen Text -- genau der Fall, gegen den
     ``kuerzung.notiz_fuer_prosa`` geschrieben wurde) und ein verlorenes
     Belegzitat. Deshalb braucht dieser Weg keinen Rueckweg: es steht nichts
-    da, was zurueckzunehmen waere."""
+    da, was zurueckzunehmen waere.
+
+    **Wer die Abschnittszahl bindet** (02.10.2026, Karte P2-Fix,
+    Restspannung 5): dieser Lauf uebergibt immer ``eintraege``, also traegt
+    ``laengen.block_prosa`` die Zahl im Nutzertext
+    (``laengen.SATZ_BINDUNG``) -- auch dann, wenn nur der Sprachpass
+    ausgeloest hat und die Regie-Notiz sie nicht nennt. Die Notiz braucht
+    sie deshalb nicht zweimal zu sagen; ``kuerzung.notiz_fuer_prosa`` tut es
+    im selben Satz wie das Kuerzungsziel, und sonst tut es der Auftrag. Ohne
+    diese Bindung wuerde die Pruefung unten still verwerfen, was sie selbst
+    nicht bestellt hat (Vorfall ``nachpass_abschnittszahl``, die Gruppe
+    merkt nichts). Test:
+    ``tests/test_nachpass_prosa.py::test_ein_reiner_sprachpass_lauf_traegt_die_abschnittszahl``.
+    """
     from interview_theater import (
         kuerzung, kurzgeschichte, laengen, repo, sprachpass,
         szene as szene_modul,

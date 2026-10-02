@@ -215,3 +215,60 @@ def test_ein_gescheiterter_lauf_laesst_alles_stehen(prosa6, tg, einst):
     vorher = [(s["nummer"], s["prosa"]) for s in repo.hole_szenen(prosa6, 1)]
     assert nachpass.nach_geschichte(prosa6, tg, Kaputt(), einst, 1) is None
     assert [(s["nummer"], s["prosa"]) for s in repo.hole_szenen(prosa6, 1)] == vorher
+
+
+# --- Karte P2-Fix: auch ein reiner Sprachpass-Lauf bindet die Zahl --------
+
+
+@pytest.fixture
+def prosa6_nur_sprache(prosa6):
+    """Phase 6, zwei Abschnitte, die **kurz genug** sind -- aber sprachlich
+    auffallen. Damit laeuft der Nachpass allein wegen des Sprachpasses.
+
+    Die Zahlen: ``laengen.zu_lang`` schlaegt erst ueber 130 % des Budgets an
+    (``nachzaehl_schwelle`` im Padua-Profil), und das kleinste Budget im
+    Profil ist 80 Woerter (``[laengen.rahmen] chor``) -- rund 30 Woerter je
+    Abschnitt liegen sicher darunter. Der Sprachpass zaehlt dagegen je 1.000
+    Woerter, ein einzelnes Muster reicht in einem kurzen Text also aus."""
+    kurz = (
+        "She waited - and waited - and said nothing. "
+        "It was not a home but a waiting room."
+    )
+    for s in repo.hole_szenen(prosa6, 1):
+        repo.aktualisiere_szene(prosa6, s["id"], s["titel"], "kurz", None,
+                                "passiert", prosa=kurz)
+    return prosa6
+
+
+def test_der_reine_sprachpass_lauf_ist_wirklich_rein(prosa6_nur_sprache):
+    """Erst die Voraussetzung der naechsten Zusicherung beweisen: zu lang ist
+    hier nichts, gemeldet ist etwas. Sonst prueft der Test unten den
+    Kuerzungsfall und merkt es nicht."""
+    stand = nachpass.befund_prosa(prosa6_nur_sprache, 1)
+    assert stand["eintraege"]
+    assert stand["zu_lang"] is False, "sonst ist es der Kuerzungsfall"
+    assert stand["gemeldet"], "ohne Sprachbefund laeuft gar kein Nachpass"
+
+
+def test_ein_reiner_sprachpass_lauf_traegt_die_abschnittszahl(
+        prosa6_nur_sprache, tg, einst):
+    """Karte P2-Fix, Restspannung 5 (02.10.2026).
+
+    ``nach_geschichte`` verwirft jedes Ergebnis mit anderer Abschnittszahl
+    (``nachpass.py:355-361``) -- still, mit Vorfall, und die Gruppe merkt
+    nichts. Also muss der Auftrag die Zahl nennen, auch wenn nur der
+    Sprachpass ausgeloest hat.
+
+    **Er tut es, und zwar ueber den Budget-Block**: der Prosa-Nachpass laeuft
+    nur mit aktivem Laengen-Profil (``nachpass.py:311``) und uebergibt dann
+    immer ``eintraege`` (``nachpass.py:350``), also steht
+    ``laengen.SATZ_BINDUNG`` im Nutzertext. Die Regie-Notiz nennt die Zahl
+    in diesem Fall nicht -- das ist in Ordnung, solange der Auftrag sie
+    nennt, und genau das haelt dieser Test fest."""
+    klm = LLMAttrappe(KURZ)
+    notiz = nachpass.nach_geschichte(prosa6_nur_sprache, tg, klm, einst, 1)
+    assert notiz, "ein Sprachbefund ergibt eine Notiz"
+    assert kuerzung.notiz_fuer_prosa(2) not in notiz, "kein Kuerzungsteil"
+    assert len(klm.aufrufe) == 1
+    nutzer = klm.aufrufe[0]["nutzer"]
+    assert laengen.T.SATZ_BINDUNG.format(anzahl=2) in nutzer

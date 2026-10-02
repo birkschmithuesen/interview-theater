@@ -1245,6 +1245,16 @@ def _offene_interviews(conn: sqlite3.Connection, chat_id: int) -> list[str]:
     return offen
 
 
+def aktuelle_phase(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die geltende Phase, read-only -- das Gegenstueck zu ``phasen.aktuelle``
+    fuer den Webserver (der ``repo`` nicht anfassen darf): ungesetzt gilt wie
+    dort als die erste Phase (UX-Knoepfe-Karte, Abschnitt 4)."""
+    from interview_theater import phasen
+
+    stand = _arbeitsstand(conn, chat_id)
+    return int(stand.get("phase") or phasen.ERSTE)
+
+
 def fehlstellen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     """Was der Gruppe noch fehlt (``interview_theater/fehlstellen.py``) --
     aus der read-only geoeffneten Verbindung.

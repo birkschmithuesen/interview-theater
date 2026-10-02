@@ -300,13 +300,15 @@ def _szenenname(zeile) -> str:
 # --- Die einzelnen Parameter ----------------------------------------------
 
 
-# Die Phase setzt allein die Gruppe -- und zwar im Chat (AGENTS.md,
-# "Die Phase setzt allein die Gruppe"). Sie stand hier einmal als Dropdown und
-# ist am 06.09.2026 wieder herausgenommen worden (Birk): der Bot bietet den
-# Wechsel im Fluss an, sobald die Materiallage ihn hergibt
-# (``knoepfe.biete_phase_proaktiv``), und ein zweiter Weg daneben macht aus
-# einem Angebot eine Einstellung. Auf der Gruppenseite steht die Phase weiter
-# ganz oben -- als Anzeige, die alles darunter einordnet.
+# Die Phase setzt allein die Gruppe -- per Chat, Befehl oder Klick (Klick =
+# die Phasenuebersicht der vereinten Seite, die ueber denselben Chat-Weg
+# laeuft; AGENTS.md, "Die Phase setzt allein die Gruppe"). Sie stand hier
+# einmal als Dropdown und ist am 06.09.2026 wieder herausgenommen worden
+# (Birk): der Bot bietet den Wechsel im Fluss an, sobald die Materiallage
+# ihn hergibt (``knoepfe.biete_phase_proaktiv``), und ein zweiter Weg
+# daneben macht aus einem Angebot eine Einstellung. Auf der Gruppenseite
+# steht die Phase weiter ganz oben -- als Anzeige, die alles darunter
+# einordnet.
 #
 # Nachtrag 30.09.2026 (Birk, Karte W): in der Phasenuebersicht der vereinten
 # Seite ist jede Phase klickbar -- "weg von reiner chat navigation,

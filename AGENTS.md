@@ -32,6 +32,7 @@ Module unter `interview_theater/`:
 | `sprecher.py` | Sprecherzeilen-Parsing und Sprechanteile je Figur (06.09.2026): reine Zählung über `szene.volltext`, kein Modellaufruf. Bekannte Grenze im Docstring benannt (`FRAU K.:`, `MIRA, LEISE:`) |
 | `fehlstellen.py` | Das Fehlstellen-Register (06.09.2026): was der Gruppe noch fehlt, als Sätze. Reine Leseabfrage wie `phasen.voraussetzungen`, kein Modellaufruf; `aus_daten` ist rein, `register` liest über `repo`, `web_daten.fehlstellen` read-only |
 | `llm.py` | Sprachmodell-Client (chat/completions), robustes JSON-Auslesen, Retry bei 5xx/Timeout |
+| `strom.py` | Der laufende Text (30.09.2026): dekodiert aus einem wachsenden JSON-Praefix den bisherigen Wert von `antwort` (der Gespraechszug ist ein **Schema**-Aufruf), saeubert ihn (`vorschlag.ohne_marker`, auch die halb getippte Markerzeile) und drosselt das Schreiben auf `INTERVALL_S` = 0,15 s. Reine Funktionen plus `Senke` mit drei Rueckrufen — **keine Datenbank**, kein `repo` |
 | `stt.py` | Whisper-Anbindung, zweistufig und asynchron |
 | `szene.py` | Szenentexte: eigener Prompt (Struktur statt Transkript, ein Regelblock je Form), eigener Thread, als einziger Aufruf mit Reasoning AN, Sperre vor dem Aufruf gegen fehlende Pflichtfelder |
 | `sprachprofil.py` | Sprachprofil je Figur: ein gemma-Aufruf (Reasoning aus, eigener Thread) aus dem zugeordneten Interview, Zitate geprüft wie beim Verdichter |
@@ -43,6 +44,7 @@ Module unter `interview_theater/`:
 | `stueckpruefung.py` | Phase 7: der Stück-Judge über das ganze Textbuch — je Befund eine Frage mit Szenenbezug, Tabelle `stueckpruefung`, eigener Thread |
 | `kernzitate.py` | Die Auswahl der Belegzitate zum Kernthema (`waehle`), rückwärtskompatible Basis der Schärfung — dieselbe Prüf- und Speicherlogik |
 | `kuerzung.py` | Kürzen als eigener Weg (30.09.2026, C4/C10): die feste Regie-Notiz (25 %), die Zielwahl (Szenennummer → `szene.starte`, keine → `kurzgeschichte.starte`) und `nummer_aus_wert`. **Kein eigener Modellaufruf** — beide Wege geben an ihren vorhandenen Thread ab, und beide hängen ihre Fassung an (`szenenfassung`). Eine Kürzung erzeugt **nie** eine neue Szenenfolge |
+| `roadmap.py` | Die Phasenuebersicht als Daten (30.09.2026): die sieben Phasen mit ihren Aufgaben, je `erledigt`/`offen`/`laeuft` und einem Sprungziel. Reine Leseabfrage wie `fehlstellen`; `aus_daten` ist rein, `register` liest ueber `repo`, `web_daten.roadmap` read-only. Die **Namen** der Aufgaben sind per Test an `phasentexte.PARAMETER` genagelt — keine zweite Wunschliste |
 | `ruecknahme.py` | Die Ruecknahme eines Erkennerlaufs (01.10.2026, Karte U): welche Tabellen und Spalten verfolgt werden (`VERFOLGT`, `MATERIAL`, `AUSSEN`) und wie aus zwei Schnappschuessen um `wende_an` die Ruecknahme-Schritte werden (`schritte`). **Reine Funktionen, kein SQL, kein Nutzertext** -- alles SQL steht in `repo.py`, die Wortlaute in `knoepfe/texte.py`. `db` wird nur fuer die Spaltenliste gelesen (`_tabellenspalten_aus_schema`), damit eine neue Spalte automatisch mitverfolgt wird |
 | `laengen.py` | Laengen-Rhythmus je Szene (30.09.2026, Karte R): der eine Wortzaehler (`zaehle_woerter`), der Rahmen je Form aus dem Profil, die Rhythmus-Muster, das Budget je Szene, der Faktor und die Prompt-Bausteine. **Kein Modellaufruf, keine Datenbank** (ausser `setze_faktor`, das ueber `repo` geht). Ohne `[laengen] aktiv = true` im Profil liest es niemand |
 | `sprachpass.py` | Der letzte Sprachpass (30.09.2026, Karte R): vier Regex-Zaehler (Gedankenstriche, "not X but Y", Adjektiv-Dreierketten, Fazitsatz), Grenzwerte aus dem Profil, die Regie-Notiz und der **Zitatschutz** ueber `zitat.pruefe`. **Kein Modellaufruf**; `gepruefte_zitate` ist die einzige Funktion mit Datenbankzugriff |
@@ -71,6 +73,7 @@ Module unter `interview_theater/`:
 | `web_daten.py` | Die Lesezugriffe dazu — read-only geöffnete Verbindung, reine Funktionen, `conn` rein, Dicts raus |
 | `web_kanal.py` | Der Web-Kanal (30.09.2026): `WebKanal` ersetzt `telegram.Telegram`, wenn `IT_KANAL=web`. Liest Browser-Ereignisse aus der Tabelle `web_post` als Telegram-förmige Updates und schreibt die Antworten dorthin zurück — `bot.schleife` bleibt unverändert, `knoepfe/` wird nicht angefasst. Kein SQL (alles über `repo`), kein Modell |
 | `web_chat.py` | Die Chatansicht im Browser (30.09.2026): HTML, CSS, Vanilla-JS und alle Handler unter `/g/<token>/chat`. `web.py` bekommt nur die Routing-Zeilen. Trägt den serverseitigen HTML-Filter (`sichere_html`), die Knopfprüfung gegen die hängende Leiste (`knopf_erlaubt`), den Audio-Upload, die zwei Aufnahme-Wege und die sequentielle Warteschlange im JS. Kein SQL, kein Modell |
+| `web_vereint.py` | Die vereinte Gruppenseite (30.09.2026): drei Panels (Chat · Arbeitsstand · Textbuch) in **einem** Dokument, Hash-Tabs, die Phasenleiste mit Klick, der SSE-Kanal `/g/<token>/chat/strom` und `scope_css`. `web.py` bekommt davon nur Routing-Zeilen |
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
@@ -112,9 +115,9 @@ Versehen).
 | Schicht | Module |
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
-| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` |
-| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` |
+| **Dienste** | `llm.py` · `strom.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` |
+| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` |
 
 **Wo man anfängt, je nach Frage:**
 
@@ -132,6 +135,8 @@ Versehen).
 | Warum lief die Szene zweimal? | `nachpass.nach_szene` -> `befund` -> `_notiz` |
 | Warum sieht der Browser nichts? | `web_kanal.hole_updates` → `repo.web_eingang` → `bot.schleife` |
 | Was passiert bei einem Klick im Web-Chat? | `web_chat.beantworte_post` → `_POSTWEGE` → Eingang (`web_post`) → `knoepfe.behandle` |
+| Warum baut sich der Text im Browser auf? | `strom.Senke` → `web_kanal.WebKanal.strom` → `web_vereint.sende_strom` |
+| Was passiert beim Klick auf eine Phase? | `web_vereint.phase_post` → `web_post` → `befehle.wechsle_phase` |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -244,16 +249,27 @@ es jemand im Chat merkt.
   **Fallstrick:** `repo.setze_szene_usa` nimmt einen **bool**, nicht `"ja"`/
   `"nein"` — ein nicht-leerer String ist wahr, ein „nein" würde als Zustimmung
   zur Datenübermittlung enden. Test: `test_usa_knopf_nein_setzt_false_und_nicht_wahr`.
-- **Die Phase setzt allein die Gruppe** (seit 05.09.2026, `phasen.py`, SPEC
-  § 0 Leitsatz 3 Nachtrag): `phase_setzen` oder `/phase`, nie still erraten
-  und seit dieser Korrektur auch nicht mehr vom Bot selbst. Der automatische
-  Sprung (`ART_ERMOEGLICHT`, `sprung_nach`) ist **ersatzlos gestrichen**, aus
-  einem Satz heraus: **Datenstand ist nicht Absicht** — eine fertige
-  Verdichtung sagt nicht, ob noch drei Interviews kommen. Geblieben ist die
-  **Frage**: erlaubt die Materiallage eine höhere Stufe, bekommt der
-  Gesprächs-Prompt einen Hinweisblock (`kontext._baue_phasenhinweis`) mit der
-  Anweisung, im Fluss nachzufragen — einmal je Stufe
-  (`arbeitsstand.phase_angeboten`). Dieselbe Frage hängt an der
+- **Die Phase setzt allein die Gruppe — per Chat, Befehl oder Klick** (seit
+  05.09.2026, `phasen.py`, SPEC § 0 Leitsatz 3 Nachtrag; erweitert am
+  30.09.2026): `phase_setzen`, `/phase` **oder ein Klick auf eine Phase in der
+  Web-Phasenübersicht**, nie still erraten und auch nicht vom Bot selbst. Der
+  automatische Sprung (`ART_ERMOEGLICHT`, `sprung_nach`) bleibt **ersatzlos
+  gestrichen** — **Datenstand ist nicht Absicht**; ein Klick dagegen *ist* die
+  Gruppe.
+  **Der Klick geht durch dieselbe Funktion wie der Befehl**
+  (`befehle.wechsle_phase`, Parameter `quelle`), damit er nie in einer anderen
+  Phase landet als `/phase` oder der Knopf: Bestätigung im Browser → POST
+  `/g/<token>/chat/phase` mit Nonce → ein gewöhnlicher Eingang
+  (`WEB_TYP_BEFEHL`, Text `/phaseklick N`) → der **Bot** setzt die Phase und
+  schickt die Eintrittsnachricht. Der Webserver setzt sie **nicht** selbst: er
+  hat kein `klm`, und `knoepfe.eintritt_in_phase` stößt Modellarbeit in
+  Threads an. Im Journal steht `quelle 'web'` statt `'befehl'` — sonst ist die
+  Zeile dieselbe (Test). `/phaseklick` ist ein **versteckter** Befehl: nicht im
+  Menü, nirgends beworben, er ist der Weg des Knopfes durch die Naht.
+  Geblieben ist die **Frage**: erlaubt die Materiallage eine höhere
+  Stufe, bekommt der Gesprächs-Prompt einen Hinweisblock
+  (`kontext._baue_phasenhinweis`) mit der Anweisung, im Fluss nachzufragen —
+  einmal je Stufe (`arbeitsstand.phase_angeboten`). Dieselbe Frage hängt an der
   Verdichtungs-Nachricht am Ende eines Interviews (`aufnahme._phasenfrage`);
   beide Stellen teilen sich den Merkposten über `phasen.offenes_angebot()` /
   `merke_angebot()`, deshalb liest die eine Funktion nur und die andere
@@ -2184,13 +2200,20 @@ nach `betrieb/web.log`.
 | `IT_WEB_URL` | `https://lab.artesmobiles.art/theatersoap` | nur für `scripts/web_links.py` |
 
 Routen: `/` (Team-Dashboard, projiziert, alle Gruppen), `/g/<token>`
-(Leseansicht einer Gruppe, Handy), `/g/<token>/textbuch` (Probenansicht,
-siehe unten) samt `/g/<token>/textbuch.md` und `.txt`,
+(seit Karte W die **vereinte** Seite mit den drei Tabs Chat · Arbeitsstand ·
+Textbuch, siehe „Eine Oberfläche je Gruppe" unten), `/g/<token>/teil/stand`
+und `/g/<token>/teil/roadmap` (die beiden Panel-Ausschnitte fürs sanfte
+Nachladen, `web_vereint.sende_teil`), `GET /g/<token>/chat/strom` (der
+SSE-Kanal des laufenden Texts, siehe „Der Strom"), `POST /g/<token>/chat/phase`
+(der Klick auf eine Phase, siehe „Die Phasenübersicht"), `/g/<token>/textbuch`
+(Probenansicht, siehe unten) samt `/g/<token>/textbuch.md` und `.txt`,
 `/g/<token>/leitfaden` (der Gesprächsleitfaden groß und druckbar, rein
 lesend, ohne Nachladen — siehe „Der Leitfaden hat eine eigene Seite"),
-`/g/<token>/chat` (die Chatansicht des Web-Kanals samt `chat/zustand`,
-`chat/datei/<id>` und den POST-Wegen `chat/senden`, `chat/knopf`,
-`chat/audio`, `chat/interview` — siehe „Der Web-Kanal") und
+`/g/<token>/chat` (seit Karte W ein **302** auf `/g/<token>#chat` — die
+Chatansicht des Web-Kanals ist in der vereinten Seite aufgegangen, siehe „Der
+Web-Kanal" und „Eine Oberfläche je Gruppe") samt den weiter gültigen
+Chat-Endpunkten `chat/zustand`, `chat/datei/<id>` und den POST-Wegen
+`chat/senden`, `chat/knopf`, `chat/audio`, `chat/interview` und
 `/gesund` (Health-Check, antwortet ohne Datenbankzugriff). Jede Route greift
 auch mit vorangestelltem `IT_WEB_PREFIX`, weil erst die nginx-Konfiguration
 entscheidet, ob das Präfix beim Server ankommt. Was hinter `/g/<token>/`
@@ -2600,6 +2623,116 @@ eine Entscheidung der Gruppe und gehört in den Chat, wo die Knöpfe darunter
 hängen — `web_schreiben.FELDER` kennt kein Feld dafür. Auch hierfür genügt ein
 Neustart von `interview-theater-web.service`; die Bots brauchen einen nur, weil
 `szene.schreibe` die neuen Zeilen anlegt.
+
+### Eine Oberfläche je Gruppe (30.09.2026, Karte W)
+
+`/g/<token>` ist seitdem **eine** Seite mit drei Tabs — **Chat** (der Ersatz
+für Telegram, Karte A2), **Arbeitsstand** (die bisherige Gruppenseite, weiter
+editierbar) und **Textbuch** (die Probenansicht). Alle drei liegen im
+**selben Dokument**; umgeschaltet wird nur über `hidden`, nie über einen
+Seitenwechsel — sonst risse jeder Tabwechsel die laufende Aufnahme, die halb
+getippte Nachricht und den laufenden Stream mit. Der Tab steht als bloßes
+Wort im Fragment (`#chat`, `#stand`, `#textbuch`), damit die Zurück-Taste des
+Handys funktioniert und ein Link teilbar bleibt; ein Rollenlink der
+Probenansicht behält dabei seine Form (`#textbuch&figur=Leyla`).
+
+**Die alten Adressen leben weiter**, und das ist keine Höflichkeit: die
+Probenansicht (`/g/<token>/textbuch`, `.md`, `.txt`) und der Leitfaden
+(`/g/<token>/leitfaden`) bleiben **eigene** Seiten mit ihrem `@media print`
+und ohne Nachladen — gedruckte QR-Codes und geteilte Rollenlinks dürfen nicht
+sterben. `/g/<token>/chat` (Karte A2) leitet mit **302** auf `/g/<token>#chat`.
+
+**Nachgeladen wird nur noch das Stand-Panel** (`/g/<token>/teil/stand`,
+`web_vereint.sende_teil`), mit denselben zwei Sperren wie bisher (Fokus in
+einem Feld, ungespeicherte Änderung) und **nur, wenn es sichtbar ist**.
+`web._SCROLL_JS` steht weiter, aber die vereinte Seite lädt es nicht: es
+tauscht `document.body.innerHTML`, und daran hängen Recorder, Eingabefeld und
+Strom.
+
+**Das CSS wird zur Laufzeit eingeschränkt** (`web_vereint.scope_css`), die
+bestehenden Konstanten bleiben Zeichen für Zeichen. Gemessen am 30.09.2026
+kollidieren `_CSS_GRUPPE` und `_CSS_TEXTBUCH` in `body` und `h1`, und
+`.leiste` heißt im Textbuch die Rollenleiste und im Chat die Knopfleiste; die
+Probenansicht hängt ihren Zustand außerdem an `<body>`, was im gemeinsamen
+Dokument den Chat mitfärben würde (deshalb `data-textbuch` als Wurzel).
+
+**Das Team-Dashboard `/` bleibt unverändert** — es hängt am Beamer, es zeigt
+alle Gruppen, und es ist nicht diese Karte.
+
+**Ein vierter Tab braucht nur drei Stellen.** `web_vereint.TABS` ist die
+EINE Liste, die Tableiste, Panel-Schleife und das Hash-Routing im Browser
+treibt (sie geht als `__TABS__` in `_VEREINT_JS` ein) — eine künftige
+„Bühne"-Karte (Phase-4-Regiekarten aus einem anderen Zweig) braucht dafür
+nur einen Eintrag in `TABS`, eine Beschriftung in `_TEXT_TAB` (plus ihre
+englische Fassung in `sprachen/en/texte.toml`) und einen Panel-Rumpf im
+`panels`-Dict von `web_vereint.seite` — sonst nichts.
+
+### Die Phasenübersicht (30.09.2026, Karte W)
+
+Oben auf der vereinten Seite, **eine Zeile hoch**: „Phase N von 7 · Name —
+2/4". Per `<details>` aufklappbar zur vollen Liste aller sieben Phasen mit
+ihren Aufgaben (✅ erledigt · ⏳ läuft · ⬜ offen) — **ohne JavaScript
+benutzbar**. Auf einem Telefon ist der Chat die Arbeitsfläche; eine dauerhaft
+aufgeklappte Liste nähme ein Drittel des Bildschirms für etwas, das man
+dreimal am Tag braucht.
+
+Die Daten kommen aus `roadmap.aus_daten` — **rein**, kein Modellaufruf, und
+die Aufgabenliste ist per Test an `phasentexte.PARAMETER` genagelt: eine
+zweite, frei erfundene Wunschliste wäre der erste Stand, der ausschert
+(dieselbe Regel wie bei `fehlstellen`). **'läuft' zeigt nur, was in der
+Datenbank steht** — Interviewmodus, `gruppe.web_tippt_bis`, eine laufende
+Zeile in `web_strom`; ein Szenenlauf-Lock lebt im Bot-Prozess und ist für den
+Webserver unsichtbar. Ein Klick auf eine **Aufgabe** springt zu ihrer Stelle
+(Tab + Feld) und setzt **nichts**; ein Klick auf eine **Phase** schaltet um
+(siehe Phasenregel oben).
+
+### Der Strom (30.09.2026, Karte W)
+
+Birk: „die website soll die llm antworten streamen können." Gestreamt werden
+**Gesprächszug, Auftragszug, Szenenlauf und Prosalauf** — alles, dessen
+Ergebnis ein Mensch liest. **Nicht** gestreamt werden Erkenner, Journal,
+Verdichter, Sprachprofil, Schärfung, Szenenfolge-Vorschlag und Dramaturgie:
+ihr Ergebnis liest eine Maschine.
+
+**Der Gesprächszug ist dabei ein Schema-Aufruf** (`ablauf.SCHEMA`,
+`{"antwort": string}`) — was ankommt, ist ein wachsender JSON-Präfix, kein
+Text. `strom.wert_aus_praefix` dekodiert daraus den bisherigen Wert, samt
+halbem Escape, halber `\uXXXX`-Folge und halbem Surrogatpaar. **Kein Prompt
+und kein Response-Format ändert sich dafür** — der Korpus gilt unverändert.
+
+Der Weg: das Modell wird im **Bot**-Prozess gerufen, der Browser hängt am
+**Web**-Prozess; dazwischen liegt die Tabelle `web_strom` (eine Zeile je
+laufendem Aufruf, `zustand` läuft/fertig/abgebrochen, `post_id` der fertigen
+Nachricht). Der Bot schreibt gedrosselt (`strom.INTERVALL_S` = 0,15 s), der
+Webserver liest read-only und schickt die Deltas per **SSE** über
+`GET /g/<token>/chat/strom` (`text/event-stream`, `Cache-Control: no-cache`,
+`X-Accel-Buffering: no`, `Connection: close`, Keepalive alle 15 s, Ende nach
+`STROM_MAX_S` = 300 s). **Karte A2 sagt „kein SSE" — diese eine Route ist die
+Ausnahme**, für alles andere bleibt der Poll.
+
+**Was sichtbar streamt, ist schon gesäubert:** `strom.sichtbar` nimmt die
+VORSCHLAG-Markerzeilen heraus, auch die halb getippte. **Kein halber Text wird
+je eine Nachricht:** reißt der Anbieterstream nach dem ersten Stück ab, geht
+die Zeile auf `abgebrochen`, die vorläufige Blase verschwindet, und **genau
+ein** Wiederholungsversuch ohne Stream holt die vollständige Antwort — eine
+Buchung, nicht zwei. Lehnt der Anbieter `stream` ab oder liefert keine
+`usage`, fällt der Prozess still auf den blockierenden Weg zurück und
+vermerkt das **einmal** (`strom_nicht_verfuegbar`), damit der Kostendeckel
+nicht dauerhaft auf Schätzungen steht. **Der Telegram-Weg bleibt unangetastet**:
+`telegram.Telegram` hat kein `strom`, und ohne `bei_teil` ist jeder
+Anbieteraufruf zeichengleich wie vorher (Test).
+
+**Betriebshinweis nginx:** ohne `proxy_buffering off;` (oder mit einem Proxy,
+der `X-Accel-Buffering` ignoriert) kommen die Teilstücke am Stück an. Die
+nginx-Konfiguration liegt nicht im Repository; gemessen wird sie mit
+`curl -N <URL>/g/<token>/chat/strom`.
+
+**Ob der Gesprächszug wirklich streamt** (ANNAHME 4: Infomaniak akzeptiert
+`stream` zusammen mit `json_schema` und liefert `usage` mit), misst erst ein
+echter, bezahlter Lauf: `python -m scripts.strom_probe --bericht` (kein Test,
+kostet Geld), Bericht unter `docs/web-vereint/strom-probe-<datum>.md`. Das
+Skript steht seit `1e0f9ec`; der Lauf selbst steht zum Stand dieser Karte
+noch aus — die Betriebszugänge dafür lagen dieser Session nicht vor.
 
 ### Prompt geändert? → Korpus laufen lassen
 

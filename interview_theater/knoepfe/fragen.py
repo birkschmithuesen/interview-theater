@@ -1,42 +1,42 @@
-"""Phase 2: die Fragenauswahl, die Sensibilitaetspruefung, der Leitfaden.
+"""Phase 2: der Fragenvorschlag, der Ueberblick mit Richtungsfrage, die
+Fragen einzeln durchgehen, und der Leitfaden.
 
-Der Bot schlaegt zehn Fragen vor, die Gruppe nimmt genau drei; darauf folgen
-die weichen Fassungen der heiklen Fragen und Eroeffnung samt Abschluss.
-Daraus baut ``leitfaden.py`` deterministisch den Gespraechsleitfaden.
+Padua, 02.10.2026 (zweiter Umbau nach dem vom 06.09.2026): der Bot schlaegt
+fuenf Fragen je Begriff vor und prueft sie **im selben Modellzug** auf
+sensible Themen (``VORSCHLAG FRAGENAUSWAHL:`` + optional
+``VORSCHLAG FRAGEN WEICH:``). Darunter steht ein Ueberblick mit einer
+deterministischen Richtungsfrage ("Gehen die Fragen in die richtige
+Richtung? Wollen wir sie einzeln durchgehen?"); "Ja" fuehrt **Frage fuer
+Frage** durch die Liste (Annehmen / Verwerfen / Schaerfen), "Andere
+Richtung" fragt zuerst nach der Richtung und stoesst dann einen neuen
+Vorschlag an. Eine freie Nachricht waehrend eine Frage die aktuelle ist,
+zaehlt immer als Schaerfungswunsch fuer genau diese Frage -- ohne
+Knopfdruck und ohne Erkenner-Lauf (``nimm_offene_frage_text``).
 
-Die Toggle-Auswahl per Knopf (``ART_FRAGE_WAHL``) ist seit dem 06.09.2026
-stillgelegt -- sie funktionierte am Telefon nicht; genommen wird jetzt ueber
-Nummern im Text (``lies_fragennummern``).
+Die Nummernwahl aus dem ersten Umbau (``lies_fragennummern``) und ihre
+Knoepfe (``ART_FRAGE_WAHL``, ``ART_FRAGEN_UEBERNEHMEN``, ``ART_FRAGEN_EIGENE``)
+sind damit Geschichte. Ihre Handler bleiben in ``wirkung.py`` stehen, damit
+ein Druck aus einer schon verschickten alten Nachricht nicht ins Leere
+laeuft -- angeboten werden sie nicht mehr.
 """
 
-import re
-
-from interview_theater import anweisungen, repo, sprache
+from interview_theater import anweisungen, leitfaden, repo
 
 from interview_theater.knoepfe.texte import (
-    ART_FRAGEN_ANDERE, ART_FRAGEN_EIGENE, ART_FRAGEN_UEBERNEHMEN,
-    ART_FRAGE_WAHL, ART_LEITFADEN, FRAGEN_ZUR_WAHL, KNOPF_LAENGE, _HAKEN, T,
+    ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
+    ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_LEITFADEN, T,
 )
 from interview_theater.knoepfe.basis import (
-    _daten, _nimm_alte_leiste_ab, _starte_auftrag, offene_art,
+    _daten, _id_aus_daten, _nimm_alte_leiste_ab, _sende_knoepfe,
+    _starte_auftrag,
 )
 
 
-# --- Phase 2: die Fragen als Mehrfachauswahl ------------------------------
-
-
-def _gewaehlte(conn, chat_id: int) -> list[int]:
-    """Die angetippten Fragennummern, aufsteigend."""
-    stand = repo.hole_arbeitsstand(conn, chat_id)
-    try:
-        roh = (stand["fragen_gewaehlt"] if stand else "") or ""
-    except (IndexError, KeyError):
-        return []
-    return sorted(int(t) for t in roh.split(",") if t.strip().isdigit())
+# --- Die vorgeschlagene Liste und ihr Zustand ------------------------------
 
 
 def _auswahlfragen(conn, chat_id: int) -> list[str]:
-    """Die zur Wahl stehenden Fragen, eine je Zeile."""
+    """Die zuletzt vorgeschlagenen Fragen, eine je Zeile ("Begriff: Frage")."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
     try:
         roh = (stand["fragen_auswahl"] if stand else "") or ""
@@ -47,54 +47,97 @@ def _auswahlfragen(conn, chat_id: int) -> list[str]:
     return vorschlag.zeilen(roh)
 
 
-def _knopftext(nummer: int, frage: str, gewaehlt: bool) -> str:
-    """Die Beschriftung einer Fragenzeile: Haken, Nummer, gekuerzte Frage.
+def _setze_frage_zeile(conn, chat_id: int, nummer: int, neuer_text: str) -> None:
+    """Ersetzt genau eine Zeile der vorgeschlagenen Liste -- fuer "Schaerfen",
+    das nie die ganze Liste neu schreibt."""
+    zeilen = _auswahlfragen(conn, chat_id)
+    if nummer < 1 or nummer > len(zeilen):
+        return
+    zeilen[nummer - 1] = neuer_text
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", "\n".join(zeilen))
 
-    Gekuerzt wird sichtbar (mit '…'), nicht still: eine Beschriftung, die
-    Telegram selbst abschneidet, sieht auf dem Telefon aus wie ein Fehler
-    des Bots."""
-    kurz = frage if len(frage) <= KNOPF_LAENGE else frage[: KNOPF_LAENGE - 1].rstrip() + "…"
-    return f"{_HAKEN if gewaehlt else ''}{nummer}. {kurz}"
+
+def _weich_dict(conn, chat_id: int) -> dict[int, str]:
+    """``arbeitsstand.fragen_weich`` als ``{Nummer: Text}`` -- derselbe Leser
+    wie im Leitfaden (``leitfaden.einleitungen``), weil es dasselbe
+    Zeilenformat ist ("<Nummer> — <Text>")."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_weich"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return {}
+    return leitfaden.einleitungen(roh)
 
 
-def _fragenleiste(conn, chat_id: int) -> list[tuple[str, str]]:
-    """Die Leiste unter dem Zehnervorschlag -- seit dem 06.09.2026 (10:05,
-    Birk) nur noch **zwei** Knoepfe: "Eigene Idee" und "Andere zehn".
+def _setze_weich(conn, chat_id: int, zuordnung: dict[int, str]) -> None:
+    if not zuordnung:
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_weich", None)
+        return
+    zeilen = [f"{n} — {t}" for n, t in sorted(zuordnung.items())]
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_weich", "\n".join(zeilen))
 
-    **Die zehn Toggle-Knoepfe sind weg.** Sie funktionierten am Telefon
-    nicht: "sobald ich auf eine Frage klicke, verschwindet das Menue" -- im
-    Log ein ``editMessageReplyMarkup``, das die Nachricht auf dem Geraet der
-    Gruppe ersetzte statt sie zu ergaenzen. Ein Bedienelement, das auf dem
-    Geraet der Gruppe verschwindet, ist schlechter als gar keins. Gewaehlt
-    wird jetzt per Nummer im Text oder in der Sprachnachricht
-    (``nimm_fragennummern``).
 
-    ``ART_FRAGE_WAHL`` und ``ART_FRAGEN_UEBERNEHMEN`` bleiben im Code, damit
-    ein Knopf aus einer alten Nachricht nicht ins Leere laeuft -- angeboten
-    werden sie nicht mehr."""
-    return [
-        (
-            T._TEXT_FRAGEN_EIGENE_KNOPF,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_EIGENE, None)),
-        ),
-        (
-            T._TEXT_FRAGEN_ANDERE_KNOPF,
-            _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_ANDERE, None)),
-        ),
-    ]
+def _decisions(conn, chat_id: int) -> list[str]:
+    """Der Entscheidungsstand, eine Position je Zeile aus ``fragen_auswahl``
+    -- "ja" / "nein" / "" (noch offen). Kuerzer als die Fragenliste heisst:
+    der Rest ist offen."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_entschieden"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return []
+    if not roh:
+        return []
+    return roh.split(",")
+
+
+def _setze_entscheidung(conn, chat_id: int, nummer: int, wert: str) -> None:
+    entschieden = _decisions(conn, chat_id)
+    while len(entschieden) < nummer:
+        entschieden.append("")
+    entschieden[nummer - 1] = wert
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", ",".join(entschieden))
+
+
+def _naechste_offene(conn, chat_id: int, gesamt: int) -> int | None:
+    """Die erste Frage ohne Entscheidung, oder None, wenn alle entschieden
+    sind."""
+    entschieden = _decisions(conn, chat_id)
+    for nummer in range(1, gesamt + 1):
+        wert = entschieden[nummer - 1] if nummer <= len(entschieden) else ""
+        if not wert:
+            return nummer
+    return None
+
+
+def _aktuelle_offene_nummer(conn, chat_id: int) -> int | None:
+    """Die Frage, die gerade vorgelegt ist UND noch unentschieden ist --
+    genau die Bedingung, unter der eine freie Nachricht als Schaerfungswunsch
+    gilt (``nimm_offene_frage_text``). Entschieden heisst: die naechste
+    Frage ist schon unterwegs, eine Nachricht dazwischen gehoert nicht mehr
+    hierher."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_aktuell"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return None
+    if not roh.strip().isdigit():
+        return None
+    nummer = int(roh)
+    entschieden = _decisions(conn, chat_id)
+    wert = entschieden[nummer - 1] if nummer <= len(entschieden) else ""
+    return nummer if not wert else None
+
+
+# --- Der Ueberblick ---------------------------------------------------------
 
 
 def fragenliste(conn, chat_id: int) -> str:
-    """Die zehn Fragen ausgeschrieben und nummeriert, eine je Zeile.
-
-    Ausgeschrieben und nicht gekuerzt (``_knopftext`` kuerzte auf 40
-    Zeichen): eine Frage, die eine Sechzehnjaehrige einer fremden Person
-    stellen soll, muss sie ganz lesen koennen, bevor sie sie waehlt."""
+    """Die vorgeschlagenen Fragen ausgeschrieben und nummeriert, eine je
+    Zeile, nach Begriffen gruppiert -- unveraendert seit dem 06.09.2026."""
     zeilen: list[str] = []
     letzter_begriff = None
     for nummer, frage in enumerate(_auswahlfragen(conn, chat_id), start=1):
-        # 06.09.2026 11:40: fuenf je Begriff, nach Begriffen gruppiert --
-        # "Begriff: Frage" wird zur Ueberschrift + nummerierter Frage.
         begriff, trenner, rest = frage.partition(":")
         if trenner and 0 < len(begriff.strip()) <= 30 and rest.strip():
             if begriff.strip() != letzter_begriff:
@@ -106,188 +149,282 @@ def fragenliste(conn, chat_id: int) -> str:
     return "\n".join(zeilen)
 
 
-def biete_fragenauswahl(conn, tg, chat_id: int, wert: str, text: str | None = None) -> int:
-    """Stellt die zehn vorgeschlagenen Fragen hin -- **ausgeschrieben, als
-    EINE Nachricht** (06.09.2026, 10:05, Birk).
+def biete_fragenauswahl(conn, tg, chat_id: int, wert: str,
+                        weich_wert: str | None = None,
+                        text: str | None = None) -> int:
+    """Legt einen frischen Vorschlag ab und zeigt den Ueberblick mit der
+    Richtungsfrage (02.10.2026).
 
-    ``wert`` ist der Inhalt des Blocks ``VORSCHLAG FRAGENAUSWAHL:`` -- eine
-    Frage je Zeile. Er wird als ``arbeitsstand.fragen_auswahl`` abgelegt,
-    **bevor** die Nachricht rausgeht: die Gruppe antwortet mit Nummern, und
-    eine Nummer ohne Liste waere nichts wert.
-
-    Darunter nur zwei Knoepfe ("Eigene Idee", "Andere zehn"). Gewaehlt wird
-    per Nummer im Chat -- der Weg ist ``nimm_fragennummern``, aufgerufen aus
-    ``ablauf.antworte``.
-
-    Liefert die ``message_id``."""
-    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGE_WAHL)
-    for art in (ART_FRAGEN_UEBERNEHMEN, ART_FRAGEN_ANDERE, ART_FRAGEN_EIGENE):
-        _nimm_alte_leiste_ab(conn, tg, chat_id, art)
+    ``wert`` ist der Inhalt von ``VORSCHLAG FRAGENAUSWAHL:``, ``weich_wert``
+    der von ``VORSCHLAG FRAGEN WEICH:`` aus demselben Modellzug (oder None,
+    wenn keine Frage sensibel war). Eine neue Runde ersetzt die vorige
+    vollstaendig -- Entscheidungsstand und laufende Frage werden
+    zurueckgesetzt, eine Entscheidung zu einer inzwischen ersetzten Frage
+    waere bedeutungslos."""
     repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", wert)
+    _setze_weich(
+        conn, chat_id, leitfaden.einleitungen(weich_wert) if weich_wert else {},
+    )
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+
     vorspann = (text or "").strip()
     nachricht = "\n\n".join(
-        teil for teil in (vorspann, fragenliste(conn, chat_id), T._TEXT_FRAGEN_WAHL)
+        teil for teil in (vorspann, fragenliste(conn, chat_id),
+                          T._TEXT_FRAGEN_RICHTUNG_FRAGE)
         if teil
     )
-    # 06.09.2026 11:45 (Birk, live): KEINE Knoepfe unter der Fragenliste --
-    # die Auswahl kommt per Text mit den Nummern; "andere Fragen" oder
-    # eigene Fragen sagt die Gruppe ebenfalls im Text (Erkenner fragen_setzen
-    # bzw. Gespraechszug). Knoepfe nur, wo etwas Fixes gespeichert wird.
-    return tg.sende(chat_id, nachricht)
-
-
-#: Ordinalwoerter, mit denen eine Gruppe eine Frage benennt ("die zweite,
-#: fuenfte und neunte"). Sie stehen als Daten und nicht als Sonderfall im
-#: Code -- eine elfte Frage braucht nichts als eine Zeile hier.
-_ORDINALWOERTER = {
-    "erste": 1, "zweite": 2, "dritte": 3, "vierte": 4, "fuenfte": 5,
-    "sechste": 6, "siebte": 7, "siebente": 7, "achte": 8, "neunte": 9,
-    "zehnte": 10,
-}
-
-#: Dieselben Ordinalwoerter fuer eine englischsprachige Gruppe ("the second,
-#: fifth and ninth"), je Sprache gewaehlt (Karte A1, Aufgabe 22).
-_ORDINALWOERTER_EN = {
-    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
-    "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
-}
-
-
-def lies_fragennummern(text: str) -> list[int]:
-    """Die genannten Fragennummern aus einem Satz, in der Reihenfolge des
-    ersten Auftretens und ohne Dubletten.
-
-    Versteht Ziffern ("2, 5 und 9", "1 3 7", "2,5,9") und Ordinalwoerter
-    ("die zweite, fuenfte und neunte" -- mit und ohne Umlaut, weil Whisper
-    beides liefert). Zahlen ausserhalb 1..``FRAGEN_ZUR_WAHL`` fallen weg:
-    eine 47 ist keine Frage, sondern eine Jahreszahl.
-
-    Rein deterministisch, kein Modellaufruf -- der Aufrufer entscheidet, ob
-    die Zahl der Nummern stimmt."""
-    gefaltet = (
-        (text or "").lower()
-        .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
-        .replace("ß", "ss")
+    leiste = [
+        (T._TEXT_FRAGEN_EINZELN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_EINZELN, None))),
+        (T._TEXT_FRAGEN_ANDERE_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_ANDERE, None))),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, nachricht, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id,
     )
-    gefunden: list[int] = []
-    ordinalwoerter = sprache.je_sprache({"de": _ORDINALWOERTER, "en": _ORDINALWOERTER_EN})
-
-    def merke(nummer: int) -> None:
-        if 1 <= nummer <= FRAGEN_ZUR_WAHL and nummer not in gefunden:
-            gefunden.append(nummer)
-
-    for treffer in re.finditer(r"\d+|[a-z]+", gefaltet):
-        stueck = treffer.group()
-        if stueck.isdigit():
-            merke(int(stueck))
-        elif stueck in ordinalwoerter:
-            merke(ordinalwoerter[stueck])
-    return gefunden
+    return message_id
 
 
-def nimm_fragennummern(conn, tg, klm, e, chat_id: int, text: str) -> bool:
-    """Die Gruppe hat Nummern gesagt: die drei Fragen werden zur Frageliste.
+def frage_fuer_andere_richtung(conn, chat_id: int, richtung: str = "") -> str:
+    """Die fertige ``ANWEISUNG_FRAGEN_ANDERE`` -- ein Ort fuer beide Aufrufer
+    ("Andere Richtung" mit gesagter Richtung, "keine Frage angenommen" ohne)."""
+    alte = _auswahlfragen(conn, chat_id)
+    richtung_satz = (
+        T._TEXT_FRAGEN_RICHTUNG_SATZ.format(richtung=richtung.strip())
+        if richtung.strip() else ""
+    )
+    return T.ANWEISUNG_FRAGEN_ANDERE.format(
+        alte="\n".join(f"- {f}" for f in alte), richtung_satz=richtung_satz,
+    )
 
-    Liefert ``True``, wenn die Nachricht als Auswahl verstanden wurde -- dann
-    geht sie NICHT zusaetzlich in den Gespraechszug. ``False`` heisst
-    "war keine Auswahl", und der normale Weg laeuft weiter (der Erkenner
-    liest freie Fragen weiterhin als ``fragen_setzen``).
 
-    **Greift nur, solange der Zehnervorschlag offen ist** (``offene_art`` ==
-    "fragen" und eine Auswahlliste steht): sonst wuerde jede Nachricht mit
-    einer Zahl darin eine Frageliste ueberschreiben.
+# --- Frage fuer Frage --------------------------------------------------------
 
-    Kein Modellaufruf hier; die Sensibilitaetspruefung laeuft danach im
-    eigenen Thread (dieselbe Kette wie nach dem alten Knopf)."""
-    if offene_art(conn, chat_id) != "fragen":
-        return False
+
+def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
+    """Legt eine Frage als die aktuelle fest und zeigt sie -- Kopf, Frage,
+    bei Bedarf die weiche Fassung, darunter Annehmen / Verwerfen / Schaerfen.
+
+    Kein Modellaufruf: die Darstellung ist immer deterministisch, auch nach
+    einer Ueberarbeitung."""
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", str(nummer))
     fragen = _auswahlfragen(conn, chat_id)
-    if not fragen:
-        return False
-    nummern = lies_fragennummern(text)
-    if not nummern:
-        return False
-    # 06.09.2026 12:10 (Birk): KEINE Vorgabe "genau drei" mehr -- die Gruppe
-    # ist Chefin und nimmt so viele, wie sie passend findet (mindestens eine).
-    # FRAGEN_ANZAHL bleibt nur als Richtwert fuer den Prompt.
-    ausgewaehlt = [fragen[n - 1] for n in nummern if n <= len(fragen)]
-    if not ausgewaehlt:
-        tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
-        return True
-    return _uebernimm_fragen(
-        conn, tg, klm, e, chat_id, ausgewaehlt, nummern=nummern,
-    ) is not None
+    gesamt = len(fragen)
+    zeile = fragen[nummer - 1]
+    begriff, trenner, rest = zeile.partition(":")
+    if trenner and rest.strip():
+        kopf = T._TEXT_FRAGE_KOPF.format(
+            nummer=nummer, gesamt=gesamt, begriff=begriff.strip(),
+        )
+        frage_text = rest.strip()
+    else:
+        kopf = T._TEXT_FRAGE_KOPF_OHNE_BEGRIFF.format(nummer=nummer, gesamt=gesamt)
+        frage_text = zeile
 
+    teile = [kopf, frage_text]
+    weich = _weich_dict(conn, chat_id).get(nummer)
+    if weich:
+        teile.append(T._TEXT_FRAGE_WEICH_HINWEIS.format(weich=weich))
+    text = "\n\n".join(teile)
 
-def _uebernimm_fragen(conn, tg, klm, e, chat_id: int, ausgewaehlt: list[str],
-                      nummern: list[int] | None = None) -> str:
-    """Die gewaehlten Fragen werden zur Frageliste, und danach laeuft die
-    Sensibilitaetspruefung an.
-
-    Ein Weg fuer beide Quellen -- die gesagten Nummern (der Regelweg seit
-    dem 06.09.2026) und den alten Knopf aus einer bereits verschickten
-    Nachricht."""
-    wert = "\n".join(ausgewaehlt)
-    repo.setze_arbeitsstand(conn, chat_id, "fragen", wert)
-    repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
-    # Die Auswahl ist getroffen -- alte Leisten kommen weg (06.09.2026, im
-    # Regie-Lauf gemessen). Vorher blieben sie haengen: die Regie beschwerte
-    # sich VIERMAL ("die knoepfe mit den zehn fragen sind immer noch da").
-    for art in (ART_FRAGE_WAHL, ART_FRAGEN_UEBERNEHMEN, ART_FRAGEN_ANDERE,
-                ART_FRAGEN_EIGENE):
-        _nimm_alte_leiste_ab(conn, tg, chat_id, art)
-    repo.schreibe_journal(
-        conn, chat_id, "entschieden", T._JOURNAL_FRAGEN.format(wert=wert), quelle="knopf",
+    leiste = [
+        (T._TEXT_FRAGE_ANNEHMEN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_ANNEHMEN, str(nummer)))),
+        (T._TEXT_FRAGE_VERWERFEN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_VERWERFEN, str(nummer)))),
+        (T._TEXT_FRAGE_SCHAERFEN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_SCHAERFEN, str(nummer)))),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id,
     )
-    kopf = (
-        T._TEXT_FRAGEN_NOTIERT.format(nummern=", ".join(str(n) for n in nummern))
-        if nummern
-        else T._TEXT_FRAGEN_UEBERNOMMEN.format(anzahl=len(ausgewaehlt))
+    return message_id
+
+
+def starte_durchgehen(conn, tg, chat_id: int) -> bool:
+    """"Ja, einzeln durchgehen" -- zeigt Frage 1. Liefert False, wenn es
+    nichts zu zeigen gibt (eine ueberholte Nachricht)."""
+    if not _auswahlfragen(conn, chat_id):
+        tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+        return False
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+    _zeige_frage(conn, tg, chat_id, 1)
+    return True
+
+
+def frage_warten_auf_richtung(conn, tg, chat_id: int) -> None:
+    """"Andere Richtung" -- fragt deterministisch nach der Richtung; die
+    naechste freie Nachricht loest den neuen Vorschlag aus
+    (``nimm_offene_frage_text``)."""
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "richtung")
+    tg.sende(chat_id, T._TEXT_FRAGEN_RICHTUNG_GEFRAGT)
+
+
+def entscheide(conn, tg, klm, e, chat_id: int, nummer: int, wert: str) -> str:
+    """Annehmen ("ja") oder Verwerfen ("nein") fuer eine Frage -- zeigt die
+    naechste offene Frage, oder schliesst ab, wenn keine mehr offen ist."""
+    fragen = _auswahlfragen(conn, chat_id)
+    if nummer < 1 or nummer > len(fragen):
+        tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+        return T._TEXT_FRAGEN_KEINE_AUSWAHL
+    _setze_entscheidung(conn, chat_id, nummer, wert)
+    naechste = _naechste_offene(conn, chat_id, len(fragen))
+    if naechste is None:
+        return _schliesse_fragen_ab(conn, tg, klm, e, chat_id)
+    _zeige_frage(conn, tg, chat_id, naechste)
+    return T._TEXT_FRAGE_ENTSCHIEDEN
+
+
+def frage_waehlt_schaerfen(conn, tg, chat_id: int, nummer: int) -> str:
+    """"Schaerfen" -- fragt deterministisch, was sich aendern soll. Die
+    Antwort kommt als normale Nachricht und wird ueber
+    ``nimm_offene_frage_text`` abgefangen, weil ``fragen_aktuell`` hier
+    defensiv (erneut) auf diese Frage gesetzt wird -- derselbe Schutz wie
+    eine aus Versehen verschobene Reihenfolge."""
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", str(nummer))
+    tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
+    return T._TEXT_FRAGE_WAS_AENDERN
+
+
+def _starte_schaerfung(conn, tg, klm, e, chat_id: int, nummer: int, wunsch: str) -> None:
+    fragen = _auswahlfragen(conn, chat_id)
+    if nummer < 1 or nummer > len(fragen):
+        return
+    frage = fragen[nummer - 1]
+    weich = _weich_dict(conn, chat_id).get(nummer, "")
+    sensibel_hinweis = (
+        T._TEXT_FRAGE_SCHAERFEN_SENSIBEL_HINWEIS.format(weich=weich) if weich else ""
+    )
+    anweisung = T.ANWEISUNG_FRAGE_SCHAERFEN.format(
+        nummer=nummer, frage=frage, wunsch=wunsch, sensibel_hinweis=sensibel_hinweis,
+    )
+    _starte_auftrag(conn, tg, klm, e, chat_id, anweisung)
+
+
+def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
+                         weich_block: str | None) -> str:
+    """Die Antwort auf eine Schaerfung: ersetzt genau die aktuelle Frage
+    (Text und, falls vorhanden, ihre weiche Fassung) und zeigt sie wieder --
+    erst Annehmen oder Verwerfen bringt die naechste."""
+    from interview_theater import vorschlag
+
+    nummer = _aktuelle_offene_nummer(conn, chat_id)
+    if nummer is None:
+        tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+        return T._TEXT_FRAGEN_KEINE_AUSWAHL
+    zeilen = vorschlag.zeilen(frage_block)
+    neue_frage = zeilen[0] if zeilen else frage_block.strip()
+    if neue_frage:
+        _setze_frage_zeile(conn, chat_id, nummer, neue_frage)
+    weich = _weich_dict(conn, chat_id)
+    neue_weich = leitfaden.einleitungen(weich_block).get(nummer) if weich_block else None
+    if neue_weich:
+        weich[nummer] = neue_weich
+    else:
+        weich.pop(nummer, None)
+    _setze_weich(conn, chat_id, weich)
+    _zeige_frage(conn, tg, chat_id, nummer)
+    return T._TEXT_FRAGE_GESCHAERFT
+
+
+def nimm_offene_frage_text(conn, tg, klm, e, chat_id: int, text: str) -> bool:
+    """Die deterministische Weiche fuer eine freie Nachricht in Phase 2
+    (aufgerufen aus ``ablauf._war_die_erwartete_antwort`` wie zuvor
+    ``nimm_fragennummern``). Liefert True, wenn die Nachricht hier verarbeitet
+    wurde -- dann geht sie NICHT zusaetzlich in den Gespraechszug.
+
+    Zwei Faelle, beide ohne Erkenner-Lauf (kein Modellaufruf nur zum
+    Klassifizieren):
+
+    1. Nach "Andere Richtung" wartet ``fragen_warte_auf == 'richtung'`` --
+       die Nachricht ist die gewuenschte Richtung.
+    2. Steht eine Frage aktuell und unentschieden da, ist die Nachricht ihr
+       Schaerfungswunsch -- mit oder ohne vorherigen Druck auf "Schaerfen"."""
+    text = (text or "").strip()
+    if not text:
+        return False
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is None:
+        return False
+    try:
+        warte = (stand["fragen_warte_auf"] or "").strip()
+    except (IndexError, KeyError):
+        warte = ""
+    if warte == "richtung":
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+        anweisung = frage_fuer_andere_richtung(conn, chat_id, richtung=text)
+        _starte_auftrag(conn, tg, klm, e, chat_id, anweisung)
+        return True
+
+    nummer = _aktuelle_offene_nummer(conn, chat_id)
+    if nummer is not None:
+        _starte_schaerfung(conn, tg, klm, e, chat_id, nummer, text)
+        return True
+    return False
+
+
+def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
+    """Alle Fragen sind entschieden: aus den angenommenen wird
+    ``arbeitsstand.fragen``, ihre weichen Fassungen wandern auf die neue
+    Nummerierung um -- und die Kette geht unveraendert weiter zur
+    Eroeffnung. Ohne eine einzige Annahme gibt es keine Frageliste;
+    stattdessen sagt der Bot das und schlaegt neue Fragen vor."""
+    fragen = _auswahlfragen(conn, chat_id)
+    entschieden = _decisions(conn, chat_id)
+    weich = _weich_dict(conn, chat_id)
+
+    angenommen: list[str] = []
+    neue_weich: dict[int, str] = {}
+    for i, frage in enumerate(fragen, start=1):
+        if i <= len(entschieden) and entschieden[i - 1] == "ja":
+            angenommen.append(frage)
+            if i in weich:
+                neue_weich[len(angenommen)] = weich[i]
+
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
+
+    if not angenommen:
+        tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_ANGENOMMEN)
+        anweisung = frage_fuer_andere_richtung(conn, chat_id)
+        _starte_auftrag(conn, tg, klm, e, chat_id, anweisung)
+        return T._TEXT_FRAGEN_KEINE_ANGENOMMEN
+
+    wert = "\n".join(angenommen)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen", wert)
+    if neue_weich:
+        _setze_weich(conn, chat_id, neue_weich)
+    else:
+        # Leerer String, nicht NULL: "keine der Fragen ist sensibel" ist ein
+        # Ergebnis der Pruefung, kein fehlender Wert
+        # (``phasen._feld_geprueft``) -- sonst haelt die leere Pruefung
+        # Phase 3 fuer immer zurueck.
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_weich", "")
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", T._JOURNAL_FRAGEN.format(wert=wert),
+        quelle="knopf",
     )
     tg.sende(
         chat_id,
-        kopf + "\n" + "\n".join(
-            f"{n}. {f}" for n, f in enumerate(ausgewaehlt, start=1)
-        ),
+        T._TEXT_FRAGEN_ABGESCHLOSSEN.format(anzahl=len(angenommen)) + "\n"
+        + "\n".join(f"{n}. {f}" for n, f in enumerate(angenommen, start=1)),
     )
-    starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id)
+    starte_eroeffnung(conn, tg, klm, e, chat_id)
     return T._TEXT_FRAGEN_QUITTUNG
 
 
-def starte_sensibilitaetspruefung(conn, tg, klm, e, chat_id: int) -> bool:
-    """Die Pruefung nach dem Festlegen der Fragen (06.09.2026, Birk).
-
-    **Warum sie automatisch laeuft.** Die Interviews fuehren 15- bis
-    18-Jaehrige mit FREMDEN Personen auf der Strasse und im Verein. Eine
-    Frage nach Familie, Herkunft, Religion, Gewalt, Liebe, Geld, Krankheit,
-    Flucht oder Diskriminierung ist dabei kein Problem -- sie ohne einen Satz
-    davor zu stellen, schon. Wer erst danach merkt, dass ein Satz gefehlt
-    haette, kann ihn nicht mehr nachreichen.
-
-    Ein Gespraechszug mit Anweisung in einem eigenen Thread
-    (``ablauf.starte_auftrag``) -- **kein Modellaufruf in diesem Handler**
-    (AGENTS.md, Zusage 2). Die Antwort traegt den Block
-    ``VORSCHLAG EINLEITUNGEN:`` und darunter die Grundleiste; das Ping-Pong
-    laeuft wie bei jedem anderen Vorschlag, bis die Gruppe
-    \"Gefaellt uns, weiter\" drueckt.
-    """
-    stand = repo.hole_arbeitsstand(conn, chat_id)
-    fragen = (stand["fragen"] if stand else "") or ""
-    if not fragen.strip():
-        return False
-    tg.sende(chat_id, T.TEXT_PRUEFUNG_LAEUFT)
-    return _starte_auftrag(
-        conn, tg, klm, e, chat_id, T.ANWEISUNG_EINLEITUNGEN.format(fragen=fragen),
-        arbeitszeile=T.TEXT_ARBEIT_SENSIBILITAET, arbeitsart="sensibilitaet",
-    )
+# --- Eroeffnung und Abschluss (unveraendert seit dem 06.09.2026) ----------
 
 
 def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
-    """Der zweite Schritt der Verfeinerung: Eroeffnungs- und Abschlusstext.
-
-    Laeuft automatisch, sobald die Einleitungen abgenommen sind -- die
-    Gruppe soll nicht wissen muessen, dass es diesen Schritt gibt. Wieder
-    ein Auftragszug im eigenen Thread, wieder die Grundleiste darunter."""
+    """Der Schritt nach den Fragen: Eroeffnungs- und Abschlusstext. Laeuft
+    automatisch, sobald die Frageliste steht -- wieder ein Auftragszug im
+    eigenen Thread, wieder die Grundleiste darunter."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
     fragen = (stand["fragen"] if stand else "") or ""
     return _starte_auftrag(
@@ -299,15 +436,9 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
 
 def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None, klm=None) -> str:
     """Zerlegt den Block ``VORSCHLAG EROEFFNUNG:`` in Eroeffnung und
-    Abschluss und legt beides ab.
+    Abschluss und legt beides ab. Unveraendert seit dem 06.09.2026."""
+    import re
 
-    Der Block traegt beides, weil es EINE Entscheidung ist (\"womit fangen
-    wir an, womit hoeren wir auf\") -- gespeichert wird es getrennt, weil der
-    Leitfaden die beiden Texte an verschiedene Stellen setzt. Die Trennung
-    laeuft ueber eine Zeile, die mit \"Abschluss\" beginnt; fehlt sie, ist
-    alles Eroeffnung und der Abschluss bleibt leer (der Leitfaden laesst ihn
-    dann weg, statt etwas zu erfinden).
-    """
     eroeffnung: list[str] = []
     abschluss: list[str] = []
     ziel = eroeffnung
@@ -317,8 +448,6 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None, klm=None) -
             continue
         ohne = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", roh)
         kopf, sep, rest = ohne.partition(":")
-        # Beide Sprachen (Karte A1, K5): der englische Prompt verlangt
-        # "Opening:"/"Closing:", ein Modell labelt aber auch mal deutsch.
         if sep and kopf.strip().lower().startswith(("abschluss", "closing")):
             ziel = abschluss
             if rest.strip():
@@ -341,24 +470,7 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None, klm=None) -
         conn, chat_id, "entschieden", T._JOURNAL_EROEFFNUNG_FESTGELEGT,
         quelle="knopf",
     )
-    # Und jetzt steht der Leitfaden -- die Gruppe soll ihn sehen, ohne
-    # danach fragen zu muessen.
-    from interview_theater import leitfaden
-
-    # ``sende_einmal`` und nicht ``sende``: derselbe Merkposten wie beim
-    # Schritt in die Interviews (``_eintrittstext``, ``befehle`` beim ersten
-    # Interviewstart). Vorher stand er zweimal wortgleich im Chat -- einmal
-    # hier, wenige Nachrichten spaeter noch einmal beim Phasenwechsel
-    # (gemessen 06.09., Lauf tag1-gruppe1). Der Leitfaden ist lang; zweimal
-    # hintereinander schiebt er alles andere aus dem Bild.
     leitfaden.sende_einmal(conn, tg, chat_id, e=e)
-    # **Die Kette bricht hier nicht ab** (06.09.2026, 10:25, Birk): mit
-    # Eroeffnung und Abschluss ist Phase 2 fertig, also kommt sofort die
-    # Abschlussnachricht mit "Weiter zu Interviews". Vorher stand nach dem
-    # letzten "Gefaellt uns, weiter" nichts mehr da, und die Gruppe wartete
-    # auf einen Schritt, den niemand mehr machte.
-    # Seit 02.10.2026 (Birk, Padua) direkt in die Interviews -- dieselbe
-    # Regel wie bei jedem "Ja, speichern" (``uebergang_nach_speichern``).
     from interview_theater.knoepfe.stationen import (
         biete_phase_proaktiv, uebergang_nach_speichern,
     )
@@ -369,9 +481,7 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None, klm=None) -
 
 
 def _leitfaden_knopf(conn, chat_id: int) -> tuple[str, str] | None:
-    """\"Leitfaden zeigen\", sobald es einen gibt -- sonst None."""
-    from interview_theater import leitfaden
-
+    """"Leitfaden zeigen", sobald es einen gibt -- sonst None."""
     if not leitfaden.steht(conn, chat_id):
         return None
     return (

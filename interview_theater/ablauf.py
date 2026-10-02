@@ -966,14 +966,12 @@ def _war_die_erwartete_antwort(conn, tg, klm, e, chat_id: int,
                                letzte_nachricht) -> bool:
     """Die zwei Faelle, in denen der Bot gerade nach etwas Bestimmtem gefragt
     hat und diese eine Nachricht die Antwort darauf ist."""
-    # Dieselbe Bauart fuer die gesagten Fragennummern (06.09.2026,
-    # 10:05): der Bot hat gerade zehn Fragen ausgeschrieben hingelegt,
-    # und "2, 5 und 9" ist die Antwort darauf. Greift nur, solange der
-    # Vorschlag offen ist (``knoepfe.offene_art`` == "fragen") -- sonst
-    # wuerde jede Nachricht mit einer Zahl darin eine Frageliste
-    # ueberschreiben. Freie Fragen der Gruppe bleiben der Rueckfall ueber
-    # den Erkenner (``fragen_setzen``).
-    if knoepfe.nimm_fragennummern(
+    # Dieselbe Bauart fuer die freie Nachricht in der Phase-2-Stufe "Fragen
+    # einzeln" (02.10.2026, Padua): nach "Andere Richtung" ist die naechste
+    # Nachricht die gewuenschte Richtung, und waehrend eine Frage die
+    # aktuelle ist, ist jede freie Nachricht ihr Schaerfungswunsch --
+    # deterministisch, kein Erkenner-Lauf nur zum Klassifizieren.
+    if knoepfe.nimm_offene_frage_text(
         conn, tg, klm, e, chat_id, letzte_nachricht["text"] or "",
     ):
         return True

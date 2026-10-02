@@ -419,19 +419,31 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
     text, bloecke = _ein_feld_je_nachricht(conn, chat_id, text)
     sauber = vorschlag.ohne_marker(text) or text
 
-    # Die Fragenauswahl der Phase 2 (06.09.2026) ist keine Leiste, sondern
-    # eine eigene Mehrfachauswahl: zehn Knoepfe zum Antippen und drei
-    # Handlungsknoepfe darunter. Sie kommt VOR allem anderen, weil sie den
-    # Text mitbringt und nichts speichert.
+    # Der Fragenvorschlag der Phase 2 (02.10.2026) ist keine Leiste, sondern
+    # ein eigener Ueberblick mit Richtungsfrage -- er kommt VOR allem
+    # anderen, weil er den Text mitbringt und nichts direkt speichert. Die
+    # weiche Fassung (``VORSCHLAG FRAGEN WEICH:``) reist, falls vorhanden,
+    # aus DEMSELBEN Modellzug mit (``_ein_feld_je_nachricht`` laesst dieses
+    # eine Paar durch).
     if "fragenauswahl" in bloecke:
-        # ``ohne_block`` statt ``ohne_marker``: die zehn Fragen stehen gleich
-        # auf den Knoepfen, und zweimal dieselbe Liste ist auf dem Telefon
-        # eine halbe Bildschirmseite Doppelung.
         from interview_theater.knoepfe.fragen import biete_fragenauswahl
 
+        rest = vorschlag.ohne_block(text, "fragenauswahl")
+        if "fragen_weich" in bloecke:
+            rest = vorschlag.ohne_block(rest, "fragen_weich")
         return biete_fragenauswahl(
             conn, tg, chat_id, bloecke["fragenauswahl"],
-            vorschlag.ohne_block(text, "fragenauswahl") or T._TEXT_FRAGEN_WAHL,
+            bloecke.get("fragen_weich"), rest or T._TEXT_FRAGEN_RICHTUNG_FRAGE,
+        ), True
+
+    # Die Antwort auf eine Schaerfung (02.10.2026): ``VORSCHLAG FRAGE:``
+    # ersetzt genau die eine gerade offene Frage -- kein Vorspann-Text, keine
+    # Grundleiste, die Frage wird deterministisch neu gezeigt.
+    if "frage" in bloecke:
+        from interview_theater.knoepfe.fragen import uebernimm_schaerfung
+
+        return uebernimm_schaerfung(
+            conn, tg, chat_id, bloecke["frage"], bloecke.get("fragen_weich"),
         ), True
 
     # Oben: die Auswahlknoepfe. Kommen mehrere Auswahl-Bloecke in einer
@@ -499,6 +511,17 @@ def _sende_mit_grundleiste(
     return message_id, True
 
 
+#: Blockpaare, die zusammen EINE Entscheidung tragen (02.10.2026,
+#: Phase-2-Umbau "Fragen einzeln"): der Fragenvorschlag samt seinen weichen
+#: Fassungen aus demselben Modellzug, und eine geschaerfte Einzelfrage
+#: ebenso. ``_ein_feld_je_nachricht`` wirft die weiche Fassung sonst als
+#: "zweites Thema in derselben Nachricht" weg.
+_ERLAUBTE_BLOCKPAARE = (
+    frozenset({"fragenauswahl", "fragen_weich"}),
+    frozenset({"frage", "fragen_weich"}),
+)
+
+
 def _ein_feld_je_nachricht(conn, chat_id: int, text: str) -> tuple[str, dict]:
     """**Ein Feld je Nachricht** (06.09.2026, Birk 11:00): enthaelt eine
     Antwort zwei Vorschlagsbloecke VERSCHIEDENER Arten, geht nur der erste
@@ -510,7 +533,7 @@ def _ein_feld_je_nachricht(conn, chat_id: int, text: str) -> tuple[str, dict]:
     from interview_theater import vorschlag
 
     bloecke = vorschlag.alle(text)
-    if len(bloecke) <= 1:
+    if len(bloecke) <= 1 or frozenset(bloecke) in _ERLAUBTE_BLOCKPAARE:
         return text, bloecke
     # Deterministisch: die Reihenfolge im TEXT entscheidet, nicht die
     # eines dicts -- der erste Block im Text ist der, den das Modell
@@ -586,21 +609,14 @@ def offene_art(conn, chat_id: int) -> str | None:
     if phase == 1:
         return "begriffe" if leer("begriffe") else None
     if phase == 2:
-        # Die Verfeinerungsebene (06.09.2026): erst die Fragen, dann die
-        # Einleitungen zu den heiklen darunter, dann Eroeffnung und
-        # Abschluss. Jede Stufe wird erst offen, wenn die davor steht --
-        # sonst haenge die Leiste einer spaeteren Stufe unter dem Vorschlag
-        # einer frueheren und speicherte den falschen Text.
-        if leer("fragen"):
-            return "fragen"
-        # **Seit dem 06.09.2026, 10:18 ist die zweite Stufe die weiche
-        # Fassung** und nicht mehr die Einleitung: die sensible Frage wird
-        # umformuliert, nicht mit einem Vorsatz versehen. ``frage_einleitungen``
-        # bleibt daneben stehen -- eine Gruppe, die den alten Weg schon
-        # durchlaufen hat, soll ihn nicht ein zweites Mal gehen.
-        if leer("fragen_weich") and leer("frage_einleitungen"):
-            return "fragen_weich"
-        if leer("interview_eroeffnung"):
+        # Seit dem Umbau auf "Fragen einzeln" (02.10.2026) laeuft der
+        # Fragenvorschlag und seine Sensibilitaetspruefung ueber einen
+        # eigenen Ueberblick samt Frage-fuer-Frage-Stufe
+        # (``knoepfe.fragen``), nicht mehr ueber die Grundleiste -- die
+        # einzige verbleibende Stufe hier ist Eroeffnung und Abschluss, und
+        # nur, sobald die Frageliste wirklich steht (eine Gruppe, die noch
+        # mitten im Vorschlag ist, hat ``fragen`` noch leer).
+        if not leer("fragen") and leer("interview_eroeffnung"):
             return "eroeffnung"
         return None
     if phase == 4:

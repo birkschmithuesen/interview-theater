@@ -243,3 +243,43 @@ def test_entfernen_ohne_treffer_wirkt_nicht(conn):
         conn, Umgebung(), 1,
         [{"art": "entfernen", "wert": "Festlegung: Bahnhof"}],
     ) == []
+
+
+def test_figur_festlegung_faellt_weg_neben_figur_quelle_setzen():
+    # Fall en-e15 (02.10.2026): Zuordnung zu einem Interview plus dieselbe
+    # Figur noch einmal als Festlegung -- doppelt erfasst.
+    aenderungen = [
+        {"art": "figur_quelle_setzen", "wert": "Karim: Interview 3"},
+        {"art": "festlegung_setzen", "wert": "FIGUR/Karim: the kid with the headphones"},
+    ]
+    assert erkenner.waechter_filter(aenderungen) == aenderungen[:1]
+
+
+def test_waechter_filter_verwirft_inhaltslose_festlegung():
+    aenderungen = [
+        {"art": "festlegung_setzen", "wert": "gruppe/die Lauten: erkennt man an den Markenklamotten"},
+        {"art": "festlegung_setzen", "wert": "gruppe/die Stillen: eine der beiden Gruppen"},
+    ]
+    assert erkenner.waechter_filter(aenderungen) == aenderungen[:1]
+
+
+def test_waechter_filter_laesst_andere_arten_unveraendert():
+    # Der Korpus misst nach diesem Filter -- er darf an Arten ohne Waechter
+    # nichts aendern, sonst faellt die Trefferquote ohne Modellaenderung
+    # (Fehlversuch 02.10.: Vergleich auf der Rueckgabe von wende_an, 90/122).
+    aenderungen = [
+        {"art": "szene_planen", "wert": "SZENE 1 | ORT: Kueche"},
+        {"art": "entfernen", "wert": "FIGUR Tomas"},
+        {"art": "interview_beenden", "wert": ""},
+        {"art": "szene_usa", "wert": "ja"},
+    ]
+    assert erkenner.waechter_filter(aenderungen) == aenderungen
+
+
+def test_korpusvergleich_nutzt_den_waechter_filter():
+    from scripts import pruefe_prompts
+    roh = [
+        {"art": "figur_setzen", "wert": "Mira: macht Pfannkuchen"},
+        {"art": "festlegung_setzen", "wert": "figur: die Zuordnung ist nur fuer die Gruppe"},
+    ]
+    assert pruefe_prompts._wende_fuer_vergleich(None, 1, roh) == roh[:1]

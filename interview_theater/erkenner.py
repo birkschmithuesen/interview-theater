@@ -1432,7 +1432,8 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
 
 def _ohne_figur_festlegung_neben_figur_setzen(aenderungen: list[dict]) -> list[dict]:
     """Eine ``festlegung_setzen`` mit Bereich ``figur`` faellt weg, wenn
-    derselbe Lauf auch ``figur_setzen`` liefert (02.10.2026, Fall z04: neben
+    derselbe Lauf auch ``figur_setzen`` oder ``figur_quelle_setzen`` (Fall
+    en-e15) fuer diese Figur liefert (02.10.2026, Fall z04: neben
     drei ``figur_setzen`` kam zusaetzlich "figur: die Zuordnung der Figuren
     ist nur fuer die Gruppe" -- ein Metakommentar zum Festhalten selbst, kein
     eigener Fakt UEBER eine Figur). Mit Bezug auf einen der gerade gesetzten
@@ -1442,7 +1443,8 @@ def _ohne_figur_festlegung_neben_figur_setzen(aenderungen: list[dict]) -> list[d
     try:
         figuren_namen = {
             str(a.get("wert") or "").split(":", 1)[0].strip().lower()
-            for a in aenderungen if a.get("art") == "figur_setzen"
+            for a in aenderungen
+            if a.get("art") in ("figur_setzen", "figur_quelle_setzen")
         }
     except Exception:
         # Defensiv wie wende_an() selbst: eine fehlerhafte Aenderung (z. B.
@@ -1463,6 +1465,28 @@ def _ohne_figur_festlegung_neben_figur_setzen(aenderungen: list[dict]) -> list[d
             if bereich == "figur" and (
                 bezug is None or bezug.strip().lower() in figuren_namen
             ):
+                continue
+        ergebnis.append(a)
+    return ergebnis
+
+
+def waechter_filter(aenderungen: list[dict]) -> list[dict]:
+    """Die rein deterministischen Waechter, die ``wende_an`` vor dem Schreiben
+    anwendet -- ohne Datenbank, damit der Korpuslauf (``scripts/
+    pruefe_prompts.py``) genau dasselbe herausfiltert wie der Betrieb:
+    doppelte Figuren-Festlegungen und Festlegungen ohne eigenen Inhalt. Die
+    datenbankabhaengige Pruefung (``_steht_schon_in_einem_feld``) bleibt in
+    ``_wende_festlegung_an``."""
+    ergebnis = []
+    for a in _ohne_figur_festlegung_neben_figur_setzen(aenderungen):
+        if a.get("art") == "festlegung_setzen":
+            try:
+                _, bezug, text = _zerlege_festlegung(a.get("wert") or "")
+            except Exception:
+                ergebnis.append(a)
+                continue
+            text = " ".join((text or "").split())
+            if not text or _ohne_eigenen_inhalt(text, bezug):
                 continue
         ergebnis.append(a)
     return ergebnis

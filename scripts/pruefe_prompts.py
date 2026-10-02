@@ -517,27 +517,17 @@ def _aufruf_nach(conn, vorher_id: int) -> dict:
     }
 
 
-#: Arten ohne eigenen Schreibweg in ``erkenner.wende_an`` -- ihre Wirkung ist
-#: ein Thread-Anstoss (``laufe()``/``aufnahme.py``, mit ``tg``/``klm``), kein
-#: Datenbankfeld. ``_wende_eine_an`` liefert fuer sie immer ``None``, auch
-#: wenn sie im Betrieb sehr wohl etwas ausloesen -- hier bleibt deshalb der
-#: rohe Eintrag stehen statt eines falschen "wurde verworfen".
-_ART_OHNE_SCHREIBWEG = frozenset({"szene_schreiben", "szene_kuerzen", "an_den_bot"})
-
-
 def _wende_fuer_vergleich(conn, chat_id: int, geliefert: list[dict]) -> list[dict]:
-    """Was der Korpuslauf zaehlt, ist nicht die rohe Modellantwort, sondern
-    das, was ``erkenner.wende_an`` davon tatsaechlich schreibt (02.10.2026,
-    nach Befund am echten Modell: ein Vergleich auf dem rohen JSON zaehlte
-    Dinge als Falsch-Positiv, die in der Produktion harmlos sind, weil
-    ``wende_an`` sie selbst verwirft -- eine nicht gefundene ``entfernen``-
-    Zielszene, eine doppelte ``festlegung_setzen``, ein Bereich in anderer
-    Gross-/Kleinschreibung. Kein ``e`` noetig: ``wende_an`` liest es nur fuer
-    den Vorfall-Bot-Namen, ``getattr(None, ...)`` bleibt ``None``."""
-    sonderfaelle = [a for a in geliefert if a.get("art") in _ART_OHNE_SCHREIBWEG]
-    normale = [a for a in geliefert if a.get("art") not in _ART_OHNE_SCHREIBWEG]
-    angewendet = erkenner.wende_an(conn, None, chat_id, normale) if normale else []
-    return angewendet + sonderfaelle
+    """Der Korpus zaehlt, was die Produktion SPEICHERN wuerde: die rohen
+    Aenderungen, abzueglich dessen, was die deterministischen Waechter in
+    ``erkenner`` vor dem Schreiben verwerfen (``erkenner.waechter_filter``).
+
+    02.10.2026: ein erster Versuch verglich die RUECKGABE von ``wende_an`` --
+    die hat aber eine andere Form (Szenenwerte gekuerzt, Interview-/USA-/
+    Transkript-Arten ohne Rueckgabe) und liess die Trefferquote von 118/122
+    auf 90/122 fallen, ohne dass sich am Modell etwas geaendert hatte. Darum
+    nur der Filter, nicht das Anwenden."""
+    return erkenner.waechter_filter(geliefert)
 
 
 def _laufe_erkenner(klm, conn, chat_id, fall, modell):

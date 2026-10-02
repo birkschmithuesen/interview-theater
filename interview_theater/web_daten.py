@@ -1574,3 +1574,132 @@ def web_ausgangsdatei(conn, chat_id: int, post_id: int) -> dict | None:
     if zeile is None or not zeile["datei"]:
         return None
     return {"pfad": zeile["datei"], "dateiname": zeile["dateiname"] or "datei"}
+
+
+# --- Der laufende Text (30.09.2026, Karte W) -------------------------------
+
+def _stromzeile(zeile: sqlite3.Row, grenze: str) -> dict:
+    """Genau die fuenf Felder, die der Browser bekommt -- kein Zeitstempel,
+    keine chat_id.
+
+    Eine laufende Zeile, die seit ``db.STROM_VERALTET_S`` niemand mehr
+    geschrieben hat (``aktualisiert_am < grenze``), meldet sich als
+    ``abgebrochen``: ihr Bot ist gestorben, und eine halbe Antwort soll nicht
+    ohne Ende dastehen (Aufgabe 14, Fix-Runde 1). Nur gelesen -- in der
+    Datenbank raeumt sie erst der naechste Start des Bots auf
+    (``repo.brich_laufende_stroeme_ab``)."""
+    zustand = zeile["zustand"]
+    if zustand == "laeuft" and zeile["aktualisiert_am"] < grenze:
+        zustand = "abgebrochen"
+    return {
+        "id": zeile["id"], "art": zeile["art"], "text": zeile["text"],
+        "zustand": zustand, "post_id": zeile["post_id"],
+    }
+
+
+def _laufende_stromart(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Die ``art`` der aeltesten laufenden, nicht verwaisten Stromzeile --
+    dieselbe Auswahl wie ``repo.laufende_stroeme`` auf dem Bot-Weg
+    (``roadmap.register``), damit beide dieselbe Roadmap zeigen."""
+    from interview_theater import db
+
+    try:
+        zeile = conn.execute(
+            "SELECT art FROM web_strom WHERE chat_id = ? AND zustand = 'laeuft' "
+            "AND aktualisiert_am >= ? ORDER BY id ASC LIMIT 1",
+            (chat_id, db.strom_grenze()),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return zeile["art"] if zeile else None
+
+
+def web_stromanfang(conn: sqlite3.Connection, chat_id: int,
+                    nach: int = 0) -> int | None:
+    """Ab welcher id ein SSE-Strom liefert -- oder None, wenn es nichts gibt.
+
+    Die aelteste noch laufende Zeile gehoert immer dazu, auch unterhalb von
+    ``nach`` (ein Prosalauf, der schon lief, als der Browser die id eines
+    juengeren Gespraechszugs gelernt hat). Ohne ``nach`` und ohne laufende
+    Zeile ist es die juengste Zeile: ein Reconnect bekommt ihren Endstand
+    statt der ganzen Geschichte der Gruppe.
+
+    Eine verwaiste Zeile (``db.STROM_VERALTET_S``) zaehlt nicht als laufend
+    -- sonst hielte sie den Anfang fuer immer bei sich fest."""
+    from interview_theater import db
+
+    try:
+        zeile = conn.execute(
+            "SELECT MIN(CASE WHEN zustand = 'laeuft' AND aktualisiert_am >= ? "
+            "THEN id END) AS laufend, "
+            "MAX(id) AS juengst FROM web_strom WHERE chat_id = ?",
+            (db.strom_grenze(), chat_id),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    laufend, juengst = zeile["laufend"], zeile["juengst"]
+    if nach > 0:
+        return min(nach, laufend) if laufend is not None else nach
+    if laufend is not None:
+        return laufend
+    return juengst
+
+
+def web_stromzeilen(conn: sqlite3.Connection, chat_id: int,
+                    ab: int) -> list[dict]:
+    """Alle Stromzeilen der Gruppe mit ``id >= ab``, aelteste zuerst --
+    read-only, je Zeile dieselben fuenf Felder (``id``, ``art``, ``text``,
+    ``zustand``, ``post_id``). Eine verwaiste Zeile kommt als ``abgebrochen``
+    (``_stromzeile``) -- so endet auch der SSE-Strom, der an ihr hing."""
+    from interview_theater import db
+
+    try:
+        zeilen = conn.execute(
+            "SELECT id, art, text, zustand, post_id, aktualisiert_am FROM web_strom "
+            "WHERE chat_id = ? AND id >= ? ORDER BY id ASC",
+            (chat_id, ab),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    grenze = db.strom_grenze()
+    return [_stromzeile(zeile, grenze) for zeile in zeilen]
+
+
+# --- Die Roadmap (30.09.2026, Karte W) -------------------------------------
+
+
+def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die Phasenuebersicht (``interview_theater/roadmap.py``) -- aus der
+    read-only geoeffneten Verbindung.
+
+    Ein Zusammenbau, zwei Aufrufer (wie beim Leitfaden und den Fehlstellen):
+    die reine Funktion kennt nur Dicts, deshalb kommt der Webserver ohne
+    ``repo`` aus."""
+    from interview_theater import phasen, roadmap as modul
+
+    stand = _arbeitsstand(conn, chat_id)
+    gruppe = conn.execute(
+        "SELECT interviewmodus_seit, web_tippt_bis FROM gruppe WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    return modul.aus_daten({
+        "stand": stand,
+        "figuren": _figuren(conn, chat_id),
+        "szenen": _szenen(conn, chat_id),
+        "interviews": _interviews(conn, chat_id),
+        "zuordnungen": sum(
+            len(v) for teil in schaerfungen(conn, chat_id).values()
+            for v in teil.values()
+        ),
+        "pruefrunde": (stueckpruefung(conn, chat_id) or {}).get("runde"),
+        "phase": stand.get("phase") or phasen.ERSTE,
+        "interviewmodus": bool(gruppe and gruppe["interviewmodus_seit"]),
+        # Der vorhandene Pruefer aus ``web_zustand`` -- ein zweiter
+        # ``_tippt_noch`` mit anderer Signatur wuerde ihn ueberschatten.
+        "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
+        # Die aelteste laufende, nicht verwaiste Zeile -- wie
+        # ``repo.laufende_stroeme`` auf dem Bot-Weg (Aufgabe 14, Fix-Runde 1:
+        # vorher die juengste Zeile, und ein Gespraechszug neben einem
+        # Szenenlauf verdeckte den Szenenlauf).
+        "strom": _laufende_stromart(conn, chat_id),
+    })

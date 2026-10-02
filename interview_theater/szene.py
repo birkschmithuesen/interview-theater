@@ -68,7 +68,7 @@ import threading
 
 import httpx
 
-from interview_theater import anweisungen, repo, szene_claude, workshop
+from interview_theater import anweisungen, repo, strom, szene_claude, workshop
 
 log = logging.getLogger(__name__)
 
@@ -2272,7 +2272,7 @@ def _pruefe_budget(conn, chat_id: int, ueber_claude: bool) -> None:
 
 
 def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
-             art: str = ART) -> int:
+             art: str = ART, bei_teil=None) -> int:
     """Der eigentliche Szenen-Aufruf: Prompt bauen, Modell fragen, Szene
     speichern, Journal schreiben, Vorschau in die Gruppe schicken. Liefert
     die Nummer der geschriebenen Szene.
@@ -2284,7 +2284,15 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
     ``art`` (30.09.2026, Karte R) landet in der Tabelle ``aufruf``. Der
     Nachpass setzt ``szene_nachpass``, damit sich seine Laeufe getrennt zaehlen
     lassen -- wie ``dramaturgie_b1`` es vormacht. Ohne Angabe bleibt es
-    ``ART``."""
+    ``ART``.
+
+    ``bei_teil`` (Karte W, Fix-Runde 1): die Senke des laufenden Texts. Sie
+    legt **nur** ``_lauf`` an -- der Lauf, den die Gruppe bestellt hat. Der
+    Nachpass, die Dramaturgie-Schleife und die Simulation rufen ``schreibe``
+    ohne sie und streamen deshalb nicht (AGENTS.md: vom Nachpass erfaehrt
+    die Gruppe nichts). Abgeschlossen wird sie hier, sobald feststeht, ob
+    ein Szenentext da ist; ein Fehler davor faellt an ``_lauf``, das sie
+    verwirft."""
     ziel = ziel_fuer(conn, chat_id, auftrag)
     nummer = ziel["nummer"]
 
@@ -2303,22 +2311,32 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
     system = systemanweisung(form, stil)
     nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel, e, system=system)
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
+    senke = bei_teil
     if ueber_claude:
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
             chat_id, system,
-            nutzer, art, timeout=TIMEOUT_S,
+            nutzer, art, timeout=TIMEOUT_S, bei_teil=senke,
         )
     else:
         antwort = klm.prosa(
             chat_id, system,
-            nutzer, art, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
+            nutzer, art, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S, bei_teil=senke,
         )
     _pruefe_budget(conn, chat_id, ueber_claude)
 
     titel, kurz, fassung, anders, volltext = zerlege(antwort)
     if not volltext:
+        # Kein Szenentext ist kein 'fertig' (Fix-Runde 1, Befund 4): die
+        # vorlaeufige Blase verschwindet ersatzlos.
+        if senke is not None:
+            strom.verwirf(tg, chat_id, senke=senke)
         raise SzeneFehler("Antwort des Sprachmodells enthielt keinen Szenentext")
+    # Kein ``post_id``: der Szenentext geht nicht als eine Nachricht raus,
+    # sondern als Vorschau mit Knopfleiste. 'fertig' ohne post_id heisst fuer
+    # die Ansicht schlicht: die vorlaeufige Blase darf weg.
+    if senke is not None:
+        strom.schliesse(tg, chat_id, senke=senke)
 
     # Die Zusammenfassung ist Pflichtzeile des Prompts (prompts/szene.md).
     # Fehlt sie, ist der Szenentext trotzdem gut -- gemeldet wird es
@@ -2447,8 +2465,16 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
     from interview_theater import arbeitszeilen
 
     zeilen = arbeitszeilen.sichtbar(tg, chat_id, ARBEITSART)
+    # Der laufende Text (Karte W). Der Szenenlauf haengt in einem eigenen
+    # Thread, und niemand wartet vor dem Bildschirm -- aber im Browser ist
+    # "es passiert etwas" der Unterschied zwischen zwei Minuten Stille und
+    # zwei Minuten Lesen. Hier und nicht in ``schreibe`` (Fix-Runde 1,
+    # Befund 2): der Nachpass ruft ``schreibe`` direkt und soll unsichtbar
+    # bleiben.
+    senke = strom.senke(tg, chat_id, "szene")
     try:
-        nummer = schreibe(conn, tg, klm, e, chat_id, auftrag, art=art)
+        nummer = schreibe(conn, tg, klm, e, chat_id, auftrag, art=art,
+                          bei_teil=senke)
         # ``art == ART``: der Nachpass nur nach einem GEWOEHNLICHEN Lauf. Er
         # selbst ruft ``schreibe`` direkt und kommt hier nie vorbei -- die
         # Bedingung ist die zweite Wache gegen eine Schleife, kein Ersatz
@@ -2469,6 +2495,11 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
                                   f"Szene {nummer}: Nachpass gescheitert")
     except Exception:
         log.exception("Szenen-Aufruf fehlgeschlagen, chat_id=%s", chat_id)
+        # Ueber die Senke selbst, nicht ueber die Gruppe: ein Gespraechszug,
+        # der gerade daneben streamt, bleibt unberuehrt (Befund 1). Ist sie
+        # schon abgeschlossen, passiert nichts.
+        if senke is not None:
+            strom.verwirf(tg, chat_id, senke=senke)
         # Anders als beim Absichtserkenner erfaehrt die Gruppe davon: sie hat
         # gerade die Ankuendigung bekommen und wartet (SPEC § 11.1).
         # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile -- und zuerst

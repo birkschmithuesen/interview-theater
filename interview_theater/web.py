@@ -988,6 +988,7 @@ def _seite(
     nachladen: bool = True,
     skript: str = "",
     lang: str | None = None,
+    koerper_attribute: str = "",
 ) -> str:
     """Rahmen aller Seiten: ein einziges eingebettetes CSS, keine externe
     Ressource (der Workshopraum haengt an einem Tailnet, nicht am offenen
@@ -1005,7 +1006,11 @@ def _seite(
 
     ``lang`` ist die Sprache der Seite -- ohne Angabe die des Profils (Karte
     A1). Seit Padua (02.10.2026) gilt das auch fuer das Team-Dashboard; es
-    gibt keine Sprache mehr vor."""
+    gibt keine Sprache mehr vor.
+
+    ``koerper_attribute`` haengt zusaetzliche Attribute an ``<body>`` --
+    bislang nur ``textbuch_html`` (``data-textbuch`` als Wurzel des
+    Rollenfilters, Karte W)."""
     skripte = (
         _SCROLL_JS.replace("__NEULADEN_MS__", str(NEULADEN_SEKUNDEN * 1000))
         if nachladen
@@ -1019,7 +1024,7 @@ def _seite(
         f'<html lang="{html.escape(lang or sprache.code())}"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{html.escape(titel)}</title>\n"
-        f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body>\n"
+        f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body{koerper_attribute}>\n"
         f"{koerper}\n"
         f"<script>{skripte}</script>\n"
         "</body></html>\n"
@@ -2383,29 +2388,19 @@ def _interview_html(v: dict) -> str:
     )
 
 
-def gruppe_html(
+def gruppe_koerper(
     daten: dict,
     nonce_wert: str | None = None,
     token: str | None = None,
     praefix: str = VORGABE_PRAEFIX,
     fassungswahl: dict[int, int] | None = None,
 ) -> str:
-    """Die Gruppenseite aus web_daten.gruppe_nach_token().
+    """Der Rumpf der Gruppenseite -- ohne die Klammer aus ``_seite``.
 
-    Ohne ``nonce_wert`` bleibt sie, was sie war: eine Leseansicht. Mit
-    ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
-    Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
-    Feld in der Seite (siehe ``nonce``).
-
-    Mit ``token`` steht oben der Link zur **Probenansicht** (06.09.2026): die
-    Gruppenseite ist die Werkstatt, die Probenansicht das Stueck am Stueck.
-    Ohne Token faellt der Link weg -- die Seite laesst sich weiter ohne ihn
-    rendern (Tests, spaetere Aufrufer).
-
-    ``fassungswahl`` ist ``{szene_id: nummer}`` aus der Query (``?szene=…&
-    fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung
-    angezeigt wird -- sie schreibt nichts und bleibt deshalb in der URL statt
-    in der Datenbank."""
+    Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W): dort steht
+    dieser Rumpf als eines von drei Panels in EINEM Dokument. ``gruppe_html``
+    ruft ihn und haengt die Klammer davor -- die Einzelseite bleibt damit
+    Zeichen fuer Zeichen, was sie war (``tests/test_web_koerper.py``)."""
     fassungen = daten.get("fassungen") or {}
     fassungswahl = fassungswahl or {}
     szenen = "".join(
@@ -2457,9 +2452,7 @@ def gruppe_html(
     kopf = _vorspann_html(daten.get("vorspann"))
     if kopf:
         kopf = f"<h2>{_t(T._UEBERSCHRIFT_UEBERBLICK)}</h2>{kopf}\n"
-    return _seite(
-        T._TITEL_GRUPPENSEITE.format(titel=titel),
-        _CSS_GRUPPE,
+    return (
         f"<h1>{_t(titel)}</h1>\n"
         f"{probenansicht}"
         f"{_chat_link(token, daten.get('kanal'))}"
@@ -2484,7 +2477,38 @@ def gruppe_html(
         f"<h2>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</h2>{verdichtungen_html}\n"
         f"<h2>{_t(T._UEBERSCHRIFT_WEG)}</h2>"
         f"<details><summary>{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}"
-        f"</summary>{journal}</details>",
+        f"</summary>{journal}</details>"
+    )
+
+
+def gruppe_html(
+    daten: dict,
+    nonce_wert: str | None = None,
+    token: str | None = None,
+    praefix: str = VORGABE_PRAEFIX,
+    fassungswahl: dict[int, int] | None = None,
+) -> str:
+    """Die Gruppenseite aus web_daten.gruppe_nach_token().
+
+    Ohne ``nonce_wert`` bleibt sie, was sie war: eine Leseansicht. Mit
+    ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
+    Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
+    Feld in der Seite (siehe ``nonce``).
+
+    Mit ``token`` steht oben der Link zur **Probenansicht** (06.09.2026): die
+    Gruppenseite ist die Werkstatt, die Probenansicht das Stueck am Stueck.
+    Ohne Token faellt der Link weg -- die Seite laesst sich weiter ohne ihn
+    rendern (Tests, spaetere Aufrufer).
+
+    ``fassungswahl`` ist ``{szene_id: nummer}`` aus der Query (``?szene=…&
+    fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung
+    angezeigt wird -- sie schreibt nichts und bleibt deshalb in der URL statt
+    in der Datenbank."""
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
+    return _seite(
+        T._TITEL_GRUPPENSEITE.format(titel=titel),
+        _CSS_GRUPPE,
+        gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
         bearbeitbar=bool(nonce_wert),
     )
 
@@ -2805,6 +2829,10 @@ body[data-schrift="klein"] .text { font-size: 1rem; line-height: 1.45; }
 #: aus, bleibt das ganze Stueck lesbar; nur die Leisten wirken dann nicht.
 _TEXTBUCH_JS = """
 (function () {
+  // Die Wurzel, an der der Zustand haengt. Auf der Probenansicht ist das
+  // der <body> (er traegt selbst data-textbuch); auf der vereinten Seite
+  // (Karte W) das Panel -- sonst faerbte der Rollenfilter auch den Chat.
+  var wurzel = document.querySelector('[data-textbuch]') || document.body;
   var lies = function () {
     var s = {};
     location.hash.replace(/^#/, '').split('&').forEach(function (paar) {
@@ -2819,7 +2847,11 @@ _TEXTBUCH_JS = """
     var s = lies();
     if (wert) { s[name] = wert; } else { delete s[name]; }
     var text = Object.keys(s).map(function (k) {
-      return encodeURIComponent(k) + '=' + encodeURIComponent(s[k]);
+      // Ein Schluessel ohne Wert bleibt ohne Gleichheitszeichen: so
+      // ueberlebt '#textbuch' (der Tab der vereinten Seite) einen Klick auf
+      // den Rollenfilter, statt zu '#textbuch=' zu werden.
+      return s[k] === '' ? encodeURIComponent(k)
+        : encodeURIComponent(k) + '=' + encodeURIComponent(s[k]);
     }).join('&');
     // Ueber location.hash, damit der Zurueck-Knopf des Browsers den
     // vorigen Zustand wiederherstellt -- und damit der Link, den jemand
@@ -2830,30 +2862,30 @@ _TEXTBUCH_JS = """
   var wende_an = function () {
     var s = lies();
     var figur = (s.figur || '').trim();
-    var koerper = document.body;
+    var koerper = wurzel;
     var schluessel = '';
-    document.querySelectorAll('.rolle').forEach(function (knopf) {
+    wurzel.querySelectorAll('.rolle').forEach(function (knopf) {
       var name = knopf.dataset.name || '';
       var passt = figur !== '' && name.toLowerCase() === figur.toLowerCase();
       if (passt) { schluessel = knopf.dataset.figur || ''; }
       knopf.setAttribute('aria-pressed', passt ? 'true' : 'false');
     });
-    var alle = document.querySelector('.rolle[data-figur=""]');
+    var alle = wurzel.querySelector('.rolle[data-figur=""]');
     if (alle && !schluessel) { alle.setAttribute('aria-pressed', 'true'); }
     if (schluessel) { koerper.dataset.figur = schluessel; }
     else { delete koerper.dataset.figur; }
-    document.querySelectorAll('.replik').forEach(function (p) {
+    wurzel.querySelectorAll('.replik').forEach(function (p) {
       p.classList.toggle('aktiv', !!schluessel && p.dataset.figur === schluessel);
     });
     var schrift = s.schrift || 'mittel';
     koerper.dataset.schrift = schrift;
-    document.querySelectorAll('.schrift').forEach(function (knopf) {
+    wurzel.querySelectorAll('.schrift').forEach(function (knopf) {
       knopf.setAttribute(
         'aria-pressed', knopf.dataset.schrift === schrift ? 'true' : 'false');
     });
     var ohne = (s.regie || '') === 'aus';
     koerper.classList.toggle('ohne-regie', ohne);
-    document.querySelectorAll('.regie-schalter').forEach(function (knopf) {
+    wurzel.querySelectorAll('.regie-schalter').forEach(function (knopf) {
       knopf.setAttribute('aria-pressed', ohne ? 'true' : 'false');
     });
   };
@@ -2865,7 +2897,7 @@ _TEXTBUCH_JS = """
     } else if (knopf.classList.contains('schrift')) {
       schreib('schrift', knopf.dataset.schrift || '');
     } else if (knopf.classList.contains('regie-schalter')) {
-      schreib('regie', document.body.classList.contains('ohne-regie') ? '' : 'aus');
+      schreib('regie', wurzel.classList.contains('ohne-regie') ? '' : 'aus');
     }
   });
   window.addEventListener('hashchange', wende_an);
@@ -2874,16 +2906,17 @@ _TEXTBUCH_JS = """
 """
 
 
-def textbuch_html(
+def textbuch_koerper(
     daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
 ) -> str:
-    """Die Probenansicht aus ``web_daten.gruppe_nach_token()``.
+    """Der Rumpf der Probenansicht -- ohne die Klammer aus ``_seite``.
 
-    Enthaelt **ausschliesslich** Szenentexte und Szenenplanung. Kein
-    Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
-    Nachrichtentext -- die Grenze aus AGENTS.md ("Weboberflaeche") gilt hier
-    strenger als auf der Gruppenseite, weil dieser Link im Probenraum
-    herumgereicht wird."""
+    Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W), siehe
+    ``gruppe_koerper``. Enthaelt **ausschliesslich** Szenentexte und
+    Szenenplanung. Kein Interview, kein Journal, kein Belegzitat, keine
+    Verdichtung, kein Nachrichtentext -- die Grenze aus AGENTS.md
+    ("Weboberflaeche") gilt hier strenger als auf der Gruppenseite, weil
+    dieser Link im Probenraum herumgereicht wird."""
     bekannte = {(f["name"] or "").upper() for f in daten["figuren"] if f.get("name")}
     abschnitte = []
     sprecher: list[str] = []
@@ -2918,15 +2951,33 @@ def textbuch_html(
         f"{_t(T._TEXT_REGIE_AUS)}</button></div>"
     )
     kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
-    return _seite(
-        kopfzeile,
-        _CSS_TEXTBUCH,
+    return (
         f"<h1>{_t(kopfzeile)}</h1>\n"
         f"{wege}{leisten}\n"
         f'<article class="stueck">{stueck}</article>\n'
-        f'<p class="hinweis-druck leer">{_t(T._TEXT_DRUCKEN)}</p>',
+        f'<p class="hinweis-druck leer">{_t(T._TEXT_DRUCKEN)}</p>'
+    )
+
+
+def textbuch_html(
+    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
+) -> str:
+    """Die Probenansicht aus ``web_daten.gruppe_nach_token()``.
+
+    Enthaelt **ausschliesslich** Szenentexte und Szenenplanung. Kein
+    Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
+    Nachrichtentext -- die Grenze aus AGENTS.md ("Weboberflaeche") gilt hier
+    strenger als auf der Gruppenseite, weil dieser Link im Probenraum
+    herumgereicht wird."""
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
+    kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
+    return _seite(
+        kopfzeile,
+        _CSS_TEXTBUCH,
+        textbuch_koerper(daten, token, praefix),
         nachladen=False,
         skript=_TEXTBUCH_JS,
+        koerper_attribute=' data-textbuch=""',
     )
 #: Was auf der Leitfaden-Seite steht, solange es keinen gibt. Ruhig und ohne
 #: Fehlerton: die Seite ist richtig, der Leitfaden ist nur noch nicht fertig.
@@ -3138,14 +3189,47 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
         daten["token"] = token
         handler._antworte(200, leitfaden_html(daten))
         return
-    # Der Chat im Browser (30.09.2026, Karte Padua A2). Nur die Weiche steht
-    # hier -- HTML, CSS, JS und Handler liegen in web_chat.py, damit diese
-    # Datei nicht weiter waechst. Der Import steht in der Funktion, wie bei
-    # ``leitfaden`` und ``szenenfolge``: web_chat importiert seinerseits
+    # Der Chat im Browser (30.09.2026, Karte Padua A2) und die vereinte Seite
+    # (30.09.2026, Karte W). Nur die Weiche steht hier -- HTML, CSS, JS und
+    # Handler liegen in web_chat.py bzw. web_vereint.py, damit diese Datei
+    # nicht weiter waechst. Der Import steht in der Funktion, wie bei
+    # ``leitfaden`` und ``szenenfolge``: beide Module importieren ihrerseits
     # ``web`` (fuer ``_seite``), und das waere im Modulkopf ein Zyklus.
-    from interview_theater import web_chat
+    from interview_theater import web_chat, web_vereint
 
-    if unterpfad == web_chat.CHAT_PFAD or unterpfad.startswith(web_chat.CHAT_PFAD + "/"):
+    if unterpfad.startswith(web_vereint.TEIL_PFAD + "/"):
+        web_vereint.sende_teil(
+            handler, db_pfad, token,
+            unterpfad[len(web_vereint.TEIL_PFAD) + 1:], praefix, schluessel, query,
+        )
+        return
+    if unterpfad == web_chat.CHAT_PFAD:
+        # Ein Schraegstrich am Ende (``/chat/``) bleibt 404 wie bisher
+        # (Review-Befund 12, ``web_chat.beantworte_get``): ``rest.strip("/")``
+        # oben hat ihn schon verschluckt, deshalb der Blick auf den rohen Pfad.
+        if urllib.parse.urlsplit(handler.path).path.endswith("/"):
+            handler._antworte(404, nicht_gefunden_html())
+            return
+        # Abschlussreview I3 gilt weiter: eine Telegram-Gruppe hat keinen Bot,
+        # der ``web_post`` liest, und ``/chat`` bleibt dort 404 -- nicht etwa
+        # ein Umweg auf die (fuer jede Gruppe gueltige) vereinte Seite.
+        lesend = web_daten.oeffne_lesend(db_pfad)
+        try:
+            ist_web_gruppe = web_daten.web_chat_id_nach_token(lesend, token) is not None
+        finally:
+            lesend.close()
+        if not ist_web_gruppe:
+            handler._antworte(404, nicht_gefunden_html())
+            return
+        # Die Chatansicht ist in der vereinten Seite aufgegangen (Karte W) --
+        # zwei Chats nebeneinander waeren zwei Zustaende. Gedruckte Links aus
+        # der Zeit von Karte A2 landen im richtigen Tab.
+        handler.send_response(302)
+        handler.send_header("Location", f"{praefix}/g/{token}#{web_vereint.VORGABE_TAB}")
+        handler.send_header("Content-Length", "0")
+        handler.end_headers()
+        return
+    if unterpfad.startswith(web_chat.CHAT_PFAD + "/"):
         web_chat.beantworte_get(
             handler, db_pfad, token,
             unterpfad[len(web_chat.CHAT_PFAD):].strip("/"),
@@ -3155,19 +3239,14 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
     if unterpfad not in ("", "textbuch"):
         handler._antworte(404, nicht_gefunden_html())
         return
-    daten = handler._gruppe(token)
-    if daten is None:
-        handler._antworte(404, nicht_gefunden_html())
-    elif unterpfad == "textbuch":
-        handler._antworte(200, textbuch_html(daten, token, praefix))
-    else:
-        handler._antworte(
-            200,
-            gruppe_html(
-                daten, nonce(schluessel, token), token, praefix,
-                fassungswahl(query),
-            ),
-        )
+    if unterpfad == "textbuch":
+        daten = handler._gruppe(token)
+        if daten is None:
+            handler._antworte(404, nicht_gefunden_html())
+        else:
+            handler._antworte(200, textbuch_html(daten, token, praefix))
+        return
+    web_vereint.beantworte_seite(handler, db_pfad, token, praefix, schluessel, query)
 
 
 def _sende_textbuch_datei(handler, db_pfad: str, token: str, name: str) -> None:

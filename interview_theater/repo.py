@@ -3854,3 +3854,93 @@ def gab_es_vorfall_seit(conn: sqlite3.Connection, chat_id: int, art: str,
         (chat_id, art, ab_iso),
     ).fetchone()
     return zeile is not None
+
+
+# --- Der laufende Text (30.09.2026, Karte W) -------------------------------
+
+STROM_LAEUFT = "laeuft"
+STROM_FERTIG = "fertig"
+STROM_ABGEBROCHEN = "abgebrochen"
+
+
+@_gesperrt
+def beginne_strom(conn, chat_id: int, art: str) -> int:
+    """Legt die Zeile fuer einen laufenden Aufruf an und liefert ihre id."""
+    jetzt = _jetzt()
+    zeiger = conn.execute(
+        "INSERT INTO web_strom (chat_id, art, text, zustand, begonnen_am, "
+        "aktualisiert_am) VALUES (?, ?, '', ?, ?, ?)",
+        (chat_id, art, STROM_LAEUFT, jetzt, jetzt),
+    )
+    conn.commit()
+    return zeiger.lastrowid
+
+
+@_gesperrt
+def schreibe_strom(conn, strom_id: int, text: str) -> None:
+    """Der bisherige sichtbare Text. Wird gedrosselt gerufen
+    (``strom.INTERVALL_S``), nicht je Zeichen."""
+    conn.execute(
+        "UPDATE web_strom SET text = ?, aktualisiert_am = ? WHERE id = ?",
+        (text, _jetzt(), strom_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def beende_strom(conn, strom_id: int, zustand: str,
+                 post_id: int | None = None) -> None:
+    """Schliesst die Zeile ab. ``post_id`` ist die ``web_post``-Zeile der
+    fertigen Nachricht -- daran erkennt die Ansicht, welche vorlaeufige Blase
+    sie durch welche Nachricht ersetzt."""
+    conn.execute(
+        "UPDATE web_strom SET zustand = ?, post_id = ?, aktualisiert_am = ? "
+        "WHERE id = ?",
+        (zustand, post_id, _jetzt(), strom_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hole_strom(conn, strom_id: int):
+    return conn.execute(
+        "SELECT * FROM web_strom WHERE id = ?", (strom_id,)
+    ).fetchone()
+
+
+@_gesperrt
+def laufende_stroeme(conn, chat_id: int) -> list:
+    """Die noch offenen Zeilen dieser Gruppe, aelteste zuerst.
+
+    Die Roadmap liest sie fuer den Zustand 'laeuft' -- und nur sie: ein
+    Szenenlauf-Lock lebt im Bot-Prozess und ist fuer den Webserver
+    unsichtbar.
+
+    Eine verwaiste Zeile (seit ``db.STROM_VERALTET_S`` nicht geschrieben)
+    zaehlt nicht -- dieselbe Grenze wie in ``web_daten``, damit Bot und
+    Webserver dieselbe Roadmap zeigen (Aufgabe 14, Fix-Runde 1)."""
+    from interview_theater import db
+
+    return conn.execute(
+        "SELECT * FROM web_strom WHERE chat_id = ? AND zustand = ? "
+        "AND aktualisiert_am >= ? ORDER BY id ASC",
+        (chat_id, STROM_LAEUFT, db.strom_grenze()),
+    ).fetchall()
+
+
+@_gesperrt
+def brich_laufende_stroeme_ab(conn, chat_id: int) -> int:
+    """Schliesst alle laufenden Stromzeilen einer Gruppe als
+    ``abgebrochen`` -- beim Start des Web-Bots (``bot.baue_kanal``).
+
+    Ein frisch gestarteter Prozess hat keinen Lauf: was jetzt noch auf
+    ``laeuft`` steht, hat ein gestorbener Vorgaenger hinterlassen, und die
+    Ansicht zeigte seine halbe Antwort sonst ohne Ende (Aufgabe 14,
+    Fix-Runde 1). Liefert die Zahl der geschlossenen Zeilen."""
+    zeiger = conn.execute(
+        "UPDATE web_strom SET zustand = ?, post_id = NULL, aktualisiert_am = ? "
+        "WHERE chat_id = ? AND zustand = ?",
+        (STROM_ABGEBROCHEN, _jetzt(), chat_id, STROM_LAEUFT),
+    )
+    conn.commit()
+    return zeiger.rowcount

@@ -46,7 +46,7 @@ class KLMAttrappe:
         self._antwort = antwort
         self.gesehen = []  # Liste der 'nutzer'-Prompts, mit denen sie aufgerufen wurde
 
-    def schema(self, chat_id, system, nutzer, schema, art):
+    def schema(self, chat_id, system, nutzer, schema, art, bei_teil=None):
         self.gesehen.append(nutzer)
         return {"antwort": self._antwort}
 
@@ -54,7 +54,7 @@ class KLMAttrappe:
 class KLMKaputt:
     """Ersetzt interview_theater.llm.LLM: schlaegt immer fehl."""
 
-    def schema(self, chat_id, system, nutzer, schema, art):
+    def schema(self, chat_id, system, nutzer, schema, art, bei_teil=None):
         raise RuntimeError("Sprachmodell nicht erreichbar (simuliert)")
 
 
@@ -122,7 +122,7 @@ def test_nachzuegler_werden_in_einen_zug_gesammelt(conn, einst, tg):
         def __init__(self):
             self.gesehen = []
 
-        def schema(self, chat_id, system, nutzer, schema, art):
+        def schema(self, chat_id, system, nutzer, schema, art, bei_teil=None):
             self.gesehen.append(nutzer)
             if len(self.gesehen) == 1:
                 gestartet.set()
@@ -574,7 +574,7 @@ class KLMNacheinander:
         self._antworten = list(antworten)
         self.gesehen = []
 
-    def schema(self, chat_id, system, nutzer, schema, art):
+    def schema(self, chat_id, system, nutzer, schema, art, bei_teil=None):
         self.gesehen.append(nutzer)
         index = min(len(self.gesehen) - 1, len(self._antworten) - 1)
         return dict(antwort=self._antworten[index])
@@ -629,7 +629,7 @@ def test_scheitert_der_zweite_anlauf_gilt_der_erste(conn, einst, tg):
         def __init__(self):
             self.gesehen = []
 
-        def schema(self, chat_id, system, nutzer, schema, art):
+        def schema(self, chat_id, system, nutzer, schema, art, bei_teil=None):
             self.gesehen.append(nutzer)
             if len(self.gesehen) == 2:
                 raise RuntimeError("zweiter Anlauf gescheitert (simuliert)")

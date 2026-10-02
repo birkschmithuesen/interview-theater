@@ -129,7 +129,7 @@ def test_ein_gescheiterter_szenenlauf_loest_keinen_nachpass_aus(szene7, tg, eins
             self.aufrufe = []
 
         def prosa(self, chat_id, system, nutzer, art, max_tokens=None,
-                  timeout=None):
+                  timeout=None, bei_teil=None):
             self.aufrufe.append(art)
             raise RuntimeError("Modell weg")
 

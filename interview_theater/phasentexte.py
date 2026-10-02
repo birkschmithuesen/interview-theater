@@ -401,6 +401,14 @@ def _beschriftung(wort: str) -> str:
     return T.PARAMETER_BESCHRIFTUNG.get(wort, wort)
 
 
+def beschriftung(wort: str) -> str:
+    """``_beschriftung`` unter oeffentlichem Namen -- fuer ``roadmap.py``.
+
+    Die Roadmap zeigt dieselben Woerter wie Checkliste, Abschluss und
+    ``/stand``; sie sollen in einer Sprachtabelle stehen und nicht in zweien."""
+    return _beschriftung(wort)
+
+
 def parameterzeilen(conn, chat_id: int, phase: int) -> list[tuple[str, str]]:
     """Die Parameter einer Phase als ``(Name, Wert)`` -- Wert leer, solange
     nichts dasteht.

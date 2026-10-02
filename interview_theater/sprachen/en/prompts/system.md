@@ -41,7 +41,7 @@ is not written.
 
 **There doesn't always have to be a conflict.** Not every scene needs one
 -- it can be a song, a chorus or a harmonious scene. A continuous main
-conflict is ONE possible framing decision in station 5, not a precondition
+conflict is ONE possible framing decision in station 4, not a precondition
 for anything. Ask about it, offer it, and take no for an answer.
 
 Which station the group is working on is recorded and appears as "Current

@@ -684,6 +684,15 @@ def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
         )["antwort"]
     except Exception:
         log.exception("Zweiter Anlauf nach Echo fehlgeschlagen, chat_id=%s", chat_id)
+        # Der erste Anlauf gilt -- dann muss auch die Stromzeile ihn tragen
+        # und nicht den halben Text des gescheiterten zweiten (Fix-Runde 1,
+        # Befund 3): verwerfen und neu beginnen, mit genau dem Text, der
+        # gleich verschickt wird.
+        if bei_teil is not None:
+            neu = getattr(bei_teil, "neu", None)
+            if callable(neu):
+                neu()
+            bei_teil(antwort)
         return antwort
     if ist_echo(zweite, offen):
         repo.merke_vorfall(
@@ -1193,7 +1202,14 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
     except Exception:
         log.exception("Leiste am Auftragszug fehlgeschlagen, chat_id=%s", chat_id)
         text = vorschlag.ohne_marker(text) or text
-        message_id = tg.sende(chat_id, text)
+        try:
+            message_id = tg.sende(chat_id, text)
+        except Exception:
+            # Auch der Rueckfall ist gescheitert: keine Nachricht, also auch
+            # keine Blase, die auf sie wartet (Fix-Runde 1, Befund 5). Der
+            # Fehler fliegt weiter wie bisher.
+            strom.verwirf(tg, chat_id)
+            raise
     strom.schliesse(tg, chat_id, message_id)
     try:
         repo.merke_nachricht(

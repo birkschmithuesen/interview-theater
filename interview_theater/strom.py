@@ -238,19 +238,37 @@ def senke(tg, chat_id: int, art: str):
     return holen(chat_id, art) if callable(holen) else None
 
 
-def schliesse(tg, chat_id: int, post_id: int | None = None) -> None:
-    """Der Strom dieses Zuges ist zu Ende und die Nachricht steht."""
-    _abschluss(tg, chat_id, post_id=post_id, abgebrochen=False)
+def schliesse(tg, chat_id: int, post_id: int | None = None, *, senke=None) -> None:
+    """Der Strom dieses Zuges ist zu Ende und die Nachricht steht.
+
+    **Welcher Strom** (Fix-Runde 1, Befund 1): mit ``senke`` genau dieser --
+    so schliessen Szenen- und Prosalauf, die ihre Senke selbst halten. Ohne
+    ``senke`` der, den **dieser Thread** fuer diese Gruppe geoeffnet hat
+    (``ablauf.antworte``, ``auftragszug``). Nie "der eine der Gruppe": ein
+    Szenenlauf und ein Gespraechszug laufen im Betrieb gleichzeitig."""
+    _abschluss(tg, chat_id, post_id=post_id, abgebrochen=False, senke=senke)
 
 
-def verwirf(tg, chat_id: int) -> None:
+def verwirf(tg, chat_id: int, *, senke=None) -> None:
     """Der Zug ist gescheitert oder die Antwort wurde verworfen -- die
     vorlaeufige Blase verschwindet, ohne dass eine Nachricht an ihre Stelle
-    tritt."""
-    _abschluss(tg, chat_id, post_id=None, abgebrochen=True)
+    tritt. ``senke`` wie bei ``schliesse``."""
+    _abschluss(tg, chat_id, post_id=None, abgebrochen=True, senke=senke)
 
 
-def _abschluss(tg, chat_id: int, *, post_id: int | None, abgebrochen: bool) -> None:
+def _abschluss(tg, chat_id: int, *, post_id: int | None, abgebrochen: bool,
+               senke=None) -> None:
     fertig = getattr(tg, "strom_abschluss", None)
     if callable(fertig):
-        fertig(chat_id, post_id=post_id, abgebrochen=abgebrochen)
+        if senke is None:
+            fertig(chat_id, post_id=post_id, abgebrochen=abgebrochen)
+        else:
+            fertig(chat_id, post_id=post_id, abgebrochen=abgebrochen, senke=senke)
+        return
+    # Ein Kanal ohne Verzeichnis, aber mit einer Senke in der Hand: sie
+    # selbst abschliessen, damit keine Zeile offen bleibt.
+    if senke is not None:
+        if abgebrochen:
+            senke.abbruch()
+        else:
+            senke.fertig(post_id)

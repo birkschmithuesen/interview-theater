@@ -419,8 +419,10 @@ def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
     # Kein ``post_id``: die Geschichte geht als eigene Nachrichten raus
     # (Abschnitt fuer Abschnitt ueber ``knoepfe.zeige_kurzgeschichte``), nicht
     # als eine. 'fertig' ohne post_id heisst fuer die Ansicht schlicht: die
-    # vorlaeufige Blase darf weg.
-    strom.schliesse(tg, chat_id)
+    # vorlaeufige Blase darf weg. Ueber die Senke selbst (Fix-Runde 1,
+    # Befund 1) -- ein Gespraechszug daneben bleibt unberuehrt.
+    if bei_teil is not None:
+        strom.schliesse(tg, chat_id, senke=bei_teil)
     if eintraege:
         # Der Wuerfel ist reproduzierbar (Seed = chat_id), aber niemand soll
         # ihn nachrechnen muessen, um zu verstehen, warum Abschnitt 2 laenger
@@ -498,7 +500,8 @@ def starte(
                                   "Prosa-Nachpass gescheitert")
         except Exception:
             log.exception("Kurzgeschichte fehlgeschlagen, chat_id=%s", chat_id)
-            strom.verwirf(tg, chat_id)
+            if senke is not None:
+                strom.verwirf(tg, chat_id, senke=senke)
             try:
                 repo.merke_vorfall(
                     conn, chat_id, getattr(e, "bot_name", None),

@@ -1588,37 +1588,6 @@ def _laufende_stromart(conn: sqlite3.Connection, chat_id: int) -> str | None:
     return zeile["art"] if zeile else None
 
 
-def web_stromlage(conn: sqlite3.Connection, chat_id: int,
-                  nach: int = 0) -> dict | None:
-    """Die juengste Stromzeile dieser Gruppe -- read-only.
-
-    ``nach`` ist die id, die der Browser schon kennt: eine **aeltere** Zeile
-    interessiert ihn nicht mehr. Eine laufende Zeile kommt immer, auch wenn
-    ihre id gleich ``nach`` ist -- sonst saehe niemand, wie ihr Text waechst.
-
-    Achtung: pro Gruppe koennen mehrere Zeilen zugleich laufen (Prosalauf und
-    Gespraechszug). Der SSE-Kanal liest deshalb nicht diese Funktion, sondern
-    ``web_stromanfang`` + ``web_stromzeilen``.
-
-    Fehlt die Tabelle noch (Datenbank aus der Zeit davor), ist das Ergebnis
-    ``None`` statt ein Fehler: der Webserver migriert nichts."""
-    from interview_theater import db
-
-    try:
-        zeile = conn.execute(
-            "SELECT id, art, text, zustand, post_id, aktualisiert_am FROM web_strom "
-            "WHERE chat_id = ? ORDER BY id DESC LIMIT 1",
-            (chat_id,),
-        ).fetchone()
-    except sqlite3.OperationalError:
-        return None
-    if zeile is None:
-        return None
-    if zeile["id"] < nach:
-        return None
-    return _stromzeile(zeile, db.strom_grenze())
-
-
 def web_stromanfang(conn: sqlite3.Connection, chat_id: int,
                     nach: int = 0) -> int | None:
     """Ab welcher id ein SSE-Strom liefert -- oder None, wenn es nichts gibt.
@@ -1653,9 +1622,9 @@ def web_stromanfang(conn: sqlite3.Connection, chat_id: int,
 def web_stromzeilen(conn: sqlite3.Connection, chat_id: int,
                     ab: int) -> list[dict]:
     """Alle Stromzeilen der Gruppe mit ``id >= ab``, aelteste zuerst --
-    read-only, je Zeile dieselben fuenf Felder wie ``web_stromlage``. Eine
-    verwaiste Zeile kommt als ``abgebrochen`` (``_stromzeile``) -- so endet
-    auch der SSE-Strom, der an ihr hing."""
+    read-only, je Zeile dieselben fuenf Felder (``id``, ``art``, ``text``,
+    ``zustand``, ``post_id``). Eine verwaiste Zeile kommt als ``abgebrochen``
+    (``_stromzeile``) -- so endet auch der SSE-Strom, der an ihr hing."""
     from interview_theater import db
 
     try:

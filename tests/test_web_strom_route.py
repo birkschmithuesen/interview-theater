@@ -14,7 +14,7 @@ import time
 
 import pytest
 
-from interview_theater import db, repo, web, web_daten, web_vereint
+from interview_theater import db, repo, web, web_vereint
 
 CHAT = 7_000_000_000_001
 
@@ -291,15 +291,3 @@ def test_nach_ueberspringt_bekannte_fertige_zeilen(aufbau):
     assert laufend in ids
     assert ereignisse[-1]["id"] == laufend
     assert ereignisse[-1]["post_id"] == 3
-
-
-def test_stromlage_liefert_die_juengste_zeile(aufbau):
-    _port, _token, conn = aufbau
-    assert web_daten.web_stromlage(conn, CHAT) is None
-    erste = repo.beginne_strom(conn, CHAT, "prosa")
-    zweite = repo.beginne_strom(conn, CHAT, "gespraech")
-    lage = web_daten.web_stromlage(conn, CHAT)
-    assert lage["id"] == zweite
-    assert set(lage) == {"id", "art", "text", "zustand", "post_id"}
-    assert web_daten.web_stromlage(conn, CHAT, nach=zweite + 1) is None
-    assert erste < zweite

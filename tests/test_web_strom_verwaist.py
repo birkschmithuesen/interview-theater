@@ -149,12 +149,6 @@ def test_stromanfang_haelt_sich_nicht_an_einer_verwaisten_zeile_fest(conn):
     assert web_daten.web_stromanfang(conn, CHAT, juenger + 1) == juenger + 1
 
 
-def test_stromlage_meldet_eine_verwaiste_zeile_als_abgebrochen(conn):
-    zeile = repo.beginne_strom(conn, CHAT, "szene")
-    _altere(conn, zeile, db.STROM_VERALTET_S + 5)
-    assert web_daten.web_stromlage(conn, CHAT)["zustand"] == "abgebrochen"
-
-
 def test_die_roadmap_ist_auf_beiden_wegen_gleich(conn):
     """``roadmap.register`` (Bot, ueber ``repo.laufende_stroeme``) und
     ``web_daten.roadmap`` (Webserver) sehen dieselbe laufende Zeile -- die

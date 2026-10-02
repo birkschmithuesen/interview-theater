@@ -626,20 +626,26 @@ def test_das_setting_traegt_die_grundleiste_und_wird_gespeichert(conn, tg, einst
     assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Eine Nacht im Treppenhaus"
 
 
-def test_nach_dem_setting_kommt_die_frage_nach_der_figurenanzahl(conn, tg, einst):
-    """Die Kette der Phase 4: steht das Setting, kommt sofort die Frage nach
-    der Figurenanzahl -- deterministisch, ohne Modellaufruf."""
+def test_nach_dem_setting_kommt_keine_automatische_figurenanzahl_mehr(
+    conn, tg, einst
+):
+    """Padua-Brainstorming-Umbau (02.10.2026): Phase 4 hat keine feste Kette
+    mehr -- steht das Setting, kommt KEINE automatische Frage nach der
+    Figurenanzahl (die Zahlen-Knoepfe bleiben ein Weg auf Anfrage, siehe
+    ``test_eine_gewaehlte_zahl_speichert_und_fordert_genau_so_viele_an``),
+    nur die Bestaetigung plus die allgemeine Weiterfrage."""
     phasen.setze(conn, 1, 4, "befehl")
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG RAHMEN:\nEine Nacht im Treppenhaus"
     )
+    anzahl_knoepfe_vorher = len(tg.knoepfe)
 
     _druecke(conn, tg, einst, "Ja, speichern")
 
-    assert [b for b, _ in tg.knoepfe[-1][2]] == [
-        "1", "2", "3", "4", "5", "6", "Andere Zahl",
-    ]
-    assert "Wie viele Figuren" in tg.knoepfe[-1][1]
+    assert len(tg.knoepfe) == anzahl_knoepfe_vorher
+    assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Eine Nacht im Treppenhaus"
+    assert any("Notiert" in text for _, text in tg.gesendet)
+    assert not any("Wie viele Figuren" in text for _, text in tg.gesendet)
 
 
 # --- Die freie Figurenanzahl ----------------------------------------------

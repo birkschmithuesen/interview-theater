@@ -173,13 +173,14 @@ def uebernimm_figurenanzahl(conn, tg, klm, e, chat_id: int, anzahl: int) -> None
 
 
 def _kette_weiter(conn, tg, klm, e, chat_id: int, art: str) -> None:
-    """Was nach dem Speichern einer Kettenart passiert."""
+    """Was nach dem Speichern einer Kettenart passiert.
+
+    ``rahmen`` ist seit dem Brainstorming-Umbau (Padua, 02.10.2026) kein
+    Kettenglied mehr (``texte._KETTE``) -- Phase 4 schlaegt die
+    Figurenanzahl nicht mehr automatisch vor, die Gruppe bringt sie von
+    selbst ein oder wird erst beim Phasenabschluss danach gefragt. Nur
+    Kernthema und Kernfrage bleiben rueckwaertskompatibel."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
-    if art == "rahmen":
-        # Das Setting steht -- jetzt die Figuren, und wie viele es sein
-        # sollen, sagt die Gruppe (deterministisch, kein Modellaufruf).
-        biete_figurenanzahl(conn, tg, chat_id)
-        return
     if art == "kernthema":
         _starte_auftrag(
             conn, tg, klm, e, chat_id,
@@ -546,13 +547,13 @@ def stelle_figur_vor(conn, tg, klm, e, chat_id: int, figur=None) -> bool:
     sofort gesendete Fassung mit "Sprachduktus: entsteht gerade." blieb fuer
     immer stehen)."""
     if not ebene2_erlaubt(conn, chat_id):
-        # Phase 4: keine Interview-Frage und kein Sprachprofil-Lauf -- aber
-        # seit dem 06.09.2026 (Birk, 12:20) der **Sprachstil je Figur**: nach
-        # Name und "wer sie ist" EINE Nachricht "Wie spricht <Figur>?" mit
-        # zwei bis drei Optionen aus den Interviews. Steht kein Material
-        # bereit, ist die Liste wie bisher mit Ebene 1 fertig.
-        if stelle_stil_vor(conn, tg, klm, e, chat_id):
-            return True
+        # Phase 4 (Padua, 02.10.2026, Brainstorming-Umbau): kein
+        # Interview-Frage, kein Sprachprofil-Lauf und auch kein
+        # Sprachstil-Vorschlag mehr -- ``stelle_stil_vor`` zieht seine
+        # Optionen aus den Interviews, und genau das widerspricht der
+        # Materialfreiheit dieser Phase ("eigene Erfindung zuerst"). Die
+        # Funktion bleibt stehen (moeglicher Platz: Phase 5, wo Material
+        # ohnehin dazukommt), wird aber aus Phase 4 nicht mehr aufgerufen.
         return _schliesse_figuren_ab(conn, tg, chat_id)
     figur = figur if figur is not None else naechste_offene_figur(conn, chat_id)
     if figur is None:

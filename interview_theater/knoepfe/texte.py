@@ -845,11 +845,14 @@ _TEXT_FIGURENZAHL_UNKLAR = (
 
 #: Die Arten, nach deren Speichern der naechste Schritt von selbst kommt.
 #: Arten, die den Weg selbst weitertragen (statt der allgemeinen Frage
-#: "Wollt ihr noch etwas hinzufuegen?"). Seit dem Umbau vom 05.09.2026
-#: nachts ist das der **Rahmen**: steht das Setting, kommt sofort die Frage
-#: nach der Figurenanzahl. Kernthema und Kernfrage bleiben rueckwaerts-
-#: kompatibel drin -- angeboten werden sie nicht mehr.
-_KETTE = ("rahmen", "kernthema", "kernfrage")
+#: "Wollt ihr noch etwas hinzufuegen?"). **Rahmen ist seit dem Brainstorming-
+#: Umbau (Padua, 02.10.2026) kein Kettenglied mehr**: Phase 4 ist freies
+#: Brainstorming ohne feste Reihenfolge, die Figurenanzahl-Frage kommt nicht
+#: mehr automatisch aus dem Setting heraus (sie laeuft seitdem ueber den
+#: normalen Speicherweg mit ``uebergang=True``). Kernthema und Kernfrage
+#: bleiben rueckwaertskompatibel drin -- angeboten werden sie nicht mehr,
+#: aber ``/kernthema`` + eine modellgebaute Kernfrage erreichen sie noch.
+_KETTE = ("kernthema", "kernfrage")
 
 
 

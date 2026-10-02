@@ -462,6 +462,10 @@ def empfange(conn, tg, e, n: dict) -> int | None:
             tg.sende(chat_id, T._TEXT_DOWNLOAD_FEHLER)
         except Exception:
             log.exception("Download-Fehlermeldung fehlgeschlagen, chat_id=%s", chat_id)
+        # Review-Fund zu B7: ohne aufnahme-Zeile hinge die Blase sonst fuer
+        # immer auf "wird abgetippt" -- das Zeichen kommt hier ueber
+        # ``aenderung`` (``web_daten._ABGETIPPT``), nicht ueber einen Status.
+        _web_sprachblase(conn, chat_id, message_id, None)
         return None
 
     return repo.lege_aufnahme_an(

@@ -1356,10 +1356,16 @@ _CHAT_VERBORGEN = ("befehl",)
 #: Aufnahme weder ``fertig`` noch ``fehlgeschlagen`` ist (oder es sie beim Bot
 #: noch gar nicht gibt), zeigt die Blase den Platzhalter. Den Wechsel meldet
 #: ``repo.setze_web_sprachtext`` ueber ``aenderung`` (``aufnahme._web_sprachblase``).
+#: Ein gesetztes ``aenderung`` zaehlt selbst als "abgetippt": bei eingehenden
+#: Sprachzeilen setzt es nur ``setze_web_sprachtext`` (und das weiche Loeschen,
+#: dessen Zeilen hier ohnehin herausfallen) -- und nur so kommt das Zeichen
+#: beim endgueltig gescheiterten Download an, der keine ``aufnahme``-Zeile
+#: hinterlaesst (Review-Fund zu B7).
 _ABGETIPPT = (
-    "CASE WHEN typ = 'sprache' THEN EXISTS (SELECT 1 FROM aufnahme a "
+    "CASE WHEN typ = 'sprache' THEN (aenderung IS NOT NULL OR EXISTS ("
+    "SELECT 1 FROM aufnahme a "
     "WHERE a.chat_id = web_post.chat_id AND a.message_id = web_post.id "
-    "AND a.status IN ('fertig', 'fehlgeschlagen')) END AS abgetippt"
+    "AND a.status IN ('fertig', 'fehlgeschlagen'))) END AS abgetippt"
 )
 
 

@@ -12,7 +12,8 @@ import pytest
 
 from interview_theater import aufnahme, db, einstellungen, repo, sprache, web_chat, web_daten, workshop
 from tests.test_aufnahme import (
-    TEIL_A, LLMAttrappe, TelegramAttrappe, sprachnachricht, stt_attrappe, stt_kaputt,
+    TEIL_A, LLMAttrappe, TelegramAttrappe, TelegramKaputterDownload, sprachnachricht,
+    stt_attrappe, stt_kaputt,
 )
 
 WEB = repo.WEB_CHAT_ID_BASIS
@@ -142,6 +143,38 @@ def test_endgueltiger_fehlschlag_nimmt_den_platzhalter_weg(conn, pfad, einst, tg
     assert repo.hole_aufnahme(conn, aid)["status"] == "fehlgeschlagen"
     _, (geaendert, _) = _lies(pfad, stand)
     assert [(z["id"], z["text"], z["abgetippt"]) for z in geaendert] == [(post_id, None, True)]
+
+
+def test_gescheiterter_download_nimmt_den_platzhalter_weg(conn, pfad, einst, monkeypatch):
+    """Review-Fund zu B7: scheitert schon der Download endgueltig, entsteht
+    keine ``aufnahme``-Zeile (``empfange`` liefert ``None``). Ohne eigenes
+    Zeichen hinge die Blase sonst fuer immer auf "transcribing..." -- die
+    Gruppe hat die Bitte, es nochmal zu schicken, aber die alte Blase taete so,
+    als liefe noch etwas."""
+    monkeypatch.setattr(aufnahme.time, "sleep", lambda s: None)
+    post_id = repo.lege_web_post_an(conn, WEB, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+                                    dauer=5, mime="audio/webm")
+    stand = _stand(pfad)
+    aid = aufnahme.empfange(conn, TelegramKaputterDownload(), einst,
+                            sprachnachricht(dauer=5, message_id=post_id, chat_id=WEB))
+    assert aid is None
+
+    verlauf, (geaendert, _) = _lies(pfad, stand)
+    assert [(z["id"], z["text"], z["abgetippt"]) for z in geaendert] == [(post_id, None, True)]
+    assert verlauf[0]["abgetippt"] is True, "auch beim Seitenaufbau kein Platzhalter mehr"
+
+
+def test_unberuehrte_sprachzeile_bleibt_platzhalter(conn, pfad):
+    """Gegenprobe: ohne Aufnahme und ohne Aenderung laeuft die Zeile noch
+    (die Datei ist unterwegs) -- ``aenderung`` ist bei eingehenden
+    Sprachzeilen bis zum ersten ``setze_web_sprachtext`` NULL."""
+    post_id = repo.lege_web_post_an(conn, WEB, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+                                    dauer=5, mime="audio/webm")
+    repo.setze_web_datei(conn, post_id, "/tmp/x.webm")
+    assert conn.execute("SELECT aenderung FROM web_post WHERE id = ?",
+                        (post_id,)).fetchone()[0] is None
+    verlauf, _ = _lies(pfad, None)
+    assert verlauf[0]["abgetippt"] is False
 
 
 def test_telegram_gruppe_schreibt_nichts_in_web_post(conn, einst, tg, monkeypatch):

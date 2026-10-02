@@ -1629,17 +1629,32 @@ Netz.
 - **Phase 6 ist EINE Kurzgeschichte, nicht fünf Szenenläufe** (06.09.2026,
   Birk 11:50, `kurzgeschichte.py`). Ein Opus-Lauf schreibt aus Setting,
   Figuren (mit `figur.sprachstil`) und der gewählten Geschichte eine
-  zusammenhängende Kurzgeschichte, **und das Modell wählt die Zahl der
-  Abschnitte selbst** (typisch 3–7; die Szenenfolge aus Phase 4 ist
-  Anregung, nicht Vorgabe). Danach werden die Abschnitte zu Szenen —
+  zusammenhängende Kurzgeschichte. Danach werden die Abschnitte zu Szenen —
   `nummer`, `titel` = Überschrift, `prosa` = Abschnittstext, `was_passiert`
   aus der Pflichtzeile `Zusammenfassung:`, `ort`/`zeit`/`anlass` aus dem
   Setting (`szene.rahmenfelder`), **`form` bleibt NULL** (die entscheidet
-  der Feinschliff). Die bestehende Szenenfolge wird ersetzt (weich, wie
-  `szenenfolge.lege_an`), das Journal hält die Herkunft fest. Es gibt daher
-  **keine Vorgabe zur Abschnittszahl** im Prompt und keine Herkules-Zahlen
-  in `formen/prosa.md` — ein Test misst das (`test_teil4_kurzgeschichte`:
-  vier Überschriften → vier Szenen, sechs → sechs).
+  der Feinschliff). Die bestehende Szenenfolge wird dabei **abgeglichen, nicht
+  ersetzt** (`repo.gleiche_szenenfolge_ab`: gleiche Nummer → aktualisieren,
+  fehlende → ergänzen, überzählige → stehen lassen), das Journal hält die
+  Herkunft fest. Keine Herkules-Zahlen in `formen/prosa.md`.
+  **Wie viele Abschnitte, entscheidet die Szenenfolge** (Birk, 02.10.2026,
+  Karte P2-Fix): steht eine, bindet ihre Zahl — ein Abschnitt je geplanter
+  Szene, in deren Reihenfolge. Genannt wird sie im **Auftrag**
+  (`kurzgeschichte.abschnittszahl` → `_ZEILE_ABSCHNITTE`); trägt der
+  Nutzertext schon einen Längen-Block, nennt ihn dieser
+  (`laengen.SATZ_BINDUNG`) — **nie beide**, ein Fakt hat genau eine Stelle
+  im Prompt. Steht **keine** Szenenfolge, wählt das Modell die Zahl selbst
+  (typisch 3–7); `kurzgeschichte.ANWEISUNG` formuliert genau diese zwei
+  Fälle, weil eine Systemanweisung die Datenlage nicht kennt. Der Grund für
+  die Bindung ist der Abgleich oben: bei zu wenigen Abschnitten bleiben
+  prosalose Szenen stehen, und Phase 7 verlangt Prosa für **jede** geplante
+  Szene (`phasen.voraussetzungen`) — ohne Vorfall und ohne Zeile im Chat.
+  **Das ist die bekannte Grenze dieses Wegs** (Befund
+  `docs/prompt-audit/2026-10-02-padua-p2/BEFUND.md`): verfehlt das Modell
+  die bindende Zahl trotzdem, räumt niemand auf.
+  Die Zerlegung selbst hängt an keiner Zahl — ein Test misst das
+  (`test_teil4_kurzgeschichte`: vier Überschriften → vier Szenen, sechs →
+  sechs; dort ist **keine** Szenenfolge angelegt, also genau der freie Fall).
 
 - **Der Prosa-Lauf startet nur aus einem Knopf, und die USA-Frage steht beim
   Eintritt in Phase 6** (06.09.2026, Birk 12:25). Beim Eintritt kommen

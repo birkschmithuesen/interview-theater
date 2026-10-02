@@ -139,10 +139,18 @@ def eigene_herkunft(handler) -> bool:
       ``cross-site`` heisst ausdruecklich "von woanders" und faellt auch bei
       ``Origin: null`` (sandboxed iframe), wo der Vergleich unten nichts
       sagen kann.
-    * ``Origin`` -- verglichen gegen den ``Host``-Header. Nicht gegen
-      ``IT_WEB_URL``: hinter nginx kommt beim Server der interne Host an, und
-      eine Konfiguration, die im Betrieb nicht passt, waere ein 403 auf
-      alles.
+    * ``Origin`` -- verglichen gegen den ``Host``-Header **oder** den ersten
+      Wert von ``X-Forwarded-Host``. Nicht gegen ``IT_WEB_URL``: eine
+      Konfiguration, die im Betrieb nicht passt, waere ein 403 auf alles.
+      ``X-Forwarded-Host`` ist noetig, weil nginx ohne
+      ``proxy_set_header Host $host`` den internen Host weiterreicht
+      (``100.75.24.33:8010``), der Browser aber den oeffentlichen Origin
+      schickt -- sonst waere jeder echte POST ein 403 (Abschlussreview).
+      Das oeffnet nichts: eine fremde Seite kann im Browser keine eigene
+      Kopfzeile wie ``X-Forwarded-Host`` setzen, ohne einen CORS-Preflight
+      auszuloesen, und den beantwortet dieser Server nie. Ein Angreifer
+      ausserhalb eines Browsers kann sie setzen -- er kann aber auch den
+      Origin weglassen und landete schon bisher beim Nonce.
 
     **Fehlen beide, ist die Antwort True** und der Nonce entscheidet wie
     bisher. ``curl`` schickt keinen Origin, und das Reviewer-Drehbuch faehrt
@@ -156,11 +164,15 @@ def eigene_herkunft(handler) -> bool:
     herkunft = (handler.headers.get("Origin") or "").strip()
     if not herkunft:
         return True
-    wirt = (handler.headers.get("Host") or "").strip()
-    if not wirt:
+    wirt = (handler.headers.get("Host") or "").strip().lower()
+    weitergereicht = (
+        (handler.headers.get("X-Forwarded-Host") or "").split(",", 1)[0].strip().lower()
+    )
+    erlaubt = {w for w in (wirt, weitergereicht) if w}
+    if not erlaubt:
         return False
     eigene = urllib.parse.urlsplit(herkunft).netloc.lower()
-    return bool(eigene) and eigene == wirt.lower()
+    return bool(eigene) and eigene in erlaubt
 
 
 def maskiere_token(pfad: str) -> str:

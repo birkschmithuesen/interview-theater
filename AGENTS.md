@@ -2495,6 +2495,8 @@ limit_conn_zone $binary_remote_addr  zone=theatersoap_conn:10m;
 
 location /theatersoap/ {
     proxy_pass http://100.75.24.33:8010/theatersoap/;
+    proxy_set_header Host             $host;
+    proxy_set_header X-Forwarded-Host $host;
 
     # Etwas ueber der App-Grenze (8 MiB je Segment): nginx soll die
     # Verbindung kappen, bevor die App liest -- aber nicht frueher als sie,
@@ -2507,15 +2509,26 @@ location /theatersoap/ {
 
 location ~ ^/theatersoap/g/[^/]+/chat/audio$ {
     proxy_pass http://100.75.24.33:8010;
+    proxy_set_header Host             $host;
+    proxy_set_header X-Forwarded-Host $host;
     limit_req  zone=theatersoap_audio burst=20 nodelay;
     client_max_body_size 10m;
 }
 
 location ~ ^/theatersoap/g/[^/]+/chat/(senden|knopf|interview)$ {
     proxy_pass http://100.75.24.33:8010;
+    proxy_set_header Host             $host;
+    proxy_set_header X-Forwarded-Host $host;
     limit_req  zone=theatersoap_post burst=10 nodelay;
 }
 ```
+
+Die zwei `proxy_set_header`-Zeilen stehen in **jedem** `location`-Block (nginx
+erbt sie nicht in einen Block, der eigene Direktiven setzt), und sie sind keine
+Kür: `web.eigene_herkunft` vergleicht den `Origin` des Browsers mit `Host` oder
+dem ersten Wert von `X-Forwarded-Host` — reicht nginx nur den internen Host
+weiter (`$proxy_host`, die Vorgabe), wäre jeder echte POST aus dem Browser
+ein 403.
 
 Drei Hinweise dazu: die nginx-Zonen zaehlen je **IP**, die App je **Gruppe** —
 das ist Absicht, zwei Achsen fangen zwei verschiedene Angriffe. Die

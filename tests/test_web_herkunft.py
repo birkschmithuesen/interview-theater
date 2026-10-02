@@ -128,6 +128,58 @@ def test_die_herkunft_wird_vor_dem_nonce_geprueft(aufbau):
     assert web.TEXT_FREMDE_HERKUNFT in text
 
 
+def test_fremder_origin_ist_403_auch_auf_dem_chatweg(aufbau):
+    """Die Herkunft wird vor der Verzweigung in ``web_chat`` geprueft --
+    auch ``/chat/senden`` bekommt keinen fremden Browser durch."""
+    basis, token, _pfad = aufbau
+    status, text = _post(f"{basis}/g/{token}/chat/senden",
+                         {"nonce": web.nonce(SCHLUESSEL, token), "text": "hallo"},
+                         {"Origin": "https://boese.example"})
+    assert status == 403
+    assert web.TEXT_FREMDE_HERKUNFT in text
+
+
+# -- Hinter nginx: interner Host, oeffentlicher Origin --------------------
+
+#: So kommt eine Browser-Anfrage hinter nginx an, wenn ``proxy_set_header
+#: Host`` nicht gesetzt ist: der Host ist der interne, der Origin der
+#: oeffentliche, und ``X-Forwarded-Host`` traegt den oeffentlichen nach.
+INTERN = "100.75.24.33:8010"
+OEFFENTLICH = "lab.example.org"
+
+
+def test_hinter_dem_proxy_zaehlt_x_forwarded_host(aufbau):
+    basis, token, pfad = aufbau
+    status, _text = _post(f"{basis}/g/{token}", _gueltig(token), {
+        "Host": INTERN,
+        "X-Forwarded-Host": OEFFENTLICH,
+        "Origin": f"https://{OEFFENTLICH}",
+    })
+    assert status == 200
+    assert _rahmen(pfad) == "Ein Hinterhof im Regen"
+
+
+def test_x_forwarded_host_nimmt_den_ersten_wert_und_ignoriert_gross_klein(aufbau):
+    basis, token, _pfad = aufbau
+    status, _text = _post(f"{basis}/g/{token}", _gueltig(token), {
+        "Host": INTERN,
+        "X-Forwarded-Host": f" {OEFFENTLICH.upper()} , intern.example",
+        "Origin": f"https://{OEFFENTLICH}",
+    })
+    assert status == 200
+
+
+def test_hinter_dem_proxy_bleibt_ein_fremder_origin_403(aufbau):
+    basis, token, pfad = aufbau
+    status, _text = _post(f"{basis}/g/{token}", _gueltig(token), {
+        "Host": INTERN,
+        "X-Forwarded-Host": OEFFENTLICH,
+        "Origin": "https://boese.example",
+    })
+    assert status == 403
+    assert _rahmen(pfad) == "Eine Nacht im Treppenhaus"
+
+
 # -- Der Nonce steht nicht mehr in der Logzeile ---------------------------
 
 

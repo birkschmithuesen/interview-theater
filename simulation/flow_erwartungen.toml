@@ -1,0 +1,149 @@
+# Typische Handlungen je Phase -- von Hand gepflegt (simulation/flow_audit.py
+# liest diese Datei, Pruefung ist mechanisch).
+#
+# Anlass: Birks Generalprobe, Phase 5 -- Chat-Feedback zu einem
+# Schaerfungsvorschlag loeste nichts aus, weil es dafuer keinen
+# Erkenner-Intent gibt, nur Knoepfe wirken. Kein Test hat das gemeldet.
+#
+# Jede Zeile ist eine Handlung, die eine Gruppe in dieser Phase typischerweise
+# versucht -- laut AGENTS.md ("Haltung", 06.09.2026: 64 % Fragen, 23
+# Auswahlknoepfe null Mal gedrueckt) ist Chat der Normalfall, der Knopf die
+# Abkuerzung.
+#
+# Felder:
+#   aktion   -- ein Satz, was die Gruppe tun will
+#   weg      -- "chat", "knopf" oder "beides": auf welchem Weg das laut
+#               Phasenprompt/UX-Entscheidung ankommen SOLL. "knopf" heisst:
+#               bewusst nur per Knopf (dokumentierte Entwurfsentscheidung,
+#               kein Befund, wenn kein Intent existiert).
+#   intent   -- Name aus erkenner.ARTEN, der die Handlung per Chat umsetzt,
+#               oder "" wenn es keinen gibt.
+#   knopf    -- ART_*-Konstante(n) aus interview_theater.knoepfe.texte, durch
+#               "|" getrennt, oder "" wenn es keinen Knopf gibt.
+#   beleg    -- AGENTS.md-Abschnitt oder Code-Stelle als Nachweis.
+
+[[phase.1]]
+aktion = "Begriffe per Chat nennen oder aendern"
+weg = "beides"
+intent = "begriffe_setzen"
+knopf = "ART_SPEICHERN"
+beleg = "erkenner.ARTEN; knoepfe/basis.py _speichere"
+
+[[phase.1]]
+aktion = "Einzelnen Begriff per Chat entfernen"
+weg = "chat"
+intent = "entfernen"
+knopf = ""
+beleg = "erkenner.ARTEN (entfernen, weiches Loeschen N3)"
+
+[[phase.2]]
+aktion = "Fragen vorschlagen oder per Chat auswaehlen"
+weg = "beides"
+intent = "fragen_setzen"
+knopf = "ART_FRAGE_WAHL|ART_FRAGEN_UEBERNEHMEN"
+beleg = "AGENTS.md 'Die Fragen sind eine Auswahl'"
+
+[[phase.2]]
+aktion = "Eigene Frage statt Vorschlag per Chat einbringen"
+weg = "chat"
+intent = "fragen_setzen"
+knopf = "ART_FRAGEN_EIGENE"
+beleg = "erkenner.ARTEN (fragen_setzen)"
+
+[[phase.3]]
+aktion = "Interview per Chat starten oder beenden"
+weg = "beides"
+intent = "interview_starten"
+knopf = "ART_AUFNAHME"
+beleg = "erkenner.ARTEN (interview_starten/interview_beenden)"
+
+[[phase.3]]
+aktion = "Interview per Chat benennen"
+weg = "chat"
+intent = "interview_benennen"
+knopf = ""
+beleg = "erkenner.ARTEN (interview_benennen)"
+
+[[phase.4]]
+aktion = "Setting/Rahmen per Chat aendern"
+weg = "beides"
+intent = "rahmen_setzen"
+knopf = "ART_RAHMEN"
+beleg = "erkenner.ARTEN (rahmen_setzen)"
+
+[[phase.4]]
+aktion = "Figur per Chat hinzufuegen oder umbenennen"
+weg = "beides"
+intent = "figur_setzen"
+knopf = "ART_FIGUR_NAME"
+beleg = "erkenner.ARTEN (figur_setzen)"
+
+[[phase.4]]
+aktion = "Geschichte (Bogen/Ende) per Chat erzaehlen oder aendern"
+weg = "beides"
+intent = "geschichte_setzen"
+knopf = "ART_GESCHICHTE_SPEICHERN"
+beleg = "erkenner.ARTEN (geschichte_setzen)"
+
+[[phase.4]]
+aktion = "Szenenzahl per Chat aendern"
+weg = "chat"
+intent = "szenenanzahl_setzen"
+knopf = ""
+beleg = "erkenner.ARTEN (szenenanzahl_setzen); prompts/phasen/4.md"
+
+[[phase.5]]
+aktion = "Zu einem Schaerfungsvorschlag per Chat zustimmen oder ihn aendern (statt Knopf)"
+weg = "chat"
+intent = ""
+knopf = "ART_SCHAERFUNG_SZENE|ART_SCHAERFUNG_FIGUR|ART_SCHAERFUNG_STELLE"
+beleg = "Birks Generalprobe (Anlass dieser Karte); schaerfung.uebernimm_szene/_figur/_stelle haben keinen Erkenner-Pfad"
+
+[[phase.5]]
+aktion = "Noch eine Schaerfungsrunde anstossen"
+weg = "knopf"
+intent = ""
+knopf = "ART_SCHAERFUNG_RUNDE"
+beleg = "schaerfung.py; bewusst nur Knopf (kein Modellaufruf im Chat-Zug fuer einen teuren Lauf)"
+
+[[phase.6]]
+aktion = "Geschichte (Prosa) schreiben lassen"
+weg = "knopf"
+intent = ""
+knopf = "ART_GESCHICHTE_SPEICHERN"
+beleg = "AGENTS.md 'Der Prosa-Lauf startet nur aus einem Knopf' (bewusste Entwurfsentscheidung)"
+
+[[phase.6]]
+aktion = "Geschichte per Chat kuerzen (25%)"
+weg = "chat"
+intent = "szene_kuerzen"
+knopf = "ART_SZENE_KUERZEN"
+beleg = "AGENTS.md Karte C4/C10 (kuerzung.py); erkenner.ARTEN (szene_kuerzen)"
+
+[[phase.7]]
+aktion = "Szene nach Planung schreiben lassen"
+weg = "beides"
+intent = "szene_schreiben"
+knopf = "ART_SZENE_SCHREIBEN"
+beleg = "erkenner.ARTEN (szene_schreiben)"
+
+[[phase.7]]
+aktion = "Szene per Chat kuerzen (25%)"
+weg = "chat"
+intent = "szene_kuerzen"
+knopf = "ART_SZENE_KUERZEN"
+beleg = "erkenner.ARTEN (szene_kuerzen)"
+
+[[phase.7]]
+aktion = "Inhaltliches Feedback per Chat, z. B. 'mach die Mutter wuetender' (Ueberarbeitung statt Kuerzung)"
+weg = "chat"
+intent = ""
+knopf = "ART_SZENE_ANDERS"
+beleg = "knoepfe/szenen.py (ART_SZENE_ANDERS, nur Knopf); kein erkenner-Intent fuer eine inhaltliche Regie-Notiz per Chat"
+
+[[phase.7]]
+aktion = "Szenenform bestaetigen"
+weg = "knopf"
+intent = ""
+knopf = "ART_SZENENFORM"
+beleg = "AGENTS.md 'Die Form je Szene ist ein Vorschlag, keine Vorentscheidung' (bewusste Entwurfsentscheidung: nur Knopf bestaetigt)"

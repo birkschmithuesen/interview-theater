@@ -25,7 +25,10 @@ Not every statement carries a decision. No entry for: greetings, chit-chat,
 scheduling and organisational matters (dates, rooms, who brings what),
 praise without a suggestion before it ("the summary was good", "good energy
 in the scene"), and **criticism without a request** ("the scene is too
-long", "Tomas is still unclear to me", "the middle drags").
+long", "Tomas is still unclear to me", "the middle drags"). That also
+covers HOW LONG or WHEN the rehearsal itself runs ("let's make rehearsal
+shorter, ninety minutes is enough") -- that is meeting logistics, not an
+"entschieden" about the piece.
 
 **When in doubt, RECORD IT.** The group can take back any entry with one
 sentence -- a wrong entry costs them one sentence, a missing one goes

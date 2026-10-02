@@ -125,6 +125,73 @@ def test_eine_echte_ergaenzung_zum_setting_bleibt(conn):
     assert len(repo.festlegungen(conn, 1)) == 1
 
 
+def test_reine_mitgliedschaft_ohne_eigenen_fakt_wirkt_nicht(conn):
+    """02.10.2026, Fall fl03: 'eine der beiden Gruppen' wiederholt nur die
+    Zugehoerigkeit, die schon im Bezug steckt -- kein eigener Fakt."""
+    assert _wende(conn, "gruppe/die Stillen: eine der beiden Gruppen") == []
+    assert repo.festlegungen(conn, 1) == []
+    vorfaelle = [
+        z["art"] for z in conn.execute("SELECT art FROM vorfall WHERE chat_id = 1")
+    ]
+    assert "festlegung_ohne_inhalt" in vorfaelle
+
+
+def test_platzhalter_ohne_beschreibung_wirkt_nicht(conn):
+    assert _wende(conn, "gruppe/die Stillen: (no description)") == []
+    assert repo.festlegungen(conn, 1) == []
+
+
+def test_eine_kurze_aber_echte_angabe_bleibt_trotz_bezug(conn):
+    """Die Gegenprobe zu beiden Faellen oben: eine knappe Angabe mit echtem
+    Inhalt darf die Pruefung nicht mitreissen."""
+    assert _wende(conn, "gruppe/die Lauten: erkennt man an den Markenklamotten")
+    assert len(repo.festlegungen(conn, 1)) == 1
+
+
+def test_figur_festlegung_faellt_weg_wenn_dieselbe_figur_gesetzt_wird(conn):
+    """02.10.2026, Fall z04: 'figur: die Zuordnung der Figuren ist nur fuer
+    die Gruppe' neben drei figur_setzen ist Metakommentar zum Festhalten
+    selbst, kein Fakt UEBER eine Figur."""
+    wirklich = erkenner.wende_an(
+        conn, Umgebung(), 1,
+        [
+            {"art": "figur_setzen", "wert": "Nour: traegt ein Gericht in fremde Raeume"},
+            {"art": "figur_setzen", "wert": "Selin: baute aus einem Satz ein Haus"},
+            {"art": "figur_setzen", "wert": "Asmin: trug zehn Jahre Schwarz"},
+            {
+                "art": "festlegung_setzen",
+                "wert": "figur: die Zuordnung der Figuren ist nur fuer die Gruppe",
+            },
+        ],
+    )
+    arten = [a["art"] for a in wirklich]
+    assert arten == ["figur_setzen", "figur_setzen", "figur_setzen"]
+    assert repo.festlegungen(conn, 1) == []
+
+
+def test_figur_festlegung_mit_bezug_auf_gesetzte_figur_faellt_weg(conn):
+    wirklich = erkenner.wende_an(
+        conn, Umgebung(), 1,
+        [
+            {"art": "figur_setzen", "wert": "Nour: traegt ein Gericht in fremde Raeume"},
+            {"art": "festlegung_setzen", "wert": "figur/Nour: ist eine Hauptfigur"},
+        ],
+    )
+    assert [a["art"] for a in wirklich] == ["figur_setzen"]
+    assert repo.festlegungen(conn, 1) == []
+
+
+def test_figur_festlegung_ohne_figur_setzen_bleibt(conn):
+    """Ohne gleichzeitiges figur_setzen ist dieselbe Zeile ein eigener Fakt
+    (fl01: Herkunft einer Figur, fuer die niemand gerade figur_setzen schreibt)."""
+    wirklich = erkenner.wende_an(
+        conn, Umgebung(), 1,
+        [{"art": "festlegung_setzen", "wert": "figur/Sevda: 19, kommt aus Bulgarien"}],
+    )
+    assert [a["art"] for a in wirklich] == ["festlegung_setzen"]
+    assert len(repo.festlegungen(conn, 1)) == 1
+
+
 def test_meldung_nennt_die_festlegung_mit_bezug():
     meldung = erkenner.baue_meldung(
         [

@@ -443,7 +443,10 @@ Regeln, ohne Ausnahme:
    wird nicht "einige Fragen". Aus "Fatimas Interview" wird nicht "ein
    Interview".
 5. Kein Eintrag fuer: Begruessungen, Zustimmung ohne Inhalt,
-   Terminorganisation, Stimmungsaeusserungen, reines Geplauder.
+   Terminorganisation, Stimmungsaeusserungen, reines Geplauder. Dazu zaehlt
+   auch, WIE LANGE oder WANN die Probe selbst stattfindet oder dauert ("die
+   Probe kuerzer machen, anderthalb Stunden reichen") -- das ist Logistik
+   des Treffens, kein "entschieden" ueber das Stueck.
 6. Hoechstens fuenf Aenderungen. Wenn mehr passieren wuerden, nimm die
    fuenf wichtigsten.
 7. Kommt im Abschnitt nichts von alledem vor, gib eine leere Liste zurueck.

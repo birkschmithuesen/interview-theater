@@ -282,6 +282,25 @@ def ist_web_gruppe(conn, chat_id: int) -> bool:
     return gruppe is not None and "kanal" in gruppe.keys() and gruppe["kanal"] == "web"
 
 
+def _web_sprachblase(conn, chat_id: int, message_id: int, text: str | None) -> None:
+    """Padua Hotfix B7 (02.10.2026): die Sprachblase im Web-Chat bekommt ihr
+    Transkript -- oder mit ``text=None`` nur das Zeichen, dass nicht mehr
+    abgetippt wird (Interview-Teil mit eigenem Echo, versteckte lange
+    Nachricht, endgueltiger Fehlschlag). Nur im Web-Kanal; Telegram zeigt die
+    Sprachnachricht selbst.
+
+    Aufzurufen NACH dem Status ``fertig``/``fehlgeschlagen``: die Blase zeigt
+    "wird abgetippt", solange die Aufnahme keinen dieser Status hat
+    (``web_daten``), und ein Poll zwischen beiden Schritten saehe sonst die
+    Aenderung, aber noch den alten Status. Ein Fehler hier kostet nur die
+    Anzeige, nie die Aufnahme."""
+    try:
+        if ist_web_gruppe(conn, chat_id):
+            repo.setze_web_sprachtext(conn, chat_id, message_id, text)
+    except Exception:
+        log.exception("Sprachblase im Web-Chat nicht aktualisiert, chat_id=%s", chat_id)
+
+
 def stelle_interview_sicher(conn, chat_id: int) -> int:
     """Liefert den laufenden Interview-Kopf dieser Gruppe und legt ihn beim
     ersten Bedarf an (§ 10.6). Liefert dessen ``aufnahme_id``.
@@ -461,6 +480,10 @@ def empfange(conn, tg, e, n: dict) -> int | None:
             tg.sende(chat_id, T._TEXT_DOWNLOAD_FEHLER)
         except Exception:
             log.exception("Download-Fehlermeldung fehlgeschlagen, chat_id=%s", chat_id)
+        # Review-Fund zu B7: ohne aufnahme-Zeile hinge die Blase sonst fuer
+        # immer auf "wird abgetippt" -- das Zeichen kommt hier ueber
+        # ``aenderung`` (``web_daten._ABGETIPPT``), nicht ueber einen Status.
+        _web_sprachblase(conn, chat_id, message_id, None)
         return None
 
     return repo.lege_aufnahme_an(
@@ -752,6 +775,7 @@ def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
 
     if endgueltig:
         repo.setze_status(conn, aufnahme_id, "fehlgeschlagen", fehlertext=str(fehler))
+        _web_sprachblase(conn, chat_id, row["message_id"], None)
     else:
         # Status bleibt (wieder) 'empfangen': der Nachhol-Arbeiter greift die
         # Aufnahme beim naechsten Anlauf erneut auf, sobald Whisper zurueck ist.
@@ -815,6 +839,9 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
         versteckt=interview_frage,
     )
     repo.setze_status(conn, aufnahme_id, "fertig")
+    # B7: sichtbar abgetippt nur, was auch im Gespraech steht -- ein
+    # verstecktes Transkript bleibt auch in der Blase verborgen.
+    _web_sprachblase(conn, chat_id, message_id, None if interview_frage else text)
 
     if interview_frage:
         _frage_interview_ohne_knopf(conn, tg, e, chat_id, aufnahme_id, dauer)
@@ -999,6 +1026,7 @@ def nimm_als_beitrag(conn, tg, klm, e, chat_id: int, aufnahme_id: int) -> bool:
     if row is None:
         return False
     repo.zeige_transkript_nachricht(conn, chat_id, row["message_id"])
+    _web_sprachblase(conn, chat_id, row["message_id"], row["transkript"])
     starte_nachgeholten_zug(conn, tg, klm, e, chat_id)
     return True
 
@@ -1179,6 +1207,8 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
     )
     _sende_teil_echo(conn, tg, e, chat_id, text)
     repo.setze_status(conn, row["id"], "fertig")
+    # B7: das Echo traegt das Transkript schon -- die Blase nicht noch einmal.
+    _web_sprachblase(conn, chat_id, row["message_id"], None)
     angestossen = _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen)
 
     # Race (Padua A2, gemessen): "fertig" kann eintreffen, waehrend dieser

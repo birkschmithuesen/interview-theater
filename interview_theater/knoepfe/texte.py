@@ -994,7 +994,9 @@ _TEXT_WIR_ZUERST = "Gut - ich hoere zu."
 #: kurzen, EIGENEN Nachricht, nicht als vierter Knopf unter 1 100 Zeichen
 #: Fliesstext. Gemessen am Testabend: neun angebotene Phasenknoepfe, null
 #: Druecke; sie hingen alle unter langen Texten.
-_TEXT_PHASE_ANGEBOT = "{erledigt} steht. Weiter zu {phase}?"
+#: ``{phase}`` ist seit dem 02.10.2026 (Birk) ``phasen.bezeichnung`` -- also
+#: "2 · Fragen", Nummer UND Titel (siehe ``phasen.knopfbezeichnung``).
+_TEXT_PHASE_ANGEBOT = "{erledigt} steht. Weiter zu Phase {phase}?"
 #: Was je Zielphase erledigt ist -- der halbe Satz vor "Weiter zu ...".
 #: Kurz und konkret, damit die Gruppe sieht, WORAUF sich das Angebot stuetzt,
 #: ohne dass der Bot den Arbeitsstand nacherzaehlt.
@@ -1007,17 +1009,33 @@ _ERLEDIGT_FUER = {
     7: "Alle Szenentexte",
 }
 #: Die Frage unter der Abschlussnachricht (06.09.2026): die Parameter stehen
-#: darueber, hier steht nur noch, wohin es geht.
-_TEXT_PHASE_WEITER = "Weiter zu {phase}?"
+#: darueber, hier steht nur noch, wohin es geht. Seit dem 02.10.2026 (Birk,
+#: Padua-Probe: "On to Questions" sagte der Gruppe nicht, dass "Questions"
+#: die naechste PHASE ist) mit Nummer und Titel: ``{phase}`` ist
+#: ``phasen.bezeichnung`` ("2 · Fragen") -> "Weiter zu Phase 2 · Fragen?".
+_TEXT_PHASE_WEITER = "Weiter zu Phase {phase}?"
 #: Der zweite Knopf hiess bis zum 06.09.2026 "Noch nicht". Er heisst jetzt
 #: nach dem, was die Gruppe damit tut: unter einer Abschlussnachricht mit
 #: allen Werten ist "Noch nicht" keine Antwort mehr -- "Noch etwas aendern"
 #: schon. Die art (``ART_NOCH_NICHT``) und ihre Wirkung bleiben.
 _TEXT_PHASE_NOCH_NICHT_KNOPF = "Noch etwas aendern"
+#: Derselbe Knopf (``ART_NOCH_NICHT``), wenn die Abschlussnachricht die
+#: Speicherleiste ersetzt (Padua Hotfix B5, 02.10.2026,
+#: ``stationen.sende_abschluss_statt_meldung``): dann heisst er nach dem Feld,
+#: das gerade gespeichert wurde. Schluessel = Leistenart
+#: (``erkenner._LEISTENARTEN``, ``basis.speicherleiste``); fehlt eine Art,
+#: bleibt es bei "Noch etwas aendern".
+_TEXT_AENDERN_KNOPF_FUER = {
+    "begriffe": "Begriffe aendern",
+    "fragen": "Fragen aendern",
+    "rahmen": "Setting aendern",
+    "geschichte": "Geschichte aendern",
+}
 _TEXT_NOCH_NICHT = "Gut, wir bleiben hier."
 #: Die Beschriftung des Phasenknopfs (``basis.biete_phase``,
-#: ``basis._phasenknopf``, ``stationen.biete_phase_proaktiv``).
-_TEXT_WEITER_ZU_KNOPF = "Weiter zu {phase}"
+#: ``basis._phasenknopf``, ``stationen.biete_phase_proaktiv``). ``{phase}``
+#: ist ``phasen.bezeichnung`` -> "Weiter zu Phase 2 · Fragen" (02.10.2026).
+_TEXT_WEITER_ZU_KNOPF = "Weiter zu Phase {phase}"
 #: Rueckfall fuer ``_ERLEDIGT_FUER`` -- im Aufruf, nicht in einer Signatur (K1).
 _TEXT_ALLES_NOETIGE = "Alles Noetige"
 

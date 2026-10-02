@@ -147,6 +147,18 @@ def knopfbezeichnung(nummer: int) -> str:
 
     In Meldungen und auf der Weboberflaeche bleibt es bei ``bezeichnung()``
     mit Nummer: dort ist die Nummer eine Ordnung, kein Bedienelement.
+
+    **Neuer Stand 02.10.2026 (Birk, Padua-Probe):** der Weiter-Knopf
+    (``_TEXT_WEITER_ZU_KNOPF``) und die Rueckfrage darueber
+    (``_TEXT_PHASE_WEITER``, ``_TEXT_PHASE_ANGEBOT``) zeigen jetzt Nummer
+    UND Titel -- "Continue to phase 2 · Questions" bzw. "Weiter zu Phase 2 ·
+    Fragen", gebaut aus ``bezeichnung()``. Der Grund von oben hat sich im
+    Raum umgedreht: "On to Questions" sagte der Gruppe nicht, dass
+    "Questions" die naechste PHASE ist; die Kopfzeilen der Phasen
+    ("Phase 1 · Terms") hatten die Nummer laengst eingefuehrt. Seitdem ruft
+    kein Knopf mehr diese Funktion; sie bleibt als die Schreibweise ohne
+    Nummer stehen (Tests und kuenftige Aufrufer, die bewusst nur den Inhalt
+    nennen wollen).
     """
     return kurzname(nummer) or str(nummer)
 
@@ -267,6 +279,28 @@ def aktuelle(conn, chat_id: int) -> int:
     if gespeichert is None:
         return workshop.phase_erste()
     return gespeichert
+
+
+#: Die Phase, in der aufgenommen wird -- dieselbe Zahl wie
+#: ``knoepfe.PHASE_INTERVIEWS`` und ``aufnahme.PHASE_INTERVIEWS``.
+PHASE_INTERVIEWS = 3
+
+
+def aufnahme_anbieten(phase: int, interviewmodus: bool, nur_phase_3: bool = False) -> bool:
+    """Die Regel hinter ``knoepfe._aufnahme_anbieten`` als reine Funktion
+    (Padua Hotfix B6, 02.10.2026): darf eine Oberflaeche von sich aus eine
+    Aufnahme ANBIETEN?
+
+    Ja, solange eine Aufnahme laeuft (dann ist es der Ausschalter), sonst ab
+    ``PHASE_INTERVIEWS`` -- mit ``nur_phase_3`` nur genau dort. Kein
+    Datenbankzugriff: der Bot liest Phase und Modus ueber ``repo``, der
+    Webserver ueber seine read-only Verbindung (``web_daten``), und beide
+    fragen hier dieselbe Regel."""
+    if interviewmodus:
+        return True
+    if nur_phase_3:
+        return phase == PHASE_INTERVIEWS
+    return phase >= PHASE_INTERVIEWS
 
 
 def _feld_gesetzt(stand, name: str) -> bool:

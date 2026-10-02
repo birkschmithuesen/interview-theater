@@ -26,11 +26,14 @@ import urllib.parse
 from contextlib import contextmanager
 from pathlib import Path
 
-from interview_theater import (
-    db, phasen, repo, sprache, stt, web_daten, web_grenze, web_kanal,
-)
+from interview_theater import db, repo, sprache, stt, web_daten, web_grenze, web_kanal
 
 log = logging.getLogger(__name__)
+
+#: Padua Hotfix B6/B7: die Texte, die die EN-Oberflaeche zeigt, zur
+#: Aufrufzeit aus ``sprachen/en/texte.toml`` (``["web_chat"]``) -- wie in
+#: ``web.py``. Nur die dort eingetragenen Konstanten; der Rest bleibt deutsch.
+T = sprache.Texte(__name__)
 
 #: Der Unterpfad unter ``/g/<token>/``. Steht wortgleich in
 #: ``scripts/web_gruppe.CHAT_PFAD`` (Test).
@@ -151,18 +154,23 @@ _TEXT_SENDEN = "Senden"
 _TEXT_ABKUERZUNG = "Abkürzung:"
 
 #: UX-Knoepfe-Karte, Abschnitt 1: die VIER Texte oben (Platzhalter +
-#: Abkuerzungs-Label) sind die einzigen in diesem Modul mit einem englischen
-#: Gegenstueck (``sprachen/en/texte.toml``, Abschnitt ``[web_chat]``) --
-#: nachgeschlagen zur Aufrufzeit wie bei jedem ``T``-umgestellten Modul
-#: (``sprache.py``). Der Rest von ``web_chat.py`` ist weiterhin unuebersetzt
-#: (AGENTS.md, "Englische UI-Texte der Chatansicht", Uebergabe an Karte A1) --
-#: insbesondere ``_JS_TEXTE`` bleibt ein beim Import eingefrorenes Woerterbuch
-#: und liest ``_TEXT_ABKUERZUNG`` deshalb bewusst nackt, nicht ueber ``T``:
-#: ein Prozess bedient genau eine Sprache fuer seine ganze Laufzeit, aber
-#: ``T`` nachzuschlagen waere hier nur Attrappe ohne Wirkung.
-T = sprache.Texte(__name__)
+#: Abkuerzungs-Label) und, dazu, Padua Hotfix B6/B7: Interview-Knopftext,
+#: Sprachnachricht/Transkript-Zeilen -- alle mit einem englischen Gegenstueck
+#: (``sprachen/en/texte.toml``, Abschnitt ``[web_chat]``), nachgeschlagen zur
+#: Aufrufzeit ueber ``T`` (oben, ein ``T`` fuer das ganze Modul, wie bei jedem
+#: ``T``-umgestellten Modul, ``sprache.py``). Der Rest von ``web_chat.py``
+#: ist weiterhin unuebersetzt (AGENTS.md, "Englische UI-Texte der
+#: Chatansicht", Uebergabe an Karte A1) -- insbesondere ``_JS_TEXTE`` bleibt
+#: ein beim Import eingefrorenes Woerterbuch und liest ``_TEXT_ABKUERZUNG``
+#: deshalb bewusst nackt, nicht ueber ``T``: ein Prozess bedient genau eine
+#: Sprache fuer seine ganze Laufzeit, aber ``T`` nachzuschlagen waere hier
+#: nur Attrappe ohne Wirkung.
 _TEXT_TIPPT = "schreibt …"
 _TEXT_SPRACHE = "Sprachnachricht ({dauer})"
+#: Padua Hotfix B7: solange abgetippt wird -- und mit Transkript (das
+#: Mikrofon und die Dauer als Kennzeichen "gesprochen", ohne Sprache).
+_TEXT_SPRACHE_LAEUFT = "{dauer} · wird abgetippt …"
+_TEXT_SPRACHE_ABGETIPPT = "🎤 {dauer} · {text}"
 _TEXT_DATEI = "Datei: {name}"
 #: Dieselbe Zeile wie ``aufnahme._TEXT_BUEHNE_NEUE_KARTE`` (DE) und ihr
 #: englisches Gegenstueck (``sprachen/en/texte.toml``, ["aufnahme"]) -- als
@@ -174,7 +182,10 @@ _TEXTE_BUEHNE_NEUE_KARTE = (
     "Neue Karte im Tab Bühne", "New card in the Stage tab",
 )
 _TEXT_ZUR_GRUPPENSEITE = "Zur Gruppenseite"
-_TEXT_INTERVIEW_AN = "🎙 Interview aufnehmen"
+#: Padua Hotfix B6/B7: ohne Emoji und ueber ``T`` nachgeschlagen (EN-Mirror,
+#: ["web_chat"] in sprachen/en/texte.toml) -- der Knopftext ist einer der
+#: wenigen uebersetzten in diesem Modul.
+_TEXT_INTERVIEW_AN = "Interview aufnehmen"
 _TEXT_INTERVIEW_AUS = "Aufnahme beenden"
 #: Die drei neuen Knoepfe des Drei-Zustands-Reglers (02.10.2026, Padua):
 #: Pause haelt den Recorder an, OHNE den Interviewmodus serverseitig zu
@@ -369,6 +380,8 @@ _TEXT_NACHREICHEN_SPAETER = (
 _JS_TEXTE = {
     "tippt": _TEXT_TIPPT,
     "sprache": _TEXT_SPRACHE,
+    "sprache_laeuft": _TEXT_SPRACHE_LAEUFT,
+    "sprache_text": _TEXT_SPRACHE_ABGETIPPT,
     "datei": _TEXT_DATEI,
     "interview_an": _TEXT_INTERVIEW_AN,
     "interview_aus": _TEXT_INTERVIEW_AUS,
@@ -467,6 +480,7 @@ _CHAT_JS = """
     letzte: parseInt(verlauf.dataset.letzte, 10) || 0,
     aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
+    knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
     aufnahme: null,     // die laufende Interview-Aufnahme dieses Telefons
     wechsel: null,      // {ziel, gesendet}: ein Moduswechsel, den der Poll noch nicht zeigt
     warteschlange: [],  // Befehle und Segmente, der Reihe nach
@@ -522,7 +536,15 @@ _CHAT_JS = """
     // Der Server hat schon gefiltert (sichere_html) -- ein Filter im Browser
     // laege auf der Seite, die er schuetzen soll.
     if (n.typ === 'sprache') {
-      return escape(TEXT.sprache.replace('{dauer}', minuten(n.dauer || 0)));
+      // Padua Hotfix B7: das Transkript als Text (escape, nie n.html), sonst
+      // der Platzhalter, solange abgetippt wird.
+      var dauer = minuten(n.dauer || 0);
+      if (n.text) {
+        return escape(TEXT.sprache_text.replace('{dauer}', dauer)
+                      .replace('{text}', function () { return n.text; }));
+      }
+      return escape((n.abgetippt === false ? TEXT.sprache_laeuft : TEXT.sprache)
+                    .replace('{dauer}', dauer));
     }
     if (n.typ === 'datei') {
       var link = '<a href="' + weg(`chat/datei/${n.id}`) + '">' +
@@ -651,6 +673,7 @@ _CHAT_JS = """
     // Eingabefeld selbst bleibt dabei immer offen und unveraendert bedienbar.
     if (daten.platzhalter && eingabe) { eingabe.placeholder = daten.platzhalter; }
     zustand.servermodus = !!daten.interviewmodus;
+    if (typeof daten.interview_knopf === 'boolean') { zustand.knopfErlaubt = daten.interview_knopf; }
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
     // vorn in der Schlange steht.
     if (zustand.aufnahme && zustand.aufnahme.angemeldet && zustand.servermodus) {
@@ -1364,6 +1387,10 @@ _CHAT_JS = """
     // zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
     // Bedienung (dieselbe Regel wie PTT, Phase 4, 02.10.2026).
     interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || !!zustand.brainstorm;
+    // Padua Hotfix B6: ausserhalb von Phase 3 kein Angebot -- nie aber
+    // verborgen bei laufender Aufnahme, Wechsel oder voller Schlange.
+    interviewKnopf.hidden = !(zustand.knopfErlaubt || an || !!zustand.wechsel ||
+                              zustand.warteschlange.length > 0);
     // Der grosse Knopf ist waehrend Laeuft/Pause nur noch eine Anzeige --
     // Pause/Weiter und Beenden stehen in der eigenen Leiste darunter.
     if (interviewAktionenFeld) { interviewAktionenFeld.hidden = !an; }
@@ -2006,7 +2033,11 @@ def _js() -> str:
     Platzhalter und keine f-String-Interpolation: das Skript ist voll mit
     geschweiften Klammern. Die Texte gehen als JSON hinein; ``</`` wird
     maskiert, damit kein Text das ``<script>`` beenden kann."""
-    texte = json.dumps(_JS_TEXTE, ensure_ascii=True).replace("</", "<\\/")
+    # Padua Hotfix B6/B7: die uebersetzten Texte zur Aufrufzeit (``T``).
+    texte = dict(_JS_TEXTE, interview_an=T._TEXT_INTERVIEW_AN,
+                 interview_aus=T._TEXT_INTERVIEW_AUS, sprache=T._TEXT_SPRACHE,
+                 sprache_laeuft=T._TEXT_SPRACHE_LAEUFT)
+    texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
         _CHAT_JS
         .replace("__POLL_MS__", str(POLL_MS))
@@ -2024,7 +2055,14 @@ def _blase_html(n: dict, basis: str = "") -> str:
     (Karte W) -- auf der Chat-Einzelseite bleibt es leer."""
     if n["typ"] == "sprache":
         minuten, sekunden = divmod(int(n["dauer"] or 0), 60)
-        inhalt = html.escape(_TEXT_SPRACHE.format(dauer=f"{minuten}:{sekunden:02d}"))
+        dauer = f"{minuten}:{sekunden:02d}"
+        # Padua Hotfix B7: Transkript (maskiert) > Platzhalter > Dauer.
+        if n.get("text"):
+            inhalt = html.escape(_TEXT_SPRACHE_ABGETIPPT.format(dauer=dauer, text=n["text"]))
+        elif n.get("abgetippt", True):
+            inhalt = html.escape(T._TEXT_SPRACHE.format(dauer=dauer))
+        else:
+            inhalt = html.escape(T._TEXT_SPRACHE_LAEUFT.format(dauer=dauer))
         klasse = "sprache"
     elif n["typ"] == "datei":
         inhalt = (
@@ -2162,8 +2200,12 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
             f'data-pausiert="{1 if modus else 0}"'
             + (' class="nebenknopf"' if phase4 else "")
+            # Padua Hotfix B6: ausserhalb von Phase 3 (oder bei laufender
+            # Aufnahme) kein Angebot -- dieselbe Bedingung wie das JS-Pendant
+            # ``zustand.knopfErlaubt`` oben.
+            + ('' if daten.get("interview_knopf", True) or modus else ' hidden')
             + '>'
-            f'{html.escape(_TEXT_INTERVIEW_AUS if modus else _TEXT_INTERVIEW_AN)}'
+            f'{html.escape(T._TEXT_INTERVIEW_AUS if modus else T._TEXT_INTERVIEW_AN)}'
             f'</button>\n'
             f'  <div class="interview-aktionen" id="interview-aktionen"'
             f'{"" if modus else " hidden"}>\n'

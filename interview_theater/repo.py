@@ -1540,9 +1540,18 @@ def aktualisiere_transkribierte_nachricht(
     ``unterdrueckt`` allein leistet das NICHT: es filtert nur
     ``unbeantwortete``, also den Gespraechszug. Gebraucht fuer eine lange
     Sprachnachricht ohne Interviewmodus, solange die Gruppe noch nicht
-    gesagt hat, ob es ein Interview war (``aufnahme._frage_interview_ohne_knopf``)."""
+    gesagt hat, ob es ein Interview war (``aufnahme._frage_interview_ohne_knopf``).
+
+    ``gesprochen = 1`` (Padua Hotfix Befund 1, 02.10.2026) haelt fest, dass
+    der Text ein Transkript ist -- in beiden Faellen, damit eine versteckte
+    Zeile, die ``zeige_transkript_nachricht`` spaeter sichtbar macht, ebenfalls
+    als gesprochen erkennbar bleibt. ``typ`` bleibt bewusst ``'text'``: alle
+    Fenster-Abfragen filtern nur ``typ != 'transkript'`` und laufen damit
+    unveraendert; die Markierung liest allein ``kontext.sprecherzeile``. Live:
+    ohne sie hielt das Modell den Beitrag fuer getippt und behauptete, es
+    koenne die Sprachnachricht nicht abtippen."""
     conn.execute(
-        "UPDATE nachricht SET text = ?, typ = ?, unterdrueckt = ? "
+        "UPDATE nachricht SET text = ?, typ = ?, unterdrueckt = ?, gesprochen = 1 "
         "WHERE chat_id = ? AND message_id = ?",
         (text, TYP_TRANSKRIPT if versteckt else "text", unterdrueckt, chat_id, message_id),
     )
@@ -3907,6 +3916,26 @@ def aendere_web_text(conn, chat_id: int, message_id: int, text: str) -> bool:
         f"UPDATE web_post SET text = ?, aenderung = {_NAECHSTE_WEB_AENDERUNG} "
         "WHERE id = ? AND chat_id = ? AND richtung = ? AND geloescht_am IS NULL",
         (text, message_id, chat_id, RICHTUNG_AUS),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+@_gesperrt
+def setze_web_sprachtext(conn, chat_id: int, message_id: int, text: str | None) -> bool:
+    """Das Transkript einer eingehenden Sprachzeile in ihre Blase (Padua
+    Hotfix B7, 02.10.2026) -- oder, mit ``text=None``, nur das Zeichen
+    "abgetippt", damit der Browser den Platzhalter ersetzt.
+
+    Dasselbe Muster wie ``aendere_web_text``, nur fuer ``richtung='ein'`` und
+    ``typ='sprache'``: der Zaehler ``aenderung`` steigt, und
+    ``web_daten.web_chataenderungen`` liefert die Zeile beim naechsten Poll
+    neu aus."""
+    cur = conn.execute(
+        f"UPDATE web_post SET text = ?, aenderung = {_NAECHSTE_WEB_AENDERUNG} "
+        "WHERE id = ? AND chat_id = ? AND richtung = ? AND typ = ? "
+        "AND geloescht_am IS NULL",
+        (text, message_id, chat_id, RICHTUNG_EIN, WEB_TYP_SPRACHE),
     )
     conn.commit()
     return cur.rowcount > 0

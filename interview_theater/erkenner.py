@@ -2170,6 +2170,23 @@ def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict],
             wert = str(aenderung.get("wert") or "").strip()
             if not wert:
                 continue
+            # Padua Hotfix B5 (02.10.2026): macht GENAU dieses Speichern die
+            # Phase abschliessbar, kommt statt "Notiert + Ja/Nein" und
+            # danach "Phase abgeschlossen + Weiter" EINE Nachricht -- die
+            # Abschlussnachricht mit "Weiter zu Phase N · Titel", "<Feld>
+            # aendern" und dem Undo-Knopf (Karte U bleibt erfuellt).
+            # "Ja, speichern" faellt weg: der Erkenner HAT den Wert schon
+            # geschrieben. ``_biete_phase_an`` danach findet den Merkposten
+            # gesetzt und schweigt.
+            nur_dieses = all(a.get("art") == aenderung.get("art") for a in wirkliche)
+            for alte in (knoepfe.ART_SPEICHERN, knoepfe.ART_ANDERS, knoepfe.ART_EIGENE):
+                knoepfe._nimm_alte_leiste_ab(conn, tg, chat_id, alte)
+            ergebnis = knoepfe.sende_abschluss_statt_meldung(
+                conn, tg, chat_id, eintrag[0], text,
+                nur_dieses_feld=nur_dieses, zusatz=zusatz,
+            )
+            if ergebnis is not None:
+                return ergebnis[0]
             message_id, _ = knoepfe.sende_notiert_mit_leiste(
                 conn, tg, chat_id, text, eintrag[0], wert, zusatz=zusatz
             )

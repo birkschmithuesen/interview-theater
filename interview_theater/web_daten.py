@@ -1401,6 +1401,22 @@ CHAT_GRENZE = 200
 #: der Knopf, und der steht schon da.
 _CHAT_VERBORGEN = ("befehl",)
 
+#: Padua Hotfix B7: ist eine Sprachzeile schon abgetippt? Solange ihre
+#: Aufnahme weder ``fertig`` noch ``fehlgeschlagen`` ist (oder es sie beim Bot
+#: noch gar nicht gibt), zeigt die Blase den Platzhalter. Den Wechsel meldet
+#: ``repo.setze_web_sprachtext`` ueber ``aenderung`` (``aufnahme._web_sprachblase``).
+#: Ein gesetztes ``aenderung`` zaehlt selbst als "abgetippt": bei eingehenden
+#: Sprachzeilen setzt es nur ``setze_web_sprachtext`` (und das weiche Loeschen,
+#: dessen Zeilen hier ohnehin herausfallen) -- und nur so kommt das Zeichen
+#: beim endgueltig gescheiterten Download an, der keine ``aufnahme``-Zeile
+#: hinterlaesst (Review-Fund zu B7).
+_ABGETIPPT = (
+    "CASE WHEN typ = 'sprache' THEN (aenderung IS NOT NULL OR EXISTS ("
+    "SELECT 1 FROM aufnahme a "
+    "WHERE a.chat_id = web_post.chat_id AND a.message_id = web_post.id "
+    "AND a.status IN ('fertig', 'fehlgeschlagen'))) END AS abgetippt"
+)
+
 
 def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE) -> list:
     """Der Chatverlauf einer Web-Gruppe ab ``nach`` (exklusiv), aelteste zuerst.
@@ -1410,8 +1426,8 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
     erreichbar (dieselbe Grenze wie 'kein Volltranskript auf der
     Gruppenseite')."""
     zeilen = conn.execute(
-        "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am "
-        "FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
+        "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am, "
+        f"{_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
         f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
         "AND typ != 'knopf' "
         "ORDER BY id ASC LIMIT ?",
@@ -1426,6 +1442,7 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
             "knoepfe": _web_knoepfe(z["knoepfe"]),
             "dauer": z["dauer"],
             "dateiname": z["dateiname"],
+            "abgetippt": bool(z["abgetippt"]),
             "zeit": z["erstellt_am"],
         }
         for z in zeilen
@@ -1472,7 +1489,7 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
             return [], int(zeile["stand"])
         zeilen = conn.execute(
             "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, "
-            "geloescht_am, aenderung FROM web_post "
+            f"geloescht_am, aenderung, {_ABGETIPPT} FROM web_post "
             "WHERE chat_id = ? AND aenderung > ? "
             f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
             "AND typ != 'knopf' ORDER BY aenderung ASC LIMIT ?",
@@ -1490,6 +1507,7 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
             "knoepfe": _web_knoepfe(z["knoepfe"]),
             "dauer": z["dauer"],
             "dateiname": z["dateiname"],
+            "abgetippt": bool(z["abgetippt"]),
             "geloescht": z["geloescht_am"] is not None,
         }
         for z in zeilen
@@ -1527,6 +1545,9 @@ def web_chatzustand(conn, token: str, nach: int = 0,
     stand = conn.execute(
         "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
     ).fetchone()
+    from interview_theater import phasen   # spaet wie in fehlstellen(): rein, kein SQL
+
+    modus = bool(gruppe and gruppe["interviewmodus_seit"])
     return {
         "chat_id": chat_id,
         "titel": gruppe["titel"] if gruppe else None,
@@ -1535,7 +1556,12 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         # (UX-Knoepfe-Karte, Abschnitt 1) -- der Text selbst steht in
         # web_chat.py, hier nur der Rohwert, read-only wie der Rest.
         "fragen_aktuell": _feld(stand, "fragen_aktuell"),
-        "interviewmodus": bool(gruppe and gruppe["interviewmodus_seit"]),
+        "interviewmodus": modus,
+        # Padua Hotfix B6: der Interview-Knopf der Fussleiste nur in Phase 3
+        # oder bei laufender Aufnahme -- dieselbe Regel wie die Telegram-
+        # Knoepfe (``knoepfe._aufnahme_anbieten``, ``nur_phase_3``).
+        "interview_knopf": phasen.aufnahme_anbieten(
+            _feld(stand, "phase") or phasen.ERSTE, modus, nur_phase_3=True),
         "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
         "nachrichten": nachrichten,
         "letzte": letzte,

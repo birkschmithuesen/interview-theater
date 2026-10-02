@@ -526,7 +526,12 @@ es jemand im Chat merkt.
   einer höheren Phase gespeichert sind, schickt er **einmal** eine eigene kurze
   Nachricht „<Was steht>. Weiter zu <Phase>?" (`knoepfe.biete_phase_proaktiv`,
   Merkposten `arbeitsstand.phase_angeboten`), nicht als vierten Knopf unter
-  einem langen Text. Antworten mit über 60 % Deckung zur vorigen Bot-Nachricht
+  einem langen Text. **Macht gerade dieses Speichern die Phase
+  abschließbar, ersetzt die Abschlussnachricht die Notiert-/Speicherleiste**
+  (02.10.2026, Padua Hotfix B5, `knoepfe.sende_abschluss_statt_meldung`, an
+  beiden Wegen: `erkenner._sende_meldung` und `basis._speichere`): EINE
+  Nachricht mit „Weiter zu Phase N · Titel", „<Feld> ändern"
+  (`ART_NOCH_NICHT`) und — am Erkenner-Weg — dem Undo-Knopf. Antworten mit über 60 % Deckung zur vorigen Bot-Nachricht
   werden ersatzlos verworfen (`ablauf.ist_wiederholung`, Vorfall
   `wiederholung_verworfen`); löst eine Nachricht einen Auftrag aus, schweigt
   der Gesprächs-Bot ganz (`ablauf.ist_auftrag`). Die Grundleiste speichert nie

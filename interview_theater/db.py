@@ -99,6 +99,12 @@ CREATE TABLE IF NOT EXISTS nachricht (
   text           TEXT,
   gesendet_am    TEXT NOT NULL,             -- ISO 8601
   unterdrueckt   INTEGER NOT NULL DEFAULT 0,-- 1 = nie Antwort auslösen (Nachtstau)
+  -- 1 = der Text ist das Transkript einer Sprachnachricht (Padua Hotfix
+  -- Befund 1, 02.10.2026). ``typ`` bleibt dabei 'text' -- Fenster, Erkenner,
+  -- Journal und ``unbeantwortete`` laufen unveraendert --, nur
+  -- ``kontext.sprecherzeile`` markiert die Zeile im Gespraechs-Prompt als
+  -- gesprochen. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  gesprochen     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (chat_id, message_id)
 );
 CREATE INDEX IF NOT EXISTS idx_nachricht_zeit ON nachricht(chat_id, message_id);

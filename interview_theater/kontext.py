@@ -221,6 +221,31 @@ _SPRECHER_BOT = "Du"
 #: braucht trotzdem einen Wert.
 _PSEUDONYM = "Mitglied {nummer}"
 _PSEUDONYM_UNBEKANNT = "Mitglied"
+#: Hinweistext fuer eine Nachricht, die das Sprachmodell nicht sehen kann
+#: (Padua Hotfix Befund 2, 02.10.2026): ein Bildanhang, ein Sticker oder ein
+#: sonstiger Dateianhang erschien vorher wortgleich mit seinem internen
+#: Telegram-Typnamen -- das ist sowohl unuebersetzt (immer deutsch, egal in
+#: welcher Chatsprache) als auch irrefuehrend, weil es nicht sagt, dass das
+#: Modell den Anhang gar nicht wahrnimmt. Siehe ``_TYPEN_NICHT_SICHTBAR``.
+_HINWEIS_NICHT_SICHTBAR = "Datei -- fuer mich nicht sichtbar"
+#: Padua Hotfix Befund 1 (02.10.2026): die Markierung hinter dem Sprecher, wenn
+#: der Text das Transkript einer Sprachnachricht ist (``nachricht.gesprochen``)
+#: -- "Mitglied 1 (Sprachnachricht): ...". Live hielt das Modell ein
+#: Transkript fuer getippt und behauptete auf "verstehst du mich?", es koenne
+#: die Sprachnachricht nicht abtippen. Nur im Gespraechs-Prompt, siehe
+#: ``sprecherzeile``.
+_MARKE_GESPROCHEN = "Sprachnachricht"
+#: Padua Hotfix Befund 3 (02.10.2026, Live-Fall web_post 6/8/10): das
+#: englische Profil antwortete auf deutsche Gruppennachrichten auf Deutsch --
+#: "Write in English" in system.md stand nur einmal, ganz am Anfang des
+#: Zuges, und verlor gegen das Recency-Gewicht der zuletzt gelesenen
+#: fremdsprachigen Nachricht. Deutsch bleibt leer (die Gruppe schreibt hier
+#: ohnehin deutsch, eine Erinnerung waere Laerm); die englische Tabelle
+#: traegt den Satz, und ``_baue_ausloeser`` haengt ihn an den Ausloeser-Block
+#: an -- den einen Block, der jede Kuerzung ueberlebt (§ 7.2) und im
+#: normalen Gespraechszug (kein Erstkontakt) der zuletzt gelesene Text vor
+#: der Antwort ist.
+_AUSLOESER_SPRACHREGEL = ""
 _PAUSE_STUNDE = "[Pause: {stunden} Stunde]"
 _PAUSE_STUNDEN = "[Pause: {stunden} Stunden]"
 _ZEILE_KERNTHEMA = "Kernthema: {kernthema}"
@@ -308,7 +333,34 @@ def pseudonyme(conn, chat_id: int, zeilen=()) -> dict[str, str] | None:
     return {name: T._PSEUDONYM.format(nummer=i) for i, name in enumerate(namen, start=1)}
 
 
-def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
+#: Nachrichtentypen (Telegram-Rohwerte aus ``telegram._bestimme_typ``, siehe
+#: ``db.py``), die das Sprachmodell nicht sehen kann -- es bekommt nur Text
+#: (Padua Hotfix Befund 2, 02.10.2026: "das Modell kann in dieser Konfig
+#: keine Bilder sehen, entsprechend soll es das auch nicht anbieten"). Feste
+#: Telegram-Typnamen, keine Nutzertexte -- deshalb nicht ueber ``T``.
+#: ``"dokument"`` (Review-Nachbesserung Befund 2): jeder Datei-Upload ohne
+#: Bildunterschrift (PDF, Word, ein beliebiger Anhang) lief sonst weiterhin
+#: als "(dokument)" durch -- derselbe Fehler wie bei "foto", nur ueber den
+#: anderen Telegram-Nachrichtentyp. ``"sprache"`` bleibt bewusst aussen vor:
+#: eine Sprachnachricht bekommt binnen Sekunden ihr Transkript, "dokument"
+#: dagegen nie (Whisper transkribiert keine PDFs). Der Web-Kanal
+#: (``web_kanal.py``) erzeugt nie "foto"/"sticker"/"dokument" -- er kennt nur
+#: Text, Knopf, Befehl und "sprache" (Segment/PTT); diese Typen sind reiner
+#: Telegram-Weg.
+_TYPEN_NICHT_SICHTBAR = frozenset({"foto", "sticker", "sonstiges", "dokument"})
+
+
+def _ist_gesprochen(n) -> bool:
+    """``nachricht.gesprochen`` -- tolerant gegen Zeilen und Dicts ohne die
+    Spalte (Korpusfaelle, Testdicts, eine noch nicht migrierte Kopie)."""
+    try:
+        return bool(n["gesprochen"])
+    except (KeyError, IndexError):
+        return False
+
+
+def sprecherzeile(n, namen: dict[str, str] | None = None,
+                  gesprochen_markieren: bool = False) -> str:
     """Formatiert eine ``nachricht``-Zeile als ``"Sprecher: Text"``.
 
     Bot-Nachrichten erscheinen als Sprecher ``Du`` (``_SPRECHER_BOT``,
@@ -318,13 +370,26 @@ def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
     Aeusserungen in der zweiten Person. Menschliche Nachrichten tragen den
     Vornamen aus ``nachricht.absender``.
 
-    Nachrichten ohne Text (Sprache ohne Transkript, Foto, Sticker, ...)
-    erscheinen als ``"Name: (typ)"`` statt als leere Zeile -- die Gruppe hat
-    etwas geschickt, und das Modell soll das wissen.
+    Nachrichten ohne Text (Sprache ohne Transkript, ...) erscheinen als
+    ``"Name: (typ)"`` statt als leere Zeile -- die Gruppe hat etwas
+    geschickt, und das Modell soll das wissen. Ein Typ aus
+    ``_TYPEN_NICHT_SICHTBAR`` (Bildanhang, Sticker, Dokument-Upload,
+    sonstiger Anhang) bekommt stattdessen den lokalisierten Hinweis
+    ``_HINWEIS_NICHT_SICHTBAR`` ("Datei -- fuer mich nicht sichtbar" /
+    "file -- not visible to you"): das reine Text-Modell bekommt solche
+    Anhaenge nie, und der blosse Telegram-Typname waere sowohl unuebersetzt
+    als auch eine falsche Behauptung ueber das, was es wahrnimmt (Befund 2).
 
     ``namen`` (E8, Karte A1): steht dort ein Mapping (``pseudonyme()``),
     ersetzt es den Vornamen; ein Name, der darin fehlt, wird nie
     durchgereicht, sondern heisst "Member". ``None`` ist das alte Verhalten.
+
+    ``gesprochen_markieren`` (Padua Hotfix Befund 1): ist der Text das
+    Transkript einer Sprachnachricht, steht ``_MARKE_GESPROCHEN`` in Klammern
+    hinter dem Sprecher ("Mitglied 1 (Sprachnachricht): ..."). Eingeschaltet
+    nur im Gespraechs-Prompt (Fenster und Ausloeser); Erkenner und Journal
+    rufen ohne, weil ihre Few-Shot-Prompts gegen den Korpus gemessen sind und
+    die Herkunft eines Beitrags dort nichts entscheidet.
     """
     if n["ist_bot"]:
         sprecher = T._SPRECHER_BOT
@@ -334,7 +399,11 @@ def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
         sprecher = namen.get(n["absender"], T._PSEUDONYM_UNBEKANNT)
     text = n["text"]
     if text:
+        if gesprochen_markieren and _ist_gesprochen(n):
+            return f"{sprecher} ({T._MARKE_GESPROCHEN}): {text}"
         return f"{sprecher}: {text}"
+    if n["typ"] in _TYPEN_NICHT_SICHTBAR:
+        return f"{sprecher}: ({T._HINWEIS_NICHT_SICHTBAR})"
     return f"{sprecher}: ({n['typ']})"
 
 
@@ -1075,10 +1144,10 @@ def waehle_fenster(nachrichten: list, bezug=None, namen: dict[str, str] | None =
     kandidaten = nachrichten[-grenzen["nachrichten"]:]
 
     # Schritt 2: von hinten auffuellen. Die juengste ist gesetzt.
-    kumuliert = len(sprecherzeile(kandidaten[-1], namen))
+    kumuliert = len(sprecherzeile(kandidaten[-1], namen, gesprochen_markieren=True))
     beginnt_bei = len(kandidaten) - 1
     for index in range(len(kandidaten) - 2, -1, -1):
-        groesse = len(sprecherzeile(kandidaten[index], namen)) + 1  # +1 Zeilenumbruch
+        groesse = len(sprecherzeile(kandidaten[index], namen, gesprochen_markieren=True)) + 1  # +1 Zeilenumbruch
         if kumuliert + groesse > grenzen["zeichen"]:
             break
         kumuliert += groesse
@@ -1213,7 +1282,7 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser, namen=None) -> list[s
             pause = _pausenzeile(vorherige_zeit, n["gesendet_am"])
             if pause:
                 eintraege.append(pause)
-        eintraege.append(sprecherzeile(n, namen))
+        eintraege.append(sprecherzeile(n, namen, gesprochen_markieren=True))
         vorherige_zeit = n["gesendet_am"]
     # **Die Pause VOR dem Ausloeser** (06.09.2026, Auftrag 2). Der haeufigste
     # Fall einer langen Pause ist gerade der, in dem die erste Nachricht
@@ -1242,11 +1311,21 @@ def _bezugszeit(ausloeser):
 
 def _baue_ausloeser(ausloeser, namen: dict[str, str] | None = None) -> str:
     """Die ausloesende(n) Nachricht(en) -- ueberlebt jede Kuerzung (§ 7.2),
-    darum von der Kuerzungslogik in baue() nie angefasst."""
+    darum von der Kuerzungslogik in baue() nie angefasst.
+
+    Traegt das aktive Profil eine Sprachregel (``_AUSLOESER_SPRACHREGEL``,
+    nur im englischen Profil belegt, siehe dort), steht sie als letzter
+    Absatz dahinter -- Padua Hotfix Befund 3: eine Erinnerung direkt neben
+    der zuletzt gelesenen Nachricht wiegt mehr als eine am Anfang des
+    Systemprompts."""
     if not ausloeser:
         return ""
-    zeilen = [sprecherzeile(n, namen) for n in ausloeser]
-    return T._AUSLOESER_KOPF + "\n".join(zeilen)
+    zeilen = [sprecherzeile(n, namen, gesprochen_markieren=True) for n in ausloeser]
+    text = T._AUSLOESER_KOPF + "\n".join(zeilen)
+    regel = T._AUSLOESER_SPRACHREGEL
+    if regel:
+        text += "\n\n" + regel
+    return text
 
 
 def _zusammen(bloecke: dict) -> str:
@@ -1273,8 +1352,8 @@ ERSTKONTAKT = (
     "Knoepfe unter deiner Nachricht zeigen den Weg, **nenne keinen "
     "Schraegstrich-Befehl**{link}. "
     "**Schliesse mit der Frage nach den Begriffen**: die Gruppe hat im Raum "
-    "Begriffe gesammelt -- bitte sie, dir diese Liste zu schicken, getippt, "
-    "als Foto abgetippt oder als Sprachnachricht. Das ist der erste "
+    "Begriffe gesammelt -- bitte sie, dir diese Liste zu schicken, getippt "
+    "oder als Sprachnachricht. Das ist der erste "
     "Arbeitsschritt, und die Begruessung endet damit. "
     "Kein Formular, keine Aufzaehlung mit Spiegelstrichen -- ein warmer, "
     "ausfuehrlicher Einstieg, der mit dem Gesagten anfaengt und mit der "

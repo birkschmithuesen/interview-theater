@@ -232,7 +232,7 @@ def test_aufnahme_knopf_legt_je_umschaltung_genau_ein_interview_an(conn, einst, 
 
 def test_phasen_knopf_schaltet_um_wie_der_befehl(conn, einst, tg):
     knoepfe.biete_phase(conn, tg, 1, "Weitermachen?", 4)
-    assert tg.knoepfe[0][2][0][0] == "Weiter zu Setting, Figuren & Geschichte"
+    assert tg.knoepfe[0][2][0][0] == "Weiter zu Phase 4 · Setting, Figuren & Geschichte"
 
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
 
@@ -489,7 +489,7 @@ def test_phase_befehl_haengt_den_weiter_knopf_an(conn, einst, tg):
 
     befehle.behandle(conn, tg, einst, 1, "/phase", "Ada")
 
-    assert tg.knoepfe and tg.knoepfe[0][2][0][0] == "Weiter zu Fragen"
+    assert tg.knoepfe and tg.knoepfe[0][2][0][0] == "Weiter zu Phase 2 · Fragen"
     knoepfe.behandle(conn, tg, None, einst, _druck(_daten_des_ersten_knopfes(tg)))
     assert phasen.aktuelle(conn, 1) == 2
 
@@ -926,7 +926,7 @@ def test_nach_aufnahme_haengt_die_phase_an_wenn_die_lage_sie_hergibt(conn, einst
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
     assert beschriftungen == [
         "Zusammenfassung zeigen", "Transkript zeigen", "Naechstes Interview",
-        "Weiter zu Setting, Figuren & Geschichte",
+        "Weiter zu Phase 4 · Setting, Figuren & Geschichte",
     ]
 
 
@@ -1071,7 +1071,7 @@ def test_einstieg_haengt_die_phase_dazwischen(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Interview starten", "Weiter zu Setting, Figuren & Geschichte",
+        "Interview starten", "Weiter zu Phase 4 · Setting, Figuren & Geschichte",
         "Stand zeigen", "Hilfe",
     ]
 
@@ -1085,7 +1085,7 @@ def test_einstieg_stellt_die_phase_ohne_aufnahme_nach_vorn(conn, einst, tg):
     knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")
 
     assert [b for b, _ in tg.knoepfe[0][2]] == [
-        "Weiter zu Fragen", "Stand zeigen", "Hilfe",
+        "Weiter zu Phase 2 · Fragen", "Stand zeigen", "Hilfe",
     ]
 
 
@@ -1123,7 +1123,7 @@ def test_nach_aufnahme_bietet_alle_auswerten_statt_phase_4(conn, einst, tg):
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 2 ist abgelegt.", zweites)
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
-    assert "Weiter zu Setting, Figuren & Geschichte" not in beschriftungen
+    assert "Weiter zu Phase 4 · Setting, Figuren & Geschichte" not in beschriftungen
     assert beschriftungen == [
         "Trotzdem auswerten", "Transkript zeigen", "Naechstes Interview",
     ]
@@ -1131,7 +1131,7 @@ def test_nach_aufnahme_bietet_alle_auswerten_statt_phase_4(conn, einst, tg):
     # Sobald auch das zweite ausgewertet ist, steht der Schritt wieder da.
     repo.speichere_verdichtung(conn, 1, zweites, "Pal erzaehlt", [])
     knoepfe.biete_nach_aufnahme(conn, tg, 1, "Und weiter?", zweites)
-    assert "Weiter zu Setting, Figuren & Geschichte" in [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Weiter zu Phase 4 · Setting, Figuren & Geschichte" in [b for b, _ in tg.knoepfe[-1][2]]
 
 
 def test_alle_auswerten_steht_da_wenn_ein_anderes_interview_offen_ist(conn, einst, tg):
@@ -1217,7 +1217,7 @@ def test_einstieg_bietet_in_phase_3_keinen_weiter_zu_3_knopf(conn, einst, tg):
 
     beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
     assert "Interview starten" in beschriftungen
-    assert not any(b.startswith("Weiter zu Interviews") for b in beschriftungen)
+    assert not any(b.startswith("Weiter zu Phase 3 · Interviews") for b in beschriftungen)
 
 
 def test_usa_knopf_startet_den_wartenden_szenenauftrag(conn, einst, tg, monkeypatch):

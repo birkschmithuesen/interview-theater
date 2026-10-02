@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from interview_theater import db, einstellungen, kontext, phasen, repo
+from interview_theater import db, einstellungen, kontext, phasen, repo, sprache, workshop
 
 
 @pytest.fixture
@@ -804,3 +804,131 @@ def test_der_kernpaket_kopf_kommt_aus_der_geschichte(monkeypatch):
         assert "story" in kontext.T.KERNPAKET_KOPF
     finally:
         workshop.vergiss()
+
+
+# --- Befund 2 (Padua Hotfix, 02.10.2026): keine Foto-Angebote -------------
+#
+# Live-Fund: das Gespraechsmodell sieht nur Text, kein Bild -- trotzdem bot
+# es an, eine Liste "getippt, abfotografiert oder als Sprachnachricht" zu
+# schicken. Ein Foto/Sticker/sonstiger Anhang ohne Transkript erschien davor
+# zudem wortgleich mit seinem (immer deutschen) Telegram-Typnamen im Prompt
+# -- "Maria: (foto)", unuebersetzt und ohne Hinweis, dass das Modell es gar
+# nicht sieht.
+
+def test_foto_ohne_transkript_traegt_den_nicht_sichtbar_hinweis():
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "foto"})
+    assert zeile == "Maria: (Datei -- fuer mich nicht sichtbar)"
+
+
+def test_sticker_ohne_transkript_traegt_denselben_hinweis():
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "sticker"})
+    assert zeile == "Maria: (Datei -- fuer mich nicht sichtbar)"
+
+
+def test_sonstiger_anhang_ohne_transkript_traegt_denselben_hinweis():
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "sonstiges"})
+    assert zeile == "Maria: (Datei -- fuer mich nicht sichtbar)"
+
+
+def test_dokument_ohne_transkript_traegt_denselben_hinweis():
+    """Review-Nachbesserung Befund 2: ``telegram._bestimme_typ`` liefert
+    ``"dokument"`` fuer jeden Datei-Upload (PDF, Word, ...) -- ohne
+    Bildunterschrift blieb das vorher beim rohen, immer deutschen
+    Telegram-Typnamen ``"(dokument)"`` stehen, derselbe Fehler wie bei
+    einem Foto, nur ueber den anderen Nachrichtentyp."""
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "dokument"})
+    assert zeile == "Maria: (Datei -- fuer mich nicht sichtbar)"
+
+
+def test_unbekannter_typ_bleibt_beim_alten_fallback():
+    """Regressionsanker: ein Typ ausserhalb von
+    ``kontext._TYPEN_NICHT_SICHTBAR`` (z.B. eine noch nicht transkribierte
+    Sprachnachricht) zeigt weiterhin seinen rohen Typnamen -- die Aenderung
+    betrifft nur Anhaenge, die das Modell wirklich nie sieht."""
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "sprache"})
+    assert zeile == "Maria: (sprache)"
+
+
+def test_foto_mit_transkript_zeigt_den_text_nicht_den_hinweis():
+    """Sobald ein Foto/Anhang doch Text traegt (z.B. eine nachtraeglich
+    gesetzte Beschriftung), gewinnt der Text -- der Hinweis ist nur der
+    Rueckfall fuer eine leere Nachricht."""
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": "Bildunterschrift", "typ": "foto"})
+    assert zeile == "Maria: Bildunterschrift"
+
+
+# --- Befund 3 (Padua Hotfix, 02.10.2026): immer Englisch antworten --------
+#
+# Live-Fund (web_post 6, 8, 10 in padua.db): die Gruppe schrieb deutsch, und
+# das englische Profil antwortete deutsch zurueck -- "Write in English" stand
+# nur ganz am Anfang des Systemprompts. Deterministische Gegenmassnahme:
+# ``_baue_ausloeser`` haengt im englischen Profil eine Sprachregel an den
+# Ausloeser-Block, den letzten (und nie gekuerzten) Block des Nutzertexts.
+
+@pytest.fixture
+def englisch(monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    yield
+    workshop.vergiss()
+    sprache.vergiss()
+
+
+def test_ausloeser_traegt_keine_sprachregel_auf_deutsch():
+    text = kontext._baue_ausloeser(
+        [{"ist_bot": 0, "absender": "Ada", "text": "Womit fangen wir an?", "typ": "text"}]
+    )
+    assert "Reminder" not in text
+    assert text == "Aktuell:\nAda: Womit fangen wir an?"
+
+
+def test_ausloeser_traegt_die_sprachregel_zuletzt_auf_englisch(englisch):
+    text = kontext._baue_ausloeser(
+        [{"ist_bot": 0, "absender": "Ada", "text": "Wie geht es weiter?", "typ": "text"}]
+    )
+    zeilen = text.splitlines()
+    assert zeilen[0] == "Now:"
+    assert zeilen[1] == "Ada: Wie geht es weiter?"
+    assert zeilen[-1] == kontext.T._AUSLOESER_SPRACHREGEL
+    assert text.endswith(kontext.T._AUSLOESER_SPRACHREGEL)
+
+
+def test_prompt_dump_phase1_englisch_endet_mit_der_sprachregel(conn, einst, englisch):
+    """Live-nahe Abnahme: ein normaler Gespraechszug in Phase 1 (Begriffe),
+    englisches Profil -- der Nutzertext endet mit der Sprachregel, nicht mit
+    der ausloesenden Nachricht."""
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie geht es weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert prompt.rstrip().endswith(kontext.T._AUSLOESER_SPRACHREGEL)
+
+
+def test_prompt_dump_phase1_deutsch_traegt_keine_sprachregel(conn, einst):
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie geht es weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Reminder" not in prompt
+    assert prompt.rstrip().endswith("Ada: Wie geht es weiter?")
+
+
+def test_sprachregel_ueberlebt_die_kuerzung(conn, einst, englisch):
+    """Die Sprachregel haengt am Ausloeser-Block, der von der Kuerzungsleiter
+    (§ 7.2) ausgenommen ist -- auch bei einem stark ueberladenen Prompt muss
+    sie am Ende stehenbleiben."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "x" * 5000)
+    for i in range(30):
+        _sende(conn, 1, i, "Ada", f"Nachricht {i} " * 50, _iso(i))
+    ausloeser = [_sende(conn, 1, 100, "Ada", "Wie geht es weiter?", _iso(100))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert prompt.rstrip().endswith(kontext.T._AUSLOESER_SPRACHREGEL)

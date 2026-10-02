@@ -106,7 +106,7 @@ def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
     ``/phase 4`` -- selten genug, und ein Knopf je Phase machte aus dem
     Angebot ein Menue."""
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
-    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.knopfbezeichnung(nummer))
+    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.bezeichnung(nummer))
     _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
 
 
@@ -124,7 +124,7 @@ def _phasenknopf(conn, chat_id: int) -> tuple[str, str] | None:
     if nummer is None:
         return None
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
-    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.knopfbezeichnung(nummer))
+    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.bezeichnung(nummer))
     return (beschriftung, _daten(knopf_id))
 
 
@@ -838,11 +838,15 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
     # (``phasen.voraussetzungen``): der Knopf sagt, was jetzt dran ist,
     # statt dass jemand raten muss.
     #
-    # ``uebergang`` (02.10.2026, Birk, Padua): "Ja, speichern" fixiert UND
-    # geht direkt in die naechste Phase, sobald die Materiallage sie hergibt
-    # -- keine Zwischenfrage, kein "Weiter zu ..."-Angebot. Ausgenommen sind
-    # die Fragen: an ihnen haengt die Kette Sensibilitaet -> Einleitungen ->
-    # Eroeffnung, und erst deren Ja schliesst Phase 2 ab.
+    # ``uebergang`` (02.10.2026, Birk, Padua; KORREKTUR 18:20, Kommentar 807):
+    # "Ja, speichern" fixiert UND geht DIREKT AUTOMATISCH in die naechste
+    # Phase weiter, sobald die Materiallage sie hergibt -- keine zweite
+    # Auswahl, kein "Weiter zu ..."-Angebot an dieser Stelle (das waere die
+    # Hotfix-Variante aus B5, die hier NICHT gilt -- B5 bleibt allein am
+    # Erkenner-Pfad, ``erkenner._sende_meldung``, wo die Gruppe noch nicht
+    # geklickt hat). Ausgenommen sind die Fragen: an ihnen haengt die Kette
+    # Sensibilitaet -> Einleitungen -> Eroeffnung, und erst deren Ja
+    # schliesst Phase 2 ab.
     if weiterfrage and uebergang and art != "fragen":
         from interview_theater.knoepfe.stationen import uebergang_nach_speichern
 

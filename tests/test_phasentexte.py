@@ -239,9 +239,9 @@ def test_die_proaktive_meldung_ist_die_abschlussnachricht(conn, tg):
     _, text, leiste = tg.knoepfe[-1]
     assert text.startswith("✅ Phase 1 · Begriffe abgeschlossen")
     assert "Begriffe: Warten, Amt, Klingel" in text
-    assert text.endswith(f"Weiter zu {phasen.knopfbezeichnung(2)}?")
+    assert text.endswith(f"Weiter zu Phase {phasen.bezeichnung(2)}?")
     assert [b for b, _ in leiste] == [
-        f"Weiter zu {phasen.knopfbezeichnung(2)}", "Noch etwas aendern",
+        f"Weiter zu Phase {phasen.bezeichnung(2)}", "Noch etwas aendern",
     ]
 
 
@@ -269,7 +269,7 @@ def test_abgeschlossen_wird_die_phase_der_gruppe_nicht_das_ziel(conn, tg):
 
     _, text, _ = tg.knoepfe[-1]
     assert text.startswith("✅ Phase 1 · Begriffe abgeschlossen")
-    assert text.endswith(f"Weiter zu {phasen.knopfbezeichnung(2)}?")
+    assert text.endswith(f"Weiter zu Phase {phasen.bezeichnung(2)}?")
 
 
 def test_der_weiter_knopf_fuehrt_in_den_phasenrahmen(conn, einst, tg):

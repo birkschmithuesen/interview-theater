@@ -71,6 +71,29 @@ def test_bot_heisst_im_verlauf_weiter_du():
     assert kontext.sprecherzeile({"ist_bot": 1, "absender": "x", "text": "hi", "typ": "text"}) == "Du: hi"
 
 
+def test_foto_ohne_transkript_ist_fuer_englisch_als_nicht_sichtbar_markiert(padua):
+    """Padua Hotfix Befund 2 (02.10.2026): das Gespraechsmodell sieht keine
+    Bilder. Vor dem Fix erschien eine Foto-Nachricht wortgleich mit ihrem
+    (immer deutschen) Telegram-Typnamen, auch im englischen Prompt --
+    "Maria: (foto)". Jetzt steht dort ein lokalisierter Hinweis, dass das
+    Modell die Datei nicht sieht."""
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "foto"})
+    assert zeile == "Maria: (file -- not visible to you)"
+
+
+def test_sticker_ohne_transkript_ist_fuer_englisch_als_nicht_sichtbar_markiert(padua):
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "sticker"})
+    assert zeile == "Maria: (file -- not visible to you)"
+
+
+def test_dokument_ohne_transkript_ist_fuer_englisch_als_nicht_sichtbar_markiert(padua):
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "dokument"})
+    assert zeile == "Maria: (file -- not visible to you)"
+
+
 def test_stile_zeigen_englisch_aber_gleiche_slugs(padua):
     assert [s["slug"] for s in stile.T.STILE] == [s["slug"] for s in stile.STILE]
 

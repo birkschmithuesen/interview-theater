@@ -314,15 +314,67 @@ GEAENDERT: dict[str, str] = {
         "genau einmal im Nutzertext, im Auftrag "
         "(tests/test_kuerzung.py::test_kuerzen_bindet_die_abschnittszahl_genau_einmal)."
     ),
-    "prompt system": _GRUND_STATION_4,
-    "anweisungen.system(phase=None)": _GRUND_STATION_4,
-    "anweisungen.system(phase=1)": _GRUND_STATION_4,
-    "anweisungen.system(phase=2)": _GRUND_STATION_4,
     # phase=3/4/6 stehen oben, zusammen mit dem jeweils eigenen Grund --
     # beide Karten (P2-Fix und Padua-Brainstorming-Umbau) treffen denselben
     # zusammengesetzten Abschnitt, siehe die kombinierten Begruendungen dort.
-    "anweisungen.system(phase=5)": _GRUND_STATION_4,
-    "anweisungen.system(phase=7)": _GRUND_STATION_4,
+    # Padua Hotfix Befund 2 (02.10.2026): das Gespraechsmodell (reiner Text)
+    # sieht keine Bilder und soll ein Foto deshalb nicht mehr anbieten --
+    # zusaetzlich zur Station-4-Umbenennung aus Karte P2-Fix, die denselben
+    # Abschnitt beruehrt.
+    "prompt system": (
+        _GRUND_STATION_4 + " Dazu (Padua Hotfix Befund 2): system.md bietet "
+        "nicht mehr an, die Begriffsliste \"von einem Foto abgetippt\" zu "
+        "schicken, und bekommt stattdessen den Satz \"Du kannst keine "
+        "Bilder oder Dateien sehen ...\". Gewollte Verhaltensaenderung fuer "
+        "Dortmund: dieselbe Korrektur wie fuer Padua, das Modell sieht dort "
+        "ebenfalls keine Bilder. Dazu Padua Hotfix B1 (Befund 1, "
+        "02.10.2026): unter /aufnahme steht, dass eine Sprachnachricht ohne "
+        "laufende Aufnahme abgetippt ankommt (im Verlauf mit "
+        "\"(Sprachnachricht)\" markiert) und wie jeder Beitrag beantwortet "
+        "wird -- nie behaupten, Sprachnachrichten nicht hoeren/abtippen zu "
+        "koennen (Live-Fall: genau das sagte der Bot, obwohl Whisper laengst "
+        "transkribiert hatte). Gilt fuer Dortmund ebenso."
+    ),
+    "prompt phasen/1": (
+        "phasen/1.md: \"getippt, von einem Foto abgetippt oder als "
+        "Sprachnachricht\" wird zu \"getippt oder als Sprachnachricht\" -- "
+        "derselbe Grund wie bei \"prompt system\" (Padua Hotfix B2). Dazu "
+        "Padua Hotfix B4 (Befund 4, 02.10.2026): die Zeile \"Ordne, was "
+        "zusammengehoert, und sag der Gruppe, was du siehst\" ist gestrichen "
+        "(Live-Fall: der Bot kommentierte und assoziierte ungefragt, dann "
+        "haengte er eine Frage an, die die direkt folgende Speicherleiste "
+        "nie beantwortete). Neu: die Liste wird nur wiedergegeben und "
+        "bestaetigt, keine Frage am Ende -- die Speicherknoepfe sind die "
+        "einzige Frage. Die Rueckfrage zur Praezisierung eines einzelnen "
+        "unklaren Begriffs bleibt erlaubt, ersetzt dann aber den "
+        "Vorschlagsblock in derselben Nachricht, statt daneben zu stehen."
+    ),
+    "anweisungen.system(phase=None)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=1)": "siehe \"prompt system\"/\"prompt phasen/1\" oben.",
+    "anweisungen.system(phase=2)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=3)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=4)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=5)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=6)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=7)": "siehe \"prompt system\" oben.",
+    "kontext.ERSTKONTAKT": (
+        "Padua Hotfix Befund 2: die Begruessung bittet nicht mehr um die "
+        "Begriffsliste \"als Foto abgetippt\" -- das Gespraechsmodell sieht "
+        "ohnehin keine Bilder. Gewollte Verhaltensaenderung fuer Dortmund."
+    ),
+    "knoepfe.texte._TEXT_PHASE_ANGEBOT": (
+        "Padua Hotfix Befund 5b (Birk 02.10.2026): die Rueckfrage nennt die "
+        "Phase mit Nummer und Titel (\"Weiter zu Phase 2 · Fragen?\"). "
+        "Gewollt auch fuer Dortmund/Vorgabeprofil."
+    ),
+    "knoepfe.texte._TEXT_PHASE_WEITER": (
+        "Padua Hotfix Befund 5b (Birk 02.10.2026): \"Weiter zu Phase "
+        "{phase}?\", {phase} = phasen.bezeichnung (Nummer + Titel)."
+    ),
+    "knoepfe.texte._TEXT_WEITER_ZU_KNOPF": (
+        "Padua Hotfix Befund 5b (Birk 02.10.2026): der Weiter-Knopf heisst "
+        "\"Weiter zu Phase 2 · Fragen\" statt \"Weiter zu Fragen\"."
+    ),
     "web._TEXTBUCH_JS": (
         "Karte W, Aufgabe 11 (30.09.2026): die vereinte Seite haengt den "
         "Zustand der Probenansicht nicht mehr an document.body, sondern an "

@@ -382,7 +382,7 @@ def baue_nutzertext(
     sind (``abschnittszahl``) -- es sei denn, der Budget-Block traegt sie
     schon (``laengen.SATZ_BINDUNG``). Ohne geplante Szenen und ohne
     ``eintraege`` bleibt der Nutzertext **zeichengleich** wie vorher."""
-    from interview_theater import laengen, szenenfolge
+    from interview_theater import kontext, laengen, szenenfolge
 
     teile = [szenenfolge._erfundenes(conn, chat_id)]
     stile = [
@@ -396,6 +396,7 @@ def baue_nutzertext(
         teile.append(vorlage_text(conn, chat_id))
     if eintraege:
         teile.append(laengen.block_prosa(eintraege))
+    teile.append(kontext.baue_debrief_block(conn, chat_id))
     auftrag = T._AUFTRAG
     # Die bindende Abschnittszahl (02.10.2026, Birks Entscheidung) -- aber
     # nur, wenn der Budget-Block sie nicht schon traegt: ``block_prosa``

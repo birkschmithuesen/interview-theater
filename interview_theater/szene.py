@@ -68,7 +68,7 @@ import threading
 
 import httpx
 
-from interview_theater import anweisungen, repo, strom, szene_claude, workshop
+from interview_theater import anweisungen, kontext, repo, strom, szene_claude, workshop
 
 log = logging.getLogger(__name__)
 
@@ -1912,7 +1912,7 @@ _REIHENFOLGE = (
     # Teil (30.09.2026, Karte R): eine Laengenvorgabe, die die
     # Kuerzungsleiter wegwerfen darf, ist keine.
     "format_rahmen", "aufgabe", "laenge", "thema", "kernpaket", "figuren",
-    "continuity", "verworfen", "chat", "diese_szene", "auftrag",
+    "continuity", "verworfen", "debrief", "chat", "diese_szene", "auftrag",
 )
 
 
@@ -1999,6 +1999,9 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
             "figuren": figuren,
             "continuity": _continuity_text(conn, chat_id, nummer, voll),
             "verworfen": _verworfen_text(conn, chat_id),
+            # "So arbeitet diese Gruppe": derselbe Block wie im Gespraechs-
+            # Prompt (kontext.py), kein zweites Verfahren fuer dieselbe Sache.
+            "debrief": kontext.baue_debrief_block(conn, chat_id),
             "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl),
             "aufgabe": _aufgabe_text(conn, chat_id, ziel),
             "laenge": _laenge_text(conn, chat_id, ziel),

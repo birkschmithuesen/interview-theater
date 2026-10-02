@@ -87,6 +87,11 @@ BUDGETS = {
     # waechst unbegrenzt. 800 Token sind rund 2.400 Zeichen; die gemessene
     # Gruppe haette in Phase 4 etwa 12 Zeilen a 70 Zeichen erzeugt.
     "festlegungen": 800,
+    # Gespeicherte Phasen-Debriefs ("So arbeitet diese Gruppe"), Block direkt
+    # dahinter -- dasselbe Budget wie ``festlegungen`` aus demselben Grund:
+    # klein, additiv, und ohne Deckel wuerde jede weitere abgeschlossene
+    # Phase den Block unbegrenzt wachsen lassen.
+    "debrief": 800,
     "phasenhinweis": 50,
     "figurenhinweis": 100,
     "szene": 2000,
@@ -223,6 +228,7 @@ PAUSE_AB_MINUTEN = 60
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
+    "debrief",
     "phasenhinweis", "figurenhinweis", "szene", "journal", "fenster",
     "ausloeser", "erstkontakt",
 )
@@ -815,6 +821,41 @@ def _baue_festlegungen(conn, chat_id: int) -> str:
         zeilen.append(zeile)
         laenge += 1 + len(zeile)
     return kopf + "\n" + "\n".join(zeilen)
+
+
+#: Die Kopfzeile des Debrief-Blocks ("So arbeitet diese Gruppe"): gespeicherte
+#: Rueckblicke, die beim Verlassen einer Phase im Hintergrund entstehen
+#: (``repo.phasen_debriefs``). Direkt hinter den Festlegungen, aus demselben
+#: Grund -- ein Fakt, der in kein Feld passt, aber gelten soll.
+DEBRIEF_KOPF = "So arbeitet diese Gruppe:"
+
+
+def baue_debrief_block(conn, chat_id: int) -> str:
+    """Gespeicherte Phasen-Debriefs als Block, aelteste Phase zuerst.
+
+    Oeffentlich (kein fuehrender Unterstrich): ``szene.py``, ``szenenfolge.py``
+    und ``kurzgeschichte.py`` binden denselben Block in ihre eigenen
+    Nutzertexte ein -- eine Szene oder eine Geschichte soll denselben
+    Rueckblick sehen wie der Gespraechszug, nicht eine zweite Fassung.
+
+    Datengetrieben wie jeder Block: kein Debrief, kein Block -- und ohne
+    gespeicherte Phasendaten ist das in jeder fruehen Phase der Fall."""
+    zeilen = repo.phasen_debriefs(conn, chat_id)
+    if not zeilen:
+        return ""
+    abschnitte = [
+        f"### {phasen.bezeichnung(z['phase'])}\n{z['text']}" for z in zeilen
+    ]
+    grenze = BUDGETS["debrief"] * _ZEICHEN_JE_TOKEN
+    # Ueber dem Budget: aelteste Phasen zuerst verwerfen -- sie sind am
+    # wenigsten aktuell fuer die Arbeit von jetzt.
+    while abschnitte and (
+        sum(len(a) for a in abschnitte) + 2 * (len(abschnitte) - 1) > grenze
+    ):
+        abschnitte.pop(0)
+    if not abschnitte:
+        return ""
+    return T.DEBRIEF_KOPF + "\n\n" + "\n\n".join(abschnitte)
 
 
 #: Der Hinweisblock, mit dem der Bot einen Phasenwechsel zur Sprache bringt.
@@ -1560,6 +1601,10 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         # Direkt dahinter, und **unabhaengig von Phase und Materiallage**:
         # was hier steht, passt in kein Feld und faellt deshalb sonst weg.
         "festlegungen": _baue_festlegungen(conn, chat_id),
+        # Keine Phasenschranke noetig: ein Debrief fuer Phase N entsteht erst,
+        # wenn die Gruppe Phase N schon verlassen hat (Task 1-3) -- er kann
+        # also nicht erscheinen, waehrend die Gruppe noch in N arbeitet.
+        "debrief": baue_debrief_block(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
@@ -1664,6 +1709,14 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
             bloecke["festlegungen"] = "\n".join(festlegungszeilen)
         if _zu_lang():
             bloecke["festlegungen"] = ""
+    if _zu_lang() and bloecke["debrief"]:
+        # Blankes Verwerfen statt Teilabbau: ``baue_debrief_block`` hat sein
+        # eigenes Budget schon durchgesetzt (aelteste Phase zuerst), ein
+        # zweiter, hier nachgebauter Abbau wuerde dieselbe Logik verdoppeln.
+        # Der Block ist klein (Budget 800 Token) und steht erst ab der
+        # zweiten verlassenen Phase ueberhaupt -- ein Komplettverzicht an
+        # dieser Stelle der Leiter kostet wenig.
+        bloecke["debrief"] = ""
     if _zu_lang():
         bloecke["verdichtungen"] = ""
     if _zu_lang() and bloecke["szene"]:

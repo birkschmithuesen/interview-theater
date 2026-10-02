@@ -172,7 +172,19 @@ GEAENDERT: dict[str, str] = {
         "der Bloecke. Fuer Dortmund bleibt der Block leer (laengen.aktiv = "
         "false) und faellt in _zusammen ersatzlos weg -- der Nutzertext ist "
         "zeichengleich (tests/test_laengen_szene.py, "
-        "tests/test_profil_bitgleich.py)."
+        "tests/test_profil_bitgleich.py). Phasen-Debrief (02.10.2026): "
+        "zusaetzlich steht \"debrief\" nach \"verworfen\" -- fuer Dortmund "
+        "ohne gespeicherte Debriefs bleibt der Block leer und faellt ebenso "
+        "ersatzlos weg (tests/test_szene.py)."
+    ),
+    "kontext._REIHENFOLGE": (
+        "Phasen-Debrief (02.10.2026): der Blockname \"debrief\" kommt direkt "
+        "nach \"festlegungen\" dazu (\"So arbeitet diese Gruppe\" --"
+        " gespeicherte Phasen-Rueckblicke). Kein Nutzertext, sondern die "
+        "Reihenfolge der Bloecke. Fuer Dortmund gibt es ohne gespeicherte "
+        "Debriefs keine Zeilen in der Tabelle phasen_debrief, der Block "
+        "bleibt leer und faellt in _zusammen ersatzlos weg -- der Nutzertext "
+        "ist zeichengleich (tests/test_kontext.py)."
     ),
     # Padua-Brainstorming-Umbau, Phase 4 (02.10.2026, .phase4-brainstorm-brief.md):
     # die neue Erkenner-Art ``szenenanzahl_setzen`` (Anzahl Szenen ist ein

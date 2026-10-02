@@ -1091,7 +1091,9 @@ def systemanweisung_geschichte(anzahl: int | None = None) -> str:
 
 def baue_nutzertext_geschichte(conn, chat_id: int, wunsch: str | None = None) -> str:
     """Das Erfundene, dann der Auftrag -- **ohne Material** (``_erfundenes``)."""
-    teile = [_erfundenes(conn, chat_id)]
+    from interview_theater import kontext
+
+    teile = [_erfundenes(conn, chat_id), kontext.baue_debrief_block(conn, chat_id)]
     auftrag = T._AUFTRAG_GESCHICHTE
     if wunsch and wunsch.strip():
         auftrag += f"\n{wunsch.strip()}"
@@ -1102,7 +1104,9 @@ def baue_nutzertext_geschichte(conn, chat_id: int, wunsch: str | None = None) ->
 def baue_nutzertext(conn, chat_id: int, anzahl: int, wunsch: str | None = None) -> str:
     """Material, dann der Auftrag -- was am Ende steht, wiegt am schwersten
     (SPEC § 6.1), deshalb der Wunsch der Gruppe zuletzt."""
-    teile = [_material(conn, chat_id)]
+    from interview_theater import kontext
+
+    teile = [_material(conn, chat_id), kontext.baue_debrief_block(conn, chat_id)]
     auftrag = T._AUFTRAG_FOLGE.format(anzahl=anzahl)
     if wunsch and wunsch.strip():
         auftrag += f"\n{wunsch.strip()}"

@@ -1620,7 +1620,7 @@ def _blase_html(n: dict) -> str:
 
 
 def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
-              segment_ms: int) -> str:
+              segment_ms: int, vad: dict | None = None) -> str:
     """Die Chatansicht.
 
     Sie haengt sich in ``web._seite`` ein (dieselbe Klammer, dasselbe
@@ -1630,6 +1630,7 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
     gezielt, per Poll (``_CHAT_JS``), und nur der Verlauf."""
     from interview_theater import web   # spaeter Import: web importiert web_chat
 
+    vad = vad if vad is not None else _vad_werte()
     modus = bool(daten["interviewmodus"])
     blasen = "\n".join(_blase_html(n) for n in daten["nachrichten"])
     if not blasen:
@@ -1646,6 +1647,11 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f'<div class="tippt" id="tippt"></div>\n'
         f'<input type="hidden" id="nonce" value="{html.escape(nonce_wert, quote=True)}">\n'
         f'<div class="fuss" id="fuss" data-segment-ms="{int(segment_ms)}"\n'
+        f'     data-vad-pause-ms="{int(vad["pause_ms"])}" '
+        f'data-vad-max-ms="{int(vad["max_ms"])}" '
+        f'data-vad-min-speech-ms="{int(vad["min_speech_ms"])}"\n'
+        f'     data-vad-rms="{vad["rms"]}" '
+        f'data-vad-floor-faktor="{vad["floor_faktor"]}"\n'
         f'     data-interview="{1 if modus else 0}">\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
         f'  <div class="pegel" id="pegel" hidden><span></span></div>\n'
@@ -2317,3 +2323,42 @@ def _segment_ms() -> int:
     (``einstellungen.VORGABE_SEGMENT_MS``)."""
     roh = (os.environ.get("IT_WEB_SEGMENT_MS") or "").strip()
     return int(roh) if roh.isdigit() and int(roh) > 0 else 45_000
+
+
+def _umgebungszahl(name: str, vorgabe: float, *, ganzzahl: bool) -> float:
+    """Eine einzelne VAD-Zahl aus der Umgebung, mit stillem Ruckfall auf die
+    Vorgabe bei leerem/ungueltigem/nicht-positivem Wert -- derselbe
+    Nachsichtsgrundsatz wie bei ``_segment_ms``."""
+    roh = (os.environ.get(name) or "").strip()
+    if not roh:
+        return vorgabe
+    try:
+        wert = float(roh)
+    except ValueError:
+        return vorgabe
+    if wert <= 0:
+        return vorgabe
+    return int(wert) if ganzzahl else wert
+
+
+def _vad_werte() -> dict:
+    """Die fuenf Zahlen fuer den Pausen-Schnitt (VAD), einzeln ueberschreibbar.
+
+    Herkunft (Betreiber-Entscheidung 02.10.2026, CoThinker-Projekt):
+    ``pause_ms``/``max_ms`` aus ``gateway/consumer.py --pause 2.5
+    --max-block 90``, ``min_speech_ms`` aus ``stt_server/args.py
+    --vad_min_speech_ms 500`` (Infomaniak-Pfad dort -- das ist auch unser
+    STT-Anbieter), ``rms`` aus ``settings.BUILT_IN_DEFAULTS
+    vad_energy_threshold 0.01`` (RMS reeller Zeitbereichs-Samples, Skala
+    0..1). ``floor_faktor`` ist NICHT aus CoThinker gemessen -- gesetzt,
+    nicht gemessen, als Schutz gegen laute Workshop-Raeume (Browser-Mikros
+    unterscheiden sich von CoThinkers Aufbau)."""
+    return {
+        "pause_ms": _umgebungszahl("IT_WEB_VAD_PAUSE_MS", 2500, ganzzahl=True),
+        "max_ms": _umgebungszahl("IT_WEB_VAD_MAX_MS", 90_000, ganzzahl=True),
+        "min_speech_ms": _umgebungszahl(
+            "IT_WEB_VAD_MIN_SPEECH_MS", 500, ganzzahl=True),
+        "rms": _umgebungszahl("IT_WEB_VAD_RMS", 0.01, ganzzahl=False),
+        "floor_faktor": _umgebungszahl(
+            "IT_WEB_VAD_FLOOR_FACTOR", 2.5, ganzzahl=False),
+    }

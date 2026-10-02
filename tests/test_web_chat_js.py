@@ -52,6 +52,47 @@ def test_die_segmentlaenge_kommt_aus_der_umgebung(seite):
     assert 'data-segment-ms="1200"' in seite
 
 
+def test_die_vad_werte_haben_vorgaben_ohne_umgebung(monkeypatch):
+    for name in ("IT_WEB_VAD_PAUSE_MS", "IT_WEB_VAD_MAX_MS",
+                 "IT_WEB_VAD_MIN_SPEECH_MS", "IT_WEB_VAD_RMS",
+                 "IT_WEB_VAD_FLOOR_FACTOR"):
+        monkeypatch.delenv(name, raising=False)
+    assert web_chat._vad_werte() == {
+        "pause_ms": 2500, "max_ms": 90_000, "min_speech_ms": 500,
+        "rms": 0.01, "floor_faktor": 2.5,
+    }
+
+
+def test_die_vad_werte_kommen_einzeln_aus_der_umgebung(monkeypatch):
+    monkeypatch.setenv("IT_WEB_VAD_PAUSE_MS", "3000")
+    monkeypatch.setenv("IT_WEB_VAD_MAX_MS", "60000")
+    monkeypatch.setenv("IT_WEB_VAD_MIN_SPEECH_MS", "400")
+    monkeypatch.setenv("IT_WEB_VAD_RMS", "0.02")
+    monkeypatch.setenv("IT_WEB_VAD_FLOOR_FACTOR", "3.0")
+    assert web_chat._vad_werte() == {
+        "pause_ms": 3000, "max_ms": 60000, "min_speech_ms": 400,
+        "rms": 0.02, "floor_faktor": 3.0,
+    }
+
+
+def test_eine_leere_oder_ungueltige_vad_umgebungszahl_faellt_auf_die_vorgabe_zurueck(monkeypatch):
+    monkeypatch.setenv("IT_WEB_VAD_PAUSE_MS", "")
+    monkeypatch.setenv("IT_WEB_VAD_MAX_MS", "nicht-numerisch")
+    monkeypatch.setenv("IT_WEB_VAD_RMS", "-1")
+    werte = web_chat._vad_werte()
+    assert werte["pause_ms"] == 2500
+    assert werte["max_ms"] == 90_000
+    assert werte["rms"] == 0.01
+
+
+def test_die_vad_attribute_stehen_am_fuss(seite):
+    assert 'data-vad-pause-ms="2500"' in seite
+    assert 'data-vad-max-ms="90000"' in seite
+    assert 'data-vad-min-speech-ms="500"' in seite
+    assert 'data-vad-rms="0.01"' in seite
+    assert 'data-vad-floor-faktor="2.5"' in seite
+
+
 def test_der_nonce_steht_im_body_und_nicht_daran(seite):
     """Dieselbe Entscheidung wie auf der Gruppenseite (``web.nonce``):
     abgeleitet, nicht gewuerfelt, und IM body -- sonst reisst ein

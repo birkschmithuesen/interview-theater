@@ -208,7 +208,7 @@ _TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
 #: Knopf und die Laeuft-Zeile sind eigene -- "Brainstorm" ist kein Interview.
 _TEXT_BRAINSTORM_AN = "🎙 Brainstorm mithören"
 _TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit}"
-_TEXT_PTT = "Halten und sprechen"
+_TEXT_PTT = "Tippen und sprechen"
 _TEXT_OHNE_JS = (
     "Fuer Chat und Aufnahme braucht diese Seite JavaScript. "
     "Die Gruppenseite und das Textbuch funktionieren auch ohne."
@@ -303,7 +303,6 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 #ptt { touch-action: none; user-select: none; -webkit-user-select: none;
        -webkit-touch-callout: none; }
 #ptt[data-haelt="1"] { background: #a8201a; transform: scale(1.08); }
-#ptt[data-haelt="1"][data-weg="1"] { background: #6b6b6b; }
 .fehler { font-size: .9rem; color: #a8201a; text-align: center; }
 .fehler[hidden] { display: none; }
 .angehalten { display: flex; flex-direction: column; gap: .35rem; font-size: .92rem;
@@ -338,6 +337,11 @@ POLL_MS_HINTERGRUND = 10000
 #: versehentlicher Tipper auf das Mikrofon soll keine leere Aufnahme in den
 #: Chat legen -- und keinen Gespraechszug ausloesen.
 PTT_MIN_MS = 500
+
+#: Obergrenze fuer einen PTT-Druck (Kanban-Karte Buehne/PTT): laeuft die
+#: Aufnahme laenger als 90 Sekunden, stoppt und sendet sie automatisch --
+#: PTT ist fuer kurze Sprachnavigation gedacht, nicht fuer ein Interview.
+PTT_MAX_MS = 90_000
 
 #: Wartezeiten zwischen zwei Versuchen eines Uploads (Millisekunden), der
 #: letzte Wert ist der Deckel. **Ohne Hoechstzahl an Versuchen**
@@ -441,6 +445,7 @@ _CHAT_JS = """
   var POLL_MS = __POLL_MS__;
   var POLL_MS_HINTERGRUND = __POLL_MS_HINTERGRUND__;
   var PTT_MIN_MS = __PTT_MIN_MS__;
+  var PTT_MAX_MS = __PTT_MAX_MS__;
   var UPLOAD_WARTEN_MS = __UPLOAD_WARTEN_MS__;
   var TEXT = __TEXTE__;
 
@@ -1433,10 +1438,9 @@ _CHAT_JS = """
     zustand.ptt = null;
     druck.gehalten = false;
     druck.abgebrochen = true;
-    if (pttKnopf) {
-      pttKnopf.dataset.haelt = '0';
-      try { pttKnopf.releasePointerCapture(druck.pointerId); } catch (e) { /* egal */ }
-    }
+    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+    beendePttAnzeige();
     if (druck.recorder && druck.recorder.state !== 'inactive') {
       druck.recorder.stop();   // sein onstop gibt das Mikrofon frei
     }
@@ -1944,95 +1948,91 @@ _CHAT_JS = """
 
   // -- Push-to-Talk --------------------------------------------------------
   //
-  // Halten = sprechen, loslassen = senden, Klasse 'kurz' (der Modus wird
-  // NICHT geschaltet). Pointer Events mit setPointerCapture; pointercancel,
-  // ein verlorener Zeiger oder ein Loslassen ausserhalb des Knopfs sendet
-  // NICHTS, ebenso ein Druck unter PTT_MIN_MS.
+  // Tippen = starten, nochmal tippen = senden, Klasse 'kurz' (der Modus wird
+  // NICHT geschaltet). Ein Klick-Umschalter statt Halten (Kanban-Karte
+  // Buehne/PTT, 03.10.2026): ein Tipp startet die Aufnahme, ein zweiter
+  // beendet und sendet sie. Laeuft die Aufnahme laenger als PTT_MAX_MS,
+  // stoppt und sendet sie automatisch. Ein Druck unter PTT_MIN_MS sendet
+  // NICHTS.
+
+  function beendePttAnzeige() {
+    if (!pttKnopf) { return; }
+    pttKnopf.dataset.haelt = '0';
+    pttKnopf.textContent = '🎤';
+  }
+
+  function startePtt() {
+    if (!pttKnopf) { return; }
+    if (modusAn() || zustand.wechsel || zustand.brainstorm || zustand.ptt) { return; }
+    // Review-Befund 6: jeder Druck traegt seinen eigenen Zustand -- ein
+    // spaeterer Druck ueberschreibt nichts, was ein frueherer noch liest.
+    var druck = {
+      von: Date.now(), dauerMs: 0, gehalten: true, abgebrochen: false,
+      recorder: null, strom: null, teile: [], timeout: null, takt: null
+    };
+    zustand.ptt = druck;
+    pttKnopf.dataset.haelt = '1';
+    // Laufende Zeit sichtbar machen, solange der Druck laeuft.
+    druck.takt = setInterval(function () {
+      pttKnopf.textContent = '🔴 ' + minuten(Math.floor((Date.now() - druck.von) / 1000));
+    }, 500);
+    holeStrom().then(function (strom) {
+      druck.strom = strom;
+      // Review-Befund 5: beendet, bevor das Mikrofon da war -- dann gar
+      // nicht erst aufnehmen, und das Mikrofon sofort wieder zu.
+      if (!druck.gehalten) { gibFrei(druck); return; }
+      var r = new MediaRecorder(strom);
+      druck.recorder = r;
+      r.ondataavailable = function (e) {
+        if (e.data && e.data.size) { druck.teile.push(e.data); }
+      };
+      r.onstop = function () {
+        gibFrei(druck);
+        if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS ||
+            !druck.teile.length) { return; }
+        veralteLetzteLeiste();
+        reiheEin({
+          art: 'audio', sitzung: null,
+          blob: new Blob(druck.teile,
+                         { type: druck.teile[0].type || r.mimeType || 'audio/webm' }),
+          dauer: Math.max(1, Math.round(druck.dauerMs / 1000))
+        });
+      };
+      r.start();
+    }).catch(function () {
+      druck.abgebrochen = true;
+      gibFrei(druck);
+      if (zustand.ptt === druck) {
+        zustand.ptt = null;
+        if (druck.timeout) { clearTimeout(druck.timeout); }
+        if (druck.takt) { clearInterval(druck.takt); }
+        beendePttAnzeige();
+      }
+      meldeFehler(TEXT.fehler_mikro);
+    });
+    druck.timeout = setTimeout(function () {
+      if (zustand.ptt === druck) { beendePtt(); }   // Automatik nach PTT_MAX_MS
+    }, PTT_MAX_MS);
+  }
+
+  function beendePtt() {
+    var druck = zustand.ptt;
+    if (!druck) { return; }
+    zustand.ptt = null;
+    druck.gehalten = false;
+    // Die Laufzeit, nicht die Zeit bis das Mikrofon da war.
+    druck.dauerMs = Date.now() - druck.von;
+    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+    beendePttAnzeige();
+    if (druck.recorder && druck.recorder.state !== 'inactive') {
+      druck.recorder.stop();
+    }
+  }
 
   if (pttKnopf) {
-    var ausserhalb = function (ev) {
-      var k = pttKnopf.getBoundingClientRect();
-      return ev.clientX < k.left || ev.clientX > k.right ||
-             ev.clientY < k.top || ev.clientY > k.bottom;
-    };
-
-    pttKnopf.addEventListener('pointerdown', function (ev) {
-      if (modusAn() || zustand.wechsel || zustand.ptt) { return; }
-      if (ev.button !== undefined && ev.button > 0) { return; }
-      ev.preventDefault();
-      try { pttKnopf.setPointerCapture(ev.pointerId); } catch (e) { /* egal */ }
-      // Review-Befund 6: jeder Druck traegt seinen eigenen Zustand -- ein
-      // spaeterer Druck ueberschreibt nichts, was ein frueherer noch liest.
-      var druck = {
-        pointerId: ev.pointerId, von: Date.now(), dauerMs: 0,
-        gehalten: true, abgebrochen: false, recorder: null, strom: null,
-        teile: []
-      };
-      zustand.ptt = druck;
-      pttKnopf.dataset.haelt = '1';
-      pttKnopf.dataset.weg = '0';
-      holeStrom().then(function (strom) {
-        druck.strom = strom;
-        // Review-Befund 5: losgelassen, bevor das Mikrofon da war -- dann
-        // gar nicht erst aufnehmen, und das Mikrofon sofort wieder zu.
-        if (!druck.gehalten) { gibFrei(druck); return; }
-        var r = new MediaRecorder(strom);
-        druck.recorder = r;
-        r.ondataavailable = function (e) {
-          if (e.data && e.data.size) { druck.teile.push(e.data); }
-        };
-        r.onstop = function () {
-          gibFrei(druck);
-          if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS ||
-              !druck.teile.length) { return; }
-          veralteLetzteLeiste();
-          reiheEin({
-            art: 'audio', sitzung: null,
-            blob: new Blob(druck.teile,
-                           { type: druck.teile[0].type || r.mimeType || 'audio/webm' }),
-            dauer: Math.max(1, Math.round(druck.dauerMs / 1000))
-          });
-        };
-        r.start();
-      }).catch(function () {
-        druck.abgebrochen = true;
-        gibFrei(druck);
-        if (zustand.ptt === druck) {
-          zustand.ptt = null;
-          pttKnopf.dataset.haelt = '0';
-        }
-        meldeFehler(TEXT.fehler_mikro);
-      });
-    });
-
-    var lasseLos = function (ev, abbrechen) {
-      var druck = zustand.ptt;
-      if (!druck || ev.pointerId !== druck.pointerId) { return; }
-      zustand.ptt = null;
-      pttKnopf.dataset.haelt = '0';
-      pttKnopf.dataset.weg = '0';
-      druck.gehalten = false;
-      // Die Haltezeit, nicht die Zeit bis das Mikrofon da war.
-      druck.dauerMs = Date.now() - druck.von;
-      // Review-Befund 7: mit setPointerCapture kommt auch ein Loslassen
-      // NEBEN dem Knopf hier an -- weggezogen heisst abgebrochen.
-      if (abbrechen || ausserhalb(ev)) { druck.abgebrochen = true; }
-      try { pttKnopf.releasePointerCapture(ev.pointerId); } catch (e) { /* egal */ }
-      if (druck.recorder && druck.recorder.state !== 'inactive') {
-        druck.recorder.stop();
-      }
-    };
-
-    pttKnopf.addEventListener('pointerup', function (ev) { lasseLos(ev, false); });
-    pttKnopf.addEventListener('pointercancel', function (ev) { lasseLos(ev, true); });
-    // Ein Systemdialog oder Kontextmenue kann den Zeiger entfuehren; nach
-    // einem normalen pointerup ist zustand.ptt schon leer und das hier wirkt
-    // nicht mehr.
-    pttKnopf.addEventListener('lostpointercapture', function (ev) { lasseLos(ev, true); });
-    pttKnopf.addEventListener('pointermove', function (ev) {
-      var druck = zustand.ptt;
-      if (!druck || ev.pointerId !== druck.pointerId) { return; }
-      pttKnopf.dataset.weg = ausserhalb(ev) ? '1' : '0';
+    pttKnopf.addEventListener('click', function () {
+      if (zustand.ptt) { beendePtt(); } else { startePtt(); }
     });
     pttKnopf.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
   }
@@ -2070,6 +2070,7 @@ def _js() -> str:
         .replace("__POLL_MS__", str(POLL_MS))
         .replace("__POLL_MS_HINTERGRUND__", str(POLL_MS_HINTERGRUND))
         .replace("__PTT_MIN_MS__", str(PTT_MIN_MS))
+        .replace("__PTT_MAX_MS__", str(PTT_MAX_MS))
         .replace("__UPLOAD_WARTEN_MS__", json.dumps(list(UPLOAD_WARTEN_MS)))
         .replace("__TEXTE__", texte)
     )

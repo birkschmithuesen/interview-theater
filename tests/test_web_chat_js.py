@@ -200,12 +200,31 @@ def test_die_ptt_mindestdauer_kommt_aus_einer_konstante(seite):
     assert "__PTT_MIN_MS__" in web_chat._CHAT_JS
 
 
-def test_pointercancel_und_setpointercapture_stehen_im_js():
-    """Birks Vorgabe woertlich: Pointer Events + setPointerCapture, Abbruch
-    bei Wegziehen/pointercancel sendet NICHTS."""
-    for baustein in ("setPointerCapture", "pointercancel", "pointerdown",
-                     "pointerup", "releasePointerCapture"):
-        assert baustein in web_chat._CHAT_JS, baustein
+def test_ptt_ist_ein_klick_umschalter_ohne_pointer_capture():
+    """Von Halten-zum-Sprechen auf Tippen-zum-Umschalten umgebaut (Kanban-
+    Karte Buehne/PTT, Punkt 3): ein Tipp startet, ein zweiter beendet und
+    sendet -- kein Pointer-Capture-Geschehen mehr."""
+    js = web_chat._CHAT_JS
+    block = js[js.index("-- Push-to-Talk"):]
+    assert "pttKnopf.addEventListener('click'" in block
+    for veraltet in ("setPointerCapture", "pointercancel", "pointerdown",
+                     "pointerup", "pointermove", "lostpointercapture",
+                     "releasePointerCapture"):
+        assert veraltet not in block, veraltet
+
+
+def test_die_ptt_hoechstdauer_kommt_aus_einer_konstante(seite):
+    assert web_chat.PTT_MAX_MS == 90_000
+    assert f"var PTT_MAX_MS = {web_chat.PTT_MAX_MS};" in seite
+    assert "__PTT_MAX_MS__" in web_chat._CHAT_JS
+
+
+def test_ptt_stoppt_und_sendet_automatisch_nach_der_hoechstdauer():
+    js = web_chat._CHAT_JS
+    block = js[js.index("-- Push-to-Talk"):]
+    assert "setTimeout(" in block
+    assert "PTT_MAX_MS" in block
+    assert "beendePtt()" in block
 
 
 def test_kein_schieben_zum_sperren(seite):
@@ -473,7 +492,8 @@ def test_403_in_der_schlange_wird_nachgeholt_nicht_verworfen():
 
 
 def test_interviewstart_verwirft_einen_gehaltenen_ptt_druck():
-    """Re-Review F: zwei Finger, zwei Recorder."""
+    """Re-Review F: zwei Mikrofone gleichzeitig sind keine Bedienung -- auch
+    nicht im Tippen-zum-Umschalten-Modell (Kanban-Karte Buehne/PTT)."""
     js = web_chat._CHAT_JS
     start = js[js.index("function starteInterview"):js.index("function brichAb")]
     assert "verwirfPtt()" in start

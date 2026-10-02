@@ -138,7 +138,16 @@ GEAENDERT: dict[str, str] = {
     "prompt phasen/1": (
         "phasen/1.md: \"getippt, von einem Foto abgetippt oder als "
         "Sprachnachricht\" wird zu \"getippt oder als Sprachnachricht\" -- "
-        "derselbe Grund wie bei \"prompt system\"."
+        "derselbe Grund wie bei \"prompt system\" (Padua Hotfix B2). Dazu "
+        "Padua Hotfix B4 (Befund 4, 02.10.2026): die Zeile \"Ordne, was "
+        "zusammengehoert, und sag der Gruppe, was du siehst\" ist gestrichen "
+        "(Live-Fall: der Bot kommentierte und assoziierte ungefragt, dann "
+        "haengte er eine Frage an, die die direkt folgende Speicherleiste "
+        "nie beantwortete). Neu: die Liste wird nur wiedergegeben und "
+        "bestaetigt, keine Frage am Ende -- die Speicherknoepfe sind die "
+        "einzige Frage. Die Rueckfrage zur Praezisierung eines einzelnen "
+        "unklaren Begriffs bleibt erlaubt, ersetzt dann aber den "
+        "Vorschlagsblock in derselben Nachricht, statt daneben zu stehen."
     ),
     "anweisungen.system(phase=None)": "siehe \"prompt system\" oben.",
     "anweisungen.system(phase=1)": "siehe \"prompt system\"/\"prompt phasen/1\" oben.",

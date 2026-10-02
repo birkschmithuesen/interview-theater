@@ -1683,3 +1683,16 @@ fazitsatz = "No conclusion and no moral at the end. The last line does not say w
 _TEXT_PAUSE = """Today's budget is used up — I'm pausing until midnight (Italian time) and won't reply in the meantime.
 
 Your work is saved. You can keep recording (I'll listen tomorrow), and your group page stays readable."""
+
+["web_vereint"]
+_TEXT_PHASE_UNGUELTIG = "There is no such phase."
+_TEXT_PHASE_UNBESTAETIGT = "Please confirm first."
+_TEXT_PHASE_WECHSELN = "Switch to this phase"
+_TEXT_PHASE_SICHER = "Really switch to {bezeichnung}?"
+_TEXT_PHASE_FEHLER_NETZ = "No connection - that didn't go through."
+_TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_aufgaben}"
+
+["web_vereint"._TEXT_TAB]
+chat = "Chat"
+stand = "Workbench"
+textbuch = "Script"

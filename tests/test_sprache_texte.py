@@ -36,7 +36,7 @@ UMGESTELLT: set[str] = {
     "szene", "szenenfolge", "kurzgeschichte", "schaerfung", "sprachprofil",
     "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
     "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben", "web",
-    "laengen", "sprachpass",
+    "laengen", "sprachpass", "web_vereint",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -50,6 +50,7 @@ ALLE_MODULE = {
     "phasentexte", "schaerfung", "sprachprofil", "sprachstil", "sprecher",
     "stile", "stueckpruefung", "szene", "szenenfolge", "verdichter",
     "vorspann", "web", "web_schreiben", "laengen", "sprachpass",
+    "web_vereint",
 }
 
 #: Bleibt deutsch, mit Grund (nie im Chat, nie im Prompt einer Gruppe).
@@ -86,6 +87,11 @@ BLEIBT_DEUTSCH = {
     "web._CSS_GRUPPE": "CSS, nur Kommentare deutsch",
     "web._CSS_LEITFADEN": "CSS, nur Kommentare deutsch",
     "web._CSS_TEXTBUCH": "CSS, nur Kommentare deutsch",
+    # Aufgabe 15 (Karte W): Skript und Stil der vereinten Seite -- deutsch
+    # sind nur die Kommentare darin, kein Nutzertext.
+    "web_vereint._CSS_VEREINT": "CSS, nur Kommentare deutsch",
+    "web_vereint._VEREINT_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
+    "web_vereint._STROM_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit

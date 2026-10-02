@@ -20,6 +20,14 @@ liefert (und `tests/test_web_chat_js.py` den Quelltext des Skripts);
 `tests/test_web_e2e_http.py` fährt den ganzen Weg mit einem echten Bot, aber
 ohne Browser.
 
+Seit dem 30.09.2026 (Karte W) gehört die **vereinte Seite** (`/g/<token>`) dazu:
+Tabwechsel während eines laufenden Streams und mit halb getipptem Text, die
+Zurück-Taste, die Phasenleiste und der Phasenklick mit Rückfrage. Das ist die
+einzige Stelle, an der sich messen lässt, dass der Wechsel wirklich nichts
+verliert — im Server-Test sieht man nur, dass drei Panels ausgeliefert werden.
+Screenshots gehen nach `docs/web-vereint/` und ins Repository: sie sind der
+Beleg der Abnahme und zeigen deshalb ausschließlich erfundenes Material.
+
 Chromium braucht dafür zwei Flags — sie stehen im Test:
 
     --use-fake-ui-for-media-stream      # Mikrofon ohne Rückfrage

@@ -500,6 +500,16 @@ def baue_kanal(conn, e: Einstellungen, klient):
             e.bot_name, offset, hoechste,
         )
         repo.setze_update_id(conn, e.bot_name, 0)
+    # Ein frisch gestarteter Prozess hat noch keinen Lauf: was auf 'laeuft'
+    # steht, hat ein gestorbener Vorgaenger hinterlassen -- die Ansicht
+    # zeigte seine halbe Antwort sonst ohne Ende (Aufgabe 14, Fix-Runde 1).
+    # Nur hier, im Web-Zweig: der Telegram-Weg hat keine Stroeme (E1).
+    verwaist = repo.brich_laufende_stroeme_ab(conn, e.web_chat_id)
+    if verwaist:
+        log.warning(
+            "%s laufende Stromzeile(n) von chat_id=%s aus einem frueheren "
+            "Prozess als abgebrochen geschlossen.", verwaist, e.web_chat_id,
+        )
     log.info("Kanal: Web (chat_id=%s)", e.web_chat_id)
     return WebKanal(conn, e.web_chat_id, e.audio_verz)
 

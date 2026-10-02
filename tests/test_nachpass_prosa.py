@@ -50,7 +50,8 @@ class LLMAttrappe:
         self.antworten = list(antworten) or [KURZ]
         self.aufrufe = []
 
-    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None):
+    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None,
+              bei_teil=None):
         self.aufrufe.append({"system": system, "nutzer": nutzer, "art": art})
         i = min(len(self.aufrufe) - 1, len(self.antworten) - 1)
         return self.antworten[i]

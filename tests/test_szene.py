@@ -34,7 +34,8 @@ class LLMAttrappe:
         self.aufrufe = 0
         self.gesehen = {}
 
-    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None):
+    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None,
+              bei_teil=None):
         self.aufrufe += 1
         self.gesehen = {
             "chat_id": chat_id, "system": system, "nutzer": nutzer, "art": art,

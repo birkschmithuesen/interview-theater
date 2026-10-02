@@ -132,6 +132,17 @@ GEAENDERT: dict[str, str] = {
     "anweisungen.system(phase=5)": _GRUND_STATION_4,
     "anweisungen.system(phase=6)": _GRUND_STATION_4,
     "anweisungen.system(phase=7)": _GRUND_STATION_4,
+    "web._TEXTBUCH_JS": (
+        "Karte W, Aufgabe 11 (30.09.2026): die vereinte Seite haengt den "
+        "Zustand der Probenansicht nicht mehr an document.body, sondern an "
+        "die Wurzel [data-textbuch] (auf der Einzelseite weiterhin der "
+        "<body>) -- sonst faerbte der Rollenfilter auch den Chat. Dazu "
+        "schreibt schreib() einen leeren Wert jetzt ohne "
+        "Gleichheitszeichen, damit das blosse Tab-Wort im Fragment "
+        "(#textbuch) einen Klick auf den Rollenfilter ueberlebt. Kein "
+        "Nutzertext aendert sich (tests/test_web_vereint.py, "
+        "tests/test_web_textbuch.py)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

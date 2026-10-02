@@ -49,7 +49,8 @@ class LLMAttrappe:
         self._antwort = antwort
         self.gesehen = {}
 
-    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None):
+    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None,
+              bei_teil=None):
         self.gesehen = {"system": system, "nutzer": nutzer, "art": art}
         return self._antwort
 

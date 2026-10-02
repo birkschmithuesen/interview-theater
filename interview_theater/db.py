@@ -2,6 +2,32 @@
 
 import re
 import sqlite3
+from datetime import datetime, timedelta, timezone
+
+#: Ab wann eine ``web_strom``-Zeile im Zustand ``laeuft`` als verwaist gilt
+#: (Aufgabe 14, Fix-Runde 1): fuenf Minuten ohne ein einziges Schreiben.
+#:
+#: **Hergeleitet, nicht gegriffen.** Eine lebende Zeile wird im Takt
+#: ``strom.INTERVALL_S`` (0,15 s) geschrieben, solange ihr sichtbarer Text
+#: waechst. Die einzige lange Stille eines Laufs -- das Reasoning -- erreicht
+#: die Senke nie (``llm._sende_strom`` gibt ``reasoning_content`` nicht
+#: weiter), und die Zeile entsteht erst beim ersten sichtbaren Stueck
+#: (``strom.Senke``). Was danach noch still sein kann, sind Pausen zwischen
+#: Tokens und eine gerade ausgeblendete VORSCHLAG-Zeile: Sekunden. 300 s sind
+#: das Zweitausendfache des Takts und genau ``web_vereint.STROM_MAX_S``:
+#: spaetestens wenn eine SSE-Verbindung ohnehin neu aufgebaut wird, ist eine
+#: verwaiste Zeile als Ende erkannt (Test ``test_web_strom_verwaist.py``).
+#: Ein Wert hier und nicht in ``strom.py``: ``repo`` und ``web_daten`` lesen
+#: ihn, und beide liegen in der Ablage-Schicht unter den Diensten.
+STROM_VERALTET_S = 300.0
+
+
+def strom_grenze() -> str:
+    """Der Zeitpunkt, vor dem eine laufende Stromzeile verwaist ist -- im
+    selben Format wie ``repo._jetzt`` (UTC, Sekunden), damit ``repo`` und
+    ``web_daten`` ihn per Textvergleich im SQL nutzen koennen."""
+    return (datetime.now(timezone.utc) - timedelta(seconds=STROM_VERALTET_S)
+            ).isoformat(timespec="seconds")
 
 # Woertlich aus SPEC-kontext-architektur.md § 3.1 uebernommen, nur um
 # "IF NOT EXISTS" ergaenzt, damit initialisiere() gefahrlos mehrfach laufen kann.
@@ -821,6 +847,34 @@ CREATE TABLE IF NOT EXISTS web_post (
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);
 
+-- Der laufende Text eines Modellaufrufs (30.09.2026, Karte W): eine Zeile je
+-- laufendem Aufruf, deren ``text`` waechst, waehrend das Modell schreibt.
+--
+-- Warum ueber die Datenbank und nicht direkt: das Modell wird im BOT-Prozess
+-- gerufen, der Browser haengt am WEB-Prozess (read-only, eigene Verbindung).
+-- Die beiden teilen die SQLite-Datei und sonst nichts -- ein Kanal zwischen
+-- ihnen ist eine Tabelle.
+--
+-- ``text`` ist der SICHTBARE Teiltext (strom.sichtbar): VORSCHLAG-Markerzeilen
+-- stehen hier nie drin, auch nicht halb getippt.
+--
+-- Eine abgebrochene Zeile BLEIBT stehen, mit ihrem Teiltext: sie ist nie eine
+-- Nachricht geworden (kein halber Text in ``nachricht``, ``web_post`` oder
+-- ``journal``), aber der Betreiber soll nachlesen koennen, was im Chat kurz
+-- zu sehen war.
+CREATE TABLE IF NOT EXISTS web_strom (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  art             TEXT NOT NULL,            -- 'gespraech' | 'szene' | 'prosa'
+  text            TEXT NOT NULL DEFAULT '',
+  zustand         TEXT NOT NULL,            -- 'laeuft' | 'fertig' | 'abgebrochen'
+  post_id         INTEGER,                  -- web_post.id der fertigen Nachricht
+  begonnen_am     TEXT NOT NULL,
+  aktualisiert_am TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_web_strom_lage
+  ON web_strom(chat_id, id);
+
 -- Was das Dashboard rot färbt
 CREATE TABLE IF NOT EXISTS vorfall (
   id           INTEGER PRIMARY KEY,
@@ -881,6 +935,7 @@ TABELLEN_MIT_CHAT_ID = (
     "erkenner_lauf",
     "erkenner_lauf_schritt",
     "web_post",
+    "web_strom",
     "vorfall",
     "aufruf",
 )

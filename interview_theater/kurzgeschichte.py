@@ -36,7 +36,7 @@ import re
 import threading
 from typing import Sequence
 
-from interview_theater import anweisungen, repo
+from interview_theater import anweisungen, repo, strom
 
 log = logging.getLogger(__name__)
 
@@ -425,7 +425,7 @@ def _faktor(conn, chat_id: int) -> float:
 def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
               vorlage: bool = False,
               eintraege: Sequence[tuple[int, str, int]] | None = None,
-              art: str = ART) -> str:
+              art: str = ART, bei_teil=None) -> str:
     """**Nur** der Modellaufruf -- Prompt bauen, fragen, Antwort liefern.
 
     Kein Speichern, keine Chatnachricht, keine Sperre. Herausgezogen am
@@ -434,7 +434,9 @@ def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
     fehlt ein Belegzitat, wird sie verworfen und die alte Fassung bleibt.
 
     ``art`` landet in der Tabelle ``aufruf`` und macht Nachpass-Laeufe
-    getrennt zaehlbar."""
+    getrennt zaehlbar. ``bei_teil`` (Karte W, Aufgabe 7): die Senke des
+    aufrufenden Laufs -- der Nachpass ruft ohne sie, er ist eine Zugabe, auf
+    die niemand wartet."""
     from interview_theater import szene_claude
 
     system = systemanweisung([b for _n, _f, b in (eintraege or [])] or None)
@@ -446,14 +448,15 @@ def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
         return szene_claude.prosa(
             conn, e,
             getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
-            chat_id, system, nutzer, art, timeout=TIMEOUT_S,
+            chat_id, system, nutzer, art, timeout=TIMEOUT_S, bei_teil=bei_teil,
         )
     return klm.prosa(chat_id, system, nutzer, art,
-                     max_tokens=MAX_TOKENS, timeout=TIMEOUT_S)
+                     max_tokens=MAX_TOKENS, timeout=TIMEOUT_S, bei_teil=bei_teil)
 
 
 def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
-             vorlage: bool = False, art: str = ART, zeilen=None) -> list[int]:
+             vorlage: bool = False, art: str = ART, zeilen=None,
+             bei_teil=None) -> list[int]:
     """Der ganze Lauf, **synchron und ohne Sperre**: Modell fragen, zerlegen,
     Szenen anlegen, in den Chat melden. Liefert die Nummern der Abschnitte.
 
@@ -464,11 +467,19 @@ def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
     ``zeilen`` ist die sichtbare Arbeitszeile des Aufrufers; sie wird wie
     bisher **vor** der Fertig-Meldung gestoppt."""
     eintraege = budget_eintraege(conn, chat_id, faktor=_faktor(conn, chat_id))
-    antwort = hole_text(conn, klm, e, chat_id, regie, vorlage, eintraege, art)
+    antwort = hole_text(conn, klm, e, chat_id, regie, vorlage, eintraege, art,
+                        bei_teil=bei_teil)
     abschnitte = zerlege(antwort or "")
     if not abschnitte:
         raise ValueError("Kurzgeschichte ohne erkennbare Abschnitte")
     nummern = lege_szenen_an(conn, chat_id, abschnitte)
+    # Kein ``post_id``: die Geschichte geht als eigene Nachrichten raus
+    # (Abschnitt fuer Abschnitt ueber ``knoepfe.zeige_kurzgeschichte``), nicht
+    # als eine. 'fertig' ohne post_id heisst fuer die Ansicht schlicht: die
+    # vorlaeufige Blase darf weg. Ueber die Senke selbst (Fix-Runde 1,
+    # Befund 1) -- ein Gespraechszug daneben bleibt unberuehrt.
+    if bei_teil is not None:
+        strom.schliesse(tg, chat_id, senke=bei_teil)
     if eintraege:
         # Der Wuerfel ist reproduzierbar (Seed = chat_id), aber niemand soll
         # ihn nachrechnen muessen, um zu verstehen, warum Abschnitt 2 laenger
@@ -518,9 +529,14 @@ def starte(
         from interview_theater import arbeitszeilen
 
         zeilen = arbeitszeilen.sichtbar(tg, chat_id, "prosa")
+        # Der laufende Text (Karte W) -- wie beim Szenenlauf haengt dieser
+        # Lauf in einem eigenen Thread, niemand wartet davor, aber im Browser
+        # ist "es passiert etwas" der Unterschied zwischen stiller Wartezeit
+        # und mitlesbarem Text.
+        senke = strom.senke(tg, chat_id, "prosa")
         try:
             schreibe(conn, tg, klm, e, chat_id, regie, vorlage=vorlage,
-                     zeilen=zeilen)
+                     zeilen=zeilen, bei_teil=senke)
             # Der Nachpass (30.09.2026, Karte R): EIN Lauf fuer alle
             # Abschnitte, im selben Thread und unter derselben Sperre. Im
             # ``try``, weil es nach einem gescheiterten Lauf keine Geschichte
@@ -541,6 +557,8 @@ def starte(
                                   "Prosa-Nachpass gescheitert")
         except Exception:
             log.exception("Kurzgeschichte fehlgeschlagen, chat_id=%s", chat_id)
+            if senke is not None:
+                strom.verwirf(tg, chat_id, senke=senke)
             try:
                 # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile -- und
                 # zuerst geprueft, damit bei Deckel nicht zusaetzlich ein

@@ -5,9 +5,18 @@ bestaetigte eine Szene, ein Opus-Lauf schrieb sie als Prosa, dann die
 naechste. Das ergab fuenf Texte, die einander nicht kannten -- jeder Lauf
 sah nur Zusammenfassungen der Vorszenen. Birk hat es umgedreht: **ein**
 Lauf schreibt die ganze Geschichte aus Setting, Figuren (mit ihrem
-Sprachstil) und der gewaehlten Richtung, und **das Modell waehlt die Zahl
-der Abschnitte selbst** (typisch drei bis sieben). Die Szenenfolge aus
-Phase 4 ist dabei Anregung, nicht Vorgabe.
+Sprachstil) und der gewaehlten Richtung.
+
+**Wie viele Abschnitte, entscheidet die Szenenfolge** (Birk, 02.10.2026):
+steht eine, bindet ihre Zahl -- ein Abschnitt je geplanter Szene, in deren
+Reihenfolge. Die Zahl steht dafuer im **Auftrag** (``abschnittszahl``,
+``_ZEILE_ABSCHNITTE``; bei aktivem Laengen-Profil traegt sie der
+Budget-Block, ``laengen.SATZ_BINDUNG`` -- in beiden Faellen genau einmal).
+Steht keine Szenenfolge, waehlt das Modell die Zahl selbst (typisch drei bis
+sieben). Bis zum 02.10.2026 war sie immer frei; das kostete, weil
+``lege_szenen_an`` nur **ergaenzend** abgleicht, bei zu wenigen Abschnitten
+prosalose Szenen -- und Phase 7 verlangt Prosa fuer jede geplante Szene
+(``phasen.voraussetzungen``).
 
 **Danach werden die Abschnitte zu Szenen** -- Nummer, Titel, Prosa,
 ``was_passiert`` aus der Pflichtzeile "Zusammenfassung", Ort aus dem
@@ -76,10 +85,11 @@ Geschichte, auf die sich die Gruppe geeinigt hat. Daraus schreibst du EINE
 zusammenhaengende Kurzgeschichte -- keine Szenenliste, kein Theatertext,
 kein Drehbuch.
 
-**Du waehlst die Zahl der Abschnitte selbst.** Typisch sind drei bis sieben;
-entscheidend ist, was die Geschichte braucht, nicht eine Zahl. Eine
-Szenenfolge aus der Planung ist eine Anregung, keine Vorgabe: passt sie,
-nimm sie; passt sie nicht, mach es besser.
+**Nennt der Auftrag eine Abschnittszahl, ist sie verbindlich**: dann steht
+schon eine Szenenfolge, und du schreibst genau so viele Abschnitte, in
+dieser Reihenfolge -- keinen dazu, keinen weg, keinen umgestellt. Nennt er
+keine, waehlst du die Zahl der Abschnitte selbst an der Geschichte (typisch
+drei bis sieben).
 
 Insgesamt 1.500 bis 3.500 Woerter.
 
@@ -322,8 +332,8 @@ def baue_nutzertext(
     conn, chat_id: int, regie: str | None = None, vorlage: bool = False,
     eintraege: Sequence[tuple[int, str, int]] | None = None,
 ) -> str:
-    """Setting, Figuren mit Sprachstil, Geschichte, Szenenfolge als
-    Anregung -- und eine Regie-Notiz, wenn die Gruppe eine hatte.
+    """Setting, Figuren mit Sprachstil, Geschichte, die bestehende
+    Szenenfolge -- und eine Regie-Notiz, wenn die Gruppe eine hatte.
 
     ``vorlage`` an (Kuerzen): die bestehende Fassung steht als eigener Block
     vor dem Auftrag. Ohne ``vorlage`` bleibt der Nutzertext zeichengleich

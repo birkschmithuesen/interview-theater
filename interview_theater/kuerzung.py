@@ -21,13 +21,13 @@ genau die zwei Laeufe, die es dafuer schon gibt:
   bei "Etwas aendern". ``lege_szenen_an`` gleicht ab statt zu ersetzen
   (``repo.gleiche_szenenfolge_ab``) und haengt je Abschnitt eine Fassung an.
 
-**Warum die Prosa-Notiz die Abschnittszahl nennt.**
-``kurzgeschichte.ANWEISUNG`` stellt dem Modell die Zahl der Abschnitte
-ausdruecklich frei ("Du waehlst die Zahl der Abschnitte selbst"). Eine
-kuerzere Geschichte mit vier statt sechs Abschnitten waere also ein
-plausibles Ergebnis -- und weil der Abgleich ergaenzend ist, blieben zwei
+**Warum die Prosa-Notiz die Abschnittszahl nennt.** Weil der Abgleich
+**ergaenzend** ist (``repo.gleiche_szenenfolge_ab``): kaeme eine kuerzere
+Geschichte mit vier statt sechs Abschnitten zurueck, blieben zwei
 Abschnitte mit ihrem alten, langen Text stehen. Die Notiz bindet deshalb auf
-die Zahl, die dasteht.
+die Zahl, die dasteht. Seit dem 02.10.2026 (Karte P2-Fix) bindet der Auftrag
+sie ohnehin, sobald eine Szenenfolge steht -- die Notiz sagt es im **selben
+Satz** wie das Kuerzungsziel und bleibt deshalb, wie sie ist.
 
 **Kein Modellaufruf hier** (Zusage 2): beide Wege geben sofort an einen
 eigenen Thread ab. Deshalb darf ein Knopf-Handler diese Funktion rufen.

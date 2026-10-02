@@ -103,6 +103,16 @@ GEAENDERT: dict[str, str] = {
         "c8 (en/texte.toml:848). Gewollte Verhaltensaenderung fuer Dortmund: "
         "ein Wort in der Ueberschrift des Blocks (tests/test_kontext.py)."
     ),
+    "kurzgeschichte.ANWEISUNG": (
+        "Karte P2-Fix (02.10.2026, c5, Birks Entscheidung): die "
+        "Abschnittszahl ist fest, sobald eine Szenenfolge steht -- die "
+        "Anweisung sagt, dass der Auftrag sie dann nennt, und die freie Wahl "
+        "ist der zweite Fall. Gewollte Verhaltensaenderung fuer Dortmund: "
+        "sie macht prompts/formen/prosa.md:29-34 (\"Steht schon eine "
+        "Szenenfolge, ist sie verbindlich\") zum ersten Mal "
+        "widerspruchsfrei. Die ersetzbare Laengenzeile ist unberuehrt "
+        "(tests/test_laengen_prosa.py)."
+    ),
     "prompt system": _GRUND_STATION_4,
     "anweisungen.system(phase=None)": _GRUND_STATION_4,
     "anweisungen.system(phase=1)": _GRUND_STATION_4,

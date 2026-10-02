@@ -12,11 +12,22 @@ import pytest
 
 from interview_theater import kurzgeschichte, laengen, repo, workshop
 
-#: Selbst gemessen am 30.09.2026 auf ``d8deb6c``, vor jeder Aenderung dieser
-#: Karte. Der Massstab fuer Dortmund -- er steht hier und nicht in einer
-#: Golden-Datei, weil eine Zahl in einem Test schwerer zu uebersehen ist.
-SYSTEM_SHA_D8DEB6C = "704119e3dd886eef7ac619511b4ab70cc7c6fb6858a8618e4ee2da19ffddc729"
-SYSTEM_LAENGE_D8DEB6C = 12785
+#: Selbst gemessen, zuletzt am 02.10.2026 nach Karte P2-Fix. Der Massstab
+#: fuer Dortmund -- er steht hier und nicht in einer Golden-Datei, weil eine
+#: Zahl in einem Test schwerer zu uebersehen ist.
+#:
+#: **Warum er sich geaendert hat:** bis zum 01.10.2026 stand hier
+#: ``704119e3dd886eef7ac619511b4ab70cc7c6fb6858a8618e4ee2da19ffddc729`` /
+#: ``12785`` (Stand ``d8deb6c``, Karte R). Birks Entscheidung vom 02.10.2026
+#: hat ``kurzgeschichte.ANWEISUNG`` geaendert: die Abschnittszahl ist fest,
+#: sobald eine Szenenfolge steht, und die Anweisung sagt, dass der Auftrag
+#: sie dann nennt. Das ist eine **gewollte** Verhaltensaenderung, auch fuer
+#: Dortmund -- und sie macht ``prompts/formen/prosa.md:29-34`` ("Steht schon
+#: eine Szenenfolge, ist sie verbindlich") zum ersten Mal widerspruchsfrei.
+#: Die Zusage, die bleibt: **ohne Budget** ist die Anweisung zeichengleich zu
+#: sich selbst, also unabhaengig vom Laengen-Profil.
+SYSTEM_SHA = "81d5b2384e332d77ad32e48938eb8e54603a46b3f7f098fb0ffdb57a08e1412d"
+SYSTEM_LAENGE = 12839
 
 
 @pytest.fixture(autouse=True)
@@ -40,8 +51,8 @@ def _sha(text: str) -> str:
 
 def test_ohne_budget_ist_die_systemanweisung_zeichengleich():
     text = kurzgeschichte.systemanweisung()
-    assert len(text) == SYSTEM_LAENGE_D8DEB6C
-    assert _sha(text) == SYSTEM_SHA_D8DEB6C
+    assert len(text) == SYSTEM_LAENGE
+    assert _sha(text) == SYSTEM_SHA
 
 
 def test_budget_none_ist_derselbe_text_wie_kein_argument():
@@ -311,3 +322,24 @@ def test_phase_sechs_bleibt_bei_der_bindenden_folge(monkeypatch):
     anweisungen._CACHE.clear()
     text = " ".join(anweisungen.hole("phasen/6").split())
     assert "its number and its order count" in text
+
+
+def test_die_anweisung_bindet_die_zahl_am_auftrag(monkeypatch):
+    """Karte P2-Fix (02.10.2026): die Systemanweisung sieht die Datenbank
+    nicht und kann nicht wissen, ob eine Szenenfolge existiert -- sie
+    formuliert die Bedingung deshalb am Auftrag. Beide Sprachen, weil die
+    Konstante zweisprachig ist (``en/texte.toml`` ["kurzgeschichte"])."""
+    deutsch = kurzgeschichte.ANWEISUNG
+    assert "Nennt der Auftrag eine Abschnittszahl, ist sie verbindlich" in deutsch
+    assert "Abschnitte selbst" in deutsch, "die freie Wahl bleibt der zweite Fall"
+    assert "Anregung, keine Vorgabe" not in deutsch
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    englisch = kurzgeschichte.T.ANWEISUNG
+    assert "If the job names a number of sections, that number is binding" in englisch
+    assert "number of sections yourself" in englisch
+    assert "a suggestion, not a requirement" not in englisch
+    # Die ersetzbare Laengenzeile bleibt unberuehrt -- sonst greift
+    # systemanweisung(budgets) ins Leere.
+    assert englisch.count(kurzgeschichte.T.ZEILE_GESAMTLAENGE) == 1

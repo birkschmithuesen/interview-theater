@@ -703,3 +703,53 @@ def test_der_figurenvorschlag_ist_frei_erfunden_und_nicht_aus_den_interviews(
     assert "frei erfunden" in anweisung
     assert "NICHT aus den Interviews" in anweisung
     assert "Setting" in anweisung
+
+
+# --- Web-Kanal: keine alten Telegram-Knoepfe mehr nach einer Aufnahme -----
+#
+# 06.10.2026, Phase 3 Web-UX: Pause/Weiter/Beenden des Aufnahme-Reglers im
+# Browser deckt ab, was Telegram bisher mit einer Leiste aus "Zusammenfassung
+# zeigen"/"Transkript zeigen"/"Naechstes Interview"/"Weiter zu Phase N"
+# anbot. Die Handler (``ART_ZUSAMMENFASSUNG`` usw.) bleiben unveraendert --
+# ein schon verschickter Knopf bleibt wirksam --, nur das Angebot aendert
+# sich: ``biete_nach_aufnahme`` liefert auf dem Web-Kanal eine leere Leiste
+# (Zwischenstand, eine spaetere Karte ersetzt sie durch "Interviews fertig").
+
+
+def test_web_bekommt_keine_knoepfe_nach_der_aufnahme(conn, tg):
+    kopf_id = _interview(conn)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "Es ging ums Ankommen.", [])
+    repo.setze_gruppe_kanal(conn, 1, "web")
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    assert tg.knoepfe[-1][2] == [], "keine Knoepfe mehr auf dem Web-Kanal"
+    assert tg.gesendet[-1] == (1, "Interview 1 ist abgelegt."), "der Text bleibt"
+
+
+def test_telegram_behaelt_die_knoepfe_nach_der_aufnahme(conn, tg):
+    """Gegenprobe: ohne ``gruppe.kanal = 'web'`` (Telegram ist die Vorgabe)
+    steht die Leiste unveraendert da."""
+    kopf_id = _interview(conn)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "Es ging ums Ankommen.", [])
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Zusammenfassung zeigen" in beschriftungen
+    assert "Transkript zeigen" in beschriftungen
+
+
+def test_web_einstieg_bietet_kein_alle_auswerten_an(conn, tg):
+    """Dieselbe Sperre fuer den zweiten Fundort: ``biete_einstieg`` schiebt
+    "Alle auswerten" nur unter, wenn gerade kein Phasenknopf steht (Phase-4-
+    Sperre) -- auf dem Web-Kanal bleibt der Knopf trotzdem weg (Gegenprobe:
+    ``test_einstieg_bietet_alle_auswerten_statt_eines_phasenknopfes`` in
+    test_knoepfe.py zeigt denselben Fall auf Telegram)."""
+    _interview(conn)
+    repo.setze_gruppe_kanal(conn, 1, "web")
+
+    knoepfe.biete_einstieg(conn, tg, 1, "Wieder da.")
+
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Alle auswerten" not in beschriftungen

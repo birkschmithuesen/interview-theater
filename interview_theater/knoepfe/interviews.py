@@ -300,7 +300,18 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
       Auswertung gehen koennen.
 
     Kein Modellaufruf, alles aus der Datenbank -- wie jedes Angebot hier.
-    Liefert die ``message_id`` der Angebotsnachricht."""
+    Liefert die ``message_id`` der Angebotsnachricht.
+
+    Auf dem Web-Kanal entfaellt diese ganze Telegram-Leiste (06.10.2026,
+    Phase 3 Web-UX) -- nur der Text geht raus. Vorlaeufiger Zwischenstand:
+    eine spaetere Karte ersetzt diesen Zweig durch einen einzigen "Interviews
+    fertig"-Knopf; bis dahin ist eine leere Leiste der richtige Zustand, nicht
+    ein dauerhafter."""
+    from interview_theater import aufnahme as aufnahme_modul  # lokal: Oberflaeche darf Fachlogik lesen
+
+    if aufnahme_modul.ist_web_gruppe(conn, chat_id):
+        return _sende_knoepfe(conn, tg, chat_id, text, [])
+
     knoepfe: list[tuple[str, str]] = []
     if kopf_id is not None:
         knoepfe.extend(_interviewknoepfe(conn, chat_id, kopf_id))
@@ -401,9 +412,16 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
     else:
         # Kein Phasenknopf, aber offene Auswertungen: dann ist DAS der
         # naechste Schritt (Phase-4-Sperre) -- an derselben Stelle.
-        alle = _auswerten_alle_knopf(conn, chat_id)
-        if alle is not None:
-            knoepfe.insert(1 if _aufnahme_anbieten(conn, chat_id) else 0, alle)
+        #
+        # Auf dem Web-Kanal entfaellt dieser Knopf wie jeder andere alte
+        # Telegram-Interviewknopf (06.10.2026, Phase 3 Web-UX) -- der Handler
+        # (ART_AUSWERTEN_ALLE) bleibt unveraendert, nur das Angebot hier.
+        from interview_theater import aufnahme as aufnahme_modul  # lokal: Oberflaeche darf Fachlogik lesen
+
+        if not aufnahme_modul.ist_web_gruppe(conn, chat_id):
+            alle = _auswerten_alle_knopf(conn, chat_id)
+            if alle is not None:
+                knoepfe.insert(1 if _aufnahme_anbieten(conn, chat_id) else 0, alle)
     return _sende_knoepfe(conn, tg, chat_id, text, knoepfe)
 
 

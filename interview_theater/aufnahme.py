@@ -257,9 +257,15 @@ def klasse_fuer(conn, chat_id: int) -> str:
 NACHZUEGLER_FENSTER_S = 600
 
 
-def _ist_web_gruppe(conn, chat_id: int) -> bool:
+def ist_web_gruppe(conn, chat_id: int) -> bool:
     """Arbeitet diese Gruppe im Browser (``gruppe.kanal = 'web'``)? Ohne
-    Gruppenzeile: nein -- dann gilt der Telegram-Weg wie bisher."""
+    Gruppenzeile: nein -- dann gilt der Telegram-Weg wie bisher.
+
+    Oeffentlich (06.10.2026, Phase 3 Web-UX): der eine geteilte
+    Kanal-Check, den ausser ``stelle_interview_sicher`` hier auch
+    ``knoepfe.interviews`` und ``_kurz_abschliessen``/``_sende_teil_echo``
+    brauchen, um alte Telegram-Knoepfe auf dem Web-Kanal nicht mehr
+    anzubieten (Handler bleiben unveraendert, nur das Angebot aendert sich)."""
     gruppe = repo.hole_gruppe(conn, chat_id)
     return gruppe is not None and "kanal" in gruppe.keys() and gruppe["kanal"] == "web"
 
@@ -284,7 +290,7 @@ def stelle_interview_sicher(conn, chat_id: int) -> int:
     if kopf is not None:
         return kopf["id"]
     kopf_id = repo.lege_interview_an(conn, chat_id)
-    if _ist_web_gruppe(conn, chat_id):
+    if ist_web_gruppe(conn, chat_id):
         # Im Web gibt es keine Nachzuegler (Abschlussreview I4): eine
         # PTT-Nachricht ist dort ausdruecklich "an den Bot", und der Browser
         # schickt Interview-Segmente erst, wenn der Modus gemeldet ist
@@ -775,6 +781,12 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
         jung
         and dauer > HINWEIS_AB_S
         and not repo.ist_interviewmodus_an(conn, chat_id)
+        # Auf dem Web-Kanal sind PTT und der Aufnahme-Regler zwei getrennte
+        # Bedienelemente (06.10.2026, Phase 3 Web-UX) -- eine lange
+        # PTT-Aufnahme ausserhalb des Interviewmodus ist dort unzweideutig
+        # ein Gespraechsbeitrag und darf nie die "Ja, als Interview"/"Nein,
+        # war ein Beitrag"-Frage ausloesen.
+        and not ist_web_gruppe(conn, chat_id)
     )
 
     repo.aktualisiere_transkribierte_nachricht(
@@ -1094,7 +1106,16 @@ def _sende_teil_echo(conn, tg, e, chat_id: int, text: str) -> None:
     dass Interviewinhalt keine Gruppenabsicht ist.
 
     Faellt die Tastatur aus (Telegram-Fehler), geht das Echo trotzdem raus --
-    das Transkript ist wichtiger als die Knoepfe."""
+    das Transkript ist wichtiger als die Knoepfe.
+
+    Auf dem Web-Kanal (06.10.2026, Phase 3 Web-UX) entfaellt die Leiste ganz:
+    Pause/Weiter/Beenden des eigenen Aufnahme-Reglers deckt ab, was Telegram
+    hier mit zwei Knoepfen anbietet. Das Echo geht unveraendert raus -- derselbe
+    Weg wie der bestehende Fehlerrueckfall unten, nur ohne Fehler."""
+    if ist_web_gruppe(conn, chat_id):
+        _sende_und_merke(conn, tg, e, chat_id, text, typ=repo.TYP_TRANSKRIPT)
+        return
+
     from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
 
     try:

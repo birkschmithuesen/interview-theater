@@ -419,6 +419,35 @@ def test_genau_an_der_schwelle_bleibt_beitrag(conn, einst, tg, klm):
     assert not any("klingt nach einem Interview" in t for _, t in tg.gesendet)
 
 
+def test_lange_aufnahme_im_web_fragt_nicht_sondern_zaehlt_als_beitrag(conn, einst, tg, klm):
+    """Auf dem Web-Kanal sind PTT und der Aufnahme-Regler zwei getrennte
+    Bedienelemente (06.10.2026, Phase 3 Web-UX) -- eine lange PTT-Aufnahme
+    ausserhalb des Interviewmodus ist dort unzweideutig ein Gespraechsbeitrag
+    und darf nie die "Ja, als Interview"/"Nein, war ein Beitrag"-Frage
+    ausloesen (anders als bei Telegram,
+    ``test_lange_aufnahme_ohne_modus_fragt_statt_zu_antworten``)."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    gesehen = []
+
+    def zug(conn, tg, klm, e, chat_id, hinweis=None):
+        gesehen.append(hinweis)
+
+    aid = aufnahme.empfange(
+        conn, tg, einst, sprachnachricht(dauer=186, message_id=240)
+    )
+    aufnahme.verarbeite(
+        conn, tg, klm, einst, stt_attrappe("eine lange Erzaehlung"), aid, zug=zug
+    )
+
+    assert not any("klingt nach einem Interview" in t for _, t in tg.gesendet)
+    assert gesehen == [None], "normaler Gespraechszug wie bei einer kurzen Nachricht"
+
+    zeile = repo.hole_nachricht(conn, 1, 240)
+    assert zeile["text"] == "eine lange Erzaehlung"
+    assert zeile["typ"] == "text", "sichtbar, kein verstecktes Transkript"
+    assert zeile["unterdrueckt"] == 0
+
+
 def test_dauer_mmss():
     assert aufnahme.dauer_mmss(186) == "3:06"
     assert aufnahme.dauer_mmss(61) == "1:01"
@@ -1356,6 +1385,22 @@ def test_teil_echo_bleibt_ausserhalb_jedes_erkenner_fensters(conn, einst, tg, kl
     assert len(echo) == 1 and TEIL_A in echo[0]["text"]
     assert all(z["typ"] != "transkript" for z in repo.unextrahierte(conn, 1))
     assert all(z["typ"] != "transkript" for z in repo.letzte_nachrichten(conn, 1))
+
+
+def test_teil_echo_hat_im_web_keine_leiste(conn, einst, tg, klm):
+    """Auf dem Web-Kanal deckt Pause/Weiter/Beenden des eigenen
+    Aufnahme-Reglers ab, was Telegram hier mit "Interview geht weiter"/
+    "Interview ist fertig" anbietet (06.10.2026, Phase 3 Web-UX) -- die
+    Leiste entfaellt, das Transkript-Echo bleibt unveraendert bestehen."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+
+    _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A], message_id=560)
+
+    assert tg.mit_knoepfen == [], "keine Leiste mehr auf dem Web-Kanal"
+    assert any(TEIL_A in t for _, t in tg.gesendet), "das Echo geht trotzdem raus"
+
+    echo = conn.execute("SELECT * FROM nachricht WHERE typ = 'transkript'").fetchall()
+    assert len(echo) == 1 and TEIL_A in echo[0]["text"], "bleibt § 10.6-versteckt"
 
 
 def test_neues_teil_echo_nimmt_der_alten_leiste_die_tastatur_ab(conn, einst, tg, klm):

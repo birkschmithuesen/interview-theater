@@ -439,6 +439,17 @@ def _strom_js(basis: str) -> str:
         .replace("__WARTEN_MAX_MS__", str(STROM_WARTEN_MAX_MS))
     )
 
+
+def _js_text(text: str) -> str:
+    """Ein Nutzertext als JS-Ausdruck, nicht als roher Text fuer ein
+    Platzhalter-Literal (Fix-Runde Abschluss, Befund 1): ``json.dumps`` legt
+    die eigenen Anfuehrungszeichen und die Maskierung mit an, ``</`` wird
+    zusaetzlich entschaerft, damit kein Text ein ``<script>`` beendet --
+    derselbe Weg wie ``web_chat._js()`` (``__TEXTE__``). Ein Platzhalter, der
+    so eingesetzt wird, steht im Skript **ohne** umschliessende
+    Anfuehrungszeichen (``__X__.irgendwas``, nicht ``'__X__'``)."""
+    return json.dumps(text, ensure_ascii=True).replace("</", "<\\/")
+
 _VEREINT_JS = """
 (function () {
   var TABS = __TABS__;
@@ -521,7 +532,7 @@ _VEREINT_JS = """
   function zeigeFehler(satz) {
     var feld = document.getElementById('fehler');
     if (!feld) { return; }
-    feld.textContent = satz || '__FEHLER_NETZ__';
+    feld.textContent = satz || __FEHLER_NETZ__;
     feld.hidden = false;
     if (fehlerTakt) { clearTimeout(fehlerTakt); }
     fehlerTakt = setTimeout(function () { feld.hidden = true; feld.textContent = ''; }, 8000);
@@ -546,7 +557,7 @@ _VEREINT_JS = """
         entwaffneAlle(null);
         phase.setAttribute('data-sicher', '1');
         phase.dataset.beschriftung = phase.textContent;
-        phase.textContent = '__SICHER__'.replace(
+        phase.textContent = __SICHER__.replace(
           '{bezeichnung}', phase.dataset.bezeichnung);
         return;
       }
@@ -688,7 +699,7 @@ _VEREINT_JS = """
           if (wiederKnopf) {
             wiederKnopf.setAttribute('data-sicher', '1');
             wiederKnopf.dataset.beschriftung = wiederKnopf.textContent;
-            wiederKnopf.textContent = '__SICHER__'.replace(
+            wiederKnopf.textContent = __SICHER__.replace(
               '{bezeichnung}', wiederKnopf.dataset.bezeichnung);
           }
         }
@@ -938,8 +949,14 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         .replace("__BASIS__", f"{token}/")
         .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
         .replace("__NACHLADEN_MS__", str(NACHLADEN_MS))
-        .replace("__SICHER__", T._TEXT_PHASE_SICHER)
-        .replace("__FEHLER_NETZ__", T._TEXT_PHASE_FEHLER_NETZ)
+        # Fix-Runde Abschluss, Befund 1: als JSON-Wert einsetzen, nicht als
+        # roher Text in ein einfach gequotetes Literal -- die englische
+        # Fassung traegt einen Apostroph ("didn't go through") und brach dort
+        # das ganze <script> ab. Derselbe Weg wie ``web_chat._js()``
+        # (``__TEXTE__``), ``</`` maskiert, damit kein Text das Skript-Tag
+        # beendet.
+        .replace("__SICHER__", _js_text(T._TEXT_PHASE_SICHER))
+        .replace("__FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
         + web._TEXTBUCH_JS
     )
     if chat_vorhanden:

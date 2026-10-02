@@ -1103,6 +1103,11 @@ _CHAT_JS = """
       var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
       var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
       var BODEN_FENSTER = Math.ceil(5000 / 120);
+      // Deckel auf den Rauschboden, nicht aus CoThinker, sondern gegen eine
+      // gemessene Falle gesetzt (siehe Kommentar im Takt unten): ohne ihn
+      // zieht eine durchgehend laute Aufnahme den Boden auf ihre eigene
+      // Lautstaerke und die Pause-Erkennung faellt dauerhaft aus.
+      var BODEN_DECKEL_FAKTOR = 10;
       sitzung.vadMinSpeechMs = MIN_SPEECH_MS;
       sitzung.vadAktiv = true;
       sitzung.vadBoden = [];
@@ -1123,10 +1128,21 @@ _CHAT_JS = """
         if (sitzung.vadBoden.length > BODEN_FENSTER) { sitzung.vadBoden.shift(); }
         // Niedriges Perzentil der letzten ~5 s als Rauschboden -- GESETZT,
         // NICHT GEMESSEN (anders als PAUSE_MS/MAX_MS/MIN_SPEECH_MS/
-        // RMS_SCHWELLE, die aus CoThinker stammen): Browser-Mikros in einem
-        // lauten Probenraum sind nicht CoThinkers Aufbau.
+        // RMS_SCHWELLE, die aus CoThinker stammen). BODEN_DECKEL_FAKTOR
+        // begrenzt, wie weit der Boden die Schwelle anheben darf: ohne
+        // Deckel zieht eine durchgehend laute Aufnahme den Boden auf ihre
+        // eigene Lautstaerke, und die Schwelle wird unerreichbar (gemessener
+        // Fehler beim ersten Browserlauf: ein konstanter Testton zog sie
+        // exakt auf seinen eigenen Pegel, danach wurde nie wieder "Rede"
+        // erkannt). Mit Deckel bleibt ein echtes, aber maessiges
+        // Raumrauschen weiter erkennbar (die Schwelle darf bis zum Zehnfachen
+        // von RMS_SCHWELLE steigen), eine durchgehend laute Stimme kann sie
+        // aber nicht mehr darueber hinausschieben.
         var sortiert = sitzung.vadBoden.slice().sort(function (a, b) { return a - b; });
-        var boden = sortiert[Math.floor(sortiert.length * 0.1)] || 0;
+        var boden = Math.min(
+          sortiert[Math.floor(sortiert.length * 0.1)] || 0,
+          RMS_SCHWELLE * BODEN_DECKEL_FAKTOR
+        );
         var schwelle = Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
         var jetzt = Date.now();
         if (rms > schwelle) {

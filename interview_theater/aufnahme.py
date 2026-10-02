@@ -912,7 +912,13 @@ def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
             if text:
                 repo.markiere_brainstorm_reaktion(conn, chat_id, markierung_id)
                 repo.lege_buehnenkarte_an(conn, chat_id, text, modell)
-                _melde_neue_karte(conn, tg, e, chat_id)
+                # Birk, 02.10.2026 (Padua-Feedback b): KEINE Chat-Zeile mehr --
+                # der Bot "antwortet" im Brainstorm-Modus nirgends sonst als
+                # ueber den unaufdringlichen Marker am CoThinker-Tab (den
+                # setzt ``web_vereint``/``web_chat`` allein aus einer neuen
+                # Karte in ``buehnenkarten``, kein Schreibzugriff hier noetig)
+                # und das Panel selbst, das sich waehrend es offen ist im
+                # selben Poll-Takt aktualisiert (``_VEREINT_JS.ladeBuehne``).
             # NICHTS oder ein Fehlschlag: "nothing changes" -- keine
             # Markierung, keine Karte. Das naechste qualifizierende Segment
             # sieht denselben (oder einen groesseren) Stand erneut.
@@ -922,17 +928,6 @@ def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
             brainstorm.beende(chat_id)
 
     threading.Thread(target=_lauf, daemon=True).start()
-
-
-def _melde_neue_karte(conn, tg, e, chat_id: int) -> None:
-    """Hoechstens EINE Chat-Zeile je Karte, ohne Inhalt -- und gar keine,
-    wenn die neueste Chat-Nachricht schon genau diese Zeile ist (kein
-    Stapeln, brief: "nothing if the previous line is still the newest chat
-    message")."""
-    text = T._TEXT_BUEHNE_NEUE_KARTE
-    if repo.neueste_nachricht_text(conn, chat_id) == text:
-        return
-    _sende_und_merke(conn, tg, e, chat_id, text)
 
 
 def dauer_mmss(sekunden: int) -> str:

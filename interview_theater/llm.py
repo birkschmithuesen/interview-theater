@@ -274,6 +274,13 @@ class LLM:
         ohne Angabe auf MAX_TOKENS zurueck, ``timeout`` auf den des
         httpx.Client -- beide werden nur von Aufrufen mit aktivem Reasoning
         heraufgesetzt (siehe ``prosa``)."""
+        # Der Tagesdeckel (Karte Padua S): VOR dem Bauen des Koerpers und
+        # damit lange vor dem Netzaufruf -- der Sinn der Grenze ist, dass er
+        # nicht stattfindet. Auch vor dem ``try``, also wird KEINE
+        # ``aufruf``-Zeile gebucht: jeder abgewiesene Versuch schoebe sonst
+        # die Tagessumme weiter hoch, und aus einer Pause bis Mitternacht
+        # wuerde eine bis uebermorgen.
+        kosten.pruefe(self._conn, chat_id, self._e)
         body = self._baue_body(
             system=system, nutzer=nutzer, response_format=response_format,
             reasoning_effort=reasoning_effort, modell=modell,

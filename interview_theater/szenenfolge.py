@@ -1177,7 +1177,11 @@ def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
             )
         except Exception:
             log.exception("Vorfall nicht schreibbar, chat_id=%s", chat_id)
-        _sende(conn, tg, e, chat_id, T._TEXT_FEHLER)
+        # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile.
+        from interview_theater import kosten
+
+        if not kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
+            _sende(conn, tg, e, chat_id, T._TEXT_FEHLER)
     finally:
         zeilen.stoppe()
         vorschlagssperre.gib_frei(chat_id)

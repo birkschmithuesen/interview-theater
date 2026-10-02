@@ -46,7 +46,12 @@ CREATE TABLE IF NOT EXISTS gruppe (
   kanal                           TEXT NOT NULL DEFAULT 'telegram',
   -- Bis wann die Tippanzeige im Web gilt (ISO 8601). Eine Spalte statt einer
   -- Zeile je Aufruf, siehe den Kommentar an web_post.
-  web_tippt_bis                   TEXT
+  web_tippt_bis                   TEXT,
+  -- Wann der Gruppe zuletzt gesagt wurde, dass der Tagesdeckel erreicht ist
+  -- (Karte Padua S). In der DATENBANK und nicht im Prozess: ein Neustart
+  -- meldete sonst sofort wieder, und der Nachhol-Arbeiter laeuft im
+  -- Minutentakt. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  kostenpause_gemeldet_am         TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (

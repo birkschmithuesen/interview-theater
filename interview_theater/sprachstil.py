@@ -190,7 +190,11 @@ def starte(conn, tg, klm, e, chat_id: int, name: str):
                     conn, chat_id, getattr(e, "bot_name", None),
                     "sprachstil_fehlgeschlagen", "Stil-Aufruf gescheitert",
                 )
-                tg.sende(chat_id, T._TEXT_FEHLER)
+                # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile.
+                from interview_theater import kosten
+
+                if not kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
+                    tg.sende(chat_id, T._TEXT_FEHLER)
             except Exception:
                 log.exception("Fehlermeldung zum Stil-Lauf fehlgeschlagen")
         finally:

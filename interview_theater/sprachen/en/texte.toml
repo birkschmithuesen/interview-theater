@@ -1555,3 +1555,12 @@ gedankenstriche = "Fewer dashes. Where one stands, a full stop, a comma or nothi
 nicht_sondern = "No sentences of the form \"not X but Y\". Say Y straight away."
 adjektiv_dreier = "No chains of three adjectives. One is enough, or an image instead of all three."
 fazitsatz = "No conclusion and no moral at the end. The last line does not say what it was about."
+
+["kosten"]
+# Der Tagesdeckel (Karte Padua S). Vier Aussagen, in dieser Reihenfolge:
+# Budget erreicht, bis wann, was gesichert ist, was weitergeht. Kein Betrag
+# -- eine Zahl, die der Betreiber setzt, gehoert nicht in eine Nachricht an
+# die Gruppe.
+_TEXT_PAUSE = """Today's budget is used up — I'm pausing until midnight (Italian time) and won't reply in the meantime.
+
+Your work is saved. You can keep recording (I'll listen tomorrow), and your group page stays readable."""

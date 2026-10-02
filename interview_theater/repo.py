@@ -3784,3 +3784,44 @@ def naechste_web_chat_id(conn) -> int:
         "SELECT MAX(chat_id) FROM gruppe WHERE chat_id >= ?", (WEB_CHAT_ID_BASIS,)
     ).fetchone()[0]
     return WEB_CHAT_ID_BASIS if hoechste is None else int(hoechste) + 1
+
+
+@_gesperrt
+def merke_kostenpause(conn: sqlite3.Connection, chat_id: int, nicht_vor_iso: str,
+                      jetzt_iso: str | None = None) -> bool:
+    """Darf die Pausenmeldung jetzt raus? Setzt den Merkposten und liefert
+    True, wenn ja.
+
+    Bedingtes ``UPDATE`` wie ``beanspruche_knopf``: SQLite entscheidet, wer
+    meldet. Ohne das schickten zwei Threads (Gespraechszug und
+    Nachhol-Arbeiter) dieselbe Zeile zweimal.
+
+    ``nicht_vor_iso`` ist der Zeitpunkt, vor dem die letzte Meldung gelegen
+    haben muss -- der Aufrufer rechnet ihn aus (jetzt minus
+    ``kosten.PAUSE_WIEDERHOLUNG_S``), damit die Zeitrechnung an einer Stelle
+    steht. ``jetzt_iso`` ist der Zeitpunkt, der als Merkposten stehen
+    bleibt; ohne Angabe ``_jetzt()`` (Tests reichen ihre Uhr herein)."""
+    cursor = conn.execute(
+        """
+        UPDATE gruppe SET kostenpause_gemeldet_am = ?
+        WHERE chat_id = ?
+          AND (kostenpause_gemeldet_am IS NULL OR kostenpause_gemeldet_am < ?)
+        """,
+        (jetzt_iso or _jetzt(), chat_id, nicht_vor_iso),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+@_gesperrt
+def gab_es_vorfall_seit(conn: sqlite3.Connection, chat_id: int, art: str,
+                        ab_iso: str) -> bool:
+    """Steht seit ``ab_iso`` schon ein Vorfall dieser Art fuer diese Gruppe?
+
+    Fuer den Tagesdeckel: das Dashboard soll einmal sagen 'diese Gruppe hat
+    ihr Budget erreicht' und nicht sechsmal dasselbe."""
+    zeile = conn.execute(
+        "SELECT 1 FROM vorfall WHERE chat_id = ? AND art = ? AND erstellt_am >= ? LIMIT 1",
+        (chat_id, art, ab_iso),
+    ).fetchone()
+    return zeile is not None

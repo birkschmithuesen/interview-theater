@@ -501,6 +501,26 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
         return  # nichts (mehr) zu tun
 
     if row["status"] == "empfangen":
+        # Der Tagesdeckel (Karte Padua S). Hier und NICHT als Ausnahme aus
+        # stt.transkribiere: die liefe durch ``_melde_transkriptionsfehler``,
+        # und das zaehlt ``repo.zaehle_versuch_hoch`` hoch. Der
+        # Nachhol-Arbeiter laeuft alle 60 s -- MAX_VERSUCHE waeren in fuenf
+        # Minuten verbraucht, und jedes Interview des Abends stuende am
+        # naechsten Morgen auf 'fehlgeschlagen'.
+        #
+        # Stattdessen: nichts tun. Datei und Zeile bleiben, der Status bleibt
+        # 'empfangen', und ``nachholen()`` greift sie nach Mitternacht von
+        # selbst auf (repo.offene_aufnahmen_fuer_bot liefert alles ausserhalb
+        # von fertig/fehlgeschlagen/laeuft). Kein neuer Mechanismus.
+        from interview_theater import kosten
+
+        if kosten.deckel_erreicht(conn, row["chat_id"], e):
+            if not nachgeholt:
+                # Nur im Live-Pfad melden: "Nachgeholtes loest nie eine
+                # Antwort aus" (SPEC § 10.3), und der Nachhol-Arbeiter kaeme
+                # sonst alle 60 s wieder.
+                kosten.melde_pause_wenn_deckel(conn, tg, e, row["chat_id"])
+            return
         text = _transkribiere_mit_meldung(conn, tg, e, klient, row)
         if text is None:
             return  # Fehler wurde schon gemeldet/aufgezeichnet
@@ -516,7 +536,7 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
     elif row["klasse"] == "kurz":
         _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt)
     else:
-        _interview_abschliessen(conn, tg, klm, e, row)
+        _interview_abschliessen(conn, tg, klm, e, row, nachgeholt=nachgeholt)
 
 
 def whisper_sprache(conn, chat_id: int) -> str:
@@ -1213,7 +1233,8 @@ def zeige_verdichtung(conn, tg, e, kopf_id: int) -> bool:
     return True
 
 
-def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> None:
+def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False,
+                            nachgeholt: bool = False) -> None:
     """Verdichtet ein Interview (oder einen Textimport) und meldet das
     Ergebnis in den Chat.
 
@@ -1228,13 +1249,26 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> N
     Sprachmodell-Aufruf und darf nicht unbegrenzt oft alle
     NACHHOL_INTERVALL_S Sekunden wiederholt werden). Ab MAX_VERSUCHE wird
     endgueltig aufgegeben, das Transkript bleibt aber erhalten -- nur die
-    Zusammenfassung fehlt."""
+    Zusammenfassung fehlt.
+
+    **Der Tagesdeckel (Karte Padua S) ist kein Fehlschlag** und zaehlt
+    deshalb keinen Versuch: der Nachhol-Arbeiter laeuft alle 60 s, und
+    MAX_VERSUCHE waeren in fuenf Minuten verbraucht -- ein Interview vom
+    Abend stuende am Morgen auf 'fehlgeschlagen'. Es bleibt
+    'transkribiert', und ``nachholen()`` verdichtet es nach Mitternacht.
+    Gemeldet wird nur im Live-Pfad (``nachgeholt`` falsch), SPEC § 10.3."""
+    from interview_theater import kosten
+
     aufnahme_id = row["id"]
     chat_id = row["chat_id"]
     if not erzwungen and _zu_kurz_gemeldet(conn, tg, e, row):
         return
     try:
         verdichtung_id = verdichter.verdichte(klm, conn, e, aufnahme_id)
+    except kosten.KostendeckelErreicht:
+        if not nachgeholt:
+            kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id)
+        return
     except Exception as fehler:
         log.exception("Verdichtung fehlgeschlagen, aufnahme_id=%s", aufnahme_id)
         versuche = repo.zaehle_versuch_hoch(conn, aufnahme_id)

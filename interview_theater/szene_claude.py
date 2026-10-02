@@ -90,6 +90,10 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
           nutzer: str, art: str, timeout: float) -> str:
     """Ein Aufruf, ein Text. Bucht in ``aufruf`` mit modus 'C' (Claude), damit
     Dashboard und Kostenrechnung den Weg sehen -- mit 0 CHF, weil Abo."""
+    # Auch hier, obwohl der Claude-Weg 0 CHF bucht (Abo): ist das Tagesbudget
+    # der Gruppe erreicht, antwortet der Bot im Chat nicht mehr -- eine Szene,
+    # die trotzdem geschrieben wird, koennte sie gar nicht abnehmen.
+    kosten.pruefe(conn, chat_id, e)
     url = getattr(e, "szene_url", None) or URL_VORGABE
     modell = getattr(e, "szene_modell", None) or MODELL_VORGABE
     koerper = {

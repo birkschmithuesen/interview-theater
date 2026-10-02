@@ -70,6 +70,18 @@ IT_SZENE_ANBIETER=claude
 # Infomaniak. Nur setzen, wenn ein Anbieter seine Grenzen aendert.
 # IT_SZENE_TOKEN_MAX=
 
+# --- Tagesdeckel (Karte Padua S) -------------------------------------------
+# Was eine Gruppe je Tag hoechstens an bezahlten Modell- und Whisper-Aufrufen
+# ausgeben darf, in CHF (kosten.deckel). Danach pausiert der Bot bis
+# Mitternacht; Nachrichten und Audio werden weiter gespeichert und morgen
+# nachgeholt. Ein unlesbarer Wert faellt auf 5.0 zurueck, nie auf "kein
+# Deckel". Wird beim Start gelesen (Neustart des Bots).
+# IT_KOSTEN_DECKEL_CHF=5.0
+#
+# Wonach sich "heute" richtet (Mitternacht dieser Zone setzt den Deckel
+# zurueck). Padua: Europe/Rome.
+# IT_ZEITZONE=Europe/Rome
+
 # --- Nur fuer den Webdienst, nicht fuer einen Bot-Prozess -----------------
 # Diese beiden liest ausschliesslich `python -m interview_theater.web`; sie
 # gehoeren in die Env der Web-Unit, nicht hierher. Hier stehen sie zur

@@ -51,7 +51,11 @@ CREATE TABLE IF NOT EXISTS gruppe (
   -- (Karte Padua S). In der DATENBANK und nicht im Prozess: ein Neustart
   -- meldete sonst sofort wieder, und der Nachhol-Arbeiter laeuft im
   -- Minutentakt. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
-  kostenpause_gemeldet_am         TEXT
+  kostenpause_gemeldet_am         TEXT,
+  -- Wann der einmalige Hinweis "Knoepfe sind Abkuerzungen" im Web-Chat
+  -- gezeigt wurde (UX-Knoepfe-Karte, Abschnitt 1) -- NULL = noch nie.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  abkuerzungen_hinweis_gezeigt_am TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (

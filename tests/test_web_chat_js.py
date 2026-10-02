@@ -854,6 +854,45 @@ def test_brainstorm_knoepfe_sind_verdrahtet():
     assert "starteBrainstorm()" in wiring
 
 
+# -- UX-Knoepfe-Karte, Abschnitt 1: Knoepfe als Abkuerzungen ---------------
+
+
+def test_freies_schreiben_veraltet_die_letzte_leiste():
+    """Wer stattdessen tippt, sieht die zuletzt gezeigte Chip-Leiste
+    weiterhin -- nur gedaempft (Klasse 'ueberholt'), nie entfernt."""
+    js = web_chat._CHAT_JS
+    assert "function veralteLetzteLeiste" in js
+    senden = js[js.index("function sendeText"):js.index("document.getElementById('senden')")]
+    assert "veralteLetzteLeiste()" in senden
+    funktion = js[js.index("function veralteLetzteLeiste"):
+                  js.index("function blaseZu")]
+    assert "classList.add('ueberholt')" in funktion
+
+
+def test_freies_sprechen_per_ptt_veraltet_ebenfalls_die_leiste():
+    """Dieselbe Regel gilt fuer Push-to-Talk, nicht nur fuer Text."""
+    js = web_chat._CHAT_JS
+    start = js.index("if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS")
+    ausschnitt = js[start:start + 400]
+    assert "veralteLetzteLeiste()" in ausschnitt
+
+
+def test_die_chip_leiste_traegt_ein_abkuerzungs_label(seite):
+    """Server und Client bauen dieselbe Reihenfolge: Label, dann Leiste."""
+    js = web_chat._CHAT_JS
+    assert "function baueLabel" in js
+    assert "TEXT.abkuerzung" in js
+    blase = js[js.index("function blase(n)"):js.index("function ersetze(n)")]
+    assert blase.index("baueLabel(n)") < blase.index("appendChild(leiste)")
+
+
+def test_die_chip_leiste_ist_keine_vollbreite_pflichtleiste(seite):
+    """UX-Knoepfe-Karte: kleine Abkuerzungs-Chips nebeneinander, nicht
+    vollbreite Primaerknoepfe untereinander."""
+    assert "flex-direction: row" in seite
+    assert "border-radius: 999px" in seite
+
+
 def test_manuelle_schnitte_tragen_den_grund_ende_fuer_brainstorm_auch():
     """``pausiereBrainstorm``/``beendeBrainstorm`` flushen wie beim Interview
     ueber ``_grund = 'ende'`` -- ein manueller Stopp haelt sich nicht an

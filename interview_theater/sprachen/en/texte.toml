@@ -1598,3 +1598,17 @@ fazitsatz = "No conclusion and no moral at the end. The last line does not say w
 _TEXT_PAUSE = """Today's budget is used up — I'm pausing until midnight (Italian time) and won't reply in the meantime.
 
 Your work is saved. You can keep recording (I'll listen tomorrow), and your group page stays readable."""
+
+["web_chat"]
+# UX-Knoepfe-Karte, Abschnitt 1 (02.10.2026): nur die vier Texte, die ueber
+# web_chat.T laufen -- Platzhalter des Eingabefelds und das Abkuerzungs-Label.
+# Der Rest von web_chat.py ist nicht umgestellt (AGENTS.md, Uebergabe an A1).
+_TEXT_EINGABE = "Write or speak freely – or tap a shortcut"
+_TEXT_EINGABE_FRAGEN = "Say what should be different about the question …"
+_TEXT_EINGABE_SETTING = "Tell us your idea …"
+_TEXT_ABKUERZUNG = "Shortcut:"
+
+["web_kanal"]
+# UX-Knoepfe-Karte, Abschnitt 1: der einmalige Hinweis, dass Knoepfe
+# Abkuerzungen sind -- gesendet von web_kanal.WebKanal.sende_mit_knoepfen.
+TEXT_ABKUERZUNG_HINWEIS = "Buttons are shortcuts – you can always just write or speak instead."

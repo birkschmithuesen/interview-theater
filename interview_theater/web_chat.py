@@ -26,7 +26,7 @@ import urllib.parse
 from contextlib import contextmanager
 from pathlib import Path
 
-from interview_theater import db, repo, stt, web_daten, web_grenze, web_kanal
+from interview_theater import db, repo, sprache, stt, web_daten, web_grenze, web_kanal
 
 log = logging.getLogger(__name__)
 
@@ -131,8 +131,34 @@ def sichere_html(text) -> str:
 
 _TEXT_TITEL = "Chat mit dem Theaterbot"
 _TEXT_LEER = "Noch nichts da. Schreibt mir, womit ihr anfangen wollt."
-_TEXT_EINGABE = "Schreiben …"
+#: Der Standard-Platzhalter (UX-Knoepfe-Karte, Abschnitt 1): das Eingabefeld
+#: ist nie gesperrt, auch nicht, solange Knoepfe (Abkuerzungen) offen stehen
+#: -- der Platzhalter soll genau das einladen.
+_TEXT_EINGABE = "Schreibt oder sprecht einfach – oder tippt eine Abkürzung"
+#: Phase 2 mit einer gerade offenen Frage (``arbeitsstand.fragen_aktuell``):
+#: eine freie Nachricht zaehlt dort als Schaerfungswunsch
+#: (``fragen.nimm_offene_frage_text``) -- der Platzhalter sagt das.
+_TEXT_EINGABE_FRAGEN = "Sagt, was an der Frage anders soll …"
+#: Phase 4 (Setting, Figuren & Geschichte): freies Erfinden ohne feste
+#: Reihenfolge, siehe AGENTS.md "Erst erfinden, dann schaerfen".
+_TEXT_EINGABE_SETTING = "Erzählt eure Idee …"
 _TEXT_SENDEN = "Senden"
+#: UX-Knoepfe-Karte, Abschnitt 1: Knoepfe sind Abkuerzungen, keine Pflicht --
+#: das kleine, gedaempfte Label sagt das jedes Mal, wenn eine Chip-Leiste
+#: steht, ohne dass jemand lesen muesste.
+_TEXT_ABKUERZUNG = "Abkürzung:"
+
+#: UX-Knoepfe-Karte, Abschnitt 1: die VIER Texte oben (Platzhalter +
+#: Abkuerzungs-Label) sind die einzigen in diesem Modul mit einem englischen
+#: Gegenstueck (``sprachen/en/texte.toml``, Abschnitt ``[web_chat]``) --
+#: nachgeschlagen zur Aufrufzeit wie bei jedem ``T``-umgestellten Modul
+#: (``sprache.py``). Der Rest von ``web_chat.py`` ist weiterhin unuebersetzt
+#: (AGENTS.md, "Englische UI-Texte der Chatansicht", Uebergabe an Karte A1) --
+#: insbesondere ``_JS_TEXTE`` bleibt ein beim Import eingefrorenes Woerterbuch
+#: und liest ``_TEXT_ABKUERZUNG`` deshalb bewusst nackt, nicht ueber ``T``:
+#: ein Prozess bedient genau eine Sprache fuer seine ganze Laufzeit, aber
+#: ``T`` nachzuschlagen waere hier nur Attrappe ohne Wirkung.
+T = sprache.Texte(__name__)
 _TEXT_TIPPT = "schreibt …"
 _TEXT_SPRACHE = "Sprachnachricht ({dauer})"
 _TEXT_DATEI = "Datei: {name}"
@@ -192,12 +218,22 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .blase.sprache { font-style: italic; opacity: .85; }
 .blase.system { background: transparent; border: none; color: #6b6f76;
                 font-size: .88rem; padding: .25rem .2rem; max-width: 100%; }
-.leiste { display: flex; flex-direction: column; gap: .35rem; margin: .1rem 0 .3rem;
-          align-self: flex-start; width: 88%; }
-.leiste button { font: inherit; text-align: left; padding: .65rem .8rem;
-                 border-radius: .7rem; border: 1px solid #1f6f5c;
-                 background: #fff; color: #17181b; min-height: 2.9rem; }
+/* UX-Knoepfe-Karte, Abschnitt 1: Knoepfe sind kleine Abkuerzungs-Chips, keine
+   vollbreiten Pflichtknoepfe -- die Hauptlast bleibt beim Eingabefeld. */
+.leiste-label { font-size: .74rem; color: #9a9ea5; margin: .1rem 0 0;
+                align-self: flex-start; }
+.leiste { display: flex; flex-direction: row; flex-wrap: wrap; gap: .4rem;
+          margin: 0 0 .3rem; align-self: flex-start; max-width: 94%; width: auto; }
+.leiste button { font: inherit; font-size: .92rem; text-align: left;
+                 padding: .45rem .85rem; border-radius: 999px;
+                 border: 1px solid #1f6f5c; background: #fff; color: #1f6f5c;
+                 min-height: 2.3rem; }
 .leiste button:disabled { opacity: .45; }
+/* Die Gruppe hat frei geschrieben oder gesprochen, statt einen Chip zu
+   druecken: die Leiste bleibt sichtbar (eine Abkuerzung ist nicht falsch
+   geworden), wird aber gedaempft -- rein optisch, der Server entscheidet
+   weiterhin allein, wann ein Knopf wirklich verfaellt. */
+.leiste.ueberholt button { opacity: .4; border-color: #c9c4b8; color: #8b8f97; }
 .quittung { font-size: .82rem; opacity: .7; align-self: flex-start; }
 .tippt { font-size: .85rem; opacity: .6; height: 1.2em; }
 .fuss { position: fixed; left: 0; right: 0; bottom: 0; background: #fbfaf8;
@@ -256,7 +292,8 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
   .blase.bot { background: #1d2026; border-color: #2c313a; }
   .fuss { background: #14161a; border-color: #2c313a; }
   .zeile input { background: #1d2026; color: #e7e9ec; border-color: #2c313a; }
-  .leiste button { background: #1d2026; color: #e7e9ec; }
+  .leiste button { background: #1d2026; color: #6fcfb6; border-color: #2c6a58; }
+  .leiste-label { color: #7d8290; }
   .interview-aktionen button { background: #1d2026; color: #e7e9ec; }
 }
 """
@@ -341,6 +378,7 @@ _JS_TEXTE = {
     "modus_weg": _TEXT_MODUS_WEG,
     "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
     "nachreichen_spaeter": _TEXT_NACHREICHEN_SPAETER,
+    "abkuerzung": _TEXT_ABKUERZUNG,
 }
 
 
@@ -486,6 +524,17 @@ _CHAT_JS = """
     return 'text';
   }
 
+  // UX-Knoepfe-Karte, Abschnitt 1: ein gedaempftes Label VOR der Chip-Leiste
+  // -- "Abkuerzung:" -- damit niemand den Eindruck hat, ein Knopf sei
+  // Pflicht statt Vorschlag.
+  function baueLabel(n) {
+    var label = document.createElement('div');
+    label.className = 'leiste-label';
+    label.dataset.message = n.id;
+    label.textContent = TEXT.abkuerzung;
+    return label;
+  }
+
   function baueLeiste(n) {
     if (!n.knoepfe || !n.knoepfe.length) { return null; }
     var leiste = document.createElement('div');
@@ -502,12 +551,26 @@ _CHAT_JS = """
     return leiste;
   }
 
+  // UX-Knoepfe-Karte, Abschnitt 1: schreibt oder spricht die Gruppe frei,
+  // statt eine Abkuerzung zu druecken, bleibt die zuletzt gezeigte
+  // Chip-Leiste stehen (eine Abkuerzung ist nicht falsch geworden), wird
+  // aber gedaempft -- rein optisch, der Server entscheidet weiterhin allein,
+  // wann ein Knopf wirklich verfaellt.
+  function veralteLetzteLeiste() {
+    var leisten = verlauf.querySelectorAll('.leiste');
+    if (leisten.length) { leisten[leisten.length - 1].classList.add('ueberholt'); }
+  }
+
   function blaseZu(id) {
     return verlauf.querySelector('.blase[data-id="' + id + '"]');
   }
 
   function leisteZu(id) {
     return verlauf.querySelector('.leiste[data-message="' + id + '"]');
+  }
+
+  function labelZu(id) {
+    return verlauf.querySelector('.leiste-label[data-message="' + id + '"]');
   }
 
   function blase(n) {
@@ -519,7 +582,10 @@ _CHAT_JS = """
     huelle.innerHTML = inhaltVon(n);
     verlauf.appendChild(huelle);
     var leiste = baueLeiste(n);
-    if (leiste) { verlauf.appendChild(leiste); }
+    if (leiste) {
+      verlauf.appendChild(baueLabel(n));
+      verlauf.appendChild(leiste);
+    }
   }
 
   // Review-Befund 10: aendere_text, entferne_knoepfe und loesche_nachrichten
@@ -527,14 +593,18 @@ _CHAT_JS = """
   // ueberholte Leiste verschwindet, eine geloeschte Nachricht auch.
   function ersetze(n) {
     var huelle = blaseZu(n.id);
+    var altesLabel = labelZu(n.id);
     var alte = leisteZu(n.id);
-    if (n.geloescht) { entferne(huelle); entferne(alte); return; }
+    if (n.geloescht) { entferne(huelle); entferne(altesLabel); entferne(alte); return; }
     if (!huelle) { return; }
     huelle.innerHTML = inhaltVon(n);
     var neue = baueLeiste(n);
     if (alte && neue) { alte.parentNode.replaceChild(neue, alte); }
-    else if (alte) { entferne(alte); }
-    else if (neue) { huelle.parentNode.insertBefore(neue, huelle.nextSibling); }
+    else if (alte) { entferne(altesLabel); entferne(alte); }
+    else if (neue) {
+      huelle.parentNode.insertBefore(neue, huelle.nextSibling);
+      huelle.parentNode.insertBefore(baueLabel(n), neue);
+    }
   }
 
   function nachUnten() {
@@ -561,6 +631,9 @@ _CHAT_JS = """
     }
     if (neu.length) { nachUnten(); }
     if (tipptFeld) { tipptFeld.textContent = daten.tippt ? TEXT.tippt : ''; }
+    // UX-Knoepfe-Karte, Abschnitt 1: der Platzhalter folgt der Phase, das
+    // Eingabefeld selbst bleibt dabei immer offen und unveraendert bedienbar.
+    if (daten.platzhalter && eingabe) { eingabe.placeholder = daten.platzhalter; }
     zustand.servermodus = !!daten.interviewmodus;
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
     // vorn in der Schlange steht.
@@ -659,6 +732,7 @@ _CHAT_JS = """
     var text = (eingabe.value || '').trim();
     if (!text) { return; }
     eingabe.value = '';
+    veralteLetzteLeiste();
     function zurueck() { if (!eingabe.value) { eingabe.value = text; } }
     postJson('chat/senden', { text: text }).then(function (r) {
       if (r.ok) { hole(); return; }
@@ -1841,6 +1915,7 @@ _CHAT_JS = """
           gibFrei(druck);
           if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS ||
               !druck.teile.length) { return; }
+          veralteLetzteLeiste();
           reiheEin({
             art: 'audio', sitzung: null,
             blob: new Blob(druck.teile,
@@ -1962,6 +2037,7 @@ def _blase_html(n: dict) -> str:
             f"{html.escape(beschriftung)}</button>"
             for beschriftung, daten in n["knoepfe"]
         )
+        teile.append(f'<div class="leiste-label">{html.escape(T._TEXT_ABKUERZUNG)}</div>')
         teile.append(f'<div class="leiste" data-message="{n["id"]}">{knoepfe}</div>')
     return "\n".join(teile)
 
@@ -2041,7 +2117,7 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         )
         + f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '
-        f'placeholder="{html.escape(_TEXT_EINGABE, quote=True)}">\n'
+        f'placeholder="{html.escape(_platzhalter_fuer(daten.get("phase"), daten.get("fragen_aktuell")), quote=True)}">\n'
         f'    <button type="button" id="ptt"{" hidden" if modus else ""} title="'
         f'{html.escape(_TEXT_PTT, quote=True)}">🎤</button>\n'
         f'    <button type="button" id="senden">'
@@ -2589,6 +2665,24 @@ _POSTWEGE = {
 }
 
 
+def _platzhalter_fuer(phase, fragen_aktuell) -> str:
+    """Der Platzhalter-Text zum aktuellen Stand (UX-Knoepfe-Karte,
+    Abschnitt 1) -- reine Funktion, keine Datenbank: ``phase`` und
+    ``fragen_aktuell`` kommen schon roh aus ``web_daten.web_chatzustand``.
+
+    Nur zwei Phasen bekommen einen eigenen Text, beide aus einem konkreten
+    Anlass: Phase 2 mit offener Frage (die Schaerfung ist deterministisch,
+    ``fragen.nimm_offene_frage_text``) und Phase 4 (freies Erfinden ohne
+    Material, AGENTS.md "Erst erfinden, dann schaerfen"). Jede andere Lage
+    bleibt beim Standard -- kein Raten, welcher Text sonst passen wuerde."""
+    phase = str(phase or "").strip()
+    if phase == "2" and (fragen_aktuell or "").strip():
+        return T._TEXT_EINGABE_FRAGEN
+    if phase == "4":
+        return T._TEXT_EINGABE_SETTING
+    return T._TEXT_EINGABE
+
+
 def _zustand(db_pfad: str, token: str, nach: int = 0,
              seit: int | None = None) -> dict | None:
     conn = web_daten.oeffne_lesend(db_pfad)
@@ -2627,6 +2721,9 @@ def _sende_zustand(handler, db_pfad: str, token: str, query: str,
     for nachricht in daten["nachrichten"] + daten["geaendert"]:
         nachricht["html"] = sichere_html(nachricht["text"])
     daten["segment_ms"] = _segment_ms()
+    daten["platzhalter"] = _platzhalter_fuer(
+        daten.get("phase"), daten.get("fragen_aktuell")
+    )
     # Die Chatseite laedt nie neu, ein Nonce gilt aber hoechstens zwei
     # Stunden (``web.NONCE_FENSTER``): der Poll bringt den laufenden mit, und
     # das JS setzt ihn ins Feld (Review-Befund 2). Kein neues Geheimnis nach

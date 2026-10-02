@@ -4025,6 +4025,25 @@ def merke_kostenpause(conn: sqlite3.Connection, chat_id: int, nicht_vor_iso: str
 
 
 @_gesperrt
+def beanspruche_abkuerzungen_hinweis(conn: sqlite3.Connection, chat_id: int,
+                                     jetzt_iso: str | None = None) -> bool:
+    """Darf DIESER Aufruf den einmaligen Hinweis "Knoepfe sind Abkuerzungen"
+    zeigen (UX-Knoepfe-Karte, Abschnitt 1)? Liefert True hoechstens einmal je
+    Gruppe -- bedingtes ``UPDATE`` wie ``merke_kostenpause``/
+    ``beanspruche_knopf``, damit zwei gleichzeitige erste Knopfnachrichten
+    (zwei Telefone, derselbe Moment) den Hinweis nicht doppelt schicken."""
+    cursor = conn.execute(
+        """
+        UPDATE gruppe SET abkuerzungen_hinweis_gezeigt_am = ?
+        WHERE chat_id = ? AND abkuerzungen_hinweis_gezeigt_am IS NULL
+        """,
+        (jetzt_iso or _jetzt(), chat_id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+@_gesperrt
 def gab_es_vorfall_seit(conn: sqlite3.Connection, chat_id: int, art: str,
                         ab_iso: str) -> bool:
     """Steht seit ``ab_iso`` schon ein Vorfall dieser Art fuer diese Gruppe?

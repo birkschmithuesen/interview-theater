@@ -1521,6 +1521,10 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         "chat_id": chat_id,
         "titel": gruppe["titel"] if gruppe else None,
         "phase": _feld(stand, "phase"),
+        # Fuer den kontextabhaengigen Platzhalter im Eingabefeld
+        # (UX-Knoepfe-Karte, Abschnitt 1) -- der Text selbst steht in
+        # web_chat.py, hier nur der Rohwert, read-only wie der Rest.
+        "fragen_aktuell": _feld(stand, "fragen_aktuell"),
         "interviewmodus": bool(gruppe and gruppe["interviewmodus_seit"]),
         "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
         "nachrichten": nachrichten,

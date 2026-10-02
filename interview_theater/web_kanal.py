@@ -26,10 +26,21 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from interview_theater import repo
+from interview_theater import repo, sprache
 from interview_theater.telegram import CALLBACK_DATA_GRENZE
 
 log = logging.getLogger(__name__)
+
+#: Der einmalige Hinweis "Knoepfe sind Abkuerzungen" (UX-Knoepfe-Karte,
+#: Abschnitt 1) -- gezeigt vor der ersten Knopfnachricht, die eine Gruppe je
+#: im Web-Chat bekommt (repo.beanspruche_abkuerzungen_hinweis). Englisches
+#: Gegenstueck in sprachen/en/texte.toml, Abschnitt [web_kanal].
+TEXT_ABKUERZUNG_HINWEIS = (
+    "Knöpfe sind Abkürzungen – ihr könnt immer auch einfach schreiben "
+    "oder sprechen."
+)
+
+T = sprache.Texte(__name__)
 
 #: Was in ``nachricht.absender`` steht, wenn eine Gruppe im Browser schreibt.
 #:
@@ -405,9 +416,16 @@ class WebKanal:
         Sendestellen (``knoepfe.biete_einstieg`` zum Beispiel nicht).
 
         ``system`` wie in ``sende`` -- eine Notiert-Meldung mit Undo-Knopf
-        bleibt eine Systemzeile, auch mit Tastatur darunter."""
+        bleibt eine Systemzeile, auch mit Tastatur darunter.
+
+        UX-Knoepfe-Karte, Abschnitt 1: vor der ERSTEN Knopfnachricht, die
+        eine Gruppe je bekommt, geht einmalig eine Systemzeile voraus --
+        "Knoepfe sind Abkuerzungen". ``repo.beanspruche_abkuerzungen_hinweis``
+        entscheidet bedingt (SQLite), kein Modellaufruf, kein zweiter Weg."""
         leiste = list(knoepfe)
         _pruefe_daten(leiste)
+        if repo.beanspruche_abkuerzungen_hinweis(self._conn, chat_id):
+            self.sende(chat_id, T.TEXT_ABKUERZUNG_HINWEIS, system=True)
         typ = repo.WEB_TYP_SYSTEM if system else repo.WEB_TYP_TEXT
         return repo.lege_web_post_an(
             self._conn, chat_id, repo.RICHTUNG_AUS, typ,

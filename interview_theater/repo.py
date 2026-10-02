@@ -149,6 +149,34 @@ def stelle_web_token_sicher(conn: sqlite3.Connection, chat_id: int) -> str | Non
 
 
 @_gesperrt
+def erneuere_web_token(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Gibt der Gruppe ein neues Web-Token -- der alte Link ist danach tot.
+
+    Die Gegenstueck-Funktion zu ``stelle_web_token_sicher``: die legt an,
+    wenn nichts da ist, und laesst ein vorhandenes stehen; diese hier
+    ersetzt ein vorhandenes. Deshalb **ohne** ``WHERE web_token IS NULL`` --
+    die Bedingung dort macht das Anlegen atomar, hier wuerde sie die
+    Rotation verhindern.
+
+    Der Aufrufer ist ``scripts/web_token_neu.py``, von Hand und mit Ansage:
+    rotieren heisst, dass jedes Telefon im Raum seinen Link verliert. Es gibt
+    bewusst keinen Chat-Befehl dafuer (wie bei ``loesche_gruppe``).
+
+    Liefert None, wenn es die Gruppe nicht gibt."""
+    zeile = conn.execute(
+        "SELECT chat_id FROM gruppe WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    if zeile is None:
+        return None
+    neu = secrets.token_urlsafe(WEB_TOKEN_BYTES)
+    conn.execute(
+        "UPDATE gruppe SET web_token = ? WHERE chat_id = ?", (neu, chat_id)
+    )
+    conn.commit()
+    return neu
+
+
+@_gesperrt
 def alle_gruppen(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """Alle Gruppen ueber alle Bots hinweg, aeltester Eintrag zuerst --
     Grundlage von ``scripts/web_links.py`` (eine Zeile je Gruppe mit ihrer

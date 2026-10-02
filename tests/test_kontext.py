@@ -833,6 +833,17 @@ def test_sonstiger_anhang_ohne_transkript_traegt_denselben_hinweis():
     assert zeile == "Maria: (Datei -- fuer mich nicht sichtbar)"
 
 
+def test_dokument_ohne_transkript_traegt_denselben_hinweis():
+    """Review-Nachbesserung Befund 2: ``telegram._bestimme_typ`` liefert
+    ``"dokument"`` fuer jeden Datei-Upload (PDF, Word, ...) -- ohne
+    Bildunterschrift blieb das vorher beim rohen, immer deutschen
+    Telegram-Typnamen ``"(dokument)"`` stehen, derselbe Fehler wie bei
+    einem Foto, nur ueber den anderen Nachrichtentyp."""
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "dokument"})
+    assert zeile == "Maria: (Datei -- fuer mich nicht sichtbar)"
+
+
 def test_unbekannter_typ_bleibt_beim_alten_fallback():
     """Regressionsanker: ein Typ ausserhalb von
     ``kontext._TYPEN_NICHT_SICHTBAR`` (z.B. eine noch nicht transkribierte

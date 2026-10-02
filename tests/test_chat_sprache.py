@@ -88,6 +88,12 @@ def test_sticker_ohne_transkript_ist_fuer_englisch_als_nicht_sichtbar_markiert(p
     assert zeile == "Maria: (file -- not visible to you)"
 
 
+def test_dokument_ohne_transkript_ist_fuer_englisch_als_nicht_sichtbar_markiert(padua):
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "dokument"})
+    assert zeile == "Maria: (file -- not visible to you)"
+
+
 def test_stile_zeigen_englisch_aber_gleiche_slugs(padua):
     assert [s["slug"] for s in stile.T.STILE] == [s["slug"] for s in stile.STILE]
 

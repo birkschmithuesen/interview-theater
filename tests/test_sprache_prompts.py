@@ -429,3 +429,22 @@ def test_stueckpruefung_englisch_mit_markern(padua):
                    stueckpruefung._MARKER_SZENE):
         assert marker in text
     assert "Write in English, concretely and without jargon" in " ".join(text.split())
+
+
+def test_keine_englische_phasenanweisung_engt_die_optionen_ein():
+    """Karte P2-Fix, Restspannung 1 (02.10.2026).
+
+    Die Profil-Anweisung von Padua erlaubt ausdruecklich, dass eine der
+    angebotenen Optionen einen ueberraschenden oder gegenlaeufigen Winkel
+    nimmt, solange er aus dem Material waechst
+    (``workshop/padua-2026/prompts/anweisung.md``). Sie steht als LETZTER
+    Block im Prompt (``anweisungen.py:368-370``) und gilt damit gegen jede
+    aeltere Formulierung -- aber ein Satz, der im selben Prompt "Varianten
+    DERSELBEN Idee" verlangt, ist dort ein Widerspruch und kein Fokus. c1 hat
+    ihn in ``system.md`` entfernt; hier sind die sieben Phasendateien.
+
+    Die Winkel-Regel selbst wird NICHT hierher kopiert: ein Fakt hat genau
+    eine Stelle im Prompt (Prompt-Audit 06.09.2026)."""
+    for pfad in sorted(EN.rglob("phasen/*.md")):
+        text = pfad.read_text(encoding="utf-8")
+        assert "variants of the same idea" not in text, pfad

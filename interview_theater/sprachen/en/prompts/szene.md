@@ -108,8 +108,8 @@ with it: what isn't there doesn't exist.
   far".** What is listed there as "What's different" in the last scene is the
   state in which the characters arrive HERE -- and the "Time" and "Occasion"
   of this scene say how they got here. You have to be able to feel both in
-  the text, without anyone explaining it: whoever has just come from an argument on the {{ort_beispiel_2}}
-  still carries it in their shoulders; whoever is standing at the {{ort_beispiel_3}} days later has
+  the text, without anyone explaining it: whoever has just come from an argument at <place>
+  still carries it in their shoulders; whoever is standing at <place> days later has
   put it down.
   A contradiction of the previous scene (someone no longer knows something
   they learned there) is a mistake.

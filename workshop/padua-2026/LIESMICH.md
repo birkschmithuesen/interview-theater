@@ -6,13 +6,20 @@ Karte A1, Inhalt von **Karte P** aus genau zwei Vault-Dateien
 Die Zeile `geruest = true` ist gestrichen; `python -m scripts.pruefe_profil
 padua-2026` meldet „in Ordnung".
 
-**Jede Angabe, die nicht wörtlich oder eindeutig im Vault steht, trägt in
-`profil.toml` den Kommentar `# ANNAHME (unbelegt): …`** — mit dem Grund. Birk
-nimmt sie am Prompt-Dump ab: `docs/prompt-audit/2026-09-30-padua/BEFUND.md`.
-Markiert sind heute: die Spielorte (Padua/Venedig ist nur als Interviewort
-belegt), die ausgeschlossenen Orte (Dortmunds Jugendschutz-Liste ersetzt durch
-einen Schutz der Befragten), der Ort der Werkschau, die Beispielorte (A1), der
-Konfliktrahmen (im Vault offen) und die Konflikt-Ausschlüsse.
+**Abgenommen am 01.10.2026.** Die sechs Angaben, die Karte P noch als
+`# ANNAHME (unbelegt)` markiert hatte, hat Birk am Prompt-Dump entschieden;
+`profil.toml` nennt seitdem je Angabe die Entscheidung statt der Annahme.
+Gültig ist damit: die **Spielorte** sind offen formuliert — welche Orte
+vorkommen, wählt die Gruppe aus ihren Interviews, erfunden oder real, und
+Padua ist Herkunft des Materials, nicht Pflicht-Schauplatz („Venice" ist
+raus); die **ausgeschlossenen Orte** bleiben wie sie waren (Schutz der
+Befragten, kein Jugendschutz); die **Werkschau** findet am letzten Tag in oder
+an der Akademie statt, 10–15 Minuten je Gruppe, Form und Mittel offen — kein
+Teatro Verdi, keine KI-Projektion; es gibt **keine Beispielorte** mehr (im
+englischen Prompt steht `<place>`); der **Konfliktrahmen** ist leer, es bleibt
+„Conflict may be serious."; **ausgeschlossen** ist nur noch „No interviewed
+person recognisable by name or address". Nachweis mit Prompt-Dump und
+Greptabelle: `docs/prompt-audit/2026-10-01-padua-fix/BEFUND.md`.
 
 **Das Szenenmodell ist kein Profilfeld.** E9 (Szenen über
 `claude-opus-5-5`, USA-Einwilligung bleibt) wird im Betrieb gesetzt, je
@@ -29,8 +36,12 @@ Ohne diese Zeilen gilt die Vorgabe aus `interview_theater/einstellungen.py`
 **Die Profil-Anweisung** (`prompts/anweisung.md`, Karte P): eine knappe
 Verhaltensanweisung an den Gesprächs-Bot (Rolle, Ton, Grenzen, Frageweise),
 die `anweisungen.system()` zwischen Phasenanweisung und Regie-Zettel hängt.
-Nur Padua hat sie — Dortmund bleibt bitgleich. Begründung und Vorher/Nachher
-in `BEFUND.md`. Sie ist ein **Vorschlag zur Abnahme**.
+Nur Padua hat sie — Dortmund bleibt bitgleich. **Abgenommen am 01.10.2026**;
+ihr Schluss ist Birks Wortlaut: eine der angebotenen Optionen darf einen
+überraschenden oder gegenläufigen Winkel nehmen, solange er aus dem Material
+oder dem Thema der Gruppe wächst. Weil diese Datei am **Ende** des Prompts
+steht (SPEC § 6.1), gilt sie gegen jede ältere Formulierung in
+`sprachen/en/prompts/`.
 
 ## Was dieses Profil eigenständig macht (gesetzt von A1)
 
@@ -60,9 +71,11 @@ in `BEFUND.md`. Sie ist ein **Vorschlag zur Abnahme**.
   unter 700 Zeichen.
 - **Englische Formen** (`formen.toml`): Dialogue, Monologue, Chorus, Song,
   Rap — die Datenbankwerte bleiben `dialog`, `monolog`, `chor`, `lied`, `rap`.
-- **Englische Beispielorte** (`orte.beispiele`): bus stop, piazza, café,
-  station. Sie stehen in englischen Prompt-Sätzen; die italienischen Wörter
-  des alten Gerüsts (`fermata`, `stazione`) wären dort Fremdkörper gewesen.
+- **Keine Beispielorte** (`orte.beispiele = []`, Birk 01.10.2026): im
+  englischen Prompt steht statt eines Ortes `<place>` — wie `<character A>` —,
+  weil Nachplappern von Beispielorten gemessen ist (Audit 06.09.2026). Die
+  **leere Liste** steht ausdrücklich da: ein fehlender Schlüssel würde über
+  `workshop._vereinige` die deutschen Vorgabewerte erben.
 
 ## Laengen-Rhythmus und Sprachpass (Karte R, 30.09.2026)
 

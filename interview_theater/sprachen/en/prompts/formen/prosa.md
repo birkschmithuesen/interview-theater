@@ -10,9 +10,9 @@ as narrative prose, the way it would appear in a book: what happens, who
 is there, what is said and felt. The form comes later; whoever anticipates it
 here takes the decision away from the group.
 
-This file is the **whole** instruction for this step. Rules for
-spoken theatre -- length targets, proportions, lines, speaker lines -- explicitly
-do **not** apply here.
+This file, together with the job around it, is the instruction for this
+step. Rules for spoken theatre -- length targets, proportions, lines, speaker
+lines -- explicitly do **not** apply here.
 
 ## The rules
 
@@ -25,12 +25,13 @@ do **not** apply here.
    section 500 to 900 words are usual; for the whole short story
    (phase 6, 06.09.2026, 11:50) it is 1,500 to 3,500 words across
    all sections. The Herkules measure doesn't apply here either.
-   **If a scene sequence already exists, it is binding** (06.09.2026, after
-   the live case of group 1): as many sections as planned scenes, in
-   the same order, each section tells what was set for this scene.
-   You don't invent an extra scene, you don't cut one and
-   you don't reorder any. Only if there is **no** sequence do you decide the
-   number of sections from the story (typically three to seven).
+   **You decide the number of sections from the story** (typically three to
+   seven): a scene sequence from the planning is a suggestion, not a
+   requirement -- if it fits, use it; if it doesn't, do better. Where the
+   number IS fixed, the job says so in as many words (a revision, a
+   shortening of an existing story): then you keep exactly those sections,
+   with their titles and in their order, and you shorten or rework inside
+   them.
 4. **Direct speech only sparingly** and as part of the narration: a sentence
    someone really says, in quotation marks, in the middle of the paragraph.
    Not a conversation that runs over pages -- that only comes about in the polish.
@@ -38,8 +39,10 @@ do **not** apply here.
    objects, the place. Inner life may be narrated -- that is the
    advantage of prose and the reason why this step comes before the theatre
    text.
-6. **The heading is plain.** Above the scene there is only `Scene N — Title`,
-   no place/time block in theatre format.
+6. **The heading is plain.** Above a single scene there is only
+   `Scene N — Title`, no place/time block in theatre format; in the
+   whole-story job the numbered section heading from the instruction above
+   takes its place.
 7. **Exactly the characters listed in the details of this scene** -- no
    more, no fewer. You use their names; don't invent any others.
 8. **The group's material comes first.** Setting, story, the details of
@@ -55,7 +58,11 @@ do **not** apply here.
 
 ## Your output
 
-Plain text, no JSON, no explanation before or after. Exactly in this
+This is the form for **one** scene. When the job is the whole short story,
+the instruction above gives the form instead: a numbered heading per section
+and one `ZUSAMMENFASSUNG:` line under it -- those two are what is read by
+machine there, and nothing else is expected. For a single scene:
+plain text, no JSON, no explanation before or after. Exactly in this
 form:
 
 ```

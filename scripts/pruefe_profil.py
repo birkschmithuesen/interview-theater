@@ -97,16 +97,33 @@ class Bericht:
 
 
 def _prompt_texte() -> dict[str, str]:
-    """Jeder Text, in dem ein Platzhalter stehen kann: die Prompt-Dateien
-    des Repos, die des Profils und die Prompt-Konstanten im Code."""
-    texte: dict[str, str] = {}
-    for wurzel, herkunft in ((anweisungen._VERZEICHNIS, "prompts"),
-                             (anweisungen.profil_verzeichnis(), "profil")):
+    """Jeder Text, in dem ein Platzhalter stehen kann -- je Prompt-Name nur
+    die **wirksame** Ebene.
+
+    Drei Schichten wie ``anweisungen._roh``: Repo, Sprachschicht (Karte A1,
+    nur bei ``sprache.code != "de"``), Profil. Die spaetere gewinnt, und zwar
+    je Dateiname -- unter einem englischen Profil wird also die englische
+    Fassung geprueft und nicht die deutsche, die dort niemand liest. Vorher
+    las diese Funktion nur Repo und Profil; dadurch meldete sie Platzhalter
+    aus deutschen Dateien, die unter dem Profil unerreichbar sind, und sah
+    die englische Schicht nie an (Karte P-Fix, 01.10.2026).
+
+    Dazu die Prompt-Konstanten im Code (``ANWEISUNG_*``)."""
+    dateien: dict[str, tuple[str, str]] = {}
+    schichten = (
+        ("prompts", anweisungen._VERZEICHNIS),
+        ("sprache", anweisungen.sprach_verzeichnis()),
+        ("profil", anweisungen.profil_verzeichnis()),
+    )
+    for herkunft, wurzel in schichten:
         if wurzel is None or not wurzel.is_dir():
             continue
         for pfad in sorted(wurzel.rglob("*.md")):
-            texte[f"{herkunft}/{pfad.relative_to(wurzel)}"] = pfad.read_text(
-                encoding="utf-8")
+            name = str(pfad.relative_to(wurzel)).replace("\\", "/")
+            dateien[name] = (herkunft, pfad.read_text(encoding="utf-8"))
+    texte: dict[str, str] = {
+        f"{herkunft}/{name}": text for name, (herkunft, text) in dateien.items()
+    }
     for modul in (szenenfolge, knoepfe):
         for feld in sorted(dir(modul)):
             if not feld.startswith("ANWEISUNG_"):

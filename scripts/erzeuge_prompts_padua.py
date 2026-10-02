@@ -19,8 +19,8 @@ sucht -- ein Zettel aus ``betrieb/`` stuende sonst im Dump.
 Je Pfad eine Datei mit ``=== SYSTEM ===`` und ``=== NUTZER ===`` (dasselbe
 Format wie ``erzeuge_prompts``), plus ``uebersicht.tsv``. Steht die
 Profil-Anweisung (``workshop/<name>/prompts/anweisung.md``) im
-Systemtext, wird im **Dump** -- und nur dort -- die Zeile
-``<!-- VORSCHLAG zur Abnahme -->`` davorgesetzt: der Bot bekommt sie nie.
+Systemtext, wird im **Dump** -- und nur dort -- die Zeile ``MARKE``
+davorgesetzt: der Bot bekommt sie nie.
 """
 
 import os
@@ -34,8 +34,10 @@ from interview_theater import (
 )
 from scripts.erzeuge_prompts import _E, _schreibe
 
-#: Die Markierung vor dem Vorschlag, nur im Dump.
-MARKE = "<!-- VORSCHLAG zur Abnahme -->"
+#: Die Markierung vor der Profil-Anweisung, nur im Dump. Bis zum 01.10.2026
+#: war sie ein Vorschlag ("<!-- VORSCHLAG zur Abnahme -->"); Birk hat ihn an
+#: diesem Tag abgenommen (Karte P-Fix).
+MARKE = "<!-- Profil-Anweisung, abgenommen Birk 01.10.2026 -->"
 
 #: Das erfundene Interview, aus dem die Phase-6-Gruppe ihr Material hat.
 INTERVIEW = Path("simulation/interviews/set1/2-ferzan-bahnhof.md")

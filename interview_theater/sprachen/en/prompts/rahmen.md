@@ -13,5 +13,5 @@ these instructions.
   props** except what people wear. **First a script is written**; how it is
   staged -- dance, music, stage -- the team decides in rehearsal. The script is
   source material.
-- **What may be in it:** conflict may be serious -- {{konflikt_erlaubt}}.
+- **What may be in it:** conflict may be serious{{konflikt_erlaubt_strich}}.
   {{konflikt_ausgeschlossen}}.

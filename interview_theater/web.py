@@ -798,6 +798,7 @@ def _seite(
     nachladen: bool = True,
     skript: str = "",
     lang: str | None = None,
+    koerper_attribute: str = "",
 ) -> str:
     """Rahmen aller Seiten: ein einziges eingebettetes CSS, keine externe
     Ressource (der Workshopraum haengt an einem Tailnet, nicht am offenen
@@ -814,7 +815,11 @@ def _seite(
     dessen das eigene JavaScript der Seite an.
 
     ``lang`` ist die Sprache der Seite -- ohne Angabe die des Profils (Karte
-    A1); das Team-Dashboard gibt ``de`` vor, seine Texte bleiben deutsch."""
+    A1); das Team-Dashboard gibt ``de`` vor, seine Texte bleiben deutsch.
+
+    ``koerper_attribute`` haengt zusaetzliche Attribute an ``<body>`` --
+    bislang nur ``textbuch_html`` (``data-textbuch`` als Wurzel des
+    Rollenfilters, Karte W)."""
     skripte = (
         _SCROLL_JS.replace("__NEULADEN_MS__", str(NEULADEN_SEKUNDEN * 1000))
         if nachladen
@@ -828,7 +833,7 @@ def _seite(
         f'<html lang="{html.escape(lang or sprache.code())}"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{html.escape(titel)}</title>\n"
-        f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body>\n"
+        f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body{koerper_attribute}>\n"
         f"{koerper}\n"
         f"<script>{skripte}</script>\n"
         "</body></html>\n"
@@ -2414,6 +2419,10 @@ body[data-schrift="klein"] .text { font-size: 1rem; line-height: 1.45; }
 #: aus, bleibt das ganze Stueck lesbar; nur die Leisten wirken dann nicht.
 _TEXTBUCH_JS = """
 (function () {
+  // Die Wurzel, an der der Zustand haengt. Auf der Probenansicht ist das
+  // der <body> (er traegt selbst data-textbuch); auf der vereinten Seite
+  // (Karte W) das Panel -- sonst faerbte der Rollenfilter auch den Chat.
+  var wurzel = document.querySelector('[data-textbuch]') || document.body;
   var lies = function () {
     var s = {};
     location.hash.replace(/^#/, '').split('&').forEach(function (paar) {
@@ -2428,7 +2437,11 @@ _TEXTBUCH_JS = """
     var s = lies();
     if (wert) { s[name] = wert; } else { delete s[name]; }
     var text = Object.keys(s).map(function (k) {
-      return encodeURIComponent(k) + '=' + encodeURIComponent(s[k]);
+      // Ein Schluessel ohne Wert bleibt ohne Gleichheitszeichen: so
+      // ueberlebt '#textbuch' (der Tab der vereinten Seite) einen Klick auf
+      // den Rollenfilter, statt zu '#textbuch=' zu werden.
+      return s[k] === '' ? encodeURIComponent(k)
+        : encodeURIComponent(k) + '=' + encodeURIComponent(s[k]);
     }).join('&');
     // Ueber location.hash, damit der Zurueck-Knopf des Browsers den
     // vorigen Zustand wiederherstellt -- und damit der Link, den jemand
@@ -2439,30 +2452,30 @@ _TEXTBUCH_JS = """
   var wende_an = function () {
     var s = lies();
     var figur = (s.figur || '').trim();
-    var koerper = document.body;
+    var koerper = wurzel;
     var schluessel = '';
-    document.querySelectorAll('.rolle').forEach(function (knopf) {
+    wurzel.querySelectorAll('.rolle').forEach(function (knopf) {
       var name = knopf.dataset.name || '';
       var passt = figur !== '' && name.toLowerCase() === figur.toLowerCase();
       if (passt) { schluessel = knopf.dataset.figur || ''; }
       knopf.setAttribute('aria-pressed', passt ? 'true' : 'false');
     });
-    var alle = document.querySelector('.rolle[data-figur=""]');
+    var alle = wurzel.querySelector('.rolle[data-figur=""]');
     if (alle && !schluessel) { alle.setAttribute('aria-pressed', 'true'); }
     if (schluessel) { koerper.dataset.figur = schluessel; }
     else { delete koerper.dataset.figur; }
-    document.querySelectorAll('.replik').forEach(function (p) {
+    wurzel.querySelectorAll('.replik').forEach(function (p) {
       p.classList.toggle('aktiv', !!schluessel && p.dataset.figur === schluessel);
     });
     var schrift = s.schrift || 'mittel';
     koerper.dataset.schrift = schrift;
-    document.querySelectorAll('.schrift').forEach(function (knopf) {
+    wurzel.querySelectorAll('.schrift').forEach(function (knopf) {
       knopf.setAttribute(
         'aria-pressed', knopf.dataset.schrift === schrift ? 'true' : 'false');
     });
     var ohne = (s.regie || '') === 'aus';
     koerper.classList.toggle('ohne-regie', ohne);
-    document.querySelectorAll('.regie-schalter').forEach(function (knopf) {
+    wurzel.querySelectorAll('.regie-schalter').forEach(function (knopf) {
       knopf.setAttribute('aria-pressed', ohne ? 'true' : 'false');
     });
   };
@@ -2474,7 +2487,7 @@ _TEXTBUCH_JS = """
     } else if (knopf.classList.contains('schrift')) {
       schreib('schrift', knopf.dataset.schrift || '');
     } else if (knopf.classList.contains('regie-schalter')) {
-      schreib('regie', document.body.classList.contains('ohne-regie') ? '' : 'aus');
+      schreib('regie', wurzel.classList.contains('ohne-regie') ? '' : 'aus');
     }
   });
   window.addEventListener('hashchange', wende_an);
@@ -2554,6 +2567,7 @@ def textbuch_html(
         textbuch_koerper(daten, token, praefix),
         nachladen=False,
         skript=_TEXTBUCH_JS,
+        koerper_attribute=' data-textbuch=""',
     )
 #: Was auf der Leitfaden-Seite steht, solange es keinen gibt. Ruhig und ohne
 #: Fehlerton: die Seite ist richtig, der Leitfaden ist nur noch nicht fertig.
@@ -2765,14 +2779,41 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
         daten["token"] = token
         handler._antworte(200, leitfaden_html(daten))
         return
-    # Der Chat im Browser (30.09.2026, Karte Padua A2). Nur die Weiche steht
-    # hier -- HTML, CSS, JS und Handler liegen in web_chat.py, damit diese
-    # Datei nicht weiter waechst. Der Import steht in der Funktion, wie bei
-    # ``leitfaden`` und ``szenenfolge``: web_chat importiert seinerseits
+    # Der Chat im Browser (30.09.2026, Karte Padua A2) und die vereinte Seite
+    # (30.09.2026, Karte W). Nur die Weiche steht hier -- HTML, CSS, JS und
+    # Handler liegen in web_chat.py bzw. web_vereint.py, damit diese Datei
+    # nicht weiter waechst. Der Import steht in der Funktion, wie bei
+    # ``leitfaden`` und ``szenenfolge``: beide Module importieren ihrerseits
     # ``web`` (fuer ``_seite``), und das waere im Modulkopf ein Zyklus.
-    from interview_theater import web_chat
+    from interview_theater import web_chat, web_vereint
 
-    if unterpfad == web_chat.CHAT_PFAD or unterpfad.startswith(web_chat.CHAT_PFAD + "/"):
+    if unterpfad == web_chat.CHAT_PFAD:
+        # Ein Schraegstrich am Ende (``/chat/``) bleibt 404 wie bisher
+        # (Review-Befund 12, ``web_chat.beantworte_get``): ``rest.strip("/")``
+        # oben hat ihn schon verschluckt, deshalb der Blick auf den rohen Pfad.
+        if urllib.parse.urlsplit(handler.path).path.endswith("/"):
+            handler._antworte(404, nicht_gefunden_html())
+            return
+        # Abschlussreview I3 gilt weiter: eine Telegram-Gruppe hat keinen Bot,
+        # der ``web_post`` liest, und ``/chat`` bleibt dort 404 -- nicht etwa
+        # ein Umweg auf die (fuer jede Gruppe gueltige) vereinte Seite.
+        lesend = web_daten.oeffne_lesend(db_pfad)
+        try:
+            ist_web_gruppe = web_daten.web_chat_id_nach_token(lesend, token) is not None
+        finally:
+            lesend.close()
+        if not ist_web_gruppe:
+            handler._antworte(404, nicht_gefunden_html())
+            return
+        # Die Chatansicht ist in der vereinten Seite aufgegangen (Karte W) --
+        # zwei Chats nebeneinander waeren zwei Zustaende. Gedruckte Links aus
+        # der Zeit von Karte A2 landen im richtigen Tab.
+        handler.send_response(302)
+        handler.send_header("Location", f"{praefix}/g/{token}#{web_vereint.VORGABE_TAB}")
+        handler.send_header("Content-Length", "0")
+        handler.end_headers()
+        return
+    if unterpfad.startswith(web_chat.CHAT_PFAD + "/"):
         web_chat.beantworte_get(
             handler, db_pfad, token,
             unterpfad[len(web_chat.CHAT_PFAD):].strip("/"),
@@ -2782,19 +2823,14 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
     if unterpfad not in ("", "textbuch"):
         handler._antworte(404, nicht_gefunden_html())
         return
-    daten = handler._gruppe(token)
-    if daten is None:
-        handler._antworte(404, nicht_gefunden_html())
-    elif unterpfad == "textbuch":
-        handler._antworte(200, textbuch_html(daten, token, praefix))
-    else:
-        handler._antworte(
-            200,
-            gruppe_html(
-                daten, nonce(schluessel, token), token, praefix,
-                fassungswahl(query),
-            ),
-        )
+    if unterpfad == "textbuch":
+        daten = handler._gruppe(token)
+        if daten is None:
+            handler._antworte(404, nicht_gefunden_html())
+        else:
+            handler._antworte(200, textbuch_html(daten, token, praefix))
+        return
+    web_vereint.beantworte_seite(handler, db_pfad, token, praefix, schluessel, query)
 
 
 def _sende_textbuch_datei(handler, db_pfad: str, token: str, name: str) -> None:

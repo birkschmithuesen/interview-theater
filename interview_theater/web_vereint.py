@@ -19,6 +19,7 @@ Rest der Leseseite.
 """
 
 import json
+import re
 import time
 import urllib.parse
 
@@ -26,6 +27,13 @@ from interview_theater import web_daten
 
 #: Der Unterpfad unter ``/g/<token>/chat/``.
 STROM_PFAD = "strom"
+
+#: Die drei Panels. Reihenfolge = Reihenfolge der Tableiste.
+TABS = ("chat", "stand", "textbuch")
+
+#: Ohne Fragment steht der Chat vorn: dort wird gearbeitet, die anderen
+#: beiden sind Nachschlagewerke.
+VORGABE_TAB = "chat"
 
 #: Wie oft der Server nach neuem Text sieht -- derselbe Takt, in dem der Bot
 #: schreibt (``strom.INTERVALL_S``). Schneller zu pollen faende nichts,
@@ -104,6 +112,233 @@ def _lies(db_pfad: str, funktion, *argumente):
         return funktion(conn, *argumente)
     finally:
         conn.close()
+
+
+_REGEL = re.compile(r"([^{}]+)\{([^{}]*)\}")
+_KOMMENTAR = re.compile(r"/\*.*?\*/", re.S)
+
+
+def scope_css(css: str, scope: str) -> str:
+    """Schraenkt jede Regel einer Panel-CSS auf das Panel ein.
+
+    **Warum zur Laufzeit und nicht von Hand** (Plan-Kopf, Abweichung 4):
+    gemessen am 30.09.2026 kollidieren ``_CSS_GRUPPE`` und ``_CSS_TEXTBUCH``
+    in ``body`` und ``h1``, und ``.leiste`` heisst in ``_CSS_TEXTBUCH`` die
+    Rollenleiste und in ``_CSS_CHAT`` die Knopfleiste. Die Konstanten
+    umzuschreiben haette die drei Einzelseiten mit veraendert -- dieser Weg
+    laesst sie Zeichen fuer Zeichen stehen.
+
+    ``body`` wird zum Scope selbst (auch mit Anhang: ``body[data-figur] x``
+    → ``<scope>[data-figur] x``), alles andere bekommt ihn als Vorfahren.
+    ``@media``-Bloecke bleiben stehen, ihr Inhalt wird eingeschraenkt.
+
+    ``_KOMMENTAR`` wird bewusst NICHT angewandt -- Kommentare bleiben im
+    ausgelieferten CSS stehen (sie enthalten keine geschweiften Klammern und
+    stoeren den Regex-Lauf nicht)."""
+    def eine(treffer: re.Match) -> str:
+        selektoren = treffer.group(1).strip()
+        koerper = treffer.group(2)
+        neu = ", ".join(_ein_selektor(s.strip(), scope)
+                        for s in selektoren.split(",") if s.strip())
+        return f"{neu} {{{koerper}}}"
+
+    ergebnis = []
+    rest = css
+    while True:
+        block = re.search(r"@media[^{]*\{", rest)
+        if block is None:
+            ergebnis.append(_REGEL.sub(eine, rest))
+            break
+        ergebnis.append(_REGEL.sub(eine, rest[:block.start()]))
+        tiefe, i = 1, block.end()
+        while i < len(rest) and tiefe:
+            tiefe += {"{": 1, "}": -1}.get(rest[i], 0)
+            i += 1
+        ergebnis.append(block.group(0))
+        ergebnis.append(_REGEL.sub(eine, rest[block.end():i - 1]))
+        ergebnis.append("}")
+        rest = rest[i:]
+    return "".join(ergebnis)
+
+
+def _ein_selektor(selektor: str, scope: str) -> str:
+    if selektor == "body" or selektor.startswith("body[") or \
+            selektor.startswith("body."):
+        return scope + selektor[len("body"):]
+    if selektor.startswith("body "):
+        return f"{scope} {selektor[len('body '):]}"
+    if selektor == "*":
+        return f"{scope} *"
+    return f"{scope} {selektor}"
+
+
+_TEXT_TAB = {"chat": "Chat", "stand": "Arbeitsstand", "textbuch": "Textbuch"}
+
+#: Nur Struktur, keine Gestaltung -- die UX-Karte gestaltet (Kartentext).
+_CSS_VEREINT = """
+.tabs { position: sticky; top: 0; z-index: 5; display: flex; gap: .3rem;
+        padding: .3rem 0; background: inherit; }
+.tabs button { flex: 1; font: inherit; min-height: 2.8rem; border-radius: .6rem;
+               border: 1px solid #c9c4b8; background: #fff; }
+.tabs button[aria-selected="true"] { font-weight: 600; border-width: 2px; }
+.panel[hidden] { display: none; }
+"""
+
+_VEREINT_JS = """
+(function () {
+  var TABS = __TABS__;
+  var VORGABE = '__VORGABE__';
+  // Die Basis aller Endpunkte dieser Seite: sie liegt unter /g/<token>, die
+  // Endpunkte eine Ebene tiefer. Jedes IIFE deklariert sie selbst -- sie
+  // teilen keinen Gueltigkeitsbereich.
+  var BASIS = '__BASIS__';
+  // Der Tab steht als BLOSSES Wort im Fragment (#chat, #stand, #textbuch) --
+  // damit ein geteilter Rollenlink dieselbe Form hat wie auf der
+  // Probenansicht: #textbuch&figur=Leyla.
+  var lies = function () {
+    var teile = location.hash.replace(/^#/, '').split('&');
+    for (var i = 0; i < teile.length; i++) {
+      if (TABS.indexOf(teile[i]) >= 0) { return teile[i]; }
+    }
+    return VORGABE;
+  };
+  var zeige = function (name) {
+    TABS.forEach(function (tab) {
+      var panel = document.getElementById('tab-' + tab);
+      if (panel) { panel.hidden = tab !== name; }
+      var knopf = document.querySelector('.tabs button[data-tab="' + tab + '"]');
+      if (knopf) { knopf.setAttribute('aria-selected', tab === name ? 'true' : 'false'); }
+    });
+    document.body.dataset.tab = name;
+  };
+  var setze = function (name) {
+    var teile = location.hash.replace(/^#/, '').split('&').filter(function (t) {
+      return t && TABS.indexOf(t) < 0;
+    });
+    // Ueber location.hash, damit die Zurueck-Taste des Handys den vorigen
+    // Tab wiederherstellt -- und damit ein kopierter Link der ist, den man
+    // gerade sieht. Umgeschaltet wird NUR ueber hidden: ein Seitenwechsel
+    // riesse Aufnahme, halb getippte Nachricht und laufenden Strom mit.
+    location.hash = '#' + [name].concat(teile).join('&');
+  };
+  document.addEventListener('click', function (ev) {
+    var knopf = ev.target.closest ? ev.target.closest('.tabs button') : null;
+    if (knopf) { setze(knopf.dataset.tab); return; }
+    // Ein Klick auf eine Aufgabe der Roadmap springt zu ihrer Stelle --
+    // Tab wechseln und, wo es ein Feld gibt, dorthin scrollen. Er setzt
+    // KEINE Phase (AGENTS.md: Datenstand ist nicht Absicht).
+    var ziel = ev.target.closest ? ev.target.closest('[data-ziel-tab]') : null;
+    if (!ziel) { return; }
+    setze(ziel.dataset.zielTab);
+    var feld = ziel.dataset.zielFeld;
+    if (!feld) { return; }
+    var stelle = document.querySelector('[data-feld="' + feld + '"]');
+    if (stelle && stelle.scrollIntoView) { stelle.scrollIntoView({block: 'center'}); }
+  });
+  window.addEventListener('hashchange', function () { zeige(lies()); });
+  zeige(lies());
+})();
+"""
+
+
+def _tabs_html(aktiv: str) -> str:
+    knoepfe = "".join(
+        f'<button type="button" role="tab" data-tab="{tab}" '
+        f'aria-selected="{"true" if tab == aktiv else "false"}">'
+        f"{_TEXT_TAB[tab]}</button>"
+        for tab in TABS
+    )
+    return f'<nav class="tabs" role="tablist">{knoepfe}</nav>'
+
+
+def _leiste_html(roadmapdaten, nonce_wert: str) -> str:
+    """Wird in Aufgabe 13 gefuellt."""
+    return ""
+
+
+def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
+          segment_ms, fassungswahl=None) -> str:
+    """Die vereinte Gruppenseite: Chat, Arbeitsstand und Textbuch als drei
+    Panels in EINEM Dokument.
+
+    **Ohne das sanfte Nachladen** (``web._seite(..., nachladen=False)``): es
+    tauscht ``document.body.innerHTML`` alle zehn Sekunden aus, und mitten in
+    einer Aufnahme, einer halb getippten Nachricht oder einem laufenden Strom
+    waere das ein Datenverlust. Nachgeladen wird gezielt: der Chat per Poll
+    (A2), das Stand-Panel ueber ``/g/<token>/teil/stand`` (Aufgabe 12)."""
+    from interview_theater import web, web_chat
+
+    titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
+    panels = {
+        "chat": web_chat.chat_koerper(chatdaten, nonce_wert, token, segment_ms,
+                                      basis=f"{token}/"),
+        "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
+        "textbuch": web.textbuch_koerper(daten, token, praefix),
+    }
+    koerper = [_leiste_html(roadmapdaten, nonce_wert), _tabs_html(VORGABE_TAB)]
+    for tab in TABS:
+        # ``data-textbuch`` ist die Wurzel, an der ``_TEXTBUCH_JS`` seinen
+        # Zustand ablegt: im gemeinsamen Dokument darf der Rollenfilter nicht
+        # am ``<body>`` haengen, sonst faerbte er auch den Chat.
+        zusatz = ' data-textbuch=""' if tab == "textbuch" else ""
+        verborgen = "" if tab == VORGABE_TAB else " hidden"
+        koerper.append(
+            f'<section class="panel panel-{tab}" id="tab-{tab}" role="tabpanel"'
+            f'{zusatz}{verborgen}>\n{panels[tab]}\n</section>'
+        )
+    css = (
+        _CSS_VEREINT
+        + scope_css(web._CSS_GRUPPE, ".panel-stand")
+        + scope_css(web._CSS_TEXTBUCH, ".panel-textbuch")
+        + scope_css(web_chat._CSS_CHAT, ".panel-chat")
+    )
+    # web_chat._js() und nicht die rohe Konstante _CHAT_JS: sie traegt
+    # unersetzte Platzhalter (__POLL_MS__ usw., siehe web_chat._js()-Docstring)
+    # -- nur _js() liefert lauffaehiges Skript (Abweichung vom Plan-Kopf-
+    # Beispiel, das die Konstante direkt anhaengt).
+    skript = (
+        _VEREINT_JS.replace("__TABS__", json.dumps(list(TABS)))
+        .replace("__VORGABE__", VORGABE_TAB)
+        .replace("__BASIS__", f"{token}/")
+        + web._TEXTBUCH_JS + web_chat._js()
+    )
+    return web._seite(
+        f"{titel} — interview-theater", css, "\n".join(koerper),
+        bearbeitbar=True, nachladen=False, skript=skript,
+    )
+
+
+def beantworte_seite(handler, db_pfad: str, token: str, praefix: str,
+                     schluessel: bytes, query: str) -> None:
+    """``GET /g/<token>``: die vereinte Seite aus drei Panels.
+
+    Ohne Web-Kanal (``chatdaten is None``) bleibt das Chat-Panel leer --
+    die beiden anderen tragen die Seite weiter (Telegram-Gruppen haben
+    keinen Bot, der ``web_post`` liest, siehe ``web_daten.web_chat_id_nach_token``)."""
+    from interview_theater import web, web_chat
+
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        daten = web_daten.gruppe_nach_token(conn, token)
+        chatdaten = web_daten.web_chatzustand(conn, token)
+        roadmapdaten = (
+            web_daten.roadmap(conn, daten["chat_id"]) if daten else [])
+    finally:
+        conn.close()
+    if daten is None:
+        handler._antworte(404, web.nicht_gefunden_html())
+        return
+    if chatdaten is None:
+        # Eine Gruppe ohne Web-Kanal hat keinen Chatzustand -- das Panel
+        # bleibt leer, die beiden anderen tragen die Seite.
+        chatdaten = {"titel": daten["titel"], "nachrichten": [], "letzte": 0,
+                     "interviewmodus": False, "tippt": False, "antworten": {}}
+    for nachricht in chatdaten["nachrichten"]:
+        nachricht["html"] = web_chat.sichere_html(nachricht["text"])
+    handler._antworte(200, seite(
+        daten, chatdaten, roadmapdaten, web.nonce(schluessel, token), token,
+        praefix, web_chat._segment_ms(), web.fassungswahl(query),
+    ))
 
 
 def sende_strom(handler, db_pfad: str, token: str, query: str) -> None:

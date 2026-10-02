@@ -854,6 +854,16 @@ _TEXT_PROBENANSICHT_LINK = (
 )
 _UEBERSCHRIFT_UEBERBLICK = "Überblick"
 _UEBERSCHRIFT_ARBEITSSTAND = "Arbeitsstand"
+#: Padua-Brainstorming-Umbau (02.10.2026): die Stueckkarte -- die vier
+#: festen Phase-4-Felder mit ✓/„offen", direkt ueber den freien
+#: Festlegungen. ``_STUECKKARTE_*`` sind die Feldnamen, nicht Nutzertext im
+#: engeren Sinn, aber ebenfalls uebersetzt (K3).
+_UEBERSCHRIFT_STUECKKARTE = "Stückkarte"
+_STUECKKARTE_SETTING = "Setting"
+_STUECKKARTE_FIGUREN = "Figuren"
+_STUECKKARTE_GESCHICHTE = "Geschichte"
+_STUECKKARTE_SZENENANZAHL = "Anzahl Szenen"
+_TEXT_STUECKKARTE_OFFEN = "offen"
 _UEBERSCHRIFT_FESTLEGUNGEN = "Weitere Festlegungen"
 _UEBERSCHRIFT_SZENEN = "Szenen"
 _UEBERSCHRIFT_INTERVIEWS = "Aus den Interviews"
@@ -1426,6 +1436,42 @@ def _figur_formular(f: dict, interviews: list[dict]) -> str:
     )
     stuecke.append("</div>")
     return "".join(stuecke)
+
+
+def _stueckkarte_html(daten: dict) -> str:
+    """Die Stueckkarte (Padua-Brainstorming-Umbau, 02.10.2026): die vier
+    festen Felder aus Phase 4 -- Setting, Figuren, Geschichte, Anzahl
+    Szenen -- mit ✓, wenn gesetzt, und ``offen`` sonst. Dieselbe Haltung wie
+    ``phasentexte.checkliste`` im Chat (✅/⬜), hier als lesbarer Web-
+    Abschnitt ohne Emoji, mit dem gesetzten Wert statt nur dem Haeckchen.
+
+    Rein lesend wie der ganze Dashboard-Lesepfad: ``daten`` kommt aus
+    ``web_daten.gruppe_nach_token``, kein SQL hier."""
+    stand = daten.get("arbeitsstand") or {}
+    figuren = daten.get("figuren") or []
+    felder = (
+        (T._STUECKKARTE_SETTING, (stand.get("rahmen") or "").strip()),
+        (
+            T._STUECKKARTE_FIGUREN,
+            ", ".join(f["name"] for f in figuren)
+            if (stand.get("figuren_fixiert_am") or "").strip() and figuren
+            else "",
+        ),
+        (T._STUECKKARTE_GESCHICHTE, (stand.get("geschichte") or "").strip()),
+        (T._STUECKKARTE_SZENENANZAHL, (stand.get("szenen_anzahl") or "").strip()),
+    )
+    zeilen = []
+    for name, wert in felder:
+        if wert:
+            zeilen.append(
+                f'<li class="erledigt">✓ {_t(name)}: {_t(wert)}</li>'
+            )
+        else:
+            zeilen.append(
+                f'<li class="offen">{html.escape(T._TEXT_STUECKKARTE_OFFEN)} '
+                f"· {_t(name)}</li>"
+            )
+    return f'<ul class="stueckkarte">{"".join(zeilen)}</ul>'
 
 
 def _festlegungen_html(daten: dict, nonce_wert: str | None) -> str:
@@ -2249,6 +2295,11 @@ def gruppe_html(
         # dieselbe Datenlage in der anderen Richtung (06.09.2026). Fehlt
         # nichts, fehlt auch der Abschnitt.
         f"{_fehlstellen_html(daten.get('fehlstellen'))}\n"
+        # Die Stueckkarte (02.10.2026) steht direkt ueber den freien
+        # Festlegungen -- zusammen zeigen beide, was feststeht und was
+        # daneben noch gilt.
+        f"<h2>{_t(T._UEBERSCHRIFT_STUECKKARTE)}</h2>"
+        f"{_stueckkarte_html(daten)}\n"
         # Direkt hinter dem Arbeitsstand -- an derselben Stelle wie im
         # Prompt (kontext._REIHENFOLGE): was die Gruppe auf ihrer Seite
         # liest, soll da stehen, wo das Modell es auch liest.

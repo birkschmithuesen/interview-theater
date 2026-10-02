@@ -248,6 +248,53 @@ def test_arbeitsstand_zeigt_den_rahmen_den_konflikt_nur_wenn_gesetzt():
     assert "Hauptkonflikt" in mit and "bleiben gegen gehen" in mit
 
 
+def test_stueckkarte_zeigt_die_vier_festen_phase4_felder_mit_haekchen_oder_offen():
+    """Padua-Brainstorming-Umbau (02.10.2026): Setting, Figuren, Geschichte
+    und Anzahl Szenen -- gesetzt mit ✓ und Wert, sonst mit ``offen``."""
+    daten = {
+        "arbeitsstand": {
+            "rahmen": "Eine Nacht im Treppenhaus",
+            "figuren_fixiert_am": "2026-10-02T10:00:00",
+            "geschichte": None,
+            "szenen_anzahl": "5",
+        },
+        "figuren": [{"name": "Mira"}, {"name": "Pal"}],
+    }
+
+    seite = web._stueckkarte_html(daten)
+
+    assert "✓ Setting: Eine Nacht im Treppenhaus" in seite
+    assert "✓ Figuren: Mira, Pal" in seite
+    assert "offen · Geschichte" in seite
+    assert "✓ Anzahl Szenen: 5" in seite
+
+
+def test_stueckkarte_figuren_nur_erledigt_wenn_fixiert_und_vorhanden():
+    """Eine Figurenliste ohne Fixierung (``figuren_fixiert_am`` leer) oder
+    ohne Figuren gilt nicht als erledigt, auch wenn die andere Bedingung
+    allein erfuellt waere."""
+    ohne_fixierung = web._stueckkarte_html({
+        "arbeitsstand": {"figuren_fixiert_am": None},
+        "figuren": [{"name": "Mira"}],
+    })
+    assert "offen · Figuren" in ohne_fixierung
+
+    ohne_figuren = web._stueckkarte_html({
+        "arbeitsstand": {"figuren_fixiert_am": "2026-10-02T10:00:00"},
+        "figuren": [],
+    })
+    assert "offen · Figuren" in ohne_figuren
+
+
+def test_stueckkarte_steht_zwischen_arbeitsstand_und_festlegungen(db_pfad, basis, token):
+    _, seite = hole(f"{basis}/g/{token}")
+    assert (
+        seite.index("<h2>Arbeitsstand</h2>")
+        < seite.index("<h2>Stückkarte</h2>")
+        < seite.index("Weitere Festlegungen")
+    )
+
+
 def test_unbekanntes_token_gibt_404_ohne_hinweis(basis):
     with pytest.raises(urllib.error.HTTPError) as fehler:
         hole(f"{basis}/g/falsch")

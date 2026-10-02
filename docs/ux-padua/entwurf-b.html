@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entwurf B — Buehne zuerst · interview-theater</title>
+<!--
+  Entwurf B: "Buehne zuerst" (Karte t_5ad6ac77, UX Padua).
+
+  Statisches Designmuster unter docs/ -- KEIN Produktivcode. Dieselbe
+  Struktur wie Entwurf A (Karte W: drei Tabs, Phasenuebersicht, Strom;
+  Karte A2: zwei Aufnahmeknoepfe), andere Gewichtung: Buehne zuerst,
+  Terminal nur als Akzent.
+
+  CSP-Vertrag schon hier eingehalten (Karte S: default-src 'none',
+  script-src/style-src nur mit Nonce, KEIN font-src):
+    * kein style="..."-Attribut im Markup, kein on...=-Handler,
+    * dynamische Werte ueber CSSOM (el.style.setProperty),
+    * keine Fremdquelle, kein @font-face, kein @import -- System-Stacks.
+
+  Alle Bot-Zeilen sind englisch und sprechen niemanden mit Vornamen an (E8).
+  Interviewzitate stehen im Original (Material aus simulation/interviews/).
+-->
+<style>
+/* ------------------------------------------------------------------ *
+ * 1. Design-Tokens  --  der EINE Block, der Entwurf B ausmacht.
+ * ------------------------------------------------------------------ */
+:root {
+  /* Grundflaechen: Samt statt Schirm */
+  --grund:        #120f10;   /* Seitengrund                          */
+  --grund-2:      #1c1719;   /* Blase, Karte, Eingabefeld            */
+  --grund-3:      #262022;   /* gehobene Flaeche                     */
+  --linie:        #3a3134;   /* Rahmen, Trennlinien                  */
+
+  /* Schrift */
+  --text:         #f0e6d8;   /* 15.45 : 1 auf --grund                */
+  --text-leise:   #a79c90;   /*  7.08 : 1 auf --grund                */
+  --amber:        #f0b24a;   /* 10.14 : 1 -- Scheinwerfer, Signal    */
+  --amber-tief:   #3a2a13;   /* Fuellung hinter Amber                */
+  --gruen:        #7fd6a0;   /* 10.92 : 1 -- "erledigt", Terminal    */
+  --rot:          #8e1c22;   /* Aufnahme; Weiss darauf 8.98 : 1      */
+  --auf-rot:      #ffffff;
+  --auf-amber:    #120f10;   /* 10.14 : 1 auf --amber                */
+
+  /* Form: rund, weich, Bühnenlicht */
+  --radius:       .7rem;
+  --radius-gross: 1.1rem;
+  --tippflaeche:  2.75rem;   /* 44 px                                */
+  --rec-groesse:  4.75rem;   /* runder Aufnahmeknopf -- 76 px        */
+  --akt-hoehe:    3.1rem;
+
+  /* Schriftfamilien -- System-Stacks, kein Webfont (CSP hat kein font-src) */
+  --serif: ui-serif, Georgia, "Times New Roman", "Liberation Serif", serif;
+  --sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Takte */
+  --takt-schnell: 90ms;
+  --takt-vorhang: 560ms;
+}
+
+/* ------------------------------------------------------------------ *
+ * 2. Rahmen
+ * ------------------------------------------------------------------ */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--grund);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 1.0625rem;         /* 17 px Fliesstext                  */
+  line-height: 1.55;
+  padding: 0 0 13rem;
+  max-width: 46rem;
+  margin: 0 auto;
+  -webkit-text-size-adjust: 100%;
+}
+/* Ein Scheinwerferkegel von oben -- statisch, kein Effekt. */
+body::before {
+  content: "";
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(120% 55% at 50% -12%,
+              rgba(240, 178, 74, .14), transparent 68%);
+}
+h1 { font-family: var(--serif); font-size: 1.2rem; margin: 0;
+     letter-spacing: .02em; }
+h2 { font-family: var(--serif); font-size: 1.1rem; margin: 1.5rem 0 .4rem;
+     color: var(--amber); }
+a { color: var(--amber); }
+button { font: inherit; }
+.leise { color: var(--text-leise); }
+/* Der Terminal-Akzent: nur Statuszeilen, Uhr, Zaehler. */
+.tech { font-family: var(--mono); font-size: .78rem; letter-spacing: .06em;
+        text-transform: uppercase; color: var(--text-leise); }
+
+/* ------------------------------------------------------------------ *
+ * 3. Kopf: Programmzettel, Aktleiste, Tabs  --  alles oben
+ * ------------------------------------------------------------------ */
+header { position: sticky; top: 0; z-index: 4; background: var(--grund);
+         border-bottom: 1px solid var(--linie); }
+.titelzeile { display: flex; align-items: baseline; justify-content: space-between;
+              gap: .6rem; padding: .55rem .9rem .3rem; }
+
+/* Die sieben Akte als Bühnenlichter in einer Reihe -- zugeklappt EINE Zeile. */
+.roadmap { margin: 0; }
+.roadmap > summary { list-style: none; cursor: pointer; padding: 0 .9rem .4rem;
+                     min-height: var(--akt-hoehe); display: flex;
+                     align-items: center; gap: .6rem; }
+.roadmap > summary::-webkit-details-marker { display: none; }
+.lichter { display: flex; gap: .28rem; flex: 1; }
+.licht { flex: 1; height: .5rem; border-radius: .25rem; background: var(--grund-3);
+         border: 1px solid var(--linie); }
+.licht[data-stand="fertig"] { background: var(--gruen); border-color: var(--gruen); }
+.licht[data-stand="aktiv"] { background: var(--amber); border-color: var(--amber);
+                             box-shadow: 0 0 .5rem rgba(240, 178, 74, .55); }
+.akt-jetzt { font-family: var(--serif); font-size: .95rem; white-space: nowrap; }
+.akt-jetzt b { color: var(--amber); }
+
+.phasen { list-style: none; margin: 0; padding: 0 .9rem .6rem;
+          max-height: 58vh; overflow-y: auto; }
+.phase { margin: 0 0 .45rem; }
+.phase-knopf {
+  display: flex; width: 100%; align-items: baseline; gap: .5rem;
+  text-align: left; min-height: var(--tippflaeche);
+  font-family: var(--serif); font-size: 1rem;
+  background: var(--grund-2); color: var(--text);
+  border: 1px solid var(--linie); border-radius: var(--radius);
+  padding: .5rem .7rem;
+}
+.phase-knopf .nr { font-family: var(--mono); font-size: .72rem;
+                   color: var(--text-leise); letter-spacing: .1em; }
+.phase.aktiv .phase-knopf { border-color: var(--amber); background: var(--amber-tief); }
+.phase.aktiv .phase-knopf .nr { color: var(--amber); }
+.phase.fertig .phase-knopf { color: var(--text-leise); }
+.phase-knopf[data-sicher="1"] { background: var(--amber); color: var(--auf-amber);
+                                border-color: var(--amber); font-weight: 700; }
+.phase-knopf:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.aufgaben { list-style: none; margin: .25rem 0 0; padding: 0 0 0 .4rem;
+            font-size: .92rem; border-left: 2px solid var(--linie); }
+.aufgabe { min-height: var(--tippflaeche); display: flex; align-items: center;
+           gap: .45rem; padding-left: .5rem; cursor: pointer;
+           color: var(--text-leise); }
+.aufgabe.erledigt { color: var(--gruen); }
+.aufgabe.laeuft { color: var(--amber); }
+.aufgabe .kasten { width: 1.1em; }
+
+.tabs { display: flex; padding: 0 .55rem; gap: .2rem; }
+.tabs button { flex: 1; min-height: var(--tippflaeche);
+               background: transparent; border: 0;
+               border-bottom: 3px solid transparent;
+               color: var(--text-leise); font-family: var(--serif);
+               font-size: .98rem; padding: .35rem .2rem .45rem; }
+.tabs button[aria-selected="true"] { color: var(--amber);
+                                     border-bottom-color: var(--amber); }
+.tabs button:focus-visible { outline: 2px solid var(--amber); outline-offset: -3px; }
+
+/* ------------------------------------------------------------------ *
+ * 4. Panels
+ * ------------------------------------------------------------------ */
+.panel { padding: .8rem .9rem; position: relative; z-index: 1; }
+.panel[hidden] { display: none; }
+
+/* --- Chat: Blasen als Repliken ----------------------------------- */
+.verlauf { display: flex; flex-direction: column; gap: .6rem; }
+.blase { padding: .6rem .8rem; max-width: 90%; border-radius: var(--radius-gross);
+         overflow-wrap: anywhere; }
+.blase.bot { background: var(--grund-2); border: 1px solid var(--linie);
+             align-self: flex-start; border-bottom-left-radius: .3rem; }
+.blase.gruppe { background: var(--amber-tief); border: 1px solid #5a4322;
+                align-self: flex-end; border-bottom-right-radius: .3rem; }
+.blase q { display: block; font-family: var(--serif); font-style: italic;
+           font-size: 1.15rem; color: var(--amber); margin: .55rem 0;
+           padding-left: .7rem; border-left: 3px solid var(--amber); quotes: none; }
+.blase.sprache { font-style: italic; color: var(--text-leise); }
+.blase.vorlaeufig { border-style: dashed; }
+.blase.vorlaeufig::after { content: "▍"; font-family: var(--mono);
+                           color: var(--amber);
+                           animation: blinken 1s steps(2) infinite; }
+@keyframes blinken { 50% { opacity: 0; } }
+
+.leiste { display: flex; flex-direction: column; gap: .4rem;
+          align-self: flex-start; width: 90%; }
+.leiste button { text-align: left; min-height: var(--tippflaeche);
+                 padding: .55rem .8rem; background: var(--grund-2);
+                 color: var(--text); border: 1px solid var(--amber);
+                 border-radius: var(--radius); font-family: var(--serif); }
+.leiste button:disabled { opacity: .4; }
+.tippt { min-height: 1.3em; margin-top: .4rem; }
+.tippt[data-an="1"]::after { content: "▍"; font-family: var(--mono);
+                             animation: blinken 1s steps(2) infinite; }
+
+/* --- Arbeitsstand: Programmzettel -------------------------------- */
+.feld { background: var(--grund-2); border: 1px solid var(--linie);
+        border-radius: var(--radius); padding: .6rem .75rem; margin: 0 0 .55rem; }
+.feld dt { font-family: var(--mono); font-size: .7rem; letter-spacing: .12em;
+           text-transform: uppercase; color: var(--text-leise); }
+.feld dd { margin: .2rem 0 0; font-family: var(--serif); font-size: 1.08rem; }
+.figuren { list-style: none; margin: 0; padding: 0; }
+.figuren li { border-bottom: 1px solid var(--linie); padding: .5rem 0;
+              font-family: var(--serif); }
+.figuren b { font-family: var(--mono); font-size: .88rem; letter-spacing: .08em;
+             color: var(--amber); }
+
+/* --- Textbuch: Manuskript ---------------------------------------- */
+.panel-textbuch .rollen { display: flex; flex-wrap: wrap; gap: .35rem;
+                          margin: 0 0 .8rem; }
+.panel-textbuch .rollen button {
+  min-height: var(--tippflaeche); padding: .35rem .8rem;
+  border: 1px solid var(--linie); border-radius: 1.4rem;
+  background: var(--grund-2); color: var(--text);
+  font-family: var(--mono); font-size: .82rem; letter-spacing: .06em; }
+.panel-textbuch .rollen button[aria-pressed="true"] {
+  background: var(--amber); color: var(--auf-amber); border-color: var(--amber);
+  font-weight: 700; }
+.szenenkopf { font-family: var(--serif); font-size: 1.25rem; color: var(--amber);
+              border-bottom: 1px solid var(--linie); padding-bottom: .3rem;
+              margin: 0 0 .2rem; }
+.szenenkopf .tech { display: block; color: var(--text-leise); }
+.skript { font-family: var(--serif); font-size: 1.15rem; line-height: 1.62;
+          margin-top: .8rem; }
+.skript .regie-zeile { font-style: italic; color: var(--text-leise);
+                       margin: 0 0 .8rem; }
+.skript .replik { margin: 0 0 .6rem; }
+.skript .sprecher { font-family: var(--mono); font-size: .88rem;
+                    letter-spacing: .1em; color: var(--amber);
+                    display: block; }
+.skript .regie { font-style: italic; color: var(--text-leise); }
+.panel-textbuch[data-figur] .replik { opacity: .35; }
+.panel-textbuch[data-figur] .replik.aktiv {
+  opacity: 1; background: var(--grund-3); border-left: 3px solid var(--amber);
+  padding: .2rem .6rem; margin-left: -.6rem; border-radius: 0 var(--radius) var(--radius) 0; }
+
+/* ------------------------------------------------------------------ *
+ * 5. Fuss: der Scheinwerfer-Aufnahmeknopf in der Mitte
+ * ------------------------------------------------------------------ */
+.fuss { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+        margin: 0 auto; max-width: 46rem;
+        background: var(--grund);
+        border-top: 1px solid var(--linie);
+        padding: .45rem .9rem .7rem;
+        display: flex; flex-direction: column; align-items: center; gap: .35rem; }
+/* Im Skript liest man, dort tippt niemand: der Fuss gehoert zum Chat. */
+.fuss[hidden] { display: none; }
+.messwerk { display: flex; align-items: center; gap: .6rem; width: 100%; }
+.messwerk[hidden] { display: none; }
+.uhr { font-family: var(--mono); font-variant-numeric: tabular-nums;
+       font-size: 1.4rem; color: var(--amber); min-width: 5.4rem; }
+.pegel { flex: 1; display: flex; gap: .15rem; align-items: flex-end; height: 1.5rem; }
+.pegel i { flex: 1; background: var(--rot); border-radius: .1rem;
+           height: calc(18% + var(--pegel, 0%) * .82);
+           transition: height var(--takt-schnell) linear; }
+.pegel i:nth-child(2) { height: calc(26% + var(--pegel, 0%) * .74); }
+.pegel i:nth-child(3) { height: calc(12% + var(--pegel, 0%) * .88); }
+.pegel i:nth-child(4) { height: calc(30% + var(--pegel, 0%) * .70); }
+.pegel i:nth-child(5) { height: calc(20% + var(--pegel, 0%) * .80); }
+
+/* Knopf 1: Interview -- rund, mittig, gross wie ein Scheinwerfer. */
+#interview {
+  width: var(--rec-groesse); height: var(--rec-groesse);
+  border-radius: 50%;
+  border: 3px solid var(--rot); background: var(--grund-2); color: var(--text);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: .1rem;
+  transition: transform var(--takt-schnell) linear,
+              background var(--takt-schnell) linear;
+}
+#interview .punkt { width: 1.1rem; height: 1.1rem; border-radius: 50%;
+                    background: var(--rot); }
+#interview .kurz { font-family: var(--mono); font-size: .66rem;
+                   letter-spacing: .1em; text-transform: uppercase; }
+#interview:active { transform: scale(.95); }               /* < 100 ms Echo */
+#interview:focus-visible { outline: 3px solid var(--amber); outline-offset: 4px; }
+#interview[data-zustand="startet"] { border-color: var(--amber); }
+#interview[data-zustand="startet"] .punkt { background: var(--amber);
+                                            animation: puls .7s ease-in-out infinite; }
+#interview[data-zustand="laeuft"] {
+  background: var(--rot); color: var(--auf-rot); border-color: var(--auf-rot);
+  width: calc(var(--rec-groesse) + 1.1rem); height: calc(var(--rec-groesse) + 1.1rem);
+  box-shadow: 0 0 0 .5rem rgba(142, 28, 34, .35); }
+#interview[data-zustand="laeuft"] .punkt { background: var(--auf-rot);
+                                           border-radius: .2rem;
+                                           animation: puls 1.1s ease-in-out infinite; }
+#interview[data-zustand="laedt"] { border-color: var(--amber); color: var(--amber); }
+#interview[data-zustand="laedt"] .punkt { background: var(--amber); }
+#interview[aria-busy="true"] { cursor: progress; }
+@keyframes puls { 50% { opacity: .3; } }
+
+/* Die Beschriftung steht NEBEN dem Knopf: sie ist der Text, der den
+   Zustand sagt -- Farbe allein traegt keinen Zustand. Daneben und nicht
+   darunter, weil der Fuss sonst ein Drittel des Telefons nimmt. */
+.rec-block { display: flex; align-items: center; gap: .9rem; width: 100%; }
+.rec-zeile { flex: 1; }
+.rec-zeile b { display: block; font-family: var(--serif); font-size: 1.15rem; }
+
+.zeile { display: flex; gap: .45rem; align-items: stretch; width: 100%; }
+.zeile input { flex: 1; font: inherit; min-height: var(--tippflaeche);
+               padding: .55rem .75rem; border-radius: 1.4rem;
+               border: 1px solid var(--linie); background: var(--grund-2);
+               color: var(--text); }
+.zeile input::placeholder { color: var(--text-leise); }
+#senden { min-width: var(--tippflaeche); min-height: var(--tippflaeche);
+          border: 0; border-radius: 1.4rem; background: var(--amber);
+          color: var(--auf-amber); font-weight: 700; padding: 0 1rem; }
+
+/* Knopf 2: Push-to-Talk -- Pille statt Kreis, links, amber statt rot,
+   Verb "hold" statt "record". */
+#ptt { min-width: 7.5rem; min-height: var(--tippflaeche);
+       border-radius: 1.4rem; border: 1px dashed var(--amber);
+       background: var(--grund-2); color: var(--amber);
+       font-family: var(--mono); font-size: .76rem; letter-spacing: .06em;
+       text-transform: uppercase; touch-action: none; padding: 0 .7rem; }
+#ptt[hidden] { display: none; }
+#ptt[data-haelt="1"] { background: var(--amber); color: var(--auf-amber);
+                       border-style: solid; font-weight: 700; }
+#ptt:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+.warteschlange { min-height: 1.1em; color: var(--amber); }
+
+/* ------------------------------------------------------------------ *
+ * 6. Momente: Vorhang und Belohnung
+ * ------------------------------------------------------------------ */
+#vorhang { position: fixed; inset: 0; z-index: 9; pointer-events: none;
+           transform: translateY(-101%);
+           background: repeating-linear-gradient(to right,
+             #2a0f14 0 1.1rem, #3a161c 1.1rem 2.2rem); }
+#vorhang[data-an="1"] { animation: vorhang var(--takt-vorhang) ease-in-out 1; }
+@keyframes vorhang {
+    0% { transform: translateY(-101%); }
+   45% { transform: translateY(0); }
+   55% { transform: translateY(0); }
+  100% { transform: translateY(-101%); }
+}
+#aktansage { position: fixed; inset: 0; z-index: 10; display: grid;
+             place-items: center; pointer-events: none; }
+#aktansage[hidden] { display: none; }
+#aktansage b { font-family: var(--serif); font-size: 1.7rem; letter-spacing: .12em;
+               color: var(--amber); background: rgba(18,15,16,.9);
+               border-top: 1px solid var(--amber); border-bottom: 1px solid var(--amber);
+               padding: .7rem 1.4rem; }
+
+.belohnung { position: fixed; left: .9rem; right: .9rem; bottom: 13.5rem;
+             z-index: 8; margin: 0 auto; max-width: 44rem;
+             background: var(--grund-2); border: 1px solid var(--amber);
+             border-radius: var(--radius-gross); padding: .7rem .85rem;
+             box-shadow: 0 0 2rem rgba(240, 178, 74, .18); }
+.belohnung[hidden] { display: none; }
+.belohnung strong { font-family: var(--serif); font-size: 1.15rem; color: var(--amber); }
+.belohnung p { margin: .2rem 0 0; color: var(--text-leise); font-size: .95rem; }
+.belohnung[data-an="1"] { animation: auftritt 280ms ease-out 1; }
+@keyframes auftritt { from { opacity: 0; transform: translateY(.7rem) scale(.98); } }
+
+/* ------------------------------------------------------------------ *
+ * 7. Demo-Pult  --  gehoert NICHT zum Produkt
+ * ------------------------------------------------------------------ */
+.pult { margin: 1.6rem 0 0; border: 1px dashed var(--linie);
+        border-radius: var(--radius); }
+.pult summary { min-height: var(--tippflaeche); display: flex; align-items: center;
+                padding: 0 .7rem; cursor: pointer; }
+.pult .knoepfe { display: flex; flex-wrap: wrap; gap: .4rem; padding: 0 .7rem .7rem; }
+.pult button { min-height: var(--tippflaeche); padding: .4rem .8rem;
+               background: var(--grund-2); color: var(--text);
+               border: 1px solid var(--linie); border-radius: var(--radius);
+               font-size: .85rem; }
+
+/* ------------------------------------------------------------------ *
+ * 8. Weniger Bewegung
+ * ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .blase.vorlaeufig::after,
+  .tippt[data-an="1"]::after,
+  #interview[data-zustand] .punkt,
+  #vorhang[data-an="1"],
+  .belohnung[data-an="1"] { animation: none !important; }
+  #interview, .pegel i, .belohnung { transition: none !important; }
+  #vorhang { display: none; }
+  .licht[data-stand="aktiv"], #interview[data-zustand="laeuft"],
+  .belohnung { box-shadow: none; }
+}
+
+/* ------------------------------------------------------------------ *
+ * 9. Laptop: Fuss als Streifen, Knopf rechts
+ * ------------------------------------------------------------------ */
+@media (min-width: 46rem) {
+  .fuss { flex-direction: row; align-items: center; flex-wrap: wrap;
+          padding: .7rem 1rem; }
+  .rec-block { width: auto; flex: 0 0 auto; }
+  .zeile { flex: 1 1 22rem; }
+  .messwerk { flex: 1 1 100%; }
+}
+</style>
+</head>
+<body data-tab="chat">
+
+<div id="vorhang" aria-hidden="true"></div>
+<div id="aktansage" aria-hidden="true" hidden><b id="aktansage-text">Act 4</b></div>
+
+<header>
+  <div class="titelzeile">
+    <h1>Interview Theater</h1>
+    <span class="tech">Padua · Group 2</span>
+  </div>
+
+  <details class="roadmap" id="roadmap">
+    <summary>
+      <span class="akt-jetzt" id="roadmap-kopf"><b>Act 3</b> of 7 · Interviews</span>
+      <span class="lichter" id="lichter">
+        <i class="licht" data-stand="fertig"></i>
+        <i class="licht" data-stand="fertig"></i>
+        <i class="licht" data-stand="aktiv"></i>
+        <i class="licht" data-stand="offen"></i>
+        <i class="licht" data-stand="offen"></i>
+        <i class="licht" data-stand="offen"></i>
+        <i class="licht" data-stand="offen"></i>
+      </span>
+      <span class="tech" id="roadmap-zahl">1/3</span>
+    </summary>
+    <ol class="phasen" id="phasen">
+      <li class="phase fertig">
+        <button type="button" class="phase-knopf" data-phase="1"
+                data-bezeichnung="Act 1: Terms">
+          <span class="nr">I</span><span>Terms</span></button>
+        <ul class="aufgaben">
+          <li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="begriffe">
+            <span class="kasten">✅</span>Six terms from the plenary</li>
+        </ul>
+      </li>
+      <li class="phase fertig">
+        <button type="button" class="phase-knopf" data-phase="2"
+                data-bezeichnung="Act 2: Questions">
+          <span class="nr">II</span><span>Questions</span></button>
+        <ul class="aufgaben">
+          <li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="fragen">
+            <span class="kasten">✅</span>Three questions chosen</li>
+          <li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="leitfaden">
+            <span class="kasten">✅</span>Opening and closing written</li>
+        </ul>
+      </li>
+      <li class="phase aktiv">
+        <button type="button" class="phase-knopf" data-phase="3"
+                data-bezeichnung="Act 3: Interviews">
+          <span class="nr">III</span><span>Interviews</span></button>
+        <ul class="aufgaben">
+          <li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="interview1">
+            <span class="kasten">✅</span>Interview 1 recorded and analysed</li>
+          <li class="aufgabe laeuft" data-ziel-tab="chat">
+            <span class="kasten">⏳</span>Interview 2 — recording</li>
+          <li class="aufgabe" data-ziel-tab="chat">
+            <span class="kasten">⬜</span>Interview 3 — open</li>
+        </ul>
+      </li>
+      <li class="phase">
+        <button type="button" class="phase-knopf" data-phase="4"
+                data-bezeichnung="Act 4: Setting, characters &amp; story">
+          <span class="nr">IV</span><span>Setting, characters &amp; story</span></button>
+        <ul class="aufgaben">
+          <li class="aufgabe" data-ziel-tab="stand" data-ziel-feld="rahmen">
+            <span class="kasten">⬜</span>Setting: where and when</li>
+          <li class="aufgabe" data-ziel-tab="stand" data-ziel-feld="figuren">
+            <span class="kasten">⬜</span>At least one character</li>
+          <li class="aufgabe" data-ziel-tab="stand" data-ziel-feld="geschichte">
+            <span class="kasten">⬜</span>The story: arc and ending</li>
+        </ul>
+      </li>
+      <li class="phase">
+        <button type="button" class="phase-knopf" data-phase="5"
+                data-bezeichnung="Act 5: Sharpening">
+          <span class="nr">V</span><span>Sharpening</span></button>
+        <ul class="aufgaben">
+          <li class="aufgabe" data-ziel-tab="stand">
+            <span class="kasten">⬜</span>Interview material laid next to the invention</li>
+        </ul>
+      </li>
+      <li class="phase">
+        <button type="button" class="phase-knopf" data-phase="6"
+                data-bezeichnung="Act 6: Scenes as story">
+          <span class="nr">VI</span><span>Scenes as story</span></button>
+        <ul class="aufgaben">
+          <li class="aufgabe" data-ziel-tab="textbuch">
+            <span class="kasten">⬜</span>One short story, then scenes</li>
+        </ul>
+      </li>
+      <li class="phase">
+        <button type="button" class="phase-knopf" data-phase="7"
+                data-bezeichnung="Act 7: Final polish">
+          <span class="nr">VII</span><span>Final polish</span></button>
+        <ul class="aufgaben">
+          <li class="aufgabe" data-ziel-tab="textbuch">
+            <span class="kasten">⬜</span>Every planned scene written</li>
+        </ul>
+      </li>
+    </ol>
+  </details>
+
+  <nav class="tabs" role="tablist">
+    <button type="button" role="tab" id="tabknopf-chat" data-tab="chat" aria-selected="true">Chat</button>
+    <button type="button" role="tab" id="tabknopf-stand" data-tab="stand" aria-selected="false">State</button>
+    <button type="button" role="tab" id="tabknopf-textbuch" data-tab="textbuch" aria-selected="false">Script</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============================ CHAT ============================ -->
+  <section class="panel panel-chat" id="tab-chat" role="tabpanel"
+           aria-labelledby="tabknopf-chat">
+    <div class="verlauf" id="verlauf">
+      <div class="blase gruppe text" data-id="41">We're back from the market. Two of us recorded something.</div>
+      <div class="blase bot text" data-id="42">Interview 1 is in. Three core themes, each with a quote from the recording. Tap the red button when the next conversation starts — the mic does the rest.</div>
+      <div class="leiste" data-message="42">
+        <button type="button" data-daten="k:1">Show the analysis</button>
+        <button type="button" data-daten="k:2">Next recording</button>
+        <button type="button" data-daten="k:3">Go to Act 4 · Setting, characters &amp; story</button>
+      </div>
+      <div class="blase gruppe text" data-id="43">what did the suitcase one say exactly?</div>
+    </div>
+    <div class="tippt tech" id="tippt"></div>
+
+    <details class="pult" id="pult">
+      <summary class="tech">Demo controls — not part of the product</summary>
+      <div class="knoepfe">
+        <button type="button" data-demo="strom">Replay stream</button>
+        <button type="button" data-demo="denkt">Bot is thinking</button>
+        <button type="button" data-demo="akt">Act change</button>
+        <button type="button" data-demo="belohnung">Reward</button>
+        <button type="button" data-demo="aufnahme">Recording states</button>
+      </div>
+    </details>
+  </section>
+
+  <!-- ========================= ARBEITSSTAND ======================== -->
+  <section class="panel panel-stand" id="tab-stand" role="tabpanel"
+           aria-labelledby="tabknopf-stand" hidden>
+    <h2>The state of play</h2>
+    <dl class="feld" data-feld="begriffe">
+      <dt>Terms</dt><dd>suitcase · platform · rent · tomato seeds · looking away · staying</dd>
+    </dl>
+    <dl class="feld" data-feld="fragen">
+      <dt>Questions</dt>
+      <dd>1. What did you bring with you?<br>2. What did you not unpack?<br>3. When did you stop counting the years?</dd>
+    </dl>
+    <dl class="feld" data-feld="leitfaden">
+      <dt>Interview guide</dt><dd>Opening and closing written · <a href="#textbuch">open the guide</a></dd>
+    </dl>
+    <dl class="feld" data-feld="interview1">
+      <dt>Interview 1 · analysed</dt>
+      <dd>Three core themes, each with a verified quote.
+        <q>Der Koffer war braun, so ein Braun wie Milchkaffee.</q></dd>
+    </dl>
+    <dl class="feld" data-feld="rahmen">
+      <dt>Setting</dt><dd class="leise">Still open — Act 4.</dd>
+    </dl>
+    <dl class="feld" data-feld="geschichte">
+      <dt>Story</dt><dd class="leise">Still open — Act 4.</dd>
+    </dl>
+    <h2>Characters</h2>
+    <ul class="figuren" data-feld="figuren">
+      <li><b>MERYEM</b> — came with one suitcase, kept it packed under the bed.</li>
+      <li><b>ERHAN</b> — picked them up at the station, talks too fast.</li>
+      <li><b>CHORUS</b> — the hall, the lamps, the people who don't look.</li>
+    </ul>
+  </section>
+
+  <!-- =========================== TEXTBUCH ========================== -->
+  <section class="panel panel-textbuch" id="tab-textbuch" role="tabpanel"
+           aria-labelledby="tabknopf-textbuch" hidden>
+    <div class="rollen" id="rollen">
+      <button type="button" data-figur="" aria-pressed="true">All</button>
+      <button type="button" data-figur="MERYEM" aria-pressed="false">MERYEM</button>
+      <button type="button" data-figur="ERHAN" aria-pressed="false">ERHAN</button>
+      <button type="button" data-figur="CHORUS" aria-pressed="false">CHORUS</button>
+    </div>
+    <h2 class="szenenkopf">Arrival at the platform
+      <span class="tech">Scene 1 · Dialogue</span></h2>
+    <div class="skript">
+      <p class="regie-zeile">Night. A station hall, lit too brightly. Two people, one suitcase between them.</p>
+      <p class="replik" data-sprecher="MERYEM"><span class="sprecher">MERYEM</span>
+        <span class="regie">(her hand still on the handle)</span> Three years. Under the bed. Packed.</p>
+      <p class="replik" data-sprecher="ERHAN"><span class="sprecher">ERHAN</span>
+        You can unpack it now. Nobody is sending us back.</p>
+      <p class="replik" data-sprecher="MERYEM"><span class="sprecher">MERYEM</span>
+        Not these tomatoes, my mother said. <i>Nicht diese.</i></p>
+      <p class="replik" data-sprecher="CHORUS"><span class="sprecher">CHORUS</span>
+        Nobody looks. Nobody looks. Nobody looks.</p>
+      <p class="replik" data-sprecher="ERHAN"><span class="sprecher">ERHAN</span>
+        <span class="regie">(takes the handle, lets go again)</span> Then leave it packed.</p>
+    </div>
+  </section>
+</main>
+
+<!-- ============================== FUSS ============================= -->
+<div class="fuss" id="fuss">
+  <div class="warteschlange tech" id="warteschlange"></div>
+  <div class="messwerk" id="messwerk" hidden>
+    <span class="uhr" id="uhr">0:00</span>
+    <span class="pegel" id="pegel"><i></i><i></i><i></i><i></i><i></i></span>
+  </div>
+  <div class="rec-block">
+    <button type="button" id="interview" data-zustand="ruht" aria-pressed="false"
+            aria-describedby="rec-zeile">
+      <span class="punkt"></span>
+      <span class="kurz" id="interview-kurz">REC</span>
+    </button>
+    <div class="rec-zeile" id="rec-zeile">
+      <b id="interview-text">Record interview</b>
+      <span class="tech" id="interview-neben">Tap once to start, once to stop</span>
+    </div>
+  </div>
+  <div class="zeile">
+    <button type="button" id="ptt">Hold to talk</button>
+    <input type="text" id="eingabe" autocomplete="off" placeholder="Write …">
+    <button type="button" id="senden">Send</button>
+  </div>
+</div>
+
+<div class="belohnung" id="belohnung" hidden>
+  <strong id="belohnung-kopf">Act 2 closed.</strong>
+  <p id="belohnung-text">Three questions, an opening and a closing. Curtain up on the interviews.</p>
+</div>
+
+<script>
+/* =====================================================================
+ * Entwurf B -- Vanilla JS, ES5-nah wie im Repo. Kein Handler im Markup
+ * (CSP), keine Fremdquelle, dynamische Werte ueber CSSOM.
+ * Identische Logik zu Entwurf A -- verglichen wird die Gestaltung.
+ * ===================================================================== */
+(function () {
+  'use strict';
+
+  var TABS = ['chat', 'stand', 'textbuch'];
+  var VORGABE = 'chat';
+  var ruhig = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var TEXT = {
+    rec_ruht:        'Record interview',
+    rec_ruht_neben:  'Tap once to start, once to stop',
+    rec_ruht_kurz:   'REC',
+    rec_startet:     'Starting …',
+    rec_startet_neben: 'Warming up the mic.',
+    rec_startet_kurz: '···',
+    rec_laeuft:      'Stop recording',
+    rec_laeuft_neben: 'Mic is hot.',
+    rec_laeuft_kurz: 'STOP',
+    rec_laedt:       'Sending …',
+    rec_laedt_neben: 'Hold on, the tape is still walking.',
+    rec_laedt_kurz:  '↑',
+    warte_eins:      'one piece uploading …',
+    warte_viele:     '{n} pieces uploading …',
+    transkript:      'Transcript coming in …',
+    denkt:           'thinking',
+    ptt_ruht:        'Hold to talk',
+    ptt_haelt:       'Listening …',
+    phase_sicher:    'Switch to {bezeichnung}?',
+    belohnung_kopf:  'Act 2 closed.',
+    belohnung_text:  'Three questions, an opening and a closing. Curtain up on the interviews.'
+  };
+
+  var el = function (id) { return document.getElementById(id); };
+
+  /* --------------------------- Tabs ------------------------------- */
+  function liesTab() {
+    var teile = location.hash.replace(/^#/, '').split('&');
+    for (var i = 0; i < teile.length; i++) {
+      if (TABS.indexOf(teile[i]) >= 0) { return teile[i]; }
+    }
+    return VORGABE;
+  }
+  function zeigeTab(name) {
+    TABS.forEach(function (tab) {
+      var panel = el('tab-' + tab);
+      if (panel) { panel.hidden = tab !== name; }
+      var knopf = document.querySelector('.tabs button[data-tab="' + tab + '"]');
+      if (knopf) { knopf.setAttribute('aria-selected', tab === name ? 'true' : 'false'); }
+    });
+    document.body.dataset.tab = name;
+    el('fuss').hidden = name !== 'chat';
+  }
+  function setzeTab(name) {
+    var rest = location.hash.replace(/^#/, '').split('&').filter(function (t) {
+      return t && TABS.indexOf(t) < 0;
+    });
+    location.hash = '#' + [name].concat(rest).join('&');
+  }
+  window.addEventListener('hashchange', function () { zeigeTab(liesTab()); });
+
+  /* --------------------- Akte, Sprungziele ----------------------- */
+  document.addEventListener('click', function (ev) {
+    var ziel = ev.target.closest ? ev.target.closest('[data-ziel-tab]') : null;
+    var phase = ev.target.closest ? ev.target.closest('.phase-knopf') : null;
+    var tab = ev.target.closest ? ev.target.closest('.tabs button') : null;
+
+    if (tab) { setzeTab(tab.dataset.tab); return; }
+
+    if (phase) {
+      if (phase.dataset.sicher !== '1') {
+        phase.dataset.sicher = '1';
+        phase.dataset.beschriftung = phase.innerHTML;
+        phase.textContent = TEXT.phase_sicher.replace(
+          '{bezeichnung}', phase.dataset.bezeichnung);
+        setTimeout(function () {
+          if (phase.dataset.sicher === '1') {
+            phase.dataset.sicher = '0';
+            phase.innerHTML = phase.dataset.beschriftung;
+          }
+        }, 6000);
+        return;
+      }
+      phase.dataset.sicher = '0';
+      phase.innerHTML = phase.dataset.beschriftung;
+      el('roadmap').open = false;
+      aktwechsel(phase.dataset.bezeichnung);
+      setzeTab('chat');
+      return;
+    }
+
+    if (ziel) {
+      setzeTab(ziel.dataset.zielTab);
+      var feld = ziel.dataset.zielFeld;
+      if (!feld) { return; }
+      var stelle = document.querySelector('[data-feld="' + feld + '"]');
+      if (stelle && stelle.scrollIntoView) { stelle.scrollIntoView({ block: 'center' }); }
+    }
+  });
+
+  /* --- der Moment: Vorhang zu, Aktansage, Vorhang auf (<= 600 ms) - */
+  function aktwechsel(bezeichnung) {
+    var ansage = el('aktansage');
+    el('aktansage-text').textContent = bezeichnung.replace(/:.*$/, '');
+    if (ruhig) {
+      ansage.hidden = false;
+      setTimeout(function () { ansage.hidden = true; }, 900);
+      return;
+    }
+    var vorhang = el('vorhang');
+    vorhang.dataset.an = '1';
+    setTimeout(function () { ansage.hidden = false; }, 200);
+    setTimeout(function () {
+      vorhang.dataset.an = '0';
+      ansage.hidden = true;
+    }, 600);
+  }
+
+  /* ---------------------------- Strom ---------------------------- */
+  var ANTWORT = [
+    'Here is the strongest passage from interview 1 — in her own words:',
+    '',
+    '@ZITAT',
+    '',
+    'She kept that suitcase packed under the bed for three years. ',
+    'That is already a stage image: a prop that refuses to be unpacked. ',
+    'Do you want it in the first scene?'
+  ].join('\n');
+  var ZITAT = 'Der Koffer war braun, so ein Braun wie Milchkaffee.';
+
+  /* Scrollt so, dass die unterste Blase UEBER dem Fuss steht -- ein
+     scrollIntoView({block:'end'}) legt sie hinter die feste Leiste. */
+  var letzteBlase = null;
+  function nachUnten(ziel) {
+    letzteBlase = ziel || letzteBlase;
+    if (!letzteBlase) { return; }
+    var fuss = el('fuss');
+    var belegt = fuss.hidden ? 0
+      : fuss.offsetHeight + (parseFloat(getComputedStyle(fuss).bottom) || 0);
+    var unten = letzteBlase.getBoundingClientRect().bottom + window.scrollY;
+    window.scrollTo(0, Math.max(0, unten - (window.innerHeight - belegt) + 14));
+  }
+
+  var stromTakt = null;
+  function stromStart(anhalten) {
+    if (stromTakt) { clearInterval(stromTakt); stromTakt = null; }
+    var alt = document.querySelector('.blase.vorlaeufig');
+    if (alt) { alt.parentNode.removeChild(alt); }
+    var fertig = document.querySelector('.blase[data-id="44"]');
+    if (fertig) { fertig.parentNode.removeChild(fertig); }
+
+    denkt(true);
+    setTimeout(function () {
+      denkt(false);
+      var blase = document.createElement('div');
+      blase.className = 'blase bot text vorlaeufig';
+      el('verlauf').appendChild(blase);
+      var i = 0;
+      var grenze = anhalten ? Math.round(ANTWORT.length * 0.55) : ANTWORT.length;
+      stromTakt = setInterval(function () {
+        i = Math.min(grenze, i + 3);
+        blase.textContent = ANTWORT.slice(0, i).replace('@ZITAT', '„' + ZITAT + '“');
+        nachUnten(blase);
+        if (i >= grenze) {
+          clearInterval(stromTakt);
+          stromTakt = null;
+          if (!anhalten) { stromFertig(blase); }
+        }
+      }, 22);
+    }, ruhig ? 0 : 700);
+  }
+
+  function stromFertig(blase) {
+    var fest = document.createElement('div');
+    fest.className = 'blase bot text';
+    fest.dataset.id = '44';
+    fest.innerHTML =
+      'Here is the strongest passage from interview 1 — in her own words:'
+      + '<q>' + ZITAT + '</q>'
+      + 'She kept that suitcase packed under the bed for three years. '
+      + 'That is already a stage image: a prop that refuses to be unpacked. '
+      + 'Do you want it in the first scene?';
+    blase.parentNode.replaceChild(fest, blase);
+  }
+
+  function denkt(an) {
+    var feld = el('tippt');
+    feld.dataset.an = an ? '1' : '0';
+    feld.textContent = an ? TEXT.denkt + ' ' : '';
+  }
+
+  /* ------------------ Knopf 1: Interview ------------------------- */
+  var rec = { zustand: 'ruht', beginn: 0, uhrTakt: null, pegelTakt: null, stuecke: 0 };
+
+  function setzeRec(zustand) {
+    rec.zustand = zustand;
+    var knopf = el('interview');
+    knopf.dataset.zustand = zustand;
+    knopf.setAttribute('aria-pressed', zustand === 'laeuft' ? 'true' : 'false');
+    knopf.setAttribute('aria-busy',
+      (zustand === 'startet' || zustand === 'laedt') ? 'true' : 'false');
+    el('interview-text').textContent = TEXT['rec_' + zustand];
+    el('interview-neben').textContent = TEXT['rec_' + zustand + '_neben'];
+    el('interview-kurz').textContent = TEXT['rec_' + zustand + '_kurz'];
+    el('messwerk').hidden = zustand !== 'laeuft';
+    el('ptt').hidden = zustand !== 'ruht';
+  }
+
+  function uhrAn() {
+    rec.beginn = Date.now();
+    rec.uhrTakt = setInterval(function () {
+      var s = Math.floor((Date.now() - rec.beginn) / 1000);
+      el('uhr').textContent = '● ' + Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+    }, 250);
+    rec.pegelTakt = setInterval(function () {
+      var t = (Date.now() - rec.beginn) / 1000;
+      var wert = 28 + 26 * Math.abs(Math.sin(t * 2.3)) + 18 * Math.abs(Math.sin(t * 7.1));
+      el('pegel').style.setProperty('--pegel', Math.min(96, wert).toFixed(0) + '%');
+    }, 110);
+  }
+  function uhrAus() {
+    [rec.uhrTakt, rec.pegelTakt].forEach(function (t) { if (t) { clearInterval(t); } });
+    rec.uhrTakt = rec.pegelTakt = null;
+    el('pegel').style.setProperty('--pegel', '0%');
+    el('uhr').textContent = '0:00';
+  }
+
+  function warteschlange(n) {
+    el('warteschlange').textContent = !n ? ''
+      : (n === 1 ? TEXT.warte_eins : TEXT.warte_viele.replace('{n}', n));
+  }
+
+  el('interview').addEventListener('click', function () {
+    if (rec.zustand === 'startet' || rec.zustand === 'laedt') { return; }
+    if (rec.zustand === 'ruht') {
+      setzeRec('startet');
+      setTimeout(function () { setzeRec('laeuft'); uhrAn(); }, ruhig ? 0 : 900);
+      return;
+    }
+    uhrAus();
+    setzeRec('laedt');
+    rec.stuecke = 2;
+    warteschlange(rec.stuecke);
+    var takt = setInterval(function () {
+      rec.stuecke -= 1;
+      warteschlange(rec.stuecke);
+      if (rec.stuecke <= 0) {
+        clearInterval(takt);
+        el('warteschlange').textContent = TEXT.transkript;
+        setzeRec('ruht');
+        setTimeout(function () {
+          el('warteschlange').textContent = '';
+          belohnung('Interview 2 is in.', 'Second one on tape. The suitcase has company now.');
+        }, 1200);
+      }
+    }, ruhig ? 200 : 900);
+  });
+
+  /* ------------------ Knopf 2: Push-to-Talk --------------------- */
+  (function ptt() {
+    var knopf = el('ptt');
+    var von = 0;
+    var MIN_MS = 500;
+
+    knopf.addEventListener('pointerdown', function (ev) {
+      if (rec.zustand !== 'ruht') { return; }
+      ev.preventDefault();
+      if (knopf.setPointerCapture) { knopf.setPointerCapture(ev.pointerId); }
+      von = Date.now();
+      knopf.dataset.haelt = '1';
+      knopf.textContent = TEXT.ptt_haelt;
+    });
+
+    function ende(abbrechen) {
+      return function (ev) {
+        if (knopf.dataset.haelt !== '1') { return; }
+        knopf.dataset.haelt = '0';
+        knopf.textContent = TEXT.ptt_ruht;
+        try { knopf.releasePointerCapture(ev.pointerId); } catch (e) {}
+        var dauer = Date.now() - von;
+        if (abbrechen || dauer < MIN_MS) { return; }
+        warteschlange(1);
+        setTimeout(function () {
+          warteschlange(0);
+          var blase = document.createElement('div');
+          blase.className = 'blase gruppe sprache';
+          blase.textContent = 'Voice message (0:' +
+            ('0' + Math.max(1, Math.round(dauer / 1000))).slice(-2) + ')';
+          el('verlauf').appendChild(blase);
+          nachUnten(blase);
+        }, ruhig ? 150 : 700);
+      };
+    }
+    knopf.addEventListener('pointerup', ende(false));
+    knopf.addEventListener('pointercancel', ende(true));
+    knopf.addEventListener('lostpointercapture', function (ev) {
+      if (knopf.dataset.haelt === '1') { ende(true)(ev); }
+    });
+    knopf.addEventListener('keydown', function (ev) {
+      if (ev.key !== ' ' || knopf.dataset.haelt === '1') { return; }
+      ev.preventDefault(); von = Date.now(); knopf.dataset.haelt = '1';
+      knopf.textContent = TEXT.ptt_haelt;
+    });
+    knopf.addEventListener('keyup', function (ev) {
+      if (ev.key !== ' ') { return; }
+      ende(false)({ pointerId: 0 });
+    });
+  })();
+
+  /* --------------- Senden, Leisten, Rollenfilter ---------------- */
+  function sende() {
+    var text = (el('eingabe').value || '').trim();
+    if (!text) { return; }
+    el('eingabe').value = '';
+    var blase = document.createElement('div');
+    blase.className = 'blase gruppe text';
+    blase.textContent = text;
+    el('verlauf').appendChild(blase);
+    nachUnten(blase);
+    stromStart(false);
+  }
+  el('senden').addEventListener('click', sende);
+  el('eingabe').addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); sende(); }
+  });
+
+  document.addEventListener('click', function (ev) {
+    var knopf = ev.target.closest ? ev.target.closest('.leiste button') : null;
+    if (!knopf) { return; }
+    var leiste = knopf.closest('.leiste');
+    Array.prototype.forEach.call(leiste.querySelectorAll('button'),
+      function (b) { b.disabled = true; });
+    if (/Act 4/.test(knopf.textContent)) { aktwechsel('Act 4'); }
+  });
+
+  el('rollen').addEventListener('click', function (ev) {
+    var knopf = ev.target.closest ? ev.target.closest('button') : null;
+    if (!knopf) { return; }
+    var figur = knopf.dataset.figur;
+    Array.prototype.forEach.call(el('rollen').querySelectorAll('button'),
+      function (b) { b.setAttribute('aria-pressed', b === knopf ? 'true' : 'false'); });
+    var panel = el('tab-textbuch');
+    if (figur) { panel.dataset.figur = figur; } else { delete panel.dataset.figur; }
+    Array.prototype.forEach.call(panel.querySelectorAll('.replik'), function (p) {
+      p.classList.toggle('aktiv', !!figur && p.dataset.sprecher === figur);
+    });
+  });
+
+  /* -------------------------- Belohnung ------------------------- */
+  var belohnungTakt = null;
+  function belohnung(kopf, text) {
+    var kasten = el('belohnung');
+    el('belohnung-kopf').textContent = kopf || TEXT.belohnung_kopf;
+    el('belohnung-text').textContent = text || TEXT.belohnung_text;
+    kasten.hidden = false;
+    kasten.dataset.an = '1';
+    if (belohnungTakt) { clearTimeout(belohnungTakt); }
+    belohnungTakt = setTimeout(function () {
+      kasten.hidden = true;
+      kasten.dataset.an = '0';
+    }, 4200);
+  }
+
+  /* --------------- Demo-Pult und Startzustand ------------------- */
+  el('pult').addEventListener('click', function (ev) {
+    var knopf = ev.target.closest ? ev.target.closest('[data-demo]') : null;
+    if (!knopf) { return; }
+    var was = knopf.dataset.demo;
+    if (was === 'strom') { stromStart(false); }
+    if (was === 'denkt') { denkt(true); setTimeout(function () { denkt(false); }, 2500); }
+    if (was === 'akt') { aktwechsel('Act 4'); }
+    if (was === 'belohnung') { belohnung(); }
+    if (was === 'aufnahme') { el('interview').click(); }
+  });
+
+  zeigeTab(liesTab());
+  setzeRec('ruht');
+  var halt = (location.search.match(/halt=([a-z]+)/) || [])[1];
+  if (halt === 'aufnahme') { setzeRec('laeuft'); uhrAn(); }
+  else if (halt === 'belohnung') { belohnung(); }
+  else { stromStart(halt === 'strom'); }
+})();
+</script>
+</body>
+</html>

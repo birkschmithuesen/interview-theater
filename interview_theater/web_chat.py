@@ -459,8 +459,9 @@ _CHAT_JS = """
   var interviewPauseKnopf = document.getElementById('interview-pause');
   var interviewBeendenKnopf = document.getElementById('interview-beenden');
   var pttKnopf = document.getElementById('ptt');
-  // Brainstorm mithören (Phase 4, nur Web) -- alle vier null ausserhalb
-  // Phase 4 (chat_html() rendert die Elemente dann gar nicht).
+  // Brainstorm mithören (Phase 4, nur Web) -- die Elemente stehen seit
+  // Task 2 (Kanban-Karte Buehne/PTT) IMMER im Markup, ``hidden`` folgt der
+  // Phase per Poll (wie beim Interview-Knopf), nicht mehr ihrer Existenz.
   var brainstormKnopf = document.getElementById('brainstorm');
   var brainstormAktionenFeld = document.getElementById('brainstorm-aktionen');
   var brainstormPauseKnopf = document.getElementById('brainstorm-pause');
@@ -487,6 +488,7 @@ _CHAT_JS = """
     aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
     knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
+    brainstormErlaubt: !brainstormKnopf.hidden,   // Task 2: Phase 4
     aufnahme: null,     // die laufende Interview-Aufnahme dieses Telefons
     wechsel: null,      // {ziel, gesendet}: ein Moduswechsel, den der Poll noch nicht zeigt
     warteschlange: [],  // Befehle und Segmente, der Reihe nach
@@ -692,6 +694,7 @@ _CHAT_JS = """
     if (daten.platzhalter && eingabe) { eingabe.placeholder = daten.platzhalter; }
     zustand.servermodus = !!daten.interviewmodus;
     if (typeof daten.interview_knopf === 'boolean') { zustand.knopfErlaubt = daten.interview_knopf; }
+    if (typeof daten.brainstorm_knopf === 'boolean') { zustand.brainstormErlaubt = daten.brainstorm_knopf; }
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
     // vorn in der Schlange steht.
     if (zustand.aufnahme && zustand.aufnahme.angemeldet && zustand.servermodus) {
@@ -1420,8 +1423,7 @@ _CHAT_JS = """
     // Bedienung, und eine Pause ist weiterhin "Modus an".
     if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || !!zustand.brainstorm; }
     // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
-    // beiden Funktionen zuerst gerufen wurde (zeigeBrainstormModus() ist ein
-    // No-Op ausserhalb Phase 4, da brainstormKnopf dann null ist).
+    // beiden Funktionen zuerst gerufen wurde.
     zeigeBrainstormModus();
   }
 
@@ -1517,12 +1519,19 @@ _CHAT_JS = """
     // geprueft, sonst saehe der Knopf kurz bedienbar aus, obwohl
     // starteBrainstorm() ihn wegen desselben zustand.wechsel ablehnt.
     brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;
+    // Task 2 (Kanban-Karte Buehne/PTT): ausserhalb Phase 4 kein Angebot --
+    // nie aber verborgen bei laufender Sitzung oder Wechsel, dieselbe Regel
+    // wie beim Interview-Knopf (zeigeModus()). Die ``nebenknopf``-Klasse am
+    // Interview-Knopf folgt derselben Sichtbarkeit wie das Server-Markup.
+    var sichtbar = zustand.brainstormErlaubt || an || !!zustand.wechsel;
+    brainstormKnopf.hidden = !sichtbar;
     if (brainstormAktionenFeld) { brainstormAktionenFeld.hidden = !an; }
     if (brainstormPauseKnopf) {
       brainstormPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
     }
     if (interviewKnopf) {
       interviewKnopf.disabled = an || !!(zustand.wechsel && !zustand.wechsel.ziel);
+      interviewKnopf.classList.toggle('nebenknopf', sichtbar);
     }
     if (pttKnopf) { pttKnopf.hidden = an || modusAn() || !!zustand.wechsel; }
   }
@@ -2178,7 +2187,11 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
 
     vad = vad if vad is not None else _vad_werte()
     modus = bool(daten["interviewmodus"])
-    phase4 = daten.get("phase") == 4
+    # Task 2 (Kanban-Karte Buehne/PTT): der Brainstorm-Block steht jetzt
+    # IMMER im Markup (wie #interview), nur ``hidden`` folgt der Phase --
+    # dieselbe Quelle fuer das ``hidden``-Attribut und die ``nebenknopf``-
+    # Klasse am Interview-Knopf, nicht das rohe ``daten.get("phase") == 4``.
+    brainstorm_erlaubt = daten.get("brainstorm_knopf", True)
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(_TEXT_LEER)}</p>'
@@ -2222,19 +2235,20 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'  </div>\n'
         + (
             f'  <button type="button" id="brainstorm" data-laeuft="0" '
-            f'data-pausiert="0">{html.escape(_TEXT_BRAINSTORM_AN)}</button>\n'
+            f'data-pausiert="0"'
+            + ('' if brainstorm_erlaubt else ' hidden')
+            + f'>{html.escape(_TEXT_BRAINSTORM_AN)}</button>\n'
             f'  <div class="interview-aktionen" id="brainstorm-aktionen" hidden>\n'
             f'    <button type="button" id="brainstorm-pause">'
             f'{html.escape(_TEXT_INTERVIEW_PAUSE)}</button>\n'
             f'    <button type="button" id="brainstorm-beenden">'
             f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
             f'  </div>\n'
-            if phase4 else ""
         )
         + (
             f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
             f'data-pausiert="{1 if modus else 0}"'
-            + (' class="nebenknopf"' if phase4 else "")
+            + (' class="nebenknopf"' if brainstorm_erlaubt else "")
             # Padua Hotfix B6: ausserhalb von Phase 3 (oder bei laufender
             # Aufnahme) kein Angebot -- dieselbe Bedingung wie das JS-Pendant
             # ``zustand.knopfErlaubt`` oben.

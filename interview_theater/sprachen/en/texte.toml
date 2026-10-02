@@ -1753,4 +1753,6 @@ _TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_a
 chat = "Chat"
 stand = "Workbench"
 textbuch = "Script"
-buehne = "Stage"
+# CoThinker (Birk, 02.10.2026, Padua-Feedback b): DE und EN tragen denselben
+# Namen -- keine Uebersetzung dieses einen Worts.
+buehne = "CoThinker"

@@ -193,7 +193,10 @@ _TEXT_TAB = {
     # UX-Knoepfe-Karte, Abschnitt 5 (02.10.2026): der Buehne-Tab aus
     # feat/brainstorm-vad wandert hier ein -- sichtbar nur in Phase 4
     # (siehe ``seite()``), deshalb steht er in TABS nie fest, nur bedingt.
-    "buehne": "Bühne",
+    # Umbenannt zu "CoThinker" (Birk, 02.10.2026, Padua-Feedback b): nur die
+    # sichtbare Beschriftung -- der interne Schluessel ``buehne`` bleibt
+    # unveraendert (Routen, Tests, CSS-Klassen haengen daran).
+    "buehne": "CoThinker",
 }
 
 #: Nur Struktur, kaum Gestaltung -- die UX-Karte gestaltet im Grossen. Die

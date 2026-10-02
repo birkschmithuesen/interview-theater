@@ -132,9 +132,9 @@ object with "art" and "wert":
     into a szene_planen -- even if the planning is in the same excerpt.
 19. phase_setzen           -- wert: the number of the working phase the
     group is at now, as a numeral ("4"). The seven phases are:
-    1 Terms, 2 Questions, 3 Interviews, 4 Setting, Characters & Story,
-    5 Sharpening, 6 Scenes as Story, 7 Polish. The group commands a move
-    to a phase ("let's do characters now", "back to the interviews", "next
+    1 Terms, 2 Questions, 3 Interviews, 4 Frame, 5 Prose Draft, 6 Rewrite,
+    7 Stage Version. The group commands a move to a phase ("let's do
+    characters now", "back to the interviews", "next
     phase"). Going back is just as valid as a step forward. **Setting,
     characters, story, core theme, format and conflict are all the same
     phase (4).** Delivering the content of a phase is not a move: "ok

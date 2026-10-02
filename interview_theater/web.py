@@ -1973,29 +1973,19 @@ def _interview_html(v: dict) -> str:
     )
 
 
-def gruppe_html(
+def gruppe_koerper(
     daten: dict,
     nonce_wert: str | None = None,
     token: str | None = None,
     praefix: str = VORGABE_PRAEFIX,
     fassungswahl: dict[int, int] | None = None,
 ) -> str:
-    """Die Gruppenseite aus web_daten.gruppe_nach_token().
+    """Der Rumpf der Gruppenseite -- ohne die Klammer aus ``_seite``.
 
-    Ohne ``nonce_wert`` bleibt sie, was sie war: eine Leseansicht. Mit
-    ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
-    Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
-    Feld in der Seite (siehe ``nonce``).
-
-    Mit ``token`` steht oben der Link zur **Probenansicht** (06.09.2026): die
-    Gruppenseite ist die Werkstatt, die Probenansicht das Stueck am Stueck.
-    Ohne Token faellt der Link weg -- die Seite laesst sich weiter ohne ihn
-    rendern (Tests, spaetere Aufrufer).
-
-    ``fassungswahl`` ist ``{szene_id: nummer}`` aus der Query (``?szene=…&
-    fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung
-    angezeigt wird -- sie schreibt nichts und bleibt deshalb in der URL statt
-    in der Datenbank."""
+    Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W): dort steht
+    dieser Rumpf als eines von drei Panels in EINEM Dokument. ``gruppe_html``
+    ruft ihn und haengt die Klammer davor -- die Einzelseite bleibt damit
+    Zeichen fuer Zeichen, was sie war (``tests/test_web_koerper.py``)."""
     fassungen = daten.get("fassungen") or {}
     fassungswahl = fassungswahl or {}
     szenen = "".join(
@@ -2047,9 +2037,7 @@ def gruppe_html(
     kopf = _vorspann_html(daten.get("vorspann"))
     if kopf:
         kopf = f"<h2>{_t(T._UEBERSCHRIFT_UEBERBLICK)}</h2>{kopf}\n"
-    return _seite(
-        T._TITEL_GRUPPENSEITE.format(titel=titel),
-        _CSS_GRUPPE,
+    return (
         f"<h1>{_t(titel)}</h1>\n"
         f"{probenansicht}"
         f"{_chat_link(token, daten.get('kanal'))}"
@@ -2074,7 +2062,38 @@ def gruppe_html(
         f"<h2>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</h2>{verdichtungen_html}\n"
         f"<h2>{_t(T._UEBERSCHRIFT_WEG)}</h2>"
         f"<details><summary>{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}"
-        f"</summary>{journal}</details>",
+        f"</summary>{journal}</details>"
+    )
+
+
+def gruppe_html(
+    daten: dict,
+    nonce_wert: str | None = None,
+    token: str | None = None,
+    praefix: str = VORGABE_PRAEFIX,
+    fassungswahl: dict[int, int] | None = None,
+) -> str:
+    """Die Gruppenseite aus web_daten.gruppe_nach_token().
+
+    Ohne ``nonce_wert`` bleibt sie, was sie war: eine Leseansicht. Mit
+    ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
+    Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
+    Feld in der Seite (siehe ``nonce``).
+
+    Mit ``token`` steht oben der Link zur **Probenansicht** (06.09.2026): die
+    Gruppenseite ist die Werkstatt, die Probenansicht das Stueck am Stueck.
+    Ohne Token faellt der Link weg -- die Seite laesst sich weiter ohne ihn
+    rendern (Tests, spaetere Aufrufer).
+
+    ``fassungswahl`` ist ``{szene_id: nummer}`` aus der Query (``?szene=…&
+    fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung
+    angezeigt wird -- sie schreibt nichts und bleibt deshalb in der URL statt
+    in der Datenbank."""
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
+    return _seite(
+        T._TITEL_GRUPPENSEITE.format(titel=titel),
+        _CSS_GRUPPE,
+        gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
         bearbeitbar=bool(nonce_wert),
     )
 
@@ -2464,16 +2483,17 @@ _TEXTBUCH_JS = """
 """
 
 
-def textbuch_html(
+def textbuch_koerper(
     daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
 ) -> str:
-    """Die Probenansicht aus ``web_daten.gruppe_nach_token()``.
+    """Der Rumpf der Probenansicht -- ohne die Klammer aus ``_seite``.
 
-    Enthaelt **ausschliesslich** Szenentexte und Szenenplanung. Kein
-    Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
-    Nachrichtentext -- die Grenze aus AGENTS.md ("Weboberflaeche") gilt hier
-    strenger als auf der Gruppenseite, weil dieser Link im Probenraum
-    herumgereicht wird."""
+    Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W), siehe
+    ``gruppe_koerper``. Enthaelt **ausschliesslich** Szenentexte und
+    Szenenplanung. Kein Interview, kein Journal, kein Belegzitat, keine
+    Verdichtung, kein Nachrichtentext -- die Grenze aus AGENTS.md
+    ("Weboberflaeche") gilt hier strenger als auf der Gruppenseite, weil
+    dieser Link im Probenraum herumgereicht wird."""
     bekannte = {(f["name"] or "").upper() for f in daten["figuren"] if f.get("name")}
     abschnitte = []
     sprecher: list[str] = []
@@ -2508,13 +2528,30 @@ def textbuch_html(
         f"{_t(T._TEXT_REGIE_AUS)}</button></div>"
     )
     kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
-    return _seite(
-        kopfzeile,
-        _CSS_TEXTBUCH,
+    return (
         f"<h1>{_t(kopfzeile)}</h1>\n"
         f"{wege}{leisten}\n"
         f'<article class="stueck">{stueck}</article>\n'
-        f'<p class="hinweis-druck leer">{_t(T._TEXT_DRUCKEN)}</p>',
+        f'<p class="hinweis-druck leer">{_t(T._TEXT_DRUCKEN)}</p>'
+    )
+
+
+def textbuch_html(
+    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
+) -> str:
+    """Die Probenansicht aus ``web_daten.gruppe_nach_token()``.
+
+    Enthaelt **ausschliesslich** Szenentexte und Szenenplanung. Kein
+    Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
+    Nachrichtentext -- die Grenze aus AGENTS.md ("Weboberflaeche") gilt hier
+    strenger als auf der Gruppenseite, weil dieser Link im Probenraum
+    herumgereicht wird."""
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
+    kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
+    return _seite(
+        kopfzeile,
+        _CSS_TEXTBUCH,
+        textbuch_koerper(daten, token, praefix),
         nachladen=False,
         skript=_TEXTBUCH_JS,
     )

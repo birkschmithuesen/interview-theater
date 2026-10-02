@@ -335,10 +335,15 @@ _CHAT_JS = """
   var verwerfenKnopf = document.getElementById('verwerfen');
   var SEGMENT_MS = parseInt(fuss.dataset.segmentMs, 10) || 45000;
 
-  // Alle Wege absolut zum Verzeichnis der Gruppe, aus dem Pfad, den der
-  // Browser sieht (mit oder ohne IT_WEB_PREFIX). Relative Wege zeigten unter
-  // einer Adresse mit Schraegstrich am Ende ins Leere (Review-Befund 12).
-  var BASIS = location.pathname.replace(/\\/+$/, '').replace(/\\/chat$/, '') + '/';
+  // Die Basis aller Endpunkte. Auf der vereinten Seite (/g/<token>, Karte W)
+  // steht sie explizit als data-basis am #fuss ("<token>/"), weil der
+  // serverseitig gerenderte Dateilink (_blase_html) dieselbe Basis braucht
+  // und dort kein location.pathname zur Verfuegung steht. Ohne data-basis
+  // (die Chat-Einzelseite /g/<token>/chat) bleibt die bisherige, absolute
+  // Herleitung aus dem Pfad bestehen -- robust auch bei einem
+  // Schraegstrich am Ende der Adresse (Review-Befund 12).
+  var BASIS = fuss.dataset.basis
+    || (location.pathname.replace(/\\/+$/, '').replace(/\\/chat$/, '') + '/');
   function weg(pfad) { return BASIS + pfad; }
 
   var zustand = {
@@ -403,7 +408,7 @@ _CHAT_JS = """
       return escape(TEXT.sprache.replace('{dauer}', minuten(n.dauer || 0)));
     }
     if (n.typ === 'datei') {
-      var link = '<a href="' + weg('chat/datei/' + n.id) + '">' +
+      var link = '<a href="' + weg(`chat/datei/${n.id}`) + '">' +
                  escape(TEXT.datei.replace('{name}', n.dateiname || 'datei')) +
                  '</a>';
       return n.html ? n.html + '<br>' + link : link;
@@ -522,8 +527,8 @@ _CHAT_JS = """
   var nochmalHolen = false;
   function hole() {
     if (holt) { nochmalHolen = true; return holt; }
-    holt = fetch(weg('chat/zustand?nach=' + zustand.letzte +
-                     '&seit=' + zustand.aenderung), { cache: 'no-store' })
+    holt = fetch(weg(`chat/zustand?nach=${zustand.letzte}` +
+                     `&seit=${zustand.aenderung}`), { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) { if (d) { nimmZustand(d); } })
       .catch(function () { /* Netz weg: der naechste Takt versucht es wieder */ })
@@ -566,8 +571,8 @@ _CHAT_JS = """
   }
 
   function postAudio(auftrag, zweiter) {
-    return fetch(weg('chat/audio?nonce=' + encodeURIComponent(nonce()) +
-                     '&dauer=' + auftrag.dauer), {
+    return fetch(weg(`chat/audio?nonce=${encodeURIComponent(nonce())}` +
+                     `&dauer=${auftrag.dauer}`), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': auftrag.blob.type || 'audio/webm' },
       body: auftrag.blob
@@ -586,7 +591,7 @@ _CHAT_JS = """
     if (!text) { return; }
     eingabe.value = '';
     function zurueck() { if (!eingabe.value) { eingabe.value = text; } }
-    postJson('chat/senden', { text: text }).then(function (r) {
+    postJson(`chat/senden`, { text: text }).then(function (r) {
       if (r.ok) { hole(); return; }
       zurueck();
       return fehlerAus(r);
@@ -614,7 +619,7 @@ _CHAT_JS = """
     // dasteht, laedt dazu ein.
     var leiste = knopf.closest('.leiste');
     schalteLeiste(leiste, true);
-    postJson('chat/knopf', {
+    postJson(`chat/knopf`, {
       message_id: parseInt(knopf.dataset.message, 10),
       data: knopf.dataset.daten
     }).then(function (r) {
@@ -753,7 +758,7 @@ _CHAT_JS = """
     zustand.laeuft = true;
     zeigeWarteschlange();
     var anfrage = auftrag.art === 'befehl'
-      ? postJson('chat/interview', { an: auftrag.an })
+      ? postJson(`chat/interview`, { an: auftrag.an })
       : postAudio(auftrag);
     anfrage.then(function (r) {
       if (r.ok) {
@@ -1331,15 +1336,18 @@ def _js() -> str:
     )
 
 
-def _blase_html(n: dict) -> str:
-    """Eine Nachricht als Blase, gegebenenfalls mit ihrer Leiste darunter."""
+def _blase_html(n: dict, basis: str = "") -> str:
+    """Eine Nachricht als Blase, gegebenenfalls mit ihrer Leiste darunter.
+
+    ``basis`` ist das Praefix vor ``chat/...`` auf der vereinten Seite
+    (Karte W) -- auf der Chat-Einzelseite bleibt es leer."""
     if n["typ"] == "sprache":
         minuten, sekunden = divmod(int(n["dauer"] or 0), 60)
         inhalt = html.escape(_TEXT_SPRACHE.format(dauer=f"{minuten}:{sekunden:02d}"))
         klasse = "sprache"
     elif n["typ"] == "datei":
         inhalt = (
-            f'<a href="{CHAT_PFAD}/datei/{n["id"]}">'
+            f'<a href="{basis}{CHAT_PFAD}/datei/{n["id"]}">'
             + html.escape(_TEXT_DATEI.format(name=n["dateiname"] or "datei"))
             + "</a>"
         )
@@ -1364,23 +1372,26 @@ def _blase_html(n: dict) -> str:
     return "\n".join(teile)
 
 
-def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
-              segment_ms: int) -> str:
-    """Die Chatansicht.
+def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
+                  basis: str = "") -> str:
+    """Der Rumpf der Chatansicht -- ohne die Klammer aus ``web._seite``.
 
-    Sie haengt sich in ``web._seite`` ein (dieselbe Klammer, dasselbe
-    Grund-CSS), aber **ohne** dessen sanftes Nachladen: das tauscht den
-    ``<body>`` aus, und mitten in einer laufenden Aufnahme wuerde das
-    Recorder, Timer und Warteschlange mitreissen. Nachgeladen wird hier
-    gezielt, per Poll (``_CHAT_JS``), und nur der Verlauf."""
-    from interview_theater import web   # spaeter Import: web importiert web_chat
+    Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W): dort steht
+    dieser Rumpf als eines von drei Panels in EINEM Dokument. ``chat_html``
+    ruft ihn und haengt die Klammer davor -- die Einzelseite bleibt damit
+    Zeichen fuer Zeichen, was sie war (``tests/test_web_koerper.py``).
 
+    ``basis`` ist das Praefix vor jedem ``chat/...``-Pfad: auf der
+    Chat-Einzelseite (``/g/<token>/chat``) leer, auf der vereinten Seite
+    (``/g/<token>``) ``"<token>/"``, weil die Seite dort eine Ebene hoeher
+    liegt. Es steht als ``data-basis`` am ``#fuss`` und wird dort vom
+    JavaScript gelesen (``BASIS``)."""
     modus = bool(daten["interviewmodus"])
-    blasen = "\n".join(_blase_html(n) for n in daten["nachrichten"])
+    blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(_TEXT_LEER)}</p>'
 
-    koerper = (
+    return (
         f"<h1>{html.escape(daten.get('titel') or _TEXT_TITEL)}</h1>\n"
         f'<p><a href="{html.escape(token)}">'
         f"{html.escape(_TEXT_ZUR_GRUPPENSEITE)}</a></p>\n"
@@ -1391,7 +1402,8 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f'<div class="tippt" id="tippt"></div>\n'
         f'<input type="hidden" id="nonce" value="{html.escape(nonce_wert, quote=True)}">\n'
         f'<div class="fuss" id="fuss" data-segment-ms="{int(segment_ms)}"\n'
-        f'     data-interview="{1 if modus else 0}">\n'
+        f'     data-interview="{1 if modus else 0}" '
+        f'data-basis="{html.escape(basis, quote=True)}">\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
         f'  <div class="pegel" id="pegel" hidden><span></span></div>\n'
         f'  <div class="warteschlange" id="warteschlange"></div>\n'
@@ -1416,8 +1428,22 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f"  </div>\n"
         f"</div>\n"
     )
+
+
+def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
+              segment_ms: int) -> str:
+    """Die Chatansicht.
+
+    Sie haengt sich in ``web._seite`` ein (dieselbe Klammer, dasselbe
+    Grund-CSS), aber **ohne** dessen sanftes Nachladen: das tauscht den
+    ``<body>`` aus, und mitten in einer laufenden Aufnahme wuerde das
+    Recorder, Timer und Warteschlange mitreissen. Nachgeladen wird hier
+    gezielt, per Poll (``_CHAT_JS``), und nur der Verlauf."""
+    from interview_theater import web   # spaeter Import: web importiert web_chat
+
     return web._seite(
-        daten.get("titel") or _TEXT_TITEL, _CSS_CHAT, koerper,
+        daten.get("titel") or _TEXT_TITEL, _CSS_CHAT,
+        chat_koerper(daten, nonce_wert, token, segment_ms),
         nachladen=False, skript=_js(),
     )
 

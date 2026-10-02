@@ -26,7 +26,7 @@ import urllib.parse
 from contextlib import contextmanager
 from pathlib import Path
 
-from interview_theater import db, repo, web_daten, web_grenze, web_kanal
+from interview_theater import db, repo, stt, web_daten, web_grenze, web_kanal
 
 log = logging.getLogger(__name__)
 
@@ -1627,6 +1627,60 @@ def haupttyp(handler) -> str:
     return roh.split(";", 1)[0].strip().lower()
 
 
+#: Dateianfaenge, an denen sich ein Audioformat wirklich erkennen laesst --
+#: Endung zuerst, dann der Pruefer.
+#:
+#: **Warum nicht der Content-Type-Header:** der sagt, was der Absender
+#: behauptet. An der Endung haengt der MIME-Typ, den Whisper sieht
+#: (``stt.mime_typ``), und ein falscher laesst den Auftrag dauerhaft auf
+#: 'pending' stehen -- 89,7 s statt 2,0 s, im Betrieb nur als "haengt"
+#: sichtbar, und bezahlt (AGENTS.md, Falle 3). Der Header bleibt als
+#: billiger Vorfilter (415, ohne den Koerper zu lesen); entscheiden tun die
+#: Bytes.
+#:
+#: Die Reihenfolge ist Absicht: der MP3-Frame-Sync steht zuletzt, weil er
+#: mit zwei Bytes die unschaerfste Regel ist.
+MAGISCHE_ANFAENGE = (
+    # EBML -- WebM/Matroska, das Format von MediaRecorder in Chrome/Firefox.
+    (".webm", lambda k: k[:4] == b"\x1a\x45\xdf\xa3"),
+    # OggS -- Opus/Vorbis, auch die Telegram-Sprachnachricht.
+    (".ogg", lambda k: k[:4] == b"OggS"),
+    # ISO-BMFF: 'ftyp' ab Byte 4, davor die Boxlaenge. mp4/m4a, Safari.
+    (".m4a", lambda k: len(k) >= 12 and k[4:8] == b"ftyp"),
+    # RIFF....WAVE
+    (".wav", lambda k: len(k) >= 12 and k[:4] == b"RIFF" and k[8:12] == b"WAVE"),
+    # ID3-Tag am Anfang.
+    (".mp3", lambda k: k[:3] == b"ID3"),
+    # MPEG-Frame-Sync: elf gesetzte Bits. Zuletzt, weil am unschaerfsten.
+    (".mp3", lambda k: len(k) >= 2 and k[0] == 0xFF and (k[1] & 0xE0) == 0xE0),
+)
+
+#: Wie viele Bytes vom Anfang fuer die Erkennung reichen. Zwoelf genuegen
+#: allen Regeln oben; gelesen wird trotzdem der ganze (begrenzte) Koerper --
+#: haeppchenweise zu lesen brachte hier nichts und macht die Groessenpruefung
+#: unuebersichtlich.
+MAGISCHE_BYTES = 12
+
+_TEXT_FEHLER_INHALT = "Diese Datei ist keine Audioaufnahme."
+
+
+def endung_aus_bytes(kopf: bytes) -> str | None:
+    """Die Endung aus dem Dateianfang, oder None.
+
+    Eine **Allowlist**: was hier nicht steht, kommt nicht durch. Und die
+    Endung, die hier herauskommt, ist die, unter der die Datei abgelegt wird
+    -- ``stt.mime_typ`` leitet den MIME-Typ fuer Whisper daraus ab."""
+    if not isinstance(kopf, (bytes, bytearray)) or not kopf:
+        return None
+    for endung, passt in MAGISCHE_ANFAENGE:
+        try:
+            if passt(bytes(kopf)):
+                return endung
+        except (IndexError, TypeError):
+            continue
+    return None
+
+
 def _audio_verz() -> str:
     """``IT_AUDIO`` wie ``einstellungen._VORGABEWERTE`` -- der Webserver laedt
     keine ``Einstellungen`` (er braucht weder LLM- noch STT-Variablen), liest
@@ -1671,20 +1725,31 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     Geheimnis ueber die Seite hinaus, und das Token steht ohnehin schon im
     Pfad und damit in jeder Logzeile.
 
-    Reihenfolge der Pruefungen: **``Content-Length`` lesen, Typ (415),
-    Groesse (400/413), Nonce (403), Dauer (400), dann erst der Koerper** --
-    die Kopfzeilen kosten nichts, der Koerper kostet Speicher. Jeder
-    ablehnende Zweig verwirft zuerst den angekuendigten Koerper
-    (``_verwerfe_koerper``), bevor er antwortet: sonst sieht der Client bei
-    einer grossen ``Content-Length`` denselben Verbindungsabbruch wie frueher
-    im 413-Zweig, nur jetzt bei 415/403/400 -- ``urllib`` schreibt den ganzen
-    Koerper in einem Zug, ohne auf eine Zwischenantwort zu warten. Geschrieben
-    wird erst die Zeile, dann die Datei (der Pfad enthaelt die id), und erst
-    danach der Verweis; bis dahin haelt ``WebKanal.hole_updates`` die Zeile
-    zurueck (Abschlussreview C1). Scheitert die Datei, bleibt eine Zeile ohne
-    ``datei`` stehen, geht nach ``web_kanal.DATEI_FRIST_S`` trotzdem an den
-    Bot, und ``lade_datei`` wirft -- ``aufnahme`` bittet die Gruppe dann, es
-    nochmal zu schicken."""
+    Reihenfolge der Pruefungen: **``Content-Length`` lesen, Typ-Vorfilter
+    (415), Groesse (400/413), Nonce (403), Dauer (400), dann erst der
+    Koerper, dann die Magic Bytes (415)** -- die Kopfzeilen kosten nichts,
+    der Koerper kostet Speicher. Jeder ablehnende Zweig vor dem Lesen
+    verwirft zuerst den angekuendigten Koerper (``_verwerfe_koerper``), bevor
+    er antwortet: sonst sieht der Client bei einer grossen ``Content-Length``
+    denselben Verbindungsabbruch wie frueher im 413-Zweig, nur jetzt bei
+    415/403/400 -- ``urllib`` schreibt den ganzen Koerper in einem Zug, ohne
+    auf eine Zwischenantwort zu warten.
+
+    **Der Content-Type-Header ist nur ein Vorfilter, keine Entscheidung**
+    (Karte Padua S, Aufgabe 4). Er sagt, was der Absender behauptet; die
+    Endung, unter der die Datei abgelegt wird, und der ``mime``-Wert in der
+    Datenbank kommen aus den Magic Bytes des tatsaechlichen Koerpers
+    (``endung_aus_bytes``). Ein WebM mit ``Content-Type: audio/ogg`` landet
+    als ``.webm`` -- sonst sieht Whisper ``audio/ogg`` zu einer WebM-Datei
+    und der Auftrag bleibt dauerhaft auf 'pending' stehen (AGENTS.md,
+    Falle 3).
+
+    Geschrieben wird erst die Zeile, dann die Datei (der Pfad enthaelt die
+    id), und erst danach der Verweis; bis dahin haelt
+    ``WebKanal.hole_updates`` die Zeile zurueck (Abschlussreview C1).
+    Scheitert die Datei, bleibt eine Zeile ohne ``datei`` stehen, geht nach
+    ``web_kanal.DATEI_FRIST_S`` trotzdem an den Bot, und ``lade_datei``
+    wirft -- ``aufnahme`` bittet die Gruppe dann, es nochmal zu schicken."""
     from interview_theater import web
 
     try:
@@ -1693,8 +1758,10 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         handler._fehler(400, _TEXT_FEHLER_ANFRAGE)
         return
 
-    endung = endung_fuer(handler.headers.get("Content-Type"))
-    if endung is None:
+    # Billiger Vorfilter: was schon im Header nicht nach Audio aussieht,
+    # kostet uns nicht einmal das Lesen. Die Endung, die am Ende gespeichert
+    # wird, kommt trotzdem aus den Magic Bytes -- siehe unten.
+    if endung_fuer(handler.headers.get("Content-Type")) is None:
         _verwerfe_koerper(handler, laenge)
         handler._fehler(415, _TEXT_FEHLER_TYP)
         return
@@ -1739,10 +1806,17 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         handler._fehler(400, _TEXT_FEHLER_LEER_AUDIO)
         return
 
+    # Jetzt erst die Entscheidung, mit den tatsaechlichen Daten statt mit
+    # einer Behauptung des Absenders.
+    endung = endung_aus_bytes(koerper[:MAGISCHE_BYTES])
+    if endung is None:
+        handler._fehler(415, _TEXT_FEHLER_INHALT)
+        return
+
     with schreibend(db_pfad) as conn:
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
-            dauer=dauer, mime=haupttyp(handler),
+            dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.

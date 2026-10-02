@@ -1470,6 +1470,27 @@ def _ohne_figur_festlegung_neben_figur_setzen(aenderungen: list[dict]) -> list[d
     return ergebnis
 
 
+def _ohne_interview_starten_neben_ruecksprung(aenderungen: list[dict]) -> list[dict]:
+    """``interview_starten`` faellt weg, wenn derselbe Lauf in die
+    Interview-Phase (3) springt (02.10.2026, Korpusfall p05: \"zurueck zu den
+    Interviews, wir fragen Hatice nochmal\" -- ein Plan, keine Aufnahme). Der
+    Phaseneintritt bietet den Aufnahmeknopf ohnehin an, ein zweites Angebot
+    daneben waere doppelt; und ``interview_starten`` startet seit 05.09.
+    nichts mehr, sondern bietet nur an (``_wende_interview_starten_an``)."""
+    springt_in_drei = False
+    for a in aenderungen:
+        if a.get("art") == "phase_setzen":
+            try:
+                springt_in_drei = phasen.nummer_fuer(str(a.get("wert") or "")) == 3
+            except Exception:
+                springt_in_drei = False
+            if springt_in_drei:
+                break
+    if not springt_in_drei:
+        return aenderungen
+    return [a for a in aenderungen if a.get("art") != "interview_starten"]
+
+
 def waechter_filter(aenderungen: list[dict]) -> list[dict]:
     """Die rein deterministischen Waechter, die ``wende_an`` vor dem Schreiben
     anwendet -- ohne Datenbank, damit der Korpuslauf (``scripts/
@@ -1477,6 +1498,7 @@ def waechter_filter(aenderungen: list[dict]) -> list[dict]:
     doppelte Figuren-Festlegungen und Festlegungen ohne eigenen Inhalt. Die
     datenbankabhaengige Pruefung (``_steht_schon_in_einem_feld``) bleibt in
     ``_wende_festlegung_an``."""
+    aenderungen = _ohne_interview_starten_neben_ruecksprung(aenderungen)
     ergebnis = []
     for a in _ohne_figur_festlegung_neben_figur_setzen(aenderungen):
         if a.get("art") == "festlegung_setzen":
@@ -1503,7 +1525,12 @@ def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
     fehlerhafte Aenderung (z. B. ein unerwarteter Werttyp) darf die anderen
     im selben Lauf nicht mitreissen -- sie wird geloggt und als ``vorfall``
     vermerkt, der Lauf macht mit der naechsten Aenderung weiter."""
-    aenderungen = _ohne_figur_festlegung_neben_figur_setzen(aenderungen)
+    # Dieselben Listen-Waechter wie im Korpuslauf (``waechter_filter``); die
+    # Inhaltspruefung laeuft hier in ``_wende_festlegung_an``, weil sie dort
+    # einen Vorfall vermerkt -- das Ergebnis ist dasselbe.
+    aenderungen = _ohne_figur_festlegung_neben_figur_setzen(
+        _ohne_interview_starten_neben_ruecksprung(aenderungen)
+    )
     wirkliche = []
     for aenderung in aenderungen:
         art = None

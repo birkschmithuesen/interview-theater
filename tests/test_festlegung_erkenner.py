@@ -283,3 +283,26 @@ def test_korpusvergleich_nutzt_den_waechter_filter():
         {"art": "festlegung_setzen", "wert": "figur: die Zuordnung ist nur fuer die Gruppe"},
     ]
     assert pruefe_prompts._wende_fuer_vergleich(None, 1, roh) == roh[:1]
+
+
+def test_interview_starten_faellt_weg_beim_ruecksprung_in_die_interviews():
+    # Korpusfall p05 (02.10.2026): "zurueck zu den Interviews, wir fragen
+    # Hatice nochmal" ist ein Plan -- der Phaseneintritt bietet den Knopf an.
+    roh = [
+        {"art": "phase_setzen", "wert": "3"},
+        {"art": "interview_starten", "wert": ""},
+    ]
+    assert erkenner.waechter_filter(roh) == roh[:1]
+
+
+def test_interview_starten_bleibt_ohne_phasenwechsel():
+    roh = [{"art": "interview_starten", "wert": ""}]
+    assert erkenner.waechter_filter(roh) == roh
+
+
+def test_interview_starten_bleibt_bei_sprung_in_andere_phase():
+    roh = [
+        {"art": "phase_setzen", "wert": "5"},
+        {"art": "interview_starten", "wert": ""},
+    ]
+    assert erkenner.waechter_filter(roh) == roh

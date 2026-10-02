@@ -132,6 +132,26 @@ GEAENDERT: dict[str, str] = {
     "szenenfolge.systemanweisung_geschichte(6)": (
         "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
     ),
+    "prompt phasen/6": (
+        "Folgt aus dem Phase-4-Umbau (02.10.2026): Phase 4 entscheidet keine "
+        "Form je Szene mehr, also behauptet Phase 6 nicht mehr \"die Form je "
+        "Szene steht schon\" -- sie wird erst im Feinschliff entschieden."
+    ),
+    "anweisungen.system(phase=6)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(3)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(4)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(5)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
+    "szenenfolge.systemanweisung(6)": (
+        "Folgt aus phasen/6.md (siehe oben)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

@@ -486,6 +486,10 @@ def test_buehne_tab_fehlt_ausserhalb_phase_4(basis, token):
 
 def test_buehne_tab_zeigt_karten_neueste_zuerst_und_stueckkarte(db_pfad, token, basis):
     conn = db.verbinde(db_pfad)
+    # "Buehne, nur Web": der "chat"-Tab (und damit die Tab-Leiste ueberhaupt
+    # mit "chat" drin) existiert nur fuer eine Gruppe im Web-Kanal -- die
+    # Fixture bleibt sonst auf dem Schema-Vorgabewert (Telegram).
+    repo.setze_gruppe_kanal(conn, 1, "web")
     repo.setze_phase(conn, 1, 4)
     repo.setze_arbeitsstand(conn, 1, "rahmen", "Ein Klassenzimmer")
     repo.lege_buehnenkarte_an(conn, 1, "Erste Karte.", "infomaniak")

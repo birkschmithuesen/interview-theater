@@ -638,26 +638,15 @@ nav.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }
                    font-size: .95rem; }
 """
 
-#: Der Buehne-Tab (Phase 4, nur Web, 02.10.2026) -- eigene Konstante statt
+#: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026) -- eigene Konstante statt
 #: an ``_CSS_GRUPPE`` angehaengt, damit diese bitgleich bleibt
 #: (tests/test_sprache_bitgleich.py: eine neue Konstante ist kein Befund,
-#: eine geaenderte schon). Ein minimaler Umschalter statt der Tab-Leiste aus
-#: Karte W (noch nicht gemerged) -- zwei Knoepfe, der Zustand steht am
-#: <body> (data-tab), weil das sanfte Nachladen nur dessen innerHTML
-#: austauscht und das Attribut am Element selbst ueberlebt (siehe
-#: _TABS_JS). Ohne JavaScript bleibt die Seite bei "Stand" -- kein Fehler,
-#: nur ein fehlendes Extra.
+#: eine geaenderte schon). Seit dem naechsten Integrationsschritt ist
+#: "Buehne" ein echter Tab von Karte W (``web_vereint.seite``, eigenes
+#: ``<section class="panel panel-buehne">``, ueber ``scope_css`` eingehaengt)
+#: statt eines eigenen Umschalters -- hier steht nur noch, wie der Inhalt
+#: DRINNEN aussieht, keine Tab-/Sichtbarkeitsregeln mehr.
 _CSS_BUEHNE = """
-.tabs { display: flex; gap: .4rem; margin: .6rem 0 1rem; }
-.tabs .tab { flex: 1; font: inherit; font-size: .95rem; padding: .5rem;
-             border: 1px solid #1f6f5c; border-radius: .5rem; background: #fff;
-             color: #1f6f5c; cursor: pointer; }
-.tabs .tab[data-tab="chat"] { background: #1f6f5c; color: #fff; }
-body[data-tab="buehne"] .tabs .tab[data-tab="chat"] { background: #fff; color: #1f6f5c; }
-body[data-tab="buehne"] .tabs .tab[data-tab="buehne"] { background: #1f6f5c; color: #fff; }
-#buehne-panel { display: none; }
-body[data-tab="buehne"] #buehne-panel { display: block; }
-body[data-tab="buehne"] #stand-inhalt { display: none; }
 /* Die Stueckkarte: ein fester Streifen ueber den Karten -- Setting, Figuren,
    Geschichte mit Haken/offen, dazu die freien Festlegungen aus demselben
    Datentopf wie der Abschnitt "Festlegungen" weiter unten (kein zweiter
@@ -675,22 +664,6 @@ body[data-tab="buehne"] #stand-inhalt { display: none; }
                        white-space: pre-wrap; }
 #buehne-panel .karte.alt { font-size: .85rem; opacity: .6; padding: .5rem .7rem; }
 #buehne-panel .karte .zeit { display: block; margin-top: .3rem; }
-"""
-
-#: Minimales JS fuer den Buehne-Tab (Karte-W-Vorgriff): EIN Klick-Handler,
-#: der ``document.body.dataset.tab`` setzt -- der Rest ist CSS
-#: (Sichtbarkeit UND welcher Knopf gerade aktiv aussieht, ueber
-#: Geschwister-Selektoren am <body>). Bewusst kein Klassenwechsel am Knopf
-#: selbst: der staende im ausgetauschten innerHTML und waere nach jedem
-#: sanften Nachladen wieder weg, das <body>-Attribut nicht.
-_TABS_JS = """
-(function () {
-  document.addEventListener('click', function (ev) {
-    var knopf = ev.target.closest ? ev.target.closest('.tabs .tab') : null;
-    if (!knopf) { return; }
-    document.body.dataset.tab = knopf.dataset.tab;
-  });
-})();
 """
 
 
@@ -924,14 +897,9 @@ _UEBERSCHRIFT_SZENEN = "Szenen"
 _UEBERSCHRIFT_INTERVIEWS = "Aus den Interviews"
 _UEBERSCHRIFT_WEG = "Der Weg dahin"
 _TEXT_JOURNAL = "Journal ({anzahl})"
-#: Der Buehne-Tab (Phase 4, nur Web, 02.10.2026): ein minimaler Umschalter
-#: "Chat · Buehne" statt der Tab-Leiste aus Karte W (noch nicht gemerged,
-#: siehe .brainstorm-vad-brief.md). "Chat" zeigt den bisherigen Seiteninhalt
-#: (Arbeitsstand usw.) -- eine Vorwegnahme von Karte Ws Benennung, noch ohne
-#: eingebetteten Chat; der bestehende Link auf die Chatansicht
-#: (``_chat_link``) bleibt daneben unveraendert stehen.
-_TEXT_TAB_CHAT = "Chat"
-_TEXT_TAB_BUEHNE = "Bühne"
+#: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
+#: selbst steht seit dem Umzug in Karte Ws Tableiste in
+#: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
 _TEXT_BUEHNE_LEER = "Noch keine Karte."
 _TEXT_BUEHNE_OFFEN = "offen"
 #: Was das Speichern auf der Gruppenseite neben dem Feld meldet. Das
@@ -2499,11 +2467,12 @@ def _interview_html(v: dict) -> str:
     )
 
 
-# --- Der Buehne-Tab (Phase 4, nur Web, 02.10.2026) -------------------------
+# --- Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026) ----------------------
 #
-# EIN Render-Zweig, EIN Panel-Element (``#buehne-panel``), damit er beim
-# Merge von Karte W (echte Tab-Leiste Chat/Stand/Textbuch) ohne Umbau in
-# deren Leiste wandert -- siehe .brainstorm-vad-brief.md.
+# EIN Render-Zweig, EIN Panel-Element (``#buehne-panel``) -- seit dem Merge
+# von Karte W wandert er unveraendert in deren Tab-Leiste
+# (``web_vereint.seite``, Tab "buehne", nur in Phase 4): diese Funktionen
+# bauen nur noch den Panel-INHALT, die Tab-Mechanik selbst lebt dort.
 
 def _stueckkarte_streifen_html(
     felder: list[tuple[str, str | None]], festlegungen: list[dict] | None,
@@ -2538,8 +2507,10 @@ def _buehnenkarte_html(karte: dict, erste: bool) -> str:
 def _buehne_html(daten: dict) -> str:
     """Das Panel selbst: Stueckkarte-Streifen, dann die Karten, NEUESTE
     ZUERST, aeltere kleiner/ausgegraut (Brief: "large type, the newest card
-    on top, older cards smaller/greyed below"). Per CSS verborgen, bis
-    ``_TABS_JS`` ``data-tab="buehne"`` an den ``<body>`` setzt."""
+    on top, older cards smaller/greyed below"). Gerufen von
+    ``web_vereint.seite`` fuer den Tab "buehne" (nur Phase 4) -- die
+    Sichtbarkeit regelt dort das ``hidden``-Attribut des Panels, nicht mehr
+    CSS am ``<body>``."""
     karten = daten.get("buehnenkarten") or []
     streifen = _stueckkarte_streifen_html(
         daten.get("stueckkarte_felder") or [], daten.get("festlegungen")
@@ -2550,21 +2521,6 @@ def _buehne_html(daten: dict) -> str:
         else f'<p class="leer">{_t(T._TEXT_BUEHNE_LEER)}</p>'
     )
     return f'<div id="buehne-panel">{streifen}{inhalt}</div>'
-
-
-def _tabs_html() -> str:
-    """Der minimale Umschalter "Chat · Buehne" -- zwei Knoepfe, kein Link:
-    der Zustand lebt am ``<body>`` (siehe ``_TABS_JS``), damit das sanfte
-    Nachladen (``_SCROLL_JS``, tauscht nur ``innerHTML``) ihn nicht
-    zuruecksetzt."""
-    return (
-        '<div class="tabs">'
-        f'<button type="button" class="tab" data-tab="chat">'
-        f"{html.escape(T._TEXT_TAB_CHAT)}</button>"
-        f'<button type="button" class="tab" data-tab="buehne">'
-        f"{html.escape(T._TEXT_TAB_BUEHNE)}</button>"
-        "</div>"
-    )
 
 
 def gruppe_koerper(
@@ -2631,18 +2587,10 @@ def gruppe_koerper(
     kopf = _vorspann_html(daten.get("vorspann"))
     if kopf:
         kopf = f"<h2>{_t(T._UEBERSCHRIFT_UEBERBLICK)}</h2>{kopf}\n"
-    # Der Buehne-Tab (02.10.2026): sichtbar nur in Phase 4 -- ausserhalb
-    # davon gibt es weder einen Umschalter noch das Panel im Markup, genau
-    # wie der Brainstorm-Knopf im Chat (web_chat.chat_html). Stopgap bis
-    # Karte W's echte Tab-Leiste ihn aufnimmt (siehe naechster Schritt).
-    phase4 = (daten.get("arbeitsstand") or {}).get("phase") == 4
-    tabs = _tabs_html() if phase4 else ""
-    buehne = _buehne_html(daten) if phase4 else ""
     return (
         f"<h1>{_t(titel)}</h1>\n"
         f"{probenansicht}"
         f"{_chat_link(token, daten.get('kanal'))}"
-        f"{tabs}"
         f'<div id="stand-inhalt">\n'
         f"{kopf}"
         f"<h2>{_t(T._UEBERSCHRIFT_ARBEITSSTAND)}</h2>"
@@ -2672,7 +2620,6 @@ def gruppe_koerper(
         f"<details><summary>{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}"
         f"</summary>{journal}</details>\n"
         f"</div>\n"
-        f"{buehne}"
     )
 
 
@@ -2702,10 +2649,9 @@ def gruppe_html(
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     return _seite(
         T._TITEL_GRUPPENSEITE.format(titel=titel),
-        _CSS_GRUPPE + _CSS_BUEHNE,
+        _CSS_GRUPPE,
         gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
         bearbeitbar=bool(nonce_wert),
-        skript=_TABS_JS,
     )
 
 

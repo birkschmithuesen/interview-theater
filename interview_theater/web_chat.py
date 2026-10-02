@@ -164,6 +164,15 @@ T = sprache.Texte(__name__)
 _TEXT_TIPPT = "schreibt …"
 _TEXT_SPRACHE = "Sprachnachricht ({dauer})"
 _TEXT_DATEI = "Datei: {name}"
+#: Dieselbe Zeile wie ``aufnahme._TEXT_BUEHNE_NEUE_KARTE`` (DE) und ihr
+#: englisches Gegenstueck (``sprachen/en/texte.toml``, ["aufnahme"]) -- als
+#: Literal statt als Import, weil ``aufnahme`` ein Fachlogik-Modul ist und
+#: ``web_chat`` nur erkennen, nicht nachladen muss (UX-Knoepfe-Karte,
+#: Abschnitt 5). Beide Fassungen stehen hier, damit die Erkennung
+#: unabhaengig von der Profilsprache des laufenden Prozesses funktioniert.
+_TEXTE_BUEHNE_NEUE_KARTE = (
+    "Neue Karte im Tab Bühne", "New card in the Stage tab",
+)
 _TEXT_ZUR_GRUPPENSEITE = "Zur Gruppenseite"
 _TEXT_INTERVIEW_AN = "🎙 Interview aufnehmen"
 _TEXT_INTERVIEW_AUS = "Aufnahme beenden"
@@ -2033,6 +2042,14 @@ def _blase_html(n: dict, basis: str = "") -> str:
         # selbst ist unveraendert derselbe Text.
         inhalt = sichere_html(n["text"])
         klasse = "system"
+    elif n["von"] == "bot" and n["text"] in _TEXTE_BUEHNE_NEUE_KARTE:
+        # UX-Knoepfe-Karte, Abschnitt 5 (02.10.2026): dieselbe Zeile wie
+        # ``aufnahme._TEXT_BUEHNE_NEUE_KARTE`` -- hier nur erkannt, um sie
+        # antippbar zu machen (oeffnet den Tab "buehne" auf der vereinten
+        # Seite). Ohne den echten Tab (Chat-Einzelseite, Telegram) ist der
+        # Sprung ins Leere harmlos: nur das URL-Fragment aendert sich.
+        inhalt = f'<a href="#buehne">{html.escape(n["text"])}</a>'
+        klasse = "text"
     else:
         inhalt = sichere_html(n["text"])
         klasse = "text"

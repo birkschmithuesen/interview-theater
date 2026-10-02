@@ -188,7 +188,13 @@ def _ein_selektor(selektor: str, scope: str) -> str:
     return f"{scope} {selektor}"
 
 
-_TEXT_TAB = {"chat": "Chat", "stand": "Arbeitsstand", "textbuch": "Textbuch"}
+_TEXT_TAB = {
+    "chat": "Chat", "stand": "Arbeitsstand", "textbuch": "Textbuch",
+    # UX-Knoepfe-Karte, Abschnitt 5 (02.10.2026): der Buehne-Tab aus
+    # feat/brainstorm-vad wandert hier ein -- sichtbar nur in Phase 4
+    # (siehe ``seite()``), deshalb steht er in TABS nie fest, nur bedingt.
+    "buehne": "Bühne",
+}
 
 #: Nur Struktur, kaum Gestaltung -- die UX-Karte gestaltet im Grossen. Die
 #: Phasenleiste bekam in Fix-Runde 1 (Aufgabe 16) trotzdem ein Mindestmass:
@@ -905,11 +911,24 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
 
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
     tabs = TABS if chat_vorhanden else tuple(t for t in TABS if t != "chat")
+    # UX-Knoepfe-Karte, Abschnitt 5 (02.10.2026): der Buehne-Tab aus
+    # feat/brainstorm-vad, jetzt als echter Tab statt des frueheren
+    # verschachtelten "Chat · Buehne"-Umschalters im Stand-Panel. Sichtbar
+    # NUR in Phase 4 -- ausserhalb davon steht der Knopf gar nicht in
+    # ``tabs``, und ``lies()`` in ``_VEREINT_JS`` faellt fuer ein
+    # mitgebrachtes ``#buehne`` (z. B. ein alter Link) automatisch auf
+    # ``VORGABE`` zurueck, weil es dort nicht mehr in ``TABS`` steht --
+    # derselbe Mechanismus wie beim fehlenden "chat"-Tab ohne Web-Kanal.
+    phase4 = (daten.get("arbeitsstand") or {}).get("phase") == 4
+    if phase4:
+        tabs = tabs + ("buehne",)
     vorgabe = VORGABE_TAB if chat_vorhanden else "stand"
     panels = {
         "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
         "textbuch": web.textbuch_koerper(daten, token, praefix),
     }
+    if phase4:
+        panels["buehne"] = web._buehne_html(daten)
     if chat_vorhanden:
         # ``mit_nonce=False``: das Stand-Panel traegt sein ``id="nonce"``
         # schon (``_bearbeiten_html``), mit demselben Wert -- ein zweites
@@ -939,6 +958,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     )
     if chat_vorhanden:
         css += scope_css(web_chat._CSS_CHAT, ".panel-chat")
+    if phase4:
+        css += scope_css(web._CSS_BUEHNE, ".panel-buehne")
     # web_chat._js() und nicht die rohe Konstante _CHAT_JS: sie traegt
     # unersetzte Platzhalter (__POLL_MS__ usw., siehe web_chat._js()-Docstring)
     # -- nur _js() liefert lauffaehiges Skript (Abweichung vom Plan-Kopf-

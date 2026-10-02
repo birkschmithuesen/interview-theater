@@ -792,6 +792,7 @@ _TEXT_HINWEIS = "One moment, I'm thinking."
 _TEXT_FEHLER = "Something is stuck on my end - ask again."
 _TEXT_DENKSPUR_ERMAHNUNG = "Your last answer was you talking to yourself, not the message to the group. Write ONLY the message: what you say to the group, in their words, under 500 characters."
 _TEXT_ECHO_ERMAHNUNG = "Your last answer was a quote from the group. Don't quote - answer with an impulse of your own: an assessment, a suggestion or a follow-up question."
+_TEXT_ANKUENDIGUNG_ERMAHNUNG = "Your last answer announced something but didn't deliver it -- it ended on a colon without the promised content after it. Rewrite the message and deliver the content NOW, in this one message."
 _AUFTRAG_KOPF = "Your task in exactly this turn:"
 
 ["erkenner"]

@@ -106,6 +106,7 @@ BLEIBT_DEUTSCH = {
 PARSER = {
     "ablauf._DENKSPUR_MARKER", "ablauf._DENKSPUR_EINDEUTIG",
     "ablauf._AUFTRAGSFORMEN", "ablauf._SYSTEMZEILEN",
+    "ablauf._ANKUENDIGUNG_OHNE_DOPPELPUNKT",
     "befehle._ENTFERNEN_WOERTER", "kontext._SYSTEMANFAENGE",
     # Aufgabe 22: Auswahltabellen je Sprache fuer Befehlsargumente (K5).
     "befehle._ENTFERNEN_JE_SPRACHE", "befehle._AUS",
@@ -189,6 +190,12 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail gespraech_systemzeile_erfunden (repo.merke_vorfall)",
     ("ablauf", "Bot-Antwort in 'nachricht' mitzuschreibe"):
         "Vorfall-Detail gespraechszug_fehlgeschlagen (repo.merke_vorfall)",
+    ("ablauf", "Antwort endete auf einer Ankuendigung oh"):
+        "Vorfall-Detail ankuendigung_ohne_inhalt (repo.merke_vorfall, Padua-Befund 02.10.2026)",
+    ("ablauf", "Auch der zweite Anlauf endete auf einer "):
+        "Vorfall-Detail ankuendigung_wiederholt (repo.merke_vorfall, Padua-Befund 02.10.2026)",
+    ("bot", "Nachricht begann mit @robo/@dev -- als E"):
+        "Vorfall-Detail entwickler_notiz (repo.merke_vorfall, Padua-Befund 02.10.2026)",
     ("aufnahme", "Aufnahme {} ({}) wartet auf Ja/Nein"):
         "Vorfall-Detail interview_ohne_knopf_offen (repo.merke_vorfall)",
     ("erkenner", "Ein Geschichte-Text sollte in den Rahmen"):

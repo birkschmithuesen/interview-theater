@@ -248,8 +248,22 @@ def merke_bot_zeile(
 #: verdoppelte es Material, das ohnehin als Verdichtung im Prompt steht.
 TYP_TRANSKRIPT = "transkript"
 
-#: Als SQL-Bedingung, damit die drei Fenster-Abfragen nie auseinanderlaufen.
-_OHNE_TRANSKRIPT_ECHO = f"n.typ != '{TYP_TRANSKRIPT}'"
+#: Eine Entwickler-Notiz an das Team, keine Gruppenaeusserung (Padua-Befund
+#: 02.10.2026): eine Nachricht, die mit "@robo" oder "@dev" beginnt, ist ein
+#: Hinweis an die Entwicklung ("@robo: hier kam keine automatosche
+#: Aufzaehlung. Bot wartet auf user"), kein Beitrag der Theatergruppe. Der
+#: Bot hat so eine Notiz einmal live als Chatnachricht beantwortet und eine
+#: erfundene Ursache genannt ("ich sehe, die Knopfliste kam nicht durch"
+#: -- es gab in diesem Pfad gar keine Knoepfe). Wie TYP_TRANSKRIPT: die
+#: Nachricht bleibt gespeichert, geht aber in kein Fenster und loest keinen
+#: Gespraechszug aus (``bot.verarbeite_update``, ``repo.merke_vorfall``
+#: ``entwickler_notiz``).
+TYP_ENTWICKLERNOTIZ = "entwicklernotiz"
+
+#: Als SQL-Bedingung, damit die Fenster-Abfragen nie auseinanderlaufen.
+_OHNE_TRANSKRIPT_ECHO = (
+    f"n.typ NOT IN ('{TYP_TRANSKRIPT}', '{TYP_ENTWICKLERNOTIZ}')"
+)
 
 
 @_gesperrt
@@ -298,8 +312,10 @@ def unextrahierte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     nicht nur das, was einen Gespraechszug ausgeloest haette.
 
     Die einzige Ausnahme sind die Transkript-Echos (``typ='transkript'``,
-    siehe TYP_TRANSKRIPT): was die interviewte Person erzaehlt, ist keine
-    Aenderungsabsicht der Gruppe."""
+    siehe TYP_TRANSKRIPT) und Entwickler-Notizen (``typ='entwicklernotiz'``,
+    siehe TYP_ENTWICKLERNOTIZ): was die interviewte Person erzaehlt, ist keine
+    Aenderungsabsicht der Gruppe, und eine Notiz an die Entwicklung erst
+    recht nicht."""
     return conn.execute(
         f"""
         SELECT n.* FROM nachricht n

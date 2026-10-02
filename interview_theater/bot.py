@@ -11,6 +11,7 @@ als ``zug`` durch.
 """
 
 import logging
+import re
 import sqlite3
 import threading
 import time
@@ -56,6 +57,24 @@ def ist_nachtstau(gesendet_am: str, jetzt: datetime) -> bool:
     return jetzt - gesendet > timedelta(minutes=NACHTSTAU_MINUTEN)
 
 
+#: Eine Entwickler-Notiz an das Team statt ein Beitrag der Gruppe
+#: (Padua-Befund 02.10.2026): "@robo: hier kam keine automatosche
+#: Aufzaehlung. Bot wartet auf user" war ein Hinweis an die Entwicklung, und
+#: der Bot hat ihn trotzdem live beantwortet -- mit einer erfundenen
+#: Ursache ("ich sehe, die Knopfliste kam nicht durch"), weil er die
+#: Notiz wie Gruppenrede las. Erkannt wird nur am Anfang (nach optionalem
+#: Leerraum), case-insensitive -- ein "@robo" mitten im Satz ist eine
+#: Erwaehnung, keine Adressierung.
+_ENTWICKLERNOTIZ = re.compile(r"^\s*@(robo|dev)\b", re.IGNORECASE)
+
+
+def ist_entwicklernotiz(text: str | None) -> bool:
+    """Ist das eine Notiz an die Entwicklung ("@robo: ...", "@dev: ...")
+    statt eine Aeusserung der Theatergruppe? Reiner Musterabgleich, kein
+    Modellaufruf."""
+    return bool(text) and _ENTWICKLERNOTIZ.match(text) is not None
+
+
 def verarbeite_update(
     conn: sqlite3.Connection,
     e: Einstellungen,
@@ -67,13 +86,40 @@ def verarbeite_update(
     wenn die Schleife noch etwas damit tun muss (Aufnahme-Pipeline oder
     Gespraechszug), sonst None.
 
-    None bedeutet: kein Nachrichtenupdate, Duplikat, oder Nachtstau bei einer
-    Nicht-Sprachnachricht. Eine Sprachnachricht wird auch bei Nachtstau trotz
-    unterdrueckt=1 zurueckgeliefert, weil sie noch zur Aufnahme-Pipeline muss
-    (Auftragshinweis 1) -- sonst verschwaende ein Interview, das ueber Nacht
-    eintrifft, spurlos."""
+    None bedeutet: kein Nachrichtenupdate, Duplikat, Nachtstau bei einer
+    Nicht-Sprachnachricht, oder eine Entwickler-Notiz. Eine Sprachnachricht
+    wird auch bei Nachtstau trotz unterdrueckt=1 zurueckgeliefert, weil sie
+    noch zur Aufnahme-Pipeline muss (Auftragshinweis 1) -- sonst verschwaende
+    ein Interview, das ueber Nacht eintrifft, spurlos.
+
+    Eine Entwickler-Notiz (``ist_entwicklernotiz``, Padua-Befund 02.10.2026)
+    wird als ``TYP_ENTWICKLERNOTIZ`` gespeichert -- Birks Notiz bleibt also
+    erhalten, fuer spaeteres Nachlesen -- aber weder beantwortet noch in
+    irgendein Fenster gelesen, und sie loest auch keinen Zug aus. Der Vorfall
+    haelt fest, dass hier eine Notiz lag, fuers Dashboard."""
     nachricht = telegram.lies_nachricht(update)
     if nachricht is None:
+        return None
+
+    if nachricht["typ"] == "text" and ist_entwicklernotiz(nachricht["text"]):
+        repo.sichere_gruppe(conn, nachricht["chat_id"], e.bot_name, nachricht["chat_titel"])
+        neu = repo.merke_nachricht(
+            conn,
+            nachricht["chat_id"],
+            nachricht["message_id"],
+            nachricht["absender"],
+            0,
+            repo.TYP_ENTWICKLERNOTIZ,
+            nachricht["text"],
+            nachricht["gesendet_am"],
+            1,
+        )
+        if neu:
+            repo.merke_vorfall(
+                conn, nachricht["chat_id"], e.bot_name, "entwickler_notiz",
+                "Nachricht begann mit @robo/@dev -- als Entwickler-Notiz "
+                "gespeichert, nicht beantwortet",
+            )
         return None
 
     nachtstau = beim_start and ist_nachtstau(nachricht["gesendet_am"], jetzt)

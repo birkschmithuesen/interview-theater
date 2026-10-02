@@ -231,10 +231,9 @@ def _aufnahme_anbieten(conn, chat_id: int, nur_phase_3: bool = False) -> bool:
     Reihenfolge der Phasen."""
     if repo.ist_interviewmodus_an(conn, chat_id):
         return True
-    jetzige = phasen.aktuelle(conn, chat_id)
-    if nur_phase_3:
-        return jetzige == PHASE_INTERVIEWS
-    return jetzige >= PHASE_INTERVIEWS
+    # Die Regel selbst steht in ``phasen.aufnahme_anbieten``: die
+    # Web-Fussleiste (``web_daten.web_chatzustand``) fragt dieselbe.
+    return phasen.aufnahme_anbieten(phasen.aktuelle(conn, chat_id), False, nur_phase_3)
 
 
 def _interviewknoepfe(conn, chat_id: int, kopf_id: int) -> list[tuple[str, str]]:

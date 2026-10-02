@@ -1478,11 +1478,19 @@ def web_chatzustand(conn, token: str, nach: int = 0,
     stand = conn.execute(
         "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
     ).fetchone()
+    from interview_theater import phasen   # spaet wie in fehlstellen(): rein, kein SQL
+
+    modus = bool(gruppe and gruppe["interviewmodus_seit"])
     return {
         "chat_id": chat_id,
         "titel": gruppe["titel"] if gruppe else None,
         "phase": _feld(stand, "phase"),
-        "interviewmodus": bool(gruppe and gruppe["interviewmodus_seit"]),
+        "interviewmodus": modus,
+        # Padua Hotfix B6: der Interview-Knopf der Fussleiste nur in Phase 3
+        # oder bei laufender Aufnahme -- dieselbe Regel wie die Telegram-
+        # Knoepfe (``knoepfe._aufnahme_anbieten``, ``nur_phase_3``).
+        "interview_knopf": phasen.aufnahme_anbieten(
+            _feld(stand, "phase") or phasen.ERSTE, modus, nur_phase_3=True),
         "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
         "nachrichten": nachrichten,
         "letzte": letzte,

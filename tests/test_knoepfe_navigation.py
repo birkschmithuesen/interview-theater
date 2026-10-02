@@ -753,3 +753,28 @@ def test_web_einstieg_bietet_kein_alle_auswerten_an(conn, tg):
 
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
     assert "Alle auswerten" not in beschriftungen
+
+
+def test_web_raeumt_den_phasenangebot_merkposten_trotz_leerer_leiste_ab(conn, tg):
+    """Review-Fund: eine fruehere Fassung liess die Web-Sperre ganz oben
+    einen fruehen ``return`` machen, bevor ``phasen.vergiss_angebot`` am Ende
+    der Funktion ueberhaupt lief. Auf dem Web-Kanal blieb der Merkposten
+    damit nach dem ersten Angebot dauerhaft gesetzt, und
+    ``phasen.offenes_angebot`` haette "Weiter zu Phase N?" nach keinem
+    weiteren Interview je wieder vorgeschlagen -- genau der Fehler, gegen den
+    ``vergiss_angebot`` gebaut ist (siehe dessen Docstring sowie
+    ``test_das_angebot_kommt_nach_jeder_auswertung_erneut`` oben, die
+    Telegram-Gegenprobe). Diese Funktion muss unabhaengig vom Kanal auf jeden
+    Lauf mit ``kopf_id`` und Phase 3 treffen."""
+    phasen.setze(conn, 1, 3, "befehl")  # PHASE_INTERVIEWS, wie im Telegram-Pendant oben
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    kopf_id = _interview(conn)
+    repo.setze_phase_angeboten(conn, 1, 4)
+    assert repo.hole_phase_angeboten(conn, 1) == 4, "Vorbedingung: etwas gemerkt"
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    assert repo.hole_phase_angeboten(conn, 1) == phasen.KEIN_ANGEBOT, (
+        "der Merkposten muss auch auf dem Web-Kanal abgeraeumt werden"
+    )
+    assert tg.knoepfe[-1][2] == [], "die Leiste bleibt auf dem Web-Kanal leer"

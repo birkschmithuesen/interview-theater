@@ -259,6 +259,15 @@ _VEREINT_JS = """
     return !!document.querySelector('.feld[data-schmutzig="1"]');
   };
   var laeuft = false;
+  // Browser-serialisiert vs. Browser-serialisiert: ``panel.innerHTML`` legt
+  // der Browser beim Setzen in seiner eigenen Form ab (Attributreihenfolge,
+  // Anfuehrungszeichen, ...); der roh vom Server geholte Text ist das nie.
+  // Ein Vergleich roh-gegen-DOM faende deshalb NIE Gleichheit, und der
+  // Austausch liefe auf jedem Takt -- wie ``web._SCROLL_JS`` (web.py) wird
+  // darum per ``DOMParser`` auf dieselbe Form normalisiert, bevor verglichen
+  // wird, und der Vergleichswert (``panelLetzter``) kommt beim ersten Blick
+  // aus derselben, schon browser-serialisierten Quelle: ``panel.innerHTML``.
+  var panelLetzter = null;
   var offene = function (panel) {
     var s = {};
     panel.querySelectorAll('details[open] > summary').forEach(function (el) {
@@ -268,17 +277,27 @@ _VEREINT_JS = """
   };
   setInterval(function () {
     var panel = document.getElementById('tab-stand');
-    if (!panel || panel.hidden || laeuft || document.hidden || wirdBearbeitet()) {
+    if (!panel) { return; }
+    if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
+    if (panel.hidden || laeuft || document.hidden || wirdBearbeitet()) {
       return;
     }
     laeuft = true;
-    fetch(BASIS_TEIL + 'stand', { cache: 'no-store' })
+    // ``location.search`` reicht die gewaehlte Fassung weiter
+    // (``?szene=<id>&fassung=<n>``, ``web.fassungswahl``) -- sonst spraenge
+    // ein offen gelesener alter Text beim naechsten Takt auf den aktuellen
+    // zurueck.
+    fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.text() : null; })
       .then(function (html) {
-        if (!html || html === panel.innerHTML) { return; }
+        if (!html) { return; }
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        if (!neu || neu === panelLetzter) { return; }
         var zustand = offene(panel);
         var y = window.scrollY;
-        panel.innerHTML = html;
+        panel.innerHTML = neu;
+        panelLetzter = neu;
         panel.querySelectorAll('details > summary').forEach(function (el) {
           if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
         });

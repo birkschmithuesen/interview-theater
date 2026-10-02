@@ -102,3 +102,45 @@ def test_das_js_haelt_die_beiden_sperren_ein():
 
 def test_das_js_laedt_nicht_nach_solange_das_panel_verborgen_ist():
     assert ".hidden" in web_vereint._VEREINT_JS
+
+
+def test_das_js_vergleicht_normalisiert():
+    """Review Fix-Runde 1, Befund 1: ein roher Server-String gleicht nie der
+    browser-serialisierten Form von ``panel.innerHTML`` -- ohne Normalisierung
+    (``DOMParser``, wie ``web._SCROLL_JS``) wuerde der Austausch auf JEDEM
+    Takt laufen, nicht nur bei einer echten Aenderung."""
+    js = web_vereint._VEREINT_JS
+    assert "DOMParser" in js
+    # Die verworfene Fassung: der rohe Server-Text direkt gegen die
+    # Live-DOM-Form verglichen -- die stimmt nie, der Austausch liefe jeden
+    # Takt.
+    assert "html === panel.innerHTML" not in js
+
+
+def test_das_js_gibt_die_suche_an_den_teil_weiter():
+    """Review Fix-Runde 1, Befund 2: eine per ``?szene=..&fassung=..``
+    gewaehlte Fassung soll die Nachlade-Runde ueberleben."""
+    assert "location.search" in web_vereint._VEREINT_JS
+
+
+def test_der_teil_zeigt_die_gewaehlte_fassung(aufbau):
+    """Review Fix-Runde 1, Befund 2: ``teil/stand`` muss dieselbe Fassungswahl
+    honorieren wie die ganze Seite (``web.fassungswahl``)."""
+    basis, token, pfad = aufbau
+    conn = db.verbinde(pfad)
+    szene_id = repo.stelle_szene_sicher(conn, CHAT, 1)
+    repo.setze_szenenfeld(conn, szene_id, "titel", "Am Steg")
+    repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
+    for text in ("eins", "zwei", "drei"):
+        repo.haenge_szenenfassung_an(conn, CHAT, szene_id, text, None, "Dialog")
+    repo.aktualisiere_szene(conn, szene_id, "Am Steg", None, "drei", None)
+    conn.commit()
+    conn.close()
+
+    _status, aktuell = _hole(f"{basis}/g/{token}/{web_vereint.TEIL_PFAD}/stand")
+    assert "Fassung 1 von 3" not in aktuell
+
+    _status, gewaehlt = _hole(
+        f"{basis}/g/{token}/{web_vereint.TEIL_PFAD}/stand?szene={szene_id}&fassung=1"
+    )
+    assert "Fassung 1 von 3" in gewaehlt

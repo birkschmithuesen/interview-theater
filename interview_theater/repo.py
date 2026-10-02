@@ -1674,8 +1674,15 @@ _ARBEITSSTAND_FELDER = (
     "fragen_weich",
     # Die Mehrfachauswahl der Phase 2 (06.09.2026): die zehn vorgeschlagenen
     # Fragen und die angetippten Nummern. Zustand in der Datenbank, nicht in
-    # der Tastatur -- siehe ``db.SCHEMA``.
+    # der Tastatur -- siehe ``db.SCHEMA``. ``fragen_gewaehlt`` ist seit dem
+    # Umbau auf "Frage fuer Frage" (02.10.2026) unbenutzt (die alte
+    # Toggle-Auswahl); die Spalte bleibt stehen (additive Migration, nie
+    # entfernen).
     "fragen_auswahl", "fragen_gewaehlt",
+    # Phase 2, Frage fuer Frage (02.10.2026, Padua): welche Frage gerade
+    # vorgelegt ist, der Entscheidungsstand je Frage, und worauf die
+    # naechste freie Nachricht deterministisch antwortet.
+    "fragen_aktuell", "fragen_entschieden", "fragen_warte_auf",
     # Der Laengen-Faktor (30.09.2026, Karte R): derselbe eine Schreibweg wie
     # alles andere im Arbeitsstand.
     "laengen_faktor",

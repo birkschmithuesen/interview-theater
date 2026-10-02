@@ -339,6 +339,25 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Additiv nachgeruestet ueber _migriere_fehlende_spalten; ohne aktives
   -- Workshop-Profil liest die Spalte niemand.
   laengen_faktor         TEXT,
+  -- Phase 2, Frage fuer Frage (02.10.2026, Padua): die Nummer (in
+  -- ``fragen_auswahl``) der Frage, die der Gruppe gerade mit "Annehmen" ·
+  -- "Verwerfen" · "Schaerfen" vorgelegt ist. NULL ausserhalb der
+  -- Durchgehen-Stufe -- und genau daran haengt der deterministische
+  -- Abfang jeder freien Nachricht als Schaerfungswunsch
+  -- (``fragen.nimm_offene_frage_text``), ohne Erkenner-Lauf.
+  fragen_aktuell         TEXT,
+  -- Je Zeile aus ``fragen_auswahl`` ein Eintrag "ja"/"nein"/"" (noch offen),
+  -- komma-getrennt und an derselben Position. Eine neue Auswahlrunde
+  -- (Andere Richtung, neuer Vorschlag) setzt sie zurueck -- eine alte
+  -- Entscheidung zu einer inzwischen ersetzten Frage waere bedeutungslos.
+  fragen_entschieden     TEXT,
+  -- Worauf die naechste freie Nachricht deterministisch antwortet:
+  -- "richtung" nach "Andere Richtung" (die Nachricht ist die gewuenschte
+  -- Richtung, ein neuer Vorschlag startet), sonst NULL. Getrennt von
+  -- ``fragen_aktuell``, weil beide Zustaende gleichzeitig gelten koennen
+  -- muessten, waeren sie ein Feld -- vor dem ersten Durchgehen ist
+  -- ``fragen_aktuell`` noch leer.
+  fragen_warte_auf       TEXT,
   geaendert_am           TEXT
 );
 

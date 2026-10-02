@@ -281,6 +281,28 @@ def aktuelle(conn, chat_id: int) -> int:
     return gespeichert
 
 
+#: Die Phase, in der aufgenommen wird -- dieselbe Zahl wie
+#: ``knoepfe.PHASE_INTERVIEWS`` und ``aufnahme.PHASE_INTERVIEWS``.
+PHASE_INTERVIEWS = 3
+
+
+def aufnahme_anbieten(phase: int, interviewmodus: bool, nur_phase_3: bool = False) -> bool:
+    """Die Regel hinter ``knoepfe._aufnahme_anbieten`` als reine Funktion
+    (Padua Hotfix B6, 02.10.2026): darf eine Oberflaeche von sich aus eine
+    Aufnahme ANBIETEN?
+
+    Ja, solange eine Aufnahme laeuft (dann ist es der Ausschalter), sonst ab
+    ``PHASE_INTERVIEWS`` -- mit ``nur_phase_3`` nur genau dort. Kein
+    Datenbankzugriff: der Bot liest Phase und Modus ueber ``repo``, der
+    Webserver ueber seine read-only Verbindung (``web_daten``), und beide
+    fragen hier dieselbe Regel."""
+    if interviewmodus:
+        return True
+    if nur_phase_3:
+        return phase == PHASE_INTERVIEWS
+    return phase >= PHASE_INTERVIEWS
+
+
 def _feld_gesetzt(stand, name: str) -> bool:
     """Ein Arbeitsstandfeld, das eine alte Datenbank noch nicht hat -- die
     Migration ist additiv und laeuft beim Start, aber ein Leser darf daran

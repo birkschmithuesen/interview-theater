@@ -26,9 +26,14 @@ import urllib.parse
 from contextlib import contextmanager
 from pathlib import Path
 
-from interview_theater import db, repo, stt, web_daten, web_grenze, web_kanal
+from interview_theater import db, repo, sprache, stt, web_daten, web_grenze, web_kanal
 
 log = logging.getLogger(__name__)
+
+#: Padua Hotfix B6/B7: die Texte, die die EN-Oberflaeche zeigt, zur
+#: Aufrufzeit aus ``sprachen/en/texte.toml`` (``["web_chat"]``) -- wie in
+#: ``web.py``. Nur die dort eingetragenen Konstanten; der Rest bleibt deutsch.
+T = sprache.Texte(__name__)
 
 #: Der Unterpfad unter ``/g/<token>/``. Steht wortgleich in
 #: ``scripts/web_gruppe.CHAT_PFAD`` (Test).
@@ -353,6 +358,7 @@ _CHAT_JS = """
     letzte: parseInt(verlauf.dataset.letzte, 10) || 0,
     aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
+    knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
     aufnahme: null,     // die laufende Interview-Aufnahme dieses Telefons
     wechsel: null,      // {ziel, gesendet}: ein Moduswechsel, den der Poll noch nicht zeigt
     warteschlange: [],  // Befehle und Segmente, der Reihe nach
@@ -499,6 +505,7 @@ _CHAT_JS = """
     if (neu.length) { nachUnten(); }
     if (tipptFeld) { tipptFeld.textContent = daten.tippt ? TEXT.tippt : ''; }
     zustand.servermodus = !!daten.interviewmodus;
+    if (typeof daten.interview_knopf === 'boolean') { zustand.knopfErlaubt = daten.interview_knopf; }
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
     // vorn in der Schlange steht.
     if (zustand.aufnahme && zustand.aufnahme.angemeldet && zustand.servermodus) {
@@ -1075,6 +1082,10 @@ _CHAT_JS = """
     interviewKnopf.textContent = an ? TEXT.interview_aus : TEXT.interview_an;
     // Ein Stopp ist unterwegs: bis der Bot ihn bestaetigt, kein neuer Start.
     interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel);
+    // Padua Hotfix B6: ausserhalb von Phase 3 kein Angebot -- nie aber
+    // verborgen bei laufender Aufnahme, Wechsel oder voller Schlange.
+    interviewKnopf.hidden = !(zustand.knopfErlaubt || an || !!zustand.wechsel ||
+                              zustand.warteschlange.length > 0);
     // Waehrend eine Interview-Aufnahme laeuft, ist PTT ausgeblendet
     // (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine Bedienung.
     if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel; }
@@ -1328,7 +1339,10 @@ def _js() -> str:
     Platzhalter und keine f-String-Interpolation: das Skript ist voll mit
     geschweiften Klammern. Die Texte gehen als JSON hinein; ``</`` wird
     maskiert, damit kein Text das ``<script>`` beenden kann."""
-    texte = json.dumps(_JS_TEXTE, ensure_ascii=True).replace("</", "<\\/")
+    # Padua Hotfix B6/B7: die uebersetzten Texte zur Aufrufzeit (``T``).
+    texte = dict(_JS_TEXTE, interview_an=T._TEXT_INTERVIEW_AN,
+                 interview_aus=T._TEXT_INTERVIEW_AUS)
+    texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
         _CHAT_JS
         .replace("__POLL_MS__", str(POLL_MS))
@@ -1411,8 +1425,9 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f'    <button type="button" id="verwerfen">'
         f'{html.escape(_TEXT_REST_VERWERFEN)}</button>\n'
         f'  </div>\n'
-        f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}">'
-        f'{html.escape(_TEXT_INTERVIEW_AUS if modus else _TEXT_INTERVIEW_AN)}'
+        f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}"'
+        f'{"" if daten.get("interview_knopf", True) else " hidden"}>'
+        f'{html.escape(T._TEXT_INTERVIEW_AUS if modus else T._TEXT_INTERVIEW_AN)}'
         f'</button>\n'
         f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '

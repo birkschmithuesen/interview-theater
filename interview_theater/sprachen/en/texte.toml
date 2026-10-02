@@ -1575,3 +1575,9 @@ fazitsatz = "No conclusion and no moral at the end. The last line does not say w
 _TEXT_PAUSE = """Today's budget is used up — I'm pausing until midnight (Italian time) and won't reply in the meantime.
 
 Your work is saved. You can keep recording (I'll listen tomorrow), and your group page stays readable."""
+
+["web_chat"]
+# Padua Hotfix B6/B7 (02.10.2026): nur die Texte, die diese Karte anfasst.
+# Der Rest der Chatansicht bleibt vorerst deutsch (offener Punkt, Karte A1).
+_TEXT_INTERVIEW_AN = "Record interview"
+_TEXT_INTERVIEW_AUS = "Stop recording"

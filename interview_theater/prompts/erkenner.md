@@ -121,16 +121,20 @@ Objekt mit "art" und "wert":
     der Palaestina-Demo, seit zwei Stunden eingekesselt"). Ein wert aus einem
     Wort sagt dem Schreibauftrag nichts.
 18. phase_setzen           -- wert: die Nummer oder der Kurzname der
-    Arbeitsphase, bei der die Gruppe jetzt ist. Die sieben Phasen sind:
-    1 Begriffe, 2 Fragen, 3 Interviews, 4 Kernthema & Figuren,
-    5 Format & Rahmen, 6 Szenen, 7 Durchlauf. Die Gruppe sagt, woran sie jetzt
-    arbeitet ("lasst uns jetzt Figuren machen", "zurueck zu den
-    Interviews", "wir sind eigentlich noch beim Kernthema"). Ein Ruecksprung
-    ist genauso gueltig wie ein Schritt nach vorn. **Kernthema und Figuren
-    sind dieselbe Phase (4)** -- "jetzt die Figuren", "wir bleiben beim
-    Kernthema" und "machen wir Kernthema und Figuren zusammen" setzen alle
-    dieselbe 4. Format & Rahmen ist die naechste (5); "wir sind beim
-    Konflikt" meint ebenfalls diese 5.
+    Arbeitsphase, bei der die Gruppe JETZT ist. Die sieben Phasen sind:
+    1 Begriffe, 2 Fragen, 3 Interviews, 4 Setting, Figuren & Geschichte,
+    5 Schaerfung, 6 Szenen als Geschichte, 7 Feinschliff. Die Gruppe sagt,
+    woran sie jetzt arbeitet ("lasst uns jetzt Figuren machen", "zurueck zu
+    den Interviews", "wir sind eigentlich noch beim Kernthema"). Ein
+    Ruecksprung ist genauso gueltig wie ein Schritt nach vorn. **Setting,
+    Figuren, Geschichte, Kernthema, Format und Konflikt sind alle dieselbe
+    Phase (4)** -- "jetzt die Figuren", "wir bleiben beim Kernthema" und
+    "machen wir Setting und Figuren zusammen" setzen alle dieselbe 4.
+    Schaerfung ist die naechste (5); "wir sind beim Konflikt" meint ebenfalls
+    diese 5. **Ein Plan fuer SPAETER setzt nichts**: "morgen frueh wuerd ich
+    gern mit den Szenen anfangen" - "passt, dann heute noch die Figuren
+    fertig" nennt zwei Phasen und bleibt bei keiner -- nur eine Aussage
+    darueber, woran JETZT gearbeitet wird, ist ein phase_setzen.
 19. entfernen              -- wert: was weg soll, beginnend mit dem Ziel:
     "Figur Peter", "Kernthema", "Format", "Rahmen", "Hauptkonflikt",
     "Begriffe", "Fragen", "Szene 2", "Journal: Kindheitsfragen",
@@ -141,7 +145,10 @@ Objekt mit "art" und "wert":
     Kindheitsfragen"). Nimmt sie eine Festlegung zurueck, die du mit
     festlegung_setzen abgelegt hast ("die zweite Spielstaette streichen wir
     wieder"), ist das "Festlegung: zweite Spielstaette" -- ein Suchwort
-    genuegt.
+    genuegt. Steht im Verlauf schon eine Meldung "Festgehalten: ..." zu genau
+    dieser Sache, ist eine Rueckname davon IMMER "Festlegung: ...", nie
+    "verworfen" -- "verworfen" gilt nur fuer eine Idee, die NIE als
+    Festlegung gemeldet wurde.
 20. an_den_bot             -- wert: leer (""). **Gilt nur im Sonderfall
     unten**, also nur, wenn du das Transkript einer Sprachnachricht aus einem
     laufenden Interview bekommst. Diese eine Aufnahme war nicht an die
@@ -226,6 +233,26 @@ szenenanzahl_setzen. Erst was daneben faellt, kommt hierher: die
 Zugehoerigkeit einer Figur zu einer Gruppe, ihre Herkunft, ihr Alter, die
 Merkmale einer Fraktion, eine Laengenvorgabe.
 
+**Ein Teilort NEBEN einem schon gesetzten Setting ist NIE rahmen_setzen.**
+rahmen_setzen ERSETZT das ganze Setting -- ist schon eines gesetzt ("Am
+Kanal, im Sommer, nachmittags") und die Gruppe ergaenzt nur einen weiteren
+Ort dazu ("und der Skatepark unter der Bruecke gehoert auch dazu"), wuerde
+rahmen_setzen das Setting loeschen, nicht erweitern. Das ist festlegung_setzen
+mit Bereich "ort" (Punkt 22 oben).
+
+Ein blosses Vorhaben ist noch keine Festlegung. "wir sollten bald mal mit
+Szenen anfangen" - "ja vielleicht drei oder vier" - "eine am Bahnhof auf
+jeden Fall" ist ein Gespraech ueber etwas Kuenftiges, keine Angabe, die ab
+jetzt gilt -- da ist noch nichts entschieden, nur angedacht. Erst wenn die
+Gruppe etwas als gueltig behandelt ("ab jetzt ist das so", eine klare
+Zustimmung zu einem konkreten Vorschlag), schreibst du festlegung_setzen.
+Und keine Zeile ohne Inhalt: nennt die Gruppe nur einen Namen (eine
+Fraktion, eine Figur), ohne etwas ueber sie zu sagen, gehoert dazu NICHTS --
+eine Festlegung ohne Beschreibung ist Laerm auf der Gruppenseite. Auch eine
+Zeile, die nur die Zugehoerigkeit wiederholt, OHNE ein eigenes Merkmal zu
+nennen ("die Stillen sind die andere der beiden Gruppen"), ist ohne Inhalt --
+sie sagt nichts, was nicht schon im Namen steckt.
+
 Und "festlegung_setzen" gegen "entschieden": festlegung_setzen ist die
 Sache selbst, die ab jetzt gilt und in den Text eingeht. "entschieden" ist
 eine Chroniknotiz -- der WEG dorthin, das Warum, das Organisatorische.
@@ -233,7 +260,10 @@ Gilt eine Angabe fuer das Stueck, nimm festlegung_setzen; ist sie eine
 Notiz ueber die Arbeit ("wir machen morgen weiter", "der Streit war
 produktiv"), nimm "entschieden". Im Zweifel festlegung_setzen: eine
 Chroniknotiz zu viel schadet niemandem, eine verlorene Festlegung ist die
-Arbeit einer Stunde.
+Arbeit einer Stunde. **Eine Regel ueber die Arbeitsweise bleibt
+"entschieden", auch wenn sie fest klingt**: "beschlossen, alle Interviews
+werden auf Deutsch gefuehrt" entscheidet, WIE die Gruppe arbeitet, nicht,
+was ins Stueck eingeht -- das ist "entschieden", keine festlegung_setzen.
 
 Abgrenzung "entfernen": nur fuer etwas, das im Arbeitsstand oben tatsaechlich
 steht (eine Figur mit diesem Namen, das gesetzte Kernthema, eine Szene mit
@@ -413,7 +443,10 @@ Regeln, ohne Ausnahme:
    wird nicht "einige Fragen". Aus "Fatimas Interview" wird nicht "ein
    Interview".
 5. Kein Eintrag fuer: Begruessungen, Zustimmung ohne Inhalt,
-   Terminorganisation, Stimmungsaeusserungen, reines Geplauder.
+   Terminorganisation, Stimmungsaeusserungen, reines Geplauder. Dazu zaehlt
+   auch, WIE LANGE oder WANN die Probe selbst stattfindet oder dauert ("die
+   Probe kuerzer machen, anderthalb Stunden reichen") -- das ist Logistik
+   des Treffens, kein "entschieden" ueber das Stueck.
 6. Hoechstens fuenf Aenderungen. Wenn mehr passieren wuerden, nimm die
    fuenf wichtigsten.
 7. Kommt im Abschnitt nichts von alledem vor, gib eine leere Liste zurueck.

@@ -71,8 +71,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import httpx
 
 from interview_theater import (
-    db, einstellungen, erkenner, journal, llm, repo, sprache, sprachprofil, verdichter,
-    workshop, zitat,
+    db, einstellungen, erkenner, journal, llm, phasen, repo, sprache, sprachprofil,
+    verdichter, workshop, zitat,
 )
 from interview_theater import kosten as _kosten
 
@@ -157,12 +157,35 @@ def wert_passt(erwartet: str, geliefert: str) -> bool:
     return bool(g) and (e in g or g in e)
 
 
+def phase_wert_passt(erwartet: str, geliefert: str) -> bool:
+    """``phase_setzen`` vergleicht ueber die aufgeloeste Phasennummer, nicht
+    ueber den Wortlaut.
+
+    Die Produktion ruft ``phasen.nummer_fuer(wert)`` auf jeden gelieferten
+    Wert, bevor sie ihn speichert (``erkenner._wende_phase_an``) -- das
+    gespeicherte Ergebnis ist immer eine Zahl, nie "Rahmen" oder
+    "Hauptkonflikt". Seit dem Phase-4-Umbau zeigen mehrere Stichwoerter auf
+    dieselbe Phase (``phasen.STICHWOERTER[4]`` enthaelt sowohl "rahmen" als
+    auch "hauptkonflikt"); ein Wortlautvergleich haelt zwei Woerter fuer
+    verschieden, die die Produktion auf dieselbe Nummer abbildet, und
+    zaehlte das faelschlich als Falsch-Positiv UND Falsch-Negativ (Fall
+    p07, 02.10.2026). Ohne ``jetzige`` (keine laufende Gruppe im Vergleich)
+    -- dieselbe Unschaerfe wie ohne sie in der Produktion."""
+    erwartete_nummer = phasen.nummer_fuer(erwartet)
+    gelieferte_nummer = phasen.nummer_fuer(geliefert)
+    if erwartete_nummer is None or gelieferte_nummer is None:
+        return wert_passt(erwartet, geliefert)
+    return erwartete_nummer == gelieferte_nummer
+
+
 def vergleiche_erkenner(erwartet: list[dict], geliefert: list[dict]) -> dict:
     """Vergleicht zwei Mengen von ``{"art", "wert"}``.
 
-    ``art`` muss exakt stimmen, ``wert`` nach ``wert_passt``. Jede gelieferte
-    Aenderung kann hoechstens eine erwartete bedienen (sonst wuerden zwei
-    Figuren durch einen einzigen Treffer abgedeckt).
+    ``art`` muss exakt stimmen, ``wert`` nach ``wert_passt`` -- ausser bei
+    ``phase_setzen``, das ueber ``phase_wert_passt`` nach aufgeloester
+    Nummer vergleicht (siehe dort). Jede gelieferte Aenderung kann
+    hoechstens eine erwartete bedienen (sonst wuerden zwei Figuren durch
+    einen einzigen Treffer abgedeckt).
 
     Liefert ``{"treffer", "fehlend", "ueberzaehlig"}`` -- Falsch-Negative und
     Falsch-Positive getrennt, weil sie unterschiedlich schwer wiegen: ein FN
@@ -172,8 +195,11 @@ def vergleiche_erkenner(erwartet: list[dict], geliefert: list[dict]) -> dict:
     treffer, fehlend = [], []
     for erwartung in erwartet:
         index = None
+        vergleiche = (
+            phase_wert_passt if erwartung.get("art") == "phase_setzen" else wert_passt
+        )
         for i, kandidat in enumerate(offen):
-            if kandidat.get("art") == erwartung.get("art") and wert_passt(
+            if kandidat.get("art") == erwartung.get("art") and vergleiche(
                 erwartung.get("wert", ""), kandidat.get("wert", "")
             ):
                 index = i
@@ -491,6 +517,19 @@ def _aufruf_nach(conn, vorher_id: int) -> dict:
     }
 
 
+def _wende_fuer_vergleich(conn, chat_id: int, geliefert: list[dict]) -> list[dict]:
+    """Der Korpus zaehlt, was die Produktion SPEICHERN wuerde: die rohen
+    Aenderungen, abzueglich dessen, was die deterministischen Waechter in
+    ``erkenner`` vor dem Schreiben verwerfen (``erkenner.waechter_filter``).
+
+    02.10.2026: ein erster Versuch verglich die RUECKGABE von ``wende_an`` --
+    die hat aber eine andere Form (Szenenwerte gekuerzt, Interview-/USA-/
+    Transkript-Arten ohne Rueckgabe) und liess die Trefferquote von 118/122
+    auf 90/122 fallen, ohne dass sich am Modell etwas geaendert hatte. Darum
+    nur der Filter, nicht das Anwenden."""
+    return erkenner.waechter_filter(geliefert)
+
+
 def _laufe_erkenner(klm, conn, chat_id, fall, modell):
     # Zwei Sorten Faelle: ein Gespraechsabschnitt (``nachrichten``) oder das
     # Transkript einer Sprachnachricht aus einem laufenden Interview
@@ -526,6 +565,7 @@ def _laufe_erkenner(klm, conn, chat_id, fall, modell):
         geliefert = [
             a for a in geliefert if a.get("art") in erkenner.ARTEN_IN_AUFNAHME
         ]
+    geliefert = _wende_fuer_vergleich(conn, chat_id, geliefert)
     bewertung = vergleiche_erkenner(fall["erwartet"], geliefert)
     bewertung["fragen_ohne_thema"] = fragen_ohne_thema(geliefert)
     return geliefert, bewertung, (
@@ -906,6 +946,26 @@ def main(argv=None) -> int:
             raise SystemExit(
                 f"IT_WORKSHOP={os.environ[workshop.VARIABLE]!r} ergibt "
                 f"sprache.code()={sprache.code()!r}, nicht 'en'."
+            )
+    else:
+        # Symmetrische Pruefung zum obigen "en"-Zweig (02.10.2026, erkenner-fp):
+        # die deutschen Korpora (korpus/*.jsonl) sind nur gegen einen deutschen
+        # Prompt gueltig. Steht in der geladenen Umgebung ein IT_WORKSHOP mit
+        # anderer Chat- und Promptsprache (z. B. padua-2026, "Padua laeuft auf
+        # Englisch"), laedt anweisungen.py den englischen erkenner.md fuer
+        # deutsche Korpusnachrichten -- gemessen am 02.10.2026: fl02/fl03
+        # bekamen dadurch englischen Fliesstext in einem Bereich, der laut
+        # Korpus deutsch sein sollte, und zaehlten als Falsch-Positiv. Ohne
+        # diese Pruefung bleibt der Fehlschlag stumm, weil beide Sprachen
+        # dieselben Bereichswoerter (STRUKTUR, STIL, ...) im Beispiel tragen.
+        if sprache.code() != "de":
+            raise SystemExit(
+                f"IT_WORKSHOP={os.environ.get(workshop.VARIABLE)!r} ergibt "
+                f"sprache.code()={sprache.code()!r}, nicht 'de' -- die "
+                "deutschen Korpora passen nicht zu einem nicht-deutschen "
+                "Prompt. IT_WORKSHOP in der geladenen env-Datei auf ein "
+                "deutschsprachiges Profil setzen oder leeren, oder "
+                "--sprache en mit dem passenden Korpus verwenden."
             )
 
     e = einstellungen.laden()

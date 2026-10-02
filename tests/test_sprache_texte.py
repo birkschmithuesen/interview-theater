@@ -94,6 +94,11 @@ BLEIBT_DEUTSCH = {
     "web_vereint._CSS_VEREINT": "CSS, nur Kommentare deutsch",
     "web_vereint._VEREINT_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web_vereint._STROM_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
+    # erkenner-fp (02.10.2026): eine Fuellwort-Liste zur Erkennung
+    # inhaltsloser Festlegungen (_ohne_eigenen_inhalt), kein Nutzertext --
+    # sie wird nie angezeigt, nur gegen den Wortlaut der Gruppe geprueft, und
+    # ist deshalb wie stile._NACH_SLUG reine Mitgliedschaftspruefung.
+    "erkenner._FESTLEGUNG_FUELLWOERTER": "Fuellwortliste, kein Nutzertext (nur Mitgliedschaftspruefung)",
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit
@@ -190,6 +195,8 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail rahmen_war_geschichte (repo.merke_vorfall)",
     ("erkenner", "Eine Festlegung wiederholte ein gesetzte"):
         "Vorfall-Detail festlegung_stand_schon_im_feld (repo.merke_vorfall)",
+    ("erkenner", "Eine Festlegung wiederholte nur die Zuge"):
+        "Vorfall-Detail festlegung_ohne_inhalt (repo.merke_vorfall)",
     ("erkenner", "Aenderung art={} konnte nicht angewendet"):
         "Vorfall-Detail erkenner_anwenden_fehler (repo.merke_vorfall)",
     ("kontext", "Nutzertext von {} auf {} Zeichen gekuerz"):

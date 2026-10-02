@@ -871,18 +871,50 @@ def _zerlege_festlegung(wert: str) -> tuple[str, str | None, str]:
     )
 
 
+#: Woerter, die eine Festlegung ohne eigenen Inhalt tragen kann, ohne dass
+#: ihr Fehlen etwas beweist: Fuellwoerter, Zaehlwoerter und die generischen
+#: Sammelbegriffe, mit denen ein Modell eine blosse Zugehoerigkeit umschreibt
+#: ("eine der beiden Gruppen", "(no description)"). Bleibt nach Abzug dieser
+#: Woerter UND des Bezugsnamens nichts mehr stehen, war die Zeile reine
+#: Wiederholung (02.10.2026, Fall fl03 -- der Prompt allein hielt das trotz
+#: Gegenbeispiel nicht, siehe erkenner.md "keine Zeile ohne Inhalt").
+_FESTLEGUNG_FUELLWOERTER = {
+    "ist", "sind", "die", "der", "das", "von", "fuer", "und", "ein", "eine",
+    "einer", "andere", "anderen", "zweite", "dritte", "erste", "letzte",
+    "beiden", "zwei", "drei", "vier", "fuenf", "sechs",
+    "gruppe", "gruppen", "lager", "fraktion", "fraktionen",
+    "keine", "beschreibung", "unbekannt", "the", "is", "are", "of", "one",
+    "other", "two", "three", "four", "five", "group", "groups", "no",
+    "description", "n", "a",
+}
+
+
+def _ohne_eigenen_inhalt(text: str, bezug: str | None) -> bool:
+    """Bleibt nichts als Fuellwoerter und der Bezugsname selbst, ist die
+    Zeile eine reine Wiederholung ("die Stillen: eine der beiden Gruppen"),
+    kein eigener Fakt. Eng gefasst, damit eine knappe aber echte Angabe
+    ("Markenklamotten") nicht mitgerissen wird."""
+    woerter = re.findall(r"[^\W\d]+", (text or "").lower(), re.UNICODE)
+    bezugsworte = set(re.findall(r"[^\W\d]+", (bezug or "").lower(), re.UNICODE))
+    rest = [
+        w for w in woerter
+        if w not in _FESTLEGUNG_FUELLWOERTER and w not in bezugsworte
+    ]
+    return bool(woerter) and not rest
+
+
 def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
     """Legt eine Festlegung in der Auffangtabelle ab (art
     ``festlegung_setzen``, 06.09.2026).
 
-    Zwei Faelle schreiben nichts: ein leerer Text, und einer, der in einem
-    Arbeitsstandfeld ohnehin schon steht. Der zweite ist der wichtigere --
-    er ist das Gegenstueck zu ``_ist_geschichte`` weiter oben, nur in der
-    anderen Richtung: dort wird eine Handlung aus dem Setting-Feld
-    herausgehalten, hier ein Setting aus der Auffangtabelle. Beides steht in
-    der Auswertung und nicht im Prompt, weil ``erkenner.md`` ohne Korpuslauf
-    nicht anzufassen ist -- und weil ein Prompt bittet, wo Code
-    durchsetzt."""
+    Drei Faelle schreiben nichts: ein leerer Text, einer, der in einem
+    Arbeitsstandfeld ohnehin schon steht, und einer ohne eigenen Inhalt
+    (``_ohne_eigenen_inhalt``). Der zweite ist das Gegenstueck zu
+    ``_ist_geschichte`` weiter oben, nur in der anderen Richtung: dort wird
+    eine Handlung aus dem Setting-Feld herausgehalten, hier ein Setting aus
+    der Auffangtabelle. Alle drei Pruefungen stehen in der Auswertung und
+    nicht im Prompt, weil ``erkenner.md`` ohne Korpuslauf nicht anzufassen
+    ist -- und weil ein Prompt bittet, wo Code durchsetzt."""
     bereich, bezug, text = _zerlege_festlegung(wert)
     text = " ".join((text or "").split())
     if not text:
@@ -892,6 +924,13 @@ def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
         repo.merke_vorfall(
             conn, chat_id, None, "festlegung_stand_schon_im_feld",
             "Eine Festlegung wiederholte ein gesetztes Arbeitsstandfeld",
+        )
+        return None
+    if _ohne_eigenen_inhalt(text, bezug):
+        log.info("Festlegung ohne eigenen Inhalt, verworfen: %r", text[:80])
+        repo.merke_vorfall(
+            conn, chat_id, None, "festlegung_ohne_inhalt",
+            "Eine Festlegung wiederholte nur die Zugehoerigkeit, ohne eigenen Fakt",
         )
         return None
     if repo.schreibe_festlegung(conn, chat_id, bereich, text, bezug=bezug) is None:
@@ -1391,6 +1430,90 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     return None
 
 
+def _ohne_figur_festlegung_neben_figur_setzen(aenderungen: list[dict]) -> list[dict]:
+    """Eine ``festlegung_setzen`` mit Bereich ``figur`` faellt weg, wenn
+    derselbe Lauf auch ``figur_setzen`` oder ``figur_quelle_setzen`` (Fall
+    en-e15) fuer diese Figur liefert (02.10.2026, Fall z04: neben
+    drei ``figur_setzen`` kam zusaetzlich "figur: die Zuordnung der Figuren
+    ist nur fuer die Gruppe" -- ein Metakommentar zum Festhalten selbst, kein
+    eigener Fakt UEBER eine Figur). Mit Bezug auf einen der gerade gesetzten
+    Namen ist es dieselbe Figur doppelt erfasst; ohne Bezug ist es eine
+    allgemeine Bemerkung zum Vorgang -- beides gehoert nicht in die
+    Auffangtabelle, wenn die Figuren im selben Atemzug gesetzt werden."""
+    try:
+        figuren_namen = {
+            str(a.get("wert") or "").split(":", 1)[0].strip().lower()
+            for a in aenderungen
+            if a.get("art") in ("figur_setzen", "figur_quelle_setzen")
+        }
+    except Exception:
+        # Defensiv wie wende_an() selbst: eine fehlerhafte Aenderung (z. B.
+        # ein nicht-String-Wert) soll diesen Vorfilter nicht zum Absturz
+        # bringen -- der eigentliche Fehler wird ohnehin gleich darauf im
+        # try/except der Schleife unten gefangen und vermerkt.
+        return aenderungen
+    if not figuren_namen:
+        return aenderungen
+    ergebnis = []
+    for a in aenderungen:
+        if a.get("art") == "festlegung_setzen":
+            try:
+                bereich, bezug, _ = _zerlege_festlegung(a.get("wert") or "")
+            except Exception:
+                ergebnis.append(a)
+                continue
+            if bereich == "figur" and (
+                bezug is None or bezug.strip().lower() in figuren_namen
+            ):
+                continue
+        ergebnis.append(a)
+    return ergebnis
+
+
+def _ohne_interview_starten_neben_ruecksprung(aenderungen: list[dict]) -> list[dict]:
+    """``interview_starten`` faellt weg, wenn derselbe Lauf in die
+    Interview-Phase (3) springt (02.10.2026, Korpusfall p05: \"zurueck zu den
+    Interviews, wir fragen Hatice nochmal\" -- ein Plan, keine Aufnahme). Der
+    Phaseneintritt bietet den Aufnahmeknopf ohnehin an, ein zweites Angebot
+    daneben waere doppelt; und ``interview_starten`` startet seit 05.09.
+    nichts mehr, sondern bietet nur an (``_wende_interview_starten_an``)."""
+    springt_in_drei = False
+    for a in aenderungen:
+        if a.get("art") == "phase_setzen":
+            try:
+                springt_in_drei = phasen.nummer_fuer(str(a.get("wert") or "")) == 3
+            except Exception:
+                springt_in_drei = False
+            if springt_in_drei:
+                break
+    if not springt_in_drei:
+        return aenderungen
+    return [a for a in aenderungen if a.get("art") != "interview_starten"]
+
+
+def waechter_filter(aenderungen: list[dict]) -> list[dict]:
+    """Die rein deterministischen Waechter, die ``wende_an`` vor dem Schreiben
+    anwendet -- ohne Datenbank, damit der Korpuslauf (``scripts/
+    pruefe_prompts.py``) genau dasselbe herausfiltert wie der Betrieb:
+    doppelte Figuren-Festlegungen und Festlegungen ohne eigenen Inhalt. Die
+    datenbankabhaengige Pruefung (``_steht_schon_in_einem_feld``) bleibt in
+    ``_wende_festlegung_an``."""
+    aenderungen = _ohne_interview_starten_neben_ruecksprung(aenderungen)
+    ergebnis = []
+    for a in _ohne_figur_festlegung_neben_figur_setzen(aenderungen):
+        if a.get("art") == "festlegung_setzen":
+            try:
+                _, bezug, text = _zerlege_festlegung(a.get("wert") or "")
+            except Exception:
+                ergebnis.append(a)
+                continue
+            text = " ".join((text or "").split())
+            if not text or _ohne_eigenen_inhalt(text, bezug):
+                continue
+        ergebnis.append(a)
+    return ergebnis
+
+
 def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
     """Schreibt erkannte Aenderungen in Arbeitsstand, Figuren, Journal und
     Schalter (SPEC § 4.3, teil-b.md Aufgabe 3).
@@ -1402,6 +1525,12 @@ def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
     fehlerhafte Aenderung (z. B. ein unerwarteter Werttyp) darf die anderen
     im selben Lauf nicht mitreissen -- sie wird geloggt und als ``vorfall``
     vermerkt, der Lauf macht mit der naechsten Aenderung weiter."""
+    # Dieselben Listen-Waechter wie im Korpuslauf (``waechter_filter``); die
+    # Inhaltspruefung laeuft hier in ``_wende_festlegung_an``, weil sie dort
+    # einen Vorfall vermerkt -- das Ergebnis ist dasselbe.
+    aenderungen = _ohne_figur_festlegung_neben_figur_setzen(
+        _ohne_interview_starten_neben_ruecksprung(aenderungen)
+    )
     wirkliche = []
     for aenderung in aenderungen:
         art = None

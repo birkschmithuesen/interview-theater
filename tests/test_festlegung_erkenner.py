@@ -125,6 +125,73 @@ def test_eine_echte_ergaenzung_zum_setting_bleibt(conn):
     assert len(repo.festlegungen(conn, 1)) == 1
 
 
+def test_reine_mitgliedschaft_ohne_eigenen_fakt_wirkt_nicht(conn):
+    """02.10.2026, Fall fl03: 'eine der beiden Gruppen' wiederholt nur die
+    Zugehoerigkeit, die schon im Bezug steckt -- kein eigener Fakt."""
+    assert _wende(conn, "gruppe/die Stillen: eine der beiden Gruppen") == []
+    assert repo.festlegungen(conn, 1) == []
+    vorfaelle = [
+        z["art"] for z in conn.execute("SELECT art FROM vorfall WHERE chat_id = 1")
+    ]
+    assert "festlegung_ohne_inhalt" in vorfaelle
+
+
+def test_platzhalter_ohne_beschreibung_wirkt_nicht(conn):
+    assert _wende(conn, "gruppe/die Stillen: (no description)") == []
+    assert repo.festlegungen(conn, 1) == []
+
+
+def test_eine_kurze_aber_echte_angabe_bleibt_trotz_bezug(conn):
+    """Die Gegenprobe zu beiden Faellen oben: eine knappe Angabe mit echtem
+    Inhalt darf die Pruefung nicht mitreissen."""
+    assert _wende(conn, "gruppe/die Lauten: erkennt man an den Markenklamotten")
+    assert len(repo.festlegungen(conn, 1)) == 1
+
+
+def test_figur_festlegung_faellt_weg_wenn_dieselbe_figur_gesetzt_wird(conn):
+    """02.10.2026, Fall z04: 'figur: die Zuordnung der Figuren ist nur fuer
+    die Gruppe' neben drei figur_setzen ist Metakommentar zum Festhalten
+    selbst, kein Fakt UEBER eine Figur."""
+    wirklich = erkenner.wende_an(
+        conn, Umgebung(), 1,
+        [
+            {"art": "figur_setzen", "wert": "Nour: traegt ein Gericht in fremde Raeume"},
+            {"art": "figur_setzen", "wert": "Selin: baute aus einem Satz ein Haus"},
+            {"art": "figur_setzen", "wert": "Asmin: trug zehn Jahre Schwarz"},
+            {
+                "art": "festlegung_setzen",
+                "wert": "figur: die Zuordnung der Figuren ist nur fuer die Gruppe",
+            },
+        ],
+    )
+    arten = [a["art"] for a in wirklich]
+    assert arten == ["figur_setzen", "figur_setzen", "figur_setzen"]
+    assert repo.festlegungen(conn, 1) == []
+
+
+def test_figur_festlegung_mit_bezug_auf_gesetzte_figur_faellt_weg(conn):
+    wirklich = erkenner.wende_an(
+        conn, Umgebung(), 1,
+        [
+            {"art": "figur_setzen", "wert": "Nour: traegt ein Gericht in fremde Raeume"},
+            {"art": "festlegung_setzen", "wert": "figur/Nour: ist eine Hauptfigur"},
+        ],
+    )
+    assert [a["art"] for a in wirklich] == ["figur_setzen"]
+    assert repo.festlegungen(conn, 1) == []
+
+
+def test_figur_festlegung_ohne_figur_setzen_bleibt(conn):
+    """Ohne gleichzeitiges figur_setzen ist dieselbe Zeile ein eigener Fakt
+    (fl01: Herkunft einer Figur, fuer die niemand gerade figur_setzen schreibt)."""
+    wirklich = erkenner.wende_an(
+        conn, Umgebung(), 1,
+        [{"art": "festlegung_setzen", "wert": "figur/Sevda: 19, kommt aus Bulgarien"}],
+    )
+    assert [a["art"] for a in wirklich] == ["festlegung_setzen"]
+    assert len(repo.festlegungen(conn, 1)) == 1
+
+
 def test_meldung_nennt_die_festlegung_mit_bezug():
     meldung = erkenner.baue_meldung(
         [
@@ -176,3 +243,66 @@ def test_entfernen_ohne_treffer_wirkt_nicht(conn):
         conn, Umgebung(), 1,
         [{"art": "entfernen", "wert": "Festlegung: Bahnhof"}],
     ) == []
+
+
+def test_figur_festlegung_faellt_weg_neben_figur_quelle_setzen():
+    # Fall en-e15 (02.10.2026): Zuordnung zu einem Interview plus dieselbe
+    # Figur noch einmal als Festlegung -- doppelt erfasst.
+    aenderungen = [
+        {"art": "figur_quelle_setzen", "wert": "Karim: Interview 3"},
+        {"art": "festlegung_setzen", "wert": "FIGUR/Karim: the kid with the headphones"},
+    ]
+    assert erkenner.waechter_filter(aenderungen) == aenderungen[:1]
+
+
+def test_waechter_filter_verwirft_inhaltslose_festlegung():
+    aenderungen = [
+        {"art": "festlegung_setzen", "wert": "gruppe/die Lauten: erkennt man an den Markenklamotten"},
+        {"art": "festlegung_setzen", "wert": "gruppe/die Stillen: eine der beiden Gruppen"},
+    ]
+    assert erkenner.waechter_filter(aenderungen) == aenderungen[:1]
+
+
+def test_waechter_filter_laesst_andere_arten_unveraendert():
+    # Der Korpus misst nach diesem Filter -- er darf an Arten ohne Waechter
+    # nichts aendern, sonst faellt die Trefferquote ohne Modellaenderung
+    # (Fehlversuch 02.10.: Vergleich auf der Rueckgabe von wende_an, 90/122).
+    aenderungen = [
+        {"art": "szene_planen", "wert": "SZENE 1 | ORT: Kueche"},
+        {"art": "entfernen", "wert": "FIGUR Tomas"},
+        {"art": "interview_beenden", "wert": ""},
+        {"art": "szene_usa", "wert": "ja"},
+    ]
+    assert erkenner.waechter_filter(aenderungen) == aenderungen
+
+
+def test_korpusvergleich_nutzt_den_waechter_filter():
+    from scripts import pruefe_prompts
+    roh = [
+        {"art": "figur_setzen", "wert": "Mira: macht Pfannkuchen"},
+        {"art": "festlegung_setzen", "wert": "figur: die Zuordnung ist nur fuer die Gruppe"},
+    ]
+    assert pruefe_prompts._wende_fuer_vergleich(None, 1, roh) == roh[:1]
+
+
+def test_interview_starten_faellt_weg_beim_ruecksprung_in_die_interviews():
+    # Korpusfall p05 (02.10.2026): "zurueck zu den Interviews, wir fragen
+    # Hatice nochmal" ist ein Plan -- der Phaseneintritt bietet den Knopf an.
+    roh = [
+        {"art": "phase_setzen", "wert": "3"},
+        {"art": "interview_starten", "wert": ""},
+    ]
+    assert erkenner.waechter_filter(roh) == roh[:1]
+
+
+def test_interview_starten_bleibt_ohne_phasenwechsel():
+    roh = [{"art": "interview_starten", "wert": ""}]
+    assert erkenner.waechter_filter(roh) == roh
+
+
+def test_interview_starten_bleibt_bei_sprung_in_andere_phase():
+    roh = [
+        {"art": "phase_setzen", "wert": "5"},
+        {"art": "interview_starten", "wert": ""},
+    ]
+    assert erkenner.waechter_filter(roh) == roh

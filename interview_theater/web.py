@@ -2787,6 +2787,12 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
     # ``web`` (fuer ``_seite``), und das waere im Modulkopf ein Zyklus.
     from interview_theater import web_chat, web_vereint
 
+    if unterpfad.startswith(web_vereint.TEIL_PFAD + "/"):
+        web_vereint.sende_teil(
+            handler, db_pfad, token,
+            unterpfad[len(web_vereint.TEIL_PFAD) + 1:], praefix, schluessel, query,
+        )
+        return
     if unterpfad == web_chat.CHAT_PFAD:
         # Ein Schraegstrich am Ende (``/chat/``) bleibt 404 wie bisher
         # (Review-Befund 12, ``web_chat.beantworte_get``): ``rest.strip("/")``

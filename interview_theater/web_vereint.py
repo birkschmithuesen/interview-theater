@@ -23,10 +23,21 @@ import re
 import time
 import urllib.parse
 
-from interview_theater import web_daten
+from interview_theater import web, web_daten
 
 #: Der Unterpfad unter ``/g/<token>/chat/``.
 STROM_PFAD = "strom"
+
+#: Unter welchem Pfad ein einzelnes Panel frisch geholt wird
+#: (``/g/<token>/teil/<name>``).
+TEIL_PFAD = "teil"
+
+#: Derselbe Takt wie das sanfte Nachladen der Einzelseite.
+NACHLADEN_MS = web.NEULADEN_SEKUNDEN * 1000
+
+#: Welche Panels sich nachladen lassen. Der Chat NICHT: er hat seinen eigenen
+#: Poll (Karte A2), und das Textbuch aendert sich nicht, waehrend man es liest.
+_TEILE = ("stand",)
 
 #: Die drei Panels. Reihenfolge = Reihenfolge der Tableiste.
 TABS = ("chat", "stand", "textbuch")
@@ -192,6 +203,8 @@ _VEREINT_JS = """
   // Endpunkte eine Ebene tiefer. Jedes IIFE deklariert sie selbst -- sie
   // teilen keinen Gueltigkeitsbereich.
   var BASIS = '__BASIS__';
+  // Die Basis des Nachlade-Endpunkts: /g/<token>/teil/.
+  var BASIS_TEIL = '__BASIS_TEIL__';
   // Der Tab steht als BLOSSES Wort im Fragment (#chat, #stand, #textbuch) --
   // damit ein geteilter Rollenlink dieselbe Form hat wie auf der
   // Probenansicht: #textbuch&figur=Leyla.
@@ -236,6 +249,44 @@ _VEREINT_JS = """
     if (stelle && stelle.scrollIntoView) { stelle.scrollIntoView({block: 'center'}); }
   });
   window.addEventListener('hashchange', function () { zeige(lies()); });
+  // Nachgeladen wird NUR das Stand-Panel, NUR wenn es vorn ist, und nur mit
+  // denselben zwei Sperren wie bisher: Fokus in einem Feld oder eine
+  // ungespeicherte Aenderung halten es an (Brief 05.09. abends). Der <body>
+  // wird nie getauscht -- daran haengen Recorder, Eingabefeld und Strom.
+  var wirdBearbeitet = function () {
+    var aktiv = document.activeElement;
+    if (aktiv && aktiv.closest && aktiv.closest('.feld')) { return true; }
+    return !!document.querySelector('.feld[data-schmutzig="1"]');
+  };
+  var laeuft = false;
+  var offene = function (panel) {
+    var s = {};
+    panel.querySelectorAll('details[open] > summary').forEach(function (el) {
+      s[el.textContent.trim()] = true;
+    });
+    return s;
+  };
+  setInterval(function () {
+    var panel = document.getElementById('tab-stand');
+    if (!panel || panel.hidden || laeuft || document.hidden || wirdBearbeitet()) {
+      return;
+    }
+    laeuft = true;
+    fetch(BASIS_TEIL + 'stand', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (!html || html === panel.innerHTML) { return; }
+        var zustand = offene(panel);
+        var y = window.scrollY;
+        panel.innerHTML = html;
+        panel.querySelectorAll('details > summary').forEach(function (el) {
+          if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
+        });
+        window.scrollTo(0, y);
+      })
+      .catch(function () {})
+      .finally(function () { laeuft = false; });
+  }, __NACHLADEN_MS__);
   zeige(lies());
 })();
 """
@@ -319,6 +370,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         _VEREINT_JS.replace("__TABS__", json.dumps(list(tabs)))
         .replace("__VORGABE__", vorgabe)
         .replace("__BASIS__", f"{token}/")
+        .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
+        .replace("__NACHLADEN_MS__", str(NACHLADEN_MS))
         + web._TEXTBUCH_JS
     )
     if chat_vorhanden:
@@ -327,6 +380,30 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         f"{titel} — interview-theater", css, "\n".join(koerper),
         bearbeitbar=True, nachladen=False, skript=skript,
     )
+
+
+def sende_teil(handler, db_pfad: str, token: str, name: str, praefix: str,
+              schluessel: bytes, query: str) -> None:
+    """``GET /g/<token>/teil/stand`` -- nur der Rumpf des Stand-Panels.
+
+    Der Ersatz fuer das sanfte Nachladen der Einzelseite: dort tauscht
+    ``web._SCROLL_JS`` den ganzen ``<body>``, hier nur dieses eine Panel.
+    Alles andere -- Chat, Aufnahme, Strom, halb getipptes Feld -- bleibt
+    stehen.
+
+    Der frische Nonce kommt mit, wie beim sanften Nachladen: er steht IM
+    Rumpf (``web.nonce``), nicht daran."""
+    if name not in _TEILE:
+        handler._antworte(404, web.nicht_gefunden_html())
+        return
+    daten = handler._gruppe(token)
+    if daten is None:
+        handler._antworte(404, web.nicht_gefunden_html())
+        return
+    handler._antworte(200, web.gruppe_koerper(
+        daten, web.nonce(schluessel, token), token, praefix,
+        web.fassungswahl(query),
+    ))
 
 
 def beantworte_seite(handler, db_pfad: str, token: str, praefix: str,

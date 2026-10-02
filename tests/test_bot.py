@@ -93,6 +93,44 @@ def test_duplikat_liefert_none(conn, einst):
 
 
 # ---------------------------------------------------------------------------
+# Entwickler-Notizen (Padua-Befund 02.10.2026): "@robo: hier kam keine
+# automatosche Aufzaehlung. Bot wartet auf user" war eine Notiz an die
+# Entwicklung, keine Gruppenaeusserung -- der Bot hat sie trotzdem live
+# beantwortet, mit einer erfundenen Ursache.
+# ---------------------------------------------------------------------------
+
+def test_ist_entwicklernotiz_erkennt_robo_und_dev():
+    assert bot.ist_entwicklernotiz("@robo: hier kam keine Aufzaehlung")
+    assert bot.ist_entwicklernotiz("@dev bitte pruefen")
+    assert bot.ist_entwicklernotiz("  @ROBO: Grossschreibung auch")
+    assert not bot.ist_entwicklernotiz("Wir sind bei @robo vorbeigefahren")
+    assert not bot.ist_entwicklernotiz("Ganz normale Nachricht")
+    assert not bot.ist_entwicklernotiz(None)
+
+
+def test_entwicklernotiz_wird_gespeichert_aber_nicht_beantwortet(conn, einst):
+    n = bot.verarbeite_update(
+        conn, einst,
+        bau_update(6, 15, "@robo: hier kam keine automatosche Aufzaehlung. Bot wartet auf user", JETZT),
+        JETZT, False,
+    )
+    assert n is None, "darf keinen Gespraechszug ausloesen"
+    zeile = conn.execute("SELECT * FROM nachricht WHERE message_id = 15").fetchone()
+    assert zeile is not None, "Birks Notiz bleibt erhalten"
+    assert zeile["typ"] == repo.TYP_ENTWICKLERNOTIZ
+    assert zeile["unterdrueckt"] == 1
+    vorfall = conn.execute("SELECT art FROM vorfall").fetchone()
+    assert vorfall["art"] == "entwickler_notiz"
+
+
+def test_entwicklernotiz_landet_nicht_in_unbeantwortete(conn, einst):
+    bot.verarbeite_update(
+        conn, einst, bau_update(7, 16, "@dev bitte schauen", JETZT), JETZT, False,
+    )
+    assert repo.unbeantwortete(conn, -100) == []
+
+
+# ---------------------------------------------------------------------------
 # Aufgabe 8, Nachbesserung "Wichtig 4": die Einhaengung in bot.py war bisher
 # unbelegt -- schleife() mit neuer Signatur, _bearbeite_sprachnachricht und
 # _nachhol_schleife hatten keinen einzigen Test.

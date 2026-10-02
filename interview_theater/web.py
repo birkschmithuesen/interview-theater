@@ -3650,7 +3650,6 @@ class _Basishandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "public, max-age=86400")
         self.end_headers()
         self.wfile.write(inhalt)
-        self.wfile.write(roh)
 
     def _csp_nonce(self) -> str:
         """Der Nonce dieser Antwort, an das Token der aufgerufenen Seite

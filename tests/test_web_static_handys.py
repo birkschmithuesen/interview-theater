@@ -9,6 +9,7 @@ die Leitung geht und nicht nur gegen eine Python-Funktion."""
 import threading
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -53,6 +54,29 @@ def test_eine_echte_karte_kommt_als_png_an(aufbau):
     assert header["Content-Type"] == "image/png"
     assert koerper[:8] == b"\x89PNG\r\n\x1a\n"  # PNG-Signatur
     assert len(koerper) > 1000
+
+
+def test_der_body_ist_byte_fuer_byte_die_quelldatei(aufbau):
+    """Regression fuer den Live-NameError in ``_antworte_binaer`` (Karte
+    Padua Brainstorm, 03.10.2026): eine ueberzaehlige Zeile
+    ``self.wfile.write(roh)`` griff auf einen nie definierten Namen zu und
+    warf bei JEDEM Abruf einer Telefon-Organisationskarte einen NameError
+    (``padua-web.log``, 21:40:02). Die Pruefung auf PNG-Signatur und
+    Mindestlaenge allein haette das nicht bemerkt -- hier deshalb der
+    gesamte Body gegen die Quelldatei auf der Platte, nicht nur ein
+    Praefix."""
+    basis, token = aufbau
+    status, koerper, header = _hole_roh(
+        f"{basis}/theatersoap/g/{token}/static/handys/phase-1.png"
+    )
+    quelle = (
+        Path(__file__).resolve().parent.parent
+        / "interview_theater" / "static" / "handys" / "phase-1.png"
+    ).read_bytes()
+
+    assert status == 200
+    assert header["Content-Type"] == "image/png"
+    assert koerper == quelle
 
 
 def test_jede_der_sieben_karten_ist_erreichbar(aufbau):

@@ -194,6 +194,70 @@ def test_ohne_ein_einziges_stueck_passiert_gar_nichts(aufbau):
     assert geschrieben == [] and beendet == []
 
 
+# -- Fix-Runde Abschluss, Befund 2: ein werfender Abschluss kostet nicht --
+# die bezahlte Antwort ---------------------------------------------------
+
+
+@pytest.fixture
+def aufbau_werfend():
+    """Wie ``aufbau``, nur dass ``beende`` immer wirft -- so wie
+    ``repo.beende_strom`` es bei "database is locked" tut."""
+    uhr = Uhr()
+    geschrieben: list[tuple[int, str]] = []
+    zaehler = {"n": 0}
+
+    def beginne() -> int:
+        zaehler["n"] += 1
+        return zaehler["n"]
+
+    def beende(sid, zustand, post_id):
+        raise RuntimeError("database is locked")
+
+    senke = strom.Senke(
+        beginne, lambda sid, text: geschrieben.append((sid, text)), beende, uhr=uhr,
+    )
+    return senke, geschrieben
+
+
+def test_fertig_wirft_nicht_wenn_der_abschluss_scheitert(aufbau_werfend):
+    senke, _geschrieben = aufbau_werfend
+    senke("Hallo")
+    senke.fertig(post_id=42)          # wirft NICHT -- das ist die Zusage
+
+
+def test_abbruch_wirft_nicht_wenn_der_abschluss_scheitert(aufbau_werfend):
+    senke, _geschrieben = aufbau_werfend
+    senke("Hallo")
+    senke.abbruch()                   # wirft NICHT
+
+
+def test_neu_wirft_nicht_wenn_der_abschluss_scheitert(aufbau_werfend):
+    senke, _geschrieben = aufbau_werfend
+    senke("Hallo")
+    senke.neu()                       # wirft NICHT -- delegiert an abbruch()
+
+
+def test_nach_einem_werfenden_fertig_ist_die_zeile_trotzdem_zu(aufbau_werfend):
+    """Sonst versuchte der naechste Aufruf (z. B. ein zweites ``fertig``)
+    erneut, dieselbe schon kaputte Zeile abzuschliessen."""
+    senke, geschrieben = aufbau_werfend
+    senke("Hallo")
+    senke.fertig(post_id=1)
+    assert senke.strom_id is None
+    senke("Neuer Zug")                # legt eine NEUE Zeile an, keine alte
+    assert geschrieben[-1] == (2, "Neuer Zug")
+
+
+def test_ein_werfender_abschluss_wird_geloggt(aufbau_werfend, caplog):
+    import logging
+
+    senke, _geschrieben = aufbau_werfend
+    senke("Hallo")
+    with caplog.at_level(logging.ERROR, logger="interview_theater.strom"):
+        senke.fertig(post_id=1)
+    assert "database is locked" in caplog.text
+
+
 # -- die drei Kanal-Helfer --------------------------------------------------
 
 

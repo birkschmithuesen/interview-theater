@@ -768,10 +768,15 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             return
 
         message_id, text = _sende_mit_leiste(conn, tg, chat_id, text)
-        # Ab hier steht die Antwort in der Gruppe: die vorlaeufige Blase wird
-        # durch genau diese Nachricht ersetzt (Zuordnung ueber web_strom.post_id).
-        strom.schliesse(tg, chat_id, message_id)
+        # Ab hier steht die Antwort in der Gruppe: markiert, BEVOR der Strom
+        # schliesst (Fix-Runde Abschluss, Befund 2) -- ``strom.schliesse``
+        # schluckt einen werfenden Abschluss zwar selbst schon (``strom.py``),
+        # aber ein Fehler dort soll unter keinen Umstaenden mehr als
+        # "versand nicht erfolgreich" gelten: die Blase wird in jedem Fall
+        # geschlossen, durch genau diese Nachricht ersetzt (Zuordnung ueber
+        # ``web_strom.post_id``).
         versand_erfolgreich = True
+        strom.schliesse(tg, chat_id, message_id)
         _nach_dem_senden(conn, tg, e, chat_id, message_id, text)
     except Exception:
         log.exception("Gespraechszug fehlgeschlagen, chat_id=%s", chat_id)

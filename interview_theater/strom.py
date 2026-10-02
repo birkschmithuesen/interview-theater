@@ -23,9 +23,12 @@ Schicht Dienste: nur ``vorschlag`` und Standardbibliothek, keine Datenbank,
 kein ``repo``.
 """
 
+import logging
 import time
 
 from interview_theater import vorschlag
+
+log = logging.getLogger(__name__)
 
 #: Wie oft der laufende Text hoechstens in die Datenbank geschrieben wird.
 #: **Ein** Wert und nicht zwei (Plan-Kopf, Abweichung 1): eine zweite Regel
@@ -216,16 +219,35 @@ class Senke:
     def abbruch(self) -> None:
         if self._id is None:
             return
-        self._beende(self._id, "abgebrochen", None)
-        self._id = None
-        self._offen = ""
+        strom_id = self._id
+        # Derselbe Grundsatz wie in der Streaming-Schleife (``llm._hole``,
+        # Fix Runde 1, Punkt 2/6): ein werfender Abschluss (z. B. "database
+        # is locked") darf nicht weiter nach oben reichen -- im Betrieb
+        # schliesst er NACH einer schon verschickten Antwort, und ein
+        # mitgerissener Zug kostete sowohl die Fehlerzeile zu viel als auch
+        # das Mitschreiben der Antwort (``ablauf._nach_dem_senden``).
+        try:
+            self._beende(strom_id, "abgebrochen", None)
+        except Exception:  # noqa: BLE001 -- ein scheiternder Abschluss
+            # darf den aufrufenden Zug nicht mitreissen.
+            log.exception("Stromzeile liess sich nicht abbrechen, id=%s", strom_id)
+        finally:
+            self._id = None
+            self._offen = ""
 
     def fertig(self, post_id: int | None = None) -> None:
         if self._id is None:
             return
-        self._spuele()
-        self._beende(self._id, "fertig", post_id)
-        self._id = None
+        strom_id = self._id
+        try:
+            self._spuele()
+            self._beende(strom_id, "fertig", post_id)
+        except Exception:  # noqa: BLE001 -- wie in ``abbruch()``: eine
+            # werfende Senke darf nicht die schon fertige Antwort kosten.
+            log.exception("Stromzeile liess sich nicht abschliessen, id=%s", strom_id)
+        finally:
+            self._id = None
+            self._offen = ""
 
 
 def senke(tg, chat_id: int, art: str):

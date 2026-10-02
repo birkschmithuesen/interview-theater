@@ -200,3 +200,52 @@ def test_ein_kanal_ohne_strom_verhaelt_sich_wie_vorher(tmp_path):
     ablauf.antworte(conn, tg, KlmMitStrom(["Hallo zurueck"]), Einstellungen(), 1, offen)
     assert tg.gesendet
     assert conn.execute("SELECT COUNT(*) FROM web_strom").fetchone()[0] == 0
+
+
+# -- Fix-Runde Abschluss, Befund 2: ein werfender Stromabschluss kostet ----
+# nicht die schon verschickte Antwort --------------------------------------
+
+
+def test_ein_werfender_stromabschluss_kostet_nicht_die_antwort(aufbau, monkeypatch):
+    """``repo.beende_strom`` wirft (z. B. "database is locked", im Betrieb
+    beobachtet). Vorher riss das den Zug NACH dem Versand ab: die Gruppe
+    bekam die richtige Antwort UND eine Fehlerzeile, und ``_nach_dem_senden``
+    (Mitschreiben als Bot-Nachricht, Phasenangebot) lief nie."""
+    conn, tg = aufbau
+
+    def kaputt(conn, strom_id, zustand, post_id):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(repo, "beende_strom", kaputt)
+    offen, _ = _nachricht(conn)
+    ablauf.antworte(conn, tg, KlmMitStrom(["Fangen wir mit Begriffen an."]),
+                    Einstellungen(), CHAT, offen)
+    # Die Antwort steht trotzdem in der Gruppe ...
+    antworten = [
+        p for p in conn.execute(
+            "SELECT text FROM web_post WHERE chat_id = ? AND richtung = ?",
+            (CHAT, repo.RICHTUNG_AUS),
+        ).fetchall()
+        if p["text"] == "Fangen wir mit Begriffen an."
+    ]
+    assert antworten
+    # ... und NICHT zusaetzlich die Fehlerzeile.
+    fehlerzeilen = [
+        p for p in conn.execute(
+            "SELECT text FROM web_post WHERE chat_id = ? AND richtung = ?",
+            (CHAT, repo.RICHTUNG_AUS),
+        ).fetchall()
+        if p["text"] == ablauf.T._TEXT_FEHLER
+    ]
+    assert not fehlerzeilen
+    # ``_nach_dem_senden`` lief: die Antwort steht als Bot-Nachricht mit.
+    assert conn.execute(
+        "SELECT COUNT(*) FROM nachricht WHERE chat_id = ? AND absender = ? "
+        "AND text = ?",
+        (CHAT, "gruppe1", "Fangen wir mit Begriffen an."),
+    ).fetchone()[0] == 1
+    # Kein Vorfall "gespraechszug_fehlgeschlagen" -- der Zug war erfolgreich.
+    assert conn.execute(
+        "SELECT COUNT(*) FROM vorfall WHERE chat_id = ? AND art = ?",
+        (CHAT, "gespraechszug_fehlgeschlagen"),
+    ).fetchone()[0] == 0

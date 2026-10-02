@@ -141,7 +141,10 @@ Objekt mit "art" und "wert":
     Kindheitsfragen"). Nimmt sie eine Festlegung zurueck, die du mit
     festlegung_setzen abgelegt hast ("die zweite Spielstaette streichen wir
     wieder"), ist das "Festlegung: zweite Spielstaette" -- ein Suchwort
-    genuegt.
+    genuegt. Steht im Verlauf schon eine Meldung "Festgehalten: ..." zu genau
+    dieser Sache, ist eine Rueckname davon IMMER "Festlegung: ...", nie
+    "verworfen" -- "verworfen" gilt nur fuer eine Idee, die NIE als
+    Festlegung gemeldet wurde.
 20. an_den_bot             -- wert: leer (""). **Gilt nur im Sonderfall
     unten**, also nur, wenn du das Transkript einer Sprachnachricht aus einem
     laufenden Interview bekommst. Diese eine Aufnahme war nicht an die
@@ -225,6 +228,16 @@ ist figur_setzen, ein Szenenort ist szene_planen, eine Szenenzahl ist
 szenenanzahl_setzen. Erst was daneben faellt, kommt hierher: die
 Zugehoerigkeit einer Figur zu einer Gruppe, ihre Herkunft, ihr Alter, die
 Merkmale einer Fraktion, eine Laengenvorgabe.
+
+Ein blosses Vorhaben ist noch keine Festlegung. "wir sollten bald mal mit
+Szenen anfangen" - "ja vielleicht drei oder vier" - "eine am Bahnhof auf
+jeden Fall" ist ein Gespraech ueber etwas Kuenftiges, keine Angabe, die ab
+jetzt gilt -- da ist noch nichts entschieden, nur angedacht. Erst wenn die
+Gruppe etwas als gueltig behandelt ("ab jetzt ist das so", eine klare
+Zustimmung zu einem konkreten Vorschlag), schreibst du festlegung_setzen.
+Und keine Zeile ohne Inhalt: nennt die Gruppe nur einen Namen (eine
+Fraktion, eine Figur), ohne etwas ueber sie zu sagen, gehoert dazu NICHTS --
+eine Festlegung ohne Beschreibung ist Laerm auf der Gruppenseite.
 
 Und "festlegung_setzen" gegen "entschieden": festlegung_setzen ist die
 Sache selbst, die ab jetzt gilt und in den Text eingeht. "entschieden" ist

@@ -453,7 +453,7 @@ def test_der_phaseneintritt_stoesst_das_mapping_an(lage, tg, einst, monkeypatch)
     knoepfe.biete_phase(lage, tg, 1, "Weiter?", 5)
 
     knoepfe.behandle(
-        lage, tg, object(), einst, _druck(_knopf(tg, "Weiter zu Schaerfung"))
+        lage, tg, object(), einst, _druck(_knopf(tg, "Weiter zu Phase 5 · Schaerfung"))
     )
 
     assert gestartet == [True]

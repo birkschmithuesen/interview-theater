@@ -106,7 +106,7 @@ def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
     ``/phase 4`` -- selten genug, und ein Knopf je Phase machte aus dem
     Angebot ein Menue."""
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
-    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.knopfbezeichnung(nummer))
+    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.bezeichnung(nummer))
     _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
 
 
@@ -124,7 +124,7 @@ def _phasenknopf(conn, chat_id: int) -> tuple[str, str] | None:
     if nummer is None:
         return None
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
-    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.knopfbezeichnung(nummer))
+    beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.bezeichnung(nummer))
     return (beschriftung, _daten(knopf_id))
 
 

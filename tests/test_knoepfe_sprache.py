@@ -3,7 +3,7 @@ Englisch ueber knoepfe.T.X (D3)."""
 
 import pytest
 
-from interview_theater import knoepfe, repo, sprache, workshop
+from interview_theater import knoepfe, phasen, repo, sprache, workshop
 
 from test_knoepfe import TelegramAttrappe
 
@@ -66,8 +66,8 @@ def _beschriftungen(tg):
 
 
 @pytest.mark.parametrize("profil, weiter, notiert, quittung", [
-    (None, "Weiter zu ", "Notiert:\nSetting: Ein Bahnhof", "Setting uebernommen"),
-    ("padua-2026", "On to ", "Noted:\nSetting: Ein Bahnhof", "Setting saved"),
+    (None, "Weiter zu Phase 2 · ", "Notiert:\nSetting: Ein Bahnhof", "Setting uebernommen"),
+    ("padua-2026", "Continue to phase 2 · ", "Noted:\nSetting: Ein Bahnhof", "Setting saved"),
 ])
 def test_phasenknopf_und_notiert_zeile_folgen_dem_profil(
         monkeypatch, conn, profil, weiter, notiert, quittung):
@@ -84,6 +84,28 @@ def test_phasenknopf_und_notiert_zeile_folgen_dem_profil(
     antwort = knoepfe._speichere(conn, tg, 1, "rahmen|Ein Bahnhof", weiterfrage=False)
     assert notiert in tg.texte
     assert antwort == quittung
+
+
+@pytest.mark.parametrize("profil, knopf, frage", [
+    (None, "Weiter zu Phase 2 · Fragen", "Weiter zu Phase 2 · Fragen?"),
+    ("padua-2026", "Continue to phase 2 · Questions",
+     "Continue to phase 2 · Questions?"),
+])
+def test_weiter_knopf_und_rueckfrage_tragen_nummer_und_titel(
+        monkeypatch, conn, profil, knopf, frage):
+    """Padua Hotfix B5b (Birk 02.10.2026): "On to Questions" sagte der Gruppe
+    nicht, dass "Questions" die naechste Phase ist -- Knopf UND Rueckfrage
+    nennen jetzt Nummer und Titel, an allen drei Bau-Stellen."""
+    if profil:
+        monkeypatch.setenv(workshop.VARIABLE, profil)
+        workshop.vergiss()
+    tg = TelegramAttrappe()
+    knoepfe.biete_phase(conn, tg, 1, "Text", 2)
+    assert _beschriftungen(tg) == [knopf]
+    assert knoepfe.T._TEXT_WEITER_ZU_KNOPF.format(
+        phase=phasen.bezeichnung(2)) == knopf
+    assert knoepfe.T._TEXT_PHASE_WEITER.format(
+        phase=phasen.bezeichnung(2)) == frage
 
 
 @pytest.mark.parametrize("profil, notiert, quittung, journal", [

@@ -254,7 +254,7 @@ def test_erst_die_geschichte_gibt_die_schaerfung_frei(erfunden, tg, einst):
     assert phasen.voraussetzungen(erfunden, 1)[5] is True
     # Seit 06.09.2026 13:15 wird die NAECHSTE Stufe angeboten: erst
     # schaerfen (5), dann die Prosa (6).
-    assert tg.beschriftungen == ["Weiter zu Schaerfung"]
+    assert tg.beschriftungen == ["Weiter zu Phase 5 · Schaerfung"]
 
 
 def test_nein_nochmal_aendern_speichert_nicht(erfunden, tg, einst):

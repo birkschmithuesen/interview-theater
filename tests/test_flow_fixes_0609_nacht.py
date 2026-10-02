@@ -45,7 +45,7 @@ def test_bitte_um_weiter_holt_das_phasenangebot_zurueck(conn, tg):
     assert erneuert is True
     assert knoepfe.biete_phase_proaktiv(conn, tg, 1) is True
     _, text, leiste = tg.knoepfe[-1]
-    assert [b for b, _ in leiste][0] == f"Weiter zu {phasen.knopfbezeichnung(2)}"
+    assert [b for b, _ in leiste][0] == f"Weiter zu Phase {phasen.bezeichnung(2)}"
 
 
 def test_bitte_ohne_moegliche_hoehere_phase_erneuert_nichts(conn, tg):
@@ -80,7 +80,7 @@ def test_stand_haengt_den_phasenknopf_darunter(conn, tg, einst):
 
     _, text, leiste = tg.knoepfe[-1]
     assert text.startswith("Stand:")
-    assert [b for b, _ in leiste] == [f"Weiter zu {phasen.knopfbezeichnung(2)}"]
+    assert [b for b, _ in leiste] == [f"Weiter zu Phase {phasen.bezeichnung(2)}"]
 
 
 def test_stand_ohne_moegliche_phase_bleibt_eine_reine_nachricht(conn, tg, einst):

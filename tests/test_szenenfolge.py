@@ -146,7 +146,7 @@ def test_phasenknopf_6_fragt_zuerst_nach_eigenen_ideen(conn, einst, tg):
     Sache."""
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 6)
 
-    _druecke(conn, tg, einst, "Weiter zu Szenen als Geschichte")
+    _druecke(conn, tg, einst, "Weiter zu Phase 6 · Szenen als Geschichte")
 
     assert any(t.endswith(knoepfe._TEXT_PROAKTIV) for t in tg.texte)
     # Keine Einstiegsknoepfe mehr (Birk, 06.09.2026 11:10).
@@ -517,7 +517,7 @@ def test_passt_bei_der_letzten_szene_bietet_weiter_zur_stueckpruefung(conn, eins
 
     _druecke(conn, tg, einst, knoepfe.TEXT_PASST_KNOPF)
 
-    assert "Weiter zu Feinschliff" in tg.beschriftungen, tg.beschriftungen
+    assert "Weiter zu Phase 7 · Feinschliff" in tg.beschriftungen, tg.beschriftungen
 
 
 def test_naechste_szene_springt_zur_naechsten_offenen(conn, einst, tg):
@@ -707,7 +707,7 @@ def test_phasenknopf_7_zeigt_gleich_die_uebersicht(conn, einst, tg):
     repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Da.")
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 7)
 
-    _druecke(conn, tg, einst, "Weiter zu Feinschliff")
+    _druecke(conn, tg, einst, "Weiter zu Phase 7 · Feinschliff")
 
     assert phasen.aktuelle(conn, 1) == 7
     assert knoepfe.TEXT_TEXTBUCH_KNOPF in tg.beschriftungen

@@ -147,6 +147,18 @@ def knopfbezeichnung(nummer: int) -> str:
 
     In Meldungen und auf der Weboberflaeche bleibt es bei ``bezeichnung()``
     mit Nummer: dort ist die Nummer eine Ordnung, kein Bedienelement.
+
+    **Neuer Stand 02.10.2026 (Birk, Padua-Probe):** der Weiter-Knopf
+    (``_TEXT_WEITER_ZU_KNOPF``) und die Rueckfrage darueber
+    (``_TEXT_PHASE_WEITER``, ``_TEXT_PHASE_ANGEBOT``) zeigen jetzt Nummer
+    UND Titel -- "Continue to phase 2 · Questions" bzw. "Weiter zu Phase 2 ·
+    Fragen", gebaut aus ``bezeichnung()``. Der Grund von oben hat sich im
+    Raum umgedreht: "On to Questions" sagte der Gruppe nicht, dass
+    "Questions" die naechste PHASE ist; die Kopfzeilen der Phasen
+    ("Phase 1 · Terms") hatten die Nummer laengst eingefuehrt. Seitdem ruft
+    kein Knopf mehr diese Funktion; sie bleibt als die Schreibweise ohne
+    Nummer stehen (Tests und kuenftige Aufrufer, die bewusst nur den Inhalt
+    nennen wollen).
     """
     return kurzname(nummer) or str(nummer)
 

@@ -190,10 +190,10 @@ def test_nach_der_eroeffnung_folgt_die_abschlussnachricht(
 
     letzte = [b for b, _ in tg.knoepfe[-1][2]]
     assert letzte == [
-        f"Weiter zu {phasen.knopfbezeichnung(3)}", "Noch etwas aendern",
+        f"Weiter zu Phase {phasen.bezeichnung(3)}", "Noch etwas aendern",
     ]
     assert tg.knoepfe[-1][1].endswith(
-        f"Weiter zu {phasen.knopfbezeichnung(3)}?"
+        f"Weiter zu Phase {phasen.bezeichnung(3)}?"
     )
 
 

@@ -407,7 +407,7 @@ def test_der_phasenknopf_in_die_interviews_zeigt_den_leitfaden(conn, tg, einst):
     _vollstaendig(conn)
     knoepfe.biete_phase(conn, tg, 1, "Weiter?", 3)
 
-    _druecke(conn, tg, einst, "Weiter zu Interviews")
+    _druecke(conn, tg, einst, "Weiter zu Phase 3 · Interviews")
 
     assert any(t.startswith("Euer Leitfaden") for _, t in tg.gesendet)
     assert phasen.aktuelle(conn, 1) == 3

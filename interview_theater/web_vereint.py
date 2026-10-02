@@ -241,12 +241,12 @@ _VEREINT_JS = """
 """
 
 
-def _tabs_html(aktiv: str) -> str:
+def _tabs_html(aktiv: str, tabs=TABS) -> str:
     knoepfe = "".join(
         f'<button type="button" role="tab" data-tab="{tab}" '
         f'aria-selected="{"true" if tab == aktiv else "false"}">'
         f"{_TEXT_TAB[tab]}</button>"
-        for tab in TABS
+        for tab in tabs
     )
     return f'<nav class="tabs" role="tablist">{knoepfe}</nav>'
 
@@ -257,7 +257,7 @@ def _leiste_html(roadmapdaten, nonce_wert: str) -> str:
 
 
 def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
-          segment_ms, fassungswahl=None) -> str:
+          segment_ms, fassungswahl=None, chat_vorhanden=True) -> str:
     """Die vereinte Gruppenseite: Chat, Arbeitsstand und Textbuch als drei
     Panels in EINEM Dokument.
 
@@ -265,23 +265,41 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     tauscht ``document.body.innerHTML`` alle zehn Sekunden aus, und mitten in
     einer Aufnahme, einer halb getippten Nachricht oder einem laufenden Strom
     waere das ein Datenverlust. Nachgeladen wird gezielt: der Chat per Poll
-    (A2), das Stand-Panel ueber ``/g/<token>/teil/stand`` (Aufgabe 12)."""
+    (A2), das Stand-Panel ueber ``/g/<token>/teil/stand`` (Aufgabe 12).
+
+    ``chat_vorhanden`` ist ``False`` fuer eine Telegram-Gruppe (kein
+    Web-Kanal, AGENTS.md "Abschlussreview I3"): das Chat-Panel samt seinem
+    Tab und Skript (``eingabe``, ``interview``, ``ptt``, ``web_chat._js()``)
+    faellt dann ganz weg -- ein POST oder Poll dorthin wuerde ohnehin 404
+    liefern (``web_chat._gruppe_oder_404`` prueft denselben Web-Kanal), und
+    was die Gruppe dort eintippen wuerde, ginge spurlos verloren. Start-Tab
+    ist dann ``stand``; ein Fragment ``#chat`` faellt automatisch darauf
+    zurueck, weil ``TABS`` im Skript ohne ``chat`` ankommt und ``lies()`` in
+    ``_VEREINT_JS`` jedes unbekannte Wort auf ``VORGABE`` abbildet."""
     from interview_theater import web, web_chat
 
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
+    tabs = TABS if chat_vorhanden else tuple(t for t in TABS if t != "chat")
+    vorgabe = VORGABE_TAB if chat_vorhanden else "stand"
     panels = {
-        "chat": web_chat.chat_koerper(chatdaten, nonce_wert, token, segment_ms,
-                                      basis=f"{token}/"),
         "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
         "textbuch": web.textbuch_koerper(daten, token, praefix),
     }
-    koerper = [_leiste_html(roadmapdaten, nonce_wert), _tabs_html(VORGABE_TAB)]
-    for tab in TABS:
+    if chat_vorhanden:
+        # ``mit_nonce=False``: das Stand-Panel traegt sein ``id="nonce"``
+        # schon (``_bearbeiten_html``), mit demselben Wert -- ein zweites
+        # Element mit derselben id waere ungueltiges HTML.
+        panels["chat"] = web_chat.chat_koerper(
+            chatdaten, nonce_wert, token, segment_ms,
+            basis=f"{token}/", mit_nonce=False,
+        )
+    koerper = [_leiste_html(roadmapdaten, nonce_wert), _tabs_html(vorgabe, tabs)]
+    for tab in tabs:
         # ``data-textbuch`` ist die Wurzel, an der ``_TEXTBUCH_JS`` seinen
         # Zustand ablegt: im gemeinsamen Dokument darf der Rollenfilter nicht
         # am ``<body>`` haengen, sonst faerbte er auch den Chat.
         zusatz = ' data-textbuch=""' if tab == "textbuch" else ""
-        verborgen = "" if tab == VORGABE_TAB else " hidden"
+        verborgen = "" if tab == vorgabe else " hidden"
         koerper.append(
             f'<section class="panel panel-{tab}" id="tab-{tab}" role="tabpanel"'
             f'{zusatz}{verborgen}>\n{panels[tab]}\n</section>'
@@ -290,18 +308,21 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         _CSS_VEREINT
         + scope_css(web._CSS_GRUPPE, ".panel-stand")
         + scope_css(web._CSS_TEXTBUCH, ".panel-textbuch")
-        + scope_css(web_chat._CSS_CHAT, ".panel-chat")
     )
+    if chat_vorhanden:
+        css += scope_css(web_chat._CSS_CHAT, ".panel-chat")
     # web_chat._js() und nicht die rohe Konstante _CHAT_JS: sie traegt
     # unersetzte Platzhalter (__POLL_MS__ usw., siehe web_chat._js()-Docstring)
     # -- nur _js() liefert lauffaehiges Skript (Abweichung vom Plan-Kopf-
     # Beispiel, das die Konstante direkt anhaengt).
     skript = (
-        _VEREINT_JS.replace("__TABS__", json.dumps(list(TABS)))
-        .replace("__VORGABE__", VORGABE_TAB)
+        _VEREINT_JS.replace("__TABS__", json.dumps(list(tabs)))
+        .replace("__VORGABE__", vorgabe)
         .replace("__BASIS__", f"{token}/")
-        + web._TEXTBUCH_JS + web_chat._js()
+        + web._TEXTBUCH_JS
     )
+    if chat_vorhanden:
+        skript += web_chat._js()
     return web._seite(
         f"{titel} — interview-theater", css, "\n".join(koerper),
         bearbeitbar=True, nachladen=False, skript=skript,
@@ -312,7 +333,7 @@ def beantworte_seite(handler, db_pfad: str, token: str, praefix: str,
                      schluessel: bytes, query: str) -> None:
     """``GET /g/<token>``: die vereinte Seite aus drei Panels.
 
-    Ohne Web-Kanal (``chatdaten is None``) bleibt das Chat-Panel leer --
+    Ohne Web-Kanal (``chatdaten is None``) faellt das Chat-Panel ganz weg --
     die beiden anderen tragen die Seite weiter (Telegram-Gruppen haben
     keinen Bot, der ``web_post`` liest, siehe ``web_daten.web_chat_id_nach_token``)."""
     from interview_theater import web, web_chat
@@ -328,9 +349,11 @@ def beantworte_seite(handler, db_pfad: str, token: str, praefix: str,
     if daten is None:
         handler._antworte(404, web.nicht_gefunden_html())
         return
-    if chatdaten is None:
-        # Eine Gruppe ohne Web-Kanal hat keinen Chatzustand -- das Panel
-        # bleibt leer, die beiden anderen tragen die Seite.
+    chat_vorhanden = chatdaten is not None
+    if not chat_vorhanden:
+        # Eine Gruppe ohne Web-Kanal hat keinen Chatzustand -- der Platzhalter
+        # wird nur fuer die Signatur gebraucht, ``seite()`` baut daraus mit
+        # ``chat_vorhanden=False`` kein Panel.
         chatdaten = {"titel": daten["titel"], "nachrichten": [], "letzte": 0,
                      "interviewmodus": False, "tippt": False, "antworten": {}}
     for nachricht in chatdaten["nachrichten"]:
@@ -338,6 +361,7 @@ def beantworte_seite(handler, db_pfad: str, token: str, praefix: str,
     handler._antworte(200, seite(
         daten, chatdaten, roadmapdaten, web.nonce(schluessel, token), token,
         praefix, web_chat._segment_ms(), web.fassungswahl(query),
+        chat_vorhanden=chat_vorhanden,
     ))
 
 

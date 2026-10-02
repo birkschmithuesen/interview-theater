@@ -1373,7 +1373,7 @@ def _blase_html(n: dict, basis: str = "") -> str:
 
 
 def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
-                  basis: str = "") -> str:
+                  basis: str = "", mit_nonce: bool = True) -> str:
     """Der Rumpf der Chatansicht -- ohne die Klammer aus ``web._seite``.
 
     Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W): dort steht
@@ -1385,12 +1385,23 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     Chat-Einzelseite (``/g/<token>/chat``) leer, auf der vereinten Seite
     (``/g/<token>``) ``"<token>/"``, weil die Seite dort eine Ebene hoeher
     liegt. Es steht als ``data-basis`` am ``#fuss`` und wird dort vom
-    JavaScript gelesen (``BASIS``)."""
+    JavaScript gelesen (``BASIS``).
+
+    ``mit_nonce`` ist ``False`` auf der vereinten Seite: das Stand-Panel
+    traegt dort bereits ein ``id="nonce"``-Feld mit demselben Wert (beide
+    Panels bekommen denselben ``nonce_wert``) -- ein zweites Element mit
+    derselben id waere ungueltiges HTML, und ``document.getElementById``
+    faende ohnehin nur das erste. Die Chat-Einzelseite braucht ihr eigenes
+    Feld weiterhin (Vorgabe ``True``)."""
     modus = bool(daten["interviewmodus"])
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(_TEXT_LEER)}</p>'
 
+    nonce_feld = (
+        f'<input type="hidden" id="nonce" value="{html.escape(nonce_wert, quote=True)}">\n'
+        if mit_nonce else ""
+    )
     return (
         f"<h1>{html.escape(daten.get('titel') or _TEXT_TITEL)}</h1>\n"
         f'<p><a href="{html.escape(token)}">'
@@ -1400,7 +1411,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'data-aenderung="{int(daten.get("aenderung") or 0)}">\n'
         f"{blasen}\n</div>\n"
         f'<div class="tippt" id="tippt"></div>\n'
-        f'<input type="hidden" id="nonce" value="{html.escape(nonce_wert, quote=True)}">\n'
+        f"{nonce_feld}"
         f'<div class="fuss" id="fuss" data-segment-ms="{int(segment_ms)}"\n'
         f'     data-interview="{1 if modus else 0}" '
         f'data-basis="{html.escape(basis, quote=True)}">\n'

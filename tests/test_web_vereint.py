@@ -5,6 +5,7 @@ das Umschalten selbst, die Zurueck-Taste, der Strom im Browser. Hier steht,
 was man am ausgelieferten HTML messen kann.
 """
 
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -14,6 +15,9 @@ import pytest
 from interview_theater import db, repo, web, web_vereint
 
 CHAT = 7_000_000_000_001
+
+#: Eine zweite chat_id fuer die Telegram-Faelle (Fix-Runde 1, Befund 1).
+CHAT_TELEGRAM = 7_000_000_000_002
 
 
 @pytest.fixture
@@ -27,6 +31,29 @@ def aufbau(tmp_path):
     repo.setze_arbeitsstand(conn, CHAT, "rahmen", "Bahnhof, nachts")
     repo.setze_figur(conn, CHAT, "Meryem", "kam 1998")
     token = repo.stelle_web_token_sicher(conn, CHAT)
+    conn.commit()
+
+    dienst = web.baue_server(pfad, "127.0.0.1:0", "/theatersoap", schluessel=b"x" * 32)
+    threading.Thread(target=dienst.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{dienst.server_address[1]}", token, pfad
+    dienst.shutdown()
+
+
+@pytest.fixture
+def aufbau_telegram(tmp_path):
+    """Dieselbe Bauart wie ``aufbau``, aber OHNE ``setze_gruppe_kanal`` --
+    die Gruppe bleibt auf dem Schema-Vorgabewert (Telegram) und hat deshalb
+    keinen Chatzustand (``web_daten.web_chatzustand`` → ``None``,
+    AGENTS.md "Abschlussreview I3"). Eigene Datenbank statt einer zweiten
+    Gruppe in ``aufbau``, damit kein bestehender Test seine Destrukturierung
+    aendern muss."""
+    pfad = str(tmp_path / "t-telegram.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT_TELEGRAM, "gruppe2", "Die Gebliebenen")
+    repo.setze_arbeitsstand(conn, CHAT_TELEGRAM, "begriffe", "Ankommen")
+    repo.setze_arbeitsstand(conn, CHAT_TELEGRAM, "rahmen", "Hinterhof, tags")
+    token = repo.stelle_web_token_sicher(conn, CHAT_TELEGRAM)
     conn.commit()
 
     dienst = web.baue_server(pfad, "127.0.0.1:0", "/theatersoap", schluessel=b"x" * 32)
@@ -97,13 +124,25 @@ def test_die_drei_panels_stehen_in_einem_dokument(aufbau):
         assert f'id="tab-{tab}"' in text, tab
 
 
+def _panel_tag(text: str, tab: str) -> str:
+    """Das oeffnende ``<section>``-Tag genau dieses Panels, fuer Assertions
+    auf seine eigenen Attribute statt irgendwo im Dokument."""
+    treffer = re.search(rf'<section[^>]*id="tab-{tab}"[^>]*>', text)
+    assert treffer is not None, f"kein Panel fuer Tab {tab!r}"
+    return treffer.group(0)
+
+
 def test_der_chat_ist_der_starttab(aufbau):
     basis, token, _pfad = aufbau
     _status, text, _kopf = _hole(f"{basis}/g/{token}")
     assert f'id="tab-{web_vereint.VORGABE_TAB}"' in text
-    # Die beiden anderen kommen versteckt aus dem Server: ohne JS sieht man
-    # den Chat, und nicht drei Seiten untereinander.
-    assert text.count("hidden") >= 2
+    # Der Start-Tab selbst ist sichtbar -- die beiden anderen kommen
+    # versteckt aus dem Server: ohne JS sieht man den Chat, und nicht drei
+    # Seiten untereinander. Geprueft am Panel-Tag selbst, nicht irgendwo im
+    # Dokument (sonst bewiese ein ``hidden`` in einem Formularfeld dasselbe).
+    assert "hidden" not in _panel_tag(text, "chat")
+    assert "hidden" in _panel_tag(text, "stand")
+    assert "hidden" in _panel_tag(text, "textbuch")
 
 
 def test_der_arbeitsstand_traegt_seine_formulare(aufbau):
@@ -120,7 +159,11 @@ def test_das_textbuch_panel_traegt_seinen_zustand_am_panel(aufbau):
     auch den Chat."""
     basis, token, _pfad = aufbau
     _status, text, _kopf = _hole(f"{basis}/g/{token}")
-    assert "data-textbuch" in text
+    assert "data-textbuch" in _panel_tag(text, "textbuch")
+    # Und NICHT am <body> -- sonst faerbte der Rollenfilter auch den Chat.
+    body = re.search(r"<body[^>]*>", text)
+    assert body is not None
+    assert "data-textbuch" not in body.group(0)
 
 
 def test_die_seite_laedt_sich_nicht_selbst_neu(aufbau):
@@ -148,6 +191,91 @@ def test_die_grenzen_gelten_auch_vereint(aufbau):
     assert "zwirbelkiste" not in text.lower()
     assert "/tmp/" not in text
     assert "so hat das niemand gesagt" not in text
+
+
+# -- Telegram-Gruppen (kein Web-Kanal) --------------------------------------
+#
+# Fix-Runde 1, Befund 1: eine Gruppe ohne Web-Kanal hat keinen Bot, der
+# ``web_post`` liest -- vor dem Fix bekam sie trotzdem das volle Chat-Panel
+# samt Eingabefeld, Aufnahme-Umschalter und PTT-Knopf, deren POSTs und Polls
+# alle 404 liefern (``web_chat._gruppe_oder_404``). Was die Gruppe dort
+# eintippen wuerde, ginge spurlos verloren.
+
+
+def test_telegram_gruppe_hat_kein_chat_panel(aufbau_telegram):
+    basis, token, _pfad = aufbau_telegram
+    status, text, _kopf = _hole(f"{basis}/g/{token}")
+    assert status == 200
+    assert 'id="tab-chat"' not in text
+    assert 'id="eingabe"' not in text
+    assert 'id="interview"' not in text
+    assert 'id="ptt"' not in text
+    # Kein Chat-Tab in der Leiste, und kein Chat-Skript im Dokument.
+    assert 'data-tab="chat"' not in text
+    assert "warteschlange" not in text  # Marker aus web_chat._js()
+
+
+def test_telegram_gruppe_startet_auf_dem_arbeitsstand(aufbau_telegram):
+    basis, token, _pfad = aufbau_telegram
+    _status, text, _kopf = _hole(f"{basis}/g/{token}")
+    assert 'id="tab-stand"' in text
+    assert "hidden" not in _panel_tag(text, "stand")
+    assert 'id="tab-textbuch"' in text
+    assert "hidden" in _panel_tag(text, "textbuch")
+    # Die beiden anderen Panels tragen die Seite weiter.
+    assert 'data-feld="rahmen"' in text
+    # Das eingebettete TABS/VORGABE-Skript faellt automatisch auf "stand"
+    # zurueck -- auch bei einem Fragment wie "#chat": "chat" steht gar
+    # nicht mehr in der TABS-Liste, also greift in ``lies()`` der
+    # Vorgabewert.
+    assert "var VORGABE = 'stand';" in text
+    assert '"chat"' not in text.split("var TABS = ", 1)[1].split(";", 1)[0]
+
+
+def test_telegram_gruppe_hat_dennoch_arbeitsstand_und_textbuch(aufbau_telegram):
+    """Die beiden Nachschlagewerke bleiben -- nur der Chat fehlt."""
+    basis, token, _pfad = aufbau_telegram
+    status, text, _kopf = _hole(f"{basis}/g/{token}")
+    assert status == 200
+    assert "Ankommen" in text  # Begriffe, aus dem Stand-Panel
+    for pfad in ("/textbuch", "/leitfaden"):
+        assert _hole(f"{basis}/g/{token}{pfad}")[0] == 200, pfad
+
+
+def test_web_gruppe_hat_weiterhin_das_volle_chat_panel(aufbau):
+    """Gegenprobe: eine Web-Gruppe behaelt Chat-Tab und -Bedienelemente."""
+    basis, token, _pfad = aufbau
+    _status, text, _kopf = _hole(f"{basis}/g/{token}")
+    assert 'id="tab-chat"' in text
+    assert 'id="eingabe"' in text
+    assert 'id="interview"' in text
+    assert f'id="tab-{web_vereint.VORGABE_TAB}"' in text
+    assert web_vereint.VORGABE_TAB == "chat"
+
+
+# -- eine id="nonce" statt zwei -----------------------------------------
+
+# Fix-Runde 1, Befund 2: Chat-Panel und Stand-Panel brachten je ein
+# ``id="nonce"``-Element mit -- ungueltiges HTML. Das Chat-Panel bekommt
+# seines seitdem nicht mehr (``mit_nonce=False``), das Stand-Panel behaelt
+# seines unveraendert.
+
+
+def test_nur_eine_nonce_id_in_der_vereinten_seite(aufbau):
+    basis, token, _pfad = aufbau
+    _status, text, _kopf = _hole(f"{basis}/g/{token}")
+    assert text.count('id="nonce"') == 1
+
+
+def test_chat_koerper_allein_traegt_weiterhin_eine_nonce(aufbau):
+    """Die Chat-Einzelseite (``chat_html`` → ``chat_koerper`` ohne
+    ``mit_nonce=False``) ist von der vereinten Seite unabhaengig und braucht
+    ihr eigenes Feld weiterhin -- nur die vereinte Seite unterdrueckt es."""
+    from interview_theater import web_chat
+    text = web_chat.chat_koerper(
+        {"interviewmodus": False, "nachrichten": [], "letzte": 0}, "n", "tok", 45_000,
+    )
+    assert text.count('id="nonce"') == 1
 
 
 # -- alte Adressen ----------------------------------------------------------

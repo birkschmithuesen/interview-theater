@@ -1595,3 +1595,152 @@ def test_interview_ohne_aufnahme_auf_web_crasht_nicht_und_bekommt_den_knopf(conn
     assert tg.mit_knoepfen, "die Leiste wurde trotzdem gesendet"
     beschriftungen = [b for b, _ in tg.mit_knoepfen[-1][2]]
     assert beschriftungen == ["Interviews fertig"]
+
+
+# -- Brainstorm mithören (Phase 4, nur Web, 02.10.2026) ----------------------
+
+
+def _brainstorm_zeile(conn, chat_id, message_id, transkript, schnittgrund="pause"):
+    aufnahme_id = repo.lege_aufnahme_an(
+        conn, chat_id, message_id, "kurz", "sprache", status="transkribiert",
+        schnittgrund=schnittgrund, brainstorm=True,
+    )
+    repo.setze_transkript(conn, aufnahme_id, transkript)
+    repo.merke_nachricht(
+        conn, chat_id, message_id, "Gruppe", 0, "sprache", None,
+        "2026-10-02T10:00:00", 1,
+    )
+    return repo.hole_aufnahme(conn, aufnahme_id)
+
+
+def test_brainstorm_segment_wird_nicht_typ_text(conn, tg, einst):
+    row = _brainstorm_zeile(conn, 1, 500, "Ein kurzer Gedanke.")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    zeile = conn.execute(
+        "SELECT typ, unterdrueckt FROM nachricht WHERE chat_id = 1 AND message_id = 500",
+    ).fetchone()
+    assert zeile["typ"] == "sprache"
+    assert zeile["unterdrueckt"] == 1
+
+
+def test_brainstorm_segment_ruft_zug_nicht_auf(conn, tg, einst):
+    row = _brainstorm_zeile(conn, 1, 501, "Noch ein Gedanke.")
+    aufgerufen = []
+    aufnahme._kurz_abschliessen(
+        conn, tg, None, einst, row,
+        lambda *a, **k: aufgerufen.append(1), False,
+    )
+    assert not aufgerufen
+
+
+def test_brainstorm_segment_zaehlt_in_brainstorm_stand(conn, tg, einst):
+    row = _brainstorm_zeile(conn, 1, 502, "Ein Gedanke von messbarer Laenge.")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    stand = repo.brainstorm_stand(conn, 1)
+    assert stand["unreagierte_zeichen"] == len("Ein Gedanke von messbarer Laenge.")
+
+
+def test_brainstorm_segment_setzt_status_fertig(conn, tg, einst):
+    row = _brainstorm_zeile(conn, 1, 503, "Text.")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    neu = repo.hole_aufnahme(conn, row["id"])
+    assert neu["status"] == "fertig"
+
+
+def test_trigger_feuert_nicht_unter_der_zeichengrenze(conn, tg, einst, monkeypatch):
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    row = _brainstorm_zeile(conn, 1, 504, "x" * 10)
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert not aufgerufen
+
+
+def test_trigger_feuert_bei_genug_zeichen_und_pausenschnitt(conn, tg, einst, monkeypatch):
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    row = _brainstorm_zeile(conn, 1, 505, "x" * 20, schnittgrund="pause")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert aufgerufen
+
+
+def test_trigger_feuert_nicht_bei_kappenschnitt(conn, tg, einst, monkeypatch):
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    row = _brainstorm_zeile(conn, 1, 506, "x" * 20, schnittgrund="cap")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert not aufgerufen
+
+
+def test_abschluss_schnitt_feuert_schon_ab_150_zeichen(conn, tg, einst, monkeypatch):
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    # 'ende' wuerde ohne den Abschluss-Pfad (hohe MIN_ZEICHEN-Vorgabe) nicht feuern.
+    row = _brainstorm_zeile(conn, 1, 507, "x" * 20, schnittgrund="ende")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert aufgerufen
+
+
+def test_starte_buehnenkarte_tut_nichts_ohne_klm(conn, tg, einst, monkeypatch):
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme.brainstorm, "versuche_start", lambda *a, **k: aufgerufen.append(1) or True)
+    aufnahme._starte_buehnenkarte(conn, tg, None, einst, 1)
+    assert not aufgerufen
+
+
+def test_starte_buehnenkarte_legt_eine_karte_an_und_meldet_genau_eine_zeile(conn, tg, einst, monkeypatch):
+    monkeypatch.setattr(
+        aufnahme.buehnenkarte, "erzeuge",
+        lambda *a, **k: ("Thema gerade: Testkarte.", "infomaniak"),
+    )
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    # Der Lauf ist ein eigener Thread -- auf BEIDE Wirkungen warten statt zu raten.
+    for _ in range(50):
+        if repo.buehnenkarten(conn, 1) and tg.gesendet:
+            break
+        time.sleep(0.02)
+    karten = repo.buehnenkarten(conn, 1)
+    assert len(karten) == 1
+    assert karten[0]["text"] == "Thema gerade: Testkarte."
+    assert [t for _, t in tg.gesendet].count("Neue Karte im Tab Bühne") == 1
+
+
+def test_starte_buehnenkarte_bei_nichts_speichert_keine_karte_und_sendet_nichts(conn, tg, einst, monkeypatch):
+    monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge", lambda *a, **k: (None, "infomaniak"))
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    for _ in range(20):
+        time.sleep(0.02)
+    assert repo.buehnenkarten(conn, 1) == []
+    assert not tg.gesendet
+
+
+def test_melde_neue_karte_sendet_nicht_zweimal_hintereinander(conn, tg, einst):
+    aufnahme._melde_neue_karte(conn, tg, einst, 1)
+    aufnahme._melde_neue_karte(conn, tg, einst, 1)
+    assert len(tg.gesendet) == 1
+
+
+def test_ein_laufender_buehnenkarten_lauf_blockiert_einen_zweiten(conn, tg, einst, monkeypatch):
+    gestartet = threading.Event()
+    weiter = threading.Event()
+
+    def _langsam(*a, **k):
+        gestartet.set()
+        weiter.wait(timeout=2)
+        return ("Karte", "infomaniak")
+
+    monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge", _langsam)
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    assert gestartet.wait(timeout=2)
+    # Waehrend der erste Lauf noch haengt: ein zweiter Versuch tut nichts.
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    weiter.set()
+    for _ in range(50):
+        if repo.buehnenkarten(conn, 1):
+            break
+        time.sleep(0.02)
+    assert len(repo.buehnenkarten(conn, 1)) == 1

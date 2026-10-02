@@ -63,7 +63,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from interview_theater import phasen, repo, sprache, stt, verdichter
+from interview_theater import brainstorm, buehnenkarte, phasen, repo, sprache, stt, verdichter
 
 log = logging.getLogger(__name__)
 
@@ -145,6 +145,11 @@ _TEXT_INTERVIEW_OHNE_KNOPF_WEITER = (
 #: \"Nein, war ein Beitrag\": das Transkript wird sichtbar und der normale
 #: Weg einmal nachgeholt.
 _TEXT_INTERVIEW_OHNE_KNOPF_NEIN = "Gut, dann nehme ich es als Beitrag."
+
+#: Brainstorm-Modus (Phase 4, nur Web, 02.10.2026): hoechstens EINE Zeile je
+#: Karte, OHNE Inhalt (brief: "the chat must not become a long sausage").
+#: Erscheint nicht zweimal hintereinander (repo.neueste_nachricht_text).
+_TEXT_BUEHNE_NEUE_KARTE = "Neue Karte im Tab Bühne"
 
 #: Das Transkript-Echo eines Teils (§ 10.6): woertlich, ohne Kommentar, ohne
 #: Zusammenfassung. Der Kopf sagt, wozu es gehoert -- das ist der ganze
@@ -768,7 +773,15 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     ein eigener, deterministischer Weg** (Live-Fall Gruppe 1, 13:32): sie
     bekommt keinen beilaeufigen Hinweis mehr an einer Gespraechsantwort,
     sondern gar keine Gespraechsantwort -- stattdessen die Frage, ob es ein
-    Interview war, mit zwei Knoepfen. Siehe ``_frage_interview_ohne_knopf``."""
+    Interview war, mit zwei Knoepfen. Siehe ``_frage_interview_ohne_knopf``.
+
+    **Ein Brainstorm-Segment (``row['brainstorm']``, 02.10.2026) geht einen
+    dritten, ganz eigenen Weg** -- siehe ``_brainstorm_abschliessen``: kein
+    Gespraechsbeitrag, kein Zug, kein Erkenner, keine Interview-Rueckfrage."""
+    if row["brainstorm"]:
+        _brainstorm_abschliessen(conn, tg, klm, e, row)
+        return
+
     from interview_theater import bot  # spaeter Import: vermeidet einen Ladezyklus mit bot.py
 
     aufnahme_id = row["id"]
@@ -812,6 +825,87 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
             zug(conn, tg, klm, e, chat_id, hinweis=None)
         except Exception:
             log.exception("Gespraechszug nach kurzer Aufnahme fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
+    """Ein Segment des Knopfs "Brainstorm mithören" (Phase 4, nur Web,
+    02.10.2026): bleibt ein stiller Gespraechsbeitrag der Gruppe -- die
+    ``nachricht``-Zeile steht unveraendert, wie ``empfange()`` sie anlegte
+    (``typ='sprache'``, ``text=NULL``, ``unterdrueckt=1``); nur das
+    Transkript in ``aufnahme.transkript`` (schon gesetzt, siehe
+    ``_verarbeite``) ist das Material. **Kein Gespraechszug, kein
+    Absichtserkenner, kein Journal-Extraktor** -- was eine interviewte
+    Person erzaehlt, ist kein Fall dafuer (AGENTS.md), und ein stiller
+    Brainstorm-Gedanke erst recht nicht.
+
+    Danach die EINE Code-Entscheidung (kein Modellaufruf, Zusage 2):
+    reicht es fuer eine Buehnenkarte? ``brainstorm.soll_reagieren`` prueft
+    das rein anhand von Zahlen aus ``repo.brainstorm_stand``.
+
+    ``schnittgrund == 'ende'`` heisst: dieses Segment ist der manuelle Flush
+    von Pause/Beenden (siehe ``_CHAT_JS``, ``pausiereInterview``/
+    ``beendeInterview`` setzen ihn vor ``alt.stop()``) -- genau das Signal,
+    das der Brief mit "OR on Pause/Beenden if >= 150 unreacted chars" meint.
+    Es gibt dafuer keinen eigenen Serveraufruf: die Brainstorm-Sitzung kennt
+    keinen Modus-Befehl, das LETZTE hochgeladene Segment TRAEGT das Ende."""
+    repo.setze_status(conn, row["id"], "fertig")
+
+    ist_abschluss = row["schnittgrund"] == "ende"
+    stand = repo.brainstorm_stand(conn, row["chat_id"])
+    sekunden = stand["sekunden_seit_letzter_reaktion"]
+    soll = brainstorm.soll_reagieren(
+        unreagierte_zeichen=stand["unreagierte_zeichen"],
+        sekunden_seit_letzter_reaktion=sekunden if sekunden is not None else float("inf"),
+        letzter_schnittgrund=stand["letzter_schnittgrund"],
+        ist_abschluss=ist_abschluss,
+    )
+    if soll:
+        _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"])
+
+
+def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
+    """Stoesst einen Buehnenkarten-Lauf in einem eigenen Thread an (Zusage 2:
+    kein Modellaufruf hier selbst). Hoechstens ein Lauf je Gruppe gleichzeitig
+    (``brainstorm.versuche_start``) -- wer die Sperre nicht bekommt, verliert
+    nichts: die unreagierten Zeichen bleiben stehen und zaehlen beim naechsten
+    qualifizierenden Segment einfach weiter mit ("pending text accumulates
+    into the next turn")."""
+    if klm is None:
+        return
+    if not brainstorm.versuche_start(chat_id):
+        return
+    # VOR dem Lauf gelesen: die Markierung soll genau die Segmente abdecken,
+    # die die Karte tatsaechlich gesehen hat -- ein waehrend des Laufs neu
+    # eingetroffenes Segment bleibt UNREAGIERT und zaehlt beim naechsten Mal.
+    markierung_id = repo.hoechste_brainstorm_aufnahme_id(conn, chat_id)
+
+    def _lauf() -> None:
+        try:
+            text, modell = buehnenkarte.erzeuge(conn, e, klm, chat_id)
+            if text:
+                repo.markiere_brainstorm_reaktion(conn, chat_id, markierung_id)
+                repo.lege_buehnenkarte_an(conn, chat_id, text, modell)
+                _melde_neue_karte(conn, tg, e, chat_id)
+            # NICHTS oder ein Fehlschlag: "nothing changes" -- keine
+            # Markierung, keine Karte. Das naechste qualifizierende Segment
+            # sieht denselben (oder einen groesseren) Stand erneut.
+        except Exception:
+            log.exception("Buehnenkarten-Lauf fehlgeschlagen, chat_id=%s", chat_id)
+        finally:
+            brainstorm.beende(chat_id)
+
+    threading.Thread(target=_lauf, daemon=True).start()
+
+
+def _melde_neue_karte(conn, tg, e, chat_id: int) -> None:
+    """Hoechstens EINE Chat-Zeile je Karte, ohne Inhalt -- und gar keine,
+    wenn die neueste Chat-Nachricht schon genau diese Zeile ist (kein
+    Stapeln, brief: "nothing if the previous line is still the newest chat
+    message")."""
+    text = T._TEXT_BUEHNE_NEUE_KARTE
+    if repo.neueste_nachricht_text(conn, chat_id) == text:
+        return
+    _sende_und_merke(conn, tg, e, chat_id, text)
 
 
 def dauer_mmss(sekunden: int) -> str:

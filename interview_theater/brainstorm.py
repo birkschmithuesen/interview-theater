@@ -15,6 +15,7 @@ bleiben alle Schwellen ueber die Umgebung nachjustierbar.
 """
 
 import os
+import threading
 
 VORGABE_MIN_ZEICHEN = 1200
 VORGABE_MIN_ABSTAND_S = 90
@@ -70,3 +71,31 @@ def soll_reagieren(
         and sekunden_seit_letzter_reaktion >= min_abstand_s()
         and letzter_schnittgrund == "pause"
     )
+
+
+#: Ein Sperren-Register je Nebenlaeufigkeit (AGENTS.md: "Gleicher Code,
+#: verschiedene Sperren"): nie mehr als eine Buehnenkarte je Gruppe
+#: gleichzeitig. Kein Merkplatz wie bei ``vorschlagssperre.py`` -- ein
+#: abgewiesener Versuch verliert nichts, die unreagierten Zeichen bleiben in
+#: der Datenbank stehen (repo.brainstorm_stand) und zaehlen beim naechsten
+#: Segment einfach weiter mit ("pending text accumulates into the next
+#: turn").
+_LAEUFT_LOCK = threading.Lock()
+_LAEUFT: set[int] = set()
+
+
+def versuche_start(chat_id: int) -> bool:
+    """True und merkt sich den Lauf, wenn fuer diese Gruppe gerade KEINE
+    Buehnenkarte entsteht -- sonst False, ohne etwas zu veraendern."""
+    with _LAEUFT_LOCK:
+        if chat_id in _LAEUFT:
+            return False
+        _LAEUFT.add(chat_id)
+        return True
+
+
+def beende(chat_id: int) -> None:
+    """Gibt die Sperre wieder frei -- immer in einem ``finally``, auch nach
+    einem Fehlschlag."""
+    with _LAEUFT_LOCK:
+        _LAEUFT.discard(chat_id)

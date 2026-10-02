@@ -82,3 +82,18 @@ def test_ungueltige_umgebungswerte_fallen_auf_die_vorgabe_zurueck(monkeypatch):
         brainstorm.min_zeichen_bei_abschluss()
         == brainstorm.VORGABE_MIN_ZEICHEN_BEI_ABSCHLUSS
     )
+
+
+def test_versuche_start_lehnt_einen_zweiten_lauf_ab():
+    assert brainstorm.versuche_start(999) is True
+    assert brainstorm.versuche_start(999) is False
+    brainstorm.beende(999)
+    assert brainstorm.versuche_start(999) is True
+    brainstorm.beende(999)
+
+
+def test_verschiedene_gruppen_stoeren_sich_nicht():
+    assert brainstorm.versuche_start(1001) is True
+    assert brainstorm.versuche_start(1002) is True
+    brainstorm.beende(1001)
+    brainstorm.beende(1002)

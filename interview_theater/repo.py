@@ -334,6 +334,21 @@ def letzte_bot_nachricht_vor(conn: sqlite3.Connection, chat_id: int, message_id:
 
 
 @_gesperrt
+def neueste_nachricht_text(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Der Text der zeitlich juengsten Nachricht der Gruppe (jeder Sender),
+    oder ``None`` ohne Nachrichten. Fuer die "keine zwei gleichen Zeilen
+    hintereinander"-Regel der Buehnenkarten-Meldung (Brainstorm-Modus,
+    02.10.2026) -- dieselbe Idee wie ``gruppe.kostenpause_gemeldet_am``, nur
+    am Chatverlauf statt an einem eigenen Zeitstempel gemessen."""
+    zeile = conn.execute(
+        "SELECT text FROM nachricht WHERE chat_id = ? "
+        "ORDER BY gesendet_am DESC, message_id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    return zeile["text"] if zeile else None
+
+
+@_gesperrt
 def setze_extrahiert_bis(conn: sqlite3.Connection, chat_id: int, message_id: int) -> None:
     """Setzt das Wasserzeichen letzte_extrahierte_message_id. Bewegt sich nie
     rueckwaerts (analog setze_beantwortet_bis) -- ein Absichtserkenner-Lauf,

@@ -463,6 +463,8 @@ def lege_aufnahme_an(
     dauer: int | None = None,
     teil_von: int | None = None,
     status: str = "empfangen",
+    schnittgrund: str | None = None,
+    brainstorm: bool = False,
 ) -> int:
     """Legt eine Aufnahme (Sprache oder Textimport) an.
 
@@ -475,6 +477,10 @@ def lege_aufnahme_an(
     Teil traegt den Namen seines Kopfes, und ein Zuruf ist kein Interview, das
     man beim Namen nennen koennte.
 
+    ``schnittgrund`` (Pausen-Schnitt, 02.10.2026) und ``brainstorm`` (Knopf
+    "Brainstorm mithören", Phase 4) kommen vom Web-Kanal durchgereicht, bei
+    Telegram bleiben beide bei ihrer Vorgabe.
+
     Startstatus 'empfangen', beim Interview-Kopf 'laeuft'; der Aufrufer
     entscheidet ueber weitere Statusuebergaenge."""
     name = f"Interview {zaehle_interviews(conn, chat_id) + 1}" if klasse == "lang" else None
@@ -482,11 +488,12 @@ def lege_aufnahme_an(
         """
         INSERT INTO aufnahme
             (chat_id, message_id, name, klasse, quelle, audio_pfad,
-             dauer_sekunden, status, empfangen_am, teil_von)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             dauer_sekunden, status, empfangen_am, teil_von, schnittgrund,
+             brainstorm)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (chat_id, message_id, name, klasse, quelle, audio_pfad, dauer, status,
-         _jetzt(), teil_von),
+         _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0),
     )
     conn.commit()
     return cur.lastrowid
@@ -1837,6 +1844,134 @@ def setze_phase_angeboten(conn: sqlite3.Connection, chat_id: int, nummer: int) -
         (chat_id, nummer, _jetzt()),
     )
     conn.commit()
+
+
+@_gesperrt
+def brainstorm_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Die drei Zahlen, die ``brainstorm.soll_reagieren`` braucht.
+
+    ``unreagierte_zeichen``: Summe der Transkriptlaenge ueber alle noch
+    nicht in einer Buehnenkarte beruecksichtigten Brainstorm-Segmente (id
+    groesser als ``arbeitsstand.brainstorm_markierung_id``, oder alle, wenn
+    es noch keine Karte gab). ``sekunden_seit_letzter_reaktion``: ``None``
+    vor der ersten Karte (das Trigger braucht dann ohnehin keinen Abstand,
+    siehe ``brainstorm.soll_reagieren``, aber ein sehr grosser Wert waere
+    eine erfundene Praezision). ``letzter_schnittgrund``: der Schnittgrund
+    des JUENGSTEN Brainstorm-Segments insgesamt (nicht nur der
+    unreagierten) -- ob die Gruppe GERADE eine Pause gemacht hat, ist
+    unabhaengig davon, wie viele Segmente seit der letzten Karte noch offen
+    sind."""
+    zeile = conn.execute(
+        "SELECT brainstorm_markierung_id, brainstorm_reaktion_am "
+        "FROM arbeitsstand WHERE chat_id = ?", (chat_id,),
+    ).fetchone()
+    markierung_id = zeile["brainstorm_markierung_id"] if zeile else None
+    reaktion_am = zeile["brainstorm_reaktion_am"] if zeile else None
+
+    zeichen = conn.execute(
+        "SELECT COALESCE(SUM(LENGTH(transkript)), 0) FROM aufnahme "
+        "WHERE chat_id = ? AND brainstorm = 1 AND entfernt_am IS NULL "
+        "AND transkript IS NOT NULL AND id > ?",
+        (chat_id, markierung_id or 0),
+    ).fetchone()[0]
+
+    letzter = conn.execute(
+        "SELECT schnittgrund FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL ORDER BY id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    letzter_schnittgrund = letzter["schnittgrund"] if letzter else None
+
+    sekunden_seit_reaktion = None
+    if reaktion_am:
+        sekunden_seit_reaktion = max(
+            0.0,
+            (datetime.now(timezone.utc) - datetime.fromisoformat(reaktion_am))
+            .total_seconds(),
+        )
+
+    return {
+        "unreagierte_zeichen": int(zeichen),
+        "sekunden_seit_letzter_reaktion": sekunden_seit_reaktion,
+        "letzter_schnittgrund": letzter_schnittgrund,
+    }
+
+
+@_gesperrt
+def markiere_brainstorm_reaktion(
+    conn: sqlite3.Connection, chat_id: int, aufnahme_id: int,
+) -> None:
+    """Nach einer erfolgreich erzeugten Buehnenkarte: die Markierung ruecken,
+    die Reaktionszeit setzen. ``aufnahme_id`` ist die hoechste id, die die
+    Karte schon gesehen hat (die juengste zum Erzeugungszeitpunkt bekannte) --
+    nicht einfach MAX(id), falls zwischen Lesen und Schreiben ein neues
+    Segment eintraf: das soll NICHT als "schon gesehen" gelten."""
+    conn.execute(
+        """
+        INSERT INTO arbeitsstand
+            (chat_id, brainstorm_markierung_id, brainstorm_reaktion_am, geaendert_am)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            brainstorm_markierung_id = excluded.brainstorm_markierung_id,
+            brainstorm_reaktion_am = excluded.brainstorm_reaktion_am,
+            geaendert_am = excluded.geaendert_am
+        """,
+        (chat_id, aufnahme_id, _jetzt(), _jetzt()),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def hoechste_brainstorm_aufnahme_id(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die hoechste ``aufnahme.id`` eines Brainstorm-Segments dieser Gruppe,
+    oder 0, wenn es noch keins gibt -- fuer ``markiere_brainstorm_reaktion``,
+    damit der Aufrufer die Markierung setzt, OHNE selbst SQL zu schreiben."""
+    zeile = conn.execute(
+        "SELECT MAX(id) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL", (chat_id,),
+    ).fetchone()
+    return int(zeile[0]) if zeile and zeile[0] is not None else 0
+
+
+@_gesperrt
+def brainstorm_transkript(conn: sqlite3.Connection, chat_id: int) -> str:
+    """Der VOLLSTAENDIGE Brainstorm-Mitschnitt von Phase 4, chronologisch
+    aneinandergehaengt -- eigener Kontext fuer die Buehnenkarte, nicht das
+    normale Gespraechsfenster (kontext.FENSTER_ZEICHEN): eine Karte soll den
+    ganzen bisherigen Bogen sehen, nicht nur die letzten Minuten."""
+    zeilen = conn.execute(
+        "SELECT transkript FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL AND transkript IS NOT NULL ORDER BY id ASC",
+        (chat_id,),
+    ).fetchall()
+    return "\n\n".join(zeile["transkript"] for zeile in zeilen if zeile["transkript"])
+
+
+@_gesperrt
+def lege_buehnenkarte_an(
+    conn: sqlite3.Connection, chat_id: int, text: str, modell: str,
+) -> int:
+    """Haengt eine Buehnenkarte an (nur anhaengen, wie journal/szenenfassung
+    -- siehe Tabellenkommentar in db.py)."""
+    cur = conn.execute(
+        "INSERT INTO buehnenkarte (chat_id, text, modell, erstellt_am) "
+        "VALUES (?, ?, ?, ?)",
+        (chat_id, text, modell, _jetzt()),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+@_gesperrt
+def buehnenkarten(
+    conn: sqlite3.Connection, chat_id: int, hoechstens: int = 20,
+) -> list[sqlite3.Row]:
+    """Die juengsten Buehnenkarten, NEUESTE ZUERST (fuer die Buehne-Ansicht:
+    "die neueste Karte oben, aeltere kleiner/ausgegraut darunter")."""
+    return conn.execute(
+        "SELECT * FROM buehnenkarte WHERE chat_id = ? ORDER BY id DESC LIMIT ?",
+        (chat_id, hoechstens),
+    ).fetchall()
 
 
 @_gesperrt
@@ -3583,20 +3718,26 @@ def web_knoepfe(zeile) -> list[list[str]]:
 def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      text=None, knoepfe=None, daten=None,
                      bezug_message_id=None, dauer=None,
-                     datei=None, mime=None, dateiname=None) -> int:
+                     datei=None, mime=None, dateiname=None,
+                     schnittgrund=None, brainstorm=False) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
-    beide Richtungen (siehe Tabellenkommentar in db.py)."""
+    beide Richtungen (siehe Tabellenkommentar in db.py). ``schnittgrund``/
+    ``brainstorm`` (Pausen-Schnitt, 02.10.2026) sind nur bei
+    ``typ='sprache'`` gesetzt und wandern unveraendert bis in die
+    ``aufnahme``-Zeile (``web_kanal.hole_updates`` -> ``aufnahme.empfange``)."""
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
-        "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
+        "schnittgrund, brainstorm) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
+            schnittgrund, 1 if brainstorm else 0,
         ),
     )
     conn.commit()

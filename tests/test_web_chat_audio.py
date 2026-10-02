@@ -271,3 +271,44 @@ def test_das_json_post_limit_gilt_fuer_audio_nicht(aufbau):
     gross = b"\x1a\x45\xdf\xa3" + b"\x00" * (200 * 1024)
     assert len(gross) > web.MAX_POST_BYTES
     assert _lade(basis, token, gross)[0] == 202
+
+
+# -- Pausen-Schnitt (VAD) und Brainstorm-Flag (02.10.2026) ------------------
+
+
+def _lade_mit_grund(basis, token, koerper: bytes, *, grund=None, brainstorm=False,
+                     dauer=45):
+    kennung = web.nonce(SCHLUESSEL, token)
+    url = f"{basis}/g/{token}/chat/audio?nonce={kennung}&dauer={dauer}"
+    if grund is not None:
+        url += f"&grund={grund}"
+    if brainstorm:
+        url += "&brainstorm=1"
+    anfrage = urllib.request.Request(
+        url, data=koerper, headers={"Content-Type": "audio/webm"}, method="POST",
+    )
+    with urllib.request.urlopen(anfrage, timeout=10) as antwort:
+        return json.loads(antwort.read().decode("utf-8"))["message_id"]
+
+
+def test_grund_und_brainstorm_landen_im_web_post(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, grund="pause", brainstorm=True)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["schnittgrund"] == "pause"
+    assert zeile["brainstorm"] == 1
+
+
+def test_ohne_grund_und_brainstorm_bleiben_sie_leer(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["schnittgrund"] is None
+    assert zeile["brainstorm"] == 0
+
+
+def test_ein_unbekannter_grund_wird_zu_leer_statt_abgelehnt(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, grund="irgendwas")
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["schnittgrund"] is None

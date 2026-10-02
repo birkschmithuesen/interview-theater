@@ -608,6 +608,7 @@ _CHAT_JS = """
   function postAudio(auftrag, zweiter) {
     var weg_ = 'chat/audio?dauer=' + auftrag.dauer;
     if (auftrag.grund) { weg_ += '&grund=' + auftrag.grund; }
+    if (auftrag.sitzung && auftrag.sitzung.art === 'brainstorm') { weg_ += '&brainstorm=1'; }
     return fetch(weg(weg_), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
@@ -2192,6 +2193,15 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         handler._fehler(400, _TEXT_FEHLER_DAUER)
         return
 
+    # Pausen-Schnitt (VAD) und Brainstorm-Flag (02.10.2026): beide optional,
+    # beide vom Client gesetzt (web_chat._CHAT_JS, postAudio). Ein unbekannter
+    # Wert zaehlt wie keiner -- das ist Bookkeeping fuer den Brainstorm-
+    # Trigger, kein Sicherheitsmerkmal, eine falsche Zeichenkette soll den
+    # Upload nicht scheitern lassen.
+    roh_grund = (felder.get("grund") or [""])[0]
+    grund = roh_grund if roh_grund in ("pause", "cap", "ende") else None
+    brainstorm = (felder.get("brainstorm") or [""])[0] == "1"
+
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
         web.schliesse_nach_antwort(handler)
@@ -2209,6 +2219,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
+            schnittgrund=grund, brainstorm=brainstorm,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.

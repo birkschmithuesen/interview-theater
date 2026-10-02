@@ -459,7 +459,10 @@ def _starte_interview(seite) -> None:
 
 def test_der_verlauf_steht_da(seite):
     expect(seite.locator(".blase.bot").first).to_contain_text("Eure Begriffe")
-    expect(seite.locator(".leiste button")).to_have_count(1)
+    # Die vereinte Seite rendert das Textbuch-Panel mit, auch verborgen --
+    # und das traegt seine eigene ".leiste" (Rollenfilter, Schriftgroesse).
+    # Gemeint ist die Knopfleiste der Chat-Nachricht.
+    expect(seite.locator("#tab-chat .leiste button")).to_have_count(1)
 
 
 def test_text_senden_erscheint_im_verlauf(seite):

@@ -68,6 +68,33 @@ GEAENDERT: dict[str, str] = {
         "zeichengleich (tests/test_laengen_szene.py, "
         "tests/test_profil_bitgleich.py)."
     ),
+    # Padua Hotfix Befund 2 (02.10.2026): das Gespraechsmodell (reiner Text)
+    # sieht keine Bilder und soll ein Foto deshalb nicht mehr anbieten.
+    "prompt system": (
+        "system.md bietet nicht mehr an, die Begriffsliste \"von einem Foto "
+        "abgetippt\" zu schicken, und bekommt stattdessen den Satz "
+        "\"Du kannst keine Bilder oder Dateien sehen ...\". Gewollte "
+        "Verhaltensaenderung fuer Dortmund: dieselbe Korrektur wie fuer "
+        "Padua, das Modell sieht dort ebenfalls keine Bilder."
+    ),
+    "prompt phasen/1": (
+        "phasen/1.md: \"getippt, von einem Foto abgetippt oder als "
+        "Sprachnachricht\" wird zu \"getippt oder als Sprachnachricht\" -- "
+        "derselbe Grund wie bei \"prompt system\"."
+    ),
+    "anweisungen.system(phase=None)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=1)": "siehe \"prompt system\"/\"prompt phasen/1\" oben.",
+    "anweisungen.system(phase=2)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=3)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=4)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=5)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=6)": "siehe \"prompt system\" oben.",
+    "anweisungen.system(phase=7)": "siehe \"prompt system\" oben.",
+    "kontext.ERSTKONTAKT": (
+        "Padua Hotfix Befund 2: die Begruessung bittet nicht mehr um die "
+        "Begriffsliste \"als Foto abgetippt\" -- das Gespraechsmodell sieht "
+        "ohnehin keine Bilder. Gewollte Verhaltensaenderung fuer Dortmund."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

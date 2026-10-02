@@ -783,3 +783,49 @@ def test_ueberlange_szene_opfert_nicht_fenster_und_journal(conn, einst):
     assert "JOURNALMARKE" in prompt, "das Journal darf der Szene nicht geopfert werden"
     assert kontext._TEXT_SZENE_GEKUERZT in prompt
     assert len(prompt) <= kontext.zeichengrenze()
+
+
+# --- Befund 2 (Padua Hotfix, 02.10.2026): keine Foto-Angebote -------------
+#
+# Live-Fund: das Gespraechsmodell sieht nur Text, kein Bild -- trotzdem bot
+# es an, eine Liste "getippt, abfotografiert oder als Sprachnachricht" zu
+# schicken. Ein Foto/Sticker/sonstiger Anhang ohne Transkript erschien davor
+# zudem wortgleich mit seinem (immer deutschen) Telegram-Typnamen im Prompt
+# -- "Maria: (foto)", unuebersetzt und ohne Hinweis, dass das Modell es gar
+# nicht sieht.
+
+def test_foto_ohne_transkript_traegt_den_nicht_sichtbar_hinweis():
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "foto"})
+    assert zeile == "Maria: (Datei -- fuer mich nicht sichtbar)"
+
+
+def test_sticker_ohne_transkript_traegt_denselben_hinweis():
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "sticker"})
+    assert zeile == "Maria: (Datei -- fuer mich nicht sichtbar)"
+
+
+def test_sonstiger_anhang_ohne_transkript_traegt_denselben_hinweis():
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "sonstiges"})
+    assert zeile == "Maria: (Datei -- fuer mich nicht sichtbar)"
+
+
+def test_unbekannter_typ_bleibt_beim_alten_fallback():
+    """Regressionsanker: ein Typ ausserhalb von
+    ``kontext._TYPEN_NICHT_SICHTBAR`` (z.B. eine noch nicht transkribierte
+    Sprachnachricht) zeigt weiterhin seinen rohen Typnamen -- die Aenderung
+    betrifft nur Anhaenge, die das Modell wirklich nie sieht."""
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": None, "typ": "sprache"})
+    assert zeile == "Maria: (sprache)"
+
+
+def test_foto_mit_transkript_zeigt_den_text_nicht_den_hinweis():
+    """Sobald ein Foto/Anhang doch Text traegt (z.B. eine nachtraeglich
+    gesetzte Beschriftung), gewinnt der Text -- der Hinweis ist nur der
+    Rueckfall fuer eine leere Nachricht."""
+    zeile = kontext.sprecherzeile(
+        {"ist_bot": 0, "absender": "Maria", "text": "Bildunterschrift", "typ": "foto"})
+    assert zeile == "Maria: Bildunterschrift"

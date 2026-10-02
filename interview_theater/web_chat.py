@@ -1373,7 +1373,8 @@ def _blase_html(n: dict, basis: str = "") -> str:
 
 
 def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
-                  basis: str = "", mit_nonce: bool = True) -> str:
+                  basis: str = "", mit_nonce: bool = True,
+                  mit_gruppenlink: bool = True) -> str:
     """Der Rumpf der Chatansicht -- ohne die Klammer aus ``web._seite``.
 
     Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W): dort steht
@@ -1392,7 +1393,13 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     Panels bekommen denselben ``nonce_wert``) -- ein zweites Element mit
     derselben id waere ungueltiges HTML, und ``document.getElementById``
     faende ohnehin nur das erste. Die Chat-Einzelseite braucht ihr eigenes
-    Feld weiterhin (Vorgabe ``True``)."""
+    Feld weiterhin (Vorgabe ``True``).
+
+    ``mit_gruppenlink`` ist ``False`` auf der vereinten Seite (Fix-Runde 1,
+    Karte W): dort zeigt der Link auf ``/g/<token>`` -- also auf die Seite,
+    auf der er selbst steht. Auf der Chat-Einzelseite (``/g/<token>/chat``)
+    bleibt er, weil er dort tatsaechlich woanders hinfuehrt (Vorgabe
+    ``True``)."""
     modus = bool(daten["interviewmodus"])
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
@@ -1402,10 +1409,14 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'<input type="hidden" id="nonce" value="{html.escape(nonce_wert, quote=True)}">\n'
         if mit_nonce else ""
     )
-    return (
-        f"<h1>{html.escape(daten.get('titel') or _TEXT_TITEL)}</h1>\n"
+    gruppenlink = (
         f'<p><a href="{html.escape(token)}">'
         f"{html.escape(_TEXT_ZUR_GRUPPENSEITE)}</a></p>\n"
+        if mit_gruppenlink else ""
+    )
+    return (
+        f"<h1>{html.escape(daten.get('titel') or _TEXT_TITEL)}</h1>\n"
+        f"{gruppenlink}"
         f'<noscript><p class="leer">{html.escape(_TEXT_OHNE_JS)}</p></noscript>\n'
         f'<div class="verlauf" id="verlauf" data-letzte="{daten["letzte"]}" '
         f'data-aenderung="{int(daten.get("aenderung") or 0)}">\n'

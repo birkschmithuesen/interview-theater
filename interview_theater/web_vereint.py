@@ -190,7 +190,13 @@ def _ein_selektor(selektor: str, scope: str) -> str:
 
 _TEXT_TAB = {"chat": "Chat", "stand": "Arbeitsstand", "textbuch": "Textbuch"}
 
-#: Nur Struktur, keine Gestaltung -- die UX-Karte gestaltet (Kartentext).
+#: Nur Struktur, kaum Gestaltung -- die UX-Karte gestaltet im Grossen. Die
+#: Phasenleiste bekam in Fix-Runde 1 (Aufgabe 16) trotzdem ein Mindestmass:
+#: ohne jedes CSS blieb sie beim Browser-Vorgabestil haengen (nummerierte
+#: Liste, Aufzaehlungspunkte, ~20px hohe Knoepfe als Tapflaeche, keine
+#: Hervorhebung der aktiven Phase) und spannte auf dem Laptop ueber die volle
+#: Breite, waehrend die Panels (ueber ``_CSS_GRUPPE``/``_CSS_TEXTBUCH``) auf
+#: 44rem zentriert sind -- derselbe Wert hier, aus demselben Grund.
 _CSS_VEREINT = """
 .tabs { position: sticky; top: 0; z-index: 5; display: flex; gap: .3rem;
         padding: .3rem 0; background: inherit; }
@@ -207,6 +213,34 @@ _CSS_VEREINT = """
      Animation. Nur der Cursor hoert auf zu blinken. */
   .blase.vorlaeufig::after { animation: none; }
 }
+/* Die Phasenleiste -- auf derselben Breite wie die Panels, damit der
+   Uebergang zum Stand-Panel darunter nicht springt. */
+.roadmap { max-width: 44rem; margin: 0 auto .6rem; }
+.roadmap summary { cursor: pointer; padding: .6rem .3rem; min-height: 44px;
+                   display: flex; align-items: center; font-weight: 600; }
+/* Weder Nummern noch Punkte -- die Nummer steht schon im Knopftext
+   ("N · Name"), ein zweites "1." davor waere eine doppelte Wahrheit. */
+.roadmap ol.phasen, .roadmap ul.aufgaben { list-style: none; margin: 0; padding: 0; }
+.roadmap li.phase { margin: .5rem 0; padding: .3rem .4rem; border-radius: .5rem; }
+/* Die aktive Phase sichtbar markiert -- sonst sieht die Liste nach sieben
+   gleichen Zeilen aus, und "wo stehen wir" ist genau die Frage der Karte. */
+.roadmap li.phase.aktiv { background: #eef3ea; border: 1px solid #b9cdae; }
+/* Knopf (klickbare Gruppe) und Span (Telegram-Gruppe, AGENTS.md
+   "Abschlussreview I3") sehen gleich aus -- nur eines davon ist ein Knopf. */
+.roadmap .phase-knopf, .roadmap .phase-name {
+  display: flex; align-items: center; width: 100%; min-height: 44px;
+  box-sizing: border-box; font: inherit; font-weight: 600; text-align: left;
+  padding: .4rem .6rem; border-radius: .4rem;
+}
+.roadmap .phase-knopf { border: 1px solid #c9c4b8; background: #fff; cursor: pointer; }
+.roadmap .phase-knopf[data-sicher="1"] { background: #fff3cf; border-color: #d8a93b; }
+.roadmap .phase-name { border: none; background: transparent; padding-left: .2rem; }
+/* Eine Aufgabenzeile loest einen Klick aus (Sprung zu Tab + Feld) --
+   sie soll auch danach aussehen. */
+.roadmap li.aufgabe { display: flex; align-items: center; gap: .4rem;
+                      min-height: 2.4rem; padding: .15rem .4rem .15rem 1.1rem;
+                      cursor: pointer; border-radius: .3rem; }
+.roadmap li.aufgabe:hover { background: #f1efe7; }
 """
 
 #: Hoechstens ein Verbindungsaufbau zum Strom je drei Sekunden -- derselbe
@@ -869,9 +903,11 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         # ``mit_nonce=False``: das Stand-Panel traegt sein ``id="nonce"``
         # schon (``_bearbeiten_html``), mit demselben Wert -- ein zweites
         # Element mit derselben id waere ungueltiges HTML.
+        # ``mit_gruppenlink=False`` (Fix-Runde 1): der Link fuehrt sonst auf
+        # die Seite, auf der er selbst steht (``/g/<token>`` -> ``<token>``).
         panels["chat"] = web_chat.chat_koerper(
             chatdaten, nonce_wert, token, segment_ms,
-            basis=f"{token}/", mit_nonce=False,
+            basis=f"{token}/", mit_nonce=False, mit_gruppenlink=False,
         )
     koerper = [_leiste_html(roadmapdaten, klickbar=chat_vorhanden),
               _tabs_html(vorgabe, tabs)]

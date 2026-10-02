@@ -60,6 +60,18 @@ def test_die_basis_steht_im_chatkoerper(tmp_path):
     assert 'data-basis="tok/"' in mit
 
 
+def test_mit_gruppenlink_schaltet_den_link_ab(tmp_path):
+    """Fix-Runde 1 (Aufgabe 16): auf der vereinten Seite fuehrte der Link
+    auf die Seite, auf der er selbst stand -- ``mit_gruppenlink=False``
+    laesst ihn weg, die Vorgabe (Chat-Einzelseite) behaelt ihn."""
+    daten = {"titel": "x", "nachrichten": [], "letzte": 0,
+             "interviewmodus": False, "tippt": False, "antworten": {}}
+    mit = web_chat.chat_koerper(daten, "n", "tok", 45_000)
+    ohne = web_chat.chat_koerper(daten, "n", "tok", 45_000, mit_gruppenlink=False)
+    assert web_chat._TEXT_ZUR_GRUPPENSEITE in mit
+    assert web_chat._TEXT_ZUR_GRUPPENSEITE not in ohne
+
+
 def test_das_chat_js_baut_seine_pfade_ueber_die_basis():
     """Ohne diese Regel zeigte jeder ``fetch`` der vereinten Seite auf
     ``/g/chat/zustand`` -- ein stilles 404 im Browser."""

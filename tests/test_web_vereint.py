@@ -278,6 +278,26 @@ def test_chat_koerper_allein_traegt_weiterhin_eine_nonce(aufbau):
     assert text.count('id="nonce"') == 1
 
 
+# -- "Zur Gruppenseite" nur, wo sie woanders hinfuehrt -----------------------
+
+# Fix-Runde 1 (Aufgabe 16): auf der vereinten Seite (``/g/<token>``) zeigte
+# der Link im Chat-Panel auf ``/g/<token>`` -- also auf die Seite, auf der er
+# selbst stand. ``mit_gruppenlink=False`` unterdrueckt ihn dort. Die
+# Chat-Einzelseite selbst ist seit derselben Karte nicht mehr per HTTP
+# erreichbar -- ``/g/<token>/chat`` leitet schon weiter (siehe
+# ``test_die_alte_chatadresse_leitet_auf_den_tab`` unten), die Vorgabe
+# ``mit_gruppenlink=True`` von ``chat_koerper``/``chat_html`` bleibt als
+# Funktion aber bestehen und wird in ``tests/test_web_koerper.py`` direkt
+# geprueft (``test_mit_gruppenlink_schaltet_den_link_ab``).
+
+
+def test_die_vereinte_seite_zeigt_keinen_link_auf_sich_selbst(aufbau):
+    from interview_theater import web_chat
+    basis, token, _pfad = aufbau
+    _status, text, _kopf = _hole(f"{basis}/g/{token}")
+    assert web_chat._TEXT_ZUR_GRUPPENSEITE not in text
+
+
 # -- alte Adressen ----------------------------------------------------------
 
 

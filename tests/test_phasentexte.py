@@ -307,3 +307,23 @@ def test_stand_ruft_weiter_kein_modell(conn, einst, tg):
     befehle.behandle(conn, tg, einst, 1, "/stand", "Ada", klm=None)
 
     assert len(tg.gesendet) == 1
+
+
+def test_phase_1_steigt_mit_dem_erstkontakt_einstieg_ein(conn, einst, tg, monkeypatch):
+    """02.10.2026 (Birk, Padua): Zurueckspringen in Phase 1 bringt denselben
+    Einstieg wie die Begruessung -- einen Gespraechszug mit der
+    ERSTKONTAKT-Anweisung, keinen Festtext mit Kopfzeile."""
+    from interview_theater import ablauf, kontext
+
+    auftraege = []
+    monkeypatch.setattr(
+        ablauf, "starte_auftrag",
+        lambda conn, tg, klm, e, chat_id, anweisung, *a: auftraege.append(anweisung) or object(),
+    )
+    knoepfe.eintritt_in_phase(conn, tg, object(), einst, 1, 1)
+
+    assert tg.gesendet == []
+    assert len(auftraege) == 1
+    assert auftraege[0] == kontext.einstieg_begriffe(conn, 1, einst)
+    assert "Schliesse mit der Frage nach den Begriffen" in auftraege[0]
+    assert "allererste" not in auftraege[0]

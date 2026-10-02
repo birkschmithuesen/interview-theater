@@ -19,8 +19,11 @@ from interview_theater.knoepfe.texte import (
     PHASE_STUECKPRUEFUNG, PHASE_SZENEN, T,
 )
 from interview_theater.knoepfe.basis import (
-    _daten, _id_aus_daten, _sende_knoepfe,
+    _daten, _id_aus_daten, _sende_knoepfe, _starte_auftrag,
 )
+
+#: Begriffe -- die Phase, deren Einstieg ein Gespraechszug ist, kein Festtext.
+PHASE_BEGRIFFE = 1
 from interview_theater.knoepfe.interviews import biete_stt_sprache
 from interview_theater.knoepfe.szenen import (
     biete_durchlauf, biete_kurzgeschichte, biete_szene_usa, starte_schaerfung,
@@ -134,6 +137,18 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
     hergekommen ist."""
     from interview_theater import phasentexte
 
+    if nummer == PHASE_BEGRIFFE and klm is not None:
+        # **Derselbe Einstieg wie beim Erstkontakt** (02.10.2026, Birk,
+        # Padua): keine Kopfzeile, kein fester Satz -- der erste Impuls kommt
+        # von der Gruppe, und eine deterministische Zeile geht nicht auf sie
+        # ein. Ein Gespraechszug mit der ERSTKONTAKT-Anweisung, im Thread
+        # (Zusage 2). Ohne Modell (Tests, Skripte) bleibt der feste Rahmen.
+        from interview_theater import kontext
+
+        if _starte_auftrag(
+            conn, tg, klm, e, chat_id, kontext.einstieg_begriffe(conn, chat_id, e),
+        ):
+            return
     kopf = phasentexte.eintritt(conn, chat_id, nummer)
     if nummer == PHASE_INTERVIEWS:
         # Der Schritt in die Interviews ist der Moment, in dem die Gruppe

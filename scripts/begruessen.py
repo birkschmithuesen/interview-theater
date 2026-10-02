@@ -46,6 +46,13 @@ def begruesse(conn, tg, e, chat_id: int) -> bool:
 
 
 def main() -> None:
+    # **Stillgelegt** (02.10.2026, Birk, Padua): der erste Impuls kommt von
+    # der Gruppe. Eine Begruessung vorab nimmt ihr das erste Wort, und der
+    # Festtext geht auf nichts ein. Die Begruessung entsteht im ersten
+    # Gespraechszug (kontext.ERSTKONTAKT).
+    print("scripts.begruessen ist stillgelegt: die Gruppe schreibt zuerst, "
+          "der Bot antwortet mit der Begruessung (kontext.ERSTKONTAKT).")
+    sys.exit(1)
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if len(args) != 1:
         print(f"Aufruf: {sys.argv[0]} <chat_id>")

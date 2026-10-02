@@ -1250,8 +1250,7 @@ def _zusammen(bloecke: dict) -> str:
 #: Leute als Allererstes sagen"). Der Inhalt (Mitlesen, Interviews, /hilfe,
 #: Link) bleibt Pflicht, die Form entsteht aus der ersten Nachricht.
 ERSTKONTAKT = (
-    "Dies ist eure allererste Nachricht in dieser Gruppe -- deine Antwort ist "
-    "zugleich die Begruessung. Geh zuerst auf das ein, was gerade gesagt "
+    "{anlass} Geh zuerst auf das ein, was gerade gesagt "
     "wurde, und nimm dir dann Raum: das ist der Moment, in dem die Gruppe "
     "versteht, wie hier gearbeitet wird. Bring unter, in dieser Reihenfolge "
     "und in ganzen Saetzen, nicht als Liste: wer du bist und was ihr "
@@ -1272,6 +1271,20 @@ ERSTKONTAKT = (
     "Bitte um die Begriffe aufhoert."
 )
 
+#: Der Anlass-Satz am Anfang von ``ERSTKONTAKT``. Dieselbe Anweisung traegt
+#: seit dem 02.10.2026 (Birk, Padua) AUCH den Wiedereintritt in Phase 1
+#: (``knoepfe.eintritt_in_phase``): "kein Grund, warum beim Zurueckspringen
+#: der Einstieg anders sein sollte" -- statt Kopfzeile + festem Satz schreibt
+#: das Modell denselben Einstieg. Nur der Anlass unterscheidet sich.
+ERSTKONTAKT_ANLASS_ERSTE = (
+    "Dies ist eure allererste Nachricht in dieser Gruppe -- deine Antwort ist "
+    "zugleich die Begruessung."
+)
+ERSTKONTAKT_ANLASS_RUECKKEHR = (
+    "Die Gruppe steigt gerade (wieder) in die Phase Begriffe ein -- deine "
+    "Antwort ist der Einstieg in diese Phase, genau wie bei der Begruessung."
+)
+
 #: Der Satz zum Link, wenn eine Weboberflaeche konfiguriert ist.
 ERSTKONTAKT_LINK = (
     "; und dass die Gruppe alles Festgehaltene unter {url} mitlesen kann "
@@ -1279,7 +1292,7 @@ ERSTKONTAKT_LINK = (
 )
 
 
-def _baue_erstkontakt(conn, chat_id: int, e) -> str:
+def _baue_erstkontakt(conn, chat_id: int, e, rueckkehr: bool = False) -> str:
     # ueber bot.stelle_link_sicher, nicht ueber repo.gruppenseite_url direkt:
     # der Link muss in der Begruessung stehen, auch wenn die Gruppenzeile
     # gerade erst entsteht (05.09.2026).
@@ -1287,7 +1300,14 @@ def _baue_erstkontakt(conn, chat_id: int, e) -> str:
 
     url = bot.stelle_link_sicher(conn, e, chat_id)
     link = T.ERSTKONTAKT_LINK.format(url=url) if url else ""
-    return T.ERSTKONTAKT.format(link=link)
+    anlass = T.ERSTKONTAKT_ANLASS_RUECKKEHR if rueckkehr else T.ERSTKONTAKT_ANLASS_ERSTE
+    return T.ERSTKONTAKT.format(anlass=anlass, link=link)
+
+
+def einstieg_begriffe(conn, chat_id: int, e) -> str:
+    """Die Anweisung fuer den Einstieg in Phase 1 nach einem Phasenwechsel --
+    wortgleich mit der Erstkontakt-Begruessung bis auf den Anlass-Satz."""
+    return _baue_erstkontakt(conn, chat_id, e, rueckkehr=True)
 
 
 def umrisszeile(stand: dict) -> str:

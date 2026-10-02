@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from interview_theater import db, repo, web, web_chat
+from interview_theater import db, repo, web, web_chat, web_vereint
 
 CHAT = 7_000_000_000_001
 SCHLUESSEL = b"x" * 32
@@ -63,7 +63,7 @@ def test_das_js_ruft_nur_endpunkte_die_es_gibt(seite):
     """Jeder ``fetch``-Pfad im JS muss in ``_POSTWEGE`` oder unter den
     GET-Wegen stehen. Ein Tippfehler waere im Browser ein stilles 404."""
     pfade = set(re.findall(r"chat/([a-z]+)", web_chat._CHAT_JS))
-    erlaubt = set(web_chat._POSTWEGE) | {"zustand", "datei"}
+    erlaubt = set(web_chat._POSTWEGE) | {"zustand", "datei", web_vereint.STROM_PFAD}
     assert pfade <= erlaubt, pfade - erlaubt
 
 

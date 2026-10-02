@@ -1548,3 +1548,83 @@ def web_ausgangsdatei(conn, chat_id: int, post_id: int) -> dict | None:
     if zeile is None or not zeile["datei"]:
         return None
     return {"pfad": zeile["datei"], "dateiname": zeile["dateiname"] or "datei"}
+
+
+# --- Der laufende Text (30.09.2026, Karte W) -------------------------------
+
+def _stromzeile(zeile: sqlite3.Row) -> dict:
+    """Genau die fuenf Felder, die der Browser bekommt -- kein Zeitstempel,
+    keine chat_id."""
+    return {
+        "id": zeile["id"], "art": zeile["art"], "text": zeile["text"],
+        "zustand": zeile["zustand"], "post_id": zeile["post_id"],
+    }
+
+
+def web_stromlage(conn: sqlite3.Connection, chat_id: int,
+                  nach: int = 0) -> dict | None:
+    """Die juengste Stromzeile dieser Gruppe -- read-only.
+
+    ``nach`` ist die id, die der Browser schon kennt: eine **aeltere** Zeile
+    interessiert ihn nicht mehr. Eine laufende Zeile kommt immer, auch wenn
+    ihre id gleich ``nach`` ist -- sonst saehe niemand, wie ihr Text waechst.
+
+    Achtung: pro Gruppe koennen mehrere Zeilen zugleich laufen (Prosalauf und
+    Gespraechszug). Der SSE-Kanal liest deshalb nicht diese Funktion, sondern
+    ``web_stromanfang`` + ``web_stromzeilen``.
+
+    Fehlt die Tabelle noch (Datenbank aus der Zeit davor), ist das Ergebnis
+    ``None`` statt ein Fehler: der Webserver migriert nichts."""
+    try:
+        zeile = conn.execute(
+            "SELECT id, art, text, zustand, post_id FROM web_strom "
+            "WHERE chat_id = ? ORDER BY id DESC LIMIT 1",
+            (chat_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if zeile is None:
+        return None
+    if zeile["id"] < nach:
+        return None
+    return _stromzeile(zeile)
+
+
+def web_stromanfang(conn: sqlite3.Connection, chat_id: int,
+                    nach: int = 0) -> int | None:
+    """Ab welcher id ein SSE-Strom liefert -- oder None, wenn es nichts gibt.
+
+    Die aelteste noch laufende Zeile gehoert immer dazu, auch unterhalb von
+    ``nach`` (ein Prosalauf, der schon lief, als der Browser die id eines
+    juengeren Gespraechszugs gelernt hat). Ohne ``nach`` und ohne laufende
+    Zeile ist es die juengste Zeile: ein Reconnect bekommt ihren Endstand
+    statt der ganzen Geschichte der Gruppe."""
+    try:
+        zeile = conn.execute(
+            "SELECT MIN(CASE WHEN zustand = 'laeuft' THEN id END) AS laufend, "
+            "MAX(id) AS juengst FROM web_strom WHERE chat_id = ?",
+            (chat_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    laufend, juengst = zeile["laufend"], zeile["juengst"]
+    if nach > 0:
+        return min(nach, laufend) if laufend is not None else nach
+    if laufend is not None:
+        return laufend
+    return juengst
+
+
+def web_stromzeilen(conn: sqlite3.Connection, chat_id: int,
+                    ab: int) -> list[dict]:
+    """Alle Stromzeilen der Gruppe mit ``id >= ab``, aelteste zuerst --
+    read-only, je Zeile dieselben fuenf Felder wie ``web_stromlage``."""
+    try:
+        zeilen = conn.execute(
+            "SELECT id, art, text, zustand, post_id FROM web_strom "
+            "WHERE chat_id = ? AND id >= ? ORDER BY id ASC",
+            (chat_id, ab),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [_stromzeile(zeile) for zeile in zeilen]

@@ -1445,6 +1445,15 @@ def beantworte_get(handler, db_pfad: str, token: str, unterpfad: str,
     if unterpfad.startswith("datei/"):
         _sende_datei(handler, db_pfad, token, unterpfad[len("datei/"):])
         return
+    # Der laufende Text (30.09.2026, Karte W). Nur die Weiche steht hier;
+    # der Strom selbst liegt in web_vereint.py. Lokaler Import, weil
+    # web_vereint seinerseits web_chat braucht (die Panels der vereinten
+    # Seite) -- im Modulkopf waere das ein Zyklus.
+    from interview_theater import web_vereint
+
+    if unterpfad == web_vereint.STROM_PFAD:
+        web_vereint.sende_strom(handler, db_pfad, token, query)
+        return
     handler._antworte(404, web.nicht_gefunden_html())
 
 

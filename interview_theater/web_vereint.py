@@ -220,6 +220,14 @@ _CSS_VEREINT = """
 .tabs button { flex: 1; font: inherit; min-height: 2.8rem; border-radius: .6rem;
                border: 1px solid #c9c4b8; background: #fff; }
 .tabs button[aria-selected="true"] { font-weight: 600; border-width: 2px; }
+/* Der unaufdringliche Marker fuer eine neue CoThinker-Karte (Birk,
+   Feedback b, 02.10.2026): ein Punkt, kein Text, keine Zahl -- das Oeffnen
+   des Tabs raeumt ihn weg (siehe ``zeige()`` in ``_VEREINT_JS``). */
+.tabs button[data-neu="1"] { position: relative; }
+.tabs button[data-neu="1"]::after {
+  content: ""; position: absolute; top: .35rem; right: .35rem;
+  width: .5rem; height: .5rem; border-radius: 50%; background: #a8201a;
+}
 .panel[hidden] { display: none; }
 .blase.vorlaeufig { opacity: .85; white-space: pre-wrap; }
 .blase.vorlaeufig::after { content: '▍'; animation: blinken 1s steps(2) infinite; }

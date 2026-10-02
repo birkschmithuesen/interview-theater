@@ -265,14 +265,24 @@ def _tabs_liste(text: str) -> str:
 
 
 def test_buehne_fehlt_ausserhalb_phase_4(aufbau):
+    """Root-Cause-Fix (Birk, 02.10.2026): der Tab-Knopf UND sein Panel stehen
+    jetzt IMMER im Dokument -- vorher fehlten sie ausserhalb Phase 4 ganz,
+    und eine Gruppe, die WAEHREND die Seite offen war in Phase 4 eintrat,
+    bekam den Tab nie, bis jemand von Hand neu lud. Verborgen wird seitdem
+    ausschliesslich ueber ``hidden`` (serverseitig vorab, danach vom JS bei
+    jedem Roadmap-Takt aus ``#roadmap``s ``data-aktive-phase`` nachgefuehrt).
+    Im eingebetteten TABS-Array steht "buehne" deshalb ebenfalls immer --
+    ein mitgebrachtes "#buehne" (alter Link) faellt in ``lies()`` trotzdem
+    automatisch auf VORGABE zurueck, solange die Phase nicht 4 ist."""
     basis, token, _pfad = aufbau
     _status, text, _kopf = _hole(f"{basis}/g/{token}")
-    assert 'data-tab="buehne"' not in text
-    assert 'id="tab-buehne"' not in text
-    # Auch im eingebetteten TABS-Array nicht -- ein mitgebrachtes "#buehne"
-    # (alter Link, Tippfehler) faellt in ``lies()`` deshalb automatisch auf
-    # VORGABE zurueck, genau wie "#chat" bei einer Telegram-Gruppe.
-    assert '"buehne"' not in _tabs_liste(text)
+    assert 'data-tab="buehne"' in text
+    assert 'id="tab-buehne"' in text
+    assert "hidden" in _panel_tag(text, "buehne")
+    knopf = re.search(r'<button[^>]*data-tab="buehne"[^>]*>', text)
+    assert knopf is not None
+    assert "hidden" in knopf.group(0)
+    assert '"buehne"' in _tabs_liste(text)
 
 
 def test_buehne_wird_ein_echter_tab_in_phase_4(aufbau):
@@ -289,6 +299,29 @@ def test_buehne_wird_ein_echter_tab_in_phase_4(aufbau):
     # Textbuch, der Chat bleibt vorn.
     assert "hidden" in _panel_tag(text, "buehne")
     assert web_vereint.T._TEXT_TAB["buehne"] in text
+
+
+def test_der_roadmap_takt_traegt_die_aktive_phase_fuer_die_tab_schaltung(aufbau):
+    """``_VEREINT_JS`` schaltet den CoThinker-Tab (Knopf + Panel) bei jedem
+    Nachlade-Takt allein anhand von ``#roadmap``s ``data-aktive-phase``
+    (``istPhase4()``) -- ohne ein volles Neuladen der Seite. Das pruefen wir
+    hier an der Quelle dieses Takts: ``GET /g/<token>/teil/roadmap`` muss die
+    jeweils aktuelle Phase tragen, auch nachdem sich die Phase geaendert hat,
+    waehrend die Seite schon offen war."""
+    basis, token, pfad = aufbau
+    conn = db.verbinde(pfad)
+
+    _status, teil, _kopf = _hole(f"{basis}/g/{token}/teil/roadmap")
+    treffer = re.search(r'id="roadmap" data-aktive-phase="(\d+)"', teil)
+    assert treffer is not None
+    assert treffer.group(1) != "4"
+
+    repo.setze_phase(conn, CHAT, 4)
+    conn.commit()
+    _status, teil, _kopf = _hole(f"{basis}/g/{token}/teil/roadmap")
+    treffer = re.search(r'id="roadmap" data-aktive-phase="(\d+)"', teil)
+    assert treffer is not None
+    assert treffer.group(1) == "4"
 
 
 def test_buehne_bleibt_auch_fuer_eine_telegram_gruppe_erreichbar(aufbau_telegram):

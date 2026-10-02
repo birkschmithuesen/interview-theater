@@ -6,6 +6,7 @@ allein, weil hier die Verdrahtung geprueft wird: Routing, Statuscodes, das
 Praefix und die read-only geoeffnete Datenbank.
 """
 
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -469,19 +470,21 @@ def test_fragen_werden_escaped():
 
 
 def test_buehne_tab_fehlt_ausserhalb_phase_4(basis, token):
-    """Phase ist in der Test-DB nicht gesetzt (also nicht 4) -- weder der
-    Umschalter noch das Panel stehen im Markup. Die Huelle ``#stand-inhalt``
-    bleibt unbedingt im Markup (sie ist ohne den Umschalter wirkungslos),
-    nur Umschalter und Panel sind an Phase 4 gebunden.
+    """Phase ist in der Test-DB nicht gesetzt (also nicht 4). Seit dem
+    Root-Cause-Fix (Birk, 02.10.2026) steht der Tab-Knopf UND sein Panel
+    trotzdem immer im Markup -- nur ``hidden``, damit ein Phasenwechsel
+    waehrend die Seite offen ist, nicht erst ein volles Neuladen braucht.
 
     Seit dem Merge mit Karte W (``web_vereint``) traegt die Seite IMMER
     eine eigene Tableiste (Chat/Stand/Textbuch) -- ``class="tabs"`` allein
     unterscheidet die beiden Mechanismen deshalb nicht mehr, nur noch die
-    Buehne-eigenen Marken (siehe naechster Integrationsschritt: Buehne wird
-    ein echter Tab von Karte W statt dieses verschachtelten Stopgaps)."""
+    Buehne-eigenen Marken."""
     koerper = hole(f"{basis}/g/{token}")[1]
-    assert 'data-tab="buehne"' not in koerper
-    assert 'id="buehne-panel"' not in koerper
+    assert 'data-tab="buehne"' in koerper
+    assert 'id="buehne-panel"' in koerper
+    treffer = re.search(r'<button[^>]*data-tab="buehne"[^>]*>', koerper)
+    assert treffer is not None
+    assert "hidden" in treffer.group(0)
 
 
 def test_buehne_tab_zeigt_karten_neueste_zuerst_und_stueckkarte(db_pfad, token, basis):

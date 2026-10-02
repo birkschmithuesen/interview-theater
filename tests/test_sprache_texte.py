@@ -84,6 +84,8 @@ BLEIBT_DEUTSCH = {
     "laengen.JOURNAL_QUELLE": "Protokoll (journal.quelle), kein Nutzertext",
     "web._CSS_DASHBOARD": "CSS, nur Kommentare deutsch",
     "web._CSS_GRUPPE": "CSS, nur Kommentare deutsch",
+    "web._CSS_BUEHNE": "CSS, nur Kommentare deutsch",
+    "web._TABS_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web._CSS_LEITFADEN": "CSS, nur Kommentare deutsch",
     "web._CSS_TEXTBUCH": "CSS, nur Kommentare deutsch",
 }

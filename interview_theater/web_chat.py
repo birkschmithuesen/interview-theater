@@ -49,9 +49,11 @@ MIME_ERLAUBT = web_kanal.MIME_ERLAUBT
 
 #: Wie gross ein einzelnes Segment sein darf.
 #:
-#: Gerechnet, nicht geraten: Opus bei 32 kbit/s ergibt fuer 45 s rund
-#: 180 KiB, Safaris mp4/AAC bei 64 kbit/s rund 360 KiB. 8 MiB sind gut
-#: zwanzigfache Luft fuer einen Browser, der eine hohe Bitrate waehlt -- und
+#: Gerechnet, nicht geraten -- seit dem Pausen-Schnitt (VAD, 02.10.2026) auf
+#: den harten Zeitdeckel IT_WEB_VAD_MAX_MS (Vorgabe 90 s), nicht mehr auf die
+#: alte feste Segmentlaenge von 45 s: Opus bei 32 kbit/s ergibt fuer 90 s rund
+#: 360 KiB, Safaris mp4/AAC bei 64 kbit/s rund 720 KiB. 8 MiB sind immer noch
+#: gut zehnfache Luft fuer einen Browser, der eine hohe Bitrate waehlt -- und
 #: sie liegen klar unter ``stt.MAX_UPLOAD_BYTES`` (25 MiB): eine Datei, die
 #: Whisper ohnehin ablehnen wuerde, soll gar nicht erst ankommen.
 MAX_AUDIO_BYTES = 8 * 1024 * 1024
@@ -148,6 +150,12 @@ _TEXT_INTERVIEW_ENDEN = "■ Beenden"
 #: erfasste Aufnahmedauer selbst an, nicht nur das separate ``#uhr``-Feld.
 _TEXT_INTERVIEW_LAEUFT = "● Interview läuft · {zeit}"
 _TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
+#: Brainstorm mithören (Phase 4, nur Web, 02.10.2026): derselbe
+#: Drei-Zustands-Regler wie beim Interview (Pause/Weiter/Beenden teilen sich
+#: dieselben Beschriftungen, _TEXT_INTERVIEW_PAUSE usw.), nur der grosse
+#: Knopf und die Laeuft-Zeile sind eigene -- "Brainstorm" ist kein Interview.
+_TEXT_BRAINSTORM_AN = "🎙 Brainstorm mithören"
+_TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit}"
 _TEXT_PTT = "Halten und sprechen"
 _TEXT_OHNE_JS = (
     "Fuer Chat und Aufnahme braucht diese Seite JavaScript. "
@@ -204,6 +212,18 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
 #interview[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
                                                  border-color: #8a8a8a; }
+/* Brainstorm mithören (Phase 4, nur Web): derselbe grosse Knopf wie
+   #interview, Interview bleibt daneben erreichbar, aber kleiner/nachrangig
+   (brief: "interview button stays reachable ... smaller/secondary"). */
+#brainstorm { font: inherit; font-weight: 600; min-height: 3.2rem; width: 100%;
+              border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff;
+              margin-bottom: .5rem; }
+#brainstorm[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
+                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
+#brainstorm[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
+                                                  border-color: #8a8a8a; }
+#interview.nebenknopf { font-weight: 400; min-height: 2.4rem; font-size: .9rem;
+                        opacity: .8; }
 .interview-aktionen { display: flex; gap: .5rem; margin-top: .4rem; }
 .interview-aktionen[hidden] { display: none; }
 .interview-aktionen button { flex: 1; min-height: 2.6rem; border-radius: .6rem;
@@ -272,10 +292,14 @@ _TEXT_VERLASSEN = "Es wird noch aufgenommen oder hochgeladen."
 _TEXT_UHR = "● {zeit}"
 #: Re-Review H: der Interviewmodus ist serverseitig zu Ende, waehrend dieses
 #: Telefon noch aufnahm oder Segmente offen hatte. Ohne Modus waere ein
-#: Segment (45 s, also unter ``aufnahme.HINWEIS_AB_S``) ein
-#: Gespraechsbeitrag -- Gespraechszug, Erkenner und Journal ueber
-#: Interviewmaterial. Deshalb wird nichts still nachgeschickt, die Gruppe
-#: entscheidet.
+#: Segment (seit dem Pausen-Schnitt bis zu IT_WEB_VAD_MAX_MS, Vorgabe 90 s --
+#: damit laenger als ``aufnahme.HINWEIS_AB_S``, 60 s) ein Gespraechsbeitrag
+#: -- Gespraechszug, Erkenner und Journal ueber Interviewmaterial. Das
+#: ueberschreiten von HINWEIS_AB_S bleibt hier folgenlos, weil die
+#: "war das ein Interview?"-Rueckfrage auf dem Web-Kanal ohnehin nie laeuft
+#: (``aufnahme.ist_web_gruppe``-Ausnahme) -- die eigentliche Gefahr bleibt
+#: dieselbe wie vorher: Interviewinhalt als Gespraechsbeitrag. Deshalb wird
+#: nichts still nachgeschickt, die Gruppe entscheidet.
 _TEXT_MODUS_WEG = (
     "Das Interview wurde beendet, die Aufnahme ist gestoppt. "
     "{n} Stück(e) sind noch nicht angekommen."
@@ -302,6 +326,8 @@ _JS_TEXTE = {
     "interview_weiter": _TEXT_INTERVIEW_WEITER,
     "interview_laeuft": _TEXT_INTERVIEW_LAEUFT,
     "interview_pausiert": _TEXT_INTERVIEW_PAUSIERT,
+    "brainstorm_an": _TEXT_BRAINSTORM_AN,
+    "brainstorm_laeuft": _TEXT_BRAINSTORM_LAEUFT,
     "warte_eins": _TEXT_WARTE_EINS,
     "warte_mehr": _TEXT_WARTE_MEHR,
     "warte_modus": _TEXT_WARTE_MODUS,
@@ -363,6 +389,12 @@ _CHAT_JS = """
   var interviewPauseKnopf = document.getElementById('interview-pause');
   var interviewBeendenKnopf = document.getElementById('interview-beenden');
   var pttKnopf = document.getElementById('ptt');
+  // Brainstorm mithören (Phase 4, nur Web) -- alle vier null ausserhalb
+  // Phase 4 (chat_html() rendert die Elemente dann gar nicht).
+  var brainstormKnopf = document.getElementById('brainstorm');
+  var brainstormAktionenFeld = document.getElementById('brainstorm-aktionen');
+  var brainstormPauseKnopf = document.getElementById('brainstorm-pause');
+  var brainstormBeendenKnopf = document.getElementById('brainstorm-beenden');
   var angehaltenFeld = document.getElementById('angehalten');
   var angehaltenText = document.getElementById('angehalten-text');
   var nachreichenKnopf = document.getElementById('nachreichen');
@@ -600,7 +632,10 @@ _CHAT_JS = """
   }
 
   function postAudio(auftrag, zweiter) {
-    return fetch(weg('chat/audio?dauer=' + auftrag.dauer), {
+    var weg_ = 'chat/audio?dauer=' + auftrag.dauer;
+    if (auftrag.grund) { weg_ += '&grund=' + auftrag.grund; }
+    if (auftrag.sitzung && auftrag.sitzung.art === 'brainstorm') { weg_ += '&brainstorm=1'; }
+    return fetch(weg(weg_), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
                  'X-Nonce': nonce() },
@@ -693,6 +728,10 @@ _CHAT_JS = """
   function bereit(auftrag) {
     var sitzung = auftrag.sitzung;
     if (auftrag.art === 'audio' && sitzung) {
+      // Brainstorm kennt keinen Modus-Befehl (kein /interview, kein
+      // /fertig) -- ein Segment ist immer eine gewoehnliche 'kurz'-Aufnahme
+      // und geht deshalb sofort raus, wie ein PTT-Druck.
+      if (sitzung.art === 'brainstorm') { return true; }
       if (!sitzung.angemeldet || sitzung.angehalten) { return false; }
       if (zustand.servermodus) { sitzung.bestaetigt = true; }
       return zustand.servermodus;
@@ -890,11 +929,27 @@ _CHAT_JS = """
     r.onstop = function () {
       sitzung.offen -= 1;
       var auftrag = null;
-      if (teile.length && !sitzung.verworfen) {   // leere Stuecke nie
+      // VAD-Entscheid, ob dieses Segment ueberhaupt in die Schlange geht.
+      // r._grund/r._redeMs werden von schneideSegment() (Schnitt) oder von
+      // pausiereInterview()/beendeInterview() (Flush) VOR stop() gesetzt;
+      // ohne VAD (Rueckfall auf den festen Takt) bleiben beide undefined,
+      // dann gilt wie vor dieser Karte: jedes nicht-leere Stueck geht raus.
+      var redeMs = r._redeMs;
+      var grund = r._grund || null;
+      var genug = redeMs == null || (
+        grund === 'ende' ? redeMs > 0 : redeMs >= (sitzung.vadMinSpeechMs || 0)
+      );
+      // grund === 'cap' mit redeMs < MIN_SPEECH_MS: der harte Zeitdeckel hat
+      // ein fast stummes Segment erzwungen. "In das naechste Segment
+      // getragen" (wie beim Pausen-Fall) ist hier technisch nicht moeglich
+      // -- der Recorder musste schon stoppen -- also wird es verworfen statt
+      // gesendet. Seltener Randfall, siehe .brainstorm-vad-report.md.
+      if (teile.length && !sitzung.verworfen && genug) {   // leere Stuecke nie
         auftrag = {
           art: 'audio', sitzung: sitzung,
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
-          dauer: Math.max(1, Math.round((Date.now() - von) / 1000))
+          dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
+          grund: grund
         };
       }
       // Re-Review B: zwei onstop koennen sich ueberholen (Stopp mitten im
@@ -1050,6 +1105,23 @@ _CHAT_JS = """
     zeigeModus();
   }
 
+  // Pausen-Schnitt (VAD, 02.10.2026): derselbe AnalyserNode wie der Pegel
+  // liefert zusaetzlich getFloatTimeDomainData() fuer eine RMS-Schaetzung.
+  // Schneidet sitzung.recorder NIE direkt -- das macht schneideSegment(),
+  // das den Nachfolge-Recorder gleich mitanlegt, damit zwischen zwei
+  // Segmenten keine Luecke entsteht.
+  function schneideSegment(sitzung, grund) {
+    var alt = sitzung.recorder;
+    if (!alt) { return; }
+    alt._grund = grund;
+    alt._redeMs = sitzung.vadSpeechMs;
+    if (alt.state !== 'inactive') { alt.stop(); }   // liefert sein Segment im onstop
+    sitzung.recorder = neuesSegment(sitzung);
+    sitzung.vadSegmentStart = Date.now();
+    sitzung.vadSpeechMs = 0;
+    sitzung.vadLetzteRede = sitzung.vadSegmentStart;
+  }
+
   function pegelAn(sitzung) {
     var Kontext = window.AudioContext || window.webkitAudioContext;
     if (!pegelBalken || !Kontext) { return; }
@@ -1060,15 +1132,78 @@ _CHAT_JS = """
       var messer = kontext.createAnalyser();
       messer.fftSize = 256;
       kontext.createMediaStreamSource(sitzung.strom).connect(messer);
-      var werte = new Uint8Array(messer.frequencyBinCount);
+      var frequenzWerte = new Uint8Array(messer.frequencyBinCount);
+      var zeitWerte = new Float32Array(messer.fftSize);
+      var PAUSE_MS = parseInt(fuss.dataset.vadPauseMs, 10) || 2500;
+      var MAX_MS = parseInt(fuss.dataset.vadMaxMs, 10) || 90000;
+      var MIN_SPEECH_MS = parseInt(fuss.dataset.vadMinSpeechMs, 10) || 500;
+      var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
+      var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
+      var BODEN_FENSTER = Math.ceil(5000 / 120);
+      // Deckel auf den Rauschboden, nicht aus CoThinker, sondern gegen eine
+      // gemessene Falle gesetzt (siehe Kommentar im Takt unten): ohne ihn
+      // zieht eine durchgehend laute Aufnahme den Boden auf ihre eigene
+      // Lautstaerke und die Pause-Erkennung faellt dauerhaft aus.
+      var BODEN_DECKEL_FAKTOR = 10;
+      sitzung.vadMinSpeechMs = MIN_SPEECH_MS;
+      sitzung.vadAktiv = true;
+      sitzung.vadBoden = [];
       sitzung.pegelTakt = setInterval(function () {
-        messer.getByteFrequencyData(werte);
+        messer.getByteFrequencyData(frequenzWerte);
         var summe = 0;
-        for (var i = 0; i < werte.length; i++) { summe += werte[i]; }
+        for (var i = 0; i < frequenzWerte.length; i++) { summe += frequenzWerte[i]; }
         pegelBalken.style.width =
-          Math.min(100, (summe / werte.length) * 2.2) + '%';
+          Math.min(100, (summe / frequenzWerte.length) * 2.2) + '%';
+
+        messer.getFloatTimeDomainData(zeitWerte);
+        var quadratsumme = 0;
+        for (var j = 0; j < zeitWerte.length; j++) {
+          quadratsumme += zeitWerte[j] * zeitWerte[j];
+        }
+        var rms = Math.sqrt(quadratsumme / zeitWerte.length);
+        sitzung.vadBoden.push(rms);
+        if (sitzung.vadBoden.length > BODEN_FENSTER) { sitzung.vadBoden.shift(); }
+        // Niedriges Perzentil der letzten ~5 s als Rauschboden -- GESETZT,
+        // NICHT GEMESSEN (anders als PAUSE_MS/MAX_MS/MIN_SPEECH_MS/
+        // RMS_SCHWELLE, die aus CoThinker stammen). BODEN_DECKEL_FAKTOR
+        // begrenzt, wie weit der Boden die Schwelle anheben darf: ohne
+        // Deckel zieht eine durchgehend laute Aufnahme den Boden auf ihre
+        // eigene Lautstaerke, und die Schwelle wird unerreichbar (gemessener
+        // Fehler beim ersten Browserlauf: ein konstanter Testton zog sie
+        // exakt auf seinen eigenen Pegel, danach wurde nie wieder "Rede"
+        // erkannt). Mit Deckel bleibt ein echtes, aber maessiges
+        // Raumrauschen weiter erkennbar (die Schwelle darf bis zum Zehnfachen
+        // von RMS_SCHWELLE steigen), eine durchgehend laute Stimme kann sie
+        // aber nicht mehr darueber hinausschieben.
+        var sortiert = sitzung.vadBoden.slice().sort(function (a, b) { return a - b; });
+        var boden = Math.min(
+          sortiert[Math.floor(sortiert.length * 0.1)] || 0,
+          RMS_SCHWELLE * BODEN_DECKEL_FAKTOR
+        );
+        var schwelle = Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
+        var jetzt = Date.now();
+        if (rms > schwelle) {
+          sitzung.vadSpeechMs += 120;
+          sitzung.vadLetzteRede = jetzt;
+        }
+        if (!sitzung.recorder) { return; }
+        var kappe = (jetzt - sitzung.vadSegmentStart) >= MAX_MS;
+        var pause = (jetzt - sitzung.vadLetzteRede) >= PAUSE_MS;
+        if (kappe) {
+          // Hart: schneidet IMMER, auch ohne Pause und auch mit zu wenig
+          // Rede (der seltene Fall landet in onstop() ohne Upload -- siehe
+          // dortigen Kommentar).
+          schneideSegment(sitzung, 'cap');
+        } else if (pause && sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
+          schneideSegment(sitzung, 'pause');
+        }
+        // pause && vadSpeechMs < MIN_SPEECH_MS: kein Schnitt -- die Stille
+        // wird Teil desselben, weiterlaufenden Segments ("in das naechste
+        // Segment getragen", ohne Audio-Bytes ueber zwei MediaRecorder-
+        // Instanzen hinweg zusammenfuegen zu muessen, was keine einzelne
+        // dekodierbare Datei mehr ergaebe).
       }, 120);
-    } catch (e) { /* ohne Pegel geht es auch */ }
+    } catch (e) { /* ohne Pegel geht es auch -- dann der feste Takt (Rueckfall unten) */ }
   }
 
   // Die erfasste Aufnahmedauer einer Sitzung: angesammelte Zeit vor der
@@ -1130,7 +1265,10 @@ _CHAT_JS = """
       interviewKnopf.textContent = TEXT.interview_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
     // Ein Stopp ist unterwegs: bis der Bot ihn bestaetigt, kein neuer Start.
-    interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel);
+    // Laeuft Brainstorm, ist der Interview-Knopf ebenfalls deaktiviert --
+    // zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
+    // Bedienung (dieselbe Regel wie PTT, Phase 4, 02.10.2026).
+    interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || !!zustand.brainstorm;
     // Der grosse Knopf ist waehrend Laeuft/Pause nur noch eine Anzeige --
     // Pause/Weiter und Beenden stehen in der eigenen Leiste darunter.
     if (interviewAktionenFeld) { interviewAktionenFeld.hidden = !an; }
@@ -1140,7 +1278,11 @@ _CHAT_JS = """
     // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ist PTT
     // ausgeblendet (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine
     // Bedienung, und eine Pause ist weiterhin "Modus an".
-    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel; }
+    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || !!zustand.brainstorm; }
+    // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
+    // beiden Funktionen zuerst gerufen wurde (zeigeBrainstormModus() ist ein
+    // No-Op ausserhalb Phase 4, da brainstormKnopf dann null ist).
+    zeigeBrainstormModus();
   }
 
   function verwirfPtt() {
@@ -1179,20 +1321,192 @@ _CHAT_JS = """
     }
     sitzung.legStart = Date.now();
     sitzung.recorder = neuesSegment(sitzung);
+    sitzung.vadSegmentStart = Date.now();
+    sitzung.vadSpeechMs = 0;
+    sitzung.vadLetzteRede = sitzung.vadSegmentStart;
     sitzung.gestartet = true;
-    sitzung.segmentTakt = setInterval(function () {
-      if (!sitzung.recorder) { return; }
-      var alt = sitzung.recorder;
-      alt.stop();                      // liefert sein Segment im onstop
-      sitzung.recorder = neuesSegment(sitzung);
-    }, SEGMENT_MS);
     uhrAn(sitzung);
     pegelAn(sitzung);
+    if (!sitzung.vadAktiv) {
+      // Rueckfall ohne AnalyserNode (aelterer Browser, kein AudioContext):
+      // wie vor dieser Karte eine feste Segmentlaenge -- sonst gaebe es nie
+      // einen Schnitt, und die Aufnahme liefe bis Beenden in einem Stueck.
+      sitzung.segmentTakt = setInterval(function () {
+        if (!sitzung.recorder) { return; }
+        var alt = sitzung.recorder;
+        alt.stop();                      // liefert sein Segment im onstop
+        sitzung.recorder = neuesSegment(sitzung);
+      }, SEGMENT_MS);
+    }
+  }
+
+  // -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ------------------
+  //
+  // Dieselbe Segment-Mechanik wie beim Interview (neuesSegment,
+  // schneideSegment, pegelAn, beginneAufnahme sind bereits generisch ueber
+  // die uebergebene Sitzung) -- aber OHNE Modus-Befehl: ein
+  // Brainstorm-Segment ist serverseitig immer eine gewoehnliche
+  // 'kurz'-Aufnahme, es gibt nichts anzumelden oder zu bestaetigen.
+  // sitzung.art = 'brainstorm' schaltet bereit() auf "immer senden" (siehe
+  // dort); fertigEingereiht bleibt dauerhaft true, damit pruefeEnde() NIE
+  // ein 'befehl' einreiht. Bewusst eigene, kleinere Funktionen statt eines
+  // sitzung.art-Zweigs mitten in starteInterview()/pausiereInterview()/
+  // beendeInterview(): die dort gehaerteten Rennbedingungen (mehrere
+  // "Re-Review"-Runden) sollen fuer den bestehenden, getesteten Weg
+  // unberuehrt bleiben.
+
+  function zeigeBrainstormModus() {
+    if (!brainstormKnopf) { return; }
+    var sitzung = zustand.brainstorm;
+    var an = !!sitzung;
+    var pausiert = an && sitzung.pausiert;
+    brainstormKnopf.dataset.laeuft = an ? '1' : '0';
+    brainstormKnopf.dataset.pausiert = pausiert ? '1' : '0';
+    if (!an) {
+      brainstormKnopf.textContent = TEXT.brainstorm_an;
+    } else if (pausiert) {
+      brainstormKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
+    } else {
+      brainstormKnopf.textContent = TEXT.brainstorm_laeuft.replace('{zeit}', formatiereUhr(sitzung));
+    }
+    // Zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
+    // Bedienung (dieselbe Regel wie PTT vs. Interview). Waehrend ein
+    // Interview-Stopp unterwegs ist (wechsel.ziel === false), ist modusAn()
+    // schon wieder false -- genau wie beim Interview-Knopf selbst
+    // (zeigeModus()) wird deshalb zusaetzlich auf ein laufendes wechsel
+    // geprueft, sonst saehe der Knopf kurz bedienbar aus, obwohl
+    // starteBrainstorm() ihn wegen desselben zustand.wechsel ablehnt.
+    brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;
+    if (brainstormAktionenFeld) { brainstormAktionenFeld.hidden = !an; }
+    if (brainstormPauseKnopf) {
+      brainstormPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
+    }
+    if (interviewKnopf) {
+      interviewKnopf.disabled = an || !!(zustand.wechsel && !zustand.wechsel.ziel);
+    }
+    if (pttKnopf) { pttKnopf.hidden = an || modusAn() || !!zustand.wechsel; }
+  }
+
+  function starteBrainstorm() {
+    if (zustand.brainstorm || modusAn() || zustand.wechsel) { return; }
+    if (zustand.ptt) { verwirfPtt(); }
+    var sitzung = {
+      art: 'brainstorm',
+      strom: null, recorder: null, kontext: null, pegelTakt: null,
+      segmentTakt: null, offen: 0, gestartet: false, beendet: false,
+      verworfen: false, angehalten: false, geparkt: [],
+      fertigEingereiht: true, naechsteNr: 0, einzureihen: 0, fertige: {},
+      pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true,
+      fortsetzend: false
+    };
+    zustand.brainstorm = sitzung;
+    zeigeBrainstormModus();
+    holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
+      sitzung.strom = strom;
+      if (sitzung.beendet) { gibFrei(sitzung); return; }
+      sitzung.gestartet = true;
+      beginneAufnahme(sitzung);
+      zeigeBrainstormModus();
+    }).catch(function () {
+      sitzung.mikroUnterwegs = false;
+      sitzung.verworfen = true;
+      sitzung.beendet = true;
+      if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
+      if (sitzung.recorder && sitzung.recorder.state !== 'inactive') {
+        try { sitzung.recorder.stop(); } catch (e) { /* schon aus */ }
+      }
+      sitzung.recorder = null;
+      gibFrei(sitzung);
+      entferneAuftraege(sitzung);
+      if (zustand.brainstorm === sitzung) { zustand.brainstorm = null; }
+      anzeigeAus();
+      zeigeBrainstormModus();
+      meldeFehler(TEXT.fehler_mikro);
+    });
+  }
+
+  function pausiereBrainstorm() {
+    var sitzung = zustand.brainstorm;
+    if (!sitzung || sitzung.pausiert || sitzung.verworfen || sitzung.beendet) { return; }
+    if (sitzung.mikroUnterwegs) {
+      sitzung.pausiert = true;
+      zeigeBrainstormModus();
+      return;
+    }
+    sitzung.erfassteMs += Date.now() - sitzung.legStart;
+    sitzung.legStart = null;
+    sitzung.pausiert = true;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    var alt = sitzung.recorder;
+    sitzung.recorder = null;
+    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
+    if (alt && alt.state !== 'inactive') { alt.stop(); }
+    gibFrei(sitzung);
+    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
+    if (uhrFeld) { uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung)); }
+    zeigeBrainstormModus();
+  }
+
+  function fortsetzeBrainstorm() {
+    var sitzung = zustand.brainstorm;
+    // Dieselben Waechter wie fortsetzeInterview(): "pausiert" nur einmal
+    // zuruecknehmen, und eine Sperrklinke (fortsetzend) gegen einen
+    // hastigen Doppeldruck, der sonst zwei Recorder auf demselben Mikrofon
+    // startete.
+    if (!sitzung || !sitzung.pausiert || sitzung.verworfen || sitzung.beendet ||
+        sitzung.fortsetzend) { return; }
+    if (sitzung.mikroUnterwegs) { sitzung.pausiert = false; return; }
+    sitzung.pausiert = false;
+    sitzung.fortsetzend = true;
+    sitzung.mikroUnterwegs = true;
+    holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
+      sitzung.fortsetzend = false;
+      if (!zustand.brainstorm || zustand.brainstorm !== sitzung || sitzung.beendet) {
+        strom.getTracks().forEach(function (t) { t.stop(); });
+        return;
+      }
+      sitzung.strom = strom;
+      beginneAufnahme(sitzung);
+      zeigeBrainstormModus();
+    }).catch(function () {
+      sitzung.mikroUnterwegs = false;
+      sitzung.fortsetzend = false;
+      sitzung.pausiert = true;
+      zeigeBrainstormModus();
+      meldeFehler(TEXT.fehler_mikro);
+    });
+    zeigeBrainstormModus();
+  }
+
+  function beendeBrainstorm() {
+    var sitzung = zustand.brainstorm;
+    if (!sitzung) { return; }
+    zustand.brainstorm = null;
+    anzeigeAus();
+    if (!sitzung.gestartet) {
+      sitzung.beendet = true;
+      zeigeBrainstormModus();
+      return;
+    }
+    sitzung.beendet = true;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    var letzter = sitzung.recorder;
+    sitzung.recorder = null;
+    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
+    if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
+    // Anders als beendeInterview(): pruefeEnde() tut bei Brainstorm NIE
+    // etwas (fertigEingereiht bleibt immer true), also wird das Mikrofon
+    // HIER sofort freigegeben -- wie bei pausiereInterview(), nicht erst im
+    // onstop.
+    gibFrei(sitzung);
+    zeigeBrainstormModus();
   }
 
   function starteInterview() {
     // Review-Befund 4: nie zwei Recorder, nie ein Start mitten im Wechsel.
-    if (zustand.aufnahme || zustand.wechsel) { return; }
+    if (zustand.aufnahme || zustand.wechsel || zustand.brainstorm) { return; }
     // Re-Review F: ein gehaltener PTT-Druck (zweiter Finger) wird verworfen,
     // sonst liefen zwei Recorder.
     if (zustand.ptt) { verwirfPtt(); }
@@ -1305,6 +1619,7 @@ _CHAT_JS = """
     if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
     var letzter = sitzung.recorder;
     sitzung.recorder = null;
+    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
     if (letzter && letzter.state !== 'inactive') {
       letzter.stop();          // sein onstop reiht das letzte Segment ein
     } else {
@@ -1354,6 +1669,9 @@ _CHAT_JS = """
     // Wie starteInterview()/brichAb() bei einem Fehler: stop(), dann sofort
     // das Mikrofon los -- sein onstop hat die Daten bis hierhin schon im
     // ondataavailable gesammelt und reiht das Stueck ganz normal ein.
+    // grund 'ende': ein manueller Flush haelt sich NICHT an MIN_SPEECH_MS --
+    // "bei Pause/Beenden gesendet, wenn ueberhaupt Rede drin ist".
+    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
     if (alt && alt.state !== 'inactive') { alt.stop(); }
     gibFrei(sitzung);
     if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
@@ -1457,6 +1775,23 @@ _CHAT_JS = """
     if (interviewKnopf.disabled || modusAn()) { return; }
     starteInterview();
   });
+
+  if (brainstormPauseKnopf) {
+    brainstormPauseKnopf.addEventListener('click', function () {
+      var sitzung = zustand.brainstorm;
+      if (!sitzung) { return; }
+      if (sitzung.pausiert) { fortsetzeBrainstorm(); } else { pausiereBrainstorm(); }
+    });
+  }
+  if (brainstormBeendenKnopf) {
+    brainstormBeendenKnopf.addEventListener('click', beendeBrainstorm);
+  }
+  if (brainstormKnopf) {
+    brainstormKnopf.addEventListener('click', function () {
+      if (brainstormKnopf.disabled || zustand.brainstorm) { return; }
+      starteBrainstorm();
+    });
+  }
 
   // -- Push-to-Talk --------------------------------------------------------
   //
@@ -1620,7 +1955,7 @@ def _blase_html(n: dict) -> str:
 
 
 def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
-              segment_ms: int) -> str:
+              segment_ms: int, vad: dict | None = None) -> str:
     """Die Chatansicht.
 
     Sie haengt sich in ``web._seite`` ein (dieselbe Klammer, dasselbe
@@ -1630,7 +1965,9 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
     gezielt, per Poll (``_CHAT_JS``), und nur der Verlauf."""
     from interview_theater import web   # spaeter Import: web importiert web_chat
 
+    vad = vad if vad is not None else _vad_werte()
     modus = bool(daten["interviewmodus"])
+    phase4 = daten.get("phase") == 4
     blasen = "\n".join(_blase_html(n) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(_TEXT_LEER)}</p>'
@@ -1646,6 +1983,11 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f'<div class="tippt" id="tippt"></div>\n'
         f'<input type="hidden" id="nonce" value="{html.escape(nonce_wert, quote=True)}">\n'
         f'<div class="fuss" id="fuss" data-segment-ms="{int(segment_ms)}"\n'
+        f'     data-vad-pause-ms="{int(vad["pause_ms"])}" '
+        f'data-vad-max-ms="{int(vad["max_ms"])}" '
+        f'data-vad-min-speech-ms="{int(vad["min_speech_ms"])}"\n'
+        f'     data-vad-rms="{vad["rms"]}" '
+        f'data-vad-floor-faktor="{vad["floor_faktor"]}"\n'
         f'     data-interview="{1 if modus else 0}">\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
         f'  <div class="pegel" id="pegel" hidden><span></span></div>\n'
@@ -1658,19 +2000,34 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f'    <button type="button" id="verwerfen">'
         f'{html.escape(_TEXT_REST_VERWERFEN)}</button>\n'
         f'  </div>\n'
-        f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
-        f'data-pausiert="{1 if modus else 0}">'
-        f'{html.escape(_TEXT_INTERVIEW_AUS if modus else _TEXT_INTERVIEW_AN)}'
-        f'</button>\n'
-        f'  <div class="interview-aktionen" id="interview-aktionen"'
-        f'{"" if modus else " hidden"}>\n'
-        f'    <button type="button" id="interview-pause">'
-        f'{html.escape(_TEXT_INTERVIEW_WEITER if modus else _TEXT_INTERVIEW_PAUSE)}'
-        f'</button>\n'
-        f'    <button type="button" id="interview-beenden">'
-        f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
-        f'  </div>\n'
-        f'  <div class="zeile">\n'
+        + (
+            f'  <button type="button" id="brainstorm" data-laeuft="0" '
+            f'data-pausiert="0">{html.escape(_TEXT_BRAINSTORM_AN)}</button>\n'
+            f'  <div class="interview-aktionen" id="brainstorm-aktionen" hidden>\n'
+            f'    <button type="button" id="brainstorm-pause">'
+            f'{html.escape(_TEXT_INTERVIEW_PAUSE)}</button>\n'
+            f'    <button type="button" id="brainstorm-beenden">'
+            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'  </div>\n'
+            if phase4 else ""
+        )
+        + (
+            f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
+            f'data-pausiert="{1 if modus else 0}"'
+            + (' class="nebenknopf"' if phase4 else "")
+            + '>'
+            f'{html.escape(_TEXT_INTERVIEW_AUS if modus else _TEXT_INTERVIEW_AN)}'
+            f'</button>\n'
+            f'  <div class="interview-aktionen" id="interview-aktionen"'
+            f'{"" if modus else " hidden"}>\n'
+            f'    <button type="button" id="interview-pause">'
+            f'{html.escape(_TEXT_INTERVIEW_WEITER if modus else _TEXT_INTERVIEW_PAUSE)}'
+            f'</button>\n'
+            f'    <button type="button" id="interview-beenden">'
+            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'  </div>\n'
+        )
+        + f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '
         f'placeholder="{html.escape(_TEXT_EINGABE, quote=True)}">\n'
         f'    <button type="button" id="ptt"{" hidden" if modus else ""} title="'
@@ -2070,6 +2427,15 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         handler._fehler(400, _TEXT_FEHLER_DAUER)
         return
 
+    # Pausen-Schnitt (VAD) und Brainstorm-Flag (02.10.2026): beide optional,
+    # beide vom Client gesetzt (web_chat._CHAT_JS, postAudio). Ein unbekannter
+    # Wert zaehlt wie keiner -- das ist Bookkeeping fuer den Brainstorm-
+    # Trigger, kein Sicherheitsmerkmal, eine falsche Zeichenkette soll den
+    # Upload nicht scheitern lassen.
+    roh_grund = (felder.get("grund") or [""])[0]
+    grund = roh_grund if roh_grund in ("pause", "cap", "ende") else None
+    brainstorm = (felder.get("brainstorm") or [""])[0] == "1"
+
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
         web.schliesse_nach_antwort(handler)
@@ -2087,6 +2453,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
+            schnittgrund=grund, brainstorm=brainstorm,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.
@@ -2317,3 +2684,42 @@ def _segment_ms() -> int:
     (``einstellungen.VORGABE_SEGMENT_MS``)."""
     roh = (os.environ.get("IT_WEB_SEGMENT_MS") or "").strip()
     return int(roh) if roh.isdigit() and int(roh) > 0 else 45_000
+
+
+def _umgebungszahl(name: str, vorgabe: float, *, ganzzahl: bool) -> float:
+    """Eine einzelne VAD-Zahl aus der Umgebung, mit stillem Ruckfall auf die
+    Vorgabe bei leerem/ungueltigem/nicht-positivem Wert -- derselbe
+    Nachsichtsgrundsatz wie bei ``_segment_ms``."""
+    roh = (os.environ.get(name) or "").strip()
+    if not roh:
+        return vorgabe
+    try:
+        wert = float(roh)
+    except ValueError:
+        return vorgabe
+    if wert <= 0:
+        return vorgabe
+    return int(wert) if ganzzahl else wert
+
+
+def _vad_werte() -> dict:
+    """Die fuenf Zahlen fuer den Pausen-Schnitt (VAD), einzeln ueberschreibbar.
+
+    Herkunft (Betreiber-Entscheidung 02.10.2026, CoThinker-Projekt):
+    ``pause_ms``/``max_ms`` aus ``gateway/consumer.py --pause 2.5
+    --max-block 90``, ``min_speech_ms`` aus ``stt_server/args.py
+    --vad_min_speech_ms 500`` (Infomaniak-Pfad dort -- das ist auch unser
+    STT-Anbieter), ``rms`` aus ``settings.BUILT_IN_DEFAULTS
+    vad_energy_threshold 0.01`` (RMS reeller Zeitbereichs-Samples, Skala
+    0..1). ``floor_faktor`` ist NICHT aus CoThinker gemessen -- gesetzt,
+    nicht gemessen, als Schutz gegen laute Workshop-Raeume (Browser-Mikros
+    unterscheiden sich von CoThinkers Aufbau)."""
+    return {
+        "pause_ms": _umgebungszahl("IT_WEB_VAD_PAUSE_MS", 2500, ganzzahl=True),
+        "max_ms": _umgebungszahl("IT_WEB_VAD_MAX_MS", 90_000, ganzzahl=True),
+        "min_speech_ms": _umgebungszahl(
+            "IT_WEB_VAD_MIN_SPEECH_MS", 500, ganzzahl=True),
+        "rms": _umgebungszahl("IT_WEB_VAD_RMS", 0.01, ganzzahl=False),
+        "floor_faktor": _umgebungszahl(
+            "IT_WEB_VAD_FLOOR_FACTOR", 2.5, ganzzahl=False),
+    }

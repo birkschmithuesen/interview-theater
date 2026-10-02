@@ -29,7 +29,7 @@ from interview_theater.knoepfe.texte import (
     ART_FRAGE_WAHL,
     ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
-    ART_HILFE, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
+    ART_HILFE, ART_INTERVIEWS_FERTIG, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
     ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
     ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
     ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
@@ -976,6 +976,34 @@ def _wirkung_teil_fertig(conn, d: Druck) -> str:
     return T._ANTWORT_INTERVIEW_BEENDET
 
 
+def _wirkung_interviews_fertig(conn, d: Druck) -> str:
+    """Der eine Web-Knopf nach einem Interview (Phase 3 Web-UX, 02.10.2026):
+    springt direkt nach Phase 4, wenn die Materiallage es hergibt, oder
+    merkt den Wunsch fuer den Auto-Uebergang nach der letzten Verdichtung
+    (``aufnahme._interview_abschliessen``). Kein Modellaufruf hier (Zusage
+    2): ``schliesse_interviews_ab`` ruft ``eintritt_in_phase`` direkt, wie
+    ``_wirkung_phase`` es seit laengerem tut -- was die Phase 4 dabei braucht,
+    ist deterministisch (``phasentexte.eintritt`` + ``biete_proaktiv``)."""
+    from interview_theater import aufnahme
+    from interview_theater.knoepfe.stationen import schliesse_interviews_ab
+
+    if aufnahme.unausgewertete_interviews(conn, d.chat_id):
+        repo.setze_arbeitsstand(
+            conn, d.chat_id, "interviews_fertig_wunsch_seit", repo._jetzt(),
+        )
+        offen = len(aufnahme.unausgewertete_interviews(conn, d.chat_id))
+        d.tg.sende(d.chat_id, T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=offen))
+        return T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=offen)
+    if schliesse_interviews_ab(conn, d.tg, d.klm, d.e, d.chat_id):
+        return T._TEXT_ARBEITSSTAND_HINWEIS
+    # Sollte wegen phasen.voraussetzungen[4] nicht vorkommen, wenn
+    # unausgewertete_interviews() oben schon leer war -- defensiv trotzdem
+    # wie "noch offen" behandeln statt zu schweigen.
+    repo.setze_arbeitsstand(conn, d.chat_id, "interviews_fertig_wunsch_seit", repo._jetzt())
+    d.tg.sende(d.chat_id, T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=0))
+    return T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=0)
+
+
 # --- Die vier Knoepfe rund um die lange Sprachnachricht --------------------
 #
 # 06.09.2026, Live-Fall Gruppe 1 13:32: eine lange Sprachnachricht ausserhalb
@@ -1488,6 +1516,7 @@ _WIRKUNGEN = {
     ART_AUSWERTEN_ALLE: _wirkung_auswerten_alle,
     ART_TEIL_WEITER: _wirkung_teil_weiter,
     ART_TEIL_FERTIG: _wirkung_teil_fertig,
+    ART_INTERVIEWS_FERTIG: _wirkung_interviews_fertig,
     ART_OHNE_KNOPF_JA: _wirkung_ohne_knopf_ja,
     ART_OHNE_KNOPF_NEIN: _wirkung_ohne_knopf_nein,
     ART_OHNE_KNOPF_WEITER: _wirkung_ohne_knopf_weiter,

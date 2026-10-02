@@ -419,6 +419,35 @@ def test_genau_an_der_schwelle_bleibt_beitrag(conn, einst, tg, klm):
     assert not any("klingt nach einem Interview" in t for _, t in tg.gesendet)
 
 
+def test_lange_aufnahme_im_web_fragt_nicht_sondern_zaehlt_als_beitrag(conn, einst, tg, klm):
+    """Auf dem Web-Kanal sind PTT und der Aufnahme-Regler zwei getrennte
+    Bedienelemente (06.10.2026, Phase 3 Web-UX) -- eine lange PTT-Aufnahme
+    ausserhalb des Interviewmodus ist dort unzweideutig ein Gespraechsbeitrag
+    und darf nie die "Ja, als Interview"/"Nein, war ein Beitrag"-Frage
+    ausloesen (anders als bei Telegram,
+    ``test_lange_aufnahme_ohne_modus_fragt_statt_zu_antworten``)."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    gesehen = []
+
+    def zug(conn, tg, klm, e, chat_id, hinweis=None):
+        gesehen.append(hinweis)
+
+    aid = aufnahme.empfange(
+        conn, tg, einst, sprachnachricht(dauer=186, message_id=240)
+    )
+    aufnahme.verarbeite(
+        conn, tg, klm, einst, stt_attrappe("eine lange Erzaehlung"), aid, zug=zug
+    )
+
+    assert not any("klingt nach einem Interview" in t for _, t in tg.gesendet)
+    assert gesehen == [None], "normaler Gespraechszug wie bei einer kurzen Nachricht"
+
+    zeile = repo.hole_nachricht(conn, 1, 240)
+    assert zeile["text"] == "eine lange Erzaehlung"
+    assert zeile["typ"] == "text", "sichtbar, kein verstecktes Transkript"
+    assert zeile["unterdrueckt"] == 0
+
+
 def test_dauer_mmss():
     assert aufnahme.dauer_mmss(186) == "3:06"
     assert aufnahme.dauer_mmss(61) == "1:01"
@@ -1039,10 +1068,18 @@ def test_konstanten_haben_die_gemessenen_werte():
     assert aufnahme.HINWEIS_AB_S == 60
     assert aufnahme.TIPPANZEIGE_AB_S == 5
     assert aufnahme.MELDUNG_AB_S == 12
-    assert aufnahme.BUDGET_KURZ_S == 45
     assert aufnahme.BUDGET_LANG_S == 90
     assert aufnahme.NACHHOL_INTERVALL_S == 60
     assert aufnahme.MAX_VERSUCHE == 5
+
+
+def test_budget_kurz_reicht_fuer_ein_volles_vad_segment():
+    """Seit dem Pausen-Schnitt (VAD, 02.10.2026) kann ein 'kurz'-Segment bis
+    zu IT_WEB_VAD_MAX_MS (Vorgabe 90 s) lang sein -- BUDGET_KURZ_S ist ein
+    Transkriptions-Zeitbudget und muss dafuer reichen, nicht mehr nur fuer
+    eine kurze Wortmeldung."""
+    assert aufnahme.BUDGET_KURZ_S == aufnahme.BUDGET_LANG_S
+    assert aufnahme.BUDGET_KURZ_S >= 90
 
 
 def test_junge_kurze_aufnahme_loest_gespraechszug_aus_alte_nicht(conn, einst, tg, klm):
@@ -1358,6 +1395,22 @@ def test_teil_echo_bleibt_ausserhalb_jedes_erkenner_fensters(conn, einst, tg, kl
     assert all(z["typ"] != "transkript" for z in repo.letzte_nachrichten(conn, 1))
 
 
+def test_teil_echo_hat_im_web_keine_leiste(conn, einst, tg, klm):
+    """Auf dem Web-Kanal deckt Pause/Weiter/Beenden des eigenen
+    Aufnahme-Reglers ab, was Telegram hier mit "Interview geht weiter"/
+    "Interview ist fertig" anbietet (06.10.2026, Phase 3 Web-UX) -- die
+    Leiste entfaellt, das Transkript-Echo bleibt unveraendert bestehen."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+
+    _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A], message_id=560)
+
+    assert tg.mit_knoepfen == [], "keine Leiste mehr auf dem Web-Kanal"
+    assert any(TEIL_A in t for _, t in tg.gesendet), "das Echo geht trotzdem raus"
+
+    echo = conn.execute("SELECT * FROM nachricht WHERE typ = 'transkript'").fetchall()
+    assert len(echo) == 1 and TEIL_A in echo[0]["text"], "bleibt § 10.6-versteckt"
+
+
 def test_neues_teil_echo_nimmt_der_alten_leiste_die_tastatur_ab(conn, einst, tg, klm):
     """Sonst staenden nach fuenf Sprachnachrichten fuenf Leisten im Chat, und
     ein Druck auf die von vor drei Nachrichten beendete das Interview
@@ -1411,3 +1464,283 @@ def test_startbestaetigung_traegt_keinen_beenden_knopf(conn, einst, tg):
     # Kein "Knopf"-Satz mehr (06.09.2026, Fix e): die Ansage nennt, was
     # zu tun ist, nicht wie die Oberflaeche aussieht.
     assert len(text) < 120, "die Startbestaetigung bleibt kurz"
+
+
+# ---------------------------------------------------------------------------
+# Aufgabe 4 (02.10.2026): die eigene Interview-Zeile auf dem Web-Kanal,
+# ersetzt dort _TEXT_AUSGEWERTET
+# ---------------------------------------------------------------------------
+
+
+def test_web_interview_zeile_mit_drei_themen(conn, einst):
+    kopf_id = repo.lege_interview_an(conn, 1)
+    repo.setze_aufnahme_name(conn, kopf_id, "Interview 2")
+    repo.lege_aufnahme_an(conn, 1, 401, "teil", "sprache", dauer=400, teil_von=kopf_id)
+    repo.lege_aufnahme_an(conn, 1, 402, "teil", "sprache", dauer=320, teil_von=kopf_id)
+    verdichtung_id = repo.speichere_verdichtung(
+        conn, 1, kopf_id, "Zusammenfassung.",
+        [
+            {"thema": "Ankommen", "kurz": "Erstes Thema",
+             "beleg_zitat": "x", "zitat_geprueft": 1},
+            {"thema": "Arbeit", "kurz": "Zweites Thema",
+             "beleg_zitat": "y", "zitat_geprueft": 1},
+            {"thema": "Familie", "kurz": "Drittes Thema",
+             "beleg_zitat": "z", "zitat_geprueft": 1},
+        ],
+    )
+    row = repo.hole_aufnahme(conn, kopf_id)
+
+    text = aufnahme._text_interview_gespeichert_web(conn, row, verdichtung_id, einst)
+
+    zeilen = text.splitlines()
+    assert zeilen[0].startswith("Interview 2 gespeichert · ")
+    assert zeilen[0].endswith(" Uhr · 12 Min"), zeilen[0]
+    assert zeilen[1] == "Themen: Erstes Thema · Zweites Thema · Drittes Thema"
+    assert zeilen[2] == "Ganze Auswertung im Tab Arbeitsstand."
+
+
+def test_web_interview_zeile_ohne_themen_laesst_die_zeile_weg(conn, einst):
+    """Kein einziges Thema mit belegtem Zitat -- derselbe Fall wie
+    ``test_keine_belegte_these_meldet_die_leerstelle`` (N2): die Verdichtung
+    wird mit leerer Themenliste gespeichert. ``repo.speichere_verdichtung``
+    laesst 'kurz' nie leer stehen (es faellt auf 'thema' zurueck), darum ist
+    die leere Liste hier der ehrliche Weg, keine blanke Kurzform zu
+    erzeugen."""
+    kopf_id = repo.lege_interview_an(conn, 1)
+    repo.setze_aufnahme_name(conn, kopf_id, "Interview 1")
+    repo.lege_aufnahme_an(conn, 1, 403, "teil", "sprache", dauer=60, teil_von=kopf_id)
+    verdichtung_id = repo.speichere_verdichtung(
+        conn, 1, kopf_id, "Zusammenfassung ohne Thema.", [],
+    )
+    row = repo.hole_aufnahme(conn, kopf_id)
+
+    text = aufnahme._text_interview_gespeichert_web(conn, row, verdichtung_id, einst)
+
+    assert "Themen:" not in text
+    assert text.splitlines()[-1] == "Ganze Auswertung im Tab Arbeitsstand."
+
+
+def test_web_interview_zeile_dauer_wird_auf_mindestens_eine_minute_gerundet(conn, einst):
+    kopf_id = repo.lege_interview_an(conn, 1)
+    repo.setze_aufnahme_name(conn, kopf_id, "Interview 1")
+    repo.lege_aufnahme_an(conn, 1, 404, "teil", "sprache", dauer=20, teil_von=kopf_id)
+    verdichtung_id = repo.speichere_verdichtung(conn, 1, kopf_id, "Kurz.", [])
+    row = repo.hole_aufnahme(conn, kopf_id)
+
+    text = aufnahme._text_interview_gespeichert_web(conn, row, verdichtung_id, einst)
+
+    assert "· 1 Min" in text.splitlines()[0]
+    assert "· 0 Min" not in text.splitlines()[0]
+
+
+def test_normaler_abschluss_auf_web_sendet_die_neue_zeile(conn, einst, tg, klm):
+    """Die eigentliche Verdrahtung (Schritt 3): ein normal abgeschlossenes
+    Interview auf dem Web-Kanal bekommt die neue Zeile statt
+    ``_TEXT_AUSGEWERTET`` -- Telegram bleibt in
+    ``test_fertig_verdichtet_einmal_und_haelt_sich_im_chat_zurueck``
+    unveraendert bei der alten Zaehlung."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    phasen.setze(conn, 1, 3, "befehl")
+    kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TEIL_A, TEIL_B], message_id=450)
+    tg.gesendet.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    text = next(t for _, t in tg.gesendet if "gespeichert" in t)
+    assert text.startswith("Interview 1 gespeichert · ")
+    assert text.endswith("Ganze Auswertung im Tab Arbeitsstand.")
+    assert not any("ausgewertet:" in t for _, t in tg.gesendet), (
+        "nicht mehr die Telegram-Zaehlung"
+    )
+
+
+def test_zu_kurzes_interview_auf_web_crasht_nicht_und_bekommt_den_knopf(conn, einst, tg, klm):
+    """Der Sonderfall unter ``MINDEST_WOERTER`` bekommt weiterhin
+    ``T._TEXT_ZU_KURZ`` (unveraendert) -- hier wird nur geprueft, dass der
+    Web-Kanal dabei nicht crasht und die neue "Interviews fertig"-Leiste
+    (Aufgabe 3) trotzdem ankommt."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    phasen.setze(conn, 1, 3, "befehl")
+    kopf_id = interview_an(conn, tg, einst)
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=4, message_id=430))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe("nur ein kurzer Satz"), aid)
+    tg.gesendet.clear()
+    tg.mit_knoepfen.clear()
+
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, tg, klm, einst, kopf_id)
+
+    assert tg.mit_knoepfen, "die Leiste wurde trotzdem gesendet"
+    beschriftungen = [b for b, _ in tg.mit_knoepfen[-1][2]]
+    assert beschriftungen == ["Interviews fertig"]
+
+
+def test_interview_ohne_aufnahme_auf_web_crasht_nicht_und_bekommt_den_knopf(conn, einst, tg):
+    """Der Pfad ``T._TEXT_OHNE_AUFNAHME`` in ``_schliesse_ab`` (ein Teil kam
+    an, aber ohne verwertbares Transkript) -- unveraendert, nur auf dem
+    Web-Kanal darf er nicht crashen und soll die Leiste bekommen."""
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    phasen.setze(conn, 1, 3, "befehl")
+    kopf_id = repo.lege_interview_an(conn, 1)
+    repo.lege_aufnahme_an(
+        conn, 1, 431, "teil", "sprache", dauer=5, teil_von=kopf_id, status="fertig",
+    )
+    tg.gesendet.clear()
+    tg.mit_knoepfen.clear()
+
+    aufnahme.schliesse_ab(conn, tg, None, einst, kopf_id)
+
+    assert any("hatte keine Aufnahme" in t for _, t in tg.gesendet)
+    assert tg.mit_knoepfen, "die Leiste wurde trotzdem gesendet"
+    beschriftungen = [b for b, _ in tg.mit_knoepfen[-1][2]]
+    assert beschriftungen == ["Interviews fertig"]
+
+
+# -- Brainstorm mithören (Phase 4, nur Web, 02.10.2026) ----------------------
+
+
+def _brainstorm_zeile(conn, chat_id, message_id, transkript, schnittgrund="pause"):
+    aufnahme_id = repo.lege_aufnahme_an(
+        conn, chat_id, message_id, "kurz", "sprache", status="transkribiert",
+        schnittgrund=schnittgrund, brainstorm=True,
+    )
+    repo.setze_transkript(conn, aufnahme_id, transkript)
+    repo.merke_nachricht(
+        conn, chat_id, message_id, "Gruppe", 0, "sprache", None,
+        "2026-10-02T10:00:00", 1,
+    )
+    return repo.hole_aufnahme(conn, aufnahme_id)
+
+
+def test_brainstorm_segment_wird_nicht_typ_text(conn, tg, einst):
+    row = _brainstorm_zeile(conn, 1, 500, "Ein kurzer Gedanke.")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    zeile = conn.execute(
+        "SELECT typ, unterdrueckt FROM nachricht WHERE chat_id = 1 AND message_id = 500",
+    ).fetchone()
+    assert zeile["typ"] == "sprache"
+    assert zeile["unterdrueckt"] == 1
+
+
+def test_brainstorm_segment_ruft_zug_nicht_auf(conn, tg, einst):
+    row = _brainstorm_zeile(conn, 1, 501, "Noch ein Gedanke.")
+    aufgerufen = []
+    aufnahme._kurz_abschliessen(
+        conn, tg, None, einst, row,
+        lambda *a, **k: aufgerufen.append(1), False,
+    )
+    assert not aufgerufen
+
+
+def test_brainstorm_segment_zaehlt_in_brainstorm_stand(conn, tg, einst):
+    row = _brainstorm_zeile(conn, 1, 502, "Ein Gedanke von messbarer Laenge.")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    stand = repo.brainstorm_stand(conn, 1)
+    assert stand["unreagierte_zeichen"] == len("Ein Gedanke von messbarer Laenge.")
+
+
+def test_brainstorm_segment_setzt_status_fertig(conn, tg, einst):
+    row = _brainstorm_zeile(conn, 1, 503, "Text.")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    neu = repo.hole_aufnahme(conn, row["id"])
+    assert neu["status"] == "fertig"
+
+
+def test_trigger_feuert_nicht_unter_der_zeichengrenze(conn, tg, einst, monkeypatch):
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    row = _brainstorm_zeile(conn, 1, 504, "x" * 10)
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert not aufgerufen
+
+
+def test_trigger_feuert_bei_genug_zeichen_und_pausenschnitt(conn, tg, einst, monkeypatch):
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    row = _brainstorm_zeile(conn, 1, 505, "x" * 20, schnittgrund="pause")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert aufgerufen
+
+
+def test_trigger_feuert_nicht_bei_kappenschnitt(conn, tg, einst, monkeypatch):
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    row = _brainstorm_zeile(conn, 1, 506, "x" * 20, schnittgrund="cap")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert not aufgerufen
+
+
+def test_abschluss_schnitt_feuert_schon_ab_150_zeichen(conn, tg, einst, monkeypatch):
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    # 'ende' wuerde ohne den Abschluss-Pfad (hohe MIN_ZEICHEN-Vorgabe) nicht feuern.
+    row = _brainstorm_zeile(conn, 1, 507, "x" * 20, schnittgrund="ende")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert aufgerufen
+
+
+def test_starte_buehnenkarte_tut_nichts_ohne_klm(conn, tg, einst, monkeypatch):
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme.brainstorm, "versuche_start", lambda *a, **k: aufgerufen.append(1) or True)
+    aufnahme._starte_buehnenkarte(conn, tg, None, einst, 1)
+    assert not aufgerufen
+
+
+def test_starte_buehnenkarte_legt_eine_karte_an_und_meldet_genau_eine_zeile(conn, tg, einst, monkeypatch):
+    monkeypatch.setattr(
+        aufnahme.buehnenkarte, "erzeuge",
+        lambda *a, **k: ("Thema gerade: Testkarte.", "infomaniak"),
+    )
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    # Der Lauf ist ein eigener Thread -- auf BEIDE Wirkungen warten statt zu raten.
+    for _ in range(50):
+        if repo.buehnenkarten(conn, 1) and tg.gesendet:
+            break
+        time.sleep(0.02)
+    karten = repo.buehnenkarten(conn, 1)
+    assert len(karten) == 1
+    assert karten[0]["text"] == "Thema gerade: Testkarte."
+    assert [t for _, t in tg.gesendet].count("Neue Karte im Tab Bühne") == 1
+
+
+def test_starte_buehnenkarte_bei_nichts_speichert_keine_karte_und_sendet_nichts(conn, tg, einst, monkeypatch):
+    monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge", lambda *a, **k: (None, "infomaniak"))
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    for _ in range(20):
+        time.sleep(0.02)
+    assert repo.buehnenkarten(conn, 1) == []
+    assert not tg.gesendet
+
+
+def test_melde_neue_karte_sendet_nicht_zweimal_hintereinander(conn, tg, einst):
+    aufnahme._melde_neue_karte(conn, tg, einst, 1)
+    aufnahme._melde_neue_karte(conn, tg, einst, 1)
+    assert len(tg.gesendet) == 1
+
+
+def test_ein_laufender_buehnenkarten_lauf_blockiert_einen_zweiten(conn, tg, einst, monkeypatch):
+    gestartet = threading.Event()
+    weiter = threading.Event()
+
+    def _langsam(*a, **k):
+        gestartet.set()
+        weiter.wait(timeout=2)
+        return ("Karte", "infomaniak")
+
+    monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge", _langsam)
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    assert gestartet.wait(timeout=2)
+    # Waehrend der erste Lauf noch haengt: ein zweiter Versuch tut nichts.
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    weiter.set()
+    for _ in range(50):
+        if repo.buehnenkarten(conn, 1):
+            break
+        time.sleep(0.02)
+    assert len(repo.buehnenkarten(conn, 1)) == 1

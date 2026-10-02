@@ -468,6 +468,11 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         # ENDUNG ableitet (Falle 3): ein WebM als ``.ogg`` abgelegt laesst den
         # Whisper-Auftrag dauerhaft auf 'pending' stehen.
         "endung": _sprachquelle(nachricht).get("endung"),
+        # Pausen-Schnitt (VAD) und Brainstorm-Flag (02.10.2026) -- additiv wie
+        # ``endung``, bei einem echten Telegram-Update immer None/False. Nur
+        # der Web-Kanal setzt sie.
+        "schnittgrund": _sprachquelle(nachricht).get("schnittgrund"),
+        "brainstorm": _sprachquelle(nachricht).get("brainstorm", False),
     }
 
 

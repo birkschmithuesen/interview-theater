@@ -240,6 +240,19 @@ GEAENDERT: dict[str, str] = {
     "szenenfolge.systemanweisung(6)": (
         "Folgt aus phasen/6.md (siehe oben)."
     ),
+    "prompt phasen/3": (
+        "Karte Phase3-Web: Bedienungsanleitung kanal-neutral umformuliert, "
+        "02.10.2026. Die Schritte nennen keinen Telegram-Knopfwortlaut mehr "
+        "(\"Interview starten\" / \"Interview geht weiter\" / \"Interview "
+        "ist fertig\"), sondern das Verhalten (Aufnahme starten / "
+        "aufnehmen / beenden) -- einige dieser Knoepfe werden im Web-Kanal "
+        "seit Aufgabe 2 nicht mehr angeboten."
+    ),
+    "anweisungen.system(phase=3)": (
+        "Karte Phase3-Web, 02.10.2026: Folgewirkung derselben Aenderung an "
+        "prompt phasen/3 -- die zusammengesetzte Systemanweisung bettet den "
+        "Phasentext direkt ein, siehe Begruendung dort."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

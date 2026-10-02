@@ -343,6 +343,11 @@ class WebKanal:
                 # (Aufgabe 3): aufnahme.empfange braucht die Endung fuer den
                 # Zielpfad, weil stt.mime_typ() daraus den MIME-Typ ableitet.
                 "endung": endung,
+                # Pausen-Schnitt (VAD) und Brainstorm-Flag (02.10.2026):
+                # dieselbe additive Durchreiche wie ``endung``, aus den
+                # gleichnamigen web_post-Spalten.
+                "schnittgrund": zeile["schnittgrund"],
+                "brainstorm": bool(zeile["brainstorm"]),
             }
         else:
             nachricht["text"] = zeile["text"] or ""

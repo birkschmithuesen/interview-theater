@@ -468,6 +468,56 @@ def test_fragen_werden_escaped():
     assert "<script>" not in web._fragen_html("Thema: <script>x</script>")
 
 
+def test_buehne_tab_fehlt_ausserhalb_phase_4(basis, token):
+    """Phase ist in der Test-DB nicht gesetzt (also nicht 4) -- weder der
+    Umschalter noch das Panel stehen im Markup. Die Huelle ``#stand-inhalt``
+    bleibt unbedingt im Markup (sie ist ohne den Umschalter wirkungslos),
+    nur Umschalter und Panel sind an Phase 4 gebunden."""
+    koerper = hole(f"{basis}/g/{token}")[1]
+    assert 'class="tabs"' not in koerper
+    assert 'id="buehne-panel"' not in koerper
+
+
+def test_buehne_tab_zeigt_karten_neueste_zuerst_und_stueckkarte(db_pfad, token, basis):
+    conn = db.verbinde(db_pfad)
+    repo.setze_phase(conn, 1, 4)
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Ein Klassenzimmer")
+    repo.lege_buehnenkarte_an(conn, 1, "Erste Karte.", "infomaniak")
+    repo.lege_buehnenkarte_an(conn, 1, "Zweite Karte.", "infomaniak")
+    conn.commit()
+
+    koerper = hole(f"{basis}/g/{token}")[1]
+    assert 'class="tabs"' in koerper
+    assert 'data-tab="chat"' in koerper and 'data-tab="buehne"' in koerper
+    assert 'id="buehne-panel"' in koerper
+    assert 'id="stand-inhalt"' in koerper
+    # Neueste zuerst, und newest=gross/alt=klein+ausgegraut (zwei
+    # verschiedene Klassen).
+    assert koerper.index("Zweite Karte.") < koerper.index("Erste Karte.")
+    assert '<div class="karte">Zweite Karte.' in koerper
+    assert '<div class="karte alt">Erste Karte.' in koerper
+    # Stueckkarte: Setting gesetzt (Haken), Figuren/Geschichte offen.
+    assert "Ein Klassenzimmer" in koerper
+    assert web._TEXT_BUEHNE_OFFEN in koerper
+
+
+def test_buehne_tab_ohne_karten_sagt_das(db_pfad, token, basis):
+    conn = db.verbinde(db_pfad)
+    repo.setze_phase(conn, 1, 4)
+    conn.commit()
+    koerper = hole(f"{basis}/g/{token}")[1]
+    assert web._TEXT_BUEHNE_LEER in koerper
+
+
+def test_buehne_zeigt_die_freien_festlegungen(db_pfad, token, basis):
+    conn = db.verbinde(db_pfad)
+    repo.setze_phase(conn, 1, 4)
+    repo.schreibe_festlegung(conn, 1, "stil", "Hoechstens eine Seite je Szene")
+    conn.commit()
+    koerper = hole(f"{basis}/g/{token}")[1]
+    assert "Hoechstens eine Seite je Szene" in koerper
+
+
 def test_dashboard_verlinkt_jede_gruppe_auf_ihre_gruppenseite(tmp_path):
     """Echte Daten statt Attrappe: der Dashboard-Dict hat viele Pflichtfelder."""
     from interview_theater import db, repo, web, web_daten

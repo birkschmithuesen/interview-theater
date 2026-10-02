@@ -140,6 +140,10 @@ ART_OHNE_KNOPF_NEIN = "ohne_knopf_nein"
 #: lassen. Der ``wert`` traegt die Kopf-id.
 ART_OHNE_KNOPF_FERTIG = "ohne_knopf_fertig"
 ART_OHNE_KNOPF_WEITER = "ohne_knopf_weiter"
+#: Der eine Web-Knopf nach einem Interview (Phase 3 Web-UX, 02.10.2026):
+#: ersetzt auf dem Web-Kanal die ganze Telegram-Leiste aus
+#: ``biete_nach_aufnahme``. Kein ``wert`` -- die Wirkung liest den Chat.
+ART_INTERVIEWS_FERTIG = "interviews_fertig"
 
 # --- Phase 2 · Fragen einzeln durchgehen und der Leitfaden ----------------
 #
@@ -410,6 +414,20 @@ _TEXT_OHNE_KNOPF_WEITER = "Gut, ich hoere weiter zu."
 #: Die Aufnahme, um die es ging, ist inzwischen weg (geloescht, in ein
 #: anderes Interview gezogen). Der Knopf bleibt trotzdem beantwortet.
 _TEXT_OHNE_KNOPF_UNBEKANNT = "Diese Aufnahme kenne ich nicht mehr."
+
+#: Der eine Web-Knopf nach einem Interview (Phase 3 Web-UX, 02.10.2026).
+_TEXT_INTERVIEWS_FERTIG_KNOPF = "Interviews fertig"
+#: Gedrueckt, aber noch mindestens ein Interview ohne Verdichtung offen --
+#: der Wunsch wird gemerkt (``arbeitsstand.interviews_fertig_wunsch_seit``)
+#: und schliesst automatisch nach der letzten Verdichtung weiter.
+_TEXT_INTERVIEWS_NOCH_OFFEN = (
+    "{anzahl} Interview(s) werden noch ausgewertet - es geht automatisch "
+    "weiter, sobald sie fertig sind."
+)
+#: Steht unter der Abschlussnachricht, wenn ``schliesse_interviews_ab`` einen
+#: Phasenwechsel ausgeloest hat: die Verdichtungen selbst stehen nicht mehr
+#: im Chat (Phase 3 Web-UX), sondern im Tab Arbeitsstand der Gruppenseite.
+_TEXT_ARBEITSSTAND_HINWEIS = "Die Auswertung aller Interviews findet ihr im Tab Arbeitsstand."
 
 #: Die Ablauf-Erklaerung vor dem Start (05.09.2026, Birk nach Gruppe 3,
 #: 16:36). Der Anlass: die Gruppe sagte "wir wollen ein Interview machen",

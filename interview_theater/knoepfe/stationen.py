@@ -47,6 +47,19 @@ def uebergang_nach_speichern(conn, tg, klm, e, chat_id: int) -> bool:
     return True
 
 
+def schliesse_interviews_ab(conn, tg, klm, e, chat_id: int) -> bool:
+    """Phase 4, wenn die Materiallage es hergibt (alle Interviews verdichtet)
+    -- sonst False, ohne etwas zu senden. Teilt sich zwischen dem Knopf
+    "Interviews fertig" (``_wirkung_interviews_fertig``) und dem
+    Auto-Uebergang nach der letzten Verdichtung im Web-Kanal
+    (``aufnahme._interview_abschliessen``), damit beide Wege dieselbe eine
+    Nachrichtenfolge erzeugen (02.10.2026)."""
+    if uebergang_nach_speichern(conn, tg, klm, e, chat_id):
+        tg.sende(chat_id, T._TEXT_ARBEITSSTAND_HINWEIS)
+        return True
+    return False
+
+
 def _speicherleiste_offen(conn, chat_id: int) -> bool:
     """Steht in dieser Phase eine ungedrueckte "Ja, speichern"-Leiste? Dann
     traegt ihr Ja den Phasenwechsel (``uebergang_nach_speichern``), und ein

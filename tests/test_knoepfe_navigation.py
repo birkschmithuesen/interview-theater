@@ -13,7 +13,7 @@ Knopf-Handler** (AGENTS.md, Zusage 2 in ``knoepfe.py``).
 
 import pytest
 
-from interview_theater import ablauf, knoepfe, phasen, repo
+from interview_theater import ablauf, aufnahme, knoepfe, phasen, repo
 
 from test_knoepfe import TelegramAttrappe, _druck
 
@@ -36,6 +36,25 @@ def auftraege(monkeypatch):
 
     monkeypatch.setattr(ablauf, "starte_auftrag", _fake)
     return gesammelt
+
+
+class _KlmAttrappe:
+    """Zaehlt jeden Modellaufruf -- die Zusage "kein Modellaufruf im
+    Knopf-Handler" ist genau diese Zahl. Liefert eine Verdichtung ohne
+    Themen: genug fuer die Phase-4-Voraussetzung (``repo.verdichtungen``),
+    ohne an der Zitatpruefung zu haengen."""
+
+    def __init__(self):
+        self.aufrufe = 0
+
+    def schema(self, chat_id, system, nutzer, schema, art, **_kw):
+        self.aufrufe += 1
+        return {"zusammenfassung": "Kurz.", "kernthemen": []}
+
+
+@pytest.fixture
+def klm():
+    return _KlmAttrappe()
 
 
 def _knopf(tg, beschriftung):
@@ -709,3 +728,202 @@ def test_der_figurenvorschlag_ist_frei_erfunden_und_nicht_aus_den_interviews(
     assert "frei erfunden" in anweisung
     assert "NICHT aus den Interviews" in anweisung
     assert "Setting" in anweisung
+
+
+# --- Web-Kanal: keine alten Telegram-Knoepfe mehr nach einer Aufnahme -----
+#
+# 06.10.2026, Phase 3 Web-UX: Pause/Weiter/Beenden des Aufnahme-Reglers im
+# Browser deckt ab, was Telegram bisher mit einer Leiste aus "Zusammenfassung
+# zeigen"/"Transkript zeigen"/"Naechstes Interview"/"Weiter zu Phase N"
+# anbot. Die Handler (``ART_ZUSAMMENFASSUNG`` usw.) bleiben unveraendert --
+# ein schon verschickter Knopf bleibt wirksam --, nur das Angebot aendert
+# sich: ``biete_nach_aufnahme`` liefert auf dem Web-Kanal ausserhalb von
+# Phase 3 eine leere Leiste; in Phase 3, sobald ein Interview existiert,
+# genau den einen Knopf "Interviews fertig" (02.10.2026, siehe unten).
+
+
+def test_web_bekommt_keine_knoepfe_nach_der_aufnahme(conn, tg):
+    kopf_id = _interview(conn)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "Es ging ums Ankommen.", [])
+    repo.setze_gruppe_kanal(conn, 1, "web")
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    assert tg.knoepfe[-1][2] == [], "keine Knoepfe mehr auf dem Web-Kanal"
+    assert tg.gesendet[-1] == (1, "Interview 1 ist abgelegt."), "der Text bleibt"
+
+
+def test_telegram_behaelt_die_knoepfe_nach_der_aufnahme(conn, tg):
+    """Gegenprobe: ohne ``gruppe.kanal = 'web'`` (Telegram ist die Vorgabe)
+    steht die Leiste unveraendert da."""
+    kopf_id = _interview(conn)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "Es ging ums Ankommen.", [])
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Zusammenfassung zeigen" in beschriftungen
+    assert "Transkript zeigen" in beschriftungen
+
+
+def test_web_einstieg_bietet_kein_alle_auswerten_an(conn, tg):
+    """Dieselbe Sperre fuer den zweiten Fundort: ``biete_einstieg`` schiebt
+    "Alle auswerten" nur unter, wenn gerade kein Phasenknopf steht (Phase-4-
+    Sperre) -- auf dem Web-Kanal bleibt der Knopf trotzdem weg (Gegenprobe:
+    ``test_einstieg_bietet_alle_auswerten_statt_eines_phasenknopfes`` in
+    test_knoepfe.py zeigt denselben Fall auf Telegram)."""
+    _interview(conn)
+    repo.setze_gruppe_kanal(conn, 1, "web")
+
+    knoepfe.biete_einstieg(conn, tg, 1, "Wieder da.")
+
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert "Alle auswerten" not in beschriftungen
+
+
+def test_web_raeumt_den_phasenangebot_merkposten_trotz_eigener_leiste_ab(conn, tg):
+    """Review-Fund: eine fruehere Fassung liess die Web-Sperre ganz oben
+    einen fruehen ``return`` machen, bevor ``phasen.vergiss_angebot`` am Ende
+    der Funktion ueberhaupt lief. Auf dem Web-Kanal blieb der Merkposten
+    damit nach dem ersten Angebot dauerhaft gesetzt, und
+    ``phasen.offenes_angebot`` haette "Weiter zu Phase N?" nach keinem
+    weiteren Interview je wieder vorgeschlagen -- genau der Fehler, gegen den
+    ``vergiss_angebot`` gebaut ist (siehe dessen Docstring sowie
+    ``test_das_angebot_kommt_nach_jeder_auswertung_erneut`` oben, die
+    Telegram-Gegenprobe). Diese Funktion muss unabhaengig vom Kanal auf jeden
+    Lauf mit ``kopf_id`` und Phase 3 treffen -- unabhaengig davon, dass die
+    Leiste auf dem Web-Kanal seit 02.10.2026 den einen Knopf "Interviews
+    fertig" traegt statt leer zu bleiben (Task 2 bot hier noch eine leere
+    Leiste, siehe ``test_interviews_fertig_erscheint_nur_auf_web_in_phase_3``
+    unten fuer den Knopf selbst)."""
+    phasen.setze(conn, 1, 3, "befehl")  # PHASE_INTERVIEWS, wie im Telegram-Pendant oben
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    kopf_id = _interview(conn)
+    repo.setze_phase_angeboten(conn, 1, 4)
+    assert repo.hole_phase_angeboten(conn, 1) == 4, "Vorbedingung: etwas gemerkt"
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    assert repo.hole_phase_angeboten(conn, 1) == phasen.KEIN_ANGEBOT, (
+        "der Merkposten muss auch auf dem Web-Kanal abgeraeumt werden"
+    )
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert beschriftungen == ["Interviews fertig"], (
+        "die Leiste traegt auf dem Web-Kanal seit Task 3 genau diesen einen Knopf"
+    )
+
+
+# --- Web-Kanal: der Knopf "Interviews fertig" (02.10.2026) ----------------
+#
+# Ersetzt die leere Leiste aus Task 2 durch den einen Web-Knopf, der Phase 3
+# abschliesst: entweder direkt (alle Interviews verdichtet) oder gemerkt
+# (``arbeitsstand.interviews_fertig_wunsch_seit``) fuer den Auto-Uebergang
+# nach der letzten Verdichtung (``aufnahme._interview_abschliessen``).
+
+
+def test_interviews_fertig_erscheint_nur_auf_web_in_phase_3(conn, tg):
+    """Ab dem ersten gespeicherten Interview, nur in Phase 3, nur auf dem
+    Web-Kanal -- Telegram und andere Phasen bleiben unberuehrt."""
+    phasen.setze(conn, 1, 3, "befehl")
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    kopf_id = _interview(conn)
+
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert beschriftungen == ["Interviews fertig"]
+    daten = _knopf(tg, "Interviews fertig")
+    zeile = repo.hole_knopf(conn, knoepfe._id_aus_daten(daten))
+    assert zeile["art"] == knoepfe.ART_INTERVIEWS_FERTIG
+
+    # Gegenprobe 1: Telegram bleibt bei seiner eigenen Leiste.
+    repo.setze_gruppe_kanal(conn, 1, "telegram")
+    tg2 = TelegramAttrappe()
+    knoepfe.biete_nach_aufnahme(conn, tg2, 1, "Interview 1 ist abgelegt.", kopf_id)
+    assert "Interviews fertig" not in [b for b, _ in tg2.knoepfe[-1][2]]
+    repo.setze_gruppe_kanal(conn, 1, "web")
+
+    # Gegenprobe 2: ausserhalb von Phase 3 kein Knopf, auch nicht auf Web.
+    phasen.setze(conn, 1, 4, "befehl")
+    tg3 = TelegramAttrappe()
+    knoepfe.biete_nach_aufnahme(conn, tg3, 1, "Interview 1 ist abgelegt.", kopf_id)
+    assert tg3.knoepfe[-1][2] == []
+
+
+def test_interviews_fertig_springt_direkt_wenn_alles_verdichtet(conn, tg, klm, einst):
+    """Sind alle Interviews schon verdichtet, schliesst der Knopf Phase 3
+    direkt ab -- kein Umweg ueber den Wunsch-Merkposten, keine
+    "noch offen"-Zeile."""
+    phasen.setze(conn, 1, 3, "befehl")
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    kopf_id = _interview(conn)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "Es ging ums Ankommen.", [])
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    _druecke(conn, tg, einst, "Interviews fertig", klm=klm)
+
+    assert phasen.aktuelle(conn, 1) == 4
+    assert any(t == "Die Auswertung aller Interviews findet ihr im Tab Arbeitsstand."
+               for _, t in tg.gesendet)
+    assert not any("werden noch ausgewertet" in t for _, t in tg.gesendet)
+    assert repo.hole_arbeitsstand(conn, 1)["interviews_fertig_wunsch_seit"] is None
+    assert klm.aufrufe == 0, "kein Modellaufruf im Knopf-Handler (Zusage 2)"
+
+
+def test_interviews_fertig_merkt_den_wunsch_wenn_noch_offen(conn, tg, klm, einst):
+    """Haengt noch ein unausgewertetes Interview offen rum, merkt der Knopf
+    den Wunsch und bleibt in Phase 3 -- der Auto-Uebergang holt ihn spaeter
+    nach."""
+    phasen.setze(conn, 1, 3, "befehl")
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    kopf_id = _interview(conn)
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    _druecke(conn, tg, einst, "Interviews fertig", klm=klm)
+
+    assert phasen.aktuelle(conn, 1) == 3, "bleibt in Phase 3"
+    wunsch = repo.hole_arbeitsstand(conn, 1)["interviews_fertig_wunsch_seit"]
+    assert wunsch, "der Wunsch ist gemerkt"
+    assert any(
+        "1 Interview(s) werden noch ausgewertet" in t for _, t in tg.gesendet
+    )
+    assert klm.aufrufe == 0, "kein Modellaufruf im Knopf-Handler (Zusage 2)"
+
+
+def test_wunsch_schliesst_automatisch_nach_letzter_verdichtung(conn, tg, klm, einst):
+    """Der Wunsch ist gemerkt, zwei Interviews stehen offen: die erste
+    Verdichtung schaltet noch nicht weiter (einer bleibt offen), die zweite
+    (die letzte) loest den Uebergang aus und nimmt den Merkposten wieder
+    weg."""
+    phasen.setze(conn, 1, 3, "befehl")
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    kopf_a = _interview(conn, name="Interview 1")
+    kopf_b = _interview(conn, name="Interview 2")
+    repo.setze_arbeitsstand(conn, 1, "interviews_fertig_wunsch_seit", "2026-10-02T12:00:00+00:00")
+
+    aufnahme._interview_abschliessen(
+        conn, tg, klm, einst, repo.hole_aufnahme(conn, kopf_a), erzwungen=True,
+    )
+    assert phasen.aktuelle(conn, 1) == 3, "ein Interview ist noch offen"
+    assert repo.hole_arbeitsstand(conn, 1)["interviews_fertig_wunsch_seit"], (
+        "der Wunsch bleibt gemerkt, solange noch etwas offen ist"
+    )
+
+    aufnahme._interview_abschliessen(
+        conn, tg, klm, einst, repo.hole_aufnahme(conn, kopf_b), erzwungen=True,
+    )
+    assert phasen.aktuelle(conn, 1) == 4, "jetzt war es das letzte"
+    assert repo.hole_arbeitsstand(conn, 1)["interviews_fertig_wunsch_seit"] is None
+    assert any(t == "Die Auswertung aller Interviews findet ihr im Tab Arbeitsstand."
+               for _, t in tg.gesendet)
+
+
+def test_wunsch_ueberlebt_einen_neustart(conn):
+    """Der Wunsch ist eine DB-Spalte, kein Prozessspeicher: ein frischer
+    ``repo.hole_arbeitsstand``-Lesezugriff nach einem simulierten Neustart
+    (derselbe Pfad, dieselbe Datenbank) sieht ihn weiterhin gesetzt."""
+    repo.setze_arbeitsstand(conn, 1, "interviews_fertig_wunsch_seit", "2026-10-02T12:00:00+00:00")
+
+    assert repo.hole_arbeitsstand(conn, 1)["interviews_fertig_wunsch_seit"] == (
+        "2026-10-02T12:00:00+00:00"
+    )

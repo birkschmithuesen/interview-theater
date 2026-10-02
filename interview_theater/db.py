@@ -115,7 +115,21 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- traegt. Additiv; bestehende Zeilen tragen NULL und sind damit eigenes
   -- Material.
   uebernommen_von TEXT,
-  uebernommen_am  TEXT
+  uebernommen_am  TEXT,
+  -- Pausen-Schnitt (VAD, 02.10.2026): 'pause'|'cap'|'ende'|NULL (Rueckfall
+  -- ohne AnalyserNode, oder eine Zeile von vor dieser Karte). Additiv
+  -- nachgeruestet ueber _migriere_fehlende_spalten. Gebraucht vom
+  -- Brainstorm-Trigger (interview_theater/brainstorm.py): nur ein
+  -- Pausen-Schnitt zaehlt als "die Gruppe hat gerade abgeschlossen".
+  schnittgrund    TEXT,
+  -- Gesetzt = dieses 'kurz'-Segment kommt vom Knopf "Brainstorm mithören"
+  -- (Phase 4, nur Web), nicht von PTT oder einer gewoehnlichen
+  -- Sprachnachricht. Additiv nachgeruestet. Unterscheidet NICHT 'kurz' von
+  -- 'teil'/'lang' (das bleibt klasse) -- ein Brainstorm-Segment ist und
+  -- bleibt ein gewoehnlicher Gespraechsbeitrag in jeder Hinsicht ausser:
+  -- es loest keinen Gespraechszug aus und wird nie als Interview angeboten
+  -- (siehe aufnahme.py, Brainstorm-Zweig).
+  brainstorm      INTEGER NOT NULL DEFAULT 0
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,
@@ -365,6 +379,24 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- TEXT wie ``figuren_anzahl``, additiv nachgeruestet ueber
   -- _migriere_fehlende_spalten.
   szenen_anzahl          TEXT,
+  -- Merkposten fuer den Knopf "Interviews fertig" im Web-Kanal (Phase 3,
+  -- 02.10.2026): gesetzt (ISO-Zeitstempel), solange die Gruppe "Interviews
+  -- fertig" gedrueckt hat, aber noch mindestens ein beendetes Interview ohne
+  -- Verdichtung offen ist. Die naechste erfolgreich abgeschlossene
+  -- Verdichtung prueft dieses Feld und schliesst automatisch nach Phase 4
+  -- weiter, sobald aufnahme.unausgewertete_interviews() leer ist -- auch
+  -- nach einem Neustart, weil der Wunsch hier und nicht nur im Prozess steht.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  interviews_fertig_wunsch_seit TEXT,
+  -- Brainstorm-Mithoeren (Phase 4, nur Web, 02.10.2026): die hoechste
+  -- aufnahme.id, die die letzte Buehnenkarte schon gesehen hat -- nicht ein
+  -- Zeichenzaehler, der aus dem Tritt geraten koennte: "unreagierte Zeichen"
+  -- ist die Summe ueber alle Brainstorm-Segmente MIT hoeherer id (siehe
+  -- repo.brainstorm_stand). NULL = noch nie eine Karte.
+  brainstorm_markierung_id INTEGER,
+  -- Wann die letzte Buehnenkarte entstand -- fuer den Mindestabstand
+  -- (brainstorm.min_abstand_s). NULL = noch nie eine Karte.
+  brainstorm_reaktion_am TEXT,
   geaendert_am           TEXT
 );
 
@@ -510,6 +542,26 @@ CREATE TABLE IF NOT EXISTS szenenfassung (
 );
 CREATE INDEX IF NOT EXISTS idx_szenenfassung_szene
   ON szenenfassung(szene_id, nummer);
+
+-- Die Buehnenkarten des Brainstorm-Modus (Phase 4, nur Web, 02.10.2026).
+--
+-- Nur anhaengen, nie aendern, nie loeschen (wie journal/szenenfassung): eine
+-- Karte ist ein Vorschlag des Bots zu einem Zeitpunkt, keine Entscheidung
+-- der Gruppe -- ``buehnenkarte.wirkung.py`` o.ae. gibt es bewusst nicht,
+-- Festlegungen gehen weiterhin ueber ``festlegung``/``arbeitsstand``. Der
+-- Text traegt KEIN Belegzitat (Phase 4 ist interview-frei, kernpaket_erlaubt
+-- greift erst ab Phase 5) und NIE den vollen Brainstorm-Wortlaut, nur das,
+-- was das Modell daraus geschrieben hat.
+CREATE TABLE IF NOT EXISTS buehnenkarte (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  text         TEXT NOT NULL,
+  -- 'infomaniak' oder 'claude' (ueber szene_claude, mit Einwilligung) --
+  -- dasselbe Feld wie aufruf.modus, hier als lesbarer Text statt A/B/C.
+  modell       TEXT NOT NULL,
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_buehnenkarte_chat ON buehnenkarte(chat_id, id);
 
 -- Die Schaerfung am Material (Phase 6, Umbau 05.09.2026 nachts).
 --
@@ -842,7 +894,13 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- serialisiert die Schreiber, der Wert steigt also in Commit-Reihenfolge,
   -- und der Poll der Chatansicht ("alles nach N") verpasst nichts. NULL =
   -- nie geaendert (neue Zeilen holt der Poll ueber die id).
-  aenderung         INTEGER
+  aenderung         INTEGER,
+  -- Pausen-Schnitt (VAD) und Brainstorm-Flag, vom Client mitgegeben
+  -- (?grund=.../?brainstorm=1 an chat/audio) und von hole_updates() auf das
+  -- Telegram-foermige Update durchgereicht (dieselbe Art wie 'mime') --
+  -- additiv nachgeruestet.
+  schnittgrund      TEXT,
+  brainstorm        INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);
@@ -902,6 +960,7 @@ TABELLEN_MIT_CHAT_ID = (
     "dramaturgie_bewertung",
     "journal",
     "festlegung",
+    "buehnenkarte",
     "knopf",
     # Karte U (01.10.2026): die Ruecknahme eines Erkennerlaufs.
     "erkenner_lauf",

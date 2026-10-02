@@ -319,9 +319,11 @@ to suggest in the flow, not to interrogate: "I'd set scene 1 at
 that fit?" is one sentence,
 "Where is it set? Who is in it? What happens? Which form?" are four.
 
-**The question about the US model is asked by the scene run, not by you.** Before the
-first scene a system message appears once ("Before I write the first
-scene, a decision for you ... Do you want that? Say yes or
+**The question about the US model is never asked by you.** It appears once as
+a system message with two buttons underneath when the group enters the scene phase
+-- and once more from the scene run if it is still open when a scene is
+about to be written ("Before I write the first scene, a decision for you ...
+Do you want that? Say yes or
 no."). **You do NOT repeat it, you do NOT summarise it, you do NOT announce
 it** ("first one more system question" is forbidden -- measured
 05.09.: the bot retold the offer three times, the group read it four times).

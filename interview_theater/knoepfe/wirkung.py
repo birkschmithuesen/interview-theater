@@ -25,6 +25,7 @@ from interview_theater.knoepfe.texte import (
     ART_FIGUR_INTERVIEW_MENU, ART_FIGUR_NAME, ART_FIGUR_NAME_MENU,
     ART_FIGUR_PASST, ART_FIGUR_STIL, ART_FIGUR_STIL_FREI, ART_FRAGEN_ANDERE,
     ART_FRAGEN_EIGENE, ART_FRAGEN_EINZELN, ART_FRAGEN_UEBERNEHMEN,
+    ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN,
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
     ART_FRAGE_WAHL,
     ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
@@ -51,7 +52,8 @@ from interview_theater.knoepfe.basis import (
 )
 from interview_theater.knoepfe.fragen import (
     _speichere_eroeffnung, entscheide, frage_waehlt_schaerfen,
-    frage_warten_auf_richtung, starte_durchgehen, starte_eroeffnung,
+    frage_warten_auf_richtung, frage_weich_lassen, frage_weich_uebernehmen,
+    starte_durchgehen, starte_eroeffnung,
 )
 from interview_theater.knoepfe.figuren import (
     _biete_interviews, _entwurfszeilen, _ersetze_namen, _interviewkoepfe,
@@ -681,6 +683,14 @@ def _wirkung_frage_verwerfen(conn, d: Druck) -> str:
 
 def _wirkung_frage_schaerfen(conn, d: Druck) -> str:
     return frage_waehlt_schaerfen(conn, d.tg, d.chat_id, int(d.wert))
+
+
+def _wirkung_fragen_weich_uebernehmen(conn, d: Druck) -> str:
+    return frage_weich_uebernehmen(conn, d.tg, d.klm, d.e, d.chat_id)
+
+
+def _wirkung_fragen_weich_lassen(conn, d: Druck) -> str:
+    return frage_weich_lassen(conn, d.tg, d.klm, d.e, d.chat_id)
 
 
 def _wirkung_leitfaden(conn, d: Druck) -> str:
@@ -1493,6 +1503,8 @@ _WIRKUNGEN = {
     ART_FRAGE_ANNEHMEN: _wirkung_frage_annehmen,
     ART_FRAGE_VERWERFEN: _wirkung_frage_verwerfen,
     ART_FRAGE_SCHAERFEN: _wirkung_frage_schaerfen,
+    ART_FRAGEN_WEICH_UEBERNEHMEN: _wirkung_fragen_weich_uebernehmen,
+    ART_FRAGEN_WEICH_LASSEN: _wirkung_fragen_weich_lassen,
     ART_LEITFADEN: _wirkung_leitfaden,
     ART_RICHTUNG: _wirkung_richtung,
     ART_FIGUREN_ANZAHL_MENU: _wirkung_figuren_anzahl_menu,

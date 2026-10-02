@@ -24,7 +24,8 @@ from interview_theater import anweisungen, erkenner, leitfaden, repo
 
 from interview_theater.knoepfe.texte import (
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
-    ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_LEITFADEN, T,
+    ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_FRAGEN_WEICH_LASSEN,
+    ART_FRAGEN_WEICH_UEBERNEHMEN, ART_LEITFADEN, T,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _nimm_alte_leiste_ab, _sende_knoepfe,
@@ -228,7 +229,15 @@ def frage_fuer_andere_richtung(conn, chat_id: int, richtung: str = "") -> str:
 
 def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
     """Legt eine Frage als die aktuelle fest und zeigt sie -- Kopf, Frage,
-    bei Bedarf die weiche Fassung, darunter Annehmen / Verwerfen / Schaerfen.
+    darunter Annehmen / Verwerfen / Schaerfen.
+
+    Zeigt die weiche Fassung NICHT mehr pro Frage (Birk, Padua-Live
+    02.10.2026: "Warum kommt bei Frage 5/25 ein Vorschlag, es softer zu
+    formulieren? Mach die softere Formulierung nicht direkt bei der Frage,
+    sondern als Angebot am Ende von allen Fragen.") -- die weiche Fassung
+    bleibt in ``arbeitsstand.fragen_weich`` gespeichert und wird erst nach
+    der letzten Entscheidung angeboten (``_biete_weiche_fassungen_an``,
+    aufgerufen aus ``_schliesse_fragen_ab``).
 
     Kein Modellaufruf: die Darstellung ist immer deterministisch, auch nach
     einer Ueberarbeitung."""
@@ -246,11 +255,7 @@ def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
         kopf = T._TEXT_FRAGE_KOPF_OHNE_BEGRIFF.format(nummer=nummer, gesamt=gesamt)
         frage_text = zeile
 
-    teile = [kopf, frage_text]
-    weich = _weich_dict(conn, chat_id).get(nummer)
-    if weich:
-        teile.append(T._TEXT_FRAGE_WEICH_HINWEIS.format(weich=weich))
-    text = "\n\n".join(teile)
+    text = f"{kopf}\n\n{frage_text}"
 
     leiste = [
         (T._TEXT_FRAGE_ANNEHMEN_KNOPF,
@@ -289,17 +294,25 @@ def frage_warten_auf_richtung(conn, tg, chat_id: int) -> None:
 
 def entscheide(conn, tg, klm, e, chat_id: int, nummer: int, wert: str) -> str:
     """Annehmen ("ja") oder Verwerfen ("nein") fuer eine Frage -- zeigt die
-    naechste offene Frage, oder schliesst ab, wenn keine mehr offen ist."""
+    naechste offene Frage, oder schliesst ab, wenn keine mehr offen ist.
+
+    Liefert die sichtbare Quittung (Web-Toast/Telegram
+    ``answerCallbackQuery``) -- seit dem Fund 02.10.2026 (Birk) die
+    tatsaechliche Entscheidung (``✓ Angenommen``/``✗ Verworfen``) statt des
+    vorher immer gleichen, nichtssagenden ``T._TEXT_FRAGE_ENTSCHIEDEN``
+    ("Notiert")."""
     fragen = _auswahlfragen(conn, chat_id)
     if nummer < 1 or nummer > len(fragen):
         tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
         return T._TEXT_FRAGEN_KEINE_AUSWAHL
     _setze_entscheidung(conn, chat_id, nummer, wert)
+    quittung = T._TEXT_FRAGE_ANGENOMMEN if wert == "ja" else T._TEXT_FRAGE_VERWORFEN
     naechste = _naechste_offene(conn, chat_id, len(fragen))
     if naechste is None:
-        return _schliesse_fragen_ab(conn, tg, klm, e, chat_id)
+        _schliesse_fragen_ab(conn, tg, klm, e, chat_id)
+        return quittung
     _zeige_frage(conn, tg, chat_id, naechste)
-    return T._TEXT_FRAGE_ENTSCHIEDEN
+    return quittung
 
 
 def frage_waehlt_schaerfen(conn, tg, chat_id: int, nummer: int) -> str:
@@ -400,9 +413,15 @@ def nimm_offene_frage_text(conn, tg, klm, e, chat_id: int, text: str) -> bool:
 def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
     """Alle Fragen sind entschieden: aus den angenommenen wird
     ``arbeitsstand.fragen``, ihre weichen Fassungen wandern auf die neue
-    Nummerierung um -- und die Kette geht unveraendert weiter zur
-    Eroeffnung. Ohne eine einzige Annahme gibt es keine Frageliste;
-    stattdessen sagt der Bot das und schlaegt neue Fragen vor."""
+    Nummerierung um -- und die Kette geht weiter zur Eroeffnung. Ohne eine
+    einzige Annahme gibt es keine Frageliste; stattdessen sagt der Bot das
+    und schlaegt neue Fragen vor.
+
+    Hat mindestens eine angenommene Frage eine weiche Fassung, kommt VOR der
+    Eroeffnung noch ein eigenes Angebot (``_biete_weiche_fassungen_an``,
+    Birk 02.10.2026) -- die Eroeffnung startet dann erst, wenn die Gruppe
+    das Angebot beantwortet hat (``fragen_weich_angebot`` in
+    ``_WEICH_ANGEBOT_WIRKUNGEN``)."""
     fragen = _auswahlfragen(conn, chat_id)
     entschieden = _decisions(conn, chat_id)
     weich = _weich_dict(conn, chat_id)
@@ -454,8 +473,56 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
         tg.sende(chat_id, text, system=True)
     else:
         sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
-    starte_eroeffnung(conn, tg, klm, e, chat_id)
+    if neue_weich:
+        _biete_weiche_fassungen_an(conn, tg, angenommen, neue_weich, chat_id)
+    else:
+        starte_eroeffnung(conn, tg, klm, e, chat_id)
     return T._TEXT_FRAGEN_QUITTUNG
+
+
+def _biete_weiche_fassungen_an(
+    conn, tg, angenommen: list[str], neue_weich: dict[int, str], chat_id: int,
+) -> int:
+    """Das Angebot nach der letzten Entscheidung, EINMAL fuer alle sensiblen
+    Fragen zusammen (Birk, Padua-Live 02.10.2026): listet jede angenommene
+    Frage mit weicher Fassung auf, mit den zwei Knoepfen "Weiche Fassungen
+    uebernehmen" / "Wie sie sind lassen". Erst die Antwort darauf setzt die
+    Kette zur Eroeffnung fort (``_wirkung_fragen_weich_*`` in wirkung.py)."""
+    zeilen = [
+        T._TEXT_FRAGEN_WEICH_ZEILE.format(
+            nummer=n, frage=angenommen[n - 1], weich=weich,
+        )
+        for n, weich in sorted(neue_weich.items())
+    ]
+    text = T._TEXT_FRAGEN_WEICH_ANGEBOT + "\n\n" + "\n\n".join(zeilen)
+    leiste = [
+        (T._TEXT_FRAGEN_WEICH_UEBERNEHMEN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_WEICH_UEBERNEHMEN, None))),
+        (T._TEXT_FRAGEN_WEICH_LASSEN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_WEICH_LASSEN, None))),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id,
+    )
+    return message_id
+
+
+def frage_weich_uebernehmen(conn, tg, klm, e, chat_id: int) -> str:
+    """"Weiche Fassungen uebernehmen" -- ``fragen_weich`` bleibt stehen (der
+    Leitfaden nutzt es bereits, siehe ``leitfaden.py``); nur die Kette geht
+    jetzt weiter."""
+    starte_eroeffnung(conn, tg, klm, e, chat_id)
+    return T._TEXT_FRAGEN_WEICH_UEBERNOMMEN
+
+
+def frage_weich_lassen(conn, tg, klm, e, chat_id: int) -> str:
+    """"Wie sie sind lassen" -- die Fragen bleiben in der Originalformulierung,
+    ``fragen_weich`` wird geleert, damit der Leitfaden keine weichen
+    Fassungen mehr zeigt, die die Gruppe explizit abgelehnt hat."""
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_weich", "")
+    starte_eroeffnung(conn, tg, klm, e, chat_id)
+    return T._TEXT_FRAGEN_WEICH_BEHALTEN
 
 
 # --- Eroeffnung und Abschluss (unveraendert seit dem 06.09.2026) ----------

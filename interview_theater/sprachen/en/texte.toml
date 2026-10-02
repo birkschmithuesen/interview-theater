@@ -1154,6 +1154,7 @@ _ABSCHNITT_N = "Section {nummer}"
 UEBERSCHRIFT_VORLAGE = "The previous version you are revising (section by section):"
 _STILE_KOPF = "This is how the characters speak:\n"
 _AUFTRAG = "Your task:\nWrite the story in one go."
+_ZEILE_ABSCHNITTE = "\nWrite exactly {anzahl} sections -- one per planned scene, in their order."
 _ZEILE_REGIE = "\nThe group says about it: {regie}"
 
 ["schaerfung"]

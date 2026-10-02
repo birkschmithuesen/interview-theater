@@ -291,7 +291,38 @@ def vorlage_text(conn, chat_id: int) -> str:
 #: Die Koepfe des Nutzertexts (W3).
 _STILE_KOPF = "So sprechen die Figuren:\n"
 _AUFTRAG = "Euer Auftrag:\nSchreib die Geschichte am Stueck."
+#: Die bindende Abschnittszahl (02.10.2026, Karte P2-Fix, Birks
+#: Entscheidung). Sie steht im **Auftrag** und nicht in der
+#: Systemanweisung: nur der Nutzertext kennt die Datenlage.
+#:
+#: Eigener Wortlaut, nicht der von ``laengen.SATZ_BINDUNG`` -- der sagt
+#: zusaetzlich "mit diesen Laengen" und gehoert zum Budget-Block. Beide
+#: stehen nie zusammen in einem Prompt (siehe ``baue_nutzertext``).
+_ZEILE_ABSCHNITTE = (
+    "\nSchreib genau {anzahl} Abschnitte -- einen je geplanter Szene, in "
+    "deren Reihenfolge."
+)
 _ZEILE_REGIE = "\nDie Gruppe sagt dazu: {regie}"
+
+
+def abschnittszahl(conn, chat_id: int) -> int:
+    """Wie viele Abschnitte die Geschichte haben MUSS -- die Zahl der
+    geplanten Szenen, oder ``0``.
+
+    **Dieselbe Menge, mit der ``lege_szenen_an`` abgleicht und die
+    ``budget_eintraege`` bemisst**: ``repo.hole_szenen`` filtert
+    ``entfernt_am IS NULL`` selbst (``repo.py:2286-2290``). Zwei verschiedene
+    Zaehlungen waeren zwei Wahrheiten -- die eine im Prompt, die andere beim
+    Speichern.
+
+    ``0`` heisst "keine Szenenfolge": dann waehlt das Modell die Zahl selbst,
+    und im Auftrag steht gar keine Zeile (datengetrieben wie
+    ``kontext.baue``). Das ist nicht nur Theorie -- die Phase setzt allein
+    die Gruppe, und wer mit ``/phase 6`` ohne Szenen dort landet, soll
+    schreiben koennen.
+
+    Reine Leseabfrage, kein Modellaufruf."""
+    return len(repo.hole_szenen(conn, chat_id))
 
 
 def budget_eintraege(conn, chat_id: int,
@@ -344,7 +375,12 @@ def baue_nutzertext(
     Ohne sie -- und mit einer leeren Liste -- bleibt der Nutzertext
     **zeichengleich** wie vorher; der Block faellt ersatzlos weg,
     datengetrieben wie in ``kontext.baue``. Er steht **vor** dem Auftrag,
-    nahe am Ende: das Ende des Prompts wiegt am schwersten (SPEC § 6.1)."""
+    nahe am Ende: das Ende des Prompts wiegt am schwersten (SPEC § 6.1).
+
+    Die **bindende Abschnittszahl** steht im Auftrag, sobald Szenen geplant
+    sind (``abschnittszahl``) -- es sei denn, der Budget-Block traegt sie
+    schon (``laengen.SATZ_BINDUNG``). Ohne geplante Szenen und ohne
+    ``eintraege`` bleibt der Nutzertext **zeichengleich** wie vorher."""
     from interview_theater import laengen, szenenfolge
 
     teile = [szenenfolge._erfundenes(conn, chat_id)]
@@ -360,6 +396,16 @@ def baue_nutzertext(
     if eintraege:
         teile.append(laengen.block_prosa(eintraege))
     auftrag = T._AUFTRAG
+    # Die bindende Abschnittszahl (02.10.2026, Birks Entscheidung) -- aber
+    # nur, wenn der Budget-Block sie nicht schon traegt: ``block_prosa``
+    # haengt ``laengen.SATZ_BINDUNG`` an jede Budget-Liste. Zwei bindende
+    # Saetze in einem Prompt waeren eine Doppelnennung, und bei aktivem
+    # Laengen-Profil traefe das jeden echten Lauf (``schreibe`` holt die
+    # Eintraege immer). Ein Fakt hat genau eine Stelle im Prompt.
+    if not eintraege:
+        anzahl = abschnittszahl(conn, chat_id)
+        if anzahl:
+            auftrag += T._ZEILE_ABSCHNITTE.format(anzahl=anzahl)
     if regie and regie.strip():
         auftrag += T._ZEILE_REGIE.format(regie=regie.strip())
     teile.append(auftrag)

@@ -343,3 +343,62 @@ def test_die_anweisung_bindet_die_zahl_am_auftrag(monkeypatch):
     # Die ersetzbare Laengenzeile bleibt unberuehrt -- sonst greift
     # systemanweisung(budgets) ins Leere.
     assert englisch.count(kurzgeschichte.T.ZEILE_GESAMTLAENGE) == 1
+
+
+def test_die_abschnittszahl_zaehlt_die_geplanten_szenen(conn):
+    """Dieselbe Menge, aus der ``budget_eintraege`` und ``lege_szenen_an``
+    lesen: ``repo.hole_szenen`` filtert ``entfernt_am IS NULL`` selbst
+    (``repo.py:2286-2290``). Ohne Szenen: 0 -- und dann steht keine Zeile
+    im Auftrag (datengetrieben wie ``kontext.baue``)."""
+    assert kurzgeschichte.abschnittszahl(conn, 1) == 0
+    for nummer in range(1, 7):
+        repo.stelle_szene_sicher(conn, 1, nummer)
+    assert kurzgeschichte.abschnittszahl(conn, 1) == 6
+    # ``entferne_szene`` nimmt die NUMMER, nicht die id (``repo.py:2416``).
+    repo.entferne_szene(conn, 1, 6)
+    assert kurzgeschichte.abschnittszahl(conn, 1) == 5
+
+
+def test_sechs_geplante_szenen_nennt_der_auftrag_sechs_abschnitte(conn):
+    """Birk, 02.10.2026: fest, sobald eine Szenenfolge existiert. Deutsch --
+    ohne Profil, also ohne Laengen-Block."""
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Am Kanal, nachts")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.")
+    for nummer in range(1, 7):
+        repo.stelle_szene_sicher(conn, 1, nummer)
+    text = kurzgeschichte.baue_nutzertext(conn, 1)
+    assert kurzgeschichte._ZEILE_ABSCHNITTE.format(anzahl=6).strip() in text
+    assert "6" in text
+
+
+def test_der_auftrag_nennt_die_zahl_auch_englisch(conn, monkeypatch):
+    """Die Konstante ist zweisprachig (``en/texte.toml``
+    ["kurzgeschichte"]); Padua liest die englische Fassung."""
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "At the canal, at night")
+    for nummer in range(1, 4):
+        repo.stelle_szene_sicher(conn, 1, nummer)
+    text = kurzgeschichte.baue_nutzertext(conn, 1)
+    assert kurzgeschichte.T._ZEILE_ABSCHNITTE.format(anzahl=3).strip() in text
+    assert kurzgeschichte.T._ZEILE_ABSCHNITTE != kurzgeschichte._ZEILE_ABSCHNITTE
+
+
+def test_die_zahl_steht_genau_einmal_im_prompt(drei_szenen):
+    """Ein Fakt hat genau eine Stelle im Prompt (Prompt-Audit 06.09.2026).
+
+    Mit Budget-Block bindet ``laengen.SATZ_BINDUNG``, ohne ihn die Zeile im
+    Auftrag -- nie beide. Sonst stuenden zwei bindende Saetze in demselben
+    Nutzertext, und bei Padua traefe das JEDEN echten Lauf
+    (``kurzgeschichte.schreibe`` holt die Eintraege immer)."""
+    repo.setze_arbeitsstand(drei_szenen, 1, "rahmen", "At the canal")
+    eintraege = kurzgeschichte.budget_eintraege(drei_szenen, 1)
+    assert eintraege, "das Padua-Profil waehlt Budgets"
+
+    mit = kurzgeschichte.baue_nutzertext(drei_szenen, 1, eintraege=eintraege)
+    assert laengen.T.SATZ_BINDUNG.format(anzahl=3) in mit
+    assert kurzgeschichte.T._ZEILE_ABSCHNITTE.format(anzahl=3).strip() not in mit
+
+    ohne = kurzgeschichte.baue_nutzertext(drei_szenen, 1)
+    assert kurzgeschichte.T._ZEILE_ABSCHNITTE.format(anzahl=3).strip() in ohne
+    assert laengen.T.SATZ_BINDUNG.format(anzahl=3) not in ohne

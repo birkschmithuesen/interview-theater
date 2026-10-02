@@ -244,3 +244,28 @@ def test_das_skript_verweigert_eine_unbekannte_gruppe(aufbau, monkeypatch, capsy
     with pytest.raises(SystemExit) as beendet:
         web_token_neu.main(["999999", "--ja"])
     assert beendet.value.code != 0
+
+
+def test_das_backup_enthaelt_auch_was_noch_im_wal_steht(tmp_path):
+    """Die Datenbank laeuft im WAL-Modus: was ein offener Bot-Prozess
+    geschrieben hat, steht bis zum Checkpoint nur in ``-wal``. Eine
+    Dateikopie der Hauptdatei verloere es -- ``sqlite3.backup`` nicht."""
+    from scripts import web_token_neu
+
+    pfad = str(tmp_path / "w.db")
+    schreiber = db.verbinde(pfad)
+    try:
+        db.initialisiere(schreiber)
+        schreiber.execute("PRAGMA wal_autocheckpoint = 0")
+        repo.sichere_gruppe(schreiber, CHAT, "gruppe1", "Nur im WAL")
+        schreiber.commit()
+        ziel = web_token_neu._backup(pfad)
+        assert ziel is not None
+        kopie = db.verbinde(ziel)
+        try:
+            gruppe = repo.hole_gruppe(kopie, CHAT)
+        finally:
+            kopie.close()
+        assert gruppe is not None and gruppe["titel"] == "Nur im WAL"
+    finally:
+        schreiber.close()

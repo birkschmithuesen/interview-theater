@@ -25,7 +25,7 @@ Umgebung: ``IT_DB`` (Pflicht), ``IT_WEB_URL`` (Vorgabe wie
 """
 
 import os
-import shutil
+import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -48,12 +48,25 @@ def _backup(db_pfad: str) -> str | None:
     """Kopie der Datenbank neben das Original, wie
     ``scripts/interviews_uebernehmen.py``. Eine Rotation ist nicht
     umkehrbar: ohne Backup ist der alte Link weg, auch wenn er noch
-    gebraucht wuerde."""
+    gebraucht wuerde.
+
+    ``sqlite3.backup`` statt einer Dateikopie: die Datenbank laeuft im
+    WAL-Modus, und was ein laufender Bot seit dem letzten Checkpoint
+    geschrieben hat, steht nur in ``-wal`` -- eine Kopie der Hauptdatei
+    verloere es (Abschlussreview)."""
     quelle = Path(db_pfad)
     if not quelle.is_file():
         return None
     ziel = quelle.with_name(f"{quelle.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}")
-    shutil.copy2(quelle, ziel)
+    von = sqlite3.connect(str(quelle))
+    try:
+        nach = sqlite3.connect(str(ziel))
+        try:
+            von.backup(nach)
+        finally:
+            nach.close()
+    finally:
+        von.close()
     return str(ziel)
 
 

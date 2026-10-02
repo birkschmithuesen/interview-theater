@@ -68,6 +68,15 @@ GEAENDERT: dict[str, str] = {
         "zeichengleich (tests/test_laengen_szene.py, "
         "tests/test_profil_bitgleich.py)."
     ),
+    "szene.KERNPAKET_KOPF": (
+        "Karte P2-Fix (02.10.2026, Restspannung 2): der Kopf nennt das "
+        "Kernthema nicht mehr. EIN Kopf traegt beide Zweige von "
+        "szene._kernpaket_text (Schaerfungen je Szene; ersatzweise die "
+        "globale Kernzitat-Auswahl), und \"am Kernthema gefiltert\" war fuer "
+        "keinen wahr. Gewollte Verhaltensaenderung fuer Dortmund: eine "
+        "Ueberschrift im Szenen-Nutzertext, derselbe Block darunter "
+        "(tests/test_szene_sprache.py)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

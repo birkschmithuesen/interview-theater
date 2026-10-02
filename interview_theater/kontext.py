@@ -221,6 +221,13 @@ _SPRECHER_BOT = "Du"
 #: braucht trotzdem einen Wert.
 _PSEUDONYM = "Mitglied {nummer}"
 _PSEUDONYM_UNBEKANNT = "Mitglied"
+#: Hinweistext fuer eine Nachricht, die das Sprachmodell nicht sehen kann
+#: (Padua Hotfix Befund 2, 02.10.2026): ein Bildanhang, ein Sticker oder ein
+#: sonstiger Dateianhang erschien vorher wortgleich mit seinem internen
+#: Telegram-Typnamen -- das ist sowohl unuebersetzt (immer deutsch, egal in
+#: welcher Chatsprache) als auch irrefuehrend, weil es nicht sagt, dass das
+#: Modell den Anhang gar nicht wahrnimmt. Siehe ``_TYPEN_NICHT_SICHTBAR``.
+_HINWEIS_NICHT_SICHTBAR = "Datei -- fuer mich nicht sichtbar"
 _PAUSE_STUNDE = "[Pause: {stunden} Stunde]"
 _PAUSE_STUNDEN = "[Pause: {stunden} Stunden]"
 _ZEILE_KERNTHEMA = "Kernthema: {kernthema}"
@@ -308,6 +315,14 @@ def pseudonyme(conn, chat_id: int, zeilen=()) -> dict[str, str] | None:
     return {name: T._PSEUDONYM.format(nummer=i) for i, name in enumerate(namen, start=1)}
 
 
+#: Nachrichtentypen (Telegram-Rohwerte aus ``telegram.lies_nachricht``, siehe
+#: ``db.py``), die das Sprachmodell nicht sehen kann -- es bekommt nur Text
+#: (Padua Hotfix Befund 2, 02.10.2026: "das Modell kann in dieser Konfig
+#: keine Bilder sehen, entsprechend soll es das auch nicht anbieten"). Feste
+#: Telegram-Typnamen, keine Nutzertexte -- deshalb nicht ueber ``T``.
+_TYPEN_NICHT_SICHTBAR = frozenset({"foto", "sticker", "sonstiges"})
+
+
 def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
     """Formatiert eine ``nachricht``-Zeile als ``"Sprecher: Text"``.
 
@@ -318,9 +333,15 @@ def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
     Aeusserungen in der zweiten Person. Menschliche Nachrichten tragen den
     Vornamen aus ``nachricht.absender``.
 
-    Nachrichten ohne Text (Sprache ohne Transkript, Foto, Sticker, ...)
-    erscheinen als ``"Name: (typ)"`` statt als leere Zeile -- die Gruppe hat
-    etwas geschickt, und das Modell soll das wissen.
+    Nachrichten ohne Text (Sprache ohne Transkript, ...) erscheinen als
+    ``"Name: (typ)"`` statt als leere Zeile -- die Gruppe hat etwas
+    geschickt, und das Modell soll das wissen. Ein Typ aus
+    ``_TYPEN_NICHT_SICHTBAR`` (Bildanhang, Sticker, sonstiger Anhang)
+    bekommt stattdessen den lokalisierten Hinweis
+    ``_HINWEIS_NICHT_SICHTBAR`` ("Datei -- fuer mich nicht sichtbar" /
+    "file -- not visible to you"): das reine Text-Modell bekommt solche
+    Anhaenge nie, und der blosse Telegram-Typname waere sowohl unuebersetzt
+    als auch eine falsche Behauptung ueber das, was es wahrnimmt (Befund 2).
 
     ``namen`` (E8, Karte A1): steht dort ein Mapping (``pseudonyme()``),
     ersetzt es den Vornamen; ein Name, der darin fehlt, wird nie
@@ -335,6 +356,8 @@ def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
     text = n["text"]
     if text:
         return f"{sprecher}: {text}"
+    if n["typ"] in _TYPEN_NICHT_SICHTBAR:
+        return f"{sprecher}: ({T._HINWEIS_NICHT_SICHTBAR})"
     return f"{sprecher}: ({n['typ']})"
 
 
@@ -1263,8 +1286,8 @@ ERSTKONTAKT = (
     "Knoepfe unter deiner Nachricht zeigen den Weg, **nenne keinen "
     "Schraegstrich-Befehl**{link}. "
     "**Schliesse mit der Frage nach den Begriffen**: die Gruppe hat im Raum "
-    "Begriffe gesammelt -- bitte sie, dir diese Liste zu schicken, getippt, "
-    "als Foto abgetippt oder als Sprachnachricht. Das ist der erste "
+    "Begriffe gesammelt -- bitte sie, dir diese Liste zu schicken, getippt "
+    "oder als Sprachnachricht. Das ist der erste "
     "Arbeitsschritt, und die Begruessung endet damit. "
     "Kein Formular, keine Aufzaehlung mit Spiegelstrichen -- ein warmer, "
     "ausfuehrlicher Einstieg, der mit dem Gesagten anfaengt und mit der "

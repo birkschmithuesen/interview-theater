@@ -248,7 +248,7 @@ Boundary "an_den_bot": it is about who is addressed, not about the question
 mark. **An interview question is directed at the interviewed person** --
 "what's your favourite dish", "tell me about the day you packed", "and how
 did it go on?" are interview material and not addressed to you, even if
-they are in the imperative. "show me the photo you mentioned" asks the
+they are in the imperative. "show me the postcard you mentioned" asks the
 interviewed person for something from their life -- material too. Directed
 at you is only what calls you ("bot, ...") or asks for the saved state of
 the workshop (summaries, interviews, questions, progress) or for a bot

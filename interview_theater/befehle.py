@@ -330,7 +330,7 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
         return
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
-    aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")
+    aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl", klm=klm, e=e)
     knoepfe.biete_aufnahme(conn, tg, chat_id, T._TEXT_INTERVIEW_AN, knopf=False)
     # Beim ersten Interviewstart geht der Leitfaden EINMAL mit raus
     # (06.09.2026): die Gruppe steht in dem Moment vor einer fremden Person

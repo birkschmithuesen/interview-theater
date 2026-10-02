@@ -196,7 +196,13 @@ def setze(conn, chat_id: int, nummer: int, quelle: str, notiz: str | None = None
     eigenen Thread. Lokaler Import, um den Zyklus zu vermeiden
     (``phasen_debrief`` liest ueber ``kontext`` am Ende wieder bei
     ``phasen`` vorbei); ohne ``klm`` liefert ``phasen_debrief.starte``
-    sofort ``None``, kein Fehler, kein Aufruf."""
+    sofort ``None``, kein Fehler, kein Aufruf.
+
+    ``vorherige`` ist ``None``, wenn die Gruppe noch nie eine Phase gesetzt
+    hatte -- genau wie bei ``aktuelle()`` zaehlt das als ``workshop.phase_erste()``,
+    nicht als "nichts verlassen": die allererste Phase einer Gruppe ist
+    trotzdem eine Phase, die debrieft werden kann, wenn die Gruppe sie
+    verlaesst."""
     vorherige = repo.hole_phase(conn, chat_id)
     if vorherige == nummer:
         return False
@@ -205,11 +211,10 @@ def setze(conn, chat_id: int, nummer: int, quelle: str, notiz: str | None = None
     if notiz:
         text = f"{text} ({notiz})"
     repo.schreibe_journal(conn, chat_id, "entschieden", text, quelle=quelle)
-    if vorherige is not None:
-        # Kein Debrief fuer "noch nie eine Phase gehabt" -- die allererste
-        # Phase einer Gruppe hat nichts, das sie verlaesst.
+    verlassene = vorherige if vorherige is not None else workshop.phase_erste()
+    if verlassene != nummer:
         from interview_theater import phasen_debrief  # lokaler Import: Zyklus vermeiden
-        phasen_debrief.starte(conn, klm, e, chat_id, vorherige)
+        phasen_debrief.starte(conn, klm, e, chat_id, verlassene)
     return True
 
 

@@ -977,6 +977,57 @@ def test_laufe_kuerzt_hoechstens_einmal_je_lauf(conn, einst, monkeypatch):
     assert gesehen == [2]
 
 
+def test_laufe_stoesst_den_phasen_debrief_bei_erkanntem_phasenwechsel_an(conn, einst, monkeypatch):
+    """Ein vom Erkenner erkannter und wirksam angewendeter Phasenwechsel
+    (``phase_setzen``) dispatcht den Phasen-Debrief der VERLASSENEN Phase --
+    ``_wende_phase_an`` ruft ``phasen.setze`` selbst mit ``klm=None, e=None``
+    auf (wende_an bleibt modellfrei), ``laufe()`` holt das hier nach, mit
+    derselben Bauart wie ``_starte_sprachprofil``/``_starte_kuerzung``.
+
+    ``phasen.setze`` dispatcht aus ``_wende_phase_an`` heraus ebenfalls --
+    mit ``klm=None``, ein garantierter No-Op, weil ``phasen_debrief.starte``
+    ohne ``klm`` sofort ``None`` liefert (siehe ``phasen.py``). Geprueft wird
+    hier, dass GENAU EIN Aufruf mit echtem ``klm`` dazukommt."""
+    from interview_theater import phasen_debrief
+
+    gesehen = []
+    monkeypatch.setattr(
+        phasen_debrief, "starte",
+        lambda conn, klm, e, chat_id, phase: gesehen.append((chat_id, phase, klm)),
+    )
+    repo.setze_phase(conn, 1, 2)
+    _nachricht(conn, 1, 1, "wir sind jetzt bei der Schaerfung")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "phase_setzen", "wert": "5"},
+    ]})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    mit_echtem_klm = [(c, p) for c, p, k in gesehen if k is klm]
+    assert mit_echtem_klm == [(1, 2)]  # die verlassene Phase (2), nicht die neue (5)
+
+
+def test_laufe_ohne_phasenwechsel_stoesst_keinen_phasen_debrief_an(conn, einst, monkeypatch):
+    """Erkennt der Erkenner keinen (wirksamen) Phasenwechsel, bleibt der
+    Phasen-Debrief aus -- derselbe Schutz wie bei jeder anderen
+    ``_starte_*``-Weiche in ``laufe()``."""
+    from interview_theater import phasen_debrief
+
+    gesehen = []
+    monkeypatch.setattr(
+        phasen_debrief, "starte",
+        lambda conn, klm, e, chat_id, phase: gesehen.append((chat_id, phase)),
+    )
+    _nachricht(conn, 1, 1, "unsere Begriffe sind Mut und Angst")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "begriffe_setzen", "wert": "Mut, Angst"},
+    ]})
+
+    erkenner.laufe(klm, TelegramAttrappe(), conn, einst, 1)
+
+    assert gesehen == []
+
+
 def test_rueckfrage_ohne_nummer_wird_als_bot_zeile_gespeichert(conn, einst):
     """Die Rueckfrage ``kuerzung.TEXT_WELCHE_SZENE`` muss wie die
     Notiert-Meldung per ``repo.merke_bot_zeile`` in die Nachrichtentabelle --

@@ -19,7 +19,7 @@ Kein Netzzugriff: das Sprachmodell ist in jedem Test eine Attrappe.
 
 import pytest
 
-from interview_theater import db, phasen, phasen_debrief, repo, szene_claude
+from interview_theater import db, phasen, phasen_debrief, repo, szene_claude, workshop
 
 
 @pytest.fixture
@@ -246,13 +246,31 @@ def test_setze_ohne_klm_dispatcht_trotzdem_aber_starte_no_opt(conn, monkeypatch)
     assert calls[0][1] is None and calls[0][2] is None  # klm, e
 
 
-def test_setze_ohne_vorherige_phase_dispatcht_nicht(conn, monkeypatch):
-    """Die allererste Phase einer Gruppe hat nichts, das sie verlaesst --
-    ``vorherige`` ist None, und dafuer gibt es keinen Debrief."""
+def test_setze_ohne_vorherige_phase_dispatcht_mit_erster_phase(conn, monkeypatch):
+    """Die allererste Phase einer Gruppe wurde nie explizit gesetzt
+    (``vorherige`` ist ``None``) -- genau wie ``phasen.aktuelle()`` zaehlt das
+    als ``workshop.phase_erste()``, und der Wechsel in eine andere Phase
+    dispatcht entsprechend mit dieser aufgeloesten Nummer, nicht mit
+    ``None``."""
     calls = []
     monkeypatch.setattr(phasen_debrief, "starte", lambda *a: calls.append(a))
     assert repo.hole_phase(conn, 1) is None
-    phasen.setze(conn, 1, 1, "befehl", klm=object(), e=object())
+    geaendert = phasen.setze(conn, 1, 2, "befehl", klm=object(), e=object())
+    assert geaendert is True
+    assert len(calls) == 1
+    _, _, _, chat_id, vorherige_phase = calls[0]
+    assert chat_id == 1
+    assert vorherige_phase == workshop.phase_erste()
+
+
+def test_setze_ohne_vorherige_phase_auf_erste_phase_dispatcht_nicht(conn, monkeypatch):
+    """Wird die erste Phase gesetzt, obwohl noch nie eine Phase gespeichert
+    war, hat sich effektiv nichts geaendert (``aktuelle()`` haette schon
+    vorher dieselbe Nummer geliefert) -- kein Debrief."""
+    calls = []
+    monkeypatch.setattr(phasen_debrief, "starte", lambda *a: calls.append(a))
+    assert repo.hole_phase(conn, 1) is None
+    phasen.setze(conn, 1, workshop.phase_erste(), "befehl", klm=object(), e=object())
     assert calls == []
 
 

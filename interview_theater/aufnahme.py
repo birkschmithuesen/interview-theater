@@ -377,8 +377,10 @@ def stelle_phase_interviews_sicher(conn, tg, chat_id: int, quelle: str = "knopf"
 
     ``klm``/``e`` (Karte phasen-debrief): optional, fuer den Phasen-Debrief
     der Phase, die hier verlassen wird (1 oder 2). Vorgabe ``None`` --
-    keiner der heutigen Aufrufer dieser Funktion hat ein Sprachmodell griffbereit,
-    ``phasen.setze`` dispatcht dann ohne Wirkung."""
+    ``befehle._befehl_aufnahme`` reicht beide durch, ``befehle._befehl_interview``
+    und ``nimm_als_interview`` (weiter unten) haben noch kein Sprachmodell
+    griffbereit und rufen deshalb weiterhin ohne sie; ``phasen.setze``
+    dispatcht in diesem Fall ohne Wirkung."""
     if phasen.aktuelle(conn, chat_id) >= PHASE_INTERVIEWS:
         return False
     if not phasen.setze(

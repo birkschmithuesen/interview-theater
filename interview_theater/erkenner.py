@@ -1122,13 +1122,9 @@ def _wende_phase_an(conn, chat_id: int, wert: str) -> dict | None:
     if nummer is None:
         return None
     # Kein klm/e hier: ``wende_an`` ist bewusst ein modellfreier Schreibpfad
-    # (siehe die Kommentare zu ``szene_schreiben``/``szene_kuerzen`` unten --
-    # "wende_an() bewusst nicht bekommt, es schreibt nur in die Datenbank und
-    # schickt nie etwas"). Diesen Weg fuer den Phasen-Debrief aufzubrechen
-    # haette denselben Vertrag fuer jede andere Aenderungsart mitgebrochen.
-    # Ohne klm liefert ``phasen_debrief.starte`` sofort None -- der
-    # Phasenwechsel selbst ist davon unberuehrt, nur der Debrief dieser
-    # einen Phase bleibt hier aus (Task-3-Bericht, NEEDS_CONTEXT-Notiz).
+    # (siehe die Kommentare zu ``szene_schreiben``/``szene_kuerzen`` unten).
+    # Den Phasen-Debrief fuer einen erkannten Phasenwechsel stoesst stattdessen
+    # ``laufe()`` an, nachdem ``wende_an`` zurueckgekommen ist (siehe dort).
     if not phasen.setze(conn, chat_id, nummer, "erkenner", klm=None, e=None):
         return None
     return {"art": "phase_setzen", "wert": str(nummer)}
@@ -2085,6 +2081,32 @@ def _starte_sprachprofil(klm, tg, conn, e, chat_id: int, wirkliche: list[dict]) 
         log.exception("Sprachprofil konnte nicht gestartet werden, chat_id=%s", chat_id)
 
 
+def _starte_phasen_debrief(klm, conn, e, chat_id: int, vorherige_phase: int,
+                           wirkliche: list[dict]) -> None:
+    """Stoesst den Phasen-Debrief der verlassenen Phase an, wenn der Erkenner
+    einen Phasenwechsel wirksam angewendet hat (art ``phase_setzen``,
+    interview_theater/phasen_debrief.py).
+
+    Nicht in ``wende_an``/``_wende_phase_an``, aus demselben Grund wie
+    ``_starte_sprachprofil``: dort wird nur in die Datenbank geschrieben
+    (``phasen.setze`` laeuft dort mit ``klm=None, e=None``), hier faellt ein
+    Sprachmodell-Aufruf an. ``phasen_debrief.starte`` gibt ihn sofort an
+    einen eigenen Thread ab.
+
+    ``vorherige_phase`` ist ``phasen.aktuelle(conn, chat_id)``, gelesen
+    BEVOR ``wende_an`` lief -- ein kleines Rennen zwischen diesem Lesen und
+    der tatsaechlichen Aenderung ist hier hinnehmbar, wie beim Knopfweg in
+    ``phasen.setze``: der Debrief ist ein Bestenfalls-Hintergrundlauf, keine
+    korrektheitskritische Stelle."""
+    if not any(a.get("art") == "phase_setzen" for a in wirkliche):
+        return
+    from interview_theater import phasen_debrief  # lokaler Import: Zyklus vermeiden
+    try:
+        phasen_debrief.starte(conn, klm, e, chat_id, vorherige_phase)
+    except Exception:
+        log.exception("Phasen-Debrief (erkenner) konnte nicht gestartet werden, chat_id=%s", chat_id)
+
+
 def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> int | None:
     """Stoesst nach einem erkannten "fertig" das Zusammenfuegen und die eine
     Verdichtung des Interviews an (§ 10.6, ``aufnahme.starte_abschluss``).
@@ -2254,6 +2276,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         aenderungen = erkenne(klm, conn, e, chat_id)
         if not aenderungen:
             return
+        # Vor ``wende_an`` gelesen, fuer den Phasen-Debrief weiter unten --
+        # ``ruecknahme``s Schnappschuesse (direkt darunter) verfolgen die
+        # Phasenspalte bewusst nicht (AGENTS.md, "Kein Undo fuer die Phase").
+        vorherige_phase = phasen.aktuelle(conn, chat_id)
         # Der Stand VOR und NACH dem Anwenden, direkt um ``wende_an`` und
         # unter ``repo._LOCK`` -- Grundlage des Undo-Knopfs (Karte U).
         wirkliche, vorher, nachher = _wende_an_mit_schnappschuss(
@@ -2280,6 +2306,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Eine bestaetigte Interview-Zuordnung loest den einen
         # Sprachprofil-Aufruf aus (05.09.2026) -- in einem eigenen Thread.
         _starte_sprachprofil(klm, tg, conn, e, chat_id, wirkliche)
+        # ``_wende_phase_an`` ruft ``phasen.setze`` mit klm=None/e=None auf
+        # (wende_an ist ein modellfreier Schreibpfad) -- den Phasen-Debrief
+        # eines vom Erkenner erkannten Phasenwechsels holt ``laufe()`` hier
+        # nach, mit derselben Bauart wie oben.
+        _starte_phasen_debrief(klm, conn, e, chat_id, vorherige_phase, wirkliche)
         # Aus den erkannten, nicht aus den wirksamen Aenderungen: ein
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.

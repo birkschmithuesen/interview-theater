@@ -1068,10 +1068,18 @@ def test_konstanten_haben_die_gemessenen_werte():
     assert aufnahme.HINWEIS_AB_S == 60
     assert aufnahme.TIPPANZEIGE_AB_S == 5
     assert aufnahme.MELDUNG_AB_S == 12
-    assert aufnahme.BUDGET_KURZ_S == 45
     assert aufnahme.BUDGET_LANG_S == 90
     assert aufnahme.NACHHOL_INTERVALL_S == 60
     assert aufnahme.MAX_VERSUCHE == 5
+
+
+def test_budget_kurz_reicht_fuer_ein_volles_vad_segment():
+    """Seit dem Pausen-Schnitt (VAD, 02.10.2026) kann ein 'kurz'-Segment bis
+    zu IT_WEB_VAD_MAX_MS (Vorgabe 90 s) lang sein -- BUDGET_KURZ_S ist ein
+    Transkriptions-Zeitbudget und muss dafuer reichen, nicht mehr nur fuer
+    eine kurze Wortmeldung."""
+    assert aufnahme.BUDGET_KURZ_S == aufnahme.BUDGET_LANG_S
+    assert aufnahme.BUDGET_KURZ_S >= 90
 
 
 def test_junge_kurze_aufnahme_loest_gespraechszug_aus_alte_nicht(conn, einst, tg, klm):

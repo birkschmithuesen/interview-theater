@@ -49,9 +49,11 @@ MIME_ERLAUBT = web_kanal.MIME_ERLAUBT
 
 #: Wie gross ein einzelnes Segment sein darf.
 #:
-#: Gerechnet, nicht geraten: Opus bei 32 kbit/s ergibt fuer 45 s rund
-#: 180 KiB, Safaris mp4/AAC bei 64 kbit/s rund 360 KiB. 8 MiB sind gut
-#: zwanzigfache Luft fuer einen Browser, der eine hohe Bitrate waehlt -- und
+#: Gerechnet, nicht geraten -- seit dem Pausen-Schnitt (VAD, 02.10.2026) auf
+#: den harten Zeitdeckel IT_WEB_VAD_MAX_MS (Vorgabe 90 s), nicht mehr auf die
+#: alte feste Segmentlaenge von 45 s: Opus bei 32 kbit/s ergibt fuer 90 s rund
+#: 360 KiB, Safaris mp4/AAC bei 64 kbit/s rund 720 KiB. 8 MiB sind immer noch
+#: gut zehnfache Luft fuer einen Browser, der eine hohe Bitrate waehlt -- und
 #: sie liegen klar unter ``stt.MAX_UPLOAD_BYTES`` (25 MiB): eine Datei, die
 #: Whisper ohnehin ablehnen wuerde, soll gar nicht erst ankommen.
 MAX_AUDIO_BYTES = 8 * 1024 * 1024
@@ -272,10 +274,14 @@ _TEXT_VERLASSEN = "Es wird noch aufgenommen oder hochgeladen."
 _TEXT_UHR = "● {zeit}"
 #: Re-Review H: der Interviewmodus ist serverseitig zu Ende, waehrend dieses
 #: Telefon noch aufnahm oder Segmente offen hatte. Ohne Modus waere ein
-#: Segment (45 s, also unter ``aufnahme.HINWEIS_AB_S``) ein
-#: Gespraechsbeitrag -- Gespraechszug, Erkenner und Journal ueber
-#: Interviewmaterial. Deshalb wird nichts still nachgeschickt, die Gruppe
-#: entscheidet.
+#: Segment (seit dem Pausen-Schnitt bis zu IT_WEB_VAD_MAX_MS, Vorgabe 90 s --
+#: damit laenger als ``aufnahme.HINWEIS_AB_S``, 60 s) ein Gespraechsbeitrag
+#: -- Gespraechszug, Erkenner und Journal ueber Interviewmaterial. Das
+#: ueberschreiten von HINWEIS_AB_S bleibt hier folgenlos, weil die
+#: "war das ein Interview?"-Rueckfrage auf dem Web-Kanal ohnehin nie laeuft
+#: (``aufnahme.ist_web_gruppe``-Ausnahme) -- die eigentliche Gefahr bleibt
+#: dieselbe wie vorher: Interviewinhalt als Gespraechsbeitrag. Deshalb wird
+#: nichts still nachgeschickt, die Gruppe entscheidet.
 _TEXT_MODUS_WEG = (
     "Das Interview wurde beendet, die Aufnahme ist gestoppt. "
     "{n} Stück(e) sind noch nicht angekommen."

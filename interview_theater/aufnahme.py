@@ -72,8 +72,14 @@ log = logging.getLogger(__name__)
 # kein Lauf ueber 10 s). Nirgends im Code als Zahl wiederholt.
 TIPPANZEIGE_AB_S = 5
 MELDUNG_AB_S = 12
-BUDGET_KURZ_S = 45
 BUDGET_LANG_S = 90
+#: War 45 (eigener, kuerzerer Wert) bis zum Pausen-Schnitt (VAD, 02.10.2026):
+#: ein 'kurz'-Segment (Web, ausserhalb des Interviewmodus) kann seitdem
+#: genauso bis zu IT_WEB_VAD_MAX_MS lang sein wie ein Interview-Teil --
+#: BUDGET_KURZ_S ist ein Transkriptions-ZEITBUDGET (Upload + Whisper + ein
+#: Retry, siehe stt.transkribiere), kein Laengen-Deckel, und 45 s waeren fuer
+#: ein 90-Sekunden-Segment zu knapp bemessen.
+BUDGET_KURZ_S = BUDGET_LANG_S
 NACHHOL_INTERVALL_S = 60
 MAX_VERSUCHE = 5
 

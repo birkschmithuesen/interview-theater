@@ -461,6 +461,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
     return repo.lege_aufnahme_an(
         conn, chat_id, message_id, klasse, "sprache",
         audio_pfad=str(ziel), dauer=n.get("dauer"), teil_von=teil_von,
+        schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
     )
 
 

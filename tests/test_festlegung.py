@@ -77,8 +77,17 @@ def test_leerer_text_schreibt_nichts(conn):
     assert repo.festlegungen(conn, 1) == []
 
 
-def test_unbekannter_bereich_wird_zu_sonstiges(conn):
-    repo.schreibe_festlegung(conn, 1, "Rahmen", "irgendwas")
+def test_unbekannter_bereich_bleibt_als_freier_titel_stehen(conn):
+    """Padua-Brainstorming-Umbau (02.10.2026): "unlimited, free titles" --
+    ein Bereich, der zu keinem bekannten Wort passt, wird nicht mehr nach
+    "sonstiges" kollabiert, sondern bleibt als Titel stehen (Gross-/
+    Kleinschreibung erhalten)."""
+    repo.schreibe_festlegung(conn, 1, "Kostueme", "irgendwas")
+    assert repo.festlegungen(conn, 1)[0]["bereich"] == "Kostueme"
+
+
+def test_leerer_bereich_wird_zu_sonstiges(conn):
+    repo.schreibe_festlegung(conn, 1, "   ", "irgendwas")
     assert repo.festlegungen(conn, 1)[0]["bereich"] == "sonstiges"
 
 

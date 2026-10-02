@@ -76,10 +76,12 @@ def test_ohne_bereich_landet_es_in_sonstiges(conn):
     assert zeile["text"] == "Die Szenentexte sollen kurz sein, hoechstens eine Seite"
 
 
-def test_unbekannter_bereich_wird_sonstiges_und_bleibt_erhalten(conn):
+def test_unbekannter_bereich_bleibt_als_freier_titel_erhalten(conn):
+    """Padua-Brainstorming-Umbau (02.10.2026): "unlimited, free titles" --
+    ein unbekannter Bereich wird nicht mehr nach "sonstiges" kollabiert."""
     _wende(conn, "dramaturgie: Das Ende bleibt offen")
     zeile = repo.festlegungen(conn, 1)[0]
-    assert zeile["bereich"] == "sonstiges"
+    assert zeile["bereich"] == "dramaturgie"
     assert zeile["text"] == "Das Ende bleibt offen"
 
 

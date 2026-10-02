@@ -1169,7 +1169,46 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # noch keinen Lauf, der Abschnitt bleibt weg. Belegzitate stehen NIE
         # darin, die Gruppenseite ist oeffentlich erreichbar.
         "dramaturgie": dramaturgie(conn, chat_id),
+        # Der Buehne-Tab (Phase 4, nur Web, 02.10.2026) -- read-only wie der
+        # Rest dieser Funktion. Die Karten tragen NIE ein Belegzitat (Phase 4
+        # ist interview-frei), siehe buehnenkarte.py/db.py.
+        "buehnenkarten": buehnenkarten(conn, chat_id),
+        "stueckkarte_felder": stueckkarte_felder(conn, chat_id, figuren, stand),
     }
+
+
+def buehnenkarten(
+    conn: sqlite3.Connection, chat_id: int, hoechstens: int = 10,
+) -> list[sqlite3.Row]:
+    """Das read-only Gegenstueck zu ``repo.buehnenkarten`` (Buehne-Tab der
+    Gruppenseite) -- NEUESTE ZUERST, wie dort. Fehlt die Tabelle noch
+    (Deploy vor Bot-Neustart), ist die Liste leer statt ein Fehler."""
+    try:
+        return conn.execute(
+            "SELECT * FROM buehnenkarte WHERE chat_id = ? ORDER BY id DESC LIMIT ?",
+            (chat_id, hoechstens),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+
+
+def stueckkarte_felder(
+    conn: sqlite3.Connection, chat_id: int,
+    figuren: list[dict] | None = None, arbeitsstand: dict | None = None,
+) -> list[tuple[str, str | None]]:
+    """Dieselben drei festen Felder wie ``repo.stueckkarte_felder``
+    (Setting, Figuren, Geschichte) -- read-only. ``figuren``/``arbeitsstand``
+    duerfen mitgegeben werden, wenn der Aufrufer (``gruppe_nach_token``) sie
+    ohnehin schon gelesen hat: kein zweiter Lesevorgang fuer dieselbe
+    Zeile."""
+    stand = arbeitsstand if arbeitsstand is not None else _arbeitsstand(conn, chat_id)
+    namen_liste = figuren if figuren is not None else _figuren(conn, chat_id)
+    namen = [f["name"] for f in namen_liste]
+    return [
+        ("Setting", stand.get("rahmen") or None),
+        ("Figuren", ", ".join(namen) if namen else None),
+        ("Geschichte", stand.get("geschichte") or None),
+    ]
 
 
 def sprechanteile(conn: sqlite3.Connection, chat_id: int) -> dict:

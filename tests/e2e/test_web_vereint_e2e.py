@@ -1,10 +1,16 @@
-"""Die vereinte Seite im echten Browser: die vorlaeufige Blase (Karte W).
+"""Die vereinte Seite im echten Browser (Karte W).
 
 Was ``tests/test_web_vereint_strom_js.py`` am Quelltext festhaelt, prueft
 dieser Lauf im Chromium: die Blase waechst ueber mehr als ein Stueck Text,
 eine abgebrochene Antwort verschwindet ersatzlos, eine fertige weicht der
 Nachricht mit ihrer ``post_id`` -- und zwei gleichzeitige Zeilen haben zwei
-Blasen.
+Blasen. Dazu (Aufgabe 16): dass der **Tabwechsel wirklich nichts verliert**
+-- halb getippter Text und laufende Strom-Blase ueberstehen das Umschalten,
+weil nur ``hidden`` umgeschaltet wird --, dass die Zurueck-Taste des
+Handys den Tab wechselt, ein geteilter Rollenlink das Textbuch mit der
+richtigen Rolle oeffnet, die Phasenleiste auf- und zuklappt (und das auch
+ueber einen Nachlade-Takt hinweg bleibt), und ein Phasenklick erst nach der
+Rueckfrage den Eingang anlegt.
 
 Kein Bot laeuft mit: der Test schreibt die ``web_strom``-Zeilen selbst ueber
 ``repo`` (``beginne_strom``/``schreibe_strom``/``beende_strom``), so wie es
@@ -16,9 +22,12 @@ Aufruf::
         tests/e2e/test_web_vereint_e2e.py -q
 
 Im normalen ``pytest``-Lauf wird die Datei uebersprungen (``importorskip``).
+Die Screenshots gehen ins Repository (``docs/web-vereint/``) -- sie sind der
+Beleg der Abnahme und duerfen deshalb nichts Echtes zeigen.
 """
 
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -37,14 +46,20 @@ pytestmark = pytest.mark.e2e
 WURZEL = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(WURZEL))
 
-from interview_theater import db, repo, web_kanal  # noqa: E402
+from interview_theater import db, repo, web_kanal, web_vereint  # noqa: E402
 
 DB_PFAD = "/tmp/it-webvereint.db"
 AUDIO = "/tmp/it-webvereint-audio"
 SERVERLOG = "/tmp/it-webvereint-server.log"
 CHAT = 7_000_000_000_001
+#: Eine zweite, Telegram-gefuehrte Gruppe (kanal != web) fuer den einen
+#: billigen Fall "kein Chat-Tab" -- ausserhalb des synthetischen Web-Bereichs
+#: (``repo.WEB_CHAT_ID_BASIS``), wie jede echte Telegram-chat_id.
+TELEGRAM_CHAT = 555_555_555
 HANDY = {"width": 390, "height": 844}
 GEDULD = 8000
+#: Die Screenshots der Abnahme -- committet, nur erfundenes Material.
+SCHUSS = WURZEL / "docs" / "web-vereint"
 
 
 def _freier_port() -> int:
@@ -57,7 +72,7 @@ BIND = f"127.0.0.1:{_freier_port()}"
 BASIS = f"http://{BIND}"
 
 
-def _baue_datenbank() -> str:
+def _baue_datenbank() -> tuple[str, str]:
     for endung in ("", "-wal", "-shm"):
         if os.path.exists(DB_PFAD + endung):
             os.remove(DB_PFAD + endung)
@@ -66,12 +81,33 @@ def _baue_datenbank() -> str:
     repo.sichere_gruppe(conn, CHAT, "gruppe1", "Die Ankommenden")
     repo.setze_gruppe_kanal(conn, CHAT, "web")
     repo.setze_arbeitsstand(conn, CHAT, "begriffe", "Ankommen, Arbeit, Nacht")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_weich", "")
+    repo.setze_arbeitsstand(conn, CHAT, "interview_eroeffnung", "Wir sind vom Theater.")
+    repo.setze_arbeitsstand(conn, CHAT, "interview_abschluss", "Vielen Dank.")
+    repo.setze_arbeitsstand(conn, CHAT, "rahmen", "Bahnhof, nachts")
+    repo.setze_arbeitsstand(conn, CHAT, "geschichte", "Zwei treffen sich und bleiben.")
+    repo.setze_figur(conn, CHAT, "Meryem", "kam 1998 mit einem Koffer")
+    repo.setze_phase(conn, CHAT, 4)
+    # Eine Szene mit Volltext -- fuer den geteilten Rollenlink (Textbuch-Tab)
+    # und die Screenshots des Stand-/Textbuch-Panels.
+    szene_id = repo.lege_szene_an(conn, CHAT, 1, "Ankunft am Gleis", None, None)
+    repo.aktualisiere_szene(
+        conn, szene_id, "Ankunft am Gleis", None,
+        "MERYEM: Ich bin da.\nALI: Endlich.",
+    )
     kanal = web_kanal.WebKanal(conn, CHAT, AUDIO, schritt_s=0.01)
     kanal.sende(CHAT, "Eure Begriffe habe ich. Womit fangen wir an?")
     token = repo.stelle_web_token_sicher(conn, CHAT)
+
+    # Telegram-Gruppe: kein Web-Kanal, also kein Chat-Tab auf ihrer Seite
+    # (AGENTS.md, "Abschlussreview I3" -- kein Bot, der web_post laese).
+    repo.sichere_gruppe(conn, TELEGRAM_CHAT, "telegramgruppe", "Die Telegramgruppe")
+    telegram_token = repo.stelle_web_token_sicher(conn, TELEGRAM_CHAT)
+
     conn.commit()
     conn.close()
-    return token
+    return token, telegram_token
 
 
 def _warte_auf_server(prozess, sekunden: float = 15.0) -> None:
@@ -89,8 +125,25 @@ def _warte_auf_server(prozess, sekunden: float = 15.0) -> None:
 
 
 @pytest.fixture(scope="module")
-def token() -> str:
+def tokens() -> tuple[str, str]:
     return _baue_datenbank()
+
+
+@pytest.fixture(scope="module")
+def token(tokens) -> str:
+    return tokens[0]
+
+
+@pytest.fixture(scope="module")
+def telegram_token(tokens) -> str:
+    return tokens[1]
+
+
+@pytest.fixture(scope="module")
+def schuss_verzeichnis() -> Path:
+    shutil.rmtree(SCHUSS, ignore_errors=True)
+    SCHUSS.mkdir(parents=True, exist_ok=True)
+    return SCHUSS
 
 
 @pytest.fixture(scope="module")
@@ -213,3 +266,118 @@ def test_zwei_zeilen_zwei_blasen(seite, conn):
     assert _warte(seite, lambda: _blasen(seite) == ["Szene waechst"])
     repo.beende_strom(conn, zweite, repo.STROM_ABGEBROCHEN)
     assert _warte(seite, lambda: _blasen(seite) == [])
+
+
+def test_der_tabwechsel_verliert_nichts(seite, conn):
+    """Der Kern der Karte: halb getippter Text und laufende Strom-Blase
+    ueberstehen den Wechsel -- weil nur ``hidden`` umgeschaltet wird."""
+    seite.fill("#eingabe", "Das tippe ich gerade")
+    strom_id = _beginne_und_wecke(seite, conn)
+    repo.schreibe_strom(conn, strom_id, "Der Bot schreibt ger")
+    assert _warte(seite, lambda: _blasen(seite) == ["Der Bot schreibt ger"], ms=40000)
+
+    seite.click('.tabs button[data-tab="stand"]')
+    seite.wait_for_selector("#tab-stand:not([hidden])")
+    seite.click('.tabs button[data-tab="chat"]')
+    seite.wait_for_selector("#tab-chat:not([hidden])")
+
+    assert seite.input_value("#eingabe") == "Das tippe ich gerade"
+    assert seite.is_visible(".blase.vorlaeufig")
+    repo.schreibe_strom(conn, strom_id, "Der Bot schreibt gerade weiter.")
+    assert _warte(seite, lambda: _blasen(seite) == ["Der Bot schreibt gerade weiter."])
+    repo.beende_strom(conn, strom_id, repo.STROM_ABGEBROCHEN)
+    assert _warte(seite, lambda: _blasen(seite) == [])
+
+
+def test_die_zurueck_taste_wechselt_den_tab(seite):
+    seite.click('.tabs button[data-tab="textbuch"]')
+    seite.wait_for_selector("#tab-textbuch:not([hidden])")
+    seite.go_back()
+    seite.wait_for_selector("#tab-chat:not([hidden])")
+
+
+def test_ein_geteilter_rollenlink_oeffnet_das_textbuch_mit_rolle(server, browser, token):
+    """``#textbuch&figur=Meryem`` -- dieselbe Form wie auf der Probenansicht."""
+    kontext = browser.new_context(viewport=HANDY)
+    seite = kontext.new_page()
+    seite.set_default_timeout(GEDULD)
+    seite.goto(f"{BASIS}/g/{token}#textbuch&figur=Meryem")
+    seite.wait_for_selector("#tab-textbuch:not([hidden])")
+    assert seite.get_attribute("#tab-textbuch", "data-figur")
+    kontext.close()
+
+
+def test_die_phasenleiste_klappt_auf_und_zu(seite):
+    assert not seite.is_visible(".roadmap .phasen")
+    seite.click(".roadmap summary")
+    seite.wait_for_selector(".roadmap .phasen", state="visible")
+    # Fix-Runde 2 (Aufgabe 13) hielt den offenen Zustand ueber das
+    # Nachladen fest -- das laesst sich nur im Browser messen: ueber einen
+    # ganzen Nachlade-Takt (NACHLADEN_MS) hinweg bleibt sie auf.
+    seite.wait_for_timeout(web_vereint.NACHLADEN_MS + 1500)
+    assert seite.is_visible(".roadmap .phasen")
+    seite.click(".roadmap summary")
+    seite.wait_for_selector(".roadmap .phasen", state="hidden")
+
+
+def test_ein_phasenklick_fragt_nach_und_legt_dann_den_eingang_ab(seite, conn):
+    """Fehlgriff-Schutz und der Weg durch die Naht -- im Browser."""
+    seite.click(".roadmap summary")
+    knopf = seite.locator('.phase-knopf[data-phase="5"]')
+    vorher = knopf.text_content()
+    knopf.click()
+    seite.wait_for_function(
+        "document.querySelector('.phase-knopf[data-phase=\"5\"]')"
+        ".getAttribute('data-sicher') === '1'", timeout=5_000)
+    assert knopf.text_content() != vorher
+
+    vor = len(repo.web_eingang(conn, CHAT, 0))
+    knopf.click()
+    seite.wait_for_timeout(1_000)
+    eingaenge = repo.web_eingang(conn, CHAT, 0)
+    assert len(eingaenge) == vor + 1
+    assert eingaenge[-1]["text"] == "/phaseklick 5"
+
+
+def test_telegram_gruppe_oeffnet_auf_stand_ohne_chat_tab(server, browser, telegram_token):
+    """Kein Web-Kanal, kein Chat-Tab (AGENTS.md "Abschlussreview I3")."""
+    kontext = browser.new_context(viewport=HANDY)
+    seite = kontext.new_page()
+    seite.set_default_timeout(GEDULD)
+    seite.goto(f"{BASIS}/g/{telegram_token}")
+    seite.wait_for_selector("#tab-stand:not([hidden])")
+    assert seite.locator('.tabs button[data-tab="chat"]').count() == 0
+    kontext.close()
+
+
+@pytest.mark.parametrize("breite,hoehe,name", [(390, 844, "handy"),
+                                               (1366, 900, "laptop")])
+def test_screenshots(server, browser, token, conn, schuss_verzeichnis,
+                     breite, hoehe, name):
+    """Die Abnahme der Karte: Chat mit laufendem Stream, Tab Arbeitsstand,
+    Phasenuebersicht zu und auf."""
+    kontext = browser.new_context(viewport={"width": breite, "height": hoehe})
+    seite = kontext.new_page()
+    seite.set_default_timeout(GEDULD)
+    seite.goto(f"{BASIS}/g/{token}")
+    seite.wait_for_selector("#verlauf")
+
+    strom_id = _beginne_und_wecke(seite, conn)
+    repo.schreibe_strom(conn, strom_id, "Mit euren Begriffen. Was faellt euch ")
+    assert _warte(seite, lambda: _blasen(seite) == ["Mit euren Begriffen. Was faellt euch "],
+                  ms=40000)
+    seite.screenshot(path=str(schuss_verzeichnis / f"{name}-chat-stream.png"))
+
+    seite.click(".roadmap summary")
+    seite.wait_for_selector(".roadmap .phasen", state="visible")
+    seite.screenshot(path=str(schuss_verzeichnis / f"{name}-phasen-auf.png"))
+    seite.click(".roadmap summary")
+    seite.wait_for_selector(".roadmap .phasen", state="hidden")
+    seite.screenshot(path=str(schuss_verzeichnis / f"{name}-phasen-zu.png"))
+
+    seite.click('.tabs button[data-tab="stand"]')
+    seite.wait_for_selector("#tab-stand:not([hidden])")
+    seite.screenshot(path=str(schuss_verzeichnis / f"{name}-stand.png"), full_page=True)
+
+    repo.beende_strom(conn, strom_id, repo.STROM_ABGEBROCHEN)
+    kontext.close()

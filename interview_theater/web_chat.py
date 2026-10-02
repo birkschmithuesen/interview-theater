@@ -150,6 +150,12 @@ _TEXT_INTERVIEW_ENDEN = "■ Beenden"
 #: erfasste Aufnahmedauer selbst an, nicht nur das separate ``#uhr``-Feld.
 _TEXT_INTERVIEW_LAEUFT = "● Interview läuft · {zeit}"
 _TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
+#: Brainstorm mithören (Phase 4, nur Web, 02.10.2026): derselbe
+#: Drei-Zustands-Regler wie beim Interview (Pause/Weiter/Beenden teilen sich
+#: dieselben Beschriftungen, _TEXT_INTERVIEW_PAUSE usw.), nur der grosse
+#: Knopf und die Laeuft-Zeile sind eigene -- "Brainstorm" ist kein Interview.
+_TEXT_BRAINSTORM_AN = "🎙 Brainstorm mithören"
+_TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit}"
 _TEXT_PTT = "Halten und sprechen"
 _TEXT_OHNE_JS = (
     "Fuer Chat und Aufnahme braucht diese Seite JavaScript. "
@@ -206,6 +212,18 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
 #interview[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
                                                  border-color: #8a8a8a; }
+/* Brainstorm mithören (Phase 4, nur Web): derselbe grosse Knopf wie
+   #interview, Interview bleibt daneben erreichbar, aber kleiner/nachrangig
+   (brief: "interview button stays reachable ... smaller/secondary"). */
+#brainstorm { font: inherit; font-weight: 600; min-height: 3.2rem; width: 100%;
+              border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff;
+              margin-bottom: .5rem; }
+#brainstorm[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
+                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
+#brainstorm[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
+                                                  border-color: #8a8a8a; }
+#interview.nebenknopf { font-weight: 400; min-height: 2.4rem; font-size: .9rem;
+                        opacity: .8; }
 .interview-aktionen { display: flex; gap: .5rem; margin-top: .4rem; }
 .interview-aktionen[hidden] { display: none; }
 .interview-aktionen button { flex: 1; min-height: 2.6rem; border-radius: .6rem;
@@ -308,6 +326,8 @@ _JS_TEXTE = {
     "interview_weiter": _TEXT_INTERVIEW_WEITER,
     "interview_laeuft": _TEXT_INTERVIEW_LAEUFT,
     "interview_pausiert": _TEXT_INTERVIEW_PAUSIERT,
+    "brainstorm_an": _TEXT_BRAINSTORM_AN,
+    "brainstorm_laeuft": _TEXT_BRAINSTORM_LAEUFT,
     "warte_eins": _TEXT_WARTE_EINS,
     "warte_mehr": _TEXT_WARTE_MEHR,
     "warte_modus": _TEXT_WARTE_MODUS,
@@ -369,6 +389,12 @@ _CHAT_JS = """
   var interviewPauseKnopf = document.getElementById('interview-pause');
   var interviewBeendenKnopf = document.getElementById('interview-beenden');
   var pttKnopf = document.getElementById('ptt');
+  // Brainstorm mithören (Phase 4, nur Web) -- alle vier null ausserhalb
+  // Phase 4 (chat_html() rendert die Elemente dann gar nicht).
+  var brainstormKnopf = document.getElementById('brainstorm');
+  var brainstormAktionenFeld = document.getElementById('brainstorm-aktionen');
+  var brainstormPauseKnopf = document.getElementById('brainstorm-pause');
+  var brainstormBeendenKnopf = document.getElementById('brainstorm-beenden');
   var angehaltenFeld = document.getElementById('angehalten');
   var angehaltenText = document.getElementById('angehalten-text');
   var nachreichenKnopf = document.getElementById('nachreichen');
@@ -702,6 +728,10 @@ _CHAT_JS = """
   function bereit(auftrag) {
     var sitzung = auftrag.sitzung;
     if (auftrag.art === 'audio' && sitzung) {
+      // Brainstorm kennt keinen Modus-Befehl (kein /interview, kein
+      // /fertig) -- ein Segment ist immer eine gewoehnliche 'kurz'-Aufnahme
+      // und geht deshalb sofort raus, wie ein PTT-Druck.
+      if (sitzung.art === 'brainstorm') { return true; }
       if (!sitzung.angemeldet || sitzung.angehalten) { return false; }
       if (zustand.servermodus) { sitzung.bestaetigt = true; }
       return zustand.servermodus;
@@ -1235,7 +1265,10 @@ _CHAT_JS = """
       interviewKnopf.textContent = TEXT.interview_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
     // Ein Stopp ist unterwegs: bis der Bot ihn bestaetigt, kein neuer Start.
-    interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel);
+    // Laeuft Brainstorm, ist der Interview-Knopf ebenfalls deaktiviert --
+    // zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
+    // Bedienung (dieselbe Regel wie PTT, Phase 4, 02.10.2026).
+    interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || !!zustand.brainstorm;
     // Der grosse Knopf ist waehrend Laeuft/Pause nur noch eine Anzeige --
     // Pause/Weiter und Beenden stehen in der eigenen Leiste darunter.
     if (interviewAktionenFeld) { interviewAktionenFeld.hidden = !an; }
@@ -1245,7 +1278,11 @@ _CHAT_JS = """
     // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ist PTT
     // ausgeblendet (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine
     // Bedienung, und eine Pause ist weiterhin "Modus an".
-    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel; }
+    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || !!zustand.brainstorm; }
+    // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
+    // beiden Funktionen zuerst gerufen wurde (zeigeBrainstormModus() ist ein
+    // No-Op ausserhalb Phase 4, da brainstormKnopf dann null ist).
+    zeigeBrainstormModus();
   }
 
   function verwirfPtt() {
@@ -1303,9 +1340,173 @@ _CHAT_JS = """
     }
   }
 
+  // -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ------------------
+  //
+  // Dieselbe Segment-Mechanik wie beim Interview (neuesSegment,
+  // schneideSegment, pegelAn, beginneAufnahme sind bereits generisch ueber
+  // die uebergebene Sitzung) -- aber OHNE Modus-Befehl: ein
+  // Brainstorm-Segment ist serverseitig immer eine gewoehnliche
+  // 'kurz'-Aufnahme, es gibt nichts anzumelden oder zu bestaetigen.
+  // sitzung.art = 'brainstorm' schaltet bereit() auf "immer senden" (siehe
+  // dort); fertigEingereiht bleibt dauerhaft true, damit pruefeEnde() NIE
+  // ein 'befehl' einreiht. Bewusst eigene, kleinere Funktionen statt eines
+  // sitzung.art-Zweigs mitten in starteInterview()/pausiereInterview()/
+  // beendeInterview(): die dort gehaerteten Rennbedingungen (mehrere
+  // "Re-Review"-Runden) sollen fuer den bestehenden, getesteten Weg
+  // unberuehrt bleiben.
+
+  function zeigeBrainstormModus() {
+    if (!brainstormKnopf) { return; }
+    var sitzung = zustand.brainstorm;
+    var an = !!sitzung;
+    var pausiert = an && sitzung.pausiert;
+    brainstormKnopf.dataset.laeuft = an ? '1' : '0';
+    brainstormKnopf.dataset.pausiert = pausiert ? '1' : '0';
+    if (!an) {
+      brainstormKnopf.textContent = TEXT.brainstorm_an;
+    } else if (pausiert) {
+      brainstormKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
+    } else {
+      brainstormKnopf.textContent = TEXT.brainstorm_laeuft.replace('{zeit}', formatiereUhr(sitzung));
+    }
+    // Zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
+    // Bedienung (dieselbe Regel wie PTT vs. Interview). Waehrend ein
+    // Interview-Stopp unterwegs ist (wechsel.ziel === false), ist modusAn()
+    // schon wieder false -- genau wie beim Interview-Knopf selbst
+    // (zeigeModus()) wird deshalb zusaetzlich auf ein laufendes wechsel
+    // geprueft, sonst saehe der Knopf kurz bedienbar aus, obwohl
+    // starteBrainstorm() ihn wegen desselben zustand.wechsel ablehnt.
+    brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;
+    if (brainstormAktionenFeld) { brainstormAktionenFeld.hidden = !an; }
+    if (brainstormPauseKnopf) {
+      brainstormPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
+    }
+    if (interviewKnopf) {
+      interviewKnopf.disabled = an || !!(zustand.wechsel && !zustand.wechsel.ziel);
+    }
+    if (pttKnopf) { pttKnopf.hidden = an || modusAn() || !!zustand.wechsel; }
+  }
+
+  function starteBrainstorm() {
+    if (zustand.brainstorm || modusAn() || zustand.wechsel) { return; }
+    if (zustand.ptt) { verwirfPtt(); }
+    var sitzung = {
+      art: 'brainstorm',
+      strom: null, recorder: null, kontext: null, pegelTakt: null,
+      segmentTakt: null, offen: 0, gestartet: false, beendet: false,
+      verworfen: false, angehalten: false, geparkt: [],
+      fertigEingereiht: true, naechsteNr: 0, einzureihen: 0, fertige: {},
+      pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true,
+      fortsetzend: false
+    };
+    zustand.brainstorm = sitzung;
+    zeigeBrainstormModus();
+    holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
+      sitzung.strom = strom;
+      if (sitzung.beendet) { gibFrei(sitzung); return; }
+      sitzung.gestartet = true;
+      beginneAufnahme(sitzung);
+      zeigeBrainstormModus();
+    }).catch(function () {
+      sitzung.mikroUnterwegs = false;
+      sitzung.verworfen = true;
+      sitzung.beendet = true;
+      if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
+      if (sitzung.recorder && sitzung.recorder.state !== 'inactive') {
+        try { sitzung.recorder.stop(); } catch (e) { /* schon aus */ }
+      }
+      sitzung.recorder = null;
+      gibFrei(sitzung);
+      entferneAuftraege(sitzung);
+      if (zustand.brainstorm === sitzung) { zustand.brainstorm = null; }
+      anzeigeAus();
+      zeigeBrainstormModus();
+      meldeFehler(TEXT.fehler_mikro);
+    });
+  }
+
+  function pausiereBrainstorm() {
+    var sitzung = zustand.brainstorm;
+    if (!sitzung || sitzung.pausiert || sitzung.verworfen || sitzung.beendet) { return; }
+    if (sitzung.mikroUnterwegs) {
+      sitzung.pausiert = true;
+      zeigeBrainstormModus();
+      return;
+    }
+    sitzung.erfassteMs += Date.now() - sitzung.legStart;
+    sitzung.legStart = null;
+    sitzung.pausiert = true;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    var alt = sitzung.recorder;
+    sitzung.recorder = null;
+    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
+    if (alt && alt.state !== 'inactive') { alt.stop(); }
+    gibFrei(sitzung);
+    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
+    if (uhrFeld) { uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung)); }
+    zeigeBrainstormModus();
+  }
+
+  function fortsetzeBrainstorm() {
+    var sitzung = zustand.brainstorm;
+    // Dieselben Waechter wie fortsetzeInterview(): "pausiert" nur einmal
+    // zuruecknehmen, und eine Sperrklinke (fortsetzend) gegen einen
+    // hastigen Doppeldruck, der sonst zwei Recorder auf demselben Mikrofon
+    // startete.
+    if (!sitzung || !sitzung.pausiert || sitzung.verworfen || sitzung.beendet ||
+        sitzung.fortsetzend) { return; }
+    if (sitzung.mikroUnterwegs) { sitzung.pausiert = false; return; }
+    sitzung.pausiert = false;
+    sitzung.fortsetzend = true;
+    sitzung.mikroUnterwegs = true;
+    holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
+      sitzung.fortsetzend = false;
+      if (!zustand.brainstorm || zustand.brainstorm !== sitzung || sitzung.beendet) {
+        strom.getTracks().forEach(function (t) { t.stop(); });
+        return;
+      }
+      sitzung.strom = strom;
+      beginneAufnahme(sitzung);
+      zeigeBrainstormModus();
+    }).catch(function () {
+      sitzung.mikroUnterwegs = false;
+      sitzung.fortsetzend = false;
+      sitzung.pausiert = true;
+      zeigeBrainstormModus();
+      meldeFehler(TEXT.fehler_mikro);
+    });
+    zeigeBrainstormModus();
+  }
+
+  function beendeBrainstorm() {
+    var sitzung = zustand.brainstorm;
+    if (!sitzung) { return; }
+    zustand.brainstorm = null;
+    anzeigeAus();
+    if (!sitzung.gestartet) {
+      sitzung.beendet = true;
+      zeigeBrainstormModus();
+      return;
+    }
+    sitzung.beendet = true;
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    var letzter = sitzung.recorder;
+    sitzung.recorder = null;
+    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
+    if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
+    // Anders als beendeInterview(): pruefeEnde() tut bei Brainstorm NIE
+    // etwas (fertigEingereiht bleibt immer true), also wird das Mikrofon
+    // HIER sofort freigegeben -- wie bei pausiereInterview(), nicht erst im
+    // onstop.
+    gibFrei(sitzung);
+    zeigeBrainstormModus();
+  }
+
   function starteInterview() {
     // Review-Befund 4: nie zwei Recorder, nie ein Start mitten im Wechsel.
-    if (zustand.aufnahme || zustand.wechsel) { return; }
+    if (zustand.aufnahme || zustand.wechsel || zustand.brainstorm) { return; }
     // Re-Review F: ein gehaltener PTT-Druck (zweiter Finger) wird verworfen,
     // sonst liefen zwei Recorder.
     if (zustand.ptt) { verwirfPtt(); }
@@ -1575,6 +1776,23 @@ _CHAT_JS = """
     starteInterview();
   });
 
+  if (brainstormPauseKnopf) {
+    brainstormPauseKnopf.addEventListener('click', function () {
+      var sitzung = zustand.brainstorm;
+      if (!sitzung) { return; }
+      if (sitzung.pausiert) { fortsetzeBrainstorm(); } else { pausiereBrainstorm(); }
+    });
+  }
+  if (brainstormBeendenKnopf) {
+    brainstormBeendenKnopf.addEventListener('click', beendeBrainstorm);
+  }
+  if (brainstormKnopf) {
+    brainstormKnopf.addEventListener('click', function () {
+      if (brainstormKnopf.disabled || zustand.brainstorm) { return; }
+      starteBrainstorm();
+    });
+  }
+
   // -- Push-to-Talk --------------------------------------------------------
   //
   // Halten = sprechen, loslassen = senden, Klasse 'kurz' (der Modus wird
@@ -1749,6 +1967,7 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
 
     vad = vad if vad is not None else _vad_werte()
     modus = bool(daten["interviewmodus"])
+    phase4 = daten.get("phase") == 4
     blasen = "\n".join(_blase_html(n) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(_TEXT_LEER)}</p>'
@@ -1781,19 +2000,34 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
         f'    <button type="button" id="verwerfen">'
         f'{html.escape(_TEXT_REST_VERWERFEN)}</button>\n'
         f'  </div>\n'
-        f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
-        f'data-pausiert="{1 if modus else 0}">'
-        f'{html.escape(_TEXT_INTERVIEW_AUS if modus else _TEXT_INTERVIEW_AN)}'
-        f'</button>\n'
-        f'  <div class="interview-aktionen" id="interview-aktionen"'
-        f'{"" if modus else " hidden"}>\n'
-        f'    <button type="button" id="interview-pause">'
-        f'{html.escape(_TEXT_INTERVIEW_WEITER if modus else _TEXT_INTERVIEW_PAUSE)}'
-        f'</button>\n'
-        f'    <button type="button" id="interview-beenden">'
-        f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
-        f'  </div>\n'
-        f'  <div class="zeile">\n'
+        + (
+            f'  <button type="button" id="brainstorm" data-laeuft="0" '
+            f'data-pausiert="0">{html.escape(_TEXT_BRAINSTORM_AN)}</button>\n'
+            f'  <div class="interview-aktionen" id="brainstorm-aktionen" hidden>\n'
+            f'    <button type="button" id="brainstorm-pause">'
+            f'{html.escape(_TEXT_INTERVIEW_PAUSE)}</button>\n'
+            f'    <button type="button" id="brainstorm-beenden">'
+            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'  </div>\n'
+            if phase4 else ""
+        )
+        + (
+            f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
+            f'data-pausiert="{1 if modus else 0}"'
+            + (' class="nebenknopf"' if phase4 else "")
+            + '>'
+            f'{html.escape(_TEXT_INTERVIEW_AUS if modus else _TEXT_INTERVIEW_AN)}'
+            f'</button>\n'
+            f'  <div class="interview-aktionen" id="interview-aktionen"'
+            f'{"" if modus else " hidden"}>\n'
+            f'    <button type="button" id="interview-pause">'
+            f'{html.escape(_TEXT_INTERVIEW_WEITER if modus else _TEXT_INTERVIEW_PAUSE)}'
+            f'</button>\n'
+            f'    <button type="button" id="interview-beenden">'
+            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'  </div>\n'
+        )
+        + f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '
         f'placeholder="{html.escape(_TEXT_EINGABE, quote=True)}">\n'
         f'    <button type="button" id="ptt"{" hidden" if modus else ""} title="'

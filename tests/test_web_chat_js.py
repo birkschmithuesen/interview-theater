@@ -119,7 +119,8 @@ def test_kappe_schneidet_immer_pause_nur_mit_genug_rede():
 
 def test_manuelle_schnitte_tragen_den_grund_ende():
     js = web_chat._CHAT_JS
-    assert js.count("_grund = 'ende'") == 2  # pausiereInterview + beendeInterview
+    # pausiereInterview + beendeInterview + pausiereBrainstorm + beendeBrainstorm
+    assert js.count("_grund = 'ende'") == 4
 
 
 def test_der_grund_ende_wird_nur_mit_aktivem_vad_gesetzt():
@@ -652,7 +653,8 @@ def test_beginneaufnahme_ist_der_einzige_ort_der_die_aufnahme_beginnt():
     und beide Aufrufer delegieren dorthin."""
     js = web_chat._CHAT_JS
     assert js.count("function beginneAufnahme") == 1
-    assert js.count("beginneAufnahme(sitzung);") == 2   # starteInterview + fortsetzeInterview
+    # starteInterview + fortsetzeInterview + starteBrainstorm + fortsetzeBrainstorm
+    assert js.count("beginneAufnahme(sitzung);") == 4
     # Der Segment-Takt wird nur noch EINMAL im ganzen Skript aufgebaut --
     # vorher stand dieselbe setInterval(...)-Konstruktion in beiden
     # Funktionen, und ein Schutz in der einen (Befund 1) galt nicht
@@ -721,3 +723,145 @@ def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
     for verboten in ("document.cookie", "localStorage", "sessionStorage",
                      "WebSocket", "EventSource"):
         assert verboten not in web_chat._CHAT_JS, verboten
+
+
+# -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ---------------------
+
+
+def test_der_brainstorm_knopf_steht_nur_in_phase_4_im_markup():
+    """Ausserhalb Phase 4 rendert ``chat_html`` die vier Brainstorm-Elemente
+    gar nicht -- das JS liest ``document.getElementById('brainstorm')`` als
+    ``null`` und jede Brainstorm-Funktion bleibt ein No-Op (siehe
+    ``zeigeBrainstormModus``)."""
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": False, "titel": None, "phase": 4}
+    seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
+    for kennung in ("brainstorm", "brainstorm-aktionen", "brainstorm-pause",
+                    "brainstorm-beenden"):
+        assert f'id="{kennung}"' in seite, kennung
+    assert web_chat._TEXT_BRAINSTORM_AN in seite
+    # Das Interview bleibt erreichbar, aber als Nebenknopf (brief: "stays
+    # reachable, e.g. smaller/secondary").
+    assert 'id="interview" data-laeuft="0" data-pausiert="0" class="nebenknopf">' in seite
+
+    ohne = web_chat.chat_html(dict(daten, phase=1), "1.x", "tok", "", 45000)
+    for kennung in ("brainstorm", "brainstorm-aktionen", "brainstorm-pause",
+                    "brainstorm-beenden"):
+        assert f'id="{kennung}"' not in ohne, kennung
+    assert 'class="nebenknopf"' not in ohne
+    assert 'id="interview" data-laeuft="0" data-pausiert="0">' in ohne
+
+    fehlt = web_chat.chat_html(dict(daten, phase=None), "1.x", "tok", "", 45000)
+    assert 'id="brainstorm"' not in fehlt
+
+
+def test_zeigebrainstormmodus_ist_ein_no_op_ohne_knopf():
+    """Ausserhalb Phase 4 ist ``brainstormKnopf`` ``null`` -- die Funktion
+    darf dann nichts anfassen, sonst wirft sie auf jeder Nicht-Phase-4-Seite."""
+    js = web_chat._CHAT_JS
+    fn = js[js.index("function zeigeBrainstormModus"):
+            js.index("function starteBrainstorm")]
+    assert "if (!brainstormKnopf) { return; }" in fn
+
+
+def test_brainstorm_segment_geht_immer_sofort_raus():
+    """Brainstorm kennt keinen Modus-Befehl -- ``bereit()`` schickt ein
+    Segment dieser Sitzung immer, ohne auf ``zustand.servermodus`` zu warten
+    (anders als eine Interview-Aufnahme, siehe
+    ``test_kein_segment_geht_ohne_modus_raus``)."""
+    js = web_chat._CHAT_JS
+    bereit = js[js.index("function bereit"):js.index("function ueberholt")]
+    assert "if (sitzung.art === 'brainstorm') { return true; }" in bereit
+
+
+def test_postaudio_haengt_das_brainstorm_flag_an():
+    js = web_chat._CHAT_JS
+    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    assert "sitzung.art === 'brainstorm'" in ausschnitt
+    assert "&brainstorm=1" in ausschnitt
+
+
+def test_brainstorm_und_interview_schliessen_sich_gegenseitig_aus():
+    """Zwei Mikrofone gleichzeitig sind keine Bedienung: ``starteBrainstorm``
+    lehnt waehrend eines Interviews (oder eines laufenden Wechsels) ab,
+    ``starteInterview`` ebenso waehrend eines laufenden Brainstorms, und
+    beide Knoepfe sowie PTT werden entsprechend deaktiviert/versteckt."""
+    js = web_chat._CHAT_JS
+    start_bs = js[js.index("function starteBrainstorm"):
+                  js.index("function pausiereBrainstorm")]
+    assert "if (zustand.brainstorm || modusAn() || zustand.wechsel) { return; }" in start_bs
+
+    start_iv = js[js.index("function starteInterview"):
+                  js.index("function brichAb")]
+    assert "if (zustand.aufnahme || zustand.wechsel || zustand.brainstorm) { return; }" in start_iv
+
+    zeige_bs = js[js.index("function zeigeBrainstormModus"):
+                  js.index("function starteBrainstorm")]
+    assert "interviewKnopf.disabled = an ||" in zeige_bs
+    assert "brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;" in js
+
+    zeige_iv = js[js.index("function zeigeModus"):js.index("function verwirfPtt")]
+    assert "!!zustand.brainstorm" in zeige_iv
+    assert "pttKnopf.hidden = an || !!zustand.wechsel || !!zustand.brainstorm;" in zeige_iv
+    assert "pttKnopf.hidden = an || modusAn() || !!zustand.wechsel;" in zeige_bs
+
+
+def test_fortsetzebrainstorm_hat_dieselbe_sperrklinke_wie_interview():
+    """Re-Review-Befund (dieselbe Klasse wie bei ``fortsetzeInterview``,
+    Befund 1): ``mikroUnterwegs`` muss schon VOR ``holeStrom()`` gesetzt
+    werden, sonst erkennt ein waehrenddessen gedrueckter Pause-Knopf das
+    unterwegs befindliche Mikrofon nicht und rechnet ``erfassteMs`` gegen ein
+    ``legStart`` von ``null`` (NaN). Dazu eine Sperrklinke gegen einen
+    hastigen Doppeldruck auf "Weiter"."""
+    js = web_chat._CHAT_JS
+    fortsetzen = js[js.index("function fortsetzeBrainstorm"):
+                    js.index("function beendeBrainstorm")]
+    assert "sitzung.fortsetzend" in fortsetzen
+    vor_holestrom = fortsetzen[:fortsetzen.index("holeStrom().then")]
+    assert "sitzung.mikroUnterwegs = true;" in vor_holestrom
+    assert "sitzung.fortsetzend = true;" in vor_holestrom
+
+
+def test_brainstorm_pruefeende_tut_nie_etwas():
+    """``fertigEingereiht`` steht von Anfang an auf ``true`` -- die
+    gemeinsame ``pruefeEnde()``-Funktion (Interview-Pfad) reiht fuer eine
+    Brainstorm-Sitzung deshalb nie ein ``'befehl'``-Auftrag ein."""
+    js = web_chat._CHAT_JS
+    start = js[js.index("function starteBrainstorm"):
+               js.index("function pausiereBrainstorm")]
+    assert "fertigEingereiht: true" in start
+
+
+def test_beendebrainstorm_gibt_das_mikrofon_sofort_frei():
+    """Anders als beim Interview (wo ``pruefeEnde()`` im ``onstop`` das
+    Mikrofon freigibt) tut ``pruefeEnde()`` bei Brainstorm nie etwas -- also
+    muss ``beendeBrainstorm`` selbst ``gibFrei`` rufen, nicht erst ueber den
+    Umweg eines Auftrags."""
+    js = web_chat._CHAT_JS
+    beenden = js[js.index("function beendeBrainstorm"):
+                 js.index("function starteInterview")]
+    assert "gibFrei(sitzung);" in beenden
+
+
+def test_brainstorm_knoepfe_sind_verdrahtet():
+    js = web_chat._CHAT_JS
+    assert "brainstormPauseKnopf.addEventListener('click'" in js
+    assert "brainstormBeendenKnopf.addEventListener('click', beendeBrainstorm);" in js
+    assert "brainstormKnopf.addEventListener('click'" in js
+    wiring = js[js.index("if (brainstormPauseKnopf)"):js.index("-- Push-to-Talk")]
+    assert "fortsetzeBrainstorm()" in wiring
+    assert "pausiereBrainstorm()" in wiring
+    assert "starteBrainstorm()" in wiring
+
+
+def test_manuelle_schnitte_tragen_den_grund_ende_fuer_brainstorm_auch():
+    """``pausiereBrainstorm``/``beendeBrainstorm`` flushen wie beim Interview
+    ueber ``_grund = 'ende'`` -- ein manueller Stopp haelt sich nicht an
+    ``MIN_SPEECH_MS``."""
+    js = web_chat._CHAT_JS
+    pause = js[js.index("function pausiereBrainstorm"):
+               js.index("function fortsetzeBrainstorm")]
+    beenden = js[js.index("function beendeBrainstorm"):
+                 js.index("function starteInterview")]
+    assert "_grund = 'ende'" in pause
+    assert "_grund = 'ende'" in beenden

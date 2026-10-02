@@ -1052,10 +1052,29 @@ FIGUREN_KOPF_OHNE_STIMME = (
     "aus Interviews belegt -- gib jeder Figur eine eigene, unterscheidbare "
     "Art zu reden (Satzlaenge, Tempo, Lieblingswoerter), und halte sie durch:"
 )
+#: Der gewaehlte Sprachstil einer Figur (Padua M1, 02.10.2026). Eine
+#: **Beschriftung**, nie in Anfuehrungszeichen: ein Stil ist kein Belegzitat
+#: (Audit-Befund S4), und ``_figuren_mit_wenig_zitaten`` zaehlt genau die
+#: Zeilen, die mit ``  "`` anfangen.
+ZEILE_SPRACHSTIL = "  Sprachstil (von der Gruppe gewaehlt): {stil}"
+
+#: Kopf, wenn keine Figur ein Zitat hat, aber mindestens eine einen von der
+#: Gruppe gewaehlten Sprachstil (Padua M1, 02.10.2026 -- Widerspruch c9 in
+#: ``docs/prompt-audit/2026-09-30-padua/BEFUND.md``). "Noch nicht aus
+#: Interviews belegt" waere dann die Unwahrheit: die Gruppe HAT entschieden,
+#: wie die Figuren sprechen. Umgekehrt behauptet er auch kein "woertlich aus
+#: dem Interview" -- ein gewaehlter Stil ist kein Belegzitat.
+FIGUREN_KOPF_MIT_STIL = (
+    "Die Figuren (wer sie sind, was sie wollen). Wie sie sprechen, hat die "
+    "Gruppe selbst gewaehlt -- halte die markierten Sprachstile durch; wo "
+    "keiner steht, gib der Figur eine eigene, unterscheidbare Art zu reden "
+    "(Satzlaenge, Tempo, Lieblingswoerter):"
+)
 
 
 def _figuren_text(conn, chat_id: int) -> str:
-    """Block 3: je Figur Beschreibung, Sprachprofil und woertliche Zitate.
+    """Block 3: je Figur Beschreibung, Sprachprofil, gewaehlter Sprachstil
+    und woertliche Zitate.
 
     **Das ist der Ersatz fuer die Volltranskripte.** Bis zum 05.09.2026 gingen
     alle Interviews im Wortlaut mit, und das Modell sollte daraus selbst
@@ -1074,13 +1093,26 @@ def _figuren_text(conn, chat_id: int) -> str:
     # standen dann Name, Beschreibung und eine Duktus-Zeile, kein einziges
     # Zitat. Ein Prompt, der etwas ankuendigt und nicht liefert, laesst das
     # Modell das Fehlende ergaenzen: es erfindet Zitate.
+    # Seit Padua M1 (02.10.2026) steht dazwischen ein dritter Kopf: hat
+    # keine Figur ein Zitat, aber eine einen gewaehlten Sprachstil, ist
+    # "noch nicht aus Interviews belegt" genauso falsch wie "woertlich".
     mit_zitat = False
+    mit_stil = False
     for figur in repo.figuren(conn, chat_id):
         zeilen = [f"{figur['name']}"]
         if figur["beschreibung"]:
             zeilen[0] += f" -- {figur['beschreibung']}"
         if figur["sprachprofil"]:
             zeilen.append(figur["sprachprofil"].strip())
+        # Padua M1 (02.10.2026): der in Phase 4 per Knopf gewaehlte Stil --
+        # vor den Zitaten, damit der Zitatblock je Figur zusammenhaengend
+        # bleibt (``_figuren_mit_wenig_zitaten`` zaehlt aufeinanderfolgende
+        # Zitatzeilen). Er setzt ``mit_zitat`` NICHT: ein Stil ist die Wahl
+        # der Gruppe, kein Satz aus einem Interview.
+        stil = (figur["sprachstil"] or "").strip()
+        if stil:
+            zeilen.append(T.ZEILE_SPRACHSTIL.format(stil=stil))
+            mit_stil = True
         for satz in (figur["zitate"] or "").split(repo.ZITAT_TRENNER):
             if satz.strip():
                 zeilen.append(f'  "{satz.strip()}"')
@@ -1088,7 +1120,15 @@ def _figuren_text(conn, chat_id: int) -> str:
         bloecke.append("\n".join(zeilen))
     if not bloecke:
         return ""
-    kopf = T.FIGUREN_KOPF if mit_zitat else T.FIGUREN_KOPF_OHNE_STIMME
+    # Drei Koepfe, in dieser Reihenfolge (Padua M1): ein echtes Zitat
+    # rechtfertigt "woertlich"; sonst traegt ein von der Gruppe gewaehlter
+    # Stil den Block; sonst verspricht der Kopf nichts.
+    if mit_zitat:
+        kopf = T.FIGUREN_KOPF
+    elif mit_stil:
+        kopf = T.FIGUREN_KOPF_MIT_STIL
+    else:
+        kopf = T.FIGUREN_KOPF_OHNE_STIMME
     return kopf + "\n\n" + "\n\n".join(bloecke)
 
 

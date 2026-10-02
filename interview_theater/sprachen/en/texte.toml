@@ -1696,3 +1696,5 @@ Your work is saved. You can keep recording (I'll listen tomorrow), and your grou
 # Der Rest der Chatansicht bleibt vorerst deutsch (offener Punkt, Karte A1).
 _TEXT_INTERVIEW_AN = "Record interview"
 _TEXT_INTERVIEW_AUS = "Stop recording"
+_TEXT_SPRACHE = "Voice message ({dauer})"
+_TEXT_SPRACHE_LAEUFT = "{dauer} · transcribing..."

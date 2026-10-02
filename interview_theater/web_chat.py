@@ -138,6 +138,10 @@ _TEXT_EINGABE = "Schreiben …"
 _TEXT_SENDEN = "Senden"
 _TEXT_TIPPT = "schreibt …"
 _TEXT_SPRACHE = "Sprachnachricht ({dauer})"
+#: Padua Hotfix B7: solange abgetippt wird -- und mit Transkript (das
+#: Mikrofon und die Dauer als Kennzeichen "gesprochen", ohne Sprache).
+_TEXT_SPRACHE_LAEUFT = "{dauer} · wird abgetippt …"
+_TEXT_SPRACHE_ABGETIPPT = "🎤 {dauer} · {text}"
 _TEXT_DATEI = "Datei: {name}"
 _TEXT_ZUR_GRUPPENSEITE = "Zur Gruppenseite"
 _TEXT_INTERVIEW_AN = "Interview aufnehmen"
@@ -281,6 +285,8 @@ _TEXT_NACHREICHEN_SPAETER = (
 _JS_TEXTE = {
     "tippt": _TEXT_TIPPT,
     "sprache": _TEXT_SPRACHE,
+    "sprache_laeuft": _TEXT_SPRACHE_LAEUFT,
+    "sprache_text": _TEXT_SPRACHE_ABGETIPPT,
     "datei": _TEXT_DATEI,
     "interview_an": _TEXT_INTERVIEW_AN,
     "interview_aus": _TEXT_INTERVIEW_AUS,
@@ -414,7 +420,15 @@ _CHAT_JS = """
     // Der Server hat schon gefiltert (sichere_html) -- ein Filter im Browser
     // laege auf der Seite, die er schuetzen soll.
     if (n.typ === 'sprache') {
-      return escape(TEXT.sprache.replace('{dauer}', minuten(n.dauer || 0)));
+      // Padua Hotfix B7: das Transkript als Text (escape, nie n.html), sonst
+      // der Platzhalter, solange abgetippt wird.
+      var dauer = minuten(n.dauer || 0);
+      if (n.text) {
+        return escape(TEXT.sprache_text.replace('{dauer}', dauer)
+                      .replace('{text}', function () { return n.text; }));
+      }
+      return escape((n.abgetippt === false ? TEXT.sprache_laeuft : TEXT.sprache)
+                    .replace('{dauer}', dauer));
     }
     if (n.typ === 'datei') {
       var link = '<a href="' + weg('chat/datei/' + n.id) + '">' +
@@ -1341,7 +1355,8 @@ def _js() -> str:
     maskiert, damit kein Text das ``<script>`` beenden kann."""
     # Padua Hotfix B6/B7: die uebersetzten Texte zur Aufrufzeit (``T``).
     texte = dict(_JS_TEXTE, interview_an=T._TEXT_INTERVIEW_AN,
-                 interview_aus=T._TEXT_INTERVIEW_AUS)
+                 interview_aus=T._TEXT_INTERVIEW_AUS, sprache=T._TEXT_SPRACHE,
+                 sprache_laeuft=T._TEXT_SPRACHE_LAEUFT)
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
         _CHAT_JS
@@ -1357,7 +1372,14 @@ def _blase_html(n: dict) -> str:
     """Eine Nachricht als Blase, gegebenenfalls mit ihrer Leiste darunter."""
     if n["typ"] == "sprache":
         minuten, sekunden = divmod(int(n["dauer"] or 0), 60)
-        inhalt = html.escape(_TEXT_SPRACHE.format(dauer=f"{minuten}:{sekunden:02d}"))
+        dauer = f"{minuten}:{sekunden:02d}"
+        # Padua Hotfix B7: Transkript (maskiert) > Platzhalter > Dauer.
+        if n.get("text"):
+            inhalt = html.escape(_TEXT_SPRACHE_ABGETIPPT.format(dauer=dauer, text=n["text"]))
+        elif n.get("abgetippt", True):
+            inhalt = html.escape(T._TEXT_SPRACHE.format(dauer=dauer))
+        else:
+            inhalt = html.escape(T._TEXT_SPRACHE_LAEUFT.format(dauer=dauer))
         klasse = "sprache"
     elif n["typ"] == "datei":
         inhalt = (

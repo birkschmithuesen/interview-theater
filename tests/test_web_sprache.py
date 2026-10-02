@@ -75,11 +75,13 @@ def test_padua_leseansicht_und_fehlerseite_ohne_deutsch(tmp_path, padua):
     assert [f"{t.quelle}: {t.wort} | {t.ausschnitt}" for t in treffer] == []
 
 
-def test_dashboard_bleibt_deutsch(padua):
-    """Das Team-Dashboard wird nicht umgestellt (Brief Aufgabe 17)."""
+def test_dashboard_folgt_dem_profil(padua):
+    """Bis Aufgabe 17 blieb das Team-Dashboard deutsch; seit Padua
+    (02.10.2026) spricht es die Sprache des Profils -- ausfuehrlich in
+    ``tests/test_web_dashboard_en.py``."""
     html = web.dashboard_html({"gruppen": [], "bot_zuordnung": [], "stand": None})
-    assert '<html lang="de">' in html
-    assert "Noch keine Gruppe hat geschrieben." in html
+    assert '<html lang="en">' in html
+    assert "No group has written yet." in html
 
 
 def test_speichermeldungen_kommen_aus_data_attributen(tmp_path, padua):

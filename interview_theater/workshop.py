@@ -225,6 +225,13 @@ VORGABE_WERTE: dict[str, Any] = {
         "adjektiv_dreier_je_1000": 2.0,
         "fazitsatz_je_text": 1,
     },
+    # Die Weboberflaeche (02.10.2026, Padua). ``dashboard_log_einklappen``
+    # klappt je Karte den Technikteil (Zahlen, Vorfaelle, Aufrufe) und die
+    # Bot-Zuordnung in ein geschlossenes <details>. Aus ist die Zusage an
+    # Dortmund: das Dashboard bleibt byte-gleich.
+    "web": {
+        "dashboard_log_einklappen": False,
+    },
 }
 
 

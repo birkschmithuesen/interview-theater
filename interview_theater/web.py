@@ -3304,6 +3304,40 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
         )
 
 
+#: Die Telefon-Organisationskarten (UX-Knoepfe-Karte, Abschnitt 5) liegen
+#: unter ``/g/<token>/static/handys/<name>.png`` -- unter dem Token, damit
+#: ``web_chat.weg()`` (die vorhandene BASIS-Umrechnung fuer die vereinte
+#: Seite und die Chat-Einzelseite) sie ohne eigenen Mechanismus erreicht.
+STATIC_HANDYS_PRAEFIX = "static/handys/"
+
+#: Strikte Positivliste fuer den Dateinamen -- kein Dateisystempfad aus der
+#: URL. Ein ``..`` oder ein Schraegstrich im Namen scheitert schon hier,
+#: bevor ueberhaupt ein Pfad gebaut wird.
+_STATIC_NAME = re.compile(r"^[a-z0-9-]+\.png$")
+
+
+def _sende_static_bild(handler, unterpfad: str) -> None:
+    """Eine Telefon-Organisationskarte unter ``interview_theater/static/handys/``.
+
+    Kein Tokenbezug: der Inhalt ist nicht gruppenspezifisch (erfunden, keine
+    PII) -- dieselben sieben Bilder fuer jede Gruppe. ``unterpfad`` muss
+    GENAU ``static/handys/<name>.png`` sein; alles andere (fehlende Datei,
+    Name ausserhalb der Positivliste) ist 404, nie ein Dateisystemfehler."""
+    from pathlib import Path
+
+    name = unterpfad[len(STATIC_HANDYS_PRAEFIX):]
+    if not _STATIC_NAME.fullmatch(name):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    pfad_auf_platte = Path(__file__).resolve().parent / "static" / "handys" / name
+    try:
+        inhalt = pfad_auf_platte.read_bytes()
+    except OSError:
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    handler._antworte_binaer(200, inhalt, "image/png")
+
+
 def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
                              praefix: str, schluessel: bytes,
                              query: str = "") -> None:
@@ -3318,6 +3352,9 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
 
     rest = pfad[len("/g/"):].strip("/")
     token, _, unterpfad = rest.partition("/")
+    if unterpfad.startswith(STATIC_HANDYS_PRAEFIX):
+        _sende_static_bild(handler, unterpfad)
+        return
     if unterpfad in ("textbuch.md", "textbuch.txt"):
         _sende_textbuch_datei(handler, db_pfad, token, unterpfad)
         return
@@ -3597,6 +3634,22 @@ class _Basishandler(BaseHTTPRequestHandler):
         # sonst zeigt der Beamer eine Viertelstunde alte Zahlen.
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
+        self.wfile.write(roh)
+
+    def _antworte_binaer(self, status: int, inhalt: bytes, typ: str) -> None:
+        """Wie ``_antworte``, nur fuer Bytes statt Text -- die
+        Telefon-Organisationskarten (UX-Knoepfe-Karte, Abschnitt 5).
+        ``inhalt.encode("utf-8")`` in ``_antworte`` wuerde ein PNG
+        zerstoeren."""
+        self.send_response(status)
+        self.send_header("Content-Type", typ)
+        self.send_header("Content-Length", str(len(inhalt)))
+        # Eine Karte aendert sich nur, wenn der Betreiber den Generator neu
+        # laufen laesst -- anders als beim Dashboard darf der Browser sie
+        # lange behalten.
+        self.send_header("Cache-Control", "public, max-age=86400")
+        self.end_headers()
+        self.wfile.write(inhalt)
         self.wfile.write(roh)
 
     def _csp_nonce(self) -> str:

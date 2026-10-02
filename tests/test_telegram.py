@@ -72,6 +72,39 @@ def test_sende_datei_kuerzt_eine_zu_lange_bildunterschrift():
     assert "A" * 1025 not in gesehen["koerper"]
 
 
+def test_sende_bild_schickt_ein_multipart_foto():
+    """Die Telefon-Organisationskarten (UX-Knoepfe-Karte, Abschnitt 5):
+    sendPhoto mit Dateiname, Bildinhalt und Bildunterschrift."""
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["url"] = str(request.url)
+        gesehen["koerper"] = request.content
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 9}})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    assert bot.sende_bild(-100, "phase-4.png", b"\x89PNG...", "Satz der Karte") == 9
+
+    assert "sendPhoto" in gesehen["url"]
+    assert b"phase-4.png" in gesehen["koerper"]
+    assert b"PNG" in gesehen["koerper"]
+    assert b"Satz der Karte" in gesehen["koerper"]
+
+
+def test_sende_bild_kuerzt_eine_zu_lange_bildunterschrift():
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["koerper"] = request.content
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 9}})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    bot.sende_bild(-100, "phase-4.png", b"x", "A" * 2000)
+
+    assert b"A" * 1024 in gesehen["koerper"]
+    assert b"A" * 1025 not in gesehen["koerper"]
+
+
 def test_tippt_schickt_typing_aktion():
     gesehene_anfrage = {}
 

@@ -269,6 +269,26 @@ class Telegram:
             antwort.raise_for_status()
             return antwort.json()["result"]["message_id"]
 
+    def sende_bild(self, chat_id: int, dateiname: str, inhalt: bytes,
+                   beschreibung: str = "") -> int:
+        """Schickt ein Bild (sendPhoto) -- die Telefon-Organisationskarten
+        je Phase (UX-Knoepfe-Karte, Abschnitt 5).
+
+        Wie ``sende_datei``: Telegram begrenzt die Bildunterschrift auf
+        1024 Zeichen, laengere wuerde HTTP 400 bringen und das Bild nie
+        ankommen lassen."""
+        felder = {"chat_id": str(chat_id)}
+        if beschreibung:
+            felder["caption"] = beschreibung[:1024]
+        with self._fange_http_fehler():
+            antwort = self._klient.post(
+                self._url("sendPhoto"),
+                data=felder,
+                files={"photo": (dateiname, inhalt, "image/png")},
+            )
+            antwort.raise_for_status()
+            return antwort.json()["result"]["message_id"]
+
     def beantworte_knopf(self, callback_query_id: str, text: str = "") -> None:
         """answerCallbackQuery -- Telegram erwartet das auf JEDEN Knopfdruck.
 

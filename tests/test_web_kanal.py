@@ -269,3 +269,18 @@ def test_sende_mit_knoepfen_und_system_schreibt_den_eigenen_typ(conn, kanal):
     )
 
     assert repo.hole_web_post(conn, message_id)["typ"] == repo.WEB_TYP_SYSTEM
+
+
+def test_sende_bild_schreibt_dateiname_und_satz(conn, kanal):
+    """UX-Knoepfe-Karte, Abschnitt 5: anders als ``sende_datei`` wird die
+    Datei nicht je Gruppe abgelegt -- sie liegt schon unter
+    ``interview_theater/static/handys/``, der Kanal merkt sich nur den
+    Dateinamen."""
+    message_id = kanal.sende_bild(
+        CHAT, "phase-4.png", b"\x89PNG...", "Eins hoert zu, eins steht aufgestellt.",
+    )
+
+    zeile = repo.hole_web_post(conn, message_id)
+    assert zeile["typ"] == repo.WEB_TYP_SYSTEM
+    assert zeile["bild"] == "phase-4.png"
+    assert zeile["text"] == "Eins hoert zu, eins steht aufgestellt."

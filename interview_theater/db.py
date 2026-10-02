@@ -936,7 +936,13 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- Telegram-foermige Update durchgereicht (dieselbe Art wie 'mime') --
   -- additiv nachgeruestet.
   schnittgrund      TEXT,
-  brainstorm        INTEGER NOT NULL DEFAULT 0
+  brainstorm        INTEGER NOT NULL DEFAULT 0,
+  -- Telefon-Organisationskarte je Phasen-Eintritt (UX-Knoepfe-Karte,
+  -- Abschnitt 5): der Dateiname unter interview_theater/static/handys/
+  -- (z. B. 'phase-4.png'), nie ein Pfad -- die Chatansicht baut die URL
+  -- selbst (web_chat._blase_html / inhaltVon). NULL bei jeder Zeile ohne
+  -- Bild. Additiv nachgeruestet.
+  bild              TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);

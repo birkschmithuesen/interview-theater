@@ -3795,25 +3795,27 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      text=None, knoepfe=None, daten=None,
                      bezug_message_id=None, dauer=None,
                      datei=None, mime=None, dateiname=None,
-                     schnittgrund=None, brainstorm=False) -> int:
+                     schnittgrund=None, brainstorm=False, bild=None) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
     beide Richtungen (siehe Tabellenkommentar in db.py). ``schnittgrund``/
     ``brainstorm`` (Pausen-Schnitt, 02.10.2026) sind nur bei
     ``typ='sprache'`` gesetzt und wandern unveraendert bis in die
-    ``aufnahme``-Zeile (``web_kanal.hole_updates`` -> ``aufnahme.empfange``)."""
+    ``aufnahme``-Zeile (``web_kanal.hole_updates`` -> ``aufnahme.empfange``).
+    ``bild`` (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
+    Telefon-Organisationskarte unter ``interview_theater/static/handys/``."""
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
         "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
-        "schnittgrund, brainstorm) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "schnittgrund, brainstorm, bild) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
-            schnittgrund, 1 if brainstorm else 0,
+            schnittgrund, 1 if brainstorm else 0, bild,
         ),
     )
     conn.commit()

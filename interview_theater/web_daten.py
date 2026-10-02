@@ -1417,7 +1417,7 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
     Gruppenseite')."""
     zeilen = conn.execute(
         "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am, "
-        f"{_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
+        f"bild, {_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
         f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
         "AND typ != 'knopf' "
         "ORDER BY id ASC LIMIT ?",
@@ -1432,6 +1432,7 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
             "knoepfe": _web_knoepfe(z["knoepfe"]),
             "dauer": z["dauer"],
             "dateiname": z["dateiname"],
+            "bild": z["bild"],
             "abgetippt": bool(z["abgetippt"]),
             "zeit": z["erstellt_am"],
         }
@@ -1478,7 +1479,7 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
             ).fetchone()
             return [], int(zeile["stand"])
         zeilen = conn.execute(
-            "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, "
+            "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, bild, "
             f"geloescht_am, aenderung, {_ABGETIPPT} FROM web_post "
             "WHERE chat_id = ? AND aenderung > ? "
             f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
@@ -1497,6 +1498,7 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
             "knoepfe": _web_knoepfe(z["knoepfe"]),
             "dauer": z["dauer"],
             "dateiname": z["dateiname"],
+            "bild": z["bild"],
             "abgetippt": bool(z["abgetippt"]),
             "geloescht": z["geloescht_am"] is not None,
         }

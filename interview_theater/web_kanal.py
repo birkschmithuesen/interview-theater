@@ -456,6 +456,23 @@ class WebKanal:
         repo.setze_web_datei(self._conn, post_id, str(ziel))
         return post_id
 
+    def sende_bild(self, chat_id: int, dateiname: str, inhalt: bytes,
+                   beschreibung: str = "") -> int:
+        """Eine Telefon-Organisationskarte (Telegram: ``sendPhoto``,
+        UX-Knoepfe-Karte, Abschnitt 5).
+
+        Anders als ``sende_datei``: die Datei wird **nicht** je Gruppe
+        abgelegt, sie liegt schon unter ``interview_theater/static/handys/``
+        und wird von dort ausgeliefert (``web_chat._blase_html`` /
+        ``inhaltVon`` bauen die URL aus ``web_post.bild``). ``inhalt`` bleibt
+        trotzdem Teil der Signatur -- nur so stimmt sie mit
+        ``telegram.Telegram.sende_bild`` ueberein (``test_web_kanal_naht``),
+        und der Aufrufer braucht die Bytes ohnehin fuer den Telegram-Weg."""
+        return repo.lege_web_post_an(
+            self._conn, chat_id, repo.RICHTUNG_AUS, repo.WEB_TYP_SYSTEM,
+            text=beschreibung or None, bild=dateiname,
+        )
+
     def beantworte_knopf(self, callback_query_id: str, text: str = "") -> None:
         """Das Gegenstueck zu ``answerCallbackQuery``: der Text wird an den
         Druck geschrieben, und der Browser holt ihn beim naechsten

@@ -215,6 +215,34 @@ def _mit_vorspann(vorspann: str | None, text: str) -> str:
     return f"{vorspann}\n\n{text}" if vorspann else text
 
 
+def _sende_karte(tg, chat_id: int, nummer: int) -> None:
+    """Die Telefon-Organisationskarte dieser Phase, VOR der Eintrittsnachricht
+    (UX-Knoepfe-Karte, Abschnitt 5): wie die Telefone fuer diese Phase liegen
+    sollen, als Bild mit einem Satz dazu -- bei JEDEM Eintritt, auch einem
+    Wiedereintritt aus einer spaeteren Phase.
+
+    Deterministisch, kein Modellaufruf: das Bild liegt fertig unter
+    ``interview_theater/static/handys/`` (``scripts/handy_karten.py``), der
+    Satz kommt aus derselben Tabelle (``interview_theater.handykarten``).
+
+    Still bei fehlender Karte (keine Datei generiert, unbekannte Phasennummer)
+    und bei einem Kanal ohne ``sende_bild`` -- die Telegram-Attrappen in
+    Tests und Simulation (``simulation/attrappe.py``, ``tests/test_ablauf.py``)
+    bilden sie nicht nach, und ein zweiter Mechanismus nur fuer sie lohnt
+    nicht (dieselbe Abwaegung wie bei ``sende_datei`` dort)."""
+    from interview_theater import handykarten
+
+    datei = handykarten.pfad(nummer)
+    satz = handykarten.satz(nummer)
+    if datei is None or satz is None or not hasattr(tg, "sende_bild"):
+        return
+    try:
+        inhalt = datei.read_bytes()
+    except OSError:
+        return
+    tg.sende_bild(chat_id, datei.name, inhalt, satz)
+
+
 def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
     """Was beim Eintritt in eine Phase passiert -- fuer ALLE sieben gleich
     aufgebaut (06.09.2026, Birk).
@@ -236,6 +264,7 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
     hergekommen ist."""
     from interview_theater import phasentexte
 
+    _sende_karte(tg, chat_id, nummer)
     if nummer == PHASE_BEGRIFFE and klm is not None:
         # **Derselbe Einstieg wie beim Erstkontakt** (02.10.2026, Birk,
         # Padua): keine Kopfzeile, kein fester Satz -- der erste Impuls kommt

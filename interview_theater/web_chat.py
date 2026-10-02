@@ -39,6 +39,10 @@ T = sprache.Texte(__name__)
 #: ``scripts/web_gruppe.CHAT_PFAD`` (Test).
 CHAT_PFAD = "chat"
 
+#: Wo die Telefon-Organisationskarten liegen (UX-Knoepfe-Karte, Abschnitt 5)
+#: -- wortgleich mit ``web.STATIC_HANDYS_PRAEFIX`` ohne den Schlussschraegstrich.
+STATIC_HANDYS_PFAD = "static/handys"
+
 #: Wie lang eine Nachricht aus dem Browser hoechstens ist. Dieselbe Zahl wie
 #: ``telegram.NACHRICHT_GRENZE``: eine Gruppe, die im Browser arbeitet, soll
 #: nicht mehr schreiben koennen, als der Telegram-Weg tragen wuerde -- sonst
@@ -240,6 +244,8 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .blase.sprache { font-style: italic; opacity: .85; }
 .blase.system { background: transparent; border: none; color: #6b6f76;
                 font-size: .88rem; padding: .25rem .2rem; max-width: 100%; }
+/* UX-Knoepfe-Karte, Abschnitt 5: die Telefon-Organisationskarte je Phase. */
+.karte { max-width: 100%; display: block; border-radius: .5rem; margin-bottom: .35rem; }
 /* UX-Knoepfe-Karte, Abschnitt 1: Knoepfe sind kleine Abkuerzungs-Chips, keine
    vollbreiten Pflichtknoepfe -- die Hauptlast bleibt beim Eingabefeld. */
 .leiste-label { font-size: .74rem; color: #9a9ea5; margin: .1rem 0 0;
@@ -532,7 +538,19 @@ _CHAT_JS = """
     return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
   }
 
+  function bildVon(n) {
+    // UX-Knoepfe-Karte, Abschnitt 5: dieselbe URL wie auf der Server-Seite
+    // (web_chat._bild_html) -- ``weg()`` rechnet BASIS schon mit ein.
+    if (!n.bild) { return ''; }
+    return '<img src="' + weg('static/handys/' + n.bild) + '" alt="' +
+           escape(n.text || '') + '" loading="lazy" class="karte">';
+  }
+
   function inhaltVon(n) {
+    return bildVon(n) + textVon(n);
+  }
+
+  function textVon(n) {
     // Der Server hat schon gefiltert (sichere_html) -- ein Filter im Browser
     // laege auf der Seite, die er schuetzen soll.
     if (n.typ === 'sprache') {
@@ -2048,11 +2066,28 @@ def _js() -> str:
     )
 
 
+def _bild_html(n: dict, basis: str) -> str:
+    """Das ``<img>`` einer Telefon-Organisationskarte (UX-Knoepfe-Karte,
+    Abschnitt 5) -- leerer String ohne ``bild``.
+
+    Derselbe ``basis``-Weg wie beim Datei-Link (``static/handys/<name>``
+    statt ``chat/datei/<id>``): auf der vereinten Seite ``"<token>/"``, auf
+    der Chat-Einzelseite leer. ``alt`` ist der Satz der Karte (``n["text"]``)
+    -- dieselbe Information als Bild und fuer Screenreader."""
+    name = n.get("bild")
+    if not name:
+        return ""
+    quelle = f"{basis}{STATIC_HANDYS_PFAD}/{html.escape(name, quote=True)}"
+    alt = html.escape(n["text"] or "", quote=True)
+    return f'<img src="{quelle}" alt="{alt}" loading="lazy" class="karte">'
+
+
 def _blase_html(n: dict, basis: str = "") -> str:
     """Eine Nachricht als Blase, gegebenenfalls mit ihrer Leiste darunter.
 
     ``basis`` ist das Praefix vor ``chat/...`` auf der vereinten Seite
     (Karte W) -- auf der Chat-Einzelseite bleibt es leer."""
+    bild = _bild_html(n, basis)
     if n["typ"] == "sprache":
         minuten, sekunden = divmod(int(n["dauer"] or 0), 60)
         dauer = f"{minuten}:{sekunden:02d}"
@@ -2093,7 +2128,7 @@ def _blase_html(n: dict, basis: str = "") -> str:
         klasse = "text"
 
     teile = [
-        f'<div class="blase {n["von"]} {klasse}" data-id="{n["id"]}">{inhalt}</div>'
+        f'<div class="blase {n["von"]} {klasse}" data-id="{n["id"]}">{bild}{inhalt}</div>'
     ]
     if n["knoepfe"]:
         knoepfe = "".join(

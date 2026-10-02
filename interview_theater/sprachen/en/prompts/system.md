@@ -222,6 +222,11 @@ conversation anyway -- the group never needs a command for that.
   at all; no "tap on", no "tap it again". **Never point to
   a button that isn't there yet** -- the button only comes AFTER your
   answer; "press the button below" is therefore always wrong.
+  **Without a running recording** a voice message reaches you transcribed
+  like any other message -- the history then shows "(voice message)" after
+  the name --, and you answer it like any other contribution. Never say you
+  can't hear or can't transcribe voice messages: the transcription has
+  already happened, you are reading its text right now.
 - `/stand` -- shows the group where things currently are.
 - `/kernthema <text>` -- writes the core theme into the progress immediately.
 - `/stueck rahmen <text>` -- the setting from station 4. `/stueck` on its own

@@ -1158,6 +1158,27 @@ _CHAT_JS = """
     }
   }
 
+  // Beginnt die tatsaechliche Aufzeichnung auf einer Sitzung, deren
+  // Mikrofon gerade bereit wurde: Startzeitpunkt, Recorder, Segment-Takt,
+  // Uhr und Pegel. Gemeinsame Stelle fuer starteInterview() und
+  // fortsetzeInterview() (Re-Review, Befund 2) -- ein hier ergaenzter
+  // Schutz (z.B. gegen eine inzwischen gesetzte Pause) gilt automatisch
+  // fuer beide Aufrufer, statt nur fuer den, an dem er zuerst auffiel.
+  function beginneAufnahme(sitzung) {
+    sitzung.pausiert = false;
+    sitzung.legStart = Date.now();
+    sitzung.recorder = neuesSegment(sitzung);
+    sitzung.gestartet = true;
+    sitzung.segmentTakt = setInterval(function () {
+      if (!sitzung.recorder) { return; }
+      var alt = sitzung.recorder;
+      alt.stop();                      // liefert sein Segment im onstop
+      sitzung.recorder = neuesSegment(sitzung);
+    }, SEGMENT_MS);
+    uhrAn(sitzung);
+    pegelAn(sitzung);
+  }
+
   function starteInterview() {
     // Review-Befund 4: nie zwei Recorder, nie ein Start mitten im Wechsel.
     if (zustand.aufnahme || zustand.wechsel) { return; }
@@ -1176,32 +1197,47 @@ _CHAT_JS = """
       // fortsetzend die Sperrklinke waehrend "Weiter" auf das Mikrofon
       // wartet (verhindert einen zweiten Recorder bei einem hastigen
       // Doppeldruck, siehe fortsetzeInterview).
-      pausiert: false, erfassteMs: 0, legStart: null, fortsetzend: false
+      // mikroUnterwegs: zwischen dem Aufruf von holeStrom() und seinem
+      // Ausgang (Erfolg oder Fehler) -- der Signal, an dem
+      // pausiereInterview()/fortsetzeInterview() ein noch unterwegs
+      // befindliches Mikrofon dieser Sitzung erkennen (Re-Review,
+      // Befund 1), statt gegen das lange-schon-falsche "gestartet".
+      pausiert: false, erfassteMs: 0, legStart: null, fortsetzend: false,
+      mikroUnterwegs: false
     };
     var wechsel = { ziel: true, gesendet: false };
     zustand.aufnahme = sitzung;
     zustand.wechsel = wechsel;
     zeigeModus();
+    sitzung.mikroUnterwegs = true;
     holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
       sitzung.strom = strom;
       if (sitzung.beendet) { gibFrei(sitzung); return; }   // vorher gestoppt
-      // Die Aufnahme laeuft SOFORT -- sonst verliert man die ersten Worte.
-      // Die Segmente warten in der Schlange hinter /interview (bereit()).
-      sitzung.legStart = Date.now();
-      sitzung.recorder = neuesSegment(sitzung);
+      // Das Mikrofon ist da, also weiss der Bot jetzt, dass der Modus an
+      // ist -- unabhaengig davon, ob gleich aufgenommen wird: /interview
+      // wird genau einmal und immer hier angemeldet.
       sitzung.gestartet = true;
       reiheEin({ art: 'befehl', an: true, sitzung: sitzung, wechsel: wechsel });
-      uhrAn(sitzung);
-      pegelAn(sitzung);
-      sitzung.segmentTakt = setInterval(function () {
-        if (!sitzung.recorder) { return; }
-        var alt = sitzung.recorder;
-        alt.stop();                      // liefert sein Segment im onstop
-        sitzung.recorder = neuesSegment(sitzung);
-      }, SEGMENT_MS);
+      if (sitzung.pausiert) {
+        // Re-Review, Befund 1: Pause kam, waehrend der Browser noch auf die
+        // Mikrofon-Freigabe wartete (die Anfrage haengt am Menschen, das
+        // Fenster kann Sekunden dauern). sitzung.legStart ist noch null --
+        // sofort aufzunehmen wuerde die Pause ignorieren UND einen zweiten
+        // Recorder riskieren, falls gleich darauf "Weiter" kommt. Also: gar
+        // nicht erst anfangen, Mikrofon sofort wieder frei, wie
+        // pausiereInterview() es nach einem echten Stop auch tut.
+        gibFrei(sitzung);
+        zeigeModus();
+        return;
+      }
+      // Die Aufnahme laeuft SOFORT -- sonst verliert man die ersten Worte.
+      // Die Segmente warten in der Schlange hinter /interview (bereit()).
+      beginneAufnahme(sitzung);
     }).catch(function () {
       // Review-Befund 8: ein halb gestarteter Recorder wird gestoppt und das
       // Mikrofon freigegeben.
+      sitzung.mikroUnterwegs = false;
       sitzung.verworfen = true;
       sitzung.beendet = true;
       if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
@@ -1292,6 +1328,19 @@ _CHAT_JS = """
     // vom Poll bestaetigt) darf eine Pause nicht verhindern: der Recorder
     // laeuft schon, dieselbe Regel wie in beendeInterview().
     if (zustand.wechsel && !zustand.wechsel.ziel) { return; }
+    if (sitzung.mikroUnterwegs) {
+      // Re-Review, Befund 1: das Mikrofon dieser Sitzung ist noch unterwegs
+      // (starteInterview() wartet auf holeStrom(), eine vom Menschen
+      // beantwortete Berechtigungsfrage -- das Fenster kann Sekunden
+      // dauern) -- sitzung.legStart ist noch null, das Falten gegen
+      // Date.now() wuerde eine Muellzahl in die Uhr schreiben. Nur merken,
+      // dass Pause gewuenscht ist: starteInterview() sieht das
+      // Flag, sobald das Mikrofon kommt, und faengt dann gar nicht erst an
+      // aufzunehmen (statt den Tipp stillschweigend zu verschlucken).
+      sitzung.pausiert = true;
+      zeigeModus();
+      return;
+    }
     sitzung.erfassteMs += Date.now() - sitzung.legStart;
     sitzung.legStart = null;
     sitzung.pausiert = true;
@@ -1316,6 +1365,16 @@ _CHAT_JS = """
       // Start-Bestaetigung.
       if ((zustand.wechsel && !zustand.wechsel.ziel) || !sitzung.pausiert ||
           sitzung.verworfen || sitzung.beendet || sitzung.fortsetzend) { return; }
+      if (sitzung.mikroUnterwegs) {
+        // Re-Review, Befund 1 (Kehrseite): starteInterview() wartet selbst
+        // noch auf sein eigenes Mikrofon -- einfach die Pause zuruecknehmen.
+        // Dessen .then() sieht sitzung.pausiert === false und faengt von
+        // sich aus an aufzunehmen; kein zweiter holeStrom()-Aufruf, also
+        // nie zwei Recorder auf derselben Sitzung.
+        sitzung.pausiert = false;
+        zeigeModus();
+        return;
+      }
     } else {
       // Neu geladen, waehrend der Server den Modus schon meldet (Punkt 5):
       // keine lokale Sitzung, also auch kein zweites /interview -- der Bot
@@ -1329,7 +1388,7 @@ _CHAT_JS = """
         angehalten: false, geparkt: [],
         fertigEingereiht: false, naechsteNr: 0, einzureihen: 0, fertige: {},
         wechselAus: null, pausiert: true, erfassteMs: 0, legStart: null,
-        fortsetzend: false
+        fortsetzend: false, mikroUnterwegs: false
       };
       zustand.aufnahme = sitzung;   // synchron, wie starteInterview()
     }
@@ -1338,27 +1397,22 @@ _CHAT_JS = """
     if (zustand.ptt) { verwirfPtt(); }
     sitzung.fortsetzend = true;   // Sperrklinke: kein zweiter Recorder bei Doppeldruck
     zeigeModus();
+    sitzung.mikroUnterwegs = true;
     holeStrom().then(function (strom) {
+      sitzung.mikroUnterwegs = false;
       sitzung.fortsetzend = false;
       if (sitzung.beendet || sitzung.verworfen) {
         strom.getTracks().forEach(function (t) { t.stop(); });
         return;
       }
       sitzung.strom = strom;
-      sitzung.legStart = Date.now();
-      sitzung.pausiert = false;
-      sitzung.gestartet = true;
-      sitzung.recorder = neuesSegment(sitzung);
-      sitzung.segmentTakt = setInterval(function () {
-        if (!sitzung.recorder) { return; }
-        var alt = sitzung.recorder;
-        alt.stop();                      // liefert sein Segment im onstop
-        sitzung.recorder = neuesSegment(sitzung);
-      }, SEGMENT_MS);
-      uhrAn(sitzung);
-      pegelAn(sitzung);
+      // Review-Befund 2: dieselbe Stelle wie in starteInterview() --
+      // ein Schutz dort (z.B. gegen eine inzwischen wieder gesetzte Pause)
+      // gilt damit automatisch auch hier.
+      beginneAufnahme(sitzung);
       zeigeModus();
     }).catch(function () {
+      sitzung.mikroUnterwegs = false;
       sitzung.fortsetzend = false;
       zeigeModus();
       meldeFehler(TEXT.fehler_mikro);

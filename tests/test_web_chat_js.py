@@ -403,16 +403,28 @@ def test_pausieren_sendet_kein_fertig_und_keinen_befehl():
 def test_fortsetzen_haengt_an_dieselbe_sitzung_ohne_neues_interview():
     """Punkt 4/5: Weiter haengt an dieselbe (oder, nach einem Neuladen, eine
     frisch angelegte, aber schon ``angemeldet``e) Sitzung an -- nie ein
-    zweites ``{art:'befehl', an:true}``."""
+    zweites ``{art:'befehl', an:true}``.
+
+    Seit dem Race-Fix (Re-Review, Befund 1/2) teilen sich starteInterview()
+    und fortsetzeInterview() das tatsaechliche Aufnahme-Beginnen in der
+    Funktion ``beginneAufnahme`` -- hier wird deshalb BEIDES geprueft: dass
+    fortsetzeInterview() dorthin delegiert (statt es zu duplizieren), und
+    dass der gemeinsame Helfer die bisherigen Invarianten weiterhin traegt.
+    """
     js = web_chat._CHAT_JS
     fortsetzen = js[js.index("function fortsetzeInterview"):
                      js.index("if (nachreichenKnopf)")]
-    assert "neuesSegment(sitzung)" in fortsetzen
     assert "angemeldet: true" in fortsetzen
     assert "bestaetigt: true" in fortsetzen
     assert "art: 'befehl'" not in fortsetzen   # kein /interview, nirgends
-    assert "sitzung.pausiert = false" in fortsetzen
-    assert "sitzung.legStart = Date.now()" in fortsetzen
+    assert "beginneAufnahme(sitzung)" in fortsetzen
+    assert "neuesSegment(sitzung)" not in fortsetzen   # keine Dopplung mehr
+
+    beginn = js[js.index("function beginneAufnahme"):
+                js.index("function starteInterview")]
+    assert "neuesSegment(sitzung)" in beginn
+    assert "sitzung.pausiert = false" in beginn
+    assert "sitzung.legStart = Date.now()" in beginn
 
 
 def test_ptt_bleibt_waehrend_pause_versteckt():
@@ -461,6 +473,84 @@ def test_keine_zweite_parallele_merkvariable_fuer_pause():
     zweiten Feld von ``zustand`` -- ``zustand.pausiert`` darf es nicht
     geben."""
     assert "zustand.pausiert" not in web_chat._CHAT_JS
+
+
+def test_pause_vor_dem_mikrofon_verschluckt_den_tipp_nicht():
+    """Fix-Review, Befund 1: Pause, waehrend starteInterview() noch auf
+    holeStrom() wartet (eine vom Menschen beantwortete Berechtigungsfrage --
+    das Fenster kann Sekunden dauern), durfte bisher gegen
+    ``sitzung.legStart === null`` falten (eine Muellzahl in die Uhr) UND den
+    Tipp verschlucken, weil nichts sonst ihn vermerkte. Jetzt gibt es dafuer
+    eine eigene, fruehe Verzweigung -- VOR dem Falten gegen Date.now()."""
+    js = web_chat._CHAT_JS
+    pause = js[js.index("function pausiereInterview"):
+                js.index("function fortsetzeInterview")]
+    vor_falten = pause[:pause.index("sitzung.erfassteMs +=")]
+    assert "sitzung.mikroUnterwegs" in vor_falten
+    assert "sitzung.pausiert = true" in vor_falten
+    assert "zeigeModus()" in vor_falten
+    assert "return" in vor_falten
+
+
+def test_starteinterview_faengt_nicht_an_wenn_zwischenzeitlich_pausiert():
+    """Fix-Review, Befund 1 (Kehrseite): wird waehrend der Mikrofon-Wartezeit
+    pausiert, darf starteInterview()'s eigener .then() nicht trotzdem
+    aufnehmen -- sonst laeuft ein Recorder, waehrend die Anzeige 'Pause'
+    zeigt, und ein folgendes 'Weiter' haette einen zweiten gestartet
+    (Fix-Review, Befund 1, letzter Absatz)."""
+    js = web_chat._CHAT_JS
+    start = js[js.index("function starteInterview"):js.index("function brichAb")]
+    then = start[start.index("holeStrom().then"):start.index(").catch(")]
+    # Die Pruefung auf eine zwischenzeitliche Pause steht NACH der
+    # reiheEin()-Anmeldung (der Bot muss trotzdem wissen, dass der Modus an
+    # ist) und VOR beginneAufnahme() -- sonst liefen Anmeldung und Aufnahme
+    # unabhaengig voneinander.
+    assert then.index("if (sitzung.pausiert)") < then.index("beginneAufnahme(sitzung)")
+    assert then.index("reiheEin(") < then.index("if (sitzung.pausiert)")
+    # Im Pause-Zweig wird das gerade erst erteilte Mikrofon sofort wieder
+    # frei -- kein Recorder darf dort je entstehen.
+    pause_zweig = then[then.index("if (sitzung.pausiert)"):
+                        then.index("beginneAufnahme(sitzung)")]
+    assert "gibFrei(sitzung)" in pause_zweig
+    assert "neuesSegment" not in pause_zweig
+
+
+def test_fortsetzen_haengt_sich_nicht_vor_das_laufende_holestrom():
+    """Fix-Review, Befund 1 (Kehrseite): wird 'Weiter' getippt, waehrend
+    starteInterview()'s EIGENE Mikrofonanfrage noch unterwegs ist (z.B. nach
+    einem schnellen Pause-dann-Weiter), darf fortsetzeInterview() keinen
+    ZWEITEN holeStrom()-Aufruf absetzen -- das waeren zwei Recorder auf
+    derselben Sitzung. Es nimmt die Pause nur zurueck und ueberlaesst die
+    Aufnahme dem schon laufenden Aufruf."""
+    js = web_chat._CHAT_JS
+    fortsetzen = js[js.index("function fortsetzeInterview"):
+                     js.index("if (nachreichenKnopf)")]
+    wenn_echt = fortsetzen[fortsetzen.index("if (sitzung) {"):
+                           fortsetzen.index("} else {")]
+    assert "sitzung.mikroUnterwegs" in wenn_echt
+    assert "sitzung.pausiert = false" in wenn_echt
+    assert "return" in wenn_echt
+    # Der eigentliche holeStrom().then(...)-Aufruf kommt NACH diesem
+    # fruehen Ausstieg, und es gibt nur diesen einen in der ganzen Funktion
+    # -- nie einen zweiten, waehrend der erste noch laeuft.
+    assert fortsetzen.index("sitzung.mikroUnterwegs") < \
+        fortsetzen.index("holeStrom().then")
+    assert fortsetzen.count("holeStrom().then") == 1
+
+
+def test_beginneaufnahme_ist_der_einzige_ort_der_die_aufnahme_beginnt():
+    """Fix-Review, Befund 2: die Dopplung, in der ein Schutz (Befund 1) nur
+    in einer der beiden Kopien stand, darf nicht wiederkommen -- es gibt
+    GENAU einen Ort, der legStart/Recorder/Segment-Takt/Uhr/Pegel setzt,
+    und beide Aufrufer delegieren dorthin."""
+    js = web_chat._CHAT_JS
+    assert js.count("function beginneAufnahme") == 1
+    assert js.count("beginneAufnahme(sitzung);") == 2   # starteInterview + fortsetzeInterview
+    # Der Segment-Takt wird nur noch EINMAL im ganzen Skript aufgebaut --
+    # vorher stand dieselbe setInterval(...)-Konstruktion in beiden
+    # Funktionen, und ein Schutz in der einen (Befund 1) galt nicht
+    # automatisch fuer die andere.
+    assert js.count("sitzung.segmentTakt = setInterval(") == 1
 
 
 def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():

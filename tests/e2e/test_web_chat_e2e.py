@@ -709,12 +709,54 @@ def test_der_umschalter_erzeugt_mindestens_zwei_segmente(seite):
     20/min je chat_id, mit /senden und /knopf geteilt) belasten, den dieser
     Testblock schon fast ausschoepft -- gemessen: zwei zusaetzliche
     Start/Stopp-Zyklen liessen ``test_anderes_interview_laeuft_nachreichen_
-    wartet`` zwei Tests spaeter mit 429 statt 202 laufen."""
+    wartet`` zwei Tests spaeter mit 429 statt 202 laufen. (Erstbefund beim
+    Fix-Review: zwei eigene Tests fuer die Rennbedingung unten rissen
+    STATTDESSEN ``test_modusende_rest_verwerfen`` und
+    ``test_modusende_waehrend_upload_der_dann_scheitert`` ueber den Topf --
+    derselbe Befund, zwei andere Opfer. Deshalb hier, im selben Budget,
+    statt als eigener Testlauf.)
+
+    Seit dem Fix-Review (Befund 1) beginnt dieser Test deshalb zusaetzlich
+    mit der Pause-vor-dem-Mikrofon-Rennbedingung: Pause und Weiter senden
+    kein ``/chat/interview``, eine Verzoegerung vor dem EINEN hier schon
+    vorhandenen Start kostet also keinen weiteren POST auf den Topf."""
     vorher = _zaehle_sprachnachrichten()
     befehle = _zaehle("befehl")
-    _starte_interview(seite)
+
+    # -- Fix-Review, Befund 1: Pause, WAEHREND starteInterview() noch auf
+    # die Mikrofon-Freigabe wartet (die Berechtigungsfrage haengt am
+    # Menschen -- im echten Betrieb kann das Fenster Sekunden dauern,
+    # ``gumVerzoegerung`` steht dafuer). Vorher faltete
+    # ``Date.now() - sitzung.legStart`` gegen ``legStart === null`` eine
+    # Muellzahl in die Uhr, UND das eben erst erteilte Mikrofon fing trotz
+    # "Pause" an aufzunehmen -- das anschliessende "Weiter" haette dann
+    # einen ZWEITEN Recorder gestartet.
+    seite.evaluate("window.__t.gumVerzoegerung = 1500")
+    seite.click("#interview")
+    expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "1")
+    seite.click("#interview-pause")   # Pause, noch VOR der Mikrofon-Antwort
+    expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "1")
+    expect(seite.locator("#interview-pause")).to_have_text("▶ Weiter")
+    # Keine Muellzahl: die Uhr-Zeile ist noch gar nicht da (uhrAn() wurde nie
+    # aufgerufen), der grosse Knopf ("Pause · {zeit}") zeigt die
+    # unveraenderte Null statt einer gefalteten Riesenzahl.
+    expect(seite.locator("#uhr")).to_be_hidden()
+    expect(seite.locator("#interview")).to_contain_text("0:00")
+    seite.wait_for_timeout(2200)   # das (einzige) Mikrofon kommt an -- waehrend Pause
+    expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "1")
+    assert _t(seite, "starts") == 0   # kein Recorder waehrend der Pause entstanden
+    # /interview wurde trotzdem genau einmal angemeldet (der Bot muss wissen,
+    # dass der Modus an ist), aber kein Audio.
+    assert _form(_posts(seite)) == ["an"]
+    seite.evaluate("window.__t.gumVerzoegerung = 0")
+
+    # Weiter: der erste tatsaechliche Start dieser Sitzung.
+    seite.click("#interview-pause")
+    expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "0")
     expect(seite.locator("#uhr")).to_be_visible()
     assert _warte(seite, lambda: _t(seite, "starts") >= 1)
+    assert _t(seite, "starts") == 1   # genau einer -- nie zwei auf dieser Sitzung
+    assert "an" not in _form(_posts(seite))[1:]   # immer noch dasselbe, einzige "an"
 
     # -- Pause/Weiter mitten in der Aufnahme (Drei-Zustands-Regler) --------
     starts_vor_pause = _t(seite, "starts")

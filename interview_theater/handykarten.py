@@ -14,23 +14,29 @@ eines Fehlers -- eine fehlende Karte darf den Phaseneintritt nicht reissen."""
 
 from pathlib import Path
 
-from scripts.handy_karten import OUT, PHASEN
+from scripts.handy_karten import OUT, SPRACHEN
 
-#: Phase -> Dateiname unter ``interview_theater/static/handys/``.
-_DATEINAMEN = {nr: f"phase-{nr}.png" for nr, *_ in PHASEN}
+def _code() -> str:
+    from interview_theater import sprache
+    code = sprache.code()
+    return code if code in SPRACHEN else "de"
 
-#: Phase -> der Satz auf der Karte (derselbe Satz wie ``alt``-Text des Bilds).
-_SAETZE = {nr: satz for nr, _name, satz, _phones in PHASEN}
+
+def _tabelle() -> list:
+    return SPRACHEN[_code()][0]
 
 
 def dateiname(phase: int) -> str | None:
-    """Der Dateiname der Karte dieser Phase, oder ``None`` ohne Karte."""
-    return _DATEINAMEN.get(phase)
+    """Der Dateiname der Karte dieser Phase in der Profilsprache (relativ zu
+    ``static/handys/``, Englisch mit ``-en``), oder ``None`` ohne Karte."""
+    if not any(nr == phase for nr, *_ in _tabelle()):
+        return None
+    return SPRACHEN[_code()][3].format(nr=phase)
 
 
 def satz(phase: int) -> str | None:
-    """Der Satz der Karte dieser Phase, oder ``None`` ohne Karte."""
-    return _SAETZE.get(phase)
+    """Der Satz der Karte dieser Phase in der Profilsprache, oder ``None``."""
+    return next((s for nr, _n, s, _p in _tabelle() if nr == phase), None)
 
 
 def pfad(phase: int) -> Path | None:

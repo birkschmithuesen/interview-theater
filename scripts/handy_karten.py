@@ -70,8 +70,59 @@ PHASEN = [
 ]
 
 
-def phone(tab: str, rolle: str, notiz: str) -> str:
-    icon, farbe = TAB[tab]
+#: Englische Tabelle (Padua, 02.10.2026: "Bilder zum Handy aufstellen sind auf
+#: deutsch"). Dieselbe Struktur wie ``PHASEN``; Tab-Namen sind die englischen
+#: Werte von ``web_vereint._TEXT_TAB`` (sprachen/en/texte.toml), Phasennamen
+#: die aus ``phasen.PHASEN`` im Padua-Profil. Je Sprache: Tabelle, Kopfzeile,
+#: Tabfarben-Zuordnung und Ausgabeordner.
+TAB_EN = {
+    "Chat": TAB["Chat"],
+    "Workbench": TAB["Arbeitsstand"],
+    "Stage": TAB["Bühne"],
+    "Script": TAB["Textbuch"],
+}
+
+PHASEN_EN = [
+    (1, "Terms",
+     "One phone is enough. Everyone else talks – the phone types along.",
+     [("Chat", "one person types", "")]),
+    (2, "Questions",
+     "One phone decides, one shows the list. You discuss each question together.",
+     [("Chat", "decides", "Accept · Drop · Sharpen"),
+      ("Workbench", "reads along", "question list")]),
+    (3, "Interviews",
+     "One interview after the other. The recording phone lies with the interviewee.",
+     [("Chat", "🎙 records", "lies with the interviewee"),
+      ("Workbench", "guide", "interviewer reads the questions")]),
+    (4, "Setting, Characters & Story",
+     "One phone listens, one stands up for everyone to see. Just talk.",
+     [("Chat", "🎙 listens", "lies in the middle"),
+      ("Stage", "visible to all", "propped up"),
+      ("Workbench", "play card", "optional")]),
+    (5, "Sharpening",
+     "One phone works with the bot, one shows characters and material.",
+     [("Chat", "one person types", ""), ("Workbench", "characters & material", "")]),
+    (6, "Scenes as Story",
+     "One phone writes with the bot, the others read the story along.",
+     [("Chat", "one person types", ""), ("Script", "read along", ""),
+      ("Script", "read along", "")]),
+    (7, "Polish",
+     "Everyone opens their own part via the role link. One directs in the chat.",
+     [("Chat", "directs", ""), ("Script", "Part A", "role link"),
+      ("Script", "Part B", "role link"), ("Script", "Part C", "role link")]),
+]
+
+#: Sprache -> (Tabelle, Tabfarben, Kopfzeile mit {nr}, Dateiname mit {nr}).
+#: Alle Karten liegen flach in ``OUT`` -- die Static-Route nimmt nur
+#: ``[a-z0-9-]+.png`` ohne Unterordner.
+SPRACHEN = {
+    "de": (PHASEN, TAB, "PHASE {nr} / 7 · SO LEGT IHR DIE HANDYS", "phase-{nr}.png"),
+    "en": (PHASEN_EN, TAB_EN, "PHASE {nr} / 7 · HOW TO SET UP YOUR PHONES", "phase-{nr}-en.png"),
+}
+
+
+def phone(tab: str, rolle: str, notiz: str, tabs: dict = TAB) -> str:
+    icon, farbe = tabs[tab]
     return f"""
     <div class="ph">
       <div class="body" style="border-color:{farbe}">
@@ -116,26 +167,26 @@ def satz_fuer(nr: int) -> str:
 
 def erzeuge() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_pfad = pathlib.Path(tmp)
-        for nr, name, satz, phones in PHASEN:
-            seite = f"""<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>
-            <div class="kopf">PHASE {nr} / 7 · SO LEGT IHR DIE HANDYS</div>
-            <h1>{html.escape(name)}</h1>
-            <div class="satz">{html.escape(satz)}</div>
-            <div class="reihe">{''.join(phone(*p) for p in phones)}</div>
-            </body></html>"""
-            src = tmp_pfad / f"phase-{nr}.html"
-            src.write_text(seite, encoding="utf-8")
-            png = OUT / f"phase-{nr}.png"
-            subprocess.run(
-                ["chromium", "--headless", "--no-sandbox", "--disable-gpu",
-                 "--hide-scrollbars", f"--window-size={W},{H}",
-                 f"--screenshot={png}", src.as_uri()],
-                check=True, capture_output=True, timeout=60,
-            )
-            print(png, png.stat().st_size)
-
+    for _code, (tabelle, tabs, kopf, muster) in SPRACHEN.items():
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_pfad = pathlib.Path(tmp)
+            for nr, name, satz, phones in tabelle:
+                seite = f"""<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>
+                <div class="kopf">{html.escape(kopf.format(nr=nr))}</div>
+                <h1>{html.escape(name)}</h1>
+                <div class="satz">{html.escape(satz)}</div>
+                <div class="reihe">{''.join(phone(*p, tabs=tabs) for p in phones)}</div>
+                </body></html>"""
+                src = tmp_pfad / f"phase-{nr}.html"
+                src.write_text(seite, encoding="utf-8")
+                png = OUT / muster.format(nr=nr)
+                subprocess.run(
+                    ["chromium", "--headless", "--no-sandbox", "--disable-gpu",
+                     "--hide-scrollbars", f"--window-size={W},{H}",
+                     f"--screenshot={png}", src.as_uri()],
+                    check=True, capture_output=True, timeout=60,
+                )
+                print(png, png.stat().st_size)
 
 if __name__ == "__main__":
     sys.exit(erzeuge())

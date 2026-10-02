@@ -3061,6 +3061,8 @@ def merke_aufruf(
     erfolg: int | None = None,
     modell: str | None = None,
     kosten_chf: float | None = None,
+    cache_read_token: int | None = None,
+    cache_creation_token: int | None = None,
 ) -> None:
     """Protokolliert einen Sprachmodell-Aufruf zur Selbstkorrektur der
     Token-Schaetzung (global-constraints.md § 4) -- und seit dem 30.09.2026
@@ -3069,14 +3071,17 @@ def merke_aufruf(
 
     ``modell`` und ``kosten_chf`` stehen am Ende und haben Vorgabewerte: die
     bestehenden Aufrufer reichen zehn Stellungsargumente herein, und die
-    sollen unveraendert gelten."""
+    sollen unveraendert gelten. ``cache_read_token``/``cache_creation_token``
+    (Modellwahl-Karte, 02.10.2026) sind dieselbe Art Nachtrag: nur
+    ``szene_claude._buche`` setzt sie, aus der Anthropic-``usage`` eines
+    ``cache_control``-Aufrufs."""
     conn.execute(
         """
         INSERT INTO aufruf
             (chat_id, art, modus, geschaetzte_token, tatsaechliche_token,
              antwort_token, finish_reason, dauer_ms, erfolg, modell,
-             kosten_chf, erstellt_am)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             kosten_chf, cache_read_token, cache_creation_token, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             chat_id,
@@ -3090,6 +3095,8 @@ def merke_aufruf(
             erfolg,
             modell,
             kosten_chf,
+            cache_read_token,
+            cache_creation_token,
             _jetzt(),
         ),
     )

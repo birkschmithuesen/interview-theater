@@ -182,15 +182,35 @@ def _aus_umgebung(name: str, vorgabe: int, mindestens: int) -> int:
     return wert
 
 
-def zeichengrenze() -> int:
+#: Modellwahl-Karte (02.10.2026): die 24.000/60.000-Grenzen oben sind an Kimi
+#: kalibriert (SPEC-Faustwert, nie an einem 1-Mio-Kontext gemessen). Opus hat
+#: davon ein Vielfaches Platz -- ein Zug ab Phase 4 mit Einwilligung bekommt
+#: deshalb EIN eigenes, groesseres Budget (``IT_OPUS_PROMPT_ZEICHEN``), das
+#: fuer Koerper UND Gesamtsumme gleichermassen gilt (ein Knopf, kein zweiter).
+#: Die Kimi-Grenzen bleiben dabei unveraendert (``ueber_claude=False`` ist
+#: der Rueckfall jedes bestehenden Aufrufers).
+OPUS_ZEICHEN_GRENZE_VORGABE = 400_000
+
+
+def zeichengrenze(ueber_claude: bool = False) -> int:
     """Die geltende harte Obergrenze des **Koerpers** in Zeichen
-    (``IT_PROMPT_ZEICHEN``). Die Gesamtgrenze steht in ``gesamtgrenze()``."""
+    (``IT_PROMPT_ZEICHEN``, oder -- ab Phase 4 mit Einwilligung --
+    ``IT_OPUS_PROMPT_ZEICHEN``). Die Gesamtgrenze steht in ``gesamtgrenze()``."""
+    if ueber_claude:
+        return _aus_umgebung(
+            "IT_OPUS_PROMPT_ZEICHEN", OPUS_ZEICHEN_GRENZE_VORGABE, 20_000
+        )
     return _aus_umgebung("IT_PROMPT_ZEICHEN", ZEICHEN_GRENZE_VORGABE, 2_000)
 
 
-def gesamtgrenze() -> int:
+def gesamtgrenze(ueber_claude: bool = False) -> int:
     """Die geltende harte Obergrenze fuer **System + Koerper** in Zeichen
-    (``IT_PROMPT_ZEICHEN_GESAMT``, Auftrag 4)."""
+    (``IT_PROMPT_ZEICHEN_GESAMT``, Auftrag 4; oder ``IT_OPUS_PROMPT_ZEICHEN``,
+    Modellwahl-Karte)."""
+    if ueber_claude:
+        return _aus_umgebung(
+            "IT_OPUS_PROMPT_ZEICHEN", OPUS_ZEICHEN_GRENZE_VORGABE, 20_000
+        )
     return _aus_umgebung(
         "IT_PROMPT_ZEICHEN_GESAMT", GESAMT_ZEICHEN_GRENZE_VORGABE, 4_000
     )
@@ -1550,9 +1570,15 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
 
 
 def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
-                       fenster_eintraege: list, system_zeichen: int = 0) -> bool:
+                       fenster_eintraege: list, system_zeichen: int = 0,
+                       ueber_claude: bool = False) -> bool:
     """Die Kuerzungsleiter aus § 7.2. Aendert ``bloecke`` an Ort und Stelle und
     liefert, ob ueberhaupt gekuerzt wurde.
+
+    ``ueber_claude`` (Modellwahl-Karte): das Zielbudget kommt dann aus
+    ``IT_OPUS_PROMPT_ZEICHEN`` statt den Kimi-Grenzen -- fuer Koerper- UND
+    Gesamtgrenze UND das Token-Ziel (``ZIEL`` ist sonst ein Kimi-Wert und
+    wuerde die groessere Zeichengrenze sofort wieder einfangen).
 
     ``system_zeichen`` ist die Groesse der Systemanweisung dieses Zuges
     (``_systemgroesse``, Auftrag 4): sie wird nie gekuerzt, zaehlt aber gegen
@@ -1590,8 +1616,9 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
     antworten koennte. Reissen diese allein die Grenze, bleibt der Vorfall
     ``kontext_kuerzung_erfolglos`` (Auftrag 1) -- die Garantie aus Stufe 7
     reicht nur so weit, wie es opferbare Bloecke gibt."""
-    grenze = zeichengrenze()
-    gesamt = gesamtgrenze()
+    grenze = zeichengrenze(ueber_claude)
+    gesamt = gesamtgrenze(ueber_claude)
+    ziel = gesamt // _ZEICHEN_JE_TOKEN if ueber_claude else ZIEL
 
     def _zu_lang() -> bool:
         """Ueber Koerpergrenze ODER Token-Ziel ODER Gesamtgrenze -- alle drei
@@ -1607,7 +1634,7 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
         text = _zusammen(bloecke)
         return (
             len(text) > grenze
-            or schaetze(text) > ZIEL
+            or schaetze(text) > ziel
             or system_zeichen + len(text) > gesamt
         )
 
@@ -1689,7 +1716,7 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
 
 
 def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
-         protokoll: list | None = None) -> str:
+         protokoll: list | None = None, ueber_claude: bool = False) -> str:
     """Baut den Koerper des Gespraechs-Prompts (ohne SYSTEM, das getrennt
     verschickt wird).
 
@@ -1720,7 +1747,8 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     # im Umriss (Auftrag 4, Befund C.1).
     system_zeichen = _systemgroesse(conn, chat_id, e)
     gekuerzt = _kuerze_auf_budget(
-        conn, chat_id, e, bloecke, fenster_eintraege, system_zeichen
+        conn, chat_id, e, bloecke, fenster_eintraege, system_zeichen,
+        ueber_claude=ueber_claude,
     )
 
     stand = umriss(bloecke, gekuerzt, system_zeichen=system_zeichen)

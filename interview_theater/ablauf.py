@@ -44,7 +44,9 @@ import re
 import threading
 from contextlib import contextmanager
 
-from interview_theater import befehle, knoepfe, kontext, kosten, phasen, repo, strom, vorschlag
+from interview_theater import (
+    befehle, knoepfe, kontext, kosten, modellwahl, phasen, repo, strom, vorschlag,
+)
 from interview_theater.llm import LLMFehler
 
 log = logging.getLogger(__name__)
@@ -159,7 +161,7 @@ def _denkspur_kern(text: str) -> str | None:
 
 
 def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str,
-                   bei_teil=None) -> str:
+                   bei_teil=None, ueber_claude: bool = False) -> str:
     """Faengt eine Antwort ab, die das Selbstgespraech des Modells ist statt
     die Nachricht an die Gruppe. Erst Kernabsatz retten, sonst ein zweiter
     Aufruf mit Ermahnung; beides als Vorfall vermerkt. Ist auch der zweite
@@ -181,10 +183,11 @@ def _ohne_denkspur(conn, klm, e, chat_id, system, koerper, text: str,
         neu = getattr(bei_teil, "neu", None)
         if callable(neu):
             neu()
-    zweite = klm.schema(
-        chat_id, system,
+    zweite = modellwahl.aufruf_schema(
+        conn, klm, e, chat_id, system,
         f"{koerper}\n\n{T._TEXT_DENKSPUR_ERMAHNUNG}",
-        SCHEMA, "gespraech", bei_teil=bei_teil,
+        SCHEMA, "gespraech", ueber_claude=ueber_claude, bei_teil=bei_teil,
+        teil_feld="antwort",
     )["antwort"]
     if ist_denkspur(zweite):
         repo.merke_vorfall(
@@ -653,7 +656,8 @@ def ist_erfundene_systemzeile(text: str | None) -> bool:
 
 
 def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
-               offen: list, antwort: str, bei_teil=None) -> str:
+               offen: list, antwort: str, bei_teil=None,
+               ueber_claude: bool = False) -> str:
     """Liefert die Antwort -- oder, wenn sie ein Echo war, die eines zweiten
     Anlaufs mit angehaengter Ermahnung (``_TEXT_ECHO_ERMAHNUNG``).
 
@@ -678,9 +682,10 @@ def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
         if callable(neu):
             neu()
     try:
-        zweite = klm.schema(
-            chat_id, system, f"{koerper}\n\n{T._TEXT_ECHO_ERMAHNUNG}", SCHEMA, "gespraech",
-            bei_teil=bei_teil,
+        zweite = modellwahl.aufruf_schema(
+            conn, klm, e, chat_id, system, f"{koerper}\n\n{T._TEXT_ECHO_ERMAHNUNG}",
+            SCHEMA, "gespraech", ueber_claude=ueber_claude, bei_teil=bei_teil,
+            teil_feld="antwort",
         )["antwort"]
     except Exception:
         log.exception("Zweiter Anlauf nach Echo fehlgeschlagen, chat_id=%s", chat_id)
@@ -1054,12 +1059,17 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
         # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die
         # datengetriebenen Bloecke bleiben unveraendert (phasen.py).
         phase = phasen.aktuelle(conn, chat_id)
+        # Modellwahl-Karte (02.10.2026): die EINE Entscheidung fuer diesen
+        # Zug, VOR dem Kontextbau -- das Budget haengt daran (groesseres
+        # Fenster fuer Opus, kontext.baue(ueber_claude=...)).
+        ueber_claude = modellwahl.konversation_ueber_claude(e, conn, chat_id)
         # Allererster Zug der Gruppe: die Begruessung entsteht aus der
         # ersten Nachricht heraus (kontext.ERSTKONTAKT), nicht als fester
         # Text vorweg (bot.erstkontakt ist seit 04.09. abends nur noch
         # der Rueckfallweg, wenn der Modellaufruf scheitert).
         erstkontakt = not repo.hat_bot_nachricht(conn, chat_id)
-        koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt)
+        koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt,
+                               ueber_claude=ueber_claude)
         system = kontext.system(e.bot_name, phase)
         # Der laufende Text (30.09.2026, Karte W): ``senke`` ist ``None``,
         # solange der Kanal keinen Strom kann -- der Telegram-Weg bleibt damit
@@ -1067,8 +1077,10 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
         # hier, sondern in ``antworte``: erst dort steht fest, ob die Antwort
         # wirklich verschickt wurde.
         senke = strom.senke(tg, chat_id, "gespraech")
-        ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech",
-                              bei_teil=senke)
+        ergebnis = modellwahl.aufruf_schema(
+            conn, klm, e, chat_id, system, koerper, SCHEMA, "gespraech",
+            ueber_claude=ueber_claude, bei_teil=senke, teil_feld="antwort",
+        )
         antwort = _antworttext(ergebnis)
         if not str(antwort).strip():
             raise LLMFehler(
@@ -1076,9 +1088,9 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
                 f"(Typ {type(ergebnis).__name__})"
             )
         text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort,
-                              bei_teil=senke)
+                              bei_teil=senke, ueber_claude=ueber_claude)
         text = _ohne_echo(conn, klm, e, chat_id, system, koerper, offen, text,
-                          bei_teil=senke)
+                          bei_teil=senke, ueber_claude=ueber_claude)
         if hinweis:
             text = f"{text}\n\n{hinweis}"
     return text
@@ -1190,12 +1202,15 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         # der Sensibilitaetspruefung minutenlang.
         with arbeitet_sichtbar(tg, chat_id, arbeitszeile, arbeitsart):
             phase = phasen.aktuelle(conn, chat_id)
-            koerper = kontext.baue(conn, chat_id, [], e)
+            ueber_claude = modellwahl.konversation_ueber_claude(e, conn, chat_id)
+            koerper = kontext.baue(conn, chat_id, [], e, ueber_claude=ueber_claude)
             koerper = f"{koerper}\n\n{T._AUFTRAG_KOPF}\n{anweisung}"
             system = kontext.system(e.bot_name, phase)
             senke = strom.senke(tg, chat_id, "gespraech")
-            ergebnis = klm.schema(chat_id, system, koerper, SCHEMA, "gespraech",
-                                  bei_teil=senke)
+            ergebnis = modellwahl.aufruf_schema(
+                conn, klm, e, chat_id, system, koerper, SCHEMA, "gespraech",
+                ueber_claude=ueber_claude, bei_teil=senke, teil_feld="antwort",
+            )
             if isinstance(ergebnis, str):
                 antwort = ergebnis
             elif isinstance(ergebnis, dict):
@@ -1205,7 +1220,7 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
             if not str(antwort).strip():
                 raise LLMFehler("Sprachmodell lieferte keine verwertbare Antwort")
             text = _ohne_denkspur(conn, klm, e, chat_id, system, koerper, antwort,
-                                  bei_teil=senke)
+                                  bei_teil=senke, ueber_claude=ueber_claude)
     except Exception:
         log.exception("Auftragszug fehlgeschlagen, chat_id=%s", chat_id)
         strom.verwirf(tg, chat_id)

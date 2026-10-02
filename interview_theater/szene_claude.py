@@ -27,6 +27,7 @@ Alias.
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 
@@ -317,7 +318,21 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     koerper = {
         "model": modell,
         "max_tokens": MAX_TOKENS,
-        "system": system,
+        # Modellwahl-Karte (02.10.2026): der Systemprompt aendert sich
+        # zwischen zwei Zuegen derselben Gruppe kaum (Basis + Phase +
+        # Profil), nur der Nutzertext waechst. ``cache_control`` auf dem
+        # System-Block laesst wiederholte Zuege den Infomaniak-Fall nicht
+        # mehr wiederholen muessen -- der Proxy (Anthropic) liest den
+        # System-Teil aus dem Cache. Ohne Senke (Szene, Buehnenkarte, ...)
+        # ist das ein reiner Kostenvorteil; fuer das Gespraech zusaetzlich
+        # Latenz. Der Nutzertext-Block (z. B. das Brainstorming-Protokoll)
+        # bekommt bewusst KEIN eigenes ``cache_control`` -- er aendert sich
+        # jeden Zug (die ausloesende Nachricht steht am Ende), ein zweiter
+        # Cache-Block dort haette keinen Treffer und nur Kosten verursacht.
+        "system": [
+            {"type": "text", "text": system,
+             "cache_control": {"type": "ephemeral"}},
+        ],
         "messages": [{"role": "user", "content": nutzer}],
     }
     headers = {"content-type": "application/json", "anthropic-version": API_VERSION}
@@ -401,6 +416,65 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     raise ClaudeFehler(f"Claude-Proxy nach {len(WARTEZEITEN) + 1} Versuchen: {letzter}")
 
 
+#: Haengt sich an den System-Prompt eines ``schema``-Aufrufs (Modellwahl-
+#: Karte, 02.10.2026): das Anthropic-Messages-Format kennt kein natives
+#: ``response_format: json_schema`` wie Infomaniak -- die Form steht
+#: stattdessen als Anweisung im Prompt, geparst wird mit derselben robusten
+#: ``llm.lies_json`` wie beim Kimi-Pfad (erlaubt Praefix-/Suffix-Rauschen,
+#: lehnt einen zweiten JSON-Wert als mehrdeutig ab).
+_SCHEMA_ANHANG = (
+    "\n\nAntworte AUSSCHLIESSLICH mit einem einzigen JSON-Objekt, das genau "
+    "diesem JSON-Schema entspricht -- kein Text davor oder danach, kein "
+    "Markdown-Codeblock, keine Erklaerung:\n{schema}"
+)
+
+
+class _TeilSenke:
+    """Entpackt beim Streamen eines Schema-Aufrufs das Feld ``teil_feld`` aus
+    dem wachsenden JSON-Praefix (``strom.wert_aus_praefix``) -- dieselbe
+    Umpackung wie ``llm.LLM.schema`` fuer den Kimi-Pfad, hier fuer Claude.
+    Ohne ``teil_feld`` bekommt die aeussere Senke den rohen Text.
+
+    ``__getattr__`` reicht ``abbruch``/``neu`` an die aeussere Senke durch --
+    ``prosa()``/``_stream`` rufen sie per ``getattr(bei_teil, ..., None)``."""
+
+    def __init__(self, aussen, teil_feld: str | None):
+        self._aussen = aussen
+        self._teil_feld = teil_feld
+
+    def __call__(self, ganz: str) -> None:
+        from interview_theater import strom as strom_modul
+
+        wert = (strom_modul.wert_aus_praefix(ganz, self._teil_feld)
+                if self._teil_feld else ganz)
+        self._aussen(wert)
+
+    def __getattr__(self, name):
+        return getattr(self._aussen, name)
+
+
+def schema(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
+          nutzer: str, schema_: dict, art: str, timeout: float,
+          bei_teil=None, teil_feld: str | None = None) -> dict:
+    """Ein Schema-Aufruf ueber den Claude-Proxy -- dasselbe Versprechen wie
+    ``llm.LLM.schema`` (ein JSON-Objekt nach festem Schema), aber ohne
+    natives ``response_format``: die Form geht als Anweisung in den
+    System-Prompt (``_SCHEMA_ANHANG``), geparst wird mit ``llm.lies_json``.
+
+    Bucht wie ``prosa`` (``art``, modus 'C', 0 CHF) -- ``prosa`` traegt die
+    ganze Mechanik (Retry, Stream, Tagesdeckel, Abschneide-Pruefung); dieses
+    hier baut nur den Prompt um und entpackt die Antwort."""
+    from interview_theater import llm as llm_modul
+
+    system_mit_schema = system + _SCHEMA_ANHANG.format(
+        schema=json.dumps(schema_, ensure_ascii=False)
+    )
+    innere = _TeilSenke(bei_teil, teil_feld) if bei_teil is not None else None
+    text = prosa(conn, e, klient, chat_id, system_mit_schema, nutzer, art,
+                timeout, bei_teil=innere)
+    return llm_modul.lies_json(text)
+
+
 def _buche(conn, chat_id, e, art, modell, nutzung, finish, dauer_s, erfolg):
     try:
         ein = int(nutzung.get("input_tokens") or 0)
@@ -414,6 +488,12 @@ def _buche(conn, chat_id, e, art, modell, nutzung, finish, dauer_s, erfolg):
             # ohne dass jemand suchen muss. ``modell`` steht trotzdem in der
             # Zeile: das Dashboard soll den Weg sehen.
             kosten_chf=kosten.CLAUDE_CHF_JE_AUFRUF,
+            # Modellwahl-Karte: die Cache-Zahlen aus der Anthropic-``usage``,
+            # falls der Proxy sie liefert (ANNAHME, siehe Report -- nicht
+            # gegen den echten Proxy gemessen). ``None`` bei einem blockierenden
+            # Aufruf ohne Cache-Treffer ist keine Null, sondern "unbekannt".
+            cache_read_token=nutzung.get("cache_read_input_tokens"),
+            cache_creation_token=nutzung.get("cache_creation_input_tokens"),
         )
     except Exception:  # noqa: BLE001 -- Buchung darf den Aufruf nie mitreissen
         log.exception("Aufruf-Buchung (Claude) fehlgeschlagen")

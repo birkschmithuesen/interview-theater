@@ -1006,6 +1006,13 @@ CREATE TABLE IF NOT EXISTS aufruf (
   -- eine Preisaenderung soll alte Zeilen nicht ruecktdatieren. NULL heisst
   -- "aus der Zeit davor" und zaehlt als 0.
   kosten_chf             REAL,
+  -- Modellwahl-Karte (02.10.2026): die Anthropic-``usage``-Felder fuer den
+  -- Prompt-Cache (``cache_control`` auf dem System-Block in
+  -- szene_claude.prosa). NULL heisst "kein Claude-Aufruf oder Cache-Feld
+  -- fehlte in der Antwort" -- additiv nachgeruestet ueber
+  -- _migriere_fehlende_spalten.
+  cache_read_token       INTEGER,
+  cache_creation_token   INTEGER,
   erstellt_am            TEXT NOT NULL
 );
 """

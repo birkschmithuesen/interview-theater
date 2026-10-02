@@ -832,14 +832,21 @@ CREATE TABLE IF NOT EXISTS vorfall (
 CREATE TABLE IF NOT EXISTS aufruf (
   id                     INTEGER PRIMARY KEY,
   chat_id                INTEGER,
-  art                    TEXT NOT NULL,     -- gespraech|verdichter|extraktor
-  modus                  TEXT,              -- A|B
+  art                    TEXT NOT NULL,     -- gespraech|verdichter|extraktor|stt|dramaturgie_*
+  modus                  TEXT,              -- A|B|C (C = Claude ueber den Proxy)
   geschaetzte_token      INTEGER,
   tatsaechliche_token    INTEGER,           -- usage.prompt_tokens
   antwort_token          INTEGER,
   finish_reason          TEXT,
   dauer_ms               INTEGER,
   erfolg                 INTEGER,
+  -- Was wirklich lief. Aus ``art`` folgt das Modell nicht: LLM.schema
+  -- waehlt es je Aufruf (Erkenner gemma, Gespraech Kimi, beide modus 'A').
+  modell                 TEXT,
+  -- Beim Buchen gerechnet, nicht beim Lesen (30.09.2026, Karte Padua S):
+  -- eine Preisaenderung soll alte Zeilen nicht ruecktdatieren. NULL heisst
+  -- "aus der Zeit davor" und zaehlt als 0.
+  kosten_chf             REAL,
   erstellt_am            TEXT NOT NULL
 );
 """

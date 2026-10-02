@@ -2853,15 +2853,24 @@ def merke_aufruf(
     finish_reason: str | None = None,
     dauer_ms: int | None = None,
     erfolg: int | None = None,
+    modell: str | None = None,
+    kosten_chf: float | None = None,
 ) -> None:
-    """Protokolliert einen Sprachmodell-Aufruf zur Selbstkorrektur der Token-Schaetzung
-    (global-constraints.md § 4)."""
+    """Protokolliert einen Sprachmodell-Aufruf zur Selbstkorrektur der
+    Token-Schaetzung (global-constraints.md § 4) -- und seit dem 30.09.2026
+    mit Modell und Kosten, als Grundlage des Tagesdeckels
+    (``interview_theater/kosten.py``).
+
+    ``modell`` und ``kosten_chf`` stehen am Ende und haben Vorgabewerte: die
+    bestehenden Aufrufer reichen zehn Stellungsargumente herein, und die
+    sollen unveraendert gelten."""
     conn.execute(
         """
         INSERT INTO aufruf
             (chat_id, art, modus, geschaetzte_token, tatsaechliche_token,
-             antwort_token, finish_reason, dauer_ms, erfolg, erstellt_am)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             antwort_token, finish_reason, dauer_ms, erfolg, modell,
+             kosten_chf, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             chat_id,
@@ -2873,10 +2882,36 @@ def merke_aufruf(
             finish_reason,
             dauer_ms,
             erfolg,
+            modell,
+            kosten_chf,
             _jetzt(),
         ),
     )
     conn.commit()
+
+
+@_gesperrt
+def kostensumme_seit(conn: sqlite3.Connection, chat_id: int, ab_iso: str) -> float:
+    """Was diese Gruppe seit ``ab_iso`` an Modellaufrufen gekostet hat.
+
+    ``ab_iso`` ist ein UTC-Zeitstempel in derselben Form wie ``_jetzt()`` --
+    der Vergleich laeuft als Textvergleich, und ISO-8601 in UTC sortiert
+    lexikographisch richtig. Die Umrechnung von Mitternacht Europe/Rome nach
+    UTC macht ``kosten.tagesbeginn_utc``: die Zeitzone gehoert nicht in die
+    Ablageschicht.
+
+    ``COALESCE``, weil alte Zeilen NULL tragen -- NULL heisst 'aus der Zeit
+    vor der Kostenbuchung', nicht 'kostenlos'. Gezaehlt werden **auch
+    gescheiterte** Aufrufe (``erfolg = 0``): ein 5xx nach dem Senden ist
+    bezahlt, und ``llm._anfrage`` bucht deshalb im ``finally``."""
+    zeile = conn.execute(
+        """
+        SELECT COALESCE(SUM(COALESCE(kosten_chf, 0)), 0) AS summe
+        FROM aufruf WHERE chat_id = ? AND erstellt_am >= ?
+        """,
+        (chat_id, ab_iso),
+    ).fetchone()
+    return float(zeile["summe"] or 0.0)
 
 
 @_gesperrt

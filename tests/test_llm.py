@@ -150,7 +150,12 @@ def test_erfolgreiche_wiederholung_nach_502_zaehlt_als_vorfall(einst, conn, monk
 
     assert ergebnis == {"a": 6}
     zeilen = conn.execute("SELECT art FROM vorfall WHERE chat_id = 1").fetchall()
-    assert [z["art"] for z in zeilen] == ["http_5xx"]
+    # Seit Padua S (kosten.py) bucht jeder Aufruf auch die Kosten, und das
+    # Testmodell "kimi" aus der ``einst``-Fixture steht nicht in der
+    # Preistabelle (deren Schluessel volle Modellnamen sind) -- das erzeugt
+    # zusaetzlich den gewollten Vorfall 'kosten_modell_unbekannt', nicht nur
+    # den hier eigentlich geprueften 'http_5xx'.
+    assert [z["art"] for z in zeilen] == ["http_5xx", "kosten_modell_unbekannt"]
 
 
 def test_finish_reason_length_ist_fehler_und_vorfall(einst, conn):

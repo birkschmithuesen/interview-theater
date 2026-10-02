@@ -32,7 +32,7 @@ import time
 
 import httpx
 
-from interview_theater import repo
+from interview_theater import kosten, repo
 
 log = logging.getLogger(__name__)
 
@@ -161,6 +161,12 @@ def _buche(conn, chat_id, e, art, modell, nutzung, finish, dauer_s, erfolg):
             conn, chat_id, art, modus="C", geschaetzte_token=ein,
             tatsaechliche_token=ein, antwort_token=int(nutzung.get("output_tokens") or 0),
             finish_reason=finish, dauer_ms=int(dauer_s * 1000), erfolg=1 if erfolg else 0,
+            modell=modell,
+            # 0 CHF, weil Abonnement -- der Wert steht in kosten.py an genau
+            # einer Stelle, damit aus dem Abo eine Abrechnung werden kann,
+            # ohne dass jemand suchen muss. ``modell`` steht trotzdem in der
+            # Zeile: das Dashboard soll den Weg sehen.
+            kosten_chf=kosten.CLAUDE_CHF_JE_AUFRUF,
         )
     except Exception:  # noqa: BLE001 -- Buchung darf den Aufruf nie mitreissen
         log.exception("Aufruf-Buchung (Claude) fehlgeschlagen")

@@ -74,6 +74,7 @@ from interview_theater import (
     db, einstellungen, erkenner, journal, llm, repo, sprache, sprachprofil, verdichter,
     workshop, zitat,
 )
+from interview_theater import kosten as _kosten
 
 #: Wo die Korpusdateien liegen.
 KORPUS = Path(__file__).resolve().parent.parent / "korpus"
@@ -89,22 +90,13 @@ BERICHTE = KORPUS / "berichte"
 #: Figuren im Szenentext hoerbar unterscheiden.
 PROMPTS = ("erkenner", "journal", "verdichter", "sprachprofil")
 
-#: CHF je 1 Mio. Token (Eingabe, Ausgabe), Stand 04.09.2026 aus
-#: ~/hermes-shared/hermes-knowledge/infomaniak-modelle.md § 1.1. Bewusst hart
-#: im Skript und mit Datum: die Datei liegt ausserhalb des Repositories, und
-#: Infomaniak aendert die Preise in Monaten -- eine Kostenschaetzung ohne
-#: sichtbares Datum waere schlimmer als keine.
-PREISE_STAND = "04.09.2026"
-PREISE_CHF_JE_MIO_TOKEN = {
-    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8": (0.05, 0.20),
-    "google/gemma-4-31B-it": (0.20, 0.40),
-    "mistralai/Mistral-Small-4-119B-2603": (0.20, 0.75),
-    "mistralai/Ministral-3-14B-Instruct-2512": (0.30, 0.40),
-    "Qwen/Qwen3.5-122B-A10B-FP8": (0.40, 3.20),
-    "moonshotai/Kimi-K2.6": (0.60, 3.00),
-    "swiss-ai/Apertus-v1.5-70B": (0.70, 2.50),
-    "Qwen/Qwen3.5-397B-A17B-FP8": (0.80, 3.60),
-}
+#: Die Preise liegen seit dem 30.09.2026 im Paket
+#: (``interview_theater/kosten.py``), weil der Tagesdeckel dieselbe Tabelle
+#: braucht. Hier nur der Verweis: zwei Tabellen waeren zwei Wahrheiten, und
+#: der Bericht rechnete bald anders als der Deckel
+#: (``tests/test_kosten.py::test_die_preise_stehen_im_paket_und_im_skript_gleich``).
+PREISE_STAND = _kosten.PREISE_STAND
+PREISE_CHF_JE_MIO_TOKEN = _kosten.PREISE_CHF_JE_MIO_TOKEN
 
 #: Trennzeichen zwischen den Muss-Stichwoertern eines erwarteten
 #: Journaleintrags (korpus/journal.jsonl, Feld erwartet[].text). Der Korpus
@@ -694,15 +686,9 @@ def baue_auffaellige(zeilen: list[dict]) -> list[str]:
     return aus
 
 
-def kosten_chf(modell: str, eingabe_token: int, ausgabe_token: int) -> float | None:
-    """Kostenschaetzung nach den hart eingetragenen Preisen. ``None`` fuer ein
-    Modell, das nicht in der Liste steht -- lieber keine Zahl als eine
-    erfundene."""
-    preise = PREISE_CHF_JE_MIO_TOKEN.get(modell)
-    if preise is None:
-        return None
-    eingabe, ausgabe = preise
-    return (eingabe_token * eingabe + ausgabe_token * ausgabe) / 1_000_000
+#: Die Kostenschaetzung liegt seit dem 30.09.2026 ebenfalls im Paket --
+#: Name und Verhalten sind unveraendert, nur der Ort.
+kosten_chf = _kosten.kosten_chf
 
 
 def zustimmungszeilen(gelaufen: list[dict]) -> list[str]:

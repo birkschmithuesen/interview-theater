@@ -241,6 +241,15 @@ _CSS_VEREINT = """
 .roadmap .phase-knopf { border: 1px solid #c9c4b8; background: #fff; cursor: pointer; }
 .roadmap .phase-knopf[data-sicher="1"] { background: #fff3cf; border-color: #d8a93b; }
 .roadmap .phase-name { border: none; background: transparent; padding-left: .2rem; }
+/* UX-Knoepfe Abschnitt 4: nach vorn mit fehlender Voraussetzung steht neben
+   dem (bewaffneten) Phasenknopf ein zweiter, kleiner Knopf fuer "Nein" --
+   verborgen, solange keine Rueckfrage offen ist. */
+.roadmap .phase-kopfzeile { display: flex; align-items: stretch; gap: .3rem; }
+.roadmap .phase-kopfzeile .phase-knopf { flex: 1 1 auto; }
+.roadmap .phase-abbrechen {
+  flex: 0 0 auto; min-height: 44px; min-width: 44px; font: inherit;
+  border: 1px solid #c9c4b8; border-radius: .4rem; background: #fff; cursor: pointer;
+}
 /* Eine Aufgabenzeile loest einen Klick aus (Sprung zu Tab + Feld) --
    sie soll auch danach aussehen. */
 .roadmap li.aufgabe { display: flex; align-items: center; gap: .4rem;
@@ -551,57 +560,96 @@ _VEREINT_JS = """
       if (b === ausser) { return; }
       b.removeAttribute('data-sicher');
       if (b.dataset.beschriftung) { b.textContent = b.dataset.beschriftung; }
+      var abbrechen = document.querySelector(
+        '.phase-abbrechen[data-phase="' + b.dataset.phase + '"]');
+      if (abbrechen) { abbrechen.hidden = true; }
+    });
+  }
+  // UX-Knoepfe Abschnitt 4 (02.10.2026): die Rueckfrage steht nur noch,
+  // wenn ``data-bereit="0"`` ist -- und nennt dann, was fehlt, statt
+  // generisch "Wirklich zu X?" zu fragen. Ein zweiter Klick auf denselben
+  // Knopf ist das Ja, der kleine ``.phase-abbrechen`` daneben das Nein.
+  function bewaffne(phase) {
+    phase.setAttribute('data-sicher', '1');
+    phase.dataset.beschriftung = phase.textContent;
+    phase.textContent = __FEHLT__.replace('{was}', phase.dataset.fehlt);
+    var abbrechen = document.querySelector(
+      '.phase-abbrechen[data-phase="' + phase.dataset.phase + '"]');
+    if (abbrechen) { abbrechen.hidden = false; }
+  }
+  function springe(phase) {
+    phase.disabled = true;
+    sendePhase(phase).then(function (r) {
+      phase.disabled = false;
+      // Entwaffnen und die Beschriftung zuruecksetzen -- Erfolg, Fehler
+      // und Netzausfall gleich (Fix-Runde 1, Review-Befund 3): ein
+      // Knopf, der nach einem Fehlschlag auf der Rueckfrage stehen bleibt,
+      // laedt zum blinden zweiten Klick ein. Im freien Fall (zurueck, oder
+      // nach vorn mit erfuellter Voraussetzung) war der Knopf nie
+      // bewaffnet -- dann ist hier nichts zurueckzusetzen.
+      phase.removeAttribute('data-sicher');
+      if (phase.dataset.beschriftung) { phase.textContent = phase.dataset.beschriftung; }
+      var abbrechen = document.querySelector(
+        '.phase-abbrechen[data-phase="' + phase.dataset.phase + '"]');
+      if (abbrechen) { abbrechen.hidden = true; }
+      if (r && r.ok) {
+        // Ein sofortiger Versuch -- er zeigt die neue Phase aber NICHT
+        // zuverlaessig: der POST legt hier nur den Eingang ab, der Bot
+        // verarbeitet ihn erst danach (eigener Prozess, eigener Takt).
+        // Massgeblich bleibt der naechste periodische Takt unten
+        // (hoechstens __NACHLADEN_MS__ ms), der dieselbe Funktion ruft.
+        ladeRoadmap();
+        setze('chat');   // die Eintrittsnachricht kommt im Chat an
+        return;
+      }
+      // Fehlschlag: KEIN Tab-Wechsel, und der Server-Satz steht im
+      // Fehlerfeld (Review-Befund 1) -- derselbe Weg wie beim Senden
+      // einer Chatnachricht (``web_chat.fehlerAus``), nur ohne dessen
+      // Scope.
+      if (r) {
+        r.text().then(function (satz) { zeigeFehler((satz || '').trim()); },
+                     function () { zeigeFehler(''); });
+      } else {
+        zeigeFehler('');
+      }
+    }).catch(function () {
+      phase.disabled = false;
+      phase.removeAttribute('data-sicher');
+      if (phase.dataset.beschriftung) { phase.textContent = phase.dataset.beschriftung; }
+      var abbrechen = document.querySelector(
+        '.phase-abbrechen[data-phase="' + phase.dataset.phase + '"]');
+      if (abbrechen) { abbrechen.hidden = true; }
+      zeigeFehler('');
     });
   }
   document.addEventListener('click', function (ev) {
     var phase = ev.target.closest ? ev.target.closest('.phase-knopf') : null;
     if (phase) {
-      // Kein Sofortsprung: erst die Rueckfrage im Knopf selbst -- dieselbe
-      // Inline-Bestaetigung wie beim Entfernen einer Figur, damit ein
-      // Fehlgriff auf dem Telefon keine Phase kostet.
-      if (phase.getAttribute('data-sicher') !== '1') {
-        entwaffneAlle(null);
-        phase.setAttribute('data-sicher', '1');
-        phase.dataset.beschriftung = phase.textContent;
-        phase.textContent = __SICHER__.replace(
-          '{bezeichnung}', phase.dataset.bezeichnung);
+      if (phase.getAttribute('data-sicher') === '1') {
+        // Zweiter Klick auf die Rueckfrage: Ja.
+        springe(phase);
         return;
       }
-      phase.disabled = true;
-      sendePhase(phase).then(function (r) {
-        phase.disabled = false;
-        // Entwaffnen und die Beschriftung zuruecksetzen -- Erfolg, Fehler
-        // und Netzausfall gleich (Fix-Runde 1, Review-Befund 3): ein
-        // Knopf, der nach einem Fehlschlag "Wirklich...?" weiterzeigt,
-        // laedt zum blinden zweiten Klick ein.
-        phase.removeAttribute('data-sicher');
-        phase.textContent = phase.dataset.beschriftung;
-        if (r && r.ok) {
-          // Ein sofortiger Versuch -- er zeigt die neue Phase aber NICHT
-          // zuverlaessig: der POST legt hier nur den Eingang ab, der Bot
-          // verarbeitet ihn erst danach (eigener Prozess, eigener Takt).
-          // Massgeblich bleibt der naechste periodische Takt unten
-          // (hoechstens __NACHLADEN_MS__ ms), der dieselbe Funktion ruft.
-          ladeRoadmap();
-          setze('chat');   // die Eintrittsnachricht kommt im Chat an
-          return;
-        }
-        // Fehlschlag: KEIN Tab-Wechsel, und der Server-Satz steht im
-        // Fehlerfeld (Review-Befund 1) -- derselbe Weg wie beim Senden
-        // einer Chatnachricht (``web_chat.fehlerAus``), nur ohne dessen
-        // Scope.
-        if (r) {
-          r.text().then(function (satz) { zeigeFehler((satz || '').trim()); },
-                       function () { zeigeFehler(''); });
-        } else {
-          zeigeFehler('');
-        }
-      }).catch(function () {
-        phase.disabled = false;
-        phase.removeAttribute('data-sicher');
-        phase.textContent = phase.dataset.beschriftung;
-        zeigeFehler('');
-      });
+      var aktiv = document.querySelector('.phase.aktiv .phase-knopf');
+      var jetzige = aktiv ? parseInt(aktiv.dataset.phase, 10) : NaN;
+      var ziel = parseInt(phase.dataset.phase, 10);
+      var bereit = phase.dataset.bereit !== '0';
+      entwaffneAlle(null);
+      // Zurueck ist immer frei, nach vorn mit erfuellter Voraussetzung
+      // ebenso -- ein Klick IST die Entscheidung der Gruppe (UX-Knoepfe
+      // Abschnitt 4): kein Sofortsprung nur fuer eine fehlende
+      // Voraussetzung nach vorn, dort fragt ``bewaffne`` konkret nach.
+      if (bereit || (!isNaN(jetzige) && ziel <= jetzige)) {
+        springe(phase);
+      } else {
+        bewaffne(phase);
+      }
+      return;
+    }
+    var abbrechen = ev.target.closest ? ev.target.closest('.phase-abbrechen') : null;
+    if (abbrechen) {
+      // Nein: die Rueckfrage wieder einklappen, ohne zu senden.
+      entwaffneAlle(null);
       return;
     }
     var knopf = ev.target.closest ? ev.target.closest('.tabs button') : null;
@@ -702,12 +750,11 @@ _VEREINT_JS = """
         if (bewaffneteNummer) {
           var wiederKnopf = neues.querySelector(
             '.phase-knopf[data-phase="' + bewaffneteNummer + '"]');
-          if (wiederKnopf) {
-            wiederKnopf.setAttribute('data-sicher', '1');
-            wiederKnopf.dataset.beschriftung = wiederKnopf.textContent;
-            wiederKnopf.textContent = __SICHER__.replace(
-              '{bezeichnung}', wiederKnopf.dataset.bezeichnung);
-          }
+          // Ueber ``bewaffne`` statt dieselben drei Zeilen zu wiederholen --
+          // sie liest ``data-fehlt`` dabei frisch aus dem neu geladenen
+          // Ausschnitt: hat sich die Luecke seit dem letzten Takt
+          // geschlossen, aendert sich auch der Hinweistext.
+          if (wiederKnopf) { bewaffne(wiederKnopf); }
         }
       })
       .catch(function () {})
@@ -766,7 +813,15 @@ def _tabs_html(aktiv: str, tabs=TABS) -> str:
 _TEXT_PHASE_UNGUELTIG = "Diese Phase gibt es nicht."
 _TEXT_PHASE_UNBESTAETIGT = "Bitte einmal bestätigen."
 _TEXT_PHASE_WECHSELN = "Zu dieser Phase wechseln"
-_TEXT_PHASE_SICHER = "Wirklich zu {bezeichnung}?"
+#: UX-Knoepfe Abschnitt 4 (02.10.2026): ersetzt die vorherige, generische
+#: Rueckfrage "Wirklich zu {bezeichnung}?" vor JEDEM Klick. Zurueck ist jetzt
+#: immer frei, nach vorn ebenso, solange die Materiallage es hergibt --
+#: diese Zeile steht nur noch, wenn etwas Konkretes fehlt ("{was}" =
+#: ``roadmap.fehlt``, ueber Komma, falls mehr als ein Punkt offen ist).
+_TEXT_PHASE_FEHLT_HINWEIS = "{was} fehlt noch – trotzdem weiter?"
+#: Der kleine Knopf neben der Rueckfrage -- das Nein zum Ja des zweiten
+#: Klicks auf ``_TEXT_PHASE_FEHLT_HINWEIS``.
+_TEXT_PHASE_ABBRECHEN = "Nein"
 #: Fix-Runde 1, Review-Befund 1: der Netzfehler-Satz beim Phasenklick --
 #: wortgleich mit ``web_chat._TEXT_FEHLER_NETZ``, aber als eigene Konstante,
 #: weil die beiden JS-IIFEs keinen Gueltigkeitsbereich teilen und
@@ -828,6 +883,16 @@ def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
     ein Klick auf eine **Aufgabe** springt nur zu ihrer Stelle (Tab + Feld)
     und setzt nichts.
 
+    **Zurueck ist immer frei, nach vorn nur mit Hinweis bei fehlender
+    Voraussetzung** (UX-Knoepfe Abschnitt 4, 02.10.2026): das JS entscheidet
+    anhand ``data-phase`` (Ziel gegen die aktive Phase) und ``data-bereit``,
+    ob ein Klick sofort sendet oder erst die Frage "<data-fehlt> fehlt noch
+    -- trotzdem weiter?" am selben Knopf zeigt (zweiter Klick = Ja, der
+    kleine ``phase-abbrechen``-Knopf daneben = Nein). Das ersetzt die
+    vorherige Rueckfrage "Wirklich zu X?" vor JEDEM Klick -- diese Karte
+    ersetzt zugleich die Angebote "Weiter zu Phase N" im Chat
+    (``knoepfe.biete_phase_proaktiv`` bleibt fuer Telegram, siehe dort).
+
     ``klickbar`` ist ``False`` fuer eine Gruppe ohne Web-Kanal (Telegram):
     dort ist jeder ``/chat/*``-Weg 404 (kein Bot, der ``web_post`` liest,
     AGENTS.md "Abschlussreview I3"), ein Knopf waere also toter Code auf der
@@ -863,12 +928,27 @@ def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
             for a in phase["aufgaben"]
         )
         if klickbar:
+            # UX-Knoepfe Abschnitt 4: ``bereit``/``fehlt`` gehen roh als
+            # data-Attribute mit -- das JS entscheidet daraus, ob ein Klick
+            # sofort springt (zurueck, oder nach vorn mit erfuellter
+            # Voraussetzung) oder erst den Hinweis zeigt. Fehlt das Feld
+            # (eine Fixture ohne die neuen ``lage``-Schluessel), gilt
+            # "bereit" -- derselbe Rueckfall wie ``roadmap.bereit`` selbst.
+            fehlt_text = ", ".join(phase.get("fehlt") or ())
             phasenkopf = (
+                f'<div class="phase-kopfzeile">'
                 f'<button type="button" class="phase-knopf" '
                 f'data-phase="{phase["nummer"]}" '
                 f'data-bezeichnung="{html.escape(phase["bezeichnung"], quote=True)}" '
+                f'data-bereit="{"0" if phase.get("bereit") is False else "1"}" '
+                f'data-fehlt="{html.escape(fehlt_text, quote=True)}" '
                 f'title="{html.escape(T._TEXT_PHASE_WECHSELN, quote=True)}">'
                 f'{html.escape(phase["bezeichnung"])}</button>'
+                f'<button type="button" class="phase-abbrechen" '
+                f'data-phase="{phase["nummer"]}" hidden '
+                f'aria-label="{html.escape(T._TEXT_PHASE_ABBRECHEN, quote=True)}">'
+                f'✕</button>'
+                f'</div>'
             )
         else:
             phasenkopf = (
@@ -976,7 +1056,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         # das ganze <script> ab. Derselbe Weg wie ``web_chat._js()``
         # (``__TEXTE__``), ``</`` maskiert, damit kein Text das Skript-Tag
         # beendet.
-        .replace("__SICHER__", _js_text(T._TEXT_PHASE_SICHER))
+        .replace("__FEHLT__", _js_text(T._TEXT_PHASE_FEHLT_HINWEIS))
         .replace("__FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
         + web._TEXTBUCH_JS
     )

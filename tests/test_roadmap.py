@@ -314,3 +314,94 @@ def test_die_demo_gruppe_zeigt_den_richtigen_stand(demo, erwartet):
     for (nummer, kennung), soll in erwartet.items():
         assert _zustand(ergebnis, nummer, kennung) == soll, (nummer, kennung)
     assert phasen.aktuelle(demo, CHAT) == vorher
+
+
+# -- Voraussetzung je Phase (UX-Knoepfe-Karte, Abschnitt 4) ------------------
+
+
+def _phase(ergebnis, nummer):
+    return next(p for p in ergebnis if p["nummer"] == nummer)
+
+
+def test_phase_eins_hat_keine_voraussetzung():
+    """Dorthin kommt man immer zurueck -- wie ``phasen.voraussetzungen``, die
+    fuer 1 gar keinen Eintrag traegt."""
+    assert roadmap.bereit(1, _lage()) is True
+    assert roadmap.fehlt(1, _lage()) == []
+
+
+def test_ohne_begriffe_ist_phase_zwei_nicht_bereit():
+    assert roadmap.bereit(2, _lage()) is False
+    assert roadmap.fehlt(2, _lage()) == ["Begriffe"]
+
+
+def test_mit_begriffen_ist_phase_zwei_bereit():
+    lage = _lage(stand={"begriffe": "Heimat, Arbeit"})
+    assert roadmap.bereit(2, lage) is True
+    assert roadmap.fehlt(2, lage) == []
+
+
+def test_phase_vier_braucht_verdichtung_und_keine_offene():
+    """Zwei Bedingungen, jede einzeln noetig -- wie
+    ``phasen.voraussetzungen[4]``: eine Verdichtung reicht nicht, solange ein
+    anderes Interview noch offen ist."""
+    ohne_verdichtung = _lage()
+    assert roadmap.bereit(4, ohne_verdichtung) is False
+    assert roadmap.fehlt(4, ohne_verdichtung) == ["Auswertungen"]
+
+    mit_offener = _lage(hat_verdichtung=True, offene_interviews=True)
+    assert roadmap.bereit(4, mit_offener) is False
+    assert roadmap.fehlt(4, mit_offener) == ["Offene Auswertungen"]
+
+    fertig = _lage(hat_verdichtung=True, offene_interviews=False)
+    assert roadmap.bereit(4, fertig) is True
+    assert roadmap.fehlt(4, fertig) == []
+
+
+def test_phase_fuenf_braucht_abgenommene_figurenliste():
+    """``phasen.voraussetzungen[5]``: Figuren alleine reichen nicht, die
+    Liste muss abgenommen sein (``figuren_fixiert_am``) -- anders als die
+    Aufgabe ``AUFGABEN[4]["figuren"]``, die nur "gibt es welche" prueft."""
+    lage = _lage(
+        stand={"rahmen": "Bahnhof", "geschichte": "Zwei treffen sich"},
+        figuren=[{"name": "Meryem"}], szenen=[{"nummer": 1, "volltext": "x"}],
+    )
+    assert roadmap.bereit(5, lage) is False
+    assert roadmap.fehlt(5, lage) == ["Figuren"]
+
+    lage["stand"]["figuren_fixiert_am"] = "2026-09-05T00:00:00"
+    assert roadmap.bereit(5, lage) is True
+    assert roadmap.fehlt(5, lage) == []
+
+
+def test_aus_daten_traegt_bereit_und_fehlt_je_phase():
+    ergebnis = roadmap.aus_daten(_lage())
+    for phase in ergebnis:
+        assert "bereit" in phase
+        assert "fehlt" in phase
+    assert _phase(ergebnis, 1)["bereit"] is True
+    assert _phase(ergebnis, 2)["bereit"] is False
+    assert _phase(ergebnis, 2)["fehlt"] == ["Begriffe"]
+
+
+def test_web_daten_liefert_dieselbe_bereitschaft_wie_der_bot(tmp_path):
+    """Dieselbe Quelle, zwei Aufrufer -- auch fuer die neuen Felder, sonst
+    zeigt die Leiste im Web etwas anderes als der Bot beim Klick ausfuehrt."""
+    pfad = str(tmp_path / "t.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "gruppe1", "X")
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "Heimat, Arbeit")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen", "Was war im Koffer?")
+    repo.setze_phase(conn, CHAT, 2)
+    conn.commit()
+
+    vom_bot = roadmap.register(conn, CHAT)
+    lesend = web_daten.oeffne_lesend(pfad)
+    vom_web = web_daten.roadmap(lesend, CHAT)
+    lesend.close()
+
+    def kurz(liste):
+        return [(p["nummer"], p["bereit"], p["fehlt"]) for p in liste]
+
+    assert kurz(vom_web) == kurz(vom_bot)

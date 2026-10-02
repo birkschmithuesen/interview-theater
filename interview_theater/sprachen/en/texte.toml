@@ -656,6 +656,7 @@ _TEXT_RUNDE_SCHNITT = "Round {runde}, average {schnitt:.1f} of 5"
 "Zuordnungen" = "Assignments"
 "Szenentexte" = "Scene texts"
 "Stueckpruefung" = "Play review"
+"Offene Auswertungen" = "Open analyses"
 
 ["fehlstellen"]
 UEBERSCHRIFT = "What's still missing"
@@ -1743,7 +1744,8 @@ TEXT_ABKUERZUNG_HINWEIS = "Buttons are shortcuts – you can always just write o
 _TEXT_PHASE_UNGUELTIG = "There is no such phase."
 _TEXT_PHASE_UNBESTAETIGT = "Please confirm first."
 _TEXT_PHASE_WECHSELN = "Switch to this phase"
-_TEXT_PHASE_SICHER = "Really switch to {bezeichnung}?"
+_TEXT_PHASE_FEHLT_HINWEIS = "{was} is still missing – go on anyway?"
+_TEXT_PHASE_ABBRECHEN = "No"
 _TEXT_PHASE_FEHLER_NETZ = "No connection - that didn't go through."
 _TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_aufgaben}"
 

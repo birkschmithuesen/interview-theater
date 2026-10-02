@@ -27,8 +27,8 @@ def test_die_tabs_heissen_auf_englisch_anders(englisch):
     assert set(web_vereint.T._TEXT_TAB) == set(web_vereint._TEXT_TAB)
 
 
-def test_die_rueckfrage_traegt_ihren_platzhalter(englisch):
-    assert "{bezeichnung}" in web_vereint.T._TEXT_PHASE_SICHER
+def test_der_fehlt_hinweis_traegt_seinen_platzhalter(englisch):
+    assert "{was}" in web_vereint.T._TEXT_PHASE_FEHLT_HINWEIS
 
 
 def test_die_roadmap_hat_keine_zweite_texttabelle():

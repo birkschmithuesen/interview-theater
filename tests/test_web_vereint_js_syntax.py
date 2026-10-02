@@ -1,7 +1,7 @@
 """Die vereinte Seite liefert gueltiges JavaScript -- auch auf Englisch.
 
 Fix-Runde Abschluss, Befund 1 (CRITICAL): ``web_vereint.seite`` klebte
-``T._TEXT_PHASE_FEHLER_NETZ`` und ``T._TEXT_PHASE_SICHER`` roh in
+``T._TEXT_PHASE_FEHLER_NETZ`` und ``T._TEXT_PHASE_FEHLT_HINWEIS`` (vorher ``_TEXT_PHASE_SICHER``, seit UX-Abschnitt 4 nur noch bei fehlender Voraussetzung) roh in
 einfach-gequotete JS-Stringliterale (``'__FEHLER_NETZ__'``,
 ``'__SICHER__'``). Die englische Fassung
 (``interview_theater/sprachen/en/texte.toml``) traegt einen Apostroph
@@ -66,18 +66,18 @@ def _skript(html: str) -> str:
 
 def test_die_englischen_phasentexte_stehen_json_kodiert_im_skript(tmp_path, padua):
     skript = _skript(_baue_seite(tmp_path))
-    assert "{bezeichnung}" in web_vereint.T._TEXT_PHASE_SICHER
+    assert "{was}" in web_vereint.T._TEXT_PHASE_FEHLT_HINWEIS
     # Die englische Fassung traegt wirklich einen Apostroph -- sonst prueft
     # dieser Test nichts (Positivkontrolle fuer den Befund selbst).
     assert "'" in web_vereint.T._TEXT_PHASE_FEHLER_NETZ
-    erwartet_sicher = json.dumps(web_vereint.T._TEXT_PHASE_SICHER, ensure_ascii=True)
+    erwartet_sicher = json.dumps(web_vereint.T._TEXT_PHASE_FEHLT_HINWEIS, ensure_ascii=True)
     erwartet_fehler = json.dumps(web_vereint.T._TEXT_PHASE_FEHLER_NETZ, ensure_ascii=True)
     assert erwartet_sicher in skript
     assert erwartet_fehler in skript
     # Der kaputte Weg: der rohe Text, umschlossen von einfachen
     # Anfuehrungszeichen (das brach bei "didn't" mitten im Wort ab).
     assert f"'{web_vereint.T._TEXT_PHASE_FEHLER_NETZ}'" not in skript
-    assert f"'{web_vereint.T._TEXT_PHASE_SICHER}'" not in skript
+    assert f"'{web_vereint.T._TEXT_PHASE_FEHLT_HINWEIS}'" not in skript
 
 
 def test_das_skript_der_vereinten_seite_ist_gueltiges_javascript(tmp_path, padua):

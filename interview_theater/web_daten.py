@@ -1245,16 +1245,6 @@ def _offene_interviews(conn: sqlite3.Connection, chat_id: int) -> list[str]:
     return offen
 
 
-def aktuelle_phase(conn: sqlite3.Connection, chat_id: int) -> int:
-    """Die geltende Phase, read-only -- das Gegenstueck zu ``phasen.aktuelle``
-    fuer den Webserver (der ``repo`` nicht anfassen darf): ungesetzt gilt wie
-    dort als die erste Phase (UX-Knoepfe-Karte, Abschnitt 4)."""
-    from interview_theater import phasen
-
-    stand = _arbeitsstand(conn, chat_id)
-    return int(stand.get("phase") or phasen.ERSTE)
-
-
 def fehlstellen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     """Was der Gruppe noch fehlt (``interview_theater/fehlstellen.py``) --
     aus der read-only geoeffneten Verbindung.
@@ -1735,11 +1725,17 @@ def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         "SELECT interviewmodus_seit, web_tippt_bis FROM gruppe WHERE chat_id = ?",
         (chat_id,),
     ).fetchone()
+    interviews = _interviews(conn, chat_id)
     return modul.aus_daten({
         "stand": stand,
         "figuren": _figuren(conn, chat_id),
         "szenen": _szenen(conn, chat_id),
-        "interviews": _interviews(conn, chat_id),
+        "interviews": interviews,
+        # Dasselbe Mass wie ``phasen.voraussetzungen[4]`` (``repo.verdichtungen``),
+        # nicht ``bool(interviews)``: diese Liste traegt -- anders als auf dem
+        # Bot-Weg -- auch unverdichtete Interviews (UX-Knoepfe Abschnitt 4).
+        "hat_verdichtung": any(e["zusammenfassung"] for e in interviews),
+        "offene_interviews": bool(_offene_interviews(conn, chat_id)),
         "zuordnungen": sum(
             len(v) for teil in schaerfungen(conn, chat_id).values()
             for v in teil.values()

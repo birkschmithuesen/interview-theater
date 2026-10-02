@@ -747,10 +747,11 @@ def _ohne_ankuendigung(conn, klm, e, chat_id: int, system: str, koerper: str,
         if callable(neu):
             neu()
     try:
-        zweite = klm.schema(
-            chat_id, system,
+        zweite = modellwahl.aufruf_schema(
+            conn, klm, e, chat_id, system,
             f"{koerper}\n\n{T._TEXT_ANKUENDIGUNG_ERMAHNUNG}",
             SCHEMA, "gespraech", ueber_claude=ueber_claude, bei_teil=bei_teil,
+            teil_feld="antwort",
         )["antwort"]
     except Exception:
         log.exception(

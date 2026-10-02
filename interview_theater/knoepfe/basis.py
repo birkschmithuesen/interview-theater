@@ -792,10 +792,20 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
     repo.schreibe_journal(
         conn, chat_id, "entschieden", f"{T._NOTIERT[art]}: {wert}", quelle="knopf",
     )
-    tg.sende(
-        chat_id,
-        T._TEXT_NOTIERT_ZEILE.format(feld=T._NOTIERT[art], wert=wert),
-    )
+    notiert = T._TEXT_NOTIERT_ZEILE.format(feld=T._NOTIERT[art], wert=wert)
+    if weiterfrage:
+        # Padua Hotfix B5 (02.10.2026), dieselbe Regel wie im Erkenner
+        # (``erkenner._sende_meldung``): macht dieses Speichern die Phase
+        # abschliessbar, steht statt "Notiert" + "Noch etwas hinzufuegen?
+        # [Weiter]" und spaeter der Abschlussnachricht EINE Nachricht --
+        # die Abschlussnachricht mit "Weiter zu Phase N · Titel" und
+        # "<Feld> aendern". Kein Undo-Knopf: ein Knopfdruck ist eine
+        # bewusste Handlung (Karte U, Punkt 7).
+        from interview_theater.knoepfe.stationen import sende_abschluss_statt_meldung
+
+        if sende_abschluss_statt_meldung(conn, tg, chat_id, art, notiert) is not None:
+            return T._TEXT_FELD_UEBERNOMMEN.format(feld=T._NOTIERT[art])
+    tg.sende(chat_id, notiert)
     # Danach die eine Frage, die den Zwischenraum offenhaelt -- und darunter,
     # wenn die Materiallage es hergibt, der Weg weiter
     # (``phasen.voraussetzungen``): der Knopf sagt, was jetzt dran ist,

@@ -60,6 +60,94 @@ GEAENDERT: dict[str, str] = {
         "aendert sich am ausgehenden Text nichts, nur die Quelle ist jetzt "
         "eine statt zwei (tests/test_sprache_parser.py)."
     ),
+    "knoepfe.ANWEISUNG_EINLEITUNGEN": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026, Padua): die "
+        "Sensibilitaetspruefung laeuft seit diesem Umbau IM selben "
+        "Modellzug wie der Fragenvorschlag selbst, nicht mehr als eigener "
+        "Schritt danach -- die Konstante ist ganz weg "
+        "(tests/test_phase2_einzeln.py)."
+    ),
+    "knoepfe.texte.ANWEISUNG_EINLEITUNGEN": (
+        "Siehe knoepfe.ANWEISUNG_EINLEITUNGEN oben -- dieselbe Entfernung, "
+        "andere Schnappschuss-Ebene."
+    ),
+    "knoepfe.texte.TEXT_ARBEIT_SENSIBILITAET": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): keine eigene "
+        "Arbeitszeile mehr, weil die Sensibilitaetspruefung keinen eigenen "
+        "Modellzug mehr hat (siehe knoepfe.ANWEISUNG_EINLEITUNGEN)."
+    ),
+    "knoepfe.texte.TEXT_PRUEFUNG_LAEUFT": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): dieselbe Entfernung, "
+        "die Zeile gehoerte zum gestrichenen Sensibilitaetspruefungs-Schritt."
+    ),
+    "knoepfe.texte._HAKEN": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): letzter Rest der "
+        "stillgelegten Toggle-Knopf-Auswahl (06.09.2026), jetzt restlos "
+        "entfernt -- kein Aufrufer mehr."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_NICHT_DREI": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): keine feste Zahl "
+        "mehr (\"No hard count anywhere\") -- die Gruppe entscheidet Frage "
+        "fuer Frage, nicht per Dreierauswahl."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_NOTIERT": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): die Nummernwahl "
+        "entfaellt, die Notiert-Zeile heisst jetzt "
+        "``_TEXT_FRAGEN_ABGESCHLOSSEN``."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_NUMMERN_FALSCH": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): dieselbe Entfernung "
+        "wie ``_TEXT_FRAGEN_NICHT_DREI`` -- keine Nummernwahl mehr."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_UEBERNEHMEN_KNOPF": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): der Knopf \"Diese 3 "
+        "nehmen\" ist Geschichte (``ART_FRAGEN_UEBERNEHMEN`` bleibt als "
+        "stillgelegte Art stehen, nur die Beschriftung ist weg)."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_UEBERNOMMEN": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): dieselbe Entfernung "
+        "wie ``_TEXT_FRAGEN_NOTIERT`` -- die Quittung heisst jetzt "
+        "``_TEXT_FRAGEN_ABGESCHLOSSEN``."
+    ),
+    "prompt phasen/2": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026, Padua): der Vorschlag "
+        "traegt die Sensibilitaetspruefung im selben Modellzug, danach ein "
+        "Ueberblick mit Richtungsfrage statt Nummernwahl, danach Frage fuer "
+        "Frage (tests/test_phase2_einzeln.py)."
+    ),
+    "anweisungen.system(phase=2)": (
+        "Folge aus 'prompt phasen/2' oben -- dieselbe Aenderung in der "
+        "zusammengesetzten Systemanweisung."
+    ),
+    "knoepfe.ANWEISUNG_FRAGEN_ANDERE": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): kein fester Zehner "
+        "mehr (\"No hard count anywhere\"), traegt jetzt die "
+        "Sensibilitaetspruefung mit und nimmt eine optionale Richtung "
+        "entgegen (tests/test_phase2_einzeln.py)."
+    ),
+    "knoepfe.texte.ANWEISUNG_FRAGEN_ANDERE": (
+        "Siehe knoepfe.ANWEISUNG_FRAGEN_ANDERE oben -- dieselbe Aenderung, "
+        "andere Schnappschuss-Ebene."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_ANDERE_KNOPF": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): der Knopf heisst "
+        "jetzt \"Andere Richtung\" statt \"Andere Fragen\" -- er fragt "
+        "seitdem zuerst nach der Richtung, statt sofort neu vorzuschlagen."
+    ),
+    "knoepfe.texte._TEXT_FRAGEN_WAHL": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): die Nummernwahl ist "
+        "weg, der Text dient nur noch als Antwort auf einen Druck aus "
+        "einer alten, schon verschickten Nachricht."
+    ),
+    "vorschlag.ARTEN": (
+        "Phase-2-Umbau 'Fragen einzeln' (02.10.2026): neuer Marker "
+        "'frage' fuer die eine gerade geschaerfte Frage, neben der "
+        "bestehenden Fragenliste 'fragen' (tests/test_phase2_einzeln.py)."
+    ),
+    "vorschlag._ZEILE": (
+        "Siehe vorschlag.ARTEN oben -- derselbe neue Marker in der "
+        "Erkennungs-Regex."
+    ),
     "szene._REIHENFOLGE": (
         "Karte R, Aufgabe 8 (30.09.2026): der Blockname \"laenge\" steht "
         "direkt hinter \"aufgabe\". Kein Nutzertext, sondern die Reihenfolge "

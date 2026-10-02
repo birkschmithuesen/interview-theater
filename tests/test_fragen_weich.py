@@ -86,52 +86,6 @@ def test_fragen_weich_wird_nicht_als_frageliste_verbucht():
 # --- Speicherung ----------------------------------------------------------
 
 
-def test_die_weichen_fassungen_landen_in_ihrer_eigenen_spalte(
-    conn, tg, einst, auftraege,
-):
-    _mit_fragen(conn)
-    knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, f"Eine ist heikel.\n\nVORSCHLAG FRAGEN WEICH:\n{WEICH}"
-    )
-
-    _druecke(conn, tg, einst, "Ja, speichern")
-
-    stand = repo.hole_arbeitsstand(conn, 1)
-    assert stand["fragen_weich"].startswith("1 — Wir fragen alle danach")
-    assert stand["fragen"] == "Woher kommst du?\nWas machst du gern?", (
-        "der Kern bleibt unangetastet"
-    )
-
-
-def test_nach_den_weichen_fassungen_kommt_die_eroeffnung_von_selbst(
-    conn, tg, einst, auftraege,
-):
-    """Dieselbe Kette wie vorher -- die Gruppe erlebt die Verfeinerung als
-    einen Weg, nicht als drei Aufgaben."""
-    _mit_fragen(conn)
-    knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1, f"VORSCHLAG FRAGEN WEICH:\n{WEICH}"
-    )
-
-    _druecke(conn, tg, einst, "Ja, speichern")
-
-    assert len(auftraege) == 1
-    assert "VORSCHLAG EROEFFNUNG:" in auftraege[0]
-
-
-def test_die_pruefung_verlangt_weiche_fassungen_statt_einleitungen(
-    conn, tg, einst, auftraege,
-):
-    _mit_fragen(conn)
-
-    knoepfe.starte_sensibilitaetspruefung(conn, tg, object(), einst, 1)
-
-    anweisung = auftraege[0]
-    assert "VORSCHLAG FRAGEN WEICH:" in anweisung
-    assert "Du-Form" in anweisung or "Du-Form" in anweisung
-    assert "nicht noch einmal unveraendert ab" in anweisung, "Anti-Nachplapper"
-
-
 def test_weiche_fassungen_machen_phase_3_moeglich(conn):
     """Sie treten an die Stelle der Einleitungen: eine Gruppe, die weiche
     Fassungen hat, braucht keine Einleitungen mehr."""
@@ -209,21 +163,6 @@ def test_der_leerfall_satz_steht_nie_im_leitfaden(conn):
 
     assert "Keine der Fragen" not in text
     assert "1. Woher kommst du?" in text
-
-
-def test_der_leerfall_kommt_trotzdem_als_chat_rueckmeldung(
-    conn, tg, einst, auftraege,
-):
-    """Im Chat steht der Satz sehr wohl -- er ist die Antwort auf "habt ihr
-    heikle Fragen dabei?"."""
-    _mit_fragen(conn)
-    knoepfe.sende_mit_speicherleiste(
-        conn, tg, 1,
-        "VORSCHLAG FRAGEN WEICH:\nKeine der Fragen braucht eine besondere "
-        "Einleitung.",
-    )
-
-    assert any("Keine der Fragen" in t for _, t in tg.gesendet)
 
 
 # --- /stand und Web -------------------------------------------------------

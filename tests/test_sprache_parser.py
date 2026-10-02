@@ -63,21 +63,6 @@ def test_szenentext_englisch(englisch, text, soll):
     assert ablauf.szenentext_gewuenscht(text) == soll
 
 
-@pytest.mark.parametrize("text, soll", [
-    ("die erste und die dritte", [1, 3]), ("1, 4 und 7", [1, 4, 7]),
-    ("the first and the third", []),
-])
-def test_fragennummern_deutsch_wie_vorher(text, soll):
-    assert fragen.lies_fragennummern(text) == soll
-
-
-@pytest.mark.parametrize("text, soll", [
-    ("the first and the third", [1, 3]), ("2, 5 and 8", [2, 5, 8]),
-])
-def test_fragennummern_englisch(englisch, text, soll):
-    assert fragen.lies_fragennummern(text) == soll
-
-
 @pytest.mark.parametrize("text, soll", [("drei", 3), ("fuenf Figuren", 5), ("three", None), ("4", 4)])
 def test_figurenzahl_deutsch_wie_vorher(text, soll):
     assert figuren._zahl_aus(text) == soll

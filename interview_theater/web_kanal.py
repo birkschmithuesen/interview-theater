@@ -367,7 +367,8 @@ class WebKanal:
 
     # -- Ausgang -----------------------------------------------------------
 
-    def sende(self, chat_id: int, text: str, parse_mode=None, klartext=None) -> int:
+    def sende(self, chat_id: int, text: str, parse_mode=None, klartext=None,
+              system: bool = False) -> int:
         """Eine Textnachricht. Liefert die ``message_id``.
 
         **Nicht geteilt**, anders als in Telegram (``teile_text``, 4000
@@ -378,13 +379,21 @@ class WebKanal:
         ``klartext`` wird verworfen: er ist der Telegram-Rueckfall fuer
         HTTP 400, den es hier nicht gibt. Gespeichert wird die
         HTML-Fassung -- sie traegt mehr Information, und die Chatansicht
-        filtert sie ohnehin serverseitig (Aufgabe 6)."""
+        filtert sie ohnehin serverseitig (Aufgabe 6).
+
+        ``system`` (UX-Knoepfe-Karte, Abschnitt 3): eine Speicherquittung
+        bekommt ``web_post.typ = WEB_TYP_SYSTEM`` statt ``WEB_TYP_TEXT`` --
+        die Chatansicht stellt sie damit als gedaempfte Systemzeile statt
+        als Sprechblase dar. Nur eine Anzeige-Unterscheidung: die Mitschrift
+        in ``nachricht`` (fuer das Gespraechsmodell) ist davon unberuehrt."""
+        typ = repo.WEB_TYP_SYSTEM if system else repo.WEB_TYP_TEXT
         return repo.lege_web_post_an(
-            self._conn, chat_id, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT, text=text,
+            self._conn, chat_id, repo.RICHTUNG_AUS, typ, text=text,
         )
 
     def sende_mit_knoepfen(self, chat_id: int, text: str, knoepfe,
-                           parse_mode=None, klartext=None) -> int:
+                           parse_mode=None, klartext=None,
+                           system: bool = False) -> int:
         """Wie ``sende``, mit einer Leiste darunter -- je Eintrag
         ``(beschriftung, callback_data)``.
 
@@ -393,11 +402,15 @@ class WebKanal:
         haengt. ``web_chat`` prueft einen Knopfdruck dagegen (Aufgabe 8) und
         nicht gegen ``knopf.message_id``: die ist nur gesetzt, wenn ein
         Aufrufer ``repo.merke_knopf_nachricht`` ruft, und das tun 22 von 47
-        Sendestellen (``knoepfe.biete_einstieg`` zum Beispiel nicht)."""
+        Sendestellen (``knoepfe.biete_einstieg`` zum Beispiel nicht).
+
+        ``system`` wie in ``sende`` -- eine Notiert-Meldung mit Undo-Knopf
+        bleibt eine Systemzeile, auch mit Tastatur darunter."""
         leiste = list(knoepfe)
         _pruefe_daten(leiste)
+        typ = repo.WEB_TYP_SYSTEM if system else repo.WEB_TYP_TEXT
         return repo.lege_web_post_an(
-            self._conn, chat_id, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+            self._conn, chat_id, repo.RICHTUNG_AUS, typ,
             text=text, knoepfe=leiste,
         )
 

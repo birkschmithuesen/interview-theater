@@ -190,6 +190,8 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .blase.gruppe { background: #1f6f5c; color: #fff; align-self: flex-end;
                 border-bottom-right-radius: .2rem; }
 .blase.sprache { font-style: italic; opacity: .85; }
+.blase.system { background: transparent; border: none; color: #6b6f76;
+                font-size: .88rem; padding: .25rem .2rem; max-width: 100%; }
 .leiste { display: flex; flex-direction: column; gap: .35rem; margin: .1rem 0 .3rem;
           align-self: flex-start; width: 88%; }
 .leiste button { font: inherit; text-align: left; padding: .65rem .8rem;
@@ -478,7 +480,10 @@ _CHAT_JS = """
   }
 
   function klasseVon(n) {
-    return (n.typ === 'sprache' || n.typ === 'datei') ? n.typ : 'text';
+    if (n.typ === 'sprache' || n.typ === 'datei' || n.typ === 'system') {
+      return n.typ;
+    }
+    return 'text';
   }
 
   function baueLeiste(n) {
@@ -1936,6 +1941,13 @@ def _blase_html(n: dict) -> str:
         if n["text"]:
             inhalt = sichere_html(n["text"]) + "<br>" + inhalt
         klasse = "datei"
+    elif n["typ"] == "system":
+        # UX-Knoepfe-Karte, Abschnitt 3: eine Speicherquittung ("Notiert: …",
+        # ein Rueckgaengig-Ergebnis) ist keine Aeusserung des Bots, sondern
+        # eine Systemzeile -- gedaempft statt als Sprechblase. Der Inhalt
+        # selbst ist unveraendert derselbe Text.
+        inhalt = sichere_html(n["text"])
+        klasse = "system"
     else:
         inhalt = sichere_html(n["text"])
         klasse = "text"

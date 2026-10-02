@@ -242,3 +242,30 @@ def test_hole_updates_kommt_zurueck_sobald_etwas_eintrifft(conn, kanal):
     updates = kanal.hole_updates(0, timeout=10)
     assert len(updates) == 1
     assert time.monotonic() - begonnen < 5.0
+
+
+# --- UX-Knoepfe-Karte, Abschnitt 3: Speicherquittungen als Systemzeile ----
+
+
+def test_sende_mit_system_schreibt_den_eigenen_typ(conn, kanal):
+    """Eine Speicherquittung (``system=True``) bekommt ``WEB_TYP_SYSTEM``
+    statt ``WEB_TYP_TEXT`` -- reine Anzeige-Unterscheidung fuer die
+    Chatansicht, kein zweiter Inhalt."""
+    message_id = kanal.sende(CHAT, "Notiert: Setting: Treppenhaus", system=True)
+
+    assert repo.hole_web_post(conn, message_id)["typ"] == repo.WEB_TYP_SYSTEM
+
+
+def test_sende_ohne_system_bleibt_beim_text_typ(conn, kanal):
+    message_id = kanal.sende(CHAT, "Normale Antwort")
+
+    assert repo.hole_web_post(conn, message_id)["typ"] == repo.WEB_TYP_TEXT
+
+
+def test_sende_mit_knoepfen_und_system_schreibt_den_eigenen_typ(conn, kanal):
+    leiste = [("Rueckgaengig", "k:1")]
+    message_id = kanal.sende_mit_knoepfen(
+        CHAT, "Notiert: Setting: Treppenhaus", leiste, system=True,
+    )
+
+    assert repo.hole_web_post(conn, message_id)["typ"] == repo.WEB_TYP_SYSTEM

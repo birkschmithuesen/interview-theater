@@ -653,7 +653,9 @@ def sende_notiert_mit_leiste(conn, tg, chat_id: int, text: str, art: str,
     for alte in (ART_SPEICHERN, ART_ANDERS, ART_EIGENE):
         _nimm_alte_leiste_ab(conn, tg, chat_id, alte)
     leiste = speicherleiste(conn, chat_id, art, wert) + list(zusatz)
-    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    # UX-Knoepfe-Karte, Abschnitt 3: "Notiert: ..." ist eine Quittung, keine
+    # Aeusserung des Bots -- auch mit einer Grundleiste darunter.
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste, system=True)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
     )
@@ -691,7 +693,7 @@ def sende_notiert_nur_undo(conn, tg, chat_id: int, text: str, lauf_id: int,
     je Meldung."""
     if leiste is None:
         leiste = undo_leiste(conn, chat_id, lauf_id)
-    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste, system=True)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
     )
@@ -808,7 +810,7 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
             conn, chat_id, None, "ueberschreiben_verhindert",
             f"'{art}' steht bereits und wurde durch einen Speicher-Knopf nicht ersetzt",
         )
-        tg.sende(chat_id, T._TEXT_SCHON_GESETZT)
+        tg.sende(chat_id, T._TEXT_SCHON_GESETZT, system=True)
         return T._TEXT_SCHON_GESETZT
 
     def _schreibe():
@@ -828,7 +830,7 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
         conn, chat_id, "entschieden", f"{T._NOTIERT[art]}: {wert}", quelle="knopf",
     )
     if lauf_id is None:
-        tg.sende(chat_id, text)
+        tg.sende(chat_id, text, system=True)
     else:
         sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
     # Danach die eine Frage, die den Zwischenraum offenhaelt -- und darunter,

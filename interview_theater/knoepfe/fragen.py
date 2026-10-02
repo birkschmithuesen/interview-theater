@@ -422,7 +422,7 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
         quelle="knopf",
     )
     if lauf_id is None:
-        tg.sende(chat_id, text)
+        tg.sende(chat_id, text, system=True)
     else:
         sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
     starte_eroeffnung(conn, tg, klm, e, chat_id)

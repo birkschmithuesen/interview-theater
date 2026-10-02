@@ -164,7 +164,7 @@ class Telegram:
             return antwort.json()["result"]["message_id"]
 
     def sende(self, chat_id: int, text: str, parse_mode: str | None = None,
-              klartext: str | None = None) -> int:
+              klartext: str | None = None, system: bool = False) -> int:
         """Schickt eine Textnachricht. Liefert die message_id der gesendeten Nachricht.
 
         Telegram nimmt hoechstens 4096 Zeichen je Nachricht (Bot-API,
@@ -177,7 +177,14 @@ class Telegram:
         ``parse_mode`` (``"HTML"``) und ``klartext`` gehoeren zusammen: der
         erste formatiert, der zweite ist dieselbe Nachricht ohne Auszeichnung
         fuer den Rueckfall bei HTTP 400 (``_post_nachricht``). Ohne
-        ``parse_mode`` bleibt alles wie vorher -- reiner Text."""
+        ``parse_mode`` bleibt alles wie vorher -- reiner Text.
+
+        ``system`` ist ein No-Op (UX-Knoepfe-Karte, Abschnitt 3): Telegram
+        kennt keine eigene Darstellung fuer eine Speicherquittung, nur die
+        Chatansicht des Web-Kanals stellt sie gedaempft dar
+        (``web_kanal.WebKanal.sende``). Das Argument steht hier nur, damit
+        ``tg.sende(..., system=True)`` an beiden Kanaelen gleich aussieht --
+        kein Aufrufer muss nach Kanal unterscheiden."""
         stuecke = teile_text(text)
         roh = teile_text(klartext) if klartext is not None else stuecke
         letzte = 0
@@ -193,6 +200,7 @@ class Telegram:
     def sende_mit_knoepfen(
         self, chat_id: int, text: str, knoepfe: list[tuple[str, str]],
         parse_mode: str | None = None, klartext: str | None = None,
+        system: bool = False,
     ) -> int:
         """Wie ``sende``, nur mit einer Inline-Tastatur darunter: je Eintrag
         ``(beschriftung, callback_data)`` eine Zeile, untereinander.

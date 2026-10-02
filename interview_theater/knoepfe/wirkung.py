@@ -1410,11 +1410,11 @@ def _wirkung_undo(conn, d: Druck) -> str:
             "Ausnahme geworfen -- die Transaktion ist intern zurueckgerollt, "
             "zurueckgenommen wurde nichts.",
         )
-        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_FEHLER)
+        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_FEHLER, system=True)
         repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, T._TEXT_UNDO_FEHLER)
         return T._TEXT_UNDO_FEHLER
     if stand == repo.ZURUECK_GEAENDERT:
-        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_GEAENDERT)
+        message_id = d.tg.sende(d.chat_id, T._TEXT_UNDO_GEAENDERT, system=True)
         repo.merke_bot_zeile(
             conn, d.chat_id, message_id, d.e, T._TEXT_UNDO_GEAENDERT
         )
@@ -1434,7 +1434,7 @@ def _wirkung_undo(conn, d: Druck) -> str:
         quelle="undo",
     )
     text = T._TEXT_UNDO_ERLEDIGT.format(zeilen=zeilen)
-    message_id = d.tg.sende(d.chat_id, text)
+    message_id = d.tg.sende(d.chat_id, text, system=True)
     repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, text)
     return T._ANTWORT_UNDO
 

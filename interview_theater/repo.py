@@ -3744,6 +3744,14 @@ WEB_TYP_SPRACHE = "sprache"
 WEB_TYP_KNOPF = "knopf"
 WEB_TYP_BEFEHL = "befehl"
 WEB_TYP_DATEI = "datei"
+#: Eine Speicherquittung (UX-Knoepfe-Karte, Abschnitt 3) -- "Notiert: ..."
+#: und Rueckgaengig-Ergebnisse. Wie ``WEB_TYP_TEXT``, nur mit dem Hinweis an
+#: die Chatansicht, sie gedaempft als Systemzeile statt als Sprechblase zu
+#: zeigen (``web_chat.py``, ``klasseVon``). Fuer ``repo.letzte_nachrichten``
+#: unsichtbar: die Mitschrift in ``nachricht`` (``merke_bot_zeile``) bleibt
+#: bei ``typ='text'``, nur ``web_post.typ`` bekommt den neuen Wert -- das
+#: Gespraechsmodell sieht also exakt denselben Text wie vorher.
+WEB_TYP_SYSTEM = "system"
 
 #: Ab hier liegen die synthetischen chat_ids der Web-Gruppen. Positiv und weit
 #: oberhalb aller Telegram-Bereiche (Gruppen sind dort negativ, Nutzer-ids

@@ -6,6 +6,7 @@ messen kann -- und das ist mehr, als es klingt: jede Zahl, die das JS braucht,
 und jeder Endpunkt, den es ruft.
 """
 
+import json
 import re
 import threading
 import urllib.request
@@ -305,6 +306,148 @@ def test_der_poll_setzt_den_nonce_und_wiederholt_bei_403():
     js = web_chat._CHAT_JS
     assert "daten.nonce" in js
     assert "r.status === 403" in js
+
+
+# -- Scrollen bei einer wachsenden Blase (Padua Brainstorm, 03.10.2026) -----
+#
+# Befund: eine Blase, die nur per ``geaendert`` waechst (das laufende
+# Transkript eines Brainstorm-Segments -- bis zum Stop-Klick legt der Server
+# nie eine NEUE Nachricht an), loeste bisher kein ``nachUnten()`` aus:
+# ``nimmZustand`` rief es nur bei ``neu.length``. Die Blase wuchs unterhalb
+# des sichtbaren Bereichs, ohne dass der Bildschirm mitscrollte.
+
+
+def test_amunterenrand_wird_vor_jeder_dom_aenderung_gelesen():
+    """Der Lesezeitpunkt ist das Kritische: nach dem Einfuegen einer neuen
+    Blase waere ``document.body.scrollHeight`` schon die NEUE Hoehe, und
+    ``amUnterenRand()`` saehe immer "unten", auch wenn die Gruppe gerade
+    weiter oben nachliest."""
+    js = web_chat._CHAT_JS
+    nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
+    # Erste Zeile im Funktionskoerper -- vor dem Nonce, vor ``neu.forEach``,
+    # vor ``geaendert.forEach``.
+    erste_zeile = nimm.split("\n")[1].strip()
+    assert erste_zeile == "var warUnten = amUnterenRand();"
+    assert nimm.index("var warUnten = amUnterenRand();") < nimm.index("neu.forEach(blase)")
+    assert nimm.index("var warUnten = amUnterenRand();") < nimm.index("geaendert.forEach(ersetze)")
+
+
+def test_nachunten_laeuft_bei_neu_oder_bei_geaenderter_letzter_blase():
+    js = web_chat._CHAT_JS
+    nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
+    assert "if (neu.length) {\n      nachUnten();\n    } else if " in nimm
+    nach_else_if = nimm[nimm.index("} else if ") + len("} else if "):]
+    bedingung = nach_else_if[:nach_else_if.index(") {")]
+    assert "warUnten" in bedingung
+    assert "geaendert.length" in bedingung
+    assert "letzteBlaseWurdeGeaendert(geaendert)" in bedingung
+
+
+def _node_oder_skip():
+    import shutil
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node nicht installiert")
+    return node
+
+
+def _fuehre_js_aus(node: str, quelltext: str, tmp_path) -> str:
+    """Schreibt ``quelltext`` als Datei und laesst ``node`` sie ausfuehren --
+    wie ``test_das_js_ist_syntaktisch_gueltig``, nur mit Ausgabe statt nur dem
+    Exit-Code."""
+    import subprocess
+
+    datei = tmp_path / "harness.js"
+    datei.write_text(quelltext, encoding="utf-8")
+    ergebnis = subprocess.run(
+        [node, str(datei)], capture_output=True, text=True, timeout=30,
+    )
+    assert ergebnis.returncode == 0, ergebnis.stderr
+    return ergebnis.stdout
+
+
+def _extrahiere(js: str, start_marke: str, end_marke: str) -> str:
+    return js[js.index(start_marke):js.index(end_marke)]
+
+
+def test_amunterenrand_entscheidet_live_in_node(tmp_path):
+    """Fuehrt ``amUnterenRand()`` WOERTLICH aus dem ausgelieferten Skript aus
+    (nicht nachgebaut) gegen vier Positionen: am Rand, knapp innerhalb der
+    Toleranz, knapp ausserhalb, und weit hochgescrollt."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function amUnterenRand", "function letzteBlaseWurdeGeaendert")
+
+    quelltext = f"""
+    var UNTEN_TOLERANZ_PX = 48;
+    var window, document;
+    {funktion}
+
+    function pruefe(innerHeight, scrollY, scrollHeight) {{
+      window = {{ innerHeight: innerHeight, scrollY: scrollY }};
+      document = {{ body: {{ scrollHeight: scrollHeight }} }};
+      return amUnterenRand();
+    }}
+
+    var ergebnisse = {{
+      genau_am_rand: pruefe(800, 1200, 2000),       // 800+1200 == 2000
+      innerhalb_der_toleranz: pruefe(800, 1160, 2000),  // 40px Rest, < 48
+      knapp_ausserhalb: pruefe(800, 1100, 2000),    // 100px Rest, > 48
+      weit_hochgescrollt: pruefe(800, 100, 2000)
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse == {
+        "genau_am_rand": True,
+        "innerhalb_der_toleranz": True,
+        "knapp_ausserhalb": False,
+        "weit_hochgescrollt": False,
+    }
+
+
+def test_letzteblasewurdegeaendert_entscheidet_live_in_node(tmp_path):
+    """Dieselbe Herangehensweise fuer die zweite Weiche: nur ein Treffer auf
+    die zurzeit LETZTE Blase im Verlauf zaehlt -- eine Aenderung an einer
+    aelteren Blase (z. B. eine entfernte Knopfleiste) scrollt nicht mit."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function letzteBlaseWurdeGeaendert", "function nimmZustand")
+
+    quelltext = f"""
+    var verlauf;
+    {funktion}
+
+    function blasen(ids) {{
+      return {{
+        querySelectorAll: function (sel) {{
+          return ids.map(function (id) {{ return {{ dataset: {{ id: String(id) }} }}; }});
+        }}
+      }};
+    }}
+
+    verlauf = blasen(["10", "11", "12"]);
+    var ergebnisse = {{
+      letzte_blase_betroffen: letzteBlaseWurdeGeaendert([{{ id: 12 }}]),
+      aeltere_blase_betroffen: letzteBlaseWurdeGeaendert([{{ id: 11 }}]),
+      mehrere_eine_davon_die_letzte: letzteBlaseWurdeGeaendert([{{ id: 5 }}, {{ id: 12 }}]),
+      keine_blase_vorhanden: (function () {{
+        verlauf = blasen([]);
+        return letzteBlaseWurdeGeaendert([{{ id: 12 }}]);
+      }})()
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse == {
+        "letzte_blase_betroffen": True,
+        "aeltere_blase_betroffen": False,
+        "mehrere_eine_davon_die_letzte": True,
+        "keine_blase_vorhanden": False,
+    }
 
 
 def test_beforeunload_warnt_waehrend_aufnahme_und_upload():

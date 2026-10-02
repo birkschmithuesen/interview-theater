@@ -727,7 +727,7 @@ _DEZIMALZEICHEN = "."
 
 ["kuerzung"]
 TEXT_NOTIZ_SZENE = "Shorten this scene by about {prozent} percent. Same events, same order, same characters, same ending -- just tighter: less repetition, shorter lines, nothing new added."
-TEXT_NOTIZ_PROSA = "Shorten the story by about {prozent} percent. Keep exactly {anzahl} sections with their titles and in their order, and shorten within the sections -- same events, same ending, nothing new added."
+TEXT_NOTIZ_PROSA = "Shorten the story by about {prozent} percent. Keep the sections with their titles and in their order, and shorten within the sections -- same events, same ending, nothing new added."
 TEXT_NICHTS_ZU_KUERZEN = "There's no text yet that I could shorten."
 TEXT_KEIN_LAUF = "Not started, see chat"
 TEXT_SZENE_GESTARTET = "Scene {nummer} is getting shorter"
@@ -931,7 +931,7 @@ _RAHMEN_BLOCK = "The story / the setting of the play -- this is the group's brie
 _BOGEN_BLOCK = "Arc and ending:\n{geschichte}"
 _KERNFRAGE_KOPF = "Core question:\n"
 _ZEILE_HAUPTKONFLIKT = "Main conflict: {hauptkonflikt}"
-KERNPAKET_KOPF = "The passages that belong to the core theme (filtered by the core theme, with interview number). They are the basis - you deliberately don't see any other material here:"
+KERNPAKET_KOPF = "The passages from the interviews the group has taken on for this story (with interview number). They are the basis - you deliberately don't see any other material here:"
 FIGUREN_KOPF = "This is how each character speaks (from their interview, word for word -- copy this way of speaking):"
 FIGUREN_KOPF_OHNE_STIMME = "The characters (who they are, what they want). Their way of speaking isn't backed by interviews yet -- give each character their own distinct way of talking (sentence length, pace, favourite words), and keep it up:"
 ZEILE_SPRACHSTIL = "  Speech style (chosen by the group): {stil}"
@@ -1117,10 +1117,11 @@ Below are the setting, the characters with their speech style and the story
 the group has agreed on. From these you write ONE coherent short story -- no
 list of scenes, no stage text, no screenplay.
 
-**You choose the number of sections yourself.** Three to seven is typical;
-what matters is what the story needs, not a number. A scene sequence from
-the planning is a suggestion, not a requirement: if it fits, use it; if it
-doesn't, do better.
+**If the job names a number of sections, that number is binding**: a scene
+sequence is already in place, and you write exactly that many sections, in
+that order -- none added, none dropped, none reordered. If it names none,
+you choose the number of sections yourself, from the story (three to seven
+is typical).
 
 1,500 to 3,500 words in total.
 
@@ -1153,6 +1154,7 @@ _ABSCHNITT_N = "Section {nummer}"
 UEBERSCHRIFT_VORLAGE = "The previous version you are revising (section by section):"
 _STILE_KOPF = "This is how the characters speak:\n"
 _AUFTRAG = "Your task:\nWrite the story in one go."
+_ZEILE_ABSCHNITTE = "\nWrite exactly {anzahl} sections -- one per planned scene, in their order."
 _ZEILE_REGIE = "\nThe group says about it: {regie}"
 
 ["schaerfung"]

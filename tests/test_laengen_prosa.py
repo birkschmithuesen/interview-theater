@@ -12,11 +12,22 @@ import pytest
 
 from interview_theater import kurzgeschichte, laengen, repo, workshop
 
-#: Selbst gemessen am 30.09.2026 auf ``d8deb6c``, vor jeder Aenderung dieser
-#: Karte. Der Massstab fuer Dortmund -- er steht hier und nicht in einer
-#: Golden-Datei, weil eine Zahl in einem Test schwerer zu uebersehen ist.
-SYSTEM_SHA_D8DEB6C = "704119e3dd886eef7ac619511b4ab70cc7c6fb6858a8618e4ee2da19ffddc729"
-SYSTEM_LAENGE_D8DEB6C = 12785
+#: Selbst gemessen, zuletzt am 02.10.2026 nach Karte P2-Fix. Der Massstab
+#: fuer Dortmund -- er steht hier und nicht in einer Golden-Datei, weil eine
+#: Zahl in einem Test schwerer zu uebersehen ist.
+#:
+#: **Warum er sich geaendert hat:** bis zum 01.10.2026 stand hier
+#: ``704119e3dd886eef7ac619511b4ab70cc7c6fb6858a8618e4ee2da19ffddc729`` /
+#: ``12785`` (Stand ``d8deb6c``, Karte R). Birks Entscheidung vom 02.10.2026
+#: hat ``kurzgeschichte.ANWEISUNG`` geaendert: die Abschnittszahl ist fest,
+#: sobald eine Szenenfolge steht, und die Anweisung sagt, dass der Auftrag
+#: sie dann nennt. Das ist eine **gewollte** Verhaltensaenderung, auch fuer
+#: Dortmund -- und sie macht ``prompts/formen/prosa.md:29-34`` ("Steht schon
+#: eine Szenenfolge, ist sie verbindlich") zum ersten Mal widerspruchsfrei.
+#: Die Zusage, die bleibt: **ohne Budget** ist die Anweisung zeichengleich zu
+#: sich selbst, also unabhaengig vom Laengen-Profil.
+SYSTEM_SHA = "81d5b2384e332d77ad32e48938eb8e54603a46b3f7f098fb0ffdb57a08e1412d"
+SYSTEM_LAENGE = 12839
 
 
 @pytest.fixture(autouse=True)
@@ -40,8 +51,8 @@ def _sha(text: str) -> str:
 
 def test_ohne_budget_ist_die_systemanweisung_zeichengleich():
     text = kurzgeschichte.systemanweisung()
-    assert len(text) == SYSTEM_LAENGE_D8DEB6C
-    assert _sha(text) == SYSTEM_SHA_D8DEB6C
+    assert len(text) == SYSTEM_LAENGE
+    assert _sha(text) == SYSTEM_SHA
 
 
 def test_budget_none_ist_derselbe_text_wie_kein_argument():
@@ -276,3 +287,118 @@ def test_starte_verhaelt_sich_wie_vorher(prosa_bereit, einst, tg):
     assert kurzgeschichte.laeuft(1) is False
     fertig = kurzgeschichte.T._TEXT_FERTIG.format(anzahl=2)
     assert any(fertig in t for t in tg.texte), tg.texte
+
+
+# --- Karte P2-Fix: die Abschnittszahl bindet bei vorhandener Szenenfolge ---
+
+
+def test_der_englische_prosablock_bindet_die_abschnittszahl(monkeypatch):
+    """Birk, 02.10.2026: fest, sobald eine Szenenfolge existiert; ohne
+    Szenenfolge waehlt das Modell frei.
+
+    c5 hatte die Regel am 01.10. auf "a suggestion, not a requirement"
+    gedreht -- im selben Dokumentensatz, in dem ``phasen/6.md:44-50``
+    weiterhin "its number and its order count" sagt. Die Entscheidung setzt
+    die alte Regel der Sache nach wieder ein; damit ist ``phasen/6.md``
+    **ohne Aenderung** wieder durchgehend wahr."""
+    from interview_theater import anweisungen, workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    text = " ".join(anweisungen.hole("formen/prosa").split())
+    assert "a suggestion, not a requirement" not in text
+    assert "its number of scenes is binding" in text
+    assert "you choose the number of sections from the story" in text.lower()
+
+
+def test_phase_sechs_bleibt_bei_der_bindenden_folge(monkeypatch):
+    """Die Gegenprobe zur vorigen Zusicherung: die Phasenanweisung sagt es
+    schon, und sie wird dafuer NICHT angefasst."""
+    from interview_theater import anweisungen, workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    text = " ".join(anweisungen.hole("phasen/6").split())
+    assert "its number and its order count" in text
+
+
+def test_die_anweisung_bindet_die_zahl_am_auftrag(monkeypatch):
+    """Karte P2-Fix (02.10.2026): die Systemanweisung sieht die Datenbank
+    nicht und kann nicht wissen, ob eine Szenenfolge existiert -- sie
+    formuliert die Bedingung deshalb am Auftrag. Beide Sprachen, weil die
+    Konstante zweisprachig ist (``en/texte.toml`` ["kurzgeschichte"])."""
+    deutsch = kurzgeschichte.ANWEISUNG
+    assert "Nennt der Auftrag eine Abschnittszahl, ist sie verbindlich" in deutsch
+    assert "Abschnitte selbst" in deutsch, "die freie Wahl bleibt der zweite Fall"
+    assert "Anregung, keine Vorgabe" not in deutsch
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    englisch = kurzgeschichte.T.ANWEISUNG
+    assert "If the job names a number of sections, that number is binding" in englisch
+    assert "number of sections yourself" in englisch
+    assert "a suggestion, not a requirement" not in englisch
+    # Die ersetzbare Laengenzeile bleibt unberuehrt -- sonst greift
+    # systemanweisung(budgets) ins Leere.
+    assert englisch.count(kurzgeschichte.T.ZEILE_GESAMTLAENGE) == 1
+
+
+def test_die_abschnittszahl_zaehlt_die_geplanten_szenen(conn):
+    """Dieselbe Menge, aus der ``budget_eintraege`` und ``lege_szenen_an``
+    lesen: ``repo.hole_szenen`` filtert ``entfernt_am IS NULL`` selbst
+    (``repo.py:2286-2290``). Ohne Szenen: 0 -- und dann steht keine Zeile
+    im Auftrag (datengetrieben wie ``kontext.baue``)."""
+    assert kurzgeschichte.abschnittszahl(conn, 1) == 0
+    for nummer in range(1, 7):
+        repo.stelle_szene_sicher(conn, 1, nummer)
+    assert kurzgeschichte.abschnittszahl(conn, 1) == 6
+    # ``entferne_szene`` nimmt die NUMMER, nicht die id (``repo.py:2416``).
+    repo.entferne_szene(conn, 1, 6)
+    assert kurzgeschichte.abschnittszahl(conn, 1) == 5
+
+
+def test_sechs_geplante_szenen_nennt_der_auftrag_sechs_abschnitte(conn):
+    """Birk, 02.10.2026: fest, sobald eine Szenenfolge existiert. Deutsch --
+    ohne Profil, also ohne Laengen-Block."""
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Am Kanal, nachts")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei verlieren sich.")
+    for nummer in range(1, 7):
+        repo.stelle_szene_sicher(conn, 1, nummer)
+    text = kurzgeschichte.baue_nutzertext(conn, 1)
+    assert kurzgeschichte._ZEILE_ABSCHNITTE.format(anzahl=6).strip() in text
+    assert "6" in text
+
+
+def test_der_auftrag_nennt_die_zahl_auch_englisch(conn, monkeypatch):
+    """Die Konstante ist zweisprachig (``en/texte.toml``
+    ["kurzgeschichte"]); Padua liest die englische Fassung."""
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "At the canal, at night")
+    for nummer in range(1, 4):
+        repo.stelle_szene_sicher(conn, 1, nummer)
+    text = kurzgeschichte.baue_nutzertext(conn, 1)
+    assert kurzgeschichte.T._ZEILE_ABSCHNITTE.format(anzahl=3).strip() in text
+    assert kurzgeschichte.T._ZEILE_ABSCHNITTE != kurzgeschichte._ZEILE_ABSCHNITTE
+
+
+def test_die_zahl_steht_genau_einmal_im_prompt(drei_szenen):
+    """Ein Fakt hat genau eine Stelle im Prompt (Prompt-Audit 06.09.2026).
+
+    Mit Budget-Block bindet ``laengen.SATZ_BINDUNG``, ohne ihn die Zeile im
+    Auftrag -- nie beide. Sonst stuenden zwei bindende Saetze in demselben
+    Nutzertext, und bei Padua traefe das JEDEN echten Lauf
+    (``kurzgeschichte.schreibe`` holt die Eintraege immer)."""
+    repo.setze_arbeitsstand(drei_szenen, 1, "rahmen", "At the canal")
+    eintraege = kurzgeschichte.budget_eintraege(drei_szenen, 1)
+    assert eintraege, "das Padua-Profil waehlt Budgets"
+
+    mit = kurzgeschichte.baue_nutzertext(drei_szenen, 1, eintraege=eintraege)
+    assert laengen.T.SATZ_BINDUNG.format(anzahl=3) in mit
+    assert kurzgeschichte.T._ZEILE_ABSCHNITTE.format(anzahl=3).strip() not in mit
+
+    ohne = kurzgeschichte.baue_nutzertext(drei_szenen, 1)
+    assert kurzgeschichte.T._ZEILE_ABSCHNITTE.format(anzahl=3).strip() in ohne
+    assert laengen.T.SATZ_BINDUNG.format(anzahl=3) not in ohne

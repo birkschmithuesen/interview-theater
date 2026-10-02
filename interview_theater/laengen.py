@@ -356,11 +356,15 @@ ZEILE_SZENE = "Etwa {budget} Woerter. Deutlich kuerzer ist gut, laenger nicht."
 ZEILE_GESAMT = "Insgesamt etwa {gesamt} Woerter."
 
 #: Die Bindung der Abschnittszahl. Ohne sie hat eine Liste von Budgets je
-#: Abschnitt keinen Adressaten: ``kurzgeschichte.ANWEISUNG`` stellt dem
-#: Modell die Zahl ausdruecklich frei, und ``formen/prosa.md`` erklaert eine
-#: vorhandene Szenenfolge fuer verbindlich -- zwei Saetze, die sich
-#: widersprechen. Dieser bindet, wie ``kuerzung.notiz_fuer_prosa`` es schon
-#: tut.
+#: Abschnitt keinen Adressaten.
+#:
+#: **Sie ist bei aktivem Laengen-Profil die EINE Stelle, an der die Zahl
+#: bindet** (02.10.2026, Karte P2-Fix): ``kurzgeschichte.baue_nutzertext``
+#: setzt seine eigene Zeile (``_ZEILE_ABSCHNITTE``) nur, wenn dieser Block
+#: fehlt -- ein Fakt hat genau eine Stelle im Prompt. Der frueher hier
+#: notierte Widerspruch (``ANWEISUNG`` stellte die Zahl frei,
+#: ``formen/prosa.md`` erklaerte die Folge fuer verbindlich) ist mit Birks
+#: Entscheidung aufgeloest: beide binden jetzt, und zwar am Auftrag.
 SATZ_BINDUNG = ("Genau {anzahl} Abschnitte, in dieser Reihenfolge, mit diesen "
                 "Laengen.")
 

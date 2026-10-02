@@ -92,3 +92,27 @@ def test_befundsaetze_der_mechanik_englisch(englisch):
     satz = mechanik.T._TEXT_SPRECHANTEIL.format(name="A", anzahl=34, gesamt=5800)
     assert satz.startswith("A speaks 34 of 5800 words")
     assert mechanik._TEXT_SPRECHANTEIL.startswith("{name} spricht im ganzen Stueck")
+
+
+def test_der_kernpaket_kopf_nennt_das_kernthema_nicht_mehr(monkeypatch):
+    """Karte P2-Fix, Restspannung 2 (02.10.2026).
+
+    ``szene._kernpaket_text`` liefert die Schaerfungen DIESER Szene und ihrer
+    Figuren (``szene.py:999-1013``) und faellt ohne sie auf die globale
+    Auswahl zurueck (``szene.py:1020-1033``) -- ein Kopf fuer beide Zweige.
+    "Am Kernthema gefiltert" war fuer keinen von beiden wahr, und das
+    Kernthema ist seit dem 06.09.2026 keine Station mehr (c8, derselbe Grund
+    wie bei ``kontext.KERNPAKET_KOPF``).
+
+    Geprueft werden BEIDE Sprachen: die deutsche Konstante selbst und der
+    englische Eintrag ueber ``T`` unter dem Padua-Profil."""
+    from interview_theater import szene, workshop
+
+    assert "Kernthema" not in szene.KERNPAKET_KOPF
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    try:
+        assert "core theme" not in szene.T.KERNPAKET_KOPF
+        assert szene.T.KERNPAKET_KOPF != szene.KERNPAKET_KOPF, "englisch"
+    finally:
+        workshop.vergiss()

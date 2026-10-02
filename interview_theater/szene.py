@@ -966,22 +966,32 @@ def _thema_text(conn, chat_id: int) -> str:
 
 #: Ueberschrift des Kernpaket-Blocks im Szenen-Prompt (05.09.2026 abends).
 #: Er ersetzt das, was hier frueher gar nicht stand und im Gespraechs-Prompt
-#: alle Verdichtungen waren: die **am Kernthema gefilterte** Auswahl -- die
-#: passenden Verdichtungsthemen und die geprueften Kernzitate.
+#: alle Verdichtungen waren: die uebernommene Auswahl -- die Schaerfungen
+#: dieser Szene und ihrer Figuren, ersatzweise die geprueften Kernzitate.
+#:
+#: **Kein "Kernthema"** (02.10.2026, Karte P2-Fix, Restspannung 2): EIN Kopf
+#: traegt beide Zweige von ``_kernpaket_text``, und fuer keinen war "am
+#: Kernthema gefiltert" wahr -- der erste filtert nach Szene und Figur, der
+#: zweite gar nicht. Dazu derselbe Grund wie bei ``kontext.KERNPAKET_KOPF``
+#: (c8): das Kernthema ist seit dem 06.09.2026 keine Station mehr, die
+#: Geschichte hat seine Rolle. "Fuer diese Geschichte uebernommen" ist, was
+#: in beiden Zweigen stimmt.
 KERNPAKET_KOPF = (
-    "Die Stellen, die zum Kernthema gehoeren (am Kernthema gefiltert, mit "
-    "Interview-Nummer). Sie sind die Grundlage - alles andere Material siehst "
-    "du hier bewusst nicht:"
+    "Die Stellen aus den Interviews, die die Gruppe fuer diese Geschichte "
+    "uebernommen hat (mit Interview-Nummer). Sie sind die Grundlage - alles "
+    "andere Material siehst du hier bewusst nicht:"
 )
 
 
 def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
-    """Block 2b: die gefilterten Verdichtungen und die Kernzitate.
+    """Block 2b: die Interviewstellen, die die Gruppe fuer diese Geschichte
+    uebernommen hat.
 
     Das ersetzt die Zitatquelle des Szenen-Prompts: bis hierher kamen
     woertliche Saetze allein aus den Sprachprofilen der Figuren, die
-    thematische Grundlage fehlte ganz. Jetzt steht die Auswahl da, die am
-    Kernthema getroffen wurde -- nicht alle Verdichtungen, nicht ein
+    thematische Grundlage fehlte ganz. Jetzt steht eine Auswahl da -- je
+    Szene und Figur die Schaerfungen, sonst die globale Auswahl (ein Kopf
+    fuer beide, ``KERNPAKET_KOPF``) --, nicht alle Verdichtungen, nicht ein
     Transkript. Die Sprachprofile bleiben unveraendert daneben stehen
     (``_figuren_text``): das eine sagt, WORUM es geht, das andere, WIE
     jemand spricht.

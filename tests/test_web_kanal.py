@@ -197,6 +197,27 @@ def test_hole_updates_liefert_eine_sprachnachricht(conn, kanal):
     assert gedeutet["file_id"] == web_kanal.datei_verweis(post_id, ".webm")
 
 
+def test_hole_updates_traegt_schnittgrund_und_brainstorm_durch(conn, kanal):
+    repo.lege_web_post_an(
+        conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=12, datei="7000000000001/web-eingang/2.webm", mime="audio/webm",
+        schnittgrund="pause", brainstorm=True,
+    )
+    gedeutet = telegram.lies_nachricht(kanal.hole_updates(0, timeout=0)[0])
+    assert gedeutet["schnittgrund"] == "pause"
+    assert gedeutet["brainstorm"] is True
+
+
+def test_hole_updates_ohne_schnittgrund_und_brainstorm_liefert_vorgaben(conn, kanal):
+    repo.lege_web_post_an(
+        conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=12, datei="7000000000001/web-eingang/3.webm", mime="audio/webm",
+    )
+    gedeutet = telegram.lies_nachricht(kanal.hole_updates(0, timeout=0)[0])
+    assert gedeutet["schnittgrund"] is None
+    assert gedeutet["brainstorm"] is False
+
+
 def test_hole_updates_uebergeht_ausgehende_posts(conn, kanal):
     kanal.sende(CHAT, "Bot spricht")
     assert kanal.hole_updates(0, timeout=0) == []

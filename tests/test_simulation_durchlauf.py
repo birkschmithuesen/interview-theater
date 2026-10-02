@@ -128,7 +128,7 @@ def durchlauf(monkeypatch, tmp_path):
         )
 
     def falsches_schema(self, chat_id, system, nutzer, schema, art,
-                        modell=None, temperature=None):
+                        modell=None, temperature=None, bei_teil=None):
         if art == "erkenner":
             return _erkenner(nutzer, figuren)
         if art == "journal":
@@ -138,7 +138,7 @@ def durchlauf(monkeypatch, tmp_path):
         return {"antwort": "Erzaehlt mir mehr davon."}
 
     def falsche_prosa(self, chat_id, system, nutzer, art, max_tokens=None,
-                      timeout=None):
+                      timeout=None, bei_teil=None):
         return ("TITEL: Am Bahnhof\nKURZ: Zwei Frauen warten\n\n"
                 "MERYEM: Es ist kalt.\nFERZAN: Ja. Sehr.")
 

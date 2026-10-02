@@ -64,7 +64,8 @@ class Attrappe:
         self.antworten = [_KOPF + lang, _KOPF + SAUBER]
         self.aufrufe: list[str] = []
 
-    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None):
+    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None,
+              bei_teil=None):
         self.aufrufe.append(art)
         return self.antworten[min(len(self.aufrufe) - 1, 1)]
 

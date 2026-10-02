@@ -284,7 +284,7 @@ def attrappe(monkeypatch, tmp_path):
         )
 
     def falsches_schema(self, chat_id, system, nutzer, schema, art,
-                        modell=None, temperature=None):
+                        modell=None, temperature=None, bei_teil=None):
         gesehen.append({"art": art, "modell": modell})
         if art == "erkenner":
             return _erkenner_antwort(nutzer)

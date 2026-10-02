@@ -68,7 +68,7 @@ import threading
 
 import httpx
 
-from interview_theater import anweisungen, repo, szene_claude, workshop
+from interview_theater import anweisungen, repo, strom, szene_claude, workshop
 
 log = logging.getLogger(__name__)
 
@@ -2253,20 +2253,29 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
     system = systemanweisung(form, stil)
     nutzer = baue_nutzertext(conn, chat_id, auftrag, ziel, e, system=system)
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
+    # Der laufende Text (Karte W). Der Szenenlauf haengt in einem eigenen
+    # Thread, und niemand wartet vor dem Bildschirm -- aber im Browser ist
+    # "es passiert etwas" der Unterschied zwischen zwei Minuten Stille und
+    # zwei Minuten Lesen.
+    senke = strom.senke(tg, chat_id, "szene")
     if ueber_claude:
         antwort = szene_claude.prosa(
             conn, e, getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S),
             chat_id, system,
-            nutzer, art, timeout=TIMEOUT_S,
+            nutzer, art, timeout=TIMEOUT_S, bei_teil=senke,
         )
     else:
         antwort = klm.prosa(
             chat_id, system,
-            nutzer, art, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S,
+            nutzer, art, max_tokens=MAX_TOKENS, timeout=TIMEOUT_S, bei_teil=senke,
         )
     _pruefe_budget(conn, chat_id, ueber_claude)
 
     titel, kurz, fassung, anders, volltext = zerlege(antwort)
+    # Kein ``post_id``: der Szenentext geht nicht als eine Nachricht raus,
+    # sondern als Vorschau mit Knopfleiste. 'fertig' ohne post_id heisst fuer
+    # die Ansicht schlicht: die vorlaeufige Blase darf weg.
+    strom.schliesse(tg, chat_id)
     if not volltext:
         raise SzeneFehler("Antwort des Sprachmodells enthielt keinen Szenentext")
 
@@ -2419,6 +2428,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
                                   f"Szene {nummer}: Nachpass gescheitert")
     except Exception:
         log.exception("Szenen-Aufruf fehlgeschlagen, chat_id=%s", chat_id)
+        strom.verwirf(tg, chat_id)
         try:
             repo.merke_vorfall(
                 conn, chat_id, getattr(e, "bot_name", None), "szene_fehlgeschlagen",

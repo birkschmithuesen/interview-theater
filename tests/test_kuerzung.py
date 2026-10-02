@@ -42,7 +42,8 @@ class LLMAttrappe:
         self.antwort = antwort
         self.aufrufe = []
 
-    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None):
+    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None,
+              bei_teil=None):
         self.aufrufe.append({"system": system, "nutzer": nutzer, "art": art})
         return self.antwort
 

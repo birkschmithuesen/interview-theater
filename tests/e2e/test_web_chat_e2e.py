@@ -149,11 +149,37 @@ _MESSUNG = r"""
     };
   }
 
+  // Pausen-Schnitt (VAD): Chromiums synthetischer Ton
+  // (--use-fake-device-for-media-stream) hat keine garantierte, immer ueber
+  // der Schwelle liegende Lautstaerke -- ohne Eingriff wuerde ein Test, der
+  // nicht die VAD selbst pruefen will, ploetzlich alle Segmente als "zu
+  // leise" verlieren. getFloatTimeDomainData()/getByteFrequencyData() werden
+  // deshalb auf dem ECHTEN AnalyserNode ueberschrieben und liefern einen
+  // konstanten, einstellbaren Pegel statt echter Samples -- alles andere am
+  // Knoten (fftSize, frequencyBinCount, der Anschluss ueber
+  // createMediaStreamSource().connect()) bleibt echt. Vorgabe 0.6: deutlich
+  // ueber jeder Schwelle, damit bestehende Tests (die nur "es kommen
+  // regelmaessig Segmente" brauchen) sich wie vor dieser Karte verhalten.
+  // T.setzeRms(0) simuliert echte Stille fuer VAD-spezifische Tests.
+  T.rms = 0.6;
+  T.setzeRms = function (wert) { T.rms = wert; };
   var EchterKontext = window.AudioContext;
   if (EchterKontext) {
     window.AudioContext = function () {
       var k = new EchterKontext();
       T.kontexte.push(k);
+      var echtesCreateAnalyser = k.createAnalyser.bind(k);
+      k.createAnalyser = function () {
+        var messer = echtesCreateAnalyser();
+        messer.getByteFrequencyData = function (werte) {
+          var wert = Math.max(0, Math.min(255, Math.round(T.rms * 255)));
+          for (var i = 0; i < werte.length; i++) { werte[i] = wert; }
+        };
+        messer.getFloatTimeDomainData = function (werte) {
+          for (var i = 0; i < werte.length; i++) { werte[i] = T.rms; }
+        };
+        return messer;
+      };
       return k;
     };
   }
@@ -317,6 +343,16 @@ def server(token):
     umgebung.update({
         "IT_DB": DB_PFAD, "IT_WEB_BIND": BIND, "IT_WEB_PREFIX": PRAEFIX,
         "IT_AUDIO": AUDIO, "IT_WEB_SEGMENT_MS": str(SEGMENT_MS),
+        # Chromiums synthetischer Ton (--use-fake-device-for-media-stream)
+        # ist ein DAUERTON, nie leise -- der Pausen-Schnitt saehe also nie
+        # eine Pause und schnitte erst am harten Zeitdeckel. Fuer Tests, die
+        # nicht die VAD selbst pruefen, sondern nur "es kommen regelmaessig
+        # Segmente" voraussetzen (Warteschlange, Reihenfolge, Modusende),
+        # steht der Deckel hier auf derselben kurzen Zahl wie frueher der
+        # feste Takt -- die eigentliche Pausenerkennung testet
+        # tests/e2e/test_web_chat_vad_e2e.py ueber eine gefaelschte
+        # Analyser-Antwort statt des echten Tons.
+        "IT_WEB_VAD_MAX_MS": str(SEGMENT_MS),
         "PYTHONPATH": str(WURZEL),
     })
     # In eine Datei, nicht in eine Pipe: der Server schreibt je Anfrage eine

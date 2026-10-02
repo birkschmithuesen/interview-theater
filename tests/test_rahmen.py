@@ -112,3 +112,68 @@ def test_der_block_steht_nur_noch_einmal_im_repo():
         text = pfad.read_text(encoding="utf-8")
         assert "Migrantinnenverein" not in text, pfad
         assert "zwischen 15 und 18" not in text, pfad
+
+
+# --- Karte P-Fix: der Konfliktrahmen darf leer sein (Birk, Punkt 5) -------
+
+def test_konfliktrahmen_als_strich_und_als_klammer():
+    """Gesetzt: der Teilsatz steht mit seinem Satzzeichen. Leer: er ist weg.
+
+    Die Vorlagen (``sprachen/en/prompts/rahmen*.md``) koennen nicht rechnen --
+    deshalb rechnet ``workshop.platzhalter()``. Ohne das stuende in einem
+    englischen Padua-Prompt "conflict may be serious -- ." bzw.
+    "Conflict may be serious ()."."""
+    werte = workshop.platzhalter()
+    erlaubt = werte["konflikt_erlaubt"]
+    assert erlaubt, "das Vorgabeprofil hat einen Konfliktrahmen"
+    assert werte["konflikt_erlaubt_strich"] == f" -- {erlaubt}"
+    assert werte["konflikt_erlaubt_klammer"] == f" ({erlaubt})"
+
+
+def test_leerer_konfliktrahmen_laesst_nichts_uebrig(tmp_path, monkeypatch):
+    verz = tmp_path / "padua-test"
+    verz.mkdir()
+    (verz / workshop.DATEI).write_text(
+        'beschreibung = "Test"\n'
+        '[zielgruppe]\nbeschreibung = "students"\n'
+        '[konflikt]\nerlaubt = ""\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(workshop.BASIS_VARIABLE, str(tmp_path))
+    monkeypatch.setenv(workshop.VARIABLE, "padua-test")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    werte = workshop.platzhalter()
+    assert werte["konflikt_erlaubt"] == ""
+    assert werte["konflikt_erlaubt_strich"] == ""
+    assert werte["konflikt_erlaubt_klammer"] == ""
+
+
+def test_englischer_rahmen_ohne_konfliktrahmen(tmp_path, monkeypatch):
+    """Padua laesst den Konfliktrahmen leer -- dann steht im Prompt
+    "conflict may be serious." und sonst nichts (Karte P-Fix, Punkt 5)."""
+    from interview_theater import sprache
+
+    verz = tmp_path / "padua-test"
+    verz.mkdir()
+    (verz / workshop.DATEI).write_text(
+        'beschreibung = "Test"\n'
+        '[sprache]\ncode = "en"\nanrede = "you"\n'
+        '[zielgruppe]\nbeschreibung = "students"\ntraeger = "an academy"\n'
+        '[konflikt]\nerlaubt = ""\nausgeschlossen = "No glorification"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(workshop.BASIS_VARIABLE, str(tmp_path))
+    monkeypatch.setenv(workshop.VARIABLE, "padua-test")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    assert sprache.code() == "en"
+    for name in ("rahmen", "rahmen-kurz"):
+        roh = anweisungen.hole(name)
+        # Whitespace zusammenziehen: in rahmen-kurz.md faellt der
+        # Zeilenumbruch mitten in den Satz ("Conflict may be\nserious.").
+        text = " ".join(roh.split())
+        assert "conflict may be serious." in text.lower(), name
+        assert "serious --" not in text, name
+        assert "()" not in roh, name
+        assert "{{" not in roh, name

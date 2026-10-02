@@ -8,10 +8,11 @@
 #   V1 = projekte/padua-workshop/padua-workshop.md
 #   V2 = projekte/padua-workshop/notes/inscribe-padua-todo.md
 #
-# Belegte Zeilen nennen ihre Quelle ("# V1: ..."). Jede Angabe, die dort
-# NICHT woertlich oder eindeutig steht, traegt den Kommentar
-# "# ANNAHME (unbelegt): ..." -- Birk nimmt sie am Prompt-Dump ab
-# (docs/prompt-audit/2026-09-30-padua/BEFUND.md).
+# Belegte Zeilen nennen ihre Quelle ("# V1: ..."). Die sechs Angaben, die
+# Karte P als "# ANNAHME (unbelegt)" markiert hatte, sind am 01.10.2026 von
+# Birk **abgenommen** und tragen seitdem seine Entscheidung als Kommentar
+# ("Birk 01.10.2026 (Punkt N)"). Der Nachweis am Prompt-Dump:
+# docs/prompt-audit/2026-10-01-padua-fix/BEFUND.md.
 #
 # Die Rahmen-Vorlagen, in die diese Werte eingesetzt werden, liegen in der
 # Sprachschicht (interview_theater/sprachen/en/prompts/rahmen*.md,
@@ -47,26 +48,55 @@ pseudonyme = true
 # steht deshalb auch hier nicht.
 beschreibung = "adult third-year acting students, prepared for digital and hybrid performance and oriented towards dramaturgy and directing"
 # V1: Akademie des National Theatre of the Veneto Region, Teatro Verdi, Padova.
-traeger = "academy of the National Theatre of the Veneto Region, Teatro Verdi, Padova"
+# Der Spielort steht hier NICHT (Birk 01.10.2026, Punkt 3): die Werkschau
+# findet in oder an der Akademie statt, nicht im Teatro Verdi. Institution
+# bleibt, Haus faellt.
+traeger = "academy of the National Theatre of the Veneto Region, Padova"
 
 [orte]
-beschreibung = "places from everyday life in Padua and Venice, where the people the group interviewed live and work -- which ones, the group decides (no example places from these instructions)."   # ANNAHME (unbelegt): V1 belegt nur, dass die Interviews in Padua/Venedig stattfinden; dass das Stueck dort spielt, ist abgeleitet -- die Geschichten sind ausdruecklich fiktiv (V1 "NICHT dokumentarisches Theater")
-ausgeschlossen = ["the real home or workplace of an interviewed person, recognisable by name or address"]   # ANNAHME (unbelegt): Dortmunds Liste (Club, Disko, Alkohol ...) war Jugendschutz fuer 15-18-Jaehrige und passt nicht auf Erwachsene; ersetzt durch einen Schutz der Befragten, abgeleitet aus V1 "fiktiv, NICHT dokumentarisch" und E8 (V2) -- Birk entscheidet, ob hier etwas anderes oder gar nichts stehen soll
-auffuehrung = "at the public showcase on the last day of the workshop, 10-15 minutes per group, in front of AI-generated projected backgrounds, at Teatro Verdi, Padova"   # ANNAHME (unbelegt): Werkschau Tag 5, 10-15 Min je Gruppe, KI-Hintergruende stehen in V1; der Ort der Werkschau nicht (V1 offene Punkte: "Publikum & Zugang klaeren") -- "at Teatro Verdi" ist aus dem Workshop-Ort geschlossen
-# Orte, die in den Prompts als BEISPIEL vorkommen -- nicht die Orte des
-# Stuecks. Englisch, weil sie in englischen Prompt-Saetzen stehen.
-beispiele = ["bus stop", "piazza", "café", "station"]   # ANNAHME (unbelegt): Wahl von Karte A1, nicht aus dem Vault; stehen nur in Beispielsaetzen der Prompts
+# Birk 01.10.2026 (Punkt 1): offen formuliert. Die Orte waehlt die Gruppe aus
+# ihren Interviews, erfunden oder real; Padua ist die Herkunft des Materials
+# und kein Pflicht-Schauplatz. "Venice" ist raus -- laut Michele bleiben die
+# Interviews im Zehn-Minuten-Umkreis des Theaters in Padua.
+# Satzglied, kein Satz: die Vorlage schreibt "**Where it is set:** {{orte}}
+# **Not:** ...", der Punkt steht deshalb hier.
+beschreibung = "wherever the group decides, chosen from its interviews -- invented or real; the material comes from Padua, but the play does not have to be set there (no example places from these instructions)."
+# Birk 01.10.2026 (Punkt 2): so lassen. Kein Jugendschutz (Erwachsene), Zweck
+# ist der Schutz der Befragten.
+ausgeschlossen = ["the real home or workplace of an interviewed person, recognisable by name or address"]
+# Birk 01.10.2026 (Punkt 3), woertlich. Teatro Verdi raus, "AI-generated
+# projected backgrounds" raus. Ohne Schlusspunkt: die Vorlage setzt ihn
+# ("Where it is shown: {{auffuehrungsort}}.").
+auffuehrung = "at the public showcase on the last day of the workshop, roughly 10-15 minutes per group; form, place and means are open -- anywhere in or right around the academy (black box, another room, outside in front of the building), with or without projection, sound or just voices"
+# Birk 01.10.2026 (Punkt 4): keine Beispielorte. Im englischen Prompt steht
+# statt eines Ortes der neutrale Platzhalter "<place>" -- Nachplappern von
+# Beispielorten ist gemessen (Audit 06.09.2026). Die Liste bleibt als
+# **leere** Liste stehen und wird nicht geloescht: ein fehlender Schluessel
+# wuerde ueber workshop._vereinige die deutsche Vorgabeliste
+# ("Bushaltestelle" ...) erben.
+beispiele = []
 
 [konflikt]
-erlaubt = "whatever the interviews bring up; the group sets the theme and its framing itself"   # ANNAHME (unbelegt): V1 nennt keinen Konfliktrahmen fuer die Buehne (V1 offene Punkte: "Interview-Thema / Framing mit den Studierenden setzen"); creative ownership, environmental cost, digitale Souveraenitaet sind die Reflexionsebene des Workshops, kein Stoff des Stuecks -- deshalb bewusst nicht hier
-ausgeschlossen = "No glorification of violence; no interviewed person recognisable by name"   # ANNAHME (unbelegt): erster Teil aus Dortmund uebernommen, zweiter aus V1 "fiktiv, NICHT dokumentarisch" abgeleitet
+# Birk 01.10.2026 (Punkt 5): leer. Dann faellt der Teilsatz in den englischen
+# Vorlagen weg, und es bleibt "Conflict may be serious."
+# (workshop.platzhalter: konflikt_erlaubt_strich / _klammer). Die
+# Workshop-Themen (KI, Klima, Arbeit ...) gehoeren NICHT in den Prompt.
+# Leerer String und kein geloeschter Schluessel: workshop._vereinige wuerde
+# sonst die Dortmunder Liste erben.
+erlaubt = ""
+# Birk 01.10.2026 (Punkt 6): nur der Schutz der Befragten. "No glorification
+# of violence" ist Dortmunds Jugendschutz und faellt weg -- hier sitzen
+# Erwachsene, und was auf die Buehne darf, ist ihre kuenstlerische
+# Entscheidung. Grossgeschrieben, weil die Vorlagen den Wert an einen
+# Satzanfang setzen ("{{konflikt_ausgeschlossen}}.").
+ausgeschlossen = "No interviewed person recognisable by name or address"
 
 [projekt]
 # V1: Titel "From Real Voices to New Fictions", "fiktive Geschichten auf
 # Basis realer Interviews ... NICHT dokumentarisches Theater", "Interviews
 # mit echten Menschen in Padua/Venedig -- echte Stimmen als Rohmaterial",
 # "oeffentliche Werkschau". Steht im Eroeffnungstext der Interviewer.
-kurzbeschreibung = "short fictional plays based on interviews with real people in Padua and Venice - the voices we collect are raw material for new stories, not a documentary, and the plays are shown at a public showcase at the end of the workshop"
+kurzbeschreibung = "short fictional plays based on interviews with real people in Padua - the voices we collect are raw material for new stories, not a documentary, and the plays are shown at a public showcase at the end of the workshop"
 
 # --- Laengen-Rhythmus je Szene (30.09.2026, Karte R) ----------------------
 #

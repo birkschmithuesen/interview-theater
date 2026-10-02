@@ -42,6 +42,20 @@ STRUKTUR_AUSNAHMEN: dict[str, str] = {
     "erkenner": "Birk 30.09.: Chat = nur Befehle/Fragen",
 }
 
+#: Platzhalter, die die englische Fassung bewusst NICHT setzt (Karte P-Fix,
+#: Birks Punkt 4 vom 01.10.2026). Im englischen Prompt steht statt eines
+#: Beispielortes der neutrale Platzhalter ``<place>`` -- wie ``<character A>``
+#: --, weil Beispielorte gemessen nachgeplappert werden (Audit 06.09.2026).
+#: Die deutsche Fassung behaelt ``{{ort_beispiel_N}}``: Dortmund bleibt
+#: bitgleich. Name -> die Platzhalter, die nur im Deutschen stehen.
+PLATZHALTER_AUSNAHMEN: dict[str, set[str]] = {
+    "system": {"ort_beispiel_1"},
+    "szene": {"ort_beispiel_2", "ort_beispiel_3"},
+    "phasen/6": {"ort_beispiel_1"},
+    "formen/chor": {"ort_beispiel_1"},
+    "formen/rap": {"ort_beispiel_4"},
+}
+
 
 def _struktur(text: str) -> tuple[int, int, int]:
     """Ueberschriften, Code-Zaeune, JSON-Beispielzeilen -- was eine
@@ -83,7 +97,9 @@ def test_gleiche_platzhalter_und_struktur(name):
         pytest.skip("noch nicht uebersetzt")
     deutsch = (REPO / f"{name}.md").read_text(encoding="utf-8")
     englisch = en.read_text(encoding="utf-8")
-    assert set(_PLATZ.findall(englisch)) == set(_PLATZ.findall(deutsch))
+    assert set(_PLATZ.findall(englisch)) == (
+        set(_PLATZ.findall(deutsch)) - PLATZHALTER_AUSNAHMEN.get(name, set())
+    )
     if name in STRUKTUR_AUSNAHMEN:
         return
     assert _struktur(englisch) == _struktur(deutsch)
@@ -93,6 +109,35 @@ def test_struktur_ausnahmen_sind_begruendet_und_bekannt():
     for name, grund in STRUKTUR_AUSNAHMEN.items():
         assert name in REPO_NAMEN, name
         assert grund.strip(), name
+
+
+def test_platzhalter_ausnahmen_sind_ehrlich():
+    """Wie ``test_noch_offen_ist_ehrlich``: ein Eintrag darf nur dastehen,
+    solange er wirklich im Deutschen steht und im Englischen fehlt."""
+    for name, platzhalter in PLATZHALTER_AUSNAHMEN.items():
+        deutsch = set(_PLATZ.findall((REPO / f"{name}.md").read_text(encoding="utf-8")))
+        englisch = set(_PLATZ.findall((EN / f"{name}.md").read_text(encoding="utf-8")))
+        assert platzhalter <= deutsch, (name, "nicht mehr im deutschen Prompt")
+        assert not (platzhalter & englisch), (name, "steht doch im englischen")
+
+
+def test_kein_englischer_prompt_nennt_einen_beispielort():
+    """Karte P-Fix: kein ``{{ort_beispiel_N}}`` und kein ``{{orte_beispiele}}``
+    mehr in der englischen Schicht.
+
+    Das ist die Gegenprobe zu ``orte.beispiele = []`` im Padua-Profil: ein
+    stehengelassener Platzhalter wird nicht ersetzt, sondern bleibt roh im
+    Prompt stehen und wird nur geloggt (``anweisungen.fuelle``) -- die Gruppe
+    bekaeme dann woertlich "{{ort_beispiel_1}}" zu lesen."""
+    for pfad in sorted(EN.rglob("*.md")):
+        text = pfad.read_text(encoding="utf-8")
+        assert "{{ort_beispiel" not in text, pfad
+        assert "{{orte_beispiele" not in text, pfad
+    # Und kein ausgeschriebener Beispielort aus dem alten A1-Stand.
+    for pfad in sorted(EN.rglob("*.md")):
+        text = pfad.read_text(encoding="utf-8").lower()
+        for wort in ("bus stop", "piazza", "station concourse"):
+            assert wort not in text, (pfad, wort)
 
 
 @pytest.mark.parametrize("name", sorted(INHALTSBAUSTEINE))

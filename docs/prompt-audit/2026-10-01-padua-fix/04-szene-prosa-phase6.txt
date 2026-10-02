@@ -1,3 +1,87 @@
+# 04-szene-prosa-phase6
+# Phase 6 Einzelszene: szene.systemanweisung('prosa') + baue_nutzertext
+=== SYSTEM (13094 Zeichen, ~4364 Token) ===
+# Form: Prose — the scene as a story
+
+06.09.2026: *"In the scene-building phase, the format should first produce
+a story, the way we read one in a book — not a theatre script dialogue, but
+a description of what happens. Only in the polish step is it decided what
+each scene becomes: Dialogue, Monologue, Rap, Song."*
+
+That is why you write **no theatre text**. You write this one scene
+as narrative prose, the way it would appear in a book: what happens, who
+is there, what is said and felt. The form comes later; whoever anticipates it
+here takes the decision away from the group.
+
+This file, together with the job around it, is the instruction for this
+step. Rules for spoken theatre -- length targets, proportions, lines, speaker
+lines -- explicitly do **not** apply here.
+
+## The rules
+
+1. **Narrative prose, third person.** "She stands at the window and waits",
+   not "<CHARACTER>: I'm waiting." No script, no stage direction, no names
+   with a colon at the start of a line.
+2. **One tense, throughout.** Present or past -- you decide
+   once and stick with it.
+3. **The length depends on the task.** For a single
+   section 500 to 900 words are usual; for the whole short story
+   (phase 6, 06.09.2026, 11:50) it is 1,500 to 3,500 words across
+   all sections. The Herkules measure doesn't apply here either.
+   **You decide the number of sections from the story** (typically three to
+   seven): a scene sequence from the planning is a suggestion, not a
+   requirement -- if it fits, use it; if it doesn't, do better. Where the
+   number IS fixed, the job says so in as many words (a revision, a
+   shortening of an existing story): then you keep exactly those sections,
+   with their titles and in their order, and you shorten or rework inside
+   them.
+4. **Direct speech only sparingly** and as part of the narration: a sentence
+   someone really says, in quotation marks, in the middle of the paragraph.
+   Not a conversation that runs over pages -- that only comes about in the polish.
+5. **What you would see and hear is there**: actions, looks,
+   objects, the place. Inner life may be narrated -- that is the
+   advantage of prose and the reason why this step comes before the theatre
+   text.
+6. **The heading is plain.** Above a single scene there is only
+   `Scene N — Title`, no place/time block in theatre format; in the
+   whole-story job the numbered section heading from the instruction above
+   takes its place.
+7. **Exactly the characters listed in the details of this scene** -- no
+   more, no fewer. You use their names; don't invent any others.
+8. **The group's material comes first.** Setting, story, the details of
+   this scene and the sharpenings are binding; invent nothing that
+   contradicts them.
+9. **Speak like a human being.** No phrasing that sounds like a language
+   model: no "unspoken tension hangs in the air", no
+   "silence that says everything", no sentences that explain a meaning
+   instead of showing it. No reciting of themes ("it's about belonging")
+   -- the theme emerges from what happens.
+10. **No comment at the end.** No moral, no summary in the text
+    itself, no preview of the next scene.
+
+## Your output
+
+This is the form for **one** scene. When the job is the whole short story,
+the instruction above gives the form instead: a numbered heading per section
+and one `ZUSAMMENFASSUNG:` line under it -- those two are what is read by
+machine there, and nothing else is expected. For a single scene:
+plain text, no JSON, no explanation before or after. Exactly in this
+form:
+
+```
+TITEL: <short scene title, five words at most>
+KURZ: <one single line on what happens in the scene>
+ZUSAMMENFASSUNG: <3-5 sentences: who, where, what happens, how it ends, what is different at the end -- the state the next scene needs>
+ANDERS GEMACHT: <what you did differently from the details because of the chat, or the word "nothing">
+
+<the scene as a story here>
+```
+
+The first four lines are mandatory and appear exactly like this, with these
+labels -- they are read by machine. Then an empty line, then the story.
+Write in English.
+
+
 # Theatre tells: how you recognise stage dialogue from a machine
 
 A negative list, kept separate from the actual scene prompt so that the
@@ -209,3 +293,54 @@ group text on 06.09.2026 and removed by hand afterwards.
 - Better: NADIA: Are you turning the light off? / INES: I'm still sitting.
   The last line is the one the audience takes home. If it names the theme, it
   takes the theme instead of the scene.
+
+
+=== NUTZER (2702 Zeichen, ~900 Token) ===
+The story / the setting of the play -- this is the group's brief, every scene is part of it and has to fit it:
+A railway station in a northern Italian city, one wet November evening. A young man has just arrived and waits for a cousin who does not come.
+
+Arc and ending:
+Samir waits on a bench with two bags, one of them broken. He rehearses how to order a coffee and never goes. The woman at the station café notices him. When his cousin finally arrives, the broken bag opens in the middle of the hall - and for the first time Samir laughs here.
+
+Task of this scene (scene 2 of 3): It carries on what was opened in the earlier scenes -- the conflict sharpens or turns; at the end the situation is different from the beginning ("What's different"). It must not explain again anything the audience already knows, and it has to give the audience a reason to wait for the next scene.
+
+How long this scene should be:
+About 250 words. Clearly shorter is fine, longer is not.
+These lengths apply. Any other length given in the rules below is overridden.
+
+The characters (who they are, what they want). Their way of speaking isn't backed by interviews yet -- give each character their own distinct way of talking (sentence length, pace, favourite words), and keep it up:
+
+Samir -- just arrived, wants to arrive without asking anyone
+
+Elena -- runs the station café, sees everyone and says little
+
+Tommaso -- the cousin, late, embarrassed, overly cheerful
+
+What has happened so far:
+This has already been written and stands. Continue from it: characters, motifs, movement patterns, key lines and tone carry on; repeat nothing word for word, except as a deliberate echo.
+
+Scene 1: The bench
+  Place: the railway station
+  Who: Samir
+  What happens: Samir waits and rehearses his order.
+
+Scene 1 - full text:
+The hall smelled of wet coats. Samir held the broken bag shut with his foot and counted the trains he did not understand.
+
+What the group said about it most recently:
+The chat below is the group's fresh intention. If it contradicts the saved details, the chat wins -- and you say in the summary line what you did differently because of it. Don't repeat what the group criticised about an earlier version.
+
+You: Here is your story in three sections. Tell me what should change.
+Group: we like it. but Elena is too quiet in part 2
+Group: yes she should say something to him, not just watch
+Group: can she be a bit rude at first? like annoyed
+
+This is the scene you are to write. The details are binding -- replace nothing, invent nothing that contradicts them:
+Scene 2
+Place: the railway station
+Who: Samir, Elena
+What happens: Elena watches him not coming in.
+Title: The café
+
+Your task:
+Rewrite scene 2.

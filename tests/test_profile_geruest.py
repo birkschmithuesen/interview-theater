@@ -70,17 +70,43 @@ def test_padua_ist_kein_geruest_mehr():
     assert profil.fehlende_pflichtfelder() == []
 
 
-def test_padua_markiert_jede_unbelegte_angabe():
-    """Karte P: was nicht woertlich oder eindeutig aus dem Vault stammt, traegt
-    den Kommentar "ANNAHME (unbelegt)" -- kein Platzhalter von A1 bleibt stehen."""
+def test_padua_hat_keine_unbelegte_annahme_mehr():
+    """Karte P-Fix: Birk hat die sechs ANNAHME-Angaben am 01.10.2026
+    abgenommen -- seitdem traegt jede ihre Entscheidung statt ihrer Annahme.
+
+    Vorher hielt dieser Test fest, dass die Markierung **da** ist (Karte P);
+    jetzt haelt er fest, dass sie **weg** ist und keine Wertzeile sie noch
+    traegt. Die Entscheidungen: /mnt/.../padua-fabrik/entscheidungen-p.md,
+    der Nachweis docs/prompt-audit/2026-10-01-padua-fix/BEFUND.md."""
     verz = WURZEL / "padua-2026"
     assert not (verz / "korpus").exists(), "der englische Korpus liegt unter korpus/en/ (D8)"
     text = (verz / "profil.toml").read_text(encoding="utf-8")
     assert "Platzhalter A1" not in text
-    annahmen = [z for z in text.splitlines() if "# ANNAHME (unbelegt):" in z]
-    felder = {z.split("=", 1)[0].strip() for z in annahmen}
-    assert {"beschreibung", "ausgeschlossen", "auffuehrung", "beispiele",
-            "erlaubt"} <= felder, felder
+    annahmen = [z for z in text.splitlines()
+                if "# ANNAHME (unbelegt):" in z and "=" in z.split("#", 1)[0]]
+    assert annahmen == [], annahmen
+    assert "Birk 01.10.2026" in text
+
+
+def test_padua_traegt_birks_abgenommene_werte():
+    """Die sieben Entscheidungen vom 01.10.2026 als Zusicherung -- sie stehen
+    sonst nur in einem Kommentar."""
+    profil = workshop.lade("padua-2026")
+    orte = profil.wert("orte.beschreibung")
+    assert "Venice" not in orte and "Venedig" not in orte
+    assert "the group decides" in orte
+    auffuehrung = profil.wert("orte.auffuehrung")
+    assert "Teatro Verdi" not in auffuehrung
+    assert "projected backgrounds" not in auffuehrung
+    assert "black box" in auffuehrung
+    assert profil.wert("konflikt.erlaubt") == ""
+    assert profil.wert("konflikt.ausgeschlossen") == (
+        "No interviewed person recognisable by name or address")
+    assert profil.wert("orte.ausgeschlossen") == (
+        "the real home or workplace of an interviewed person, "
+        "recognisable by name or address",)
+    assert "Teatro Verdi" not in profil.wert("zielgruppe.traeger")
+    assert "Venice" not in profil.wert("projekt.kurzbeschreibung")
 
 
 def test_padua_haengt_seine_verhaltensanweisung_an_jeden_gespraechsprompt(monkeypatch):
@@ -158,11 +184,12 @@ def test_padua_traegt_seine_eigene_sprache_und_orte():
     assert profil.wert("sprache.anrede") == "you"
     assert profil.wert("sprache.whisper") == "auto"
     assert profil.wert("datenschutz.pseudonyme") is True
-    # Englische Beispielorte: sie stehen in einem englischen Prompt-Satz
-    # ("maybe they meet at the bus stop"); ein italienisches Wort dort waere
-    # ein Fremdkoerper (Review A1). Karte P kann sie aus dem Vault ersetzen.
-    assert tuple(profil.wert("orte.beispiele")) == (
-        "bus stop", "piazza", "café", "station")
+    # Keine Beispielorte mehr (Birk 01.10.2026, Punkt 4): im englischen
+    # Prompt steht "<place>". Die **leere Liste** steht ausdruecklich da --
+    # ein geloeschter Schluessel wuerde ueber workshop._vereinige die
+    # deutschen Vorgabewerte ("Bushaltestelle" ...) erben.
+    assert profil.wert("orte.beispiele") == ()
+    assert "beispiele" in profil.werte["orte"], "der Schluessel bleibt stehen"
 
 
 def test_die_pruefung_laesst_padua_durch(capsys):
@@ -174,3 +201,27 @@ def test_die_pruefung_laesst_padua_durch(capsys):
 def test_die_pruefung_laesst_dortmund_durch(capsys):
     assert pruefe_profil.pruefe_namen("dortmund-2026") == 0
     assert "in Ordnung" in capsys.readouterr().out
+
+
+def test_die_pruefung_sieht_die_englische_schicht(monkeypatch):
+    """Karte P-Fix: unter einem englischen Profil prueft pruefe_profil die
+    **wirksame** Prompt-Ebene.
+
+    Bis dahin las ``_prompt_texte`` nur Repo und Profil. Unter
+    ``sprache.code = "en"`` gilt fuer jede Datei mit englischer Fassung aber
+    diese (``anweisungen._roh``): die deutsche wurde gegen Platzhalter
+    geprueft, die sie nie einsetzt, und die englische gar nicht."""
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    texte = pruefe_profil._prompt_texte()
+    dateien = [s for s in texte if s.startswith(("prompts/", "sprache/", "profil/"))]
+    namen = [s.split("/", 1)[1] for s in dateien]
+    assert "system.md" in namen
+    # Genau EINE Ebene je Dateiname -- sonst prueft der Pruefer eine Datei,
+    # die unter diesem Profil niemand liest.
+    assert len(namen) == len(set(namen)), sorted(
+        n for n in namen if namen.count(n) > 1)
+    system = next(t for s, t in texte.items() if s.endswith("/system.md"))
+    assert "<place>" in system, "die englische Fassung, nicht die deutsche"
+    assert "{{ort_beispiel" not in system

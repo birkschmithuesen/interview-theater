@@ -1313,9 +1313,20 @@ _KEIN_BEFUNDTEXT = "(kein Befundtext)"
 
 
 def _versuch(conn, e, chat_id, marke, funktion):
-    """Ein Aufruf, dessen Scheitern nur diesen einen Befund kostet."""
+    """Ein Aufruf, dessen Scheitern nur diesen einen Befund kostet.
+
+    **Ausnahme Tagesdeckel** (Karte Padua S): ist er erreicht, scheitert
+    jeder der bis zu 18 Aufrufe dieses Laufs auf dieselbe Weise -- ein
+    weiterer Versuch aendert nichts. ``KostendeckelErreicht`` wird deshalb
+    NICHT hier wie ein gewoehnlicher Fehler abgefangen, sondern durchgereicht,
+    damit ``pruefe`` den ganzen Lauf abbricht und ``_lauf`` einmal die
+    Pausenmeldung schickt, statt 18 Vorfaelle zu schreiben."""
+    from interview_theater import kosten
+
     try:
         return funktion()
+    except kosten.KostendeckelErreicht:
+        raise
     except Exception:  # noqa: BLE001 -- ein Aufruf reisst den Lauf nicht mit
         log.exception("Dramaturgie-Aufruf %s gescheitert, chat_id=%s", marke, chat_id)
         try:
@@ -1510,7 +1521,13 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
             )
         except Exception:
             log.exception("Vorfall zur Dramaturgie nicht schreibbar")
-        _sende(conn, tg, e, chat_id, T.MELDUNG_FEHLGESCHLAGEN)
+        # Tagesdeckel (Karte Padua S): ein erneuter Versuch schlaegt am
+        # Deckel genauso fehl -- die Gruppe bekommt die Pausenmeldung statt
+        # "versucht es gleich noch einmal".
+        from interview_theater import kosten
+
+        if not kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
+            _sende(conn, tg, e, chat_id, T.MELDUNG_FEHLGESCHLAGEN)
     else:
         try:
             knoepfe.zeige_dramaturgie(conn, tg, chat_id, runde)

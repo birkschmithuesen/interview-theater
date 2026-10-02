@@ -38,7 +38,7 @@ import time
 
 import httpx
 
-from interview_theater import repo
+from interview_theater import kosten, repo
 
 log = logging.getLogger(__name__)
 
@@ -274,11 +274,22 @@ class LLM:
         ohne Angabe auf MAX_TOKENS zurueck, ``timeout`` auf den des
         httpx.Client -- beide werden nur von Aufrufen mit aktivem Reasoning
         heraufgesetzt (siehe ``prosa``)."""
+        # Der Tagesdeckel (Karte Padua S): VOR dem Bauen des Koerpers und
+        # damit lange vor dem Netzaufruf -- der Sinn der Grenze ist, dass er
+        # nicht stattfindet. Auch vor dem ``try``, also wird KEINE
+        # ``aufruf``-Zeile gebucht: jeder abgewiesene Versuch schoebe sonst
+        # die Tagessumme weiter hoch, und aus einer Pause bis Mitternacht
+        # wuerde eine bis uebermorgen.
+        kosten.pruefe(self._conn, chat_id, self._e)
         body = self._baue_body(
             system=system, nutzer=nutzer, response_format=response_format,
             reasoning_effort=reasoning_effort, modell=modell,
             temperature=temperature, max_tokens=max_tokens,
         )
+        # Das Modell, das wirklich lief -- ``_baue_body`` faellt ohne Angabe
+        # auf ``e.llm_modell`` zurueck, und aus ``art`` folgt es nicht
+        # (Erkenner gemma, Gespraech Kimi, beide modus 'A').
+        gelaufenes_modell = body.get("model")
 
         # Dieselbe Schaetzung wie beim Promptbau (Zeichen / 3, kein
         # Tokenizer) -- und ausdruecklich dieselbe FUNKTION: die Spalte
@@ -313,6 +324,14 @@ class LLM:
             return koerper
         finally:
             dauer_ms = int((time.monotonic() - start) * 1000)
+            # Die Kosten beim Buchen, nicht beim Lesen (Karte Padua S): eine
+            # Preisaenderung soll alte Zeilen nicht ruecktdatieren. Auch bei
+            # erfolg=0 -- ein 5xx NACH dem Senden ist bezahlt.
+            gekostet = kosten.kosten_oder_teuerster(
+                self._conn, chat_id, getattr(self._e, "bot_name", None),
+                gelaufenes_modell, tatsaechliche_token or geschaetzte_token or 0,
+                antwort_token or 0,
+            )
             repo.merke_aufruf(
                 self._conn,
                 chat_id,
@@ -324,6 +343,8 @@ class LLM:
                 finish_reason,
                 dauer_ms,
                 erfolg,
+                modell=gelaufenes_modell,
+                kosten_chf=gekostet,
             )
 
     def _baue_body(

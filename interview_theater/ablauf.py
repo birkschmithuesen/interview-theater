@@ -44,7 +44,7 @@ import re
 import threading
 from contextlib import contextmanager
 
-from interview_theater import befehle, knoepfe, kontext, phasen, repo, vorschlag
+from interview_theater import befehle, knoepfe, kontext, kosten, phasen, repo, vorschlag
 from interview_theater.llm import LLMFehler
 
 log = logging.getLogger(__name__)
@@ -837,7 +837,15 @@ def _erfundene_systemzeile(conn, e, chat_id: int, text: str) -> bool:
 
 def _melde_fehler(conn, tg, e, chat_id: int, versand_erfolgreich: bool) -> None:
     """Der Vorfall zum gescheiterten Zug -- und die Zeile an die Gruppe, aber
-    nur, wenn sie noch KEINE Antwort bekommen hat."""
+    nur, wenn sie noch KEINE Antwort bekommen hat.
+
+    Ist der Tagesdeckel erreicht (Karte Padua S), war es kein Fehler: dann
+    geht hoechstens die Pausenmeldung hinaus (``kosten.melde_pause_wenn_deckel``
+    drosselt selbst), und weder "hakt gerade" noch die Begruessung noch ein
+    ``gespraechszug_fehlgeschlagen`` -- den Tag haelt der eine Vorfall
+    ``kostendeckel_erreicht`` fest."""
+    if not versand_erfolgreich and kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
+        return
     repo.merke_vorfall(
         conn, chat_id, getattr(e, "bot_name", None), "gespraechszug_fehlgeschlagen",
         "Sprachmodell-Aufruf im Gespraechszug fehlgeschlagen" if not versand_erfolgreich
@@ -1145,6 +1153,9 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
     except Exception:
         log.exception("Auftragszug fehlgeschlagen, chat_id=%s", chat_id)
         try:
+            # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile.
+            if kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
+                return
             repo.merke_vorfall(
                 conn, chat_id, getattr(e, "bot_name", None),
                 "auftragszug_fehlgeschlagen", "Knopf-Auftrag am Modell gescheitert",

@@ -1170,14 +1170,20 @@ def _lauf(conn, tg, klm, e, chat_id: int, system: str, nutzer: str, art: str,
         nachbereitung(antwort)
     except Exception:
         log.exception("Szenenfolge-Aufruf fehlgeschlagen, chat_id=%s", chat_id)
-        try:
-            repo.merke_vorfall(
-                conn, chat_id, getattr(e, "bot_name", None),
-                "szenenfolge_fehlgeschlagen", "Szenenfolge-Aufruf fehlgeschlagen",
-            )
-        except Exception:
-            log.exception("Vorfall nicht schreibbar, chat_id=%s", chat_id)
-        _sende(conn, tg, e, chat_id, T._TEXT_FEHLER)
+        # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile -- und zuerst
+        # geprueft, damit bei Deckel nicht zusaetzlich ein
+        # "szenenfolge_fehlgeschlagen"-Vorfall fuer denselben Lauf entsteht.
+        from interview_theater import kosten
+
+        if not kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
+            try:
+                repo.merke_vorfall(
+                    conn, chat_id, getattr(e, "bot_name", None),
+                    "szenenfolge_fehlgeschlagen", "Szenenfolge-Aufruf fehlgeschlagen",
+                )
+            except Exception:
+                log.exception("Vorfall nicht schreibbar, chat_id=%s", chat_id)
+            _sende(conn, tg, e, chat_id, T._TEXT_FEHLER)
     finally:
         zeilen.stoppe()
         vorschlagssperre.gib_frei(chat_id)

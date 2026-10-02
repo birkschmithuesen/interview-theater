@@ -49,6 +49,7 @@ import secrets
 import sqlite3
 import sys
 import time
+import traceback
 import urllib.parse
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -73,6 +74,194 @@ NONCE_FENSTER = 3600
 #: Der Wert, den ein Dropdown traegt, wenn daneben das Freitextfeld gilt.
 #: Steht wortgleich in ``_BEARBEITEN_JS``.
 EIGENE = "__EIGENE__"
+
+#: Die Kopfzeilen, die auf JEDER Antwort stehen -- auch 404, 413, 429, 500,
+#: auch /gesund und die .md/.txt-Downloads. Angehaengt in
+#: ``_Basishandler.end_headers`` und damit an genau EINER Stelle: ``_antworte``
+#: allein wuerde ``send_error`` der Standardbibliothek verfehlen (501 bei
+#: unbekannter Methode, 400 bei kaputter Anfragezeile).
+#:
+#: ``microphone=(self)`` steht hier, weil die Chatansicht (Karte A2) im
+#: Browser aufnimmt; alles andere ist nicht aufgezaehlt und damit aus.
+SICHERHEITSKOPFZEILEN = (
+    ("Referrer-Policy", "no-referrer"),
+    ("X-Robots-Tag", "noindex, nofollow"),
+    ("X-Content-Type-Options", "nosniff"),
+    ("X-Frame-Options", "DENY"),
+    ("Permissions-Policy", "microphone=(self)"),
+)
+
+#: Die Inhaltsrichtlinie. **Keine Fremdquelle** -- der Workshopraum haengt an
+#: einem Tailnet, und eine Seite ohne Login soll nichts nachladen, was
+#: jemand anders liefert. ``'unsafe-inline'`` steht bewusst NICHT da: die
+#: beiden Inline-Tags aus ``_seite`` bekommen einen Nonce (siehe
+#: ``csp_nonce``).
+#:
+#: ``media-src 'self' blob:`` fuer die Wiedergabe der eigenen Aufnahme im
+#: Browser (MediaRecorder liefert einen Blob), ``connect-src 'self'`` fuer
+#: das sanfte Nachladen und den Poll.
+CSP_VORLAGE = (
+    "default-src 'none'; "
+    "script-src 'nonce-{nonce}'; "
+    "style-src 'nonce-{nonce}'; "
+    "img-src 'self' data:; "
+    "media-src 'self' blob:; "
+    "connect-src 'self'; "
+    "form-action 'self'; "
+    "base-uri 'none'; "
+    "frame-ancestors 'none'"
+)
+
+#: Was eine unerwartete Ausnahme nach aussen sagt. Ein Satz, kein Pfad, keine
+#: Klasse, keine Zeile -- das steht im Log (siehe ``log_error``). Die Gruppe
+#: kann daran nichts beheben, aber sie wartet gerade (AGENTS.md: "Die Gruppe
+#: erfaehrt von einem Fehler nur, wenn sie ihn beheben kann oder gerade
+#: darauf wartet").
+TEXT_500 = "Da ist bei uns etwas schiefgegangen."
+
+#: 403-Text fuer eine Anfrage, die von woanders kommt. Ein Satz, kein
+#: Hinweis darauf, WAS nicht gepasst hat -- wer das Formular vor sich hat,
+#: sieht diesen Text nie.
+TEXT_FREMDE_HERKUNFT = "Diese Anfrage kommt nicht von dieser Seite."
+
+#: Wo der Formular-Nonce beim Audio-Upload steht (E-S9). In der Query stand
+#: er in der Serverlogzeile -- und der ist die eine Stelle, an der ein
+#: CSRF-Merkmal garantiert aufgeschrieben wird.
+NONCE_KOPFZEILE = "X-Nonce"
+
+
+def eigene_herkunft(handler) -> bool:
+    """Kommt diese Anfrage von unserer eigenen Seite?
+
+    **Zwei Merkmale, beide optional, beide streng, wenn sie da sind:**
+
+    * ``Sec-Fetch-Site`` -- jeder Browser ab 2020 schickt ihn.
+      ``cross-site`` heisst ausdruecklich "von woanders" und faellt auch bei
+      ``Origin: null`` (sandboxed iframe), wo der Vergleich unten nichts
+      sagen kann.
+    * ``Origin`` -- verglichen gegen den ``Host``-Header **oder** den ersten
+      Wert von ``X-Forwarded-Host``. Nicht gegen ``IT_WEB_URL``: eine
+      Konfiguration, die im Betrieb nicht passt, waere ein 403 auf alles.
+      ``X-Forwarded-Host`` ist noetig, weil nginx ohne
+      ``proxy_set_header Host $host`` den internen Host weiterreicht
+      (``100.75.24.33:8010``), der Browser aber den oeffentlichen Origin
+      schickt -- sonst waere jeder echte POST ein 403 (Abschlussreview).
+      Das oeffnet nichts: eine fremde Seite kann im Browser keine eigene
+      Kopfzeile wie ``X-Forwarded-Host`` setzen, ohne einen CORS-Preflight
+      auszuloesen, und den beantwortet dieser Server nie. Ein Angreifer
+      ausserhalb eines Browsers kann sie setzen -- er kann aber auch den
+      Origin weglassen und landete schon bisher beim Nonce.
+
+    **Fehlen beide, ist die Antwort True** und der Nonce entscheidet wie
+    bisher. ``curl`` schickt keinen Origin, und das Reviewer-Drehbuch faehrt
+    mit ``curl``; ein 403 darauf machte die Pruefung unmoeglich. Das kostet
+    nichts: ein Angriff ueber einen Browser TRAEGT die Kopfzeilen, und ein
+    Angreifer, der sie weglassen kann, hat ohnehin keinen fremden Browser
+    dazwischen -- er braucht dann aber Token und Nonce, und das ist die
+    Schicht, die es schon gab."""
+    if (handler.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site":
+        return False
+    herkunft = (handler.headers.get("Origin") or "").strip()
+    if not herkunft:
+        return True
+    wirt = (handler.headers.get("Host") or "").strip().lower()
+    weitergereicht = (
+        (handler.headers.get("X-Forwarded-Host") or "").split(",", 1)[0].strip().lower()
+    )
+    erlaubt = {w for w in (wirt, weitergereicht) if w}
+    if not erlaubt:
+        return False
+    eigene = urllib.parse.urlsplit(herkunft).netloc.lower()
+    return bool(eigene) and eigene in erlaubt
+
+
+def schliesse_nach_antwort(handler) -> None:
+    """Nach dieser Antwort wird die Verbindung geschlossen (``Connection:
+    close``).
+
+    Fuer jede Ablehnung, die antwortet, BEVOR der Koerper gelesen ist: bei
+    HTTP/1.1 bleibt die Verbindung sonst offen, der ungelesene Koerper liegt
+    im Socket und wird als naechste Anfragezeile gelesen -- die naechste,
+    ordentliche Anfrage bekaeme einen 400 aus Muell (Abschlussreview).
+    Schliessen statt Weglesen, weil eine Absage (429, 403) nicht dafuer
+    bezahlen soll, bis zu 8 MiB anzunehmen. Die Kopfzeile setzt
+    ``_Basishandler.end_headers``; bei einer Attrappe ohne diese Klasse
+    bleibt es beim Merker."""
+    handler.verbindung_schliessen = True
+
+
+def maskiere_token(pfad: str) -> str:
+    """Der Anfragepfad fuer die Logzeile: Token auf vier Zeichen, Query weg.
+
+    Vier Zeichen bleiben stehen, damit man zwei Gruppen im Log
+    auseinanderhalten kann -- das ist der ganze Zweck, den das Token dort je
+    hatte. Die Query faellt komplett: beim Audio-Upload stand der
+    Formular-Nonce darin (A2-Uebergabe Punkt 3), und die Logzeile ist die
+    eine Stelle, an der ein CSRF-Merkmal garantiert aufgeschrieben wird."""
+    ohne_query = pfad.split("?", 1)[0]
+    stelle = ohne_query.find("/g/")
+    if stelle < 0:
+        return ohne_query
+    kopf = ohne_query[: stelle + len("/g/")]
+    rest = ohne_query[stelle + len("/g/"):]
+    token, trenner, schwanz = rest.partition("/")
+    if len(token) <= 4:
+        return ohne_query
+    return f"{kopf}{token[:4]}...{trenner}{schwanz}"
+
+
+def _html_500() -> str:
+    """Die 500-Seite, in der aktiven Sprache aufgebaut (wie
+    ``nicht_gefunden_html``) -- nicht beim Import eingefroren, sonst bliebe
+    sie beim deutschen Stand, auch wenn das Profil Englisch spricht."""
+    return (
+        f'<!doctype html><html lang="{html.escape(sprache.code())}">'
+        f'<meta charset="utf-8"><p>{html.escape(T.TEXT_500)}</p></html>'
+    )
+
+
+def csp_nonce(schluessel: bytes, token: str, jetzt: float | None = None) -> str:
+    """Der CSP-Nonce einer Antwort -- **aus dem Stundenfenster abgeleitet**,
+    nicht gewuerfelt.
+
+    Das ist die eine Stelle, an der die Standardempfehlung ("ein Nonce je
+    Antwort") hier falsch waere. ``_SCROLL_JS`` vergleicht alle zehn Sekunden
+    ``document.body.innerHTML`` mit dem vorigen Stand und tauscht den Koerper
+    nur bei Unterschied. Das ``<script>``-Tag steht IM Koerper; ein je Antwort
+    neuer Nonce stuende als Attribut darin, der Vergleich schluege bei jedem
+    Poll an, und die Seite risse alle zehn Sekunden jedes offene Eingabefeld
+    mit. Genau dafuer ist schon der Formular-Nonce abgeleitet (siehe
+    ``nonce``); hier gilt derselbe Grund und dieselbe Fensterbreite, damit
+    beide zur selben Sekunde wechseln.
+
+    Eigenes Praefix ``csp:``: der Formular-Nonce steht beim Audio-Upload in
+    einer Kopfzeile und frueher in der Query -- ein Leck des einen darf den
+    anderen nicht mitnehmen."""
+    jetzt = time.time() if jetzt is None else jetzt
+    fenster = int(jetzt) // NONCE_FENSTER
+    return hmac.new(
+        schluessel, f"csp:{token}:{fenster}".encode("utf-8"), hashlib.sha256
+    ).hexdigest()[:32]
+
+
+def mit_nonce(html_text: str, nonce_wert: str) -> str:
+    """Haengt den Nonce an die beiden Inline-Tags aus ``_seite``.
+
+    **Warum nachtraeglich und nicht als Parameter von ``_seite``:** ``_seite``
+    hat sechs Aufrufer, einer davon in ``web_chat`` (Karte A2). Eine
+    Signaturaenderung dort waere ein Eingriff in ein Modul, das diese Karte
+    sonst nicht anfasst.
+
+    **Warum das sicher ist:** ``_seite`` ist der einzige Erzeuger eines
+    literalen ``<style>``/``<script>``. Jeder Text aus der Gruppe laeuft
+    vorher durch ``html.escape`` bzw. den Filter aus A2 und traegt ``&lt;``
+    statt ``<`` -- ``test_mit_nonce_ruehrt_escapten_text_nicht_an`` haelt das
+    fest."""
+    return (
+        html_text
+        .replace("<style>", f'<style nonce="{nonce_wert}">')
+        .replace("<script>", f'<script nonce="{nonce_wert}">')
+    )
 
 
 def _nonce_roh(schluessel: bytes, token: str, fenster: int) -> str:
@@ -2808,11 +2997,14 @@ def _leitfaden_daten(db_pfad: str, token: str) -> dict | None:
 def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> None:
     """Ein geaenderter Parameter der Gruppenseite.
 
-    Die Reihenfolge der Pruefungen ist Absicht: **Pfad, Token, Nonce, Wert** --
-    erst 404, dann 403, dann 400. Ein unbekanntes Token bekommt dieselbe 404
-    wie beim GET (die Seite verraet ohnehin schon, ob es sie gibt); der Nonce
-    wird erst danach geprueft, weil er an das Token gebunden ist und fuer ein
-    Token, das es nicht gibt, gar nicht gueltig sein kann.
+    Die Reihenfolge der Pruefungen ist Absicht: **Pfad, Herkunft, Token, Nonce, Wert** --
+    erst 404, dann 403, dann 404 (Token), dann 403 (Nonce), dann 400. Die
+    Herkunftspruefung sitzt VOR der Token-Extraktion: sie braucht nur die
+    Kopfzeilen, und ein Angriff ueber einen Browser traegt die Merkmale (E-S9).
+    Ein unbekanntes Token bekommt dieselbe 404 wie beim GET (die Seite
+    verraet ohnehin schon, ob es sie gibt); der Nonce wird erst danach
+    geprueft, weil er an das Token gebunden ist und fuer ein Token, das es
+    nicht gibt, gar nicht gueltig sein kann.
 
     **Das Dashboard ist nicht dabei.** ``/`` nimmt kein POST an: es haengt am
     Beamer und ist projiziert, dort soll niemand im Vorbeigehen etwas
@@ -2821,7 +3013,12 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
         urllib.parse.unquote(urllib.parse.urlsplit(handler.path).path), praefix
     )
     if not pfad.startswith("/g/"):
+        schliesse_nach_antwort(handler)
         handler._antworte(404, nicht_gefunden_html())
+        return
+    if not eigene_herkunft(handler):
+        schliesse_nach_antwort(handler)
+        handler._fehler(403, T.TEXT_FREMDE_HERKUNFT)
         return
     from interview_theater import web_chat
 
@@ -2837,6 +3034,7 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
     if unterpfad:
         # Vorher wurde daraus ein Token mit Schraegstrich darin und damit
         # ebenfalls 404 -- jetzt ausdruecklich.
+        schliesse_nach_antwort(handler)
         handler._antworte(404, nicht_gefunden_html())
         return
     try:
@@ -2880,6 +3078,12 @@ class _Basishandler(BaseHTTPRequestHandler):
     wirklich je Server verschieden ist."""
 
     server_version = "interview-theater"
+    #: Leer, damit ``version_string()`` nicht "interview-theater
+    #: Python/3.11.15" liefert. Gemessen: die Vorgabe der
+    #: Standardbibliothek ist ``'Python/3.11.15'`` und stand bis heute im
+    #: Server-Header jeder Antwort. Eine Versionsnummer ist der erste
+    #: Baustein jedes gezielten Angriffs und der Gruppe voellig gleichgueltig.
+    sys_version = ""
     protocol_version = "HTTP/1.1"
     #: HTTP/1.1 haelt die Verbindung offen, und ThreadingHTTPServer bindet
     #: je Verbindung einen Thread. Ohne Zeitlimit blieben die Threads
@@ -2887,16 +3091,32 @@ class _Basishandler(BaseHTTPRequestHandler):
     #: liegen; nach 30 s ohne neue Anfrage wird die Verbindung geschlossen.
     timeout = 30
 
+    #: Von ``mache_handler`` gesetzt. ``_Basishandler`` liest sie nur fuer
+    #: den CSP-Nonce -- die Klasse bleibt sonst konfigurationsfrei.
+    schluessel: bytes | None = None
+    praefix: str = ""
+
+    def version_string(self) -> str:
+        """Nur ``server_version`` -- die Vorlage der Standardbibliothek
+        haengt ``' ' + sys_version`` an, auch wenn ``sys_version`` leer ist,
+        und der Server-Header truege sonst ein Leerzeichen am Ende."""
+        return self.server_version
+
     def _koerper(self) -> dict:
         """Der JSON-Rumpf der Anfrage. Alles, was hier schiefgeht, ist ein
         Bedienfehler von aussen und wird zu 400, nie zu einem Stacktrace."""
+        # Jede Ablehnung hier liegt VOR dem Lesen -- der Koerper bliebe im
+        # Socket (``schliesse_nach_antwort``).
         try:
             laenge = int(self.headers.get("Content-Length") or 0)
         except ValueError:
+            schliesse_nach_antwort(self)
             raise ValueError(T._TEXT_UNGUELTIG) from None
         if laenge <= 0:
+            schliesse_nach_antwort(self)
             raise ValueError(T._TEXT_LEER_ANFRAGE)
         if laenge > MAX_POST_BYTES:
+            schliesse_nach_antwort(self)
             raise ValueError(T._TEXT_ZU_LANG)
         try:
             gelesen = json.loads(self.rfile.read(laenge).decode("utf-8"))
@@ -2917,6 +3137,8 @@ class _Basishandler(BaseHTTPRequestHandler):
         self, status: int, inhalt: str, typ: str = "text/html; charset=utf-8",
         dateiname: str | None = None,
     ) -> None:
+        if typ.startswith("text/html"):
+            inhalt = mit_nonce(inhalt, self._csp_nonce())
         roh = inhalt.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", typ)
@@ -2935,13 +3157,96 @@ class _Basishandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(roh)
 
+    def _csp_nonce(self) -> str:
+        """Der Nonce dieser Antwort, an das Token der aufgerufenen Seite
+        gebunden.
+
+        An das Token, nicht bloss an das Stundenfenster: sonst lernte jeder,
+        der das Dashboard im Tailnet oeffnen kann, den Nonce aller
+        Gruppenseiten. Ohne Token (Dashboard, /gesund) gilt der leere String
+        -- dort gibt es keine Gruppendaten, die eine Einschleusung lohnen."""
+        if not self.schluessel:
+            return ""
+        try:
+            pfad = _pfad_ohne_praefix(
+                urllib.parse.unquote(urllib.parse.urlsplit(self.path).path),
+                self.praefix,
+            )
+        except Exception:  # noqa: BLE001 -- eine kaputte URL darf hier nichts reissen
+            pfad = ""
+        token = pfad[len("/g/"):].strip("/").partition("/")[0] if pfad.startswith("/g/") else ""
+        return csp_nonce(self.schluessel, token)
+
+    def end_headers(self) -> None:
+        """Die **eine** Stelle, an der jede Antwort ihre Kopfzeilen bekommt.
+
+        Nicht in ``_antworte``: ``send_error`` der Standardbibliothek (501
+        bei unbekannter Methode, 400 bei kaputter Anfragezeile, 414 bei zu
+        langer URI) geht daran vorbei, und genau diese Antworten sind die,
+        die niemand von Hand testet."""
+        for name, wert in SICHERHEITSKOPFZEILEN:
+            self.send_header(name, wert)
+        if getattr(self, "verbindung_schliessen", False) and not self.close_connection:
+            # ``send_header`` setzt dabei selbst ``close_connection``.
+            self.send_header("Connection", "close")
+        self.send_header(
+            "Content-Security-Policy", CSP_VORLAGE.format(nonce=self._csp_nonce())
+        )
+        super().end_headers()
+
+    def send_error(self, code, message=None, explain=None) -> None:
+        """Die Fehlerseite der Standardbibliothek setzt ``%(message)s`` und
+        ``%(explain)s`` in den Koerper (``DEFAULT_ERROR_MESSAGE``). Beide
+        kommen aus der Anfrage oder aus dem Innenleben des Servers -- also
+        weder das eine noch das andere nach aussen.
+
+        Die Standardbibliothek loggt an dieser Stelle selbst
+        (``self.log_error("code %d, message %s", code, message)``) -- das
+        geht mit der Ueberschreibung verloren, und genau das waere falsch:
+        ohne Logzeile sieht niemand mehr den Sondierungsverkehr (501 bei
+        unbekannter Methode, 400 bei kaputter Anfragezeile, 414 bei zu
+        langer URI), den diese Haertung gerade abwehrt. Geloggt wird deshalb
+        weiterhin, aber nur der Code -- ``message``/``explain`` sind
+        angreiferseitiger Text und gehoeren nicht ins Log."""
+        self.log_error("code %d", code)
+        self.send_response(code)
+        roh = _html_500().encode("utf-8")
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(roh)))
+        self.send_header("Connection", "close")
+        self.close_connection = True
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(roh)
+
+    def _fuenfhundert(self) -> None:
+        """Eine unerwartete Ausnahme: 500 mit festem Kurztext.
+
+        Ohne das bekommt der Browser heute gar keine Antwort -- ``http.server``
+        faengt eine Ausnahme aus ``do_GET`` nicht ab, ``socketserver`` schreibt
+        den Traceback nach stderr und schliesst die Verbindung
+        (gemessen 30.09.2026). Der Traceback bleibt im Log, wo er hingehoert."""
+        try:
+            self._antworte(500, _html_500())
+        except Exception:  # noqa: BLE001 -- die Verbindung ist schon hin
+            self.close_connection = True
+
     def log_message(self, format: str, *args) -> None:
         """Eine Zeile je Anfrage nach stdout (systemd haengt das an
         betrieb/web.log). Ohne Uhrzeit-Klammern der Vorlage, dafuer mit
-        ISO-Zeit -- damit die Zeilen zu denen des Bots passen."""
+        ISO-Zeit -- damit die Zeilen zu denen des Bots passen.
+
+        **Das Token wird maskiert und die Query weggeworfen** (30.09.2026):
+        es ist das einzige Geheimnis der Gruppenseite, und beim Audio-Upload
+        stand der Formular-Nonce in der Query. Ein Log ist das, was man
+        weiterschickt, wenn etwas nicht geht."""
+        zeile = format % args
+        for stueck in zeile.split(" "):
+            if "/g/" in stueck or "?" in stueck:
+                zeile = zeile.replace(stueck, maskiere_token(stueck))
         print(
             f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} web "
-            f"{self.address_string()} {format % args}",
+            f"{self.address_string()} {zeile}",
             flush=True,
         )
 
@@ -2965,10 +3270,18 @@ def mache_handler(
 
     class Handler(_Basishandler):
         def do_GET(self) -> None:  # noqa: N802 (von BaseHTTPRequestHandler vorgegeben)
-            _beantworte_get(self, db_pfad, praefix, schluessel)
+            try:
+                _beantworte_get(self, db_pfad, praefix, schluessel)
+            except Exception:  # noqa: BLE001 -- der Server darf an keiner Anfrage sterben
+                self.log_error("Unbehandelte Ausnahme bei GET: %s", traceback.format_exc())
+                self._fuenfhundert()
 
         def do_POST(self) -> None:  # noqa: N802 (von BaseHTTPRequestHandler vorgegeben)
-            _beantworte_post(self, db_pfad, praefix, schluessel)
+            try:
+                _beantworte_post(self, db_pfad, praefix, schluessel)
+            except Exception:  # noqa: BLE001
+                self.log_error("Unbehandelte Ausnahme bei POST: %s", traceback.format_exc())
+                self._fuenfhundert()
 
         def _schreibe(self, chat_id: int, daten: dict) -> dict:
             """Der eine Schreibvorgang, auf einer eigenen Verbindung.
@@ -3005,6 +3318,13 @@ def mache_handler(
             finally:
                 conn.close()
 
+    # Nicht ``schluessel = schluessel`` im Klassenkoerper: eine Zuweisung
+    # macht den Namen innerhalb des GANZEN Klassenkoerpers lokal, auch auf
+    # der rechten Seite derselben Zeile (``LOAD_NAME`` sieht die Fabrik-
+    # variable dann nicht mehr) -- gemessen als ``NameError`` beim Bauen der
+    # Klasse. Deshalb die Attribute nachtraeglich setzen, nach der Klasse.
+    Handler.schluessel = schluessel
+    Handler.praefix = praefix
     return Handler
 
 

@@ -485,11 +485,18 @@ def starte(
         except Exception:
             log.exception("Kurzgeschichte fehlgeschlagen, chat_id=%s", chat_id)
             try:
-                repo.merke_vorfall(
-                    conn, chat_id, getattr(e, "bot_name", None),
-                    "kurzgeschichte_fehlgeschlagen", "Lauf gescheitert",
-                )
-                szene_modul._sende_und_merke(conn, tg, e, chat_id, T._TEXT_FEHLER)
+                # Tagesdeckel (Karte Padua S): Pause statt Fehlerzeile -- und
+                # zuerst geprueft, damit bei Deckel nicht zusaetzlich ein
+                # "kurzgeschichte_fehlgeschlagen"-Vorfall fuer denselben Lauf
+                # entsteht.
+                from interview_theater import kosten
+
+                if not kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id):
+                    repo.merke_vorfall(
+                        conn, chat_id, getattr(e, "bot_name", None),
+                        "kurzgeschichte_fehlgeschlagen", "Lauf gescheitert",
+                    )
+                    szene_modul._sende_und_merke(conn, tg, e, chat_id, T._TEXT_FEHLER)
             except Exception:
                 log.exception("Fehlermeldung zur Kurzgeschichte fehlgeschlagen")
         finally:

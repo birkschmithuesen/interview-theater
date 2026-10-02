@@ -42,6 +42,7 @@ Module unter `interview_theater/`:
 | `schaerfung.py` | Phase 5: legt die geprüften `verdichtung_thema`-Einträge per Schema-Aufruf (gemma, Thread) auf Szenen und Figuren, prüft die Zitate mit `zitat.pruefe` und schreibt in die Tabelle `schaerfung` (additiv, mit `runde`) |
 | `stueckpruefung.py` | Phase 7: der Stück-Judge über das ganze Textbuch — je Befund eine Frage mit Szenenbezug, Tabelle `stueckpruefung`, eigener Thread |
 | `kernzitate.py` | Die Auswahl der Belegzitate zum Kernthema (`waehle`), rückwärtskompatible Basis der Schärfung — dieselbe Prüf- und Speicherlogik |
+| `kosten.py` | Was ein Workshoptag kostet: Preistabelle (aus `scripts/pruefe_prompts.py` hierher gezogen), Kostenrechnung je Aufruf, der Tagesdeckel je Gruppe mit Reset um Mitternacht Europe/Rome, `KostendeckelErreicht` und die Pausenmeldung. **Kein SQL** — liest über `repo.kostensumme_seit` |
 | `kuerzung.py` | Kürzen als eigener Weg (30.09.2026, C4/C10): die feste Regie-Notiz (25 %), die Zielwahl (Szenennummer → `szene.starte`, keine → `kurzgeschichte.starte`) und `nummer_aus_wert`. **Kein eigener Modellaufruf** — beide Wege geben an ihren vorhandenen Thread ab, und beide hängen ihre Fassung an (`szenenfassung`). Eine Kürzung erzeugt **nie** eine neue Szenenfolge |
 | `ruecknahme.py` | Die Ruecknahme eines Erkennerlaufs (01.10.2026, Karte U): welche Tabellen und Spalten verfolgt werden (`VERFOLGT`, `MATERIAL`, `AUSSEN`) und wie aus zwei Schnappschuessen um `wende_an` die Ruecknahme-Schritte werden (`schritte`). **Reine Funktionen, kein SQL, kein Nutzertext** -- alles SQL steht in `repo.py`, die Wortlaute in `knoepfe/texte.py`. `db` wird nur fuer die Spaltenliste gelesen (`_tabellenspalten_aus_schema`), damit eine neue Spalte automatisch mitverfolgt wird |
 | `laengen.py` | Laengen-Rhythmus je Szene (30.09.2026, Karte R): der eine Wortzaehler (`zaehle_woerter`), der Rahmen je Form aus dem Profil, die Rhythmus-Muster, das Budget je Szene, der Faktor und die Prompt-Bausteine. **Kein Modellaufruf, keine Datenbank** (ausser `setze_faktor`, das ueber `repo` geht). Ohne `[laengen] aktiv = true` im Profil liest es niemand |
@@ -69,6 +70,7 @@ Module unter `interview_theater/`:
 | `vorspann.py` | Der Vorspann vor dem Text (07.09.2026): Wo und wann · Worum es geht · Form · die Szenen · Wer vorkommt. Deterministisch aus `arbeitsstand.*`, `szene.titel`/`form` und `figur.name`/`beschreibung` — **kein Modellaufruf**. `daten()` nimmt Dicts und kennt keine Datenbank (deshalb darf `web_daten` es importieren), `aus_datenbank()` ist die `repo`-Abkürzung, `als_markdown()`/`als_chattext()` die zwei Darstellungen |
 | `web.py` | Weboberfläche: Routing, HTML und CSS für Dashboard und Gruppenseiten, `http.server`, nur Standardbibliothek |
 | `web_daten.py` | Die Lesezugriffe dazu — read-only geöffnete Verbindung, reine Funktionen, `conn` rein, Dicts raus |
+| `web_grenze.py` | Das Rate-Limit der Weboberfläche: gleitendes Fenster im Prozessspeicher, Schlüssel `chat_id`, thread-sicher. **Kein Projektimport** (wie `vorschlagssperre.py`) |
 | `web_kanal.py` | Der Web-Kanal (30.09.2026): `WebKanal` ersetzt `telegram.Telegram`, wenn `IT_KANAL=web`. Liest Browser-Ereignisse aus der Tabelle `web_post` als Telegram-förmige Updates und schreibt die Antworten dorthin zurück — `bot.schleife` bleibt unverändert, `knoepfe/` wird nicht angefasst. Kein SQL (alles über `repo`), kein Modell |
 | `web_chat.py` | Die Chatansicht im Browser (30.09.2026): HTML, CSS, Vanilla-JS und alle Handler unter `/g/<token>/chat`. `web.py` bekommt nur die Routing-Zeilen. Trägt den serverseitigen HTML-Filter (`sichere_html`), die Knopfprüfung gegen die hängende Leiste (`knopf_erlaubt`), den Audio-Upload, die zwei Aufnahme-Wege und die sequentielle Warteschlange im JS. Kein SQL, kein Modell |
 
@@ -112,7 +114,7 @@ Versehen).
 | Schicht | Module |
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
-| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` |
+| **Dienste** | `llm.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` · `kosten.py` · `web_grenze.py` |
 | **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` |
 
@@ -132,6 +134,8 @@ Versehen).
 | Warum lief die Szene zweimal? | `nachpass.nach_szene` -> `befund` -> `_notiz` |
 | Warum sieht der Browser nichts? | `web_kanal.hole_updates` → `repo.web_eingang` → `bot.schleife` |
 | Was passiert bei einem Klick im Web-Chat? | `web_chat.beantworte_post` → `_POSTWEGE` → Eingang (`web_post`) → `knoepfe.behandle` |
+| Warum antwortet der Bot heute gar nicht mehr? | `kosten.deckel_erreicht` → `repo.kostensumme_seit`, Vorfall `kostendeckel_erreicht` |
+| Warum kommt eine Weboberflächen-Anfrage nicht durch? | `web.eigene_herkunft` (403) → `web_grenze.pruefe` (429) → `web_chat._audio` (413/415) |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -889,6 +893,59 @@ es jemand im Chat merkt.
   woertlich und nicht byte-genau erhalten. Und `scripts/laengen_probe.py` ist
   der **kostenlose** Nachweis dieses Pfades: die Simulation erreicht Phase 7
   und den Kuerzungsweg nicht.
+
+- **Fuenf Franken je Gruppe und Tag, dann pausiert der Bot** (30.09.2026,
+  Karte Padua S, `kosten.py`). Der Deckel steht **im Bot-Prozess** und nicht
+  im Webserver: beide Kanaele laufen durch denselben `ablauf`/`aufnahme`-Code,
+  nur mit einem anderen `tg`-Objekt, und ein Deckel im Webserver saehe die
+  Telegram-Gruppen nicht. Drei Durchsetzungsstellen, alle **vor** dem
+  Netzaufruf: `llm.LLM._anfrage` (jeder Infomaniak-Aufruf geht durch sie),
+  `szene_claude.prosa` und `aufnahme._verarbeite` (der einzige Weg zu
+  `stt.transkribiere`). `chat_id is None` zaehlt nie mit — das Warmlaufen und
+  die Pruefskripte laufen ohne Gruppe.
+  **Gerechnet wird beim Buchen, nicht beim Lesen.** `aufruf` trug bis dahin
+  weder Modell noch Kosten, und nachtraeglich ging es auch nicht: aus
+  `aufruf.art` folgt das Modell nicht, `LLM.schema` waehlt es je Aufruf.
+  Seitdem: `aufruf.modell` und `aufruf.kosten_chf`, additiv migriert (alte
+  Zeilen NULL = 0). Whisper bucht mit (`art='stt'`, Kosten aus
+  `aufnahme.dauer_sekunden` mal `kosten.WHISPER_CHF_JE_MINUTE`); der
+  Claude-Proxy bucht **0 CHF, weil Abo** — der Wert steht an **einer** Stelle
+  (`kosten.CLAUDE_CHF_JE_AUFRUF`), damit aus dem Abo eine Abrechnung werden
+  kann, ohne dass jemand sucht. Ein Modell, das nicht in
+  `kosten.PREISE_CHF_JE_MIO_TOKEN` steht, wird mit dem **teuersten** Preis
+  gebucht plus Vorfall `kosten_modell_unbekannt`: mit 0 umginge der naechste
+  Modellwechsel den Deckel, ohne dass es jemand merkt.
+  **Pausieren heisst: Empfangen geht weiter** — dieselbe Trennung wie in
+  § 1 der SPEC. Nachrichten und Audio werden gespeichert, Slash-Befehle und
+  Knopf-Handler laufen (sie rufen ohnehin kein Modell), die Gruppenseite
+  bleibt lesbar und beschreibbar. Nur Modellaufrufe fallen aus. Eine Aufnahme
+  bleibt auf `status='empfangen'`, und der **vorhandene** Nachhol-Arbeiter
+  greift sie nach Mitternacht auf (`repo.offene_aufnahmen_fuer_bot` liefert
+  alles ausserhalb von fertig/fehlgeschlagen/laeuft, alle 60 s) — kein neuer
+  Mechanismus. **Ausdruecklich nicht** ueber `_melde_transkriptionsfehler`:
+  das zaehlt `repo.zaehle_versuch_hoch` hoch, und bei 60 s Nachholintervall
+  waeren `MAX_VERSUCHE` in fuenf Minuten verbraucht — jedes Interview des
+  Abends stuende am naechsten Morgen auf `fehlgeschlagen`.
+  Die Gruppe bekommt **eine** Meldung, danach hoechstens alle 15 Minuten
+  (Merkposten `gruppe.kostenpause_gemeldet_am` — in der Datenbank, weil ein
+  Neustart sonst sofort wieder meldet), plus **einen** Vorfall je Tag.
+  Erkenner und Journal fallen still aus, das Wasserzeichen bleibt stehen.
+  Der Text nennt **keinen Betrag**: eine Zahl, die der Betreiber setzt, sagt
+  einer Theatergruppe nichts darueber, was sie tun soll. Env:
+  `IT_KOSTEN_DECKEL_CHF` (Vorgabe 5.0), `IT_ZEITZONE` (Vorgabe Europe/Rome).
+  **Zwei bekannte Grenzen, gemessen:** Sprachprofil (`sprachprofil.py`) und
+  Nachpass (`nachpass.py`) rufen ebenfalls ueber `klm.schema` und haengen
+  damit hinter derselben `llm.LLM._anfrage` -- waehrend der Pause scheitert
+  also auch ihr Aufruf, aber ohne eigene Pausenmeldung: ihr Fangnetz ist ein
+  gewoehnliches `except Exception` mit `log.exception`, nicht
+  `kosten.melde_pause_wenn_deckel`, und ein Fehlschlag sieht fuer die Gruppe
+  aus wie jeder andere. Und der Erkenner laeuft waehrend der Pause
+  unveraendert **je Nachricht** weiter und scheitert jedesmal an
+  `kosten.pruefe` -- jeder Lauf schreibt einen eigenen Vorfall
+  `extraktor_fehler` (`erkenner.py`), ungedrosselt im Unterschied zur
+  Pausenmeldung selbst: bei einer aktiven Gruppe fuellt sich das Dashboard
+  mit gleichlautenden Vorfaellen, statt der einen Zeile, die der Deckel
+  eigentlich verspricht.
 
 ## Die Dramaturgie-Prüfung
 
@@ -2332,6 +2389,153 @@ offene Eingabefeld mit); aus demselben Grund lädt die Seite gar nicht erst
 nach, solange der Fokus in einem Feld steht oder eines ungespeichert geändert
 ist. Ein Neustart der Unit `interview-theater-web.service` ist nötig, die Bots
 nicht.
+
+### Die Absicherung (30.09.2026, Karte Padua S)
+
+Seit Karte A2 ist die Gruppenseite schreibend und nimmt Audio an. Damit ist
+der Link nicht mehr nur eine Anzeige, und die Grenzen mussten mitwachsen.
+
+**Sechs Kopfzeilen an genau einer Stelle** (`web._Basishandler.end_headers`):
+`Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`,
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Permissions-Policy: microphone=(self)` und eine CSP ohne jede Fremdquelle
+(`default-src 'none'`, `frame-ancestors 'none'`, `base-uri 'none'`,
+`form-action 'self'`, `connect-src 'self'`, `media-src 'self' blob:`).
+In `end_headers` und nicht in `_antworte`, weil `send_error` der
+Standardbibliothek (501 bei unbekannter Methode, 400 bei kaputter
+Anfragezeile) daran vorbeigeht — und genau diese Antworten testet niemand von
+Hand. `sys_version` ist leer: bis dahin stand `Python/3.11.15` im
+Server-Header jeder Antwort.
+
+**Der CSP-Nonce ist abgeleitet, nicht gewuerfelt** (`web.csp_nonce`), aus
+demselben Stundenfenster wie der Formular-Nonce. Der Grund ist derselbe:
+`_SCROLL_JS` vergleicht alle zehn Sekunden `document.body.innerHTML`, und das
+`<script>`-Tag steht im Koerper — ein je Antwort neuer Nonce liesse die Seite
+alle zehn Sekunden austauschen und risse jedes offene Eingabefeld mit.
+`'unsafe-inline'` steht bewusst nicht in der Richtlinie: ein stundenstabiler
+HMAC muss geraten werden, `'unsafe-inline'` muss gar nichts. **Wer ein
+`style="…"`-Attribut oder ein `onclick=` einbaut, bricht das** — heute ist
+beides in `web.py` nicht vorhanden (gemessen).
+
+**Origin und Sec-Fetch-Site vor jeder Wirkung** (`web.eigene_herkunft`, 403).
+Der Nonce schuetzt, *weil* eine fremde Seite ihn nicht lesen kann — und beim
+Audio-Upload stand er in der Query und damit in der Serverlogzeile. Er ist
+nach `X-Nonce` umgezogen, `log_message` maskiert das Token auf vier Zeichen
+und wirft die Query weg. **Fehlt `Origin` ganz, entscheidet der Nonce wie
+bisher**: `curl` schickt keinen, und das Reviewer-Drehbuch faehrt mit `curl`.
+
+**Rate-Limit je Gruppe** (`web_grenze.py`): 20 Nachrichten je Minute
+(Senden, Knopf und Umschalter teilen den Topf — sonst laesst sich abwechseln
+und die Rate verdoppeln) und 150 Uploads je Stunde (eigener Topf: 45-s-
+Segmente sind 80 je voller Interviewstunde, dazu Push-to-talk). Schluessel ist
+die **`chat_id`**, nicht das Token: eine Rotation darf das Limit nicht
+zuruecksetzen. Eine abgewiesene Anfrage zaehlt **nicht** mit, sonst wuerde aus
+dem Limit eine Dauersperre. 429 mit `Retry-After`, ein Vorfall
+`web_rate_limit` je Fenster. **Ein Neustart vergisst die Zaehler** — benannt
+und akzeptiert, nginx ist die zweite Schicht (unten).
+
+**Der Upload wird an den Bytes geprueft, nicht am Header**
+(`web_chat.endung_aus_bytes`). Der `Content-Type` bleibt billiger Vorfilter
+(415 ohne Lesen); entschieden wird an den Magic Bytes (EBML, `OggS`, `ftyp`,
+`RIFF/WAVE`, `ID3`/Frame-Sync), und **die Endung, unter der die Datei
+abgelegt wird, kommt von dort**. Das ist Falle 3 eine Etage hoeher: ein WebM
+als `.ogg` abgelegt laesst den Whisper-Auftrag dauerhaft auf `pending`
+stehen. Groesse: `MAX_AUDIO_BYTES` = 8 MiB je Segment — gerechnet gegen Opus
+32 kbit/s (45 s ≈ 176 KiB) und Safaris AAC 64 kbit/s (≈ 352 KiB), also rund
+zwanzigfache Luft, und klar unter `stt.MAX_UPLOAD_BYTES` (25 MiB): was
+Whisper ohnehin ablehnt, soll gar nicht erst ankommen. Ueber der Grenze wird
+**nichts gelesen** (413, Verbindung zu). Die **Dauer meldet der Client** und
+ist deshalb kein Schutz; sie wird trotzdem geprueft, weil weiter unten
+`aufnahme.HINWEIS_AB_S` daran haengt.
+
+**Token-Rotation von Hand** (`scripts/web_token_neu.py`, `repo.erneuere_web_token`):
+ohne `--ja` Trockenlauf, mit `--ja` Backup, Journaleintrag (**ohne Token**)
+und die neue URL auf stdout. Der alte Link ist **sofort** 404 — der Webserver
+haelt kein Token im Speicher, jede Anfrage oeffnet ihre eigene read-only
+Verbindung; ein Neustart ist nicht noetig. Der alte Nonce ist an den alten
+Token-String gebunden und damit ebenfalls tot. **Kein Chat-Befehl**:
+rotieren heisst, dass jedes Telefon im Raum seinen Link verliert, und das ist
+eine Betreiberhandlung mit Ansage, wie `scripts/loeschen.py`.
+
+**Fehlerseiten verraten nichts**: ein Catch-all um `do_GET`/`do_POST`
+antwortet mit 500 und einem festen Satz, der Traceback geht ins Log.
+`send_error` ist ueberschrieben — die Vorlage der Standardbibliothek setzt
+`%(message)s` und `%(explain)s` in den Koerper. Vor dieser Karte gab eine
+Ausnahme im Handler **gar keine Antwort** (`RemoteDisconnected`), was das
+sanfte Nachladen stumm schluckte.
+
+### nginx auf herkules (Admin, NICHT umgesetzt)
+
+Die App-Grenzen sind die erste Schicht; sie leben im Prozess und sind nach
+einem Neustart leer. Die zweite gehoert vor den Prozess. **Dieser Block ist
+ein Vorschlag fuer den Admin und steht in keiner Datei dieses Repositories** —
+er passt zu den Werten oben und muesste mitgezogen werden, wenn die sich
+aendern.
+
+**Architekt-Korrektur 30.09.2026** (drei Fehler im ersten Entwurf, selbst geprueft):
+(1) `limit_req_zone` kennt nur `r/s` und `r/m` — `rate=200r/h` laesst `nginx -t`
+scheitern. Audio je IP deshalb 10r/m: ein laufendes Interview schickt alle 45 s ein
+Segment (1,33/min), sechs Gruppen hinter einer IP ≈ 8/min.
+(2) Der Webdienst laeuft **nicht** auf herkules, sondern auf dem vServer, im Betrieb
+gebunden an `IT_WEB_BIND=100.75.24.33:8010` (Tailnet, AGENTS.md „Weboberflaeche\");
+`127.0.0.1` auf herkules waere der falsche Rechner. ANNAHME: herkules erreicht den
+vServer ueber diese Tailnet-Adresse und die bestehende `location /theatersoap/` dort
+nutzt sie schon — der Admin gleicht `proxy_pass` mit der vorhandenen Konfiguration ab,
+statt diesen Block blind einzusetzen.
+(3) Im Workshop sitzen alle Gruppen haeufig hinter **einer** IP (Raum-WLAN). Eine
+IP-Zone mit 30r/m laege dann **unter** der Summe der App-Grenzen (4 Gruppen × 20/min),
+und nginx saehe vor der App ab — genau das, was der Hinweis unten vermeiden will.
+Deshalb 120r/m je IP (= 6 Gruppen × 20/min).
+
+```nginx
+# http { } -- einmal, ausserhalb des server-Blocks
+limit_req_zone  $binary_remote_addr  zone=theatersoap_post:10m  rate=120r/m;
+limit_req_zone  $binary_remote_addr  zone=theatersoap_audio:10m rate=10r/m;
+limit_conn_zone $binary_remote_addr  zone=theatersoap_conn:10m;
+
+location /theatersoap/ {
+    proxy_pass http://100.75.24.33:8010/theatersoap/;
+    proxy_set_header Host             $host;
+    proxy_set_header X-Forwarded-Host $host;
+
+    # Etwas ueber der App-Grenze (8 MiB je Segment): nginx soll die
+    # Verbindung kappen, bevor die App liest -- aber nicht frueher als sie,
+    # sonst diagnostiziert man einen Fehler an der falschen Stelle.
+    client_max_body_size 10m;
+    client_body_timeout  60s;
+
+    limit_conn theatersoap_conn 20;
+}
+
+location ~ ^/theatersoap/g/[^/]+/chat/audio$ {
+    proxy_pass http://100.75.24.33:8010;
+    proxy_set_header Host             $host;
+    proxy_set_header X-Forwarded-Host $host;
+    limit_req  zone=theatersoap_audio burst=20 nodelay;
+    client_max_body_size 10m;
+}
+
+location ~ ^/theatersoap/g/[^/]+/chat/(senden|knopf|interview)$ {
+    proxy_pass http://100.75.24.33:8010;
+    proxy_set_header Host             $host;
+    proxy_set_header X-Forwarded-Host $host;
+    limit_req  zone=theatersoap_post burst=10 nodelay;
+}
+```
+
+Die zwei `proxy_set_header`-Zeilen stehen in **jedem** `location`-Block (nginx
+erbt sie nicht in einen Block, der eigene Direktiven setzt), und sie sind keine
+Kür: `web.eigene_herkunft` vergleicht den `Origin` des Browsers mit `Host` oder
+dem ersten Wert von `X-Forwarded-Host` — reicht nginx nur den internen Host
+weiter (`$proxy_host`, die Vorgabe), wäre jeder echte POST aus dem Browser
+ein 403.
+
+Drei Hinweise dazu: die nginx-Zonen zaehlen je **IP**, die App je **Gruppe** —
+das ist Absicht, zwei Achsen fangen zwei verschiedene Angriffe. Die
+nginx-Raten liegen **ueber** den App-Grenzen, damit die App die Absage gibt
+(mit `Retry-After` und einem Satz) und nicht nginx mit einer nackten 503. Und
+die Gruppen sitzen im Workshop haeufig hinter **einer** IP (Raum-WLAN) —
+deshalb die grosszuegigen `burst`-Werte.
 
 ### Der Web-Kanal: derselbe Bot ohne Telegram (30.09.2026, Karte Padua A2)
 

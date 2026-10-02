@@ -501,6 +501,26 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
         return  # nichts (mehr) zu tun
 
     if row["status"] == "empfangen":
+        # Der Tagesdeckel (Karte Padua S). Hier und NICHT als Ausnahme aus
+        # stt.transkribiere: die liefe durch ``_melde_transkriptionsfehler``,
+        # und das zaehlt ``repo.zaehle_versuch_hoch`` hoch. Der
+        # Nachhol-Arbeiter laeuft alle 60 s -- MAX_VERSUCHE waeren in fuenf
+        # Minuten verbraucht, und jedes Interview des Abends stuende am
+        # naechsten Morgen auf 'fehlgeschlagen'.
+        #
+        # Stattdessen: nichts tun. Datei und Zeile bleiben, der Status bleibt
+        # 'empfangen', und ``nachholen()`` greift sie nach Mitternacht von
+        # selbst auf (repo.offene_aufnahmen_fuer_bot liefert alles ausserhalb
+        # von fertig/fehlgeschlagen/laeuft). Kein neuer Mechanismus.
+        from interview_theater import kosten
+
+        if kosten.deckel_erreicht(conn, row["chat_id"], e):
+            if not nachgeholt:
+                # Nur im Live-Pfad melden: "Nachgeholtes loest nie eine
+                # Antwort aus" (SPEC § 10.3), und der Nachhol-Arbeiter kaeme
+                # sonst alle 60 s wieder.
+                kosten.melde_pause_wenn_deckel(conn, tg, e, row["chat_id"])
+            return
         text = _transkribiere_mit_meldung(conn, tg, e, klient, row)
         if text is None:
             return  # Fehler wurde schon gemeldet/aufgezeichnet
@@ -516,7 +536,7 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
     elif row["klasse"] == "kurz":
         _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt)
     else:
-        _interview_abschliessen(conn, tg, klm, e, row)
+        _interview_abschliessen(conn, tg, klm, e, row, nachgeholt=nachgeholt)
 
 
 def whisper_sprache(conn, chat_id: int) -> str:
@@ -561,15 +581,56 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
     timer_meldung.daemon = True
     timer_meldung.start()
 
+    start = time.monotonic()
+    erfolg = 0
     try:
-        return stt.transkribiere(e, klient, pfad, budget,
+        text = stt.transkribiere(e, klient, pfad, budget,
                                  sprache=whisper_sprache(conn, chat_id))
+        erfolg = 1
+        return text
     except Exception as fehler:
         _melde_transkriptionsfehler(conn, tg, e, row, fehler)
         return None
     finally:
         timer_tipp.cancel()
         timer_meldung.cancel()
+        _buche_stt(conn, e, row, time.monotonic() - start, erfolg)
+
+
+#: Was in ``aufruf.modell`` steht, wenn Whisper lief. Ein fester Name und
+#: kein Modell-Bezeichner: der Aufruf geht ueber ``e.stt_produkt`` an einen
+#: Produkt-Endpunkt, nicht an ein benanntes Modell.
+STT_MODELL = "whisper-v3"
+
+
+def _buche_stt(conn, e, row, dauer_s: float, erfolg: int) -> None:
+    """Der Whisper-Aufruf in ``aufruf`` -- seit dem 30.09.2026 (Karte Padua S).
+
+    **Warum hier und nicht in ``stt.py``:** ``stt.transkribiere`` bekommt
+    weder ``conn`` noch ``chat_id`` (``stt.py``), und das soll so bleiben --
+    ``llm.py`` traegt diese Kopplung schon, ``stt.py`` bewusst nicht. Der
+    einzige Aufrufer steht hier.
+
+    **Die Dauer kommt aus ``aufnahme.dauer_sekunden``**, nicht aus der
+    Whisper-Antwort: ``stt.abholen`` liefert nur den Text, und ob die Antwort
+    ein Dauerfeld traegt, waere ein bezahlter Aufruf. Fehlt die Dauer, werden
+    **0 CHF gebucht und nichts geraten** -- die eine Stelle, an der der
+    Tagesdeckel weniger sieht, als anfaellt.
+
+    **Gebucht wird auch bei Misserfolg**: ein Auftrag, der ins Zeitbudget
+    laeuft, wurde abgesendet und ist bezahlt (dieselbe Regel wie das
+    ``finally`` in ``llm._anfrage``)."""
+    from interview_theater import kosten
+
+    try:
+        repo.merke_aufruf(
+            conn, row["chat_id"], "stt", modus=None,
+            dauer_ms=int(dauer_s * 1000), erfolg=erfolg,
+            modell=STT_MODELL,
+            kosten_chf=kosten.stt_kosten_chf(row["dauer_sekunden"]),
+        )
+    except Exception:  # noqa: BLE001 -- die Buchung darf die Aufnahme nie mitreissen
+        log.exception("Aufruf-Buchung (Whisper) fehlgeschlagen, aufnahme=%s", row["id"])
 
 
 def _ist_ersatzname(name: str | None) -> bool:
@@ -1172,7 +1233,8 @@ def zeige_verdichtung(conn, tg, e, kopf_id: int) -> bool:
     return True
 
 
-def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> None:
+def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False,
+                            nachgeholt: bool = False) -> None:
     """Verdichtet ein Interview (oder einen Textimport) und meldet das
     Ergebnis in den Chat.
 
@@ -1187,13 +1249,26 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False) -> N
     Sprachmodell-Aufruf und darf nicht unbegrenzt oft alle
     NACHHOL_INTERVALL_S Sekunden wiederholt werden). Ab MAX_VERSUCHE wird
     endgueltig aufgegeben, das Transkript bleibt aber erhalten -- nur die
-    Zusammenfassung fehlt."""
+    Zusammenfassung fehlt.
+
+    **Der Tagesdeckel (Karte Padua S) ist kein Fehlschlag** und zaehlt
+    deshalb keinen Versuch: der Nachhol-Arbeiter laeuft alle 60 s, und
+    MAX_VERSUCHE waeren in fuenf Minuten verbraucht -- ein Interview vom
+    Abend stuende am Morgen auf 'fehlgeschlagen'. Es bleibt
+    'transkribiert', und ``nachholen()`` verdichtet es nach Mitternacht.
+    Gemeldet wird nur im Live-Pfad (``nachgeholt`` falsch), SPEC § 10.3."""
+    from interview_theater import kosten
+
     aufnahme_id = row["id"]
     chat_id = row["chat_id"]
     if not erzwungen and _zu_kurz_gemeldet(conn, tg, e, row):
         return
     try:
         verdichtung_id = verdichter.verdichte(klm, conn, e, aufnahme_id)
+    except kosten.KostendeckelErreicht:
+        if not nachgeholt:
+            kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id)
+        return
     except Exception as fehler:
         log.exception("Verdichtung fehlgeschlagen, aufnahme_id=%s", aufnahme_id)
         versuche = repo.zaehle_versuch_hoch(conn, aufnahme_id)

@@ -43,6 +43,13 @@ _VORGABEWERTE = {
     # IT_KANAL=web -- geprueft in laden().
     "IT_WEB_CHAT_ID": "",
     "IT_WEB_SEGMENT_MS": str(VORGABE_SEGMENT_MS),
+    # Tagesdeckel je Gruppe ueber alle bezahlten Modellaufrufe (Karte Padua
+    # S, 30.09.2026). Danach pausiert der Bot bis Mitternacht -- empfangen
+    # und speichern laeuft weiter.
+    "IT_KOSTEN_DECKEL_CHF": "5.0",
+    # Wonach "heute" sich richtet. Padua liegt in Italien; der Workshoptag
+    # soll nicht um 02:00 Ortszeit umschlagen, weil UTC es tut.
+    "IT_ZEITZONE": "Europe/Rome",
 }
 
 
@@ -73,6 +80,11 @@ class Einstellungen:
     kanal: str = KANAL_TELEGRAM
     web_chat_id: int | None = None
     web_segment_ms: int = VORGABE_SEGMENT_MS
+    # Am Ende mit Vorgabewert, damit bestehende direkte Konstruktionsaufrufe
+    # weiter gelten (wie bei erkenner_modell). Gelesen von kosten.deckel /
+    # kosten.zeitzone.
+    kosten_deckel_chf: float = 5.0
+    zeitzone: str = "Europe/Rome"
 
 
 #: Variablen, die nur der Telegram-Kanal braucht. Im Web-Kanal gibt es keinen
@@ -148,4 +160,22 @@ def laden() -> Einstellungen:
         kanal=kanal,
         web_chat_id=web_chat_id,
         web_segment_ms=segment_ms,
+        kosten_deckel_chf=_zahl(werte["IT_KOSTEN_DECKEL_CHF"], 5.0),
+        zeitzone=(werte["IT_ZEITZONE"] or "").strip() or "Europe/Rome",
     )
+
+
+def _zahl(roh, vorgabe: float) -> float:
+    """Eine Kommazahl aus der Umgebung, mit Vorgabewert bei Unsinn.
+
+    Ein Tippfehler in einer Env-Datei soll den Bot nicht am Workshoptag
+    stoppen -- aber er soll auch nicht den Deckel abschalten. Deshalb faellt
+    ein unlesbarer Wert auf die Vorgabe zurueck und nicht auf 'unendlich'."""
+    try:
+        wert = float(str(roh).strip())
+    except (TypeError, ValueError):
+        return vorgabe
+    # "nan" und "inf" parst float() klaglos -- beide hiessen "kein Deckel".
+    if wert != wert or wert in (float("inf"), float("-inf")):
+        return vorgabe
+    return wert

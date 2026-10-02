@@ -18,6 +18,7 @@ wieder zulassen** -- nicht "das Gefaehrliche entfernen".
 
 import html
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -25,7 +26,9 @@ import urllib.parse
 from contextlib import contextmanager
 from pathlib import Path
 
-from interview_theater import db, repo, web_daten, web_kanal
+from interview_theater import db, repo, stt, web_daten, web_grenze, web_kanal
+
+log = logging.getLogger(__name__)
 
 #: Der Unterpfad unter ``/g/<token>/``. Steht wortgleich in
 #: ``scripts/web_gruppe.CHAT_PFAD`` (Test).
@@ -149,6 +152,11 @@ _TEXT_FEHLER_TYP = "Dieses Audioformat kann ich nicht annehmen."
 _TEXT_FEHLER_GROSS = "Die Aufnahme ist zu groß — bitte in kürzeren Stücken."
 _TEXT_FEHLER_LEER_AUDIO = "Die Aufnahme ist leer angekommen."
 _TEXT_FEHLER_DAUER = "Ungültige Aufnahmedauer."
+
+#: Rate-Limit (Karte Padua S, Aufgabe 3): "zu viel auf einmal", kein
+#: technischer Begriff ("Rate-Limit") -- die Gruppe soll lesen, dass es
+#: gleich weitergeht, nicht, dass sie etwas falsch gemacht hat.
+_TEXT_ZU_SCHNELL = "Das war zu viel auf einmal — einen Moment, dann wieder."
 
 #: Die Seite ist gross gesetzt: sie liegt auf einem Telefon in einem
 #: Probenraum, und die Gruppe liest im Stehen.
@@ -566,10 +574,10 @@ _CHAT_JS = """
   }
 
   function postAudio(auftrag, zweiter) {
-    return fetch(weg('chat/audio?nonce=' + encodeURIComponent(nonce()) +
-                     '&dauer=' + auftrag.dauer), {
+    return fetch(weg('chat/audio?dauer=' + auftrag.dauer), {
       method: 'POST', cache: 'no-store',
-      headers: { 'Content-Type': auftrag.blob.type || 'audio/webm' },
+      headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
+                 'X-Nonce': nonce() },
       body: auftrag.blob
     }).then(function (r) {
       if (r.status === 403 && !zweiter) {
@@ -1462,10 +1470,14 @@ def schreibend(db_pfad: str):
         conn.close()
 
 
-def _gruppe_oder_404(handler, db_pfad: str, token: str) -> int | None:
+def _gruppe_oder_404(handler, db_pfad: str, token: str,
+                     schliessen: bool = False) -> int | None:
     """Die chat_id zum Token, oder 404 und None -- auch fuer eine Gruppe, die
     nicht im Web-Kanal arbeitet (Abschlussreview I3): dort liest kein Bot
-    ``web_post``, und was hier ankaeme, verschwaende still."""
+    ``web_post``, und was hier ankaeme, verschwaende still.
+
+    ``schliessen`` fuer die POST-Wege: die 404 kommt dort vor dem Lesen des
+    Koerpers (``web.schliesse_nach_antwort``)."""
     from interview_theater import web
 
     conn = web_daten.oeffne_lesend(db_pfad)
@@ -1474,6 +1486,8 @@ def _gruppe_oder_404(handler, db_pfad: str, token: str) -> int | None:
     finally:
         conn.close()
     if chat_id is None:
+        if schliessen:
+            web.schliesse_nach_antwort(handler)
         handler._antworte(404, web.nicht_gefunden_html())
     return chat_id
 
@@ -1506,23 +1520,82 @@ def _angenommen(handler, nutzlast: dict) -> None:
     )
 
 
+#: Welcher POST-Weg in welchen Topf zaehlt (Karte Padua S, Aufgabe 3).
+#: Senden, Knopf und Umschalter teilen sich einen: alle drei loesen einen
+#: Bot-Zug mit einem bezahlten Modellaufruf aus, und zwei Toepfe liessen
+#: jemanden abwechseln und die Rate verdoppeln. Audio hat einen eigenen --
+#: ein Upload kostet Platte und einen bezahlten Whisper-Aufruf, eine andere
+#: Ressource.
+_TOEPFE = {
+    "senden": web_grenze.TOPF_NACHRICHT,
+    "knopf": web_grenze.TOPF_NACHRICHT,
+    "interview": web_grenze.TOPF_NACHRICHT,
+    "audio": web_grenze.TOPF_UPLOAD,
+}
+
+
 def beantworte_post(handler, db_pfad: str, token: str, unterpfad: str,
                     schluessel: bytes) -> None:
     """Alles, was der Browser schickt. Reihenfolge der Pruefungen:
-    **Pfad, Token, Nonce, Wert** -- erst 404, dann 403, dann 400."""
+    **Pfad, Token, Rate-Limit, Handler** -- erst 404, dann 429, dann die
+    Pruefungen des Handlers (Nonce, Wert).
+
+    **Das Rate-Limit steht VOR dem Handler** (Aufgabe 3) und damit vor jeder
+    Wirkung: eine abgewiesene Nachricht darf weder in ``web_post`` landen
+    noch eine Datei auf die Platte legen. Das Limit braucht die ``chat_id`` und
+    steht deshalb erst nach der Token-Pruefung (``_gruppe_oder_404``). Dass es
+    auch vor dem Nonce zaehlt, ist Absicht: wer das Token hat, bekommt ueber
+    die Seite ohnehin einen gueltigen Nonce -- die Reihenfolge gibt also
+    keinen zusaetzlichen Hebel, und das Limit steht an genau einer Stelle."""
     from interview_theater import web
 
+    # Alle drei Absagen hier liegen VOR dem Lesen des Koerpers: danach wird
+    # die Verbindung geschlossen, sonst laese der Server den Koerper als
+    # naechste Anfragezeile (``web.schliesse_nach_antwort``).
     if unterpfad not in _POSTWEGE:
+        web.schliesse_nach_antwort(handler)
         handler._antworte(404, web.nicht_gefunden_html())
         return
-    chat_id = _gruppe_oder_404(handler, db_pfad, token)
+    chat_id = _gruppe_oder_404(handler, db_pfad, token, schliessen=True)
     if chat_id is None:
+        return
+    warte = web_grenze.pruefe(_TOEPFE[unterpfad], chat_id)
+    if warte:
+        web.schliesse_nach_antwort(handler)
+        _zu_schnell(handler, db_pfad, chat_id, warte)
         return
     try:
         _POSTWEGE[unterpfad](handler, db_pfad, token, chat_id, schluessel)
     except sqlite3.Error as fehler:
         handler.log_error("Datenbankfehler im Web-Chat: %s", fehler)
         handler._fehler(500, "Die Datenbank ist gerade nicht beschreibbar.")
+
+
+def _zu_schnell(handler, db_pfad: str, chat_id: int, warte: int) -> None:
+    """429 mit ``Retry-After`` und einem Satz.
+
+    Der Vorfall geht **einmal je Fenster** in die Datenbank, nicht je
+    Anfrage: eine Flut von fuenfzig schriebe sonst dreissig Zeilen und
+    faerbte das Dashboard rot, ohne mehr zu sagen als eine. Gemerkt wird an
+    der Sperre selbst (ein Zaehler-Topf mit Fenstergroesse 1), damit dafuer
+    keine zweite Buchhaltung noetig ist."""
+    handler.send_response(429)
+    handler.send_header("Content-Type", "text/plain; charset=utf-8")
+    roh = _TEXT_ZU_SCHNELL.encode("utf-8")
+    handler.send_header("Content-Length", str(len(roh)))
+    handler.send_header("Retry-After", str(warte))
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+    handler.wfile.write(roh)
+    if web_grenze.pruefe(web_grenze.TOPF_VORFALL, chat_id) == 0:
+        try:
+            with schreibend(db_pfad) as conn:
+                repo.merke_vorfall(
+                    conn, chat_id, None, "web_rate_limit",
+                    f"Rate-Limit gegriffen, {warte}s bis zum naechsten Platz",
+                )
+        except Exception:  # noqa: BLE001 -- ein Vorfall darf die Absage nie mitreissen
+            log.exception("Vorfall zum Rate-Limit nicht geschrieben, chat_id=%s", chat_id)
 
 
 def _senden(handler, db_pfad: str, token: str, chat_id: int,
@@ -1563,6 +1636,60 @@ def haupttyp(handler) -> str:
     Parameter (``audio/webm;codecs=opus`` -> ``audio/webm``)."""
     roh = handler.headers.get("Content-Type") or ""
     return roh.split(";", 1)[0].strip().lower()
+
+
+#: Dateianfaenge, an denen sich ein Audioformat wirklich erkennen laesst --
+#: Endung zuerst, dann der Pruefer.
+#:
+#: **Warum nicht der Content-Type-Header:** der sagt, was der Absender
+#: behauptet. An der Endung haengt der MIME-Typ, den Whisper sieht
+#: (``stt.mime_typ``), und ein falscher laesst den Auftrag dauerhaft auf
+#: 'pending' stehen -- 89,7 s statt 2,0 s, im Betrieb nur als "haengt"
+#: sichtbar, und bezahlt (AGENTS.md, Falle 3). Der Header bleibt als
+#: billiger Vorfilter (415, ohne den Koerper zu lesen); entscheiden tun die
+#: Bytes.
+#:
+#: Die Reihenfolge ist Absicht: der MP3-Frame-Sync steht zuletzt, weil er
+#: mit zwei Bytes die unschaerfste Regel ist.
+MAGISCHE_ANFAENGE = (
+    # EBML -- WebM/Matroska, das Format von MediaRecorder in Chrome/Firefox.
+    (".webm", lambda k: k[:4] == b"\x1a\x45\xdf\xa3"),
+    # OggS -- Opus/Vorbis, auch die Telegram-Sprachnachricht.
+    (".ogg", lambda k: k[:4] == b"OggS"),
+    # ISO-BMFF: 'ftyp' ab Byte 4, davor die Boxlaenge. mp4/m4a, Safari.
+    (".m4a", lambda k: len(k) >= 12 and k[4:8] == b"ftyp"),
+    # RIFF....WAVE
+    (".wav", lambda k: len(k) >= 12 and k[:4] == b"RIFF" and k[8:12] == b"WAVE"),
+    # ID3-Tag am Anfang.
+    (".mp3", lambda k: k[:3] == b"ID3"),
+    # MPEG-Frame-Sync: elf gesetzte Bits. Zuletzt, weil am unschaerfsten.
+    (".mp3", lambda k: len(k) >= 2 and k[0] == 0xFF and (k[1] & 0xE0) == 0xE0),
+)
+
+#: Wie viele Bytes vom Anfang fuer die Erkennung reichen. Zwoelf genuegen
+#: allen Regeln oben; gelesen wird trotzdem der ganze (begrenzte) Koerper --
+#: haeppchenweise zu lesen brachte hier nichts und macht die Groessenpruefung
+#: unuebersichtlich.
+MAGISCHE_BYTES = 12
+
+_TEXT_FEHLER_INHALT = "Diese Datei ist keine Audioaufnahme."
+
+
+def endung_aus_bytes(kopf: bytes) -> str | None:
+    """Die Endung aus dem Dateianfang, oder None.
+
+    Eine **Allowlist**: was hier nicht steht, kommt nicht durch. Und die
+    Endung, die hier herauskommt, ist die, unter der die Datei abgelegt wird
+    -- ``stt.mime_typ`` leitet den MIME-Typ fuer Whisper daraus ab."""
+    if not isinstance(kopf, (bytes, bytearray)) or not kopf:
+        return None
+    for endung, passt in MAGISCHE_ANFAENGE:
+        try:
+            if passt(bytes(kopf)):
+                return endung
+        except (IndexError, TypeError):
+            continue
+    return None
 
 
 def _audio_verz() -> str:
@@ -1609,34 +1736,49 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     Geheimnis ueber die Seite hinaus, und das Token steht ohnehin schon im
     Pfad und damit in jeder Logzeile.
 
-    Reihenfolge der Pruefungen: **``Content-Length`` lesen, Typ (415),
-    Groesse (400/413), Nonce (403), Dauer (400), dann erst der Koerper** --
-    die Kopfzeilen kosten nichts, der Koerper kostet Speicher. Jeder
-    ablehnende Zweig verwirft zuerst den angekuendigten Koerper
-    (``_verwerfe_koerper``), bevor er antwortet: sonst sieht der Client bei
-    einer grossen ``Content-Length`` denselben Verbindungsabbruch wie frueher
-    im 413-Zweig, nur jetzt bei 415/403/400 -- ``urllib`` schreibt den ganzen
-    Koerper in einem Zug, ohne auf eine Zwischenantwort zu warten. Geschrieben
-    wird erst die Zeile, dann die Datei (der Pfad enthaelt die id), und erst
-    danach der Verweis; bis dahin haelt ``WebKanal.hole_updates`` die Zeile
-    zurueck (Abschlussreview C1). Scheitert die Datei, bleibt eine Zeile ohne
-    ``datei`` stehen, geht nach ``web_kanal.DATEI_FRIST_S`` trotzdem an den
-    Bot, und ``lade_datei`` wirft -- ``aufnahme`` bittet die Gruppe dann, es
-    nochmal zu schicken."""
+    Reihenfolge der Pruefungen: **``Content-Length`` lesen, Typ-Vorfilter
+    (415), Groesse (400/413), Nonce (403), Dauer (400), dann erst der
+    Koerper, dann die Magic Bytes (415)** -- die Kopfzeilen kosten nichts,
+    der Koerper kostet Speicher. Jeder ablehnende Zweig vor dem Lesen
+    verwirft zuerst den angekuendigten Koerper (``_verwerfe_koerper``), bevor
+    er antwortet: sonst sieht der Client bei einer grossen ``Content-Length``
+    denselben Verbindungsabbruch wie frueher im 413-Zweig, nur jetzt bei
+    415/403/400 -- ``urllib`` schreibt den ganzen Koerper in einem Zug, ohne
+    auf eine Zwischenantwort zu warten.
+
+    **Der Content-Type-Header ist nur ein Vorfilter, keine Entscheidung**
+    (Karte Padua S, Aufgabe 4). Er sagt, was der Absender behauptet; die
+    Endung, unter der die Datei abgelegt wird, und der ``mime``-Wert in der
+    Datenbank kommen aus den Magic Bytes des tatsaechlichen Koerpers
+    (``endung_aus_bytes``). Ein WebM mit ``Content-Type: audio/ogg`` landet
+    als ``.webm`` -- sonst sieht Whisper ``audio/ogg`` zu einer WebM-Datei
+    und der Auftrag bleibt dauerhaft auf 'pending' stehen (AGENTS.md,
+    Falle 3).
+
+    Geschrieben wird erst die Zeile, dann die Datei (der Pfad enthaelt die
+    id), und erst danach der Verweis; bis dahin haelt
+    ``WebKanal.hole_updates`` die Zeile zurueck (Abschlussreview C1).
+    Scheitert die Datei, bleibt eine Zeile ohne ``datei`` stehen, geht nach
+    ``web_kanal.DATEI_FRIST_S`` trotzdem an den Bot, und ``lade_datei``
+    wirft -- ``aufnahme`` bittet die Gruppe dann, es nochmal zu schicken."""
     from interview_theater import web
 
     try:
         laenge = int(handler.headers.get("Content-Length") or 0)
     except ValueError:
+        web.schliesse_nach_antwort(handler)
         handler._fehler(400, _TEXT_FEHLER_ANFRAGE)
         return
 
-    endung = endung_fuer(handler.headers.get("Content-Type"))
-    if endung is None:
+    # Billiger Vorfilter: was schon im Header nicht nach Audio aussieht,
+    # kostet uns nicht einmal das Lesen. Die Endung, die am Ende gespeichert
+    # wird, kommt trotzdem aus den Magic Bytes -- siehe unten.
+    if endung_fuer(handler.headers.get("Content-Type")) is None:
         _verwerfe_koerper(handler, laenge)
         handler._fehler(415, _TEXT_FEHLER_TYP)
         return
     if laenge <= 0:
+        web.schliesse_nach_antwort(handler)
         handler._fehler(400, _TEXT_FEHLER_LEER_AUDIO)
         return
     if laenge > MAX_AUDIO_BYTES:
@@ -1645,7 +1787,12 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         return
 
     felder = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
-    if not web.nonce_gueltig(schluessel, token, (felder.get("nonce") or [""])[0]):
+    # Der Nonce steht seit dem 30.09.2026 in einer Kopfzeile statt in der
+    # Query (E-S9): eine Query landet in der Serverlogzeile, eine Kopfzeile
+    # nicht. Die Query bleibt als Rueckfall, damit ein Telefon mit altem,
+    # gecachtem JavaScript den Tag noch zu Ende bringt.
+    kennung = handler.headers.get(web.NONCE_KOPFZEILE) or (felder.get("nonce") or [""])[0]
+    if not web.nonce_gueltig(schluessel, token, kennung):
         _verwerfe_koerper(handler, laenge)
         handler._fehler(403, _TEXT_FEHLER_VERALTET)
         return
@@ -1669,13 +1816,21 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
 
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
+        web.schliesse_nach_antwort(handler)
         handler._fehler(400, _TEXT_FEHLER_LEER_AUDIO)
+        return
+
+    # Jetzt erst die Entscheidung, mit den tatsaechlichen Daten statt mit
+    # einer Behauptung des Absenders.
+    endung = endung_aus_bytes(koerper[:MAGISCHE_BYTES])
+    if endung is None:
+        handler._fehler(415, _TEXT_FEHLER_INHALT)
         return
 
     with schreibend(db_pfad) as conn:
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
-            dauer=dauer, mime=haupttyp(handler),
+            dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.

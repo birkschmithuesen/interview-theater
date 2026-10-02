@@ -32,7 +32,7 @@ import time
 
 import httpx
 
-from interview_theater import repo
+from interview_theater import kosten, repo
 
 log = logging.getLogger(__name__)
 
@@ -90,6 +90,10 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
           nutzer: str, art: str, timeout: float) -> str:
     """Ein Aufruf, ein Text. Bucht in ``aufruf`` mit modus 'C' (Claude), damit
     Dashboard und Kostenrechnung den Weg sehen -- mit 0 CHF, weil Abo."""
+    # Auch hier, obwohl der Claude-Weg 0 CHF bucht (Abo): ist das Tagesbudget
+    # der Gruppe erreicht, antwortet der Bot im Chat nicht mehr -- eine Szene,
+    # die trotzdem geschrieben wird, koennte sie gar nicht abnehmen.
+    kosten.pruefe(conn, chat_id, e)
     url = getattr(e, "szene_url", None) or URL_VORGABE
     modell = getattr(e, "szene_modell", None) or MODELL_VORGABE
     koerper = {
@@ -161,6 +165,12 @@ def _buche(conn, chat_id, e, art, modell, nutzung, finish, dauer_s, erfolg):
             conn, chat_id, art, modus="C", geschaetzte_token=ein,
             tatsaechliche_token=ein, antwort_token=int(nutzung.get("output_tokens") or 0),
             finish_reason=finish, dauer_ms=int(dauer_s * 1000), erfolg=1 if erfolg else 0,
+            modell=modell,
+            # 0 CHF, weil Abonnement -- der Wert steht in kosten.py an genau
+            # einer Stelle, damit aus dem Abo eine Abrechnung werden kann,
+            # ohne dass jemand suchen muss. ``modell`` steht trotzdem in der
+            # Zeile: das Dashboard soll den Weg sehen.
+            kosten_chf=kosten.CLAUDE_CHF_JE_AUFRUF,
         )
     except Exception:  # noqa: BLE001 -- Buchung darf den Aufruf nie mitreissen
         log.exception("Aufruf-Buchung (Claude) fehlgeschlagen")

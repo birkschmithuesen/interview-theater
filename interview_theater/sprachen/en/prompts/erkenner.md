@@ -136,7 +136,10 @@ object with "art" and "wert":
     characters, story, core theme, format and conflict are all the same
     phase (4).** Delivering the content of a phase is not a move: "ok
     characters" followed by the characters themselves is only figur_setzen,
-    no phase_setzen.
+    no phase_setzen. **A plan for LATER sets nothing**: "tomorrow morning
+    I'd like to start on the scenes" - "sure, let's finish the characters
+    today then" names two phases and commits to neither -- only a statement
+    about what is happening NOW is a phase_setzen.
 20. entfernen              -- wert: what should go, starting with the
     target, written in capitals as protocol: "FIGUR Tomas", "KERNTHEMA",
     "FORMAT", "RAHMEN", "HAUPTKONFLIKT", "BEGRIFFE", "FRAGEN", "SZENE 2",
@@ -216,9 +219,31 @@ character with name and description, a scene field, the number of scenes
 (point 24) --, take that field and NOT festlegung_setzen. Only what falls
 outside goes to festlegung_setzen: a character's membership of a group,
 their origin, their age, the features of a faction, a length requirement.
+
+**A sub-location NEXT TO an already-set setting is NEVER rahmen_setzen.**
+rahmen_setzen REPLACES the whole setting -- if one is already set ("by the
+canal, in summer, in the afternoon") and the group only adds another spot
+("and the skatepark under the bridge belongs there too"), rahmen_setzen
+would delete the setting, not extend it. That is festlegung_setzen with
+area ORT (point 23 above).
+
+A mere plan is not yet an agreement. "we should start on scenes soon" -
+"yeah maybe three or four" - "one at the station for sure" is talk about
+something future, not something that holds from now on -- nothing is
+decided yet, only considered. Only once the group treats it as valid
+("that's how it is from now on", a clear yes to a concrete proposal) do you
+write festlegung_setzen. And no line without content: if the group names
+only a faction or character with nothing said about them, write NOTHING for
+it -- an agreement without a description is noise on the group page. A line
+that only repeats the membership, without naming a trait of its own ("the
+quiet ones are the other of the two groups"), is likewise without content.
+
 And festlegung_setzen is the thing itself, which goes into the text;
 "entschieden" is a note about the work ("we'll carry on tomorrow"). When in
-doubt festlegung_setzen.
+doubt festlegung_setzen. **A rule about how the group works stays
+"entschieden" even if it sounds firm**: "decided, all interviews will be
+conducted in German" decides HOW the group works, not what goes into the
+piece -- that is "entschieden", not festlegung_setzen.
 
 **Removing only what is there.** entfernen only for something that stands
 in the progress above (a character with this name, the set core theme, a

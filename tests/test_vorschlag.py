@@ -154,7 +154,10 @@ def test_speichern_schreibt_exakt_den_vorgeschlagenen_wert(conn, tg, einst):
     knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Ja, speichern")))
 
     assert repo.hole_arbeitsstand(conn, 1)["begriffe"] == "Heimat, Arbeit, Angst"
-    assert any("Notiert:" in t for _, t in tg.gesendet)
+    # Seit Padua Hotfix B5 (02.10.2026) macht dieses Speichern Phase 1
+    # abschliessbar: statt "Notiert:" steht die Abschlussnachricht da, und
+    # sie zeigt exakt den gespeicherten Wert.
+    assert any("Heimat, Arbeit, Angst" in t for _, t in tg.gesendet[1:])
 
 
 def test_speichern_ist_idempotent(conn, tg, einst):

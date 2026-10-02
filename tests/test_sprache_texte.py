@@ -152,6 +152,12 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
     ("erkenner", "Schnappschuss nach dem Anwenden fehlgesc"):
         "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
+    # UX-Knoepfe-Karte, Abschnitt 2: dieselben Vorfall-Details, nur fuer den
+    # Knopf-ausgeloesten Zweig (``erkenner.lauf_fuer_knopf``).
+    ("erkenner", "Schnappschuss vor dem Knopf-Speichern fe"):
+        "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
+    ("erkenner", "Schnappschuss nach dem Knopf-Speichern f"):
+        "Vorfall-Detail undo_nicht_angelegt (repo.merke_vorfall)",
     # Zahlwoerter in ``figuren._zahl_aus``: Parser fuer Gruppentext (D5),
     # die deutsche Liste bleibt im Funktionsrumpf; das englische Gegenstueck
     # steht seit Aufgabe 22 als Modulkonstante ``_ZAHLWOERTER_EN`` daneben.

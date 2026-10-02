@@ -661,7 +661,16 @@ def test_nach_dem_setting_kommt_keine_automatische_figurenanzahl_mehr(
 
     _druecke(conn, tg, einst, "Ja, speichern")
 
-    assert len(tg.knoepfe) == anzahl_knoepfe_vorher
+    # Seit der UX-Knoepfe-Karte (Abschnitt 2) haengt unter der "Notiert:"-
+    # Meldung ein Undo-Knopf -- eine neue Leiste ist also erlaubt, solange
+    # sie NICHT die automatische Figurenanzahl-Frage ist.
+    neue_leisten = tg.knoepfe[anzahl_knoepfe_vorher:]
+    neue_arten = {
+        repo.hole_knopf(conn, int(daten.split(":")[1]))["art"]
+        for _, _, leiste in neue_leisten
+        for _, daten in leiste
+    }
+    assert neue_arten <= {knoepfe.ART_UNDO}
     assert repo.hole_arbeitsstand(conn, 1)["rahmen"] == "Eine Nacht im Treppenhaus"
     assert any("Notiert" in text for _, text in tg.gesendet)
     assert not any("Wie viele Figuren" in text for _, text in tg.gesendet)

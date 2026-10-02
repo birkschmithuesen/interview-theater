@@ -20,7 +20,7 @@ ein Druck aus einer schon verschickten alten Nachricht nicht ins Leere
 laeuft -- angeboten werden sie nicht mehr.
 """
 
-from interview_theater import anweisungen, leitfaden, repo
+from interview_theater import anweisungen, erkenner, leitfaden, repo
 
 from interview_theater.knoepfe.texte import (
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
@@ -28,7 +28,7 @@ from interview_theater.knoepfe.texte import (
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _nimm_alte_leiste_ab, _sende_knoepfe,
-    _starte_auftrag,
+    _starte_auftrag, sende_notiert_nur_undo,
 )
 
 
@@ -386,34 +386,45 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
             if i in weich:
                 neue_weich[len(angenommen)] = weich[i]
 
-    repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
-    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
-
     if not angenommen:
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
         tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_ANGENOMMEN)
         anweisung = frage_fuer_andere_richtung(conn, chat_id)
         _starte_auftrag(conn, tg, klm, e, chat_id, anweisung)
         return T._TEXT_FRAGEN_KEINE_ANGENOMMEN
 
     wert = "\n".join(angenommen)
-    repo.setze_arbeitsstand(conn, chat_id, "fragen", wert)
-    if neue_weich:
-        _setze_weich(conn, chat_id, neue_weich)
-    else:
-        # Leerer String, nicht NULL: "keine der Fragen ist sensibel" ist ein
-        # Ergebnis der Pruefung, kein fehlender Wert
-        # (``phasen._feld_geprueft``) -- sonst haelt die leere Pruefung
-        # Phase 3 fuer immer zurueck.
-        repo.setze_arbeitsstand(conn, chat_id, "fragen_weich", "")
+
+    def _schreibe():
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
+        repo.setze_arbeitsstand(conn, chat_id, "fragen", wert)
+        if neue_weich:
+            _setze_weich(conn, chat_id, neue_weich)
+        else:
+            # Leerer String, nicht NULL: "keine der Fragen ist sensibel" ist
+            # ein Ergebnis der Pruefung, kein fehlender Wert
+            # (``phasen._feld_geprueft``) -- sonst haelt die leere Pruefung
+            # Phase 3 fuer immer zurueck.
+            repo.setze_arbeitsstand(conn, chat_id, "fragen_weich", "")
+
+    text = (
+        T._TEXT_FRAGEN_ABGESCHLOSSEN.format(anzahl=len(angenommen)) + "\n"
+        + "\n".join(f"{n}. {f}" for n, f in enumerate(angenommen, start=1))
+    )
+    # Derselbe Undo-Knopf wie unter "Ja, speichern" (UX-Knoepfe-Karte,
+    # Abschnitt 2): ein Druck macht die Fragen wieder zum offenen, einzeln
+    # entschiedenen Zustand -- nicht nur leer.
+    lauf_id = erkenner.lauf_fuer_knopf(conn, e, chat_id, text, _schreibe)
     repo.schreibe_journal(
         conn, chat_id, "entschieden", T._JOURNAL_FRAGEN.format(wert=wert),
         quelle="knopf",
     )
-    tg.sende(
-        chat_id,
-        T._TEXT_FRAGEN_ABGESCHLOSSEN.format(anzahl=len(angenommen)) + "\n"
-        + "\n".join(f"{n}. {f}" for n, f in enumerate(angenommen, start=1)),
-    )
+    if lauf_id is None:
+        tg.sende(chat_id, text)
+    else:
+        sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
     starte_eroeffnung(conn, tg, klm, e, chat_id)
     return T._TEXT_FRAGEN_QUITTUNG
 

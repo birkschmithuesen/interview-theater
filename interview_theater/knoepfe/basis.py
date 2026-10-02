@@ -14,7 +14,7 @@ genau vier, und sie stehen als lokaler Import in der jeweiligen Funktion:
 sonst waere die Schicht keine.
 """
 
-from interview_theater import phasen, repo
+from interview_theater import erkenner, phasen, repo
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_EIGENE, ART_KERNTHEMA, ART_PHASE, ART_SPEICHERN, ART_UNDO,
@@ -811,18 +811,26 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
         tg.sende(chat_id, T._TEXT_SCHON_GESETZT)
         return T._TEXT_SCHON_GESETZT
 
-    repo.setze_arbeitsstand(conn, chat_id, _FELD_FUER.get(art, art), wert)
-    if weiterfrage:
-        # Abgenommen: die offene Aenderungsbitte ist erledigt, die Leiste
-        # verschwindet wieder (``offene_art``).
-        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+    def _schreibe():
+        repo.setze_arbeitsstand(conn, chat_id, _FELD_FUER.get(art, art), wert)
+        if weiterfrage:
+            # Abgenommen: die offene Aenderungsbitte ist erledigt, die Leiste
+            # verschwindet wieder (``offene_art``).
+            repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+
+    text = T._TEXT_NOTIERT_ZEILE.format(feld=T._NOTIERT[art], wert=wert)
+    # Derselbe Undo-Knopf wie unter jeder automatischen Erkenner-Meldung
+    # (Karte U) -- UX-Knoepfe-Karte, Abschnitt 2: "Ja, speichern" schreibt
+    # ueber dieselben repo-Funktionen wie der Erkenner, bekommt also auch
+    # dieselbe Ruecknahme, keine zweite Maschine.
+    lauf_id = erkenner.lauf_fuer_knopf(conn, e, chat_id, text, _schreibe)
     repo.schreibe_journal(
         conn, chat_id, "entschieden", f"{T._NOTIERT[art]}: {wert}", quelle="knopf",
     )
-    tg.sende(
-        chat_id,
-        T._TEXT_NOTIERT_ZEILE.format(feld=T._NOTIERT[art], wert=wert),
-    )
+    if lauf_id is None:
+        tg.sende(chat_id, text)
+    else:
+        sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
     # Danach die eine Frage, die den Zwischenraum offenhaelt -- und darunter,
     # wenn die Materiallage es hergibt, der Weg weiter
     # (``phasen.voraussetzungen``): der Knopf sagt, was jetzt dran ist,

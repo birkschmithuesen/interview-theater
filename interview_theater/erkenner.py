@@ -1809,6 +1809,67 @@ def _wende_an_mit_schnappschuss(conn, e, chat_id: int, aenderungen: list[dict]
     return wirkliche, vorher, nachher
 
 
+def lauf_fuer_knopf(conn, e, chat_id: int, text: str, schreibe) -> int | None:
+    """Dieselbe Schnappschuss-Maschine wie ein Erkennerlauf (Karte U), nur
+    ausgeloest durch einen Knopf statt durch ``wende_an`` (UX-Knoepfe-Karte,
+    02.10.2026, Abschnitt 2: "Ja, speichern" / phase-2 Annehmen · Verwerfen
+    bekommen damit denselben Undo-Knopf wie jede automatische
+    Erkenner-Meldung -- keine zweite Ruecknahme-Maschine).
+
+    ``schreibe`` ist ein parameterloser Aufrufer, der die eigentlichen
+    ``repo.setze_*``-Schreibzugriffe ausfuehrt; er laeuft **innerhalb** des
+    Schnappschuss-Fensters, genau wie ``wende_an`` in
+    ``_wende_an_mit_schnappschuss``. ``text`` ist die schon fertige
+    "Notiert:"-Zeile -- hier gibt es keine ``aenderungen``-Liste, aus der
+    sich wie bei ``undo_zeilen`` ein Wortlaut herleiten liesse.
+
+    Liefert die Lauf-id fuer ``knoepfe.basis.undo_leiste``, oder ``None``
+    (kein Diff, oder ein Schnappschuss ist ausgefallen -- dann schreibt
+    ``schreibe`` trotzdem, nur ohne Undo-Knopf)."""
+    plan = ruecknahme.plan(["knopf_speichern"])
+    with repo._LOCK:
+        try:
+            vorher = repo.schnappschuss(conn, chat_id, plan)
+        except Exception:
+            log.exception(
+                "Schnappschuss vor dem Knopf-Speichern fehlgeschlagen, "
+                "chat_id=%s", chat_id,
+            )
+            schreibe()
+            _merke_undo_vorfall(
+                conn, e, chat_id,
+                "Schnappschuss vor dem Knopf-Speichern fehlgeschlagen",
+            )
+            return None
+        schreibe()
+        try:
+            nachher = repo.schnappschuss(conn, chat_id, plan)
+        except Exception:
+            log.exception(
+                "Schnappschuss nach dem Knopf-Speichern fehlgeschlagen, "
+                "chat_id=%s", chat_id,
+            )
+            _merke_undo_vorfall(
+                conn, e, chat_id,
+                "Schnappschuss nach dem Knopf-Speichern fehlgeschlagen",
+            )
+            return None
+    schritte = ruecknahme.schritte(vorher, nachher)
+    if not schritte:
+        return None
+    try:
+        return repo.lege_erkenner_lauf_an(conn, chat_id, text, schritte)
+    except Exception:
+        log.exception(
+            "Ruecknahme (Knopf) konnte nicht angelegt werden, chat_id=%s",
+            chat_id,
+        )
+        _merke_undo_vorfall(
+            conn, e, chat_id, "Notiert-Meldung ohne Undo-Knopf verschickt",
+        )
+        return None
+
+
 def _lege_ruecknahme_an(conn, e, chat_id: int, vorher: dict | None,
                         nachher: dict | None, wirkliche: list[dict]) -> int | None:
     """Schreibt die Ruecknahme-Schritte dieses Laufs und liefert die Lauf-id,

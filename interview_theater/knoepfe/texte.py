@@ -511,6 +511,27 @@ _TEXT_USA_JA = (
     "Szene nochmal."
 )
 _TEXT_USA_NEIN = "Verstanden, alles bleibt in der Schweiz. Ich frage nicht wieder."
+#: Das Angebot beim Uebergang in Phase 4 (Modellwahl-Karte, 02.10.2026):
+#: dieselben beiden Knoepfe (ART_SZENE_USA, biete_szene_usa) wie bisher vor
+#: der ersten Szene -- die Frage wandert zeitlich nach vorn, die Spalte
+#: (gruppe.szene_usa_bestaetigt_am) bleibt dieselbe, also zaehlt eine
+#: Antwort hier auch fuer die Szene (keine zweite Frage in Phase 6).
+#: Benennt ausdruecklich, was NICHT in die USA geht (Audio, ganze Interviews,
+#: Chatnamen -- Interviews bleiben in der Schweiz) und was abgeleitet schon
+#: dort landet (woertliche Interviewzitate, sobald Phase 5 sie verwendet).
+_TEXT_ANGEBOT_MODELLWAHL = (
+    "Bevor es weitergeht, eine Entscheidung fuer euch.\n\n"
+    "Bis jetzt lief alles in der Schweiz: eure Aufnahmen und Interviews "
+    "bleiben das auch -- unbedingt.\n\n"
+    "Fuer die Arbeit ab jetzt (das Gespraech mit mir, euer Arbeitsstand, "
+    "eure Festlegungen, das Brainstorming-Protokoll und die Figuren) gibt "
+    "es ein besseres Modell -- von Anthropic, in den USA. Wenn ihr es "
+    "nehmt, geht das dafuer an einen Server dort; ab Phase 5 zaehlen dazu "
+    "auch woertliche Zitate aus euren Interviews, wenn ihr sie fuer Szenen "
+    "verwendet. Keine Audioaufnahmen, keine vollstaendigen Interviews, "
+    "keine Namen aus diesem Chat.\n\n"
+    "Wollt ihr das? Bei nein bleibt alles in der Schweiz -- das geht auch."
+)
 #: Die drei Knoepfe: fest benannt, Sprachnamen in ihrer eigenen Sprache --
 #: nicht uebersetzt, wer Italienisch spricht, sucht "Italiano".
 STT_KNOEPFE = (("auto", "Auto"), ("en", "English"), ("it", "Italiano"))

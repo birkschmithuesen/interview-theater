@@ -73,6 +73,23 @@ WHISPER_STAND = "30.09.2026"
 #: ohne dass jemand suchen muss.
 CLAUDE_CHF_JE_AUFRUF = 0.0
 
+#: Modellwahl-Karte (02.10.2026): der Modus, unter dem ``szene_claude._buche``
+#: jede Zeile schreibt ("C" wie Claude). ``ist_abo_modus`` ist die explizite
+#: Antwort auf die Frage "zaehlt dieser Aufruf gegen den Tagesdeckel?" -- der
+#: Deckel selbst (``kostensumme_seit``) braucht sie nicht, weil er ohnehin nur
+#: die Spalte ``kosten_chf`` aufsummiert und die auf 0 steht (siehe
+#: ``CLAUDE_CHF_JE_AUFRUF`` oben); diese Funktion macht den Zusammenhang
+#: benennbar und testbar, statt ihn aus zwei Konstanten herzuleiten.
+ABO_MODUS = "C"
+
+
+def ist_abo_modus(modus: str | None) -> bool:
+    """True fuer einen Aufruf ueber den Claude-Proxy (Abonnement) -- der
+    Tagesdeckel sieht ihn in ``aufruf`` (Token, Dauer, Erfolg), aber er
+    schiebt die Tagessumme nicht weiter (``kosten_chf = 0``, siehe
+    ``CLAUDE_CHF_JE_AUFRUF``)."""
+    return modus == ABO_MODUS
+
 
 def kosten_chf(modell: str, eingabe_token: int, ausgabe_token: int) -> float | None:
     """Kostenschaetzung nach der Preistabelle. ``None`` fuer ein Modell, das

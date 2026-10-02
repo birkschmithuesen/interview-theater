@@ -319,3 +319,16 @@ def test_ohne_marker_streicht_fliesstext_der_den_block_wiederholt():
     assert "Trifft das?" in sauber
     # Block-Inhalt bleibt lesbar (er steht hinten)
     assert sauber.rstrip().endswith("wir melden uns.")
+
+
+def test_ohne_block_entfernt_auch_den_weichen_fragenblock():
+    """Padua-Test 02.10.2026: der weiche Block (Marker mit Leerzeichen,
+    Art mit Unterstrich) blieb im Chattext stehen -- die Gruppe sah
+    "5 — ... 7 — ..." vor der Fragenliste."""
+    text = (
+        "One sentence.\n\n"
+        "VORSCHLAG FRAGENAUSWAHL:\nApfel: Frage eins?\nApfel: Frage zwei?\n\n"
+        "VORSCHLAG FRAGEN WEICH:\n2 — Nur wenn du magst: Frage zwei?\n"
+    )
+    rest = vorschlag.ohne_block(text, "fragenauswahl", "fragen_weich")
+    assert rest == "One sentence."

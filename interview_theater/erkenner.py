@@ -181,6 +181,36 @@ ARTEN_IN_AUFNAHME = (
     "an_den_bot",
 )
 
+#: Welche Phase eine ART tatsaechlich wirken laesst -- als Tabelle, nicht als
+#: verstreute if/elif-Kette (Padua Phasen TEIL 1, 03.10.2026). Eine ART, die
+#: hier NICHT auftaucht, gilt wie bisher in jeder Phase (alle 23 arts, die es
+#: vor diesem Umbau schon gab, bleiben unveraendert phasenfrei). Dieser Platz
+#: ist fuer kuenftige Karten gedacht -- z. B. eine Phase-7-spezifische
+#: Revisions-art aus dem Flow-Audit (``git show feat/flow-audit:docs/
+#: flow-audit/vorlagen.md``) wuerde hier einen weiteren Eintrag bekommen,
+#: nicht einen weiteren Codepfad.
+PHASEN_SPEZIFISCHE_ARTEN: dict[str, tuple[int, ...]] = {
+    # Padua Phasen TEIL 1: die Uebersicht in Stufe A von Phase 5 (Prose
+    # Draft) darf nur dort geaendert werden -- ausserhalb der Phase, oder
+    # nachdem sie fixiert ist, ist ein "aendere die Uebersicht" etwas
+    # anderes gemeint (siehe entwurf.py).
+    "uebersicht_aendern": (5,),
+}
+
+
+def _ist_phasenpassend(conn, chat_id: int, art: str) -> bool:
+    """True, wenn diese art in der aktuellen Phase ueberhaupt wirken darf.
+
+    Reine Tabellen-Abfrage (``PHASEN_SPEZIFISCHE_ARTEN``), kein
+    Modellaufruf, kein eigenes SQL -- wie jede andere Wache in diesem Modul
+    (``waechter_filter``). Eine art, die nicht in der Tabelle steht, ist
+    ueberall erlaubt: das ist der unveraenderte Normalfall."""
+    phasen_liste = PHASEN_SPEZIFISCHE_ARTEN.get(art)
+    if phasen_liste is None:
+        return True
+    return phasen.aktuelle(conn, chat_id) in phasen_liste
+
+
 #: Obergrenze fuer Aenderungen je Lauf -- im Prompttext UND hier im Code
 #: durchgesetzt (global-constraints.md 'Schema': kein maxItems im Schema
 #: selbst, weil strikte Modi das oft nicht unterstuetzen).
@@ -1531,6 +1561,10 @@ def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
     aenderungen = _ohne_figur_festlegung_neben_figur_setzen(
         _ohne_interview_starten_neben_ruecksprung(aenderungen)
     )
+    aenderungen = [
+        a for a in aenderungen
+        if _ist_phasenpassend(conn, chat_id, a.get("art"))
+    ]
     wirkliche = []
     for aenderung in aenderungen:
         art = None

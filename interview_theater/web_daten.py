@@ -1628,3 +1628,40 @@ def web_stromzeilen(conn: sqlite3.Connection, chat_id: int,
     except sqlite3.OperationalError:
         return []
     return [_stromzeile(zeile) for zeile in zeilen]
+
+
+# --- Die Roadmap (30.09.2026, Karte W) -------------------------------------
+
+
+def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die Phasenuebersicht (``interview_theater/roadmap.py``) -- aus der
+    read-only geoeffneten Verbindung.
+
+    Ein Zusammenbau, zwei Aufrufer (wie beim Leitfaden und den Fehlstellen):
+    die reine Funktion kennt nur Dicts, deshalb kommt der Webserver ohne
+    ``repo`` aus."""
+    from interview_theater import phasen, roadmap as modul
+
+    stand = _arbeitsstand(conn, chat_id)
+    gruppe = conn.execute(
+        "SELECT interviewmodus_seit, web_tippt_bis FROM gruppe WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    lage = web_stromlage(conn, chat_id)
+    return modul.aus_daten({
+        "stand": stand,
+        "figuren": _figuren(conn, chat_id),
+        "szenen": _szenen(conn, chat_id),
+        "interviews": _interviews(conn, chat_id),
+        "zuordnungen": sum(
+            len(v) for teil in schaerfungen(conn, chat_id).values()
+            for v in teil.values()
+        ),
+        "pruefrunde": (stueckpruefung(conn, chat_id) or {}).get("runde"),
+        "phase": stand.get("phase") or phasen.ERSTE,
+        "interviewmodus": bool(gruppe and gruppe["interviewmodus_seit"]),
+        # Der vorhandene Pruefer aus ``web_zustand`` -- ein zweiter
+        # ``_tippt_noch`` mit anderer Signatur wuerde ihn ueberschatten.
+        "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
+        "strom": lage["art"] if lage and lage["zustand"] == "laeuft" else None,
+    })

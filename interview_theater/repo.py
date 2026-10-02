@@ -2000,13 +2000,18 @@ def brainstorm_transkript(conn: sqlite3.Connection, chat_id: int) -> str:
 @_gesperrt
 def lege_buehnenkarte_an(
     conn: sqlite3.Connection, chat_id: int, text: str, modell: str,
+    *, schweigen: bool = False,
 ) -> int:
     """Haengt eine Buehnenkarte an (nur anhaengen, wie journal/szenenfassung
-    -- siehe Tabellenkommentar in db.py)."""
+    -- siehe Tabellenkommentar in db.py).
+
+    ``schweigen=True`` haelt fest, dass das Modell zugehoert und bewusst
+    NICHTS beizutragen hatte -- ``text`` ist dann leer (Karte Padua
+    Brainstorm, 03.10.2026)."""
     cur = conn.execute(
-        "INSERT INTO buehnenkarte (chat_id, text, modell, erstellt_am) "
-        "VALUES (?, ?, ?, ?)",
-        (chat_id, text, modell, _jetzt()),
+        "INSERT INTO buehnenkarte (chat_id, text, modell, schweigen, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (chat_id, text, modell, 1 if schweigen else 0, _jetzt()),
     )
     conn.commit()
     return int(cur.lastrowid)

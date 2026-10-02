@@ -1709,12 +1709,24 @@ def test_starte_buehnenkarte_legt_eine_karte_an_und_meldet_genau_eine_zeile(conn
     assert [t for _, t in tg.gesendet].count("Neue Karte im Tab Bühne") == 1
 
 
-def test_starte_buehnenkarte_bei_nichts_speichert_keine_karte_und_sendet_nichts(conn, tg, einst, monkeypatch):
+def test_starte_buehnenkarte_bei_nichts_speichert_eine_schweigen_zeile_und_sendet_nichts(
+    conn, tg, einst, monkeypatch,
+):
+    """Nachtrag Karte Padua Brainstorm (03.10.2026): bisher blieb die Tabelle
+    bei NICHTS ganz leer -- "zugehoert, geschwiegen" war von "nie gelaufen"
+    nicht zu unterscheiden. Jetzt haengt ein Schweigen-Versuch eine eigene,
+    leere Zeile an (nie geaendert, nur angehaengt), aber es geht weiterhin
+    KEINE Chatzeile und KEINE Markierung heraus."""
     monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge", lambda *a, **k: (None, "infomaniak"))
     aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
-    for _ in range(20):
+    for _ in range(50):
+        if repo.buehnenkarten(conn, 1):
+            break
         time.sleep(0.02)
-    assert repo.buehnenkarten(conn, 1) == []
+    karten = repo.buehnenkarten(conn, 1)
+    assert len(karten) == 1
+    assert karten[0]["schweigen"] == 1
+    assert karten[0]["text"] == ""
     assert not tg.gesendet
 
 

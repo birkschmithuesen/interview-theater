@@ -939,9 +939,15 @@ def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
                 repo.markiere_brainstorm_reaktion(conn, chat_id, markierung_id)
                 repo.lege_buehnenkarte_an(conn, chat_id, text, modell)
                 _melde_neue_karte(conn, tg, e, chat_id)
-            # NICHTS oder ein Fehlschlag: "nothing changes" -- keine
-            # Markierung, keine Karte. Das naechste qualifizierende Segment
-            # sieht denselben (oder einen groesseren) Stand erneut.
+            else:
+                # NICHTS oder ein Fehlschlag: "nothing changes" -- keine
+                # Markierung, kein Chateintrag. Das naechste qualifizierende
+                # Segment sieht denselben (oder einen groesseren) Stand
+                # erneut. Eine Zeile kommt trotzdem in die Tabelle (Karte
+                # Padua Brainstorm, 03.10.2026): sonst ist "zugehoert,
+                # geschwiegen" von "nie gelaufen" nicht zu unterscheiden --
+                # weder im Dashboard noch im Buehne-Panel.
+                repo.lege_buehnenkarte_an(conn, chat_id, "", modell, schweigen=True)
         except Exception:
             log.exception("Buehnenkarten-Lauf fehlgeschlagen, chat_id=%s", chat_id)
         finally:

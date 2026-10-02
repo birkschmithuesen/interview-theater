@@ -3781,8 +3781,33 @@ def laufende_stroeme(conn, chat_id: int) -> list:
 
     Die Roadmap liest sie fuer den Zustand 'laeuft' -- und nur sie: ein
     Szenenlauf-Lock lebt im Bot-Prozess und ist fuer den Webserver
-    unsichtbar."""
+    unsichtbar.
+
+    Eine verwaiste Zeile (seit ``db.STROM_VERALTET_S`` nicht geschrieben)
+    zaehlt nicht -- dieselbe Grenze wie in ``web_daten``, damit Bot und
+    Webserver dieselbe Roadmap zeigen (Aufgabe 14, Fix-Runde 1)."""
+    from interview_theater import db
+
     return conn.execute(
-        "SELECT * FROM web_strom WHERE chat_id = ? AND zustand = ? ORDER BY id ASC",
-        (chat_id, STROM_LAEUFT),
+        "SELECT * FROM web_strom WHERE chat_id = ? AND zustand = ? "
+        "AND aktualisiert_am >= ? ORDER BY id ASC",
+        (chat_id, STROM_LAEUFT, db.strom_grenze()),
     ).fetchall()
+
+
+@_gesperrt
+def brich_laufende_stroeme_ab(conn, chat_id: int) -> int:
+    """Schliesst alle laufenden Stromzeilen einer Gruppe als
+    ``abgebrochen`` -- beim Start des Web-Bots (``bot.baue_kanal``).
+
+    Ein frisch gestarteter Prozess hat keinen Lauf: was jetzt noch auf
+    ``laeuft`` steht, hat ein gestorbener Vorgaenger hinterlassen, und die
+    Ansicht zeigte seine halbe Antwort sonst ohne Ende (Aufgabe 14,
+    Fix-Runde 1). Liefert die Zahl der geschlossenen Zeilen."""
+    zeiger = conn.execute(
+        "UPDATE web_strom SET zustand = ?, post_id = NULL, aktualisiert_am = ? "
+        "WHERE chat_id = ? AND zustand = ?",
+        (STROM_ABGEBROCHEN, _jetzt(), chat_id, STROM_LAEUFT),
+    )
+    conn.commit()
+    return zeiger.rowcount

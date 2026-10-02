@@ -2,6 +2,32 @@
 
 import re
 import sqlite3
+from datetime import datetime, timedelta, timezone
+
+#: Ab wann eine ``web_strom``-Zeile im Zustand ``laeuft`` als verwaist gilt
+#: (Aufgabe 14, Fix-Runde 1): fuenf Minuten ohne ein einziges Schreiben.
+#:
+#: **Hergeleitet, nicht gegriffen.** Eine lebende Zeile wird im Takt
+#: ``strom.INTERVALL_S`` (0,15 s) geschrieben, solange ihr sichtbarer Text
+#: waechst. Die einzige lange Stille eines Laufs -- das Reasoning -- erreicht
+#: die Senke nie (``llm._sende_strom`` gibt ``reasoning_content`` nicht
+#: weiter), und die Zeile entsteht erst beim ersten sichtbaren Stueck
+#: (``strom.Senke``). Was danach noch still sein kann, sind Pausen zwischen
+#: Tokens und eine gerade ausgeblendete VORSCHLAG-Zeile: Sekunden. 300 s sind
+#: das Zweitausendfache des Takts und genau ``web_vereint.STROM_MAX_S``:
+#: spaetestens wenn eine SSE-Verbindung ohnehin neu aufgebaut wird, ist eine
+#: verwaiste Zeile als Ende erkannt (Test ``test_web_strom_verwaist.py``).
+#: Ein Wert hier und nicht in ``strom.py``: ``repo`` und ``web_daten`` lesen
+#: ihn, und beide liegen in der Ablage-Schicht unter den Diensten.
+STROM_VERALTET_S = 300.0
+
+
+def strom_grenze() -> str:
+    """Der Zeitpunkt, vor dem eine laufende Stromzeile verwaist ist -- im
+    selben Format wie ``repo._jetzt`` (UTC, Sekunden), damit ``repo`` und
+    ``web_daten`` ihn per Textvergleich im SQL nutzen koennen."""
+    return (datetime.now(timezone.utc) - timedelta(seconds=STROM_VERALTET_S)
+            ).isoformat(timespec="seconds")
 
 # Woertlich aus SPEC-kontext-architektur.md § 3.1 uebernommen, nur um
 # "IF NOT EXISTS" ergaenzt, damit initialisiere() gefahrlos mehrfach laufen kann.

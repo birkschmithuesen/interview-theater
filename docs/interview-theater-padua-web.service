@@ -1,0 +1,23 @@
+[Unit]
+Description=InScribe Weboberflaeche Padua (Workshop 05.-09.10.2026)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projekte/interview-theater
+# Eigene Datenbank, eigener Port -- getrennt von theatersoap/soap.db (Karte A6).
+Environment=IT_DB=betrieb/padua.db
+Environment=IT_AUDIO=%h/projekte/interview-theater/audio-padua
+# Tailnet-Adresse, nie 0.0.0.0: Gruppenseiten haben kein Login.
+# Port 8030, getrennt von theatersoap (8010) -- siehe deploy/padua-nginx-einrichten.sh.
+Environment=IT_WEB_BIND=100.75.24.33:8030
+Environment=IT_WEB_PREFIX=/padua
+Environment=IT_WORKSHOP=padua-2026
+ExecStart=%h/.local/bin/python3.11 -u -m interview_theater.web
+Restart=always
+RestartSec=5
+StandardOutput=append:%h/projekte/interview-theater/betrieb/padua-web.log
+StandardError=append:%h/projekte/interview-theater/betrieb/padua-web.log
+
+[Install]
+WantedBy=default.target

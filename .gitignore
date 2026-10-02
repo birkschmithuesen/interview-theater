@@ -64,3 +64,7 @@ docs/dramaturgie-berichte/*
 # andere Arbeitsbaeume noch verwenden koennen -- deshalb zusaetzlich ohne
 # Schraegstrich.
 .venv
+
+# Zugangs-PDFs/QR-Codes je Gruppe (Karte Padua A6): tragen das Web-Token in
+# der URL -- das Token IST das Login. NIE committen.
+workshop/*/zugang/

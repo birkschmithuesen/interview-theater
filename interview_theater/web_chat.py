@@ -1470,10 +1470,14 @@ def schreibend(db_pfad: str):
         conn.close()
 
 
-def _gruppe_oder_404(handler, db_pfad: str, token: str) -> int | None:
+def _gruppe_oder_404(handler, db_pfad: str, token: str,
+                     schliessen: bool = False) -> int | None:
     """Die chat_id zum Token, oder 404 und None -- auch fuer eine Gruppe, die
     nicht im Web-Kanal arbeitet (Abschlussreview I3): dort liest kein Bot
-    ``web_post``, und was hier ankaeme, verschwaende still."""
+    ``web_post``, und was hier ankaeme, verschwaende still.
+
+    ``schliessen`` fuer die POST-Wege: die 404 kommt dort vor dem Lesen des
+    Koerpers (``web.schliesse_nach_antwort``)."""
     from interview_theater import web
 
     conn = web_daten.oeffne_lesend(db_pfad)
@@ -1482,6 +1486,8 @@ def _gruppe_oder_404(handler, db_pfad: str, token: str) -> int | None:
     finally:
         conn.close()
     if chat_id is None:
+        if schliessen:
+            web.schliesse_nach_antwort(handler)
         handler._antworte(404, web.nicht_gefunden_html())
     return chat_id
 
@@ -1543,14 +1549,19 @@ def beantworte_post(handler, db_pfad: str, token: str, unterpfad: str,
     keinen zusaetzlichen Hebel, und das Limit steht an genau einer Stelle."""
     from interview_theater import web
 
+    # Alle drei Absagen hier liegen VOR dem Lesen des Koerpers: danach wird
+    # die Verbindung geschlossen, sonst laese der Server den Koerper als
+    # naechste Anfragezeile (``web.schliesse_nach_antwort``).
     if unterpfad not in _POSTWEGE:
+        web.schliesse_nach_antwort(handler)
         handler._antworte(404, web.nicht_gefunden_html())
         return
-    chat_id = _gruppe_oder_404(handler, db_pfad, token)
+    chat_id = _gruppe_oder_404(handler, db_pfad, token, schliessen=True)
     if chat_id is None:
         return
     warte = web_grenze.pruefe(_TOEPFE[unterpfad], chat_id)
     if warte:
+        web.schliesse_nach_antwort(handler)
         _zu_schnell(handler, db_pfad, chat_id, warte)
         return
     try:
@@ -1755,6 +1766,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     try:
         laenge = int(handler.headers.get("Content-Length") or 0)
     except ValueError:
+        web.schliesse_nach_antwort(handler)
         handler._fehler(400, _TEXT_FEHLER_ANFRAGE)
         return
 
@@ -1766,6 +1778,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         handler._fehler(415, _TEXT_FEHLER_TYP)
         return
     if laenge <= 0:
+        web.schliesse_nach_antwort(handler)
         handler._fehler(400, _TEXT_FEHLER_LEER_AUDIO)
         return
     if laenge > MAX_AUDIO_BYTES:
@@ -1803,6 +1816,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
 
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
+        web.schliesse_nach_antwort(handler)
         handler._fehler(400, _TEXT_FEHLER_LEER_AUDIO)
         return
 

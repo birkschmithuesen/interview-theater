@@ -175,6 +175,21 @@ def eigene_herkunft(handler) -> bool:
     return bool(eigene) and eigene in erlaubt
 
 
+def schliesse_nach_antwort(handler) -> None:
+    """Nach dieser Antwort wird die Verbindung geschlossen (``Connection:
+    close``).
+
+    Fuer jede Ablehnung, die antwortet, BEVOR der Koerper gelesen ist: bei
+    HTTP/1.1 bleibt die Verbindung sonst offen, der ungelesene Koerper liegt
+    im Socket und wird als naechste Anfragezeile gelesen -- die naechste,
+    ordentliche Anfrage bekaeme einen 400 aus Muell (Abschlussreview).
+    Schliessen statt Weglesen, weil eine Absage (429, 403) nicht dafuer
+    bezahlen soll, bis zu 8 MiB anzunehmen. Die Kopfzeile setzt
+    ``_Basishandler.end_headers``; bei einer Attrappe ohne diese Klasse
+    bleibt es beim Merker."""
+    handler.verbindung_schliessen = True
+
+
 def maskiere_token(pfad: str) -> str:
     """Der Anfragepfad fuer die Logzeile: Token auf vier Zeichen, Query weg.
 
@@ -2998,9 +3013,11 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
         urllib.parse.unquote(urllib.parse.urlsplit(handler.path).path), praefix
     )
     if not pfad.startswith("/g/"):
+        schliesse_nach_antwort(handler)
         handler._antworte(404, nicht_gefunden_html())
         return
     if not eigene_herkunft(handler):
+        schliesse_nach_antwort(handler)
         handler._fehler(403, T.TEXT_FREMDE_HERKUNFT)
         return
     from interview_theater import web_chat
@@ -3017,6 +3034,7 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
     if unterpfad:
         # Vorher wurde daraus ein Token mit Schraegstrich darin und damit
         # ebenfalls 404 -- jetzt ausdruecklich.
+        schliesse_nach_antwort(handler)
         handler._antworte(404, nicht_gefunden_html())
         return
     try:
@@ -3087,13 +3105,18 @@ class _Basishandler(BaseHTTPRequestHandler):
     def _koerper(self) -> dict:
         """Der JSON-Rumpf der Anfrage. Alles, was hier schiefgeht, ist ein
         Bedienfehler von aussen und wird zu 400, nie zu einem Stacktrace."""
+        # Jede Ablehnung hier liegt VOR dem Lesen -- der Koerper bliebe im
+        # Socket (``schliesse_nach_antwort``).
         try:
             laenge = int(self.headers.get("Content-Length") or 0)
         except ValueError:
+            schliesse_nach_antwort(self)
             raise ValueError(T._TEXT_UNGUELTIG) from None
         if laenge <= 0:
+            schliesse_nach_antwort(self)
             raise ValueError(T._TEXT_LEER_ANFRAGE)
         if laenge > MAX_POST_BYTES:
+            schliesse_nach_antwort(self)
             raise ValueError(T._TEXT_ZU_LANG)
         try:
             gelesen = json.loads(self.rfile.read(laenge).decode("utf-8"))
@@ -3163,6 +3186,9 @@ class _Basishandler(BaseHTTPRequestHandler):
         die niemand von Hand testet."""
         for name, wert in SICHERHEITSKOPFZEILEN:
             self.send_header(name, wert)
+        if getattr(self, "verbindung_schliessen", False) and not self.close_connection:
+            # ``send_header`` setzt dabei selbst ``close_connection``.
+            self.send_header("Connection", "close")
         self.send_header(
             "Content-Security-Policy", CSP_VORLAGE.format(nonce=self._csp_nonce())
         )

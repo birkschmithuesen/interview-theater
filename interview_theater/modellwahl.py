@@ -86,14 +86,17 @@ def aufruf_schema(conn, klm, e, chat_id: int | None, system: str, nutzer: str,
                 neu = getattr(bei_teil, "neu", None)
                 if callable(neu):
                     neu()
-    # ``modell`` nur mitgeben, wenn wirklich gewuenscht: ``klm.schema``s
-    # Vorgabewert ist ``None`` (dann gilt ``e.llm_modell``), und ein Testdouble
-    # darf eine schmalere Signatur haben als die echte ``LLM`` (gemessen:
-    # ``KLMAttrappe.schema`` in tests/test_ablauf.py kennt ``modell`` nicht).
+    # ``modell``/``bei_teil`` nur mitgeben, wenn wirklich gebraucht: beide
+    # sind bei ``klm.schema`` optional, und ein Testdouble darf eine
+    # schmalere Signatur haben als die echte ``LLM`` (gemessen:
+    # ``KLMAttrappe.schema`` in tests/test_ablauf.py kennt kein ``modell``,
+    # die Schaerfungs-Attrappe kein ``bei_teil``).
+    zusatz = {}
     if modell is not None:
-        return klm.schema(chat_id, system, nutzer, schema, art, modell=modell,
-                          bei_teil=bei_teil)
-    return klm.schema(chat_id, system, nutzer, schema, art, bei_teil=bei_teil)
+        zusatz["modell"] = modell
+    if bei_teil is not None:
+        zusatz["bei_teil"] = bei_teil
+    return klm.schema(chat_id, system, nutzer, schema, art, **zusatz)
 
 
 def _melde_fallback(conn, chat_id, e, art: str, fehler: Exception) -> None:

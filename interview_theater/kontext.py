@@ -228,6 +228,13 @@ _PSEUDONYM_UNBEKANNT = "Mitglied"
 #: welcher Chatsprache) als auch irrefuehrend, weil es nicht sagt, dass das
 #: Modell den Anhang gar nicht wahrnimmt. Siehe ``_TYPEN_NICHT_SICHTBAR``.
 _HINWEIS_NICHT_SICHTBAR = "Datei -- fuer mich nicht sichtbar"
+#: Padua Hotfix Befund 1 (02.10.2026): die Markierung hinter dem Sprecher, wenn
+#: der Text das Transkript einer Sprachnachricht ist (``nachricht.gesprochen``)
+#: -- "Mitglied 1 (Sprachnachricht): ...". Live hielt das Modell ein
+#: Transkript fuer getippt und behauptete auf "verstehst du mich?", es koenne
+#: die Sprachnachricht nicht abtippen. Nur im Gespraechs-Prompt, siehe
+#: ``sprecherzeile``.
+_MARKE_GESPROCHEN = "Sprachnachricht"
 #: Padua Hotfix Befund 3 (02.10.2026, Live-Fall web_post 6/8/10): das
 #: englische Profil antwortete auf deutsche Gruppennachrichten auf Deutsch --
 #: "Write in English" in system.md stand nur einmal, ganz am Anfang des
@@ -343,7 +350,17 @@ def pseudonyme(conn, chat_id: int, zeilen=()) -> dict[str, str] | None:
 _TYPEN_NICHT_SICHTBAR = frozenset({"foto", "sticker", "sonstiges", "dokument"})
 
 
-def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
+def _ist_gesprochen(n) -> bool:
+    """``nachricht.gesprochen`` -- tolerant gegen Zeilen und Dicts ohne die
+    Spalte (Korpusfaelle, Testdicts, eine noch nicht migrierte Kopie)."""
+    try:
+        return bool(n["gesprochen"])
+    except (KeyError, IndexError):
+        return False
+
+
+def sprecherzeile(n, namen: dict[str, str] | None = None,
+                  gesprochen_markieren: bool = False) -> str:
     """Formatiert eine ``nachricht``-Zeile als ``"Sprecher: Text"``.
 
     Bot-Nachrichten erscheinen als Sprecher ``Du`` (``_SPRECHER_BOT``,
@@ -366,6 +383,13 @@ def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
     ``namen`` (E8, Karte A1): steht dort ein Mapping (``pseudonyme()``),
     ersetzt es den Vornamen; ein Name, der darin fehlt, wird nie
     durchgereicht, sondern heisst "Member". ``None`` ist das alte Verhalten.
+
+    ``gesprochen_markieren`` (Padua Hotfix Befund 1): ist der Text das
+    Transkript einer Sprachnachricht, steht ``_MARKE_GESPROCHEN`` in Klammern
+    hinter dem Sprecher ("Mitglied 1 (Sprachnachricht): ..."). Eingeschaltet
+    nur im Gespraechs-Prompt (Fenster und Ausloeser); Erkenner und Journal
+    rufen ohne, weil ihre Few-Shot-Prompts gegen den Korpus gemessen sind und
+    die Herkunft eines Beitrags dort nichts entscheidet.
     """
     if n["ist_bot"]:
         sprecher = T._SPRECHER_BOT
@@ -375,6 +399,8 @@ def sprecherzeile(n, namen: dict[str, str] | None = None) -> str:
         sprecher = namen.get(n["absender"], T._PSEUDONYM_UNBEKANNT)
     text = n["text"]
     if text:
+        if gesprochen_markieren and _ist_gesprochen(n):
+            return f"{sprecher} ({T._MARKE_GESPROCHEN}): {text}"
         return f"{sprecher}: {text}"
     if n["typ"] in _TYPEN_NICHT_SICHTBAR:
         return f"{sprecher}: ({T._HINWEIS_NICHT_SICHTBAR})"
@@ -1108,10 +1134,10 @@ def waehle_fenster(nachrichten: list, bezug=None, namen: dict[str, str] | None =
     kandidaten = nachrichten[-grenzen["nachrichten"]:]
 
     # Schritt 2: von hinten auffuellen. Die juengste ist gesetzt.
-    kumuliert = len(sprecherzeile(kandidaten[-1], namen))
+    kumuliert = len(sprecherzeile(kandidaten[-1], namen, gesprochen_markieren=True))
     beginnt_bei = len(kandidaten) - 1
     for index in range(len(kandidaten) - 2, -1, -1):
-        groesse = len(sprecherzeile(kandidaten[index], namen)) + 1  # +1 Zeilenumbruch
+        groesse = len(sprecherzeile(kandidaten[index], namen, gesprochen_markieren=True)) + 1  # +1 Zeilenumbruch
         if kumuliert + groesse > grenzen["zeichen"]:
             break
         kumuliert += groesse
@@ -1246,7 +1272,7 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser, namen=None) -> list[s
             pause = _pausenzeile(vorherige_zeit, n["gesendet_am"])
             if pause:
                 eintraege.append(pause)
-        eintraege.append(sprecherzeile(n, namen))
+        eintraege.append(sprecherzeile(n, namen, gesprochen_markieren=True))
         vorherige_zeit = n["gesendet_am"]
     # **Die Pause VOR dem Ausloeser** (06.09.2026, Auftrag 2). Der haeufigste
     # Fall einer langen Pause ist gerade der, in dem die erste Nachricht
@@ -1284,7 +1310,7 @@ def _baue_ausloeser(ausloeser, namen: dict[str, str] | None = None) -> str:
     Systemprompts."""
     if not ausloeser:
         return ""
-    zeilen = [sprecherzeile(n, namen) for n in ausloeser]
+    zeilen = [sprecherzeile(n, namen, gesprochen_markieren=True) for n in ausloeser]
     text = T._AUSLOESER_KOPF + "\n".join(zeilen)
     regel = T._AUSLOESER_SPRACHREGEL
     if regel:

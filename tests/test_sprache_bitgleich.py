@@ -75,7 +75,13 @@ GEAENDERT: dict[str, str] = {
         "abgetippt\" zu schicken, und bekommt stattdessen den Satz "
         "\"Du kannst keine Bilder oder Dateien sehen ...\". Gewollte "
         "Verhaltensaenderung fuer Dortmund: dieselbe Korrektur wie fuer "
-        "Padua, das Modell sieht dort ebenfalls keine Bilder."
+        "Padua, das Modell sieht dort ebenfalls keine Bilder. Dazu Padua "
+        "Hotfix B1 (Befund 1, 02.10.2026): unter /aufnahme steht, dass eine "
+        "Sprachnachricht ohne laufende Aufnahme abgetippt ankommt (im Verlauf "
+        "mit \"(Sprachnachricht)\" markiert) und wie jeder Beitrag beantwortet "
+        "wird -- nie behaupten, Sprachnachrichten nicht hoeren/abtippen zu "
+        "koennen (Live-Fall: genau das sagte der Bot, obwohl Whisper laengst "
+        "transkribiert hatte). Gilt fuer Dortmund ebenso."
     ),
     "prompt phasen/1": (
         "phasen/1.md: \"getippt, von einem Foto abgetippt oder als "

@@ -561,15 +561,56 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
     timer_meldung.daemon = True
     timer_meldung.start()
 
+    start = time.monotonic()
+    erfolg = 0
     try:
-        return stt.transkribiere(e, klient, pfad, budget,
+        text = stt.transkribiere(e, klient, pfad, budget,
                                  sprache=whisper_sprache(conn, chat_id))
+        erfolg = 1
+        return text
     except Exception as fehler:
         _melde_transkriptionsfehler(conn, tg, e, row, fehler)
         return None
     finally:
         timer_tipp.cancel()
         timer_meldung.cancel()
+        _buche_stt(conn, e, row, time.monotonic() - start, erfolg)
+
+
+#: Was in ``aufruf.modell`` steht, wenn Whisper lief. Ein fester Name und
+#: kein Modell-Bezeichner: der Aufruf geht ueber ``e.stt_produkt`` an einen
+#: Produkt-Endpunkt, nicht an ein benanntes Modell.
+STT_MODELL = "whisper-v3"
+
+
+def _buche_stt(conn, e, row, dauer_s: float, erfolg: int) -> None:
+    """Der Whisper-Aufruf in ``aufruf`` -- seit dem 30.09.2026 (Karte Padua S).
+
+    **Warum hier und nicht in ``stt.py``:** ``stt.transkribiere`` bekommt
+    weder ``conn`` noch ``chat_id`` (``stt.py``), und das soll so bleiben --
+    ``llm.py`` traegt diese Kopplung schon, ``stt.py`` bewusst nicht. Der
+    einzige Aufrufer steht hier.
+
+    **Die Dauer kommt aus ``aufnahme.dauer_sekunden``**, nicht aus der
+    Whisper-Antwort: ``stt.abholen`` liefert nur den Text, und ob die Antwort
+    ein Dauerfeld traegt, waere ein bezahlter Aufruf. Fehlt die Dauer, werden
+    **0 CHF gebucht und nichts geraten** -- die eine Stelle, an der der
+    Tagesdeckel weniger sieht, als anfaellt.
+
+    **Gebucht wird auch bei Misserfolg**: ein Auftrag, der ins Zeitbudget
+    laeuft, wurde abgesendet und ist bezahlt (dieselbe Regel wie das
+    ``finally`` in ``llm._anfrage``)."""
+    from interview_theater import kosten
+
+    try:
+        repo.merke_aufruf(
+            conn, row["chat_id"], "stt", modus=None,
+            dauer_ms=int(dauer_s * 1000), erfolg=erfolg,
+            modell=STT_MODELL,
+            kosten_chf=kosten.stt_kosten_chf(row["dauer_sekunden"]),
+        )
+    except Exception:  # noqa: BLE001 -- die Buchung darf die Aufnahme nie mitreissen
+        log.exception("Aufruf-Buchung (Whisper) fehlgeschlagen, aufnahme=%s", row["id"])
 
 
 def _ist_ersatzname(name: str | None) -> bool:

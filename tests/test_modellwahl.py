@@ -12,9 +12,19 @@ from pathlib import Path
 import httpx
 import pytest
 
-from interview_theater import knoepfe, kontext, kosten, modellwahl, repo, szene_claude
+from interview_theater import (
+    knoepfe, kontext, kosten, modellwahl, repo, szene_claude, szenenfolge,
+    vorschlagssperre,
+)
 
 CHAT = 1
+
+
+@pytest.fixture(autouse=True)
+def _freie_szenenfolge_sperre():
+    vorschlagssperre.vergiss(CHAT)
+    yield
+    vorschlagssperre.vergiss(CHAT)
 
 
 @pytest.fixture
@@ -131,6 +141,55 @@ def test_fallback_bei_claude_fehler_nutzt_kimi_und_vermerkt_vorfall(
         "SELECT art FROM vorfall WHERE art = ?", (modellwahl.VORFALL_OPUS_FALLBACK,)
     ).fetchone()
     assert vorfall is not None
+
+
+class _LLMAttrappe:
+    def __init__(self):
+        self.aufrufe = 0
+
+    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None,
+              bei_teil=None):
+        self.aufrufe += 1
+        return "VORSCHLAG SZENENFOLGE:\nSzene 1 -- Am Bahnhof"
+
+
+class _TelegramAttrappeFolge:
+    def __init__(self):
+        self.gesendet = []
+        self.naechste_message_id = 500
+
+    def sende(self, chat_id, text, **_kw):
+        self.gesendet.append((chat_id, text))
+        self.naechste_message_id += 1
+        return self.naechste_message_id
+
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
+        return self.sende(chat_id, text)
+
+
+def test_szenenfolge_laeuft_ab_phase_4_mit_einwilligung_ueber_claude(
+    conn, opus_e, monkeypatch,
+):
+    """Szenenfolge fehlte in der ersten Fassung dieser Karte in der Liste
+    der bereits ueber ``szene_claude.ist_aktiv`` geroutenen Module -- anders
+    als Szene, Kurzgeschichte, Stueckpruefung und die Buehnenkarten rief sie
+    ausschliesslich ``klm.prosa`` (Kimi), nie den Proxy."""
+    repo.setze_phase(conn, CHAT, 4)
+    _stimme_zu(conn)
+    gesehen = {}
+
+    def claude_prosa(conn_, e_, klient, chat_id, system, nutzer, art, timeout, bei_teil=None):
+        gesehen["art"] = art
+        return "VORSCHLAG SZENENFOLGE:\nSzene 1 -- Am Bahnhof"
+
+    monkeypatch.setattr(szene_claude, "prosa", claude_prosa)
+    klm = _LLMAttrappe()
+    tg = _TelegramAttrappeFolge()
+    thread = szenenfolge.starte(conn, tg, klm, opus_e, CHAT, anzahl=1)
+    assert thread is not None
+    thread.join(timeout=5)
+    assert klm.aufrufe == 0
+    assert gesehen.get("art") == szenenfolge.ART
 
 
 def test_ohne_ueber_claude_laeuft_unveraendert_auf_kimi(conn, einst):

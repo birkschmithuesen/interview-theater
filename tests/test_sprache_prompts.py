@@ -466,3 +466,29 @@ def test_die_englische_phase_sechs_kennt_kein_textbuch_nach_herkules():
     # "Format" des Stuecks wird nicht gesprochen.
     assert "in rehearsal" in text
     assert '"format"' in text
+
+
+def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():
+    """Karte P2-Fix, Restspannung 8 (02.10.2026).
+
+    ``phasen/6.md`` beschrieb das Ergebnis und die Knopfleisten von Phase 7
+    ("a text for every scene", "Change form", "Next scene"). Phase 6
+    schreibt EINE Kurzgeschichte in einem Lauf, und unter ihr haengen vier
+    andere Knoepfe (``knoepfe/szenen.py:1324-1334``). Der Szene-fuer-Szene-
+    Ablauf gehoert in ``phasen/7.md``
+    (``knoepfe/szenen.py:749``).
+
+    Die Wortlaute sind die aus dem Code (``en/texte.toml``), nicht aus dem
+    Prompt -- ein Prompt, der einen Knopf anders nennt, als er dasteht,
+    erklaert der Gruppe etwas, das sie nicht sieht."""
+    sechs = (EN / "phasen" / "6.md").read_text(encoding="utf-8")
+    sieben = (EN / "phasen" / "7.md").read_text(encoding="utf-8")
+
+    for knopf in ("Yes, write it", "Plan it differently", "Change form",
+                  "Skip", "Next scene"):
+        assert knopf not in sechs, knopf
+        assert knopf in sieben, knopf
+    # Phase 6 nennt die Knoepfe, die wirklich unter der Geschichte haengen.
+    for knopf in ("Write the story", "Change something",
+                  "Rewrite from scratch"):
+        assert knopf in sechs, knopf

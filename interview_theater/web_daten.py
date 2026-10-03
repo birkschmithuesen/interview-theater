@@ -1329,7 +1329,6 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Rest dieser Funktion. Die Karten tragen NIE ein Belegzitat (Phase 4
         # ist interview-frei), siehe buehnenkarte.py/db.py.
         "buehnenkarten": buehnenkarten(conn, chat_id),
-        "stueckkarte_felder": stueckkarte_felder(conn, chat_id, figuren, stand),
         # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
         # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder
         # wartet auf Transkription. Ueber ``_aufnahmen_nach_status`` (schon

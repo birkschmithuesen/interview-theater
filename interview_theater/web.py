@@ -2884,9 +2884,16 @@ def _buehne_html(daten: dict) -> str:
             "zurueck_text": T._TEXT_BUEHNE_ZURUECK,
             "neu_praefix": T._TEXT_BUEHNE_NEU_PRAEFIX,
         }
+        # ``</`` wird entschaerft (``<\/``), damit eine Karte, deren Text
+        # woertlich ``</script`` enthaelt, dieses Skript-Element nicht
+        # vorzeitig beendet -- der Tokenizer des Browsers reagiert auf die
+        # rohen Bytes, nicht auf die JSON-Maskierung innerhalb der Anfuehrungszeichen.
+        # ``\/`` ist eine gueltige JSON-Escape-Sequenz (dekodiert zu ``/``),
+        # derselbe Weg wie ``web_vereint._js_text`` und das inline
+        # ``.replace("</", "<\\/")`` in ``web_chat.py``.
         teile.append(
             '<script type="application/json" id="buehne-verlauf-daten">'
-            + json.dumps(payload, ensure_ascii=True)
+            + json.dumps(payload, ensure_ascii=True).replace("</", "<\\/")
             + "</script>"
         )
 

@@ -126,3 +126,38 @@ def test_vier_karten_zeigen_genau_eine_sichtbare_tafel():
     # Keine Karte steckt in einem eigenen sichtbaren <div class="karte...">
     # -- die alte Markup-Form ist komplett weg.
     assert '<div class="karte' not in ausgabe
+
+
+# -- 4. Script-Tag-Ausbruch im JSON-Datenbaustein ----------------------------
+#
+# Review-Fund (Fix-Runde 1): eine Karte, deren Text woertlich ``</script``
+# enthaelt, darf das ``<script type="application/json">``-Element nicht
+# vorzeitig beenden. Der HTML-Tokenizer des Browsers reagiert auf die rohen
+# Bytes im Dokument -- JSON-String-Maskierung mit Anfuehrungszeichen
+# (``\"</script\"``) schuetzt davor NICHT, weil der Tokenizer gar nicht
+# weiss, dass er sich in einem JSON-String befindet. Derselbe Schutz wie
+# ``web_vereint._js_text`` und das inline ``.replace("</", "<\\/")`` in
+# ``web_chat.py`` muss deshalb auch hier greifen.
+
+
+def test_karte_mit_script_schluss_bricht_nicht_aus():
+    gefaehrlich = "Gefaehrlich: </script><img src=x onerror=alert(1)>"
+    daten = {
+        "buehnenkarten": [
+            {"id": 1, "text": gefaehrlich, "schweigen": 0, "erstellt_am": _JETZT},
+        ],
+    }
+    ausgabe = web._buehne_html(daten)
+
+    oeffnende = len(re.findall(r"<script\b", ausgabe, re.IGNORECASE))
+    schliessende = len(re.findall(r"</script", ausgabe, re.IGNORECASE))
+    assert oeffnende == 1
+    # Genau EIN rohes "</script" darf vorkommen -- der echte Schluss-Tag des
+    # Datenbausteins selbst. Vor dem Fix waere das zweite (aus der Karte)
+    # ein zweiter Treffer gewesen und haette das Element vorzeitig beendet.
+    assert schliessende == oeffnende == 1
+
+    # Die gefaehrliche Sequenz steht im JSON-Baustein maskiert (<\/script),
+    # nie roh -- und die vom Angriff nachgelagerte Nutzlast bleibt reiner
+    # Text innerhalb des Bausteins statt lebendiges Markup zu werden.
+    assert "<\\/script" in ausgabe

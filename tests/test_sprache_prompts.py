@@ -470,6 +470,34 @@ def test_die_englische_phase_sechs_kennt_kein_textbuch_nach_herkules():
     assert '"format"' in text
 
 
+def test_geschichte_passt_nennt_keinen_toten_phasennamen(monkeypatch):
+    """Review-Befund auf t_b87d075c (Padua Phasen TEIL 1), Karte t_6fe3b58e.
+
+    ``knoepfe/wirkung.py::_wirkung_geschichte_passt`` schickt
+    ``T._TEXT_GESCHICHTE_PASST`` beim Abschluss von Phase 6 ("Rewrite") live
+    an die Gruppe. Die englische Fassung nannte dort "Polish" -- den
+    zurueckgenommenen alten Namen von Phase 7 (jetzt "Stage Version"). Die
+    deutsche Referenzzeile (``knoepfe/texte.py``: "Dann geht es im
+    Feinschliff Abschnitt fuer Abschnitt weiter.") nennt ebenfalls keinen
+    Phasennamen, nur den Oberbegriff -- das gilt seitdem auch fuer Englisch.
+    """
+    from interview_theater import workshop
+    from interview_theater.knoepfe import texte as kn_texte
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    try:
+        text = kn_texte.T._TEXT_GESCHICHTE_PASST
+    finally:
+        monkeypatch.delenv(workshop.VARIABLE, raising=False)
+        workshop.vergiss()
+        sprache.vergiss()
+
+    for toter_name in ("Polish", "Sharpening", "Scenes as Story"):
+        assert toter_name not in text, (toter_name, text)
+
+
 def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():
     """Karte P2-Fix, Restspannung 8 (02.10.2026).
 

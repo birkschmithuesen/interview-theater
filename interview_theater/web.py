@@ -695,19 +695,33 @@ _CSS_BUEHNE = """
 #buehne-panel .hoert-zu { opacity: .55; font-style: italic; font-size: .95rem;
                           margin: 0 0 .7rem; }
 /* Die CoThinker-Statuszeile UEBER dem Panel (Karte CoThinker-Statuszeile,
-   03.10.2026) -- Farbe je Zustand, die eigentliche Animation (``@keyframes``)
-   steht ungescopt in ``CSS_COTHINKER_KEYFRAMES``, siehe dort. */
+   03.10.2026; Theme-Token-Nachbesserung fuer t_cc4306db, 04.10.2026) -- nur
+   Farb-Tokens aus ``web_gestalt.FARBTOKENS`` (``:root``, immer ueber
+   ``web_gestalt.css_rahmen()`` auf derselben Seite vorhanden, siehe
+   ``web_vereint.seite()``), KEIN rohes Hex hier. ``--warn`` traegt im
+   bestehenden ``KONTRAST``-Vertrag schon die Bedeutung "laufender Zustand
+   in der Karte" (siehe web_gestalt.KONTRAST) -- das ist wortgleich der
+   "denkt"-Zustand hier, deshalb kein neuer Ton. Die eigentliche Animation
+   (``@keyframes``) steht ungescopt in ``CSS_COTHINKER_KEYFRAMES``, siehe
+   dort. Genau eine Zeile, nie zwei: ``flex-wrap: nowrap`` am Rahmen,
+   ``text-overflow: ellipsis`` am Text -- ``min-width: 0`` ist der
+   Flexbox-Kniff, ohne den ein Flex-Kind nicht unter seine Inhaltsbreite
+   schrumpft und das Abschneiden nie greift. */
 #cothinker-status { display: flex; align-items: center; gap: .5rem;
-                     margin: 0 0 .6rem; padding: .4rem .6rem;
-                     border-radius: .5rem; background: #f2ede1;
-                     font-size: .9rem; }
+                     flex-wrap: nowrap; margin: 0 0 .6rem;
+                     padding: .4rem .6rem; border-radius: .5rem;
+                     background: var(--grund-2); color: var(--text);
+                     font-size: .9rem; min-width: 0; }
 #cothinker-status .co-icon { width: .6rem; height: .6rem;
                               border-radius: 50%; background: currentColor;
                               flex: 0 0 auto; }
-#cothinker-status.co-hoert, #cothinker-status.co-transkribiert { color: #2f6f4f; }
-#cothinker-status.co-denkt { color: #8a5a00; }
-#cothinker-status.co-schweigt { color: #777; opacity: .75; }
-#cothinker-status .co-dauer { font-variant-numeric: tabular-nums; opacity: .75; }
+#cothinker-status.co-hoert, #cothinker-status.co-transkribiert { color: var(--signal); }
+#cothinker-status.co-denkt { color: var(--warn); }
+#cothinker-status.co-schweigt { color: var(--text-leise); opacity: .75; }
+#cothinker-status .co-text { overflow: hidden; text-overflow: ellipsis;
+                              white-space: nowrap; min-width: 0; }
+#cothinker-status .co-dauer { font-variant-numeric: tabular-nums; opacity: .75;
+                               white-space: nowrap; flex: 0 0 auto; }
 #cothinker-status.co-hoert .co-icon,
 #cothinker-status.co-transkribiert .co-icon { animation: co-atmen 1.8s ease-in-out infinite; }
 #cothinker-status.co-denkt .co-icon { animation: co-punkte 1.2s steps(3, end) infinite; }

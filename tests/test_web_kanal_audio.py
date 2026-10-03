@@ -79,6 +79,9 @@ def test_die_schluesselmenge_waechst_um_genau_einen_eintrag():
         # (Pause/Deckel/Ende) und ob es Brainstorm-Mitschrift statt Interview
         # ist -- beide None bei Telegram.
         "schnittgrund", "brainstorm",
+        # redeMs (Kanban-Karte Mithoeren SICHER, 03.10.2026): wie viele ms
+        # erkannte Rede der Client gemessen hat -- None bei Telegram.
+        "rede_ms",
     }
 
 

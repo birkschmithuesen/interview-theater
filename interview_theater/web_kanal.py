@@ -363,6 +363,10 @@ class WebKanal:
                 # gleichnamigen web_post-Spalten.
                 "schnittgrund": zeile["schnittgrund"],
                 "brainstorm": bool(zeile["brainstorm"]),
+                # redeMs (Kanban-Karte Mithoeren SICHER, 03.10.2026):
+                # dieselbe additive Durchreiche wie ``schnittgrund``, rein
+                # diagnostisch.
+                "rede_ms": zeile["rede_ms"],
             }
         else:
             nachricht["text"] = zeile["text"] or ""

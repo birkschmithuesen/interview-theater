@@ -501,6 +501,9 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         # der Web-Kanal setzt sie.
         "schnittgrund": _sprachquelle(nachricht).get("schnittgrund"),
         "brainstorm": _sprachquelle(nachricht).get("brainstorm", False),
+        # redeMs (Kanban-Karte Mithoeren SICHER, 03.10.2026) -- additiv wie
+        # ``schnittgrund``, bei einem echten Telegram-Update immer None.
+        "rede_ms": _sprachquelle(nachricht).get("rede_ms"),
     }
 
 

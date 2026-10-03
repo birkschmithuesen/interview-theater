@@ -277,13 +277,15 @@ def test_das_json_post_limit_gilt_fuer_audio_nicht(aufbau):
 
 
 def _lade_mit_grund(basis, token, koerper: bytes, *, grund=None, brainstorm=False,
-                     dauer=45):
+                     dauer=45, rede=None):
     kennung = web.nonce(SCHLUESSEL, token)
     url = f"{basis}/g/{token}/chat/audio?nonce={kennung}&dauer={dauer}"
     if grund is not None:
         url += f"&grund={grund}"
     if brainstorm:
         url += "&brainstorm=1"
+    if rede is not None:
+        url += f"&rede={rede}"
     anfrage = urllib.request.Request(
         url, data=koerper, headers={"Content-Type": "audio/webm"}, method="POST",
     )
@@ -312,3 +314,38 @@ def test_ein_unbekannter_grund_wird_zu_leer_statt_abgelehnt(aufbau):
     message_id = _lade_mit_grund(basis, token, WEBM, grund="irgendwas")
     zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
     assert zeile["schnittgrund"] is None
+
+
+# -- redeMs-Metadatum (Kanban-Karte Mithoeren SICHER, 03.10.2026) ----------
+#
+# Seit Aufgabe 1a verwirft der Client nie mehr ein Segment wegen zu wenig
+# erkannter Rede -- redeMs faehrt nur noch als Diagnose-Metadatum mit. Hier
+# wird NUR die Durchreiche geprueft: "rede" kommt wie "dauer" aus der Query,
+# aber anders als "dauer" darf ein kaputter oder fehlender Wert den Upload
+# nie scheitern lassen (es ist kein Sicherheitsmerkmal).
+
+
+def test_rede_landet_im_web_post(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, rede="320")
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["rede_ms"] == 320
+
+
+def test_ohne_rede_bleibt_sie_leer(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["rede_ms"] is None
+
+
+@pytest.mark.parametrize("rede", [
+    "abc", "-5", "",
+    "9" * 50,   # ausserhalb jeder sinnvollen Dauer, siehe die dauer-Faelle
+    "%C2%B2",   # "²" -- isdigit()==True, aber kein ASCII
+])
+def test_kaputte_rede_wird_zu_leer_statt_den_upload_scheitern_zu_lassen(aufbau, rede):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, rede=rede)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["rede_ms"] is None

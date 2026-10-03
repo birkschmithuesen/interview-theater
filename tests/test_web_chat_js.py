@@ -133,11 +133,48 @@ def test_der_grund_ende_wird_nur_mit_aktivem_vad_gesetzt():
     assert "alt && sitzung.vadAktiv) { alt._grund = 'ende'" in js
 
 
-def test_onstop_laesst_zu_kurze_kappen_schnitte_weg():
+def test_onstop_laedt_jedes_segment_mit_bytes_hoch_ohne_redems_gate():
+    """Kanban-Karte Mithoeren SICHER, Birks Szenario A: eine zu hoch
+    eingestellte VAD-Schwelle liess leise, aber echte Rede als 'nicht genug'
+    durchfallen, und das ganze Segment -- samt Woertern -- ging nie hoch.
+    Seit dieser Karte gibt es dieses Gate nicht mehr: jedes Segment mit
+    Bytes aus einer nicht verworfenen Sitzung wird hochgeladen, ``redeMs``
+    faehrt nur noch als Metadatum mit.
+
+    Wer das alte ``genug``-Gate wiederherstellt, macht diesen Test ROT --
+    das ist der Zweck dieses Tests, kein Unfall."""
     js = web_chat._CHAT_JS
     onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
-    assert "genug" in onstop
-    assert "redeMs > 0" in onstop
+    # Kommentarzeilen koennen das Wort "genug" in Prosa erklaeren (siehe
+    # Docstring oben) -- geprueft wird nur der tatsaechliche Code, nie ein
+    # Erklaertext.
+    code_ohne_kommentare = "\n".join(
+        zeile for zeile in onstop.splitlines() if not zeile.strip().startswith("//")
+    )
+    assert "genug" not in code_ohne_kommentare, (
+        "das alte Verwerfen-Gate darf nicht zurueckkommen"
+    )
+
+    gate_zeile = next(
+        zeile for zeile in onstop.splitlines()
+        if zeile.strip().startswith("if (teile.length")
+    )
+    assert gate_zeile.strip().startswith("if (teile.length && !sitzung.verworfen)")
+    assert "redeMs" not in gate_zeile
+    assert "grund" not in gate_zeile
+
+
+def test_auftrag_traegt_redems_und_postaudio_haengt_rede_an():
+    """``redeMs`` ist seit der Karte 'Mithoeren SICHER' reines
+    Diagnose-Metadatum: es haengt am ``auftrag`` und geht als ``&rede=``
+    mit, wird aber nirgends mehr als Upload-Gate gelesen (siehe Test oben)."""
+    js = web_chat._CHAT_JS
+    onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
+    assert "redeMs: redeMs" in onstop
+
+    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    assert "auftrag.redeMs != null" in ausschnitt
+    assert "&rede=" in ausschnitt
 
 
 def test_postaudio_haengt_den_grund_an():

@@ -1800,16 +1800,36 @@ def test_brainstorm_segment_mit_leerem_transkript_wird_nicht_nachgeholt(conn, tg
     assert aid not in offene, "repo._NICHTS_ZU_TUN haelt 'fehlgeschlagen' vom Nachhol-Arbeiter fern"
 
 
-def test_normale_kurze_nachricht_mit_leerem_transkript_bleibt_unveraendert(conn, tg, einst, klm):
-    """Regression: die neue Sonderbehandlung gilt NUR fuer
-    ``aufnahme.brainstorm = 1`` -- eine gewoehnliche kurze Sprachnachricht
-    ohne verstaendlichen Inhalt bekommt weiterhin die bestehende Fehlerkette
-    (Wiederholungsversuche, dann die Bitte, es nochmal zu sagen)."""
+def test_normale_kurze_nachricht_mit_leerem_transkript_wird_still_verworfen(conn, tg, einst, klm):
+    """Ersetzt die alte Regression
+    ``test_normale_kurze_nachricht_mit_leerem_transkript_bleibt_unveraendert``
+    (b30faa2), die genau das Gegenteil verlangte: dort ging eine
+    nicht-brainstorm Sprachnachricht mit leerem Transkript durch die volle
+    ``MAX_VERSUCHE``-Fehlerkette und endete mit einer 'nochmal'-Bitte.
+
+    Seit Aufgabe 1 (Mithoeren SICHER) laedt der Client JEDES Segment hoch,
+    auch reines Rauschen ohne ein einziges Wort -- und das ist jetzt der
+    Normalfall fuer JEDE Aufnahmeklasse, nicht nur fuer Brainstorm. Die
+    stille Verwerfung aus Aufgabe 1c gilt deshalb unabhaengig von
+    ``row['brainstorm']``: derselbe Ablauf wie
+    ``test_brainstorm_segment_mit_leerem_transkript_wird_still_verworfen``,
+    nur fuer eine gewoehnliche kurze Sprachnachricht."""
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=4, message_id=602))
-    for _ in range(aufnahme.MAX_VERSUCHE):
-        aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(""), aid)
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(""), aid)
 
     zeile = repo.hole_aufnahme(conn, aid)
     assert zeile["status"] == "fehlgeschlagen"
-    assert zeile["versuche"] == aufnahme.MAX_VERSUCHE
-    assert any("nochmal" in t for _, t in tg.gesendet)
+    assert zeile["versuche"] == 0, "kein Versuch gezaehlt -- es gibt keinen Wiederholungsversuch"
+    assert not tg.gesendet, "keine 'nochmal'-Bitte fuer ein leeres Transkript"
+    gruppe = repo.hole_gruppe(conn, 1)
+    assert gruppe["whisper_stumm_seit"] is None, "Stille ist kein Whisper-Ausfall"
+
+
+def test_rede_ms_wandert_von_der_nachricht_in_die_aufnahme(conn, tg, einst, klm):
+    """Kanban-Karte Mithoeren SICHER: ``redeMs`` ist reines
+    Diagnose-Metadatum, wandert aber zuverlaessig durch -- wie
+    ``schnittgrund``/``brainstorm`` (additiv, ``n.get('rede_ms')``)."""
+    nachricht = sprachnachricht(dauer=4, message_id=603)
+    nachricht["rede_ms"] = 42
+    aid = aufnahme.empfange(conn, tg, einst, nachricht)
+    assert repo.hole_aufnahme(conn, aid)["rede_ms"] == 42

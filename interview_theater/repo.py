@@ -523,6 +523,7 @@ def lege_aufnahme_an(
     status: str = "empfangen",
     schnittgrund: str | None = None,
     brainstorm: bool = False,
+    rede_ms: int | None = None,
 ) -> int:
     """Legt eine Aufnahme (Sprache oder Textimport) an.
 
@@ -537,7 +538,9 @@ def lege_aufnahme_an(
 
     ``schnittgrund`` (Pausen-Schnitt, 02.10.2026) und ``brainstorm`` (Knopf
     "Brainstorm mithören", Phase 4) kommen vom Web-Kanal durchgereicht, bei
-    Telegram bleiben beide bei ihrer Vorgabe.
+    Telegram bleiben beide bei ihrer Vorgabe. ``rede_ms`` (Kanban-Karte
+    Mithoeren SICHER, 03.10.2026) ebenso -- rein diagnostisch, kein
+    Upload-Gate.
 
     Startstatus 'empfangen', beim Interview-Kopf 'laeuft'; der Aufrufer
     entscheidet ueber weitere Statusuebergaenge."""
@@ -547,11 +550,11 @@ def lege_aufnahme_an(
         INSERT INTO aufnahme
             (chat_id, message_id, name, klasse, quelle, audio_pfad,
              dauer_sekunden, status, empfangen_am, teil_von, schnittgrund,
-             brainstorm)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             brainstorm, rede_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (chat_id, message_id, name, klasse, quelle, audio_pfad, dauer, status,
-         _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0),
+         _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0, rede_ms),
     )
     conn.commit()
     return cur.lastrowid
@@ -3869,27 +3872,29 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      text=None, knoepfe=None, daten=None,
                      bezug_message_id=None, dauer=None,
                      datei=None, mime=None, dateiname=None,
-                     schnittgrund=None, brainstorm=False, bild=None) -> int:
+                     schnittgrund=None, brainstorm=False, bild=None,
+                     rede_ms=None) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
     beide Richtungen (siehe Tabellenkommentar in db.py). ``schnittgrund``/
-    ``brainstorm`` (Pausen-Schnitt, 02.10.2026) sind nur bei
-    ``typ='sprache'`` gesetzt und wandern unveraendert bis in die
-    ``aufnahme``-Zeile (``web_kanal.hole_updates`` -> ``aufnahme.empfange``).
-    ``bild`` (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
+    ``brainstorm`` (Pausen-Schnitt, 02.10.2026) und ``rede_ms`` (Kanban-Karte
+    Mithoeren SICHER, 03.10.2026) sind nur bei ``typ='sprache'`` gesetzt und
+    wandern unveraendert bis in die ``aufnahme``-Zeile
+    (``web_kanal.hole_updates`` -> ``aufnahme.empfange``). ``bild``
+    (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
     Telefon-Organisationskarte unter ``interview_theater/static/handys/``."""
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
         "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
-        "schnittgrund, brainstorm, bild) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "schnittgrund, brainstorm, bild, rede_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
-            schnittgrund, 1 if brainstorm else 0, bild,
+            schnittgrund, 1 if brainstorm else 0, bild, rede_ms,
         ),
     )
     conn.commit()

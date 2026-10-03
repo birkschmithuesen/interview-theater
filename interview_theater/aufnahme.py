@@ -490,6 +490,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         conn, chat_id, message_id, klasse, "sprache",
         audio_pfad=str(ziel), dauer=n.get("dauer"), teil_von=teil_von,
         schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
+        rede_ms=n.get("rede_ms"),
     )
 
 
@@ -758,22 +759,26 @@ def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
     trotzdem erfahren, dass der Beitrag verloren ist, statt dass er
     kommentarlos als 'typ=sprache, text=NULL' im Verlauf haengen bleibt.
 
-    **Ein Brainstorm-Segment (``row['brainstorm']``) mit leerem Whisper-
-    Ergebnis ist ein dritter, eigener Fall** (Karte Padua Brainstorm,
-    03.10.2026, Live-Fall: aufnahme 16, 4s, 5 Versuche, dann eine
-    unpassende "verstehe ich nicht"-Meldung im Chat): niemand wartet auf
-    dieses eine Segment und niemand kann es "noch einmal sagen" -- es war
-    nur ein paar Sekunden Rauschen beim Loslassen des Knopfes. Still
-    verwerfen statt der normalen Fehlerkette: kein Wiederholungsversuch
-    (``repo._NICHTS_ZU_TUN`` haelt den Nachhol-Arbeiter ab einem
-    ``status='fehlgeschlagen'`` ohnehin fern), keine Chatzeile, und KEIN
-    Ausfall-Alarm (``melde_ausfall``) -- Stille ist kein Dienstausfall."""
+    **Ein Segment mit leerem Whisper-Ergebnis ist ein dritter, eigener
+    Fall** (Karte Padua Brainstorm, 03.10.2026, Live-Fall: aufnahme 16, 4s,
+    5 Versuche, dann eine unpassende "verstehe ich nicht"-Meldung im Chat;
+    ausgeweitet auf JEDE Aufnahmeklasse mit der Karte "Mithoeren SICHER",
+    03.10.2026, weil der Client seitdem jedes Segment hochlaedt statt
+    VAD-Rauschen client-seitig zu verwerfen -- vorher traf dieser Fall fast
+    nur Brainstorm, jetzt routinemaessig auch Interview-Teile und
+    Gespraechsbeitraege): niemand wartet auf dieses eine Segment und niemand
+    kann es "noch einmal sagen" -- es war nur ein paar Sekunden Rauschen
+    beim Loslassen des Knopfes. Still verwerfen statt der normalen
+    Fehlerkette: kein Wiederholungsversuch (``repo._NICHTS_ZU_TUN`` haelt
+    den Nachhol-Arbeiter ab einem ``status='fehlgeschlagen'`` ohnehin fern),
+    keine Chatzeile, und KEIN Ausfall-Alarm (``melde_ausfall``) -- Stille
+    ist kein Dienstausfall."""
     aufnahme_id = row["id"]
     chat_id = row["chat_id"]
 
-    if row["brainstorm"] and isinstance(fehler, stt.LeeresTranskript):
+    if isinstance(fehler, stt.LeeresTranskript):
         repo.merke_vorfall(
-            conn, chat_id, getattr(e, "bot_name", None), "brainstorm_segment_verworfen",
+            conn, chat_id, getattr(e, "bot_name", None), "leeres_segment_verworfen",
             f"Aufnahme {aufnahme_id}: leeres Transkript, still verworfen",
         )
         repo.setze_status(conn, aufnahme_id, "fehlgeschlagen", fehlertext=str(fehler))

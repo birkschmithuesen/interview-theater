@@ -806,6 +806,7 @@ _CHAT_JS = """
   function postAudio(auftrag, zweiter) {
     var weg_ = `chat/audio?dauer=${auftrag.dauer}`;
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
+    if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
     if (auftrag.sitzung && auftrag.sitzung.art === 'brainstorm') { weg_ += '&brainstorm=1'; }
     return fetch(weg(weg_), {
       method: 'POST', cache: 'no-store',
@@ -1102,27 +1103,22 @@ _CHAT_JS = """
     r.onstop = function () {
       sitzung.offen -= 1;
       var auftrag = null;
-      // VAD-Entscheid, ob dieses Segment ueberhaupt in die Schlange geht.
       // r._grund/r._redeMs werden von schneideSegment() (Schnitt) oder von
       // pausiereInterview()/beendeInterview() (Flush) VOR stop() gesetzt;
-      // ohne VAD (Rueckfall auf den festen Takt) bleiben beide undefined,
-      // dann gilt wie vor dieser Karte: jedes nicht-leere Stueck geht raus.
+      // ohne VAD (Rueckfall auf den festen Takt) bleiben beide undefined.
       var redeMs = r._redeMs;
       var grund = r._grund || null;
-      var genug = redeMs == null || (
-        grund === 'ende' ? redeMs > 0 : redeMs >= (sitzung.vadMinSpeechMs || 0)
-      );
-      // grund === 'cap' mit redeMs < MIN_SPEECH_MS: der harte Zeitdeckel hat
-      // ein fast stummes Segment erzwungen. "In das naechste Segment
-      // getragen" (wie beim Pausen-Fall) ist hier technisch nicht moeglich
-      // -- der Recorder musste schon stoppen -- also wird es verworfen statt
-      // gesendet. Seltener Randfall, siehe .brainstorm-vad-report.md.
-      if (teile.length && !sitzung.verworfen && genug) {   // leere Stuecke nie
+      // Frueher wurde hier ueber redeMs verworfen (Birk, Szenario A: eine zu
+      // hoch eingestellte Schwelle liess leise, aber echte Rede als "nicht
+      // genug" durchfallen und das ganze Segment -- samt Woertern -- ging
+      // nie hoch). Jedes Segment mit Bytes geht jetzt IMMER raus; redeMs
+      // faehrt nur noch als Metadatum mit (Kanban-Karte Mithoeren SICHER).
+      if (teile.length && !sitzung.verworfen) {   // leere Stuecke nie
         auftrag = {
           art: 'audio', sitzung: sitzung,
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
           dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
-          grund: grund
+          grund: grund, redeMs: redeMs
         };
       }
       // Re-Review B: zwei onstop koennen sich ueberholen (Stopp mitten im
@@ -2737,6 +2733,18 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     grund = roh_grund if roh_grund in ("pause", "cap", "ende") else None
     brainstorm = (felder.get("brainstorm") or [""])[0] == "1"
 
+    # redeMs (Kanban-Karte Mithoeren SICHER, 03.10.2026): wie viele ms
+    # erkannte Rede der Client gemessen hat -- rein diagnostisch, seit
+    # Aufgabe 1a kein Upload-Gate mehr (Birk, Szenario A). Dieselbe
+    # defensive Ziffernpruefung wie bei ``dauer``, aber OHNE dessen 400: ein
+    # fehlender oder kaputter Wert ist einfach None, nie ein Fehler.
+    roh_rede = (felder.get("rede") or [""])[0]
+    rede_ms = (
+        int(roh_rede)
+        if roh_rede.isascii() and roh_rede.isdigit() and len(roh_rede) <= 10
+        else None
+    )
+
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
         web.schliesse_nach_antwort(handler)
@@ -2754,7 +2762,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
-            schnittgrund=grund, brainstorm=brainstorm,
+            schnittgrund=grund, brainstorm=brainstorm, rede_ms=rede_ms,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.

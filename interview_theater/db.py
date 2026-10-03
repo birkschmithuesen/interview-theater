@@ -169,7 +169,14 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- bleibt ein gewoehnlicher Gespraechsbeitrag in jeder Hinsicht ausser:
   -- es loest keinen Gespraechszug aus und wird nie als Interview angeboten
   -- (siehe aufnahme.py, Brainstorm-Zweig).
-  brainstorm      INTEGER NOT NULL DEFAULT 0
+  brainstorm      INTEGER NOT NULL DEFAULT 0,
+  -- Wie viele Millisekunden erkannte Rede der Client fuer dieses Segment
+  -- gemessen hat (Kanban-Karte Mithoeren SICHER, 03.10.2026) -- rein
+  -- diagnostisch, seit dieser Karte KEIN Upload-Gate mehr (Birk, Szenario A:
+  -- eine zu hoch eingestellte Schwelle liess leise, aber echte Rede als
+  -- "nicht genug" durchfallen). NULL = VAD inaktiv oder keine Metadaten,
+  -- dieselbe Bedeutung wie ``schnittgrund IS NULL``. Additiv nachgeruestet.
+  rede_ms         INTEGER
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,
@@ -983,7 +990,11 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- (z. B. 'phase-4.png'), nie ein Pfad -- die Chatansicht baut die URL
   -- selbst (web_chat._blase_html / inhaltVon). NULL bei jeder Zeile ohne
   -- Bild. Additiv nachgeruestet.
-  bild              TEXT
+  bild              TEXT,
+  -- Wie viele Millisekunden erkannte Rede der Client gemessen hat
+  -- (Kanban-Karte Mithoeren SICHER, 03.10.2026) -- dieselbe additive
+  -- Durchreiche wie ``schnittgrund``, rein diagnostisch, kein Upload-Gate.
+  rede_ms           INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);

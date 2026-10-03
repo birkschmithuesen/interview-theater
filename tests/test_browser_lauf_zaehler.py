@@ -13,7 +13,7 @@ _KAPUTT = """
   .klein { width: 20px; height: 20px; }  /* Mutant 2: zu kleines Tippziel */
   #eingabe { font-size: 12px; }          /* Mutant 3: Zoom-Falle */
 </style>
-<div class="blase bot">Where does it happen, and when, and who is there?</div>
+<div class="blase bot">Where does it happen? And who is there?</div>
 <div class="leiste"><button class="klein" type="button">x</button></div>
 <input id="eingabe">
 <button id="tot" type="button">Tot</button>

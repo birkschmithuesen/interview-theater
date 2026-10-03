@@ -7,20 +7,6 @@ der Code; was Urteil braucht, liest der Richter.
 
 from __future__ import annotations
 
-import re
-
-#: Fragewoerter, die eine eigenstaendige Frage anzeigen -- englisch, weil die
-#: Browser-UX-Simulation mit einer englischsprachigen Opus-Persona faehrt
-#: (``simulation/ux_rubrik.md``).
-_FRAGEWORT = re.compile(
-    r"\b(where|when|who|what|why|how|which|whom|whose)\b", re.IGNORECASE
-)
-
-#: Trennt eine Bot-Nachricht an Kommas und am Wort "and" -- eine Nachricht
-#: wie "Where does it happen, and when, and who is there?" traegt nur EIN
-#: Fragezeichen, aber drei Fragen; reines Zaehlen von "?" uebersieht das.
-_TEILSATZ = re.compile(r",|\band\b", re.IGNORECASE)
-
 #: Telefon-Tastatur: unter diesem Wert gilt ein Eingabefeld als Zoom-Falle
 #: (iOS zoomt beim Fokussieren eines Feldes mit kleinerer Schrift) --
 #: dieselbe Zahl wie in ``participatory-bot-ux`` Abschnitt 7 ("inputs >=16px").
@@ -78,18 +64,11 @@ def eingabefeld_schrift_zu_klein(page, selektor: str = "#eingabe, input, textare
 
 
 def mehrere_fragen_pro_nachricht(page, selektor: str = ".blase.bot") -> list[dict]:
-    """Mehr als eine Frage in einer Bot-Nachricht -- auch wenn sie in EINEM
-    Satz mit einem einzigen Fragezeichen verpackt sind ("Where does it
-    happen, and when, and who is there?"). Gezaehlt werden Fragewoerter je
-    Teilsatz (an Komma/"and" getrennt); das blosse Fragezeichen bleibt als
-    Untergrenze bestehen, falls eine Nachricht mehrere "?" ohne Fragewort
-    traegt ("Really? Sure?")."""
+    """Mehr als ein Fragezeichen in einer Bot-Nachricht."""
     treffer = []
     for el in page.query_selector_all(selektor):
         text = el.text_content() or ""
-        teilsaetze = _TEILSATZ.split(text)
-        anzahl_fragewoerter = sum(1 for teil in teilsaetze if _FRAGEWORT.search(teil))
-        anzahl = max(anzahl_fragewoerter, text.count("?"))
+        anzahl = text.count("?")
         if anzahl > 1:
             treffer.append({"text": text.strip()[:200], "fragen": anzahl})
     return treffer

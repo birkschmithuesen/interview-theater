@@ -490,6 +490,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         conn, chat_id, message_id, klasse, "sprache",
         audio_pfad=str(ziel), dauer=n.get("dauer"), teil_von=teil_von,
         schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
+        diskussion=bool(n.get("diskussion")),
     )
 
 
@@ -821,7 +822,19 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
 
     **Ein Brainstorm-Segment (``row['brainstorm']``, 02.10.2026) geht einen
     dritten, ganz eigenen Weg** -- siehe ``_brainstorm_abschliessen``: kein
-    Gespraechsbeitrag, kein Zug, kein Erkenner, keine Interview-Rueckfrage."""
+    Gespraechsbeitrag, kein Zug, kein Erkenner, keine Interview-Rueckfrage.
+
+    **Ein Diskussions-Segment (``row['diskussion']``, Phase 1, Padua
+    03.10.2026) geht einen vierten, noch einfacheren Weg** -- siehe
+    ``_diskussion_abschliessen``: reines Mithoeren, nie ein Gespraechsbeitrag,
+    kein Zug, kein Erkenner, keine CoThinker-Vorschlagskarte. Diese Pruefung
+    steht VOR der Brainstorm-Pruefung, weil beide Flags sich ausschliessen
+    (verschiedene Phasen) -- die Reihenfolge entscheidet hier nichts, macht
+    die Absicht aber am Quelltext sichtbar: Phase 1 vor Phase 4."""
+    if row["diskussion"]:
+        _diskussion_abschliessen(conn, tg, klm, e, row)
+        return
+
     if row["brainstorm"]:
         _brainstorm_abschliessen(conn, tg, klm, e, row)
         return
@@ -872,6 +885,35 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
             zug(conn, tg, klm, e, chat_id, hinweis=None)
         except Exception:
             log.exception("Gespraechszug nach kurzer Aufnahme fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def _diskussion_abschliessen(conn, tg, klm, e, row) -> None:
+    """Ein Segment des Hintergrund-Mithoerens (Phase 1, "nur zuhoeren", Padua
+    03.10.2026): die Gruppe diskutiert im Raum, das Mikrofon laeuft mit, und
+    was dabei entsteht ist reines Material -- nie ein Gespraechsbeitrag der
+    Gruppe AN den Bot. Die ``nachricht``-Zeile bleibt unveraendert, wie
+    ``empfange()`` sie anlegte (``typ='sprache'``, ``text=NULL``,
+    ``unterdrueckt=1``); nur das Transkript in ``aufnahme.transkript`` (schon
+    gesetzt, siehe ``_verarbeite``) ist das Material.
+
+    Diese Funktion tut GENAU zwei Dinge: Status auf ``fertig`` setzen und das
+    Transkript als Sprechblasen-Update in den Web-Chat spiegeln (B7, wie bei
+    jeder Sprachnachricht). **Nichts sonst** -- kein Gespraechszug, kein
+    Absichtserkenner, kein Journal-Extraktor, und anders als beim strukturell
+    verwandten Brainstorm-Weg (``_brainstorm_abschliessen``) auch KEINE
+    Pruefung, ob eine Vorschlagskarte faellig waere: ``brainstorm.soll_reagieren``
+    und ``_starte_buehnenkarte`` werden hier nie gerufen. Phase 1 hoert nur zu,
+    sie denkt nicht mit.
+
+    Der einmalige Verdichtungslauf samt Abschlussfrage ("jetzt eure fuenf
+    Begriffe") ist bewusst NICHT hier verdrahtet -- das ist Aufgabe 7
+    (``interview_theater.diskussion``), ausgeloest ueber den eigenen
+    Abschlusspfad (``schnittgrund == 'ende'``), nicht ueber jedes einzelne
+    Segment. Diese Funktion bleibt ein reines Echo-Blatt, damit Aufgabe 7
+    genau einen weiteren Aufruf anhaengen kann, ohne hier etwas umbauen zu
+    muessen."""
+    repo.setze_status(conn, row["id"], "fertig")
+    _web_sprachblase(conn, row["chat_id"], row["message_id"], row["transkript"] or None)
 
 
 def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:

@@ -235,6 +235,7 @@ VORGABE_WERTE: dict[str, Any] = {
     "web": {
         "dashboard_log_einklappen": False,
         "dashboard_gestaltet": False,
+        "phasennav_stepper": False,
     },
 }
 

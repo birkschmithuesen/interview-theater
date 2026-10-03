@@ -1499,3 +1499,81 @@ git commit -am "docs: AGENTS.md check loop + phases 6/7 for Padua; README for th
 - [ ] `$PY -m scripts.pruefe_profil dortmund-2026` and `padua-2026` → exit 0.
 - [ ] A whole-branch review (`b8650f5..HEAD`) against this plan and Birk's decisions. List every Critical/Important finding with fixed/open status.
 - [ ] Final report: changed files, SHAs, the pytest command and summary line, the baseline, the simulation command, the review findings, and the open questions verbatim (German B3/hook, plus anything that came up).
+
+---
+
+## In-execution corrections (recorded after Tasks 1–14)
+
+Controller decisions taken during subagent-driven execution that the task
+text above does not state, so the plan matches what was actually built.
+Source: `.superpowers/sdd/progress.md` and the per-task reports.
+
+- **Verification command (from Task 9 on).** `tests/e2e` started collecting
+  in the shared interpreter (Playwright installed by an unrelated session),
+  with two pre-existing, unrelated failures. Per-task gating switched to
+  `$PY -m pytest -q -p no:cacheprovider -m "not e2e" --ignore=tests/e2e`,
+  matching the `e2e` marker intent in `pytest.ini`. Last green count:
+  6155 passed, 0 failed (Task 14).
+- **Task 3.** The EN A9 prompt already named its non-findings; only
+  `prompt_version` was bumped. `tests/test_sprache_prompts.py` got a
+  `VERSION_AUSNAHMEN` entry, because the EN version may no longer equal
+  DE + `-en` while the German prompt stays untouched.
+- **Task 4.** `schleife.schnappschuss` / `schleife.stelle_wieder_her` are
+  public, so `prueflauf` can restore the same snapshot itself.
+- **Task 6 — A10 correction.** The plan text said "fields in
+  `repo.SZENENFELDER`". Built: never a field from
+  `repo.GESCHUETZTE_SZENENFELDER` (form, form_vorschlag,
+  form_vorschlag_grund, stil, volltext, prosa). Only the group sets form and
+  style (Birk 7.1), never a judge. Reported to Birk, because it also
+  contradicts the "Vorschlag" wording in the `fanout.parameterkorrektur`
+  docstring.
+- **Task 6 — step order.** The quote guard and the deterioration check run
+  *before* the parameter correction. The correction reads the round that
+  checked the text which actually stands (`_massgebliche_runde`). Order lines
+  of a discarded round are dropped. The actual signature
+  `szene.sperrtext(conn, ziel)` is used.
+- **Task 6, fix round 1.** Every step has its own `try`. A run always ends
+  with a log row and a `Bericht`. Any exception inside the loop restores the
+  pre-check snapshot, so an unchecked revision is never shown as checked.
+- **Task 7, fix round 1.** With the check on, `szene._lauf` and
+  `kurzgeschichte._lauf` open no web stream (`senke = None`). Before this, the
+  browser showed the unchecked first draft live.
+- **Task 8, fix round 1.**
+  - Busy lock: when a check cannot start, the group gets
+    `_TEXT_LAEUFT_NOCH` instead of silence.
+  - Re-entering phase 6 with everything approved does not auto-jump
+    (`weiter_6(..., aus_eintritt=True)` offers the phase button instead).
+    The jump belongs only to the approval path.
+  - The Padua phase-6 entry sends the intro only, without `biete_proaktiv`.
+- **Task 9.**
+  - The Padua phase-7 entry no longer auto-starts `stueckpruefung`. It runs
+    inside `starte_schluss` after the final whole-script check.
+  - Fix round 1: if that final check never wrote its `prueflauf` row
+    (`schluss_gelaufen`), re-entry runs it. This covers a restart
+    mid-thread or a held lock.
+- **Task 10.**
+  - Profile gating is a second column, `PROFILSCHALTER_DER_ARTEN`, next to
+    the existing `PHASEN_SPEZIFISCHE_ARTEN` table. `arten_fuer_schema()`
+    keeps Dortmund's enum at the 27 old arts.
+  - Shared bodies were extracted so a button and the chat run the same code:
+    `entwurf.fixiere_uebersicht` / `bestaetige_szene` and
+    `knoepfe.szenen.uebernimm_schaerfung_szene` / `_figur` /
+    `verwirf_schaerfung`.
+  - `ruecknahme.ZUSATZ_JE_ART` lets undo revert `formen_setzen`, without
+    widening `AUSSEN`.
+  - `tests/test_korpus.py` has a `NUR_ENGLISCH` exemption, because the new
+    arts have EN corpus cases only.
+  - Fix round 1: chat feedback or approval during a running pass gets the
+    same "still running" line as the button, instead of being dropped
+    silently.
+- **Task 11.** `test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben` was
+  rewritten to assert that the retired buttons are *absent* from EN 6.md and
+  7.md and the new bar is present. The German B3/hook wording stays open
+  (Dortmund byte-identity).
+- **Task 12.**
+  - `web_daten.erstentwuerfe` is its own read-only query.
+  - A new constant `_CSS_TEXTBUCH_FASSUNGEN` leaves Dortmund's
+    `_CSS_TEXTBUCH` untouched.
+- **Task 14.** `SCHRITTE_PADUA` has `_phasenschritt(6)` / `(7)` marker steps.
+  Without them, `simulation_abdeckung` would count every step after phase 5
+  as phase 5. No paid run was made.

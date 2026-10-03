@@ -50,6 +50,9 @@ Module unter `interview_theater/`:
 | `laengen.py` | Laengen-Rhythmus je Szene (30.09.2026, Karte R): der eine Wortzaehler (`zaehle_woerter`), der Rahmen je Form aus dem Profil, die Rhythmus-Muster, das Budget je Szene, der Faktor und die Prompt-Bausteine. **Kein Modellaufruf, keine Datenbank** (ausser `setze_faktor`, das ueber `repo` geht). Ohne `[laengen] aktiv = true` im Profil liest es niemand |
 | `sprachpass.py` | Der letzte Sprachpass (30.09.2026, Karte R): vier Regex-Zaehler (Gedankenstriche, "not X but Y", Adjektiv-Dreierketten, Fazitsatz), Grenzwerte aus dem Profil, die Regie-Notiz und der **Zitatschutz** ueber `zitat.pruefe`. **Kein Modellaufruf**; `gepruefte_zitate` ist die einzige Funktion mit Datenbankzugriff |
 | `nachpass.py` | Der EINE Ueberarbeitungslauf am Ende eines Schreibvorgangs (30.09.2026, Karte R): `nach_szene` (Phase 7) und `nach_geschichte` (Phase 6). Laeuft **im Thread und unter der Sperre** des Schreibwegs, deshalb `szene.schreibe`/`kurzgeschichte.hole_text` und nie `starte`. Eigene `art`-Werte (`szene_nachpass`, `kurzgeschichte_nachpass`) |
+| `prueflauf.py` | Der Prüflauf vor jeder Anzeige (03.10.2026, Padua Phasen TEIL 2): eine Fragen-Teilmenge je Objekt (`FRAGEN_GESCHICHTE`, `FRAGEN_PROSASZENE`, `FRAGEN_BUEHNENSZENE`) über `schleife.schliesse`, Zitatwache, Nachpass, A10-Parameterkorrektur und **eine** Zeile in der Tabelle `prueflauf`. `pruefe_szene`/`pruefe_geschichte` sind synchron, **der Aufrufer hält die Sperre**, sie zeigen nie etwas und liefern immer einen `Bericht`; `starte_szene`/`starte_geschichte` sind die Thread-Wege, `danach(bericht)` läuft nach der Freigabe. Kein SQL. Ohne `[prueflauf] aktiv` ruft es niemand |
+| `ueberarbeitung.py` | Phase 6 (Rewrite) und 7 (Stage Version) in Padua als Zustandsmaschine (03.10.2026): `weiter_6`/`weiter_7` (der eine Schrittweg je Phase, `aus_eintritt` ohne automatischen Sprung), `aktuelle_szene`, `laeuft`, die vier `bestaetige_*`, `ueberarbeite` und `nimm_ab` (Chat wirkt wie der Knopf), `sende_formwahl`/`_wende_formen_an`, `schluss_gelaufen`/`starte_schluss`. Kein SQL, kein Modellaufruf — die Läufe gehen an die Threads von `prueflauf`/`szene`/`kurzgeschichte`/`sprechweise`. Ohne `[ueberarbeitung] aktiv` ruft es niemand |
+| `sprechweise.py` | Die Sprechweise je Figur vor der Bühnenfassung (03.10.2026, Phase 7 Schritt 2): **ein** Schema-Aufruf (eigener Thread, eigenes Sperren-Register) nur für Figuren **ohne** `figur.sprachstil` — ein von der Gruppe gewählter Stil wird nie von einem Modell überschrieben. `wende_an` ist der Chat-Weg (`sprechweise_setzen`) und überschreibt, weil dort die Gruppe spricht. Die Anweisung ist eine Modul-Konstante, keine neue deutsche Prompt-Datei |
 | `leitfaden.py` | Baut aus Eröffnung, den gewählten Fragen mit ihren weichen Fassungen und dem Abschluss **deterministisch** den Gesprächsleitfaden (`baue`, `aus_feldern`) — kein Modellaufruf, dieselbe Funktion für Chat und Gruppenseite |
 | `vorschlag.py` | Die Markerzeilen im Antworttext (`VORSCHLAG BEGRIFFE:` und Verwandte): lesen, in Blöcke zerlegen, aus dem Chattext entfernen. Die Schnittstelle zwischen Prompt und Knopfleiste |
 | `vorschlagssperre.py` | Die EINE Sperre je `chat_id`, die Schärfung und die vier `szenenfolge.starte*` voneinander trennt (30.09.2026, C7), plus einen Merkplatz je Auftragsart: wer sie nicht bekommt, wird **gemerkt** und läuft nach der Freigabe automatisch. Reines `threading`, **kein** Projektimport — deshalb von beiden Seiten importierbar. Grenze: der Merkplatz lebt im Prozess, ein Neustart verliert ihn |
@@ -118,7 +121,7 @@ Versehen).
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
 | **Dienste** | `llm.py` · `strom.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` · `kosten.py` · `web_grenze.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` |
 
 **Wo man anfängt, je nach Frage:**
@@ -141,6 +144,8 @@ Versehen).
 | Warum kommt eine Weboberflächen-Anfrage nicht durch? | `web.eigene_herkunft` (403) → `web_grenze.pruefe` (429) → `web_chat._audio` (413/415) |
 | Warum baut sich der Text im Browser auf? | `strom.Senke` → `web_kanal.WebKanal.strom` → `web_vereint.sende_strom` |
 | Was passiert beim Klick auf eine Phase? | `web_vereint.phase_post` → `web_post` → `befehle.wechsle_phase` |
+| Warum hat sich der Text vor der Anzeige geändert? | `prueflauf.pruefe_szene` → `schleife.schliesse` → Tabelle `prueflauf` |
+| Wo steht Phase 6/7 gerade? | `ueberarbeitung.weiter_6`/`weiter_7` → `aktuelle_szene` |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -985,6 +990,48 @@ es jemand im Chat merkt.
   mit gleichlautenden Vorfaellen, statt der einen Zeile, die der Deckel
   eigentlich verspricht.
 
+- **Prüflauf vor jeder Anzeige, Phasen 6/7 für Padua** (03.10.2026, Padua
+  Phasen TEIL 2; nur mit `[prueflauf] aktiv`/`[ueberarbeitung] aktiv`, beide
+  nur in `workshop/padua-2026/profil.toml`). Birks Entscheidungen: höchstens
+  zwei Runden (`schleife.RUNDEN_MAX`); fällt ein Score, bricht der Lauf ab
+  und die **bessere** Fassung bleibt (`behalte_bessere=True` über
+  `schleife.schnappschuss`/`stelle_wieder_her`); wer ein geprüftes
+  Interviewzitat verliert (`sprachpass.verlorene`), wird verworfen; danach
+  der Sprachpass (`nachpass`); an die Gruppe **höchstens drei Zeilen**
+  (`prueflauf.ZEILEN_MAX`), nie der Volltext (Web: Script-Tab, Telegram:
+  Link, `knoepfe.skript_verweis`); „Show first draft" (`ART_ERSTENTWURF`)
+  zeigt auf die Fassung vor der Prüfung (`szene.erstentwurf_fassung`).
+  **`zeigen=False`**, weil `szene.schreibe`/`kurzgeschichte.schreibe` ihren
+  Text posteten, bevor eine Prüfung laufen konnte: `_lauf` schreibt jetzt
+  still, prüft **unter der eigenen Sperre**, zeigt danach
+  (`zeige_geprueft_szene`/`_geschichte`) und streamt nicht — der Strom
+  zeigte sonst den ungeprüften Entwurf. **Fragen je Objekt:** Geschichte
+  A2/A6/A9/A11, Prosaszene B1/A10, Bühnenszene A10/C1 (`fanout.pruefe(...,
+  fragen, szenen, mechanik=False)`); „Formregeln" = A10 ab Phase 7
+  (`fanout.A10_FORM_AB_PHASE`). **A10 in beiden Richtungen:** bei
+  `richtung=parameter` folgt die Planung dem Text (Journal + eine Zeile),
+  die Ausnahme vom „Vorschlag" in `fanout.parameterkorrektur` — **nie** für
+  `repo.GESCHUETZTE_SZENENFELDER`: Form und Stil setzt die Gruppe (Birk 7.1).
+  **Ablauf** (`ueberarbeitung.weiter_6`/`weiter_7`): Phase 6 prüft die Prosa
+  aus 5, statt sie neu zu schreiben — erst das Ganze, dann Szene für Szene,
+  nach der letzten Abnahme automatisch Phase 7 (die Gruppe hat gedrückt, wie
+  am Ende von 5). Phase 7: Formen per Nummer in **einer** Antwort,
+  Sprechweisen (`sprechweise.py`), Szene für Szene, zuletzt `starte_schluss`
+  (Prüflauf übers Textbuch, dann `stueckpruefung` — nicht mehr beim
+  Eintritt; lief sie nie, holt der Wiedereintritt sie nach). **Chat wirkt,
+  wo Knöpfe wirken** (Flow-Audit B1/B2): fünf Arten in
+  `erkenner.PHASEN_SPEZIFISCHE_ARTEN` plus Spalte `PROFILSCHALTER_DER_ARTEN`,
+  nur im **englischen** Prompt; `arten_fuer_schema()` lässt Dortmunds Enum
+  bei 27. Während eines Laufs kommt die „still running"-Zeile wie beim Knopf;
+  ein „Noted…" aus dem Gesprächszug wird in 6/7 verworfen
+  (`ablauf.ist_erfundenes_notiert`). **Gemessen** in der Tabelle `prueflauf`
+  (eine Zeile je Lauf, auch beim Scheitern: `runden`, `auftraege_je_runde`,
+  `zweite_runde_mit_auftraegen`, `dauer_ms`) — die Grundlage für
+  `RUNDEN_MAX`. **Grenzen:** ohne gültigen Richter (gleiches Modell ohne
+  `IT_JUDGE_MODELL`, USA verneint) keine Prüfung, und der Betreiberhinweis
+  steht im Hinweis an die Gruppe; ein Rücksprung nach 5 setzt die Abnahmen
+  aus 6 nicht zurück (offen, Birk). Weiteres unter „Was bewusst fehlt".
+
 ## Die Dramaturgie-Prüfung
 
 Seit dem 06.09.2026, `interview_theater/dramaturgie/`. Sie steht **neben**
@@ -1102,7 +1149,11 @@ hängt an keinem Knopf.** Sie fährt der Betreiber gegen eine Kopie
 (`scripts/dramaturgie_pruefen.py --schleife`, der teuerste Schalter des
 Repos), was dabei herauskommt, ist ein Vorschlag samt Bilanz. Der Bot
 schlägt vor, die Gruppe bestätigt — ein Test hält fest, dass weder
-`knoepfe.py` noch `fanout.py` `schleife.schliesse` rufen.
+`knoepfe.py` noch `fanout.py` `schleife.schliesse` rufen. **Die eine
+Ausnahme, nur in Padua** (03.10.2026): der Prüflauf (`prueflauf.py`) ruft
+`schleife.schliesse` im Thread eines Schreiblaufs, bevor die Gruppe den Text
+sieht — auch er nie aus einem Knopf-Handler, und mit `behalte_bessere=True`,
+siehe „Prüflauf vor jeder Anzeige" oben.
 
 **`dramaturgie_befund.richtung` ist eine Sperre, keine Notiz** (07.09.2026).
 `fanout.auftraege()` lässt aus `richtung=parameter` nie einen Schreibauftrag
@@ -3231,6 +3282,39 @@ Die Übergaben der Karte Padua A2 (Web-Kanal, 30.09.2026) — was sie bewusst
 - ~~Der Chat-Link steht auch bei Telegram-Gruppen.~~ Seit dem
   Abschlussreview (I3) behoben: Link nur bei `gruppe.kanal = 'web'`, alle
   Wege unter `/chat` sonst 404 (siehe „Der Web-Kanal").
+
+Die Übergaben von Padua Phasen TEIL 2 (Prüflauf, Phasen 6/7, 03.10.2026,
+siehe „Prüflauf vor jeder Anzeige") — offen, jeweils mit Grund:
+
+- **Die deutschen Phasen-Prompts 6 und 7 tragen noch B3 und den „Hook".**
+  `prompts/phasen/6.md` sagt weiter „schreib uns Szene 3" neben der einen
+  Geschichte (Flow-Audit B3), `prompts/phasen/7.md` nennt in Regel 4 noch den
+  Hook. Neu geschrieben ist nur die englische Fassung (der Hook steht dort
+  jetzt in `formen/lied.md`); die deutschen Dateien hasht der
+  Dortmund-Schnappschuss, und der Wortlaut ist Birks Entscheidung.
+- **`phasentexte.PARAMETER` für 6 und 7 ist nicht profilfähig.** Die
+  Checkliste der Phase 6 zählt weiter Bühnentexte (`_geschriebene_szenen`
+  liest `volltext`), obwohl in Padua dort Prosa abgenommen wird; die
+  Abnahmen (`gesamttext_fixiert_am`, `ueberarbeitung_bestaetigt_am`,
+  `sprechweisen_fixiert_am`) stehen in keiner Checkliste.
+- **`schaerfung_entscheidung` „none"** verwirft die **gerade angebotenen**
+  Stellen (`knoepfe.szenen.verwirf_schaerfung`, das nächste Ziel von
+  `biete_schaerfung`), nicht zwingend die im Satz genannte Szene oder Figur —
+  meist dasselbe, aber nicht garantiert.
+- **`erstentwurf_fassung` ist die Fassung vor dem letzten Prüflauf**, nicht
+  die allererste: jeder Lauf setzt den Zeiger neu (der Docstring von
+  `repo.setze_szene_erstentwurf` sagt noch „genau einmal").
+- **Die Chat-Abnahme in Phase 5** (`fassung_abnehmen`) schickt keine eigene
+  Bestätigungszeile; die Gruppe sieht nur den nächsten Szenenlauf anlaufen.
+  In 6 und 7 kommt eine Zeile.
+- **Ein Undo von `formen_setzen`** nimmt die Formen zurück
+  (`ruecknahme.ZUSATZ_JE_ART`), aber nicht einen dadurch schon angestoßenen
+  Sprechweisen-Lauf.
+- **Ungemessen:** der bezahlte Korpuslauf für die 17 neuen englischen
+  Erkenner-Fälle (FP = 0 nicht belegt) und ein bezahlter Simulationslauf
+  `--skript padua` (`IT_WORKSHOP=padua-2026 python -m scripts.simulation
+  --set 1 --seed 7 --skript padua --bericht`) — ob die Stimmen die
+  Schrittbudgets der Phasen 5–7 einhalten, weiß niemand.
 
 Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
 „Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit

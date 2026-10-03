@@ -4,7 +4,7 @@
 into a play** — it transcribes, condenses, remembers what the group
 decides, and drafts scene text on request. The group always decides; the
 bot never writes a scene or makes a choice on its own, and switches phase
-by itself in only one narrow, deliberate case (see below).
+by itself only at the end of a fully approved phase 5 or 6 (see below).
 
 The group interviews people in their own community, talks through what a
 play could look like, and gets scene drafts and a judged full read-through
@@ -61,21 +61,39 @@ of these decisions — and the live incidents that led to them — lives in
    interview material
 5. **Prose Draft** — sharpen the invented story against checked interview
    passages, then get it drafted scene by scene as prose
-6. **Rewrite** — the bot writes the whole story again in one pass, as a
-   single continuous piece of prose from setting, characters and story,
-   still without a fixed performance form; this is the same one-shot write
-   the phase had before it was renamed, so for a group that already drafted
-   every scene individually in phase 5 it can mean redoing that work rather
-   than revising it
-7. **Stage Version** — choose a performance form per scene, translate the
-   draft into it, and read the finished script once as a whole
+6. **Rewrite** — the story you drafted in phase 5 is not written again: it
+   is checked, and you read it in the Script tab. You approve it as a whole
+   first, then scene by scene; anything you say about the text ("make the
+   mother angrier") revises it, and "yes, save" in the chat works just like
+   the button
+7. **Stage Version** — you get one message listing every scene and answer
+   with a form per number in a single reply; then each character gets a way
+   of speaking you can approve or change; then each scene is carried over
+   into its form, one at a time, for you to approve; and once the last one
+   is saved, the whole script gets a final play check
 
 The group can jump between phases at any time by saying so; the bot never
 switches phases on its own, only asks once when the material would allow
-moving on (`phasen.py`). The one deliberate exception: in a profile that
-runs phase 5's scene-by-scene prose drafting, confirming the last open scene
-there advances the group straight into phase 6 automatically — every other
-phase change still waits for the group to say so.
+moving on (`phasen.py`). The deliberate exception: in a profile that runs
+the scene-by-scene flow, approving the last open scene of phase 5 moves the
+group straight into phase 6, and approving the last scene of phase 6 moves
+it into phase 7 — you just pressed "save" on the last piece, so there is
+nothing left to ask. Every other phase change still waits for the group to
+say so.
+
+**Checked before you read it.** In that same flow, no text reaches you
+straight from the writing model. Before a scene or the whole story is
+shown, a different model — never the one that wrote it — asks a few pointed
+questions about it (does the scene turn, does it stay true to the plan,
+does the story hold together, does each character sound like themselves).
+Whatever those questions find gets revised, at most twice. If a revision
+turns out weaker, it is thrown away and the better version stays; if it
+loses a word-for-word interview quote, it is thrown away too. Then a last
+language pass tidies length and stock phrasing. You never get the full text
+in the chat — you get a short note, at most three lines on what the check
+changed, and buttons; the text itself is in the Script tab (Telegram gets a
+link). "Show first draft" points you to the version from before the check,
+so you can always see what it changed.
 
 ## Two channels, one conversation
 
@@ -108,8 +126,11 @@ reproduces exactly what the first workshop (Dortmund, German, September
 five-day workshop for third-year acting students at the academy of the
 National Theatre of the Veneto Region (Teatro Verdi, Padova), starting
 5 October 2026 — same phases, same mechanics, its own wording, and (for
-now) the only profile running the two-stage phase 5 flow described above
-(`[prosa_entwurf] aktiv = true`). See
+now) the only profile running the two-stage phase 5 flow, the check before
+every display and the phase 6/7 flow described above
+(`[prosa_entwurf]`, `[prueflauf]` and `[ueberarbeitung]`, each
+`aktiv = true`); without them, phases 6 and 7 run as they did in Dortmund.
+See
 `docs/workshop-profil-umbau-2026-09-06.md` for how a profile is built and
 proven not to change the default's output.
 

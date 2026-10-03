@@ -215,6 +215,13 @@ def _mit_vorspann(vorspann: str | None, text: str) -> str:
     return f"{vorspann}\n\n{text}" if vorspann else text
 
 
+def _ueberarbeitung_aktiv() -> bool:
+    """Padua Phasen TEIL 2: laeuft die Ueberarbeitungs-Zustandsmaschine?"""
+    from interview_theater import ueberarbeitung
+
+    return ueberarbeitung.aktiv()
+
+
 def _sende_karte(tg, chat_id: int, nummer: int) -> None:
     """Die Telefon-Organisationskarte dieser Phase, VOR der Eintrittsnachricht
     (UX-Knoepfe-Karte, Abschnitt 5): wie die Telefone fuer diese Phase liegen
@@ -321,6 +328,16 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # laesst. Nach dem Leitfaden, weil er die erste Frage ist, die sich
         # die Gruppe vor dem Losgehen stellt.
         biete_stt_sprache(conn, tg, chat_id)
+    elif nummer == PHASE_STUECKPRUEFUNG and _ueberarbeitung_aktiv():
+        # Padua Phasen TEIL 2 (Phase 7, Stage Version): nur die Einleitung,
+        # dann der EINE Schrittweg -- Formen, Sprechweisen, Szene fuer Szene.
+        # KEIN Durchlauf-Menue und KEINE Stueckpruefung beim Eintritt: die
+        # Pruefung des Stuecks kommt am Ende (``ueberarbeitung.starte_schluss``).
+        from interview_theater import ueberarbeitung
+
+        message_id = tg.sende(chat_id, kopf)
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, kopf)
+        ueberarbeitung.weiter_7(conn, tg, klm, e, chat_id, aus_eintritt=True)
     elif nummer == PHASE_STUECKPRUEFUNG:
         # Die Schaerfung des Stuecks (06.09.2026, Birk): das komplette
         # Textbuch geht EINMAL beim Eintritt an den Stueck-Judge, im Thread

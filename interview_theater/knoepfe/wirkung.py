@@ -43,9 +43,10 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
     ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
+    ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
     ART_STT_SPRACHE, STT_KNOEPFE, T, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
     ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_UNDO, ART_WIR_ZUERST,
-    ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_SZENEN, TRENNER, _KETTE, log,
+    ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_STUECKPRUEFUNG, PHASE_SZENEN, TRENNER, _KETTE, log,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _entferne_tastatur, _id_aus_daten, _mit_leiste, _sende_knoepfe,
@@ -355,6 +356,11 @@ def _wirkung_szene_passt(conn, d: Druck) -> str:
         # der letzten automatisch Phase 7.
         return ueberarbeitung.bestaetige_szene_6(
             conn, d.tg, d.klm, d.e, d.chat_id, nummer)
+    if ueberarbeitung.aktiv() and phasen.aktuelle(conn, d.chat_id) == PHASE_STUECKPRUEFUNG:
+        # Padua (Phase 7, Stage Version): Szene abnehmen, naechste
+        # uebertragen -- nach der letzten die Pruefung des ganzen Textbuchs.
+        return ueberarbeitung.bestaetige_szene_7(
+            conn, d.tg, d.klm, d.e, d.chat_id, nummer)
     ziel = _szene_mit_nummer(conn, d.chat_id, nummer)
     if ziel is None:
         d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
@@ -463,6 +469,23 @@ def _wirkung_uebersicht_anders(conn, d: Druck) -> str:
 
     entwurf.starte_uebersicht(conn, d.tg, d.klm, d.e, d.chat_id)
     return T._TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT
+
+
+def _wirkung_sprechweisen_passt(conn, d: Druck) -> str:
+    """"Yes, save" unter den Sprechweisen (Padua, Phase 7): fixieren und
+    weiter zur ersten Szene. Kein Modellaufruf hier -- der Szenenlauf geht
+    ueber ``szene.starte`` in einen eigenen Thread."""
+    from interview_theater import ueberarbeitung
+
+    return ueberarbeitung.bestaetige_sprechweisen(conn, d.tg, d.klm, d.e, d.chat_id)
+
+
+def _wirkung_sprechweisen_anders(conn, d: Druck) -> str:
+    """"No, change it again" unter den Sprechweisen: nur nachfragen. Die
+    Antwort im Chat setzt der Erkenner (``sprechweise_setzen``, Task 10)."""
+    message_id = d.tg.sende(d.chat_id, T._TEXT_SPRECHWEISEN_AENDERN)
+    repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, T._TEXT_SPRECHWEISEN_AENDERN)
+    return T._TEXT_SPRECHWEISEN_AENDERN
 
 
 def _wirkung_szene_kuerzen(conn, d: Druck) -> str:
@@ -1584,6 +1607,8 @@ _WIRKUNGEN = {
     ART_SZENE_ANDERS: _wirkung_szene_anders,
     ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
     ART_UEBERSICHT_PASST: _wirkung_uebersicht_passt,
+    ART_SPRECHWEISEN_PASST: _wirkung_sprechweisen_passt,
+    ART_SPRECHWEISEN_ANDERS: _wirkung_sprechweisen_anders,
     ART_UEBERSICHT_ANDERS: _wirkung_uebersicht_anders,
     ART_ERSTENTWURF: _wirkung_erstentwurf,
     ART_SZENE_NEU: _wirkung_szene_neu,

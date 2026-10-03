@@ -17,6 +17,20 @@ Phase 6, Birk: "zuerst das Ganze, dann Szene fuer Szene".
    Phase 5 (``knoepfe.wirkung._wirkung_entwurf_szene_passt``): die Gruppe
    HAT gedrueckt.
 
+Phase 7 (Stage Version, Task 9), ein Schrittweg ``weiter_7``:
+
+1. **Formen** -- EINE Nachricht mit der ganzen Szenenliste und "Which form
+   for each number?" (``sende_formwahl``); keine Knoepfe, kein Vorschlag.
+   Die Antwort im Chat setzt der Erkenner (Task 10).
+2. **Sprechweisen** -- ``sprechweise.starte`` (Schema-Aufruf nur fuer Figuren
+   ohne Stil), EINE Nachricht, "Yes, save" setzt
+   ``arbeitsstand.sprechweisen_fixiert_am``.
+3. **Szene fuer Szene** -- ``szene.starte`` mit ``_AUFTRAG_BUEHNE`` (ueber den
+   Prueflauf, endet im Hinweis); "Yes, save" setzt ``szene.fertig_am``.
+4. **Schluss** -- ``starte_schluss``: Prueflauf uebers ganze Textbuch, dann
+   die Stueckpruefung, dann "The script is complete". Nur vom Abnahmeweg,
+   nie vom Eintritt.
+
 Kein SQL (alles ueber ``repo``), kein Modellaufruf hier -- was ein Modell
 braucht, laeuft in den Threads von ``prueflauf``/``szene``/
 ``kurzgeschichte`` (Zusage 2: die Funktionen werden aus Knopf-Handlern
@@ -27,6 +41,7 @@ den Schalter ruft niemand dieses Modul.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 
 from interview_theater import phasen, repo, workshop
@@ -61,6 +76,34 @@ _TEXT_KEIN_ZIEL = (
 )
 #: Toast fuer ein veraltetes "Yes, save" auf dem schon fixierten Ganzen.
 _ANTWORT_SCHON_GESPEICHERT = "Schon gespeichert"
+
+# --- Phase 7 (Stage Version), Task 9 --------------------------------------
+
+#: 7.1 Formwahl: EINE Nachricht, Kopf, je Szene eine Zeile, die Frage.
+_TEXT_FORMWAHL_KOPF = "Hier sind eure Szenen:"
+_ZEILE_FORMWAHL = "{nummer}. {titel} -- {satz}"
+_ZEILE_FORMWAHL_OHNE_SATZ = "{nummer}. {titel}"
+_TEXT_FORMWAHL_FRAGE = (
+    "Welche Form fuer welche Nummer? Zum Beispiel: 1 Chor, 2 Dialog, 3 Rap. "
+    "Formen: {formen}."
+)
+#: Der Auftrag an den Szenenlauf (geht ueber den Prueflauf).
+_AUFTRAG_BUEHNE = "SZENE {nummer}: uebertrage diese Szene in ihre Form."
+#: 7.2 nach "Yes, save" auf den Sprechweisen.
+_TEXT_SPRECHWEISEN_GESPEICHERT = (
+    "Gespeichert. Jetzt Szene fuer Szene in die Buehnenfassung: Szene 1 von "
+    "{gesamt}."
+)
+#: Die letzte Zeile der Phase -- NACH der Stueckpruefung.
+_TEXT_TEXTBUCH_FERTIG = "Das Textbuch ist fertig. Lest es im Script-Tab."
+#: Wiedereintritt in Phase 7, wenn alles fertig ist: kein neuer Pruefdurchgang
+#: von selbst (der gehoert dem Abnahmeweg), nur der Verweis.
+_TEXT_7_SCHON_FERTIG = (
+    "Euer Textbuch ist fertig. Lest es im Script-Tab, oder sagt mir, was "
+    "ihr aendern wollt."
+)
+#: Hoechstens so viele Zeichen je Satz in der Formwahl.
+FORMWAHL_SATZ_MAX = 160
 
 PHASE_UEBERARBEITUNG = 6
 PHASE_BUEHNE = 7
@@ -254,6 +297,224 @@ def ueberarbeite(conn, tg, klm, e, chat_id: int, notiz: str,
         conn, tg, klm, e, chat_id,
         szene.ueberarbeitungsauftrag(conn, chat_id, n, notiz),
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 (Stage Version), Task 9
+# ---------------------------------------------------------------------------
+
+
+def formen_offen(conn, chat_id: int) -> list[int]:
+    """Die Szenennummern ohne bestaetigte ``form``."""
+    return [s["nummer"] for s in _szenen(conn, chat_id) if not _gesetzt(s["form"])]
+
+
+def _erster_satz(text: str) -> str:
+    """Der erste Satz, auf ``FORMWAHL_SATZ_MAX`` Zeichen gekappt."""
+    text = " ".join((text or "").split())
+    if not text:
+        return ""
+    treffer = re.search(r"(?<=[.!?])\s", text)
+    satz = text[:treffer.start()] if treffer else text
+    if len(satz) > FORMWAHL_SATZ_MAX:
+        schnitt = satz.rfind(" ", 0, FORMWAHL_SATZ_MAX - 1)
+        satz = satz[:schnitt if schnitt > 0 else FORMWAHL_SATZ_MAX - 1].rstrip() + "…"
+    return satz
+
+
+def sende_formwahl(conn, tg, e, chat_id: int) -> None:
+    """EINE Nachricht mit der ganzen Szenenliste -- je Szene Titel und ein
+    Satz -- und der Frage nach der Form je Nummer. Keine Knoepfe und kein
+    Vorschlag (Birk 7.1): die Antwort kommt im Chat und wird vom Erkenner
+    gespeichert (``formen_setzen``, Task 10). Als Bot-Zeile gemerkt, damit
+    der Erkenner sie als ``vorlauf`` sieht."""
+    from interview_theater import szene
+
+    zeilen = [T._TEXT_FORMWAHL_KOPF]
+    for s in _szenen(conn, chat_id):
+        titel = (s["titel"] or "").strip() or szene.T._SZENE_MIT_NUMMER.format(
+            nummer=s["nummer"])
+        satz = _erster_satz(s["zusammenfassung"] or s["was_passiert"] or "")
+        if satz:
+            zeilen.append(T._ZEILE_FORMWAHL.format(
+                nummer=s["nummer"], titel=titel, satz=satz))
+        else:
+            zeilen.append(T._ZEILE_FORMWAHL_OHNE_SATZ.format(
+                nummer=s["nummer"], titel=titel))
+    zeilen.append("")
+    zeilen.append(T._TEXT_FORMWAHL_FRAGE.format(
+        formen=", ".join(workshop.form_anzeige())))
+    _sende(conn, tg, e, chat_id, "\n".join(zeilen))
+
+
+def sprechweisen_fixiert(conn, chat_id: int) -> bool:
+    return _stand(conn, chat_id, "sprechweisen_fixiert_am")
+
+
+def _fertigzeile(conn, e, chat_id: int, text: str) -> str:
+    """``text`` und, in Telegram mit Basis-URL, der Link aufs Script. Im
+    Web-Kanal (und ohne Basis-URL) sagt ``text`` schon alles -- der Tab-Satz
+    von ``skript_verweis`` waere dort nur eine Wiederholung."""
+    from interview_theater import knoepfe
+
+    verweis = knoepfe.skript_verweis(conn, e, chat_id)
+    if verweis and verweis != knoepfe.T._TEXT_SKRIPT_TAB:
+        return f"{text}\n{verweis}"
+    return text
+
+
+def weiter_7(conn, tg, klm, e, chat_id: int, *,
+             aus_eintritt: bool = False) -> threading.Thread | None:
+    """Der EINE Schrittweg von Phase 7: Formen, dann Sprechweisen, dann
+    Szene fuer Szene, dann der Schluss.
+
+    Liefert den angestossenen Thread (oder ``None``) -- fuer Tests. Konnte
+    ein Lauf nicht anlaufen, bekommt die Gruppe ``_TEXT_LAEUFT_NOCH`` statt
+    Stille -- ausser beim Szenenlauf: ``szene.starte`` sagt selbst, warum
+    (besetzt, fehlende Felder, USA-Frage).
+
+    ``aus_eintritt``: ist schon alles fertig, laeuft die Schlusspruefung
+    NICHT noch einmal von selbst -- sie gehoert dem Abnahmeweg
+    (``bestaetige_szene_7``). Stattdessen eine Zeile mit dem Verweis."""
+    from interview_theater import knoepfe, prueflauf, sprechweise, szene
+
+    if formen_offen(conn, chat_id):
+        sende_formwahl(conn, tg, e, chat_id)
+        return None
+    if not sprechweisen_fixiert(conn, chat_id):
+        faden = sprechweise.starte(conn, tg, klm, e, chat_id)
+        if faden is None:
+            _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
+        return faden
+    nummer = aktuelle_szene(conn, chat_id)
+    if nummer is not None:
+        zeile = next(s for s in _szenen(conn, chat_id) if s["nummer"] == nummer)
+        if not _gesetzt(zeile["volltext"]):
+            # Ueber den Prueflauf (``szene._lauf``), endet im Hinweis.
+            return szene.starte(conn, tg, klm, e, chat_id,
+                                T._AUFTRAG_BUEHNE.format(nummer=nummer))
+        faden = prueflauf.starte_szene(
+            conn, tg, klm, e, chat_id, nummer,
+            danach=lambda b: knoepfe.zeige_geprueft_szene(
+                conn, tg, e, chat_id, nummer, b),
+        )
+        if faden is None:
+            _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
+        return faden
+    if aus_eintritt:
+        _sende(conn, tg, e, chat_id,
+               _fertigzeile(conn, e, chat_id, T._TEXT_7_SCHON_FERTIG))
+        return None
+    faden = starte_schluss(conn, tg, klm, e, chat_id)
+    if faden is None:
+        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
+    return faden
+
+
+def bestaetige_sprechweisen(conn, tg, klm, e, chat_id: int) -> str:
+    """"Yes, save" unter den Sprechweisen: fixieren, ansagen, weiter.
+
+    Laeuft noch ein Lauf (Sprechweisen oder Szene), wird NICHTS
+    gespeichert; ein veralteter Knopf nach dem Fixieren wirkt nicht."""
+    from interview_theater import sprechweise
+
+    if laeuft(chat_id) or sprechweise._sperre_fuer(chat_id).locked():
+        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
+        return T._TEXT_LAEUFT_NOCH
+    if sprechweisen_fixiert(conn, chat_id):
+        return T._ANTWORT_SCHON_GESPEICHERT
+    repo.setze_arbeitsstand(conn, chat_id, "sprechweisen_fixiert_am", repo._jetzt())
+    text = T._TEXT_SPRECHWEISEN_GESPEICHERT.format(
+        gesamt=len(szenennummern(conn, chat_id)))
+    _sende(conn, tg, e, chat_id, text)
+    weiter_7(conn, tg, klm, e, chat_id)
+    return text
+
+
+def bestaetige_szene_7(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
+    """"Yes, save" unter einer Buehnenszene: abnehmen (``fertig_am``),
+    weiter -- zur naechsten Szene oder, nach der letzten, zum Schluss."""
+    from interview_theater import knoepfe
+
+    if laeuft(chat_id):
+        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
+        return T._TEXT_LAEUFT_NOCH
+    ziel = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
+    if ziel is None:
+        tg.sende(chat_id, knoepfe.T._TEXT_SZENE_UNBEKANNT)
+        return knoepfe.T._TEXT_SZENE_UNBEKANNT
+    repo.setze_szene_fertig(conn, ziel["id"], True)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden",
+        knoepfe.T._JOURNAL_SZENE_ABGENOMMEN.format(
+            nummer=nummer, titel=ziel["titel"] or "").strip(),
+        quelle="knopf",
+    )
+    weiter_7(conn, tg, klm, e, chat_id)
+    return knoepfe.T._ANTWORT_SZENE_STEHT.format(nummer=nummer)
+
+
+def _schluss(conn, tg, klm, e, chat_id: int, sperre: threading.Lock) -> None:
+    """Thread-Rumpf von ``starte_schluss``: Pruefung uebers ganze Textbuch
+    unter der Szenensperre, dann -- nach der Freigabe -- die Berichtszeilen,
+    die Stueckpruefung und ganz zuletzt die Fertig-Zeile."""
+    from interview_theater import prueflauf, stueckpruefung
+
+    bericht = None
+    try:
+        bericht = prueflauf.pruefe_geschichte(
+            conn, tg, klm, e, chat_id, fragen=prueflauf.FRAGEN_GESCHICHTE)
+    except Exception:
+        log.exception("Schlusspruefung gescheitert, chat_id=%s", chat_id)
+    finally:
+        sperre.release()
+    try:
+        zeilen = list(getattr(bericht, "zeilen", None) or [])[:prueflauf.ZEILEN_MAX]
+        if zeilen:
+            _sende(conn, tg, e, chat_id, "\n".join(zeilen))
+    except Exception:
+        log.exception("Berichtszeilen nicht zustellbar, chat_id=%s", chat_id)
+
+    gesendet: list[bool] = []
+
+    def fertig() -> None:
+        if gesendet:
+            return
+        gesendet.append(True)
+        _sende(conn, tg, e, chat_id,
+               _fertigzeile(conn, e, chat_id, T._TEXT_TEXTBUCH_FERTIG))
+
+    faden = None
+    try:
+        faden = stueckpruefung.starte(conn, tg, klm, e, chat_id, nachbereitung=fertig)
+    except Exception:
+        log.exception("Stueckpruefung nicht gestartet, chat_id=%s", chat_id)
+    if faden is None:
+        # Ohne Stueckpruefungs-Thread (kein Modell, Fehler beim Start) laeuft
+        # die Nachbereitung nie -- die Zeile kommt trotzdem, genau einmal.
+        fertig()
+
+
+def starte_schluss(conn, tg, klm, e, chat_id: int) -> threading.Thread | None:
+    """Der Schluss von Phase 7 im eigenen Thread: ``prueflauf.
+    pruefe_geschichte`` (Phase 7 -> Schreiber je Szene auf ``volltext``)
+    unter der Szenensperre, ohne Warten genommen; ``None``, wenn sie belegt
+    ist. Danach die Stueckpruefung (eigener Thread, zeigt Befunde, nicht den
+    Text) und ueber ihre ``nachbereitung`` die Zeile "The script is
+    complete" -- so steht sie sicher NACH der Stueckpruefung."""
+    from interview_theater import szene
+
+    sperre = szene._sperre_fuer(chat_id)
+    if not sperre.acquire(blocking=False):
+        return None
+    faden = threading.Thread(
+        target=_schluss, args=(conn, tg, klm, e, chat_id, sperre), daemon=True)
+    try:
+        faden.start()
+    except BaseException:
+        sperre.release()
+        raise
+    return faden
 
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)

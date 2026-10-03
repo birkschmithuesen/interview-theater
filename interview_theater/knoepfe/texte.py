@@ -897,6 +897,22 @@ _TEXT_KEIN_ERSTENTWURF = "Dazu gibt es noch keine fruehere Fassung."
 #: Hoechstens so viele Zeichen der Zusammenfassung im Hinweis.
 HINWEIS_ZUSAMMENFASSUNG_MAX = 300
 
+#: Phase 7 (Stage Version, Task 9): die Sprechweisen aller Figuren in EINER
+#: Nachricht, "Yes, save" / "No, change it again" darunter. Kein
+#: Modellaufruf in den Handlern -- "No" fragt nur nach; die Antwort im Chat
+#: setzt der Erkenner (``sprechweise_setzen``, Task 10).
+ART_SPRECHWEISEN_PASST = "sprechweisen_passt"
+ART_SPRECHWEISEN_ANDERS = "sprechweisen_anders"
+_TEXT_SPRECHWEISEN_KOPF = "So spricht jede Figur:"
+_ZEILE_SPRECHWEISE = "- {name}: {sprachstil}"
+#: Steht, solange eine Figur noch keine Sprechweise hat (der Lauf ist
+#: gescheitert) -- sie laesst sich im Chat setzen.
+_TEXT_SPRECHWEISE_OFFEN = "(noch offen -- sagt mir, wie sie spricht)"
+_TEXT_SPRECHWEISEN_AENDERN = (
+    "Sagt mir, wer anders sprechen soll -- etwa so: \"Mira: kurze Saetze, "
+    "viel Slang\""
+)
+
 
 # --- Verarbeitung ---------------------------------------------------------
 

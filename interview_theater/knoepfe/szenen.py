@@ -32,6 +32,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_NAECHSTE, ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN,
     ART_SZENE_SCHREIBEN, ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN,
     ART_SZENE_USA, ART_TEXTBUCH, ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
+    ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
     MAX_AUSWAHL, MENUE_KNOPF_LAENGE, T,
     TRENNER, log,
 )
@@ -986,6 +987,29 @@ def biete_uebersicht(conn, tg, chat_id: int, anzeige: str) -> int:
         (T.TEXT_ANDERS_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_ANDERS, ""))),
     ]
     return _mit_leiste(conn, tg, chat_id, anzeige, leiste)
+
+
+def biete_sprechweisen(conn, tg, e, chat_id: int) -> int:
+    """Phase 7, Schritt 2 (Padua Phasen TEIL 2, Task 9): die Sprechweise
+    jeder Figur in EINER Nachricht, je Figur eine Zeile, darunter "Ja,
+    speichern" (``ART_SPRECHWEISEN_PASST``) und "Nein, nochmal aendern"
+    (``ART_SPRECHWEISEN_ANDERS``). Deterministisch aus ``figur.sprachstil``;
+    eine Figur ohne Stil steht mit ``_TEXT_SPRECHWEISE_OFFEN`` da. Eine
+    aeltere Leiste derselben Art wird abgenommen, die Nachricht als
+    Bot-Zeile gemerkt (der Erkenner liest sie als ``vorlauf``)."""
+    zeilen = [T._TEXT_SPRECHWEISEN_KOPF]
+    for figur in repo.figuren(conn, chat_id):
+        stil = (figur["sprachstil"] or "").strip() or T._TEXT_SPRECHWEISE_OFFEN
+        zeilen.append(T._ZEILE_SPRECHWEISE.format(name=figur["name"], sprachstil=stil))
+    text = "\n".join(zeilen)
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SPRECHWEISEN_PASST)
+    leiste = [
+        _knopf(conn, chat_id, T.TEXT_WEITER_KNOPF, ART_SPRECHWEISEN_PASST, ""),
+        _knopf(conn, chat_id, T.TEXT_ANDERS_KNOPF, ART_SPRECHWEISEN_ANDERS, ""),
+    ]
+    message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
+    repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+    return message_id
 
 
 def biete_durchlauf(conn, tg, chat_id: int, e=None) -> int:

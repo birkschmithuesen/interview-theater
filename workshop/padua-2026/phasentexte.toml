@@ -50,7 +50,6 @@ suggestion and can go another round."""
 First you read the whole story in the Script tab and tell me where it should \
 go. Then we go scene by scene into the fine-tuning."""
 7 = """\
-All scenes are there as a story. Now the polish: scene by scene you choose the \
-form - {{formen_liste_oder}} - and I translate the story into exactly that \
-form. Then I read your play once as a whole, like an audience, and tell you \
-where it holds and where it doesn't. You can get the script as a file at any time."""
+Now the story becomes a play: first you choose a form for each scene, then \
+how each character speaks, then we transfer scene by scene. At the end I \
+check the whole script once."""

@@ -183,6 +183,10 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     ART_ERSTENTWURF, HINWEIS_ZUSAMMENFASSUNG_MAX, _TEXT_ERSTENTWURF,
     _TEXT_ERSTENTWURF_KNOPF, _TEXT_GESCHICHTE_BEREIT, _TEXT_KEIN_ERSTENTWURF,
     _TEXT_SKRIPT_LINK, _TEXT_SKRIPT_TAB, _TEXT_SZENE_BEREIT,
+    # Padua Phasen TEIL 2, Task 9: die Sprechweisen in Phase 7
+    ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
+    _TEXT_SPRECHWEISE_OFFEN, _TEXT_SPRECHWEISEN_AENDERN,
+    _TEXT_SPRECHWEISEN_KOPF, _ZEILE_SPRECHWEISE,
 )
 
 #: callback_data, Grundleiste, Speicherweg, Auftragsabgabe
@@ -238,7 +242,7 @@ from interview_theater.knoepfe.szenen import (  # noqa: F401
     zeige_stueckpruefung,
     zeige_szenentext,
     _leiste_nach_szenentext, skript_verweis, zeige_geprueft_geschichte,
-    zeige_geprueft_szene,
+    zeige_geprueft_szene, biete_sprechweisen,
 )
 
 #: Phase 3

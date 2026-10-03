@@ -236,6 +236,12 @@ _TEXT_SKRIPT_LINK = "Read it in the Script tab: {url}"
 _TEXT_ERSTENTWURF_KNOPF = "Show first draft"
 _TEXT_ERSTENTWURF = "The version before the check is in the Script tab under \"First draft\"."
 _TEXT_KEIN_ERSTENTWURF = "There is no earlier draft for this yet."
+# Padua Phasen TEIL 2, Task 9: the voices of all characters before the stage
+# version.
+_TEXT_SPRECHWEISEN_KOPF = "How each character speaks:"
+_ZEILE_SPRECHWEISE = "- {name}: {sprachstil}"
+_TEXT_SPRECHWEISE_OFFEN = "(not set yet -- tell me how they speak)"
+_TEXT_SPRECHWEISEN_AENDERN = "Tell me who should speak differently, e.g. \"Mira: short sentences, lots of slang\"."
 _TEXT_SCHON_GESETZT = "That's already in place."
 _TEXT_FIGUREN_ANZAHL_KNOPF = "Change the number"
 _TEXT_FIGUREN_NAMEN_KNOPF = "Change names"
@@ -1809,3 +1815,25 @@ _TEXT_LAEUFT_NOCH = "A revision is still running — I'll show you the result, t
 _TEXT_6_SCHON_FERTIG = "All scenes of the Rewrite are saved. Tell me what to change, or move on to the Stage Version."
 _TEXT_KEIN_ZIEL = "I couldn't tell which text to change — tap \"No, change it again\" under the text you mean."
 _ANTWORT_SCHON_GESPEICHERT = "Already saved"
+# Padua Phasen TEIL 2, Task 9: phase 7 (Stage Version) -- forms by chat,
+# voices, scene by scene, play check at the end.
+_TEXT_FORMWAHL_KOPF = "Here are your scenes:"
+_ZEILE_FORMWAHL = "{nummer}. {titel} -- {satz}"
+_ZEILE_FORMWAHL_OHNE_SATZ = "{nummer}. {titel}"
+_TEXT_FORMWAHL_FRAGE = "Which form for each number? For example: 1 chorus, 2 dialogue, 3 rap. Forms: {formen}."
+_AUFTRAG_BUEHNE = "SZENE {nummer}: transfer this scene into its form."
+_TEXT_SPRECHWEISEN_GESPEICHERT = "Saved. Now scene by scene into the stage version: scene 1 of {gesamt}."
+_TEXT_TEXTBUCH_FERTIG = "The script is complete. Read it in the Script tab."
+_TEXT_7_SCHON_FERTIG = "Your script is complete. Read it in the Script tab, or tell me what to change."
+
+["sprechweise"]
+# Padua Phasen TEIL 2, Task 9: one schema call, a way of speaking for each
+# character without one.
+ANWEISUNG = "You are preparing the stage version of a play. Give every character marked below as \"needs a way of speaking\" exactly ONE line on how they speak: sentence length, pace, word choice, quirks -- concrete enough for an actor to play it. Base it on the speech profile and the quotes if there are any, otherwise on the description. Characters that already have a way of speaking are listed only for contrast: every character should sound different from the others. Answer as a list of lines of the form \"Name: way of speaking\", one for each character that needs one, with the name exactly as below."
+_ZEILE_FIGUR = "- {name}"
+_ZEILE_BESCHREIBUNG = "  Description: {text}"
+_ZEILE_STIL = "  Way of speaking (already set): {text}"
+_ZEILE_PROFIL = "  Speech profile from the interview: {text}"
+_ZEILE_ZITAT = "  Quote: \"{text}\""
+_ZEILE_BRAUCHT = "  needs a way of speaking"
+_KOPF_FIGUREN = "Characters:"

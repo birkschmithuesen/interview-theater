@@ -221,7 +221,7 @@ _TEXT_GESCHICHTE_PASST_KNOPF = "Looks good"
 _TEXT_GESCHICHTE_ANDERS_KNOPF = "Change something"
 _TEXT_GESCHICHTE_NEU_KNOPF = "Rewrite from scratch"
 _TEXT_GESCHICHTE_ANDERS = "Tell me what should change - I'll take it into the next run."
-_TEXT_GESCHICHTE_PASST = "Good. Then we carry on section by section in Polish."
+_TEXT_GESCHICHTE_PASST = "Good. Now we'll continue section by section in the final touches."
 _TEXT_KURZGESCHICHTE_BEREIT = """\
 I can now write your story in one go - from the setting, the characters \
 and your direction. Let me know when."""

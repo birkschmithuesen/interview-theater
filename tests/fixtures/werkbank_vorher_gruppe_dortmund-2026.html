@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Test group — interview-theater</title>
+<style>
+ul.fragen { list-style: none; padding: 0; margin: 0; }
+ul.fragen li { margin: .25em 0; }
+pre.leitfaden { white-space: pre-wrap; font-family: inherit; margin: 0; }
+* { box-sizing: border-box; }
+html { overflow-x: hidden; }
+body { margin: 0; padding: 1rem 1.2rem 3rem; overflow-x: hidden;
+       font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+       line-height: 1.45; }
+h1 { font-size: 1.5rem; margin: 0 0 .8rem; }
+h2 { font-size: 1.15rem; margin: 1.6rem 0 .5rem; }
+h3 { font-size: 1rem; margin: 0 0 .4rem; }
+.stand { font-weight: normal; font-size: .8rem; opacity: .6; }
+.leer { opacity: .45; font-style: italic; }
+dt { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em;
+     opacity: .6; margin-top: .5rem; }
+dd { margin: 0; }
+dl { margin: 0; }
+
+body { background: #fbfaf7; color: #1b1b1b; font-size: 1.05rem;
+       max-width: 44rem; margin: 0 auto; }
+h1 { font-size: 1.6rem; }
+h2 { border-bottom: 1px solid #ddd8cc; padding-bottom: .2rem; }
+.szene { margin: 0 0 1.4rem; }
+.szene .volltext { white-space: pre-wrap; background: #fff; border: 1px solid #e6e1d6;
+                   border-radius: .4rem; padding: .7rem .8rem; }
+.verdichtung { margin: 0 0 1.2rem; }
+blockquote { margin: .2rem 0 .5rem; padding-left: .7rem;
+             border-left: 3px solid #c9b98d; font-style: italic; }
+.thema { margin-bottom: .5rem; }
+.art { display: inline-block; font-size: .72rem; text-transform: uppercase;
+       letter-spacing: .04em; background: #ece7db; border-radius: .8rem;
+       padding: .05rem .5rem; margin-right: .4rem; }
+details { margin-top: .5rem; }
+summary { cursor: pointer; font-weight: 600; }
+details.szene, details.verdichtung { border-bottom: 1px solid #e6e1d6;
+                                     padding-bottom: .5rem; }
+/* Die Kernbegriffe je Interview als Chips (06.09.2026). Kompakt und im
+   bestehenden Ton der Seite -- dieselbe Rundung und dieselbe Sandfarbe wie
+   .art, nur mit Rahmen statt Flaeche, damit sie neben der Themenzeile nicht
+   um Aufmerksamkeit ringen. */
+.begriffe { display: flex; flex-wrap: wrap; gap: .3rem; margin: .1rem 0 .5rem; }
+.begriff { display: inline-block; font-size: .76rem; padding: .1rem .55rem;
+           border-radius: .8rem; border: 1px solid #c9b98d; background: #f2ede1;
+           color: #4a4032; }
+/* Das Sprachprofil einer Figur: mehrzeilig, so wie es gespeichert ist. */
+.profil { white-space: pre-wrap; font-size: .92rem; opacity: .8;
+          margin: .2rem 0 .3rem; }
+.eintrag { margin: .35rem 0; }
+.zeit { opacity: .5; font-size: .78rem; }
+/* Die Szenen-Uebersicht (06.09.2026, Birk: "Was mir in der Webansicht
+   gefehlt hat, ist eine Uebersicht ueber die Szenen"). Eine Zeile je Szene,
+   ueber den aufklappbaren Bloecken -- kompakt genug fuers Telefon. */
+table.uebersicht { width: 100%; border-collapse: collapse; margin: 0 0 1rem;
+                   font-size: .92rem; }
+table.uebersicht th { text-align: left; font-size: .74rem;
+                      text-transform: uppercase; letter-spacing: .04em;
+                      opacity: .55; border-bottom: 1px solid #ddd8cc;
+                      padding: .2rem .4rem .2rem 0; }
+table.uebersicht td { vertical-align: top; padding: .3rem .4rem .3rem 0;
+                      border-bottom: 1px solid #efeade; }
+table.uebersicht td.nr { white-space: nowrap; opacity: .6; }
+table.uebersicht .vorschlag { opacity: .6; font-style: italic; }
+table.uebersicht .umfang { white-space: nowrap; opacity: .7;
+                           font-size: .82rem; }
+/* Die Bearbeitung (05.09.2026 abends). Grosse Bedienelemente: die Seite wird
+   auf dem Telefon benutzt, im Stehen, im Probenraum. */
+.feld { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+        margin: .15rem 0 .6rem; }
+.feld select, .feld input[type=text], .feld textarea {
+        flex: 1 1 14rem; font: inherit; font-size: .98rem;
+        padding: .35rem .45rem; border: 1px solid #cfc8b6; border-radius: .3rem;
+        background: #fff; color: inherit; }
+.feld textarea { min-height: 2.2rem; resize: vertical; }
+.feld select[multiple] { min-height: 5rem; }
+.feld button { font: inherit; font-size: .85rem; padding: .35rem .7rem;
+               border: 1px solid #c9b98d; border-radius: .3rem;
+               background: #ece7db; color: #1b1b1b; cursor: pointer; }
+.feld button[disabled] { opacity: .5; cursor: default; }
+.feld .hinweis { font-size: .78rem; opacity: .7; min-width: 5rem; }
+.feld .hinweis.schlecht { color: #a12b2b; opacity: 1; }
+/* Die Schaerfung: read-only, deshalb ohne Kasten und ohne Knopf. */
+.schaerfung { font-size: .85rem; margin: .3rem 0 .5rem; opacity: .85; }
+.schaerfung ul { margin: .1rem 0 0; }
+/* Die frueheren Fassungen: ein Block im Block, deshalb eingerueckt und
+   kleiner gesetzt als der aktuelle Text. Read-only, ohne Knopf. */
+details.fassungen { margin-top: .6rem; font-size: .92rem; }
+details.fassungen summary { font-weight: 600; opacity: .75; }
+details.fassung { margin: .3rem 0 .3rem .8rem; }
+details.fassung summary { font-weight: normal; opacity: .7; }
+/* Wer wie viel spricht: vier schmale Spalten, damit die Tabelle auf ein
+   Telefon passt. Die Hinweiszeilen darunter sind Fliesstext, kein Alarm. */
+table.anteile { margin: .3rem 0 .5rem; }
+table.anteile th, table.anteile td { text-align: left;
+       padding: .2rem .8rem .2rem 0; border-bottom: 1px solid #e6e1d6; }
+table.anteile th { font-size: .78rem; text-transform: uppercase;
+       letter-spacing: .04em; opacity: .6; font-weight: 600; }
+.hinweiszeile { font-size: .9rem; opacity: .8; margin: .2rem 0; }
+/* Das Fehlstellen-Register: eine Arbeitsliste, kein Alarm -- deshalb
+   dieselbe Papierfarbe wie der Rest und nur ein Strich an der Seite. */
+ul.fehlstellen { list-style: none; padding: 0 0 0 .7rem; margin: .2rem 0;
+                 border-left: 3px solid #c9b98d; }
+ul.fehlstellen li { margin: .3rem 0; }
+/* Die Dramaturgie-Pruefung: ebenfalls read-only. Die Schwere faerbt, mehr
+   nicht -- entschieden wird im Chat. */
+.befund { font-size: .9rem; margin: .35rem 0; padding-left: .6rem;
+          border-left: 3px solid #d8d0bd; }
+.befund.hart { border-left-color: #a12b2b; }
+.befund.blocker, .befund.hoch { border-left-color: #a12b2b; }
+.befund .marke { font-size: .75rem; opacity: .6; }
+.befund .vorschlag { display: block; font-size: .82rem; opacity: .8; }
+/* Die Fassungsleiste (07.09.2026): umschalten, nicht aufklappen. Grosse
+   Trefferflaechen -- die Seite wird auf dem Telefon benutzt, im Stehen. */
+nav.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }
+.fassung { display: inline-block; min-width: 2rem; text-align: center;
+           font-size: .85rem; padding: .25rem .55rem; border-radius: .3rem;
+           border: 1px solid #c9b98d; background: #f2ede1; color: #4a4032;
+           text-decoration: none; }
+.fassung.aktiv { background: #4a4032; border-color: #4a4032; color: #f7f3e8; }
+/* Der Vorspann (07.09.2026): read-only, deshalb ohne Kasten und ohne Knopf --
+   dieselbe ruhige Flaeche wie .schaerfung, nur mit Zwischenueberschriften. */
+.vorspann h3 { font-size: .78rem; text-transform: uppercase;
+               letter-spacing: .04em; opacity: .55; font-weight: 600;
+               margin: .8rem 0 .15rem; }
+.vorspann p { margin: 0 0 .2rem; }
+.vorspann ul { list-style: none; margin: 0; padding: 0; }
+.vorspann li { margin: .1rem 0; }
+.figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
+.figur .marke { font-size: .78rem; opacity: .6; }
+.hinzu { margin-top: .8rem; }
+/* Der Weg zur Probenansicht (06.09.2026): deutlich, weil er in der Probe
+   gebraucht wird und die Gruppenseite lang ist. */
+.probenansicht { margin: 0 0 1rem; }
+.probenansicht a { display: inline-block; padding: .45rem .8rem;
+                   border: 1px solid #c9b98d; border-radius: .3rem;
+                   background: #ece7db; color: #1b1b1b; text-decoration: none;
+                   font-size: .95rem; }
+</style></head>
+<body>
+<h1>Test group</h1>
+<p class="probenansicht"><a href="/theatersoap/g/tok-werkbank/textbuch">📖 Probenansicht — das ganze Stück am Stück, zum Lesen und Ausdrucken</a></p><p><a href="tok-werkbank/chat">Chat mit dem Bot</a></p><div id="stand-inhalt">
+<h2>Überblick</h2><section class="vorspann"><h3>Wo und wann</h3><p>A bus stop at night, two sisters wait for the last bus.</p><h3>4 Szenen</h3><ul><li>1. Last bus <span class="zeit">(chor)</span></li><li>2. One more night <span class="zeit">(lied)</span></li><li>3. Morning <span class="zeit">(monolog)</span></li><li>4. Dawn</li></ul><h3>Wer vorkommt</h3><ul><li><b>Nadia</b> — the older sister, restless</li><li><b>Tomas</b> — the younger brother, stubborn</li></ul></section>
+<h2>Was noch fehlt</h2><ul class="fehlstellen"><li>Szene 4 ist noch nicht erzaehlt.</li><li>Die Fragen sind noch nicht auf heikle Stellen geprueft.</li><li>Die Figurenliste ist noch nicht abgenommen.</li><li>Fuer Nadia ist noch kein Interview zugeordnet - aus welchem spricht sie?</li><li>Fuer Tomas ist noch kein Interview zugeordnet - aus welchem spricht sie?</li><li>Fuer Szene 2 fehlt noch: Ort, Was passiert.</li><li>Fuer Szene 3 fehlt noch: Ort, Was passiert.</li></ul>
+<h2>Arbeitsstand</h2><input type="hidden" id="nonce" value="nonce-werkbank"><span id="meldungen" hidden data-sicher="Wirklich entfernen?" data-speichert="speichert …" data-gespeichert="gespeichert" data-fehler="ging nicht"></span><dl><dt>Phase</dt><dd>6 · Szenen als Geschichte</dd><dt>Begriffe</dt><dd>belonging, family, noise, courage</dd><dt>Fragen</dt><dd><ul class="fragen"><li>1. Where do you feel at home?</li><li>2. Who do you argue with?</li><li>3. What gives you courage?</li></ul></dd><dt>Leitfaden</dt><dd><pre class="leitfaden">So fangt ihr an:
+Hi, we are a youth theatre group making a play about this city.
+
+Eure Fragen:
+1. Where do you feel at home?
+2. Who do you argue with?
+3. What gives you courage?
+
+So hoert ihr auf:
+Thank you - your story will become part of a scene.</pre><div class="zeit"><a href="tok-werkbank/leitfaden">Groß und zum Ausdrucken</a></div></dd><dt>Setting</dt><dd><div class="feld" data-feld="rahmen"><select class="auswahl"><option value="">— noch offen —</option><option value="__EIGENE__" selected>eigene …</option></select><input type="text" class="eigene" value="A bus stop at night, two sisters wait for the last bus." placeholder="Ort, Zeit, Anlass"><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Geschichte</dt><dd><div class="feld" data-feld="geschichte"><textarea rows="5" placeholder="was passiert, wie es endet">Nadia wants to leave, Tomas wants her to stay. In the end she stays one more night.</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Figuren</dt><dd><div class="figur" data-figur="1"><div class="feld" data-feld="figur_name" data-ziel="1"><label class="marke">Name</label><textarea rows="1" placeholder="">Nadia</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div><div class="feld" data-feld="figur_beschreibung" data-ziel="1"><label class="marke">Beschreibung</label><textarea rows="2" placeholder="ohne Beschreibung">the older sister, restless</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div><div class="feld" data-feld="figur_quelle" data-ziel="1"><label class="marke">Spricht aus</label><select class="auswahl"><option value="" selected>— kein Interview —</option><option value="1">Interview 1</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div><div class="schaerfung"><b>Schärfung (1)</b><ul><li>home</li></ul></div><div class="feld" data-feld="figur_entfernen" data-ziel="1"><button type="button" class="speichern">Entfernen</button><span class="hinweis" aria-live="polite"></span></div></div><div class="figur" data-figur="2"><div class="feld" data-feld="figur_name" data-ziel="2"><label class="marke">Name</label><textarea rows="1" placeholder="">Tomas</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div><div class="feld" data-feld="figur_beschreibung" data-ziel="2"><label class="marke">Beschreibung</label><textarea rows="2" placeholder="ohne Beschreibung">the younger brother, stubborn</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div><div class="feld" data-feld="figur_quelle" data-ziel="2"><label class="marke">Spricht aus</label><select class="auswahl"><option value="" selected>— kein Interview —</option><option value="1">Interview 1</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div><div class="feld" data-feld="figur_entfernen" data-ziel="2"><button type="button" class="speichern">Entfernen</button><span class="hinweis" aria-live="polite"></span></div></div><div class="hinzu"><div class="feld" data-feld="figur_neu"><textarea rows="1" placeholder="Name der neuen Figur"></textarea><button type="button" class="speichern">Figur hinzufügen</button><span class="hinweis" aria-live="polite"></span></div></div></dd></dl>
+
+<h2>Stückkarte</h2><ul class="stueckkarte"><li class="erledigt">✓ Setting: A bus stop at night, two sisters wait for the last bus.</li><li class="offen">offen · Figuren</li><li class="erledigt">✓ Geschichte: Nadia wants to leave, Tomas wants her to stay. In the end she stays one more night.</li><li class="offen">offen · Anzahl Szenen</li></ul>
+<h2>Weitere Festlegungen</h2><div class="festlegung"><span class="marke">figur</span><span>Nadia is nineteen.</span><div class="feld" data-feld="festlegung_entfernen" data-ziel="1"><button type="button" class="speichern">Entfernen</button><span class="hinweis" aria-live="polite"></span></div></div><div class="festlegung"><span class="marke">struktur</span><span>Only one scene per location.</span><div class="feld" data-feld="festlegung_entfernen" data-ziel="2"><button type="button" class="speichern">Entfernen</button><span class="hinweis" aria-live="polite"></span></div></div><div class="festlegung"><span class="marke">form</span><span>At most one song.</span><div class="feld" data-feld="festlegung_entfernen" data-ziel="3"><button type="button" class="speichern">Entfernen</button><span class="hinweis" aria-live="polite"></span></div></div><div class="festlegung"><span class="marke">sonstiges</span><span>Nobody dies.</span><div class="feld" data-feld="festlegung_entfernen" data-ziel="4"><button type="button" class="speichern">Entfernen</button><span class="hinweis" aria-live="polite"></span></div></div>
+<h2>Szenen</h2><table class="uebersicht"><thead><tr><th>Nr.</th><th>Szene</th><th>Form</th><th>Stil</th><th>Text</th><th>Fassungen</th></tr></thead><tbody><tr><td class="nr">1</td><td>Last bus<div class="zeit">Nadia says she is leaving.</div></td><td>chor</td><td>—</td><td class="umfang">Text 45 Z.</td><td class="umfang"><a href="?szene=1&amp;fassung=2#szene-1">2 Fassungen</a></td></tr><tr><td class="nr">2</td><td>One more night</td><td>lied</td><td>litanei</td><td class="umfang">Text 46 Z.</td><td class="umfang">—</td></tr><tr><td class="nr">3</td><td>Morning</td><td>monolog</td><td>—</td><td class="umfang">Text 34 Z.</td><td class="umfang">—</td></tr><tr><td class="nr">4</td><td>Dawn</td><td><span class="vorschlag">lied (Vorschlag)</span></td><td>—</td><td class="umfang">noch kein Text</td><td class="umfang">—</td></tr></tbody></table><details class="szene" id="szene-1"><summary>Szene 1 · Last bus · chor · the bus stop · Nadia, Tomas</summary><dl><dt>Titel</dt><dd><div class="feld" data-feld="szene_titel" data-ziel="1"><textarea rows="1" placeholder="">Last bus</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Wer</dt><dd><div class="feld" data-feld="szene_figuren" data-ziel="1"><select multiple size="4"><option value="1" selected>Nadia</option><option value="2" selected>Tomas</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Form</dt><dd><div class="feld" data-feld="szene_form" data-ziel="1"><select class="auswahl"><option value="">— offen —</option><option value="dialog">Dialog</option><option value="monolog">Monolog</option><option value="chor" selected>Chor</option><option value="lied">Lied</option><option value="rap">Rap</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Stil</dt><dd><div class="feld" data-feld="szene_stil" data-ziel="1"><select class="auswahl"><option value="" selected>— ohne Stilvorlage —</option><option value="schlagabtausch">Knapper Schlagabtausch (Schatten — Morpheuz x Monet192)</option><option value="litanei">Litanei (Lovesong — Adele)</option><option value="herkules">Herkules-Maß (Herkules.exe — ArtesMobiles)</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Ort</dt><dd><div class="feld" data-feld="szene_ort" data-ziel="1"><textarea rows="2" placeholder="">the bus stop</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Zeit</dt><dd><div class="feld" data-feld="szene_zeit" data-ziel="1"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Anlass</dt><dd><div class="feld" data-feld="szene_anlass" data-ziel="1"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Was passiert</dt><dd><div class="feld" data-feld="szene_was_passiert" data-ziel="1"><textarea rows="2" placeholder="">Nadia says she is leaving.</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Was anders ist</dt><dd><div class="feld" data-feld="szene_was_anders" data-ziel="1"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Ton</dt><dd><div class="feld" data-feld="szene_ton" data-ziel="1"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd></dl><div class="schaerfung"><b>Schärfung (1)</b><ul><li>home</li></ul></div><dl><dt>2 Fassungen</dt></dl><nav class="fassungen" aria-label="Frühere Fassungen"><a class="fassung" href="?szene=1&amp;fassung=1#szene-1" title="Fassung 1">1</a><span class="fassung aktiv" aria-current="true">2 ●</span></nav><p class="zeit">03.10.2026 12:00 · Fassung 2 von 2 · die aktuelle</p><div class="volltext">NADIA: I&#x27;m going.
+TOMAS: You always say that.</div><p class="zeit"><a href="?szene=1&amp;fassung=1#szene-1">← vorige Fassung (1)</a></p></details><details class="szene" id="szene-2"><summary>Szene 2 · One more night · lied · Nadia, Tomas</summary><dl><dt>Titel</dt><dd><div class="feld" data-feld="szene_titel" data-ziel="2"><textarea rows="1" placeholder="">One more night</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Wer</dt><dd><div class="feld" data-feld="szene_figuren" data-ziel="2"><select multiple size="4"><option value="1" selected>Nadia</option><option value="2" selected>Tomas</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Form</dt><dd><div class="feld" data-feld="szene_form" data-ziel="2"><select class="auswahl"><option value="">— offen —</option><option value="dialog">Dialog</option><option value="monolog">Monolog</option><option value="chor">Chor</option><option value="lied" selected>Lied</option><option value="rap">Rap</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Stil</dt><dd><div class="feld" data-feld="szene_stil" data-ziel="2"><select class="auswahl"><option value="">— ohne Stilvorlage —</option><option value="schlagabtausch">Knapper Schlagabtausch (Schatten — Morpheuz x Monet192)</option><option value="litanei" selected>Litanei (Lovesong — Adele)</option><option value="herkules">Herkules-Maß (Herkules.exe — ArtesMobiles)</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Ort</dt><dd><div class="feld" data-feld="szene_ort" data-ziel="2"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Zeit</dt><dd><div class="feld" data-feld="szene_zeit" data-ziel="2"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Anlass</dt><dd><div class="feld" data-feld="szene_anlass" data-ziel="2"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Was passiert</dt><dd><div class="feld" data-feld="szene_was_passiert" data-ziel="2"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Was anders ist</dt><dd><div class="feld" data-feld="szene_was_anders" data-ziel="2"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Ton</dt><dd><div class="feld" data-feld="szene_ton" data-ziel="2"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd></dl><div class="volltext">TOMAS: Stay.
+NADIA: One night. Then we&#x27;ll see.</div></details><details class="szene" id="szene-3"><summary>Szene 3 · Morning · monolog · Nadia</summary><dl><dt>Titel</dt><dd><div class="feld" data-feld="szene_titel" data-ziel="3"><textarea rows="1" placeholder="">Morning</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Wer</dt><dd><div class="feld" data-feld="szene_figuren" data-ziel="3"><select multiple size="4"><option value="1" selected>Nadia</option><option value="2">Tomas</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Form</dt><dd><div class="feld" data-feld="szene_form" data-ziel="3"><select class="auswahl"><option value="">— offen —</option><option value="dialog">Dialog</option><option value="monolog" selected>Monolog</option><option value="chor">Chor</option><option value="lied">Lied</option><option value="rap">Rap</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Stil</dt><dd><div class="feld" data-feld="szene_stil" data-ziel="3"><select class="auswahl"><option value="" selected>— ohne Stilvorlage —</option><option value="schlagabtausch">Knapper Schlagabtausch (Schatten — Morpheuz x Monet192)</option><option value="litanei">Litanei (Lovesong — Adele)</option><option value="herkules">Herkules-Maß (Herkules.exe — ArtesMobiles)</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Ort</dt><dd><div class="feld" data-feld="szene_ort" data-ziel="3"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Zeit</dt><dd><div class="feld" data-feld="szene_zeit" data-ziel="3"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Anlass</dt><dd><div class="feld" data-feld="szene_anlass" data-ziel="3"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Was passiert</dt><dd><div class="feld" data-feld="szene_was_passiert" data-ziel="3"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Was anders ist</dt><dd><div class="feld" data-feld="szene_was_anders" data-ziel="3"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Ton</dt><dd><div class="feld" data-feld="szene_ton" data-ziel="3"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd></dl><div class="volltext">NADIA: (alone) The bus never came.</div></details><details class="szene" id="szene-4"><summary>Szene 4 · Dawn</summary><dl><dt>Titel</dt><dd><div class="feld" data-feld="szene_titel" data-ziel="4"><textarea rows="1" placeholder="">Dawn</textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Wer</dt><dd><div class="feld" data-feld="szene_figuren" data-ziel="4"><select multiple size="4"><option value="1">Nadia</option><option value="2">Tomas</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Form</dt><dd><div class="feld" data-feld="szene_form" data-ziel="4"><select class="auswahl"><option value="" selected>— offen —</option><option value="dialog">Dialog</option><option value="monolog">Monolog</option><option value="chor">Chor</option><option value="lied">Lied</option><option value="rap">Rap</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div><div class="zeit">Vorschlag: lied</div></dd><dt>Stil</dt><dd><div class="feld" data-feld="szene_stil" data-ziel="4"><select class="auswahl"><option value="" selected>— ohne Stilvorlage —</option><option value="schlagabtausch">Knapper Schlagabtausch (Schatten — Morpheuz x Monet192)</option><option value="litanei">Litanei (Lovesong — Adele)</option><option value="herkules">Herkules-Maß (Herkules.exe — ArtesMobiles)</option></select><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Ort</dt><dd><div class="feld" data-feld="szene_ort" data-ziel="4"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Zeit</dt><dd><div class="feld" data-feld="szene_zeit" data-ziel="4"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Anlass</dt><dd><div class="feld" data-feld="szene_anlass" data-ziel="4"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Was passiert</dt><dd><div class="feld" data-feld="szene_was_passiert" data-ziel="4"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Was anders ist</dt><dd><div class="feld" data-feld="szene_was_anders" data-ziel="4"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd><dt>Ton</dt><dd><div class="feld" data-feld="szene_ton" data-ziel="4"><textarea rows="2" placeholder=""></textarea><button type="button" class="speichern">Speichern</button><span class="hinweis" aria-live="polite"></span></div></dd></dl><p class="leer">Noch kein Text — die Szene ist geplant.</p></details>
+<h2>Sprechanteile</h2><table class="anteile"><tr><th>Figur</th><th>Anteil</th><th>Repliken</th><th>Szenen</th></tr><tr><td>Nadia</td><td>68,8 %</td><td>3</td><td>3</td></tr><tr><td>Tomas</td><td>31,2 %</td><td>2</td><td>2</td></tr></table>
+<h2>Dramaturgie-Prüfung</h2><p class="leer">Runde 1, 3 Befunde. Entschieden wird im Chat.</p><div class="befund hoch"><span class="marke">Szene 1 · b1</span><br>Scene 1 does not turn.<span class="vorschlag">Scene 1: Nadia should say why she is going.</span></div><div class="befund mittel"><span class="marke">sprechanteil</span><br>Tomas speaks very little.</div><div class="befund mittel"><span class="marke">Szene 1 · a10</span><br>The place changed.<span class="vorschlag">ort: the old station</span></div>
+<h2>Aus den Interviews</h2><details class="verdichtung"><summary>Interview 1 · home</summary><p class="zeit">03.10.2026 12:00 · </p><p class="zusammenfassung">She talks about home and the bakery.</p><div class="thema"><h4>home</h4><p>home</p><blockquote>„Home is the smell of bread.“</blockquote></div></details>
+<h2>Der Weg dahin</h2><details><summary>Journal (5)</summary><div class="eintrag"><span class="art">vorgeschlagen</span>The group talked about the bus, round 13. <span class="zeit">03.10.2026 12:00 · </span></div><div class="eintrag"><span class="art">verworfen</span>The group talked about the bus, round 9. <span class="zeit">03.10.2026 12:00 · </span></div><div class="eintrag"><span class="art">entschieden</span>The group talked about the bus, round 11. <span class="zeit">03.10.2026 12:00 · </span></div><div class="eintrag"><span class="art">offen</span>The group talked about the bus, round 5. <span class="zeit">03.10.2026 12:00 · </span></div><div class="eintrag"><span class="art">notiert</span>The group talked about the bus, round 7. <span class="zeit">03.10.2026 12:00 · </span></div></details>
+</div>
+
+<script>
+(function () {
+  // Sanftes Nachladen (Birk 05.09.: "wenn ich etwas ausklappe, geht es
+  // immer wieder zu, sobald die Seite neu laedt"). Kein meta refresh mehr:
+  // alle NEULADEN Sekunden wird die Seite per fetch geholt; hat sich der
+  // Inhalt nicht geaendert, passiert nichts. Hat er sich geaendert, wird
+  // nur der <body> getauscht -- und vorher gemerkt, welche <details> offen
+  // waren (am summary-Text), danach wieder geoeffnet. Scrollposition
+  // bleibt, weil das Dokument nicht neu geladen wird.
+  var INTERVALL_MS = 10000;
+  var offene = function () {
+    var s = {};
+    document.querySelectorAll('details[open] > summary').forEach(function (el) {
+      s[el.textContent.trim()] = true;
+    });
+    return s;
+  };
+  var stelleHer = function (zustand) {
+    document.querySelectorAll('details > summary').forEach(function (el) {
+      if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
+    });
+  };
+  // Wer gerade tippt, verliert nichts (Brief 05.09. abends): steht der
+  // Fokus in einem Bearbeitungsfeld oder ist eines geaendert und noch nicht
+  // gespeichert, wird gar nicht erst nachgeladen. Sonst tauschte der
+  // Austausch des <body> den halb getippten Satz gegen den alten Stand aus
+  // -- dieselbe Sorte Aerger wie das Zuklappen der <details> vorher.
+  var wirdBearbeitet = function () {
+    var aktiv = document.activeElement;
+    if (aktiv && aktiv.closest && aktiv.closest('.feld')) { return true; }
+    return !!document.querySelector('.feld[data-schmutzig="1"]');
+  };
+  var letzter = document.body.innerHTML;
+  var laeuft = false;
+  setInterval(function () {
+    if (laeuft || document.hidden || wirdBearbeitet()) { return; }
+    laeuft = true;
+    fetch(location.href, { cache: 'no-store', headers: { 'X-Nachladen': '1' } })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (!html) { return; }
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        if (!neu || neu === letzter) { return; }
+        var zustand = offene();
+        var y = window.scrollY;
+        document.body.innerHTML = neu;
+        stelleHer(zustand);
+        window.scrollTo(0, y);
+        letzter = neu;
+      })
+      .catch(function () {})
+      .finally(function () { laeuft = false; });
+  }, INTERVALL_MS);
+})();
+
+(function () {
+  var wertVon = function (feld) {
+    var auswahl = feld.querySelector('select.auswahl');
+    if (auswahl) {
+      if (auswahl.value === '__EIGENE__') {
+        var frei = feld.querySelector('.eigene');
+        return frei ? frei.value : '';
+      }
+      return auswahl.value;
+    }
+    var mehrfach = feld.querySelector('select[multiple]');
+    if (mehrfach) {
+      return Array.prototype.slice.call(mehrfach.selectedOptions)
+        .map(function (o) { return o.value; }).join(',');
+    }
+    var eingabe = feld.querySelector('textarea, input');
+    return eingabe ? eingabe.value : '';
+  };
+  // Die Meldungen stehen als data-Attribute im <body> (#meldungen), in der
+  // Sprache des Profils -- im Skript steht kein Nutzertext (Karte A1).
+  var meldung = function (name) {
+    var m = document.getElementById('meldungen');
+    return (m && m.dataset[name]) || '';
+  };
+  var melde = function (feld, text, schlecht) {
+    var hinweis = feld.querySelector('.hinweis');
+    if (!hinweis) { return; }
+    hinweis.textContent = text;
+    hinweis.className = schlecht ? 'hinweis schlecht' : 'hinweis gut';
+  };
+  document.addEventListener('input', function (ev) {
+    var feld = ev.target.closest ? ev.target.closest('.feld') : null;
+    if (feld) { feld.dataset.schmutzig = '1'; melde(feld, '', false); }
+  });
+  document.addEventListener('change', function (ev) {
+    var feld = ev.target.closest ? ev.target.closest('.feld') : null;
+    if (!feld) { return; }
+    feld.dataset.schmutzig = '1';
+    melde(feld, '', false);
+    var auswahl = feld.querySelector('select.auswahl');
+    var frei = feld.querySelector('.eigene');
+    if (auswahl && frei) { frei.hidden = auswahl.value !== '__EIGENE__'; }
+  });
+  document.addEventListener('click', function (ev) {
+    var knopf = ev.target.closest ? ev.target.closest('button.speichern') : null;
+    if (!knopf) { return; }
+    var feld = knopf.closest('.feld');
+    if (!feld) { return; }
+    // Entfernen fragt einmal nach -- ohne Dialogfenster, damit ein
+    // Fehlgriff auf dem Telefon nicht gleich eine Figur kostet.
+    var entfernt = (feld.dataset.feld || '').slice(-10) === '_entfernen';
+    if (entfernt && knopf.dataset.sicher !== '1') {
+      knopf.dataset.sicher = '1';
+      knopf.textContent = meldung('sicher');
+      return;
+    }
+    knopf.disabled = true;
+    melde(feld, meldung('speichert'), false);
+    fetch(location.pathname, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        // Der Nonce steht IM body, nicht an ihm: das sanfte Nachladen
+        // tauscht nur innerHTML aus, und so kommt beim Fensterwechsel der
+        // frische Nonce von selbst mit.
+        nonce: (document.getElementById('nonce') || {}).value || '',
+        feld: feld.dataset.feld,
+        ziel: feld.dataset.ziel || null,
+        wert: wertVon(feld)
+      })
+    }).then(function (r) {
+      return r.text().then(function (t) { return { ok: r.ok, text: t }; });
+    }).then(function (a) {
+      knopf.disabled = false;
+      if (!a.ok) { melde(feld, a.text || meldung('fehler'), true); return; }
+      feld.dataset.schmutzig = '0';
+      melde(feld, meldung('gespeichert'), false);
+    }).catch(function () {
+      knopf.disabled = false;
+      melde(feld, meldung('fehler'), true);
+    });
+  });
+})();
+</script>
+</body></html>

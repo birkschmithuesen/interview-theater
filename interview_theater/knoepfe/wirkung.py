@@ -41,6 +41,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN, ART_SZENE_NAECHSTE,
     ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
+    ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
     ART_STT_SPRACHE, STT_KNOEPFE, T, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
     ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_UNDO, ART_WIR_ZUERST,
     ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_SZENEN, TRENNER, _KETTE, log,
@@ -357,6 +358,39 @@ def _wirkung_szene_anders(conn, d: Druck) -> str:
     d.tg.sende(d.chat_id, T._TEXT_SZENE_ANDERS_FRAGE)
     _melde_spaetere(conn, d.tg, d.chat_id, nummer)
     return T._ANTWORT_WAS_ANDERS_WERDEN
+
+
+def _wirkung_uebersicht_passt(conn, d: Druck) -> str:
+    """"Yes, save": die Geschichts-Uebersicht aus Stufe A von Phase 5 (Prose
+    Draft, ``entwurf.py``) ist fix (Padua Phasen TEIL 1, 03.10.2026).
+
+    Kein Modellaufruf hier (Zusage 2): die Pflichtfelder der Szenen werden
+    rein aus dem schon erzeugten Uebersicht-Text uebernommen
+    (``entwurf.uebernimm_szenenfelder``), und die erste noch offene Szene
+    geht ueber das bestehende ``szene.starte`` -- das gibt seinerseits sofort
+    an einen eigenen Thread ab."""
+    from interview_theater import entwurf, szene
+
+    repo.setze_arbeitsstand(
+        conn, d.chat_id, "geschichte_uebersicht_fixiert_am", repo._jetzt(),
+    )
+    entwurf.uebernimm_szenenfelder(conn, d.chat_id)
+    erste = entwurf.erste_offene_szene(conn, d.chat_id)
+    if erste is not None:
+        auftrag = f"SZENE {erste}: write this scene as prose, following the overview."
+        szene.starte(conn, d.tg, d.klm, d.e, d.chat_id, auftrag)
+    return T._TEXT_UEBERSICHT_FIXIERT
+
+
+def _wirkung_uebersicht_anders(conn, d: Druck) -> str:
+    """"No, change it again": ein neuer Uebersicht-Lauf (Padua Phasen TEIL 1).
+
+    Kein Modellaufruf hier (Zusage 2) -- ``entwurf.starte_uebersicht`` gibt
+    sofort an einen eigenen Thread ab, wie jeder andere Vorschlagslauf."""
+    from interview_theater import entwurf
+
+    entwurf.starte_uebersicht(conn, d.tg, d.klm, d.e, d.chat_id)
+    return T._TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT
 
 
 def _wirkung_szene_kuerzen(conn, d: Druck) -> str:
@@ -1469,6 +1503,8 @@ _WIRKUNGEN = {
     ART_SZENE_PASST: _wirkung_szene_passt,
     ART_SZENE_ANDERS: _wirkung_szene_anders,
     ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
+    ART_UEBERSICHT_PASST: _wirkung_uebersicht_passt,
+    ART_UEBERSICHT_ANDERS: _wirkung_uebersicht_anders,
     ART_SZENE_NEU: _wirkung_szene_neu,
     ART_SZENE_SO_LASSEN: _wirkung_szene_so_lassen,
     ART_SZENE_NAECHSTE: _wirkung_szene_naechste,

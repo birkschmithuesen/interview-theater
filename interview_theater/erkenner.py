@@ -1463,6 +1463,10 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         # Kuerzung ist kein Arbeitsstandfeld, sondern ein Lauf. Den stoesst
         # laufe() an (dort gibt es tg und klm).
         return None
+    if art == "uebersicht_aendern":
+        # Kein Schreibpfad, wie szene_schreiben: diese art stoesst eine
+        # Neugenerierung an (entwurf.py), die laufe() auswertet.
+        return None
     # Unbekannte art sollte erkenne() bereits herausgefiltert haben; bei
     # direktem Aufruf von wende_an() (z. B. in Tests) einfach ignorieren
     # statt zu krachen.
@@ -2222,6 +2226,52 @@ def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
         log.exception("Kuerzung konnte nicht gestartet werden, chat_id=%s", chat_id)
 
 
+def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
+                                aenderungen: list[dict]) -> None:
+    """Stoesst eine Neugenerierung der Stufe-A-Uebersicht an, wenn der
+    Erkenner ``uebersicht_aendern`` gefunden hat (Padua Phasen TEIL 1).
+
+    Nicht in ``wende_an``, aus demselben Grund wie ``_starte_szene``/
+    ``_starte_kuerzung``: dort wird nur in die Datenbank geschrieben, hier
+    faellt ein minutenlanger Modellaufruf an. ``entwurf.starte_uebersicht``
+    gibt ihn sofort an einen eigenen Thread ab (Zusage 2).
+
+    **Phasengebunden ueber ``PHASEN_SPEZIFISCHE_ARTEN``, hier noch einmal
+    geprueft.** ``wende_an()`` filtert ``uebersicht_aendern`` zwar schon
+    gegen ``_ist_phasenpassend`` heraus -- aber nur fuer seine EIGENE, lokale
+    Kopie der Liste, aus der ``wirkliche`` entsteht; der ``aenderungen``,
+    den ``laufe()`` an diese Funktion weiterreicht, bleibt die ungefilterte
+    Liste aus ``erkenne()``. Ohne die eigene Pruefung hier liefe eine
+    Rueckmeldung zur Uebersicht ausserhalb Phase 5 (z. B. nachdem die Gruppe
+    laengst in Phase 6 weiter ist) trotzdem einen neuen, bezahlten Lauf an.
+
+    **Zusaetzlich profilgebunden** (nicht nur phasengebunden): ``ARTEN`` und
+    ``PHASEN_SPEZIFISCHE_ARTEN`` sind geteilter, profilunabhaengiger Code --
+    jede Gruppe, auch Dortmund, bekommt ``uebersicht_aendern`` im Schema-Enum
+    des Erkenner-Aufrufs angeboten, und Dortmunds eigene Phase 5 (Schaerfung)
+    existiert ebenfalls. Erkennt Dortmunds Modell die art trotzdem einmal
+    (unwahrscheinlich, die deutsche Punktbeschreibung verlangt explizit eine
+    bereits im Verlauf stehende generierte Uebersicht, die es bei Dortmund nie
+    gibt) muss das ein stiller No-Op bleiben, kein echter, bezahlter
+    Modellaufruf fuer ein Feature, das diese Gruppe nicht hat -- derselbe
+    Grund, aus dem ``knoepfe/stationen.py`` (Task 11) den Uebersicht-Start
+    nach der Schaerfung hinter denselben Schalter stellt."""
+    from interview_theater import workshop
+
+    if not workshop.prosa_entwurf_aktiv():
+        return
+    if not _ist_phasenpassend(conn, chat_id, "uebersicht_aendern"):
+        return
+    treffer = next(
+        (a for a in aenderungen if a.get("art") == "uebersicht_aendern"), None
+    )
+    if treffer is None:
+        return
+    from interview_theater import entwurf
+
+    entwurf.starte_uebersicht(conn, tg, klm, e, chat_id, treffer.get("wert") or None)
+
+
 def _starte_sprachprofil(klm, tg, conn, e, chat_id: int, wirkliche: list[dict]) -> None:
     """Stoesst je bestaetigter Interview-Zuordnung einen Sprachprofil-Aufruf
     an (art ``figur_quelle_setzen``, interview_theater/sprachprofil.py).
@@ -2452,6 +2502,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # erkannten Aenderungen, weil sie wie ``szene_schreiben`` nichts in
         # den Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.
         _starte_kuerzung(klm, tg, conn, e, chat_id, aenderungen)
+        # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
+        # Geschichts-Uebersicht (Stufe A von Phase 5) -- derselbe Grund wie
+        # bei _starte_szene/_starte_kuerzung, kein Schreibpfad in wende_an.
+        _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id, aenderungen)
         text = baue_meldung(wirkliche, conn, chat_id)
         if text is None:
             _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)

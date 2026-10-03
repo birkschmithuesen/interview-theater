@@ -192,6 +192,52 @@ def _lauf(conn, tg, klm, e, chat_id: int, notiz: str | None,
         sperre.release()
 
 
+def uebernimm_szenenfelder(conn, chat_id: int) -> None:
+    """Stufe A -> B: jede Szene bekommt ihre Pflichtfelder aus der
+    Uebersicht, sofern sie noch leer sind. ``form`` bleibt aussen vor -- das
+    ist in Phase 5 kein Pflichtfeld (``szene.schreibt_prosa``).
+
+    ``was_passiert`` kommt zeilenweise aus
+    ``arbeitsstand.geschichte_uebersicht_szenen`` (die EINZELNEN
+    Szenensaetze, getrennt von der zusammengesetzten Anzeige, die ``_lauf``
+    dort ablegt). Ort faellt auf das Setting zurueck (AGENTS.md: das Setting
+    ist die Vorgabe fuer Ort, Zeit und Anlass jeder Szene); die Besetzung
+    faellt auf die volle Figurenliste zurueck (dokumentierte Vereinfachung,
+    Padua Phasen TEIL 1 -- das Schema liefert keine Besetzung je Szene, um
+    flach zu bleiben). Alle drei sind ueber die Gruppenseite danach
+    aenderbar."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is None:
+        return
+    rahmen = (stand["rahmen"] or "").strip()
+    anzahl_text = (stand["szenen_anzahl"] or "").strip()
+    anzahl = int(anzahl_text) if anzahl_text.isdigit() else 0
+    was_passiert_zeilen = (stand["geschichte_uebersicht_szenen"] or "").splitlines()
+    figuren_ids = [f["id"] for f in repo.figuren(conn, chat_id)]
+    for nummer in range(1, anzahl + 1):
+        szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
+        zeile = repo.hole_szene(conn, szene_id)
+        if not (zeile["was_passiert"] or "").strip() and nummer - 1 < len(was_passiert_zeilen):
+            satz = was_passiert_zeilen[nummer - 1].strip()
+            if satz:
+                repo.setze_szenenfeld(conn, szene_id, "was_passiert", satz)
+        if not (zeile["ort"] or "").strip() and rahmen:
+            repo.setze_szenenfeld(conn, szene_id, "ort", rahmen)
+        if not repo.szene_figuren(conn, szene_id) and figuren_ids:
+            repo.setze_szene_figuren(conn, chat_id, szene_id, figuren_ids)
+
+
+def erste_offene_szene(conn, chat_id: int) -> int | None:
+    """Die niedrigste Szenennummer, deren Prosa-Entwurf noch nicht
+    abgenommen ist (``szene.entwurf_bestaetigt_am``). Pflichtfelder
+    (``was_passiert``, Besetzung) muessen schon dastehen --
+    ``uebernimm_szenenfelder`` laeuft vorher."""
+    for s in sorted(repo.hole_szenen(conn, chat_id), key=lambda z: z["nummer"] or 0):
+        if s["nummer"] is not None and not (s["entwurf_bestaetigt_am"] or "").strip():
+            return s["nummer"]
+    return None
+
+
 def starte_uebersicht(conn, tg, klm, e, chat_id: int, notiz: str | None = None):
     """Gibt die Uebersicht-Erzeugung an einen eigenen Thread ab -- dasselbe
     Muster wie ``schaerfung.starte``/``kernzitate.starte`` (Zusage 2: kein

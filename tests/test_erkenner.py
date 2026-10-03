@@ -1136,6 +1136,20 @@ def test_phasenspezifische_art_wirkt_in_ihrer_phase(conn, einst, monkeypatch):
     assert ergebnis == [{"art": "uebersicht_aendern", "wert": "make it sadder"}]
 
 
+def test_uebersicht_aendern_hat_auch_real_keinen_schreibpfad(conn, einst):
+    """Task 10: ``uebersicht_aendern`` schreibt nichts in den Arbeitsstand --
+    sie stoesst nur ``entwurf.starte_uebersicht`` an (``erkenner.laufe``).
+    Mit dem echten ``_wende_eine_an`` (kein Monkeypatch wie oben) bleibt
+    ``wende_an`` deshalb leer, auch innerhalb Phase 5."""
+    phasen.setze(conn, 1, 5, "befehl")
+
+    ergebnis = erkenner.wende_an(
+        conn, einst, 1, [{"art": "uebersicht_aendern", "wert": "make it sadder"}]
+    )
+
+    assert ergebnis == []
+
+
 def test_generische_art_wirkt_in_jeder_phase(conn, einst):
     """festlegung_setzen steht nicht in PHASEN_SPEZIFISCHE_ARTEN und bleibt
     unveraendert phasenfrei (Padua Phasen TEIL 1, Vorgabe aus dem Auftrag)."""

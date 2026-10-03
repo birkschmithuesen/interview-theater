@@ -225,6 +225,8 @@ _TEXT_GESCHICHTE_PASST = "Good. Then we carry on section by section in Polish."
 _TEXT_KURZGESCHICHTE_BEREIT = """\
 I can now write your story in one go - from the setting, the characters \
 and your direction. Let me know when."""
+_TEXT_UEBERSICHT_FIXIERT = "Got it -- writing the first scene now."
+_TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT = "On it -- a new overview is coming."
 _TEXT_SCHON_GESETZT = "That's already in place."
 _TEXT_FIGUREN_ANZAHL_KNOPF = "Change the number"
 _TEXT_FIGUREN_NAMEN_KNOPF = "Change names"

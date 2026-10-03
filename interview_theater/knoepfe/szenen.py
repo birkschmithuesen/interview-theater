@@ -30,7 +30,8 @@ from interview_theater.knoepfe.texte import (
     ART_SZENENSTIL, ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN,
     ART_SZENE_NAECHSTE, ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN,
     ART_SZENE_SCHREIBEN, ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN,
-    ART_SZENE_USA, ART_TEXTBUCH, MAX_AUSWAHL, MENUE_KNOPF_LAENGE, T,
+    ART_SZENE_USA, ART_TEXTBUCH, ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
+    MAX_AUSWAHL, MENUE_KNOPF_LAENGE, T,
     TRENNER, log,
 )
 from interview_theater.knoepfe.basis import (
@@ -789,6 +790,28 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
         ),
     ]
     return _mit_leiste(conn, tg, chat_id, text, leiste)
+
+
+# --- Padua Phasen TEIL 1 (03.10.2026): Phase 5, Stufe A -------------------
+
+
+def biete_uebersicht(conn, tg, chat_id: int, anzeige: str) -> int:
+    """Zeigt die generierte Geschichts-Uebersicht (``entwurf.py``, Stufe A
+    von Phase 5) mit genau zwei Knoepfen: "Yes, save" und "No, change it
+    again" -- dieselbe "Rueckspiegelung EINES Wertes" wie ueberall sonst
+    (``grundleiste``/``speicherleiste``), deshalb dieselben Beschriftungen
+    (``T.TEXT_WEITER_KNOPF``/``T.TEXT_ANDERS_KNOPF``) statt neuer, fast
+    gleichlautender Strings.
+
+    Zwei getrennte Knopfarten statt einer einzigen mit Modus (wie
+    ``grundleiste``), weil sie zwei verschiedene Dinge anstossen -- Stufe B
+    beginnt, oder Stufe A laeuft erneut --, genau wie bei
+    ``ART_SZENE_PASST``/``ART_SZENE_ANDERS`` unter einem Szenentext."""
+    leiste = [
+        (T.TEXT_WEITER_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_PASST, ""))),
+        (T.TEXT_ANDERS_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_ANDERS, ""))),
+    ]
+    return _mit_leiste(conn, tg, chat_id, anzeige, leiste)
 
 
 def biete_durchlauf(conn, tg, chat_id: int, e=None) -> int:

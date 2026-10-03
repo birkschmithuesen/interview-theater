@@ -857,6 +857,19 @@ _TEXT_KURZGESCHICHTE_BEREIT = (
 )
 
 
+# --- Padua Phasen TEIL 1 (03.10.2026): Stufe A von Phase 5 (Prose Draft) --
+
+#: "Yes, save" / "No, change it again" unter der generierten
+#: Geschichts-Uebersicht (``entwurf.py``) -- dieselbe "Rueckspiegelung EINES
+#: Wertes" wie bei ``grundleiste``/``speicherleiste``, deshalb dieselben
+#: Beschriftungen (``TEXT_WEITER_KNOPF``/``TEXT_ANDERS_KNOPF``) statt
+#: near-duplizierter Strings.
+ART_UEBERSICHT_PASST = "uebersicht_passt"
+ART_UEBERSICHT_ANDERS = "uebersicht_anders"
+_TEXT_UEBERSICHT_FIXIERT = "Alles klar -- ich schreibe jetzt die erste Szene."
+_TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT = "Gut, ich erzeuge eine neue Uebersicht."
+
+
 # --- Verarbeitung ---------------------------------------------------------
 
 

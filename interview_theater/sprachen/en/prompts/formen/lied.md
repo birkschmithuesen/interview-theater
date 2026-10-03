@@ -20,7 +20,9 @@ conversation -- and may talk longer than usual for it.
    objects, numbers and places from the details of the scene.
 3. **The refrain repeats word for word.** Same lines, same number of
    syllables. At most the last word of the last repetition is varied,
-   and only if something turns with it.
+   and only if something turns with it. The refrain is the song's hook:
+   the line the audience can sing back after one hearing. Keep it short and
+   give it the clearest image of the song.
 4. **Short lines, even.** Four to eight syllables. Whoever reads it aloud
    has to be able to breathe without rushing -- amateurs sing this.
 5. **Rhyme is allowed, but never at any price.** An impure rhyme is

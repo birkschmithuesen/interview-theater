@@ -526,11 +526,17 @@ def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():
     sechs = (EN / "phasen" / "6.md").read_text(encoding="utf-8")
     sieben = (EN / "phasen" / "7.md").read_text(encoding="utf-8")
 
+    # Padua Phasen TEIL 2 (03.10.2026, Task 11): die englische Schicht gilt
+    # nur fuer Padua, und dort laufen 6 und 7 ueber ``ueberarbeitung.py``.
+    # Die alten Einzelszenen-Leisten ("Yes, write it", "Change form", ...)
+    # und die Knoepfe unter der alten Kurzgeschichte gibt es dort nicht mehr;
+    # beide Phasen nennen die Leiste aus ``knoepfe.zeige_geprueft_*``.
     for knopf in ("Yes, write it", "Plan it differently", "Change form",
-                  "Skip", "Next scene"):
-        assert knopf not in sechs, knopf
-        assert knopf in sieben, knopf
-    # Phase 6 nennt die Knoepfe, die wirklich unter der Geschichte haengen.
-    for knopf in ("Write the story", "Change something",
+                  "Skip", "Next scene", "Change something",
                   "Rewrite from scratch"):
+        assert knopf not in sechs, knopf
+        assert knopf not in sieben, knopf
+    for knopf in ("Yes, save", "No, change it again", "Shorter (25 %)",
+                  "Show first draft"):
         assert knopf in sechs, knopf
+        assert knopf in sieben, knopf

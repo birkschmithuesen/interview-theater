@@ -554,6 +554,75 @@ def test_aenderungen_des_bots_kommen_ohne_neuladen_an(seite):
     expect(seite.locator(f'.blase[data-id="{weg_id}"]')).to_have_count(0)
 
 
+def test_eine_wachsende_letzte_blase_scrollt_mit_wenn_man_unten_war(seite):
+    """Padua Brainstorm, 03.10.2026, Live-Befund: die Blase eines laufenden
+    Brainstorm-Transkripts waechst per ``geaendert``, nicht per ``neu`` -- bis
+    zum Klick auf "Stop" legt der Server keine neue Nachricht an, er
+    aktualisiert nur die vorhandene. ``nachUnten()`` lief bisher nur bei
+    ``neu.length``, also blieb der Bildschirm stehen, waehrend die Blase
+    unterhalb des sichtbaren Bereichs weiterwuchs. Stand die Gruppe am
+    unteren Rand, muss sie dort bleiben."""
+    conn = db.verbinde(DB_PFAD)
+    try:
+        kanal = web_kanal.WebKanal(conn, CHAT, AUDIO, schritt_s=0.01)
+        # Genug Fuellzeilen, damit die Seite ueberhaupt scrollbar ist --
+        # ohne das waere jede Position schon "unten".
+        for i in range(20):
+            kanal.sende(CHAT, f"Fuellzeile {i} fuer Scrollhoehe.")
+        letzte_id = kanal.sende(CHAT, "Erstes Stueck des Transkripts.")
+    finally:
+        conn.close()
+    expect(seite.locator(f'.blase[data-id="{letzte_id}"]')).to_be_visible()
+    seite.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    hoehe_vorher = seite.evaluate("document.body.scrollHeight")
+
+    conn = db.verbinde(DB_PFAD)
+    try:
+        repo.aendere_web_text(
+            conn, CHAT, letzte_id,
+            "Erstes Stueck des Transkripts. " + ("Noch mehr Text. " * 80),
+        )
+    finally:
+        conn.close()
+
+    assert _warte(seite, lambda: seite.evaluate("document.body.scrollHeight") > hoehe_vorher)
+    assert _warte(
+        seite,
+        lambda: (seite.evaluate("window.innerHeight") + seite.evaluate("window.scrollY"))
+        >= seite.evaluate("document.body.scrollHeight") - 48,
+    ), "die Gruppe stand unten und haette unten bleiben muessen"
+
+
+def test_eine_wachsende_letzte_blase_scrollt_nicht_wenn_hochgescrollt_wurde(seite):
+    """Gegenprobe: wer gerade weiter oben nachliest, wird nicht aus der
+    Leseposition gerissen, nur weil die juengste Blase im Hintergrund
+    weiterwaechst."""
+    conn = db.verbinde(DB_PFAD)
+    try:
+        kanal = web_kanal.WebKanal(conn, CHAT, AUDIO, schritt_s=0.01)
+        for i in range(20):
+            kanal.sende(CHAT, f"Fuellzeile {i} fuer Scrollhoehe.")
+        letzte_id = kanal.sende(CHAT, "Erstes Stueck des Transkripts.")
+    finally:
+        conn.close()
+    expect(seite.locator(f'.blase[data-id="{letzte_id}"]')).to_be_visible()
+    seite.evaluate("window.scrollTo(0, 0)")  # ganz nach oben, zum Nachlesen
+    seite.wait_for_timeout(50)
+    position_vorher = seite.evaluate("window.scrollY")
+
+    conn = db.verbinde(DB_PFAD)
+    try:
+        repo.aendere_web_text(
+            conn, CHAT, letzte_id,
+            "Erstes Stueck des Transkripts. " + ("Noch mehr Text. " * 80),
+        )
+    finally:
+        conn.close()
+
+    expect(seite.locator(f'.blase[data-id="{letzte_id}"]')).to_contain_text("Noch mehr Text.")
+    assert seite.evaluate("window.scrollY") == position_vorher
+
+
 # -- Push-to-Talk ----------------------------------------------------------------
 
 def test_ptt_unter_einer_halben_sekunde_sendet_nichts(seite):

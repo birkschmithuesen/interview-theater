@@ -664,6 +664,11 @@ _CSS_BUEHNE = """
                        white-space: pre-wrap; }
 #buehne-panel .karte.alt { font-size: .85rem; opacity: .6; padding: .5rem .7rem; }
 #buehne-panel .karte .zeit { display: block; margin-top: .3rem; }
+/* Der ruhige Hinweis, wenn der juengste Versuch ein Schweigen war (Karte
+   Padua Brainstorm, 03.10.2026) -- gedaempft wie ".leer", aber ohne ihren
+   Platz zu beanspruchen: er steht VOR einer noch stehenden letzten Karte. */
+#buehne-panel .hoert-zu { opacity: .55; font-style: italic; font-size: .95rem;
+                          margin: 0 0 .7rem; }
 """
 
 
@@ -901,6 +906,11 @@ _TEXT_JOURNAL = "Journal ({anzahl})"
 #: selbst steht seit dem Umzug in Karte Ws Tableiste in
 #: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
 _TEXT_BUEHNE_LEER = "Noch keine Karte."
+#: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
+#: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
+#: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
+#: erkennen, ob das Mithoeren ueberhaupt laeuft.
+_TEXT_BUEHNE_HOERT_ZU = "Hört zu … bisher nichts beizutragen."
 _TEXT_BUEHNE_OFFEN = "offen"
 #: Was das Speichern auf der Gruppenseite neben dem Feld meldet. Das
 #: JavaScript liest sie aus ``data-``-Attributen (``_BEARBEITEN_JS``), damit
@@ -2510,17 +2520,28 @@ def _buehne_html(daten: dict) -> str:
     on top, older cards smaller/greyed below"). Gerufen von
     ``web_vereint.seite`` fuer den Tab "buehne" (nur Phase 4) -- die
     Sichtbarkeit regelt dort das ``hidden``-Attribut des Panels, nicht mehr
-    CSS am ``<body>``."""
+    CSS am ``<body>``.
+
+    Nachtrag Karte Padua Brainstorm (03.10.2026): eine Schweigen-Zeile
+    (``buehnenkarte.schweigen = 1``) ist keine Karte -- sie traegt leeren
+    Text und erscheint nie in der Kartenliste. War der JUENGSTE Versuch ein
+    Schweigen, steht stattdessen (oder zusaetzlich vor der letzten echten
+    Karte) ein ruhiger Hinweis, dass mitgehoert wird: eine leere Flaeche
+    liess nicht erkennen, ob das Mithoeren ueberhaupt laeuft."""
     karten = daten.get("buehnenkarten") or []
     streifen = _stueckkarte_streifen_html(
         daten.get("stueckkarte_felder") or [], daten.get("festlegungen")
     )
-    inhalt = (
-        "".join(_buehnenkarte_html(k, i == 0) for i, k in enumerate(karten))
-        if karten
-        else f'<p class="leer">{_t(T._TEXT_BUEHNE_LEER)}</p>'
-    )
-    return f'<div id="buehne-panel">{streifen}{inhalt}</div>'
+    hoert_zu = bool(karten and karten[0]["schweigen"])
+    echte = [k for k in karten if not k["schweigen"]]
+    teile = []
+    if hoert_zu:
+        teile.append(f'<p class="hoert-zu">{_t(T._TEXT_BUEHNE_HOERT_ZU)}</p>')
+    if echte:
+        teile.append("".join(_buehnenkarte_html(k, i == 0) for i, k in enumerate(echte)))
+    elif not hoert_zu:
+        teile.append(f'<p class="leer">{_t(T._TEXT_BUEHNE_LEER)}</p>')
+    return f'<div id="buehne-panel">{streifen}{"".join(teile)}</div>'
 
 
 def gruppe_koerper(
@@ -3650,7 +3671,6 @@ class _Basishandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "public, max-age=86400")
         self.end_headers()
         self.wfile.write(inhalt)
-        self.wfile.write(roh)
 
     def _csp_nonce(self) -> str:
         """Der Nonce dieser Antwort, an das Token der aufgerufenen Seite

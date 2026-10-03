@@ -599,6 +599,16 @@ CREATE TABLE IF NOT EXISTS buehnenkarte (
   -- 'infomaniak' oder 'claude' (ueber szene_claude, mit Einwilligung) --
   -- dasselbe Feld wie aufruf.modus, hier als lesbarer Text statt A/B/C.
   modell       TEXT NOT NULL,
+  -- Nachtrag Karte Padua Brainstorm (03.10.2026): 1 heisst "zugehoert, aber
+  -- bewusst NICHTS beizutragen gehabt" -- ``text`` ist dann leer (""), nicht
+  -- NULL (die Spalte bleibt NOT NULL). Additiv ueber
+  -- _migriere_fehlende_spalten; eine alte Zeile ist immer 0, weil es vor
+  -- dieser Spalte nie eine Schweigen-Zeile gab -- jede bestehende Zeile war
+  -- eine echte Karte. Ohne diese Zeile war ein Schweigen von einem nie
+  -- gelaufenen Versuch nicht zu unterscheiden (buehnenkarte.erzeuge lieferte
+  -- in beiden Faellen (None, modell), und der Aufrufer legte gar keine Zeile
+  -- an).
+  schweigen    INTEGER NOT NULL DEFAULT 0,
   erstellt_am  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_buehnenkarte_chat ON buehnenkarte(chat_id, id);

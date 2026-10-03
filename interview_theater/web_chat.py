@@ -448,6 +448,9 @@ _CHAT_JS = """
   var PTT_MAX_MS = __PTT_MAX_MS__;
   var UPLOAD_WARTEN_MS = __UPLOAD_WARTEN_MS__;
   var TEXT = __TEXTE__;
+  // Padua Brainstorm, 03.10.2026: wie nah am unteren Rand noch als "dort"
+  // zaehlt -- ein Pixel exakt waere auf jedem Geraet eine andere Zahl.
+  var UNTEN_TOLERANZ_PX = 48;
 
   var verlauf = document.getElementById('verlauf');
   var fuss = document.getElementById('fuss');
@@ -674,7 +677,28 @@ _CHAT_JS = """
     window.scrollTo(0, document.body.scrollHeight);
   }
 
+  // Padua Brainstorm, 03.10.2026: ob der Bildschirm schon am unteren Rand
+  // stand -- VOR jeder DOM-Aenderung gelesen, sonst veraendert eine neue
+  // Blase schon scrollHeight, bevor wir nachsehen konnten.
+  function amUnterenRand() {
+    return (window.innerHeight + window.scrollY)
+      >= (document.body.scrollHeight - UNTEN_TOLERANZ_PX);
+  }
+
+  // Wurde die zurzeit letzte Blase im Verlauf gerade durch ``ersetze()``
+  // veraendert? Das laufende Transkript eines Brainstorm-Segments legt keine
+  // neue Nachricht an (nur eine Aenderung an der schon vorhandenen) -- ohne
+  // diese Pruefung bliebe der Bildschirm stehen, waehrend die Blase unten
+  // weiterwaechst.
+  function letzteBlaseWurdeGeaendert(geaendert) {
+    var blasen = verlauf.querySelectorAll('.blase');
+    if (!blasen.length) { return false; }
+    var letzteId = blasen[blasen.length - 1].dataset.id;
+    return geaendert.some(function (n) { return String(n.id) === letzteId; });
+  }
+
   function nimmZustand(daten) {
+    var warUnten = amUnterenRand();
     // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
     // zwei Stunden -- der Poll bringt den laufenden mit.
     if (daten.nonce) {
@@ -687,12 +711,17 @@ _CHAT_JS = """
       zustand.letzte = daten.letzte;
       verlauf.dataset.letzte = daten.letzte;
     }
-    (daten.geaendert || []).forEach(ersetze);
+    var geaendert = daten.geaendert || [];
+    geaendert.forEach(ersetze);
     if (typeof daten.aenderung === 'number') {
       zustand.aenderung = daten.aenderung;
       verlauf.dataset.aenderung = daten.aenderung;
     }
-    if (neu.length) { nachUnten(); }
+    if (neu.length) {
+      nachUnten();
+    } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
+      nachUnten();
+    }
     if (tipptFeld) { tipptFeld.textContent = daten.tippt ? TEXT.tippt : ''; }
     // UX-Knoepfe-Karte, Abschnitt 1: der Platzhalter folgt der Phase, das
     // Eingabefeld selbst bleibt dabei immer offen und unveraendert bedienbar.

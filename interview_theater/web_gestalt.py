@@ -248,6 +248,7 @@ BEWEGT = (
     ".phase-knopf",
     ".blase.vorlaeufig::after",   # Karte W
     "#tippt::after",              # Karte W
+    '#tippt[data-ux-denkt="1"]::after',
 )
 
 
@@ -402,9 +403,79 @@ _ROADMAP = ""
 _MOMENTE_A = ""
 _MOMENTE_B = ""
 _BELOHNUNG = ""
-#: Gefuellt in Aufgabe 5 (Chat) und 8 (Aufnahmeknoepfe).
-_CHAT_A = ""
-_CHAT_B = ""
+#: Der Chat, Entwurf A: Terminal. Monospace, Phosphor als Rahmenfarbe der
+#: Bot-Blase, eine Kennzeile `bot ~ $` darueber. Die Blase der Gruppe
+#: sitzt rechts auf einer tiefen Signalflaeche.
+#:
+#: Der Denk-Cursor (``#tippt[data-ux-denkt="1"]::after``) steht am Ende --
+#: ``_JS_DENKT`` setzt nur das Attribut, die Regel dazu gehoert ins Panel,
+#: nicht in ``_BASIS`` (Aufgabe 8 ergaenzt dort noch den Aufnahmeknopf).
+_CHAT_A = """
+.verlauf { display: flex; flex-direction: column; gap: .5rem; }
+.blase { padding: .5rem .65rem; max-width: 92%; font-size: 1rem;
+         border-radius: var(--radius-gross); overflow-wrap: anywhere; }
+.blase.bot { background: var(--grund-2); border: 1px solid var(--linie);
+             border-left: 2px solid var(--signal); align-self: flex-start; }
+.blase.bot::before { content: "bot ~ $"; display: block; font-size: .72rem;
+                     letter-spacing: .1em; color: var(--text-leise);
+                     font-family: var(--schrift-tech); }
+.blase.gruppe { background: var(--signal-tief); border: 1px solid var(--rand);
+                align-self: flex-end; }
+.blase.sprache { color: var(--text-leise); font-style: italic; }
+.blase q { display: block; margin: .5rem 0; padding-left: .7rem;
+           border-left: 2px solid var(--warn); color: var(--warn);
+           font-family: var(--schrift-skript); font-style: italic;
+           quotes: none; }
+.blase.vorlaeufig { border-left-color: var(--warn); }
+.blase.vorlaeufig::after { color: var(--signal); }
+.leiste { display: flex; flex-direction: column; gap: .35rem;
+          align-self: flex-start; width: 92%; }
+.leiste button { text-align: left; min-height: var(--tippflaeche);
+                 padding: .5rem .65rem; background: var(--grund-2);
+                 color: var(--text); border: 1px solid var(--signal);
+                 border-radius: var(--radius); font: inherit; }
+.leiste button::before { content: "> "; color: var(--signal); }
+.leiste button:disabled { opacity: .4; }
+.quittung { font-size: .82rem; color: var(--text-leise); align-self: flex-start; }
+#tippt { min-height: 1.3em; font-size: .85rem; color: var(--text-leise);
+         letter-spacing: .05em; font-family: var(--schrift-tech); }
+#tippt[data-ux-denkt="1"]::after { content: "\\258D";
+                                   animation: ux-blinken 1s steps(2) infinite; }
+"""
+
+#: Der Chat, Entwurf B: Buehne. Serifenfreie Leseschrift, weiche Formen,
+#: keine Kennzeile -- Bot und Gruppe unterscheiden sich wie Repliken.
+_CHAT_B = """
+.verlauf { display: flex; flex-direction: column; gap: .6rem; }
+.blase { padding: .6rem .8rem; max-width: 90%; font-size: 1.0625rem;
+         border-radius: var(--radius-gross); overflow-wrap: anywhere; }
+.blase.bot { background: var(--grund-2); border: 1px solid var(--linie);
+             align-self: flex-start; border-bottom-left-radius: .3rem; }
+.blase.gruppe { background: var(--signal-tief); border: 1px solid var(--rand);
+                align-self: flex-end; border-bottom-right-radius: .3rem; }
+.blase.sprache { color: var(--text-leise); font-style: italic; }
+.blase q { display: block; margin: .55rem 0; padding-left: .7rem;
+           border-left: 3px solid var(--signal); color: var(--signal);
+           font-family: var(--schrift-skript); font-style: italic;
+           font-size: 1.15rem; quotes: none; }
+.blase.vorlaeufig { border-style: dashed; }
+.blase.vorlaeufig::after { color: var(--signal);
+                           font-family: var(--schrift-tech); }
+.leiste { display: flex; flex-direction: column; gap: .4rem;
+          align-self: flex-start; width: 90%; }
+.leiste button { text-align: left; min-height: var(--tippflaeche);
+                 padding: .55rem .8rem; background: var(--grund-2);
+                 color: var(--text); border: 1px solid var(--signal);
+                 border-radius: var(--radius);
+                 font-family: var(--schrift-skript); font-size: 1.05rem; }
+.leiste button:disabled { opacity: .4; }
+.quittung { font-size: .85rem; color: var(--text-leise); align-self: flex-start; }
+#tippt { min-height: 1.3em; font-size: .8rem; color: var(--text-leise);
+         letter-spacing: .06em; text-transform: uppercase;
+         font-family: var(--schrift-tech); }
+#tippt[data-ux-denkt="1"]::after { content: "\\258D";
+                                   animation: ux-blinken 1s steps(2) infinite; }
+"""
 #: Gefuellt in Aufgabe 6.
 _STAND = ""
 #: Gefuellt in Aufgabe 10.
@@ -442,6 +513,30 @@ _GESTALT_JS = """
 """
 
 
+#: Baustein 1: der Denk-Zustand.
+#:
+#: ``#tippt`` traegt seit Karte A2 den Text ("schreibt ..."); diese Zeile
+#: macht daraus eine Terminalzeile mit Cursor. Sie liest nur, ob dort
+#: etwas steht -- den Text setzt weiterhin ``_CHAT_JS``.
+#:
+#: **Warum ein MutationObserver und kein Intervall:** der Zustand wechselt
+#: hoechstens alle zwei Sekunden (Polltakt), und ein Intervall, das
+#: nichts findet, laeuft trotzdem -- auf einem Telefon, das in der Tasche
+#: liegt, den ganzen Workshop lang.
+_JS_DENKT = """
+  (function denkt() {
+    var feld = el('tippt');
+    if (!feld) { return; }
+    var pruefe = function () {
+      feld.dataset.uxDenkt = (feld.textContent || '').trim() ? '1' : '0';
+    };
+    new MutationObserver(pruefe).observe(
+      feld, { childList: true, characterData: true, subtree: true });
+    pruefe();
+  })();
+"""
+
+
 def skript(name: str | None = None) -> str:
     """Das Effekt-JS mit eingesetzten Werten.
 
@@ -458,8 +553,9 @@ def skript(name: str | None = None) -> str:
     )
 
 
-#: Gefuellt in den Aufgaben 5 bis 9.
-_BAUSTEINE = ""
+#: Gefuellt in den Aufgaben 5 bis 9. Baustein 1 (Denk-Zustand) kommt in
+#: Aufgabe 5 dazu, die weiteren haengen hier an.
+_BAUSTEINE = _JS_DENKT
 
 
 def _mikrotexte() -> dict[str, str]:

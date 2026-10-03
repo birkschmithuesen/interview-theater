@@ -2,7 +2,7 @@
 
 06.09.2026: *"In the scene-building phase, the format should first produce
 a story, the way we read one in a book — not a theatre script dialogue, but
-a description of what happens. Only in the polish step is it decided what
+a description of what happens. Only in Stage Version is it decided what
 each scene becomes: Dialogue, Monologue, Rap, Song."*
 
 That is why you write **no theatre text**. You write this one scene
@@ -33,7 +33,7 @@ lines -- explicitly do **not** apply here.
    (typically three to seven).
 4. **Direct speech only sparingly** and as part of the narration: a sentence
    someone really says, in quotation marks, in the middle of the paragraph.
-   Not a conversation that runs over pages -- that only comes about in the polish.
+   Not a conversation that runs over pages -- that only comes about in Stage Version.
 5. **What you would see and hear is there**: actions, looks,
    objects, the place. Inner life may be narrated -- that is the
    advantage of prose and the reason why this step comes before the theatre

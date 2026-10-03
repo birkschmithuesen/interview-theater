@@ -30,25 +30,31 @@ stichwoerter = ["interviews", "interview", "recordings"]
 
 [[phase]]
 nummer = 4
-name = "Setting, Characters & Story"
+name = "Frame"
 satz = "Invent freely: where it is set, who is in it, what happens."
 stichwoerter = ["setting", "characters", "character", "frame", "core theme",
                 "format", "conflict", "story", "plot", "outline"]
 
 [[phase]]
 nummer = 5
-name = "Sharpening"
-satz = "Sharpen the invented story against the interview material."
-stichwoerter = ["sharpening", "sharpen", "clustering", "summaries"]
+name = "Prose Draft"
+satz = "Sharpen the invented story against the interview material, then write it scene by scene."
+# "sharpening"/"sharpen"/"clustering"/"summaries" bleiben als Alt-Stichwoerter
+# stehen: der englische Erkenner-Prompt (Punkt 19) nennt die Phase noch so,
+# und eine Gruppe, die den alten Namen kennt, soll weiter treffen.
+stichwoerter = ["prose draft", "prose", "draft", "overview",
+                "sharpening", "sharpen", "clustering", "summaries"]
 
 [[phase]]
 nummer = 6
-name = "Scenes as Story"
+name = "Rewrite"
 satz = "Tell each scene as prose -- what happens, still without a form."
-stichwoerter = ["scene texts", "scene text", "scenes", "scene"]
+stichwoerter = ["rewrite", "rewriting", "revise", "revision",
+                "scene texts", "scene text", "scenes", "scene"]
 
 [[phase]]
 nummer = 7
-name = "Polish"
+name = "Stage Version"
 satz = "Choose the form of each scene, translate the story into it, check the play."
-stichwoerter = ["run-through", "polish", "play check", "review round"]
+stichwoerter = ["stage version", "staging", "final version",
+                "run-through", "polish", "play check", "review round"]

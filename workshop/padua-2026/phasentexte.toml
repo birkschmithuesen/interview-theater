@@ -42,17 +42,20 @@ outline, how it ends, and the sequence of scenes with a title, one sentence, \
 the characters and a suggested form. I help with suggestions if you want. \
 Right after that the interviews come in and sharpen what you have built."""
 5 = """\
-Now the interviews come back. Next to every scene and every character I put \
-the passages from your recordings that fit, with the word-for-word quote. \
-Your story does not change, it gets more precise. You decide suggestion by \
-suggestion and can go another round."""
+Now the interviews come back automatically: next to every scene and every \
+character I place the passages from your recordings that fit, with the \
+word-for-word quote, and your story becomes more precise without changing. \
+Then I put the whole story in front of you as a short overview - the arc, \
+the setting, the characters and one or two sentences per scene - and you \
+say whether it fits or needs another look. Once it does, I write the scenes \
+one after another as prose, and you confirm each one before the next."""
 6 = """\
 Now I write your story in one piece - a short story, like in a book: what \
 happens, who is there, what is said and felt, in prose. The story decides how \
 many sections it gets. Each section then becomes a scene. No stage text, no \
-form yet; that comes in the polish. You read it and tell me what should change."""
+form yet; that comes in the next phase. You read it and tell me what should change."""
 7 = """\
-All scenes are there as a story. Now the polish: scene by scene you choose the \
+All scenes are there as a story. Now, scene by scene, you choose the \
 form - {{formen_liste_oder}} - and I translate the story into exactly that \
 form. Then I read your play once as a whole, like an audience, and tell you \
 where it holds and where it doesn't. You can get the script as a file at any time."""

@@ -30,7 +30,8 @@ from interview_theater.knoepfe.texte import (
     ART_SZENENSTIL, ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN,
     ART_SZENE_NAECHSTE, ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN,
     ART_SZENE_SCHREIBEN, ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN,
-    ART_SZENE_USA, ART_TEXTBUCH, MAX_AUSWAHL, MENUE_KNOPF_LAENGE, T,
+    ART_SZENE_USA, ART_TEXTBUCH, ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
+    MAX_AUSWAHL, MENUE_KNOPF_LAENGE, T,
     TRENNER, log,
 )
 from interview_theater.knoepfe.basis import (
@@ -405,7 +406,7 @@ def _sende_schaerfungsmenue(
     return message_id
 
 
-def starte_schaerfung(conn, tg, klm, e, chat_id: int) -> None:
+def starte_schaerfung(conn, tg, klm, e, chat_id: int, danach=None) -> None:
     """Stoesst das Mapping an (im Thread) und stellt danach die erste
     Schaerfung vor -- der automatische Eintritt in Phase 6.
 
@@ -418,18 +419,28 @@ def starte_schaerfung(conn, tg, klm, e, chat_id: int) -> None:
     Vorschlagslauf die gemeinsame Sperre, schickt ``schaerfung.starte``
     selbst ``TEXT_GEMERKT`` -- ein vorab gesendetes \"gleich\" waere dann eine
     zweite, sich widersprechende Zeile im selben Chatfenster. Kein
-    Modellaufruf: ``vorschlagssperre.laeuft`` ist eine reine Abfrage."""
+    Modellaufruf: ``vorschlagssperre.laeuft`` ist eine reine Abfrage.
+
+    **``danach`` laeuft zusaetzlich, NACH der ersten Schaerfung-Vorstellung**
+    (Padua Phasen TEIL 1, 03.10.2026): der automatische Eintritt in Phase 5
+    nutzt ihn, um unter dem aktiven ``[prosa_entwurf] aktiv``-Schalter die
+    Stufe-A-Uebersicht (``entwurf.starte_uebersicht``) anzustossen. Der
+    Knopf \"Noch eine Runde\" (``_wirkung_schaerfung_runde``) ruft ohne
+    diesen Parameter -- eine manuell angestossene weitere Runde ist kein
+    Phaseneintritt."""
     from interview_theater import schaerfung as schaerfung_modul
     from interview_theater import vorschlagssperre
 
     def _danach() -> None:
         biete_schaerfung(conn, tg, chat_id)
+        if danach is not None:
+            danach()
 
     frei = not vorschlagssperre.laeuft(chat_id)
     if frei:
         tg.sende(chat_id, T._TEXT_SCHAERFUNG_LAEUFT)
     if schaerfung_modul.starte(conn, tg, klm, e, chat_id, nachbereitung=_danach) is None:
-        biete_schaerfung(conn, tg, chat_id)
+        _danach()
 
 
 def starte_stueckpruefung(conn, tg, klm, e, chat_id: int) -> None:
@@ -789,6 +800,28 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
         ),
     ]
     return _mit_leiste(conn, tg, chat_id, text, leiste)
+
+
+# --- Padua Phasen TEIL 1 (03.10.2026): Phase 5, Stufe A -------------------
+
+
+def biete_uebersicht(conn, tg, chat_id: int, anzeige: str) -> int:
+    """Zeigt die generierte Geschichts-Uebersicht (``entwurf.py``, Stufe A
+    von Phase 5) mit genau zwei Knoepfen: "Yes, save" und "No, change it
+    again" -- dieselbe "Rueckspiegelung EINES Wertes" wie ueberall sonst
+    (``grundleiste``/``speicherleiste``), deshalb dieselben Beschriftungen
+    (``T.TEXT_WEITER_KNOPF``/``T.TEXT_ANDERS_KNOPF``) statt neuer, fast
+    gleichlautender Strings.
+
+    Zwei getrennte Knopfarten statt einer einzigen mit Modus (wie
+    ``grundleiste``), weil sie zwei verschiedene Dinge anstossen -- Stufe B
+    beginnt, oder Stufe A laeuft erneut --, genau wie bei
+    ``ART_SZENE_PASST``/``ART_SZENE_ANDERS`` unter einem Szenentext."""
+    leiste = [
+        (T.TEXT_WEITER_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_PASST, ""))),
+        (T.TEXT_ANDERS_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_ANDERS, ""))),
+    ]
+    return _mit_leiste(conn, tg, chat_id, anzeige, leiste)
 
 
 def biete_durchlauf(conn, tg, chat_id: int, e=None) -> int:

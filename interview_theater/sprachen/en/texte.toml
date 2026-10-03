@@ -231,10 +231,14 @@ _TEXT_GESCHICHTE_PASST_KNOPF = "Looks good"
 _TEXT_GESCHICHTE_ANDERS_KNOPF = "Change something"
 _TEXT_GESCHICHTE_NEU_KNOPF = "Rewrite from scratch"
 _TEXT_GESCHICHTE_ANDERS = "Tell me what should change - I'll take it into the next run."
-_TEXT_GESCHICHTE_PASST = "Good. Then we carry on section by section in Polish."
+_TEXT_GESCHICHTE_PASST = "Good. Now we'll continue section by section in the final touches."
 _TEXT_KURZGESCHICHTE_BEREIT = """\
 I can now write your story in one go - from the setting, the characters \
 and your direction. Let me know when."""
+_TEXT_UEBERSICHT_FIXIERT = "Got it -- writing the first scene now."
+_TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT = "On it -- a new overview is coming."
+_TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN = "Got it -- writing the next scene now."
+_TEXT_ALLE_SZENEN_ENTWORFEN = "All scenes have a draft. On to Rewrite."
 _TEXT_SCHON_GESETZT = "That's already in place."
 _TEXT_FIGUREN_ANZAHL_KNOPF = "Change the number"
 _TEXT_FIGUREN_NAMEN_KNOPF = "Change names"
@@ -913,7 +917,7 @@ ERSTKONTAKT = "{anlass} First respond to what was just said, then take your time
 ERSTKONTAKT_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
 ERSTKONTAKT_LINK = "; and that the group can follow everything that has been recorded at {url} (only for this group, give the link exactly like this)"
-EINSTIEG_SETTING = "The group is entering phase 4 (Setting, Characters & Story) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (sharpening) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Where we are\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
+EINSTIEG_SETTING = "The group is entering phase 4 (Frame) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (Prose Draft) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Where we are\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
 
 ["kontext".JOURNALART_BESCHRIFTUNG]
 vorgeschlagen = "suggested"
@@ -1105,7 +1109,7 @@ Title — one sentence about what happens — Character, Character
 
 Only use characters listed below. **No form** -- whether a scene becomes a
 dialogue, a monologue, a chorus, a song or a rap is decided by the group
-later, in the final polish, not here.
+later, in Stage Version, not here.
 
 Then one sentence and an open question to the group, two lines at most."""
 ANWEISUNG_FELDER = """You are planning a single scene with a theatre group.

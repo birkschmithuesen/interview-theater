@@ -1739,6 +1739,10 @@ _ARBEITSSTAND_FELDER = (
     # Merkposten "Interviews fertig" (Web, 02.10.2026): derselbe eine
     # Schreibweg wie alles andere im Arbeitsstand.
     "interviews_fertig_wunsch_seit",
+    # Die Uebersicht aus Stufe A des Phase-5-Entwurfs (Padua Phasen TEIL 1):
+    # derselbe eine Schreibweg wie alles andere im Arbeitsstand.
+    "geschichte_uebersicht", "geschichte_uebersicht_szenen",
+    "geschichte_uebersicht_fixiert_am",
 )
 
 
@@ -2511,6 +2515,21 @@ def szene_figuren(conn: sqlite3.Connection, szene_id: int) -> list[sqlite3.Row]:
         "WHERE sf.szene_id = ? AND f.entfernt_am IS NULL ORDER BY f.id ASC",
         (szene_id,),
     ).fetchall()
+
+
+@_gesperrt
+def setze_szene_entwurf_bestaetigt(
+    conn: sqlite3.Connection, szene_id: int, wann: str | None = None
+) -> None:
+    """Markiert den Prosa-Entwurf einer Szene als abgenommen (Stufe B,
+    Phase 5 Prose Draft, Padua Phasen TEIL 1) -- dieselbe Bauart wie
+    ``merke_schaerfung_uebernommen``: ein Zeitstempel, kein Textfeld, also
+    kein Platz in ``SZENENFELDER``."""
+    conn.execute(
+        "UPDATE szene SET entwurf_bestaetigt_am = ?, geaendert_am = ? WHERE id = ?",
+        (wann or _jetzt_genau(), _jetzt_genau(), szene_id),
+    )
+    conn.commit()
 
 
 @_gesperrt

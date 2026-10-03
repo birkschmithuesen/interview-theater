@@ -56,6 +56,38 @@ def test_interviews_fertig_wunsch_spalte_existiert_und_ist_schreibbar(conn):
     assert repo.hole_arbeitsstand(conn, 1)["interviews_fertig_wunsch_seit"] == "2026-10-02T12:00:00+00:00"
 
 
+def test_geschichte_uebersicht_und_entwurf_bestaetigt_spalten_existieren(conn):
+    """Padua Phasen TEIL 1 (03.10.2026): die Uebersicht aus Stufe A des
+    zweistufigen Phase-5-Entwurfs (arbeitsstand) und die Abnahme eines
+    Szenen-Prosaentwurfs in Stufe B (szene) -- beide additiv nachgeruestet,
+    ueber denselben Schreibweg wie alles andere im Arbeitsstand bzw. ueber
+    den eigenen Zeitstempel-Setter fuer die Szene."""
+    db._migriere_fehlende_spalten(conn)
+    arbeitsstand_spalten = {z[1] for z in conn.execute("PRAGMA table_info(arbeitsstand)")}
+    szene_spalten = {z[1] for z in conn.execute("PRAGMA table_info(szene)")}
+    assert "geschichte_uebersicht" in arbeitsstand_spalten
+    assert "geschichte_uebersicht_szenen" in arbeitsstand_spalten
+    assert "geschichte_uebersicht_fixiert_am" in arbeitsstand_spalten
+    assert "entwurf_bestaetigt_am" in szene_spalten
+
+    repo.setze_arbeitsstand(conn, 1, "geschichte_uebersicht", "Logline. Setting. Figuren.")
+    repo.setze_arbeitsstand(conn, 1, "geschichte_uebersicht_szenen", "Szene 1: ...\nSzene 2: ...")
+    repo.setze_arbeitsstand(conn, 1, "geschichte_uebersicht_fixiert_am", "2026-10-03T12:00:00+00:00")
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["geschichte_uebersicht"] == "Logline. Setting. Figuren."
+    assert stand["geschichte_uebersicht_szenen"] == "Szene 1: ...\nSzene 2: ..."
+    assert stand["geschichte_uebersicht_fixiert_am"] == "2026-10-03T12:00:00+00:00"
+
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    assert conn.execute(
+        "SELECT entwurf_bestaetigt_am FROM szene WHERE id = ?", (szene_id,)
+    ).fetchone()[0] is None
+    repo.setze_szene_entwurf_bestaetigt(conn, szene_id, "2026-10-03T12:05:00+00:00")
+    assert conn.execute(
+        "SELECT entwurf_bestaetigt_am FROM szene WHERE id = ?", (szene_id,)
+    ).fetchone()[0] == "2026-10-03T12:05:00+00:00"
+
+
 #: Die 'gruppe'-Tabelle, wie sie vor Aufgabe 5 aussah -- ohne
 #: interviewmodus_seit. Fuer den Migrationstest unten bewusst hier hart
 #: hinterlegt statt aus db.SCHEMA abgeleitet: der Test soll pruefen, dass

@@ -254,7 +254,7 @@ def aus_daten(lage: dict) -> list[dict]:
     ``.get`` und werten eine fehlende Angabe als "nicht erfuellt"."""
     jetzige = lage["phase"]
     ergebnis = []
-    for nummer, name, _satz in phasen.PHASEN:
+    for nummer, name, satz in phasen.PHASEN:
         aufgaben = []
         for aufgabe in AUFGABEN.get(nummer, ()):
             if aufgabe.kennung == "einleitungen" and not _weich_aktiv():
@@ -269,6 +269,7 @@ def aus_daten(lage: dict) -> list[dict]:
         ergebnis.append({
             "nummer": nummer,
             "name": name,
+            "satz": satz,
             "bezeichnung": phasen.bezeichnung(nummer),
             "aktiv": nummer == jetzige,
             "erledigt": sum(1 for a in aufgaben if a["zustand"] == "erledigt"),

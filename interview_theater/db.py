@@ -169,7 +169,16 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- bleibt ein gewoehnlicher Gespraechsbeitrag in jeder Hinsicht ausser:
   -- es loest keinen Gespraechszug aus und wird nie als Interview angeboten
   -- (siehe aufnahme.py, Brainstorm-Zweig).
-  brainstorm      INTEGER NOT NULL DEFAULT 0
+  brainstorm      INTEGER NOT NULL DEFAULT 0,
+  -- Gesetzt = diese Aufnahme gehoert zum Hintergrund-Mithoeren von Phase 1
+  -- (Padua, 03.10.2026): die Gruppe diskutiert frei, waehrend der Bot nur
+  -- mitschreibt -- kein CoThinker, keine Reaktionsentscheidung, kein
+  -- Gespraechszug je Segment, nur eine Echo-Blase im Chat. Anders als
+  -- Brainstorm gibt es dazu genau EINE Verdichtung am Ende
+  -- (``schnittgrund='ende'``, angestossen anderswo, siehe
+  -- ``interview_theater/diskussion.py``), nicht laufend pro Segment.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  diskussion      INTEGER NOT NULL DEFAULT 0
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,
@@ -978,6 +987,11 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- additiv nachgeruestet.
   schnittgrund      TEXT,
   brainstorm        INTEGER NOT NULL DEFAULT 0,
+  -- Diskussions-Flag (Padua, 03.10.2026): dieses 'sprache'-Segment kommt aus
+  -- dem Hintergrund-Mithoeren von Phase 1 (?diskussion=1 an chat/audio),
+  -- durchgereicht von hole_updates() auf das Telegram-foermige Update, genau
+  -- wie 'brainstorm' -- additiv nachgeruestet.
+  diskussion        INTEGER NOT NULL DEFAULT 0,
   -- Telefon-Organisationskarte je Phasen-Eintritt (UX-Knoepfe-Karte,
   -- Abschnitt 5): der Dateiname unter interview_theater/static/handys/
   -- (z. B. 'phase-4.png'), nie ein Pfad -- die Chatansicht baut die URL

@@ -523,6 +523,7 @@ def lege_aufnahme_an(
     status: str = "empfangen",
     schnittgrund: str | None = None,
     brainstorm: bool = False,
+    diskussion: bool = False,
 ) -> int:
     """Legt eine Aufnahme (Sprache oder Textimport) an.
 
@@ -535,9 +536,10 @@ def lege_aufnahme_an(
     Teil traegt den Namen seines Kopfes, und ein Zuruf ist kein Interview, das
     man beim Namen nennen koennte.
 
-    ``schnittgrund`` (Pausen-Schnitt, 02.10.2026) und ``brainstorm`` (Knopf
-    "Brainstorm mithören", Phase 4) kommen vom Web-Kanal durchgereicht, bei
-    Telegram bleiben beide bei ihrer Vorgabe.
+    ``schnittgrund`` (Pausen-Schnitt, 02.10.2026), ``brainstorm`` (Knopf
+    "Brainstorm mithören", Phase 4) und ``diskussion`` (Hintergrund-Mithoeren,
+    Phase 1, Padua 03.10.2026) kommen vom Web-Kanal durchgereicht, bei
+    Telegram bleiben alle drei bei ihrer Vorgabe.
 
     Startstatus 'empfangen', beim Interview-Kopf 'laeuft'; der Aufrufer
     entscheidet ueber weitere Statusuebergaenge."""
@@ -547,11 +549,12 @@ def lege_aufnahme_an(
         INSERT INTO aufnahme
             (chat_id, message_id, name, klasse, quelle, audio_pfad,
              dauer_sekunden, status, empfangen_am, teil_von, schnittgrund,
-             brainstorm)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             brainstorm, diskussion)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (chat_id, message_id, name, klasse, quelle, audio_pfad, dauer, status,
-         _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0),
+         _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0,
+         1 if diskussion else 0),
     )
     conn.commit()
     return cur.lastrowid
@@ -2023,6 +2026,21 @@ def brainstorm_transkript(conn: sqlite3.Connection, chat_id: int) -> str:
     zeilen = conn.execute(
         "SELECT transkript FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
         "AND entfernt_am IS NULL AND transkript IS NOT NULL ORDER BY id ASC",
+        (chat_id,),
+    ).fetchall()
+    return "\n\n".join(zeile["transkript"] for zeile in zeilen if zeile["transkript"])
+
+
+@_gesperrt
+def diskussion_transkript(conn: sqlite3.Connection, chat_id: int) -> str:
+    """Der VOLLSTAENDIGE Mitschnitt des Hintergrund-Mithoerens von Phase 1
+    (Padua, 03.10.2026), chronologisch aneinandergehaengt -- fuer die EINE
+    Verdichtung am Ende (``schnittgrund='ende'``), nicht fortlaufend wie beim
+    Brainstorm. Deshalb KEIN Markierungs-Filter wie bei ``brainstorm_stand``:
+    es gibt kein "seit der letzten Karte", nur "die ganze Diskussion"."""
+    zeilen = conn.execute(
+        "SELECT transkript FROM aufnahme WHERE chat_id = ? AND diskussion = 1 "
+        "AND entfernt_am IS NULL AND status = 'fertig' ORDER BY id ASC",
         (chat_id,),
     ).fetchall()
     return "\n\n".join(zeile["transkript"] for zeile in zeilen if zeile["transkript"])
@@ -3869,12 +3887,14 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      text=None, knoepfe=None, daten=None,
                      bezug_message_id=None, dauer=None,
                      datei=None, mime=None, dateiname=None,
-                     schnittgrund=None, brainstorm=False, bild=None) -> int:
+                     schnittgrund=None, brainstorm=False, diskussion=False,
+                     bild=None) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
     beide Richtungen (siehe Tabellenkommentar in db.py). ``schnittgrund``/
-    ``brainstorm`` (Pausen-Schnitt, 02.10.2026) sind nur bei
+    ``brainstorm`` (Pausen-Schnitt, 02.10.2026) und ``diskussion``
+    (Hintergrund-Mithoeren Phase 1, Padua 03.10.2026) sind nur bei
     ``typ='sprache'`` gesetzt und wandern unveraendert bis in die
     ``aufnahme``-Zeile (``web_kanal.hole_updates`` -> ``aufnahme.empfange``).
     ``bild`` (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
@@ -3882,14 +3902,14 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
         "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
-        "schnittgrund, brainstorm, bild) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "schnittgrund, brainstorm, diskussion, bild) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
-            schnittgrund, 1 if brainstorm else 0, bild,
+            schnittgrund, 1 if brainstorm else 0, 1 if diskussion else 0, bild,
         ),
     )
     conn.commit()

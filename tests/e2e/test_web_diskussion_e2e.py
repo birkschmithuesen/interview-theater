@@ -232,6 +232,13 @@ def lauf(tmp_path, monkeypatch):
     repo.sichere_gruppe(aufbau, CHAT, "gruppe-diskussion", "Die Zuhoerenden")
     repo.setze_gruppe_kanal(aufbau, CHAT, "web")
     token = repo.stelle_web_token_sicher(aufbau, CHAT)
+    # web_daten.web_chatzustand's diskussion_knopf gate is a STRICT
+    # ``phase == 1`` check (no ERSTE-fallback like interview_knopf has) --
+    # a fresh group's arbeitsstand.phase is NULL until explicitly set, so
+    # without this the button stays hidden for the whole test
+    # (tests/test_web_daten_diskussion_knopf.py::test_ohne_arbeitsstand_ergibt_falsch,
+    # review finding on this task).
+    repo.setze_phase(aufbau, CHAT, 1)
     aufbau.commit()
     aufbau.close()
 

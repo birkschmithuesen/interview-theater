@@ -954,6 +954,7 @@ _TEXT_WB_GESAMTTEXT = "Rückmeldung zum ganzen Text"
 _TEXT_WB_UEBERARBEITET = "Szene {bezug}: überarbeitet"
 _TEXT_WB_FORM = "Szene {bezug}: Form"
 _TEXT_WB_SPRECHWEISE = "{bezug}: Sprechweise"
+_TEXT_WB_AUCH_VEREINBART = "Auch vereinbart"
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
 #: selbst steht seit dem Umzug in Karte Ws Tableiste in
 #: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
@@ -2981,9 +2982,91 @@ def _wb_zeile_html(z: dict) -> str:
     )
 
 
+def _auch_vereinbart_html(daten: dict, szenen_anzahl: str | None) -> str:
+    """Stueckkarte und Festlegungen als EINE read-only Liste (Werkbank).
+    Setting, Figuren und Geschichte der Stueckkarte stehen schon darueber --
+    hier bleibt von ihr nur die Szenenzahl. Ohne Loeschknopf (kein Nonce)."""
+    zeilen = []
+    if szenen_anzahl:
+        zeilen.append(
+            '<div class="festlegung"><span class="marke">{marke}</span>'
+            "<span>{wert}</span></div>".format(
+                marke=_t(T._STUECKKARTE_SZENENANZAHL), wert=_t(szenen_anzahl))
+        )
+    if daten.get("festlegungen"):
+        zeilen.append(_festlegungen_html(daten, None))
+    if not zeilen:
+        return ""
+    return f"<h3>{_t(T._TEXT_WB_AUCH_VEREINBART)}</h3>" + "".join(zeilen)
+
+
 def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
-    """Was unter den Punkten einer Phase steht. Aufgabe 7 fuellt das."""
-    return ""
+    """Was unter den Punkten einer Phase steht -- read-only, aus denselben
+    Bausteinen wie die bisherige Gruppenseite (keine zweite Formatierung):
+    1 die Begriffe (und ``begriffe_detail``, wenn es sie gibt), 2 Fragen,
+    A/B-Zeile und Leitfaden (``pre.leitfaden`` liest der Interview-Modus),
+    3 die Verdichtungen wie bisher, 4 Setting, Geschichte, Figuren,
+    Szenenkoepfe und "Also agreed", 6 die Dramaturgie-Pruefung, 7 die
+    Sprechanteile. Keine Szenen-Volltexte -- die stehen im Script-Tab."""
+    stand = daten["arbeitsstand"]
+    dt = T.ARBEITSSTAND_BESCHRIFTUNG
+    teile: list[str] = []
+    if nummer == 1:
+        if (stand.get("begriffe") or "").strip():
+            teile.append(f"<p>{_t(stand['begriffe'])}</p>")
+        detail = werkbank.get("begriffe_detail") or []
+        if detail:
+            teile.append('<dl class="wb-begriffe">' + "".join(
+                f"<dt>{_t(b['begriff'])}</dt>"
+                + (f"<dd>{_t(b['begruendung'])}</dd>" if b["begruendung"] else "")
+                + (f'<dd class="zeit">{_t(b["doppelbedeutung"])}</dd>'
+                   if b["doppelbedeutung"] else "")
+                for b in detail
+            ) + "</dl>")
+    elif nummer == 2:
+        if (stand.get("fragen") or "").strip():
+            teile.append(_fragen_html(stand["fragen"]))
+        teile.append(_fragen_auswertung_html(daten.get("fragen_auswertung")))
+        leitfaden = _leitfaden_html(stand, daten.get("web_token"))
+        if leitfaden:
+            teile.append(f"<dl>{leitfaden}</dl>")
+    elif nummer == 3:
+        teile.append("".join(_interview_html(v) for v in daten["interviews"]))
+    elif nummer == 4:
+        zeilen = [
+            f"<dt>{_t(dt[feld])}</dt><dd>{_t(stand[feld])}</dd>"
+            for feld in ("rahmen", "geschichte")
+            if (stand.get(feld) or "").strip()
+        ]
+        zeilen.append(_altbestand_html(stand))
+        if daten["figuren"]:
+            figuren = "".join(
+                "<li><b>{name}</b>{rest}</li>".format(
+                    name=_t(f["name"]),
+                    rest=(f" — {_t(vorspann.erster_satz(f.get('beschreibung')))}"
+                          if (f.get("beschreibung") or "").strip() else ""),
+                )
+                for f in daten["figuren"]
+            )
+            zeilen.append(f'<dt>{_t(dt["figuren"])}</dt><dd><ul class="figuren">{figuren}</ul></dd>')
+        if daten["szenen"]:
+            szenen = "".join(
+                "<li>{nr}. {titel}</li>".format(
+                    nr=_t("—" if s["nummer"] is None else str(s["nummer"])),
+                    titel=_t(s.get("titel"), T._TEXT_OHNE_TITEL),
+                )
+                for s in daten["szenen"]
+            )
+            zeilen.append(f"<dt>{_t(T._UEBERSCHRIFT_SZENEN)}</dt><dd><ul>{szenen}</ul></dd>")
+        if any(zeilen):
+            teile.append(f"<dl>{''.join(zeilen)}</dl>")
+        teile.append(_auch_vereinbart_html(daten, werkbank.get("szenen_anzahl")))
+    elif nummer == 6:
+        teile.append(_dramaturgie_html(daten.get("dramaturgie")))
+    elif nummer == 7:
+        teile.append(_sprechanteile_html(daten.get("sprechanteile")))
+    inhalt = "".join(t for t in teile if t)
+    return f'<div class="wb-inhalt">{inhalt}</div>' if inhalt else ""
 
 
 def werkbank_koerper(daten: dict) -> str:

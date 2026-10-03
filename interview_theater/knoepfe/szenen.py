@@ -406,7 +406,7 @@ def _sende_schaerfungsmenue(
     return message_id
 
 
-def starte_schaerfung(conn, tg, klm, e, chat_id: int) -> None:
+def starte_schaerfung(conn, tg, klm, e, chat_id: int, danach=None) -> None:
     """Stoesst das Mapping an (im Thread) und stellt danach die erste
     Schaerfung vor -- der automatische Eintritt in Phase 6.
 
@@ -419,18 +419,28 @@ def starte_schaerfung(conn, tg, klm, e, chat_id: int) -> None:
     Vorschlagslauf die gemeinsame Sperre, schickt ``schaerfung.starte``
     selbst ``TEXT_GEMERKT`` -- ein vorab gesendetes \"gleich\" waere dann eine
     zweite, sich widersprechende Zeile im selben Chatfenster. Kein
-    Modellaufruf: ``vorschlagssperre.laeuft`` ist eine reine Abfrage."""
+    Modellaufruf: ``vorschlagssperre.laeuft`` ist eine reine Abfrage.
+
+    **``danach`` laeuft zusaetzlich, NACH der ersten Schaerfung-Vorstellung**
+    (Padua Phasen TEIL 1, 03.10.2026): der automatische Eintritt in Phase 5
+    nutzt ihn, um unter dem aktiven ``[prosa_entwurf] aktiv``-Schalter die
+    Stufe-A-Uebersicht (``entwurf.starte_uebersicht``) anzustossen. Der
+    Knopf \"Noch eine Runde\" (``_wirkung_schaerfung_runde``) ruft ohne
+    diesen Parameter -- eine manuell angestossene weitere Runde ist kein
+    Phaseneintritt."""
     from interview_theater import schaerfung as schaerfung_modul
     from interview_theater import vorschlagssperre
 
     def _danach() -> None:
         biete_schaerfung(conn, tg, chat_id)
+        if danach is not None:
+            danach()
 
     frei = not vorschlagssperre.laeuft(chat_id)
     if frei:
         tg.sende(chat_id, T._TEXT_SCHAERFUNG_LAEUFT)
     if schaerfung_modul.starte(conn, tg, klm, e, chat_id, nachbereitung=_danach) is None:
-        biete_schaerfung(conn, tg, chat_id)
+        _danach()
 
 
 def starte_stueckpruefung(conn, tg, klm, e, chat_id: int) -> None:

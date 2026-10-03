@@ -334,8 +334,18 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # Die Schaerfung fragt nicht nach Ideen: sie legt die Geschichte
         # neben die Interviews. Das Mapping laeuft automatisch beim
         # Eintritt, im Thread (Zusage 2).
+        from interview_theater import entwurf, workshop
+
         tg.sende(chat_id, kopf)
-        starte_schaerfung(conn, tg, klm, e, chat_id)
+        # Padua Phasen TEIL 1 (03.10.2026): nur unter dem Profilschalter
+        # ``[prosa_entwurf] aktiv`` startet nach dem Mapping zusaetzlich die
+        # Stufe-A-Uebersicht -- Dortmund (und jedes Profil ohne die Zeile)
+        # bleibt beim bisherigen Weg, ``danach`` bleibt dort ``None``.
+        danach = None
+        if workshop.prosa_entwurf_aktiv():
+            def danach():
+                entwurf.starte_uebersicht(conn, tg, klm, e, chat_id)
+        starte_schaerfung(conn, tg, klm, e, chat_id, danach=danach)
     else:
         # Beim Eintritt in eine Phase fragt der Bot zuerst die Gruppe,
         # statt sofort vorzuschlagen (Zusage: proaktiv, aber nicht

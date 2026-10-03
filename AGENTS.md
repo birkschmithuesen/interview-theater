@@ -76,6 +76,7 @@ Module unter `interview_theater/`:
 | `web_kanal.py` | Der Web-Kanal (30.09.2026): `WebKanal` ersetzt `telegram.Telegram`, wenn `IT_KANAL=web`. Liest Browser-Ereignisse aus der Tabelle `web_post` als Telegram-förmige Updates und schreibt die Antworten dorthin zurück — `bot.schleife` bleibt unverändert, `knoepfe/` wird nicht angefasst. Kein SQL (alles über `repo`), kein Modell |
 | `web_chat.py` | Die Chatansicht im Browser (30.09.2026): HTML, CSS, Vanilla-JS und alle Handler unter `/g/<token>/chat`. `web.py` bekommt nur die Routing-Zeilen. Trägt den serverseitigen HTML-Filter (`sichere_html`), die Knopfprüfung gegen die hängende Leiste (`knopf_erlaubt`), den Audio-Upload, die zwei Aufnahme-Wege und die sequentielle Warteschlange im JS. Kein SQL, kein Modell |
 | `web_vereint.py` | Die vereinte Gruppenseite (30.09.2026): drei Panels (Chat · Arbeitsstand · Textbuch) in **einem** Dokument, Hash-Tabs, die Phasenleiste mit Klick, der SSE-Kanal `/g/<token>/chat/strom` und `scope_css`. `web.py` bekommt davon nur Routing-Zeilen |
+| `web_gestalt.py` | Die Gestaltung der Weboberflaeche (01.10.2026, Padua): ein Block Design-Tokens je Entwurf (A „Terminal zuerst", B „Buehne zuerst"), das Komponenten-CSS, das Effekt-JavaScript und die englischen Mikrotexte. Eingehaengt an **fuenf** Zeilen (vier in `web_vereint.seite`, je eine in `web.textbuch_html`/`leitfaden_html`) — **kein SQL, kein Modellaufruf, kein Endpunkt, kein neues Markup**. Umschalten: `IT_UX_ENTWURF` |
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
@@ -119,7 +120,7 @@ Versehen).
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
 | **Dienste** | `llm.py` · `strom.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` · `kosten.py` · `web_grenze.py` |
 | **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` |
-| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` |
+| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` · `web_gestalt.py` |
 
 **Wo man anfängt, je nach Frage:**
 
@@ -141,6 +142,7 @@ Versehen).
 | Warum kommt eine Weboberflächen-Anfrage nicht durch? | `web.eigene_herkunft` (403) → `web_grenze.pruefe` (429) → `web_chat._audio` (413/415) |
 | Warum baut sich der Text im Browser auf? | `strom.Senke` → `web_kanal.WebKanal.strom` → `web_vereint.sende_strom` |
 | Was passiert beim Klick auf eine Phase? | `web_vereint.phase_post` → `web_post` → `befehle.wechsle_phase` |
+| Warum sieht die Weboberflaeche so aus? | `web_gestalt.TOKENS` → `css_rahmen` → `docs/ux-padua/BERICHT.md` |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -2864,6 +2866,75 @@ eine Entscheidung der Gruppe und gehört in den Chat, wo die Knöpfe darunter
 hängen — `web_schreiben.FELDER` kennt kein Feld dafür. Auch hierfür genügt ein
 Neustart von `interview-theater-web.service`; die Bots brauchen einen nur, weil
 `szene.schreibe` die neuen Zeilen anlegt.
+
+### Die Gestaltung (01.10.2026, Padua)
+
+Alles Gestalterische liegt in **einem** Modul (`web_gestalt.py`) und wird
+an fuenf Zeilen eingehaengt: vier in `web_vereint.seite` (Rahmen-CSS plus
+drei gescopte Bloecke, dazu das Effekt-JS) und je eine in
+`web.textbuch_html` und `web.leitfaden_html`. Es fasst **kein Markup** an —
+was die Gestaltung zusaetzlich braucht, legt das Effekt-JS zur Laufzeit an
+(alles mit dem Praefix `ux-`).
+
+**Ein Block Design-Tokens ist der ganze Entwurf.** `TOKENS["a"]`
+(„Terminal zuerst": Phosphor auf Schwarzblau, Monospace, Tableiste unten)
+und `TOKENS["b"]` („Buehne zuerst": Amber auf Samtschwarz, Serife, Tabs
+oben) tragen **dieselben Schluessel**; umgeschaltet wird ueber
+`VORGABE_ENTWURF` oder `IT_UX_ENTWURF`, dazu vier benannte
+Komponenten-Abweichungen (Tab-Ort, Knopfform, Akt-Moment, Skript-Satz).
+Die klickbaren Muster, an denen entschieden wurde, liegen unter
+`docs/ux-padua/entwurf-{a,b}.html`.
+
+**Drei CSP-Regeln, die im Code stehen und nicht im Kommentar** (die
+Richtlinie aus der Absicherungs-Karte hat `default-src 'none'`,
+`script-src`/`style-src` nur mit Nonce und **kein `font-src`**):
+
+1. **Kein Webfont, kein `@font-face`, kein `@import`, keine Fremdquelle** —
+   System-Schriftstacks (`--schrift-lesen/-tech/-skript`). Ein
+   eingebetteter Font waere geblockt, auch mit `data:`-URL.
+2. **Kein `style="…"`-Attribut, kein `on…=`-Handler** im ausgelieferten
+   HTML. Dynamische Werte gehen ueber **CSSOM**
+   (`el.style.setProperty('--fortschritt', …)`) — das ist unter
+   `style-src 'nonce-…'` erlaubt, `setAttribute('style', …)` waere es
+   nicht. Ein Test misst das am fertigen HTML der vereinten Seite, der
+   Probenansicht und des Leitfadens.
+3. **`@keyframes` und `@media` nur in `css_rahmen()`.** Die drei anderen
+   CSS-Funktionen laufen beim Aufrufer durch `web_vereint.scope_css`, und
+   dessen Regex machte aus dem Rumpf eines `@keyframes` (`50% { … }`) eine
+   gescopte Regel `.panel-chat 50%`.
+
+**`prefers-reduced-motion: reduce` legt alles still**, und zwar mit
+`!important` — die Animationen aus A2/W sind gescopt und damit
+spezifischer als jede Regel dieses Moduls. Der Strom baut seinen Text
+trotzdem stueckweise auf: das ist Information, keine Animation. **Kein
+Zustand haengt an einer Bewegung**; jeder steht zusaetzlich im Text.
+
+**Der Kontrast ist gerechnet, nicht geschaetzt.** `web_gestalt.KONTRAST`
+ist die Tabelle der Paare, die die Gestaltung wirklich uebereinanderlegt;
+`tests/test_web_gestalt_tokens.py` rechnet fuer **beide** Entwuerfe das
+WCAG-Verhaeltnis nach (≥ 4.5 fuer Text, ≥ 3 fuer Bedienelemente). Wer eine
+Farbkombination hinzufuegt, traegt sie dort ein — sonst prueft sie
+niemand. `--linie` steht bewusst nicht darin (dekorative Haarlinie);
+Raender, die einen Zustand tragen, benutzen `--rand`.
+
+**Der Aufnahmeknopf ist das wichtigste Element** (Dortmund Tag 1: 13 von
+20 Aufnahmen leer, ein Knopf 14× in 93 Sekunden gedrueckt). Vier
+Zustaende, aus dem DOM abgeleitet und **ohne neuen Schluessel im
+Zustands-Poll**: `ruht` → `startet` → `laeuft` → `laedt`. Jeder steht im
+**Text** (zweite Zeile `#ux-rec-zeile` **neben** dem Knopf — `_CHAT_JS`
+schreibt in den Knopf selbst), der laufende ist **groesser** als der
+ruhende, und `:active` gibt die Rueckmeldung in unter 100 ms. Die
+Gestaltung **sperrt keinen Druck**: dass `_CHAT_JS` waehrend eines
+Uebergangs weiter auf Klicks reagiert, ist ein Logikbefund an der
+Web-Chat-Karte und steht in `docs/ux-padua/BERICHT.md`.
+
+**Der Ausdruck bleibt hell.** `css_rahmen()` traegt einen eigenen
+`@media print`-Block, weil die Gestaltung im `<style>` **nach**
+`_CSS_TEXTBUCH` steht — ohne ihn kaeme ein schwarzes Blatt aus dem
+Drucker.
+
+**Das Team-Dashboard `/` ist bewusst nicht gestaltet** — es haengt am
+Beamer und ist ein anderer Kontext.
 
 ### Eine Oberfläche je Gruppe (30.09.2026, Karte W)
 

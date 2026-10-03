@@ -218,6 +218,29 @@ def test_hole_updates_ohne_schnittgrund_und_brainstorm_liefert_vorgaben(conn, ka
     assert gedeutet["brainstorm"] is False
 
 
+def test_hole_updates_traegt_diskussion_durch(conn, kanal):
+    """Task 4 (Padua Phase 1+2 Umbau): dieselbe additive Durchreiche wie
+    ``brainstorm`` (siehe Kommentar am ``web_post``-Schema in db.py), aus der
+    gleichnamigen Spalte -- ``aufnahme.empfange`` braucht sie fuer die
+    Dispatch-Weiche aus Aufgabe 3 (``_kurz_abschliessen``)."""
+    repo.lege_web_post_an(
+        conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=12, datei="7000000000001/web-eingang/4.webm", mime="audio/webm",
+        diskussion=True,
+    )
+    gedeutet = telegram.lies_nachricht(kanal.hole_updates(0, timeout=0)[0])
+    assert gedeutet["diskussion"] is True
+
+
+def test_hole_updates_ohne_diskussion_liefert_vorgabe(conn, kanal):
+    repo.lege_web_post_an(
+        conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=12, datei="7000000000001/web-eingang/5.webm", mime="audio/webm",
+    )
+    gedeutet = telegram.lies_nachricht(kanal.hole_updates(0, timeout=0)[0])
+    assert gedeutet["diskussion"] is False
+
+
 def test_hole_updates_uebergeht_ausgehende_posts(conn, kanal):
     kanal.sende(CHAT, "Bot spricht")
     assert kanal.hole_updates(0, timeout=0) == []

@@ -195,3 +195,33 @@ def test_alle_gruppen_sieht_auch_fremde_bots(conn):
     Gruppen, nicht nur die eines Bots."""
     repo.sichere_gruppe(conn, 2, "gruppe2", "Zweite Gruppe")
     assert [z["chat_id"] for z in repo.alle_gruppen(conn)] == [1, 2]
+
+
+# Padua Phase 1+2 Karte, 03.10.2026: die sieben neuen Arbeitsstandfelder der
+# Fragen-Gegenueberstellung (eigene Fragen vs. KI-Vorschlag). Diese Felder
+# tragen noch keine eigene Logik (die kommt in spaeteren Aufgaben) -- hier
+# wird nur die Freischaltung in _ARBEITSSTAND_FELDER gegen den einen
+# Schreibweg geprueft, wie bei jedem anderen additiven Feld
+# (tests/test_db.py::test_interviews_fertig_wunsch_spalte_existiert_und_ist_schreibbar).
+_NEUE_FRAGEN_FELDER = (
+    "fragen_ki_vorschlag",
+    "fragen_ki_erzeugt_am",
+    "fragen_eigene_vorschlag",
+    "fragen_eigene_erstellt_am",
+    "fragen_herkunft",
+    "fragen_bearbeitet",
+    "fragen_herkunft_final",
+)
+
+
+@pytest.mark.parametrize("feld", _NEUE_FRAGEN_FELDER)
+def test_neue_fragen_felder_sind_ueber_arbeitsstand_schreib_und_lesbar(conn, feld):
+    repo.setze_arbeitsstand(conn, 1, feld, "testwert")
+    assert repo.hole_arbeitsstand(conn, 1)[feld] == "testwert"
+
+
+def test_unbekanntes_arbeitsstand_feld_wird_weiterhin_abgelehnt(conn):
+    """Regressionswache: die Erweiterung von _ARBEITSSTAND_FELDER darf den
+    Schutzmechanismus selbst nicht aufweichen."""
+    with pytest.raises(ValueError):
+        repo.setze_arbeitsstand(conn, 1, "nicht_erlaubtes_feld", "x")

@@ -169,7 +169,16 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- bleibt ein gewoehnlicher Gespraechsbeitrag in jeder Hinsicht ausser:
   -- es loest keinen Gespraechszug aus und wird nie als Interview angeboten
   -- (siehe aufnahme.py, Brainstorm-Zweig).
-  brainstorm      INTEGER NOT NULL DEFAULT 0
+  brainstorm      INTEGER NOT NULL DEFAULT 0,
+  -- Gesetzt = diese Aufnahme gehoert zum Hintergrund-Mithoeren von Phase 1
+  -- (Padua, 03.10.2026): die Gruppe diskutiert frei, waehrend der Bot nur
+  -- mitschreibt -- kein CoThinker, keine Reaktionsentscheidung, kein
+  -- Gespraechszug je Segment, nur eine Echo-Blase im Chat. Anders als
+  -- Brainstorm gibt es dazu genau EINE Verdichtung am Ende
+  -- (``schnittgrund='ende'``, angestossen anderswo, siehe
+  -- ``interview_theater/diskussion.py``), nicht laufend pro Segment.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  diskussion      INTEGER NOT NULL DEFAULT 0
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,
@@ -457,6 +466,27 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Wann die letzte Buehnenkarte entstand -- fuer den Mindestabstand
   -- (brainstorm.min_abstand_s). NULL = noch nie eine Karte.
   brainstorm_reaktion_am TEXT,
+  -- Die Fragen-Gegenueberstellung eigen/KI (Padua Phase 1+2 Karte,
+  -- 03.10.2026): der im Hintergrund erzeugte, versteckte KI-Vorschlag
+  -- (``Begriff: Frage``-Zeilen wie ``fragen_auswahl``) und sein Zeitstempel.
+  -- Wird genau einmal gesetzt (nie nachgebessert) -- siehe fragen_ki.py.
+  fragen_ki_vorschlag         TEXT,
+  fragen_ki_erzeugt_am        TEXT,
+  -- Die eigenen, aufgeraeumten Fragezeilen der Gruppe, sobald ihre
+  -- Eigene-Fragen-Stufe abgeschlossen ist, und ihr Zeitstempel.
+  fragen_eigene_vorschlag     TEXT,
+  fragen_eigene_erstellt_am   TEXT,
+  -- Je Zeile aus ``fragen_auswahl`` die Herkunft ("eigen"/"ki"), an
+  -- derselben Position ausgerichtet wie ``fragen_entschieden`` -- und ob
+  -- eine KI-Frage ueber "Schaerfen" bearbeitet wurde ("1"/""); eine
+  -- eigene Frage wird nie als bearbeitet markiert.
+  fragen_herkunft             TEXT,
+  fragen_bearbeitet           TEXT,
+  -- ``fragen_herkunft``, gefiltert auf die am Ende uebernommenen Indizes,
+  -- in derselben Reihenfolge wie das endgueltige Feld ``fragen`` -- damit
+  -- die Auswertung (spaetere Aufgabe) sie nicht aus den Vorfilterlisten
+  -- neu herleiten muss.
+  fragen_herkunft_final       TEXT,
   geaendert_am           TEXT
 );
 
@@ -639,6 +669,29 @@ CREATE TABLE IF NOT EXISTS buehnenkarte (
   erstellt_am  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_buehnenkarte_chat ON buehnenkarte(chat_id, id);
+
+-- Die EINE Verdichtung des Hintergrund-Mithoerens von Phase 1 (Padua
+-- Phase 1+2 Umbau, 03.10.2026, ``interview_theater/diskussion.py``).
+--
+-- Anders als ``buehnenkarte`` (laufend, nur anhaengen) genau eine Zeile je
+-- Gruppe (``UNIQUE (chat_id)``): die Diskussion endet genau einmal
+-- (``schnittgrund='ende'``), und genau dann laeuft genau ein Verdichtungslauf
+-- -- ein zweiter Lauf (Doppelklick, Nachzuegler-Segment) ersetzt die Zeile,
+-- er haengt keine zweite an. ``text`` ist NOT NULL, weil ohne ein brauchbares
+-- Ergebnis (NICHTS/NOTHING oder ein Fehlschlag) gar keine Zeile entsteht --
+-- siehe ``diskussion.starte``.
+CREATE TABLE IF NOT EXISTS diskussion_verdichtung (
+  id          INTEGER PRIMARY KEY,
+  chat_id     INTEGER NOT NULL,
+  text        TEXT NOT NULL,
+  erstellt_am TEXT NOT NULL,
+  -- 'claude' (ueber szene_claude, mit Einwilligung) oder 'sovereign'
+  -- (Infomaniak/Kimi) -- dieselbe Unterscheidung wie bei
+  -- ``buehnenkarte.modell``, nur mit dem Wortlaut aus der Modellwahl-Karte
+  -- (modellwahl.py).
+  modell      TEXT,
+  UNIQUE (chat_id)
+);
 
 -- Die Schaerfung am Material (Phase 6, Umbau 05.09.2026 nachts).
 --
@@ -978,6 +1031,11 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- additiv nachgeruestet.
   schnittgrund      TEXT,
   brainstorm        INTEGER NOT NULL DEFAULT 0,
+  -- Diskussions-Flag (Padua, 03.10.2026): dieses 'sprache'-Segment kommt aus
+  -- dem Hintergrund-Mithoeren von Phase 1 (?diskussion=1 an chat/audio),
+  -- durchgereicht von hole_updates() auf das Telegram-foermige Update, genau
+  -- wie 'brainstorm' -- additiv nachgeruestet.
+  diskussion        INTEGER NOT NULL DEFAULT 0,
   -- Telefon-Organisationskarte je Phasen-Eintritt (UX-Knoepfe-Karte,
   -- Abschnitt 5): der Dateiname unter interview_theater/static/handys/
   -- (z. B. 'phase-4.png'), nie ein Pfad -- die Chatansicht baut die URL
@@ -1079,6 +1137,7 @@ TABELLEN_MIT_CHAT_ID = (
     "journal",
     "festlegung",
     "buehnenkarte",
+    "diskussion_verdichtung",
     "knopf",
     # Karte U (01.10.2026): die Ruecknahme eines Erkennerlaufs.
     "erkenner_lauf",

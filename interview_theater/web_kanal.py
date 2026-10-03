@@ -363,6 +363,11 @@ class WebKanal:
                 # gleichnamigen web_post-Spalten.
                 "schnittgrund": zeile["schnittgrund"],
                 "brainstorm": bool(zeile["brainstorm"]),
+                # Task 4 (Padua Phase 1+2 Umbau, 03.10.2026): dieselbe
+                # additive Durchreiche wie "brainstorm" direkt darueber, aus
+                # der gleichnamigen web_post-Spalte (Hintergrund-Mithoeren
+                # Phase 1).
+                "diskussion": bool(zeile["diskussion"]),
             }
         else:
             nachricht["text"] = zeile["text"] or ""

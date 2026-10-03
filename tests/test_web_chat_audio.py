@@ -277,13 +277,15 @@ def test_das_json_post_limit_gilt_fuer_audio_nicht(aufbau):
 
 
 def _lade_mit_grund(basis, token, koerper: bytes, *, grund=None, brainstorm=False,
-                     dauer=45):
+                     diskussion=False, dauer=45):
     kennung = web.nonce(SCHLUESSEL, token)
     url = f"{basis}/g/{token}/chat/audio?nonce={kennung}&dauer={dauer}"
     if grund is not None:
         url += f"&grund={grund}"
     if brainstorm:
         url += "&brainstorm=1"
+    if diskussion:
+        url += "&diskussion=1"
     anfrage = urllib.request.Request(
         url, data=koerper, headers={"Content-Type": "audio/webm"}, method="POST",
     )
@@ -305,6 +307,23 @@ def test_ohne_grund_und_brainstorm_bleiben_sie_leer(aufbau):
     zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
     assert zeile["schnittgrund"] is None
     assert zeile["brainstorm"] == 0
+
+
+# -- Diskussion-Flag (Task 5, Padua Phase 1+2 Umbau, 03.10.2026) -----------
+
+
+def test_diskussion_landet_im_web_post(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, diskussion=True)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["diskussion"] == 1
+
+
+def test_ohne_diskussion_bleibt_sie_leer(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["diskussion"] == 0
 
 
 def test_ein_unbekannter_grund_wird_zu_leer_statt_abgelehnt(aufbau):

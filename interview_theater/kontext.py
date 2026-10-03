@@ -25,7 +25,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 
-from interview_theater import phasen, repo
+from interview_theater import phasen, repo, workshop
 
 log = logging.getLogger(__name__)
 
@@ -87,6 +87,14 @@ BUDGETS = {
     # waechst unbegrenzt. 800 Token sind rund 2.400 Zeichen; die gemessene
     # Gruppe haette in Phase 4 etwa 12 Zeilen a 70 Zeichen erzeugt.
     "festlegungen": 800,
+    # Wie "festlegungen" direkt darueber ein kleiner Zusatzblock neben dem
+    # eigentlichen Gespraech (Padua Phase 1+2 Umbau, 03.10.2026): der
+    # Diskussions-Verdichtungstext ist durch seinen eigenen Prompt schon auf
+    # rund 150 Woerter gedeckelt (``interview_theater.diskussion``), ein
+    # eigenes Zeichenbudget wird hier wie bei den meisten Eintraegen oben nur
+    # dokumentarisch gefuehrt -- durchgesetzt wird er in der Kuerzungsleiter
+    # durch Wegwerfen im Ganzen, siehe ``_baue_diskussion_block``.
+    "diskussion": 800,
     "phasenhinweis": 50,
     "figurenhinweis": 100,
     "szene": 2000,
@@ -223,7 +231,7 @@ PAUSE_AB_MINUTEN = 60
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
-    "phasenhinweis", "figurenhinweis", "szene", "journal", "fenster",
+    "diskussion", "phasenhinweis", "figurenhinweis", "szene", "journal", "fenster",
     "ausloeser", "erstkontakt",
 )
 
@@ -817,6 +825,32 @@ def _baue_festlegungen(conn, chat_id: int) -> str:
     return kopf + "\n" + "\n".join(zeilen)
 
 
+#: Die Kopfzeile des Diskussions-Blocks (Padua Phase 1+2 Umbau, 03.10.2026).
+DISKUSSION_KOPF = "Aus eurer Begriffs-Diskussion:"
+
+
+def _baue_diskussion_block(conn, chat_id: int) -> str:
+    """Die Verdichtung der Hintergrund-Diskussion aus Phase 1 (Padua Phase
+    1+2 Umbau, 03.10.2026, ``interview_theater.diskussion``) -- direkt hinter
+    den Festlegungen, weil sie denselben Rang hat: etwas, das die Gruppe vor
+    dem eigentlichen Gespraech gesagt hat und das sonst nirgends im Prompt
+    stuende.
+
+    Kein eigenes Zeichenbudget noetig wie bei ``_baue_festlegungen``: der
+    Verdichtungs-Prompt selbst deckelt den Text auf rund 150 Woerter.
+
+    Datengetrieben wie jeder Block: keine Verdichtung -- noch keine
+    Diskussion gelaufen, oder das Profil hat ``diskussion.aktiv`` nie gesetzt
+    -- kein Block. Die Gating-Entscheidung liegt damit allein in den Daten,
+    nicht in einer zusaetzlichen ``workshop.diskussion_aktiv()``-Abfrage
+    hier: ohne das Profil entsteht nie eine Zeile in ``diskussion_verdichtung``
+    (Dortmund bleibt unberuehrt)."""
+    text = repo.diskussion_verdichtung_text(conn, chat_id)
+    if not text:
+        return ""
+    return f"{T.DISKUSSION_KOPF}\n\n{text}"
+
+
 #: Der Hinweisblock, mit dem der Bot einen Phasenwechsel zur Sprache bringt.
 #:
 #: Seit dem 05.09.2026 ist das ausdruecklich eine **Frage**, kein Angebot und
@@ -1400,6 +1434,52 @@ ERSTKONTAKT_LINK = (
     "(nur fuer diese Gruppe, den Link genau so nennen)"
 )
 
+#: Die Begruessungs-Anweisung, wenn das Profil ``diskussion.aktiv`` gesetzt
+#: hat (Padua Phase 1+2 Umbau, 03.10.2026). ``ERSTKONTAKT`` selbst bleibt
+#: byte-fuer-byte unveraendert -- das ist die Dortmund-Sicherheitsgarantie
+#: dieses Umbaus, kein Nebeneffekt dieser Konstante. Gleicher Aufbau
+#: (Rollen/Ablauf wie gewohnt erklaeren), aber ein anderer Schluss: statt
+#: nach den fuenf Begriffen zu fragen, legt die Gruppe das Handy in die
+#: Mitte und bespricht die Begriffe frei -- der Bot hoert nur zu und sagt
+#: nichts, bis "Diskussion fertig" gedrueckt wird (siehe
+#: ``interview_theater.diskussion``, Aufgabe 7).
+ERSTKONTAKT_DISKUSSION = (
+    "{anlass} Geh zuerst auf das ein, was gerade gesagt "
+    "wurde, und nimm dir dann Raum: das ist der Moment, in dem die Gruppe "
+    "versteht, wie hier gearbeitet wird. Bring unter, in dieser Reihenfolge "
+    "und in ganzen Saetzen, nicht als Liste: wer du bist und was ihr "
+    "zusammen macht (aus den Begriffen der Gruppe entstehen Fragen, mit den "
+    "Fragen zieht die Gruppe los und macht Interviews, aus den Interviews "
+    "wird spaeter das Stueck); dass du alles mitliest und auf alles "
+    "antwortest, getippt wie gesprochen; **dass ein Interview mit dem Knopf "
+    "\"Interview starten\" beginnt und dass nach jeder Sprachnachricht ein "
+    "Knopf fragt, ob es weitergeht oder fertig ist** -- die "
+    "Knoepfe unter deiner Nachricht zeigen den Weg, **nenne keinen "
+    "Schraegstrich-Befehl**{link}. "
+    "**Schliesse diesmal anders, nicht mit der Frage nach den Begriffen**: "
+    "erklaer stattdessen, dass die Gruppe jetzt das Handy in die Mitte legt "
+    "und frei bespricht, welche Begriffe ihr wichtig sind -- du hoerst dabei "
+    "nur zu und sagst nichts, bis sie auf \"Diskussion fertig\" druecken. "
+    "Darunter erscheint der Knopf \"Zuhoeren starten\", mit dem die "
+    "Diskussion beginnt. "
+    "Kein Formular, keine Aufzaehlung mit Spiegelstrichen -- ein warmer, "
+    "ausfuehrlicher Einstieg, der mit dem Gesagten anfaengt und mit der "
+    "Erklaerung zur Diskussion aufhoert."
+)
+
+#: Dieselben zwei Anlass-Saetze wie ``ERSTKONTAKT_ANLASS_ERSTE``/
+#: ``_RUECKKEHR``, als eigene Konstanten: die Erstkontakt-Dreiergruppe bleibt
+#: unangetastet, und ein spaeterer Unterschied im Diskussions-Anlass soll
+#: nicht versehentlich den klassischen Text mitaendern.
+ERSTKONTAKT_DISKUSSION_ANLASS_ERSTE = (
+    "Dies ist eure allererste Nachricht in dieser Gruppe -- deine Antwort ist "
+    "zugleich die Begruessung."
+)
+ERSTKONTAKT_DISKUSSION_ANLASS_RUECKKEHR = (
+    "Die Gruppe steigt gerade (wieder) in die Phase Begriffe ein -- deine "
+    "Antwort ist der Einstieg in diese Phase, genau wie bei der Begruessung."
+)
+
 
 def _baue_erstkontakt(conn, chat_id: int, e, rueckkehr: bool = False) -> str:
     # ueber bot.stelle_link_sicher, nicht ueber repo.gruppenseite_url direkt:
@@ -1409,6 +1489,15 @@ def _baue_erstkontakt(conn, chat_id: int, e, rueckkehr: bool = False) -> str:
 
     url = bot.stelle_link_sicher(conn, e, chat_id)
     link = T.ERSTKONTAKT_LINK.format(url=url) if url else ""
+    # Padua Phase 1+2 Umbau, 03.10.2026: nur bei aktivem Profil-Schalter
+    # ("diskussion.aktiv") ein anderer Text -- ohne Profil (Dortmund) bleibt
+    # dieser Zweig unbetreten und der bestehende Text unveraendert.
+    if workshop.diskussion_aktiv():
+        anlass = (
+            T.ERSTKONTAKT_DISKUSSION_ANLASS_RUECKKEHR if rueckkehr
+            else T.ERSTKONTAKT_DISKUSSION_ANLASS_ERSTE
+        )
+        return T.ERSTKONTAKT_DISKUSSION.format(anlass=anlass, link=link)
     anlass = T.ERSTKONTAKT_ANLASS_RUECKKEHR if rueckkehr else T.ERSTKONTAKT_ANLASS_ERSTE
     return T.ERSTKONTAKT.format(anlass=anlass, link=link)
 
@@ -1560,6 +1649,10 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         # Direkt dahinter, und **unabhaengig von Phase und Materiallage**:
         # was hier steht, passt in kein Feld und faellt deshalb sonst weg.
         "festlegungen": _baue_festlegungen(conn, chat_id),
+        # Gleich daneben: die Hintergrund-Diskussion aus Phase 1, falls das
+        # Profil sie faehrt (``workshop.diskussion_aktiv``) -- datengetrieben
+        # ueber die Tabelle, keine eigene Abfrage hier noetig.
+        "diskussion": _baue_diskussion_block(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
@@ -1605,8 +1698,13 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
        klein, stabil und genau das, was ohne diese Tabelle gar nicht erst im
        Prompt stuende. Und anders als beim Journal faellt hier das Juengste
        zuerst, damit die Grundfestlegung als letzte geht.
-    6. Die Verdichtungen -- weil sie das Material selbst sind.
-    7. Die Garantie: passt es dann immer noch nicht, wird der Szenenblock auf
+    6. Die Diskussion im Ganzen (Padua Phase 1+2, 03.10.2026) -- anders als
+       die Festlegungen nicht zeilenweise, sondern in einem Schritt: der
+       Verdichtungstext ist durch seinen eigenen Prompt schon auf rund 150
+       Woerter gedeckelt und hat keine innere Zeilenstruktur, an der sich
+       schneiden liesse.
+    7. Die Verdichtungen -- weil sie das Material selbst sind.
+    8. Die Garantie: passt es dann immer noch nicht, wird der Szenenblock auf
        genau den Platz zusammengezogen, der uebrig ist (bis hin zu leer). Bis
        zum 06.09.2026 konnte die Kuerzung ihr Ziel verfehlen -- gemessen
        blieben bei einer 20-fachen Szene 105.988 Zeichen stehen.
@@ -1664,6 +1762,12 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
             bloecke["festlegungen"] = "\n".join(festlegungszeilen)
         if _zu_lang():
             bloecke["festlegungen"] = ""
+    # Die Diskussion faellt im Ganzen weg, nicht zeilenweise: der
+    # Verdichtungstext ist bereits klein (eigener Prompt-Deckel bei rund 150
+    # Woertern) und hat keine Zeilenstruktur wie die Festlegungen, an der
+    # sich ein stufenweises Kappen lohnen wuerde.
+    if _zu_lang() and bloecke["diskussion"]:
+        bloecke["diskussion"] = ""
     if _zu_lang():
         bloecke["verdichtungen"] = ""
     if _zu_lang() and bloecke["szene"]:

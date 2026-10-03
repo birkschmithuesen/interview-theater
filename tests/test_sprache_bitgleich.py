@@ -174,6 +174,15 @@ GEAENDERT: dict[str, str] = {
         "zeichengleich (tests/test_laengen_szene.py, "
         "tests/test_profil_bitgleich.py)."
     ),
+    "kontext._REIHENFOLGE": (
+        "Padua Phase 1+2 Umbau, Aufgabe 8 (03.10.2026): der Blockname "
+        "\"diskussion\" steht direkt hinter \"festlegungen\". Kein "
+        "Nutzertext, sondern die Reihenfolge der Bloecke. Fuer Dortmund "
+        "bleibt der Block leer (keine Zeile in diskussion_verdichtung ohne "
+        "das Profil ``diskussion.aktiv``) und faellt in _zusammen ersatzlos "
+        "weg -- der Nutzertext ist zeichengleich (tests/test_kontext.py, "
+        "tests/test_profil_bitgleich.py)."
+    ),
     # Padua-Brainstorming-Umbau, Phase 4 (02.10.2026, .phase4-brainstorm-brief.md):
     # die neue Erkenner-Art ``szenenanzahl_setzen`` (Anzahl Szenen ist ein
     # fixes Feld, das die Gruppe selbst setzt) und die Entfernung der

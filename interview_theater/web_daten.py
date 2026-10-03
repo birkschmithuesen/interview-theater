@@ -115,6 +115,11 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         # die Spalte noch fehlen.
         "frage_einleitungen": _feld(zeile, "frage_einleitungen"),
         "fragen_weich": _feld(zeile, "fragen_weich"),
+        # Die Herkunft der final uebernommenen Fragen (Aufgabe 13/14,
+        # ``knoepfe.fragen._schliesse_fragen_ab``) -- komma-getrennt,
+        # indexgleich zu ``fragen``. Nur ueber ``_feld``: die Spalte gibt es
+        # erst seit dem A/B-Vergleich, und der Webserver migriert nichts.
+        "fragen_herkunft_final": _feld(zeile, "fragen_herkunft_final"),
         "interview_eroeffnung": _feld(zeile, "interview_eroeffnung"),
         "interview_abschluss": _feld(zeile, "interview_abschluss"),
         "kernthema": zeile["kernthema"] if zeile else None,
@@ -382,10 +387,13 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
     steht, sind Arbeitsergebnisse, Zahlen und Vorfaelle.
 
     ``jetzt`` ist nur fuer die Tests da (Vorfallfenster, Tagesgrenze)."""
+    from interview_theater import fragen_auswertung as _fragen_auswertung_modul
+
     jetzt = jetzt or datetime.now(timezone.utc)
     gruppen = []
     for z in conn.execute("SELECT * FROM gruppe ORDER BY titel IS NULL, titel, chat_id"):
         chat_id = z["chat_id"]
+        stand = _arbeitsstand(conn, chat_id)
         gruppen.append(
             {
                 "chat_id": chat_id,
@@ -393,7 +401,16 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
                 "bot_name": z["bot_name"],
                 "web_token": _feld(z, "web_token"),
                 "interviewmodus_seit": z["interviewmodus_seit"],
-                "arbeitsstand": _arbeitsstand(conn, chat_id),
+                "arbeitsstand": stand,
+                # Eigene vs. KI-Fragen (Aufgabe 14) -- rein additiv, zeigt
+                # 0/0 (nicht abwesend), solange der A/B-Vergleich fuer diese
+                # Gruppe nie lief (``workshop.fragen_ab_aktiv()`` aus, oder
+                # die klassische Fuenf-je-Begriff-Runde): derselbe Schluessel
+                # fuer jede Gruppe, ``web.py`` entscheidet, ob eine Zeile
+                # draus wird.
+                "fragen_auswertung": _fragen_auswertung_modul.aus_daten(
+                    stand.get("fragen"), stand.get("fragen_herkunft_final"),
+                ),
                 "figuren": _figuren(conn, chat_id),
                 "aufnahmen": _aufnahmen_nach_status(conn, chat_id),
                 "verdichtungen": conn.execute(
@@ -1120,6 +1137,8 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     szenen = _szenen(conn, chat_id, geschaerft)
     fassungen = szenenfassungen(conn, chat_id, szenen)
     stand = _arbeitsstand(conn, chat_id)
+    from interview_theater import fragen_auswertung as _fragen_auswertung_modul
+
     return {
         "chat_id": chat_id,
         "titel": zeile["titel"],
@@ -1162,6 +1181,11 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Was noch fehlt (06.09.2026) -- leere Liste heisst: der Abschnitt
         # bleibt weg, nicht "nichts fehlt".
         "fehlstellen": fehlstellen(conn, chat_id),
+        # Eigene vs. KI-Fragen (Aufgabe 14) -- 0/0, solange der A/B-Vergleich
+        # fuer diese Gruppe nie lief, derselbe Schluessel wie im Dashboard.
+        "fragen_auswertung": _fragen_auswertung_modul.aus_daten(
+            stand.get("fragen"), stand.get("fragen_herkunft_final"),
+        ),
         # Wie viel jede Figur spricht (06.09.2026) -- ``szenen: 0`` heisst:
         # keine Szene war zaehlbar, der Abschnitt bleibt weg.
         "sprechanteile": sprechanteile(conn, chat_id),
@@ -1538,6 +1562,7 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
     ).fetchone()
     from interview_theater import phasen   # spaet wie in fehlstellen(): rein, kein SQL
+    from interview_theater import workshop  # spaet wie phasen oben: rein, kein SQL
 
     modus = bool(gruppe and gruppe["interviewmodus_seit"])
     return {
@@ -1559,6 +1584,15 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         # serverseitige "laeuft gerade"-Ausnahme, das Offenhalten einer
         # laufenden Sitzung passiert rein clientseitig (siehe web_chat.py).
         "brainstorm_knopf": _feld(stand, "phase") == 4,
+        # Task 4 (Padua Phase 1+2 Umbau): der Diskussions-Knopf nur in
+        # Phase 1 UND nur, wenn das aktive Profil die Hintergrund-
+        # Diskussionsaufnahme ueberhaupt faehrt (``workshop.diskussion_aktiv``,
+        # Vorgabe false -- Dortmund bleibt unberuehrt). Beide Bedingungen
+        # greifen unabhaengig voneinander, wie beim Brainstorm-Knopf gibt es
+        # dafuer keine serverseitige "laeuft gerade"-Ausnahme.
+        "diskussion_knopf": (
+            _feld(stand, "phase") == 1 and workshop.diskussion_aktiv()
+        ),
         "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
         "nachrichten": nachrichten,
         "letzte": letzte,

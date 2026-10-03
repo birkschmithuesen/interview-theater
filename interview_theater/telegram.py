@@ -501,6 +501,10 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         # der Web-Kanal setzt sie.
         "schnittgrund": _sprachquelle(nachricht).get("schnittgrund"),
         "brainstorm": _sprachquelle(nachricht).get("brainstorm", False),
+        # Dieselbe additive Durchreiche wie "brainstorm" direkt darueber
+        # (Task 4, Padua Phase 1+2 Umbau, 03.10.2026) -- Hintergrund-
+        # Mithoeren Phase 1. Bei einem echten Telegram-Update immer False.
+        "diskussion": _sprachquelle(nachricht).get("diskussion", False),
     }
 
 

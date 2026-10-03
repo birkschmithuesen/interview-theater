@@ -286,7 +286,14 @@ def test_starte_verhaelt_sich_wie_vorher(prosa_bereit, einst, tg):
     assert thread is not None
     thread.join(timeout=20)
     assert kurzgeschichte.laeuft(1) is False
-    fertig = kurzgeschichte.T._TEXT_FERTIG.format(anzahl=2)
+    # Padua Phasen TEIL 2: mit dem Prueflauf (Padua) ersetzt der Hinweis nach
+    # der Pruefung die Fertig-Meldung -- kein Volltext im Chat.
+    from interview_theater import knoepfe, prueflauf
+
+    if prueflauf.aktiv():
+        fertig = knoepfe.T._TEXT_GESCHICHTE_BEREIT.format(gesamt=2)
+    else:
+        fertig = kurzgeschichte.T._TEXT_FERTIG.format(anzahl=2)
     assert any(fertig in t for t in tg.texte), tg.texte
 
 

@@ -179,6 +179,10 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     _TEXT_STT_SPRACHE_GESETZT, _TEXT_STT_SPRACHE_KURZ,
     # Karte A1, Aufgabe 10: aus stationen hierher gewandert (K1)
     _ERLEDIGT_FUER,
+    # Padua Phasen TEIL 2: die Anzeige nach dem Prueflauf
+    ART_ERSTENTWURF, HINWEIS_ZUSAMMENFASSUNG_MAX, _TEXT_ERSTENTWURF,
+    _TEXT_ERSTENTWURF_KNOPF, _TEXT_GESCHICHTE_BEREIT, _TEXT_KEIN_ERSTENTWURF,
+    _TEXT_SKRIPT_LINK, _TEXT_SKRIPT_TAB, _TEXT_SZENE_BEREIT,
 )
 
 #: callback_data, Grundleiste, Speicherweg, Auftragsabgabe
@@ -233,6 +237,8 @@ from interview_theater.knoepfe.szenen import (  # noqa: F401
     starte_stueckpruefung, zeige_dramaturgie, zeige_kurzgeschichte,
     zeige_stueckpruefung,
     zeige_szenentext,
+    _leiste_nach_szenentext, skript_verweis, zeige_geprueft_geschichte,
+    zeige_geprueft_szene,
 )
 
 #: Phase 3
@@ -279,7 +285,7 @@ from interview_theater.knoepfe.wirkung import (  # noqa: F401
     _wirkung_szene_form, _wirkung_szene_naechste, _wirkung_szene_neu,
     _wirkung_szene_passt, _wirkung_szene_planen, _wirkung_szene_schreiben,
     _wirkung_szene_so_lassen, _wirkung_szene_ueberspringen, _wirkung_szene_usa,
-    _wirkung_uebersicht_anders, _wirkung_uebersicht_passt,
+    _wirkung_uebersicht_anders, _wirkung_uebersicht_passt, _wirkung_erstentwurf,
     _wirkung_szene_zeigen, _wirkung_szenenfelder_speichern,
     _wirkung_szenenfolge_anzahl, _wirkung_szenenfolge_anzahl_wert,
     _wirkung_szenenfolge_reihenfolge, _wirkung_szenenfolge_speichern,

@@ -878,6 +878,26 @@ _TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN = "Alles klar -- ich schreibe jetzt die na
 _TEXT_ALLE_SZENEN_ENTWORFEN = "Alle Szenen haben einen Entwurf. Weiter geht's mit der Ueberarbeitung."
 
 
+# --- Padua Phasen TEIL 2 (03.10.2026): Pruefen vor jeder Anzeige ----------
+
+#: "Erste Fassung zeigen" unter dem Hinweis nach einem Prueflauf
+#: (``szenen.zeige_geprueft_szene``/``zeige_geprueft_geschichte``). ``wert``
+#: ist die Szenennummer, ``""`` heisst die ganze Geschichte. Kein
+#: Modellaufruf: der Knopf sagt nur, wo die Fassung steht.
+ART_ERSTENTWURF = "erstentwurf"
+#: Der Hinweis statt des Volltexts (Padua: kein Volltext im Chat).
+_TEXT_SZENE_BEREIT = "Szene {nummer} von {gesamt} ist fertig: {titel}."
+_TEXT_GESCHICHTE_BEREIT = "Die ganze Geschichte steht ({gesamt} Szenen)."
+#: Wo der Text steht: im Web-Kanal der Tab, in Telegram der Link darauf.
+_TEXT_SKRIPT_TAB = "Lest sie im Script-Tab."
+_TEXT_SKRIPT_LINK = "Lest sie im Script-Tab: {url}"
+_TEXT_ERSTENTWURF_KNOPF = "Erste Fassung zeigen"
+_TEXT_ERSTENTWURF = "Die Fassung vor der Pruefung steht im Script-Tab unter \"Erste Fassung\"."
+_TEXT_KEIN_ERSTENTWURF = "Dazu gibt es noch keine fruehere Fassung."
+#: Hoechstens so viele Zeichen der Zusammenfassung im Hinweis.
+HINWEIS_ZUSAMMENFASSUNG_MAX = 300
+
+
 # --- Verarbeitung ---------------------------------------------------------
 
 

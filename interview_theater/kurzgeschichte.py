@@ -541,9 +541,29 @@ def starte(
         # ist "es passiert etwas" der Unterschied zwischen stiller Wartezeit
         # und mitlesbarem Text.
         senke = strom.senke(tg, chat_id, "prosa")
+        from interview_theater import prueflauf
+
+        # Padua Phasen TEIL 2: still schreiben, pruefen (samt Nachpass, den
+        # der Prueflauf selbst laufen laesst), dann EIN Hinweis statt der
+        # Abschnitte. Die Arbeitszeile laeuft dabei weiter bis zur Anzeige.
+        pruefen = prueflauf.aktiv()
         try:
             schreibe(conn, tg, klm, e, chat_id, regie, vorlage=vorlage,
-                     zeilen=zeilen, bei_teil=senke)
+                     zeilen=None if pruefen else zeilen, bei_teil=senke,
+                     zeigen=not pruefen)
+            if pruefen:
+                from interview_theater import knoepfe
+
+                bericht = prueflauf.pruefe_geschichte(conn, tg, klm, e, chat_id)
+                zeilen.stoppe()
+                # Eigenes ``try``: die Geschichte steht schon -- eine
+                # gescheiterte Anzeige ist kein gescheiterter Lauf.
+                try:
+                    knoepfe.zeige_geprueft_geschichte(conn, tg, e, chat_id, bericht)
+                except Exception:
+                    log.exception("Anzeige nach dem Prueflauf gescheitert, chat_id=%s",
+                                  chat_id)
+                return
             # Der Nachpass (30.09.2026, Karte R): EIN Lauf fuer alle
             # Abschnitte, im selben Thread und unter derselben Sperre. Im
             # ``try``, weil es nach einem gescheiterten Lauf keine Geschichte

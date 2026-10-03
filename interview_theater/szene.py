@@ -2498,14 +2498,32 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
     # Befund 2): der Nachpass ruft ``schreibe`` direkt und soll unsichtbar
     # bleiben.
     senke = strom.senke(tg, chat_id, "szene")
+    from interview_theater import prueflauf
+
+    # Padua Phasen TEIL 2: mit dem Prueflauf wird still geschrieben, geprueft
+    # (der Prueflauf laesst den Nachpass selbst laufen) und erst dann ein
+    # Hinweis gezeigt -- nie der Volltext. Nur nach einem GEWOEHNLICHEN Lauf,
+    # wie der Nachpass; ohne Profilschalter bleibt alles wie bisher.
+    pruefen = art == ART and prueflauf.aktiv()
     try:
         nummer = schreibe(conn, tg, klm, e, chat_id, auftrag, art=art,
-                          bei_teil=senke)
+                          bei_teil=senke, zeigen=not pruefen)
+        if pruefen:
+            from interview_theater import knoepfe
+
+            bericht = prueflauf.pruefe_szene(conn, tg, klm, e, chat_id, nummer)
+            # Eigenes ``try``: die Szene steht schon -- eine gescheiterte
+            # Anzeige ist kein gescheiterter Lauf.
+            try:
+                knoepfe.zeige_geprueft_szene(conn, tg, e, chat_id, nummer, bericht)
+            except Exception:
+                log.exception("Anzeige nach dem Prueflauf gescheitert, chat_id=%s",
+                              chat_id)
         # ``art == ART``: der Nachpass nur nach einem GEWOEHNLICHEN Lauf. Er
         # selbst ruft ``schreibe`` direkt und kommt hier nie vorbei -- die
         # Bedingung ist die zweite Wache gegen eine Schleife, kein Ersatz
         # fuer die erste. Ohne aktives Profil ist ``nach_szene`` ein No-Op.
-        if art == ART:
+        elif art == ART:
             from interview_theater import nachpass
 
             # Eigenes ``try`` (Schlussreview I1): die Szene ist hier schon

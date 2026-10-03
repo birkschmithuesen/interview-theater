@@ -19,7 +19,8 @@ from interview_theater import repo
 
 from interview_theater.knoepfe.texte import (
     ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN, ART_DRAMATURGIE_SZENE,
-    ART_DURCHLAUF_SZENE, ART_EIGENE, ART_FASSUNGEN, ART_GESCHICHTE_ANDERS,
+    ART_DURCHLAUF_SZENE, ART_EIGENE, ART_ERSTENTWURF, ART_FASSUNGEN,
+    ART_GESCHICHTE_ANDERS, HINWEIS_ZUSAMMENFASSUNG_MAX,
     ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU, ART_GESCHICHTE_PASST,
     ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
@@ -774,10 +775,18 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
     Ist es die letzte Szene und sind alle fertig, steht statt "Naechste
     Szene" der Weg weiter: "Weiter zu Durchlauf" -- ohne Nummer, wie jeder
     Phasenknopf hier."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
+    return _mit_leiste(conn, tg, chat_id, text, _leiste_nach_szenentext(conn, chat_id, nummer))
+
+
+def _leiste_nach_szenentext(conn, chat_id: int, nummer: int) -> list[tuple[str, str]]:
+    """Die fuenf Knoepfe aus ``biete_nach_szenentext`` -- herausgezogen
+    (Padua Phasen TEIL 2), weil der Hinweis nach dem Prueflauf in Phase 5
+    dieselbe Leiste in derselben Reihenfolge traegt, plus "Erste Fassung
+    zeigen"."""
     from interview_theater import kuerzung as kuerzung_modul
 
-    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
-    leiste = [
+    return [
         (
             T.TEXT_PASST_KNOPF,
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_PASST, str(nummer))),
@@ -799,7 +808,162 @@ def biete_nach_szenentext(conn, tg, chat_id: int, nummer: int, text: str) -> int
             _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_NAECHSTE, str(nummer))),
         ),
     ]
-    return _mit_leiste(conn, tg, chat_id, text, leiste)
+
+
+# --- Padua Phasen TEIL 2 (03.10.2026): die Anzeige nach dem Prueflauf ------
+
+
+def skript_verweis(conn, e, chat_id: int) -> str:
+    """Die Zeile, die sagt, wo der Text steht: im Web-Kanal der Script-Tab
+    der vereinten Seite, in Telegram ein Link auf ihn (``#textbuch``). Ohne
+    ``e.web_url`` (kein Webserver daneben) bleibt es beim Tab-Satz -- der
+    Weg zur URL ist derselbe wie in ``probenansicht_zeile``."""
+    from interview_theater import aufnahme
+
+    if aufnahme.ist_web_gruppe(conn, chat_id):
+        return T._TEXT_SKRIPT_TAB
+    basis = getattr(e, "web_url", "") if e is not None else ""
+    url = repo.gruppenseite_url(conn, chat_id, basis) if basis else None
+    if not url:
+        return T._TEXT_SKRIPT_TAB
+    return T._TEXT_SKRIPT_LINK.format(url=f"{url}#textbuch")
+
+
+def _kurz(text: str, laenge: int) -> str:
+    text = " ".join((text or "").split())
+    if len(text) <= laenge:
+        return text
+    schnitt = text.rfind(" ", 0, laenge)
+    return text[:schnitt if schnitt > 0 else laenge].rstrip() + "…"
+
+
+def _sende_zeilen(conn, tg, e, chat_id: int, bericht) -> None:
+    """Die Berichtszeilen als eigene Nachricht -- nur im Fall "Volltext wie
+    bisher" (Prueflauf an, Ueberarbeitung aus)."""
+    zeilen = list(getattr(bericht, "zeilen", None) or [])
+    if not zeilen:
+        return
+    text = "\n".join(zeilen)
+    message_id = tg.sende(chat_id, text)
+    repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+
+
+def _knopf(conn, chat_id: int, beschriftung: str, art: str, wert) -> tuple[str, str]:
+    return (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, art, wert)))
+
+
+def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int:
+    """Zeigt eine Szene nach ihrem Prueflauf (``prueflauf.pruefe_szene``).
+
+    Mit ``workshop.ueberarbeitung_aktiv()`` (Padua) **nie den Volltext**:
+    EINE Nachricht -- Kopf, Zusammenfassung (gekappt), die Berichtszeilen,
+    der Verweis aufs Script -- und die Leiste. In Phase 5 ist das die Leiste
+    aus ``biete_nach_szenentext`` (TEIL 1 drueckt ihren ersten Knopf) plus
+    "Erste Fassung zeigen"; sonst "Ja, speichern" · "Nein, nochmal aendern" ·
+    "Kuerzer" · "Erste Fassung zeigen". Der Hinweis geht als Bot-Zeile in
+    ``nachricht`` -- der Gespraechs-Bot sieht ihn, nicht den Volltext.
+
+    Ohne Ueberarbeitung (keine ausgelieferte Kombination) der Volltext wie
+    bisher und die Zeilen als eigene Nachricht. Gelesen wird der Stand der
+    Datenbank, nicht ein mitgefuehrter Text (``prueflauf._starte``)."""
+    from interview_theater import kuerzung as kuerzung_modul
+    from interview_theater import szene as szene_modul, workshop
+
+    szenen = repo.hole_szenen(conn, chat_id)
+    zeile = next((s for s in szenen if s["nummer"] == nummer), None)
+    titel = ((zeile["titel"] if zeile is not None else None)
+             or szene_modul.T._SZENE_MIT_NUMMER.format(nummer=nummer))
+    if not workshop.ueberarbeitung_aktiv():
+        feld = "prosa" if szene_modul.schreibt_prosa(conn, chat_id) else "volltext"
+        text = ((zeile[feld] if zeile is not None else None) or "").strip()
+        szene_modul._sende_szenentext(conn, tg, e, chat_id, nummer, titel, text)
+        _sende_zeilen(conn, tg, e, chat_id, bericht)
+        return 0
+
+    teile = [T._TEXT_SZENE_BEREIT.format(nummer=nummer, gesamt=len(szenen), titel=titel)]
+    zusammenfassung = _kurz(
+        (zeile["zusammenfassung"] if zeile is not None else None) or "",
+        HINWEIS_ZUSAMMENFASSUNG_MAX,
+    )
+    if zusammenfassung:
+        teile.append(zusammenfassung)
+    teile.extend(getattr(bericht, "zeilen", None) or [])
+    teile.append(skript_verweis(conn, e, chat_id))
+    text = "\n\n".join(teile)
+
+    from interview_theater import phasen
+
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
+    if phasen.aktuelle(conn, chat_id) == 5:
+        leiste = _leiste_nach_szenentext(conn, chat_id, nummer)
+    else:
+        leiste = [
+            _knopf(conn, chat_id, T.TEXT_WEITER_KNOPF, ART_SZENE_PASST, str(nummer)),
+            _knopf(conn, chat_id, T.TEXT_ANDERS_KNOPF, ART_SZENE_ANDERS, str(nummer)),
+            _knopf(conn, chat_id,
+                   T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+                   ART_SZENE_KUERZEN, str(nummer)),
+        ]
+    leiste.append(_knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF,
+                         ART_ERSTENTWURF, str(nummer)))
+    message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
+    repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+    return message_id
+
+
+def _logline(conn, chat_id: int) -> str:
+    """Die Logline der Uebersicht aus Stufe A (``entwurf.baue_anzeige``,
+    erste Zeile "Logline: ..."), oder ""."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is None or "geschichte_uebersicht" not in stand.keys():
+        return ""
+    for zeile in (stand["geschichte_uebersicht"] or "").splitlines():
+        kopf, _, rest = zeile.partition(":")
+        if kopf.strip().lower() == "logline" and rest.strip():
+            return rest.strip()
+    return ""
+
+
+def zeige_geprueft_geschichte(conn, tg, e, chat_id: int, bericht) -> int:
+    """Zeigt die ganze Geschichte nach ihrem Prueflauf
+    (``prueflauf.pruefe_geschichte``) -- wie ``zeige_geprueft_szene``: in
+    Padua EINE Nachricht (Kopf, Logline der Uebersicht, Berichtszeilen,
+    Verweis) mit "Ja, speichern" · "Nein, nochmal aendern" · "Kuerzer" ·
+    "Erste Fassung zeigen"; ohne Ueberarbeitung die Geschichte wie bisher
+    (``zeige_kurzgeschichte``) und die Zeilen danach."""
+    from interview_theater import kuerzung as kuerzung_modul
+    from interview_theater import kurzgeschichte, szene as szene_modul, workshop
+
+    szenen = [s for s in repo.hole_szenen(conn, chat_id)
+              if (s["prosa"] or "").strip() or (s["volltext"] or "").strip()]
+    if not workshop.ueberarbeitung_aktiv():
+        szene_modul._sende_und_merke(
+            conn, tg, e, chat_id,
+            kurzgeschichte.T._TEXT_FERTIG.format(anzahl=len(szenen)),
+        )
+        zeige_kurzgeschichte(conn, tg, chat_id)
+        _sende_zeilen(conn, tg, e, chat_id, bericht)
+        return 0
+
+    teile = [T._TEXT_GESCHICHTE_BEREIT.format(gesamt=len(szenen))]
+    logline = _logline(conn, chat_id)
+    if logline:
+        teile.append(logline)
+    teile.extend(getattr(bericht, "zeilen", None) or [])
+    teile.append(skript_verweis(conn, e, chat_id))
+    text = "\n\n".join(teile)
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_GESCHICHTE_PASST)
+    leiste = [
+        _knopf(conn, chat_id, T.TEXT_WEITER_KNOPF, ART_GESCHICHTE_PASST, None),
+        _knopf(conn, chat_id, T.TEXT_ANDERS_KNOPF, ART_GESCHICHTE_ANDERS, None),
+        _knopf(conn, chat_id,
+               T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+               ART_GESCHICHTE_KUERZEN, None),
+        _knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF, ART_ERSTENTWURF, ""),
+    ]
+    message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
+    repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+    return message_id
 
 
 # --- Padua Phasen TEIL 1 (03.10.2026): Phase 5, Stufe A -------------------

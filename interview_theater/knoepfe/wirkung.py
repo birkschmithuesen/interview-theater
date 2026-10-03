@@ -17,7 +17,8 @@ from interview_theater import phasen, repo, ruecknahme, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_AUFNAHME, ART_AUSWERTEN, ART_AUSWERTEN_ALLE,
-    ART_DURCHLAUF_SZENE, ART_EIGENE, ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN,
+    ART_DURCHLAUF_SZENE, ART_EIGENE, ART_ERSTENTWURF, ART_DRAMATURGIE,
+    ART_DRAMATURGIE_LASSEN,
     ART_DRAMATURGIE_SZENE, ART_FASSUNGEN, ART_SPRECHANTEILE,
     ART_FIGUREN_ANZAHL, ART_FIGUREN_ANZAHL_FREI, ART_FIGUREN_ANZAHL_MENU,
     ART_FIGUREN_NAMEN_MENU, ART_FIGUREN_ZUFALL, ART_FIGUR_DUKTUS,
@@ -65,7 +66,7 @@ from interview_theater.knoepfe.szenen import (
     _naechste_offene, _pruefbefund, _schreibe_szene, _speichere_geschichte,
     _speichere_szenenfelder, _speichere_szenenfolge, _szene_mit_nummer,
     biete_kurzgeschichte, biete_schaerfung, biete_szene, biete_szenenform,
-    _zeige_fassungen, starte_dramaturgie,
+    _zeige_fassungen, skript_verweis, starte_dramaturgie,
     biete_szenenstil, erwarte_geschichte_notiz, starte_schaerfung,
     starte_stueckpruefung, zeige_szenentext,
 )
@@ -413,6 +414,24 @@ def _wirkung_uebersicht_passt(conn, d: Druck) -> str:
         auftrag = f"SZENE {erste}: write this scene as prose, following the overview."
         szene.starte(conn, d.tg, d.klm, d.e, d.chat_id, auftrag)
     return T._TEXT_UEBERSICHT_FIXIERT
+
+
+def _wirkung_erstentwurf(conn, d: Druck) -> str:
+    """"Erste Fassung zeigen" unter dem Hinweis nach einem Prueflauf (Padua
+    Phasen TEIL 2). Kein Modellaufruf (Zusage 2), und auch kein Volltext im
+    Chat: der Knopf sagt, wo die Fassung vor der Pruefung steht. ``wert``
+    ``""`` heisst die ganze Geschichte, sonst eine Szenennummer."""
+    if d.wert.strip():
+        ziel = _szene_mit_nummer(conn, d.chat_id, int(d.wert))
+        szenen = [ziel] if ziel is not None else []
+    else:
+        szenen = list(repo.hole_szenen(conn, d.chat_id))
+    if not any(repo.erstentwurf_text(conn, s["id"]) for s in szenen):
+        d.tg.sende(d.chat_id, T._TEXT_KEIN_ERSTENTWURF)
+        return T._TEXT_KEIN_ERSTENTWURF
+    text = f"{T._TEXT_ERSTENTWURF}\n{skript_verweis(conn, d.e, d.chat_id)}"
+    d.tg.sende(d.chat_id, text)
+    return text
 
 
 def _wirkung_uebersicht_anders(conn, d: Druck) -> str:
@@ -1538,6 +1557,7 @@ _WIRKUNGEN = {
     ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
     ART_UEBERSICHT_PASST: _wirkung_uebersicht_passt,
     ART_UEBERSICHT_ANDERS: _wirkung_uebersicht_anders,
+    ART_ERSTENTWURF: _wirkung_erstentwurf,
     ART_SZENE_NEU: _wirkung_szene_neu,
     ART_SZENE_SO_LASSEN: _wirkung_szene_so_lassen,
     ART_SZENE_NAECHSTE: _wirkung_szene_naechste,

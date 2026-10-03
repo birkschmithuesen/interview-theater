@@ -504,6 +504,11 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         # redeMs (Kanban-Karte Mithoeren SICHER, 03.10.2026) -- additiv wie
         # ``schnittgrund``, bei einem echten Telegram-Update immer None.
         "rede_ms": _sprachquelle(nachricht).get("rede_ms"),
+        # kalibrierung (Task 2, dieselbe Karte) -- additiv wie ``endung``,
+        # bei einem echten Telegram-Update immer False: ein
+        # Kalibrierungs-Testsatz ist aus dem Telegram-Client nicht
+        # herstellbar, nur der Web-Kanal setzt ihn.
+        "kalibrierung": bool(_sprachquelle(nachricht).get("kalibrierung", False)),
     }
 
 

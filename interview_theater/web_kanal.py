@@ -367,6 +367,11 @@ class WebKanal:
                 # dieselbe additive Durchreiche wie ``schnittgrund``, rein
                 # diagnostisch.
                 "rede_ms": zeile["rede_ms"],
+                # kalibrierung (Task 2, dieselbe Karte): dieselbe additive
+                # Durchreiche wie ``brainstorm`` -- ``aufnahme.empfange``
+                # entscheidet damit, den Clip NIE als Interview-Teil
+                # einzusammeln, unabhaengig vom Modus.
+                "kalibrierung": bool(zeile["kalibrierung"]),
             }
         else:
             nachricht["text"] = zeile["text"] or ""

@@ -218,6 +218,27 @@ def test_hole_updates_ohne_schnittgrund_und_brainstorm_liefert_vorgaben(conn, ka
     assert gedeutet["brainstorm"] is False
 
 
+def test_hole_updates_traegt_kalibrierung_durch(conn, kanal):
+    """Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
+    dieselbe additive Durchreiche wie ``schnittgrund``/``brainstorm``."""
+    repo.lege_web_post_an(
+        conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=5, datei="7000000000001/web-eingang/9.webm", mime="audio/webm",
+        kalibrierung=True,
+    )
+    gedeutet = telegram.lies_nachricht(kanal.hole_updates(0, timeout=0)[0])
+    assert gedeutet["kalibrierung"] is True
+
+
+def test_hole_updates_ohne_kalibrierung_liefert_false(conn, kanal):
+    repo.lege_web_post_an(
+        conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=5, datei="7000000000001/web-eingang/10.webm", mime="audio/webm",
+    )
+    gedeutet = telegram.lies_nachricht(kanal.hole_updates(0, timeout=0)[0])
+    assert gedeutet["kalibrierung"] is False
+
+
 def test_hole_updates_uebergeht_ausgehende_posts(conn, kanal):
     kanal.sende(CHAT, "Bot spricht")
     assert kanal.hole_updates(0, timeout=0) == []

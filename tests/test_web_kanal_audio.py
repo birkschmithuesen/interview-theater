@@ -82,7 +82,19 @@ def test_die_schluesselmenge_waechst_um_genau_einen_eintrag():
         # redeMs (Kanban-Karte Mithoeren SICHER, 03.10.2026): wie viele ms
         # erkannte Rede der Client gemessen hat -- None bei Telegram.
         "rede_ms",
+        # kalibrierung (Task 2, dieselbe Karte): ein Kalibrierungs-Testsatz
+        # ist aus dem Telegram-Client nicht herstellbar -- immer False.
+        "kalibrierung",
     }
+
+
+def test_telegram_update_hat_niemals_kalibrierung():
+    """Item (j): ein echtes Telegram-Update kann nie ``kalibrierung=True``
+    liefern -- die Chatansicht im Browser ist der einzige Weg, der das Flag
+    setzt, und ``telegram.py`` kennt keinen solchen Pfad."""
+    update = {"update_id": 1, "message": {"message_id": 1,
+                                          "chat": {"id": 1}, "date": 1, "text": "x"}}
+    assert telegram.lies_nachricht(update)["kalibrierung"] is False
 
 
 def test_empfange_legt_ohne_endung_weiter_eine_ogg_datei_ab(conn, tmp_path):

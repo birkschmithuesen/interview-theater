@@ -524,6 +524,7 @@ def lege_aufnahme_an(
     schnittgrund: str | None = None,
     brainstorm: bool = False,
     rede_ms: int | None = None,
+    kalibrierung: bool = False,
 ) -> int:
     """Legt eine Aufnahme (Sprache oder Textimport) an.
 
@@ -540,7 +541,10 @@ def lege_aufnahme_an(
     "Brainstorm mithören", Phase 4) kommen vom Web-Kanal durchgereicht, bei
     Telegram bleiben beide bei ihrer Vorgabe. ``rede_ms`` (Kanban-Karte
     Mithoeren SICHER, 03.10.2026) ebenso -- rein diagnostisch, kein
-    Upload-Gate.
+    Upload-Gate. ``kalibrierung`` (Task 2, dieselbe Karte) markiert den
+    Testsatz einer Pegel-Kalibrierung -- ``aufnahme.empfange`` setzt dafuer
+    unabhaengig vom Modus ``klasse='kurz'``/``teil_von=None``, hier nur
+    durchgereicht wie jedes andere Flag.
 
     Startstatus 'empfangen', beim Interview-Kopf 'laeuft'; der Aufrufer
     entscheidet ueber weitere Statusuebergaenge."""
@@ -550,11 +554,12 @@ def lege_aufnahme_an(
         INSERT INTO aufnahme
             (chat_id, message_id, name, klasse, quelle, audio_pfad,
              dauer_sekunden, status, empfangen_am, teil_von, schnittgrund,
-             brainstorm, rede_ms)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             brainstorm, rede_ms, kalibrierung)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (chat_id, message_id, name, klasse, quelle, audio_pfad, dauer, status,
-         _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0, rede_ms),
+         _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0, rede_ms,
+         1 if kalibrierung else 0),
     )
     conn.commit()
     return cur.lastrowid
@@ -602,9 +607,19 @@ def setze_interview_beendet(conn: sqlite3.Connection, aufnahme_id: int) -> None:
 
 @_gesperrt
 def hole_teile(conn: sqlite3.Connection, aufnahme_id: int) -> list[sqlite3.Row]:
-    """Die Teile eines Interviews in Eingangsreihenfolge (``id ASC``)."""
+    """Die Teile eines Interviews in Eingangsreihenfolge (``id ASC``).
+
+    ``AND (kalibrierung = 0 OR kalibrierung IS NULL)`` ist eine defensive
+    Waeche (Task 2, Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
+    ``aufnahme.empfange`` setzt ``teil_von`` auf einer Kalibrierungszeile
+    konstruktionsbedingt nie, also sollte diese Bedingung nie etwas
+    heraus-filtern -- sie steht trotzdem hier, falls sich das je aendert,
+    denn ueber diese Funktion liest auch ``zusammengefuegtes_transkript``
+    (die Verdichtungsgrundlage eines Interviews)."""
     return conn.execute(
-        "SELECT * FROM aufnahme WHERE teil_von = ? ORDER BY id ASC", (aufnahme_id,)
+        "SELECT * FROM aufnahme WHERE teil_von = ? "
+        "AND (kalibrierung = 0 OR kalibrierung IS NULL) ORDER BY id ASC",
+        (aufnahme_id,),
     ).fetchall()
 
 
@@ -3211,6 +3226,27 @@ def setze_interviewmodus(conn: sqlite3.Connection, chat_id: int, wert: str | Non
     conn.commit()
 
 
+#: Der einzige Wert, mit dem ``gruppe.kalibrierung_modus`` je beschrieben
+#: wird (Task 2, Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026) --
+#: kein Klartext an mehreren Stellen, keine Rueck-Loeschung (die Karte
+#: verlangt keine).
+KALIBRIERUNG_MODUS_HERUMREICHEN = "herumreichen"
+
+
+@_gesperrt
+def setze_kalibrierung_modus_herumreichen(conn: sqlite3.Connection, chat_id: int) -> None:
+    """Merkt, dass diese Gruppe beim zweiten ``zu_leise`` in Folge auf den
+    "Handy herumgeben"-Hinweis gestossen ist -- gruppenweit (jedes Geraet,
+    jede kuenftige Sitzung), nicht je Geraet wie die drei
+    ``localStorage``-Schluessel des Kalibrierungsergebnisses. Keine
+    Rueck-Loeschung: die Karte verlangt keine."""
+    conn.execute(
+        "UPDATE gruppe SET kalibrierung_modus = ? WHERE chat_id = ?",
+        (KALIBRIERUNG_MODUS_HERUMREICHEN, chat_id),
+    )
+    conn.commit()
+
+
 @_gesperrt
 def ist_interviewmodus_an(conn: sqlite3.Connection, chat_id: int) -> bool:
     """Liefert True, wenn der Interviewmodus dieser Gruppe an ist (teil-b.md
@@ -3873,28 +3909,30 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      bezug_message_id=None, dauer=None,
                      datei=None, mime=None, dateiname=None,
                      schnittgrund=None, brainstorm=False, bild=None,
-                     rede_ms=None) -> int:
+                     rede_ms=None, kalibrierung=False) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
     beide Richtungen (siehe Tabellenkommentar in db.py). ``schnittgrund``/
-    ``brainstorm`` (Pausen-Schnitt, 02.10.2026) und ``rede_ms`` (Kanban-Karte
-    Mithoeren SICHER, 03.10.2026) sind nur bei ``typ='sprache'`` gesetzt und
-    wandern unveraendert bis in die ``aufnahme``-Zeile
-    (``web_kanal.hole_updates`` -> ``aufnahme.empfange``). ``bild``
-    (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
-    Telefon-Organisationskarte unter ``interview_theater/static/handys/``."""
+    ``brainstorm`` (Pausen-Schnitt, 02.10.2026), ``rede_ms`` (Kanban-Karte
+    Mithoeren SICHER, 03.10.2026) und ``kalibrierung`` (Task 2, dieselbe
+    Karte) sind nur bei ``typ='sprache'`` gesetzt und wandern unveraendert
+    bis in die ``aufnahme``-Zeile (``web_kanal.hole_updates`` ->
+    ``aufnahme.empfange``). ``bild`` (UX-Knoepfe-Karte, Abschnitt 5) ist der
+    Dateiname einer Telefon-Organisationskarte unter
+    ``interview_theater/static/handys/``."""
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
         "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
-        "schnittgrund, brainstorm, bild, rede_ms) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "schnittgrund, brainstorm, bild, rede_ms, kalibrierung) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
             schnittgrund, 1 if brainstorm else 0, bild, rede_ms,
+            1 if kalibrierung else 0,
         ),
     )
     conn.commit()

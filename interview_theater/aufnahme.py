@@ -458,13 +458,35 @@ def empfange(conn, tg, e, n: dict) -> int | None:
     Telegram-Betrieb."""
     chat_id = n["chat_id"]
     message_id = n["message_id"]
-    klasse = klasse_fuer(conn, chat_id)
-    teil_von = stelle_interview_sicher(conn, chat_id) if klasse == "teil" else None
+    kalibrierung = bool(n.get("kalibrierung"))
+    # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): ein
+    # Kalibrierungs-Testsatz ist UNABHAENGIG vom gerade geltenden Modus
+    # strukturell nie Teil eines Interviews -- die Gruppe kann /interview
+    # laengst gedrueckt haben, bevor der Clip hochlaedt
+    # (``starteInterview`` schickt den Befehl vor dem ersten Segment).
+    # Deshalb hier VOR jedem Blick auf den Modus entschieden, nicht ueber
+    # ``klasse_fuer``/``stelle_interview_sicher``.
+    if kalibrierung:
+        klasse = "kurz"
+        teil_von = None
+    else:
+        klasse = klasse_fuer(conn, chat_id)
+        teil_von = stelle_interview_sicher(conn, chat_id) if klasse == "teil" else None
 
-    repo.merke_nachricht(
-        conn, chat_id, message_id, n.get("absender"), 0, "sprache", None,
-        n.get("gesendet_am") or repo._jetzt(), 1,
-    )
+    # Dieselbe Entscheidung wie oben: KEINE ``nachricht``-Zeile fuer einen
+    # Kalibrierungs-Testsatz. Ohne sie kann der Clip strukturell nie in
+    # ``kontext.baue``s Fenster, dem Absichtserkenner oder dem Journal
+    # auftauchen -- alle drei lesen ueber Funktionen, die aus ``nachricht``
+    # selektieren (``letzte_nachrichten``/``unextrahierte``/
+    # ``unjournalisierte``). Empfangen und In-den-Prompt-legen sind zwei
+    # Entscheidungen (AGENTS.md) -- hier wird bewusst auch das Empfangen in
+    # dieser Tabelle ausgelassen, weil ein Kalibrierungs-Testsatz kein
+    # Gruppenbeitrag ist, den es je zu zeigen gaebe.
+    if not kalibrierung:
+        repo.merke_nachricht(
+            conn, chat_id, message_id, n.get("absender"), 0, "sprache", None,
+            n.get("gesendet_am") or repo._jetzt(), 1,
+        )
 
     ziel = (
         Path(e.audio_verz) / str(chat_id)
@@ -490,7 +512,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         conn, chat_id, message_id, klasse, "sprache",
         audio_pfad=str(ziel), dauer=n.get("dauer"), teil_von=teil_von,
         schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
-        rede_ms=n.get("rede_ms"),
+        rede_ms=n.get("rede_ms"), kalibrierung=kalibrierung,
     )
 
 
@@ -807,6 +829,18 @@ def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
         repo.setze_status(conn, aufnahme_id, "empfangen", fehlertext=str(fehler))
 
 
+def _kalibrierung_abschliessen(conn, row) -> None:
+    """Der Testsatz einer Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren
+    SICHER/Kalibrierung, 03.10.2026): nur ``status='fertig'`` setzen, nichts
+    sonst. Das Transkript liegt schon auf der Zeile (``_verarbeite`` setzt es
+    vor der Weiche auf ``row["klasse"]``) -- ``web_daten.kalibrierung_zustand``
+    liest genau diese Zeile fuer den Browser zurueck. Kein Gespraechszug, kein
+    Erkenner, kein Journal, keine Interview-Rueckfrage, keine Sprachblase (es
+    gibt keine sichtbare Blase, die Zeile faellt ja aus dem Chatverlauf
+    heraus)."""
+    repo.setze_status(conn, row["id"], "fertig")
+
+
 def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     """Schreibt das Transkript als Aktualisierung der vorhandenen
     Nachrichtenzeile (§ 10.2) und loest den Gespraechszug nur aus, wenn die
@@ -826,7 +860,21 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
 
     **Ein Brainstorm-Segment (``row['brainstorm']``, 02.10.2026) geht einen
     dritten, ganz eigenen Weg** -- siehe ``_brainstorm_abschliessen``: kein
-    Gespraechsbeitrag, kein Zug, kein Erkenner, keine Interview-Rueckfrage."""
+    Gespraechsbeitrag, kein Zug, kein Erkenner, keine Interview-Rueckfrage.
+
+    **Ein Kalibrierungs-Testsatz (``row['kalibrierung']``, Task 2, Kanban-
+    Karte Mithoeren SICHER/Kalibrierung, 03.10.2026) geht einen VIERTEN,
+    noch kuerzeren Weg** -- siehe ``_kalibrierung_abschliessen``: er setzt
+    nur Status und behaelt das Transkript auf der ``aufnahme``-Zeile (die
+    einzige Stelle, an der der Browser es ueber
+    ``web_daten.kalibrierung_zustand`` wieder abholt). Er ist **nicht**
+    implizit ueber ``jung``/``urspruengliche_nachricht`` abgesichert, obwohl
+    das zufaellig auch funktionieren wuerde (``empfange()`` schreibt fuer
+    ihn nie eine ``nachricht``-Zeile) -- der explizite Zweig bleibt richtig,
+    auch wenn sich das einmal aendert."""
+    if row["kalibrierung"]:
+        _kalibrierung_abschliessen(conn, row)
+        return
     if row["brainstorm"]:
         _brainstorm_abschliessen(conn, tg, klm, e, row)
         return

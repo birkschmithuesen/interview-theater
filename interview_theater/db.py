@@ -81,7 +81,15 @@ CREATE TABLE IF NOT EXISTS gruppe (
   -- Wann der einmalige Hinweis "Knoepfe sind Abkuerzungen" im Web-Chat
   -- gezeigt wurde (UX-Knoepfe-Karte, Abschnitt 1) -- NULL = noch nie.
   -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
-  abkuerzungen_hinweis_gezeigt_am TEXT
+  abkuerzungen_hinweis_gezeigt_am TEXT,
+  -- Gesetzt (nur je mit dem woertlichen Wert 'herumreichen') = die Gruppe
+  -- hat bei der Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren
+  -- SICHER/Kalibrierung, 03.10.2026) zum zweiten Mal in Folge "zu leise"
+  -- gemessen -- ein Hinweis fuers naechste Sitzungs-Start ("Handy
+  -- herumgeben"), gruppenweit und nicht je Geraet (anders als die drei
+  -- localStorage-Schluessel des Geraets). Keine Rueck-Loeschung: die Karte
+  -- verlangt keine, und keine soll erfunden werden. Additiv nachgeruestet.
+  kalibrierung_modus              TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (
@@ -176,7 +184,16 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- eine zu hoch eingestellte Schwelle liess leise, aber echte Rede als
   -- "nicht genug" durchfallen). NULL = VAD inaktiv oder keine Metadaten,
   -- dieselbe Bedeutung wie ``schnittgrund IS NULL``. Additiv nachgeruestet.
-  rede_ms         INTEGER
+  rede_ms         INTEGER,
+  -- Gesetzt (1) = diese Zeile ist der Testsatz einer Pegel-Kalibrierung
+  -- (Task 2, Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026) -- kein
+  -- gewoehnlicher Gespraechsbeitrag und kein Interview-Teil.
+  -- ``aufnahme.empfange`` zwingt bei gesetztem Flag ``klasse='kurz'`` und
+  -- ``teil_von=NULL`` OHNE ``klasse_fuer``/``stelle_interview_sicher`` zu
+  -- rufen, und ``_kurz_abschliessen`` loest dafuer nie einen Gespraechszug
+  -- aus: strukturell nie Teil eines Interviews, nie im Gespraechsfenster,
+  -- nie im Journal. Additiv nachgeruestet.
+  kalibrierung    INTEGER NOT NULL DEFAULT 0
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,
@@ -994,7 +1011,14 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- Wie viele Millisekunden erkannte Rede der Client gemessen hat
   -- (Kanban-Karte Mithoeren SICHER, 03.10.2026) -- dieselbe additive
   -- Durchreiche wie ``schnittgrund``, rein diagnostisch, kein Upload-Gate.
-  rede_ms           INTEGER
+  rede_ms           INTEGER,
+  -- Gesetzt (1) = diese Zeile ist der Upload eines Kalibrierungs-Testsatzes
+  -- (Task 2, Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026) --
+  -- dieselbe additive Durchreiche wie ``schnittgrund``/``brainstorm``, von
+  -- ``_audio`` (``&kalibrierung=1``) bis in die ``aufnahme``-Zeile
+  -- (``web_kanal.hole_updates`` -> ``aufnahme.empfange``). Die Zeile faellt
+  -- deshalb auch aus dem sichtbaren Chatverlauf heraus (``web_daten``).
+  kalibrierung      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);

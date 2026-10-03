@@ -24,6 +24,10 @@ from interview_theater.knoepfe.basis import (
 
 #: Begriffe -- die Phase, deren Einstieg ein Gespraechszug ist, kein Festtext.
 PHASE_BEGRIFFE = 1
+#: Fragen -- die Phase, die unter dem Profilschalter ``fragen_ab.aktiv`` den
+#: isolierten KI-Fragen-Hintergrundlauf anstoesst (Aufgabe 12, Padua Phase
+#: 1+2 Umbau, 03.10.2026).
+PHASE_FRAGEN = 2
 from interview_theater.knoepfe.interviews import biete_stt_sprache
 from interview_theater.knoepfe.szenen import (
     biete_durchlauf, biete_kurzgeschichte, biete_szene_usa, starte_schaerfung,
@@ -328,6 +332,17 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
             conn, tg, klm, e, chat_id, kontext.einstieg_setting(conn, chat_id, e),
         ):
             return
+    if nummer == PHASE_FRAGEN:
+        # Padua Phase 1+2 Umbau, Aufgabe 12 (03.10.2026): die KI-Fragen
+        # entstehen im Hintergrund, BEVOR die Gruppe eine einzige eigene
+        # Frage geschrieben hat -- nur unter dem Profilschalter
+        # ``fragen_ab.aktiv`` (sonst bleibt Phase 2 unveraendert, auch ohne
+        # Modell). Rein additiv: die bestehende ``else``-Faellthrough unten
+        # (``biete_proaktiv``) laeuft unveraendert weiter.
+        from interview_theater import fragen_ki, workshop
+
+        if workshop.fragen_ab_aktiv():
+            fragen_ki.starte(conn, tg, klm, e, chat_id)
     kopf = phasentexte.eintritt(conn, chat_id, nummer)
     if nummer == PHASE_INTERVIEWS:
         # Der Schritt in die Interviews ist der Moment, in dem die Gruppe

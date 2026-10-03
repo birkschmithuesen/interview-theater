@@ -1462,10 +1462,18 @@ _CHAT_JS = """
       interviewKnopf.textContent = TEXT.interview_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
     // Ein Stopp ist unterwegs: bis der Bot ihn bestaetigt, kein neuer Start.
-    // Laeuft Brainstorm, ist der Interview-Knopf ebenfalls deaktiviert --
-    // zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
-    // Bedienung (dieselbe Regel wie PTT, Phase 4, 02.10.2026).
-    interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || !!zustand.brainstorm;
+    // Laeuft Brainstorm ODER Diskussion, ist der Interview-Knopf ebenfalls
+    // deaktiviert -- zwei gleichzeitige Aufnahmen auf demselben Mikrofon
+    // sind keine Bedienung (dieselbe Regel wie PTT, Phase 4, 02.10.2026).
+    // Re-Review (Task 6, Fund 1): ``nebenAn`` ist die EINE Stelle, die
+    // diese Verknuepfung bildet. Vorher schrieben zeigeBrainstormModus()
+    // und zeigeDiskussionModus() dieselbe Zeile erneut und unbedingt, mit
+    // je nur ihrem eigenen Sitzungsflag -- die zuletzt gerufene Funktion
+    // gewann und loeschte die Sperre der anderen, sobald deren eigene
+    // Sitzung leer war (im Normalfall: Brainstorm laeuft, Diskussion nie
+    // angefasst). Beide Funktionen setzen diese Felder seitdem nicht mehr.
+    var nebenAn = !!zustand.brainstorm || !!zustand.diskussion;
+    interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || nebenAn;
     // Padua Hotfix B6: ausserhalb von Phase 3 kein Angebot -- nie aber
     // verborgen bei laufender Aufnahme, Wechsel oder voller Schlange.
     interviewKnopf.hidden = !(zustand.knopfErlaubt || an || !!zustand.wechsel ||
@@ -1478,12 +1486,21 @@ _CHAT_JS = """
     }
     // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ist PTT
     // ausgeblendet (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine
-    // Bedienung, und eine Pause ist weiterhin "Modus an".
-    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || !!zustand.brainstorm; }
+    // Bedienung, und eine Pause ist weiterhin "Modus an". Dieselbe
+    // Zusammenfuehrung wie bei interviewKnopf.disabled oben.
+    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn; }
     // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
     // beiden Funktionen zuerst gerufen wurde.
     zeigeBrainstormModus();
     zeigeDiskussionModus();
+    // "Nebenknopf"-Stil am Interview-Knopf: sichtbar, sobald Brainstorm
+    // ODER Diskussion angeboten wird oder laeuft -- aus derselben Formel
+    // wie in den beiden Funktionen oben, hier einmal zusammengefuehrt statt
+    // zweimal unbedingt ueberschrieben (derselbe Fund wie oben).
+    var nebenSichtbar = !!zustand.brainstormErlaubt || !!zustand.brainstorm ||
+                        !!zustand.diskussionErlaubt || !!zustand.diskussion ||
+                        !!zustand.wechsel;
+    interviewKnopf.classList.toggle('nebenknopf', nebenSichtbar);
   }
 
   function verwirfPtt() {
@@ -1587,11 +1604,9 @@ _CHAT_JS = """
     if (brainstormPauseKnopf) {
       brainstormPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
     }
-    if (interviewKnopf) {
-      interviewKnopf.disabled = an || !!(zustand.wechsel && !zustand.wechsel.ziel);
-      interviewKnopf.classList.toggle('nebenknopf', sichtbar);
-    }
-    if (pttKnopf) { pttKnopf.hidden = an || modusAn() || !!zustand.wechsel; }
+    // interviewKnopf.disabled/classList und pttKnopf.hidden werden seit
+    // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal,
+    // zusammengefuehrt mit zustand.diskussion (siehe dort).
   }
 
   function starteBrainstorm() {
@@ -1748,15 +1763,19 @@ _CHAT_JS = """
     if (diskussionPauseKnopf) {
       diskussionPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
     }
-    if (interviewKnopf) {
-      interviewKnopf.disabled = an || !!(zustand.wechsel && !zustand.wechsel.ziel);
-      interviewKnopf.classList.toggle('nebenknopf', sichtbar);
-    }
-    if (pttKnopf) { pttKnopf.hidden = an || modusAn() || !!zustand.wechsel; }
+    // interviewKnopf.disabled/classList und pttKnopf.hidden werden seit
+    // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal,
+    // zusammengefuehrt mit zustand.brainstorm (siehe dort). Vorher
+    // ueberschrieb dieser Abschnitt unbedingt, mit nur dem eigenen Flag,
+    // was zeigeBrainstormModus() kurz zuvor gesetzt hatte.
   }
 
   function starteDiskussion() {
-    if (zustand.diskussion || modusAn() || zustand.wechsel) { return; }
+    // Re-Review (Task 6, Fund 2): auch gegen zustand.brainstorm gesperrt,
+    // wie starteInterview()/startePtt() es bereits tun -- sonst koennte ein
+    // Phase-4-zu-1-Wechsel mit noch laufendem Brainstorm auf einem anderen
+    // Tab einen zweiten Recorder auf demselben Mikrofon starten.
+    if (zustand.diskussion || modusAn() || zustand.wechsel || zustand.brainstorm) { return; }
     if (zustand.ptt) { verwirfPtt(); }
     var sitzung = {
       art: 'diskussion',

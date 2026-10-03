@@ -985,13 +985,21 @@ def test_brainstorm_und_interview_schliessen_sich_gegenseitig_aus():
 
     zeige_bs = js[js.index("function zeigeBrainstormModus"):
                   js.index("function starteBrainstorm")]
-    assert "interviewKnopf.disabled = an ||" in zeige_bs
     assert "brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;" in js
+
+    # Re-Review (Task 6, Fund 1): interviewKnopf.disabled/pttKnopf.hidden
+    # werden seitdem NICHT mehr in zeigeBrainstormModus() gesetzt -- sonst
+    # ueberschreibt die zuletzt gerufene Anzeigefunktion (zeigeDiskussionModus)
+    # unbedingt, was diese hier zuvor gesetzt hat (siehe
+    # test_zeigemodus_fuehrt_brainstorm_und_diskussion_zusammen).
+    assert "interviewKnopf.disabled =" not in zeige_bs
+    assert "pttKnopf.hidden =" not in zeige_bs
 
     zeige_iv = js[js.index("function zeigeModus"):js.index("function verwirfPtt")]
     assert "!!zustand.brainstorm" in zeige_iv
-    assert "pttKnopf.hidden = an || !!zustand.wechsel || !!zustand.brainstorm;" in zeige_iv
-    assert "pttKnopf.hidden = an || modusAn() || !!zustand.wechsel;" in zeige_bs
+    assert "var nebenAn = !!zustand.brainstorm || !!zustand.diskussion;" in zeige_iv
+    assert "interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || nebenAn;" in zeige_iv
+    assert "if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn; }" in zeige_iv
 
 
 def test_fortsetzebrainstorm_hat_dieselbe_sperrklinke_wie_interview():
@@ -1165,33 +1173,258 @@ def test_postaudio_haengt_das_diskussion_flag_an():
 
 
 def test_starte_diskussion_lehnt_waehrend_interview_oder_wechsel_ab():
-    """Dieselbe Guard-Reihenfolge wie ``starteBrainstorm``: eigene Sitzung,
-    Interviewmodus (``modusAn()``) und ein laufender Wechsel schliessen
-    einen Start aus."""
+    """Eigene Sitzung, Interviewmodus (``modusAn()``), ein laufender Wechsel
+    UND ein laufender Brainstorm schliessen einen Start aus.
+
+    Re-Review (Task 6, Fund 2): ``zustand.brainstorm`` fehlte in der Waeche
+    urspruenglich -- anders als bei ``starteInterview``/``startePtt``, die
+    beide separat dagegen sperren. Ohne diese Zeile koennte ein
+    Phase-4-zu-1-Wechsel mit noch laufendem Brainstorm auf einem anderen Tab
+    einen zweiten Recorder auf demselben Mikrofon starten."""
     js = web_chat._CHAT_JS
     start = js[js.index("function starteDiskussion"):
                js.index("function pausiereDiskussion")]
-    assert "if (zustand.diskussion || modusAn() || zustand.wechsel) { return; }" in start
+    assert ("if (zustand.diskussion || modusAn() || zustand.wechsel || "
+            "zustand.brainstorm) { return; }") in start
 
 
-def test_zeigediskussionmodus_deaktiviert_interview_und_ptt_wie_brainstorm():
-    """``zeigeDiskussionModus`` ueberschreibt ``interviewKnopf.disabled``,
-    die ``nebenknopf``-Klasse und ``pttKnopf.hidden`` mit genau derselben
-    Formel wie ``zeigeBrainstormModus`` -- zwei Mikrofone gleichzeitig sind
-    keine Bedienung, egal welche der beiden Sitzungen laeuft."""
+def test_zeigediskussionmodus_ueberschreibt_interview_und_ptt_nicht_mehr():
+    """Re-Review (Task 6, Fund 1, Kritisch): ``zeigeDiskussionModus`` darf
+    ``interviewKnopf.disabled``/``classList``/``pttKnopf.hidden`` nicht mehr
+    selbst setzen -- sie liefen VOR dem Fix unbedingt und mit nur dem
+    eigenen Sitzungsflag, und weil ``zeigeModus()`` ``zeigeDiskussionModus()``
+    IMMER nach ``zeigeBrainstormModus()`` ruft, gewann am Ende immer die
+    Diskussions-Formel und loeschte die Brainstorm-Sperre, sobald
+    ``zustand.diskussion`` leer war (der Normalfall). Die Zusammenfuehrung
+    sitzt seitdem einmal in ``zeigeModus()`` (siehe
+    ``test_zeigemodus_fuehrt_brainstorm_und_diskussion_zusammen``)."""
     js = web_chat._CHAT_JS
     zeige_ds = js[js.index("function zeigeDiskussionModus"):
                   js.index("function starteDiskussion")]
     assert "diskussionKnopf.disabled = modusAn() || !!zustand.wechsel;" in zeige_ds
-    assert "interviewKnopf.disabled = an || !!(zustand.wechsel && !zustand.wechsel.ziel);" in zeige_ds
-    assert "interviewKnopf.classList.toggle('nebenknopf', sichtbar);" in zeige_ds
-    assert "pttKnopf.hidden = an || modusAn() || !!zustand.wechsel;" in zeige_ds
+    assert "interviewKnopf.disabled =" not in zeige_ds
+    assert "interviewKnopf.classList" not in zeige_ds
+    assert "pttKnopf.hidden =" not in zeige_ds
     # zeigeModus() ruft beide Anzeigen am Ende auf, damit sie im selben Takt
-    # synchron bleiben -- wie es schon fuer Brainstorm galt.
+    # synchron bleiben -- wie es schon fuer Brainstorm galt -- und fuehrt
+    # DANACH die gemeinsame Formel einmal zusammen.
     zeige_iv = js[js.index("function zeigeModus"):js.index("function verwirfPtt")]
     assert "zeigeBrainstormModus();" in zeige_iv
     assert "zeigeDiskussionModus();" in zeige_iv
     assert zeige_iv.index("zeigeBrainstormModus();") < zeige_iv.index("zeigeDiskussionModus();")
+    assert zeige_iv.index("zeigeDiskussionModus();") < zeige_iv.index("nebenSichtbar")
+
+
+def test_zeigebrainstormmodus_ueberschreibt_interview_und_ptt_auch_nicht_mehr():
+    """Dieselbe Entfernung auf der Brainstorm-Seite -- symmetrisch zum Fund
+    oben, sonst waere das naechste Feature auf derselben Flaeche wieder
+    anfaellig fuer dieselbe Art Ueberschreiben."""
+    js = web_chat._CHAT_JS
+    zeige_bs = js[js.index("function zeigeBrainstormModus"):
+                  js.index("function starteBrainstorm")]
+    assert "interviewKnopf.disabled =" not in zeige_bs
+    assert "interviewKnopf.classList" not in zeige_bs
+    assert "pttKnopf.hidden =" not in zeige_bs
+
+
+def test_zeigemodus_fuehrt_brainstorm_und_diskussion_zusammen_in_node(tmp_path):
+    """Verhaltensnachweis fuer den Kritisch-Fund in Node: ``zeigeModus()``
+    ruft woertlich (nicht nachgebaut) ``zeigeBrainstormModus()`` und
+    ``zeigeDiskussionModus()`` und muss am Ende ``interviewKnopf.disabled``/
+    ``pttKnopf.hidden``/die ``nebenknopf``-Klasse aus BEIDEN Sitzungsflaggen
+    kombinieren -- fuer alle vier Kombinationen, auch "beide gleichzeitig"
+    (sollte normal nicht vorkommen, darf aber nicht crashen oder falsch
+    rechnen)."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
+    zeige_modus = _extrahiere(js, "function zeigeModus", "function verwirfPtt")
+    zeige_bs = _extrahiere(js, "function zeigeBrainstormModus", "function starteBrainstorm")
+    zeige_ds = _extrahiere(js, "function zeigeDiskussionModus", "function starteDiskussion")
+
+    quelltext = f"""
+    var zustand, TEXT, interviewKnopf, pttKnopf, fuss,
+        interviewAktionenFeld, interviewPauseKnopf,
+        brainstormKnopf, brainstormAktionenFeld, brainstormPauseKnopf,
+        diskussionKnopf, diskussionAktionenFeld, diskussionPauseKnopf;
+
+    TEXT = {{
+      interview_an: 'an', interview_pausiert: '{{zeit}}', interview_laeuft: '{{zeit}}',
+      interview_weiter: 'weiter', interview_pause: 'pause',
+      brainstorm_an: 'an', brainstorm_laeuft: '{{zeit}}',
+      diskussion_an: 'an', diskussion_laeuft: '{{zeit}}'
+    }};
+    function formatiereUhr() {{ return '0:00'; }}
+
+    {modus_an}
+    {zeige_modus}
+    {zeige_bs}
+    {zeige_ds}
+
+    function neuerKnopf() {{
+      return {{
+        dataset: {{}}, textContent: '', disabled: false, hidden: false,
+        classList: {{ werte: {{}}, toggle: function (cls, an) {{ this.werte[cls] = !!an; }} }}
+      }};
+    }}
+
+    function lauf(werte, mitDiskussionKnopf) {{
+      zustand = Object.assign({{
+        aufnahme: null, servermodus: false, wechsel: null, warteschlange: [],
+        knopfErlaubt: false, brainstorm: null, diskussion: null,
+        brainstormErlaubt: false, diskussionErlaubt: false
+      }}, werte);
+      interviewKnopf = neuerKnopf();
+      pttKnopf = neuerKnopf();
+      fuss = {{ dataset: {{}} }};
+      interviewAktionenFeld = {{ hidden: false }};
+      interviewPauseKnopf = {{ textContent: '' }};
+      brainstormKnopf = neuerKnopf();
+      brainstormAktionenFeld = {{ hidden: false }};
+      brainstormPauseKnopf = {{ textContent: '' }};
+      diskussionKnopf = mitDiskussionKnopf ? neuerKnopf() : null;
+      diskussionAktionenFeld = {{ hidden: false }};
+      diskussionPauseKnopf = {{ textContent: '' }};
+      zeigeModus();
+      return {{
+        disabled: interviewKnopf.disabled,
+        nebenknopf: !!interviewKnopf.classList.werte.nebenknopf,
+        pttHidden: pttKnopf.hidden
+      }};
+    }}
+
+    var ergebnisse = {{
+      nur_brainstorm: lauf({{ brainstorm: {{ pausiert: false }} }}, true),
+      nur_diskussion: lauf({{ diskussion: {{ pausiert: false }} }}, true),
+      keines: lauf({{}}, true),
+      beides: lauf({{ brainstorm: {{ pausiert: false }}, diskussion: {{ pausiert: false }} }}, true)
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    # Fund 1 (Kritisch): ein laufender Brainstorm ohne jemals beruehrtes
+    # zustand.diskussion darf interviewKnopf/pttKnopf NICHT wieder freigeben
+    # -- das war der Regressionsfall, reproduzierbar bei jeder Phase-4-
+    # Brainstormsitzung.
+    assert ergebnisse["nur_brainstorm"] == {
+        "disabled": True, "nebenknopf": True, "pttHidden": True,
+    }
+    assert ergebnisse["nur_diskussion"] == {
+        "disabled": True, "nebenknopf": True, "pttHidden": True,
+    }
+    assert ergebnisse["keines"] == {
+        "disabled": False, "nebenknopf": False, "pttHidden": False,
+    }
+    assert ergebnisse["beides"] == {
+        "disabled": True, "nebenknopf": True, "pttHidden": True,
+    }
+
+
+def test_zeigemodus_brainstorm_nur_szenario_bleibt_byte_identisch_zu_vor_task6_in_node(tmp_path):
+    """Regressionsnachweis: in einem Szenario, in dem ``zustand.diskussion``
+    nie beruehrt wird (der Normalfall jeder Nicht-Padua-Gruppe -- dort
+    rendert der ``#diskussion``-Knopf gar nicht erst), muss
+    ``interviewKnopf.disabled``/``pttKnopf.hidden``/die ``nebenknopf``-Klasse
+    GENAU der Formel entsprechen, die vor dem gesamten Task-6-Commit galt:
+    ``an(brainstorm) || (wechsel && !wechsel.ziel)`` fuer ``disabled``,
+    ``modusAn() || wechsel || an(brainstorm)`` fuer ``pttKnopf.hidden`` und
+    ``brainstormErlaubt || an(brainstorm) || wechsel`` fuer die Klasse --
+    unabhaengig davon, in welcher Reihenfolge ``zeigeBrainstormModus()`` und
+    ``zeigeDiskussionModus()`` laufen."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
+    zeige_modus = _extrahiere(js, "function zeigeModus", "function verwirfPtt")
+    zeige_bs = _extrahiere(js, "function zeigeBrainstormModus", "function starteBrainstorm")
+    zeige_ds = _extrahiere(js, "function zeigeDiskussionModus", "function starteDiskussion")
+
+    quelltext = f"""
+    var zustand, TEXT, interviewKnopf, pttKnopf, fuss,
+        interviewAktionenFeld, interviewPauseKnopf,
+        brainstormKnopf, brainstormAktionenFeld, brainstormPauseKnopf,
+        diskussionKnopf, diskussionAktionenFeld, diskussionPauseKnopf;
+
+    TEXT = {{
+      interview_an: 'an', interview_pausiert: '{{zeit}}', interview_laeuft: '{{zeit}}',
+      interview_weiter: 'weiter', interview_pause: 'pause',
+      brainstorm_an: 'an', brainstorm_laeuft: '{{zeit}}',
+      diskussion_an: 'an', diskussion_laeuft: '{{zeit}}'
+    }};
+    function formatiereUhr() {{ return '0:00'; }}
+
+    {modus_an}
+    {zeige_modus}
+    {zeige_bs}
+    {zeige_ds}
+
+    function neuerKnopf() {{
+      return {{
+        dataset: {{}}, textContent: '', disabled: false, hidden: false,
+        classList: {{ werte: {{}}, toggle: function (cls, an) {{ this.werte[cls] = !!an; }} }}
+      }};
+    }}
+
+    // Die Formel, wie sie VOR Task 6 (ohne jede Diskussions-Variable) in
+    // zeigeModus()/zeigeBrainstormModus() stand.
+    function altesDisabled(z) {{
+      return !!(z.wechsel && !z.wechsel.ziel) || !!z.brainstorm;
+    }}
+    function altesPttHidden(z) {{
+      var an = !!z.aufnahme || !!z.servermodus;
+      return an || !!z.wechsel || !!z.brainstorm;
+    }}
+    function altesNebenknopf(z) {{
+      return !!z.brainstormErlaubt || !!z.brainstorm || !!z.wechsel;
+    }}
+
+    function lauf(werte) {{
+      // Kein #diskussion-Knopf im Markup (Nicht-Padua-Profil) UND
+      // zustand.diskussion nie gesetzt -- der tatsaechliche Normalfall.
+      zustand = Object.assign({{
+        aufnahme: null, servermodus: false, wechsel: null, warteschlange: [],
+        knopfErlaubt: false, brainstorm: null, brainstormErlaubt: false
+      }}, werte);
+      interviewKnopf = neuerKnopf();
+      pttKnopf = neuerKnopf();
+      fuss = {{ dataset: {{}} }};
+      interviewAktionenFeld = {{ hidden: false }};
+      interviewPauseKnopf = {{ textContent: '' }};
+      brainstormKnopf = neuerKnopf();
+      brainstormAktionenFeld = {{ hidden: false }};
+      brainstormPauseKnopf = {{ textContent: '' }};
+      diskussionKnopf = null;
+      zeigeModus();
+      return {{
+        disabled: interviewKnopf.disabled,
+        nebenknopf: !!interviewKnopf.classList.werte.nebenknopf,
+        pttHidden: pttKnopf.hidden,
+        erwartetDisabled: altesDisabled(zustand),
+        erwartetPttHidden: altesPttHidden(zustand),
+        erwartetNebenknopf: altesNebenknopf(zustand)
+      }};
+    }}
+
+    var faelle = [
+      {{}},
+      {{ brainstorm: {{ pausiert: false }} }},
+      {{ brainstorm: {{ pausiert: true }} }},
+      {{ wechsel: {{ ziel: true }} }},
+      {{ wechsel: {{ ziel: false }} }},
+      {{ brainstormErlaubt: true }},
+      {{ brainstorm: {{ pausiert: false }}, wechsel: {{ ziel: false }} }},
+      {{ aufnahme: {{ pausiert: false }} }}
+    ];
+    var ergebnisse = faelle.map(lauf);
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert len(ergebnisse) == 8
+    for fall in ergebnisse:
+        assert fall["disabled"] == fall["erwartetDisabled"], fall
+        assert fall["pttHidden"] == fall["erwartetPttHidden"], fall
+        assert fall["nebenknopf"] == fall["erwartetNebenknopf"], fall
 
 
 def test_fortsetzediskussion_hat_dieselbe_sperrklinke_wie_brainstorm():

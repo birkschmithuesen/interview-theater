@@ -528,12 +528,12 @@ most one sentence and one question."""
 ["befehle"]
 _TEXT_INTERVIEW_AN = "Ready - send your voice messages. After each one you get the typed-out text."
 _TEXT_INTERVIEW_AUS = "Recording stopped."
-_TEXT_KERNTHEMA_LEER = "Write the core theme after the command, for example: /kernthema Arriving"
+_TEXT_KERNTHEMA_LEER = "Write the core theme after the command, for example: /theme Arriving"
 _TEXT_UNBEKANNT = "I don't know that command."
 _TEXT_WORTLAUT_AUS = "Word for word off."
 _TEXT_PHASE_UMSCHALTEN = "Switch with /phase 4 or /phase Characters - going back works too."
 _TEXT_FIGUR_HILFE = """\
-This is how I remove a character: /figur <name> entfernen. \
+This is how I remove a character: /character <name> remove. \
 You can create characters simply in the conversation."""
 _TEXT_PHASE_UNBEKANNT = "I don't know that phase. These are the seven I have:"
 _TEXT_KEINE_AUFNAHMEN = "There are no recordings yet."
@@ -544,7 +544,7 @@ _TEXT_SPRACHE_AUTO = "automatic (I detect it myself)"
 _JOURNAL_SPRACHE = "Interview language for Whisper: {sprache}"
 _TEXT_SZENE_LEER = """\
 Write the task after the command, for example: \
-/szene Scene 2: two characters meet at the station"""
+/scene Scene 2: two characters meet at the station"""
 _TEXT_SZENE_FIGUR_UNBEKANNT = """\
 I don't know these characters: {namen}. A scene only uses \
 characters from your progress - create them in the conversation first."""
@@ -554,8 +554,8 @@ _TEXT_NAME_UNBEKANNT = "I don't know that name. Existing recordings: {namen}"
 _TEXT_INTERVIEW_UNBEKANNT = "I don't know that interview. Existing ones: {namen}"
 _TEXT_RAHMEN_ZEILE = "Setting: {rahmen}"
 _TEXT_RAHMEN_OFFEN = "Setting: still open"
-_TEXT_RAHMEN_SETZEN = "Set it: /stueck rahmen A waiting room, one afternoon"
-_TEXT_STUECK_UNBEKANNT = "I don't know that one. There is /stueck rahmen <text>."
+_TEXT_RAHMEN_SETZEN = "Set it: /play setting A waiting room, one afternoon"
+_TEXT_STUECK_UNBEKANNT = "I don't know that one. There is /play setting <text>."
 _TEXT_STUECK_WERT_LEER = "Add the {bezeichnung} after the command, for example: /stueck {feld} {beispiel}"
 _TEXT_STUECK_NICHT_GESETZT = "Nothing was set for {bezeichnung}."
 _TEXT_STUECK_NOTIERT = "{bezeichnung} noted: {wert}"
@@ -604,20 +604,20 @@ commands:
 Everything else you just tell me: characters, scenes, decisions - I \
 keep track of it without you needing a command."""
 BEFEHLE_LISTE = [
-    { command = "aufnahme", description = "Start interview - and again to stop" },
-    { command = "stand", description = "Show where we are" },
-    { command = "auswerten", description = "Analyse and show interviews" },
-    { command = "kernthema", description = "Set or correct the core theme" },
-    { command = "stueck", description = "Format and setting of the play (phase 5)" },
-    { command = "szene", description = "Plan a scene, set its form, have it written" },
+    { command = "record", description = "Start interview - and again to stop" },
+    { command = "status", description = "Show where we are" },
+    { command = "analyse", description = "Analyse and show interviews" },
+    { command = "theme", description = "Set or correct the core theme" },
+    { command = "play", description = "Format and setting of the play (phase 5)" },
+    { command = "scene", description = "Plan a scene, set its form, have it written" },
     { command = "phase", description = "Show or switch the working phase" },
-    { command = "hilfe", description = "How the bot works" },
+    { command = "help", description = "How the bot works" },
 ]
 _TEXT_FESTLEGUNG_KOPF = "Agreed, outside the fields:"
 _TEXT_FESTLEGUNG_LEER = "Nothing has been agreed outside the fields yet."
 _TEXT_FESTLEGUNG_HILFE = """\
-New: /festlegung <figur|gruppe|ort|struktur|form|stil|sonstiges>: <text> - \
-back: /festlegung weg <search word>."""
+New: /agreement <figur|gruppe|ort|struktur|form|stil|sonstiges>: <text> - \
+back: /agreement remove <search word>."""
 _TEXT_FESTLEGUNG_SCHON_DA = "That's already there."
 _TEXT_FESTLEGUNG_UNBEKANNT = "I haven't agreed anything on that."
 

@@ -382,6 +382,14 @@ def _paare(deutsch, englisch, pfad):
         for k, v in deutsch.items():
             e = englisch[k] if k in englisch else englisch[str(k)]
             if k in ("slug", "command"):
+                if k == "command" and pfad.startswith("befehle.BEFEHLE_LISTE["):
+                    # Birk, 03.10.2026: Padua-Befehle sind Englisch im
+                    # Telegram-Menue -- hier ist "command" bewusst KEIN
+                    # Protokoll mehr, sondern der sichtbare, von Sprache zu
+                    # Sprache verschiedene Befehlsname. Platzhalterpruefung
+                    # unten greift trotzdem (hier ohnehin keine).
+                    yield f"{pfad}.{k}", v, e
+                    continue
                 assert e == v, f"{pfad}.{k} ist Protokoll"
                 continue
             yield from _paare(v, e, f"{pfad}.{k}")

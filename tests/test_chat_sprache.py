@@ -22,9 +22,11 @@ def test_hilfe_auf_englisch(conn, einst, padua):
     assert tg.texte()[-1].startswith("Just write or speak")
 
 
-def test_menue_behaelt_die_befehlsnamen(padua):
-    deutsch = [b["command"] for b in befehle.BEFEHLE_LISTE]
-    assert [b["command"] for b in befehle.T.BEFEHLE_LISTE] == deutsch
+def test_menue_zeigt_die_englischen_befehlsnamen(padua):
+    assert [b["command"] for b in befehle.T.BEFEHLE_LISTE] == [
+        "record", "status", "analyse", "theme", "play", "scene", "phase",
+        "help",
+    ]
 
 
 def test_eintrittskopf_auf_englisch(conn, padua):

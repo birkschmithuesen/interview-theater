@@ -188,6 +188,8 @@ KONTRAST: tuple[Paar, ...] = (
     Paar("rand", "grund", "Grenze eines Bedienelements", 3.0),
     Paar("rand", "grund-2", "Grenze eines Bedienelements in der Karte", 3.0),
     Paar("signal", "grund-3", "gewaehlter Tab, gedrueckter Filter", 3.0),
+    Paar("warn", "grund-3", "pausierter Aufnahmeknopf", 4.5),
+    Paar("text-leise", "grund-3", "Aufgabe der Aktfolge unter dem Finger", 4.5),
 )
 
 
@@ -556,6 +558,30 @@ header { position: sticky; top: 0; z-index: 4; background: var(--grund);
 .phase.aktiv .phase-knopf { border-color: var(--warn); color: var(--warn); }
 .phase-knopf[data-sicher="1"] { background: var(--warn); color: var(--auf-warn);
                                 border-color: var(--warn); font-weight: 700; }
+/* Browserlauf 03.10.2026: ``web_vereint._CSS_VEREINT`` setzt die Flaechen
+   der Liste HELL und mit ``.roadmap``-Praefix -- (0,2,0) und mehr, also
+   staerker als die rohen Regeln oben. Ergebnis im Bild: weisse
+   Phasenknoepfe mit heller Schrift, unlesbar, in beiden Farbschemata.
+   Hier nur FARBEN, gleich stark praefixiert und spaeter im Dokument; die
+   Schrift bleibt bei den Regeln oben und bei ``_TABS_B`` (ein ``font:``
+   hier wuerde die Skriptschrift aus B wieder zuruecksetzen). */
+.roadmap .phase-knopf { background: var(--grund-2); color: var(--text);
+                        border-color: var(--rand); }
+.roadmap .phase.aktiv .phase-knopf { border-color: var(--warn);
+                                     color: var(--warn); }
+.roadmap .phase-knopf[data-sicher="1"] { background: var(--warn);
+                                         color: var(--auf-warn);
+                                         border-color: var(--warn); }
+.roadmap li.phase.aktiv { background: transparent; border: 0;
+                          border-left: 2px solid var(--warn); border-radius: 0; }
+.roadmap .phase-abbrechen { background: var(--grund-2); color: var(--text);
+                            border-color: var(--rand); }
+.roadmap li.aufgabe:hover { background: var(--grund-3); }
+/* Im Chat-Tab steht unten der feste Fuss, waehrend einer Aufnahme rund
+   ein Drittel des Telefons hoch. Mit 58vh schob die offene Aktfolge die
+   Tableiste darunter, und sie lag ueber Uhr und Pegel (Browserlauf
+   03.10.2026, 390x844). Die Liste scrollt in sich. */
+body[data-tab="chat"] .roadmap .phasen { max-height: 30vh; }
 .aufgaben { list-style: none; margin: .3rem 0 0; padding: 0 0 0 .1rem;
             font-size: .88rem; }
 .aufgabe { min-height: var(--tippflaeche); display: flex; align-items: center;
@@ -620,6 +646,38 @@ _BELOHNUNG = """
 #ux-belohnung b { color: var(--signal); letter-spacing: .05em; }
 #ux-belohnung p { margin: .2rem 0 0; font-size: .9rem; color: var(--text-leise); }
 #ux-belohnung[data-an="1"] { animation: ux-auftritt 260ms ease-out 1; }
+"""
+#: Die Flaechen, die ``web_chat._CSS_CHAT`` HELL setzt -- fuer beide
+#: Entwuerfe gleich, deshalb einmal hier und an ``_CHAT_A``/``_CHAT_B``
+#: angehaengt.
+#:
+#: Browserlauf 03.10.2026: A2 ist hell und schaltet nur unter
+#: ``prefers-color-scheme: dark`` um; ein Telefon im hellen Modus bekam
+#: das weisse Chat-Panel mit der hellen Schrift der Gestaltung -- die
+#: Bot-Blase war unlesbar, "Pause"/"Beenden" weisse Kaesten. Jede Regel
+#: hier hat dieselbe Spezifitaet wie ihr Gegenstueck in A2 und steht
+#: spaeter im Dokument. ``body`` wird beim Scopen zu ``.panel-chat``
+#: selbst (``web_vereint.scope_css``).
+_CHAT_FLAECHEN = """
+body { background: var(--grund); color: var(--text); }
+/* Am Laptop lief der feste Fuss ueber die ganze Breite, waehrend Chat
+   und Tabs auf 46rem zentriert stehen -- Uhr links aussen, Knoepfe
+   rechts aussen. Dieselbe Breite wie ``body`` in ``_BASIS``. */
+.fuss { max-width: 46rem; margin: 0 auto; }
+.zeile input { min-width: 0; }
+.interview-aktionen button, .angehalten button {
+    background: var(--grund-2); color: var(--text);
+    border: 1px solid var(--rand); border-radius: var(--radius);
+    min-height: var(--tippflaeche); white-space: nowrap; }
+.leiste.ueberholt button { border-color: var(--linie); color: var(--text-leise); }
+#interview[data-laeuft="1"][data-pausiert="1"] { background: var(--grund-3);
+    border-color: var(--warn); color: var(--warn); }
+#brainstorm { background: var(--grund-2); color: var(--text);
+              border-color: var(--rand); }
+#brainstorm[data-laeuft="1"] { background: var(--rec); color: var(--auf-rec);
+                               border-color: var(--rec); }
+#brainstorm[data-laeuft="1"][data-pausiert="1"] { background: var(--grund-3);
+    border-color: var(--warn); color: var(--warn); }
 """
 #: Der Chat, Entwurf A: Terminal. Monospace, Phosphor als Rahmenfarbe der
 #: Bot-Blase, eine Kennzeile `bot ~ $` darueber. Die Blase der Gruppe
@@ -725,7 +783,7 @@ _CHAT_A = """
 #senden { background: var(--signal); color: var(--auf-signal); border: 0;
           border-radius: var(--radius); min-width: var(--tippflaeche);
           min-height: var(--tippflaeche); font-weight: 700; }
-"""
+""" + _CHAT_FLAECHEN
 
 #: Der Chat, Entwurf B: Buehne. Serifenfreie Leseschrift, weiche Formen,
 #: keine Kennzeile -- Bot und Gruppe unterscheiden sich wie Repliken.
@@ -794,7 +852,7 @@ _CHAT_B = """
 #interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--rec); }
 
 /* -- Knopf 2: Push-to-Talk als Pille -------------------------------- */
-#ptt { min-width: 7.5rem; min-height: var(--tippflaeche);
+#ptt { min-width: 3.5rem; min-height: var(--tippflaeche);
        border-radius: 1.4rem; border: 1px dashed var(--signal);
        background: var(--grund-2); color: var(--signal);
        font-family: var(--schrift-tech); font-size: .76rem;
@@ -819,11 +877,26 @@ _CHAT_B = """
 #senden { background: var(--signal); color: var(--auf-signal); border: 0;
           border-radius: 1.4rem; min-height: var(--tippflaeche);
           padding: 0 1rem; font-weight: 700; }
-"""
+/* Die Beschriftung schreibt ``_CHAT_JS`` ("Interview laeuft · 0:03"),
+   und A2 setzt sie bei ``data-laeuft="1"`` auf 1.15rem -- im Kreis ragte
+   sie links und rechts hinaus (Browserlauf 03.10.2026). Hier klein und
+   umbrechend; der Zustand steht ausserdem gross in ``#ux-rec-zeile``. */
+#interview[data-laeuft="1"] { font-size: .56rem; letter-spacing: .02em;
+    line-height: 1.15; min-height: 0; padding: .35rem; overflow: hidden;
+    white-space: normal; text-align: center; overflow-wrap: anywhere; }
+/* Der Fuss ist hier eine umbrechende ZEILE: ohne volle Breite nahm die
+   Eingabezeile ihre Inhaltsbreite, und "Senden" stand am Handy halb
+   ausserhalb des Bildes (Browserlauf 03.10.2026). */
+.zeile { flex: 1 1 100%; min-width: 0; }
+/* Uhr und Pegel teilen sich die erste Zeile, wie im Entwurf; ohne Breite
+   schrumpfte der Pegel in der Zeile auf einen Strich. */
+#pegel { flex: 1 1 calc(100% - 7rem); min-width: 4rem; }
+""" + _CHAT_FLAECHEN
 #: Der Arbeitsstand: eine Karte je Feld. Die Formulare der Gruppenseite
 #: (``web._rahmen``, ``_textfeld``, ``_dropdown``) bleiben, wie sie sind --
 #: gestaltet werden nur Flaeche, Rand und Beschriftung.
 _STAND = """
+body { background: var(--grund); color: var(--text); }
 [data-feld] { background: var(--grund-2); border: 1px solid var(--linie);
               border-radius: var(--radius); padding: .55rem .65rem;
               margin: 0 0 .5rem; }
@@ -849,6 +922,7 @@ details > summary { min-height: var(--tippflaeche); display: flex;
 #: Sprechername steht IN der Zeile (Monospace, Signalfarbe), die Replik
 #: daneben in der Skriptschrift.
 _SKRIPT_A = """
+body { background: var(--grund); color: var(--text); }
 .szenenkopf { font-family: var(--schrift-tech); font-size: .8rem;
               letter-spacing: .12em; text-transform: uppercase;
               color: var(--text-leise); border-bottom: 1px solid var(--linie);
@@ -873,6 +947,7 @@ _SKRIPT_A = """
 #: Das Textbuch, Entwurf B: Manuskript. Der Sprechername steht auf einer
 #: EIGENEN Zeile darueber -- die Form eines gedruckten Textbuchs.
 _SKRIPT_B = """
+body { background: var(--grund); color: var(--text); }
 .szenenkopf { font-family: var(--schrift-skript); font-size: 1.25rem;
               color: var(--signal); border-bottom: 1px solid var(--linie);
               padding-bottom: .3rem; }
@@ -1013,8 +1088,9 @@ _JS_FORTSCHRITT = """
 #:
 #: Abgeleitet wird aus dem, was schon im DOM steht:
 #:   ruht     -- data-interview="0" und die Warteschlange ist leer
-#:   startet  -- gedrueckt, data-interview noch "0"
-#:   laeuft   -- data-interview="1"
+#:   startet  -- gedrueckt, data-interview noch "0" -- oder schon "1",
+#:               aber ``#uhr`` noch verborgen (Mikrofon kommt erst)
+#:   laeuft   -- data-interview="1" und ``#uhr`` sichtbar (oder Pause)
 #:   laedt    -- gerade auf "0" gewechselt, Warteschlange nicht leer
 #: **Kein neuer Schluessel im Zustands-Poll, kein SQL.**
 #:
@@ -1051,10 +1127,18 @@ _JS_AUFNAHME = """
       zeile.textContent = TEXTE['rec_' + neu] || '';
     };
 
+    var uhr = el('uhr');
     var lies = function () {
       var an = fuss.dataset.interview === '1';
       var laden = !!(warte && (warte.textContent || '').trim());
-      if (an) { setze('laeuft'); return; }
+      // data-interview="1" setzt _CHAT_JS schon beim Druck, BEVOR das
+      // Mikrofon da ist (Browserlauf 03.10.2026). "laeuft" erst, wenn die
+      // Uhr steht -- sie geht erst mit dem Recorder an -- oder wenn das
+      // Telefon eine Pause zeigt (dann laeuft hier nichts, aber der Modus
+      // ist an, wie bisher).
+      var nimmt = !uhr || !uhr.hidden || knopf.dataset.pausiert === '1';
+      if (an && nimmt) { setze('laeuft'); return; }
+      if (an) { setze('startet'); return; }
       if (laden) { setze('laedt'); return; }
       // Nach dem Druck bleibt "startet" stehen, bis der Poll den Modus
       // meldet -- bei einer Mikrofonfreigabe sind das leicht zwei
@@ -1074,6 +1158,12 @@ _JS_AUFNAHME = """
       if (fuss.dataset.interview === '1') { gedrueckt = 0; }
       lies();
     }).observe(fuss, { attributes: true, attributeFilter: ['data-interview'] });
+    new MutationObserver(lies).observe(
+      knopf, { attributes: true, attributeFilter: ['data-pausiert'] });
+    if (uhr) {
+      new MutationObserver(lies).observe(
+        uhr, { attributes: true, attributeFilter: ['hidden'] });
+    }
 
     if (warte) {
       new MutationObserver(lies).observe(

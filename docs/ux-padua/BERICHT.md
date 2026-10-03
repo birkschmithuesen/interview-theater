@@ -202,27 +202,40 @@ Ergaenzend, aus dieser Umsetzung selbst:
   weichen deshalb bewusst vom Code ab (`--rand` gibt es dort nicht, `b.rec`
   ist dort dunkler) — beides steht als Kommentar in `web_gestalt.TOKENS`.
 
-**Was noch aussteht — der wichtigste offene Punkt dieser Karte:** Aufgabe 12
-(Browserlauf/Screenshots) konnte in dieser Sandbox-Umgebung **nicht**
-vollstaendig durchgefuehrt werden. Das Wegwerf-venv
-`/mnt/HC_Volume_106183673/venvs/it-webtest/` liegt ausserhalb des
-Arbeits-Worktrees und war nicht erreichbar — dreifach unabhaengig
-bestaetigt (Koordinator, Implementierer, Reviewer), immer derselbe
-„requires approval"/„blocked"-Fehler, auch bei blossem `ls`. Die Testdatei
-`tests/e2e/test_web_gestalt_e2e.py` und die zugehoerige README-Ergaenzung
-sind committet und bereit, aber:
+**Der Browserlauf (03.10.2026) — nachgeholt.** Aufgabe 12 war in der
+ersten Sandbox nicht moeglich (Wegwerf-venv unerreichbar). Am 03.10. lief
+`tests/e2e/test_web_gestalt_e2e.py` zum ersten Mal gegen echtes Chromium.
+Die Fixture war kaputt (`repo.lege_szene_an` mit falscher Signatur), zwei
+Tests warteten auf ein verborgenes Element im Zustand „visible" (nie
+erreichbar). Der Blick auf die Bilder zeigte sechs **echte** Maengel, die
+keine Unit-Probe sehen konnte — alle an derselben Wurzel: die Basis-CSS
+von A2/W ist **hell** und schaltet nur unter `prefers-color-scheme: dark`
+um, und ihre Regeln sind teils staerker praefixiert als die Gestaltung.
 
-1. Es gibt **noch keine Screenshots** aus einem echten Chromium-Lauf gegen
-   diese Umsetzung.
-2. Der Testlauf gegen echtes Chromium hat **nie stattgefunden**.
+1. Chat-, Stand- und Textbuch-Panel weiss; Bot-Blase hell auf weiss →
+   `body`-Regel in `_CHAT_FLAECHEN`, `_STAND`, `_SKRIPT_A/B` (wird beim
+   Scopen zum Panel selbst).
+2. Phasenknoepfe weiss mit heller Schrift (`.roadmap .phase-knopf` aus
+   `_CSS_VEREINT` schlug `.phase-knopf`), in **beiden** Farbschemata →
+   Farbregeln mit `.roadmap`-Praefix in `_ROADMAP` (ohne `font:`, damit die
+   Skriptschrift aus B gewinnt).
+3. „Pause"/„Beenden" weisse Kaesten, „Beenden" zweizeilig → `_CHAT_FLAECHEN`.
+4. Der Aufnahmeknopf zeigte „laeuft", bevor das Mikrofon da war —
+   `_CHAT_JS` setzt `data-interview="1"` schon beim Druck. Seitdem „laeuft"
+   erst mit sichtbarer `#uhr` (oder Pause), vorher „startet". Und die
+   Beschriftung „INTERVIEW LAEUFT · 0:00" ragte aus dem Kreis (A2 setzt sie
+   auf 1.15rem) → klein und umbrechend.
+5. Am Handy stand „Senden" halb ausserhalb des Bildes, der Pegel war ein
+   Strich → `.zeile` volle Breite, Eingabe `min-width: 0`, PTT schmaler,
+   Pegel teilt sich die Zeile mit der Uhr.
+6. Offene Aktfolge schob im Chat die Tableiste ueber Uhr und Pegel →
+   `max-height: 30vh` im Chat-Tab; am Laptop lief der Fuss ueber die ganze
+   Breite → `max-width: 46rem` wie `body`.
 
-Beide Schritte — der Lauf selbst und die visuelle Pruefung der neun
-Screenshots gegen die fuenf Kriterien (Lesbarkeit, Aufnahmeknopf, nichts
-abgeschnitten, nichts ueberlappt, kein Echtmaterial) — muessen in einer
-Umgebung mit Zugriff auf das Wegwerf-venv nachgeholt werden, bevor diese
-Karte als **visuell** abgenommen gelten kann. Alles andere (Tokens, CSS,
-CSP-Vertrag, Kontrast, Logik-Tests) ist gepruefte, gruene Code-Realitaet;
-nur der Blick auf den tatsaechlich gerenderten Bildschirm fehlt.
+Jeder Mangel hat einen eigenen Browsertest (16 Tests in der Datei, alle
+gruen), gemessen am berechneten Stil und an Kaesten, nicht am CSS-Text.
+Die neun Bilder `docs/ux-padua/abnahme-*.png` sind die Abnahme; sie zeigen
+nur erfundenes Material aus der Fixture.
 
 ## Zahlen
 
@@ -230,7 +243,9 @@ nur der Blick auf den tatsaechlich gerenderten Bildschirm fehlt.
   Aenderung dieser Karte): `5951 passed, 4 skipped`. Nach Aufgabe 12
   (letzter Stand vor dieser Aufgabe): `6140 passed, 5 skipped, 0 xfailed,
   0 xpassed` — ein deutliches Plus an gruenen Tests, keine Regression.
-- **Kontrastpaare:** `web_gestalt.KONTRAST` fuehrt **17 Paare je Entwurf**.
+- **Kontrastpaare:** `web_gestalt.KONTRAST` fuehrt **19 Paare je Entwurf**
+  (zwei kamen mit dem Browserlauf dazu: pausierter Aufnahmeknopf, Aufgabe
+  unter dem Finger).
   Kleinstes gemessenes Verhaeltnis: **A 3.07**, **B 3.23** — beide ueber
   der 3.0-Schwelle fuer Bedienelemente (WCAG).
 - **Tatsaechlich geaenderte Zeilen dieser Karte** (`git diff --numstat`

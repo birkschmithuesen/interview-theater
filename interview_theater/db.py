@@ -493,6 +493,14 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Wann die letzte Buehnenkarte entstand -- fuer den Mindestabstand
   -- (brainstorm.min_abstand_s). NULL = noch nie eine Karte.
   brainstorm_reaktion_am TEXT,
+  -- Wann der aktuell laufende Buehnenkarten-Lauf gestartet ist (ISO,
+  -- CoThinker-Statuszeile, 03.10.2026) -- NULL = kein Lauf aktiv. Vom
+  -- BOT-Prozess gesetzt (aufnahme._starte_buehnenkarte) und geleert, wenn
+  -- der Lauf endet; vom WEBSERVER-Prozess gelesen (web_daten.py), weil
+  -- beide Prozesse sich nur ueber die Datenbank verstaendigen koennen --
+  -- brainstorm._LAEUFT ist In-Prozess-Speicher des Bots und fuer den
+  -- separaten Webserver-Prozess nicht sichtbar.
+  brainstorm_lauf_seit TEXT,
   -- Die Fragen-Gegenueberstellung eigen/KI (Padua Phase 1+2 Karte,
   -- 03.10.2026): der im Hintergrund erzeugte, versteckte KI-Vorschlag
   -- (``Begriff: Frage``-Zeilen wie ``fragen_auswahl``) und sein Zeitstempel.

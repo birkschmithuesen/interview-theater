@@ -54,7 +54,7 @@ import urllib.parse
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import db, phasen, vorspann, web_daten, web_schreiben  # noqa: F401 -- SZENENFELDER im HTML
+from . import cothinker_status, db, phasen, vorspann, web_daten, web_schreiben  # noqa: F401 -- SZENENFELDER im HTML
 
 VORGABE_BIND = "127.0.0.1:8010"
 #: Externer URL-Pfad, unter dem nginx auf herkules den Server durchreicht.
@@ -694,6 +694,56 @@ _CSS_BUEHNE = """
    Platz zu beanspruchen: er steht VOR einer noch stehenden letzten Karte. */
 #buehne-panel .hoert-zu { opacity: .55; font-style: italic; font-size: .95rem;
                           margin: 0 0 .7rem; }
+/* Die CoThinker-Statuszeile UEBER dem Panel (Karte CoThinker-Statuszeile,
+   03.10.2026; Theme-Token-Nachbesserung fuer t_cc4306db, 04.10.2026) -- nur
+   Farb-Tokens aus ``web_gestalt.FARBTOKENS`` (``:root``, immer ueber
+   ``web_gestalt.css_rahmen()`` auf derselben Seite vorhanden, siehe
+   ``web_vereint.seite()``), KEIN rohes Hex hier. ``--warn`` traegt im
+   bestehenden ``KONTRAST``-Vertrag schon die Bedeutung "laufender Zustand
+   in der Karte" (siehe web_gestalt.KONTRAST) -- das ist wortgleich der
+   "denkt"-Zustand hier, deshalb kein neuer Ton. Die eigentliche Animation
+   (``@keyframes``) steht ungescopt in ``CSS_COTHINKER_KEYFRAMES``, siehe
+   dort. Genau eine Zeile, nie zwei: ``flex-wrap: nowrap`` am Rahmen,
+   ``text-overflow: ellipsis`` am Text -- ``min-width: 0`` ist der
+   Flexbox-Kniff, ohne den ein Flex-Kind nicht unter seine Inhaltsbreite
+   schrumpft und das Abschneiden nie greift. */
+#cothinker-status { display: flex; align-items: center; gap: .5rem;
+                     flex-wrap: nowrap; margin: 0 0 .6rem;
+                     padding: .4rem .6rem; border-radius: .5rem;
+                     background: var(--grund-2); color: var(--text);
+                     font-size: .9rem; min-width: 0; }
+#cothinker-status .co-icon { width: .6rem; height: .6rem;
+                              border-radius: 50%; background: currentColor;
+                              flex: 0 0 auto; }
+#cothinker-status.co-hoert, #cothinker-status.co-transkribiert { color: var(--signal); }
+#cothinker-status.co-denkt { color: var(--warn); }
+#cothinker-status.co-schweigt { color: var(--text-leise); opacity: .75; }
+#cothinker-status .co-text { overflow: hidden; text-overflow: ellipsis;
+                              white-space: nowrap; min-width: 0; }
+#cothinker-status .co-dauer { font-variant-numeric: tabular-nums; opacity: .75;
+                               white-space: nowrap; flex: 0 0 auto; }
+#cothinker-status.co-hoert .co-icon,
+#cothinker-status.co-transkribiert .co-icon { animation: co-atmen 1.8s ease-in-out infinite; }
+#cothinker-status.co-denkt .co-icon { animation: co-punkte 1.2s steps(3, end) infinite; }
+"""
+
+#: Die ``@keyframes`` der CoThinker-Statuszeile -- EIGENE, UNGESCOPTE
+#: Konstante (03.10.2026). ``web_vereint.scope_css()`` versteht ``@media``,
+#: aber nicht ``@keyframes``: ihre Regex haette ``50% { ... }`` faelschlich
+#: als verschachtelten Selektor gelesen und zu z. B. ``.panel-buehne 50%``
+#: verunstaltet (derselbe dokumentierte Fehler wie bei ``web_gestalt.py``s
+#: eigenem ``scope_css``, siehe AGENTS.md "``@keyframes`` und ``@media`` nur
+#: in ``css_rahmen()``"). Deshalb geht diese Konstante in
+#: ``web_vereint.seite()`` ROH in die CSS-Verkettung ein, genau wie
+#: ``_CSS_VEREINT`` -- niemals durch ``scope_css()``.
+CSS_COTHINKER_KEYFRAMES = """
+@keyframes co-atmen { 0%, 100% { opacity: .4; transform: scale(.85); }
+                       50% { opacity: 1; transform: scale(1); } }
+@keyframes co-punkte { 0% { opacity: .25; } 50% { opacity: 1; }
+                        100% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  #cothinker-status .co-icon { animation: none !important; }
+}
 """
 
 
@@ -937,6 +987,12 @@ _TEXT_BUEHNE_LEER = "Noch keine Karte."
 #: erkennen, ob das Mithoeren ueberhaupt laeuft.
 _TEXT_BUEHNE_HOERT_ZU = "Hört zu … bisher nichts beizutragen."
 _TEXT_BUEHNE_OFFEN = "offen"
+#: Die CoThinker-Statuszeile ueber dem Buehne-Panel (Karte CoThinker-
+#: Statuszeile, 03.10.2026) -- ein Text je ``cothinker_status.ZUSTAND_*``.
+_TEXT_COTHINKER_HOERT = "hört zu"
+_TEXT_COTHINKER_TRANSKRIBIERT = "verschriftlicht"
+_TEXT_COTHINKER_DENKT = "denkt nach"
+_TEXT_COTHINKER_SCHWEIGT = "zugehört, gerade nichts hinzuzufügen"
 #: Was das Speichern auf der Gruppenseite neben dem Feld meldet. Das
 #: JavaScript liest sie aus ``data-``-Attributen (``_BEARBEITEN_JS``), damit
 #: kein Nutzertext im Skript steht.
@@ -2755,6 +2811,48 @@ def _stueckkarte_streifen_html(
     return f'<div class="stueckkarte">{"".join(teile)}</div>'
 
 
+def _cothinker_status_html(status: dict | None) -> str:
+    """Die Statuszeile UEBER dem Buehne-Panel (CoThinker-Statuszeile,
+    03.10.2026) -- leer, wenn gerade nichts zu zeigen ist (``status`` ist
+    ``None``: ausserhalb Phase 4, oder eine Gruppe, die diesen Zustand noch
+    nie erreicht hat).
+
+    Die tickende Dauer selbst steht NIE hier: ``data-seit`` traegt den
+    rohen ISO-Zeitstempel, Javascript (``web_vereint._VEREINT_JS``)
+    berechnet die Differenz jede Sekunde neu und schreibt sie ins anfangs
+    leere ``.co-dauer``-Element -- sonst aenderte sich dieser HTML-String
+    jede Sekunde und ``web_vereint.py``s ``ladeBuehne()`` taeuschte sich bei
+    jedem Poll eine echte Aenderung vor und tauschte das ganze Panel
+    unnoetig aus.
+
+    Die Texte werden bei jedem Aufruf frisch ueber ``T._TEXT_COTHINKER_*``
+    aufgeloest statt ueber ein beim Modulimport eingefrorenes Dict: der
+    Webdienst laeuft fuer alle Gruppen in einem Prozess, und
+    ``sprache.code()`` haengt am aktiven Profil (dieselbe Begruendung wie
+    bei ``web_gestalt._mikrotexte``)."""
+    if not status:
+        return ""
+    zustand = status["zustand"]
+    seit = status.get("seit") or ""
+    tickt = zustand in cothinker_status.TICKT
+    texte = {
+        cothinker_status.ZUSTAND_DENKT: T._TEXT_COTHINKER_DENKT,
+        cothinker_status.ZUSTAND_TRANSKRIBIERT: T._TEXT_COTHINKER_TRANSKRIBIERT,
+        cothinker_status.ZUSTAND_HOERT: T._TEXT_COTHINKER_HOERT,
+        cothinker_status.ZUSTAND_SCHWEIGT: T._TEXT_COTHINKER_SCHWEIGT,
+    }
+    text = _t(texte.get(zustand, zustand))
+    tickt_attr = ' data-tickt="1"' if tickt else ""
+    return (
+        f'<div id="cothinker-status" class="co-status co-{html.escape(zustand)}" '
+        f'data-zustand="{html.escape(zustand)}" data-seit="{html.escape(seit)}">'
+        f'<span class="co-icon" aria-hidden="true"></span>'
+        f'<span class="co-text">{text}</span>'
+        f'<span class="co-dauer"{tickt_attr}></span>'
+        f'</div>'
+    )
+
+
 def _buehnenkarte_html(karte: dict, erste: bool) -> str:
     klasse = "karte" if erste else "karte alt"
     text = html.escape(karte["text"] or "").replace("\n", "<br>")
@@ -2791,7 +2889,8 @@ def _buehne_html(daten: dict) -> str:
         teile.append("".join(_buehnenkarte_html(k, i == 0) for i, k in enumerate(echte)))
     elif not hoert_zu:
         teile.append(f'<p class="leer">{_t(T._TEXT_BUEHNE_LEER)}</p>')
-    return f'<div id="buehne-panel">{streifen}{"".join(teile)}</div>'
+    status_html = _cothinker_status_html(daten.get("cothinker_status"))
+    return f'{status_html}<div id="buehne-panel">{streifen}{"".join(teile)}</div>'
 
 
 def gruppe_koerper(

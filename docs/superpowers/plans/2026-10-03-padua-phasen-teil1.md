@@ -211,8 +211,21 @@ def test_padua_phasen_und_formen_englisch():
     ("Characters", 4), ("core theme", 4), ("format", 4), ("setting", 4),
     ("story", 4), ("Frame", 4), ("Terms", 1), ("interview questions", 2),
     ("interviews", 3),
-    # Alte Namen bleiben gueltig (Padua Phasen TEIL 1, 03.10.2026):
-    ("Sharpening", 5), ("Scenes as Story", 6), ("polish", 7),
+    # Alte Namen bleiben gueltig (Padua Phasen TEIL 1, 03.10.2026) --
+    # ausser "Scenes as Story": das war NIE ein eigenes Stichwort von Phase
+    # 6, sondern traf nur ueber den Exaktname-Treffer in nummer_fuer, weil
+    # es Phase 6s NAME war. Seit Phase 6 "Rewrite" heisst, faellt die
+    # Phrase auf den Stichwort-Durchgang zurueck -- und dort gewinnt Phase
+    # 4s VORBESTEHENDES Stichwort "story" (Substring von "scenes as
+    # story"), weil nummer_fuer Phasen aufsteigend prueft und beim ersten
+    # Treffer zurueckgibt, nicht beim spezifischsten. Phase 4s "story" vor
+    # diesem Umbau nicht anzutasten (gemeinsamer Code, auch von Dortmund
+    # genutzt) wiegt hier schwerer als diese eine zusammengesetzte
+    # Alt-Phrase -- kein Nutzer tippt "Scenes as Story" ohnehin als
+    # natuerlichen Satz. Gefunden und entschieden waehrend Task-1-Ausfuehrung
+    # (Padua Phasen TEIL 1, 03.10.2026); keine Aenderung an
+    # phasen.nummer_fuer oder an Phase 4s Stichwoertern.
+    ("Sharpening", 5), ("polish", 7),
     # Neue Namen (Padua Phasen TEIL 1, 03.10.2026):
     ("Prose Draft", 5), ("prose", 5), ("Rewrite", 6), ("Stage Version", 7),
 ])
@@ -838,6 +851,63 @@ EOF
 - Modify: `interview_theater/sprachen/en/prompts/erkenner.md` (new numbered point, English)
 - Modify: `korpus/erkenner.jsonl` (≥2 positive cases + ≥1 negative/boundary case documented in `notiz`)
 - Modify: `korpus/en/erkenner.jsonl` (same, English)
+- Modify: `tests/test_erkenner.py` (`test_arten_enthaelt_alle_werte`'s pinned set)
+- Modify: `tests/test_sprache_prompts.py` (`test_erkenner_en_zaehlt_seine_arten_richtig`'s expected count)
+- Modify: `tests/test_korpus.py` (`test_deutscher_korpus_unveraendert_gezaehlt`'s exact count, bumped deliberately — same precedent as the prior `szenenanzahl_setzen` addition, 150→153)
+
+**Pre-existing cross-checks this task interacts with (found during Task 1-2's
+execution, not in the original research — read this before starting):**
+
+- `tests/test_erkenner.py::test_arten_enthaelt_alle_werte` pins the exact
+  Python `set(erkenner.ARTEN)`. Adding a 26th art means adding it to this
+  test's `erwartet` set too, or the full suite fails immediately after
+  Step 1.
+- The German and English `erkenner.md` prompts are numbered
+  **independently and are currently NOT in sync**: confirmed by reading
+  both files during planning — German's last point is **"24. szene_kuerzen"**
+  (not 25), English's last point is **"25. szene_kuerzen"**. Do not assume
+  they match. Append German's new point as **25** and English's as **26**
+  (i.e. "one past whatever that file's own last point currently is" —
+  re-confirm the actual last point number yourself with
+  `grep -n "^[0-9]\{1,2\}\. [a-z]" interview_theater/prompts/erkenner.md`
+  and the English equivalent before writing the new point, in case this
+  plan's numbers have drifted further by the time you run this task).
+- `interview_theater/sprachen/en/prompts/erkenner.md` has a sentence near
+  the top ("You recognise exactly twenty-five kinds of changes") that a
+  real test (`tests/test_sprache_prompts.py::test_erkenner_en_zaehlt_seine_arten_richtig`)
+  checks word-for-word, AND checks that the file's numbered points run
+  `1..N` with no gaps. Bump this sentence's number word by one step (the
+  exact word depends on what the file's current count already is — recompute
+  it, don't assume it's still "twenty-five") and update that test's two
+  assertions (`range(1, N+1)`, `"exactly <wordform> kinds"`) to match in the
+  same commit.
+  `interview_theater/prompts/erkenner.md`'s equivalent German sentence
+  ("Du erkennst genau fuenfundzwanzig Arten...") has **no automated test**
+  checking it (confirmed by search) — update it anyway, by the same +1 step,
+  for human readability, but it is not a test gate.
+- `tests/test_korpus.py::test_deutscher_korpus_unveraendert_gezaehlt` locks
+  the **exact** German corpus count and negative-case count, with a
+  docstring explaining it's bumped deliberately whenever a new art's cases
+  are added (precedent: 150→153, 53→54 when `szenenanzahl_setzen`'s 3 cases
+  — 2 positive, 1 negative — were added). Adding this task's 3 new cases
+  (`ue01`, `ue02` positive; `n55` negative) means bumping both numbers by
+  the same pattern and extending the docstring's note, in the same commit —
+  otherwise this test fails with an exact-count mismatch the moment the
+  corpus file changes.
+- `tests/test_sprache_bitgleich.py` (Dortmund-only fingerprint test) does
+  **not** need any change: `erkenner.ARTEN`, `erkenner.SCHEMA`, and
+  `"prompt erkenner"` are already present as justified/exempted keys in its
+  `GEAENDERT` dict from the prior `szenenanzahl_setzen` change, and that
+  mechanism exempts a name **permanently** once listed (confirmed by reading
+  `_vergleiche()`'s `if name in GEAENDERT: continue`), not per specific
+  hash — so a further change to the same names is already covered. Brand
+  new names (this task adds none to that file) would also be automatically
+  fine ("eine neue Konstante ist keine Undichtigkeit").
+- `tests/test_simulation_abdeckung.py::test_inventar_zaehlt_die_beiden_arten_listen`
+  and the `knopfarten`/`dir(texte)` comparison next to it are both
+  self-deriving from live introspection on both sides of their `==` — they
+  cannot be broken by adding a new art or a new `ART_*` constant correctly
+  wired into `_WIRKUNGEN` (Task 10). No action needed here.
 
 **Interfaces:**
 - Consumes: `erkenner.PHASEN_SPEZIFISCHE_ARTEN` (Task 5, already wired).
@@ -866,11 +936,16 @@ In `interview_theater/erkenner.py`, append to the `ARTEN` tuple (after
 
 - [ ] **Step 2: Document it in the German prompt**
 
-In `interview_theater/prompts/erkenner.md`, find the numbered list entry
-for `szenenanzahl_setzen` (grep `grep -n "szenenanzahl_setzen" interview_theater/prompts/erkenner.md`)
-and add a new point directly after it, matching that file's exact numbering
-and formatting style (read the two surrounding points first to match
-German wording conventions used elsewhere in that file):
+In `interview_theater/prompts/erkenner.md`, find the file's actual LAST
+numbered point (confirmed during planning to be "24. szene_kuerzen" — but
+re-verify with `grep -n "^[0-9]\{1,2\}\. [a-z]" interview_theater/prompts/erkenner.md`
+in case it has changed) and add a new point directly after it, as the next
+number up (25, if 24 is still the last), matching that file's exact
+formatting style (read the two surrounding points first to match German
+wording conventions used elsewhere in that file). Also bump the file's
+count sentence near the top ("Du erkennst genau fuenfundzwanzig Arten von
+Aenderungen") by the same one-step increment (e.g. to "sechsundzwanzig" if
+it currently says "fuenfundzwanzig") — untested, but keep it accurate.
 
 ```
 25. uebersicht_aendern     -- wert: die gewuenschte Richtung als Text, oder
@@ -887,13 +962,17 @@ German wording conventions used elsewhere in that file):
     Feld passt (Tonfall, Tempo, Spannungskurve der Uebersicht selbst).
 ```
 
-- [ ] **Step 3: Document it in the English prompt**
+- [ ] **Step 3: Document it in the English prompt, and bump the "kinds" count**
 
-In `interview_theater/sprachen/en/prompts/erkenner.md`, add the matching
-English point directly after point 24 (`szenenanzahl_setzen`):
+In `interview_theater/sprachen/en/prompts/erkenner.md`, find the file's
+actual LAST numbered point (confirmed during planning to be
+"25. szene_kuerzen" — re-verify with
+`grep -n "^[0-9]\{1,2\}\. [a-z]" interview_theater/sprachen/en/prompts/erkenner.md`
+in case it has changed) and add the new point as the next number up (26, if
+25 is still the last):
 
 ```
-25. uebersicht_aendern     -- wert: the wanted direction as text, or empty
+26. uebersicht_aendern     -- wert: the wanted direction as text, or empty
     ("") if the group just says "again"/"different". Applies ONLY when a
     generated story overview (Logline, Setting, Characters, Tension arc,
     Scenes) is directly in the lead-up and the group gives feedback on it
@@ -904,6 +983,52 @@ English point directly after point 24 (`szenenanzahl_setzen`):
     characters or story itself stays rahmen_setzen/figur_setzen/
     geschichte_setzen; uebersicht_aendern is only for feedback that fits no
     existing field (tone, pace, the tension arc of the overview itself).
+```
+
+Also change the sentence near the top of this file ("You recognise exactly
+twenty-five kinds of changes") to the next number word up (**"twenty-six"**
+if it currently says "twenty-five" — recompute from what you actually find,
+matching however many points the file ends up with after your edit).
+
+- [ ] **Step 3a: Update the three cross-checks this change touches**
+
+In `tests/test_erkenner.py`, find `test_arten_enthaelt_alle_werte` (its
+`erwartet` set pins every value of `erkenner.ARTEN` exactly) and add
+`"uebersicht_aendern"` to the set, with a short comment matching the style
+of the other entries there:
+
+```python
+        # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
+        # Geschichts-Uebersicht in Stufe A von Phase 5 (Prose Draft).
+        "uebersicht_aendern",
+```
+
+In `tests/test_sprache_prompts.py`, find `test_erkenner_en_zaehlt_seine_arten_richtig`
+and update both assertions to match the new total from Step 3 (if the file
+now has 26 points and says "twenty-six"):
+
+```python
+    assert nummern == list(range(1, 27))
+    assert "exactly twenty-six kinds" in roh
+```
+
+In `tests/test_korpus.py`, find `test_deutscher_korpus_unveraendert_gezaehlt`
+and bump both numbers by the counts added in Steps 4-5 below (3 total cases,
+1 of them negative — so 153→156 and 54→55 if those are still the current
+baseline; recompute from whatever the test currently asserts), and extend
+its docstring with one sentence following the existing precedent style:
+
+```python
+def test_deutscher_korpus_unveraendert_gezaehlt(erkenner_faelle):
+    """D8: der deutsche Korpus bleibt, wie er ist (153 Faelle, 54 negativ,
+    gemessen 02.10.2026 -- davor 150/53 am 30.09.2026) -- seine FP=0-Zusage
+    haengt an genau diesen Faellen. Drei Faelle (sa01-sa03) kamen beim
+    Padua-Brainstorming-Umbau dazu: die neue Art ``szenenanzahl_setzen``
+    braucht wie jede andere mindestens zwei Positiv- und einen Negativfall.
+    Padua Phasen TEIL 1 (03.10.2026): drei weitere Faelle (ue01, ue02, n55)
+    fuer die neue Art ``uebersicht_aendern``, nach demselben Muster."""
+    assert len(erkenner_faelle) == 156
+    assert sum(1 for f in erkenner_faelle if not f["erwartet"]) == 55
 ```
 
 - [ ] **Step 4: Add German corpus cases**
@@ -948,12 +1073,16 @@ Expected: green.
 ```bash
 git add interview_theater/erkenner.py interview_theater/prompts/erkenner.md \
         interview_theater/sprachen/en/prompts/erkenner.md \
-        korpus/erkenner.jsonl korpus/en/erkenner.jsonl
+        korpus/erkenner.jsonl korpus/en/erkenner.jsonl \
+        tests/test_erkenner.py tests/test_sprache_prompts.py tests/test_korpus.py
 git commit -m "$(cat <<'EOF'
 erkenner: new art uebersicht_aendern for Phase 5 overview feedback
 
 Phase-gated to 5 via PHASEN_SPEZIFISCHE_ARTEN (Task 5). Corpus cases added
-in both languages; a real scripts.pruefe_prompts run is Task 15.
+in both languages; the three pre-existing cross-checks this touches
+(ARTEN set pin, EN prompt point-count self-check, German corpus exact
+count) are updated in the same commit. A real scripts.pruefe_prompts run
+is Task 14.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
@@ -1599,7 +1728,23 @@ def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
     """Stoesst eine Neugenerierung der Stufe-A-Uebersicht an, wenn der
     Erkenner ``uebersicht_aendern`` gefunden hat (Padua Phasen TEIL 1).
     Phasengebunden ueber PHASEN_SPEZIFISCHE_ARTEN -- wende_an() hat eine
-    fehlplatzierte Meldung schon herausgefiltert, bevor sie hier ankommt."""
+    fehlplatzierte Meldung schon herausgefiltert, bevor sie hier ankommt.
+
+    **Zusaetzlich profilgebunden** (nicht nur phasengebunden): ``ARTEN`` und
+    ``PHASEN_SPEZIFISCHE_ARTEN`` sind geteilter, profilunabhaengiger Code --
+    jede Gruppe, auch Dortmund, bekommt ``uebersicht_aendern`` im Schema-Enum
+    des Erkenner-Aufrufs angeboten, und Dortmunds eigene Phase 5 (Schaerfung)
+    existiert ebenfalls. Erkennt Dortmunds Modell die art trotzdem einmal
+    (unwahrscheinlich, die deutsche Punktbeschreibung verlangt explizit eine
+    bereits im Verlauf stehende generierte Uebersicht, die es bei Dortmund nie
+    gibt) muss das ein stiller No-Op bleiben, kein echter, bezahlter
+    Modellaufruf fuer ein Feature, das diese Gruppe nicht hat -- derselbe
+    Grund, aus dem ``knoepfe/stationen.py`` (Task 11) den Uebersicht-Start
+    nach der Schaerfung hinter denselben Schalter stellt."""
+    from interview_theater import workshop
+
+    if not workshop.prosa_entwurf_aktiv():
+        return
     treffer = next(
         (a for a in aenderungen if a.get("art") == "uebersicht_aendern"), None
     )

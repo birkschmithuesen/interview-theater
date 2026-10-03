@@ -1495,7 +1495,6 @@ _TEXT_KEIN_INTERVIEW_NOCH = "No interview yet — say “we're doing an intervie
 _TEXT_NICHTS_NOTIERT = "Nothing noted yet."
 _TEXT_GRUPPE = "Group {chat_id}"
 _TITEL_GRUPPENSEITE = "{titel} — interview-theater"
-_TEXT_PROBENANSICHT_LINK = "📖 Rehearsal view — the whole play in one piece, to read and print"
 _UEBERSCHRIFT_UEBERBLICK = "Overview"
 _UEBERSCHRIFT_ARBEITSSTAND = "Where we are"
 _UEBERSCHRIFT_STUECKKARTE = "Play card"

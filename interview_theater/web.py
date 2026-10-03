@@ -654,13 +654,6 @@ nav.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }
 .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
 .figur .marke { font-size: .78rem; opacity: .6; }
 .hinzu { margin-top: .8rem; }
-/* Der Weg zur Probenansicht (06.09.2026): deutlich, weil er in der Probe
-   gebraucht wird und die Gruppenseite lang ist. */
-.probenansicht { margin: 0 0 1rem; }
-.probenansicht a { display: inline-block; padding: .45rem .8rem;
-                   border: 1px solid #c9b98d; border-radius: .3rem;
-                   background: #ece7db; color: #1b1b1b; text-decoration: none;
-                   font-size: .95rem; }
 """
 
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026) -- eigene Konstante statt
@@ -991,9 +984,6 @@ _TEXT_KEIN_INTERVIEW_NOCH = (
 _TEXT_NICHTS_NOTIERT = "Noch nichts notiert."
 _TEXT_GRUPPE = "Gruppe {chat_id}"
 _TITEL_GRUPPENSEITE = "{titel} — interview-theater"
-_TEXT_PROBENANSICHT_LINK = (
-    "📖 Probenansicht — das ganze Stück am Stück, zum Lesen und Ausdrucken"
-)
 _UEBERSCHRIFT_UEBERBLICK = "Überblick"
 _UEBERSCHRIFT_ARBEITSSTAND = "Arbeitsstand"
 #: Padua-Brainstorming-Umbau (02.10.2026): die Stueckkarte -- die vier
@@ -3297,12 +3287,6 @@ def gruppe_koerper(
             token=daten.get("web_token"),
         )
     )
-    probenansicht = (
-        f'<p class="probenansicht"><a href="{_t(praefix, "")}/g/{_t(token)}/textbuch">'
-        f"{_t(T._TEXT_PROBENANSICHT_LINK)}</a></p>"
-        if token
-        else ""
-    )
     # Der Vorspann steht GANZ OBEN (07.09.2026): er ist die Antwort auf die
     # Frage, die jemand hat, der die Seite zum ersten Mal aufmacht -- wo
     # spielt das, worum geht es, wer sind die dreizehn Namen weiter unten.
@@ -3311,7 +3295,6 @@ def gruppe_koerper(
         kopf = f"<h2>{_t(T._UEBERSCHRIFT_UEBERBLICK)}</h2>{kopf}\n"
     return (
         f"<h1>{_t(titel)}</h1>\n"
-        f"{probenansicht}"
         f"{_chat_link(token, daten.get('kanal'))}"
         f'<div id="stand-inhalt">\n'
         f"{kopf}"
@@ -3364,11 +3347,6 @@ def gruppe_html(
     ``nonce_wert`` werden Arbeitsstand, Figuren und Szenenplanung zu
     Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
     Feld in der Seite (siehe ``nonce``).
-
-    Mit ``token`` steht oben der Link zur **Probenansicht** (06.09.2026): die
-    Gruppenseite ist die Werkstatt, die Probenansicht das Stueck am Stueck.
-    Ohne Token faellt der Link weg -- die Seite laesst sich weiter ohne ihn
-    rendern (Tests, spaetere Aufrufer).
 
     ``fassungswahl`` ist ``{szene_id: nummer}`` aus der Query (``?szene=…&
     fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung

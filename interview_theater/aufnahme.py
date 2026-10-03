@@ -468,13 +468,35 @@ def empfange(conn, tg, e, n: dict) -> int | None:
     Telegram-Betrieb."""
     chat_id = n["chat_id"]
     message_id = n["message_id"]
-    klasse = klasse_fuer(conn, chat_id)
-    teil_von = stelle_interview_sicher(conn, chat_id) if klasse == "teil" else None
+    kalibrierung = bool(n.get("kalibrierung"))
+    # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): ein
+    # Kalibrierungs-Testsatz ist UNABHAENGIG vom gerade geltenden Modus
+    # strukturell nie Teil eines Interviews -- die Gruppe kann /interview
+    # laengst gedrueckt haben, bevor der Clip hochlaedt
+    # (``starteInterview`` schickt den Befehl vor dem ersten Segment).
+    # Deshalb hier VOR jedem Blick auf den Modus entschieden, nicht ueber
+    # ``klasse_fuer``/``stelle_interview_sicher``.
+    if kalibrierung:
+        klasse = "kurz"
+        teil_von = None
+    else:
+        klasse = klasse_fuer(conn, chat_id)
+        teil_von = stelle_interview_sicher(conn, chat_id) if klasse == "teil" else None
 
-    repo.merke_nachricht(
-        conn, chat_id, message_id, n.get("absender"), 0, "sprache", None,
-        n.get("gesendet_am") or repo._jetzt(), 1,
-    )
+    # Dieselbe Entscheidung wie oben: KEINE ``nachricht``-Zeile fuer einen
+    # Kalibrierungs-Testsatz. Ohne sie kann der Clip strukturell nie in
+    # ``kontext.baue``s Fenster, dem Absichtserkenner oder dem Journal
+    # auftauchen -- alle drei lesen ueber Funktionen, die aus ``nachricht``
+    # selektieren (``letzte_nachrichten``/``unextrahierte``/
+    # ``unjournalisierte``). Empfangen und In-den-Prompt-legen sind zwei
+    # Entscheidungen (AGENTS.md) -- hier wird bewusst auch das Empfangen in
+    # dieser Tabelle ausgelassen, weil ein Kalibrierungs-Testsatz kein
+    # Gruppenbeitrag ist, den es je zu zeigen gaebe.
+    if not kalibrierung:
+        repo.merke_nachricht(
+            conn, chat_id, message_id, n.get("absender"), 0, "sprache", None,
+            n.get("gesendet_am") or repo._jetzt(), 1,
+        )
 
     ziel = (
         Path(e.audio_verz) / str(chat_id)
@@ -501,6 +523,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         audio_pfad=str(ziel), dauer=n.get("dauer"), teil_von=teil_von,
         schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
         diskussion=bool(n.get("diskussion")),
+        rede_ms=n.get("rede_ms"), kalibrierung=kalibrierung,
     )
 
 
@@ -769,22 +792,26 @@ def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
     trotzdem erfahren, dass der Beitrag verloren ist, statt dass er
     kommentarlos als 'typ=sprache, text=NULL' im Verlauf haengen bleibt.
 
-    **Ein Brainstorm-Segment (``row['brainstorm']``) mit leerem Whisper-
-    Ergebnis ist ein dritter, eigener Fall** (Karte Padua Brainstorm,
-    03.10.2026, Live-Fall: aufnahme 16, 4s, 5 Versuche, dann eine
-    unpassende "verstehe ich nicht"-Meldung im Chat): niemand wartet auf
-    dieses eine Segment und niemand kann es "noch einmal sagen" -- es war
-    nur ein paar Sekunden Rauschen beim Loslassen des Knopfes. Still
-    verwerfen statt der normalen Fehlerkette: kein Wiederholungsversuch
-    (``repo._NICHTS_ZU_TUN`` haelt den Nachhol-Arbeiter ab einem
-    ``status='fehlgeschlagen'`` ohnehin fern), keine Chatzeile, und KEIN
-    Ausfall-Alarm (``melde_ausfall``) -- Stille ist kein Dienstausfall."""
+    **Ein Segment mit leerem Whisper-Ergebnis ist ein dritter, eigener
+    Fall** (Karte Padua Brainstorm, 03.10.2026, Live-Fall: aufnahme 16, 4s,
+    5 Versuche, dann eine unpassende "verstehe ich nicht"-Meldung im Chat;
+    ausgeweitet auf JEDE Aufnahmeklasse mit der Karte "Mithoeren SICHER",
+    03.10.2026, weil der Client seitdem jedes Segment hochlaedt statt
+    VAD-Rauschen client-seitig zu verwerfen -- vorher traf dieser Fall fast
+    nur Brainstorm, jetzt routinemaessig auch Interview-Teile und
+    Gespraechsbeitraege): niemand wartet auf dieses eine Segment und niemand
+    kann es "noch einmal sagen" -- es war nur ein paar Sekunden Rauschen
+    beim Loslassen des Knopfes. Still verwerfen statt der normalen
+    Fehlerkette: kein Wiederholungsversuch (``repo._NICHTS_ZU_TUN`` haelt
+    den Nachhol-Arbeiter ab einem ``status='fehlgeschlagen'`` ohnehin fern),
+    keine Chatzeile, und KEIN Ausfall-Alarm (``melde_ausfall``) -- Stille
+    ist kein Dienstausfall."""
     aufnahme_id = row["id"]
     chat_id = row["chat_id"]
 
-    if row["brainstorm"] and isinstance(fehler, stt.LeeresTranskript):
+    if isinstance(fehler, stt.LeeresTranskript):
         repo.merke_vorfall(
-            conn, chat_id, getattr(e, "bot_name", None), "brainstorm_segment_verworfen",
+            conn, chat_id, getattr(e, "bot_name", None), "leeres_segment_verworfen",
             f"Aufnahme {aufnahme_id}: leeres Transkript, still verworfen",
         )
         repo.setze_status(conn, aufnahme_id, "fehlgeschlagen", fehlertext=str(fehler))
@@ -811,6 +838,18 @@ def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
         # Status bleibt (wieder) 'empfangen': der Nachhol-Arbeiter greift die
         # Aufnahme beim naechsten Anlauf erneut auf, sobald Whisper zurueck ist.
         repo.setze_status(conn, aufnahme_id, "empfangen", fehlertext=str(fehler))
+
+
+def _kalibrierung_abschliessen(conn, row) -> None:
+    """Der Testsatz einer Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren
+    SICHER/Kalibrierung, 03.10.2026): nur ``status='fertig'`` setzen, nichts
+    sonst. Das Transkript liegt schon auf der Zeile (``_verarbeite`` setzt es
+    vor der Weiche auf ``row["klasse"]``) -- ``web_daten.kalibrierung_zustand``
+    liest genau diese Zeile fuer den Browser zurueck. Kein Gespraechszug, kein
+    Erkenner, kein Journal, keine Interview-Rueckfrage, keine Sprachblase (es
+    gibt keine sichtbare Blase, die Zeile faellt ja aus dem Chatverlauf
+    heraus)."""
+    repo.setze_status(conn, row["id"], "fertig")
 
 
 def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
@@ -840,9 +879,24 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     kein Zug, kein Erkenner, keine CoThinker-Vorschlagskarte. Diese Pruefung
     steht VOR der Brainstorm-Pruefung, weil beide Flags sich ausschliessen
     (verschiedene Phasen) -- die Reihenfolge entscheidet hier nichts, macht
-    die Absicht aber am Quelltext sichtbar: Phase 1 vor Phase 4."""
+    die Absicht aber am Quelltext sichtbar: Phase 1 vor Phase 4.
+
+    **Ein Kalibrierungs-Testsatz (``row['kalibrierung']``, Task 2, Kanban-
+    Karte Mithoeren SICHER/Kalibrierung, 03.10.2026) geht einen FUENFTEN,
+    noch kuerzeren Weg** -- siehe ``_kalibrierung_abschliessen``: er setzt
+    nur Status und behaelt das Transkript auf der ``aufnahme``-Zeile (die
+    einzige Stelle, an der der Browser es ueber
+    ``web_daten.kalibrierung_zustand`` wieder abholt). Er ist **nicht**
+    implizit ueber ``jung``/``urspruengliche_nachricht`` abgesichert, obwohl
+    das zufaellig auch funktionieren wuerde (``empfange()`` schreibt fuer
+    ihn nie eine ``nachricht``-Zeile) -- der explizite Zweig bleibt richtig,
+    auch wenn sich das einmal aendert."""
     if row["diskussion"]:
         _diskussion_abschliessen(conn, tg, klm, e, row)
+        return
+
+    if row["kalibrierung"]:
+        _kalibrierung_abschliessen(conn, row)
         return
 
     if row["brainstorm"]:

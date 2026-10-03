@@ -186,6 +186,32 @@ def test_teile_zusammenfuegen_in_reihenfolge_mit_leerzeile(conn):
     assert [repo.teil_nummer(conn, t["id"]) for t in repo.hole_teile(conn, kopf)] == [1, 2, 3]
 
 
+def test_zusammengefuegtes_transkript_schliesst_kalibrierungszeilen_aus(conn):
+    """Item (g), Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung,
+    03.10.2026): die defensive Waeche in ``hole_teile`` (von
+    ``zusammengefuegtes_transkript`` gelesen). ``aufnahme.empfange`` setzt
+    ``teil_von`` auf einer Kalibrierungszeile konstruktionsbedingt nie --
+    dieser Test simuliert trotzdem genau den Fall direkt ueber
+    ``repo.lege_aufnahme_an`` (eine hypothetische Regression, bei der jemand
+    das irgendwo doch tut) und haelt fest, dass der Text der Zeile
+    ausgeschlossen bleibt. Entfernt man die ``AND (kalibrierung = 0 OR
+    kalibrierung IS NULL)``-Bedingung in ``hole_teile``, wird dieser Test
+    rot."""
+    kopf = repo.lege_interview_an(conn, 1)
+    teil = repo.lege_aufnahme_an(conn, 1, 500, "teil", "sprache", teil_von=kopf)
+    repo.setze_transkript(conn, teil, "echter Teil")
+    kalibrierung = repo.lege_aufnahme_an(
+        conn, 1, 501, "teil", "sprache", teil_von=kopf, kalibrierung=True,
+    )
+    repo.setze_transkript(conn, kalibrierung, "KALIBRIERUNGSTESTSATZ")
+
+    ergebnis = repo.zusammengefuegtes_transkript(conn, kopf)
+
+    assert ergebnis == "echter Teil"
+    assert "KALIBRIERUNGSTESTSATZ" not in ergebnis
+    assert [z["id"] for z in repo.hole_teile(conn, kopf)] == [teil]
+
+
 def test_zusammengefuegtes_transkript_faellt_auf_den_kopf_zurueck(conn):
     """Textimporte und alle Aufnahmen aus der Zeit vor dem Nachtrag tragen ihr
     Transkript am Kopf selbst -- ohne Teile gilt genau das."""

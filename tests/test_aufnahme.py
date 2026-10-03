@@ -1800,16 +1800,118 @@ def test_brainstorm_segment_mit_leerem_transkript_wird_nicht_nachgeholt(conn, tg
     assert aid not in offene, "repo._NICHTS_ZU_TUN haelt 'fehlgeschlagen' vom Nachhol-Arbeiter fern"
 
 
-def test_normale_kurze_nachricht_mit_leerem_transkript_bleibt_unveraendert(conn, tg, einst, klm):
-    """Regression: die neue Sonderbehandlung gilt NUR fuer
-    ``aufnahme.brainstorm = 1`` -- eine gewoehnliche kurze Sprachnachricht
-    ohne verstaendlichen Inhalt bekommt weiterhin die bestehende Fehlerkette
-    (Wiederholungsversuche, dann die Bitte, es nochmal zu sagen)."""
+def test_normale_kurze_nachricht_mit_leerem_transkript_wird_still_verworfen(conn, tg, einst, klm):
+    """Ersetzt die alte Regression
+    ``test_normale_kurze_nachricht_mit_leerem_transkript_bleibt_unveraendert``
+    (b30faa2), die genau das Gegenteil verlangte: dort ging eine
+    nicht-brainstorm Sprachnachricht mit leerem Transkript durch die volle
+    ``MAX_VERSUCHE``-Fehlerkette und endete mit einer 'nochmal'-Bitte.
+
+    Seit Aufgabe 1 (Mithoeren SICHER) laedt der Client JEDES Segment hoch,
+    auch reines Rauschen ohne ein einziges Wort -- und das ist jetzt der
+    Normalfall fuer JEDE Aufnahmeklasse, nicht nur fuer Brainstorm. Die
+    stille Verwerfung aus Aufgabe 1c gilt deshalb unabhaengig von
+    ``row['brainstorm']``: derselbe Ablauf wie
+    ``test_brainstorm_segment_mit_leerem_transkript_wird_still_verworfen``,
+    nur fuer eine gewoehnliche kurze Sprachnachricht."""
     aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=4, message_id=602))
-    for _ in range(aufnahme.MAX_VERSUCHE):
-        aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(""), aid)
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(""), aid)
 
     zeile = repo.hole_aufnahme(conn, aid)
     assert zeile["status"] == "fehlgeschlagen"
-    assert zeile["versuche"] == aufnahme.MAX_VERSUCHE
-    assert any("nochmal" in t for _, t in tg.gesendet)
+    assert zeile["versuche"] == 0, "kein Versuch gezaehlt -- es gibt keinen Wiederholungsversuch"
+    assert not tg.gesendet, "keine 'nochmal'-Bitte fuer ein leeres Transkript"
+    gruppe = repo.hole_gruppe(conn, 1)
+    assert gruppe["whisper_stumm_seit"] is None, "Stille ist kein Whisper-Ausfall"
+
+
+def test_rede_ms_wandert_von_der_nachricht_in_die_aufnahme(conn, tg, einst, klm):
+    """Kanban-Karte Mithoeren SICHER: ``redeMs`` ist reines
+    Diagnose-Metadatum, wandert aber zuverlaessig durch -- wie
+    ``schnittgrund``/``brainstorm`` (additiv, ``n.get('rede_ms')``)."""
+    nachricht = sprachnachricht(dauer=4, message_id=603)
+    nachricht["rede_ms"] = 42
+    aid = aufnahme.empfange(conn, tg, einst, nachricht)
+    assert repo.hole_aufnahme(conn, aid)["rede_ms"] == 42
+
+
+# -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/             --
+# -- Kalibrierung, 03.10.2026): ein Testsatz-Upload ist strukturell nie     --
+# -- Teil eines Interviews, nie im Gespraechsfenster, nie im Journal, loest --
+# -- nie einen Gespraechszug aus. ---------------------------------------------
+
+
+def _kalibrierung_nachricht(message_id, dauer=4, chat_id=1):
+    """Wie ``sprachnachricht()``, mit dem Kalibrierungs-Flag, das ein Upload
+    vom Web-Kanal mitbringt (``telegram.lies_nachricht``/``web_kanal`` setzen
+    es, ein echtes Telegram-Update nie)."""
+    nachricht = sprachnachricht(dauer=dauer, message_id=message_id, chat_id=chat_id)
+    nachricht["kalibrierung"] = True
+    return nachricht
+
+
+def test_kalibrierung_upload_bypasst_klasse_fuer_auch_im_interviewmodus(conn, tg, einst):
+    """Die Gruppe kann /interview laengst gedrueckt haben, bevor die
+    Kalibrierung hochlaedt (``starteInterview`` schickt den Befehl vor dem
+    ersten Segment) -- das darf einen Kalibrierungs-Clip trotzdem nie als
+    Interview-Teil einsammeln."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
+
+    aid = aufnahme.empfange(conn, tg, einst, _kalibrierung_nachricht(700))
+
+    zeile = repo.hole_aufnahme(conn, aid)
+    assert zeile["klasse"] == "kurz"
+    assert zeile["teil_von"] is None
+    assert zeile["kalibrierung"] == 1
+    # Der Interview-Kopf hat davon nichts mitbekommen.
+    assert repo.hole_teile(conn, kopf_id) == []
+
+
+def test_kalibrierung_upload_schreibt_keine_nachrichtenzeile(conn, tg, einst):
+    """Ohne ``nachricht``-Zeile kann der Clip strukturell nie in
+    ``kontext.baue``s Fenster, dem Erkenner oder dem Journal auftauchen --
+    alle drei lesen ueber ``repo.letzte_nachrichten``/``unextrahierte``/
+    ``unjournalisierte``, die alle aus ``nachricht`` selektieren."""
+    aid = aufnahme.empfange(conn, tg, einst, _kalibrierung_nachricht(701))
+    assert aid is not None
+    assert repo.hole_nachricht(conn, 1, 701) is None
+    assert 701 not in {n["message_id"] for n in repo.letzte_nachrichten(conn, 1)}
+    assert 701 not in {n["message_id"] for n in repo.unextrahierte(conn, 1)}
+    assert 701 not in {n["message_id"] for n in repo.unjournalisierte(conn, 1)}
+
+
+def _kalibrierung_zeile(conn, chat_id, message_id, transkript):
+    aufnahme_id = repo.lege_aufnahme_an(
+        conn, chat_id, message_id, "kurz", "sprache", status="transkribiert",
+        kalibrierung=True,
+    )
+    repo.setze_transkript(conn, aufnahme_id, transkript)
+    return repo.hole_aufnahme(conn, aufnahme_id)
+
+
+def test_kalibrierung_segment_ruft_zug_nicht_auf(conn, tg, einst):
+    row = _kalibrierung_zeile(conn, 1, 702, "Das ist ein Testsatz fuer die Kalibrierung.")
+    aufgerufen = []
+    aufnahme._kurz_abschliessen(
+        conn, tg, None, einst, row, lambda *a, **k: aufgerufen.append(1), False,
+    )
+    assert not aufgerufen
+
+
+def test_kalibrierung_segment_setzt_status_fertig_und_behaelt_transkript(conn, tg, einst):
+    row = _kalibrierung_zeile(conn, 1, 703, "Das ist ein Testsatz fuer die Kalibrierung.")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    neu = repo.hole_aufnahme(conn, row["id"])
+    assert neu["status"] == "fertig"
+    assert neu["transkript"] == "Das ist ein Testsatz fuer die Kalibrierung."
+
+
+def test_kalibrierung_segment_schreibt_keine_nachrichtenzeile_bei_abschluss(conn, tg, einst):
+    """Selbst wenn irgendwo doch eine ``nachricht``-Zeile existieren wuerde
+    (Regressionsschutz), darf ``_kurz_abschliessen`` sie fuer eine
+    Kalibrierungszeile nicht anfassen -- hier gibt es gar keine, der Test
+    haelt fest, dass auch keine entsteht."""
+    row = _kalibrierung_zeile(conn, 1, 704, "Noch ein Testsatz.")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert repo.hole_nachricht(conn, 1, 704) is None

@@ -472,6 +472,138 @@ def test_migration_macht_aus_jeder_alten_lang_aufnahme_ein_interview(tmp_path):
     assert repo.hole_aufnahme(c, repo.lege_interview_an(c, 1))["name"] == "Interview 2"
 
 
+#: ``aufnahme`` und ``web_post``, wie sie vor der Karte "Mithoeren SICHER"
+#: (03.10.2026) aussahen -- ohne ``rede_ms``. Hart hinterlegt statt aus
+#: SCHEMA abgeleitet, aus demselben Grund wie ``_ALTE_GRUPPE_TABELLE`` oben:
+#: der Test soll eine ECHTE Alt-Datenbank nachruesten, unabhaengig davon,
+#: wie SCHEMA sich kuenftig weiterentwickelt.
+_ALTE_AUFNAHME_UND_WEB_POST = """
+CREATE TABLE aufnahme (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  message_id      INTEGER NOT NULL,
+  name            TEXT,
+  klasse          TEXT NOT NULL,
+  quelle          TEXT NOT NULL,
+  audio_pfad      TEXT,
+  transkript      TEXT,
+  dauer_sekunden  INTEGER,
+  status          TEXT NOT NULL,
+  fehlertext      TEXT,
+  versuche        INTEGER NOT NULL DEFAULT 0,
+  empfangen_am    TEXT NOT NULL,
+  teil_von        INTEGER,
+  beendet_am      TEXT,
+  entfernt_am     TEXT,
+  uebernommen_von TEXT,
+  uebernommen_am  TEXT,
+  schnittgrund    TEXT,
+  brainstorm      INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE web_post (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id           INTEGER NOT NULL,
+  richtung          TEXT NOT NULL,
+  typ               TEXT NOT NULL,
+  text              TEXT,
+  knoepfe           TEXT,
+  daten             TEXT,
+  bezug_message_id  INTEGER,
+  antwort           TEXT,
+  dauer             INTEGER,
+  datei             TEXT,
+  mime              TEXT,
+  dateiname         TEXT,
+  geloescht_am      TEXT,
+  erstellt_am       TEXT NOT NULL,
+  aenderung         INTEGER,
+  schnittgrund      TEXT,
+  brainstorm        INTEGER NOT NULL DEFAULT 0,
+  bild              TEXT
+);
+"""
+
+
+def test_rede_ms_spalte_existiert_frisch_und_wird_nachgeruestet(tmp_path):
+    """Kanban-Karte Mithoeren SICHER (03.10.2026): ``redeMs`` faehrt als
+    Diagnose-Metadatum mit (Aufgabe 1b) -- additiv auf ``aufnahme`` UND
+    ``web_post``, nachgeruestet ueber dieselbe generische Migration wie
+    ``schnittgrund``/``brainstorm``."""
+    frisch = db.verbinde(str(tmp_path / "frisch.db"))
+    db.initialisiere(frisch)
+    assert "rede_ms" in [r[1] for r in frisch.execute("PRAGMA table_info(aufnahme)")]
+    assert "rede_ms" in [r[1] for r in frisch.execute("PRAGMA table_info(web_post)")]
+
+    alt = db.verbinde(str(tmp_path / "alt.db"))
+    alt.executescript(_ALTE_AUFNAHME_UND_WEB_POST)
+    alt.execute(
+        "INSERT INTO aufnahme (chat_id, message_id, klasse, quelle, status, empfangen_am) "
+        "VALUES (1, 10, 'kurz', 'sprache', 'empfangen', '2026-10-03T10:00:00+00:00')"
+    )
+    alt.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, erstellt_am) "
+        "VALUES (1, 'ein', 'sprache', '2026-10-03T10:00:00+00:00')"
+    )
+    alt.commit()
+    assert "rede_ms" not in [r[1] for r in alt.execute("PRAGMA table_info(aufnahme)")], \
+        "Testannahme: die Spalte fehlt wirklich"
+
+    db.initialisiere(alt)  # darf nicht krachen, obwohl beide Tabellen schon existieren
+
+    assert "rede_ms" in [r[1] for r in alt.execute("PRAGMA table_info(aufnahme)")]
+    assert "rede_ms" in [r[1] for r in alt.execute("PRAGMA table_info(web_post)")]
+    zeile = alt.execute("SELECT * FROM aufnahme WHERE chat_id = 1").fetchone()
+    assert zeile["klasse"] == "kurz", "Migration darf keine Daten verlieren"
+    assert zeile["rede_ms"] is None
+
+
+#: ``aufnahme`` und ``web_post`` wie vor der Kalibrierungskarte (03.10.2026,
+#: Task 2) -- ohne ``kalibrierung``. Dieselbe Begruendung wie bei
+#: ``_ALTE_AUFNAHME_UND_WEB_POST``: eine echte Alt-Datenbank nachruesten,
+#: unabhaengig von SCHEMAs weiterer Entwicklung.
+_ALTE_AUFNAHME_UND_WEB_POST_OHNE_KALIBRIERUNG = _ALTE_AUFNAHME_UND_WEB_POST.replace(
+    "  brainstorm      INTEGER NOT NULL DEFAULT 0\n);",
+    "  brainstorm      INTEGER NOT NULL DEFAULT 0,\n  rede_ms         INTEGER\n);",
+).replace(
+    "  bild              TEXT\n);",
+    "  bild              TEXT,\n  rede_ms           INTEGER\n);",
+)
+
+
+def test_kalibrierung_spalten_existieren_frisch_und_werden_nachgeruestet(tmp_path):
+    """Task 2 (Button-gated Kalibrierung): ``kalibrierung`` faehrt additiv auf
+    ``aufnahme`` UND ``web_post`` mit, dieselbe Migration wie ``rede_ms``.
+    ``gruppe.kalibrierung_modus`` ist die dritte additive Spalte dieser
+    Karte."""
+    frisch = db.verbinde(str(tmp_path / "frisch.db"))
+    db.initialisiere(frisch)
+    assert "kalibrierung" in [r[1] for r in frisch.execute("PRAGMA table_info(aufnahme)")]
+    assert "kalibrierung" in [r[1] for r in frisch.execute("PRAGMA table_info(web_post)")]
+    assert "kalibrierung_modus" in [r[1] for r in frisch.execute("PRAGMA table_info(gruppe)")]
+
+    alt = db.verbinde(str(tmp_path / "alt.db"))
+    alt.executescript(_ALTE_AUFNAHME_UND_WEB_POST_OHNE_KALIBRIERUNG)
+    alt.execute(
+        "INSERT INTO aufnahme (chat_id, message_id, klasse, quelle, status, empfangen_am) "
+        "VALUES (1, 10, 'kurz', 'sprache', 'empfangen', '2026-10-03T10:00:00+00:00')"
+    )
+    alt.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, erstellt_am) "
+        "VALUES (1, 'ein', 'sprache', '2026-10-03T10:00:00+00:00')"
+    )
+    alt.commit()
+    assert "kalibrierung" not in [r[1] for r in alt.execute("PRAGMA table_info(aufnahme)")], \
+        "Testannahme: die Spalte fehlt wirklich"
+
+    db.initialisiere(alt)  # darf nicht krachen, obwohl beide Tabellen schon existieren
+
+    assert "kalibrierung" in [r[1] for r in alt.execute("PRAGMA table_info(aufnahme)")]
+    assert "kalibrierung" in [r[1] for r in alt.execute("PRAGMA table_info(web_post)")]
+    zeile = alt.execute("SELECT * FROM aufnahme WHERE chat_id = 1").fetchone()
+    assert zeile["klasse"] == "kurz", "Migration darf keine Daten verlieren"
+    assert zeile["kalibrierung"] == 0
+
+
 def test_migration_ist_ein_no_op_wenn_alle_spalten_schon_da_sind(conn):
     """Ein zweiter initialisiere()-Lauf auf einer schon aktuellen Datenbank
     darf nicht krachen (kein ALTER TABLE auf eine schon vorhandene Spalte)."""

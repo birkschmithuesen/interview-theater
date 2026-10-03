@@ -183,6 +183,12 @@ aktiv = true
 [fragen_ab]
 aktiv = true
 
+# Weiche Fassungen sensibler Fragen in Phase 2 AUS (Birk, 03.10.2026 live:
+# „Die ganze Softwaregeschichte beim Fragen entwickeln kannst du fuer Padua
+# deaktivieren [...] Es hat nicht gut funktioniert.“). Ohne die Zeile: an.
+[fragen_weich]
+aktiv = false
+
 # Padua Phasen TEIL 2 (03.10.2026): vor jeder Anzeige eines Textes ein
 # Prueflauf (Richterfragen, <= 2 Ueberarbeitungsrunden, Sprachpass/Nachpass).
 [prueflauf]

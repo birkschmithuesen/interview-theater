@@ -56,11 +56,11 @@ def test_die_segmentlaenge_kommt_aus_der_umgebung(seite):
 def test_die_vad_werte_haben_vorgaben_ohne_umgebung(monkeypatch):
     for name in ("IT_WEB_VAD_PAUSE_MS", "IT_WEB_VAD_MAX_MS",
                  "IT_WEB_VAD_MIN_SPEECH_MS", "IT_WEB_VAD_RMS",
-                 "IT_WEB_VAD_FLOOR_FACTOR"):
+                 "IT_WEB_VAD_FLOOR_FACTOR", "IT_WEB_VAD_KALIBRIERUNG"):
         monkeypatch.delenv(name, raising=False)
     assert web_chat._vad_werte() == {
         "pause_ms": 2500, "max_ms": 90_000, "min_speech_ms": 500,
-        "rms": 0.01, "floor_faktor": 2.5,
+        "rms": 0.01, "floor_faktor": 2.5, "kalibrierung": True,
     }
 
 
@@ -70,10 +70,21 @@ def test_die_vad_werte_kommen_einzeln_aus_der_umgebung(monkeypatch):
     monkeypatch.setenv("IT_WEB_VAD_MIN_SPEECH_MS", "400")
     monkeypatch.setenv("IT_WEB_VAD_RMS", "0.02")
     monkeypatch.setenv("IT_WEB_VAD_FLOOR_FACTOR", "3.0")
+    monkeypatch.setenv("IT_WEB_VAD_KALIBRIERUNG", "0")
     assert web_chat._vad_werte() == {
         "pause_ms": 3000, "max_ms": 60000, "min_speech_ms": 400,
-        "rms": 0.02, "floor_faktor": 3.0,
+        "rms": 0.02, "floor_faktor": 3.0, "kalibrierung": False,
     }
+
+
+def test_die_vad_kalibrierung_ist_per_vorgabe_an(monkeypatch):
+    monkeypatch.delenv("IT_WEB_VAD_KALIBRIERUNG", raising=False)
+    assert web_chat._vad_werte()["kalibrierung"] is True
+
+
+def test_die_vad_kalibrierung_laesst_sich_abschalten(monkeypatch):
+    monkeypatch.setenv("IT_WEB_VAD_KALIBRIERUNG", "0")
+    assert web_chat._vad_werte()["kalibrierung"] is False
 
 
 def test_eine_leere_oder_ungueltige_vad_umgebungszahl_faellt_auf_die_vorgabe_zurueck(monkeypatch):
@@ -92,6 +103,7 @@ def test_die_vad_attribute_stehen_am_fuss(seite):
     assert 'data-vad-min-speech-ms="500"' in seite
     assert 'data-vad-rms="0.01"' in seite
     assert 'data-vad-floor-faktor="2.5"' in seite
+    assert 'data-vad-kalibrierung="1"' in seite
 
 
 def test_vad_ersetzt_den_festen_takt_mit_rueckfall():
@@ -134,11 +146,58 @@ def test_der_grund_ende_wird_nur_mit_aktivem_vad_gesetzt():
     assert "alt && sitzung.vadAktiv) { alt._grund = 'ende'" in js
 
 
-def test_onstop_laesst_zu_kurze_kappen_schnitte_weg():
+def test_onstop_laedt_jedes_segment_mit_bytes_hoch_ohne_redems_gate():
+    """Kanban-Karte Mithoeren SICHER, Birks Szenario A: eine zu hoch
+    eingestellte VAD-Schwelle liess leise, aber echte Rede als 'nicht genug'
+    durchfallen, und das ganze Segment -- samt Woertern -- ging nie hoch.
+    Seit dieser Karte gibt es dieses Gate nicht mehr: jedes Segment mit
+    Bytes aus einer nicht verworfenen Sitzung wird hochgeladen, ``redeMs``
+    faehrt nur noch als Metadatum mit.
+
+    Wer das alte ``genug``-Gate wiederherstellt, macht diesen Test ROT --
+    das ist der Zweck dieses Tests, kein Unfall.
+
+    Seit Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026)
+    traegt dieselbe Zeile zusaetzlich ``!r._kalVerworfen`` -- ein
+    ANDERSARTIGES, bewusstes Verwerfen (der 30s-Stille-Rueckfall der
+    Kalibrierung, der nichts zu testen hat), keine Rueckkehr des alten,
+    lautstaerkebasierten Gates. Geprueft wird deshalb weiterhin, dass
+    ``redeMs``/``grund`` dort nicht stehen -- nur das neue, orthogonale Flag
+    ist erlaubt."""
     js = web_chat._CHAT_JS
     onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
-    assert "genug" in onstop
-    assert "redeMs > 0" in onstop
+    # Kommentarzeilen koennen das Wort "genug" in Prosa erklaeren (siehe
+    # Docstring oben) -- geprueft wird nur der tatsaechliche Code, nie ein
+    # Erklaertext.
+    code_ohne_kommentare = "\n".join(
+        zeile for zeile in onstop.splitlines() if not zeile.strip().startswith("//")
+    )
+    assert "genug" not in code_ohne_kommentare, (
+        "das alte Verwerfen-Gate darf nicht zurueckkommen"
+    )
+
+    gate_zeile = next(
+        zeile for zeile in onstop.splitlines()
+        if zeile.strip().startswith("if (teile.length")
+    )
+    assert gate_zeile.strip().startswith(
+        "if (teile.length && !sitzung.verworfen && !r._kalVerworfen)"
+    )
+    assert "redeMs" not in gate_zeile
+    assert "grund" not in gate_zeile
+
+
+def test_auftrag_traegt_redems_und_postaudio_haengt_rede_an():
+    """``redeMs`` ist seit der Karte 'Mithoeren SICHER' reines
+    Diagnose-Metadatum: es haengt am ``auftrag`` und geht als ``&rede=``
+    mit, wird aber nirgends mehr als Upload-Gate gelesen (siehe Test oben)."""
+    js = web_chat._CHAT_JS
+    onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
+    assert "redeMs: redeMs" in onstop
+
+    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    assert "auftrag.redeMs != null" in ausschnitt
+    assert "&rede=" in ausschnitt
 
 
 def test_postaudio_haengt_den_grund_an():
@@ -896,10 +955,31 @@ def test_pausiert_schutz_lebt_nur_noch_in_beginneaufnahme():
 
 def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
     """E6: der Zustand steht im DOM und in der URL, nirgends sonst -- damit
-    ein Link teilbar bleibt und ein zweites Telefon dieselbe Gruppe sieht."""
-    for verboten in ("document.cookie", "localStorage", "sessionStorage",
-                     "WebSocket", "EventSource"):
-        assert verboten not in web_chat._CHAT_JS, verboten
+    ein Link teilbar bleibt und ein zweites Telefon dieselbe Gruppe sieht.
+
+    Die EINE genannte Ausnahme (Task 2, Kanban-Karte Mithoeren SICHER/
+    Kalibrierung, 03.10.2026): genau drei ``localStorage``-Schluessel fuer
+    das gemessene Kalibrierungsergebnis dieses GERAETS (nicht der Gruppe) --
+    ``vad_boden_mess``/``vad_rede_mess``/``vad_schwelle``. Das ist bewusst
+    eng: kein Link haengt daran, ein zweites Telefon sieht dieselbe Gruppe
+    weiterhin unveraendert, es misst nur sein eigenes Mikrofon noch einmal."""
+    assert "document.cookie" not in web_chat._CHAT_JS
+    assert "sessionStorage" not in web_chat._CHAT_JS
+    assert "WebSocket" not in web_chat._CHAT_JS
+    assert "EventSource" not in web_chat._CHAT_JS
+    for schluessel in ("getItem", "setItem"):
+        assert f"localStorage.{schluessel}" in web_chat._CHAT_JS, schluessel
+    erlaubte_schluessel = {"vad_boden_mess", "vad_rede_mess", "vad_schwelle"}
+    gefundene = set(re.findall(r"localStorage\.(?:get|set)Item\(([A-Za-z_]+)", web_chat._CHAT_JS))
+    # Die Aufrufe nennen die Konstante, nicht den Schluessel woertlich --
+    # die Konstanten selbst muessen auf genau die drei Namen zeigen.
+    konstanten = dict(re.findall(
+        r"var (KAL_LS_[A-Z]+) = '([a-z_]+)';", web_chat._CHAT_JS,
+    ))
+    assert gefundene, "kein localStorage-Zugriff ueber eine Konstante gefunden"
+    assert gefundene <= set(konstanten), gefundene
+    assert {konstanten[k] for k in gefundene} <= erlaubte_schluessel
+    assert set(konstanten.values()) == erlaubte_schluessel
 
 
 # -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ---------------------
@@ -1600,3 +1680,429 @@ def test_diskussion_texte_kommen_aus_dem_text_objekt():
     assert texte["diskussion_laeuft"] == web_chat._TEXT_DISKUSSION_LAEUFT
     assert "TEXT.diskussion_an" in web_chat._CHAT_JS
     assert "TEXT.diskussion_laeuft" in web_chat._CHAT_JS
+
+
+# -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/             --
+# -- Kalibrierung, 03.10.2026): die reinen Rechenfunktionen, woertlich aus  --
+# -- dem ausgelieferten Skript ausgefuehrt. --------------------------------
+
+
+def test_kalzuleise_entscheidet_live_in_node(tmp_path):
+    """Item (d): ``rede_mess / boden_mess < 3`` ODER unter 2000ms Stimmzeit.
+    Mutant: Faktor 3 -> 1 liesse einen Fall, der 'zu leise' sein soll,
+    unerkannt -- das deckt die zweite Assertion unten ab."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function kalZuLeise", "function kalSchwelle")
+    quelltext = f"""
+    {funktion}
+    var ergebnisse = {{
+      genau_am_faktor: kalZuLeise(0.03, 0.01, 4000),      // 3x genau, genug Stimmzeit
+      knapp_darunter: kalZuLeise(0.0299, 0.01, 4000),      // < 3x -> zu leise
+      genug_laut_aber_zu_kurz: kalZuLeise(0.1, 0.01, 1500),// laut genug, aber < 2000ms
+      laut_und_lang_genug: kalZuLeise(0.1, 0.01, 4000)
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse == {
+        "genau_am_faktor": False,
+        "knapp_darunter": True,
+        "genug_laut_aber_zu_kurz": True,
+        "laut_und_lang_genug": False,
+    }
+
+
+def test_kalschwelle_ist_das_geklemmte_geometrische_mittel_live_in_node(tmp_path):
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function kalSchwelle", "function kalBerechneBodenUndSchwelle")
+    quelltext = f"""
+    var KAL_SCHWELLE_ABS_MIN = 0.004;
+    var KAL_SCHWELLE_ABS_MAX = 0.08;
+    {funktion}
+    var ergebnisse = {{
+      mittelwert: kalSchwelle(0.01, 0.09),      // sqrt(0.0009) = 0.03
+      unterer_deckel: kalSchwelle(0.0001, 0.0002), // sqrt(2e-8) ~ 0.00014 < 0.004
+      oberer_deckel: kalSchwelle(1, 1)             // sqrt(1) = 1 > 0.08
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert abs(ergebnisse["mittelwert"] - 0.03) < 1e-9
+    assert ergebnisse["unterer_deckel"] == pytest.approx(0.004)
+    assert ergebnisse["oberer_deckel"] == pytest.approx(0.08)
+
+
+def test_kalmedian_und_kalperzentil_live_in_node(tmp_path):
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function kalMedian", "function kalibrierungCacheLesen")
+    quelltext = f"""
+    {funktion}
+    var ergebnisse = {{
+      median_ungerade: kalMedian([0.3, 0.1, 0.2]),
+      median_gerade: kalMedian([0.1, 0.2, 0.3, 0.4]),
+      median_leer: kalMedian([]),
+      perzentil_80: kalPerzentil([1, 2, 3, 4, 5], 0.8)
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse["median_ungerade"] == pytest.approx(0.2)
+    assert ergebnisse["median_gerade"] == pytest.approx(0.25)
+    assert ergebnisse["median_leer"] == 0
+    assert ergebnisse["perzentil_80"] == 5
+
+
+def test_kalberechnebodenundschwelle_lebt_calibrated_ceiling_live_in_node(tmp_path):
+    """2d: ist ``sitzung.vadSchwelleFix`` gesetzt, ist er die Decke, und der
+    Boden-Deckel ist ``vadBodenMess * 2`` statt ``RMS_SCHWELLE * 10`` -- der
+    rollende Boden darf die Schwelle nur nach UNTEN ziehen (bis zum
+    absoluten Minimum 0.004), nie darueber."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(
+        js, "function kalBerechneBodenUndSchwelle", "function pegelAn",
+    )
+    quelltext = f"""
+    var KAL_SCHWELLE_ABS_MIN = 0.004;
+    {funktion}
+    var sortiert = [0.001, 0.002, 0.2];   // 10%-Perzentil: sortiert[0] = 0.001
+    var kalibriert = {{ vadSchwelleFix: 0.05, vadBodenMess: 0.01 }};
+    var unkalibriert = {{}};
+    var ergebnisse = {{
+      kalibriert: kalBerechneBodenUndSchwelle(sortiert, kalibriert, 0.01, 2.5, 10),
+      unkalibriert: kalBerechneBodenUndSchwelle(sortiert, unkalibriert, 0.01, 2.5, 10),
+      deckel_bindet: kalBerechneBodenUndSchwelle(
+        [0.05, 0.06, 0.07], {{ vadSchwelleFix: 0.05, vadBodenMess: 0.01 }}, 0.01, 2.5, 10
+      )
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    # unkalibriert: exakt die alte Formel (RMS_SCHWELLE=0.01, BODEN_FAKTOR=2.5,
+    # BODEN_DECKEL_FAKTOR=10): boden = min(0.001, 0.1) = 0.001,
+    # schwelle = max(0.01, 0.001*2.5) = 0.01.
+    assert ergebnisse["unkalibriert"]["boden"] == pytest.approx(0.001)
+    assert ergebnisse["unkalibriert"]["schwelle"] == pytest.approx(0.01)
+    # kalibriert: bodenDeckel = 0.01*2 = 0.02, boden = min(0.001, 0.02) = 0.001,
+    # schwelle = min(0.05, max(0.004, 0.001*2.5)) = min(0.05, 0.004) = 0.004.
+    assert ergebnisse["kalibriert"]["boden"] == pytest.approx(0.001)
+    assert ergebnisse["kalibriert"]["schwelle"] == pytest.approx(0.004)
+    # deckel_bindet: der rollende Boden (10%-Perzentil 0.05) liegt UEBER dem
+    # Kalibrierungs-Deckel (0.01*2=0.02) -- der Deckel zieht ihn nach unten
+    # auf 0.02, schwelle = min(0.05, max(0.004, 0.02*2.5=0.05)) = 0.05.
+    assert ergebnisse["deckel_bindet"]["boden"] == pytest.approx(0.02)
+    assert ergebnisse["deckel_bindet"]["schwelle"] == pytest.approx(0.05)
+
+
+def test_pegelan_ruft_die_kalibrierte_formel_auf():
+    js = web_chat._CHAT_JS
+    pegel_an = js[js.index("function pegelAn"):js.index("function formatiereUhr")]
+    assert "kalBerechneBodenUndSchwelle(" in pegel_an
+
+
+def test_herumreichen_erinnerung_zeigt_sich_nur_beim_ersten_mal_live_in_node(tmp_path):
+    """Item (f): der Hinweis erscheint genau einmal je JS-Sitzungsobjekt --
+    ein zweiter Aufruf derselben Funktion auf DERSELBEN Sitzung (Pause/
+    Weiter ruft kalEntscheideOderStarte erneut auf) darf ihn nicht
+    wiederholen."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(
+        js, "function kalZeigeHerumreichenErinnerungWennNeu",
+        "function kalEntscheideOderStarte",
+    )
+    quelltext = f"""
+    var TEXT = {{ kal_herumreichen_erinnerung: 'Hinweis-Text' }};
+    function baueFeld() {{
+      return {{ hidden: true, textContent: '', _versteckAufrufe: 0,
+        set hiddenGesetzt(w) {{ this.hidden = w; }} }};
+    }}
+    var kalErinnerungFeld = baueFeld();
+    var zustand = {{ kalibrierungModus: 'herumreichen' }};
+    var zeitueberschreitungen = [];
+    function setTimeout(fn, ms) {{ zeitueberschreitungen.push(ms); }}
+    {funktion}
+
+    var sitzungA = {{}};
+    kalZeigeHerumreichenErinnerungWennNeu(sitzungA);
+    var ergebnis1 = {{
+      sichtbar_erstes_mal: kalErinnerungFeld.hidden === false,
+      text_erstes_mal: kalErinnerungFeld.textContent
+    }};
+    // Zweiter Aufruf auf DERSELBEN Sitzung (z. B. Pause/Weiter): nichts
+    // Neues soll passieren -- also einfach wieder verstecken und pruefen,
+    // dass der Aufruf es NICHT wieder sichtbar macht.
+    kalErinnerungFeld.hidden = true;
+    kalZeigeHerumreichenErinnerungWennNeu(sitzungA);
+    var ergebnis2 = {{ sichtbar_zweites_mal: kalErinnerungFeld.hidden === false }};
+
+    // Eine ANDERE Sitzung (neuer Start) zeigt ihn wieder.
+    kalErinnerungFeld.hidden = true;
+    var sitzungB = {{}};
+    kalZeigeHerumreichenErinnerungWennNeu(sitzungB);
+    var ergebnis3 = {{ sichtbar_neue_sitzung: kalErinnerungFeld.hidden === false }};
+
+    console.log(JSON.stringify({{ a: ergebnis1, b: ergebnis2, c: ergebnis3 }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse["a"]["sichtbar_erstes_mal"] is True
+    assert ergebnisse["a"]["text_erstes_mal"] == "Hinweis-Text"
+    assert ergebnisse["b"]["sichtbar_zweites_mal"] is False
+    assert ergebnisse["c"]["sichtbar_neue_sitzung"] is True
+
+
+def test_herumreichen_erinnerung_bleibt_ohne_herumreichen_modus_versteckt_live_in_node(tmp_path):
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(
+        js, "function kalZeigeHerumreichenErinnerungWennNeu",
+        "function kalEntscheideOderStarte",
+    )
+    quelltext = f"""
+    var TEXT = {{ kal_herumreichen_erinnerung: 'Hinweis-Text' }};
+    var kalErinnerungFeld = {{ hidden: true, textContent: '' }};
+    var zustand = {{ kalibrierungModus: null }};
+    function setTimeout(fn, ms) {{}}
+    {funktion}
+    var sitzung = {{}};
+    kalZeigeHerumreichenErinnerungWennNeu(sitzung);
+    console.log(JSON.stringify({{ versteckt_geblieben: kalErinnerungFeld.hidden === true }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnis = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnis["versteckt_geblieben"] is True
+
+
+# -- Schwellenmarke auf dem Pegelbalken (Task 3, Kanban-Karte Mithoeren      --
+# -- SICHER/Kalibrierung, 03.10.2026): der Balken zeigt seitdem dieselbe     --
+# -- RMS-Messung wie der VAD-Schnitt selbst, mit einer duennen Marke an der  --
+# -- aktuellen Schwelle. ------------------------------------------------------
+
+def test_pegel_schwelle_marker_steht_im_html(seite):
+    assert '<i class="pegel-schwelle">' in seite
+
+
+def test_pegel_css_zeigt_zwei_farben_getrennt_an_der_marke():
+    """Grau unterhalb, eine andere Farbe sobald ``#pegel`` die Klasse
+    ``ueber-schwelle`` traegt -- dieselbe von ``pegelAn`` gesetzte Klasse,
+    die ``rms > schwelle`` im Takt widerspiegelt."""
+    css = web_chat._CSS_CHAT
+    assert ".pegel-schwelle" in css
+    assert ".pegel.ueber-schwelle span" in css
+    balken = re.search(r"\.pegel span\s*\{([^}]*)\}", css)
+    ueber = re.search(r"\.pegel\.ueber-schwelle span\s*\{([^}]*)\}", css)
+    assert balken and ueber
+    assert balken.group(1) != ueber.group(1)
+
+
+def test_pegeltakt_verwendet_keine_frequenzdaten_mehr():
+    """Vorher zeigte der Balken ein Frequenzmittel (``getByteFrequencyData``
+    ``* 2.2``) -- eine andere Zahl als die RMS-Schwelle, die den Schnitt
+    steuert. Mutant: eine Rueckkehr zu ``getByteFrequencyData`` im Takt soll
+    diesen Test ROT machen."""
+    js = web_chat._CHAT_JS
+    takt = js[js.index("sitzung.pegelTakt = setInterval"):]
+    takt = takt[:takt.index("}, 120)")]
+    assert "getByteFrequencyData" not in takt
+    assert "frequenzWerte" not in takt
+    assert "getFloatTimeDomainData" in takt
+
+
+def test_pegeltakt_setzt_breite_marke_und_farbzustand_aus_derselben_rms():
+    js = web_chat._CHAT_JS
+    takt = js[js.index("sitzung.pegelTakt = setInterval"):]
+    takt = takt[:takt.index("}, 120)")]
+    assert "pegelBalken.style.width" in takt
+    assert "(rms / PEGEL_MAX_RMS) * 100" in takt
+    assert "pegelSchwelle.style.left" in takt
+    assert "(schwelle / PEGEL_MAX_RMS) * 100" in takt
+    assert "classList.toggle('ueber-schwelle', rms > schwelle)" in takt
+    # Breite UND Marke stehen erst, nachdem ``schwelle`` aus der kalibrierten
+    # Formel berechnet wurde -- sonst zeigte die Marke die Schwelle des
+    # VORIGEN Takts.
+    assert takt.index("berechnet.schwelle") < takt.index("pegelSchwelle.style.left")
+
+
+def test_pegeltakt_zeichnet_breite_marke_und_farbzustand_live_in_node(tmp_path):
+    """Laeuft den tatsaechlichen Rumpf des Pegeltakts (woertlich aus
+    ``_CHAT_JS`` extrahiert, nicht nachgebaut) mit einer gefaelschten
+    Zeitdomaenen-Messung und einer gefaelschten, festen Schwelle -- und
+    prueft, dass Breite, Markenposition und Farbzustand auf derselben
+    ``PEGEL_MAX_RMS``-Skala herauskommen."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    takt = js[js.index("sitzung.pegelTakt = setInterval(function () {"):]
+    takt = takt[:takt.index("}, 120)")]
+    rumpf = takt[takt.index("{") + 1:]
+    quelltext = f"""
+    var PEGEL_MAX_RMS = 0.3;
+    var BODEN_FENSTER = 10;
+    var RMS_SCHWELLE = 0.01, BODEN_FAKTOR = 2.5, BODEN_DECKEL_FAKTOR = 10;
+    var MAX_MS = 90000, PAUSE_MS = 2500, MIN_SPEECH_MS = 500;
+    var __schwelleWert = 0;
+    function kalBerechneBodenUndSchwelle() {{
+      return {{ boden: 0, schwelle: __schwelleWert }};
+    }}
+    function schneideSegment() {{}}
+    var __rmsWert = 0;
+    var zeitWerte = {{ length: 1 }};
+    var messer = {{ getFloatTimeDomainData: function (arr) {{ arr[0] = __rmsWert; }} }};
+    var pegelBalken = {{ style: {{}} }};
+    var pegelSchwelle = {{ style: {{}} }};
+    var __ueberSchwelle = null;
+    var pegelFeld = {{
+      classList: {{ toggle: function (name, wert) {{ __ueberSchwelle = wert; }} }}
+    }};
+    var sitzung = {{ vadBoden: [], recorder: null }};
+
+    function taktFn() {{
+    {rumpf}
+    }}
+
+    function pruefe(rmsWert, schwelleWert) {{
+      __rmsWert = rmsWert;
+      __schwelleWert = schwelleWert;
+      __ueberSchwelle = null;
+      taktFn();
+      return {{
+        breite: parseFloat(pegelBalken.style.width),
+        links: parseFloat(pegelSchwelle.style.left),
+        ueber: __ueberSchwelle
+      }};
+    }}
+    console.log(JSON.stringify({{
+      halb: pruefe(0.15, 0.1),
+      leise: pruefe(0.03, 0.1),
+      gedeckelt: pruefe(0.5, 0.1)
+    }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    # halb: rms=0.15 -> 50% Breite; schwelle=0.1 -> 33.33% Markenposition;
+    # 0.15 > 0.1 -> ueber-schwelle.
+    assert ergebnisse["halb"]["breite"] == pytest.approx(50.0)
+    assert ergebnisse["halb"]["links"] == pytest.approx(100 / 3)
+    assert ergebnisse["halb"]["ueber"] is True
+    # leise: rms=0.03 -> 10% Breite, noch unter derselben Schwelle.
+    assert ergebnisse["leise"]["breite"] == pytest.approx(10.0)
+    assert ergebnisse["leise"]["links"] == pytest.approx(100 / 3)
+    assert ergebnisse["leise"]["ueber"] is False
+    # gedeckelt: rms=0.5 -> ueber 100% der Skala, auf 100 geklemmt.
+    assert ergebnisse["gedeckelt"]["breite"] == pytest.approx(100.0)
+    assert ergebnisse["gedeckelt"]["ueber"] is True
+
+
+# -- Einmaliger Mitschnitt-Hinweis nach dem ersten Segment (Task 4, Kanban- --
+# -- Karte Mithoeren SICHER, 03.10.2026): "Check the transcript in the chat --
+# -- -- if words are missing, move the phone closer." Einmal je Sitzung,    --
+# -- nicht je Segment, nicht fuer immer auf dem Geraet -- deshalb ein       --
+# -- reines sitzung-Feld (sitzung.hinweisGezeigt), kein localStorage. Nicht --
+# -- zu verwechseln mit Task 2s "Handy herumreichen"-Erinnerung             --
+# -- (kalErinnerungFeld/zustand.kalibrierungModus): zwei unabhaengige       --
+# -- Mechanismen mit unterschiedlichem Ausloeser. ----------------------------
+
+def test_mitlauf_hinweis_element_steht_in_der_seite(seite):
+    assert 'class="mitlauf-hinweis"' in seite
+    assert 'id="mitlauf-hinweis"' in seite
+    assert 'role="status"' in seite
+    # Direkt neben #fehler im Markup, wie der Auftrag es verlangt.
+    ausschnitt = seite[seite.index('id="fehler"') - 40:seite.index('id="fehler"') + 400]
+    assert "mitlauf-hinweis" in ausschnitt
+
+
+def test_mitlauf_hinweis_text_steht_in_js_texte_und_ist_eigenstaendig():
+    assert web_chat._JS_TEXTE["mitlauf_hinweis"] == web_chat._TEXT_MITLAUF_HINWEIS
+    # Eigenstaendig: kein Wiederverwenden von Task 2s Herumreichen-Text.
+    assert web_chat._TEXT_MITLAUF_HINWEIS != web_chat._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG
+
+
+def test_onstop_zeigt_den_mitlauf_hinweis_einmal_je_sitzung_nach_dem_ersten_segment():
+    """Die Bewachung steht NACH dem ``if (teile.length && ...)``-Block (das
+    erste fertige Segment dieser Sitzung), schaltet den Merkposten auf
+    ``true`` und zeigt den Hinweistext -- unabhaengig davon, ob genau DIESES
+    Segment hochgeladen wird."""
+    js = web_chat._CHAT_JS
+    onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
+    gate_index = onstop.index("if (teile.length")
+    guard_index = onstop.index("if (!sitzung.hinweisGezeigt)")
+    fertige_index = onstop.index("sitzung.fertige[nr] = auftrag;")
+    assert gate_index < guard_index < fertige_index
+    guard = onstop[guard_index:fertige_index]
+    assert "sitzung.hinweisGezeigt = true;" in guard
+    assert "mitlaufHinweisFeld.textContent = TEXT.mitlauf_hinweis;" in guard
+    assert "mitlaufHinweisFeld.hidden = false;" in guard
+
+
+def test_anzeigeaus_versteckt_den_mitlauf_hinweis():
+    js = web_chat._CHAT_JS
+    anzeige_aus = js[js.index("function anzeigeAus"):js.index("function modusAn")]
+    assert "mitlaufHinweisFeld.hidden = true;" in anzeige_aus
+
+
+def test_frische_sitzungen_bekommen_einen_eigenen_hinweisgezeigt_merkposten():
+    """Ein neuer Interview- oder Brainstorm-Start (und das Wiederanmelden
+    nach einem Reload waehrend ein anderes Telefon schon aufnimmt) legt ein
+    FRISCHES Sitzungsobjekt an -- jedes bekommt ``hinweisGezeigt: false``,
+    kein Uebertrag von einer frueheren Sitzung."""
+    js = web_chat._CHAT_JS
+    start_interview = js[js.index("function starteInterview"):js.index("var wechsel = { ziel: true")]
+    assert "hinweisGezeigt: false" in start_interview
+    start_brainstorm = js[js.index("function starteBrainstorm"):js.index("zustand.brainstorm = sitzung;")]
+    assert "hinweisGezeigt: false" in start_brainstorm
+    fortsetzen = js[js.index("sitzung = {\n        strom: null"):]
+    fortsetzen = fortsetzen[:fortsetzen.index("zustand.aufnahme = sitzung;   // synchron")]
+    assert "hinweisGezeigt: false" in fortsetzen
+
+
+def test_mitlauf_hinweis_guard_zeigt_sich_nur_beim_ersten_segment_live_in_node(tmp_path):
+    """Fuehrt die woertlich extrahierte Bewachung aus ``onstop`` aus: erster
+    Aufruf auf einer frischen Sitzung zeigt den Hinweis, ein zweiter Aufruf
+    auf DERSELBEN Sitzung (zweites Segment) zeigt ihn nicht erneut, und eine
+    ANDERE (neue) Sitzung bekommt ihn wieder."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    guard = _extrahiere(
+        js, "if (!sitzung.hinweisGezeigt)", "sitzung.fertige[nr] = auftrag;",
+    )
+    quelltext = f"""
+    var TEXT = {{ mitlauf_hinweis: 'Hinweis-Text' }};
+    function baueFeld() {{ return {{ hidden: true, textContent: '' }}; }}
+    var mitlaufHinweisFeld = baueFeld();
+    function pruefeHinweis(sitzung) {{
+      {guard}
+    }}
+
+    var sitzungA = {{ hinweisGezeigt: false }};
+    pruefeHinweis(sitzungA);
+    var ergebnis1 = {{
+      sichtbar_erstes_mal: mitlaufHinweisFeld.hidden === false,
+      text_erstes_mal: mitlaufHinweisFeld.textContent,
+      merkposten_erstes_mal: sitzungA.hinweisGezeigt
+    }};
+
+    mitlaufHinweisFeld.hidden = true;
+    mitlaufHinweisFeld.textContent = '';
+    pruefeHinweis(sitzungA);
+    var ergebnis2 = {{ sichtbar_zweites_mal: mitlaufHinweisFeld.hidden === false }};
+
+    var sitzungB = {{ hinweisGezeigt: false }};
+    pruefeHinweis(sitzungB);
+    var ergebnis3 = {{ sichtbar_neue_sitzung: mitlaufHinweisFeld.hidden === false }};
+
+    console.log(JSON.stringify({{ a: ergebnis1, b: ergebnis2, c: ergebnis3 }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse["a"]["sichtbar_erstes_mal"] is True
+    assert ergebnisse["a"]["text_erstes_mal"] == "Hinweis-Text"
+    assert ergebnisse["a"]["merkposten_erstes_mal"] is True
+    assert ergebnisse["b"]["sichtbar_zweites_mal"] is False
+    assert ergebnisse["c"]["sichtbar_neue_sitzung"] is True

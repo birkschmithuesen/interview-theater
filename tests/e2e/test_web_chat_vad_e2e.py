@@ -141,6 +141,12 @@ def server(token):
         "IT_WEB_VAD_PAUSE_MS": str(PAUSE_MS),
         "IT_WEB_VAD_MAX_MS": str(MAX_MS),
         "IT_WEB_VAD_MIN_SPEECH_MS": str(MIN_SPEECH_MS),
+        # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
+        # dieser Lauf prueft die Pausen-Schnitt-Entscheidung selbst, nicht
+        # die Kalibrierung davor -- ohne den Schalter wuerde jeder
+        # _starte() hier auf einen nie gedrueckten Kalibrierungs-Knopf
+        # warten und pegelAn() nie anlaufen.
+        "IT_WEB_VAD_KALIBRIERUNG": "0",
         "PYTHONPATH": str(WURZEL),
     })
     log = open(SERVERLOG, "w")

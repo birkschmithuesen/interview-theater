@@ -63,9 +63,9 @@ steht (SPEC § 6.1), gilt sie gegen jede ältere Formulierung in
 - **Pseudonyme** (`[datenschutz] pseudonyme = true`, E8): kein Prompt sieht
   einen Vornamen, dort stehen „Member 1, 2, …".
 - **Englische Phasen** (`phasen.toml`): dieselben sieben Stationen wie in
-  Dortmund — Terms, Questions, Interviews, Setting, Characters & Story,
-  Sharpening, Scenes as Story, Polish —, mit englischen Stichwörtern. Phase 4
-  kennt auch „core theme", „format", „setting", „story", weil der englische
+  Dortmund — Terms, Questions, Interviews, Frame, Prose Draft, Rewrite,
+  Stage Version —, mit englischen Stichwörtern. Phase 4 kennt auch
+  „core theme", „format", „setting", „story", weil der englische
   Erkenner-Prompt noch die alte Phasenliste nennt.
 - **Englische Einleitungen** (`phasentexte.toml`), je zwei bis vier Sätze,
   unter 700 Zeichen.

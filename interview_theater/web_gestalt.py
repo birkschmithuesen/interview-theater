@@ -434,6 +434,18 @@ def css_buehne(name: str | None = None) -> str:
     return _BUEHNE
 
 
+def css_stepper(name: str | None = None) -> str:
+    """Der Padua-Stepper (BINDING ADDITION, Birk 03.10.2026 23:10) -- nur
+    angehaengt, wenn ``[web] phasennav_stepper`` an ist (siehe
+    ``web_vereint.seite()``, die diese Funktion bedingt aufruft).
+    Deshalb UNGESCOPT wie ``css_rahmen()``, aber eine eigene Funktion:
+    ``css_rahmen()`` selbst muss fuer Dortmund byte-gleich bleiben
+    (``tests/test_web_vereint_bitgleich.py``) -- CSS, die nur zu Markup
+    passt, das Dortmund nie rendert, darf trotzdem nicht in Dortmunds
+    ``<style>``-Block landen."""
+    return _STEPPER
+
+
 def css_textbuch(name: str | None = None) -> str:
     """Was IM Textbuch-Panel liegt -- und, ungescopt, auf der
     Probenansicht ``/g/<token>/textbuch``."""
@@ -1350,6 +1362,59 @@ ul.wb-zeilen { list-style: none; padding-left: 0; margin: .1rem 0 .6rem; }
 .wb-inhalt { padding: 0 0 .8rem 1.4rem; }
 dl.wb-begriffe dd { margin: 0 0 .3rem; }
 details.wb-journal { margin-top: 1.5rem; font-size: .9em; color: var(--text-leise); }
+"""
+#: Der Padua-Stepper (BINDING ADDITION, Birk 03.10.2026 23:10): sieben
+#: nummerierte Segmente, Pfeile links/rechts der aktiven Phase, ein
+#: Bottom-Sheet statt der Zwei-Klick-Bewaffnung. Nur Theme-Tokens, keine
+#: rohen Hexfarben; ``--tippflaeche`` (2.75rem ≈ 44px) traegt jede
+#: Tipp-Flaeche, keine neue Groesse erfunden. ``.kommend`` daempft ueber
+#: ``--text-leise`` allein, NICHT zusaetzlich ueber ``opacity`` -- dieselbe
+#: Regel wie bei ``_SKRIPT_FLAECHEN`` oben ("opacity auf --text-leise
+#: faellt unter 4.5").
+_STEPPER = """
+header.phasenav { position: sticky; top: 0; z-index: 4;
+                   background: var(--grund); border-bottom: 1px solid var(--linie);
+                   padding: .5rem .75rem; display: flex; flex-direction: column;
+                   gap: .35rem; max-width: 44rem; margin: 0 auto; width: 100%;
+                   box-sizing: border-box; }
+.stepper { display: flex; gap: .3rem; list-style: none; margin: 0; padding: 0;
+           justify-content: space-between; }
+.stepper-segment { flex: 1 1 0; min-height: var(--tippflaeche);
+                    min-width: var(--tippflaeche); display: flex;
+                    align-items: center; justify-content: center;
+                    border-radius: var(--radius); border: 1px solid var(--rand);
+                    background: var(--grund-2); color: var(--text-leise);
+                    cursor: pointer; font-family: var(--schrift-tech); }
+.stepper-segment.erledigt { color: var(--signal); border-color: var(--signal); }
+.stepper-segment.aktiv { color: var(--auf-warn); background: var(--warn);
+                          border-color: var(--warn); font-weight: 700; }
+.phasenav-zeile { display: flex; align-items: center; justify-content: space-between;
+                   gap: .4rem; }
+.phasenav-zurueck, .phasenav-vor {
+    min-height: var(--tippflaeche); font: inherit; background: transparent;
+    color: var(--signal); border: 0; padding: 0 .3rem; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+.phasenav-aktuell { color: var(--text); font-weight: 600; text-align: center;
+                     flex: 1 1 auto; min-width: 0; overflow: hidden;
+                     text-overflow: ellipsis; white-space: nowrap; }
+.stepper-hinweis { font-size: .82rem; color: var(--text-leise); margin: 0; }
+.sheet { position: fixed; inset: 0; z-index: 11; display: flex;
+         align-items: flex-end; }
+.sheet[hidden] { display: none; }
+.sheet-hintergrund { position: absolute; inset: 0; background: rgba(0, 0, 0, .5); }
+.sheet-inhalt { position: relative; z-index: 1; width: 100%; max-width: 44rem;
+                margin: 0 auto; background: var(--grund-2); color: var(--text);
+                border-radius: var(--radius-gross) var(--radius-gross) 0 0;
+                padding: 1rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
+                border: 1px solid var(--linie); box-sizing: border-box; }
+.sheet-inhalt h3 { margin: 0 0 .3rem; font-family: var(--schrift-skript); }
+.sheet-inhalt p { margin: 0 0 .5rem; color: var(--text-leise); }
+.sheet-knoepfe { display: flex; gap: .5rem; margin-top: .6rem; }
+.sheet-knoepfe button { flex: 1 1 0; min-height: var(--tippflaeche); font: inherit;
+                         border-radius: var(--radius); border: 1px solid var(--rand);
+                         background: var(--grund-3); color: var(--text); }
+#phasensheet-los { background: var(--signal); color: var(--auf-signal);
+                    border-color: var(--signal); font-weight: 600; }
 """
 #: Was ``web._CSS_TEXTBUCH`` fuer helles Papier gesetzt hat und auf dem
 #: dunklen Grund zu blass wird (Review an 834edbf): ein dunkles Ocker fuer

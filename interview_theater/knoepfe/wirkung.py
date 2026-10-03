@@ -427,10 +427,13 @@ def _wirkung_erstentwurf(conn, d: Druck) -> str:
     else:
         szenen = list(repo.hole_szenen(conn, d.chat_id))
     if not any(repo.erstentwurf_text(conn, s["id"]) for s in szenen):
-        d.tg.sende(d.chat_id, T._TEXT_KEIN_ERSTENTWURF)
+        message_id = d.tg.sende(d.chat_id, T._TEXT_KEIN_ERSTENTWURF)
+        repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e,
+                             T._TEXT_KEIN_ERSTENTWURF)
         return T._TEXT_KEIN_ERSTENTWURF
     text = f"{T._TEXT_ERSTENTWURF}\n{skript_verweis(conn, d.e, d.chat_id)}"
-    d.tg.sende(d.chat_id, text)
+    message_id = d.tg.sende(d.chat_id, text)
+    repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, text)
     return text
 
 

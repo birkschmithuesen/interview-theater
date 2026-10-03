@@ -540,13 +540,15 @@ def starte(
         # Lauf in einem eigenen Thread, niemand wartet davor, aber im Browser
         # ist "es passiert etwas" der Unterschied zwischen stiller Wartezeit
         # und mitlesbarem Text.
-        senke = strom.senke(tg, chat_id, "prosa")
         from interview_theater import prueflauf
 
         # Padua Phasen TEIL 2: still schreiben, pruefen (samt Nachpass, den
         # der Prueflauf selbst laufen laesst), dann EIN Hinweis statt der
         # Abschnitte. Die Arbeitszeile laeuft dabei weiter bis zur Anzeige.
         pruefen = prueflauf.aktiv()
+        # Mit dem Prueflauf KEIN Strom (Fix-Runde 1): sonst stuende der
+        # ungepruefte Erstentwurf im Browser live als Blase im Chat.
+        senke = None if pruefen else strom.senke(tg, chat_id, "prosa")
         try:
             schreibe(conn, tg, klm, e, chat_id, regie, vorlage=vorlage,
                      zeilen=None if pruefen else zeilen, bei_teil=senke,

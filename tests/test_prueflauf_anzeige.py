@@ -252,3 +252,115 @@ def test_pruefung_ohne_ueberarbeitung_zeigt_volltext_und_zeilen(
     texte = [t for _, t in tg.gesendet]
     assert any(MARKE in t for t in texte)
     assert texte[-1] == "Zeile eins."
+
+
+# --- Kein Strom vor der Pruefung (Fix-Runde 1) ------------------------------
+
+
+class Senke:
+    """Merkt jeden Teil, den ein Lauf in den Strom gibt."""
+
+    def __init__(self):
+        self.teile = []
+        self.abgeschlossen = []
+
+    def __call__(self, text):
+        self.teile.append(text)
+
+    def fertig(self, post_id=None):
+        self.abgeschlossen.append(("fertig", post_id))
+
+    def abbruch(self):
+        self.abgeschlossen.append(("abbruch", None))
+
+
+class StromKanal(TelegramAttrappe):
+    """Ein Kanal MIT ``strom`` -- wie ``web_kanal.WebKanal``: ``strom.senke``
+    liefert hier eine echte Senke."""
+
+    def __init__(self):
+        super().__init__()
+        self.senken = []
+
+    def strom(self, chat_id, art):
+        senke = Senke()
+        self.senken.append((art, senke))
+        return senke
+
+
+class StromSchreiber(Schreiber):
+    """Gibt den Text, wie ein streamender Anbieter, auch an ``bei_teil``."""
+
+    def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None,
+              bei_teil=None):
+        text = super().prosa(chat_id, system, nutzer, art, max_tokens, timeout)
+        if bei_teil is not None:
+            bei_teil(text)
+        return text
+
+
+def _gestreamt(kanal) -> str:
+    return "\n".join(t for _art, s in kanal.senken for t in s.teile)
+
+
+def test_padua_szene_streamt_keinen_erstentwurf(conn, padua, einst):
+    _stueck(conn, 6)
+    kanal = StromKanal()
+
+    _starte_szene_1(conn, kanal, StromSchreiber(), einst)
+
+    assert MARKE not in _gestreamt(kanal)
+    assert MARKE not in _alles(kanal)
+    assert len(repo.prueflaeufe(conn, 1)) == 1
+
+
+def test_padua_geschichte_streamt_keinen_erstentwurf(conn, padua, einst):
+    _stueck(conn, 6, szenen=(1, 2))
+    kanal = StromKanal()
+
+    faden = kurzgeschichte.starte(conn, kanal, StromSchreiber(), einst, 1, None)
+    faden.join(20)
+    _warte(kurzgeschichte._sperre_fuer(1))
+
+    assert MARKE not in _gestreamt(kanal)
+    assert MARKE not in _alles(kanal)
+    assert repo.prueflaeufe(conn, 1)[0]["ziel"] == "geschichte"
+
+
+def test_ohne_schalter_streamt_die_szene_wie_bisher(conn, ohne_profil, einst):
+    _stueck(conn, 5)
+    kanal = StromKanal()
+
+    _starte_szene_1(conn, kanal, StromSchreiber(), einst)
+
+    assert [art for art, _s in kanal.senken] == ["szene"]
+    assert MARKE in _gestreamt(kanal)
+    assert kanal.senken[0][1].abgeschlossen[0][0] == "fertig"
+
+
+def test_ohne_schalter_streamt_die_geschichte_wie_bisher(conn, ohne_profil, einst):
+    _stueck(conn, 6, szenen=(1, 2))
+    kanal = StromKanal()
+
+    faden = kurzgeschichte.starte(conn, kanal, StromSchreiber(), einst, 1, None)
+    faden.join(20)
+    _warte(kurzgeschichte._sperre_fuer(1))
+
+    assert [art for art, _s in kanal.senken] == ["prosa"]
+    assert MARKE in _gestreamt(kanal)
+
+
+def test_padua_fehlerweg_ohne_senke(conn, padua, einst):
+    """Reisst der Lauf, kommt der Fehlerweg ohne Senke durch (kein
+    ``strom.verwirf`` auf ``None``) und die Gruppe bekommt ihre Zeile."""
+    _stueck(conn, 6)
+    kanal = StromKanal()
+
+    class Reisst:
+        def prosa(self, *a, **k):
+            raise RuntimeError("Anbieter weg")
+
+    _starte_szene_1(conn, kanal, Reisst(), einst)
+
+    assert kanal.senken == []
+    assert any(szene.T._TEXT_FEHLER in t for _c, t in kanal.gesendet)

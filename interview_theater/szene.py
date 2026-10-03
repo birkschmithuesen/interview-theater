@@ -2497,7 +2497,6 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
     # zwei Minuten Lesen. Hier und nicht in ``schreibe`` (Fix-Runde 1,
     # Befund 2): der Nachpass ruft ``schreibe`` direkt und soll unsichtbar
     # bleiben.
-    senke = strom.senke(tg, chat_id, "szene")
     from interview_theater import prueflauf
 
     # Padua Phasen TEIL 2: mit dem Prueflauf wird still geschrieben, geprueft
@@ -2505,6 +2504,10 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
     # Hinweis gezeigt -- nie der Volltext. Nur nach einem GEWOEHNLICHEN Lauf,
     # wie der Nachpass; ohne Profilschalter bleibt alles wie bisher.
     pruefen = art == ART and prueflauf.aktiv()
+    # Mit dem Prueflauf auch KEIN Strom (Fix-Runde 1): die Senke zeigte im
+    # Browser den ungeprueften Erstentwurf live als Blase -- genau der
+    # Volltext, der im Chat nicht stehen soll. Die Arbeitszeile bleibt.
+    senke = None if pruefen else strom.senke(tg, chat_id, "szene")
     try:
         nummer = schreibe(conn, tg, klm, e, chat_id, auftrag, art=art,
                           bei_teil=senke, zeigen=not pruefen)
@@ -2512,6 +2515,10 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
             from interview_theater import knoepfe
 
             bericht = prueflauf.pruefe_szene(conn, tg, klm, e, chat_id, nummer)
+            # Die Arbeitszeile endet VOR dem Hinweis, wie in
+            # ``kurzgeschichte._lauf``; das ``finally`` bleibt Netz
+            # (``stoppe`` ist idempotent).
+            zeilen.stoppe()
             # Eigenes ``try``: die Szene steht schon -- eine gescheiterte
             # Anzeige ist kein gescheiterter Lauf.
             try:

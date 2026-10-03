@@ -104,14 +104,41 @@ def test_der_modus_steht_nicht_im_rahmen(name):
     assert "Interview" not in rahmen
 
 
-def test_die_vereinte_seite_haengt_den_modus_nur_mit_chat_an():
-    import inspect
+def test_die_vereinte_seite_haengt_den_modus_nur_mit_chat_an(tmp_path):
+    """Am ausgelieferten HTML gemessen, nicht am Quelltext: eine Web-Gruppe
+    bekommt das Modus-CSS, eine Telegram-Gruppe (kein Chat-Panel) nicht."""
+    import threading
+    import urllib.request
 
-    from interview_theater import web_vereint
-    quelle = inspect.getsource(web_vereint.seite)
-    vor, _, nach = quelle.partition("if chat_vorhanden:\n        css += scope_css(web_gestalt.css_chat()")
-    assert nach, "Einhaengepunkt css_chat nicht gefunden"
-    assert "web_gestalt.css_interview()" in nach.split("css_stand")[0]
+    from interview_theater import db, repo, web
+
+    pfad = str(tmp_path / "t.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, 7_000_000_000_011, "gruppe1", "Mit Chat")
+    repo.setze_gruppe_kanal(conn, 7_000_000_000_011, "web")
+    repo.sichere_gruppe(conn, -1001, "gruppe2", "Ohne Chat")
+    mit = repo.stelle_web_token_sicher(conn, 7_000_000_000_011)
+    ohne = repo.stelle_web_token_sicher(conn, -1001)
+    conn.commit()
+    conn.close()
+    server = web.baue_server(pfad, "127.0.0.1:0", "", schluessel=b"x" * 32)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        basis = f"http://127.0.0.1:{server.server_address[1]}"
+        def hole(token):
+            with urllib.request.urlopen(f"{basis}/g/{token}", timeout=5) as a:
+                return a.read().decode("utf-8")
+        mit_html, ohne_html = hole(mit), hole(ohne)
+    finally:
+        server.shutdown()
+    # (``MODUS`` allein steht auch im reduced-motion-Block des Rahmens --
+    # gemessen wird an Regeln, die nur ``css_interview()`` hat.)
+    for nur_modus in (f"{MODUS} #interview-beenden", f"{MODUS} .tabs"):
+        assert nur_modus in mit_html, nur_modus
+        assert nur_modus not in ohne_html, nur_modus
+    assert "wakeLock" in mit_html
+    assert "wakeLock" not in ohne_html
 
 
 # -- Das Skript --------------------------------------------------------------
@@ -133,9 +160,15 @@ def test_der_modus_haengt_an_uhr_und_interview_nicht_an_ptt(js):
     wenn DIESES Telefon aufnimmt (ein anderes Telefon, das den Modus
     haelt, laesst sie verborgen)."""
     baustein = web_gestalt._JS_INTERVIEW
-    assert "dataset.interview" in baustein
-    assert "uhr" in baustein
+    # Die eine Bedingung, an der der Modus haengt -- beide Haelften.
+    assert re.search(
+        r"var an = fuss\.dataset\.interview === '1' && !uhr\.hidden;", baustein)
+    # Beobachtet wird genau das, woraus die Bedingung besteht.
+    assert "attributeFilter: ['data-interview']" in baustein
+    assert "uhr, { attributes: true, attributeFilter: ['hidden'] }" in baustein
+    # Kein Weg ueber Push-to-Talk (Knopf, Ereignisse, Zustand).
     assert "ptt" not in baustein.lower()
+    assert "pointerdown" not in baustein
 
 
 def test_wake_lock_ist_feature_detected_und_wirft_nie(js):

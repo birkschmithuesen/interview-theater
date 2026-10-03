@@ -531,13 +531,21 @@ def test_die_beschriftung_bleibt_im_laufenden_knopf(dienst):
 #: aber ab -- ohne Attrappe saehe der Test nur den Fehlerweg.
 _WAKE_LOCK = """
 (() => {
-  window.__wl = { an: 0, aus: 0, offen: 0 };
+  window.__wl = { an: 0, aus: 0, offen: 0, hoerer: 0, letzte: null };
   const sperre = () => {
+    const hoerer = [];
     const s = { released: false, type: 'screen',
       release() { if (!s.released) { s.released = true; window.__wl.aus++;
                                      window.__wl.offen--; }
                   return Promise.resolve(); },
-      addEventListener() {} };
+      addEventListener(art, fn) { if (art === 'release') {
+                                    hoerer.push(fn); window.__wl.hoerer++; } },
+      // Der Browser gibt den Lock selbst frei (Tab im Hintergrund,
+      // Akku-Sparmodus): released + Ereignis 'release', ohne release().
+      __browserGibtFrei() { if (s.released) { return; }
+                            s.released = true; window.__wl.offen--;
+                            hoerer.forEach(fn => fn(new Event('release'))); } };
+    window.__wl.letzte = s;
     return s;
   };
   Object.defineProperty(navigator, 'wakeLock', { configurable: true,
@@ -647,8 +655,14 @@ def test_der_leitfaden_liegt_zugeklappt_bereit(dienst):
         leitfaden = seite.locator("#ux-leitfaden")
         assert leitfaden.is_visible()
         assert leitfaden.get_attribute("open") is None
+        marke = ("() => getComputedStyle(document.querySelector("
+                 "'#ux-leitfaden summary'), '::before').content")
+        # Ein Zeichen sagt, dass man aufklappen kann (display:flex nimmt den
+        # eingebauten Marker weg).
+        assert seite.evaluate(marke) == '"▸"'
         seite.locator("#ux-leitfaden summary").click()
         assert "Was hast du mitgebracht?" in leitfaden.inner_text()
+        assert seite.evaluate(marke) == '"▾"'
         browser.close()
 
 
@@ -687,6 +701,33 @@ def test_wake_lock_geht_beim_sperren_und_kommt_wieder(dienst):
         seite.evaluate("() => { window.__sicht = 'visible';"
                        " document.dispatchEvent(new Event('visibilitychange')); }")
         seite.wait_for_function("() => window.__wl.an === 2", timeout=3000)
+        assert not fehler, fehler
+        browser.close()
+
+
+def test_gibt_der_browser_den_lock_frei_holt_das_skript_ihn_wieder(dienst):
+    """Der Browser darf einen Wake Lock jederzeit selbst freigeben (Ereignis
+    ``release`` am Sentinel, ohne dass das Skript ``release()`` ruft). Das
+    Skript muss das hoeren -- sonst hielte es ein totes Sentinel fuer
+    gueltig und forderte beim Zurueckkommen keinen neuen an."""
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, fehler = _interview_seite(browser, basis, token,
+                                         _WAKE_LOCK, _SICHTBARKEIT)
+        _starte_interview(seite)
+        seite.wait_for_function("() => window.__wl.offen === 1", timeout=3000)
+        assert seite.evaluate("() => window.__wl.hoerer") == 1
+        seite.evaluate("() => window.__wl.letzte.__browserGibtFrei()")
+        assert seite.evaluate("() => window.__wl.offen") == 0
+        # Kein release() des Skripts auf ein schon freies Sentinel.
+        assert seite.evaluate("() => window.__wl.aus") == 0
+        seite.evaluate("() => { window.__sicht = 'hidden';"
+                       " document.dispatchEvent(new Event('visibilitychange'));"
+                       " window.__sicht = 'visible';"
+                       " document.dispatchEvent(new Event('visibilitychange')); }")
+        seite.wait_for_function("() => window.__wl.an === 2", timeout=3000)
+        seite.wait_for_function("() => window.__wl.offen === 1", timeout=3000)
         assert not fehler, fehler
         browser.close()
 
@@ -756,6 +797,84 @@ def test_zurueck_wischen_im_interview_verliert_den_stopp_nicht(dienst):
         browser.close()
 
 
+# -- Auf einen Blick: was als Naechstes kommt (P2, Aufgabe 2, Punkt 2) -------
+
+#: Unabhaengig vom Skript nachgerechnet: die erste nicht erledigte Aufgabe
+#: der aktiven Phase, ohne ihr Zeichen; sonst die naechste Phase.
+_ERWARTET_NAECHSTES = """() => {
+  const aktiv = document.querySelector('#roadmap .phase.aktiv');
+  if (!aktiv) { return ''; }
+  const a = aktiv.querySelector('.aufgabe:not(.erledigt)');
+  if (a) { return a.textContent.trim().replace(/^\\S+\\s+/, ''); }
+  const n = aktiv.nextElementSibling;
+  const k = n ? n.querySelector('.phase-knopf, .phase-name') : null;
+  return k ? 'Phase ' + (k.dataset.bezeichnung || k.textContent).trim() : '';
+}"""
+
+
+@pytest.mark.parametrize("tab", ["chat", "stand", "textbuch"])
+def test_auf_jedem_tab_steht_was_als_naechstes_kommt(dienst, tab):
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite = _oeffne(browser, basis, token)
+        seite.click(f'.tabs button[data-tab="{tab}"]')
+        seite.wait_for_selector(f"#tab-{tab}:not([hidden])")
+        zeile = seite.locator("#ux-naechstes")
+        assert zeile.is_visible()
+        text = zeile.inner_text().strip()
+        assert text.startswith("Als Nächstes:"), text
+        erwartet = seite.evaluate(_ERWARTET_NAECHSTES)
+        assert erwartet and zeile.locator("b").inner_text().strip() == erwartet
+        # Im ersten Blick: ganz im Bild, ueber der Tableiste, eine Zeile.
+        kasten = zeile.bounding_box()
+        tabs = seite.locator(".tabs").bounding_box()
+        assert kasten["y"] >= 0 and kasten["y"] + kasten["height"] <= tabs["y"] + 1
+        assert kasten["height"] < 40, kasten
+        browser.close()
+
+
+def test_die_naechste_sache_folgt_dem_tausch_der_aktfolge(dienst):
+    """Karte W tauscht #roadmap aus (/teil/roadmap). Danach muss die Zeile
+    neu rechnen -- hier mit einer Aktfolge, in der die bisher naechste
+    Aufgabe erledigt ist."""
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite = _oeffne(browser, basis, token)
+        seite.wait_for_selector("#ux-naechstes:not([hidden])", state="attached")
+        vorher = seite.locator("#ux-naechstes b").inner_text().strip()
+        seite.evaluate("""() => {
+          const alt = document.getElementById('roadmap');
+          const kopie = alt.cloneNode(true);
+          kopie.querySelectorAll('.phase.aktiv .aufgabe:not(.erledigt)')
+            .forEach((a, i) => { if (i === 0) { a.classList.add('erledigt'); } });
+          alt.outerHTML = kopie.outerHTML;
+        }""")
+        seite.wait_for_function(
+            "(v) => { const b = document.querySelector('#ux-naechstes b');"
+            " return !b || b.textContent.trim() !== v; }", arg=vorher,
+            timeout=3000)
+        erwartet = seite.evaluate(_ERWARTET_NAECHSTES)
+        assert seite.locator("#ux-naechstes").count() == 1
+        if erwartet:
+            assert seite.locator("#ux-naechstes b").inner_text().strip() == erwartet
+        else:
+            assert not seite.locator("#ux-naechstes").is_visible()
+        browser.close()
+
+
+def test_im_interview_ist_die_naechste_sache_weg(dienst):
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, _ = _interview_seite(browser, basis, token, _WAKE_LOCK)
+        assert seite.locator("#ux-naechstes").is_visible()
+        _starte_interview(seite)
+        assert not seite.locator("#ux-naechstes").is_visible()
+        browser.close()
+
+
 # -- Die Abnahme-Screenshots ------------------------------------------------
 
 
@@ -810,6 +929,13 @@ def test_abnahme_screenshots(dienst):
             seite.wait_for_selector("#ux-belohnung[hidden]", state="attached",
                                     timeout=8000)
             seite.eval_on_selector("#roadmap", "el => el.open = false")
+
+            if name == "handy":
+                # P2, Aufgabe 2, Punkt 2: auch im Arbeitsstand steht oben,
+                # was als Naechstes kommt.
+                seite.click('.tabs button[data-tab="stand"]')
+                seite.wait_for_selector("#tab-stand:not([hidden])")
+                seite.screenshot(path=str(SCHUSS / "abnahme-handy-stand.png"))
 
             seite.click('.tabs button[data-tab="textbuch"]')
             seite.wait_for_selector("#tab-textbuch:not([hidden])")

@@ -265,6 +265,13 @@ _TEXT_LEITFADEN = "Leitfaden"
 #: von Karte W ("Phase 3 von 7 · Interviews — 1/3"), nicht statt ihm.
 _TEXT_AKT_KOPF = "Akt {nummer}/{gesamt}"
 
+#: Die zweite Kopfzeile unter der Aktzeile (P2, Aufgabe 2, Punkt 2): was
+#: als Naechstes kommt. ``{was}`` ist die erste noch nicht erledigte Aufgabe
+#: der aktiven Phase, wortgleich aus der Aktfolge von Karte W -- oder, wenn
+#: die Phase durch ist, ``_TEXT_NAECHSTE_PHASE``.
+_TEXT_NAECHSTES = "Als Nächstes: {was}"
+_TEXT_NAECHSTE_PHASE = "Phase {bezeichnung}"
+
 #: Die zwei Belohnungen. Klein, einmal, und sie verschwinden von selbst.
 _TEXT_BELOHNUNG_AKT = "Akt abgeschlossen."
 _TEXT_BELOHNUNG_AKT_SATZ = "{akt} steht. Weiter."
@@ -357,6 +364,7 @@ def _druck_block() -> str:
         'color: #000 !important; '
         'font-family: ui-serif, Georgia, "Times New Roman", serif !important; }\n'
         "#ux-vorhang, #ux-ansage, #ux-belohnung, .tabs, .roadmap, .fuss,\n"
+        "#ux-naechstes,\n"
         "#ux-rec-zeile { display: none !important; }\n"
         ".sprecher { color: #000 !important; font-weight: 700; }\n"
         ".regie, .regie-zeile, .angaben, .besetzung { "
@@ -633,6 +641,16 @@ body[data-tab="chat"] .roadmap .phasen { max-height: 30vh; }
 #ux-balken i { display: block; height: 100%; width: var(--fortschritt, 0%);
                background: var(--signal); }
 .ux-akt { color: var(--warn); letter-spacing: .1em; margin-right: .4rem; }
+/* P2, Aufgabe 2, Punkt 2: "Als Naechstes: ..." direkt unter der Aktzeile,
+   ueber der Tableiste -- auf jedem Tab im ersten Blick. Eine Zeile, leise,
+   die Sache selbst in der Textfarbe; zu lang wird abgeschnitten statt
+   umgebrochen (die Tableiste darf nicht wandern). */
+#ux-naechstes { max-width: 44rem; margin: -.35rem auto .45rem;
+                padding: 0 .3rem; font-size: .9rem; line-height: 1.35;
+                color: var(--text-leise); white-space: nowrap;
+                overflow: hidden; text-overflow: ellipsis; }
+#ux-naechstes[hidden] { display: none; }
+#ux-naechstes b { color: var(--text); font-weight: 600; }
 """
 #: Der Aktwechsel, Entwurf A: ein Glitch. Scanlines springen, der Aktname
 #: steht in Versalien darueber. ``pointer-events: none``, damit ein
@@ -700,7 +718,7 @@ _BELOHNUNG = """
 #: Akt-Moment, Belohnung. Der runde Knopf ist waehrend der Aufnahme ohnehin
 #: nur Anzeige (A2) und lud mit seinem Stopp-Quadrat zum Tippen ein, ohne
 #: etwas zu tun -- hier schrumpft er zur ruhigen Aufnahmelampe (rot, in der
-#: Pause gruen), ohne Puls und ohne Zeiger-Ereignisse. Er bleibt im DOM und
+#: Pause amber, ``var(--warn)``), ohne Puls und ohne Zeiger-Ereignisse. Er bleibt im DOM und
 #: sichtbar: sein Name traegt Zustand und Zeit fuer Vorleseprogramme.
 #: **Ein Hauptknopf**: "Beenden", gross, rot, unten am Daumen; "Pause"
 #: darueber und kleiner.
@@ -718,6 +736,7 @@ _INTERVIEW = """
 #ux-leitfaden { display: none; }
 html[data-ux-interview="1"] .panel:not(#tab-chat),
 html[data-ux-interview="1"] #roadmap,
+html[data-ux-interview="1"] #ux-naechstes,
 html[data-ux-interview="1"] .tabs,
 html[data-ux-interview="1"] #ux-belohnung,
 html[data-ux-interview="1"] #ux-vorhang,
@@ -740,7 +759,13 @@ html[data-ux-interview="1"] #ux-leitfaden:not([hidden]) { display: block;
 html[data-ux-interview="1"] #ux-leitfaden summary {
     min-height: var(--tippflaeche); display: flex; align-items: center;
     cursor: pointer; color: var(--text); font-family: var(--schrift-tech);
-    letter-spacing: .06em; }
+    letter-spacing: .06em; list-style: none; }
+html[data-ux-interview="1"] #ux-leitfaden summary::-webkit-details-marker {
+    display: none; }
+html[data-ux-interview="1"] #ux-leitfaden summary::before { content: "\\25B8";
+    display: inline-block; width: 1.1em; color: var(--warn); }
+html[data-ux-interview="1"] #ux-leitfaden[open] summary::before {
+    content: "\\25BE"; }
 html[data-ux-interview="1"] .ux-leitfaden-text { white-space: pre-wrap;
     color: var(--text); font-family: var(--schrift-skript);
     font-size: 1.05rem; line-height: 1.5; padding: 0 0 .7rem; }
@@ -1286,6 +1311,74 @@ _JS_FORTSCHRITT = """
 """
 
 
+#: Baustein 2b: was als Naechstes kommt (P2, Aufgabe 2, Punkt 2).
+#:
+#: Birk: "die wichtigen sachen auf einen blick". Wo die Gruppe steht, sagt
+#: die Aktzeile; was als Naechstes kommt, stand nur in der zugeklappten
+#: Aktfolge. Diese Zeile holt es darunter -- ueber der Tableiste, also auf
+#: jedem Tab im ersten Blick.
+#:
+#: **Nur aus dem DOM, wie ``_JS_FORTSCHRITT``**: die erste noch nicht
+#: erledigte Aufgabe der aktiven Phase (offen oder laufend -- wortgleich,
+#: ohne das Zeichen davor); ist die Phase durch, die naechste Phase; gibt
+#: es keine, steht nichts da (eine Zeile "nichts mehr" waere Laerm). Kein
+#: neuer Schluessel, kein Endpunkt. Die Zeile steht NEBEN ``#roadmap``,
+#: nicht darin: Karte W tauscht ``#roadmap`` per ``outerHTML`` aus
+#: (/teil/roadmap), ein Kind darin waere danach weg. Nach dem Tausch rechnet
+#: der Beobachter am Elternknoten die Zeile neu. Text nur ueber
+#: ``textContent``. Im Interview blendet ``_INTERVIEW`` sie aus.
+_JS_NAECHSTES = """
+  (function naechstes() {
+    var erste = el('roadmap');
+    if (!erste || !erste.parentNode || !TEXTE.naechstes) { return; }
+    var eltern = erste.parentNode;
+    var zeile = document.createElement('p');
+    zeile.id = 'ux-naechstes';
+    zeile.hidden = true;
+    eltern.insertBefore(zeile, erste.nextSibling);
+    var zuletzt = null;
+
+    var name = function (phase) {
+      var k = phase.querySelector('.phase-knopf, .phase-name');
+      return k ? (k.dataset.bezeichnung || k.textContent || '').trim() : '';
+    };
+    var was = function (roadmap) {
+      var aktiv = roadmap.querySelector('.phase.aktiv');
+      if (!aktiv) { return ''; }
+      var offen = aktiv.querySelector('.aufgabe:not(.erledigt)');
+      if (offen) {
+        return (offen.textContent || '').trim().replace(/^\\S+\\s+/, '');
+      }
+      var folgende = aktiv.nextElementSibling;
+      while (folgende && !folgende.classList.contains('phase')) {
+        folgende = folgende.nextElementSibling;
+      }
+      var bez = folgende ? name(folgende) : '';
+      return bez ? (TEXTE.naechste_phase || '{bezeichnung}')
+        .replace('{bezeichnung}', bez) : '';
+    };
+    var rechne = function () {
+      var roadmap = el('roadmap');
+      var sache = roadmap ? was(roadmap) : '';
+      if (sache === zuletzt) { return; }
+      zuletzt = sache;
+      while (zeile.firstChild) { zeile.removeChild(zeile.firstChild); }
+      zeile.hidden = !sache;
+      if (!sache) { return; }
+      var teile = TEXTE.naechstes.split('{was}');
+      zeile.appendChild(document.createTextNode(teile[0] || ''));
+      var b = document.createElement('b');
+      b.textContent = sache;
+      zeile.appendChild(b);
+      zeile.appendChild(document.createTextNode(teile.slice(1).join('')));
+      zeile.title = zeile.textContent;
+    };
+    new MutationObserver(rechne).observe(eltern, { childList: true });
+    rechne();
+  })();
+"""
+
+
 #: Baustein 3: die vier Zustaende des Aufnahmeknopfes.
 #:
 #: **Der wichtigste Teil dieser Karte.** Karte A2 kennt nur an/aus; die
@@ -1633,7 +1726,8 @@ def skript(name: str | None = None, *, chat_vorhanden: bool = True) -> str:
     ``el('tippt')``/``el('roadmap')`` ab und tun bei Fehlanzeige nichts."""
     gewaehlt = name or entwurf()
     takt = TOKENS[gewaehlt]["takt-moment"].removesuffix("ms")
-    bausteine = _BAUSTEINE if chat_vorhanden else (_JS_DENKT + _JS_FORTSCHRITT)
+    bausteine = (_BAUSTEINE if chat_vorhanden
+                 else (_JS_DENKT + _JS_FORTSCHRITT + _JS_NAECHSTES))
     return (
         _GESTALT_JS
         .replace("__TAKT_MOMENT__", takt)
@@ -1647,9 +1741,10 @@ def skript(name: str | None = None, *, chat_vorhanden: bool = True) -> str:
 #: Baustein 3 (Aufnahmeknoepfe, Aufgabe 8) und Baustein 4 (Momente,
 #: Aufgabe 9) -- alle vier Bausteine sind damit gefuellt.
 #: Baustein 5 (Interview-Modus, P2 Aufgabe 2) haengt am Chat-Panel wie
-#: Baustein 3 und faellt ohne Chat deshalb mit ihm weg.
-_BAUSTEINE = (_JS_DENKT + _JS_FORTSCHRITT + _JS_AUFNAHME + _JS_MOMENT
-              + _JS_INTERVIEW)
+#: Baustein 3 und faellt ohne Chat deshalb mit ihm weg. Baustein 2b
+#: ("Als Naechstes", P2 Aufgabe 2) braucht nur ``#roadmap`` und bleibt.
+_BAUSTEINE = (_JS_DENKT + _JS_FORTSCHRITT + _JS_NAECHSTES + _JS_AUFNAHME
+              + _JS_MOMENT + _JS_INTERVIEW)
 
 
 def _mikrotexte() -> dict[str, str]:
@@ -1669,6 +1764,8 @@ def _mikrotexte() -> dict[str, str]:
         "rec_pausiert": T._TEXT_REC_PAUSIERT,
         "leitfaden": T._TEXT_LEITFADEN,
         "akt_kopf": T._TEXT_AKT_KOPF,
+        "naechstes": T._TEXT_NAECHSTES,
+        "naechste_phase": T._TEXT_NAECHSTE_PHASE,
         "belohnung_akt": T._TEXT_BELOHNUNG_AKT,
         "belohnung_akt_satz": T._TEXT_BELOHNUNG_AKT_SATZ,
         "belohnung_aufnahme": T._TEXT_BELOHNUNG_AUFNAHME,

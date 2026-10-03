@@ -112,13 +112,6 @@ def test_die_tokens_des_aktiven_entwurfs_stehen_drin(dienst):
     assert f"--signal: {tokens['signal']};" in html
 
 
-@pytest.mark.xfail(
-    reason="web_gestalt.css_chat() ist bis Aufgabe 5/8 leer (_CHAT_A/_CHAT_B) "
-    "und traegt noch keine eigene #interview-Regel; bis dahin geht die "
-    "Reihenfolge zugunsten von test_die_gestaltung_steht_zuletzt_im_style "
-    "(der allgemeinen 'Gestaltung zuletzt'-Pflicht)",
-    strict=False,
-)
 def test_das_chat_css_der_gestaltung_ist_gescopt(dienst):
     """Ungescopt waere ``#interview`` (0,1,0,0) schwaecher als das schon
     gescopte ``.panel-chat #interview`` (0,1,1,0) aus ``_CSS_CHAT``."""

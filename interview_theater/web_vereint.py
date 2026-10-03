@@ -1073,7 +1073,13 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         # Der Strom nur mit Chat: fuer eine Gruppe ohne Web-Kanal ist
         # ``/chat/*`` 404, ein EventSource liefe dort ins Leere.
         skript += _strom_js(f"{token}/")
-    skript += web_gestalt.skript()  # Karte UX: Effekte, zuletzt
+    # ``chat_vorhanden`` durchreichen (UX-Fix an Aufgabe 8): Baustein 3
+    # (``_JS_AUFNAHME``) nennt Elemente, die nur im Chat-Panel existieren
+    # (u.a. ``#warteschlange``) -- bei einer Telegram-Gruppe (kein Chat-
+    # Panel, siehe ``tests/test_web_vereint.py::
+    # test_telegram_gruppe_hat_kein_chat_panel``) darf dieser Marker nicht
+    # einmal im Quelltext stehen.
+    skript += web_gestalt.skript(chat_vorhanden=chat_vorhanden)  # Karte UX: Effekte, zuletzt
     return web._seite(
         f"{titel} — interview-theater", css, "\n".join(koerper),
         bearbeitbar=True, nachladen=False, skript=skript,

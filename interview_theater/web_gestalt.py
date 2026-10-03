@@ -249,6 +249,8 @@ BEWEGT = (
     ".blase.vorlaeufig::after",   # Karte W
     "#tippt::after",              # Karte W
     '#tippt[data-ux-denkt="1"]::after',
+    '#interview[data-ux-zustand="startet"]::before',
+    '#interview[data-ux-zustand="laeuft"]::before',
 )
 
 
@@ -553,6 +555,72 @@ _CHAT_A = """
          letter-spacing: .05em; font-family: var(--schrift-tech); }
 #tippt[data-ux-denkt="1"]::after { content: "\\258D";
                                    animation: ux-blinken 1s steps(2) infinite; }
+
+/* -- Knopf 1: Interview (Umschalter) --------------------------------
+   Volle Breite, eigene Zeile, Rot. Der wichtigste Knopf der Oberflaeche
+   (Dortmund Tag 1: 13 von 20 Aufnahmen leer, ein Knopf 14x in 93 s
+   gedrueckt) -- also die groesste Flaeche, die der Fuss hergibt, und ein
+   Zustand, der im TEXT steht und nicht nur in der Farbe. */
+#interview { width: 100%; min-height: var(--rec-hoehe);
+             border-radius: var(--radius-gross);
+             border: 2px solid var(--rec); background: var(--grund-2);
+             color: var(--text); font: inherit; font-size: 1.05rem;
+             letter-spacing: .1em; text-transform: uppercase;
+             display: flex; align-items: center; justify-content: center;
+             gap: .5rem; }
+/* Die Lampe: ein Punkt, kein Bild -- kein url(), keine CSP-Frage. */
+#interview::before { content: ""; width: .85rem; height: .85rem;
+                     border-radius: 50%; background: var(--rec); }
+/* Rueckmeldung unter 100 ms: CSS, kein Netz, kein Promise. */
+#interview:active { transform: scale(.985); }
+#interview[data-ux-zustand="startet"] { border-color: var(--warn);
+                                        color: var(--warn); }
+#interview[data-ux-zustand="startet"]::before { background: var(--warn);
+    animation: ux-puls .7s ease-in-out infinite; }
+#interview[data-ux-zustand="laeuft"] { background: var(--rec);
+    color: var(--auf-rec); border-color: var(--rec);
+    min-height: calc(var(--rec-hoehe) + .75rem); }
+#interview[data-ux-zustand="laeuft"]::before { background: var(--auf-rec);
+    animation: ux-puls 1.1s ease-in-out infinite; }
+#interview[data-ux-zustand="laedt"] { border-color: var(--warn);
+                                      color: var(--warn); }
+#interview[data-ux-zustand="laedt"]::before { background: var(--warn); }
+#interview[aria-busy="true"] { cursor: progress; }
+/* Die zweite Zeile steht NEBEN dem Knopf, nie darin: ``_CHAT_JS`` setzt
+   dort ``textContent`` (Befund 2 an Karte A2). */
+#ux-rec-zeile { text-align: center; font-size: .76rem;
+                color: var(--text-leise); margin-top: -.2rem; }
+#interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--rec); }
+
+/* -- Knopf 2: Push-to-Talk (halten) ---------------------------------
+   Andere Form (Kreis), anderer Ort (in der Eingabezeile), andere Farbe
+   (Signal statt Rot), anderes Verb (halten statt tippen). A2 blendet ihn
+   aus, solange ein Interview laeuft -- zwei Mikrofone gleichzeitig sind
+   keine Bedienung. */
+#ptt { width: var(--tippflaeche); min-width: var(--tippflaeche);
+       height: var(--tippflaeche); border-radius: 50%;
+       border: 1px dashed var(--signal); background: var(--grund-2);
+       color: var(--signal); font-size: 1.15rem; touch-action: none; }
+#ptt[data-haelt="1"] { background: var(--signal); color: var(--auf-signal);
+                       border-style: solid; }
+
+/* -- Messwerk: Uhr, Pegel, Warteschlange ---------------------------- */
+#uhr { font-family: var(--schrift-tech); font-variant-numeric: tabular-nums;
+       font-size: 1.35rem; color: var(--warn); }
+#pegel { height: .55rem; background: var(--grund-3);
+         border: 1px solid var(--linie); border-radius: var(--radius);
+         overflow: hidden; }
+#pegel span { display: block; height: 100%; background: var(--rec);
+              transition: width var(--takt-schnell) linear; }
+#warteschlange { font-size: .78rem; color: var(--warn); min-height: 1.1em;
+                 font-family: var(--schrift-tech); }
+.fuss { background: var(--grund); border-top: 1px solid var(--linie); }
+.zeile input { background: var(--grund-2); color: var(--text);
+               border: 1px solid var(--rand); border-radius: var(--radius);
+               min-height: var(--tippflaeche); }
+#senden { background: var(--signal); color: var(--auf-signal); border: 0;
+          border-radius: var(--radius); min-width: var(--tippflaeche);
+          min-height: var(--tippflaeche); font-weight: 700; }
 """
 
 #: Der Chat, Entwurf B: Buehne. Serifenfreie Leseschrift, weiche Formen,
@@ -587,6 +655,66 @@ _CHAT_B = """
          font-family: var(--schrift-tech); }
 #tippt[data-ux-denkt="1"]::after { content: "\\258D";
                                    animation: ux-blinken 1s steps(2) infinite; }
+
+/* -- Knopf 1: Interview als Scheinwerfer ---------------------------- */
+#interview { width: var(--rec-hoehe); height: var(--rec-hoehe);
+             border-radius: 50%; border: 3px solid var(--rec);
+             background: var(--grund-2); color: var(--text); font: inherit;
+             font-family: var(--schrift-tech); font-size: .66rem;
+             letter-spacing: .1em; text-transform: uppercase;
+             display: flex; flex-direction: column; align-items: center;
+             justify-content: center; gap: .15rem; }
+#interview::before { content: ""; width: 1.1rem; height: 1.1rem;
+                     border-radius: 50%; background: var(--rec); }
+#interview:active { transform: scale(.95); }
+#interview[data-ux-zustand="startet"] { border-color: var(--warn); }
+#interview[data-ux-zustand="startet"]::before { background: var(--warn);
+    animation: ux-puls .7s ease-in-out infinite; }
+#interview[data-ux-zustand="laeuft"] { background: var(--rec);
+    color: var(--auf-rec); border-color: var(--auf-rec);
+    width: calc(var(--rec-hoehe) + 1.1rem);
+    height: calc(var(--rec-hoehe) + 1.1rem); }
+#interview[data-ux-zustand="laeuft"]::before { background: var(--auf-rec);
+    border-radius: .2rem; animation: ux-puls 1.1s ease-in-out infinite; }
+#interview[data-ux-zustand="laedt"] { border-color: var(--warn);
+                                      color: var(--warn); }
+#interview[data-ux-zustand="laedt"]::before { background: var(--warn); }
+#interview[aria-busy="true"] { cursor: progress; }
+/* Neben dem Knopf statt darunter: sonst nimmt der Fuss ein Drittel des
+   Telefons (gemessen am Entwurf vor der Nachbesserung). */
+.fuss { flex-direction: row; flex-wrap: wrap; align-items: center;
+        gap: .5rem .9rem; background: var(--grund);
+        border-top: 1px solid var(--linie); }
+#ux-rec-zeile { flex: 1; font-family: var(--schrift-skript);
+                font-size: 1.1rem; color: var(--text); }
+#interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--rec); }
+
+/* -- Knopf 2: Push-to-Talk als Pille -------------------------------- */
+#ptt { min-width: 7.5rem; min-height: var(--tippflaeche);
+       border-radius: 1.4rem; border: 1px dashed var(--signal);
+       background: var(--grund-2); color: var(--signal);
+       font-family: var(--schrift-tech); font-size: .76rem;
+       letter-spacing: .06em; text-transform: uppercase;
+       touch-action: none; padding: 0 .7rem; }
+#ptt[data-haelt="1"] { background: var(--signal); color: var(--auf-signal);
+                       border-style: solid; font-weight: 700; }
+
+/* -- Messwerk ------------------------------------------------------- */
+#uhr { font-family: var(--schrift-tech); font-variant-numeric: tabular-nums;
+       font-size: 1.4rem; color: var(--signal); }
+#pegel { height: .6rem; background: var(--grund-3);
+         border: 1px solid var(--linie); border-radius: 1rem;
+         overflow: hidden; }
+#pegel span { display: block; height: 100%; background: var(--rec);
+              transition: width var(--takt-schnell) linear; }
+#warteschlange { font-family: var(--schrift-tech); font-size: .78rem;
+                 color: var(--signal); min-height: 1.1em; }
+.zeile input { background: var(--grund-2); color: var(--text);
+               border: 1px solid var(--rand); border-radius: 1.4rem;
+               min-height: var(--tippflaeche); }
+#senden { background: var(--signal); color: var(--auf-signal); border: 0;
+          border-radius: 1.4rem; min-height: var(--tippflaeche);
+          padding: 0 1rem; font-weight: 700; }
 """
 #: Der Arbeitsstand: eine Karte je Feld. Die Formulare der Gruppenseite
 #: (``web._rahmen``, ``_textfeld``, ``_dropdown``) bleiben, wie sie sind --
@@ -726,26 +854,119 @@ _JS_FORTSCHRITT = """
 """
 
 
-def skript(name: str | None = None) -> str:
+#: Baustein 3: die vier Zustaende des Aufnahmeknopfes.
+#:
+#: **Der wichtigste Teil dieser Karte.** Karte A2 kennt nur an/aus; die
+#: beiden Uebergaenge (Mikrofonfreigabe laeuft, Segmente werden noch
+#: hochgeladen) sind fuer die Gruppe genau die Momente, in denen sie
+#: nachdrueckt -- und in Dortmund ist daraus ein Knopf geworden, der 14x
+#: in 93 Sekunden gedrueckt wurde.
+#:
+#: Abgeleitet wird aus dem, was schon im DOM steht:
+#:   ruht     -- data-interview="0" und die Warteschlange ist leer
+#:   startet  -- gedrueckt, data-interview noch "0"
+#:   laeuft   -- data-interview="1"
+#:   laedt    -- gerade auf "0" gewechselt, Warteschlange nicht leer
+#: **Kein neuer Schluessel im Zustands-Poll, kein SQL.**
+#:
+#: **Diese Funktion faengt keinen Druck ab.** Dass ``_CHAT_JS`` waehrend
+#: eines Uebergangs weiter auf Klicks reagiert, ist ein Logikbefund an
+#: Karte A2 (Plan-Kopf, Befund 1) und gehoert dorthin. Hier wird er nur
+#: SICHTBAR: aria-busy, cursor: progress, und ein Text, der sagt, was
+#: gerade laeuft. Ein stopPropagation hier waere die stille Reparatur,
+#: die der Plan verbietet -- und sie wuerde das Problem verstecken,
+#: statt es zu loesen.
+_JS_AUFNAHME = """
+  (function aufnahme() {
+    var knopf = el('interview');
+    var fuss = el('fuss');
+    var warte = el('warteschlange');
+    if (!knopf || !fuss) { return; }
+
+    // Die zweite Zeile NEBEN dem Knopf: _CHAT_JS setzt dort textContent.
+    var zeile = document.createElement('div');
+    zeile.id = 'ux-rec-zeile';
+    knopf.parentNode.insertBefore(zeile, knopf.nextSibling);
+    knopf.setAttribute('aria-describedby', 'ux-rec-zeile');
+
+    var gedrueckt = 0;
+    var zustand = null;
+
+    var setze = function (neu) {
+      if (neu === zustand) { return; }
+      zustand = neu;
+      knopf.dataset.uxZustand = neu;
+      knopf.setAttribute('aria-busy',
+        (neu === 'startet' || neu === 'laedt') ? 'true' : 'false');
+      // Farbe allein traegt keinen Zustand: der Text sagt ihn auch.
+      zeile.textContent = TEXTE['rec_' + neu] || '';
+    };
+
+    var lies = function () {
+      var an = fuss.dataset.interview === '1';
+      var laden = !!(warte && (warte.textContent || '').trim());
+      if (an) { setze('laeuft'); return; }
+      if (laden) { setze('laedt'); return; }
+      // Nach dem Druck bleibt "startet" stehen, bis der Poll den Modus
+      // meldet -- bei einer Mikrofonfreigabe sind das leicht zwei
+      // Sekunden, und genau da wurde in Dortmund nachgedrueckt.
+      if (gedrueckt && Date.now() - gedrueckt < 20000) { setze('startet'); return; }
+      setze('ruht');
+    };
+
+    knopf.addEventListener('click', function () {
+      // Kein Abfangen dieses Klicks in irgendeiner Form: _CHAT_JS muss
+      // ihn weiterhin unveraendert sehen (Befund 1).
+      gedrueckt = (fuss.dataset.interview === '1') ? 0 : Date.now();
+      lies();
+    });
+
+    new MutationObserver(function () {
+      if (fuss.dataset.interview === '1') { gedrueckt = 0; }
+      lies();
+    }).observe(fuss, { attributes: true, attributeFilter: ['data-interview'] });
+
+    if (warte) {
+      new MutationObserver(lies).observe(
+        warte, { childList: true, characterData: true, subtree: true });
+    }
+    lies();
+  })();
+"""
+
+
+def skript(name: str | None = None, *, chat_vorhanden: bool = True) -> str:
     """Das Effekt-JS mit eingesetzten Werten.
 
     Platzhalter statt f-String: das Skript ist voll mit geschweiften
-    Klammern. Dieselbe Bauart wie ``web_chat._js()`` (Karte A2)."""
+    Klammern. Dieselbe Bauart wie ``web_chat._js()`` (Karte A2).
+
+    **UX-Fix an Aufgabe 8:** ``chat_vorhanden=False`` laesst Baustein 3
+    (``_JS_AUFNAHME``) weg. Er nennt Elemente, die es nur im Chat-Panel
+    gibt (u.a. ``#warteschlange``, ``#interview``, ``#ptt``) -- bei einer
+    Telegram-Gruppe (kein Web-Kanal, kein Chat-Panel) rendert
+    ``web_vereint.seite`` dieses Panel gar nicht, und dann darf dessen
+    Markernamen nicht einmal im ausgelieferten ``<script>`` stehen
+    (``tests/test_web_vereint.py::test_telegram_gruppe_hat_kein_chat_panel``
+    prueft genau das als Teilstring-Suche). Die Bausteine 1 und 2
+    (Denk-Zustand, Fortschritt) bleiben immer drin: sie fragen selbst erst
+    ``el('tippt')``/``el('roadmap')`` ab und tun bei Fehlanzeige nichts."""
     gewaehlt = name or entwurf()
     takt = TOKENS[gewaehlt]["takt-moment"].removesuffix("ms")
+    bausteine = _BAUSTEINE if chat_vorhanden else (_JS_DENKT + _JS_FORTSCHRITT)
     return (
         _GESTALT_JS
         .replace("__TAKT_MOMENT__", takt)
         .replace("__MOMENT__", "glitch" if gewaehlt == "a" else "vorhang")
         .replace("__TEXTE__", json.dumps(_mikrotexte(), ensure_ascii=False))
-        .replace("__BAUSTEINE__", _BAUSTEINE)
+        .replace("__BAUSTEINE__", bausteine)
     )
 
 
-#: Gefuellt in den Aufgaben 5 bis 9. Baustein 1 (Denk-Zustand, Aufgabe 5)
-#: und Baustein 2 (Fortschritt, Aufgabe 7) stehen bereits, die weiteren
-#: haengen hier an.
-_BAUSTEINE = _JS_DENKT + _JS_FORTSCHRITT
+#: Gefuellt in den Aufgaben 5 bis 9. Baustein 1 (Denk-Zustand, Aufgabe 5),
+#: Baustein 2 (Fortschritt, Aufgabe 7) und Baustein 3 (Aufnahmeknoepfe,
+#: Aufgabe 8) stehen bereits, die weiteren haengen hier an.
+_BAUSTEINE = _JS_DENKT + _JS_FORTSCHRITT + _JS_AUFNAHME
 
 
 def _mikrotexte() -> dict[str, str]:
@@ -754,5 +975,14 @@ def _mikrotexte() -> dict[str, str]:
     Sie gehen als JSON ins Skript, statt als Literal darin zu stehen --
     nur so laufen sie ueber ``T`` (A1) und sind uebersetzbar. Ein Literal
     im JS waere in Padua Deutsch; genau das ist Befund 2 an Karte A2.
-    Gefuellt in Aufgabe 11."""
-    return {}
+
+    Die vier ``rec_*``-Zeilen (Aufgabe 8, der zweiten Zeile neben dem
+    Aufnahmeknopf -- ``_JS_AUFNAHME`` liest ``TEXTE['rec_' + zustand]``)
+    stehen schon hier; der Rest der Mikrotexte wird in Aufgabe 11
+    gefuellt."""
+    return {
+        "rec_ruht": "",
+        "rec_startet": "Starting …",
+        "rec_laeuft": "Mic is hot.",
+        "rec_laedt": "Sending …",
+    }

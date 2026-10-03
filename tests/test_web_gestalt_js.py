@@ -32,13 +32,6 @@ def test_das_skript_setzt_werte_ueber_cssom(js):
     assert "setAttribute('style'" not in js
 
 
-@pytest.mark.xfail(
-    reason="_JS_DENKT (Aufgabe 5) beobachtet per MutationObserver, es "
-    "braucht keinen Klick-Handler -- addEventListener( kommt erst mit "
-    "dem Aufnahmeknopf (Aufgabe 8, geprueft per grep gegen "
-    "task-8-brief.md).",
-    strict=False,
-)
 def test_das_skript_haengt_keine_handler_ins_markup(js):
     """Alles ueber ``addEventListener``; ein ``el.onclick =`` waere zwar
     CSP-konform, aber wuerde einen fremden Handler ueberschreiben."""
@@ -46,12 +39,6 @@ def test_das_skript_haengt_keine_handler_ins_markup(js):
     assert not re.search(r"\.on(click|input|change)\s*=", js)
 
 
-@pytest.mark.xfail(
-    reason="_JS_DENKT (Aufgabe 5) legt kein eigenes Element neben "
-    "#interview an -- ux-rec-zeile kommt erst mit dem Aufnahmeknopf "
-    "(Aufgabe 8, geprueft per grep gegen task-8-brief.md).",
-    strict=False,
-)
 def test_das_skript_schreibt_nie_in_den_interview_knopf(js):
     """Befund 2 an Karte A2: ``_CHAT_JS`` setzt dort ``textContent``.
     Zwei Schreiber auf einem Knoten sind ein Fehler, der erst im Workshop
@@ -213,3 +200,88 @@ def test_die_akt_beschriftung_kommt_aus_den_mikrotexten(js):
     """Sonst stuende in Dortmund Englisch und in Padua Deutsch."""
     assert "TEXTE" in js
     assert "akt_kopf" in js
+
+
+# -- Die zwei Aufnahmeknoepfe ------------------------------------------------
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_aufnahmeknopf_ist_deutlich_groesser_als_eine_tippflaeche(name):
+    """Dortmund Tag 1: 13 von 20 Aufnahmen leer, ein Knopf 14x in 93 s
+    gedrueckt. Das ist das wichtigste Element dieser Oberflaeche."""
+    tippflaeche = float(web_gestalt.TOKENS[name]["tippflaeche"].removesuffix("rem"))
+    rec = float(web_gestalt.TOKENS[name]["rec-hoehe"].removesuffix("rem"))
+    assert rec >= tippflaeche * 1.5, (rec, tippflaeche)
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+@pytest.mark.parametrize("zustand", ["startet", "laeuft", "laedt"])
+def test_jeder_zustand_hat_seine_regel(name, zustand):
+    """``ruht`` ist die Grundregel ``#interview { … }`` und braucht kein
+    Attribut; die drei anderen sind Abweichungen davon."""
+    assert f'#interview[data-ux-zustand="{zustand}"]' in web_gestalt.css_chat(name)
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_laufende_zustand_ist_groesser_als_der_ruhende(name):
+    """Nicht nur anders gefaerbt: wer im Augenwinkel hinsieht, soll den
+    Unterschied sehen."""
+    css = web_gestalt.css_chat(name)
+    block = re.search(
+        r'#interview\[data-ux-zustand="laeuft"\]\s*\{([^}]*)\}', css, flags=re.S)
+    assert block, "kein Stil fuer den laufenden Zustand"
+    assert "calc(var(--rec-hoehe)" in block.group(1)
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_es_gibt_eine_rueckmeldung_unter_hundert_millisekunden(name):
+    """``:active`` ist CSS -- kein Netz, kein Promise, kein Warten."""
+    assert "#interview:active" in web_gestalt.css_chat(name)
+    takt = int(web_gestalt.TOKENS[name]["takt-schnell"].removesuffix("ms"))
+    assert takt < 100, takt
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_die_zwei_mikrofone_unterscheiden_sich_in_der_form(name):
+    """Form, Ort, Farbe, Verb -- vier Achsen. Die Form ist die, die man
+    im Augenwinkel sieht."""
+    css = web_gestalt.css_chat(name)
+    rund = re.search(r"#ptt\s*\{[^}]*border-radius:\s*([^;]+);", css, flags=re.S)
+    knopf = re.search(r"#interview\s*\{[^}]*border-radius:\s*([^;]+);", css, flags=re.S)
+    assert rund and knopf
+    assert rund.group(1).strip() != knopf.group(1).strip()
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_die_zwei_mikrofone_haben_verschiedene_farben(name):
+    css = web_gestalt.css_chat(name)
+    assert "var(--rec)" in re.search(r"#interview\s*\{([^}]*)\}", css, flags=re.S).group(1)
+    assert "var(--signal)" in re.search(r"#ptt\s*\{([^}]*)\}", css, flags=re.S).group(1)
+
+
+def test_das_skript_leitet_die_vier_zustaende_ab(js):
+    for zustand in ("ruht", "startet", "laeuft", "laedt"):
+        assert zustand in js, zustand
+    assert "data-interview" in js or "dataset.interview" in js
+    assert "warteschlange" in js
+
+
+def test_das_skript_zeigt_busy_aber_sperrt_nicht(js):
+    """Befund 1 an Karte A2 (Plan-Kopf): dort werden Drucke waehrend eines
+    Uebergangs NICHT ignoriert. Das zu reparieren waere Logik. Die
+    Gestaltung zeigt es -- und ein ``preventDefault``/``stopPropagation``
+    hier waere genau die stille Reparatur, die der Plan verbietet."""
+    assert "aria-busy" in js
+    assert "stopPropagation" not in js
+    assert "stopImmediatePropagation" not in js
+
+
+def test_der_zustandstext_steht_neben_dem_knopf_nicht_darin(js):
+    """Sonst schreiben zwei Stellen in denselben Knoten (Befund 2)."""
+    assert "ux-rec-zeile" in js
+    assert "createElement" in js
+
+
+def test_die_zustandstexte_kommen_aus_den_mikrotexten(js):
+    for schluessel in ("rec_ruht", "rec_startet", "rec_laeuft", "rec_laedt"):
+        assert schluessel in js, schluessel

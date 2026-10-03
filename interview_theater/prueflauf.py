@@ -155,6 +155,23 @@ def _vorfall(conn, chat_id: int, e, art: str, text: str) -> None:
         log.exception("Vorfall %s nicht schreibbar, chat_id=%s", art, chat_id)
 
 
+def _fehler(conn, chat_id: int, e, schritt: str) -> None:
+    """Aus einem ``except``-Block: Traceback ins Log, ein Vorfall fuers
+    Dashboard -- und weiter. Ein Prueflauf endet IMMER mit Protokollzeile und
+    ``Bericht``; die Gruppe sieht ihren Text auch, wenn ein Schritt reisst."""
+    log.exception("Prueflauf: %s gescheitert, chat_id=%s", schritt, chat_id)
+    _vorfall(conn, chat_id, e, VORFALL_FEHLGESCHLAGEN, f"Prueflauf: {schritt} gescheitert")
+
+
+def _stelle_wieder_her(conn, chat_id: int, e, stand) -> None:
+    from interview_theater.dramaturgie import schleife
+
+    try:
+        schleife.stelle_wieder_her(conn, chat_id, stand)
+    except Exception:
+        _fehler(conn, chat_id, e, "Wiederherstellen")
+
+
 def _merke_erstentwurf(conn, chat_id: int, zeile, text: str) -> None:
     """Schritt 3: die Fassung VOR der Pruefung ist die Erstfassung ("Show
     first draft"). Steht sie noch nicht als letzte Fassung in
@@ -169,9 +186,15 @@ def _merke_erstentwurf(conn, chat_id: int, zeile, text: str) -> None:
         repo.setze_szene_erstentwurf(conn, sid, letzte["nummer"])
 
 
-def _schliesse(conn, tg, klm, e, chat_id: int, zeilen: list[str], **kwargs):
+def _schliesse(conn, tg, klm, e, chat_id: int, zeilen: list[str], stand, **kwargs):
     """``schleife.schliesse`` mit der Fehlerhaltung des Prueflaufs: was auch
-    reisst, die Gruppe sieht ihren Text trotzdem -- ohne Pruefung."""
+    reisst, die Gruppe sieht ihren Text trotzdem -- ohne Pruefung.
+
+    **Und dann den Text von VOR der Pruefung** (Review Task 6, Fix-Runde 1):
+    reisst die Schleife mittendrin (Tagesdeckel, 5xx in Runde 2), kann eine
+    Ueberarbeitung schon geschrieben sein, die nie neu bewertet wurde. Sie zu
+    zeigen hiesse, ungeprueften Text als geprueft auszugeben -- deshalb geht
+    jede Ausnahme zurueck auf ``stand``. Ohne Aenderung ist das ein No-Op."""
     from interview_theater import kosten
     from interview_theater.dramaturgie import fanout, schleife
 
@@ -185,10 +208,13 @@ def _schliesse(conn, tg, klm, e, chat_id: int, zeilen: list[str], **kwargs):
         zeilen.append(str(fehler))
         _vorfall(conn, chat_id, e, VORFALL_OHNE_RICHTER, str(fehler))
     except kosten.KostendeckelErreicht:
-        kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id)
+        try:
+            kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id)
+        except Exception:
+            log.exception("Pausenmeldung gescheitert, chat_id=%s", chat_id)
     except Exception:
-        log.exception("Prueflauf gescheitert, chat_id=%s", chat_id)
-        _vorfall(conn, chat_id, e, VORFALL_FEHLGESCHLAGEN, "Prueflauf gescheitert")
+        _fehler(conn, chat_id, e, "Pruefschleife")
+    _stelle_wieder_her(conn, chat_id, e, stand)
     return None
 
 
@@ -226,7 +252,10 @@ def _parameterkorrektur(conn, chat_id: int, runde, nummer: int, sid: int) -> lis
         if korrektur is None:
             continue
         feld, wert = korrektur
-        if feld not in repo.SZENENFELDER:
+        # Nie ein geschuetztes Feld (Birk 7.1): die Form waehlt die Gruppe,
+        # den Stil auch -- ein Richter, der ``form: Monolog`` vorschlaegt,
+        # setzt sie nicht. Text-Spalten sind ohnehin keine Planung.
+        if feld not in repo.SZENENFELDER or feld in repo.GESCHUETZTE_SZENENFELDER:
             continue
         repo.setze_szenenfeld(conn, sid, feld, wert)
         repo.schreibe_journal(
@@ -347,11 +376,11 @@ def pruefe_szene(conn, tg, klm, e, chat_id: int, nummer: int) -> Bericht:
     zweimal, prueft die Zitate, laesst den Nachpass laufen und protokolliert.
     Synchron; **der Aufrufer haelt ``szene._sperre_fuer(chat_id)``**. Zeigt
     nichts."""
-    from interview_theater import nachpass, sprachpass, szene
+    from interview_theater import nachpass, sprachpass
     from interview_theater.dramaturgie import schleife
 
     t0 = time.monotonic()
-    feld = _feld(conn, chat_id)
+    feld = _feld(conn, chat_id)   # dieselbe Weiche wie ``szene.schreibt_prosa``
     zeile = _zeile_der_szene(conn, chat_id, nummer)
     text = _text(zeile, feld)
     if not text:
@@ -359,44 +388,65 @@ def pruefe_szene(conn, tg, klm, e, chat_id: int, nummer: int) -> Bericht:
                        dauer_ms=int((time.monotonic() - t0) * 1000))
     sid = zeile["id"]
 
-    _merke_erstentwurf(conn, chat_id, zeile, text)
-    zitate = sprachpass.gepruefte_zitate(conn, chat_id)
-    stand = schleife.schnappschuss(conn, chat_id)
-    fragen = FRAGEN_PROSASZENE if szene.schreibt_prosa(conn, chat_id) else FRAGEN_BUEHNENSZENE
-
+    fragen = FRAGEN_PROSASZENE if feld == "prosa" else FRAGEN_BUEHNENSZENE
     zeilen: list[str] = []
-    erg = _schliesse(conn, tg, klm, e, chat_id, zeilen, fragen=fragen,
-                     szenen=(nummer,), schreiber=_schreibe_szenen)
+    erg = None
+    verworfen = None
+    # Jeder Schritt in seinem eigenen ``try`` (Fix-Runde 1): was auch reisst,
+    # am Ende stehen Protokollzeile und ``Bericht``.
+    try:
+        _merke_erstentwurf(conn, chat_id, zeile, text)
+    except Exception:
+        _fehler(conn, chat_id, e, "Erstfassung")
+    zitate: list[str] = []
+    stand = None
+    try:
+        zitate = sprachpass.gepruefte_zitate(conn, chat_id)
+        stand = schleife.schnappschuss(conn, chat_id)
+    except Exception:
+        _fehler(conn, chat_id, e, "Schnappschuss")
+    # Ohne Schnappschuss kein Rueckweg -- dann auch keine Ueberarbeitung.
+    if stand is not None:
+        erg = _schliesse(conn, tg, klm, e, chat_id, zeilen, stand, fragen=fragen,
+                         szenen=(nummer,), schreiber=_schreibe_szenen)
 
     # Erst steht fest, welcher Text bleibt (Zitatwache, Verschlechterung),
     # dann folgt die Planung DIESEM Text -- siehe ``_massgebliche_runde``.
-    verworfen = None
-    hinweise: list[str] = []
-    neu = _text(_zeile_der_szene(conn, chat_id, nummer), feld)
-    if sprachpass.verlorene(text, neu, zitate):
-        schleife.stelle_wieder_her(conn, chat_id, stand)
-        verworfen = VERWORFEN_ZITAT
-        hinweise.append(T._ZEILE_ZITAT_VERWORFEN)
-    elif erg and erg.wiederhergestellt:
-        verworfen = VERWORFEN_VERSCHLECHTERUNG
-        hinweise.append(T._ZEILE_VERSCHLECHTERT)
-    zeilen.extend(_parameterkorrektur(
-        conn, chat_id, _massgebliche_runde(erg, verworfen == VERWORFEN_ZITAT),
-        nummer, sid))
-    zeilen.extend(hinweise)
-
-    vor_nachpass = _text(_zeile_der_szene(conn, chat_id, nummer), feld)
     try:
-        nachpass.nach_szene(conn, tg, klm, e, chat_id, nummer, zeigen=False)
+        hinweise: list[str] = []
+        neu = _text(_zeile_der_szene(conn, chat_id, nummer), feld)
+        if stand is not None and sprachpass.verlorene(text, neu, zitate):
+            _stelle_wieder_her(conn, chat_id, e, stand)
+            verworfen = VERWORFEN_ZITAT
+            hinweise.append(T._ZEILE_ZITAT_VERWORFEN)
+        elif erg and erg.wiederhergestellt:
+            verworfen = VERWORFEN_VERSCHLECHTERUNG
+            hinweise.append(T._ZEILE_VERSCHLECHTERT)
+        zeilen.extend(_parameterkorrektur(
+            conn, chat_id, _massgebliche_runde(erg, verworfen == VERWORFEN_ZITAT),
+            nummer, sid))
+        zeilen.extend(hinweise)
     except Exception:
-        log.exception("Nachpass im Prueflauf gescheitert, chat_id=%s, Szene %s",
-                      chat_id, nummer)
-        nachpass._vorfall(conn, chat_id, e, nachpass.VORFALL_FEHLER,
-                          f"Szene {nummer}: Nachpass gescheitert")
-    if _text(_zeile_der_szene(conn, chat_id, nummer), feld) != vor_nachpass:
-        zeilen.append(T._ZEILE_SPRACHPASS)
+        _fehler(conn, chat_id, e, "Zitatwache/Parameter")
 
-    zeilen.extend(_auftragszeilen(erg, verworfen))
+    try:
+        vor_nachpass = _text(_zeile_der_szene(conn, chat_id, nummer), feld)
+        try:
+            nachpass.nach_szene(conn, tg, klm, e, chat_id, nummer, zeigen=False)
+        except Exception:
+            log.exception("Nachpass im Prueflauf gescheitert, chat_id=%s, Szene %s",
+                          chat_id, nummer)
+            nachpass._vorfall(conn, chat_id, e, nachpass.VORFALL_FEHLER,
+                              f"Szene {nummer}: Nachpass gescheitert")
+        if _text(_zeile_der_szene(conn, chat_id, nummer), feld) != vor_nachpass:
+            zeilen.append(T._ZEILE_SPRACHPASS)
+    except Exception:
+        _fehler(conn, chat_id, e, "Nachpass")
+
+    try:
+        zeilen.extend(_auftragszeilen(erg, verworfen))
+    except Exception:
+        _fehler(conn, chat_id, e, "Zeilen")
     return _protokolliere(conn, chat_id, ziel="szene", nummer=nummer,
                           fragen=fragen, erg=erg, verworfen=verworfen,
                           zeilen=zeilen, t0=t0)
@@ -416,44 +466,63 @@ def pruefe_geschichte(conn, tg, klm, e, chat_id: int, *,
     prosa = szene.schreibt_prosa(conn, chat_id)
     feld = _feld(conn, chat_id)
     fragen = tuple(fragen)
-    for zeile in repo.hole_szenen(conn, chat_id):
-        text = _text(zeile, feld)
-        if text:
-            _merke_erstentwurf(conn, chat_id, zeile, text)
-    vorher = _stueck(conn, chat_id, feld)
-    zitate = sprachpass.gepruefte_zitate(conn, chat_id)
-    stand = schleife.schnappschuss(conn, chat_id)
-
     zeilen: list[str] = []
     erg = None
-    if vorher.strip():
+    verworfen = None
+    vorher = ""
+    zitate: list[str] = []
+    stand = None
+    try:
+        for zeile in repo.hole_szenen(conn, chat_id):
+            text = _text(zeile, feld)
+            if text:
+                _merke_erstentwurf(conn, chat_id, zeile, text)
+    except Exception:
+        _fehler(conn, chat_id, e, "Erstfassung")
+    try:
+        vorher = _stueck(conn, chat_id, feld)
+        zitate = sprachpass.gepruefte_zitate(conn, chat_id)
+        stand = schleife.schnappschuss(conn, chat_id)
+    except Exception:
+        _fehler(conn, chat_id, e, "Schnappschuss")
+
+    if stand is not None and vorher.strip():
         erg = _schliesse(
-            conn, tg, klm, e, chat_id, zeilen, fragen=fragen, szenen=None,
+            conn, tg, klm, e, chat_id, zeilen, stand, fragen=fragen, szenen=None,
             schreiber=_schreibe_geschichte if prosa else _schreibe_szenen,
         )
 
-    verworfen = None
-    if sprachpass.verlorene(vorher, _stueck(conn, chat_id, feld), zitate):
-        schleife.stelle_wieder_her(conn, chat_id, stand)
-        verworfen = VERWORFEN_ZITAT
-        zeilen.append(T._ZEILE_ZITAT_VERWORFEN)
-    elif erg and erg.wiederhergestellt:
-        verworfen = VERWORFEN_VERSCHLECHTERUNG
-        zeilen.append(T._ZEILE_VERSCHLECHTERT)
+    try:
+        if stand is not None and sprachpass.verlorene(
+                vorher, _stueck(conn, chat_id, feld), zitate):
+            _stelle_wieder_her(conn, chat_id, e, stand)
+            verworfen = VERWORFEN_ZITAT
+            zeilen.append(T._ZEILE_ZITAT_VERWORFEN)
+        elif erg and erg.wiederhergestellt:
+            verworfen = VERWORFEN_VERSCHLECHTERUNG
+            zeilen.append(T._ZEILE_VERSCHLECHTERT)
+    except Exception:
+        _fehler(conn, chat_id, e, "Zitatwache")
 
     if prosa:
-        vor_nachpass = _stueck(conn, chat_id, feld)
         try:
-            nachpass.nach_geschichte(conn, tg, klm, e, chat_id)
+            vor_nachpass = _stueck(conn, chat_id, feld)
+            try:
+                nachpass.nach_geschichte(conn, tg, klm, e, chat_id)
+            except Exception:
+                log.exception("Prosa-Nachpass im Prueflauf gescheitert, chat_id=%s",
+                              chat_id)
+                nachpass._vorfall(conn, chat_id, e, nachpass.VORFALL_FEHLER,
+                                  "Prosa-Nachpass gescheitert")
+            if _stueck(conn, chat_id, feld) != vor_nachpass:
+                zeilen.append(T._ZEILE_SPRACHPASS)
         except Exception:
-            log.exception("Prosa-Nachpass im Prueflauf gescheitert, chat_id=%s",
-                          chat_id)
-            nachpass._vorfall(conn, chat_id, e, nachpass.VORFALL_FEHLER,
-                              "Prosa-Nachpass gescheitert")
-        if _stueck(conn, chat_id, feld) != vor_nachpass:
-            zeilen.append(T._ZEILE_SPRACHPASS)
+            _fehler(conn, chat_id, e, "Nachpass")
 
-    zeilen.extend(_auftragszeilen(erg, verworfen))
+    try:
+        zeilen.extend(_auftragszeilen(erg, verworfen))
+    except Exception:
+        _fehler(conn, chat_id, e, "Zeilen")
     return _protokolliere(conn, chat_id, ziel="geschichte", nummer=None,
                           fragen=fragen, erg=erg, verworfen=verworfen,
                           zeilen=zeilen, t0=t0)
@@ -468,7 +537,12 @@ def _starte(sperre: threading.Lock, lauf, danach) -> threading.Thread | None:
     """Sperre ohne Warten, eigener Thread, ``lauf()`` und danach
     ``danach(bericht)`` -- **nach** der Freigabe der Sperre, damit ``danach``
     selbst wieder einen Lauf anstossen darf (``szene.starte`` nimmt dieselbe
-    Sperre ohne Warten und fiele sonst auf "besetzt")."""
+    Sperre ohne Warten und fiele sonst auf "besetzt").
+
+    **Folge:** zwischen Freigabe und ``danach`` kann ein anderer Lauf dieser
+    Gruppe beginnen und den Text aendern. ``danach`` (die Anzeige, Task 7)
+    zeigt deshalb den aktuellen Stand der Datenbank, nicht einen im
+    ``Bericht`` mitgefuehrten Text -- der ``Bericht`` traegt bewusst keinen."""
     if not sperre.acquire(blocking=False):
         return None
 

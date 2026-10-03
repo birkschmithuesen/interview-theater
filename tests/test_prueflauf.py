@@ -270,6 +270,122 @@ def test_a10_parameterbefund_laesst_die_planung_dem_text_folgen(
     assert len(journal) == 1 and journal[0]["art"] == "entschieden"
 
 
+class Formrichter(Parameterrichter):
+    """A10 schlaegt eine andere Form vor -- ein geschuetztes Feld."""
+
+    def frage(self, conn, e, klm, chat_id, system, nutzer, art):
+        antwort = super().frage(conn, e, klm, chat_id, system, nutzer, art)
+        return antwort.replace("ort: Am Steg im Regen", "form: Monolog")
+
+
+def test_a10_parameterbefund_aendert_nie_die_form(szene6, tg, einst, monkeypatch):
+    """Birk 7.1: die Form waehlt die Gruppe -- auch ein Richter setzt sie nie."""
+    szene_id = repo.hole_szenen(szene6, 1)[0]["id"]
+    repo.setze_szenenfeld(szene6, szene_id, "form", "dialog")
+    richter = Formrichter({})
+    monkeypatch.setattr(fanout, "waehle_richter", lambda *a, **k: richter)
+
+    bericht = prueflauf.pruefe_szene(szene6, tg, Schreiber(), einst, 1, 1)
+
+    befunde = [b for b in repo.dramaturgie_befunde(szene6, 1)
+               if b["pruefung"] == "a10"]
+    assert fanout.parameterkorrektur(befunde[0]) == ("form", "Monolog")
+    assert repo.hole_szenen(szene6, 1)[0]["form"] == "dialog"
+    assert bericht.zeilen == []
+    assert not [z for z in repo.journal(szene6, 1) if z["quelle"] == "prueflauf"]
+
+
+# --- Fehler: immer Bericht, immer Protokoll, nie ungeprueft zeigen --------
+
+
+def _reisst_in_runde_zwei(monkeypatch, ausnahme):
+    """``fanout.pruefe`` reisst beim zweiten Aufruf -- nach einer schon
+    geschriebenen Ueberarbeitung. (Im Richter selbst faengt ``_versuch``
+    jeden Fehler je Frage ab; der Lauf als Ganzes reisst erst hier.)"""
+    echt = fanout.pruefe
+    aufrufe = []
+
+    def pruefe(*a, **k):
+        aufrufe.append(1)
+        if len(aufrufe) > 1:
+            raise ausnahme
+        return echt(*a, **k)
+
+    monkeypatch.setattr(fanout, "pruefe", pruefe)
+
+
+def _vorfaelle(conn):
+    return [z["art"] for z in conn.execute("SELECT art FROM vorfall")]
+
+
+def test_kostendeckel_mitten_in_der_schleife_stellt_den_text_wieder_her(
+        szene6, tg, einst, monkeypatch):
+    from interview_theater import kosten
+
+    _richter(monkeypatch, {("b1", 1): [0]})
+    _reisst_in_runde_zwei(monkeypatch, kosten.KostendeckelErreicht())
+    gemeldet = []
+    monkeypatch.setattr(kosten, "melde_pause_wenn_deckel",
+                        lambda *a, **k: gemeldet.append(1) or True)
+    klm = Schreiber(MIT_ZITAT)
+    vorher = _prosa(szene6)
+
+    bericht = prueflauf.pruefe_szene(szene6, tg, klm, einst, 1, 1)
+
+    assert klm.ueberarbeitungen() == 1          # geschrieben, nie neu bewertet
+    assert _prosa(szene6) == vorher             # ... deshalb nicht gezeigt
+    assert gemeldet == [1]
+    assert isinstance(bericht, prueflauf.Bericht)
+    assert bericht.grund == "ohne_pruefung" and bericht.verworfen is None
+    (zeile,) = repo.prueflaeufe(szene6, 1)
+    assert zeile["grund"] == "ohne_pruefung" and zeile["runden"] == 0
+    assert zeile["verworfen"] is None
+
+
+def test_fehler_mitten_in_der_schleife_stellt_den_text_wieder_her(
+        szene6, tg, einst, monkeypatch):
+    _richter(monkeypatch, {("b1", 1): [0]})
+    _reisst_in_runde_zwei(monkeypatch, RuntimeError("HTTP 503"))
+    klm = Schreiber(MIT_ZITAT)
+    vorher = _prosa(szene6)
+
+    bericht = prueflauf.pruefe_szene(szene6, tg, klm, einst, 1, 1)
+
+    assert klm.ueberarbeitungen() == 1
+    assert _prosa(szene6) == vorher
+    assert bericht.grund == "ohne_pruefung"
+    assert prueflauf.VORFALL_FEHLGESCHLAGEN in _vorfaelle(szene6)
+    (zeile,) = repo.prueflaeufe(szene6, 1)
+    assert zeile["grund"] == "ohne_pruefung"
+
+
+@pytest.mark.parametrize("ziel", ["szene", "geschichte"])
+def test_fehler_nach_der_schleife_liefert_trotzdem_bericht_und_protokoll(
+        szene6, tg, einst, monkeypatch, ziel):
+    from interview_theater import nachpass, sprachpass
+
+    _richter(monkeypatch, {("b1", 1): [2]})
+
+    def kaputt(*a, **k):
+        raise RuntimeError("kaputt")
+
+    monkeypatch.setattr(sprachpass, "verlorene", kaputt)
+    monkeypatch.setattr(sprachpass, "gepruefte_zitate", kaputt)
+    monkeypatch.setattr(nachpass, "nach_szene", kaputt)
+    monkeypatch.setattr(nachpass, "nach_geschichte", kaputt)
+    monkeypatch.setattr(prueflauf, "_merke_erstentwurf", kaputt)
+
+    if ziel == "szene":
+        bericht = prueflauf.pruefe_szene(szene6, tg, Schreiber(), einst, 1, 1)
+    else:
+        bericht = prueflauf.pruefe_geschichte(szene6, tg, Schreiber(), einst, 1)
+
+    assert isinstance(bericht, prueflauf.Bericht)
+    assert len(repo.prueflaeufe(szene6, 1)) == 1
+    assert prueflauf.VORFALL_FEHLGESCHLAGEN in _vorfaelle(szene6)
+    assert _prosa(szene6) == VORHER.strip()
+
+
 # --- Die Fragen je Lage ---------------------------------------------------
 
 

@@ -762,6 +762,10 @@ def parameterkorrektur(befund) -> tuple[str, str] | None:
     ein *Vorschlag*, den die Gruppe im Chat bestaetigt. Ein Modell, das eine
     Szenenplanung still ueberschreibt, waere genau die Sorte unsichtbarer
     Aenderung, wegen der die Analyse vom 06.09. geschrieben wurde.
+    **Ausnahme Padua-Prueflauf** (``prueflauf.py``, Birk 03.10.2026): dort
+    wird die Korrektur fuer ungeschuetzte Felder direkt uebernommen
+    (nie ``repo.GESCHUETZTE_SZENENFELDER``) und der Gruppe in hoechstens drei
+    Zeilen gemeldet.
 
     Liefert None, wenn die Richtung nicht ``parameter`` ist, der Beleg nicht
     geprueft wurde oder der Vorschlag nicht als ``feld: wert`` lesbar ist.

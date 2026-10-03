@@ -216,6 +216,12 @@ def test_der_uebergang_ist_als_busy_markiert(dienst):
 
 
 def test_push_to_talk_sieht_beim_halten_anders_aus(dienst):
+    """Seit Kanban-Karte Buehne/PTT (03.10.2026, Merge t_ea0d33e3) ist PTT
+    ein Klick-Umschalter statt Halten-zum-Sprechen (90-s-Hoechstdauer,
+    test_web_chat_js.py::test_ptt_ist_ein_klick_umschalter_ohne_pointer_capture) --
+    ein Tipp startet, ein zweiter beendet. Der urspruengliche Halten-Test
+    (mouse.down/up) ist seitdem am falschen Modell gemessen; ersetzt durch
+    zwei Klicks."""
     basis, token = dienst
     with sync_playwright() as p:
         browser = p.chromium.launch(args=MIKROFON)
@@ -223,12 +229,10 @@ def test_push_to_talk_sieht_beim_halten_anders_aus(dienst):
         ptt = seite.locator("#ptt")
         kasten = ptt.bounding_box()
         assert kasten["width"] >= 44 and kasten["height"] >= 44
-        seite.mouse.move(kasten["x"] + kasten["width"] / 2,
-                         kasten["y"] + kasten["height"] / 2)
-        seite.mouse.down()
+        ptt.click()
         seite.wait_for_timeout(700)
         assert ptt.get_attribute("data-haelt") == "1"
-        seite.mouse.up()
+        ptt.click()
         seite.wait_for_timeout(300)
         assert ptt.get_attribute("data-haelt") != "1"
         browser.close()

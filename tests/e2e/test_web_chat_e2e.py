@@ -561,7 +561,14 @@ def test_eine_wachsende_letzte_blase_scrollt_mit_wenn_man_unten_war(seite):
     aktualisiert nur die vorhandene. ``nachUnten()`` lief bisher nur bei
     ``neu.length``, also blieb der Bildschirm stehen, waehrend die Blase
     unterhalb des sichtbaren Bereichs weiterwuchs. Stand die Gruppe am
-    unteren Rand, muss sie dort bleiben."""
+    unteren Rand, muss sie dort bleiben.
+
+    Mobile-App-Shell (03.10.2026, Merge t_ea0d33e3): auf der vereinten Seite
+    (``#chat``) scrollt seitdem ``.panel-chat .verlauf`` in sich selbst, das
+    Dokument gar nicht mehr (``web_chat.nachUnten()``-Docstring) -- diese
+    Messung folgt deshalb ``verlauf.scrollTop``/``scrollHeight`` statt
+    ``document.body``/``window.scrollY``, wie es die zwei Zeilen in
+    ``nachUnten()`` selbst schon vorsehen."""
     conn = db.verbinde(DB_PFAD)
     try:
         kanal = web_kanal.WebKanal(conn, CHAT, AUDIO, schritt_s=0.01)
@@ -573,8 +580,11 @@ def test_eine_wachsende_letzte_blase_scrollt_mit_wenn_man_unten_war(seite):
     finally:
         conn.close()
     expect(seite.locator(f'.blase[data-id="{letzte_id}"]')).to_be_visible()
-    seite.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-    hoehe_vorher = seite.evaluate("document.body.scrollHeight")
+    seite.evaluate(
+        "document.querySelector('.panel-chat .verlauf').scrollTop = "
+        "document.querySelector('.panel-chat .verlauf').scrollHeight")
+    hoehe_vorher = seite.evaluate(
+        "document.querySelector('.panel-chat .verlauf').scrollHeight")
 
     conn = db.verbinde(DB_PFAD)
     try:
@@ -585,11 +595,20 @@ def test_eine_wachsende_letzte_blase_scrollt_mit_wenn_man_unten_war(seite):
     finally:
         conn.close()
 
-    assert _warte(seite, lambda: seite.evaluate("document.body.scrollHeight") > hoehe_vorher)
     assert _warte(
         seite,
-        lambda: (seite.evaluate("window.innerHeight") + seite.evaluate("window.scrollY"))
-        >= seite.evaluate("document.body.scrollHeight") - 48,
+        lambda: seite.evaluate(
+            "document.querySelector('.panel-chat .verlauf').scrollHeight")
+        > hoehe_vorher)
+    assert _warte(
+        seite,
+        lambda: (
+            seite.evaluate(
+                "document.querySelector('.panel-chat .verlauf').clientHeight")
+            + seite.evaluate(
+                "document.querySelector('.panel-chat .verlauf').scrollTop")
+        ) >= seite.evaluate(
+            "document.querySelector('.panel-chat .verlauf').scrollHeight") - 48,
     ), "die Gruppe stand unten und haette unten bleiben muessen"
 
 

@@ -930,6 +930,19 @@ body { background: var(--grund); color: var(--text); }
 .leiste.ueberholt button { border-color: var(--linie); color: var(--text-leise); }
 #interview[data-laeuft="1"][data-pausiert="1"] { background: var(--grund-3);
     border-color: var(--warn); color: var(--warn); }
+/* Mobile-App-Shell/Brainstorm (03.10.2026, Merge t_ea0d33e3): waehrend ein
+   Interview laeuft, traegt der Interview-Knopf aus web_chat._CSS_CHAT
+   zusaetzlich die Klasse ``.nebenknopf`` (sie blendet ihn ausserhalb der
+   eigenen Sitzung zurueck, siehe web_chat.py), die ``opacity: .8`` setzt --
+   das druecke den Kontrast des laufenden, roten Zustands
+   (``#interview[data-ux-zustand="laeuft"]``, Knopf 1 oben) unter 4.5:1
+   (gemessen 4.06:1). Waehrend tatsaechlich aufgenommen wird, muss der Knopf
+   voll lesbar bleiben: die Klasse gilt nur fuer die Platzierung, nicht fuer
+   diesen Zustand. Hier und nicht in ``css_interview()``, weil der
+   tatsaechliche Selektor aus ``_CHAT_FLAECHEN`` kommt (``scope_css`` haengt
+   ihr ``.panel-chat`` voran) -- in ``css_interview()`` (UNGESCOPT) haette
+   dieselbe Regel die niedrigere Spezifitaet 1,2,0 und verloere. */
+#interview.nebenknopf[data-ux-zustand="laeuft"] { opacity: 1; }
 #brainstorm { background: var(--grund-2); color: var(--text);
               border-color: var(--rand); }
 #brainstorm[data-laeuft="1"] { background: var(--rec); color: var(--auf-rec);

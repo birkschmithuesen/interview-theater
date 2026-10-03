@@ -537,3 +537,92 @@ def test_dortmund_kuerzung_ist_nicht_gesperrt(conn, dortmund, tg, einst, monkeyp
     assert ergebnis is False
     assert len(gerufen) == 1
     assert ueberarbeitung.T._TEXT_LAEUFT_NOCH not in _texte(tg)
+
+
+# ---------------------------------------------------------------------------
+# Fix-Runde 2
+# ---------------------------------------------------------------------------
+
+
+def _szene_2_neu_geformt_waehrend_szene_3_laeuft(conn, tg, einst, szene_spion):
+    """Szene 3 wird uebertragen (Sperre), die Gruppe formt Szene 2 um; danach
+    ist Szene 3 fertig und steht mit "Yes, save (3)" da."""
+    _stueck(conn, 7, formen=("chor", "dialog", "rap"), sprechweisen_fix=True)
+    for s in repo.hole_szenen(conn, 1):
+        if s["nummer"] in (1, 2):
+            repo.setze_szene_fertig(conn, s["id"], True)
+    _nachricht(conn, 1, 1, "scene 2 should be a song")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "formen_setzen", "wert": "2: song"}]})
+    sperre = szene._sperre_fuer(1)
+    assert sperre.acquire(blocking=False)
+    try:
+        erkenner.laufe(klm, tg, conn, einst, 1)
+    finally:
+        sperre.release()
+    assert szene_spion == []  # besetzt: keine Uebertragung angestossen
+    assert not _szene(conn, 2)["volltext"]
+    assert ueberarbeitung.aktuelle_szene(conn, 1) == 2
+    knoepfe.zeige_geprueft_szene(conn, tg, einst, 1, 3, None)
+    return _knopf_der_art(conn, tg, knoepfe.ART_SZENE_PASST)
+
+
+def test_veraltetes_ja_3_startet_die_neue_uebertragung_von_szene_2(
+        conn, padua, tg, einst, szene_spion):
+    ja_3 = _szene_2_neu_geformt_waehrend_szene_3_laeuft(conn, tg, einst, szene_spion)
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(ja_3, query_id="ja3"))
+
+    assert szene_spion == [ueberarbeitung.T._AUFTRAG_BUEHNE.format(nummer=2)]
+    assert tg.beantwortet[-1][1] == ueberarbeitung.T._ANTWORT_WIRD_UEBERTRAGEN.format(
+        nummer=2)
+    assert ueberarbeitung.T._TEXT_NICHT_DRAN not in _texte(tg)
+    assert not _szene(conn, 3)["fertig_am"]
+
+
+def test_passt_im_chat_startet_die_neue_uebertragung_von_szene_2(
+        conn, padua, tg, einst, szene_spion):
+    _szene_2_neu_geformt_waehrend_szene_3_laeuft(conn, tg, einst, szene_spion)
+
+    antwort = ueberarbeitung.nimm_ab(conn, tg, None, einst, 1)
+
+    assert antwort == ueberarbeitung.T._ANTWORT_WIRD_UEBERTRAGEN.format(nummer=2)
+    assert szene_spion == [ueberarbeitung.T._AUFTRAG_BUEHNE.format(nummer=2)]
+
+
+def _prompt(conn, einst, text):
+    from interview_theater import kontext
+
+    _nachricht(conn, 1, 90, text)
+    ausloeser = [n for n in repo.unextrahierte(conn, 1) if n["message_id"] == 90]
+    return kontext.baue(conn, 1, ausloeser, einst)
+
+
+def _hinweis(stufe):
+    from interview_theater import kontext
+
+    return kontext.T._PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(stufe))
+
+
+def test_padua_prompt_fragt_mitten_in_phase_6_nicht_nach_phase_7(conn, padua, einst):
+    _stueck(conn, 6, gesamt_fix=False, ueberarbeitet=False, volltext=False)
+    assert phasen.offenes_angebot(conn, 1) == 7
+
+    prompt = _prompt(conn, einst, "what do you think of the ending?")
+
+    assert _hinweis(7) not in prompt
+    assert repo.hole_phase_angeboten(conn, 1) != 7
+
+
+def test_padua_prompt_fragt_in_phase_5_nicht_nach_phase_6(conn, padua, einst):
+    _stueck(conn, 5, gesamt_fix=False, ueberarbeitet=False, volltext=False)
+    assert phasen.offenes_angebot(conn, 1) == 6
+
+    assert _hinweis(6) not in _prompt(conn, einst, "what next?")
+
+
+def test_dortmund_prompt_traegt_den_hinweis_auf_phase_7(conn, dortmund, einst):
+    _stueck(conn, 6, gesamt_fix=False, ueberarbeitet=False, volltext=False)
+    assert phasen.offenes_angebot(conn, 1) == 7
+
+    assert _hinweis(7) in _prompt(conn, einst, "was meint ihr zum Ende?")

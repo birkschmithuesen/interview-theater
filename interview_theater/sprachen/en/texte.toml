@@ -1834,6 +1834,7 @@ _ZEILE_FORM_GESETZT = "Scene {nummer}: {form}"
 # one; a form change on an already transferred scene; forms still missing.
 _TEXT_NICHT_DRAN = "That scene isn't the one we're on right now — nothing was saved."
 _ZEILE_FORM_NEU_UEBERTRAGEN = "Scene {nummer}: {form} -- new form, the scene will be transferred again"
+_ANTWORT_WIRD_UEBERTRAGEN = "Scene {nummer} is being transferred again"
 _TEXT_FORMEN_FEHLEN = "Still without a form: scene {nummern}. Which form should they have?"
 
 ["sprechweise"]

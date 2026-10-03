@@ -81,6 +81,9 @@ _ANTWORT_SCHON_GESPEICHERT = "Schon gespeichert"
 _TEXT_NICHT_DRAN = (
     "Diese Szene ist gerade nicht dran -- gespeichert habe ich nichts."
 )
+#: Toast, wenn statt einer Abnahme die aktuelle Szene (neu) uebertragen wird
+#: (Abschlussreview, Fix-Runde 2).
+_ANTWORT_WIRD_UEBERTRAGEN = "Szene {nummer} wird neu uebertragen"
 
 # --- Phase 7 (Stage Version), Task 9 --------------------------------------
 
@@ -255,6 +258,29 @@ def _nicht_dran(conn, tg, e, chat_id: int) -> str:
     Zustandsaenderung; eine Zeile statt Stille."""
     _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
     return T._TEXT_NICHT_DRAN
+
+
+def _uebertrage_neu_falls_noetig(conn, tg, klm, e, chat_id: int) -> str | None:
+    """Phase 7: steht die aktuelle Szene ohne Buehnentext da, braucht sie
+    keine Abnahme, sondern eine (neue) Uebertragung -- ``weiter_7`` startet
+    sie (``szene.starte``, eigener Thread; kein Modellaufruf hier).
+
+    Der Fall (Abschlussreview, Fix-Runde 2): Szene 2 bekam eine neue Form,
+    WAEHREND Szene 3 uebertragen wurde; ``_wende_formen_an`` nahm Szene 2s
+    Text zurueck, aber der Lauf war besetzt. Danach zeigte das "Yes, save
+    (3)" nur "nicht dran", und ein "passt" im Chat fand nichts abzunehmen
+    -- Szene 2 wurde nie neu uebertragen. Liefert die Antwortzeile (Toast),
+    oder ``None``, wenn nichts zu uebertragen ist oder ein Lauf geht."""
+    if not aktiv() or phasen.aktuelle(conn, chat_id) != PHASE_BUEHNE:
+        return None
+    nummer = aktuelle_szene(conn, chat_id)
+    if nummer is None or laeuft(chat_id):
+        return None
+    zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
+    if zeile is None or _gesetzt(zeile["volltext"]):
+        return None
+    weiter_7(conn, tg, klm, e, chat_id)
+    return T._ANTWORT_WIRD_UEBERTRAGEN.format(nummer=nummer)
 
 
 def bestaetige_gesamt(conn, tg, klm, e, chat_id: int) -> str:
@@ -481,6 +507,9 @@ def bestaetige_szene_7(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
         _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
         return T._TEXT_LAEUFT_NOCH
     if nummer != aktuelle_szene(conn, chat_id):
+        neu = _uebertrage_neu_falls_noetig(conn, tg, klm, e, chat_id)
+        if neu is not None:
+            return neu
         return _nicht_dran(conn, tg, e, chat_id)
     ziel = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
     if ziel is None:
@@ -634,6 +663,9 @@ def nimm_ab(conn, tg, klm, e, chat_id: int) -> str | None:
             return _mit_leiste_ab(
                 conn, tg, chat_id, knoepfe.ART_SZENE_PASST,
                 lambda: bestaetige_szene_7(conn, tg, klm, e, chat_id, nummer))
+        # Fix-Runde 2: die aktuelle Szene wartet auf ihre (neue)
+        # Uebertragung, nicht auf eine Abnahme.
+        return _uebertrage_neu_falls_noetig(conn, tg, klm, e, chat_id)
     return None
 
 

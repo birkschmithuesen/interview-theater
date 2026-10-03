@@ -927,6 +927,21 @@ _UEBERSCHRIFT_SZENEN = "Szenen"
 _UEBERSCHRIFT_INTERVIEWS = "Aus den Interviews"
 _UEBERSCHRIFT_WEG = "Der Weg dahin"
 _TEXT_JOURNAL = "Journal ({anzahl})"
+# --- Die read-only Werkbank (Padua, 03.10.2026) ----------------------------
+_TEXT_WERKBANK_HINWEIS = "Etwas ändern? Sagt es einfach dem Bot im Chat."
+_TEXT_WERKBANK_ZAHL = "{erledigt} von {gesamt}"
+_TEXT_STATUS_ERLEDIGT = "erledigt"
+_TEXT_STATUS_OFFEN = "offen"
+_TEXT_STATUS_SPAETER = "später"
+_TEXT_WERKBANK_LAEUFT = "läuft"
+_TEXT_WB_DISKUSSION = "Diskussion zusammengefasst"
+_TEXT_WB_INTERVIEW_FERTIG = "{bezug}: aufgenommen, ausgewertet"
+_TEXT_WB_INTERVIEW_OFFEN = "{bezug}: aufgenommen, noch nicht ausgewertet"
+_TEXT_WB_PROSA = "Szene {bezug}: Prosa"
+_TEXT_WB_GESAMTTEXT = "Rückmeldung zum ganzen Text"
+_TEXT_WB_UEBERARBEITET = "Szene {bezug}: überarbeitet"
+_TEXT_WB_FORM = "Szene {bezug}: Form"
+_TEXT_WB_SPRECHWEISE = "{bezug}: Sprechweise"
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
 #: selbst steht seit dem Umzug in Karte Ws Tableiste in
 #: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
@@ -2794,6 +2809,119 @@ def _buehne_html(daten: dict) -> str:
     return f'<div id="buehne-panel">{streifen}{"".join(teile)}</div>'
 
 
+def _journal_html(eintraege: list[dict]) -> str:
+    """Die Journalzeilen -- herausgeloest aus ``gruppe_koerper`` (Werkbank,
+    03.10.2026), Zeichen fuer Zeichen dieselben."""
+    return "".join(
+        '<div class="eintrag"><span class="art">{art}</span>{text} '
+        '<span class="zeit">{zeit}</span></div>'.format(
+            art=_t(T.JOURNALART_BESCHRIFTUNG.get(e["art"], e["art"])),
+            text=_t(e["text"]),
+            zeit=_zeitpunkt(e["erstellt_am"]),
+        )
+        for e in eintraege
+    ) or f'<p class="leer">{_t(T._TEXT_NICHTS_NOTIERT)}</p>'
+
+
+def _wb_status_text(status: str) -> str:
+    from interview_theater import roadmap
+
+    return {
+        roadmap.ERLEDIGT: T._TEXT_STATUS_ERLEDIGT,
+        roadmap.OFFEN: T._TEXT_STATUS_OFFEN,
+        roadmap.SPAETER: T._TEXT_STATUS_SPAETER,
+    }[status]
+
+
+def _wb_zeilentext(z: dict) -> str:
+    """Aufgaben tragen ihren Text schon (``phasentexte.beschriftung``),
+    Detailzeilen werden hier beschriftet -- ``roadmap`` bleibt textfrei."""
+    from interview_theater import roadmap
+
+    if z["art"] == "aufgabe":
+        return z["text"] or ""
+    vorlage = {
+        "diskussion": T._TEXT_WB_DISKUSSION,
+        "interview": (T._TEXT_WB_INTERVIEW_FERTIG if z["status"] == roadmap.ERLEDIGT
+                      else T._TEXT_WB_INTERVIEW_OFFEN),
+        "prosa": T._TEXT_WB_PROSA,
+        "gesamttext": T._TEXT_WB_GESAMTTEXT,
+        "ueberarbeitet": T._TEXT_WB_UEBERARBEITET,
+        "form": T._TEXT_WB_FORM,
+        "sprechweise": T._TEXT_WB_SPRECHWEISE,
+    }[z["kennung"]]
+    text = vorlage.format(bezug="" if z.get("bezug") is None else z["bezug"])
+    if z.get("titel"):
+        text += SUMMARY_TRENNER + z["titel"]
+    return text
+
+
+def _wb_zeile_html(z: dict) -> str:
+    """Eine Attributzeile: Punkt (Form + Farbe + aria-label), Text, und bei
+    einer laufenden Aufgabe das Wort 'running' -- keine eigene Farbe."""
+    status = z["status"]
+    laeuft = (
+        f' <span class="wb-laeuft">{_t(T._TEXT_WERKBANK_LAEUFT)}</span>'
+        if z.get("laeuft") else ""
+    )
+    return (
+        f'<li class="wb-zeile wb-{status}" data-kennung="{_t(z["kennung"])}">'
+        f'<span class="wb-punkt wb-{status}" role="img" '
+        f'aria-label="{_t(_wb_status_text(status))}"></span>'
+        f"<span>{_t(_wb_zeilentext(z))}</span>{laeuft}</li>"
+    )
+
+
+def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
+    """Was unter den Punkten einer Phase steht. Aufgabe 7 fuellt das."""
+    return ""
+
+
+def werkbank_koerper(daten: dict) -> str:
+    """Der Arbeitsstand als reine Statusansicht (Padua, 03.10.2026, Karte
+    t_49e7354c) -- statt ``gruppe_koerper``, wenn das Profil
+    ``[web] workbench_bearbeitbar = false`` setzt.
+
+    EINE Achse: die sieben Phasen in Reihenfolge, je ein ``<details>`` mit
+    Zaehler, darunter die Attribute mit einem Punkt aus drei Formen
+    (``roadmap.werkbank``). Aufgeklappt ist allein die aktuelle Phase. Kein
+    Formular, kein Knopf, kein Nonce: geaendert wird im Chat. Keine
+    Phasenanzeige, kein Probenansicht- und kein Chat-Link -- die Kopfleiste
+    der Seite zeigt die Phase (Birk: "die Anzeige der aktuellen Phase ist
+    doppelt")."""
+    werkbank = daten.get("werkbank") or {}
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
+    bloecke = []
+    for phase in werkbank.get("phasen") or []:
+        zahl = T._TEXT_WERKBANK_ZAHL.format(erledigt=phase["erledigt"], gesamt=phase["gesamt"])
+        haken = (
+            ' <span class="wb-fertig" aria-hidden="true">✓</span>' if phase["fertig"] else ""
+        )
+        offen = " open" if phase["aktiv"] else ""
+        zeilen = "".join(_wb_zeile_html(z) for z in phase["zeilen"])
+        bloecke.append(
+            f'<details class="wb-phase" data-wb-phase="{phase["nummer"]}"{offen}>'
+            f'<summary><span class="wb-name">{_t(phase["bezeichnung"])}</span>{haken}'
+            f'<span class="wb-zahl">{_t(zahl)}</span></summary>'
+            f'<ul class="wb-zeilen">{zeilen}</ul>'
+            f"{_wb_inhalt_html(phase['nummer'], daten, werkbank)}"
+            "</details>"
+        )
+    journal = (
+        '<details class="wb-journal"><summary>'
+        f"{_t(T._UEBERSCHRIFT_WEG)}{SUMMARY_TRENNER}"
+        f"{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}</summary>"
+        f"{_journal_html(daten['journal'])}</details>"
+    )
+    return (
+        f"<h1>{_t(titel)}</h1>\n"
+        '<div id="stand-inhalt" class="werkbank">\n'
+        f'<p class="wb-hinweis">{_t(T._TEXT_WERKBANK_HINWEIS)}</p>\n'
+        + "\n".join(bloecke)
+        + f"\n{journal}\n</div>\n"
+    )
+
+
 def gruppe_koerper(
     daten: dict,
     nonce_wert: str | None = None,
@@ -2807,6 +2935,13 @@ def gruppe_koerper(
     dieser Rumpf als eines von drei Panels in EINEM Dokument. ``gruppe_html``
     ruft ihn und haengt die Klammer davor -- die Einzelseite bleibt damit
     Zeichen fuer Zeichen, was sie war (``tests/test_web_koerper.py``)."""
+    from interview_theater import workshop
+
+    if not workshop.workbench_bearbeitbar():
+        # Padua (03.10.2026): reine Statusansicht. Der Nonce wird hier nicht
+        # gebraucht -- auf der vereinten Seite steht er im Chat-Panel.
+        return werkbank_koerper(daten)
+
     fassungen = daten.get("fassungen") or {}
     fassungswahl = fassungswahl or {}
     szenen = "".join(
@@ -2827,15 +2962,7 @@ def gruppe_koerper(
         _interview_html(v) for v in daten["interviews"]
     ) or f'<p class="leer">{_t(T._TEXT_KEIN_INTERVIEW_NOCH)}</p>'
 
-    journal = "".join(
-        '<div class="eintrag"><span class="art">{art}</span>{text} '
-        '<span class="zeit">{zeit}</span></div>'.format(
-            art=_t(T.JOURNALART_BESCHRIFTUNG.get(e["art"], e["art"])),
-            text=_t(e["text"]),
-            zeit=_zeitpunkt(e["erstellt_am"]),
-        )
-        for e in daten["journal"]
-    ) or f'<p class="leer">{_t(T._TEXT_NICHTS_NOTIERT)}</p>'
+    journal = _journal_html(daten["journal"])
 
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     stand = (
@@ -2923,12 +3050,15 @@ def gruppe_html(
     fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung
     angezeigt wird -- sie schreibt nichts und bleibt deshalb in der URL statt
     in der Datenbank."""
+    from interview_theater import workshop
+
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     return _seite(
         T._TITEL_GRUPPENSEITE.format(titel=titel),
         _CSS_GRUPPE,
         gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
-        bearbeitbar=bool(nonce_wert),
+        # Padua: die Werkbank ist reine Anzeige, das Speicher-Skript faellt weg.
+        bearbeitbar=bool(nonce_wert) and workshop.workbench_bearbeitbar(),
     )
 
 

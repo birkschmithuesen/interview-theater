@@ -84,9 +84,13 @@ def test_dashboard_folgt_dem_profil(padua):
     assert "No group has written yet." in html
 
 
-def test_speichermeldungen_kommen_aus_data_attributen(tmp_path, padua):
+def test_speichermeldungen_kommen_aus_data_attributen(tmp_path, padua, monkeypatch):
     """Das Skript traegt keinen Nutzertext mehr; die Meldungen stehen im
     <body> in der Sprache des Profils."""
+    # Seit der read-only Werkbank (03.10.2026) gibt es die Formulare nur noch
+    # mit ``[web] workbench_bearbeitbar = true``; Padua setzt false. Geprueft
+    # wird hier die SPRACHE der Meldungen, deshalb der Schalter erzwungen.
+    monkeypatch.setattr(workshop, "workbench_bearbeitbar", lambda profil=None: True)
     for deutsch in (web._JS_SICHER, web._JS_SPEICHERT, web._JS_FEHLER):
         assert deutsch not in web._BEARBEITEN_JS
     assert "melde(feld, 'gespeichert'" not in web._BEARBEITEN_JS

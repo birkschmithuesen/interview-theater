@@ -1830,6 +1830,11 @@ _TEXT_7_SCHON_FERTIG = "Your script is complete. Read it in the Script tab, or t
 # Padua Phasen TEIL 2, Task 10: one line of the "Noted:" message per form set
 # by chat (erkenner art formen_setzen).
 _ZEILE_FORM_GESETZT = "Scene {nummer}: {form}"
+# Final review fixes: a stale "Yes, save" for a scene that is not the current
+# one; a form change on an already transferred scene; forms still missing.
+_TEXT_NICHT_DRAN = "That scene isn't the one we're on right now — nothing was saved."
+_ZEILE_FORM_NEU_UEBERTRAGEN = "Scene {nummer}: {form} -- new form, the scene will be transferred again"
+_TEXT_FORMEN_FEHLEN = "Still without a form: scene {nummern}. Which form should they have?"
 
 ["sprechweise"]
 # Padua Phasen TEIL 2, Task 9: one schema call, a way of speaking for each

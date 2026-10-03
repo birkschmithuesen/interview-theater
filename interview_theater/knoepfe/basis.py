@@ -203,7 +203,17 @@ def _nimm_alte_leiste_ab(conn, tg, chat_id: int, art: str) -> None:
     hintereinander -- ohne das liefe der zweite und dritte Aufruf in ein
     ``editMessageReplyMarkup`` mit unveraenderter Tastatur, und Telegram
     antwortet darauf mit 400."""
-    alte = repo.offene_knoepfe(conn, chat_id, art)
+    _nimm_leisten_ab(conn, tg, chat_id, repo.offene_knoepfe(conn, chat_id, art))
+
+
+def _nimm_leisten_ab(conn, tg, chat_id: int, alte) -> None:
+    """Der Rumpf von ``_nimm_alte_leiste_ab`` fuer eine schon gelesene Liste
+    offener Knoepfe (``repo.offene_knoepfe``) -- herausgezogen (Padua Phasen
+    TEIL 2, Abschlussreview): eine Abnahme aus dem Chat
+    (``ueberarbeitung.nimm_ab``) liest die Leiste VOR der Wirkung und nimmt
+    nach der Wirkung genau diese Nachrichten ab, nicht die gerade neu
+    gekommene. Dieselbe Regel wie oben: alle Nicht-Undo-Knoepfe dieser
+    Nachrichten verfallen, ein Undo-Knopf bleibt allein stehen."""
     if not alte:
         return
     nachrichten = list(dict.fromkeys(k["message_id"] for k in alte))

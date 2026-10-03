@@ -1096,6 +1096,49 @@ def _zug_faellt_aus(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> bool:
     ) or _war_die_erwartete_antwort(conn, tg, klm, e, chat_id, letzte_nachricht)
 
 
+#: Welche Nachricht schon als Regie-Notiz verbraucht wurde (Padua Phasen TEIL
+#: 2, Abschlussreview Fix 3): chat_id -> message_id. ``bot._zug_und_erkenner``
+#: laesst ERST ``bearbeite`` laufen (die Notiz nach "No, change it again"
+#: startet die Ueberarbeitung und nimmt die Sperre), DANN den Erkenner auf
+#: derselben Nachricht -- der las sie als ``text_ueberarbeiten`` und meldete
+#: "laeuft noch" ueber genau den Lauf, den die Nachricht gerade selbst
+#: gestartet hatte. Ein Eintrag je Gruppe, im Prozess (wie
+#: ``szenenfolge._regienotiz_erwartet``); ein Neustart verliert ihn, und dann
+#: kommt hoechstens die alte, harmlose Zeile.
+_notiz_verbraucht: dict[int, int] = {}
+_notiz_verbraucht_schutz = threading.Lock()
+
+
+def _merke_notiz_verbraucht(chat_id: int, letzte_nachricht) -> None:
+    """Nur mit ``ueberarbeitung.aktiv()`` -- nur dort liest der Erkenner
+    dieselbe Nachricht noch einmal als Ueberarbeitung (Dortmund unveraendert)."""
+    from interview_theater import ueberarbeitung
+
+    if not ueberarbeitung.aktiv():
+        return
+    try:
+        message_id = letzte_nachricht["message_id"]
+    except (KeyError, IndexError, TypeError):
+        return
+    if message_id is None:
+        return
+    with _notiz_verbraucht_schutz:
+        _notiz_verbraucht[chat_id] = message_id
+
+
+def nimm_notiz_verbraucht(chat_id: int, message_ids) -> bool:
+    """War eine dieser Nachrichten (der Stapel eines Erkennerlaufs) schon eine
+    Regie-Notiz, die ``bearbeite`` verbraucht hat? Raeumt den Eintrag dabei
+    ab -- eine Nachricht, ein Lauf. Ein Eintrag fuer eine Nachricht AUSSERHALB
+    des Stapels bleibt stehen (ein anderer, gleichzeitiger Lauf)."""
+    with _notiz_verbraucht_schutz:
+        message_id = _notiz_verbraucht.get(chat_id)
+        if message_id is None or message_id not in set(message_ids):
+            return False
+        del _notiz_verbraucht[chat_id]
+        return True
+
+
 def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> bool:
     """Die fuenf Faelle, in denen der Szenenweg die Nachricht beantwortet."""
     # Spaete Importe, wie ueberall hier: ``szene`` und ``szenenfolge``
@@ -1162,6 +1205,8 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     ueber = (ueberarbeitung.aktiv()
              and phasen.aktuelle(conn, chat_id) in (6, 7))
     nummer = szenenfolge.nimm_regienotiz(chat_id)
+    if nummer is not None and (letzte_nachricht["text"] or "").strip():
+        _merke_notiz_verbraucht(chat_id, letzte_nachricht)
     if ueber and nummer is not None and (letzte_nachricht["text"] or "").strip():
         ueberarbeitung.ueberarbeite(
             conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip(),
@@ -1183,6 +1228,8 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
         letzte_nachricht["text"] or ""
     ).strip():
         from interview_theater import kurzgeschichte
+
+        _merke_notiz_verbraucht(chat_id, letzte_nachricht)
 
         # Die Geschichte-Notiz geht nur in Phase 6 (Rewrite) ueber den
         # Rueckmeldeweg; ohne Ziel sagt ``ueberarbeite`` das selbst

@@ -2745,6 +2745,21 @@ def entferne_szene(conn: sqlite3.Connection, chat_id: int, nummer: int) -> int |
 
 
 @_gesperrt
+def nimm_buehnentext_zurueck(conn: sqlite3.Connection, szene_id: int) -> None:
+    """Leert ``volltext`` und ``fertig_am`` einer Szene (Padua Phasen TEIL 2,
+    Abschlussreview): ihre Form hat sich geaendert, nachdem sie schon in die
+    alte uebertragen war -- der Text ist danach keiner der neuen Form. Die
+    Fassung bleibt in ``szenenfassung`` stehen (nur anhaengen, nie loeschen);
+    ``prosa`` bleibt unberuehrt, sie ist die Vorlage der neuen Uebertragung."""
+    conn.execute(
+        "UPDATE szene SET volltext = NULL, fertig_am = NULL, geaendert_am = ? "
+        "WHERE id = ?",
+        (_jetzt_genau(), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def setze_szene_fertig(conn: sqlite3.Connection, szene_id: int, fertig: bool) -> None:
     """Stempelt eine Szene als von der Gruppe abgenommen -- oder nimmt den
     Stempel wieder weg (Phase 6, "Passt").

@@ -2276,7 +2276,8 @@ def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict], wirkl
 
 
 def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
-                     aenderungen: list[dict]) -> None:
+                     aenderungen: list[dict], *,
+                     notiz_verbraucht: bool = False) -> bool:
     """Stoesst die Kuerzung an, wenn der Erkenner eine erkannt hat (art
     ``szene_kuerzen``, interview_theater/kuerzung.py).
 
@@ -2301,14 +2302,38 @@ def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
     er meint die Geschichte ausdruecklich.
 
     Den Pruef-Vermerk fuer spaetere Szenen setzt ``kuerzung.starte`` selbst,
-    wie auf dem Knopfweg."""
+    wie auf dem Knopfweg.
+
+    **Nur mit ``ueberarbeitung.aktiv()`` (Padua), Abschlussreview Fix 5:**
+    haelt gerade ein Szenen- oder Geschichtenlauf eine Sperre
+    (``ueberarbeitung.laeuft``), laeuft KEINE Kuerzung an -- die Pruefung des
+    Ganzen in Phase 6 haelt nur die Geschichtensperre, eine Kuerzung von
+    Szene 2 braeuchte nur die (freie) Szenensperre, und
+    ``schleife.stelle_wieder_her`` schriebe die gekuerzte Szene danach still
+    zurueck. Die Gruppe bekommt dieselbe "laeuft noch"-Zeile wie der Knopf --
+    ausser die Nachricht hat den Lauf als Regie-Notiz selbst gestartet
+    (``notiz_verbraucht``, Fix 3). Liefert True, wenn diese Zeile rausging
+    (damit ``_starte_teil2`` sie nicht ein zweites Mal schickt)."""
     from interview_theater import kuerzung, szene  # spaeter Import, haelt den Modulkopf frei
 
     treffer = next(
         (a for a in aenderungen if a.get("art") == "szene_kuerzen"), None
     )
     if treffer is None:
-        return
+        return False
+    from interview_theater import ueberarbeitung
+
+    if ueberarbeitung.aktiv() and ueberarbeitung.laeuft(chat_id):
+        log.info("Kuerzung aus dem Chat zurueckgestellt, ein Lauf geht, chat_id=%s",
+                 chat_id)
+        if notiz_verbraucht:
+            return False
+        try:
+            ueberarbeitung._sende(conn, tg, e, chat_id, ueberarbeitung.T._TEXT_LAEUFT_NOCH)
+        except Exception:
+            log.exception("Laeuft-noch-Zeile nicht zustellbar, chat_id=%s", chat_id)
+            return False
+        return True
     nummer = kuerzung.nummer_aus_wert(treffer.get("wert"))
     try:
         if nummer is None:
@@ -2327,10 +2352,11 @@ def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
             # naechsten Fenster nicht, wenn die Gruppe nur mit einer Zahl
             # antwortet.
             repo.merke_bot_zeile(conn, chat_id, message_id, e, kuerzung.T.TEXT_WELCHE_SZENE)
-            return
+            return False
         kuerzung.starte(conn, tg, klm, e, chat_id, nummer)
     except Exception:
         log.exception("Kuerzung konnte nicht gestartet werden, chat_id=%s", chat_id)
+    return False
 
 
 def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
@@ -2466,8 +2492,21 @@ def _entscheide_schaerfung(conn, tg, chat_id: int, wert: str) -> None:
         knopf_szenen.uebernimm_schaerfung_figur(conn, tg, chat_id, treffer.group(1))
 
 
+def _wartet_auf_uebertragung(conn, chat_id: int) -> bool:
+    """Ist die Szene, an der Phase 7 gerade steht, noch ohne Buehnentext?"""
+    from interview_theater import ueberarbeitung
+
+    nummer = ueberarbeitung.aktuelle_szene(conn, chat_id)
+    if nummer is None:
+        return False
+    zeile = next((s for s in repo.hole_szenen(conn, chat_id) if s["nummer"] == nummer),
+                 None)
+    return zeile is not None and not (zeile["volltext"] or "").strip()
+
+
 def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
-                  wirkliche: list[dict]) -> None:
+                  wirkliche: list[dict], *, notiz_verbraucht: bool = False,
+                  besetzt_gemeldet: bool = False) -> None:
     """Die Wege der fuenf TEIL-2-Arten (Padua, "Chat wirkt, wo Knoepfe
     wirken"). ``freigegeben`` ist schon phasen- und profilgefiltert
     (``_ist_phasenpassend``); ``wirkliche`` traegt, was ``formen_setzen``/
@@ -2478,7 +2517,15 @@ def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
     einen eigenen Thread. Laeuft schon ein Lauf, wirken
     ``text_ueberarbeiten``/``fassung_abnehmen`` NICHT (nur Log) -- siehe
     ``_laeuft_ein_lauf``. Jede Art in ihrem eigenen try: ein Fehler hier
-    reisst die Notiert-Meldung nicht mit."""
+    reisst die Notiert-Meldung nicht mit.
+
+    ``notiz_verbraucht`` (Abschlussreview Fix 3): eine Nachricht dieses Laufs
+    war schon die Regie-Notiz nach "No, change it again" -- ``ablauf`` hat
+    mit ihr die Ueberarbeitung gestartet. Dann wirken
+    ``text_ueberarbeiten``/``fassung_abnehmen`` still NICHT: keine zweite
+    Ueberarbeitung und keine "laeuft noch"-Zeile ueber den Lauf, den die
+    Gruppe gerade selbst angestossen hat. ``besetzt_gemeldet``: die Zeile
+    kam in diesem Lauf schon (``_starte_kuerzung``) -- nicht zweimal."""
     from interview_theater import ueberarbeitung
 
     if not ueberarbeitung.aktiv():
@@ -2493,7 +2540,13 @@ def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
         # Hoechstens EINE der beiden je Lauf; neben einer Rueckmeldung ist ein
         # "passt" im selben Lauf keine Abnahme der noch alten Fassung.
         if ueberarbeiten is not None or abnehmen is not None:
-            if _laeuft_ein_lauf(chat_id):
+            if notiz_verbraucht:
+                log.info("Ueberarbeitung/Abnahme aus dem Chat entfaellt, die "
+                         "Nachricht war schon die Regie-Notiz, chat_id=%s", chat_id)
+            elif _laeuft_ein_lauf(chat_id) and besetzt_gemeldet:
+                log.info("Ueberarbeitung/Abnahme aus dem Chat zurueckgestellt, "
+                         "Zeile schon gesendet, chat_id=%s", chat_id)
+            elif _laeuft_ein_lauf(chat_id):
                 # Fix-Runde 1 (Review Task 10): nicht still -- dieselbe Zeile
                 # wie der Knopf in derselben Lage, genau einmal je Lauf.
                 log.info("Ueberarbeitung/Abnahme aus dem Chat zurueckgestellt, "
@@ -2517,10 +2570,24 @@ def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
                       chat_id)
     geschrieben = {a.get("art") for a in wirkliche}
     try:
-        if ("formen_setzen" in geschrieben
-                and not ueberarbeitung.formen_offen(conn, chat_id)
-                and not ueberarbeitung.sprechweisen_fixiert(conn, chat_id)):
-            ueberarbeitung.weiter_7(conn, tg, klm, e, chat_id)
+        if "formen_setzen" in geschrieben:
+            offen = ueberarbeitung.formen_offen(conn, chat_id)
+            if offen:
+                # Abschlussreview Fix 4: eine Teilantwort bekommt eine Zeile,
+                # welche Nummern noch fehlen -- statt "Noted" und Stille.
+                ueberarbeitung._sende(
+                    conn, tg, e, chat_id, ueberarbeitung.T._TEXT_FORMEN_FEHLEN.format(
+                        nummern=", ".join(str(n) for n in offen)))
+            elif not ueberarbeitung.sprechweisen_fixiert(conn, chat_id):
+                ueberarbeitung.weiter_7(conn, tg, klm, e, chat_id)
+            elif (not ueberarbeitung.laeuft(chat_id)
+                  and _wartet_auf_uebertragung(conn, chat_id)):
+                # Abschlussreview Fix 4: eine schon uebertragene Szene hat
+                # eine neue Form (``_wende_formen_an`` hat ihren Text
+                # zurueckgenommen) und ist jetzt wieder dran -- derselbe
+                # Schrittweg wie nach einer Abnahme; der Lauf geht in einen
+                # Thread (``szene.starte``).
+                ueberarbeitung.weiter_7(conn, tg, klm, e, chat_id)
     except Exception:
         log.exception("Weiter nach der Formwahl gescheitert, chat_id=%s", chat_id)
     try:
@@ -2729,9 +2796,22 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
     Gespraechszug haelt: geloggt und als ``vorfall`` vermerkt, nie eine
     zusaetzliche Fehlermeldung im Chat."""
     try:
+        # Padua Phasen TEIL 2, Abschlussreview Fix 3: welche Nachrichten
+        # dieser Lauf liest -- um zu erkennen, ob eine davon schon als
+        # Regie-Notiz verbraucht ist (``ablauf.nimm_notiz_verbraucht``). Nur
+        # mit dem Schalter; Dortmund liest hier nichts zusaetzlich.
+        from interview_theater import ueberarbeitung
+
+        stapel = ([n["message_id"] for n in repo.unextrahierte(conn, chat_id)]
+                  if ueberarbeitung.aktiv() else [])
         aenderungen = erkenne(klm, conn, e, chat_id)
         if not aenderungen:
             return
+        notiz_verbraucht = False
+        if stapel:
+            from interview_theater import ablauf
+
+            notiz_verbraucht = ablauf.nimm_notiz_verbraucht(chat_id, stapel)
         # EINMAL gegen Phase und Profilschalter gefiltert (Padua Phasen TEIL
         # 2): dieselbe Liste geht an ``wende_an`` und an jeden Startweg
         # unten. Vorher bekamen ``_starte_szene``/``_starte_kuerzung`` die
@@ -2776,7 +2856,9 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Und dieselbe Bauart fuer die Kuerzung (30.09.2026, C10): aus den
         # erkannten Aenderungen, weil sie wie ``szene_schreiben`` nichts in
         # den Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.
-        _starte_kuerzung(klm, tg, conn, e, chat_id, freigegeben)
+        besetzt_gemeldet = _starte_kuerzung(
+            klm, tg, conn, e, chat_id, freigegeben,
+            notiz_verbraucht=notiz_verbraucht)
         # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
         # Geschichts-Uebersicht (Stufe A von Phase 5) -- derselbe Grund wie
         # bei _starte_szene/_starte_kuerzung, kein Schreibpfad in wende_an.
@@ -2811,7 +2893,9 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Padua Phasen TEIL 2: die Wege der fuenf neuen Arten -- NACH der
         # Notiert-Meldung, damit "Noted: Scene 1: Chorus" vor dem naechsten
         # Schritt (Sprechweisen) im Chat steht.
-        _starte_teil2(klm, tg, conn, e, chat_id, freigegeben, wirkliche)
+        _starte_teil2(klm, tg, conn, e, chat_id, freigegeben, wirkliche,
+                      notiz_verbraucht=notiz_verbraucht,
+                      besetzt_gemeldet=bool(besetzt_gemeldet))
         # Hat die Gruppe im selben Zug die Phase gewechselt, kommt direkt
         # hinter der Meldung der Phasenrahmen (06.09.2026): derselbe Eintritt
         # wie ueber den Knopf und ueber ``/phase``.

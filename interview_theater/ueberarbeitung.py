@@ -76,6 +76,11 @@ _TEXT_KEIN_ZIEL = (
 )
 #: Toast fuer ein veraltetes "Yes, save" auf dem schon fixierten Ganzen.
 _ANTWORT_SCHON_GESPEICHERT = "Schon gespeichert"
+#: "Yes, save" fuer eine Szene, die gerade nicht dran ist -- ein veralteter
+#: Knopf (Abschlussreview, Fix 1). Nichts wird gespeichert.
+_TEXT_NICHT_DRAN = (
+    "Diese Szene ist gerade nicht dran -- gespeichert habe ich nichts."
+)
 
 # --- Phase 7 (Stage Version), Task 9 --------------------------------------
 
@@ -109,6 +114,13 @@ FORMWAHL_SATZ_MAX = 160
 
 #: Eine Zeile der Notiert-Meldung je gesetzter Form (``formen_setzen``).
 _ZEILE_FORM_GESETZT = "Szene {nummer}: {form}"
+#: Dieselbe Zeile, wenn die Szene schon uebertragen war und ihre Form
+#: wechselt: der alte Buehnentext ist zurueckgenommen (Abschlussreview, Fix 4).
+_ZEILE_FORM_NEU_UEBERTRAGEN = (
+    "Szene {nummer}: {form} -- neue Form, die Szene wird neu uebertragen"
+)
+#: Nach einer Formwahl, die nicht alle Szenen trifft (Abschlussreview, Fix 4).
+_TEXT_FORMEN_FEHLEN = "Noch ohne Form: Szene {nummern}. Welche Form sollen sie haben?"
 
 PHASE_UEBERARBEITUNG = 6
 PHASE_BUEHNE = 7
@@ -236,6 +248,15 @@ def _sende(conn, tg, e, chat_id: int, text: str) -> None:
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
 
 
+def _nicht_dran(conn, tg, e, chat_id: int) -> str:
+    """Ein "Yes, save" fuer eine Szene, die nicht ``aktuelle_szene`` ist
+    (Abschlussreview, Fix 1): ein veralteter Knopf -- etwa der aus Phase 6,
+    nachdem die Gruppe schon in Phase 7 ist. Nichts wird gespeichert, keine
+    Zustandsaenderung; eine Zeile statt Stille."""
+    _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
+    return T._TEXT_NICHT_DRAN
+
+
 def bestaetige_gesamt(conn, tg, klm, e, chat_id: int) -> str:
     """"Yes, save" auf dem Ganzen: fixieren, ansagen, erste Szene pruefen.
 
@@ -259,6 +280,8 @@ def bestaetige_szene_6(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if laeuft(chat_id):
         _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
         return T._TEXT_LAEUFT_NOCH
+    if nummer != aktuelle_szene(conn, chat_id):
+        return _nicht_dran(conn, tg, e, chat_id)
     ziel = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
     if ziel is None:
         tg.sende(chat_id, knoepfe.T._TEXT_SZENE_UNBEKANNT)
@@ -457,6 +480,8 @@ def bestaetige_szene_7(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if laeuft(chat_id):
         _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
         return T._TEXT_LAEUFT_NOCH
+    if nummer != aktuelle_szene(conn, chat_id):
+        return _nicht_dran(conn, tg, e, chat_id)
     ziel = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
     if ziel is None:
         tg.sende(chat_id, knoepfe.T._TEXT_SZENE_UNBEKANNT)
@@ -554,28 +579,44 @@ def nimm_ab(conn, tg, klm, e, chat_id: int) -> str | None:
     erste offene Prosa-Entwurf (``entwurf.bestaetige_szene``). Phase 6: das
     Ganze (``bestaetige_gesamt``), sonst die aktuelle Szene. Phase 7: nicht,
     solange Formen offen sind; dann die Sprechweisen, sobald jede Figur eine
-    hat; sonst die aktuelle Buehnenszene."""
-    from interview_theater import entwurf
+    hat; sonst die aktuelle Buehnenszene.
+
+    **Die Leiste der abgenommenen Nachricht verfaellt** (Abschlussreview,
+    Fix 1): ein Knopfdruck nimmt seine Tastatur ab (``knoepfe.behandle``),
+    der Chat-Weg tat das nicht -- und ein liegengebliebenes "Yes, save" oder
+    "Kuerzer" unter einer schon abgenommenen Fassung wirkte spaeter noch.
+    Gelesen wird die Leiste der passenden Art VOR der Wirkung, abgenommen
+    werden genau diese Nachrichten NACH der Wirkung (``_mit_leiste_ab``) --
+    und nur, wenn wirklich abgenommen wurde."""
+    from interview_theater import entwurf, knoepfe
 
     phase = phasen.aktuelle(conn, chat_id)
     if phase == PHASE_ENTWURF:
         if (_stand(conn, chat_id, "geschichte_uebersicht")
                 and not _stand(conn, chat_id, "geschichte_uebersicht_fixiert_am")):
-            return entwurf.fixiere_uebersicht(conn, tg, klm, e, chat_id)
+            return _mit_leiste_ab(
+                conn, tg, chat_id, knoepfe.ART_UEBERSICHT_PASST,
+                lambda: entwurf.fixiere_uebersicht(conn, tg, klm, e, chat_id))
         nummer = entwurf.erste_offene_szene(conn, chat_id)
         zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
         if zeile is not None and _gesetzt(zeile["prosa"]):
-            return entwurf.bestaetige_szene(conn, tg, klm, e, chat_id, nummer)
+            return _mit_leiste_ab(
+                conn, tg, chat_id, knoepfe.ART_SZENE_PASST,
+                lambda: entwurf.bestaetige_szene(conn, tg, klm, e, chat_id, nummer))
         return None
     if phase == PHASE_UEBERARBEITUNG:
         if not gesamttext_fixiert(conn, chat_id):
             if _hat_prosa(conn, chat_id):
-                return bestaetige_gesamt(conn, tg, klm, e, chat_id)
+                return _mit_leiste_ab(
+                    conn, tg, chat_id, knoepfe.ART_GESCHICHTE_PASST,
+                    lambda: bestaetige_gesamt(conn, tg, klm, e, chat_id))
             return None
         nummer = aktuelle_szene(conn, chat_id)
         zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
         if zeile is not None and _gesetzt(zeile["prosa"]):
-            return bestaetige_szene_6(conn, tg, klm, e, chat_id, nummer)
+            return _mit_leiste_ab(
+                conn, tg, chat_id, knoepfe.ART_SZENE_PASST,
+                lambda: bestaetige_szene_6(conn, tg, klm, e, chat_id, nummer))
         return None
     if phase == PHASE_BUEHNE:
         if formen_offen(conn, chat_id):
@@ -583,13 +624,41 @@ def nimm_ab(conn, tg, klm, e, chat_id: int) -> str | None:
         if not sprechweisen_fixiert(conn, chat_id):
             figuren = repo.figuren(conn, chat_id)
             if figuren and all(_gesetzt(f["sprachstil"]) for f in figuren):
-                return bestaetige_sprechweisen(conn, tg, klm, e, chat_id)
+                return _mit_leiste_ab(
+                    conn, tg, chat_id, knoepfe.ART_SPRECHWEISEN_PASST,
+                    lambda: bestaetige_sprechweisen(conn, tg, klm, e, chat_id))
             return None
         nummer = aktuelle_szene(conn, chat_id)
         zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
         if zeile is not None and _gesetzt(zeile["volltext"]):
-            return bestaetige_szene_7(conn, tg, klm, e, chat_id, nummer)
+            return _mit_leiste_ab(
+                conn, tg, chat_id, knoepfe.ART_SZENE_PASST,
+                lambda: bestaetige_szene_7(conn, tg, klm, e, chat_id, nummer))
     return None
+
+
+def _ohne_wirkung() -> set[str]:
+    """Die Antworten der Abnahmewege, hinter denen NICHTS gespeichert wurde."""
+    from interview_theater import knoepfe
+
+    return {T._TEXT_LAEUFT_NOCH, T._TEXT_NICHT_DRAN, T._ANTWORT_SCHON_GESPEICHERT,
+            knoepfe.T._TEXT_SZENE_UNBEKANNT}
+
+
+def _mit_leiste_ab(conn, tg, chat_id: int, art: str, abnahme) -> str | None:
+    """Fuehrt ``abnahme`` aus und laesst danach die Leisten der Art ``art``
+    verfallen, die VOR der Abnahme offen standen -- dieselbe Wirkung wie
+    ``knoepfe.behandle`` nach einem Knopfdruck, nur ohne gedrueckte Nachricht
+    (``knoepfe.basis._nimm_leisten_ab``: Knoepfe als benutzt gestempelt,
+    Tastatur weg, ein Undo-Knopf bleibt allein stehen). Eine Leiste, die
+    erst waehrend der Abnahme kommt (der naechste Schritt), bleibt stehen."""
+    from interview_theater.knoepfe import basis
+
+    alte = repo.offene_knoepfe(conn, chat_id, art)
+    ergebnis = abnahme()
+    if ergebnis is not None and ergebnis not in _ohne_wirkung():
+        basis._nimm_leisten_ab(conn, tg, chat_id, alte)
+    return ergebnis
 
 
 #: Ein Paar "Nummer Form" aus dem ``wert`` von ``formen_setzen``: "1: chorus",
@@ -643,7 +712,17 @@ def _wende_formen_an(conn, chat_id: int, wert: str) -> list[str]:
         if zeile is None or form is None or zeile["form"] == form:
             continue
         repo.setze_szenenfeld(conn, zeile["id"], "form", form)
-        zeilen.append(T._ZEILE_FORM_GESETZT.format(
+        vorlage = T._ZEILE_FORM_GESETZT
+        if _gesetzt(zeile["form"]) and _gesetzt(zeile["volltext"]):
+            # Abschlussreview, Fix 4: die Szene war in ihrer alten Form schon
+            # uebertragen. Ohne das stuende "Notiert: Szene 2: Lied" ueber
+            # einem Dialog (Flow-Audit B2). Der Buehnentext und die Abnahme
+            # werden zurueckgenommen -- ``aktuelle_szene``/``weiter_7``
+            # uebertragen sie neu. Kein Modellaufruf hier; die alte Fassung
+            # bleibt in ``szenenfassung`` stehen.
+            repo.nimm_buehnentext_zurueck(conn, zeile["id"])
+            vorlage = T._ZEILE_FORM_NEU_UEBERTRAGEN
+        zeilen.append(vorlage.format(
             nummer=zeile["nummer"], form=anzeige.get(form, form)))
     return zeilen
 

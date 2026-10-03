@@ -137,8 +137,12 @@ def spalten(tabelle: str) -> tuple[str, ...]:
 #: haette die Notiert-Meldung keinen wirksamen Undo. Nur fuer Laeufe mit
 #: dieser Art: ein Szenen-Undo eines anderen Laufs bleibt unberuehrt davon,
 #: dass die Gruppe inzwischen eine Form bestaetigt hat.
+#: ``volltext``/``fertig_am`` kamen im Abschlussreview dazu: wechselt eine
+#: schon uebertragene Szene ihre Form, nimmt ``formen_setzen`` ihren
+#: Buehnentext zurueck (``repo.nimm_buehnentext_zurueck``) -- ein Undo muss
+#: ihn mit der alten Form wiederbringen.
 ZUSATZ_JE_ART = {
-    "formen_setzen": {"szene": ("form",)},
+    "formen_setzen": {"szene": ("form", "volltext", "fertig_am")},
 }
 
 

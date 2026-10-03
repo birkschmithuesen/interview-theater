@@ -65,6 +65,18 @@ Betriebssystem vergeben, damit kein Altserver antwortet) — neben dem
 Edit-Lauf, damit beide nebeneinander laufen können. Der Lauf dauert rund
 100 Sekunden.
 
+Seit dem 01.10.2026 gehoert die **Gestaltung** dazu
+(`test_web_gestalt_e2e.py`, Karte Padua UX): die vier Zustaende des
+Aufnahmeknopfes, Push-to-Talk beim Halten, der Akt-Moment und
+`prefers-reduced-motion`. Sie braucht ein **Fake-Mikrofon**
+(`--use-fake-device-for-media-stream`, `--use-fake-ui-for-media-stream`) —
+ohne das blockiert die Freigabe, und der Knopf bleibt auf „startet"
+stehen. Eigene Wegwerf-Datenbank (`/tmp/it-ux.db`) und eigener Port
+(`127.0.0.1:8023`): zwei e2e-Dateien, die sich einen Port teilen,
+blockieren einander. Die Abnahme-Screenshots landen in
+`docs/ux-padua/abnahme-*.png` und werden **committet** — sie zeigen nur
+erfundenes Material.
+
 **Läuft nicht im normalen `pytest`-Lauf mit.** Dort gibt es kein Playwright,
 und die Datei überspringt sich selbst (`pytest.importorskip`). Das ist
 Absicht: die Testsuite soll ohne Browser und ohne Netz durchlaufen.

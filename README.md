@@ -89,7 +89,9 @@ does the story hold together, does each character sound like themselves).
 Whatever those questions find gets revised, at most twice. If a revision
 turns out weaker, it is thrown away and the better version stays; if it
 loses a word-for-word interview quote, it is thrown away too. Then a last
-language pass tidies length and stock phrasing. You never get the full text
+language pass tidies length and stock phrasing. If no independent checker
+is available, or the check itself breaks down, you get the text unchecked,
+with a note saying so. You never get the full text
 in the chat — you get a short note, at most three lines on what the check
 changed, and buttons; the text itself is in the Script tab (Telegram gets a
 link). "Show first draft" points you to the version from before the check,

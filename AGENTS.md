@@ -1024,13 +1024,12 @@ es jemand im Chat merkt.
   nur im **englischen** Prompt; `arten_fuer_schema()` lässt Dortmunds Enum
   bei 27. Während eines Laufs kommt die „still running"-Zeile wie beim Knopf;
   ein „Noted…" aus dem Gesprächszug wird in 6/7 verworfen
-  (`ablauf.ist_erfundenes_notiert`). **Gemessen** in der Tabelle `prueflauf`
-  (eine Zeile je Lauf, auch beim Scheitern: `runden`, `auftraege_je_runde`,
-  `zweite_runde_mit_auftraegen`, `dauer_ms`) — die Grundlage für
-  `RUNDEN_MAX`. **Grenzen:** ohne gültigen Richter (gleiches Modell ohne
-  `IT_JUDGE_MODELL`, USA verneint) keine Prüfung, und der Betreiberhinweis
-  steht im Hinweis an die Gruppe; ein Rücksprung nach 5 setzt die Abnahmen
-  aus 6 nicht zurück (offen, Birk). Weiteres unter „Was bewusst fehlt".
+  (`ablauf.ist_erfundenes_notiert`). **Gemessen:** Tabelle `prueflauf`, eine
+  Zeile je Lauf (`runden`, `auftraege_je_runde`, `zweite_runde_mit_auftraegen`,
+  `dauer_ms`), Basis für `RUNDEN_MAX`. **Grenzen:** ohne gültigen Richter
+  (gleiches Modell ohne `IT_JUDGE_MODELL`, USA verneint) keine Prüfung, und
+  der Betreiberhinweis steht im Hinweis an die Gruppe; ein Rücksprung nach 5
+  setzt die Abnahmen aus 6 nicht zurück (offen, Birk). Mehr: „Was bewusst fehlt".
 
 ## Die Dramaturgie-Prüfung
 

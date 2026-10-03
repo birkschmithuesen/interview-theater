@@ -438,11 +438,32 @@ _TABS_B = """
 body { padding-bottom: 13rem; }
 body:not([data-tab="chat"]) .fuss { display: none; }
 /* B: die sieben Akte als Reihe von Buehnenlichtern statt als ein
-   Balken. Dieselbe Zahl, andere Metapher. */
-#ux-balken { display: flex; gap: .28rem; height: .5rem;
+   Balken. Dieselbe Zahl, andere Metapher.
+
+   Praefix ``.roadmap``: ``_ROADMAP`` (unten, gilt fuer beide Entwuerfe,
+   steht in ``css_rahmen()`` NACH diesem Block) definiert dieselben
+   Selektoren ``#ux-balken``/``#ux-balken i`` roh, ohne Praefix. Bei
+   gleicher Spezifitaet gewinnt in CSS die spaetere Regel -- also
+   ``_ROADMAP``, unabhaengig davon, was hier steht. Das ``.roadmap``
+   davor hebt die Spezifitaet von (0,1,0,0) auf (0,1,1,0) und gewinnt
+   damit gegen die unpraefixierten Regeln unten, GLEICH welche Reihenfolge
+   ``css_rahmen()`` waehlt. ``.roadmap`` ist die Wurzel-Klasse der
+   Phasenuebersicht (``<details class="roadmap" id="roadmap">``,
+   ``web_vereint.py``) -- ``#ux-balken`` haengt als Kind von ``summary``
+   darunter, der Nachfahren-Selektor passt also wirklich. */
+.roadmap #ux-balken { display: flex; gap: .28rem; height: .5rem;
              background: none; border: 0; }
-#ux-balken i { flex: 1; width: auto; border-radius: .25rem;
+.roadmap #ux-balken i { flex: 1; width: auto; border-radius: .25rem;
                background: var(--grund-3); border: 1px solid var(--linie); }
+/* ``data-stand`` setzt ``_JS_FORTSCHRITT`` je Licht -- ohne diese zwei
+   Regeln sehen alle drei Zustaende gleich aus. ``offen`` braucht keine
+   eigene Regel: die Basisregel oben trifft ihn schon, und die beiden
+   Attribut-Selektoren hier sind spezifischer, aber nur fuer ihren
+   jeweiligen Wert -- sie ueberschreiben ``offen`` nicht. */
+.roadmap #ux-balken i[data-stand="fertig"] { background: var(--signal);
+               border-color: var(--signal); }
+.roadmap #ux-balken i[data-stand="aktiv"] { background: var(--warn);
+               border-color: var(--warn); }
 .roadmap > summary { font-family: var(--schrift-skript); font-size: .95rem; }
 .phase-knopf { font-family: var(--schrift-skript); }
 """

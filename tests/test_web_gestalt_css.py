@@ -170,3 +170,134 @@ def test_keine_rohe_hexfarbe_ausserhalb_des_tokenblocks(name):
     ohne_druck = re.sub(r"@media\s+print\s*\{.*?\n\}", "", ohne_tokens, flags=re.S)
     ohne_kommentare = re.sub(r"/\*.*?\*/", "", ohne_druck, flags=re.S)
     assert not re.findall(r"#[0-9a-fA-F]{3,8}\b", ohne_kommentare)
+
+
+# -- 5. Buehnenlichter (Entwurf B) gegen die Kaskade -------------------------
+#
+# Review-Befund an Aufgabe 7: ``_TABS_B`` und ``_ROADMAP`` definieren
+# beide ``#ux-balken``/``#ux-balken i``, und ``_ROADMAP`` steht in
+# ``css_rahmen()`` NACH den Tabs. Bei gleicher Spezifitaet gewinnt in CSS
+# die spaetere Regel -- also ``_ROADMAP``, egal was in ``_TABS_B`` steht.
+# Der Fix erhoeht die Spezifitaet der B-Regeln (``.roadmap``-Praefix), und
+# genau DAS pruefen die Tests hier -- nicht nur, dass ein Text irgendwo
+# vorkommt, sondern dass die B-Regel bei einer echten Spezifitaetsrechnung
+# gewinnt. Ein kuenftiger Fall, der die Praefixe wieder entfernt oder die
+# Konkatenationsreihenfolge umdreht, faellt damit auf, weil die Rechnung
+# selbst erneut gemacht wird -- nicht nur ihr heutiges Ergebnis abgefragt.
+
+
+def _spezifitaet(selektor: str) -> tuple[int, int, int]:
+    """Eine vereinfachte CSS-Spezifitaet (id, klasse/attribut/pseudo-
+    klasse, typ) -- genug fuer die einfachen, kombinatorlosen Selektoren
+    dieses Moduls."""
+    sel = selektor.strip()
+    ohne_attr = re.sub(r"\[[^\]]*\]", " ATTR ", sel)
+    ids = ohne_attr.count("#")
+    klassen = (ohne_attr.count(".") + ohne_attr.count("ATTR")
+               + len(re.findall(r"(?<!:):[a-zA-Z-]+", ohne_attr)))
+    rest = re.sub(r"[#.][\w-]+", " ", ohne_attr)
+    rest = re.sub(r":[a-zA-Z-]+", " ", rest)
+    rest = rest.replace("ATTR", " ")
+    typen = len(re.findall(r"[a-zA-Z][\w-]*", rest))
+    return (ids, klassen, typen)
+
+
+def test_spezifitaetsrechnung_an_bekannten_selektoren():
+    """Selbsttest der Hilfsfunktion, an Selektoren, deren Spezifitaet man
+    von Hand nachrechnen kann -- sonst pruefte der Test unten eine
+    Rechnung, der man nicht vertrauen kann."""
+    assert _spezifitaet("#ux-balken") == (1, 0, 0)
+    assert _spezifitaet(".roadmap #ux-balken") == (1, 1, 0)
+    assert _spezifitaet("#ux-balken i") == (1, 0, 1)
+    assert _spezifitaet(".roadmap #ux-balken i") == (1, 1, 1)
+    assert _spezifitaet('.roadmap #ux-balken i[data-stand="fertig"]') == (1, 2, 1)
+
+
+def _css_regeln(css: str) -> list[tuple[str, str]]:
+    """Jede Regel als ``(selektor, koerper)`` in Dokumentreihenfolge,
+    Kommentare vorher entfernt (sonst haengt ein ``/* ... */`` vor einer
+    Regel am Selektortext)."""
+    ohne_kommentare = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    return re.findall(r"([^{}]+)\{([^{}]*)\}", ohne_kommentare)
+
+
+def _trifft_dasselbe_element(selektor: str, basis: str) -> bool:
+    """Zielt ``selektor`` -- ob roh (``_ROADMAP``) oder ``.roadmap``-
+    praefixiert (``_TABS_B``) -- auf GENAU dasselbe Element wie ``basis``
+    (z. B. ``"#ux-balken"`` oder ``"#ux-balken i"``)? Die data-stand-
+    Varianten (Befund 2) zaehlen bewusst nicht mit, auch nicht als
+    attributloses Praefix: ihre Selektorkette hat ein zusaetzliches
+    Attribut und damit eine andere, hoehere Spezifitaet, die diesen
+    Vergleich verzerren wuerde."""
+    sel = selektor.strip()
+    if "[" in sel:
+        return False
+    return sel == basis or sel.endswith(" " + basis)
+
+
+def _gewinner(regeln: list[tuple[str, str]], basis: str) -> tuple[str, str]:
+    """Die Regel, die bei einer echten Spezifitaetsrechnung (plus
+    Dokumentreihenfolge als Tie-Breaker) fuer ``basis`` gewinnt --
+    ``(selektor, koerper)``."""
+    kandidaten = []
+    for index, (selektoren, koerper) in enumerate(regeln):
+        for roh in selektoren.split(","):
+            sel = roh.strip()
+            if _trifft_dasselbe_element(sel, basis):
+                kandidaten.append((_spezifitaet(sel), index, sel, koerper))
+    assert len(kandidaten) >= 2, (basis, kandidaten)  # B UND _ROADMAP vertreten
+    _, _, sel, koerper = max(kandidaten, key=lambda k: (k[0], k[1]))
+    return sel, koerper
+
+
+def test_buehnenlichter_gewinnen_gegen_die_roadmap_regel():
+    """Befund 1: ``.roadmap #ux-balken``/``.roadmap #ux-balken i`` aus
+    ``_TABS_B`` muessen gegen die unpraefixierten Regeln aus ``_ROADMAP``
+    gewinnen -- unabhaengig von der Position im zusammengesetzten CSS."""
+    css = web_gestalt.css_rahmen("b")
+    regeln = _css_regeln(css)
+
+    for basis in ("#ux-balken", "#ux-balken i"):
+        # Beide Quellen muessen ueberhaupt vertreten sein -- sonst waere
+        # das kein Kollisionstest mehr, sondern eine leere Pruefung.
+        rohe = [sel for sel, _ in regeln for s in sel.split(",")
+                if s.strip() == basis]
+        assert rohe, (basis, "die unpraefixierte _ROADMAP-Regel fehlt")
+
+        sel, koerper = _gewinner(regeln, basis)
+        assert sel.startswith(".roadmap "), (basis, sel)
+
+    # Die gewonnenen Werte sind wirklich die aus B, nicht die aus
+    # _ROADMAP (deren ``#ux-balken i`` ``width: var(--fortschritt, 0%)``
+    # setzt -- das waere in B dauerhaft 0 %, also unsichtbar).
+    _, aussen_koerper = _gewinner(regeln, "#ux-balken")
+    assert "border: 0" in aussen_koerper
+    assert "var(--linie)" not in aussen_koerper
+
+    _, innen_koerper = _gewinner(regeln, "#ux-balken i")
+    assert "width: auto" in innen_koerper
+    assert "var(--fortschritt" not in innen_koerper
+
+
+def test_die_drei_lichtzustaende_sind_unterscheidbar():
+    """Befund 2: ``_JS_FORTSCHRITT`` setzt ``data-stand`` je Licht
+    (``aktiv``/``offen``/``fertig``) -- ohne eigene Regeln je Zustand
+    saehen alle drei gleich aus (nach Behebung von Befund 1 alle wie
+    ``offen``)."""
+    css = web_gestalt.css_rahmen("b")
+    fertig = re.search(
+        r'\.roadmap #ux-balken i\[data-stand="fertig"\]\s*\{([^}]*)\}', css)
+    aktiv = re.search(
+        r'\.roadmap #ux-balken i\[data-stand="aktiv"\]\s*\{([^}]*)\}', css)
+    assert fertig and aktiv, "data-stand-Regeln fuer fertig/aktiv fehlen"
+    assert "var(--signal)" in fertig.group(1)
+    assert "var(--warn)" in aktiv.group(1)
+    assert fertig.group(1) != aktiv.group(1)
+    # Beide spezifischer als die Basisregel (die ``offen`` trifft) --
+    # sonst ueberschriebe die Reihenfolge im Dokument das Ergebnis.
+    basis_spez = _spezifitaet(".roadmap #ux-balken i")
+    assert _spezifitaet('.roadmap #ux-balken i[data-stand="fertig"]') > basis_spez
+    assert _spezifitaet('.roadmap #ux-balken i[data-stand="aktiv"]') > basis_spez
+    # Keine rohe Hexfarbe (Vertrag aus Aufgabe 3).
+    for koerper in (fertig.group(1), aktiv.group(1)):
+        assert not re.findall(r"#[0-9a-fA-F]{3,8}\b", koerper)

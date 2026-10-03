@@ -935,3 +935,25 @@ def prosa_entwurf_aktiv(profil: Profil | None = None) -> bool:
     unberuehrt."""
     profil = profil or aktiv()
     return bool(profil.wert("prosa_entwurf.aktiv", False))
+
+
+def diskussion_aktiv(profil: Profil | None = None) -> bool:
+    """Ob Phase 1 die Hintergrund-Diskussionsaufnahme faehrt (Padua Phase
+    1+2 Umbau, 03.10.2026).
+
+    Vorgabe false -- wie ``[laengen] aktiv``: ohne diese Zeile im Profil
+    bleibt Phase 1 genau das, was sie vorher war. Dortmund setzt die Zeile
+    nicht und bleibt unberuehrt."""
+    profil = profil or aktiv()
+    return bool(profil.wert("diskussion.aktiv", False))
+
+
+def fragen_ab_aktiv(profil: Profil | None = None) -> bool:
+    """Ob Phase 2 den A/B-Vergleich eigene-vs-KI-Fragen faehrt (Padua Phase
+    1+2 Umbau, 03.10.2026).
+
+    Vorgabe false -- wie ``[laengen] aktiv``: ohne diese Zeile im Profil
+    bleibt Phase 2 genau das, was sie vorher war. Dortmund setzt die Zeile
+    nicht und bleibt unberuehrt."""
+    profil = profil or aktiv()
+    return bool(profil.wert("fragen_ab.aktiv", False))

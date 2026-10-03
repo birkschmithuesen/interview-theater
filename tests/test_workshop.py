@@ -180,3 +180,32 @@ def test_prosa_entwurf_aktiv_nur_in_padua():
     assert workshop.prosa_entwurf_aktiv(None) is False  # eingebautes Vorgabeprofil
     assert workshop.prosa_entwurf_aktiv(workshop.lade("dortmund-2026")) is False
     assert workshop.prosa_entwurf_aktiv(workshop.lade("padua-2026")) is True
+
+
+def test_diskussion_aktiv_nur_in_padua():
+    """[diskussion] aktiv wie [laengen] aktiv: aus in der Vorgabe und in
+    Dortmund, an in Padua -- die Hintergrund-Diskussionsaufnahme in Phase 1
+    betrifft nur den einen Workshop, der sie bekommen soll."""
+    assert workshop.diskussion_aktiv(None) is False  # eingebautes Vorgabeprofil
+    assert workshop.diskussion_aktiv(workshop.lade("dortmund-2026")) is False
+    assert workshop.diskussion_aktiv(workshop.lade("padua-2026")) is True
+
+
+def test_fragen_ab_aktiv_nur_in_padua():
+    """[fragen_ab] aktiv wie [laengen] aktiv: aus in der Vorgabe und in
+    Dortmund, an in Padua -- der A/B-Vergleich eigene-vs-KI-Fragen in Phase 2
+    betrifft nur den einen Workshop, der ihn bekommen soll."""
+    assert workshop.fragen_ab_aktiv(None) is False  # eingebautes Vorgabeprofil
+    assert workshop.fragen_ab_aktiv(workshop.lade("dortmund-2026")) is False
+    assert workshop.fragen_ab_aktiv(workshop.lade("padua-2026")) is True
+
+
+def test_diskussion_und_fragen_ab_aktiv_ueber_profil_aus_dict():
+    """Ein von Hand gebautes Profil (kein Laden von der Platte) traegt die
+    Werte genauso -- ``wert()`` kennt kein Dateisystem, nur den Baum."""
+    profil = workshop.Profil(
+        "test", None,
+        {"diskussion": {"aktiv": True}, "fragen_ab": {"aktiv": True}},
+    )
+    assert workshop.diskussion_aktiv(profil) is True
+    assert workshop.fragen_ab_aktiv(profil) is True

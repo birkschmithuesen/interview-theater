@@ -182,8 +182,10 @@ Ergaenzend, aus dieser Umsetzung selbst:
 
 ## Offene Wuensche
 
-- **Das Team-Dashboard `/`** bleibt ungestaltet (haengt am Beamer, anderer
-  Kontext, anderer Kontrastbedarf aus drei Metern Leseabstand).
+- ~~**Das Team-Dashboard `/`** bleibt ungestaltet.~~ Seit der Nacharbeit
+  vom 03.10.2026 gestaltet — aber nur im Padua-Profil, hinter
+  `[web] dashboard_gestaltet` (siehe „Nacharbeit nach der Abnahme" unten).
+  Das Dortmunder Dashboard ist unveraendert.
 - **Wellenform statt Pegelbalken** — braucht ein `<canvas>` und damit eine
   CSP-Ueberlegung zu `img-src`; ein Balken, der sich bewegt, sagt „das
   Mikrofon hoert dich" schon.
@@ -233,9 +235,11 @@ um, und ihre Regeln sind teils staerker praefixiert als die Gestaltung.
    Breite → `max-width: 46rem` wie `body`.
 
 Jeder Mangel hat einen eigenen Browsertest, gemessen am berechneten Stil
-und an Kaesten, nicht am CSS-Text. Die neun Bilder
-`docs/ux-padua/abnahme-*.png` sind die Abnahme; sie zeigen nur erfundenes
-Material aus der Fixture.
+und an Kaesten, nicht am CSS-Text. Die Bilder
+`docs/ux-padua/abnahme-*.png` sind die Abnahme (damals neun, nach der
+Nacharbeit elf: dazu `abnahme-handy-aufnahme-leitfaden.png` und
+`abnahme-handy-stand.png`); sie zeigen nur erfundenes Material aus der
+Fixture.
 
 **Nachbesserung nach dem Review an `834edbf`.**
 
@@ -275,17 +279,96 @@ Material aus der Fixture.
   Bedeutung traegt nur das Symbol und das `title`-Attribut von A2 (`web_chat._TEXT_PTT`) — eine
   bewusste Einbusse, die ein Workshop-Test bestaetigen sollte.
 
+## Nacharbeit nach der Abnahme (03.10.2026)
+
+Drei Schritte nach Birks Abnahmeauftrag; jedes Element mit Urteil
+(behalten/entfernen/ruhiger), Bild und Umsetzungsstand steht in
+`docs/ux-padua/DESIGN-REVIEW.md`.
+
+- **Interview-Modus** (`web_gestalt.css_interview()`, `_JS_INTERVIEW`):
+  waehrend einer laufenden Aufnahme bleiben nur Leitfaden (zugeklappt),
+  Uhr, Pegel, Lampe, Zustandszeile, „Pause" und ein grosser „■ Beenden"
+  unten. Dazu ein Wake Lock, feature-detected und bei Modusende, Wechsel in
+  den Hintergrund und `pagehide` freigegeben. Bild:
+  `abnahme-handy-aufnahme.png`. Die Fehlerpfade (Telefon von Hand
+  gesperrt, Anruf, Netz weg, 429 als „Keine Verbindung") sind Logik von A2
+  und stehen dort als Befund.
+- **„Als Nächstes: …"** ueber jedem Tab (`_JS_NAECHSTES`), aus der ersten
+  offenen Aufgabe der aktiven Phase im DOM, im Interview weg.
+- **Team-Dashboard** gestaltet: Akt n/7 mit sieben Segmenten, „Needs
+  attention" nur bei einem Problem, keine leeren Felder, kein Leitfaden,
+  kein Botname, am Beamer gekappt. Nur mit `[web] dashboard_gestaltet`,
+  gesetzt allein in `workshop/padua-2026/profil.toml` — ohne Profil und
+  mit `dortmund-2026` bleibt das HTML byte-gleich, weil
+  `tests/test_web_dashboard_en.py` es festhaelt. Also: **Dortmund
+  unveraendert, Padua gestaltet.** Bilder:
+  `review-dashboard-beamer-vorher.png` / `-nachher.png`.
+- **Arbeitsstand:** „Was noch fehlt" vor den Formularen (die einzige
+  Markup-Umstellung der Karte, `web.gruppe_koerper`), ruhige
+  Speichern-Knoepfe, kraeftige Ueberschriften, Festlegungen repariert, der
+  doppelte Chat-Link per CSS weg.
+- **Einhaengezeilen:** jetzt neun statt sieben — `css_interview()` in
+  `web_vereint.seite` und `tokens_css() + css_dashboard()` in
+  `web.dashboard_html` kamen dazu (gezaehlt: sechs Aufrufe von
+  `web_gestalt` in `web_vereint.py`, drei in `web.py`).
+
+**Betrieb.** Die Kostenwarnung des Dashboards liest
+`IT_KOSTEN_DECKEL_CHF` aus der Umgebung des **Webdienstes** (Vorgabe 5.0).
+`docs/interview-theater-web.service` setzt die Variable nicht; wer den
+Deckel in den Bot-Envs aendert, muss ihn auch in der Web-Unit setzen, sonst
+rechnet das Dashboard gegen 5.0.
+
+**Bekannte Fallen beim Testen.**
+
+- `tests/e2e/test_web_vereint_e2e.py` loescht `docs/web-vereint/` komplett
+  (`shutil.rmtree`, Zeile 144) und schreibt seine PNGs neu — dabei
+  verschwindet auch die committete `docs/web-vereint/strom-probe-2026-10-02.md`.
+  Nach jedem Lauf je Datei mit `git show HEAD:<pfad> > <pfad>`
+  wiederherstellen und das Verzeichnis nie ungeprueft committen. Der Test
+  sollte nur seine eigenen Bilder ersetzen (Befund an Karte W).
+- Die Abnahme- und Review-Bilder nur auf einem frischen Server aufnehmen
+  (`-k abnahme` bzw. `-k review`). Ein voller e2e-Lauf schreibt sie auch,
+  aber mit der Rate-Limit-Meldung „Keine Verbindung" und Blasen der vorigen
+  Tests im Bild. Danach die committeten Bilder wiederherstellen.
+- Vorbestehend: `tests/e2e/test_web_edit_e2e.py::test_was_der_chat_fuehrt_steht_nur_da`
+  erwartet den alten Phasennamen „4 · Setting & Figuren" und scheitert —
+  nicht Teil dieser Karte.
+
 ## Zahlen
 
 - **Testsuite, Baseline vs. jetzt:** Aufgabe 1 (dieser Branch, vor jeder
   Aenderung dieser Karte): `5951 passed, 4 skipped`. Nach Aufgabe 12
   (letzter Stand vor dieser Aufgabe): `6140 passed, 5 skipped, 0 xfailed,
   0 xpassed` — ein deutliches Plus an gruenen Tests, keine Regression.
+- **Endstand nach der Nacharbeit (03.10.2026, Commit `9a8651a`, selbst
+  gemessen):** volle Suite `python3.11 -m pytest -q -p no:cacheprovider` →
+  `1 failed, 6353 passed in 833.63s (0:13:53)`. Neu gegenueber dem Stand
+  oben: `python3.11` hat inzwischen Playwright, die volle Suite faehrt die
+  e2e-Dateien also mit (vorher 5 skipped, jetzt 0); der eine Fehlschlag ist
+  der vorbestehende `test_web_edit_e2e.py::test_was_der_chat_fuehrt_steht_nur_da`.
+  Ein Lauf der vollen Suite schreibt damit auch die Bilder unter
+  `docs/ux-padua/` und loescht `docs/web-vereint/` — siehe „Bekannte
+  Fallen beim Testen".
+- **E2E je Datei** (`PYTHONPATH=. …/it-webtest/bin/python -m pytest -q
+  -p no:cacheprovider tests/e2e/<datei>`, nacheinander):
+
+  | Datei | Ergebnis |
+  |---|---|
+  | `test_web_gestalt_e2e.py` | `40 passed in 72.18s (0:01:12)` |
+  | `test_web_uebersicht_e2e.py` | `7 passed in 13.98s` |
+  | `test_web_chat_e2e.py` | `29 passed in 102.70s (0:01:42)` |
+  | `test_web_edit_e2e.py` | `1 failed, 18 passed in 21.36s` (vorbestehend, s. o.) |
+  | `test_web_chat_vad_e2e.py` | `5 passed in 15.74s` |
+  | `test_web_vereint_e2e.py` | `11 passed in 42.15s` |
+
 - **Kontrastpaare:** `web_gestalt.KONTRAST` fuehrt **19 Paare je Entwurf**
   (zwei kamen mit dem Browserlauf dazu: pausierter Aufnahmeknopf, Aufgabe
-  unter dem Finger).
-  Kleinstes gemessenes Verhaeltnis: **A 3.07**, **B 3.23** — beide ueber
-  der 3.0-Schwelle fuer Bedienelemente (WCAG).
+  unter dem Finger; die Nacharbeit brauchte kein neues Paar, hob aber
+  `signal`/`grund-3` von 3.0 auf 4.5, weil die Vorfallart im Dashboard-Log
+  als Text darauf steht).
+  Kleinstes gemessenes Verhaeltnis (am 03.10. nachgerechnet): **A 3.07**
+  (`rec` auf `grund`), **B 3.23** (`rand` auf `grund-2`) — beide ueber der
+  3.0-Schwelle fuer Bedienelemente (WCAG), kein Paar unter seinem Minimum.
 - **Tatsaechlich geaenderte Zeilen dieser Karte** (`git diff --numstat`
   gegen den Stand vor Aufgabe 1, Commit `ed6c4d8`):
   `interview_theater/web.py`: 7 eingefuegt, 3 entfernt (10 Zeilen
@@ -295,3 +378,15 @@ Material aus der Fixture.
   noetigen Anpassungen an bereits weitergewachsene `if`-Bloecke. Die
   gesamte uebrige Gestaltung — Tokens, Komponenten-CSS, Effekt-JS,
   Mikrotexte — liegt vollstaendig in `web_gestalt.py`, einer neuen Datei.
+- **Nach der Nacharbeit** (`git diff --numstat` gegen `0b14974`, den Stand
+  vor Phase 2; gemessen am 03.10.2026): `web.py` 193 eingefuegt, 6 entfernt
+  — fast alles das gestaltete Dashboard (`_achtung_html`,
+  `ACHTUNG_VORFAELLE`, die Karte hinter dem Profilschalter) und die
+  Umstellung von „Was noch fehlt"; `web_daten.py` 90 eingefuegt (reine
+  Lesewerte fuer Kosten, Fehlschlaege im Fenster, unabgeholte
+  Web-Eingaenge, kein Schreibpfad); `web_vereint.py` 3 eingefuegt
+  (`css_interview()`). Ueber die ganze Karte gegen `ed6c4d8`: `web.py`
+  200/9, `web_vereint.py` 19/1, `web_daten.py` 90/0, `workshop.py` 4/0,
+  `web_gestalt.py` 1916 Zeilen neu. Die Zahlen oben („vier/zwei Zeilen")
+  gelten damit nur noch fuer den Plan-Teil — das Dashboard ist mehr als
+  Gestaltung, es liest drei neue Werte.

@@ -76,7 +76,7 @@ Module unter `interview_theater/`:
 | `web_kanal.py` | Der Web-Kanal (30.09.2026): `WebKanal` ersetzt `telegram.Telegram`, wenn `IT_KANAL=web`. Liest Browser-Ereignisse aus der Tabelle `web_post` als Telegram-förmige Updates und schreibt die Antworten dorthin zurück — `bot.schleife` bleibt unverändert, `knoepfe/` wird nicht angefasst. Kein SQL (alles über `repo`), kein Modell |
 | `web_chat.py` | Die Chatansicht im Browser (30.09.2026): HTML, CSS, Vanilla-JS und alle Handler unter `/g/<token>/chat`. `web.py` bekommt nur die Routing-Zeilen. Trägt den serverseitigen HTML-Filter (`sichere_html`), die Knopfprüfung gegen die hängende Leiste (`knopf_erlaubt`), den Audio-Upload, die zwei Aufnahme-Wege und die sequentielle Warteschlange im JS. Kein SQL, kein Modell |
 | `web_vereint.py` | Die vereinte Gruppenseite (30.09.2026): drei Panels (Chat · Arbeitsstand · Textbuch) in **einem** Dokument, Hash-Tabs, die Phasenleiste mit Klick, der SSE-Kanal `/g/<token>/chat/strom` und `scope_css`. `web.py` bekommt davon nur Routing-Zeilen |
-| `web_gestalt.py` | Die Gestaltung der Weboberflaeche (01.10.2026, Padua): ein Block Design-Tokens je Entwurf (A „Terminal zuerst", B „Buehne zuerst"), das Komponenten-CSS, das Effekt-JavaScript und die englischen Mikrotexte. Eingehaengt an **fuenf** Zeilen (vier in `web_vereint.seite`, je eine in `web.textbuch_html`/`leitfaden_html`) — **kein SQL, kein Modellaufruf, kein Endpunkt, kein neues Markup**. Umschalten: `IT_UX_ENTWURF` |
+| `web_gestalt.py` | Die Gestaltung der Weboberflaeche (01.10.2026, Padua): ein Block Design-Tokens je Entwurf (A „Terminal zuerst", B „Buehne zuerst"), das Komponenten-CSS, das Effekt-JavaScript und die englischen Mikrotexte. Eingehaengt an **neun** Zeilen (sechs in `web_vereint.seite`, je eine in `web.textbuch_html`/`leitfaden_html`/`dashboard_html`; das Dashboard nur mit `[web] dashboard_gestaltet`) — **kein SQL, kein Modellaufruf, kein Endpunkt, kein neues Markup**. Umschalten: `IT_UX_ENTWURF` |
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
@@ -1714,7 +1714,11 @@ Netz.
   Ausgespielt wird an genau **zwei bestehenden Orten** — ein Abschnitt in
   `/stand` und einer auf der Gruppenseite —, **nur wenn es Fehlstellen
   gibt** (eine Zeile „nichts fehlt" ist Lärm), höchstens `HOECHSTENS` = 8
-  Zeilen. Kein neuer Knopf, keine eigene Bot-Nachricht. Sortiert wird nach
+  Zeilen. Kein neuer Knopf, keine eigene Bot-Nachricht. Auf der
+  Gruppenseite steht der Abschnitt seit dem 03.10.2026 direkt nach dem
+  Überblick und **vor** den Formularen des Arbeitsstands (UX-Karte Padua,
+  `web.gruppe_koerper`) — vorher kam man am Telefon erst nach rund zwei
+  Bildschirmen Formularen dort an. Sortiert wird nach
   Arbeits-, nicht nach Phasenreihenfolge: erst die aktuelle Phase, dann der
   Rückstand aus früheren (er blockiert), dann das Kommende. Wie beim
   Leitfaden gibt es **einen Zusammenbau und zwei Aufrufer**: `aus_daten` ist
@@ -2870,11 +2874,17 @@ Neustart von `interview-theater-web.service`; die Bots brauchen einen nur, weil
 ### Die Gestaltung (01.10.2026, Padua)
 
 Alles Gestalterische liegt in **einem** Modul (`web_gestalt.py`) und wird
-an sieben Zeilen eingehaengt: fuenf in `web_vereint.seite` (Rahmen-CSS plus
-drei gescopte Bloecke, dazu das Effekt-JS) und je eine in
-`web.textbuch_html` und `web.leitfaden_html`. Es fasst **kein Markup** an —
-was die Gestaltung zusaetzlich braucht, legt das Effekt-JS zur Laufzeit an
-(alles mit dem Praefix `ux-`).
+an neun Zeilen eingehaengt (gezaehlt am 03.10.2026): sechs in
+`web_vereint.seite` (Rahmen-CSS, drei gescopte Bloecke, `css_interview()`
+nur mit Chat, dazu das Effekt-JS), je eine in `web.textbuch_html` und
+`web.leitfaden_html` und eine in `web.dashboard_html` (`tokens_css()` +
+`css_dashboard()`, nur mit Profilschalter, siehe unten). Es fasst **kein
+Markup** an — was die Gestaltung zusaetzlich braucht, legt das Effekt-JS
+zur Laufzeit an (alles mit dem Praefix `ux-`). **Die eine Ausnahme**
+(Nacharbeit 03.10.2026): `web.gruppe_koerper` stellt „Was noch fehlt" vor
+die Formulare des Arbeitsstands, statt dahinter — eine Umstellung, kein
+neues Element (Test
+`test_was_fehlt_steht_vor_den_formularen_des_arbeitsstands`).
 
 **Ein Block Design-Tokens ist der ganze Entwurf.** `TOKENS["a"]`
 („Terminal zuerst": Phosphor auf Schwarzblau, Monospace, Tableiste unten)
@@ -2933,8 +2943,41 @@ Web-Chat-Karte und steht in `docs/ux-padua/BERICHT.md`.
 `_CSS_TEXTBUCH` steht — ohne ihn kaeme ein schwarzes Blatt aus dem
 Drucker.
 
-**Das Team-Dashboard `/` ist bewusst nicht gestaltet** — es haengt am
-Beamer und ist ein anderer Kontext.
+**Der Interview-Modus zeigt nur noch die Aufnahme** (03.10.2026,
+`web_gestalt.css_interview()` und `_JS_INTERVIEW`). Erkannt allein am DOM:
+`html[data-ux-interview="1"]`, solange `#fuss[data-interview="1"]` **und**
+`#uhr` sichtbar ist — `data-interview` allein steht schon beim Druck und
+auch dann, wenn ein anderes Telefon den Modus haelt. Im Modus fallen
+Aktzeile, Tableiste, Verlauf, Eingabe, PTT und alle Effekte weg; es bleiben
+ein zugeklappter Leitfaden (Text per `textContent` aus dem schon
+ausgelieferten `pre.leitfaden`), eine grosse Uhr, der Pegel, eine kleine
+Lampe statt des runden Knopfs, die Zustandszeile, „Pause" und **ein**
+Hauptknopf „■ Beenden" unten in der Daumenzone. Das Chat-Panel ist im
+Modus erzwungen sichtbar (ein Zurueck-Wischen auf `#stand` nahm sonst den
+Stopp mit). Dazu ein **Wake Lock**: feature-detected, jede Ablehnung
+geschluckt, angefordert beim Eintritt, freigegeben bei Modusende,
+`visibilitychange` → hidden und `pagehide`, neu angefordert beim
+Zurueckkommen. Er verhindert nur das automatische Sperren; was beim
+Sperren von Hand, bei einem Anruf oder ohne Netz mit der Aufnahme
+geschieht, steht als Befund an A2 in `docs/ux-padua/DESIGN-REVIEW.md`.
+Ueber jedem Tab steht ausserdem eine Zeile „Als Nächstes: …"
+(`_JS_NAECHSTES`), gelesen aus der ersten offenen Aufgabe der aktiven Phase
+in der Aktfolge — kein neuer Serverschluessel.
+
+**Das Team-Dashboard `/` ist nur im Padua-Profil gestaltet.** Der
+Profilschalter `[web] dashboard_gestaltet` (Vorgabe `false`, `true` nur in
+`workshop/padua-2026/profil.toml`) haengt `css_dashboard()` ein und stellt
+die Karte um: Akt n/7 mit sieben Segmenten, ein Hinweis „Needs attention"
+nur bei einem Problem (`web.ACHTUNG_VORFAELLE`, Fehlschlaege und Vorfaelle
+der letzten 2 h, Kosten ab 80 % des Deckels, Web-Eingaenge, die der Bot seit
+3 min nicht abgeholt hat), keine leeren Felder, kein Leitfaden, kein
+Botname. Ohne Profil und mit `dortmund-2026` bleibt das HTML byte-gleich —
+`tests/test_web_dashboard_en.py` haelt es fest. **Betrieb:** die
+Kostenwarnung liest `IT_KOSTEN_DECKEL_CHF` aus der Umgebung des
+**Webdienstes** (Vorgabe 5.0); `docs/interview-theater-web.service` setzt
+die Variable nicht. Wer den Deckel in den Bot-Envs aendert, setzt ihn auch
+dort, sonst warnt das Dashboard gegen die Vorgabe. Begruendungen je
+Element: `docs/ux-padua/DESIGN-REVIEW.md`.
 
 ### Eine Oberfläche je Gruppe (30.09.2026, Karte W)
 
@@ -2969,7 +3012,9 @@ Probenansicht hängt ihren Zustand außerdem an `<body>`, was im gemeinsamen
 Dokument den Chat mitfärben würde (deshalb `data-textbuch` als Wurzel).
 
 **Das Team-Dashboard `/` bleibt unverändert** — es hängt am Beamer, es zeigt
-alle Gruppen, und es ist nicht diese Karte.
+alle Gruppen, und es ist nicht diese Karte. (Gestaltet wurde es später von
+der UX-Karte Padua, und nur hinter dem Profilschalter
+`[web] dashboard_gestaltet` — siehe „Die Gestaltung".)
 
 **Ein vierter Tab braucht nur drei Stellen.** `web_vereint.TABS` ist die
 EINE Liste, die Tableiste, Panel-Schleife und das Hash-Routing im Browser

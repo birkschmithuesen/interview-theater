@@ -386,14 +386,36 @@ def main() -> None:
                 geraet=argumente.geraet, persona_name=argumente.persona,
                 bis_phase=argumente.bis_phase, lauf_verzeichnis=lauf_verzeichnis,
             )
+            # Der Kontaktbogen braucht den noch offenen Context (er baut
+            # eine eigene Seite darin) -- deshalb VOR browser.close(), und
+            # nur mit --bericht: ohne das Flag soll ein Lauf (z. B. zum
+            # Debuggen) keine zusaetzlichen Dateien hinterlassen.
+            kontaktbogen_pfade: dict[int, str] = {}
+            if argumente.bericht:
+                for phase in ergebnis["phasen_ergebnisse"]:
+                    nummer = phase["nummer"]
+                    bilder = sorted(lauf_verzeichnis.glob(f"*-phase{nummer}-nach.png"))
+                    if not bilder:
+                        continue
+                    ziel = lauf_verzeichnis / f"kontaktbogen-phase{nummer}.png"
+                    browser_bericht.kontaktbogen(context, bilder, ziel)
+                    kontaktbogen_pfade[nummer] = ziel.name
             browser.close()
     finally:
         stack.beende()
+
+    if not argumente.bericht:
+        return
 
     markdown = browser_bericht.baue_markdown(
         f"Padua browser UX simulation ({lauf_name})", argumente.geraet,
         ergebnis["modelle"], ergebnis["phasen_ergebnisse"], ergebnis["top_befunde"],
     )
+    if kontaktbogen_pfade:
+        zeilen = ["", "## Kontaktboegen (alle Screenshots je Phase)", ""]
+        for nummer, name in sorted(kontaktbogen_pfade.items()):
+            zeilen.append(f"- Phase {nummer}: `{lauf_verzeichnis / name}`")
+        markdown += "\n".join(zeilen) + "\n"
     berichte_verzeichnis = Path("simulation/browser_berichte")
     berichte_verzeichnis.mkdir(parents=True, exist_ok=True)
     (berichte_verzeichnis / f"{lauf_name}.md").write_text(markdown, encoding="utf-8")

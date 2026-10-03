@@ -244,10 +244,13 @@ def kontrastverhaeltnis(vorderfarbe: str, hintergrund: str) -> float:
 
 #: Die vier Zustaende des Aufnahmeknopfes -- die zweite Zeile NEBEN dem
 #: Knopf. Der Knopftext selbst gehoert Karte A2.
-_TEXT_REC_RUHT = "Einmal tippen zum Starten, einmal zum Beenden"
+#: Umlaute wie die Beschriftungen von A2 daneben (``web_chat``:
+#: "Aufnahme läuft — …"). Gestoppt wird ueber "■ Beenden" darunter, nicht
+#: ueber den runden Knopf -- der ist waehrend der Aufnahme nur Anzeige.
+_TEXT_REC_RUHT = "Einmal tippen zum Starten – beendet wird mit „■ Beenden“"
 _TEXT_REC_STARTET = "Das Mikrofon wird freigegeben …"
-_TEXT_REC_LAEUFT = "Aufnahme laeuft."
-_TEXT_REC_LAEDT = "Die letzten Stuecke gehen noch raus."
+_TEXT_REC_LAEUFT = "Aufnahme läuft."
+_TEXT_REC_LAEDT = "Die letzten Stücke gehen noch raus."
 
 #: Die Akt-Marke in der zugeklappten Uebersicht. Sie steht VOR dem Text
 #: von Karte W ("Phase 3 von 7 · Interviews — 1/3"), nicht statt ihm.
@@ -342,6 +345,8 @@ def _druck_block() -> str:
         ".sprecher { color: #000 !important; font-weight: 700; }\n"
         ".regie, .regie-zeile, .angaben, .besetzung { "
         "color: #333 !important; opacity: 1 !important; }\n"
+        "h1, h2, a, .leer, .zurueck { color: #000 !important; }\n"
+        ".block, .frage, .frage .vorher { border-color: #000 !important; }\n"
         "}\n"
     )
 
@@ -410,6 +415,14 @@ a { color: var(--signal); }
 .leer { color: var(--text-leise); }
 #interview { transition: background var(--takt-schnell) linear,
                          transform var(--takt-schnell) linear; }
+/* Der Leitfaden (``web._CSS_LEITFADEN``) bekommt nur diesen Rahmen. Er war
+   fuer weisses Papier gesetzt: Ueberschriften ueber ``opacity: .65``
+   gedaempft (3.6:1 auf dem dunklen Grund), Trennlinien schwarz und damit
+   unsichtbar (Review an 834edbf, Rundgang). */
+h2 { opacity: 1; }
+.zurueck { opacity: 1; color: var(--text-leise); }
+.block, .frage { border-top-color: var(--rand); }
+.frage .vorher { border-left-color: var(--signal); }
 """
 
 #: Keyframes -- ALLE hier, nie im gescopten Teil (siehe Modulkopf).
@@ -626,7 +639,8 @@ _MOMENTE_B = """
                letter-spacing: .12em; color: var(--signal);
                background: var(--grund);
                border-top: 1px solid var(--signal);
-               border-bottom: 1px solid var(--signal); padding: .7rem 1.4rem; }
+               border-bottom: 1px solid var(--signal); padding: .7rem 1.4rem;
+               max-width: calc(100vw - 1.5rem); text-align: center; }
 """
 
 #: Die Belohnung: klein, einmal, verschwindet von selbst.
@@ -697,7 +711,9 @@ _CHAT_A = """
                      font-family: var(--schrift-tech); }
 .blase.gruppe { background: var(--signal-tief); border: 1px solid var(--rand);
                 align-self: flex-end; }
-.blase.sprache { color: var(--text-leise); font-style: italic; }
+/* Kursiv traegt "Sprachnachricht"; leise Schrift auf der Gruppenblase
+   (--signal-tief) kam nur auf 4.1:1 (Rundgang, Review an 834edbf). */
+.blase.sprache { color: var(--text); font-style: italic; }
 .blase q { display: block; margin: .5rem 0; padding-left: .7rem;
            border-left: 2px solid var(--warn); color: var(--warn);
            font-family: var(--schrift-skript); font-style: italic;
@@ -795,7 +811,9 @@ _CHAT_B = """
              align-self: flex-start; border-bottom-left-radius: .3rem; }
 .blase.gruppe { background: var(--signal-tief); border: 1px solid var(--rand);
                 align-self: flex-end; border-bottom-right-radius: .3rem; }
-.blase.sprache { color: var(--text-leise); font-style: italic; }
+/* Kursiv traegt "Sprachnachricht"; leise Schrift auf der Gruppenblase
+   (--signal-tief) kam nur auf 4.1:1 (Rundgang, Review an 834edbf). */
+.blase.sprache { color: var(--text); font-style: italic; }
 .blase q { display: block; margin: .55rem 0; padding-left: .7rem;
            border-left: 3px solid var(--signal); color: var(--signal);
            font-family: var(--schrift-skript); font-style: italic;
@@ -823,9 +841,11 @@ _CHAT_B = """
              border-radius: 50%; border: 3px solid var(--rec);
              background: var(--grund-2); color: var(--text); font: inherit;
              font-family: var(--schrift-tech); font-size: .66rem;
-             letter-spacing: .1em; text-transform: uppercase;
+             letter-spacing: .03em; text-transform: uppercase;
              display: flex; flex-direction: column; align-items: center;
-             justify-content: center; gap: .15rem; }
+             justify-content: center; gap: .15rem; padding: 0 .2rem; }
+/* letter-spacing .03em statt .1em: "AUFNEHMEN" stiess bei .1em am Handy
+   an den Ring (Abnahme-Bild nach dem Review an 834edbf). */
 #interview::before { content: ""; width: 1.1rem; height: 1.1rem;
                      border-radius: 50%; background: var(--rec); }
 #interview:active { transform: scale(.95); }
@@ -879,11 +899,19 @@ _CHAT_B = """
           padding: 0 1rem; font-weight: 700; }
 /* Die Beschriftung schreibt ``_CHAT_JS`` ("Interview laeuft · 0:03"),
    und A2 setzt sie bei ``data-laeuft="1"`` auf 1.15rem -- im Kreis ragte
-   sie links und rechts hinaus (Browserlauf 03.10.2026). Hier klein und
-   umbrechend; der Zustand steht ausserdem gross in ``#ux-rec-zeile``. */
-#interview[data-laeuft="1"] { font-size: .56rem; letter-spacing: .02em;
+   sie links und rechts hinaus (Browserlauf 03.10.2026). Kleingeschrieben
+   war sie unlesbar und zeigte eine andere Sekunde als ``#uhr`` daneben
+   (Review an 834edbf). Laeuft die Aufnahme, ist sie deshalb nur noch fuer
+   Vorleseprogramme da: ``font-size: 0`` laesst den Text im Knopf (und damit
+   seinen Namen), das Stopp-Quadrat (``::before``, in rem) bleibt. Zeit und
+   Zustand stehen gross in ``#uhr`` und ``#ux-rec-zeile``. In der Pause
+   bleibt sie sichtbar, klein und umbrechend: dort ist "pausiert" die
+   Information, die sonst nirgends steht. */
+#interview[data-laeuft="1"] { font-size: .62rem; letter-spacing: .02em;
     line-height: 1.15; min-height: 0; padding: .35rem; overflow: hidden;
     white-space: normal; text-align: center; overflow-wrap: anywhere; }
+#interview[data-laeuft="1"]:not([data-pausiert="1"]) { font-size: 0;
+    letter-spacing: 0; }
 /* Der Fuss ist hier eine umbrechende ZEILE: ohne volle Breite nahm die
    Eingabezeile ihre Inhaltsbreite, und "Senden" stand am Handy halb
    ausserhalb des Bildes (Browserlauf 03.10.2026). */
@@ -891,12 +919,27 @@ _CHAT_B = """
 /* Uhr und Pegel teilen sich die erste Zeile, wie im Entwurf; ohne Breite
    schrumpfte der Pegel in der Zeile auf einen Strich. */
 #pegel { flex: 1 1 calc(100% - 7rem); min-width: 4rem; }
+/* Meldungen ueber der Knopfzeile bekommen eine eigene Zeile: am Laptop
+   stand die Warteschlange sonst links neben dem Kreis und schob den
+   Hinweistext darunter (Review an 834edbf, Akte-Bild). Leer kostet sie
+   keine Zeile. */
+#warteschlange, #fehler, .angehalten { flex: 1 1 100%; }
+#warteschlange:empty { display: none; }
 """ + _CHAT_FLAECHEN
 #: Der Arbeitsstand: eine Karte je Feld. Die Formulare der Gruppenseite
 #: (``web._rahmen``, ``_textfeld``, ``_dropdown``) bleiben, wie sie sind --
 #: gestaltet werden nur Flaeche, Rand und Beschriftung.
 _STAND = """
 body { background: var(--grund); color: var(--text); }
+/* Review an 834edbf, Rundgang ueber alle sichtbaren Texte: ``web._CSS_GRUPPE``
+   setzt die Eingabefelder mit ``.feld``-Praefix WEISS bei geerbter (heller)
+   Schrift -- 1.23:1, die Werte der Gruppe waren unlesbar. Dazu der weisse
+   Kasten um den Szenentext und Daempfung ueber ``opacity`` statt Farbe. */
+.feld select, .feld input[type=text], .feld textarea {
+    background: var(--grund-3); color: var(--text); border-color: var(--rand); }
+.szene .volltext { background: var(--grund-2); border-color: var(--linie); }
+.leer, .zeit { opacity: 1; color: var(--text-leise); }
+.zeit a { color: var(--signal); }
 [data-feld] { background: var(--grund-2); border: 1px solid var(--linie);
               border-radius: var(--radius); padding: .55rem .65rem;
               margin: 0 0 .5rem; }
@@ -918,11 +961,34 @@ blockquote { border-left: 2px solid var(--warn); color: var(--warn);
 details > summary { min-height: var(--tippflaeche); display: flex;
                     align-items: center; cursor: pointer; }
 """
+#: Was ``web._CSS_TEXTBUCH`` fuer helles Papier gesetzt hat und auf dem
+#: dunklen Grund zu blass wird (Review an 834edbf): ein dunkles Ocker fuer
+#: die Wege (~2.8:1), Daempfung ueber ``opacity`` statt ueber eine Farbe
+#: (``.leer``, ``.offen``, ``.regie``, ``.marke``) -- ``opacity`` auf
+#: ``--text-leise`` faellt unter 4.5 --, und eine HELLE Flaeche unter der
+#: hervorgehobenen Replik des Rollenfilters. Fuer beide Entwuerfe gleich.
+#: Gedaempft wird hier ueber die Farbe; der Rollenfilter darf weiter ueber
+#: ``opacity`` daempfen, das ist dort die Aussage ("nicht deine Zeile").
+#:
+#: Die hervorgehobene Replik wird nur UMGEFAERBT, der Filter selbst bleibt
+#: bei ``_CSS_TEXTBUCH`` (``test_der_rollenfilter_bleibt_unangetastet``:
+#: kein ``data-figur`` hier). Die vierfache Klasse ist dieselbe Technik wie
+#: ``.roadmap.roadmap`` oben: (0,4,0) schlaegt ``body[data-figur] .replik
+#: .aktiv`` (0,3,1) auf der Probenansicht, und gescopt (0,5,0) die
+#: Panel-Fassung (0,4,0) -- ohne den Knoten zu aendern, den sie trifft.
+_SKRIPT_FLAECHEN = """
+.wege a { color: var(--signal); }
+.leer, .offen, .regie, .leiste .marke { opacity: 1; color: var(--text-leise); }
+.replik.aktiv.aktiv.aktiv.aktiv { background: var(--grund-2);
+                                  border-left-color: var(--signal); }
+"""
+
 #: Das Textbuch, Entwurf A: Terminal-Kopf, Manuskript-Koerper. Der
 #: Sprechername steht IN der Zeile (Monospace, Signalfarbe), die Replik
 #: daneben in der Skriptschrift.
 _SKRIPT_A = """
 body { background: var(--grund); color: var(--text); }
+""" + _SKRIPT_FLAECHEN + """
 .szenenkopf { font-family: var(--schrift-tech); font-size: .8rem;
               letter-spacing: .12em; text-transform: uppercase;
               color: var(--text-leise); border-bottom: 1px solid var(--linie);
@@ -948,6 +1014,7 @@ body { background: var(--grund); color: var(--text); }
 #: EIGENEN Zeile darueber -- die Form eines gedruckten Textbuchs.
 _SKRIPT_B = """
 body { background: var(--grund); color: var(--text); }
+""" + _SKRIPT_FLAECHEN + """
 .szenenkopf { font-family: var(--schrift-skript); font-size: 1.25rem;
               color: var(--signal); border-bottom: 1px solid var(--linie);
               padding-bottom: .3rem; }
@@ -1037,8 +1104,26 @@ _JS_DENKT = """
 #: naechsten Mal falsch.
 _JS_FORTSCHRITT = """
   (function fortschritt() {
-    var roadmap = el('roadmap');
-    if (!roadmap) { return; }
+    var erste = el('roadmap');
+    if (!erste) { return; }
+    // Karte W tauscht die Aktfolge nach einem Phasenklick per outerHTML
+    // aus (/teil/roadmap) -- Akt-Marke und Lichter waren danach weg
+    // (Review an 834edbf, im Akte-Bild sichtbar). Deshalb: dekorieren,
+    // und jede neue #roadmap im selben Elternknoten erneut dekorieren.
+    // Der Vergleich in W laeuft gegen den Server-Text, nicht gegen das
+    // DOM -- das erneute Dekorieren loest also keinen Tausch aus.
+    var eltern = erste.parentNode;
+    var dekoriere = function () {
+      var roadmap = el('roadmap');
+      if (!roadmap || roadmap.querySelector('#ux-balken')) { return; }
+      schmuecke(roadmap);
+    };
+    if (eltern) {
+      new MutationObserver(dekoriere).observe(eltern, { childList: true });
+    }
+    dekoriere();
+
+    function schmuecke(roadmap) {
     var summary = roadmap.querySelector('summary');
     var phasen = roadmap.querySelectorAll('.phase');
     if (!summary || !phasen.length) { return; }
@@ -1073,6 +1158,7 @@ _JS_FORTSCHRITT = """
         .replace('{nummer}', (Array.prototype.indexOf.call(phasen, aktiv) + 1))
         .replace('{gesamt}', phasen.length);
       summary.insertBefore(marke, summary.firstChild);
+    }
     }
   })();
 """

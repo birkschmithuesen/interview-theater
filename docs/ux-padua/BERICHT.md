@@ -114,7 +114,7 @@ dieser Karte.
 | Abweichung | Konstante | A | B |
 |---|---|---|---|
 | Tab-Ort | `_TABS_A`/`_TABS_B` | Tableiste unten, am Daumen; Aktleiste oben zugeklappt eine Zeile | Aktleiste **und** Tabs oben, wie ein Programmzettel; die Akte als Reihe von Buehnenlichtern |
-| Knopfform | `_CHAT_A`/`_CHAT_B` | Breite Taste ueber die volle Breite, 68 px (laufend 80 px), Versalien; PTT als kleiner runder Knopf | Runder Scheinwerfer, 76 px (laufend 94 px), Beschriftung daneben; PTT als Pille „HOLD TO TALK" |
+| Knopfform | `_CHAT_A`/`_CHAT_B` | Breite Taste ueber die volle Breite, 68 px (laufend 80 px), Versalien; PTT als kleiner runder Knopf | Runder Scheinwerfer, 76 px (laufend 94 px), Beschriftung daneben; PTT als Pille „HOLD TO TALK" (im Code: Pille mit 🎤, siehe Nachbesserung) |
 | Akt-Moment | `_MOMENTE_A`/`_MOMENTE_B` | Glitch: Scanlines springen, Aktname in Versalien, 560 ms | Vorhang: faellt von oben, Aktname zwischen zwei Linien, 600 ms |
 | Skript-Satz | `_SKRIPT_A`/`_SKRIPT_B` | Monospace durchgehend, auch im Chat; Serife nur im Textbuch | Serife/Humanist fuer alles Gelesene, Monospace nur als Akzent (Uhr, Zaehler, Sprechernamen, Statuszeilen) |
 
@@ -232,10 +232,48 @@ um, und ihre Regeln sind teils staerker praefixiert als die Gestaltung.
    `max-height: 30vh` im Chat-Tab; am Laptop lief der Fuss ueber die ganze
    Breite → `max-width: 46rem` wie `body`.
 
-Jeder Mangel hat einen eigenen Browsertest (16 Tests in der Datei, alle
-gruen), gemessen am berechneten Stil und an Kaesten, nicht am CSS-Text.
-Die neun Bilder `docs/ux-padua/abnahme-*.png` sind die Abnahme; sie zeigen
-nur erfundenes Material aus der Fixture.
+Jeder Mangel hat einen eigenen Browsertest, gemessen am berechneten Stil
+und an Kaesten, nicht am CSS-Text. Die neun Bilder
+`docs/ux-padua/abnahme-*.png` sind die Abnahme; sie zeigen nur erfundenes
+Material aus der Fixture.
+
+**Nachbesserung nach dem Review an `834edbf`.**
+
+- **Helle Reste im Textbuch:** `.wege a` (Ocker, ~2.8:1) und die
+  `opacity`-Daempfung von `.leer`/`.offen`/`.regie`/`.marke` (auf
+  `--text-leise` unter 4.5) sowie die helle Flaeche unter der
+  hervorgehobenen Replik → `_SKRIPT_FLAECHEN` in beiden `_SKRIPT_*`. Dazu
+  im Arbeitsstand weisse Eingabefelder mit heller Schrift (1.23:1) und im
+  Leitfaden gedaempfte Ueberschriften. Neue Farbpaare gibt es nicht —
+  alles laeuft auf schon gerechnete Paare (`signal`/`text-leise` auf
+  `grund`, `text` auf `grund-2/-3`). Statt einer Selektorliste prueft
+  jetzt ein **Rundgang** jeden sichtbaren Text jeder Seite gegen seinen
+  tatsaechlichen Grund, Deckkraft eingerechnet
+  (`test_jeder_sichtbare_text_hat_kontrast`).
+- **Akte-Bild:** zeigt jetzt den Aktwechsel-Moment (Vorhang, „4 · Setting,
+  Figuren & Geschichte") nach Stopp ueber „■ Beenden" — keine laufende
+  Aufnahme mehr. Dabei gefunden: nach dem Tausch der Aktfolge
+  (`/teil/roadmap`, `outerHTML`) fehlten Akt-Marke und Lichter → das
+  Effekt-JS dekoriert jede neue `#roadmap` per `MutationObserver` neu.
+- **Beschriftung im laufenden Knopf (B):** nicht mehr winzig, sondern
+  `font-size: 0` — fuer Vorleseprogramme bleibt sie, sichtbar bleibt das
+  Stopp-Quadrat; Zeit und Zustand stehen gross in `#uhr` und
+  `#ux-rec-zeile` (der Widerspruch „0:00" im Knopf gegen „0:01" in der
+  Uhr ist damit unsichtbar). In der Pause bleibt sie lesbar. Im ruhenden
+  Kreis eng gesperrt (`.03em`), damit „AUFNEHMEN" nicht an den Ring stoesst.
+- **Mikrotexte:** „Einmal tippen zum Starten – beendet wird mit „■ Beenden""
+  (vorher falsch „einmal zum Beenden"), Umlaute wie die A2-Texte daneben;
+  englisch entsprechend.
+- **Entwurf A** braucht die Handy-Korrekturen von B nicht: dort ist der
+  Aufnahmeknopf eine Taste ueber die volle Breite, die A2-Beschriftung
+  (1.15rem) passt hinein und ist lesbar. Im Browser nicht eigens mit
+  `IT_UX_ENTWURF=a` fotografiert.
+- **Push-to-Talk ist im Code das blosse 🎤**, nicht die Pille „HOLD TO
+  TALK" des Entwurfs B (Tabelle oben): den Knopftext setzt A2, die
+  Gestaltung fasst kein Markup an, und am Handy (390 px) ist neben
+  Eingabe und „Senden" fuer mehr als das Symbol kein Platz. Die
+  Bedeutung traegt nur das Symbol und das `title`-Attribut von A2 (`web_chat._TEXT_PTT`) — eine
+  bewusste Einbusse, die ein Workshop-Test bestaetigen sollte.
 
 ## Zahlen
 

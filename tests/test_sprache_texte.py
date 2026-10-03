@@ -110,6 +110,7 @@ BLEIBT_DEUTSCH = {
     "web_gestalt._MOMENTE_B": "CSS, nur Kommentare deutsch",
     "web_gestalt._BELOHNUNG": "CSS, nur Kommentare deutsch",
     "web_gestalt._CHAT_FLAECHEN": "CSS, nur Kommentare deutsch",
+    "web_gestalt._SKRIPT_FLAECHEN": "CSS, nur Kommentare deutsch",
     "web_gestalt._CHAT_A": "CSS, nur Kommentare deutsch",
     "web_gestalt._CHAT_B": "CSS, nur Kommentare deutsch",
     "web_gestalt._STAND": "CSS, nur Kommentare deutsch",

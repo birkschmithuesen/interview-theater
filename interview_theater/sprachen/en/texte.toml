@@ -1773,7 +1773,7 @@ buehne = "Stage"
 ["web_gestalt"]
 # Die Beschriftungen der Oberflaeche (Karte Padua UX). Kein Bot-Text, kein
 # Prompt -- hier darf es zwinkern. Platzhalter wie im Deutschen.
-_TEXT_REC_RUHT = "Tap once to start, tap again to stop"
+_TEXT_REC_RUHT = "Tap once to start — stop with the ■ button below"
 _TEXT_REC_STARTET = "Warming up the mic …"
 _TEXT_REC_LAEUFT = "Mic is hot."
 _TEXT_REC_LAEDT = "Hold on — the tape is still walking."

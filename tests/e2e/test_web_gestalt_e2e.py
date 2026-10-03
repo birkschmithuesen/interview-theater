@@ -262,6 +262,30 @@ def test_der_aktwechsel_zeigt_seinen_moment_und_raeumt_ihn_weg(dienst):
         browser.close()
 
 
+def test_akt_marke_und_lichter_ueberleben_den_tausch_der_aktfolge(dienst):
+    """Karte W tauscht #roadmap nach einem Phasenklick per outerHTML aus
+    (/teil/roadmap). Review an 834edbf: danach fehlten "Akt 3/7" und die
+    Lichter -- sichtbar im Akte- und im Textbuch-Bild."""
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite = _oeffne(browser, basis, token)
+        seite.wait_for_selector("#roadmap .ux-akt", state="attached")
+        alt = seite.evaluate_handle("() => document.getElementById('roadmap')")
+        seite.eval_on_selector("#roadmap", "el => el.open = true")
+        knopf = seite.locator('.phase-knopf[data-phase="4"]')
+        knopf.click()
+        knopf.click()
+        seite.wait_for_function(
+            "(alt) => document.getElementById('roadmap') !== alt", arg=alt,
+            timeout=10_000)
+        seite.wait_for_selector("#roadmap .ux-akt", state="attached",
+                                timeout=3000)
+        assert seite.locator("#roadmap #ux-balken i").count() == 7
+        assert seite.locator("#roadmap .ux-akt").count() == 1
+        browser.close()
+
+
 def test_eine_belohnung_erscheint_und_verschwindet_wieder(dienst):
     basis, token = dienst
     with sync_playwright() as p:
@@ -337,24 +361,103 @@ def test_der_tabwechsel_verliert_die_halb_getippte_nachricht_nicht(dienst):
 # der Gestaltung darauf -- Phasenknoepfe und Bot-Blasen unlesbar. Gemessen
 # wird am berechneten Stil, nicht am CSS-Text.
 
+#: Rechnet ``opacity`` mit: die Basis-CSS daempft Text gern ueber
+#: ``opacity: .45`` statt ueber eine Farbe, und ein Farbvergleich allein
+#: saehe davon nichts (Review an 834edbf). Die Schrift wird mit der
+#: kumulierten Deckkraft aller Vorfahren ueber den Grund gemischt.
 _HELLIGKEIT = """
 (el) => {
-  const lum = (s) => {
-    const m = s.match(/[\\d.]+/g).map(Number);
-    if (m.length > 3 && m[3] === 0) { return null; }
+  const rgb = (s) => s.match(/[\\d.]+/g).map(Number);
+  const lum = (m) => {
     const k = m.slice(0, 3).map(v => { v /= 255;
       return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
     return 0.2126 * k[0] + 0.7152 * k[1] + 0.0722 * k[2];
   };
-  let n = el, bg = null;
-  while (n && bg === null) { bg = lum(getComputedStyle(n).backgroundColor);
-                             n = n.parentElement; }
-  if (bg === null) { bg = lum(getComputedStyle(document.body).backgroundColor); }
-  const fg = lum(getComputedStyle(el).color);
-  const hell = Math.max(fg, bg), dunkel = Math.min(fg, bg);
-  return {bg: bg, kontrast: (hell + 0.05) / (dunkel + 0.05)};
+  let n = el, bg = null, deck = 1;
+  while (n) {
+    const cs = getComputedStyle(n);
+    deck *= parseFloat(cs.opacity);
+    const m = rgb(cs.backgroundColor);
+    if (bg === null && !(m.length > 3 && m[3] === 0)) { bg = m; }
+    n = n.parentElement;
+  }
+  if (bg === null) { bg = [0, 0, 0]; }
+  const fg = rgb(getComputedStyle(el).color);
+  const misch = [0, 1, 2].map(i => fg[i] * deck + bg[i] * (1 - deck));
+  const a = lum(misch), b = lum(bg);
+  const hell = Math.max(a, b), dunkel = Math.min(a, b);
+  return {bg: b, deck: deck, kontrast: (hell + 0.05) / (dunkel + 0.05)};
 }
 """
+
+#: Was im Textbuch gelesen wird -- im Panel und auf der eigenen Seite.
+_TEXTBUCH_SELEKTOREN = (".wege a", ".hinweis-druck", ".leiste .marke",
+                        ".regie-zeile", ".angaben", ".sprecher", ".text p")
+
+
+_ALLE_TEXTE = """
+(f) => {
+  const miss = eval(f), out = [];
+  for (const el of document.querySelectorAll('body *')) {
+    if (!el.getClientRects().length) { continue; }
+    const eigen = [...el.childNodes].some(
+      n => n.nodeType === 3 && n.textContent.trim());
+    if (!eigen) { continue; }
+    const w = miss(el);
+    if (w.kontrast < 4.5) {
+      out.push([el.tagName + '.' + el.className, el.textContent.trim().slice(0, 30),
+                Math.round(w.kontrast * 100) / 100]);
+    }
+  }
+  return out;
+}
+"""
+
+
+@pytest.mark.parametrize("adresse", ["#chat", "#stand", "#textbuch",
+                                     "/textbuch", "/leitfaden"])
+def test_jeder_sichtbare_text_hat_kontrast(dienst, adresse):
+    """Der Rundgang statt einer Selektorliste: jeder sichtbare Text auf
+    jeder Seite gegen seinen tatsaechlichen Grund, Deckkraft eingerechnet.
+    Fand beim ersten Lauf weisse Eingabefelder mit heller Schrift im
+    Arbeitsstand (1.23:1) -- eine Liste haette sie nicht gekannt."""
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite = browser.new_page(viewport=HANDY)
+        seite.goto(f"{basis}/g/{token}{adresse}")
+        seite.wait_for_timeout(800)
+        if adresse.startswith("#"):
+            seite.eval_on_selector("#roadmap", "el => el.open = true")
+        schlecht = seite.evaluate(_ALLE_TEXTE, _HELLIGKEIT)
+        assert not schlecht, schlecht
+        browser.close()
+
+
+@pytest.mark.parametrize("schema", ["light", "dark"])
+def test_keine_hellen_reste_im_textbuch(dienst, schema):
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        for adresse, wurzel in ((f"/g/{token}#textbuch", "#tab-textbuch "),
+                                (f"/g/{token}/textbuch", "")):
+            seite = browser.new_page(viewport=HANDY, color_scheme=schema)
+            seite.goto(basis + adresse)
+            seite.wait_for_selector(".probe-szene")
+            for sel in _TEXTBUCH_SELEKTOREN:
+                if seite.locator(wurzel + sel).count() == 0:
+                    continue
+                wert = seite.eval_on_selector(wurzel + sel, _HELLIGKEIT)
+                assert wert["bg"] < 0.2, (schema, adresse, sel, wert)
+                assert wert["kontrast"] >= 4.5, (schema, adresse, sel, wert)
+            # Der Rollenfilter: die hervorgehobene Replik bekam eine helle
+            # Flaeche (#fff6d9) unter die helle Schrift.
+            seite.click(wurzel + '.leiste button:has-text("Meryem")')
+            wert = seite.eval_on_selector(wurzel + ".replik.aktiv", _HELLIGKEIT)
+            assert wert["bg"] < 0.2, (schema, adresse, "replik.aktiv", wert)
+            assert wert["kontrast"] >= 4.5, (schema, adresse, "replik.aktiv", wert)
+            seite.close()
+        browser.close()
 
 
 @pytest.mark.parametrize("schema", ["light", "dark"])
@@ -406,6 +509,14 @@ def test_die_beschriftung_bleibt_im_laufenden_knopf(dienst):
                     kl: k.left, kr: k.right, kt: k.top, kb: k.bottom}; }""")
         assert mass["tl"] >= mass["kl"] and mass["tr"] <= mass["kr"], mass
         assert mass["tt"] >= mass["kt"] and mass["tb"] <= mass["kb"], mass
+        # Review an 834edbf: unsichtbar, aber nicht weg -- der Knopf behaelt
+        # seinen Namen fuer Vorleseprogramme, Zeit und Zustand stehen gross
+        # daneben.
+        knopf = seite.locator("#interview")
+        assert knopf.evaluate("el => getComputedStyle(el).fontSize") == "0px"
+        assert knopf.text_content().strip()
+        assert seite.locator("#uhr").is_visible()
+        assert seite.locator("#ux-rec-zeile").inner_text().strip()
         browser.close()
 
 
@@ -429,17 +540,31 @@ def test_abnahme_screenshots(dienst):
                                     timeout=20_000)
             seite.wait_for_timeout(1200)
             seite.screenshot(path=str(SCHUSS / f"abnahme-{name}-aufnahme.png"))
-            seite.locator("#interview").click()
-            seite.wait_for_timeout(500)
+            # Gestoppt wird ueber "Beenden" -- der runde Knopf ist waehrend
+            # der Aufnahme nur Anzeige (A2). Review an 834edbf: vorher zeigte
+            # das Akte-Bild deshalb eine noch laufende Aufnahme.
+            seite.locator("#interview-beenden").click()
+            seite.wait_for_function(
+                "() => ['ruht','laedt'].indexOf(document.getElementById("
+                "'interview').dataset.uxZustand) >= 0", timeout=10_000)
+            seite.wait_for_timeout(300)
 
+            # Das Motiv "Phasenwechsel": der Akt-Moment nach dem zweiten
+            # Druck auf einen Akt -- nicht die Liste allein.
             seite.eval_on_selector("#roadmap", "el => el.open = true")
-            # Die Liste scrollt in sich (30vh im Chat-Tab); fuers Bild
-            # steht der laufende Akt oben, wie nach einem Wisch.
             seite.eval_on_selector(
                 ".phasen", "l => { const a = l.querySelector('.phase.aktiv');"
                 " if (a) { l.scrollTop = a.offsetTop - l.offsetTop; } }")
-            seite.wait_for_timeout(200)
+            akt = seite.locator('.phase-knopf[data-phase="4"]')
+            akt.click()
+            akt.click()
+            seite.wait_for_selector("#ux-ansage:not([hidden])", timeout=3000)
             seite.screenshot(path=str(SCHUSS / f"abnahme-{name}-akte.png"))
+            seite.wait_for_selector("#ux-ansage[hidden]", state="attached",
+                                    timeout=5000)
+            # Die Belohnung darf nicht ins naechste Bild ragen.
+            seite.wait_for_selector("#ux-belohnung[hidden]", state="attached",
+                                    timeout=8000)
             seite.eval_on_selector("#roadmap", "el => el.open = false")
 
             seite.click('.tabs button[data-tab="textbuch"]')

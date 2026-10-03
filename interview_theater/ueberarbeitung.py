@@ -42,6 +42,25 @@ _TEXT_6_FERTIG = (
     "Ueberarbeitung fertig: alle {gesamt} Szenen sind gespeichert. "
     "Weiter zur Buehnenfassung."
 )
+#: "Yes, save", waehrend noch ein Lauf geht -- oder der naechste Schritt
+#: konnte nicht anlaufen (Fix-Runde 1). Nichts wird gespeichert.
+_TEXT_LAEUFT_NOCH = (
+    "Eine Ueberarbeitung laeuft noch -- ich zeige euch das Ergebnis, "
+    "dann koennt ihr es speichern."
+)
+#: Wiedereintritt in Phase 6, wenn schon alles abgenommen ist: kein
+#: automatischer Sprung, nur das Angebot (Fix-Runde 1).
+_TEXT_6_SCHON_FERTIG = (
+    "Alle Szenen der Ueberarbeitung sind gespeichert. Sagt mir, was ihr "
+    "aendern wollt, oder geht weiter zur Buehnenfassung."
+)
+#: Eine Rueckmeldung ohne erkennbares Ziel (Fix-Runde 1).
+_TEXT_KEIN_ZIEL = (
+    "Ich konnte nicht erkennen, welchen Text ihr aendern wollt -- tippt "
+    "\"Nein, nochmal aendern\" unter dem Text, den ihr meint."
+)
+#: Toast fuer ein veraltetes "Yes, save" auf dem schon fixierten Ganzen.
+_ANTWORT_SCHON_GESPEICHERT = "Schon gespeichert"
 
 PHASE_UEBERARBEITUNG = 6
 PHASE_BUEHNE = 7
@@ -109,11 +128,27 @@ def _hat_prosa(conn, chat_id: int) -> bool:
     return any(_gesetzt(s["prosa"]) for s in _szenen(conn, chat_id))
 
 
-def weiter_6(conn, tg, klm, e, chat_id: int) -> threading.Thread | None:
+def laeuft(chat_id: int) -> bool:
+    """Laeuft fuer diese Gruppe gerade ein Szenen- oder Geschichtenlauf
+    (samt Prueflauf, der unter denselben Sperren laeuft)? Nur gelesen."""
+    from interview_theater import kurzgeschichte, szene
+
+    return (szene._sperre_fuer(chat_id).locked()
+            or kurzgeschichte._sperre_fuer(chat_id).locked())
+
+
+def weiter_6(conn, tg, klm, e, chat_id: int, *,
+             aus_eintritt: bool = False) -> threading.Thread | None:
     """Der EINE Schrittweg von Phase 6: was als naechstes dran ist.
 
     Liefert den angestossenen Thread (oder ``None``) -- fuer Tests; die
-    Aufrufer brauchen ihn nicht."""
+    Aufrufer brauchen ihn nicht. Konnte ein Prueflauf nicht anlaufen (Sperre
+    belegt), bekommt die Gruppe ``_TEXT_LAEUFT_NOCH`` statt Stille.
+
+    ``aus_eintritt`` (Eintritt in Phase 6, USA-Antwort): ist schon alles
+    abgenommen, gibt es KEINEN automatischen Sprung nach Phase 7 -- der
+    gehoert allein dem Abnahmeweg (``bestaetige_szene_6``). Stattdessen eine
+    Zeile mit dem Knopf "Weiter zu Phase 7"; die Phase setzt die Gruppe."""
     from interview_theater import knoepfe, prueflauf
 
     if not _hat_prosa(conn, chat_id):
@@ -122,18 +157,28 @@ def weiter_6(conn, tg, klm, e, chat_id: int) -> threading.Thread | None:
             conn, tg, chat_id, knoepfe.T._TEXT_KURZGESCHICHTE_BEREIT)
         return None
     if not gesamttext_fixiert(conn, chat_id):
-        return prueflauf.starte_geschichte(
+        faden = prueflauf.starte_geschichte(
             conn, tg, klm, e, chat_id,
             danach=lambda b: knoepfe.zeige_geprueft_geschichte(
                 conn, tg, e, chat_id, b),
         )
+        if faden is None:
+            _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
+        return faden
     nummer = aktuelle_szene(conn, chat_id)
     if nummer is not None:
-        return prueflauf.starte_szene(
+        faden = prueflauf.starte_szene(
             conn, tg, klm, e, chat_id, nummer,
             danach=lambda b: knoepfe.zeige_geprueft_szene(
                 conn, tg, e, chat_id, nummer, b),
         )
+        if faden is None:
+            _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
+        return faden
+    if aus_eintritt:
+        knoepfe.biete_phase(conn, tg, chat_id, T._TEXT_6_SCHON_FERTIG,
+                            PHASE_BUEHNE)
+        return None
     schliesse_6_ab(conn, tg, klm, e, chat_id)
     return None
 
@@ -144,7 +189,13 @@ def _sende(conn, tg, e, chat_id: int, text: str) -> None:
 
 
 def bestaetige_gesamt(conn, tg, klm, e, chat_id: int) -> str:
-    """"Yes, save" auf dem Ganzen: fixieren, ansagen, erste Szene pruefen."""
+    """"Yes, save" auf dem Ganzen: fixieren, ansagen, erste Szene pruefen.
+
+    Laeuft noch ein Lauf (z. B. die Ueberarbeitung des Ganzen), wird NICHTS
+    gespeichert -- sonst naehme ein veralteter Knopf eine alte Fassung ab."""
+    if laeuft(chat_id):
+        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
+        return T._TEXT_LAEUFT_NOCH
     repo.setze_arbeitsstand(conn, chat_id, "gesamttext_fixiert_am", repo._jetzt())
     text = T._TEXT_GESAMT_GESPEICHERT.format(
         gesamt=len(szenennummern(conn, chat_id)))
@@ -157,6 +208,9 @@ def bestaetige_szene_6(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     """"Yes, save" auf einer Szene in Phase 6: abnehmen, weiter."""
     from interview_theater import knoepfe
 
+    if laeuft(chat_id):
+        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
+        return T._TEXT_LAEUFT_NOCH
     ziel = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
     if ziel is None:
         tg.sende(chat_id, knoepfe.T._TEXT_SZENE_UNBEKANNT)
@@ -191,8 +245,10 @@ def ueberarbeite(conn, tg, klm, e, chat_id: int, notiz: str,
     if (phasen.aktuelle(conn, chat_id) == PHASE_UEBERARBEITUNG
             and not gesamttext_fixiert(conn, chat_id) and nummer is None):
         return kurzgeschichte.starte(conn, tg, klm, e, chat_id, notiz, vorlage=True)
-    n = nummer or aktuelle_szene(conn, chat_id)
+    n = nummer if nummer is not None else aktuelle_szene(conn, chat_id)
     if n is None:
+        # Kein Ziel (z. B. alles abgenommen): die Notiz nicht verschlucken.
+        _sende(conn, tg, e, chat_id, T._TEXT_KEIN_ZIEL)
         return None
     return szene.starte(
         conn, tg, klm, e, chat_id,

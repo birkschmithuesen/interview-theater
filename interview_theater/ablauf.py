@@ -1145,7 +1145,10 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     ).strip():
         from interview_theater import kurzgeschichte
 
-        if ueber:
+        # Die Geschichte-Notiz geht nur in Phase 6 (Rewrite) ueber den
+        # Rueckmeldeweg; ohne Ziel sagt ``ueberarbeite`` das selbst
+        # (``_TEXT_KEIN_ZIEL``), statt die Notiz zu verschlucken.
+        if ueber and phasen.aktuelle(conn, chat_id) == 6:
             ueberarbeitung.ueberarbeite(
                 conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip())
             return True

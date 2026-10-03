@@ -383,6 +383,7 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
                 # In Padua: die vorhandene Prosa pruefen statt neu schreiben
                 # (``ueberarbeitung.weiter_6``, Rueckfall dort: der Knopf).
                 if padua_6:
-                    ueberarbeitung.weiter_6(conn, tg, klm, e, chat_id)
+                    ueberarbeitung.weiter_6(conn, tg, klm, e, chat_id,
+                                            aus_eintritt=True)
                 else:
                     biete_kurzgeschichte(conn, tg, chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)

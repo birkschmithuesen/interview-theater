@@ -299,3 +299,133 @@ def test_dortmund_bietet_weiter_geschichte_schreiben(conn, ohne_profil, tg, eins
 
     assert _letzte_leiste_hat(tg, knoepfe.ART_GESCHICHTE_SCHREIBEN, conn)
     assert repo.prueflaeufe(conn, 1) == []
+
+
+# ---------------------------------------------------------------------------
+# Fix-Runde 1
+# ---------------------------------------------------------------------------
+
+
+def _alles_abgenommen(conn):
+    repo.setze_arbeitsstand(conn, 1, "gesamttext_fixiert_am", repo._jetzt())
+    for s in repo.hole_szenen(conn, 1):
+        repo.setze_szene_ueberarbeitung_bestaetigt(conn, s["id"])
+
+
+def test_gesamt_ja_waehrend_ein_lauf_geht_speichert_nichts(conn, padua, tg, einst):
+    _stueck(conn)
+    sperre = kurzgeschichte._sperre_fuer(1)
+    assert sperre.acquire(blocking=False)
+    try:
+        assert ueberarbeitung.laeuft(1)
+        antwort = ueberarbeitung.bestaetige_gesamt(conn, tg, Schreiber(), einst, 1)
+    finally:
+        sperre.release()
+
+    assert antwort == ueberarbeitung.T._TEXT_LAEUFT_NOCH
+    assert "A revision is still running" in antwort
+    assert [t for _, t in tg.gesendet] == [antwort]
+    assert not (repo.hole_arbeitsstand(conn, 1)["gesamttext_fixiert_am"] or "").strip()
+    assert _laeufe(conn) == []
+    assert not ueberarbeitung.laeuft(1)
+
+
+def test_szene_ja_waehrend_ein_lauf_geht_speichert_nichts(conn, padua, tg, einst):
+    _stueck(conn)
+    repo.setze_arbeitsstand(conn, 1, "gesamttext_fixiert_am", repo._jetzt())
+    sperre = szene._sperre_fuer(1)
+    assert sperre.acquire(blocking=False)
+    try:
+        antwort = ueberarbeitung.bestaetige_szene_6(conn, tg, Schreiber(), einst, 1, 1)
+    finally:
+        sperre.release()
+
+    assert antwort == ueberarbeitung.T._TEXT_LAEUFT_NOCH
+    assert [t for _, t in tg.gesendet] == [antwort]
+    assert all(not (s["ueberarbeitung_bestaetigt_am"] or "").strip()
+               for s in repo.hole_szenen(conn, 1))
+    assert ueberarbeitung.aktuelle_szene(conn, 1) == 1
+
+
+def test_naechster_schritt_startet_nicht_dann_eine_zeile_statt_stille(
+        conn, padua, tg, einst, monkeypatch):
+    from interview_theater import prueflauf
+
+    _stueck(conn)
+    repo.setze_arbeitsstand(conn, 1, "gesamttext_fixiert_am", repo._jetzt())
+    monkeypatch.setattr(prueflauf, "starte_szene", lambda *a, **k: None)
+
+    ueberarbeitung.bestaetige_szene_6(conn, tg, Schreiber(), einst, 1, 1)
+
+    assert ueberarbeitung.T._TEXT_LAEUFT_NOCH in [t for _, t in tg.gesendet]
+    assert ueberarbeitung.aktuelle_szene(conn, 1) == 2
+
+
+def test_wiedereintritt_mit_allem_abgenommen_springt_nicht(conn, padua, tg, einst):
+    _stueck(conn)
+    _alles_abgenommen(conn)
+
+    knoepfe.eintritt_in_phase(conn, tg, Schreiber(), einst, 1, 6)
+
+    assert phasen.aktuelle(conn, 1) == 6
+    alles = [t for _, t in tg.gesendet]
+    assert ueberarbeitung.T._TEXT_6_FERTIG.format(gesamt=3) not in alles
+    assert _laeufe(conn) == []
+    _cid, text, leiste = tg.knoepfe[-1]
+    assert text == ueberarbeitung.T._TEXT_6_SCHON_FERTIG
+    assert "All scenes of the Rewrite are saved" in text
+    zeilen = [repo.hole_knopf(conn, knoepfe._id_aus_daten(d)) for _b, d in leiste]
+    assert [(k["art"], k["wert"]) for k in zeilen] == [(knoepfe.ART_PHASE, "7")]
+
+
+def test_geschichte_notiz_ohne_ziel_bekommt_eine_zeile(
+        conn, padua, tg, einst, monkeypatch):
+    from interview_theater import ablauf
+
+    _stueck(conn)
+    _alles_abgenommen(conn)
+    monkeypatch.setattr(szene, "starte", lambda *a, **k: pytest.fail("Lauf"))
+    monkeypatch.setattr(kurzgeschichte, "starte", lambda *a, **k: pytest.fail("Lauf"))
+    knoepfe.erwarte_geschichte_notiz(1)
+
+    assert ablauf._szene_hat_vorfahrt(
+        conn, tg, Schreiber(), einst, 1, {"text": "a sadder ending"}) is True
+
+    assert [t for _, t in tg.gesendet] == [ueberarbeitung.T._TEXT_KEIN_ZIEL]
+    assert "I couldn't tell which text to change" in ueberarbeitung.T._TEXT_KEIN_ZIEL
+
+
+def test_geschichte_notiz_in_phase_7_geht_nicht_ueber_ueberarbeite(
+        conn, padua, tg, einst, monkeypatch):
+    from interview_theater import ablauf
+
+    _stueck(conn)
+    phasen.setze(conn, 1, 7, "test")
+    gerufen = []
+    monkeypatch.setattr(ueberarbeitung, "ueberarbeite",
+                        lambda *a, **k: pytest.fail("ueberarbeite"))
+    monkeypatch.setattr(kurzgeschichte, "starte",
+                        lambda c, t, k, e, cid, notiz, **kw: gerufen.append(notiz))
+    knoepfe.erwarte_geschichte_notiz(1)
+
+    assert ablauf._szene_hat_vorfahrt(
+        conn, tg, Schreiber(), einst, 1, {"text": "a sadder ending"}) is True
+    assert gerufen == ["a sadder ending"]
+
+
+def test_veraltetes_gesamt_ja_nach_dem_fixieren_wirkt_nicht(
+        conn, padua, tg, einst, monkeypatch):
+    _stueck(conn)
+    fixiert = repo._jetzt()
+    repo.setze_arbeitsstand(conn, 1, "gesamttext_fixiert_am", fixiert)
+    monkeypatch.setattr(ueberarbeitung, "bestaetige_gesamt",
+                        lambda *a, **k: pytest.fail("bestaetige_gesamt"))
+    knopf_id = repo.lege_knopf_an(conn, 1, knoepfe.ART_GESCHICHTE_PASST, "")
+
+    assert knoepfe.behandle(conn, tg, Schreiber(), einst,
+                            _druck(knoepfe._daten(knopf_id))) is True
+
+    assert tg.gesendet == []
+    assert tg.beantwortet[-1][1] == ueberarbeitung.T._ANTWORT_SCHON_GESPEICHERT
+    assert repo.hole_arbeitsstand(conn, 1)["gesamttext_fixiert_am"] == fixiert
+    assert _laeufe(conn) == []

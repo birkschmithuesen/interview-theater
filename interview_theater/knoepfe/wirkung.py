@@ -123,6 +123,10 @@ def _wirkung_geschichte_passt(conn, d: Druck) -> str:
     if ueberarbeitung.aktiv() and phasen.aktuelle(conn, d.chat_id) == PHASE_SZENEN:
         # Padua (Phase 6, Rewrite): das Ganze ist fixiert, jetzt Szene fuer
         # Szene. Kein Modellaufruf hier -- der Prueflauf laeuft im Thread.
+        # Ein veralteter Knopf auf dem schon fixierten Ganzen wirkt nicht
+        # noch einmal (Fix-Runde 1): kurzer Toast, keine Zustandsaenderung.
+        if ueberarbeitung.gesamttext_fixiert(conn, d.chat_id):
+            return ueberarbeitung.T._ANTWORT_SCHON_GESPEICHERT
         return ueberarbeitung.bestaetige_gesamt(conn, d.tg, d.klm, d.e, d.chat_id)
     d.tg.sende(d.chat_id, T._TEXT_GESCHICHTE_PASST)
     biete_phase_proaktiv(conn, d.tg, d.chat_id)
@@ -1433,7 +1437,8 @@ def _wirkung_szene_usa(conn, d: Druck) -> str:
         if ueberarbeitung.aktiv():
             # Padua (Phase 6, Rewrite): die vorhandene Prosa wird geprueft,
             # nicht neu geschrieben -- im Thread (Zusage 2).
-            ueberarbeitung.weiter_6(conn, d.tg, d.klm, d.e, d.chat_id)
+            ueberarbeitung.weiter_6(conn, d.tg, d.klm, d.e, d.chat_id,
+                                    aus_eintritt=True)
         else:
             biete_kurzgeschichte(conn, d.tg, d.chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)
     elif auftrag:

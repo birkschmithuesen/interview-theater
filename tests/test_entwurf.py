@@ -24,9 +24,11 @@ def test_baue_anzeige_enthaelt_alle_abschnitte():
 
     assert "Logline: Two sisters meet again after years apart." in anzeige
     assert "Setting: A station cafe, late evening." in anzeige
+    assert "Characters:" in anzeige
     assert "- Mira -- wants closeness" in anzeige
     assert "- Nora -- wants distance" in anzeige
     assert "Tension arc: Neither says what they want." in anzeige
+    assert "Scenes:" in anzeige
     assert "1. They arrive." in anzeige
     assert "2. A photo surfaces." in anzeige
     assert "3. A confession." in anzeige

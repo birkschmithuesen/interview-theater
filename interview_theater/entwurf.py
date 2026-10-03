@@ -49,22 +49,28 @@ from __future__ import annotations
 import logging
 import threading
 
-from interview_theater import anweisungen, modellwahl, phasen, repo, szene_claude
+from interview_theater import anweisungen, modellwahl, repo, szene_claude
 
 log = logging.getLogger(__name__)
 
 ART_UEBERSICHT = "entwurf_uebersicht"
 
 #: Ein Sperren-Register je Gruppe -- eigenes Register, siehe Modul-Docstring.
+#: Das Get-or-create unten ist sonst eine TOCTOU-Luecke (zwei Threads sehen
+#: beide ``None`` fuer dieselbe neue ``chat_id`` und installieren je ein
+#: eigenes ``Lock`` -- beide ``acquire`` gelingen dann gleichzeitig). Deshalb
+#: ein eigener Meta-Lock, wie bei ``kurzgeschichte._sperren_schutz``.
 _sperren: dict[int, threading.Lock] = {}
+_sperren_schutz = threading.Lock()
 
 
 def _sperre_fuer(chat_id: int) -> threading.Lock:
-    sperre = _sperren.get(chat_id)
-    if sperre is None:
-        sperre = threading.Lock()
-        _sperren[chat_id] = sperre
-    return sperre
+    with _sperren_schutz:
+        sperre = _sperren.get(chat_id)
+        if sperre is None:
+            sperre = threading.Lock()
+            _sperren[chat_id] = sperre
+        return sperre
 
 
 #: Flach (global-constraints.md 'Schema'): keine verschachtelte Struktur,
@@ -147,7 +153,8 @@ def generiere_uebersicht(klm, conn, e, chat_id: int, notiz: str | None = None) -
     return ergebnis
 
 
-def _lauf(conn, tg, klm, e, chat_id: int, notiz: str | None) -> None:
+def _lauf(conn, tg, klm, e, chat_id: int, notiz: str | None,
+          sperre: threading.Lock) -> None:
     from interview_theater import arbeitszeilen, knoepfe
 
     try:
@@ -182,9 +189,7 @@ def _lauf(conn, tg, klm, e, chat_id: int, notiz: str | None) -> None:
         if anzeige:
             knoepfe.biete_uebersicht(conn, tg, chat_id, anzeige)
     finally:
-        sperre = _sperren.get(chat_id)
-        if sperre is not None and sperre.locked():
-            sperre.release()
+        sperre.release()
 
 
 def starte_uebersicht(conn, tg, klm, e, chat_id: int, notiz: str | None = None):
@@ -194,14 +199,15 @@ def starte_uebersicht(conn, tg, klm, e, chat_id: int, notiz: str | None = None):
     if klm is None:
         log.error("Entwurf-Uebersicht ohne Sprachmodell, chat_id=%s", chat_id)
         return None
-    if not _sperre_fuer(chat_id).acquire(blocking=False):
+    sperre = _sperre_fuer(chat_id)
+    if not sperre.acquire(blocking=False):
         return None
     try:
         thread = threading.Thread(
-            target=_lauf, args=(conn, tg, klm, e, chat_id, notiz), daemon=True,
+            target=_lauf, args=(conn, tg, klm, e, chat_id, notiz, sperre), daemon=True,
         )
         thread.start()
     except BaseException:
-        _sperre_fuer(chat_id).release()
+        sperre.release()
         raise
     return thread

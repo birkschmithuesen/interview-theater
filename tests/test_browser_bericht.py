@@ -35,11 +35,13 @@ def test_kontaktbogen_erzeugt_eine_png_datei(tmp_path):
     bild = tmp_path / "001-phase1-vor.png"
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        seite = browser.new_page()
+        context = browser.new_context()
+        seite = context.new_page()
         seite.set_content("<h1>fixture</h1>")
         seite.screenshot(path=str(bild))
         ausgabe = tmp_path / "kontaktbogen.png"
-        b.kontaktbogen(seite.context, [bild, bild], ausgabe, spalten=2)
+        b.kontaktbogen(context, [bild, bild], ausgabe, spalten=2)
+        context.close()
         browser.close()
     assert ausgabe.exists()
     assert ausgabe.stat().st_size > 0

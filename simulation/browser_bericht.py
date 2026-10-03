@@ -69,22 +69,10 @@ def kontaktbogen(context, bild_pfade: list[Path], ausgabe: Path,
         "figcaption{color:#fff;font:11px monospace;padding:2px}</style>"
         f"<body>{kacheln}</body>"
     )
-    eigener_kontext = None
-    try:
-        seite = context.new_page()
-    except Exception:
-        # Ein Kontext mit genau einer Besitzerseite (z.B. aus
-        # browser.new_page() statt browser.new_context()) erlaubt kein
-        # zweites new_page() -- Playwright verweist dann ausdruecklich auf
-        # browser.new_context(). Der Kontaktbogen bekommt in diesem Fall
-        # einen eigenen, unabhaengigen Kontext desselben Browsers.
-        eigener_kontext = context.browser.new_context()
-        seite = eigener_kontext.new_page()
+    seite = context.new_page()
     try:
         seite.set_content(html)
         seite.wait_for_timeout(200)
         seite.screenshot(path=str(ausgabe), full_page=True)
     finally:
         seite.close()
-        if eigener_kontext is not None:
-            eigener_kontext.close()

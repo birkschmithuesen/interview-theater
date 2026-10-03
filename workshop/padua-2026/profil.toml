@@ -157,3 +157,10 @@ fazitsatz_je_text = 1
 # Modellaufrufe stehen eingeklappt unter "Log", die Bot-Zuordnung ebenso.
 [web]
 dashboard_log_einklappen = true
+
+# Die zweistufige Phase 5 (Padua Phasen TEIL 1, 03.10.2026): erst eine
+# Uebersicht abnehmen, dann Szene fuer Szene Prosa schreiben, am Ende
+# automatisch weiter zu Phase 6. Ohne diese Zeile bliebe Phase 5 bei der
+# automatischen Schaerfung allein -- wie vor diesem Umbau.
+[prosa_entwurf]
+aktiv = true

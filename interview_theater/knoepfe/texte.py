@@ -833,6 +833,19 @@ _TEXT_HERKUNFT_KI = " (KI)"
 #: case-/whitespace-unabhaengig).
 _SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG = "Eigene Fragen fertig."
 
+# --- Eigene Fragen vs. KI: die Auswertung (Aufgabe 14, 03.10.2026) ---------
+#
+# Die zusaetzliche Zeile unter der Abschlussnachricht von Phase 2
+# (``_TEXT_FRAGEN_ABGESCHLOSSEN``) -- NUR wenn der A/B-Vergleich fuer diese
+# Runde tatsaechlich lief (``fragen.fragen_herkunft_final`` traegt
+# mindestens einen nicht-leeren Eintrag). Ohne das bleibt der klassische
+# Abschlusstext byte-identisch zu vor Aufgabe 14
+# (``test_klassischer_abschlusstext_bleibt_byte_identisch``).
+_TEXT_FRAGEN_AUSWERTUNG = "Ihr habt {ki} KI-Fragen und {eigen} eigene behalten."
+#: Eine Zeile je Begriff mit eigenem Begriffsnamen, nur eingesetzt, wenn
+#: ``fragen_auswertung.aus_daten`` mindestens einen Begriff erkannt hat.
+_TEXT_FRAGEN_AUSWERTUNG_ZEILE = "{begriff}: {eigen} eigene, {ki} KI"
+
 _TEXT_LEITFADEN_KNOPF = "Leitfaden zeigen"
 
 

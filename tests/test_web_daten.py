@@ -188,6 +188,58 @@ def test_gruppenseite_ueber_token(gefuellt):
     assert daten["journal"][0]["text"] == "Kernthema ist Ankommen"
 
 
+def test_gruppenseite_zeigt_fragen_auswertung_wenn_ab_vergleich_lief(gefuellt):
+    """Aufgabe 14: ``fragen_auswertung`` kommt additiv dazu, berechnet aus
+    ``fragen``/``fragen_herkunft_final`` -- derselben reinen Funktion wie auf
+    dem Bot-Weg (``fragen_auswertung.aus_daten``)."""
+    repo.setze_arbeitsstand(
+        gefuellt, 1, "fragen", "Heimat: Q1\nHeimat: Q2\nArbeit: Q3",
+    )
+    repo.setze_arbeitsstand(gefuellt, 1, "fragen_herkunft_final", "eigen,ki,ki")
+    daten = web_daten.gruppe_nach_token(gefuellt, repo.stelle_web_token_sicher(gefuellt, 1))
+    assert daten["fragen_auswertung"] == {
+        "gesamt": {"eigen": 1, "ki": 2},
+        "je_begriff": {
+            "Heimat": {"eigen": 1, "ki": 1},
+            "Arbeit": {"eigen": 0, "ki": 1},
+        },
+    }
+
+
+def test_gruppenseite_fragen_auswertung_ist_leer_ohne_ab_vergleich(gefuellt):
+    """Eine Gruppe, die den A/B-Vergleich nie fuhr (klassischer Ablauf, oder
+    ``workshop.fragen_ab_aktiv()`` aus): der Schluessel steht trotzdem da,
+    nur 0/0 -- ``fragen_auswertung`` ist rein additiv (purely additive)."""
+    daten = web_daten.gruppe_nach_token(gefuellt, repo.stelle_web_token_sicher(gefuellt, 1))
+    assert daten["fragen_auswertung"] == {
+        "gesamt": {"eigen": 0, "ki": 0}, "je_begriff": {},
+    }
+
+
+def test_dashboard_zeigt_fragen_auswertung_wenn_ab_vergleich_lief(gefuellt):
+    repo.setze_arbeitsstand(
+        gefuellt, 1, "fragen", "Heimat: Q1\nHeimat: Q2\nArbeit: Q3",
+    )
+    repo.setze_arbeitsstand(gefuellt, 1, "fragen_herkunft_final", "eigen,ki,ki")
+    daten = web_daten.dashboard(gefuellt, jetzt=JETZT)
+    erste = daten["gruppen"][0]
+    assert erste["fragen_auswertung"] == {
+        "gesamt": {"eigen": 1, "ki": 2},
+        "je_begriff": {
+            "Heimat": {"eigen": 1, "ki": 1},
+            "Arbeit": {"eigen": 0, "ki": 1},
+        },
+    }
+
+
+def test_dashboard_fragen_auswertung_ist_leer_ohne_ab_vergleich(gefuellt):
+    daten = web_daten.dashboard(gefuellt, jetzt=JETZT)
+    erste = daten["gruppen"][0]
+    assert erste["fragen_auswertung"] == {
+        "gesamt": {"eigen": 0, "ki": 0}, "je_begriff": {},
+    }
+
+
 def test_gruppenseite_zeigt_interviews_mit_teilen_und_dauer(gefuellt):
     """§ 10.6: die Gruppenseite zeigt je Interview eine Einheit -- Name,
     Teile-Zahl, Gesamtdauer, Verdichtung. Die einzelnen Sprachnachrichten

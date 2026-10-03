@@ -214,6 +214,9 @@ _TEXT_GEGENUEBERSTELLUNG_BEREIT = "Your questions and the AI's are now side by s
 _TEXT_HERKUNFT_EIGEN = " (yours)"
 _TEXT_HERKUNFT_KI = " (AI)"
 _SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG = "Own questions done."
+# Own questions vs. AI: the evaluation (Task 14, 2026-10-03).
+_TEXT_FRAGEN_AUSWERTUNG = "You kept {ki} AI questions and {eigen} of your own."
+_TEXT_FRAGEN_AUSWERTUNG_ZEILE = "{begriff}: {eigen} own, {ki} AI"
 _TEXT_FRAGEN_WEICH_ANGEBOT = "These questions are phrased sensitively. Softer:"
 _TEXT_FRAGEN_WEICH_ZEILE = """\
 {nummer}. {frage}
@@ -1569,6 +1572,8 @@ _TEXT_KEINE_AUFRUFE = "no model calls yet today"
 _TEXT_AUFNAHMEN = "Recordings — {liste}"
 _TEXT_KEINE = "none"
 _TEXT_VERDICHTUNGEN = "Summaries: {anzahl}"
+# Own vs. AI questions (Task 14).
+_TEXT_FRAGEN_AUSWERTUNG = "Questions kept: {eigen} own, {ki} AI"
 _TEXT_SZENENZAHL = "Scenes: {anzahl}"
 _TEXT_ZULETZT = "Last activity: {zeit}"
 _TEXT_INTERVIEWMODUS = "Interview mode"

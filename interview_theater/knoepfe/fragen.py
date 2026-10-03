@@ -33,7 +33,7 @@ bleibt dadurch unangetastet.
 import re
 import threading
 
-from interview_theater import anweisungen, erkenner, leitfaden, repo
+from interview_theater import anweisungen, erkenner, fragen_auswertung, leitfaden, repo
 from interview_theater import begriffe as begriffe_modul
 
 from interview_theater.knoepfe.texte import (
@@ -709,7 +709,13 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
     Baut seit Aufgabe 13 ``fragen_herkunft_final`` im selben Durchgang wie
     ``angenommen`` -- Laenge und Indexreihenfolge identisch zu ``fragen``
     (Task 14 haengt genau daran). Ohne Herkunftsdaten fuer diese Runde
-    (klassischer Ablauf) ist jeder Eintrag ein leerer String."""
+    (klassischer Ablauf) ist jeder Eintrag ein leerer String.
+
+    Seit Aufgabe 14 haengt die Abschlussnachricht die Auswertung
+    eigene-vs-KI an -- aber NUR, wenn der A/B-Vergleich fuer diese Runde
+    tatsaechlich lief (mindestens ein nicht-leerer Eintrag in
+    ``herkunft_final``). Ohne das bleibt der Text byte-identisch zu vor
+    Aufgabe 14 (``test_klassischer_abschlusstext_bleibt_byte_identisch``)."""
     fragen = _auswahlfragen(conn, chat_id)
     entschieden = _decisions(conn, chat_id)
     weich = _weich_dict(conn, chat_id)
@@ -735,6 +741,27 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
 
     wert = "\n".join(angenommen)
 
+    # Aufgabe 14: die Auswertungszeile(n), gebaut aus denselben Werten, die
+    # ``_schreibe`` gleich speichert -- kein zweites Lesen aus der DB, keine
+    # Race mit dem Schreiben. Gegated auf "der A/B-Vergleich lief ueberhaupt"
+    # (mindestens ein nicht-leerer Herkunftseintrag): ohne das bleibt der
+    # klassische Ablauf byte-identisch.
+    auswertung_anhang = ""
+    if any(herkunft_final):
+        ergebnis = fragen_auswertung.aus_daten(wert, ",".join(herkunft_final))
+        gesamt = ergebnis["gesamt"]
+        zeilen_je_begriff = "\n".join(
+            T._TEXT_FRAGEN_AUSWERTUNG_ZEILE.format(
+                begriff=begriff, eigen=zahlen["eigen"], ki=zahlen["ki"],
+            )
+            for begriff, zahlen in ergebnis["je_begriff"].items()
+        )
+        auswertung_anhang = "\n\n" + T._TEXT_FRAGEN_AUSWERTUNG.format(
+            ki=gesamt["ki"], eigen=gesamt["eigen"],
+        )
+        if zeilen_je_begriff:
+            auswertung_anhang += "\n" + zeilen_je_begriff
+
     def _schreibe():
         repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
         repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
@@ -754,6 +781,7 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
     text = (
         T._TEXT_FRAGEN_ABGESCHLOSSEN.format(anzahl=len(angenommen)) + "\n"
         + "\n".join(f"{n}. {f}" for n, f in enumerate(angenommen, start=1))
+        + auswertung_anhang
     )
     # Derselbe Undo-Knopf wie unter "Ja, speichern" (UX-Knoepfe-Karte,
     # Abschnitt 2): ein Druck macht die Fragen wieder zum offenen, einzeln

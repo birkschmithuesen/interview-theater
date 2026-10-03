@@ -1314,6 +1314,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         # Phasenleiste und Tabs aus), aber nur, wo es einen Chat gibt.
         css += web_gestalt.css_interview()
     css += scope_css(web_gestalt.css_stand(), ".panel-stand")
+    css += scope_css(web_gestalt.css_buehne(), ".panel-buehne")
     css += scope_css(web_gestalt.css_textbuch(), ".panel-textbuch")
     # Mobile-App-Shell (03.10.2026) zuletzt von allem: sie gewinnt gegen
     # ``_TABS_A``/``_TABS_B``/``_CSS_CHAT`` per Spezifitaet oder Reihenfolge,

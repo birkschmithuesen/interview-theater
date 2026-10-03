@@ -420,6 +420,13 @@ def css_stand(name: str | None = None) -> str:
     return _STAND
 
 
+def css_buehne(name: str | None = None) -> str:
+    """Was IM CoThinker/Workbench-Panel liegt. Fuer beide Entwuerfe
+    gleich: eine Leseflaeche wie das Stand-Panel, die Tokens tragen den
+    Unterschied."""
+    return _BUEHNE
+
+
 def css_textbuch(name: str | None = None) -> str:
     """Was IM Textbuch-Panel liegt -- und, ungescopt, auf der
     Probenansicht ``/g/<token>/textbuch``."""
@@ -1269,6 +1276,30 @@ ul.stueckkarte { list-style: none; padding-left: 0; }
 ul.stueckkarte li { margin: .2rem 0; }
 ul.stueckkarte li.offen { color: var(--text-leise); }
 table.anteile th, table.anteile td, table.uebersicht td { border-bottom-color: var(--linie); }
+/* CoThinker-Befund, derselbe Fehler eine Panel-Ebene hoeher: die
+   Begriffs-Chips und die Fassungsleiste sind helle Sandflaechen aus
+   ``_CSS_GRUPPE`` -- wie die Speichern-Knoepfe oben, nur bisher nicht
+   mitgefasst. */
+.begriff { background: var(--grund-3); color: var(--text); }
+.fassung { background: var(--grund-2); color: var(--text);
+           border-color: var(--rand); }
+.fassung.aktiv { background: var(--signal); border-color: var(--signal);
+                 color: var(--auf-signal); }
+"""
+#: Das CoThinker-Panel (Birk, Live-Feedback 03.10.2026 23:10: "CoThinker
+#: ist kaum lesbar. Weisser Hintergrund."). ``web._CSS_BUEHNE`` setzt
+#: ``#buehne-panel .karte``/``.stueckkarte`` fest hell -- dieselbe Luecke
+#: wie bei ``_STAND`` oben, nur nie geschlossen. Scoped auf
+#: ``.panel-buehne`` durch den Aufrufer, wie ``css_stand()``.
+_BUEHNE = """
+#buehne-panel .karte { background: var(--grund-2); color: var(--text);
+                       border-color: var(--linie); }
+#buehne-panel .karte.alt { color: var(--text-leise); opacity: 1; }
+#buehne-panel .hoert-zu { color: var(--text-leise); opacity: 1; }
+#buehne-panel .leer { color: var(--text-leise); opacity: 1; }
+.stueckkarte { background: var(--grund-3); }
+.sk-haken { color: var(--text-leise); opacity: 1; }
+.sk-frei { color: var(--text-leise); opacity: 1; }
 """
 #: Was ``web._CSS_TEXTBUCH`` fuer helles Papier gesetzt hat und auf dem
 #: dunklen Grund zu blass wird (Review an 834edbf): ein dunkles Ocker fuer

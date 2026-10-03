@@ -1323,7 +1323,7 @@ def _wirkung_stand(conn, d: Druck) -> str:
 def _wirkung_hilfe(conn, d: Druck) -> str:
     from interview_theater import befehle
 
-    befehle._befehl_hilfe(d.tg, d.e, d.chat_id)
+    befehle._befehl_hilfe(conn, d.tg, d.e, d.chat_id)
     return T._ANTWORT_HILFE
 
 

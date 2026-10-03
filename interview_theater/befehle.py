@@ -811,7 +811,10 @@ def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:
     tg.sende(chat_id, T._TEXT_WORTLAUT_AN.format(name=treffer[1]))
 
 
-def _befehl_hilfe(tg, e, chat_id: int) -> None:
+def _befehl_hilfe(conn, tg, e, chat_id: int) -> None:
+    """``conn`` ist seit Task 1 (Karte A1-Hilfe) ein Parameter, inhaltlich
+    aber noch ungenutzt -- ein spaeterer Task baut die englische Hilfe-Logik
+    darauf auf (z. B. welche Befehle fuer diese Gruppe beworben werden)."""
     tg.sende(chat_id, T._TEXT_HILFE.format(bot_name=e.bot_name))
 
 
@@ -833,6 +836,17 @@ def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:
     if feld is None:
         return False
     nummer, wert = int(treffer.group(1)), treffer.group(3).strip()
+    if feld == "form":
+        # Formwoerter wie "dialogue" (Task 1, Karte A1-Hilfe) auf den
+        # kanonischen Datenbankwert abbilden -- lokaler Import gegen
+        # Importzyklen (ueberarbeitung.py importiert befehle.py nicht).
+        # Liefert ``form_aus_text`` ``None`` (unbekanntes Wort), bleibt der
+        # rohe Text stehen: ``szene.form`` ist bewusst frei, die Gruppe
+        # entscheidet, nicht der Code.
+        from interview_theater import ueberarbeitung
+        kanonisch = ueberarbeitung.form_aus_text(wert)
+        if kanonisch is not None:
+            wert = kanonisch
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     if feld == "figuren":
         ids = erkenner._figuren_aus_namen(conn, chat_id, wert)
@@ -927,12 +941,31 @@ def _befehl_sprache(conn, tg, chat_id: int, rest: str) -> None:
     tg.sende(chat_id, T._TEXT_SPRACHE_GESETZT.format(sprache=anzeige(wert)))
 
 
-#: Die erkannten Befehle -- Grundlage dafuer, dass ein unbekannter
-#: Slash-Text (z. B. "/irgendwas") freundlich beantwortet statt zu krachen.
-#: ``/aufnahme`` ist seit 05.09.2026 der beworbene Weg; ``/interview`` und
-#: ``/fertig`` bleiben als stille Synonyme gueltig (Muskelgedaechtnis), stehen
-#: aber nicht mehr im Menue.
-_BEKANNTE_BEFEHLE = {
+#: Deutscher Befehlsname (ohne "/") -> englischer kanonischer Name (Karte
+#: A1-Hilfe, Task 1) -- NUR fuer die Befehle, deren Wort sich unterscheidet.
+#: "/interview" und "/phase" fehlen bewusst: gleiches Wort in beiden
+#: Sprachen, kein eigener Eintrag noetig. Dasselbe Prinzip, mit dem
+#: ``FELD_ALIASE_EN``/``_ENTFERNEN_JE_SPRACHE`` bereits arbeiten -- nicht neu
+#: erfunden, nur auf Befehlsnamen ausgeweitet. Fuer das en-Profil (Padua)
+#: werden die Werte zu eigenen, kanonischen Befehlen (``_bekannte_befehle``);
+#: die deutschen Namen bleiben ueberall als stille Aliase gueltig.
+_BEFEHL_EN = {
+    "aufnahme": "record", "fertig": "done", "auswerten": "analyse",
+    "kernthema": "theme", "stueck": "play", "figur": "character",
+    "szene": "scene", "stand": "status", "wortlaut": "verbatim",
+    "hilfe": "help", "leitfaden": "guide", "festlegung": "agreement",
+    "sprache": "language",
+}
+
+#: Die erkannten Befehle des de-Profils (Dortmund) -- Grundlage dafuer, dass
+#: ein unbekannter Slash-Text (z. B. "/irgendwas") freundlich beantwortet
+#: statt zu krachen. ``/aufnahme`` ist seit 05.09.2026 der beworbene Weg;
+#: ``/interview`` und ``/fertig`` bleiben als stille Synonyme gueltig
+#: (Muskelgedaechtnis), stehen aber nicht mehr im Menue.
+#: Wortgleich mit der fruehen Konstante ``_BEKANNTE_BEFEHLE`` -- die heisst
+#: seit Task 1 ``_BEKANNTE_BEFEHLE_DE`` und ist um die en-Erweiterung
+#: ergaenzt, siehe ``_bekannte_befehle`` unten.
+_BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase", "/kernthema",
     "/stueck", "/figur", "/szene", "/stand", "/wortlaut", "/hilfe",
     # Versteckt: nirgends beworben, aber gueltig (06.09.2026). Der Weg zum
@@ -947,9 +980,55 @@ _BEKANNTE_BEFEHLE = {
     "/sprache",
     # Versteckt (Karte W, 30.09.2026): der Klick auf eine Phase in der
     # Web-Uebersicht. Kein Befehl zum Tippen -- der Weg des Knopfes durch
-    # die Naht, siehe ``_befehl_phaseklick``.
+    # die Naht, siehe ``_befehl_phaseklick``. Keine EN-Form: er wird nie
+    # getippt.
     "/phaseklick",
-}
+})
+
+
+def _bekannte_befehle(sprachcode: str | None = None) -> frozenset[str]:
+    """Die bekannten Befehle der angegebenen (oder sonst der aktiven)
+    Sprache. Deutsch (``"de"``) liefert ``_BEKANNTE_BEFEHLE_DE``
+    unveraendert; Englisch (``"en"``) bekommt zusaetzlich die kanonischen
+    EN-Namen aus ``_BEFEHL_EN`` dazu (Union) -- die deutschen bleiben auch
+    dort gueltig."""
+    if sprachcode is None:
+        sprachcode = sprache.code()
+    if sprachcode == "en":
+        return _BEKANNTE_BEFEHLE_DE | {f"/{en}" for en in _BEFEHL_EN.values()}
+    return _BEKANNTE_BEFEHLE_DE
+
+
+#: Umkehrung von ``_BEFEHL_EN`` fuer den Weg zurueck zum bestehenden
+#: if/elif-Dispatch, der weiterhin auf die deutschen Namen hoert.
+_EN_ZU_DE = {en: de for de, en in _BEFEHL_EN.items()}
+
+
+def _kanonischer_befehl(befehl: str) -> str:
+    """``befehl`` kommt mit fuehrendem "/" aus ``_zerlege``. Liefert "/" plus
+    das deutsche Wort -- unveraendert, wenn ``befehl`` keinen EN-Alias hat
+    (z. B. "/phase" oder "/interview" bleiben "/phase"/"/interview"). Der
+    bestehende if/elif-Block in ``behandle()`` dispatcht ausschliesslich auf
+    das Ergebnis dieser Funktion, nie auf den rohen, ggf. englischen Text."""
+    wort = befehl[1:]
+    return "/" + _EN_ZU_DE.get(wort, wort)
+
+
+#: ``_BEKANNTE_BEFEHLE`` bleibt als Name bestehen und wird ueber
+#: ``__getattr__`` (PEP 562) bei jedem Zugriff frisch beantwortet --
+#: dasselbe Prinzip wie ``phasen.PHASEN``/``szene.FORMEN`` im selben Repo.
+#: Mehrere bestehende Tests lesen ``befehle._BEKANNTE_BEFEHLE`` von aussen
+#: und laufen ohne Profilwechsel (Standard ``de``); sie muessen weiterhin
+#: exakt dieselbe Menge sehen wie vor Task 1. **Wichtig:** ``behandle()``
+#: liegt im selben Modul und darf deshalb NICHT den blossen Namen
+#: ``_BEKANNTE_BEFEHLE`` referenzieren -- ein Zugriff auf einen globalen
+#: Namen innerhalb des eigenen Moduls loest kein Modul-``__getattr__`` aus
+#: (das greift nur bei ``modul.name`` von aussen); ``behandle()`` ruft
+#: deshalb direkt ``_bekannte_befehle()`` auf.
+def __getattr__(name: str):
+    if name == "_BEKANNTE_BEFEHLE":
+        return _bekannte_befehle()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def behandle(
@@ -971,7 +1050,7 @@ def behandle(
         return False
 
     befehl, rest = _zerlege(text)
-    if befehl not in _BEKANNTE_BEFEHLE:
+    if befehl not in _bekannte_befehle():
         # Knoepfe statt einer Zeile, die einen weiteren Befehl empfiehlt
         # (05.09.2026): der naechste Schritt ist ein Druck, kein zweiter
         # Tippversuch.
@@ -981,6 +1060,11 @@ def behandle(
             log.exception("Einstiegsknoepfe fehlgeschlagen, chat_id=%s", chat_id)
             tg.sende(chat_id, T._TEXT_UNBEKANNT)
         return True
+
+    # Ab hier dispatcht der bestehende if/elif-Block ausschliesslich auf das
+    # deutsche Wort -- die Uebersetzung (falls ``befehl`` ein EN-Alias war)
+    # passiert genau hier, einmal, und nicht in jedem Zweig einzeln.
+    befehl = _kanonischer_befehl(befehl)
 
     if befehl == "/aufnahme":
         _befehl_aufnahme(conn, tg, klm, e, chat_id)
@@ -1005,7 +1089,7 @@ def behandle(
     elif befehl == "/wortlaut":
         _befehl_wortlaut(conn, tg, chat_id, rest)
     elif befehl == "/hilfe":
-        _befehl_hilfe(tg, e, chat_id)
+        _befehl_hilfe(conn, tg, e, chat_id)
     elif befehl == "/leitfaden":
         _befehl_leitfaden(conn, tg, chat_id, e)
     elif befehl == "/festlegung":

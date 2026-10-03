@@ -1419,7 +1419,7 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
         "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am, "
         f"bild, {_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
         f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
-        "AND typ != 'knopf' "
+        "AND typ != 'knopf' AND (kalibrierung = 0 OR kalibrierung IS NULL) "
         "ORDER BY id ASC LIMIT ?",
         (chat_id, nach, *_CHAT_VERBORGEN, grenze),
     ).fetchall()
@@ -1483,7 +1483,8 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
             f"geloescht_am, aenderung, {_ABGETIPPT} FROM web_post "
             "WHERE chat_id = ? AND aenderung > ? "
             f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
-            "AND typ != 'knopf' ORDER BY aenderung ASC LIMIT ?",
+            "AND typ != 'knopf' AND (kalibrierung = 0 OR kalibrierung IS NULL) "
+            "ORDER BY aenderung ASC LIMIT ?",
             (chat_id, seit, *_CHAT_VERBORGEN, CHAT_GRENZE),
         ).fetchall()
     except sqlite3.OperationalError:
@@ -1506,6 +1507,38 @@ def web_chataenderungen(conn, chat_id: int, seit: int | None) -> tuple[list, int
     ], stand
 
 
+def kalibrierung_zustand(conn, chat_id: int) -> dict | None:
+    """Der Stand des zuletzt hochgeladenen Kalibrierungs-Testsatzes dieser
+    Gruppe (Task 2, Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026) --
+    ``None`` ohne je einen Upload. ``message_id`` ist dieselbe id, die die
+    Antwort des Uploads (``web_chat._audio``) schon liefert -- kein zweites
+    Kennungsschema (Schritt 6 der Karte).
+
+    Eine Datenbank ohne die Spalte (der Webserver migriert nichts) liefert
+    ``None`` statt eines Fehlers, wie ``web_chataenderungen``."""
+    try:
+        zeile = conn.execute(
+            "SELECT message_id, status, transkript FROM aufnahme "
+            "WHERE chat_id = ? AND kalibrierung = 1 ORDER BY id DESC LIMIT 1",
+            (chat_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if zeile is None:
+        return None
+    if zeile["status"] == "fertig":
+        status = "fertig"
+    elif zeile["status"] == "fehlgeschlagen":
+        status = "fehler"
+    else:
+        status = "laufend"
+    return {
+        "message_id": int(zeile["message_id"]),
+        "status": status,
+        "transkript": zeile["transkript"],
+    }
+
+
 def web_chatzustand(conn, token: str, nach: int = 0,
                     seit: int | None = None) -> dict | None:
     """Alles, was der Browser bei einem Poll braucht -- oder None bei
@@ -1523,9 +1556,11 @@ def web_chatzustand(conn, token: str, nach: int = 0,
     chat_id = web_chat_id_nach_token(conn, token)
     if chat_id is None:
         return None
+    # SELECT * statt benannter Spalten: ``kalibrierung_modus`` ist additiv
+    # und _feld() unten vertraegt eine Datenbank, die der Webserver noch
+    # ohne sie sieht (Bot-Deploy vor Webserver-Neustart).
     gruppe = conn.execute(
-        "SELECT titel, interviewmodus_seit, web_tippt_bis FROM gruppe WHERE chat_id = ?",
-        (chat_id,),
+        "SELECT * FROM gruppe WHERE chat_id = ?", (chat_id,)
     ).fetchone()
     # Der Aenderungsstand VOR dem Verlauf (Re-Review G): eine Aenderung
     # zwischen den beiden Abfragen steht dann entweder schon im Verlauf oder
@@ -1566,6 +1601,11 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         "geaendert": geaendert,
         "aenderung": stand_aenderung,
         "segment_ms": None,   # setzt der HTML-Bau, nicht der Poll
+        # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
+        # gruppenweiter Hinweis-Modus (nie je Geraet) und der Stand des
+        # zuletzt hochgeladenen Kalibrierungs-Testsatzes dieser Gruppe.
+        "kalibrierung_modus": _feld(gruppe, "kalibrierung_modus"),
+        "kalibrierung": kalibrierung_zustand(conn, chat_id),
     }
 
 

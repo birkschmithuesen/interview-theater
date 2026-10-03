@@ -277,7 +277,7 @@ def test_das_json_post_limit_gilt_fuer_audio_nicht(aufbau):
 
 
 def _lade_mit_grund(basis, token, koerper: bytes, *, grund=None, brainstorm=False,
-                     dauer=45, rede=None):
+                     dauer=45, rede=None, kalibrierung=False):
     kennung = web.nonce(SCHLUESSEL, token)
     url = f"{basis}/g/{token}/chat/audio?nonce={kennung}&dauer={dauer}"
     if grund is not None:
@@ -286,6 +286,8 @@ def _lade_mit_grund(basis, token, koerper: bytes, *, grund=None, brainstorm=Fals
         url += "&brainstorm=1"
     if rede is not None:
         url += f"&rede={rede}"
+    if kalibrierung:
+        url += "&kalibrierung=1"
     anfrage = urllib.request.Request(
         url, data=koerper, headers={"Content-Type": "audio/webm"}, method="POST",
     )
@@ -349,3 +351,21 @@ def test_kaputte_rede_wird_zu_leer_statt_den_upload_scheitern_zu_lassen(aufbau, 
     message_id = _lade_mit_grund(basis, token, WEBM, rede=rede)
     zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
     assert zeile["rede_ms"] is None
+
+
+# -- kalibrierung-Flag (Task 2, Kanban-Karte Mithoeren SICHER/             --
+# -- Kalibrierung, 03.10.2026) ----------------------------------------------
+
+
+def test_kalibrierung_landet_im_web_post(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, kalibrierung=True)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["kalibrierung"] == 1
+
+
+def test_ohne_kalibrierung_bleibt_sie_aus(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["kalibrierung"] == 0

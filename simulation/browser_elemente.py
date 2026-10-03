@@ -14,6 +14,7 @@ from __future__ import annotations
 _ARTEN = (
     ("chip", ".leiste button"),
     ("tab", ".tabs button"),
+    ("roadmap_oeffnen", ".roadmap summary"),
     ("phase", ".phase-knopf"),
     ("phase_abbrechen", ".phase-abbrechen"),
     ("aufgabe", ".roadmap li.aufgabe"),
@@ -41,33 +42,34 @@ _DATEN_JS = (
     "haelt: e.dataset.haelt})"
 )
 
-#: Playwrights eigenes ``is_visible()`` rechnet den Inhalt eines
-#: geschlossenen ``<details>`` als unsichtbar (die Box hat dort eine
-#: Ausdehnung von 0x0, gemessen) -- die Roadmap-Phasenknoepfe liegen aber
-#: genau dort, bevor jemand auf die Zusammenfassung klickt. ``offsetParent``
-#: unterscheidet das korrekt von einem expliziten ``hidden``-Attribut oder
-#: einem ``display:none``-Vorfahren (beide liefern ``null``), ohne sich von
-#: der Groesse der Box taeuschen zu lassen.
-_SICHTBAR_JS = "e => e.offsetParent !== null"
-
-
 def extrahiere(page) -> list[dict]:
     """Sichtbare Bedienelemente als Liste von Dicts.
+
+    Sichtbarkeit prueft Playwrights eigenes ``ElementHandle.is_visible()`` --
+    es liefert ``False`` fuer den Inhalt eines geschlossenen ``<details>``
+    (genau da liegen die Roadmap-Phasenknoepfe, bis jemand auf die
+    ``<summary>`` klickt -- die selbst, per Spezifikation, nie darunter
+    faellt und immer sichtbar bleibt) und ebenso fuer ``hidden``,
+    ``display:none`` und ``visibility:hidden``. Ein eigener
+    ``offsetParent !== null``-Test saehe denselben geschlossenen
+    ``<details>``-Inhalt faelschlich als sichtbar an (die Box hat dort kein
+    Layout, aber ``offsetParent`` fragt danach nicht) und liesse
+    ``visibility:hidden`` ebenfalls durch -- deshalb ``is_visible()``, nicht
+    eine eigene Heuristik.
 
     ``id`` ist die laufende Nummer innerhalb DIESES Aufrufs -- stabil genug,
     dass eine Persona-Antwort sie in derselben Antwort referenzieren kann,
     aber nicht ueber einen Schritt hinaus (bei jedem Schritt wird neu
-    extrahiert, die DOM kann sich veraendert haben)."""
+    extrahiert, die DOM kann sich veraendert haben).
+
+    Keine Dopplungs-Pruefung: kein Selektor in ``_ARTEN`` ueberschneidet sich
+    mit einem anderen, also trifft niemals derselbe DOM-Knoten auf zwei
+    Eintraege."""
     elemente: list[dict] = []
-    gesehen: set[int] = set()
     for art, selektor in _ARTEN:
         for handle in page.query_selector_all(selektor):
-            if not handle.evaluate(_SICHTBAR_JS):
+            if not handle.is_visible():
                 continue
-            schluessel = id(handle)
-            if schluessel in gesehen:
-                continue
-            gesehen.add(schluessel)
             eintrag = {
                 "id": len(elemente),
                 "art": art,

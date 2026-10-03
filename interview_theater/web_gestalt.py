@@ -230,6 +230,34 @@ def kontrastverhaeltnis(vorderfarbe: str, hintergrund: str) -> float:
     return (hell + 0.05) / (dunkel + 0.05)
 
 
+# -- Mikrotexte der Oberflaeche ---------------------------------------------
+#
+# Die deutsche Fassung steht hier und IST die deutsche Tabelle (A1); die
+# englische steht in ``sprachen/en/texte.toml``. Keiner dieser Texte geht
+# in einen Prompt oder in eine Chatnachricht -- es sind Beschriftungen.
+#
+# Sachlich auf Deutsch, augenzwinkernd auf Englisch: "Mic is hot." ist ein
+# Studiowitz und traegt dort; "Das Mikrofon ist heiss." waere in Dortmund
+# Denglisch. Genau dafuer gibt es zwei Tabellen.
+
+#: Die vier Zustaende des Aufnahmeknopfes -- die zweite Zeile NEBEN dem
+#: Knopf. Der Knopftext selbst gehoert Karte A2.
+_TEXT_REC_RUHT = "Einmal tippen zum Starten, einmal zum Beenden"
+_TEXT_REC_STARTET = "Das Mikrofon wird freigegeben …"
+_TEXT_REC_LAEUFT = "Aufnahme laeuft."
+_TEXT_REC_LAEDT = "Die letzten Stuecke gehen noch raus."
+
+#: Die Akt-Marke in der zugeklappten Uebersicht. Sie steht VOR dem Text
+#: von Karte W ("Phase 3 von 7 · Interviews — 1/3"), nicht statt ihm.
+_TEXT_AKT_KOPF = "Akt {nummer}/{gesamt}"
+
+#: Die zwei Belohnungen. Klein, einmal, und sie verschwinden von selbst.
+_TEXT_BELOHNUNG_AKT = "Akt abgeschlossen."
+_TEXT_BELOHNUNG_AKT_SATZ = "{akt} steht. Weiter."
+_TEXT_BELOHNUNG_AUFNAHME = "Interview ist drin."
+_TEXT_BELOHNUNG_AUFNAHME_SATZ = "Aufgenommen und auf dem Weg zur Auswertung."
+
+
 T = sprache.Texte(__name__)
 
 
@@ -1174,25 +1202,22 @@ _BAUSTEINE = _JS_DENKT + _JS_FORTSCHRITT + _JS_AUFNAHME + _JS_MOMENT
 
 
 def _mikrotexte() -> dict[str, str]:
-    """Die englischen Kurztexte, die das Skript in den DOM schreibt.
+    """Die Kurztexte, die das Skript in den DOM schreibt.
 
     Sie gehen als JSON ins Skript, statt als Literal darin zu stehen --
     nur so laufen sie ueber ``T`` (A1) und sind uebersetzbar. Ein Literal
     im JS waere in Padua Deutsch; genau das ist Befund 2 an Karte A2.
 
-    Die vier ``rec_*``-Zeilen (Aufgabe 8, der zweiten Zeile neben dem
-    Aufnahmeknopf -- ``_JS_AUFNAHME`` liest ``TEXTE['rec_' + zustand]``)
-    stehen schon hier. Dazu die vier ``belohnung_*``-Zeilen (Aufgabe 9,
-    ``_JS_MOMENT``): Titel und Satz je Belohnung, der Satz mit
-    ``{akt}``-Platzhalter fuer den Namen des abgeschlossenen Akts. Der
-    Rest der Mikrotexte wird in Aufgabe 11 gefuellt."""
+    Gelesen wird zur AUFRUFZEIT: der Webdienst laeuft einmal fuer alle
+    Gruppen, und ``sprache.code()`` haengt am aktiven Profil."""
     return {
-        "rec_ruht": "",
-        "rec_startet": "Starting …",
-        "rec_laeuft": "Mic is hot.",
-        "rec_laedt": "Sending …",
-        "belohnung_akt": "Act in the can.",
-        "belohnung_akt_satz": "{akt} is wrapped. On to the next scene.",
-        "belohnung_aufnahme": "Interview captured.",
-        "belohnung_aufnahme_satz": "Safely backstage -- ready whenever you are.",
+        "rec_ruht": T._TEXT_REC_RUHT,
+        "rec_startet": T._TEXT_REC_STARTET,
+        "rec_laeuft": T._TEXT_REC_LAEUFT,
+        "rec_laedt": T._TEXT_REC_LAEDT,
+        "akt_kopf": T._TEXT_AKT_KOPF,
+        "belohnung_akt": T._TEXT_BELOHNUNG_AKT,
+        "belohnung_akt_satz": T._TEXT_BELOHNUNG_AKT_SATZ,
+        "belohnung_aufnahme": T._TEXT_BELOHNUNG_AUFNAHME,
+        "belohnung_aufnahme_satz": T._TEXT_BELOHNUNG_AUFNAHME_SATZ,
     }

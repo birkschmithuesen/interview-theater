@@ -36,7 +36,7 @@ UMGESTELLT: set[str] = {
     "szene", "szenenfolge", "kurzgeschichte", "schaerfung", "sprachprofil",
     "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
     "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben", "web",
-    "laengen", "sprachpass", "web_vereint",
+    "laengen", "sprachpass", "web_vereint", "web_gestalt",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -50,7 +50,7 @@ ALLE_MODULE = {
     "phasentexte", "schaerfung", "sprachprofil", "sprachstil", "sprecher",
     "stile", "stueckpruefung", "szene", "szenenfolge", "verdichter",
     "vorspann", "web", "web_schreiben", "laengen", "sprachpass",
-    "web_vereint",
+    "web_vereint", "web_gestalt",
 }
 
 #: Bleibt deutsch, mit Grund (nie im Chat, nie im Prompt einer Gruppe).
@@ -99,6 +99,33 @@ BLEIBT_DEUTSCH = {
     # sie wird nie angezeigt, nur gegen den Wortlaut der Gruppe geprueft, und
     # ist deshalb wie stile._NACH_SLUG reine Mitgliedschaftspruefung.
     "erkenner._FESTLEGUNG_FUELLWOERTER": "Fuellwortliste, kein Nutzertext (nur Mitgliedschaftspruefung)",
+    # Karte Padua UX: CSS und JavaScript, nur Kommentare deutsch. Die
+    # Mikrotexte laufen ueber T (siehe web_gestalt._mikrotexte).
+    "web_gestalt._BASIS": "CSS, nur Kommentare deutsch",
+    "web_gestalt._KEYFRAMES_CSS": "CSS, nur Kommentare deutsch",
+    "web_gestalt._TABS_A": "CSS, nur Kommentare deutsch",
+    "web_gestalt._TABS_B": "CSS, nur Kommentare deutsch",
+    "web_gestalt._ROADMAP": "CSS, nur Kommentare deutsch",
+    "web_gestalt._MOMENTE_A": "CSS, nur Kommentare deutsch",
+    "web_gestalt._MOMENTE_B": "CSS, nur Kommentare deutsch",
+    "web_gestalt._BELOHNUNG": "CSS, nur Kommentare deutsch",
+    "web_gestalt._CHAT_A": "CSS, nur Kommentare deutsch",
+    "web_gestalt._CHAT_B": "CSS, nur Kommentare deutsch",
+    "web_gestalt._STAND": "CSS, nur Kommentare deutsch",
+    "web_gestalt._SKRIPT_A": "CSS, nur Kommentare deutsch",
+    "web_gestalt._SKRIPT_B": "CSS, nur Kommentare deutsch",
+    "web_gestalt._GESTALT_JS": "JavaScript, Texte kommen aus TEXTE (_mikrotexte)",
+    "web_gestalt._BAUSTEINE": "JavaScript, Texte kommen aus TEXTE",
+    "web_gestalt._JS_DENKT": "JavaScript, nur Kommentare deutsch",
+    "web_gestalt._JS_FORTSCHRITT": "JavaScript, nur Kommentare deutsch",
+    "web_gestalt._JS_AUFNAHME": "JavaScript, nur Kommentare deutsch",
+    "web_gestalt._JS_MOMENT": "JavaScript, nur Kommentare deutsch",
+    "web_gestalt.FARBTOKENS": "Tokennamen (CSS-Variablen wie --grund, --text), kein Nutzertext",
+    "web_gestalt.KONTRAST": (
+        "Pruefdaten des Kontrasttests -- Paar.zweck beschreibt den "
+        "gerechneten Soll-Vergleich fuer tests/test_web_gestalt_tokens.py, "
+        "geht nie an die Gruppe"
+    ),
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit

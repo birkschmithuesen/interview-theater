@@ -363,3 +363,44 @@ def test_die_belohnungen_kommen_ohne_neuen_serverschluessel_aus(js):
 def test_die_belohnungstexte_kommen_aus_den_mikrotexten(js):
     for schluessel in ("belohnung_akt", "belohnung_aufnahme"):
         assert schluessel in js, schluessel
+
+
+# -- Mikrotexte --------------------------------------------------------------
+
+
+def test_jeder_schluessel_im_skript_hat_einen_text():
+    """Ein ``TEXTE.foo``, das es nicht gibt, ist im Browser ``undefined``
+    -- und in der Oberflaeche eine leere Zeile, die niemand erklaeren
+    kann."""
+    quelle = web_gestalt._GESTALT_JS + web_gestalt._BAUSTEINE
+    benutzt = set(re.findall(r"TEXTE\.([a-z_]+)", quelle))
+    benutzt |= set(re.findall(r"TEXTE\['([a-z_]+)'\]", quelle))
+    vorhanden = set(web_gestalt._mikrotexte())
+    assert not (benutzt - vorhanden), benutzt - vorhanden
+    # Die vier rec_-Schluessel werden dynamisch zusammengesetzt
+    # (TEXTE['rec_' + neu]) und stehen deshalb nicht im Regex.
+    for zustand in ("ruht", "startet", "laeuft", "laedt"):
+        assert f"rec_{zustand}" in vorhanden, zustand
+
+
+def test_die_mikrotexte_kommen_aus_den_modulkonstanten():
+    """Sonst laufen sie nicht ueber ``T`` (A1) und stehen in Padua
+    deutsch da -- genau Befund 2 an Karte A2."""
+    import inspect
+    assert "T._TEXT_" in inspect.getsource(web_gestalt._mikrotexte)
+
+
+def test_kein_vorname_in_den_mikrotexten():
+    """E8 gilt ueberall, auch in einer Beschriftung."""
+    zusammen = " ".join(web_gestalt._mikrotexte().values())
+    for verboten in ("Meryem", "Erhan", "Leyla", "Birk", "Mira"):
+        assert verboten not in zusammen, verboten
+
+
+def test_die_platzhalter_stehen_in_geschweiften_klammern():
+    """Das Skript ersetzt sie mit ``String.replace`` -- eine andere Form
+    liefe ins Leere und stuende woertlich in der Oberflaeche."""
+    texte = web_gestalt._mikrotexte()
+    assert "{akt}" in texte["belohnung_akt_satz"]
+    assert "{nummer}" in texte["akt_kopf"]
+    assert "{gesamt}" in texte["akt_kopf"]

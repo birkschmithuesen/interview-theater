@@ -36,6 +36,7 @@ Strom (Schaerfung, Szenenfolge, Stueckpruefung), steht die Aufgabe hier
 weiter auf 'offen'.
 """
 
+import json
 from collections.abc import Callable
 from typing import NamedTuple
 
@@ -269,6 +270,145 @@ def aus_daten(lage: dict) -> list[dict]:
             # Hinweis dorthin springen, und wenn nicht, was fehlt.
             "bereit": bereit(nummer, lage),
             "fehlt": fehlt(nummer, lage),
+        })
+    return ergebnis
+
+
+# --- Die Werkbank (Padua, 03.10.2026) ---------------------------------------
+#
+# Der Arbeitsstand-Tab in Padua ist eine reine Statusansicht: je Phase ihre
+# Attribute mit einem von drei Zustaenden. Dieselbe ``lage`` wie
+# ``aus_daten``, dieselben ``AUFGABEN`` -- dazu Detailzeilen, die nur lesen,
+# was in ``lage`` steht. Die Beschriftung der Details macht ``web.py``; hier
+# stehen nur Kennungen. Auch das Stepper-Bottom-Sheet (Karte t_cc4306db)
+# liest diese Funktion.
+
+ERLEDIGT = "erledigt"
+OFFEN = "offen"
+SPAETER = "spaeter"
+
+
+def status(erledigt: bool, nummer: int, aktuelle_phase: int) -> str:
+    """Erledigt, sonst offen bis zur aktuellen Phase, danach spaeter.
+
+    Eine noch nicht erreichte Phase hat nichts "Offenes" -- dort steht
+    niemand im Verzug (Birk: dezent, aber klar)."""
+    if erledigt:
+        return ERLEDIGT
+    return OFFEN if nummer <= aktuelle_phase else SPAETER
+
+
+def _roh(quelle, name: str):
+    """Ein Feld als Rohwert -- ``None``, wenn es fehlt (Dict, Row, ``None``)."""
+    if quelle is None:
+        return None
+    try:
+        return quelle[name]
+    except (IndexError, KeyError, TypeError):
+        return None
+
+
+def _szenenzeilen(kennung: str, szenen, feld: str) -> list[tuple]:
+    return [
+        (kennung, bool(_text(s, feld)), _roh(s, "nummer"), _text(s, "titel") or None)
+        for s in szenen
+    ]
+
+
+def _details(nummer: int, lage: dict) -> list[tuple]:
+    """Die Detailzeilen einer Phase als ``(kennung, erledigt, bezug, titel)``."""
+    stand = lage["stand"]
+    if nummer == 1:
+        diskussion = lage.get("diskussion")
+        return [] if diskussion is None else [("diskussion", bool(diskussion), None, None)]
+    if nummer == 3:
+        return [
+            ("interview", bool(_roh(i, "zusammenfassung")), _roh(i, "bezeichnung"), None)
+            for i in lage["interviews"]
+        ]
+    if nummer == 5:
+        return _szenenzeilen("prosa", lage["szenen"], "prosa")
+    if nummer == 6:
+        return (
+            [("gesamttext", bool(_text(stand, "gesamttext_fixiert_am")), None, None)]
+            + _szenenzeilen("ueberarbeitet", lage["szenen"], "ueberarbeitung_bestaetigt_am")
+        )
+    if nummer == 7:
+        return _szenenzeilen("form", lage["szenen"], "form") + [
+            ("sprechweise", bool(_text(f, "sprachstil")), _text(f, "name") or None, None)
+            for f in lage["figuren"]
+        ]
+    return []
+
+
+def werkbank(lage: dict, aktuelle_phase: int) -> list[dict]:
+    """Die sieben Phasen mit ihren Attributen und je einem Zustand -- rein.
+
+    Rueckgabeform siehe ``docs/superpowers/plans/2026-10-03-padua-workbench-
+    readonly.md`` (Kopf): je Phase ``nummer``, ``name``, ``bezeichnung``,
+    ``aktiv``, ``erledigt``, ``gesamt``, ``fertig`` und ``zeilen``; je Zeile
+    ``kennung``, ``art`` ("aufgabe"/"detail"), ``text``, ``bezug``, ``titel``,
+    ``status`` und ``laeuft``. 'laeuft' ist ein Vermerk an einer offenen
+    Aufgabe, kein vierter Zustand."""
+    ergebnis = []
+    for nummer, name, _satz in phasen.PHASEN:
+        zeilen = []
+        for aufgabe in AUFGABEN.get(nummer, ()):
+            stand = status(aufgabe.erledigt(lage), nummer, aktuelle_phase)
+            zeilen.append({
+                "kennung": aufgabe.kennung, "art": "aufgabe",
+                "text": phasentexte.beschriftung(aufgabe.parameter),
+                "bezug": None, "titel": None, "status": stand,
+                "laeuft": stand != ERLEDIGT and _zustand(aufgabe, lage) == "laeuft",
+            })
+        for kennung, erledigt, bezug, titel in _details(nummer, lage):
+            zeilen.append({
+                "kennung": kennung, "art": "detail", "text": None,
+                "bezug": bezug, "titel": titel,
+                "status": status(erledigt, nummer, aktuelle_phase), "laeuft": False,
+            })
+        erledigt = sum(1 for z in zeilen if z["status"] == ERLEDIGT)
+        ergebnis.append({
+            "nummer": nummer,
+            "name": name,
+            "bezeichnung": phasen.bezeichnung(nummer),
+            "aktiv": nummer == aktuelle_phase,
+            "erledigt": erledigt,
+            "gesamt": len(zeilen),
+            "fertig": bool(zeilen) and erledigt == len(zeilen),
+            "zeilen": zeilen,
+        })
+    return ergebnis
+
+
+def begriffe_detail(stand) -> list[dict]:
+    """Der Haken fuer ``arbeitsstand.begriffe_detail`` (Karte t_4517d4ad):
+    eine JSON-Liste ``[{begriff, begruendung, zitat, doppelbedeutung}]``.
+
+    Defensiv: fehlt die Spalte, ist sie leer oder kaputt, kommt eine leere
+    Liste -- nie ein Fehler (der Webserver migriert nichts). Das ``zitat``
+    geht bewusst NICHT mit: es hat keine ``zitat_geprueft``-Pruefung, und auf
+    der Seite steht kein ungeprueftes Zitat (AGENTS.md, "Drei Grenzen")."""
+    roh = _text(stand, "begriffe_detail")
+    if not roh:
+        return []
+    try:
+        eintraege = json.loads(roh)
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(eintraege, list):
+        return []
+    ergebnis = []
+    for eintrag in eintraege:
+        if not isinstance(eintrag, dict):
+            continue
+        begriff = str(eintrag.get("begriff") or "").strip()
+        if not begriff:
+            continue
+        ergebnis.append({
+            "begriff": begriff,
+            "begruendung": str(eintrag.get("begruendung") or "").strip(),
+            "doppelbedeutung": str(eintrag.get("doppelbedeutung") or "").strip(),
         })
     return ergebnis
 

@@ -1799,3 +1799,9 @@ a9 = "Focus"
 a10 = "Faithful to material"
 a11 = "Play requirements"
 c1 = "Voice"
+
+["ueberarbeitung"]
+# Padua Phasen TEIL 2 (03.10.2026): phase 6 (Rewrite) -- the whole story
+# first, then scene by scene.
+_TEXT_GESAMT_GESPEICHERT = "Saved. Now we go scene by scene: scene 1 of {gesamt}."
+_TEXT_6_FERTIG = "Rewrite done: all {gesamt} scenes are saved. On to the Stage Version."

@@ -1113,7 +1113,21 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     # Auftrag in den Szenenlauf, nicht in den Gespraechszug. Ohne das
     # bekaeme die Gruppe eine freundliche Gespraechsantwort statt einer
     # neuen Fassung, und die Notiz waere verloren.
+    # Padua Phasen TEIL 2 (Phase 6/7, Rewrite/Stage Version): beide Notizen
+    # gehen ueber den EINEN Rueckmeldeweg ``ueberarbeitung.ueberarbeite`` --
+    # in der Prosa-Phase traegt der Auftrag dort ``BISHER_MARKER``, sonst
+    # saehe das Modell die bestehende Prosa nicht. Ohne den Schalter (und in
+    # Phase 5) bleiben die Aufrufe unten zeichengleich.
+    from interview_theater import phasen, ueberarbeitung
+
+    ueber = (ueberarbeitung.aktiv()
+             and phasen.aktuelle(conn, chat_id) in (6, 7))
     nummer = szenenfolge.nimm_regienotiz(chat_id)
+    if ueber and nummer is not None and (letzte_nachricht["text"] or "").strip():
+        ueberarbeitung.ueberarbeite(
+            conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip(),
+            nummer=nummer)
+        return True
     if nummer is not None and (letzte_nachricht["text"] or "").strip():
         szene.starte(
             conn, tg, klm, e, chat_id,
@@ -1131,6 +1145,10 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     ).strip():
         from interview_theater import kurzgeschichte
 
+        if ueber:
+            ueberarbeitung.ueberarbeite(
+                conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip())
+            return True
         kurzgeschichte.starte(
             conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip(),
         )

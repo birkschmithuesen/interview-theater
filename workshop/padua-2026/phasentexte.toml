@@ -47,10 +47,8 @@ the passages from your recordings that fit, with the word-for-word quote. \
 Your story does not change, it gets more precise. You decide suggestion by \
 suggestion and can go another round."""
 6 = """\
-Now I write your story in one piece - a short story, like in a book: what \
-happens, who is there, what is said and felt, in prose. The story decides how \
-many sections it gets. Each section then becomes a scene. No stage text, no \
-form yet; that comes in the polish. You read it and tell me what should change."""
+First you read the whole story in the Script tab and tell me where it should \
+go. Then we go scene by scene into the fine-tuning."""
 7 = """\
 All scenes are there as a story. Now the polish: scene by scene you choose the \
 form - {{formen_liste_oder}} - and I translate the story into exactly that \

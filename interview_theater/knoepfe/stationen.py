@@ -350,7 +350,18 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # Beim Eintritt in eine Phase fragt der Bot zuerst die Gruppe,
         # statt sofort vorzuschlagen (Zusage: proaktiv, aber nicht
         # vorlaut).
-        biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
+        from interview_theater import ueberarbeitung
+
+        padua_6 = nummer == PHASE_SZENEN and ueberarbeitung.aktiv()
+        if padua_6:
+            # Padua Phasen TEIL 2 (Phase 6, Rewrite): nur die Einleitung --
+            # die offene Frage "habt ihr selbst schon Ideen?" passt nicht
+            # vor eine Geschichte, die schon dasteht und gleich geprueft
+            # wird.
+            message_id = tg.sende(chat_id, kopf)
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, kopf)
+        else:
+            biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
         if nummer == PHASE_SZENEN:
             # **Die USA-Frage steht beim EINTRITT** (06.09.2026, Birk
             # 12:25), als eigene Nachricht direkt nach der Einleitung und
@@ -369,4 +380,9 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
             else:
                 # Die Frage ist beantwortet (oder es gibt kein US-Modell):
                 # dann steht hier gleich der Knopf, aus dem der Lauf startet.
-                biete_kurzgeschichte(conn, tg, chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)
+                # In Padua: die vorhandene Prosa pruefen statt neu schreiben
+                # (``ueberarbeitung.weiter_6``, Rueckfall dort: der Knopf).
+                if padua_6:
+                    ueberarbeitung.weiter_6(conn, tg, klm, e, chat_id)
+                else:
+                    biete_kurzgeschichte(conn, tg, chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)

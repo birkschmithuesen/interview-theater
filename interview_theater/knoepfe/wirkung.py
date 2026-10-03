@@ -118,6 +118,12 @@ def _wirkung_geschichte_schreiben(conn, d: Druck) -> str:
 
 
 def _wirkung_geschichte_passt(conn, d: Druck) -> str:
+    from interview_theater import ueberarbeitung
+
+    if ueberarbeitung.aktiv() and phasen.aktuelle(conn, d.chat_id) == PHASE_SZENEN:
+        # Padua (Phase 6, Rewrite): das Ganze ist fixiert, jetzt Szene fuer
+        # Szene. Kein Modellaufruf hier -- der Prueflauf laeuft im Thread.
+        return ueberarbeitung.bestaetige_gesamt(conn, d.tg, d.klm, d.e, d.chat_id)
     d.tg.sende(d.chat_id, T._TEXT_GESCHICHTE_PASST)
     biete_phase_proaktiv(conn, d.tg, d.chat_id)
     return T._ANTWORT_PASST
@@ -338,6 +344,13 @@ def _wirkung_szene_passt(conn, d: Druck) -> str:
     # bleibt alles darunter unveraendert.
     if phasen.aktuelle(conn, d.chat_id) == 5:
         return _wirkung_entwurf_szene_passt(conn, d, nummer)
+    from interview_theater import ueberarbeitung
+
+    if ueberarbeitung.aktiv() and phasen.aktuelle(conn, d.chat_id) == PHASE_SZENEN:
+        # Padua (Phase 6, Rewrite): Szene abnehmen, naechste pruefen -- nach
+        # der letzten automatisch Phase 7.
+        return ueberarbeitung.bestaetige_szene_6(
+            conn, d.tg, d.klm, d.e, d.chat_id, nummer)
     ziel = _szene_mit_nummer(conn, d.chat_id, nummer)
     if ziel is None:
         d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
@@ -1415,7 +1428,14 @@ def _wirkung_szene_usa(conn, d: Druck) -> str:
     auftrag = repo.hole_und_loesche_offenen_szenenauftrag(conn, d.chat_id)
     if phasen.aktuelle(conn, d.chat_id) == PHASE_SZENEN:
         # Gestartet wird von der Gruppe, nicht von dieser Antwort.
-        biete_kurzgeschichte(conn, d.tg, d.chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)
+        from interview_theater import ueberarbeitung
+
+        if ueberarbeitung.aktiv():
+            # Padua (Phase 6, Rewrite): die vorhandene Prosa wird geprueft,
+            # nicht neu geschrieben -- im Thread (Zusage 2).
+            ueberarbeitung.weiter_6(conn, d.tg, d.klm, d.e, d.chat_id)
+        else:
+            biete_kurzgeschichte(conn, d.tg, d.chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)
     elif auftrag:
         from interview_theater import szene
 

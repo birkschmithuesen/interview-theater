@@ -561,6 +561,32 @@ def test_aenderungen_des_bots_kommen_ohne_neuladen_an(seite):
     expect(seite.locator(f'.blase[data-id="{weg_id}"]')).to_have_count(0)
 
 
+def test_quittung_steht_unter_der_frage_nicht_am_ende(seite):
+    """Birk 03.10.2026: „Discarded steht jetzt unten unter allem Chat, muss
+    aber unter der abgelehnten Frage stehen.“ Der Fall: an einer frueheren
+    Nachricht wird gedrueckt, danach steht schon eine neue Nachricht unten
+    (beim Einzeldurchgang die naechste Frage). Die Quittung gehoert direkt
+    hinter die Nachricht, an der gedrueckt wurde."""
+    conn = db.verbinde(DB_PFAD)
+    try:
+        kanal = web_kanal.WebKanal(conn, CHAT, AUDIO, schritt_s=0.01)
+        frage = kanal.sende(CHAT, "Frage 3: What did you leave behind?")
+        naechste = kanal.sende(CHAT, "Frage 4: Who waited for you?")
+        druck = repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_EIN,
+                                      repo.WEB_TYP_KNOPF, daten="fe:3:nein",
+                                      bezug_message_id=frage)
+        repo.setze_web_antwort(conn, druck, "✗ Discarded")
+    finally:
+        conn.close()
+    quittung = seite.locator(f'.quittung[data-druck="{druck}"]')
+    expect(quittung).to_have_text("✗ Discarded")
+    # Direkt nach der Frage, VOR der naechsten -- nicht ans Ende angehaengt.
+    vorgaenger = quittung.evaluate("q => q.previousElementSibling.dataset.id || q.previousElementSibling.dataset.message")
+    assert str(vorgaenger) == str(frage)
+    folgt = quittung.evaluate("q => q.nextElementSibling && q.nextElementSibling.dataset.id")
+    assert str(folgt) == str(naechste)
+
+
 def test_eine_wachsende_letzte_blase_scrollt_mit_wenn_man_unten_war(seite):
     """Padua Brainstorm, 03.10.2026, Live-Befund: die Blase eines laufenden
     Brainstorm-Transkripts waechst per ``geaendert``, nicht per ``neu`` -- bis

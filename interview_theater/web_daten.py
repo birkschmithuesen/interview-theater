@@ -1763,6 +1763,7 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         "nachrichten": nachrichten,
         "letzte": letzte,
         "antworten": _web_antworten(conn, chat_id),
+        "antworten_bezug": _web_antworten_bezug(conn, chat_id),
         "geaendert": geaendert,
         "aenderung": stand_aenderung,
         "segment_ms": None,   # setzt der HTML-Bau, nicht der Poll
@@ -1794,6 +1795,25 @@ def _web_antworten(conn, chat_id: int) -> dict:
         (chat_id,),
     ).fetchall()
     return {str(int(z["id"])): z["antwort"] for z in zeilen}
+
+
+def _web_antworten_bezug(conn, chat_id: int) -> dict:
+    """Zu jeder Quittung aus ``_web_antworten``: die Nachricht, an deren
+    Knopfleiste gedrueckt wurde (``web_post.bezug_message_id``).
+
+    Birk 03.10.2026: „Discarded steht jetzt unten unter allem Chat, muss aber
+    unter der abgelehnten Frage stehen.“ Ohne diesen Bezug haengte die Seite
+    jede Quittung ans Ende des Verlaufs -- beim Einzeldurchgang der Fragen
+    steht dort schon die NAECHSTE Frage. Eigener Schluessel statt einer
+    Formaenderung von ``antworten``, damit alte Seiten im Browser weiter
+    funktionieren."""
+    zeilen = conn.execute(
+        "SELECT id, bezug_message_id FROM web_post WHERE chat_id = ? "
+        "AND typ = 'knopf' AND antwort IS NOT NULL "
+        "AND bezug_message_id IS NOT NULL ORDER BY id DESC LIMIT 5",
+        (chat_id,),
+    ).fetchall()
+    return {str(int(z["id"])): int(z["bezug_message_id"]) for z in zeilen}
 
 
 def web_leiste(conn, chat_id: int, message_id: int) -> list | None:

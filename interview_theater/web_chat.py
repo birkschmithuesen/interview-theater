@@ -936,18 +936,29 @@ _CHAT_JS = """
     var w = zustand.wechsel;
     if (w && w.gesendet && zustand.servermodus === w.ziel) { zustand.wechsel = null; }
     zeigeModus();
-    zeigeAntworten(daten.antworten || {});
+    zeigeAntworten(daten.antworten || {}, daten.antworten_bezug || {});
     arbeiteAb();   // ein wartendes Segment darf jetzt vielleicht raus
   }
 
-  function zeigeAntworten(antworten) {
+  // Birk 03.10.2026: die Quittung („✗ Discarded“) gehoert unter die Frage,
+  // an deren Leiste gedrueckt wurde -- nicht ans Ende des Verlaufs, wo beim
+  // Einzeldurchgang schon die naechste Frage steht. ``bezug`` (Druck-id ->
+  // message_id) kommt vom Server; fehlt er (aelterer Server, Nachricht weg),
+  // bleibt es beim alten Anhaengen unten.
+  function zeigeAntworten(antworten, bezug) {
+    bezug = bezug || {};
     Object.keys(antworten).forEach(function (id) {
       if (document.querySelector('.quittung[data-druck="' + id + '"]')) { return; }
       var zeile = document.createElement('div');
       zeile.className = 'quittung';
       zeile.dataset.druck = id;
       zeile.textContent = antworten[id];
-      verlauf.appendChild(zeile);
+      var ziel = bezug[id] != null ? leisteZu(bezug[id]) || blaseZu(bezug[id]) : null;
+      if (ziel && ziel.parentNode === verlauf) {
+        verlauf.insertBefore(zeile, ziel.nextSibling);
+      } else {
+        verlauf.appendChild(zeile);
+      }
     });
   }
 

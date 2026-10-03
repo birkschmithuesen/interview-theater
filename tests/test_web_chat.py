@@ -212,6 +212,23 @@ def test_zustand_traegt_die_knopfantwort_mit(datenbank):
     assert zustand["antworten"] == {str(post_id): "Begriffe uebernommen"}
 
 
+def test_zustand_nennt_die_nachricht_unter_die_die_quittung_gehoert(datenbank):
+    """Birk 03.10.2026: „Discarded steht unten unter allem Chat, muss aber
+    unter der abgelehnten Frage stehen.“ Der Poll muss dafuer sagen, an
+    welcher Nachricht gedrueckt wurde."""
+    pfad, token = datenbank
+    schreibend = db.verbinde(pfad)
+    post_id = repo.lege_web_post_an(schreibend, CHAT, repo.RICHTUNG_EIN,
+                                    repo.WEB_TYP_KNOPF, daten="fe:3:nein",
+                                    bezug_message_id=42)
+    repo.setze_web_antwort(schreibend, post_id, "✗ Discarded")
+    schreibend.close()
+    lesend = web_daten.oeffne_lesend(pfad)
+    zustand = web_daten.web_chatzustand(lesend, token)
+    lesend.close()
+    assert zustand["antworten_bezug"] == {str(post_id): 42}
+
+
 def test_zustand_bei_unbekanntem_token_ist_none(datenbank):
     pfad, _token = datenbank
     lesend = web_daten.oeffne_lesend(pfad)

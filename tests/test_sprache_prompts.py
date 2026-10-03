@@ -534,14 +534,21 @@ def test_padua_phasentexte_nennen_keinen_toten_phasennamen(monkeypatch, conn):
     keine Phasennamen) bleibt stehen.
     """
     from interview_theater import (
-        anweisungen, kontext, phasentexte, schaerfung, stueckpruefung, web,
-        workshop,
+        anweisungen, kontext, phasentexte, repo, schaerfung, stueckpruefung,
+        web, workshop,
     )
 
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
     workshop.vergiss()
     sprache.vergiss()
     anweisungen._CACHE.clear()
+    # Review-Befund t_26b143bc: ohne eine Szene mit gesetztem ``volltext``
+    # liefert ``phasentexte.eintritt(conn, 1, 7)`` fuer Phase 7 NIE den Text
+    # aus ``phasentexte.toml``, sondern immer den Fallback ``letzte_offen``
+    # (``phasentexte._einleitung``) -- die frische ``conn``-Fixture hat keine
+    # Szenen. Ohne diese Zeile testet der Phase-7-Fall oben nur den
+    # Fallback-Text, nie die eigentliche Einleitung 7.
+    repo.lege_szene_an(conn, 1, 1, "Platzhalter", "", "Platzhalter-Volltext.")
     try:
         for phase in (4, 5, 6, 7):
             _ohne_toten_phasennamen(

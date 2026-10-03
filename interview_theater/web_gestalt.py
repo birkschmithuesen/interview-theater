@@ -437,9 +437,59 @@ _TABS_B = """
 .fuss { bottom: var(--tabs-hoehe); z-index: 6; }
 body { padding-bottom: 13rem; }
 body:not([data-tab="chat"]) .fuss { display: none; }
+/* B: die sieben Akte als Reihe von Buehnenlichtern statt als ein
+   Balken. Dieselbe Zahl, andere Metapher. */
+#ux-balken { display: flex; gap: .28rem; height: .5rem;
+             background: none; border: 0; }
+#ux-balken i { flex: 1; width: auto; border-radius: .25rem;
+               background: var(--grund-3); border: 1px solid var(--linie); }
+.roadmap > summary { font-family: var(--schrift-skript); font-size: .95rem; }
+.phase-knopf { font-family: var(--schrift-skript); }
 """
-#: Gefuellt in Aufgabe 7.
-_ROADMAP = ""
+#: Die Phasenuebersicht als Aktfolge. Fuer beide Entwuerfe dieselbe
+#: Struktur -- die Tokens und die zwei Abweichungen unten tragen den
+#: Unterschied.
+#:
+#: **Zugeklappt eine Zeile** (Karte W): sieben Akte mit ihren Aufgaben
+#: naehmen am Telefon ein Drittel des Bildschirms fuer etwas, das man
+#: dreimal am Tag braucht. Aufgeklappt bekommt die Liste
+#: ``max-height: 58vh`` -- sonst schiebt sie am Telefon die Tableiste aus
+#: dem Bild (gemessen am Entwurf, Screenshot ``entwurf-b-handy-akte.png``
+#: vor der Nachbesserung).
+_ROADMAP = """
+header { position: sticky; top: 0; z-index: 4; background: var(--grund);
+         border-bottom: 1px solid var(--linie); padding: .5rem .75rem; }
+.roadmap > summary { list-style: none; cursor: pointer;
+                     min-height: var(--tippflaeche); display: flex;
+                     align-items: center; gap: .5rem; color: var(--signal);
+                     font-family: var(--schrift-tech); font-size: .9rem;
+                     letter-spacing: .04em; }
+.roadmap > summary::-webkit-details-marker { display: none; }
+.phasen { list-style: none; margin: .4rem 0 .2rem; padding: 0;
+          max-height: 58vh; overflow-y: auto; }
+.phase { border-left: 2px solid var(--linie); padding: 0 0 .35rem .55rem;
+         margin: 0 0 .35rem; }
+.phase.aktiv { border-left-color: var(--warn); }
+.phase-knopf { display: block; width: 100%; text-align: left; font: inherit;
+               min-height: var(--tippflaeche); background: var(--grund-2);
+               color: var(--text); border: 1px solid var(--rand);
+               border-radius: var(--radius); padding: .45rem .6rem;
+               transition: background var(--takt-schnell) linear; }
+.phase.aktiv .phase-knopf { border-color: var(--warn); color: var(--warn); }
+.phase-knopf[data-sicher="1"] { background: var(--warn); color: var(--auf-warn);
+                                border-color: var(--warn); font-weight: 700; }
+.aufgaben { list-style: none; margin: .3rem 0 0; padding: 0 0 0 .1rem;
+            font-size: .88rem; }
+.aufgabe { min-height: var(--tippflaeche); display: flex; align-items: center;
+           gap: .45rem; cursor: pointer; color: var(--text-leise); }
+.aufgabe.erledigt { color: var(--signal); }
+.aufgabe.laeuft { color: var(--warn); }
+#ux-balken { flex: 1; height: .4rem; background: var(--grund-3);
+             border: 1px solid var(--linie); border-radius: var(--radius); }
+#ux-balken i { display: block; height: 100%; width: var(--fortschritt, 0%);
+               background: var(--signal); }
+.ux-akt { color: var(--warn); letter-spacing: .1em; margin-right: .4rem; }
+"""
 #: Gefuellt in Aufgabe 9.
 _MOMENTE_A = ""
 _MOMENTE_B = ""
@@ -601,6 +651,60 @@ _JS_DENKT = """
 """
 
 
+#: Baustein 2: der Fortschritt in der zugeklappten Aktzeile.
+#:
+#: Gerechnet aus dem, was ohnehin im DOM steht -- **kein neuer Schluessel
+#: im Zustands-Poll und kein SQL**. In A ist das EIN Balken (Breite ueber
+#: ``--fortschritt``), in B sind es sieben Lichter (je eins je Akt, mit
+#: ``data-stand``). Beides derselbe Code, weil beides aus denselben zwei
+#: Zahlen faellt.
+#:
+#: Die Zahl 7 steht nirgends: ``phasen.PHASEN`` hat sich seit dem
+#: 04.09.2026 dreimal geaendert, und eine feste Sieben waere beim
+#: naechsten Mal falsch.
+_JS_FORTSCHRITT = """
+  (function fortschritt() {
+    var roadmap = el('roadmap');
+    if (!roadmap) { return; }
+    var summary = roadmap.querySelector('summary');
+    var phasen = roadmap.querySelectorAll('.phase');
+    if (!summary || !phasen.length) { return; }
+
+    var balken = document.createElement('span');
+    balken.id = 'ux-balken';
+    if (MOMENT === 'vorhang') {           // Entwurf B: ein Licht je Akt
+      for (var i = 0; i < phasen.length; i++) {
+        var licht = document.createElement('i');
+        var knoten = phasen[i];
+        licht.dataset.stand = knoten.classList.contains('aktiv') ? 'aktiv'
+          : (knoten.querySelector('.aufgabe:not(.erledigt)') ? 'offen' : 'fertig');
+        balken.appendChild(licht);
+      }
+    } else {                              // Entwurf A: ein Balken
+      balken.appendChild(document.createElement('i'));
+      var alle = roadmap.querySelectorAll('.aufgabe').length;
+      var fertig = roadmap.querySelectorAll('.aufgabe.erledigt').length;
+      balken.style.setProperty('--fortschritt',
+        (alle ? Math.round(fertig * 100 / alle) : 0) + '%');
+    }
+    summary.appendChild(balken);
+
+    // Die Akt-Beschriftung VOR den Text von Karte W, nicht statt ihm:
+    // dort steht "Phase 3 von 7 · Interviews — 1/3", und das ist die
+    // Wahrheit aus der Datenbank.
+    var aktiv = roadmap.querySelector('.phase.aktiv');
+    if (aktiv && TEXTE.akt_kopf) {
+      var marke = document.createElement('b');
+      marke.className = 'ux-akt';
+      marke.textContent = TEXTE.akt_kopf
+        .replace('{nummer}', (Array.prototype.indexOf.call(phasen, aktiv) + 1))
+        .replace('{gesamt}', phasen.length);
+      summary.insertBefore(marke, summary.firstChild);
+    }
+  })();
+"""
+
+
 def skript(name: str | None = None) -> str:
     """Das Effekt-JS mit eingesetzten Werten.
 
@@ -617,9 +721,10 @@ def skript(name: str | None = None) -> str:
     )
 
 
-#: Gefuellt in den Aufgaben 5 bis 9. Baustein 1 (Denk-Zustand) kommt in
-#: Aufgabe 5 dazu, die weiteren haengen hier an.
-_BAUSTEINE = _JS_DENKT
+#: Gefuellt in den Aufgaben 5 bis 9. Baustein 1 (Denk-Zustand, Aufgabe 5)
+#: und Baustein 2 (Fortschritt, Aufgabe 7) stehen bereits, die weiteren
+#: haengen hier an.
+_BAUSTEINE = _JS_DENKT + _JS_FORTSCHRITT
 
 
 def _mikrotexte() -> dict[str, str]:

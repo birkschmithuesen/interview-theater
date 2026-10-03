@@ -27,13 +27,6 @@ def test_keine_platzhalter_bleiben_stehen(js):
     assert not re.search(r"__[A-Z_]+__", js)
 
 
-@pytest.mark.xfail(
-    reason="_JS_DENKT (Aufgabe 5) braucht keinen dynamischen CSS-Wert -- "
-    "setProperty( kommt erst mit dem Fortschritts-Baustein der Roadmap "
-    "(Aufgabe 7, geprueft per grep gegen task-7-brief.md). Kein "
-    "kuenstlicher setProperty()-Aufruf nur fuer diesen Test.",
-    strict=False,
-)
 def test_das_skript_setzt_werte_ueber_cssom(js):
     assert "setProperty(" in js
     assert "setAttribute('style'" not in js
@@ -172,3 +165,51 @@ def test_der_gewaehlte_tab_ist_nicht_nur_farbig_markiert(name):
 def test_der_arbeitsstand_setzt_seine_feldkarten(name):
     css = web_gestalt.css_stand(name)
     assert "[data-feld]" in css or ".feld" in css
+
+
+# -- Die sieben Akte ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_die_aktleiste_hat_ihre_zustaende(name):
+    css = web_gestalt.css_rahmen(name)
+    for selektor in (".phase.aktiv", ".phase-knopf", ".aufgabe.erledigt",
+                     ".aufgabe.laeuft"):
+        assert selektor in css, selektor
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_bestaetigungszustand_sieht_anders_aus(name):
+    """W schreibt beim ersten Druck die Rueckfrage in den Knopf
+    (``data-sicher``). Sieht der Knopf dabei aus wie vorher, liest ihn
+    niemand -- und der zweite Druck kommt aus Versehen."""
+    assert '.phase-knopf[data-sicher="1"]' in web_gestalt.css_rahmen(name)
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_eine_aufgabe_ist_gross_genug_zum_antippen(name):
+    """Jede Aufgabe ist ein Sprungziel (``data-ziel-tab``)."""
+    css = web_gestalt.css_rahmen(name)
+    block = re.search(r"\.aufgabe\s*\{([^}]*)\}", css, flags=re.S)
+    assert block and "min-height: var(--tippflaeche)" in block.group(1)
+
+
+def test_der_fortschritt_wird_aus_dem_dom_gerechnet(js):
+    """Kein neuer Schluessel im Zustands-Poll: die Zahlen stehen schon
+    da."""
+    assert "aufgabe" in js
+    assert "erledigt" in js
+    assert "setProperty('--fortschritt'" in js
+
+
+def test_der_fortschritt_haengt_nicht_an_einer_festen_sieben(js):
+    """``phasen.PHASEN`` hat sich seit dem 04.09.2026 dreimal geaendert.
+    Die Gestaltung zaehlt, was da ist."""
+    assert "querySelectorAll" in js
+    assert re.search(r"/\s*7\b", js) is None
+
+
+def test_die_akt_beschriftung_kommt_aus_den_mikrotexten(js):
+    """Sonst stuende in Dortmund Englisch und in Padua Deutsch."""
+    assert "TEXTE" in js
+    assert "akt_kopf" in js

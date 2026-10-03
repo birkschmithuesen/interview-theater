@@ -84,11 +84,6 @@ def test_keine_fremdquelle_im_ausgelieferten_html(seite):
         assert verboten not in seite, verboten
 
 
-@pytest.mark.xfail(
-    reason="_BAUSTEINE ist bis Aufgabe 5-9 leer (siehe web_gestalt.py) -- "
-    "das Geruest aus Aufgabe 4 tut noch nichts, das in setProperty muendet",
-    strict=False,
-)
 def test_das_skript_setzt_dynamische_werte_ueber_cssom(seite):
     """``el.style.setProperty`` ist unter der Richtlinie erlaubt,
     ``setAttribute('style', …)`` nicht. Der Unterschied ist eine Zeile und

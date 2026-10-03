@@ -811,6 +811,10 @@ _FRAGEN_KOPF = "The group's interview questions:"
 _TRANSKRIPT_KOPF = "The transcript:"
 _NACHTRAG_WOERTLICH = "\n\nIMPORTANT, second attempt: In the first attempt, supporting quotes did not match the transcript word for word. Copy every quote CHARACTER BY CHARACTER from the transcript -- no smoothing, no moved comma, no filler words removed, no spelling corrected. Better a shorter quote that matches exactly than a longer one you touched up."
 
+["fragen_ki"]
+_BEGRIFFE_KOPF = "The group's terms:"
+_DISKUSSION_KOPF = "Digest of an earlier discussion by the group (background only, not a template):"
+
 ["journal"]
 _BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"
 _AUSSCHNITT_KOPF = "Excerpt:\n"

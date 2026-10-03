@@ -11,6 +11,7 @@ Lauf selbst bleibt rein code-/thread-getrieben)."""
 
 import inspect
 import time
+from datetime import datetime
 
 import pytest
 
@@ -250,21 +251,34 @@ def test_no_amend_zweiter_lauf_aendert_den_gespeicherten_wert_nicht(conn, einst)
 
 
 def test_ki_erzeugt_am_liegt_vor_einem_spaeter_gesetzten_eigenen_zeitstempel(conn, einst):
+    """Reale Chronologie, nicht ein Zeichenkettenartefakt (Review-Befund 2,
+    Task 12): die urspruengliche Fassung verglich ``repo._jetzt()``
+    (Sekundengenauigkeit, endet auf ``+00:00``) gegen ``repo._jetzt_fein()``
+    (Mikrosekundengenauigkeit, ``...NNNNNN+00:00``) -- ``'+' < '.'`` in ASCII
+    macht den String-Vergleich UNABHAENGIG von der echten Reihenfolge wahr,
+    das ``time.sleep(0.01)`` davor war wirkungslos. Jetzt: beide Seiten
+    dieselbe Praezision (``repo._jetzt()``), eine echte, gemessene Pause von
+    ueber einer Sekunde (garantiert einen anderen Sekundenwert), und der
+    Vergleich laeuft ueber geparste ``datetime``-Objekte statt ueber rohe
+    Strings -- das waere auch bei ungleicher Praezision noch korrekt. Probe:
+    vertauschte man die Schreibreihenfolge der beiden Zeilen unten, wuerde
+    die Assertion rot (manuell nachvollzogen, siehe Taskbericht)."""
     _setze_begriffe(conn)
     klm = _KLM()
     fragen_ki.starte(conn, _TG(), klm, einst, CHAT)
-    _warte_bis(
-        lambda: _feld(conn, CHAT, "fragen_ki_erzeugt_am")
-    )
+    _warte_bis(lambda: _feld(conn, CHAT, "fragen_ki_erzeugt_am"))
     ki_erzeugt_am = repo.hole_arbeitsstand(conn, CHAT)["fragen_ki_erzeugt_am"]
 
-    # Simuliert: die Gruppe schliesst ihre eigenen Fragen spaeter ab.
-    time.sleep(0.01)
-    spaeter = repo._jetzt_fein() if hasattr(repo, "_jetzt_fein") else repo._jetzt()
-    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_erstellt_am", spaeter)
+    # Simuliert: die Gruppe schliesst ihre eigenen Fragen spaeter ab -- eine
+    # echte, messbare Pause (keine Praezisionsdifferenz im Format).
+    time.sleep(1.05)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_erstellt_am", repo._jetzt())
 
     eigene_erstellt_am = repo.hole_arbeitsstand(conn, CHAT)["fragen_eigene_erstellt_am"]
-    assert ki_erzeugt_am < eigene_erstellt_am
+    assert (
+        datetime.fromisoformat(ki_erzeugt_am)
+        < datetime.fromisoformat(eigene_erstellt_am)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +345,41 @@ def test_ein_gescheiterter_lauf_gibt_die_sperre_frei_und_schreibt_einen_vorfall(
     # (z.B. ein erneuter Phase-2-Eintritt) ist damit ein zulaessiger Retry.
     zeile = repo.hole_arbeitsstand(conn, CHAT)
     assert not (zeile and zeile["fragen_ki_vorschlag"])
+
+
+# ---------------------------------------------------------------------------
+# Review-Befund 1 (Task 12): eine "erfolgreiche", aber leere Modellantwort
+# ist derselbe Fall wie eine Ausnahme -- Vorfall, kein Reveal-Aufruf, Feld
+# bleibt leer.
+# ---------------------------------------------------------------------------
+
+
+def test_leere_antwort_schreibt_ebenfalls_einen_vorfall_und_ruft_den_reveal_nicht(
+    conn, einst, monkeypatch,
+):
+    """Unterscheidet sich von ``_KaputtesKLM``: der Modellaufruf selbst
+    gelingt (kein Exception-Pfad), liefert aber eine leere, unbrauchbare
+    Antwort -- das darf nicht stillschweigend durchgehen."""
+    aufrufe = []
+    monkeypatch.setattr(
+        fragen, "versuche_gegenueberstellung",
+        lambda *a, **k: aufrufe.append(a), raising=False,
+    )
+
+    _setze_begriffe(conn)
+    klm_leer = _KLM(antwort="")
+    fragen_ki.starte(conn, _TG(), klm_leer, einst, CHAT)
+    _warte_bis(lambda: fragen_ki.versuche_start(CHAT) is True)
+    fragen_ki.beende(CHAT)
+
+    vorfall = conn.execute(
+        "SELECT art FROM vorfall WHERE art = 'fragen_ki_fehler'",
+    ).fetchone()
+    assert vorfall is not None
+
+    zeile = repo.hole_arbeitsstand(conn, CHAT)
+    assert not (zeile and zeile["fragen_ki_vorschlag"])
+    assert aufrufe == []
 
 
 def test_ein_gescheiterter_lauf_erlaubt_einen_retry(conn, einst):

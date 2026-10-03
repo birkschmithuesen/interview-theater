@@ -229,9 +229,19 @@ def test_erkenner_mindestanzahl(erkenner_faelle):
 #: zwei Korpusfaelle an.**
 OHNE_KORPUSFAELLE = {"geschichte_setzen"}
 
+#: Padua-only Arten (Padua Phasen TEIL 2, Task 10): profilgebunden
+#: (``erkenner.PROFILSCHALTER_DER_ARTEN``) und nur im englischen Prompt
+#: beschrieben (Punkte 27-31). Der deutsche Korpus kann sie nicht tragen, ohne
+#: dass der deutsche Prompt sie lehrt -- und der bleibt fuer Dortmund
+#: bitgleich. Belegt sind sie im englischen Korpus
+#: (``test_en_traegt_die_padua_arten``).
+NUR_ENGLISCH = {"text_ueberarbeiten", "fassung_abnehmen", "formen_setzen",
+                "sprechweise_setzen", "schaerfung_entscheidung"}
+
 
 def test_erkenner_jede_art_mindestens_zweimal(erkenner_faelle):
-    gezaehlt = {art: 0 for art in erkenner.ARTEN if art not in OHNE_KORPUSFAELLE}
+    gezaehlt = {art: 0 for art in erkenner.ARTEN
+                if art not in OHNE_KORPUSFAELLE and art not in NUR_ENGLISCH}
     for fall in erkenner_faelle:
         for aenderung in fall["erwartet"]:
             if aenderung["art"] in gezaehlt:
@@ -693,6 +703,23 @@ def test_en_jede_deutsch_belegte_art_positiv(erkenner_faelle, en_faelle):
     deutsch = {a["art"] for f in erkenner_faelle for a in f["erwartet"]}
     englisch = {a["art"] for f in en_faelle for a in f["erwartet"]}
     assert sorted(deutsch - englisch) == []
+
+
+@pytest.mark.parametrize("art", sorted(NUR_ENGLISCH))
+def test_en_traegt_die_padua_arten(en_faelle, art):
+    """Task 10: je Padua-only Art mindestens zwei Positivfaelle und ein
+    Negativfall, dessen ``notiz`` die Art nennt (die Negativfaelle stehen
+    sonst nicht erkennbar bei ihrer Art)."""
+    positiv = [f for f in en_faelle if any(a["art"] == art for a in f["erwartet"])]
+    negativ = [f for f in en_faelle
+               if not any(a["art"] == art for a in f["erwartet"])
+               and art in f.get("notiz", "") and "egativ" in f.get("notiz", "")]
+    assert len(positiv) >= 2, f"{art}: nur {len(positiv)} Positivfaelle"
+    assert negativ, f"{art}: kein Negativfall"
+
+
+def test_nur_englisch_sind_genau_die_profilgebundenen_arten():
+    assert NUR_ENGLISCH == set(erkenner.PROFILSCHALTER_DER_ARTEN)
 
 
 def test_en_form_wie_der_deutsche_korpus(en_faelle):

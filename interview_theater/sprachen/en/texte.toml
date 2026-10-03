@@ -252,6 +252,19 @@ _TEXT_UEBERSICHT_FIXIERT = "Got it -- writing the first scene now."
 _TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT = "On it -- a new overview is coming."
 _TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN = "Got it -- writing the next scene now."
 _TEXT_ALLE_SZENEN_ENTWORFEN = "All scenes have a draft. On to Rewrite."
+_TEXT_SZENE_BEREIT = "Scene {nummer} of {gesamt} is ready: {titel}."
+_TEXT_GESCHICHTE_BEREIT = "The whole story is there ({gesamt} scenes)."
+_TEXT_SKRIPT_TAB = "Read it in the Script tab."
+_TEXT_SKRIPT_LINK = "Read it in the Script tab: {url}"
+_TEXT_ERSTENTWURF_KNOPF = "Show first draft"
+_TEXT_ERSTENTWURF = "The version before the check is in the Script tab under \"First draft\"."
+_TEXT_KEIN_ERSTENTWURF = "There is no earlier draft for this yet."
+# Padua Phasen TEIL 2, Task 9: the voices of all characters before the stage
+# version.
+_TEXT_SPRECHWEISEN_KOPF = "How each character speaks:"
+_ZEILE_SPRECHWEISE = "- {name}: {sprachstil}"
+_TEXT_SPRECHWEISE_OFFEN = "(not set yet -- tell me how they speak)"
+_TEXT_SPRECHWEISEN_AENDERN = "Tell me who should speak differently, e.g. \"Mira: short sentences, lots of slang\"."
 _TEXT_SCHON_GESETZT = "That's already in place."
 _TEXT_FIGUREN_ANZAHL_KNOPF = "Change the number"
 _TEXT_FIGUREN_NAMEN_KNOPF = "Change names"
@@ -1554,6 +1567,8 @@ TEXT_FASSUNGEN = "Earlier versions"
 _PROBE_ANGABEN = [["form", "Form"], ["ort", "Place"], ["zeit", "Time"], ["anlass", "Occasion"]]
 _PROBE_PLANUNG = [["was_passiert", "What happens"], ["was_anders", "What's different"], ["kernsaetze", "Key lines"], ["ton", "Tone"]]
 TEXT_UNGESCHRIEBEN = "Not written yet."
+_TEXT_FRUEHERE = "Earlier versions ({anzahl})"
+_TEXT_ERSTE_FASSUNG = "First draft (before the check)"
 TEXT_LEITFADEN_LEER = "The interview guide is created in phase 2."
 TEXT_LEITFADEN_ZURUECK = "← back to where we are"
 _TEXT_CHAT_LINK = "Chat with the bot"
@@ -1862,3 +1877,66 @@ _TEXT_BELOHNUNG_AKT = "Act closed."
 _TEXT_BELOHNUNG_AKT_SATZ = "{akt} is in the can. Curtain up on the next one."
 _TEXT_BELOHNUNG_AUFNAHME = "Interview is in."
 _TEXT_BELOHNUNG_AUFNAHME_SATZ = "Recorded and on its way to the analysis."
+
+["prueflauf"]
+# Padua Phasen TEIL 2 (03.10.2026): the check before every display -- at
+# most three lines for the group on what the check changed.
+_ZEILE_AUFTRAG = "Check ({pruefung}): {text}"
+_ZEILE_SPRACHPASS = "Language pass: length and style tightened."
+_ZEILE_VERSCHLECHTERT = "The revision was weaker -- the better version stays."
+_ZEILE_ZITAT_VERWORFEN = "A revision lost an interview quote -- discarded."
+_ZEILE_PARAMETER = "Scene {nummer}: the plan ({feld}) now follows the text."
+_JOURNAL_PARAMETER = "Scene {nummer}: {feld} now follows the text: {wert}"
+
+["prueflauf"._PRUEFUNG_NAMEN]
+b1 = "Turning point"
+a2 = "Causal chain"
+a6 = "Chekhov"
+a9 = "Focus"
+a10 = "Faithful to material"
+a11 = "Play requirements"
+c1 = "Voice"
+
+["ueberarbeitung"]
+# Padua Phasen TEIL 2 (03.10.2026): phase 6 (Rewrite) -- the whole story
+# first, then scene by scene.
+_TEXT_GESAMT_GESPEICHERT = "Saved. Now we go scene by scene: scene 1 of {gesamt}."
+_TEXT_6_FERTIG = "Rewrite done: all {gesamt} scenes are saved. On to the Stage Version."
+_TEXT_LAEUFT_NOCH = "A revision is still running — I'll show you the result, then you can save it."
+_TEXT_6_SCHON_FERTIG = "All scenes of the Rewrite are saved. Tell me what to change, or move on to the Stage Version."
+_TEXT_KEIN_ZIEL = "I couldn't tell which text to change — tap \"No, change it again\" under the text you mean."
+_ANTWORT_SCHON_GESPEICHERT = "Already saved"
+# Padua Phasen TEIL 2, Task 9: phase 7 (Stage Version) -- forms by chat,
+# voices, scene by scene, play check at the end.
+_TEXT_FORMWAHL_KOPF = "Here are your scenes:"
+_ZEILE_FORMWAHL = "{nummer}. {titel} -- {satz}"
+_ZEILE_FORMWAHL_OHNE_SATZ = "{nummer}. {titel}"
+_TEXT_FORMWAHL_FRAGE = "Which form for each number? For example: 1 chorus, 2 dialogue, 3 rap. Forms: {formen}."
+_AUFTRAG_BUEHNE = "SZENE {nummer}: transfer this scene into its form."
+_TEXT_SPRECHWEISEN_GESPEICHERT = "Saved. Now scene by scene into the stage version: scene 1 of {gesamt}."
+_TEXT_TEXTBUCH_FERTIG = "The script is complete. Read it in the Script tab."
+_TEXT_7_SCHON_FERTIG = "Your script is complete. Read it in the Script tab, or tell me what to change."
+# Padua Phasen TEIL 2, Task 10: one line of the "Noted:" message per form set
+# by chat (erkenner art formen_setzen).
+_ZEILE_FORM_GESETZT = "Scene {nummer}: {form}"
+# Final review fixes: a stale "Yes, save" for a scene that is not the current
+# one; a form change on an already transferred scene; forms still missing.
+_TEXT_NICHT_DRAN = "That scene isn't the one we're on right now — nothing was saved."
+_ZEILE_FORM_NEU_UEBERTRAGEN = "Scene {nummer}: {form} -- new form, the scene will be transferred again"
+_ANTWORT_WIRD_UEBERTRAGEN = "Scene {nummer} is being transferred again"
+_TEXT_FORMEN_FEHLEN = "Still without a form: scene {nummern}. Which form should they have?"
+
+["sprechweise"]
+# Padua Phasen TEIL 2, Task 9: one schema call, a way of speaking for each
+# character without one.
+ANWEISUNG = "You are preparing the stage version of a play. Give every character marked below as \"needs a way of speaking\" exactly ONE line on how they speak: sentence length, pace, word choice, quirks -- concrete enough for an actor to play it. Base it on the speech profile and the quotes if there are any, otherwise on the description. Characters that already have a way of speaking are listed only for contrast: every character should sound different from the others. Answer as a list of lines of the form \"Name: way of speaking\", one for each character that needs one, with the name exactly as below."
+_ZEILE_FIGUR = "- {name}"
+_ZEILE_BESCHREIBUNG = "  Description: {text}"
+_ZEILE_STIL = "  Way of speaking (already set): {text}"
+_ZEILE_PROFIL = "  Speech profile from the interview: {text}"
+_ZEILE_ZITAT = "  Quote: \"{text}\""
+_ZEILE_BRAUCHT = "  needs a way of speaking"
+_KOPF_FIGUREN = "Characters:"
+# Task 10: one line of the "Noted:" message per way of speaking set by chat
+# (erkenner art sprechweise_setzen).
+_ZEILE_GESETZT = "Way of speaking {name}: {text}"

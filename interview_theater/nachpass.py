@@ -120,7 +120,8 @@ def _notiz(zu_lang: bool, gemeldet: list[str]) -> str:
     return "\n\n".join(teile)
 
 
-def nach_szene(conn, tg, klm, e, chat_id: int, nummer: int | None) -> str | None:
+def nach_szene(conn, tg, klm, e, chat_id: int, nummer: int | None,
+               zeigen: bool = True) -> str | None:
     """Der Nachpass fuer EINE Szene. Liefert die Notiz, mit der gelaufen wurde
     -- oder ``None``, wenn nichts lief.
 
@@ -130,7 +131,10 @@ def nach_szene(conn, tg, klm, e, chat_id: int, nummer: int | None) -> str | None
 
     Aufgerufen wird sie am Ende von ``szene._lauf``, also **im schon
     laufenden Thread und unter dessen Sperre** -- deshalb ``szene.schreibe``
-    und nicht ``szene.starte``."""
+    und nicht ``szene.starte``.
+
+    ``zeigen`` (Padua Phasen TEIL 2) geht unveraendert an ``szene.schreibe``
+    durch -- der Prueflauf ruft den Nachpass, bevor er etwas zeigt."""
     from interview_theater import laengen, repo, sprachpass, szene as szene_modul
 
     if not laengen.aktiv():
@@ -168,7 +172,8 @@ def nach_szene(conn, tg, klm, e, chat_id: int, nummer: int | None) -> str | None
         # Prosa dieser Szene nicht, weil ``volltext`` dort leer ist.
         auftrag += f" {szene_modul.BISHER_MARKER}"
     try:
-        szene_modul.schreibe(conn, tg, klm, e, chat_id, auftrag, art=ART_SZENE)
+        szene_modul.schreibe(conn, tg, klm, e, chat_id, auftrag, art=ART_SZENE,
+                             zeigen=zeigen)
     except Exception:
         # Der Nachpass ist eine Zugabe. Reisst er, bleibt die Szene, die die
         # Gruppe schon hat -- und sie erfaehrt nichts davon: sie wartet nicht

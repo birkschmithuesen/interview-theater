@@ -456,7 +456,7 @@ def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
 
 def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
              vorlage: bool = False, art: str = ART, zeilen=None,
-             bei_teil=None) -> list[int]:
+             bei_teil=None, zeigen: bool = True) -> list[int]:
     """Der ganze Lauf, **synchron und ohne Sperre**: Modell fragen, zerlegen,
     Szenen anlegen, in den Chat melden. Liefert die Nummern der Abschnitte.
 
@@ -465,7 +465,13 @@ def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
     (Tests, der Nachpass), kuemmert sich selbst darum.
 
     ``zeilen`` ist die sichtbare Arbeitszeile des Aufrufers; sie wird wie
-    bisher **vor** der Fertig-Meldung gestoppt."""
+    bisher **vor** der Fertig-Meldung gestoppt.
+
+    ``zeigen`` (Padua Phasen TEIL 2): mit ``False`` faellt jede Nachricht
+    weg, die den Text traegt -- die Fertig-Meldung und
+    ``knoepfe.zeige_kurzgeschichte``. Anlegen, Journal und das Schliessen
+    der Senke bleiben gleich: der Prueflauf schreibt und prueft zuerst und
+    zeigt erst die gepruefte Fassung."""
     eintraege = budget_eintraege(conn, chat_id, faktor=_faktor(conn, chat_id))
     antwort = hole_text(conn, klm, e, chat_id, regie, vorlage, eintraege, art,
                         bei_teil=bei_teil)
@@ -498,10 +504,11 @@ def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
 
     if zeilen is not None:
         zeilen.stoppe()
-    szene_modul._sende_und_merke(
-        conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
-    )
-    knoepfe.zeige_kurzgeschichte(conn, tg, chat_id)
+    if zeigen:
+        szene_modul._sende_und_merke(
+            conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
+        )
+        knoepfe.zeige_kurzgeschichte(conn, tg, chat_id)
     return nummern
 
 
@@ -533,10 +540,32 @@ def starte(
         # Lauf in einem eigenen Thread, niemand wartet davor, aber im Browser
         # ist "es passiert etwas" der Unterschied zwischen stiller Wartezeit
         # und mitlesbarem Text.
-        senke = strom.senke(tg, chat_id, "prosa")
+        from interview_theater import prueflauf
+
+        # Padua Phasen TEIL 2: still schreiben, pruefen (samt Nachpass, den
+        # der Prueflauf selbst laufen laesst), dann EIN Hinweis statt der
+        # Abschnitte. Die Arbeitszeile laeuft dabei weiter bis zur Anzeige.
+        pruefen = prueflauf.aktiv()
+        # Mit dem Prueflauf KEIN Strom (Fix-Runde 1): sonst stuende der
+        # ungepruefte Erstentwurf im Browser live als Blase im Chat.
+        senke = None if pruefen else strom.senke(tg, chat_id, "prosa")
         try:
             schreibe(conn, tg, klm, e, chat_id, regie, vorlage=vorlage,
-                     zeilen=zeilen, bei_teil=senke)
+                     zeilen=None if pruefen else zeilen, bei_teil=senke,
+                     zeigen=not pruefen)
+            if pruefen:
+                from interview_theater import knoepfe
+
+                bericht = prueflauf.pruefe_geschichte(conn, tg, klm, e, chat_id)
+                zeilen.stoppe()
+                # Eigenes ``try``: die Geschichte steht schon -- eine
+                # gescheiterte Anzeige ist kein gescheiterter Lauf.
+                try:
+                    knoepfe.zeige_geprueft_geschichte(conn, tg, e, chat_id, bericht)
+                except Exception:
+                    log.exception("Anzeige nach dem Prueflauf gescheitert, chat_id=%s",
+                                  chat_id)
+                return
             # Der Nachpass (30.09.2026, Karte R): EIN Lauf fuer alle
             # Abschnitte, im selben Thread und unter derselben Sperre. Im
             # ``try``, weil es nach einem gescheiterten Lauf keine Geschichte

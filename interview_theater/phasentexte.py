@@ -103,6 +103,11 @@ def _einleitung(conn, chat_id: int, phase: int) -> str:
     letzte = workshop.phase_letzte()
     if phase != letzte:
         return einleitungen.get(phase, "")
+    if workshop.ueberarbeitung_aktiv():
+        # Padua Phasen TEIL 2 (Task 9): in der Stage Version gibt es beim
+        # Eintritt noch keinen Buehnentext -- die Einleitung sagt, was jetzt
+        # passiert (Formen, Sprechweisen, Szene fuer Szene, Pruefung am Ende).
+        return einleitungen[letzte]
     szenen = repo.hole_szenen(conn, chat_id)
     if szenen and all((s["volltext"] or "").strip() for s in szenen):
         return einleitungen[letzte]

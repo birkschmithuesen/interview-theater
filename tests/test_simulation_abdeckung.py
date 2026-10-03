@@ -27,8 +27,24 @@ def leer():
 
 
 def test_alle_drei_skripte_sind_erfasst():
-    assert set(abdeckung.SKRIPTE) == {"schritte", "tag2", "birk"}
+    assert set(abdeckung.SKRIPTE) == {"schritte", "tag2", "birk", "padua"}
     assert abdeckung.SKRIPTE["tag2"] is skript.SCHRITTE_TAG2
+    assert abdeckung.SKRIPTE["padua"] is skript.SCHRITTE_PADUA
+
+
+def test_padua_faehrt_die_phasen_5_bis_7_mit_benannten_pruefungen(leer):
+    """Die Phasen 5, 6 und 7 haben im Padua-Skript eigene Schritte, und jede
+    Pruefung traegt einen sprechenden Namen -- der Zensus liest
+    ``fertig.__name__``."""
+    zeilen = {z["nummer"]: z for z in abdeckung.phasentabelle(leer, skript.SCHRITTE_PADUA)}
+    assert "entwurf" in zeilen[5]["schritte"]
+    assert {"gesamt6", "szenen6"} <= set(zeilen[6]["schritte"])
+    assert {"formen7", "sprechweisen7", "buehne7", "pruefung7"} <= set(zeilen[7]["schritte"])
+    assert "_fertig_pruefung7" in zeilen[7]["pruefungen"]
+    assert all(z["stimmt"] for z in abdeckung.titelphasen(skript.SCHRITTE_PADUA))
+    text = abdeckung.als_markdown(leer, Path(abdeckung.__file__).resolve().parent.parent)
+    assert "### `padua`" in text
+    assert "`SCHRITTE_PADUA`" in text
 
 
 def test_phase_je_schritt_folgt_den_phasenschritten():

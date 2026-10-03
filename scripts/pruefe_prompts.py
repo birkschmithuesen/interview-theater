@@ -554,7 +554,10 @@ def _laufe_erkenner(klm, conn, chat_id, fall, modell):
             vorlauf, zeilen = zeilen[0], zeilen[1:]
         nutzer = erkenner._baue_nutzertext(conn, chat_id, zeilen, vorlauf)
     ergebnis = klm.schema(
-        chat_id, erkenner.prompt(), nutzer, erkenner.SCHEMA, "erkenner",
+        # ``schema()`` und nicht ``SCHEMA``: unter einem Profil mit
+        # Profilschalter (Padua, TEIL 2) kommen die freigeschalteten Arten
+        # dazu -- dasselbe Enum wie im Betrieb (``erkenner.erkenne``).
+        chat_id, erkenner.prompt(), nutzer, erkenner.schema(), "erkenner",
         modell=modell, temperature=erkenner.TEMPERATURE,
     )
     # Dieselbe Obergrenze wie erkenner.erkenne(): was das Modell darueber

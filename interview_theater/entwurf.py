@@ -238,6 +238,53 @@ def erste_offene_szene(conn, chat_id: int) -> int | None:
     return None
 
 
+#: Der Auftrag an den Szenenlauf in Stufe B (unveraendert der Wortlaut, der
+#: bis TEIL 2 zweimal in ``knoepfe/wirkung.py`` stand).
+_AUFTRAG_PROSA = "SZENE {nummer}: write this scene as prose, following the overview."
+
+
+def fixiere_uebersicht(conn, tg, klm, e, chat_id: int) -> str:
+    """"Yes, save" auf der Uebersicht (Stufe A -> B) -- der EINE Rumpf fuer
+    den Knopf (``knoepfe.wirkung._wirkung_uebersicht_passt``) und den
+    Erkenner (``fassung_abnehmen``, Padua Phasen TEIL 2).
+
+    Kein Modellaufruf hier (Zusage 2): die Pflichtfelder kommen aus dem
+    schon erzeugten Uebersicht-Text, und die erste offene Szene geht ueber
+    ``szene.starte`` in einen eigenen Thread."""
+    from interview_theater import knoepfe, szene
+
+    repo.setze_arbeitsstand(
+        conn, chat_id, "geschichte_uebersicht_fixiert_am", repo._jetzt(),
+    )
+    uebernimm_szenenfelder(conn, chat_id)
+    erste = erste_offene_szene(conn, chat_id)
+    if erste is not None:
+        szene.starte(conn, tg, klm, e, chat_id, _AUFTRAG_PROSA.format(nummer=erste))
+    return knoepfe.T._TEXT_UEBERSICHT_FIXIERT
+
+
+def bestaetige_szene(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
+    """"Yes, save" auf einem Prosa-Entwurf in Stufe B -- der EINE Rumpf fuer
+    Knopf und Erkenner. Szene abnehmen, automatisch weiter -- zur naechsten
+    offenen Szene oder, wenn keine mehr offen ist, automatisch nach Phase 6
+    (die EINE, ausdruecklich von Birk gewuenschte Ausnahme vom sonst
+    geltenden "Datenstand ist nicht Absicht", AGENTS.md)."""
+    from interview_theater import knoepfe, phasen, szene
+
+    ziel = knoepfe._szene_mit_nummer(conn, chat_id, nummer)
+    if ziel is None:
+        tg.sende(chat_id, knoepfe.T._TEXT_SZENE_UNBEKANNT)
+        return knoepfe.T._TEXT_SZENE_UNBEKANNT
+    repo.setze_szene_entwurf_bestaetigt(conn, ziel["id"])
+    naechste = erste_offene_szene(conn, chat_id)
+    if naechste is not None:
+        szene.starte(conn, tg, klm, e, chat_id, _AUFTRAG_PROSA.format(nummer=naechste))
+        return knoepfe.T._TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN
+    phasen.setze(conn, chat_id, 6, "entwurf", notiz="alle Szenen entworfen")
+    knoepfe.eintritt_in_phase(conn, tg, klm, e, chat_id, 6)
+    return knoepfe.T._TEXT_ALLE_SZENEN_ENTWORFEN
+
+
 def starte_uebersicht(conn, tg, klm, e, chat_id: int, notiz: str | None = None):
     """Gibt die Uebersicht-Erzeugung an einen eigenen Thread ab -- dasselbe
     Muster wie ``schaerfung.starte``/``kernzitate.starte`` (Zusage 2: kein

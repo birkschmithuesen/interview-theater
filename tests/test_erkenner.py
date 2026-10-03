@@ -198,6 +198,12 @@ def test_arten_enthaelt_alle_werte():
         # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
         # Geschichts-Uebersicht in Stufe A von Phase 5 (Prose Draft).
         "uebersicht_aendern",
+        # Padua Phasen TEIL 2, Task 10 (profilgebunden, nicht im Dortmund-Schema).
+        "text_ueberarbeiten",
+        "fassung_abnehmen",
+        "formen_setzen",
+        "sprechweise_setzen",
+        "schaerfung_entscheidung",
     }
     assert set(erkenner.ARTEN) == erwartet
 

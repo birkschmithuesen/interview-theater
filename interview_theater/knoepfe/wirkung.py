@@ -17,7 +17,8 @@ from interview_theater import phasen, repo, ruecknahme, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_AUFNAHME, ART_AUSWERTEN, ART_AUSWERTEN_ALLE,
-    ART_DURCHLAUF_SZENE, ART_EIGENE, ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN,
+    ART_DURCHLAUF_SZENE, ART_EIGENE, ART_ERSTENTWURF, ART_DRAMATURGIE,
+    ART_DRAMATURGIE_LASSEN,
     ART_DRAMATURGIE_SZENE, ART_FASSUNGEN, ART_SPRECHANTEILE,
     ART_FIGUREN_ANZAHL, ART_FIGUREN_ANZAHL_FREI, ART_FIGUREN_ANZAHL_MENU,
     ART_FIGUREN_NAMEN_MENU, ART_FIGUREN_ZUFALL, ART_FIGUR_DUKTUS,
@@ -43,9 +44,10 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
     ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
+    ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
     ART_STT_SPRACHE, STT_KNOEPFE, T, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
     ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_UNDO, ART_WIR_ZUERST,
-    ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_SZENEN, TRENNER, _KETTE, log,
+    ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_STUECKPRUEFUNG, PHASE_SZENEN, TRENNER, _KETTE, log,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _entferne_tastatur, _id_aus_daten, _mit_leiste, _sende_knoepfe,
@@ -67,9 +69,10 @@ from interview_theater.knoepfe.szenen import (
     _naechste_offene, _pruefbefund, _schreibe_szene, _speichere_geschichte,
     _speichere_szenenfelder, _speichere_szenenfolge, _szene_mit_nummer,
     biete_kurzgeschichte, biete_schaerfung, biete_szene, biete_szenenform,
-    _zeige_fassungen, starte_dramaturgie,
+    _zeige_fassungen, skript_verweis, starte_dramaturgie,
     biete_szenenstil, erwarte_geschichte_notiz, starte_schaerfung,
-    starte_stueckpruefung, zeige_szenentext,
+    starte_stueckpruefung, uebernimm_schaerfung_figur,
+    uebernimm_schaerfung_szene, verwirf_schaerfung, zeige_szenentext,
 )
 from interview_theater.knoepfe.interviews import (
     _werte_alle_aus, biete_interview_ohne_knopf_weiter,
@@ -119,6 +122,16 @@ def _wirkung_geschichte_schreiben(conn, d: Druck) -> str:
 
 
 def _wirkung_geschichte_passt(conn, d: Druck) -> str:
+    from interview_theater import ueberarbeitung
+
+    if ueberarbeitung.aktiv() and phasen.aktuelle(conn, d.chat_id) == PHASE_SZENEN:
+        # Padua (Phase 6, Rewrite): das Ganze ist fixiert, jetzt Szene fuer
+        # Szene. Kein Modellaufruf hier -- der Prueflauf laeuft im Thread.
+        # Ein veralteter Knopf auf dem schon fixierten Ganzen wirkt nicht
+        # noch einmal (Fix-Runde 1): kurzer Toast, keine Zustandsaenderung.
+        if ueberarbeitung.gesamttext_fixiert(conn, d.chat_id):
+            return ueberarbeitung.T._ANTWORT_SCHON_GESPEICHERT
+        return ueberarbeitung.bestaetige_gesamt(conn, d.tg, d.klm, d.e, d.chat_id)
     d.tg.sende(d.chat_id, T._TEXT_GESCHICHTE_PASST)
     biete_phase_proaktiv(conn, d.tg, d.chat_id)
     return T._ANTWORT_PASST
@@ -165,42 +178,19 @@ def _wirkung_geschichte_speichern(conn, d: Druck) -> str:
 
 def _wirkung_schaerfung_szene(conn, d: Druck) -> str:
     """Die Uebernahme ist deterministisch (Felder ergaenzen), der naechste
-    Vorschlag kommt aus der Datenbank -- kein Modellaufruf (Zusage 2)."""
-    from interview_theater import schaerfung as schaerfung_modul
-
+    Vorschlag kommt aus der Datenbank -- kein Modellaufruf (Zusage 2). Der
+    Rumpf steht in ``szenen.uebernimm_schaerfung_szene`` -- derselbe fuer
+    den Erkenner (``schaerfung_entscheidung``, Padua Phasen TEIL 2)."""
     modus, _, nummer_roh = d.wert.partition(TRENNER)
-    ziel = _szene_mit_nummer(conn, d.chat_id, int(nummer_roh or d.wert))
-    if ziel is None:
-        d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
-        return T._TEXT_SZENE_UNBEKANNT
-    anzahl = schaerfung_modul.uebernimm_szene(conn, d.chat_id, ziel)
-    if not anzahl:
-        d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_NICHTS)
-    else:
-        d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl))
-    if modus.strip() == "anders":
-        d.tg.sende(d.chat_id, T._TEXT_EIGENE_IDEE)
-    biete_schaerfung(conn, d.tg, d.chat_id)
-    return T._ANTWORT_SZENE_GESCHAERFT.format(nummer=ziel["nummer"])
+    return uebernimm_schaerfung_szene(
+        conn, d.tg, d.chat_id, int(nummer_roh or d.wert),
+        anders=modus.strip() == "anders")
 
 
 def _wirkung_schaerfung_figur(conn, d: Druck) -> str:
-    from interview_theater import schaerfung as schaerfung_modul
-
     modus, _, name = d.wert.partition(TRENNER)
-    figur = repo.hole_figur(conn, d.chat_id, name or d.wert)
-    if figur is None:
-        d.tg.sende(d.chat_id, T._TEXT_UNBEKANNT)
-        return T._TEXT_UNBEKANNT
-    anzahl = schaerfung_modul.uebernimm_figur(conn, d.chat_id, figur)
-    if not anzahl:
-        d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_NICHTS)
-    else:
-        d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl))
-    if modus.strip() == "anders":
-        d.tg.sende(d.chat_id, T._TEXT_EIGENE_IDEE)
-    biete_schaerfung(conn, d.tg, d.chat_id)
-    return T._ANTWORT_FIGUR_GESCHAERFT.format(name=figur["name"])
+    return uebernimm_schaerfung_figur(
+        conn, d.tg, d.chat_id, name or d.wert, anders=modus.strip() == "anders")
 
 
 def _wirkung_schaerfung_stelle(conn, d: Druck) -> str:
@@ -223,13 +213,8 @@ def _wirkung_schaerfung_stelle(conn, d: Druck) -> str:
 
 
 def _wirkung_schaerfung_keine(conn, d: Druck) -> str:
-    from interview_theater import schaerfung as schaerfung_modul
-
     ids = [t.strip() for t in d.wert.split(TRENNER) if t.strip().isdigit()]
-    schaerfung_modul.verwirf_stellen(conn, [int(t) for t in ids])
-    d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_VERWORFEN)
-    biete_schaerfung(conn, d.tg, d.chat_id)
-    return T._TEXT_SCHAERFUNG_VERWORFEN
+    return verwirf_schaerfung(conn, d.tg, d.chat_id, [int(t) for t in ids])
 
 
 def _wirkung_schaerfung_runde(conn, d: Druck) -> str:
@@ -339,6 +324,18 @@ def _wirkung_szene_passt(conn, d: Druck) -> str:
     # bleibt alles darunter unveraendert.
     if phasen.aktuelle(conn, d.chat_id) == 5:
         return _wirkung_entwurf_szene_passt(conn, d, nummer)
+    from interview_theater import ueberarbeitung
+
+    if ueberarbeitung.aktiv() and phasen.aktuelle(conn, d.chat_id) == PHASE_SZENEN:
+        # Padua (Phase 6, Rewrite): Szene abnehmen, naechste pruefen -- nach
+        # der letzten automatisch Phase 7.
+        return ueberarbeitung.bestaetige_szene_6(
+            conn, d.tg, d.klm, d.e, d.chat_id, nummer)
+    if ueberarbeitung.aktiv() and phasen.aktuelle(conn, d.chat_id) == PHASE_STUECKPRUEFUNG:
+        # Padua (Phase 7, Stage Version): Szene abnehmen, naechste
+        # uebertragen -- nach der letzten die Pruefung des ganzen Textbuchs.
+        return ueberarbeitung.bestaetige_szene_7(
+            conn, d.tg, d.klm, d.e, d.chat_id, nummer)
     ziel = _szene_mit_nummer(conn, d.chat_id, nummer)
     if ziel is None:
         d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
@@ -364,22 +361,12 @@ def _wirkung_entwurf_szene_passt(conn, d: Druck, nummer: int) -> str:
     Birk gewuenschte Ausnahme vom sonst geltenden "Datenstand ist nicht
     Absicht" (AGENTS.md) -- lokal auf diesen Abschluss begrenzt,
     ``phasen.moegliche_naechste``/``offenes_angebot`` bleiben fuer jeden
-    anderen Uebergang unveraendert."""
-    from interview_theater import entwurf, szene
+    anderen Uebergang unveraendert. Der Rumpf steht seit Padua Phasen TEIL 2
+    in ``entwurf.bestaetige_szene`` -- derselbe fuer den Erkenner
+    (``fassung_abnehmen``)."""
+    from interview_theater import entwurf
 
-    ziel = _szene_mit_nummer(conn, d.chat_id, nummer)
-    if ziel is None:
-        d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
-        return T._TEXT_SZENE_UNBEKANNT
-    repo.setze_szene_entwurf_bestaetigt(conn, ziel["id"])
-    naechste = entwurf.erste_offene_szene(conn, d.chat_id)
-    if naechste is not None:
-        auftrag = f"SZENE {naechste}: write this scene as prose, following the overview."
-        szene.starte(conn, d.tg, d.klm, d.e, d.chat_id, auftrag)
-        return T._TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN
-    phasen.setze(conn, d.chat_id, 6, "entwurf", notiz="alle Szenen entworfen")
-    eintritt_in_phase(conn, d.tg, d.klm, d.e, d.chat_id, 6)
-    return T._TEXT_ALLE_SZENEN_ENTWORFEN
+    return entwurf.bestaetige_szene(conn, d.tg, d.klm, d.e, d.chat_id, nummer)
 
 
 def _wirkung_szene_anders(conn, d: Druck) -> str:
@@ -403,18 +390,33 @@ def _wirkung_uebersicht_passt(conn, d: Druck) -> str:
     rein aus dem schon erzeugten Uebersicht-Text uebernommen
     (``entwurf.uebernimm_szenenfelder``), und die erste noch offene Szene
     geht ueber das bestehende ``szene.starte`` -- das gibt seinerseits sofort
-    an einen eigenen Thread ab."""
-    from interview_theater import entwurf, szene
+    an einen eigenen Thread ab. Der Rumpf steht seit Padua Phasen TEIL 2 in
+    ``entwurf.fixiere_uebersicht`` -- derselbe fuer den Erkenner
+    (``fassung_abnehmen``)."""
+    from interview_theater import entwurf
 
-    repo.setze_arbeitsstand(
-        conn, d.chat_id, "geschichte_uebersicht_fixiert_am", repo._jetzt(),
-    )
-    entwurf.uebernimm_szenenfelder(conn, d.chat_id)
-    erste = entwurf.erste_offene_szene(conn, d.chat_id)
-    if erste is not None:
-        auftrag = f"SZENE {erste}: write this scene as prose, following the overview."
-        szene.starte(conn, d.tg, d.klm, d.e, d.chat_id, auftrag)
-    return T._TEXT_UEBERSICHT_FIXIERT
+    return entwurf.fixiere_uebersicht(conn, d.tg, d.klm, d.e, d.chat_id)
+
+
+def _wirkung_erstentwurf(conn, d: Druck) -> str:
+    """"Erste Fassung zeigen" unter dem Hinweis nach einem Prueflauf (Padua
+    Phasen TEIL 2). Kein Modellaufruf (Zusage 2), und auch kein Volltext im
+    Chat: der Knopf sagt, wo die Fassung vor der Pruefung steht. ``wert``
+    ``""`` heisst die ganze Geschichte, sonst eine Szenennummer."""
+    if d.wert.strip():
+        ziel = _szene_mit_nummer(conn, d.chat_id, int(d.wert))
+        szenen = [ziel] if ziel is not None else []
+    else:
+        szenen = list(repo.hole_szenen(conn, d.chat_id))
+    if not any(repo.erstentwurf_text(conn, s["id"]) for s in szenen):
+        message_id = d.tg.sende(d.chat_id, T._TEXT_KEIN_ERSTENTWURF)
+        repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e,
+                             T._TEXT_KEIN_ERSTENTWURF)
+        return T._TEXT_KEIN_ERSTENTWURF
+    text = f"{T._TEXT_ERSTENTWURF}\n{skript_verweis(conn, d.e, d.chat_id)}"
+    message_id = d.tg.sende(d.chat_id, text)
+    repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, text)
+    return text
 
 
 def _wirkung_uebersicht_anders(conn, d: Druck) -> str:
@@ -426,6 +428,23 @@ def _wirkung_uebersicht_anders(conn, d: Druck) -> str:
 
     entwurf.starte_uebersicht(conn, d.tg, d.klm, d.e, d.chat_id)
     return T._TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT
+
+
+def _wirkung_sprechweisen_passt(conn, d: Druck) -> str:
+    """"Yes, save" unter den Sprechweisen (Padua, Phase 7): fixieren und
+    weiter zur ersten Szene. Kein Modellaufruf hier -- der Szenenlauf geht
+    ueber ``szene.starte`` in einen eigenen Thread."""
+    from interview_theater import ueberarbeitung
+
+    return ueberarbeitung.bestaetige_sprechweisen(conn, d.tg, d.klm, d.e, d.chat_id)
+
+
+def _wirkung_sprechweisen_anders(conn, d: Druck) -> str:
+    """"No, change it again" unter den Sprechweisen: nur nachfragen. Die
+    Antwort im Chat setzt der Erkenner (``sprechweise_setzen``, Task 10)."""
+    message_id = d.tg.sende(d.chat_id, T._TEXT_SPRECHWEISEN_AENDERN)
+    repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, T._TEXT_SPRECHWEISEN_AENDERN)
+    return T._TEXT_SPRECHWEISEN_AENDERN
 
 
 def _wirkung_szene_kuerzen(conn, d: Druck) -> str:
@@ -1403,7 +1422,15 @@ def _wirkung_szene_usa(conn, d: Druck) -> str:
     auftrag = repo.hole_und_loesche_offenen_szenenauftrag(conn, d.chat_id)
     if phasen.aktuelle(conn, d.chat_id) == PHASE_SZENEN:
         # Gestartet wird von der Gruppe, nicht von dieser Antwort.
-        biete_kurzgeschichte(conn, d.tg, d.chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)
+        from interview_theater import ueberarbeitung
+
+        if ueberarbeitung.aktiv():
+            # Padua (Phase 6, Rewrite): die vorhandene Prosa wird geprueft,
+            # nicht neu geschrieben -- im Thread (Zusage 2).
+            ueberarbeitung.weiter_6(conn, d.tg, d.klm, d.e, d.chat_id,
+                                    aus_eintritt=True)
+        else:
+            biete_kurzgeschichte(conn, d.tg, d.chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)
     elif auftrag:
         from interview_theater import szene
 
@@ -1547,7 +1574,10 @@ _WIRKUNGEN = {
     ART_SZENE_ANDERS: _wirkung_szene_anders,
     ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
     ART_UEBERSICHT_PASST: _wirkung_uebersicht_passt,
+    ART_SPRECHWEISEN_PASST: _wirkung_sprechweisen_passt,
+    ART_SPRECHWEISEN_ANDERS: _wirkung_sprechweisen_anders,
     ART_UEBERSICHT_ANDERS: _wirkung_uebersicht_anders,
+    ART_ERSTENTWURF: _wirkung_erstentwurf,
     ART_SZENE_NEU: _wirkung_szene_neu,
     ART_SZENE_SO_LASSEN: _wirkung_szene_so_lassen,
     ART_SZENE_NAECHSTE: _wirkung_szene_naechste,

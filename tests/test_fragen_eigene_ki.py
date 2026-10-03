@@ -113,6 +113,40 @@ def test_eigene_fragen_wird_nicht_von_fragen_verschluckt_und_verschluckt_fragen_
     assert bloecke["eigene_fragen"] == "Heimat: Neue eigene Frage."
 
 
+def test_padua_tallystufe_fordert_kein_fragen_weich_mehr(monkeypatch):
+    """Review-Fund (Fix-Runde nach der ersten Abnahme von Aufgabe 13): die
+    Padua-Phase-2-Vorlage bat das Modell urspruenglich, WAEHREND der
+    laufenden Zusammenfassung (``VORSCHLAG EIGENE FRAGEN:``) zusaetzlich auf
+    sensible Themen zu pruefen und ``VORSCHLAG FRAGEN WEICH:`` anzuhaengen.
+    ``{"eigene_fragen", "fragen_weich"}`` steht aber NICHT in
+    ``basis._ERLAUBTE_BLOCKPAARE`` -- der weiche Block waere von
+    ``_ein_feld_je_nachricht`` als zweites, unerwartetes Thema verworfen
+    worden (Vorfall ``vorschlag_mehrere_arten``), ohne dass ``fragen_weich``
+    je gesetzt wird. Fix: die Vorlage fordert das waehrend der Tally-Stufe
+    nicht mehr an -- geprueft am tatsaechlich geladenen, gefuellten
+    Prompttext (nicht nur an der Rohdatei), damit ein Hot-Reload-Unterschied
+    nicht unbemerkt bliebe."""
+    from interview_theater import anweisungen
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    try:
+        text = " ".join(anweisungen.hole("phasen/2").split())
+        tally_beginn = text.index("Keep a running tally")
+        vergleich_beginn = text.index("Once the comparison is running")
+        tally_abschnitt = text[tally_beginn:vergleich_beginn]
+        assert "FRAGEN WEICH" not in tally_abschnitt.upper()
+        # Der per-Frage-Weg NACH dem Reveal behaelt die weiche Fassung --
+        # das ist der bestehende, korrekt verdrahtete Pfad (``frage`` +
+        # ``fragen_weich`` steht in ``_ERLAUBTE_BLOCKPAARE``) und soll nicht
+        # mitgestrichen werden.
+        assert "VORSCHLAG FRAGEN WEICH:" in text
+    finally:
+        workshop.vergiss()
+        anweisungen._CACHE.clear()
+
+
 def test_regex_eigene_fragen_hat_kein_gemeinsames_praefix_mit_den_anderen_fragen_varianten():
     """Unabhaengige Bestaetigung (die Karte verlangt sie ausdruecklich):
     ``EIGENE FRAGEN`` beginnt mit einem eigenen Wort direkt nach
@@ -565,6 +599,49 @@ def test_klassischer_abschlusstext_bleibt_byte_identisch(conn, tg, einst, auftra
         "2. Streit: Wann habt ihr zuletzt richtig gestritten?"
     )
     assert tg.gesendet[-1][1] == erwartet
+
+
+# ---------------------------------------------------------------------------
+# Review-Fund: ein unerwarteter FRAGEN-WEICH-Block neben EIGENE FRAGEN
+# bricht nichts -- bestehendes, generisches Verhalten, NICHT neu verdrahtet
+# ---------------------------------------------------------------------------
+
+
+def test_eigene_fragen_mit_unerwartetem_fragen_weich_bricht_nicht_sondern_verwirft_ihn(
+    conn, monkeypatch,
+):
+    """Sollte trotz der Vorlagenkorrektur doch einmal ein ``VORSCHLAG FRAGEN
+    WEICH:`` neben ``VORSCHLAG EIGENE FRAGEN:`` in einer Antwort stehen
+    (ein aelterer Modellstand, ein anderes Profil, ein Ausreisser): nichts
+    stuerzt ab. Das ist das bestehende, korrekte generische Verhalten fuer
+    zwei Vorschlagsbloecke verschiedener Art in einer Nachricht
+    (``basis._ein_feld_je_nachricht``) -- der erste im Text gewinnt, der
+    zweite wird verworfen und als Vorfall vermerkt. Dieser Test bestaetigt
+    ausdruecklich NICHT, dass die Verdrahtung ``eigene_fragen`` jetzt doch
+    einen ``fragen_weich``-Block entgegennimmt (das soll sie laut Review
+    gerade nicht) -- nur, dass die Vorlagenkorrektur die einzig noetige
+    Aenderung war und der generische Pfad weiterhin sicher ist."""
+    monkeypatch.setattr(fragen, "versuche_gegenueberstellung", lambda *a, **k: None)
+    _setze_begriffe(conn, "Heimat")
+    tg = _TG()
+
+    text = (
+        "Danke!\n\nVORSCHLAG EIGENE FRAGEN:\nHeimat: Frage eins.\n\n"
+        "VORSCHLAG FRAGEN WEICH:\n1 — Weicher gefragt."
+    )
+    message_id, hat_leiste = knoepfe.sende_mit_speicherleiste(conn, tg, CHAT, text)
+
+    assert message_id is not None
+    assert hat_leiste is True
+    # Der erste Block im Text ("eigene_fragen") gewinnt und wird gespeichert.
+    assert _feld(conn, CHAT, "fragen_eigene_vorschlag") == "Heimat: Frage eins."
+    # Der zweite ("fragen_weich") wird verworfen, nicht gespeichert.
+    assert not _feld(conn, CHAT, "fragen_weich")
+
+    vorfall = conn.execute(
+        "SELECT art FROM vorfall WHERE art = 'vorschlag_mehrere_arten'",
+    ).fetchone()
+    assert vorfall is not None
 
 
 def test_fragen_ab_inaktiv_populiert_nie_die_neuen_felder(conn, einst, monkeypatch):

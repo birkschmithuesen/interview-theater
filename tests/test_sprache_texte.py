@@ -94,6 +94,9 @@ BLEIBT_DEUTSCH = {
     "web_vereint._CSS_VEREINT": "CSS, nur Kommentare deutsch",
     "web_vereint._VEREINT_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web_vereint._STROM_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
+    "web_vereint._STEPPER_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext, "
+        "der Nutzertext steht in den __SHEET_*__-Platzhaltern, uebersetzt wie bei "
+        "_VEREINT_JS)",
     # erkenner-fp (02.10.2026): eine Fuellwort-Liste zur Erkennung
     # inhaltsloser Festlegungen (_ohne_eigenen_inhalt), kein Nutzertext --
     # sie wird nie angezeigt, nur gegen den Wortlaut der Gruppe geprueft, und
@@ -125,6 +128,7 @@ BLEIBT_DEUTSCH = {
     "web_gestalt._JS_MOMENT": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._JS_INTERVIEW": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._INTERVIEW": "CSS, nur Kommentare deutsch",
+    "web_gestalt._STEPPER": "CSS, nur Kommentare deutsch",
     "web_gestalt.FARBTOKENS": "Tokennamen (CSS-Variablen wie --grund, --text), kein Nutzertext",
     "web_gestalt.KONTRAST": (
         "Pruefdaten des Kontrasttests -- Paar.zweck beschreibt den "

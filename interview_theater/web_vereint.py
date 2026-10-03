@@ -1069,6 +1069,153 @@ _VEREINT_JS = """
 })();
 """
 
+#: Padua-Stepper (BINDING ADDITION, Birk 03.10.2026 23:10): bewusst eine
+#: EIGENE, abgeschlossene IIFE statt eines zusaetzlichen Listeners innerhalb
+#: von ``_VEREINT_JS`` -- ``_VEREINT_JS`` ist bei JEDEM Profil im Skript,
+#: Dortmund eingeschlossen (``tests/test_web_vereint_bitgleich.py``
+#: vergleicht Byte fuer Byte), und selbst ein zur Laufzeit nie treffender
+#: Selektor haette als TEXT trotzdem in Dortmunds ``<script>`` gestanden.
+#: ``sendePhase``/``friskeNonce``/``zeigeFehler`` aus ``_VEREINT_JS``
+#: liegen in DEREN eigenem Funktionsrumpf (Closure) und sind von aussen
+#: nicht erreichbar -- diese Funktionen stehen deshalb hier noch einmal,
+#: kleiner (kein zweiter Wiederholungszaehler noetig, ``ladeStepper``
+#: braucht keine ``.open``/``data-sicher``-Pflege, die es im
+#: Stepper-Markup gar nicht gibt). Angehaengt wird dieser Block NUR, wenn
+#: ``web.phasennav_stepper`` an ist (siehe ``seite()``) -- der erste
+#: Zeile prueft trotzdem zusaetzlich zur Laufzeit, ob das Markup wirklich
+#: da ist, als zweite, billige Absicherung.
+_STEPPER_JS = """
+(function () {
+  if (!document.querySelector('.phasenav')) { return; }
+  var BASIS = '__BASIS__';
+  var BASIS_TEIL = '__BASIS_TEIL__';
+
+  function friskeNonce() {
+    return fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return null; }
+        var quelle = new DOMParser().parseFromString(text, 'text/html')
+          .getElementById('nonce');
+        if (!quelle) { return null; }
+        var feld = document.getElementById('nonce');
+        if (feld) { feld.value = quelle.value; }
+        return quelle.value;
+      })
+      .catch(function () { return null; });
+  }
+  function sendePhase(phase, zweiter) {
+    return fetch(BASIS + 'chat/phase', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nonce: (document.getElementById('nonce') || {}).value || '',
+        nummer: parseInt(phase.dataset.phase, 10),
+        bestaetigt: 1
+      })
+    }).then(function (r) {
+      if (r.status === 403 && !zweiter) {
+        return friskeNonce().then(function () { return sendePhase(phase, true); });
+      }
+      return r;
+    });
+  }
+  var fehlerTakt = null;
+  function zeigeFehler(satz) {
+    var feld = document.getElementById('fehler');
+    if (!feld) { return; }
+    feld.textContent = satz || __SHEET_FEHLER_NETZ__;
+    feld.hidden = false;
+    if (fehlerTakt) { clearTimeout(fehlerTakt); }
+    fehlerTakt = setTimeout(function () { feld.hidden = true; feld.textContent = ''; }, 8000);
+  }
+  function ladeStepper() {
+    fetch(BASIS_TEIL + 'roadmap', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return; }
+        var doc = new DOMParser().parseFromString(text, 'text/html');
+        var frisch = doc.body ? doc.body.firstElementChild : null;
+        var ziel = document.getElementById('roadmap');
+        if (frisch && ziel) { ziel.outerHTML = frisch.outerHTML; }
+      })
+      .catch(function () {});
+  }
+
+  var sheetOffenFuer = null;
+  function zeigeHinweisEinmal() {
+    var hinweis = document.getElementById('stepper-hinweis');
+    if (!hinweis) { return; }
+    try {
+      if (localStorage.getItem('it_stepper_hinweis_gesehen')) { return; }
+    } catch (e) { return; }
+    hinweis.hidden = false;
+  }
+  zeigeHinweisEinmal();
+  function verbergeHinweis() {
+    var hinweis = document.getElementById('stepper-hinweis');
+    if (hinweis) { hinweis.hidden = true; }
+    try { localStorage.setItem('it_stepper_hinweis_gesehen', '1'); } catch (e) {}
+  }
+  // Oeffnen: Tap auf ein Segment ODER einen der Pfeile.
+  function oeffneSheet(quelle) {
+    var sheet = document.getElementById('phasensheet');
+    if (!sheet || !quelle) { return; }
+    sheetOffenFuer = quelle;
+    document.getElementById('phasensheet-titel').textContent = quelle.dataset.bezeichnung || '';
+    document.getElementById('phasensheet-satz').textContent = quelle.dataset.satz || '';
+    var bereit = quelle.dataset.bereit !== '0';
+    document.getElementById('phasensheet-status').textContent = bereit
+      ? __SHEET_STATUS_BEREIT__
+      : __SHEET_STATUS_OFFEN__.replace('{was}', quelle.dataset.fehlt || '');
+    document.getElementById('phasensheet-los').textContent =
+      __SHEET_GEHE_ZU__.replace('{bezeichnung}', quelle.dataset.bezeichnung || '');
+    sheet.hidden = false;
+    verbergeHinweis();
+  }
+  // Schliessen auf drei Wegen (Birk, Nachtrag): "Hier bleiben", Tap auf
+  // den abgedunkelten Hintergrund, und -- in oeffneSheet()s Aufrufer
+  // unten -- nach einem erfolgreichen "Weiter zu".
+  function schliesseSheet() {
+    var sheet = document.getElementById('phasensheet');
+    if (sheet) { sheet.hidden = true; }
+    sheetOffenFuer = null;
+  }
+  document.addEventListener('click', function (ev) {
+    var segment = ev.target.closest ? ev.target.closest('.stepper-segment') : null;
+    if (segment && segment.dataset.phase) { oeffneSheet(segment); return; }
+    var pfeilKnopf = ev.target.closest
+      ? ev.target.closest('.phasenav-zurueck, .phasenav-vor') : null;
+    if (pfeilKnopf && pfeilKnopf.tagName === 'BUTTON') { oeffneSheet(pfeilKnopf); return; }
+    if (ev.target.closest && ev.target.closest('#phasensheet-bleib')) {
+      schliesseSheet(); return;
+    }
+    if (ev.target.closest && ev.target.closest('.sheet-hintergrund')) {
+      schliesseSheet(); return;
+    }
+    var los = ev.target.closest ? ev.target.closest('#phasensheet-los') : null;
+    if (los && sheetOffenFuer) {
+      var phase = sheetOffenFuer;
+      los.disabled = true;
+      sendePhase(phase).then(function (r) {
+        los.disabled = false;
+        if (r && r.ok) {
+          schliesseSheet();
+          ladeStepper();
+          return;
+        }
+        if (r) {
+          r.text().then(function (satz) { zeigeFehler((satz || '').trim()); },
+                       function () { zeigeFehler(''); });
+        } else {
+          zeigeFehler('');
+        }
+      }).catch(function () { los.disabled = false; zeigeFehler(''); });
+    }
+  });
+})();
+"""
+
 
 def _tabs_html(aktiv: str, tabs=TABS, phase4: bool = True) -> str:
     """``phase4=False`` haengt ein ``hidden`` an den CoThinker-Knopf, damit
@@ -1102,6 +1249,16 @@ _TEXT_PHASE_ABBRECHEN = "Nein"
 #: weil die beiden JS-IIFEs keinen Gueltigkeitsbereich teilen und
 #: ``web_vereint`` nicht in ``web_chat`` greift.
 _TEXT_PHASE_FEHLER_NETZ = "Keine Verbindung — das ist nicht angekommen."
+#: Padua-Stepper (BINDING ADDITION, Birk 03.10.2026 23:10): das
+#: Bottom-Sheet je angetippter Phase. Deutsch bleibt die Vorgabe fuer
+#: ``sprache.Texte``, auch wenn dieser Zweig nur unter dem Padua/
+#: Englisch-Profil je gerendert wird -- siehe die englischen Eintraege in
+#: ``sprachen/en/texte.toml``.
+_TEXT_SHEET_STATUS_OFFEN = "Noch offen: {was}"
+_TEXT_SHEET_STATUS_BEREIT = "Bereit"
+_TEXT_SHEET_GEHE_ZU = "Weiter zu {bezeichnung}"
+_TEXT_SHEET_BLEIBE = "Hier bleiben"
+_TEXT_STEPPER_HINWEIS = "Auf eine Phase tippen, um zu wechseln."
 _ZEICHEN = {"erledigt": "✅", "offen": "⬜", "laeuft": "⏳"}
 # Knapp (Test: ``test_die_leiste_steht_auf_der_seite_und_ist_knapp``): die
 # Phasenzahl steht als Bruch da ("1/7"), nicht als "1 von 7" -- zugeklappt
@@ -1246,6 +1403,112 @@ def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
     )
 
 
+def _stepper_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
+    """Padua-Stepper (BINDING ADDITION, Birk 03.10.2026 23:10): sieben
+    nummerierte Segmente statt eines zugeklappten ``<details>``, Pfeile
+    links/rechts der aktiven Phase, ein Tap oeffnet das Bottom-Sheet statt
+    der Zwei-Klick-Bewaffnung aus ``_leiste_html``. Nur gerendert, wenn
+    ``workshop.aktiv().wert("web.phasennav_stepper")`` wahr ist -- der
+    Aufrufer (``seite()``) entscheidet, ``_leiste_html`` bleibt fuer
+    Dortmund vollstaendig unangetastet.
+
+    ``id="roadmap"`` und ``data-aktive-phase`` bleiben wie bei
+    ``_leiste_html``: ``_VEREINT_JS``s ``istPhase4()`` und
+    ``ladeRoadmap()``s ``/teil/roadmap``-Tausch zielen beide auf
+    ``#roadmap`` -- derselbe Anker traegt beide Markup-Formen, ohne dass
+    die Tausch-Logik wissen muss, welche gerade steht (ein ``<header>``
+    hat kein ``.open``, das Zuruecksetzen von ``neues.open`` danach ist
+    dort ein wirkungsloses, aber ungefaehrliches No-Op)."""
+    if not roadmapdaten:
+        return ""
+    aktiv = next((p for p in roadmapdaten if p["aktiv"]), roadmapdaten[0])
+    idx = roadmapdaten.index(aktiv)
+    vorherige = roadmapdaten[idx - 1] if idx > 0 else None
+    naechste = roadmapdaten[idx + 1] if idx + 1 < len(roadmapdaten) else None
+
+    segmente = []
+    for phase in roadmapdaten:
+        zustand = (
+            "erledigt" if phase["nummer"] < aktiv["nummer"]
+            else "aktiv" if phase["nummer"] == aktiv["nummer"]
+            else "kommend"
+        )
+        marke = "✓" if zustand == "erledigt" else str(phase["nummer"])
+        if klickbar:
+            fehlt_text = ", ".join(phase.get("fehlt") or ())
+            segmente.append(
+                f'<li class="stepper-segment {zustand}" data-phase="{phase["nummer"]}" '
+                f'data-bezeichnung="{html.escape(phase["bezeichnung"], quote=True)}" '
+                f'data-satz="{html.escape(phase.get("satz") or "", quote=True)}" '
+                f'data-bereit="{"0" if phase.get("bereit") is False else "1"}" '
+                f'data-fehlt="{html.escape(fehlt_text, quote=True)}" '
+                f'role="button" tabindex="0" '
+                f'aria-label="{html.escape(phase["bezeichnung"], quote=True)}">'
+                f'<span class="stepper-marke">{marke}</span></li>'
+            )
+        else:
+            segmente.append(
+                f'<li class="stepper-segment {zustand}">'
+                f'<span class="stepper-marke">{marke}</span></li>'
+            )
+
+    def pfeil(ziel, richtung, css_klasse):
+        if ziel is None:
+            return f'<span class="{css_klasse}" aria-hidden="true"></span>'
+        pfeilzeichen = "‹ " if richtung == -1 else " ›"
+        text = (f"{pfeilzeichen}{html.escape(ziel['name'])}" if richtung == -1
+                else f"{html.escape(ziel['name'])}{pfeilzeichen}")
+        if not klickbar:
+            return f'<span class="{css_klasse}">{text}</span>'
+        fehlt_text = ", ".join(ziel.get("fehlt") or ())
+        return (
+            f'<button type="button" class="{css_klasse}" '
+            f'data-phase="{ziel["nummer"]}" '
+            f'data-bezeichnung="{html.escape(ziel["bezeichnung"], quote=True)}" '
+            f'data-satz="{html.escape(ziel.get("satz") or "", quote=True)}" '
+            f'data-bereit="{"0" if ziel.get("bereit") is False else "1"}" '
+            f'data-fehlt="{html.escape(fehlt_text, quote=True)}">'
+            f'{text}</button>'
+        )
+
+    if klickbar:
+        sheet = (
+            '<div class="sheet" id="phasensheet" hidden role="dialog" '
+            'aria-modal="true" aria-labelledby="phasensheet-titel">'
+            '<div class="sheet-hintergrund"></div>'
+            '<div class="sheet-inhalt">'
+            '<h3 id="phasensheet-titel"></h3>'
+            '<p id="phasensheet-satz"></p>'
+            '<p id="phasensheet-status"></p>'
+            '<div class="sheet-knoepfe">'
+            '<button type="button" id="phasensheet-los"></button>'
+            f'<button type="button" id="phasensheet-bleib">'
+            f'{html.escape(T._TEXT_SHEET_BLEIBE)}</button>'
+            '</div></div></div>'
+        )
+        hinweis = (
+            f'<p class="stepper-hinweis" id="stepper-hinweis" hidden>'
+            f'{html.escape(T._TEXT_STEPPER_HINWEIS)}</p>'
+        )
+    else:
+        sheet = ""
+        hinweis = ""
+
+    return (
+        f'<header class="phasenav" id="roadmap" data-stepper="1" '
+        f'data-aktive-phase="{aktiv["nummer"]}">'
+        f'<ol class="stepper" role="list">{"".join(segmente)}</ol>'
+        f'<div class="phasenav-zeile">'
+        f'{pfeil(vorherige, -1, "phasenav-zurueck")}'
+        f'<span class="phasenav-aktuell">{html.escape(aktiv["bezeichnung"])}</span>'
+        f'{pfeil(naechste, 1, "phasenav-vor")}'
+        f'</div>'
+        f'<p id="ux-naechstes" hidden></p>'
+        f'{hinweis}'
+        f'</header>\n{sheet}'
+    )
+
+
 def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
           segment_ms, fassungswahl=None, chat_vorhanden=True) -> str:
     """Die vereinte Gruppenseite: Chat, Arbeitsstand und Textbuch als drei
@@ -1266,8 +1529,9 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     ist dann ``stand``; ein Fragment ``#chat`` faellt automatisch darauf
     zurueck, weil ``TABS`` im Skript ohne ``chat`` ankommt und ``lies()`` in
     ``_VEREINT_JS`` jedes unbekannte Wort auf ``VORGABE`` abbildet."""
-    from interview_theater import web, web_chat, web_gestalt
+    from interview_theater import web, web_chat, web_gestalt, workshop
 
+    stepper_aktiv = workshop.aktiv().wert("web.phasennav_stepper", False)
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
     tabs = TABS if chat_vorhanden else tuple(t for t in TABS if t != "chat")
     # CoThinker-Root-Cause-Fix (Birk 02.10.2026): der Tab steht JETZT IMMER
@@ -1301,8 +1565,12 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             chatdaten, nonce_wert, token, segment_ms,
             basis=f"{token}/", mit_nonce=False, mit_gruppenlink=False,
         )
-    koerper = [_leiste_html(roadmapdaten, klickbar=chat_vorhanden),
-              _tabs_html(vorgabe, tabs, phase4=phase4)]
+    kopf_html = (
+        _stepper_html(roadmapdaten, klickbar=chat_vorhanden)
+        if stepper_aktiv
+        else _leiste_html(roadmapdaten, klickbar=chat_vorhanden)
+    )
+    koerper = [kopf_html, _tabs_html(vorgabe, tabs, phase4=phase4)]
     for tab in tabs:
         # ``data-textbuch`` ist die Wurzel, an der ``_TEXTBUCH_JS`` seinen
         # Zustand ablegt: im gemeinsamen Dokument darf der Rollenfilter nicht
@@ -1345,6 +1613,11 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     # ``_TABS_A``/``_TABS_B``/``_CSS_CHAT`` per Spezifitaet oder Reihenfolge,
     # ohne eine Zeile davon anzufassen (siehe Docstring von ``_css_schale``).
     css += _css_schale(web_gestalt.entwurf())
+    # Padua-Stepper: NICHT in css_rahmen() (das muesste fuer Dortmund
+    # byte-gleich bleiben, siehe tests/test_web_vereint_bitgleich.py) --
+    # eine eigene, nur hier bedingt angehaengte Funktion.
+    if stepper_aktiv:
+        css += web_gestalt.css_stepper()
     # web_chat._js() und nicht die rohe Konstante _CHAT_JS: sie traegt
     # unersetzte Platzhalter (__POLL_MS__ usw., siehe web_chat._js()-Docstring)
     # -- nur _js() liefert lauffaehiges Skript (Abweichung vom Plan-Kopf-
@@ -1375,6 +1648,19 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         # Der Strom nur mit Chat: fuer eine Gruppe ohne Web-Kanal ist
         # ``/chat/*`` 404, ein EventSource liefe dort ins Leere.
         skript += _strom_js(f"{token}/")
+    # Padua-Stepper (BINDING ADDITION): eine eigene, nur hier bedingt
+    # angehaengte IIFE (siehe ``_STEPPER_JS``-Docstring-Kommentar) --
+    # Dortmunds Skript bleibt dadurch Zeichen fuer Zeichen unberuehrt.
+    if stepper_aktiv:
+        skript += (
+            _STEPPER_JS
+            .replace("__BASIS__", f"{token}/")
+            .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
+            .replace("__SHEET_FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
+            .replace("__SHEET_STATUS_BEREIT__", _js_text(T._TEXT_SHEET_STATUS_BEREIT))
+            .replace("__SHEET_STATUS_OFFEN__", _js_text(T._TEXT_SHEET_STATUS_OFFEN))
+            .replace("__SHEET_GEHE_ZU__", _js_text(T._TEXT_SHEET_GEHE_ZU))
+        )
     # ``chat_vorhanden`` durchreichen (UX-Fix an Aufgabe 8): Baustein 3
     # (``_JS_AUFNAHME``) nennt Elemente, die nur im Chat-Panel existieren
     # (u.a. ``#warteschlange``) -- bei einer Telegram-Gruppe (kein Chat-
@@ -1399,7 +1685,14 @@ def _roadmap_html(db_pfad: str, token: str) -> str | None:
     chat_id zum Token mit ``kanal = 'web'`` holt -- und nicht mit
     ``web_chatzustand`` (Fix-Runde 2, Review-Befund 3): der baut den
     ganzen Chat-Poll (Verlauf, Aenderungen, Antworten) zusammen, den
-    dieser Ausschnitt gar nicht braucht."""
+    dieser Ausschnitt gar nicht braucht.
+
+    Padua-Stepper: dieselbe Weiche wie in ``seite()`` -- der Tausch bei
+    ``ladeRoadmap()`` muss dieselbe Markup-Form liefern, die beim ersten
+    Laden schon stand, sonst ersetzt ein Stepper sich selbst durch ein
+    ``<details>`` oder umgekehrt."""
+    from interview_theater import workshop
+
     conn = web_daten.oeffne_lesend(db_pfad)
     try:
         daten = web_daten.gruppe_nach_token(conn, token)
@@ -1409,6 +1702,8 @@ def _roadmap_html(db_pfad: str, token: str) -> str | None:
         roadmapdaten = web_daten.roadmap(conn, daten["chat_id"])
     finally:
         conn.close()
+    if workshop.aktiv().wert("web.phasennav_stepper", False):
+        return _stepper_html(roadmapdaten, klickbar=chat_vorhanden)
     return _leiste_html(roadmapdaten, klickbar=chat_vorhanden)
 
 

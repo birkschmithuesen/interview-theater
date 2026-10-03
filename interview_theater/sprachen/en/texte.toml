@@ -1850,6 +1850,11 @@ _TEXT_PHASE_FEHLT_HINWEIS = "{was} is still missing – go on anyway?"
 _TEXT_PHASE_ABBRECHEN = "No"
 _TEXT_PHASE_FEHLER_NETZ = "No connection - that didn't go through."
 _TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_aufgaben}"
+_TEXT_SHEET_STATUS_OFFEN = "Still open: {was}"
+_TEXT_SHEET_STATUS_BEREIT = "Ready"
+_TEXT_SHEET_GEHE_ZU = "Go to {bezeichnung}"
+_TEXT_SHEET_BLEIBE = "Stay here"
+_TEXT_STEPPER_HINWEIS = "Tap a phase to move between steps."
 
 ["web_vereint"._TEXT_TAB]
 chat = "Chat"

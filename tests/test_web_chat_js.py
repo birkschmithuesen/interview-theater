@@ -973,11 +973,20 @@ def test_brainstorm_und_interview_schliessen_sich_gegenseitig_aus():
     """Zwei Mikrofone gleichzeitig sind keine Bedienung: ``starteBrainstorm``
     lehnt waehrend eines Interviews (oder eines laufenden Wechsels) ab,
     ``starteInterview`` ebenso waehrend eines laufenden Brainstorms, und
-    beide Knoepfe sowie PTT werden entsprechend deaktiviert/versteckt."""
+    beide Knoepfe sowie PTT werden entsprechend deaktiviert/versteckt.
+
+    Abschluss-Review (Finding 2): ``starteBrainstorm``/``brainstormKnopf.
+    disabled`` sperren seitdem auch gegen ``zustand.diskussion`` -- symmetrisch
+    zur bestehenden Sperre von ``starteDiskussion()`` gegen
+    ``zustand.brainstorm`` (095e6e9). Vorher konnte eine Gruppe, die eine
+    Diskussion-Sitzung (Phase 1) nie beendet und spaeter in Phase 4
+    "Brainstorm mithoeren" drueckt, einen zweiten Recorder auf demselben
+    Mikrofon starten (siehe ``test_startebrainstorm_und_starteptt_lehnen_waehrend_diskussion_ab``)."""
     js = web_chat._CHAT_JS
     start_bs = js[js.index("function starteBrainstorm"):
                   js.index("function pausiereBrainstorm")]
-    assert "if (zustand.brainstorm || modusAn() || zustand.wechsel) { return; }" in start_bs
+    assert ("if (zustand.brainstorm || modusAn() || zustand.wechsel || "
+            "zustand.diskussion) { return; }") in start_bs
 
     start_iv = js[js.index("function starteInterview"):
                   js.index("function brichAb")]
@@ -985,7 +994,8 @@ def test_brainstorm_und_interview_schliessen_sich_gegenseitig_aus():
 
     zeige_bs = js[js.index("function zeigeBrainstormModus"):
                   js.index("function starteBrainstorm")]
-    assert "brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;" in js
+    assert ("brainstormKnopf.disabled = modusAn() || !!zustand.wechsel || "
+            "!!zustand.diskussion;") in js
 
     # Re-Review (Task 6, Fund 1): interviewKnopf.disabled/pttKnopf.hidden
     # werden seitdem NICHT mehr in zeigeBrainstormModus() gesetzt -- sonst
@@ -1000,6 +1010,93 @@ def test_brainstorm_und_interview_schliessen_sich_gegenseitig_aus():
     assert "var nebenAn = !!zustand.brainstorm || !!zustand.diskussion;" in zeige_iv
     assert "interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || nebenAn;" in zeige_iv
     assert "if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn; }" in zeige_iv
+
+
+def test_starteptt_lehnt_waehrend_diskussion_ab():
+    """Abschluss-Review (Finding 2): ``startePtt()`` sperrte bereits gegen
+    ``zustand.brainstorm`` -- ``zustand.diskussion`` fehlte in derselben
+    Waeche, obwohl PTT ein drittes Mikrofon auf demselben Geraet waere."""
+    js = web_chat._CHAT_JS
+    # "function beendePtt" allein traefe zuerst auf "function beendePttAnzeige"
+    # (das Praefix passt) -- die Klammer dahinter macht die Endmarke eindeutig.
+    start_ptt = js[js.index("function startePtt"):js.index("function beendePtt() {")]
+    assert ("if (modusAn() || zustand.wechsel || zustand.brainstorm || "
+            "zustand.diskussion ||\n        zustand.ptt) { return; }") in start_ptt
+
+
+def test_startebrainstorm_und_starteptt_lehnen_waehrend_diskussion_tatsaechlich_ab_in_node(
+    tmp_path,
+):
+    """Verhaltensnachweis in Node (nicht nur String-Match): das realistischere
+    Szenario aus dem Abschluss-Review ist die normale Ablaufrichtung --
+    "Zuhoeren starten" in Phase 1 bleibt ueber den Fortschritt in Phase 4
+    offen (niemand drueckt ``beendeDiskussion()``), und die Gruppe drueckt
+    dort "Brainstorm mithoeren" (jetzt serverseitig sichtbar, ``phase == 4``).
+    Ohne den Fix startet ``starteBrainstorm()`` trotzdem einen zweiten
+    ``MediaRecorder`` auf demselben Mikrofon -- ebenso ``startePtt()`` fuer
+    die Sprachnavigation. Dieser Test fuehrt ``starteBrainstorm``/
+    ``startePtt`` WOERTLICH aus dem ausgelieferten Skript aus und bestaetigt,
+    dass beide bei laufender ``zustand.diskussion`` synchron (vor jedem
+    ``holeStrom()``-Promise) abbrechen, ohne eine eigene Sitzung bzw. einen
+    eigenen PTT-Druck anzulegen."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
+    start_bs = _extrahiere(js, "function starteBrainstorm", "function pausiereBrainstorm")
+    # "function beendePtt" allein traefe zuerst auf "function beendePttAnzeige"
+    # (das Praefix passt) -- die Klammer dahinter macht die Endmarke eindeutig.
+    start_ptt = _extrahiere(js, "function startePtt", "function beendePtt() {")
+
+    quelltext = f"""
+    var zustand, pttKnopf, verwirfAufgerufen;
+    var PTT_MAX_MS = {web_chat.PTT_MAX_MS};
+
+    {modus_an}
+
+    function verwirfPtt() {{ verwirfAufgerufen = true; }}
+    function zeigeBrainstormModus() {{}}
+    function holeStrom() {{ return new Promise(function () {{}}); }}
+    function setTimeout() {{ return {{}}; }}
+    function clearTimeout() {{}}
+    function setInterval() {{ return {{}}; }}
+    function clearInterval() {{}}
+
+    {start_bs}
+    {start_ptt}
+
+    function lauf(mitDiskussion) {{
+      zustand = {{
+        brainstorm: null, aufnahme: null, servermodus: false, wechsel: null,
+        ptt: null, diskussion: mitDiskussion ? {{ pausiert: false }} : null
+      }};
+      pttKnopf = {{ dataset: {{}} }};
+      verwirfAufgerufen = false;
+      starteBrainstorm();
+      var brainstormGestartet = !!zustand.brainstorm;
+      zustand.brainstorm = null;   // unabhaengig von der Brainstorm-Probe testen
+      startePtt();
+      var pttGestartet = !!zustand.ptt;
+      return {{ brainstormGestartet: brainstormGestartet, pttGestartet: pttGestartet }};
+    }}
+
+    var ergebnisse = {{
+      waehrendDiskussion: lauf(true),
+      ohneDiskussion: lauf(false)
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    # Der eigentliche Fix: waehrend zustand.diskussion laeuft, startet KEINE
+    # der beiden Funktionen eine eigene Sitzung bzw. einen eigenen Druck.
+    assert ergebnisse["waehrendDiskussion"] == {
+        "brainstormGestartet": False, "pttGestartet": False,
+    }
+    # Gegenprobe: ohne zustand.diskussion funktionieren beide wie zuvor --
+    # der Fix darf den Normalfall nicht mitsperren.
+    assert ergebnisse["ohneDiskussion"] == {
+        "brainstormGestartet": True, "pttGestartet": True,
+    }
 
 
 def test_fortsetzebrainstorm_hat_dieselbe_sperrklinke_wie_interview():

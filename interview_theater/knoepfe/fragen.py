@@ -197,10 +197,29 @@ def _reset_fragenrunde(conn, chat_id: int) -> None:
     dieselben drei Felder, die ``biete_fragenauswahl`` beim allerersten
     Vorschlag loescht und ``versuche_gegenueberstellung`` beim Reveal der
     Gegenueberstellung (Aufgabe 13): eine Entscheidung zu einer inzwischen
-    ersetzten Frage waere bedeutungslos."""
+    ersetzten Frage waere bedeutungslos.
+
+    Loescht seit dem Abschluss-Review des Phase-1+2-Umbaus auch
+    ``fragen_herkunft``/``fragen_bearbeitet``: ohne das ueberlebt die
+    Herkunftskennzeichnung einer Gegenueberstellung eine spaetere frische
+    KLASSISCHE Fragenrunde -- Szenario "Andere Richtung" nach einer
+    Gegenueberstellung, in der JEDE Frage verworfen wurde
+    (``_schliesse_fragen_ab`` ruft dann ``frage_fuer_andere_richtung`` ->
+    ``_starte_auftrag``, der naechste Vorschlag laeuft ueber
+    ``biete_fragenauswahl``, NICHT ueber ``uebernimm_eigene``/
+    ``versuche_gegenueberstellung``). Ohne diese Zeile zeigte
+    ``_zeige_frage`` die alten, index-falschen " (eure)"/" (KI)"-Marken auf
+    voellig unabhaengigen neuen Fragen, und ``_schliesse_fragen_ab`` haette
+    ``fragen_herkunft_final`` aus Indizes gebaut, die nicht mehr zu
+    denselben Fragen gehoeren -- das korrumpiert Aufgabe 14s Auswertung.
+    ``versuche_gegenueberstellung`` ruft diese Funktion deshalb VOR dem
+    Setzen des frischen ``fragen_herkunft`` fuer ihre eigene Runde auf, nicht
+    danach."""
     repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_herkunft", None)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_bearbeitet", None)
 
 
 def biete_fragenauswahl(conn, tg, chat_id: int, wert: str,
@@ -426,8 +445,12 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
                 herkunft.append("ki")
 
         repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", "\n".join(zeilen))
-        repo.setze_arbeitsstand(conn, chat_id, "fragen_herkunft", ",".join(herkunft))
+        # Reset VOR dem Setzen von fragen_herkunft: seit dem Abschluss-Review
+        # loescht _reset_fragenrunde das Feld mit -- in umgekehrter
+        # Reihenfolge wuerde es die Herkunft fuer diese Runde sofort wieder
+        # wegwerfen, die gerade erst gebaut wurde.
         _reset_fragenrunde(conn, chat_id)
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_herkunft", ",".join(herkunft))
 
         # Die EINE kurze Ueberleitungszeile (Korrektur-Wortlaut), danach der
         # bestehende Weg -- ``fragenliste``/``starte_durchgehen`` werden

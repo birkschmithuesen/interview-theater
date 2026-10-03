@@ -1593,7 +1593,14 @@ _CHAT_JS = """
     // (zeigeModus()) wird deshalb zusaetzlich auf ein laufendes wechsel
     // geprueft, sonst saehe der Knopf kurz bedienbar aus, obwohl
     // starteBrainstorm() ihn wegen desselben zustand.wechsel ablehnt.
-    brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;
+    // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
+    // symmetrisch zur bestehenden Sperre von starteDiskussion() gegen
+    // zustand.brainstorm (095e6e9). Ohne das blieb der Knopf bedienbar,
+    // waehrend eine Diskussion-Sitzung (Phase 1) noch lief, z. B. wenn eine
+    // Gruppe den Diskussion-Knopf in Phase 1 nie beendet und spaeter in
+    // Phase 4 den Brainstorm-Knopf drueckt -- zwei MediaRecorder auf
+    // demselben Mikrofon.
+    brainstormKnopf.disabled = modusAn() || !!zustand.wechsel || !!zustand.diskussion;
     // Task 2 (Kanban-Karte Buehne/PTT): ausserhalb Phase 4 kein Angebot --
     // nie aber verborgen bei laufender Sitzung oder Wechsel, dieselbe Regel
     // wie beim Interview-Knopf (zeigeModus()). Die ``nebenknopf``-Klasse am
@@ -1610,7 +1617,12 @@ _CHAT_JS = """
   }
 
   function starteBrainstorm() {
-    if (zustand.brainstorm || modusAn() || zustand.wechsel) { return; }
+    // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt,
+    // wie starteDiskussion()/startePtt() es bereits tun -- sonst koennte eine
+    // Gruppe, die eine Diskussion-Sitzung (Phase 1) nie beendet hat und in
+    // Phase 4 weiterarbeitet, ueber den Brainstorm-Knopf einen zweiten
+    // Recorder auf demselben Mikrofon starten.
+    if (zustand.brainstorm || modusAn() || zustand.wechsel || zustand.diskussion) { return; }
     if (zustand.ptt) { verwirfPtt(); }
     var sitzung = {
       art: 'brainstorm',
@@ -2214,7 +2226,11 @@ _CHAT_JS = """
 
   function startePtt() {
     if (!pttKnopf) { return; }
-    if (modusAn() || zustand.wechsel || zustand.brainstorm || zustand.ptt) { return; }
+    // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
+    // dieselbe Regel wie gegen zustand.brainstorm, PTT ist ein drittes
+    // Mikrofon auf demselben Geraet.
+    if (modusAn() || zustand.wechsel || zustand.brainstorm || zustand.diskussion ||
+        zustand.ptt) { return; }
     // Review-Befund 6: jeder Druck traegt seinen eigenen Zustand -- ein
     // spaeterer Druck ueberschreibt nichts, was ein frueherer noch liest.
     var druck = {

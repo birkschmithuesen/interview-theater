@@ -644,6 +644,84 @@ def test_eigene_fragen_mit_unerwartetem_fragen_weich_bricht_nicht_sondern_verwir
     assert vorfall is not None
 
 
+# ---------------------------------------------------------------------------
+# Abschluss-Review des gesamten Branches, Finding 1: stale fragen_herkunft/
+# fragen_bearbeitet duerfen eine klassische Fragenrunde nach einem
+# abgelehnten A/B-Reveal nicht ueberleben
+# ---------------------------------------------------------------------------
+
+
+def test_reset_fragenrunde_entfernt_stale_herkunft_nach_abgelehnter_gegenueberstellung(
+    conn, tg, einst, auftraege,
+):
+    """Szenario aus dem Abschluss-Review: eine Gruppe faehrt den A/B-Reveal
+    (``versuche_gegenueberstellung`` setzt ``fragen_herkunft``), lehnt dann
+    IN DER EINZELDURCHSICHT JEDE Frage ab. ``_schliesse_fragen_ab``s
+    bestehender ``if not angenommen:``-Zweig ruft
+    ``frage_fuer_andere_richtung`` -> ``_starte_auftrag``, der einen frischen,
+    KLASSISCHEN ``VORSCHLAG FRAGENAUSWAHL:``-Block erzeugt -- der kommt ueber
+    ``biete_fragenauswahl`` zurueck, NICHT ueber ``uebernimm_eigene``/
+    ``versuche_gegenueberstellung``. Ohne den Fix in ``_reset_fragenrunde``
+    ueberlebt das alte ``fragen_herkunft`` der verworfenen Gegenueberstellung
+    diesen Uebergang: ``_zeige_frage`` haengt die alten, index-falschen
+    " (eure)"/" (KI)"-Marken an voellig unabhaengige neue Fragen, und eine
+    spaetere ``_schliesse_fragen_ab`` baut ``fragen_herkunft_final`` aus
+    Indizes, die nicht mehr zu denselben Fragen gehoeren -- das korrumpiert
+    Aufgabe 14s Dashboard-/Chat-Auswertung fuer diese Gruppe."""
+    _bereite_gegenueberstellung_vor(conn)
+    ergebnis = fragen.versuche_gegenueberstellung(conn, tg, CHAT)
+    assert ergebnis is not None
+
+    vor_ablehnung = repo.hole_arbeitsstand(conn, CHAT)
+    gesamt = len(vor_ablehnung["fragen_auswahl"].splitlines())
+    assert gesamt == 8
+    # Beweis, dass es wirklich etwas Stale-s zu vererben gibt.
+    assert vor_ablehnung["fragen_herkunft"]
+
+    for nummer in range(1, gesamt + 1):
+        knoepfe.entscheide(conn, tg, None, einst, CHAT, nummer, "nein")
+
+    # Der Fallback-Pfad der Karte lief: "nichts angenommen" hat ueber
+    # _starte_auftrag (hier aufgezeichnet statt ausgefuehrt, Fixture
+    # ``auftraege``) einen neuen Vorschlag angestossen.
+    assert auftraege
+    assert T._TEXT_FRAGEN_KEINE_ANGENOMMEN in tg.texte
+
+    # Die Antwort auf diesen Auftrag kommt -- wie jede allererste Runde --
+    # ueber biete_fragenauswahl zurueck, mit voellig neuen, unabhaengigen
+    # Fragen (anderer Wortlaut, andere Zaehlung).
+    fragen.biete_fragenauswahl(
+        conn, tg, CHAT,
+        "Neu: Ganz andere Frage eins.\nNeu: Ganz andere Frage zwei.",
+    )
+
+    stand = repo.hole_arbeitsstand(conn, CHAT)
+    # Der eigentliche Fix: keine stale Herkunft/Bearbeitet-Markierung mehr.
+    assert not stand["fragen_herkunft"]
+    assert not stand["fragen_bearbeitet"]
+
+    # Ohne den Fix haette Frage 1 hier noch " (eure)" getragen (Index 1 der
+    # alten Herkunftsliste war "eigen") -- eine Kennzeichnung, die zu einer
+    # voellig anderen, unabhaengigen Frage gehoert.
+    fragen._zeige_frage(conn, tg, CHAT, 1)
+    assert not tg.texte[-1].endswith(T._TEXT_HERKUNFT_EIGEN)
+    assert not tg.texte[-1].endswith(T._TEXT_HERKUNFT_KI)
+
+    knoepfe.starte_durchgehen(conn, tg, CHAT)
+    knoepfe.entscheide(conn, tg, None, einst, CHAT, 1, "ja")
+    knoepfe.entscheide(conn, tg, None, einst, CHAT, 2, "ja")
+
+    stand = repo.hole_arbeitsstand(conn, CHAT)
+    assert stand["fragen"].splitlines() == [
+        "Neu: Ganz andere Frage eins.", "Neu: Ganz andere Frage zwei.",
+    ]
+    # fragen_herkunft_final muss fuer diese Runde entweder leer/abwesend sein
+    # oder konsequent "kein A/B-Vergleich" anzeigen -- NIE Reste der alten
+    # Gegenueberstellung (die sich an den gleichen Indizes befunden haetten).
+    herkunft_final = (stand["fragen_herkunft_final"] or "").split(",")
+    assert all(not h for h in herkunft_final)
+
+
 def test_fragen_ab_inaktiv_populiert_nie_die_neuen_felder(conn, einst, monkeypatch):
     """Solange ``workshop.fragen_ab_aktiv()`` False ist (Dortmund-Vorgabe,
     jedes bestehende Profil): der neue Marker kommt im Prompt gar nicht vor

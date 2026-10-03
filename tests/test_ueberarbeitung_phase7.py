@@ -290,8 +290,7 @@ def test_wiedereintritt_mit_text_prueft_statt_neu_zu_schreiben(
     assert (lauf["ziel"], lauf["szene_nummer"]) == ("szene", 1)
 
 
-def test_wiedereintritt_wenn_alles_fertig_ist_keine_stueckpruefung(
-        conn, padua, tg, einst):
+def _alles_fertig(conn):
     _stueck(conn)
     _formen(conn)
     repo.setze_arbeitsstand(conn, 1, "sprechweisen_fixiert_am", repo._jetzt())
@@ -300,10 +299,53 @@ def test_wiedereintritt_wenn_alles_fertig_ist_keine_stueckpruefung(
                                 s["zusammenfassung"])
         repo.setze_szene_fertig(conn, s["id"], True)
 
+
+def _schluss_protokoll(conn):
+    repo.lege_prueflauf_an(
+        conn, 1, phase=7, ziel="geschichte", szene_nummer=None,
+        fragen=",".join(prueflauf.FRAGEN_GESCHICHTE), runden=1,
+        ueberarbeitungen=0, auftraege_je_runde="0",
+        zweite_runde_mit_auftraegen=False, grund="keine_auftraege",
+        verworfen=None, dauer_ms=1,
+    )
+
+
+def test_wiedereintritt_ohne_schlusspruefung_holt_sie_nach(
+        conn, padua, tg, einst, monkeypatch):
+    """Neustart mitten im Schluss: alle Szenen fertig, aber keine
+    Protokollzeile der Schlusspruefung -> der Eintritt holt sie nach."""
+    _alles_fertig(conn)
+    gestartet = []
+    echt = ueberarbeitung.starte_schluss
+
+    def spion(*a, **k):
+        gestartet.append(a)
+        return echt(*a, **k)
+
+    monkeypatch.setattr(ueberarbeitung, "starte_schluss", spion)
+
+    knoepfe.eintritt_in_phase(conn, tg, Schreiber(), einst, 1, 7)
+
+    assert len(gestartet) == 1
+    fertig = ueberarbeitung.T._TEXT_TEXTBUCH_FERTIG
+    _warte_auf(lambda: any(t.startswith(fertig) for t in _texte(tg)))
+    assert not any(t.startswith(ueberarbeitung.T._TEXT_7_SCHON_FERTIG)
+                   for t in _texte(tg))
+    assert padua == [1]
+    assert ueberarbeitung.schluss_gelaufen(conn, 1)
+
+
+def test_wiedereintritt_nach_der_schlusspruefung_keine_neue(
+        conn, padua, tg, einst, monkeypatch):
+    _alles_fertig(conn)
+    _schluss_protokoll(conn)
+    monkeypatch.setattr(ueberarbeitung, "starte_schluss",
+                        lambda *a, **k: pytest.fail("neuer Schlusslauf"))
+
     knoepfe.eintritt_in_phase(conn, tg, Schreiber(), einst, 1, 7)
 
     assert padua == []
-    assert repo.prueflaeufe(conn, 1) == []
+    assert len(repo.prueflaeufe(conn, 1)) == 1
     assert any(t.startswith(ueberarbeitung.T._TEXT_7_SCHON_FERTIG) for t in _texte(tg))
 
 

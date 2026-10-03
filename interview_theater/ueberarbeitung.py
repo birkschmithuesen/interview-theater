@@ -363,6 +363,15 @@ def _fertigzeile(conn, e, chat_id: int, text: str) -> str:
     return text
 
 
+def schluss_gelaufen(conn, chat_id: int) -> bool:
+    """Hat die Schlusspruefung von Phase 7 schon einmal ihr Protokoll
+    geschrieben (``prueflauf``-Zeile ``ziel='geschichte'``, ``phase=7``)?"""
+    return any(
+        z["ziel"] == "geschichte" and z["phase"] == PHASE_BUEHNE
+        for z in repo.prueflaeufe(conn, chat_id)
+    )
+
+
 def weiter_7(conn, tg, klm, e, chat_id: int, *,
              aus_eintritt: bool = False) -> threading.Thread | None:
     """Der EINE Schrittweg von Phase 7: Formen, dann Sprechweisen, dann
@@ -373,9 +382,10 @@ def weiter_7(conn, tg, klm, e, chat_id: int, *,
     Stille -- ausser beim Szenenlauf: ``szene.starte`` sagt selbst, warum
     (besetzt, fehlende Felder, USA-Frage).
 
-    ``aus_eintritt``: ist schon alles fertig, laeuft die Schlusspruefung
-    NICHT noch einmal von selbst -- sie gehoert dem Abnahmeweg
-    (``bestaetige_szene_7``). Stattdessen eine Zeile mit dem Verweis."""
+    ``aus_eintritt``: ist schon alles fertig UND die Schlusspruefung schon
+    gelaufen (``schluss_gelaufen``), laeuft sie NICHT noch einmal --
+    stattdessen eine Zeile mit dem Verweis. Lief sie nie, wird sie
+    nachgeholt."""
     from interview_theater import knoepfe, prueflauf, sprechweise, szene
 
     if formen_offen(conn, chat_id):
@@ -401,10 +411,13 @@ def weiter_7(conn, tg, klm, e, chat_id: int, *,
         if faden is None:
             _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
         return faden
-    if aus_eintritt:
+    if aus_eintritt and schluss_gelaufen(conn, chat_id):
         _sende(conn, tg, e, chat_id,
                _fertigzeile(conn, e, chat_id, T._TEXT_7_SCHON_FERTIG))
         return None
+    # Ohne Protokollzeile der Schlusspruefung (Neustart mitten im Thread,
+    # Sperre belegt) wird sie hier nachgeholt -- auch beim Eintritt: das ist
+    # kein Phasensprung, sondern eine Pruefung, die nie lief (Review Task 9).
     faden = starte_schluss(conn, tg, klm, e, chat_id)
     if faden is None:
         _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)

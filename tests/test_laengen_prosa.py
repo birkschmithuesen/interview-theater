@@ -278,16 +278,28 @@ def test_schreibe_haengt_die_journalzeile_mit_seed_an(prosa_bereit, einst, tg):
     assert any("seed 1" in t or "Seed 1" in t for t in texte), texte
 
 
-def test_starte_verhaelt_sich_wie_vorher(prosa_bereit, einst, tg):
+def test_starte_verhaelt_sich_wie_vorher(prosa_bereit, einst, tg, monkeypatch):
     """Die Zerlegung darf am aeusseren Weg nichts aendern: ein Thread, eine
-    Sperre, dieselbe Meldung."""
+    Sperre, danach frei. Die Fixture faehrt Padua, also laeuft der Prueflauf
+    (Padua Phasen TEIL 2): am Ende steht der Hinweis "die ganze Geschichte
+    steht" statt der Fertig-Meldung samt Volltext. Der Richter ist eine
+    Attrappe ohne Befunde, damit der Test nicht an einem verschluckten
+    Richterfehler haengt."""
+    from interview_theater import knoepfe, prueflauf
+    from interview_theater.dramaturgie import fanout
+    from test_dramaturgie_schleife import Rundenrichter
+
+    richter = Rundenrichter({})
+    monkeypatch.setattr(fanout, "waehle_richter", lambda *a, **k: richter)
+    assert prueflauf.aktiv()
     klm = ProsaAttrappe()
     thread = kurzgeschichte.starte(prosa_bereit, tg, klm, einst, 1)
     assert thread is not None
     thread.join(timeout=20)
     assert kurzgeschichte.laeuft(1) is False
-    fertig = kurzgeschichte.T._TEXT_FERTIG.format(anzahl=2)
+    fertig = knoepfe.T._TEXT_GESCHICHTE_BEREIT.format(gesamt=2)
     assert any(fertig in t for t in tg.texte), tg.texte
+    assert not any("Text eins" in t for t in tg.texte), tg.texte
 
 
 # --- Karte P2-Fix: die Abschnittszahl bindet bei vorhandener Szenenfolge ---

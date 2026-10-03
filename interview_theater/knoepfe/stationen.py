@@ -76,6 +76,32 @@ def _speicherleiste_offen(conn, chat_id: int) -> bool:
     )
 
 
+#: Die zwei Uebergaenge, die Padua selbst vollzieht -- (aktuelle Phase,
+#: angebotene Stufe) -> Profilschalter (Abschlussreview, Fix 2).
+_EIGENE_SPRUENGE = {
+    (5, 6): "prosa_entwurf_aktiv",
+    (6, 7): "ueberarbeitung_aktiv",
+}
+
+
+def _springt_selbst(conn, chat_id: int, stufe: int) -> bool:
+    """Vollzieht die Zustandsmaschine des Profils diesen Uebergang selbst?
+
+    Padua springt von 5 nach 6 nach der letzten abgenommenen Prosa-Szene
+    (``entwurf.bestaetige_szene``) und von 6 nach 7 nach der letzten
+    abgenommenen Ueberarbeitung (``ueberarbeitung.schliesse_6_ab``). Die
+    Materiallage (``phasen.voraussetzungen``) gibt die naechste Stufe aber
+    schon frueher her -- Prosa je Szene steht in Phase 6 von Anfang an --,
+    und das allgemeine Angebot "Phase 6 fertig -- weiter zu 7?" kaeme mitten
+    in die Ueberarbeitung. Nur genau diese zwei Uebergaenge und nur mit ihrem
+    Schalter; jeder andere (1->2, 3->4, 4->5, ...) und jedes andere Profil
+    bleibt unveraendert."""
+    from interview_theater import workshop
+
+    schalter = _EIGENE_SPRUENGE.get((phasen.aktuelle(conn, chat_id), stufe))
+    return schalter is not None and getattr(workshop, schalter)()
+
+
 def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
     """Die eigene, kurze Nachricht "<Was steht>. Weiter zu <Phase>?" -- genau
     einmal je Stufe, sofort wenn die Voraussetzungen gespeichert sind.
@@ -98,7 +124,7 @@ def biete_phase_proaktiv(conn, tg, chat_id: int) -> bool:
 
     Deterministisch, kein Modellaufruf (Zusage 2)."""
     stufe = phasen.offenes_angebot(conn, chat_id)
-    if stufe is None:
+    if stufe is None or _springt_selbst(conn, chat_id, stufe):
         return False
     if _speicherleiste_offen(conn, chat_id):
         return False
@@ -163,7 +189,7 @@ def sende_abschluss_statt_meldung(conn, tg, chat_id: int, art: str, meldung: str
     Liefert ``(message_id, text)`` oder ``None``, wenn kein Angebot faellig
     ist -- dann bleibt alles beim bisherigen Weg. Kein Modellaufruf."""
     stufe = phasen.offenes_angebot(conn, chat_id)
-    if stufe is None:
+    if stufe is None or _springt_selbst(conn, chat_id, stufe):
         return None
     text = _abschlusstext(conn, chat_id, stufe)
     if not nur_dieses_feld or phasen.aktuelle(conn, chat_id) >= stufe:
@@ -217,6 +243,13 @@ def _mit_vorspann(vorspann: str | None, text: str) -> str:
     """Haengt einen Text unter die Eintrittsnachricht -- oder gibt ihn allein
     zurueck, wenn es keine gibt."""
     return f"{vorspann}\n\n{text}" if vorspann else text
+
+
+def _ueberarbeitung_aktiv() -> bool:
+    """Padua Phasen TEIL 2: laeuft die Ueberarbeitungs-Zustandsmaschine?"""
+    from interview_theater import ueberarbeitung
+
+    return ueberarbeitung.aktiv()
 
 
 def _sende_karte(tg, chat_id: int, nummer: int) -> None:
@@ -357,6 +390,16 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # laesst. Nach dem Leitfaden, weil er die erste Frage ist, die sich
         # die Gruppe vor dem Losgehen stellt.
         biete_stt_sprache(conn, tg, chat_id)
+    elif nummer == PHASE_STUECKPRUEFUNG and _ueberarbeitung_aktiv():
+        # Padua Phasen TEIL 2 (Phase 7, Stage Version): nur die Einleitung,
+        # dann der EINE Schrittweg -- Formen, Sprechweisen, Szene fuer Szene.
+        # KEIN Durchlauf-Menue und KEINE Stueckpruefung beim Eintritt: die
+        # Pruefung des Stuecks kommt am Ende (``ueberarbeitung.starte_schluss``).
+        from interview_theater import ueberarbeitung
+
+        message_id = tg.sende(chat_id, kopf)
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, kopf)
+        ueberarbeitung.weiter_7(conn, tg, klm, e, chat_id, aus_eintritt=True)
     elif nummer == PHASE_STUECKPRUEFUNG:
         # Die Schaerfung des Stuecks (06.09.2026, Birk): das komplette
         # Textbuch geht EINMAL beim Eintritt an den Stueck-Judge, im Thread
@@ -386,7 +429,18 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # Beim Eintritt in eine Phase fragt der Bot zuerst die Gruppe,
         # statt sofort vorzuschlagen (Zusage: proaktiv, aber nicht
         # vorlaut).
-        biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
+        from interview_theater import ueberarbeitung
+
+        padua_6 = nummer == PHASE_SZENEN and ueberarbeitung.aktiv()
+        if padua_6:
+            # Padua Phasen TEIL 2 (Phase 6, Rewrite): nur die Einleitung --
+            # die offene Frage "habt ihr selbst schon Ideen?" passt nicht
+            # vor eine Geschichte, die schon dasteht und gleich geprueft
+            # wird.
+            message_id = tg.sende(chat_id, kopf)
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, kopf)
+        else:
+            biete_proaktiv(conn, tg, chat_id, nummer, vorspann=kopf)
         if nummer == PHASE_SZENEN:
             # **Die USA-Frage steht beim EINTRITT** (06.09.2026, Birk
             # 12:25), als eigene Nachricht direkt nach der Einleitung und
@@ -405,4 +459,10 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
             else:
                 # Die Frage ist beantwortet (oder es gibt kein US-Modell):
                 # dann steht hier gleich der Knopf, aus dem der Lauf startet.
-                biete_kurzgeschichte(conn, tg, chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)
+                # In Padua: die vorhandene Prosa pruefen statt neu schreiben
+                # (``ueberarbeitung.weiter_6``, Rueckfall dort: der Knopf).
+                if padua_6:
+                    ueberarbeitung.weiter_6(conn, tg, klm, e, chat_id,
+                                            aus_eintritt=True)
+                else:
+                    biete_kurzgeschichte(conn, tg, chat_id, T._TEXT_KURZGESCHICHTE_BEREIT)

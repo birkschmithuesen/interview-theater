@@ -323,13 +323,14 @@ def test_erkenner_en_nennt_die_padua_phasen(padua):
 def test_erkenner_en_zaehlt_seine_arten_richtig(padua):
     """Nachbesserung: 'twenty-six kinds' und 26 fortlaufende Nummern (seit
     Padua Phasen TEIL 1, 03.10.2026: uebersicht_aendern kam dazu, vorher
-    'twenty-five kinds')."""
+    'twenty-five kinds'; seit Padua Phasen TEIL 2, Task 10: die fuenf
+    Arten 27-31, 'thirty-one kinds')."""
     import re
 
     roh = anweisungen.hole("erkenner")
     nummern = [int(n) for n in re.findall(r"(?m)^(\d+)\.\s+[a-z_]+\s+--", roh)]
-    assert nummern == list(range(1, 27))
-    assert "exactly twenty-six kinds" in roh
+    assert nummern == list(range(1, 32))
+    assert "exactly thirty-one kinds" in roh
 
 
 # --- Aufgabe 20: die Szene auf Englisch (szene, theater-tells, formen/*,
@@ -386,12 +387,23 @@ def test_alle_prompts_sind_uebersetzt():
 _JUDGE = ["a2_kausalkette", "a6_tschechow", "a9_fokus", "a10_materialtreue",
           "a11_stueckvorgaben", "b1_wendung", "c1_stimme"]
 
+#: EN-Versionsspruenge ohne deutsches Gegenstueck (Padua Phasen TEIL 2,
+#: 03.10.2026): die deutsche Datei bleibt wegen der Dortmund-Bitgleichheit
+#: unangetastet, auch wenn nur die englische Fassung praeziser formuliert
+#: wird. Name -> die volle erste Zeile der englischen Datei.
+VERSION_AUSNAHMEN: dict[str, str] = {
+    "a9_fokus": "prompt_version: a9-2026-10-03-1-en",
+}
+
 
 @pytest.mark.parametrize("name", _JUDGE)
 def test_judge_version_bleibt_erste_zeile_mit_suffix_en(name):
     deutsch = (REPO / "dramaturgie" / f"{name}.md").read_text(encoding="utf-8")
     englisch = (EN / "dramaturgie" / f"{name}.md").read_text(encoding="utf-8")
     erste_de = deutsch.splitlines()[0]
+    if name in VERSION_AUSNAHMEN:
+        assert englisch.splitlines()[0] == VERSION_AUSNAHMEN[name]
+        return
     assert englisch.splitlines()[0] == erste_de + "-en"
 
 
@@ -596,11 +608,17 @@ def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():
     sechs = (EN / "phasen" / "6.md").read_text(encoding="utf-8")
     sieben = (EN / "phasen" / "7.md").read_text(encoding="utf-8")
 
+    # Padua Phasen TEIL 2 (03.10.2026, Task 11): die englische Schicht gilt
+    # nur fuer Padua, und dort laufen 6 und 7 ueber ``ueberarbeitung.py``.
+    # Die alten Einzelszenen-Leisten ("Yes, write it", "Change form", ...)
+    # und die Knoepfe unter der alten Kurzgeschichte gibt es dort nicht mehr;
+    # beide Phasen nennen die Leiste aus ``knoepfe.zeige_geprueft_*``.
     for knopf in ("Yes, write it", "Plan it differently", "Change form",
-                  "Skip", "Next scene"):
-        assert knopf not in sechs, knopf
-        assert knopf in sieben, knopf
-    # Phase 6 nennt die Knoepfe, die wirklich unter der Geschichte haengen.
-    for knopf in ("Write the story", "Change something",
+                  "Skip", "Next scene", "Change something",
                   "Rewrite from scratch"):
+        assert knopf not in sechs, knopf
+        assert knopf not in sieben, knopf
+    for knopf in ("Yes, save", "No, change it again", "Shorter (25 %)",
+                  "Show first draft"):
         assert knopf in sechs, knopf
+        assert knopf in sieben, knopf

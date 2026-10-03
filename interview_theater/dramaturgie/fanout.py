@@ -762,6 +762,10 @@ def parameterkorrektur(befund) -> tuple[str, str] | None:
     ein *Vorschlag*, den die Gruppe im Chat bestaetigt. Ein Modell, das eine
     Szenenplanung still ueberschreibt, waere genau die Sorte unsichtbarer
     Aenderung, wegen der die Analyse vom 06.09. geschrieben wurde.
+    **Ausnahme Padua-Prueflauf** (``prueflauf.py``, Birk 03.10.2026): dort
+    wird die Korrektur fuer ungeschuetzte Felder direkt uebernommen
+    (nie ``repo.GESCHUETZTE_SZENENFELDER``) und der Gruppe in hoechstens drei
+    Zeilen gemeldet.
 
     Liefert None, wenn die Richtung nicht ``parameter`` ist, der Beleg nicht
     geprueft wurde oder der Vorschlag nicht als ``feld: wert`` lesbar ist.
@@ -1218,77 +1222,113 @@ class Ergebnis:
 
 
 def pruefe(conn, e, klm, chat_id: int, richter: Richter | None = None,
-           runde: int | None = None) -> Ergebnis:
+           runde: int | None = None, *, fragen: tuple[str, ...] | None = None,
+           szenen: tuple[int, ...] | None = None,
+           mechanik: bool = True) -> Ergebnis:
     """Der ganze Lauf: Mechanik, dann vier Judge-Fragen, dann speichern.
 
     **Seriell** (siehe ``GLEICHZEITIG``). Ein einzelner gescheiterter Aufruf
     reisst den Lauf nicht mit: er wird geloggt, bekommt einen Vorfall, und
     die uebrigen Fragen laufen weiter -- die Mechanik-Befunde und die Haelfte
-    der Judge-Befunde sind mehr wert als gar nichts."""
-    lage = mechanik.lies(conn, chat_id)
+    der Judge-Befunde sind mehr wert als gar nichts.
+
+    Drei zusaetzliche, rein schmalernde Parameter (Padua Phasen TEIL 2,
+    genutzt von ``prueflauf.py``): ``fragen`` beschraenkt auf Schluessel aus
+    ``PROMPTS`` (``None`` heisst alle), ``szenen`` beschraenkt die
+    **szenenweisen** Fragen B1/A9/A10/C1 auf diese Nummern (die
+    Stueckfragen A2/A6/A11 lesen immer ueber das ganze Stueck und ignorieren
+    ``szenen``), und ``mechanik=False`` laesst ``mechanik_modul.pruefe_alles``
+    aus. Mit allen drei Vorgaben ist der Ablauf byte-identisch zu vorher."""
+    from interview_theater.dramaturgie import mechanik as mechanik_modul
+
+    lage = mechanik_modul.lies(conn, chat_id)
     if not lage.nummern:
         raise DramaturgieFehler(T.MELDUNG_OHNE_SZENEN)
 
+    def _an(schluessel: str) -> bool:
+        return fragen is None or schluessel in fragen
+
+    def _szene_an(nummer) -> bool:
+        return szenen is None or nummer in szenen
+
     ergebnis = Ergebnis(richter=richter or waehle_richter(e, conn, chat_id))
-    ergebnis.befunde = [b.als_dict() for b in mechanik.pruefe_alles(conn, chat_id, lage)]
+    if mechanik:
+        ergebnis.befunde = [
+            b.als_dict() for b in mechanik_modul.pruefe_alles(conn, chat_id, lage)
+        ]
 
-    szenen = {s["nummer"]: s for s in repo.hole_szenen(conn, chat_id)
-              if s["nummer"] is not None}
+    szenen_karte = {s["nummer"]: s for s in repo.hole_szenen(conn, chat_id)
+                    if s["nummer"] is not None}
 
-    for nummer in lage.nummern:
-        _sammle(ergebnis, _versuch(
-            conn, e, chat_id, f"b1 Szene {nummer}",
-            lambda n=nummer: frage_b1(conn, e, klm, chat_id, ergebnis.richter,
-                                      szenen[n], ergebnis.bewertungen),
-        ))
+    if _an("b1"):
+        for nummer in lage.nummern:
+            if not _szene_an(nummer):
+                continue
+            _sammle(ergebnis, _versuch(
+                conn, e, chat_id, f"b1 Szene {nummer}",
+                lambda n=nummer: frage_b1(conn, e, klm, chat_id, ergebnis.richter,
+                                          szenen_karte[n], ergebnis.bewertungen),
+            ))
 
     # A9 Fokus: dieselbe Adressierung wie B1 (eine Frage je Szene), aber mit
     # dem Hauptkonflikt als Massstab. Einmal gelesen, nicht je Szene.
-    konflikt = mechanik.hauptkonflikt(conn, chat_id)
-    for nummer in lage.nummern:
-        _sammle(ergebnis, _versuch(
-            conn, e, chat_id, f"a9 Szene {nummer}",
-            lambda n=nummer: frage_a9(conn, e, klm, chat_id, ergebnis.richter,
-                                      szenen[n], konflikt, ergebnis.bewertungen),
-        ))
+    if _an("a9"):
+        konflikt = mechanik_modul.hauptkonflikt(conn, chat_id)
+        for nummer in lage.nummern:
+            if not _szene_an(nummer):
+                continue
+            _sammle(ergebnis, _versuch(
+                conn, e, chat_id, f"a9 Szene {nummer}",
+                lambda n=nummer: frage_a9(conn, e, klm, chat_id, ergebnis.richter,
+                                          szenen_karte[n], konflikt, ergebnis.bewertungen),
+            ))
 
     # A10 Materialtreue: haelt die Szene ihre eigenen Festlegungen -- und
     # wenn nicht, zieht der Text nach oder der Parameter? Szenen ohne
     # Festlegungen fragt ``frage_a10`` selbst nicht.
-    for nummer in lage.nummern:
-        _sammle(ergebnis, _versuch(
-            conn, e, chat_id, f"a10 Szene {nummer}",
-            lambda n=nummer: frage_a10(conn, e, klm, chat_id, ergebnis.richter,
-                                       szenen[n], ergebnis.bewertungen),
-        ))
+    if _an("a10"):
+        for nummer in lage.nummern:
+            if not _szene_an(nummer):
+                continue
+            _sammle(ergebnis, _versuch(
+                conn, e, chat_id, f"a10 Szene {nummer}",
+                lambda n=nummer: frage_a10(conn, e, klm, chat_id, ergebnis.richter,
+                                           szenen_karte[n], ergebnis.bewertungen),
+            ))
 
-    _sammle(ergebnis, _versuch(
-        conn, e, chat_id, "a2",
-        lambda: frage_a2(conn, e, klm, chat_id, ergebnis.richter,
-                         ergebnis.bewertungen),
-    ))
+    if _an("a2"):
+        _sammle(ergebnis, _versuch(
+            conn, e, chat_id, "a2",
+            lambda: frage_a2(conn, e, klm, chat_id, ergebnis.richter,
+                             ergebnis.bewertungen),
+        ))
 
     # A11 Stueckvorgaben: EIN Aufruf ueber dieselbe Synopsen-Kette wie A2 --
     # Format, Rahmen und Figurenzahl gelten fuer das Stueck, nicht je Szene.
-    _sammle(ergebnis, _versuch(
-        conn, e, chat_id, "a11",
-        lambda: frage_a11(conn, e, klm, chat_id, ergebnis.richter,
-                          ergebnis.bewertungen),
-    ))
-
-    for nummer in lage.mit_sprechern():
+    if _an("a11"):
         _sammle(ergebnis, _versuch(
-            conn, e, chat_id, f"c1 Szene {nummer}",
-            lambda n=nummer: frage_c1(conn, e, klm, chat_id, ergebnis.richter,
-                                      n, lage.repliken[n], ergebnis.bewertungen),
+            conn, e, chat_id, "a11",
+            lambda: frage_a11(conn, e, klm, chat_id, ergebnis.richter,
+                              ergebnis.bewertungen),
         ))
 
-    _sammle(ergebnis, _versuch(
-        conn, e, chat_id, "a6",
-        lambda: frage_a6(conn, e, klm, chat_id, ergebnis.richter,
-                         mechanik.tschechow_kandidaten(lage),
-                         ergebnis.bewertungen),
-    ))
+    if _an("c1"):
+        for nummer in lage.mit_sprechern():
+            if not _szene_an(nummer):
+                continue
+            _sammle(ergebnis, _versuch(
+                conn, e, chat_id, f"c1 Szene {nummer}",
+                lambda n=nummer: frage_c1(conn, e, klm, chat_id, ergebnis.richter,
+                                          n, lage.repliken[n], ergebnis.bewertungen),
+            ))
+
+    if _an("a6"):
+        _sammle(ergebnis, _versuch(
+            conn, e, chat_id, "a6",
+            lambda: frage_a6(conn, e, klm, chat_id, ergebnis.richter,
+                             mechanik_modul.tschechow_kandidaten(lage),
+                             ergebnis.bewertungen),
+        ))
 
     ergebnis.aufrufe = ergebnis.richter.aufrufe
     ergebnis.runde = runde or repo.letzte_dramaturgie_runde(conn, chat_id) + 1

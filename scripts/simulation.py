@@ -192,14 +192,16 @@ def baue_argumente(argv=None) -> argparse.Namespace:
                    help="macht Auswahl, Besetzung und Reihenfolge reproduzierbar")
     p.add_argument("--ohne-szene", action="store_true",
                    help="den Szenen-Schritt auslassen (spart den Reasoning-Lauf)")
-    p.add_argument("--skript", choices=("auto", "schritte", "tag2", "birk"),
+    p.add_argument("--skript", choices=("auto", "schritte", "tag2", "birk", "padua"),
                    default="auto",
                    help="welche Schrittliste gefahren wird. 'auto' (Vorgabe) "
                         "waehlt wie bisher nach dem Set; 'tag2' faehrt das "
                         "Skript der heutigen Phasen (skript.SCHRITTE_TAG2) "
                         "auch fuer die erfundenen Sets 1-3 -- nur damit sind "
                         "Setting, Festlegungen, Geschichte und Schaerfung "
-                        "ueberhaupt im Lauf")
+                        "ueberhaupt im Lauf; 'padua' faehrt die Phasen 5-7 "
+                        "im neuen Ablauf (skript.SCHRITTE_PADUA, braucht "
+                        "IT_WORKSHOP=padua-2026)")
     p.add_argument("--mutation", choices=mutation.ARTEN,
                    help="einen belegten Fehler fuer diesen Lauf wieder "
                         "einbauen (simulation/mutation.py) -- nur zum "
@@ -261,6 +263,8 @@ def _schritte(args):
         grund = skript.SCHRITTE
     elif gewaehlt == "birk":
         grund = skript.SCHRITTE_BIRK
+    elif gewaehlt == "padua":
+        grund = skript.SCHRITTE_PADUA
     elif ist_tag1(args):
         grund = skript.SCHRITTE_TAG2
     elif ist_birk(args):

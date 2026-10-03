@@ -244,6 +244,9 @@ class Schleifenergebnis:
     runden: list = field(default_factory=list)
     grund: str = GRUND_KEINE_AUFTRAEGE
     meldung: str = ""
+    #: ``True``, wenn ein Schaden erkannt und die bessere, fruehere Fassung
+    #: wiederhergestellt wurde (``behalte_bessere=True`` an ``schliesse``).
+    wiederhergestellt: bool = False
 
     @property
     def bilanzen(self) -> list:
@@ -287,7 +290,9 @@ class Schleifenergebnis:
 
 
 def schliesse(conn, tg, klm, e, chat_id: int, *, richter=None,
-              runden_max: int = RUNDEN_MAX, schreiber=None) -> Schleifenergebnis:
+              runden_max: int = RUNDEN_MAX, schreiber=None,
+              fragen=None, szenen=None, mechanik: bool = True,
+              behalte_bessere: bool = False) -> Schleifenergebnis:
     """pruefen -> auftraege -> umschreiben -> pruefen -> vergleichen.
 
     **Derselbe Richter ueber alle Runden.** Er wird in Runde 1 gewaehlt und
@@ -299,12 +304,26 @@ def schliesse(conn, tg, klm, e, chat_id: int, *, richter=None,
     fuer einen Aufrufer, der genau weiss, welchen Weg er will. Ohne ihn
     entscheidet die Phase.
 
+    ``fragen``, ``szenen`` und ``mechanik`` reichen unveraendert bis an
+    ``fanout.pruefe`` durch -- diese Schicht baut keine eigene
+    Teilmengenlogik, sie gibt nur weiter (Task 3).
+
+    ``behalte_bessere``: vor jedem Schreiblauf wird der Szenenstand der
+    Gruppe gesichert. Zeigt die naechste Pruefung einen Schaden
+    (``bilanz.geschadet``), wird jede seitdem veraenderte Szene auf diesen
+    Stand zurueckgeschrieben -- die bessere, fruehere Fassung bleibt stehen,
+    nicht die schlechtere. Die Fassungszeilen der verworfenen Runde bleiben
+    in ``szenenfassung`` erhalten (nur anhaengen, nie loeschen, AGENTS.md).
+
     Die Runden zaehlen ausdruecklich hoch (``runde=`` an ``fanout.pruefe``)
     und nicht ueber ``repo.letzte_dramaturgie_runde``: das liest die
     Befundtabelle, und eine Runde ganz ohne Befund wuerde dort keine Spur
     hinterlassen und die naechste dieselbe Nummer bekommen."""
     ergebnis = Schleifenergebnis()
-    lauf = fanout.pruefe(conn, e, klm, chat_id, richter=richter)
+    lauf = fanout.pruefe(
+        conn, e, klm, chat_id, richter=richter,
+        fragen=fragen, szenen=szenen, mechanik=mechanik,
+    )
     richter = lauf.richter
     ergebnis.runden.append(Runde(nummer=lauf.runde, ergebnis=lauf))
     if schreiber is None:
@@ -328,6 +347,7 @@ def schliesse(conn, tg, klm, e, chat_id: int, *, richter=None,
             ergebnis.grund = GRUND_RUNDENLIMIT
             break
 
+        stand = schnappschuss(conn, chat_id) if behalte_bessere else None
         try:
             aktuell.ueberarbeitet = schreiber(
                 conn, tg, klm, e, chat_id, aktuell.auftraege
@@ -345,7 +365,8 @@ def schliesse(conn, tg, klm, e, chat_id: int, *, richter=None,
             break
 
         naechste = fanout.pruefe(
-            conn, e, klm, chat_id, richter=richter, runde=aktuell.nummer + 1
+            conn, e, klm, chat_id, richter=richter, runde=aktuell.nummer + 1,
+            fragen=fragen, szenen=szenen, mechanik=mechanik,
         )
         vergleich = bilanz_modul.baue(
             aktuell.ergebnis.bewertungen, naechste.bewertungen,
@@ -356,10 +377,46 @@ def schliesse(conn, tg, klm, e, chat_id: int, *, richter=None,
         )
         if vergleich.geschadet:
             _merke_schaden(conn, e, chat_id, vergleich)
+            if stand is not None:
+                ergebnis.wiederhergestellt = stelle_wieder_her(conn, chat_id, stand)
             ergebnis.grund = GRUND_GESCHADET
             break
     ergebnis.meldung = ergebnis.meldung or GRUENDE.get(ergebnis.grund, "")
     return ergebnis
+
+
+#: Die Szenenfelder, die ein Schnappschuss vor einer Ueberarbeitung festhaelt
+#: -- genau die, die ``repo.aktualisiere_szene`` schreiben kann.
+_TEXTFELDER = ("titel", "kurzbeschreibung", "volltext", "zusammenfassung", "prosa")
+
+
+def schnappschuss(conn, chat_id: int) -> dict[int, dict]:
+    """Die Szenen vor einer Ueberarbeitung -- fuer ``behalte_bessere``.
+
+    Oeffentlich, weil ``prueflauf.py`` (Task 6) denselben Stand fuer seine
+    eigene Zitatwache braucht."""
+    return {s["id"]: {f: s[f] for f in _TEXTFELDER} for s in repo.hole_szenen(conn, chat_id)}
+
+
+def stelle_wieder_her(conn, chat_id: int, stand: dict[int, dict]) -> bool:
+    """Schreibt jede Szene zurueck, deren Text sich seit dem Schnappschuss
+    geaendert hat. Die Fassungszeilen der verworfenen Runde bleiben in
+    ``szenenfassung`` stehen (nur anhaengen, nie loeschen).
+
+    ``repo.aktualisiere_szene`` schreibt ``volltext``/``prosa`` nur, wenn sie
+    nicht ``None`` sind -- ein alter Wert ``None`` liesse sich damit nicht
+    zurueck auf ``None`` setzen. Das kommt hier nicht vor: eine Ueberarbeitung
+    erzeugt in den Prosa-Phasen keinen Theatertext und umgekehrt, der
+    Schnappschuss und der neue Stand haben also immer dieselbe Form."""
+    geaendert = False
+    for s in repo.hole_szenen(conn, chat_id):
+        alt = stand.get(s["id"])
+        if alt is None or all(s[f] == alt[f] for f in _TEXTFELDER):
+            continue
+        repo.aktualisiere_szene(conn, s["id"], alt["titel"], alt["kurzbeschreibung"],
+                                alt["volltext"], alt["zusammenfassung"], prosa=alt["prosa"])
+        geaendert = True
+    return geaendert
 
 
 def _merke_schaden(conn, e, chat_id: int, vergleich) -> None:

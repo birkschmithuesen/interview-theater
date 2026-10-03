@@ -2877,6 +2877,42 @@ _PROBE_PLANUNG = (("was_passiert", "Was passiert"), ("was_anders", "Was anders i
 
 TEXT_UNGESCHRIEBEN = "Noch nicht geschrieben."
 
+#: Die zwei aufklappbaren Bloecke unter einer Szene (Padua Phasen TEIL 2,
+#: Aufgabe 12): die frueheren Fassungen und die Erstfassung vor der Pruefung.
+_TEXT_FRUEHERE = "Fruehere Fassungen ({anzahl})"
+_TEXT_ERSTE_FASSUNG = "Erste Fassung (vor der Pruefung)"
+
+
+def _fassungen_bloecke_html(s: dict, aktuell: str) -> str:
+    """Fruehere Fassungen und Erstfassung als ``<details>`` -- oder nichts.
+
+    Die Werte kommen ueber die Szene selbst (``_fassungen``, ``_erstentwurf``,
+    gesetzt in ``textbuch_koerper``), damit sich die Signatur von
+    ``_probe_szene_html`` fuer niemanden aendert. Rein lesend; zugeklappt,
+    damit das Stueck am Stueck lesbar bleibt. Die aktuelle Fassung steht
+    nicht noch einmal darin."""
+    teile = []
+    fassungen = s.get("_fassungen") or []
+    if len(fassungen) >= 2:
+        frueher = [f for f in fassungen if (f.get("volltext") or "").strip() != aktuell]
+        if frueher:
+            texte = "".join(
+                f'<div class="text"><p class="prosa">{_t(f["volltext"])}</p></div>'
+                for f in frueher
+            )
+            teile.append(
+                f'<details class="fruehere"><summary>'
+                f'{_t(T._TEXT_FRUEHERE.format(anzahl=len(frueher)))}</summary>'
+                f"{texte}</details>"
+            )
+    erst = (s.get("_erstentwurf") or "").strip()
+    if erst:
+        teile.append(
+            f'<details class="erstentwurf"><summary>{_t(T._TEXT_ERSTE_FASSUNG)}</summary>'
+            f'<div class="text"><p class="prosa">{_t(erst)}</p></div></details>'
+        )
+    return "".join(teile)
+
 
 def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
     """Eine Szene in der Probenansicht: Kopf, Angaben, Besetzung, Text.
@@ -2934,6 +2970,9 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
             )
         if planung:
             zeilen.append(f'<dl class="planung">{planung}</dl>')
+    bloecke = _fassungen_bloecke_html(s, volltext or prosa)
+    if bloecke:
+        zeilen.append(bloecke)
     return f'<section class="probe-szene">{"".join(zeilen)}</section>', sprecher
 
 
@@ -3026,6 +3065,19 @@ body[data-schrift="klein"] .text { font-size: 1rem; line-height: 1.45; }
         opacity: 1; background: none; border: 0; padding: 0; margin-left: 0; }
   .sprecher { font-weight: 700; }
   .angaben, .besetzung { opacity: 1; font-size: 10pt; }
+}
+"""
+
+#: Eigene Konstante statt Zusatz zu ``_CSS_TEXTBUCH``: dessen Wortlaut ist
+#: im Text-Schnappschuss festgehalten (Dortmund bitgleich).
+_CSS_TEXTBUCH_FASSUNGEN = """
+details.fruehere, details.erstentwurf { margin: .6rem 0 0; font-size: .92rem; }
+details.fruehere summary, details.erstentwurf summary { cursor: pointer;
+    font-size: .85rem; opacity: .7; }
+details.fruehere .text, details.erstentwurf .text { border-left: 2px solid #ddd8cc;
+    padding-left: .6rem; opacity: .8; }
+@media print {
+  details.fruehere, details.erstentwurf { display: none; }
 }
 """
 
@@ -3127,7 +3179,14 @@ def textbuch_koerper(
     bekannte = {(f["name"] or "").upper() for f in daten["figuren"] if f.get("name")}
     abschnitte = []
     sprecher: list[str] = []
+    fassungen = daten.get("fassungen") or {}
+    erstentwuerfe = daten.get("erstentwuerfe") or {}
     for s in daten["szenen"]:
+        s = {
+            **s,
+            "_fassungen": fassungen.get(s.get("id")) or [],
+            "_erstentwurf": erstentwuerfe.get(s.get("id")),
+        }
         html_stueck, gefunden = _probe_szene_html(s, bekannte)
         abschnitte.append(html_stueck)
         for name in gefunden:
@@ -3180,7 +3239,7 @@ def textbuch_html(
     kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
     return _seite(
         kopfzeile,
-        _CSS_TEXTBUCH,
+        _CSS_TEXTBUCH + _CSS_TEXTBUCH_FASSUNGEN,
         textbuch_koerper(daten, token, praefix),
         nachladen=False,
         skript=_TEXTBUCH_JS,

@@ -1671,6 +1671,21 @@ TEXT_AUFTRAG_SCHREIBEN = "Schreib Szene {nummer}."
 TEXT_AUFTRAG_NEU = "Schreib Szene {nummer} neu. {notiz}"
 
 
+def ueberarbeitungsauftrag(conn, chat_id: int, nummer: int, notiz: str) -> str:
+    """Der Auftragssatz fuer eine Ueberarbeitung -- derselbe Wortlaut wie
+    beim Kuerzen (``kuerzung.py:184``) und im Nachpass (``nachpass.py``),
+    nicht ein zweiter: zwei Saetze fuer denselben Auftrag waeren zwei
+    Wahrheiten. Ueber ``T``, nicht die Modulkonstante direkt -- unter einem
+    englischen Profil also englisch.
+
+    Im Prosalauf (Phase 6 und frueher, ``schreibt_prosa``) haengt
+    ``BISHER_MARKER`` an die Notiz -- ohne ihn saehe das Modell die
+    bestehende Prosa der Szene nicht, weil ``volltext`` dort leer ist, und
+    schriebe sie neu statt sie zu ueberarbeiten."""
+    zusatz = f" {BISHER_MARKER}" if schreibt_prosa(conn, chat_id) else ""
+    return T.TEXT_AUFTRAG_NEU.format(nummer=nummer, notiz=notiz + zusatz)
+
+
 #: Der Kopf ueber der Prosafassung im Feinschliff-Prompt (Phase 7,
 #: 06.09.2026, 10:30). Die Geschichte ist dort **bindende Vorlage**: was
 #: entsteht, ist eine Uebersetzung in eine Form, keine neue Szene.
@@ -2272,10 +2287,16 @@ def _pruefe_budget(conn, chat_id: int, ueber_claude: bool) -> None:
 
 
 def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
-             art: str = ART, bei_teil=None) -> int:
+             art: str = ART, bei_teil=None, zeigen: bool = True) -> int:
     """Der eigentliche Szenen-Aufruf: Prompt bauen, Modell fragen, Szene
     speichern, Journal schreiben, Vorschau in die Gruppe schicken. Liefert
     die Nummer der geschriebenen Szene.
+
+    ``zeigen`` (Padua Phasen TEIL 2): mit ``False`` passiert alles bis auf
+    ``_sende_szenentext`` -- Speichern, Fassung anhaengen und Journal
+    bleiben gleich, nur die Vorschau samt Knopfleiste faellt weg. Das ist
+    der Einhaengepunkt des Prueflaufs: er schreibt und prueft zuerst, und
+    zeigt erst die gepruefte Fassung.
 
     Laeuft im Thread aus ``starte()``; wer sie direkt aufruft (Tests, ein
     kuenftiger Stapellauf), bekommt sie synchron und muss sich selbst um die
@@ -2410,7 +2431,12 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
     # mit denen die Szene angenommen, geaendert, neu geschrieben oder
     # verlassen wird (``knoepfe.biete_nach_szenentext``) -- vorher stand der
     # Text einfach da und niemand wusste, was jetzt dran ist.
-    _sende_szenentext(conn, tg, e, chat_id, nummer, titel, volltext)
+    #
+    # ``zeigen=False`` (Padua Phasen TEIL 2): der Prueflauf schreibt und
+    # prueft zuerst und zeigt erst die gepruefte Fassung -- hier faellt nur
+    # die Vorschau weg, gespeichert und journalisiert ist die Szene schon.
+    if zeigen:
+        _sende_szenentext(conn, tg, e, chat_id, nummer, titel, volltext)
     return nummer
 
 
@@ -2471,15 +2497,40 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
     # zwei Minuten Lesen. Hier und nicht in ``schreibe`` (Fix-Runde 1,
     # Befund 2): der Nachpass ruft ``schreibe`` direkt und soll unsichtbar
     # bleiben.
-    senke = strom.senke(tg, chat_id, "szene")
+    from interview_theater import prueflauf
+
+    # Padua Phasen TEIL 2: mit dem Prueflauf wird still geschrieben, geprueft
+    # (der Prueflauf laesst den Nachpass selbst laufen) und erst dann ein
+    # Hinweis gezeigt -- nie der Volltext. Nur nach einem GEWOEHNLICHEN Lauf,
+    # wie der Nachpass; ohne Profilschalter bleibt alles wie bisher.
+    pruefen = art == ART and prueflauf.aktiv()
+    # Mit dem Prueflauf auch KEIN Strom (Fix-Runde 1): die Senke zeigte im
+    # Browser den ungeprueften Erstentwurf live als Blase -- genau der
+    # Volltext, der im Chat nicht stehen soll. Die Arbeitszeile bleibt.
+    senke = None if pruefen else strom.senke(tg, chat_id, "szene")
     try:
         nummer = schreibe(conn, tg, klm, e, chat_id, auftrag, art=art,
-                          bei_teil=senke)
+                          bei_teil=senke, zeigen=not pruefen)
+        if pruefen:
+            from interview_theater import knoepfe
+
+            bericht = prueflauf.pruefe_szene(conn, tg, klm, e, chat_id, nummer)
+            # Die Arbeitszeile endet VOR dem Hinweis, wie in
+            # ``kurzgeschichte._lauf``; das ``finally`` bleibt Netz
+            # (``stoppe`` ist idempotent).
+            zeilen.stoppe()
+            # Eigenes ``try``: die Szene steht schon -- eine gescheiterte
+            # Anzeige ist kein gescheiterter Lauf.
+            try:
+                knoepfe.zeige_geprueft_szene(conn, tg, e, chat_id, nummer, bericht)
+            except Exception:
+                log.exception("Anzeige nach dem Prueflauf gescheitert, chat_id=%s",
+                              chat_id)
         # ``art == ART``: der Nachpass nur nach einem GEWOEHNLICHEN Lauf. Er
         # selbst ruft ``schreibe`` direkt und kommt hier nie vorbei -- die
         # Bedingung ist die zweite Wache gegen eine Schleife, kein Ersatz
         # fuer die erste. Ohne aktives Profil ist ``nach_szene`` ein No-Op.
-        if art == ART:
+        elif art == ART:
             from interview_theater import nachpass
 
             # Eigenes ``try`` (Schlussreview I1): die Szene ist hier schon

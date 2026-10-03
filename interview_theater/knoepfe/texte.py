@@ -961,6 +961,42 @@ _TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN = "Alles klar -- ich schreibe jetzt die na
 _TEXT_ALLE_SZENEN_ENTWORFEN = "Alle Szenen haben einen Entwurf. Weiter geht's mit der Ueberarbeitung."
 
 
+# --- Padua Phasen TEIL 2 (03.10.2026): Pruefen vor jeder Anzeige ----------
+
+#: "Erste Fassung zeigen" unter dem Hinweis nach einem Prueflauf
+#: (``szenen.zeige_geprueft_szene``/``zeige_geprueft_geschichte``). ``wert``
+#: ist die Szenennummer, ``""`` heisst die ganze Geschichte. Kein
+#: Modellaufruf: der Knopf sagt nur, wo die Fassung steht.
+ART_ERSTENTWURF = "erstentwurf"
+#: Der Hinweis statt des Volltexts (Padua: kein Volltext im Chat).
+_TEXT_SZENE_BEREIT = "Szene {nummer} von {gesamt} ist fertig: {titel}."
+_TEXT_GESCHICHTE_BEREIT = "Die ganze Geschichte steht ({gesamt} Szenen)."
+#: Wo der Text steht: im Web-Kanal der Tab, in Telegram der Link darauf.
+_TEXT_SKRIPT_TAB = "Lest sie im Script-Tab."
+_TEXT_SKRIPT_LINK = "Lest sie im Script-Tab: {url}"
+_TEXT_ERSTENTWURF_KNOPF = "Erste Fassung zeigen"
+_TEXT_ERSTENTWURF = "Die Fassung vor der Pruefung steht im Script-Tab unter \"Erste Fassung\"."
+_TEXT_KEIN_ERSTENTWURF = "Dazu gibt es noch keine fruehere Fassung."
+#: Hoechstens so viele Zeichen der Zusammenfassung im Hinweis.
+HINWEIS_ZUSAMMENFASSUNG_MAX = 300
+
+#: Phase 7 (Stage Version, Task 9): die Sprechweisen aller Figuren in EINER
+#: Nachricht, "Yes, save" / "No, change it again" darunter. Kein
+#: Modellaufruf in den Handlern -- "No" fragt nur nach; die Antwort im Chat
+#: setzt der Erkenner (``sprechweise_setzen``, Task 10).
+ART_SPRECHWEISEN_PASST = "sprechweisen_passt"
+ART_SPRECHWEISEN_ANDERS = "sprechweisen_anders"
+_TEXT_SPRECHWEISEN_KOPF = "So spricht jede Figur:"
+_ZEILE_SPRECHWEISE = "- {name}: {sprachstil}"
+#: Steht, solange eine Figur noch keine Sprechweise hat (der Lauf ist
+#: gescheitert) -- sie laesst sich im Chat setzen.
+_TEXT_SPRECHWEISE_OFFEN = "(noch offen -- sagt mir, wie sie spricht)"
+_TEXT_SPRECHWEISEN_AENDERN = (
+    "Sagt mir, wer anders sprechen soll -- etwa so: \"Mira: kurze Saetze, "
+    "viel Slang\""
+)
+
+
 # --- Verarbeitung ---------------------------------------------------------
 
 

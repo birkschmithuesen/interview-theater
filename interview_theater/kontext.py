@@ -879,6 +879,15 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
     stufe = phasen.offenes_angebot(conn, chat_id)
     if stufe is None:
         return ""
+    # Padua Phasen TEIL 2, Abschlussreview (Fix-Runde 2): die zwei
+    # Uebergaenge, die Paduas Zustandsmaschine selbst vollzieht (5->6,
+    # 6->7), fragt auch der Prompt nicht an -- dieselbe Wache wie beim
+    # proaktiven Angebot (``knoepfe.stationen._springt_selbst``). Ohne den
+    # Schalter (Dortmund) immer False.
+    from interview_theater.knoepfe import stationen
+
+    if stationen._springt_selbst(conn, chat_id, stufe):
+        return ""
     phasen.merke_angebot(conn, chat_id, stufe)
     return T._PHASENHINWEIS.format(bezeichnung=phasen.bezeichnung(stufe))
 

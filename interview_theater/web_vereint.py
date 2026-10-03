@@ -1144,7 +1144,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     css = (
         _CSS_VEREINT
         + scope_css(web._CSS_GRUPPE, ".panel-stand")
-        + scope_css(web._CSS_TEXTBUCH, ".panel-textbuch")
+        + scope_css(web._CSS_TEXTBUCH + web._CSS_TEXTBUCH_FASSUNGEN, ".panel-textbuch")
         + scope_css(web._CSS_BUEHNE, ".panel-buehne")
     )
     if chat_vorhanden:

@@ -666,6 +666,17 @@ def ist_erfundene_systemzeile(text: str | None) -> bool:
                for muster in (_SYSTEMZEILE, _SYSTEMZEILE_EN))
 
 
+#: Padua Phasen TEIL 2 / Flow-Audit B2: der Gespraechs-Bot schrieb "Noted:"
+#: ohne dass etwas geschrieben war. "Noted:" ist der Kopf der
+#: Erkenner-Meldung (erkenner._NOTIERT_KOPF, englisch) -- im Gespraechszug
+#: ist er immer erfunden.
+_NOTIERT_ERFUNDEN_EN = re.compile(r"^\s*noted\b", re.IGNORECASE)
+
+
+def ist_erfundenes_notiert(text: str | None) -> bool:
+    return _NOTIERT_ERFUNDEN_EN.search((text or "")) is not None
+
+
 #: Angekuendigte Phrasen, die ohne Doppelpunkt enden und trotzdem nichts
 #: liefern (Padua-Befund 02.10.2026, Nachricht 22/24: "I see the button list
 #: didn't come through. I'll try once more with the block format." --
@@ -904,6 +915,11 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             versand_erfolgreich = True
             return
 
+        if _erfundenes_notiert(conn, e, chat_id, text):
+            strom.verwirf(tg, chat_id)
+            versand_erfolgreich = True
+            return
+
         if _wiederholt_die_vorige(conn, e, chat_id, text, letzte_message_id):
             strom.verwirf(tg, chat_id)
             versand_erfolgreich = True
@@ -1012,6 +1028,29 @@ def _erfundene_systemzeile(conn, e, chat_id: int, text: str) -> bool:
     return True
 
 
+def _erfundenes_notiert(conn, e, chat_id: int, text: str) -> bool:
+    """Ein "Noted: ..." aus dem Gespraechszug (Flow-Audit B2) wird ersatzlos
+    verworfen, mit Vorfall -- wie eine erfundene Systemzeile. Nur in Padua
+    (``ueberarbeitung.aktiv()``) und nur in den Phasen 6 und 7: dort sagte
+    der Bot "Noted" zu einer Rueckmeldung zum Text, und nichts war
+    geschrieben."""
+    from interview_theater import ueberarbeitung
+
+    if not ueberarbeitung.aktiv() or not ist_erfundenes_notiert(text):
+        return False
+    if phasen.aktuelle(conn, chat_id) not in (
+            ueberarbeitung.PHASE_UEBERARBEITUNG, ueberarbeitung.PHASE_BUEHNE):
+        return False
+    log.info("Erfundenes Notiert verworfen, chat_id=%s", chat_id)
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None),
+        "gespraech_notiert_erfunden",
+        "Antwort begann mit \"Noted\", ohne dass der Erkenner etwas "
+        "geschrieben hatte",
+    )
+    return True
+
+
 def _melde_fehler(conn, tg, e, chat_id: int, versand_erfolgreich: bool) -> None:
     """Der Vorfall zum gescheiterten Zug -- und die Zeile an die Gruppe, aber
     nur, wenn sie noch KEINE Antwort bekommen hat.
@@ -1055,6 +1094,49 @@ def _zug_faellt_aus(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> bool:
     return _szene_hat_vorfahrt(
         conn, tg, klm, e, chat_id, letzte_nachricht
     ) or _war_die_erwartete_antwort(conn, tg, klm, e, chat_id, letzte_nachricht)
+
+
+#: Welche Nachricht schon als Regie-Notiz verbraucht wurde (Padua Phasen TEIL
+#: 2, Abschlussreview Fix 3): chat_id -> message_id. ``bot._zug_und_erkenner``
+#: laesst ERST ``bearbeite`` laufen (die Notiz nach "No, change it again"
+#: startet die Ueberarbeitung und nimmt die Sperre), DANN den Erkenner auf
+#: derselben Nachricht -- der las sie als ``text_ueberarbeiten`` und meldete
+#: "laeuft noch" ueber genau den Lauf, den die Nachricht gerade selbst
+#: gestartet hatte. Ein Eintrag je Gruppe, im Prozess (wie
+#: ``szenenfolge._regienotiz_erwartet``); ein Neustart verliert ihn, und dann
+#: kommt hoechstens die alte, harmlose Zeile.
+_notiz_verbraucht: dict[int, int] = {}
+_notiz_verbraucht_schutz = threading.Lock()
+
+
+def _merke_notiz_verbraucht(chat_id: int, letzte_nachricht) -> None:
+    """Nur mit ``ueberarbeitung.aktiv()`` -- nur dort liest der Erkenner
+    dieselbe Nachricht noch einmal als Ueberarbeitung (Dortmund unveraendert)."""
+    from interview_theater import ueberarbeitung
+
+    if not ueberarbeitung.aktiv():
+        return
+    try:
+        message_id = letzte_nachricht["message_id"]
+    except (KeyError, IndexError, TypeError):
+        return
+    if message_id is None:
+        return
+    with _notiz_verbraucht_schutz:
+        _notiz_verbraucht[chat_id] = message_id
+
+
+def nimm_notiz_verbraucht(chat_id: int, message_ids) -> bool:
+    """War eine dieser Nachrichten (der Stapel eines Erkennerlaufs) schon eine
+    Regie-Notiz, die ``bearbeite`` verbraucht hat? Raeumt den Eintrag dabei
+    ab -- eine Nachricht, ein Lauf. Ein Eintrag fuer eine Nachricht AUSSERHALB
+    des Stapels bleibt stehen (ein anderer, gleichzeitiger Lauf)."""
+    with _notiz_verbraucht_schutz:
+        message_id = _notiz_verbraucht.get(chat_id)
+        if message_id is None or message_id not in set(message_ids):
+            return False
+        del _notiz_verbraucht[chat_id]
+        return True
 
 
 def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> bool:
@@ -1113,7 +1195,23 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     # Auftrag in den Szenenlauf, nicht in den Gespraechszug. Ohne das
     # bekaeme die Gruppe eine freundliche Gespraechsantwort statt einer
     # neuen Fassung, und die Notiz waere verloren.
+    # Padua Phasen TEIL 2 (Phase 6/7, Rewrite/Stage Version): beide Notizen
+    # gehen ueber den EINEN Rueckmeldeweg ``ueberarbeitung.ueberarbeite`` --
+    # in der Prosa-Phase traegt der Auftrag dort ``BISHER_MARKER``, sonst
+    # saehe das Modell die bestehende Prosa nicht. Ohne den Schalter (und in
+    # Phase 5) bleiben die Aufrufe unten zeichengleich.
+    from interview_theater import phasen, ueberarbeitung
+
+    ueber = (ueberarbeitung.aktiv()
+             and phasen.aktuelle(conn, chat_id) in (6, 7))
     nummer = szenenfolge.nimm_regienotiz(chat_id)
+    if nummer is not None and (letzte_nachricht["text"] or "").strip():
+        _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+    if ueber and nummer is not None and (letzte_nachricht["text"] or "").strip():
+        ueberarbeitung.ueberarbeite(
+            conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip(),
+            nummer=nummer)
+        return True
     if nummer is not None and (letzte_nachricht["text"] or "").strip():
         szene.starte(
             conn, tg, klm, e, chat_id,
@@ -1131,6 +1229,15 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     ).strip():
         from interview_theater import kurzgeschichte
 
+        _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+
+        # Die Geschichte-Notiz geht nur in Phase 6 (Rewrite) ueber den
+        # Rueckmeldeweg; ohne Ziel sagt ``ueberarbeite`` das selbst
+        # (``_TEXT_KEIN_ZIEL``), statt die Notiz zu verschlucken.
+        if ueber and phasen.aktuelle(conn, chat_id) == 6:
+            ueberarbeitung.ueberarbeite(
+                conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip())
+            return True
         kurzgeschichte.starte(
             conn, tg, klm, e, chat_id, letzte_nachricht["text"].strip(),
         )

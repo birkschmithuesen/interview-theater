@@ -448,6 +448,9 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- derselbe Zeitstempel-Charakter wie figuren_fixiert_am. Erst danach
   -- beginnt Stufe B (Szene fuer Szene).
   geschichte_uebersicht_fixiert_am TEXT,
+  -- Padua Phasen TEIL 2: Phase 6.1 (Gesamttext) und 7.2 (Sprechweisen) abgenommen.
+  gesamttext_fixiert_am TEXT,
+  sprechweisen_fixiert_am TEXT,
   -- Merkposten fuer den Knopf "Interviews fertig" im Web-Kanal (Phase 3,
   -- 02.10.2026): gesetzt (ISO-Zeitstempel), solange die Gruppe "Interviews
   -- fertig" gedrueckt hat, aber noch mindestens ein beendetes Interview ohne
@@ -597,6 +600,10 @@ CREATE TABLE IF NOT EXISTS szene (
   -- ("Passt"-Knopf unter einem geschriebenen Szenentext) -- zwei
   -- verschiedene Abnahmen in zwei verschiedenen Phasen, zwei Spalten.
   entwurf_bestaetigt_am TEXT,
+  -- Padua Phasen TEIL 2: Nummer der szenenfassung VOR dem letzten
+  -- Prueflauf ("Show first draft"); und die Abnahme in Phase 6.2.
+  erstentwurf_fassung INTEGER,
+  ueberarbeitung_bestaetigt_am TEXT,
   -- Alle frueheren Fassungen dieser Szene, durch
   -- szenenfolge.FASSUNGSTRENNER getrennt. "Passt, aber anders" schreibt die
   -- Szene neu -- die alte Fassung wird dabei nicht weggeworfen: eine Gruppe,
@@ -823,6 +830,26 @@ CREATE TABLE IF NOT EXISTS dramaturgie_bewertung (
 );
 CREATE INDEX IF NOT EXISTS idx_dramaturgie_bewertung_chat
   ON dramaturgie_bewertung(chat_id, runde);
+
+-- Padua Phasen TEIL 2 (03.10.2026): eine Zeile je Prueflauf vor einer
+-- Anzeige -- Rundenzahl, Dauer, ob die zweite Pruefung noch Auftraege
+-- hatte. Die Messgrundlage fuer RUNDEN_MAX = 2.
+CREATE TABLE IF NOT EXISTS prueflauf (
+    id INTEGER PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    phase INTEGER,
+    ziel TEXT NOT NULL,              -- 'szene' | 'geschichte'
+    szene_nummer INTEGER,
+    fragen TEXT,
+    runden INTEGER NOT NULL,         -- Zahl der Bewertungsrunden (fanout.pruefe)
+    ueberarbeitungen INTEGER NOT NULL,
+    auftraege_je_runde TEXT,         -- z. B. "3,1,0"
+    zweite_runde_mit_auftraegen INTEGER NOT NULL DEFAULT 0,
+    grund TEXT,
+    verworfen TEXT,                  -- NULL | 'verschlechterung' | 'zitat'
+    dauer_ms INTEGER,
+    erstellt_am TEXT NOT NULL
+);
 
 -- Wer in einer Szene vorkommt: nur Figuren aus dem Arbeitsstand, deshalb eine
 -- Verknuepfung und keine Namensliste in einem Textfeld. Eine weich geloeschte
@@ -1146,6 +1173,8 @@ TABELLEN_MIT_CHAT_ID = (
     "web_strom",
     "vorfall",
     "aufruf",
+    # Padua Phasen TEIL 2 (03.10.2026): das Protokoll jedes Prueflaufs.
+    "prueflauf",
 )
 
 

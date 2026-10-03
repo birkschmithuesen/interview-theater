@@ -12,7 +12,9 @@ Laeufe vom 05.09.2026 und bleibt deshalb unveraendert -- sie steuert die
 Phasen NICHT an (kein ``art='phase'``-Schritt) und kennt eine Station
 'Kernthema', die es seit dem 06.09. nicht mehr gibt. ``SCHRITTE_TAG2`` ist
 das Skript der heutigen **sieben** Phasen aus ``phasen.PHASEN``.
-``SCHRITTE_BIRK`` faehrt echtes Material. Welche gefahren wird, entscheidet
+``SCHRITTE_BIRK`` faehrt echtes Material. ``SCHRITTE_PADUA`` faehrt die
+Phasen 5 bis 7 im neuen Padua-Ablauf (Erstentwurf, Ueberarbeitung,
+Buehnenfassung). Welche gefahren wird, entscheidet
 ``scripts.simulation._schritte`` (Schalter ``--skript``).
 
 **Datengetrieben, nicht hart codiert.** Die Phasen kommen aus
@@ -804,4 +806,137 @@ SCHRITTE_TAG2: tuple[Schritt, ...] = (
         befehl="/stand",
         max_nachrichten=1,
     ),
+)
+
+
+# ---------------------------------------------------------------------------
+# Das Padua-Skript -- ``--skript padua`` (Padua Phasen TEIL 2, Task 14)
+# ---------------------------------------------------------------------------
+#
+# Bis zur Geschichte (Phase 4) dasselbe wie ``SCHRITTE_TAG2``; danach der
+# neue Ablauf: Phase 5 ist der Erstentwurf (Uebersicht, dann Szene fuer
+# Szene im Script-Tab), Phase 6 die Ueberarbeitung (erst das Ganze, dann je
+# Szene), Phase 7 die Buehnenfassung (Formen, Sprechweisen, je Szene, die
+# Stueckpruefung). Der Ablauf greift nur mit ``IT_WORKSHOP=padua-2026``
+# (``workshop.ueberarbeitung_aktiv``) -- das Profil kommt aus der Umgebung,
+# nicht aus diesem Schalter.
+#
+# Die Phasenschritte 6 und 7 stehen als Marken da: im neuen Ablauf wechselt
+# die Phase von selbst (das Abnehmen der letzten Szene schaltet weiter), ihr
+# Zielzustand ist also meist schon erreicht und sie kosten keine Nachricht.
+# Ohne sie ordnete der Abdeckungszensus (``phase_je_schritt``) alles ab dem
+# Entwurf der Phase 5 zu; und bleibt ein Wechsel aus, greift derselbe
+# Notweg wie in ``SCHRITTE_TAG2`` -- als Befund ``phasenwechsel_selbst``.
+
+
+def _fertig_entwurf(conn, chat_id, merker):
+    """Phase 5 ist durch, wenn die Gruppe in Phase 6 steht -- das Abnehmen
+    der letzten Entwurfsszene schaltet selbst weiter."""
+    return phasen.aktuelle(conn, chat_id) >= PHASE_PROSA
+
+
+def _fertig_gesamt6(conn, chat_id, merker):
+    """Phase 6, erster Teil: der Gesamttext ist fixiert."""
+    from interview_theater import ueberarbeitung
+
+    return ueberarbeitung.gesamttext_fixiert(conn, chat_id)
+
+
+def _fertig_szenen6(conn, chat_id, merker):
+    """Phase 6, zweiter Teil: jede Szene abgenommen -- die letzte schaltet
+    in Phase 7 weiter."""
+    return phasen.aktuelle(conn, chat_id) >= PHASE_FEINSCHLIFF
+
+
+def _fertig_formen7(conn, chat_id, merker):
+    """Jede Szene hat eine bestaetigte ``form``. Ohne Szenen nie fertig --
+    sonst waere der Schritt bei einem leeren Stueck still durch."""
+    from interview_theater import ueberarbeitung
+
+    return (bool(ueberarbeitung.szenennummern(conn, chat_id))
+            and not ueberarbeitung.formen_offen(conn, chat_id))
+
+
+def _fertig_sprechweisen7(conn, chat_id, merker):
+    """Die Sprechweisen der Figuren sind fixiert."""
+    from interview_theater import ueberarbeitung
+
+    return ueberarbeitung.sprechweisen_fixiert(conn, chat_id)
+
+
+def _fertig_buehne7(conn, chat_id, merker):
+    """Jede Szene traegt ``fertig_am`` (Buehnenfassung abgenommen)."""
+    szenen = [s for s in repo.hole_szenen(conn, chat_id) if s["nummer"] is not None]
+    return bool(szenen) and all(s["fertig_am"] for s in szenen)
+
+
+def _fertig_pruefung7(conn, chat_id, merker):
+    """Die Stueckpruefung hat mindestens eine Runde geschrieben."""
+    return repo.letzte_pruefrunde(conn, chat_id) >= 1
+
+
+def _bis_zur_geschichte() -> tuple[Schritt, ...]:
+    schluessel = [s.schluessel for s in SCHRITTE_TAG2]
+    return SCHRITTE_TAG2[: schluessel.index("geschichte") + 1]
+
+
+#: Das Skript des Padua-Ablaufs: Phasen 1-4 wie ``SCHRITTE_TAG2``, danach
+#: Erstentwurf, Ueberarbeitung und Buehnenfassung. Kein bezahlter Lauf in
+#: der Testsuite -- der Befehl dafuer steht in ``simulation/README.md``.
+SCHRITTE_PADUA: tuple[Schritt, ...] = _bis_zur_geschichte() + (
+    _phasenschritt(PHASE_SCHAERFUNG),
+    Schritt(
+        "entwurf",
+        "Phase 5: Uebersicht und Erstentwurf Szene fuer Szene",
+        "Lest die Uebersicht und sagt 'Yes, save'. Danach kommt Szene fuer "
+        "Szene -- lest sie im Script-Tab und drueckt jeweils 'Yes, save'.",
+        _fertig_entwurf,
+        max_nachrichten=12,
+    ),
+    _phasenschritt(PHASE_PROSA),
+    Schritt(
+        "gesamt6",
+        "Phase 6: die ganze Geschichte ueberarbeiten",
+        "Die ganze Geschichte steht im Script-Tab. Sagt in einem Satz, wohin "
+        "sie gehen soll (z. B. 'make it darker'), dann 'Yes, save'.",
+        _fertig_gesamt6,
+    ),
+    Schritt(
+        "szenen6",
+        "Phase 6: Szene fuer Szene ueberarbeiten",
+        "Geht Szene fuer Szene durch: bei Szene 1 sagt ihr eine Aenderung, "
+        "danach jeweils 'Yes, save'.",
+        _fertig_szenen6,
+        max_nachrichten=12,
+    ),
+    _phasenschritt(PHASE_FEINSCHLIFF),
+    Schritt(
+        "formen7",
+        "Phase 7: eine Form je Szene",
+        "Antwortet auf 'Which form for each number?' in einer Nachricht, "
+        "z. B. '1 chorus, 2 dialogue'.",
+        _fertig_formen7,
+    ),
+    Schritt(
+        "sprechweisen7",
+        "Phase 7: wie jede Figur spricht",
+        "Ihr seht, wie jede Figur spricht. Aendert eine Figur per Chat, dann "
+        "'Yes, save'.",
+        _fertig_sprechweisen7,
+    ),
+    Schritt(
+        "buehne7",
+        "Phase 7: Buehnenfassung Szene fuer Szene",
+        "Szene fuer Szene: bei Szene 1 sagt 'make the mother angrier' (oder "
+        "eine passende Figur), danach jeweils 'Yes, save'.",
+        _fertig_buehne7,
+        max_nachrichten=14,
+    ),
+    Schritt(
+        "pruefung7",
+        "Phase 7: Stueckpruefung abwarten",
+        "Wartet die Stueckpruefung ab.",
+        _fertig_pruefung7,
+    ),
+    SCHRITTE_TAG2[-1],
 )

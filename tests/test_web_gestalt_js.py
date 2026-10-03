@@ -196,12 +196,6 @@ def test_der_fortschritt_haengt_nicht_an_einer_festen_sieben(js):
     assert re.search(r"/\s*7\b", js) is None
 
 
-def test_die_akt_beschriftung_kommt_aus_den_mikrotexten(js):
-    """Sonst stuende in Dortmund Englisch und in Padua Deutsch."""
-    assert "TEXTE" in js
-    assert "akt_kopf" in js
-
-
 # -- Die zwei Aufnahmeknoepfe ------------------------------------------------
 
 
@@ -402,5 +396,5 @@ def test_die_platzhalter_stehen_in_geschweiften_klammern():
     liefe ins Leere und stuende woertlich in der Oberflaeche."""
     texte = web_gestalt._mikrotexte()
     assert "{akt}" in texte["belohnung_akt_satz"]
-    assert "{nummer}" in texte["akt_kopf"]
-    assert "{gesamt}" in texte["akt_kopf"]
+    assert "{was}" in texte["naechstes"]
+    assert "{bezeichnung}" in texte["naechste_phase"]

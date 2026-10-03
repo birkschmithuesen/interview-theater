@@ -1,14 +1,18 @@
-""""Was als Naechstes kommt" -- die zweite Kopfzeile, ohne Browser.
+""""Was als Naechstes kommt" -- die Zeile neben "Phase N/7 · Name", ohne
+Browser.
 
 Birk (P2, Aufgabe 2, Punkt 2): "die wichtigen sachen auf einen blick" --
 auf jedem Tab muss in zwei Sekunden klar sein, wo die Gruppe steht UND was
-als Naechstes kommt. Wo sie steht, sagt die Aktzeile von Karte W; was als
-Naechstes kommt, stand bis hierhin nur in der zugeklappten Aktfolge.
+als Naechstes kommt. Wo sie steht, sagt die Phasenzeile von Karte W; was als
+Naechstes kommt, stand bis hierhin nur in der zugeklappten Aktfolge. Seit
+der Kopfzeilen-Karte (P2 Padua) ist das kein eigener Baustein mehr, sondern
+in ``_JS_FORTSCHRITT`` selbst aufgegangen -- diese Datei behaelt ihren Namen,
+weil sie weiterhin nur das "Als Naechstes"-Verhalten prueft.
 
-Die Zeile entsteht aus dem DOM (wie ``_JS_FORTSCHRITT``): die erste noch
-nicht erledigte Aufgabe der aktiven Phase, sonst die naechste Phase, sonst
-nichts. Kein neuer Endpunkt, kein Serverschluessel. Was der Browser daraus
-macht, prueft ``tests/e2e/test_web_gestalt_e2e.py``.
+Die Zeile entsteht aus dem DOM: die erste noch nicht erledigte Aufgabe der
+aktiven Phase, sonst die naechste Phase, sonst nichts. Kein neuer Endpunkt,
+kein Serverschluessel. Was der Browser daraus macht, prueft
+``tests/e2e/test_web_gestalt_e2e.py`` und ``tests/e2e/test_web_kopfzeile_e2e.py``.
 """
 
 import re
@@ -30,8 +34,8 @@ def test_die_texte_kommen_aus_den_mikrotexten():
     texte = web_gestalt._mikrotexte()
     assert "{was}" in texte["naechstes"]
     assert "{bezeichnung}" in texte["naechste_phase"]
-    assert "TEXTE.naechstes" in web_gestalt._JS_NAECHSTES
-    assert "TEXTE.naechste_phase" in web_gestalt._JS_NAECHSTES
+    assert "TEXTE.naechstes" in web_gestalt._JS_FORTSCHRITT
+    assert "TEXTE.naechste_phase" in web_gestalt._JS_FORTSCHRITT
 
 
 def test_die_englischen_texte_sind_uebersetzt(monkeypatch):
@@ -51,7 +55,7 @@ def test_die_zeile_steht_mit_und_ohne_chat_im_skript(mit_chat):
 
 
 def test_die_zeile_liest_nur_das_dom():
-    baustein = web_gestalt._JS_NAECHSTES
+    baustein = web_gestalt._JS_FORTSCHRITT
     assert "el('roadmap')" in baustein
     assert ".phase.aktiv" in baustein
     assert ".aufgabe:not(.erledigt)" in baustein

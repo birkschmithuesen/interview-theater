@@ -271,14 +271,11 @@ _TEXT_REC_PAUSIERT = "Pausiert – nichts wird aufgenommen."
 #: Die Kopfzeile des zugeklappten Leitfadens im Interview-Modus.
 _TEXT_LEITFADEN = "Leitfaden"
 
-#: Die Akt-Marke in der zugeklappten Uebersicht. Sie steht VOR dem Text
-#: von Karte W ("Phase 3 von 7 · Interviews — 1/3"), nicht statt ihm.
-_TEXT_AKT_KOPF = "Akt {nummer}/{gesamt}"
-
-#: Die zweite Kopfzeile unter der Aktzeile (P2, Aufgabe 2, Punkt 2): was
-#: als Naechstes kommt. ``{was}`` ist die erste noch nicht erledigte Aufgabe
-#: der aktiven Phase, wortgleich aus der Aktfolge von Karte W -- oder, wenn
-#: die Phase durch ist, ``_TEXT_NAECHSTE_PHASE``.
+#: Was als Naechstes kommt, neben der Phasenzeile (P2, Aufgabe 2, Punkt 2,
+#: seit der Kopfzeilen-Karte in derselben Zeile statt darunter). ``{was}``
+#: ist die erste noch nicht erledigte Aufgabe der aktiven Phase, wortgleich
+#: aus der Aktfolge von Karte W -- oder, wenn die Phase durch ist,
+#: ``_TEXT_NAECHSTE_PHASE``.
 _TEXT_NAECHSTES = "Als Nächstes: {was}"
 _TEXT_NAECHSTE_PHASE = "Phase {bezeichnung}"
 
@@ -714,6 +711,14 @@ header { position: sticky; top: 0; z-index: 4; background: var(--grund);
                      font-family: var(--schrift-tech); font-size: .9rem;
                      letter-spacing: .04em; }
 .roadmap > summary::-webkit-details-marker { display: none; }
+/* P2/Padua-Kopfzeile-Karte: der fixe Teil der Zusammenfassungszeile --
+   schrumpft bei Bedarf selbst mit Ellipse (ein langer Phasenname plus
+   Fortschrittslichter kann auf 390px schon allein ueber die Breite gehen),
+   aber nie unter seine Mindestbreite ("Phase 4/7" bleibt immer lesbar).
+   Mit festem ``flex: 0 0 auto`` schob ein langer Name "Next up" gemessen
+   komplett aus dem sichtbaren Bereich heraus, statt es zu kuerzen. */
+.roadmap-kopf { flex: 1 1 auto; min-width: 3.5rem; overflow: hidden;
+                text-overflow: ellipsis; white-space: nowrap; }
 .phasen { list-style: none; margin: .4rem 0 .2rem; padding: 0;
           max-height: 58vh; overflow-y: auto; }
 .phase { border-left: 2px solid var(--linie); padding: 0 0 .35rem .55rem;
@@ -761,15 +766,13 @@ body[data-tab="chat"] .roadmap .phasen { max-height: 30vh; }
              border: 1px solid var(--linie); border-radius: var(--radius); }
 #ux-balken i { display: block; height: 100%; width: var(--fortschritt, 0%);
                background: var(--signal); }
-.ux-akt { color: var(--warn); letter-spacing: .1em; margin-right: .4rem; }
-/* P2, Aufgabe 2, Punkt 2: "Als Naechstes: ..." direkt unter der Aktzeile,
-   ueber der Tableiste -- auf jedem Tab im ersten Blick. Eine Zeile, leise,
-   die Sache selbst in der Textfarbe; zu lang wird abgeschnitten statt
-   umgebrochen (die Tableiste darf nicht wandern). */
-#ux-naechstes { max-width: 44rem; margin: -.35rem auto .45rem;
-                padding: 0 .3rem; font-size: .9rem; line-height: 1.35;
+/* P2/Padua-Kopfzeile-Karte: "Next up" ist jetzt ein Flex-Kind INNERHALB
+   derselben Zeile wie "Phase N/7 · Name" -- kein eigener Flex-Zeilen-
+   Teilnehmer mehr, kein negatives Margin, kein Ueberlappen. */
+#ux-naechstes { flex: 1 1 auto; min-width: 0; margin-left: auto;
+                padding: 0 0 0 .4rem; font-size: .9rem; line-height: 1.35;
                 color: var(--text-leise); white-space: nowrap;
-                overflow: hidden; text-overflow: ellipsis; }
+                overflow: hidden; text-overflow: ellipsis; text-align: right; }
 #ux-naechstes[hidden] { display: none; }
 #ux-naechstes b { color: var(--text); font-weight: 600; }
 """
@@ -1481,7 +1484,9 @@ _JS_DENKT = """
 """
 
 
-#: Baustein 2: der Fortschritt in der zugeklappten Aktzeile.
+#: Baustein 2: der Fortschritt in der Phasenzeile, und was als Naechstes
+#: kommt (P2, Aufgabe 2, Punkt 2 -- seit der Kopfzeilen-Karte EINE Funktion
+#: statt zweier getrennter Bausteine, siehe unten).
 #:
 #: Gerechnet aus dem, was ohnehin im DOM steht -- **kein neuer Schluessel
 #: im Zustands-Poll und kein SQL**. In A ist das EIN Balken (Breite ueber
@@ -1492,16 +1497,29 @@ _JS_DENKT = """
 #: Die Zahl 7 steht nirgends: ``phasen.PHASEN`` hat sich seit dem
 #: 04.09.2026 dreimal geaendert, und eine feste Sieben waere beim
 #: naechsten Mal falsch.
+#:
+#: **"Next up" lebt seit der Kopfzeilen-Karte INNERHALB der ``<summary>``**,
+#: als Flex-Kind neben dem Fortschrittsbalken -- nicht mehr als eigene,
+#: separat verwaltete ``<p>`` daneben (die fruehere Trennung erzeugte das
+#: negative Margin, das Birk als Ueberlappung sah). Karte W tauscht die
+#: ganze ``<details id="roadmap">`` nach einem Phasenklick per
+#: ``outerHTML`` aus (/teil/roadmap); ein Kind davon wuerde dabei mitgehen.
+#: Deshalb beobachtet diese Funktion wie zuvor den ELTERNKNOTEN von
+#: ``#roadmap`` (nicht sich selbst) und baut Balken UND "Next up"-Zeile bei
+#: jedem Tausch neu -- dasselbe Prinzip wie vorher, jetzt fuer beide Teile
+#: in einem Durchlauf statt in zwei getrennten Beobachtern mit zwei
+#: unterschiedlichen Lebensdauern.
+#:
+#: "Next up" ist die erste noch nicht erledigte Aufgabe der aktiven Phase
+#: (offen oder laufend -- wortgleich, ohne das Zeichen davor); ist die
+#: Phase durch, die naechste Phase; gibt es keine, steht nichts da (eine
+#: Zeile "nichts mehr" waere Laerm). Kein neuer Schluessel, kein Endpunkt.
+#: Text nur ueber ``textContent``. Im Interview blendet ``_INTERVIEW`` sie
+#: aus (``#roadmap`` ist dort ohnehin ganz verborgen).
 _JS_FORTSCHRITT = """
   (function fortschritt() {
     var erste = el('roadmap');
     if (!erste) { return; }
-    // Karte W tauscht die Aktfolge nach einem Phasenklick per outerHTML
-    // aus (/teil/roadmap) -- Akt-Marke und Lichter waren danach weg
-    // (Review an 834edbf, im Akte-Bild sichtbar). Deshalb: dekorieren,
-    // und jede neue #roadmap im selben Elternknoten erneut dekorieren.
-    // Der Vergleich in W laeuft gegen den Server-Text, nicht gegen das
-    // DOM -- das erneute Dekorieren loest also keinen Tausch aus.
     var eltern = erste.parentNode;
     var dekoriere = function () {
       var roadmap = el('roadmap');
@@ -1512,6 +1530,33 @@ _JS_FORTSCHRITT = """
       new MutationObserver(dekoriere).observe(eltern, { childList: true });
     }
     dekoriere();
+
+    // Funktionsdeklaration, nicht ``var = function``: ``dekoriere()``
+    // direkt oben ruft ``schmuecke()`` SYNCHRON, bevor eine
+    // ``var``-Zuweisung weiter unten im selben Durchlauf ausgefuehrt
+    // waere -- eine Deklaration wird dagegen vollstaendig gehoben (wie
+    // ``schmuecke`` selbst), sonst wirft der erste Dekorationsdurchlauf
+    // "naechstesText is not a function" und "Next up" fehlt auf jeder
+    // frisch geladenen Seite, bis die Roadmap zum ersten Mal getauscht wird.
+    function naechstesText(roadmap) {
+      var aktiv = roadmap.querySelector('.phase.aktiv');
+      if (!aktiv) { return ''; }
+      var offen = aktiv.querySelector('.aufgabe:not(.erledigt)');
+      if (offen) {
+        return (offen.textContent || '').trim().replace(/^\\S+\\s+/, '');
+      }
+      var folgende = aktiv.nextElementSibling;
+      while (folgende && !folgende.classList.contains('phase')) {
+        folgende = folgende.nextElementSibling;
+      }
+      var name = function (phase) {
+        var k = phase.querySelector('.phase-knopf, .phase-name');
+        return k ? (k.dataset.bezeichnung || k.textContent || '').trim() : '';
+      };
+      var bez = folgende ? name(folgende) : '';
+      return bez ? (TEXTE.naechste_phase || '{bezeichnung}')
+        .replace('{bezeichnung}', bez) : '';
+    }
 
     function schmuecke(roadmap) {
     var summary = roadmap.querySelector('summary');
@@ -1537,87 +1582,23 @@ _JS_FORTSCHRITT = """
     }
     summary.appendChild(balken);
 
-    // Die Akt-Beschriftung VOR den Text von Karte W, nicht statt ihm:
-    // dort steht "Phase 3 von 7 · Interviews — 1/3", und das ist die
-    // Wahrheit aus der Datenbank.
-    var aktiv = roadmap.querySelector('.phase.aktiv');
-    if (aktiv && TEXTE.akt_kopf) {
-      var marke = document.createElement('b');
-      marke.className = 'ux-akt';
-      marke.textContent = TEXTE.akt_kopf
-        .replace('{nummer}', (Array.prototype.indexOf.call(phasen, aktiv) + 1))
-        .replace('{gesamt}', phasen.length);
-      summary.insertBefore(marke, summary.firstChild);
-    }
-    }
-  })();
-"""
-
-
-#: Baustein 2b: was als Naechstes kommt (P2, Aufgabe 2, Punkt 2).
-#:
-#: Birk: "die wichtigen sachen auf einen blick". Wo die Gruppe steht, sagt
-#: die Aktzeile; was als Naechstes kommt, stand nur in der zugeklappten
-#: Aktfolge. Diese Zeile holt es darunter -- ueber der Tableiste, also auf
-#: jedem Tab im ersten Blick.
-#:
-#: **Nur aus dem DOM, wie ``_JS_FORTSCHRITT``**: die erste noch nicht
-#: erledigte Aufgabe der aktiven Phase (offen oder laufend -- wortgleich,
-#: ohne das Zeichen davor); ist die Phase durch, die naechste Phase; gibt
-#: es keine, steht nichts da (eine Zeile "nichts mehr" waere Laerm). Kein
-#: neuer Schluessel, kein Endpunkt. Die Zeile steht NEBEN ``#roadmap``,
-#: nicht darin: Karte W tauscht ``#roadmap`` per ``outerHTML`` aus
-#: (/teil/roadmap), ein Kind darin waere danach weg. Nach dem Tausch rechnet
-#: der Beobachter am Elternknoten die Zeile neu. Text nur ueber
-#: ``textContent``. Im Interview blendet ``_INTERVIEW`` sie aus.
-_JS_NAECHSTES = """
-  (function naechstes() {
-    var erste = el('roadmap');
-    if (!erste || !erste.parentNode || !TEXTE.naechstes) { return; }
-    var eltern = erste.parentNode;
-    var zeile = document.createElement('p');
-    zeile.id = 'ux-naechstes';
-    zeile.hidden = true;
-    eltern.insertBefore(zeile, erste.nextSibling);
-    var zuletzt = null;
-
-    var name = function (phase) {
-      var k = phase.querySelector('.phase-knopf, .phase-name');
-      return k ? (k.dataset.bezeichnung || k.textContent || '').trim() : '';
-    };
-    var was = function (roadmap) {
-      var aktiv = roadmap.querySelector('.phase.aktiv');
-      if (!aktiv) { return ''; }
-      var offen = aktiv.querySelector('.aufgabe:not(.erledigt)');
-      if (offen) {
-        return (offen.textContent || '').trim().replace(/^\\S+\\s+/, '');
-      }
-      var folgende = aktiv.nextElementSibling;
-      while (folgende && !folgende.classList.contains('phase')) {
-        folgende = folgende.nextElementSibling;
-      }
-      var bez = folgende ? name(folgende) : '';
-      return bez ? (TEXTE.naechste_phase || '{bezeichnung}')
-        .replace('{bezeichnung}', bez) : '';
-    };
-    var rechne = function () {
-      var roadmap = el('roadmap');
-      var sache = roadmap ? was(roadmap) : '';
-      if (sache === zuletzt) { return; }
-      zuletzt = sache;
-      while (zeile.firstChild) { zeile.removeChild(zeile.firstChild); }
+    if (TEXTE.naechstes) {
+      var sache = naechstesText(roadmap);
+      var zeile = document.createElement('p');
+      zeile.id = 'ux-naechstes';
       zeile.hidden = !sache;
-      if (!sache) { return; }
-      var teile = TEXTE.naechstes.split('{was}');
-      zeile.appendChild(document.createTextNode(teile[0] || ''));
-      var b = document.createElement('b');
-      b.textContent = sache;
-      zeile.appendChild(b);
-      zeile.appendChild(document.createTextNode(teile.slice(1).join('')));
-      zeile.title = zeile.textContent;
-    };
-    new MutationObserver(rechne).observe(eltern, { childList: true });
-    rechne();
+      if (sache) {
+        var teile = TEXTE.naechstes.split('{was}');
+        zeile.appendChild(document.createTextNode(teile[0] || ''));
+        var b = document.createElement('b');
+        b.textContent = sache;
+        zeile.appendChild(b);
+        zeile.appendChild(document.createTextNode(teile.slice(1).join('')));
+        zeile.title = zeile.textContent;
+      }
+      summary.appendChild(zeile);
+    }
+    }
   })();
 """
 
@@ -1970,7 +1951,7 @@ def skript(name: str | None = None, *, chat_vorhanden: bool = True) -> str:
     gewaehlt = name or entwurf()
     takt = TOKENS[gewaehlt]["takt-moment"].removesuffix("ms")
     bausteine = (_BAUSTEINE if chat_vorhanden
-                 else (_JS_DENKT + _JS_FORTSCHRITT + _JS_NAECHSTES))
+                 else (_JS_DENKT + _JS_FORTSCHRITT))
     return (
         _GESTALT_JS
         .replace("__TAKT_MOMENT__", takt)
@@ -1980,13 +1961,14 @@ def skript(name: str | None = None, *, chat_vorhanden: bool = True) -> str:
     )
 
 
-#: Baustein 1 (Denk-Zustand, Aufgabe 5), Baustein 2 (Fortschritt, Aufgabe 7),
-#: Baustein 3 (Aufnahmeknoepfe, Aufgabe 8) und Baustein 4 (Momente,
-#: Aufgabe 9) -- alle vier Bausteine sind damit gefuellt.
+#: Baustein 1 (Denk-Zustand, Aufgabe 5), Baustein 2 (Fortschritt + "Als
+#: Naechstes", Aufgabe 7 / P2 Aufgabe 2 -- seit der Kopfzeilen-Karte
+#: zusammengelegt), Baustein 3 (Aufnahmeknoepfe, Aufgabe 8) und Baustein 4
+#: (Momente, Aufgabe 9) -- alle vier Bausteine sind damit gefuellt.
 #: Baustein 5 (Interview-Modus, P2 Aufgabe 2) haengt am Chat-Panel wie
-#: Baustein 3 und faellt ohne Chat deshalb mit ihm weg. Baustein 2b
-#: ("Als Naechstes", P2 Aufgabe 2) braucht nur ``#roadmap`` und bleibt.
-_BAUSTEINE = (_JS_DENKT + _JS_FORTSCHRITT + _JS_NAECHSTES + _JS_AUFNAHME
+#: Baustein 3 und faellt ohne Chat deshalb mit ihm weg. Baustein 2 braucht
+#: nur ``#roadmap`` und bleibt in jedem Fall (siehe ``skript()`` oben).
+_BAUSTEINE = (_JS_DENKT + _JS_FORTSCHRITT + _JS_AUFNAHME
               + _JS_MOMENT + _JS_INTERVIEW)
 
 
@@ -2006,7 +1988,6 @@ def _mikrotexte() -> dict[str, str]:
         "rec_laedt": T._TEXT_REC_LAEDT,
         "rec_pausiert": T._TEXT_REC_PAUSIERT,
         "leitfaden": T._TEXT_LEITFADEN,
-        "akt_kopf": T._TEXT_AKT_KOPF,
         "naechstes": T._TEXT_NAECHSTES,
         "naechste_phase": T._TEXT_NAECHSTE_PHASE,
         "belohnung_akt": T._TEXT_BELOHNUNG_AKT,

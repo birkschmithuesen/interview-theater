@@ -122,7 +122,6 @@ BLEIBT_DEUTSCH = {
     "web_gestalt._BAUSTEINE": "JavaScript, Texte kommen aus TEXTE",
     "web_gestalt._JS_DENKT": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._JS_FORTSCHRITT": "JavaScript, nur Kommentare deutsch",
-    "web_gestalt._JS_NAECHSTES": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._JS_AUFNAHME": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._JS_MOMENT": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._JS_INTERVIEW": "JavaScript, nur Kommentare deutsch",
